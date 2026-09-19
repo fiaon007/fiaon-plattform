@@ -422,6 +422,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    und die Office-Routen dazu unter /agent/global (zuständige Person, Vertriebsleitung, Chef).
   const fiaonGlobalBereichRoutes = await import('./routes/fiaon-global-bereich');
   app.use('/api/fiaon', fiaonGlobalBereichRoutes.default);
+  // 🛰️ Firmen-Radar (19.09.2026): täglich 50 passende Firmen, Scan der Website, persönliche erste Mail —
+  //    nur im Chefbüro (Stufe Geschäftsführung), nie im Office. Tageslauf stündlich 6–20 Uhr bis zum Tagesziel.
+  const fiaonRadarRoutes = await import('./routes/fiaon-radar');
+  app.use('/api/fiaon', fiaonRadarRoutes.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });
+  });
   // Tageslauf dazu: Erinnerungen aus dem Pflichtenkalender, monatlicher Durchgang, Nachfassen bei
   // fehlenden Unterlagen. Stündlicher Takt; der Lauf arbeitet nur zwischen 8 und 20 Uhr Berliner Zeit
   // und ist über Marken und Aufgaben-Schlüssel wiederholbar (Begründung an globalTageslauf).

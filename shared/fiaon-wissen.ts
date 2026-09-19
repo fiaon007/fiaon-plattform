@@ -10,7 +10,7 @@
 import { PAKETE, SCHUFA_PREIS_EURO } from "./fiaon-pakete";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK,
-  globalKatalog, globalPreisText, globalPlanungText, GLOBAL_JAHRESBETREUUNG,
+  globalKatalog, globalPreisText, globalPlanungText, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI,
 } from "./fiaon-global";
 import { AGENDA } from "./fiaon-onboarding-agenda";
 import { FIAON_FIRMA } from "./fiaon-firma";
@@ -71,6 +71,7 @@ Vier Pakete, jedes ein EINMALPREIS. Es gibt keine Monatsraten und keine Mindestl
 ${tafeln}
 Jahresbetreuung ab dem zweiten Jahr (seit 19.09.2026, freiwillig, im Auftrag ankreuzbar): ${GLOBAL_JAHRESBETREUUNG.de.kurz} Enthalten: ${GLOBAL_JAHRESBETREUUNG.de.leistungen.join("; ")}. ${GLOBAL_JAHRESBETREUUNG.de.bedingungen}
 Der Kapitalrahmen in US-Dollar (bis 18.09.2026 „Planungsgröße“) ist der Rahmen, den der KUNDE anstrebt — an ihm richten sich Dauer und Tiefe der Betreuung aus. Er ist kein Ergebnis und keine Zusage von FIAON, auch beim VIP-Paket („bis zu 1.000.000 $“) nicht; über jeden Rahmen entscheidet das Institut. Dauern sind Erfahrungswerte („in der Regel"), nie Fristen.
+Das Kapital ist nicht an die USA gebunden (Justin, 19.09.2026): ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Fragt jemand „${GLOBAL_KAPITAL_FREI.de.frage}“, lautet die Antwort: ${GLOBAL_KAPITAL_FREI.de.antwort} Nenne diesen Vorteil nie ohne beide Bedingungen — das Institut entscheidet über Rahmen und Bedingungen, der Partner-Steuerberater klärt die steuerliche Behandlung vorab — und nenne das Kapital nie steuerfrei.
 Wer entscheidet: Über Konto, Karte und Rahmen entscheidet allein das jeweilige US-Institut. ${GLOBAL_ROLLEN.de.fiaon} FIAON vermittelt keine Kredite. Nenne keine Banknamen als Zusage, keine Zinssätze, kein „bis zu" und keine Frist mit Zahl.
 Steuer und Recht: ${GLOBAL_ROLLEN.de.partner} ${GLOBAL_ROLLEN.de.kosten} Steuerliche oder rechtliche Einzelfragen beantwortet FIAON nicht — dafür sind die Steuerberater und Anwälte mit eigenem Mandat da.
 Pflichthinweise (immer nennen, wenn es um Steuern, Meldungen oder Haftung geht):

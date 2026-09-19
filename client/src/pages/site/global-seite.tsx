@@ -497,7 +497,8 @@ export function Standorte() {
 
 // ── Der Paket-Finder ─────────────────────────────────────────────────────────
 const FRAGEN_FINDER: { frage: string; hilfe: string; kurz: string; antworten: { titel: string; text: string; stufe: 0 | 1 | 2 | 3 }[] }[] = [
-  { kurz: "Ziel", frage: "Was ist Ihr Ziel in den USA?", hilfe: "Wählen Sie, was dem Vorhaben am nächsten kommt.", antworten: [
+  // 19.09.2026: „mit der US-Gesellschaft" statt „in den USA" — das Kapital ist nicht an die USA gebunden. Deckungsgleich mit preise.ts (Merkblatt).
+  { kurz: "Ziel", frage: "Was ist Ihr Ziel mit der US-Gesellschaft?", hilfe: "Wählen Sie, was dem Vorhaben am nächsten kommt.", antworten: [
     { titel: "Eine US-Gesellschaft mit Steuernummern", text: "Gründung, EIN, ITIN, Adresse — und der erste Konto- und Kartenantrag.", stufe: 0 },
     { titel: "Gesellschaft, Konto und weitere Karten", text: "Nach der ersten Karte planvoll weitere Herausgeber gewinnen.", stufe: 1 },
     { titel: "Kapital aufbauen bis zum Bankdarlehen", text: "Über mehrere Herausgeber bis zur Kennzahlen-Mappe.", stufe: 2 },

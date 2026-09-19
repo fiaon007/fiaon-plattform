@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";
-import { GLOBAL_JAHRESBETREUUNG } from "../shared/fiaon-global";
+import { GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI } from "../shared/fiaon-global";
 import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 
 const WURZEL = path.resolve(import.meta.dirname ?? ".", "..");
@@ -58,6 +58,8 @@ for (const m of seo.matchAll(/\n    en: \{[\s\S]*?\n    \},/g)) pruefeText(m[0],
 for (const m of seo.matchAll(/export const SEO_WERKZEUGE_EN[\s\S]*?\n\];/g)) pruefeText(m[0], "shared/fiaon-seo-seiten.ts (SEO_WERKZEUGE_EN)", treffer);
 // E-196 (19.09.2026): Jahresbetreuung und Nachrichtenlage stehen nicht in i18n — hier mitgeprüft.
 pruefeText(Object.values(GLOBAL_JAHRESBETREUUNG.en).flat().filter((x): x is string => typeof x === "string").join("\n"), "shared/fiaon-global.ts (GLOBAL_JAHRESBETREUUNG.en)", treffer);
+// 19.09.2026 (Justin): „Das Kapital ist nicht an die USA gebunden" — die englischen Felder der einen Quelle.
+pruefeText(Object.values(GLOBAL_KAPITAL_FREI.en).join("\n"), "shared/fiaon-global.ts (GLOBAL_KAPITAL_FREI.en)", treffer);
 for (const m of GLOBAL_SCHLAGZEILEN.meldungen) pruefeText(`${m.en}\n${m.kurzEn}`, "shared/fiaon-global-schlagzeilen.ts", treffer);
 
 if (treffer.length) {

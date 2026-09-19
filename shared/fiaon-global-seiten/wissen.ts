@@ -5,8 +5,11 @@
 // gmbh", „form 5472", „welcher bundesstaat", „llc seriös") — ehrlich, mit
 // Quellen, ohne Steuerversprechen. Autor ist die Redaktion von FIAON Global;
 // keine erfundene Person (bei Geld- und Steuerthemen zählt, wer spricht).
+// Seit 19.09.2026 (Justin): Die US-Gesellschaft ist ein Werkzeug für Geschäft in
+// den USA UND für Kapital, das nicht an die USA gebunden ist (GLOBAL_KAPITAL_FREI)
+// — ein Steuermodell ist sie weiterhin nicht.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "../fiaon-global";
 import { GLOBAL_VERBUNDEN } from "../fiaon-global-partner";
 import { FAKTEN_STAND, IRS, QUELLEN_IRS, QUELLEN_STAATEN, STAAT } from "./fakten";
 import type { GlobalSeite } from "./typen";
@@ -49,7 +52,7 @@ export const WISSEN: GlobalSeite[] = [
       ["Anbieter", "Woran Sie seriöse Begleitung erkennen"],
       ["Redaktion", "FIAON Global — Quellen am Ende jedes Beitrags"],
     ],
-    kurz: "Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft in den USA — kein Steuermodell. Wer sie aus Deutschland, Österreich oder der Schweiz führt, versteuert sie in der Regel zu Hause, meldet sie dem Finanzamt und gibt in den USA jährlich Form 5472 ab. Die Beiträge hier erklären, was das im Einzelnen bedeutet.",
+    kurz: `Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft in den USA und für den Aufbau von Kapital — kein Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Wer die Gesellschaft aus Deutschland, Österreich oder der Schweiz führt, versteuert sie in der Regel zu Hause, meldet sie dem Finanzamt und gibt in den USA jährlich Form 5472 ab. Die Beiträge hier erklären, was das im Einzelnen bedeutet.`,
     bloecke: [
       {
         typ: "verzeichnis", id: "beitraege", h2: "Die Beiträge",
@@ -108,9 +111,10 @@ export const WISSEN: GlobalSeite[] = [
       ["Schweiz", "Sitz oder tatsächliche Verwaltung (Art. 50 DBG)"],
       ["USA", "Meldepflicht Form 5472 auch ohne Umsatz"],
       ["Wofür sie taugt", "Geschäft, Konto, Karten und Verträge in den USA"],
+      ["Kapital", GLOBAL_KAPITAL_FREI.de.kurz],
       ["Prüfung", "Vor jeder Gründung durch unseren Partner-Steuerberater"],
     ],
-    kurz: "In der Regel nicht. Eine US-LLC, die ein Unternehmer von Deutschland, Österreich oder der Schweiz aus führt, hat dort ihren Ort der Geschäftsleitung beziehungsweise ihre tatsächliche Verwaltung und ist dort steuerpflichtig. Dazu kommen Meldepflichten in beiden Ländern. Eine US-Gesellschaft lohnt sich für echtes Geschäft in den USA — nicht, um Steuern zu vermeiden.",
+    kurz: `In der Regel nicht. Eine US-LLC, die ein Unternehmer von Deutschland, Österreich oder der Schweiz aus führt, hat dort ihren Ort der Geschäftsleitung beziehungsweise ihre tatsächliche Verwaltung und ist dort steuerpflichtig. Dazu kommen Meldepflichten in beiden Ländern. Eine US-Gesellschaft lohnt sich für echtes Geschäft in den USA und für den Aufbau von Kapital — nicht, um Steuern zu vermeiden. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`,
     bloecke: [
       {
         typ: "text", id: "mythos", h2: "Woher das Versprechen kommt",
@@ -146,9 +150,10 @@ export const WISSEN: GlobalSeite[] = [
         fuss: ["Vereinfachte Übersicht; im Einzelfall entscheiden Tätigkeit, Rechtsform und Doppelbesteuerungsabkommen."],
       },
       {
-        typ: "karten", id: "wofuer", h2: "Wofür eine US-Gesellschaft gut ist", spalten: 2,
+        typ: "karten", id: "wofuer", h2: "Wofür eine US-Gesellschaft gut ist", spalten: 3,
         karten: [
           { tag: "Gut für", titel: "Geschäft in den USA", text: "Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung, eine eigene Kartenhistorie in den USA." },
+          { tag: "Gut für", titel: "Kapitalaufbau — auch für Europa", text: `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
           { tag: "Nicht gut für", titel: "Steuern zu Hause vermeiden", text: "Wird sie von zu Hause geführt, ist sie dort in der Regel steuerpflichtig. Wer „steuerfrei“ verspricht, verschweigt den Ort der Geschäftsleitung." },
         ],
       },
@@ -165,7 +170,7 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Muss ich meine US-LLC in Deutschland versteuern?", a: "Wenn Sie sie von Deutschland aus führen, in der Regel ja: Der Ort der Geschäftsleitung liegt dann in Deutschland (§ 10 AO). Wie das Finanzamt die LLC einordnet, entscheidet ein Typenvergleich." },
       { f: "Ist eine Wyoming-LLC steuerfrei?", a: "Wyoming erhebt keine eigene Körperschaftsteuer. Steuerpflichtig ist die Gesellschaft aber dort, wo sie geführt wird — für Unternehmer aus Deutschland, Österreich oder der Schweiz in der Regel zu Hause." },
       { f: "Warum werben so viele mit einer steuerfreien LLC?", a: "Weil eine LLC mit ausländischem Gesellschafter in den USA oft keine Bundessteuer zahlt. Das stimmt für die USA, sagt aber nichts über die Steuerpflicht im Heimatland — und die hängt am Ort der Geschäftsleitung." },
-      { f: "Wofür lohnt sich eine US-Gesellschaft dann?", a: "Für echtes Geschäft in den USA: Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung und eine eigene Kartenhistorie in den USA." },
+      { f: "Wofür lohnt sich eine US-Gesellschaft dann?", a: `Für echtes Geschäft in den USA — Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung, eine eigene Kartenhistorie — und für den Aufbau von Kapital. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
     ],
     weiter: ["/business/aus-deutschland", "/business/aus-der-schweiz", "/business/wissen/form-5472", "/business/wissen/anbieter-pruefen"],
     quellen: [QUELLE_AO10, QUELLE_KSTG1, QUELLE_BMF, QUELLE_ASTG, QUELLE_AO138, QUELLE_DBG50, QUELLEN_IRS[4]],

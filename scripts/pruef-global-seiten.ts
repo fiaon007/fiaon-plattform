@@ -45,7 +45,7 @@ import { SEO_SEITEN, seoFragen, seoIndexierbar } from "../shared/fiaon-seo-seite
 import "../server/lib/fiaon-global-seo";
 import { istBusinessBereich, mitBereich } from "../client/src/lib/bereich";
 import { GLOBAL_WOERTER } from "../client/src/i18n/global";
-import { GLOBAL_JAHRESBETREUUNG, globalJahresbetreuungPreisText } from "../shared/fiaon-global";
+import { GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalJahresbetreuungPreisText } from "../shared/fiaon-global";
 import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
 
@@ -349,6 +349,55 @@ abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
     const funde = globalWortPruefen([x.de, x.kurzDe].join("\n")).concat(globalWortPruefen([x.en, x.kurzEn].join("\n")));
     ok(funde.length === 0, `Schlagzeile verletzt die Wortregeln (${funde.map((y) => y.treffer).join(", ")}): ${x.de}`);
   }
+}
+
+// ═══ 10: DAS KAPITAL IST NICHT AN DIE USA GEBUNDEN (19.09.2026, Justin) ═══════
+// „Das Kapital muss NICHT in den USA ausgegeben werden — man kann es auch nach Europa überweisen
+// oder in Europa Investitionen tätigen. Ändere das ÜBERALL." Eine Quelle: GLOBAL_KAPITAL_FREI.
+// Wörtlich kopiert steht sie nur in den FAQ von /business (reine Zeichenketten fürs FAQ-Markup) —
+// dieser Block hält die Kopie gleich. Wo der Satz steht, steht der Steuersatz daneben; auf den
+// Anzeigen-Landingpages steht er nie (Google-Ads-Richtlinie, Abschnitt 5).
+abschnitt("Kapital auch in Europa (GLOBAL_KAPITAL_FREI)");
+{
+  for (const sp of ["de", "en"] as const) {
+    const k = GLOBAL_KAPITAL_FREI[sp];
+    const funde = globalWortPruefen([k.kurz, k.satz, k.steuer, k.frage, k.antwort].join("\n"));
+    ok(funde.length === 0, `GLOBAL_KAPITAL_FREI.${sp} verletzt die Wortregeln: ${funde.map((x) => x.treffer).join(", ")}`);
+    // Die zwei ehrlichen Sätze: Rahmen und Bedingungen setzt das Institut, die Steuer klärt der Partner-Steuerberater vorab.
+    const institut = sp === "de" ? /Institut/ : /institution/;
+    const berater = sp === "de" ? /Partner-Steuerberater/ : /partner tax adviser/;
+    ok(institut.test(k.satz) && berater.test(k.steuer) && institut.test(k.antwort) && berater.test(k.antwort), `GLOBAL_KAPITAL_FREI.${sp}: Institut oder Partner-Steuerberater fehlt in Satz, Steuersatz oder Antwort`);
+    // /business trägt die Frage wortgleich — als reine Zeichenkette, sonst fehlt sie im FAQ-Markup.
+    const faq = GLOBAL_WOERTER[sp].fragen.find((x) => x.f === k.frage);
+    ok(!!faq && faq.a === k.antwort, `/business (${sp}): Frage „${k.frage}“ fehlt oder weicht von GLOBAL_KAPITAL_FREI.${sp} ab`);
+    const markup = seoFragen(sp === "de" ? "/business" : "/en/business");
+    ok(markup.some((x) => x.f === k.frage && x.a === k.antwort), `FAQ-Markup ${sp === "de" ? "/business" : "/en/business"}: Frage zum Kapital fehlt — npx tsx scripts/seo-fragen-erzeugen.ts`);
+  }
+  // Die Hauptseite liest die Quelle: am Kapitalrahmen im Kopf (mit Fußnote) und unter den Pakettafeln.
+  const kopf = hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'));
+  ok(/GLOBAL_KAPITAL_FREI\[s\]/.test(hubSeite) && /\{frei\.kurz\}/.test(kopf) && /\{frei\.satz\} \{frei\.steuer\}/.test(kopf), "/business: der Hinweis am Kapitalrahmen oder seine Fußnote (GLOBAL_KAPITAL_FREI) fehlt im Kopf");
+  const tafelnFuss = hubSeite.slice(hubSeite.indexOf('className="fg-paket-fuss"'), hubSeite.indexOf('className="fg-inkl"'));
+  ok(/fg-paket-europa/.test(tafelnFuss) && /\{frei\.satz\} \{frei\.steuer\}/.test(tafelnFuss), "/business: die Zeile unter den Pakettafeln (GLOBAL_KAPITAL_FREI) fehlt");
+  // Die Unterseiten, auf denen Kapital Thema ist, tragen die Frage — von Firmenkarten und Kapital sammelt sie die Fragen-Seite.
+  for (const pfad of ["/business/firmenkarten-kapital", "/business/privatpersonen", "/business/bau-immobilien"]) {
+    const seite = GLOBAL_SEITEN.find((x) => x.pfad === pfad);
+    ok(!!seite?.fragen.some((x) => x.f === GLOBAL_KAPITAL_FREI.de.frage && x.a === GLOBAL_KAPITAL_FREI.de.antwort), `${pfad}: die Frage zum Kapital fehlt oder weicht von GLOBAL_KAPITAL_FREI ab`);
+  }
+  const sammlung = GLOBAL_SEITEN.find((x) => x.pfad === "/business/fragen");
+  ok(!!sammlung?.bloecke.some((b) => b.typ === "fragen" && b.fragen.some((x) => x.f === GLOBAL_KAPITAL_FREI.de.frage)), "/business/fragen: die Frage zum Kapital fehlt");
+  // Wo der Satz auf einer Unterseite steht, steht der Steuersatz mindestens ebenso oft (die Institut-Bedingung steckt im Satz).
+  for (const s of GLOBAL_SEITEN) {
+    const text = JSON.stringify(s);
+    const saetze = text.split(GLOBAL_KAPITAL_FREI.de.satz).length - 1;
+    const steuer = text.split(GLOBAL_KAPITAL_FREI.de.steuer).length - 1;
+    ok(steuer >= saetze, `${s.pfad}: „${GLOBAL_KAPITAL_FREI.de.satz.slice(0, 40)}…“ ${saetze}× ohne den Satz zum Partner-Steuerberater (${steuer}×)`);
+  }
+  // Nie auf den Anzeigen-Landingpages — weder im Register noch in der Seite selbst.
+  const lpTexte = JSON.stringify(LANDINGPAGES);
+  const lpFund = [...Object.values(GLOBAL_KAPITAL_FREI.de), ...Object.values(GLOBAL_KAPITAL_FREI.en)].find((x) => lpTexte.includes(x))
+    ?? lpTexte.match(/nach Europa überweisen|in Europa investieren|in Europa einsetzbar|nicht an die USA gebunden/i)?.[0];
+  ok(!lpFund, `Landingpages: der Kapital-Satz steht auf einer Anzeigenseite („${String(lpFund).slice(0, 50)}“)`);
+  ok(!/GLOBAL_KAPITAL_FREI/.test(lpQuelle), "global-lp.tsx liest GLOBAL_KAPITAL_FREI — der Satz gehört nicht auf die Anzeigenseiten");
 }
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════

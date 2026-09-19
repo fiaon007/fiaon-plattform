@@ -6,9 +6,12 @@
 // geklärt ist (E-187) — bis dahin nennen die Seiten Österreich nur allgemein.
 //
 // Jede Seite sagt ehrlich, wann eine US-Gesellschaft passt — und wann nicht.
-// Kein Steuerversprechen, keine Zahl ohne Quelle, kein Bankname.
+// Kein Steuerversprechen, keine Zahl ohne Quelle, kein Bankname. Die Seiten zu
+// Tochter, Handel und Agenturen beschreiben US-Geschäft; wo Kapital Thema ist
+// (Bau und Immobilien), steht seit 19.09.2026 dazu, dass es nicht an die USA
+// gebunden ist (GLOBAL_KAPITAL_FREI, Justin).
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PFLICHTHINWEIS, globalPreisText, globalPlanungText } from "../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPreisText, globalPlanungText } from "../fiaon-global";
 import type { GlobalSeite } from "./typen";
 
 const S = "2026-09-19";
@@ -278,6 +281,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     fragen: [
       { f: "Brauche ich für jedes Projekt eine eigene Gesellschaft?", a: "Üblich ist es: Eine Gesellschaft je Projekt trennt Haftung und Zahlen und erleichtert Finanzierung und Verkauf. Ob es in Ihrem Fall passt, klären wir im Startgespräch." },
       { f: "Finanziert FIAON mein Projekt?", a: "Nein. FIAON vergibt keine Kredite und vermittelt keine. Wir bereiten Kennzahlen und Unterlagen für Finanzierungsgespräche vor; entscheiden tut das Institut." },
+      { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
       { f: "Kann ich Termine vor Ort wahrnehmen lassen?", a: "Ja. Unser Team in Miami nimmt Termine bei Behörden und Instituten wahr. Im Paket Global VIP reisen Sie auf Wunsch selbst zum Auftakt an." },
     ],
     paket: "global_kapital",

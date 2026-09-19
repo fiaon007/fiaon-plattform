@@ -53,6 +53,7 @@ const Mailwerk = lazy(() => import("@/components/admin/ChefMailwerk"));
 const Postmeister = lazy(() => import("@/components/admin/ChefPostfach"));
 const Dubletten = lazy(() => import("@/pages/admin-dubletten"));
 const GlobalAuftraege = lazy(() => import("@/components/admin/ChefGlobalAuftraege"));
+const FirmenRadar = lazy(() => import("@/components/admin/ChefRadar"));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
 const Vertraege = lazy(() => import("@/pages/admin-vertraege"));
@@ -135,6 +136,9 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.
   { slug: "global-auftraege", label: "Global-Aufträge", satz: "Firmenaufträge über die US-Struktur: Stand, zuständige Person, Stichtag, Vertrag und Rechnung.", Seite: GlobalAuftraege, raum: "kunden", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
+  // 19.09.2026: Firmen-Radar — täglich 50 passende Firmen, Scan der Website, persönliche erste Mail.
+  // Justin: „aber nicht bei Nikita, Admin!" — deshalb hier und erst ab Geschäftsführung.
+  { slug: "firmen-radar", label: "Firmen-Radar", satz: "Täglich 50 passende Firmen, KI-Scan der Website und eine persönliche erste Mail.", Seite: FirmenRadar, raum: "kunden", mindest: "geschaeftsfuehrung", auch: "radar akquise neukunden firmen b2b global kaltakquise mail leads suche" },
   { slug: "termine", label: "Termin-Zentrale", satz: "Alle Termine aller Mitarbeiter — und wer keinen hat.", Seite: Termine, raum: "kunden" },
   { slug: "lead-automatik", label: "Lead-Automatik", satz: "Nachfass-Maschine: Sendefenster, Bulk-Versand, Verteilung.", Seite: LeadAutomatik, raum: "kunden" },
   { slug: "dubletten", label: "Dubletten", satz: "Mehrfach angelegte Personen zusammenführen — umkehrbar.", Seite: Dubletten, raum: "kunden", auch: "doppelt merge trennen" },

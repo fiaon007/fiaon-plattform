@@ -1043,9 +1043,47 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/firmen-radar (19.09.2026) ────────────────────────────────────────
+export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
+  {
+    titel: "Der Radar findet Firmen, die zu FIAON Global passen.",
+    text: "Jeden Tag sucht er zwischen 6 und 20 Uhr, bis 50 geprüfte Firmen aus Deutschland, Österreich und der Schweiz im Radar stehen. "
+      + "Die KI schlägt vor, der Server prüft: echte Website, Firmenname auf der Seite, lesbares Impressum. Name, Geschäftsführer, "
+      + "E-Mail und Telefon kommen nur aus dem Impressum.",
+    tipp: "Der Ring oben zeigt das Tagesziel. Die KI-Kosten des Tages stehen daneben; über dem Deckel sucht der Radar erst am nächsten Tag weiter.",
+  },
+  {
+    ziel: ".cr-kopf-tun",
+    titel: "Auf Knopfdruck: Bereich wählen, suchen.",
+    text: "„Firmen suchen“ öffnet die zehn Bereiche — vom Onlinehandel bis zu Start-ups mit Kapitalbedarf. Land und Stichwort sind frei. "
+      + "Eine Suche dauert ein bis zwei Minuten und bringt bis zu zehn neue Firmen; was verworfen wurde, steht mit Grund daneben. "
+      + "Eine bestimmte Firma nehmen Sie über ihre Website auf.",
+  },
+  {
+    ziel: ".cr-liste",
+    titel: "Links die Firmen, sortiert nach Passung.",
+    text: "Die Zahl links ist die Einschätzung der KI, wie gut die Firma ins Zielbild passt. „Ohne E-Mail“ heißt: Im Impressum stand keine Adresse — "
+      + "dann bleibt der Anruf oder eine Adresse, die Sie selbst eintragen.",
+  },
+  {
+    titel: "Scannen, dann schreiben.",
+    text: "„Firma scannen“ lässt die KI bis zu acht Seiten lesen und nach Meldungen suchen. Jeder Aufhänger braucht ein wörtliches Zitat, das auf der Seite "
+      + "wirklich steht — sonst fällt er weg. „Mail schreiben“ nutzt nur diese Aufhänger: Sie-Form, kein Kapitalversprechen, Wortwand von FIAON Global. "
+      + "Sie können jeden Satz ändern; die Prüfung läuft danach neu.",
+    tipp: "Verletzt die Mail eine Regel der Wortwand, sperrt der Server Entwurf und Versand, bis der Text passt.",
+  },
+  {
+    titel: "Ausgeben: als Entwurf oder direkt.",
+    text: "„Als Entwurf ins Postfach“ legt die Mail in das gewählte Postfach — dort lesen und senden. „Direkt senden“ fragt vorher nach. "
+      + "Je Firma geht genau eine erste Mail; „Kein Interesse“ und „Sperren“ setzen die Firma auf die Sperrliste — sie taucht nie wieder auf.",
+    tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH eine vorherige Einwilligung. Der Radar schreibt deshalb immer Absender, Impressum und Abmeldesatz dazu.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
+  firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
   global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },
   globalAkte:  { titel: "Global-Akte",  schritte: RUNDGANG_GLOBAL_AKTE },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },

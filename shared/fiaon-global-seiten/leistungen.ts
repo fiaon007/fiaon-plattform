@@ -3,10 +3,12 @@
 // Sechs Seiten, je eine Suchfrage: US-Firmengründung, EIN und ITIN,
 // US-Geschäftskonto, Firmenkarten und Kapital, US-Pflichten, Global VIP Miami.
 // Preise, Kapitalrahmen und Dauer kommen aus shared/fiaon-global.ts — nie als
-// zweite Zahl hier.
+// zweite Zahl hier. Seit 19.09.2026 (Justin): Das Kapital ist nicht an die USA
+// gebunden — die Sätze dazu kommen aus GLOBAL_KAPITAL_FREI, immer mit Institut
+// und Partner-Steuerberater.
 // ═══════════════════════════════════════════════════════════════════════════
 import {
-  GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND, GLOBAL_VIP_REISE, GLOBAL_GELD_ZURUECK,
+  GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND, GLOBAL_VIP_REISE, GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI,
   globalPaket, globalPreisText, globalPlanungText, globalKapitalSpanne,
 } from "../fiaon-global";
 import { GLOBAL_UNTERLAGEN } from "../fiaon-global-bereich";
@@ -52,7 +54,8 @@ export const LEISTUNGEN: GlobalSeite[] = [
         absaetze: [
           "Die Limited Liability Company (LLC) kommt der deutschen GmbH am nächsten: Die Gesellschaft haftet mit ihrem Vermögen, Sie als Gesellschafter grundsätzlich nicht mit Ihrem privaten. Anders als eine GmbH braucht sie kein Mindestkapital und keinen Notartermin; die Satzung heißt Operating Agreement und regelt, wer entscheidet und wem der Gewinn zusteht.",
           "Die Corporation ähnelt eher einer Aktiengesellschaft. Sie passt, wenn Investoren einsteigen sollen, wenn Anteile an Mitarbeiter gehen oder wenn eine US-Bank oder ein Geschäftspartner ausdrücklich eine Corporation erwartet.",
-          "Eine US-Gesellschaft ist kein Steuermodell. Wird sie aus Deutschland, Österreich oder der Schweiz geführt, bleibt sie in der Regel dort steuerpflichtig. Sinnvoll ist sie für Unternehmen, die in den USA verkaufen, einkaufen, Verträge schließen oder dort eine eigene Bank- und Kartenhistorie aufbauen wollen.",
+          "Eine US-Gesellschaft ist kein Steuermodell. Wird sie aus Deutschland, Österreich oder der Schweiz geführt, bleibt sie in der Regel dort steuerpflichtig. Sinnvoll ist sie für Unternehmen, die in den USA verkaufen, einkaufen, Verträge schließen oder dort eine eigene Bank- und Kartenhistorie für ihren Kapitalbedarf aufbauen wollen.",
+          `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`,
         ],
       },
       {
@@ -105,7 +108,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "LLC oder Corporation — was passt zu mir?", a: "Für Handel, Dienstleistung und den Aufbau einer eigenen Kartenhistorie ist die LLC meist die einfachere Form. Eine Corporation passt, wenn Investoren einsteigen oder Mitarbeiter Anteile erhalten sollen. Unser Partner-Steuerberater prüft das vor der Gründung für Ihren Fall." },
       { f: "Wie lange dauert eine US-Firmengründung?", a: `Die Gesellschaft selbst steht in der Regel nach wenigen Wochen. Die Begleitung im Paket Global Struktur dauert als Erfahrungswert rund acht Wochen, weil EIN und ITIN von der US-Steuerbehörde abhängen, die ihre Fristen selbst bestimmt.` },
       { f: "Was kostet eine US-Firmengründung bei FIAON?", a: `Das Paket Global Struktur kostet ${globalPreisText("global_struktur")} einmalig — staatliche Gebühren, Registered Agent, Adresse und Telefon im ersten Jahr, die Honorare von Partner-Anwalt, Partner-Steuerberater und US-CPA inklusive. Ab dem zweiten Jahr fallen die laufenden Kosten der Gesellschaft an; die Aufstellung steht auf der Seite „Kosten“.` },
-      { f: "Ist eine US-Gesellschaft ein Steuermodell?", a: "Nein. Wird die Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, ist sie in der Regel dort steuerpflichtig, und in den USA kommen jährliche Meldepflichten hinzu. Eine US-Gesellschaft lohnt sich für echtes Geschäft in den USA — nicht als Steuermodell." },
+      { f: "Ist eine US-Gesellschaft ein Steuermodell?", a: `Nein. Wird die Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, ist sie in der Regel dort steuerpflichtig, und in den USA kommen jährliche Meldepflichten hinzu. Eine US-Gesellschaft lohnt sich für echtes Geschäft in den USA und für den Aufbau von Kapital — nicht als Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
     ],
     paket: "global_struktur",
     weiter: ["/business/ein-itin", "/business/kosten", "/business/privatpersonen", "/business/wissen/us-llc-steuern"],
@@ -302,7 +305,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     auge: "Leistung · Firmenkarten und Kapital",
     h1: "Firmenkarten und Kapital.",
     h1b: "Schritt für Schritt aufgebaut.",
-    lead: "Kapital in den USA wächst nicht über einen Antrag, sondern über eine Historie: die erste Firmenkarte, pünktliche Abrechnung, weitere Herausgeber in einer klugen Reihenfolge — und später ein mögliches Bankdarlehen. Wir planen die Reihenfolge und bereiten jeden Antrag vor.",
+    lead: "Kapital bei US-Instituten wächst nicht über einen Antrag, sondern über eine Historie: die erste Firmenkarte, pünktliche Abrechnung, weitere Herausgeber in einer klugen Reihenfolge — und später ein mögliches Bankdarlehen. Wir planen die Reihenfolge und bereiten jeden Antrag vor.",
     ziffern: [
       { wert: globalKapitalSpanne(), label: "Kapitalrahmen je Paket — Ihr Ziel, über jeden Rahmen entscheidet das Institut" },
       { wert: "vier Etappen", label: "Gründung, erste Karte, Kartenleiter, Bankdarlehen" },
@@ -313,6 +316,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Erste Karte", "Meist kleiner Rahmen, ohne Bareinlage, mit persönlicher Haftung des Inhabers"],
       ["Kartenleiter", "Weitere Herausgeber nach einigen Monaten pünktlicher Abrechnung"],
       ["Bankdarlehen", "Mit gewachsener Historie — Kennzahlen-Mappe ab Global Kapital"],
+      ["Verwendung", `${GLOBAL_KAPITAL_FREI.de.kurz} — die steuerliche Behandlung klärt unser Partner-Steuerberater vorab`],
       ["FIAON", "Plant, bereitet vor, begleitet — vergibt und vermittelt keine Kredite"],
       ["Entscheidung", "Allein das jeweilige Institut"],
     ],
@@ -337,6 +341,11 @@ export const LEISTUNGEN: GlobalSeite[] = [
         ]),
         hervor: 1,
         fuss: ["Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut."],
+      },
+      // 19.09.2026 — Justin: „Das Kapital muss NICHT in den USA ausgegeben werden." Wortlaut aus GLOBAL_KAPITAL_FREI.
+      {
+        typ: "text", id: "europa", h2: "Einsetzbar in den USA und in Europa",
+        absaetze: [GLOBAL_KAPITAL_FREI.de.satz, GLOBAL_KAPITAL_FREI.de.steuer],
       },
       {
         typ: "text", id: "wovon", h2: "Wovon ein Rahmen abhängt",
@@ -370,6 +379,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     ],
     fragen: [
       { f: "Wie hoch wird mein Kartenrahmen?", a: "Das entscheidet der Herausgeber nach seinen Regeln. Der Kapitalrahmen je Paket ist Ihr Ziel und richtet unsere Begleitung aus — er ist keine Zusage." },
+      { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
       { f: "Brauche ich eine Sicherheit für die erste Firmenkarte?", a: "Die erste Karte gibt es meist ohne Bareinlage, aber mit persönlicher Haftung des Inhabers. Die Haftung ist die Absicherung des Herausgebers." },
       { f: "Vermittelt FIAON Kredite?", a: "Nein. FIAON ist keine Bank, vergibt keine Kredite und vermittelt keine. Wir planen die Reihenfolge, bereiten Anträge und Unterlagen vor und begleiten Sie; entscheiden tut das Institut." },
       { f: `Was bedeutet „${globalPlanungText("global_vip")}“ beim Paket Global VIP?`, a: "Es ist die Obergrenze des Kapitalrahmens, den dieses Paket begleitet — Ihr Ziel, keine Zusage. Über jeden Rahmen entscheidet das jeweilige Institut." },
@@ -520,7 +530,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Wer reist beim Paket Global VIP?", a: "Flug und Hotel für den Auftakt sind für eine von Ihnen benannte Person enthalten. Möchten weitere Personen mitreisen, stimmen wir das vorab gesondert mit Ihnen ab." },
       { f: "Ist das eine Pauschalreise?", a: "Nein. FIAON trägt die Kosten einer Geschäftsreise, die in Ihrem Namen gebucht wird. FIAON ist kein Reiseveranstalter und verkauft keine Reisen." },
       { f: "Wann findet der Auftakt statt?", a: "Nach Zahlungseingang und sobald die Unterlagen vollständig sind. Reisedaten, Flugklasse und Hotel stimmen wir mit Ihnen ab, bevor gebucht wird." },
-      { f: `Was bedeutet der Kapitalrahmen ${globalPlanungText("global_vip")}?`, a: "Er ist die Obergrenze des Kapitalrahmens, den dieses Paket begleitet — Ihr Ziel, keine Zusage. Über jeden Rahmen entscheidet das jeweilige Institut." },
+      { f: `Was bedeutet der Kapitalrahmen ${globalPlanungText("global_vip")}?`, a: `Er ist die Obergrenze des Kapitalrahmens, den dieses Paket begleitet — Ihr Ziel, keine Zusage. Über jeden Rahmen entscheidet das jeweilige Institut. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
       { f: "Brauche ich für die Gründung überhaupt eine Reise?", a: "Nein. Jede Gründung bei FIAON Global läuft auch vollständig aus der Ferne. Global VIP ist die Wahl für Unternehmer, die den Aufbau persönlich erleben wollen." },
     ],
     paket: "global_vip",

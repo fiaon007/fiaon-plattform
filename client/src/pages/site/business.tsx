@@ -32,7 +32,10 @@
 // Pakete) und auf jeder Tafel groß über dem Preis; der Satz „über den Rahmen
 // entscheidet das Institut" steht direkt darunter (Blickfang-Regel). Seit
 // 19.09. steht der Festpreis „ab …" gleich daneben — wer ihn erst am Ende
-// der Seite findet, rechnet mit mehr.
+// der Seite findet, rechnet mit mehr. Ebenfalls seit 19.09. (Justin: „Das
+// Kapital muss NICHT in den USA ausgegeben werden"): am Kapitalrahmen der
+// Hinweis „Auch in Europa einsetzbar" mit Fußnote, unter den Tafeln derselbe
+// Satz — beides aus GLOBAL_KAPITAL_FREI, immer mit Institut und Steuerberater.
 //
 // Preise kommen aus dem Katalog (shared/fiaon-pakete.ts), Leistungen,
 // Inklusivliste, Vergleich und Pflichthinweise aus shared/fiaon-global.ts —
@@ -45,7 +48,7 @@ import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND,
-  GLOBAL_NICHT_INKLUSIVE, GLOBAL_VERGLEICH, globalPaket, globalPreisText, globalPlanungText, globalKapital, globalKapitalSpanne,
+  GLOBAL_NICHT_INKLUSIVE, GLOBAL_VERGLEICH, GLOBAL_KAPITAL_FREI, globalPaket, globalPreisText, globalPlanungText, globalKapital, globalKapitalSpanne,
   type GlobalSchluessel,
 } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
@@ -174,6 +177,11 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
     });
   };
   const geld = GLOBAL_GELD_ZURUECK.aktiv ? GLOBAL_GELD_ZURUECK[s] : null;
+  // 19.09.2026 — Justin: „Das Kapital muss NICHT in den USA ausgegeben werden." Im Kopf steht der kurze
+  // Satz am Kapitalrahmen, die Fußnote nennt beide Bedingungen (Institut, Partner-Steuerberater) — wie bei
+  // „Geld zurück". Ist der Schalter für „Geld zurück" aus, rückt die Fußnote auf die Nummer 1.
+  const frei = GLOBAL_KAPITAL_FREI[s];
+  const nrFrei = geld ? 2 : 1;
   // Wie auf Unterseiten und Landingpages: Jeder Klick auf „beauftragen" zählt (nur mit Einwilligung, lib/werbung.ts).
   const klick = (paket?: string, ort = "") => () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: seitePfad, ort });
   const londonOrt = GLOBAL_STANDORTE.find((o) => o.schluessel === "london");
@@ -193,6 +201,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                   <span>{t.kapitalKopf}</span>
                   <b className="fg-glanz">{globalKapitalSpanne(s)}</b>
                   <em>{t.kapitalKopfZusatz}</em>
+                  <p className="fg-chip fg-kapital-frei"><Haken groesse={12} /><span>{frei.kurz}<sup>{nrFrei}</sup></span></p>
                 </div>
                 <div>
                   <span>{t.preisKopf}</span>
@@ -212,6 +221,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                 {geld && <li><Haken /><span>{geld.kurz}<sup>1</sup></span></li>}
               </ul>
               {geld && <p className="fg-fussnote"><sup>1</sup> {geld.bedingungen}</p>}
+              <p className="fg-fussnote"><sup>{nrFrei}</sup> {frei.satz} {frei.steuer}</p>
             </Auf>
             <Auf verzoegerung={140} className="fg-hero-auftrag">
               <figure className="fg-mandat" aria-label={t.mandatTitel}>
@@ -421,6 +431,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
             </div>
             <button type="button" className="fg-tarif-vergleich" onClick={zumVergleich}>{t.zumVergleich}<Pfeil /></button>
             <div className="fg-paket-fuss">
+              {/* Das Kapital der Tafeln ist nicht an die USA gebunden — mit beiden Bedingungen (GLOBAL_KAPITAL_FREI). */}
+              <p className="fg-paket-europa"><Haken groesse={14} /><span>{frei.satz} {frei.steuer}</span></p>
               <p>
                 {t.vertragVorab} <a href={s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag"}>{t.mustervertragLesen}</a>. {t.perRechnung} {t.kostenHinweis}
               </p>

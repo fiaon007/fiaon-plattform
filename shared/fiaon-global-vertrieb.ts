@@ -20,9 +20,14 @@
 // Preise kommen aus dem Katalog, Leistungs- und Pflichtsätze aus
 // shared/fiaon-global.ts. scripts/pruef-pakete.ts schickt jeden KUNDENSATZ
 // dieser Datei durch die Wortwand (shared/fiaon-wortverbote.ts).
+//
+// 19.09.2026 — Justin: „Das Kapital muss NICHT in den USA ausgegeben werden —
+// man kann es auch nach Europa überweisen oder in Europa investieren." Leitfaden
+// (Einstieg und Einwand), Info-Mail und KI-Vorbereitung sagen das mit den Sätzen
+// aus GLOBAL_KAPITAL_FREI — nie ohne Institut und Partner-Steuerberater.
 // ═══════════════════════════════════════════════════════════════════════════
 import {
-  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK,
+  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI,
   globalKatalog, globalPreisText,
 } from "./fiaon-global";
 import { GLOBAL_GESPRAECH_URL, GLOBAL_SEITE_URL, globalStartUrl } from "./fiaon-global-wege";
@@ -51,23 +56,26 @@ export function globalLeitfaden(): LeitfadenBlock[] {
   return [
     { t: "Der Öffner (10 Sekunden)", s: [
       k("„Guten Tag, [Name] von FIAON — ich halte Sie kurz: Wir bauen für Unternehmen aus Deutschland, Österreich und der Schweiz die US-Gesellschaft auf — Gründung, Steuernummern, Bank- und Kartenbeziehung, mit einem eigenen Team vor Ort in den USA. Darf ich Ihnen in einem Satz sagen, für wen das passt?“"),
-      k("„Es passt zu Betrieben, die in den USA Kunden, Lieferanten, Projekte oder Kapitalbedarf haben — und zu Inhabern, die ein zweites Standbein mit eigener Bank- und Kartenhistorie aufbauen wollen.“"),
+      k("„Es passt zu Betrieben mit Kunden, Lieferanten oder Projekten in den USA, zu Unternehmen mit Kapitalbedarf — und zu Inhabern, die ein zweites Standbein mit eigener Bank- und Kartenhistorie aufbauen wollen.“"),
     ]},
-    { t: "Drei Einstiege (den passenden wählen)", s: [
+    { t: "Vier Einstiege (den passenden wählen)", s: [
       k("US-BEZUG: „Haben Sie heute schon Kunden, Lieferanten oder Werbekonten in den USA — und wickeln Sie das alles über Ihr Konto hier ab?“"),
       k("ZWEITES STANDBEIN: „Eine US-Gesellschaft baut ihre eigene Historie bei US-Instituten auf. Das braucht Monate, nicht Tage — deshalb fängt man an, bevor man sie braucht.“"),
       k("AUS EINER HAND: „Hinter so einer Struktur stehen Gründungsagenten, Steuerberater, Anwälte und Banken. Bei uns führen Sie ein Gespräch, nicht zwölf — ein Ansprechpartner koordiniert alle.“"),
+      k(`KAPITAL FÜR EUROPA: „Planen Sie Investitionen hier — in Ihr Unternehmen oder in neue Projekte? ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}“`),
     ]},
     { t: "Was FIAON Global konkret tut (ehrlich, ohne Übertreibung)", s: [
       k("„Wir gründen die Gesellschaft mit unserem Team vor Ort, bereiten EIN und ITIN vor und reichen sie ein, stellen US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum — und bereiten jeden Konto- und Kartenantrag vollständig vor.“"),
       intern("NIE zusagen oder andeuten: eine Karte, ein Konto, einen Rahmen oder Dollarbetrag, einen Zinssatz, eine Frist, eine Steuerersparnis, ein Darlehen. KEINE Banknamen. Die Dollar-Zahl am Paket ist der Kapitalrahmen, den der Kunde anstrebt — kein Ergebnis, auch beim VIP-Paket („bis zu 1.000.000 $“) nicht. Über Konto, Karte und Rahmen entscheidet allein das Institut."),
       intern("Steuer und Recht beantwortest du NICHT — auch nicht „nur kurz“. Dein Satz dafür steht bei den Einwänden."),
+      intern("KAPITAL AUCH FÜR EUROPA (Justin, 19.09.2026): Das Kapital ist nicht an die USA gebunden — die Gesellschaft kann Mittel nach Europa überweisen oder in Europa investieren. Sag das offen als Vorteil, sobald es um Kapital geht, aber immer mit beiden Sätzen: Über Rahmen und Bedingungen entscheidet das Institut, und die steuerliche Behandlung klärt der Partner-Steuerberater vorab. Nie „steuerfrei“, nie „frei verfügbar“ — die fertige Antwort steht bei den Einwänden."),
       intern("Diese drei Sätze sagst du IMMER, bevor jemand beauftragt:"),
       ...GLOBAL_PFLICHTHINWEIS.de.map((h) => k(`„${h}“`)),
     ]},
     { t: "Einwände", s: [
       k(`„Was kostet das?“ — „Es ist ein Einmalpreis, kein Abo: ${globalPreisZeile()}. ${GLOBAL_ROLLEN.de.kosten}“`),
       k("„Bekomme ich dann sicher eine Karte mit hohem Rahmen?“ — „Das sagt Ihnen niemand seriös zu. Über Konto, Karte und Rahmen entscheidet allein das Institut. Was wir zusagen, ist unsere eigene Leistung: vollständige Unterlagen, saubere Anträge und ein Team, das den Ablauf kennt.“"),
+      k(`„Muss ich das Geld in den USA ausgeben?“ — „${GLOBAL_KAPITAL_FREI.de.antwort}“`),
       k("„Spare ich damit Steuern?“ — „Nein. Eine US-Gesellschaft, die von hier geführt wird, bleibt hier steuerpflichtig. Es geht um Zugang zu US-Banken und US-Kunden, nicht um einen niedrigeren Steuersatz. Die Einzelheiten klärt der Steuerberater aus unserem Partnernetz mit Ihnen — auf Ihr Mandat, das Honorar trägt FIAON.“"),
       k("„Muss ich in die USA reisen?“ — „In der Regel nicht. Unser Team vor Ort nimmt die Termine wahr. Wer den Auftakt persönlich erleben möchte, wählt Global VIP.“"),
       k(GLOBAL_GELD_ZURUECK.aktiv
@@ -96,6 +104,8 @@ export function globalInfoMail(opts: { ansprechpartner?: string | null; firma: s
 danke für das Gespräch eben. Wie besprochen in aller Kürze, worum es bei FIAON Global geht:
 
 FIAON gründet Ihre US-Gesellschaft mit einem Team vor Ort in den USA, bereitet die Steuernummern (EIN, ITIN) vor und reicht sie ein, stellt US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum und bereitet Ihre Konto- und Kartenanträge vollständig vor. Sie haben dabei einen festen Ansprechpartner.
+
+${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}
 
 Vier Pakete, jedes zum Einmalpreis — kein Abo, keine Monatsraten:
 ${pakete}
@@ -130,10 +140,11 @@ export function globalVorbereitungSystem(): string {
   return `Du bereitest einen FIAON-Vertriebsmitarbeiter auf einen B2B-ANRUF vor.
 FIAON Global: FIAON gründet für Unternehmen aus Deutschland, Österreich und der Schweiz eine US-Gesellschaft mit einem Team vor Ort in den USA, bereitet EIN und ITIN vor, stellt US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum und bereitet Konto- und Kartenanträge vollständig vor. Ein fester Ansprechpartner koordiniert alles. Vier Pakete zum EINMALPREIS (kein Abo, keine Monatsraten):
 ${pakete}
+Das Kapital ist nicht an die USA gebunden (seit 19.09.2026 so zu sagen): ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Ein Kapitalbedarf für Investitionen in Europa ist deshalb ebenfalls ein Anlass — nenne ihn nur mit beiden Bedingungen (Institut, Partner-Steuerberater).
 Ziel des Anrufs: Interesse wecken → Info-Mail, Gesprächstermin oder Direktauftrag.
-STRENG: Keine Fakten über die Firma ERFINDEN. Was du nur aus Branche/Ort ableitest, kennzeichne als Vermutung („vermutlich", „typisch für…"). Ist kein Bezug zu den USA erkennbar, sag das ehrlich — nicht jede Firma braucht eine US-Gesellschaft.
+STRENG: Keine Fakten über die Firma ERFINDEN. Was du nur aus Branche/Ort ableitest, kennzeichne als Vermutung („vermutlich", „typisch für…"). Ist weder ein Bezug zu den USA noch ein Kapitalbedarf erkennbar, sag das ehrlich — nicht jede Firma braucht eine US-Gesellschaft.
 NIEMALS versprechen oder andeuten: eine Karte, ein Konto, einen Rahmen oder Dollarbetrag, einen Zinssatz, eine Frist, eine Steuerersparnis, ein Darlehen. KEINE Banknamen. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut. Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat — nicht FIAON und nicht der Mitarbeiter.
 Pflichtwissen, das im Gespräch fallen muss: ${GLOBAL_PFLICHTHINWEIS.de.join(" ")}
 Antworte NUR als JSON:
-{"kurzlage":"2-3 Sätze, was diese Firma macht (aus der Website; ohne Website: was Branche/Ort vermuten lassen)","schmerzpunkte":["3 wahrscheinliche Gründe, warum GENAU diese Firma einen Bezug zu den USA oder Bedarf an einer US-Struktur haben könnte (Kunden, Lieferanten, Zahlungsverkehr in Dollar, Projekte, zweites Standbein) — oder ehrlich: keiner erkennbar"],"einstieg":"EIN gesprochener Einstiegssatz für den Anruf, auf diese Firma zugeschnitten, Sie-Form, ohne jede Zusage","fragen":["3 kluge Fragen, die den US-Bezug klären und Kompetenz zeigen"],"einwand_tipp":"der wahrscheinlichste Einwand dieser Firma + die beste ehrliche Antwort in einem Satz","paket":"${GLOBAL_PAKETE.map((g) => g.key).join("|")} mit 1 Satz Begründung — oder: kein Paket, weil kein US-Bezug erkennbar ist"}`;
+{"kurzlage":"2-3 Sätze, was diese Firma macht (aus der Website; ohne Website: was Branche/Ort vermuten lassen)","schmerzpunkte":["3 wahrscheinliche Gründe, warum GENAU diese Firma einen Bezug zu den USA oder Bedarf an einer US-Struktur haben könnte (Kunden, Lieferanten, Zahlungsverkehr in Dollar, Projekte, Kapitalbedarf für Investitionen — auch in Europa, zweites Standbein) — oder ehrlich: keiner erkennbar"],"einstieg":"EIN gesprochener Einstiegssatz für den Anruf, auf diese Firma zugeschnitten, Sie-Form, ohne jede Zusage","fragen":["3 kluge Fragen, die den US-Bezug oder den Kapitalbedarf klären und Kompetenz zeigen"],"einwand_tipp":"der wahrscheinlichste Einwand dieser Firma + die beste ehrliche Antwort in einem Satz","paket":"${GLOBAL_PAKETE.map((g) => g.key).join("|")} mit 1 Satz Begründung — oder: kein Paket, weil weder US-Bezug noch Kapitalbedarf erkennbar ist"}`;
 }

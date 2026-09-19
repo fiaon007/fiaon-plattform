@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (16), /en/business (16), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -174,6 +174,10 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Nein. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut nach eigenen Regeln. FIAON baut die Struktur auf, bereitet Anträge vor und plant die Reihenfolge."
     },
     {
+      "f": "Muss das Kapital in den USA ausgegeben werden?",
+      "a": "Nein. Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, etwa in Ihr bestehendes Unternehmen oder in Projekte hier. Über Rahmen und Bedingungen entscheidet das jeweilige Institut; wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen."
+    },
+    {
       "f": "Was passiert, wenn eine Bank oder ein Herausgeber ablehnt?",
       "a": "Das kommt vor — jedes Institut entscheidet nach eigenen Regeln. Ihr Ansprechpartner klärt mit Ihnen den Grund, soweit das Institut ihn nennt, und plant den nächsten Schritt; ab Global Banking bereiten wir jeden weiteren Antrag vollständig vor. Die Geld-zurück-Zusage gilt für Gesellschaft und EIN — Entscheidungen von Banken und Kartenherausgebern sind nicht Teil davon."
     },
@@ -223,7 +227,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Für wen passt es nicht?",
-      "a": "Für Vorhaben ohne Bezug zu den USA und ohne Bereitschaft, eine echte Gesellschaft mit Pflichten zu führen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist."
+      "a": "Für Vorhaben ohne echte Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist."
     }
   ],
   "/en/business": [
@@ -238,6 +242,10 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Does FIAON decide on cards and limits?",
       "a": "No. The institution concerned decides on account, card and limit under its own rules. FIAON builds the structure, prepares applications and plans the sequence."
+    },
+    {
+      "f": "Does the capital have to be spent in the US?",
+      "a": "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes."
     },
     {
       "f": "What happens if a bank or issuer declines?",
@@ -289,7 +297,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Who is it not for?",
-      "a": "For plans with no connection to the US and no willingness to run a real company with duties. We clarify that in the first call — openly, even if the answer is no."
+      "a": "For plans without genuine business activity, and for anyone who does not want to run a company with ongoing duties. We clarify that in the first call — openly, even if the answer is no."
     }
   ],
   "/preise": [

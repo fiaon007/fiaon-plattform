@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-19-kapital-europa",
+    date: "2026-09-19",
+    category: "Neu",
+    title: "FIAON Global: Das Kapital ist nicht an die USA gebunden — auch in Europa einsetzbar",
+    summary:
+      "Das Kapital, das Kunden über ihre US-Gesellschaft aufbauen, muss nicht in den USA ausgegeben werden: Die Gesellschaft kann Mittel "
+      + "nach Europa überweisen oder damit in Europa investieren — im Rahmen der Bedingungen des jeweiligen Instituts. Wie das steuerlich "
+      + "zu behandeln ist, klärt der Partner-Steuerberater vorab. So steht es jetzt auf fiaon.com/business, in den Fragen und im Leitfaden.",
+    changes: [
+      "Auf fiaon.com/business steht am Kapitalrahmen „Auch in Europa einsetzbar“ mit Fußnote; unter den Paketen der ganze Satz.",
+      "Neue Frage auf der Seite und in den Fragen: „Muss das Kapital in den USA ausgegeben werden?“ — Antwort: Nein, mit beiden Bedingungen.",
+      "Im Leitfaden (Raum „Firmen“) gibt es den vierten Einstieg „Kapital für Europa“ und den Einwand „Muss ich das Geld in den USA ausgeben?“.",
+    ],
+    howto: [
+      "Sag es offen als Vorteil, sobald es um Kapital geht — aber immer mit beiden Sätzen: Über Rahmen und Bedingungen entscheidet das Institut; die steuerliche Behandlung klärt der Partner-Steuerberater vorab.",
+      "Nie „steuerfrei“, nie „Geld garantiert“: Der Kapitalrahmen bleibt ein Ziel.",
+    ],
+    link: { href: "/agent/firmen", label: "Zum Leitfaden im Raum Firmen" },
+  },
+  {
     id: "2026-09-19-jahresbetreuung",
     date: "2026-09-19",
     category: "Neu",

@@ -5,6 +5,45 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.09.2026 — Firmen-Radar im Chefbüro: täglich 50 passende Firmen, KI-Scan, persönliche erste Mail
+
+**Was geändert wurde:** Neue Seite im Chefbüro (Kunden → Firmen-Radar, `/chef/s/firmen-radar`, ab Stufe
+Geschäftsführung, nicht im Office). Der Radar sucht jeden Tag zwischen 6 und 20 Uhr, bis 50 geprüfte Firmen aus DE, AT
+und CH im Radar stehen; auf Knopfdruck sucht er in einem von zehn Bereichen (Onlinehandel, Software, Bau und Immobilien,
+Mittelstand, Konsumgüter, Gesundheit, Energie, Logistik, Franchise, Start-ups) oder nimmt eine Firma über ihre Website
+auf. Die KI schlägt vor, der Server prüft: echte Website, Firmenname auf der Seite, Impressum (Geschäftsführer, E-Mail,
+Telefon nur, wenn sie dort wörtlich stehen; sonst eine Adresse, die wörtlich auf der Website steht). „Firma scannen“ liest
+bis zu acht Seiten und sucht nach Meldungen; jeder Aufhänger braucht ein wörtliches Zitat, das wir auf der Seite
+wiederfinden. „Mail schreiben“ nutzt nur diese Aufhänger — Sie-Form, kein Kapitalversprechen, Wortwand von FIAON Global,
+Absender, Impressum und Abmeldesatz. Die Mail lässt sich ändern und geht als Entwurf ins Postfach (Vorgabe js@fiaon.com)
+oder nach Bestätigung direkt hinaus — je Firma genau eine erste Mail, nie an die Sperrliste.
+
+**Warum:** Justin 19.09.: „Baue alles fix fertig für den Radar (aber nicht bei Nikita, Admin!), der uns PERFEKTE Firmen
+sucht (jeden Tag 50) … die KI scannt das gesamte Unternehmen und schreibt eine super personalisierte E-Mail.“
+
+**Wo zu finden:** `server/lib/fiaon-radar.ts` (Suchen, Prüfen, Scannen, Schreiben, Ausgeben), `server/routes/fiaon-radar.ts`,
+`shared/fiaon-radar.ts` (Bereiche, Zielbild), `client/src/components/admin/ChefRadar.tsx`, `chef-radar.css`; Tageslauf
+`firmen_radar` (server/routes.ts, fiaon-crons.ts); Gmail: `neueMailEntwurf`/`neueMailSenden` in `fiaon-gmail.ts`;
+Tabellen `fiaon_radar_firmen`, `fiaon_radar_sperre`, `fiaon_radar_laeufe`; KI-Kosten unter Dienst „radar“ (Tagesdeckel
+`RADAR_TAGESDECKEL_EUR`, Vorgabe 25 €). Prüfstand `scripts/pruef-radar.ts`.
+
+---
+
+## 19.09.2026 — FIAON Global: Das Kapital ist nicht an die USA gebunden
+
+**Was geändert wurde:** Überall, wo es um Kapital geht, steht jetzt: Das Kapital ist nicht an die USA gebunden — die
+Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, im Rahmen der Bedingungen des Instituts;
+die steuerliche Behandlung klärt der Partner-Steuerberater vorab. Eine Quelle `GLOBAL_KAPITAL_FREI` (shared/fiaon-global.ts)
+für /business (Kopf, Fußnote, unter den Paketen, neue Frage DE/EN), Unterseiten (Firmenkarten und Kapital, Kosten,
+Leistungen, Fragen, Wissen, Privatpersonen, Bau und Immobilien), Verkaufsleitfaden, KI-Wissen und die Kampagnen-Mail.
+„Für wen passt es nicht?“ nennt nicht mehr „Vorhaben ohne Bezug zu den USA“. Nicht auf den Anzeigen-Landingpages.
+
+**Warum:** Justin 19.09.: „Das Kapital, das wir dort generieren, muss NICHT in den USA ausgegeben werden … ÜBERALL.“
+
+**Wo zu finden:** `shared/fiaon-global.ts` (GLOBAL_KAPITAL_FREI), Prüfstand `pruef-global-seiten` Abschnitt 10.
+
+---
+
 ## 19.09.2026 — FIAON Global: Pakete neu gestaltet, Global VIP als eigene Bühne
 
 **Was geändert wurde:** Die vier Pakettafeln auf `/business` (auch `/business/privatpersonen`, `/en/business`) sind

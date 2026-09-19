@@ -12,7 +12,7 @@
 // (/business/start) fragt die Art des Auftraggebers ab; Vertrag und Rechnung
 // richten sich danach (server/lib/fiaon-global-auftrag.ts, -vertrag.ts).
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PFLICHTHINWEIS, globalPreisText } from "../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPreisText } from "../fiaon-global";
 import type { GlobalSeite } from "./typen";
 
 export const PRIVAT_SEITE: GlobalSeite = {
@@ -98,6 +98,8 @@ export const PRIVAT_SEITE: GlobalSeite = {
     { f: "Habe ich als Privatperson ein Widerrufsrecht?", a: "Wenn Sie als Verbraucher handeln, ja — das gesetzliche Widerrufsrecht von vierzehn Tagen ab Vertragsschluss. Vor Ablauf beginnen wir nur auf Ihren ausdrücklichen Wunsch; dann zahlen Sie im Fall des Widerrufs einen angemessenen Anteil für bereits Erbrachtes." },
     { f: "Gilt der Festpreis auch für Privatpersonen?", a: `Ja, als Endpreis — für alle vier Pakete, ab ${globalPreisText("global_struktur")} für Global Struktur, mit allen Gebühren und Partner-Honoraren des Pakets.` },
     { f: "Welche Pakete kann ich als Privatperson wählen?", a: "Alle vier: Global Struktur für den sauberen Start, Global Banking, Global Kapital und Global VIP, wenn Sie die Kartenleiter und später ein Bankdarlehen planen." },
+    // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — dieselbe Frage wie auf /business (GLOBAL_KAPITAL_FREI).
+    { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
     { f: "Was kostet die Gesellschaft ab dem zweiten Jahr?", a: "Mit der Jahresbetreuung 699 € im Jahr, alle Gebühren inklusive — Registered Agent, US-Adresse und Telefon, die jährliche US-Meldung und die Jahresmeldung beim Bundesstaat samt Staatsgebühr. Sie verlängert sich nicht von selbst." },
     { f: "Kann ich die US-Gesellschaft später auf meine Firma übertragen?", a: "Grundsätzlich ja. Eine Übertragung hat steuerliche Folgen in beiden Ländern; das prüfen Sie vorher mit Ihrem Steuerberater." },
     { f: "Muss ich in die USA reisen?", a: "In der Regel nicht. Unser Team vor Ort in Miami reicht ein und nimmt Termine wahr; Sie unterschreiben digital. Wer den Aufbau persönlich erleben möchte, wählt Global VIP — Flug und Hotel für den Auftakt in Miami sind dort im Festpreis." },

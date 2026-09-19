@@ -20,7 +20,7 @@ import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
 import { GLOBAL_AUFTRAG_WOERTER } from "../client/src/i18n/global-auftrag";
-import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_JAHRESBETREUUNG, globalKapital } from "../shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalKapital } from "../shared/fiaon-global";
 import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 import { SEO_SEITEN } from "../shared/fiaon-seo-seiten";
 // 19.09.2026 (E-191): die Unterseiten, Landingpages, das Business-Menü und die Standorte.
@@ -59,6 +59,8 @@ sammle(GLOBAL_ROLLEN.de, "fiaon-global/rollen", texte);
 sammle(GLOBAL_GELD_ZURUECK.de, "fiaon-global/geld-zurueck", texte);
 // E-196 (19.09.2026): Jahresbetreuung ab dem zweiten Jahr und die Nachrichtenlage (nur die deutschen Felder).
 sammle(GLOBAL_JAHRESBETREUUNG.de, "fiaon-global/jahresbetreuung", texte);
+// 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — die eine Quelle für Seite, Fragen, Leitfaden, Wissen.
+sammle(GLOBAL_KAPITAL_FREI.de, "fiaon-global/kapital-frei", texte);
 sammle(GLOBAL_SCHLAGZEILEN.meldungen.map((m) => ({ de: m.de, kurzDe: m.kurzDe, quelle: m.quelle })), "schlagzeilen", texte);
 for (const pfad of ["/business", "/business/start", "/business/auftrag"]) {
   const e = (SEO_SEITEN as Record<string, any>)[pfad];

@@ -338,6 +338,12 @@
 .fg-vertrauen a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
 .fg-vertrauen a:hover{text-decoration-color:var(--navy)}
 .fg-fussnote{margin-top:12px;font-size:11.5px;line-height:1.55;color:var(--leise);max-width:72ch}
+/* 19.09.2026 — Justin: Das Kapital ist nicht an die USA gebunden (GLOBAL_KAPITAL_FREI). Am Kapitalrahmen
+   der kurze Hinweis, in der Fußnote darunter der Satz mit Institut und Partner-Steuerberater. */
+.fg-kopf-zahlen .fg-kapital-frei{justify-self:start;margin-top:4px}
+.fg-kopf-zahlen .fg-kapital-frei span{font-size:inherit;font-weight:inherit;letter-spacing:inherit;text-transform:none;color:inherit}
+.fg-kapital-frei sup{font-size:.75em;margin-left:1px;color:var(--leise)}
+.fg-fussnote+.fg-fussnote{margin-top:6px}
 .fg-mandat dl>div.preis dd{font-weight:500}
 @media(max-width:720px){
   .fg-kopf-zahlen{order:1;margin-top:26px}
@@ -368,6 +374,9 @@
 .fg-paket-fuss p{font-size:13px;line-height:1.6;color:var(--text)}
 .fg-paket-fuss a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
 .fg-paket-fuss a:hover{text-decoration-color:var(--navy)}
+/* Unter den Tafeln: das Kapital auch in Europa — dunkler als die übrigen Fußzeilen, mit dem Haken der Seite */
+.fg-paket-fuss .fg-paket-europa{display:flex;align-items:flex-start;gap:9px;color:var(--tinte);max-width:88ch;margin-bottom:6px}
+.fg-paket-europa .fg-haken{margin-top:3px}
 
 /* Geld zurück · Nicht im Festpreis · Was Sie wissen müssen */
 .fg-klar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}

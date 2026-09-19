@@ -367,3 +367,46 @@ export async function postfachProbe(postfach: string): Promise<{ ok: boolean; la
     return { ok: false, fehler: String(e?.message || e).slice(0, 300) };
   }
 }
+
+// ── EINE NEUE MAIL MIT HTML (19.09.2026, Firmen-Radar) ─────────────────────
+// Der Radar schreibt eine erste, persönliche Mail an eine Firma — kein Reply,
+// also kein „Re:" und kein Thread. Absender mit Namen („Justin Schwarzott
+// <js@fiaon.com>"), Text- und HTML-Fassung als multipart/alternative, damit die
+// Mail in jedem Postfach lesbar ist. Als Entwurf landet sie im gewählten
+// Postfach und wartet dort auf den Menschen; senden geht nur über den Knopf
+// „Senden" im Chefbüro, der vorher fragt.
+export function mimeNeu(opts: { von: string; vonName?: string | null; an: string; betreff: string; text: string; html: string }): string {
+  const kodiert = (s: string) => `=?UTF-8?B?${Buffer.from(s).toString("base64")}?=`;
+  const von = opts.vonName ? `${kodiert(opts.vonName.replace(/[\r\n"]/g, ""))} <${opts.von}>` : opts.von;
+  const grenze = `fiaon-neu-${Buffer.from(opts.an + opts.betreff).toString("hex").slice(0, 24)}`;
+  const zeilen = [
+    `From: ${von}`,
+    `To: ${opts.an.replace(/[\r\n]/g, "")}`,
+    `Subject: ${kodiert(opts.betreff.replace(/[\r\n]+/g, " "))}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${grenze}"`,
+    "",
+    `--${grenze}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64", "",
+    Buffer.from(opts.text).toString("base64").replace(/(.{76})/g, "$1\r\n"), "",
+    `--${grenze}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64", "",
+    Buffer.from(opts.html).toString("base64").replace(/(.{76})/g, "$1\r\n"), "",
+    `--${grenze}--`, "",
+  ];
+  return b64url(zeilen.join("\r\n"));
+}
+
+/** Legt die neue Mail als Entwurf im Postfach ab und gibt die Entwurfs-ID zurück. */
+export async function neueMailEntwurf(postfach: string, opts: { vonName?: string | null; an: string; betreff: string; text: string; html: string }): Promise<string> {
+  const j = await api(postfach, "/drafts", { method: "POST", body: JSON.stringify({ message: { raw: mimeNeu({ von: postfach, ...opts }) } }) });
+  return String(j?.id || "");
+}
+
+/** Sendet die neue Mail aus dem Postfach und gibt die Nachrichten-ID zurück. */
+export async function neueMailSenden(postfach: string, opts: { vonName?: string | null; an: string; betreff: string; text: string; html: string }): Promise<string> {
+  const j = await api(postfach, "/messages/send", { method: "POST", body: JSON.stringify({ raw: mimeNeu({ von: postfach, ...opts }) }) });
+  return String(j?.id || "");
+}

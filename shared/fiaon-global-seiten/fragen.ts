@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalBlock, GlobalSeite, MenueGruppe } from "./typen";
 import { globalMenuePunkt } from "../fiaon-global-menue";
+import { GLOBAL_KAPITAL_FREI } from "../fiaon-global";
 
 const GRUPPEN: { gruppe: MenueGruppe; id: string; h2: string; lead: string }[] = [
   { gruppe: "leistungen", id: "leistungen", h2: "Gründung, Steuernummern, Konto und Karten", lead: "Was FIAON Global übernimmt — und wo die Entscheidung bei Behörden und Instituten liegt." },
@@ -43,6 +44,8 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
       ["Gründung", "US-Gesellschaft ohne Wohnsitz und ohne Reise"],
       ["Steuernummern", "EIN für die Gesellschaft, ITIN für Sie"],
       ["Konto und Karten", "Vorbereitet von uns, entschieden vom Institut"],
+      // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden. Die Frage dazu kommt von /business/firmenkarten-kapital.
+      ["Kapital", `${GLOBAL_KAPITAL_FREI.de.kurz} — über Rahmen und Bedingungen entscheidet das Institut, die steuerliche Behandlung klärt unser Partner-Steuerberater vorab`],
       ["Kosten", "Festpreis, alle Gebühren inklusive"],
       ["Steuern", "Steuerpflicht dort, wo die Gesellschaft geführt wird"],
       ["Ihre Frage fehlt?", "Im Gespräch — dreißig Minuten, ohne Verpflichtung"],

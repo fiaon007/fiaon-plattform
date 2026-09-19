@@ -5,7 +5,7 @@
 // Staaten verlangen — und was es kosten würde, alles selbst zu organisieren.
 // Zahlen Dritter aus fakten.ts (Quelle und Stand dort).
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_INKLUSIVE, GLOBAL_LAUFEND, GLOBAL_PAKETE, globalPlanungText, globalPreisText } from "../fiaon-global";
+import { GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND, GLOBAL_PAKETE, globalPlanungText, globalPreisText } from "../fiaon-global";
 import { FAKTEN_STAND, IRS, MARKT, QUELLEN_IRS, QUELLEN_STAATEN, STAAT } from "./fakten";
 import type { GlobalSeite } from "./typen";
 
@@ -46,7 +46,11 @@ export const KOSTEN: GlobalSeite[] = [
         kopf: ["Paket", "Festpreis", "Kapitalrahmen", "Begleitung"],
         zeilen: GLOBAL_PAKETE.map((p) => [p.de.name, globalPreisText(p.key), globalPlanungText(p.key), gross(p.de.dauerKurz)]),
         hervor: 1,
-        fuss: ["Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise. Der Kapitalrahmen ist Ihr Ziel; über jeden Rahmen entscheidet das Institut."],
+        fuss: [
+          "Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise. Der Kapitalrahmen ist Ihr Ziel; über jeden Rahmen entscheidet das Institut.",
+          // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — Wortlaut aus GLOBAL_KAPITAL_FREI.
+          `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`,
+        ],
       },
       {
         typ: "text", id: "enthalten", h2: "Was im Festpreis enthalten ist",

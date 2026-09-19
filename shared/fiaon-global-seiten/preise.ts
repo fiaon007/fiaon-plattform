@@ -104,7 +104,8 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
       { wert: globalKapitalSpanne(), label: "Kapitalrahmen je Paket, als Ziel" },
     ],
     blick: [
-      ["Frage 1", "Was ist Ihr Ziel in den USA?"],
+      // 19.09.2026: nicht mehr „Ihr Ziel in den USA" — das Kapital ist nicht an die USA gebunden (GLOBAL_KAPITAL_FREI).
+      ["Frage 1", "Was ist Ihr Ziel mit der US-Gesellschaft?"],
       ["Frage 2", "Welchen Kapitalrahmen streben Sie an?"],
       ["Frage 3", "Wie viel Zeit geben Sie dem Aufbau?"],
       ["Frage 4", "Wie möchten Sie begleitet werden?"],

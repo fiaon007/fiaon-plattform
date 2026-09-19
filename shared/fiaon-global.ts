@@ -324,6 +324,32 @@ export const GLOBAL_INKLUSIVE = {
   ],
 } as const;
 
+// ── DAS KAPITAL IST NICHT AN DIE USA GEBUNDEN (19.09.2026, Justin) ──────────
+// Justin: „Das Kapital, das wir dort generieren, muss NICHT in den USA ausgegeben
+// werden — man kann es auch nach Europa überweisen oder in Europa Investitionen
+// tätigen. Ändere das ÜBERALL." Eine Quelle für Seiten, Fragen, Leitfaden,
+// KI-Wissen, Kampagne und Firmen-Radar. Ehrlich bleibt zweierlei: Über Rahmen und
+// Bedingungen entscheidet das jeweilige Institut, und wie Überweisungen und
+// Investitionen der Gesellschaft steuerlich zu behandeln sind, klärt der
+// Partner-Steuerberater vorab (eine US-Gesellschaft ist kein Steuermodell).
+// NICHT auf die Anzeigen-Landingpages (Google-Ads-Richtlinie, pruef-global-seiten).
+export const GLOBAL_KAPITAL_FREI = {
+  de: {
+    kurz: "Auch in Europa einsetzbar",
+    satz: "Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren — im Rahmen der Bedingungen des jeweiligen Instituts.",
+    steuer: "Wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen.",
+    frage: "Muss das Kapital in den USA ausgegeben werden?",
+    antwort: "Nein. Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, etwa in Ihr bestehendes Unternehmen oder in Projekte hier. Über Rahmen und Bedingungen entscheidet das jeweilige Institut; wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen.",
+  },
+  en: {
+    kurz: "Can be used in Europe too",
+    satz: "The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe — within the terms of the institution concerned.",
+    steuer: "Our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes.",
+    frage: "Does the capital have to be spent in the US?",
+    antwort: "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes.",
+  },
+} as const;
+
 /** Was ab dem zweiten Jahr anfällt — offen gesagt, nicht versteckt. */
 export const GLOBAL_LAUFEND = {
   de: "Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir das für 699 € im Jahr – alle Gebühren inklusive.",

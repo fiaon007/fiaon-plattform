@@ -389,6 +389,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   // 17.09.2026 (E-188): „Mein Auftrag" von FIAON Global. Die Pakete sagen Pflichtenkalender und
   // monatlichen Durchgang zu — bleibt dieser Lauf aus, bleibt beides stumm, und niemand merkt es,
   // weil ein Firmenkunde sich nicht über eine Erinnerung beschwert, die er nie bekommen hat.
+  // 19.09.2026: Firmen-Radar — sucht stündlich (6–20 Uhr Berlin) bis zu drei Mal, bis 50 geprüfte Firmen im Radar stehen.
+  firmen_radar: {
+    zweck: "Firmen-Radar: täglich 50 passende Firmen aus DE/AT/CH suchen, Website und Impressum prüfen, im Chefbüro bereitstellen",
+    folge: "Im Chefbüro stehen keine neuen Firmen für persönliche Mails; der Vertrieb von FIAON Global bekommt keinen Nachschub.",
+    fenster: 26,
+  },
   // 19.09.2026 (E-196): dazu Schritt (d) — die Aufgabe, die Rechnung für das zweite Jahr der Jahresbetreuung zu stellen.
   global_tageslauf: {
     zweck: "FIAON Global: Kunden an Termine des Pflichtenkalenders erinnern (rund einen Monat und eine Woche vorher), "

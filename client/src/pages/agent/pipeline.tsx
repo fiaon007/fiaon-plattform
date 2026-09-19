@@ -1799,9 +1799,32 @@ function GespraechsModus({ art, aufReiter }: { art: string | null; aufReiter: (r
   );
 }
 
-export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
+type AkteProps = {
   k: Kunde; onZu: () => void; onWeg: () => void; onNeu: (k: Kunde) => void; onErledigt: () => void; onZaehler: () => void;
-}) {
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// EINE AKTE GEHÖRT GENAU EINEM MENSCHEN (19.09.2026)
+//
+// Florentine: „Er hat alles hochgeladen, wurde sogar ausgewertet, konnte auch
+// Konto und Karte beantragen, aber bei Dokumenten ist nichts mehr." Seine drei
+// Unterlagen lagen vollständig an seiner Bestellung. Die Akte zeigte den
+// Dokumentstand des Kunden, der VORHER offen war: In der Leitung bleibt die
+// Akte als Seitenblatt offen, und ein Klick auf den nächsten Namen tauschte nur
+// `k` aus. Was die Akte schon geladen hatte, blieb stehen — Dokumente, Anrufe
+// mit Aufnahmen —, ebenso Angefangenes: eine freie Mail, eine Notiz, ein
+// angezeigtes Einmal-Passwort, ein gewählter Zahlungsbeleg. Eine für Kunde A
+// getippte Mail hätte an Kunde B gehen können.
+//
+// Deshalb baut sich die Akte bei JEDEM Personenwechsel neu auf — hier, an der
+// Komponente selbst, nicht bei jedem Aufrufer: Wer die Akte irgendwo einbaut,
+// bekommt das, ohne daran denken zu müssen. Prüfstand: scripts/pruef-akte-wechsel.ts.
+// ══════════════════════════════════════════════════════════════════════════
+export function Akte(props: AkteProps) {
+  return <AkteEinesMenschen key={props.k.personId} {...props} />;
+}
+
+function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: AkteProps) {
   const fragen = useFragen();
   const { zeige } = useToast();
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -1928,14 +1951,22 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     });
     return () => { an = false; };
   }, [k.personId]);
-  // Anrufe und Dokumente erst laden, wenn der Reiter sie braucht.
+  // Anrufe und Dokumente erst laden, wenn der Reiter sie braucht — und bei JEDEM
+  // Öffnen des Reiters frisch (19.09.2026): Lädt der Kunde hoch, während die Akte
+  // offen ist, steht es beim nächsten Blick auf „Dokumente" da. Bis dahin bleibt
+  // der letzte Stand DIESER Person sichtbar, kein Flackern.
+  // Zweite Sicherung neben dem Neuaufbau je Person: Ein Dokumentstand, der zu
+  // einer anderen Person gehört, wird nie gezeigt.
+  const dokuLaden = () => api(`/dokumente/${k.personId}`).then((r) => {
+    const stand = r.ok ? r.json?.stand : null;
+    const fremd = stand?.personId != null && Number(stand.personId) !== Number(k.personId);
+    setDoku(stand && !fremd ? stand : "fehlt");
+  });
   useEffect(() => {
-    if (reiter === "gespraeche" && anrufe === null) {
+    if (reiter === "gespraeche") {
       api(`/telefon/person/${k.personId}/anrufe`).then((r) => setAnrufe(r.ok ? (r.json.anrufe || []) : []));
     }
-    if (reiter === "dokumente" && doku === null) {
-      api(`/dokumente/${k.personId}`).then((r) => setDoku(r.ok && r.json.stand ? r.json.stand : "fehlt"));
-    }
+    if (reiter === "dokumente") void dokuLaden();
   }, [reiter, k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dokument FÜR den Kunden hochladen ──────────────────────────────────────
@@ -2982,7 +3013,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                                     const r = await api(`/agent/dokumente/${k.personId}/${d.art}/loeschen`, {
                                       method: "POST", body: JSON.stringify({ grund }),
                                     });
-                                    if (r.ok && r.json?.ok) { melden("gut", "Dokument gelöscht", r.json.meldung); setDoku(null); }
+                                    // 19.09.2026: neu laden statt nur leeren — `setDoku(null)` allein
+                                    // löste keinen Abruf aus, der Reiter blieb bei „Lade den Stand …".
+                                    if (r.ok && r.json?.ok) { melden("gut", "Dokument gelöscht", r.json.meldung); setDoku(null); void dokuLaden(); }
                                     else melden("schlecht", "Nicht gelöscht", r.json?.error || "Bitte erneut versuchen.");
                                   })();
                                 }}>

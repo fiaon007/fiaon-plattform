@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-19-akte-wechsel",
+    date: "2026-09-19",
+    category: "Behoben",
+    title: "Akte: Beim Wechsel zum nächsten Kunden zeigt sie immer dessen Dokumente",
+    summary:
+      "Florentines Fund: Bei einem Kunden stand unter „Dokumente“ dreimal „fehlt noch“, obwohl Ausweis, Kontoauszug und "
+      + "Auskunft vorlagen und ausgewertet waren. Die Akte zeigte den Stand des Kunden, der vorher offen war — in der "
+      + "Leitung bleibt die Akte offen, wenn man links den nächsten Namen anklickt. Jetzt baut sich die Akte bei jedem "
+      + "Kundenwechsel neu auf.",
+    changes: [
+      "Dokumente und Anrufe gehören immer zu dem Kunden, dessen Name oben steht — auch wenn ihr ohne Schließen weiterklickt.",
+      "Angefangenes (freie E-Mail, Notiz, gewählter Beleg) bleibt nicht mehr beim nächsten Kunden stehen.",
+      "Der Reiter „Dokumente“ lädt bei jedem Öffnen frisch — was der Kunde gerade hochgeladen hat, steht sofort da.",
+    ],
+    howto: [
+      "Nichts zu tun. Wenn euch trotzdem einmal etwas Fremdes auffällt: Akte schließen, neu öffnen und kurz an Justin melden.",
+    ],
+  },
+  {
     id: "2026-09-19-keine-lastschrift",
     date: "2026-09-19",
     category: "Geändert",

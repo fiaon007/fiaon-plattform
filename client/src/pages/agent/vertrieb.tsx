@@ -208,7 +208,9 @@ function LeitungInnen() {
           AGENTS.md steht.
           ══════════════════════════════════════════════════════════════════ */}
       {offen && createPortal(
-        <AkteVonAussen personId={offen} onZu={() => oeffnen(null)} onGeaendert={() => void laden()} />,
+        // 19.09.2026: je Person neu aufbauen — beim Wechsel im offenen Seitenblatt
+        // stand sonst kurz der alte Kunde unter der neuen Kennung (siehe Akte in pipeline.tsx).
+        <AkteVonAussen key={offen} personId={offen} onZu={() => oeffnen(null)} onGeaendert={() => void laden()} />,
         document.body,
       )}
 

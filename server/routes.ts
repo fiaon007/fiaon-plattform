@@ -679,6 +679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //
   // Steht ein Pfad nicht in der Tabelle, geht der Aufruf unverändert weiter:
   // Diese Schicht kann nie eine Seite verstecken, nur ihren Kopf verbessern.
+  // Ausnahme seit 19.09.2026: unter /business, wo der Server jede Seite kennt,
+  // ist eine unbekannte Adresse ein 404 (vorher 200 mit dem Startseiten-Kopf).
   //
   // 02.09.2026 (E-079): Die Tabelle wohnt in shared/fiaon-seo-seiten.ts und
   // liefert neben dem Kopf einen lesbaren Korpus (H1, Text, FAQ, Links) in
@@ -704,10 +706,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('*', async (req, res, next) => {
-    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.includes('.')) return next();
+    if (req.path.startsWith('/api')) return next();
     try {
-      const { seitenHtml } = await import('./lib/fiaon-seiten-seo');
-      let html = seitenHtml(req.path);
+      const { seitenHtml, seiteUnbekannt, nichtGefundenHtml } = await import('./lib/fiaon-seiten-seo');
+      // 19.09.2026: Kein Soft-404 unter /business. Eine unbekannte Adresse dort bekommt 404
+      // mit noindex statt 200 mit dem Kopf der Startseite — auch mit Punkt im Pfad (Bot-Proben
+      // wie /business/wp-login.php; Dateien gibt es dort keine) und auch für HEAD, sonst
+      // meldete „curl -I“ weiter 200. Regel und Ausnahmen: seiteUnbekannt in fiaon-seiten-seo.ts.
+      const unbekannt = seiteUnbekannt(req.path);
+      if (!unbekannt && (req.method !== 'GET' || req.path.includes('.'))) return next();
+      let html = unbekannt ? nichtGefundenHtml(req.path) : seitenHtml(req.path);
       if (!html) return next();
       // Entwicklungsbetrieb: durch Vite schicken, sonst fehlt der React-Refresh-
       // Vorspann und die Seite bleibt weiß (Befund 05.09.2026, /app/demo).
@@ -717,8 +725,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (viteInstanz) html = await viteInstanz.transformIndexHtml(req.originalUrl, html);
         } catch (e) { console.error('[SEITEN-SEO] vite:', String(e).slice(0, 120)); }
       }
+      res.status(unbekannt ? 404 : 200);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Cache-Control', 'public, max-age=300');
+      // Eine Fehlerseite bleibt in keinem Zwischenspeicher liegen.
+      res.setHeader('Cache-Control', unbekannt ? 'no-store' : 'public, max-age=300');
       res.send(html);
     } catch (e) { console.error('[SEITEN-SEO]', e); next(); }
   });

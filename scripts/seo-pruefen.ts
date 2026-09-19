@@ -17,6 +17,8 @@
 //   · die generierten FAQ sind aktuell (shared/fiaon-seo-fragen.ts)
 //   · online: genau eine H1, Titel/Description wie in der Tabelle,
 //     Canonical, JSON-LD parsebar, mindestens 25 interne Links
+//   · online (19.09.2026): eine erfundene Adresse unter /business liefert
+//     404 mit noindex — kein Soft-404 (GET und HEAD)
 // Fehler beenden mit Code 1 — damit der Prüfstand in der Abnahme zählt.
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "fs";
@@ -128,6 +130,20 @@ async function online() {
     ok++;
   }
   console.log(`${rendern ? "Vorgerendert" : "Online"} geprüft: ${ok}/${seiten.length} Seiten${rendern ? ` (HTML unter ${path.relative(WURZEL, AUSGABE)})` : ` unter ${basis}`}.`);
+  // Kein Soft-404 (19.09.2026): Vorher kam hier 200 mit dem Kopf der Startseite und index,follow.
+  // Die Entscheidung selbst prüft scripts/pruef-global-seiten.ts offline; hier zählt der Status.
+  if (!rendern) {
+    const muell = `/business/gibt-es-nicht-${Date.now().toString(36)}`;
+    try {
+      const r = await fetch(`${basis}${muell}`, { headers: { accept: "text/html" } });
+      const h = await r.text();
+      const kopf = await fetch(`${basis}${muell}`, { method: "HEAD" });
+      const vorher = fehler.length;
+      if (r.status !== 404 || kopf.status !== 404) f(`${muell}: HTTP ${r.status} (HEAD ${kopf.status}) statt 404 — Soft-404`);
+      if (!h.includes('<meta name="robots" content="noindex" />')) f(`${muell}: 404-Seite ohne noindex`);
+      if (fehler.length === vorher) console.log(`Soft-404-Probe: ${muell} → 404 mit noindex (GET und HEAD).`);
+    } catch (e) { f(`${muell}: nicht erreichbar (${(e as Error).message})`); }
+  }
   if (rendern) { const { sqlPool } = await import("../server/lib/db-pool"); await sqlPool.end(); }
 }
 

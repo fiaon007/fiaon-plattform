@@ -11,6 +11,7 @@ import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import {
   RadarFehler, radarUebersicht, radarFirma, radarSucheStarten, radarLauf, radarFirmaManuell, radarScannen,
   radarMailSchreiben, radarMailAendern, radarMailAusgeben, radarStatusSetzen, radarSperren, radarPostfachPruefen,
+  radarKontaktNachsuchen, radarKontaktSetzen, radarStapelStarten, radarLaufAbbrechen,
 } from "../lib/fiaon-radar";
 import { alsRadarLand } from "@shared/fiaon-radar";
 
@@ -30,7 +31,10 @@ const idAus = (roh: unknown): number => {
 
 router.get("/chef/radar", wache, async (req: ChefRequest, res: Response) => {
   try {
-    res.json({ ok: true, ...(await radarUebersicht({ tag: String(req.query.tag ?? "") || null, bereich: String(req.query.bereich ?? "") || null, status: String(req.query.status ?? "") || null, suche: String(req.query.suche ?? "") || null })) });
+    res.json({ ok: true, ...(await radarUebersicht({
+      tag: String(req.query.tag ?? "") || null, bereich: String(req.query.bereich ?? "") || null,
+      status: String(req.query.status ?? "") || null, gruppe: String(req.query.gruppe ?? "") || null, suche: String(req.query.suche ?? "") || null,
+    })) });
   } catch (e) { fehler(res, e); }
 });
 
@@ -102,6 +106,29 @@ router.post("/chef/radar/sperren", wache, async (req: ChefRequest, res: Response
     await radarSperren({ wert: String(req.body?.wert ?? ""), grund: req.body?.grund ? String(req.body.grund).slice(0, 200) : null, von: req.chef?.agentId ?? null });
     res.json({ ok: true });
   } catch (e) { fehler(res, e); }
+});
+
+// ── Mehrere auf einmal: vorbereiten, als Entwürfe ablegen, senden ──────────
+router.post("/chef/radar/stapel", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const laufId = await radarStapelStarten({
+      ids: Array.isArray(req.body?.ids) ? req.body.ids : [], art: String(req.body?.art ?? "vorbereiten") as any,
+      postfach: req.body?.postfach ? String(req.body.postfach) : null, bestaetigt: req.body?.bestaetigt === true, von: req.chef?.agentId ?? null,
+    });
+    res.json({ ok: true, laufId });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/lauf/:id/abbrechen", wache, async (req: ChefRequest, res: Response) => {
+  try { await radarLaufAbbrechen(idAus(req.params.id)); res.json({ ok: true }); } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/firma/:id/nachsuchen", wache, async (req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, ...(await radarKontaktNachsuchen(idAus(req.params.id))) }); } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/firma/:id/kontakt", wache, async (req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, email: await radarKontaktSetzen(idAus(req.params.id), String(req.body?.email ?? "")) }); } catch (e) { fehler(res, e); }
 });
 
 router.get("/chef/radar/postfach/:adresse", wache, async (req: ChefRequest, res: Response) => {

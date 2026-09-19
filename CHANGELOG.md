@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.09.2026 (abends) — Firmen-Radar: vollständige Kontakte, Stapel-Versand, neue Oberfläche
+
+**Was geändert wurde:**
+
+- **Vollständig:** Eine Firma kommt nur noch mit E-Mail in den Radar. Die Suche findet Adressen jetzt auch hinter
+  mailto-Verweisen, dem Cloudflare-Mailschutz (`data-cfemail`), in Seitendaten (JSON-LD), in Schreibweisen wie
+  „info [at] firma [dot] de“ und in ROT13-verdrehter Form — dazu auf Kontakt- und Impressumsseiten, auch ohne Verweis.
+  Erfunden wird nie etwas: Was nicht auf der Seite steht, gibt es nicht. Firmen ohne Adresse stehen im eigenen Reiter
+  „Ohne E-Mail“; dort lässt sich nachsuchen oder eine Adresse eintragen. Der Tageslauf sucht fehlende Adressen selbst nach.
+- **Mehrere auf einmal:** Häkchen je Zeile, unten die Leiste mit „Mails vorbereiten“ (scannt und schreibt),
+  „Als Entwürfe ins Postfach“ und „Senden …“ — höchstens 25 Firmen je Stapel, mit Fortschritt, Abbruch und Ergebnis je
+  Firma. Beim Versand liegen 20 bis 45 Sekunden zwischen zwei Mails. Jede Mail bleibt einzeln geschrieben.
+- **Cleaner und mehr Platz:** Tabelle über die ganze Breite statt zweier enger Spalten, Reiter nach Stand mit Zahlen
+  (Alle · Offen · Mail bereit · Versendet · Ohne E-Mail · Aussortiert), knapper Kopf mit den Zahlen des Tages, eine
+  „So geht’s“-Zeile und die Akte als Seitenblatt mit drei Reitern (Überblick · Website-Scan · Mail).
+
+**Warum:** Justin am selben Abend: „Bei manchen kommt: Keine gültige Empfängeradresse … das muss vollständig sein — und
+mehrere gleichzeitig markieren und versenden — und bisschen cleaner, moderner alles, dass man mehr Platz hat.“
+
+**Wo zu finden:** `/chef/s/firmen-radar`; `server/lib/fiaon-radar.ts` (Kontaktsuche, Stapel-Lauf, Nachsuchen),
+`client/src/components/admin/ChefRadar.tsx`, `chef-radar.css`, Prüfstand `scripts/pruef-radar.ts` (71 Prüfungen).
+
+---
+
 ## 19.09.2026 — Firmen-Radar im Chefbüro: täglich 50 passende Firmen, KI-Scan, persönliche erste Mail
 
 **Was geändert wurde:** Neue Seite im Chefbüro (Kunden → Firmen-Radar, `/chef/s/firmen-radar`, ab Stufe

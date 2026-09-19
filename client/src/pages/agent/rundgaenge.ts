@@ -1043,40 +1043,42 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
   },
 ];
 
-// ── /chef/s/firmen-radar (19.09.2026) ────────────────────────────────────────
+// ── /chef/s/firmen-radar (19.09.2026, Fassung 2) ─────────────────────────────
 export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
     titel: "Der Radar findet Firmen, die zu FIAON Global passen.",
     text: "Jeden Tag sucht er zwischen 6 und 20 Uhr, bis 50 geprüfte Firmen aus Deutschland, Österreich und der Schweiz im Radar stehen. "
-      + "Die KI schlägt vor, der Server prüft: echte Website, Firmenname auf der Seite, lesbares Impressum. Name, Geschäftsführer, "
-      + "E-Mail und Telefon kommen nur aus dem Impressum.",
-    tipp: "Der Ring oben zeigt das Tagesziel. Die KI-Kosten des Tages stehen daneben; über dem Deckel sucht der Radar erst am nächsten Tag weiter.",
+      + "Die KI schlägt vor, der Server prüft: erreichbare Website, Firmenname auf der Seite, und eine E-Mail, die wirklich dort steht — "
+      + "im Impressum, hinter einem mailto-Verweis, hinter dem Cloudflare-Schutz oder als „info [at] firma [dot] de“. Ohne Adresse kommt "
+      + "eine Firma gar nicht erst herein.",
+    tipp: "Oben stehen die Zahlen des Tages und die KI-Kosten. Über dem Deckel sucht der Radar erst am nächsten Tag weiter.",
   },
   {
     ziel: ".cr-kopf-tun",
-    titel: "Auf Knopfdruck: Bereich wählen, suchen.",
-    text: "„Firmen suchen“ öffnet die zehn Bereiche — vom Onlinehandel bis zu Start-ups mit Kapitalbedarf. Land und Stichwort sind frei. "
-      + "Eine Suche dauert ein bis zwei Minuten und bringt bis zu zehn neue Firmen; was verworfen wurde, steht mit Grund daneben. "
-      + "Eine bestimmte Firma nehmen Sie über ihre Website auf.",
+    titel: "Auf Knopfdruck suchen — oder eine bestimmte Firma aufnehmen.",
+    text: "„Firmen suchen“ öffnet die zehn Bereiche, dazu Land und Stichwort. Eine Suche dauert ein bis zwei Minuten und bringt bis zu zehn "
+      + "neue Firmen; was verworfen wurde, steht mit Grund im Laufbalken. „Website aufnehmen“ legt eine einzelne Firma an.",
   },
   {
-    ziel: ".cr-liste",
-    titel: "Links die Firmen, sortiert nach Passung.",
-    text: "Die Zahl links ist die Einschätzung der KI, wie gut die Firma ins Zielbild passt. „Ohne E-Mail“ heißt: Im Impressum stand keine Adresse — "
-      + "dann bleibt der Anruf oder eine Adresse, die Sie selbst eintragen.",
+    ziel: ".cr-reiter-liste",
+    titel: "Die Reiter zeigen, wo eine Firma gerade steht.",
+    text: "„Offen“ sind neue und gescannte Firmen, „Mail bereit“ heißt: geschrieben, wartet auf dich. „Ohne E-Mail“ sammelt die Firmen, bei "
+      + "denen nichts zu finden war — dort kannst du nachsuchen lassen oder eine Adresse eintragen.",
   },
   {
-    titel: "Scannen, dann schreiben.",
-    text: "„Firma scannen“ lässt die KI bis zu acht Seiten lesen und nach Meldungen suchen. Jeder Aufhänger braucht ein wörtliches Zitat, das auf der Seite "
-      + "wirklich steht — sonst fällt er weg. „Mail schreiben“ nutzt nur diese Aufhänger: Sie-Form, kein Kapitalversprechen, Wortwand von FIAON Global. "
-      + "Sie können jeden Satz ändern; die Prüfung läuft danach neu.",
-    tipp: "Verletzt die Mail eine Regel der Wortwand, sperrt der Server Entwurf und Versand, bis der Text passt.",
+    ziel: ".cr-tabelle-rahmen",
+    titel: "Anhaken — auch mehrere auf einmal.",
+    text: "Die Zahl links ist die Einschätzung der KI, wie gut die Firma passt. Mit den Häkchen wählst du mehrere Firmen; unten erscheint die "
+      + "Leiste: „Mails vorbereiten“ (scannt und schreibt), „Als Entwürfe ins Postfach“ und „Senden“. Zwischen zwei Mails liegen 20 bis 45 "
+      + "Sekunden, damit sie persönlich wirken und nicht im Spam landen.",
+    tipp: "Ein Klick auf die Zeile öffnet die Akte rechts: Überblick, Website-Scan und die Mail.",
   },
   {
-    titel: "Ausgeben: als Entwurf oder direkt.",
-    text: "„Als Entwurf ins Postfach“ legt die Mail in das gewählte Postfach — dort lesen und senden. „Direkt senden“ fragt vorher nach. "
-      + "Je Firma geht genau eine erste Mail; „Kein Interesse“ und „Sperren“ setzen die Firma auf die Sperrliste — sie taucht nie wieder auf.",
-    tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH eine vorherige Einwilligung. Der Radar schreibt deshalb immer Absender, Impressum und Abmeldesatz dazu.",
+    titel: "Die Mail gehört dir — nichts geht ohne Klick hinaus.",
+    text: "Im Reiter „Mail“ stehen Betreff, Vorschau und der Text zum Ändern. Sie nutzt nur Aufhänger, die wörtlich auf der Website belegt "
+      + "sind, siezt, verspricht kein Kapital und trägt Absender, Impressum und Abmeldesatz. Verletzt sie eine Regel der Wortwand, sperrt "
+      + "der Server Entwurf und Versand. Je Firma geht genau eine erste Mail; „Kein Interesse“ und „Sperren“ setzen sie auf die Sperrliste.",
+    tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH eine vorherige Einwilligung — der Radar fragt deshalb vor jedem Versand.",
   },
 ];
 

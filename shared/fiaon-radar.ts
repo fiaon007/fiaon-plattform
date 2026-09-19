@@ -82,7 +82,7 @@ export const RADAR_ZIELBILD = {
   ],
 } as const;
 
-export type RadarStatus = "neu" | "gescannt" | "mail" | "im_postfach" | "versendet" | "antwort" | "kein_interesse" | "gesperrt";
+export type RadarStatus = "neu" | "gescannt" | "mail" | "im_postfach" | "versendet" | "antwort" | "ohne_kontakt" | "kein_interesse" | "gesperrt";
 
 export const RADAR_STATUS: Record<RadarStatus, { label: string; ton: "neu" | "arbeit" | "gut" | "aus" }> = {
   neu: { label: "Neu", ton: "neu" },
@@ -91,12 +91,25 @@ export const RADAR_STATUS: Record<RadarStatus, { label: string; ton: "neu" | "ar
   im_postfach: { label: "Entwurf im Postfach", ton: "arbeit" },
   versendet: { label: "Versendet", ton: "gut" },
   antwort: { label: "Antwort erhalten", ton: "gut" },
+  ohne_kontakt: { label: "Ohne E-Mail", ton: "aus" },
   kein_interesse: { label: "Kein Interesse", ton: "aus" },
   gesperrt: { label: "Gesperrt", ton: "aus" },
 };
 
 export const RADAR_PAKETE = ["global_struktur", "global_banking", "global_kapital", "global_vip"] as const;
 export type RadarPaket = (typeof RADAR_PAKETE)[number];
+
+/** Die Reiter über der Liste — je Reiter die Stände, die er zeigt. */
+export const RADAR_GRUPPEN: { key: string; label: string; stati: RadarStatus[]; ohneMail?: boolean }[] = [
+  { key: "offen", label: "Offen", stati: ["neu", "gescannt"] },
+  { key: "bereit", label: "Mail bereit", stati: ["mail", "im_postfach"] },
+  { key: "raus", label: "Versendet", stati: ["versendet", "antwort"] },
+  // Dieser Reiter zählt nach fehlender Adresse, nicht nach Stand — sonst übersieht man frisch gefundene Firmen ohne E-Mail.
+  { key: "ohne", label: "Ohne E-Mail", stati: ["ohne_kontakt"], ohneMail: true },
+  { key: "aus", label: "Aussortiert", stati: ["kein_interesse", "gesperrt"] },
+];
+/** Höchstens so viele Firmen in einem Stapel — mehr wäre Massenversand und dauert zu lang. */
+export const RADAR_STAPEL_MAX = 25;
 
 /** Die Kennung, unter der Besuche aus einer Radar-Mail in der Kampagnen-Zuordnung landen. */
 export const RADAR_KAMPAGNE = "firmen_radar";

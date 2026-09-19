@@ -49,7 +49,7 @@ import { impressumLesen, htmlZuText, textKarte, woertlich, entitaeten, regexFund
 import { berlinToday } from "./fiaon-time";
 import { gmailBereit, neueMailEntwurf, neueMailSenden, postfachProbe, entwurfLoeschen } from "./fiaon-gmail";
 import {
-  RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL,
+  RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
   radarBereich, radarDomain, type RadarLand, type RadarStatus, type RadarPaket,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
@@ -143,6 +143,15 @@ export function ensureRadarTabellen(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           fertig_am TIMESTAMPTZ
         )`;
+      // 19.09.2026 (Stapel): Fortschritt, Ergebnis je Firma und ein Puls — ein Lauf mit Pausen zwischen
+      // den Mails dauert länger als zehn Minuten und darf deshalb nicht als „abgebrochen" gelten.
+      await sqlPool`
+        ALTER TABLE fiaon_radar_laeufe
+          ADD COLUMN IF NOT EXISTS gesamt INTEGER NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS fertig INTEGER NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS aktuell TEXT,
+          ADD COLUMN IF NOT EXISTS ergebnisse JSONB NOT NULL DEFAULT '[]'::jsonb,
+          ADD COLUMN IF NOT EXISTS puls TIMESTAMPTZ`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -434,8 +443,75 @@ function kontaktVerweise(html: string, basis: URL): URL[] {
   return aus;
 }
 
-function besteAdresse(text: string, domain: string): string | null {
-  const alle = regexFunde(text).email.map((e) => e.wert.toLowerCase()).filter((m) => !MAIL_NIE.test(m.split("@")[0]));
+// ── EINE ADRESSE FINDEN, OHNE SIE ZU ERFINDEN (19.09.2026) ────────────────
+// Justin: „Das muss ja bitte vollständig sein." Viele Seiten zeigen die Adresse
+// nicht als Text: mailto-Verweis, Cloudflare-Mailschutz (data-cfemail), Angaben
+// im Seitenkopf (JSON-LD) oder Schreibweisen wie „info [at] firma [dot] de".
+// Alles davon steht auf der Seite — nur verpackt. Wir packen aus, raten aber nie
+// (kein „info@" auf Verdacht). Findet sich nichts, kommt die Firma gar nicht erst
+// in den Radar (oder landet bei den Firmen ohne E-Mail).
+
+/** Cloudflare-Mailschutz: das erste Byte ist der Schlüssel, der Rest XOR — daraus wird die Adresse. */
+export function cfEntschluesseln(hex: string): string | null {
+  const h = String(hex || "").trim().toLowerCase();
+  if (!/^[0-9a-f]+$/.test(h) || h.length < 8 || h.length % 2) return null;
+  const key = parseInt(h.slice(0, 2), 16);
+  let roh = "";
+  for (let i = 2; i < h.length; i += 2) roh += String.fromCharCode(parseInt(h.slice(i, i + 2), 16) ^ key);
+  let adresse = roh;
+  try { adresse = decodeURIComponent(roh.split("").map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`).join("")); } catch { /* reines ASCII */ }
+  return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(adresse) ? adresse.toLowerCase() : null;
+}
+
+/** „info [at] firma [dot] de" → „info@firma.de". Nur geklammerte Formen, damit kein Satz zerfällt. */
+export function verpackungLoesen(text: string): string {
+  return String(text || "")
+    .replace(/\s*[\[({<]\s*(at|ät|@)\s*[\])}>]\s*/gi, "@")
+    .replace(/\s+(at|ät)\s+(?=[a-z0-9-]+\.[a-z]{2,})/gi, "@")
+    .replace(/\s*[\[({<]\s*(dot|punkt|\.)\s*[\])}>]\s*/gi, ".")
+    .replace(/\s+(dot|punkt)\s+(?=[a-z]{2,6}\b)/gi, ".");
+}
+
+/** ROT13: Manche Seiten drehen die Adresse um dreizehn Buchstaben und drehen sie im Browser zurück. */
+export function rot13(text: string): string {
+  return String(text || "").replace(/[a-z]/gi, (c) => {
+    const a = c <= "Z" ? 65 : 97;
+    return String.fromCharCode(((c.charCodeAt(0) - a + 13) % 26) + a);
+  });
+}
+
+/** Alle Adressen, die eine Seite hergibt: Text, mailto, Cloudflare, Seitendaten, ROT13. */
+export function adressenAusSeite(seite: { text: string; html: string }, domain?: string): string[] {
+  const aus = new Set<string>();
+  const merke = (roh: unknown) => {
+    const a = String(roh || "").trim().toLowerCase().replace(/^mailto:/, "").split("?")[0];
+    if (/^[^@\s"'<>]+@[^@\s"'<>]+\.[a-z]{2,}$/i.test(a)) aus.add(a);
+  };
+  for (const f of regexFunde(verpackungLoesen(seite.text)).email) merke(f.wert);
+  for (const m of Array.from(seite.html.matchAll(/href\s*=\s*["']mailto:([^"'\s>]+)/gi))) { try { merke(decodeURIComponent(m[1])); } catch { merke(m[1]); } }
+  for (const m of Array.from(seite.html.matchAll(/data-cfemail\s*=\s*["']([0-9a-fA-F]+)["']/g))) merke(cfEntschluesseln(m[1]));
+  for (const m of Array.from(seite.html.matchAll(/email-protection#([0-9a-fA-F]+)/g))) merke(cfEntschluesseln(m[1]));
+  for (const m of Array.from(seite.html.matchAll(/"email"\s*:\s*"(?:mailto:)?([^"\s]+@[^"\s]+)"/gi))) merke(m[1]);
+  // Zurückgedreht wird nur, was danach wie eine Adresse aussieht — geraten wird auch hier nichts.
+  // Beide Reihenfolgen: Manche drehen die ganze Zeile, andere nur Name und Domäne und lassen „[at]" stehen.
+  for (const f of regexFunde(verpackungLoesen(rot13(seite.text))).email) merke(f.wert);
+  for (const f of regexFunde(rot13(verpackungLoesen(seite.text))).email) merke(f.wert);
+  // Im Quelltext (dort verstecken manche die gedrehte Adresse) zählt nur die eigene Domäne — sonst
+  // gelten Dateinamen wie „logo@2x.png" als Adresse.
+  if (domain) {
+    for (const fassung of [verpackungLoesen(rot13(seite.html)), rot13(verpackungLoesen(seite.html))]) {
+      for (const f of regexFunde(fassung).email) {
+        const a = String(f.wert).toLowerCase();
+        if (a.endsWith(`@${domain}`) || a.endsWith(`.${domain}`)) merke(a);
+      }
+    }
+  }
+  return Array.from(aus);
+}
+
+/** Die beste Adresse für eine erste Mail: eigene Domäne zuerst, dann Postfächer wie info@ oder kontakt@. */
+export function besteAdresse(seite: { text: string; html: string }, domain: string): string | null {
+  const alle = adressenAusSeite(seite, domain).filter((m) => !MAIL_NIE.test(m.split("@")[0]));
   const eigene = alle.filter((m) => { const d = m.split("@")[1] ?? ""; return d === domain || d.endsWith(`.${domain}`); });
   const liste = eigene.length ? eigene : alle.length === 1 ? alle : [];
   return liste.find((m) => MAIL_GUT.test(m.split("@")[0])) ?? liste[0] ?? null;
@@ -461,12 +537,20 @@ async function kontaktErmitteln(domain: string, land: RadarLand | null, start: G
 }
 
 async function adresseVonWebsite(domain: string, start: GeleseneSeite, waechter: (u: URL) => Promise<void>): Promise<{ email: string; seite: string } | null> {
-  const erst = besteAdresse(start.text, domain);
+  const erst = besteAdresse(start, domain);
   if (erst) return { email: erst, seite: start.url };
-  for (const u of kontaktVerweise(start.html, new URL(start.url)).slice(0, 3)) {
-    const s = await seiteHolen(u, waechter, 400_000);
-    const a = s ? besteAdresse(s.text, domain) : null;
-    if (a && s) return { email: a, seite: s.url };
+  const basis = new URL(start.url);
+  const ziele = kontaktVerweise(start.html, basis).slice(0, 4);
+  // Auch ohne Verweis: die üblichen Adressen direkt versuchen.
+  for (const pfad of ["/kontakt", "/contact", "/impressum", "/imprint"]) {
+    if (ziele.length >= 6) break;
+    const u = new URL(pfad, basis);
+    if (!ziele.some((z) => z.pathname === u.pathname)) ziele.push(u);
+  }
+  for (const u of ziele) {
+    const seite = await seiteHolen(u, waechter, 400_000);
+    const a = seite ? besteAdresse(seite, domain) : null;
+    if (a && seite) return { email: a, seite: seite.url };
   }
   return null;
 }
@@ -487,7 +571,9 @@ async function vorschlagPruefen(v: Vorschlag, ctx: { bereich: string; quelle: st
   if (!nameAufSeite(v.name, `${start.titel}\n${start.text.slice(0, 20_000)}`, domain)) return nein("Firmenname steht nicht auf der Website");
 
   const kontakt = await kontaktErmitteln(domain, land, start, waechter);
-  if (!kontakt.email && !kontakt.telefon) return nein(kontakt.impressum?.quelle === "impressum" ? "weder E-Mail noch Telefon im Impressum oder auf der Website" : "kein lesbares Impressum und keine E-Mail auf der Website");
+  // 19.09.2026 (Justin: „Das muss ja bitte vollständig sein"): ohne E-Mail keine Aufnahme — sonst steht
+  // eine Firma im Radar, der niemand schreiben kann. Telefon allein reicht nicht mehr.
+  if (!kontakt.email) return nein(kontakt.impressum ? "keine E-Mail auffindbar (nur Formular oder verschlüsselt)" : "kein Impressum und keine E-Mail auffindbar");
   if (kontakt.email && (await gesperrt(kontakt.email, domain))) return nein("E-Mail steht auf der Sperrliste");
   const f: any = kontakt.impressum ?? {};
   const email = kontakt.email;
@@ -570,8 +656,10 @@ export async function radarLauf(id: number): Promise<any | null> {
   await ensureRadarTabellen();
   const l: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_laeufe WHERE id = ${id}`) as any[])[0]);
   if (!l) return null;
-  // Ein Lauf, der seit zehn Minuten „läuft", ist mit einem Neustart verloren gegangen.
-  if (l.status === "laeuft" && Date.now() - new Date(l.created_at).getTime() > 10 * 60_000) {
+  // Ein Lauf, der seit zehn Minuten „läuft", ist mit einem Neustart verloren gegangen. Ein Stapel zählt
+  // ab seinem letzten Puls — er darf mit Pausen zwischen den Mails deutlich länger dauern.
+  const zuletzt = new Date(l.puls ?? l.created_at).getTime();
+  if (l.status === "laeuft" && Date.now() - zuletzt > (l.art === "stapel" ? 5 : 10) * 60_000) {
     await sqlPool`UPDATE fiaon_radar_laeufe SET status = 'fehler', fehler = 'abgebrochen (Neustart oder Zeitgrenze)', fertig_am = NOW() WHERE id = ${id} AND status = 'laeuft'`;
     return { ...l, status: "fehler", fehler: "abgebrochen (Neustart oder Zeitgrenze)" };
   }
@@ -588,6 +676,10 @@ export async function radarTageslauf(jetzt = new Date()): Promise<{ ruhe: boolea
   const tag = berlinToday(jetzt);
   const zaehlen = async () => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE tag = ${tag} AND quelle = 'tageslauf'`) as any[])[0]?.n ?? 0);
   let heute = await zaehlen();
+  // Erst die Lücken schließen: Firmen ohne E-Mail noch einmal nachsuchen (höchstens zehn je Runde).
+  const luecken = (await sqlPool`
+    SELECT id FROM fiaon_radar_firmen WHERE email IS NULL AND status IN ('neu', 'gescannt', 'mail') ORDER BY id LIMIT 10`) as any[];
+  for (const l of luecken) await radarKontaktNachsuchen(Number(l.id)).catch(() => {});
   if (heute >= RADAR_TAGESZIEL) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
   const laeufeHeute = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_laeufe WHERE art = 'tageslauf' AND created_at > date_trunc('day', NOW())`) as any[])[0]?.n ?? 0);
   const LAENDER: RadarLand[] = ["DE", "DE", "AT", "DE", "CH"];
@@ -931,7 +1023,7 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
 
 export async function radarStatusSetzen(id: number, ein: { status: RadarStatus; notiz?: string | null }): Promise<void> {
   await ensureRadarTabellen();
-  const erlaubt: RadarStatus[] = ["neu", "gescannt", "mail", "im_postfach", "versendet", "antwort", "kein_interesse", "gesperrt"];
+  const erlaubt: RadarStatus[] = ["neu", "gescannt", "mail", "im_postfach", "versendet", "antwort", "ohne_kontakt", "kein_interesse", "gesperrt"];
   if (!erlaubt.includes(ein.status)) throw new RadarFehler("Unbekannter Stand.");
   const [f] = (await sqlPool`SELECT domain, email FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
   if (!f) throw new RadarFehler("Firma nicht gefunden.", 404);
@@ -954,12 +1046,135 @@ export async function radarSperren(ein: { wert: string; grund?: string | null; v
   if (art === "domain") await sqlPool`UPDATE fiaon_radar_firmen SET status = 'gesperrt', updated_at = NOW() WHERE domain = ${wert} AND status NOT IN ('versendet', 'antwort')`;
 }
 
+// ── KONTAKT NACHSUCHEN UND VON HAND SETZEN (19.09.2026) ──────────────────────
+/** Sucht die E-Mail einer Firma noch einmal — mit allen Verpackungen. Findet sich keine, wandert die Firma zu „Ohne E-Mail". */
+export async function radarKontaktNachsuchen(id: number): Promise<{ email: string | null; seite: string | null }> {
+  await ensureRadarTabellen();
+  const f: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]);
+  if (!f) throw new RadarFehler("Firma nicht gefunden.", 404);
+  if (f.email) return { email: f.email, seite: f.impressum?.seite ?? null };
+  const waechter = robotsWaechter();
+  const start = await seiteHolen(f.website, waechter);
+  if (!start) throw new RadarFehler("Die Website ist gerade nicht erreichbar.", 502);
+  const kontakt = await kontaktErmitteln(f.domain, (f.land as RadarLand) ?? null, start, waechter);
+  if (!kontakt.email) {
+    await sqlPool`UPDATE fiaon_radar_firmen SET status = 'ohne_kontakt', updated_at = NOW()
+                   WHERE id = ${id} AND status IN ('neu', 'gescannt', 'mail')`;
+    return { email: null, seite: null };
+  }
+  await sqlPool`UPDATE fiaon_radar_firmen SET email = ${kontakt.email},
+                  ansprechpartner = COALESCE(ansprechpartner, ${kontakt.ansprechpartner}),
+                  impressum = COALESCE(${kontakt.impressum ? sqlPool.json(kontakt.impressum) : null}, impressum),
+                  status = CASE WHEN status = 'ohne_kontakt' THEN 'neu' ELSE status END, updated_at = NOW() WHERE id = ${id}`;
+  return { email: kontakt.email, seite: kontakt.impressum?.seite ?? null };
+}
+
+/** Eine Adresse, die ein Mensch eingetragen hat — geprüft, aber ohne Beleg auf der Website. */
+export async function radarKontaktSetzen(id: number, emailRoh: string): Promise<string> {
+  await ensureRadarTabellen();
+  const email = String(emailRoh || "").trim().toLowerCase();
+  if (!/^[^@\s<>"]+@[^@\s<>"]+\.[a-z]{2,}$/i.test(email)) throw new RadarFehler("Bitte eine gültige E-Mail-Adresse eintragen.");
+  const [f] = (await sqlPool`SELECT domain FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
+  if (!f) throw new RadarFehler("Firma nicht gefunden.", 404);
+  if (await gesperrt(email, f.domain)) throw new RadarFehler("Diese Adresse steht auf der Sperrliste.");
+  await sqlPool`UPDATE fiaon_radar_firmen SET email = ${email}, status = CASE WHEN status = 'ohne_kontakt' THEN 'neu' ELSE status END, updated_at = NOW() WHERE id = ${id}`;
+  return email;
+}
+
+// ── MEHRERE AUF EINMAL (19.09.2026) ──────────────────────────────────────────
+// Justin: „mehrere gleichzeitig markieren und versenden". Jede Mail bleibt einzeln
+// geschrieben — der Stapel nimmt nur die Arbeit ab, sie nacheinander vorzubereiten
+// und hinauszugeben. Beim Senden liegen 20 bis 45 Sekunden zwischen zwei Mails:
+// So sieht es aus wie von einem Menschen, und die Zustellung leidet nicht.
+export type StapelArt = "vorbereiten" | "entwurf" | "senden";
+const PAUSE_MS = () => 20_000 + Math.floor(Math.random() * 25_000);
+
+async function stapelPuls(laufId: number, fertig: number, aktuell: string | null, ergebnisse: any[]): Promise<boolean> {
+  const [l] = (await sqlPool`
+    UPDATE fiaon_radar_laeufe SET fertig = ${fertig}, aktuell = ${aktuell}, ergebnisse = ${sqlPool.json(ergebnisse)}, puls = NOW()
+     WHERE id = ${laufId} RETURNING status`) as any[];
+  return l?.status === "laeuft";
+}
+
+export async function radarStapelStarten(ein: { ids: number[]; art: StapelArt; postfach?: string | null; bestaetigt?: boolean; von?: number | null }): Promise<number> {
+  await ensureRadarTabellen();
+  const ids = Array.from(new Set((ein.ids ?? []).map((x) => Number(x)).filter((x) => Number.isInteger(x) && x > 0))).slice(0, RADAR_STAPEL_MAX);
+  if (!ids.length) throw new RadarFehler("Bitte mindestens eine Firma auswählen.");
+  const art: StapelArt = ein.art === "senden" ? "senden" : ein.art === "entwurf" ? "entwurf" : "vorbereiten";
+  if (art !== "vorbereiten") {
+    const postfach = String(ein.postfach || "").toLowerCase();
+    if (!radarPostfaecher().includes(postfach)) throw new RadarFehler("Dieses Postfach ist für den Radar nicht freigegeben.", 403);
+    if (art === "senden" && ein.bestaetigt !== true) throw new RadarFehler("Bitte den Versand bestätigen.");
+  }
+  const offen = (await sqlPool`SELECT id FROM fiaon_radar_laeufe WHERE art = 'stapel' AND status = 'laeuft' AND COALESCE(puls, created_at) > NOW() - INTERVAL '5 minutes'`) as any[];
+  if (offen.length) throw new RadarFehler("Es läuft schon ein Stapel — bitte warten oder ihn abbrechen.", 429);
+  const [r] = (await sqlPool`
+    INSERT INTO fiaon_radar_laeufe (art, bereich, status, gesamt, von, puls) VALUES ('stapel', ${art}, 'laeuft', ${ids.length}, ${ein.von ?? null}, NOW()) RETURNING id`) as any[];
+  const laufId = Number(r.id);
+  void stapelLauf(laufId, ids, art, String(ein.postfach || "").toLowerCase(), ein.von ?? null)
+    .catch((e) => console.error(`[RADAR] Stapel ${laufId}:`, e?.message || e));
+  return laufId;
+}
+
+async function stapelLauf(laufId: number, ids: number[], art: StapelArt, postfach: string, von: number | null): Promise<void> {
+  const start = Date.now();
+  const ergebnisse: { id: number; name: string; ok: boolean; text: string }[] = [];
+  let fertig = 0;
+  for (const id of ids) {
+    const f: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]);
+    const name = f?.name ?? `#${id}`;
+    if (!(await stapelPuls(laufId, fertig, name, ergebnisse))) break;
+    try {
+      if (!f) throw new RadarFehler("Firma nicht gefunden.", 404);
+      if (["gesperrt", "kein_interesse"].includes(f.status)) throw new RadarFehler("gesperrt oder abgelehnt");
+      if (art !== "vorbereiten" && (f.status === "versendet" || f.versendet_am)) throw new RadarFehler("hat schon eine erste Mail bekommen");
+      if (!f.email) {
+        const k = await radarKontaktNachsuchen(id);
+        if (!k.email) throw new RadarFehler("keine E-Mail auffindbar — steht jetzt unter „Ohne E-Mail“");
+      }
+      if (!f.mail) await radarMailSchreiben(id);
+      if (art !== "vorbereiten") {
+        const mail = zeileLesen(((await sqlPool`SELECT mail FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]) as any;
+        if (mail?.mail?.sperrend?.length) throw new RadarFehler(`Mail verletzt Regeln: ${mail.mail.sperrend.join("; ")}`);
+        await radarMailAusgeben(id, { art: art === "senden" ? "senden" : "entwurf", postfach, von });
+      }
+      ergebnisse.push({ id, name, ok: true, text: art === "senden" ? "versendet" : art === "entwurf" ? "Entwurf im Postfach" : "Mail bereit" });
+    } catch (e: any) {
+      ergebnisse.push({ id, name, ok: false, text: String(e?.message || e).slice(0, 160) });
+    }
+    fertig++;
+    if (!(await stapelPuls(laufId, fertig, null, ergebnisse))) break;
+    // Pause nur zwischen zwei echten Versänden — Entwürfe dürfen zügig entstehen.
+    if (art === "senden" && fertig < ids.length && ergebnisse[ergebnisse.length - 1].ok) {
+      const bis = Date.now() + PAUSE_MS();
+      while (Date.now() < bis) {
+        await new Promise((ja) => setTimeout(ja, 5000));
+        if (!(await stapelPuls(laufId, fertig, "Pause zwischen zwei Mails", ergebnisse))) return;
+      }
+    }
+  }
+  const gut = ergebnisse.filter((e) => e.ok).length;
+  await sqlPool`
+    UPDATE fiaon_radar_laeufe SET status = CASE WHEN status = 'abgebrochen' THEN 'abgebrochen' ELSE 'fertig' END,
+           fertig = ${fertig}, aktuell = NULL, neu = ${gut}, ergebnisse = ${sqlPool.json(ergebnisse)},
+           dauer_ms = ${Date.now() - start}, fertig_am = NOW(), puls = NOW() WHERE id = ${laufId}`;
+}
+
+export async function radarLaufAbbrechen(id: number): Promise<void> {
+  await ensureRadarTabellen();
+  await sqlPool`UPDATE fiaon_radar_laeufe SET status = 'abgebrochen', aktuell = NULL, fertig_am = NOW() WHERE id = ${id} AND status = 'laeuft'`;
+}
+
 // ── Für das Chefbüro ─────────────────────────────────────────────────────────
-export async function radarUebersicht(filter: { tag?: string | null; bereich?: string | null; status?: string | null; suche?: string | null }): Promise<any> {
+export async function radarUebersicht(filter: { tag?: string | null; bereich?: string | null; status?: string | null; gruppe?: string | null; suche?: string | null }): Promise<any> {
   await ensureRadarTabellen();
   const tag = filter.tag && /^\d{4}-\d{2}-\d{2}$/.test(filter.tag) ? filter.tag : null;
   const bereich = filter.bereich && radarBereich(filter.bereich) ? filter.bereich : null;
-  const status = filter.status && /^[a-z_]{2,20}$/.test(filter.status) ? filter.status : null;
+  const einzeln = filter.status && /^[a-z_]{2,20}$/.test(filter.status) ? filter.status : null;
+  // Reiter statt Statusliste: „Offen", „Mail bereit", „Versendet", „Ohne E-Mail", „Aussortiert".
+  const gruppe = RADAR_GRUPPEN.find((g) => g.key === String(filter.gruppe ?? ""));
+  const nurOhneMail = gruppe?.ohneMail === true;
+  const stati: string[] | null = einzeln ? [einzeln] : gruppe && !nurOhneMail ? [...gruppe.stati] : null;
   const suche = String(filter.suche ?? "").trim().toLowerCase().slice(0, 60) || null;
   const firmen = (await sqlPool`
     SELECT id, tag, quelle, bereich, land, name, domain, website, ort, kurz, passung, gruende, signale, email, ansprechpartner, status,
@@ -967,7 +1182,8 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
       FROM fiaon_radar_firmen
      WHERE (${tag}::date IS NULL OR tag = ${tag}::date)
        AND (${bereich}::text IS NULL OR bereich = ${bereich})
-       AND (${status}::text IS NULL OR status = ${status})
+       AND (${stati}::text[] IS NULL OR status = ANY(${stati}))
+       AND (${nurOhneMail} = FALSE OR (email IS NULL AND status NOT IN ('versendet', 'antwort', 'gesperrt', 'kein_interesse')))
        AND (${suche}::text IS NULL OR LOWER(name) LIKE ${"%" + (suche ?? "") + "%"} OR domain LIKE ${"%" + (suche ?? "") + "%"} OR LOWER(COALESCE(ort, '')) LIKE ${"%" + (suche ?? "") + "%"})
      ORDER BY tag DESC, passung DESC NULLS LAST, id DESC
      LIMIT 300`) as any[];
@@ -980,9 +1196,16 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
            COUNT(*) FILTER (WHERE status = 'antwort')::int AS antworten,
            COUNT(*) FILTER (WHERE status IN ('mail', 'im_postfach'))::int AS offen
       FROM fiaon_radar_firmen`) as any[];
-  const laeufe = (await sqlPool`SELECT id, art, bereich, land, status, vorgeschlagen, neu, fehler, created_at, fertig_am FROM fiaon_radar_laeufe ORDER BY id DESC LIMIT 8`) as any[];
+  const laeufe = ((await sqlPool`
+    SELECT id, art, bereich, land, status, vorgeschlagen, neu, gesamt, fertig, aktuell, ergebnisse, fehler, created_at, fertig_am
+      FROM fiaon_radar_laeufe ORDER BY id DESC LIMIT 8`) as any[]).map((r) => zeileLesen(r));
+  // Wie viele Firmen in welchem Reiter stehen — ohne den Zeitraum-Filter, damit die Zahlen stabil bleiben.
+  const nachStand = Object.fromEntries(((await sqlPool`SELECT status, COUNT(*)::int AS n FROM fiaon_radar_firmen GROUP BY status`) as any[]).map((r) => [String(r.status), Number(r.n)]));
+  // Der Reiter „Ohne E-Mail" zählt jede Firma ohne Adresse, egal in welchem Stand sie steht.
+  nachStand.ohne_mail = Number(((await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE email IS NULL AND status NOT IN ('versendet', 'antwort', 'gesperrt', 'kein_interesse')`) as any[])[0]?.n ?? 0);
   return {
-    firmen: firmen.map((r) => zeileLesen(r)), zahlen, laeufe, heute, tagesziel: RADAR_TAGESZIEL,
+    firmen: firmen.map((r) => zeileLesen(r)), zahlen, nachStand, laeufe, heute, tagesziel: RADAR_TAGESZIEL, stapelMax: RADAR_STAPEL_MAX,
     kostenHeute: await kostenHeute("radar").catch(() => 0), deckel: TAGESDECKEL_EUR(),
     postfaecher: radarPostfaecher(), absender: radarAbsender(), gmail: gmailBereit(), ki: !!SCHLUESSEL(),
   };

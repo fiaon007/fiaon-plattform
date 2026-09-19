@@ -198,6 +198,8 @@ const BusinessStartPage = lazy(() => import("@/pages/business-start"));
 // 19.09.2026 (E-191): FIAON Global — die Unterseiten und die Anzeigen-Landingpages.
 const GlobalSeitePage = lazy(() => import("@/pages/site/global-seite"));
 const GlobalLandingPage = lazy(() => import("@/pages/site/global-lp"));
+const GlobalWiderrufPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalWiderrufsbelehrungSeite })));
+const GlobalMustervertragPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalMustervertragSeite })));
 const BusinessAuftragPage = lazy(() => import("@/pages/business-auftrag"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
@@ -425,6 +427,8 @@ function Router() {
       <Route path="/business/start" component={BusinessStartPage} />
       <Route path="/business/auftrag/:ref?" component={BusinessAuftragPage} />
       <Route path="/business/lp/:slug" component={GlobalLandingPage} />
+      <Route path="/business/widerrufsbelehrung" component={GlobalWiderrufPage} />
+      <Route path="/business/mustervertrag" component={GlobalMustervertragPage} />
       <Route path="/business/wissen/:slug" component={GlobalSeitePage} />
       <Route path="/business/:slug" component={GlobalSeitePage} />
       <Route path="/global"><Redirect to="/business" /></Route>

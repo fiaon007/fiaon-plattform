@@ -13,10 +13,12 @@ import {
   globalKatalog, globalPreisText, globalPlanungText,
 } from "./fiaon-global";
 import { AGENDA } from "./fiaon-onboarding-agenda";
+import { FIAON_FIRMA } from "./fiaon-firma";
 
 export const SUPPORT = {
-  telefon: "+41 44 244 93 01",
-  telefonTel: "+41442449301",
+  // Eine Quelle für die Nummer: shared/fiaon-firma.ts (19.09.2026).
+  telefon: FIAON_FIRMA.telefon,
+  telefonTel: FIAON_FIRMA.telefonTel,
   email: "support@fiaon.com",
   firma: "FIAON LTD",
   adresse: "128 City Road, London, EC1V 2NX, United Kingdom",

@@ -8,10 +8,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { einwilligungLesen, einwilligungNoetig, einwilligungSetzen, messungStarten } from "@/lib/werbung";
+import { istBusinessBereich, mitBereich } from "@/lib/bereich";
 
 const INTERN = /^\/(agent|admin|chef|Admindashboard|admindashboard|onboarding|inkasso|team-intern)(\/|$)/;
 
 export default function EinwilligungsHinweis() {
+  // Auf Business-Seiten öffnen die Rechtsseiten im Rahmen von FIAON Global (lib/bereich.ts).
+  const verweis = (href: string) => (typeof window !== "undefined" && istBusinessBereich(window.location.pathname, window.location.search) ? mitBereich(href) : href);
   const [offen, setOffen] = useState(false);
   const [auswahl, setAuswahl] = useState(false);
   const [statistik, setStatistik] = useState(false);
@@ -61,7 +64,7 @@ export default function EinwilligungsHinweis() {
         .ew-schalter:disabled{opacity:.6;cursor:default}
       `}</style>
       <h2 id="ew-titel">Ihre Wahl zu Cookies</h2>
-      <p>Wir messen nur mit Ihrer Einwilligung, welche Seiten gelesen und welche Anzeigen geklickt werden. Ohne sie funktioniert fiaon.com genauso. Einzelheiten stehen in den <a href="/cookie-einstellungen">Cookie-Einstellungen</a> und der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
+      <p>Wir messen nur mit Ihrer Einwilligung, welche Seiten gelesen und welche Anzeigen geklickt werden. Ohne sie funktioniert fiaon.com genauso. Einzelheiten stehen in den <a href={verweis("/cookie-einstellungen")}>Cookie-Einstellungen</a> und der <a href={verweis("/datenschutz")}>Datenschutzerklärung</a>.</p>
       {auswahl && (
         <div className="ew-wahl">
           <label className="ew-zeile"><span><b>Notwendig</b><small>Anmeldung, Sicherheit, diese Entscheidung. Immer aktiv.</small></span><input className="ew-schalter" type="checkbox" checked disabled aria-label="Notwendig" /></label>

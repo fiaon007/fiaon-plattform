@@ -146,7 +146,7 @@ export default function Business() {
         </section>
 
         {/* ── Aus einer Hand ─────────────────────────────────────────────────── */}
-        <section className="fg-sek stein">
+        <section id="leistungen" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
           <div className="fg-rahmen">
             <Auf>
               <div className="fg-kopf">
@@ -163,7 +163,7 @@ export default function Business() {
         </section>
 
         {/* ── Der Weg ────────────────────────────────────────────────────────── */}
-        <section className="fg-sek stein" style={{ paddingTop: 24 }}>
+        <section id="ablauf" className="fg-sek stein" style={{ paddingTop: 24, scrollMarginTop: 72 }}>
           <div className="fg-rahmen">
             <Auf>
               <div className="fg-kopf">
@@ -183,7 +183,7 @@ export default function Business() {
         </section>
 
         {/* ── Für wen ────────────────────────────────────────────────────────── */}
-        <section className="fg-sek eng">
+        <section id="fuer-wen" className="fg-sek eng" style={{ scrollMarginTop: 72 }}>
           <div className="fg-rahmen">
             <Auf>
               <div className="fg-kopf">
@@ -439,7 +439,7 @@ export default function Business() {
         )}
 
         {/* ── Fragen ─────────────────────────────────────────────────────────── */}
-        <section className="fg-sek">
+        <section id="fragen" className="fg-sek" style={{ scrollMarginTop: 72 }}>
           <div className="fg-rahmen schmal">
             <Auf>
               <span className="fg-auge">{t.fragenAuge}</span>

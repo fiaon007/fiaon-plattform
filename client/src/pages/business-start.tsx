@@ -43,7 +43,7 @@ import { Dunkel } from "@/components/site/DunkleBuehne";
 import SignaturePad from "@/components/agent/SignaturPad";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_START_WOERTER } from "@/i18n/global-start";
-import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, globalPaket, globalPreisText, globalPlanungText } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, globalPaket, globalPreisText, globalPlanungText, istFiaonSelbst } from "@shared/fiaon-global";
 import { kampagne, werbeKonversion } from "@/lib/werbung";
 import "@/styles/global-start.css";
 
@@ -180,7 +180,7 @@ export default function BusinessStart() {
     try {
       const r = await fetch("/api/fiaon/firmensuche/impressum", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: webUrl.trim(), land: firma.land }) });
       const j = await r.json();
-      if (!j.ok || !j.firma) { setWebFehler(t.websiteFehler); setFelderOffen(true); return; }
+      if (!j.ok || !j.firma) { setWebFehler(j.grund === "eingabe" && j.error ? j.error : t.websiteFehler); setFelderOffen(true); return; }
       setFehler("");
       uebernimm({ ...j.firma, website: j.firma.website || webUrl.trim() });
     } catch { setWebFehler(t.websiteFehler); setFelderOffen(true); }
@@ -239,6 +239,7 @@ export default function BusinessStart() {
     if (schritt === 1 && privat) {
       // Dieselben Regeln wie server/lib/fiaon-global-auftrag.ts (privatPruefen/anschriftPruefen).
       if (!person.vorname.trim() || !person.nachname.trim() || !anschrift.strasse.trim() || !anschrift.plz.trim() || !anschrift.ort.trim()) return setFehler(t.privatPflicht);
+      if ([person.vorname, person.nachname, anschrift.strasse, anschrift.ort].some(istFiaonSelbst)) return setFehler(t.fiaonSelbstPrivat);
       if (anschrift.strasse.trim().length < 3) return setFehler(t.strasseFalsch);
       if (!(anschrift.land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(anschrift.plz.trim())) return setFehler(t.plzFalsch(t.laender[anschrift.land], anschrift.land === "DE" ? 5 : 4));
       return gehe(2);
@@ -247,6 +248,8 @@ export default function BusinessStart() {
       if (!firma.name.trim() || !firma.rechtsform.trim() || !firma.strasse.trim() || !firma.plz.trim() || !firma.ort.trim()) { setFelderOffen(true); return setFehler(t.firmaPflicht); }
       // Dieselben Regeln wie server/lib/fiaon-global-auftrag.ts (firmaPruefen) — sonst scheitert erst die Vertragsvorschau.
       if (firma.strasse.trim().length < 3) { setFelderOffen(true); return setFehler(t.strasseFalsch); }
+      // FIAON ist die Gegenseite — dieselbe Regel wie der Server (istFiaonSelbst, Florentines Fund 19.09.2026).
+      if ([firma.name, firma.rechtsform, firma.strasse, firma.ort, firma.registergericht, firma.registernummer, firma.website].some(istFiaonSelbst)) { setFelderOffen(true); return setFehler(t.fiaonSelbst); }
       if (!(firma.land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(firma.plz.trim())) { setFelderOffen(true); return setFehler(t.plzFalsch(t.laender[firma.land], firma.land === "DE" ? 5 : 4)); }
       const ust = firma.ustId.toUpperCase().replace(/[\s.\-]/g, "");
       if (ust && !/^(DE\d{9}|ATU\d{8}|CHE\d{9}(MWST|TVA|IVA)?)$/.test(ust)) { setFelderOffen(true); return setFehler(t.ustIdFalsch); }
@@ -254,6 +257,7 @@ export default function BusinessStart() {
     }
     if (schritt === 2) {
       if (privat ? (!person.email.trim() || !person.telefon.trim()) : (!person.vorname.trim() || !person.nachname.trim() || !person.funktion.trim() || !person.email.trim() || !person.telefon.trim())) return setFehler(privat ? t.kontaktPflicht : t.personPflicht);
+      if (!privat && [person.vorname, person.nachname, person.funktion].some(istFiaonSelbst)) return setFehler(t.fiaonSelbstPerson);
       if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(person.email.trim())) return setFehler(t.emailFalsch);
       const ziffern = person.telefon.replace(/[^\d+]/g, "");
       if (ziffern.replace(/\D/g, "").length < 7 || !/^(\+4[913]|004[913]|0)/.test(ziffern)) return setFehler(t.telefonFalsch);

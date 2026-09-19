@@ -38,6 +38,7 @@ import { sqlPool } from "../lib/db-pool";
 import { alsLand, sucheSaeubern, SUCHE_MIN, AnbieterFehler, type Land } from "../lib/firmensuche/typen";
 import { firmenSuchen, firmaDetail, anbieterLage, REIHENFOLGE, type SuchErgebnis } from "../lib/firmensuche/index";
 import { impressumLesen } from "../lib/firmensuche/impressum";
+import { istFiaonSelbst } from "@shared/fiaon-global";
 import { ustIdPruefen } from "../lib/firmensuche/vies";
 import { ustIdErkennen } from "../lib/firmensuche/formate";
 
@@ -228,6 +229,8 @@ router.post("/firmensuche/impressum", async (req: Request, res: Response) => {
   const url = String(req.body?.url ?? "").trim().slice(0, 300);
   const land = alsLand(req.body?.land);
   if (url.length < 4) return res.status(400).json({ ok: false, error: "Bitte die Adresse Ihrer Website angeben.", grund: "eingabe" });
+  // 19.09.2026: Das Impressum von FIAON ergäbe FIAON als Kunden — und damit einen Vertrag mit sich selbst.
+  if (istFiaonSelbst(url.replace(/^https?:\/\//i, "").split("/")[0])) return res.status(400).json({ ok: false, error: "Das ist die Website von FIAON — bitte nennen Sie die Website Ihres eigenen Unternehmens.", grund: "eingabe" });
   if (zuViel("impressum", ipVon(req))) return res.status(429).json({ ok: false, error: "Das waren viele Versuche. Bitte tragen Sie die Angaben selbst ein oder versuchen Sie es in zehn Minuten noch einmal.", grund: "zu_schnell" });
   if (impressumLaeufe >= 4) return res.status(429).json({ ok: false, error: "Gerade ist viel los. Bitte versuchen Sie es gleich noch einmal.", grund: "ausgelastet" });
   impressumLaeufe += 1;

@@ -68,6 +68,9 @@ const de = {
   strasseFalsch: "Bitte geben Sie Straße und Hausnummer vollständig an.",
   plzFalsch: (land: string, n: number) => `Bitte prüfen Sie die Postleitzahl — in ${land} hat sie ${n === 5 ? "fünf" : "vier"} Ziffern. Stimmt das Land oben?`,
   ustIdFalsch: "Bitte prüfen Sie die USt-IdNr. — zum Beispiel DE123456789, ATU12345678 oder CHE-123.456.789. Sie können das Feld auch leer lassen.",
+  fiaonSelbst: "„FIAON“ ist Ihr Vertragspartner — bitte tragen Sie hier Ihr eigenes Unternehmen ein.",
+  fiaonSelbstPrivat: "Bitte tragen Sie Ihren eigenen Namen und Ihre Wohnanschrift ein — FIAON ist Ihr Vertragspartner.",
+  fiaonSelbstPerson: "Bitte tragen Sie hier die Person Ihres Unternehmens ein, die unterschreibt — FIAON ist Ihr Vertragspartner.",
 
   // Schritt 3
   personTitel: "Wer unterschreibt?",
@@ -212,6 +215,9 @@ const en: typeof de = {
   strasseFalsch: "Please enter the full street and number.",
   plzFalsch: (land: string, n: number) => `Please check the postcode — in ${land} it has ${n === 5 ? "five" : "four"} digits. Is the country above correct?`,
   ustIdFalsch: "Please check the VAT ID — for example DE123456789, ATU12345678 or CHE-123.456.789. You can also leave the field empty.",
+  fiaonSelbst: "“FIAON” is your contracting party — please enter your own company here.",
+  fiaonSelbstPrivat: "Please enter your own name and home address — FIAON is your contracting party.",
+  fiaonSelbstPerson: "Please enter the person from your company who signs — FIAON is your contracting party.",
 
   personTitel: "Who signs?",
   personLead: "The person who signs the order and can be reached by us.",

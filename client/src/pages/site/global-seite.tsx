@@ -102,7 +102,7 @@ function Seite({ s }: { s: GlobalSeite }) {
             <Auf>
               <nav aria-label="Brotkrumen">
                 <ol className="fd-krumen">
-                  <li><a href="/">FIAON</a></li>
+                  {/* 19.09.2026: Die Brotkrumen beginnen bei FIAON Global — nie auf der Startseite der Privatkunden. */}
                   {krumen.map((k, i) => (
                     <li key={k.pfad}>{i === krumen.length - 1 ? <span aria-current="page">{k.name}</span> : <a href={k.pfad}>{k.name}</a>}</li>
                   ))}

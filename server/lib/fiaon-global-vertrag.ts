@@ -45,13 +45,14 @@
 //     Muster-Widerrufsformular (Anlagen 1 und 2 zu Art. 246a EGBGB; englisch
 //     nach Anhang I der Richtlinie 2011/83/EU) — im PDF auf eigener Seite, im
 //     Hash mitgerechnet: Was der Kunde unterschreibt, trägt die Belehrung.
-// ANWALT: Belehrung, Haftung und Rechtswahl für Verbraucher prüfen lassen;
-// die Belehrung verlangt seit 2022 eine Telefonnummer (Art. 246a § 1 Abs. 1
-// Nr. 3 EGBGB) — FIAON_FIRMA hat noch keine (offen bei Justin).
+// ANWALT: Belehrung, Haftung und Rechtswahl für Verbraucher prüfen lassen.
+// Die Telefonnummer, die die Belehrung seit 2022 verlangt (Art. 246a § 1 Abs. 1
+// Nr. 3 EGBGB), ist die Support-Nummer aus shared/fiaon-firma.ts (Fassung 2026-09-19b).
 //
 // Diese Datei fasst keine Datenbank an — der Prüfstand lädt sie ohne Netz.
 // ═══════════════════════════════════════════════════════════════════════════
 import { escapeHtml, wrapFiaonDocument, htmlZuPdfMitFusszeile } from "./fiaon-html-pdf";
+import { globalWiderrufsbelehrung } from "@shared/fiaon-global-widerruf";
 import { FIAON_ENTITY } from "../fiaon-invoice";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import {
@@ -389,60 +390,22 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
  * Richtlinie 2011/83/EU. Die Sätze sprechen den Kunden an („Sie") — so lautet das gesetzliche Muster.
  */
 function anlageWiderruf(d: GlobalVertragDaten): string {
-  const en = d.sprache === "en";
-  const wir = `${e(FIAON_ENTITY.name)}, ${e(FIAON_ENTITY.addressLine1)}, ${e(FIAON_ENTITY.addressLine2)}, ${e(FIAON_ENTITY.country)}, ${en ? "e-mail" : "E-Mail"}: ${e(FIAON_ENTITY.email)}`;
-  const zeile = (text: string) => `<li><span>${text}</span><i aria-hidden="true"></i></li>`;
-  return en ? `
-  <section class="gv-anlage" lang="en">
-    <h2>Annex — Withdrawal instructions</h2>
-    <p class="gv-leise">Applies if the Client is acting as a consumer.</p>
-    <h3>Right of withdrawal</h3>
-    <p>You have the right to withdraw from this contract within 14 days without giving any reason.</p>
-    <p>The withdrawal period will expire after 14 days from the day of the conclusion of the contract.</p>
-    <p>To exercise the right of withdrawal, you must inform us (${wir}) of your decision to withdraw from this contract by an unequivocal statement (e.g. a letter sent by post or e-mail). You may use the attached model withdrawal form, but it is not obligatory.</p>
-    <p>To meet the withdrawal deadline, it is sufficient for you to send your communication concerning your exercise of the right of withdrawal before the withdrawal period has expired.</p>
-    <h3>Effects of withdrawal</h3>
-    <p>If you withdraw from this contract, we shall reimburse to you all payments received from you, including the costs of delivery (with the exception of the supplementary costs resulting from your choice of a type of delivery other than the least expensive type of standard delivery offered by us), without undue delay and in any event not later than 14 days from the day on which we are informed about your decision to withdraw from this contract. We will carry out such reimbursement using the same means of payment as you used for the initial transaction, unless you have expressly agreed otherwise; in any event, you will not incur any fees as a result of such reimbursement.</p>
-    <p>If you requested to begin the performance of services during the withdrawal period, you shall pay us an amount which is in proportion to what has been provided until you have communicated us your withdrawal from this contract, in comparison with the full coverage of the contract.</p>
+  // Der Wortlaut steht in shared/fiaon-global-widerruf.ts — dieselbe Quelle wie /business/widerrufsbelehrung.
+  const b = globalWiderrufsbelehrung(d.sprache);
+  const zeile = (text: string) => `<li><span>${e(text)}</span><i aria-hidden="true"></i></li>`;
+  return `
+  <section class="gv-anlage" lang="${d.sprache}">
+    <h2>${e(b.titel)}</h2>
+    <p class="gv-leise">${e(b.gilt)}</p>
+    ${b.abschnitte.map((a) => `<h3>${e(a.h)}</h3>\n    ${a.absaetze.map((t) => `<p>${e(t)}</p>`).join("\n    ")}`).join("\n    ")}
     <div class="gv-formular">
-      <h3>Model withdrawal form</h3>
-      <p class="gv-leise">(Complete and return this form only if you wish to withdraw from the contract.)</p>
+      <h3>${e(b.formular.titel)}</h3>
+      <p class="gv-leise">${e(b.formular.hinweis)}</p>
       <ul>
-        <li><span>To ${wir}:</span></li>
-        ${zeile("I/We (*) hereby give notice that I/We (*) withdraw from my/our (*) contract of sale of the following goods (*)/for the provision of the following service (*),")}
-        ${zeile("Ordered on (*)/received on (*),")}
-        ${zeile("Name of consumer(s),")}
-        ${zeile("Address of consumer(s),")}
-        ${zeile("Signature of consumer(s) (only if this form is notified on paper),")}
-        ${zeile("Date")}
+        <li><span>${e(b.formular.an)}</span></li>
+        ${b.formular.zeilen.map(zeile).join("\n        ")}
       </ul>
-      <p class="gv-leise">(*) Delete as appropriate.</p>
-    </div>
-  </section>` : `
-  <section class="gv-anlage" lang="de">
-    <h2>Anlage — Widerrufsbelehrung</h2>
-    <p class="gv-leise">Gilt, wenn der Auftraggeber als Verbraucher handelt.</p>
-    <h3>Widerrufsrecht</h3>
-    <p>Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.</p>
-    <p>Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.</p>
-    <p>Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (${wir}) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.</p>
-    <p>Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>
-    <h3>Folgen des Widerrufs</h3>
-    <p>Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.</p>
-    <p>Haben Sie verlangt, dass die Dienstleistungen während der Widerrufsfrist beginnen soll, so haben Sie uns einen angemessenen Betrag zu zahlen, der dem Anteil der bis zu dem Zeitpunkt, zu dem Sie uns von der Ausübung des Widerrufsrechts hinsichtlich dieses Vertrags unterrichten, bereits erbrachten Dienstleistungen im Vergleich zum Gesamtumfang der im Vertrag vorgesehenen Dienstleistungen entspricht.</p>
-    <div class="gv-formular">
-      <h3>Muster-Widerrufsformular</h3>
-      <p class="gv-leise">(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)</p>
-      <ul>
-        <li><span>An ${wir}:</span></li>
-        ${zeile("Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*)/die Erbringung der folgenden Dienstleistung (*)")}
-        ${zeile("Bestellt am (*)/erhalten am (*)")}
-        ${zeile("Name des/der Verbraucher(s)")}
-        ${zeile("Anschrift des/der Verbraucher(s)")}
-        ${zeile("Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)")}
-        ${zeile("Datum")}
-      </ul>
-      <p class="gv-leise">(*) Unzutreffendes streichen.</p>
+      <p class="gv-leise">${e(b.formular.fuss)}</p>
     </div>
   </section>`;
 }

@@ -298,7 +298,7 @@ async function aufgabeAnlegen(ref: string): Promise<"erledigt" | "nichts"> {
         erinnert ? `Per Mail erinnert: ${erinnert}. Weitere Erinnerungsmails gehen NICHT raus — ab jetzt zählt dein Anruf.` : "Per Mail wurde NICHT erinnert — ab jetzt zählt dein Anruf.",
         marken?.zahlung_takt_hinweis ? `Hinweis aus dem Takt: ${marken.zahlung_takt_hinweis}` : null,
         b.claimed_paid_at ? `Der Kunde hat am ${tagText(b.claimed_paid_at)} auf der Zahlungsseite gemeldet, dass er überwiesen hat — deshalb bekam er keine Erinnerung. Bitte freundlich nach dem Überweisungsbeleg fragen; den Eingang bucht die Zahlungsstelle.` : null,
-        `Bitte anrufen und klären: Kommt die Zahlung, gibt es Fragen zum Auftrag, oder will das Unternehmen den Auftrag nicht mehr? Zahlungsseite für den Kunden: ${b.payment_reference ? absoluteUrl(`/zahlung/${b.payment_reference}`) : "—"} (Verwendungszweck ${b.payment_reference ?? "—"}).`,
+        `Bitte anrufen und klären: Kommt die Zahlung, gibt es Fragen zum Auftrag, oder will das Unternehmen den Auftrag nicht mehr? Zahlungsseite für den Kunden: ${b.payment_reference ? absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`) : "—"} (Verwendungszweck ${b.payment_reference ?? "—"}).`,
         "Will der Kunde nicht mehr: bitte der Leitung Bescheid geben — sie storniert den Auftrag unter /chef/s/global-auftraege (Knopf „Auftrag stornieren“).",
       ].filter(Boolean).join("\n"),
       dringend: true, schluessel: `global:${ref}:zahlung-tag10`, bereich: "konten", quelle: "global", autorName: "FIAON Global",

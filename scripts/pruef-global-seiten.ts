@@ -19,6 +19,11 @@
 //      Gründung/Steuernummern/Pflichten — kein Kapitalrahmen, keine Karten, kein
 //      Kredit (Google-Ads-Richtlinie Finanzdienstleistungen, E-191).
 //   6. Privatpersonen: die Seite führt in den Privatauftrag (?art=privat).
+//   7. Zwei Welten (19.09.2026, Justin: „Business-Kunden sollen nicht auf die
+//      Privatkunden-Seite"): Kein Baustein der Business-Welt verlinkt Themen der
+//      Privatkunden-Linie; Kopf und Fuß schalten im Business-Bereich um; der
+//      Bereich wird richtig erkannt; die Rechtsseiten der Business-Welt haben
+//      ihre Routen VOR /business/:slug.
 //
 // Die Wortwahl prüft scripts/pruef-wortwand-de.ts (dort stehen seit E-191 auch
 // alle Texte dieser Seiten).
@@ -33,6 +38,7 @@ import { globalPaket } from "../shared/fiaon-global";
 import { globalStartPfad } from "../shared/fiaon-global-wege";
 import { SEO_SEITEN, seoFragen, seoIndexierbar } from "../shared/fiaon-seo-seiten";
 import "../server/lib/fiaon-global-seo";
+import { istBusinessBereich, mitBereich } from "../client/src/lib/bereich";
 
 const HEUTE = "2026-09-19";
 let fehler = 0; let geprueft = 0;
@@ -160,6 +166,41 @@ ok(globalStartPfad(undefined, "en", "privat") === "/en/business/start?art=privat
 ok(globalStartPfad("global_vip") === "/business/start?paket=global_vip" && globalStartPfad("unbekannt") === "/business/start", "Startpfad ohne Privatperson verändert");
 ok(menuePfade.has("/business/privatpersonen"), "Privatpersonen fehlt im Menü");
 ok(GLOBAL_SEITEN.filter((s) => s.pfad !== "/business/privatpersonen").some((s) => s.weiter.includes("/business/privatpersonen")), "keine Unterseite verweist auf /business/privatpersonen");
+
+// ═══ 7: ZWEI WELTEN ══════════════════════════════════════════════════════════
+abschnitt("Zwei Welten: Business ohne Privatkunden-Themen");
+const WURZEL = path.resolve(import.meta.dirname, "..");
+const BUSINESS_DATEIEN = [
+  "client/src/components/site/GlobalNav.tsx", "client/src/components/site/GlobalFuss.tsx", "client/src/pages/site/business.tsx",
+  "client/src/pages/site/global-seite.tsx", "client/src/pages/site/global-lp.tsx", "client/src/pages/site/global-recht.tsx",
+  "client/src/pages/business-start.tsx", "client/src/pages/business-auftrag.tsx", "client/src/components/site/GlobalGespraech.tsx",
+  "client/src/i18n/global.ts", "client/src/i18n/global-start.ts", "client/src/i18n/global-auftrag.ts", "shared/fiaon-global-menue.ts",
+];
+const PRIVAT_ZIEL = /href=\{?["'`]\/(?:en\/)?(privatkunden|personal|login|antrag|bonitaet|bonitaetsauskunft|kreditkarte|credit-card|ratgeber|guides|dashboard|mein-bereich|agb|termin|werkzeuge|schufa|kredit|preise|pricing|karriere|team)(?:[/"'`?#]|$)/;
+for (const datei of BUSINESS_DATEIEN) {
+  const text = fs.readFileSync(path.join(WURZEL, datei), "utf8");
+  const m = text.match(PRIVAT_ZIEL);
+  ok(!m, `${datei}: verlinkt die Privatkunden-Linie (${m?.[0]})`);
+  ok(!/href=\{?["'`]\/["'`]/.test(text), `${datei}: verlinkt die Startseite der Privatkunden („/“)`);
+}
+for (const s2 of [...GLOBAL_SEITEN, ...LANDINGPAGES] as any[]) {
+  const ziele = [...(s2.weiter ?? []), ...((s2.bloecke ?? []) as any[]).flatMap((b: any) => (b.eintraege ?? []).map((e: any) => e.pfad).concat((b.karten ?? []).map((k: any) => k.pfad).filter(Boolean)))];
+  const fremd = ziele.filter((z: string) => !/^\/(business|impressum|datenschutz|cookie-einstellungen)/.test(z));
+  ok(fremd.length === 0, `${s2.pfad}: verlinkt außerhalb der Business-Welt: ${fremd.join(", ")}`);
+}
+const glassNav = fs.readFileSync(path.join(WURZEL, "client/src/components/GlassNav.tsx"), "utf8");
+const premiumFuss = fs.readFileSync(path.join(WURZEL, "client/src/components/PremiumFooter.tsx"), "utf8");
+ok(/useBusinessBereich\(\)/.test(glassNav) && /<GlobalNav \/>/.test(glassNav), "GlassNav.tsx: die Weiche zum Kopf von FIAON Global fehlt");
+ok(/useBusinessBereich\(\)/.test(premiumFuss) && /<GlobalFuss \/>/.test(premiumFuss), "PremiumFooter.tsx: die Weiche zur Fußzeile von FIAON Global fehlt");
+for (const [pfad, suche, soll] of [["/business", "", true], ["/business/kosten", "", true], ["/business/wissen/form-5472", "", true], ["/en/business", "", true], ["/en/business/start", "", true],
+  ["/businessplan", "", false], ["/impressum", "", false], ["/impressum", "?bereich=business", true], ["/zahlung/FIAON-X", "?bereich=business&art=firma", true], ["/", "", false], ["/privatkunden", "?bereich=privat", false]] as const) {
+  ok(istBusinessBereich(pfad, suche) === soll, `istBusinessBereich(${pfad}${suche}) ist nicht ${soll}`);
+}
+ok(mitBereich("/impressum") === "/impressum?bereich=business" && mitBereich("/datenschutz#vi") === "/datenschutz?bereich=business#vi" && mitBereich("/x?a=1") === "/x?a=1&bereich=business", "mitBereich() baut die Adresse falsch");
+for (const route of ["/business/widerrufsbelehrung", "/business/mustervertrag"]) {
+  ok(appTsx.includes(`path="${route}"`) && appTsx.indexOf(`path="${route}"`) < appTsx.indexOf(`path="/business/:slug"`), `App.tsx: Route ${route} fehlt oder steht hinter /business/:slug`);
+  ok(/noindex/.test(String(tabelle[route]?.robots ?? "")), `${route}: fehlt in der SEO-Tabelle oder ist nicht noindex`);
+}
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 abschnitt("Ergebnis");

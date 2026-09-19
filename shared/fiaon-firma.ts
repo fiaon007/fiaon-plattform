@@ -16,4 +16,8 @@ export const FIAON_FIRMA = {
   register: "Companies House (England and Wales)",
   director: "Justin Schwarzott",
   email: "support@fiaon.com",
+  // 19.09.2026: Die Support-Nummer stand nur in shared/fiaon-wissen.ts (SUPPORT) — seitdem sie in die
+  // Widerrufsbelehrung gehört (Pflichtangabe seit 2022) und die Business-Welt sie zeigt, steht sie hier.
+  telefon: "+41 44 244 93 01",
+  telefonTel: "+41442449301",
 } as const;

@@ -467,4 +467,16 @@ export const GLOBAL_GELD_ZURUECK = {
 } as const;
 
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte. */
-export const GLOBAL_VERTRAG_VERSION = "2026-09-19a";
+export const GLOBAL_VERTRAG_VERSION = "2026-09-19b";
+
+// ── FIAON IST IMMER DIE GEGENSEITE (19.09.2026, Florentines Fund) ─────────────
+// Im Bestellweg ließ sich als eigenes Unternehmen „FIAON LTD" mit einer Anschrift
+// in Meißenheim eintragen. Vertrag und Rechnung zeigten dann ZWEI Parteien namens
+// FIAON LTD, eine davon mit fremder Adresse — ein Dokument, das aussieht, als hätte
+// FIAON eine andere Anschrift. FIAON ist Vertragspartner, nie Auftraggeber,
+// Unterzeichner oder Website des Kunden. Server (fiaon-global-auftrag.ts,
+// firmensuche/impressum) und Seite (business-start.tsx) prüfen mit dieser Funktion.
+/** Enthält die Eingabe den Namen FIAON — auch als „F.I.A.O.N." oder „fiaon.com"? */
+export function istFiaonSelbst(roh: unknown): boolean {
+  return String(roh ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").includes("fiaon");
+}

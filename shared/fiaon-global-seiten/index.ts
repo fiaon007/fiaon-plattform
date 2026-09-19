@@ -39,7 +39,7 @@ export { globalMenue, GLOBAL_MENUE_GRUPPEN, globalMenuePunkt } from "../fiaon-gl
 
 /** Die Brotkrumen unterhalb der Startseite: Business → Gruppe → Seite. */
 export function globalKrumen(s: GlobalSeite): { name: string; pfad: string }[] {
-  const k = [{ name: "Business", pfad: "/business" }];
+  const k = [{ name: "FIAON Global", pfad: "/business" }];
   if (s.pfad.startsWith("/business/wissen/")) k.push({ name: "Wissen", pfad: "/business/wissen" });
   k.push({ name: globalMenuePunkt(s.pfad)?.titel ?? s.h1.replace(/[.?!]$/, ""), pfad: s.pfad });
   return k;

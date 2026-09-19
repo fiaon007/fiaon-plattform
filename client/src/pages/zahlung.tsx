@@ -286,10 +286,11 @@ export function ZahlungDankePage() {
   const firma = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("art") === "firma";
   // … und mit &sprache=en, wenn der Auftrag englisch geführt wurde (Feld `sprache` der Zahlungsseite).
   const englisch = firma && new URLSearchParams(window.location.search).get("sprache") === "en";
+  // 19.09.2026: Der Firmenauftrag steht hell im Rahmen von FIAON Global (siehe ZahlungPage).
   return (
-    <div className="antrag-dk dk min-h-screen antialiased" lang={englisch ? "en" : undefined}>
-      <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
-      <GlassNav />
+    <div className={firma ? "zahlung-business min-h-screen antialiased" : "antrag-dk dk min-h-screen antialiased"} lang={englisch ? "en" : undefined}>
+      {!firma && <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>}
+      <GlassNav bereich={firma ? "business" : undefined} />
       <div className="relative z-10 max-w-xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
         <div className="text-center py-16">
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
@@ -309,7 +310,7 @@ export function ZahlungDankePage() {
           </div>
         </div>
       </div>
-      <PremiumFooter />
+      <PremiumFooter bereich={firma ? "business" : undefined} />
       <style>{ZAHLUNG_STYLES}</style>
     </div>
   );
@@ -327,6 +328,18 @@ export function ZahlungDankePage() {
 // welches Wort gerade verschwand. Betraf alle drei Überschriften der Seite.
 // Jetzt läuft er zwischen hellen Tönen — sichtbar bleibt er in jeder Phase.
 const ZAHLUNG_STYLES = `
+  /* Firmenauftrag (FIAON Global): hell, Kanzlei-Ton — die Farben wie client/src/styles/global.css */
+  .zahlung-business{background:#f5f7fa;color:#0c1a2e;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+  .zahlung-business .zahlung-shimmer-heading{background:none;-webkit-text-fill-color:#0c1a2e;color:#0c1a2e;animation:none;
+    font-family:'Newsreader','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-.01em}
+  .zahlung-business h1.zahlung-shimmer-heading{font-size:clamp(28px,4vw,38px)}
+  .zahlung-business .fiaon-btn-gradient{background:#12284a!important;box-shadow:0 10px 24px rgba(18,40,74,.18)!important;border-radius:10px!important}
+  .zahlung-business .zahlung-claim-wrap{background:#12284a;animation:none;box-shadow:0 10px 24px rgba(18,40,74,.18);border-radius:12px;padding:0}
+  .zahlung-business .zahlung-claim-btn{background:#12284a;animation:none;border-radius:12px}
+  .zahlung-business .zahlung-claim-btn:hover{background:#0b1c36;filter:none}
+  .zahlung-business .text-\\[\\#2563eb\\]{color:#12284a}
+  .zahlung-business .bg-\\[\\#2563eb\\]{background:#12284a}
+
   .zahlung-ziel-blitz { box-shadow: 0 0 0 4px rgba(37,99,235,.25), 0 18px 40px -18px rgba(37,99,235,.5) !important; transition: box-shadow .3s; }
 
   .zahlung-shimmer-heading{
@@ -469,15 +482,24 @@ export default function ZahlungPage() {
           method: "POST",
         });
       } catch {}
-      window.location.href = `/zahlung/${order.paymentReference}/danke${order.firmenauftrag ? `?art=firma${order.sprache === "en" ? "&sprache=en" : ""}` : ""}`;
+      // 19.09.2026: Der Firmenauftrag bleibt auch auf der Dankeseite im Rahmen von FIAON Global (lib/bereich.ts).
+      window.location.href = `/zahlung/${order.paymentReference}/danke${order.firmenauftrag ? `?art=firma&bereich=business${order.sprache === "en" ? "&sprache=en" : ""}` : ""}`;
     },
     [order, claiming],
   );
 
+  // ── FIRMENAUFTRAG: HELL IM RAHMEN VON FIAON GLOBAL (19.09.2026) ──────────
+  // Die Seite ist hell gebaut (Tailwind-Klassen) und wird erst durch .antrag-dk dunkel. Beim
+  // Firmenauftrag fällt diese Klasse weg: heller Grund, Serifen-Überschrift, ruhige Navy-Knöpfe —
+  // wie die Seiten von FIAON Global. ?bereich=business (Links aus Auftrag und Mails) schaltet
+  // sofort um, noch bevor die Bestellung geladen ist; sonst entscheidet order.firmenauftrag.
+  const businessAdresse = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("bereich") === "business";
+  const business = businessAdresse || !!order?.firmenauftrag;
+
   return (
-    <div className="antrag-dk dk min-h-screen antialiased" lang={englisch ? "en" : undefined}>
-      <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
-      <GlassNav />
+    <div className={business ? "zahlung-business min-h-screen antialiased" : "antrag-dk dk min-h-screen antialiased"} lang={englisch ? "en" : undefined}>
+      {!business && <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>}
+      <GlassNav bereich={business ? "business" : undefined} />
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
         {loading && (
@@ -725,7 +747,7 @@ export default function ZahlungPage() {
         )}
       </div>
 
-      <PremiumFooter />
+      <PremiumFooter bereich={business ? "business" : undefined} />
 
       <style>{ZAHLUNG_STYLES}</style>
     </div>

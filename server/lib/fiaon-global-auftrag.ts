@@ -65,7 +65,7 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
 import { epcQrNutzlast } from "@shared/fiaon-epc-qr";
 import { paket as katalogPaket, verkaufbarePakete, istGlobalPaket } from "@shared/fiaon-pakete";
-import { GLOBAL_PAKETE, GLOBAL_VERTRAG_VERSION, globalPaket, type GlobalSchluessel } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_VERTRAG_VERSION, globalPaket, istFiaonSelbst, type GlobalSchluessel } from "@shared/fiaon-global";
 import { globalMeinAuftragPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { dachNummer, type DachLand } from "@shared/fiaon-dach-telefon";
 import {
@@ -265,6 +265,10 @@ function firmaPruefen(f: any, streng: boolean): Pruefung<GlobalFirma> {
   const anschrift = anschriftPruefen(f, "firma");
   if (!anschrift.ok) return anschrift;
   const { strasse, plz, ort } = anschrift.daten;
+  // FIAON ist die Gegenseite — nie das Unternehmen des Kunden (Florentines Fund, 19.09.2026).
+  for (const [feld, wert] of [["name", name], ["rechtsform", rechtsform], ["strasse", strasse], ["ort", ort], ["registergericht", f?.registergericht], ["registernummer", f?.registernummer], ["website", f?.website]] as const) {
+    if (istFiaonSelbst(wert)) return fehler("„FIAON“ ist Ihr Vertragspartner — bitte tragen Sie hier Ihr eigenes Unternehmen ein.", `firma.${feld}`);
+  }
   const ustRoh = text(f?.ustId, 30);
   const ustId = ustRoh ? ustIdNormalisieren(ustRoh) : null;
   if (streng && ustRoh && !ustId) return fehler("Bitte prüfen Sie die USt-IdNr. — erwartet wird zum Beispiel DE123456789, ATU12345678 oder CHE-123.456.789. Sie können das Feld auch leer lassen.", "firma.ustId");
@@ -286,6 +290,9 @@ function privatPruefen(b: any): Pruefung<{ firma: GlobalFirma; anrede: string; v
   if (!vorname || !nachname) return fehler("Bitte geben Sie Ihren Vor- und Nachnamen an.", !vorname ? "privat.vorname" : "privat.nachname");
   const anschrift = anschriftPruefen(b?.firma, "privat");
   if (!anschrift.ok) return anschrift;
+  for (const [feld, wert] of [["vorname", vorname], ["nachname", nachname], ["strasse", anschrift.daten.strasse], ["ort", anschrift.daten.ort]] as const) {
+    if (istFiaonSelbst(wert)) return fehler("Bitte tragen Sie Ihren eigenen Namen und Ihre Wohnanschrift ein — FIAON ist Ihr Vertragspartner.", `privat.${feld}`);
+  }
   const anrede = ["Herr", "Frau"].includes(String(b?.ansprechpartner?.anrede)) ? String(b.ansprechpartner.anrede) : "";
   return { ok: true, daten: {
     anrede, vorname, nachname,
@@ -315,6 +322,9 @@ export function globalVorschauPruefen(b: any): Pruefung<GlobalVertragDaten> {
   if (!vorname || !nachname) return fehler("Bitte geben Sie Vor- und Nachnamen der Person an, die unterschreibt.", !vorname ? "ansprechpartner.vorname" : "ansprechpartner.nachname");
   const funktion = text(b?.ansprechpartner?.funktion, 120);
   if (!funktion) return fehler("Bitte geben Sie Ihre Funktion im Unternehmen an, zum Beispiel Geschäftsführer.", "ansprechpartner.funktion");
+  for (const [feld, wert] of [["vorname", vorname], ["nachname", nachname], ["funktion", funktion]] as const) {
+    if (istFiaonSelbst(wert)) return fehler("Bitte tragen Sie hier die Person Ihres Unternehmens ein, die unterschreibt — FIAON ist Ihr Vertragspartner.", `ansprechpartner.${feld}`);
+  }
   const anrede = ["Herr", "Frau"].includes(String(b?.ansprechpartner?.anrede)) ? String(b.ansprechpartner.anrede) : "";
   return { ok: true, daten: {
     paket, sprache: b?.sprache === "en" ? "en" : "de", auftraggeber: "unternehmen",
@@ -495,7 +505,8 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
       faelligAm: b.payment_due_date ? berlinToday(new Date(b.payment_due_date)) : null,
       qrDatenUrl,
     },
-    zahlungsseite: b.payment_reference ? `/zahlung/${b.payment_reference}` : null,
+    // ?bereich=business: Auch die Zahlungsseite zeigt den Rahmen von FIAON Global (client/src/lib/bereich.ts).
+    zahlungsseite: b.payment_reference ? `/zahlung/${b.payment_reference}?bereich=business` : null,
     vertragUrl: `/api/fiaon/global/auftrag/${r}/vertrag.pdf?t=${t}`,
     rechnungUrl: `/api/fiaon/global/auftrag/${r}/rechnung.pdf?t=${t}`,
     unterschriebenAm: akte.unterschrieben_am ? new Date(akte.unterschrieben_am).toISOString() : null,
@@ -590,7 +601,7 @@ export function globalMailNutzlast(
     antrag_id: escapeHtml(ref),
     payment_reference: escapeHtml(String(b?.payment_reference || "")),
     faellig_am_text: b?.payment_due_date ? globalTagText(new Date(b.payment_due_date), sprache) : "",
-    zahlungsseite_url: b?.payment_reference ? absoluteUrl(`/zahlung/${encodeURIComponent(String(b.payment_reference))}`) : "",
+    zahlungsseite_url: b?.payment_reference ? absoluteUrl(`/zahlung/${encodeURIComponent(String(b.payment_reference))}?bereich=business`) : "",
     mein_auftrag_url: ref && opts.token ? absoluteUrl(globalMeinAuftragPfad(ref, opts.token, sprache)) : "",
     ansprechpartner: escapeHtml(opts.ansprechpartner),
     // Die Unterlagen für den Start — je Auftraggeber (die Privatperson braucht keinen Registerauszug).
@@ -711,7 +722,7 @@ function antwortFuer(ref: string, paymentRef: string, paketKey: string, email: s
   const r = encodeURIComponent(ref); const t = encodeURIComponent(token);
   return {
     ok: true, ref, token, betragCents: kat?.preisCents ?? 0, paketName: kat?.label ?? paketKey,
-    zahlungsseite: `/zahlung/${paymentRef}`,
+    zahlungsseite: `/zahlung/${paymentRef}?bereich=business`,
     vertragUrl: `/api/fiaon/global/auftrag/${r}/vertrag.pdf?t=${t}`,
     rechnungUrl: `/api/fiaon/global/auftrag/${r}/rechnung.pdf?t=${t}`,
     email,

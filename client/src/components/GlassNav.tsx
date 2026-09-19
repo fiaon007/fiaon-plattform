@@ -5,12 +5,26 @@ import { UI } from "@shared/fiaon-sprache";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { useSprache, inSprache } from "@/i18n/sprache";
 import { globalMenue } from "@shared/fiaon-global-menue";
+import GlobalNav from "@/components/site/GlobalNav";
+import { useBusinessBereich } from "@/lib/bereich";
 
 interface GlassNavProps {
+  /** Erzwingt den Rahmen von FIAON Global — z. B. die Zahlungsseite eines Firmenauftrags ohne ?bereich=business. */
+  bereich?: "business";
   activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "kontakt";
 }
 
-export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
+/**
+ * 19.09.2026: Zwei Welten. Im Business-Bereich (/business, /en/business oder ?bereich=business)
+ * zeigt jede Seite den Kopf von FIAON Global — ohne „Konto eröffnen", Login und Privatkunden-Themen
+ * (Justin: „Business-Kunden sollen nicht auf die Privatkunden-Seite"). Sonst die Leiste wie bisher.
+ */
+export default function GlassNav(props: GlassNavProps) {
+  const business = useBusinessBereich() || props.bereich === "business";
+  return business ? <GlobalNav /> : <PrivatNav {...props} />;
+}
+
+function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mob, setMob] = useState(false);
   const [showModal, setShowModal] = useState(false);

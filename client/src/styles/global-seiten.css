@@ -295,3 +295,32 @@ a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);
   a.fd-karte:hover,.fd-paket:hover,.fd-weiter-raster a:hover{transform:none}
 }
 @media print{.fd-inhalt,.fd-mobil,.fd-fortschritt,.fd-kopf::before{display:none}.fd-koerper{grid-template-columns:1fr}}
+
+/* ── Rechtliches der Business-Welt: Widerrufsbelehrung und Mustervertrag (19.09.2026) ── */
+.gr .gr-klein{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy);margin-bottom:8px}
+.gr .gr-beginn{margin-top:0}
+.gr .gr-beginn p{font-size:14.5px;line-height:1.7;color:var(--text)}
+.gr .gr-beginn a,.gr .gr-quelle a{color:var(--navy);text-underline-offset:3px}
+.gr-text{margin-top:36px}
+.gr-text h2{font-family:var(--serif);font-weight:400;font-size:26px;line-height:1.2;color:var(--tinte);margin:34px 0 12px;letter-spacing:-.01em}
+.gr-text p{font-size:15.5px;line-height:1.78;color:var(--text);margin:0 0 14px;max-width:70ch}
+.gr .gr-leise{font-size:13px;color:var(--leise)}
+.gr-formular{margin-top:40px;border:1px solid var(--linie-2);border-radius:14px;padding:4px 26px 24px;background:#fff}
+.gr-formular ul{list-style:none;padding:0;margin:14px 0}
+.gr-formular li{margin:12px 0;font-size:15px;line-height:1.6;color:var(--tinte)}
+.gr-formular li i{display:block;border-bottom:1px dotted var(--linie-2);height:24px}
+.gr-drucken{margin-top:10px;min-height:44px}
+.gr-wahl{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;max-width:900px;margin:0 auto 22px}
+.gr-seg{display:inline-flex;flex-wrap:wrap;gap:6px;padding:5px;border-radius:12px;background:var(--stein);border:1px solid var(--linie)}
+.gr-seg button{display:grid;gap:3px;text-align:left;min-height:52px;padding:8px 16px;border:0;border-radius:9px;background:transparent;cursor:pointer;font-family:inherit;color:var(--text)}
+.gr-seg button b{font-weight:500;font-size:14px;color:var(--tinte)}
+.gr-seg button span{font-size:12px;color:var(--leise);font-variant-numeric:tabular-nums}
+.gr-seg button[aria-checked="true"]{background:#fff;box-shadow:0 1px 3px rgba(12,26,46,.12)}
+.gr-seg.klein button{min-height:44px;display:inline-flex;align-items:center;font-size:14px}
+.gr-papier{max-width:900px;margin:0 auto;border:1px solid var(--linie-2);border-radius:14px;background:#fff;padding:44px 52px;box-shadow:0 30px 70px rgba(18,40,74,.08)}
+.gr-papier [data-veraltet]{opacity:.55;transition:opacity .2s}
+.gr-weiter{max-width:900px;margin:28px auto 0;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:18px;padding:22px 26px;border-radius:14px;background:var(--stein);border:1px solid var(--linie)}
+.gr-weiter p{font-size:14.5px;line-height:1.6;color:var(--text);max-width:46ch}
+.gr-quelle{max-width:900px;margin:18px auto 0}
+@media(max-width:640px){.gr-papier{padding:24px 18px}.gr-seg{width:100%}.gr-seg button{flex:1 1 45%}.gr-formular{padding:4px 18px 20px}}
+@media print{.gk,.gf,.fd-kopf,.gr-beginn,.gr-drucken,.ew-karte{display:none!important}.gr-text{margin-top:0}}

@@ -11,6 +11,7 @@
 .dk .zahl{font-variant-numeric:tabular-nums}
 .dk :focus-visible{outline:2px solid #60a5fa;outline-offset:3px;border-radius:8px}
 
+.dk.dk-business{background:#fff}
 .dk-grund{position:fixed;inset:0;background:linear-gradient(135deg,#0a1628 0%,#121a33 50%,#0b0f24 100%);z-index:0}
 .dk-nebel{position:absolute;border-radius:50%;filter:blur(110px);pointer-events:none}
 .dk-nebel.a{top:-10%;left:-10%;width:1100px;height:760px;opacity:.32;background:radial-gradient(ellipse at center,rgba(59,130,246,.22),rgba(99,102,241,.1),transparent 70%);animation:dkNebel 22s ease-in-out infinite}

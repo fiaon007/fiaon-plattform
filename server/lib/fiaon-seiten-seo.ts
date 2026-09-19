@@ -35,6 +35,8 @@ import {
   seoSeite, seoFragen, seoIndexierbar, type SeoSeite, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
+import { globalMenue } from "@shared/fiaon-global-menue";
+import { FIAON_FIRMA } from "@shared/fiaon-firma";
 // Trägt die Unterseiten von FIAON Global in die SEO-Tabelle ein — VOR jeder Abfrage.
 import "./fiaon-global-seo";
 
@@ -245,11 +247,31 @@ export function seoRahmen(sprache: Sprache = "de"): { kopf: string; fuss: string
   return { kopf, fuss };
 }
 
+/**
+ * 19.09.2026: Die Business-Welt hat ihren eigenen Rahmen (client: GlobalNav/GlobalFuss) — auch im
+ * vorgerenderten Korpus. Eine Seite unter /business verlinkt dort FIAON Global, nicht die
+ * Privatkunden-Themen: gleiche Botschaft für Leser und Suchmaschine.
+ */
+function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: string } {
+  const en = sprache === "en";
+  const start = en ? "/en/business" : "/business";
+  const gruppen = en
+    ? [{ titel: "FIAON Global", eintraege: [["/en/business#pakete", "Packages and prices"], ["/en/business/start", "Order now"], ["/en/business#gespraech", "Arrange a call"], ["/en/business/auftrag", "My order"]] }]
+    : globalMenue().map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
+  const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
+  const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
+  const zeile = `FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250 · ${en ? "Phone" : "Telefon"} ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}`;
+  const fuss = `<footer>${gruppen.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.eintraege.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav>`).join("")}<nav aria-label="${en ? "Legal" : "Rechtliches"}"><ul>${recht.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav><p>${esc(zeile)}</p></footer>`;
+  return { kopf, fuss };
+}
+
 function korpus(s: SeoSeite): string {
   const fragen = seoFragen(s.pfad);
   const en = s.sprache === "en";
-  const { kopf: nav, fuss } = seoRahmen(en ? "en" : "de");
-  const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${link(en ? "/en" : "/", "FIAON")}</li>${s.krumen.map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
+  const business = /^\/(en\/)?business(\/|$)/.test(s.pfad);
+  const { kopf: nav, fuss } = business ? seoRahmenBusiness(en ? "en" : "de") : seoRahmen(en ? "en" : "de");
+  const wurzel = business ? link(en ? "/en/business" : "/business", "FIAON Global") : link(en ? "/en" : "/", "FIAON");
+  const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${wurzel}</li>${s.krumen.filter((k) => !(business && k.pfad === (en ? "/en/business" : "/business"))).map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
   const abschnitte = (s.abschnitte ?? []).map((a) => `<section><h2>${esc(a.h2)}</h2><p>${esc(a.text)}</p>${a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</section>`).join("");
   const werkzeuge = (s.pfad === "/werkzeuge" || s.pfad === "/en/tools") ? `<section><h2>${s.sprache === "en" ? "The twenty tools" : "Die zwanzig Werkzeuge"}</h2><ul>${(s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w) => `<li>${link(s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
   const glossar = (s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary") ? `<section><h2>${s.sprache === "en" ? "The terms" : "Die Begriffe"}</h2><dl>${(s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => `<dt>${esc(g.wort)}</dt><dd>${esc(g.text)}</dd>`).join("")}</dl></section>` : "";

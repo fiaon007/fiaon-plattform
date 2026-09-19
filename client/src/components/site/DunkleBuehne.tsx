@@ -44,11 +44,16 @@ export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite;
     window.scrollTo(0, 0);
     return () => { document.title = vorher; m?.setAttribute("content", alt); if (tabelle?.sprache === "en") document.documentElement.lang = langVorher || "de"; };
   }, [titel, beschreibung]);
+  // 19.09.2026: Die Business-Seiten sind hell (Kanzlei) und tragen Kopf und Fuß von FIAON Global —
+  // GlassNav und PremiumFooter schalten im Business-Bereich selbst um (lib/bereich.ts).
+  const business = seite === "business";
   return (
-    <div className="dk">
-      <div className="dk-grund" aria-hidden="true">
-        <span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" />
-      </div>
+    <div className={`dk${business ? " dk-business" : ""}`}>
+      {!business && (
+        <div className="dk-grund" aria-hidden="true">
+          <span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" />
+        </div>
+      )}
       <GlassNav activePage={seite} />
       <main className="relative z-[1]">{children}</main>
       <PremiumFooter />

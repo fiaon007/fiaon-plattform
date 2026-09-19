@@ -210,6 +210,12 @@ abgelehnt((b) => { b.bestaetigungen.vertrag = "true"; }, "bestaetigungen.vertrag
 abgelehnt((b) => { b.unterschriftPng = "data:image/png;base64,AAAA"; }, "unterschriftPng", "zu kleine Unterschrift");
 abgelehnt((b) => { b.unterschriftPng = PNG.replace("iVBOR", "AAAAA"); }, "unterschriftPng", "kein PNG-Kopf");
 abgelehnt((b) => { b.falle = "http://spam.example"; }, undefined, "Honigtopf gefüllt");
+// Florentines Fund (19.09.2026): FIAON als Kunde ergab zwei Parteien „FIAON LTD“ mit verschiedenen Adressen.
+abgelehnt((b) => { b.firma.name = "FIAON LTD"; }, "firma.name", "FIAON als eigenes Unternehmen");
+abgelehnt((b) => { b.firma.name = "F.I.A.O.N. Limited"; }, "firma.name", "FIAON mit Punkten");
+abgelehnt((b) => { b.firma.website = "https://www.fiaon.com"; }, "firma.website", "FIAON-Website als eigene");
+abgelehnt((b) => { b.ansprechpartner.funktion = "Director FIAON"; }, "ansprechpartner.funktion", "Unterzeichner „Director FIAON“");
+abgelehnt((b) => { b.firma.strasse = "128 City Road (FIAON)"; }, "firma.strasse", "FIAON in der Anschrift");
 const at = GUT(); at.firma.land = "AT"; at.firma.plz = "1010"; at.firma.ustId = "ATU12345678"; at.ansprechpartner.telefon = "+43 660 1234567";
 ok(auftrag.globalAuftragPruefen(at).ok === true, "Österreich: gültige Eingabe wird abgelehnt");
 const ch = GUT(); ch.firma.land = "CH"; ch.firma.plz = "8001"; ch.firma.ustId = "CHE-123.456.789 MWST"; ch.ansprechpartner.telefon = "044 123 45 67";
@@ -337,6 +343,7 @@ abgelehntP((b) => { b.firma.strasse = "a"; }, "privat.strasse", "Straße zu kurz
 abgelehntP((b) => { b.bestaetigungen.widerruf = false; }, "bestaetigungen.widerruf", "Widerrufsbelehrung nicht bestätigt");
 abgelehntP((b) => { b.bestaetigungen.vertrag = false; }, "bestaetigungen.vertrag", "Vertrag nicht bestätigt");
 abgelehntP((b) => { b.ansprechpartner.telefon = "+33 1 23 45 67 89"; }, "ansprechpartner.telefon", "französische Nummer");
+abgelehntP((b) => { b.ansprechpartner.nachname = "Fiaon"; }, "privat.nachname", "Privatperson „Fiaon“");
 const firmaOhneArt = GUT(); (firmaOhneArt as any).auftraggeber = "irgendwas";
 ok(auftrag.globalAuftragPruefen(firmaOhneArt).ok === true && (auftrag.globalAuftragPruefen(firmaOhneArt) as any).daten.auftraggeber === "unternehmen", "unbekannter Auftraggeber wird nicht als Unternehmen gelesen");
 

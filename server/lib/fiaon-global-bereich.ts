@@ -326,7 +326,7 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     auftraggeber: firma.art === "privat" ? "privat" : "unternehmen",
     ...(widerruf ? { widerruf } : {}),
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || ""), land: String(firma.land || akte.land || "") },
-    zahlung: { status: bezahlt ? "bezahlt" : "offen", ...(!bezahlt && l.status === "offen" && b.payment_reference ? { zahlungsseite: `/zahlung/${b.payment_reference}` } : {}) },
+    zahlung: { status: bezahlt ? "bezahlt" : "offen", ...(!bezahlt && l.status === "offen" && b.payment_reference ? { zahlungsseite: `/zahlung/${b.payment_reference}?bereich=business` } : {}) },
     etappe: l.etappe, etappen,
     ...(akte.stichtag ? { stichtag: isoTag(akte.stichtag) } : {}),
     ...(akte.naechster_schritt ? { naechsterSchritt: { text: String(akte.naechster_schritt), ...(akte.naechster_schritt_bis ? { bis: isoTag(akte.naechster_schritt_bis) } : {}) } } : {}),

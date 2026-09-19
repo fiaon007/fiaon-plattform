@@ -138,10 +138,12 @@ export default function GlobalLandingPage() {
           <span>{FIAON_FIRMA.name} · {FIAON_FIRMA.strasse} · {FIAON_FIRMA.ortZeile} · Companies House {FIAON_FIRMA.companyNo}</span>
           <span style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <a href="/business" style={{ color: "var(--navy)" }}>FIAON Global</a>
-            <a href="/impressum" style={{ color: "var(--navy)" }}>Impressum</a>
-            <a href="/datenschutz" style={{ color: "var(--navy)" }}>Datenschutz</a>
-            <a href="/agb" style={{ color: "var(--navy)" }}>AGB</a>
-            <a href="/cookie-einstellungen" style={{ color: "var(--navy)" }}>Cookie-Einstellungen</a>
+            {/* 19.09.2026: Rechtliches der Business-Welt — die AGB der Privatkunden-Linie gelten für FIAON Global nicht. */}
+            <a href="/impressum?bereich=business" style={{ color: "var(--navy)" }}>Impressum</a>
+            <a href="/datenschutz?bereich=business" style={{ color: "var(--navy)" }}>Datenschutz</a>
+            <a href="/business/mustervertrag" style={{ color: "var(--navy)" }}>Mustervertrag</a>
+            <a href="/business/widerrufsbelehrung" style={{ color: "var(--navy)" }}>Widerrufsbelehrung</a>
+            <a href="/cookie-einstellungen?bereich=business" style={{ color: "var(--navy)" }}>Cookie-Einstellungen</a>
           </span>
         </div>
       </footer>

@@ -49,6 +49,19 @@
 // Die Telefonnummer, die die Belehrung seit 2022 verlangt (Art. 246a § 1 Abs. 1
 // Nr. 3 EGBGB), ist die Support-Nummer aus shared/fiaon-firma.ts (Fassung 2026-09-19b).
 //
+// ── JAHRESBETREUUNG AB DEM ZWEITEN JAHR (19.09.2026, E-196) ───────────────
+// Justin: im Auftrag ankreuzbar, 699 € im Jahr, alle Gebühren inklusive — auch
+// die Staatsgebühr. Kreuzt der Auftraggeber sie an (`jahresbetreuung: true`),
+// ändern sich genau diese Stellen, sonst bleibt jeder Satz, wie er war:
+//   · Ziffer 2: ein Absatz, dass der Auftrag die Jahresbetreuung umfasst,
+//   · Ziffer 3: die Partner-Honorare der Jahresbetreuung stecken in DEREN Preis,
+//   · Ziffer 5: Der Paketpreis deckt „die Leistungen des Pakets"; statt des Satzes
+//     „die laufenden Kosten trägt der Auftraggeber" (GLOBAL_LAUFEND_VERTRAG) steht
+//     die Jahresbetreuung wörtlich aus shared/fiaon-global.ts (vertrag +
+//     vertragBedingungen) — beide Sätze nebeneinander widersprächen sich. Für die
+//     Privatperson ist auch dieser Preis ein Endpreis.
+// Die zwölf Ziffern und ihre Nummern bleiben. Der Preis steht nur in der Quelle.
+//
 // Diese Datei fasst keine Datenbank an — der Prüfstand lädt sie ohne Netz.
 // ═══════════════════════════════════════════════════════════════════════════
 import { escapeHtml, wrapFiaonDocument, htmlZuPdfMitFusszeile } from "./fiaon-html-pdf";
@@ -57,7 +70,7 @@ import { FIAON_ENTITY } from "../fiaon-invoice";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, GLOBAL_VIP_REISE, inVertragssprache,
-  globalPaket, globalKapital, type GlobalSchluessel,
+  GLOBAL_JAHRESBETREUUNG, globalPaket, globalKapital, type GlobalSchluessel,
 } from "@shared/fiaon-global";
 
 export type VertragSprache = "de" | "en";
@@ -83,6 +96,8 @@ export interface GlobalVertragDaten {
   auftraggeber?: GlobalAuftraggeber;
   /** Nur Privatperson: hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. */
   sofortBeginn?: boolean;
+  /** 19.09.2026 (E-196): im Auftrag angekreuzt — Jahresbetreuung ab dem zweiten Jahr (Ziffer 2, 3 und 5). Fehlt es, ist sie nicht gebucht. */
+  jahresbetreuung?: boolean;
   /** Die Antragsnummer — steht in Unterzeile und Fußzeile. In der Vorschau gibt es sie noch nicht. */
   ref?: string | null;
   /** Fehlt sie, ist es die Fassung VOR der Unterschrift. */
@@ -271,6 +286,11 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
   const leistungen = globalLeistungenVollstaendig(d.paket, d.sprache).map((z) => inVertragssprache(z, d.sprache));
   const inklusive = GLOBAL_INKLUSIVE[d.sprache].map((z) => inVertragssprache(z, d.sprache));
   const liste = (zeilen: readonly string[]) => `<ul>${zeilen.map((z) => `<li>${e(z)}</li>`).join("")}</ul>`;
+  // 19.09.2026 (E-196): Jahresbetreuung angekreuzt — Ziffer 2, 3 und 5 (siehe Kopf). Nur ein echtes true zählt.
+  const jahr = d.jahresbetreuung === true;
+  const jb = GLOBAL_JAHRESBETREUUNG[d.sprache];
+  // Mitten im englischen Satz klein: „the annual care plan" — so schreibt es auch jb.vertrag.
+  const jbName = en ? jb.titel.charAt(0).toLowerCase() + jb.titel.slice(1) : jb.titel;
 
   const ziffern: (string | null)[] = [
     // 1 — Parteien
@@ -281,16 +301,24 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
       ? `<p>FIAON supports the Client in setting up a US corporate structure within the scope of the package <b>FIAON ${e(t.name)}</b>. The package comprises:</p>`
       : `<p>FIAON begleitet den Auftraggeber beim Aufbau einer US-Unternehmensstruktur im Umfang des Pakets <b>FIAON ${e(t.name)}</b>. Das Paket umfasst:</p>`)
       + liste(leistungen)
+      // E-196: Die Jahresbetreuung gehört zum Auftrag — was sie umfasst und kostet, steht in Ziffer 5.
+      + (jahr
+        ? (en
+          ? `<p>In addition, the engagement covers the <b>${e(jbName)}</b> from the second year after formation, which the Client adds; its scope, fee and term are set out in clause 5.</p>`
+          : `<p>Zusätzlich umfasst der Auftrag die <b>${e(jbName)}</b> ab dem zweiten Jahr nach der Gründung, die der Auftraggeber dazubucht; Umfang, Vergütung und Laufzeit regelt Ziffer 5.</p>`)
+        : "")
       + `<p>${e(rollen.fiaon)}</p>`
       + (en
         ? `<p class="gv-kasten">The Client is aiming for a capital range of ${kapital.bisZu ? "up to" : "around"} ${e(kapital.wert)}; the duration and depth of the support are based on this. The institution concerned alone decides on the account, the card, the limit and any loan; no particular result is owed.</p>`
         : `<p class="gv-kasten">Der Auftraggeber strebt einen Kapitalrahmen von ${kapital.bisZu ? "bis zu" : "rund"} ${e(kapital.wert)} an; danach richten sich Dauer und Tiefe der Begleitung. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut; ein bestimmtes Ergebnis ist nicht geschuldet.</p>`),
 
     // 3 — Was nicht Teil des Auftrags ist
+    // E-196: Mit der Jahresbetreuung stecken die Partner-Honorare für ihre Leistungen (US-Meldung ab dem
+    // zweiten Jahr) in IHREM Preis, nicht im Paketpreis — sonst sagte Ziffer 3 etwas anderes als Ziffer 5.
     (en
-      ? `<p>Tax and legal services within the scope of clause 2 are provided by tax advisers, US CPAs and lawyers from the FIAON partner network under their own engagement with the Client. FIAON pays the partners’ fees for these services; they are included in the package price. FIAON receives no remuneration from the partners. Services beyond this scope are agreed by the Client directly with the partner.</p>`
+      ? `<p>Tax and legal services within the scope of clause 2 are provided by tax advisers, US CPAs and lawyers from the FIAON partner network under their own engagement with the Client. FIAON pays the partners’ fees for these services; they are included in the package price${jahr ? ` and, where they relate to the ${e(jbName)}, in its price` : ""}. FIAON receives no remuneration from the partners. Services beyond this scope are agreed by the Client directly with the partner.</p>`
         + `<p>FIAON is neither a bank nor a lender, does not accept client funds and has no authority over the Client’s accounts. The Client enters into contracts with institutions itself.</p>`
-      : `<p>Steuerliche und rechtliche Leistungen im Umfang von Ziffer 2 erbringen Steuerberater, US-CPA und Anwälte aus dem Partnernetz von FIAON auf eigenes Mandat des Auftraggebers. Die Honorare der Partner für diese Leistungen trägt FIAON; sie sind im Paketpreis enthalten. FIAON erhält von den Partnern keine Vergütung. Leistungen darüber hinaus vereinbart der Auftraggeber unmittelbar mit dem Partner.</p>`
+      : `<p>Steuerliche und rechtliche Leistungen im Umfang von Ziffer 2 erbringen Steuerberater, US-CPA und Anwälte aus dem Partnernetz von FIAON auf eigenes Mandat des Auftraggebers. Die Honorare der Partner für diese Leistungen trägt FIAON; sie sind im Paketpreis enthalten${jahr ? ` und, soweit sie die ${e(jbName)} betreffen, in deren Preis` : ""}. FIAON erhält von den Partnern keine Vergütung. Leistungen darüber hinaus vereinbart der Auftraggeber unmittelbar mit dem Partner.</p>`
         + `<p>FIAON ist keine Bank und kein Kreditgeber, nimmt keine Kundengelder entgegen und verfügt nicht über Konten des Auftraggebers. Verträge mit Instituten schließt der Auftraggeber selbst.</p>`),
 
     // 4 — Mitwirkung des Auftraggebers
@@ -299,18 +327,26 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
       : `<p>Der Auftraggeber macht vollständige und wahre Angaben und stellt die benötigten Unterlagen bereit. Anträge bei Behörden und Instituten stellt der Auftraggeber im eigenen Namen; FIAON bereitet sie vor. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben. Verzögert sich die Mitwirkung, verschieben sich vereinbarte Termine entsprechend.</p>`),
 
     // 5 — Vergütung
+    // E-196: Mit der Jahresbetreuung deckt der Festpreis „die Leistungen des Pakets"; an die Stelle des Satzes
+    // zu den laufenden Kosten (GLOBAL_LAUFEND_VERTRAG) tritt die Jahresbetreuung, wörtlich aus der Quelle.
     (en
       ? `<p>The package price is a one-off fee of <b>${e(preis)}</b>. It is payable in advance by bank transfer to the account stated on the invoice; the Client receives the invoice together with this engagement. ${wartet ? `FIAON starts work after the withdrawal period has expired (clause ${nrWiderruf}), and not before payment has been received.` : "FIAON starts work once payment has been received."}</p>`
-        + `<p>The package price is a fixed price. It covers all fees and charges for the services under clause 2, in particular: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.en)}</p>`
+        + (jahr
+          ? `<p>The package price is a fixed price. It covers all fees and charges for the services of the package under clause 2, in particular: ${e(inklusive.join("; "))}.</p>`
+          : `<p>The package price is a fixed price. It covers all fees and charges for the services under clause 2, in particular: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.en)}</p>`)
         + (d.paket === "global_vip" ? `<p>${e(GLOBAL_VIP_REISE.en)}</p>` : "")
+        + (jahr ? `<p>${e(jb.vertrag)}</p><p>${e(jb.vertragBedingungen)}</p>` : "")
         + (privat
-          ? `<p>For the Client as a private individual, the package price is a final price; any VAT that may be due is included in it.</p>`
+          ? `<p>For the Client as a private individual, the package price is a final price; any VAT that may be due is included in it.${jahr ? ` The same applies to the price of the ${e(jbName)}.` : ""}</p>`
           : `<p>The VAT treatment is shown on the invoice; where the Client owes the VAT as the recipient of the service (reverse charge), the invoice says so.</p>`)
       : `<p>Der Paketpreis beträgt einmalig <b>${e(preis)}</b>. Er ist im Voraus per Überweisung auf das in der Rechnung genannte Konto zu zahlen; die Rechnung erhält der Auftraggeber zusammen mit diesem Auftrag. ${wartet ? `FIAON beginnt nach Ablauf der Widerrufsfrist (Ziffer ${nrWiderruf}), frühestens mit dem Zahlungseingang.` : "FIAON beginnt mit dem Zahlungseingang."}</p>`
-        + `<p>Der Paketpreis ist ein Festpreis. Er umfasst alle Gebühren und Honorare für die Leistungen nach Ziffer 2, insbesondere: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.de)}</p>`
+        + (jahr
+          ? `<p>Der Paketpreis ist ein Festpreis. Er umfasst alle Gebühren und Honorare für die Leistungen des Pakets nach Ziffer 2, insbesondere: ${e(inklusive.join("; "))}.</p>`
+          : `<p>Der Paketpreis ist ein Festpreis. Er umfasst alle Gebühren und Honorare für die Leistungen nach Ziffer 2, insbesondere: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.de)}</p>`)
         + (d.paket === "global_vip" ? `<p>${e(GLOBAL_VIP_REISE.de)}</p>` : "")
+        + (jahr ? `<p>${e(jb.vertrag)}</p><p>${e(jb.vertragBedingungen)}</p>` : "")
         + (privat
-          ? `<p>Für den Auftraggeber als Privatperson ist der Paketpreis ein Endpreis; eine etwa anfallende Umsatzsteuer ist darin enthalten.</p>`
+          ? `<p>Für den Auftraggeber als Privatperson ist der Paketpreis ein Endpreis; eine etwa anfallende Umsatzsteuer ist darin enthalten.${jahr ? ` Dasselbe gilt für den Preis der ${e(jbName)}.` : ""}</p>`
           : `<p>Die umsatzsteuerliche Behandlung ergibt sich aus der Rechnung; schuldet der Auftraggeber die Umsatzsteuer als Leistungsempfänger (Reverse Charge), weist die Rechnung darauf hin.</p>`)),
 
     // 6 — Geld zurück (nur, solange der Schalter in shared/fiaon-global.ts an ist)

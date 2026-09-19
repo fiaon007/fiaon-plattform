@@ -106,6 +106,10 @@ const de = {
   beginnTitel: "Wann sollen wir beginnen?",
   beginnText: "Als Verbraucher haben Sie das gesetzliche Widerrufsrecht von vierzehn Tagen. Ohne Ihren ausdrücklichen Wunsch beginnen wir erst nach Ablauf dieser Frist; mit ihm, sobald Ihre Zahlung eingegangen ist. Der Vertrag unten folgt Ihrer Wahl.",
   sofortBeginn: "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt. Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.",
+  // 19.09.2026 (E-196): Die Jahresbetreuung selbst (Titel, Leistungen, Haken, Bedingungen) steht in
+  // shared/fiaon-global.ts (GLOBAL_JAHRESBETREUUNG) — hier nur, was diese Seite dazu sagt.
+  jahrVertrag: "Der Vertrag unten folgt Ihrer Wahl (Ziffer 2, 3 und 5).",
+  jahrLeistungen: "Leistungen der Jahresbetreuung",
   vertragLaedt: "Vertrag wird erstellt …",
   vertragFehler: "Der Vertrag konnte nicht geladen werden. Bitte versuchen Sie es in einem Moment erneut.",
   erneut: "Erneut laden",
@@ -256,6 +260,8 @@ const en: typeof de = {
   beginnTitel: "When should we start?",
   beginnText: "As a consumer you have the statutory fourteen-day right of withdrawal. Without your express request we start only after this period has expired; with it, as soon as your payment has arrived. The contract below follows your choice.",
   sofortBeginn: "I expressly request that FIAON begins work before the withdrawal period expires. I understand that if I withdraw, I pay a proportionate amount for the services provided until then, and that my right of withdrawal lapses once FIAON has fully performed the contract.",
+  jahrVertrag: "The contract below follows your choice (clauses 2, 3 and 5).",
+  jahrLeistungen: "Services of the annual care plan",
   vertragLaedt: "Preparing the contract …",
   vertragFehler: "The contract could not be loaded. Please try again in a moment.",
   erneut: "Reload",

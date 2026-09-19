@@ -51,7 +51,11 @@ import {
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { GLOBAL_STANDORTE, standortNachweis } from "@shared/fiaon-global-partner";
+import { globalSeite } from "@shared/fiaon-global-seiten";
 import { werbeEreignis } from "@/lib/werbung";
+import GlobalUhren from "@/components/site/GlobalUhren";
+import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
+import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import "@/styles/global.css";
 
 /** Das eine Zeichen der Seite: ein ruhiger Haken. */
@@ -72,11 +76,24 @@ const ROEMISCH = ["I", "II", "III", "IV"];
 /** Ab welchem Paket eine Etappe des Wegs enthalten ist — deckungsgleich mit GLOBAL_VERGLEICH. */
 const ETAPPE_AB: GlobalSchluessel[] = ["global_struktur", "global_struktur", "global_banking", "global_kapital"];
 
+// ── ZWEI STARTSEITEN, EIN AUFBAU (19.09.2026, E-196) ─────────────────────────
+// Justin: „Auf /business/privatpersonen soll die Privatperson auch die anderen
+// Pakete zur Auswahl bekommen — vom Design her wie eine Startseite für
+// Privatpersonen, viel hochwertiger und konversionsstärker." Dieselbe Seite mit
+// eigenem Kopf, eigenen Fragen und „Für wen" (GLOBAL_WOERTER.*.privat); jede
+// Paket-Tafel führt in den Auftrag als Privatperson (?art=privat).
 export default function Business() {
-  const t = useWoerter(GLOBAL_WOERTER);
+  return <BusinessSeite zielgruppe="unternehmen" />;
+}
+
+export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "unternehmen" | "privat" }) {
+  const basis = useWoerter(GLOBAL_WOERTER);
+  const privat = zielgruppe === "privat";
+  const t = privat ? { ...basis, ...basis.privat } : basis;
   const sprache = useSprache();
   const s = sprache === "en" ? "en" : "de";
-  const start = (paket?: string) => globalStartPfad(paket, s);
+  const start = (paket?: string) => globalStartPfad(paket, s, privat ? "privat" : undefined);
+  const seitePfad = privat ? "/business/privatpersonen" : s === "en" ? "/en/business" : "/business";
   const abPreis = globalPreisText("global_struktur", s);
 
   // Der Paketwunsch reist von der Tafel („Erst sprechen") in den Kalender.
@@ -138,7 +155,7 @@ export default function Business() {
   };
   const geld = GLOBAL_GELD_ZURUECK.aktiv ? GLOBAL_GELD_ZURUECK[s] : null;
   // Wie auf Unterseiten und Landingpages: Jeder Klick auf „beauftragen" zählt (nur mit Einwilligung, lib/werbung.ts).
-  const klick = (paket?: string, ort = "") => () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: s === "en" ? "/en/business" : "/business", ort });
+  const klick = (paket?: string, ort = "") => () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: seitePfad, ort });
   const londonOrt = GLOBAL_STANDORTE.find((o) => o.schluessel === "london");
 
   return (
@@ -182,12 +199,17 @@ export default function Business() {
                 <dl>
                   {t.mandat.map(([k, v]) => <div key={k}><dt>{k}</dt><dd><Haken />{v}</dd></div>)}
                   <div className="preis"><dt>{t.mandatPreis}</dt><dd><Haken />{t.mandatPreisText(abPreis)}</dd></div>
+                  <div><dt>{t.mandatJahr[0]}</dt><dd><Haken />{t.mandatJahr[1]}</dd></div>
                 </dl>
                 <figcaption className="fg-mandat-fuss">{t.mandatPartner}: <b>{FIAON_FIRMA.name}</b> · Companies House No. {FIAON_FIRMA.companyNo} · {FIAON_FIRMA.ortZeile.split(",")[0]}</figcaption>
               </figure>
             </Auf>
           </div>
         </section>
+
+        {/* ── Nachrichtenlage: echte Meldungen mit Quelle (19.09.2026, E-196) ── */}
+        <GlobalSchlagzeilen sprache={s} auge={t.presseAuge} h2={t.presseH2} stand={t.presseStand} zurQuelle={t.presseZurQuelle}
+          hinweis={t.presseHinweis} laufband={t.presseLaufband} pause={t.pressePause} weiter={t.presseWeiter} />
 
         {/* ── Acht Anlaufstellen oder ein Vertrag ────────────────────────────── */}
         <section id="leistungen" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
@@ -365,6 +387,10 @@ export default function Business() {
           </div>
         </section>
 
+        {/* ── Jahresbetreuung ab dem zweiten Jahr (19.09.2026, E-196) ───────── */}
+        <GlobalJahresbetreuung sprache={s} groesse="voll" startPfad={start()} onGespraech={() => zumGespraech()}
+          knopf={t.jbKnopf} gespraech={t.jbGespraech} so={t.jbSo} />
+
         {/* ── Alle Leistungen im Vergleich ───────────────────────────────────── */}
         <section className={`fg-sek fg-vergleich${tabelleAuf ? " auf" : ""}`}>
           <div className="fg-rahmen">
@@ -446,19 +472,34 @@ export default function Business() {
               {t.fuerLaenderLinks.length > 0 && (
                 <p className="fg-laender">{t.fuerLaender} {t.fuerLaenderLinks.map(([pfad, text], i) => <span key={pfad}>{i > 0 && " · "}<a href={pfad}>{text}</a></span>)}</p>
               )}
-              {/* 19.09.2026 (E-191): Auch ohne eigene Firma — die englische Seite führt direkt in den Auftrag. */}
-              <a className="fg-privat" href={s === "en" ? globalStartPfad(undefined, "en", "privat") : "/business/privatpersonen"}>
-                <span className="fg-privat-rumpf">
-                  <span className="fg-auge">{t.privatAuge}</span>
-                  <b>{t.privatTitel}</b>
-                  <span>{t.privatText}</span>
-                </span>
-                <span className="fg-privat-knopf">{t.privatKnopf}<Pfeil /></span>
-              </a>
+              {/* 19.09.2026 (E-191): Auch ohne eigene Firma — die englische Seite führt direkt in den Auftrag.
+                  Auf der Startseite für Privatpersonen (E-196) zeigt die Kachel den Weg zurück für Unternehmen. */}
+              {privat ? (
+                <a className="fg-privat" href={s === "en" ? "/en/business" : "/business"}>
+                  <span className="fg-privat-rumpf">
+                    <span className="fg-auge">{basis.privat.gegenAuge}</span>
+                    <b>{basis.privat.gegenTitel}</b>
+                    <span>{basis.privat.gegenText}</span>
+                  </span>
+                  <span className="fg-privat-knopf">{basis.privat.gegenKnopf}<Pfeil /></span>
+                </a>
+              ) : (
+                <a className="fg-privat" href={s === "en" ? globalStartPfad(undefined, "en", "privat") : "/business/privatpersonen"}>
+                  <span className="fg-privat-rumpf">
+                    <span className="fg-auge">{t.privatAuge}</span>
+                    <b>{t.privatTitel}</b>
+                    <span>{t.privatText}</span>
+                  </span>
+                  <span className="fg-privat-knopf">{t.privatKnopf}<Pfeil /></span>
+                </a>
+              )}
               <p className="fg-ausstieg">{t.fuerAusstieg}</p>
             </Auf>
           </div>
         </section>
+
+        {/* ── Drei Uhren: Deutschland, Florida, London (19.09.2026, E-196) ─── */}
+        <GlobalUhren auge={t.uhrenAuge} h2={t.uhrenH2} lead={t.uhrenLead} orte={t.uhren} gleichText={t.uhrenGleich} differenzText={t.uhrenDifferenz} />
 
         {/* ── Klare Verhältnisse ─────────────────────────────────────────────── */}
         <section className="fg-sek stein">
@@ -513,7 +554,8 @@ export default function Business() {
                 {s === "de" && <a className="fg-fragen-alle" href="/business/fragen">{t.fragenAlle}<Pfeil /></a>}
               </div>
             </Auf>
-            <Fragen items={t.fragen} />
+            {/* Privatpersonen: die Fragen aus dem Registereintrag — dasselbe FAQ-Markup wie das Vorab-HTML dieser Adresse. */}
+            <Fragen items={privat ? globalSeite("/business/privatpersonen")?.fragen ?? t.fragen : t.fragen} />
           </div>
         </section>
 

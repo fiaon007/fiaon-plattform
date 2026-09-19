@@ -389,11 +389,14 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   // 17.09.2026 (E-188): „Mein Auftrag" von FIAON Global. Die Pakete sagen Pflichtenkalender und
   // monatlichen Durchgang zu — bleibt dieser Lauf aus, bleibt beides stumm, und niemand merkt es,
   // weil ein Firmenkunde sich nicht über eine Erinnerung beschwert, die er nie bekommen hat.
+  // 19.09.2026 (E-196): dazu Schritt (d) — die Aufgabe, die Rechnung für das zweite Jahr der Jahresbetreuung zu stellen.
   global_tageslauf: {
     zweck: "FIAON Global: Kunden an Termine des Pflichtenkalenders erinnern (rund einen Monat und eine Woche vorher), "
-      + "den monatlichen Durchgang als Aufgabe einstellen, bei fehlenden Unterlagen nach fünf Tagen nachfassen lassen",
+      + "den monatlichen Durchgang als Aufgabe einstellen, bei fehlenden Unterlagen nach fünf Tagen nachfassen lassen, "
+      + "bei gebuchter Jahresbetreuung rund einen Monat vor dem ersten Jahrestag die Aufgabe „Rechnung für das zweite Betreuungsjahr stellen“ vergeben",
     folge: "Firmenkunden werden nicht an US-Meldungen und Staatstermine erinnert, der zugesagte monatliche "
-      + "Durchgang findet nicht statt, und Aufträge ohne Unterlagen bleiben unbemerkt liegen.",
+      + "Durchgang findet nicht statt, Aufträge ohne Unterlagen bleiben unbemerkt liegen, und die Rechnung für "
+      + "das zweite Jahr der Jahresbetreuung wird nicht gestellt — die Betreuung beginnt dann nicht.",
     fenster: 26,
   },
   // E-188 (17.09.2026): Der Lauf tickt halbstündlich und arbeitet nur im Sendefenster (Berlin 8–20 Uhr,

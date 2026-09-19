@@ -20,6 +20,12 @@
 //  10. Der Auftrag einer PRIVATPERSON (19.09.2026, E-191): Parteien, Ziffer 5/9/
 //      11/12, die gesetzliche Widerrufsbelehrung als Anlage (im Hash-Rumpf),
 //      Wortwand; Eingabeprüfung, Widerrufsfrist-Rechnung, Startmail-Liste.
+//  11. Die JAHRESBETREUUNG (19.09.2026, E-196): Vertrag mit und ohne — zwölf
+//      Ziffern, Vertragssprache, der Absatz in Ziffer 2, 3 und 5 an seiner Stelle,
+//      699 € und der Satz zur Staatsgebühr NUR wenn gebucht, kein Widerspruch zum
+//      Satz über die laufenden Kosten, Endpreis für Privatpersonen, Fassung;
+//      Eingabeprüfung (nur echtes true), die Hinweiszeile auf der Rechnung, und
+//      dass die Sätze nirgends in den Anzeige-Dateien kopiert stehen.
 //
 // Aufruf: npx tsx scripts/pruef-global-vertrag.ts        (Exit 1 bei Fehlern)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -346,6 +352,159 @@ abgelehntP((b) => { b.ansprechpartner.telefon = "+33 1 23 45 67 89"; }, "ansprec
 abgelehntP((b) => { b.ansprechpartner.nachname = "Fiaon"; }, "privat.nachname", "Privatperson „Fiaon“");
 const firmaOhneArt = GUT(); (firmaOhneArt as any).auftraggeber = "irgendwas";
 ok(auftrag.globalAuftragPruefen(firmaOhneArt).ok === true && (auftrag.globalAuftragPruefen(firmaOhneArt) as any).daten.auftraggeber === "unternehmen", "unbekannter Auftraggeber wird nicht als Unternehmen gelesen");
+
+// ═══ 11: DIE JAHRESBETREUUNG (19.09.2026, E-196) ════════════════════════════
+// Justin: im Auftrag ankreuzbar, 699 € im Jahr ab dem zweiten Jahr, ALLE Gebühren inklusive — auch die
+// Staatsgebühr. Geprüft wird, dass der Vertrag MIT Haken genau das sagt (Ziffer 2, 3, 5), OHNE Haken kein
+// Wort davon — und dass ein nicht gebuchter Vertrag Byte für Byte der bisherige bleibt.
+{
+  const { GLOBAL_JAHRESBETREUUNG, globalJahresbetreuungPreisText } = await import("../shared/fiaon-global");
+  const NEUE_FASSUNG = "2026-09-19c";
+  const entitaeten = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+  // Der Text EINER Ziffer — damit geprüft wird, WO ein Satz steht, nicht nur, DASS er irgendwo steht.
+  const zifferText = (vorschau: string, nr: number) => entitaeten(vorschau.split('<section class="gv-ziffer">')[nr] ?? "");
+  const anspracheDe = /\b(Ihr|Ihre|Ihrer|Ihrem|Ihren|Ihres|Ihnen|[Uu]nser\w*|[Ww]ir)\b/g;
+  const anspracheEn = /\b(your|our|we|you|Your|Our|We|You)\b/g;
+  const PLAN_SATZ = { de: "Jahresmeldung beim Bundesstaat einschließlich der Staatsgebühr", en: "annual report to the state including the state fee" } as const;
+  const ENDPREIS = { de: "Dasselbe gilt für den Preis der Jahresbetreuung.", en: "The same applies to the price of the annual care plan." } as const;
+  const HONORAR = { de: "und, soweit sie die Jahresbetreuung betreffen, in deren Preis", en: "and, where they relate to the annual care plan, in its price" } as const;
+
+  abschnitt("Jahresbetreuung: Fassung");
+  ok(GLOBAL_VERTRAG_VERSION >= NEUE_FASSUNG, `Vertragsfassung ist „${GLOBAL_VERTRAG_VERSION}“ — der Vertrag mit Jahresbetreuung ist eine neue Fassung und braucht „${NEUE_FASSUNG}“ oder später (shared/fiaon-global.ts, GLOBAL_VERTRAG_VERSION)`);
+  ok(GLOBAL_JAHRESBETREUUNG.preisCents === 69900 && globalJahresbetreuungPreisText("de") === "699 €" && globalJahresbetreuungPreisText("en") === "€699", `Preis der Quelle: ${GLOBAL_JAHRESBETREUUNG.preisCents} / ${globalJahresbetreuungPreisText("de")} / ${globalJahresbetreuungPreisText("en")}`);
+
+  let faelle = 0;
+  for (const p of GLOBAL_PAKETE) {
+    for (const sprache of ["de", "en"] as const) {
+      for (const art of ["unternehmen", "privat"] as const) {
+        const de = sprache === "de";
+        const jb = GLOBAL_JAHRESBETREUUNG[sprache];
+        const basis = art === "privat"
+          ? { paket: p.key, sprache, auftraggeber: "privat", sofortBeginn: false, firma: PRIVAT_FIRMA, ansprechpartner: PRIVAT_PERSON }
+          : { paket: p.key, sprache, firma: FIRMA, ansprechpartner: PERSON };
+        const wo = `${p.key}/${sprache}/${art}`;
+        const mit = { ...basis, jahresbetreuung: true } as any;
+        const ohne = { ...basis, jahresbetreuung: false } as any;
+        const vMit = vertrag.globalVertragVorschauHtml(mit); const tMit = vertrag.globalVertragText(mit);
+        const vOhne = vertrag.globalVertragVorschauHtml(ohne); const tOhne = vertrag.globalVertragText(ohne);
+        faelle++;
+
+        // Zwölf Ziffern, dieselben Titel, dieselbe Reihenfolge — mit und ohne.
+        const titelListe = vertrag.globalVertragZiffern(sprache, art === "privat" ? "privat" : "unternehmen").filter((_, i) => i !== 5 || GLOBAL_GELD_ZURUECK.aktiv);
+        for (const [name, v] of [["mit", vMit], ["ohne", vOhne]] as const) {
+          const gefunden = Array.from(v.matchAll(/<h2><span class="gv-nr">(\d+)<\/span>([^<]+)<\/h2>/g)).map((m) => `${m[1]} ${m[2]}`);
+          ok(gefunden.length === titelListe.length && titelListe.every((t, i) => gefunden[i] === `${i + 1} ${t.replace(/&/g, "&amp;")}`), `${wo} ${name}: Ziffern ${gefunden.join(" | ")}`);
+          ok(v.includes(GLOBAL_VERTRAG_VERSION), `${wo} ${name}: Vertragsversion fehlt in der Unterzeile`);
+        }
+
+        // MIT: Ziffer 2 nennt sie, Ziffer 3 die Honorare, Ziffer 5 den Wortlaut der Quelle — je genau einmal.
+        const z2 = zifferText(vMit, 2); const z3 = zifferText(vMit, 3); const z5 = zifferText(vMit, 5);
+        ok(de ? /Zusätzlich umfasst der Auftrag die Jahresbetreuung ab dem zweiten Jahr nach der Gründung.*regelt Ziffer 5\./.test(z2) : /In addition, the engagement covers the annual care plan from the second year after formation.*set out in clause 5\./.test(z2), `${wo}: Ziffer 2 nennt die Jahresbetreuung nicht (mit Verweis auf Ziffer 5)`);
+        ok(z3.includes(HONORAR[sprache]), `${wo}: Ziffer 3 — die Partner-Honorare der Jahresbetreuung stecken nicht in deren Preis`);
+        ok(z5.includes(jb.vertrag) && z5.includes(jb.vertragBedingungen), `${wo}: Ziffer 5 trägt den Wortlaut der Jahresbetreuung nicht (vertrag + vertragBedingungen aus shared/fiaon-global.ts)`);
+        ok(tMit.split(jb.vertrag).length === 2 && tMit.split(jb.vertragBedingungen).length === 2, `${wo}: der Wortlaut der Jahresbetreuung steht nicht GENAU einmal im Vertrag`);
+        ok(z5.includes(globalJahresbetreuungPreisText(sprache)) && z5.includes(PLAN_SATZ[sprache]), `${wo}: Ziffer 5 — Preis ${globalJahresbetreuungPreisText(sprache)} oder der Satz zur Staatsgebühr fehlt`);
+        ok(!tMit.includes(GLOBAL_LAUFEND_VERTRAG[sprache]), `${wo}: MIT Jahresbetreuung steht noch „die laufenden Kosten trägt der Auftraggeber“ — Widerspruch zu Ziffer 5`);
+        ok(de ? z5.includes("für die Leistungen des Pakets nach Ziffer 2") : z5.includes("for the services of the package under clause 2"), `${wo}: Ziffer 5 — der Festpreis deckt nicht mehr nur „die Leistungen des Pakets“`);
+        ok(z5.includes(ENDPREIS[sprache]) === (art === "privat"), `${wo}: Endpreis-Satz der Jahresbetreuung ${art === "privat" ? "fehlt beim Privatauftrag" : "steht im Firmenauftrag"}`);
+        if (art === "privat") ok(z5.includes(de ? "ist der Paketpreis ein Endpreis" : "the package price is a final price"), `${wo}: der Endpreis-Satz des Pakets ist weg`);
+        ok(!zifferText(vMit, 1).includes(jb.titel) && !zifferText(vMit, 4).includes(jb.titel), `${wo}: die Jahresbetreuung steht in einer Ziffer, in die sie nicht gehört`);
+        const angesprochen = Array.from(new Set(ohneSignatur(tMit).match(de ? anspracheDe : anspracheEn) ?? []));
+        ok(angesprochen.length === 0, `${wo}: Kundenansprache im Vertrag mit Jahresbetreuung: ${angesprochen.join(", ")}`);
+        if (de) for (const t of wandPruefen(tMit)) { wandTreffer.push(`${wo} mit Jahresbetreuung: [${t.art}] „${t.treffer}“ — ${t.hinweis}`); ok(false, `${wo}: Wortwand [${t.art}] „${t.treffer}“`); }
+        else for (const m of tMit.matchAll(/\b(guarantee[sd]?|advice|recommend\w*|affiliate\w*)\b/gi)) if (!/personal\s$/i.test(tMit.slice(Math.max(0, m.index! - 12), m.index!))) { wandTreffer.push(`${wo}/en mit Jahresbetreuung: „${m[0]}“`); ok(false, `${wo}: Wortwahl (EN) „${m[0]}“`); }
+        // Der Hash-Rumpf (Unterschrift) trägt den Absatz — was unterschrieben wird, ist, was angezeigt wurde.
+        const rumpfMit = vertrag.globalVertragRumpfHtml({ ...mit, ref: "FIAON-JB-0001" }); const rumpfOhne = vertrag.globalVertragRumpfHtml({ ...ohne, ref: "FIAON-JB-0001" });
+        ok(rumpfMit !== rumpfOhne && entitaeten(rumpfMit).includes(jb.vertrag), `${wo}: der Rumpf für PDF und Hash trägt die Jahresbetreuung nicht`);
+
+        // OHNE: kein Wort davon, der bisherige Satz zu den laufenden Kosten — und Byte für Byte wie ohne Feld.
+        ok(!tOhne.toLowerCase().includes(jb.titel.toLowerCase()) && !tOhne.includes("699") && !tOhne.includes(PLAN_SATZ[sprache]) && !tOhne.includes(HONORAR[sprache]), `${wo}: OHNE Haken steht etwas von der Jahresbetreuung im Vertrag`);
+        ok(tOhne.includes(GLOBAL_LAUFEND_VERTRAG[sprache]), `${wo}: OHNE Haken fehlt der Satz zu den laufenden Kosten ab dem zweiten Jahr`);
+        ok(vOhne === vertrag.globalVertragVorschauHtml(basis as any), `${wo}: „jahresbetreuung: false“ ändert den Vertrag gegenüber dem bisherigen (ohne Feld)`);
+        ok(vertrag.globalVertragVorschauHtml({ ...basis, jahresbetreuung: "true" } as any) === vOhne, `${wo}: der TEXT „true“ zählt als angekreuzt (nur boolean true)`);
+      }
+    }
+  }
+  console.log(`  ${faelle} Fälle (4 Pakete × 2 Sprachen × Unternehmen/Privatperson), je mit und ohne Jahresbetreuung.`);
+
+  abschnitt("Jahresbetreuung: Eingabeprüfung und Akte");
+  const vorschauMit = auftrag.globalVorschauPruefen({ ...GUT(), jahresbetreuung: true });
+  ok(vorschauMit.ok === true && (vorschauMit as any).daten.jahresbetreuung === true, "Vorschau: jahresbetreuung true kommt nicht an");
+  ok((auftrag.globalVorschauPruefen(GUT()) as any).daten?.jahresbetreuung === false, "Vorschau: ohne Feld ist die Jahresbetreuung gebucht");
+  ok((auftrag.globalVorschauPruefen({ ...GUT(), jahresbetreuung: "true" }) as any).daten?.jahresbetreuung === false, "Vorschau: der TEXT „true“ gilt als angekreuzt");
+  ok((auftrag.globalVorschauPruefen({ ...GUT_PRIVAT(), jahresbetreuung: true }) as any).daten?.jahresbetreuung === true, "Vorschau Privatperson: jahresbetreuung true kommt nicht an");
+  const aMit = auftrag.globalAuftragPruefen({ ...GUT(), jahresbetreuung: true });
+  ok(aMit.ok === true && (aMit as any).daten.jahresbetreuung === true, `Auftrag: jahresbetreuung true kommt nicht an (${(aMit as any).error ?? ""})`);
+  ok((auftrag.globalAuftragPruefen(GUT()) as any).daten?.jahresbetreuung === false, "Auftrag: ohne Feld ist die Jahresbetreuung gebucht");
+  ok((auftrag.globalAuftragPruefen({ ...GUT_PRIVAT(), jahresbetreuung: true }) as any).daten?.jahresbetreuung === true, "Auftrag Privatperson: jahresbetreuung true kommt nicht an");
+  ok((auftrag.globalAuftragPruefen({ ...GUT_PRIVAT(), jahresbetreuung: 1 }) as any).daten?.jahresbetreuung === false, "Auftrag: 1 gilt als angekreuzt (nur boolean true)");
+  const aus = auftrag.globalJahresbetreuungAus;
+  ok(JSON.stringify(aus({ jahresbetreuung: true, jahresbetreuung_preis_cents: 69900 })) === JSON.stringify({ jahresbetreuung: true, jahresbetreuungPreisCents: 69900 }), "Akte gebucht: Preis vom Tag der Bestellung");
+  ok(aus({ jahresbetreuung: true, jahresbetreuung_preis_cents: 59900 }).jahresbetreuungPreisCents === 59900, "Akte gebucht: ein ALTER Preis wird durch den heutigen ersetzt");
+  ok(aus({ jahresbetreuung: true, jahresbetreuung_preis_cents: null }).jahresbetreuungPreisCents === GLOBAL_JAHRESBETREUUNG.preisCents, "Akte gebucht ohne Preis: nicht der Preis der Quelle");
+  ok(JSON.stringify(aus({ jahresbetreuung: false, jahresbetreuung_preis_cents: 69900 })) === JSON.stringify({ jahresbetreuung: false, jahresbetreuungPreisCents: null }) && aus(null).jahresbetreuung === false && aus({ jahresbetreuung: "true" }).jahresbetreuung === false, "Akte nicht gebucht (oder Text statt Wahrheitswert): trotzdem gebucht");
+
+  abschnitt("Jahresbetreuung: Hinweiszeile auf der Rechnung");
+  const PDFDocument = (await import("pdfkit")).default;
+  const rechnung = await import("../server/fiaon-invoice");
+  // Mitgeschrieben wird, was gezeichnet wird: jeder Text und die Unterkante des Zahlungskastens.
+  const zeichne = (zeile: any): Promise<{ texte: string[]; kastenBis: number; fussOben: number; seiten: number }> => new Promise((fertig, fehlschlag) => {
+    const doc: any = new PDFDocument({ size: "A4", margin: 50 });
+    const teile: Buffer[] = []; const texte: string[] = []; let kastenBis = 0;
+    const text = doc.text.bind(doc); doc.text = (t: unknown, ...r: unknown[]) => { texte.push(String(t)); return text(t, ...r); };
+    const kasten = doc.roundedRect.bind(doc); doc.roundedRect = (x: number, y: number, w: number, h: number, ...r: unknown[]) => { kastenBis = Math.max(kastenBis, y + h); return kasten(x, y, w, h, ...r); };
+    doc.on("data", (c: Buffer) => teile.push(c)); doc.on("error", fehlschlag);
+    doc.on("end", () => fertig({ texte, kastenBis, fussOben: doc.page.height - 60, seiten: (Buffer.concat(teile).toString("latin1").match(/\/Type \/Page\b/g) ?? []).length }));
+    rechnung.renderInvoicePdf(doc, zeile); doc.end();
+  });
+  const kopfR = { ref: "FIAON-MB2XK4LQ-7T9A", invoice_number: "FIAON-INV-2026-00321", invoice_date: "2026-09-19T10:00:00Z", payment_reference: "FIAON-A1B2C3", payment_due_date: "2026-09-26T10:00:00Z" };
+  const firmaR = { ...kopfR, pack_key: "global_vip", pack_name: "FIAON Global VIP", amount_due: "35999.00", company_name: "Muster & Söhne Projektentwicklungsgesellschaft mbH & Co. KG Niederlassung Süd", contact_name: "Maximilian Mustermann-Beispielhausen", street: "Beispielweg 12", zip: "80331", city: "München", country: "DE", tax_id: "DE123456789", contact_email: "m.muster@muster-gmbh.example" };
+  const HINWEIS_DE = "Jahresbetreuung ab dem zweiten Jahr: 699,00 € je Betreuungsjahr, wird jährlich gesondert berechnet – nicht Teil dieser Rechnung.";
+  const HINWEIS_EN = "Annual care plan from the second year: €699.00 per year of care, invoiced separately each year – not part of this invoice.";
+  for (const [name, zeile, erwartet] of [
+    ["de, ohne Steuerausweis", { ...firmaR, rechnung_jahresbetreuung_cents: 69900 }, [HINWEIS_DE]],
+    ["en, Reverse Charge", { ...firmaR, rechnung_ust_modus: "reverse_charge", rechnung_sprache: "en", rechnung_jahresbetreuung_cents: 69900 }, [HINWEIS_DE, HINWEIS_EN]],
+    ["Privatauftrag (ohne Firmenname)", { ...firmaR, company_name: null, first_name: "Erika", last_name: "Muster", rechnung_jahresbetreuung_cents: 69900 }, [HINWEIS_DE]],
+  ] as [string, Record<string, unknown>, string[]][]) {
+    const r = await zeichne(zeile);
+    ok(erwartet.every((h) => r.texte.filter((t) => t === h).length === 1), `Rechnung ${name}: Hinweiszeile fehlt oder steht doppelt — ${r.texte.filter((t) => /Jahresbetreuung|annual care/i.test(t)).join(" | ")}`);
+    ok(r.texte.filter((t) => /Jahresbetreuung|annual care/i.test(t)).length === erwartet.length, `Rechnung ${name}: mehr Jahresbetreuung als die eine Hinweiszeile (je Sprache)`);
+    ok(r.texte.includes("35.999,00 €") && !r.texte.includes("699,00 €"), `Rechnung ${name}: Betrag ist nicht mehr der Paketpreis — oder die Jahresbetreuung steht als Posten da`);
+    ok(r.seiten === 1 && r.kastenBis > 0 && r.kastenBis < r.fussOben, `Rechnung ${name}: Zahlungskasten reicht bis ${r.kastenBis.toFixed(0)}, Fuß beginnt bei ${r.fussOben.toFixed(0)} (${r.seiten} Seite(n))`);
+  }
+  for (const [name, zeile] of [["ohne Feld", firmaR], ["Feld 0", { ...firmaR, rechnung_jahresbetreuung_cents: 0 }], ["Feld null", { ...firmaR, rechnung_jahresbetreuung_cents: null }], ["Privatkunde mit Feld", { ...kopfR, pack_key: "pro", pack_name: "FIAON Pro", amount_due: "59.99", first_name: "Kim", last_name: "Beispiel", rechnung_jahresbetreuung_cents: 69900 }]] as [string, Record<string, unknown>][]) {
+    const r = await zeichne(zeile);
+    ok(!r.texte.some((t) => /Jahresbetreuung|annual care/i.test(t)), `Rechnung ${name}: trägt eine Jahresbetreuung`);
+  }
+  // Die Zeile kommt über rechnungsSpracheSetzen — an allen fünf Zeichenstellen gleich. Eine fehlende Spalte
+  // (vor dem ersten ensureGlobalTabelle nach dem Deploy) darf die englische Zweitzeile nicht mitreißen.
+  const attrappe = (spalteFehlt: boolean) => async (teile: TemplateStringsArray) => {
+    const q = teile.join("?");
+    if (q.includes("jahresbetreuung")) { if (spalteFehlt) throw new Error('column "jahresbetreuung" does not exist'); return [{ jahresbetreuung: true, jahresbetreuung_preis_cents: 69900 }]; }
+    if (q.includes("vertrag_sprache")) return [{ vertrag_sprache: "en" }];
+    return [];
+  };
+  const z1: any = { ref: "FIAON-X", pack_key: "global_struktur" }; await rechnung.rechnungsSpracheSetzen(attrappe(false), z1);
+  ok(z1.rechnung_sprache === "en" && z1.rechnung_jahresbetreuung_cents === 69900, `rechnungsSpracheSetzen: Sprache/Jahresbetreuung nicht an der Zeile (${JSON.stringify(z1)})`);
+  const z2: any = { ref: "FIAON-X", pack_key: "global_struktur" }; await rechnung.rechnungsSpracheSetzen(attrappe(true), z2);
+  ok(z2.rechnung_sprache === "en" && z2.rechnung_jahresbetreuung_cents === undefined, "rechnungsSpracheSetzen: eine fehlende Spalte reißt die englische Zweitzeile mit");
+  const z3: any = { ref: "FIAON-X", pack_key: "pro" }; await rechnung.rechnungsSpracheSetzen(attrappe(false), z3);
+  ok(z3.rechnung_sprache === undefined && z3.rechnung_jahresbetreuung_cents === undefined, "rechnungsSpracheSetzen: fasst eine Privatkunden-Rechnung an");
+
+  abschnitt("Jahresbetreuung: eine Quelle — kein Satz kopiert, Haken nie vorangekreuzt");
+  const fs = await import("node:fs");
+  const WURZEL_V = new URL("..", import.meta.url).pathname;
+  const saetze = (["de", "en"] as const).flatMap((s) => [GLOBAL_JAHRESBETREUUNG[s].vertrag, GLOBAL_JAHRESBETREUUNG[s].vertragBedingungen, GLOBAL_JAHRESBETREUUNG[s].bedingungen, GLOBAL_JAHRESBETREUUNG[s].buchen, GLOBAL_JAHRESBETREUUNG[s].gebucht, GLOBAL_JAHRESBETREUUNG[s].nichtHeute]);
+  for (const datei of ["client/src/pages/business-start.tsx", "client/src/i18n/global-start.ts", "client/src/pages/business-auftrag.tsx", "client/src/i18n/global-auftrag.ts", "client/src/pages/site/global-recht.tsx", "server/lib/fiaon-global-vertrag.ts", "server/fiaon-invoice.ts"]) {
+    const q = fs.readFileSync(WURZEL_V + datei, "utf8");
+    const kopie = saetze.find((s) => q.includes(s));
+    ok(!kopie, `${datei}: ein Satz der Jahresbetreuung steht als Kopie da („${String(kopie).slice(0, 60)}…“) — er gehört nur nach shared/fiaon-global.ts`);
+  }
+  const seite = fs.readFileSync(WURZEL_V + "client/src/pages/business-start.tsx", "utf8");
+  ok(/useState<boolean>\(entwurf\?\.jahresbetreuung === true\)/.test(seite) && !/setJahresbetreuung\(true\)/.test(seite), "Auftrag: der Haken der Jahresbetreuung ist nicht mehr „aus, bis der Kunde ihn setzt“ (§ 312a Abs. 3 BGB)");
+  ok(/checked=\{jahresbetreuung\}[^\n]*J\.buchen/.test(seite), "Auftrag: der Haken trägt nicht den Satz „buchen“ aus der Quelle");
+  ok(/jahresbetreuung, sprache: s \}/.test(seite) && /\n\s*jahresbetreuung,\n\s*kampagne: kampagne\(\)/.test(seite), "Auftrag: Vorschau oder Auftrag schicken die Jahresbetreuung nicht mit");
+}
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 abschnitt("Ergebnis");

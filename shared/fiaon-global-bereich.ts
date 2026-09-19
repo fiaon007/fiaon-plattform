@@ -471,6 +471,31 @@ export function globalPflichtFristen(
   return fristen.sort((a, b) => a.faelligAm.localeCompare(b.faelligAm) || a.regelKey.localeCompare(b.regelKey));
 }
 
+// ── JAHRESBETREUUNG: WANN DIE RECHNUNG FÜR DAS ZWEITE JAHR RAUSGEHT (19.09.2026, E-196) ──
+// Die Jahresbetreuung (shared/fiaon-global.ts, GLOBAL_JAHRESBETREUUNG) beginnt mit dem zweiten
+// Jahr nach der Gründung und verlängert sich nicht von selbst: Vor jedem Betreuungsjahr kommt eine
+// Rechnung, mit ihrer Zahlung beginnt das Jahr. Damit die Rechnung VOR dem Jahrestag beim Kunden
+// ist, bekommt die zuständige Person rund einen Monat vorher eine Aufgabe (Tageslauf in
+// server/lib/fiaon-global-bereich.ts). Das ist KEIN Termin im Pflichtenkalender des Kunden — der
+// Kalender zeigt dem Kunden seine US-Pflichten, und er bekäme sonst eine Erinnerung an eine
+// Aufgabe von FIAON. Ohne eingetragenen Gründungstag zählt der Start: Er liegt vor der Gründung,
+// die Aufgabe kommt dann eher zu früh als zu spät.
+
+/** Tage vor dem ersten Jahrestag, ab denen die Rechnung für das zweite Betreuungsjahr gestellt wird. */
+export const GLOBAL_JAHRESBETREUUNG_VORLAUF_TAGE = 30;
+
+/**
+ * Der erste Jahrestag (Beginn des zweiten Jahres) und der Tag, ab dem die Rechnung dafür zu stellen
+ * ist — beides JJJJ-MM-TT. `basis` sagt, woran gerechnet wurde. null, solange weder Gründungstag noch
+ * Start bekannt ist. REIN: kein „heute", keine Uhr — ein 29.02. wird im Folgejahr der 28.02.
+ */
+export function globalJahresbetreuungRechnungAb(ein: { gegruendetAm?: string | null; gestartetAm?: string | null }): { jahrestag: string; rechnungAb: string; basis: "gruendung" | "start" } | null {
+  const basis = istIsoTag(ein.gegruendetAm) ? "gruendung" : istIsoTag(ein.gestartetAm) ? "start" : null;
+  if (!basis) return null;
+  const jahrestag = isoPlusMonate(String(basis === "gruendung" ? ein.gegruendetAm : ein.gestartetAm), 12);
+  return { jahrestag, rechnungAb: isoPlusTage(jahrestag, -GLOBAL_JAHRESBETREUUNG_VORLAUF_TAGE), basis };
+}
+
 /**
  * Die Meldung der Gründung beim heimischen Finanzamt hat kein Datum, das FIAON
  * nennen dürfte (in Deutschland § 138 AO — Form und Frist nennt der

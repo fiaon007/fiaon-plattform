@@ -35,12 +35,21 @@
 // aus der Auftragsakte (fiaon_global_auftraege.vertrag_sprache) — an allen
 // fünf Zeichenstellen, damit es dieselbe Rechnung bleibt. Ohne das Feld ist
 // jede Rechnung Byte für Byte, wie sie war (Zeilenhöhen, Kastenhöhen, Texte).
+//
+// ── JAHRESBETREUUNG: EIN HINWEIS, KEIN POSTEN (19.09.2026, E-196) ──────
+// Hat der Kunde im Auftrag die Jahresbetreuung angekreuzt, steht unter dem
+// Satz zur Umsatzsteuer EINE Hinweiszeile: ab dem zweiten Jahr, Preis je Betreuungsjahr,
+// jährlich gesondert berechnet, nicht Teil dieser Rechnung. Der Betrag dieser
+// Rechnung bleibt der Paketpreis. Gesetzt über `rechnung_jahresbetreuung_cents`
+// an der Zeile — von derselben Funktion wie die Sprache (rechnungsSpracheSetzen),
+// also an allen fünf Zeichenstellen gleich. Ohne das Feld: Byte für Byte wie bisher.
 // ═══════════════════════════════════════════════════════════════════
 
 import { createHmac } from "crypto";
 import { absoluteUrl } from "./fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
+import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
 import type PDFKit from "pdfkit";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 
@@ -164,13 +173,28 @@ const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich"
  * Die Sprache der Rechnung an die Zeile hängen — NUR für Aufträge über FIAON Global, deren Auftrag
  * englisch geführt wurde. Fehlt die Akte oder die Tabelle, bleibt die Rechnung deutsch: Eine Rechnung
  * darf an dieser Frage nie scheitern.
+ *
+ * 19.09.2026 (E-196): Im selben Zug die Jahresbetreuung (`rechnung_jahresbetreuung_cents`, siehe Kopf) —
+ * in einer EIGENEN Abfrage: Fehlt die Spalte noch (vor dem ersten ensureGlobalTabelle nach dem Deploy),
+ * darf das die englische Zweitzeile nicht mitreißen. Ohne Akte oder ohne Haken: kein Feld, kein Hinweis.
  */
 export async function rechnungsSpracheSetzen(sqlPool: any, a: any): Promise<void> {
-  if (!a || a.rechnung_sprache || !istGlobalPaket(a.pack_key) || !a.ref) return;
-  try {
-    const [g] = await sqlPool`SELECT vertrag_sprache FROM fiaon_global_auftraege WHERE ref = ${a.ref} LIMIT 1`;
-    if (String(g?.vertrag_sprache ?? "").trim().toLowerCase() === "en") a.rechnung_sprache = "en";
-  } catch { /* keine Akte, keine Tabelle → deutsch */ }
+  if (!a || !istGlobalPaket(a.pack_key) || !a.ref) return;
+  if (!a.rechnung_sprache) {
+    try {
+      const [g] = await sqlPool`SELECT vertrag_sprache FROM fiaon_global_auftraege WHERE ref = ${a.ref} LIMIT 1`;
+      if (String(g?.vertrag_sprache ?? "").trim().toLowerCase() === "en") a.rechnung_sprache = "en";
+    } catch { /* keine Akte, keine Tabelle → deutsch */ }
+  }
+  if (a.rechnung_jahresbetreuung_cents === undefined) {
+    try {
+      const [j] = await sqlPool`SELECT jahresbetreuung, jahresbetreuung_preis_cents FROM fiaon_global_auftraege WHERE ref = ${a.ref} LIMIT 1`;
+      if (j?.jahresbetreuung === true) {
+        const preis = Number(j.jahresbetreuung_preis_cents);
+        a.rechnung_jahresbetreuung_cents = Number.isFinite(preis) && preis > 0 ? preis : GLOBAL_JAHRESBETREUUNG.preisCents;
+      }
+    } catch { /* keine Akte, keine Spalte → kein Hinweis */ }
+  }
 }
 
 /**
@@ -353,6 +377,17 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
         ? `Reverse charge: the recipient of the service is liable for VAT. VAT ID of the recipient: ${String(a.tax_id).trim()}. The invoice amount contains no VAT.`
         : "Invoice amount without separate statement of VAT.";
       doc.font("Helvetica").fontSize(7).fillColor(CI.slate).text(satzEn, M, doc.y + 2, { width: W, align: "right" });
+    }
+    // 19.09.2026 (E-196): gebuchte Jahresbetreuung — EIN Hinweis, kein Posten; der Betrag oben bleibt der Paketpreis.
+    const jahrCents = Number(a.rechnung_jahresbetreuung_cents);
+    if (Number.isFinite(jahrCents) && jahrCents > 0) {
+      doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
+        .text(`Jahresbetreuung ab dem zweiten Jahr: ${eur(jahrCents / 100)} je Betreuungsjahr, wird jährlich gesondert berechnet – nicht Teil dieser Rechnung.`, M, doc.y + 4, { width: W, align: "right" });
+      if (en) {
+        const betragEn = "€" + (jahrCents / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        doc.font("Helvetica").fontSize(7).fillColor(CI.slate)
+          .text(`Annual care plan from the second year: ${betragEn} per year of care, invoiced separately each year – not part of this invoice.`, M, doc.y + 2, { width: W, align: "right" });
+      }
     }
     y = doc.y;
   } else if (vatMode === "none") {

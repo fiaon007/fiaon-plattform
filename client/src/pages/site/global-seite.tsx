@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
+import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import NotFound from "@/pages/not-found";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import {
@@ -165,6 +166,9 @@ function Seite({ s }: { s: GlobalSeite }) {
             </section>
 
             {s.bloecke.map((b) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} />)}
+
+            {/* 19.09.2026 (E-196): die Jahresbetreuung ab dem zweiten Jahr — auf jeder Seite, dieselben Sätze wie im Vertrag. */}
+            <GlobalJahresbetreuung sprache="de" startPfad={beauftragen} knopf={t.jbKnopf} so={t.jbSo} />
 
             {s.fragen.length > 0 && (
               <section id="fragen" className="fd-abschnitt">

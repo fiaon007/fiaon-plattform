@@ -31,7 +31,7 @@ import { useOffice } from "./OfficeShell";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import {
-  type GlobalZeile, type GlobalFilter, FILTER_TEXT, STATUS_TEXT, STATUS_KURZ, ETAPPEN_TITEL,
+  type GlobalZeile, type GlobalFilter, FILTER_TEXT, STATUS_TEXT, STATUS_KURZ, ETAPPEN_TITEL, JAHRESBETREUUNG_MARKE,
   zeilenLesen, sortiere, kopfZahlen, filtere, tagText, fristLage, euroText, berlinTag,
 } from "./global-logik";
 import { globalZugriffMerken } from "./global-zugriff";
@@ -181,6 +181,8 @@ function ListeInnen() {
                             {/* „FIAON " steht schon über der Seite — in der schmalen Spalte zählt der Paketname. */}
                             <span className="hell" title={z.paketName}>{z.paketName.replace(/^FIAON\s+/i, "")}</span>
                             <small>{euroText(z.betragCents)} einmalig</small>
+                            {/* E-196: im Auftrag angekreuzt — die Rechnung fürs zweite Jahr kommt als Aufgabe. */}
+                            {z.jahresbetreuung && <span className="pi-marke gut gl-jahr" title="Im Auftrag angekreuzt: Jahresbetreuung ab dem zweiten Jahr. Die Rechnung dafür kommt rund einen Monat vor dem ersten Jahrestag als Aufgabe.">{JAHRESBETREUUNG_MARKE}</span>}
                           </span>
                           <span className="gl-zelle" data-titel="Stand · Etappe">
                             <span className="gl-nur-leser">Stand: </span>

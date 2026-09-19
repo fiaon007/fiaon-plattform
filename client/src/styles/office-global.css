@@ -246,3 +246,6 @@
   .gl-skelett{animation:none}
   .gl-zeile,.gl-etappe,.gl-fortschritt i{transition:none}
 }
+
+/* 19.09.2026 (E-196): Marke „Jahresbetreuung gebucht (ab Jahr 2)" — darf in der schmalen Paket-Spalte umbrechen, statt abgeschnitten zu werden. */
+.gl-zelle .pi-marke.gl-jahr{white-space:normal;overflow:visible;line-height:1.3;margin-top:3px}

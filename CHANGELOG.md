@@ -5,6 +5,69 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.09.2026 — FIAON Global: Jahresbetreuung 699 € ab dem zweiten Jahr, Startseite für Privatpersonen, Weltzeituhren, Nachrichtenlage (E-196)
+
+**Was geändert wurde:**
+
+- **Jahresbetreuung ab dem zweiten Jahr: 699 € im Jahr, alle Gebühren inklusive — auch die Staatsgebühr.** Registered
+  Agent und US-Adresse, US-Telefonnummer, jährliche US-Meldung (Form 5472 mit Form 1120) durch den US-CPA, Jahresmeldung
+  beim Bundesstaat, Pflichtenkalender, fester Ansprechpartner. Sie verlängert sich nicht von selbst: Vor jedem
+  Betreuungsjahr kommt eine Rechnung, mit ihrer Zahlung beginnt das Jahr. Eine Quelle für Preis und Sätze:
+  `GLOBAL_JAHRESBETREUUNG` in `shared/fiaon-global.ts`.
+- **Auf jeder Business-Seite:** großer Block auf beiden Startseiten, kleiner Block auf allen Unterseiten und
+  Landingpages, Menüeintrag „Preise und Ablauf → Jahresbetreuung ab Jahr zwei“, Kosten-, Leistungs- und
+  Privatpersonen-Seite, Fragen und Antworten, Wissen des KI-Assistenten.
+- **Im Auftrag ankreuzbar** (`/business/start`, Schritt „Vertrag“, nie vorangekreuzt): Dann steht sie im Vertrag
+  (Ziffer 2, 3 und 5, Fassung 2026-09-19c), in „Ihr Auftrag“, auf „Mein Auftrag“ und als Hinweiszeile auf der Rechnung.
+  Heute berechnet wird nur der Paketpreis. Ohne Haken bleibt der Vertrag Wort für Wort wie bisher.
+- **Office und Chefbüro:** Marke „Jahresbetreuung gebucht (ab Jahr 2)“ in Liste und Akte; die Akte zeigt, ab wann die
+  Rechnung für das zweite Jahr zu stellen ist. Rund einen Monat vor dem ersten Jahrestag vergibt der Tageslauf die
+  Aufgabe „Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen“. Die Rechnung selbst stellt die Leitung.
+- **`/business/privatpersonen` ist eine eigene Startseite für Privatpersonen** — alle vier Pakete zur Auswahl, jeder
+  Knopf führt in den Auftrag als Privatperson.
+- **Drei Weltzeituhren** (Deutschland, Florida, London) und die **Nachrichtenlage** im Zeitungsstil auf beiden
+  Startseiten: nur echte Meldungen mit Datum und Quelle (US-Behörden, EU-Kommission), gepflegt in
+  `shared/fiaon-global-schlagzeilen.ts`; Meldungen älter als zwölf Monate blendet die Seite aus.
+
+**Warum:** Justin 19.09.: „Für 699 € im Jahr kümmern wir uns fortlaufend um alles … Füge und pflege das bitte auf jeder
+Seite neu ein“ — Privatpersonen sollen alle Pakete wählen können, beide Startseiten bekommen Uhren und positive
+Schlagzeilen. Entscheidungen: alles inklusive, im Auftrag ankreuzbar, nur echte, recherchierte Meldungen.
+
+**Wo zu finden:** `/business`, `/business/privatpersonen`, `/en/business`, jede Unterseite unter `/business/…`;
+Auftrag `/business/start`; Mustervertrag `/business/mustervertrag` (Schalter „Mit Jahresbetreuung“); Office `/agent/global`;
+Chefbüro Kunden → Global-Aufträge. Prüfstände: `pruef-global-seiten`, `pruef-global-vertrag`, `pruef-global-office`,
+`pruef-global-bereich`, Wortwand DE/EN. Register E-196.
+
+---
+
+## 19.09.2026 — Business-Auftrag: Adresse vervollständigt sich beim Tippen
+
+**Was geändert wurde:** Im Auftrag unter `/business/start` (Privatperson und Firma) schlägt das Adressfeld beim Tippen
+passende Anschriften im Land des Wohnsitzes vor und füllt Straße, Hausnummer, PLZ und Ort aus.
+**Warum:** Justin 19.09. — „Ziehr…“ soll direkt „Ziehrerweg 10, 2734 Puchberg am Schneeberg“ anbieten.
+**Wo zu finden:** `client/src/pages/business-start.tsx` (AdresseFeld), Suche über `/api/fiaon/adresse`. Commit b00d4c14.
+
+---
+
+## 19.09.2026 — Akte je Person: nie mehr Unterlagen, Anrufe oder Entwürfe des vorigen Kunden (E-195)
+
+**Was geändert wurde:** Die Akte baut sich bei jedem Kundenwechsel neu auf; Dokumente und Anrufe laden bei jedem
+Öffnen frisch. Vorher zeigte die Leitung beim Weiterklicken den Dokumentstand des vorher geöffneten Kunden.
+**Warum:** Florentines Fund („alles hochgeladen … bei Dokumenten ist nichts mehr“).
+**Wo zu finden:** `client/src/pages/agent/pipeline.tsx` (Akte), Prüfstand `scripts/pruef-akte-wechsel.ts`. Commit 6a542c39.
+
+---
+
+## 19.09.2026 — GoCardless beendet: keine Lastschrift, jede Rate per Überweisung (E-194)
+
+**Was geändert wurde:** Lastschrift, Mandatsstrecke, Sofortzahlung per Bank-App, Abo-Abgleich und Webhook-Buchung
+entfernt; Mails führen auf die Zahlungsseite (QR-Code und Bankdaten), die Mail „Lastschrift einrichten“ und der
+Werbelauf dafür sind gelöscht. Alte Links leiten auf die Zahlungsseite um.
+**Warum:** Justin 19.09. — die Zusammenarbeit mit GoCardless ist beendet, eingezogene Zahlungen werden erstattet.
+**Wo zu finden:** `server/routes/fiaon-lastschrift.ts` (nur noch Umleitungen und stummer Webhook). Commit 7b4e89ca.
+
+---
+
 ## 18.09.2026 — Kundenmails: „Zugang zum Bereich“ statt „Willkommen“, jeder Knopf mit Ziel (Team-Feedback, Priorität 3)
 
 **Was geändert wurde:**

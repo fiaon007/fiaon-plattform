@@ -197,6 +197,8 @@ const SitePreise = lazy(() => import("@/pages/site/preise"));
 const BusinessStartPage = lazy(() => import("@/pages/business-start"));
 // 19.09.2026 (E-191): FIAON Global — die Unterseiten und die Anzeigen-Landingpages.
 const GlobalSeitePage = lazy(() => import("@/pages/site/global-seite"));
+// 19.09.2026 (E-196): /business/privatpersonen ist eine Startseite, keine Registerseite mehr.
+const BusinessPrivatPage = lazy(() => import("@/pages/site/business-privat"));
 const GlobalLandingPage = lazy(() => import("@/pages/site/global-lp"));
 const GlobalWiderrufPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalWiderrufsbelehrungSeite })));
 const GlobalMustervertragPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalMustervertragSeite })));
@@ -431,6 +433,7 @@ function Router() {
       <Route path="/business/lp/:slug" component={GlobalLandingPage} />
       <Route path="/business/widerrufsbelehrung" component={GlobalWiderrufPage} />
       <Route path="/business/mustervertrag" component={GlobalMustervertragPage} />
+      <Route path="/business/privatpersonen" component={BusinessPrivatPage} />
       <Route path="/business/wissen/:slug" component={GlobalSeitePage} />
       <Route path="/business/:slug" component={GlobalSeitePage} />
       <Route path="/global"><Redirect to="/business" /></Route>

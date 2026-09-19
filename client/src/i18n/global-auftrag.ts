@@ -72,6 +72,8 @@ const de = {
   seiteGesellschaft: "Ihre US-Gesellschaft",
   seiteReferenz: "Referenz",
   seiteHinweis: "Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut. Steuerliche und rechtliche Fragen beantworten Steuerberater und Anwälte auf eigenes Mandat.",
+  // 19.09.2026 (E-196): nicht gebucht → eine ruhige Zeile. Titel und Preis kommen aus shared/fiaon-global.ts.
+  jahrSpaeter: (titel: string, preis: string) => `${titel} ab dem zweiten Jahr (${preis}, alle Gebühren inklusive): Sie können sie auch später dazubuchen — schreiben Sie dazu einfach Ihrem Ansprechpartner.`,
 
   zugangTitel: "Zugang zu Ihrem Auftrag",
   zugangAbgelaufen: "Dieser Link ist abgelaufen oder ungültig. Fordern Sie einen neuen an — er kommt an die E-Mail-Adresse Ihres Auftrags.",
@@ -146,6 +148,7 @@ const en: typeof de = {
   seiteGesellschaft: "Your US company",
   seiteReferenz: "Reference",
   seiteHinweis: "The institution alone decides on account, card and limit. Tax and legal questions are answered by tax advisers and lawyers under their own engagement.",
+  jahrSpaeter: (titel: string, preis: string) => `${titel} from the second year (${preis}, all fees included): you can also add it later — simply write to your contact.`,
 
   zugangTitel: "Access to your order",
   zugangAbgelaufen: "This link has expired or is invalid. Request a new one — it is sent to the email address of your order.",

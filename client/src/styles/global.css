@@ -473,3 +473,138 @@
   .fg-pakete>.dk-auf:not(:has(.gewaehlt)){display:none}
   .fg-pakete>.dk-auf{opacity:1;transform:none;transition-delay:0s!important}
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   19.09.2026 (E-196): DREI UHREN · NACHRICHTENLAGE · JAHRESBETREUUNG
+   Justin: „3D-Uhren wie bei Nachrichtensendern" · „Schlagzeilen wie New York
+   Times oder Forbes — elegant, aber bewegend und aufregend" · „699 € im Jahr,
+   auf jeder Seite". Hell wie die übrige Seite; Bewegung nur in Uhr, Aufmacher
+   und Laufband — bei „weniger Bewegung" steht alles still.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Drei Uhren ─────────────────────────────────────────────────────────── */
+.fg-uhren-sek{background:radial-gradient(120% 90% at 50% 0%,#ffffff 0%,var(--stein) 55%,var(--stein-2) 100%);border-top:1px solid var(--linie);border-bottom:1px solid var(--linie)}
+.fg-uhren{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(20px,5vw,72px);margin-top:56px;align-items:start}
+.fg-uhr{margin:0;display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
+.fg-uhr-wand{perspective:900px;width:100%;display:flex;justify-content:center}
+.fg-uhr-gehaeuse{position:relative;width:min(100%,232px);aspect-ratio:1;border-radius:50%;padding:7.5%;
+  background:conic-gradient(from 215deg,#fbfcfd,#c5cdd8 12%,#eef2f7 24%,#a8b3c1 38%,#f4f6f9 52%,#bcc6d2 66%,#f7f9fb 80%,#b9c3cf 92%,#fbfcfd);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -3px 8px rgba(12,26,46,.22),0 26px 44px -22px rgba(12,26,46,.5),0 10px 18px -10px rgba(12,26,46,.28);
+  transform:rotateX(9deg);transform-origin:50% 60%}
+.fg-uhr-gehaeuse::before{content:"";position:absolute;inset:6.2%;border-radius:50%;background:#fbfbf9;box-shadow:inset 0 4px 10px rgba(12,26,46,.34),inset 0 -1px 2px rgba(255,255,255,.7)}
+.fg-uhr-blatt{position:relative;display:block;width:100%;height:100%}
+.fg-uhr-blatt .flaeche{fill:#fcfcfa}
+.fg-uhr-blatt .strich{stroke:#56617a;stroke-width:1.1;stroke-linecap:round}
+.fg-uhr-blatt .strich.gross{stroke:var(--tinte);stroke-width:3.2}
+.fg-uhr-blatt .ziffer{font-family:var(--serif);font-size:23px;font-weight:400;fill:var(--tinte)}
+.fg-uhr-blatt .zeiger{transform-box:view-box;transform-origin:100px 100px}
+.fg-uhr-blatt .stunde,.fg-uhr-blatt .minute{transition:transform .6s cubic-bezier(.3,.8,.3,1)}
+.fg-uhr-blatt .stunde path,.fg-uhr-blatt .minute path{fill:var(--tinte)}
+.fg-uhr-blatt .sekunde{transition:transform .3s cubic-bezier(.4,2.2,.55,1)}
+.fg-uhr-blatt .sekunde line{stroke:var(--blau);stroke-width:1.7;stroke-linecap:round}
+.fg-uhr-blatt .sekunde circle{fill:var(--blau)}
+.fg-uhr-blatt .nabe{fill:var(--tinte)}
+.fg-uhr-blatt .nabe-kern{fill:#fff}
+.fg-uhr-glas{position:absolute;inset:6.2%;border-radius:50%;pointer-events:none;
+  background:linear-gradient(142deg,rgba(255,255,255,.62) 0%,rgba(255,255,255,.12) 36%,rgba(255,255,255,0) 58%),radial-gradient(110% 70% at 70% 112%,rgba(12,26,46,.09),transparent 62%)}
+.fg-uhr figcaption{display:grid;gap:4px;margin-top:30px}
+.fg-uhr figcaption b{font-family:var(--serif);font-weight:400;font-size:clamp(20px,2vw,26px);color:var(--tinte);letter-spacing:-.01em}
+.fg-uhr .zeit{font:500 15px/1.2 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:.06em;color:var(--navy)}
+.fg-uhr .zusatz{font-size:12.5px;color:var(--leise)}
+.fg-uhr .abstand{font:500 10.5px/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--blau);margin-top:2px}
+@media(max-width:640px){
+  .fg-uhren{gap:12px;margin-top:36px}
+  .fg-uhr figcaption{margin-top:18px}
+  .fg-uhr figcaption b{font-size:17px}
+  .fg-uhr .zeit{font-size:13px}
+  .fg-uhr .zusatz{display:none}
+  .fg-uhr .abstand{font-size:9px;letter-spacing:.08em}
+  .fg-uhr-blatt .ziffer{font-size:26px}
+}
+
+/* ── Nachrichtenlage ────────────────────────────────────────────────────── */
+.fg-presse{background:var(--papier);padding-top:64px}
+.fg-presse-kopf{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px 28px;border-top:5px double var(--tinte);border-bottom:1px solid var(--tinte);padding:16px 0}
+.fg-presse-marke{display:inline-flex;align-items:center;gap:10px;font:600 11px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--tinte)}
+.fg-presse-marke .puls{position:relative;width:8px;height:8px;border-radius:50%;background:var(--blau)}
+.fg-presse-marke .puls::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1.5px solid var(--blau);opacity:0;animation:fg-puls 2.2s ease-out infinite}
+@keyframes fg-puls{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.4);opacity:0}}
+.fg-presse-h2{font-family:var(--serif);font-weight:400;font-size:clamp(22px,2.4vw,32px);line-height:1.15;letter-spacing:-.01em;color:var(--tinte);text-align:center;text-wrap:balance;margin:0}
+.fg-presse-stand{font:400 12.5px/1.2 var(--sans);color:var(--leise);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fg-presse-blatt{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);border-bottom:1px solid var(--linie)}
+.fg-presse-aufmacher{position:relative;padding:34px 40px 38px 0;border-right:1px solid var(--linie);animation:fg-presse-ein .7s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fg-presse-ein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.fg-presse .spitzmarke{display:block;font:600 11px/1.3 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--blau)}
+.fg-presse .spitzmarke .tag{white-space:nowrap}
+.fg-presse-aufmacher h3{font-family:var(--serif);font-weight:500;font-size:clamp(28px,3.5vw,48px);line-height:1.07;letter-spacing:-.022em;color:var(--tinte);margin-top:16px;text-wrap:balance}
+.fg-presse-aufmacher h3 a{color:inherit;text-decoration:none;background:linear-gradient(currentColor,currentColor) 0 100%/0 1.5px no-repeat;transition:background-size .45s ease}
+.fg-presse-aufmacher h3 a:hover,.fg-presse-aufmacher h3 a:focus-visible{background-size:100% 1.5px}
+.fg-presse-aufmacher p{font-family:var(--serif);font-size:clamp(17px,1.4vw,19px);line-height:1.55;color:var(--text);margin-top:16px;max-width:60ch}
+.fg-presse-link{display:inline-flex;align-items:center;gap:6px;margin-top:18px;font:500 13.5px/1 var(--sans);color:var(--navy);text-decoration:underline;text-underline-offset:4px;text-decoration-color:rgba(18,40,74,.3)}
+.fg-presse-uhr{position:absolute;left:0;right:40px;bottom:-1px;height:2px;background:var(--blau);transform-origin:left center;animation-name:fg-presse-lauf;animation-timing-function:linear;animation-fill-mode:both}
+.fg-presse-uhr.steht{animation-play-state:paused}
+@keyframes fg-presse-lauf{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.fg-presse-liste{list-style:none;margin:0;padding:18px 0 18px 30px;display:grid;align-content:start}
+.fg-presse-liste li+li{border-top:1px solid var(--linie)}
+.fg-presse-liste button{display:block;width:100%;text-align:left;background:none;border:0;padding:15px 0;cursor:pointer;font:inherit;color:inherit}
+.fg-presse-liste .spitzmarke{color:var(--leise);font-size:10.5px}
+.fg-presse-liste b{display:block;margin-top:7px;font-family:var(--serif);font-weight:500;font-size:18px;line-height:1.28;color:var(--tinte);transition:color .25s}
+.fg-presse-liste li.aktiv .spitzmarke,.fg-presse-liste li.aktiv b,.fg-presse-liste button:hover b{color:var(--blau)}
+.fg-presse-hinweis{font-size:12px;line-height:1.55;color:var(--leise);padding:14px 0 22px;max-width:92ch}
+.fg-presse-band{position:relative;display:flex;align-items:center;height:48px;background:var(--tinte);color:#fff;overflow:hidden}
+.fg-presse-band-spur{display:flex;width:max-content;animation:fg-presse-band 70s linear infinite}
+.fg-presse-band:hover .fg-presse-band-spur,.fg-presse-band.steht .fg-presse-band-spur,.fg-presse-band:focus-within .fg-presse-band-spur{animation-play-state:paused}
+@keyframes fg-presse-band{to{transform:translateX(-50%)}}
+.fg-presse-band ul{display:flex;list-style:none;margin:0;padding:0}
+.fg-presse-band li{white-space:nowrap;padding:0 30px;position:relative;font:400 15px/48px var(--serif)}
+.fg-presse-band li::after{content:"";position:absolute;right:0;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:rgba(147,197,253,.6)}
+.fg-presse-band a{color:#fff;text-decoration:none}
+.fg-presse-band a:hover,.fg-presse-band a:focus-visible{text-decoration:underline;text-underline-offset:4px}
+.fg-presse-band .quelle{font:600 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#93c5fd;margin-right:12px}
+.fg-presse-band-knopf{position:absolute;right:0;top:0;bottom:0;padding:0 18px 0 52px;border:0;background:linear-gradient(90deg,rgba(12,26,46,0),var(--tinte) 40px);color:#cbd5e1;font:400 12px/1 var(--sans);cursor:pointer}
+.fg-presse-band-knopf:hover{color:#fff}
+@media(max-width:900px){
+  .fg-presse{padding-top:44px}
+  .fg-presse-kopf{grid-template-columns:1fr auto}
+  .fg-presse-h2{grid-column:1/-1;grid-row:2;text-align:left}
+  .fg-presse-blatt{grid-template-columns:minmax(0,1fr)}
+  .fg-presse-aufmacher{padding:26px 0 30px;border-right:0;border-bottom:1px solid var(--linie)}
+  .fg-presse-uhr{right:0}
+  .fg-presse-liste{padding:6px 0 8px}
+}
+@media(max-width:480px){
+  .fg-presse-kopf{column-gap:12px}
+  .fg-presse-marke{letter-spacing:.14em}
+  .fg-presse-stand{font-size:11.5px}
+}
+@media(prefers-reduced-motion:reduce){
+  .fg-presse-aufmacher{animation:none}
+  .fg-presse-marke .puls::after{animation:none}
+  .fg-presse-band{overflow-x:auto}
+  .fg-presse-band-spur{animation:none}
+  .fg-presse-band-spur ul[aria-hidden="true"],.fg-presse-band-knopf{display:none}
+  .fg-uhr-blatt .stunde,.fg-uhr-blatt .minute,.fg-uhr-blatt .sekunde{transition:none}
+}
+
+/* ── Jahresbetreuung ────────────────────────────────────────────────────── */
+.fg-jb ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.fg-jb li{display:flex;align-items:flex-start;gap:10px;font-size:15.5px;line-height:1.5;color:var(--tinte)}
+.fg-jb li .fg-haken{flex:0 0 auto;margin-top:3px}
+.fg-jb.voll{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:56px;padding:48px;border:1px solid var(--linie-2);border-radius:18px;background:linear-gradient(180deg,#ffffff,var(--stein));box-shadow:0 34px 70px -46px rgba(12,26,46,.45)}
+.fg-jb.voll .fg-h2{max-width:18ch}
+.fg-jb-preis{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px;margin-top:28px;padding-top:22px;border-top:1px solid var(--linie)}
+.fg-jb-preis b{font-family:var(--serif);font-weight:300;font-size:clamp(46px,5vw,66px);line-height:1;color:var(--tinte);letter-spacing:-.02em}
+.fg-jb-preis span{font-size:14px;color:var(--leise)}
+.fg-jb-rumpf{align-self:center}
+.fg-jb-so{margin-top:24px;padding-top:18px;border-top:1px solid var(--linie);display:grid;gap:6px;font-size:13.5px;line-height:1.6;color:var(--leise)}
+.fg-jb-so b{color:var(--tinte);font-weight:500}
+.fg-jb .fg-knoepfe{margin-top:26px}
+.fg-jb.kompakt{margin:52px 0 8px;padding:28px 30px;border:1px solid var(--linie-2);border-radius:14px;background:var(--stein)}
+.fg-jb.kompakt .fg-jb-titel{display:block;margin-top:10px;font-family:var(--serif);font-weight:400;font-size:clamp(22px,2.2vw,27px);line-height:1.2;color:var(--tinte)}
+.fg-jb.kompakt .fg-jb-kopf p{margin-top:8px;font-size:14.5px;line-height:1.6;color:var(--text)}
+.fg-jb.kompakt ul{margin-top:18px;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px}
+.fg-jb.kompakt li{font-size:14.5px}
+.fg-jb-klein{margin-top:16px;font-size:12.5px;line-height:1.55;color:var(--leise)}
+.fg-jb.kompakt .fg-textknopf{margin-top:10px}
+@media(max-width:900px){.fg-jb.voll{grid-template-columns:minmax(0,1fr);gap:30px;padding:30px 22px}}
+@media(max-width:640px){.fg-jb.kompakt{padding:22px 18px}.fg-jb.kompakt ul{grid-template-columns:minmax(0,1fr)}}

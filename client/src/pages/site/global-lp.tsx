@@ -19,6 +19,8 @@ import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { seoSeite } from "@shared/fiaon-seo-seiten";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { werbeEreignis } from "@/lib/werbung";
+import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
+import { GLOBAL_WOERTER } from "@/i18n/global";
 import { Haken, Pfeil, Standorte } from "@/pages/site/global-seite";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
@@ -115,6 +117,8 @@ export default function GlobalLandingPage() {
             ))}
           </div>
           <p className="fg-paket-fuss">Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise.</p>
+          {/* 19.09.2026 (E-196): die Jahresbetreuung ab dem zweiten Jahr — auf jeder Seite. */}
+          <GlobalJahresbetreuung sprache="de" startPfad={globalStartPfad(lp.paket, "de")} knopf={GLOBAL_WOERTER.de.jbKnopf} so={GLOBAL_WOERTER.de.jbSo} />
         </div>
       </section>
 

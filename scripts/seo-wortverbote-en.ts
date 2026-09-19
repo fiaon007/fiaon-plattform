@@ -11,6 +11,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";
+import { GLOBAL_JAHRESBETREUUNG } from "../shared/fiaon-global";
+import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 
 const WURZEL = path.resolve(import.meta.dirname ?? ".", "..");
 const VERBOTEN: { muster: RegExp; erlaubtDavor: RegExp | null; name: string }[] = [
@@ -54,6 +56,9 @@ for (const datei of fs.readdirSync(i18n)) {
 const seo = fs.readFileSync(path.join(WURZEL, "shared/fiaon-seo-seiten.ts"), "utf8");
 for (const m of seo.matchAll(/\n    en: \{[\s\S]*?\n    \},/g)) pruefeText(m[0], "shared/fiaon-seo-seiten.ts (en-Objekt)", treffer);
 for (const m of seo.matchAll(/export const SEO_WERKZEUGE_EN[\s\S]*?\n\];/g)) pruefeText(m[0], "shared/fiaon-seo-seiten.ts (SEO_WERKZEUGE_EN)", treffer);
+// E-196 (19.09.2026): Jahresbetreuung und Nachrichtenlage stehen nicht in i18n — hier mitgeprüft.
+pruefeText(Object.values(GLOBAL_JAHRESBETREUUNG.en).flat().filter((x): x is string => typeof x === "string").join("\n"), "shared/fiaon-global.ts (GLOBAL_JAHRESBETREUUNG.en)", treffer);
+for (const m of GLOBAL_SCHLAGZEILEN.meldungen) pruefeText(`${m.en}\n${m.kurzEn}`, "shared/fiaon-global-schlagzeilen.ts", treffer);
 
 if (treffer.length) {
   console.log(`Wortverbote (EN): ${treffer.length} Treffer`);

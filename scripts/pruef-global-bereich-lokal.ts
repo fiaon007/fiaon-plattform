@@ -478,6 +478,119 @@ const titel = (t: string) => console.log(`\n── ${t}`);
   ok(s.verlauf.length === 3 && s.etappe === 1, "zweiter Aufruf (wiederholbar): nichts doppelt", s.verlauf);
 }
 
+// ═══ TEIL 4: JAHRESBETREUUNG AB DEM ZWEITEN JAHR (19.09.2026, E-196) ═════════
+// Die Spalten aus ensureGlobalTabelle, die Wahl in jeder Sicht (Kunde, Office, Liste, Leitung, Bestellweg),
+// die Start-Aufgabe, die Rechnung — und der Tageslauf: EINE Aufgabe rund einen Monat vor dem ersten
+// Jahrestag, auch am abgeschlossenen Auftrag, nie im Pflichtenkalender des Kunden, beim zweiten Lauf nichts.
+{
+  titel("Jahresbetreuung: Spalten, Sichten, Start, Rechnung, Tageslauf");
+  const B = await import("../shared/fiaon-global-bereich");
+  const { rechnungsSpracheSetzen } = await import("../server/fiaon-invoice");
+  const spalten = (await sqlPool`SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns
+    WHERE table_name = 'fiaon_global_auftraege' AND column_name LIKE 'jahresbetreuung%' ORDER BY column_name`) as any[];
+  ok(spalten.length === 2 && spalten[0].data_type === "boolean" && spalten[0].is_nullable === "NO" && /false/i.test(String(spalten[0].column_default)) && spalten[1].data_type === "integer" && spalten[1].is_nullable === "YES",
+    "Spalten jahresbetreuung (boolean, NOT NULL, DEFAULT false) und jahresbetreuung_preis_cents (integer, leer erlaubt)", spalten);
+  const [alt] = (await sqlPool`SELECT jahresbetreuung, jahresbetreuung_preis_cents FROM fiaon_global_auftraege WHERE ref = 'FIAON-E2E-0001'`) as any[];
+  ok(alt?.jahresbetreuung === false && alt?.jahresbetreuung_preis_cents === null, "Aufträge von vorher: nicht gebucht, kein Preis", alt);
+
+  const heute = new Date().toISOString().slice(0, 10);
+  const vorJahr = (tage: number) => B.isoPlusTage(B.isoPlusMonate(heute, -12), tage);
+  // FAELLIG: gegründet so, dass der Jahrestag in 20 Tagen ist (Rechnung seit 10 Tagen dran), Auftrag abgeschlossen.
+  // START: ohne Gründungstag, gestartet vor elf Monaten und zwei Wochen — gerechnet wird ab dem Start.
+  // SPAETER: Jahrestag in 45 Tagen — noch keine Aufgabe. OHNE: fällig, aber nicht gebucht.
+  const faelle = [
+    { ref: "FIAON-JB-FAELLIG", jb: true, status: "abgeschlossen", gegruendet: vorJahr(20), gestartet: vorJahr(-20) },
+    { ref: "FIAON-JB-START", jb: true, status: "gestartet", gegruendet: null, gestartet: vorJahr(14) },
+    { ref: "FIAON-JB-SPAETER", jb: true, status: "gestartet", gegruendet: vorJahr(45), gestartet: vorJahr(10) },
+    { ref: "FIAON-JB-OHNE", jb: false, status: "abgeschlossen", gegruendet: vorJahr(20), gestartet: vorJahr(-20) },
+  ];
+  for (const f of faelle) {
+    await sqlPool`INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, payment_reference, payment_status, amount_due, company_name, contact_email, email, paid_at)
+      VALUES (${f.ref}, 'business', 'submitted', 'global_struktur', 'FIAON Global Struktur', ${"PAY-" + f.ref.slice(-6)}, 'paid', 2499.00, 'Jahr GmbH', 'j@jahr.example', 'j@jahr.example', NOW())`;
+    await sqlPool`INSERT INTO fiaon_global_auftraege (ref, paket_key, land, firma, ansprechpartner, bestaetigungen, vertrag_version, vertrag_sprache, unterschrieben_am, status, bezahlt_am, gestartet_am,
+        zustaendig_agent_id, firma_name, email, gesellschaft, jahresbetreuung, jahresbetreuung_preis_cents)
+      VALUES (${f.ref}, 'global_struktur', 'DE', ${sqlPool.json({ name: "Jahr GmbH", ort: "Bonn", land: "DE" })}, ${sqlPool.json({ anrede: "Frau", vorname: "Jana", nachname: "Jahr", email: "j@jahr.example" })},
+              '{}'::jsonb, 'v1', 'de', ${f.gestartet}::date, ${f.status}, ${f.gestartet}::date, ${`${f.gestartet}T10:00:00Z`}::timestamptz, 8, 'Jahr GmbH', 'j@jahr.example',
+              ${f.gegruendet ? sqlPool.json({ name: "Jahr LLC", form: "LLC", bundesstaat: "WY", gegruendetAm: f.gegruendet }) : null}, ${f.jb}, ${f.jb ? 69900 : null})`;
+  }
+
+  // Die Sichten: Kunde (ohne Internes), Office (mit dem Tag der Rechnung), Liste, Leitung, Bestellweg.
+  const k: any = await L.globalBereichKundenSicht("FIAON-JB-FAELLIG", "T");
+  ok(k.jahresbetreuung === true && k.jahresbetreuungPreisCents === 69900 && !("jahresbetreuungRechnungAb" in k), "Kundensicht: gebucht mit Preis, ohne den internen Rechnungstag", { jb: k.jahresbetreuung, p: k.jahresbetreuungPreisCents, r: k.jahresbetreuungRechnungAb });
+  const kOhne: any = await L.globalBereichKundenSicht("FIAON-JB-OHNE", "T");
+  ok(kOhne.jahresbetreuung === false && kOhne.jahresbetreuungPreisCents === null, "Kundensicht ohne Haken: nicht gebucht", { jb: kOhne.jahresbetreuung });
+  const erwartet = B.globalJahresbetreuungRechnungAb({ gegruendetAm: vorJahr(20) })!;
+  const o: any = await L.globalBereichOfficeSicht("FIAON-JB-FAELLIG");
+  ok(o.jahresbetreuung === true && o.jahresbetreuungRechnungAb === erwartet.rechnungAb && o.jahresbetreuungJahrestag === erwartet.jahrestag && o.jahresbetreuungBasis === "gruendung", "Officesicht: Rechnung ab / Jahrestag / Grundlage", { r: o.jahresbetreuungRechnungAb, j: o.jahresbetreuungJahrestag, b: o.jahresbetreuungBasis, erwartet });
+  const oStart: any = await L.globalBereichOfficeSicht("FIAON-JB-START");
+  ok(oStart.jahresbetreuungBasis === "start" && oStart.jahresbetreuungJahrestag === B.isoPlusMonate(vorJahr(14), 12), "Officesicht ohne Gründungstag: gerechnet ab dem Start", { b: oStart.jahresbetreuungBasis, j: oStart.jahresbetreuungJahrestag });
+  const liste: any[] = await L.globalBereichListe({ agentId: 8, alle: true });
+  ok(liste.find((z) => z.ref === "FIAON-JB-FAELLIG")?.jahresbetreuung === true && liste.find((z) => z.ref === "FIAON-JB-OHNE")?.jahresbetreuung === false && liste.find((z) => z.ref === "FIAON-E2E-0001")?.jahresbetreuung === false, "Office-Liste trägt die Wahl");
+  const leitung: any = await A.globalAuftraegeListe();
+  const lz = leitung.zeilen.find((x: any) => x.ref === "FIAON-JB-FAELLIG");
+  ok(lz?.jahresbetreuung === true && lz?.jahresbetreuungPreisCents === 69900 && leitung.zeilen.find((x: any) => x.ref === "FIAON-JB-OHNE")?.jahresbetreuung === false, "Leitungs-Liste trägt Wahl und Preis", lz && { jb: lz.jahresbetreuung, p: lz.jahresbetreuungPreisCents });
+  const sicht: any = await A.globalAuftragSicht("FIAON-JB-FAELLIG", "T");
+  ok(sicht?.jahresbetreuung === true && sicht?.betragCents === 249900, "GET /global/auftrag/:ref: gebucht — fällig bleibt der Paketpreis", sicht && { jb: sicht.jahresbetreuung, b: sicht.betragCents });
+
+  // Die Rechnung liest die Wahl aus der Akte (echte Abfrage) — die Zeile bekommt den Hinweis, der Betrag bleibt.
+  const [zeile] = (await sqlPool`SELECT * FROM fiaon_applications WHERE ref = 'FIAON-JB-FAELLIG'`) as any[];
+  await rechnungsSpracheSetzen(sqlPool, zeile);
+  ok(zeile.rechnung_jahresbetreuung_cents === 69900 && zeile.rechnung_sprache === undefined, "Rechnung: Hinweis-Feld gesetzt, Sprache bleibt deutsch", { c: zeile.rechnung_jahresbetreuung_cents, s: zeile.rechnung_sprache });
+  const [zeileOhne] = (await sqlPool`SELECT * FROM fiaon_applications WHERE ref = 'FIAON-JB-OHNE'`) as any[];
+  await rechnungsSpracheSetzen(sqlPool, zeileOhne);
+  ok(zeileOhne.rechnung_jahresbetreuung_cents === undefined, "Rechnung ohne Haken: kein Hinweis-Feld", zeileOhne.rechnung_jahresbetreuung_cents);
+
+  // Tageslauf am Tag: FAELLIG (abgeschlossen, ab Gründung) und START (ab Start) bekommen je EINE Aufgabe.
+  const lauf: any = await L.globalTageslauf(new Date(`${heute}T10:00:00Z`));
+  ok(lauf.ruhe === false && lauf.jahresbetreuung === 2, "Tageslauf: zwei Aufgaben „Rechnung fürs zweite Jahr“ (FAELLIG, START)", lauf);
+  const todos = (await sqlPool`SELECT schluessel, titel, text, zustaendig_agent_id FROM fiaon_betreiber_todos WHERE schluessel LIKE 'global:FIAON-JB-%:jahresbetreuung:2' ORDER BY schluessel`) as any[];
+  ok(todos.map((t: any) => t.schluessel).join() === "global:FIAON-JB-FAELLIG:jahresbetreuung:2,global:FIAON-JB-START:jahresbetreuung:2", "Aufgaben nur für die fälligen, gebuchten Aufträge", todos.map((t: any) => t.schluessel));
+  const tf = todos.find((t: any) => t.schluessel.includes("FAELLIG"));
+  ok(!!tf && tf.titel === "Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen — Jahr GmbH" && Number(tf.zustaendig_agent_id) === 8 && /699,00 €/.test(tf.text) && tf.text.includes(B.globalTagAlsText(erwartet.jahrestag, "de")) && /der Gründung/.test(tf.text), "Aufgabe: Titel, zuständige Person, Preis, Jahrestag", tf);
+  ok(/des Starts/.test(todos.find((t: any) => t.schluessel.includes("START"))?.text ?? ""), "Aufgabe ohne Gründungstag sagt, dass ab dem Start gerechnet wurde");
+  const kalender = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_fristen WHERE ref LIKE 'FIAON-JB-%' AND (titel ILIKE '%Jahresbetreuung%' OR titel ILIKE '%Rechnung%')`) as any[];
+  ok(Number(kalender[0].n) === 0, "die Rechnung steht NICHT im Pflichtenkalender des Kunden");
+  const lauf2: any = await L.globalTageslauf(new Date(`${heute}T11:00:00Z`));
+  ok(lauf2.jahresbetreuung === 0, "zweiter Lauf am selben Tag: keine zweite Aufgabe", lauf2);
+  const o2: any = await L.globalBereichOfficeSicht("FIAON-JB-FAELLIG");
+  const k2: any = await L.globalBereichKundenSicht("FIAON-JB-FAELLIG", "T");
+  ok(o2.intern.verlaufAlles.some((v: any) => v.art === "jahresbetreuung" && v.sichtbar === false) && !JSON.stringify(k2.verlauf).includes("Jahresbetreuung"), "Verlauf: intern vermerkt, der Kunde sieht es nicht");
+
+  // Start-Aufgabe eines gebuchten Auftrags: Punkt 4 nennt die Jahresbetreuung statt „laufende Kosten erklären“.
+  const NZ = "FIAON-JB-NZ";
+  await sqlPool`INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, payment_reference, payment_status, amount_due, company_name, contact_email, email, paid_at)
+    VALUES (${NZ}, 'business', 'submitted', 'global_struktur', 'FIAON Global Struktur', 'PAY-JBNZ', 'paid', 2499.00, 'Neu GmbH', 'n@neu.example', 'n@neu.example', NOW())`;
+  await sqlPool`INSERT INTO fiaon_global_auftraege (ref, paket_key, land, firma, ansprechpartner, bestaetigungen, vertrag_version, vertrag_sprache, unterschrieben_am, status, zustaendig_agent_id, firma_name, email, jahresbetreuung, jahresbetreuung_preis_cents)
+    VALUES (${NZ}, 'global_struktur', 'DE', ${sqlPool.json({ name: "Neu GmbH", ort: "Kiel", land: "DE" })}, ${sqlPool.json({ anrede: "Herr", vorname: "Nils", nachname: "Neu", email: "n@neu.example" })},
+            '{}'::jsonb, 'v1', 'de', NOW(), 'offen', 8, 'Neu GmbH', 'n@neu.example', TRUE, 69900)`;
+  const start: any = await A.globalNachZahlung(NZ);
+  const [st] = (await sqlPool`SELECT text FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${NZ}:start`}`) as any[];
+  ok(start?.gestartet === true && /JAHRESBETREUUNG gebucht \(699,00 € je Betreuungsjahr/.test(st?.text ?? "") && !/Laufende Kosten ab dem zweiten Jahr im Startgespräch erklären/.test(st?.text ?? ""), "Start-Aufgabe: Punkt 4 nennt die gebuchte Jahresbetreuung", st?.text);
+}
+
+// ═══ TEIL 5: DIE VORSCHAU ÜBER HTTP (E-196) ══════════════════════════════════
+// Der Haken kommt über den Körper der Anfrage an — dieselbe Route, die /business/start und der Mustervertrag rufen.
+{
+  titel("Jahresbetreuung: POST /global/vertrag/vorschau");
+  const express = (await import("express")).default;
+  const router = (await import("../server/routes/fiaon-global")).default;
+  const app = express();
+  app.use(express.json({ limit: "1mb" }));
+  app.use("/api/fiaon", router);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const url = `http://127.0.0.1:${(server.address() as any).port}/api/fiaon/global/vertrag/vorschau`;
+  const koerper = { paket: "global_kapital", auftraggeber: "unternehmen", firma: { land: "DE", name: "Muster GmbH", rechtsform: "GmbH", strasse: "Musterstraße 1", plz: "10115", ort: "Berlin" }, ansprechpartner: { anrede: "Herr", vorname: "Max", nachname: "Mustermann", funktion: "Geschäftsführer" }, sprache: "de" };
+  const hol = async (b: unknown) => { const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-forwarded-for": "203.0.113.9" }, body: JSON.stringify(b) }); return { status: r.status, j: await r.json().catch(() => null) as any }; };
+  const mit = await hol({ ...koerper, jahresbetreuung: true });
+  const ohne = await hol(koerper);
+  const en = await hol({ ...koerper, sprache: "en", auftraggeber: "privat", firma: { land: "AT", strasse: "Ring 1", plz: "1010", ort: "Wien" }, ansprechpartner: { anrede: "Frau", vorname: "Erika", nachname: "Muster" }, jahresbetreuung: true });
+  ok(mit.status === 200 && /Zusätzlich umfasst der Auftrag die <b>Jahresbetreuung<\/b>/.test(mit.j?.html ?? "") && /699 € je Betreuungsjahr/.test(mit.j?.html ?? ""), "Vorschau mit Haken: Ziffer 2 und 5 tragen die Jahresbetreuung", mit.status);
+  ok(ohne.status === 200 && !/Jahresbetreuung/.test(ohne.j?.html ?? ""), "Vorschau ohne Haken: kein Wort davon", ohne.status);
+  ok(en.status === 200 && /annual care plan/.test(en.j?.html ?? "") && /The same applies to the price of the annual care plan\./.test(en.j?.html ?? ""), "Vorschau englisch, Privatperson: Endpreis-Satz der Jahresbetreuung", en.status);
+  server.close();
+}
+
 console.log(`\n── Ergebnis: ${n} Prüfungen, ${fehler} Fehler.`);
 await sqlPool.end({ timeout: 2 });
 process.exit(fehler ? 1 : 0);

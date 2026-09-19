@@ -20,6 +20,10 @@
 //   Verlauf   Notiz (intern oder für den Kunden sichtbar) · alle Einträge
 //   Rechts    Kontakt, Firmendaten, USt-IdNr., Vertrag/Rechnung, der Kasten
 //             „Was ich dem Kunden NICHT zusage", Auftrag abschließen
+//   19.09.2026 (E-196): Hat der Kunde die Jahresbetreuung angekreuzt, trägt der
+//             Kopf die Marke „Jahresbetreuung gebucht (ab Jahr 2)"; unter
+//             „Vertrag und Rechnung" steht, ab wann die Rechnung fürs zweite
+//             Jahr gestellt wird (die Aufgabe dazu legt der Tageslauf an).
 //
 // ── DREI FESTE REGELN DIESER SEITE ─────────────────────────────────────────
 // 1. NICHTS WIRD VORAB BEHAUPTET. Der Bildschirm ändert sich erst, wenn der
@@ -46,7 +50,7 @@ import { ToastAnbieter, useToast } from "@/lib/fiaon-ui";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import {
-  type GlobalAkte, type GlobalFrist, type GlobalVerlaufZeile,
+  type GlobalAkte, type GlobalFrist, type GlobalVerlaufZeile, JAHRESBETREUUNG_MARKE,
   akteLesen, STATUS_TEXT, etappenImPaket, etappeKundentext, kundenPlatzhalter, kundentextHinweise, nichtZusagen,
   tagText, zeitText, fristLage, groesseText, euroText, berlinTag, tageBis, dateiPruefen, UPLOAD_ERLAUBT,
   US_STAATEN, staatName, FIRMA_FELDER, LAND_NAME, VERLAUF_ART, telLink,
@@ -248,6 +252,8 @@ function Kopf({ akte, tun, laeuft }: Werk) {
         <span className={`pi-marke ${akte.zahlung.status === "bezahlt" ? "gut" : "warn"}`}>{akte.zahlung.status === "bezahlt" ? "Zahlung eingegangen" : "Zahlung offen"}</span>
         {akte.sprache === "en" && <span className="pi-marke still" title="Der Kunde hat auf der englischen Seite unterschrieben — schreib ihm auf Englisch.">Kunde liest Englisch</span>}
         {akte.auftraggeber === "privat" && <span className="pi-marke still" title="Beauftragt als Privatperson: Vertrag mit Widerrufsbelehrung, Preis als Endpreis, kein Registerauszug.">Privatperson</span>}
+        {/* E-196: im Auftrag angekreuzt — Einzelheiten rechts unter „Vertrag und Rechnung“. */}
+        {akte.jahresbetreuung.gebucht && <span className="pi-marke gut" title="Im Auftrag angekreuzt: Jahresbetreuung ab dem zweiten Jahr, alle Gebühren inklusive. Die Rechnung für das zweite Betreuungsjahr kommt rund einen Monat vor dem ersten Jahrestag als Aufgabe.">{JAHRESBETREUUNG_MARKE}</span>}
         {akte.widerruf && (akte.widerruf.sofortBeginn
           ? <span className="pi-marke still" title="Der Kunde hat ausdrücklich verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen. Widerruft er, zahlt er anteilig.">{`Widerruf bis ${tagText(akte.widerruf.fristEnde)} · sofort beginnen`}</span>
           : <span className={`pi-marke ${berlinTag() < akte.widerruf.startAb ? "warn" : "still"}`} title="Kein Wunsch nach sofortigem Beginn: Vor dem Starttag nichts beantragen und keine Gebühren auslösen. Der Auftrag startet am Starttag von selbst.">{`Widerruf bis ${tagText(akte.widerruf.fristEnde)} · Start ab ${tagText(akte.widerruf.startAb)}`}</span>)}
@@ -780,6 +786,15 @@ function Kontext({ akte, tun, laeuft }: Werk) {
           {akte.rechnungUrl ? <a className="pi-knopf still klein" href={akte.rechnungUrl} target="_blank" rel="noopener noreferrer">Rechnung (PDF)</a> : <span className="gl-leise">Keine Rechnung hinterlegt.</span>}
         </div>
         <p className="gl-leise">Dieselben Dateien, die der Kunde per E-Mail bekommen hat.</p>
+        {/* E-196: Wann die Rechnung für das zweite Betreuungsjahr rausgeht — dieselbe Regel wie der Tageslauf (Server). */}
+        {akte.jahresbetreuung.gebucht && (
+          <p className="gl-leise">
+            <b>{JAHRESBETREUUNG_MARKE}</b>{akte.jahresbetreuung.preisCents != null ? ` · ${euroText(akte.jahresbetreuung.preisCents)} je Betreuungsjahr` : ""}, alle Gebühren inklusive — auch die Staatsgebühr. Die Rechnung oben enthält nur den Paketpreis.
+            {akte.jahresbetreuung.rechnungAb && akte.jahresbetreuung.jahrestag
+              ? ` Das zweite Jahr beginnt am ${tagText(akte.jahresbetreuung.jahrestag)}; die Rechnung dafür stellst du ab dem ${tagText(akte.jahresbetreuung.rechnungAb)} — an diesem Tag kommt die Aufgabe dazu.${akte.jahresbetreuung.basis === "start" ? " Gerechnet ab dem Start: Trag den Gründungstag ein, dann zählt er." : ""}`
+              : " Wann die Rechnung für das zweite Jahr fällig wird, steht hier, sobald der Auftrag gestartet ist."}
+          </p>
+        )}
       </div>
 
       <div className="gl-karte gl-nicht">

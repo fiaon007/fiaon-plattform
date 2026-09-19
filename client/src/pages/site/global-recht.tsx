@@ -12,12 +12,15 @@
 // Beide auch englisch unter /en/business/… (19.09.2026, E-192): Der Vertrag und
 // die Belehrung gibt es in Vertragssprache Englisch — wer englisch beauftragt,
 // liest sie vorher englisch.
+// 19.09.2026 (E-196): Der Mustervertrag zeigt die Jahresbetreuung als Variante —
+// „Mit Jahresbetreuung (nur wenn gebucht)" rendert Ziffer 2, 3 und 5 so, wie sie
+// im Auftrag stehen, wenn der Kunde den Haken setzt. Vorgabe: ohne.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import { useSprache } from "@/i18n/sprache";
 import { globalWiderrufsbelehrung, globalWiderrufAnbieter } from "@shared/fiaon-global-widerruf";
-import { GLOBAL_PAKETE, globalPreisText, type GlobalSchluessel } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_JAHRESBETREUUNG, globalPreisText, type GlobalSchluessel } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global.css";
@@ -93,26 +96,29 @@ export function GlobalMustervertragSeite() {
   const en = s === "en";
   const [paket, setPaket] = useState<GlobalSchluessel>("global_kapital");
   const [art, setArt] = useState<"unternehmen" | "privat">("unternehmen");
+  // E-196: die Variante mit Jahresbetreuung — nur, wenn der Kunde sie im Auftrag ankreuzt.
+  const [mitJahr, setMitJahr] = useState(false);
   const [html, setHtml] = useState("");
   const [stand, setStand] = useState<"laedt" | "da" | "fehler">("laedt");
   useEffect(() => {
     let weg = false;
     setStand((s) => (s === "da" ? "da" : "laedt"));
     fetch("/api/fiaon/global/vertrag/vorschau", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paket, auftraggeber: art, ...MUSTER[art], sprache: s }) })
+      body: JSON.stringify({ paket, auftraggeber: art, ...MUSTER[art], jahresbetreuung: mitJahr, sprache: s }) })
       .then((r) => r.json()).then((j) => { if (weg) return; if (j?.ok && j.html) { setHtml(String(j.html)); setStand("da"); } else setStand("fehler"); })
       .catch(() => { if (!weg) setStand("fehler"); });
     return () => { weg = true; };
-  }, [paket, art, s]);
+  }, [paket, art, mitJahr, s]);
+  const J = GLOBAL_JAHRESBETREUUNG[s];
 
   return (
     <Dunkel seite="business" titel={en ? "Model contract — FIAON Global" : "Mustervertrag — FIAON Global"} beschreibung={en ? "The FIAON Global engagement word for word, as presented for signature — for all four packages, as a company or as a private individual." : "Der Auftrag über FIAON Global Wort für Wort, wie er zur Unterschrift vorgelegt wird — für alle vier Pakete, als Unternehmen oder als Privatperson."}>
       <div className="fg fd gr">
         {en
           ? <Kopf auge="FIAON Global · Contract" h1="The contract," h1b="before you order."
-              lead="This is your engagement — word for word, as it is presented to you for signature. Choose the package and whether you order as a company or privately; the client details are examples. Your contracting party is always FIAON LTD, London. The contract is governed by German law." />
+              lead="This is your engagement — word for word, as it is presented to you for signature. Choose the package and whether you order as a company or privately; the client details are examples. The annual care plan is only part of the contract if you tick it in the order. Your contracting party is always FIAON LTD, London. The contract is governed by German law." />
           : <Kopf auge="FIAON Global · Vertrag" h1="Der Vertrag," h1b="bevor Sie beauftragen."
-              lead="So lautet Ihr Auftrag — Wort für Wort, wie er Ihnen zur Unterschrift vorgelegt wird. Wählen Sie Paket und Auftraggeber; die Angaben zum Kunden sind Beispiele. Vertragspartner ist in jedem Fall die FIAON LTD, London." />}
+              lead="So lautet Ihr Auftrag — Wort für Wort, wie er Ihnen zur Unterschrift vorgelegt wird. Wählen Sie Paket und Auftraggeber; die Angaben zum Kunden sind Beispiele. Die Jahresbetreuung steht nur im Vertrag, wenn Sie sie im Auftrag ankreuzen. Vertragspartner ist in jedem Fall die FIAON LTD, London." />}
         <section className="fg-sek eng">
           <div className="fg-rahmen">
             <div className="gr-wahl">
@@ -126,6 +132,15 @@ export function GlobalMustervertragSeite() {
               <div role="radiogroup" aria-label={en ? "Client" : "Auftraggeber"} className="gr-seg klein">
                 {(["unternehmen", "privat"] as const).map((a) => (
                   <button key={a} type="button" role="radio" aria-checked={art === a} onClick={() => setArt(a)}>{a === "privat" ? (en ? "As a private individual" : "Als Privatperson") : (en ? "As a company" : "Als Unternehmen")}</button>
+                ))}
+              </div>
+              {/* E-196: Mit Jahresbetreuung stehen Ziffer 2, 3 und 5 so da, wie sie im Auftrag stehen, wenn der Haken gesetzt ist. */}
+              <div role="radiogroup" aria-label={J.titel} className="gr-seg">
+                {([false, true] as const).map((mit) => (
+                  <button key={String(mit)} type="button" role="radio" aria-checked={mitJahr === mit} onClick={() => setMitJahr(mit)}>
+                    <b>{mit ? (en ? `With ${J.titel.toLowerCase()}` : `Mit ${J.titel}`) : (en ? `Without ${J.titel.toLowerCase()}` : `Ohne ${J.titel}`)}</b>
+                    <span>{mit ? (en ? `only if added · ${J.preisZeile}` : `nur wenn gebucht · ${J.preisZeile}`) : (en ? "package price only" : "nur der Paketpreis")}</span>
+                  </button>
                 ))}
               </div>
             </div>

@@ -49,6 +49,15 @@
 // globalWiderrufsStartLauf holt den Start nach) — sonst hätte FIAON bei einem
 // Widerruf keinen Anspruch auf Wertersatz (§ 357a Abs. 2 BGB).
 //
+// ── JAHRESBETREUUNG AB DEM ZWEITEN JAHR (19.09.2026, E-196) ───────────────
+// Im Auftrag ankreuzbar (nie vorangekreuzt, § 312a Abs. 3 BGB). `jahresbetreuung`
+// reist wie der Wunsch zum Beginn: Vorschau und Auftrag lesen ihn an DERSELBEN
+// Stelle (globalVorschauPruefen), damit das PDF sagt, was der Kunde gelesen hat.
+// Die Akte merkt sich die Wahl und den Preis vom Tag der Bestellung
+// (jahresbetreuung, jahresbetreuung_preis_cents). Heute wird nur der Paketpreis
+// fällig — berechnet wird die Jahresbetreuung vor jedem Betreuungsjahr gesondert
+// (Aufgabe aus dem Tageslauf in fiaon-global-bereich.ts).
+//
 // ── DER ZUGANG OHNE ANMELDUNG ─────────────────────────────────────────────
 // Der Kunde hat kein Konto. Seine Auftragsseite und die beiden PDFs hängen an
 // einem signierten Token (HMAC wie beim Mitarbeiter-Abschluss, E-185), das an
@@ -65,7 +74,7 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
 import { epcQrNutzlast } from "@shared/fiaon-epc-qr";
 import { paket as katalogPaket, verkaufbarePakete, istGlobalPaket } from "@shared/fiaon-pakete";
-import { GLOBAL_PAKETE, GLOBAL_VERTRAG_VERSION, globalPaket, istFiaonSelbst, type GlobalSchluessel } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_VERTRAG_VERSION, GLOBAL_JAHRESBETREUUNG, globalPaket, istFiaonSelbst, type GlobalSchluessel } from "@shared/fiaon-global";
 import { globalMeinAuftragPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { dachNummer, type DachLand } from "@shared/fiaon-dach-telefon";
 import {
@@ -124,7 +133,11 @@ export function ensureGlobalTabelle(): Promise<void> {
           ADD COLUMN IF NOT EXISTS start_mail_fehler TEXT,
           ADD COLUMN IF NOT EXISTS stichtag_gesetzt_von TEXT,
           ADD COLUMN IF NOT EXISTS stichtag_mail_am TIMESTAMPTZ,
-          ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+          ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          ADD COLUMN IF NOT EXISTS jahresbetreuung BOOLEAN NOT NULL DEFAULT FALSE,
+          ADD COLUMN IF NOT EXISTS jahresbetreuung_preis_cents INTEGER`);
+      // 19.09.2026 (E-196): jahresbetreuung = im Auftrag angekreuzt; der Preis vom Tag der Bestellung
+      // (GLOBAL_JAHRESBETREUUNG.preisCents), NULL wenn nicht gebucht. Alte Aufträge: nicht gebucht.
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_auftraege_status_idx ON fiaon_global_auftraege (status, created_at DESC)`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_auftraege_doppelt_idx ON fiaon_global_auftraege (LOWER(email), paket_key, created_at DESC)`;
       // Der USt-Modus der Rechnung steht AN DER BESTELLUNG (siehe Kopf von
@@ -208,6 +221,8 @@ export interface GlobalEingabe {
   unterschriftPng: string;
   sprache: VertragSprache;
   quelle: string | null;
+  /** 19.09.2026 (E-196): Jahresbetreuung ab dem zweiten Jahr angekreuzt — steht so im unterschriebenen Vertrag. */
+  jahresbetreuung: boolean;
 }
 export type Pruefung<T> = { ok: true; daten: T } | { ok: false; status: number; error: string; feld?: string };
 
@@ -306,13 +321,16 @@ function privatPruefen(b: any): Pruefung<{ firma: GlobalFirma; anrede: string; v
 export function globalVorschauPruefen(b: any): Pruefung<GlobalVertragDaten> {
   const paket = paketPruefen(b?.paket);
   if (!paket) return fehler("Bitte wählen Sie eines der vier Pakete.", "paket");
+  // 19.09.2026 (E-196): Die Jahresbetreuung wie der Wunsch zum Beginn — an EINER Stelle gelesen, für Vorschau
+  // und Auftrag. Nur ein echtes true zählt als angekreuzt (nie vorangekreuzt, § 312a Abs. 3 BGB).
+  const jahresbetreuung = b?.jahresbetreuung === true;
   if (globalAuftraggeberVon(b?.auftraggeber) === "privat") {
     const pr = privatPruefen(b);
     if (!pr.ok) return pr;
     return { ok: true, daten: {
       paket, sprache: b?.sprache === "en" ? "en" : "de", auftraggeber: "privat",
       // Vorschau und Auftrag lesen den Wunsch zum Beginn an derselben Stelle — sonst stünde im PDF ein anderer Satz.
-      sofortBeginn: b?.bestaetigungen?.sofortBeginn === true,
+      sofortBeginn: b?.bestaetigungen?.sofortBeginn === true, jahresbetreuung,
       firma: pr.daten.firma, ansprechpartner: { anrede: pr.daten.anrede, vorname: pr.daten.vorname, nachname: pr.daten.nachname, funktion: "Privatperson" },
     } };
   }
@@ -327,7 +345,7 @@ export function globalVorschauPruefen(b: any): Pruefung<GlobalVertragDaten> {
   }
   const anrede = ["Herr", "Frau"].includes(String(b?.ansprechpartner?.anrede)) ? String(b.ansprechpartner.anrede) : "";
   return { ok: true, daten: {
-    paket, sprache: b?.sprache === "en" ? "en" : "de", auftraggeber: "unternehmen",
+    paket, sprache: b?.sprache === "en" ? "en" : "de", auftraggeber: "unternehmen", jahresbetreuung,
     firma: firma.daten, ansprechpartner: { anrede, vorname, nachname, funktion },
   } };
 }
@@ -380,6 +398,7 @@ export function globalAuftragPruefen(b: any): Pruefung<GlobalEingabe> {
       ? { vertrag: true, pflichthinweis: true, widerruf: true, sofortBeginn: best.sofortBeginn === true }
       : { vertrag: true, pflichthinweis: true, unternehmer: true, vertretung: true },
     unterschriftPng: png, quelle: text(b?.quelle, 60) || null,
+    jahresbetreuung: vor.daten.jahresbetreuung === true,
   } };
 }
 
@@ -431,7 +450,19 @@ async function verlauf(ref: string, note: string): Promise<void> {
 const AKTE_OHNE_DATEIEN = `id, ref, paket_key, land, firma, ansprechpartner, ust_id, bestaetigungen, vertrag_version, vertrag_sprache,
   unterschrieben_am, ip, quelle, status, bezahlt_am, gestartet_am, zustaendig_agent_id, stichtag, created_at, doc_hash, firma_name, email,
   rechnung_ust_modus, ust_hinweis, auftrag_mail_am, auftrag_mail_fehler, start_mail_am, start_mail_fehler, stichtag_gesetzt_von, stichtag_mail_am,
+  jahresbetreuung, jahresbetreuung_preis_cents,
   (vertrag_pdf IS NOT NULL) AS hat_vertrag`;
+
+/**
+ * Die Jahresbetreuung einer Akte, wie sie jede Antwort trägt (19.09.2026, E-196): angekreuzt ja/nein
+ * und der Preis je Betreuungsjahr vom Tag der Bestellung — ohne gespeicherten Preis der aus der Quelle.
+ * Nimmt eine Akte oder eine Listenzeile mit den Spalten jahresbetreuung und jahresbetreuung_preis_cents.
+ */
+export function globalJahresbetreuungAus(zeile: any): { jahresbetreuung: boolean; jahresbetreuungPreisCents: number | null } {
+  const gebucht = zeile?.jahresbetreuung === true;
+  const preis = Number(zeile?.jahresbetreuung_preis_cents);
+  return { jahresbetreuung: gebucht, jahresbetreuungPreisCents: gebucht ? (Number.isFinite(preis) && preis > 0 ? preis : GLOBAL_JAHRESBETREUUNG.preisCents) : null };
+}
 
 export async function globalAkteLesen(ref: string): Promise<any | null> {
   await ensureGlobalTabelle();
@@ -497,6 +528,8 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
     // Privatauftrag: bis wann widerrufen werden kann und ob die Arbeit erst danach beginnt.
     ...(frist ? { widerruf: { fristEnde: frist.fristEnde, startAb: frist.startAb, sofortBeginn: json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true } } : {}),
     paket: akte.paket_key, paketName: kat?.label ?? String(b.pack_name || akte.paket_key), betragCents,
+    // E-196: angekreuzt ja/nein und der Preis je Betreuungsjahr — heute berechnet wird nur betragCents.
+    ...globalJahresbetreuungAus(akte),
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || "") },
     email: String(akte.email || ""),
     zahlung: {
@@ -713,10 +746,12 @@ async function betreuerSetzenWennFrei(ref: string, agentId: number, opts: { mitB
 export interface GlobalAuftragErgebnis {
   ok: true; ref: string; token: string; betragCents: number; paketName: string;
   zahlungsseite: string; vertragUrl: string; rechnungUrl: string; email: string;
+  /** 19.09.2026 (E-196): Jahresbetreuung angekreuzt — betragCents bleibt der Paketpreis (heute fällig). */
+  jahresbetreuung: boolean;
 }
 export type GlobalAuftragAntwort = GlobalAuftragErgebnis | { ok: false; status: number; error: string; feld?: string };
 
-function antwortFuer(ref: string, paymentRef: string, paketKey: string, email: string): GlobalAuftragErgebnis {
+function antwortFuer(ref: string, paymentRef: string, paketKey: string, email: string, jahresbetreuung: boolean): GlobalAuftragErgebnis {
   const token = globalTokenErzeugen(ref);
   const kat = katalogPaket(paketKey);
   const r = encodeURIComponent(ref); const t = encodeURIComponent(token);
@@ -725,7 +760,7 @@ function antwortFuer(ref: string, paymentRef: string, paketKey: string, email: s
     zahlungsseite: `/zahlung/${paymentRef}?bereich=business`,
     vertragUrl: `/api/fiaon/global/auftrag/${r}/vertrag.pdf?t=${t}`,
     rechnungUrl: `/api/fiaon/global/auftrag/${r}/rechnung.pdf?t=${t}`,
-    email,
+    email, jahresbetreuung,
   };
 }
 
@@ -750,7 +785,7 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
   // Ein Doppelklick oder „Zurück und noch einmal senden" ist kein zweiter Kauf. Steht der erste
   // Versuch ohne Bestellung da (Abbruch zwischen zwei Schritten), wird er hier zu Ende geführt.
   const [vorhanden] = (await sqlPool`
-    SELECT ref, bestaetigungen FROM fiaon_global_auftraege
+    SELECT ref, bestaetigungen, jahresbetreuung FROM fiaon_global_auftraege
      WHERE LOWER(email) = ${ein.ansprechpartner.email} AND paket_key = ${ein.paket} AND LOWER(firma_name) = ${ein.firma.name.toLowerCase()}
        AND status = 'offen' AND created_at > NOW() - INTERVAL '10 minutes'
      ORDER BY created_at DESC LIMIT 1`) as any[];
@@ -762,6 +797,10 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
       if (vorher !== ein.bestaetigungen.sofortBeginn) {
         return fehler(`Diesen Auftrag haben Sie vor wenigen Minuten bereits erteilt (Referenz ${vorhanden.ref}) — ${vorher ? "mit dem Wunsch, dass wir sofort beginnen" : "ohne den Wunsch, dass wir vor Ablauf der Widerrufsfrist beginnen"}. Vertrag und Rechnung haben Sie per E-Mail. Möchten Sie Ihre Wahl ändern, schreiben Sie uns an support@fiaon.com.`, "bestaetigungen.sofortBeginn", 409);
       }
+    }
+    // 19.09.2026 (E-196): Dasselbe für die Jahresbetreuung — sie steht im unterschriebenen Vertrag (Ziffer 2, 3 und 5).
+    if ((vorhanden.jahresbetreuung === true) !== ein.jahresbetreuung) {
+      return fehler(`Diesen Auftrag haben Sie vor wenigen Minuten bereits erteilt (Referenz ${vorhanden.ref}) — ${vorhanden.jahresbetreuung === true ? "mit" : "ohne"} Jahresbetreuung ab dem zweiten Jahr. Vertrag und Rechnung haben Sie per E-Mail. Möchten Sie Ihre Wahl ändern, schreiben Sie uns an support@fiaon.com.`, "jahresbetreuung", 409);
     }
     return fertigstellen(String(vorhanden.ref), ein);
   }
@@ -787,6 +826,8 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
   const vertragsDaten: GlobalVertragDaten = {
     paket: ein.paket, sprache: ein.sprache, ref, auftraggeber: ein.auftraggeber,
     sofortBeginn: "sofortBeginn" in ein.bestaetigungen ? ein.bestaetigungen.sofortBeginn : undefined,
+    // E-196: derselbe Schalter wie in der Vorschau — der Hash unten rechnet den Absatz mit.
+    jahresbetreuung: ein.jahresbetreuung,
     firma: { ...ein.firma }, ansprechpartner: { ...ein.ansprechpartner },
   };
   const hash = docHash(`global-auftrag|${ref}|${GLOBAL_VERTRAG_VERSION}|${ein.ansprechpartner.vorname} ${ein.ansprechpartner.nachname}|${jetzt.toISOString()}|${kontext.ip}|${globalVertragRumpfHtml(vertragsDaten)}`);
@@ -837,13 +878,15 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
     await sqlPool`
       INSERT INTO fiaon_global_auftraege
         (ref, paket_key, land, firma, ansprechpartner, ust_id, bestaetigungen, unterschrift_png, vertrag_pdf, vertrag_version, vertrag_sprache,
-         unterschrieben_am, ip, user_agent, quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, ust_hinweis)
+         unterschrieben_am, ip, user_agent, quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, ust_hinweis,
+         jahresbetreuung, jahresbetreuung_preis_cents)
       VALUES
         (${ref}, ${ein.paket}, ${ein.firma.land}, ${JSON.stringify(ein.firma)}::jsonb, ${JSON.stringify(ein.ansprechpartner)}::jsonb, ${ein.firma.ustId},
          ${JSON.stringify({ ...ein.bestaetigungen, am: jetzt.toISOString() })}::jsonb,
          ${Buffer.from(ein.unterschriftPng.slice("data:image/png;base64,".length), "base64")}, ${pdf}, ${GLOBAL_VERTRAG_VERSION}, ${ein.sprache},
          ${jetzt}, ${kontext.ip}, ${String(kontext.userAgent || "").slice(0, 500)}, ${ein.quelle}, 'offen', ${hash}, ${ein.firma.name}, ${ein.ansprechpartner.email},
-         ${ustModus}, ${ustHinweis})`;
+         ${ustModus}, ${ustHinweis},
+         ${ein.jahresbetreuung}, ${ein.jahresbetreuung ? GLOBAL_JAHRESBETREUUNG.preisCents : null})`;
   } catch (e) {
     console.error(`[FIAON-GLOBAL] ${ref}: Auftragsakte nicht geschrieben — Antrag steht, Vertrag fehlt:`, e);
     return fehler("Ihr Auftrag konnte gerade nicht gespeichert werden — bitte versuchen Sie es in einer Minute noch einmal.", undefined, 500);
@@ -872,7 +915,7 @@ async function fertigstellen(ref: string, ein: GlobalEingabe): Promise<GlobalAuf
 
   void nacharbeit(ref, ein, paymentRef, akte)
     .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Nacharbeit (Aufgabe, Betreuer, Auftragsmail) abgebrochen — bitte unter /chef/s/global-auftraege nachsehen:`, e));
-  return antwortFuer(ref, paymentRef, ein.paket, ein.ansprechpartner.email);
+  return antwortFuer(ref, paymentRef, ein.paket, ein.ansprechpartner.email, ein.jahresbetreuung);
 }
 
 async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, akte: any): Promise<void> {
@@ -910,6 +953,10 @@ async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, a
             : `PRIVATPERSON: Widerrufsrecht bis ${tagDe(widerruf.fristEnde)}. Der Kunde hat NICHT verlangt, dass wir vorher beginnen — der Auftrag startet frühestens am ${tagDe(widerruf.startAb)} von selbst, auch wenn die Zahlung früher eingeht. Bis dahin nichts beantragen und keine Gebühren auslösen.`)
           : null,
         `Vertrag und Rechnung${b?.invoice_number ? ` ${b.invoice_number}` : ""} sind per Mail beim Kunden; gezahlt wird per Überweisung, Verwendungszweck ${paymentRef}, Zahlungsseite ${absoluteUrl(`/zahlung/${paymentRef}`)}.`,
+        // 19.09.2026 (E-196): angekreuzt im Auftrag — heute steht nur der Paketpreis auf der Rechnung.
+        ein.jahresbetreuung
+          ? `JAHRESBETREUUNG GEBUCHT (ab dem zweiten Jahr): ${eur(GLOBAL_JAHRESBETREUUNG.preisCents)} je Betreuungsjahr, alle Gebühren inklusive — auch die Staatsgebühr. Heute berechnet ist nur der Paketpreis; die Rechnung für das zweite Betreuungsjahr kommt rund einen Monat vor dem ersten Jahrestag als Aufgabe zu dir.`
+          : null,
         privat && widerruf && !sofort
           ? `Bitte kurz anrufen, den Eingang des Auftrags bestätigen und Fragen zur Überweisung klären. Nach dem Zahlungseingang wartet der Auftrag bis zum ${tagDe(widerruf.startAb)}; dann startet er von selbst und du bekommst die Aufgabe „US-Struktur starten“ mit der Unterlagenliste.`
           : "Bitte kurz anrufen, den Eingang des Auftrags bestätigen und Fragen zur Überweisung klären. MIT DEM ZAHLUNGSEINGANG startet der Auftrag von selbst: Du bekommst dann die Aufgabe „US-Struktur starten“ mit der Unterlagenliste.",
@@ -1093,7 +1140,10 @@ export async function globalNachZahlung(ref: string, opts: { jetzt?: Date } = {}
         `2. Im Startgespräch den STICHTAG für Gesellschaft und EIN festlegen und im Auftrag eintragen (${globalOfficeAuftragPfad(ref)}, „Stichtag setzen“) — an ihm hängt die Geld-zurück-Zusage aus Ziffer 6 des Auftrags. Der Kunde bekommt ihn von dort in Textform.`,
         `3. Unterlagen einsammeln: ${globalUnterlagenZeilen("de", privat).join("; ")}. Der Kunde lädt sie in „Mein Auftrag“ hoch (Link in seiner Startmail); was dort liegt, siehst du im Auftrag.`,
         // 18.09.2026: Festpreis — alles für die Leistungen des Pakets ist enthalten (GLOBAL_INKLUSIVE, Ziffer 5 des Auftrags).
-        "4. Staatsgebühren, Registered Agent im ersten Jahr und die Honorare der Partner für die Paketleistungen sind im Festpreis enthalten — dem Kunden NICHTS davon extra berechnen. Laufende Kosten ab dem zweiten Jahr im Startgespräch erklären.",
+        // 19.09.2026 (E-196): Mit gebuchter Jahresbetreuung sind auch die laufenden Kosten ab dem zweiten Jahr geregelt.
+        globalJahresbetreuungAus(akte).jahresbetreuung
+          ? `4. Staatsgebühren, Registered Agent im ersten Jahr und die Honorare der Partner für die Paketleistungen sind im Festpreis enthalten — dem Kunden NICHTS davon extra berechnen. Der Kunde hat die JAHRESBETREUUNG gebucht (${eur(globalJahresbetreuungAus(akte).jahresbetreuungPreisCents ?? GLOBAL_JAHRESBETREUUNG.preisCents)} je Betreuungsjahr ab dem zweiten Jahr, alle Gebühren inklusive — auch die Staatsgebühr): im Startgespräch kurz bestätigen. Die Rechnung für das zweite Betreuungsjahr kommt rund einen Monat vor dem ersten Jahrestag als Aufgabe.`
+          : "4. Staatsgebühren, Registered Agent im ersten Jahr und die Honorare der Partner für die Paketleistungen sind im Festpreis enthalten — dem Kunden NICHTS davon extra berechnen. Laufende Kosten ab dem zweiten Jahr im Startgespräch erklären.",
         privat ? "5. PRIVATPERSON: Der Kunde wird selbst Gesellschafter der US-Gesellschaft. Kein Registerauszug nötig; Meldung nach § 138 AO betrifft ihn persönlich (Partner-Steuerberater)." : null,
         akte ? null : "ACHTUNG: Zu dieser Bestellung gibt es keinen unterschriebenen Auftrag (nicht über /business/start angelegt). Vor dem Start unterschreiben lassen.",
         akte?.ust_hinweis ? `Rechnung: ${akte.ust_hinweis}` : null,
@@ -1161,6 +1211,7 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
            g.stichtag_mail_am, g.vertrag_sprache, g.quelle, (g.vertrag_pdf IS NOT NULL) AS hat_vertrag,
            g.zahlung_erinnerung_1_am, g.zahlung_erinnerung_2_am, g.zahlung_aufgabe_am, g.zahlung_takt_hinweis,
            g.storniert_am, g.storniert_von, g.storno_grund, g.storno_erstattung,
+           g.jahresbetreuung, g.jahresbetreuung_preis_cents,
            z.name AS zustaendig_name, bt.name AS betreuer_name,
            (SELECT t.id FROM fiaon_betreiber_todos t WHERE t.schluessel = 'global:' || a.ref || ':start' LIMIT 1) AS start_aufgabe_id
       FROM fiaon_applications a
@@ -1218,6 +1269,8 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       storniertAm: r.storniert_am ? new Date(r.storniert_am).toISOString() : null,
       storniertVon: r.storniert_von ?? null, stornoGrund: r.storno_grund ?? null,
       stornoErstattung: r.storno_erstattung === true,
+      // E-196: Jahresbetreuung ab dem zweiten Jahr im Auftrag angekreuzt (ohne Akte: nie).
+      ...globalJahresbetreuungAus(r),
       vertragUrl: r.hat_vertrag ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(r.ref))}/vertrag.pdf` : null,
       rechnungUrl: r.payment_reference ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(r.ref))}/rechnung.pdf` : null,
       zahlungsseite: r.payment_reference ? `/zahlung/${r.payment_reference}` : null,

@@ -215,3 +215,22 @@ select.gs-feld{appearance:none;background-image:url("data:image/svg+xml,%3Csvg x
 }
 /* Am Handy: die Länderwahl schrumpft mit, statt die Karte über den Rand zu schieben (19.09.2026) */
 @media(max-width:560px){.gs-seg{display:flex;width:100%}.gs-seg button{flex:1 1 0;min-width:0;padding:0 8px;min-height:44px}}
+
+/* 19.09.2026 (E-196): Jahresbetreuung ab dem zweiten Jahr — im Schritt „Vertrag" über dem Vertragstext.
+   Freiwillig und nie vorangekreuzt (§ 312a Abs. 3 BGB); weiß mit Haarlinie, damit sie sich vom grauen
+   Kasten „Wann sollen wir beginnen?" absetzt. Rechts in „Ihr Auftrag" eine ruhige Zeile, wenn gebucht. */
+.gs-jahr{margin:20px 0;padding:18px 20px;border-radius:10px;background:#fff;border:1px solid var(--linie-2)}
+.gs-jahr-kopf{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 14px}
+.gs-jahr-kopf h3{font-size:14.5px;font-weight:500;color:var(--tinte)}
+.gs-jahr-kopf span{font-size:12.5px;color:var(--navy);font-variant-numeric:lining-nums tabular-nums}
+.gs-jahr ul{list-style:none;padding:0;margin:12px 0 16px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+.gs-jahr li{position:relative;padding-left:16px;font-size:12.5px;font-weight:300;line-height:1.5;color:var(--text)}
+.gs-jahr li::before{content:"";position:absolute;left:1px;top:.55em;width:6px;height:6px;border-radius:50%;background:var(--navy);opacity:.35}
+.gs-jahr label{display:grid;grid-template-columns:22px 1fr;gap:12px;align-items:start;font-size:13.5px;color:var(--tinte);line-height:1.6;cursor:pointer}
+.gs-jahr input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--navy)}
+.gs-jahr .klein{margin:10px 0 0 34px;font-size:12px;font-weight:300;line-height:1.6;color:var(--leise)}
+@media(max-width:560px){.gs-jahr ul{grid-template-columns:1fr}.gs-jahr .klein{margin-left:0}}
+.gs-seite-jahr{padding:16px 0;border-bottom:1px solid var(--linie)}
+.gs-seite .gs-seite-jahr h3{margin-top:0}
+.gs-seite-jahr p{margin-top:8px;font-size:13px;line-height:1.55;color:var(--tinte)}
+.gs-seite .gs-seite-jahr .klein{margin-top:6px}

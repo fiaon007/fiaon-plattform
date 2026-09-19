@@ -25,6 +25,9 @@
 //      Leitfaden — ändert dort jemand den Wortlaut, fällt es hier auf.
 //   8. Die Rundgänge zeigen nur auf Stellen, die es in den Seiten gibt.
 //   9. Die 50 Bundesstaaten und DC, jedes Kürzel einmal.
+//  10. Die Jahresbetreuung (19.09.2026, E-196): Liste und Akte lesen sie nur bei
+//      echtem true, die Marke steht EINMAL in global-logik.ts und Liste, Akte
+//      und Chefbüro zeigen sie; die Rundgänge erklären sie ohne Scheinwerfer.
 //
 //   npx tsx scripts/pruef-global-office.ts
 // ═══════════════════════════════════════════════════════════════════════════
@@ -35,6 +38,7 @@ import {
   isoTagAus, berlinTag, tageBis, tagText, zeitText, fristLage, groesseText, euroText,
   dateiPruefen, UPLOAD_MAX_BYTES, ETAPPEN_TITEL, ETAPPE_KUNDENTEXT, ETAPPE_KUNDENTEXT_EN, KUNDEN_PLATZHALTER, KUNDEN_PLATZHALTER_EN,
   etappeKundentext, etappenImPaket, kundentextHinweise, nichtZusagen, US_STAATEN, staatName, telLink, ART_SONSTIGES,
+  JAHRESBETREUUNG_MARKE, VERLAUF_ART,
   type GlobalZeile,
 } from "../client/src/pages/agent/global-logik";
 import { GLOBAL_SCHAERFER, globalWortPruefen } from "../shared/fiaon-global-wortregeln";
@@ -272,6 +276,31 @@ titel("9. 50 Bundesstaaten und der District of Columbia");
   ok("DC, Delaware, Wyoming, Florida sind dabei", ["DC", "DE", "WY", "FL"].every((k) => US_STAATEN.some(([x]) => x === k)));
   ok("staatName kennt das Kürzel und lässt Unbekanntes stehen", staatName("WY") === "Wyoming" && staatName("XX") === "XX");
   ok("telLink lässt nur Ziffern und +", telLink("+43 (1) 234-567") === "tel:+431234567");
+}
+
+// ── 10. Jahresbetreuung ─────────────────────────────────────────────────────
+titel("10. Jahresbetreuung: gelesen nur bei echtem true, eine Marke, drei Anzeigen");
+{
+  ok("Liste: jahresbetreuung true wird gelesen", zeileLesen({ ref: "R", jahresbetreuung: true })?.jahresbetreuung === true);
+  ok("Liste: fehlt, „true“ als Text, 1 oder null → nicht gebucht", [undefined, "true", 1, null].every((w) => zeileLesen({ ref: "R", jahresbetreuung: w })?.jahresbetreuung === false));
+  const mit = akteLesen({ auftrag: { ref: "FIA-J", jahresbetreuung: true, jahresbetreuungPreisCents: 69900, jahresbetreuungJahrestag: "2027-10-01", jahresbetreuungRechnungAb: "2027-09-01", jahresbetreuungBasis: "gruendung" } })!;
+  ok("Akte: gebucht mit Preis, Jahrestag, Rechnungstag und Grundlage", JSON.stringify(mit.jahresbetreuung) === JSON.stringify({ gebucht: true, preisCents: 69900, jahrestag: "2027-10-01", rechnungAb: "2027-09-01", basis: "gruendung" }), JSON.stringify(mit.jahresbetreuung));
+  const karg = akteLesen({ auftrag: { ref: "FIA-K" } })!;
+  ok("karge Akte: nicht gebucht, nichts erfunden", JSON.stringify(karg.jahresbetreuung) === JSON.stringify({ gebucht: false, preisCents: null, jahrestag: null, rechnungAb: null, basis: null }), JSON.stringify(karg.jahresbetreuung));
+  const halb = akteLesen({ auftrag: { ref: "FIA-H", jahresbetreuung: "ja", jahresbetreuungPreisCents: 69900, jahresbetreuungRechnungAb: "2027-09-01" } })!;
+  ok("nicht gebucht, aber Felder da: alles leer (die Marke hängt nur am echten true)", halb.jahresbetreuung.gebucht === false && halb.jahresbetreuung.preisCents === null && halb.jahresbetreuung.rechnungAb === null);
+  const schief = akteLesen({ auftrag: { ref: "FIA-S", jahresbetreuung: true, jahresbetreuungPreisCents: "x", jahresbetreuungRechnungAb: "morgen", jahresbetreuungBasis: "irgendwas" } })!;
+  ok("gebucht mit kaputten Feldern: gebucht, der Rest leer", schief.jahresbetreuung.gebucht === true && schief.jahresbetreuung.preisCents === null && schief.jahresbetreuung.rechnungAb === null && schief.jahresbetreuung.basis === null);
+  ok("die Marke lautet „Jahresbetreuung gebucht (ab Jahr 2)“", JAHRESBETREUUNG_MARKE === "Jahresbetreuung gebucht (ab Jahr 2)");
+  ok("der Verlauf kennt die Art „jahresbetreuung“", VERLAUF_ART.jahresbetreuung === "Jahresbetreuung");
+  for (const datei of ["client/src/pages/agent/global.tsx", "client/src/pages/agent/global-akte.tsx", "client/src/components/admin/ChefGlobalAuftraege.tsx"]) {
+    const q = fs.readFileSync(path.join(WURZEL, datei), "utf8");
+    ok(`${datei}: zeigt die Marke aus global-logik.ts (keine eigene Fassung)`, q.includes("{JAHRESBETREUUNG_MARKE}") && !q.includes("\"Jahresbetreuung gebucht (ab Jahr 2)\""));
+  }
+  for (const schluessel of ["global", "globalAkte", "globalAuftraege"]) {
+    const s = (RUNDGAENGE[schluessel]?.schritte ?? []).find((x) => /Jahresbetreuung/.test(`${x.titel} ${x.text}`));
+    ok(`Rundgang „${schluessel}“ erklärt die Jahresbetreuung — ohne Scheinwerfer (die Marke steht nicht an jedem Auftrag)`, !!s && !s.ziel);
+  }
 }
 
 log(`\n${"═".repeat(74)}\n${gut + schlecht} Prüfungen — ${gut} grün, ${schlecht} rot.`);

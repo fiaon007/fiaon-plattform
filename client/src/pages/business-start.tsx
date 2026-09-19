@@ -35,6 +35,14 @@
 // Widerrufsfrist beginnen (freiwillig, nie vorangekreuzt — § 356 Abs. 4 BGB).
 // Der Knopf heißt „Zahlungspflichtig beauftragen" (§ 312j Abs. 3 BGB).
 //
+// ── JAHRESBETREUUNG AB DEM ZWEITEN JAHR (19.09.2026, E-196) ────────────────
+// Im Schritt „Vertrag", über dem Vertragstext: die sechs Leistungen, EIN Haken
+// (nie vorangekreuzt — § 312a Abs. 3 BGB), Bedingungen und „heute nur der
+// Paketpreis" klein darunter. Der Haken ändert Ziffer 2, 3 und 5 — die Vorschau
+// zieht still nach, der Knopf wartet auf die neue Fassung. Alle Sätze kommen aus
+// shared/fiaon-global.ts (GLOBAL_JAHRESBETREUUNG); „Ihr Auftrag" rechts nennt
+// die gebuchte Jahresbetreuung. Der Haken liegt im Entwurf wie jedes Feld.
+//
 // Der Entwurf (ohne Unterschrift) liegt in sessionStorage: Ein versehentliches
 // Neuladen kostet den Kunden nichts. Glas trägt hier nur die Zusammenfassung.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -43,7 +51,7 @@ import { Dunkel } from "@/components/site/DunkleBuehne";
 import SignaturePad from "@/components/agent/SignaturPad";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_START_WOERTER } from "@/i18n/global-start";
-import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, GLOBAL_GELD_ZURUECK, globalPaket, globalPreisText, globalPlanungText, istFiaonSelbst } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, GLOBAL_GELD_ZURUECK, GLOBAL_JAHRESBETREUUNG, globalPaket, globalPreisText, globalPlanungText, istFiaonSelbst } from "@shared/fiaon-global";
 import { kampagne, werbeKonversion } from "@/lib/werbung";
 import "@/styles/global-start.css";
 
@@ -54,8 +62,8 @@ type Firma = { land: Land; name: string; rechtsform: string; registergericht: st
 type Person = { anrede: string; vorname: string; nachname: string; funktion: string; email: string; telefon: string };
 type Treffer = { id: string; name: string; rechtsform?: string; ort?: string; plz?: string; register?: string; quelle?: string };
 type Vertreter = { vorname?: string; nachname?: string; name?: string; funktion?: string };
-type Fertig = { ref: string; token: string; email: string; zahlungsseite?: string; art?: Auftraggeber; sofort?: boolean };
-type Status = { betragCents: number; paketName: string; zahlungsseite?: string; status?: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string };
+type Fertig = { ref: string; token: string; email: string; zahlungsseite?: string; art?: Auftraggeber; sofort?: boolean; jahresbetreuung?: boolean };
+type Status = { betragCents: number; paketName: string; zahlungsseite?: string; status?: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string; jahresbetreuung?: boolean };
 
 const FIRMA_LEER: Firma = { land: "DE", name: "", rechtsform: "", registergericht: "", registernummer: "", strasse: "", plz: "", ort: "", ustId: "", website: "" };
 const PERSON_LEER: Person = { anrede: "", vorname: "", nachname: "", funktion: "", email: "", telefon: "" };
@@ -185,7 +193,7 @@ export default function BusinessStart() {
   const s = sprache === "en" ? "en" : "de";
   const zu = (p: string) => inSprache(p, sprache);
 
-  const entwurf = useMemo(() => lesen<{ paket: string; firma: Firma; person: Person; schritt: number; vertreter?: Vertreter[]; art?: Auftraggeber; anschrift?: Anschrift }>(ENTWURF), []);
+  const entwurf = useMemo(() => lesen<{ paket: string; firma: Firma; person: Person; schritt: number; vertreter?: Vertreter[]; art?: Auftraggeber; anschrift?: Anschrift; jahresbetreuung?: boolean }>(ENTWURF), []);
   // 19.09.2026: Wer mit ?paket= von einer Tafel kommt, hat das Paket schon gewählt — der Weg beginnt bei Schritt 2.
   const [schritt, setSchritt] = useState(() => {
     const ausAdresse = new URLSearchParams(window.location.search).get("paket");
@@ -206,6 +214,9 @@ export default function BusinessStart() {
   const privat = art === "privat";
   // Die Wohnanschrift der Privatperson steht getrennt von der Firmenanschrift: Wer umschaltet, trägt nicht versehentlich den Firmensitz als Wohnsitz ein.
   const [anschrift, setAnschrift] = useState<Anschrift>(entwurf?.anschrift ?? ANSCHRIFT_LEER);
+  // 19.09.2026 (E-196): Jahresbetreuung ab dem zweiten Jahr — nie vorangekreuzt (§ 312a Abs. 3 BGB); nur die
+  // eigene Wahl des Kunden kommt aus dem Entwurf zurück, wenn er die Seite neu lädt.
+  const [jahresbetreuung, setJahresbetreuung] = useState<boolean>(entwurf?.jahresbetreuung === true);
   const [fehler, setFehler] = useState("");
   const [fertig, setFertig] = useState<Fertig | null>(() => lesen<Fertig>(ABSCHLUSS));
 
@@ -225,7 +236,7 @@ export default function BusinessStart() {
   const [felderOffen, setFelderOffen] = useState(!!entwurf?.firma?.strasse);
   const [gefuellt, setGefuellt] = useState<string[]>([]);
   const [vertreter, setVertreter] = useState<Vertreter[]>(entwurf?.vertreter ?? []);
-  useEffect(() => { if (!fertig) schreiben(ENTWURF, { paket, firma, person, vertreter, art, anschrift, schritt: Math.min(schritt, 2) }); }, [paket, firma, person, vertreter, art, anschrift, schritt, fertig]);
+  useEffect(() => { if (!fertig) schreiben(ENTWURF, { paket, firma, person, vertreter, art, anschrift, jahresbetreuung, schritt: Math.min(schritt, 2) }); }, [paket, firma, person, vertreter, art, anschrift, jahresbetreuung, schritt, fertig]);
   const [gefundenText, setGefundenText] = useState("");
   const [webUrl, setWebUrl] = useState(firma.website);
   const [webLaedt, setWebLaedt] = useState(false);
@@ -319,11 +330,16 @@ export default function BusinessStart() {
     ? { auftraggeber: "privat", firma: anschrift, ansprechpartner: { ...person, funktion: "" } }
     : { auftraggeber: "unternehmen", firma: { ...firma, quelleRegister: firma.quelleRegister || undefined }, ansprechpartner: person };
 
+  // 19.09.2026 (E-196): Jede Vorschau bekommt eine Nummer. Kommt eine ältere Antwort NACH einer jüngeren an
+  // (Haken zweimal schnell umgeschaltet), bleibt sie liegen — sichtbar ist immer die Fassung zur letzten Wahl.
+  const vorschauNr = useRef(0);
   const vertragLaden = async (still = false) => {
+    const nr = ++vorschauNr.current;
     if (still) setVertragVeraltet(true); else setVertragStand("laedt");
     try {
-      const r = await fetch("/api/fiaon/global/vertrag/vorschau", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paket, ...auftraggeberDaten(), bestaetigungen: privat ? { sofortBeginn } : undefined, sprache: s }) });
+      const r = await fetch("/api/fiaon/global/vertrag/vorschau", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paket, ...auftraggeberDaten(), bestaetigungen: privat ? { sofortBeginn } : undefined, jahresbetreuung, sprache: s }) });
       const j = await r.json().catch(() => ({}));
+      if (nr !== vorschauNr.current) return;
       if (!r.ok || !j.ok || !j.html) {
         // 17.09.2026 live: sechs Vorschauen mit 400 — der Kunde sah nur „konnte nicht geladen werden".
         // Der Server nennt Grund und Feld; wir führen dorthin zurück, wo es zu korrigieren ist.
@@ -334,8 +350,8 @@ export default function BusinessStart() {
         setVertragFehler(j.error || ""); setVertragStand("fehler"); return;
       }
       setVertragHtml(String(j.html)); setVertragStand("da");
-    } catch { setVertragFehler(""); setVertragStand("fehler"); }
-    finally { setVertragVeraltet(false); }
+    } catch { if (nr === vorschauNr.current) { setVertragFehler(""); setVertragStand("fehler"); } }
+    finally { if (nr === vorschauNr.current) setVertragVeraltet(false); }
   };
   useEffect(() => { if (schritt === 3 && !fertig) vertragLaden(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [schritt]);
   // Der Wunsch zum Beginn steht im Vertrag (Ziffer 5 und 11) — die Vorschau zieht still nach.
@@ -345,6 +361,13 @@ export default function BusinessStart() {
     if (schritt === 3 && !fertig && privat && vertragStand === "da") vertragLaden(true);
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [sofortBeginn]);
+  // Ebenso die Jahresbetreuung (Ziffer 2, 3 und 5, E-196) — für Unternehmen und Privatpersonen.
+  const ersteJahreswahl = useRef(true);
+  useEffect(() => {
+    if (ersteJahreswahl.current) { ersteJahreswahl.current = false; return; }
+    if (schritt === 3 && !fertig && vertragStand === "da") vertragLaden(true);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [jahresbetreuung]);
 
   // ── Prüfen und weiter ───────────────────────────────────────────────────
   const weiter = () => {
@@ -389,6 +412,7 @@ export default function BusinessStart() {
       const r = await fetch("/api/fiaon/global/auftrag", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         paket, ...auftraggeberDaten(),
         bestaetigungen: privat ? { ...hakenPrivat, sofortBeginn } : haken, unterschriftPng: unterschrift, sprache: s, quelle: new URLSearchParams(window.location.search).get("quelle") || "business_seite", falle,
+        jahresbetreuung,
         kampagne: kampagne(),
       }) });
       const j = await r.json().catch(() => ({}));
@@ -398,7 +422,7 @@ export default function BusinessStart() {
         return;
       }
       void werbeKonversion("auftrag", { wert: typeof j.betragCents === "number" ? j.betragCents / 100 : undefined, id: String(j.ref || ""), paket });
-      const f: Fertig = { ref: j.ref, token: j.token, email: j.email || person.email, zahlungsseite: j.zahlungsseite, art, sofort: privat ? sofortBeginn : undefined };
+      const f: Fertig = { ref: j.ref, token: j.token, email: j.email || person.email, zahlungsseite: j.zahlungsseite, art, sofort: privat ? sofortBeginn : undefined, jahresbetreuung: j.jahresbetreuung === true };
       schreiben(ABSCHLUSS, f); schreiben(ENTWURF, null);
       setFertig(f);
       requestAnimationFrame(() => blatt.current?.scrollIntoView({ block: "start" }));
@@ -417,6 +441,10 @@ export default function BusinessStart() {
   const kopiere = async (k: string, wert: string) => { try { await navigator.clipboard.writeText(wert); setKopiert(k); setTimeout(() => setKopiert(""), 1600); } catch { /* ohne Zwischenablage: der Wert steht ja da */ } };
 
   const g = globalPaket(paket);
+  // E-196: Die Jahresbetreuung in der Sprache der Seite — und ob sie in DIESEM Auftrag steht: vor dem Absenden
+  // der Haken, danach die Antwort des Servers (Auftragsseite), bis sie da ist die Antwort auf das Absenden.
+  const J = GLOBAL_JAHRESBETREUUNG[s];
+  const jahrImAuftrag = fertig ? (status?.jahresbetreuung ?? fertig.jahresbetreuung === true) : jahresbetreuung;
   const euro = (cents: number) => (cents / 100).toLocaleString(s === "en" ? "en-GB" : "de-DE", { style: "currency", currency: "EUR" });
   const tagText = (iso?: string) => iso ? new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString(s === "en" ? "en-GB" : "de-DE", { day: "numeric", month: "long", year: "numeric" }) : "";
 
@@ -699,6 +727,15 @@ export default function BusinessStart() {
                           <label><input type="checkbox" checked={sofortBeginn} onChange={(e) => setSofortBeginn(e.target.checked)} /><span>{t.sofortBeginn}</span></label>
                         </div>
                       )}
+                      {/* E-196: Jahresbetreuung ab dem zweiten Jahr — freiwillig, nie vorangekreuzt; der Vertrag darunter folgt dem Haken. */}
+                      {vertragStand === "da" && (
+                        <div className="gs-jahr">
+                          <div className="gs-jahr-kopf"><h3>{J.titel}</h3><span>{J.marke} · {J.preisZeile}</span></div>
+                          <ul aria-label={t.jahrLeistungen}>{J.leistungen.map((x) => <li key={x}>{x}</li>)}</ul>
+                          <label><input type="checkbox" checked={jahresbetreuung} onChange={(e) => setJahresbetreuung(e.target.checked)} /><span>{J.buchen}</span></label>
+                          <p className="klein">{J.bedingungen} {J.nichtHeute} {t.jahrVertrag}</p>
+                        </div>
+                      )}
                       {vertragStand === "laedt" && <p className="gs-gut">{t.vertragLaedt}</p>}
                       {vertragStand === "fehler" && <p className="gs-fehler" role="alert">{vertragFehler || t.vertragFehler} <button type="button" className="gs-link" style={{ marginTop: 0 }} onClick={() => vertragLaden()}>{t.erneut}</button></p>}
                       {vertragStand === "da" && (
@@ -750,6 +787,14 @@ export default function BusinessStart() {
                   <div className="masse">
                     <div><span>{t.planung}</span><b>{globalPlanungText(g.key, s)}</b><em>{t.planungZusatz}</em></div>
                     <div><span>{t.begleitung}</span><b>{g[s].dauerKurz}</b></div>
+                  </div>
+                )}
+                {/* E-196: angekreuzt → steht im Auftrag; heute fällig bleibt der Paketpreis oben. */}
+                {g && jahrImAuftrag && (
+                  <div className="gs-seite-jahr">
+                    <h3>{J.titel}</h3>
+                    <p>{J.gebucht}</p>
+                    <p className="klein">{J.nichtHeute}</p>
                   </div>
                 )}
                 <h3>{t.inklusiveTitel}</h3>

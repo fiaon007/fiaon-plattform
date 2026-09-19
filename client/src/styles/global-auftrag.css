@@ -93,3 +93,7 @@
 /* 18.09.2026: helle Aufstellung — „Mein Auftrag" hat kein Kopfband, der Inhalt braucht Innenabstand. */
 .gs-seite.ga-seite{padding:24px 26px}
 .ga-seite .preis{font-size:30px}
+
+/* 19.09.2026 (E-196): Jahresbetreuung in der Seitenkarte — gebucht als eigene kleine Gruppe unter „Ihr Auftrag". */
+.ga-jahr{margin-top:26px}
+.ga-jahr .ga-jahr-zeile{margin-top:10px;font-size:14px;font-weight:500;line-height:1.5;color:var(--tinte)}

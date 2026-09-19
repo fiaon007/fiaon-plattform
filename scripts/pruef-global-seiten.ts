@@ -45,6 +45,9 @@ import { SEO_SEITEN, seoFragen, seoIndexierbar } from "../shared/fiaon-seo-seite
 import "../server/lib/fiaon-global-seo";
 import { istBusinessBereich, mitBereich } from "../client/src/lib/bereich";
 import { GLOBAL_WOERTER } from "../client/src/i18n/global";
+import { GLOBAL_JAHRESBETREUUNG, globalJahresbetreuungPreisText } from "../shared/fiaon-global";
+import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
+import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
 
 const HEUTE = "2026-09-19";
 let fehler = 0; let geprueft = 0;
@@ -301,6 +304,52 @@ ok(/globalKapitalSpanne\(s\)/.test(hubSeite.slice(0, hubSeite.indexOf('id="leist
 const einstieg = String(Math.round((PAKETE.find((x) => x.key === "global_struktur")?.preisCents ?? 0) / 100).toLocaleString("de-DE"));
 ok(GLOBAL_WOERTER.de.metaTitel.includes(einstieg) && String(tabelle["/business"]?.titel).includes(einstieg), `/business: Titel nennt nicht den Einstiegspreis ${einstieg} € (Seite und SEO-Tabelle)`);
 ok(GLOBAL_WOERTER.de.metaTitel === tabelle["/business"]?.titel && GLOBAL_WOERTER.en.metaTitel === tabelle["/business"]?.en?.titel, "/business: Titel der Seite und der SEO-Tabelle weichen voneinander ab");
+
+// ═══ 9: JAHRESBETREUUNG, UHREN, NACHRICHTENLAGE, STARTSEITE PRIVATPERSONEN (19.09.2026, E-196) ═══
+abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
+{
+  // Jahresbetreuung: ein Preis, eine Quelle, auf jeder Seite.
+  ok(GLOBAL_JAHRESBETREUUNG.preisCents === 69900, `Jahresbetreuung: Preis ${GLOBAL_JAHRESBETREUUNG.preisCents} statt 69900`);
+  for (const sp of ["de", "en"] as const) {
+    const j = GLOBAL_JAHRESBETREUUNG[sp];
+    const funde = globalWortPruefen([j.kurz, j.lead, ...j.leistungen, j.bedingungen, j.buchen, j.gebucht, j.nichtHeute].join("\n"));
+    ok(funde.length === 0, `Jahresbetreuung (${sp}) verletzt die Wortregeln: ${funde.map((x) => x.treffer).join(", ")}`);
+    ok(/Staatsgeb|state fee/i.test(j.leistungen.join(" ")), `Jahresbetreuung (${sp}): die Staatsgebühr fehlt in den Leistungen`);
+    ok(/nicht von selbst|does not renew/i.test(j.bedingungen), `Jahresbetreuung (${sp}): „verlängert sich nicht von selbst" fehlt`);
+  }
+  for (const datei of ["client/src/pages/site/business.tsx", "client/src/pages/site/global-seite.tsx", "client/src/pages/site/global-lp.tsx"]) {
+    ok(fs.readFileSync(path.join(WURZEL, datei), "utf8").includes("<GlobalJahresbetreuung"), `${datei}: der Block Jahresbetreuung fehlt`);
+  }
+  // Startseite für Privatpersonen: eigene Route vor /business/:slug, jede Tafel führt in den Auftrag als Privatperson.
+  const app = fs.readFileSync(path.join(WURZEL, "client/src/App.tsx"), "utf8");
+  ok(app.includes(`path="/business/privatpersonen" component={BusinessPrivatPage}`) && app.indexOf(`path="/business/privatpersonen"`) < app.indexOf(`path="/business/:slug"`),
+    "App.tsx: /business/privatpersonen führt nicht auf die Startseite für Privatpersonen (oder steht hinter /business/:slug)");
+  const hub = fs.readFileSync(path.join(WURZEL, "client/src/pages/site/business.tsx"), "utf8");
+  ok(/globalStartPfad\(paket, s, privat \? "privat" : undefined\)/.test(hub), "business.tsx: die Pakete der Privatpersonen-Seite führen nicht in den Auftrag als Privatperson");
+  ok(globalStartPfad("global_kapital", "de", "privat").endsWith("paket=global_kapital&art=privat"), "globalStartPfad: art=privat fehlt");
+  const privatEintrag = GLOBAL_SEITEN.find((x) => x.pfad === "/business/privatpersonen");
+  ok(!!privatEintrag && GLOBAL_WOERTER.de.privat.metaTitel === privatEintrag.seo.titel && GLOBAL_WOERTER.de.privat.metaBeschreibung === privatEintrag.seo.beschreibung,
+    "Privatpersonen: Titel/Beschreibung der Startseite weichen vom Registereintrag (Vorab-HTML) ab");
+  // Die drei Uhren: Deutschland, Florida, London — in beiden Sprachen dieselben Zonen.
+  for (const sp of ["de", "en"] as const) {
+    ok(JSON.stringify(GLOBAL_WOERTER[sp].uhren.map((u) => u.zone)) === JSON.stringify(["Europe/Berlin", "America/New_York", "Europe/London"]), `Uhren (${sp}): Zonen stimmen nicht`);
+  }
+  // Das Menü (auf jeder Business-Seite) führt zur Jahresbetreuung — mit demselben Preis.
+  const jbMenue = GLOBAL_MENUE.find((x) => x.pfad === "/business#jahresbetreuung");
+  ok(!!jbMenue && jbMenue.text.includes(globalJahresbetreuungPreisText("de")), "Menü: Eintrag Jahresbetreuung fehlt oder nennt einen anderen Preis als GLOBAL_JAHRESBETREUUNG");
+  // Nachrichtenlage: nur echte Meldungen mit Quelle, jung genug, ohne verbotene Wörter.
+  const m = GLOBAL_SCHLAGZEILEN.meldungen;
+  if (!m.length) hinweise.push("Nachrichtenlage: noch keine Meldungen — die Sektion erscheint erst mit Einträgen");
+  const grenze = new Date(new Date(`${GLOBAL_SCHLAGZEILEN.stand}T12:00:00Z`).getTime() - 365 * 86_400_000).toISOString().slice(0, 10);
+  ok(new Set(m.map((x) => x.de)).size === m.length && new Set(m.map((x) => x.en)).size === m.length, "Nachrichtenlage: eine Schlagzeile steht doppelt (die Liste nutzt sie als Schlüssel)");
+  for (const x of m) {
+    ok(/^https:\/\//.test(x.url) && x.quelle.trim().length > 1, `Schlagzeile ohne Quelle oder https-Adresse: ${x.de}`);
+    ok(/^\d{4}-\d{2}-\d{2}$/.test(x.datum) && x.datum >= grenze && x.datum <= GLOBAL_SCHLAGZEILEN.stand, `Schlagzeile mit Datum außerhalb der zwölf Monate: ${x.datum} ${x.de}`);
+    ok(x.de.length <= 70 && x.en.length <= 70, `Schlagzeile länger als 70 Zeichen: ${x.de}`);
+    const funde = globalWortPruefen([x.de, x.kurzDe].join("\n")).concat(globalWortPruefen([x.en, x.kurzEn].join("\n")));
+    ok(funde.length === 0, `Schlagzeile verletzt die Wortregeln (${funde.map((y) => y.treffer).join(", ")}): ${x.de}`);
+  }
+}
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 abschnitt("Ergebnis");

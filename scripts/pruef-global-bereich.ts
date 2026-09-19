@@ -19,6 +19,9 @@
 //   7. DATEITYP aus echten Magic Bytes — und Tarnungen (HTML als .pdf, SVG, EXE …).
 //   8. DATEINAME: Pfad, Steuer- und Richtungszeichen, Überlänge, Kopfzeile.
 //   9. ZUGRIFF im Office als reine Funktion; die Fenster-Drossel.
+//  10. JAHRESBETREUUNG (19.09.2026, E-196): ab wann die Rechnung fürs zweite Jahr
+//      gestellt wird (Gründungstag vor Start, 29.02., Jahreswechsel, Unsinn), und
+//      dass der Tageslauf sie auch für abgeschlossene Aufträge stellt.
 //
 // Aufruf: npx tsx scripts/pruef-global-bereich.ts        (Exit 1 bei Fehlern)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -375,6 +378,32 @@ ok(!!kundensatz("Ihr Zugang wurde freigeschaltet."), "Kundensatz: fremde Zusage 
 
 const drossel = R.fensterDrossel(2, 1000);
 gleich([drossel("a", 0), drossel("a", 1), drossel("a", 2), drossel("b", 2), drossel("a", 999), drossel("a", 1001), drossel("a", 1002), drossel("a", 1003)], [false, false, true, false, true, false, false, true], "Fenster-Drossel: zwei je Sekunde, je Schlüssel");
+
+// ═══ JAHRESBETREUUNG: WANN DIE RECHNUNG FÜRS ZWEITE JAHR KOMMT (19.09.2026, E-196) ═══
+// Rund einen Monat vor dem ersten Jahrestag der Gründung (ohne Gründungstag: des Starts) bekommt die
+// zuständige Person EINE Aufgabe. Die Regel ist rein — hier gerechnet; der Lauf selbst im Prüfstand mit Datenbank.
+abschnitt("Jahresbetreuung: Rechnung fürs zweite Jahr");
+gleich(B.GLOBAL_JAHRESBETREUUNG_VORLAUF_TAGE, 30, "Vorlauf der Rechnung");
+gleich(B.globalJahresbetreuungRechnungAb({ gegruendetAm: "2026-10-01" }), { jahrestag: "2027-10-01", rechnungAb: "2027-09-01", basis: "gruendung" }, "Gründung 01.10.2026");
+gleich(B.globalJahresbetreuungRechnungAb({ gegruendetAm: "2026-10-01", gestartetAm: "2026-09-20" }), { jahrestag: "2027-10-01", rechnungAb: "2027-09-01", basis: "gruendung" }, "Gründungstag geht vor dem Start");
+gleich(B.globalJahresbetreuungRechnungAb({ gegruendetAm: null, gestartetAm: "2026-09-20" }), { jahrestag: "2027-09-20", rechnungAb: "2027-08-21", basis: "start" }, "ohne Gründungstag zählt der Start");
+gleich(B.globalJahresbetreuungRechnungAb({ gegruendetAm: "2026-01-15" }), { jahrestag: "2027-01-15", rechnungAb: "2026-12-16", basis: "gruendung" }, "Rechnung noch im Gründungsjahr (Jahreswechsel)");
+gleich(B.globalJahresbetreuungRechnungAb({ gegruendetAm: "2028-02-29" }), { jahrestag: "2029-02-28", rechnungAb: "2029-01-29", basis: "gruendung" }, "Gründung am 29.02. — Jahrestag am 28.02.");
+gleich(B.globalJahresbetreuungRechnungAb({ gegruendetAm: "2027-02-29", gestartetAm: "2026-12-01" }), { jahrestag: "2027-12-01", rechnungAb: "2027-11-01", basis: "start" }, "ein Tag, den es nicht gibt, ist kein Gründungstag");
+gleich(B.globalJahresbetreuungRechnungAb({}), null, "weder Gründung noch Start: keine Rechnung");
+gleich(B.globalJahresbetreuungRechnungAb({ gegruendetAm: "irgendwann", gestartetAm: "" }), null, "Unsinn: keine Rechnung");
+{
+  // Der Lauf: die Aufgabe hat EINEN Schlüssel je Auftrag, steht VOR dem Ausstieg für abgeschlossene Aufträge
+  // (ein Paket ist nach Wochen geliefert, der Jahrestag kommt danach) und legt keinen Termin im Kalender des Kunden an.
+  const fs = await import("node:fs");
+  const q = fs.readFileSync(new URL("../server/lib/fiaon-global-bereich.ts", import.meta.url), "utf8");
+  const lauf = q.slice(q.indexOf("export async function globalTageslauf"));
+  const schritt = lauf.slice(lauf.indexOf("// (d) Jahresbetreuung"), lauf.indexOf("if (!laeuft || !g.gestartet_am) continue;"));
+  ok(schritt.length > 200 && lauf.indexOf("// (d) Jahresbetreuung") < lauf.indexOf("if (!laeuft || !g.gestartet_am) continue;"), "Tageslauf: die Jahresbetreuung steht hinter dem Ausstieg für abgeschlossene Aufträge — sie käme nie");
+  ok(schritt.includes("`global:${ref}:jahresbetreuung:2`") && schritt.includes("aufgabeDa(schluessel)") && schritt.includes("globalJahresbetreuungRechnungAb("), "Tageslauf: Schlüssel, Doppel-Sperre oder die reine Regel fehlen");
+  ok(schritt.includes("Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen") && !/fiaon_global_fristen|global_frist/.test(schritt), "Tageslauf: falscher Titel — oder die Rechnung landet im Pflichtenkalender des Kunden");
+  ok(/g\.jahresbetreuung, g\.jahresbetreuung_preis_cents/.test(lauf), "Tageslauf: liest die Jahresbetreuung nicht aus der Akte");
+}
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 abschnitt("Ergebnis");

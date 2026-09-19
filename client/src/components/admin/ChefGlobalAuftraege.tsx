@@ -19,6 +19,9 @@
 //   · „Auftrag stornieren": Grund ist Pflicht (bezahlt: ein ganzer Satz). „Mit
 //     Erstattung" bewegt KEIN Geld — es entsteht eine dringende Aufgabe für Justin,
 //     der von Hand überweist. Regeln: server/lib/fiaon-global-storno.ts.
+//   · Die Jahresbetreuung (19.09.2026, E-196): Hat der Kunde sie im Auftrag
+//     angekreuzt, steht unter dem Paket „Jahresbetreuung gebucht (ab Jahr 2)" mit
+//     dem Preis je Betreuungsjahr. Berechnet wird sie gesondert vor jedem Jahr.
 // Geld wird hier nicht gebucht: Der Zahlungseingang läuft über den einen Weg
 // (Zahlungen verbuchen), und mit ihm startet der Auftrag von selbst.
 //
@@ -29,6 +32,7 @@ import { useState } from "react";
 import { eur, datum, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
+import { JAHRESBETREUUNG_MARKE } from "@/pages/agent/global-logik";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-zahlen.css";
 import "@/styles/chef-mailwerk.css";
@@ -52,6 +56,8 @@ interface Zeile {
   erinnerung1Am: string | null; erinnerung2Am: string | null; anrufAufgabeAm: string | null; taktHinweis: string | null;
   storniertAm: string | null; storniertVon: string | null; stornoGrund: string | null; stornoErstattung: boolean;
   vertragUrl: string | null; rechnungUrl: string | null; zahlungsseite: string | null;
+  /** E-196: im Auftrag angekreuzt; Preis je Betreuungsjahr vom Tag der Bestellung. Fehlt bei alten Antworten. */
+  jahresbetreuung?: boolean; jahresbetreuungPreisCents?: number | null;
 }
 interface Antwort {
   ok: boolean; zeilen: Zeile[];
@@ -143,6 +149,7 @@ export default function ChefGlobalAuftraege() {
                     <span className={`cm-klartext cm-zahl ${z.katalogCents != null && z.katalogCents !== z.betragCents ? "rot" : ""}`}>{eur(z.betragCents)} einmalig</span>
                     {z.katalogCents != null && z.katalogCents !== z.betragCents && <span className="cm-klartext cg-rot">Katalog sagt {eur(z.katalogCents)} — vor der Buchung klären.</span>}
                     {z.ustHinweis && <span className="cm-klartext cg-rot">USt-IdNr. fehlt — Rechnung ohne Steuerausweis.</span>}
+                    {z.jahresbetreuung === true && <span className="cm-klartext cg-jahr">{JAHRESBETREUUNG_MARKE}{z.jahresbetreuungPreisCents ? ` · ${eur(z.jahresbetreuungPreisCents)} je Betreuungsjahr` : ""}</span>}
                   </td>
                   <td>
                     <span className={`cg-marke cg-marke-${z.status}`}>{STATUS_TEXT[z.status]}</span>

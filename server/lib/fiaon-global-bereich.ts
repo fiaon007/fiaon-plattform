@@ -64,12 +64,12 @@ import {
   GLOBAL_ETAPPEN, GLOBAL_ETAPPE_MAX, GLOBAL_FRIST_STANDARDHINWEIS, GLOBAL_TEXT_UNTERLAGEN, GLOBAL_UNTERLAGEN_NACHFASS_TAGE, GLOBAL_VERLAUF_TEXT,
   globalDokumentArt, globalDokumentArtText, globalDokumentArtenFuer, globalDurchgangMonat, globalEtappeStand, globalEtappeText, globalFristAbstandText,
   globalFristMarke, globalTageslaufFenster, globalHatMonatsdurchgang, globalHeimatMeldungSchritt, globalKundeDarfArt, globalPaketEtappeBis, globalPflichtFristen, globalTagAlsText,
-  globalUnterlagenOffen, globalUnterlagenStand, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName,
+  globalUnterlagenOffen, globalUnterlagenStand, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName, globalJahresbetreuungRechnungAb,
   type BereichSprache, type GlobalGesellschaft,
 } from "@shared/fiaon-global-bereich";
 import {
   ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalEinstellungen, globalMailSenden, globalMeinAuftragUrl, globalSpracheVon,
-  globalStatusAus, globalStichtagSetzen, type GlobalMail,
+  globalStatusAus, globalStichtagSetzen, globalJahresbetreuungAus, globalEur, type GlobalMail,
 } from "./fiaon-global-auftrag";
 import { globalWiderrufsfrist } from "./fiaon-global-vertrag";
 import { GLOBAL_DATEI_MAX_BYTES, GLOBAL_DOKUMENTE_MAX, fensterDrossel, globalDateiTyp, globalDateiname } from "./fiaon-global-bereich-regeln";
@@ -321,9 +321,17 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     : null;
   const verlaufAlles = verlaufBauen(l, geschrieben, paketName);
   const bezahlt = String(b.payment_status) === "paid";
+  // 19.09.2026 (E-196): Jahresbetreuung — angekreuzt ja/nein und der Preis je Betreuungsjahr. Das Office sieht
+  // dazu, ab wann die Rechnung für das zweite Betreuungsjahr zu stellen ist: dieselbe Regel wie im Tageslauf.
+  const jb = globalJahresbetreuungAus(akte);
+  const jbPlan = fuer === "office" && jb.jahresbetreuung
+    ? globalJahresbetreuungRechnungAb({ gegruendetAm: g?.gegruendetAm ?? null, gestartetAm: akte.gestartet_am ? berlinDatum(new Date(akte.gestartet_am)) : null })
+    : null;
   return {
     ref, status: l.status, sprache, paket: String(akte.paket_key), paketName,
     auftraggeber: firma.art === "privat" ? "privat" : "unternehmen",
+    ...jb,
+    ...(jbPlan ? { jahresbetreuungRechnungAb: jbPlan.rechnungAb, jahresbetreuungJahrestag: jbPlan.jahrestag, jahresbetreuungBasis: jbPlan.basis } : {}),
     ...(widerruf ? { widerruf } : {}),
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || ""), land: String(firma.land || akte.land || "") },
     zahlung: { status: bezahlt ? "bezahlt" : "offen", ...(!bezahlt && l.status === "offen" && b.payment_reference ? { zahlungsseite: `/zahlung/${b.payment_reference}?bereich=business` } : {}) },
@@ -428,7 +436,7 @@ export async function globalBereichListe(wer: { agentId: number; alle: boolean }
   await ensureGlobalBereich();
   const rows = (await sqlPool`
     SELECT g.ref, g.paket_key, g.land, g.firma, g.firma_name, g.status, g.etappe, g.stichtag, g.naechster_schritt, g.naechster_schritt_bis,
-           g.zustaendig_agent_id, g.created_at, g.bezahlt_am, g.vertrag_sprache,
+           g.zustaendig_agent_id, g.created_at, g.bezahlt_am, g.vertrag_sprache, g.jahresbetreuung, g.jahresbetreuung_preis_cents,
            a.payment_status, a.cancelled_at, a.archived_at, a.amount_due, a.pack_name, z.name AS zustaendig_name
       FROM fiaon_global_auftraege g
       JOIN fiaon_applications a ON a.ref = g.ref
@@ -463,6 +471,8 @@ export async function globalBereichListe(wer: { agentId: number; alle: boolean }
       ...(r.bezahlt_am ? { bezahltAm: iso(r.bezahlt_am) } : {}),
       betragCents: Math.round(Number(r.amount_due || 0) * 100),
       sprache: String(r.vertrag_sprache) === "en" ? "en" : "de",
+      // E-196: Marke „Jahresbetreuung gebucht (ab Jahr 2)" in der Liste.
+      ...globalJahresbetreuungAus(r),
     };
   });
 }
@@ -982,7 +992,7 @@ export function globalZugangAnfordern(emailRoh: unknown, ip: string): void {
 }
 
 // ── TAGESLAUF ────────────────────────────────────────────────────────────────
-export interface GlobalTageslaufErgebnis { ruhe: boolean; regelFristen: number; fristMails: number; fristAufgaben: number; durchgaenge: number; unterlagen: number; fehler: number }
+export interface GlobalTageslaufErgebnis { ruhe: boolean; regelFristen: number; fristMails: number; fristAufgaben: number; durchgaenge: number; unterlagen: number; jahresbetreuung: number; fehler: number }
 
 /** Gibt es die Aufgabe schon? auftragFuerKunden würde eine ERLEDIGTE wieder öffnen — deshalb vorher nachsehen (Muster Fristenwächter). */
 async function aufgabeDa(schluessel: string): Promise<boolean> {
@@ -1011,10 +1021,14 @@ function berlinMinutenVon(jetzt: Date): number {
  *       der Aufgabe und im Verlauf.
  *   (b) Monatlicher Durchgang (Banking, Kapital, VIP; nur gestartet): Aufgabe am Monatstag des Starts.
  *   (c) Unterlagen: fünf Tage nach dem Start unvollständig → EINE Aufgabe. Keine Kundenmail.
+ *   (d) Jahresbetreuung (19.09.2026, E-196; gestartet UND abgeschlossen — ein Paket ist nach Wochen
+ *       geliefert, der Jahrestag kommt danach): rund einen Monat vor dem ersten Jahrestag der Gründung
+ *       (ohne Gründungstag: des Starts) EINE Aufgabe an die zuständige Person — „Jahresbetreuung:
+ *       Rechnung für das zweite Betreuungsjahr stellen". Kein Termin im Kalender des Kunden, keine Mail.
  * Legt selbst keine Auftragstabelle an: Ohne den ersten Auftrag gibt es nichts zu tun.
  */
 export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalTageslaufErgebnis> {
-  const erg: GlobalTageslaufErgebnis = { ruhe: false, regelFristen: 0, fristMails: 0, fristAufgaben: 0, durchgaenge: 0, unterlagen: 0, fehler: 0 };
+  const erg: GlobalTageslaufErgebnis = { ruhe: false, regelFristen: 0, fristMails: 0, fristAufgaben: 0, durchgaenge: 0, unterlagen: 0, jahresbetreuung: 0, fehler: 0 };
   if (!globalTageslaufFenster(berlinMinutenVon(jetzt))) { erg.ruhe = true; return erg; }
   const [tabelle] = (await sqlPool`SELECT to_regclass('public.fiaon_global_auftraege') AS da`) as any[];
   if (!tabelle?.da) return erg;
@@ -1024,7 +1038,8 @@ export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalT
   const einstellungen = await globalEinstellungen();
 
   const auftraege = (await sqlPool`
-    SELECT g.ref, g.status, g.paket_key, g.firma_name, g.gestartet_am, g.gesellschaft, g.vertrag_sprache, g.zustaendig_agent_id, a.person_id
+    SELECT g.ref, g.status, g.paket_key, g.firma_name, g.gestartet_am, g.gesellschaft, g.vertrag_sprache, g.zustaendig_agent_id, a.person_id,
+           g.jahresbetreuung, g.jahresbetreuung_preis_cents
       FROM fiaon_global_auftraege g JOIN fiaon_applications a ON a.ref = g.ref
      WHERE g.status IN ('gestartet', 'abgeschlossen') AND a.payment_status = 'paid'
        AND a.cancelled_at IS NULL AND a.archived_at IS NULL AND a.merged_into IS NULL`) as any[];
@@ -1085,6 +1100,30 @@ export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalT
             `„${String(f.titel)}“ ist am ${globalTagAlsText(tag, "de")} fällig. Der Kunde ${mail.ok ? "hat heute die Erinnerung per Mail bekommen" : `hat KEINE Erinnerung bekommen — die Mail ging nicht raus (${mail.grund ?? "unbekannt"}); bitte erinnere ihn selbst, eine zweite Mail kommt nicht von allein`}. Bitte klären, ob Steuerberater bzw. US-CPA die Sache führen, und die Frist im Auftrag als erledigt eintragen, sobald sie es ist: ${globalOfficeAuftragPfad(ref)}`,
             marke === 7 || !mail.ok ? heute : isoPlusTage(heute, 2), marke === 7 || !mail.ok);
           erg.fristAufgaben++;
+        }
+      }
+
+      // (d) Jahresbetreuung — auch nach dem Abschluss: Der erste Jahrestag liegt fast immer dahinter. Die Regel
+      //     (rund einen Monat vor dem Jahrestag) steht rein in shared/fiaon-global-bereich.ts; der Schlüssel
+      //     macht die Aufgabe einmalig — auch wenn der Gründungstag später noch eingetragen wird.
+      const jb = globalJahresbetreuungAus(g);
+      if (jb.jahresbetreuung) {
+        const plan = globalJahresbetreuungRechnungAb({
+          gegruendetAm: json<GlobalGesellschaft>(g.gesellschaft, {}).gegruendetAm ?? null,
+          gestartetAm: g.gestartet_am ? berlinDatum(new Date(g.gestartet_am)) : null,
+        });
+        const schluessel = `global:${ref}:jahresbetreuung:2`;
+        if (plan && heute >= plan.rechnungAb && !(await aufgabeDa(schluessel))) {
+          const preis = globalEur(jb.jahresbetreuungPreisCents ?? 0);
+          await aufgabe(schluessel, `Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen — ${firma}`, [
+            `${firma} hat im Auftrag die Jahresbetreuung gebucht: ${preis} je Betreuungsjahr, alle Gebühren inklusive — auch die Staatsgebühr des Bundesstaats.`,
+            `Das zweite Jahr beginnt am ${globalTagAlsText(plan.jahrestag, "de")} (erster Jahrestag ${plan.basis === "gruendung" ? "der Gründung" : "des Starts — der Gründungstag ist im Auftrag noch nicht eingetragen"}).`,
+            `Bitte die Rechnung für das zweite Betreuungsjahr über ${preis} stellen und dem Kunden schicken. Sie entsteht nicht von selbst — stell sie mit der Leitung aus.`,
+            "Mit der Zahlung beginnt das Betreuungsjahr: Registered Agent, US-Adresse, Telefonnummer, US-Meldung und Jahresmeldung beim Bundesstaat laufen dann weiter über FIAON. Die Jahresbetreuung verlängert sich nicht von selbst — bleibt die Zahlung aus, endet sie, und der Kunde trägt die laufenden Kosten selbst (Vertrag, Ziffer 5). Dann bitte im Auftrag eine interne Notiz hinterlassen.",
+            `Der Auftrag im Office: ${globalOfficeAuftragPfad(ref)}`,
+          ].join("\n"), heute);
+          await verlaufSchreiben(ref, { art: "jahresbetreuung", text: `Aufgabe „Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen“ vergeben — das zweite Jahr beginnt am ${globalTagAlsText(plan.jahrestag, "de")}.`, sichtbar: false });
+          erg.jahresbetreuung++;
         }
       }
 

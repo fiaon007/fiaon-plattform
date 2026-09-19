@@ -404,7 +404,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Registered Agent", "Jährlich — ohne ihn keine gültige Anschrift im Bundesstaat"],
       ["Heimatland", "Meldung der Beteiligung und Steuererklärung — mit Ihrem Steuerberater"],
       ["Im Paket", "Erste US-Meldung durch US-CPA · Pflichtenkalender ab Global Banking"],
-      ["Ab Jahr zwei", "Laufende Kosten nennen wir Ihnen rechtzeitig vorab"],
+      ["Ab Jahr zwei", "Jahresbetreuung: 699 € im Jahr, alle Gebühren inklusive"],
     ],
     kurz: "Eine US-Gesellschaft mit einem ausländischen Gesellschafter muss der IRS jedes Jahr Form 5472 zusammen mit Form 1120 übermitteln — auch ohne Umsatz. Dazu kommen die Jahresmeldung oder Jahresgebühr des Bundesstaats und der Registered Agent. Im Heimatland ist die Beteiligung zu melden und die Gesellschaft in der Regel dort zu versteuern. FIAON führt den Pflichtenkalender; die erste jährliche US-Meldung erstellt unser US-CPA im Festpreis.",
     bloecke: [
@@ -447,9 +447,9 @@ export const LEISTUNGEN: GlobalSeite[] = [
     fragen: [
       { f: "Muss ich Form 5472 auch ohne Umsatz abgeben?", a: "Ja. Die Pflicht hängt nicht am Umsatz, sondern daran, dass die Gesellschaft einem ausländischen Gesellschafter gehört und Geschäfte mit ihm meldet — Gründungseinlagen zählen bereits dazu." },
       { f: "Was passiert, wenn ich die Frist verpasse?", a: "Die IRS kann eine Strafe von 25.000 US-Dollar je Formular und Jahr festsetzen, bei fortdauerndem Versäumnis nach einer Aufforderung zusätzliche Beträge. Deshalb steht die Frist im Pflichtenkalender, und die erste Meldung erstellt unser US-CPA." },
-      { f: "Wer erstellt die jährliche US-Meldung?", a: "Im ersten Jahr unser US-CPA — das Honorar ist im Festpreis enthalten. Ab dem zweiten Jahr nennen wir Ihnen die Kosten rechtzeitig vorab." },
+      { f: "Wer erstellt die jährliche US-Meldung?", a: "Im ersten Jahr unser US-CPA — das Honorar ist im Festpreis enthalten. Ab dem zweiten Jahr übernimmt das die Jahresbetreuung für 699 € im Jahr, alle Gebühren inklusive." },
       { f: "Muss ich die US-Gesellschaft dem Finanzamt melden?", a: "In Deutschland ja, nach § 138 AO zusammen mit der Steuererklärung. In Österreich und der Schweiz gelten eigene Regeln; unser Partner-Steuerberater nennt sie Ihnen vor der Gründung." },
-      { f: "Was kostet die US-Gesellschaft ab dem zweiten Jahr?", a: "Staatsgebühr, Registered Agent und die jährliche US-Meldung. Die Beträge hängen vom Bundesstaat ab; die Aufstellung steht auf der Seite „Kosten“." },
+      { f: "Was kostet die US-Gesellschaft ab dem zweiten Jahr?", a: "Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir all das für 699 € im Jahr, alle Gebühren inklusive; die Einzelbeträge je Bundesstaat stehen auf der Seite „Kosten“." },
     ],
     paket: "global_banking",
     weiter: ["/business/wissen/form-5472", "/business/kosten", "/business/aus-deutschland", "/business/aus-der-schweiz"],

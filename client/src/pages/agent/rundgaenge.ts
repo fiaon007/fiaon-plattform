@@ -904,6 +904,15 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "Anschrift und USt-IdNr. und „einmalig“. Steht in einer Zeile „Kein unterschriebener Auftrag“, wurde die Bestellung nicht "
       + "über /business/start angelegt — dann den Kunden dort unterschreiben lassen.",
   },
+  {
+    // 19.09.2026 (E-196) mitgezogen — ohne `ziel`: Die Zeile steht nur bei Aufträgen mit Jahresbetreuung.
+    titel: "„Jahresbetreuung gebucht (ab Jahr 2)“ unter dem Paket.",
+    text: "Die Jahresbetreuung kreuzt der Kunde im Auftrag an: Ab dem zweiten Jahr nach der Gründung übernimmt FIAON Registered Agent, "
+      + "US-Adresse, Telefonnummer, US-Meldung und Jahresmeldung beim Bundesstaat samt Staatsgebühr — zum Preis in der Zeile, alle "
+      + "Gebühren inklusive. Heute berechnet ist nur der Paketpreis; die Rechnung nennt die Jahresbetreuung als Hinweis. Sie verlängert "
+      + "sich nicht von selbst: Rund einen Monat vor dem ersten Jahrestag bekommt die zuständige Person die Aufgabe, die Rechnung fürs "
+      + "zweite Jahr zu stellen — mit deren Zahlung beginnt das Betreuungsjahr.",
+  },
 ];
 
 // ── /agent/global (17.09.2026, E-188) — die Liste der Global-Aufträge ───────
@@ -939,6 +948,15 @@ export const RUNDGANG_GLOBAL: RundgangSchritt[] = [
       + "Alter des Auftrags. Je Zeile: Stand, Etappe als vier Striche, Stichtag, nächster Schritt des Kunden, fehlende Unterlagen "
       + "und die nächste Frist. Ein Klick — oder Enter — öffnet die Akte.",
     tipp: "Steht beim Stichtag „fehlt“, ist der Auftrag gestartet, aber der Tag aus dem Startgespräch noch nicht eingetragen. An ihm hängt die Geld-zurück-Zusage.",
+  },
+  {
+    // 19.09.2026 (E-196) mitgezogen — ohne `ziel`: Die Marke steht nur an Aufträgen mit Jahresbetreuung.
+    titel: "Grüne Marke „Jahresbetreuung gebucht (ab Jahr 2)“.",
+    text: "Der Kunde hat im Auftrag die Jahresbetreuung angekreuzt: Ab dem zweiten Jahr übernimmt FIAON Registered Agent, US-Adresse, "
+      + "Telefonnummer, US-Meldung und Jahresmeldung beim Bundesstaat samt Staatsgebühr — alle Gebühren inklusive. Heute bezahlt er nur "
+      + "den Paketpreis. Rund einen Monat vor dem ersten Jahrestag der Gründung bekommst du die Aufgabe, die Rechnung fürs zweite Jahr "
+      + "zu stellen; sie verlängert sich nicht von selbst.",
+    tipp: "Ohne Marke hat der Kunde sie nicht gebucht. Schreibt er, dass er sie dazunehmen möchte, gib es an die Leitung.",
   },
 ];
 
@@ -1000,6 +1018,15 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     text: "Grün markiert ist, was der Kunde sieht; grau bleibt intern. Eine Notiz ist zuerst intern. Erst mit dem Haken „für den "
       + "Kunden sichtbar“ landet sie in seinem Verlauf — dann in Sie-Form und ohne Zusage.",
     tipp: "Halt den monatlichen Durchgang hier fest: intern, was besprochen wurde — sichtbar, was als Nächstes passiert.",
+  },
+  {
+    // 19.09.2026 (E-196) mitgezogen — ohne `ziel`: Marke und Zeile stehen nur bei gebuchter Jahresbetreuung.
+    titel: "Jahresbetreuung gebucht? Dann steht es oben — und rechts, wann die Rechnung kommt.",
+    text: "Hat der Kunde im Auftrag die Jahresbetreuung angekreuzt, trägt der Kopf die grüne Marke „Jahresbetreuung gebucht (ab Jahr 2)“. "
+      + "Rechts unter „Vertrag und Rechnung“ steht der Preis je Betreuungsjahr, wann das zweite Jahr beginnt und ab wann du die Rechnung "
+      + "dafür stellst — an diesem Tag kommt die Aufgabe „Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen“. Gerechnet "
+      + "wird ab dem Gründungstag; solange er fehlt, ab dem Start.",
+    tipp: "Die Jahresbetreuung verlängert sich nicht von selbst. Mit der Zahlung der Jahresrechnung beginnt das Betreuungsjahr — bleibt sie aus, endet sie.",
   },
   {
     ziel: ".gl-nicht",

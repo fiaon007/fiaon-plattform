@@ -207,7 +207,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was kostet die Gesellschaft ab dem zweiten Jahr?",
-      "a": "Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Die Höhe hängt vom Bundesstaat ab; wir nennen sie Ihnen rechtzeitig vorab."
+      "a": "Mit der Jahresbetreuung 699 € im Jahr, alle Gebühren inklusive: Registered Agent, US-Adresse und Telefonnummer, die jährliche US-Meldung durch unseren US-CPA, die Jahresmeldung beim Bundesstaat samt Staatsgebühr und der Pflichtenkalender. Sie buchen sie im Auftrag dazu; sie verlängert sich nicht von selbst."
     },
     {
       "f": "Kann ich sofort beauftragen?",
@@ -219,7 +219,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie bezahle ich?",
-      "a": "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Es gibt kein Abo und keine Raten."
+      "a": "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Das Paket zahlen Sie einmal, ohne Abo und ohne Raten; die Jahresbetreuung ab dem zweiten Jahr ist freiwillig und verlängert sich nicht von selbst."
     },
     {
       "f": "Für wen passt es nicht?",
@@ -273,7 +273,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does the company cost from the second year?",
-      "a": "From the second year onwards your company incurs running costs: the state fee, the registered agent and the annual US filing. The amount depends on the state; we tell you about it well in advance."
+      "a": "With the annual care plan €699 a year, all fees included: registered agent, US address and phone number, the annual US filing by our US CPA, the annual report to the state including the state fee, and the compliance calendar. You add it when you order; it does not renew automatically."
     },
     {
       "f": "Can I order straight away?",
@@ -285,7 +285,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How do I pay?",
-      "a": "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. There is no subscription and there are no instalments."
+      "a": "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. You pay for the package once, with no subscription and no instalments; the annual care plan from the second year is optional and does not renew automatically."
     },
     {
       "f": "Who is it not for?",

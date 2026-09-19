@@ -326,9 +326,79 @@ export const GLOBAL_INKLUSIVE = {
 
 /** Was ab dem zweiten Jahr anfällt — offen gesagt, nicht versteckt. */
 export const GLOBAL_LAUFEND = {
-  de: "Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Wir nennen sie Ihnen rechtzeitig vorab.",
-  en: "From the second year onwards your company incurs running costs: the state fee, the registered agent and the annual US filing. We tell you about them well in advance.",
+  de: "Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir das für 699 € im Jahr – alle Gebühren inklusive.",
+  en: "From the second year onwards your company incurs running costs: the state fee, the registered agent and the annual US filing. With the annual care plan we take care of all of it for €699 a year – all fees included.",
 } as const;
+
+// ══════════════════════════════════════════════════════════════════════════
+// JAHRESBETREUUNG AB DEM ZWEITEN JAHR (19.09.2026, E-196)
+//
+// Justin: „Egal ob ein Unternehmen eine US LLC gründet oder eine Privatperson:
+// Für 699 € im Jahr kümmern wir uns fortlaufend um alles (Steuerbescheid,
+// Telefonnummer, Adresse und co.). Füge und pflege das bitte auf jeder Seite
+// neu ein." Entscheidungen vom selben Tag: ALLE Gebühren inklusive — auch die
+// Staatsgebühr des Bundesstaats — und im Auftrag ankreuzbar (neue
+// Vertragsfassung). Das erste Jahr steckt in jedem Paket (Registered Agent,
+// Adresse, Telefon, erste US-Meldung); die Jahresbetreuung beginnt danach.
+//
+// Sie verlängert sich NICHT von selbst: Vor jedem Betreuungsjahr kommt eine
+// Rechnung, mit ihrer Zahlung beginnt das Jahr. So gibt es keine Laufzeitfalle
+// für Verbraucher (§ 309 Nr. 9 BGB) und keine Kündigungsfrist, die jemand
+// verpasst. Die Seite, der Auftrag, der Vertrag und die Rechnung lesen diese
+// Sätze — der Preis steht nur hier (preisCents).
+// ══════════════════════════════════════════════════════════════════════════
+export const GLOBAL_JAHRESBETREUUNG = {
+  preisCents: 69900,
+  de: {
+    titel: "Jahresbetreuung",
+    marke: "Ab dem zweiten Jahr",
+    preisZeile: "699 € im Jahr",
+    kurz: "Ab dem zweiten Jahr: 699 € im Jahr – wir kümmern uns fortlaufend um alles, alle Gebühren inklusive.",
+    lead: "Das erste Jahr steckt in jedem Paket. Ab dem zweiten Jahr halten wir Ihre Gesellschaft für 699 € im Jahr am Laufen – mit allen Gebühren, ohne dass Sie eine Frist im Kopf behalten müssen.",
+    leistungen: [
+      "Registered Agent und US-Geschäftsadresse",
+      "US-Telefonnummer",
+      "Jährliche US-Meldung (Form 5472 mit Form 1120) durch unseren US-CPA",
+      "Jahresmeldung beim Bundesstaat – die Staatsgebühr ist enthalten",
+      "Pflichtenkalender mit allen US-Fristen",
+      "Ihr fester Ansprechpartner",
+    ],
+    bedingungen: "Beginn mit dem zweiten Jahr nach der Gründung. Berechnet wird jährlich im Voraus; die Jahresbetreuung verlängert sich nicht von selbst – mit der Zahlung der Jahresrechnung beginnt das nächste Betreuungsjahr.",
+    buchen: "Jahresbetreuung ab dem zweiten Jahr dazubuchen – 699 € im Jahr, alle Gebühren inklusive",
+    gebucht: "Jahresbetreuung ab dem zweiten Jahr: 699 € im Jahr, alle Gebühren inklusive",
+    nichtHeute: "Heute wird nur der Paketpreis fällig; die Jahresbetreuung berechnen wir erst zum zweiten Jahr.",
+    // Vertragssprache (Ziffern 2 und 5) — kein „Ihr", „unser", „wir" (pruef-global-vertrag.ts).
+    vertrag: "Der Auftraggeber bucht die Jahresbetreuung dazu. Ab dem zweiten Jahr nach der Gründung übernimmt FIAON für 699 € je Betreuungsjahr: den Registered Agent und die US-Geschäftsadresse, die US-Telefonnummer, die jährliche US-Meldung (Form 5472 mit Form 1120) durch einen US-CPA aus dem Partnernetz von FIAON, die Jahresmeldung beim Bundesstaat einschließlich der Staatsgebühr, den Pflichtenkalender und einen festen Ansprechpartner. Alle Gebühren und Honorare für diese Leistungen sind im Preis enthalten.",
+    vertragBedingungen: "Die Jahresbetreuung wird jährlich im Voraus berechnet und verlängert sich nicht von selbst: Mit der Zahlung der Jahresrechnung beginnt das jeweilige Betreuungsjahr. Bleibt die Zahlung aus, endet die Jahresbetreuung; die laufenden Kosten der Gesellschaft trägt der Auftraggeber dann selbst.",
+  },
+  en: {
+    titel: "Annual care plan",
+    marke: "From the second year",
+    preisZeile: "€699 a year",
+    kurz: "From the second year: €699 a year – we take care of everything on an ongoing basis, all fees included.",
+    lead: "The first year is included in every package. From the second year we keep your company running for €699 a year – with all fees, and without you having to keep any deadline in mind.",
+    leistungen: [
+      "Registered agent and US business address",
+      "US phone number",
+      "Annual US filing (Form 5472 with Form 1120) by our US CPA",
+      "Annual report to the state – the state fee is included",
+      "Compliance calendar with every US deadline",
+      "Your dedicated contact",
+    ],
+    bedingungen: "Starts with the second year after formation. Billed annually in advance; the plan does not renew automatically – the next year of care begins when the annual invoice is paid.",
+    buchen: "Add the annual care plan from the second year – €699 a year, all fees included",
+    gebucht: "Annual care plan from the second year: €699 a year, all fees included",
+    nichtHeute: "Only the package price is due today; we invoice the annual care plan from the second year.",
+    vertrag: "The Client adds the annual care plan. From the second year after formation, FIAON takes over for €699 per year of care: the registered agent and the US business address, the US phone number, the annual US filing (Form 5472 with Form 1120) by a US CPA from FIAON’s partner network, the annual report to the state including the state fee, the compliance calendar and a dedicated contact. All fees and charges for these services are included in the price.",
+    vertragBedingungen: "The annual care plan is billed annually in advance and does not renew automatically: each year of care begins when the annual invoice is paid. If payment is not made, the annual care plan ends and the Client then bears the company’s running costs itself.",
+  },
+} as const;
+
+/** „699 €" bzw. „€699" — der Preis der Jahresbetreuung aus der einen Quelle. */
+export function globalJahresbetreuungPreisText(sprache: "de" | "en" = "de"): string {
+  const euro = Math.round(GLOBAL_JAHRESBETREUUNG.preisCents / 100);
+  return sprache === "en" ? "€" + euro.toLocaleString("en-GB") : euro.toLocaleString("de-DE") + " €";
+}
 
 // ── NICHT IM FESTPREIS (19.09.2026, E-192) ──────────────────────────────────
 // „Alle Gebühren inklusive" heißt: alle Gebühren für die Leistungen des Pakets.
@@ -337,13 +407,13 @@ export const GLOBAL_LAUFEND = {
 // (Ziffer 5: die laufenden Kosten ab dem zweiten Jahr trägt der Auftraggeber).
 export const GLOBAL_NICHT_INKLUSIVE = {
   de: [
-    "Laufende Kosten Ihrer Gesellschaft ab dem zweiten Jahr: Staatsgebühr, Registered Agent und die jährliche US-Meldung",
+    "Laufende Kosten Ihrer Gesellschaft ab dem zweiten Jahr: Staatsgebühr, Registered Agent und die jährliche US-Meldung – mit der Jahresbetreuung für 699 € im Jahr alles inklusive",
     "Laufende Buchhaltung und die Steuererklärungen in Ihrem Wohnsitzland",
     "Umsatzsteuer-Registrierungen in einzelnen US-Bundesstaaten",
     "Gebühren, Einlagen oder Zinsen, die ein Institut selbst verlangt",
   ],
   en: [
-    "Your company’s running costs from the second year: state fee, registered agent and the annual US filing",
+    "Your company’s running costs from the second year: state fee, registered agent and the annual US filing – all included with the annual care plan for €699 a year",
     "Ongoing bookkeeping and the tax returns in your country of residence",
     "Sales tax registrations in individual US states",
     "Fees, deposits or interest charged by an institution itself",
@@ -490,7 +560,7 @@ export const GLOBAL_GELD_ZURUECK = {
 } as const;
 
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte. */
-export const GLOBAL_VERTRAG_VERSION = "2026-09-19b";
+export const GLOBAL_VERTRAG_VERSION = "2026-09-19c";
 
 // ── FIAON IST IMMER DIE GEGENSEITE (19.09.2026, Florentines Fund) ─────────────
 // Im Bestellweg ließ sich als eigenes Unternehmen „FIAON LTD" mit einer Anschrift

@@ -88,14 +88,19 @@ export const PRIVAT_SEITE: GlobalSeite = {
         GLOBAL_PFLICHTHINWEIS.de[2],
       ],
     },
-    { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Der Einstieg für Privatpersonen und Gründer: Gesellschaft, Steuernummern und der erste Konto- und Kartenantrag.", paket: "global_struktur" },
+    // 19.09.2026 (E-196): Privatpersonen wählen aus allen vier Paketen — die Seite selbst ist seitdem eine Startseite
+    // (client/src/pages/site/business-privat.tsx); dieser Eintrag liefert Kopfdaten, FAQ-Markup und das Vorab-HTML.
+    { typ: "pakete", id: "pakete", h2: "Alle vier Pakete — auch für Privatpersonen", lead: "Dieselben Pakete und Festpreise wie für Unternehmen, für Sie als Endpreise — alle Gebühren und die Honorare unserer Partner inklusive." },
   ],
   fragen: [
     { f: "Kann ich als Privatperson eine US-Firma gründen?", a: "Ja. Sie brauchen weder eine eigene Firma noch einen Wohnsitz in den USA. Sie werden persönlich Gesellschafter der US-Gesellschaft; Vertrag und Rechnung laufen auf Ihren Namen." },
     { f: "Brauche ich eine Firma, um FIAON Global zu beauftragen?", a: "Nein. Im Auftrag wählen Sie „Privatperson“ und tragen Name und Anschrift ein. Registerauszug und Firmendaten entfallen." },
     { f: "Habe ich als Privatperson ein Widerrufsrecht?", a: "Wenn Sie als Verbraucher handeln, ja — das gesetzliche Widerrufsrecht von vierzehn Tagen ab Vertragsschluss. Vor Ablauf beginnen wir nur auf Ihren ausdrücklichen Wunsch; dann zahlen Sie im Fall des Widerrufs einen angemessenen Anteil für bereits Erbrachtes." },
-    { f: "Gilt der Festpreis auch für Privatpersonen?", a: `Ja, als Endpreis: ab ${globalPreisText("global_struktur")} für Global Struktur, mit allen Gebühren und Partner-Honoraren des Pakets.` },
+    { f: "Gilt der Festpreis auch für Privatpersonen?", a: `Ja, als Endpreis — für alle vier Pakete, ab ${globalPreisText("global_struktur")} für Global Struktur, mit allen Gebühren und Partner-Honoraren des Pakets.` },
+    { f: "Welche Pakete kann ich als Privatperson wählen?", a: "Alle vier: Global Struktur für den sauberen Start, Global Banking, Global Kapital und Global VIP, wenn Sie die Kartenleiter und später ein Bankdarlehen planen." },
+    { f: "Was kostet die Gesellschaft ab dem zweiten Jahr?", a: "Mit der Jahresbetreuung 699 € im Jahr, alle Gebühren inklusive — Registered Agent, US-Adresse und Telefon, die jährliche US-Meldung und die Jahresmeldung beim Bundesstaat samt Staatsgebühr. Sie verlängert sich nicht von selbst." },
     { f: "Kann ich die US-Gesellschaft später auf meine Firma übertragen?", a: "Grundsätzlich ja. Eine Übertragung hat steuerliche Folgen in beiden Ländern; das prüfen Sie vorher mit Ihrem Steuerberater." },
+    { f: "Muss ich in die USA reisen?", a: "In der Regel nicht. Unser Team vor Ort in Miami reicht ein und nimmt Termine wahr; Sie unterschreiben digital. Wer den Aufbau persönlich erleben möchte, wählt Global VIP — Flug und Hotel für den Auftakt in Miami sind dort im Festpreis." },
     { f: "Welche Unterlagen brauche ich als Privatperson?", a: "Ihren Reisepass, einen Adressnachweis, den gewünschten Namen der Gesellschaft in drei Varianten und eine kurze Beschreibung der geplanten Tätigkeit." },
   ],
   paket: "global_struktur",

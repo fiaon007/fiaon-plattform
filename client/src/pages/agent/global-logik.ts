@@ -20,6 +20,11 @@
 // GET  /api/fiaon/agent/global/auftraege        → { ok, zeilen[] }
 // GET  /api/fiaon/agent/global/auftraege/:ref   → { ok, auftrag }
 // 403 = kein Zugriff (nur zuständige Person, Vertriebsleitung, Admin/Chef).
+//
+// 19.09.2026 (E-196): Beide Antworten tragen `jahresbetreuung` (im Auftrag
+// angekreuzt) und den Preis je Betreuungsjahr; die Akte dazu, ab wann die
+// Rechnung für das zweite Betreuungsjahr gestellt wird. Die Marke dafür steht
+// hier EINMAL (JAHRESBETREUUNG_MARKE) — Liste, Akte und Chefbüro lesen sie.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalKatalog, globalPaket } from "@shared/fiaon-global";
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
@@ -39,7 +44,12 @@ export interface GlobalZeile {
   offeneUnterlagen: number; naechsteFrist: GlobalFristKurz | null;
   zustaendig: { id: number; name: string } | null;
   alterTage: number; bezahltAm: string | null; betragCents: number;
+  /** E-196: Jahresbetreuung ab dem zweiten Jahr im Auftrag angekreuzt. */
+  jahresbetreuung: boolean;
 }
+
+/** Die Marke für einen Auftrag mit Jahresbetreuung (E-196) — eine Stelle für Liste, Akte und Chefbüro. */
+export const JAHRESBETREUUNG_MARKE = "Jahresbetreuung gebucht (ab Jahr 2)";
 
 export interface GlobalEtappe { nr: number; titel: string; text: string; stand: "fertig" | "jetzt" | "offen"; seit: string | null }
 export interface GlobalUnterlage { art: string; titel: string; hinweis: string; vorhanden: boolean }
@@ -54,6 +64,11 @@ export interface GlobalAkte {
   /** 19.09.2026 (E-191): Wer beauftragt hat — und beim Privatauftrag die Widerrufsfrist. */
   auftraggeber: "unternehmen" | "privat";
   widerruf: { fristEnde: string; startAb: string; sofortBeginn: boolean } | null;
+  /**
+   * 19.09.2026 (E-196): im Auftrag angekreuzt, Preis je Betreuungsjahr, und — sobald Start oder Gründung
+   * bekannt sind — der Beginn des zweiten Jahres und der Tag, ab dem die Rechnung dafür gestellt wird.
+   */
+  jahresbetreuung: { gebucht: boolean; preisCents: number | null; jahrestag: string | null; rechnungAb: string | null; basis: "gruendung" | "start" | null };
   firma: { name: string; ort: string; land: string };
   zahlung: { status: "offen" | "bezahlt"; zahlungsseite: string | null };
   etappe: number; etappen: GlobalEtappe[];
@@ -164,6 +179,8 @@ export function zeileLesen(roh: unknown): GlobalZeile | null {
     zustaendig: txt(z.name) ? { id: zahl(z.id, 0), name: txt(z.name) } : null,
     alterTage: Math.max(0, Math.round(zahl(o.alterTage, 0))), bezahltAm: txt(o.bezahltAm) || null,
     betragCents: zahl(o.betragCents, globalKatalog(o.paket)?.preisCents ?? 0),
+    // Nur ein echtes true — eine halbe Antwort macht aus keinem Auftrag einen mit Jahresbetreuung.
+    jahresbetreuung: o.jahresbetreuung === true,
   };
 }
 export function zeilenLesen(json: unknown): GlobalZeile[] {
@@ -211,10 +228,20 @@ export function akteLesen(json: unknown): GlobalAkte | null {
   const apName = txt(ap.name) || [txt(ap.vorname), txt(ap.nachname)].filter(Boolean).join(" ");
   const w = ding(a.widerruf);
   const fristEnde = isoTagAus(w.fristEnde); const startAb = isoTagAus(w.startAb);
+  const jbGebucht = a.jahresbetreuung === true;
+  const jbPreis = zahl(a.jahresbetreuungPreisCents, NaN);
+  const jbBasis = txt(a.jahresbetreuungBasis);
   return {
     ref, status, sprache: txt(a.sprache) === "en" ? "en" : "de",
     auftraggeber: txt(a.auftraggeber) === "privat" || txt(voll.art) === "privat" ? "privat" : "unternehmen",
     widerruf: fristEnde && startAb ? { fristEnde, startAb, sofortBeginn: w.sofortBeginn === true } : null,
+    jahresbetreuung: {
+      gebucht: jbGebucht,
+      preisCents: jbGebucht && Number.isFinite(jbPreis) && jbPreis > 0 ? jbPreis : null,
+      jahrestag: jbGebucht ? isoTagAus(a.jahresbetreuungJahrestag) : null,
+      rechnungAb: jbGebucht ? isoTagAus(a.jahresbetreuungRechnungAb) : null,
+      basis: jbGebucht && (jbBasis === "gruendung" || jbBasis === "start") ? jbBasis : null,
+    },
     paket: txt(a.paket), paketName: txt(a.paketName) || globalKatalog(a.paket)?.label || txt(a.paket) || "FIAON Global",
     betragCents: a.betragCents != null && Number.isFinite(Number(a.betragCents)) ? Number(a.betragCents) : globalKatalog(a.paket)?.preisCents ?? null,
     firma: { name: txt(firma.name) || txt(voll.name) || "Ohne Firmennamen", ort: txt(firma.ort) || txt(voll.ort), land: txt(firma.land) || txt(voll.land) },
@@ -416,6 +443,7 @@ export const VERLAUF_ART: Record<string, string> = {
   auftrag: "Auftrag", zahlung: "Zahlung", start: "Start", etappe: "Etappe", schritt: "Nächster Schritt", "naechster-schritt": "Nächster Schritt",
   stichtag: "Stichtag", gesellschaft: "Gesellschaft", frist: "Frist", dokument: "Dokument", notiz: "Notiz", nachricht: "Nachricht des Kunden",
   zugang: "Zugang", mail: "E-Mail", abschluss: "Abschluss", abschliessen: "Abschluss", storno: "Storno",
+  jahresbetreuung: "Jahresbetreuung",
 };
 
 export const telLink = (telefon: string): string => `tel:${String(telefon || "").replace(/[^0-9+]/g, "")}`;

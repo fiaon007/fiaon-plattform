@@ -19,13 +19,18 @@
 // und Rahmen entscheidet das Institut — der Satz steht in der Seitenkarte.
 // Gestaltung: dieselbe Welt wie der Auftrag (global-start.css), Glas nur an
 // der Seitenkarte.
+//
+// 19.09.2026 (E-196): In der Seitenkarte unter „Ihr Auftrag" die Jahresbetreuung —
+// gebucht: Titel, Zeile und Bedingungen aus shared/fiaon-global.ts; nicht gebucht:
+// eine ruhige Zeile, dass der Ansprechpartner sie später dazunimmt. Keine eigene
+// Buchungsstrecke — eine Nachricht an den Ansprechpartner genügt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRoute } from "wouter";
 import { Dunkel } from "@/components/site/DunkleBuehne";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_AUFTRAG_WOERTER } from "@/i18n/global-auftrag";
-import { globalPreisText } from "@shared/fiaon-global";
+import { GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
 import "@/styles/global-start.css";
 import "@/styles/global-auftrag.css";
 
@@ -36,6 +41,8 @@ type Auftrag = {
   auftraggeber?: "unternehmen" | "privat";
   /** Nur Privatauftrag (E-191): Ende der Widerrufsfrist, Starttag ohne Wunsch nach sofortigem Beginn. */
   widerruf?: { fristEnde: string; startAb: string; sofortBeginn: boolean } | null;
+  /** 19.09.2026 (E-196): Jahresbetreuung ab dem zweiten Jahr im Auftrag angekreuzt. */
+  jahresbetreuung?: boolean;
   firma: { name: string; ort?: string; land?: string };
   zahlung?: { status: string; zahlungsseite?: string };
   etappe: number; etappen: Etappe[]; stichtag?: string | null;
@@ -132,6 +139,7 @@ export default function BusinessAuftrag() {
 
   const a = auftrag;
   const titel = stand === "da" && a ? a.firma.name : t.zugangTitel;
+  const J = GLOBAL_JAHRESBETREUUNG[s];
 
   return (
     <Dunkel seite="business" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
@@ -283,6 +291,14 @@ export default function BusinessAuftrag() {
                 <div className="ga-zeilen">
                   <div><span>{t.seiteReferenz}</span><b>{a.ref}</b></div>
                 </div>
+                {/* E-196: Jahresbetreuung — gebucht mit Bedingungen, sonst die ruhige Zeile (keine Buchungsstrecke). */}
+                {a.jahresbetreuung ? (
+                  <div className="ga-jahr">
+                    <h2>{J.titel}</h2>
+                    <p className="ga-jahr-zeile">{J.gebucht}</p>
+                    <p className="klein">{J.bedingungen}</p>
+                  </div>
+                ) : a.status !== "storniert" && <p className="klein">{t.jahrSpaeter(J.titel, J.preisZeile)}</p>}
 
                 {a.gesellschaft && (a.gesellschaft.name || a.gesellschaft.bundesstaat) && (
                   <>

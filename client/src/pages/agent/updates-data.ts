@@ -84,6 +84,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-19-jahresbetreuung",
+    date: "2026-09-19",
+    category: "Neu",
+    title: "FIAON Global: Jahresbetreuung ab dem zweiten Jahr — 699 € im Jahr, alle Gebühren inklusive, im Auftrag ankreuzbar",
+    summary:
+      "Ab dem zweiten Jahr nach der Gründung hält FIAON die US-Gesellschaft für 699 € im Jahr am Laufen: Registered Agent und "
+      + "US-Adresse, US-Telefonnummer, die jährliche US-Meldung durch den US-CPA, die Jahresmeldung beim Bundesstaat samt Staatsgebühr, "
+      + "den Pflichtenkalender und einen festen Ansprechpartner — alle Gebühren inklusive, auch die Staatsgebühr. Unternehmen und "
+      + "Privatpersonen kreuzen sie im Auftrag an; dann steht sie im Vertrag. Sie verlängert sich nicht von selbst.",
+    changes: [
+      "Im Auftrag (/business/start, Schritt „Vertrag“) steht die Jahresbetreuung mit ihren sechs Leistungen und einem Haken — nie vorangekreuzt. Setzt der Kunde ihn, steht sie im Vertrag (Ziffer 2, 3 und 5) und rechts unter „Ihr Auftrag“.",
+      "Heute berechnet wird nur der Paketpreis. Die Rechnung nennt die Jahresbetreuung in einer Hinweiszeile: ab dem zweiten Jahr, 699 € je Betreuungsjahr, jährlich gesondert berechnet — nicht Teil dieser Rechnung.",
+      "Keine Verlängerung von selbst: Vor jedem Betreuungsjahr kommt eine Rechnung, mit ihrer Zahlung beginnt das Jahr. Bleibt die Zahlung aus, endet die Jahresbetreuung, und der Kunde trägt die laufenden Kosten selbst.",
+      "Wo ihr es seht: im Raum „Global“ die Marke „Jahresbetreuung gebucht (ab Jahr 2)“ in der Liste und im Kopf der Akte; in der Akte rechts unter „Vertrag und Rechnung“, ab wann die Rechnung fürs zweite Jahr gestellt wird. Im Chefbüro unter Kunden → Global-Aufträge beim Paket.",
+      "Rund einen Monat vor dem ersten Jahrestag der Gründung (ohne eingetragenen Gründungstag: des Starts) bekommt die zuständige Person die Aufgabe „Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen“.",
+      "Der Kunde sieht die gebuchte Jahresbetreuung auf seiner Seite „Mein Auftrag“. Ohne sie steht dort eine Zeile, dass er sie später über seinen Ansprechpartner dazubuchen kann.",
+    ],
+    howto: [
+      "Startgespräch: Ist die Jahresbetreuung gebucht, kurz bestätigen. Ist sie es nicht, die laufenden Kosten ab dem zweiten Jahr erklären — und dass es die Jahresbetreuung für 699 € im Jahr gibt, alle Gebühren inklusive.",
+      "Schreibt dir ein Kunde, dass er die Jahresbetreuung später dazubuchen möchte: an die Leitung geben. Eine eigene Buchungsstrecke dafür gibt es nicht.",
+      "Aufgabe „Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen“: die Rechnung mit der Leitung ausstellen und dem Kunden schicken. Mit der Zahlung beginnt das Betreuungsjahr; bleibt sie aus, im Auftrag eine interne Notiz hinterlassen.",
+    ],
+    link: { href: "/agent/global", label: "Zum Raum Global" },
+  },
+  {
     id: "2026-09-19-akte-wechsel",
     date: "2026-09-19",
     category: "Behoben",

@@ -36,11 +36,13 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   { gruppe: "fuerwen", pfad: "/business/aus-der-schweiz", titel: "Aus der Schweiz", text: "Tatsächliche Verwaltung, Partner in Zürich", reihe: 7 },
 
   { gruppe: "preise", pfad: "/business#pakete", titel: "Pakete und Preise", text: "Vier Pakete, Festpreis, alles inklusive", reihe: 1 },
-  { gruppe: "preise", pfad: "/business/kosten", titel: "Kosten im Überblick", text: "Festpreis, Staatsgebühren, ab Jahr zwei", reihe: 2 },
-  { gruppe: "preise", pfad: "/business/ablauf", titel: "Ablauf und Dauer", text: "Vom Gespräch bis zur Kartenleiter", reihe: 3 },
-  { gruppe: "preise", pfad: "/business/paket-finder", titel: "Paket-Finder", text: "Vier Fragen, ein passendes Paket", reihe: 4 },
-  { gruppe: "preise", pfad: "/business/vergleich", titel: "Vergleich", text: "Selbst, Gründungsdienst oder FIAON Global", reihe: 5 },
-  { gruppe: "preise", pfad: "/business/fragen", titel: "Fragen und Antworten", text: "Alle Antworten an einem Ort", reihe: 6 },
+  // E-196: Preis wie GLOBAL_JAHRESBETREUUNG (shared/fiaon-global.ts) — pruef-global-seiten.ts gleicht ab.
+  { gruppe: "preise", pfad: "/business#jahresbetreuung", titel: "Jahresbetreuung ab Jahr zwei", text: "699 € im Jahr, alle Gebühren inklusive", reihe: 2 },
+  { gruppe: "preise", pfad: "/business/kosten", titel: "Kosten im Überblick", text: "Festpreis, Staatsgebühren, ab Jahr zwei", reihe: 3 },
+  { gruppe: "preise", pfad: "/business/ablauf", titel: "Ablauf und Dauer", text: "Vom Gespräch bis zur Kartenleiter", reihe: 4 },
+  { gruppe: "preise", pfad: "/business/paket-finder", titel: "Paket-Finder", text: "Vier Fragen, ein passendes Paket", reihe: 5 },
+  { gruppe: "preise", pfad: "/business/vergleich", titel: "Vergleich", text: "Selbst, Gründungsdienst oder FIAON Global", reihe: 6 },
+  { gruppe: "preise", pfad: "/business/fragen", titel: "Fragen und Antworten", text: "Alle Antworten an einem Ort", reihe: 7 },
 
   { gruppe: "wissen", pfad: "/business/wissen", titel: "Alle Beiträge", text: "Steuern, Staaten, Rechtsformen", reihe: 1 },
   { gruppe: "wissen", pfad: "/business/wissen/us-llc-steuern", titel: "Steuern, ehrlich erklärt", text: "Ist eine US-LLC ein Steuermodell?", reihe: 2 },

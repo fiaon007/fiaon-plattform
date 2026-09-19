@@ -162,3 +162,9 @@ html.fg-dokument #root { overflow-x:clip; }
   .gf { padding-top:60px; }
   .gf-tun .gf-knopf { flex:1 1 100%; }
 }
+
+/* ── Die Einwilligungskarte auf Business-Seiten (19.09.2026) ─────────────────
+   Links unten lag sie auf dem Desktop beim ersten Besuch über dem ersten Knopf der Seite
+   („Pakete und Preise", live gemessen bei 1440 × 900). Rechts unten deckt sie nur die
+   Übersicht daneben. Am Handy bleibt sie, wie sie ist (volle Breite unten). */
+@media (min-width:1100px) { html.fg-dokument .ew-karte { left:auto; right:16px; } }

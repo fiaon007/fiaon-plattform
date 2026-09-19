@@ -137,7 +137,8 @@ html.fg-dokument #root { overflow-x:clip; }
 /* Die Punkte zwischen Telefon, E-Mail und „Mein Auftrag" blieben beim Umbruch allein am Zeilenende stehen — der Abstand trennt. */
 .gf-kontakt > span[aria-hidden] { display:none; }
 .gf-kontakt a { color:#fff; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,.3); }
-.gf-themen { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:28px; }
+/* auto-fit: deutsch vier Spalten, englisch fünf (FIAON Global + die vier deutschen Themen „in German") — ohne Umbruch in eine zweite Reihe. */
+.gf-themen { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:28px 24px; }
 .gf-titel { margin:0 0 14px; font:600 10.5px/1 var(--gk-sans); letter-spacing:.18em; text-transform:uppercase; color:#9fb4d8; }
 .gf-spalte ul { list-style:none; margin:0; padding:0; }
 .gf-spalte li a { display:inline-block; padding:5px 0; font:400 13.5px/1.45 var(--gk-sans); color:rgba(255,255,255,.78); text-decoration:none; }
@@ -155,8 +156,11 @@ html.fg-dokument #root { overflow-x:clip; }
 .gf-recht a, .gf-recht button { font:400 12.5px/1.6 var(--gk-sans); color:rgba(255,255,255,.72); text-decoration:none; background:none; border:0; padding:0; cursor:pointer; }
 .gf-recht a:hover, .gf-recht button:hover { color:#fff; }
 
-@media (max-width:980px) {
+/* Unter 1180 px stehen Marke und Themen untereinander — sonst bricht die vierte (englisch: fünfte) Themenspalte allein um. */
+@media (max-width:1180px) {
   .gf-oben { grid-template-columns:1fr; gap:44px; }
+}
+@media (max-width:980px) {
   .gf-themen { grid-template-columns:repeat(2,minmax(0,1fr)); gap:28px 20px; }
   .gf-orte { grid-template-columns:1fr; }
 }

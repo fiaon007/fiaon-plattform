@@ -266,9 +266,13 @@ export function seoRahmen(sprache: Sprache = "de"): { kopf: string; fuss: string
 function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: string } {
   const en = sprache === "en";
   const start = en ? "/en/business" : "/business";
+  // Englisch gibt es die Hauptseite, den Auftrag und die Rechtsseiten; die Fachseiten gibt es deutsch — die englische
+  // Seite verweist offen darauf („in German"), statt Besucher und Suchmaschine ohne Wege zu lassen (19.09.2026).
+  const deutsch = globalMenue().map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
   const gruppen = en
-    ? [{ titel: "FIAON Global", eintraege: [["/en/business#pakete", "Packages and prices"], ["/en/business/start", "Order now"], ["/en/business#gespraech", "Arrange a call"], ["/en/business/auftrag", "My order"]] }]
-    : globalMenue().map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
+    ? [{ titel: "FIAON Global", eintraege: [["/en/business#pakete", "Packages and prices"], ["/en/business/start", "Order now"], ["/en/business#gespraech", "Arrange a call"], ["/en/business/auftrag", "My order"]] },
+       ...deutsch.map((g, i) => ({ titel: `${["Services", "Who it is for", "Prices and process", "Knowledge"][i] ?? g.titel} (in German)`, eintraege: g.eintraege }))]
+    : deutsch;
   const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
   const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
   const zeile = `FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250 · ${en ? "Phone" : "Telefon"} ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}`;

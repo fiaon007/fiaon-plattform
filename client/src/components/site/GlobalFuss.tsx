@@ -25,6 +25,7 @@ const EN = {
     { titel: "FIAON Global", eintraege: [["/en/business#leistungen", "Services"], ["/en/business#pakete", "Packages and prices"], ["/en/business#ablauf", "How it works"], ["/en/business#fragen", "FAQ"], ["/en/business/auftrag", "My order"]] },
   ],
   orte: { london: "Contracting party", zuerich: "Capital stage partner", miami: "Team on the ground" },
+  gruppen: { leistungen: "Services", fuerwen: "Who it is for", preise: "Prices and process", wissen: "Knowledge" } as Record<string, string>,
   verbunden: "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.",
   recht: [["/impressum", "Legal notice"], ["/datenschutz", "Privacy policy"], ["/cookie-einstellungen", "Cookie settings"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]],
   registriert: "Registered in England and Wales",
@@ -69,7 +70,11 @@ export default function GlobalFuss() {
           </div>
 
           <nav className="gf-themen" aria-label={en ? "Topics" : "Themen"}>
-            {(en ? EN.themen.map((g) => ({ titel: g.titel, eintraege: g.eintraege.map(([pfad, titel]) => ({ pfad, titel })) })) : globalMenue()).map((g) => (
+            {(en
+              // Die Fachseiten gibt es deutsch — die englische Fußzeile führt offen dorthin („in German").
+              ? [...EN.themen.map((g) => ({ titel: g.titel, eintraege: g.eintraege.map(([pfad, titel]) => ({ pfad, titel })) })),
+                 ...globalMenue().map((g) => ({ titel: `${EN.gruppen[g.gruppe]} (in German)`, eintraege: g.eintraege }))]
+              : globalMenue()).map((g) => (
               <div key={g.titel} className="gf-spalte">
                 <p className="gf-titel">{g.titel}</p>
                 <ul>{g.eintraege.map((e) => <li key={e.pfad}><a href={e.pfad}>{e.titel}</a></li>)}</ul>

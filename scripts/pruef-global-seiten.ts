@@ -10,6 +10,9 @@
 //      Quellen mit https (Wissen-Seiten mindestens zwei).
 //   2. Wege: jedes Weiterlesen-, Verzeichnis- und Karten-Ziel existiert; jede
 //      Seite passt auf eine Route des Clients (App.tsx); keine Waise.
+//      2b. Kein Soft-404 (19.09.2026): Register-Seiten und App-Wege kennt der
+//      Server, Müll-Adressen unter /business bekommen 404 mit noindex, und
+//      jede /business-Route aus App.tsx ist dem Server bekannt.
 //   3. Menü: jeder Eintrag zeigt auf eine Seite, jede Seite (außer den
 //      Landingpages) steht im Menü oder wird von einer anderen verlinkt.
 //   4. SEO: jede Seite steht in der SEO-Tabelle (server/lib/fiaon-global-seo),
@@ -33,6 +36,7 @@
 import fs from "fs";
 import path from "path";
 import { GLOBAL_SEITEN, LANDINGPAGES, globalInhalt, type GlobalBlock, type GlobalSeite } from "../shared/fiaon-global-seiten";
+import { seiteUnbekannt, nichtGefundenHtml } from "../server/lib/fiaon-seiten-seo";
 import { GLOBAL_MENUE } from "../shared/fiaon-global-menue";
 import { globalPaket } from "../shared/fiaon-global";
 import { PAKETE } from "../shared/fiaon-pakete";
@@ -108,6 +112,35 @@ for (const l of LANDINGPAGES) {
 const appTsx = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/App.tsx"), "utf8");
 for (const route of ["/business/lp/:slug", "/business/wissen/:slug", "/business/:slug"]) ok(appTsx.includes(`path="${route}"`), `App.tsx: Route ${route} fehlt`);
 ok(appTsx.indexOf(`path="/business/start"`) < appTsx.indexOf(`path="/business/:slug"`), "App.tsx: /business/start steht HINTER /business/:slug und würde verschluckt");
+
+// ── 2b: Kein Soft-404 (19.09.2026) ──────────────────────────────────────────
+// Unter /business kennt der Server jede Seite; alles andere dort ist 404 mit noindex
+// (seiteUnbekannt in server/lib/fiaon-seiten-seo.ts). Vorher: 200 mit dem Startseiten-Kopf.
+abschnitt("Wege: kein Soft-404");
+const bekannt = (p: string) => !seiteUnbekannt(p);
+for (const p of alle) ok(bekannt(p) && bekannt(`${p}/`) && bekannt(p.toUpperCase()), `${p}: Der Server hielte die Seite für unbekannt (404)`);
+for (const p of ["/business", "/business/", "/business/start", "/business/auftrag", "/business/auftrag/FG-2026-0001",
+  "/en/business", "/en/business/start", "/en/business/auftrag", "/en/business/auftrag/FG-2026-0001"]) ok(bekannt(p), `${p}: App-Weg bekäme 404`);
+for (const p of ["/business/gibt-es-nicht", "/business/wissen/gibt-es-nicht", "/business/lp/gibt-es-nicht", "/business/lp",
+  "/business/kosten/weiter", "/business/auftrag/FG-2026-0001/weiter", "/business/wp-login.php",
+  "/en/business/gibt-es-nicht", "/en/business/us-firmengruendung"]) ok(seiteUnbekannt(p), `${p}: Müll-Adresse bekäme 200 (Soft-404)`);
+for (const p of ["/", "/preise", "/gibt-es-nicht", "/business-antrag", "/businessplan", "/en/pricing"]) ok(bekannt(p), `${p}: liegt außerhalb von /business und darf nicht angefasst werden`);
+// Jede /business-Route des Clients muss der Server kennen — sonst liefert er für eine Seite,
+// die im Browser erscheint, 404. Parameter mit Musterwert (optionale auch ohne); die drei
+// :slug-Routen deckt das Register oben ab.
+const businessRouten = [...new Set([...appTsx.matchAll(/<Route path="((?:\/en)?\/business(?:\/[^"]*)?)"/g)].map((m) => m[1]))];
+for (const r of businessRouten.filter((x) => !x.includes(":slug"))) {
+  const beispiele = [r.replace(/:[a-z]+\??/gi, "muster")];
+  if (/:[a-z]+\?/i.test(r)) beispiele.push(r.replace(/\/:[a-z]+\?/gi, "").replace(/:[a-z]+/gi, "muster"));
+  for (const b of new Set(beispiele)) ok(bekannt(b), `App.tsx: Route ${r}${b !== r ? ` (als ${b})` : ""} bekäme vom Server 404 — öffentliche Seite in die SEO-Tabelle, Formular/Konto in BUSINESS_APP_WEGE (server/lib/fiaon-seiten-seo.ts)`);
+}
+const html404 = nichtGefundenHtml("/business/gibt-es-nicht") ?? "";
+const robots404 = html404.match(/<meta name="robots"[^>]*>/g) ?? [];
+ok(robots404.length === 1 && robots404[0] === '<meta name="robots" content="noindex" />', `404-Seite: robots-Angabe ${robots404.join(" ") || "fehlt"}`);
+ok(!/rel="canonical"/.test(html404), "404-Seite trägt ein canonical");
+ok(html404.includes("<title>Seite nicht gefunden — FIAON</title>"), "404-Seite: Titel fehlt");
+ok(html404.includes('<div id="root"></div>'), "404-Seite: SPA-Wurzel fehlt — die Nicht-gefunden-Ansicht des Clients käme nicht");
+console.log(`  ${alle.length} Register-Pfade bekannt, ${businessRouten.length} /business-Routen aus App.tsx gegen den Server gehalten`);
 
 // ═══ 3: MENÜ ═════════════════════════════════════════════════════════════════
 abschnitt("Menü");

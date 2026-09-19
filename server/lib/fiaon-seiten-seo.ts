@@ -39,6 +39,7 @@ import { globalMenue } from "@shared/fiaon-global-menue";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 // Trägt die Unterseiten von FIAON Global in die SEO-Tabelle ein — VOR jeder Abfrage.
 import "./fiaon-global-seo";
+import { globalSeite, globalLandingpage } from "@shared/fiaon-global-seiten";
 
 export const BASIS = SEO_BASIS;
 
@@ -79,6 +80,8 @@ export function kopfEinsetzen(html: string, kopf: {
   sprache?: Sprache;
   /** hreflang-Paar: deutsche und englische Adresse derselben Seite (absolut). x-default zeigt auf Deutsch. */
   alternativen?: { de: string; en: string };
+  /** false = kein rel=canonical (19.09.2026, Nicht-gefunden-Seite: eine 404-Adresse ist für nichts maßgeblich). Fehlt = mit. */
+  canonical?: boolean;
 }): string {
   const sprache: Sprache = kopf.sprache ?? "de";
   let out = html.replace(/<title>[^<]*<\/title>/, `<title>${esc(kopf.titel)}</title>`);
@@ -132,7 +135,7 @@ export function kopfEinsetzen(html: string, kopf: {
     `<link rel="alternate" hreflang="x-default" href="${esc(kopf.alternativen.de)}" />`,
   ] : [];
   const extra = [
-    `<link rel="canonical" href="${esc(kopf.url)}" />`,
+    ...(kopf.canonical === false ? [] : [`<link rel="canonical" href="${esc(kopf.url)}" />`]),
     ...hreflang,
     ...(kopf.ld ?? []).map((l) => `<script type="application/ld+json">${JSON.stringify(l).replace(/</g, "\\u003c")}</script>`),
   ].join("\n    ");
@@ -319,6 +322,50 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
     out = out.replace("</head>", `    ${VORAB_STIL}\n  </head>`).replace('<div id="root"></div>', `<div id="root">${korpus(s, optionen.bereich === "business")}</div>`);
   }
   return out;
+}
+
+// ── Unbekannte Adressen unter /business: echtes 404 statt Soft-404 ───────────
+// (19.09.2026)
+// Befund, live geprüft: https://fiaon.com/business/gibt-es-nicht antwortete
+// mit 200, dem Standardkopf „FIAON – Das Betriebssystem für Bonität“ und
+// index,follow. Der Client zeigt dort „Diese Seite existiert nicht“ — für
+// Google ein Soft-404: Jede Müll-Adresse darf in den Index.
+//
+// Für die ganze Website lässt sich das nicht entscheiden: Konto, Portal und
+// Formulare stehen in keiner Tabelle. Unter /business aber kennt der Server
+// JEDE gültige Adresse — das Register (shared/fiaon-global-seiten), die
+// SEO-Tabelle und die App-Wege unten. Alles andere dort bekommt 404 mit
+// noindex. Ausgeliefert wird weiterhin die SPA: Der Besucher sieht dieselbe
+// Nicht-gefunden-Ansicht wie bisher, nur Status und Kopf stimmen jetzt.
+//
+// Neue Seite unter /business → Eintrag im Register oder in der SEO-Tabelle.
+// Ein Weg ohne Eintrag (Formular, Kundenkonto) gehört in BUSINESS_APP_WEGE,
+// sonst antwortet er mit 404. scripts/pruef-global-seiten.ts hält jede
+// /business-Route aus client/src/App.tsx dagegen.
+const BUSINESS = /^\/(en\/)?business(\/|$)/;
+const BUSINESS_APP_WEGE = [
+  /^\/(en\/)?business$/,                    // Übersicht
+  /^\/(en\/)?business\/start$/,             // Auftrag erteilen
+  /^\/(en\/)?business\/auftrag(\/[^/]+)?$/, // Mein Auftrag, auch mit Referenz
+];
+
+/** true = die Adresse liegt unter /business (auch /en/business) und ist dort keine Seite → 404. */
+export function seiteUnbekannt(pfad: string): boolean {
+  const p = (pfad.split("?")[0].replace(/\/+$/, "") || "/").toLowerCase();
+  if (!BUSINESS.test(p) || BUSINESS_APP_WEGE.some((w) => w.test(p))) return false;
+  return !seoSeite(p) && !globalSeite(p) && !globalLandingpage(p);
+}
+
+/** Die Nicht-gefunden-Antwort: die SPA mit eigenem Titel, noindex und ohne canonical. Den Status 404 setzt der Aufrufer. */
+export function nichtGefundenHtml(pfad: string): string | null {
+  const html = indexHtml();
+  if (!html) return null;
+  // Deutsch wie die Nicht-gefunden-Ansicht des Clients (client/src/pages/not-found.tsx) — auch unter /en.
+  return kopfEinsetzen(html, {
+    titel: "Seite nicht gefunden — FIAON",
+    beschreibung: "Diese Adresse gibt es bei FIAON nicht – vielleicht ein Tippfehler oder ein veralteter Link.",
+    url: `${BASIS}${pfad}`, robots: "noindex", canonical: false,
+  });
 }
 
 /** Die Sitemap-Einträge aller indexierbaren Seiten (ohne Ratgeber — der hängt sich selbst an). */

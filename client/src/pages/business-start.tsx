@@ -38,7 +38,7 @@
 // Der Entwurf (ohne Unterschrift) liegt in sessionStorage: Ein versehentliches
 // Neuladen kostet den Kunden nichts. Glas trägt hier nur die Zusammenfassung.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Dunkel } from "@/components/site/DunkleBuehne";
 import SignaturePad from "@/components/agent/SignaturPad";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
@@ -70,6 +70,114 @@ const ENTWURF = "fiaon_global_auftrag";
 const ABSCHLUSS = "fiaon_global_auftrag_fertig";
 const lesen = <T,>(k: string): T | null => { try { const v = sessionStorage.getItem(k); return v ? JSON.parse(v) as T : null; } catch { return null; } };
 const schreiben = (k: string, v: unknown) => { try { v === null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, JSON.stringify(v)); } catch { /* privates Fenster: dann eben ohne Entwurf */ } };
+
+// ══════════════════════════════════════════════════════════════════════════
+// DIE ADRESSE VERVOLLSTÄNDIGT SICH BEIM TIPPEN (19.09.2026)
+//
+// Justin: „… dass ich nur eintippen müsste ‚Ziehr…' und dann kommt direkt
+// ‚Ziehrerweg 10, 2734 Puchberg am Schneeberg'." Dieselbe Quelle wie im Antrag
+// der Privatkunden (components/antrag/AdresseSuche.tsx): /api/fiaon/adresse
+// fragt Photon (OpenStreetMap) über unseren Server — die Adresse bleibt bei uns,
+// Antworten werden zehn Minuten zwischengespeichert, nach zwei Sekunden tippt
+// man einfach weiter. Vorschläge kommen NUR aus dem gewählten Land (Wohnsitz
+// bzw. Sitz der Firma), damit PLZ-Prüfung und Land zusammenpassen. Hat der
+// Vorschlag keine Hausnummer, bleibt die getippte erhalten.
+// ══════════════════════════════════════════════════════════════════════════
+type AdressVorschlag = { strasse: string; plz: string; ort: string; land: string; vollstaendig: boolean };
+
+function AdresseFeld({ land, strasse, label, platz, quelle, nummerText, onTippen, onWahl }: {
+  land: Land; strasse: string; label: string; platz: string; quelle: string; nummerText: string;
+  onTippen: (strasse: string) => void;
+  onWahl: (adresse: { strasse: string; plz: string; ort: string }) => void;
+}) {
+  const id = useId();
+  const [liste, setListe] = useState<AdressVorschlag[]>([]);
+  const [offen, setOffen] = useState(false);
+  const [aktiv, setAktiv] = useState(-1);
+  const [laedt, setLaedt] = useState(false);
+  const [nummerFehlt, setNummerFehlt] = useState(false);
+  const timer = useRef<number | null>(null);
+  const ab = useRef<AbortController | null>(null);
+  const letzteFrage = useRef("");
+  const feldRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); ab.current?.abort(); }, []);
+  // Am Handy sitzt das Feld oft am unteren Rand — unter ihm liegen die Weiter-Leiste
+  // und die Tastatur. Öffnet sich die Liste ohne Platz darunter, rückt das Feld nach oben.
+  useEffect(() => {
+    if (!offen || !feldRef.current) return;
+    const r = feldRef.current.getBoundingClientRect();
+    const hoehe = window.visualViewport?.height ?? window.innerHeight;
+    if (hoehe - r.bottom < 280) {
+      const ruhig = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      window.scrollBy({ top: r.top - 96, behavior: ruhig ? "auto" : "smooth" });
+    }
+  }, [offen]);
+  // Anderes Land gewählt: Die alten Vorschläge gehören nicht mehr dazu.
+  useEffect(() => { setListe([]); setOffen(false); }, [land]);
+
+  const suchen = (text: string) => {
+    if (timer.current) window.clearTimeout(timer.current);
+    const frage = text.trim();
+    if (frage.length < 3) { setListe([]); setOffen(false); return; }
+    timer.current = window.setTimeout(async () => {
+      ab.current?.abort();
+      const c = new AbortController(); ab.current = c;
+      letzteFrage.current = frage; setLaedt(true);
+      try {
+        const r = await fetch(`/api/fiaon/adresse?q=${encodeURIComponent(frage)}&land=${land}`, { signal: c.signal });
+        const j = await r.json().catch(() => null);
+        if (letzteFrage.current !== frage) return;
+        const l = ((j?.vorschlaege || []) as AdressVorschlag[]).filter((v) => v.land === land);
+        setListe(l); setOffen(l.length > 0); setAktiv(l.length ? 0 : -1);
+      } catch { /* abgebrochen oder offline — man tippt einfach weiter */ }
+      finally { if (letzteFrage.current === frage) setLaedt(false); }
+    }, 160);
+  };
+
+  const waehlen = (v: AdressVorschlag) => {
+    const getippt = strasse.match(/\s(\d+\s?[a-zA-Z]?(?:[\/-]\d+)?)\s*$/);
+    const neu = v.vollstaendig ? v.strasse : getippt ? `${v.strasse} ${getippt[1].trim()}` : `${v.strasse} `;
+    setNummerFehlt(!v.vollstaendig && !getippt);
+    onWahl({ strasse: neu, plz: v.plz, ort: v.ort });
+    setOffen(false); setListe([]);
+  };
+
+  return (
+    <div className="gs-adresse">
+      <label className="gs-label" htmlFor={`${id}-feld`}>{label}</label>
+      <div className={`gs-adresse-feld${offen && liste.length ? " offen" : ""}`}>
+        <input ref={feldRef} id={`${id}-feld`} className="gs-feld" role="combobox" aria-expanded={offen} aria-controls={`${id}-liste`}
+          aria-autocomplete="list" aria-activedescendant={offen && aktiv >= 0 ? `${id}-v${aktiv}` : undefined}
+          autoComplete="address-line1" placeholder={platz} value={strasse}
+          onChange={(e) => { const v = e.target.value; if (/\d/.test(v)) setNummerFehlt(false); onTippen(v); suchen(v); }}
+          onFocus={() => { if (liste.length) setOffen(true); }}
+          onBlur={() => setTimeout(() => setOffen(false), 160)}
+          onKeyDown={(e) => {
+            if (!offen || !liste.length) return;
+            if (e.key === "ArrowDown") { e.preventDefault(); setAktiv((a) => Math.min(a + 1, liste.length - 1)); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setAktiv((a) => Math.max(a - 1, 0)); }
+            else if (e.key === "Enter" && aktiv >= 0) { e.preventDefault(); waehlen(liste[aktiv]); }
+            else if (e.key === "Escape") setOffen(false);
+          }} />
+        {laedt && <span className="gs-adresse-laedt" aria-hidden="true" />}
+        {offen && liste.length > 0 && (
+          <ul id={`${id}-liste`} className="gs-treffer" role="listbox">
+            {liste.map((v, i) => (
+              <li key={`${v.strasse}|${v.plz}|${v.ort}`} id={`${id}-v${i}`} role="option" aria-selected={aktiv === i}
+                  onMouseEnter={() => setAktiv(i)} onMouseDown={(e) => { e.preventDefault(); waehlen(v); }}>
+                <b>{v.strasse}</b>
+                <span>{[v.plz, v.ort].filter(Boolean).join(" ")}</span>
+              </li>
+            ))}
+            <li className="quelle" aria-hidden="true">{quelle}</li>
+          </ul>
+        )}
+      </div>
+      {nummerFehlt && <p className="gs-adresse-hinweis">{nummerText}</p>}
+    </div>
+  );
+}
 
 export default function BusinessStart() {
   const t = useWoerter(GLOBAL_START_WOERTER);
@@ -447,7 +555,10 @@ export default function BusinessStart() {
                       </div>
                       <div className="drei">{anredeFeld}{feldP("vorname", t.vorname, "text", "given-name")}</div>
                       {feldP("nachname", t.nachname, "text", "family-name")}
-                      {feldA("strasse", t.strasse, { autoComplete: "street-address" })}
+                      <AdresseFeld land={anschrift.land} strasse={anschrift.strasse} label={t.strasse}
+                        platz={t.adressePlatz} quelle={t.adresseQuelle} nummerText={t.adresseNummer}
+                        onTippen={(v) => setAnschrift((a) => ({ ...a, strasse: v }))}
+                        onWahl={(w) => setAnschrift((a) => ({ ...a, ...w }))} />
                       <div className="drei">{feldA("plz", t.plz, { autoComplete: "postal-code", inputMode: "numeric" })}{feldA("ort", t.ort, { autoComplete: "address-level2" })}</div>
                     </div>
                   )}
@@ -523,7 +634,10 @@ export default function BusinessStart() {
                               </label>
                             </div>
                             <div className="zwei">{feldF("registergericht", t.registergericht)}{feldF("registernummer", t.registernummer)}</div>
-                            {feldF("strasse", t.strasse, { autoComplete: "street-address" })}
+                            <AdresseFeld land={firma.land} strasse={firma.strasse} label={t.strasse}
+                              platz={t.adressePlatz} quelle={t.adresseQuelle} nummerText={t.adresseNummer}
+                              onTippen={(v) => { setFirma((f) => ({ ...f, strasse: v })); setGefuellt((g) => g.filter((x) => x !== "strasse")); }}
+                              onWahl={(w) => { setFirma((f) => ({ ...f, ...w })); setGefuellt((g) => g.filter((x) => x !== "strasse" && x !== "plz" && x !== "ort")); }} />
                             <div className="drei">{feldF("plz", t.plz, { autoComplete: "postal-code", inputMode: "numeric" })}{feldF("ort", t.ort, { autoComplete: "address-level2" })}</div>
                             <div className="zwei">{feldF("ustId", t.ustId)}{feldF("website", t.website, { inputMode: "url" })}</div>
                           </div>

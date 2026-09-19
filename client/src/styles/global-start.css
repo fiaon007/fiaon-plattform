@@ -97,6 +97,14 @@ select.gs-feld{appearance:none;background-image:url("data:image/svg+xml,%3Csvg x
 .gs-treffer .leer:hover,.gs-treffer .laedt:hover{background:none}
 .gs-treffer .quelle{padding:8px 14px 6px;font-size:11px;color:var(--leise);cursor:default;border-top:1px solid var(--linie);margin-top:4px;border-radius:0}
 .gs-treffer .quelle:hover{background:none}
+/* Adresse beim Tippen vervollständigen (19.09.2026) — dieselbe Liste wie die Registersuche */
+.gs-adresse-feld{position:relative}
+/* Offen über der festen Weiter-Leiste (.gs-fuss-schritt, Ebene 20) — geschlossen nicht, sonst läge das Feld beim Scrollen über ihr. */
+.gs-adresse-feld.offen{z-index:30}
+.gs-adresse-laedt{position:absolute;right:14px;top:50%;width:16px;height:16px;margin-top:-8px;border-radius:50%;border:2px solid var(--linie-2);border-top-color:var(--blau);animation:gs-adresse-dreh .8s linear infinite;pointer-events:none}
+@keyframes gs-adresse-dreh{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.gs-adresse-laedt{animation:none}}
+.gs-adresse-hinweis{margin:7px 0 0 1px;font-size:12.5px;line-height:1.5;color:#b45309}
 .gs-link{background:none;border:0;padding:0;margin-top:14px;font:400 13.5px/1.5 var(--sans);color:var(--navy);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
 .gs-web{margin-top:20px;padding:20px;border-radius:10px;background:var(--stein);border:1px solid var(--linie)}
 .gs-web h3{font-size:14.5px;font-weight:500;color:var(--tinte)}

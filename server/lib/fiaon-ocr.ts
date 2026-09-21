@@ -197,13 +197,24 @@ export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein", opt: { se
   }
   if (paeckchen.length === 0) return null;
 
+  // 21.09.2026 (E-207): Ein gescheitertes Päckchen (Zeitgrenze, zu großes Foto) riss bisher
+  // ALLE Seiten mit — bei einem Auszug mit 16 Fotoseiten blieb keine einzige gelesen. Jetzt
+  // bleiben nur die Seiten dieses Päckchens leer; scheitern alle, gilt der erste Fehler.
+  const fehler: unknown[] = [];
   const teile = await reihe(paeckchen, GLEICHZEITIG, async (p) => {
-    const { text } = await aufruf(
-      { type: "input_file", filename: `seiten-${p.ab}-${p.bis}.pdf`, file_data: `data:application/pdf;base64,${p.daten.toString("base64")}` },
-      anweisung(art, p.ab, p.bis),
-    );
-    return seitenAus(text, p.bis - p.ab + 1);
+    try {
+      const { text } = await aufruf(
+        { type: "input_file", filename: `seiten-${p.ab}-${p.bis}.pdf`, file_data: `data:application/pdf;base64,${p.daten.toString("base64")}` },
+        anweisung(art, p.ab, p.bis),
+      );
+      return seitenAus(text, p.bis - p.ab + 1);
+    } catch (e) {
+      fehler.push(e);
+      console.warn(`[OCR] Seiten ${p.ab}–${p.bis} nicht gelesen:`, String((e as Error)?.message || e).slice(0, 160));
+      return Array.from({ length: p.bis - p.ab + 1 }, () => "");
+    }
   });
+  if (fehler.length === paeckchen.length) throw fehler[0];
   const e = { seiten: teile.flat(), modell: MODELL() };
   merken(schluessel, e);
   return e;

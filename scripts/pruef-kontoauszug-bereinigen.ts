@@ -12,7 +12,7 @@
 import { buchungenBereinigen, nebenkontoAus, istEigenerName, flachText, type RohBuchung } from "../shared/fiaon-kontoauszug-bereinigen";
 
 process.env.DATABASE_URL ||= "postgres://pruefstand@127.0.0.1:9/ins-leere";
-const { auswerten, merksaetzeAusZahlen } = await import("../server/lib/fiaon-kontoauszug-analyse");
+const { auswerten, merksaetzeAusZahlen, auszugWert } = await import("../server/lib/fiaon-kontoauszug-analyse");
 
 let geprueft = 0, fehler = 0;
 const ok = (b: unknown, t: string) => { geprueft++; if (!b) { fehler++; console.log(`  ✗ ${t}`); } };
@@ -151,6 +151,10 @@ ok(marken[8].kategorie === "ueberweisung_ein" && marken[9].kategorie === "abgabe
 // Verlorenes „ß" im Ausdruck (gemessen: „PIERRE MEI NER" als Eingang vom eigenen Konto)
 ok(istEigenerName("PIERRE MEI NER", { vorname: "Pierre", nachname: "Meißner" }) && istEigenerName("Pierre Meiner", { vorname: "Pierre", nachname: "Meißner" }), "Eigener Name auch ohne das „ß“ erkannt");
 ok(!istEigenerName("PIERRE MEI", { vorname: "Pierre", nachname: "Meißner" }), "… aber nicht aus einem halben Namen");
+
+// Der Kopf steht auf der ersten AUSZUGSseite (gemessen: Werbeseiten einer PDF-App vor 16 Fotos)
+ok(auszugWert("Welcome to PDF Reader Your best office assistant! App Overview PDF Reader & PDF Editor") < 6, "Werbeseite einer PDF-App zählt nicht als Auszugsseite");
+ok(auszugWert("Kontoauszug Nr. 6 · Alter Kontostand 312,40 · 01.06. Lastschrift Telekom -39,95 · 28.06. Gutschrift Lohn 2.150,00 · Neuer Kontostand 1.688,25") >= 6, "Eine echte Auszugsseite zählt");
 
 // Zweimal bereinigen ändert nichts (die Nachrechnung läuft über schon bereinigte Buchungen)
 const zweimal = buchungenBereinigen(topf, P);

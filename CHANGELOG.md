@@ -5,6 +5,22 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (Nacht, 4) — Kontoauszug: Kopf auf der ersten Auszugsseite, Texterkennung verliert keine Seiten (E-207)
+
+**Was geändert wurde:** Der Kopf (Bank, Zeitraum, Salden) wird auf der ersten und letzten Seite gelesen, die wie ein
+Auszug aussieht (`auszugWert`: Beträge, Kontostand, Buchungswörter) — nicht mehr stur auf Seite 1–2. Scheitert ein
+Päckchen der Texterkennung, bleiben nur dessen Seiten leer statt aller (`ocrLesen`). Neue Spalte `fotoseiten_erkannt`;
+der Nachhol-Lauf liest Auszüge neu, bei denen erkannte Fotoseiten ungelesen blieben, und wiederholt eine frische
+Auswertung ohne Buchungen nicht mehr (vorher dreimal).
+
+**Warum:** Gemessen im ersten Nachhol-Lauf: Ein Kunde lud 24 Seiten — vorn und hinten Werbeseiten einer PDF-App, dazwischen
+16 Fotos seiner Auszüge. Ergebnis war „kein Kontoauszug“. Probe mit erfundener Werbeseite + Juni-PDF + Juli-Foto:
+8 von 8 Buchungen, stimmt auf den Cent.
+
+**Wo zu finden:** `server/lib/fiaon-kontoauszug-analyse.ts`, `server/lib/fiaon-ocr.ts`; Prüfstand `pruef-kontoauszug-bereinigen.ts` (44).
+
+---
+
 ## 21.09.2026 (Nacht, 3) — Mara neu: freundlicher, Gedächtnis, Aktion rund um die Uhr, Steuerpult (E-208)
 
 **Was geändert wurde:**

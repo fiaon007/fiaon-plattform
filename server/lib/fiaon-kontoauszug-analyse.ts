@@ -76,6 +76,13 @@ function auszugBrauchbar(text: string): boolean {
   return betraege >= 5 || vokale / text.length > 0.15;
 }
 
+/** Wie sehr sieht eine Seite nach Kontoauszug aus? Beträge zählen einfach, Auszugswörter dreifach. */
+export function auszugWert(text: string): number {
+  const betraege = (text.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []).length;
+  const woerter = (text.match(/\b(kontostand|saldo|kontoauszug|buchungstag|buchungsdatum|valuta|wertstellung|umsätze|umsatzliste|gutschrift|lastschrift|überweisung|iban|haben|soll)\b/gi) || []).length;
+  return betraege + woerter * 3;
+}
+
 let tabelleGeprueft = false;
 export async function ensureAnalyseTabelle(): Promise<void> {
   if (tabelleGeprueft) return;
@@ -112,7 +119,7 @@ export async function ensureAnalyseTabelle(): Promise<void> {
   let alleDa = true;
   for (const sp of ["buchungen JSONB", "monate JSONB", "pruefung JSONB", "bank VARCHAR", "saldo_anfang_cents BIGINT",
                     "eigen_ein_cents BIGINT", "eigen_aus_cents BIGINT", "nebenkonto BOOLEAN", "inkasso_anzahl INT", "auswertung_version INT",
-                    "fotoseiten INT"]) {
+                    "fotoseiten INT", "fotoseiten_erkannt INT"]) {
     await sqlPool.unsafe(`ALTER TABLE fiaon_kontoauszug_analysen ADD COLUMN IF NOT EXISTS ${sp}`).catch(() => { alleDa = false; });
   }
   tabelleGeprueft = alleDa;
@@ -621,6 +628,8 @@ export interface Probe {
   merksaetze: string[];
   /** Seiten, die die Texterkennung gelesen hat (Fotos, Scans) — E-207. */
   fotoseiten: number;
+  /** Seiten ohne Textschicht, die gelesen werden SOLLTEN — ist die Zahl größer als `fotoseiten`, fehlt etwas. */
+  fotoseitenErkannt: number;
 }
 
 /**
@@ -634,7 +643,7 @@ export interface Probe {
  */
 export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorname: null, nachname: null }): Promise<Probe> {
   const leer = (status: "unlesbar", fehler: string, akte: string, seiten: number, modell: string | null = null): Probe =>
-    ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [], fotoseiten: 0 });
+    ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [], fotoseiten: 0, fotoseitenErkannt });
 
   let seiten: string[][] = [];
   try { seiten = (await pdfTextUndZeilen(buf, { spalten: true })).zeilen; } catch (e) { console.warn("[ANALYSE] PDF nicht lesbar:", (e as Error).message); }
@@ -645,8 +654,10 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
   // die Fotoseiten las niemand (gemessen: 3 Auszüge, bei einem 17 von 24 Seiten;
   // Ergebnis „kein Kontoauszug"). Jetzt liest die Texterkennung genau diese Seiten.
   let fotoseiten = 0;
+  let fotoseitenErkannt = 0;
   let ocrModell: string | null = null;
   const fotoIdx = seitenText.map((t, i) => (ohneFotoVermerk(t).replace(/\s/g, "").length < 40 ? i : -1)).filter((i) => i >= 0);
+  fotoseitenErkannt = fotoIdx.length;
   if (fotoIdx.length > 0 && fotoIdx.length < seitenText.length) {
     try {
       const ocr = await ocrLesen(buf, "kontoauszug", { seiten: fotoIdx });
@@ -679,8 +690,16 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
   }
 
   // ── 1 · Der Kopf ───────────────────────────────────────────────────────
-  const kopfText = seitenText.slice(0, 2).join("\n\n").slice(0, 20_000)
-    + (seitenText.length > 2 ? "\n\n[letzte Seite:]\n" + seitenText[seitenText.length - 1].slice(-4_000) : "");
+  // ── DER KOPF STEHT AUF DER ERSTEN AUSZUGSSEITE, NICHT AUF SEITE 1 (21.09.2026) ──
+  // Ein Kunde lud 24 Seiten: vorn und hinten Werbeseiten einer PDF-App („Welcome
+  // to PDF Reader"), dazwischen 16 Fotos seiner Auszüge. Der Kopf las Seite 1–2
+  // und meldete „kein Kontoauszug". Jetzt zählt die erste und die letzte Seite,
+  // die wie ein Auszug aussieht (Beträge, Kontostand, Buchungswörter).
+  const auszugSeiten = seitenText.map((t, i) => ({ i, wert: auszugWert(t) })).filter((x) => x.wert >= 6).map((x) => x.i);
+  const erste = auszugSeiten.length ? auszugSeiten[0] : 0;
+  const letzte = auszugSeiten.length ? auszugSeiten[auszugSeiten.length - 1] : seitenText.length - 1;
+  const kopfText = seitenText.slice(erste, erste + 2).join("\n\n").slice(0, 20_000)
+    + (letzte > erste + 1 ? "\n\n[letzte Seite:]\n" + seitenText[letzte].slice(-4_000) : "");
   const { modell, daten: kopf } = await modellAufruf("kontoauszug_kopf", KOPF_SCHEMA, KOPF_ANWEISUNG, kopfText);
   if (kopf.ist_kontoauszug === false) {
     // Dirk Ladewig (11.09.2026) hatte drei Gehaltsabrechnungen als „Kontoauszug"
@@ -818,7 +837,7 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
     ];
   }
 
-  return { status: "fertig", fehler: null, akte: null, fotoseiten,
+  return { status: "fertig", fehler: null, akte: null, fotoseiten, fotoseitenErkannt,
     modell: ocrModell ? `${modell} (Texterkennung ${ocrModell}${fotoseiten < seiten.length ? `, ${fotoseiten} von ${seiten.length} Seiten` : ""})` : modell, seiten: seiten.length, bank: kopf.bank ? String(kopf.bank).slice(0, 80) : null,
            zeitraumVon, zeitraumBis, saldoAnfang, saldoEnde, buchungen, pruefung, z, merksaetze };
 }
@@ -945,7 +964,7 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
     const buf: Buffer = Buffer.isBuffer(a.bank_statement_pdf) ? a.bank_statement_pdf : Buffer.from(a.bank_statement_pdf);
     const pr = await kontoauszugProbe(buf, { vorname: a.vorname ?? null, nachname: a.nachname ?? null });
     if (pr.status !== "fertig" || !pr.z) {
-      await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler, fotoseiten: pr.fotoseiten });
+      await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler, fotoseiten: pr.fotoseiten, fotoseiten_erkannt: pr.fotoseitenErkannt });
       if (pr.akte) await akte(pr.akte);
       return analyseFuer(ref);
     }
@@ -966,7 +985,7 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
       fixkosten: z.fixkosten, kategorien: z.kategorien,
       warnungen: z.warnungen, merksaetze,
       eigen_ein_cents: z.eigenEin, eigen_aus_cents: z.eigenAus, nebenkonto: z.nebenkonto,
-      inkasso_anzahl: z.inkassoAnzahl, auswertung_version: AUSWERTUNG_VERSION, fotoseiten: pr.fotoseiten,
+      inkasso_anzahl: z.inkassoAnzahl, auswertung_version: AUSWERTUNG_VERSION, fotoseiten: pr.fotoseiten, fotoseiten_erkannt: pr.fotoseitenErkannt,
     });
     await akte(`Kontoauszug ausgewertet (${pr.bank || "Bank unbekannt"}, ${pr.zeitraumVon || "?"} bis ${pr.zeitraumBis || "?"}, ${pr.seiten} Seiten): `
       + `${buchungen.length} Buchungen, Einnahmen ${(z.einnahmen / 100).toFixed(2)} €, Ausgaben ${(z.ausgaben / 100).toFixed(2)} €, `
@@ -998,19 +1017,23 @@ export async function auszuegeNachholen(grenze = 3): Promise<{ gestartet: number
   await ensureAnalyseTabelle();
   const kandidaten = (await sqlPool`
     WITH l AS (
-      SELECT DISTINCT ON (k.ref) k.ref, k.id, k.status, k.fehler, k.created_at, k.fotoseiten, k.modell,
+      SELECT DISTINCT ON (k.ref) k.ref, k.id, k.status, k.fehler, k.created_at, k.fotoseiten, k.fotoseiten_erkannt, k.modell,
+             COALESCE(k.auswertung_version, 1) AS fassung,
              CASE WHEN jsonb_typeof(k.buchungen) = 'array' THEN jsonb_array_length(k.buchungen) ELSE 0 END AS n_buchungen
         FROM fiaon_kontoauszug_analysen k
        ORDER BY k.ref, k.created_at DESC
     )
-    SELECT a.ref, l.id AS analyse_id, l.modell,
+    SELECT a.ref, l.id AS analyse_id, l.modell, l.fotoseiten,
            CASE
              WHEN l.id IS NULL THEN 'nie'
              WHEN l.status = 'laeuft' AND l.created_at < NOW() - INTERVAL '15 minutes' THEN 'haengt'
              WHEN l.status = 'unlesbar' AND l.fehler LIKE '%keinen lesbaren Text%' THEN 'vor_ocr'
              WHEN l.status = 'fehler' AND l.created_at < NOW() - INTERVAL '1 hour' THEN 'fehler'
-             WHEN l.status = 'fertig' AND l.n_buchungen = 0 THEN 'ohne_buchungen'
-             WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten IS NULL THEN 'seiten_pruefen'
+             -- nur alte Auswertungen ohne Buchungen (vor E-178); eine frische ohne Buchungen ist ein Ergebnis
+             WHEN l.status = 'fertig' AND l.n_buchungen = 0 AND l.fassung < 3 THEN 'ohne_buchungen'
+             -- Fotoseiten erkannt, aber nicht alle gelesen (ein Päckchen der Texterkennung scheiterte)
+             WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten_erkannt > COALESCE(l.fotoseiten, 0) THEN 'foto_ungelesen'
+             WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten_erkannt IS NULL THEN 'seiten_pruefen'
            END AS grund
       FROM fiaon_applications a
       LEFT JOIN l ON l.ref = a.ref
@@ -1037,19 +1060,22 @@ export async function auszuegeNachholen(grenze = 3): Promise<{ gestartet: number
       try { if (buf) texte = (await pdfTextUndZeilen(buf)).seiten; } catch { texte = []; }
       const foto = texte.filter((t) => ohneFotoVermerk(t).replace(/\s/g, "").length < 40).length;
       const schonGelesen = /Texterkennung/.test(String(k.modell || ""));
-      if (foto > 0 && foto < texte.length && !schonGelesen && gestartet < grenze) {
-        // Gemischtes PDF, Fotoseiten nie gelesen: neu auswerten (setzt `fotoseiten` selbst).
+      const neuLesen = foto > 0 && !schonGelesen && texte.length > 0;
+      if (neuLesen && gestartet < grenze) {
+        // Fotoseiten, die nie gelesen wurden: neu auswerten (setzt beide Zahlen selbst).
         gestartet++;
         await kontoauszugAnalysieren(k.ref, { erzwingen: true }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
-      } else if (!(foto > 0 && foto < texte.length && !schonGelesen)) {
-        await sqlPool`UPDATE fiaon_kontoauszug_analysen SET fotoseiten = ${schonGelesen ? foto : 0} WHERE id = ${k.analyse_id}`;
+      } else if (!neuLesen) {
+        await sqlPool`UPDATE fiaon_kontoauszug_analysen
+                         SET fotoseiten = ${schonGelesen ? Math.max(Number(k.fotoseiten || 0), foto) : 0}, fotoseiten_erkannt = ${schonGelesen ? foto : 0}
+                       WHERE id = ${k.analyse_id}`;
       }
       continue;
     }
     if (gestartet >= grenze) continue;
     gestartet++;
     // Ohne `erzwingen`: kontoauszugAnalysieren erkennt hängende, veraltete und leere Läufe selbst.
-    await kontoauszugAnalysieren(k.ref, { erzwingen: k.grund === "ohne_buchungen" || k.grund === "fehler" }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
+    await kontoauszugAnalysieren(k.ref, { erzwingen: k.grund === "ohne_buchungen" || k.grund === "fehler" || k.grund === "foto_ungelesen" }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
   }
   if (gestartet || seitenGeprueft) console.log(`[ANALYSE] Nachholen: ${gestartet} Auswertungen, ${seitenGeprueft} Seiten geprüft, ${offen.length} Kandidaten`);
   return { gestartet, seitenGeprueft, offen: offen.length };

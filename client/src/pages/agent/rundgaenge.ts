@@ -1156,11 +1156,54 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/mara (21.09.2026) ─────────────────────────────────────────────────
+export const RUNDGANG_MARA: RundgangSchritt[] = [
+  {
+    titel: "Maras Steuerpult: alles, was sie tut, an einer Stelle.",
+    text: "Mara beantwortet das Postfach — und schreibt von sich aus jeden an, der noch nichts bezahlt hat: zuerst A (Zahlung "
+      + "gemeldet, Geld nicht da), dann B (Antrag fertig, Rechnung offen), rund um die Uhr, die frischesten zuerst. Jede Mail "
+      + "schreibt sie aus der Akte, dem ganzen Weg des Kunden und ihrem Gedächtnis — nie zweimal dieselbe.",
+  },
+  {
+    ziel: ".mp-schalter",
+    titel: "Ein Schalter: Aktion läuft oder pausiert.",
+    text: "Pausiert heißt: keine neuen Mails aus der Aktion. Die Antworten im Postfach laufen weiter. Einschalten und die nächsten Mails gehen im Takt raus.",
+  },
+  {
+    ziel: ".mp-zahlen",
+    titel: "Oben steht, was wirkt.",
+    text: "Heute gesendet (mit dem Deckel des Tages), die letzte Stunde, wer fällig ist, und was danach geschah: Antworten, "
+      + "Zahlungsmeldungen und Zahlungen innerhalb von 14 Tagen nach einer Mara-Mail. Rechts die Kosten — eine Mail kostet rund einen halben Cent.",
+  },
+  {
+    ziel: ".mp-steuer",
+    titel: "Steuern: Takt, Deckel, wer, wie.",
+    text: "Bis zu 50 Mails je Stunde. In den ersten drei Tagen hält Mara sich selbst zurück (200, 400, 800 am Tag) — ein Postfach, "
+      + "das über Nacht auf über tausend Mails springt, landet bei Gmail im Spam, und mit ihm jede Rechnung von fiaon.com. "
+      + "C-Leads bleiben gesperrt, bis ihre Mail-Einwilligung geprüft ist.",
+    tipp: "„Probe“ zeigt die nächste Mail, ohne sie zu senden — auch für einen bestimmten Menschen aus der Schlange.",
+  },
+  {
+    ziel: ".mp-reiter",
+    titel: "Jede Mail, vollständig.",
+    text: "„Gesendet“: jede Mail mit dem, was danach kam. Aufklappen zeigt den ganzen Text, was Mara sich zu dem Menschen gemerkt hat "
+      + "(einzeln löschbar) und seine Mails an uns. „Aus der Aktion nehmen“ stoppt Mara für genau diesen Menschen. "
+      + "„Zurückgehalten“: Mails, die die Prüfung nicht bestanden haben — sie gingen nicht raus.",
+  },
+  {
+    titel: "Rücksicht ist eingebaut.",
+    text: "Schreibt der Kunde selbst, antwortet Mara im Postfach und die Aktion wartet sieben Tage. Hat ein Mitarbeiter gerade mit "
+      + "ihm gesprochen oder ging eben eine andere Mail raus, wartet sie auch. Werbesperre, Vertriebssperre, „Stopp“, Storno, "
+      + "Kündigung und Zustellprobleme beenden die Aktion für diesen Menschen.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
+  mara:        { titel: "Mara", schritte: RUNDGANG_MARA },
   global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },
   globalAkte:  { titel: "Global-Akte",  schritte: RUNDGANG_GLOBAL_AKTE },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },

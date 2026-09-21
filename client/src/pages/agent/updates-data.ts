@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-21-mara-schreibt-an",
+    date: "2026-09-21",
+    category: "Neu",
+    title: "Mara schreibt jetzt von sich aus jeden an, der noch nicht bezahlt hat — ihr seht es in der Akte",
+    summary:
+      "Mara Lindner schreibt rund um die Uhr persönliche Mails an alle mit offener Rechnung: zuerst an die, die eine Zahlung "
+      + "gemeldet haben (A), dann an die mit fertigem Antrag (B). Jede Mail steht im Verlauf der Akte mit Betreff und Text — "
+      + "so wisst ihr vor dem Anruf, was der Kunde von uns gelesen hat.",
+    changes: [
+      "Im Verlauf der Akte steht „Mara hat geschrieben (Aktion, Stufe B, Mail 2): …“ mit Betreff und Anfang der Mail.",
+      "Mara schreibt nicht, wenn ihr in den letzten 12 Stunden mit dem Kunden gesprochen habt — ihr kommt euch nicht in die Quere.",
+      "Antwortet der Kunde, antwortet Mara im Postfach und pausiert ihre Aktion für ihn sieben Tage.",
+      "Ihre Antworten sind freundlicher und motivierender geworden, mit der Karte als Ziel — und sie merkt sich, was der Kunde ihr schreibt.",
+    ],
+    howto: [
+      "Vor dem Anruf kurz in den Verlauf schauen: Wenn Mara gestern geschrieben hat, knüpf daran an („Sie haben ja gestern Post von Frau Lindner bekommen …“).",
+      "Sagt ein Kunde, er will keine Mails mehr: Werbesperre in der Akte setzen oder der Leitung Bescheid geben — dann schreibt Mara ihm nicht mehr.",
+    ],
+  },
+  {
     id: "2026-09-21-kontoauszug-im-detail",
     date: "2026-09-21",
     category: "Neu",

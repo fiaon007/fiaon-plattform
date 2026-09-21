@@ -5,6 +5,44 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (Nacht, 3) — Mara neu: freundlicher, Gedächtnis, Aktion rund um die Uhr, Steuerpult (E-208)
+
+**Was geändert wurde:**
+
+- **Neuer Ton in jeder Antwort** (`server/lib/fiaon-postmeister-agent.ts`): herzlich, positiv, motivierend — was der
+  Kunde gewinnt (Account aktiv, Link der Partnerbank, Karte, Betreuer, Wunschlimit als Ziel) und wie leicht der nächste
+  Schritt ist. Beim ersten „zahle ich nicht“ freundlich und motivierend; die Härte-Stufe gilt erst beim zweiten Nein.
+- **Gedächtnis** (`server/lib/fiaon-mara-gedaechtnis.ts`, Tabelle `fiaon_mara_gedaechtnis`): Nach jeder Antwort hält Mara
+  fest, was sie Neues über den Menschen weiß (höchstens 5 Sätze je Mail, 40 je Person, nie Gesundheit/Religion/Herkunft —
+  Art. 9 DSGVO); die Sätze stehen über jeder Akte, die sie liest. Der Weg des Kunden fasst gleiche Automatik-Mails
+  zusammen („14× seit …“) und ist für Antworten 20.000 statt 14.000 Zeichen lang.
+- **Aktion** (`server/lib/fiaon-mara-aktion.ts`, Lauf `mara_aktion` alle 10 Minuten, rund um die Uhr): Mara schreibt
+  jeden an, der noch nichts bezahlt hat — Stufe A (Zahlung gemeldet) vor B (Rechnung offen), das jüngste Ereignis
+  zuerst; C gesperrt bis zur Prüfung der Mail-Einwilligung. Takt je Mensch: 24 h nach Antrag bzw. Meldung, dann nach
+  2, 4, 7 und alle 14 Tage. Jede Mail aus Akte, Weg und Gedächtnis, nie zweimal dieselbe, Knopf zur Zahlungsseite,
+  Absender „Mara Lindner <support@fiaon.com>“, Abmelden per „Stopp“ (auch als Mailprogramm-Knopf). Stopp bei Zahlung,
+  Storno, Kündigung, Werbe- oder Vertriebssperre, „Stopp“, Zustellproblem, Ausschluss im Steuerpult; Pause 7 Tage, wenn
+  der Kunde selbst schreibt, 12 h nach einem Mitarbeiterkontakt, 6 h nach einer anderen Mail. Bis zu 50 je Stunde;
+  Anlauf Tag 1/2/3 höchstens 200/400/800 (Schutz der Absenderadresse); eigener Kostendeckel (Vorgabe 15 € am Tag,
+  gemessen ~0,5 ct je Mail). Nachprüfung jeder Mail: Wortwand, Sie-Form, keine URL, offene Rechnung erwähnt.
+  Protokoll: `fiaon_mara_aktion` (voller Text), `fiaon_mail_log` (event `mara_aktion`), Verlauf der Akte.
+- **Steuerpult** `/chef/s/mara` (Stufe Inhaber, `server/routes/fiaon-mara-steuerpult.ts`, `ChefMara.tsx`): Schalter,
+  Takt, Kostendeckel, Stufen, Emojis, Absender, „Probe“ ohne Senden, „Jetzt einen Durchgang“; jede Mail vollständig
+  mit Antwort/Zahlungsmeldung/Zahlung danach, Maras Gedächtnis je Mensch (löschbar), „Aus der Aktion nehmen“. Rundgang.
+
+**Warum:** Justin am 21.09.2026: „Mara muss neu geschult werden — viel mehr auf die Kreditkarte gepitcht … immer was
+Nettes und Motivierendes … JEDEN TAG Mo bis So 24 h: alle Kunden, die noch nichts bezahlt haben, die heißesten zuerst
+… 50 E-Mails pro Stunde … ein viel besseres Gedächtnis … Ich möchte die Arbeit von Mara einsehen, im Detail sehen,
+steuern und ALLES nachvollziehen können.“ Freigaben per Rückfrage: A + B jetzt, C nach Einwilligungsprüfung;
+Unterschrift nur „Mara Lindner“ (Register E-206); Karten-Wortlaut rechtssicher.
+
+**Wo zu finden:** oben genannte Dateien, dazu `server/lib/fiaon-kundenweg.ts`, `server/lib/fiaon-gmail.ts`
+(`neueMailSendenMitFaden`, `List-Unsubscribe`), `server/lib/fiaon-postmeister-schema.ts` (`kostenCentsAus`),
+`server/routes.ts`, `client/src/components/admin/chef-seiten.tsx`, `client/src/pages/agent/rundgaenge.ts`,
+`client/src/styles/chef-mara.css`; Prüfstand `scripts/pruef-mara-aktion.ts` (37).
+
+---
+
 ## 21.09.2026 (Nacht, 2) — Kontoauszug im Detail, jede Seite gelesen (E-207)
 
 **Was geändert wurde:**

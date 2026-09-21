@@ -187,12 +187,31 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
   }
   const mails = personId ? await quelle("mail_log", () => sqlPool`
     SELECT created_at, event, betreff, status, zustellung, zustellung_am, zustellung_grund FROM fiaon_mail_log
-     WHERE art = 'echt' AND (person_id = ${personId} OR (${person?.primary_email ?? null}::text IS NOT NULL AND LOWER(empfaenger) = LOWER(${person?.primary_email ?? ""})))
+     WHERE art = 'echt' AND event <> 'mara_aktion' AND (person_id = ${personId} OR (${person?.primary_email ?? null}::text IS NOT NULL AND LOWER(empfaenger) = LOWER(${person?.primary_email ?? ""})))
      ORDER BY created_at DESC LIMIT 40` as unknown as Promise<any[]>) : [];
+  // ── GLEICHE AUTOMATIK-MAILS ZUSAMMENFASSEN (21.09.2026, Mara-Gedächtnis) ──
+  // 14 Zahlungserinnerungen in einer Woche sind 14 Zeilen — und schoben beim
+  // Kappen genau das hinaus, was zählt: das Telefonat, die eigene Zusage des
+  // Kunden. Jetzt steht jede Mailart einmal mit Anzahl, erstem und letztem
+  // Datum und Öffnungen; Zustellprobleme bleiben einzeln sichtbar.
+  const mailArten = new Map<string, any[]>();
   for (const m of mails) {
-    const z = m.zustellung ? ` → ${m.zustellung}${m.zustellung === "gebounct" || m.zustellung === "blockiert" || m.zustellung === "spam" ? ` (${kurz(m.zustellung_grund, 60) || "Zustellproblem"})` : ""}` : m.status && m.status !== "ok" && m.status !== "gesendet" ? ` (${m.status})` : "";
-    add(m.created_at, "mail_raus", `Mail „${kurz(m.betreff || m.event, 70)}"${z}`);
+    const schluessel = String(m.betreff || m.event || "").replace(/\d+/g, "#").toLowerCase().slice(0, 60);
+    const l = mailArten.get(schluessel) ?? [];
+    l.push(m); mailArten.set(schluessel, l);
   }
+  mailArten.forEach((liste) => {
+    const problem = (m: any) => m.zustellung === "gebounct" || m.zustellung === "blockiert" || m.zustellung === "spam";
+    for (const m of liste.filter(problem)) add(m.created_at, "mail_raus", `Mail „${kurz(m.betreff || m.event, 70)}" → ${m.zustellung} (${kurz(m.zustellung_grund, 60) || "Zustellproblem"})`);
+    const rest = liste.filter((m) => !problem(m));
+    if (!rest.length) return;
+    const neueste = rest[0];
+    const offen = rest.filter((m) => m.zustellung === "geoeffnet" || m.zustellung === "geklickt").length;
+    const z = neueste.zustellung ? ` → ${neueste.zustellung}` : neueste.status && neueste.status !== "ok" && neueste.status !== "gesendet" ? ` (${neueste.status})` : "";
+    add(neueste.created_at, "mail_raus", rest.length === 1
+      ? `Mail „${kurz(neueste.betreff || neueste.event, 70)}"${z}`
+      : `Mail „${kurz(neueste.betreff || neueste.event, 70)}" — insgesamt ${rest.length}× seit ${tag(rest[rest.length - 1].created_at)}${offen ? `, ${offen}× geöffnet` : ""}${z}`);
+  });
 
   // ── Mails rein (Postmeister) und unsere Antworten ──────────────────────
   const post = (personId || refs.length) ? await quelle("postmeister", () => sqlPool`
@@ -202,6 +221,15 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
   for (const p of post) {
     add(p.empfangen_am, "mail_rein", `KUNDE SCHREIBT an ${String(p.postfach || "").split("@")[0]}: „${kurz(p.betreff, 70)}" — ${kurz(p.zusammenfassung, 240)}${p.kategorie ? ` [${p.kategorie}]` : ""}`);
     if (p.gesendet_am) add(p.gesendet_am, "mail_raus", `Wir antworten (${p.aktion === "auto_beantwortet" ? "Mara automatisch" : "freigegeben"}): ${kurz(String(p.antwort || "").replace(/^Guten Tag[^\n]*\n/, ""), 260)}`);
+  }
+
+  // ── Maras eigene Mails aus der Aktion (21.09.2026) ─────────────────────
+  // Damit sie nie zweimal dasselbe schreibt und sich auf ihre letzte Mail beziehen kann.
+  const maraMails = personId ? await quelle("mara_aktion", () => sqlPool`
+    SELECT gesendet_am, schritt, stufe, betreff, text FROM fiaon_mara_aktion
+     WHERE person_id = ${personId} AND status = 'gesendet' ORDER BY gesendet_am DESC LIMIT 8` as unknown as Promise<any[]>) : [];
+  for (const m of maraMails) {
+    add(m.gesendet_am, "mail_raus", `Mara schreibt von sich aus (Aktion Stufe ${m.stufe}, Mail ${m.schritt}): „${kurz(m.betreff, 60)}" — ${kurz(String(m.text || "").replace(/^Guten Tag[^\n]*\n/, ""), 280)}`);
   }
 
   // ── Anliegen, Rückrufe, Vermerke, Aufgaben, Kündigungsanträge ──────────

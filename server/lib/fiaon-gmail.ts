@@ -375,7 +375,7 @@ export async function postfachProbe(postfach: string): Promise<{ ok: boolean; la
 // Mail in jedem Postfach lesbar ist. Als Entwurf landet sie im gewählten
 // Postfach und wartet dort auf den Menschen; senden geht nur über den Knopf
 // „Senden" im Chefbüro, der vorher fragt.
-export function mimeNeu(opts: { von: string; vonName?: string | null; an: string; betreff: string; text: string; html: string }): string {
+export function mimeNeu(opts: { von: string; vonName?: string | null; an: string; betreff: string; text: string; html: string; abmelden?: string | null }): string {
   const kodiert = (s: string) => `=?UTF-8?B?${Buffer.from(s).toString("base64")}?=`;
   const von = opts.vonName ? `${kodiert(opts.vonName.replace(/[\r\n"]/g, ""))} <${opts.von}>` : opts.von;
   const grenze = `fiaon-neu-${Buffer.from(opts.an + opts.betreff).toString("hex").slice(0, 24)}`;
@@ -383,6 +383,8 @@ export function mimeNeu(opts: { von: string; vonName?: string | null; an: string
     `From: ${von}`,
     `To: ${opts.an.replace(/[\r\n]/g, "")}`,
     `Subject: ${kodiert(opts.betreff.replace(/[\r\n]+/g, " "))}`,
+    // 21.09.2026 (Mara-Aktion): Abmelden per Antwort — Mailprogramme zeigen dafür einen eigenen Knopf.
+    opts.abmelden ? `List-Unsubscribe: <mailto:${opts.abmelden.replace(/[\r\n<>]/g, "")}?subject=Stopp>` : null,
     "MIME-Version: 1.0",
     `Content-Type: multipart/alternative; boundary="${grenze}"`,
     "",
@@ -395,7 +397,7 @@ export function mimeNeu(opts: { von: string; vonName?: string | null; an: string
     "Content-Transfer-Encoding: base64", "",
     Buffer.from(opts.html).toString("base64").replace(/(.{76})/g, "$1\r\n"), "",
     `--${grenze}--`, "",
-  ];
+  ].filter((z) => z !== null) as string[];
   return b64url(zeilen.join("\r\n"));
 }
 
@@ -410,3 +412,14 @@ export async function neueMailSenden(postfach: string, opts: { vonName?: string 
   const j = await api(postfach, "/messages/send", { method: "POST", body: JSON.stringify({ raw: mimeNeu({ von: postfach, ...opts }) }) });
   return String(j?.id || "");
 }
+
+/**
+ * Sendet eine neue Mail und nennt Nachricht UND Faden (21.09.2026, Mara-Aktion) —
+ * antwortet der Kunde, landet seine Mail im selben Faden, und Mara liest ihre
+ * eigene Mail im Verlauf mit.
+ */
+export async function neueMailSendenMitFaden(postfach: string, opts: { vonName?: string | null; an: string; betreff: string; text: string; html: string; abmelden?: string | null }): Promise<{ id: string; threadId: string }> {
+  const j = await api(postfach, "/messages/send", { method: "POST", body: JSON.stringify({ raw: mimeNeu({ von: postfach, ...opts }) }) });
+  return { id: String(j?.id || ""), threadId: String(j?.threadId || "") };
+}
+

@@ -23,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
+import { gedaechtnisText, gedaechtnisMerken, MERKEN_BESCHREIBUNG } from "./fiaon-mara-gedaechtnis";
 import { wandPruefen, wandUrteil, type Wandtreffer } from "@shared/fiaon-wortverbote";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
@@ -34,7 +35,7 @@ import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute } from "./fiaon-postmeister-schema";
 import { wissenFakten } from "@shared/fiaon-wissen";
 
-const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
+export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
 const SCHLUESSEL = () => process.env.OPENAI_API_KEY || process.env.ASSISTENT_API_KEY || "";
 const MAX_RUNDEN = 6;
@@ -218,7 +219,7 @@ function alsChatAntwort(roh: any): any {
  * Fehler im Schema statt in der Obergrenze — deshalb steht der Grund jetzt
  * in der Meldung.
  */
-function antwortLesen(j: any, wofuer: string): any {
+export function antwortLesen(j: any, wofuer: string): any {
   const inhalt = j?.choices?.[0]?.message?.content;
   if (j?._unvollstaendig) {
     throw new Error(
@@ -243,7 +244,7 @@ function antwortLesen(j: any, wofuer: string): any {
   }
 }
 
-async function kiAufruf(ein: {
+export async function kiAufruf(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
   aufwand?: "low" | "medium" | "high"; maxTokens?: number;
 }): Promise<any> {
@@ -395,8 +396,9 @@ const SCHEMA_B = {
         required: ["frage", "beantwortet", "warum"],
       },
     },
+    merken: { type: "array", items: { type: "string" }, description: MERKEN_BESCHREIBUNG },
   },
-  required: ["antwort", "naechster_schritt", "belege", "fragen_beantwortet"],
+  required: ["antwort", "naechster_schritt", "belege", "fragen_beantwortet", "merken"],
 };
 
 /**
@@ -418,6 +420,8 @@ function sprachName(code: string): string {
 
 function systemPrompt(ein: {
   kundenweg?: string | null;
+  /** Was Mara sich aus früheren Gesprächen gemerkt hat (fiaon-mara-gedaechtnis.ts). */
+  gedaechtnis?: string | null;
   postfach: string; lage: Kundenlage; lageGrund: string; heute: string; akte: any;
   einordnung: Einordnung; vertrag: string; alterTage: number; werkzeuge: string[];
   /** Absolutes Datum des Vertragsschlusses (Bestellung) — für Härte-Stufe und Widerruf. */
@@ -434,6 +438,10 @@ function systemPrompt(ein: {
     `KEINE ADRESSE (URL) IM TEXT. Wenn der Kunde eine Seite braucht, nennst du sie beim Namen („die Zahlungsseite", „Ihren Bereich") — der Knopf darunter trägt die Adresse. Eine URL im Fließtext ist ein Fremdkörper.`,
     `HEUTE ist ${ein.heute}.`,
     ``,
+    // 21.09.2026 (Justin): „ein viel besseres Gedächtnis — ALLES bis ins kleinste Detail".
+    `DEIN GEDÄCHTNIS ZU DIESEM MENSCHEN (was du dir aus früheren Gesprächen gemerkt hast — nutze es, damit er merkt, dass du ihn kennst):`,
+    ein.gedaechtnis || "(noch nichts gemerkt)",
+    ``,
     // Am 02.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
     // Die Sprachregel stand bis dahin als Nebensatz in einer Aufzählung. Jetzt
     // steht sie oben und allein — sie ist das Erste, was der Leser bemerkt.
@@ -445,6 +453,13 @@ function systemPrompt(ein: {
     `Erlaubte nächste Schritte in dieser Lage: ${schritte}. Genau EINER davon steht am Ende deiner Antwort.`,
     `VERTRAG: ${ein.vertrag}`,
     ``,
+    // ═══════════════════════════════════════════════════════════════════
+    // DEIN TON (21.09.2026, Justin): „Alle E-Mails müssen viel freundlicher
+    // beantwortet werden und immer mehr anregen zum Kaufen, direkt zu zahlen
+    // — es dem Kunden so einfach und smart wie möglich machen." Und zur
+    // Karte: „immer was Nettes und Motivierendes."
+    // ═══════════════════════════════════════════════════════════════════
+    `DEIN TON: herzlich, positiv und motivierend — du freust dich, dass der Kunde schreibt, und willst, dass er ans Ziel kommt. Jede Antwort macht Lust auf den nächsten Schritt: Sag, was er davon hat (sein Account ist aktiv, er bekommt direkt den Link unserer Partnerbank für Konto und Karte, sein persönlicher Betreuer begleitet ihn, sein Wunschlimit ist das Ziel) und wie leicht es jetzt geht (ein Klick auf den Knopf unten, dort stehen Betrag, Bankdaten und QR-Code). Nie belehrend, nie drohend, nie genervt. Schließ mit einem kurzen, warmen, persönlichen Satz („Ich freue mich auf Ihre Rückmeldung", „Einen schönen Abend Ihnen") — ohne Unterschrift.`,
     `SO SCHREIBST DU:`,
     `· Drei bis acht Sätze, förmliche Anrede.`,
     // 02.09.2026, nach den ersten echten Entwürfen: Der Agent schrieb inhaltlich
@@ -539,7 +554,8 @@ function systemPrompt(ein: {
     `  · Storniert (nichts bezahlt): „Ihre Bestellung ist storniert, es bleibt nichts offen." Fertig, Schritt erledigt. Bei einer UNBEZAHLTEN Bestellung zählt JEDE klare Absage als Storno-Wunsch („brauche ich nicht mehr", „kein Interesse", „bitte löschen", „nein danke", „möchte das Angebot nicht") — Werkzeug rufen und bestätigen, NICHT den Kunden bitten, es noch einmal anders zu formulieren.`,
     `  · Alle Raten bezahlt: „Ihr Vertrag ist beendet." Fertig.`,
     `  · OFFENE RATE: „Ihre Kündigung ist vorgemerkt. Offen ist noch Rate N über X € (fällig am D). Die Rechnung hängt an; Bankdaten, QR-Code und Verwendungszweck stehen auf der Zahlungsseite unten. Sobald die Zahlung eingegangen ist, erhalten Sie von uns das Kündigungsschreiben, und der Vertrag ist beendet." Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung.`,
-    `HÄRTE-STUFE — wenn der Kunde die offene Rate ausdrücklich verweigert („nein, mache ich nicht", „zahle nichts mehr", „wozu") und KEINEN sachlichen Einwand nennt (keine belegte Zahlung, kein Widerruf in der Frist, kein falscher Betrag), dann kein Verständnis mehr, kein Mahnstopp, keine Aufgabe an den Betreuer. Du schreibst ruhig und bestimmt, in dieser Reihenfolge: (1) „Wir haben einen Vertrag, den Sie am ${ein.vertragGeschlossenAm ?? "[Datum aus der Akte]"} geschlossen haben." (2) „Ohne die offene Rate N über X € können wir den Vertrag nicht beenden — das ist die einzige Bedingung." (3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
+    `ERSTES NEIN („bezahle ich nicht", „mache ich nicht") — freundlich und motivierend, NICHT hart (21.09.2026, Justin): Du nimmst es ernst, fragst kurz nach dem Grund und zeigst, was er gewinnt, wenn er die Rate jetzt zahlt — Account aktiv, direkt der Link unserer Partnerbank, die Karte meist schon vor dem Versand mit Apple Pay in der App der Bank. Dann der einfache Weg über den Knopf. Die Härte-Stufe unten gilt erst, wenn er im SELBEN Schriftwechsel schon einmal abgelehnt hat.`,
+    `HÄRTE-STUFE — erst beim ZWEITEN ausdrücklichen Nein im Schriftwechsel: wenn der Kunde die offene Rate erneut verweigert („nein, mache ich nicht", „zahle nichts mehr", „wozu") und KEINEN sachlichen Einwand nennt (keine belegte Zahlung, kein Widerruf in der Frist, kein falscher Betrag), dann kein Mahnstopp, keine Aufgabe an den Betreuer. Du schreibst ruhig und bestimmt, in dieser Reihenfolge: (1) „Wir haben einen Vertrag, den Sie am ${ein.vertragGeschlossenAm ?? "[Datum aus der Akte]"} geschlossen haben." (2) „Ohne die offene Rate N über X € können wir den Vertrag nicht beenden — das ist die einzige Bedingung." (3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
     `WIDERRUF: Liegt der Vertragsschluss (${ein.vertragGeschlossenAm ?? "Datum in der Akte"}) höchstens 14 Tage zurück, gilt der Widerruf: kuendigung_vormerken (unbezahlt → storniert) und, wenn schon gezahlt wurde, Aufgabe an die Leitung (kollege: "Leitung") für die Entscheidung über die Rückzahlung — dem Kunden sagst du, dass die Leitung das entscheidet; du versprichst keine Rückzahlung. Nach 14 Tagen ist ein „Widerruf" eine Kündigung und wird so behandelt.`,
     `Wortverbote gelten weiter: nichts garantieren, keinen Kredit versprechen oder vermitteln, das Wort „Affiliate" nie.`,
     ``,
@@ -574,7 +590,7 @@ export function gerichtFuer(land?: string | null, ort?: string | null): string {
 }
 
 /** Die Akte ohne Verlauf und Mails (die stehen im Kundenweg), Wichtiges zuerst. */
-function akteKompakt(a: any): any {
+export function akteKompakt(a: any): any {
   if (!a || typeof a !== "object") return a;
   const { verlauf: _v, mails: _m, offeneAufgaben: _o, ...rest } = a;
   return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, vertrag: a.vertrag, karte: a.karte, ...rest };
@@ -631,7 +647,9 @@ export async function antwortErzeugen(ein: {
 
   // 04.09.2026 (E-118): Der ganze Weg des Kunden — aus zwanzig Quellen, als Zeitleiste.
   const { kundenwegLesen } = await import("./fiaon-kundenweg");
-  const weg = (ein.personId || ein.ref) ? await kundenwegLesen(ein.personId, ein.ref).catch((e) => { console.warn("[POSTMEISTER] Kundenweg:", String(e).slice(0, 120)); return null; }) : null;
+  // 21.09.2026: 20.000 statt 14.000 Zeichen — dazu fasst der Weg gleiche Automatik-Mails zusammen.
+  const weg = (ein.personId || ein.ref) ? await kundenwegLesen(ein.personId, ein.ref, { maxZeichen: 20_000 }).catch((e) => { console.warn("[POSTMEISTER] Kundenweg:", String(e).slice(0, 120)); return null; }) : null;
+  const gedaechtnis = await gedaechtnisText(ein.personId).catch(() => null);
 
   const handlungen: AgentErgebnis["handlungen"] = [];
   const werkzeugDaten: Record<string, any> = {};
@@ -665,6 +683,7 @@ export async function antwortErzeugen(ein: {
       werkzeuge: werkzeuge.map((w) => w.name),
       name: await agentName(),
       kundenweg: weg?.text ?? null,
+      gedaechtnis,
     }), vorab].filter(Boolean).join("\n\n") },
   ];
   if (ein.verlauf.length) {
@@ -700,7 +719,10 @@ export async function antwortErzeugen(ein: {
         nachrichten: [...nachrichten, { role: "user", content: "Schreibe jetzt die Antwort an den Kunden im vorgegebenen Format." }],
       }).catch((e) => ({ fehler: String(e?.message || e) } as any));
       if ((fertig as any).fehler) return { ...leer, grund: `Antwort nicht erzeugt: ${(fertig as any).fehler}`, handlungen };
-      return await pruefenUndAbschliessen(antwortLesen(fertig, "Antwort"), { kundenweg: weg?.text ?? null,
+      const roh = antwortLesen(fertig, "Antwort");
+      // 21.09.2026: Was Mara Neues über den Menschen weiß, bleibt — auch wenn die Antwort ein Entwurf wird.
+      await gedaechtnisMerken(ein.personId, roh?.merken, "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));
+      return await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
       });
     }

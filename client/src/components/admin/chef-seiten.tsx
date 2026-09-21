@@ -56,6 +56,8 @@ const GlobalAuftraege = lazy(() => import("@/components/admin/ChefGlobalAuftraeg
 const FirmenRadar = lazy(() => import("@/components/admin/ChefRadar"));
 // 21.09.2026 (E-201): Justins eigene Anrufseite — nur Stufe Inhaber.
 const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"));
+// 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
+const Mara = lazy(() => import("@/components/admin/ChefMara"));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
 const Vertraege = lazy(() => import("@/pages/admin-vertraege"));
@@ -170,6 +172,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "mailwerk", label: "Mailwerk", satz: "Alle 41 Mails sehen und steuern: Versandweg, Takte, Prüfversand.", Seite: Mailwerk, raum: "kommunikation", mindest: "geschaeftsfuehrung", auch: "mail email brevo make vorlage template versand automatik" },
   // Justins Zentrale (01.09.2026): „das soll nur meine Zentrale sein" — Stufe inhaber.
   { slug: "postmeister", label: "Postfach", satz: "Alle Kundenmails an einem Ort: was der Kunde schrieb, seine Akte daneben, die Antwort zum Prüfen", Seite: Postmeister, raum: "kommunikation", mindest: "inhaber", auch: "email agent gmail postfach support ki automatisch" },
+  { slug: "mara", label: "Mara-Steuerpult", satz: "Mara schreibt rund um die Uhr jeden an, der noch nichts bezahlt hat — hier siehst du jede Mail, steuerst Takt und Kosten und nimmst Menschen aus der Aktion.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung" },
   { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "kommunikation" },
   { slug: "space", label: "Space", satz: "Der Feed des Teams — mitlesen, anpinnen, moderieren.", Seite: Space, raum: "kommunikation" },
 

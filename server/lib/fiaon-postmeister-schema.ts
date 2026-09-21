@@ -144,6 +144,12 @@ const PREIS: Record<string, { ein: number; aus: number }> = {
   "gpt-4.1-mini": { ein: 0.04, aus: 0.16 },
 };
 
+/** Kosten eines Aufrufs in Cent — dieselbe Hausrechnung wie im Protokoll (21.09.2026, Mara-Aktion). */
+export function kostenCentsAus(modell: string, usage: any): number {
+  const p = PREIS[modell] ?? PREIS[modell.replace(/-\d{4}-\d{2}-\d{2}$/, "")] ?? { ein: 0.1, aus: 0.8 };
+  return (Number(usage?.prompt_tokens || 0) / 1000) * p.ein + (Number(usage?.completion_tokens || 0) / 1000) * p.aus;
+}
+
 export async function nutzungMerken(ein: {
   dienst: string; modell: string; usage?: any; dauerMs: number; ok: boolean; fehler?: string | null;
 }): Promise<void> {

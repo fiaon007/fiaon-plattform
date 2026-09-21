@@ -235,6 +235,8 @@ export async function sendePayloadBauen(
 const MIT_LOGIN = new Set<string>([
   "payment_confirmed", "zugang_link", "account_activated", "bereich_freigeschaltet",
   "documents_change_request", "profile_query", "schufa_requested", "schufa_approved",
+  // E-206: die Karten-Einladung hat „Unterlagen hochladen" als zweiten Knopf.
+  "konto_karte_einladung",
 ]);
 
 // ═══════════════════════════════════════════════════════════════════════════

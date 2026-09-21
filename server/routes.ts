@@ -433,6 +433,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🚦 Boni-Ampel (21.09.2026, E-202): FIAONs eigene Einschätzung je Kunde — in der Akte der Mitarbeiter.
   const fiaonBoniAmpelRoutes = await import('./routes/fiaon-boni-ampel');
   app.use('/api/fiaon', fiaonBoniAmpelRoutes.default);
+  // 🪪 Konto & Karte (21.09.2026, E-206): ab der ersten Rate geht die Einladung der Partnerbank von selbst raus —
+  //    höchstens 40 je Lauf, alle fünf Minuten (Justin: „ab JETZT JEDER, der eine Rate bezahlt hat").
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('karten_einladungen', async () => await (await import('./lib/fiaon-konto-karte')).einladungenAutomatisch(40), 5 * 60 * 1000, { beimStartNach: 150_000 });
+  });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });
   });

@@ -108,6 +108,42 @@ router.post("/chef/telefonkartei/:personId/ergebnis", wache, async (req: ChefReq
   }
 });
 
+/**
+ * POST /chef/telefonkartei/:personId/ki-nachricht { wunsch, vorher? } — die KI
+ * schreibt aus Justins Stichpunkten eine WhatsApp-Nachricht (21.09.2026, E-205).
+ * Sie SCHLÄGT VOR: Der Text geht zurück auf die Seite, gesendet wird nur in
+ * WhatsApp, von Justin selbst (server/lib/fiaon-kartei-ki.ts kann nicht senden).
+ */
+router.post("/chef/telefonkartei/:personId/ki-nachricht", wache, async (req: ChefRequest, res: Response) => {
+  const id = personIdAus(req, res); if (!id) return;
+  try {
+    const karte = await karteEinzeln(id);
+    if (!karte) return res.status(404).json({ ok: false, meldung: "Kunde nicht gefunden." });
+    const { kiNachricht } = await import("../lib/fiaon-kartei-ki");
+    const erg = await kiNachricht(karte, String(req.body?.wunsch ?? ""), req.body?.vorher ? String(req.body.vorher) : null, ANTRAG_URL());
+    res.status(erg.ok ? 200 : 422).json(erg);
+  } catch (e: any) {
+    console.error("[TELEFONKARTEI] ki-nachricht:", e);
+    res.status(500).json({ ok: false, meldung: "Serverfehler — bitte noch einmal." });
+  }
+});
+
+/** POST /chef/telefonkartei/:personId/nachricht-vermerken { text } — „WhatsApp geöffnet" in den Verlauf. */
+router.post("/chef/telefonkartei/:personId/nachricht-vermerken", wache, async (req: ChefRequest, res: Response) => {
+  const id = personIdAus(req, res); if (!id) return;
+  try {
+    const karte = await karteEinzeln(id);
+    if (!karte) return res.status(404).json({ ok: false, meldung: "Kunde nicht gefunden." });
+    const { nachrichtVermerken } = await import("../lib/fiaon-kartei-ki");
+    const akteur = await akteurName(req.chef?.agentId);
+    const ok = await nachrichtVermerken(karte, String(req.body?.text ?? ""), akteur);
+    res.status(ok ? 200 : 409).json({ ok, meldung: ok ? "Im Verlauf festgehalten." : "Kein Verlauf möglich — weder Bestellung noch Lead." });
+  } catch (e: any) {
+    console.error("[TELEFONKARTEI] nachricht-vermerken:", e);
+    res.status(500).json({ ok: false, meldung: "Serverfehler" });
+  }
+});
+
 /** POST /chef/telefonkartei/:personId/storno { grund?, kulanz? } */
 router.post("/chef/telefonkartei/:personId/storno", wache, async (req: ChefRequest, res: Response) => {
   const id = personIdAus(req, res); if (!id) return;

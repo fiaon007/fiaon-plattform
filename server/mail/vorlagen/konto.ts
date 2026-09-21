@@ -193,17 +193,22 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
     fussnote: "Die Nummer stimmt? Dann antworten Sie kurz mit einer Uhrzeit, zu der wir Sie gut erreichen.",
   },
 
+  // 21.09.2026 (E-206): Justin — „viel mehr auf die Kreditkarte gepitcht", ab der
+  // ersten Rate, mit dem Weg der Antragszeit (Unterlagen hochladen). Die Sätze zur
+  // Karte sind dieselben wie in WhatsApp und bei Mara (shared/fiaon-karten-weg.ts).
   konto_karte_einladung: {
-    betreff: "Der nächste Baustein Ihrer Bonität, {{params.vorname}}",
-    preheader: "Ein Girokonto mit Karte — von uns vorbereitet, von Ihnen eröffnet.",
-    titel: "Ihr nächster Baustein",
+    betreff: "Ihr Link zur Karte ist da, {{params.vorname}}",
+    preheader: "Ihr Account ist aktiviert — der Antrag bei unserer Partnerbank dauert nur wenige Minuten.",
+    titel: "Ihr Weg zur Karte",
     heroKarte: true,
     absaetze: [
-      "Guten Tag {{params.vorname}}, Ihre Akte ist so weit: {{params.agent_vorname}} aus Ihrem Team hat den nächsten Baustein für Sie freigeschaltet — ein Girokonto mit Karte bei unserer Partnerbank.",
-      "Warum das zählt: Ein aktiv geführtes Konto mit eigener Karte ist einer der stärksten Bausteine einer gesunden Bonität. Sie eröffnen es in wenigen Minuten online; alles, was Sie brauchen, ist Ihr Ausweis.",
+      "Guten Tag {{params.vorname}}, Ihre erste Zahlung ist da und Ihr Account ist aktiviert. Hier ist, wie angekündigt, Ihr fertiger Link zu unserer Partnerbank, der DKB: Girokonto mit Visa-Karte, in wenigen Minuten online beantragt — Sie brauchen nur Ihren Ausweis.",
+      "Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist können Sie sie schon vorher in der App der Bank mit Apple Pay nutzen.",
+      "Parallel begleiten wir Ihren Antrag mit unserer Bonitätsanalyse. Laden Sie dafür in Ihrem Bereich Ihre Kontoauszüge der letzten sechs Monate, Ihren Ausweis oder Reisepass und Ihre Bonitätsauskunft hoch — {{params.agent_vorname}} aus Ihrem Team ist für Sie da, wenn Sie Fragen haben.",
     ],
-    knopf: { text: "Konto ansehen und eröffnen", url: "{{params.partner_link}}" },
-    fussnote: "Die Kontoeröffnung ist freiwillig und die Entscheidung über die Eröffnung trifft die Bank. Fragen dazu klärt Ihr Ansprechpartner gern im Gespräch.",
+    knopf: { text: "Jetzt Konto und Karte beantragen", url: "{{params.partner_link}}" },
+    knopf2: { text: "Unterlagen hochladen", url: "{{params.login_url}}" },
+    fussnote: "Die Entscheidung über Konto und Karte trifft die Bank.",
   },
 
   account_activated: {

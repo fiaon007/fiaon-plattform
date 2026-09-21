@@ -438,6 +438,7 @@ async function karteBauen(z: any): Promise<KarteiKarte> {
     rueckrufAm: iso(z.rr_am),
     // E-202: FIAONs eigene Einschätzung — dieselbe Rechnung wie in der Akte der Mitarbeiter.
     ampel: boniAmpel(boniEingangAusZeile(z, { strasse: z.street, plz: z.zip, ort: z.city, land: z.country })),
+    anrede: /^(herr|frau)$/i.test(text(z.anrede)) ? (text(z.anrede).toLowerCase() === "frau" ? "Frau" : "Herr") : null,
   };
 }
 

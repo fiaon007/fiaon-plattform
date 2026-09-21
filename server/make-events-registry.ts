@@ -339,13 +339,14 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "konto_karte_einladung",
     label: "Konto & Karte beim Kooperationspartner (Kunde)",
     description:
-      "Wird vom Mitarbeiter in der Akte ausgeloest, sobald ein Kunde alle drei Bedingungen erfuellt: Antrag vollstaendig, Paket und Auskunft bezahlt mit mindestens zwei gelaufenen Raten, Kontoauszug und Ausweis vorhanden. Kein Automatiklauf - immer ein bewusster Klick, und der Server prueft die Bedingungen selbst noch einmal. Vorgesetzten-TODO: Make-Zweig 'konto_karte_einladung' + Brevo-Vorlage in Sie-Form anlegen (Variablen: vorname, partner_link, agent_vorname). Textvorschlag: siehe Kommentar ueber diesem Eintrag. Das Wort 'Affiliate' darf in der Vorlage NICHT vorkommen.",
+      "Seit 21.09.2026 (E-206): geht AUTOMATISCH raus, sobald die erste Zahlung gebucht ist (Antrag vollstaendig vorausgesetzt) - Lauf 'karten_einladungen' alle fuenf Minuten, hoechstens 40 je Lauf; der Knopf in der Akte bleibt fuer den Nachversand. Die 10 EUR je bestaetigter Eroeffnung gehen an den Betreuer. Text in server/mail/vorlagen/konto.ts (Versandweg direkt), Kartensaetze aus shared/fiaon-karten-weg.ts. Das Wort 'Affiliate' darf in der Vorlage NICHT vorkommen.",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
       vorname: "Max",
       agent_vorname: "Daniel",
       partner_link: "https://www.awin1.com/cread.php?awinmid=11329&awinaffid=3050049&clickref=FIAON-P12345&clickref2=A928",
+      login_url: "https://www.fiaon.com/login",
     },
   },
   {

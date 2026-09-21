@@ -5,6 +5,55 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (Nacht) — Karte ab der ersten Rate, Einladung automatisch (E-206)
+
+**Was geändert wurde:**
+
+- **Regel:** Die Einladung der Partnerbank (DKB-Link) gibt es ab der ersten gebuchten Zahlung — vorher Paket, Auskunft, zwei
+  Raten, Kontoauszug und Ausweis. Tore jetzt: Antrag vollständig + erste Zahlung (`KARTE_MIN_RATEN = 1`, Spiegel in
+  `shared/fiaon-rahmenweg.ts`). Auskunft und Unterlagen kommen in der Antragszeit.
+- **Automatik** `einladungenAutomatisch()` (Lauf `karten_einladungen`, alle 5 Minuten, höchstens 40): dieselbe Mail und derselbe
+  Eintrag wie „Karte bestellen"; die 10 € gehören dem Betreuer. Ausgenommen: Vertriebs-/Werbesperre, gekündigt, storniert,
+  ausgeschlossen, Testkonto, keine E-Mail; nach einem gescheiterten Versuch 24 Stunden Ruhe. Am 21.09. bereit: 299 Zahler
+  (33 hatten den Link schon, 10 mit unvollständigem Antrag, 122 ausgenommen).
+- **Mail „Ihr Link zur Karte ist da"** auf die Karte gepitcht, mit „Unterlagen hochladen" als zweitem Knopf.
+- **Eine Stelle für die Karten-Sätze** `shared/fiaon-karten-weg.ts` (in der Regel 2–5 Werktage nach der Zusage der Bank, meist
+  vorher Apple Pay) — für WhatsApp, Mail, Mara und das Wissen des Assistenten.
+- **Mara und Wissen:** neue Regel, positiv und motivierend auf die Karte gepitcht, nie „ich empfehle", nie eine feste Frist.
+  Leitfaden „Konto & Karte", Rundgang „Mein Bestand" und Team-Update nachgezogen.
+
+**Warum:** Justin am 21.09.2026: „Ab JETZT JEDER, der eine Rate bezahlt hat, kriegt den DKB-Link, die Einladung dazu" —
+freigegeben „sofort an alle".
+
+**Wo zu finden:** `server/lib/fiaon-konto-karte.ts`, `server/routes.ts` (Lauf), `server/mail/vorlagen/konto.ts`,
+`server/lib/fiaon-mail-senden.ts` (login_url), `server/make-events-registry.ts`, `shared/fiaon-wissen.ts`,
+`server/lib/fiaon-postmeister-agent.ts`; Prüfstände `pruef-mara-wissen.ts`, `pruef-mail-knoepfe.ts`.
+
+---
+
+## 21.09.2026 (Nacht) — Telefonkartei: ein Knopf „Nachrichten", persönliche Nachricht per KI (E-205)
+
+**Was geändert wurde:**
+
+- **Karte:** zwei moderne Knöpfe — „Anrufen" (blau) und „Nachrichten" (Glas, grünes Zeichen); am Telefon untereinander.
+- **Blatt „Nachrichten":** die vier Fälle als Liste mit farbigen Zeichen (Rechnung/Antrag, Nicht erreicht, Später anrufen,
+  Stornieren) — WhatsApp öffnet weiter über echte Links.
+- **Persönliche Nachricht:** „Was möchtest du … schreiben?" — aus Justins Stichpunkten schreibt die KI (gpt-5.5) eine
+  persönliche WhatsApp in der Sie-Form, ohne Emojis und Versprechen; Justin ändert, formuliert neu, öffnet WhatsApp und schickt
+  selbst. Datensparsam (keine Nummer, E-Mail, Anschrift, Bankdaten an das Modell; Links nur als Platzhalter), Antwort durch
+  Wortwand und Entschärfer, Tagesdeckel 5 €. Vermerk „WhatsApp geöffnet" im Verlauf.
+- **Alle WhatsApp-Texte ohne Emojis und Sternchen**, gesprochener Ton, „Hallo Frau …" wenn die Anrede bekannt ist.
+
+**Warum:** Justin am 21.09.2026: „Buttons moderner! Fasse alle WhatsApp-Nachrichten in einen Button … und so was wie ein
+Freitext, nur besser benannt … die KI schreibt daraus eine 100 % personalisierte, menschlich klingende WhatsApp. Außerdem bei
+jeder WhatsApp die Emojis weg."
+
+**Wo zu finden:** `ChefTelefonkartei.tsx` (NachrichtenBlatt, KiNachricht), `chef-telefonkartei.css`,
+`shared/fiaon-telefonkartei.ts` (Texte, `ohneEmojis`, `anredeWhatsApp`), `server/lib/fiaon-kartei-ki.ts`,
+`server/routes/fiaon-telefonkartei.ts`; Prüfstand 108 Prüfungen.
+
+---
+
 ## 21.09.2026 (spätabends) — Akte im Fenster ruhiger und klarer (E-204)
 
 **Was geändert wurde:**

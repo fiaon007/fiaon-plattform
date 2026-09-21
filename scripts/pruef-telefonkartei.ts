@@ -15,8 +15,9 @@ import path from "node:path";
 import {
   whatsappRechnung, whatsappNichtErreicht, whatsappAntrag, mailRechnung, mailNichtErreicht, mailAntrag,
   waLink, waNummer, limitZiel, anlass, pitchAbsatz, hatRechnungsweg, hatAntragsweg, euro, euroGanz, datumKurz,
-  KARTEI_GRUPPEN, istKarteiGruppe, istKarteiErgebnis, type KarteiKarte,
+  KARTEI_GRUPPEN, istKarteiGruppe, istKarteiErgebnis, ohneEmojis, type KarteiKarte,
 } from "../shared/fiaon-telefonkartei";
+import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "../shared/fiaon-karten-weg";
 import { BANK } from "../shared/fiaon-bank";
 import { boniAmpel } from "../shared/fiaon-boni-ampel";
 import { wandPruefen } from "../shared/fiaon-wortverbote";
@@ -48,7 +49,7 @@ const basis: KarteiKarte = {
   kontakt: { am: null, von: null, ergebnis: null, nichtErreicht: 0 }, termin: null, erreichbarkeit: "",
   zusage: null, gesperrt: false, werbungGesperrt: false, testfall: false,
   terminLink: "https://www.fiaon.com/justin?k=4711.123.abc", akteId: "FIAON-ABC234", akteLink: "/chef/s/akte?id=FIAON-ABC234",
-  storno: null, rueckrufAm: null,
+  storno: null, rueckrufAm: null, anrede: null,
   ampel: boniAmpel({
     strasse: true, plz: true, ort: true, land: "DE", wohnform: "Zur Miete", beschaeftigung: "Angestellt", beschaeftigtSeit: "2019-03",
     einkommenEuro: 2400, zusatzEinkommenEuro: null, mieteEuro: 700, ausgabenEuro: 400, schuldenEuro: 0, konto: null, schufa: null,
@@ -68,22 +69,25 @@ const hart = (text: string, ausgefuehrt: string[] = [], ohneIban = false) =>
 abschnitt("Fall 1 — Rechnung (erste Zahlung)");
 {
   const wa = flach(whatsappRechnung(basis, ABSENDER)!);
-  ok(wa.startsWith("Hi Max Mustermann,"), "WhatsApp beginnt mit „Hi Vor- und Nachname“");
-  ok(wa.includes("vielen Dank für das freundliche Telefonat"), "Dank fürs Telefonat");
-  ok(wa.includes("mit Ihrem Wunschlimit von 5.000 € als Ziel"), "Wunschlimit als ZIEL, nicht als Versprechen");
-  ok(wa.includes("nach Zusage der Bank in der Regel in 4–8 Werktagen"), "Karte: „nach Zusage der Bank in der Regel 4–8 Werktage“");
+  ok(wa.startsWith("Hallo Max Mustermann,"), "WhatsApp beginnt mit „Hallo Vor- und Nachname“ (ohne Anrede)");
+  ok(flach(whatsappRechnung(karte({ anrede: "Herr" }), ABSENDER)!).startsWith("Hallo Herr Mustermann,"), "mit Anrede: „Hallo Herr Mustermann,“");
+  ok(wa.includes("danke für das nette Telefonat gerade"), "Dank fürs Telefonat, gesprochen");
+  ok(wa.includes("Ihr Wunschlimit von 5.000 € nehmen wir dabei als Ziel"), "Wunschlimit als ZIEL, nicht als Versprechen");
+  ok(wa.includes(KARTE_ZEIT_SATZ) && KARTE_ZEIT_SATZ.includes("Nach der Zusage der Bank") && KARTE_ZEIT_SATZ.includes("in der Regel in 2–5 Werktagen"), "Karte: „nach der Zusage der Bank, in der Regel 2–5 Werktage“ (eine Stelle, wie bei Mara)");
+  ok(wa.includes(KARTE_LINK_SATZ), "Link der Partnerbank direkt nach der Aktivierung");
+  ok(!/\p{Extended_Pictographic}/u.test(wa) && !wa.includes("*"), "keine Emojis, keine Sternchen (Justin: „die Emojis weg, menschlicher“)");
   ok(wa.includes("Kartenantrag"), "Justins Pitch: Kartenantrag im Anschluss");
   ok(!/ruft Sie .{0,30}an\b/i.test(wa), "kein „ruft Sie an“ (Zusage ohne Rückruf)");
-  ok(wa.includes(`*IBAN:* ${BANK.ibanDisplay}`) && wa.includes(`*BIC:* ${BANK.bic}`) && wa.includes(`*Empfänger:* ${BANK.empfaenger}`), "Bankdaten aus shared/fiaon-bank.ts");
-  ok(wa.includes("*Verwendungszweck:* FIAON-ABC234") && wa.includes("*Betrag:* 59,99 €"), "Betrag und Verwendungszweck");
+  ok(wa.includes(`IBAN: ${BANK.ibanDisplay}`) && wa.includes(`BIC: ${BANK.bic}`) && wa.includes(`Empfänger: ${BANK.empfaenger}`), "Bankdaten aus shared/fiaon-bank.ts");
+  ok(wa.includes("Verwendungszweck: FIAON-ABC234") && wa.includes("Betrag: 59,99 €"), "Betrag und Verwendungszweck");
   ok(wa.includes("https://www.fiaon.com/zahlung/FIAON-ABC234"), "Zahlungsseite drin");
-  ok(wa.includes("📄 Ihre Rechnung als PDF:") && wa.includes("invoice/FIAON-ABC234.pdf"), "Rechnung als PDF-Link");
-  ok(wa.includes("zusätzlich per E-Mail"), "Hinweis auf die Mail, wenn eine Adresse da ist");
+  ok(wa.includes("Ihre Rechnung als PDF: ") && wa.includes("invoice/FIAON-ABC234.pdf"), "Rechnung als PDF-Link");
+  ok(wa.includes("auch per E-Mail geschickt"), "Hinweis auf die Mail, wenn eine Adresse da ist");
   ok(!whatsappRechnung(karte({ email: null }), ABSENDER)!.includes("per E-Mail"), "ohne Adresse kein Mail-Hinweis");
   ok(wa.trim().endsWith("Viele Grüße\nJustin Schwarzott"), "Gruß mit Justins Namen");
   ok(hart(wa, ["rechnung_anhaengen"], true).length === 0, `WhatsApp besteht die Wortwand (außer der IBAN-Regel): ${hart(wa, ["rechnung_anhaengen"], true).map((f) => f.treffer).join(" | ")}`);
   const ohneWunsch = whatsappRechnung(karte({ wunschlimitEuro: null }), ABSENDER)!;
-  ok(!ohneWunsch.includes("Wunschlimit") && ohneWunsch.includes("aktiviere ich umgehend Ihr Konto."), "ohne Wunschlimit fällt der Halbsatz weg — keine erfundene Zahl");
+  ok(!ohneWunsch.includes("Wunschlimit") && ohneWunsch.includes("aktiviere ich Ihr Konto."), "ohne Wunschlimit fällt der Halbsatz weg — keine erfundene Zahl");
   ok(limitZiel({ wunschlimitEuro: 25000, rahmenEuro: 5000 }) === 5000, "Wunsch über dem Paketrahmen → Rahmen");
   ok(limitZiel({ wunschlimitEuro: 3000, rahmenEuro: 5000 }) === 3000, "Wunsch unter dem Rahmen bleibt");
   ok(limitZiel({ wunschlimitEuro: 0, rahmenEuro: 5000 }) === null, "0 € ist kein Wunschlimit");
@@ -104,7 +108,7 @@ abschnitt("Fall 1 — Rechnung (Monatsrate)");
     zahlung: { art: "rate", referenz: "FIAON-ABC234-2", betragCents: 5999, rateNr: 2, faelligAm: "2026-09-15", zahlungsseite: "https://www.fiaon.com/zahlung/FIAON-ABC234-2", rechnungLink: null, nochKeineRechnung: false },
   });
   const wa = whatsappRechnung(rate, ABSENDER)!;
-  ok(wa.includes("2. Monatsrate") && wa.includes("*Fällig:* 15.09.2026"), "Rate mit Nummer und Fälligkeit");
+  ok(wa.includes("2. Monatsrate") && wa.includes("Fällig am: 15.09.2026"), "Rate mit Nummer und Fälligkeit");
   ok(!wa.includes("Kartenantrag") && !wa.includes("aktiviere"), "kein Aktivierungs-Pitch bei einem laufenden Konto");
   ok(!wa.includes("Ihre Rechnung als PDF"), "kein öffentlicher PDF-Link für Raten (die Mail trägt das PDF)");
   const m = mailRechnung(rate, ABSENDER)!;
@@ -116,7 +120,9 @@ abschnitt("Fall 3 — Nicht erreicht");
 {
   const wa = whatsappNichtErreicht(basis, ABSENDER);
   ok(wa.includes("zu Ihrem Kreditkartenantrag bei FIAON anrufen") && wa.includes("heute oder morgen"), "Justins Satz, grammatisch rund");
-  ok(wa.includes("https://www.fiaon.com/justin?k=4711.123.abc") && wa.includes("schon ausgefüllt"), "persönlicher Kalender, vorausgefüllt");
+  ok(wa.includes("https://www.fiaon.com/justin?k=4711.123.abc") && wa.includes("schon eingetragen"), "persönlicher Kalender, vorausgefüllt");
+  ok(!/\p{Extended_Pictographic}/u.test(wa + whatsappAntrag(karte({ lage: "C", zahlung: null }), ABSENDER, "https://www.fiaon.com/antrag")), "Nicht erreicht und Antrag: keine Emojis");
+  ok(ohneEmojis("Hallo 🙂 *Test* 👉 ok") === "Hallo Test ok", `ohneEmojis räumt Emojis und Sternchen ab (${ohneEmojis("Hallo 🙂 *Test* 👉 ok")})`);
   ok(whatsappNichtErreicht(karte({ lage: "C" }), ABSENDER).includes("zu Ihrer Anfrage bei FIAON"), "C-Lead: „Anfrage“ statt „Antrag“");
   ok(whatsappNichtErreicht(karte({ lage: "rate" }), ABSENDER).includes("zu Ihrem FIAON Konto"), "Rate offen: „FIAON Konto“");
   ok(anlass("A") === anlass("B") && anlass("B").includes("Kreditkartenantrag"), "A/B: Kreditkartenantrag");
@@ -212,6 +218,23 @@ abschnitt("Wände im Quelltext");
   const css = lies("client/src/styles/chef-telefonkartei.css");
   ok(/\.tk-suche:focus-within/.test(css) && !/\.tk input:focus-visible/.test(css), "Suchfeld: Fokus an der runden Kante, kein eckiger Rahmen");
   ok(lies("client/src/pages/agent/rundgaenge.ts").includes("„Akte öffnen“ unten auf der Karte zeigt die ganze Akte in einem Fenster"), "Rundgang erklärt Akte-Fenster und Termine");
+
+  // ── E-205 (21.09. spät): ein Knopf „Nachrichten", persönliche Nachricht per KI ──
+  ok(seite.includes('className="tk-nachrichten"') && seite.includes("function NachrichtenBlatt") && !seite.includes('className="tk-faelle"'),
+    "Karte: „Anrufen“ + „Nachrichten“ — die vier Fälle stehen im Blatt");
+  const nb = seite.slice(seite.indexOf("function NachrichtenBlatt"), seite.indexOf("function KiNachricht"));
+  ok(nb.includes('onClick={fall(ersterFall, waErster)}') && nb.includes('href={waErster ?? "#"}') && nb.includes('onClick={fall("nicht_erreicht", waNicht)}'),
+    "Fälle öffnen WhatsApp weiter über echte Links (Klick), der Server macht Mail und Verlauf");
+  ok(/router\.post\("\/chef\/telefonkartei\/:personId\/ki-nachricht", wache,/.test(routen) && /router\.post\("\/chef\/telefonkartei\/:personId\/nachricht-vermerken", wache,/.test(routen),
+    "KI-Nachricht und Vermerk nur hinter der Inhaber-Wache");
+  const ki = lies("server/lib/fiaon-kartei-ki.ts");
+  ok(!/freitextSenden|freitextVersenden|mailSenden|sendMail|brevo|twilio/i.test(ki.replace(/\/\/[^\n]*/g, "")), "Die KI-Datei kann nicht senden — Justin schickt selbst in WhatsApp");
+  const eingabeFn = ki.slice(ki.indexOf("function eingabe("), ki.indexOf("export function nachrichtGlaetten"));
+  ok(!/telefon|email|primary_|street|iban/i.test(eingabeFn), "An das Modell gehen weder Telefonnummer noch E-Mail, Anschrift oder Bankdaten");
+  ok(ki.includes("[WEBSITE]") && ki.includes("t.split(p.zeichen).join(p.wert)"), "Links nur als Platzhalter, eingesetzt auf dem Server");
+  ok(ki.includes("wandPruefen(text, [])") && ki.includes("ohneEmojis(") && ki.includes("entschaerfen"), "Antwort durch Wortwand, Emoji-Filter und Entschärfer");
+  ok(ki.includes('kostenHeute("telefonkartei")') && ki.includes("TAGESDECKEL_EUR"), "Tagesdeckel für KI-Kosten");
+  ok(ki.includes("agent_id, agent_name, type, note") && ki.includes("NULL, ${akteur}, 'system'"), "Vermerk mit Justins Namen, ohne Mitarbeiter-ID");
 }
 
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden${fehler ? ` — ${fehler} FEHLER` : ""}`);

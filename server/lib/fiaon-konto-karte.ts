@@ -104,7 +104,14 @@ export const KARTEN_BONUS_CENTS = 1000; // 10,00 €
  * Mail, Academy. Eine zweite Fassung wäre die Gelegenheit, dass sie
  * auseinanderlaufen.
  */
-export const KARTE_MIN_RATEN = 2;
+export const KARTE_MIN_RATEN = 1;
+// ── AB DER ERSTEN RATE (21.09.2026, E-206) ─────────────────────────────────
+// Justin: „Ab JETZT JEDER, der eine Rate bezahlt hat, kriegt den DKB-Link, die
+// Einladung dazu." Der neue Weg (Team-Chat 21.09.): Zahlung → Einladung der
+// Partnerbank → in der Antragszeit lädt der Kunde Kontoauszüge, Ausweis und
+// Auskunft bei uns hoch → FIAONs Bonitätsanalyse. Deshalb sind Auskunft und
+// Unterlagen keine Tore mehr — sie kommen NACH dem Link, nicht davor.
+// Der Schutz „zwei Monate im Paket" entfällt damit bewusst (Justins Entscheidung).
 
 export type TorSchluessel = "antrag" | "bezahlt" | "unterlagen";
 
@@ -495,22 +502,14 @@ async function schufaTabelleSicher(): Promise<void> {
 /** Aus einer Zeile die drei Tore mit Begründungen bauen. */
 function toreAus(r: any): Tor[] {
   const raten = Number(r.raten_bezahlt || 0);
-  // E-178: gekauft ODER eigene, ausgewertete Auskunft — beides heisst: Wir kennen seine Bonitaet.
-  const auskunftDa = !!(r.schufa_bezahlt || r.schufa_eigene);
-  const geldOk = r.paket_bezahlt && auskunftDa && raten >= KARTE_MIN_RATEN;
+  // E-206: Nur noch die erste Zahlung zählt. Auskunft und Unterlagen kommen in
+  // der Antragszeit — sie stehen weiter in der Akte, sperren aber nicht mehr.
+  const geldOk = r.paket_bezahlt && raten >= KARTE_MIN_RATEN;
 
   const geldFehlt = [
     !r.paket_bezahlt ? "das Paket ist nicht bezahlt" : null,
-    !auskunftDa ? "die Bonitätsauskunft liegt weder gekauft noch als eigene, ausgewertete Auskunft vor" : null,
-    raten < KARTE_MIN_RATEN
-      ? `für die Karte sind erst ${raten} von ${KARTE_MIN_RATEN} nötigen Monatsraten gelaufen (das Abo selbst läuft 12 Raten)`
-      : null,
+    r.paket_bezahlt && raten < KARTE_MIN_RATEN ? "die erste Zahlung ist noch nicht gebucht" : null,
   ].filter(Boolean).join(", ");
-
-  const unterlagenFehlt = [
-    !r.hat_kontoauszug ? "der Kontoauszug" : null,
-    !r.hat_ausweis ? "der Ausweis" : null,
-  ].filter(Boolean).join(" und ");
 
   return [
     {
@@ -528,46 +527,17 @@ function toreAus(r: any): Tor[] {
     },
     {
       schluessel: "bezahlt",
-      // P11 (01.09.2026): VORHER stand hier die Behauptung „Paket und Auskunft
-      // bezahlt, 2 von 12 Monatsraten gelaufen" — direkt über dem gelben
-      // „das Paket ist nicht bezahlt". Der Titel ist eine ANFORDERUNG; er
-      // muss als Bedingung lesbar sein und den echten Stand zeigen.
-      titel: `Bezahlt: Paket und mindestens ${KARTE_MIN_RATEN} der 12 Monatsraten (aktuell ${raten} ${raten === 1 ? "Rate" : "Raten"} gelaufen); Bonitätsauskunft gekauft oder eigene ausgewertet`,
+      // E-206 (21.09.2026): „ab der ersten Rate". Vorher: Paket, Auskunft UND
+      // zwei Raten — und ein drittes Tor für Kontoauszug und Ausweis.
+      titel: "Erste Zahlung gebucht — der Account ist aktiviert",
       erfuellt: !!geldOk,
       fehlt: geldOk ? null : geldFehlt,
-      wieWeiter: geldOk ? null
-        : !auskunftDa ? "Die Bonitätsauskunft (74 €) verkaufen — oder der Kunde lädt seine eigene hoch und wir werten sie aus."
-        : raten < KARTE_MIN_RATEN ? `Noch ${KARTE_MIN_RATEN - raten} Rate abwarten oder nachfassen.`
-        : "Zahlungsdaten senden und die Zahlung nachhalten.",
+      wieWeiter: geldOk ? null : "Zahlungsdaten senden und die erste Zahlung nachhalten.",
       warumIntern:
-        "Die zwei Raten sind der eigentliche Schutz. Wer die Karte am Tag der ersten Zahlung bekommt, "
-        + "hat keinen Grund mehr, im Paket zu bleiben — dann zahlt er einmal und kündigt. Wer zwei "
-        + "Monate dabei war, hat seinen Nutzen erlebt und bleibt. Und ohne bezahlte Auskunft wissen "
-        + "wir gar nicht, ob seine Bonität die Eröffnung trägt.",
-      // 06.09.2026: Hier stand „Wir empfehlen das Konto erst …“. Das Wort
-      // „empfehlen“ steht auf der Wortwand (shared/fiaon-wortverbote.ts) und
-      // der Satz geht wörtlich an den Kunden — über das Bereich-JSON
-      // (fiaon-kunde-bereich.ts, karte.tore[].warum) und über „So sagst du es
-      // dem Kunden“ in der Akte. Der Postmeister ersetzte ihn bereits per
-      // Regex; jetzt stimmt die QUELLE, und die zweite Wahrheit dort kann weg.
+        "Justin am 21.09.2026: Ab der ersten bezahlten Rate bekommt jeder die Einladung der Partnerbank. "
+        + "Kontoauszüge, Ausweis und Auskunft lädt der Kunde in der Antragszeit hoch — dann folgt unsere Bonitätsanalyse.",
       warumFuerKunden:
-        "Der Konto-Schritt kommt erst, wenn Ihre Auskunft vorliegt und Ihre ersten Raten gelaufen "
-        + "sind. Vorher wüssten wir nicht, ob die Bank Sie annimmt — und eine Ablehnung würde erneut "
-        + "in Ihrer Auskunft stehen.",
-    },
-    {
-      schluessel: "unterlagen",
-      titel: "Kontoauszug und Ausweis liegen vor",
-      erfuellt: !!(r.hat_kontoauszug && r.hat_ausweis),
-      fehlt: r.hat_kontoauszug && r.hat_ausweis ? null : `${unterlagenFehlt} fehlt noch`,
-      wieWeiter: r.hat_kontoauszug && r.hat_ausweis ? null
-        : "Unter „Dokumente“ anfordern — oder für den Kunden hochladen, wenn er es dir geschickt hat.",
-      warumIntern:
-        "Die Bank verlangt für das Video-Ident denselben Ausweis. Wer ihn bei uns schon hochgeladen "
-        + "hat, kommt dort in einem Zug durch — und du weißt vorher, dass er ihn zur Hand hat.",
-      warumFuerKunden:
-        "Für die Eröffnung brauchen Sie Ihren Ausweis vor der Kamera. Da Sie ihn bei uns schon "
-        + "hinterlegt haben, dauert das nur wenige Minuten.",
+        "Sobald Ihre erste Zahlung gebucht ist, ist Ihr Account aktiviert und Sie bekommen direkt den Link unserer Partnerbank.",
     },
   ];
 }
@@ -657,9 +627,8 @@ export async function bereiteKunden(
             pp.assigned_agent_id
      FROM (${STAND_SQL} WHERE ${bedingungen.join(" AND ")}) x
      JOIN fiaon_persons pp ON pp.id = x.person_id
-     WHERE x.antrag_voll AND x.paket_bezahlt AND (x.schufa_bezahlt OR x.schufa_eigene)
+     WHERE x.antrag_voll AND x.paket_bezahlt
        AND x.raten_bezahlt >= ${KARTE_MIN_RATEN}
-       AND x.hat_kontoauszug AND x.hat_ausweis
      ${opt.ohneVersand ? "AND NOT EXISTS (SELECT 1 FROM fiaon_konto_karte k WHERE k.person_id = x.person_id AND k.kanal <> 'gemeldet')" : ""}
      ORDER BY x.person_id
      LIMIT ${Math.min(500, Math.max(1, opt.grenze ?? 200))}`,
@@ -671,6 +640,83 @@ export async function bereiteKunden(
     name: String(z.name || "").trim() || `Person ${z.person_id}`,
     agentId: z.assigned_agent_id ?? null,
   }));
+}
+
+/**
+ * DIE EINLADUNG GEHT VON SELBST RAUS (21.09.2026, E-206)
+ *
+ * Justin: „Ab JETZT JEDER, der eine Rate bezahlt hat, kriegt den DKB-Link —
+ * sofort an alle." Wer bereit ist (Antrag vollständig, erste Zahlung gebucht)
+ * und noch keine Einladung hat, bekommt sie — dieselbe Mail und derselbe
+ * Eintrag wie über den Knopf „Karte bestellen". Die 10 € je bestätigter
+ * Eröffnung gehören seinem Betreuer (agent_id = Betreuer), nicht der Automatik.
+ *
+ * Nicht angeschrieben wird, wer das Haus nicht anschreiben soll: Vertriebs-
+ * oder Werbesperre, gekündigt, storniert, ausgeschlossen, Testkonto, keine
+ * E-Mail. Die Verwaltung kann solche Fälle weiter von Hand über die Akte senden.
+ *
+ * Gedrosselt: höchstens `grenze` Mails je Lauf, der Takt ruft alle fünf Minuten.
+ */
+export async function einladungenAutomatisch(grenze = 40): Promise<{ bereit: number; gesendet: number; fehler: string[] }> {
+  await ensureKartenTabelle();
+  const kandidaten = await bereiteKunden({ ohneVersand: true, grenze: 500 });
+  if (!kandidaten.length) return { bereit: 0, gesendet: 0, fehler: [] };
+  const ids = kandidaten.map((k) => k.personId);
+  const erlaubt = (await sqlPool`
+    SELECT p.id, p.assigned_agent_id, ag.name AS agent_name
+      FROM fiaon_persons p
+      LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+     WHERE p.id = ANY(${ids}) AND p.merged_into_person_id IS NULL
+       AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
+       AND p.werbung_gesperrt_am IS NULL AND COALESCE(p.priority_tier, 0) <> -1
+       AND (COALESCE(p.primary_email, '') <> '' OR EXISTS (
+             SELECT 1 FROM fiaon_applications ae WHERE ae.person_id = p.id AND COALESCE(ae.email, '') <> ''))
+       AND NOT EXISTS (SELECT 1 FROM fiaon_applications ak
+                        WHERE ak.person_id = p.id AND ak.merged_into IS NULL
+                          AND (ak.gekuendigt_am IS NOT NULL OR ak.gdpr_deleted_at IS NOT NULL))
+       AND NOT EXISTS (SELECT 1 FROM fiaon_telefonkartei_storno st WHERE st.person_id = p.id AND st.zurueck_am IS NULL)
+       -- Gescheitert (kaputte Adresse, Ablehnung)? 24 Stunden Ruhe statt alle fünf Minuten ein neuer Versuch.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_mail_log ml WHERE ml.person_id = p.id AND ml.event = 'konto_karte_einladung'
+                        AND ml.status <> 'versandt' AND ml.created_at > NOW() - INTERVAL '24 hours')
+     ORDER BY p.id`.catch(() => [])) as any[];
+
+  const { mailSenden } = await import("./fiaon-mail-senden");
+  let gesendet = 0;
+  const fehler: string[] = [];
+  for (const z of erlaubt.slice(0, Math.max(0, grenze))) {
+    const personId = Number(z.id);
+    const betreuerId = z.assigned_agent_id ? Number(z.assigned_agent_id) : null;
+    // Zweiter Blick direkt vor dem Senden — ein paralleler Knopfdruck darf keine zweite Mail auslösen.
+    const [schon] = (await sqlPool`SELECT 1 AS da FROM fiaon_konto_karte WHERE person_id = ${personId} AND kanal <> 'gemeldet' LIMIT 1`) as any[];
+    if (schon) continue;
+    try {
+      const erg = await mailSenden({
+        event: "konto_karte_einladung",
+        personId,
+        zusatz: { partner_link: partnerLink(personId, betreuerId) },
+        akteur: { name: "Automatik (erste Rate)", agentId: null, rolle: "admin" as any },
+      });
+      if (!erg?.ok) { fehler.push(`${personId}: ${(erg as any)?.grund || (erg as any)?.meldung || "nicht gesendet"}`); continue; }
+      await sqlPool`
+        INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents, notiz)
+        VALUES (${personId}, ${betreuerId}, ${z.agent_name ?? "Automatik"}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS},
+                'Automatisch nach der ersten Zahlung (E-206)')`;
+      const [ap] = (await sqlPool`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
+         ORDER BY created_at DESC LIMIT 1`) as any[];
+      if (ap) {
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
+          VALUES (${personId}, NULL, 'Automatik', 'system',
+                  'Konto & Karte: Einladung der Partnerbank nach der ersten Zahlung automatisch geschickt.', ${ap.ref}, NOW())`.catch(() => {});
+      }
+      gesendet++;
+    } catch (e: any) {
+      fehler.push(`${personId}: ${String(e?.message || e).slice(0, 120)}`);
+    }
+  }
+  if (gesendet || fehler.length) console.log(`[KARTE] Einladungen automatisch: ${gesendet} gesendet, ${fehler.length} Fehler, ${erlaubt.length} bereit`);
+  return { bereit: erlaubt.length, gesendet, fehler };
 }
 
 /** Nur die Anzahl — für Kacheln und Marken, ohne die ganze Liste zu holen. */

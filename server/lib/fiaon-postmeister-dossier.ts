@@ -318,10 +318,10 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       ...eigene.map((m) => ({ am: relativ(m.created_at), richtung: "ein" as const, betreff: String(m.betreff ?? ""), kurz: `${m.kurz ?? ""} — von uns ${m.beantwortet ? "beantwortet" : "nur eingeordnet"}` })),
       ...mailsRaus.map((m) => ({ am: relativ(m.created_at), richtung: "aus" as const, betreff: String(m.event), kurz: String(m.status) })),
     ].slice(0, 16),
-    // ── KARTE: Reihenfolge, drei Bedingungen, Stand (05.09.2026, E-135) ────
-    // Justin: „2 Raten bezahlen, 1 Auskunft kaufen — erst DANN schicken wir
-    // den Kartenantrag raus. Der Agent muss ALLES an Wissen haben." Der
-    // Stand kommt aus derselben Abfrage wie im Team-Portal (fiaon-konto-karte).
+    // ── KARTE: Reihenfolge, Bedingung, Stand (05.09.2026, E-135; 21.09.2026, E-206) ──
+    // Seit 21.09.: Einladung ab der ersten gebuchten Zahlung (vorher zwei Raten +
+    // Auskunft + Unterlagen). Der Stand kommt aus derselben Abfrage wie im
+    // Team-Portal (fiaon-konto-karte) — Mara liest dort, ob der Link raus ist.
     karte,
     // ── VERTRAG: Datum, Wohnort, Land (05.09.2026, E-135) ─────────────────
     // Die Härte-Stufe nennt das Vertragsdatum und das für den Wohnort

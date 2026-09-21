@@ -133,14 +133,15 @@ export const LEITFAEDEN: Leitfaden[] = [
   {
     key: "k", stufe: "K", schrittKey: "stufe-a", gespraech: "vertrieb_antrag", situation: "Konto & Karte — der Zielanruf",
     titel: "Konto & Karte – der Anruf, auf den alles hinauslief",
-    wann: "Der Kunde erfüllt alle drei Bedingungen: Antrag vollständig, Paket und Auskunft bezahlt mit mindestens zwei gelaufenen Raten, Kontoauszug und Ausweis liegen vor. In der Akte steht „Bereit für Konto & Karte“, auf deinem Dashboard steht er in der Tagesliste.",
+    wann: "Seit 21.09.2026: Die erste Zahlung ist gebucht — ab da geht die Einladung der Partnerbank automatisch per Mail raus („Ihr Link zur Karte ist da“). Dein Anruf begleitet sie: Du erklärst den Weg und die Unterlagen für die Antragszeit (Kontoauszüge sechs Monate, Ausweis, Auskunft).",
     ziel: "Dem Kunden sagen, dass er am Ziel ist — und ihm den Weg in der richtigen Reihenfolge erklären: erst das Girokonto, dann die Kreditkarte. Danach den Link schicken und einen Rückruf verabreden.",
     kurz: [
       "„Herr [Name], ich rufe an, weil bei Ihnen jetzt alles zusammen ist — und ich habe gute Nachrichten.“",
-      "Was er geschafft hat, konkret nennen: Auskunft da, Unterlagen da, zwei Raten gelaufen. „Genau darauf haben wir hingearbeitet.“",
+      "Was jetzt passiert ist, konkret nennen: erste Zahlung da, Account aktiviert, der Link der Partnerbank ist in seinem Postfach. „Genau darauf haben wir hingearbeitet.“",
+      "Die Antragszeit erklären: „Während die Bank Ihren Antrag bearbeitet, laden Sie in Ihrem Bereich Ihre Kontoauszüge der letzten sechs Monate, Ihren Ausweis und Ihre Bonitätsauskunft hoch — daraus machen wir unsere Bonitätsanalyse.“",
       "Die Reihenfolge erklären: „Zuerst eröffnen Sie ein kostenloses Girokonto bei unserem Kooperationspartner, der DKB. Aus diesem Konto heraus buchen Sie dann die Kreditkarte dazu — anders geht es bei keiner Bank.“",
       "Die Vorteile nennen (kostenlos ab 700 € Geldeingang oder unter 28, Visa Debitkarte inklusive, Echtzeitüberweisungen, aktuell bis zu 200 € Startguthaben).",
-      "„Ich schicke Ihnen den Weg jetzt per Mail. Fünf Minuten, Ausweis bereithalten fürs Video-Ident — genau den, den Sie bei uns schon hinterlegt haben.“",
+      "„Den Link haben Sie schon per Mail — fünf Minuten, Ausweis bereithalten fürs Video-Ident. Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, meist können Sie sie vorher schon mit Apple Pay nutzen.“",
       "Rückruf verabreden: „Ich melde mich in drei Tagen kurz, ob alles geklappt hat.“ → Ergebnis „Rückruf vereinbart“ klicken.",
     ],
     phasen: [

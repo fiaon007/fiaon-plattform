@@ -16,8 +16,9 @@
 // erledigt war, bleibt erledigt — auch wenn ein späterer noch offen ist.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Spiegel von server/lib/fiaon-konto-karte.ts (dort die Quelle). Nur Rate 2…MIN zählt als Schritt. */
-export const KARTE_MIN_RATEN = 2;
+/** Spiegel von server/lib/fiaon-konto-karte.ts (dort die Quelle). Nur Rate 2…MIN zählt als Schritt.
+ *  21.09.2026 (E-206): 1 — die Einladung kommt ab der ersten Rate; ein eigener „Rate 2"-Schritt entfällt. */
+export const KARTE_MIN_RATEN = 1;
 
 export type SchrittStand = "erledigt" | "jetzt" | "kommt";
 export type Wer = "kunde" | "fiaon" | null;
@@ -193,7 +194,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   // Konto-und-Karte-Mail) — nicht, dass eine Karte beantragt wäre. Praxistest
   // 05.09.: Sapia stand mit „Karte beantragt ✓“ da, ohne je ein Konto eröffnet
   // zu haben. Der Schritt heißt deshalb, was er ist.
-  ok("karte_beantragt", "Weg zu Konto und Karte erhalten", !!b.karte?.verschickt, null, "Sobald Ihre Akte vollständig ist, schicken wir Ihnen den Weg zu Konto und Karte bei unserer Partnerbank. Über Karte und Rahmen entscheidet die Bank.", "fiaon", null, null);
+  ok("karte_beantragt", "Weg zu Konto und Karte erhalten", !!b.karte?.verschickt, null, "Sobald Ihre erste Zahlung gebucht ist, schicken wir Ihnen direkt den Link unserer Partnerbank für Konto und Karte. Über Karte und Rahmen entscheidet die Bank.", "fiaon", null, null);
 
   // ── Jetzt = erster nicht erledigter Schritt ────────────────────────────
   let jetzt: Schritt | null = null;

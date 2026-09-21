@@ -12,8 +12,12 @@ const minRaten = Number(konto.match(/KARTE_MIN_RATEN = (\d+)/)?.[1]);
 const fehler: string[] = [];
 const muss = (name: string, ok: boolean) => { if (!ok) fehler.push(name); };
 
-muss("Kartenregel: drei Bedingungen", /drei Bedingungen/.test(f));
-muss("Kartenregel: mindestens zwei Raten (KARTE_MIN_RATEN)", minRaten === 2 && /mindestens zwei Monatsraten/.test(f));
+// 21.09.2026 (E-206): Einladung ab der ersten Zahlung, automatisch — nicht mehr drei Bedingungen und zwei Raten.
+muss("Kartenregel: ab der ersten Zahlung, automatisch (KARTE_MIN_RATEN = 1)", minRaten === 1 && /automatisch, sobald die erste Zahlung gebucht ist/.test(f));
+muss("Kartenregel: keine alte Zwei-Raten-Regel mehr", !/mindestens zwei Monatsraten/.test(f) && !/drei Bedingungen/.test(f));
+muss("Kartenregel: Unterlagen in der Antragszeit", /Kontoauszüge der letzten sechs Monate/.test(f));
+muss("Karte: 2–5 Werktage nur „in der Regel“ und nach Zusage der Bank", /Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen/.test(f));
+muss("Mara: Karte positiv gepitcht, ohne Empfehlung", /viel mehr auf die Kreditkarte gepitcht/.test(agent) && /Nie „ich empfehle“|Nie „ich empfehle"/.test(agent));
 muss(`Kartenregel: Auskunft ${SCHUFA_PREIS_EURO} €`, f.includes(`${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €`));
 muss("Kartenregel: erst Konto, dann Karte", /Erst das Girokonto, dann die Karte/.test(f));
 muss("Kartenregel: Bank entscheidet, keine Karte/PIN von FIAON", /entscheidet immer die Bank/.test(f) && /keine Karte oder PIN/.test(f));
@@ -32,4 +36,4 @@ muss("Agent nutzt wissenFakten ungekürzt", /wissenFakten\(\)/.test(agent) && !/
 muss("Wortverbot Affiliate", !/\baffiliate\b/i.test(f.replace(/nie „Affiliate"/g, "")));
 
 if (fehler.length) { console.error("MARA-WISSEN: FEHLT\n- " + fehler.join("\n- ")); process.exit(1); }
-console.log(`MARA-WISSEN: ${f.length} Zeichen, alle ${18} Kernfakten vorhanden.`);
+console.log(`MARA-WISSEN: ${f.length} Zeichen, alle ${21} Kernfakten vorhanden.`);

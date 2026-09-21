@@ -183,7 +183,9 @@ VERTRAG UND KÜNDIGUNG
 
 KONTO UND KARTE — REIHENFOLGE UND BEDINGUNGEN
 - Erst das Girokonto, dann die Karte: FIAON vermittelt das Girokonto der Partnerbank DKB (Kooperationspartner — nie „Affiliate"); die Visa-Kreditkarte bucht der Kunde aus dem fertigen Banking selbst dazu. Wer ohne Konto zur Karte geschickt würde, bekäme eine Ablehnung, und die stünde wieder in seiner Auskunft.
-- Die Einladung zum Konto- und Kartenantrag verschickt FIAON erst, wenn drei Bedingungen erfüllt sind: (1) Der Antrag ist vollständig (Name, Geburtsdatum, Anschrift, E-Mail). (2) Das Paket ist bezahlt, die Bonitätsauskunft (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €) ist bezahlt, und mindestens zwei Monatsraten sind eingegangen. (3) Kontoauszug und Ausweis liegen im Kundenbereich vor.
+- Die Einladung zum Konto- und Kartenantrag (Link der Partnerbank) verschickt FIAON automatisch, sobald die erste Zahlung gebucht ist — der Account ist dann aktiviert (seit 21.09.2026; vorher erst nach zwei Raten). Voraussetzung ist nur ein vollständiger Antrag (Name, Geburtsdatum, Anschrift, E-Mail).
+- In der Antragszeit lädt der Kunde im Kundenbereich hoch: Kontoauszüge der letzten sechs Monate, Ausweis oder Reisepass und seine Bonitätsauskunft — die Auskunft fordert er entweder selbst an (Anleitung im Kundenbereich) oder bezieht sie über FIAON (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €). Daraus macht FIAON seine Bonitätsanalyse.
+- Zeit bis zur Karte: Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen beim Kunden; meist kann er sie schon vorher in der App der Bank mit Apple Pay nutzen. Nie als feste Frist oder Zusage formulieren.
 - Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON stellt keine Karte aus und verschickt keine Karte oder PIN; FIAON bereitet vor und begleitet. Ein Kartenrahmen bis 25.000 € ist bei guter Bonität möglich, nie zugesagt.
 - Der Stand je Kunde (welche Bedingung fehlt, ob die Einladung schon raus ist, ob die Bank entschieden hat) steht in seiner Akte.`;
 }

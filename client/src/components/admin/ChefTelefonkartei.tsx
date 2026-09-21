@@ -25,9 +25,9 @@ import { Rundgang } from "@/components/agent/Rundgang";
 import { BoniAmpelBlock, BoniAmpelKapsel } from "@/components/BoniAmpel";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
-  KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, KARTEI_SUCHE_SATZ, euro, euroGanz, datumKurz, waLink,
+  KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, KARTEI_SUCHE_SATZ, euro, euroGanz, datumKurz, waLink, KI_WUNSCH_MAX,
   whatsappRechnung, whatsappNichtErreicht, whatsappAntrag, hatRechnungsweg, hatAntragsweg,
-  type KarteiGruppe, type KarteiKarte, type KarteiErgebnis, type KarteiRueckruf, type KarteiTermin,
+  type KarteiGruppe, type KarteiKarte, type KarteiErgebnis, type KarteiRueckruf, type KarteiTermin, type KarteiKiAntwort,
 } from "@shared/fiaon-telefonkartei";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-telefonkartei.css";
@@ -105,6 +105,7 @@ export default function ChefTelefonkartei() {
   const [stornoFuer, setStornoFuer] = useState<KarteiKarte | null>(null);
   const [rueckrufFuer, setRueckrufFuer] = useState<KarteiKarte | null>(null);
   const [akteFuer, setAkteFuer] = useState<KarteiKarte | null>(null);
+  const [nachrichtFuer, setNachrichtFuer] = useState<KarteiKarte | null>(null);
   const [gespeichert, setGespeichert] = useState<Set<number>>(() => new Set(lesen<number[]>("tk-kontakte", [])));
   const handy = useMemo(istHandy, []);
   const termine = useDaten<{ rueckrufe: KarteiRueckruf[]; termine: KarteiTermin[] }>("/chef/telefonkartei/termine");
@@ -302,9 +303,7 @@ export default function ChefTelefonkartei() {
           <Karte key={k.personId} k={k} absender={absender} antragUrl={antragUrl} handy={handy}
                  gespeichert={gespeichert.has(k.personId)} arbeit={arbeit[k.personId]}
                  onGespeichert={kontaktGespeichert}
-                 onErgebnis={(art) => void ergebnis(k, art)}
-                 onStorno={() => setStornoFuer(k)}
-                 onRueckruf={() => setRueckrufFuer(k)}
+                 onNachrichten={() => setNachrichtFuer(k)}
                  onAkte={() => setAkteFuer(k)}
                  onZurueck={() => void zurueckholen(k)} />
         ))}
@@ -323,6 +322,16 @@ export default function ChefTelefonkartei() {
                      onAbbrechen={() => setStornoFuer(null)}
                      onStornieren={(grund, kulanz) => void stornoAusfuehren(stornoFuer, grund, kulanz)} />
       </Ebene>)}
+      {nachrichtFuer && (<Ebene>
+        <NachrichtenBlatt k={nachrichtFuer} absender={absender} antragUrl={antragUrl} handy={handy}
+                          onZu={() => setNachrichtFuer(null)}
+                          onErgebnis={(art) => { const k = nachrichtFuer; setNachrichtFuer(null); void ergebnis(k, art); }}
+                          onRueckruf={() => { const k = nachrichtFuer; setNachrichtFuer(null); setRueckrufFuer(k); }}
+                          onStorno={() => { const k = nachrichtFuer; setNachrichtFuer(null); setStornoFuer(k); }}
+                          onGeoeffnet={(ok) => { const k = nachrichtFuer; setNachrichtFuer(null);
+                            melden({ art: ok ? "gut" : "fehler", titel: ok ? `${k.name}: WhatsApp geöffnet` : "WhatsApp geöffnet — der Verlauf ließ sich nicht schreiben.", punkte: ok ? ["Steht im Verlauf der Akte."] : undefined }); }} />
+      </Ebene>)}
+
       {akteFuer && (<Ebene>
         <AkteFenster k={akteFuer} onZu={() => void akteSchliessen()} />
       </Ebene>)}
@@ -345,12 +354,11 @@ export default function ChefTelefonkartei() {
 
 // ── Eine Karte ──────────────────────────────────────────────────────────────
 
-function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeichert, onErgebnis, onStorno, onRueckruf, onAkte, onZurueck }: {
+function Karte({ k, handy, gespeichert, arbeit, onGespeichert, onNachrichten, onAkte, onZurueck }: {
   k: KarteiKarte; absender: string; antragUrl: string; handy: boolean; gespeichert: boolean;
   arbeit: KarteiErgebnis | "storno" | "zurueck" | undefined;
   onGespeichert: (id: number) => void;
-  onErgebnis: (art: KarteiErgebnis) => void;
-  onStorno: () => void; onRueckruf: () => void; onAkte: () => void; onZurueck: () => void;
+  onNachrichten: () => void; onAkte: () => void; onZurueck: () => void;
 }) {
   const vcf = `${API}/chef/telefonkartei/${k.personId}/kontakt.vcf`;
   const tel = k.telefonWaehlbar ? `tel:${k.telefonWaehlbar}` : null;
@@ -358,20 +366,6 @@ function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeiche
   const zuerstSpeichern = handy && !gespeichert && !!tel;
   const anrufZiel = zuerstSpeichern ? vcf : tel;
   const anrufKlick = () => { if (zuerstSpeichern) onGespeichert(k.personId); };
-
-  const rechnungText = hatRechnungsweg(k) ? whatsappRechnung(k, absender) : null;
-  const antragText = hatAntragsweg(k) ? whatsappAntrag(k, absender, antragUrl) : null;
-  const waErster = rechnungText ? waLink(k.telefonWaehlbar, rechnungText) : antragText ? waLink(k.telefonWaehlbar, antragText) : null;
-  const waNicht = waLink(k.telefonWaehlbar, whatsappNichtErreicht(k, absender));
-  const ersterFall: KarteiErgebnis | null = rechnungText ? "rechnung" : antragText ? "antrag" : null;
-  const ziel = handy ? undefined : "_blank";
-
-  const fall = (art: KarteiErgebnis, href: string | null) => (e: React.MouseEvent) => {
-    // Ohne WhatsApp-Ziel (keine Nummer) bleibt es bei Mail und Verlauf.
-    if (!href) e.preventDefault();
-    if (arbeit) { e.preventDefault(); return; }
-    onErgebnis(art);
-  };
 
   const fakten: [string, string][] = [];
   if (k.paket) fakten.push(["Paket", `${k.paket.label}${k.paket.preisCents != null ? ` · ${euro(k.paket.preisCents)}` : ""}`]);
@@ -435,37 +429,31 @@ function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeiche
         </div>
       ) : (
         <>
-          {anrufZiel ? (
-            <a className="tk-anrufen" href={anrufZiel} onClick={anrufKlick}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5c.8 0 1.5.6 1.7 1.4l.6 2.4a1.9 1.9 0 0 1-.6 1.9l-1 .9a10.5 10.5 0 0 0 4.7 4.7l.9-1a1.9 1.9 0 0 1 1.9-.6l2.4.6c.8.2 1.4.9 1.4 1.7V18a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4 6.2 2 2 0 0 1 6 4Z" /></svg>
-              <span>{zuerstSpeichern ? "Anrufen" : handy && gespeichert ? "Jetzt anrufen" : "Anrufen"}</span>
-              {zuerstSpeichern && <small>speichert zuerst den Kontakt</small>}
-            </a>
-          ) : (
-            <span className="tk-anrufen aus">Keine Nummer hinterlegt</span>
-          )}
-
-          <p className="tk-nach">Nach dem Gespräch</p>
-          <div className="tk-faelle">
-            {ersterFall ? (
-              <a className="tk-fall gut" href={waErster ?? "#"} target={waErster ? ziel : undefined} rel="noopener noreferrer"
-                 aria-disabled={!waErster && !k.email} onClick={fall(ersterFall, waErster)}>
-                <b>{arbeit === ersterFall ? "Wird geschickt …" : ersterFall === "rechnung" ? "Rechnung schicken" : "Antrag schicken"}</b>
-                <small>{[k.email ? (ersterFall === "rechnung" ? "Mail mit PDF" : "Mail") : null, waErster ? "WhatsApp" : null].filter(Boolean).join(" + ") || "keine Nummer, keine Mail"}</small>
+          {/* 21.09.2026 (Justin: „Buttons moderner — und fasse alle WhatsApp-
+              Nachrichten in EINEN Knopf"): zwei Knöpfe. Die vier Fälle und die
+              persönliche Nachricht öffnen sich im Blatt „Nachrichten". */}
+          <div className="tk-aktionen">
+            {anrufZiel ? (
+              <a className="tk-anrufen" href={anrufZiel} onClick={anrufKlick}>
+                <span className="tk-zeichen" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M7 3.5c.8 0 1.5.6 1.7 1.4l.6 2.4a1.9 1.9 0 0 1-.6 1.9l-1 .9a10.5 10.5 0 0 0 4.7 4.7l.9-1a1.9 1.9 0 0 1 1.9-.6l2.4.6c.8.2 1.4.9 1.4 1.7V18a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4 6.2 2 2 0 0 1 6 4Z" /></svg>
+                </span>
+                <span className="tk-aktion-text">
+                  <b>{zuerstSpeichern ? "Anrufen" : handy && gespeichert ? "Jetzt anrufen" : "Anrufen"}</b>
+                  {zuerstSpeichern && <small>speichert zuerst den Kontakt</small>}
+                </span>
               </a>
             ) : (
-              <span className="tk-fall aus"><b>Rechnung schicken</b><small>keine offene Zahlung</small></span>
+              <span className="tk-anrufen aus"><span className="tk-aktion-text"><b>Keine Nummer</b></span></span>
             )}
-            <a className="tk-fall" href={waNicht ?? "#"} target={waNicht ? ziel : undefined} rel="noopener noreferrer"
-               onClick={fall("nicht_erreicht", waNicht)}>
-              <b>{arbeit === "nicht_erreicht" ? "Wird geschickt …" : "Nicht erreicht"}</b>
-              <small>{[k.email && !k.werbungGesperrt ? "Mail" : null, waNicht ? "WhatsApp" : null].filter(Boolean).join(" + ") || "nur Verlauf"} · dein Kalender</small>
-            </a>
-            <button type="button" className="tk-fall blau" disabled={!!arbeit} onClick={onRueckruf}>
-              <b>Später anrufen</b><small>Uhrzeit wählen</small>
-            </button>
-            <button type="button" className="tk-fall rot" disabled={!!arbeit} onClick={onStorno}>
-              <b>Stornieren</b><small>kein Interesse</small>
+            <button type="button" className="tk-nachrichten" disabled={!!arbeit} onClick={onNachrichten} aria-haspopup="dialog">
+              <span className="tk-zeichen" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4.5 18.8 5.6 15A7.6 7.6 0 1 1 9 18.4Z" /><path d="M9 10.5h6M9 13.5h3.5" /></svg>
+              </span>
+              <span className="tk-aktion-text">
+                <b>{arbeit && arbeit !== "storno" && arbeit !== "zurueck" ? "Wird geschickt …" : "Nachrichten"}</b>
+                <small>4 Fälle · KI</small>
+              </span>
             </button>
           </div>
         </>
@@ -649,6 +637,229 @@ function AkteFenster({ k, onZu }: { k: KarteiKarte; onZu: () => void }) {
           </Suspense>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Nachrichten: vier Fälle und die persönliche Nachricht ──────────────────
+// Justin (21.09.2026): „fasse alle WhatsApp-Nachrichten in einen Button — wenn
+// man draufklickt, ein cooles Layout, wo die Szenarien drinstehen … UND so was
+// wie ein Freitext, nur besser benannt." Die Fälle arbeiten wie vorher: Der
+// WhatsApp-Link öffnet sich durch den Klick selbst (sonst blockt das iPhone),
+// Mail und Verlauf erledigt der Server.
+
+function NachrichtenBlatt({ k, absender, antragUrl, handy, onZu, onErgebnis, onRueckruf, onStorno, onGeoeffnet }: {
+  k: KarteiKarte; absender: string; antragUrl: string; handy: boolean;
+  onZu: () => void; onErgebnis: (art: KarteiErgebnis) => void;
+  onRueckruf: () => void; onStorno: () => void; onGeoeffnet: (ok: boolean) => void;
+}) {
+  const [ansicht, setAnsicht] = useState<"faelle" | "ki">("faelle");
+  useEffect(() => {
+    const taste = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); };
+    window.addEventListener("keydown", taste);
+    return () => window.removeEventListener("keydown", taste);
+  }, [onZu]);
+
+  const rechnungText = hatRechnungsweg(k) ? whatsappRechnung(k, absender) : null;
+  const antragText = hatAntragsweg(k) ? whatsappAntrag(k, absender, antragUrl) : null;
+  const waErster = rechnungText ? waLink(k.telefonWaehlbar, rechnungText) : antragText ? waLink(k.telefonWaehlbar, antragText) : null;
+  const waNicht = waLink(k.telefonWaehlbar, whatsappNichtErreicht(k, absender));
+  const ersterFall: KarteiErgebnis | null = rechnungText ? "rechnung" : antragText ? "antrag" : null;
+  const ziel = handy ? undefined : "_blank";
+  const fall = (art: KarteiErgebnis, href: string | null) => (e: React.MouseEvent) => {
+    // Ohne WhatsApp-Ziel (keine Nummer) bleibt es bei Mail und Verlauf.
+    if (!href) e.preventDefault();
+    onErgebnis(art);
+  };
+  const vorname = k.vorname || k.name.split(" ")[0];
+
+  return (
+    <div className="tk-schleier" role="dialog" aria-modal="true" aria-label={`Nachrichten an ${k.name}`} onClick={onZu}>
+      <div className="tk-blatt tk-nb" onClick={(e) => e.stopPropagation()}>
+        <div className="tk-nb-kopf">
+          {ansicht === "ki" ? (
+            <button type="button" className="tk-nb-rund" onClick={() => setAnsicht("faelle")} aria-label="Zurück zu den Fällen">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>
+            </button>
+          ) : null}
+          <div className="tk-nb-titel">
+            <span>{ansicht === "ki" ? "Persönliche Nachricht" : "Nachrichten"}</span>
+            <b>{k.name}</b>
+          </div>
+          <button type="button" className="tk-nb-rund" onClick={onZu} aria-label="Schließen">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        </div>
+
+        {ansicht === "faelle" ? (
+          <>
+            <p className="tk-nb-frage">Wie lief das Gespräch?</p>
+            <div className="tk-nb-liste">
+              {ersterFall ? (
+                <a className="tk-nb-fall gruen" href={waErster ?? "#"} target={waErster ? ziel : undefined} rel="noopener noreferrer"
+                   onClick={fall(ersterFall, waErster)}>
+                  <span className="tk-nb-zeichen" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H7z" /><path d="M14 3.5v4h4M9.5 12.5h6M9.5 15.5h4" /></svg>
+                  </span>
+                  <span className="tk-nb-text">
+                    <b>{ersterFall === "rechnung" ? "Rechnung schicken" : "Antrag schicken"}</b>
+                    <small>{[k.email ? (ersterFall === "rechnung" ? "Mail mit PDF" : "Mail") : null, waErster ? "WhatsApp" : null].filter(Boolean).join(" + ") || "keine Nummer, keine Mail"}</small>
+                  </span>
+                  <Pfeil />
+                </a>
+              ) : (
+                <span className="tk-nb-fall aus">
+                  <span className="tk-nb-zeichen" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H7z" /></svg></span>
+                  <span className="tk-nb-text"><b>Rechnung schicken</b><small>keine offene Zahlung</small></span>
+                </span>
+              )}
+              <a className="tk-nb-fall gelb" href={waNicht ?? "#"} target={waNicht ? ziel : undefined} rel="noopener noreferrer"
+                 onClick={fall("nicht_erreicht", waNicht)}>
+                <span className="tk-nb-zeichen" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M7 3.5c.8 0 1.5.6 1.7 1.4l.6 2.4a1.9 1.9 0 0 1-.6 1.9l-1 .9a10.5 10.5 0 0 0 4.7 4.7l.9-1a1.9 1.9 0 0 1 1.9-.6l2.4.6c.8.2 1.4.9 1.4 1.7V18a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4 6.2 2 2 0 0 1 6 4Z" /><path d="M15.5 4.5l4 4M19.5 4.5l-4 4" /></svg>
+                </span>
+                <span className="tk-nb-text">
+                  <b>Nicht erreicht</b>
+                  <small>{[k.email && !k.werbungGesperrt ? "Mail" : null, waNicht ? "WhatsApp" : null].filter(Boolean).join(" + ") || "nur Verlauf"} · dein Kalender</small>
+                </span>
+                <Pfeil />
+              </a>
+              <button type="button" className="tk-nb-fall blau" onClick={onRueckruf}>
+                <span className="tk-nb-zeichen" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>
+                </span>
+                <span className="tk-nb-text"><b>Später anrufen</b><small>Uhrzeit wählen</small></span>
+                <Pfeil />
+              </button>
+              <button type="button" className="tk-nb-fall rot" onClick={onStorno}>
+                <span className="tk-nb-zeichen" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M8.5 15.5l7-7" /></svg>
+                </span>
+                <span className="tk-nb-text"><b>Stornieren</b><small>kein Interesse</small></span>
+                <Pfeil />
+              </button>
+            </div>
+            <p className="tk-nb-trenner"><span>Oder frei formuliert</span></p>
+            <button type="button" className="tk-nb-fall ki" onClick={() => setAnsicht("ki")}>
+              <span className="tk-nb-zeichen" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3.5l1.8 4.7 4.7 1.8-4.7 1.8L12 16.5l-1.8-4.7L5.5 10l4.7-1.8z" /><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" /></svg>
+              </span>
+              <span className="tk-nb-text">
+                <b>Persönliche Nachricht</b>
+                <small>Du sagst, worum es geht — die KI schreibt sie für {vorname}</small>
+              </span>
+              <Pfeil />
+            </button>
+          </>
+        ) : (
+          <KiNachricht k={k} handy={handy} onGeoeffnet={onGeoeffnet} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Pfeil() {
+  return <svg className="tk-nb-pfeil" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>;
+}
+
+// Justins eigenes Beispiel steht vorn — ein Tipp füllt das Feld.
+const KI_BEISPIELE = [
+  "Wie besprochen: in Ruhe unsere Website ansehen, überlegen und sich gern wieder bei mir melden",
+  "Freundlich an die offene Rechnung erinnern, ohne Druck",
+  "Danke für das Gespräch, ich freue mich auf unseren Termin",
+  "Kurz nachfragen, ob noch Fragen offen sind",
+];
+
+function KiNachricht({ k, handy, onGeoeffnet }: { k: KarteiKarte; handy: boolean; onGeoeffnet: (ok: boolean) => void }) {
+  const [wunsch, setWunsch] = useState("");
+  const [text, setText] = useState<string | null>(null);
+  const [hinweise, setHinweise] = useState<string[]>([]);
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [kopiert, setKopiert] = useState(false);
+  const textFeld = useRef<HTMLTextAreaElement | null>(null);
+  const vorname = k.vorname || k.name.split(" ")[0];
+  // Der Entwurf wächst mit — der Link am Ende war sonst im Feld verborgen.
+  useEffect(() => {
+    const f = textFeld.current;
+    if (!f) return;
+    f.style.height = "auto";
+    f.style.height = `${Math.min(f.scrollHeight + 2, Math.round(window.innerHeight * 0.55))}px`;
+  }, [text]);
+
+  const schreiben = async (neuFormulieren: boolean) => {
+    if (wunsch.trim().length < 3 || laeuft) return;
+    setLaeuft(true); setFehler(null); setKopiert(false);
+    try {
+      const r = await fetch(`${API}/chef/telefonkartei/${k.personId}/ki-nachricht`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wunsch, vorher: neuFormulieren ? text : null }),
+      });
+      const j: KarteiKiAntwort | null = await r.json().catch(() => null);
+      if (!j?.ok || !j.text) { setFehler(j?.meldung || "Das hat nicht geklappt — bitte noch einmal."); return; }
+      setText(j.text);
+      setHinweise(j.hinweise ?? []);
+    } catch {
+      setFehler("Keine Verbindung — bitte noch einmal.");
+    } finally {
+      setLaeuft(false);
+    }
+  };
+
+  const wa = text ? waLink(k.telefonWaehlbar, text) : null;
+  const vermerken = () => {
+    if (!text) return;
+    void fetch(`${API}/chef/telefonkartei/${k.personId}/nachricht-vermerken`, {
+      method: "POST", credentials: "include", keepalive: true,
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+    }).then((r) => onGeoeffnet(r.ok)).catch(() => onGeoeffnet(false));
+  };
+  const kopieren = async () => {
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); setKopiert(true); } catch { setKopiert(false); }
+  };
+
+  return (
+    <div className="tk-ki">
+      <label className="tk-ki-frage" htmlFor={`tk-ki-${k.personId}`}>Was möchtest du {vorname} schreiben?</label>
+      <textarea id={`tk-ki-${k.personId}`} className="tk-ki-wunsch" rows={3} maxLength={KI_WUNSCH_MAX}
+                value={wunsch} onChange={(e) => setWunsch(e.target.value)}
+                placeholder="In deinen Worten, Stichpunkte reichen …" />
+      {!text && (
+        <div className="tk-ki-beispiele" aria-label="Beispiele">
+          {KI_BEISPIELE.map((b) => <button key={b} type="button" onClick={() => setWunsch(b)}>{b}</button>)}
+        </div>
+      )}
+      {!text && (
+        <button type="button" className="tk-knopf blau tk-ki-los" disabled={laeuft || wunsch.trim().length < 3} onClick={() => void schreiben(false)}>
+          {laeuft ? <span className="tk-ki-denkt">Die KI schreibt<i /><i /><i /></span> : "Nachricht schreiben"}
+        </button>
+      )}
+      {fehler && <p className="tk-ki-fehler" role="alert">{fehler}</p>}
+
+      {text && (
+        <>
+          <p className="tk-ki-label">So geht sie raus — du kannst alles ändern</p>
+          <textarea ref={textFeld} className="tk-ki-text" value={text} onChange={(e) => setText(e.target.value)} rows={8} />
+          {hinweise.length > 0 && (
+            <ul className="tk-ki-hinweise">{hinweise.map((h, i) => <li key={i}>{h}</li>)}</ul>
+          )}
+          <div className="tk-ki-tun">
+            {wa ? (
+              <a className="tk-knopf wa" href={wa} target={handy ? undefined : "_blank"} rel="noopener noreferrer" onClick={vermerken}>
+                In WhatsApp öffnen
+              </a>
+            ) : (
+              <span className="tk-ki-keine">Keine Nummer — kopieren und selbst senden</span>
+            )}
+            <button type="button" className="tk-knopf still" disabled={laeuft} onClick={() => void schreiben(true)}>
+              {laeuft ? "Schreibt …" : "Neu formulieren"}
+            </button>
+            <button type="button" className="tk-knopf still" onClick={() => void kopieren()}>{kopiert ? "Kopiert" : "Kopieren"}</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

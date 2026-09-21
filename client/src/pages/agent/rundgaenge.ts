@@ -230,15 +230,15 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     // keine sichtbare Änderung ohne Abgleich mit den Rundgängen). Kein `ziel`:
     // Der Hinweis erscheint nur auf Karten, deren Kunde wirklich bereit ist —
     // bei allen anderen läge der Scheinwerfer auf nichts.
+    // 21.09.2026 (E-206) nachgezogen: ab der ersten Rate, automatisch.
     titel: "Konto & Karte — worauf alles hinausläuft.",
-    text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Sobald ein Kunde drei Dinge "
-      + "erfüllt — Antrag vollständig, Paket bezahlt mit zwei gelaufenen Raten und die Bonitätsauskunft "
-      + "da (gekauft oder seine eigene, von uns ausgewertet), Kontoauszug und Ausweis da — steht auf "
-      + "seiner Karte „Bereit für Konto & Karte“, und der "
-      + "Filter oben zeigt dir alle auf einmal. In der Akte schickst du ihm dann den Weg zum "
-      + "kostenlosen Girokonto bei unserem Kooperationspartner. Erst das Konto, dann die Karte: "
+    text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Seit dem 21.09. bekommt jeder Kunde "
+      + "die Einladung unserer Partnerbank automatisch, sobald seine erste Zahlung gebucht ist (Antrag "
+      + "vollständig vorausgesetzt) — die Mail heißt „Ihr Link zur Karte ist da“. In der Antragszeit lädt er "
+      + "Kontoauszüge (sechs Monate), Ausweis und Auskunft hoch; daraus machen wir die Bonitätsanalyse. Der "
+      + "Knopf „Karte bestellen“ in der Akte bleibt für den Nachversand. Erst das Konto, dann die Karte: "
       + "Die Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus.",
-    tipp: "Ruf vorher an, statt den Link wortlos zu schicken. Für dich sind es 10 € je bestätigter Eröffnung — und der Kunde bleibt, weil er endlich das bekommt, weswegen er gekommen ist.",
+    tipp: "Ruf nach der Einladung kurz an und begleite ihn durch den Antrag. Die 10 € je bestätigter Eröffnung bekommst du als sein Betreuer — auch wenn die Automatik die Mail geschickt hat.",
   },
   {
     // 11.09.2026 (E-175/E-178): Auskunft und Kontoauszug werden gelesen — der
@@ -1123,12 +1123,23 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     tipp: "Ohne diesen einen Tipp speichert kein iPhone einen Kontakt — das lässt Apple keiner Webseite zu.",
   },
   {
-    titel: "Nach dem Gespräch: ein Knopf je Fall.",
-    text: "„Rechnung schicken“: Die Mail mit der Rechnung als PDF geht automatisch raus, WhatsApp öffnet sich mit Zahlungsseite, "
-      + "Bankdaten und Rechnungslink — du tippst nur noch auf Senden. „Nicht erreicht“: freundliche Mail und WhatsApp mit deinem "
-      + "persönlichen Kalender, Name und Nummer sind dort schon ausgefüllt. „Später anrufen“: Uhrzeit wählen, der Rückruf steht oben "
-      + "auf der Seite und auf Wunsch im iPhone-Kalender. „Stornieren“: raus aus allen Listen, keine Anrufe, keine Werbung.",
+    // 21.09.2026 (E-205): ein Knopf „Nachrichten" statt vier Kacheln.
+    ziel: ".tk-nachrichten",
+    titel: "Nach dem Gespräch: „Nachrichten“.",
+    text: "Ein Knopf, ein Blatt mit vier Fällen. „Rechnung schicken“: Die Mail mit der Rechnung als PDF geht automatisch raus, "
+      + "WhatsApp öffnet sich mit Zahlungsseite, Bankdaten und Rechnungslink — du tippst nur noch auf Senden. „Nicht erreicht“: "
+      + "freundliche Mail und WhatsApp mit deinem persönlichen Kalender, Name und Nummer sind dort schon eingetragen. „Später "
+      + "anrufen“: Uhrzeit wählen, der Rückruf steht oben auf der Seite und auf Wunsch im iPhone-Kalender. „Stornieren“: raus aus "
+      + "allen Listen, keine Anrufe, keine Werbung. Alle WhatsApp-Texte sind ohne Emojis und klingen wie von dir getippt.",
     tipp: "Alles landet in der Akte des Kunden — die Mitarbeiter sehen, was du getan hast. Du wirst dabei nie sein Betreuer.",
+  },
+  {
+    titel: "Persönliche Nachricht: du sagst, worum es geht.",
+    text: "Unten im Blatt steht „Persönliche Nachricht“. Tipp in deinen Worten, was der Kunde lesen soll — zum Beispiel „wie "
+      + "besprochen in Ruhe die Website ansehen und sich wieder melden“. Die KI schreibt daraus eine persönliche WhatsApp an "
+      + "genau diesen Menschen, mit seinem Namen und seiner Lage, ohne Emojis und ohne Versprechen. Du kannst alles ändern, "
+      + "„Neu formulieren“ drücken und dann „In WhatsApp öffnen“ — abschicken tust du selbst.",
+    tipp: "Die KI bekommt weder Telefonnummer noch E-Mail noch Bankdaten; Links setzt der Server ein. Was sie schreibt, prüft die Wortwand — Hinweise stehen gelb unter dem Text.",
   },
   {
     titel: "Akte und Termine, ohne die Seite zu verlassen.",

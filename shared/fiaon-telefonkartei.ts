@@ -25,6 +25,7 @@
 
 import { BANK } from "./fiaon-bank";
 import { STUFEN } from "./fiaon-kundenstatus";
+import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "./fiaon-karten-weg";
 import type { BoniAmpel } from "./fiaon-boni-ampel";
 
 export type KarteiGruppe = "alle" | "A" | "B" | "C" | "rate" | "storniert";
@@ -136,6 +137,8 @@ export interface KarteiKarte {
   rueckrufAm: string | null;
   /** E-202: die Boni-Ampel (shared/fiaon-boni-ampel.ts). */
   ampel: BoniAmpel;
+  /** „Herr" | „Frau" | null — für „Hallo Frau Muster" statt „Hallo Maria Muster". */
+  anrede: string | null;
 }
 
 // ── Formate ─────────────────────────────────────────────────────────────────
@@ -194,15 +197,43 @@ export function waLink(telefonWaehlbar: string | null | undefined, text: string)
 // stehen in der angehängten Rechnung und auf der Zahlungsseite. WhatsApp trägt
 // sie, wie der WhatsApp-Knopf der Akte (E-181), aus shared/fiaon-bank.ts.
 
-type Namensteile = Pick<KarteiKarte, "vorname" | "nachname" | "name">;
+type Namensteile = Pick<KarteiKarte, "vorname" | "nachname" | "name"> & { anrede?: string | null };
 
 function vollerName(k: Namensteile): string {
   return [k.vorname, k.nachname].map((s) => String(s || "").trim()).filter(Boolean).join(" ");
 }
 
-function anredeWhatsApp(k: Namensteile): string {
+/**
+ * „Hallo Frau Muster," — wenn die Anrede bekannt ist; sonst mit vollem Namen
+ * („Hallo Maria Muster,"). Vorher stand „Hi Maria Muster," — „Hi" mit vollem
+ * Namen und Sie liest sich wie ein Serienbrief (Justin am 21.09.: „menschlicher").
+ * Die Anrede fehlt bei den meisten Kunden (gemessen 21.09.: 96 von 5.700).
+ */
+export function anredeWhatsApp(k: Namensteile): string {
+  const a = String(k.anrede ?? "").trim().toLowerCase();
+  const nach = String(k.nachname ?? "").trim();
+  if (nach && (a === "frau" || a === "herr")) return `Hallo ${a === "frau" ? "Frau" : "Herr"} ${nach},`;
   const name = vollerName(k);
-  return name ? `Hi ${name},` : "Hallo,";
+  return name ? `Hallo ${name},` : "Hallo,";
+}
+
+/**
+ * Keine Emojis, keine Sternchen (Justin am 21.09.: „bei jeder WhatsApp-Nachricht
+ * die Emojis weg und menschlicher geschrieben"). Gilt auch für KI-Text:
+ * Zeichen aus dem Emoji-Bereich, Variationszeichen und Fettdruck-Sternchen fallen weg.
+ */
+// Zur Laufzeit gebaut: Das Projekt übersetzt für ein Ziel ohne das u-Flag im Literal.
+const EMOJI = new RegExp("[\\p{Extended_Pictographic}\\u{1F1E6}-\\u{1F1FF}\\u{FE0F}\\u{200D}\\u{20E3}]", "gu");
+
+export function ohneEmojis(text: string): string {
+  return String(text ?? "")
+    .replace(EMOJI, "")
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 function gruss(absender: string): string[] {
@@ -226,14 +257,19 @@ export function limitZiel(k: Pick<KarteiKarte, "wunschlimitEuro" | "rahmenEuro">
 /** Justins Pitch — derselbe Absatz in WhatsApp und Mail. */
 export function pitchAbsatz(k: KarteiKarte): string {
   const ziel = limitZiel(k);
+  // 21.09.2026 (E-206): Seit der ersten Rate geht die Einladung der Partnerbank
+  // raus — der Link kommt also wirklich „direkt". Die Sätze zur Karte stehen in
+  // shared/fiaon-karten-weg.ts, damit WhatsApp, Mail und Mara dieselbe Zeit nennen.
   return [
-    `Wie besprochen: Sobald Ihre Einzahlung da ist, aktiviere ich umgehend Ihr Konto${ziel != null ? ` – mit Ihrem Wunschlimit von ${euroGanz(ziel)} als Ziel` : ""}.`,
-    "Im Anschluss geht es mit Ihrem Kartenantrag weiter; ab dem Antrag ist die Karte nach Zusage der Bank in der Regel in 4–8 Werktagen bei Ihnen.",
-    "Ihr persönlicher Betreuer begleitet Sie dabei – angefangen mit Ihrem Startgespräch.",
+    `Wie besprochen: Sobald Ihre Einzahlung da ist, aktiviere ich Ihr Konto${ziel != null ? ` – Ihr Wunschlimit von ${euroGanz(ziel)} nehmen wir dabei als Ziel` : ""}.`,
+    KARTE_LINK_SATZ,
+    KARTE_ZEIT_SATZ,
+    "Ihr persönlicher Betreuer begleitet Sie dabei, los geht es mit Ihrem Startgespräch.",
   ].join(" ");
 }
 
 const VERWENDUNGSZWECK_HINWEIS = "Bitte geben Sie den Verwendungszweck genau so an, dann wird Ihre Zahlung sofort zugeordnet.";
+const VERWENDUNGSZWECK_KURZ = "(bitte genau so angeben, dann ordnen wir Ihre Zahlung sofort zu)";
 
 /** Welche Knöpfe hat diese Karte? Eine Stelle, damit Seite und Server gleich entscheiden. */
 export function hatRechnungsweg(k: Pick<KarteiKarte, "zahlung" | "lage">): boolean {
@@ -250,32 +286,31 @@ export function whatsappRechnung(k: KarteiKarte, absender: string): string | nul
   const z = k.zahlung;
   if (!z) return null;
   const kopf = z.art === "rate"
-    ? [`Wie besprochen hier die Zahlungsinformationen für Ihre ${z.rateNr ? `${z.rateNr}. ` : ""}Monatsrate.`]
-    : [pitchAbsatz(k)];
-  return [
+    ? [`wie besprochen hier alles für Ihre ${z.rateNr ? `${z.rateNr}. ` : ""}Monatsrate.`]
+    : ["danke für das nette Telefonat gerade.", "", pitchAbsatz(k)];
+  // 21.09.2026 (Justin: „die Emojis weg und menschlicher"): keine Emojis, keine
+  // Sternchen-Überschriften — so, wie man es selbst in WhatsApp tippen würde.
+  return ohneEmojis([
     anredeWhatsApp(k),
-    "",
-    "vielen Dank für das freundliche Telefonat eben! 🙂",
     "",
     ...kopf,
     "",
-    "*So zahlen Sie am schnellsten:*",
-    `👉 ${z.zahlungsseite}`,
-    "(dort übernehmen Sie alles mit einem Klick in Ihre Banking-App)",
+    "Am einfachsten zahlen Sie über diesen Link, dort übernehmen Sie alles mit einem Klick in Ihre Banking-App:",
+    z.zahlungsseite,
     "",
-    "Oder per Überweisung:",
-    z.betragCents != null ? `*Betrag:* ${euro(z.betragCents)}` : null,
-    z.art === "rate" && z.faelligAm ? `*Fällig:* ${datumKurz(z.faelligAm)}` : null,
-    `*Empfänger:* ${BANK.empfaenger}`,
-    `*IBAN:* ${BANK.ibanDisplay}`,
-    `*BIC:* ${BANK.bic}`,
-    `*Verwendungszweck:* ${z.referenz}`,
-    VERWENDUNGSZWECK_HINWEIS,
-    ...(z.rechnungLink ? ["", "📄 Ihre Rechnung als PDF:", z.rechnungLink] : []),
-    ...(k.email ? ["", "Die Rechnung habe ich Ihnen zusätzlich per E-Mail geschickt."] : []),
+    "Wenn Sie lieber selbst überweisen:",
+    z.betragCents != null ? `Betrag: ${euro(z.betragCents)}` : null,
+    z.art === "rate" && z.faelligAm ? `Fällig am: ${datumKurz(z.faelligAm)}` : null,
+    `Empfänger: ${BANK.empfaenger}`,
+    `IBAN: ${BANK.ibanDisplay}`,
+    `BIC: ${BANK.bic}`,
+    `Verwendungszweck: ${z.referenz}`,
+    VERWENDUNGSZWECK_KURZ,
+    ...(z.rechnungLink ? ["", `Ihre Rechnung als PDF: ${z.rechnungLink}`] : []),
+    ...(k.email ? ["Ich habe sie Ihnen auch per E-Mail geschickt."] : []),
     "",
     ...gruss(absender),
-  ].filter((l): l is string => l !== null).join("\n");
+  ].filter((l): l is string => l !== null).join("\n"));
 }
 
 /** Mail „Rechnung" — die Rechnung hängt als PDF an (rechnungAlsPdf, Referenz der Zahlung). */
@@ -306,16 +341,16 @@ export function mailRechnung(k: KarteiKarte, absender: string): { betreff: strin
 // ── Fall 3: nicht erreicht ──────────────────────────────────────────────────
 
 export function whatsappNichtErreicht(k: KarteiKarte, absender: string): string {
-  return [
+  return ohneEmojis([
     anredeWhatsApp(k),
     "",
-    `ich wollte Sie eben kurz ${anlass(k.lage)} anrufen – finden Sie heute oder morgen noch Zeit für einen kurzen Call?`,
+    `ich wollte Sie eben kurz ${anlass(k.lage)} anrufen, habe Sie aber nicht erreicht. Passt es Ihnen heute oder morgen für ein kurzes Gespräch?`,
     "",
-    "Hier können Sie sich direkt in meinem persönlichen Kalender eintragen, Ihre Daten sind schon ausgefüllt:",
+    "In meinem Kalender können Sie sich direkt eine Zeit aussuchen, Ihre Daten sind schon eingetragen:",
     k.terminLink,
     "",
     ...gruss(absender),
-  ].join("\n");
+  ].join("\n"));
 }
 
 export function mailNichtErreicht(k: KarteiKarte, absender: string): { betreff: string; text: string } {
@@ -332,18 +367,16 @@ export function mailNichtErreicht(k: KarteiKarte, absender: string): { betreff: 
 // ── Fall 1 für Leads: erreicht, der Weg zum Antrag ─────────────────────────
 
 export function whatsappAntrag(k: KarteiKarte, absender: string, antragUrl: string): string {
-  return [
+  return ohneEmojis([
     anredeWhatsApp(k),
     "",
-    "vielen Dank für das freundliche Telefonat eben! 🙂",
-    "",
-    "Wie besprochen hier der Link zu Ihrem Antrag – das dauert nur etwa zwei Minuten:",
+    "danke für das nette Telefonat gerade. Wie besprochen hier der Link zu Ihrem Antrag, das dauert nur etwa zwei Minuten:",
     antragUrl,
     "",
-    "Sobald der Antrag da ist, geht es direkt weiter – schreiben Sie mir gern hier, wenn unterwegs etwas unklar ist.",
+    "Sobald der Antrag da ist, geht es weiter. Wenn unterwegs etwas unklar ist, schreiben Sie mir einfach hier.",
     "",
     ...gruss(absender),
-  ].join("\n");
+  ].join("\n"));
 }
 
 export function mailAntrag(k: KarteiKarte, absender: string, antragUrl: string): { betreff: string; text: string } {
@@ -362,6 +395,24 @@ export function mailAntrag(k: KarteiKarte, absender: string, antragUrl: string):
 // Kein Kundentext: Die Wand hält „Rückruf" als Zusage auf, und ein Rückruf,
 // den Justin sich selbst notiert, braucht keine Nachricht. Er bekommt eine
 // Erinnerung — auf der Seite und auf Wunsch als Kalendereintrag im iPhone.
+
+// ── Persönliche Nachricht (21.09.2026) ─────────────────────────────────────
+// Justin: „so was wie ein Freitext, nur besser benannt — wenn er draufklickt,
+// öffnet sich ein Fenster mit der Frage ‚Was möchten Sie dem Kunden schreiben?',
+// und dann schreibt die KI daraus eine 100 % personalisierte und 100 % menschlich
+// klingende WhatsApp-Nachricht." Die KI schlägt vor, Justin liest, ändert und
+// schickt selbst in WhatsApp ab — wie bei der Mail-KI (server/lib/fiaon-mail-ki.ts).
+
+/** So viele Zeichen darf Justins Stichwort haben. */
+export const KI_WUNSCH_MAX = 600;
+
+export interface KarteiKiAntwort {
+  ok: boolean;
+  text?: string;
+  /** Was die Wand beanstandet hat oder was entschärft wurde — Justin sieht es vor dem Senden. */
+  hinweise?: string[];
+  meldung?: string;
+}
 
 /** Was ein Knopf der Karte auf dem Server auslöst. */
 export type KarteiErgebnis = "rechnung" | "nicht_erreicht" | "antrag" | "rueckruf";

@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-21-karte-ab-erster-rate",
+    date: "2026-09-21",
+    category: "Neu",
+    title: "Karte ab der ersten Rate: Die Einladung der Partnerbank geht jetzt automatisch raus",
+    summary:
+      "Justin: „Ab jetzt jeder, der eine Rate bezahlt hat, kriegt den DKB-Link.“ Sobald die erste Zahlung gebucht ist, bekommt "
+      + "der Kunde automatisch die Mail „Ihr Link zur Karte ist da“ — mit dem Link unserer Partnerbank und der Bitte, in der "
+      + "Antragszeit Kontoauszüge, Ausweis und Auskunft hochzuladen. Vorher brauchte es zwei Raten, die Auskunft und alle Unterlagen.",
+    changes: [
+      "Die Einladung verschickt das System alle fünf Minuten an alle, deren erste Zahlung gebucht ist und deren Antrag vollständig ist — auch an die Bestandskunden, die sie noch nicht hatten.",
+      "Nicht automatisch angeschrieben wird, wer eine Vertriebs- oder Werbesperre hat, gekündigt oder storniert ist. Dort entscheidest du in der Akte („Karte bestellen“).",
+      "Die 10 € je bestätigter Kontoeröffnung gehören dir als Betreuer — auch wenn die Automatik die Mail geschickt hat.",
+      "Zeit bis zur Karte, überall gleich: nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon mit Apple Pay in der App der Bank.",
+      "Der Leitfaden „Konto & Karte“ in der Academy ist angepasst.",
+    ],
+    howto: [
+      "Ruf den Kunden nach der Einladung an: Glückwunsch zur Aktivierung, Link ist im Postfach, fünf Minuten mit dem Ausweis — und in der Antragszeit die Unterlagen hochladen.",
+      "Sagt er, es kam nichts an: In der Akte „Karte bestellen“ → erneut senden.",
+      "Nie eine Frist oder Zusage machen — „in der Regel“ und „nach der Zusage der Bank“ gehören immer dazu.",
+    ],
+  },
+  {
     id: "2026-09-21-kunden-bleiben",
     date: "2026-09-21",
     category: "Behoben",

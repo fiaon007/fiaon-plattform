@@ -238,74 +238,168 @@
 }
 
 /* ── Anrufen ─────────────────────────────────────────────────────────────── */
-.tk-anrufen {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  column-gap: 10px;
-  min-height: 52px;
-  padding: 8px 18px;
-  border-radius: 16px;
-  text-decoration: none;
-  color: #fff;
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, .35), 0 1px 0 rgba(255, 255, 255, .25) inset;
-  transition: transform .15s ease, box-shadow .15s ease;
+/* ── Zwei Knöpfe: Anrufen und Nachrichten (21.09.2026) ─────────────────────
+   Justin: „Buttons besser machen, moderner!" — zwei gleich hohe Knöpfe mit
+   rundem Zeichen links: Blau für den Anruf (die Haupthandlung), dunkles Glas
+   mit grünem Zeichen für die Nachrichten. Hover nur bei Maus. */
+.tk-aktionen { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; }
+.tk-anrufen, .tk-nachrichten {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 60px; padding: 8px 14px 8px 8px;
+  border-radius: 20px;
+  text-decoration: none; text-align: left;
+  font-family: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .16s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease;
 }
-.tk-anrufen svg { grid-row: span 2; width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 1.7; stroke-linejoin: round; }
-.tk-anrufen span { font: 400 16px/1.2 'Inter', sans-serif; }
-.tk-anrufen small { grid-column: 2; font: 300 11.5px/1.3 'Inter', sans-serif; color: rgba(255, 255, 255, .78); }
-.tk-anrufen:hover { transform: translateY(-1px); box-shadow: 0 16px 34px rgba(37, 99, 235, .42), 0 1px 0 rgba(255, 255, 255, .25) inset; }
-.tk-anrufen:active { transform: translateY(0); }
+.tk-anrufen {
+  color: #fff; border: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, #1d4ed8 0%, #288dfa 100%);
+  box-shadow: 0 14px 30px -12px rgba(40, 141, 250, .75), inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -1px 0 rgba(0, 0, 0, .15);
+}
+.tk-nachrichten {
+  color: var(--tk-text);
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .035));
+  box-shadow: 0 10px 26px -16px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+.tk-zeichen {
+  flex: none; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 15px;
+}
+.tk-anrufen .tk-zeichen { background: rgba(255, 255, 255, .18); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25); }
+.tk-nachrichten .tk-zeichen { background: rgba(37, 211, 102, .14); box-shadow: inset 0 0 0 1px rgba(37, 211, 102, .3); }
+.tk-zeichen svg { width: 21px; height: 21px; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tk-anrufen .tk-zeichen svg { stroke: #fff; }
+.tk-nachrichten .tk-zeichen svg { stroke: #6ee7b7; }
+.tk-aktion-text { min-width: 0; display: grid; gap: 2px; }
+.tk-aktion-text b { font: 500 15.5px/1.2 'Inter', sans-serif; letter-spacing: -.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-aktion-text small { font: 400 11.5px/1.25 'Inter', sans-serif; opacity: .78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-nachrichten .tk-aktion-text small { color: var(--tk-leise); opacity: 1; }
+@media (hover: hover) {
+  .tk-anrufen:hover { transform: translateY(-1px); box-shadow: 0 18px 36px -12px rgba(40, 141, 250, .85), inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -1px 0 rgba(0, 0, 0, .15); }
+  .tk-nachrichten:hover { transform: translateY(-1px); border-color: rgba(110, 231, 183, .35); background: linear-gradient(180deg, rgba(255, 255, 255, .11), rgba(255, 255, 255, .05)); }
+}
+.tk-anrufen:active, .tk-nachrichten:active { transform: scale(.98); }
+.tk-anrufen:focus-visible, .tk-nachrichten:focus-visible { outline: 2px solid var(--tk-blau-hell); outline-offset: 3px; }
+.tk-nachrichten:disabled { cursor: wait; opacity: .6; transform: none; }
 .tk-anrufen.aus {
-  display: flex;
-  justify-content: center;
-  background: var(--tk-flaeche);
-  box-shadow: none;
-  border: 1px dashed var(--tk-linie);
-  color: var(--tk-still);
-  font: 300 13.5px/1.2 'Inter', sans-serif;
+  justify-content: center; padding: 8px 14px;
+  background: var(--tk-flaeche); box-shadow: none; border: 1px dashed var(--tk-linie); color: var(--tk-still);
+}
+/* Am Telefon untereinander, volle Breite — nebeneinander wurden „Nachrichten"
+   und „speichert zuerst den Kontakt" abgeschnitten (gemessen auf 390 px). */
+@media (max-width: 560px) {
+  .tk-aktionen { grid-template-columns: 1fr; gap: 8px; }
+  .tk-anrufen, .tk-nachrichten { min-height: 58px; }
 }
 
-/* ── Die vier Fälle ─────────────────────────────────────────────────────── */
-.tk-nach { margin: 2px 0 -4px; font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--tk-still); }
-.tk-faelle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.tk-fall {
-  --tk-fall: var(--tk-text);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  min-height: 58px;
-  padding: 9px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--tk-linie);
-  background: var(--tk-flaeche-hoch);
-  color: var(--tk-fall);
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+/* ── Das Blatt „Nachrichten": vier Fälle und die persönliche Nachricht ──── */
+.tk-blatt.tk-nb { width: min(520px, 100%); padding-top: 16px; }
+.tk-nb-kopf { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.tk-nb-titel { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.tk-nb-titel span { font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--tk-still); }
+.tk-nb-titel b { font: 400 19px/1.2 'Inter', sans-serif; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-nb-rund {
+  flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px;
+  border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .05); color: var(--tk-text); cursor: pointer;
 }
-.tk-fall b { font: 400 14px/1.2 'Inter', sans-serif; }
-.tk-fall small { font: 300 11.5px/1.3 'Inter', sans-serif; color: var(--tk-leise); }
-.tk-fall:hover { border-color: color-mix(in srgb, var(--tk-fall) 40%, transparent); background: color-mix(in srgb, var(--tk-fall) 8%, rgba(255, 255, 255, .06)); }
-.tk-fall:active { transform: scale(.985); }
-.tk-fall.gut { --tk-fall: var(--tk-gruen); }
-.tk-fall.blau { --tk-fall: var(--tk-blau-hell); }
-.tk-fall.rot { --tk-fall: var(--tk-rot); }
-.tk-fall.aus, .tk-fall:disabled { cursor: default; opacity: .45; transform: none; }
-.tk-fall.aus:hover { border-color: var(--tk-linie); background: var(--tk-flaeche-hoch); }
+.tk-nb-rund svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tk-nb-frage { margin: 0 0 10px; font: 300 13.5px/1.4 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-nb-liste { display: grid; gap: 8px; }
+.tk-nb-fall {
+  --f: var(--tk-text);
+  display: flex; align-items: center; gap: 13px; width: 100%;
+  min-height: 64px; padding: 10px 12px 10px 10px;
+  border-radius: 18px; border: 1px solid var(--tk-linie);
+  background: rgba(255, 255, 255, .04);
+  color: var(--tk-text); text-align: left; text-decoration: none; font-family: inherit; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+}
+.tk-nb-fall.gruen { --f: #6ee7b7; }
+.tk-nb-fall.gelb { --f: #fcd34d; }
+.tk-nb-fall.blau { --f: #93c5fd; }
+.tk-nb-fall.rot { --f: #fda4af; }
+.tk-nb-fall.ki { --f: #c4b5fd; margin-top: 2px; }
+.tk-nb-zeichen {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px;
+  background: color-mix(in srgb, var(--f) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--f) 30%, transparent);
+}
+.tk-nb-zeichen svg { width: 21px; height: 21px; fill: none; stroke: var(--f); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tk-nb-text { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.tk-nb-text b { font: 500 15px/1.2 'Inter', sans-serif; color: #fff; }
+.tk-nb-text small { font: 300 12.5px/1.35 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-nb-pfeil { flex: none; width: 15px; height: 15px; fill: none; stroke: var(--tk-still); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tk-nb-fall.aus { cursor: default; opacity: .45; }
+.tk-nb-fall.ki {
+  border-color: rgba(196, 181, 253, .28);
+  background: linear-gradient(135deg, rgba(139, 92, 246, .14), rgba(40, 141, 250, .08));
+}
+@media (hover: hover) {
+  .tk-nb-fall:not(.aus):hover { background: color-mix(in srgb, var(--f) 8%, rgba(255, 255, 255, .05)); border-color: color-mix(in srgb, var(--f) 38%, transparent); }
+  .tk-nb-rund:hover { background: rgba(255, 255, 255, .1); }
+}
+.tk-nb-fall:not(.aus):active { transform: scale(.985); }
+.tk-nb-trenner { display: flex; align-items: center; gap: 12px; margin: 16px 0 10px; font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--tk-still); }
+.tk-nb-trenner::before, .tk-nb-trenner::after { content: ""; flex: 1; height: 1px; background: var(--tk-linie); }
+
+/* ── Persönliche Nachricht: Frage, Stichpunkte, Entwurf ──────────────────── */
+.tk-ki { display: grid; gap: 12px; }
+.tk-ki-frage { font: 400 16px/1.35 'Inter', sans-serif; color: #fff; }
+.tk-ki-wunsch, .tk-ki-text {
+  display: block; width: 100%; box-sizing: border-box; resize: vertical;
+  padding: 13px 14px; border-radius: 16px;
+  border: 1px solid var(--tk-linie); background: rgba(10, 22, 40, .7);
+  color: var(--tk-text); font: 400 16px/1.5 'Inter', sans-serif; color-scheme: dark;
+}
+.tk-ki-wunsch:focus, .tk-ki-text:focus { outline: none; border-color: rgba(196, 181, 253, .55); box-shadow: 0 0 0 3px rgba(139, 92, 246, .16); }
+.tk-ki-wunsch::placeholder { color: var(--tk-still); }
+.tk-ki-text { font-size: 15px; line-height: 1.55; background: rgba(37, 211, 102, .05); border-color: rgba(110, 231, 183, .22); }
+.tk-ki-beispiele { display: flex; flex-wrap: wrap; gap: 7px; }
+.tk-ki-beispiele button {
+  padding: 8px 12px; border-radius: 999px; border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .04);
+  color: var(--tk-leise); font: 400 12.5px/1.3 'Inter', sans-serif; text-align: left; cursor: pointer;
+}
+@media (hover: hover) { .tk-ki-beispiele button:hover { color: #fff; border-color: rgba(196, 181, 253, .4); } }
+.tk-ki-los { min-height: 50px; }
+.tk-ki-denkt { display: inline-flex; align-items: center; gap: 4px; }
+.tk-ki-denkt i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: tk-denkt 1.1s ease-in-out infinite; }
+.tk-ki-denkt i:nth-child(2) { animation-delay: .15s; }
+.tk-ki-denkt i:nth-child(3) { animation-delay: .3s; }
+@keyframes tk-denkt { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.tk-ki-label { margin: 4px 0 -4px; font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--tk-still); }
+.tk-ki-hinweise { margin: 0; padding: 10px 12px 10px 28px; border-radius: 12px; background: rgba(251, 191, 36, .08); border: 1px solid rgba(251, 191, 36, .22); display: grid; gap: 4px; font: 300 12.5px/1.45 'Inter', sans-serif; color: #fde68a; }
+.tk-ki-fehler { margin: 0; font: 400 13px/1.45 'Inter', sans-serif; color: var(--tk-rot); }
+.tk-ki-tun { display: flex; flex-wrap: wrap; gap: 8px; }
+.tk-ki-tun .tk-knopf { flex: 1 1 auto; }
+.tk-knopf.wa {
+  flex: 1 1 100%; border: 0; color: #04210f;
+  background: linear-gradient(135deg, #25d366, #5eead4);
+  box-shadow: 0 12px 26px -12px rgba(37, 211, 102, .8);
+  font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+}
+.tk-ki-keine { flex: 1 1 100%; font: 300 13px/1.4 'Inter', sans-serif; color: var(--tk-leise); }
+@media (prefers-reduced-motion: reduce) {
+  .tk-ki-denkt i { animation: none; opacity: .7; }
+  .tk-anrufen, .tk-nachrichten, .tk-nb-fall { transition: none; }
+}
 
 .tk-storniert { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .tk-storniert p { margin: 0; font: 300 13px/1.45 'Inter', sans-serif; color: var(--tk-leise); }
 
-.tk-fuss { display: flex; gap: 16px; flex-wrap: wrap; padding-top: 4px; border-top: 1px solid var(--tk-linie); }
-.tk-fuss a { font: 400 12.5px/2.2 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; }
-.tk-fuss a:hover { color: var(--tk-blau-hell); }
-.tk-fuss-knopf { padding: 0; border: 0; background: none; cursor: pointer; font: 400 12.5px/2.2 'Inter', sans-serif; color: var(--tk-blau-hell); }
-.tk-fuss-knopf:hover { color: #bfdbfe; }
+.tk-fuss { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--tk-linie); }
+.tk-fuss a, .tk-fuss-knopf {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .035);
+  font: 400 12.5px/1 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+@media (hover: hover) {
+  .tk-fuss a:hover, .tk-fuss-knopf:hover { color: #fff; border-color: rgba(147, 197, 253, .35); background: rgba(255, 255, 255, .07); }
+}
 
 .tk-mehr {
   display: block;

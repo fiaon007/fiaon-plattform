@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-21-justin-telefoniert",
+    date: "2026-09-21",
+    category: "Neu",
+    title: "Justin telefoniert mit — seine Anrufe stehen in der Akte, „Storniert“ heißt: nicht mehr anrufen",
+    summary:
+      "Justin ruft ab sofort selbst Kunden an. Jedes Ergebnis steht mit seinem Namen im Verlauf der Akte — genau wie eure. "
+      + "Storniert er einen Kunden, verschwindet dieser aus euren Listen, und die Bestellung heißt jetzt „Storniert“ statt „Archiviert“.",
+    changes: [
+      "Im Verlauf steht „Justin Schwarzott“ mit dem Ergebnis: nicht erreicht (zählt als Versuch wie bei euch), zahlt (die Zusage steht auf dem nächsten Tag) oder beim Lead „Interesse“.",
+      "Die Notiz „Justin ruft selbst zurück: Tag, Uhrzeit“ heißt: Dieser Kunde ist zu dieser Zeit bei Justin.",
+      "Hat Justin die Rechnung geschickt, steht im Verlauf die Mail mit der Rechnung im Anhang.",
+      "Eine stornierte Bestellung zeigt jetzt „Storniert“ (vorher „Archiviert“). Der Kunde steht in keiner Anrufliste mehr und bekommt keine Werbung.",
+      "Justin wird dabei nie Betreuer — eure Kunden und eure Provisionen bleiben eure.",
+    ],
+    howto: [
+      "Siehst du „Justin ruft selbst zurück“, ruf den Kunden bis dahin nicht an.",
+      "Nach Justins „zahlt“ steht die Zusage auf dem nächsten Tag — kommt bis dahin kein Geld, bist du wie gewohnt dran.",
+      "„Storniert“: nicht anrufen. Meldet sich der Kunde von selbst, gib Justin Bescheid — er kann ihn mit einem Klick zurückholen.",
+    ],
+  },
+  {
     id: "2026-09-19-kapital-europa",
     date: "2026-09-19",
     category: "Neu",

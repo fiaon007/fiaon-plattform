@@ -1082,10 +1082,45 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/telefonkartei (21.09.2026, E-201) ────────────────────────────────
+export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
+  {
+    titel: "Deine Telefonkartei: alle Kunden als Karten.",
+    text: "Jede Karte zeigt alles, ohne sie zu öffnen: Stufe, Stand, Paket, Wunschlimit, Verwendungszweck, wer ihn betreut, "
+      + "wann zuletzt telefoniert wurde und wann er erreichbar sein will. Die frischesten stehen oben — wie in der Arbeitsliste des Teams.",
+  },
+  {
+    ziel: ".tk-reiter",
+    titel: "A, B, C, Rate offen — die Stufen des Hauses.",
+    text: "A = Zahlung gemeldet, B = Antrag fertig, Rechnung offen, C = Lead ohne Antrag, „Rate offen“ = bezahlt, aber eine Monatsrate ist fällig. "
+      + "„Alle“ zeigt jeden, „Storniert“ die, die du storniert hast. Gesperrte (Vertriebssperre) blendest du über den Schalter ein.",
+  },
+  {
+    titel: "„Anrufen“ speichert zuerst den Kontakt auf deinem iPhone.",
+    text: "Beim ersten Tippen öffnet das iPhone die Kontaktkarte — „Neuen Kontakt erstellen“ antippen, fertig. Der Kontakt heißt dann "
+      + "„Name (FIAON)“, damit du beim Rückruf sofort weißt, wer anruft. Danach wählt derselbe Knopf direkt.",
+    tipp: "Ohne diesen einen Tipp speichert kein iPhone einen Kontakt — das lässt Apple keiner Webseite zu.",
+  },
+  {
+    titel: "Nach dem Gespräch: ein Knopf je Fall.",
+    text: "„Rechnung schicken“: Die Mail mit der Rechnung als PDF geht automatisch raus, WhatsApp öffnet sich mit Zahlungsseite, "
+      + "Bankdaten und Rechnungslink — du tippst nur noch auf Senden. „Nicht erreicht“: freundliche Mail und WhatsApp mit deinem "
+      + "persönlichen Kalender, Name und Nummer sind dort schon ausgefüllt. „Später anrufen“: Uhrzeit wählen, der Rückruf steht oben "
+      + "auf der Seite und auf Wunsch im iPhone-Kalender. „Stornieren“: raus aus allen Listen, keine Anrufe, keine Werbung.",
+    tipp: "Alles landet in der Akte des Kunden — die Mitarbeiter sehen, was du getan hast. Du wirst dabei nie sein Betreuer.",
+  },
+  {
+    titel: "Storniert ist nicht gelöscht.",
+    text: "Unter „Storniert“ steht jeder mit Grund und Datum. „Zurückholen“ nimmt genau das zurück, was der Storno getan hat — "
+      + "Bestellung, Lead, Sperren. Bezahlte Verträge folgen der Kündigungsregel: Die laufende Rate bleibt fällig, außer du setzt „Kulanz“.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
+  telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },
   globalAkte:  { titel: "Global-Akte",  schritte: RUNDGANG_GLOBAL_AKTE },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },

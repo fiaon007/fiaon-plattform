@@ -426,6 +426,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    nur im Chefbüro (Stufe Geschäftsführung), nie im Office. Tageslauf stündlich 6–20 Uhr bis zum Tagesziel.
   const fiaonRadarRoutes = await import('./routes/fiaon-radar');
   app.use('/api/fiaon', fiaonRadarRoutes.default);
+  // 📞 Telefonkartei (21.09.2026, E-201): Justins eigene Anrufseite — alle Kunden als Kartei,
+  //    Kontakt fürs iPhone, vier Fälle (Rechnung, nicht erreicht, Rückruf, Storno). Nur Stufe Inhaber.
+  const fiaonTelefonkarteiRoutes = await import('./routes/fiaon-telefonkartei');
+  app.use('/api/fiaon', fiaonTelefonkarteiRoutes.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });
   });

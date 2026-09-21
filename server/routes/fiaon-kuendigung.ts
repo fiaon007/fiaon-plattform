@@ -19,8 +19,11 @@ import { absoluteUrl } from "../fiaon-base-url";
 const router = Router();
 const QUELLEN: KuendigungQuelle[] = ["mail", "formular", "telefon", "admin", "altbestand"];
 
-/** Bestätigungsmail — einmalig je Bestellung (Vertragspost, keine Werbung). */
-async function bestaetigungSenden(ref: string): Promise<boolean> {
+/**
+ * Bestätigungsmail — einmalig je Bestellung (Vertragspost, keine Werbung).
+ * Exportiert (21.09.2026, E-201): Der Storno der Telefonkartei schickt sie genauso.
+ */
+export async function bestaetigungSenden(ref: string): Promise<boolean> {
   const [a] = (await sqlPool`
     SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.pack_name,
            a.letzte_rate_nr, a.kuendigung_bestaetigt_mail_am, a.payment_status,

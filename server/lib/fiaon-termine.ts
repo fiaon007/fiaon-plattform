@@ -124,6 +124,9 @@ export const HERKUENFTE = {
   rueckholung: "Terminlink aus einer Rückhol-Mail (offener Antrag)",
   agent: "Von einem Mitarbeiter weitergegeben oder eingetragen",
   gruender_seite: "Buchungsseite des Gründers (/justin)",
+  // 21.09.2026 (E-201): Justins persönlicher Link aus der Telefonkartei
+  // (WhatsApp „nicht erreicht") — /justin?k=…, Daten schon ausgefüllt.
+  gruender_link: "Persönlicher Terminlink von Justin (WhatsApp)",
   // 17.09.2026 (E-188): der Gesprächskalender auf /business (FIAON Global).
   global_seite: "Gesprächskalender FIAON Global (/business)",
   unbekannt: "Weg nicht mitgeführt",

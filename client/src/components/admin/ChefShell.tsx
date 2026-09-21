@@ -334,7 +334,7 @@ export function ChefRaumSeite({ raum, stufe }: { raum: ChefRaum; stufe: ChefStuf
 // mit ihr sieht sie aus, als wäre sie für das Chefbüro gebaut worden.
 // ═══════════════════════════════════════════════════════════════════════════
 export function ChefSeitenRahmen({ seite, raum, children }: {
-  seite: { label: string; satz: string; raum: string };
+  seite: { label: string; satz: string; raum: string; eigenesDesign?: boolean };
   raum: ChefRaum | undefined;
   children: ReactNode;
 }) {
@@ -355,7 +355,8 @@ export function ChefSeitenRahmen({ seite, raum, children }: {
         )}
         <span className="cbs-ort">Chefbüro · {raum?.label ?? "Seite"} · {seite.label}</span>
       </div>
-      <div className="cbs">{children}</div>
+      {/* E-201: Seiten mit eigenem Chefbüro-Design laufen ohne die Hell→Dunkel-Übersetzung. */}
+      <div className={seite.eigenesDesign ? "cbs-eigen" : "cbs"}>{children}</div>
     </div>
   );
 }

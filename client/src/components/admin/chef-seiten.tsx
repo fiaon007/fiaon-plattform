@@ -54,6 +54,8 @@ const Postmeister = lazy(() => import("@/components/admin/ChefPostfach"));
 const Dubletten = lazy(() => import("@/pages/admin-dubletten"));
 const GlobalAuftraege = lazy(() => import("@/components/admin/ChefGlobalAuftraege"));
 const FirmenRadar = lazy(() => import("@/components/admin/ChefRadar"));
+// 21.09.2026 (E-201): Justins eigene Anrufseite — nur Stufe Inhaber.
+const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
 const Vertraege = lazy(() => import("@/pages/admin-vertraege"));
@@ -101,6 +103,12 @@ export interface ChefSeite {
   suche?: string;
   /** Zusätzliche Suchworte für das Register. */
   auch?: string;
+  /**
+   * Die Seite ist fürs Chefbüro gebaut (dunkel von Haus aus) und braucht die
+   * Hell→Dunkel-Übersetzung `.cbs` nicht. Die übermalt Knöpfe und Links mit
+   * `!important` — gut für alte Admin-Seiten, falsch für eigene (E-201).
+   */
+  eigenesDesign?: boolean;
 }
 
 export const CHEF_SEITEN: ChefSeite[] = [
@@ -127,6 +135,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "investoren", label: "Investoren", satz: "Anfragen, Investments, Dokumente.", Seite: Investoren, raum: "geld", mindest: "geschaeftsfuehrung" },
 
   // ── Kunden ──────────────────────────────────────────────────────────────
+  { slug: "telefonkartei", label: "Telefonkartei", satz: "Deine Anrufseite: alle Kunden als Karten, Kontakt fürs iPhone, Rechnung, nicht erreicht, später anrufen, stornieren.", Seite: Telefonkartei, raum: "kunden", mindest: "inhaber", eigenesDesign: true, auch: "anrufen telefon whatsapp kontakt vcard iphone rechnung storno stornieren rueckruf rückruf a b c kunden kartei" },
   { slug: "kunden", label: "Kunden-Zentrale", satz: "Leads, Kunden, Anträge — mit Massenaktionen.", Seite: Kunden, raum: "kunden" },
   { slug: "kyc", label: "Ausweisprüfungen", satz: "Wer hat Unterlagen eingereicht, die noch niemand angesehen hat?", Seite: Kunden, raum: "kunden", suche: "kycOffen=1", auch: "kyc ausweis legitimation unterlagen" },
   { slug: "kuendigungen", label: "Kündigungen", satz: "Wer hat gekündigt, und was ist daraus geworden?", Seite: Kunden, raum: "kunden", suche: "kuendigungen=1", auch: "storno beenden" },

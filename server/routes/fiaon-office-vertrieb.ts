@@ -345,7 +345,9 @@ const TERMIN_HEUTE_SQL = `EXISTS (
  * E-047 bleibt im Kern bestehen: Der Ton ist der weiche Reaktivierungs-
  * Leitfaden (E-042), kein Inkasso-Ton. Das Mahnwesen bleibt unberührt.
  */
-const RATE_FAELLIG_SQL = `EXISTS (
+// Exportiert (21.09.2026, E-201): Die Telefonkartei im Chefbüro zieht „Rate offen" nach
+// GENAU dieser Regel — eine zweite Fassung würde andere Menschen zeigen als die Arbeitsliste.
+export const RATE_FAELLIG_SQL = `EXISTS (
   SELECT 1 FROM fiaon_abo_raten r JOIN fiaon_applications ar ON ar.ref = r.ref
    WHERE ar.person_id = p.id AND ar.merged_into IS NULL
      AND r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am <= ${HEUTE})`;
@@ -364,7 +366,8 @@ const RATE_FAELLIG_AM_SQL = `(
  * oben, und das ist hier genau richtig: Eine frisch fällige Rate wird zu
  * 18,6 % bezahlt, eine in Mahnstufe 5 zu 3,4 %.
  */
-const EREIGNIS_SQL = `GREATEST(
+// Exportiert (E-201): dieselbe Frische-Reihung für die Telefonkartei.
+export const EREIGNIS_SQL = `GREATEST(
   COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4 WHERE a4.person_id = p.id AND a4.merged_into IS NULL), p.created_at),
   COALESCE((SELECT MAX(a5.claimed_paid_at) FROM fiaon_applications a5 WHERE a5.person_id = p.id AND a5.merged_into IS NULL
               AND a5.payment_status = 'claimed_paid'), p.created_at),

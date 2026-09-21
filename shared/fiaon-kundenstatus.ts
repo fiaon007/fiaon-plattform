@@ -30,6 +30,7 @@ export type KundenstatusSchluessel =
   | "rechnung_offen"
   | "zahlung_gemeldet"
   | "bezahlt"
+  | "storniert"
   | "archiviert";
 
 export interface KundenstatusText {
@@ -79,6 +80,16 @@ export const KUNDENSTATUS: Record<KundenstatusSchluessel, KundenstatusText> = {
     zusatz: null,
     hinweis: "Das Geld ist bankbestätigt eingegangen. Der Kunde ist aus dem Vertrieb heraus und wird nicht mehr zur Zahlung aufgefordert.",
     ton: "gut",
+  },
+  // 21.09.2026 (E-201, Telefonkartei): Ein Storno hieß bisher „Archiviert" — mit
+  // dem Hinweis „doppelt, Testeintrag oder widerrufen". Für einen Kunden, der am
+  // Telefon storniert hat, war das die falsche Auskunft: Der Mitarbeiter sah
+  // nicht, dass hier jemand ausdrücklich Nein gesagt hat.
+  storniert: {
+    text: "Storniert",
+    zusatz: null,
+    hinweis: "Der Kunde hat storniert — nicht mehr anrufen, keine Zahlungsaufforderung. Zurückholen kann nur die Geschäftsleitung.",
+    ton: "still",
   },
   archiviert: {
     text: "Archiviert",
@@ -131,7 +142,8 @@ export function kundenstatus(ein: KundenstatusEingabe): Kundenstatus {
   else if (zahlung === "paid") schluessel = "bezahlt";
   else if (zahlung === "claimed_paid") schluessel = "zahlung_gemeldet";
   else if (zahlung === "pending_payment" || zahlung === "expired") schluessel = "rechnung_offen";
-  else if (zahlung === "refunded" || zahlung === "cancelled" || zahlung === "superseded") schluessel = "archiviert";
+  else if (zahlung === "cancelled") schluessel = "storniert";
+  else if (zahlung === "refunded" || zahlung === "superseded") schluessel = "archiviert";
   else if (zahlung === "pending" && antrag && !ABBRECHER_SCHRITTE.includes(antrag)) schluessel = "rechnung_offen";
   else if (zahlung === "pending") schluessel = "antrag_offen";
   else schluessel = ein.hatBestellung ? "antrag_offen" : "lead";
@@ -142,7 +154,7 @@ export function kundenstatus(ein: KundenstatusEingabe): Kundenstatus {
   const fristVorbei = zahlung === "expired"
     || (!!ein.frist && new Date(ein.frist).getTime() < Date.now()
         && (zahlung === "pending_payment" || zahlung === "claimed_paid"));
-  const etikett = fristVorbei && schluessel !== "bezahlt" && schluessel !== "archiviert"
+  const etikett = fristVorbei && schluessel !== "bezahlt" && schluessel !== "archiviert" && schluessel !== "storniert"
     ? ETIKETT_FRIST_ABGELAUFEN
     : null;
 

@@ -1086,3 +1086,8 @@
 .cb.cb-schmal .cb-klapp{justify-content:center;padding:9px 0;gap:0}
 .cb.cb-schmal .cb-klapp span{display:none}
 @media(max-width:960px){.cb-klapp{display:none}}
+/* 21.09.2026 (E-201, gefunden an der Telefonkartei): Am Handy ist die Leiste
+   ausgeblendet — die Regel oben für das schmale Menü (60px 1fr) gewann aber
+   gegen die Handy-Regel (1fr), weil sie spezifischer ist. Der Inhalt landete
+   in der 60-Pixel-Spalte, JEDE Chefbüro-Seite war am iPhone ein Streifen. */
+@media(max-width:960px){.cb.cb-schmal .cb-grund{grid-template-columns:1fr;gap:0}}

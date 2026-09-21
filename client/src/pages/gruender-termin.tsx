@@ -23,6 +23,8 @@ interface Angebot {
   tage: Tag[];
   slotMinuten: number;
   proTag: number;
+  /** E-201: Justins persönlicher Link (/justin?k=…) bringt die Daten des Kunden mit. */
+  vorlage?: { anrede: string; vorname: string; nachname: string; email: string; telefon: string } | null;
 }
 interface Fertig { beginn: string; datumText: string; uhrzeit: string; stornoToken: string; agentName: string }
 
@@ -64,10 +66,16 @@ export default function GruenderTermin() {
   const [bucht, setBucht] = useState(false);
   const [fertig, setFertig] = useState<(Fertig & { email: string }) | null>(null);
   const [f, setF] = useState({ anrede: "", vorname: "", nachname: "", email: "", telefon: "", thema: "", nachricht: "", website: "" });
+  // Der persönliche Link aus Justins WhatsApp/Mail (E-201). Er bleibt nur im
+  // Speicher der Seite und geht beim Buchen mit — der Server prüft ihn.
+  const [link] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("k") || ""; } catch { return ""; }
+  });
+  const [vorausgefuellt, setVorausgefuellt] = useState(false);
 
   const laden = useCallback(async () => {
     setLaedt(true);
-    const res = await fetch("/api/fiaon/gruender-termin").catch(() => null);
+    const res = await fetch(`/api/fiaon/gruender-termin${link ? `?k=${encodeURIComponent(link)}` : ""}`).catch(() => null);
     const json = await res?.json().catch(() => null);
     if (!res?.ok || !json?.ok) {
       setFehler(json?.error || "Die freien Zeiten konnten nicht geladen werden. Bitte laden Sie die Seite neu.");
@@ -75,8 +83,22 @@ export default function GruenderTermin() {
       return;
     }
     setDaten(json);
+    const v = (json as Angebot).vorlage;
+    if (v) {
+      // Nur leere Felder füllen — was der Kunde schon getippt hat, gewinnt.
+      setF((alt) => ({
+        ...alt,
+        anrede: alt.anrede || v.anrede || "",
+        vorname: alt.vorname || v.vorname || "",
+        nachname: alt.nachname || v.nachname || "",
+        email: alt.email || v.email || "",
+        telefon: alt.telefon || v.telefon || "",
+        thema: alt.thema || "Ich bin Kunde und möchte den Gründer sprechen",
+      }));
+      setVorausgefuellt(true);
+    }
     setLaedt(false);
-  }, []);
+  }, [link]);
 
   useEffect(() => { void laden(); }, [laden]);
 
@@ -99,7 +121,7 @@ export default function GruenderTermin() {
     const res = await fetch("/api/fiaon/gruender-termin/buchen", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...f, beginn: slot.beginn }),
+      body: JSON.stringify({ ...f, beginn: slot.beginn, ...(link ? { k: link } : {}) }),
     }).catch(() => null);
     const json = await res?.json().catch(() => null);
     setBucht(false);
@@ -237,7 +259,9 @@ export default function GruenderTermin() {
                     <span className="gt-nr" aria-hidden="true">3</span>
                     <div>
                       <h2>Ihre Angaben</h2>
-                      <p>Damit {g?.vorname || "Justin"} weiß, wen er anruft und worum es geht.</p>
+                      <p>{vorausgefuellt
+                        ? "Ihre Angaben sind schon ausgefüllt — bitte kurz prüfen."
+                        : `Damit ${g?.vorname || "Justin"} weiß, wen er anruft und worum es geht.`}</p>
                     </div>
                   </div>
 

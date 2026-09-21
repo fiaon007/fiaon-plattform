@@ -5,6 +5,43 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 — Telefonkartei: Justins eigene Anrufseite im Chefbüro
+
+**Was geändert wurde:**
+
+- **Neue Seite** im Chefbüro (Kunden → Telefonkartei, `/chef/s/telefonkartei`, nur Stufe Inhaber), fürs iPhone gebaut und
+  am Laptop als Raster: alle Kunden als Karten in den Reitern A · Zahlung gemeldet, B · Rechnung offen, C · Lead,
+  Rate offen, Alle und Storniert. Jede Karte zeigt ohne Öffnen Stand, Paket, Wunschlimit, Referenz, E-Mail, Ort, Betreuer,
+  den letzten Kontakt, das Wunschfenster, Zusage, Termin und Rückruf. Die frischesten stehen oben — dieselbe Reihung wie
+  die Arbeitsliste des Teams; A/B/C sind die Stufen des Hauses (`priority_tier`), „Rate offen“ dieselbe Regel wie dort.
+- **Anrufen speichert den Kontakt am iPhone:** Beim ersten Tippen öffnet sich die Kontaktkarte („Name (FIAON)“, mit
+  Paket, Wunschlimit und Betreuer in der Notiz) — „Neuen Kontakt erstellen“, danach wählt derselbe Knopf direkt.
+- **Vier Knöpfe nach dem Gespräch:** „Rechnung schicken“ (Mail mit der Rechnung als PDF automatisch, WhatsApp öffnet sich
+  fertig mit Zahlungsseite, Bankdaten und PDF-Link; ein fertiger Antrag ohne Rechnung wird dabei in Rechnung gestellt),
+  „Nicht erreicht“ (freundliche Mail + WhatsApp mit Justins Kalender, Daten vorausgefüllt), „Später anrufen“ (Uhrzeit
+  wählen; der Rückruf steht oben auf der Seite und auf Wunsch im iPhone-Kalender) und „Stornieren“ (über die
+  Kündigungsregel des Hauses; raus aus allen Listen, keine Werbung, Termine abgesagt; unter „Storniert“ zurückholbar —
+  „Zurückholen“ stellt genau den Stand von vorher her). Leads bekommen statt der Rechnung „Antrag schicken“.
+- **Die Texte** folgen Justins Pitch (Konto aktivieren nach Einzahlung, Kartenantrag im Anschluss, in der Regel 4–8
+  Werktage) und den Regeln der Wortwand: Wunschlimit „als Ziel“, Karte „nach Zusage der Bank“, keine IBAN im Mailtext.
+- **/justin?k=…** — Justins persönlicher Kalenderlink füllt Name, E-Mail und Telefon vor und bucht sicher auf den
+  richtigen Kunden (Herkunft „Persönlicher Terminlink von Justin“).
+- **Für das Team:** Justins Ergebnisse stehen mit seinem Namen in der Akte (ohne Mitarbeiter-ID — er wird nie Betreuer,
+  keine Provision verschiebt sich). Eine stornierte Bestellung heißt jetzt „Storniert“ statt „Archiviert“.
+- **Behoben im Chefbüro:** Am Handy landete bei eingeklapptem Menü der Inhalt jeder Chefbüro-Seite in einer 60-Pixel-Spalte.
+  Seiten mit eigenem Chefbüro-Design laufen ohne die Hell→Dunkel-Übersetzung (`eigenesDesign`).
+
+**Warum:** Justin am 21.09.2026: „Ich habe heute selbst telefoniert und es lief hervorragend — ich möchte eine eigene
+Seite, ganz simpel gehalten … für Handy und Laptop optimiert.“ Dazu die vier Fälle: Rechnung, kein Interesse, nicht
+erreicht, „rufen Sie mich um … an“ — je ein Klick.
+
+**Wo zu finden:** `/chef/s/telefonkartei`; `server/lib/fiaon-telefonkartei.ts`, `server/routes/fiaon-telefonkartei.ts`,
+`shared/fiaon-telefonkartei.ts` (Gruppen und Texte), `client/src/components/admin/ChefTelefonkartei.tsx`,
+`chef-telefonkartei.css`; Mail-Kern `freitextVersenden` in `server/routes/fiaon-mail.ts`; Prüfstand
+`scripts/pruef-telefonkartei.ts` (84 Prüfungen).
+
+---
+
 ## 19.09.2026 (abends) — Firmen-Radar: vollständige Kontakte, Stapel-Versand, neue Oberfläche
 
 **Was geändert wurde:**

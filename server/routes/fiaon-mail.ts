@@ -466,55 +466,83 @@ async function freitextZiel(personId: number): Promise<{ email: string; anrede: 
 // FIAON-5BNPWZ-2); daraus baut `rechnungAlsPdf` die Rechnung mit dem Betrag
 // der RATE — nicht dem alten Bestellfeld.
 // ═══════════════════════════════════════════════════════════════════════════
+// 21.09.2026 (E-201): Der Kern steht jetzt in `freitextVersenden` — die
+// Telefonkartei im Chefbüro schickt Justins Rechnungs- und Nicht-erreicht-Mails
+// durch GENAU diese Kette (Wand, Rechnungs-PDF, Versand, Protokoll, Akte).
+// Die Route selbst ist nur noch die Hülle; ihr Verhalten ist unverändert.
+export interface FreitextAuftrag {
+  personId: number;
+  betreff: unknown;
+  text: unknown;
+  /** Zahlungsreferenz (Bestellung oder Rate) — daraus wird die Rechnung als PDF angehängt. */
+  anhangReferenz?: unknown;
+  nurVorschau?: boolean;
+  /** Wer steht im Protokoll und in der Akte? Vorgabe „Verwaltung". */
+  akteur?: string;
+  /** Maschinenlesbare Art der Mail im Protokoll-Payload (z. B. „tk_rechnung") — für Doppelversand-Prüfungen. */
+  kennung?: string | null;
+}
+
+export async function freitextVersenden(ein: FreitextAuftrag): Promise<Record<string, any>> {
+  const personId = Number(ein.personId);
+  const nurVorschau = ein.nurVorschau === true;
+  const akteur = String(ein.akteur || "").trim() || "Verwaltung";
+  const betreff = String(ein.betreff || "").trim();
+  const text = String(ein.text || "").trim();
+  const anhangReferenz = String(ein.anhangReferenz || "").trim();
+  if (!betreff || !text) return { ok: false, error: "Betreff und Text dürfen nicht leer sein." };
+  const ziel = await freitextZiel(personId);
+  if (!ziel?.email) return { ok: false, error: "Keine E-Mail-Adresse hinterlegt." };
+  const anhaenge: { name: string; inhalt: Buffer }[] = [];
+  let rechnung: { rechnungsnummer: string; betrag: string; art: string } | null = null;
+  if (anhangReferenz) {
+    const { rechnungAlsPdf } = await import("../lib/fiaon-rechnung-pdf");
+    const r = await rechnungAlsPdf(anhangReferenz);
+    if (!r) return { ok: false, error: `Zu ${anhangReferenz} gibt es keine Rechnung.` };
+    anhaenge.push({ name: r.dateiname, inhalt: r.pdf });
+    rechnung = { rechnungsnummer: r.rechnungsnummer, betrag: r.betrag, art: r.art };
+  }
+  // Dieselbe Wand wie im Postfach. „Rechnung im Anhang" ist eine Zusage —
+  // gedeckt nur, wenn wirklich eine Rechnung angehaengt wird.
+  const { wandPruefen } = await import("@shared/fiaon-wortverbote");
+  const hart = wandPruefen(`${betreff}\n${text}`, anhaenge.length ? ["rechnung_anhaengen"] : []).filter((f) => f.art === "verboten" || f.art === "zusage");
+  if (hart.length) return { ok: false, error: `Die Wortwand hält den Text auf: ${hart.map((f) => `„${f.treffer}“ — ${f.hinweis}`).join(" · ")}` };
+  const { freitextRendern, freitextSenden } = await import("../mail/motor");
+  if (nurVorschau) {
+    const mail = freitextRendern({ betreff, text, anrede: ziel.anrede });
+    return { ok: true, betreff: mail.betreff, html: mail.html, empfaenger: ziel.email, absender: mail.absender, anhang: rechnung };
+  }
+  const erg = await freitextSenden({ an: ziel.email, betreff, text, anrede: ziel.anrede, anhaenge });
+  const { mailProtokoll } = await import("../lib/fiaon-mail-log");
+  await mailProtokoll({
+    event: "frei_text", personId, empfaenger: ziel.email,
+    status: erg.ok ? "versandt" : "fehlgeschlagen",
+    grund: erg.ok ? null : (erg.grund ?? "unbekannt"),
+    payload: { betreff, text, email: ziel.email, anhang: rechnung, ...(ein.kennung ? { kennung: ein.kennung } : {}) },
+    ausgeloestVon: akteur, ausgeloestAgentId: null,
+    brevoMessageId: erg.messageId,
+  });
+  if (ziel.ref) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+      VALUES (${ziel.ref}, NULL, ${akteur}, 'system',
+              ${erg.ok
+                ? `Freitext-Mail „${betreff}“ an ${ziel.email} verschickt${rechnung ? ` — mit Rechnung ${rechnung.rechnungsnummer} über ${rechnung.betrag} € im Anhang` : ""}.`
+                : `Freitext-Mail „${betreff}“ NICHT verschickt: ${erg.grund}`}, NOW())
+    `.catch(() => {});
+  }
+  return erg.ok
+    ? { ok: true, meldung: `„${betreff}“ an ${ziel.email} verschickt.`, empfaenger: ziel.email, anhang: rechnung }
+    : { ok: false, error: erg.grund || "Versand fehlgeschlagen." };
+}
+
 async function adminFreitext(req: Request, res: Response, nurVorschau: boolean): Promise<void> {
   try {
-    const personId = Number(req.params.personId);
-    const betreff = String(req.body?.betreff || "").trim();
-    const text = String(req.body?.text || "").trim();
-    const anhangReferenz = String(req.body?.anhangReferenz || "").trim();
-    if (!betreff || !text) { res.json({ ok: false, error: "Betreff und Text dürfen nicht leer sein." }); return; }
-    const ziel = await freitextZiel(personId);
-    if (!ziel?.email) { res.json({ ok: false, error: "Keine E-Mail-Adresse hinterlegt." }); return; }
-    const anhaenge: { name: string; inhalt: Buffer }[] = [];
-    let rechnung: { rechnungsnummer: string; betrag: string; art: string } | null = null;
-    if (anhangReferenz) {
-      const { rechnungAlsPdf } = await import("../lib/fiaon-rechnung-pdf");
-      const r = await rechnungAlsPdf(anhangReferenz);
-      if (!r) { res.json({ ok: false, error: `Zu ${anhangReferenz} gibt es keine Rechnung.` }); return; }
-      anhaenge.push({ name: r.dateiname, inhalt: r.pdf });
-      rechnung = { rechnungsnummer: r.rechnungsnummer, betrag: r.betrag, art: r.art };
-    }
-    // Dieselbe Wand wie im Postfach. „Rechnung im Anhang" ist eine Zusage —
-    // gedeckt nur, wenn wirklich eine Rechnung angehaengt wird.
-    const { wandPruefen } = await import("@shared/fiaon-wortverbote");
-    const hart = wandPruefen(`${betreff}\n${text}`, anhaenge.length ? ["rechnung_anhaengen"] : []).filter((f) => f.art === "verboten" || f.art === "zusage");
-    if (hart.length) { res.json({ ok: false, error: `Die Wortwand hält den Text auf: ${hart.map((f) => `„${f.treffer}“ — ${f.hinweis}`).join(" · ")}` }); return; }
-    const { freitextRendern, freitextSenden } = await import("../mail/motor");
-    if (nurVorschau) {
-      const mail = freitextRendern({ betreff, text, anrede: ziel.anrede });
-      res.json({ ok: true, betreff: mail.betreff, html: mail.html, empfaenger: ziel.email, absender: mail.absender, anhang: rechnung });
-      return;
-    }
-    const erg = await freitextSenden({ an: ziel.email, betreff, text, anrede: ziel.anrede, anhaenge });
-    const { mailProtokoll } = await import("../lib/fiaon-mail-log");
-    await mailProtokoll({
-      event: "frei_text", personId, empfaenger: ziel.email,
-      status: erg.ok ? "versandt" : "fehlgeschlagen",
-      grund: erg.ok ? null : (erg.grund ?? "unbekannt"),
-      payload: { betreff, text, email: ziel.email, anhang: rechnung },
-      ausgeloestVon: "Verwaltung", ausgeloestAgentId: null,
-      brevoMessageId: erg.messageId,
-    });
-    if (ziel.ref) {
-      await sqlPool`
-        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
-        VALUES (${ziel.ref}, NULL, 'Verwaltung', 'system',
-                ${erg.ok
-                  ? `Freitext-Mail „${betreff}“ an ${ziel.email} verschickt${rechnung ? ` — mit Rechnung ${rechnung.rechnungsnummer} über ${rechnung.betrag} € im Anhang` : ""}.`
-                  : `Freitext-Mail „${betreff}“ NICHT verschickt: ${erg.grund}`}, NOW())
-      `.catch(() => {});
-    }
-    res.json(erg.ok ? { ok: true, meldung: `„${betreff}“ an ${ziel.email} verschickt.`, anhang: rechnung } : { ok: false, error: erg.grund || "Versand fehlgeschlagen." });
+    res.json(await freitextVersenden({
+      personId: Number(req.params.personId),
+      betreff: req.body?.betreff, text: req.body?.text, anhangReferenz: req.body?.anhangReferenz,
+      nurVorschau,
+    }));
   } catch (err) {
     console.error("[MAIL] admin frei:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

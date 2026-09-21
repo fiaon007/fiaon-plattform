@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import {
-  rohSlots, slotsVerknappen, terminBuchen, stornoLink, verfuegbarkeitVon,
+  rohSlots, slotsVerknappen, terminBuchen, stornoLink, verfuegbarkeitVon, terminTokenPruefen,
   TerminFehler, HORIZONT_TAGE, QUELLEN, berlinDatum, berlinWochentag, type Slot,
 } from "../lib/fiaon-termine";
 import { personFuerZeile } from "../fiaon-person-model";
@@ -155,12 +155,46 @@ export async function angebot(): Promise<Angebot> {
   return { gruender: g, slots, tage, proTag: e.proTag };
 }
 
+// ── DER PERSÖNLICHE LINK (21.09.2026, E-201) ────────────────────────────────
+// Justin schickt aus der Telefonkartei „nicht erreicht" per WhatsApp und Mail
+// mit /justin?k=<Token>. Der Token ist derselbe signierte Personen-Token wie
+// bei /termin/:token (30 Tage). Er füllt Name, E-Mail und Telefon vor — der
+// Kunde soll sich „direkt mit Namen und so vorausgefüllt" eintragen — und die
+// Buchung landet sicher an DIESER Person, auch wenn er eine andere Adresse
+// eintippt. Ohne gültigen Token bleibt die Seite, was sie war.
+async function vorlageAusLink(k: unknown): Promise<{ personId: number; anrede: string; vorname: string; nachname: string; email: string; telefon: string } | null> {
+  const t = terminTokenPruefen(k);
+  if (!t || t.abgelaufen) return null;
+  const [p] = (await sqlPool`
+    SELECT p.id, p.anrede, p.first_name, p.last_name, p.contact_name, p.primary_email, p.primary_phone,
+           a.first_name AS a_vorname, a.last_name AS a_nachname, a.email AS a_email, a.phone AS a_phone,
+           l.vorname AS l_vorname, l.nachname AS l_nachname, l.email AS l_email, l.telefon AS l_telefon
+    FROM fiaon_persons p
+    LEFT JOIN LATERAL (SELECT first_name, last_name, email, phone FROM fiaon_applications
+                        WHERE person_id = p.id AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1) a ON TRUE
+    LEFT JOIN LATERAL (SELECT vorname, nachname, email, telefon FROM fiaon_leads
+                        WHERE person_id = p.id ORDER BY erstellt_am DESC LIMIT 1) l ON TRUE
+    WHERE p.id = ${t.personId} AND p.merged_into_person_id IS NULL
+  `.catch(() => [])) as any[];
+  if (!p) return null;
+  const s = (...w: unknown[]) => String(w.find((x) => String(x ?? "").trim()) ?? "").trim();
+  return {
+    personId: Number(p.id),
+    anrede: ["Herr", "Frau"].includes(String(p.anrede)) ? String(p.anrede) : "",
+    vorname: s(p.first_name, p.a_vorname, p.l_vorname, p.contact_name),
+    nachname: s(p.last_name, p.a_nachname, p.l_nachname),
+    email: s(p.primary_email, p.a_email, p.l_email),
+    telefon: s(p.primary_phone, p.a_phone, p.l_telefon),
+  };
+}
+
 // ── GET /gruender-termin — das Angebot ──────────────────────────────────────
-router.get("/gruender-termin", async (_req: Request, res: Response) => {
+router.get("/gruender-termin", async (req: Request, res: Response) => {
   try {
     const e = await einstellungen();
     const a = await angebot();
     if (!a.gruender) return res.status(503).json({ ok: false, error: "Die Buchung ist im Moment nicht möglich." });
+    const v = req.query.k ? await vorlageAusLink(req.query.k) : null;
     res.json({
       ok: true,
       gruender: { vorname: a.gruender.vorname, name: a.gruender.name, titel: e.titel, bild: a.gruender.bild },
@@ -169,6 +203,7 @@ router.get("/gruender-termin", async (_req: Request, res: Response) => {
       slotMinuten: DAUER,
       horizontTage: HORIZONT_TAGE,
       proTag: a.proTag,
+      vorlage: v ? { anrede: v.anrede, vorname: v.vorname, nachname: v.nachname, email: v.email, telefon: v.telefon } : null,
     });
   } catch (err) {
     console.error("[GRUENDER-TERMIN] angebot:", err);
@@ -227,14 +262,18 @@ router.post("/gruender-termin/buchen", async (req: Request, res: Response) => {
       409, "nicht_angeboten");
     }
 
-    // Die Person: bekannt über E-Mail oder Telefon, sonst neu — ohne Betreuer.
-    const zu = await personFuerZeile({
-      emails: [email],
-      phones: [telefon],
-      stammdaten: { first_name: vorname, last_name: nachname, primary_email: email, primary_phone: telefon, kind: "private" },
-      quelle: "gruender-seite",
-      firstSeenAt: new Date(),
-    });
+    // Die Person: aus Justins persönlichem Link (E-201), sonst bekannt über
+    // E-Mail oder Telefon, sonst neu — ohne Betreuer.
+    const ausLink = b.k ? await vorlageAusLink(b.k) : null;
+    const zu = ausLink
+      ? { personId: ausLink.personId, angelegt: false }
+      : await personFuerZeile({
+        emails: [email],
+        phones: [telefon],
+        stammdaten: { first_name: vorname, last_name: nachname, primary_email: email, primary_phone: telefon, kind: "private" },
+        quelle: "gruender-seite",
+        firstSeenAt: new Date(),
+      });
     if (!zu) return fehl("Bitte geben Sie eine E-Mail-Adresse und eine Telefonnummer an.");
 
     const [schon] = (await sqlPool`
@@ -254,14 +293,16 @@ router.post("/gruender-termin/buchen", async (req: Request, res: Response) => {
       agentId: a.gruender.id,
       beginn: slot.beginn,
       quelle: "gruender",
-      herkunft: "gruender_seite",
+      herkunft: ausLink ? "gruender_link" : "gruender_seite",
     });
 
     const notiz = [
       anrede ? `Anrede: ${anrede}` : "",
       thema ? `Anliegen: ${thema}` : "",
       nachricht,
-      `Gebucht über fiaon.com/justin (${zu.angelegt ? "neuer Kontakt" : "bekannte Person"}).`,
+      ausLink
+        ? `Gebucht über Justins persönlichen Link (Telefonkartei)${email !== ausLink.email.toLowerCase() || telefon !== ausLink.telefon ? ` — angegeben: ${email}, ${telefon}` : ""}.`
+        : `Gebucht über fiaon.com/justin (${zu.angelegt ? "neuer Kontakt" : "bekannte Person"}).`,
     ].filter(Boolean).join("\n");
     await sqlPool`UPDATE fiaon_termine SET notiz = ${notiz}, updated_at = NOW() WHERE id = ${buchung.id}`.catch(() => {});
 

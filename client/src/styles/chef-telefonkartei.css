@@ -1,0 +1,492 @@
+/* ═══ Telefonkartei (21.09.2026, E-201) — Präfix .tk- ═══
+   Läuft in der dunklen ChefShell. Zuerst fürs iPhone gebaut: eine Spalte,
+   große Daumenflächen (mind. 44 px), keine klebenden Leisten. Am Laptop wird
+   daraus ein Raster aus Karten. Glas nur auf den Karten; Hintergrund statisch. */
+
+.tk {
+  --tk-text: #e5e7eb;
+  --tk-leise: #94a3b8;
+  --tk-still: #64748b;
+  --tk-linie: rgba(255, 255, 255, .09);
+  --tk-flaeche: rgba(255, 255, 255, .045);
+  --tk-flaeche-hoch: rgba(255, 255, 255, .075);
+  --tk-blau: #3b82f6;
+  --tk-blau-hell: #93c5fd;
+  --tk-tief: #1d4ed8;
+  --tk-gruen: #6ee7b7;
+  --tk-gelb: #fcd34d;
+  --tk-rot: #fda4af;
+  --tk-tuerkis: #5eead4;
+  color: var(--tk-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
+  padding-bottom: 96px;
+  color-scheme: dark;
+}
+/* Die Ebene für Blätter und Meldungen hängt an <body> (Portal) — ohne Innenabstand. */
+.tk.tk-ebene { padding: 0; }
+
+.tk-soseht {
+  margin: 0 0 16px;
+  max-width: 720px;
+  font: 300 13.5px/1.6 'Inter', sans-serif;
+  color: var(--tk-leise);
+}
+.tk-soseht b { font-weight: 500; color: var(--tk-text); }
+
+/* ── Reiter ─────────────────────────────────────────────────────────────── */
+.tk-reiter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 10px;
+  margin: 0 -2px;
+  scrollbar-width: none;
+}
+.tk-reiter::-webkit-scrollbar { display: none; }
+.tk-reiter-knopf {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--tk-linie);
+  background: var(--tk-flaeche);
+  color: var(--tk-leise);
+  font: 400 13px/1 'Inter', sans-serif;
+  letter-spacing: .01em;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.tk-reiter-knopf em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--tk-still);
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .06);
+}
+.tk-reiter-knopf:hover { color: var(--tk-text); border-color: rgba(255, 255, 255, .18); }
+.tk-reiter-knopf.an {
+  color: #fff;
+  border-color: rgba(96, 165, 250, .55);
+  background: linear-gradient(135deg, rgba(37, 99, 235, .42), rgba(29, 78, 216, .18));
+  box-shadow: 0 8px 22px rgba(29, 78, 216, .25);
+}
+.tk-reiter-knopf.an em { color: var(--tk-blau-hell); background: rgba(147, 197, 253, .14); }
+.tk-reiter-knopf:focus-visible, .tk button:focus-visible, .tk a:focus-visible, .tk input:focus-visible {
+  outline: 2px solid var(--tk-blau-hell);
+  outline-offset: 2px;
+}
+
+/* ── Suche und Schalter ─────────────────────────────────────────────────── */
+.tk-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 4px; }
+.tk-suche {
+  flex: 1 1 260px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--tk-linie);
+  background: rgba(10, 22, 40, .55);
+}
+.tk-suche svg { width: 17px; height: 17px; fill: none; stroke: var(--tk-still); stroke-width: 1.8; stroke-linecap: round; flex: none; }
+.tk-suche input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--tk-text);
+  font: 400 16px/1.2 'Inter', sans-serif; /* 16 px: iOS zoomt sonst beim Tippen */
+  outline: none;
+}
+.tk-suche input::placeholder { color: var(--tk-still); }
+.tk-schalter { display: inline-flex; align-items: center; gap: 8px; font: 300 13px/1.3 'Inter', sans-serif; color: var(--tk-leise); cursor: pointer; }
+.tk-schalter input { width: 18px; height: 18px; accent-color: var(--tk-blau); }
+.tk-satz { margin: 12px 0 16px; font: 300 13px/1.55 'Inter', sans-serif; color: var(--tk-still); max-width: 720px; }
+.tk-leer {
+  padding: 34px 20px;
+  border-radius: 18px;
+  border: 1px dashed var(--tk-linie);
+  text-align: center;
+  font: 300 14px/1.5 'Inter', sans-serif;
+  color: var(--tk-leise);
+}
+
+/* ── Raster und Karte ───────────────────────────────────────────────────── */
+.tk-raster { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 760px) { .tk-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .tk-raster { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.tk-karte {
+  --tk-lage: var(--tk-blau-hell);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 18px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--tk-linie);
+  background:
+    radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--tk-lage) 9%, transparent), transparent 62%),
+    var(--tk-flaeche);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 14px 34px rgba(2, 8, 23, .35);
+  transition: border-color .2s ease, transform .2s ease;
+}
+.tk-karte:hover { border-color: rgba(255, 255, 255, .16); }
+.tk-karte.arbeitet { opacity: .82; }
+.tk-karte[data-lage="A"] { --tk-lage: var(--tk-gelb); }
+.tk-karte[data-lage="B"] { --tk-lage: var(--tk-blau-hell); }
+.tk-karte[data-lage="C"] { --tk-lage: #cbd5e1; }
+.tk-karte[data-lage="rate"] { --tk-lage: var(--tk-tuerkis); }
+.tk-karte[data-lage="bezahlt"] { --tk-lage: var(--tk-gruen); }
+.tk-karte[data-lage="storniert"] { --tk-lage: var(--tk-rot); }
+.tk-karte[data-lage="abbrecher"], .tk-karte[data-lage="ausgeschlossen"] { --tk-lage: #94a3b8; }
+
+.tk-kopf { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tk-marke {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tk-lage) 45%, transparent);
+  background: color-mix(in srgb, var(--tk-lage) 14%, transparent);
+  color: var(--tk-lage);
+  font: 500 11.5px/1 'Inter', sans-serif;
+  letter-spacing: .06em;
+}
+.tk-stand {
+  min-width: 0;
+  flex: 1;
+  font: 400 12.5px/1.35 'Inter', sans-serif;
+  color: var(--tk-leise);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tk-frisch { flex: none; font: 400 11.5px/1 'Inter', sans-serif; color: var(--tk-still); font-variant-numeric: tabular-nums; }
+
+.tk-name {
+  margin: 2px 0 0;
+  font: 400 21px/1.2 'Inter', sans-serif;
+  letter-spacing: -.01em;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.tk-nummer-zeile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: -4px; }
+.tk-nummer {
+  font: 400 16px/1.2 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: var(--tk-blau-hell);
+  text-decoration: none;
+  letter-spacing: .01em;
+}
+.tk-nummer:hover { text-decoration: underline; text-underline-offset: 3px; }
+.tk-nummer.aus { color: var(--tk-still); }
+.tk-gespeichert {
+  font: 400 11px/1 'Inter', sans-serif;
+  color: var(--tk-gruen);
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(110, 231, 183, .1);
+  border: 1px solid rgba(110, 231, 183, .28);
+}
+.tk-hinweis { margin: -6px 0 0; font: 300 12px/1.45 'Inter', sans-serif; color: var(--tk-gelb); }
+
+.tk-fakten { margin: 0; display: grid; grid-template-columns: 1fr; gap: 6px; }
+.tk-fakten > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.tk-fakten dt { font: 400 11px/1.4 'Inter', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--tk-still); }
+.tk-fakten dd { margin: 0; font: 300 13.5px/1.45 'Inter', sans-serif; color: var(--tk-text); overflow-wrap: anywhere; }
+
+.tk-flaggen { display: flex; gap: 6px; flex-wrap: wrap; }
+.tk-flaggen span {
+  font: 400 11px/1 'Inter', sans-serif;
+  color: var(--tk-rot);
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(253, 164, 175, .3);
+  background: rgba(253, 164, 175, .08);
+}
+
+/* ── Anrufen ─────────────────────────────────────────────────────────────── */
+.tk-anrufen {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 52px;
+  padding: 8px 18px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, .35), 0 1px 0 rgba(255, 255, 255, .25) inset;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.tk-anrufen svg { grid-row: span 2; width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 1.7; stroke-linejoin: round; }
+.tk-anrufen span { font: 400 16px/1.2 'Inter', sans-serif; }
+.tk-anrufen small { grid-column: 2; font: 300 11.5px/1.3 'Inter', sans-serif; color: rgba(255, 255, 255, .78); }
+.tk-anrufen:hover { transform: translateY(-1px); box-shadow: 0 16px 34px rgba(37, 99, 235, .42), 0 1px 0 rgba(255, 255, 255, .25) inset; }
+.tk-anrufen:active { transform: translateY(0); }
+.tk-anrufen.aus {
+  display: flex;
+  justify-content: center;
+  background: var(--tk-flaeche);
+  box-shadow: none;
+  border: 1px dashed var(--tk-linie);
+  color: var(--tk-still);
+  font: 300 13.5px/1.2 'Inter', sans-serif;
+}
+
+/* ── Die vier Fälle ─────────────────────────────────────────────────────── */
+.tk-nach { margin: 2px 0 -4px; font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--tk-still); }
+.tk-faelle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tk-fall {
+  --tk-fall: var(--tk-text);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-height: 58px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--tk-linie);
+  background: var(--tk-flaeche-hoch);
+  color: var(--tk-fall);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.tk-fall b { font: 400 14px/1.2 'Inter', sans-serif; }
+.tk-fall small { font: 300 11.5px/1.3 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-fall:hover { border-color: color-mix(in srgb, var(--tk-fall) 40%, transparent); background: color-mix(in srgb, var(--tk-fall) 8%, rgba(255, 255, 255, .06)); }
+.tk-fall:active { transform: scale(.985); }
+.tk-fall.gut { --tk-fall: var(--tk-gruen); }
+.tk-fall.blau { --tk-fall: var(--tk-blau-hell); }
+.tk-fall.rot { --tk-fall: var(--tk-rot); }
+.tk-fall.aus, .tk-fall:disabled { cursor: default; opacity: .45; transform: none; }
+.tk-fall.aus:hover { border-color: var(--tk-linie); background: var(--tk-flaeche-hoch); }
+
+.tk-storniert { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tk-storniert p { margin: 0; font: 300 13px/1.45 'Inter', sans-serif; color: var(--tk-leise); }
+
+.tk-fuss { display: flex; gap: 16px; flex-wrap: wrap; padding-top: 4px; border-top: 1px solid var(--tk-linie); }
+.tk-fuss a { font: 400 12.5px/2.2 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; }
+.tk-fuss a:hover { color: var(--tk-blau-hell); }
+
+.tk-mehr {
+  display: block;
+  margin: 18px auto 0;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid var(--tk-linie);
+  background: var(--tk-flaeche);
+  color: var(--tk-text);
+  font: 400 13.5px/1 'Inter', sans-serif;
+  cursor: pointer;
+}
+.tk-mehr:disabled { opacity: .6; cursor: wait; }
+
+/* ── Knöpfe in Blättern ─────────────────────────────────────────────────── */
+.tk-knopf {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, .45);
+  background: rgba(37, 99, 235, .18);
+  color: #fff;
+  font: 400 14px/1 'Inter', sans-serif;
+  cursor: pointer;
+}
+.tk-knopf.blau { border: 0; background: linear-gradient(135deg, #2563eb, #3b82f6); box-shadow: 0 10px 24px rgba(37, 99, 235, .35); }
+.tk-knopf.rot { border: 1px solid rgba(253, 164, 175, .5); background: rgba(244, 63, 94, .2); color: #ffe4e6; }
+.tk-knopf.still { border-color: var(--tk-linie); background: transparent; color: var(--tk-leise); }
+.tk-knopf:disabled { opacity: .55; cursor: wait; }
+.tk-mini {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--tk-linie);
+  background: rgba(255, 255, 255, .05);
+  color: var(--tk-text);
+  font: 400 12.5px/1 'Inter', sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tk-mini.blau { border-color: rgba(96, 165, 250, .5); color: var(--tk-blau-hell); }
+
+/* ── Rückrufe oben ──────────────────────────────────────────────────────── */
+.tk-rueckrufe {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(96, 165, 250, .28);
+  background: linear-gradient(160deg, rgba(11, 18, 32, .92), rgba(26, 39, 68, .88));
+  box-shadow: 0 18px 40px rgba(2, 8, 23, .45);
+}
+.tk-rueckrufe h2, .tk-termine h2 { margin: 0 0 10px; font: 400 15px/1.2 'Inter', sans-serif; color: #fff; letter-spacing: .01em; }
+.tk-rueckrufe ul, .tk-termine ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tk-rueckrufe li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--tk-linie);
+}
+.tk-rueckrufe li.faellig { border-color: rgba(252, 211, 77, .45); background: rgba(252, 211, 77, .07); }
+.tk-rr-zeit b { display: block; font: 400 18px/1.1 'Inter', sans-serif; font-variant-numeric: tabular-nums; color: #fff; }
+.tk-rr-zeit span { font: 300 11.5px/1.3 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-rr-name { min-width: 0; }
+.tk-rr-name b { display: block; font: 400 14.5px/1.3 'Inter', sans-serif; }
+.tk-rr-name span { font: 300 12.5px/1.35 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-rr-tun { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+@media (min-width: 760px) {
+  .tk-rueckrufe li { grid-template-columns: 110px minmax(0, 1fr) auto; }
+  .tk-rr-tun { grid-column: auto; }
+}
+
+/* ── Termine unten ──────────────────────────────────────────────────────── */
+.tk-termine { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--tk-linie); }
+.tk-termine-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tk-termine-kopf a { font: 400 12.5px/1 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; }
+.tk-termine-kopf a:hover { color: var(--tk-blau-hell); }
+.tk-tag { margin-top: 14px; }
+.tk-tag h3 { margin: 0 0 8px; font: 400 11px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--tk-still); }
+.tk-termine li {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--tk-linie);
+  background: var(--tk-flaeche);
+}
+.tk-termine li.meiner { border-color: rgba(96, 165, 250, .45); background: rgba(37, 99, 235, .1); }
+.tk-termine li.vorbei { opacity: .55; }
+.tk-t-zeit { font: 400 15px/1 'Inter', sans-serif; font-variant-numeric: tabular-nums; color: #fff; }
+.tk-t-was { min-width: 0; }
+.tk-t-was b { display: block; font: 400 14px/1.3 'Inter', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-t-was span { font: 300 12px/1.35 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-klein { font: 300 13px/1.5 'Inter', sans-serif; color: var(--tk-still); }
+
+/* ── Blätter (Storno, Rückruf) ──────────────────────────────────────────── */
+.tk-schleier {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000; /* über dem Rundgang-Knopf „?", der sonst den Speicherknopf verdeckt */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(2, 6, 17, .62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: tk-auf .18s ease-out;
+}
+.tk-blatt {
+  width: min(560px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: linear-gradient(170deg, #0f1b33, #0b1220);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .5);
+  animation: tk-hoch .22s ease-out;
+}
+@media (min-width: 760px) {
+  .tk-schleier { align-items: center; }
+  .tk-blatt { border-radius: 24px; padding-bottom: 22px; }
+}
+.tk-blatt h2 { margin: 0 0 12px; font: 400 19px/1.25 'Inter', sans-serif; color: #fff; }
+.tk-blatt-text { margin: 0 0 14px; font: 300 13.5px/1.55 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-blatt-punkte { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 7px; font: 300 13.5px/1.5 'Inter', sans-serif; color: var(--tk-text); }
+.tk-blatt-punkte li::marker { color: var(--tk-still); }
+.tk-blatt-label { margin: 0 0 8px; font: 400 11px/1 'Inter', sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--tk-still); }
+.tk-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tk-chips button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--tk-linie);
+  background: rgba(255, 255, 255, .05);
+  color: var(--tk-leise);
+  font: 400 13px/1 'Inter', sans-serif;
+  cursor: pointer;
+}
+.tk-chips button.an { color: #fff; border-color: rgba(96, 165, 250, .55); background: rgba(37, 99, 235, .3); }
+.tk-feld {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 46px;
+  margin-bottom: 12px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--tk-linie);
+  background: rgba(10, 22, 40, .7);
+  color: var(--tk-text);
+  font: 400 16px/1.2 'Inter', sans-serif;
+  color-scheme: dark;
+}
+.tk-feld::placeholder { color: var(--tk-still); }
+.tk-kulanz { display: flex; gap: 10px; align-items: flex-start; margin: 2px 0 14px; font: 300 13px/1.45 'Inter', sans-serif; color: var(--tk-leise); cursor: pointer; }
+.tk-kulanz input { margin-top: 2px; width: 18px; height: 18px; accent-color: #f43f5e; flex: none; }
+.tk-blatt-tun { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.tk-blatt-tun .tk-knopf { flex: 1 1 auto; }
+
+/* ── Meldung (verschwindet von selbst) ──────────────────────────────────── */
+.tk-meldung {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 2147483001;
+  width: min(520px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(110, 231, 183, .35);
+  background: rgba(8, 26, 30, .96);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
+  animation: tk-hoch .2s ease-out;
+  cursor: pointer;
+}
+.tk-meldung.fehler { border-color: rgba(253, 164, 175, .45); background: rgba(40, 10, 18, .96); }
+.tk-meldung b { display: block; font: 400 14.5px/1.35 'Inter', sans-serif; color: #fff; }
+.tk-meldung ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font: 300 12.5px/1.45 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-meldung a { display: inline-block; margin-top: 10px; font: 400 13px/1 'Inter', sans-serif; color: var(--tk-blau-hell); }
+
+@keyframes tk-auf { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tk-hoch { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.tk-meldung { animation-name: tk-meldung-hoch; }
+@keyframes tk-meldung-hoch { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+@media (max-width: 420px) {
+  .tk-karte { padding: 16px 14px 12px; border-radius: 18px; }
+  .tk-fakten > div { grid-template-columns: 96px minmax(0, 1fr); }
+  .tk-name { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-schleier, .tk-blatt, .tk-meldung { animation: none; }
+  .tk-anrufen, .tk-fall, .tk-karte, .tk-reiter-knopf { transition: none; }
+}

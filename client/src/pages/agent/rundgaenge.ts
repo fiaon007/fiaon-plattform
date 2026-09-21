@@ -248,8 +248,10 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "Rechtsgrundlage, dazu die Auswertung als PDF und das fertige Schreiben an die Auskunftei. Ein "
       + "Kontoauszug wird Buchung für Buchung erfasst und gegen den Kontostand geprüft: Einnahmen, Ausgaben, "
       + "Einkommen, feste Zahlungen mit Tag im Monat, Warnungen. Beides steht im Reiter „Dokumente“ direkt "
-      + "unter der Datei — und der Kunde sieht dieselben Zahlen in seinem Bereich.",
-    tipp: "Vor dem Anruf einmal reinschauen: Wer weiß, was jeden Monat abgeht und wovon der Kunde lebt, führt ein anderes Gespräch.",
+      + "unter der Datei — und der Kunde sieht dieselben Zahlen in seinem Bereich. Aufklappbar darunter: "
+      + "„Kontoauszug im Detail“ — jede Einkommensquelle mit Tag, alle Ausgaben bis zur einzelnen Buchung, "
+      + "die größten Kostenpunkte und was sich sofort optimieren lässt.",
+    tipp: "Vor dem Anruf einmal reinschauen: Wer weiß, was jeden Monat abgeht, wovon der Kunde lebt und an welchem Tag das Geld kommt, führt ein anderes Gespräch — und legt die Rate auf die Tage danach.",
   },
   {
     // 09.09.2026 (E-168): Der Menüpunkt ist weg — der Filter bleibt als Nachschlagewerk.

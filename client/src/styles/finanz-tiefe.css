@@ -1,0 +1,175 @@
+/* ═══ Kontoauszug im Detail (21.09.2026, E-207) ══════════════════════════
+   Hell in der Betreiber-Akte, dunkel in der Telefonkartei (.akte-dunkel),
+   im Chefbüro (.cbs) und in der Mitarbeiter-Akte (.fi-ft-dunkel).
+   Alle Klassen beginnen mit „fi-": Die Knopf-Übersetzung von .cbs lässt sie
+   in Ruhe. Dünne Schrift (400, Titel 500), Zahlen in Tabellenziffern. */
+
+.fi-ft {
+  --ft-text: #0f172a;
+  --ft-text-2: #334155;
+  --ft-leise: #64748b;
+  --ft-still: #94a3b8;
+  --ft-linie: rgba(15, 23, 42, .09);
+  --ft-flaeche: rgba(15, 23, 42, .025);
+  --ft-gut: #047857;
+  --ft-warn: #b45309;
+  --ft-schlecht: #b91c1c;
+  --ft-blau: #2563eb;
+  --ft-balken: #2563eb;
+  --ft-balken-grund: rgba(37, 99, 235, .1);
+  color: var(--ft-text-2);
+  font-size: 13px;
+  line-height: 1.45;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.fi-ft-dunkel, .akte-dunkel .fi-ft, .cbs .fi-ft {
+  --ft-text: #e7ecf4;
+  --ft-text-2: #b9c4d5;
+  --ft-leise: #8292a8;
+  --ft-still: #5d6c83;
+  --ft-linie: rgba(148, 163, 184, .14);
+  --ft-flaeche: rgba(148, 163, 184, .05);
+  --ft-gut: #6ee7b7;
+  --ft-warn: #fcd34d;
+  --ft-schlecht: #fda4af;
+  --ft-blau: #93c5fd;
+  --ft-balken: #288dfa;
+  --ft-balken-grund: rgba(40, 141, 250, .14);
+}
+
+.fi-ft p { margin: 0; }
+.fi-ft-kopf { font-size: 12px; color: var(--ft-leise); }
+.fi-ft-gut { color: var(--ft-gut) !important; }
+.fi-ft-warn { color: var(--ft-warn) !important; }
+.fi-ft-schlecht { color: var(--ft-schlecht) !important; }
+.fi-ft-still { color: var(--ft-still); font-size: 12px; }
+.fi-ft-banner {
+  border: 1px solid color-mix(in srgb, var(--ft-warn) 40%, transparent);
+  background: color-mix(in srgb, var(--ft-warn) 9%, transparent);
+  color: var(--ft-text);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+}
+.fi-ft-banner b { font-weight: 500; color: var(--ft-warn); }
+
+/* ── Die vier Zahlen ───────────────────────────────────────────────────── */
+.fi-ft-zahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.fi-ft-zahl {
+  display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px;
+  background: var(--ft-flaeche); border: 1px solid var(--ft-linie); min-width: 0;
+}
+.fi-ft-zahl-titel { font-size: 11.5px; color: var(--ft-leise); }
+.fi-ft-zahl-wert { font-size: 18px; font-weight: 500; color: var(--ft-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fi-ft-zahl-unter { font-size: 11px; color: var(--ft-still); }
+.fi-ft-zahltag { font-size: 12.5px; color: var(--ft-text-2); }
+
+/* ── Abschnitte ────────────────────────────────────────────────────────── */
+.fi-ft-abschnitt { border-top: 1px solid var(--ft-linie); padding-top: 8px; }
+.fi-ft-abschnitt > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px;
+  flex-wrap: wrap; padding: 2px 0 6px; user-select: none;
+}
+.fi-ft-abschnitt > summary::-webkit-details-marker { display: none; }
+.fi-ft-abschnitt > summary::before {
+  content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--ft-leise); border-bottom: 1.5px solid var(--ft-leise);
+  transform: rotate(-45deg); transition: transform .15s; align-self: center; flex: none;
+}
+.fi-ft-abschnitt[open] > summary::before { transform: rotate(45deg); }
+.fi-ft-abschnitt-titel { font-size: 14px; font-weight: 500; color: var(--ft-text); }
+.fi-ft-abschnitt-zusatz { font-size: 12px; color: var(--ft-still); }
+.fi-ft-abschnitt-inhalt { display: grid; gap: 8px; min-width: 0; }
+.fi-ft summary:focus-visible, .fi-ft button:focus-visible, .fi-ft-suche:focus-visible {
+  outline: 2px solid var(--ft-balken); outline-offset: 2px; border-radius: 6px;
+}
+
+/* ── Zeilen, Namen, Beträge ────────────────────────────────────────────── */
+.fi-ft-zeile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-width: 0; }
+.fi-ft-zeile > :first-child { min-width: 0; }
+.fi-ft-name { color: var(--ft-text); font-weight: 500; overflow-wrap: anywhere; }
+.fi-ft-sub { display: block; font-size: 11.5px; color: var(--ft-leise); overflow-wrap: anywhere; }
+.fi-ft-betrag { color: var(--ft-text); font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
+.fi-ft-betrag small { color: var(--ft-still); font-size: 11px; }
+.fi-ft-datum { color: var(--ft-leise); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.fi-ft-korr { color: var(--ft-warn); font-size: 11px; }
+.fi-ft-wann { color: var(--ft-leise); font-size: 12px; white-space: nowrap; }
+
+.fi-ft-balken { display: block; height: 4px; border-radius: 99px; background: var(--ft-balken-grund); overflow: hidden; margin-top: 5px; }
+.fi-ft-balken > span { display: block; height: 100%; border-radius: 99px; background: var(--ft-balken); }
+
+/* ── Tabellen ──────────────────────────────────────────────────────────── */
+.fi-ft-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.fi-ft-tabelle { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.fi-ft-tabelle th {
+  text-align: right; font-weight: 400; font-size: 11px; color: var(--ft-still) !important;
+  padding: 4px 8px; border-bottom: 1px solid var(--ft-linie); white-space: nowrap; background: transparent !important;
+}
+.fi-ft-tabelle td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--ft-linie); vertical-align: top; white-space: nowrap; color: var(--ft-text-2); }
+.fi-ft-tabelle th:first-child, .fi-ft-tabelle td:first-child { text-align: left; white-space: normal; min-width: 170px; }
+.fi-ft-tabelle td b { font-weight: 500; color: var(--ft-text); }
+.fi-ft-tabelle tbody tr:last-child td { border-bottom: 0; }
+
+/* ── Gruppen und Posten ────────────────────────────────────────────────── */
+.fi-ft-gruppen { display: grid; gap: 2px; }
+.fi-ft-gruppe > summary { list-style: none; cursor: pointer; padding: 7px 8px; border-radius: 8px; }
+.fi-ft-gruppe > summary::-webkit-details-marker { display: none; }
+.fi-ft-gruppe[open] > summary { background: var(--ft-flaeche); }
+@media (hover: hover) { .fi-ft-gruppe > summary:hover { background: var(--ft-flaeche); } }
+.fi-ft-liste { list-style: none; margin: 0; padding: 0 0 0 8px; display: grid; gap: 1px; }
+.fi-ft-liste > li { padding: 6px 0; border-bottom: 1px solid var(--ft-linie); }
+.fi-ft-liste > li:last-child { border-bottom: 0; }
+.fi-ft-posten { padding: 0 !important; }
+.fi-ft-posten-knopf {
+  all: unset; box-sizing: border-box; display: block; width: 100%; padding: 6px 0; cursor: pointer;
+}
+.fi-ft-termine { list-style: none; margin: 0 0 6px; padding: 6px 10px; display: grid; gap: 4px; border-radius: 8px; background: var(--ft-flaeche); font-size: 12px; }
+
+/* ── Rangliste der Kostenpunkte ────────────────────────────────────────── */
+.fi-ft-rangliste { margin: 0; padding: 0 0 0 20px; display: grid; gap: 8px; }
+.fi-ft-rangliste > li::marker { color: var(--ft-still); font-size: 12px; }
+
+/* ── Sofort optimieren ─────────────────────────────────────────────────── */
+.fi-ft-tipps { display: grid; gap: 8px; }
+.fi-ft-tipp { border: 1px solid var(--ft-linie); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; }
+.fi-ft-tipp p { font-size: 12.5px; color: var(--ft-text-2); }
+.fi-ft-marke { justify-self: start; font-size: 10.5px; letter-spacing: .02em; padding: 1px 7px; border-radius: 99px; border: 1px solid currentColor; }
+.fi-ft-tipp.vermeidbar .fi-ft-marke { color: var(--ft-gut); }
+.fi-ft-tipp.pruefen .fi-ft-marke { color: var(--ft-warn); }
+.fi-ft-tipp.einordnung { border-style: dashed; }
+.fi-ft-tipp.einordnung .fi-ft-marke { color: var(--ft-still); }
+
+/* ── Suche und Knöpfe ──────────────────────────────────────────────────── */
+.fi-ft-suche {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; font: inherit; font-size: 12.5px;
+  border: 1px solid var(--ft-linie) !important; background: var(--ft-flaeche) !important; color: var(--ft-text) !important;
+}
+.fi-ft-buchungen { max-height: 460px; overflow-y: auto; padding-right: 4px; }
+.fi-ft-mehr {
+  justify-self: start; font: inherit; font-size: 12px; color: var(--ft-blau); background: none; border: 0; padding: 4px 0; cursor: pointer;
+}
+.fi-ft-unter > summary { cursor: pointer; font-size: 12.5px; color: var(--ft-blau); padding: 4px 0; }
+
+/* ── Rahmen mit Laden und „Neu auswerten" ──────────────────────────────── */
+.fi-ft-rahmen { display: grid; gap: 10px; min-width: 0; }
+.fi-ft-lade { margin: 0; font-size: 12.5px; color: #94a3b8; }
+.fi-ft-hinweis { margin: 0; font-size: 12.5px; color: var(--ft-text-2, #334155); }
+.fi-ft-hinweis.warn { color: var(--ft-warn, #b45309); }
+.fi-ft-hinweis.schlecht { color: var(--ft-schlecht, #b91c1c); }
+.fi-ft-rahmen { --ft-text-2: #334155; --ft-warn: #b45309; --ft-schlecht: #b91c1c; --ft-linie: rgba(15, 23, 42, .12); --ft-blau: #2563eb; --ft-still: #94a3b8; }
+.fi-ft-rahmen.fi-ft-dunkel, .akte-dunkel .fi-ft-rahmen, .cbs .fi-ft-rahmen { --ft-text-2: #b9c4d5; --ft-warn: #fcd34d; --ft-schlecht: #fda4af; --ft-linie: rgba(148, 163, 184, .18); --ft-blau: #93c5fd; --ft-still: #5d6c83; }
+.fi-ft-fuss { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fi-ft-knopf {
+  font: inherit; font-size: 12.5px; font-weight: 500; padding: 7px 14px; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--ft-linie); background: transparent; color: var(--ft-blau);
+}
+.fi-ft-knopf:disabled { opacity: .6; cursor: progress; }
+@media (hover: hover) { .fi-ft-knopf:not(:disabled):hover { border-color: var(--ft-blau); } }
+
+@media (max-width: 640px) {
+  .fi-ft-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fi-ft-zahl-wert { font-size: 16px; }
+  .fi-ft-tabelle th:first-child, .fi-ft-tabelle td:first-child { min-width: 140px; }
+}
+@media (prefers-reduced-motion: reduce) { .fi-ft-abschnitt > summary::before { transition: none; } }

@@ -29,6 +29,8 @@ export const KATEGORIEN: Record<string, Kategorie> = {
   // 21.09.2026 (E-207): Aufladungen vom eigenen Konto sind kein Einkommen — sie
   // zählten als Einnahme und einmal als „Sozialleistung" (285,93 € „Gehalt").
   eigenes_konto:     { label: "Eigenes Konto (Umbuchung)", seite: "ein", gruppe: "Umbuchungen", neutral: true },
+  // Spartöpfe und Unterkonten derselben Bank (Revolut-Pocket, Tagesgeld, Portmonee) — in beide Richtungen neutral.
+  spartopf:          { label: "Spartopf / Unterkonto",  seite: "ein", gruppe: "Umbuchungen", neutral: true },
   bareinzahlung:     { label: "Bareinzahlung",          seite: "ein", gruppe: "Sonstige Einnahmen" },
   miete:             { label: "Miete / Wohnen",         seite: "aus", gruppe: "Wohnen", fix: true },
   energie:           { label: "Strom / Gas / Wasser",   seite: "aus", gruppe: "Energie", fix: true },
@@ -40,6 +42,8 @@ export const KATEGORIEN: Record<string, Kategorie> = {
   ruecklastschrift:  { label: "Rücklastschrift",        seite: "aus", gruppe: "Rücklastschriften", warnung: "ruecklastschrift" },
   gebuehren:         { label: "Bankgebühren / Zinsen",  seite: "aus", gruppe: "Gebühren" },
   gluecksspiel:      { label: "Glücksspiel / Wetten",   seite: "aus", gruppe: "Glücksspiel", warnung: "gluecksspiel" },
+  // 21.09.2026 (E-207): Finanzamt, Kfz-Steuer, Rundfunkbeitrag, Stadtkasse — standen als „Kreditrate" oder „Sonstiges".
+  abgaben:           { label: "Amt / Steuer / Abgabe",  seite: "aus", gruppe: "Ämter & Abgaben" },
   lebensmittel:      { label: "Lebensmittel",           seite: "aus", gruppe: "Lebensmittel" },
   mobilitaet:        { label: "Mobilität",              seite: "aus", gruppe: "Mobilität" },
   gesundheit:        { label: "Gesundheit",             seite: "aus", gruppe: "Gesundheit" },

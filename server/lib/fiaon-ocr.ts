@@ -151,9 +151,14 @@ async function reihe<T, E>(liste: T[], n: number, f: (x: T, i: number) => Promis
  * oder das Format unbekannt ist — der Aufrufer bleibt dann bei „unlesbar".
  * Fehler des Dienstes werfen (der Aufrufer kennt seine Fehlerspalte).
  */
-export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein"): Promise<OcrErgebnis | null> {
+export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein", opt: { seiten?: number[] } = {}): Promise<OcrErgebnis | null> {
   if (!SCHLUESSEL() || !buf?.length) return null;
-  const schluessel = createHash("sha256").update(buf).digest("hex") + ":" + art;
+  // 21.09.2026 (E-207): nur bestimmte Seiten (0-basiert) — die Fotoseiten eines gemischten
+  // PDFs. Das Ergebnis enthält dann genau diese Seiten, in dieser Reihenfolge.
+  const auswahl = Array.isArray(opt.seiten) && opt.seiten.length
+    ? Array.from(new Set(opt.seiten)).filter((n) => Number.isInteger(n) && n >= 0).sort((a, b) => a - b)
+    : null;
+  const schluessel = createHash("sha256").update(buf).digest("hex") + ":" + art + (auswahl ? `:${auswahl.join(",")}` : "");
   const alt = zwischenspeicher.get(schluessel);
   if (alt) return alt;
 
@@ -175,16 +180,19 @@ export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein"): Promise<
   let paeckchen: { daten: Buffer; ab: number; bis: number }[] = [];
   try {
     const quelle = await PDFDocument.load(buf, { ignoreEncryption: true, updateMetadata: false });
-    const n = Math.min(quelle.getPageCount(), HOECHSTENS_SEITEN);
-    for (let ab = 0; ab < n; ab += SEITEN_JE_AUFRUF) {
-      const bis = Math.min(n, ab + SEITEN_JE_AUFRUF);
-      if (ab === 0 && bis === quelle.getPageCount()) { paeckchen.push({ daten: buf, ab: 1, bis }); break; }
+    const gesamt = quelle.getPageCount();
+    const liste = (auswahl ? auswahl.filter((i) => i < gesamt) : Array.from({ length: gesamt }, (_, i) => i)).slice(0, HOECHSTENS_SEITEN);
+    for (let i = 0; i < liste.length; i += SEITEN_JE_AUFRUF) {
+      const gruppe = liste.slice(i, i + SEITEN_JE_AUFRUF);
+      if (!auswahl && i === 0 && gruppe.length === gesamt) { paeckchen.push({ daten: buf, ab: 1, bis: gruppe.length }); break; }
       const teil = await PDFDocument.create();
-      const kopien = await teil.copyPages(quelle, Array.from({ length: bis - ab }, (_, i) => ab + i));
+      const kopien = await teil.copyPages(quelle, gruppe);
       kopien.forEach((s) => teil.addPage(s));
-      paeckchen.push({ daten: Buffer.from(await teil.save()), ab: ab + 1, bis });
+      paeckchen.push({ daten: Buffer.from(await teil.save()), ab: i + 1, bis: i + gruppe.length });
     }
   } catch {
+    // Einzelne Seiten lassen sich aus einem kaputten PDF nicht schneiden — dann gar nicht.
+    if (auswahl) return null;
     paeckchen = [{ daten: buf, ab: 1, bis: 1 }];
   }
   if (paeckchen.length === 0) return null;

@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-21-kontoauszug-im-detail",
+    date: "2026-09-21",
+    category: "Neu",
+    title: "Kontoauszug im Detail: wann was reinkommt, wofür es rausgeht, was sich sparen lässt",
+    summary:
+      "Unter der Auswertung des Kontoauszugs (Akte → Dokumente) klappst du jetzt „Kontoauszug im Detail“ auf: jede Einkommensquelle "
+      + "mit Tag und Betrag je Monat, alle Ausgaben nach Bereich und Empfänger bis zur einzelnen Buchung, die größten Kostenpunkte "
+      + "und was sich sofort optimieren lässt. Außerdem liest das System jetzt auch Fotoseiten, die zusammen mit einem PDF hochgeladen wurden.",
+    changes: [
+      "„Was kommt wann rein?“ — Lohn, Rente, Leistungen je Quelle: an welchem Tag, wie viel in jedem Monat. Darunter weitere Eingänge, die kein Einkommen sind (Erstattungen, Überweisungen von Privat).",
+      "„Wofür geht wie viel raus?“ — Bereiche wie Wohnen oder Lebensmittel; antippen zeigt die Empfänger, antippen zeigt jede Buchung mit Datum und Zweck.",
+      "„Was sich sofort optimieren lässt“ — Dispozinsen, Kontogebühren, Rücklastschriften, Mahnkosten, Glücksspiel, Inkasso, Ratenkäufe, laufende Abos mit Monatspreis, Lieferdienste, Telefon und Versicherungen, jeweils mit Betrag im Monat.",
+      "Der Zahltag steht oben: an welchem Tag das Einkommen kommt — eine Rate kurz danach trifft das Konto mit Geld.",
+      "Spartöpfe der Bank (Revolut-Pocket, Tagesgeld) zählen nicht mehr als Einnahme und Ausgabe; Rundfunkbeitrag und Finanzamt stehen als Abgaben, nicht als Kreditrate.",
+    ],
+    howto: [
+      "Vor dem Gespräch: Akte → Dokumente → „Kontoauszug im Detail“. Zahltag und die größten Kostenpunkte kennen, dann anrufen.",
+      "Im Gespräch zwei, drei Punkte aus „sofort optimieren“ ansprechen — mit Betrag. Das zeigt dem Kunden sofort, was FIAON für ihn tut.",
+      "Rate und Zahlungsplan auf die Tage nach dem Zahltag legen.",
+      "Nie „ich empfehle“ oder eine Zusage — beschreib, was im Auszug steht, und was der Kunde tun kann.",
+    ],
+  },
+  {
     id: "2026-09-21-kontoauszug-ehrlich",
     date: "2026-09-21",
     category: "Behoben",

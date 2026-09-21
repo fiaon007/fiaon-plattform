@@ -127,6 +127,7 @@ import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
 import { BoniAmpelAkte } from "@/components/BoniAmpel";
+import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
 import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
@@ -3334,7 +3335,7 @@ function FinanzBefund({ bestellRef, melden }: {
             <span>Ausgaben <b>{euro0(a.ausgabenCents || 0)}</b></span>
             <span>Bleibt <b style={{ color: rest >= 0 ? "#34d399" : "#f87171" }}>{euro0(rest)}</b></span>
             {a.gehaltCents != null && <span>Einkommen/Monat <b>{euro0(a.gehaltCents)}</b></span>}
-            {(Number(a.eigenEinCents || 0) > 0 || Number(a.eigenAusCents || 0) > 0) && <span style={{ opacity: .75 }}>Umbuchungen eigenes Konto <b>{euro0(Number(a.eigenEinCents || 0) + Number(a.eigenAusCents || 0))}</b> (nicht mitgezählt)</span>}
+            {(Number(a.eigenEinCents || 0) > 0 || Number(a.eigenAusCents || 0) > 0) && <span style={{ opacity: .75 }}>Umbuchungen (eigene Konten, Spartöpfe) <b>{euro0(Number(a.eigenEinCents || 0) + Number(a.eigenAusCents || 0))}</b> (nicht mitgezählt)</span>}
             {fix.length > 0 && <span>Fest/Monat <b>{euro0(fix.reduce((s: number, f: any) => s + Number(f.betragCents || 0), 0))}</b></span>}
           </div>
           {(a.dispoGenutzt || a.ruecklastschriften > 0) && (
@@ -3355,6 +3356,12 @@ function FinanzBefund({ bestellRef, melden }: {
                   <div key={i} style={{ fontSize: 12, opacity: .9 }}><b>{f.name}</b> · {euro0(f.betragCents)} · {f.rhythmus}{f.tagImMonat ? ` · am ${f.tagImMonat}.` : ""}{f.naechsteAm ? ` · nächste ${dt(f.naechsteAm)}` : ""} <span style={{ opacity: .6 }}>({f.kategorie})</span></div>
                 ))}
               </div>
+            </details>
+          )}
+          {Array.isArray(a.buchungen) && a.buchungen.length > 0 && (
+            <details style={{ marginTop: 10 }}>
+              <summary className="pi-sek-satz" style={{ cursor: "pointer", fontWeight: 600 }}>Kontoauszug im Detail — wann was reinkommt, wofür es rausgeht, was sich sparen lässt</summary>
+              <div style={{ marginTop: 10 }}><FinanzTiefe analyse={a} dunkel /></div>
             </details>
           )}
           <p className="pi-sek-satz leise" style={{ marginTop: 8 }}>Der Kunde sieht dieselben Zahlen unter „Ihre Finanzen“ — und jede Buchung an ihrem Tag im Kalender, dazu die erwarteten festen Zahlungen der nächsten Monate.</p>

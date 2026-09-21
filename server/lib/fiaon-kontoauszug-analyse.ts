@@ -47,7 +47,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { pdfTextUndZeilen } from "./fiaon-pdf-lesen";
-import { ocrLesen, ocrZeilen } from "./fiaon-ocr";
+import { ocrLesen, ocrZeilen, ohneFotoVermerk } from "./fiaon-ocr";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { KATEGORIEN, KATEGORIE_SCHLUESSEL, istFest } from "@shared/fiaon-kontoauszug-kategorien";
 import { buchungenBereinigen, nebenkontoAus, EINKOMMEN_KATEGORIEN, type PersonName } from "@shared/fiaon-kontoauszug-bereinigen";
@@ -111,14 +111,15 @@ export async function ensureAnalyseTabelle(): Promise<void> {
   // der Telefonkartei liest nebenkonto/inkasso_anzahl und bräche sonst ganz.
   let alleDa = true;
   for (const sp of ["buchungen JSONB", "monate JSONB", "pruefung JSONB", "bank VARCHAR", "saldo_anfang_cents BIGINT",
-                    "eigen_ein_cents BIGINT", "eigen_aus_cents BIGINT", "nebenkonto BOOLEAN", "inkasso_anzahl INT", "auswertung_version INT"]) {
+                    "eigen_ein_cents BIGINT", "eigen_aus_cents BIGINT", "nebenkonto BOOLEAN", "inkasso_anzahl INT", "auswertung_version INT",
+                    "fotoseiten INT"]) {
     await sqlPool.unsafe(`ALTER TABLE fiaon_kontoauszug_analysen ADD COLUMN IF NOT EXISTS ${sp}`).catch(() => { alleDa = false; });
   }
   tabelleGeprueft = alleDa;
 }
 
-/** Fassung der Rechnung — 2 = mit Bereinigung (eigenes Konto, Inkasso, Vorzeichen), E-207. */
-export const AUSWERTUNG_VERSION = 2;
+/** Fassung der Rechnung — 2 = mit Bereinigung (eigenes Konto, Inkasso, Vorzeichen), 3 = dazu Spartöpfe der Bank (E-207). */
+export const AUSWERTUNG_VERSION = 3;
 
 export interface Buchung {
   datum: string;
@@ -298,9 +299,11 @@ const BUCHUNG_ANWEISUNG = (zeitraumVon: string | null, zeitraumBis: string | nul
   "  kredit_rate; Inkasso/Mahnung/Forderungsmanagement/Gerichtsvollzieher = inkasso_mahnung; Rücklastschrift/Rückbuchung/",
   "  Lastschrift zurück = ruecklastschrift; Kontoführung/Entgelt/Zinsen/Sollzinsen = gebuehren; Tipico/bwin/Lotto/Casino =",
   "  gluecksspiel; Supermärkte = lebensmittel; Tanken/Bahn/Bus = mobilitaet (Kfz-Versicherung = versicherung);",
-  "  Apotheke/Arzt = gesundheit; Geldautomat/Bargeld = bargeld; Bareinzahlung (Gutschrift) = bareinzahlung.",
+  "  Apotheke/Arzt = gesundheit; Geldautomat/Bargeld = bargeld; Bareinzahlung (Gutschrift) = bareinzahlung;",
+  "  Finanzamt/Kfz-Steuer (Hauptzollamt)/Rundfunkbeitrag/Stadtkasse (Abbuchung) = abgaben.",
   "· Aufladung/Top-up, Umbuchung oder Übertrag vom EIGENEN Konto (Zahlung vom Kontoinhaber selbst) = eigenes_konto — das ist",
-  "  kein Einkommen und keine Sozialleistung. Inkassobüros und Forderungskäufer (PRA Group, Axactor, Intrum, Lowell, EOS, coeo,",
+  "  kein Einkommen und keine Sozialleistung. Bewegungen zwischen Spartöpfen/Unterkonten derselben Bank (Pocket, Space, Tagesgeld,",
+  "  Portmonee, Vault) = spartopf, in beide Richtungen. Inkassobüros und Forderungskäufer (PRA Group, Axactor, Intrum, Lowell, EOS, coeo,",
   "  KSP, Creditreform, Pair Finance) = inkasso_mahnung, nie kredit_rate.",
   "· wiederkehrend = true bei allem, was regelmäßig kommt (Miete, Energie, Versicherung, Telefon, Abos, Raten, Gehalt, Rente,",
   "  Sozialleistung) — auch wenn es im Auszug nur einmal steht.",
@@ -471,8 +474,8 @@ export function auswerten(alleBuchungen: Buchung[], kopf: { saldoAnfang: number 
   if (neben.nebenkonto) {
     warnungen.unshift({
       art: "nebenkonto",
-      text: `Die Eingänge kommen überwiegend vom eigenen Konto (${eur(neben.eigenEin)} Umbuchungen) — das ist ein Nebenkonto. Für das Einkommen fehlt der Auszug des Gehaltskontos.`,
-      betragCents: neben.eigenEin,
+      text: `Die Eingänge kommen überwiegend von einem anderen eigenen Konto (${eur(neben.vomEigenenKonto)}) — das ist ein Nebenkonto. Für das Einkommen fehlt der Auszug des Gehaltskontos.`,
+      betragCents: neben.vomEigenenKonto,
     });
   }
 
@@ -616,6 +619,8 @@ export interface Probe {
   pruefung: Analyse["pruefung"];
   z: ReturnType<typeof auswerten> | null;
   merksaetze: string[];
+  /** Seiten, die die Texterkennung gelesen hat (Fotos, Scans) — E-207. */
+  fotoseiten: number;
 }
 
 /**
@@ -629,25 +634,42 @@ export interface Probe {
  */
 export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorname: null, nachname: null }): Promise<Probe> {
   const leer = (status: "unlesbar", fehler: string, akte: string, seiten: number, modell: string | null = null): Probe =>
-    ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [] });
+    ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [], fotoseiten: 0 });
 
   let seiten: string[][] = [];
   try { seiten = (await pdfTextUndZeilen(buf, { spalten: true })).zeilen; } catch (e) { console.warn("[ANALYSE] PDF nicht lesbar:", (e as Error).message); }
   let seitenText = seiten.map((z) => z.join("\n"));
+  // ── FOTOSEITEN IN EINEM GEMISCHTEN PDF (21.09.2026, E-207) ──────────────
+  // Die Texterkennung lief nur, wenn das GANZE Dokument keinen Text hatte. Ein
+  // gebundener Upload aus Bank-PDF plus Handyfotos galt damit als lesbar — und
+  // die Fotoseiten las niemand (gemessen: 3 Auszüge, bei einem 17 von 24 Seiten;
+  // Ergebnis „kein Kontoauszug"). Jetzt liest die Texterkennung genau diese Seiten.
+  let fotoseiten = 0;
+  let ocrModell: string | null = null;
+  const fotoIdx = seitenText.map((t, i) => (ohneFotoVermerk(t).replace(/\s/g, "").length < 40 ? i : -1)).filter((i) => i >= 0);
+  if (fotoIdx.length > 0 && fotoIdx.length < seitenText.length) {
+    try {
+      const ocr = await ocrLesen(buf, "kontoauszug", { seiten: fotoIdx });
+      if (ocr) {
+        const z = ocrZeilen(ocr);
+        fotoIdx.forEach((seite, j) => { if (z[j]?.length) { seiten[seite] = z[j]; seitenText[seite] = z[j].join("\n"); fotoseiten++; } });
+        if (fotoseiten) ocrModell = ocr.modell;
+      }
+    } catch (e) { console.warn("[ANALYSE] Texterkennung der Fotoseiten:", (e as Error).message); }
+  }
   let gesamt = seitenText.join("\n\n");
   // ── FOTO ODER SCAN: DIE TEXTERKENNUNG LIEST (18.09.2026) ───────────────
   // 47 Auszüge endeten hier als „Foto oder Scan" — auch scharfe Fotos, die ein
   // Mensch mühelos liest. Ohne brauchbare Textschicht liest jetzt das
   // Bildmodell die Seiten zeilengetreu (fiaon-ocr.ts); gerechnet wird danach
   // derselbe Weg wie bei einem PDF aus dem Online-Banking.
-  let ocrModell: string | null = null;
   if (!auszugBrauchbar(gesamt)) {
     try {
       const ocr = await ocrLesen(buf, "kontoauszug");
       if (ocr) {
         const z = ocrZeilen(ocr);
         const t = z.map((zeilen) => zeilen.join("\n"));
-        if (auszugBrauchbar(t.join("\n\n"))) { seiten = z; seitenText = t; gesamt = t.join("\n\n"); ocrModell = ocr.modell; }
+        if (auszugBrauchbar(t.join("\n\n"))) { seiten = z; seitenText = t; gesamt = t.join("\n\n"); ocrModell = ocr.modell; fotoseiten = z.length; }
       }
     } catch (e) { console.warn("[ANALYSE] Texterkennung:", (e as Error).message); }
   }
@@ -796,7 +818,8 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
     ];
   }
 
-  return { status: "fertig", fehler: null, akte: null, modell: ocrModell ? `${modell} (Texterkennung ${ocrModell})` : modell, seiten: seiten.length, bank: kopf.bank ? String(kopf.bank).slice(0, 80) : null,
+  return { status: "fertig", fehler: null, akte: null, fotoseiten,
+    modell: ocrModell ? `${modell} (Texterkennung ${ocrModell}${fotoseiten < seiten.length ? `, ${fotoseiten} von ${seiten.length} Seiten` : ""})` : modell, seiten: seiten.length, bank: kopf.bank ? String(kopf.bank).slice(0, 80) : null,
            zeitraumVon, zeitraumBis, saldoAnfang, saldoEnde, buchungen, pruefung, z, merksaetze };
 }
 
@@ -814,9 +837,9 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
 export function merksaetzeAusZahlen(z: ReturnType<typeof auswerten>): string[] {
   const e = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   const s: string[] = [];
-  if (z.nebenkonto) s.push(`Die Eingänge auf diesem Konto kommen überwiegend von Ihrem eigenen Konto (${e(z.eigenEin)}). Für Ihr Einkommen brauchen wir den Auszug Ihres Gehaltskontos.`);
+  if (z.nebenkonto) s.push("Die Eingänge auf diesem Konto kommen überwiegend von einem anderen Konto von Ihnen. Für Ihr Einkommen brauchen wir den Auszug Ihres Gehaltskontos.");
   else if (z.gehalt != null) s.push(`Ihr regelmäßiges Einkommen liegt bei etwa ${e(z.gehalt)} im Monat.`);
-  s.push(`Im Zeitraum kamen ${e(z.einnahmen)} herein und ${e(z.ausgaben)} gingen heraus${z.eigenEin || z.eigenAus ? " — Umbuchungen zwischen Ihren eigenen Konten sind nicht mitgezählt" : ""}.`);
+  s.push(`Im Zeitraum kamen ${e(z.einnahmen)} herein und ${e(z.ausgaben)} gingen heraus${z.eigenEin || z.eigenAus ? " — Umbuchungen zwischen Ihren eigenen Konten und Spartöpfen sind nicht mitgezählt" : ""}.`);
   if (z.kategorien[0]) s.push(`Der größte Ausgabenblock ist ${z.kategorien[0].name} mit ${e(z.kategorien[0].betragCents)}.`);
   if (z.fixkosten.length) s.push(`${z.fixkosten.length} feste Zahlungen kehren regelmäßig wieder — zusammen ${e(z.fixkosten.reduce((x, f) => x + f.betragCents, 0))}.`);
   return s.slice(0, 4);
@@ -922,7 +945,7 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
     const buf: Buffer = Buffer.isBuffer(a.bank_statement_pdf) ? a.bank_statement_pdf : Buffer.from(a.bank_statement_pdf);
     const pr = await kontoauszugProbe(buf, { vorname: a.vorname ?? null, nachname: a.nachname ?? null });
     if (pr.status !== "fertig" || !pr.z) {
-      await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler });
+      await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler, fotoseiten: pr.fotoseiten });
       if (pr.akte) await akte(pr.akte);
       return analyseFuer(ref);
     }
@@ -943,7 +966,7 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
       fixkosten: z.fixkosten, kategorien: z.kategorien,
       warnungen: z.warnungen, merksaetze,
       eigen_ein_cents: z.eigenEin, eigen_aus_cents: z.eigenAus, nebenkonto: z.nebenkonto,
-      inkasso_anzahl: z.inkassoAnzahl, auswertung_version: AUSWERTUNG_VERSION,
+      inkasso_anzahl: z.inkassoAnzahl, auswertung_version: AUSWERTUNG_VERSION, fotoseiten: pr.fotoseiten,
     });
     await akte(`Kontoauszug ausgewertet (${pr.bank || "Bank unbekannt"}, ${pr.zeitraumVon || "?"} bis ${pr.zeitraumBis || "?"}, ${pr.seiten} Seiten): `
       + `${buchungen.length} Buchungen, Einnahmen ${(z.einnahmen / 100).toFixed(2)} €, Ausgaben ${(z.ausgaben / 100).toFixed(2)} €, `
@@ -956,3 +979,79 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
     return analyseFuer(ref);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NACHHOLEN — jeder hochgeladene Auszug wird gelesen (21.09.2026, E-207)
+//
+// Justin: „JEDES Bild, jedes PDF — alles muss im Detail analysiert werden."
+// Gemessen am 21.09. (nur lesend, 146 Auszüge): 16 nie ausgewertet, einer seit
+// dem 18.09. in „läuft" hängen geblieben, einer „unlesbar" aus der Zeit vor der
+// Texterkennung, vier Auswertungen ohne gespeicherte Buchungen (vor E-178) und
+// drei gemischte PDFs, deren Fotoseiten nie gelesen wurden.
+//
+// Der Lauf holt das nach — höchstens `grenze` Modellläufe je Durchgang, und
+// nie mehr als drei Läufe je Auszug in sieben Tagen (kein Dauerversuch an
+// einer Datei, die nicht lesbar ist). Ob ein PDF Fotoseiten hat, prüft er
+// ohne Modell über die Textschicht und merkt es sich (`fotoseiten`).
+// ═══════════════════════════════════════════════════════════════════════════
+export async function auszuegeNachholen(grenze = 3): Promise<{ gestartet: number; seitenGeprueft: number; offen: number }> {
+  await ensureAnalyseTabelle();
+  const kandidaten = (await sqlPool`
+    WITH l AS (
+      SELECT DISTINCT ON (k.ref) k.ref, k.id, k.status, k.fehler, k.created_at, k.fotoseiten, k.modell,
+             CASE WHEN jsonb_typeof(k.buchungen) = 'array' THEN jsonb_array_length(k.buchungen) ELSE 0 END AS n_buchungen
+        FROM fiaon_kontoauszug_analysen k
+       ORDER BY k.ref, k.created_at DESC
+    )
+    SELECT a.ref, l.id AS analyse_id, l.modell,
+           CASE
+             WHEN l.id IS NULL THEN 'nie'
+             WHEN l.status = 'laeuft' AND l.created_at < NOW() - INTERVAL '15 minutes' THEN 'haengt'
+             WHEN l.status = 'unlesbar' AND l.fehler LIKE '%keinen lesbaren Text%' THEN 'vor_ocr'
+             WHEN l.status = 'fehler' AND l.created_at < NOW() - INTERVAL '1 hour' THEN 'fehler'
+             WHEN l.status = 'fertig' AND l.n_buchungen = 0 THEN 'ohne_buchungen'
+             WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten IS NULL THEN 'seiten_pruefen'
+           END AS grund
+      FROM fiaon_applications a
+      LEFT JOIN l ON l.ref = a.ref
+     WHERE a.gdpr_deleted_at IS NULL AND a.bank_statement_pdf IS NOT NULL
+       -- Je Person nur die Bestellung, die den Auszug TRÄGT (dieselbe Reihenfolge wie dokumentTraeger):
+       -- zusammengeführte Dubletten und Kopien in der Auskunfts-Bestellung nicht doppelt auswerten.
+       AND a.ref = COALESCE((SELECT y.ref FROM fiaon_applications y
+                              WHERE y.person_id = a.person_id AND y.gdpr_deleted_at IS NULL AND y.bank_statement_pdf IS NOT NULL
+                              ORDER BY (y.merged_into IS NULL) DESC, y.documents_uploaded_at DESC NULLS LAST, y.created_at DESC
+                              LIMIT 1), a.ref)
+       AND (SELECT count(*) FROM fiaon_kontoauszug_analysen k2
+             WHERE k2.ref = a.ref AND k2.created_at > NOW() - INTERVAL '7 days') < 3
+     ORDER BY a.documents_uploaded_at DESC NULLS LAST
+  `) as any[];
+  const offen = kandidaten.filter((k) => k.grund);
+  let gestartet = 0, seitenGeprueft = 0;
+  for (const k of offen) {
+    if (k.grund === "seiten_pruefen") {
+      if (seitenGeprueft >= 25) continue;
+      seitenGeprueft++;
+      const [d] = (await sqlPool`SELECT bank_statement_pdf FROM fiaon_applications WHERE ref = ${k.ref}`) as any[];
+      const buf: Buffer | null = d?.bank_statement_pdf ? (Buffer.isBuffer(d.bank_statement_pdf) ? d.bank_statement_pdf : Buffer.from(d.bank_statement_pdf)) : null;
+      let texte: string[] = [];
+      try { if (buf) texte = (await pdfTextUndZeilen(buf)).seiten; } catch { texte = []; }
+      const foto = texte.filter((t) => ohneFotoVermerk(t).replace(/\s/g, "").length < 40).length;
+      const schonGelesen = /Texterkennung/.test(String(k.modell || ""));
+      if (foto > 0 && foto < texte.length && !schonGelesen && gestartet < grenze) {
+        // Gemischtes PDF, Fotoseiten nie gelesen: neu auswerten (setzt `fotoseiten` selbst).
+        gestartet++;
+        await kontoauszugAnalysieren(k.ref, { erzwingen: true }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
+      } else if (!(foto > 0 && foto < texte.length && !schonGelesen)) {
+        await sqlPool`UPDATE fiaon_kontoauszug_analysen SET fotoseiten = ${schonGelesen ? foto : 0} WHERE id = ${k.analyse_id}`;
+      }
+      continue;
+    }
+    if (gestartet >= grenze) continue;
+    gestartet++;
+    // Ohne `erzwingen`: kontoauszugAnalysieren erkennt hängende, veraltete und leere Läufe selbst.
+    await kontoauszugAnalysieren(k.ref, { erzwingen: k.grund === "ohne_buchungen" || k.grund === "fehler" }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
+  }
+  if (gestartet || seitenGeprueft) console.log(`[ANALYSE] Nachholen: ${gestartet} Auswertungen, ${seitenGeprueft} Seiten geprüft, ${offen.length} Kandidaten`);
+  return { gestartet, seitenGeprueft, offen: offen.length };
+}
+

@@ -43,7 +43,7 @@ ok([0, 1, 2, 3].every((i) => kat(i) === "eigenes_konto"), "Aufladungen vom eigen
 ok(b[0].korrektur === "war: sozialleistung", "Korrektur bleibt nachvollziehbar („war: …“)");
 ok(kat(4) === "erstattung" && kat(5) === "erstattung", "Temu-Gutschriften → Erstattung (auch die als „Freizeit“ gelesene)");
 ok(kat(7) === "inkasso_mahnung" && kat(8) === "inkasso_mahnung", "PRA Group und Axactor → Inkasso statt „Kreditrate“");
-ok(kat(9) === "ueberweisung_aus", "Kfz-Steuer (Abbuchung) ist keine Sozialleistung");
+ok(kat(9) === "abgaben", `Kfz-Steuer an die Bundeskasse ist eine Abgabe, keine Sozialleistung (${kat(9)})`);
 ok(kat(10) === "miete", "Miete mit eigenem Namen im Zweck bleibt Miete (Name zählt nur bei Gutschriften)");
 ok(kat(6) === "energie" && kat(11) === "bargeld", "Unauffälliges bleibt, wie es war");
 
@@ -54,7 +54,7 @@ ok(z.gehalt == null, `Kein „Gehalt“ mehr aus eigenen Aufladungen (vorher 285
 ok(z.einnahmen === 5772, `Einnahmen ohne Umbuchungen: nur die Erstattungen (${(z.einnahmen / 100).toFixed(2)} €)`);
 ok(z.nebenkonto && z.warnungen[0]?.art === "nebenkonto", "Warnung „Nebenkonto“ steht vorn");
 ok(z.inkassoAnzahl === 2 && z.warnungen.some((w) => w.art === "inkasso"), "Inkasso gezählt und gewarnt");
-ok(merksaetzeAusZahlen(z)[0].includes("eigenen Konto") && !merksaetzeAusZahlen(z).join(" ").includes("Einkommen liegt"), "Merksatz sagt Nebenkonto statt eines falschen Einkommens");
+ok(merksaetzeAusZahlen(z)[0].includes("anderen Konto von Ihnen") && !merksaetzeAusZahlen(z).join(" ").includes("Einkommen liegt"), "Merksatz sagt Nebenkonto statt eines falschen Einkommens");
 
 // Echter Lohn mit eigenem Namen bleibt Einkommen
 const lohn = buchungenBereinigen([
@@ -92,6 +92,69 @@ ok(top[0].kategorie === "eigenes_konto", "Top-up ohne Namen → eigenes Konto");
 // Handy-„Aufladung" als Abbuchung bleibt Ausgabe
 const handy = buchungenBereinigen([B("2026-06-01", -15, "Lidl Connect", "Aufladung Guthaben", "telefon_internet")], P);
 ok(handy[0].kategorie === "telefon_internet", "Handy-Aufladung (Abbuchung) bleibt Ausgabe");
+
+// Spartöpfe der Bank (gemessen 21.09.: rund 3.700 Buchungen, bei zwei Kunden je ~900) — beide Richtungen neutral
+const topf = buchungenBereinigen([
+  B("2026-06-02", -40, "Pocket", "Auszahlung bei Pocket", "sonstige_ausgabe"),
+  B("2026-06-03", 202, "Pocket", "Auszahlung bei Pocket", "sonstige_einnahme"),
+  B("2026-06-04", -25, "Pocket EUR Rainy Day", "To pocket EUR Rainy Day from EUR", "sonstige_ausgabe"),
+  B("2026-06-05", 25, "Revolut Bank UAB", "To pocket EUR Rainy Day from EUR", "erstattung"),
+  B("2026-06-06", 300, "EUR Tagesgeld", "Von EUR Tagesgeld", "ueberweisung_ein"),
+  B("2026-06-07", -300, "EUR Tagesgeld", "Von EUR Tagesgeld", "ueberweisung_aus"),
+  B("2026-06-08", -50, "Portmonee", "Um EUR Portmonee von EUR einzustecken", "bargeld"),
+  B("2026-06-09", -0.41, "Worauf sparen Sie", "zu POS McDonalds", "sonstige_ausgabe"),
+  B("2026-06-10", -12.5, "Pocket Bar Berlin", "Kartenzahlung", "freizeit"),
+], P);
+ok(topf.slice(0, 8).every((b) => b.kategorie === "spartopf"), `Spartöpfe (Pocket, Tagesgeld, Portmonee, Worauf sparen) → Spartopf in beide Richtungen (${topf.slice(0, 8).map((b) => b.kategorie).join(", ")})`);
+ok(topf[8].kategorie === "freizeit", "Eine Bar namens „Pocket“ bleibt eine Ausgabe");
+const zt = auswerten(topf as any, { saldoAnfang: null, saldoEnde: null, dispoLimit: null });
+ok(zt.einnahmen === 0 && zt.ausgaben === 1250, `Spartöpfe zählen weder als Einnahme noch als Ausgabe (${zt.einnahmen}/${zt.ausgaben})`);
+// Nebenkonto nur ohne echtes Einkommen — und Spartöpfe zählen im Anteil nicht
+const buerger = auswerten(buchungenBereinigen([
+  B("2026-06-01", 1200, "Jobcenter Hannover", "Bürgergeld 06/2026", "sozialleistung"),
+  B("2026-06-10", 2000, "Privatperson", "Zahlung von MAX MUSTERMANN", "ueberweisung_ein"),
+], P) as any, { saldoAnfang: null, saldoEnde: null, dispoLimit: null });
+ok(!buerger.nebenkonto && buerger.gehalt === 120000, `Konto mit Bürgergeld plus Aufstockung vom eigenen Konto ist kein Nebenkonto (${buerger.nebenkonto}, ${buerger.gehalt})`);
+const hauptMitToepfen = auswerten(buchungenBereinigen([
+  B("2026-06-28", 2100, "Muster GmbH", "Gehalt Juni", "gehalt"),
+  ...Array.from({ length: 20 }, (_, i) => B(`2026-06-${String(i + 1).padStart(2, "0")}`, 300, "Pocket", "Auszahlung bei Pocket", "sonstige_einnahme")),
+], P) as any, { saldoAnfang: null, saldoEnde: null, dispoLimit: null });
+ok(!hauptMitToepfen.nebenkonto && hauptMitToepfen.gehalt === 210000 && hauptMitToepfen.einnahmen === 210000, `Hauptkonto mit 6.000 € Spartopf-Bewegungen bleibt Hauptkonto, Einnahmen 2.100 € (${hauptMitToepfen.nebenkonto}, ${hauptMitToepfen.einnahmen})`);
+const neben2 = auswerten(buchungenBereinigen([
+  B("2026-06-02", 500, "Privatperson", "Zahlung von MAX MUSTERMANN", "sozialleistung"),
+  B("2026-06-20", 12.99, "Temu", "Erstattung", "freizeit"),
+], P) as any, { saldoAnfang: null, saldoEnde: null, dispoLimit: null });
+ok(neben2.nebenkonto && neben2.gehalt == null, "Nur Aufladungen vom eigenen Konto + Erstattung → Nebenkonto, kein Einkommen");
+
+// Marken-Regeln (gemessen an echten Auszügen, 21.09.)
+const marken = buchungenBereinigen([
+  B("2026-06-29", 831.46, "Deutsche Post AG Renten Service", "RV-RENTE 06.2026", "ueberweisung_ein"),
+  B("2026-06-12", 10.68, "Playstation", "RINP Dauerauftrag", "sozialleistung"),
+  B("2026-06-15", -18.36, "ARD ZDF Deutschlandradio Beitragsservice", "Rundfunkbeitrag 06-08", "kredit_rate"),
+  B("2026-06-16", -25, "Tipico Co. Ltd.", "Einzahlung", "sonstige_ausgabe"),
+  B("2026-06-17", -40, "PayPal Europe", "PP.8812 Tipico Einzahlung", "sonstige_ausgabe"),
+  B("2026-06-18", -300, "Max Mustermann", "Echtzeitüberweisung", "sonstige_ausgabe"),
+  B("2026-06-28", 1850, "Lidl Dienstleistung GmbH", "Lohn Juni 2026", "gehalt"),
+  B("2026-06-10", 1200, "Jobcenter Region Hannover", "Leistungen SGB II", "ueberweisung_ein"),
+  B("2026-06-20", 350, "Finanzamt Hannover-Nord", "Einkommensteuer 2025 Erstattung", "ueberweisung_ein"),
+  B("2026-06-21", -120, "Finanzamt Hannover-Nord", "Einkommensteuer Nachzahlung", "sonstige_ausgabe"),
+], P);
+ok(marken[0].kategorie === "rente", `Renten Service als „Überweisung“ → Rente (${marken[0].kategorie})`);
+ok(marken[1].kategorie === "erstattung", `PlayStation als „Sozialleistung“ → Erstattung (${marken[1].kategorie})`);
+ok(marken[2].kategorie === "abgaben", `Rundfunkbeitrag als „Kreditrate“ → Abgabe (${marken[2].kategorie})`);
+ok(marken[3].kategorie === "gluecksspiel" && marken[4].kategorie === "gluecksspiel", "Tipico direkt und über PayPal → Glücksspiel");
+ok(marken[5].kategorie === "eigenes_konto", "Abbuchung an den eigenen Namen → eigenes Konto");
+ok(marken[6].kategorie === "gehalt", "Lohn von Lidl bleibt Gehalt (Arbeitgeber, nicht Händler)");
+ok(marken[7].kategorie === "sozialleistung", "Jobcenter als „Überweisung“ → Sozialleistung");
+ok(marken[8].kategorie === "ueberweisung_ein" && marken[9].kategorie === "abgaben", "Steuererstattung bleibt Eingang (kein Einkommen), Nachzahlung ist Abgabe");
+
+// Verlorenes „ß" im Ausdruck (gemessen: „PIERRE MEI NER" als Eingang vom eigenen Konto)
+ok(istEigenerName("PIERRE MEI NER", { vorname: "Pierre", nachname: "Meißner" }) && istEigenerName("Pierre Meiner", { vorname: "Pierre", nachname: "Meißner" }), "Eigener Name auch ohne das „ß“ erkannt");
+ok(!istEigenerName("PIERRE MEI", { vorname: "Pierre", nachname: "Meißner" }), "… aber nicht aus einem halben Namen");
+
+// Zweimal bereinigen ändert nichts (die Nachrechnung läuft über schon bereinigte Buchungen)
+const zweimal = buchungenBereinigen(topf, P);
+ok(JSON.stringify(zweimal) === JSON.stringify(topf), "Bereinigen ist idempotent — die Korrektur „war: …“ bleibt erhalten");
 
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler === 0 ? 0 : 1);

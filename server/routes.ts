@@ -442,6 +442,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Vorzeichen; ohne Modell, nur Zeilen der Fassung 1. Nach dem ersten Lauf ist nichts mehr offen.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('kontoauszug_neu_rechnen', async () => await (await import('./lib/fiaon-kontoauszug-analyse')).analysenNeuRechnen(300), 6 * 60 * 60 * 1000, { beimStartNach: 90_000 });
+    // E-207 (21.09.2026): Jeder hochgeladene Auszug wird gelesen — nie ausgewertete, hängende,
+    // vor der Texterkennung abgewiesene und gemischte PDFs mit ungelesenen Fotoseiten.
+    tageslauf('kontoauszug_nachholen', async () => await (await import('./lib/fiaon-kontoauszug-analyse')).auszuegeNachholen(4), 20 * 60 * 1000, { beimStartNach: 240_000 });
   });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });

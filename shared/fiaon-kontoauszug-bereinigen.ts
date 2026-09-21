@@ -24,6 +24,10 @@
 // nie ans Modell). Dieselbe Funktion rechnet die bestehenden Analysen neu,
 // ohne einen einzigen Modellaufruf.
 // ═══════════════════════════════════════════════════════════════════════════
+import { flachText, markeDerBuchung, HAENDLER_TYPEN } from "./fiaon-kontoauszug-marken";
+import { KATEGORIEN } from "./fiaon-kontoauszug-kategorien";
+
+export { flachText };
 
 export interface RohBuchung {
   datum: string;
@@ -42,14 +46,6 @@ const HAENDLER = new Set(["freizeit", "lebensmittel", "abo_medien", "mobilitaet"
 /** Einkommen im engeren Sinn — das, was die Ampel „Einkommen" nennt. */
 export const EINKOMMEN_KATEGORIEN = new Set(["gehalt", "rente", "sozialleistung"]);
 
-/** Kleinbuchstaben, Umlaute ausgeschrieben, nur Buchstaben/Ziffern/Leerzeichen. */
-export function flachText(s: string): string {
-  return String(s ?? "").toLowerCase()
-    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
-    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ").trim();
-}
-
 /** Inkasso- und Forderungskäufer (fest, weil das Modell sie als „Kreditrate" ablegte). */
 const INKASSO = [
   // Nicht darin: Riverty — das ist „Rechnungskauf/Später bezahlen" (z. B. für Amazon), kein Inkasso
@@ -63,6 +59,18 @@ const INKASSO = [
 const EIGEN_EIN_WOERTER = ["top up", "topup", "aufladung", "aufgeladen", "umbuchung", "uebertrag", "kontouebertrag", "eigenes konto", "eigenuebertrag", "von eigenem konto"];
 /** Auf einer ABBUCHUNG zählt nur das ausdrückliche Wort — der eigene Name steht dort oft im Zweck („Miete … Max Muster"). */
 const EIGEN_AUS_WOERTER = ["umbuchung auf", "uebertrag auf", "auf eigenes konto", "an eigenes konto", "eigenuebertrag", "kontouebertrag"];
+/**
+ * Spartöpfe und Unterkonten derselben Bank — in BEIDE Richtungen Geld des Kunden (21.09.2026, E-207).
+ * Gemessen an 216 Auswertungen: Revolut-„Pockets" („To pocket EUR Rainy Day", „Auszahlung bei Pocket"),
+ * „Von EUR Tagesgeld", „Um EUR Portmonee von EUR einzustecken", „Worauf sparen Sie" — 3.700 Buchungen,
+ * bei zwei Kunden je rund 900, zählten als Einnahme UND Ausgabe.
+ */
+const SPARTOPF = /\b(to|from|bei|aus|in|zu|an|von)\s+pocket\b|\bpocket\s+(eur|usd|gbp|chf)\b|\btagesgeld\b|\bportmonee\b|\beinzustecken\b|\bworauf sparen\b|\bspartopf\b|\bsparkonto\b|\bvault\b/;
+/** Ämter, deren Gutschrift Einkommen ist — und welches (Name wie in fiaon-kontoauszug-marken.ts). */
+const AMT_EINKOMMEN: Record<string, string> = {
+  "Renten Service (Deutsche Post)": "rente", "Deutsche Rentenversicherung": "rente", "VBL (Zusatzrente)": "rente",
+  "Jobcenter": "sozialleistung", "Familienkasse": "sozialleistung", "Bundesagentur für Arbeit": "sozialleistung", "AMS": "sozialleistung",
+};
 /** Echte Gehalts- und Rentenzeilen tragen manchmal den Namen des Empfängers — sie bleiben Einkommen. */
 const LOHN_WOERTER = ["lohn", "gehalt", "bezuege", "entgelt", "rente", "pension", "versorgung", "arbeitgeber", "personalnr", "personalnummer", "verdienst", "besoldung", "verguetung"];
 
@@ -74,7 +82,9 @@ export function istEigenerName(text: string, p: PersonName): boolean {
   const vor = flachText(p.vorname ?? "").split(" ").filter((w) => w.length >= 2);
   const nach = flachText(p.nachname ?? "").split(" ").filter((w) => w.length >= 3);
   if (!vor.length || !nach.length) return false;
-  return nach.every((w) => t.includes(` ${w} `)) && vor.some((w) => t.includes(` ${w} `));
+  // Ein verlorenes „ß" im Ausdruck: „MEI NER" oder „MEINER" steht für Meißner (flach: meissner).
+  const varianten = (w: string) => (w.includes("ss") ? [w, w.replace(/ss/g, " "), w.replace(/ss/g, "")] : [w]);
+  return nach.every((w) => varianten(w).some((v) => t.includes(` ${v} `))) && vor.some((w) => t.includes(` ${w} `));
 }
 
 export interface BereinigteBuchung extends RohBuchung {
@@ -87,10 +97,15 @@ export interface BereinigteBuchung extends RohBuchung {
  *  1. Eigenes Konto: auf einer GUTSCHRIFT Vor- und Nachname des Kunden — als
  *     Gegenpartei oder im Zweck einer Zahlung von einer Privatperson — oder
  *     eine Aufladung/Umbuchung (echte Lohn- und Rentenzeilen ausgenommen); auf
- *     einer ABBUCHUNG nur ausdrückliche Umbuchungswörter → „eigenes_konto"
- *     (neutral: weder Einnahme noch Ausgabe).
+ *     einer ABBUCHUNG nur ausdrückliche Umbuchungswörter → „eigenes_konto";
+ *     in beide Richtungen Spartöpfe der Bank (Pocket, Tagesgeld, Portmonee)
+ *     → „spartopf". Beide neutral: weder Einnahme noch Ausgabe.
  *  2. Inkasso: bekannte Forderungskäufer oder Inkasso-Wörter auf einer
  *     Abbuchung → „inkasso_mahnung".
+ *  2a. Marken (fiaon-kontoauszug-marken.ts): Wettanbieter → „gluecksspiel";
+ *     Ämter auf einer Abbuchung → „abgaben"; „Einkommen" von einem Händler
+ *     ohne Lohnwort → Erstattung; Rentenservice/Jobcenter/Familienkasse als
+ *     „Überweisung" → Rente bzw. Sozialleistung.
  *  3. Vorzeichen: Einnahme-Kategorie auf einer Abbuchung → „ueberweisung_aus";
  *     Ausgabe-Kategorie auf einer Gutschrift → „erstattung" (Bargeld →
  *     „bareinzahlung", Rücklastschrift bleibt Rücklastschrift).
@@ -110,32 +125,66 @@ export function buchungenBereinigen(buchungen: RohBuchung[], person: PersonName)
     const gegenueber = flachText(b.empfaenger);
     const vonPrivat = gegenueber === "" || gegenueber === "privatperson";
     const eigenerName = istEigenerName(b.empfaenger, person) || (vonPrivat && istEigenerName(text, person));
-    if (b.betragCents > 0 && !echterLohn && (eigenerName || EIGEN_EIN_WOERTER.some((w) => flach.includes(w)))) {
+    const marke = markeDerBuchung(b.empfaenger, b.zweck, KATEGORIEN[alt]?.label ?? "");
+    const lohnWort = LOHN_WOERTER.some((w) => flach.includes(w));
+    if (!echterLohn && SPARTOPF.test(flach)) {
+      kategorie = "spartopf";
+    } else if (b.betragCents > 0 && !echterLohn && (eigenerName || EIGEN_EIN_WOERTER.some((w) => flach.includes(w)))) {
       kategorie = "eigenes_konto";
-    } else if (b.betragCents < 0 && EIGEN_AUS_WOERTER.some((w) => flach.includes(w))) {
+    } else if (b.betragCents < 0 && (istEigenerName(b.empfaenger, person) || EIGEN_AUS_WOERTER.some((w) => flach.includes(w)))) {
+      // Der eigene Name als GEGENPARTEI einer Abbuchung: Geld aufs eigene andere Konto
+      // (gemessen 21.09.: 21 Echtzeitüberweisungen „an <eigener Name>", 555 € im Monat als Ausgabe).
       kategorie = "eigenes_konto";
     } else if (b.betragCents < 0 && INKASSO.some((w) => ` ${flach} `.includes(` ${w} `) || (w.length > 6 && flach.includes(w)))) {
       kategorie = "inkasso_mahnung";
+    } else if (b.betragCents < 0 && marke?.typ === "spiel") {
+      kategorie = "gluecksspiel";
+    } else if (b.betragCents < 0 && marke?.typ === "amt") {
+      // Finanzamt, Kfz-Steuer, Rundfunkbeitrag, Stadtkasse — das Modell legte sie als „Kreditrate",
+      // „Sozialleistung" (Vorzeichen falsch) oder „Sonstiges" ab.
+      kategorie = "abgaben";
+    } else if (b.betragCents > 0 && EINKOMMEN_KATEGORIEN.has(kategorie) && marke && (HAENDLER_TYPEN.has(marke.typ) || marke.typ === "spiel") && !lohnWort) {
+      // Einkommen kommt nicht von PlayStation, Temu oder dem Lotto (gemessen: „Playstation … Dauerauftrag" als Sozialleistung).
+      kategorie = marke.typ === "spiel" ? "sonstige_einnahme" : "erstattung";
+    } else if (b.betragCents > 0 && marke?.typ === "amt" && (kategorie === "ueberweisung_ein" || kategorie === "sonstige_einnahme") && AMT_EINKOMMEN[marke.name]) {
+      // Rente vom Renten Service, Bürgergeld vom Jobcenter, Kindergeld — auch wenn das Modell „Überweisung" schrieb.
+      kategorie = AMT_EINKOMMEN[marke.name];
     } else if (b.betragCents < 0 && EINNAHME_KATEGORIEN.has(kategorie)) {
       kategorie = "ueberweisung_aus";
-    } else if (b.betragCents > 0 && !EINNAHME_KATEGORIEN.has(kategorie) && kategorie !== "ruecklastschrift" && kategorie !== "eigenes_konto") {
+    } else if (b.betragCents > 0 && !EINNAHME_KATEGORIEN.has(kategorie) && kategorie !== "ruecklastschrift" && kategorie !== "eigenes_konto" && kategorie !== "spartopf") {
       // Geld zurück von einem Händler oder Versorger ist eine Erstattung; alles
       // andere (Kreditauszahlung, Gewinn, Überweisung) eine sonstige Einnahme.
       kategorie = kategorie === "bargeld" ? "bareinzahlung" : HAENDLER.has(kategorie) ? "erstattung" : "sonstige_einnahme";
     }
-    return kategorie === alt ? { ...b } : { ...b, kategorie, korrektur: `war: ${alt}` };
+    // Die ERSTE Korrektur bleibt stehen: Sie nennt, was das Modell ursprünglich gelesen hat.
+    return kategorie === alt ? { ...b } : { ...b, kategorie, korrektur: (b as BereinigteBuchung).korrektur ?? `war: ${alt}` };
   });
 }
 
-/** Ab diesem Anteil eigener Eingänge ist der Auszug ein Nebenkonto — das Gehaltskonto fehlt. */
+/** Ab diesem Anteil von Eingängen vom eigenen (anderen) Konto ist der Auszug ein Nebenkonto — das Gehaltskonto fehlt. */
 export const NEBENKONTO_ANTEIL = 0.5;
+/** … aber nur, wenn auf dem Konto kaum echtes Einkommen eingeht (unter diesem Anteil der Eingänge). */
+export const NEBENKONTO_EINKOMMEN_HOECHSTENS = 0.2;
 
-export function nebenkontoAus(buchungen: { betragCents: number; kategorie: string }[]): { eigenEin: number; eigenAus: number; alleEin: number; nebenkonto: boolean } {
-  let eigenEin = 0, eigenAus = 0, alleEin = 0;
+/** Neutrale Kategorien: Geld bleibt beim Kunden. */
+export const NEUTRAL = new Set(["eigenes_konto", "spartopf"]);
+
+/**
+ * Umbuchungen und Nebenkonto.
+ *  · eigenEin/eigenAus: alle neutralen Bewegungen (eigenes Konto UND Spartöpfe) — „nicht mitgezählt".
+ *  · vomEigenenKonto: Eingänge von einem ANDEREN eigenen Konto (ohne Spartöpfe derselben Bank).
+ *  · nebenkonto: überwiegend vom anderen eigenen Konto gespeist UND kaum echtes Einkommen. Ein Konto, auf
+ *    dem das Bürgergeld eingeht und das zusätzlich vom Sparkonto aufgefüllt wird, ist kein Nebenkonto.
+ */
+export function nebenkontoAus(buchungen: { betragCents: number; kategorie: string }[]): { eigenEin: number; eigenAus: number; vomEigenenKonto: number; alleEin: number; nebenkonto: boolean } {
+  let eigenEin = 0, eigenAus = 0, vomEigenenKonto = 0, alleEin = 0, einkommen = 0;
   for (const b of buchungen) {
-    if (b.betragCents > 0) alleEin += b.betragCents;
-    if (b.kategorie !== "eigenes_konto") continue;
+    if (b.betragCents > 0 && b.kategorie !== "spartopf") alleEin += b.betragCents;
+    if (b.betragCents > 0 && EINKOMMEN_KATEGORIEN.has(b.kategorie)) einkommen += b.betragCents;
+    if (!NEUTRAL.has(b.kategorie)) continue;
     if (b.betragCents > 0) eigenEin += b.betragCents; else eigenAus -= b.betragCents;
+    if (b.betragCents > 0 && b.kategorie === "eigenes_konto") vomEigenenKonto += b.betragCents;
   }
-  return { eigenEin, eigenAus, alleEin, nebenkonto: alleEin > 0 && eigenEin / alleEin >= NEBENKONTO_ANTEIL };
+  const nebenkonto = alleEin > 0 && vomEigenenKonto / alleEin >= NEBENKONTO_ANTEIL && einkommen < alleEin * NEBENKONTO_EINKOMMEN_HOECHSTENS;
+  return { eigenEin, eigenAus, vomEigenenKonto, alleEin, nebenkonto };
 }

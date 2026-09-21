@@ -914,8 +914,8 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
         {(Number(a.eigenEinCents || 0) > 0 || Number(a.eigenAusCents || 0) > 0) && (
           <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-leise)" }}>
             {a.nebenkonto
-              ? `Die Eingänge auf diesem Konto kommen überwiegend von Ihrem eigenen Konto (${eurCents(Number(a.eigenEinCents || 0))}). Für Ihr Einkommen brauchen wir den Auszug Ihres Gehaltskontos — Sie können ihn unter „Unterlagen“ hochladen.`
-              : `Umbuchungen zwischen Ihren eigenen Konten (${eurCents(Number(a.eigenEinCents || 0) + Number(a.eigenAusCents || 0))}) sind nicht mitgezählt.`}
+              ? "Die Eingänge auf diesem Konto kommen überwiegend von einem anderen Konto von Ihnen. Für Ihr Einkommen brauchen wir den Auszug Ihres Gehaltskontos — Sie können ihn unter „Unterlagen“ hochladen."
+              : `Umbuchungen zwischen Ihren eigenen Konten und Spartöpfen (${eurCents(Number(a.eigenEinCents || 0) + Number(a.eigenAusCents || 0))}) sind nicht mitgezählt.`}
           </p>
         )}
         {monate.length > 1 && (

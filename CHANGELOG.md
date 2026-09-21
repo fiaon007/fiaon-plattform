@@ -5,6 +5,43 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (Nacht, 2) — Kontoauszug im Detail, jede Seite gelesen (E-207)
+
+**Was geändert wurde:**
+
+- **Kontoauszug im Detail** (`shared/fiaon-kontoauszug-tiefe.ts`, Ansicht `client/src/components/finanzen/FinanzTiefe.tsx`):
+  die vier Fragen aus den gelesenen Buchungen gerechnet — ohne Modell: Was kommt wann rein (jede Einkommensquelle mit
+  Tag im Monat und Betrag je Monat), wofür geht wie viel raus (Bereiche → Empfänger → jede einzelne Buchung), die größten
+  Kostenpunkte (mit Anteil am Einkommen), was sich sofort optimieren lässt (Dispozinsen, Kontogebühren, Rücklastschriften,
+  Mahnkosten, Glücksspiel, Inkasso, Ratenkäufe, laufende Abos mit Monatspreis, Lieferdienste, Telefon, Versicherungen,
+  Bargeld), Monat für Monat mit tiefstem Kontostand, der Zahltag nach dem Einkommen, alle Buchungen durchsuchbar.
+  Sichtbar in der Akte der Telefonkartei, in der Betreiber-Akte (neuer Abschnitt, volle Breite) und in der
+  Mitarbeiter-Akte unter „Dokumente“ (aufklappbar unter der Auswertung).
+- **Marken** (`shared/fiaon-kontoauszug-marken.ts`): eine Liste für Namen und Regeln — PayPal mit „Netflix“ im Zweck ist
+  Netflix, „Ihr Einkauf bei …“ nennt den Händler, zwei Schreibweisen von Telefónica sind ein Anbieter.
+- **Bereinigung erweitert:** Spartöpfe der Bank (Revolut-Pocket, Tagesgeld, Portmonee) → neue neutrale Kategorie
+  `spartopf` (gemessen: rund 3.700 Buchungen zählten als Einnahme UND Ausgabe); Wettanbieter → Glücksspiel; Ämter
+  (Finanzamt, Kfz-Steuer, Rundfunkbeitrag) → neue Kategorie `abgaben`; „Einkommen“ von einem Händler (PlayStation) →
+  Erstattung; Renten Service/Jobcenter/Familienkasse als „Überweisung“ → Rente bzw. Sozialleistung; Abbuchung an den
+  eigenen Namen → eigenes Konto; eigener Name auch ohne „ß“ im Ausdruck erkannt. Nebenkonto nur noch, wenn kaum echtes
+  Einkommen eingeht. `AUSWERTUNG_VERSION = 3` — der Lauf `kontoauszug_neu_rechnen` rechnet alles nach.
+- **Jede Seite gelesen:** Fotoseiten in einem gemischten PDF (Bank-PDF plus Handyfotos) liest jetzt die Texterkennung
+  einzeln (`ocrLesen(…, { seiten })`); vorher las sie niemand (gemessen: 3 Auszüge, einer mit 17 von 24 Seiten). Neue
+  Spalte `fotoseiten`. Probe mit erfundenem Juni-PDF + Juli-Foto: 8 von 8 Buchungen, stimmt auf den Cent.
+- **Nachholen** (`auszuegeNachholen`, Lauf `kontoauszug_nachholen`, alle 20 Minuten, höchstens 4 Auswertungen):
+  12 nie ausgewertete Auszüge, 6 Auswertungen ohne Buchungen, 1 hängender Lauf; je Person nur die Bestellung, die den
+  Auszug trägt; höchstens drei Läufe je Auszug in sieben Tagen.
+
+**Warum:** Justin am 21.09.2026: „JEDES Bild, jedes PDF, alles muss im DETAIL analysiert werden, damit ich EXAKT sehe:
+Was verdient er wann? Wann gibt er wie viel und warum wo aus? Was sind seine höchsten Kostenpunkte? Was kann man sofort
+optimieren?“
+
+**Wo zu finden:** oben genannte Dateien, dazu `server/lib/fiaon-ocr.ts`, `server/lib/fiaon-kontoauszug-analyse.ts`,
+`server/routes.ts`, `client/src/pages/admin-kunde.tsx`, `client/src/pages/agent/pipeline.tsx`,
+`client/src/styles/finanz-tiefe.css`; Prüfstände `pruef-kontoauszug-tiefe.ts` (53), `pruef-kontoauszug-bereinigen.ts` (42).
+
+---
+
 ## 21.09.2026 (Nacht) — Kontoauszug ehrlich gerechnet (E-207)
 
 **Was geändert wurde:**

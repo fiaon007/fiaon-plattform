@@ -6,6 +6,7 @@ import {
   AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2, Info,
 } from "lucide-react";
 import { DokumenteSektion } from "@/components/DokumenteSektion";
+import { KontoauszugImDetail } from "@/components/finanzen/FinanzTiefe";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import ArchivDialog from "@/components/admin/ArchivDialog";
@@ -128,7 +129,7 @@ async function api(path: string, body?: any, method = "POST"): Promise<any> {
 }
 
 // ── Abschnitts-Karte ─────────────────────────────────────────────────────────
-function Section({ title, icon: Icon, children, warn }: { title: string; icon: any; children: any; warn?: boolean }) {
+function Section({ title, icon: Icon, children, warn, breit }: { title: string; icon: any; children: any; warn?: boolean; breit?: boolean }) {
   // 21.09.2026 (Akte im Fenster): „Haupt — Zusatz" — der Zusatz erklärt, er ist
   // kein Titel. Hell steht er wie bisher dahinter, dunkel als leise Zeile darunter.
   const [haupt, ...rest] = title.split(" — ");
@@ -138,7 +139,7 @@ function Section({ title, icon: Icon, children, warn }: { title: string; icon: a
     // ihres Inhalts schrumpfen. Auf einem 380-px-Telefon wurden die Karten
     // dadurch 477 px breit und der rechte Rand — Fristen, Datum, Beträge —
     // schlicht abgeschnitten (gemessen am 08.08.2026).
-    <div className={`ak-karte min-w-0 bg-white border rounded-2xl p-5 ${warn ? "ak-warn border-amber-300" : "border-slate-200"}`}>
+    <div className={`ak-karte min-w-0 bg-white border rounded-2xl p-5 ${warn ? "ak-warn border-amber-300" : "border-slate-200"}${breit ? " lg:col-span-2" : ""}`}>
       <h2 className="ak-titel flex items-center gap-2 text-[13px] font-bold text-slate-900 mb-4">
         <Icon size={15} className={warn ? "text-amber-500" : "text-slate-400"} />
         <span className="min-w-0">
@@ -1060,6 +1061,17 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               </p>
             )}
           </Section>
+
+          {/* ── KONTOAUSZUG IM DETAIL (21.09.2026, E-207) ────────────────────
+              Justin: „Was verdient er wann? Wann gibt er wie viel und warum wo
+              aus? Was sind seine höchsten Kostenpunkte? Was kann man sofort
+              optimieren?" — gerechnet aus den gelesenen Buchungen, jede Zahl
+              bis zur einzelnen Buchung aufklappbar. */}
+          {app?.ref && (
+            <Section title="Kontoauszug im Detail — was reinkommt, was rausgeht, was sich sparen lässt" icon={FileText} breit>
+              <KontoauszugImDetail kundenRef={app.ref} dunkel={eingebettet} />
+            </Section>
+          )}
 
           {/* ── ANRUFE ─────────────────────────────────────────────────── */}
           {app?.personId && <AnrufeSektion personId={Number(app.personId)} />}

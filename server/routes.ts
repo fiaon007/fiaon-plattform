@@ -430,6 +430,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Kontakt fürs iPhone, vier Fälle (Rechnung, nicht erreicht, Rückruf, Storno). Nur Stufe Inhaber.
   const fiaonTelefonkarteiRoutes = await import('./routes/fiaon-telefonkartei');
   app.use('/api/fiaon', fiaonTelefonkarteiRoutes.default);
+  // 🚦 Boni-Ampel (21.09.2026, E-202): FIAONs eigene Einschätzung je Kunde — in der Akte der Mitarbeiter.
+  const fiaonBoniAmpelRoutes = await import('./routes/fiaon-boni-ampel');
+  app.use('/api/fiaon', fiaonBoniAmpelRoutes.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });
   });

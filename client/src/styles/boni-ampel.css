@@ -1,0 +1,168 @@
+/* ═══ Boni-Ampel (21.09.2026, E-202) — Präfix .ba- ═══
+   Für dunkle Flächen gebaut (Chefbüro, Office). Die Ampel ist das Signal:
+   ein kleines Gehäuse mit drei Lichtern, das aktive leuchtet — alles andere
+   bleibt ruhig. Hover nur bei Maus (am iPhone klebt er sonst). */
+
+.ba-kapsel {
+  --ba-ton: #34d399;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 5px 12px 5px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ba-ton) 38%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ba-ton) 14%, transparent), rgba(255, 255, 255, .03)),
+    rgba(10, 22, 40, .55);
+  color: #e5e7eb;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  text-align: left;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 8px 20px rgba(2, 8, 23, .3);
+}
+button.ba-kapsel { cursor: pointer; }
+.ba-kapsel.gruen { --ba-ton: #34d399; }
+.ba-kapsel.gelb { --ba-ton: #fbbf24; }
+.ba-kapsel.rot { --ba-ton: #f87171; }
+@media (hover: hover) {
+  button.ba-kapsel:hover { border-color: color-mix(in srgb, var(--ba-ton) 60%, transparent); }
+}
+button.ba-kapsel:focus-visible { outline: 2px solid var(--ba-ton); outline-offset: 2px; }
+
+/* Kompakt — neben den kleinen Marken im Kopf der Office-Akte. */
+.ba-kapsel.klein { min-height: 26px; padding: 2px 9px 2px 3px; gap: 7px; box-shadow: none; }
+.ba-kapsel.klein .ba-gehaeuse { padding: 3px 4px; gap: 3px; }
+.ba-kapsel.klein .ba-licht { width: 7px; height: 7px; }
+.ba-kapsel.klein .ba-text { display: flex; align-items: baseline; gap: 6px; }
+.ba-kapsel.klein .ba-text b { font-size: 11.5px; }
+.ba-kapsel.klein .ba-text small { font-size: 10.5px; }
+.ba-kapsel.klein .ba-pfeil { width: 12px; height: 12px; }
+
+/* Das Gehäuse: drei Lichter nebeneinander, das aktive glüht. */
+.ba-gehaeuse {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #0b1220, #111b2e);
+  border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .5) inset;
+}
+.ba-licht {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  opacity: .22;
+  transition: opacity .25s ease, box-shadow .25s ease;
+}
+.ba-licht.rot { background: #f87171; }
+.ba-licht.gelb { background: #fbbf24; }
+.ba-licht.gruen { background: #34d399; }
+.ba-licht.an { opacity: 1; }
+.ba-licht.an.rot { box-shadow: 0 0 10px 2px rgba(248, 113, 113, .6); }
+.ba-licht.an.gelb { box-shadow: 0 0 10px 2px rgba(251, 191, 36, .6); }
+.ba-licht.an.gruen { box-shadow: 0 0 10px 2px rgba(52, 211, 153, .6); }
+
+.ba-text { display: grid; line-height: 1.15; }
+.ba-text b { font: 500 13px/1.2 'Inter', sans-serif; color: var(--ba-ton); letter-spacing: .01em; }
+.ba-text small { font: 400 11px/1.3 'Inter', sans-serif; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.ba-pfeil { width: 14px; height: 14px; margin-left: 2px; fill: none; stroke: #94a3b8; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s ease; }
+.ba-pfeil.offen { transform: rotate(180deg); }
+
+/* ── Die Teile ─────────────────────────────────────────────────────────── */
+.ba-block { display: grid; gap: 10px; }
+.ba-details {
+  display: grid;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .035);
+}
+.ba-satz { margin: 0; font: 300 13px/1.5 'Inter', sans-serif; color: #cbd5e1; }
+.ba-teile { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ba-teile li { --ba-teil: #34d399; }
+.ba-teile li.gelb { --ba-teil: #fbbf24; }
+.ba-teile li.rot { --ba-teil: #f87171; }
+.ba-zeile { display: grid; grid-template-columns: 86px minmax(0, 1fr) 40px; align-items: center; gap: 10px; }
+.ba-zeile b { font: 400 12.5px/1.2 'Inter', sans-serif; color: #e5e7eb; }
+.ba-zeile em { font: 400 11.5px/1 'Inter', sans-serif; font-style: normal; color: #94a3b8; text-align: right; font-variant-numeric: tabular-nums; }
+.ba-balken { position: relative; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.ba-balken i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ba-teil) 55%, transparent), var(--ba-teil));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ba-teil) 45%, transparent);
+}
+.ba-teile p { margin: 4px 0 0 96px; font: 300 12px/1.45 'Inter', sans-serif; color: #94a3b8; }
+.ba-quelle {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font: 400 10.5px/1.6 'Inter', sans-serif;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .08);
+  white-space: nowrap;
+}
+.ba-quelle.kontoauszug, .ba-quelle.schufa { color: #93c5fd; border-color: rgba(147, 197, 253, .3); background: rgba(37, 99, 235, .12); }
+.ba-quelle.annahme { color: #64748b; font-style: italic; }
+.ba-deckel { margin: 0; font: 400 12px/1.45 'Inter', sans-serif; color: #fbbf24; }
+.ba-fuss { margin: 2px 0 0; font: 300 11px/1.45 'Inter', sans-serif; color: #64748b; }
+
+@media (max-width: 420px) {
+  .ba-zeile { grid-template-columns: 74px minmax(0, 1fr) 36px; gap: 8px; }
+  .ba-teile p { margin-left: 0; }
+}
+
+/* ── Fenster über der Akte (Office) ────────────────────────────────────── */
+.ba-schleier {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(2, 6, 17, .6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.ba-fenster {
+  width: min(520px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  padding: 20px 18px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: linear-gradient(170deg, #0f1b33, #0b1220);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .5);
+  color: #e5e7eb;
+}
+@media (min-width: 760px) {
+  .ba-schleier { align-items: center; }
+  .ba-fenster { border-radius: 24px; padding-bottom: 20px; }
+}
+.ba-fenster-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ba-fenster-kopf span { display: block; font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #64748b; }
+.ba-fenster-kopf b { display: block; margin-top: 6px; font: 400 18px/1.25 'Inter', sans-serif; color: #fff; }
+.ba-zu {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .06);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+.ba-zu svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; fill: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ba-licht, .ba-pfeil { transition: none; }
+}

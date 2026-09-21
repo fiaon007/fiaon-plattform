@@ -41,6 +41,8 @@ import { terminTokenErzeugen } from "./fiaon-termine";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { berlinPlusTage } from "./fiaon-time";
 import { ABBRECHER_STATUS } from "./tier";
+import { boniLateralSql, BONI_SPALTEN_SQL, boniEingangAusZeile } from "./fiaon-boni-ampel";
+import { boniAmpel } from "@shared/fiaon-boni-ampel";
 import { absoluteUrl } from "../fiaon-base-url";
 import { signInvoiceUrl } from "../fiaon-invoice";
 import { kurzFenster } from "@shared/fiaon-erreichbarkeit";
@@ -205,7 +207,7 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
   return (await sqlPool`
     WITH basis AS (
       SELECT p.id, p.first_name, p.last_name, p.contact_name, p.anrede, p.primary_email, p.primary_phone,
-             p.city, p.country, p.priority_tier, p.tier_reason, p.is_blocked, p.werbung_gesperrt_am,
+             p.street, p.zip, p.city, p.country, p.priority_tier, p.tier_reason, p.is_blocked, p.werbung_gesperrt_am,
              p.unreachable_count, p.promised_payment_date, p.assigned_agent_id, p.created_at,
              (p.ist_test_am IS NOT NULL) AS testfall,
              ${sqlPool.unsafe(EREIGNIS_SQL)} AS ereignis_am,
@@ -214,6 +216,16 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
       LEFT JOIN fiaon_telefonkartei_storno s ON s.person_id = p.id AND s.zurueck_am IS NULL
       WHERE p.merged_into_person_id IS NULL
         ${test} ${einzeln} ${gruppe} ${sperre} ${suchBedingung(f.suche ?? "")}
+    ),
+    -- ERST DIE SEITE, DANN DIE KARTEN (21.09.2026, E-202): Die Reihenfolge
+    -- hängt nur an der Basis (Ereignis bzw. Storno-Datum). Vorher liefen alle
+    -- Nachschlagungen unten für JEDEN Menschen der Liste (~5.000 unter „Alle“),
+    -- und erst danach wurden 26 ausgewählt — mit den drei Verbindungen der
+    -- Boni-Ampel 502 ms statt 278 ms. Jetzt werden nur die Karten der Seite
+    -- nachgeschlagen. Jede Verbindung unten ist ein LEFT JOIN auf höchstens
+    -- eine Zeile — die Menge und ihre Reihenfolge bleiben dieselben.
+    seite AS (
+      SELECT * FROM basis b ${ordnung} LIMIT ${grenze} OFFSET ${versatz}
     )
     SELECT b.*,
            o.ref AS o_ref, o.type AS o_type, o.pack_key AS o_pack, o.pack_name AS o_pack_name,
@@ -234,8 +246,9 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
            ag.name AS betreuer,
            k.am AS k_am, k.von AS k_von, k.ergebnis AS k_ergebnis,
            t.beginn AS t_beginn, t.quelle AS t_quelle, tag.name AS t_bei,
-           rr.am AS rr_am
-    FROM basis b
+           rr.am AS rr_am,
+           ${sqlPool.unsafe(BONI_SPALTEN_SQL)}
+    FROM seite b
     -- Die offene Bestellung: erst eine echte Rechnung, dann ein fertiger Antrag
     -- ohne Rechnung; ein Paket vor der Auskunft; nie ein Firmenauftrag (Global).
     LEFT JOIN LATERAL (
@@ -288,8 +301,8 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
     LEFT JOIN LATERAL (
       SELECT rr.am FROM fiaon_telefonkartei_rueckruf rr
       WHERE rr.person_id = b.id AND rr.erledigt_am IS NULL ORDER BY rr.am LIMIT 1) rr ON TRUE
+    ${sqlPool.unsafe(boniLateralSql("b"))}
     ${ordnung}
-    LIMIT ${grenze} OFFSET ${versatz}
   `) as any[];
 }
 
@@ -423,6 +436,8 @@ async function karteBauen(z: any): Promise<KarteiKarte> {
       : (z.l_id != null ? `/chef/s/akte?id=lead-${Number(z.l_id)}` : null),
     storno: z.storno_am ? { am: iso(z.storno_am)!, grund: text(z.storno_grund) || null, durch: text(z.storno_durch) || null } : null,
     rueckrufAm: iso(z.rr_am),
+    // E-202: FIAONs eigene Einschätzung — dieselbe Rechnung wie in der Akte der Mitarbeiter.
+    ampel: boniAmpel(boniEingangAusZeile(z, { strasse: z.street, plz: z.zip, ort: z.city, land: z.country })),
   };
 }
 

@@ -84,6 +84,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-21-boni-ampel",
+    date: "2026-09-21",
+    category: "Neu",
+    title: "Jeder Kunde hat jetzt eine Boni-Ampel — und so läuft künftig der Weg „Zahlung = Antrag = Karte“",
+    summary:
+      "Oben in jeder Akte steht jetzt eine Ampel: FIAONs eigene Einschätzung der Lage aus Adresse, Einkommen, Ausgaben, Schulden und SCHUFA. "
+      + "Sie gehört zu dem Weg, auf den wir umstellen: Zahlung = Antrag = Karte — mit den FIAON-Schritten dazwischen, also Unterlagen, "
+      + "Bonitätsanalyse und Zahlungsplan. Wir gehen dabei in Vorleistung, aber der Kunde bleibt bei uns.",
+    changes: [
+      "Die Ampel steht im Kopf der Akte neben Stufe und Mandat: Grün = „Gute Lage“, Gelb = „Machbar“, Rot = „Erst aufräumen“, dazu die Punkte von 0 bis 100.",
+      "Antippen öffnet die fünf Teile mit je bis zu 20 Punkten — jeweils mit Herkunft: aus dem Kontoauszug, aus der SCHUFA, aus dem Antrag oder „Annahme“, wenn noch nichts vorliegt.",
+      "Belege schlagen Angaben: Ein ausgewerteter Kontoauszug zählt vor dem getippten Einkommen, die gelesene Auskunft vor der Schulden-Angabe. Neue Unterlagen ändern die Ampel sofort.",
+      "Harte Befunde halten sie von Grün fern: harte SCHUFA-Einträge, mehr Ausgaben als Einnahmen im Kontoauszug, mehrere Rücklastschriften, über 15.000 € Schulden, unter 600 € Einkommen. Zwei davon machen sie rot — der Grund steht dabei.",
+      "Der Weg, auf den wir umstellen: Der Kunde bezahlt → er bekommt den Link unserer Partnerbank (DKB) und stellt dort den Antrag; die Bank hält ihn an, bis wir fertig sind → in dieser Zeit lädt er bei uns hoch: Kontoauszüge der letzten 6 Monate, Reisepass oder Ausweis und seine vollständige Bonitätsauskunft (Deutschland SCHUFA, Österreich KSV und CRIF …) → wir machen die Bonitätsanalyse und übermitteln sie der Bank → die Bank entscheidet über die Freischaltung der Karte.",
+      "Die Auskunft gibt es auf zwei Wegen, beide heute schon im Kundenbereich: FIAON holt sie für 74 € — oder der Kunde fordert sie selbst an und lädt sie hoch, mit unserer Anleitung.",
+      "Noch nicht umgestellt: Der Knopf „Karte bestellen“ in der Akte folgt bis zu Justins Freigabe weiter seinen drei Bedingungen, und die Übermittlung an die Bank gibt es noch nicht. Sobald sich das ändert, steht es hier.",
+    ],
+    howto: [
+      "Vor dem Wählen einen Blick auf die Ampel: Steht „geschätzt“ hinter der Zahl, fehlen Unterlagen — genau darum geht das Gespräch: Kontoauszüge der letzten 6 Monate, Ausweis, Bonitätsauskunft.",
+      "Rot heißt nicht „kein Kunde“, sondern: erst aufräumen, dann Antrag — genau dafür ist FIAON da. Sag es dem Kunden auch so.",
+      "Nie eine Farbe als Zusage verkaufen: Die Ampel ist unsere eigene Einschätzung für die Arbeit im Haus, keine Kreditentscheidung. Über die Karte entscheidet die Bank.",
+      "Hat der Kunde keine Auskunft: die 74 € über FIAON anbieten — oder er fordert sie selbst an und lädt sie hoch. Beides zählt für die Ampel, sobald die Auskunft ausgewertet ist.",
+    ],
+  },
+  {
     id: "2026-09-21-justin-telefoniert",
     date: "2026-09-21",
     category: "Neu",

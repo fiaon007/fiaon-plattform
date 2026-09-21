@@ -18,6 +18,7 @@ import {
   KARTEI_GRUPPEN, istKarteiGruppe, istKarteiErgebnis, type KarteiKarte,
 } from "../shared/fiaon-telefonkartei";
 import { BANK } from "../shared/fiaon-bank";
+import { boniAmpel } from "../shared/fiaon-boni-ampel";
 import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { kundenstatus, KUNDENSTATUS } from "../shared/fiaon-kundenstatus";
 
@@ -48,6 +49,10 @@ const basis: KarteiKarte = {
   zusage: null, gesperrt: false, werbungGesperrt: false, testfall: false,
   terminLink: "https://www.fiaon.com/justin?k=4711.123.abc", akteId: "FIAON-ABC234", akteLink: "/chef/s/akte?id=FIAON-ABC234",
   storno: null, rueckrufAm: null,
+  ampel: boniAmpel({
+    strasse: true, plz: true, ort: true, land: "DE", wohnform: "Zur Miete", beschaeftigung: "Angestellt", beschaeftigtSeit: "2019-03",
+    einkommenEuro: 2400, zusatzEinkommenEuro: null, mieteEuro: 700, ausgabenEuro: 400, schuldenEuro: 0, konto: null, schufa: null,
+  }),
 };
 const karte = (teil: Partial<KarteiKarte>): KarteiKarte => ({ ...basis, ...teil });
 const ABSENDER = "Justin Schwarzott";

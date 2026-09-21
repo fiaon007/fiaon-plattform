@@ -22,6 +22,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { createPortal } from "react-dom";
 import { API, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
+import { BoniAmpelBlock } from "@/components/BoniAmpel";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
   KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, KARTEI_SUCHE_SATZ, euro, euroGanz, datumKurz, waLink,
@@ -408,6 +409,9 @@ function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeiche
         {gespeichert && handy && <span className="tk-gespeichert">im iPhone</span>}
       </div>
       {k.telefonHinweis && <p className="tk-hinweis">{k.telefonHinweis}</p>}
+
+      {/* E-202: FIAONs eigene Boni-Ampel — aufklappbar, mit Herkunft jeder Zahl. */}
+      {k.ampel && <BoniAmpelBlock ampel={k.ampel} />}
 
       <dl className="tk-fakten">
         {fakten.map(([t, w]) => <div key={t}><dt>{t}</dt><dd>{w}</dd></div>)}

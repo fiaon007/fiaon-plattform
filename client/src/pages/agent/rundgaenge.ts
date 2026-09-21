@@ -99,6 +99,17 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Zwei Minuten, die sich beim nächsten Anruf auszahlen: Der Kunde muss nichts wiederholen, und du weißt vor dem Wählen, worüber ihr sprecht.",
   },
   {
+    // 21.09.2026 (E-202): die Boni-Ampel im Kopf der Akte. Ohne `ziel` — sie
+    // steht nur in der geöffneten Akte, nicht auf der Pipeline selbst.
+    titel: "Oben in der Akte: die Boni-Ampel.",
+    text: "Jeder Kunde hat jetzt eine Ampel neben Stufe und Mandat — FIAONs eigene Einschätzung seiner Lage aus fünf Teilen: "
+      + "Adresse, Einkommen, Ausgaben, Schulden und SCHUFA, je bis 20 Punkte. Grün heißt „Gute Lage“, Gelb „Machbar“, "
+      + "Rot „Erst aufräumen“ — vor dem Antrag gibt es Arbeit, genau dafür ist FIAON da. Tippst du sie an, siehst du jeden Teil "
+      + "mit seiner Herkunft: aus dem Kontoauszug, aus der SCHUFA, aus dem Antrag oder „Annahme“, wenn noch nichts vorliegt. "
+      + "Belege schlagen Angaben; ein harter Befund (etwa harte SCHUFA-Einträge oder mehr Ausgaben als Einnahmen) hält sie von Grün fern, zwei machen sie rot.",
+    tipp: "„geschätzt“ hinter der Zahl heißt: Die Unterlagen fehlen noch — Kontoauszüge, Ausweis, Auskunft. Und nie eine Farbe als Zusage verkaufen: Über die Karte entscheidet die Bank.",
+  },
+  {
     ziel: ".pi-trenner",
     titel: "Darunter stehen die, die danach kommen.",
     text: "Deine Arbeitsliste hat immer genau sechs Plätze: zwei Menschen, die eine Zahlung gemeldet "
@@ -1088,6 +1099,15 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     titel: "Deine Telefonkartei: alle Kunden als Karten.",
     text: "Jede Karte zeigt alles, ohne sie zu öffnen: Stufe, Stand, Paket, Wunschlimit, Verwendungszweck, wer ihn betreut, "
       + "wann zuletzt telefoniert wurde und wann er erreichbar sein will. Die frischesten stehen oben — wie in der Arbeitsliste des Teams.",
+  },
+  {
+    // 21.09.2026 (E-202)
+    ziel: ".ba-kapsel",
+    titel: "Auf jeder Karte: die Boni-Ampel.",
+    text: "FIAONs eigene Einschätzung aus Adresse, Einkommen, Ausgaben, Schulden und SCHUFA — je bis 20 Punkte, zusammen 100. "
+      + "Grün = Gute Lage, Gelb = Machbar, Rot = Erst aufräumen. Antippen klappt die fünf Teile mit ihrer Herkunft auf: "
+      + "Kontoauszug, SCHUFA, Antrag oder Annahme.",
+    tipp: "Belege schlagen Angaben: Der ausgewertete Kontoauszug zählt vor dem getippten Einkommen, die gelesene Auskunft vor der Schulden-Angabe. „geschätzt“ heißt: Es liegt noch kaum etwas vor.",
   },
   {
     ziel: ".tk-reiter",

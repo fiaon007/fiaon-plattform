@@ -126,6 +126,7 @@ import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
+import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
@@ -2390,6 +2391,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                   title={akt ? `Paket ${akt.vollstaendig.paketBezahlt ? "✓" : "–"} · SCHUFA ${akt.vollstaendig.schufaBezahlt ? "✓" : "–"} · Kontoauszug ${akt.vollstaendig.kontoauszug ? "✓" : "–"} · Ausweis ${akt.vollstaendig.ausweis ? "✓" : "–"}` : undefined}>
               Karte: {kartenText}
             </span>
+            {/* E-202: die Boni-Ampel — ein Tipp zeigt die fünf Teile (Adresse, Einkommen, Ausgaben, Schulden, SCHUFA). */}
+            <BoniAmpelAkte personId={k.personId} name={k.name} />
             {k.mandatSeit && <span className="pi-marke">Mandat seit {dtag(k.mandatSeit)}</span>}
             {termin && <span className="pi-marke">Termin {terminText(k.terminAm!)}</span>}
             {k.termin && !termin && <span className="pi-marke">{terminText(k.termin.beginn)} · {k.termin.art}</span>}

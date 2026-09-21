@@ -25,6 +25,7 @@
 
 import { BANK } from "./fiaon-bank";
 import { STUFEN } from "./fiaon-kundenstatus";
+import type { BoniAmpel } from "./fiaon-boni-ampel";
 
 export type KarteiGruppe = "alle" | "A" | "B" | "C" | "rate" | "storniert";
 
@@ -133,6 +134,8 @@ export interface KarteiKarte {
   storno: { am: string; grund: string | null; durch: string | null } | null;
   /** Justins nächster offener Rückruf bei diesem Menschen — ISO. */
   rueckrufAm: string | null;
+  /** E-202: die Boni-Ampel (shared/fiaon-boni-ampel.ts). */
+  ampel: BoniAmpel;
 }
 
 // ── Formate ─────────────────────────────────────────────────────────────────

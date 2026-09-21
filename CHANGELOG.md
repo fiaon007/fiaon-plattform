@@ -5,6 +5,39 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (abends) — Boni-Ampel: jeder Kunde hat seine Einschätzung (E-202)
+
+**Was geändert wurde:**
+
+- **Eine Ampel je Kunde** — FIAONs eigene Einschätzung aus fünf Teilen mit je bis zu 20 Punkten: Adresse, Einkommen,
+  Ausgaben, Schulden, SCHUFA. Grün „Gute Lage“ (ab 68), Gelb „Machbar“ (ab 48), Rot „Erst aufräumen“. Aufgeklappt zeigt
+  jeder Teil seine Herkunft: aus dem Kontoauszug, aus der SCHUFA, aus dem Antrag — oder „Annahme“, wenn nichts vorliegt.
+- **Belege schlagen Angaben:** Das Gehalt aus dem ausgewerteten Kontoauszug zählt vor dem getippten Einkommen, die offene
+  Summe aus der gelesenen Auskunft vor der Schulden-Angabe. Nur fertig ausgewertete Kontoauszüge und Auskünfte zählen.
+- **Harte Befunde deckeln:** harte SCHUFA-Einträge, mehr Ausgaben als Einnahmen (nur belegt), zwei und mehr
+  Rücklastschriften, über 15.000 € Schulden, unter 600 € Einkommen. Einer verhindert Grün, zwei machen Rot — der Grund
+  steht dabei. Steht höchstens ein Teil auf Angaben, trägt die Ampel „geschätzt“.
+- **Wo sie steht:** auf jeder Karte der Telefonkartei (aufklappbar) und im Kopf jeder Akte der Mitarbeiter (Fenster mit den
+  fünf Teilen). Nirgends im Kundenbereich, in keiner Mail und keiner WhatsApp an Kunden.
+- **Telefonkartei schneller:** Die Liste wählt jetzt zuerst die Seite (25 Karten) und schlägt erst dann Bestellung, Raten,
+  Kontakt, Termine und Ampel nach — „Alle“ 50 ms statt 278 ms (mit Ampel wären es sonst 502 ms). Gleiche Karten, gleiche
+  Reihenfolge (auf echten Daten Zeile für Zeile verglichen).
+- **Team-Update** mit dem Weg „Zahlung = Antrag = Karte“ aus Justins Plan; Rundgänge Pipeline und Telefonkartei ergänzt.
+
+**Verteilung am 21.09.2026 (5.628 echte Kunden):** 42 % Grün, 57 % Gelb, 27 Rot. Die C-Leads stehen fast alle auf Gelb
+„geschätzt“ — zu ihnen liegt noch nichts vor. Ohne die Deckelregel gab es kein einziges Rot.
+
+**Warum:** Justin am 21.09.2026: „Füge bei JEDEM Kunden ein Ampel-System ein (bewertet die gesamte Bonität, d.h. die
+Adresse, Einkommen, Ausgaben, Schulden, SCHUFA selbst — so quasi unser eigenes BONI-Score-Verhältnis) … JEDER Kunde soll
+eine Ampel haben (überwiegend positiv!).“ Die Ampel ist keine Kreditentscheidung und geht an niemanden außerhalb des
+Hauses; vor jeder Übertragung an eine Bank sind Art. 22 DSGVO und § 31 BDSG zu klären.
+
+**Wo zu finden:** `shared/fiaon-boni-ampel.ts` (die eine Rechnung), `server/lib/fiaon-boni-ampel.ts` (Datenbeschaffung),
+`GET /api/fiaon/agent/kunden/:personId/boni-ampel` (requireAgent + darfAnKunde), `client/src/components/BoniAmpel.tsx`,
+`client/src/styles/boni-ampel.css`; Prüfstand `scripts/pruef-boni-ampel.ts` (72 Prüfungen).
+
+---
+
 ## 21.09.2026 (abends) — Telefonkartei nach Justins erstem Test
 
 **Was geändert wurde:**

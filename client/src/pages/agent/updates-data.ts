@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-21-kontoauszug-ehrlich",
+    date: "2026-09-21",
+    category: "Behoben",
+    title: "Kontoauszug: Umbuchungen vom eigenen Konto zählen nicht mehr als Einkommen, Inkasso steht als Inkasso",
+    summary:
+      "Die Auswertung hat Geld, das der Kunde sich selbst von einem anderen Konto überweist, als Einnahme gezählt — bei einem Kunden "
+      + "wurde daraus „285,93 € Gehalt“. Außerdem standen Inkassofirmen als „Kreditrate“ und Erstattungen als Ausgaben. Das ist behoben, "
+      + "und alle fertigen Auswertungen sind mit den neuen Regeln nachgerechnet — ohne neuen Upload.",
+    changes: [
+      "Umbuchungen zwischen eigenen Konten (Aufladung, „Zahlung von <eigener Name>“, Übertrag) sind weder Einnahme noch Ausgabe. Sie stehen extra als „Umbuchungen eigenes Konto — nicht mitgezählt“.",
+      "Kommt mehr als die Hälfte der Eingänge vom eigenen Konto, ist der Auszug ein Nebenkonto: Dann zählt er nicht als Einkommensbeleg, und oben steht „Für das Einkommen fehlt der Auszug des Gehaltskontos“.",
+      "Zahlungen an Inkassofirmen (PRA Group, Axactor, Intrum, Lowell, EOS …) stehen als Inkasso, nicht als Kreditrate. Ab zwei solchen Zahlungen hält die Boni-Ampel das als harten Befund fest.",
+      "Ein Einkommen unter 600 €, das weit unter der Angabe im Antrag liegt, gilt als nicht plausibel und wird nicht mehr als Beleg gezählt.",
+      "Echte Gehälter, Renten und Kassenleistungen bleiben Einkommen — auch wenn der Name des Kunden im Verwendungszweck steht.",
+    ],
+    howto: [
+      "Steht in der Akte „Nebenkonto“: Den Kunden um die Kontoauszüge seines Gehaltskontos bitten (letzte 6 Monate) — erst dann ist sein Einkommen belegt.",
+      "Siehst du Inkasso-Zahlungen: Im Gespräch offen ansprechen, das ist genau die Arbeit von FIAON — erst aufräumen, dann Antrag.",
+      "Wirkt eine Zahl trotzdem falsch: „Neu auswerten“ in der Akte drücken und der Leitung Bescheid geben.",
+    ],
+  },
+  {
     id: "2026-09-21-karte-ab-erster-rate",
     date: "2026-09-21",
     category: "Neu",

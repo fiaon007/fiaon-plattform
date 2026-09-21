@@ -114,6 +114,27 @@ abschnitt("Harte Befunde deckeln");
   ok(eineRl.befunde.length === 0, "Eine einzelne Rücklastschrift ist kein harter Befund");
 }
 
+abschnitt("Kontoauszug ehrlich (E-207)");
+{
+  // Ein Kunde, 21.09.2026: 286 € „Gehalt" aus eigenen Aufladungen, Antrag 3.000 €, selbstständig.
+  const dogan = boniAmpel(mit({
+    beschaeftigung: "Selbstständig", beschaeftigtSeit: "> 5 Jahre", einkommenEuro: 3000, mieteEuro: 900, ausgabenEuro: 600,
+    konto: { gehaltCents: 28593, einnahmenCents: 185615, ausgabenCents: 181522, tage: 30, dispoGenutzt: false, ruecklastschriften: 0, nebenkonto: true, inkasso: 4 },
+  }));
+  const ek = dogan.teile.find((t) => t.key === "einkommen")!;
+  ok(ek.quelle === "antrag" && ek.text.includes("3.000 €") && ek.text.includes("Nebenkonto"), `Nebenkonto: Einkommen aus dem Antrag, mit Hinweis (${ek.text})`);
+  ok(!dogan.befunde.includes("unter 600 € Einkommen im Monat"), "Kein falscher Befund „unter 600 €“ aus einem Nebenkonto");
+  ok(dogan.teile.find((t) => t.key === "ausgaben")!.quelle === "antrag", "Nebenkonto: Ausgaben-Vergleich aus dem Antrag, nicht aus dem schiefen Auszug");
+  ok(dogan.befunde.includes("Zahlungen an Inkasso im Kontoauszug") && dogan.farbe !== "gruen", `Inkasso im Auszug ist ein harter Befund (${dogan.farbe}, ${dogan.befunde.join(" | ")})`);
+  const eineInkasso = boniAmpel(mit({ konto: { gehaltCents: 240000, einnahmenCents: 1440000, ausgabenCents: 900000, tage: 180, dispoGenutzt: false, ruecklastschriften: 0, inkasso: 1 } }));
+  ok(!eineInkasso.befunde.includes("Zahlungen an Inkasso im Kontoauszug"), "Eine einzelne Inkasso-Zahlung ist noch kein harter Befund");
+  const unplausibel = boniAmpel(mit({ einkommenEuro: 2400, konto: { gehaltCents: 30000, einnahmenCents: 900000, ausgabenCents: 700000, tage: 180, dispoGenutzt: false, ruecklastschriften: 0 } }));
+  const ek2 = unplausibel.teile.find((t) => t.key === "einkommen")!;
+  ok(ek2.quelle === "antrag" && ek2.text.includes("nicht plausibel"), `300 € „Gehalt“ bei 2.400 € Angabe → Angabe zählt (${ek2.text})`);
+  const plausibel = boniAmpel(mit({ einkommenEuro: 2400, konto: { gehaltCents: 210000, einnahmenCents: 1300000, ausgabenCents: 1000000, tage: 180, dispoGenutzt: false, ruecklastschriften: 0 } }));
+  ok(plausibel.teile.find((t) => t.key === "einkommen")!.quelle === "kontoauszug", "Plausibles Auszug-Einkommen bleibt der Beleg");
+}
+
 abschnitt("Beschäftigt seit");
 {
   const heute = new Date(2026, 8, 21);
@@ -125,6 +146,11 @@ abschnitt("Beschäftigt seit");
   ok(monateSeit("gestern", heute) === null && monateSeit("", heute) === null && monateSeit(null, heute) === null, "Unlesbares → null");
   ok(monateSeit("1900", heute) === null && monateSeit("2031-01", heute) === null && monateSeit("2020-13", heute) === null, "Unmögliches → null");
   ok(monateSeit("2026-12", heute) === 0, "Zukunft im laufenden Jahr → 0, nie negativ");
+  // Die Formen aus dem Antrag (gemessen 21.09.: „> 5 Jahre" 967×, „1–3 Jahre" 453× …) — untere Grenze.
+  ok(monateSeit("> 5 Jahre", heute) === 60 && monateSeit("1–3 Jahre", heute) === 12 && monateSeit("3–5 Jahre", heute) === 36, "Spannen in Jahren");
+  ok(monateSeit("< 6 Monate", heute) === 0 && monateSeit("6–12 Monate", heute) === 6, "Spannen in Monaten");
+  ok(monateSeit("> 5 yıl", heute) === 60 && monateSeit("1–3 years", heute) === 12 && monateSeit("6–12 miesięcy", heute) === 6 && monateSeit("< 6 months", heute) === 0, "Übersetzte Spannen");
+  ok(monateSeit("2020-01-01", heute) === 80, "Datum weiter lesbar");
 
   const frisch = boniAmpel(mit({ beschaeftigtSeit: `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, "0")}` }));
   const lang = boniAmpel(TYPISCH);

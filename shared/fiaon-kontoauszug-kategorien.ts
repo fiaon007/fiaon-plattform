@@ -13,7 +13,11 @@
 //            Auszug nur einmal steht
 //   warnung  zählt für die Bonität (Inkasso, Rücklastschrift, Glücksspiel, Kredit)
 // ═══════════════════════════════════════════════════════════════════════════
-export interface Kategorie { label: string; seite: "ein" | "aus"; gruppe: string; fix?: boolean; warnung?: string }
+export interface Kategorie {
+  label: string; seite: "ein" | "aus"; gruppe: string; fix?: boolean; warnung?: string;
+  /** Zählt weder als Einnahme noch als Ausgabe — Geld zwischen eigenen Konten (E-207). */
+  neutral?: boolean;
+}
 
 export const KATEGORIEN: Record<string, Kategorie> = {
   gehalt:            { label: "Gehalt / Lohn",          seite: "ein", gruppe: "Einkommen" },
@@ -22,6 +26,10 @@ export const KATEGORIEN: Record<string, Kategorie> = {
   erstattung:        { label: "Erstattung",             seite: "ein", gruppe: "Sonstige Einnahmen" },
   ueberweisung_ein:  { label: "Überweisung erhalten",   seite: "ein", gruppe: "Sonstige Einnahmen" },
   sonstige_einnahme: { label: "Sonstige Einnahme",      seite: "ein", gruppe: "Sonstige Einnahmen" },
+  // 21.09.2026 (E-207): Aufladungen vom eigenen Konto sind kein Einkommen — sie
+  // zählten als Einnahme und einmal als „Sozialleistung" (285,93 € „Gehalt").
+  eigenes_konto:     { label: "Eigenes Konto (Umbuchung)", seite: "ein", gruppe: "Umbuchungen", neutral: true },
+  bareinzahlung:     { label: "Bareinzahlung",          seite: "ein", gruppe: "Sonstige Einnahmen" },
   miete:             { label: "Miete / Wohnen",         seite: "aus", gruppe: "Wohnen", fix: true },
   energie:           { label: "Strom / Gas / Wasser",   seite: "aus", gruppe: "Energie", fix: true },
   versicherung:      { label: "Versicherung",           seite: "aus", gruppe: "Versicherung", fix: true },

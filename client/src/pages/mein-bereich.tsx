@@ -910,6 +910,14 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
             <article className="mb-kachel" key={String(t)}><p style={{ margin: 0, fontSize: 11.5, color: "var(--text-still)" }}>{t as string}</p><p className="zahl" style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 700, color: c as string }}>{v == null ? "—" : eurCents(v as number)}</p></article>
           ))}
         </div>
+        {/* 21.09.2026 (E-207): Umbuchungen zwischen eigenen Konten sind weder Einnahme noch Ausgabe. */}
+        {(Number(a.eigenEinCents || 0) > 0 || Number(a.eigenAusCents || 0) > 0) && (
+          <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-leise)" }}>
+            {a.nebenkonto
+              ? `Die Eingänge auf diesem Konto kommen überwiegend von Ihrem eigenen Konto (${eurCents(Number(a.eigenEinCents || 0))}). Für Ihr Einkommen brauchen wir den Auszug Ihres Gehaltskontos — Sie können ihn unter „Unterlagen“ hochladen.`
+              : `Umbuchungen zwischen Ihren eigenen Konten (${eurCents(Number(a.eigenEinCents || 0) + Number(a.eigenAusCents || 0))}) sind nicht mitgezählt.`}
+          </p>
+        )}
         {monate.length > 1 && (
           <div style={{ marginTop: 14, overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
@@ -964,10 +972,11 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
           ))}
         </div>
       )}
-      {a.warnungen?.length > 0 && (
+      {/* Der Nebenkonto-Hinweis steht schon unter den Kacheln (E-207). */}
+      {a.warnungen?.some((w: any) => w.art !== "nebenkonto") && (
         <div className="mb-karte">
           <h4 style={{ fontSize: 15, marginBottom: 8 }}>Was für Ihre Bonität zählt</h4>
-          {a.warnungen.map((w: any, i: number) => (
+          {a.warnungen.filter((w: any) => w.art !== "nebenkonto").map((w: any, i: number) => (
             <p key={i} style={{ margin: "6px 0 0", fontSize: 13.5, color: ton(w.art) }}>{w.text}{w.betragCents != null && w.art !== "dispo" && w.art !== "kredit" ? ` (${eurCents(w.betragCents)})` : ""}</p>
           ))}
         </div>

@@ -50,6 +50,7 @@ import { pdfTextUndZeilen } from "./fiaon-pdf-lesen";
 import { ocrLesen, ocrZeilen } from "./fiaon-ocr";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { KATEGORIEN, KATEGORIE_SCHLUESSEL, istFest } from "@shared/fiaon-kontoauszug-kategorien";
+import { buchungenBereinigen, nebenkontoAus, EINKOMMEN_KATEGORIEN, type PersonName } from "@shared/fiaon-kontoauszug-bereinigen";
 
 /** So viel Text geht höchstens ans Modell — ein Dreimonatsauszug liegt weit darunter. */
 const TEXT_DECKEL = 400_000;
@@ -105,11 +106,19 @@ export async function ensureAnalyseTabelle(): Promise<void> {
   // Die Tabelle steht seit dem 22.08. in Produktion; CREATE TABLE IF NOT EXISTS
   // ergänzt keine Spalte. Hier kommen die Buchungen, die Monatsbilanz, die
   // Cent-Prüfung, die Bank und der Anfangssaldo dazu.
-  for (const sp of ["buchungen JSONB", "monate JSONB", "pruefung JSONB", "bank VARCHAR", "saldo_anfang_cents BIGINT"]) {
-    await sqlPool.unsafe(`ALTER TABLE fiaon_kontoauszug_analysen ADD COLUMN IF NOT EXISTS ${sp}`).catch(() => {});
+  // 21.09.2026 (E-207): Umbuchungen, Nebenkonto, Inkasso und die Fassung der Auswertung.
+  // Scheitert eine Spalte, wird beim nächsten Aufruf erneut geprüft: Die Ampel in
+  // der Telefonkartei liest nebenkonto/inkasso_anzahl und bräche sonst ganz.
+  let alleDa = true;
+  for (const sp of ["buchungen JSONB", "monate JSONB", "pruefung JSONB", "bank VARCHAR", "saldo_anfang_cents BIGINT",
+                    "eigen_ein_cents BIGINT", "eigen_aus_cents BIGINT", "nebenkonto BOOLEAN", "inkasso_anzahl INT", "auswertung_version INT"]) {
+    await sqlPool.unsafe(`ALTER TABLE fiaon_kontoauszug_analysen ADD COLUMN IF NOT EXISTS ${sp}`).catch(() => { alleDa = false; });
   }
-  tabelleGeprueft = true;
+  tabelleGeprueft = alleDa;
 }
+
+/** Fassung der Rechnung — 2 = mit Bereinigung (eigenes Konto, Inkasso, Vorzeichen), E-207. */
+export const AUSWERTUNG_VERSION = 2;
 
 export interface Buchung {
   datum: string;
@@ -119,6 +128,8 @@ export interface Buchung {
   kategorie: string;
   wiederkehrend: boolean;
   saldoDanachCents: number | null;
+  /** Was die Bereinigung geändert hat („war: sozialleistung") — E-207. */
+  korrektur?: string;
 }
 
 export interface Fixkosten {
@@ -148,6 +159,11 @@ export interface Analyse {
   /** Die Cent-Prüfung: Anfangssaldo + Buchungen gegen Endsaldo. */
   pruefung: { stimmt: boolean | null; differenzCents: number | null; erfasst: number; zeilen: number; durchlaeufe: number; kette?: { geprueft: number; brueche: number; korrigiert?: number }; hinweis: string | null } | null;
   erstelltAm: string;
+  /** E-207: Umbuchungen zwischen eigenen Konten (nicht in Einnahmen/Ausgaben). */
+  eigenEinCents: number | null; eigenAusCents: number | null;
+  /** E-207: Eingänge überwiegend vom eigenen Konto — das Gehaltskonto fehlt. */
+  nebenkonto: boolean;
+  inkassoAnzahl: number;
 }
 
 /** JSONB kommt als Array — oder, aus einem frühen Lauf, als JSON-Text. Beides lesen. */
@@ -186,6 +202,10 @@ function zeile(r: any): Analyse {
     warnungen: liste(r.warnungen), merksaetze: liste(r.merksaetze),
     pruefung: objekt(r.pruefung),
     erstelltAm: r.created_at,
+    eigenEinCents: r.eigen_ein_cents == null ? null : Number(r.eigen_ein_cents),
+    eigenAusCents: r.eigen_aus_cents == null ? null : Number(r.eigen_aus_cents),
+    nebenkonto: r.nebenkonto === true,
+    inkassoAnzahl: Number(r.inkasso_anzahl || 0),
   };
 }
 
@@ -278,7 +298,10 @@ const BUCHUNG_ANWEISUNG = (zeitraumVon: string | null, zeitraumBis: string | nul
   "  kredit_rate; Inkasso/Mahnung/Forderungsmanagement/Gerichtsvollzieher = inkasso_mahnung; Rücklastschrift/Rückbuchung/",
   "  Lastschrift zurück = ruecklastschrift; Kontoführung/Entgelt/Zinsen/Sollzinsen = gebuehren; Tipico/bwin/Lotto/Casino =",
   "  gluecksspiel; Supermärkte = lebensmittel; Tanken/Bahn/Bus = mobilitaet (Kfz-Versicherung = versicherung);",
-  "  Apotheke/Arzt = gesundheit; Geldautomat/Bargeld = bargeld.",
+  "  Apotheke/Arzt = gesundheit; Geldautomat/Bargeld = bargeld; Bareinzahlung (Gutschrift) = bareinzahlung.",
+  "· Aufladung/Top-up, Umbuchung oder Übertrag vom EIGENEN Konto (Zahlung vom Kontoinhaber selbst) = eigenes_konto — das ist",
+  "  kein Einkommen und keine Sozialleistung. Inkassobüros und Forderungskäufer (PRA Group, Axactor, Intrum, Lowell, EOS, coeo,",
+  "  KSP, Creditreform, Pair Finance) = inkasso_mahnung, nie kredit_rate.",
   "· wiederkehrend = true bei allem, was regelmäßig kommt (Miete, Energie, Versicherung, Telefon, Abos, Raten, Gehalt, Rente,",
   "  Sozialleistung) — auch wenn es im Auszug nur einmal steht.",
   "· ERSTATTUNGEN sind Eingänge: Rückzahlung/Refund/Gutschrift eines Händlers (z. B. Temu, Amazon, Zalando) = POSITIV, Kategorie",
@@ -375,7 +398,11 @@ function fixkostenAus(buchungen: Buchung[], monateImAuszug: number): Fixkosten[]
   return aus.sort((a, b) => b.betragCents - a.betragCents);
 }
 
-function auswerten(buchungen: Buchung[], kopf: { saldoAnfang: number | null; saldoEnde: number | null; dispoLimit: number | null }) {
+export function auswerten(alleBuchungen: Buchung[], kopf: { saldoAnfang: number | null; saldoEnde: number | null; dispoLimit: number | null }) {
+  // E-207 (21.09.2026): Umbuchungen zwischen eigenen Konten sind weder Einnahme
+  // noch Ausgabe — sie zählten als Einnahmen (und einmal als „Gehalt").
+  const neben = nebenkontoAus(alleBuchungen);
+  const buchungen = alleBuchungen.filter((b) => !KATEGORIEN[b.kategorie]?.neutral);
   const ein = buchungen.filter((b) => b.betragCents > 0);
   const aus = buchungen.filter((b) => b.betragCents < 0);
   const einnahmen = ein.reduce((s, b) => s + b.betragCents, 0);
@@ -396,7 +423,7 @@ function auswerten(buchungen: Buchung[], kopf: { saldoAnfang: number | null; sal
   // Gehalt: das regelmäßige Einkommen je Monat, Median über die Monate mit Einkommen.
   const einkommenJeMonat = new Map<string, number>();
   for (const b of ein) {
-    if (!["gehalt", "rente", "sozialleistung"].includes(b.kategorie)) continue;
+    if (!EINKOMMEN_KATEGORIEN.has(b.kategorie)) continue;
     einkommenJeMonat.set(b.datum.slice(0, 7), (einkommenJeMonat.get(b.datum.slice(0, 7)) || 0) + b.betragCents);
   }
   const gehalt = einkommenJeMonat.size ? median(Array.from(einkommenJeMonat.values())) : null;
@@ -423,8 +450,12 @@ function auswerten(buchungen: Buchung[], kopf: { saldoAnfang: number | null; sal
   const dispoGenutzt = tiefst == null ? null : tiefst < 0;
 
   const warnungen: { art: string; text: string; betragCents: number | null }[] = [];
-  const ruecklastschriften = aus.filter((b) => b.kategorie === "ruecklastschrift").length;
+  // Beim Zahler erscheint die zurückgegebene Lastschrift als GUTSCHRIFT — beide Richtungen zählen (E-207).
+  const ruecklastschriften = buchungen.filter((b) => b.kategorie === "ruecklastschrift").length;
+  const inkassoAnzahl = aus.filter((b) => b.kategorie === "inkasso_mahnung").length;
   const dt = (iso: string) => iso.split("-").reverse().join(".");
+  // Kunden lesen diese Sätze — deutsches Zahlformat (285,93 €, nicht 285.93 €).
+  const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   for (const b of aus) {
     const w = KATEGORIEN[b.kategorie]?.warnung;
     if (!w || w === "kredit") continue;
@@ -433,12 +464,22 @@ function auswerten(buchungen: Buchung[], kopf: { saldoAnfang: number | null; sal
   }
   if (ruecklastschriften) warnungen.push({ art: "ruecklastschrift", text: `${ruecklastschriften} Rücklastschrift${ruecklastschriften === 1 ? "" : "en"} im Zeitraum — jede kostet Gebühren und fällt Banken auf.`, betragCents: null });
   const kredite = fixkosten.filter((f) => f.kategorie === KATEGORIEN.kredit_rate.label);
-  if (kredite.length) warnungen.push({ art: "kredit", text: `${kredite.length} laufende Kreditrate${kredite.length === 1 ? "" : "n"} (${kredite.map((k) => k.name).join(", ")}) — zusammen ${(kredite.reduce((s, k) => s + k.betragCents, 0) / 100).toFixed(2)} € im Monat.`, betragCents: kredite.reduce((s, k) => s + k.betragCents, 0) });
-  if (dispoGenutzt) warnungen.push({ art: "dispo", text: `Das Konto war im Minus — tiefster Stand ${(tiefst! / 100).toFixed(2)} €${kopf.dispoLimit ? ` bei ${(kopf.dispoLimit / 100).toFixed(2)} € Dispo` : ""}.`, betragCents: tiefst });
+  if (kredite.length) warnungen.push({ art: "kredit", text: `${kredite.length} laufende Kreditrate${kredite.length === 1 ? "" : "n"} (${kredite.map((k) => k.name).join(", ")}) — zusammen ${eur(kredite.reduce((s, k) => s + k.betragCents, 0))} im Monat.`, betragCents: kredite.reduce((s, k) => s + k.betragCents, 0) });
+  if (dispoGenutzt) warnungen.push({ art: "dispo", text: `Das Konto war im Minus — tiefster Stand ${eur(tiefst!)}${kopf.dispoLimit ? ` bei ${eur(kopf.dispoLimit)} Dispo` : ""}.`, betragCents: tiefst });
   const gebuehren = aus.filter((b) => b.kategorie === "gebuehren").reduce((s, b) => s - b.betragCents, 0);
-  if (gebuehren >= 1500) warnungen.push({ art: "sonstiges", text: `${(gebuehren / 100).toFixed(2)} € Kontogebühren und Zinsen im Zeitraum.`, betragCents: gebuehren });
+  if (gebuehren >= 1500) warnungen.push({ art: "sonstiges", text: `${eur(gebuehren)} Kontogebühren und Zinsen im Zeitraum.`, betragCents: gebuehren });
+  if (neben.nebenkonto) {
+    warnungen.unshift({
+      art: "nebenkonto",
+      text: `Die Eingänge kommen überwiegend vom eigenen Konto (${eur(neben.eigenEin)} Umbuchungen) — das ist ein Nebenkonto. Für das Einkommen fehlt der Auszug des Gehaltskontos.`,
+      betragCents: neben.eigenEin,
+    });
+  }
 
-  return { einnahmen, ausgaben, gehalt, monate, fixkosten, kategorien, tiefst, dispoGenutzt, ruecklastschriften, warnungen };
+  return {
+    einnahmen, ausgaben, gehalt, monate, fixkosten, kategorien, tiefst, dispoGenutzt, ruecklastschriften, warnungen,
+    eigenEin: neben.eigenEin, eigenAus: neben.eigenAus, nebenkonto: neben.nebenkonto, inkassoAnzahl,
+  };
 }
 
 /**
@@ -586,7 +627,7 @@ export interface Probe {
  * Analysieren` ruft genau diese Funktion und speichert danach — es gibt keinen
  * zweiten Rechenweg.
  */
-export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
+export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorname: null, nachname: null }): Promise<Probe> {
   const leer = (status: "unlesbar", fehler: string, akte: string, seiten: number, modell: string | null = null): Probe =>
     ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [] });
 
@@ -724,7 +765,10 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
       : stimmt === false ? (kette.brueche.length ? `An ${kette.brueche.length} Stelle${kette.brueche.length === 1 ? "" : "n"} passt die Buchungsfolge nicht zum gedruckten Kontostand${diff != null ? `; Differenz zum Endsaldo ${euroDe(Math.abs(diff))}` : ""}.` : `Zwischen Anfangssaldo, Buchungen und Endsaldo bleibt eine Differenz von ${euroDe(Math.abs(diff!))}.`)
       : "Der Auszug nennt keinen Anfangs- oder Endsaldo — die Summe konnte nicht gegengerechnet werden.",
   };
-  // ── 4 · Rechnen ───────────────────────────────────────────────────────
+  // ── 4 · Bereinigen (E-207): eigenes Konto, Inkasso, Vorzeichen — mit dem
+  //    Namen aus der Akte, auf dem Server. Beträge bleiben, die Prüfung auch.
+  buchungen = buchungenBereinigen(buchungen, person);
+  // ── 5 · Rechnen ───────────────────────────────────────────────────────
   const z = auswerten(buchungen, { saldoAnfang, saldoEnde, dispoLimit: kopf.dispo_limit_cents == null ? null : Math.round(Number(kopf.dispo_limit_cents)) });
 
   // ── 5 · Merksätze aus den gerechneten Zahlen ──────────────────────────
@@ -733,7 +777,8 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
     const lage = [
       `Zeitraum ${zeitraumVon || "?"} bis ${zeitraumBis || "?"}, ${z.monate.length} Monat(e).`,
       `Einnahmen ${(z.einnahmen / 100).toFixed(2)} €, Ausgaben ${(z.ausgaben / 100).toFixed(2)} €, bleibt ${((z.einnahmen - z.ausgaben) / 100).toFixed(2)} €.`,
-      z.gehalt != null ? `Regelmäßiges Einkommen etwa ${(z.gehalt / 100).toFixed(2)} € im Monat.` : "Kein regelmäßiges Einkommen erkennbar.",
+      z.nebenkonto ? `Die Eingänge kommen überwiegend vom eigenen Konto (Umbuchungen ${(z.eigenEin / 100).toFixed(2)} €) — kein Einkommen auf diesem Konto; das Gehaltskonto fehlt.`
+        : z.gehalt != null ? `Regelmäßiges Einkommen etwa ${(z.gehalt / 100).toFixed(2)} € im Monat.` : "Kein regelmäßiges Einkommen erkennbar.",
       `Feste Zahlungen: ${z.fixkosten.slice(0, 8).map((f) => `${f.name} ${(f.betragCents / 100).toFixed(2)} € ${f.rhythmus}`).join("; ") || "keine erkannt"}.`,
       `Größte Ausgabenbereiche: ${z.kategorien.slice(0, 4).map((k) => `${k.name} ${Math.round(k.anteil * 100)} %`).join(", ") || "—"}.`,
       z.warnungen.length ? `Auffällig: ${z.warnungen.map((w) => w.text).join(" ")}` : "Nichts Auffälliges für die Bonität.",
@@ -756,6 +801,78 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// NEU RECHNEN OHNE MODELL (21.09.2026, E-207)
+//
+// Die gelesenen Buchungen stehen je Analyse als JSONB da. Die Bereinigung
+// (eigenes Konto, Inkasso, Vorzeichen) braucht kein Modell — also werden alle
+// fertigen Analysen der Fassung 1 aus ihren Buchungen neu gerechnet. Die
+// Merksätze entstehen dabei aus den korrigierten Zahlen neu: Die alten nannten
+// teils ein falsches Einkommen (ein Revolut-Kunde: „regelmäßiges Einkommen 285,93 €").
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Merksätze aus den gerechneten Zahlen — ohne Modell, Sie-Form, ohne Zusage. */
+export function merksaetzeAusZahlen(z: ReturnType<typeof auswerten>): string[] {
+  const e = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  const s: string[] = [];
+  if (z.nebenkonto) s.push(`Die Eingänge auf diesem Konto kommen überwiegend von Ihrem eigenen Konto (${e(z.eigenEin)}). Für Ihr Einkommen brauchen wir den Auszug Ihres Gehaltskontos.`);
+  else if (z.gehalt != null) s.push(`Ihr regelmäßiges Einkommen liegt bei etwa ${e(z.gehalt)} im Monat.`);
+  s.push(`Im Zeitraum kamen ${e(z.einnahmen)} herein und ${e(z.ausgaben)} gingen heraus${z.eigenEin || z.eigenAus ? " — Umbuchungen zwischen Ihren eigenen Konten sind nicht mitgezählt" : ""}.`);
+  if (z.kategorien[0]) s.push(`Der größte Ausgabenblock ist ${z.kategorien[0].name} mit ${e(z.kategorien[0].betragCents)}.`);
+  if (z.fixkosten.length) s.push(`${z.fixkosten.length} feste Zahlungen kehren regelmäßig wieder — zusammen ${e(z.fixkosten.reduce((x, f) => x + f.betragCents, 0))}.`);
+  return s.slice(0, 4);
+}
+
+export async function analysenNeuRechnen(grenze = 300): Promise<{ gerechnet: number; offen: number }> {
+  await ensureAnalyseTabelle();
+  const zeilen = (await sqlPool`
+    SELECT k.id, k.buchungen, k.saldo_anfang_cents, k.saldo_ende_cents, k.merksaetze,
+           COALESCE(NULLIF(TRIM(p.first_name), ''), a.first_name) AS vorname,
+           COALESCE(NULLIF(TRIM(p.last_name), ''), a.last_name) AS nachname
+      FROM fiaon_kontoauszug_analysen k
+      LEFT JOIN fiaon_applications a ON a.ref = k.ref
+      LEFT JOIN fiaon_persons p ON p.id = COALESCE(k.person_id, a.person_id)
+     WHERE k.status = 'fertig' AND k.buchungen IS NOT NULL AND COALESCE(k.auswertung_version, 1) < ${AUSWERTUNG_VERSION}
+     ORDER BY k.id LIMIT ${Math.max(1, Math.min(1000, grenze))}`) as any[];
+  let gerechnet = 0;
+  for (const k of zeilen) {
+    const roh = liste(k.buchungen) as Buchung[];
+    if (!roh.length) {
+      await sqlPool`UPDATE fiaon_kontoauszug_analysen SET auswertung_version = ${AUSWERTUNG_VERSION} WHERE id = ${k.id}`;
+      continue;
+    }
+    const bereinigt = buchungenBereinigen(roh, { vorname: k.vorname ?? null, nachname: k.nachname ?? null });
+    const z = auswerten(bereinigt, {
+      saldoAnfang: k.saldo_anfang_cents == null ? null : Number(k.saldo_anfang_cents),
+      saldoEnde: k.saldo_ende_cents == null ? null : Number(k.saldo_ende_cents),
+      dispoLimit: null,
+    });
+    // Hat die Bereinigung nichts geändert, beruhen die Merksätze des Modells auf
+    // denselben Zahlen — sie bleiben. Sonst entstehen sie neu aus den Zahlen.
+    const alteMerksaetze = liste(k.merksaetze);
+    const unveraendert = !bereinigt.some((b) => b.korrektur) && !z.nebenkonto && alteMerksaetze.length > 0;
+    const felder: Record<string, any> = {
+      einnahmen_cents: z.einnahmen, ausgaben_cents: z.ausgaben, gehalt_cents: z.gehalt,
+      dispo_genutzt: z.dispoGenutzt, dispo_tiefst_cents: z.tiefst, ruecklastschriften: z.ruecklastschriften,
+      buchungen: bereinigt, monate: z.monate, fixkosten: z.fixkosten, kategorien: z.kategorien,
+      warnungen: z.warnungen, merksaetze: unveraendert ? alteMerksaetze : merksaetzeAusZahlen(z),
+      eigen_ein_cents: z.eigenEin, eigen_aus_cents: z.eigenAus, nebenkonto: z.nebenkonto,
+      inkasso_anzahl: z.inkassoAnzahl, auswertung_version: AUSWERTUNG_VERSION,
+    };
+    const JSONB = new Set(["fixkosten", "kategorien", "warnungen", "merksaetze", "buchungen", "monate"]);
+    const cols = Object.keys(felder);
+    const sets = cols.map((c, i) => `${c} = $${i + 1}${JSONB.has(c) ? "::jsonb" : ""}`).join(", ");
+    await sqlPool.unsafe(`UPDATE fiaon_kontoauszug_analysen SET ${sets}, updated_at = NOW() WHERE id = $${cols.length + 1}`,
+      [...cols.map((c) => felder[c]), k.id]);
+    gerechnet++;
+  }
+  const [rest] = (await sqlPool`
+    SELECT count(*)::int AS n FROM fiaon_kontoauszug_analysen
+     WHERE status = 'fertig' AND buchungen IS NOT NULL AND COALESCE(auswertung_version, 1) < ${AUSWERTUNG_VERSION}`) as any[];
+  if (gerechnet) console.log(`[ANALYSE] Neu gerechnet (Fassung ${AUSWERTUNG_VERSION}): ${gerechnet}, offen ${rest?.n ?? 0}`);
+  return { gerechnet, offen: Number(rest?.n ?? 0) };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DER LAUF
 // ═══════════════════════════════════════════════════════════════════════════
 /**
@@ -770,8 +887,11 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
   const { dokumentTraeger } = await import("./fiaon-dokumente");
   ref = (await dokumentTraeger({ ref }, "kontoauszug")) ?? ref;
   const [a] = (await sqlPool`
-    SELECT a.ref, a.person_id, a.bank_statement_pdf, a.documents_uploaded_at FROM fiaon_applications a
-    WHERE a.ref = ${ref} AND a.gdpr_deleted_at IS NULL LIMIT 1`) as any[];
+    SELECT a.ref, a.person_id, a.bank_statement_pdf, a.documents_uploaded_at,
+           COALESCE(NULLIF(TRIM(p.first_name), ''), a.first_name) AS vorname,
+           COALESCE(NULLIF(TRIM(p.last_name), ''), a.last_name) AS nachname
+      FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE a.ref = ${ref} AND a.gdpr_deleted_at IS NULL LIMIT 1`) as any[];
   if (!a?.bank_statement_pdf) return null;
   if (!opts.erzwingen) {
     const [j] = (await sqlPool`SELECT id, status, created_at, fehler, buchungen FROM fiaon_kontoauszug_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1`) as any[];
@@ -800,7 +920,7 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
 
   try {
     const buf: Buffer = Buffer.isBuffer(a.bank_statement_pdf) ? a.bank_statement_pdf : Buffer.from(a.bank_statement_pdf);
-    const pr = await kontoauszugProbe(buf);
+    const pr = await kontoauszugProbe(buf, { vorname: a.vorname ?? null, nachname: a.nachname ?? null });
     if (pr.status !== "fertig" || !pr.z) {
       await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler });
       if (pr.akte) await akte(pr.akte);
@@ -822,6 +942,8 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
       buchungen, monate: z.monate, pruefung,
       fixkosten: z.fixkosten, kategorien: z.kategorien,
       warnungen: z.warnungen, merksaetze,
+      eigen_ein_cents: z.eigenEin, eigen_aus_cents: z.eigenAus, nebenkonto: z.nebenkonto,
+      inkasso_anzahl: z.inkassoAnzahl, auswertung_version: AUSWERTUNG_VERSION,
     });
     await akte(`Kontoauszug ausgewertet (${pr.bank || "Bank unbekannt"}, ${pr.zeitraumVon || "?"} bis ${pr.zeitraumBis || "?"}, ${pr.seiten} Seiten): `
       + `${buchungen.length} Buchungen, Einnahmen ${(z.einnahmen / 100).toFixed(2)} €, Ausgaben ${(z.ausgaben / 100).toFixed(2)} €, `

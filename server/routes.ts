@@ -438,6 +438,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('karten_einladungen', async () => await (await import('./lib/fiaon-konto-karte')).einladungenAutomatisch(40), 5 * 60 * 1000, { beimStartNach: 150_000 });
   });
+  // 🧾 Kontoauszug (21.09.2026, E-207): alte Analysen aus ihren Buchungen neu rechnen — eigenes Konto, Inkasso,
+  //    Vorzeichen; ohne Modell, nur Zeilen der Fassung 1. Nach dem ersten Lauf ist nichts mehr offen.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('kontoauszug_neu_rechnen', async () => await (await import('./lib/fiaon-kontoauszug-analyse')).analysenNeuRechnen(300), 6 * 60 * 60 * 1000, { beimStartNach: 90_000 });
+  });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });
   });

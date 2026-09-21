@@ -188,6 +188,8 @@ function gruppenBedingung(gruppe: KarteiGruppe, RATE_FAELLIG_SQL: string) {
 
 async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<any[]> {
   await karteiTabellen();
+  const { boniSpaltenSicher } = await import("./fiaon-boni-ampel");
+  await boniSpaltenSicher();
   const { RATE_FAELLIG_SQL, EREIGNIS_SQL } = await vertriebSql();
   // SUCHE FINDET JEDEN (21.09.2026, Justin: „Wenn ich ‚Justin Schwarzott' suche,
   // kommt nichts — mich muss man aber finden."). Seine Datensätze sind als

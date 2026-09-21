@@ -66,6 +66,10 @@ export interface BoniEingang {
     tage: number | null;
     dispoGenutzt: boolean;
     ruecklastschriften: number;
+    /** E-207: Eingänge überwiegend vom eigenen Konto — das Gehaltskonto fehlt. */
+    nebenkonto?: boolean;
+    /** E-207: Zahlungen an Inkasso/Forderungskäufer im Auszug. */
+    inkasso?: number;
   } | null;
   /** Gelesene Bonitätsauskunft (nur Status „fertig"). */
   schufa: {
@@ -139,6 +143,19 @@ function istDach(land: string | null): boolean {
 export function monateSeit(wert: string | null, heute: Date = new Date()): number | null {
   const s = String(wert ?? "").trim();
   if (!s) return null;
+  // Der Antrag fragt nach Spannen („> 5 Jahre", „1–3 Jahre", „< 6 Monate",
+  // „6–12 Monate") — auch übersetzt („> 5 yıl", „1–3 years"). Gezählt wird die
+  // UNTERE Grenze (21.09.2026: vorher las die Ampel keine davon).
+  const spanne = s.match(/^\s*([<>]|über|unter|mehr als|weniger als)?\s*(\d{1,2})(?:\s*[–-]\s*(\d{1,2}))?\s*([^\d\s][^\d]*)$/i);
+  if (spanne) {
+    const zeichen = (spanne[1] || "").toLowerCase();
+    const von = Number(spanne[2]);
+    const einheit = spanne[4].toLowerCase();
+    const monatWort = /^(monat|month|mjesec|luni|lun|hónap|honap|miesi|mes|mois|ay\b|ay$|мес)/i.test(einheit);
+    const faktor = monatWort ? 1 : 12;
+    if (zeichen === "<" || zeichen === "unter" || zeichen === "weniger als") return 0;
+    return von * faktor;
+  }
   let jahr: number | null = null;
   let monat = 1;
   let m = s.match(/^(\d{4})-(\d{1,2})/);
@@ -177,8 +194,22 @@ function kontoJeMonat(k: NonNullable<BoniEingang["konto"]>): { ein: number | nul
   };
 }
 
+/**
+ * Das belegte Einkommen — nur, wenn der Auszug es wirklich belegt (E-207):
+ * kein Nebenkonto, und der Betrag ist plausibel (mind. 600 € oder mind. die
+ * Hälfte der Antragsangabe). Sonst zählt die Antragsangabe, mit Hinweis.
+ */
+function belegtesEinkommen(e: BoniEingang): { gehalt: number | null; hinweis: string | null } {
+  const roh = e.konto && positiv(e.konto.gehaltCents) ? Number(e.konto.gehaltCents) / 100 : null;
+  const antrag = positiv(e.einkommenEuro) ? Number(e.einkommenEuro) + (positiv(e.zusatzEinkommenEuro) ? Number(e.zusatzEinkommenEuro) : 0) : null;
+  if (e.konto?.nebenkonto) return { gehalt: null, hinweis: "Kontoauszug ist ein Nebenkonto (Eingänge vom eigenen Konto) — Einkommen dort nicht belegt" };
+  if (roh == null) return { gehalt: null, hinweis: e.konto ? "Kontoauszug zeigt kein regelmäßiges Einkommen" : null };
+  if (roh < 600 && antrag != null && roh < antrag * 0.5) return { gehalt: null, hinweis: `Kontoauszug zeigt nur ${euro(roh)} als Einkommen — nicht plausibel zur Angabe` };
+  return { gehalt: roh, hinweis: null };
+}
+
 function einkommenTeil(e: BoniEingang): BoniTeil {
-  const gehalt = e.konto && positiv(e.konto.gehaltCents) ? Number(e.konto.gehaltCents) / 100 : null;
+  const { gehalt, hinweis } = belegtesEinkommen(e);
   const antrag = positiv(e.einkommenEuro) ? Number(e.einkommenEuro) + (positiv(e.zusatzEinkommenEuro) ? Number(e.zusatzEinkommenEuro) : 0) : null;
   const betrag = gehalt ?? antrag;
   const quelle: BoniQuelle = gehalt != null ? "kontoauszug" : antrag != null ? "antrag" : "annahme";
@@ -196,12 +227,14 @@ function einkommenTeil(e: BoniEingang): BoniTeil {
     art,
     seit != null && seit >= 12 ? `seit ${Math.floor(seit / 12)} ${Math.floor(seit / 12) === 1 ? "Jahr" : "Jahren"}` : null,
   ].filter(Boolean).join(", ");
-  return { key: "einkommen", label: BONI_TEIL_LABEL.einkommen, punkte: Math.min(20, stufe + fest), quelle, text: text + "." };
+  return { key: "einkommen", label: BONI_TEIL_LABEL.einkommen, punkte: Math.min(20, stufe + fest), quelle, text: text + "." + (hinweis && gehalt == null ? ` ${hinweis}.` : "") };
 }
 
 function ausgabenTeil(e: BoniEingang): { teil: BoniTeil; mehrAusAlsEin: boolean } {
   // mehrAusAlsEin gilt nur BELEGT (Kontoauszug) — eine Antragsangabe ist dafür zu grob.
-  if (e.konto) {
+  // Ein Nebenkonto zeigt, was ausgegeben wird, aber nicht, was hereinkommt —
+  // der Vergleich wäre schief (E-207). Dann zählt die Antragsangabe.
+  if (e.konto && !e.konto.nebenkonto) {
     const { ein, aus } = kontoJeMonat(e.konto);
     if (ein != null && aus != null) {
       const q = aus / ein;
@@ -262,9 +295,12 @@ function harteBefunde(e: BoniEingang, mehrAusAlsEin: boolean, dringend: boolean)
   if (dringend) befunde.push("harte Einträge in der SCHUFA");
   if (mehrAusAlsEin) befunde.push("mehr Ausgaben als Einnahmen im Kontoauszug");
   if (e.konto && e.konto.ruecklastschriften >= 2) befunde.push(`${e.konto.ruecklastschriften} Rücklastschriften`);
+  // Ab zwei Zahlungen — eine einzelne kann die Schlusszahlung eines erledigten Falls sein.
+  if (e.konto && Number(e.konto.inkasso || 0) >= 2) befunde.push(`Zahlungen an Inkasso im Kontoauszug`);
   const schulden = e.schufa && e.schufa.summeOffenCents != null ? Number(e.schufa.summeOffenCents) / 100 : e.schuldenEuro;
   if (schulden != null && Number(schulden) > 15000) befunde.push(`über 15.000 € Schulden`);
-  const gehalt = e.konto && positiv(e.konto.gehaltCents) ? Number(e.konto.gehaltCents) / 100 : null;
+  // Dasselbe Einkommen wie im Teil „Einkommen" — ein unplausibles Auszug-Einkommen löst keinen Befund aus.
+  const { gehalt } = belegtesEinkommen(e);
   const einkommen = gehalt ?? (positiv(e.einkommenEuro) ? Number(e.einkommenEuro) + (positiv(e.zusatzEinkommenEuro) ? Number(e.zusatzEinkommenEuro) : 0) : null);
   if (einkommen != null && einkommen < 600) befunde.push("unter 600 € Einkommen im Monat");
   return befunde;

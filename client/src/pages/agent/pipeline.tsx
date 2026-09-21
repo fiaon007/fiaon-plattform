@@ -3334,6 +3334,7 @@ function FinanzBefund({ bestellRef, melden }: {
             <span>Ausgaben <b>{euro0(a.ausgabenCents || 0)}</b></span>
             <span>Bleibt <b style={{ color: rest >= 0 ? "#34d399" : "#f87171" }}>{euro0(rest)}</b></span>
             {a.gehaltCents != null && <span>Einkommen/Monat <b>{euro0(a.gehaltCents)}</b></span>}
+            {(Number(a.eigenEinCents || 0) > 0 || Number(a.eigenAusCents || 0) > 0) && <span style={{ opacity: .75 }}>Umbuchungen eigenes Konto <b>{euro0(Number(a.eigenEinCents || 0) + Number(a.eigenAusCents || 0))}</b> (nicht mitgezählt)</span>}
             {fix.length > 0 && <span>Fest/Monat <b>{euro0(fix.reduce((s: number, f: any) => s + Number(f.betragCents || 0), 0))}</b></span>}
           </div>
           {(a.dispoGenutzt || a.ruecklastschriften > 0) && (

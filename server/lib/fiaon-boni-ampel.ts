@@ -35,7 +35,7 @@ export function boniLateralSql(p: string): string {
       ORDER BY s.updated_at DESC NULLS LAST, s.id DESC LIMIT 1) bs ON TRUE
     LEFT JOIN LATERAL (
       SELECT k.gehalt_cents, k.einnahmen_cents, k.ausgaben_cents, (k.zeitraum_bis - k.zeitraum_von) AS tage,
-             k.dispo_genutzt, k.ruecklastschriften
+             k.dispo_genutzt, k.ruecklastschriften, k.nebenkonto, k.inkasso_anzahl
       FROM fiaon_kontoauszug_analysen k
       WHERE k.person_id = ${p}.id AND k.status = 'fertig'
       ORDER BY k.updated_at DESC NULLS LAST, k.id DESC LIMIT 1) bk ON TRUE`;
@@ -49,7 +49,8 @@ export const BONI_SPALTEN_SQL = `
   bs.ampel AS boni_schufa_ampel, bs.summe_offen_cents AS boni_schufa_offen,
   (bk.gehalt_cents IS NOT NULL OR bk.einnahmen_cents IS NOT NULL) AS boni_konto_da,
   bk.gehalt_cents AS boni_konto_gehalt, bk.einnahmen_cents AS boni_konto_ein, bk.ausgaben_cents AS boni_konto_aus,
-  bk.tage AS boni_konto_tage, bk.dispo_genutzt AS boni_konto_dispo, bk.ruecklastschriften AS boni_konto_rl`;
+  bk.tage AS boni_konto_tage, bk.dispo_genutzt AS boni_konto_dispo, bk.ruecklastschriften AS boni_konto_rl,
+  bk.nebenkonto AS boni_konto_neben, bk.inkasso_anzahl AS boni_konto_inkasso`;
 
 const txt = (v: unknown) => String(v ?? "").trim();
 const zahl = (v: unknown): number | null => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -76,14 +77,25 @@ export function boniEingangAusZeile(z: any, person: { strasse?: unknown; plz?: u
       ? {
         gehaltCents: zahl(z.boni_konto_gehalt), einnahmenCents: zahl(z.boni_konto_ein), ausgabenCents: zahl(z.boni_konto_aus),
         tage: zahl(z.boni_konto_tage), dispoGenutzt: !!z.boni_konto_dispo, ruecklastschriften: Number(z.boni_konto_rl || 0),
+        nebenkonto: z.boni_konto_neben === true, inkasso: Number(z.boni_konto_inkasso || 0),
       }
       : null,
     schufa: txt(z.boni_schufa_ampel) ? { ampel: txt(z.boni_schufa_ampel), summeOffenCents: zahl(z.boni_schufa_offen) } : null,
   };
 }
 
+/**
+ * Die Spalten der Kontoauszug-Analyse (nebenkonto, inkasso_anzahl — E-207) legt
+ * deren Tabelle selbst an. Vor der ersten Abfrage sicherstellen, sonst scheitert
+ * die Kartei an einer Spalte, die der Neu-Rechnen-Lauf erst Minuten später anlegt.
+ */
+export async function boniSpaltenSicher(): Promise<void> {
+  await (await import("./fiaon-kontoauszug-analyse")).ensureAnalyseTabelle().catch(() => {});
+}
+
 /** Die Ampel eines Menschen — für die Akte der Mitarbeiter. */
 export async function boniAmpelFuerPerson(personId: number): Promise<BoniAmpel | null> {
+  await boniSpaltenSicher();
   const [z] = (await sqlPool.unsafe(
     `SELECT p.street, p.zip, p.city, p.country, ${BONI_SPALTEN_SQL}
        FROM fiaon_persons p ${boniLateralSql("p")}

@@ -5,6 +5,38 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (Nacht) — Kontoauszug ehrlich gerechnet (E-207)
+
+**Was geändert wurde:**
+
+- **Bereinigung vor dem Rechnen** `shared/fiaon-kontoauszug-bereinigen.ts` (`buchungenBereinigen`): feste Regeln, die das Modell
+  nicht wissen kann — Umbuchungen vom eigenen Konto (Vor- UND Nachname der Akte bei einer Privatperson als Gegenpartei,
+  Aufladung, Übertrag) werden zur neutralen Kategorie `eigenes_konto` (weder Einnahme noch Ausgabe); Inkassofirmen werden
+  `inkasso_mahnung` statt „Kreditrate“ (Riverty ausdrücklich nicht — das ist Rechnungskauf); Vorzeichen und Kategorie werden
+  gegeneinander geprüft (Einnahme-Kategorie auf einer Abbuchung, Ausgabe-Kategorie auf einer Gutschrift). Echte Lohn-, Renten-
+  und Kassenzeilen bleiben Einkommen. Jede Änderung bleibt an der Buchung sichtbar („war: sozialleistung“).
+- **Nebenkonto:** Kommen ≥ 50 % der Eingänge vom eigenen Konto, gilt der Auszug nicht als Einkommensbeleg; Warnung und Hinweis
+  im Kundenbereich („Auszug des Gehaltskontos hochladen“) und in der Mitarbeiter-Akte.
+- **Boni-Ampel:** Nebenkonto und unplausibles Einkommen (< 600 € und unter der Hälfte der Antragsangabe) zählen nicht als Beleg;
+  ≥ 2 Inkasso-Zahlungen sind ein harter Befund; Monatsangaben wie „6–12 Monate“ werden gelesen.
+- **Nachrechnen ohne Modell:** Lauf `kontoauszug_neu_rechnen` (alle 6 Stunden, beim Start nach 90 s) rechnet alle fertigen
+  Auswertungen der Fassung 1 aus ihren gespeicherten Buchungen neu (`auswertung_version = 2`). Merksätze werden nur dort neu
+  geschrieben, wo sich etwas geändert hat. Neue Spalten: `eigen_ein_cents`, `eigen_aus_cents`, `nebenkonto`, `inkasso_anzahl`,
+  `auswertung_version`. Warnungen im deutschen Zahlformat.
+
+**Warum:** Justin am 21.09.2026 zur Ampel eines Kunden („Einkommen 286 € laut Kontoauszug“): „Die KI muss den Kontoauszug
+RICHTIG analysieren — ich muss mich auf die Aussage verlassen können.“ Gemessen (nur lesend, 213 Auswertungen): In 56 zählten
+Eigenüberweisungen als Einnahmen, 182 Abbuchungen trugen eine Einnahme-Kategorie, Inkassofirmen standen als Kreditrate.
+Nach der Bereinigung: 3.740 Buchungen korrigiert, 9 Nebenkonten erkannt, 55 Auswertungen mit Inkasso, kein echtes Gehalt
+als Umbuchung. Stand vorher gesichert: `10_Nacharbeit/Kontoauszug_E-207/Stand_vor_E-207_2026-09-21.csv` (Desktop).
+
+**Wo zu finden:** `shared/fiaon-kontoauszug-bereinigen.ts`, `shared/fiaon-kontoauszug-kategorien.ts`,
+`server/lib/fiaon-kontoauszug-analyse.ts`, `shared/fiaon-boni-ampel.ts`, `server/lib/fiaon-boni-ampel.ts`, `server/routes.ts` (Lauf),
+`client/src/pages/mein-bereich.tsx`, `client/src/pages/agent/pipeline.tsx`; Prüfstände `pruef-kontoauszug-bereinigen.ts` (25),
+`pruef-boni-ampel.ts` (83).
+
+---
+
 ## 21.09.2026 (Nacht) — Karte ab der ersten Rate, Einladung automatisch (E-206)
 
 **Was geändert wurde:**

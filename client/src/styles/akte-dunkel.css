@@ -1,0 +1,288 @@
+/* ═══ Die Akte im Fenster — dunkel und ruhig (21.09.2026) ═══════════════════
+   Justin zur Akte in der Telefonkartei: „Das muss besser aussehen — cleaner!"
+
+   Die Akte (pages/admin-kunde.tsx) ist für Weiß gebaut. Die allgemeine
+   Übersetzung `.cbs` (chefbuero-seiten.css) färbt sie nur um — dabei blieben
+   helle Inseln (Deckkraft-Varianten wie bg-slate-50/60, Inline-Farben im Kopf
+   und an den Dokumenten), fette Großbuchstaben-Etiketten über jedem Feld und
+   Glas mit Unschärfe auf jeder einzelnen Karte.
+
+   Diese Schicht liegt ÜBER `.cbs` und gilt nur, wo beide Klassen am selben
+   Element stehen (`.akte-dunkel.cbs`). Sie gestaltet über die Klassen, die die
+   Bausteine dafür tragen (ak-*, kk-*, al-*, ns-*, dk-*), und bügelt die
+   Utility-Farben der Akte glatt. Regeln des Hauses: dünne Schrift (400, Titel
+   500), matte Karten, Glas nur an EINER Stelle (dem Fensterkopf), Hover nur
+   bei Maus. `!important` ist hier Bauweise wie in `.cbs` — Tailwind und
+   Inline-Farben sitzen am Element. */
+
+.akte-dunkel.cbs {
+  --akd-grund: #0b1322;
+  --akd-karte: #0f1a2d;
+  --akd-einlage: rgba(148, 163, 184, .055);
+  --akd-linie: rgba(148, 163, 184, .14);
+  --akd-linie-leise: rgba(148, 163, 184, .08);
+  --akd-text: #e7ecf4;
+  --akd-text-2: #b9c4d5;
+  --akd-leise: #8292a8;
+  --akd-still: #5d6c83;
+  --akd-blau: #288dfa;
+  --akd-blau-tief: #1d4ed8;
+  --akd-blau-hell: #93c5fd;
+  --akd-gruen: #6ee7b7;
+  --akd-gelb: #fcd34d;
+  --akd-rot: #fda4af;
+  background: var(--akd-grund);
+  color: var(--akd-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+/* Glas nur am Fensterkopf: keine Unschärfe auf jeder Karte (am iPhone der Lüfter). */
+.akte-dunkel.cbs * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.akte-dunkel.cbs .min-h-screen { min-height: 0 !important; background: transparent !important; }
+.akte-dunkel.cbs .max-w-6xl { padding-top: 22px !important; padding-bottom: 28px !important; }
+
+/* ── Schrift: dünn, ruhig ─────────────────────────────────────────────── */
+.akte-dunkel.cbs .font-bold, .akte-dunkel.cbs .font-extrabold,
+.akte-dunkel.cbs .font-black, .akte-dunkel.cbs .font-semibold { font-weight: 500 !important; }
+.akte-dunkel.cbs .font-medium { font-weight: 400 !important; }
+.akte-dunkel.cbs b, .akte-dunkel.cbs strong { font-weight: 500; }
+.akte-dunkel.cbs .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace !important; letter-spacing: -.01em; }
+/* Etiketten in Großbuchstaben werden leise Zeilen in normaler Schreibweise. */
+.akte-dunkel.cbs .uppercase {
+  text-transform: none !important; letter-spacing: 0 !important;
+  font-size: 12px !important; font-weight: 400 !important; color: var(--akd-leise) !important;
+}
+
+/* ── Farben: die Slate-Leiter und die Signalfarben, lesbar auf Nacht ────── */
+.akte-dunkel.cbs .text-slate-900, .akte-dunkel.cbs .text-slate-800,
+.akte-dunkel.cbs .text-gray-900, .akte-dunkel.cbs .text-gray-800 { color: var(--akd-text) !important; }
+.akte-dunkel.cbs .text-slate-700, .akte-dunkel.cbs .text-slate-600,
+.akte-dunkel.cbs .text-gray-700, .akte-dunkel.cbs .text-gray-600 { color: var(--akd-text-2) !important; }
+.akte-dunkel.cbs .text-slate-500, .akte-dunkel.cbs .text-slate-400,
+.akte-dunkel.cbs .text-gray-500, .akte-dunkel.cbs .text-gray-400 { color: var(--akd-leise) !important; }
+.akte-dunkel.cbs .text-slate-300, .akte-dunkel.cbs .text-gray-300 { color: var(--akd-still) !important; }
+.akte-dunkel.cbs .text-emerald-500, .akte-dunkel.cbs .text-emerald-600, .akte-dunkel.cbs .text-emerald-700,
+.akte-dunkel.cbs .text-green-600, .akte-dunkel.cbs .text-green-700 { color: var(--akd-gruen) !important; }
+.akte-dunkel.cbs .text-amber-500, .akte-dunkel.cbs .text-amber-600, .akte-dunkel.cbs .text-amber-700,
+.akte-dunkel.cbs .text-amber-800, .akte-dunkel.cbs .text-orange-600, .akte-dunkel.cbs .text-orange-700 { color: var(--akd-gelb) !important; }
+.akte-dunkel.cbs .text-rose-500, .akte-dunkel.cbs .text-rose-600, .akte-dunkel.cbs .text-rose-700,
+.akte-dunkel.cbs .text-red-600, .akte-dunkel.cbs .text-red-700 { color: var(--akd-rot) !important; }
+.akte-dunkel.cbs .text-blue-600, .akte-dunkel.cbs .text-blue-700, .akte-dunkel.cbs .text-blue-800,
+.akte-dunkel.cbs .text-\[\#2563eb\], .akte-dunkel.cbs .text-\[\#1d4ed8\] { color: #7cb8ff !important; }
+
+/* ── Flächen: matte Karten, Einlagen statt heller Inseln ──────────────── */
+.akte-dunkel.cbs .bg-white { background-color: var(--akd-karte) !important; box-shadow: none !important; }
+.akte-dunkel.cbs .bg-slate-50, .akte-dunkel.cbs .bg-gray-50,
+.akte-dunkel.cbs .bg-slate-100, .akte-dunkel.cbs .bg-gray-100,
+.akte-dunkel.cbs [class*="bg-slate-50/"], .akte-dunkel.cbs [class*="bg-slate-100/"],
+.akte-dunkel.cbs [class*="bg-white/"] { background-color: var(--akd-einlage) !important; }
+.akte-dunkel.cbs .bg-emerald-50, .akte-dunkel.cbs .bg-emerald-100 { background-color: rgba(16, 185, 129, .11) !important; }
+.akte-dunkel.cbs .bg-amber-50, .akte-dunkel.cbs .bg-amber-100, .akte-dunkel.cbs .bg-yellow-50 { background-color: rgba(251, 191, 36, .1) !important; }
+.akte-dunkel.cbs .bg-rose-50, .akte-dunkel.cbs .bg-red-50, .akte-dunkel.cbs .bg-rose-100 { background-color: rgba(251, 113, 133, .1) !important; }
+.akte-dunkel.cbs .bg-blue-50, .akte-dunkel.cbs .bg-blue-100, .akte-dunkel.cbs .bg-sky-50 { background-color: rgba(40, 141, 250, .1) !important; }
+
+.akte-dunkel.cbs .border-slate-50, .akte-dunkel.cbs .border-slate-100,
+.akte-dunkel.cbs .border-gray-50, .akte-dunkel.cbs .border-gray-100 { border-color: var(--akd-linie-leise) !important; }
+.akte-dunkel.cbs .border-slate-200, .akte-dunkel.cbs .border-slate-300,
+.akte-dunkel.cbs .border-gray-200, .akte-dunkel.cbs .border-gray-300 { border-color: var(--akd-linie) !important; }
+.akte-dunkel.cbs .border-amber-200, .akte-dunkel.cbs .border-amber-300 { border-color: rgba(251, 191, 36, .28) !important; }
+.akte-dunkel.cbs .border-emerald-200 { border-color: rgba(52, 211, 153, .28) !important; }
+.akte-dunkel.cbs .border-rose-200, .akte-dunkel.cbs .border-red-200 { border-color: rgba(251, 113, 133, .3) !important; }
+.akte-dunkel.cbs .border-blue-200 { border-color: rgba(96, 165, 250, .28) !important; }
+
+/* ── Karten ───────────────────────────────────────────────────────────── */
+.akte-dunkel.cbs .ak-karte, .akte-dunkel.cbs .ak-kopf, .akte-dunkel.cbs .ak-abo {
+  background: var(--akd-karte) !important;
+  border: 1px solid var(--akd-linie-leise) !important;
+  border-radius: 18px !important;
+  box-shadow: none !important;
+}
+.akte-dunkel.cbs .ak-karte { padding: 22px 22px 18px !important; }
+.akte-dunkel.cbs .ak-kopf { padding: 20px 22px !important; }
+.akte-dunkel.cbs .ak-abo { padding: 14px 18px !important; }
+.akte-dunkel.cbs .ak-warn { border-color: rgba(251, 191, 36, .26) !important; }
+.akte-dunkel.cbs .ak-warnzeile { color: var(--akd-gelb) !important; }
+.akte-dunkel.cbs .grid.gap-4 { gap: 18px !important; }
+
+.akte-dunkel.cbs .ak-titel {
+  align-items: flex-start !important; gap: 11px !important; margin-bottom: 16px !important;
+  font: 500 14.5px/1.3 'Inter', sans-serif !important; letter-spacing: -.005em; color: var(--akd-text) !important;
+}
+.akte-dunkel.cbs .ak-titel > svg { flex: none; margin-top: 1px; color: var(--akd-blau) !important; opacity: .85; }
+.akte-dunkel.cbs .ak-unter { display: block; margin-top: 3px; font: 300 12px/1.4 'Inter', sans-serif !important; color: var(--akd-leise) !important; }
+.akte-dunkel.cbs .ak-strich { display: none; }
+
+/* ── Felder: Etikett klein darüber, Wert ruhig, Stift erst beim Zeigen ─── */
+.akte-dunkel.cbs .ak-feld { padding: 11px 0 !important; border-bottom: 1px solid var(--akd-linie-leise) !important; }
+.akte-dunkel.cbs .ak-felder > .ak-feld:last-child { border-bottom-color: transparent !important; }
+@media (min-width: 640px) {
+  .akte-dunkel.cbs .ak-felder > .ak-feld:nth-last-child(2):nth-child(odd) { border-bottom-color: transparent !important; }
+}
+.akte-dunkel.cbs .ak-label {
+  margin-bottom: 3px;
+  font: 400 12px/1.35 'Inter', sans-serif !important; letter-spacing: 0 !important; text-transform: none !important;
+  color: var(--akd-leise) !important;
+}
+.akte-dunkel.cbs .ak-wert { font: 400 14px/1.45 'Inter', sans-serif !important; color: var(--akd-text) !important; }
+.akte-dunkel.cbs .ak-stift { color: var(--akd-still) !important; border-radius: 9px !important; transition: opacity .15s ease, color .15s ease, background-color .15s ease; }
+@media (hover: hover) {
+  .akte-dunkel.cbs .ak-feld .ak-stift { opacity: 0; }
+  .akte-dunkel.cbs .ak-feld:hover .ak-stift, .akte-dunkel.cbs .ak-stift:focus-visible { opacity: 1; color: var(--akd-text-2) !important; }
+  .akte-dunkel.cbs .ak-stift:hover { background: rgba(255, 255, 255, .06) !important; }
+}
+.akte-dunkel.cbs .ak-konditionen { margin-top: 18px !important; padding-top: 16px !important; border-top: 1px solid var(--akd-linie-leise) !important; }
+.akte-dunkel.cbs .ak-zwischen { margin-bottom: 2px !important; font: 500 13px/1.3 'Inter', sans-serif !important; color: var(--akd-text) !important; }
+.akte-dunkel.cbs .ak-hinweis { font: 300 12px/1.3 'Inter', sans-serif !important; color: var(--akd-leise) !important; }
+
+/* ── Eingaben und Auswahl ─────────────────────────────────────────────── */
+.akte-dunkel.cbs input:not([type="checkbox"]):not([type="radio"]),
+.akte-dunkel.cbs select, .akte-dunkel.cbs textarea {
+  min-height: 38px;
+  background-color: rgba(2, 8, 23, .5) !important;
+  border: 1px solid var(--akd-linie) !important;
+  border-radius: 11px !important;
+  color: var(--akd-text) !important;
+  font: 400 13.5px/1.35 'Inter', sans-serif !important;
+  box-shadow: none !important;
+}
+.akte-dunkel.cbs input:focus, .akte-dunkel.cbs select:focus, .akte-dunkel.cbs textarea:focus {
+  outline: none; border-color: rgba(40, 141, 250, .55) !important; box-shadow: 0 0 0 3px rgba(40, 141, 250, .15) !important;
+}
+.akte-dunkel.cbs select {
+  -webkit-appearance: none !important; appearance: none !important;
+  padding-right: 36px !important; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%238292a8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 12px center !important; background-size: 14px 14px !important;
+}
+.akte-dunkel.cbs select.klein { min-height: 32px; font-size: 12.5px !important; border-radius: 10px !important; }
+/* Auswahl nie breiter als ihre Spalte (die längste Option bestimmte sonst die Breite). */
+.akte-dunkel.cbs select { max-width: 100%; }
+.akte-dunkel.cbs .ak-feld select { width: 100%; }
+.akte-dunkel.cbs input[type="checkbox"], .akte-dunkel.cbs input[type="radio"] { accent-color: var(--akd-blau); }
+
+/* ── Knöpfe: Glas-Umriss, Blau für die Haupthandlung, Signalfarben getönt ─ */
+.akte-dunkel.cbs button, .akte-dunkel.cbs a { transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+.akte-dunkel.cbs button.bg-white, .akte-dunkel.cbs a.bg-white {
+  background: rgba(255, 255, 255, .04) !important; border: 1px solid var(--akd-linie) !important;
+  color: var(--akd-text) !important; border-radius: 12px !important; font-weight: 500 !important;
+}
+.akte-dunkel.cbs .bg-emerald-600 {
+  background: rgba(16, 185, 129, .14) !important; color: #a7f3d0 !important;
+  border: 1px solid rgba(52, 211, 153, .34) !important; border-radius: 12px !important; box-shadow: none !important;
+}
+.akte-dunkel.cbs .bg-\[\#2563eb\], .akte-dunkel.cbs .bg-blue-600 {
+  background: linear-gradient(135deg, var(--akd-blau-tief), var(--akd-blau)) !important; color: #fff !important;
+  border-radius: 12px !important; box-shadow: 0 10px 24px -14px rgba(40, 141, 250, .8) !important;
+}
+.akte-dunkel.cbs .bg-red-600, .akte-dunkel.cbs .bg-\[\#b91c1c\] {
+  background: rgba(244, 63, 94, .14) !important; color: #fecdd3 !important;
+  border: 1px solid rgba(251, 113, 133, .34) !important; border-radius: 12px !important;
+}
+.akte-dunkel.cbs button.border-rose-200 { color: var(--akd-rot) !important; }
+.akte-dunkel.cbs button.border-amber-200 { color: var(--akd-gelb) !important; }
+.akte-dunkel.cbs .ak-kopf button, .akte-dunkel.cbs .ak-kopf a[href] { padding: 9px 15px !important; font-size: 12.5px !important; }
+@media (hover: hover) {
+  .akte-dunkel.cbs button.bg-white:hover, .akte-dunkel.cbs a.bg-white:hover { background: rgba(255, 255, 255, .08) !important; border-color: rgba(148, 163, 184, .26) !important; }
+  .akte-dunkel.cbs .bg-emerald-600:hover { background: rgba(16, 185, 129, .22) !important; }
+  .akte-dunkel.cbs .bg-\[\#2563eb\]:hover, .akte-dunkel.cbs .bg-blue-600:hover { filter: brightness(1.08); }
+}
+
+/* ── Der Kopf der Akte (KundenKopf): Name steht schon im Fensterkopf ─────── */
+.akte-dunkel.cbs .kk-name { display: none !important; }
+.akte-dunkel.cbs .kk-marke {
+  padding: 4px 11px !important; border-radius: 999px !important; font-weight: 500 !important;
+  background: rgba(148, 163, 184, .12) !important; color: var(--akd-text) !important;
+  box-shadow: inset 0 0 0 1px var(--akd-linie) !important;
+}
+@supports (color: color-mix(in srgb, red 50%, white)) {
+  .akte-dunkel.cbs .kk-marke {
+    background: color-mix(in srgb, var(--kk-farbe) 17%, transparent) !important;
+    color: color-mix(in srgb, var(--kk-farbe) 42%, #ffffff) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kk-farbe) 40%, transparent) !important;
+  }
+}
+.akte-dunkel.cbs .kk-zusatz {
+  border-radius: 999px !important; font-weight: 400 !important;
+  background: rgba(148, 163, 184, .08) !important; border-color: var(--akd-linie) !important; color: var(--akd-text-2) !important;
+}
+.akte-dunkel.cbs .al-station {
+  font-weight: 400 !important; color: var(--akd-leise) !important;
+  background: rgba(148, 163, 184, .07) !important; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, .14) !important;
+}
+.akte-dunkel.cbs .al-station[data-fertig="1"] {
+  color: var(--akd-gruen) !important;
+  background: rgba(16, 185, 129, .12) !important; box-shadow: inset 0 0 0 1px rgba(52, 211, 153, .3) !important;
+}
+.akte-dunkel.cbs .al-strich { background: rgba(148, 163, 184, .22) !important; }
+.akte-dunkel.cbs .ns-box {
+  border-radius: 14px !important; padding: 12px 14px !important;
+  background: linear-gradient(135deg, rgba(40, 141, 250, .11), rgba(29, 78, 216, .06)) !important;
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, .24) !important;
+}
+.akte-dunkel.cbs .ns-label { font: 500 12px/1.3 'Inter', sans-serif !important; color: var(--akd-blau-hell) !important; }
+.akte-dunkel.cbs .ns-text { font: 400 13px/1.45 'Inter', sans-serif !important; color: #dbeafe !important; }
+.akte-dunkel.cbs .ns-knopf { background: linear-gradient(135deg, var(--akd-blau-tief), var(--akd-blau)) !important; border-radius: 11px !important; font-weight: 500 !important; }
+.akte-dunkel.cbs .kk-ausnahme {
+  background: rgba(251, 191, 36, .1) !important; color: #fde68a !important; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, .25) !important;
+}
+
+/* ── Betreuung: Provisionen als Liste, Leads als Einlage ─────────────────── */
+.akte-dunkel.cbs .ak-prov { padding: 8px 0 !important; border-bottom: 1px solid var(--akd-linie-leise) !important; }
+.akte-dunkel.cbs .ak-prov:last-child { border-bottom-color: transparent !important; }
+.akte-dunkel.cbs .ak-prov-betrag { color: var(--akd-text) !important; font-weight: 500 !important; }
+.akte-dunkel.cbs .ak-prov-betrag.minus { color: var(--akd-rot) !important; }
+.akte-dunkel.cbs .ak-prov-stand { background: rgba(148, 163, 184, .1) !important; color: var(--akd-text-2) !important; }
+.akte-dunkel.cbs .ak-prov-stand.ausgezahlt { background: rgba(16, 185, 129, .12) !important; color: var(--akd-gruen) !important; }
+.akte-dunkel.cbs .ak-prov-stand.vorgemerkt { background: rgba(40, 141, 250, .12) !important; color: var(--akd-blau-hell) !important; }
+.akte-dunkel.cbs .ak-prov-stand.storniert { color: var(--akd-still) !important; }
+.akte-dunkel.cbs .ak-lead { padding: 11px 13px !important; border-radius: 13px !important; background: var(--akd-einlage) !important; border: 1px solid var(--akd-linie-leise) !important; }
+
+/* ── Zahlungen ────────────────────────────────────────────────────────── */
+.akte-dunkel.cbs .ak-bestellung { padding: 12px 14px !important; border-radius: 14px !important; background: var(--akd-einlage) !important; border: 1px solid var(--akd-linie-leise) !important; }
+.akte-dunkel.cbs .ak-bestellung.haupt { background: rgba(40, 141, 250, .06) !important; border-color: rgba(96, 165, 250, .2) !important; }
+
+/* ── E-Mails: die Vorlagen hinter einer Zeile ──────────────────────────── */
+.akte-dunkel.cbs .ak-mails > summary {
+  display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;
+  padding: 12px 14px; border-radius: 13px; border: 1px solid var(--akd-linie);
+  background: rgba(255, 255, 255, .035);
+  font: 500 13px/1.3 'Inter', sans-serif; color: var(--akd-text);
+}
+.akte-dunkel.cbs .ak-mails > summary::-webkit-details-marker { display: none; }
+.akte-dunkel.cbs .ak-mails > summary span { font-weight: 300; color: var(--akd-leise); }
+.akte-dunkel.cbs .ak-mails > summary::after {
+  content: ""; flex: none; width: 14px; height: 14px; margin-left: auto; transition: transform .2s ease;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%238292a8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat;
+}
+.akte-dunkel.cbs .ak-mails[open] > summary::after { transform: rotate(180deg); }
+@media (hover: hover) { .akte-dunkel.cbs .ak-mails > summary:hover { background: rgba(255, 255, 255, .06); } }
+.akte-dunkel.cbs .ak-mailknoepfe { gap: 6px !important; }
+.akte-dunkel.cbs .ak-mailknoepfe button { padding: 7px 12px !important; border-radius: 999px !important; font-size: 12px !important; font-weight: 400 !important; }
+
+/* ── Dokumente ────────────────────────────────────────────────────────── */
+.akte-dunkel.cbs .dk-kachel { border-radius: 14px !important; background: var(--akd-einlage) !important; border: 1px dashed rgba(148, 163, 184, .24) !important; }
+.akte-dunkel.cbs .dk-kachel[data-vorhanden="1"] { background: rgba(40, 141, 250, .06) !important; border: 1px solid rgba(96, 165, 250, .2) !important; }
+.akte-dunkel.cbs .dk-titel { color: var(--akd-text) !important; font-weight: 500 !important; }
+.akte-dunkel.cbs .dk-zeichen { color: #7cb8ff !important; }
+.akte-dunkel.cbs .dk-kachel[data-vorhanden="0"] .dk-zeichen { color: var(--akd-still) !important; }
+.akte-dunkel.cbs .dk-fehlt { color: var(--akd-leise) !important; font-weight: 400 !important; }
+.akte-dunkel.cbs .dk-fehlt[data-benoetigt="1"] { color: var(--akd-gelb) !important; }
+.akte-dunkel.cbs .dk-knopf {
+  min-height: 0 !important; padding: 6px 12px !important; font-size: 12px !important; line-height: 1.3 !important;
+  background: rgba(255, 255, 255, .05) !important; border: 1px solid var(--akd-linie) !important; color: var(--akd-text) !important;
+  border-radius: 10px !important; font-weight: 500 !important;
+}
+.akte-dunkel.cbs .dk-knopf.haupt { background: linear-gradient(135deg, var(--akd-blau-tief), var(--akd-blau)) !important; border-color: transparent !important; color: #fff !important; }
+.akte-dunkel.cbs .dk-pruef { font-weight: 500 !important; }
+@supports (color: color-mix(in srgb, red 50%, white)) {
+  .akte-dunkel.cbs .dk-pruef { color: color-mix(in srgb, var(--dk-farbe) 50%, #ffffff) !important; }
+}
+.akte-dunkel.cbs .dk-meldung { background: rgba(40, 141, 250, .1) !important; color: #bfdbfe !important; }
+
+@media (max-width: 640px) {
+  .akte-dunkel.cbs .max-w-6xl { padding-left: 14px !important; padding-right: 14px !important; padding-top: 14px !important; }
+  .akte-dunkel.cbs .ak-karte, .akte-dunkel.cbs .ak-kopf { padding: 18px 16px 14px !important; border-radius: 16px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .akte-dunkel.cbs *, .akte-dunkel.cbs .ak-mails > summary::after { transition: none !important; }
+}

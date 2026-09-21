@@ -164,10 +164,7 @@ export default function GruenderTermin() {
               <Zeichen art="telefon" />
               <span><b>Telefonisch.</b> {g?.vorname || "Justin"} ruft Sie zur gewählten Zeit an — Sie müssen nichts einrichten.</span>
             </li>
-            <li>
-              <Zeichen art="kalender" />
-              <span><b>Höchstens {daten?.proTag ?? 3} Gespräche am Tag.</b> Deshalb sind die Zeiten knapp — und dafür ungeteilt.</span>
-            </li>
+            {/* 21.09.2026: „Höchstens 3 Gespräche am Tag …" entfernt — Justin: „das entferne auf meinem Kalender". */}
             <li>
               <Zeichen art="haken" />
               <span><b>Kostenlos und unverbindlich.</b> Absagen oder verschieben geht jederzeit über den Link in der Bestätigung.</span>

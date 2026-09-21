@@ -79,11 +79,11 @@ export function AblaufLeiste({ stand, dicht = false }: { stand: AblaufStand; dic
     { text: "Abo läuft", fertig: stand.aboLaeuft },
   ];
   return (
-    <div className="flex items-center flex-wrap" style={{ gap: dicht ? 4 : 6 }}
+    <div className="al-leiste flex items-center flex-wrap" style={{ gap: dicht ? 4 : 6 }}
          role="list" aria-label="Der Weg dieses Kunden">
       {stationen.map((st, i) => (
         <div key={st.text} className="flex items-center" style={{ gap: dicht ? 4 : 6 }} role="listitem">
-          <span className="inline-flex items-center gap-1.5 rounded-full font-semibold"
+          <span className="al-station inline-flex items-center gap-1.5 rounded-full font-semibold" data-fertig={st.fertig ? "1" : "0"}
                 style={{
                   padding: dicht ? "2px 8px" : "3px 10px",
                   fontSize: dicht ? 10.5 : 11.5,
@@ -101,7 +101,7 @@ export function AblaufLeiste({ stand, dicht = false }: { stand: AblaufStand; dic
             )}
           </span>
           {i < stationen.length - 1 && (
-            <span aria-hidden="true" style={{
+            <span aria-hidden="true" className="al-strich" style={{
               width: dicht ? 6 : 9, height: 1,
               background: st.fertig ? "rgba(4,120,87,.3)" : "rgba(15,23,42,.12)",
             }} />
@@ -125,20 +125,20 @@ export function NaechsterSchritt({ text, aktion }: {
   aktion?: { text: string; onClick: () => void; laeuft?: boolean } | null;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5 rounded-xl px-3.5 py-2.5"
+    <div className="ns-box flex flex-wrap items-center gap-2.5 rounded-xl px-3.5 py-2.5"
          style={{
            background: "rgba(29,78,216,.045)",
            boxShadow: "inset 0 0 0 1px rgba(29,78,216,.14)",
          }}>
-      <span className="text-[11px] font-bold uppercase tracking-[.1em]" style={{ color: "#1e40af" }}>
+      <span className="ns-label text-[11px] font-bold uppercase tracking-[.1em]" style={{ color: "#1e40af" }}>
         Nächster Schritt
       </span>
-      <span className="text-[12.5px] leading-snug min-w-0 flex-1" style={{ color: "#1e3a8a" }}>
+      <span className="ns-text text-[12.5px] leading-snug min-w-0 flex-1" style={{ color: "#1e3a8a" }}>
         {text}
       </span>
       {aktion && (
         <button type="button" onClick={aktion.onClick} disabled={aktion.laeuft}
-                className="shrink-0 rounded-lg text-[12px] font-bold text-white disabled:opacity-50"
+                className="ns-knopf shrink-0 rounded-lg text-[12px] font-bold text-white disabled:opacity-50"
                 style={{ padding: "6px 13px", background: "#1d4ed8", minHeight: 32 }}>
           {aktion.laeuft ? "…" : aktion.text}
         </button>
@@ -168,19 +168,19 @@ export function KundenKopf({
 }) {
   const m = stufenMarke(stufe);
   return (
-    <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2 mb-1.5">
-        <h1 className={`font-bold text-slate-900 ${dicht ? "text-[17px]" : "text-xl"}`}>{name}</h1>
+    <div className="kk-kopf min-w-0">
+      <div className="kk-zeile flex flex-wrap items-center gap-2 mb-1.5">
+        <h1 className={`kk-name font-bold text-slate-900 ${dicht ? "text-[17px]" : "text-xl"}`}>{name}</h1>
         {/* ── DIE MARKE AUS DER EINEN ABLEITUNG ──────────────────────────
             Vorher las die Akte einen Statustext, das Portal eine Spalte und die
             Kachel `account_status`. Drei Quellen, drei Wahrheiten. */}
-        <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
-              style={{ background: m.hell, color: m.farbe, boxShadow: `inset 0 0 0 1px ${m.farbe}33` }}>
+        <span className="kk-marke px-2.5 py-1 rounded-lg text-[11px] font-bold"
+              style={{ background: m.hell, color: m.farbe, boxShadow: `inset 0 0 0 1px ${m.farbe}33`, ["--kk-farbe" as string]: m.farbe }}>
           {m.text}
         </span>
         {marken?.map((mk) => (
           <span key={mk.text}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-500">
+                className="kk-zusatz px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-500">
             {mk.text}
           </span>
         ))}
@@ -191,7 +191,7 @@ export function KundenKopf({
       </div>
 
       {ausnahme?.gesetzt && (
-        <p className="mt-2.5 text-[12px] leading-snug rounded-lg px-3 py-2"
+        <p className="kk-ausnahme mt-2.5 text-[12px] leading-snug rounded-lg px-3 py-2"
            style={{ background: "rgba(180,83,9,.06)", color: "#92400e",
                     boxShadow: "inset 0 0 0 1px rgba(180,83,9,.18)" }}>
           <b>Onboarding-Pflicht ausgesetzt.</b> {ausnahme.grund}

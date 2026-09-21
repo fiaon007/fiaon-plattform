@@ -103,7 +103,7 @@ export function DokumenteSektion({
   return (
     <div>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
-        <span className="text-[12px] font-semibold" style={{ color: kyc.farbe }}>
+        <span className="dk-pruef text-[12px] font-semibold" style={{ color: kyc.farbe, ["--dk-farbe" as string]: kyc.farbe }}>
           Prüfstand: {kyc.text}
         </span>
         {stand.geprueftAm && (
@@ -119,7 +119,7 @@ export function DokumenteSektion({
       </div>
 
       {meldung && (
-        <p className="mb-3 px-3 py-2 rounded-xl text-[12px] font-semibold"
+        <p className="dk-meldung mb-3 px-3 py-2 rounded-xl text-[12px] font-semibold"
            style={{ background: "rgba(29,78,216,.06)", color: "#1d4ed8" }}>
           {meldung}
         </p>
@@ -127,17 +127,17 @@ export function DokumenteSektion({
 
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {stand.dokumente.map((d) => (
-          <div key={d.art} className="p-3 rounded-xl"
+          <div key={d.art} className="dk-kachel p-3 rounded-xl" data-vorhanden={d.vorhanden ? "1" : "0"}
                style={{
                  background: d.vorhanden ? "#fff" : "#fafbfd",
                  border: d.vorhanden ? "1px solid #e8eef6" : "1px dashed #cbd5e1",
                }}>
             <div className="flex items-start gap-2.5">
-              <span className="shrink-0 mt-0.5" style={{ color: d.vorhanden ? "#1d4ed8" : "#94a3b8" }}>
+              <span className="dk-zeichen shrink-0 mt-0.5" style={{ color: d.vorhanden ? "#1d4ed8" : "#94a3b8" }}>
                 <ZeichenDoc art={d.vorhanden ? "blatt" : "luecke"} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-bold text-slate-900">{d.label}</p>
+                <p className="dk-titel text-[13px] font-bold text-slate-900">{d.label}</p>
                 {d.vorhanden ? (
                   <p className="text-[11.5px] text-slate-400">
                     {d.groesseKb} KB
@@ -145,7 +145,7 @@ export function DokumenteSektion({
                     {d.typ === "bild" && " · Bild"}
                   </p>
                 ) : (
-                  <p className="text-[11.5px] font-semibold" style={{ color: d.benoetigt ? "#b45309" : "#94a3b8" }}>
+                  <p className="dk-fehlt text-[11.5px] font-semibold" data-benoetigt={d.benoetigt ? "1" : "0"} style={{ color: d.benoetigt ? "#b45309" : "#94a3b8" }}>
                     {d.benoetigt ? "fehlt — wird gebraucht" : "nicht hinterlegt"}
                   </p>
                 )}
@@ -164,14 +164,14 @@ export function DokumenteSektion({
                             ? `/api/fiaon/admin/dokumente/${encodeURIComponent(stand.ref)}/${d.art}/datei`
                             : `/api/fiaon/agent/dokumente/${personId}/${d.art}/datei`,
                         })}
-                        className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold text-white"
+                        className="dk-knopf haupt px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold text-white"
                         style={{ background: "#1d4ed8" }}>
                   Ansehen
                 </button>
               )}
               {!d.vorhanden && d.benoetigt && (
                 <button type="button" onClick={() => void anfordern(d.art)} disabled={busy === d.art}
-                        className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold bg-white text-slate-600 disabled:opacity-40"
+                        className="dk-knopf px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold bg-white text-slate-600 disabled:opacity-40"
                         style={{ border: "1px solid #e8eef6" }}>
                   {busy === d.art ? "…" : "Anfordern"}
                 </button>

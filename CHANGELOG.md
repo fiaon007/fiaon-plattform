@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (spätabends) — Akte im Fenster ruhiger und klarer (E-204)
+
+**Was geändert wurde:**
+
+- **Fensterkopf der Akte** (Telefonkartei → „Akte öffnen"): Name groß, darunter Stufe, Boni-Ampel, Telefon (antippbar) und
+  E-Mail — der Name steht nicht mehr doppelt.
+- **Eigene dunkle Gestaltung** `client/src/styles/akte-dunkel.css` über der Chefbüro-Übersetzung: matte Karten statt Glas mit
+  Unschärfe auf jeder Karte, dünne Schrift, Beschriftungen in normaler Schreibweise statt fetter Großbuchstaben, Stift zum
+  Bearbeiten erst beim Zeigen, eigene Auswahlfelder, getönte statt greller Knöpfe, lesbarer „Nächster Schritt" (vorher
+  dunkelblau auf Navy), dunkle Dokument-Kacheln (vorher weiß mit weißer Schrift).
+- **Klare Wörter:** „Stammdaten" statt „… alles editierbar, alles mit Audit"; Geburtsdatum/Zahlungsfrist als Datum
+  (05.03.1968), Kreditlimit und Betrag in Euro — ohne Feldnamen wie „approved_limit"; „Betreuung/Betreuer" statt „Agent";
+  Provisionen als Liste (Betrag, wer, Stand, Tag; Minusbeträge rot); Pakete mit Namen statt Kürzel.
+- **Stammdaten und Konditionen zweispaltig**, die 32 Mail-Vorlagen im Fenster hinter einer Zeile.
+- **Behoben:** Die Bestellzeile quetschte Referenz und Text auf 60 px, sobald Marke und Knöpfe daneben standen; der Lead-Kasten
+  (bg-slate-50/60) und die Feld-Trennlinien (border-slate-50) blieben im Chefbüro hell — die Übersetzung kennt jetzt beide.
+- **Justins Buchungsseite /justin:** Der Satz „Höchstens 3 Gespräche am Tag …" ist weg (Justin: „das entferne auf meinem
+  Kalender").
+
+**Warum:** Justin am 21.09.2026 zum Screenshot der Akte: „passe das Design an, wenn man die Akte öffnet — das muss besser
+aussehen! cleaner!"
+
+**Wo zu finden:** `ChefTelefonkartei.tsx` (AkteFenster), `akte-dunkel.css`, `chef-telefonkartei.css`, `pages/admin-kunde.tsx`
+(Klassen, Wörter, Formatierung), `components/kunde/AblaufLeiste.tsx` und `components/DokumenteSektion.tsx` (Klassen),
+`chefbuero-seiten.css`, `pages/gruender-termin.tsx`.
+
+---
+
 ## 21.09.2026 (abends) — Kunden bleiben beim Mitarbeiter: 21-Tage-Regel repariert (E-203)
 
 **Was geändert wurde:**

@@ -81,6 +81,10 @@
   box-shadow: 0 24px 56px -24px rgba(2, 6, 23, .7), inset 0 1px 0 rgba(255, 255, 255, .05);
 }
 .cbs .bg-slate-200, .cbs .bg-gray-200 { background-color: rgba(255, 255, 255, .08) !important; }
+/* 21.09.2026: Deckkraft-Varianten (bg-slate-50/60 …) tragen den Schrägstrich im
+   Klassennamen und blieben hell — der Lead-Kasten in der Akte war eine graue Insel. */
+.cbs [class*="bg-slate-50/"], .cbs [class*="bg-slate-100/"],
+.cbs [class*="bg-gray-50/"], .cbs [class*="bg-gray-100/"] { background-color: rgba(15, 23, 42, .45) !important; }
 .cbs .bg-slate-900, .cbs .bg-gray-900, .cbs .bg-black { background-color: rgba(2, 6, 23, .8) !important; }
 
 /* ── Schrift: die Slate-Leiter wird umgedreht ─────────────────────────── */
@@ -94,6 +98,7 @@
 .cbs .text-white { color: #fff !important; }
 
 /* ── Rahmen und Trennlinien ───────────────────────────────────────────── */
+.cbs .border-slate-50, .cbs .border-gray-50,
 .cbs .border-slate-200, .cbs .border-gray-200,
 .cbs .border-slate-100, .cbs .border-gray-100,
 .cbs .border-slate-300, .cbs .border-gray-300,

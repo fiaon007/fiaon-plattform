@@ -22,7 +22,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { createPortal } from "react-dom";
 import { API, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
-import { BoniAmpelBlock } from "@/components/BoniAmpel";
+import { BoniAmpelBlock, BoniAmpelKapsel } from "@/components/BoniAmpel";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
   KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, KARTEI_SUCHE_SATZ, euro, euroGanz, datumKurz, waLink,
@@ -31,6 +31,7 @@ import {
 } from "@shared/fiaon-telefonkartei";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-telefonkartei.css";
+import "@/styles/akte-dunkel.css";
 
 // Die Akte des Chefbüros — dieselbe Seite wie /chef/s/akte, hier im Fenster (E-201).
 const KundeAkte = lazy(() => import("@/pages/admin-kunde"));
@@ -609,7 +610,10 @@ function Termine({ liste, laedt, fehler }: { liste: KarteiTermin[]; laedt: boole
 // Justin: „Wenn ich ‚Akte öffnen' klicke, muss sich ein Popup öffnen — auf der
 // selben Seite, ohne dass ich die Seite verlasse." Dieselbe Akte wie im
 // Chefbüro (pages/admin-kunde.tsx), hier eingebettet; `.cbs` übersetzt sie
-// ins Dunkle wie dort.
+// ins Dunkle wie dort, `.akte-dunkel` macht sie ruhig (akte-dunkel.css —
+// Justin am 21.09.: „das muss besser aussehen, cleaner!"). Der Kopf trägt
+// Name, Stufe, Boni-Ampel und Kontakt; die Akte selbst zeigt den Namen nicht
+// ein zweites Mal.
 
 function AkteFenster({ k, onZu }: { k: KarteiKarte; onZu: () => void }) {
   useEffect(() => {
@@ -622,16 +626,24 @@ function AkteFenster({ k, onZu }: { k: KarteiKarte; onZu: () => void }) {
   return (
     <div className="tk-akte-schleier" role="dialog" aria-modal="true" aria-label={`Akte ${k.name}`} onClick={onZu}>
       <div className="tk-akte" onClick={(e) => e.stopPropagation()}>
-        <div className="tk-akte-kopf">
-          <div>
+        <div className="tk-akte-kopf" data-lage={k.lage}>
+          <div className="tk-akte-wer">
+            <span className="tk-akte-ort">Akte</span>
             <b>{k.name}</b>
-            <span>{KARTEI_LAGE_TEXT[k.lage]}{k.telefonAnzeige ? ` · ${k.telefonAnzeige}` : ""}</span>
+            <div className="tk-akte-zeile">
+              <span className="tk-akte-lage">{KARTEI_LAGE_TEXT[k.lage]}</span>
+              {k.ampel && <BoniAmpelKapsel ampel={k.ampel} klein />}
+              {k.telefonWaehlbar
+                ? <a className="tk-akte-kontakt" href={`tel:${k.telefonWaehlbar}`}>{k.telefonAnzeige}</a>
+                : k.telefonAnzeige ? <span className="tk-akte-kontakt">{k.telefonAnzeige}</span> : null}
+              {k.email && <a className="tk-akte-kontakt" href={`mailto:${k.email}`}>{k.email}</a>}
+            </div>
           </div>
           <button type="button" className="tk-akte-zu" onClick={onZu} aria-label="Akte schließen">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
           </button>
         </div>
-        <div className="tk-akte-inhalt cbs">
+        <div className="tk-akte-inhalt cbs akte-dunkel">
           <Suspense fallback={<div className="tk-klein" style={{ padding: 24 }}>Akte lädt …</div>}>
             {k.akteId && <KundeAkte akteId={k.akteId} eingebettet />}
           </Suspense>

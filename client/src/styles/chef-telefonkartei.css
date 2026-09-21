@@ -444,18 +444,39 @@
 .tk-akte {
   display: flex; flex-direction: column;
   width: min(1180px, 100%); height: 100%;
-  border-radius: 22px; overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .12);
-  background: #0a1628;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
+  border-radius: 24px; overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, .16);
+  background: #0b1322;
+  box-shadow: 0 40px 100px -20px rgba(0, 0, 0, .7), 0 1px 0 rgba(255, 255, 255, .06) inset;
 }
+/* Der Kopf ist die EINE Glasfläche des Fensters: Name, Stufe, Ampel, Kontakt. */
 .tk-akte-kopf {
-  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 14px 16px 14px 20px; border-bottom: 1px solid var(--tk-linie);
-  background: linear-gradient(160deg, rgba(15, 27, 51, .98), rgba(11, 18, 32, .98));
+  --tk-lage: #cbd5e1;
+  position: relative;
+  flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+  padding: 18px 18px 16px 24px; border-bottom: 1px solid rgba(148, 163, 184, .12);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(40, 141, 250, .16), transparent 55%),
+    linear-gradient(160deg, rgba(20, 34, 62, .96), rgba(11, 19, 34, .98));
 }
-.tk-akte-kopf b { display: block; font: 400 17px/1.25 'Inter', sans-serif; color: #fff; }
-.tk-akte-kopf span { display: block; font: 300 12.5px/1.4 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-akte-kopf[data-lage="A"] { --tk-lage: var(--tk-gelb); }
+.tk-akte-kopf[data-lage="B"] { --tk-lage: var(--tk-blau-hell); }
+.tk-akte-kopf[data-lage="rate"] { --tk-lage: var(--tk-tuerkis); }
+.tk-akte-kopf[data-lage="bezahlt"] { --tk-lage: var(--tk-gruen); }
+.tk-akte-kopf[data-lage="storniert"] { --tk-lage: var(--tk-rot); }
+.tk-akte-wer { min-width: 0; display: grid; gap: 6px; }
+.tk-akte-ort { font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--tk-still); }
+.tk-akte-kopf b { display: block; font: 400 22px/1.2 'Inter', sans-serif; letter-spacing: -.012em; color: #fff; }
+.tk-akte-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 4px; }
+.tk-akte-lage {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+  font: 400 12px/1.2 'Inter', sans-serif; color: var(--tk-text);
+  background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+.tk-akte-lage::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tk-lage); box-shadow: 0 0 10px var(--tk-lage); }
+.tk-akte-kontakt { font: 400 13px/1.3 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; overflow-wrap: anywhere; }
+a.tk-akte-kontakt { color: var(--tk-blau-hell); }
+@media (hover: hover) { a.tk-akte-kontakt:hover { color: #fff; } }
 .tk-akte-zu {
   flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px;
   border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .06); color: var(--tk-text); cursor: pointer;

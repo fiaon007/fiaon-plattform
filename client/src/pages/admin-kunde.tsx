@@ -36,10 +36,21 @@ function fmtD(v: any): string {
   if (!v) return "—";
   return new Date(v).toLocaleDateString("de-DE", { ...BERLIN, day: "2-digit", month: "2-digit", year: "numeric" });
 }
+/** „2026-09-28" → „28.09.2026" (für Felder, die als Rohwert gespeichert sind). */
+function tagDe(v: string): string {
+  const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : String(v || "");
+}
 function eur(v: any): string {
   if (v == null || v === "") return "—";
   return `${Number(v).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`;
 }
+
+/** Stand einer Provision in Worten (die Spalte schreibt ohne Umlaut). */
+const PROVISION_STAND: Record<string, string> = {
+  bestaetigt: "bestätigt", ausgezahlt: "ausgezahlt", vorgemerkt: "vorgemerkt", angefordert: "angefordert",
+  storniert: "storniert", offen: "offen",
+};
 
 /** Klartext für ergänzte Felder — „phone_country_code" sagt einem Menschen nichts. */
 const FELD_NAME: Record<string, string> = {
@@ -118,14 +129,22 @@ async function api(path: string, body?: any, method = "POST"): Promise<any> {
 
 // ── Abschnitts-Karte ─────────────────────────────────────────────────────────
 function Section({ title, icon: Icon, children, warn }: { title: string; icon: any; children: any; warn?: boolean }) {
+  // 21.09.2026 (Akte im Fenster): „Haupt — Zusatz" — der Zusatz erklärt, er ist
+  // kein Titel. Hell steht er wie bisher dahinter, dunkel als leise Zeile darunter.
+  const [haupt, ...rest] = title.split(" — ");
+  const zusatz = rest.join(" — ");
   return (
     // `min-w-0`: Ohne das darf eine Rasterzelle nicht unter die Mindestbreite
     // ihres Inhalts schrumpfen. Auf einem 380-px-Telefon wurden die Karten
     // dadurch 477 px breit und der rechte Rand — Fristen, Datum, Beträge —
     // schlicht abgeschnitten (gemessen am 08.08.2026).
-    <div className={`min-w-0 bg-white border rounded-2xl p-5 ${warn ? "border-amber-300" : "border-slate-200"}`}>
-      <h2 className="flex items-center gap-2 text-[13px] font-bold text-slate-900 mb-4">
-        <Icon size={15} className={warn ? "text-amber-500" : "text-slate-400"} /> {title}
+    <div className={`ak-karte min-w-0 bg-white border rounded-2xl p-5 ${warn ? "ak-warn border-amber-300" : "border-slate-200"}`}>
+      <h2 className="ak-titel flex items-center gap-2 text-[13px] font-bold text-slate-900 mb-4">
+        <Icon size={15} className={warn ? "text-amber-500" : "text-slate-400"} />
+        <span className="min-w-0">
+          {haupt}
+          {zusatz && <span className="ak-unter font-normal text-slate-400"><span className="ak-strich"> — </span>{zusatz}</span>}
+        </span>
       </h2>
       {children}
     </div>
@@ -133,9 +152,11 @@ function Section({ title, icon: Icon, children, warn }: { title: string; icon: a
 }
 
 // ── Editierbares Feld (Stammdaten) ───────────────────────────────────────────
-function Field({ label, value, onSave, type = "text", sensitive, placeholder }: {
+function Field({ label, value, onSave, type = "text", sensitive, placeholder, anzeige }: {
   label: string; value: string; onSave: (v: string) => Promise<string | null>;
   type?: string; sensitive?: boolean; placeholder?: string;
+  /** So wird der gespeicherte Wert gelesen („2026-09-28" → „28.09.2026") — bearbeitet wird der Rohwert. */
+  anzeige?: (v: string) => string;
 }) {
   const [edit, setEdit] = useState(false);
   const [v, setV] = useState(value);
@@ -153,12 +174,12 @@ function Field({ label, value, onSave, type = "text", sensitive, placeholder }: 
   };
 
   return (
-    <div className="py-2 border-b border-slate-50 last:border-0">
+    <div className="ak-feld py-2 border-b border-slate-50 last:border-0">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+          <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
           {!edit ? (
-            <p className="text-[13.5px] font-medium text-slate-800 break-words">{value || <span className="text-slate-300">—</span>}</p>
+            <p className="ak-wert text-[13.5px] font-medium text-slate-800 break-words">{value ? (anzeige ? anzeige(value) : value) : <span className="text-slate-300">—</span>}</p>
           ) : (
             <div className="flex items-center gap-1.5 mt-1">
               <input
@@ -177,7 +198,7 @@ function Field({ label, value, onSave, type = "text", sensitive, placeholder }: 
           {err && <p className="text-[11px] font-semibold text-rose-600 mt-1">{err}</p>}
         </div>
         {!edit && (
-          <button type="button" onClick={() => setEdit(true)} className="p-1.5 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-50 shrink-0" title={`${label} bearbeiten`}>
+          <button type="button" onClick={() => setEdit(true)} className="ak-stift p-1.5 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-50 shrink-0" title={`${label} bearbeiten`}>
             <Pencil size={13} />
           </button>
         )}
@@ -471,7 +492,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
         {msg && <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-[13px] font-semibold text-blue-800">{msg}</div>}
 
         {/* ── KOPF ── */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+        <div className="ak-kopf bg-white border border-slate-200 rounded-2xl p-5 mb-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               {/* ══════════════════════════════════════════════════════════
@@ -512,7 +533,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 />
               ) : (
               <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
-                <h1 className="text-xl font-bold text-slate-900">{head.name}</h1>
+                <h1 className="kk-name text-xl font-bold text-slate-900">{head.name}</h1>
                 {/* Der EINE Statustext. Kommt seit 08.08.2026 vom Server
                     (head.status) — dieselbe Quelle, die Agentenliste und
                     Vertrieb benutzen. Der Rückfall auf `badge` bleibt für
@@ -672,7 +693,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               Rechnung sieht.
               ══════════════════════════════════════════════════════════ */}
           {zyklus?.text && (
-            <div className="lg:col-span-2 rounded-xl border bg-white px-4 py-3"
+            <div className="ak-abo lg:col-span-2 rounded-xl border bg-white px-4 py-3"
                  style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
               <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Abo</p>
               <p className="mt-1 text-[13px] font-semibold text-slate-800">{zyklus.text}</p>
@@ -685,7 +706,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 </p>
               )}
               {zyklus.anker == null && (
-                <p className="mt-1 text-[11.5px]" style={{ color: "#b45309" }}>
+                <p className="ak-warnzeile mt-1 text-[11.5px]" style={{ color: "#b45309" }}>
                   Ohne Buchungstag lässt sich keine Fälligkeit berechnen. Zahlung über die
                   Verbuchung buchen, dann entsteht der Zyklus von selbst.
                 </p>
@@ -695,7 +716,8 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
 
           {/* ── STAMMDATEN ── */}
           {app ? (
-            <Section title="Stammdaten — alles editierbar, alles mit Audit" icon={User}>
+            <Section title="Stammdaten — jede Änderung wird protokolliert" icon={User}>
+              <div className="ak-felder grid sm:grid-cols-2 gap-x-6">
               <Field label="Vorname" value={app.firstName || ""} onSave={saveStammdaten("firstName")} />
               <Field label="Nachname" value={app.lastName || ""} onSave={saveStammdaten("lastName")} />
               <Field label="E-Mail" value={app.email || ""} onSave={saveStammdaten("email")} sensitive type="email" />
@@ -703,14 +725,17 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               <Field label="Straße" value={app.street || ""} onSave={saveStammdaten("street")} />
               <Field label="PLZ" value={app.zip || ""} onSave={saveStammdaten("zip")} />
               <Field label="Ort" value={app.city || ""} onSave={saveStammdaten("city")} />
-              <Field label="Geburtsdatum (JJJJ-MM-TT)" value={app.birthdate ? String(app.birthdate).slice(0, 10) : ""} onSave={saveStammdaten("birthdate")} type="date" />
-              <div className="mt-3 pt-3 border-t border-slate-100">
-                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Konditionen (sensibel — mit Bestätigungsdialog)</p>
-                <Field label="Kreditlimit (approved_limit, €)" value={app.approvedLimit != null ? String(app.approvedLimit) : ""} onSave={saveKondition("approvedLimit")} sensitive type="number" />
-                <Field label="Betrag (amount_due, €)" value={app.amountDue != null ? Number(app.amountDue).toFixed(2) : ""} onSave={saveKondition("amountDue")} sensitive type="number" />
-                <Field label="Zahlungsfrist (JJJJ-MM-TT)" value={app.paymentDueDate ? String(app.paymentDueDate).slice(0, 10) : ""} onSave={saveKondition("paymentDueDate")} sensitive type="date" />
-                <div className="py-2">
-                  <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Paket</p>
+              <Field label="Geburtsdatum" value={app.birthdate ? String(app.birthdate).slice(0, 10) : ""} onSave={saveStammdaten("birthdate")} type="date" anzeige={tagDe} />
+              </div>
+              <div className="ak-konditionen mt-3 pt-3 border-t border-slate-100">
+                <p className="ak-zwischen text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Konditionen <span className="ak-hinweis font-normal normal-case tracking-normal">· Änderung nur mit Rückfrage</span></p>
+                <div className="ak-felder grid sm:grid-cols-2 gap-x-6">
+                <Field label="Kreditlimit" value={app.approvedLimit != null ? String(app.approvedLimit) : ""} onSave={saveKondition("approvedLimit")} sensitive type="number"
+                  anzeige={(v) => `${Number(v).toLocaleString("de-DE")} €`} />
+                <Field label="Betrag" value={app.amountDue != null ? Number(app.amountDue).toFixed(2) : ""} onSave={saveKondition("amountDue")} sensitive type="number" anzeige={eur} />
+                <Field label="Zahlungsfrist" value={app.paymentDueDate ? String(app.paymentDueDate).slice(0, 10) : ""} onSave={saveKondition("paymentDueDate")} sensitive type="date" anzeige={tagDe} />
+                <div className="ak-feld py-2">
+                  <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Paket</p>
                   <div className="flex items-center gap-2 mt-1">
                     <select
                       value={app.packKey || ""}
@@ -719,17 +744,18 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                         if (!confirm(`Paket wirklich ändern?\n\nAlt: ${app.packName || "—"}\nNeu: ${e.target.value}\n\nDer Betrag wird bewusst NICHT automatisch angepasst.`)) { e.target.value = app.packKey || ""; return; }
                         saveKondition("packKey")(e.target.value);
                       }}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-[13px] bg-white"
+                      className="ak-auswahl px-2.5 py-1.5 rounded-lg border border-slate-300 text-[13px] bg-white"
                     >
                       <option value="">{app.packName || "— Paket wählen —"}</option>
                       {/* 17.09.2026 (E-188): aus dem Katalog statt aus einer harten Liste — FIAON Global
                           fehlte hier, und die eingestellten Business-Abos bleiben nur für den Nachtrag
                           an Bestandskunden wählbar (dieselbe Liste wie PACKS_ALLOWED auf dem Server). */}
                       {PAKETE.filter((pk) => pk.key !== "schufa").map((pk) => (
-                        <option key={pk.key} value={pk.key}>{pk.key}{pk.eingestellt ? " (eingestellt — nur Bestand)" : pk.abo ? "" : " (einmalig)"}</option>
+                        <option key={pk.key} value={pk.key}>{pk.label}{pk.eingestellt ? " (eingestellt — nur Bestand)" : pk.abo ? "" : " (einmalig)"}</option>
                       ))}
                     </select>
                   </div>
+                </div>
                 </div>
               </div>
             </Section>
@@ -751,30 +777,37 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
           )}
 
           {/* ── AGENT & BETREUUNG ── */}
-          <Section title="Agent & Betreuung" icon={Users}>
+          <Section title="Betreuung" icon={Users}>
             {app && (
               <div className="mb-3">
-                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Zugewiesener Agent (Bestellung)</p>
+                <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Betreuer</p>
                 <select
                   value={head.agentId || ""}
                   onChange={(e) => reassignAgent(e.target.value)}
                   disabled={busy === "agent"}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-[13px] bg-white"
+                  className="ak-auswahl w-full px-2.5 py-2 rounded-lg border border-slate-300 text-[13px] bg-white"
                 >
-                  <option value="">— kein Agent —</option>
+                  <option value="">— niemand —</option>
                   {(data.agents || []).map((a: any) => <option key={a.id} value={a.id}>{a.name}{a.imDienst === false ? " · nicht im Dienst" : a.imDienst == null ? " · kein Wochenplan" : ""}{a.anwesend ? " · online" : ""}{Number(a.mandate) >= 500 ? ` · Liste voll (${a.mandate}/500)` : ""}</option>)}
                 </select>
               </div>
             )}
             <div className="mb-3">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Provisions-Lage</p>
+              <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Provisionen</p>
               {data.commissions.length > 0 ? (
-                <div className="space-y-1">
+                // Eine Zeile je Buchung: Betrag, wer, Art, Stand, Tag. Die Referenz steht
+                // im Hinweis (title) — sie ist in einer Akte fast immer dieselbe.
+                <div className="ak-provisionen">
                   {data.commissions.map((c: any) => (
-                    <p key={c.id} className="text-[12.5px] text-slate-700">
-                      <b>{eur(c.amount_cents / 100)}</b> · {c.agent_name || `Agent #${c.agent_id}`} · {c.kind === "override" ? "Override" : "eigen"} · {c.status}
-                      <span className="text-slate-400"> ({fmtD(c.created_at)}, {c.ref})</span>
-                    </p>
+                    <div key={c.id} title={c.ref} className="ak-prov flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 border-b border-slate-100 last:border-0 text-[12.5px]">
+                      <span className={`ak-prov-betrag tabular-nums font-semibold w-[84px] shrink-0 ${Number(c.amount_cents) < 0 ? "minus text-rose-600" : "text-slate-900"}`}>{eur(c.amount_cents / 100)}</span>
+                      <span className="ak-prov-wer min-w-0 flex-1 text-slate-700">
+                        {c.agent_name || `Mitarbeiter #${c.agent_id}`}
+                        <span className="text-slate-400"> · {c.kind === "override" ? "Override" : "eigen"}</span>
+                      </span>
+                      <span className={`ak-prov-stand px-2 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-500 ${String(c.status)}`}>{PROVISION_STAND[String(c.status)] ?? c.status}</span>
+                      <span className="ak-prov-tag tabular-nums text-slate-400 text-[11.5px]">{fmtD(c.created_at)}</span>
+                    </div>
                   ))}
                 </div>
               ) : head.commissionBasis === "direktzahler" ? (
@@ -789,10 +822,10 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
             </div>
             {(data.leads || []).length > 0 && (
               <div>
-                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Leads dieser Person</p>
+                <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Leads</p>
                 <div className="space-y-2">
                   {data.leads.map((l: any) => (
-                    <div key={l.id} className="px-3 py-2 rounded-lg border border-slate-100 bg-slate-50/60">
+                    <div key={l.id} className="ak-lead px-3 py-2 rounded-lg border border-slate-100 bg-slate-50/60">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-[12.5px] font-semibold text-slate-700">
                           Lead #{l.id} · {l.status}{l.quelle ? ` · ${l.quelle}` : ""}{l.kampagne ? ` · ${l.kampagne}` : ""}
@@ -802,9 +835,9 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                           <select
                             value={l.agentId || ""}
                             onChange={(e) => assignLeadAgent(l.id, e.target.value)}
-                            className="px-2 py-1 rounded-lg border border-slate-200 text-[11.5px] bg-white"
+                            className="ak-auswahl klein px-2 py-1 rounded-lg border border-slate-200 text-[11.5px] bg-white"
                           >
-                            <option value="">— Agent —</option>
+                            <option value="">— niemand —</option>
                             {(data.agents || []).map((a: any) => <option key={a.id} value={a.id}>{a.name}{a.imDienst === false ? " · nicht im Dienst" : ""}</option>)}
                           </select>
                           {!l.convertedOrderId && ref && (
@@ -924,7 +957,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 </div>
               )}
               {data.orders.map((o: any) => (
-                <div key={o.ref} className={`px-3 py-2.5 rounded-xl border ${o.isPrimary ? "border-slate-300 bg-white" : "border-slate-100 bg-slate-50/60"}`}>
+                <div key={o.ref} className={`ak-bestellung px-3 py-2.5 rounded-xl border ${o.isPrimary ? "haupt border-slate-300 bg-white" : "border-slate-100 bg-slate-50/60"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className="inline-flex items-center shrink-0 mr-1"
                            style={{ minWidth: 22, minHeight: 22 }}>
@@ -936,7 +969,9 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                                return n;
                              })} />
                     </label>
-                    <div className="min-w-0 flex-1">
+                    {/* basis-60: Vorher wurde der Text auf 60 px gequetscht, weil Marke und
+                        Knöpfe nicht umbrachen — jetzt weichen sie in die nächste Zeile. */}
+                    <div className="min-w-0 flex-1 basis-60">
                       <p className="text-[13px] font-semibold text-slate-800">
                         <span className="font-mono text-[#2563eb]">{o.paymentReference || o.ref}</span>
                         {o.invoiceNumber && <span className="ml-2 text-[11px] text-slate-400 font-mono">{o.invoiceNumber}</span>}
@@ -947,7 +982,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                         {o.paymentDueDate && o.paymentStatus !== "paid" ? ` · Frist ${fmtD(o.paymentDueDate)}` : ""}
                         {o.mergedInto ? ` · zusammengeführt in ${o.mergedInto}` : ""}
                         {o.supersededBy ? ` · ersetzt durch ${o.supersededBy}` : ""}
-                        {o.agentName ? ` · Agent: ${o.agentName}` : ""}
+                        {o.agentName ? ` · Betreuer: ${o.agentName}` : ""}
                       </p>
                       {/* Archiv (08.08.2026): Eine archivierte Bestellung bleibt
                           hier lesbar — mit Grund und Namen. Sie aus der Akte zu
@@ -1033,17 +1068,27 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
           <Section title="E-Mail-Center — jedes Kunden-Event mit Vorschau" icon={Mail}>
             {!payRef ? (
               <p className="text-[12.5px] text-slate-400">Kundengebundene Events brauchen eine Bestellung (Zahlungsreferenz).{openLeads.length > 0 ? " Für Leads gibt es den Antrags-Link-Versand unten." : ""}</p>
-            ) : (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {events.map((ev) => (
-                  <button key={ev.type} type="button" onClick={() => previewEvent(ev)} disabled={busy === `ev-${ev.type}`}
-                    title={ev.description}
-                    className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-600 hover:border-slate-300 disabled:opacity-50">
-                    {ev.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              const knoepfe = (
+                <div className="ak-mailknoepfe flex flex-wrap gap-2 mb-3">
+                  {events.map((ev) => (
+                    <button key={ev.type} type="button" onClick={() => previewEvent(ev)} disabled={busy === `ev-${ev.type}`}
+                      title={ev.description}
+                      className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-600 hover:border-slate-300 disabled:opacity-50">
+                      {ev.label}
+                    </button>
+                  ))}
+                </div>
+              );
+              // Im Fenster der Telefonkartei (21.09.2026): vierzig Knöpfe waren eine
+              // Wand — sie klappen hinter eine Zeile; der Versandverlauf bleibt sichtbar.
+              return eingebettet ? (
+                <details className="ak-mails mb-3">
+                  <summary>Mail an den Kunden senden <span>· {events.length} Vorlagen mit Vorschau</span></summary>
+                  <div className="mt-3">{knoepfe}</div>
+                </details>
+              ) : knoepfe;
+            })()}
             {/* Die Warnzeile ist ersatzlos weg (09.08.2026). Sie behauptete, ein
                 Zweig fehle, weil in unserer eigenen Beschreibung ein Notizwort
                 stand — und lag bei 23 von 33 Ereignissen falsch. Der gemessene
@@ -1059,7 +1104,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 ))}
               </div>
             )}
-            <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Versand-Historie dieser Person</p>
+            <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Versand an diese Person</p>
             {data.emailHistory.length === 0 ? (
               <p className="text-[12px] text-slate-400">Noch kein Versand protokolliert.</p>
             ) : (
@@ -1132,9 +1177,10 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
         </div>
 
         {/* ── NOTIZ + VERLAUF ── */}
-        <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-5">
-          <h2 className="flex items-center gap-2 text-[13px] font-bold text-slate-900 mb-4">
-            <Clock size={15} className="text-slate-400" /> Verlauf — alles chronologisch (Berlin-Zeit)
+        <div className="ak-karte ak-verlauf mt-4 bg-white border border-slate-200 rounded-2xl p-5">
+          <h2 className="ak-titel flex items-center gap-2 text-[13px] font-bold text-slate-900 mb-4">
+            <Clock size={15} className="text-slate-400" />
+            <span className="min-w-0">Verlauf<span className="ak-unter font-normal text-slate-400"><span className="ak-strich"> — </span>alles chronologisch, Berliner Zeit</span></span>
           </h2>
           {(ref || (data.leads || []).length > 0) && (
             <div className="flex gap-2 mb-4">

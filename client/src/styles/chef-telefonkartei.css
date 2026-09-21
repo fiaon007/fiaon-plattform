@@ -77,10 +77,15 @@
   box-shadow: 0 8px 22px rgba(29, 78, 216, .25);
 }
 .tk-reiter-knopf.an em { color: var(--tk-blau-hell); background: rgba(147, 197, 253, .14); }
-.tk-reiter-knopf:focus-visible, .tk button:focus-visible, .tk a:focus-visible, .tk input:focus-visible {
+.tk-reiter-knopf:focus-visible, .tk button:focus-visible, .tk a:focus-visible, .tk input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--tk-blau-hell);
   outline-offset: 2px;
 }
+/* Textfelder zeigen den Fokus an ihrer runden Kante — kein eckiger Rahmen
+   (Justin, 21.09.: „Das Eingabefeld mit dem eckigen weißen Rahmen passt gar nicht"). */
+.tk input[type="search"], .tk input[type="text"], .tk .tk-feld { outline: none; -webkit-appearance: none; appearance: none; }
+.tk input[type="search"]:focus, .tk input[type="search"]:focus-visible,
+.tk .tk-feld:focus, .tk .tk-feld:focus-visible { outline: none; box-shadow: none; }
 
 /* ── Suche und Schalter ─────────────────────────────────────────────────── */
 .tk-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 4px; }
@@ -106,9 +111,21 @@
   outline: none;
 }
 .tk-suche input::placeholder { color: var(--tk-still); }
+.tk-suche input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(148, 163, 184, .35) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5 5l6 6M11 5l-6 6' stroke='%230b1220' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/12px no-repeat; cursor: pointer; }
+.tk-suche:focus-within { border-color: rgba(96, 165, 250, .55); box-shadow: 0 0 0 3px rgba(59, 130, 246, .16); }
 .tk-schalter { display: inline-flex; align-items: center; gap: 8px; font: 300 13px/1.3 'Inter', sans-serif; color: var(--tk-leise); cursor: pointer; }
 .tk-schalter input { width: 18px; height: 18px; accent-color: var(--tk-blau); }
 .tk-satz { margin: 12px 0 16px; font: 300 13px/1.55 'Inter', sans-serif; color: var(--tk-still); max-width: 720px; }
+.tk-satz.sucht { color: var(--tk-blau-hell); }
+.tk-sprung {
+  display: inline-flex; align-items: center; gap: 8px; margin: -4px 0 16px;
+  padding: 9px 14px; border-radius: 999px; border: 1px solid rgba(96, 165, 250, .35);
+  background: rgba(37, 99, 235, .12); color: var(--tk-blau-hell); text-decoration: none;
+  font: 400 13px/1.2 'Inter', sans-serif;
+}
+.tk-sprung svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tk-sprung:hover { background: rgba(37, 99, 235, .2); }
 .tk-leer {
   padding: 34px 20px;
   border-radius: 18px;
@@ -210,6 +227,7 @@
 .tk-fakten dd { margin: 0; font: 300 13.5px/1.45 'Inter', sans-serif; color: var(--tk-text); overflow-wrap: anywhere; }
 
 .tk-flaggen { display: flex; gap: 6px; flex-wrap: wrap; }
+.tk-flaggen span.test { color: var(--tk-gelb); border-color: rgba(252, 211, 77, .3); background: rgba(252, 211, 77, .08); }
 .tk-flaggen span {
   font: 400 11px/1 'Inter', sans-serif;
   color: var(--tk-rot);
@@ -286,6 +304,8 @@
 .tk-fuss { display: flex; gap: 16px; flex-wrap: wrap; padding-top: 4px; border-top: 1px solid var(--tk-linie); }
 .tk-fuss a { font: 400 12.5px/2.2 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; }
 .tk-fuss a:hover { color: var(--tk-blau-hell); }
+.tk-fuss-knopf { padding: 0; border: 0; background: none; cursor: pointer; font: 400 12.5px/2.2 'Inter', sans-serif; color: var(--tk-blau-hell); }
+.tk-fuss-knopf:hover { color: #bfdbfe; }
 
 .tk-mehr {
   display: block;
@@ -365,13 +385,22 @@
   .tk-rr-tun { grid-column: auto; }
 }
 
-/* ── Termine unten ──────────────────────────────────────────────────────── */
-.tk-termine { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--tk-linie); }
-.tk-termine-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.tk-termine-kopf a { font: 400 12.5px/1 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; }
-.tk-termine-kopf a:hover { color: var(--tk-blau-hell); }
+/* ── Termine unten: erst deine, dann alle ───────────────────────────────── */
+.tk-termine { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--tk-linie); display: grid; gap: 18px; scroll-margin-top: 80px; }
+.tk-deine {
+  scroll-margin-top: 80px;
+  padding: 16px 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(96, 165, 250, .28);
+  background: linear-gradient(160deg, rgba(11, 18, 32, .92), rgba(26, 39, 68, .88));
+  box-shadow: 0 18px 40px rgba(2, 8, 23, .45);
+}
+.tk-termine-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 14px; flex-wrap: wrap; }
+.tk-termine-kopf h2 { margin: 0; font: 400 16px/1.2 'Inter', sans-serif; color: #fff; }
+.tk-termine-kopf span { font: 300 12.5px/1.3 'Inter', sans-serif; color: var(--tk-leise); }
 .tk-tag { margin-top: 14px; }
 .tk-tag h3 { margin: 0 0 8px; font: 400 11px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--tk-still); }
+.tk-termine ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .tk-termine li {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr) auto;
@@ -380,15 +409,65 @@
   padding: 10px 12px;
   border-radius: 14px;
   border: 1px solid var(--tk-linie);
-  background: var(--tk-flaeche);
+  background: rgba(255, 255, 255, .04);
 }
-.tk-termine li.meiner { border-color: rgba(96, 165, 250, .45); background: rgba(37, 99, 235, .1); }
 .tk-termine li.vorbei { opacity: .55; }
 .tk-t-zeit { font: 400 15px/1 'Inter', sans-serif; font-variant-numeric: tabular-nums; color: #fff; }
 .tk-t-was { min-width: 0; }
 .tk-t-was b { display: block; font: 400 14px/1.3 'Inter', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tk-t-was span { font: 300 12px/1.35 'Inter', sans-serif; color: var(--tk-leise); }
-.tk-klein { font: 300 13px/1.5 'Inter', sans-serif; color: var(--tk-still); }
+.tk-t-was span { display: block; font: 300 12px/1.4 'Inter', sans-serif; color: var(--tk-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Bei deinen Terminen zählt das Anliegen — zwei Zeilen statt abgeschnitten. */
+.tk-deine .tk-t-was span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tk-alle-kopf {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  min-height: 48px; padding: 0 16px; border-radius: 16px;
+  border: 1px solid var(--tk-linie); background: var(--tk-flaeche);
+  color: var(--tk-text); font: 400 14px/1 'Inter', sans-serif; cursor: pointer; text-align: left;
+}
+.tk-alle-kopf span { flex: 1; }
+.tk-alle-kopf em { font-style: normal; font-size: 12px; color: var(--tk-still); font-variant-numeric: tabular-nums; }
+.tk-alle-kopf svg { width: 16px; height: 16px; fill: none; stroke: var(--tk-leise); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tk-alle-termine .tk-tag { padding: 0 2px; }
+.tk-zentrale { display: inline-block; margin-top: 14px; font: 400 12.5px/1 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; }
+.tk-zentrale:hover { color: var(--tk-blau-hell); }
+.tk-klein { margin: 10px 0 0; font: 300 13px/1.5 'Inter', sans-serif; color: var(--tk-still); }
+
+/* ── Die Akte im Fenster ───────────────────────────────────────────────── */
+.tk-akte-schleier {
+  position: fixed; inset: 0; z-index: 2147482990;
+  display: flex; align-items: center; justify-content: center;
+  padding: 3vh 3vw;
+  background: rgba(2, 6, 17, .66);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  animation: tk-auf .18s ease-out;
+}
+.tk-akte {
+  display: flex; flex-direction: column;
+  width: min(1180px, 100%); height: 100%;
+  border-radius: 22px; overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: #0a1628;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
+}
+.tk-akte-kopf {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px 14px 20px; border-bottom: 1px solid var(--tk-linie);
+  background: linear-gradient(160deg, rgba(15, 27, 51, .98), rgba(11, 18, 32, .98));
+}
+.tk-akte-kopf b { display: block; font: 400 17px/1.25 'Inter', sans-serif; color: #fff; }
+.tk-akte-kopf span { display: block; font: 300 12.5px/1.4 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-akte-zu {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px;
+  border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .06); color: var(--tk-text); cursor: pointer;
+}
+.tk-akte-zu svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; fill: none; }
+.tk-akte-zu:hover { background: rgba(255, 255, 255, .12); }
+.tk-akte-inhalt { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.tk-akte-inhalt .min-h-screen { min-height: 0 !important; }
+@media (max-width: 760px) {
+  .tk-akte-schleier { padding: 0; }
+  .tk-akte { border-radius: 0; border: 0; padding-top: env(safe-area-inset-top); }
+}
 
 /* ── Blätter (Storno, Rückruf) ──────────────────────────────────────────── */
 .tk-schleier {
@@ -454,6 +533,34 @@
 .tk-kulanz input { margin-top: 2px; width: 18px; height: 18px; accent-color: #f43f5e; flex: none; }
 .tk-blatt-tun { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
 .tk-blatt-tun .tk-knopf { flex: 1 1 auto; }
+
+/* ── Rückruf-Blatt: Tag, Stunde, Minute als Knöpfe ──────────────────────── */
+.tk-blatt.tk-rr-blatt { width: min(640px, 100%); }
+.tk-rr-blatt h2 { margin-bottom: 6px; }
+.tk-rr-gewaehlt { margin: 0 0 6px; font: 300 15px/1.4 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-rr-gewaehlt b { font-weight: 400; color: #fff; }
+.tk-rr-blatt .tk-blatt-label { margin: 18px 0 8px; }
+.tk-wahl { display: grid; gap: 8px; }
+.tk-wahl button {
+  min-height: 44px; padding: 0 6px; border-radius: 12px;
+  border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .05);
+  color: var(--tk-text); font: 400 14px/1 'Inter', sans-serif; font-variant-numeric: tabular-nums;
+  cursor: pointer; transition: background .15s ease, border-color .15s ease;
+}
+.tk-wahl button { white-space: nowrap; }
+/* Hover nur, wo es eine Maus gibt — am iPhone „klebt" er sonst nach dem Tippen und überdeckt die Markierung. */
+@media (hover: hover) {
+  .tk-wahl button:hover:not(:disabled) { border-color: rgba(147, 197, 253, .4); background: rgba(255, 255, 255, .09); }
+}
+.tk-wahl button.an, .tk-wahl button.an:hover:not(:disabled) { color: #fff; border-color: rgba(96, 165, 250, .7); background: linear-gradient(135deg, rgba(37, 99, 235, .55), rgba(29, 78, 216, .35)); }
+.tk-wahl button:disabled { opacity: .3; cursor: default; }
+.tk-wahl.vier { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tk-wahl.tage { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tk-wahl.stunden { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.tk-wahl.minuten { margin-top: 8px; }
+@media (min-width: 620px) { .tk-wahl.tage { grid-template-columns: repeat(7, minmax(0, 1fr)); } .tk-wahl.tage button { font-size: 13px; } }
+.tk-rr-blatt .tk-feld { margin: 18px 0 0; }
+.tk-rr-blatt .tk-blatt-tun { margin-top: 16px; }
 
 /* ── Meldung (verschwindet von selbst) ──────────────────────────────────── */
 .tk-meldung {

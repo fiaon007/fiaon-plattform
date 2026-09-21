@@ -5,6 +5,29 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (abends) — Telefonkartei nach Justins erstem Test
+
+**Was geändert wurde:**
+
+- **Suche findet jeden:** Wer einen Namen, eine Nummer oder einen Verwendungszweck sucht, findet ihn über alle Reiter
+  hinweg — auch Gesperrte, Stornierte und Testkonten (Schild „Testkonto“ auf der Karte). Justins eigene Datensätze sind
+  als Testkonto markiert und waren deshalb unsichtbar. Die Reiter selbst bleiben ohne Testkonten.
+- **Suchfeld** ohne eckigen weißen Fokusrahmen — der Fokus zeigt sich an der runden Kante.
+- **Akte als Fenster:** „Akte öffnen“ zeigt die ganze Akte über der Kartei, ohne die Seite zu verlassen (Kreuz oder Esc
+  schließt, die Karte ist danach frisch). Die Akte-Seite nimmt dafür ihre Kennung als Eigenschaft (`akteId`, `eingebettet`).
+- **Termine:** zuerst „Deine Termine“ (gebucht über fiaon.com/justin, dein Konto, Gründergespräche — mit Anliegen), darunter
+  aufklappbar „Alle Termine des Teams“. Oben ein Sprunglink zu deinen Terminen.
+- **Später anrufen neu:** kein Systemkalender mehr — oben groß die Wahl („Rückruf morgen, 14:30 Uhr“), darunter Schnellwahl
+  (in 15 Min … in 2 Std), sieben Tage, Stunden 8–20 und Viertelstunden als große Knöpfe; Vergangenes ist aus.
+
+**Warum:** Justins erster Test am 21.09.: „Wenn ich ‚Justin Schwarzott‘ suche, kommt nichts … Akte öffnen muss ein Popup
+sein … unten will ich erst meine Termine sehen … der Kalender ist super unübersichtlich — bitte neu und einfacher.“
+
+**Wo zu finden:** `/chef/s/telefonkartei`; `server/lib/fiaon-telefonkartei.ts` (Suche, Termine), `ChefTelefonkartei.tsx`,
+`chef-telefonkartei.css`, `client/src/pages/admin-kunde.tsx` (eingebettet); Prüfstand 94 Prüfungen.
+
+---
+
 ## 21.09.2026 — Telefonkartei: Justins eigene Anrufseite im Chefbüro
 
 **Was geändert wurde:**

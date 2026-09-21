@@ -45,8 +45,8 @@ const basis: KarteiKarte = {
   },
   ref: "FIAON-ABC234", leadId: null, lead: null, betreuer: "Nikita Boychenko",
   kontakt: { am: null, von: null, ergebnis: null, nichtErreicht: 0 }, termin: null, erreichbarkeit: "",
-  zusage: null, gesperrt: false, werbungGesperrt: false,
-  terminLink: "https://www.fiaon.com/justin?k=4711.123.abc", akteLink: "/chef/s/akte?id=FIAON-ABC234",
+  zusage: null, gesperrt: false, werbungGesperrt: false, testfall: false,
+  terminLink: "https://www.fiaon.com/justin?k=4711.123.abc", akteId: "FIAON-ABC234", akteLink: "/chef/s/akte?id=FIAON-ABC234",
   storno: null, rueckrufAm: null,
 };
 const karte = (teil: Partial<KarteiKarte>): KarteiKarte => ({ ...basis, ...teil });
@@ -193,6 +193,20 @@ abschnitt("Wände im Quelltext");
   const seite = lies("client/src/components/admin/ChefTelefonkartei.tsx");
   ok(seite.includes("keepalive: true"), "Ergebnis kommt auch an, wenn das iPhone zu WhatsApp wechselt");
   ok(!/window\.open\(/.test(seite), "WhatsApp über echte Links, kein window.open (Popup-Sperre)");
+
+  // ── Nachschärfung 21.09. abends (Justins Rückmeldung) ─────────────────────
+  ok(/const sucht = !!String\(f\.suche/.test(lib) && lib.includes("const test = f.personId || sucht ? sqlPool`` : sqlPool`AND p.ist_test_am IS NULL`"),
+    "Suche findet jeden (auch Testkonten wie Justin selbst), die Reiter bleiben ohne Testkonten");
+  ok(/const gruppe = f\.personId \|\| sucht \? sqlPool``/.test(lib) && /const sperre = f\.personId \|\| sucht/.test(lib), "Suche ignoriert Reiter und Sperre");
+  ok(lib.includes("testfall: !!z.testfall") && seite.includes('className="test">Testkonto'), "Karte trägt das Schild „Testkonto“");
+  ok(routen.includes("gruenderAgentId()") && lib.includes("t.quelle = 'gruender' OR t.agent_id = ANY(${meine})"), "„Deine Termine“ = Gründerseite, eigenes Konto, Gründergespräch");
+  ok(seite.includes('id="tk-deine-termine"') && seite.indexOf("Deine Termine") < seite.indexOf("Alle Termine des Teams"), "erst deine Termine, darunter alle");
+  ok(seite.includes("function AkteFenster") && seite.includes("<KundeAkte akteId={k.akteId} eingebettet />") && !/href=\{k\.akteLink\}/.test(seite), "Akte öffnet als Fenster auf derselben Seite");
+  ok(/export default function AdminKundeAktePage\(\{ akteId, eingebettet = false \}/.test(lies("client/src/pages/admin-kunde.tsx")), "Akte-Seite nimmt Kennung als Eigenschaft");
+  ok(!seite.includes("datetime-local") && seite.includes("const STUNDEN = [8,") && seite.includes("const MINUTEN = [0, 15, 30, 45]"), "Rückruf ohne Systemkalender: Tag, Stunde, Minute als Knöpfe");
+  const css = lies("client/src/styles/chef-telefonkartei.css");
+  ok(/\.tk-suche:focus-within/.test(css) && !/\.tk input:focus-visible/.test(css), "Suchfeld: Fokus an der runden Kante, kein eckiger Rahmen");
+  ok(lies("client/src/pages/agent/rundgaenge.ts").includes("„Akte öffnen“ unten auf der Karte zeigt die ganze Akte in einem Fenster"), "Rundgang erklärt Akte-Fenster und Termine");
 }
 
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden${fehler ? ` — ${fehler} FEHLER` : ""}`);

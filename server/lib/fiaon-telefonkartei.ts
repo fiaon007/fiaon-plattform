@@ -187,11 +187,18 @@ function gruppenBedingung(gruppe: KarteiGruppe, RATE_FAELLIG_SQL: string) {
 async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<any[]> {
   await karteiTabellen();
   const { RATE_FAELLIG_SQL, EREIGNIS_SQL } = await vertriebSql();
+  // SUCHE FINDET JEDEN (21.09.2026, Justin: „Wenn ich ‚Justin Schwarzott' suche,
+  // kommt nichts — mich muss man aber finden."). Seine Datensätze sind als
+  // Testkonto markiert (Name eines Mitarbeiters), andere sind gesperrt oder
+  // storniert. Die Reiter bleiben ohne sie; wer einen Namen sucht, will genau
+  // diesen Menschen — die Karte trägt dann ihr Schild (Testkonto, Sperre, Storno).
+  const sucht = !!String(f.suche ?? "").trim();
   const einzeln = f.personId ? sqlPool`AND p.id = ${f.personId}` : sqlPool``;
-  const gruppe = f.personId ? sqlPool`` : gruppenBedingung(f.gruppe, RATE_FAELLIG_SQL);
+  const gruppe = f.personId || sucht ? sqlPool`` : gruppenBedingung(f.gruppe, RATE_FAELLIG_SQL);
+  const test = f.personId || sucht ? sqlPool`` : sqlPool`AND p.ist_test_am IS NULL`;
   // Gesperrte blendet die Kartei aus, solange Justin sie nicht ausdrücklich will —
   // eine Vertriebssperre heißt meistens: Der Mensch hat Nein gesagt.
-  const sperre = f.personId || f.gruppe === "storniert" || f.gesperrte ? sqlPool`` : sqlPool`AND NOT COALESCE(p.is_blocked, FALSE)`;
+  const sperre = f.personId || sucht || f.gruppe === "storniert" || f.gesperrte ? sqlPool`` : sqlPool`AND NOT COALESCE(p.is_blocked, FALSE)`;
   const ordnung = f.gruppe === "storniert"
     ? sqlPool`ORDER BY b.storno_am DESC NULLS LAST, b.id DESC`
     : sqlPool`ORDER BY b.ereignis_am DESC NULLS LAST, b.id DESC`;
@@ -200,12 +207,13 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
       SELECT p.id, p.first_name, p.last_name, p.contact_name, p.anrede, p.primary_email, p.primary_phone,
              p.city, p.country, p.priority_tier, p.tier_reason, p.is_blocked, p.werbung_gesperrt_am,
              p.unreachable_count, p.promised_payment_date, p.assigned_agent_id, p.created_at,
+             (p.ist_test_am IS NOT NULL) AS testfall,
              ${sqlPool.unsafe(EREIGNIS_SQL)} AS ereignis_am,
              s.am AS storno_am, s.grund AS storno_grund, s.durch AS storno_durch
       FROM fiaon_persons p
       LEFT JOIN fiaon_telefonkartei_storno s ON s.person_id = p.id AND s.zurueck_am IS NULL
-      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
-        ${einzeln} ${gruppe} ${sperre} ${suchBedingung(f.suche ?? "")}
+      WHERE p.merged_into_person_id IS NULL
+        ${test} ${einzeln} ${gruppe} ${sperre} ${suchBedingung(f.suche ?? "")}
     )
     SELECT b.*,
            o.ref AS o_ref, o.type AS o_type, o.pack_key AS o_pack, o.pack_name AS o_pack_name,
@@ -407,7 +415,9 @@ async function karteBauen(z: any): Promise<KarteiKarte> {
     zusage: tagText(z.promised_payment_date),
     gesperrt: !!z.is_blocked,
     werbungGesperrt: !!z.werbung_gesperrt_am,
+    testfall: !!z.testfall,
     terminLink: absoluteUrl(`/justin?k=${terminTokenErzeugen(Number(z.id))}`),
+    akteId: aktenRef ?? (z.l_id != null ? `lead-${Number(z.l_id)}` : null),
     akteLink: aktenRef
       ? `/chef/s/akte?id=${encodeURIComponent(aktenRef)}`
       : (z.l_id != null ? `/chef/s/akte?id=lead-${Number(z.l_id)}` : null),
@@ -949,22 +959,36 @@ export async function rueckrufIcs(id: number): Promise<{ name: string; ics: stri
   return { name: `Rueckruf-${r.id}.ics`, ics };
 }
 
-/** Alle gebuchten Termine: heute (auch schon vorbei) und die nächsten drei Wochen. */
-export async function termineListe(meineAgentId: number | null): Promise<KarteiTermin[]> {
+/**
+ * Die Termine für den unteren Abschnitt. Justin (21.09.2026): „Ich will nur meine
+ * sehen und erst weiter unten ALLE Termine — vorrangig die, die Leute bei mir
+ * buchen." Deshalb zwei Mengen in einer Abfrage:
+ *   · deine  = das Konto der Gründerseite (/justin), das eigene Chef-Konto oder
+ *              ein Gründergespräch — heute (auch erledigte/verpasste) und die
+ *              nächsten 60 Tage
+ *   · andere = gebuchte Termine des Teams, ab zwei Stunden zurück, 21 Tage
+ */
+export async function termineListe(meineAgentIds: number[]): Promise<KarteiTermin[]> {
+  const meine = Array.from(new Set(meineAgentIds.filter((n) => Number.isInteger(n) && n > 0)));
   const zeilen = (await sqlPool`
-    SELECT t.id, t.person_id, t.beginn, t.dauer_min, t.status, t.quelle, t.agent_id, t.notiz,
+    WITH t0 AS (
+      SELECT t.*, (t.quelle = 'gruender' OR t.agent_id = ANY(${meine})) AS meiner
+      FROM fiaon_termine t
+      WHERE t.status <> 'abgesagt'
+        AND t.beginn >= date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'
+        AND t.beginn < NOW() + INTERVAL '60 days'
+    )
+    SELECT t.id, t.person_id, t.beginn, t.dauer_min, t.status, t.quelle, t.agent_id, t.notiz, t.meiner,
            ag.name AS bei, p.first_name, p.last_name, p.contact_name, p.primary_phone, p.country,
            (SELECT a.phone FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL ORDER BY a.created_at DESC LIMIT 1) AS a_phone,
            (SELECT a.phone_country_code FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL ORDER BY a.created_at DESC LIMIT 1) AS a_vorwahl
-    FROM fiaon_termine t
+    FROM t0 t
     LEFT JOIN fiaon_persons p ON p.id = t.person_id
     LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
-    WHERE COALESCE(p.ist_test_am IS NULL, TRUE)
-      AND t.status <> 'abgesagt'
-      AND t.beginn >= date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'
-      AND t.beginn < NOW() + INTERVAL '21 days'
-      AND (t.status = 'gebucht' OR t.beginn < NOW())
-    ORDER BY t.beginn LIMIT 200`) as any[];
+    WHERE t.meiner
+       OR (COALESCE(p.ist_test_am IS NULL, TRUE) AND t.status = 'gebucht'
+           AND t.beginn > NOW() - INTERVAL '2 hours' AND t.beginn < NOW() + INTERVAL '21 days')
+    ORDER BY t.beginn LIMIT 300`) as any[];
   return zeilen.map((z) => {
     const tel = waehlbareNummer([{ nummer: z.a_phone, vorwahl: z.a_vorwahl }, { nummer: z.primary_phone }], z.country);
     const name = [text(z.first_name), text(z.last_name)].filter(Boolean).join(" ") || text(z.contact_name) || "Ohne Namen";
@@ -972,7 +996,7 @@ export async function termineListe(meineAgentId: number | null): Promise<KarteiT
       id: Number(z.id), personId: z.person_id != null ? Number(z.person_id) : null, name,
       beginn: iso(z.beginn)!, dauerMin: z.dauer_min != null ? Number(z.dauer_min) : null,
       status: String(z.status), art: terminArtAusQuelle(z.quelle).text, bei: text(z.bei) || null,
-      meiner: meineAgentId != null && Number(z.agent_id) === meineAgentId,
+      meiner: !!z.meiner,
       telefonWaehlbar: tel.waehlbar, telefonAnzeige: tel.anzeige,
       notiz: text(z.notiz).slice(0, 240) || null,
     };

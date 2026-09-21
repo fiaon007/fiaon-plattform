@@ -46,7 +46,9 @@ router.get("/chef/telefonkartei", wache, async (req: ChefRequest, res: Response)
 /** GET /chef/telefonkartei/termine — Rückrufe (Justins eigene) und gebuchte Termine. */
 router.get("/chef/telefonkartei/termine", wache, async (req: ChefRequest, res: Response) => {
   try {
-    const [rueckrufe, termine] = await Promise.all([rueckrufListe(), termineListe(req.chef?.agentId ?? null)]);
+    const { gruenderAgentId } = await import("./fiaon-gruender-termin");
+    const meine = [await gruenderAgentId().catch(() => 0), Number(req.chef?.agentId || 0)];
+    const [rueckrufe, termine] = await Promise.all([rueckrufListe(), termineListe(meine)]);
     res.json({ ok: true, rueckrufe, termine });
   } catch (e: any) {
     console.error("[TELEFONKARTEI] termine:", e);

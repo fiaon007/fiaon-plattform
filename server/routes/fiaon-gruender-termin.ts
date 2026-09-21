@@ -66,6 +66,11 @@ async function einstellungen(): Promise<typeof VORGABE> {
 
 interface Gruender { id: number; vorname: string; name: string; bild: string | null; email: string | null }
 
+/** Das Konto, auf das /justin bucht (E-201: die Telefonkartei zeigt diese Termine als „deine"). */
+export async function gruenderAgentId(): Promise<number> {
+  return (await einstellungen()).agentId;
+}
+
 async function gruenderLesen(agentId: number): Promise<Gruender | null> {
   const [a] = (await sqlPool`
     SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, avatar, email, active

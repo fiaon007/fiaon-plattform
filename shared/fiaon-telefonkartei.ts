@@ -49,6 +49,9 @@ export function istKarteiGruppe(v: unknown): v is KarteiGruppe {
   return KARTEI_GRUPPEN.some((g) => g.key === v);
 }
 
+/** Der Satz unter den Reitern, solange gesucht wird: Die Suche findet jeden. */
+export const KARTEI_SUCHE_SATZ = "Suche in allen Gruppen — auch Gesperrte, Stornierte und Testkonten.";
+
 /** Wie viele Karten eine Seite trägt — am iPhone sind 25 schon ein langer Daumenweg. */
 export const KARTEI_SEITE = 25;
 
@@ -119,8 +122,12 @@ export interface KarteiKarte {
   zusage: string | null;
   gesperrt: boolean;
   werbungGesperrt: boolean;
+  /** Als Testkonto markiert (z. B. Name eines Mitarbeiters) — nur über die Suche zu finden. */
+  testfall: boolean;
   /** Justins persönlicher Kalender, Name/E-Mail/Telefon schon ausgefüllt. */
   terminLink: string;
+  /** Kennung für die Akte (Bestellung oder „lead-<id>") — öffnet das Akte-Fenster. */
+  akteId: string | null;
   /** Die Akte im Chefbüro — null, wenn es weder Bestellung noch Lead gibt. */
   akteLink: string | null;
   storno: { am: string; grund: string | null; durch: string | null } | null;
@@ -381,7 +388,7 @@ export interface KarteiTermin {
   status: string;
   art: string;
   bei: string | null;
-  /** Justins eigene Termine (Gründergespräche) — sie stehen hervorgehoben. */
+  /** Justins eigene Termine (Gründerseite /justin, sein Konto) — stehen im Abschnitt „Deine Termine". */
   meiner: boolean;
   telefonWaehlbar: string | null;
   telefonAnzeige: string | null;

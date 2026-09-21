@@ -186,17 +186,22 @@ function Field({ label, value, onSave, type = "text", sensitive, placeholder }: 
   );
 }
 
-export default function AdminKundeAktePage() {
+export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
+  /** 21.09.2026 (E-201): Die Telefonkartei öffnet die Akte als Fenster auf derselben Seite. */
+  akteId?: string;
+  /** Im Fenster: ohne „Alle Kunden"-Rücksprung, der die Seite verlassen würde. */
+  eingebettet?: boolean;
+} = {}) {
   // Zwei Wege führen hierher (27.08.2026): die alte Adresse /admin/kunde/:id
   // und das Chefbüro unter /chef/s/akte?id=… . Beide sind gültig; der zweite
   // trägt die Kennung in der Suchzeichenkette, weil dort der Slug den Platz
-  // im Pfad belegt.
+  // im Pfad belegt. Der dritte Weg (E-201) ist das Fenster der Telefonkartei.
   const [, params] = useRoute("/admin/kunde/:id");
   const ausAdresse = params?.id ? decodeURIComponent(params.id) : "";
   const ausSuche = typeof window !== "undefined"
     ? (new URLSearchParams(window.location.search).get("id") || "")
     : "";
-  const id = ausAdresse || ausSuche;
+  const id = akteId || ausAdresse || ausSuche;
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -457,9 +462,11 @@ export default function AdminKundeAktePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        <Link href="/admin/kunden" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-600 mb-4">
-          <ArrowLeft size={13} /> Alle Kunden
-        </Link>
+        {!eingebettet && (
+          <Link href="/admin/kunden" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-600 mb-4">
+            <ArrowLeft size={13} /> Alle Kunden
+          </Link>
+        )}
 
         {msg && <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-[13px] font-semibold text-blue-800">{msg}</div>}
 

@@ -1094,6 +1094,7 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     titel: "A, B, C, Rate offen — die Stufen des Hauses.",
     text: "A = Zahlung gemeldet, B = Antrag fertig, Rechnung offen, C = Lead ohne Antrag, „Rate offen“ = bezahlt, aber eine Monatsrate ist fällig. "
       + "„Alle“ zeigt jeden, „Storniert“ die, die du storniert hast. Gesperrte (Vertriebssperre) blendest du über den Schalter ein.",
+    tipp: "Die Suche findet jeden — auch Gesperrte, Stornierte und Testkonten, jeweils mit Schild auf der Karte.",
   },
   {
     titel: "„Anrufen“ speichert zuerst den Kontakt auf deinem iPhone.",
@@ -1108,6 +1109,12 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
       + "persönlichen Kalender, Name und Nummer sind dort schon ausgefüllt. „Später anrufen“: Uhrzeit wählen, der Rückruf steht oben "
       + "auf der Seite und auf Wunsch im iPhone-Kalender. „Stornieren“: raus aus allen Listen, keine Anrufe, keine Werbung.",
     tipp: "Alles landet in der Akte des Kunden — die Mitarbeiter sehen, was du getan hast. Du wirst dabei nie sein Betreuer.",
+  },
+  {
+    titel: "Akte und Termine, ohne die Seite zu verlassen.",
+    text: "„Akte öffnen“ unten auf der Karte zeigt die ganze Akte in einem Fenster über der Kartei — schließen mit dem Kreuz oder der "
+      + "Esc-Taste, und die Karte ist danach frisch. Ganz unten stehen zuerst deine Termine (gebucht über fiaon.com/justin und dein "
+      + "Kalender, mit Anliegen), darunter aufklappbar alle Termine des Teams.",
   },
   {
     titel: "Storniert ist nicht gelöscht.",

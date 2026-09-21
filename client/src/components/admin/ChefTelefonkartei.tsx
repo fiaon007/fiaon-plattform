@@ -18,18 +18,21 @@
 // Die Texte stehen in shared/fiaon-telefonkartei.ts, die Wirkung in
 // server/lib/fiaon-telefonkartei.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { API, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
-  KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, euro, euroGanz, datumKurz, waLink,
+  KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, KARTEI_SUCHE_SATZ, euro, euroGanz, datumKurz, waLink,
   whatsappRechnung, whatsappNichtErreicht, whatsappAntrag, hatRechnungsweg, hatAntragsweg,
   type KarteiGruppe, type KarteiKarte, type KarteiErgebnis, type KarteiRueckruf, type KarteiTermin,
 } from "@shared/fiaon-telefonkartei";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-telefonkartei.css";
+
+// Die Akte des Chefbüros — dieselbe Seite wie /chef/s/akte, hier im Fenster (E-201).
+const KundeAkte = lazy(() => import("@/pages/admin-kunde"));
 
 interface Antwort {
   ok: boolean;
@@ -99,6 +102,7 @@ export default function ChefTelefonkartei() {
   const [arbeit, setArbeit] = useState<Record<number, KarteiErgebnis | "storno" | "zurueck" | undefined>>({});
   const [stornoFuer, setStornoFuer] = useState<KarteiKarte | null>(null);
   const [rueckrufFuer, setRueckrufFuer] = useState<KarteiKarte | null>(null);
+  const [akteFuer, setAkteFuer] = useState<KarteiKarte | null>(null);
   const [gespeichert, setGespeichert] = useState<Set<number>>(() => new Set(lesen<number[]>("tk-kontakte", [])));
   const handy = useMemo(istHandy, []);
   const termine = useDaten<{ rueckrufe: KarteiRueckruf[]; termine: KarteiTermin[] }>("/chef/telefonkartei/termine");
@@ -217,13 +221,23 @@ export default function ChefTelefonkartei() {
     }
   };
 
+  const akteSchliessen = async () => {
+    const k = akteFuer;
+    setAkteFuer(null);
+    if (!k) return;
+    const r = await fetch(`${API}/chef/telefonkartei/karte/${k.personId}`, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (j?.ok && j.karte) karteErsetzen(j.karte, k.personId);
+  };
+
   const rueckrufErledigt = async (id: number) => {
     await fetch(`${API}/chef/telefonkartei/rueckruf/${id}/erledigt`, { method: "POST", credentials: "include" }).catch(() => null);
     termine.neu();
   };
 
   const z = daten?.zaehler;
-  const satz = KARTEI_GRUPPEN.find((g) => g.key === gruppe)?.satz ?? "";
+  const satz = suche ? KARTEI_SUCHE_SATZ : (KARTEI_GRUPPEN.find((g) => g.key === gruppe)?.satz ?? "");
+  const eigeneTermine = (termine.daten?.termine ?? []).filter((x) => x.meiner && x.status === "gebucht" && new Date(x.beginn).getTime() > Date.now() - 30 * 60_000);
   const absender = daten?.absender || "Justin Schwarzott";
   const antragUrl = daten?.antragUrl || "https://www.fiaon.com/antrag";
 
@@ -240,6 +254,12 @@ export default function ChefTelefonkartei() {
         liste={termine.daten?.rueckrufe ?? []}
         onErledigt={rueckrufErledigt}
       />
+      {eigeneTermine.length > 0 && (
+        <a className="tk-sprung" href="#tk-deine-termine">
+          Deine Termine ({eigeneTermine.length}) — nächster: {tagName(eigeneTermine[0].beginn).replace(/^(Heute|Morgen)$/, (w) => w.toLowerCase())}, {uhr(eigeneTermine[0].beginn)} Uhr
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5" /></svg>
+        </a>
+      )}
 
       <nav className="tk-reiter" aria-label="Gruppen">
         {REITER.map((key) => {
@@ -267,7 +287,7 @@ export default function ChefTelefonkartei() {
           </label>
         )}
       </div>
-      <p className="tk-satz">{satz}</p>
+      <p className={`tk-satz${suche ? " sucht" : ""}`}>{satz}</p>
 
       {fehler && <Fehlermeldung text={fehler} erneut={() => void laden(0)} />}
       {laedt && karten.length === 0 && !fehler && <Geruest zeilen={6} />}
@@ -283,6 +303,7 @@ export default function ChefTelefonkartei() {
                  onErgebnis={(art) => void ergebnis(k, art)}
                  onStorno={() => setStornoFuer(k)}
                  onRueckruf={() => setRueckrufFuer(k)}
+                 onAkte={() => setAkteFuer(k)}
                  onZurueck={() => void zurueckholen(k)} />
         ))}
       </div>
@@ -299,6 +320,9 @@ export default function ChefTelefonkartei() {
         <StornoBlatt k={stornoFuer} laeuft={arbeit[stornoFuer.personId] === "storno"}
                      onAbbrechen={() => setStornoFuer(null)}
                      onStornieren={(grund, kulanz) => void stornoAusfuehren(stornoFuer, grund, kulanz)} />
+      </Ebene>)}
+      {akteFuer && (<Ebene>
+        <AkteFenster k={akteFuer} onZu={() => void akteSchliessen()} />
       </Ebene>)}
       {rueckrufFuer && (<Ebene>
         <RueckrufBlatt k={rueckrufFuer} laeuft={arbeit[rueckrufFuer.personId] === "rueckruf"}
@@ -319,12 +343,12 @@ export default function ChefTelefonkartei() {
 
 // ── Eine Karte ──────────────────────────────────────────────────────────────
 
-function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeichert, onErgebnis, onStorno, onRueckruf, onZurueck }: {
+function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeichert, onErgebnis, onStorno, onRueckruf, onAkte, onZurueck }: {
   k: KarteiKarte; absender: string; antragUrl: string; handy: boolean; gespeichert: boolean;
   arbeit: KarteiErgebnis | "storno" | "zurueck" | undefined;
   onGespeichert: (id: number) => void;
   onErgebnis: (art: KarteiErgebnis) => void;
-  onStorno: () => void; onRueckruf: () => void; onZurueck: () => void;
+  onStorno: () => void; onRueckruf: () => void; onAkte: () => void; onZurueck: () => void;
 }) {
   const vcf = `${API}/chef/telefonkartei/${k.personId}/kontakt.vcf`;
   const tel = k.telefonWaehlbar ? `tel:${k.telefonWaehlbar}` : null;
@@ -389,8 +413,9 @@ function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeiche
         {fakten.map(([t, w]) => <div key={t}><dt>{t}</dt><dd>{w}</dd></div>)}
       </dl>
 
-      {(k.gesperrt || k.werbungGesperrt) && (
+      {(k.gesperrt || k.werbungGesperrt || k.testfall) && (
         <div className="tk-flaggen">
+          {k.testfall && <span className="test">Testkonto</span>}
           {k.gesperrt && <span>Vertriebssperre</span>}
           {k.werbungGesperrt && <span>Werbesperre</span>}
         </div>
@@ -441,9 +466,9 @@ function Karte({ k, absender, antragUrl, handy, gespeichert, arbeit, onGespeiche
         </>
       )}
 
-      {(k.akteLink || (!handy && k.telefonWaehlbar)) && (
+      {(k.akteId || (!handy && k.telefonWaehlbar)) && (
         <footer className="tk-fuss">
-          {k.akteLink && <a href={k.akteLink}>Akte öffnen</a>}
+          {k.akteId && <button type="button" className="tk-fuss-knopf" onClick={onAkte}>Akte öffnen</button>}
           {!handy && k.telefonWaehlbar && <a href={vcf}>Kontakt (.vcf)</a>}
         </footer>
       )}
@@ -478,44 +503,137 @@ function Rueckrufe({ liste, onErledigt }: { liste: KarteiRueckruf[]; onErledigt:
   );
 }
 
-// ── Termine unten ───────────────────────────────────────────────────────────
+// ── Termine unten: erst deine, dann alle ───────────────────────────────────
+// Justin (21.09.2026): „Ich will nur meine sehen und erst weiter unten ALLE
+// Termine — vorrangig die, die die Leute bei mir buchen." „Deine" kommen vom
+// Server markiert (Gründerseite /justin, dein Konto, Gründergespräch).
+
+function nachTagen(liste: KarteiTermin[]): [string, KarteiTermin[]][] {
+  const m = new Map<string, KarteiTermin[]>();
+  for (const t of liste) {
+    const key = new Date(t.beginn).toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+    m.set(key, [...(m.get(key) ?? []), t]);
+  }
+  return Array.from(m.entries());
+}
+
+function tagUeberschrift(key: string, beginn: string): string {
+  const n = tagName(beginn);
+  return n === "Heute" || n === "Morgen" ? `${n}, ${datumKurz(key)}` : n;
+}
+
+/** Das Anliegen aus der Buchung (/justin schreibt „Anliegen: …" in die Notiz). */
+function anliegen(notiz: string | null): string | null {
+  const m = String(notiz ?? "").match(/Anliegen:\s*([^\n]+)/);
+  return m ? m[1].trim() : null;
+}
 
 function Termine({ liste, laedt, fehler }: { liste: KarteiTermin[]; laedt: boolean; fehler: string | null }) {
-  const tage = useMemo(() => {
-    const m = new Map<string, KarteiTermin[]>();
-    for (const t of liste) {
-      const key = new Date(t.beginn).toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
-      m.set(key, [...(m.get(key) ?? []), t]);
-    }
-    return Array.from(m.entries());
-  }, [liste]);
+  const [alleOffen, setAlleOffen] = useState(false);
+  const deine = useMemo(() => nachTagen(liste.filter((t) => t.meiner)), [liste]);
+  const andere = useMemo(() => liste.filter((t) => !t.meiner), [liste]);
+  const andereTage = useMemo(() => nachTagen(andere), [andere]);
   return (
-    <section className="tk-termine" aria-label="Gebuchte Termine">
-      <div className="tk-termine-kopf">
-        <h2>Gebuchte Termine</h2>
-        <a href="/chef/s/termine">Termin-Zentrale</a>
-      </div>
-      {fehler && <p className="tk-klein">{fehler}</p>}
-      {laedt && !liste.length && <p className="tk-klein">Lädt …</p>}
-      {!laedt && !fehler && !liste.length && <p className="tk-klein">Heute und in den nächsten drei Wochen ist nichts gebucht.</p>}
-      {tage.map(([tag, zeilen]) => (
-        <div key={tag} className="tk-tag">
-          <h3>{tagName(zeilen[0].beginn)}{tagName(zeilen[0].beginn).length < 7 ? `, ${datumKurz(tag)}` : ""}</h3>
-          <ul>
-            {zeilen.map((t) => (
-              <li key={t.id} className={`${t.meiner ? "meiner" : ""}${t.status !== "gebucht" ? " vorbei" : ""}`}>
-                <b className="tk-t-zeit">{uhr(t.beginn)}</b>
-                <div className="tk-t-was">
-                  <b>{t.name}</b>
-                  <span>{t.art}{t.bei ? ` · ${t.meiner ? "bei dir" : t.bei}` : ""}{t.status !== "gebucht" ? ` · ${t.status}` : ""}</span>
-                </div>
-                {t.telefonWaehlbar && t.status === "gebucht" && <a className="tk-mini" href={`tel:${t.telefonWaehlbar}`}>Anrufen</a>}
-              </li>
-            ))}
-          </ul>
+    <section className="tk-termine" aria-label="Termine">
+      <div id="tk-deine-termine" className="tk-deine">
+        <div className="tk-termine-kopf">
+          <h2>Deine Termine</h2>
+          <span>Gebucht über fiaon.com/justin und dein Kalender</span>
         </div>
-      ))}
+        {fehler && <p className="tk-klein">{fehler}</p>}
+        {laedt && !liste.length && <p className="tk-klein">Lädt …</p>}
+        {!laedt && !fehler && !deine.length && (
+          <p className="tk-klein">In den nächsten 60 Tagen hat niemand bei dir gebucht.</p>
+        )}
+        {deine.map(([tag, zeilen]) => (
+          <div key={tag} className="tk-tag">
+            <h3>{tagUeberschrift(tag, zeilen[0].beginn)}</h3>
+            <ul>
+              {zeilen.map((t) => {
+                const thema = anliegen(t.notiz);
+                return (
+                  <li key={t.id} className={t.status !== "gebucht" ? "vorbei" : ""}>
+                    <b className="tk-t-zeit">{uhr(t.beginn)}</b>
+                    <div className="tk-t-was">
+                      <b>{t.name}</b>
+                      <span>{[t.art, thema, t.status !== "gebucht" ? t.status : null].filter(Boolean).join(" · ")}</span>
+                    </div>
+                    {t.telefonWaehlbar && t.status === "gebucht" && <a className="tk-mini blau" href={`tel:${t.telefonWaehlbar}`}>Anrufen</a>}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="tk-alle-termine">
+        <button type="button" className="tk-alle-kopf" aria-expanded={alleOffen} onClick={() => setAlleOffen((o) => !o)}>
+          <span>Alle Termine des Teams</span>
+          <em>{andere.length}</em>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d={alleOffen ? "M3.5 10 8 5.5 12.5 10" : "M3.5 6 8 10.5 12.5 6"} /></svg>
+        </button>
+        {alleOffen && (
+          <>
+            {!andere.length && <p className="tk-klein">In den nächsten drei Wochen ist beim Team nichts gebucht.</p>}
+            {andereTage.map(([tag, zeilen]) => (
+              <div key={tag} className="tk-tag">
+                <h3>{tagUeberschrift(tag, zeilen[0].beginn)}</h3>
+                <ul>
+                  {zeilen.map((t) => (
+                    <li key={t.id}>
+                      <b className="tk-t-zeit">{uhr(t.beginn)}</b>
+                      <div className="tk-t-was">
+                        <b>{t.name}</b>
+                        <span>{t.art}{t.bei ? ` · ${t.bei}` : ""}</span>
+                      </div>
+                      {t.telefonWaehlbar && <a className="tk-mini" href={`tel:${t.telefonWaehlbar}`}>Anrufen</a>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <a className="tk-zentrale" href="/chef/s/termine">Zur Termin-Zentrale</a>
+          </>
+        )}
+      </div>
     </section>
+  );
+}
+
+// ── Die Akte im Fenster ────────────────────────────────────────────────────
+// Justin: „Wenn ich ‚Akte öffnen' klicke, muss sich ein Popup öffnen — auf der
+// selben Seite, ohne dass ich die Seite verlasse." Dieselbe Akte wie im
+// Chefbüro (pages/admin-kunde.tsx), hier eingebettet; `.cbs` übersetzt sie
+// ins Dunkle wie dort.
+
+function AkteFenster({ k, onZu }: { k: KarteiKarte; onZu: () => void }) {
+  useEffect(() => {
+    const vorher = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const taste = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); };
+    window.addEventListener("keydown", taste);
+    return () => { document.body.style.overflow = vorher; window.removeEventListener("keydown", taste); };
+  }, [onZu]);
+  return (
+    <div className="tk-akte-schleier" role="dialog" aria-modal="true" aria-label={`Akte ${k.name}`} onClick={onZu}>
+      <div className="tk-akte" onClick={(e) => e.stopPropagation()}>
+        <div className="tk-akte-kopf">
+          <div>
+            <b>{k.name}</b>
+            <span>{KARTEI_LAGE_TEXT[k.lage]}{k.telefonAnzeige ? ` · ${k.telefonAnzeige}` : ""}</span>
+          </div>
+          <button type="button" className="tk-akte-zu" onClick={onZu} aria-label="Akte schließen">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        </div>
+        <div className="tk-akte-inhalt cbs">
+          <Suspense fallback={<div className="tk-klein" style={{ padding: 24 }}>Akte lädt …</div>}>
+            {k.akteId && <KundeAkte akteId={k.akteId} eingebettet />}
+          </Suspense>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -570,50 +688,108 @@ function StornoBlatt({ k, laeuft, onAbbrechen, onStornieren }: {
 }
 
 // ── Später anrufen ──────────────────────────────────────────────────────────
+// Justin (21.09.2026): „Der Kalender ist super unübersichtlich, genauso die
+// Uhrzeitauswahl — bitte neu und einfacher." Kein Systemkalender mehr: Tag,
+// Stunde, Minute als große Knöpfe, oben die schnellen Wege, darüber groß, was
+// gewählt ist. Vergangene Zeiten sind aus.
 
-function lokalWert(d: Date): string {
-  const zwei = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${zwei(d.getMonth() + 1)}-${zwei(d.getDate())}T${zwei(d.getHours())}:${zwei(d.getMinutes())}`;
+const STUNDEN = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+const MINUTEN = [0, 15, 30, 45];
+const SCHNELL: [string, number][] = [["in 15 Min", 15], ["in 30 Min", 30], ["in 1 Std", 60], ["in 2 Std", 120]];
+
+function tagOffset(n: number): Date { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; }
+const WOCHENTAG = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+function tagKnopf(n: number): string {
+  if (n === 0) return "Heute";
+  if (n === 1) return "Morgen";
+  const d = tagOffset(n);
+  return `${WOCHENTAG[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`;
+}
+function zeitText(d: Date): string {
+  const heute = tagOffset(0).getTime();
+  const tag = new Date(d); tag.setHours(0, 0, 0, 0);
+  const diff = Math.round((tag.getTime() - heute) / 86_400_000);
+  const vor = diff === 0 ? "heute" : diff === 1 ? "morgen" : d.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+  return `${vor}, ${d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr`;
 }
 
 function RueckrufBlatt({ k, laeuft, onAbbrechen, onSpeichern }: {
   k: KarteiKarte; laeuft: boolean; onAbbrechen: () => void; onSpeichern: (am: string, notiz: string) => void;
 }) {
-  const vorschlaege = useMemo(() => {
-    const jetzt = new Date();
-    const um = (tagPlus: number, h: number, m = 0) => { const d = new Date(jetzt); d.setDate(d.getDate() + tagPlus); d.setHours(h, m, 0, 0); return d; };
-    const liste: [string, Date][] = [
-      ["in 30 Min", new Date(jetzt.getTime() + 30 * 60_000)],
-      ["in 1 Std", new Date(jetzt.getTime() + 60 * 60_000)],
-      ["in 2 Std", new Date(jetzt.getTime() + 120 * 60_000)],
-      ["heute 17:00", um(0, 17)],
-      ["heute 19:00", um(0, 19)],
-      ["morgen 10:00", um(1, 10)],
-      ["morgen 17:00", um(1, 17)],
-    ];
-    // Nur Zeiten, die noch mindestens zehn Minuten entfernt sind.
-    return liste.filter(([, d]) => d.getTime() > jetzt.getTime() + 10 * 60_000);
-  }, []);
-  const [wert, setWert] = useState(() => lokalWert(vorschlaege[0]?.[1] ?? new Date(Date.now() + 60 * 60_000)));
+  // Vorgabe: in einer Stunde, auf fünf Minuten gerundet — „meist am selben Tag".
+  const [wahl, setWahl] = useState<Date>(() => { const d = new Date(Date.now() + 60 * 60_000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; });
+  const [schnell, setSchnell] = useState<number | null>(60);
   const [notiz, setNotiz] = useState("");
-  const gewaehlt = new Date(wert);
+  const jetzt = Date.now();
+  const tagDiff = Math.round((new Date(wahl).setHours(0, 0, 0, 0) - tagOffset(0).getTime()) / 86_400_000);
+
+  const setze = (tag: number, stunde: number, minute: number) => {
+    const d = tagOffset(tag); d.setHours(stunde, minute, 0, 0);
+    setWahl(d); setSchnell(null);
+  };
+  const schnellWahl = (min: number) => {
+    const d = new Date(Date.now() + min * 60_000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0);
+    setWahl(d); setSchnell(min);
+  };
+  // Beim Tageswechsel die Uhrzeit behalten — außer sie liegt dann in der Vergangenheit.
+  const tagWahl = (n: number) => {
+    let h = wahl.getHours(), m = wahl.getMinutes();
+    if (!STUNDEN.includes(h)) { h = 10; m = 0; }
+    const d = tagOffset(n); d.setHours(h, m - (m % 15), 0, 0);
+    if (d.getTime() <= jetzt) { const s = STUNDEN.find((x) => tagOffset(n).setHours(x) > jetzt); if (s != null) d.setHours(s, 0, 0, 0); }
+    setWahl(d); setSchnell(null);
+  };
+  const vorbei = (tag: number, h: number, m: number) => { const d = tagOffset(tag); d.setHours(h, m, 0, 0); return d.getTime() <= jetzt; };
+  const gueltig = wahl.getTime() > jetzt;
+  const tag = Math.max(0, tagDiff);
+  const viertel = wahl.getMinutes() - (wahl.getMinutes() % 15);
+  // Stunde gewählt: die Minute bleibt, wenn sie noch geht — sonst die erste freie.
+  const stundeWahl = (h: number) => setze(tag, h, !vorbei(tag, h, viertel) ? viertel : (MINUTEN.find((m) => !vorbei(tag, h, m)) ?? 0));
 
   return (
     <div className="tk-schleier" role="dialog" aria-modal="true" aria-label={`${k.name} später anrufen`} onClick={onAbbrechen}>
-      <div className="tk-blatt" onClick={(e) => e.stopPropagation()}>
+      <div className="tk-blatt tk-rr-blatt" onClick={(e) => e.stopPropagation()}>
         <h2>{k.name} später anrufen</h2>
-        <p className="tk-blatt-text">Wann hat er gesagt? Du siehst den Rückruf oben auf dieser Seite und kannst ihn in den iPhone-Kalender legen — das iPhone erinnert dich dann.</p>
-        <div className="tk-chips">
-          {vorschlaege.map(([t, d]) => (
-            <button key={t} type="button" className={lokalWert(d) === wert ? "an" : ""} onClick={() => setWert(lokalWert(d))}>{t}</button>
+        <p className="tk-rr-gewaehlt">Rückruf <b>{zeitText(wahl)}</b></p>
+
+        <p className="tk-blatt-label">Schnell</p>
+        <div className="tk-wahl vier">
+          {SCHNELL.map(([t, min]) => (
+            <button key={t} type="button" className={schnell === min ? "an" : ""} onClick={() => schnellWahl(min)}>{t}</button>
           ))}
         </div>
-        <input className="tk-feld" type="datetime-local" value={wert} onChange={(e) => setWert(e.target.value)} aria-label="Eigene Zeit" />
+
+        <p className="tk-blatt-label">Tag</p>
+        <div className="tk-wahl tage">
+          {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+            <button key={n} type="button" className={tagDiff === n ? "an" : ""} onClick={() => tagWahl(n)}>{tagKnopf(n)}</button>
+          ))}
+        </div>
+
+        <p className="tk-blatt-label">Uhrzeit</p>
+        <div className="tk-wahl stunden">
+          {STUNDEN.map((h) => (
+            <button key={h} type="button" disabled={vorbei(tag, h, 45)}
+                    className={wahl.getHours() === h ? "an" : ""}
+                    onClick={() => stundeWahl(h)}>
+              {h}
+            </button>
+          ))}
+        </div>
+        <div className="tk-wahl vier minuten">
+          {MINUTEN.map((m) => (
+            <button key={m} type="button" disabled={vorbei(tag, wahl.getHours(), m)}
+                    className={wahl.getMinutes() === m ? "an" : ""}
+                    onClick={() => setze(tag, wahl.getHours(), m)}>
+              :{String(m).padStart(2, "0")}
+            </button>
+          ))}
+        </div>
+
         <input className="tk-feld" value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Notiz (optional), z. B. „nach der Arbeit“" maxLength={200} />
         <div className="tk-blatt-tun">
-          <button type="button" className="tk-knopf blau" disabled={laeuft || isNaN(gewaehlt.getTime())}
-                  onClick={() => onSpeichern(gewaehlt.toISOString(), notiz.trim())}>
-            {laeuft ? "Wird gespeichert …" : `Rückruf ${isNaN(gewaehlt.getTime()) ? "" : `${tagName(gewaehlt.toISOString()).replace(/^(Heute|Morgen)$/, (w) => w.toLowerCase())} ${uhr(gewaehlt.toISOString())}`} speichern`}
+          <button type="button" className="tk-knopf blau" disabled={laeuft || !gueltig} onClick={() => onSpeichern(wahl.toISOString(), notiz.trim())}>
+            {laeuft ? "Wird gespeichert …" : "Rückruf speichern"}
           </button>
           <button type="button" className="tk-knopf still" onClick={onAbbrechen}>Abbrechen</button>
         </div>

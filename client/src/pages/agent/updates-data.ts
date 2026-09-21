@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-21-kunden-bleiben",
+    date: "2026-09-21",
+    category: "Behoben",
+    title: "Deine Kunden bleiben jetzt bei dir — Karten springen nicht mehr in den Pool zurück, A/B/C neu verteilt",
+    summary:
+      "Ein Fehler in der 21-Tage-Regel hat Kunden nach wenigen Minuten wieder in den Pool geworfen, sobald irgendwann früher jemand "
+      + "mit ihnen gesprochen hatte — auch wenn sie gerade erst zu dir gekommen waren. Deshalb tauchten Karten auf und verschwanden wieder, "
+      + "und die Verteilung vom 14.09. war am selben Tag weg. Das ist behoben. Danach sind die A-, B- und C-Kunden aus dem Pool und die von "
+      + "Rifka und Viktoria neu auf Nikita, Florentine und Daniel verteilt.",
+    changes: [
+      "Die 21 Tage „liegen gelassen“ zählen jetzt ab dem jüngsten Anlass: dein letzter Kontakt ODER der Tag, an dem der Kunde zu dir kam. Ein alter Anruf eines Kollegen wirft niemanden mehr aus deiner Liste.",
+      "Der Nachschub aus dem Pool zieht nur noch Menschen, die noch nie angerufen wurden — genau die, die „Neu für dich“ füllen. Vorher zog er auch früher Angerufene, die dort gar nicht erscheinen konnten.",
+      "Wer zuletzt mit einem Kunden aus dem Pool gesprochen hat, bekommt ihn bei der Verteilung zurück — so ruft niemand einen Menschen an, mit dem ein Kollege schon im Gespräch war.",
+      "Leads, die noch auf ausgeschiedenen Kollegen standen, sind freigegeben. Vorher kam beim Bearbeiten „Dieser Lead wird von einem Kollegen betreut“.",
+      "Unverändert: Wer noch nie angerufen wurde und nach der Zuteilung drei Tage unberührt bleibt, geht zurück in den Pool — und kommt als „Neu für dich“ zu dem, der gerade Platz hat.",
+    ],
+    howto: [
+      "Arbeite deine Pipeline wie gewohnt von oben nach unten — die Karten bleiben jetzt stehen, bis du sie abschließt.",
+      "Du hast viele neue Kunden bekommen: Die frischesten stehen oben. Wer nie angerufen wurde, ist nach drei unberührten Tagen wieder im Pool — also lieber heute als übermorgen.",
+      "Siehst du einen Kunden, der eigentlich bei einem Kollegen ist: der Leitung Bescheid geben, nicht selbst umhängen.",
+    ],
+  },
+  {
     id: "2026-09-21-boni-ampel",
     date: "2026-09-21",
     category: "Neu",

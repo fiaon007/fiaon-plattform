@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.09.2026 (abends) — Kunden bleiben beim Mitarbeiter: 21-Tage-Regel repariert (E-203)
+
+**Was geändert wurde:**
+
+- **21 Tage ab dem jüngsten Anlass:** Die Regel „angefangen und liegen gelassen → zurück in den Pool“ rechnete mit
+  `COALESCE(letzter Kontakt, Zuteilung)` — der erste vorhandene Wert gewann. Hatte irgendwann früher jemand angerufen,
+  zählte dieser alte Anruf, und die frische Zuteilung zählte nie. Jetzt `GREATEST(…)`: der jüngste Anlass zählt.
+- **Nachschub nur mit Nie-Angerufenen:** Der Pool-Zug füllt „Neu für dich“ und zählt dafür nur Nie-Angerufene; er zog
+  aber auch früher Angerufene, die dort nie erscheinen — der Platz blieb leer, und jeder Aufbau zog erneut. Solange die
+  21-Tage-Regel sie nach Minuten zurückwarf, fiel das nicht auf; mit der Reparatur hätte jeder Aufbau sechs gehortet.
+- Die 3-Tage-Regel („gezogen und nichts getan“) und der Deckel von 18 Unberührten bleiben unverändert.
+
+**Warum:** Justin am 21.09.2026: „Die Pipeline funktioniert nicht mehr richtig. JEDER braucht die Kunden aufgeteilt.“
+Gemessen (nur lesend): Die Verteilung vom 14.09. (E-186) lag am selben Nachmittag wieder im Pool — 39 von 39 A und
+437 von 443 B. Am 21.09. sprangen 319 von 320 gezogenen B-Kunden binnen zehn Minuten zurück (Beispiel: zwei Personen um
+18:24 gezogen, 18:31 zurück, im selben Moment neu gezogen) — Karten erschienen und verschwanden.
+
+**Beweis:** Lokaler Prüfstand mit sechs Personen, alter gegen neuen Code: frisch Zugeteilter mit altem Anruf — alt:
+zurück und neu gezogen, neu: bleibt; früher Angerufener im Pool — alt: gezogen, neu: bleibt im Pool; 21 Tage ohne
+Anlass und 3 Tage unberührt fallen weiter zurück. Prüfstand `scripts/pruef-pool-fristen.ts` (13 Prüfungen, Rot-Probe
+gegen den alten Code: 3 rot).
+
+**Wo zu finden:** `server/routes/fiaon-office-vertrieb.ts` (`poolNachschub`, `nachschubZiehen`).
+
+---
+
 ## 21.09.2026 (abends) — Boni-Ampel: jeder Kunde hat seine Einschätzung (E-202)
 
 **Was geändert wurde:**

@@ -530,7 +530,16 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t2
                         WHERE t2.person_id = p.id AND t2.status = 'gebucht'
                           AND t2.abgesagt_am IS NULL AND t2.beginn > NOW())
-       AND COALESCE(
+       -- ── GREATEST, NICHT COALESCE (21.09.2026, E-203) ─────────────────────
+       -- „Liegen gelassen" heißt: seit dem LETZTEN Anlass nichts — und die
+       -- Zuteilung ist ein Anlass. COALESCE nahm den ersten Wert, der da war:
+       -- Hatte jemand vor Wochen einmal angerufen, zählte dieser alte Anruf, und
+       -- die frische Zuteilung von heute zählte nie. Folge, gemessen: Die
+       -- Verteilung vom 14.09. (E-186) war am selben Nachmittag zurück im Pool
+       -- (39 von 39 A, 437 von 443 B), und am 21.09. sprangen 319 von 320
+       -- gezogenen B-Kunden binnen zehn Minuten zurück — Karten erschienen und
+       -- verschwanden. GREATEST nimmt den jüngsten Anlass; NULL zählt nicht.
+       AND GREATEST(
              (SELECT MAX(c3.created_at) FROM fiaon_contact_log c3 WHERE c3.person_id = p.id),
              (SELECT MAX(c4.created_at) FROM fiaon_contact_log c4
                 JOIN fiaon_applications a4 ON a4.ref = c4.ref WHERE a4.person_id = p.id),
@@ -579,6 +588,12 @@ async function nachschubZiehen(me: number): Promise<void> {
           AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
           AND NOT p.is_blocked AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
           AND p.priority_tier BETWEEN 1 AND 3
+          -- NUR NEUE (21.09.2026, E-203): Der Zug füllt „Neu für dich" — und
+          -- zählt oben nur Nie-Angerufene. Zog er einen früher Angerufenen, blieb
+          -- der Platz leer, und der nächste Aufbau zog wieder: Solange die
+          -- 21-Tage-Frist sie nach Minuten zurückwarf, fiel das nicht auf; seit
+          -- sie hält, würde jeder Aufbau sechs Menschen horten.
+          AND ${NIE_SQL}
           AND ${JETZT_ERREICHBAR_SQL}
         ORDER BY ${POOL_ORDNUNG}
         LIMIT ${fehlt}

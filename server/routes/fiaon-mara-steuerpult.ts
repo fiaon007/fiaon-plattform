@@ -18,6 +18,7 @@ import {
   AKTION_SCHLUESSEL, DIENST,
 } from "../lib/fiaon-mara-aktion";
 import { gedaechtnisLesen, gedaechtnisLoeschen } from "../lib/fiaon-mara-gedaechtnis";
+import { anweisungLesen, anweisungSetzen, anweisungVerlauf, anweisungZurueck, BEREICHE, BEREICH_TEXT, MAX_ZEICHEN, type Bereich } from "../lib/fiaon-mara-anweisung";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -130,8 +131,10 @@ router.post("/chef/mara/einstellung", wache, async (req: ChefRequest, res: Respo
   let wert = String(req.body?.wert ?? "").trim();
   if (!AKTION_SCHLUESSEL.includes(schluessel)) return res.status(400).json({ ok: false, error: "Diese Einstellung gibt es nicht." });
   if (schluessel === "mara_aktion_an" || schluessel === "mara_aktion_emojis") wert = wert === "an" ? "an" : "aus";
-  if (schluessel === "mara_aktion_je_stunde") wert = String(Math.max(0, Math.min(50, Math.round(Number(wert) || 0))));
-  if (schluessel === "mara_aktion_tag_euro") wert = String(Math.max(0, Math.min(100, Math.round(Number(wert) || 0))));
+  // 22.09.2026 (Justin): kein Anlauf, kein 50er-Deckel mehr — die Grenzen sind
+  // dieselben wie in fiaon-mara-aktion.ts (500 je Stunde, 500 € am Tag).
+  if (schluessel === "mara_aktion_je_stunde") wert = String(Math.max(0, Math.min(500, Math.round(Number(wert) || 0))));
+  if (schluessel === "mara_aktion_tag_euro") wert = String(Math.max(0, Math.min(500, Math.round(Number(wert) || 0))));
   if (schluessel === "mara_aktion_stufen") wert = wert.toUpperCase().split(",").map((x) => x.trim()).filter((x) => x === "A" || x === "B").join(",");
   if (schluessel === "mara_aktion_postfach" && !["support@fiaon.com", "welcome@fiaon.com"].includes(wert)) return res.status(400).json({ ok: false, error: "Nur support@ oder welcome@." });
   try {
@@ -156,6 +159,87 @@ router.post("/chef/mara/probe", wache, async (req: ChefRequest, res: Response) =
   } catch (err: any) {
     console.error("[MARA-STEUERPULT] probe:", err);
     res.status(500).json({ ok: false, error: "Die Probe ist gescheitert." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARAS KOPF: ANWEISEN UND NACHVOLLZIEHEN (22.09.2026, E-210)
+// Justin: „ich muss im DETAIL sehen, wie Mara denkt, was sie macht … ihre
+// Ansprache, ihren gesamten Auftrag einsehen und ändern können."
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Hausanweisung je Bereich — mit allen früheren Fassungen. */
+router.get("/chef/mara/anweisung", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const bereiche = await Promise.all(BEREICHE.map(async (b) => ({
+      bereich: b,
+      titel: BEREICH_TEXT[b],
+      text: await anweisungLesen(b),
+      verlauf: (await anweisungVerlauf(b, 12)).map((v) => ({
+        id: Number(v.id), text: String(v.text), von: v.von ?? null, aktiv: v.aktiv === true, am: tag(v.erstellt_am),
+      })),
+    })));
+    res.json({ ok: true, bereiche, maxZeichen: MAX_ZEICHEN });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] anweisung:", err);
+    res.status(500).json({ ok: false, error: "Die Anweisung ließ sich nicht laden." });
+  }
+});
+
+/** Eine neue Fassung — die alte bleibt erhalten. */
+router.post("/chef/mara/anweisung", wache, async (req: ChefRequest, res: Response) => {
+  const bereich = String(req.body?.bereich || "") as Bereich;
+  if (!BEREICHE.includes(bereich)) return res.status(400).json({ ok: false, error: "Diesen Bereich gibt es nicht." });
+  try {
+    const r = await anweisungSetzen(bereich, String(req.body?.text ?? ""), wer(req));
+    console.log(`[MARA-STEUERPULT] ${wer(req)}: Anweisung ${bereich} = ${r.zeichen} Zeichen`);
+    res.json({ ok: true, zeichen: r.zeichen });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] anweisung speichern:", err);
+    res.status(500).json({ ok: false, error: "Nicht gespeichert." });
+  }
+});
+
+/** Eine frühere Fassung zurückholen. */
+router.post("/chef/mara/anweisung/zurueck", wache, async (req: ChefRequest, res: Response) => {
+  const id = Number(req.body?.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Ungültige Fassung." });
+  const ok = await anweisungZurueck(id, wer(req)).catch(() => false);
+  res.json({ ok, ...(ok ? {} : { error: "Diese Fassung gibt es nicht mehr." }) });
+});
+
+/** Das Denkprotokoll einer geschriebenen Mail: was sie wusste, was geprüft wurde. */
+router.get("/chef/mara/denkprotokoll/:id", wache, async (req: ChefRequest, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Ungültig." });
+  try {
+    await aktionTabellen();
+    const [m] = (await sqlPool`
+      SELECT m.id, m.person_id, m.ref, m.stufe, m.schritt, m.status, m.grund, m.betreff, m.text, m.pruefung,
+             m.kosten_cents, m.created_at, m.gesendet_am, m.empfaenger,
+             COALESCE(NULLIF(TRIM(p.first_name || ' ' || p.last_name), ''), m.empfaenger) AS name
+        FROM fiaon_mara_aktion m LEFT JOIN fiaon_persons p ON p.id = m.person_id
+       WHERE m.id = ${id}`) as any[];
+    if (!m) return res.status(404).json({ ok: false, error: "Diese Mail gibt es nicht." });
+    const pruefung = typeof m.pruefung === "string" ? JSON.parse(m.pruefung) : (m.pruefung ?? {});
+    const verlauf = (await sqlPool`
+      SELECT agent_name, type, note, created_at FROM fiaon_contact_log
+       WHERE person_id = ${Number(m.person_id)} ORDER BY created_at DESC LIMIT 12`.catch(() => [])) as any[];
+    res.json({
+      ok: true,
+      mail: {
+        id: Number(m.id), personId: Number(m.person_id), name: m.name, ref: m.ref, stufe: m.stufe,
+        schritt: Number(m.schritt), status: m.status, grund: m.grund ?? null, betreff: m.betreff,
+        text: m.text, kostenCent: Number(m.kosten_cents || 0), am: tag(m.gesendet_am ?? m.created_at),
+      },
+      wissen: pruefung?.wissen ?? null,
+      maengel: pruefung?.maengel ?? [],
+      gedaechtnis: await gedaechtnisLesen(Number(m.person_id)).catch(() => []),
+      verlauf: verlauf.map((v) => ({ wer: v.agent_name ?? "System", art: v.type, text: String(v.note || "").slice(0, 300), am: tag(v.created_at) })),
+    });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] denkprotokoll:", err);
+    res.status(500).json({ ok: false, error: "Das Protokoll ließ sich nicht laden." });
   }
 });
 

@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Nacht, 3) — Maras Kopf: anweisen, mitlesen, nachvollziehen (E-210)
+
+**Was geändert wurde:**
+- **Deine Anweisung an Mara** (`/chef/s/mara`): ein freies Textfeld je Bereich (Postfach, Nachfassen, WhatsApp). Was
+  dort steht, kommt **ganz oben** in ihren Auftrag und gewinnt im Zweifel gegen jede Hausregel — außer gegen das Recht:
+  verbotene Worte, ungedeckte Zusagen und Mahnungen auf gesperrten Wegen bleiben gesperrt. Jede Fassung bleibt
+  erhalten, ein Klick holt eine frühere zurück.
+- **Ihr ganzer Auftragstext** ist im Trockenlauf lesbar (Probe → „Ihr ganzer Auftragstext"), samt Zeichenzahl.
+- **Denkprotokoll je Mail:** was sie wusste (Stufe, Betreuer, offene Rate, Gedächtnis, ob deine Anweisung galt), was
+  die Prüfung beanstandet hat und was im Haus um diese Zeit passiert ist.
+- **Der Takt-Regler wird nicht mehr abgeschnitten:** Die Speicher-Route deckelte weiter bei 50 je Stunde und 100 €,
+  obwohl der Regler seit heute Abend bis 500 geht. Jetzt gelten überall dieselben Grenzen.
+
+**Warum:** Justin: „ich muss im DETAIL sehen, wie Mara denkt, was sie macht … ihre Ansprache, ihren gesamten Auftrag
+einsehen und ändern können, aber so, dass es wirklich funktioniert."
+
+**Wo zu finden:** `server/lib/fiaon-mara-anweisung.ts`, eingebaut in `fiaon-postmeister-agent.ts` (Postfach) und
+`fiaon-mara-aktion.ts` (Nachfassen); Routen `/chef/mara/anweisung`, `/chef/mara/anweisung/zurueck`,
+`/chef/mara/denkprotokoll/:id`; Oberfläche `ChefMara.tsx`. Prüfstand: `scripts/pruef-lead-motor.ts` (335).
+
+**Falle, die dabei auffiel:** Drei Bereiche werden parallel gelesen — drei gleichzeitige `CREATE TABLE IF NOT EXISTS`
+mit BIGSERIAL laufen in Postgres in einen Wettlauf (23505 auf pg_class). Die Tabelle wird jetzt über ein einziges
+Versprechen angelegt.
+
+---
+
 ## 22.09.2026 (Nacht, 2) — Paket-Aufstieg nach der Freigabe (E-210)
 
 **Was geändert wurde:** Direkt unter dem Ergebnis des Antrags („Herzlichen Glückwunsch · Ihr Ziel-Rahmen") steht jetzt

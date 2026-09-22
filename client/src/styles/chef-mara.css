@@ -169,3 +169,30 @@ a.mp-name:hover { text-decoration: underline; }
   .mp-zahl-wert { font-size: 20px; }
 }
 @media (prefers-reduced-motion: reduce) { .mp-punkt.an { animation: none; } .mp-schalter-knopf, .mp-schalter-knopf::after { transition: none; } }
+
+/* ── Maras Anweisung, Auftrag und Denkprotokoll (22.09.2026, E-210) ────── */
+.mp-karte {
+  display: grid; gap: 14px; padding: 18px 20px; border-radius: 18px;
+  border: 1px solid var(--mp-linie); background: var(--mp-flaeche);
+}
+.mp-karte-kopf { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.mp-karte-kopf p { max-width: 82ch; line-height: 1.55; margin-top: 4px; }
+.mp-anweisung { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--mp-linie); }
+.mp-anweisung:first-of-type { border-top: 0; padding-top: 0; }
+.mp-feld-gross {
+  width: 100%; resize: vertical; min-height: 84px; padding: 12px 14px; border-radius: 14px;
+  border: 1px solid var(--mp-linie); background: rgba(15, 23, 42, .35); color: var(--mp-text);
+  font: inherit; font-size: 13.5px; line-height: 1.55;
+}
+.mp-feld-gross:focus { outline: none; border-color: rgba(147, 197, 253, .5); }
+.mp-feld-gross::placeholder { color: var(--mp-still); }
+.mp-auftrag { margin-top: 10px; }
+.mp-auftrag > summary { cursor: pointer; font-size: 12.5px; color: var(--mp-leise); list-style: none; }
+.mp-auftrag > summary::-webkit-details-marker { display: none; }
+.mp-auftrag > summary::before { content: "▸ "; color: var(--mp-still); }
+.mp-auftrag[open] > summary::before { content: "▾ "; }
+.mp-auftrag > summary:hover { color: var(--mp-text-2); }
+.mp-wissen { display: grid; gap: 8px; margin-top: 10px; }
+.mp-wissen ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.mp-wissen li { font-size: 12.5px; color: var(--mp-text-2); }
+.mp-wissen li .mp-still { margin-right: 6px; }

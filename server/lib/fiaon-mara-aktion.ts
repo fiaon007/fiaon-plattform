@@ -273,10 +273,13 @@ function thema(stufe: "A" | "B", schritt: number): string {
 function aktionsPrompt(ein: {
   name: string; k: Kandidat; akte: any; weg: string; gedaechtnis: string; betreuer: string | null;
   faelligAm: string | null; bisher: { am: string; betreff: string; text: string }[]; emojis: boolean; sprache: string;
+  /** Justins eigene Anweisung (Steuerpult) — steht ganz oben und gewinnt im Zweifel. */
+  hausanweisung?: string;
 }): string {
   const { k } = ein;
   const fremd = ein.sprache && ein.sprache.slice(0, 2).toLowerCase() !== "de";
   return [
+    ein.hausanweisung || ``,
     `Du bist ${ein.name} und betreust Kunden bei FIAON. Du schreibst diesem Menschen VON DIR AUS eine persönliche E-Mail — er hat dir nicht geschrieben. Du hast seine Akte gelesen, seinen ganzen Weg bei uns und dein Gedächtnis zu ihm.`,
     `DEIN ZIEL: Er bezahlt jetzt die offene Rechnung, damit du seinen Account aktivieren kannst. Herzlich, motivierend, menschlich — nie drängelnd, nie drohend, nie belehrend.`,
     ``,
@@ -356,16 +359,21 @@ export interface Entwurf {
   ok: boolean; grund: string | null;
   betreff: string; text: string; html: string; kern: string;
   kostenCents: number; maengel: string[];
+  /** Der VOLLSTÄNDIGE Auftragstext, mit dem sie geschrieben hat (Steuerpult, Trockenlauf). */
+  auftrag?: string;
+  /** Was sie wusste, kurz — landet als Denkprotokoll an der Mail. */
+  wissen?: Record<string, unknown>;
 }
 
 /** Eine Mail für einen Kandidaten schreiben — ohne sie zu senden (auch für die Probe im Steuerpult). */
 export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Promise<Entwurf> {
   const leer: Entwurf = { ok: false, grund: null, betreff: "", text: "", html: "", kern: "", kostenCents: 0, maengel: [] };
-  const [akte, weg, gedaechtnis, namen] = await Promise.all([
+  const [akte, weg, gedaechtnis, namen, hausanweisung] = await Promise.all([
     akteLesen(k.personId, k.ref),
     kundenwegLesen(k.personId, k.ref, { maxZeichen: 9_000 }).catch(() => null),
     gedaechtnisText(k.personId).catch(() => "(noch nichts gemerkt)"),
     agentNamen(),
+    import("./fiaon-mara-anweisung").then((m) => m.anweisungBlock("aktion")).catch(() => ""),
   ]);
   const bisher = (await sqlPool`
     SELECT gesendet_am, betreff, text FROM fiaon_mara_aktion
@@ -376,15 +384,30 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   const faelligAm = z?.payment_due_date ? tagDe(new Date(z.payment_due_date).toISOString()) : null;
   const sprache = String((akte as any)?.person?.sprache || (akte as any)?.sprache || "de");
 
-  const nachrichten: any[] = [{
-    role: "system",
-    content: aktionsPrompt({
+  const auftrag = aktionsPrompt({
+      hausanweisung,
       name: namen.voll, k, akte, weg: weg?.text ?? "(kein Verlauf)", gedaechtnis,
       betreuer: weg?.zustaendig?.kundenName ?? null, faelligAm,
       bisher: bisher.reverse().map((b) => ({ am: tagDe(new Date(b.gesendet_am).toISOString()) ?? "", betreff: String(b.betreff || ""), text: String(b.text || "").slice(0, 900) })),
       emojis: ein.emojis, sprache,
-    }),
-  }, { role: "user", content: "Schreibe jetzt die Mail im vorgegebenen Format." }];
+  });
+  // Was sie wusste, in einem Satz je Punkt — das Denkprotokoll hängt später an
+  // der Mail, damit jede Zeile nachvollziehbar bleibt (Justin, 22.09.2026).
+  const wissen = {
+    stufe: k.stufe, schritt: k.schritt,
+    betreuer: weg?.zustaendig?.kundenName ?? null,
+    faelligAm, paket: (akte as any)?.vertrag?.paket ?? null,
+    offeneRate: (akte as any)?.zahlung?.offeneRate ?? null,
+    gedaechtnis: String(gedaechtnis || "").slice(0, 400),
+    fruehereMails: bisher.length,
+    hausanweisung: hausanweisung ? "ja" : "nein",
+    auftragZeichen: 0,
+  };
+  const nachrichten: any[] = [
+    { role: "system", content: auftrag },
+    { role: "user", content: "Schreibe jetzt die Mail im vorgegebenen Format." },
+  ];
+  wissen.auftragZeichen = auftrag.length;
 
   let kosten = 0;
   const rufen = async (extra?: string) => {
@@ -411,7 +434,7 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
       if (m2.length < maengel.length) { betreff = b2; text = t2; maengel = m2; }
     } catch { /* bleibt beim ersten Versuch */ }
   }
-  if (maengel.length) return { ...leer, betreff, kern: text, maengel, grund: `Prüfung: ${maengel.slice(0, 2).join("; ")}` };
+  if (maengel.length) return { ...leer, betreff, kern: text, maengel, auftrag, wissen, grund: `Prüfung: ${maengel.slice(0, 2).join("; ")}` };
 
   // Zusammensetzen wie jede Mara-Mail: Anrede · Kern · Knopf · Gruß.
   const anrede = await anredeBestimmen(k.personId, k.vorname, k.nachname, sprache);
@@ -423,7 +446,7 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
     schritt: { art: "zahlung" as any, url, text: "Rechnung ansehen und bezahlen" },
     sprache, agentName: namen.voll,
   });
-  return { ok: true, grund: null, betreff, text: fertig.text, html: fertig.html, kern: text, kostenCents: kosten, maengel: [] };
+  return { ok: true, grund: null, betreff, text: fertig.text, html: fertig.html, kern: text, kostenCents: kosten, maengel: [], auftrag, wissen };
 }
 
 // ── Der Lauf ──────────────────────────────────────────────────────────────
@@ -472,15 +495,16 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
       if (!m.ok) {
         abgelehnt++;
         await sqlPool`INSERT INTO fiaon_mara_aktion (person_id, ref, stufe, schritt, status, grund, betreff, text, empfaenger, postfach, kosten_cents, pruefung)
-          VALUES (${k.personId}, ${k.ref}, ${k.stufe}, ${k.schritt}, 'abgelehnt', ${m.grund}, ${m.betreff || null}, ${m.kern || null}, ${k.email}, ${e.postfach}, ${m.kostenCents}, ${sqlPool.json({ maengel: m.maengel } as any)})`.catch(() => {});
+          VALUES (${k.personId}, ${k.ref}, ${k.stufe}, ${k.schritt}, 'abgelehnt', ${m.grund}, ${m.betreff || null}, ${m.kern || null}, ${k.email}, ${e.postfach}, ${m.kostenCents}, ${sqlPool.json({ maengel: m.maengel, wissen: m.wissen ?? null } as any)})`.catch(() => {});
         continue;
       }
       try {
         const r = await neueMailSendenMitFaden(e.postfach, { vonName, an: k.email, betreff: m.betreff, text: m.text, html: m.html, abmelden: e.postfach });
         gesendet++;
         const kurz = m.kern.replace(/\s+/g, " ").slice(0, 300);
-        await sqlPool`INSERT INTO fiaon_mara_aktion (person_id, ref, stufe, schritt, status, betreff, text, html, empfaenger, postfach, gmail_id, thread_id, kosten_cents, gesendet_am)
-          VALUES (${k.personId}, ${k.ref}, ${k.stufe}, ${k.schritt}, 'gesendet', ${m.betreff}, ${m.text}, ${m.html}, ${k.email}, ${e.postfach}, ${r.id}, ${r.threadId}, ${m.kostenCents}, NOW())`;
+        await sqlPool`INSERT INTO fiaon_mara_aktion (person_id, ref, stufe, schritt, status, betreff, text, html, empfaenger, postfach, gmail_id, thread_id, kosten_cents, gesendet_am, pruefung)
+          VALUES (${k.personId}, ${k.ref}, ${k.stufe}, ${k.schritt}, 'gesendet', ${m.betreff}, ${m.text}, ${m.html}, ${k.email}, ${e.postfach}, ${r.id}, ${r.threadId}, ${m.kostenCents}, NOW(),
+                  ${sqlPool.json({ wissen: m.wissen ?? null, maengel: m.maengel ?? [] } as any)})`;
         await sqlPool`INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, betreff, art, ausgeloest_von)
           VALUES ('mara_aktion', ${k.personId}, ${k.email}, 'gesendet', ${m.betreff}, 'echt', 'Mara (Aktion)')`.catch(() => {});
         await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)

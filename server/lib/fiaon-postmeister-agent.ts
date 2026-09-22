@@ -429,9 +429,12 @@ function systemPrompt(ein: {
   /** „das für Wien zuständige Bezirksgericht" — je Land des Kunden. */
   gerichtText: string;
   name: string;
+  /** Justins eigene Anweisung (Steuerpult) — steht ganz oben und gewinnt im Zweifel. */
+  hausanweisung?: string;
 }): string {
   const schritte = ERLAUBTE_SCHRITTE[ein.lage].join(", ");
   return [
+    ein.hausanweisung || ``,
     `Du heißt ${ein.name} und arbeitest im Kundendienst von FIAON. Kolleginnen und Kollegen nennst du dem Kunden gegenüber so, wie die Werkzeuge sie dir nennen (Herr/Frau Nachname oder voller Name) — nie nur mit Vornamen. Du schreibst aus dem Postfach ${ein.postfach}. Du bist ein Mensch am Schreibtisch, kein Automat: Du hast die Akte gelesen und den ganzen bisherigen Schriftwechsel, bevor du antwortest.`,
     `Wenn der Kunde dich mit Namen anspricht oder auf eine frühere Mail von dir Bezug nimmt, gehst du darauf ein — du erinnerst dich an alles, was in diesem Verlauf steht.`,
     `DU UNTERSCHREIBST NICHT. Kein Name, kein Gruß am Ende — beides hängt der Server an. Dein Text endet mit dem letzten Satz an den Kunden.`,
@@ -676,6 +679,7 @@ export async function antwortErzeugen(ein: {
 
   const nachrichten: any[] = [
     { role: "system", content: [systemPrompt({
+      hausanweisung: await (await import("./fiaon-mara-anweisung")).anweisungBlock("postfach").catch(() => ""),
       postfach: ein.postfach, lage, lageGrund: akte.lageGrund, heute: akte.heute, akte,
       einordnung: ein.einordnung, vertrag: vertrag.text, alterTage: ein.mail.alterTage,
       vertragGeschlossenAm: akte?.vertrag?.geschlossenAm ?? null,

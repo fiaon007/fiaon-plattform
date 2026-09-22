@@ -279,6 +279,32 @@ abschnitt("Paket-Aufstieg — nur nach oben, ohne Empfehlung, ohne Bankzusage");
   ok(ant.indexOf("<PaketAufstieg") > ant.indexOf("Genehmigt mit {pack?.name}"), "Der Aufstieg steht NACH der Freigabe — im stärksten Moment");
 }
 
+// ── 8e. Maras Kopf: anweisen und nachvollziehen ────────────────────────────
+abschnitt("Maras Anweisung und Denkprotokoll");
+{
+  const anw = lies("server/lib/fiaon-mara-anweisung.ts");
+  const akt = lies("server/lib/fiaon-mara-aktion.ts");
+  const agt = lies("server/lib/fiaon-postmeister-agent.ts");
+  const rt = lies("server/routes/fiaon-mara-steuerpult.ts");
+  const ui = lies("client/src/components/admin/ChefMara.tsx");
+
+  ok(/ANWEISUNG DER GESCHÄFTSFÜHRUNG/.test(anw), "Die Anweisung steht als eigener Block im Auftrag");
+  ok(/Verbotene Worte, Zusagen ohne Deckung/.test(anw), "Sie kann das Recht NICHT aushebeln — das steht im Block");
+  ok(/UPDATE fiaon_mara_anweisung SET aktiv = FALSE/.test(anw) && /INSERT INTO fiaon_mara_anweisung/.test(anw), "Jede Fassung bleibt erhalten (kein Überschreiben)");
+  ok(/anlegen: Promise<void> \| null/.test(anw), "Die Tabelle wird nur EINMAL angelegt (Wettlauf beim ersten Aufruf)");
+  ok(/hausanweisung/.test(akt) && /hausanweisung/.test(agt), "Beide Köpfe — Nachfassen und Postfach — tragen sie");
+  ok(agt.indexOf("ein.hausanweisung") < agt.indexOf("Du heißt ${ein.name}"), "Sie steht GANZ OBEN im Auftrag");
+  ok(/auftrag\?: string/.test(akt) && /wissen\?: Record<string, unknown>/.test(akt), "Der Entwurf trägt Auftrag und Wissen");
+  ok(/wissen: m\.wissen \?\? null/.test(akt), "Das Denkprotokoll wird an die gesendete Mail geschrieben");
+  for (const r of ["/chef/mara/anweisung", "/chef/mara/anweisung/zurueck", "/chef/mara/denkprotokoll/:id"]) {
+    ok(rt.includes(r), `Route ${r} vorhanden`);
+  }
+  ok(/mp-feld-gross/.test(ui) && /Speichern — gilt sofort/.test(ui), "Im Steuerpult gibt es das Feld und den Knopf");
+  ok(/Ihr ganzer Auftragstext/.test(ui), "Der ganze Auftrag ist im Trockenlauf lesbar");
+  ok(/Denkprotokoll — was sie wusste/.test(ui), "Jede Mail hat ihr Denkprotokoll");
+  ok(/Math\.min\(500/.test(rt), "Der Takt-Regler wird nicht mehr bei 50 abgeschnitten");
+}
+
 // ── 9. Die Messung an Meta (Pixel + Conversions API) ───────────────────────
 abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
 {

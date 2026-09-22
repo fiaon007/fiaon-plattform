@@ -547,9 +547,27 @@ export async function verbindungPruefen(opts: { einrichten: boolean }, lauf: Lau
         methode: "POST", appToken: true, app: leadsApp,
         params: { object: "page", callback_url: webhookAdresse(), fields: "leadgen", verify_token: pruefToken(leadsApp) },
       });
+      // WhatsApp ist ein EIGENES Abo (Objekt whatsapp_business_account) — im
+      // Assistenten von Meta ist das Feld leer, obwohl der Lead-Webhook längst
+      // steht. Wir tragen es hier mit derselben Adresse und demselben
+      // Prüf-Token ein, damit Justin das Formular gar nicht ausfüllen muss.
+      await graph(`${leadsAppId}/subscriptions`, {
+        methode: "POST", appToken: true, app: leadsApp,
+        params: {
+          object: "whatsapp_business_account", callback_url: webhookAdresse(),
+          fields: "messages,message_template_status_update,account_update,phone_number_quality_update",
+          verify_token: pruefToken(leadsApp),
+        },
+      }).catch((e) => console.warn("[META] WhatsApp-Abo noch nicht möglich:", e instanceof MetaFehler ? e.klartext : String(e)));
     }
     const abos = await graph(`${leadsAppId}/subscriptions`, { appToken: true, app: leadsApp });
     const page = (abos?.data ?? []).find((a: any) => a.object === "page");
+    const wa = (abos?.data ?? []).find((a: any) => a.object === "whatsapp_business_account");
+    const waFelder = (wa?.fields ?? []).map((f: any) => f?.name ?? f);
+    punkt("whatsapp_webhook", "WhatsApp meldet Nachrichten an uns", wa?.active && waFelder.includes("messages") ? true : null,
+      wa?.active && waFelder.includes("messages")
+        ? `Eingetragen für ${waFelder.join(", ")} — der Assistent von Meta muss dafür nichts ausgefüllt bekommen.`
+        : "Noch nicht eingetragen — „Verbindung einrichten“ drücken (das Formular im Meta-Assistenten kann leer bleiben).");
     const aktiv = !!page?.active && (page?.fields ?? []).some((f: any) => (f?.name ?? f) === "leadgen") && String(page?.callback_url ?? "") === webhookAdresse();
     punkt("webhook", "Webhook bei Meta eingetragen", aktiv, aktiv
       ? `Meta meldet jeden Lead an ${webhookAdresse()}.`

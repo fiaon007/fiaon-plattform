@@ -165,6 +165,8 @@ export default function ChefMara() {
             </div>
           </section>
 
+          <Anweisungen melden={melden} />
+
           <nav className="mp-reiter" aria-label="Ansicht">
             {([["gesendet", `Gesendet · ${s.zahlen.gesendet}`], ["schlange", `Schlange · ${s.schlange.length}${s.schlange.length >= 40 ? "+" : ""}`], ["abgelehnt", `Zurückgehalten · ${s.zahlen.abgelehnt}`], ["fehler", `Fehler · ${s.zahlen.fehler}`]] as [Reiter, string][]).map(([k, t]) => (
               <button key={k} type="button" className={`mp-reiter-knopf${reiter === k ? " an" : ""}`} aria-pressed={reiter === k} onClick={() => setReiter(k)}>{t}</button>
@@ -267,6 +269,53 @@ function Mails({ status, runde, melden }: { status: Reiter; runde: number; melde
   );
 }
 
+/** Warum diese Mail so aussieht — erst geladen, wenn man es aufklappt. */
+function Denkprotokoll({ id }: { id: number }) {
+  const [offen, setOffen] = useState(false);
+  const [daten, setDaten] = useState<{ wissen: Record<string, unknown> | null; maengel: string[]; verlauf: { wer: string; art: string; text: string; am: string }[] } | null>(null);
+  const [laedt, setLaedt] = useState(false);
+  useEffect(() => {
+    if (!offen || daten) return;
+    let weg = false;
+    setLaedt(true);
+    fetch(`${API}/chef/mara/denkprotokoll/${id}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => { if (!weg && j?.ok) setDaten(j); })
+      .catch(() => {})
+      .finally(() => { if (!weg) setLaedt(false); });
+    return () => { weg = true; };
+  }, [offen, id, daten]);
+  const d = { daten, laedt };
+  return (
+    <details className="mp-auftrag" onToggle={(e) => setOffen((e.target as HTMLDetailsElement).open)}>
+      <summary>Denkprotokoll — was sie wusste und was geprüft wurde</summary>
+      {!offen ? null : d.laedt && !d.daten ? <Geruest zeilen={3} /> : d.daten ? (
+        <div className="mp-wissen">
+          <ul>
+            {Object.entries(d.daten.wissen ?? {}).map(([k, v]) => (
+              <li key={k}><span className="mp-still">{WISSEN_TEXT[k] ?? k}</span> {v === null || v === "" ? "—" : String(v)}</li>
+            ))}
+            {!d.daten.wissen && <li className="mp-still">Für diese Mail wurde noch kein Protokoll mitgeschrieben (vor dem 22.09.2026).</li>}
+          </ul>
+          {d.daten.maengel?.length > 0 && (
+            <p className="mp-grund">Die Prüfung hatte etwas zu beanstanden: {d.daten.maengel.join(" · ")}</p>
+          )}
+          {d.daten.verlauf?.length > 0 && (
+            <>
+              <h3>Was im Haus um diese Zeit passiert ist</h3>
+              <ul className="mp-post">
+                {d.daten.verlauf.slice(0, 6).map((v, i) => (
+                  <li key={`${i}-${v.am}`}><span className="mp-still">{zeit(v.am)} · {v.wer}</span> {v.text}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      ) : <p className="mp-still">Nicht ladbar.</p>}
+    </details>
+  );
+}
+
 function MailDetail({ m, melden, onGeaendert }: { m: Mail; melden: (t: string) => void; onGeaendert: () => void }) {
   const person = useDaten<{ gedaechtnis: { am: string; text: string; quelle: string }[]; postfach: any[]; ausschluss: any }>(`/chef/mara/person/${m.personId}`);
   const [gedaechtnis, setGedaechtnis] = useState<{ am: string; text: string; quelle: string }[] | null>(null);
@@ -305,6 +354,7 @@ function MailDetail({ m, melden, onGeaendert }: { m: Mail; melden: (t: string) =
             </ul>
           </>
         )}
+        <Denkprotokoll id={m.id} />
         <div className="mp-knoepfe">
           <a className="mp-knopf" href={`/chef/s/akte?id=${m.personId}`} target="_blank" rel="noreferrer">Akte öffnen</a>
           {m.ausgeschlossen
@@ -315,6 +365,95 @@ function MailDetail({ m, melden, onGeaendert }: { m: Mail; melden: (t: string) =
     </div>
   );
 }
+
+/**
+ * Maras Anweisung — Justins eigene Stimme im Kopf der Agentin.
+ * Der lange Auftrag bleibt im Quelltext (dort hängen Werkzeuge und Prüfungen);
+ * was hier steht, kommt GANZ OBEN hinein und gewinnt im Zweifel.
+ */
+function Anweisungen({ melden }: { melden: (t: string) => void }) {
+  const stand = useDaten<{ bereiche: { bereich: string; titel: string; text: string; verlauf: { id: number; text: string; von: string | null; aktiv: boolean; am: string }[] }[]; maxZeichen: number }>("/chef/mara/anweisung");
+  const [entwurf, setEntwurf] = useState<Record<string, string>>({});
+  const [speichert, setSpeichert] = useState<string | null>(null);
+  const b = stand.daten?.bereiche ?? [];
+
+  const speichern = async (bereich: string, text: string) => {
+    setSpeichert(bereich);
+    try {
+      const j = await senden("/chef/mara/anweisung", { bereich, text });
+      melden(j.zeichen ? `Anweisung gespeichert (${j.zeichen} Zeichen) — sie gilt ab der nächsten Nachricht.` : "Anweisung gelöscht — Mara arbeitet wieder nur nach den Hausregeln.");
+      setEntwurf((e) => { const n = { ...e }; delete n[bereich]; return n; });
+      stand.neu();
+    } catch (err: any) { melden(err.message); } finally { setSpeichert(null); }
+  };
+  const zurueck = async (id: number) => {
+    try { await senden("/chef/mara/anweisung/zurueck", { id }); melden("Frühere Fassung ist wieder gültig."); stand.neu(); }
+    catch (err: any) { melden(err.message); }
+  };
+
+  return (
+    <section className="mp-karte" aria-label="Maras Anweisung">
+      <div className="mp-karte-kopf">
+        <div>
+          <h2>Deine Anweisung an Mara</h2>
+          <p className="mp-still">
+            Was hier steht, liest sie vor allem anderen — in ihrer eigenen Sprache, ohne Fachwörter.
+            Beispiel: „Nenne den Betrag immer im ersten Satz." Die Hausregeln (nichts garantieren, kein Empfehlen,
+            keine Mahnung per WhatsApp) bleiben darüber stehen, die kann auch eine Anweisung nicht aushebeln.
+          </p>
+        </div>
+      </div>
+      {stand.fehler && <Fehlermeldung text={stand.fehler} erneut={stand.neu} />}
+      {!stand.daten ? <Geruest zeilen={3} /> : b.map((x) => {
+        const wert = entwurf[x.bereich] ?? x.text;
+        const geaendert = wert !== x.text;
+        return (
+          <div key={x.bereich} className="mp-anweisung">
+            <label className="mp-etikett" htmlFor={`anw-${x.bereich}`}>{x.titel}</label>
+            <textarea
+              id={`anw-${x.bereich}`}
+              className="mp-feld-gross"
+              rows={4}
+              maxLength={stand.daten!.maxZeichen}
+              placeholder="Noch nichts hinterlegt — Mara arbeitet nach den Hausregeln."
+              value={wert}
+              onChange={(ev) => setEntwurf((e) => ({ ...e, [x.bereich]: ev.target.value }))}
+            />
+            <div className="mp-reihe">
+              <span className="mp-still">{wert.length} / {stand.daten!.maxZeichen} Zeichen</span>
+              <button type="button" className="mp-knopf voll" disabled={!geaendert || speichert === x.bereich} onClick={() => void speichern(x.bereich, wert)}>
+                {speichert === x.bereich ? "Speichert …" : "Speichern — gilt sofort"}
+              </button>
+              {geaendert && (
+                <button type="button" className="mp-klein" onClick={() => setEntwurf((e) => { const n = { ...e }; delete n[x.bereich]; return n; })}>Verwerfen</button>
+              )}
+            </div>
+            {x.verlauf.length > 1 && (
+              <details className="mp-auftrag">
+                <summary>Frühere Fassungen ({x.verlauf.length - 1})</summary>
+                <ul className="mp-post">
+                  {x.verlauf.filter((v) => !v.aktiv).map((v) => (
+                    <li key={v.id}>
+                      <span className="mp-still">{zeit(v.am)} · {v.von ?? "—"}</span> {v.text.slice(0, 160)}{v.text.length > 160 ? " …" : ""}
+                      <button type="button" className="mp-klein" onClick={() => void zurueck(v.id)}>Zurückholen</button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/** Die Punkte des Denkprotokolls in Hauswort. */
+const WISSEN_TEXT: Record<string, string> = {
+  stufe: "Stufe:", schritt: "Wievielte Mail:", betreuer: "Betreuer:", faelligAm: "Rate fällig:",
+  paket: "Paket:", offeneRate: "Offene Rate:", gedaechtnis: "Aus dem Gedächtnis:",
+  fruehereMails: "Frühere Mails an ihn:", hausanweisung: "Deine Anweisung galt:", auftragZeichen: "Auftrag (Zeichen):",
+};
 
 function ProbeFenster({ probe, onZu }: { probe: any; onZu: () => void }) {
   useEffect(() => {
@@ -343,6 +482,22 @@ function ProbeFenster({ probe, onZu }: { probe: any; onZu: () => void }) {
             <p className="mp-grund">Diese Mail würde Mara zurückhalten: {p.grund}</p>
             {p.kern && <pre className="mp-mail-text">{p.kern}</pre>}
           </>
+        )}
+        {p.wissen && (
+          <div className="mp-wissen">
+            <h3>Was sie dabei wusste</h3>
+            <ul>
+              {Object.entries(p.wissen as Record<string, unknown>).map(([k, v]) => (
+                <li key={k}><span className="mp-still">{WISSEN_TEXT[k] ?? k}</span> {v === null || v === "" ? "—" : String(v)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {p.auftrag && (
+          <details className="mp-auftrag">
+            <summary>Ihr ganzer Auftragstext ({Number(p.auftrag.length).toLocaleString("de-DE")} Zeichen)</summary>
+            <pre className="mp-mail-text">{p.auftrag}</pre>
+          </details>
         )}
         <p className="mp-still">Kosten dieser Probe: {Number(p.kostenCents || 0).toFixed(2).replace(".", ",")} ct</p>
       </div>

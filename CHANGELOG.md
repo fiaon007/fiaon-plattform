@@ -5,6 +5,22 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Abend, 2) — Die Danke-Seite des Meta-Formulars führt in den fertigen Antrag (E-210)
+
+**Was geändert wurde:** Neue Adresse `https://fiaon.com/fb?lid={{lead_id}}` als Ziel des Knopfes „Antrag abschließen" im
+Lead-Formular. Wer dort klickt, landet im **vorausgefüllten** Antrag: Name, E-Mail und Telefon stehen drin, die Paketwahl
+ist der erste Schritt. Ist der Lead noch nicht bei uns (die Meldung von Meta ist Sekunden unterwegs), holt die Plattform ihn
+in derselben Sekunde selbst. Ohne brauchbare Kennung oder nach vier Sekunden geht es auf `/start` — nie in eine Sackgasse.
+Neuer Klick-Kanal `f` (Facebook-Formular) neben Mail, WhatsApp und SMS.
+
+**Warum:** Zwischen Formular und Antrag lagen bisher Stunden, und 69 % der Leads kamen nie an. In der Sekunde nach dem
+Absenden ist die Absicht am höchsten — dann darf niemand dieselben Daten ein zweites Mal tippen müssen.
+
+**Wo zu finden:** `server/routes/fiaon-kurzlink.ts` (`GET /fb`), `server/lib/fiaon-kurzlink.ts` (Kanal `f`).
+Prüfstand: `scripts/pruef-lead-motor.ts` (290).
+
+---
+
 ## 22.09.2026 (Abend) — Messung an Meta: Pixel und Conversions API (E-210)
 
 **Was geändert wurde:**

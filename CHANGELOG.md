@@ -5,6 +5,22 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 — Neue A- und B-Kunden gleichmäßig verteilt
+
+**Was geändert wurde:** Die Sofortzuteilung (`verteilungsTabelle` in `server/lib/fiaon-zuteilung.ts`) gibt den nächsten
+frischen Kunden an den, der im Dienst ist und die wenigsten frischen Kunden hat (offene Anträge der letzten 7 Tage). Die
+Abschlussquote entscheidet nur noch bei Gleichstand und hält frische Anträge von dem fern, der unter der Hälfte der
+Team-Quote liegt. Vorher (seit 07.09., E-162): Rang nach (frisch + 1) / Quote.
+
+**Warum:** Justin: „Die Pipeline funktioniert nicht richtig, Daniel bekommt keine A-Kunden nachgeschoben.“ Gemessen:
+Florentine (Quote 15,8 %) bekam jeden neuen Kunden, bis sie dreimal so viele frische hatte wie Daniel (9,1 %) — in zehn
+Tagen gingen alle 8 Sofortzuteilungen von Zahlungsmeldern an Florentine und Nikita, keine an Daniel. Am 21.09. hatte
+Justin angeordnet: „JEDER braucht die Kunden aufgeteilt.“
+
+**Wo zu finden:** `server/lib/fiaon-zuteilung.ts`; einsehbar unter GET `/admin/team/verteilung`.
+
+---
+
 ## 21.09.2026 (Nacht, 4) — Kontoauszug: Kopf auf der ersten Auszugsseite, Texterkennung verliert keine Seiten (E-207)
 
 **Was geändert wurde:** Der Kopf (Bank, Zeitraum, Salden) wird auf der ersten und letzten Seite gelesen, die wie ein

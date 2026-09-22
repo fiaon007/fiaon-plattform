@@ -58,12 +58,13 @@ type Lauf = typeof sqlPool;
 // 2. Wer gerade Dienst hat (Zeiten decken den Moment), geht vor — der Antrag
 //    soll in Minuten angerufen werden, nicht morgen früh. Hat niemand Dienst,
 //    zählen alle.
-// 3. Verteilt wird im Verhältnis der Abschlussquote der letzten 60 Tage
-//    (bezahlt binnen 7 Tagen nach Antrag). Gezählt wird die FRISCHE Last:
-//    offene Anträge der letzten 7 Tage — nicht der Lead-Berg. Es gewinnt,
-//    wer die kleinste Zahl (frisch + 1) / Quote hat. Unter 25 Anträgen im
-//    Fenster gilt der Team-Schnitt; die Quote hat einen Boden von 3 %, damit
-//    niemand auf null fällt.
+// 3. Seit 22.09.2026 GLEICH verteilt: Es gewinnt, wer die wenigsten FRISCHEN
+//    Kunden hat (offene Anträge der letzten 7 Tage — nicht der Lead-Berg). Die
+//    Abschlussquote der letzten 60 Tage (bezahlt binnen 7 Tagen) entscheidet
+//    nur bei Gleichstand und hält frische Anträge von dem fern, der unter der
+//    Hälfte der Team-Quote liegt. (07.–21.09.: im Verhältnis der Quote — dabei
+//    bekam Daniel keinen einzigen neuen Zahlungsmelder.) Unter 25 Anträgen im
+//    Fenster gilt der Team-Schnitt; die Quote hat einen Boden von 3 %.
 // Die Tabelle ist unter GET /admin/team/verteilung einsehbar.
 // ═══════════════════════════════════════════════════════════════════════════
 export interface VerteilungsZeile {
@@ -130,11 +131,24 @@ export async function verteilungsTabelle(
       personen: Number(r.personen || 0), rang: 0,
     };
   });
+  // ── GLEICH VERTEILT, NICHT NACH QUOTE (22.09.2026) ────────────────────────
+  // Justin: „Die Pipeline funktioniert nicht richtig, Daniel bekommt keine
+  // A-Kunden nachgeschoben" — und am 21.09.: „JEDER braucht die Kunden
+  // aufgeteilt". Gemessen: Mit (frisch + 1) / Quote bekam Florentine (15,8 %)
+  // jeden neuen Kunden, bis sie dreimal so viele frische hatte wie Daniel
+  // (9,1 %) — in zehn Tagen gingen alle 8 Sofortzuteilungen an Florentine und
+  // Nikita, keine an Daniel.
+  // JETZT: Wer die wenigsten frischen Kunden hat, bekommt den nächsten. Die
+  // Quote entscheidet nur bei Gleichstand — und sie hält frische Anträge von
+  // dem fern, der weniger als die Hälfte der Team-Quote schafft (2,3 % gegen
+  // 11,5 %): Der frischeste Antrag bleibt bei denen, die abschließen.
   const jemandImDienst = dienstZuerst && zeilen.some((z) => z.imDienst);
-  const kandidaten = jemandImDienst ? zeilen.filter((z) => z.imDienst) : zeilen;
-  const last = (z: VerteilungsZeile) => (z.frisch + (zusatz[z.agentId] || 0) + 1) / z.quote;
+  const imDienst = jemandImDienst ? zeilen.filter((z) => z.imDienst) : zeilen;
+  const stark = imDienst.filter((z) => z.quoteQuelle !== "gemessen" || z.quote >= teamQuote * 0.5);
+  const kandidaten = stark.length ? stark : imDienst;
+  const last = (z: VerteilungsZeile) => z.frisch + (zusatz[z.agentId] || 0);
   [...kandidaten]
-    .sort((x, y) => (last(x) - last(y)) || (x.personen - y.personen) || (x.agentId - y.agentId))
+    .sort((x, y) => (last(x) - last(y)) || (y.quote - x.quote) || (x.personen - y.personen) || (x.agentId - y.agentId))
     .forEach((z, i) => { z.rang = i + 1; });
   return zeilen.sort((x, y) => ((x.rang || 99) - (y.rang || 99)) || (x.agentId - y.agentId));
 }

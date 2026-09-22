@@ -84,6 +84,23 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-22-gleich-verteilt",
+    date: "2026-09-22",
+    category: "Geändert",
+    title: "Neue A- und B-Kunden werden jetzt gleichmäßig verteilt",
+    summary:
+      "Wer gerade Dienst hat und die wenigsten frischen Kunden hat, bekommt den nächsten Zahlungsmelder oder den nächsten fertigen "
+      + "Antrag. Bisher bekam, wer die höchste Abschlussquote hatte, fast alle — das ist vorbei.",
+    changes: [
+      "Gezählt werden deine frischen Kunden: offene Anträge der letzten 7 Tage, nicht der ganze Bestand.",
+      "Die Abschlussquote entscheidet nur noch bei Gleichstand.",
+      "Neue Kunden bekommst du nur in den Zeiten, die du in deiner Verfügbarkeit eingetragen hast — halte sie aktuell.",
+    ],
+    howto: [
+      "Ein neuer Zahlungsmelder steht mit „Neu bei dir: … Stufe A“ im Verlauf und oben in deiner Liste — heute anrufen, am besten in der ersten Stunde.",
+    ],
+  },
+  {
     id: "2026-09-21-mara-schreibt-an",
     date: "2026-09-21",
     category: "Neu",

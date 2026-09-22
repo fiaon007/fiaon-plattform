@@ -1238,9 +1238,11 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
   },
   {
     ziel: ".lm-formulare",
-    titel: "Welches Kästchen erlaubt WhatsApp?",
-    text: "Je Formular steht, welches Einwilligungs-Kästchen WhatsApp erlaubt. Die Plattform erkennt es am Wort „WhatsApp“; "
-      + "hier lässt es sich von Hand festlegen. Ohne Kästchen geht an diesen Menschen keine WhatsApp, nur E-Mail.",
+    titel: "Jeder Lead darf eine WhatsApp bekommen.",
+    text: "Die Erlaubnis steht im Hinweistext des Formulars — wer absendet, hat ihn gelesen. Ein Pflicht-Kästchen gibt es "
+      + "bewusst nicht, es würde die Hälfte der Menschen aussperren. Nur wer ein vorhandenes Kontakt-Kästchen NICHT anhakt "
+      + "oder „STOPP“ schreibt, bekommt keine. Ob wirklich eine WhatsApp rausgeht, hängt dann nur noch an der Nummer: "
+      + "Festnetz kann kein WhatsApp.",
   },
   {
     ziel: ".lm-leads",

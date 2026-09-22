@@ -79,8 +79,8 @@ gleich(f1.plattform, "instagram", "ig → instagram");
 gleich(f1.whatsappErlaubt, true, "Kästchen mit „whatsapp“ im Schlüssel angehakt → erlaubt");
 gleich(f1.fragen.wann_moechten_sie_starten, "Sofort", "eigene Frage bleibt erhalten");
 gleich(leadAusMeta(roh as any, "newsletter").whatsappErlaubt, false, "zugeordnetes Kästchen nicht angehakt → nicht erlaubt");
-gleich(leadAusMeta(roh as any, "gibt_es_nicht").whatsappErlaubt, false, "zugeordnetes Kästchen fehlt in der Antwort → nicht erlaubt");
-gleich(leadAusMeta({ id: "1", field_data: [{ name: "first_name", values: ["Anna"] }, { name: "last_name", values: ["Berg"] }] } as any).whatsappErlaubt, null, "ohne Kästchen → unbekannt");
+gleich(leadAusMeta(roh as any, "gibt_es_nicht").whatsappErlaubt, true, "zugeordnetes Kästchen fehlt in der Antwort → der Hinweistext gilt");
+gleich(leadAusMeta({ id: "1", field_data: [{ name: "first_name", values: ["Anna"] }, { name: "last_name", values: ["Berg"] }] } as any).whatsappErlaubt, true, "ohne Kästchen → erlaubt (Hinweistext im Formular)");
 gleich(leadAusMeta({ id: "1", field_data: [{ name: "first_name", values: ["Anna"] }, { name: "last_name", values: ["Berg"] }] } as any).nachname, "Berg", "Vorname/Nachname getrennt");
 gleich(leadAusMeta({ id: "1", platform: "fb" } as any).plattform, "facebook", "fb → facebook");
 gleich(einwilligungErkennen({ id: "f", legal_content: { custom_disclaimer: { checkboxes: [{ key: "k1", text: "Ja, FIAON darf mich per WhatsApp kontaktieren" }] } } } as any), "k1", "Kästchen am Text „WhatsApp“ erkannt");
@@ -125,7 +125,7 @@ gleich(nummerFuerFormular("+393331234567"), null, "Ausland → nicht vorausgefü
 abschnitt("Feste Texte — Wortwand, Strecken-Wörter, Sie, Emojis");
 const { wandPruefen } = await import("../shared/fiaon-wortverbote");
 const { worthygiene, VARIANTEN, streckenKnopf } = await import("../shared/fiaon-lead-strecke");
-const { EINWILLIGUNG_KAESTCHEN, WA_VORLAGEN, vorlagenName } = await import("../shared/fiaon-lead-texte");
+const { EINWILLIGUNG_HINWEIS, WA_VORLAGEN, vorlagenName } = await import("../shared/fiaon-lead-texte");
 const DU = /\b(du|dich|dir|dein|deine|deinen|deinem|deiner|deines|dein\w*)\b/;
 const EMOJI = new RegExp("[\\p{Extended_Pictographic}]", "u");
 const pruefeText = (name: string, text: string) => {
@@ -135,8 +135,8 @@ const pruefeText = (name: string, text: string) => {
   ok(!DU.test(text), `${name}: gesiezt (${text.match(DU)?.[0] ?? ""})`);
   ok(!EMOJI.test(text) && !/\*[^*]+\*/.test(text), `${name}: keine Emojis, keine Sternchen`);
 };
-pruefeText("Einwilligung", EINWILLIGUNG_KAESTCHEN);
-ok(/WhatsApp/.test(EINWILLIGUNG_KAESTCHEN) && /FIAON LTD/.test(EINWILLIGUNG_KAESTCHEN) && /widerrufen/.test(EINWILLIGUNG_KAESTCHEN), "Einwilligung nennt WhatsApp, FIAON LTD und den Widerruf");
+pruefeText("Hinweistext", EINWILLIGUNG_HINWEIS);
+ok(/WhatsApp/.test(EINWILLIGUNG_HINWEIS) && /FIAON LTD/.test(EINWILLIGUNG_HINWEIS) && /widerrufen/.test(EINWILLIGUNG_HINWEIS), "Hinweistext nennt WhatsApp, FIAON LTD und den Widerruf");
 for (const v of WA_VORLAGEN) {
   pruefeText(`WhatsApp ${v.name}`, v.text);
   ok(!/^\s*\{\{/.test(v.text) && !/\}\}\s*[.!?]?\s*$/.test(v.text), `${v.name}: keine Variable am Anfang oder Ende (Meta-Regel)`);
@@ -221,6 +221,29 @@ ok(/slug: "lead-motor"/.test(lies("client/src/components/admin/chef-seiten.tsx")
 const routen = lies("server/routes.ts");
 ok(routen.indexOf("fiaon-kurzlink") < routen.indexOf("app.get('*'"), "/a/<code> liegt VOR den Seiten-Fangnetzen");
 ok(/<meta name="facebook-domain-verification" content="54kh3pz2o7i6q2u4ztpmafbq8a7bxz" \/>/.test(lies("client/index.html").split("</head>")[0]), "Meta-Domainbestätigung steht im <head> von index.html");
+
+// ── 8b. Wer darf eine WhatsApp bekommen? ───────────────────────────────────
+abschnitt("WhatsApp-Erlaubnis — Hinweistext statt Kästchen, Nummer entscheidet");
+{
+  const { whatsappUrteil, nummernArt, nummerFuerWhatsApp, WHATSAPP_MOEGLICH_SQL } = await import("../shared/fiaon-whatsapp-erlaubnis");
+  gleich(whatsappUrteil({ telefon: "+4917612345601" }).moeglich, true, "Handynummer ohne Kästchen → erlaubt");
+  gleich(whatsappUrteil({ telefon: "0176 12345601" }).moeglich, true, "deutsche 0-Schreibweise → erlaubt");
+  gleich(whatsappUrteil({ telefon: "+4989414343" }).moeglich, false, "Festnetz München → kein WhatsApp");
+  gleich(whatsappUrteil({ telefon: "+4989414343" }).grund, "Festnetz — kein WhatsApp", "und der Grund steht da");
+  gleich(whatsappUrteil({ telefon: null }).moeglich, false, "ohne Nummer → nein");
+  gleich(whatsappUrteil({ telefon: "+4917612345601", erlaubt: false }).moeglich, false, "ausdrückliches Nein schlägt alles");
+  gleich(whatsappUrteil({ telefon: "+4917612345601", gesperrt: true }).moeglich, false, "Sperre schlägt alles");
+  gleich(whatsappUrteil({ telefon: "+436641234503" }).moeglich, true, "österreichisches Handy");
+  gleich(whatsappUrteil({ telefon: "+41761234567" }).moeglich, true, "Schweizer Handy");
+  gleich(nummerFuerWhatsApp("0176 123 456 01"), "4917612345601", "Nummer wird auf Ziffern mit Landesvorwahl gebracht");
+  gleich(nummernArt("+12125551234"), "unklar", "außerhalb DACH: versuchen statt aussperren");
+  ok(/whatsapp_erlaubt, TRUE\) IS TRUE/.test(WHATSAPP_MOEGLICH_SQL()), "In SQL zählt NULL als erlaubt");
+  const rg = lies("client/src/pages/agent/rundgaenge.ts");
+  ok(/Die Erlaubnis steht im Hinweistext des Formulars/.test(rg) && !/Ohne Kästchen geht an diesen Menschen keine WhatsApp/.test(rg),
+    "Rundgang erklärt den Hinweistext, nicht mehr das Kästchen");
+  ok(!/Kein Kästchen — nur E-Mail/.test(lies("client/src/components/admin/ChefLeadMotor.tsx")), "Die Kästchen-Zuordnung ist aus dem Steuerpult raus");
+  ok(!/lead-motor\/einwilligung/.test(lies("server/routes/fiaon-lead-motor.ts")), "Die Route dazu ist ebenfalls weg (keine Knöpfe ohne Funktion, keine Routen ohne Knopf)");
+}
 
 // ── 9. Die Messung an Meta (Pixel + Conversions API) ───────────────────────
 abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");

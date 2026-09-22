@@ -132,7 +132,8 @@ export interface MetaLeadFelder {
   email: string | null; telefon: string | null; land: string | null;
   fragen: Record<string, string>;
   einwilligung: { schluessel: string; ja: boolean }[];
-  whatsappErlaubt: boolean | null;
+  /** Immer true, außer der Mensch hat ein vorhandenes Kontakt-Kästchen NICHT angehakt. */
+  whatsappErlaubt: boolean;
   plattform: "facebook" | "instagram" | "messenger" | "audience_network" | null;
 }
 
@@ -170,15 +171,24 @@ export function leadAusMeta(roh: MetaRohLead, einwilligungSchluessel?: string | 
   const fragen: Record<string, string> = {};
   werte.forEach((v, k) => { if (!bekannt.has(k)) fragen[k] = v.slice(0, 500); });
 
+  // ── WHATSAPP IST IMMER ERLAUBT (22.09.2026, Entscheidung Justin) ────────
+  // Die Erlaubnis steht im HINWEISTEXT des Formulars („Mit dem Absenden
+  // erlauben Sie der FIAON LTD, Sie … per WhatsApp, SMS, E-Mail und Telefon
+  // zu kontaktieren"), nicht in einem Kästchen. Wer absendet, hat sie gelesen.
+  // Justin: „jeder Lead der über Facebook kommt erlaubt die Kontaktaufnahme
+  // über WhatsApp."
+  //
+  // Die EINZIGE Ausnahme: Ein Formular hat doch ein Kontakt-Kästchen und der
+  // Mensch hat es NICHT angehakt — das ist ein ausdrückliches Nein und wiegt
+  // schwerer als der Hinweistext. Angehakte Kästchen werden weiter
+  // mitgeschrieben, aber sie entscheiden nichts mehr.
   const einwilligung = (roh.custom_disclaimer_responses ?? [])
     .filter((c) => c && c.checkbox_key)
     .map((c) => ({ schluessel: String(c.checkbox_key), ja: ja(c.is_checked) }));
-  let whatsappErlaubt: boolean | null = null;
-  const passend = einwilligungSchluessel
+  const kontaktKaestchen = einwilligungSchluessel
     ? einwilligung.find((c) => c.schluessel === einwilligungSchluessel)
-    : einwilligung.find((c) => /whats\s*app/i.test(c.schluessel));
-  if (passend) whatsappErlaubt = passend.ja;
-  else if (einwilligungSchluessel) whatsappErlaubt = false;
+    : einwilligung.find((c) => /whats\s*app|kontakt/i.test(c.schluessel));
+  const whatsappErlaubt: boolean = kontaktKaestchen ? kontaktKaestchen.ja : true;
 
   const p = String(roh.platform ?? "").trim().toLowerCase();
   const plattform = p === "fb" || p === "facebook" ? "facebook"
@@ -572,7 +582,7 @@ export async function verbindungPruefen(opts: { einrichten: boolean }, lauf: Lau
     const f = await formulareLaden(lauf);
     const [z] = (await lauf`SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE einwilligung_schluessel IS NOT NULL)::int AS mit FROM fiaon_meta_formulare`) as any[];
     punkt("formulare", "Lead-Formulare gefunden", f.formulare > 0, f.formulare
-      ? `${z?.n ?? f.formulare} Formulare, davon ${z?.mit ?? 0} mit WhatsApp-Einwilligung.${(z?.mit ?? 0) === 0 ? " Ohne Kästchen schickt die Plattform keine WhatsApp (nur E-Mail)." : ""}`
+      ? `${z?.n ?? f.formulare} Formular(e). Jeder Lead darf per WhatsApp angeschrieben werden — die Erlaubnis steht im Hinweistext des Formulars.`
       : "Keine Formulare gefunden — hat der Token das Recht pages_manage_ads und Leadzugriff?");
   } catch (err) {
     punkt("formulare", "Lead-Formulare gefunden", false, err instanceof MetaFehler ? err.klartext : String(err));

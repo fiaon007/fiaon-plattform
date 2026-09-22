@@ -13,13 +13,14 @@ import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { sqlPool } from "../lib/db-pool";
 import { metaKonfig } from "../lib/fiaon-meta";
 import {
-  metaTabellen, verbindungPruefen, letztePruefliste, nachholLauf, einwilligungZuordnen, formulareLaden,
+  metaTabellen, verbindungPruefen, letztePruefliste, nachholLauf, formulareLaden,
   META_NACHHOL_BIS, adressen,
 } from "../lib/fiaon-meta-leads";
 import { willkommenSpalten, willkommenAn, willkommenSenden, willkommenTexte, WILLKOMMEN_SCHALTER } from "../lib/fiaon-lead-willkommen";
 import { kurzlinkTabelle } from "../lib/fiaon-kurzlink";
 import { nameFuerAnrede } from "../../shared/fiaon-anrede";
-import { EINWILLIGUNG_KAESTCHEN, WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
+import { EINWILLIGUNG_HINWEIS, WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
+import { whatsappUrteil, WHATSAPP_MOEGLICH_SQL } from "../../shared/fiaon-whatsapp-erlaubnis";
 import {
   capiZahlen, capiLauf, probeSenden, letzteEreignisse, datensatzSetzen, messungSchalten, META_EREIGNIS, CRM_EREIGNIS,
 } from "../lib/fiaon-meta-capi";
@@ -57,7 +58,7 @@ router.get("/chef/lead-motor/stand", wache, async (_req: ChefRequest, res: Respo
         COUNT(*) FILTER (WHERE willkommen_status = 'fehler')::int AS begruessung_fehler,
         COUNT(*) FILTER (WHERE link_geoeffnet_am IS NOT NULL)::int AS link_geoeffnet,
         COUNT(*) FILTER (WHERE converted_order_id IS NOT NULL)::int AS antrag,
-        COUNT(*) FILTER (WHERE whatsapp_erlaubt IS TRUE)::int AS whatsapp_ja
+        COUNT(*) FILTER (WHERE ${WHATSAPP_MOEGLICH_SQL()})::int AS whatsapp_ja
       FROM l
     `)) as any[];
     const jeWegZeilen = (await sqlPool.unsafe(`
@@ -101,7 +102,7 @@ router.get("/chef/lead-motor/stand", wache, async (_req: ChefRequest, res: Respo
       alarme, formulare,
       messung: await capiZahlen(),
       ereignisNamen: { web: META_EREIGNIS, crm: CRM_EREIGNIS },
-      texte: { einwilligung: EINWILLIGUNG_KAESTCHEN, vorlagen: WA_VORLAGEN },
+      texte: { einwilligung: EINWILLIGUNG_HINWEIS, vorlagen: WA_VORLAGEN },
       wegText: WEG_TEXT,
     });
   } catch (err) {
@@ -136,7 +137,7 @@ router.get("/chef/lead-motor/leads", wache, async (req: ChefRequest, res: Respon
           email: z.email ?? null, telefon: z.telefon ?? null, am: z.erstellt_am,
           weg: z.weg, wegText: WEG_TEXT[z.weg] ?? z.weg,
           kampagne: z.kampagne ?? null, gruppe: z.adset ?? null, anzeige: z.anzeige ?? null, formular: z.formular ?? null,
-          plattform: z.plattform ?? null, whatsapp: z.whatsapp_erlaubt,
+          plattform: z.plattform ?? null, whatsapp: whatsappUrteil({ erlaubt: z.whatsapp_erlaubt, telefon: z.telefon }),
           begruessung: { am: z.willkommen_am ?? null, status: z.willkommen_status ?? null, grund: z.willkommen_grund ?? null },
           link: { am: z.link_geoeffnet_am ?? null, klicks: Number(z.link_klicks || 0) },
           antrag: z.converted_order_id ?? null,
@@ -202,20 +203,6 @@ router.post("/chef/lead-motor/formulare", wache, async (_req: ChefRequest, res: 
   } catch (err) {
     console.error("[LEAD-MOTOR] formulare:", err);
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Die Formulare ließen sich nicht laden." });
-  }
-});
-
-/** Welches Kästchen eines Formulars erlaubt WhatsApp? Leer = keins. */
-router.post("/chef/lead-motor/einwilligung", wache, async (req: ChefRequest, res: Response) => {
-  try {
-    await bereitmachen();
-    const id = String(req.body?.formularId ?? "");
-    if (!id) return res.status(400).json({ ok: false, error: "Formular fehlt." });
-    await einwilligungZuordnen(id, req.body?.schluessel ? String(req.body.schluessel) : null);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("[LEAD-MOTOR] einwilligung:", err);
-    res.status(500).json({ ok: false, error: "Das ließ sich nicht speichern." });
   }
 });
 

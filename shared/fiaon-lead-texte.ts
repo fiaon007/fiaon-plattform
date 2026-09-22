@@ -21,9 +21,17 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Der Text für das Pflicht-Kästchen („Benutzerdefinierter Haftungsausschluss") im Meta-Formular. */
-export const EINWILLIGUNG_KAESTCHEN =
-  "Ja, die FIAON LTD darf mich zu meiner Anfrage und meinem Antrag – auch mit Erinnerungen – per WhatsApp, SMS, E-Mail und Telefon kontaktieren. "
-  + "Ich kann das jederzeit widerrufen, z. B. mit „STOPP“ auf WhatsApp oder über den Abmeldelink.";
+/**
+ * Der HINWEISTEXT im Meta-Formular („Eigene Hinweise") — kein Kästchen.
+ * Seit 22.09.2026 (Justin): Wer absendet, erlaubt die Kontaktaufnahme; ein
+ * Pflicht-Kästchen würde nur dazu führen, dass die Hälfte der Leads nie eine
+ * WhatsApp bekäme. Meta verlangt für WhatsApp lediglich, dass Firma und Kanal
+ * klar genannt sind — beides steht hier.
+ */
+export const EINWILLIGUNG_HINWEIS =
+  "Mit dem Absenden erlauben Sie der FIAON LTD, Sie zu Ihrer Anfrage und Ihrem Antrag zu kontaktieren – auch mit Erinnerungen – "
+  + "per WhatsApp, SMS, E-Mail und Telefon. Sie können das jederzeit widerrufen, z. B. mit „STOPP“ auf WhatsApp oder über den "
+  + "Abmeldelink in jeder E-Mail. Mehr dazu in unserer Datenschutzerklärung.";
 
 /** Der Name für {{1}} — ohne brauchbaren Namen „und willkommen". */
 export function vorlagenName(anredeChatZeile: string): string {
@@ -60,7 +68,7 @@ export const WA_VORLAGEN: WaVorlage[] = [
     name: "fiaon_anfrage_eingang",
     kategorie: "UTILITY",
     zweck: "Die erste Nachricht nach dem Formular — mit KI-Hinweis und dem Weg zum Menschen.",
-    wann: "Sekunden nach dem Formular (nur mit WhatsApp-Einwilligung).",
+    wann: "Sekunden nach dem Formular — an jeden Lead mit Handynummer.",
     text: "Hallo {{1}}, hier ist Mara, die digitale Assistentin von FIAON. Ihre Anfrage ist angekommen, und Ihr Antrag ist schon vorbereitet – Ihre Angaben sind eingetragen. "
       + "Über den Knopf geht es direkt weiter. Fragen beantworte ich Ihnen hier jederzeit, und auf Wunsch spricht ein Mensch aus unserem Team mit Ihnen.",
     beispiele: ["Maria Muster"],

@@ -45,7 +45,7 @@ interface Stand {
 interface Lead {
   id: number; personId: number | null; name: string; nameUnbrauchbar: boolean; email: string | null; telefon: string | null; am: string;
   weg: string; wegText: string; kampagne: string | null; gruppe: string | null; anzeige: string | null; formular: string | null;
-  plattform: string | null; whatsapp: boolean | null;
+  plattform: string | null; whatsapp: { moeglich: boolean; nummer: string | null; art: string; grund: string };
   begruessung: { am: string | null; status: string | null; grund: string | null };
   link: { am: string | null; klicks: number };
   antrag: string | null;
@@ -137,10 +137,6 @@ export default function ChefLeadMotor() {
     try { const j = await senden("/chef/lead-motor/nachholen", { seit: seitDatum }); setNachholErgebnis(j.ergebnis); alles(); }
     catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
-  const einwilligung = async (formularId: string, schluessel: string) => {
-    try { await senden("/chef/lead-motor/einwilligung", { formularId, schluessel: schluessel || null }); melden("Gespeichert."); stand.neu(); }
-    catch (err: any) { melden(err.message); }
-  };
   const formulareNeu = async () => {
     setBeschaeftigt("formulare");
     try { const j = await senden("/chef/lead-motor/formulare", {}); melden(`${j.ergebnis?.formulare ?? 0} Formulare geladen.`); stand.neu(); }
@@ -227,7 +223,7 @@ export default function ChefLeadMotor() {
             <Zahl titel="Begrüßt" wert={s.zahlen.begruesst} unter={s.zahlen.begruessungFehler ? `${s.zahlen.begruessungFehler} fehlgeschlagen` : "in 7 Tagen"} ton={s.zahlen.begruessungFehler ? "rot" : undefined} />
             <Zahl titel="Link geöffnet" wert={s.zahlen.linkGeoeffnet} unter={`Mail ${s.zahlen.klicks.mail} · WhatsApp ${s.zahlen.klicks.whatsapp} · SMS ${s.zahlen.klicks.sms}`} ton="blau" />
             <Zahl titel="Antrag begonnen" wert={s.zahlen.antrag} unter={s.zahlen.woche ? `${Math.round((s.zahlen.antrag / s.zahlen.woche) * 100)} % der Leads (7 Tage)` : "in 7 Tagen"} ton="gruen" />
-            <Zahl titel="WhatsApp erlaubt" wert={s.zahlen.whatsappJa} unter={s.zahlen.woche ? `${Math.round((s.zahlen.whatsappJa / s.zahlen.woche) * 100)} % der Leads` : "Kästchen im Formular"} />
+            <Zahl titel="WhatsApp möglich" wert={s.zahlen.whatsappJa} unter={s.zahlen.woche ? `${Math.round((s.zahlen.whatsappJa / s.zahlen.woche) * 100)} % der Leads — der Rest hat Festnetz oder keine Nummer` : "Leads mit Handynummer"} />
             <div className="lm-zahl lm-wege">
               <span className="lm-zahl-titel">Eingang je Weg (7 Tage)</span>
               <div className="lm-chips">
@@ -392,14 +388,14 @@ export default function ChefLeadMotor() {
             <div className="lm-karte-kopf">
               <div>
                 <h2>Formulare</h2>
-                <p className="lm-still">Welches Kästchen erlaubt WhatsApp? Ohne Kästchen bekommt der Mensch nur E-Mails.</p>
+                <p className="lm-still">Jeder Lead darf per WhatsApp angeschrieben werden — die Erlaubnis steht im Hinweistext des Formulars. Ein Kästchen brauchen wir nicht; nur ein ausdrückliches Nein zählt.</p>
               </div>
               <button className="lm-knopf" onClick={formulareNeu} disabled={!!beschaeftigt || !s.konfig.bereit}>{beschaeftigt === "formulare" ? "Lädt …" : "Formulare neu laden"}</button>
             </div>
             {s.formulare.length === 0 ? <p className="lm-leer">Noch keine Formulare — sie erscheinen nach „Verbindung einrichten“.</p> : (
               <div className="lm-tabelle-huelle">
                 <table className="lm-tabelle">
-                  <thead><tr><th>Formular</th><th>Status</th><th>Leads 7 T</th><th>WhatsApp-Einwilligung</th></tr></thead>
+                  <thead><tr><th>Formular</th><th>Status</th><th>Leads 7 T</th><th>Hinweistext / Kästchen</th></tr></thead>
                   <tbody>
                     {s.formulare.map((f) => (
                       <tr key={f.id}>
@@ -407,13 +403,14 @@ export default function ChefLeadMotor() {
                         <td>{(f.status || "—").toLowerCase() === "active" ? "aktiv" : (f.status || "—").toLowerCase() === "archived" ? "archiviert" : f.status || "—"}</td>
                         <td className="lm-zahlzelle">{f.leads_woche}</td>
                         <td>
-                          <select className="lm-feld" value={f.einwilligung_schluessel ?? ""} onChange={(e) => einwilligung(f.id, e.target.value)} aria-label={`WhatsApp-Einwilligung für ${f.name || f.id}`}>
-                            <option value="">Kein Kästchen — nur E-Mail</option>
-                            {(f.kaestchen ?? []).filter((k) => k.key).map((k) => (
-                              <option key={k.key} value={k.key}>{(k.text || k.key || "").slice(0, 90)}</option>
-                            ))}
-                          </select>
-                          {f.einwilligung_von && <span className="lm-still"> {f.einwilligung_von === "hand" ? "von Hand" : "erkannt"}</span>}
+                          {(f.kaestchen ?? []).filter((k) => k.key).length === 0
+                            ? <span className="lm-chip gruen">Hinweistext — alle dürfen angeschrieben werden</span>
+                            : (
+                              <>
+                                <span className="lm-chip">{(f.kaestchen ?? []).filter((k) => k.key).length} Kästchen im Formular</span>
+                                <span className="lm-still"> Wer ein Kontakt-Kästchen NICHT anhakt, bekommt keine WhatsApp.</span>
+                              </>
+                            )}
                         </td>
                       </tr>
                     ))}
@@ -455,7 +452,7 @@ export default function ChefLeadMotor() {
                       {l.formular && <span className="lm-still">Formular: {l.formular}</span>}
                     </div>
                     <div className="lm-zeile-fuss">
-                      <span className={`lm-chip${l.whatsapp === true ? " gruen" : ""}`}>{l.whatsapp === true ? "WhatsApp erlaubt" : l.whatsapp === false ? "WhatsApp nicht erlaubt" : "WhatsApp unbekannt"}</span>
+                      <span className={`lm-chip${l.whatsapp.moeglich ? " gruen" : ""}`} title={l.whatsapp.nummer ? `+${l.whatsapp.nummer}` : ""}>{l.whatsapp.grund}</span>
                       <span className={`lm-chip${l.begruessung.status === "gesendet" ? " gruen" : l.begruessung.status === "fehler" ? " rot" : ""}`} title={l.begruessung.grund ?? ""}>
                         {BEGRUESSUNG_TEXT[l.begruessung.status ?? ""] ?? "Noch nicht begrüßt"}{l.begruessung.status === "ausgelassen" && l.begruessung.grund ? `: ${l.begruessung.grund}` : ""}
                       </span>
@@ -473,8 +470,8 @@ export default function ChefLeadMotor() {
             <summary>Texte zur Freigabe — Einwilligung und WhatsApp-Vorlagen</summary>
             <div className="lm-texte-inhalt">
               <div className="lm-einwilligung">
-                <h3>Kästchen im Meta-Formular</h3>
-                <p className="lm-still">„Benutzerdefinierter Haftungsausschluss“ → Kästchen, Pflicht. Bitte einmal vom Anwalt absegnen lassen.</p>
+                <h3>Hinweistext im Meta-Formular</h3>
+                <p className="lm-still">Formular → „Datenschutzrichtlinie“ → „Eigene Hinweise“ → Text (KEIN Kästchen, sonst schreiben wir nur der Hälfte). Bitte einmal vom Anwalt absegnen lassen.</p>
                 <blockquote>{s.texte.einwilligung}</blockquote>
                 <button className="lm-knopf" onClick={() => kopieren(s.texte.einwilligung)}>Text kopieren</button>
               </div>

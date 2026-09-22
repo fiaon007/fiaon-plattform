@@ -26,11 +26,13 @@
 // · Rücksicht: Schreibt der Kunde selbst, antwortet Mara im Postfach — die
 //   Aktion wartet 7 Tage. Hat ein Mitarbeiter in den letzten 12 h mit ihm
 //   gesprochen oder ging in den letzten 6 h eine andere Mail raus, wartet sie.
-// · Menge: bis zu 50 je Stunde (Einstellung), rund um die Uhr. ANLAUF zum
-//   Schutz der Absenderadresse: Tag 1 höchstens 200, Tag 2 400, Tag 3 800,
-//   danach 24 × Stundenzahl. Ein Postfach, das über Nacht von 50 auf 1.200
-//   Mails am Tag springt, landet bei Gmail im Spam — und mit ihm jede
-//   Rechnung, die fiaon.com verschickt.
+// · Menge: frei einstellbar je Stunde (Vorgabe 50, bis 500), rund um die Uhr.
+//   Der Anlauf (Tag 1 höchstens 200, dann 400, 800) ist am 22.09.2026 auf
+//   Justins Anweisung entfallen: „die Adresse haben wir ja bereits länger und
+//   viel genutzt". Der Tagesdeckel ist seitdem schlicht 24 × Stundenzahl.
+//   Was bleibt: Wer den Regler hochzieht, beobachtet die Zustellung
+//   (Rückläufer, Beschwerden) — eine Adresse, die bei Gmail im Spam landet,
+//   nimmt jede Rechnung von fiaon.com mit.
 // · Kosten: eigener Tagesdeckel (Einstellung, Vorgabe 15 €).
 // · Jede Mail steht vollständig in fiaon_mara_aktion, in der Akte (Verlauf)
 //   und im Steuerpult /chef/s/mara.
@@ -77,12 +79,13 @@ export async function einstellungenLesen(): Promise<AktionEinstellungen> {
   const zahl = (k: string, min: number, max: number) => Math.max(min, Math.min(max, Number(w(k)) || 0));
   return {
     an: w("mara_aktion_an") === "an",
-    jeStunde: zahl("mara_aktion_je_stunde", 0, 50),
-    tagEuro: zahl("mara_aktion_tag_euro", 0, 100),
+    jeStunde: zahl("mara_aktion_je_stunde", 0, 500),
+    tagEuro: zahl("mara_aktion_tag_euro", 0, 500),
     // C bleibt gesperrt, bis die Einwilligung geprüft ist — auch wenn jemand „C" einträgt.
     stufen: w("mara_aktion_stufen").split(",").map((x) => x.trim().toUpperCase()).filter((x) => x === "A" || x === "B"),
     emojis: w("mara_aktion_emojis") === "an",
     postfach: w("mara_aktion_postfach") || "support@fiaon.com",
+    // 22.09.2026: nur noch Buchführung — der Anlauf ist entfallen.
     start: zeilen.find((z) => z.key === "mara_aktion_start")?.value ?? null,
   };
 }
@@ -426,9 +429,9 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
 // ── Der Lauf ──────────────────────────────────────────────────────────────
 let laeuft = false;
 
-/** Wie viele heute und in der letzten Stunde raus sind — und was der Anlauf heute erlaubt. */
+/** Wie viele heute und in der letzten Stunde raus sind — und was der Takt heute erlaubt. */
 export async function aktionZaehler(ein?: AktionEinstellungen): Promise<{
-  letzteStunde: number; heute: number; tagesDeckel: number; anlaufTag: number; kostenHeuteEuro: number;
+  letzteStunde: number; heute: number; tagesDeckel: number; kostenHeuteEuro: number;
 }> {
   await aktionTabellen();
   const e = ein ?? await einstellungenLesen();
@@ -436,14 +439,14 @@ export async function aktionZaehler(ein?: AktionEinstellungen): Promise<{
     SELECT COUNT(*) FILTER (WHERE gesendet_am > NOW() - INTERVAL '1 hour')::int AS stunde,
            COUNT(*) FILTER (WHERE gesendet_am > date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin')::int AS heute
       FROM fiaon_mara_aktion WHERE status = 'gesendet' AND gesendet_am > NOW() - INTERVAL '2 days'`) as any[];
-  const anlaufTag = e.start ? Math.floor((Date.now() - new Date(e.start).getTime()) / 86_400_000) + 1 : 1;
-  const tagesDeckel = Math.min(e.jeStunde * 24, [200, 400, 800][anlaufTag - 1] ?? e.jeStunde * 24);
-  return { letzteStunde: Number(z?.stunde || 0), heute: Number(z?.heute || 0), tagesDeckel, anlaufTag, kostenHeuteEuro: await kostenHeute(DIENST).catch(() => 0) };
+  // Kein Anlauf mehr (22.09.2026): der Tag ist genau 24 Stunden Takt.
+  const tagesDeckel = e.jeStunde * 24;
+  return { letzteStunde: Number(z?.stunde || 0), heute: Number(z?.heute || 0), tagesDeckel, kostenHeuteEuro: await kostenHeute(DIENST).catch(() => 0) };
 }
 
 /**
- * Ein Durchgang (alle 10 Minuten): so viele Mails, wie Stunde, Anlauf und
- * Kostendeckel erlauben — heißeste zuerst, eine nach der anderen.
+ * Ein Durchgang (alle 10 Minuten): so viele Mails, wie Takt und Kostendeckel
+ * erlauben — heißeste zuerst, eine nach der anderen.
  */
 export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: number; fehler: number; grund?: string }> {
   if (laeuft) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "läuft schon" };
@@ -452,15 +455,10 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
     await aktionTabellen();
     const e = await einstellungenLesen();
     if (!e.an) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "aus" };
-    if (!e.start) {
-      await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('mara_aktion_start', ${new Date().toISOString()}) ON CONFLICT (key) DO NOTHING`;
-      e.start = new Date().toISOString();
-    }
     const z = await aktionZaehler(e);
     if (z.kostenHeuteEuro >= e.tagEuro) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: `Kostendeckel (${z.kostenHeuteEuro.toFixed(2)} € von ${e.tagEuro} €)` };
-    // Im Anlauf verteilt sich der Tagesdeckel über 24 Stunden (Tag 1: 200 → 9 je Stunde),
-    // sonst wäre er nach vier Stunden aufgebraucht. Je Durchgang ein Sechstel der Stunde.
-    const stundenRate = Math.min(e.jeStunde, Math.ceil(z.tagesDeckel / 24));
+    // Der Durchgang läuft alle 10 Minuten — je Durchgang also ein Sechstel der Stunde.
+    const stundenRate = e.jeStunde;
     const erlaubt = Math.max(0, Math.min(Math.ceil(stundenRate / 6), stundenRate - z.letzteStunde, z.tagesDeckel - z.heute));
     if (!erlaubt) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "Takt erfüllt" };
     const kandidaten = await kandidatenLaden(erlaubt * 2, e.stufen);

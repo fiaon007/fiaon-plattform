@@ -446,7 +446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonTelefonkarteiRoutes = await import('./routes/fiaon-telefonkartei');
   app.use('/api/fiaon', fiaonTelefonkarteiRoutes.default);
   // ✉️ Mara-Steuerpult (21.09.2026): Justin sieht, steuert und prüft Maras Arbeit — Aktion, Gedächtnis, Kosten.
-  //    Die Aktion selbst: alle 10 Minuten, rund um die Uhr, A vor B, Anlauf und Kostendeckel in fiaon-mara-aktion.ts.
+  //    Die Aktion selbst: alle 10 Minuten, rund um die Uhr, A vor B, Takt und Kostendeckel in fiaon-mara-aktion.ts.
   const fiaonMaraSteuerpultRoutes = await import('./routes/fiaon-mara-steuerpult');
   app.use('/api/fiaon', fiaonMaraSteuerpultRoutes.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {

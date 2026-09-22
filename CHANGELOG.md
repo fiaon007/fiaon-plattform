@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Abend, 3) — WhatsApp für JEDEN Lead; Maras Anlauf fällt weg (E-210)
+
+**Was geändert wurde:**
+- **Das Einwilligungs-Kästchen ist raus.** Die Erlaubnis für WhatsApp steht im **Hinweistext** des Meta-Formulars — wer
+  absendet, hat ihn gelesen. Jeder Lead darf damit angeschrieben werden. Einziges Nein: ein vorhandenes Kontakt-Kästchen,
+  das der Mensch NICHT angehakt hat, „STOPP" oder eine Werbesperre.
+- **Eine Regel für alle:** `shared/fiaon-whatsapp-erlaubnis.ts` beantwortet überall dieselbe Frage — darf und kann dieser
+  Mensch eine WhatsApp bekommen? Sie prüft jetzt das, worauf es wirklich ankommt: **die Nummer**. Festnetz kann kein
+  WhatsApp, und ein Zustellversuch dorthin kostet nur Qualitätsbewertung. DACH-Mobilnummern werden sicher erkannt.
+- **Steuerpult:** Die Kachel heißt „WhatsApp möglich" und zählt echte Handynummern; je Lead steht der Grund („Festnetz —
+  kein WhatsApp", „Keine Nummer"). Die Kästchen-Zuordnung in der Formular-Tabelle ist samt Route entfallen.
+- **Mara (`/chef/s/mara`): der Anlauf ist weg.** Justin: „die Adresse haben wir ja bereits länger und viel genutzt."
+  Kein Tag-1-Deckel von 200 mehr — der Tagesdeckel ist schlicht 24 × Stundentakt. Der Regler geht bis **500 Mails je
+  Stunde** (vorher 50), der Kostendeckel bis 500 € (vorher 100 €); beide Felder zeigen jetzt, was das am Tag bedeutet.
+
+**Warum:** Ein Pflicht-Kästchen hätte die Hälfte der Leads auf E-Mail zurückgeworfen — genau die Menschen, die über
+WhatsApp am besten erreichbar sind. Und ein Anlaufdeckel schützt eine neue Absenderadresse; unsere ist keine neue.
+
+**Wo zu finden:** `shared/fiaon-whatsapp-erlaubnis.ts`, `server/lib/fiaon-meta-leads.ts` (leadAusMeta),
+`server/lib/fiaon-mara-aktion.ts`, `client/src/components/admin/ChefLeadMotor.tsx`, `ChefMara.tsx`.
+Prüfstand: `scripts/pruef-lead-motor.ts` (305).
+
+---
+
 ## 22.09.2026 (Abend, 2) — Die Danke-Seite des Meta-Formulars führt in den fertigen Antrag (E-210)
 
 **Was geändert wurde:** Neue Adresse `https://fiaon.com/fb?lid={{lead_id}}` als Ziel des Knopfes „Antrag abschließen" im

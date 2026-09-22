@@ -22,7 +22,7 @@ import "@/styles/chef-mara.css";
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null }
 interface Stand {
   einstellungen: Einstellungen;
-  zaehler: { letzteStunde: number; heute: number; tagesDeckel: number; anlaufTag: number; kostenHeuteEuro: number };
+  zaehler: { letzteStunde: number; heute: number; tagesDeckel: number; kostenHeuteEuro: number };
   zahlen: { gesendet: number; menschen: number; antworten: number; gemeldet: number; bezahlt: number; abgelehnt: number; fehler: number; ausgeschlossen: number; postfach?: { heute_rein?: number; heute_beantwortet?: number; entwuerfe?: number } };
   kosten: { heuteEuro: number; wocheEuro: number };
   schlange: { personId: number; ref: string; stufe: "A" | "B"; schritt: number; name: string; paket: string | null; betragEuro: number | null; wunschlimit: number | null; ereignisAm: string; zuletztAm: string | null }[];
@@ -63,7 +63,7 @@ export default function ChefMara() {
     try { setProbe(await senden("/chef/mara/probe", personId ? { personId } : {})); } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
   const durchgang = async () => {
-    if (!window.confirm("Mara schickt jetzt die nächsten Mails — nach denselben Regeln wie im Takt (Stunde, Anlauf, Kostendeckel). Weiter?")) return;
+    if (!window.confirm("Mara schickt jetzt die nächsten Mails — nach denselben Regeln wie im Takt (Stunde, Kostendeckel). Weiter?")) return;
     setBeschaeftigt("durchgang");
     try {
       const j = await senden("/chef/mara/durchgang", {});
@@ -73,7 +73,7 @@ export default function ChefMara() {
     } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
 
-  const rate = e ? Math.min(e.jeStunde, Math.ceil((s?.zaehler.tagesDeckel ?? 0) / 24)) : 0;
+  const rate = e ? e.jeStunde : 0;
 
   return (
     <div className="mp">
@@ -99,7 +99,7 @@ export default function ChefMara() {
           </header>
 
           <section className="mp-zahlen" aria-label="Stand">
-            <Zahl titel="Heute gesendet" wert={`${s.zaehler.heute}`} unter={`von ${s.zaehler.tagesDeckel} · ${s.zaehler.anlaufTag <= 3 ? `Anlauf Tag ${s.zaehler.anlaufTag}` : "voller Takt"}`} />
+            <Zahl titel="Heute gesendet" wert={`${s.zaehler.heute}`} unter={`von ${s.zaehler.tagesDeckel} möglich (24 × ${e.jeStunde})`} />
             <Zahl titel="Letzte Stunde" wert={`${s.zaehler.letzteStunde}`} unter={`Takt jetzt ${rate} je Stunde`} />
             <Zahl titel="In der Schlange" wert={`${s.schlange.length}${s.schlange.length >= 40 ? "+" : ""}`} unter="fällig, nach Hitze" />
             <Zahl titel="Antworten" wert={`${s.zahlen.antworten}`} unter={`von ${s.zahlen.menschen} Menschen · 14 Tage`} ton="blau" />
@@ -110,20 +110,20 @@ export default function ChefMara() {
           <section className="mp-steuer" aria-label="Steuerung">
             <div className="mp-feld">
               <label htmlFor="mp-stunde">Mails je Stunde <b>{e.jeStunde}</b></label>
-              <input id="mp-stunde" type="range" min={0} max={50} step={5} defaultValue={e.jeStunde}
+              <input id="mp-stunde" type="range" min={0} max={500} step={10} defaultValue={e.jeStunde}
                 onMouseUp={(ev) => void setzen("mara_aktion_je_stunde", (ev.target as HTMLInputElement).value, `Takt: ${(ev.target as HTMLInputElement).value} je Stunde.`)}
                 onTouchEnd={(ev) => void setzen("mara_aktion_je_stunde", (ev.target as HTMLInputElement).value, `Takt: ${(ev.target as HTMLInputElement).value} je Stunde.`)}
                 onKeyUp={(ev) => void setzen("mara_aktion_je_stunde", (ev.target as HTMLInputElement).value, `Takt: ${(ev.target as HTMLInputElement).value} je Stunde.`)} />
-              <small>Im Anlauf weniger: Tag 1 höchstens 200, Tag 2 400, Tag 3 800 — schützt die Absenderadresse.</small>
+              <small>Macht {e.jeStunde * 24} Mails am Tag. Wer hochdreht, sieht danach in den Rückläufern nach — eine Adresse im Spam nimmt jede Rechnung mit.</small>
             </div>
             <div className="mp-feld">
               <label htmlFor="mp-euro">Kostendeckel je Tag</label>
               <div className="mp-reihe">
-                <input id="mp-euro" type="number" min={0} max={100} defaultValue={e.tagEuro} className="mp-zahlfeld"
+                <input id="mp-euro" type="number" min={0} max={500} defaultValue={e.tagEuro} className="mp-zahlfeld"
                   onBlur={(ev) => { if (Number(ev.target.value) !== e.tagEuro) void setzen("mara_aktion_tag_euro", ev.target.value, `Kostendeckel: ${ev.target.value} € am Tag.`); }} />
                 <span>€</span>
               </div>
-              <small>Eine Mail kostet rund einen halben Cent.</small>
+              <small>Eine Mail kostet rund einen halben Cent — {e.jeStunde * 24} am Tag sind etwa {((e.jeStunde * 24) * 0.005).toFixed(2)} €.</small>
             </div>
             <div className="mp-feld">
               <span className="mp-etikett">Wer angeschrieben wird</span>

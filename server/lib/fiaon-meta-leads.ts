@@ -287,9 +287,19 @@ export async function meldungSpeichern(nutzlast: any, lauf: Lauf = sqlPool): Pro
           VALUES (${objekt}, ${feld}, ${String(wert.leadgen_id)}, ${String(wert.page_id ?? eintrag?.id ?? "") || null}, ${lauf.json(wert)})
           ON CONFLICT (objekt, feld, schluessel) WHERE schluessel IS NOT NULL DO NOTHING`;
         leads++;
+      } else if (objekt === "whatsapp_business_account" && feld === "messages") {
+        // 22.09.2026 (E-210): WhatsApp ist da. Nachrichten und Zustellstände
+        // gehen direkt in fiaon_whatsapp — die Kennung von WhatsApp macht das
+        // idempotent, doppelte Meldungen legen nichts zweimal an.
+        const { waEingang } = await import("./fiaon-whatsapp");
+        const e = await waEingang(wert, lauf).catch((err) => { console.error("[WHATSAPP] Eingang:", err); return { neu: 0, status: 0 }; });
+        await lauf`
+          INSERT INTO fiaon_meta_ereignisse (objekt, feld, schluessel, seite_id, nutzlast, status, verarbeitet_am)
+          VALUES (${objekt}, ${feld}, NULL, ${String(eintrag?.id ?? "") || null},
+                  ${lauf.json({ nachrichten: e.neu, zustellstaende: e.status })}, 'verarbeitet', NOW())`;
+        andere++;
       } else {
-        // WhatsApp & Co. (Phase 2) — nur der Umschlag, keine Inhalte, bis die
-        // Verarbeitung dafür steht.
+        // Alles Übrige (Vorlagen-Freigaben, Kontoänderungen): nur der Umschlag.
         await lauf`
           INSERT INTO fiaon_meta_ereignisse (objekt, feld, schluessel, seite_id, nutzlast, status)
           VALUES (${objekt}, ${feld}, NULL, ${String(eintrag?.id ?? "") || null}, ${lauf.json({ nurUmschlag: true })}, 'ignoriert')`;
@@ -495,7 +505,6 @@ export async function verbindungPruefen(opts: { einrichten: boolean }, lauf: Lau
 
   // 1) Token: gültig, läuft nie ab, alle Rechte, welche Seiten/WhatsApp-Konten?
   let seiten: string[] = [];
-  let wabas: string[] = [];
   try {
     const d = await graph("debug_token", { params: { input_token: process.env.META_SYSTEM_TOKEN }, appToken: true });
     const info = d?.data ?? {};
@@ -511,7 +520,6 @@ export async function verbindungPruefen(opts: { einrichten: boolean }, lauf: Lau
       : `Alle ${PFLICHT_RECHTE.length} Rechte vorhanden.`);
     for (const g of Array.isArray(info.granular_scopes) ? info.granular_scopes : []) {
       if (g?.scope === "pages_show_list" || g?.scope === "leads_retrieval") seiten.push(...(g.target_ids ?? []).map(String));
-      if (g?.scope === "whatsapp_business_management") wabas.push(...(g.target_ids ?? []).map(String));
     }
   } catch (err) {
     punkt("token", "Token gültig", false, err instanceof MetaFehler ? err.klartext : String(err));
@@ -606,20 +614,42 @@ export async function verbindungPruefen(opts: { einrichten: boolean }, lauf: Lau
     punkt("formulare", "Lead-Formulare gefunden", false, err instanceof MetaFehler ? err.klartext : String(err));
   }
 
-  // 6) WhatsApp-Konto (für Phase 2 — hier nur sehen, nichts einrichten).
+  // 6) WhatsApp: Nummer und Vorlagen — der echte Zustand, nicht mehr „folgt".
+  //
+  // 22.09.2026: Die Nummer steht. Der Punkt liest ab jetzt direkt am Konto aus
+  // der Umgebung (WHATSAPP_WABA_ID / WHATSAPP_PHONE_ID), weil die Rechteliste
+  // eines Systemnutzers das WhatsApp-Konto nicht immer mitführt.
   try {
-    wabas = Array.from(new Set(wabas));
-    const nummern: string[] = [];
-    for (const w of wabas) {
-      const liste = await graph(`${w}/phone_numbers`, { params: { fields: "id,display_phone_number,verified_name,name_status,status,quality_rating" } }).catch(() => null);
-      for (const n of liste?.data ?? []) nummern.push(`${n.display_phone_number ?? n.id} — ${n.verified_name ?? "ohne Namen"} (${n.name_status ?? n.status ?? "?"})`);
+    const { waKonfig, vorlagenStand, vorlagenEinreichen } = await import("./fiaon-whatsapp");
+    const wk = waKonfig();
+    // „Verbindung einrichten" reicht fehlende Vorlagen gleich bei Meta ein —
+    // ihre Prüfung dauert, also je früher, desto besser.
+    if (wk.bereit && opts.einrichten) {
+      const e = await vorlagenEinreichen().catch(() => null);
+      if (e?.eingereicht.length) console.log(`[WHATSAPP] ${e.eingereicht.length} Vorlage(n) eingereicht: ${e.eingereicht.join(", ")}`);
+      if (e?.fehler.length) console.warn("[WHATSAPP] Vorlagen abgelehnt:", e.fehler.map((f) => `${f.name}: ${f.grund}`).join(" · "));
     }
-    // Ohne Nummer ist das kein Fehler, sondern der nächste Schritt (Phase 2) — also neutral.
-    punkt("whatsapp", "WhatsApp-Konto und Nummer", wabas.length && nummern.length ? true : null, wabas.length
-      ? (nummern.length ? nummern.join(" · ") : "WhatsApp-Konto gefunden, aber noch keine Nummer.")
-      : "Noch kein WhatsApp-Konto sichtbar (folgt mit Phase 2).");
+    if (!wk.bereit) {
+      punkt("whatsapp", "WhatsApp-Nummer", null, `Noch nicht eingetragen (${wk.fehlt.join(", ")} in Render).`);
+    } else {
+      const nr = await graph(wk.nummerId!, { params: { fields: "display_phone_number,verified_name,status,quality_rating,throughput" } });
+      const verbunden = String(nr?.status ?? "") === "CONNECTED";
+      const guete = String(nr?.quality_rating ?? "UNKNOWN");
+      const gueteText = guete === "GREEN" ? "Qualität grün" : guete === "YELLOW" ? "Qualität gelb — Takt drosseln"
+        : guete === "RED" ? "Qualität ROT — Meta drosselt bereits" : "Qualität noch ohne Bewertung";
+      punkt("whatsapp", "WhatsApp-Nummer", verbunden,
+        `${nr?.display_phone_number ?? wk.nummer ?? "?"} · ${nr?.verified_name ?? "FIAON"} — ${verbunden ? "verbunden" : String(nr?.status ?? "nicht verbunden")}, ${gueteText}.`);
+
+      const v = await vorlagenStand().catch(() => []);
+      const frei = v.filter((t) => t.status === "APPROVED" && t.name.startsWith("fiaon_")).length;
+      const warten = v.filter((t) => t.status === "PENDING" && t.name.startsWith("fiaon_")).length;
+      const abgelehnt = v.filter((t) => t.status === "REJECTED" && t.name.startsWith("fiaon_"));
+      punkt("wa_vorlagen", "WhatsApp-Vorlagen freigegeben", frei > 0 ? true : null,
+        frei === 0 && warten === 0 ? "Noch keine eingereicht — „Verbindung einrichten“ reicht sie ein."
+          : `${frei} freigegeben${warten ? `, ${warten} in Prüfung` : ""}${abgelehnt.length ? `, abgelehnt: ${abgelehnt.map((t) => t.name).join(", ")}` : ""}. Ohne Vorlage darf nur antworten, wer uns in den letzten 24 Stunden geschrieben hat.`);
+    }
   } catch (err) {
-    punkt("whatsapp", "WhatsApp-Konto und Nummer", null, err instanceof MetaFehler ? err.klartext : String(err));
+    punkt("whatsapp", "WhatsApp-Nummer", null, err instanceof MetaFehler ? err.klartext : String(err));
   }
 
   // 7) Datensatz (Pixel) für die Messung — finden oder anlegen.

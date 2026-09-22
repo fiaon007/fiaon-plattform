@@ -5,6 +5,29 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Nacht, 4) — Der WhatsApp-Kanal steht (E-210)
+
+**Was geändert wurde:**
+- **Nummer live:** +49 1511 0761284 (FIAON Ltd) ist bei Meta registriert und verbunden (Cloud API). Konto, Nummern-Kennung
+  und PIN liegen in der Render-Umgebung, nicht im Quelltext.
+- **`server/lib/fiaon-whatsapp.ts` (neu):** Senden (Vorlage oder Freitext), Empfangen samt Zustell- und Lesestand,
+  Zuordnung zu Person oder Lead über die Nummer, Verlauf je Mensch, Zahlen fürs Steuerpult.
+- **Zwei Wände vor jedem Versand:** (1) Ohne offenes 24-Stunden-Fenster geht **nur** eine freigegebene Vorlage raus.
+  (2) Alles, was nach Mahnung, Forderung oder Rückstand klingt, wird abgewiesen — WhatsApp verbietet Inkasso, und ein
+  Verstoß kostet die Nummer. Dazu die Hauswortwand und die Sie-Form.
+- **Acht Vorlagen eingereicht** (Begrüßung, vier Erinnerungen, Antrag-weiter, verpasster Rückruf, Kontakt) — jede vorher
+  durch die Wortwand. „Verbindung einrichten" reicht künftig fehlende Vorlagen selbst ein.
+- **Webhook:** Nachrichten und Zustellstände landen direkt in `fiaon_whatsapp` statt als Umschlag im Nichts.
+- **Prüfliste erneuert:** Statt „Noch kein WhatsApp-Konto sichtbar (folgt mit Phase 2)" steht dort der echte Zustand der
+  Nummer (verbunden, Qualitätsbewertung) und der Stand der Vorlagen. Der tote Rest der alten Erkennung ist entfernt.
+- **`graph()` kann jetzt JSON-Körper** (`roherKoerper`) — die Cloud API nimmt nichts anderes. Es bleibt bei EINEM
+  HTTP-Weg zu Meta.
+
+**Wo zu finden:** `server/lib/fiaon-whatsapp.ts`, `server/lib/fiaon-meta-leads.ts` (Webhook + Prüfliste),
+`server/lib/fiaon-meta.ts`. Prüfstand: `scripts/pruef-lead-motor.ts` (352).
+
+---
+
 ## 22.09.2026 (Nacht, 3) — Maras Kopf: anweisen, mitlesen, nachvollziehen (E-210)
 
 **Was geändert wurde:**

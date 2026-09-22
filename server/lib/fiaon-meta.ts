@@ -154,6 +154,12 @@ export async function graph(
     token?: string;
     /** App-Token (app_id|app_secret) statt Nutzer-Token — für App-Abos. */
     appToken?: boolean;
+    /**
+     * Ein JSON-Körper statt Formularfeldern — die Cloud API von WhatsApp
+     * nimmt nur JSON (22.09.2026, E-210). Token und appsecret_proof wandern
+     * dann in die Adresse, der Körper bleibt unangetastet.
+     */
+    roherKoerper?: Record<string, unknown>;
     zeitMs?: number;
   } = {},
 ): Promise<any> {
@@ -168,8 +174,13 @@ export async function graph(
   if (!opt.appToken && z.secret) params.appsecret_proof = createHmac("sha256", z.secret).update(token).digest("hex");
   const methode = opt.methode ?? "GET";
   let body: string | undefined;
+  let alsJson = false;
   if (methode === "GET" || methode === "DELETE") {
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  } else if (opt.roherKoerper) {
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    body = JSON.stringify(opt.roherKoerper);
+    alsJson = true;
   } else {
     body = new URLSearchParams(params).toString();
   }
@@ -178,7 +189,7 @@ export async function graph(
     try {
       const r = await fetch(url, {
         method: methode,
-        headers: body ? { "Content-Type": "application/x-www-form-urlencoded" } : undefined,
+        headers: body ? { "Content-Type": alsJson ? "application/json" : "application/x-www-form-urlencoded" } : undefined,
         body,
         signal: AbortSignal.timeout(opt.zeitMs ?? 15_000),
       });

@@ -305,6 +305,36 @@ abschnitt("Maras Anweisung und Denkprotokoll");
   ok(/Math\.min\(500/.test(rt), "Der Takt-Regler wird nicht mehr bei 50 abgeschnitten");
 }
 
+// ── 8f. Der WhatsApp-Kanal ─────────────────────────────────────────────────
+abschnitt("WhatsApp — Vorlagen, 24-Stunden-Fenster, keine Mahnung");
+{
+  const wa = lies("server/lib/fiaon-whatsapp.ts");
+  const ml = lies("server/lib/fiaon-meta-leads.ts");
+  const { inkassoVerdacht, sendePruefung, vorlageAlsMeta } = await import("../server/lib/fiaon-whatsapp");
+  const { WA_VORLAGEN } = await import("../shared/fiaon-lead-texte");
+
+  ok(inkassoVerdacht("Ihre offene Rate ist überfällig"), "Mahn-Wortlaut wird erkannt");
+  ok(!inkassoVerdacht("Ihr Antrag ist vorbereitet"), "Normale Nachricht wird nicht blockiert");
+  ok(sendePruefung("Wir mahnen die Forderung an").length > 0, "Forderung geht nicht über WhatsApp");
+  ok(sendePruefung("Hallo Maria Muster, Ihr Antrag ist vorbereitet.").length === 0, "Saubere Nachricht darf raus");
+  ok(sendePruefung("Hallo, kannst du mir dein Konto nennen?").some((f) => /Du-Form/.test(f)), "Du-Form fällt auf");
+  ok(sendePruefung("x".repeat(1200)).some((f) => /1\.024/.test(f)), "Über 1.024 Zeichen wird abgefangen");
+
+  const m = vorlageAlsMeta(WA_VORLAGEN[0]) as any;
+  gleich(m.language, "de", "Vorlagen gehen auf Deutsch raus");
+  ok(m.components?.[0]?.type === "BODY" && m.components[0].example?.body_text?.length === 1, "Beispielwerte liegen bei (Meta verlangt sie)");
+  ok(m.components?.[1]?.buttons?.some((b: any) => b.type === "URL" && Array.isArray(b.example)), "Der Link-Knopf hat ein Beispiel");
+
+  ok(/messaging_product: "whatsapp"/.test(wa), "Jede Nachricht nennt das Produkt");
+  ok(/Das 24-Stunden-Fenster ist zu/.test(wa), "Ohne offenes Fenster nur Vorlagen");
+  ok(/wa_id TEXT UNIQUE/.test(wa), "Jede Nachricht kann nur einmal ankommen");
+  ok(/richtung = 'rein'/.test(wa) && /empfangen_am > NOW\(\) - INTERVAL '24 hours'/.test(wa), "Das Fenster zählt ab der letzten Nachricht des Menschen");
+  ok(/roherKoerper/.test(wa) && /roherKoerper/.test(lies("server/lib/fiaon-meta.ts")), "Gesendet wird über den einen Graph-Weg (JSON-Körper)");
+  ok(/objekt === "whatsapp_business_account" && feld === "messages"/.test(ml), "Der Webhook gibt Nachrichten an den Kanal weiter");
+  ok(!/folgt mit Phase 2/.test(ml), "Der alte Platzhalter in der Prüfliste ist weg");
+  ok(/WhatsApp-Vorlagen freigegeben/.test(ml), "Die Prüfliste zeigt den Stand der Vorlagen");
+}
+
 // ── 9. Die Messung an Meta (Pixel + Conversions API) ───────────────────────
 abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
 {

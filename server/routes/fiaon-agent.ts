@@ -904,6 +904,22 @@ export async function ermittleProvisionsAnspruch(
  */
 export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {
   await abschlussNachZahlung(ref, opts);
+  // ── MESSUNG AN META (22.09.2026, E-210) ──────────────────────────────────
+  // Hier, weil JEDER Buchungsweg durch diese Funktion geht. Meta bekommt den
+  // Kauf (Pixel + Conversions API, eine Kennung) und die Stufe des Leads
+  // („dieser Lead hat bezahlt") — das ist das Signal, auf das die Kampagne
+  // optimieren kann. Idempotent über die Ereignis-Kennung.
+  try {
+    const { webEreignis, crmEreignis, META_EREIGNIS, CRM_EREIGNIS, meldenUndSenden } = await import("../lib/fiaon-meta-capi");
+    const [a] = (await sqlPool`SELECT person_id, amount_due FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+    const wertCents = a?.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null;
+    meldenUndSenden(async () => {
+      await webEreignis(META_EREIGNIS.zahlung, ref, { wertCents });
+      await crmEreignis(CRM_EREIGNIS.zahlung, { ref, personId: a?.person_id ?? null, wertCents });
+    });
+  } catch (e) {
+    console.error("[META-MESSUNG] Zahlung:", e);
+  }
   // ══════════════════════════════════════════════════════════════════════════
   // FIAON GLOBAL: NACH DER PROVISION BEGINNT DAS PROJEKT (17.09.2026, E-188)
   //

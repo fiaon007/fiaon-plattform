@@ -20,6 +20,9 @@ import { willkommenSpalten, willkommenAn, willkommenSenden, willkommenTexte, WIL
 import { kurzlinkTabelle } from "../lib/fiaon-kurzlink";
 import { nameFuerAnrede } from "../../shared/fiaon-anrede";
 import { EINWILLIGUNG_KAESTCHEN, WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
+import {
+  capiZahlen, capiLauf, probeSenden, letzteEreignisse, datensatzSetzen, messungSchalten, META_EREIGNIS, CRM_EREIGNIS,
+} from "../lib/fiaon-meta-capi";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -96,6 +99,8 @@ router.get("/chef/lead-motor/stand", wache, async (_req: ChefRequest, res: Respo
       letzteMeldung: webhook?.am ?? null,
       nachholBis: bis?.value ?? null,
       alarme, formulare,
+      messung: await capiZahlen(),
+      ereignisNamen: { web: META_EREIGNIS, crm: CRM_EREIGNIS },
       texte: { einwilligung: EINWILLIGUNG_KAESTCHEN, vorlagen: WA_VORLAGEN },
       wegText: WEG_TEXT,
     });
@@ -293,6 +298,68 @@ router.post("/chef/lead-motor/alarm/:id/erledigt", wache, async (req: ChefReques
   } catch (err) {
     console.error("[LEAD-MOTOR] alarm:", err);
     res.status(500).json({ ok: false, error: "Das ließ sich nicht speichern." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE MESSUNG (Pixel + Conversions API)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Web-Messung oder Stufenmeldung an/aus. */
+router.post("/chef/lead-motor/messung/schalter", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const welcher = req.body?.welcher === "crm" ? "crm" : "web";
+    const an = req.body?.an === true;
+    await messungSchalten(welcher, an);
+    console.log(`[LEAD-MOTOR] Messung ${welcher} ${an ? "AN" : "AUS"} (Chef #${req.chef?.agentId ?? "?"})`);
+    res.json({ ok: true, welcher, an });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] messung/schalter:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
+  }
+});
+
+/** Die Datensatz-Kennung (Pixel) von Hand eintragen. */
+router.post("/chef/lead-motor/messung/datensatz", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const id = String(req.body?.id ?? "").replace(/[^\d]/g, "");
+    if (id.length < 10) return res.status(400).json({ ok: false, error: "Die Kennung besteht nur aus Ziffern (mindestens 10)." });
+    await datensatzSetzen(id);
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] messung/datensatz:", err);
+    res.status(500).json({ ok: false, error: "Die Kennung ließ sich nicht speichern." });
+  }
+});
+
+/** Offene Ereignisse sofort senden. */
+router.post("/chef/lead-motor/messung/senden", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    res.json({ ok: true, ergebnis: await capiLauf(200) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] messung/senden:", err);
+    res.status(500).json({ ok: false, error: "Das Senden ist abgebrochen." });
+  }
+});
+
+/** Probe mit dem Testcode aus dem Events-Manager. */
+router.post("/chef/lead-motor/messung/probe", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const erg = await probeSenden(String(req.body?.testCode ?? ""));
+    res.status(erg.ok ? 200 : 409).json({ ok: erg.ok, angenommen: erg.angenommen ?? 0, ...(erg.ok ? {} : { error: erg.fehler }) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] messung/probe:", err);
+    res.status(500).json({ ok: false, error: "Die Probe ist abgebrochen." });
+  }
+});
+
+/** Die letzten gemeldeten Ereignisse. */
+router.get("/chef/lead-motor/messung/ereignisse", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    res.json({ ok: true, ereignisse: await letzteEreignisse(40) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] messung/ereignisse:", err);
+    res.status(500).json({ ok: false, error: "Die Ereignisse ließen sich nicht laden." });
   }
 });
 

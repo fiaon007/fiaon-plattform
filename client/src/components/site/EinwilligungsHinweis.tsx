@@ -7,7 +7,8 @@
 // Wieder öffnen: Ereignis „fiaon-einwilligung-oeffnen" (Cookie-Einstellungen).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { einwilligungLesen, einwilligungNoetig, einwilligungSetzen, messungStarten } from "@/lib/werbung";
+import { useLocation } from "wouter";
+import { einwilligungLesen, einwilligungNoetig, einwilligungSetzen, messungStarten, metaSeitenwechsel } from "@/lib/werbung";
 import { istBusinessBereich, mitBereich } from "@/lib/bereich";
 
 const INTERN = /^\/(agent|admin|chef|Admindashboard|admindashboard|onboarding|inkasso|team-intern)(\/|$)/;
@@ -19,6 +20,10 @@ export default function EinwilligungsHinweis() {
   const [auswahl, setAuswahl] = useState(false);
   const [statistik, setStatistik] = useState(false);
   const [marketing, setMarketing] = useState(false);
+  const [pfadJetzt] = useLocation();
+
+  // Ein Einseiter lädt nie neu — ohne diese Meldung sähe Meta nur die erste Seite.
+  useEffect(() => { if (!INTERN.test(pfadJetzt)) metaSeitenwechsel(pfadJetzt); }, [pfadJetzt]);
 
   useEffect(() => {
     messungStarten();

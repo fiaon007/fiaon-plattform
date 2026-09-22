@@ -54,9 +54,20 @@ function zutritt(req: Request, res: Response): string | null {
 }
 
 // ── Messung (19.09.2026, E-191) — die Kennungen aus Render, sonst null ──────
-router.get("/global/messung", (_req: Request, res: Response) => {
-  res.setHeader("Cache-Control", "public, max-age=300");
-  res.json({ ok: true, ...messKonfig() });
+// 22.09.2026 (E-210): dazu die Meta-Kennung (Datensatz/Pixel). Sie kommt aus der
+// Einrichtung des Lead-Motors, nicht aus der Umgebung — deshalb ein kurzer Zwischenspeicher.
+let metaPixelZwischen: { wert: string | null; bis: number } = { wert: null, bis: 0 };
+router.get("/global/messung", async (_req: Request, res: Response) => {
+  let metaPixel: string | null = metaPixelZwischen.wert;
+  if (metaPixelZwischen.bis < Date.now()) {
+    try {
+      const { datensatzId } = await import("../lib/fiaon-meta-capi");
+      metaPixel = await datensatzId();
+    } catch { metaPixel = null; }
+    metaPixelZwischen = { wert: metaPixel, bis: Date.now() + 60_000 };
+  }
+  res.setHeader("Cache-Control", "public, max-age=120");
+  res.json({ ok: true, ...messKonfig(), metaPixel });
 });
 
 // ── Der Kunde ────────────────────────────────────────────────────────────────

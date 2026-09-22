@@ -187,3 +187,21 @@ a.lm-name:hover { text-decoration: underline; }
   .lm-kopf-rechts { justify-items: start; }
 }
 @media (prefers-reduced-motion: reduce) { .lm-punkt.an { animation: none; } .lm-schalter-knopf, .lm-schalter-knopf::after { transition: none; } }
+
+/* ── Messung an Meta ──────────────────────────────────────────────────── */
+.lm-messung { display: grid; gap: 14px; }
+.lm-messung .lm-karte-kopf p { max-width: 86ch; line-height: 1.55; }
+.lm-mess-zeile { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.lm-mess-block { display: grid; gap: 8px; align-content: start; padding: 12px 14px; border-radius: 14px; background: var(--lm-flaeche); border: 1px solid var(--lm-linie); }
+.lm-mess-block .lm-etikett { margin: 0; }
+.lm-mess-block .lm-still { line-height: 1.5; }
+.lm-mess-block .lm-schalter { justify-self: start; }
+.lm-mess-wert { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.lm-mess-heute { margin-top: 2px; }
+.lm-unterklapp { border-top: 1px solid var(--lm-linie); padding-top: 10px; }
+.lm-unterklapp > summary { cursor: pointer; font-size: 13px; color: var(--lm-leise); list-style: none; }
+.lm-unterklapp > summary::-webkit-details-marker { display: none; }
+.lm-unterklapp > summary::before { content: "▸ "; color: var(--lm-still); }
+.lm-unterklapp[open] > summary::before { content: "▾ "; }
+.lm-unterklapp > summary:hover { color: var(--lm-text-2); }
+@media (max-width: 640px) { .lm-mess-zeile { grid-template-columns: 1fr; } }

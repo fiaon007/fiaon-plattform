@@ -26,7 +26,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface Einwilligung { statistik: boolean; marketing: boolean; zeit: string; fassung: number }
-export interface Messung { ga4: string | null; ads: string | null; labels: { gespraech: string | null; auftrag: string | null }; clarity: string | null }
+import { META_EREIGNIS, metaEreignisId } from "@shared/fiaon-meta-ereignisse";
+
+export interface Messung { ga4: string | null; ads: string | null; labels: { gespraech: string | null; auftrag: string | null }; clarity: string | null; metaPixel: string | null }
 
 const SCHLUESSEL = "fiaon_einwilligung";
 const FASSUNG = 1;
@@ -34,7 +36,7 @@ const KAMPAGNE_SCHLUESSEL = "fiaon_kampagne";
 export const EINWILLIGUNG_EREIGNIS = "fiaon-einwilligung";
 
 // analytics.ts deklariert w.gtag enger (ohne „consent") — hier ein eigener Blick auf dasselbe Fenster.
-const w = window as unknown as { dataLayer?: unknown[]; gtag?: (...a: unknown[]) => void };
+const w = window as unknown as { dataLayer?: unknown[]; gtag?: (...a: unknown[]) => void; fbq?: ((...a: unknown[]) => void) & { queue?: unknown[]; callMethod?: (...a: unknown[]) => void; loaded?: boolean; version?: string; push?: unknown }; _fbq?: unknown };
 
 // ── Einwilligung ─────────────────────────────────────────────────────────────
 export function einwilligungLesen(): Einwilligung | null {
@@ -60,7 +62,7 @@ let messungVersprochen: Promise<Messung | null> | null = null;
 export function messungLaden(): Promise<Messung | null> {
   if (!messungVersprochen) {
     messungVersprochen = fetch("/api/fiaon/global/messung").then((r) => (r.ok ? r.json() : null))
-      .then((j) => (j?.ok ? { ga4: j.ga4 ?? null, ads: j.ads ?? null, labels: j.labels ?? { gespraech: null, auftrag: null }, clarity: j.clarity ?? null } : null))
+      .then((j) => (j?.ok ? { ga4: j.ga4 ?? null, ads: j.ads ?? null, labels: j.labels ?? { gespraech: null, auftrag: null }, clarity: j.clarity ?? null, metaPixel: j.metaPixel ?? null } : null))
       .catch(() => null);
   }
   return messungVersprochen;
@@ -69,12 +71,13 @@ export function messungLaden(): Promise<Messung | null> {
 /** Gibt es überhaupt etwas, dem man zustimmen kann? Sonst erscheint kein Hinweis. */
 export async function einwilligungNoetig(): Promise<boolean> {
   const m = await messungLaden();
-  return !!(m && (m.ga4 || m.ads || m.clarity));
+  return !!(m && (m.ga4 || m.ads || m.clarity || m.metaPixel));
 }
 
 // ── Laden nach Zustimmung ────────────────────────────────────────────────────
 let gtagGeladen = false;
 let clarityGeladen = false;
+let pixelGeladen = false;
 
 async function anwenden(e: Einwilligung | null): Promise<void> {
   if (!e) return;
@@ -84,6 +87,27 @@ async function anwenden(e: Einwilligung | null): Promise<void> {
     clarityGeladen = true;
     try { const { default: Clarity } = await import("@microsoft/clarity"); Clarity.init(m.clarity); } catch { /* ohne Clarity weiter */ }
   }
+  // ── META-PIXEL (22.09.2026, E-210) ────────────────────────────────────────
+  // Nur mit Marketing-Einwilligung, und nur, wenn die Einrichtung des
+  // Lead-Motors einen Datensatz kennt. Die Ereignisse selbst kommen zusätzlich
+  // vom Server (Conversions API) — dieselbe `eventID`, damit Meta sie als EINS
+  // zählt statt doppelt. Ohne den Server sieht Meta nur, was der Browser durchlässt.
+  if (e.marketing && m.metaPixel && !pixelGeladen) {
+    pixelGeladen = true;
+    const f: any = function (...a: unknown[]) { (f.callMethod ? f.callMethod.apply(f, a) : f.queue.push(a)); };
+    f.queue = []; f.loaded = true; f.version = "2.0"; f.push = f;
+    if (!w.fbq) { w.fbq = f; w._fbq = f; }
+    const s2 = document.createElement("script");
+    s2.async = true;
+    s2.src = "https://connect.facebook.net/en_US/fbevents.js";
+    document.head.appendChild(s2);
+    try {
+      w.fbq!("consent", "grant");
+      w.fbq!("init", m.metaPixel);
+      w.fbq!("track", "PageView");
+    } catch { /* ohne Pixel weiter */ }
+  }
+
   const brauchtGtag = (e.statistik && m.ga4) || (e.marketing && m.ads);
   if (brauchtGtag && !gtagGeladen) {
     gtagGeladen = true;
@@ -167,4 +191,56 @@ export async function werbeKonversion(art: "gespraech" | "auftrag", daten: { wer
       w.gtag("event", "conversion", { send_to: `${m.ads}/${label}`, value: daten.wert ?? 0, currency: "EUR", transaction_id: daten.id ?? "" });
     }
   } catch { /* egal */ }
+  // Dasselbe an Meta: Gespräch = Schedule, Auftrag = SubmitApplication. „Purchase"
+  // bleibt der Zahlung vorbehalten (der Server meldet sie, wenn das Geld da ist).
+  metaEreignis(
+    art === "gespraech" ? META_EREIGNIS.termin : META_EREIGNIS.auftrag,
+    daten.id || `${art}.${Math.round(Date.now() / 60000)}`,
+    { ...(daten.wert ? { value: daten.wert } : {}), ...(daten.paket ? { content_name: daten.paket } : {}) },
+  );
+}
+
+// ── META: EREIGNISSE UND KENNUNGEN (22.09.2026, E-210) ──────────────────────
+// `metaEreignis` feuert im Browser, `messungsDaten` reist mit jedem Speichern
+// des Antrags zum Server. Beide tragen dieselbe Ereignis-Kennung, damit Meta
+// das Pixel-Ereignis und das Server-Ereignis als EIN Ereignis zählt.
+
+/** Ein Cookie lesen — fbp/fbc setzt der Pixel selbst. */
+function keks(name: string): string | null {
+  try {
+    const treffer = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
+    return treffer ? decodeURIComponent(treffer.slice(name.length + 1)) : null;
+  } catch { return null; }
+}
+
+export { META_EREIGNIS, metaEreignisId };
+
+/** Ein Meta-Ereignis im Browser. Ohne Marketing-Einwilligung still. */
+export function metaEreignis(name: string, ref: string, daten: Record<string, unknown> = {}): void {
+  if (!einwilligungLesen()?.marketing || !w.fbq) return;
+  try { w.fbq("track", name, { currency: "EUR", ...daten }, { eventID: metaEreignisId(name, ref) }); } catch { /* egal */ }
+}
+
+/**
+ * Meta zählt eine Seite nur, wenn sie gemeldet wird — in einem Einseiter wechselt
+ * die Adresse aber ohne Neuladen. Deshalb meldet die App jeden Wechsel selbst.
+ */
+let letzteGemeldeteSeite = "";
+export function metaSeitenwechsel(pfad: string): void {
+  if (!einwilligungLesen()?.marketing || !w.fbq) return;
+  if (!pfad || pfad === letzteGemeldeteSeite) return;
+  letzteGemeldeteSeite = pfad;
+  try { w.fbq("track", "PageView"); } catch { /* egal */ }
+}
+
+/** Was der Server für die Conversions API braucht — reist mit dem Antrag mit. */
+export function messungsDaten(): { fbp: string | null; fbc: string | null; einwilligung: boolean; seite: string } {
+  const fbclid = (() => { try { return new URLSearchParams(window.location.search).get("fbclid"); } catch { return null; } })();
+  return {
+    fbp: keks("_fbp"),
+    // Kommt der Mensch frisch aus einer Anzeige, steht die Klick-Kennung noch in der Adresse.
+    fbc: keks("_fbc") ?? (fbclid ? `fb.1.${Date.now()}.${fbclid}` : null),
+    einwilligung: !!einwilligungLesen()?.marketing,
+    seite: (() => { try { return window.location.pathname.slice(0, 300); } catch { return ""; } })(),
+  };
 }

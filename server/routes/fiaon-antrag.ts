@@ -3074,6 +3074,33 @@ router.post("/application", async (req, res) => {
         console.error("[KURZLINK] Antrag an Lead:", e));
     }
 
+    // ── DIE MESSUNG (22.09.2026, E-210) ───────────────────────────────────
+    // STEHT ABSICHTLICH NACH DEM LINK: Die Stufenmeldung an Meta sucht den
+    // Lead über `converted_order_id` — der wird eine Zeile höher gesetzt.
+    // Der Browser gibt die Werbe-Kennungen (fbp/fbc) und seine Einwilligung mit.
+    // Gemerkt wird das EINMAL je Antrag; die späteren Ereignisse (Abschluss,
+    // Zahlung) entstehen serverseitig und greifen darauf zurück.
+    try {
+      const { messungMerken, webEreignis, crmEreignis, META_EREIGNIS, CRM_EREIGNIS, meldenUndSenden } = await import("../lib/fiaon-meta-capi");
+      const mess = req.body?.messung;
+      if (mess && typeof mess === "object") {
+        await messungMerken(String(ref), mess, {
+          ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
+          ua: String(req.headers["user-agent"] ?? ""),
+        });
+      }
+      const schritt = Number(currentStep || 0);
+      if (schritt >= 1 && schritt < 8) meldenUndSenden(() => webEreignis(META_EREIGNIS.antragBegonnen, String(ref)));
+      if (schritt >= 8 || status === "submitted" || status === "completed") {
+        meldenUndSenden(async () => {
+          await webEreignis(META_EREIGNIS.antragFertig, String(ref));
+          await crmEreignis(CRM_EREIGNIS.antragFertig, { ref: String(ref) });
+        });
+      }
+    } catch (e) {
+      console.error("[META-MESSUNG] Antrag:", e);
+    }
+
     res.json({ ok: true, ref });
   } catch (err) {
     console.error("[FIAON-APP]", err);

@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } fr
 import { ERREICHBARKEIT_WERTE } from "@shared/fiaon-erreichbarkeit";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
 import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
+import { messungsDaten, metaEreignis, META_EREIGNIS } from "@/lib/werbung";
 import { appViewport } from "@/lib/app-viewport";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
 import { zustandFuerSchritt } from "@shared/fiaon-antrag-schritte";
@@ -643,7 +644,7 @@ export default function AntragPage() {
       // 1) Antrag speichern (Status: submitted — Zahlung folgt im Bereich)
       await fetch("/api/fiaon/application", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ref, type: "private", status: "submitted", currentStep: 8, ...d, packKey: pack.key, packName: paketNameFuerDaten(pack.key) ?? pack.name, approvedLimit: approved, leadLink }),
+        body: JSON.stringify({ ref, type: "private", status: "submitted", currentStep: 8, ...d, packKey: pack.key, packName: paketNameFuerDaten(pack.key) ?? pack.name, approvedLimit: approved, leadLink, messung: messungsDaten() }),
       });
       // 2) Zahlungsauftrag anlegen (Verwendungszweck, Betrag, Frist)
       await fetch("/api/fiaon/payment-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref }) }).catch(() => null);
@@ -653,6 +654,7 @@ export default function AntragPage() {
       if (!r.ok || !j?.ok) { setEinrichtungFehler(j?.error || "Der Bereich konnte nicht geöffnet werden. Bitte melden Sie sich mit Ihrer E-Mail an."); setEinrichtungLaeuft(false); return; }
       try { sessionStorage.setItem("fiaon_user", JSON.stringify({ ref })); localStorage.setItem("fiaon_user", JSON.stringify({ ref })); sessionStorage.removeItem("mb_begruesst"); } catch { /* egal */ }
       track("checkout_bank_transfer", { ref, packKey: pack.key }, ref);
+      metaEreignis(META_EREIGNIS.antragFertig, ref, { content_name: pack.name, value: pack.fee });
       clearPersistentRef("fiaon_antrag_ref");
       window.location.href = "/mein-bereich?einrichten=1";
     } catch (err) {
@@ -798,10 +800,19 @@ export default function AntragPage() {
   // aber die Konsole und die Fehlerspur müssen es sehen (AGENTS.md: „Ein
   // .catch() um eine Abfrage schreibt den Fehler mit").
   // ══════════════════════════════════════════════════════════════════════════
+  // E-210: „Antrag begonnen" einmal an Meta — dieselbe Kennung wie der Server (Doppel-Erkennung).
+  const [begonnenGemeldet, setBegonnenGemeldet] = useState(false);
+  useEffect(() => {
+    if (step === 1 && !begonnenGemeldet) {
+      setBegonnenGemeldet(true);
+      metaEreignis(META_EREIGNIS.antragBegonnen, ref, { content_name: pack?.name ?? "", value: pack?.fee ?? 0 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
   useEffect(() => {
     if (step > 0) {
       const status = zustandFuerSchritt(step);
-      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink }) })
+      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink, messung: messungsDaten() }) })
         .then((r) => {
           if (!r.ok) console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert: HTTP ${r.status}`);
         })

@@ -37,6 +37,8 @@ interface Stand {
   nachholBis: string | null;
   alarme: { id: number; art: string; text: string; erstellt_am: string; zuletzt_am: string; zaehler: number }[];
   formulare: Formular[];
+  messung: Messung;
+  ereignisNamen: { web: Record<string, string>; crm: Record<string, string> };
   texte: { einwilligung: string; vorlagen: WaVorlage[] };
   wegText: Record<string, string>;
 }
@@ -49,6 +51,14 @@ interface Lead {
   antrag: string | null;
   strecke: { stufe: number; stopp: string | null };
 }
+interface Messung {
+  datensatz: string | null; web: boolean; crm: boolean;
+  heute: { name: string; n: number }[]; offen: number; fehler: number; letzterFehler: string | null;
+}
+interface Ereignis {
+  id: number; ereignis_id: string; name: string; quelle: string; ref: string | null; meta_lead_id: string | null;
+  wert_cents: number | null; status: string; versuche: number; fehler: string | null; gesendet_am: string | null; created_at: string;
+}
 interface Meldung { id: number; empfangen_am: string; objekt: string; feld: string; status: string; versuche: number; fehler: string | null; lead_id: number | null }
 
 const zeit = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
@@ -60,6 +70,16 @@ async function senden(pfad: string, body: unknown): Promise<any> {
   if (!r.ok || !j?.ok) throw new Error(j?.error || "Das hat nicht geklappt.");
   return j;
 }
+
+/** Meta nennt die Ereignisse englisch — hier steht, was sie bei uns bedeuten. */
+const EREIGNIS_TEXT: Record<string, string> = {
+  InitiateCheckout: "Antrag begonnen",
+  CompleteRegistration: "Antrag abgeschickt",
+  Purchase: "Zahlung gebucht",
+  Schedule: "Startgespräch gebucht",
+  qualified_lead: "Lead hat den Antrag fertig",
+  converted_lead: "Lead hat bezahlt",
+};
 
 const BEGRUESSUNG_TEXT: Record<string, string> = {
   gesendet: "Begrüßt", fehler: "Begrüßung fehlgeschlagen", ausgelassen: "Keine Begrüßung", aus: "Begrüßung war aus", laeuft: "Begrüßung läuft",
@@ -75,6 +95,9 @@ export default function ChefLeadMotor() {
   const [seitDatum, setSeitDatum] = useState("2026-09-21");
   const [nachholErgebnis, setNachholErgebnis] = useState<any | null>(null);
   const [vorschau, setVorschau] = useState<{ betreff: string; html: string; beispiel: boolean } | null>(null);
+  const [datensatzFeld, setDatensatzFeld] = useState("");
+  const [testCode, setTestCode] = useState("");
+  const [ereignisseOffen, setEreignisseOffen] = useState(false);
   const s = stand.daten;
 
   const melden = (t: string) => { setMeldung(t); window.setTimeout(() => setMeldung(null), 7000); };
@@ -125,6 +148,31 @@ export default function ChefLeadMotor() {
   };
   const alarmErledigt = async (id: number) => {
     try { await senden(`/chef/lead-motor/alarm/${id}/erledigt`, {}); stand.neu(); } catch (err: any) { melden(err.message); }
+  };
+  const messungSchalten = async (welcher: "web" | "crm", an: boolean) => {
+    setBeschaeftigt(`messung-${welcher}`);
+    try {
+      await senden("/chef/lead-motor/messung/schalter", { welcher, an });
+      melden(welcher === "web"
+        ? (an ? "Die Web-Messung ist an — Pixel und Server melden jeden Schritt im Antrag." : "Die Web-Messung ist aus.")
+        : (an ? "Die Stufenmeldung ist an — Meta erfährt, welcher Lead zahlt." : "Die Stufenmeldung ist aus."));
+      stand.neu();
+    } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
+  };
+  const datensatzSpeichern = async () => {
+    setBeschaeftigt("datensatz");
+    try { const j = await senden("/chef/lead-motor/messung/datensatz", { id: datensatzFeld }); melden(`Datensatz ${j.id} gespeichert.`); setDatensatzFeld(""); stand.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
+  };
+  const jetztSenden = async () => {
+    setBeschaeftigt("senden");
+    try { const j = await senden("/chef/lead-motor/messung/senden", {}); melden(`${j.ergebnis?.gesendet ?? 0} Ereignis(se) gemeldet${j.ergebnis?.fehler ? `, ${j.ergebnis.fehler} mit Fehler` : ""}.`); stand.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
+  };
+  const probe = async () => {
+    setBeschaeftigt("probe");
+    try { const j = await senden("/chef/lead-motor/messung/probe", { testCode }); melden(`Probe angekommen (${j.angenommen} Ereignis). Im Events-Manager unter „Testereignisse“ sichtbar.`); }
+    catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
   const kopieren = async (text: string) => {
     try { await navigator.clipboard.writeText(text); melden("Kopiert."); } catch { melden("Kopieren ging nicht — bitte markieren und kopieren."); }
@@ -217,6 +265,79 @@ export default function ChefLeadMotor() {
               ))}
               {!s.pruefliste && <li className="offen"><span className="lm-haken">–</span><div><b>Noch keine Prüfung</b><p>„Erneut prüfen“ zeigt, was fehlt.</p></div></li>}
             </ul>
+          </section>
+
+          <section className="lm-karte lm-messung" aria-label="Messung an Meta">
+            <div className="lm-karte-kopf">
+              <div>
+                <h2>Messung an Meta</h2>
+                <p className="lm-still">
+                  Damit die Werbung auf <b>zahlende Kunden</b> optimiert statt auf Formulare: Der Pixel im Browser und der Server melden
+                  dieselben vier Schritte — Antrag begonnen, Antrag abgeschickt, Zahlung gebucht, Startgespräch. Beide tragen dieselbe
+                  Kennung, Meta zählt sie als eines. Namen, E-Mail und Telefon gehen nur verschlüsselt.
+                </p>
+              </div>
+            </div>
+
+            <div className="lm-mess-zeile">
+              <div className="lm-mess-block">
+                <span className="lm-etikett">Datensatz (Pixel)</span>
+                {s.messung.datensatz
+                  ? <p className="lm-mess-wert"><code>{s.messung.datensatz}</code> <span className="lm-chip gruen">steht</span></p>
+                  : (
+                    <div className="lm-reihe">
+                      <input className="lm-feld" inputMode="numeric" placeholder="Kennung aus dem Events-Manager" value={datensatzFeld}
+                        onChange={(e) => setDatensatzFeld(e.target.value)} aria-label="Kennung des Datensatzes" />
+                      <button className="lm-knopf" onClick={datensatzSpeichern} disabled={!!beschaeftigt || datensatzFeld.replace(/\D/g, "").length < 10}>
+                        {beschaeftigt === "datensatz" ? "Speichert …" : "Eintragen"}
+                      </button>
+                    </div>
+                  )}
+                {!s.messung.datensatz && <p className="lm-still">„Verbindung einrichten“ holt sie selbst — oder hier aus dem Events-Manager eintragen.</p>}
+              </div>
+
+              <div className="lm-mess-block">
+                <span className="lm-etikett">Web-Messung (Pixel + Server)</span>
+                <button className={`lm-schalter${s.messung.web ? " an" : ""}`} onClick={() => messungSchalten("web", !s.messung.web)}
+                  disabled={beschaeftigt === "messung-web"} aria-pressed={s.messung.web}>
+                  <span className="lm-schalter-knopf" aria-hidden="true" />{s.messung.web ? "An" : "Aus"}
+                </button>
+                <p className="lm-still">Nur mit Marketing-Einwilligung im Cookie-Fenster.</p>
+              </div>
+
+              <div className="lm-mess-block">
+                <span className="lm-etikett">Stufenmeldung (zahlende Leads)</span>
+                <button className={`lm-schalter${s.messung.crm ? " an" : ""}`} onClick={() => messungSchalten("crm", !s.messung.crm)}
+                  disabled={beschaeftigt === "messung-crm"} aria-pressed={s.messung.crm}>
+                  <span className="lm-schalter-knopf" aria-hidden="true" />{s.messung.crm ? "An" : "Aus"}
+                </button>
+                <p className="lm-still">Meldet je Lead „Antrag fertig“ und „hat bezahlt“ — die Grundlage für Conversion-Leads-Kampagnen.</p>
+              </div>
+            </div>
+
+            <div className="lm-chips lm-mess-heute">
+              {s.messung.heute.length
+                ? s.messung.heute.map((h) => <span key={h.name} className={`lm-chip${h.name === "Purchase" || h.name === "converted_lead" ? " gruen" : " blau"}`}>{EREIGNIS_TEXT[h.name] ?? h.name} {h.n}</span>)
+                : <span className="lm-still">Heute noch nichts gemeldet.</span>}
+              {s.messung.offen > 0 && <span className={`lm-chip${s.messung.fehler ? " rot" : ""}`}>{s.messung.offen} wartet{s.messung.fehler ? ` · ${s.messung.fehler} mit Fehler` : ""}</span>}
+            </div>
+            {s.messung.letzterFehler && <div className="lm-hinweis gelb">Letzter Fehler: {s.messung.letzterFehler}</div>}
+
+            <div className="lm-reihe">
+              <input className="lm-feld" placeholder="Testcode (TEST12345)" value={testCode} onChange={(e) => setTestCode(e.target.value)} aria-label="Testcode aus dem Events-Manager" />
+              <button className="lm-knopf" onClick={probe} disabled={!!beschaeftigt || !testCode.trim() || !s.messung.datensatz}
+                title="Events-Manager → Datenquellen → Testereignisse → Code kopieren">
+                {beschaeftigt === "probe" ? "Sendet …" : "Probe senden"}
+              </button>
+              <button className="lm-knopf" onClick={jetztSenden} disabled={!!beschaeftigt || !s.messung.offen}>
+                {beschaeftigt === "senden" ? "Sendet …" : `Wartende senden${s.messung.offen ? ` (${s.messung.offen})` : ""}`}
+              </button>
+            </div>
+
+            <details className="lm-unterklapp" onToggle={(e) => setEreignisseOffen((e.target as HTMLDetailsElement).open)}>
+              <summary>Gemeldete Ereignisse (die letzten 40)</summary>
+              {ereignisseOffen && <EreignisListe />}
+            </details>
           </section>
 
           <section className="lm-karte lm-willkommen" aria-label="Begrüßungsmail">
@@ -395,6 +516,33 @@ export default function ChefLeadMotor() {
         </div>
       )}
       {meldung && <div className="lm-meldung" role="status">{meldung}</div>}
+    </div>
+  );
+}
+
+/** Was wir Meta gemeldet haben — erst geladen, wenn der Bereich aufgeklappt ist. */
+function EreignisListe() {
+  const e = useDaten<{ ereignisse: Ereignis[] }>("/chef/lead-motor/messung/ereignisse");
+  if (e.fehler) return <Fehlermeldung text={e.fehler} erneut={e.neu} />;
+  if (!e.daten) return <Geruest zeilen={4} />;
+  if (e.daten.ereignisse.length === 0) return <p className="lm-leer">Noch nichts gemeldet.</p>;
+  return (
+    <div className="lm-tabelle-huelle">
+      <table className="lm-tabelle">
+        <thead><tr><th>Wann</th><th>Ereignis</th><th>Woher</th><th>Antrag / Lead</th><th>Wert</th><th>Status</th></tr></thead>
+        <tbody>
+          {e.daten.ereignisse.map((z) => (
+            <tr key={z.id}>
+              <td>{zeit(z.gesendet_am ?? z.created_at)}</td>
+              <td><b>{EREIGNIS_TEXT[z.name] ?? z.name}</b></td>
+              <td>{z.quelle === "crm" ? "Lead-Stufe" : "Website"}</td>
+              <td>{z.ref ?? (z.meta_lead_id ? `Lead ${z.meta_lead_id}` : "—")}</td>
+              <td className="lm-zahlzelle">{z.wert_cents != null ? `${(z.wert_cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "—"}</td>
+              <td className={z.status === "fehler" ? "lm-rot" : ""}>{z.status === "gesendet" ? "gemeldet" : z.status === "fehler" ? `Fehler: ${z.fehler ?? ""}` : "wartet"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

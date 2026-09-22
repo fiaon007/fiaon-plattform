@@ -594,6 +594,31 @@ export async function verbindungPruefen(opts: { einrichten: boolean }, lauf: Lau
     punkt("whatsapp", "WhatsApp-Konto und Nummer", null, err instanceof MetaFehler ? err.klartext : String(err));
   }
 
+  // 7) Datensatz (Pixel) für die Messung — finden oder anlegen.
+  try {
+    const { datensatzId, DATENSATZ_SCHLUESSEL } = await import("./fiaon-meta-capi");
+    let id = await datensatzId(lauf);
+    let name = "";
+    const firmen = await graph("me/businesses", { params: { fields: "id,name", limit: 10 } }).catch(() => null);
+    const firma = firmen?.data?.[0];
+    if (!id && firma?.id) {
+      const vorhanden = await graphAlle(`${firma.id}/adspixels`, { params: { fields: "id,name", limit: 25 }, hoechstens: 25 }).catch(() => []);
+      const passend = vorhanden.find((p: any) => /fiaon/i.test(String(p.name ?? ""))) ?? vorhanden[0];
+      if (passend?.id) { id = String(passend.id); name = String(passend.name ?? ""); }
+      else if (opts.einrichten) {
+        const neuerSatz = await graph(`${firma.id}/adspixels`, { methode: "POST", params: { name: "FIAON" } }).catch(() => null);
+        if (neuerSatz?.id) { id = String(neuerSatz.id); name = "FIAON"; }
+      }
+      if (id) await einstellungSetzen(DATENSATZ_SCHLUESSEL, id, lauf);
+    }
+    punkt("datensatz", "Datensatz für die Messung (Pixel)", !!id, id
+      ? `${name || "Datensatz"} ${id} — Pixel und Conversions API melden Antrag, Abschluss und Zahlung.`
+      : opts.einrichten ? "Konnte keinen Datensatz anlegen — im Events-Manager einen erstellen und die Kennung im Steuerpult eintragen."
+        : "Noch keiner — „Verbindung einrichten“ legt einen an.");
+  } catch (err) {
+    punkt("datensatz", "Datensatz für die Messung (Pixel)", null, err instanceof MetaFehler ? err.klartext : String(err));
+  }
+
   const bereitJetzt = punkte.filter((p) => ["werte", "token", "seite", "webhook", "abo", "formulare"].includes(p.key)).every((p) => p.ok === true);
   return merken({ am: new Date().toISOString(), punkte, bereit: bereitJetzt }, lauf);
 }

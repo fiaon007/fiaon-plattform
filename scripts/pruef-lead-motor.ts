@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { anredeMail, anredeChat, nameFuerAnrede, nameBrauchbar, schreibweiseFuerAnzeige } from "../shared/fiaon-anrede";
+import { META_EREIGNIS, CRM_EREIGNIS, EREIGNIS_TEXT, metaEreignisId } from "../shared/fiaon-meta-ereignisse";
 
 process.env.DATABASE_URL ||= "postgres://pruefstand@127.0.0.1:9/ins-leere";
 
@@ -207,7 +208,7 @@ const post = webhook.slice(webhook.indexOf('router.post("/webhook"'));
 ok(post.indexOf("meldungSpeichern(") > 0 && post.indexOf("meldungSpeichern(") < post.indexOf("res.status(200)"), "Webhook: erst speichern, dann 200");
 ok(/signaturPruefen\(/.test(webhook) && /status\(401\)/.test(webhook), "Webhook: ohne gültige Signatur 401");
 const antrag = lies("client/src/pages/antrag.tsx");
-ok((antrag.match(/leadLink \}\)/g) ?? []).length >= 2, "Antrag: beide Zwischenspeicher tragen den Code");
+ok((antrag.match(/leadLink, messung: messungsDaten\(\)/g) ?? []).length >= 2, "Antrag: beide Zwischenspeicher tragen Code und Werbe-Kennungen");
 ok(/vorbelegung\//.test(antrag), "Antrag: liest die Vorbelegung");
 ok(/leadLink/.test(lies("server/routes/fiaon-antrag.ts")), "Server hängt den Antrag über den Code an den Lead");
 const weiterRoute = lies("server/routes/fiaon-antrag.ts").split('router.get("/antrag/weiter/:token"')[1]?.slice(0, 2500) ?? "";
@@ -220,6 +221,71 @@ ok(/slug: "lead-motor"/.test(lies("client/src/components/admin/chef-seiten.tsx")
 const routen = lies("server/routes.ts");
 ok(routen.indexOf("fiaon-kurzlink") < routen.indexOf("app.get('*'"), "/a/<code> liegt VOR den Seiten-Fangnetzen");
 ok(/<meta name="facebook-domain-verification" content="54kh3pz2o7i6q2u4ztpmafbq8a7bxz" \/>/.test(lies("client/index.html").split("</head>")[0]), "Meta-Domainbestätigung steht im <head> von index.html");
+
+// ── 9. Die Messung an Meta (Pixel + Conversions API) ───────────────────────
+abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
+{
+  const capi = lies("server/lib/fiaon-meta-capi.ts");
+  const werbung = lies("client/src/lib/werbung.ts");
+  // Erst hier laden: Die Datei hängt an der Datenbank-Hülle, und die will DATABASE_URL (oben gesetzt).
+  const { hashFeld } = await import("../server/lib/fiaon-meta-capi");
+
+  // Dieselbe Kennung im Browser und auf dem Server — sonst zählt Meta doppelt.
+  gleich(metaEreignisId("Purchase", "FIA-123"), "Purchase.FIA-123", "Ereignis-Kennung: Name.Verwendungszweck");
+  ok(metaEreignisId("Purchase", "x".repeat(200)).length <= 120, "Ereignis-Kennung bleibt unter der Grenze von Meta");
+  ok(/export const ereignisId = metaEreignisId/.test(capi), "Server nimmt die Kennung aus der geteilten Quelle");
+  ok(/from "@shared\/fiaon-meta-ereignisse"/.test(werbung), "Browser nimmt die Namen aus der geteilten Quelle");
+  ok(!/"InitiateCheckout"|"CompleteRegistration"/.test(lies("client/src/pages/antrag.tsx")), "Antrag nennt keine Ereignisnamen von Hand");
+  gleich(META_EREIGNIS.zahlung, "Purchase", "Zahlung heißt bei Meta Purchase");
+  gleich(CRM_EREIGNIS.zahlung, "converted_lead", "Der zahlende Lead heißt converted_lead");
+  ok(Object.values(META_EREIGNIS).every((n) => EREIGNIS_TEXT[n]), "Jedes Ereignis hat einen deutschen Namen fürs Haus");
+  ok(Object.values(CRM_EREIGNIS).every((n) => EREIGNIS_TEXT[n]), "Jede Lead-Stufe hat einen deutschen Namen fürs Haus");
+
+  // Nichts im Klartext.
+  const email = hashFeld("em", "  Maria.Muster@Example.COM ");
+  ok(email !== null && email.length === 64 && !/@/.test(email), "E-Mail: verschlüsselt (64 Zeichen), kein Klartext");
+  gleich(hashFeld("em", "maria.muster@example.com"), email, "Groß- und Kleinschreibung ändern den Wert nicht");
+  gleich(hashFeld("ph", "0170 1234567"), hashFeld("ph", "1701234567"), "Telefon: führende Null und Leerzeichen fallen weg");
+  gleich(hashFeld("ph", "0171"), null, "Zu kurze Nummer wird gar nicht gemeldet");
+  gleich(hashFeld("em", "   "), null, "Leeres Feld wird nicht gemeldet");
+  ok(/createHash\("sha256"\)/.test(capi), "Verschlüsselt wird mit SHA-256");
+  ok(!/user_data[\s\S]{0,400}?\bemail\b\s*:/.test(capi), "Keine E-Mail im Klartext in der Nutzlast");
+
+  // Einwilligung und Schalter.
+  ok(/if \(!m\.einwilligung\) return "keine_einwilligung"/.test(capi), "Ohne Marketing-Einwilligung kein Web-Ereignis");
+  ok(/if \(!\(await anAus\(WEB_SCHALTER/.test(capi) && /if \(!\(await anAus\(CRM_SCHALTER/.test(capi), "Beide Messwege haben einen Schalter");
+  ok(/einwilligungLesen\(\)\?\.marketing/.test(werbung.split("export function metaEreignis")[1] ?? ""), "Der Pixel feuert nur mit Einwilligung");
+  ok(/consent", "grant"/.test(werbung), "Der Pixel bekommt die Einwilligung ausdrücklich mitgeteilt");
+
+  // Doppelte Meldungen sind unmöglich.
+  ok(/ereignis_id TEXT NOT NULL UNIQUE/.test(capi), "Jedes Ereignis kann nur einmal in der Schlange stehen");
+  ok(/ON CONFLICT \(ereignis_id\) DO NOTHING/.test(capi), "Ein zweiter Versuch legt nichts doppelt an");
+  ok(/action_source: "system_generated"/.test(capi) && /event_source: "crm"/.test(capi), "Lead-Stufen gehen als CRM-Ereignis an Meta");
+  ok(/user_data: \{ lead_id: Number\(metaLeadId\) \}/.test(capi), "Die Lead-Stufe trägt die Meta-Lead-Kennung");
+  ok(/versuche < 6/.test(capi), "Ein Ereignis wird höchstens sechsmal versucht");
+
+  // Die Stellen, an denen gemessen wird.
+  const antragServer = lies("server/routes/fiaon-antrag.ts");
+  ok(/messungMerken\(/.test(antragServer), "Der Antrag merkt sich die Werbe-Kennungen");
+  ok(/META_EREIGNIS\.antragFertig/.test(antragServer), "Antrag abgeschickt wird gemeldet");
+  ok(/CRM_EREIGNIS\.antragFertig/.test(antragServer), "Der Lead wird als „Antrag fertig“ gemeldet");
+  const agent = lies("server/routes/fiaon-agent.ts");
+  ok(/META_EREIGNIS\.zahlung/.test(agent) && /CRM_EREIGNIS\.zahlung/.test(agent), "Die gebuchte Zahlung meldet Purchase und converted_lead");
+  ok(/META_EREIGNIS\.termin/.test(lies("server/lib/fiaon-termine.ts")), "Ein gebuchtes Gespräch meldet Schedule");
+  ok(/metaSeitenwechsel\(/.test(lies("client/src/components/site/EinwilligungsHinweis.tsx")), "Seitenwechsel im Einseiter werden gemeldet");
+
+  // Das Steuerpult.
+  const motor = lies("server/routes/fiaon-lead-motor.ts");
+  for (const r of ["messung/schalter", "messung/datensatz", "messung/senden", "messung/probe", "messung/ereignisse"]) {
+    ok(motor.includes(`/chef/lead-motor/${r}`), `Steuerpult-Route ${r} vorhanden`);
+  }
+  ok(/requireChef\("inhaber"\)/.test(motor), "Die Messung ist hinter der Inhaber-Stufe");
+  ok(/test_event_code/.test(capi), "Die Probe geht mit Testcode raus (verfälscht die Zahlen nicht)");
+  const ui = lies("client/src/components/admin/ChefLeadMotor.tsx");
+  ok(/lm-messung/.test(ui) && /EreignisListe/.test(ui), "Das Steuerpult zeigt die Messung und die Ereignisse");
+  ok(/Probe senden/.test(ui) && /Wartende senden/.test(ui), "Beide Knöpfe sind da");
+  ok(/lm-messung/.test(lies("client/src/styles/chef-lead-motor.css")), "Der Abschnitt hat sein Aussehen im eigenen Blatt");
+}
 
 console.log(`\n${fehler ? "✗" : "✓"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler ? 1 : 0);

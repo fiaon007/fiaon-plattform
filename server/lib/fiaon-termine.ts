@@ -1470,6 +1470,20 @@ export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): P
   void import("./fiaon-warten")
     .then((m) => m.nichtMehrWarten(buchung.personId))
     .catch((e) => console.error(`[TERMINE] Wartezustand von Person ${buchung.personId} nicht beendet — der Kunde bleibt im Filter „Wartend“, obwohl er gebucht hat:`, e));
+
+  // ── DIE MESSUNG (22.09.2026, E-210) ───────────────────────────────────
+  // Ein gebuchtes Gespräch ist ein Schritt, auf den die Werbung optimieren
+  // kann. Der Server meldet ihn, damit er auch dann ankommt, wenn der Browser
+  // den Pixel wegschneidet. Ohne Marketing-Einwilligung bleibt es still —
+  // das prüft `webEreignis` selbst.
+  void (async () => {
+    const [a] = (await lauf`
+      SELECT ref FROM fiaon_applications WHERE person_id = ${buchung.personId} AND merged_into IS NULL
+      ORDER BY created_at DESC LIMIT 1`) as any[];
+    if (!a?.ref) return;
+    const { webEreignis, META_EREIGNIS, meldenUndSenden } = await import("./fiaon-meta-capi");
+    meldenUndSenden(() => webEreignis(META_EREIGNIS.termin, String(a.ref)));
+  })().catch((e) => console.error("[TERMINE] Messung nicht gemeldet:", e));
 }
 
 /** Sagt einen Termin ab. Der Slot wird dadurch wieder frei. */

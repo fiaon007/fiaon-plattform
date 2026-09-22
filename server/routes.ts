@@ -311,6 +311,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });
     tageslauf('meta_waechter', async () => await (await import('./lib/fiaon-meta-leads')).waechterLauf(), 15 * 60 * 1000, { beimStartNach: 180_000 });
     tageslauf('lead_willkommen_nachholen', async () => await (await import('./lib/fiaon-lead-willkommen')).willkommenNachholen(), 5 * 60 * 1000, { beimStartNach: 150_000 });
+    // Messung an Meta (Pixel + Conversions API): offene Ereignisse alle 3 Minuten nachsenden.
+    tageslauf('meta_messung', async () => await (await import('./lib/fiaon-meta-capi')).capiLauf(), 3 * 60 * 1000, { beimStartNach: 200_000 });
   });
 
   // 📊 FIAON Finanz- & Sales-Analytics (Admin) — Funnel, Umsatz, CAC, Attribution

@@ -23,11 +23,16 @@
 // ── WORTHYGIENE (nicht verhandelbar) ───────────────────────────────────────
 // Keine Kartenversprechen. Keine Limits. Keine „Beratung". Kein „garantiert".
 // Wir bieten eine Plattform und eine Bonitätsauskunft — nichts, was nach
-// Kreditvermittlung oder Finanzberatung klingt. Geduzt wird durchgehend.
+// Kreditvermittlung oder Finanzberatung klingt. Gesiezt wird durchgehend
+// (E-002: „Sie" im ganzen Kundenkontakt — bis 22.09.2026 duzte ausgerechnet
+// diese Strecke, zwischen einer gesiezten Begrüßung und gesiezten Rechnungen).
 //
 // Die Liste `VERBOTENE_WORTE` wird vom Prüfstand über JEDE Variante geprüft.
 // Eine Regel, die nur in einer Schulung steht, gilt bis zur ersten Vertretung.
 // ═══════════════════════════════════════════════════════════════════════════
+
+import { PAKETE, SCHUFA_PREIS_EURO } from "./fiaon-pakete";
+import { FIAON_FIRMA } from "./fiaon-firma";
 
 /**
  * Die Kadenz in TAGEN seit dem Einstieg in die Strecke.
@@ -47,6 +52,12 @@ export const MONATS_ABSTAND_TAGE = 30;
  */
 export const MINDESTABSTAND_STUNDEN = 20;
 
+/** Katalogwerte für die Kosten-Variante — nie von Hand in den Text (E-210). */
+const PRIVATPAKETE = PAKETE.filter((p) => p.art === "privat" && p.abo && !p.eingestellt);
+const AB_CENTS = Math.min(...PRIVATPAKETE.map((p) => p.preisCents));
+const EURO = (cents: number) => `${(cents / 100).toFixed(2).replace(".", ",").replace(",00", "")} €`;
+const ZAHLWORT: Record<number, string> = { 2: "zwei", 3: "drei", 4: "vier", 5: "fünf", 6: "sechs" };
+
 export interface StreckenVariante {
   /** Stabiler Schlüssel — er landet im Protokoll. */
   key: string;
@@ -57,7 +68,7 @@ export interface StreckenVariante {
    */
   art: "nutzen" | "einwand" | "beweis" | "erinnerung" | "termin" | "auskunft";
   betreff: string;
-  /** Der Text. Duzen, kurz, ein Gedanke. */
+  /** Der Text. Siezen, kurz, ein Gedanke. Beginnt großgeschrieben — die Anrede steht davor in einer eigenen Zeile. */
   text: string;
 }
 
@@ -71,50 +82,50 @@ export const VARIANTEN: StreckenVariante[] = [
   {
     key: "nutzen-uebersicht",
     art: "nutzen",
-    betreff: "Was du bei FIAON tatsächlich bekommst",
-    text: "du hattest dich für FIAON interessiert — hier in drei Sätzen, was dahintersteht.\n\n"
-      + "Du bekommst eine Plattform, die deine Unterlagen sortiert, deinen Stand sichtbar macht "
-      + "und dir Schritt für Schritt zeigt, was als Nächstes dran ist. Dazu einen Menschen, den "
-      + "du anrufen kannst.\n\n"
-      + "Kein Papierkram, den du allein sortieren musst. Kein Warten darauf, dass sich jemand meldet.",
+    betreff: "Was Sie bei FIAON tatsächlich bekommen",
+    text: "Sie hatten sich für FIAON interessiert — hier in drei Sätzen, was dahintersteht.\n\n"
+      + "Sie bekommen eine Plattform, die Ihre Unterlagen sortiert, Ihren Stand sichtbar macht "
+      + "und Ihnen Schritt für Schritt zeigt, was als Nächstes dran ist. Dazu einen Menschen, den "
+      + "Sie anrufen können.\n\n"
+      + "Kein Papierkram, den Sie allein sortieren müssen. Kein Warten darauf, dass sich jemand meldet.",
   },
   // 18.09.2026: Hier stand „du hast angefangen, den Antrag auszufüllen … Der
   // Link unten führt genau dorthin zurück, wo du aufgehört hast." Beides trifft
   // niemanden, der diese Mail bekommt: Die Strecke schreibt NUR Leads ohne
   // Antrag an (faellige() in server/lib/fiaon-lead-strecke.ts schließt jeden
-  // mit Bestellung aus), und /antrag?lead=… liest der Antrag nicht. Ohne
-  // Entwurf gibt es auch keinen Wiedereinstiegs-Link. Der Text sagt jetzt, was
-  // stimmt; der Schlüssel bleibt, weil er im Protokoll steht.
+  // mit Bestellung aus). Seit E-210 (22.09.2026) stimmt dafür etwas anderes:
+  // Der Knopf ist der persönliche Link, Name, E-Mail und Telefon stehen schon drin.
   {
     key: "erinnerung-antrag",
     art: "erinnerung",
-    betreff: "Dein Antrag fehlt noch",
-    text: "du hattest dich bei uns gemeldet — deinen Antrag hast du aber noch nicht gestellt.\n\n"
-      + "Das dauert keine fünf Minuten, und danach weißt du, wo du stehst. "
-      + "Der Link unten führt dich direkt hinein.",
+    betreff: "Ihr Antrag fehlt noch",
+    text: "Sie hatten sich bei uns gemeldet — Ihren Antrag haben Sie aber noch nicht gestellt.\n\n"
+      + "Das dauert nur wenige Minuten, Ihre Angaben aus der Anfrage sind schon eingetragen, "
+      + "und danach wissen Sie, wo Sie stehen. Der Link unten führt Sie direkt hinein.",
   },
   {
     key: "einwand-zeit",
     art: "einwand",
     betreff: "„Dafür habe ich gerade keine Zeit\u201c",
-    text: "das hören wir oft, und es stimmt meistens.\n\n"
-      + "Deshalb: Der Antrag dauert fünf Minuten. Alles danach übernehmen wir — "
-      + "du bekommst eine Nachricht, wenn etwas von dir gebraucht wird, und sonst nicht.\n\n"
-      + "Fünf Minuten jetzt sparen dir das Suchen später.",
+    text: "Das hören wir oft, und es stimmt meistens.\n\n"
+      + "Deshalb: Der Antrag dauert nur wenige Minuten, Ihre Angaben aus der Anfrage sind schon "
+      + "eingetragen. Alles danach übernehmen wir — Sie bekommen eine Nachricht, wenn etwas von "
+      + "Ihnen gebraucht wird, und sonst nicht.\n\n"
+      + "Ein paar Minuten jetzt sparen Ihnen das Suchen später.",
   },
   {
     key: "termin-anruf",
     art: "termin",
     betreff: "Lieber kurz telefonieren?",
-    text: "manche Fragen klärt ein Gespräch schneller als jede E-Mail.\n\n"
-      + "Such dir ein Zeitfenster aus, das dir passt — wir rufen dich an. "
-      + "Fünfzehn Minuten, und du weißt, ob FIAON etwas für dich ist.",
+    text: "Manche Fragen klärt ein Gespräch schneller als jede E-Mail.\n\n"
+      + "Suchen Sie sich ein Zeitfenster aus, das Ihnen passt — zu dieser Zeit rufen wir Sie an. "
+      + "Fünfzehn Minuten, und Sie wissen, ob FIAON etwas für Sie ist.",
   },
   {
     key: "beweis-alltag",
     art: "beweis",
     betreff: "Wie es bei anderen läuft",
-    text: "die meisten, die bei uns anfangen, haben vorher versucht, es allein zu sortieren.\n\n"
+    text: "Die meisten, die bei uns anfangen, haben vorher versucht, es allein zu sortieren.\n\n"
       + "Was sie danach am häufigsten sagen: Sie wussten endlich, was als Nächstes dran ist. "
       + "Nicht weil wir etwas Magisches tun, sondern weil jemand die Reihenfolge kennt.",
   },
@@ -122,63 +133,75 @@ export const VARIANTEN: StreckenVariante[] = [
     key: "auskunft-grundstein",
     art: "auskunft",
     betreff: "Der erste Schritt ist immer derselbe",
-    text: "bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: "
-      + "Was steht eigentlich über dich in den Auskunfteien?\n\n"
-      + "Diese Auskunft ist der Grundstein — sie kostet einmalig 74 € und wird "
-      + "neutral abgerufen, verändert also nichts an deinem Stand. Du siehst danach "
-      + "schwarz auf weiß, wo du anfängst.",
+    text: "Bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: "
+      + "Was steht eigentlich über Sie in den Auskunfteien?\n\n"
+      + `Diese Auskunft ist der Grundstein — sie kostet einmalig ${EURO(SCHUFA_PREIS_EURO * 100)} und wird `
+      + "neutral abgerufen, verändert also nichts an Ihrem Stand. Sie sehen danach "
+      + "schwarz auf weiß, wo Sie anfangen.",
   },
+  // 22.09.2026 (E-210): Hier stand „monatlich kündbar … keine Mindestlaufzeit". Seit dem
+  // 03.09.2026 laufen neue Verträge über zwölf Monatsraten (shared/fiaon-wissen.ts,
+  // VERTRAG UND KÜNDIGUNG) — der Satz war falsch. Preise kommen aus dem Katalog.
   {
     key: "einwand-kosten",
     art: "einwand",
     betreff: "Was kostet das eigentlich?",
-    text: "eine berechtigte Frage, und die Antwort steht auf der Seite — nicht im Kleingedruckten.\n\n"
-      + "Es gibt vier Pakete, monatlich kündbar. Dazu einmalig die Bonitätsauskunft für 74 €. "
-      + "Keine Anschlussgebühr, keine Mindestlaufzeit, keine Überraschung auf dem Kontoauszug.",
+    text: "Eine berechtigte Frage, und die Antwort steht auf der Seite — nicht im Kleingedruckten.\n\n"
+      + `Es gibt ${ZAHLWORT[PRIVATPAKETE.length] ?? PRIVATPAKETE.length} Pakete ab ${EURO(AB_CENTS)} im Monat. Jede Rate überweisen Sie selbst — `
+      + `abgebucht wird nichts. Dazu einmalig die Bonitätsauskunft für ${EURO(SCHUFA_PREIS_EURO * 100)}. `
+      + "Keine Anschlussgebühr und keine Überraschung auf dem Kontoauszug.",
   },
   {
     key: "nutzen-unterlagen",
     art: "nutzen",
-    betreff: "Der Ordner, den du nie anlegen musstest",
-    text: "das Lästigste an solchen Dingen ist nicht die Entscheidung — es ist das Zusammensuchen.\n\n"
-      + "Bei FIAON lädst du hoch, was du hast, und die Plattform sagt dir, was fehlt. "
+    betreff: "Der Ordner, den Sie nie anlegen mussten",
+    text: "Das Lästigste an solchen Dingen ist nicht die Entscheidung — es ist das Zusammensuchen.\n\n"
+      + "Bei FIAON laden Sie hoch, was Sie haben, und die Plattform sagt Ihnen, was fehlt. "
       + "Kein Rätselraten, welches Dokument gemeint ist.",
   },
   {
     key: "erinnerung-offen",
     art: "erinnerung",
-    betreff: "Steht das noch auf deiner Liste?",
+    betreff: "Steht das noch auf Ihrer Liste?",
     // 18.09.2026: vorher „Dein Zugang wartet noch" — an Menschen ohne Konto.
-    text: "falls du es aus den Augen verloren hast: Der Weg zu FIAON steht dir weiter offen.\n\n"
-      + "Wenn es gerade nicht passt, ist das völlig in Ordnung — meld dich, wenn es passt. "
-      + "Wenn du gar nichts mehr hören willst, steht unten der Weg dafür.",
+    text: "Falls Sie es aus den Augen verloren haben: Der Weg zu FIAON steht Ihnen weiter offen.\n\n"
+      + "Wenn es gerade nicht passt, ist das völlig in Ordnung — melden Sie sich, wenn es passt. "
+      + "Wenn Sie gar nichts mehr hören möchten, steht unten der Weg dafür.",
   },
+  // 22.09.2026 (E-210): Betreff vorher „Warum bei uns ein Mensch anruft" und „Deshalb ruft
+  // dich jemand an" — eine Anrufzusage an Menschen, für die kein Anruf eingeplant ist. Der
+  // Anruf, den der Ablauf wirklich vorsieht, ist das Startgespräch.
   {
     key: "beweis-warum-mensch",
     art: "beweis",
-    betreff: "Warum bei uns ein Mensch anruft",
-    text: "wir könnten alles über Formulare abwickeln. Wir tun es nicht.\n\n"
-      + "Denn die eine Frage, die dich wirklich beschäftigt, steht in keinem Formular. "
-      + "Deshalb ruft dich jemand an, der deine Unterlagen kennt — und nicht ein Callcenter, "
-      + "das deinen Namen zum ersten Mal liest.",
+    betreff: "Warum bei uns ein Mensch mit Ihnen spricht",
+    text: "Wir könnten alles über Formulare abwickeln. Wir tun es nicht.\n\n"
+      + "Denn die eine Frage, die Sie wirklich beschäftigt, steht in keinem Formular. "
+      + "Deshalb führt Ihr Startgespräch ein Mensch, der Ihre Unterlagen kennt — "
+      + "und kein Callcenter, das Ihren Namen zum ersten Mal liest.",
   },
+  // 22.09.2026 (E-210): vorher „keine Vorkasse für Versprechen … ein monatliches Paket, das du
+  // jederzeit beenden kannst". Jetzt, was stimmt und prüfbar ist: Firma mit Registernummer,
+  // Überweisung statt Abbuchung, Kündigung jederzeit (danach keine neue Rate).
   {
     key: "einwand-vertrauen",
     art: "einwand",
     betreff: "Woher weiß ich, dass das seriös ist?",
-    text: "eine Frage, die du stellen solltest.\n\n"
-      + "Was du prüfen kannst: Impressum, Datenschutzerklärung und AGB stehen offen auf der "
-      + "Seite. Es gibt keine Vorkasse für Versprechen, sondern ein monatliches Paket, das "
-      + "du jederzeit beenden kannst. Und du bekommst einen Namen, keine Hotline-Nummer.",
+    text: "Eine Frage, die Sie stellen sollten.\n\n"
+      + "Was Sie prüfen können: Impressum, Datenschutzerklärung und AGB stehen offen auf der Seite, "
+      + `und hinter FIAON steht die ${FIAON_FIRMA.name}, eingetragen bei Companies House unter der Nummer ${FIAON_FIRMA.companyNo}. `
+      + "Sie zahlen in Monatsraten per Überweisung — abgebucht wird nichts — und können jederzeit "
+      + "kündigen; ab dann wird keine neue Rate mehr gestellt. Und Sie bekommen eine feste "
+      + "Ansprechperson mit Namen, keine Hotline-Nummer.",
   },
   {
     key: "termin-letzte",
     art: "termin",
-    betreff: "Ein Anruf, dann weißt du es",
-    text: "wir schreiben dir seit einer Weile, und du hast nicht geantwortet — das ist dein Recht.\n\n"
-      + "Falls es nur daran liegt, dass Schreiben mühsam ist: Wähl ein Zeitfenster, wir rufen an. "
-      + "Und falls du wirklich nichts mehr hören willst, ist der Weg dafür unten. "
-      + "Dann ist es das letzte Mal.",
+    betreff: "Ein Anruf, dann wissen Sie es",
+    text: "Wir schreiben Ihnen seit einer Weile, und Sie haben nicht geantwortet — das ist Ihr gutes Recht.\n\n"
+      + "Falls es nur daran liegt, dass Schreiben mühsam ist: Wählen Sie ein Zeitfenster, "
+      + "zu dieser Zeit rufen wir Sie an. Und falls Sie wirklich nichts mehr hören möchten, "
+      + "ist der Weg dafür unten. Dann ist es das letzte Mal.",
   },
 ];
 

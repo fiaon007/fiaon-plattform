@@ -24,6 +24,7 @@
 import { randomBytes } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
+import { anredeMail } from "../../shared/fiaon-anrede";
 import {
   MINDESTABSTAND_STUNDEN, faelligNachTagen, streckenKnopf, varianteFuer,
 } from "../../shared/fiaon-lead-strecke";
@@ -151,7 +152,7 @@ export async function abmeldeLink(leadId: number, lauf: Lauf = sqlPool): Promise
 export async function faellige(
   hoechstens: number, lauf: Lauf = sqlPool,
 ): Promise<{ id: number; email: string; vorname: string | null; nachname: string | null;
-             stufe: number; erstellt_am: any; person_id: number | null }[]> {
+             anrede?: string | null; stufe: number; erstellt_am: any; person_id: number | null }[]> {
   // Die Fälligkeit rechnet sich aus Stufe und Einstiegsdatum. Als SQL, weil
   // sonst 2.700 Zeilen geladen und in TypeScript gefiltert werden müssten.
   //
@@ -159,6 +160,7 @@ export async function faellige(
   // gilt `erstellt_am` — so wird ein alter Lead nicht künstlich jung.
   const zeilen = (await lauf`
     SELECT le.id, le.email, le.vorname, le.nachname, le.person_id,
+           (SELECT p.anrede FROM fiaon_persons p WHERE p.id = le.person_id) AS anrede,
            COALESCE(le.strecke_stufe, 0) AS stufe,
            COALESCE(le.strecke_seit, le.erstellt_am) AS start,
            le.erstellt_am
@@ -206,28 +208,33 @@ export async function faellige(
  * kommt sie trotzdem an, und der Betreiber sieht es im Protokoll.
  */
 export async function streckenMail(
-  lead: { id: number; email: string; vorname: string | null; nachname: string | null; person_id?: number | null },
+  lead: { id: number; email: string; vorname: string | null; nachname: string | null; person_id?: number | null; anrede?: string | null },
   stufe: number,
   lauf: Lauf = sqlPool,
 ): Promise<{ status: "versandt" | "fehlgeschlagen" | "uebersprungen"; grund?: string; variante: string }> {
   const v = varianteFuer(stufe, lead.id);
   const abmelden = await abmeldeLink(lead.id, lauf);
-  const antrag = absoluteUrl(`/antrag?lead=${lead.id}`);
+  // E-210 (22.09.2026): der persönliche Link statt /antrag?lead=<id> — den las der Antrag
+  // nie. Über /a/<code>/m füllt er Name, E-Mail und Telefon vor und zählt den Klick.
+  const { kurzlinkFuerLead, kurzlinkUrl } = await import("./fiaon-kurzlink");
+  const antrag = kurzlinkUrl(await kurzlinkFuerLead(lead.id, lauf), "m");
   // ── DER KNOPF GEHÖRT ZUR VARIANTE (18.09.2026) ────────────────────────────
   // Die Termin-Varianten versprechen „wähl ein Zeitfenster, wir rufen an" —
   // ihr Knopf hieß „Jetzt Antrag starten". Jetzt: /termin für sie, der Antrag
   // für alle anderen (shared/fiaon-lead-strecke.ts, streckenKnopf).
   const knopf = streckenKnopf(v);
   const knopfUrl = knopf.termin ? absoluteUrl("/termin") : antrag;
-  const anrede = lead.vorname ? `Hallo ${lead.vorname},` : "Hallo,";
+  // E-210: EINE Anrede für alle Kanäle (shared/fiaon-anrede.ts) — vorher „Hallo max," und
+  // „Hallo 0176…," aus dem rohen Vornamensfeld. Gesiezt wird durchgehend (E-002).
+  const anrede = anredeMail({ vorname: lead.vorname, nachname: lead.nachname, anrede: lead.anrede ?? null });
 
   // Der volle Text — Anrede, Inhalt, Abschluss, Abmeldung. An EINER Stelle
   // zusammengesetzt, damit die Abmelde-Zeile nicht in elf Varianten fehlen kann.
   const text = `${anrede}\n\n${v.text}\n\n`
     + `${knopf.zeile}: ${knopfUrl}\n\n`
-    + `Viele Grüße\ndein FIAON-Team\n\n`
+    + `Viele Grüße\nIhr FIAON-Team\n\n`
     + `─────\n`
-    + `Du möchtest keine Nachrichten mehr? Ein Klick genügt: ${abmelden}`;
+    + `Sie möchten keine Nachrichten mehr? Ein Klick genügt: ${abmelden}`;
 
   try {
     const { sendMakeWebhookMitGrund } = await import("../make-webhook");
@@ -239,6 +246,7 @@ export async function streckenMail(
       person_id: lead.person_id ?? null,
       vorname: lead.vorname,
       nachname: lead.nachname,
+      anrede,
       lead_id: lead.id,
       followup_number: stufe,
       // Neu für die ewige Strecke — die Vorlage kann sie einsetzen.

@@ -64,8 +64,10 @@ router.get("/antrag/email-bekannt", async (req: Request, res: Response) => {
     if (!z || z.bis < jetzt) emailZaehler.set(ip, { n: 1, bis: jetzt + 600000 }); else if (z.n++ > 60) return res.status(429).json({ ok: false });
     const email = String(req.query.email || "").trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return res.json({ ok: true, bekannt: false });
+    // E-210: den Antrag, der gerade ausgefüllt wird, nicht als „schon bekannt" melden.
+    const ohne = String(req.query.ohne || "").trim().slice(0, 80);
     const [r] = (await sqlPool`SELECT (password IS NOT NULL AND password <> '') AS pw, status, payment_reference, payment_status, current_step FROM fiaon_applications
-      WHERE lower(email) = ${email} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1`) as any[];
+      WHERE lower(email) = ${email} AND merged_into IS NULL AND ref <> ${ohne} ORDER BY created_at DESC LIMIT 1`) as any[];
     const unfertig = !!r && !r.payment_reference && r.payment_status !== "paid" && !r.pw;
     res.json({ ok: true, bekannt: !!r, hatPasswort: !!r?.pw, unfertig, schritt: unfertig ? Number(r.current_step || 1) : null });
   } catch (err) { console.error("[EMAIL-BEKANNT]", err); res.json({ ok: true, bekannt: false }); }

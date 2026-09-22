@@ -158,11 +158,12 @@ async function main(): Promise<void> {
   // 1c. Die Lead-Strecke: Knopf je Variante, durchgehend geduzt.
   for (const v of strecke.VARIANTEN) {
     const k = strecke.streckenKnopf(v);
-    const url = k.termin ? "https://fiaon.com/termin" : "https://fiaon.com/antrag?lead=1";
-    const text = `Hallo Prüf,\n\n${v.text}\n\n${k.zeile}: ${url}\n\nViele Grüße\ndein FIAON-Team\n\n─────\nDu möchtest keine Nachrichten mehr? Ein Klick genügt: https://fiaon.com/abmelden/x`;
+    // E-210 (22.09.2026): Die Strecke siezt (E-002) und verlinkt den persönlichen Link /a/<code>/m.
+    const url = k.termin ? "https://fiaon.com/termin" : "https://fiaon.com/a/Ab3dEf7hJk/m";
+    const text = `Guten Tag Prüf Knopf,\n\n${v.text}\n\n${k.zeile}: ${url}\n\nViele Grüße\nIhr FIAON-Team\n\n─────\nSie möchten keine Nachrichten mehr? Ein Klick genügt: https://fiaon.com/abmelden/x`;
     const m = rendern("lead_followup", {
-      email: basis.email, vorname: "Prüf", betreff: v.betreff, text,
-      abmelde_url: "https://fiaon.com/abmelden/x", antrag_url: "https://fiaon.com/antrag?lead=1",
+      email: basis.email, vorname: "Prüf", anrede: "Guten Tag Prüf Knopf,", betreff: v.betreff, text,
+      abmelde_url: "https://fiaon.com/abmelden/x", antrag_url: "https://fiaon.com/a/Ab3dEf7hJk/m",
       knopf_text: k.text, knopf_url: url,
     });
     const html = m?.html ?? "";
@@ -170,9 +171,10 @@ async function main(): Promise<void> {
     ok(`Strecke „${v.key}“: Knopf passt zum Text (${k.text})`,
       !!knopfZiel && knopfZiel[1] === url && knopfZiel[2].trim() === k.text,
       knopfZiel ? `${knopfZiel[2].trim()} → ${knopfZiel[1]}` : "kein Knopf");
-    ok(`Strecke „${v.key}“: geduzt bis in den Fuß, ohne Karten-Satz`,
-      /Du möchtest diese Hinweise/.test(html) && /Antworte einfach/.test(html)
-      && !/Sie möchten diese Hinweise|Antworten Sie/.test(html) && !html.includes(KARTE_SATZ));
+    // Bis 22.09.2026 stand hier „geduzt bis in den Fuß, ohne Karten-Satz" — die Strecke war die
+    // einzige Kundenmail im Du (E-002 verlangt Sie). Seit E-210 gilt das Gegenteil.
+    ok(`Strecke „${v.key}“: gesiezt bis in den Fuß, mit Karten-Satz`,
+      !/Du möchtest diese Hinweise|Antworte einfach|rufen dich/.test(html) && html.includes(KARTE_SATZ));
     ok(`Strecke „${v.key}“: Worthygiene`, strecke.worthygiene(`${v.betreff} ${v.text}`).length === 0,
       strecke.worthygiene(`${v.betreff} ${v.text}`).join(","));
   }

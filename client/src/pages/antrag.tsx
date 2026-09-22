@@ -503,6 +503,20 @@ export default function AntragPage() {
   // DIESE Referenz die Referenz des Antrags — sonst legte jeder Klick auf den
   // Link einen zweiten Antrag an, und die Kette liefe weiter.
   const [weiterToken] = useState(() => { try { return new URLSearchParams(window.location.search).get("weiter"); } catch { return null; } });
+  // ── DER PERSÖNLICHE LINK (22.09.2026, E-210) ─────────────────────────────
+  // Kommt der Mensch über fiaon.com/a/<code> (Mail, WhatsApp, SMS), stehen
+  // Vorname, Nachname, E-Mail und Telefon aus seiner Anfrage schon im Antrag,
+  // und jedes Zwischenspeichern trägt den Code mit — so hängt der Antrag genau
+  // an diesem Lead, auch wenn die E-Mail im Formular geändert wird. Der Code
+  // verlässt danach die Adresszeile (Sitzungsspeicher), damit ihn niemand mit
+  // einem kopierten Link weitergibt.
+  const [leadLink] = useState<string | null>(() => {
+    try {
+      const v = new URLSearchParams(window.location.search).get("l");
+      if (v && /^[A-Za-z0-9]{10}$/.test(v)) { sessionStorage.setItem("fiaon_lead_link", v); return v; }
+      return sessionStorage.getItem("fiaon_lead_link");
+    } catch { return null; }
+  });
   const [ref] = useState(() => {
     if (weiterToken) { const r = weiterToken.split(".")[0]; try { sessionStorage.setItem("fiaon_antrag_ref", r); } catch { /* egal */ } return r; }
     return getPersistentRef("fiaon_antrag_ref");
@@ -559,6 +573,32 @@ export default function AntragPage() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
   const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", erreichbarkeit: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
+  const [vorbelegt, setVorbelegt] = useState(false);
+  useEffect(() => {
+    if (!leadLink || weiterToken) return;
+    let weg = false;
+    void (async () => {
+      const r = await fetch(`/api/fiaon/antrag/vorbelegung/${encodeURIComponent(leadLink)}`).catch(() => null);
+      const j = await r?.json().catch(() => null);
+      if (weg || !r?.ok || !j?.ok) return;
+      setD((prev) => ({
+        ...prev,
+        firstName: prev.firstName || j.vorname || "",
+        lastName: prev.lastName || j.nachname || "",
+        email: prev.email || j.email || "",
+        ...(j.vorwahl && j.telefon && !prev.phone ? { phoneCountryCode: j.vorwahl, phone: j.telefon } : {}),
+      }));
+      setVorbelegt(!!(j.vorname || j.nachname || j.email || j.telefon));
+      track("antrag_vorbelegt", { kanal: new URLSearchParams(window.location.search).get("k") || null }, ref);
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.delete("l"); u.searchParams.delete("k");
+        window.history.replaceState({}, "", `${u.pathname}${u.search}`);
+      } catch { /* egal */ }
+    })();
+    return () => { weg = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadLink]);
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
   const [checkProgress, setCheckProgress] = useState(0);
@@ -603,7 +643,7 @@ export default function AntragPage() {
       // 1) Antrag speichern (Status: submitted — Zahlung folgt im Bereich)
       await fetch("/api/fiaon/application", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ref, type: "private", status: "submitted", currentStep: 8, ...d, packKey: pack.key, packName: paketNameFuerDaten(pack.key) ?? pack.name, approvedLimit: approved }),
+        body: JSON.stringify({ ref, type: "private", status: "submitted", currentStep: 8, ...d, packKey: pack.key, packName: paketNameFuerDaten(pack.key) ?? pack.name, approvedLimit: approved, leadLink }),
       });
       // 2) Zahlungsauftrag anlegen (Verwendungszweck, Betrag, Frist)
       await fetch("/api/fiaon/payment-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref }) }).catch(() => null);
@@ -761,7 +801,7 @@ export default function AntragPage() {
   useEffect(() => {
     if (step > 0) {
       const status = zustandFuerSchritt(step);
-      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved }) })
+      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink }) })
         .then((r) => {
           if (!r.ok) console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert: HTTP ${r.status}`);
         })
@@ -988,6 +1028,11 @@ export default function AntragPage() {
                     </div>
                   )}
                   <div className="space-y-6">
+                    {vorbelegt && (
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-[13px] leading-snug text-[#1d4ed8]">
+                        Ihre Angaben aus Ihrer Anfrage sind schon eingetragen — bitte einmal kurz prüfen.
+                      </div>
+                    )}
                     {/* ── DIE E-MAIL ZUERST (E-023, 22.08.2026) ──────────────────
                         Vorher erst in Schritt 4 von 5. Wer vorher abbrach, war
                         nicht erreichbar — kein Empfänger, keine Erinnerung. */}
@@ -998,7 +1043,7 @@ export default function AntragPage() {
                                     type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
                       <EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} />
                       <p className="mt-1.5 text-[11.5px] text-gray-400">Damit Sie jederzeit genau hier weitermachen können.</p>
-                      <EmailBekannt email={d.email} />
+                      <EmailBekannt email={d.email} eigeneRef={ref} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <PremiumInput label="Vorname" value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" isValid={!!d.firstName} error={errors.firstName} />

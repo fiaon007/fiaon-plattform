@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-22-persoenlicher-antragslink",
+    date: "2026-09-22",
+    category: "Neu",
+    title: "Der Antrags-Link für Leads füllt jetzt Name, E-Mail und Telefon vor",
+    summary:
+      "Wenn du einem Lead mit „Zum Antrag bewegen“ den Antrags-Link schickst, stehen seine Angaben aus dem Facebook-Formular "
+      + "schon im Antrag. Er wählt nur noch sein Paket und ergänzt den Rest — und der Antrag hängt sicher an seinem Lead, "
+      + "auch wenn er eine andere E-Mail eintippt.",
+    changes: [
+      "Jede Mail an Leads siezt jetzt — auch die Nachfass-Mails, die bisher geduzt haben.",
+      "Neue Leads bekommen in Sekunden eine Begrüßungsmail mit ihrem persönlichen Link (sobald die Leitung sie einschaltet).",
+      "Im Verlauf des Leads steht, wenn er seinen Link geöffnet hat — zum Beispiel „Persönlichen Link geöffnet (E-Mail)“.",
+    ],
+    howto: [
+      "Im Gespräch: „Ich schicke Ihnen jetzt Ihren Link — Ihre Angaben sind schon eingetragen, Sie wählen nur noch das Paket.“",
+      "Danach im Verlauf schauen: Steht „Link geöffnet“, ist der Lead dran — jetzt nachfassen.",
+    ],
+  },
+  {
     id: "2026-09-22-gleich-verteilt",
     date: "2026-09-22",
     category: "Geändert",

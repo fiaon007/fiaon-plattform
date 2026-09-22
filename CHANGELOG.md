@@ -5,6 +5,39 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Nacht) — Lead-Motor Phase 0: Meta direkt, Begrüßung, persönlicher Link, Strecke im Sie (E-210)
+
+**Was geändert wurde:**
+- **Meta-Eingang** ohne Make: `POST /api/meta/webhook` (Signatur X-Hub-Signature-256, erst speichern, dann 200), Abruf
+  des Leads über die Graph-API v25.0 mit allen Feldern (Kampagne, Anzeigengruppe, Anzeige, Formular, Facebook/Instagram,
+  Einwilligung), Nachhol-Lauf alle 5 Minuten, Rückstand bis 90 Tage, Wächter (Stille, Webhook stumm, Abruf, Zugang).
+  Dubletten über `fiaon_meta_leads` (Meta-Lead-ID). Wartet auf `META_APP_ID`, `META_APP_SECRET`, `META_SYSTEM_TOKEN`.
+- **Steuerpult** `/chef/s/lead-motor` (Stufe Inhaber): Prüfliste mit Klartext, „Verbindung einrichten“, Rückstand
+  nachholen, Formulare mit WhatsApp-Kästchen, Begrüßung an/aus mit Vorschau und Prüfversand, jeder Lead mit Weg,
+  Anzeige, Einwilligung, Begrüßung, Klick und Antrag, Alarme, Meldungen, Texte zur Freigabe. Rundgang `lead-motor`.
+- **Persönlicher Link** `fiaon.com/a/<code>/<kanal>`: zählt Klicks je Kanal, füllt den Antrag vor (nur Name, E-Mail,
+  Telefon), hängt den Antrag exakt an den Lead und stoppt die Strecke.
+- **Begrüßungsmail** `lead_willkommen` (Sie, Karten-Ziel, Abmeldung) sofort nach dem Formular — ersetzt die zwei
+  Make-Mails; Schalter `lead_willkommen_an` (Vorgabe AUS, bis in Make der Brevo-Weg gelöscht ist).
+- **Eine Anrede** (`shared/fiaon-anrede.ts`) für alle Lead-Mails: „Guten Tag Maria Muster,“, Schreibweise nur für die
+  Anzeige korrigiert (alles klein/GROSS), unbrauchbare Namen → „Guten Tag,“.
+- **Nachfass-Strecke siezt** (12 Varianten) und nutzt den persönlichen Link; „monatlich kündbar“ ist raus (Jahresvertrag
+  seit 03.09.).
+- **Wiedereinstieg repariert:** `GET /antrag/weiter/:token` hielt den Verwendungszweck für „fertig“ — den trägt seit
+  08.08. jeder Entwurf. Jetzt öffnet der Link das Formular an der Stelle; die Zahlungsseite erst nach dem Absenden.
+- **E-Mail-Hinweis im Antrag** meldet den eigenen Entwurf nicht mehr als „bekannten Vorgang“.
+- **Meta-Domainbestätigung** im `<head>` von fiaon.com.
+
+**Warum:** SuperChat ist gelöscht, Make hängt (Eingang seit 21.09. fast null). Justin: „alles auf den offiziellen
+Meta-Weg … MAXIMALSTE Conversion … Technik 100 % dicht“. Gemessen: 69 % der Leads beginnen nie einen Antrag, 2 % in der
+ersten Stunde.
+
+**Wo zu finden:** `server/lib/fiaon-meta.ts`, `fiaon-meta-leads.ts`, `fiaon-kurzlink.ts`, `fiaon-lead-willkommen.ts`,
+`server/routes/fiaon-meta-webhook.ts`, `fiaon-kurzlink.ts`, `fiaon-lead-motor.ts`, `shared/fiaon-anrede.ts`,
+`shared/fiaon-lead-texte.ts`, `client/src/components/admin/ChefLeadMotor.tsx`; Prüfstand `scripts/pruef-lead-motor.ts`.
+
+---
+
 ## 22.09.2026 — Neue A- und B-Kunden gleichmäßig verteilt
 
 **Was geändert wurde:** Die Sofortzuteilung (`verteilungsTabelle` in `server/lib/fiaon-zuteilung.ts`) gibt den nächsten

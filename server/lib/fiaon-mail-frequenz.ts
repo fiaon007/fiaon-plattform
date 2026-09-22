@@ -59,6 +59,7 @@ export const PFLICHTMAILS = new Set<string>([
   "account_activated",
   "bereich_freigeschaltet",  // 18.09.2026: Antwort auf das eben geführte Startgespräch.
   "welcome",                 // Antwort auf den abgeschickten Antrag.
+  "lead_willkommen",         // E-210: Antwort auf das eben abgeschickte Werbeformular — einmal je Person und Tag (fiaon-lead-willkommen.ts).
   "payment_details",         // Die Zahlungsdaten zum eben abgeschlossenen Antrag.
   "bankverbindung_neu",      // 02.09.2026: Kontowechsel — wer die alte IBAN hat, MUSS die neue bekommen.
   "kuendigung_bestaetigt",   // Vertragspost: Eingang der Kündigung und was noch offen ist.

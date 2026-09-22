@@ -2005,8 +2005,17 @@ router.get("/antrag/weiter/:token", async (req, res) => {
       FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL AND gdpr_deleted_at IS NULL LIMIT 1
     `) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden." });
-    if (a.payment_reference || a.payment_status === "paid") {
-      return res.json({ ok: true, fertig: true, zahlung: a.payment_reference ? `/zahlung/${a.payment_reference}` : "/login" });
+    // ── „FERTIG" HEISST: DER VERTRAG IST ANGENOMMEN (22.09.2026, E-210) ──────
+    // Hier stand `if (a.payment_reference || …)`. Seit dem 08.08.2026 füllt ein
+    // Trigger den Verwendungszweck schon beim ERSTEN Speichern (db/migrations/037)
+    // — gemessen: 809 von 809 unfertigen Anträgen der letzten 30 Tage tragen einen.
+    // Damit führte jeder Wiedereinstieg auf die Zahlungsseite, auch aus Schritt 1,
+    // vor dem Vertrag. Jetzt entscheidet der Stand des Formulars: Zahlungsseite erst
+    // ab Schritt 8 (abgeschickt) oder wenn gezahlt ist; sonst zurück an die Stelle.
+    const UNFERTIG = new Set(["started", "personal_data", "finances", "config", "verifying", "approved", "contract", "processing"]);
+    const fertig = a.payment_status === "paid" || Number(a.current_step || 0) >= 8 || !UNFERTIG.has(String(a.status || ""));
+    if (fertig) {
+      return res.json({ ok: true, fertig: true, zahlung: a.payment_status !== "paid" && a.payment_reference ? `/zahlung/${a.payment_reference}` : "/login" });
     }
     const g = a.birthdate ? String(a.birthdate).slice(0, 10).split("-") : null;
     // 06.09.2026: Der Weiter-Link ist der Nachweis — er ging per Mail an den Antragsteller. Cookie setzen.
@@ -3054,6 +3063,16 @@ router.post("/application", async (req, res) => {
     // war die Ursache des Login-Ausfalls.
     await bindePersonAnAntrag(ref).catch((e) =>
       console.error("[FIAON-PERSON] Zuordnung nach /application:", e));
+
+    // ── DER PERSÖNLICHE LINK (22.09.2026, E-210) ──────────────────────────
+    // Kam der Mensch über fiaon.com/a/<code>, hängt dieser Antrag EXAKT an dem
+    // Lead des Codes — auch wenn er im Formular eine andere E-Mail eintippt.
+    // Der Abgleich über Mail/Telefon oben bleibt; dieser Weg ist der sichere.
+    if (typeof req.body?.leadLink === "string" && ref) {
+      const { antragAnLeadHaengen } = await import("../lib/fiaon-kurzlink");
+      await antragAnLeadHaengen(String(req.body.leadLink), String(ref)).catch((e) =>
+        console.error("[KURZLINK] Antrag an Lead:", e));
+    }
 
     res.json({ ok: true, ref });
   } catch (err) {

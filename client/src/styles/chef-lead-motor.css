@@ -1,0 +1,189 @@
+/* ═══ Lead-Motor-Steuerpult (22.09.2026, E-210) — Präfix .lm- ═══
+   Läuft in der dunklen ChefShell (eigenes Design), in derselben Sprache wie
+   Maras Steuerpult: dünne Schrift, Glas nur an einer Stelle (Kopf), matte
+   Flächen, Hover nur mit Maus. Am iPhone eine Spalte. */
+
+.lm {
+  --lm-text: #e7ecf4;
+  --lm-text-2: #b9c4d5;
+  --lm-leise: #8292a8;
+  --lm-still: #5d6c83;
+  --lm-linie: rgba(148, 163, 184, .14);
+  --lm-flaeche: rgba(148, 163, 184, .05);
+  --lm-flaeche-hoch: rgba(148, 163, 184, .09);
+  --lm-blau: #288dfa;
+  --lm-blau-hell: #93c5fd;
+  --lm-gruen: #6ee7b7;
+  --lm-gelb: #fcd34d;
+  --lm-rot: #fda4af;
+  color: var(--lm-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
+  display: grid;
+  gap: 16px;
+  padding-bottom: 96px;
+  color-scheme: dark;
+}
+.lm h1, .lm h2, .lm h3 { margin: 0; font-weight: 500; color: var(--lm-text); }
+.lm h2 { font-size: 16px; }
+.lm h3 { font-size: 13.5px; }
+.lm p { margin: 0; }
+.lm code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11.5px; color: var(--lm-blau-hell); word-break: break-all; }
+.lm-still { color: var(--lm-still); font-size: 12px; }
+.lm-rot { color: var(--lm-rot); }
+.lm-leer { font-size: 13px; color: var(--lm-leise); padding: 8px 2px; }
+
+/* ── Kopf (die eine Glasfläche) ───────────────────────────────────────── */
+.lm-kopf {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 18px 20px; border-radius: 18px; border: 1px solid var(--lm-linie);
+  background: linear-gradient(135deg, rgba(40, 141, 250, .14), rgba(15, 26, 45, .6));
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.lm-wer { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.lm-wer h1 { font-size: 22px; letter-spacing: -.01em; }
+.lm-wer p { font-size: 13px; color: var(--lm-leise); margin-top: 2px; max-width: 70ch; }
+.lm-kopf-rechts { display: grid; justify-items: end; gap: 4px; }
+.lm-punkt { width: 12px; height: 12px; border-radius: 50%; background: var(--lm-still); flex: none; box-shadow: 0 0 0 4px rgba(93, 108, 131, .18); }
+.lm-punkt.halb { background: var(--lm-gelb); box-shadow: 0 0 0 4px rgba(252, 211, 77, .14); }
+.lm-punkt.warn { background: var(--lm-rot); box-shadow: 0 0 0 4px rgba(253, 164, 175, .16); }
+.lm-punkt.an { background: var(--lm-gruen); box-shadow: 0 0 0 4px rgba(110, 231, 183, .16); animation: lm-atmen 2.4s ease-in-out infinite; }
+@keyframes lm-atmen { 50% { box-shadow: 0 0 0 7px rgba(110, 231, 183, .06); } }
+
+/* ── Alarme ───────────────────────────────────────────────────────────── */
+.lm-alarme { display: grid; gap: 8px; }
+.lm-alarm {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(253, 164, 175, .35); background: rgba(253, 164, 175, .07);
+}
+.lm-alarm b { color: var(--lm-rot); font-weight: 500; font-size: 13.5px; }
+.lm-alarm p { font-size: 13px; margin: 3px 0; color: var(--lm-text-2); line-height: 1.5; }
+
+/* ── Kennzahlen ───────────────────────────────────────────────────────── */
+.lm-zahlen { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.6fr); gap: 10px; }
+.lm-zahl { display: grid; gap: 3px; align-content: start; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--lm-linie); background: var(--lm-flaeche); min-width: 0; }
+.lm-zahl-titel { font-size: 11.5px; color: var(--lm-leise); }
+.lm-zahl-wert { font-size: 24px; font-weight: 500; color: var(--lm-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lm-zahl.gruen .lm-zahl-wert { color: var(--lm-gruen); }
+.lm-zahl.blau .lm-zahl-wert { color: var(--lm-blau-hell); }
+.lm-zahl.rot .lm-zahl-wert { color: var(--lm-rot); }
+.lm-zahl-unter { font-size: 11.5px; color: var(--lm-still); }
+.lm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+/* ── Karten ───────────────────────────────────────────────────────────── */
+.lm-karte { display: grid; gap: 12px; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--lm-linie); background: var(--lm-flaeche); min-width: 0; }
+.lm-karte-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.lm-karte-kopf > div:first-child { display: grid; gap: 4px; min-width: 0; flex: 1 1 320px; }
+.lm-hinweis { font-size: 13px; line-height: 1.5; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(147, 197, 253, .28); background: rgba(40, 141, 250, .08); color: var(--lm-text-2); }
+.lm-hinweis b { color: var(--lm-text); font-weight: 500; }
+.lm-hinweis.gelb { border-color: rgba(252, 211, 77, .3); background: rgba(252, 211, 77, .07); }
+.lm-ergebnis { font-size: 13px; line-height: 1.55; }
+.lm-ergebnis b { color: var(--lm-gruen); font-weight: 500; }
+
+/* ── Prüfliste ────────────────────────────────────────────────────────── */
+.lm-pruefliste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lm-pruefliste li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border-radius: 12px; background: rgba(15, 26, 45, .45); }
+.lm-pruefliste b { color: var(--lm-text); font-weight: 500; font-size: 13.5px; }
+.lm-pruefliste p { font-size: 12.5px; color: var(--lm-leise); line-height: 1.5; margin-top: 2px; word-break: break-word; }
+.lm-haken { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; flex: none; font-size: 12px; font-weight: 500; background: rgba(148, 163, 184, .14); color: var(--lm-leise); }
+.lm-pruefliste li.ok .lm-haken { background: rgba(110, 231, 183, .16); color: var(--lm-gruen); }
+.lm-pruefliste li.fehlt .lm-haken { background: rgba(253, 164, 175, .16); color: var(--lm-rot); }
+
+/* ── Knöpfe, Schalter, Felder ─────────────────────────────────────────── */
+.lm-knoepfe { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.lm-reihe { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.lm-etikett { font-size: 12.5px; color: var(--lm-leise); }
+.lm-knopf {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 18px; border-radius: 12px;
+  font: inherit; font-size: 13.5px; cursor: pointer; text-decoration: none;
+  border: 1px solid var(--lm-linie); background: var(--lm-flaeche-hoch); color: var(--lm-text);
+}
+.lm-knopf.voll { background: var(--lm-blau); border-color: var(--lm-blau); color: #fff; font-weight: 500; }
+.lm-knopf:disabled { opacity: .5; cursor: not-allowed; }
+.lm-klein {
+  min-height: 30px; padding: 0 10px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--lm-linie); background: transparent; color: var(--lm-blau-hell); flex: none;
+}
+.lm-schalter {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 18px 0 8px; border-radius: 99px;
+  border: 1px solid var(--lm-linie); background: var(--lm-flaeche); color: var(--lm-text); font: inherit; font-size: 14px; cursor: pointer;
+}
+.lm-schalter-knopf { width: 44px; height: 26px; border-radius: 99px; background: rgba(148, 163, 184, .25); position: relative; transition: background .2s; }
+.lm-schalter-knopf::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.lm-schalter.an .lm-schalter-knopf { background: #10b981; }
+.lm-schalter.an .lm-schalter-knopf::after { transform: translateX(18px); }
+.lm-feld {
+  min-height: 38px; padding: 0 10px; border-radius: 10px; font: inherit; font-size: 13.5px; max-width: 100%;
+  border: 1px solid var(--lm-linie); background: rgba(15, 26, 45, .7); color: var(--lm-text);
+}
+select.lm-feld { width: min(420px, 100%); }
+@media (hover: hover) {
+  .lm-knopf:not(:disabled):hover, .lm-klein:hover, .lm-schalter:hover, .lm-reiter-knopf:hover { border-color: rgba(147, 197, 253, .5); }
+}
+.lm button:focus-visible, .lm a:focus-visible, .lm input:focus-visible, .lm select:focus-visible, .lm summary:focus-visible {
+  outline: 2px solid var(--lm-blau); outline-offset: 2px;
+}
+
+/* ── Tabellen ─────────────────────────────────────────────────────────── */
+.lm-tabelle-huelle { overflow-x: auto; }
+.lm-tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lm-tabelle th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--lm-leise); padding: 6px 8px; border-bottom: 1px solid var(--lm-linie); white-space: nowrap; }
+.lm-tabelle td { padding: 8px; border-bottom: 1px solid var(--lm-linie); vertical-align: middle; }
+.lm-tabelle td b { color: var(--lm-text); font-weight: 500; }
+.lm-zahlzelle { font-variant-numeric: tabular-nums; }
+
+/* ── Leads ────────────────────────────────────────────────────────────── */
+.lm-reiter { display: flex; gap: 6px; flex-wrap: wrap; }
+.lm-reiter-knopf {
+  min-height: 34px; padding: 0 12px; border-radius: 99px; font: inherit; font-size: 12.5px; cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: var(--lm-leise);
+}
+.lm-reiter-knopf.an { background: var(--lm-flaeche-hoch); border-color: var(--lm-linie); color: var(--lm-text); }
+.lm-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.lm-zeile { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--lm-linie); border-radius: 14px; background: rgba(15, 26, 45, .35); min-width: 0; }
+.lm-zeile-kopf, .lm-zeile-fuss { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.lm-zeile-mitte { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--lm-text-2); }
+.lm-name { color: var(--lm-text); font-weight: 500; font-size: 14px; text-decoration: none; }
+a.lm-name:hover { text-decoration: underline; }
+.lm-chip { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--lm-linie); color: var(--lm-leise); white-space: nowrap; }
+.lm-chip.blau { color: var(--lm-blau-hell); border-color: rgba(147, 197, 253, .35); }
+.lm-chip.gruen { color: var(--lm-gruen); border-color: rgba(110, 231, 183, .35); }
+.lm-chip.gelb { color: var(--lm-gelb); border-color: rgba(252, 211, 77, .35); }
+.lm-chip.rot { color: var(--lm-rot); border-color: rgba(253, 164, 175, .35); }
+
+/* ── Texte zur Freigabe ───────────────────────────────────────────────── */
+.lm-texte summary, .lm-meldungen summary { cursor: pointer; color: var(--lm-text); font-size: 14px; }
+.lm-texte-inhalt { display: grid; gap: 14px; margin-top: 12px; }
+.lm-einwilligung { display: grid; gap: 8px; justify-items: start; }
+.lm-einwilligung blockquote { margin: 0; padding: 12px 14px; border-left: 3px solid var(--lm-blau); border-radius: 0 12px 12px 0; background: rgba(15, 26, 45, .5); color: var(--lm-text); font-size: 13.5px; line-height: 1.55; }
+.lm-vorlagen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.lm-vorlage { display: grid; gap: 6px; align-content: start; padding: 12px; border-radius: 14px; border: 1px solid var(--lm-linie); background: rgba(15, 26, 45, .35); }
+.lm-vorlage-kopf { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.lm-vorlage-kopf b { color: var(--lm-text); font-weight: 500; font-size: 12.5px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.lm-blase { display: grid; gap: 8px; padding: 10px 12px; border-radius: 4px 14px 14px 14px; background: #1f2c34; color: #e9edef; font-size: 13px; line-height: 1.5; }
+.lm-blase-knoepfe { display: grid; gap: 4px; border-top: 1px solid rgba(233, 237, 239, .12); padding-top: 6px; }
+.lm-blase-knoepfe span { text-align: center; color: #53bdeb; font-size: 12.5px; }
+
+/* ── Vorschau-Fenster und Meldung ─────────────────────────────────────── */
+.lm-schleier { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(2, 6, 23, .7); }
+.lm-fenster {
+  width: min(760px, 100%); max-height: calc(100vh - 32px); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px;
+  padding: 18px; border-radius: 18px; border: 1px solid var(--lm-linie); background: #0f1a2d; color: var(--lm-text-2);
+}
+.lm-fenster-kopf { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.lm-fenster h2 { font-size: 17px; margin-top: 2px; color: var(--lm-text); font-weight: 500; }
+.lm-vorschau { width: 100%; height: min(70vh, 900px); border: 0; border-radius: 12px; background: #fff; }
+.lm-meldung {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 95; max-width: calc(100vw - 32px);
+  padding: 12px 18px; border-radius: 12px; background: #13213a; border: 1px solid var(--lm-linie); color: var(--lm-text); font-size: 13.5px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+}
+
+@media (max-width: 1180px) { .lm-zahlen { grid-template-columns: repeat(3, minmax(0, 1fr)); } .lm-wege { grid-column: 1 / -1; } }
+@media (max-width: 760px) {
+  .lm-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lm-vorlagen { grid-template-columns: minmax(0, 1fr); }
+  .lm-zahl-wert { font-size: 20px; }
+  .lm-kopf-rechts { justify-items: start; }
+}
+@media (prefers-reduced-motion: reduce) { .lm-punkt.an { animation: none; } .lm-schalter-knopf, .lm-schalter-knopf::after { transition: none; } }

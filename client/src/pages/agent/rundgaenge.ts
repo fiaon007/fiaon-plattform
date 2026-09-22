@@ -1198,12 +1198,61 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   },
 ];
 
+// E-210 (22.09.2026): Der Lead-Motor — die Facebook-Leads direkt von Meta, ohne Make.
+export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
+  {
+    titel: "Der Lead-Motor: jeder Facebook-Lead, direkt von Meta.",
+    text: "Meta meldet jeden neuen Lead in Sekunden an die Plattform. Alle fünf Minuten fragt die Plattform zusätzlich jedes "
+      + "Formular nach — fällt die Meldung einmal aus, geht trotzdem kein Lead verloren. Ein Lead, der auf beiden Wegen kommt, "
+      + "wird einmal angelegt.",
+  },
+  {
+    ziel: ".lm-verbindung",
+    titel: "Die Prüfliste zeigt, was bei Meta steht.",
+    text: "Jeder Punkt sagt in einem Satz, was fehlt und wo man es einträgt: Zugangswerte in Render, Token, Rechte, Seite, "
+      + "Webhook, Abo der Seite, Formulare, WhatsApp. „Verbindung einrichten“ trägt den Webhook bei Meta ein, abonniert die "
+      + "Seite und lädt die Formulare — alles mit einem Knopf.",
+    tipp: "Die Zugangswerte gehören nur in Render — nie in einen Chat oder eine Mail.",
+  },
+  {
+    ziel: ".lm-willkommen",
+    titel: "Die Begrüßungsmail geht in Sekunden raus.",
+    text: "Eine Mail statt der zwei aus Make, gesiezt, mit dem persönlichen Link: Name, E-Mail und Telefon stehen im Antrag "
+      + "schon drin. Einschalten erst, wenn in Make der Brevo-Weg gelöscht ist — sonst bekommt der Mensch zwei Begrüßungen.",
+    tipp: "„Vorschau“ zeigt die Mail, wie ein bestimmter Lead sie bekäme; der Prüfversand geht an die Testadresse des Mailwerks.",
+  },
+  {
+    ziel: ".lm-rueckstand",
+    titel: "Rückstand nachholen.",
+    text: "Meta hält jeden Lead 90 Tage bereit. Ein Datum wählen und „Nachholen“ — was fehlt, wird angelegt; wer schon da ist, "
+      + "wird nicht doppelt angelegt. Nachgeholte Leads der letzten 14 Tage bekommen eine Begrüßung, die sich für die Verspätung entschuldigt.",
+  },
+  {
+    ziel: ".lm-formulare",
+    titel: "Welches Kästchen erlaubt WhatsApp?",
+    text: "Je Formular steht, welches Einwilligungs-Kästchen WhatsApp erlaubt. Die Plattform erkennt es am Wort „WhatsApp“; "
+      + "hier lässt es sich von Hand festlegen. Ohne Kästchen geht an diesen Menschen keine WhatsApp, nur E-Mail.",
+  },
+  {
+    ziel: ".lm-leads",
+    titel: "Jeder Lead mit seinem Weg.",
+    text: "Woher er kam (Meta direkt, nachgeholt, Make, Import), welche Kampagne und Anzeige, Facebook oder Instagram, ob er "
+      + "WhatsApp erlaubt hat, ob die Begrüßung rausging, ob er seinen Link geöffnet hat und ob ein Antrag daraus wurde.",
+  },
+  {
+    titel: "Der Wächter meldet Stille.",
+    text: "Kommt tagsüber drei Stunden kein Lead, meldet der Webhook nichts mehr oder ist der Zugang abgelaufen, steht oben ein "
+      + "Alarm — und in „Meine Liste“ eine Aufgabe mit dem Satz, was zu tun ist.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },
+  leadMotor:   { titel: "Lead-Motor", schritte: RUNDGANG_LEAD_MOTOR },
   global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },
   globalAkte:  { titel: "Global-Akte",  schritte: RUNDGANG_GLOBAL_AKTE },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },

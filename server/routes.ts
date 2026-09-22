@@ -299,6 +299,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonLeadsRoutes.default);
   // 🎯 FIAON Lead-Intake — Public Webhook (Secret-geschützt, für Make „FIAON Lead #1")
   app.use('/api/leads', fiaonLeadsRoutes.intakeRouter);
+  // 🔗 Lead-Motor (22.09.2026, E-210): der persönliche Link /a/<code> (zählt den Klick, füllt den Antrag vor)
+  //    und der Meta-Eingang /api/meta/webhook — beide ohne Anmelde-Tor, beide VOR den Seiten-Fangnetzen unten.
+  app.use((await import('./routes/fiaon-kurzlink')).default);
+  app.use('/api/meta', (await import('./routes/fiaon-meta-webhook')).default);
+  // 🧭 Lead-Motor-Steuerpult (nur Chefbüro, Stufe Inhaber) und seine Takte. Ohne Meta-Zugang in
+  //    Render laufen die Meta-Takte leer; die Begrüßungs-Nachholung läuft nur mit Schalter AN.
+  app.use('/api/fiaon', (await import('./routes/fiaon-lead-motor')).default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('meta_meldungen', async () => await (await import('./lib/fiaon-meta-leads')).meldungenVerarbeiten(), 2 * 60 * 1000, { beimStartNach: 90_000 });
+    tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });
+    tageslauf('meta_waechter', async () => await (await import('./lib/fiaon-meta-leads')).waechterLauf(), 15 * 60 * 1000, { beimStartNach: 180_000 });
+    tageslauf('lead_willkommen_nachholen', async () => await (await import('./lib/fiaon-lead-willkommen')).willkommenNachholen(), 5 * 60 * 1000, { beimStartNach: 150_000 });
+  });
 
   // 📊 FIAON Finanz- & Sales-Analytics (Admin) — Funnel, Umsatz, CAC, Attribution
   const fiaonFinanceRoutes = await import('./routes/fiaon-finance');

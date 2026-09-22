@@ -38,6 +38,7 @@ export type MakeEventType =
   | "agent_feedback_rewarded"
   | "agent_feedback_reply"
   | "lead_followup"
+  | "lead_willkommen"        // E-210: Antwort auf das eben abgeschickte Werbeformular (einmal, mit persönlichem Link)
   | "lead_application_link"
   | "number_update_request" // #23: Kunde/Lead aktualisiert Telefonnummer selbst
   | "abo_payment_reminder"  // monatliche Paketrate fällig (Abo) — Stufen 1–3

@@ -540,10 +540,29 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       lead_id: 1234,
       followup_number: 1,
       quelle: "facebook_lead_ads",
-      antrag_url: "https://www.fiaon.com/antrag?lead=1234",
+      // E-210 (22.09.2026): die Anrede aus shared/fiaon-anrede.ts und der persönliche Link /a/<code>/m.
+      anrede: "Guten Tag Lena Beispiel,",
+      antrag_url: "https://fiaon.com/a/Ab3dEf7hJk/m",
       // 28.08.2026: Der echte Lauf liefert den Abmeldelink immer mit — eine
       // Werbe-Mail ohne Abmeldung waere bei 2 Mails am Tag ein Spam-Magnet.
-      abmelde_url: "https://www.fiaon.com/leads/abmelden/1234/beispielschluessel",
+      abmelde_url: "https://www.fiaon.com/abmelden/beispielschluessel",
+    },
+  },
+  {
+    type: "lead_willkommen",
+    label: "Lead-Begrüßung (sofort nach dem Formular)",
+    description: "E-210: Feuert einmal, sobald ein neuer Lead eingeht (Meta direkt, Make, nachgeholt) — die Antwort auf sein Formular mit dem persönlichen, vorausgefüllten Antragslink. Direktversand über den Mail-Motor; Schalter lead_willkommen_an im Lead-Motor (/chef/s/lead-motor).",
+    customerBound: false,
+    example: {
+      email: "interessent@example.com",
+      vorname: "Lena",
+      nachname: "Beispiel",
+      lead_id: 1234,
+      anrede: "Guten Tag Lena Beispiel,",
+      betreff: "Lena, Ihr Antrag bei FIAON ist vorbereitet",
+      einstieg: "Ihre Anfrage ist bei uns angekommen, und Ihr Antrag ist schon vorbereitet: Ihren Namen, Ihre E-Mail-Adresse und Ihre Telefonnummer haben wir für Sie eingetragen.",
+      antrag_url: "https://fiaon.com/a/Ab3dEf7hJk/m",
+      abmelde_url: "https://www.fiaon.com/abmelden/beispielschluessel",
     },
   },
   {
@@ -557,7 +576,8 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       telefon: "+491701234567",
       lead_id: 1234,
       agent_name: "Anna Schmidt",
-      antrag_url: "https://www.fiaon.com/antrag?lead=1234",
+      anrede: "Guten Tag Lena Beispiel,",
+      antrag_url: "https://fiaon.com/a/Ab3dEf7hJk/a",
     },
   },
   {

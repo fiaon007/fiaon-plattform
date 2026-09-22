@@ -125,7 +125,7 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
  * Werbe-Vorlage mit `abmeldeUrl` baut, trägt sie hier ein.
  */
 export const ABMELDEPFLICHT = new Set<string>([
-  "lead_followup", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
+  "lead_followup", "lead_willkommen", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
 ]);
 
 /**
@@ -234,11 +234,11 @@ function leadStreckenBaustein(payload: Record<string, unknown>): MailBaustein | 
     // erste Satz der Variante selbst.
     preheader: (absaetze[0] ?? "").replace(/<[^>]+>/g, "").slice(0, 90) || basis.preheader,
     knopf: knopfText ? { text: knopfText, url: "{{params.knopf_url}}" } : basis.knopf,
-    // Die Strecke duzt. Fußnote und Gerüst-Fuß der statischen Vorlage siezten;
-    // den Karten-Satz (KARTE_SATZ) darf niemand umformulieren — er entfällt hier.
-    du: true,
-    fussnote: "Lieber erst sprechen? Antworte einfach auf diese E-Mail — wir rufen dich zurück.",
-    karteZiel: false,
+    // E-210 (22.09.2026): Die Strecke siezt jetzt wie das ganze Haus (E-002). Damit
+    // passen Fuß, Fußnote und Karten-Satz der statischen Vorlage wieder — bis heute
+    // stand hier `du: true` und der Karten-Ziel-Block war abgeschaltet.
+    fussnote: basis.fussnote,
+    karteZiel: true,
   };
 }
 

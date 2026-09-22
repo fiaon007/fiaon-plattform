@@ -15,6 +15,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { nameSauber } from "../../shared/fiaon-namen";
+import { anredeMail } from "../../shared/fiaon-anrede";
 import { sendMakeWebhook } from "../make-webhook";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
@@ -125,6 +126,27 @@ export async function ensureLeadTables(): Promise<void> {
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_opened_idx ON fiaon_leads (opened_by_agent_id, opened_at)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_dismissed_idx ON fiaon_leads (dismissed_at)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_import_idx ON fiaon_leads (import_id)`;
+  // E-210 (22.09.2026): Herkunft direkt von Meta — Lead-ID, Formular, Kampagne,
+  // Anzeigengruppe, Anzeige, Plattform, Einwilligung. Make lieferte nur Mail,
+  // Name, Telefon und den Kampagnennamen; damit ließ sich nie sagen, welche
+  // Anzeige zahlende Kunden bringt.
+  await sqlPool.unsafe(`
+    ALTER TABLE fiaon_leads
+      ADD COLUMN IF NOT EXISTS meta_lead_id TEXT,
+      ADD COLUMN IF NOT EXISTS meta_formular_id TEXT,
+      ADD COLUMN IF NOT EXISTS meta_anzeige_id TEXT,
+      ADD COLUMN IF NOT EXISTS meta_gruppe_id TEXT,
+      ADD COLUMN IF NOT EXISTS meta_kampagne_id TEXT,
+      ADD COLUMN IF NOT EXISTS meta_seite_id TEXT,
+      ADD COLUMN IF NOT EXISTS anzeige TEXT,
+      ADD COLUMN IF NOT EXISTS formular TEXT,
+      ADD COLUMN IF NOT EXISTS plattform TEXT,
+      ADD COLUMN IF NOT EXISTS eingangsweg TEXT,
+      ADD COLUMN IF NOT EXISTS einwilligung JSONB,
+      ADD COLUMN IF NOT EXISTS whatsapp_erlaubt BOOLEAN,
+      ADD COLUMN IF NOT EXISTS meta_fragen JSONB
+  `);
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_meta_lead_idx ON fiaon_leads (meta_lead_id)`;
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_lead_imports (
       import_id VARCHAR PRIMARY KEY,
@@ -487,7 +509,33 @@ async function followupPayloadMitAbmeldung(l: any): Promise<Record<string, unkno
   } catch {
     // Ohne Link geht die Mail trotzdem raus — der Fuß lässt die Zeile dann weg.
   }
-  return { ...followupPayload(l), abmelde_url: abmeldeUrl };
+  return { ...followupPayload(l), ...(await leadMailFelder(l, "m")), abmelde_url: abmeldeUrl };
+}
+
+/**
+ * Anrede und persönlicher Link für JEDE Mail an einen Lead (22.09.2026, E-210).
+ *
+ * Vorher baute jede Vorlage „Guten Tag {{params.vorname}}," aus dem rohen Feld
+ * („Guten Tag max,", „Guten Tag , …") und verlinkte /antrag?lead=<id>, das der
+ * Antrag nie las. Jetzt: die eine Anrede (shared/fiaon-anrede.ts, mit der
+ * Anrede der Person, wenn bekannt) und der Code-Link /a/<code>/<kanal>, der
+ * vorausfüllt und den Klick zählt. Fällt der Link aus, bleibt der alte Weg.
+ */
+async function leadMailFelder(l: any, kanal: "m" | "a"): Promise<{ anrede: string; antrag_url: string }> {
+  const [z] = (await sqlPool`
+    SELECT l.vorname, l.nachname, p.anrede FROM fiaon_leads l
+    LEFT JOIN fiaon_persons p ON p.id = l.person_id WHERE l.id = ${Number(l.id)}`.catch(() => [])) as any[];
+  let url = antragUrl(Number(l.id));
+  try {
+    const { kurzlinkFuerLead, kurzlinkUrl } = await import("../lib/fiaon-kurzlink");
+    url = kurzlinkUrl(await kurzlinkFuerLead(Number(l.id)), kanal);
+  } catch (e) {
+    console.error("[FIAON-LEADS] persönlicher Link:", e);
+  }
+  return {
+    anrede: anredeMail({ vorname: z?.vorname ?? l.vorname, nachname: z?.nachname ?? l.nachname, anrede: z?.anrede ?? null }),
+    antrag_url: url,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -688,8 +736,61 @@ function intakeTelefon(roh: unknown, land: unknown): string | null {
  * IN-PROCESS nutzbar — sowohl vom Intake-Webhook als auch vom Test-Lead, OHNE HTTP-Selbstaufruf.
  * (Fix Paket 4: der Test-Lead scheiterte zuvor am Self-Fetch auf fiaonBaseUrl + Secret.)
  */
+/** Die Meta-Felder an einen Lead schreiben — beim Anlegen alle, bei einer Dublette nur leere. */
+async function metaFelderSetzen(id: number, m: MetaHerkunft, neu: boolean): Promise<void> {
+  const ein = m.einwilligung == null ? null : sqlPool.json(m.einwilligung as any);
+  const fragen = m.fragen && Object.keys(m.fragen).length ? sqlPool.json(m.fragen as any) : null;
+  if (neu) {
+    await sqlPool`
+      UPDATE fiaon_leads SET
+        meta_lead_id = ${m.leadId}, meta_formular_id = ${m.formularId ?? null}, meta_anzeige_id = ${m.anzeigeId ?? null},
+        meta_gruppe_id = ${m.gruppeId ?? null}, meta_kampagne_id = ${m.kampagneId ?? null}, meta_seite_id = ${m.seiteId ?? null},
+        anzeige = ${m.anzeige ?? null}, formular = ${m.formular ?? null}, plattform = ${m.plattform ?? null},
+        einwilligung = ${ein}, whatsapp_erlaubt = ${m.whatsappErlaubt ?? null}, meta_fragen = ${fragen}
+      WHERE id = ${id}`;
+    return;
+  }
+  await sqlPool`
+    UPDATE fiaon_leads SET
+      meta_lead_id = COALESCE(meta_lead_id, ${m.leadId}),
+      meta_formular_id = COALESCE(meta_formular_id, ${m.formularId ?? null}),
+      meta_anzeige_id = COALESCE(meta_anzeige_id, ${m.anzeigeId ?? null}),
+      meta_gruppe_id = COALESCE(meta_gruppe_id, ${m.gruppeId ?? null}),
+      meta_kampagne_id = COALESCE(meta_kampagne_id, ${m.kampagneId ?? null}),
+      meta_seite_id = COALESCE(meta_seite_id, ${m.seiteId ?? null}),
+      anzeige = COALESCE(anzeige, ${m.anzeige ?? null}),
+      formular = COALESCE(formular, ${m.formular ?? null}),
+      plattform = COALESCE(plattform, ${m.plattform ?? null}),
+      einwilligung = COALESCE(einwilligung, ${ein}),
+      whatsapp_erlaubt = COALESCE(whatsapp_erlaubt, ${m.whatsappErlaubt ?? null}),
+      meta_fragen = COALESCE(meta_fragen, ${fragen}),
+      eingangsweg = COALESCE(eingangsweg, ${m.weg})
+    WHERE id = ${id}`;
+}
+
+/**
+ * Die Herkunft eines Leads direkt von Meta (E-210). Kommt nur über den
+ * Meta-Eingang (server/lib/fiaon-meta-leads.ts) — Make kennt sie nicht.
+ */
+export interface MetaHerkunft {
+  leadId: string;
+  formularId?: string | null; formular?: string | null;
+  anzeigeId?: string | null; anzeige?: string | null;
+  gruppeId?: string | null; gruppe?: string | null;
+  kampagneId?: string | null; kampagne?: string | null;
+  seiteId?: string | null;
+  plattform?: string | null;
+  erstelltAm?: string | null;
+  einwilligung?: unknown;
+  whatsappErlaubt?: boolean | null;
+  fragen?: Record<string, string> | null;
+  weg: "meta_webhook" | "meta_nachhol" | "meta_rueckstand";
+}
+
 async function processIntake(b: any): Promise<IntakeResult> {
   await ensureLeadTables();
+  const meta: MetaHerkunft | null = b && typeof b.meta === "object" && b.meta?.leadId ? b.meta : null;
+  const eingangsweg = meta?.weg ?? (String(b.quelle || b.source || "") === "test" ? "test" : "make");
   const email = b.email ? String(b.email).trim().toLowerCase() : null;
   const land = b.land ?? b.country ?? b.laendercode ?? null;
   const telefon = b.telefon || b.phone ? intakeTelefon(b.telefon || b.phone, land) : null;
@@ -716,8 +817,8 @@ async function processIntake(b: any): Promise<IntakeResult> {
   const vorname = nameSauber(teile.vorname);
   const nachname = nameSauber(teile.nachname);
   const quelle = String(b.quelle || b.source || "facebook_lead_ads").slice(0, 120);
-  const kampagne = b.kampagne || b.campaign || null;
-  const adset = b.adset || b.ad_set || null;
+  const kampagne = meta?.kampagne || b.kampagne || b.campaign || null;
+  const adset = meta?.gruppe || b.adset || b.ad_set || null;
 
   // Idempotenz: gleiche E-Mail (oder Telefon) innerhalb 24h → Update statt Insert
   const existing = await sqlPool`
@@ -731,10 +832,14 @@ async function processIntake(b: any): Promise<IntakeResult> {
   `;
   if (existing.length > 0) {
     const id = existing[0].id;
+    // E-210: Kam derselbe Lead schon direkt von Meta, bleiben dessen Namen stehen —
+    // Make schickte den vollen Namen im Vornamensfeld, Meta liefert beide Felder.
+    const [vorher] = (await sqlPool`SELECT meta_lead_id FROM fiaon_leads WHERE id = ${id}`) as any[];
+    const namenBehalten = !meta && !!vorher?.meta_lead_id;
     await sqlPool`
       UPDATE fiaon_leads SET
-        vorname = COALESCE(NULLIF(${vorname}::text, ''), vorname),
-        nachname = COALESCE(NULLIF(${nachname}::text, ''), nachname),
+        vorname = CASE WHEN ${namenBehalten} THEN COALESCE(vorname, NULLIF(${vorname}::text, '')) ELSE COALESCE(NULLIF(${vorname}::text, ''), vorname) END,
+        nachname = CASE WHEN ${namenBehalten} THEN COALESCE(nachname, NULLIF(${nachname}::text, '')) ELSE COALESCE(NULLIF(${nachname}::text, ''), nachname) END,
         email = COALESCE(${email}, email),
         telefon = COALESCE(NULLIF(${telefon}::text, ''), telefon),
         kampagne = COALESCE(NULLIF(${kampagne}::text, ''), kampagne),
@@ -742,6 +847,7 @@ async function processIntake(b: any): Promise<IntakeResult> {
         updated_at = NOW()
       WHERE id = ${id}
     `;
+    if (meta) await metaFelderSetzen(id, meta, false);
     await logLead(id, { id: null, name: "System" }, "system", { note: `Intake-Aktualisierung (Dublette innerhalb 24h, Quelle: ${quelle})` });
     await logIntake(quelle === "test" ? "test" : "ok", quelle, "Dublette aktualisiert");
     // Die Aktualisierung kann eine E-Mail ergänzt haben, die der Lead vorher
@@ -758,13 +864,21 @@ async function processIntake(b: any): Promise<IntakeResult> {
     };
   }
 
+  // E-210: Ein nachgeholter Meta-Lead behält seine echte Eingangszeit — sonst
+  // sähe ein Lead von Montag am Mittwoch „frisch" aus, und die Strecke begänne neu.
+  const metaZeit = meta?.erstelltAm && !Number.isNaN(Date.parse(meta.erstelltAm)) ? new Date(meta.erstelltAm) : null;
+  const eingangAm = metaZeit && metaZeit.getTime() < Date.now() ? metaZeit : new Date();
   const inserted = await sqlPool`
-    INSERT INTO fiaon_leads (vorname, nachname, email, telefon, quelle, kampagne, adset, status)
-    VALUES (${vorname}, ${nachname}, ${email}, ${telefon || null}, ${quelle}, ${kampagne}, ${adset}, 'neu')
+    INSERT INTO fiaon_leads (vorname, nachname, email, telefon, quelle, kampagne, adset, status, erstellt_am, eingangsweg)
+    VALUES (${vorname}, ${nachname}, ${email}, ${telefon || null}, ${quelle}, ${kampagne}, ${adset}, 'neu', ${eingangAm}, ${eingangsweg})
     RETURNING id
   `;
   const id = inserted[0].id;
-  await logLead(id, { id: null, name: "System" }, "system", { note: `Lead eingegangen (Quelle: ${quelle}${kampagne ? `, Kampagne: ${kampagne}` : ""})` });
+  if (meta) await metaFelderSetzen(id, meta, true);
+  const wegText = meta ? (meta.weg === "meta_webhook" ? "direkt von Meta" : "bei Meta nachgeholt") : eingangsweg === "make" ? "über Make" : eingangsweg;
+  await logLead(id, { id: null, name: "System" }, "system", {
+    note: `Lead eingegangen (${wegText}; Quelle: ${quelle}${kampagne ? `, Kampagne: ${kampagne}` : ""}${meta?.anzeige ? `, Anzeige: ${meta.anzeige}` : ""}${meta?.plattform ? `, ${meta.plattform === "instagram" ? "Instagram" : meta.plattform === "facebook" ? "Facebook" : meta.plattform}` : ""})`,
+  });
 
   // ══ P1-C DAUERSCHUTZ: Lead an seine Person binden ══════════════════════
   // Kennt das System diese Adresse oder Nummer bereits, wird der Lead an die
@@ -804,6 +918,14 @@ async function processIntake(b: any): Promise<IntakeResult> {
     await convertLeadsForContact(email, telefon, already[0].ref);
   } else {
     distributeUnassignedLeads().catch(() => {}); // fair verteilen (fire-and-forget)
+    // E-210: die Begrüßung mit dem persönlichen Link — sofort, im Hintergrund, damit
+    // der Eingang (Make, Meta) nicht auf den Mailversand wartet. Die Regeln (Schalter,
+    // einmal je Person und Tag, nie an Kunden) stehen in fiaon-lead-willkommen.ts.
+    if (quelle !== "test") {
+      import("../lib/fiaon-lead-willkommen")
+        .then((m) => m.willkommenSenden(id))
+        .catch((e) => console.error("[LEAD-WILLKOMMEN] nach Eingang:", e));
+    }
   }
   await logIntake(quelle === "test" ? "test" : "ok", quelle,
     zuordnung && !zuordnung.angelegt ? "Lead angelegt, bestehende Person" : "Lead angelegt");
@@ -1349,17 +1471,18 @@ router.post("/agent/leads/:id/move-to-application", requireAgent, async (req: Ag
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
     const l = guard.lead;
     if (!l.email && !l.telefon) return res.status(400).json({ ok: false, error: "Kein Kontaktweg (E-Mail/Telefon) hinterlegt" });
+    const felder = await leadMailFelder(l, "a");
     await sendMakeWebhook("lead_application_link", {
       email: l.email || "",
       vorname: l.vorname || null,
       telefon: l.telefon || null,
       lead_id: l.id,
       agent_name: req.agent!.name,
-      antrag_url: antragUrl(l.id),
+      ...felder,
     });
     await sqlPool`UPDATE fiaon_leads SET status = CASE WHEN status = 'neu' THEN 'kontaktiert' ELSE status END, letzter_kontakt_am = NOW(), updated_at = NOW() WHERE id = ${l.id}`;
-    await logLead(l.id, req.agent!, "email_sent", { note: "Antrags-Link an Lead gesendet (Make: lead_application_link)" });
-    res.json({ ok: true, antragUrl: antragUrl(l.id) });
+    await logLead(l.id, req.agent!, "email_sent", { note: "Persönlichen Antrags-Link an Lead gesendet (lead_application_link)" });
+    res.json({ ok: true, antragUrl: felder.antrag_url });
   } catch (err) {
     console.error("[FIAON-LEADS] move-to-application:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -1670,13 +1793,14 @@ router.post("/admin/leads/:id/send-application-link", async (req: Request, res: 
       SELECT id FROM fiaon_lead_log WHERE lead_id = ${id} AND type = 'email_sent' AND created_at > NOW() - INTERVAL '10 minutes' LIMIT 1
     `;
     if (recent.length > 0) return res.status(429).json({ ok: false, error: "Bereits in den letzten 10 Minuten gesendet" });
+    const felder = await leadMailFelder(l, "a");
     await sendMakeWebhook("lead_application_link", {
       email: l.email || "", vorname: l.vorname || null, telefon: l.telefon || null,
-      lead_id: l.id, agent_name: "Admin", antrag_url: antragUrl(l.id),
+      lead_id: l.id, agent_name: "Admin", ...felder,
     });
     await sqlPool`UPDATE fiaon_leads SET status = CASE WHEN status = 'neu' THEN 'kontaktiert' ELSE status END, letzter_kontakt_am = NOW(), updated_at = NOW() WHERE id = ${id}`;
-    await logLead(id, ADMIN_ACTOR, "email_sent", { note: "Antrags-/Zahlungslink an Lead gesendet (Make: lead_application_link)" });
-    res.json({ ok: true, antragUrl: antragUrl(l.id) });
+    await logLead(id, ADMIN_ACTOR, "email_sent", { note: "Persönlichen Antrags-Link an Lead gesendet (lead_application_link)" });
+    res.json({ ok: true, antragUrl: felder.antrag_url });
   } catch (err) {
     console.error("[FIAON-LEADS] admin send-application-link:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -2241,7 +2365,7 @@ router.get("/admin/leads/followup-bulk/status", async (_req: Request, res: Respo
   res.json({ ok: true, job: leadBulkJob });
 });
 
-export { intakeRouter };
+export { intakeRouter, processIntake };
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE ABMELDUNG — öffentlich, ein Klick, ohne Rückfrage
 //

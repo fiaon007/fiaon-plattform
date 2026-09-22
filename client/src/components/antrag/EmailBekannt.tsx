@@ -16,7 +16,11 @@ import { useEffect, useState } from "react";
 
 interface Stand { email: string; bekannt: boolean; hatPasswort: boolean; unfertig: boolean; schritt: number | null }
 
-export function EmailBekannt({ email }: { email: string }) {
+// 22.09.2026 (E-210): `eigeneRef` ist der Antrag, der gerade ausgefüllt wird. Seit der
+// persönliche Link die E-Mail vorausfüllt, steht sie schon beim ersten Zwischenspeichern
+// in DIESEM Antrag — ohne Ausschluss meldete der Hinweis jedem Lead seinen eigenen Entwurf
+// als „bekannten Vorgang" (auf dem Prüfstand gesehen).
+export function EmailBekannt({ email, eigeneRef }: { email: string; eigeneRef?: string | null }) {
   const [stand, setStand] = useState<Stand | null>(null);
   const [gesendet, setGesendet] = useState<"nein" | "laeuft" | "ja" | "fehler">("nein");
   const sauber = String(email || "").trim().toLowerCase();
@@ -25,7 +29,7 @@ export function EmailBekannt({ email }: { email: string }) {
     if (stand?.email === sauber) return;
     setGesendet("nein");
     const t = setTimeout(() => {
-      fetch(`/api/fiaon/antrag/email-bekannt?email=${encodeURIComponent(sauber)}`)
+      fetch(`/api/fiaon/antrag/email-bekannt?email=${encodeURIComponent(sauber)}${eigeneRef ? `&ohne=${encodeURIComponent(eigeneRef)}` : ""}`)
         .then((r) => r.json())
         .then((j) => setStand({ email: sauber, bekannt: !!j?.bekannt, hatPasswort: !!j?.hatPasswort, unfertig: !!j?.unfertig, schritt: j?.schritt ?? null }))
         .catch(() => setStand({ email: sauber, bekannt: false, hatPasswort: false, unfertig: false, schritt: null }));

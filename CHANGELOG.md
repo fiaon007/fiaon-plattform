@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Abend) — Messung an Meta: Pixel und Conversions API (E-210)
+
+**Was geändert wurde:**
+- **Vier Ereignisse** melden jetzt Browser UND Server mit derselben Kennung (Meta zählt sie als eines, nicht doppelt):
+  Antrag begonnen (`InitiateCheckout`), Antrag abgeschickt (`CompleteRegistration`), Zahlung gebucht (`Purchase`),
+  Startgespräch gebucht (`Schedule`).
+- **Die Stufe des Leads** geht zusätzlich an Meta: `qualified_lead` (Antrag fertig) und `converted_lead` (bezahlt), mit
+  der Meta-Lead-Kennung. Erst damit kann eine Kampagne auf **zahlende Menschen** optimieren statt auf ausgefüllte Formulare.
+- **Steuerpult** `/chef/s/lead-motor`, Abschnitt „Messung": Datensatz-Kennung (wird bei „Verbindung einrichten" selbst
+  gefunden oder von Hand eingetragen), zwei Schalter (Web / Stufenmeldung), „Probe senden" mit dem Testcode aus dem
+  Events-Manager, „Wartende senden" und die letzten 40 gemeldeten Ereignisse.
+- **Datenschutz:** Ohne Marketing-Einwilligung im Cookie-Fenster wird nichts gemeldet. E-Mail, Telefon, Name und Ort gehen
+  nur als SHA-256 hinaus; Bonität, Beträge und Schulden nie.
+- **Nebenbefund behoben:** Im Antrag lief die Messung VOR der Verknüpfung mit dem Lead — die Stufenmeldung hätte den Lead
+  nicht gefunden. Reihenfolge gedreht, zusätzlich ein zweiter Anlauf über die Person.
+
+**Warum:** Justin: „Pixel maximal setzen … dass wir wirklich nur für fertig bezahlte Kunden bezahlen." Ohne Rückmeldung
+optimiert Meta auf die billigsten Formulare — mit Rückmeldung auf die Menschen, die am Ende zahlen.
+
+**Wo zu finden:** `shared/fiaon-meta-ereignisse.ts` (die Namen an einer Stelle), `server/lib/fiaon-meta-capi.ts`,
+`server/routes/fiaon-lead-motor.ts` (`/chef/lead-motor/messung/*`), `client/src/lib/werbung.ts`,
+`client/src/components/admin/ChefLeadMotor.tsx`. Prüfstand: `scripts/pruef-lead-motor.ts` (282), Durchlauf gegen ein
+Schein-Meta 64/64.
+
+---
+
 ## 22.09.2026 (Nacht) — Lead-Motor Phase 0: Meta direkt, Begrüßung, persönlicher Link, Strecke im Sie (E-210)
 
 **Was geändert wurde:**

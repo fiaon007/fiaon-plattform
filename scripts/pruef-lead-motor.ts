@@ -287,5 +287,20 @@ abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
   ok(/lm-messung/.test(lies("client/src/styles/chef-lead-motor.css")), "Der Abschnitt hat sein Aussehen im eigenen Blatt");
 }
 
+// ── 10. Die Danke-Seite des Meta-Formulars (/fb) ───────────────────────────
+abschnitt("Danke-Seite /fb — vom Formular direkt in den vorausgefüllten Antrag");
+{
+  const kl = lies("server/routes/fiaon-kurzlink.ts");
+  ok(/router\.get\("\/fb"/.test(kl), "Route /fb vorhanden");
+  ok(kl.indexOf('router.get("/fb"') < kl.indexOf('router.get("/a/:code"'), "/fb steht vor /a/:code (sonst gilt „fb“ als Code)");
+  ok(/\/\^\\d\{3,25\}\$\//.test(kl), "Die Lead-Kennung muss aus Ziffern bestehen — ein nicht ersetzter Platzhalter zählt nicht");
+  ok(/RUECKFALL = "\/start\?quelle=fb-formular"/.test(kl), "Ohne Kennung geht es auf die Startseite, nie in eine Sackgasse");
+  ok(/metaLeadEinspielen/.test(kl), "Ist der Lead noch nicht da, wird er sofort bei Meta geholt");
+  ok(/setTimeout\(\(\) => r\(null\), 4000\)/.test(kl), "Nach 4 Sekunden wartet niemand mehr — dann die Startseite");
+  ok(/klickZaehlen\(lage, "f"/.test(kl), "Der Klick zählt auf den Kanal „Facebook-Formular“");
+  const link = lies("server/lib/fiaon-kurzlink.ts");
+  ok(/f: "Facebook-Formular"/.test(link) && /"f" \| "x"/.test(link), "Der Kanal f ist überall bekannt");
+}
+
 console.log(`\n${fehler ? "✗" : "✓"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler ? 1 : 0);

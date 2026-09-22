@@ -39,13 +39,14 @@ const ZEICHEN = "23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
 export const CODE_LAENGE = 10;
 export const GUELTIG_TAGE = 90;
 
-/** Kanäle, die ein Klick tragen kann. `a` = Agent/Hand, `x` = unbekannt. */
-export type Kanal = "m" | "w" | "s" | "a" | "x";
-export const KANAL_TEXT: Record<Kanal, string> = { m: "E-Mail", w: "WhatsApp", s: "SMS", a: "Mitarbeiter", x: "ohne Kennung" };
+/** Kanäle, die ein Klick tragen kann: m Mail · w WhatsApp · s SMS · a Mitarbeiter
+ *  · f Facebook-Formular (Danke-Seite) · x unbekannt. */
+export type Kanal = "m" | "w" | "s" | "a" | "f" | "x";
+export const KANAL_TEXT: Record<Kanal, string> = { m: "E-Mail", w: "WhatsApp", s: "SMS", a: "Mitarbeiter", f: "Facebook-Formular", x: "ohne Kennung" };
 
 export function kanalAus(roh: unknown): Kanal {
   const k = String(roh ?? "").trim().toLowerCase();
-  return k === "m" || k === "w" || k === "s" || k === "a" ? k : "x";
+  return k === "m" || k === "w" || k === "s" || k === "a" || k === "f" ? k : "x";
 }
 
 /** Ein neuer Zufallscode. Gleichverteilt: Bytes über 223 werden verworfen (4 × 56 = 224). */

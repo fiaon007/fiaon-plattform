@@ -55,6 +55,61 @@ async function weiterleiten(req: Request, res: Response): Promise<void> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// /fb — DIE DANKE-SEITE DES META-FORMULARS (22.09.2026, E-210)
+//
+// Der Mensch hat gerade das Formular abgeschickt und tippt auf „Antrag
+// abschließen". In dieser Sekunde ist seine Absicht am höchsten — er darf
+// NICHT auf einer Seite landen, die ihn noch einmal von vorn überzeugt, und
+// erst recht nicht seine Daten ein zweites Mal tippen.
+//
+// Meta hängt die Lead-Kennung an die Adresse (`?lid={{lead_id}}`). Damit:
+//   1. Lead in unserer Datenbank? → seinen persönlichen Code nehmen.
+//   2. Noch nicht da (die Meldung ist Sekunden unterwegs)? → den Lead SOFORT
+//      bei Meta holen und anlegen. Der Antrag wartet nicht auf den Webhook.
+//   3. Nichts zu finden (Kennung fehlt, Meta hat sie nicht ersetzt)? → auf die
+//      Startseite, nie in eine Sackgasse.
+// ═══════════════════════════════════════════════════════════════════════════
+const RUECKFALL = "/start?quelle=fb-formular";
+
+/** Holt den Lead notfalls in Echtzeit bei Meta — der Mensch wartet davor. */
+async function leadFuerMetaKennung(lid: string): Promise<number | null> {
+  const { sqlPool } = await import("../lib/db-pool");
+  const [da] = (await sqlPool`SELECT id FROM fiaon_leads WHERE meta_lead_id = ${lid} LIMIT 1`.catch(() => [])) as any[];
+  if (da?.id) return Number(da.id);
+  const { metaKonfig, graph } = await import("../lib/fiaon-meta");
+  if (!metaKonfig().bereit) return null;
+  const { LEAD_FELDER, metaLeadEinspielen } = await import("../lib/fiaon-meta-leads");
+  const roh = await graph(lid, { params: { fields: LEAD_FELDER }, app: "leads" });
+  const erg = await metaLeadEinspielen(roh as any, "meta_webhook", null);
+  return erg.leadId;
+}
+
+router.get("/fb", async (req: Request, res: Response) => {
+  schutzKoepfe(res);
+  const roh = String(req.query.lid ?? "").trim();
+  // Meta ersetzt die Platzhalter beim Klick. Steht die Klammer noch da, hat es
+  // nicht geklappt — dann ist die Kennung kein Wert, sondern Text.
+  const lid = /^\d{3,25}$/.test(roh) ? roh : "";
+  try {
+    if (!lid) { res.redirect(302, RUECKFALL); return; }
+    const leadId = await Promise.race([
+      leadFuerMetaKennung(lid),
+      new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+    ]);
+    if (!leadId) { res.redirect(302, RUECKFALL); return; }
+    const { kurzlinkFuerLead, kurzlinkLesen, klickZaehlen } = await import("../lib/fiaon-kurzlink");
+    const code = await kurzlinkFuerLead(leadId);
+    const lage = await kurzlinkLesen(code);
+    if (lage) await klickZaehlen(lage, "f", lage.antrag ? "weiter" : "antrag").catch(() => {});
+    console.log(`[FB-DANKE] Lead ${leadId} (Meta ${lid}) geht direkt in den Antrag.`);
+    res.redirect(302, `/antrag?l=${encodeURIComponent(code)}&k=f`);
+  } catch (err) {
+    console.error("[FB-DANKE]", err);
+    res.redirect(302, RUECKFALL);
+  }
+});
+
 router.get("/a/:code", weiterleiten);
 router.get("/a/:code/:kanal", weiterleiten);
 

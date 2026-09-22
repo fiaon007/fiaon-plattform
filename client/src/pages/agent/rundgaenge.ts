@@ -1215,6 +1215,15 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
     tipp: "Die Zugangswerte gehören nur in Render — nie in einen Chat oder eine Mail.",
   },
   {
+    ziel: ".lm-messung",
+    titel: "Die Messung: Meta erfährt, wer wirklich zahlt.",
+    text: "Pixel und Server melden dieselben vier Schritte — Antrag begonnen, Antrag abgeschickt, Zahlung gebucht, "
+      + "Startgespräch — und dazu die Stufe des Leads („Antrag fertig“, „hat bezahlt“). Erst damit kann eine Kampagne auf "
+      + "zahlende Menschen optimieren statt auf ausgefüllte Formulare. Name, E-Mail und Telefon gehen nur verschlüsselt raus, "
+      + "und nur, wenn der Mensch im Cookie-Fenster Marketing erlaubt hat.",
+    tipp: "„Probe senden“ mit dem Testcode aus dem Events-Manager zeigt in Sekunden, ob die Leitung steht — ohne die echten Zahlen zu verfälschen.",
+  },
+  {
     ziel: ".lm-willkommen",
     titel: "Die Begrüßungsmail geht in Sekunden raus.",
     text: "Eine Mail statt der zwei aus Make, gesiezt, mit dem persönlichen Link: Name, E-Mail und Telefon stehen im Antrag "

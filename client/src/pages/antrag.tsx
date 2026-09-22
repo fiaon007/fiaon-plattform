@@ -3,6 +3,7 @@ import { ERREICHBARKEIT_WERTE } from "@shared/fiaon-erreichbarkeit";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
 import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
 import { messungsDaten, metaEreignis, META_EREIGNIS } from "@/lib/werbung";
+import { PaketAufstieg } from "@/components/antrag/PaketAufstieg";
 import { appViewport } from "@/lib/app-viewport";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
 import { zustandFuerSchritt } from "@shared/fiaon-antrag-schritte";
@@ -601,6 +602,7 @@ export default function AntragPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadLink]);
   const [approved, setApproved] = useState(0);
+  const [aufstiegZu, setAufstiegZu] = useState<string | null>(null);
   const [verifyDone, setVerifyDone] = useState(false);
   const [checkProgress, setCheckProgress] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -622,6 +624,22 @@ export default function AntragPage() {
     }));
     track("pack_switch", { from: pack?.key, to: newPack.key, direction: newIdx > currentIdx ? "upgrade" : "downgrade" }, ref);
     setShowPackSwitcher(false);
+  }, [pack, ref]);
+
+  /**
+   * Aufstieg direkt aus dem Ergebnis (22.09.2026): Paket wechseln, Ziel-Rahmen
+   * auf das neue Paket heben — der Mensch bleibt stehen, wo er ist, nur die
+   * Zahl über ihm wird größer.
+   */
+  const aufstieg = useCallback((neuesPaket: typeof PACKS[0]) => {
+    if (!neuesPaket || neuesPaket.key === pack?.key) return;
+    const vorher = pack?.key ?? "";
+    setPack(neuesPaket);
+    setD((prev) => ({ ...prev, wantedLimit: neuesPaket.lim }));
+    setApproved(neuesPaket.lim);
+    setAufstiegZu(neuesPaket.key);
+    track("upsell_wechsel", { von: vorher, zu: neuesPaket.key, limit: neuesPaket.lim }, ref);
+    metaEreignis(META_EREIGNIS.antragBegonnen, `${ref}.${neuesPaket.key}`, { content_name: neuesPaket.name, value: neuesPaket.fee });
   }, [pack, ref]);
 
   const topRef = useRef<HTMLDivElement>(null);
@@ -1416,6 +1434,8 @@ export default function AntragPage() {
               <p className="text-sm font-semibold text-gray-800 mb-1">Genehmigt mit {pack?.name}</p>
               <p className="text-xs text-gray-500">Monatliche Gebühr: {eur(pack?.fee || 0)} · Maximales Limit: {eur(pack?.lim || 0)}</p>
             </div>
+
+            {pack && <PaketAufstieg pakete={PACKS} aktuell={pack} onWechsel={(p) => aufstieg(p as typeof PACKS[0])} gewechseltZu={aufstiegZu} />}
 
             <button onClick={() => goStep(6)} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full fiaon-btn-gradient text-[14px] font-medium text-white transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] w-full sm:w-auto" style={{ minHeight: 48 }}>
               <span>Vertrag annehmen &amp; fortfahren</span>

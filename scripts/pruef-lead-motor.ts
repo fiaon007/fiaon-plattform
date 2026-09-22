@@ -257,6 +257,28 @@ abschnitt("Datensatz finden — Firma über die Seite, echte Fehler im Klartext"
   ok(/subcode === 1784018/.test(mt) && /Events-Manager/.test(mt), "Pixel-Bedingungen: Meta-Fehler wird in einen Klickweg übersetzt");
 }
 
+// ── 8d. Der Paket-Aufstieg nach der Freigabe ───────────────────────────────
+abschnitt("Paket-Aufstieg — nur nach oben, ohne Empfehlung, ohne Bankzusage");
+{
+  const auf = lies("client/src/components/antrag/PaketAufstieg.tsx");
+  const ant = lies("client/src/pages/antrag.tsx");
+  ok(/pakete\.filter\(\(p\) => p\.lim > aktuell\.lim\)/.test(auf), "Es werden nur größere Pakete gezeigt (kein Rückwärtsgang)");
+  ok(/Ebenfalls freigegeben/.test(auf) && /Ihre Prüfung reicht über/.test(auf), "Überschrift knüpft an die Freigabe an");
+  // Nur das, was der Mensch wirklich liest — die Kommentare oben erklären die Regeln und dürfen sie nennen.
+  // Geprüft wird mit der HAUS-Wand (wandPruefen), nicht mit der Strecken-Liste:
+  // „Limit" ist auf der Antragsseite das Produktwort und steht dort überall.
+  const sichtbar = auf.slice(auf.indexOf("export function PaketAufstieg"));
+  const wandTreffer = wandPruefen(sichtbar).filter((w) => w.art === "verboten");
+  ok(wandTreffer.length === 0, `Aufstieg-Texte: nichts Verbotenes (${wandTreffer.map((v) => v.treffer).join(", ")})`);
+  ok(!DU.test(sichtbar), "Aufstieg-Texte: gesiezt");
+  ok(!/empfehl/i.test(sichtbar), "Kein „empfehlen“ — das Wort ist gesperrt");
+  ok(!/garanti/i.test(sichtbar) && !/\bBank\b/i.test(sichtbar), "Keine Zusage, keine Bank");
+  ok(/Größter Sprung/.test(auf), "Das größte Paket bekommt die Bühne");
+  ok(/const aufstieg = useCallback/.test(ant) && /setApproved\(neuesPaket\.lim\)/.test(ant), "Der Wechsel hebt den Ziel-Rahmen auf das neue Paket");
+  ok(/track\("upsell_wechsel"/.test(ant), "Jeder Wechsel wird gezählt");
+  ok(ant.indexOf("<PaketAufstieg") > ant.indexOf("Genehmigt mit {pack?.name}"), "Der Aufstieg steht NACH der Freigabe — im stärksten Moment");
+}
+
 // ── 9. Die Messung an Meta (Pixel + Conversions API) ───────────────────────
 abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
 {

@@ -5,6 +5,29 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Nacht, 2) — Paket-Aufstieg nach der Freigabe (E-210)
+
+**Was geändert wurde:** Direkt unter dem Ergebnis des Antrags („Herzlichen Glückwunsch · Ihr Ziel-Rahmen") steht jetzt
+**„Ebenfalls freigegeben"**: alle Pakete ÜBER dem gewählten, je mit Limit, Mehr-Limit gegenüber dem jetzigen Paket,
+drei Leistungen und dem Beitrag. Ein Klick wechselt — die Zahl über dem Bildschirm wächst sofort mit, die Angaben
+bleiben. Das größte Paket bekommt die Bühne („Größter Sprung"). Wer bereits im größten ist, sieht nur einen Satz.
+
+**Warum:** Justin: „am Ende auch sowas vorstellen wie ‚Sie wurden auch für folgendes Paket akzeptiert' — und dann
+schlagen wir alle Pakete perfekt vor." Der Moment nach der Freigabe ist der stärkste im ganzen Antrag.
+
+**Bewusst nur nach oben:** Kleinere Pakete werden nicht gezeigt — ein Rückwärtsgang wäre hier nur ein Anlass, kleiner
+zu denken. Sprachlich ohne „empfehlen" (gesperrtes Wort) und ohne jede Bankzusage: freigegeben ist das FIAON-Programm,
+dieselbe Sprache wie „Genehmigt mit …" eine Zeile darüber.
+
+**Wo zu finden:** `client/src/components/antrag/PaketAufstieg.tsx`, eingesetzt in `client/src/pages/antrag.tsx`
+(Schritt 5). Jeder Wechsel wird gezählt (`upsell_wechsel`). Prüfstand: `scripts/pruef-lead-motor.ts` (320).
+
+**Am Prüfstand durchgespielt:** Starter 500 € → drei Karten (Pro +4.500 €, Ultra +14.500 €, High End +24.500 €);
+Klick auf Ultra → Kopfzahl 15.000 €, „Genehmigt mit FIAON Ultra", Beitrag 79,99 €, und als nächste Stufe bleibt
+High End stehen.
+
+---
+
 ## 22.09.2026 (Nacht) — Pixel-Einrichtung repariert: Firma über die Seite, Metas Grund im Klartext (E-210)
 
 **Was war:** Die Prüfliste meldete „Konnte keinen Datensatz anlegen" — und verschwieg zwei Dinge. Erstens suchte die

@@ -605,26 +605,63 @@ export async function verbindungPruefen(opts: { einrichten: boolean }, lauf: Lau
   }
 
   // 7) Datensatz (Pixel) für die Messung — finden oder anlegen.
+  //
+  // FALLE (22.09.2026, live gefunden): `me/businesses` gibt mit einem
+  // SYSTEMNUTZER-Token eine LEERE Liste zurück — die Kante gilt für Menschen,
+  // nicht für Systemnutzer. Die Firma steht stattdessen an der Seite
+  // (`{seite}?fields=business`). Ohne diesen Weg fand die Einrichtung nie eine
+  // Firma und meldete „Konnte keinen Datensatz anlegen", obwohl in Wahrheit
+  // gar nicht gesucht wurde.
   try {
     const { datensatzId, DATENSATZ_SCHLUESSEL } = await import("./fiaon-meta-capi");
     let id = await datensatzId(lauf);
     let name = "";
-    const firmen = await graph("me/businesses", { params: { fields: "id,name", limit: 10 } }).catch(() => null);
-    const firma = firmen?.data?.[0];
-    if (!id && firma?.id) {
-      const vorhanden = await graphAlle(`${firma.id}/adspixels`, { params: { fields: "id,name", limit: 25 }, hoechstens: 25 }).catch(() => []);
+    let hinweis = "";
+    let firmaId: string | null = null;
+    for (const seite of seiten) {
+      const s = await graph(seite, { params: { fields: "business" } }).catch(() => null);
+      if (s?.business?.id) { firmaId = String(s.business.id); break; }
+    }
+    if (!firmaId) {
+      const firmen = await graph("me/businesses", { params: { fields: "id,name", limit: 10 } }).catch(() => null);
+      firmaId = firmen?.data?.[0]?.id ? String(firmen.data[0].id) : null;
+    }
+    if (!id && firmaId) {
+      const vorhanden = await graphAlle(`${firmaId}/adspixels`, { params: { fields: "id,name", limit: 25 }, hoechstens: 25 }).catch(() => []);
       const passend = vorhanden.find((p: any) => /fiaon/i.test(String(p.name ?? ""))) ?? vorhanden[0];
       if (passend?.id) { id = String(passend.id); name = String(passend.name ?? ""); }
       else if (opts.einrichten) {
-        const neuerSatz = await graph(`${firma.id}/adspixels`, { methode: "POST", params: { name: "FIAON" } }).catch(() => null);
-        if (neuerSatz?.id) { id = String(neuerSatz.id); name = "FIAON"; }
+        // Der Fehler wird NICHT geschluckt: Meta sagt hier sehr genau, was fehlt
+        // (z. B. „Business has not accepted Pixel Terms of Service" — das kann
+        // keine Schnittstelle abnicken, das geht nur einmal im Events-Manager).
+        try {
+          const neuerSatz = await graph(`${firmaId}/adspixels`, { methode: "POST", params: { name: "FIAON" } });
+          if (neuerSatz?.id) { id = String(neuerSatz.id); name = "FIAON"; }
+        } catch (e) {
+          // fehlerKlartext übersetzt den Meta-Fehler bereits in einen Weg
+          // (z. B. Pixel-Bedingungen noch nicht angenommen).
+          hinweis = e instanceof MetaFehler ? e.klartext : String(e);
+        }
+      }
+      // Ein neuer Datensatz gehört dem Werbekonto zugewiesen, sonst lässt er
+      // sich in keiner Kampagne auswählen. Misslingt das, ist der Datensatz
+      // trotzdem gültig — deshalb nur ein Versuch, kein Abbruch.
+      if (id && opts.einrichten) {
+        const konten = await graph(`${firmaId}/owned_ad_accounts`, { params: { fields: "account_id", limit: 10 } }).catch(() => null);
+        const konto = konten?.data?.[0]?.account_id;
+        if (konto) {
+          await graph(`${id}/shared_accounts`, { methode: "POST", params: { account_id: String(konto), business: firmaId } })
+            .catch((e) => console.warn("[META] Datensatz nicht ans Werbekonto gehängt:", e instanceof MetaFehler ? e.klartext : String(e)));
+        }
       }
       if (id) await einstellungSetzen(DATENSATZ_SCHLUESSEL, id, lauf);
     }
     punkt("datensatz", "Datensatz für die Messung (Pixel)", !!id, id
       ? `${name || "Datensatz"} ${id} — Pixel und Conversions API melden Antrag, Abschluss und Zahlung.`
-      : opts.einrichten ? "Konnte keinen Datensatz anlegen — im Events-Manager einen erstellen und die Kennung im Steuerpult eintragen."
-        : "Noch keiner — „Verbindung einrichten“ legt einen an.");
+      : hinweis ? hinweis
+        : !firmaId ? "Keine Firma gefunden — gehört die Seite zum Portfolio „FIAON Ltd.“?"
+          : opts.einrichten ? "Konnte keinen Datensatz anlegen — im Events-Manager einen erstellen und die Kennung im Steuerpult eintragen."
+            : "Noch keiner — „Verbindung einrichten“ legt einen an.");
   } catch (err) {
     punkt("datensatz", "Datensatz für die Messung (Pixel)", null, err instanceof MetaFehler ? err.klartext : String(err));
   }

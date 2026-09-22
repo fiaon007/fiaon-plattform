@@ -245,6 +245,18 @@ abschnitt("WhatsApp-Erlaubnis — Hinweistext statt Kästchen, Nummer entscheide
   ok(!/lead-motor\/einwilligung/.test(lies("server/routes/fiaon-lead-motor.ts")), "Die Route dazu ist ebenfalls weg (keine Knöpfe ohne Funktion, keine Routen ohne Knopf)");
 }
 
+// ── 8c. Die Einrichtung des Datensatzes (Pixel) ────────────────────────────
+abschnitt("Datensatz finden — Firma über die Seite, echte Fehler im Klartext");
+{
+  const ml = lies("server/lib/fiaon-meta-leads.ts");
+  const mt = lies("server/lib/fiaon-meta.ts");
+  ok(/fields: "business"/.test(ml), "Die Firma kommt über die Seite (me/businesses ist bei Systemnutzern leer)");
+  ok(ml.indexOf('fields: "business"') < ml.lastIndexOf('me/businesses'), "Der Seiten-Weg wird zuerst versucht, me/businesses nur als Rückfall");
+  ok(/hinweis = e instanceof MetaFehler \? e\.klartext/.test(ml), "Der Fehler von Meta wird nicht mehr geschluckt");
+  ok(/shared_accounts/.test(ml), "Ein neuer Datensatz wird dem Werbekonto zugewiesen");
+  ok(/subcode === 1784018/.test(mt) && /Events-Manager/.test(mt), "Pixel-Bedingungen: Meta-Fehler wird in einen Klickweg übersetzt");
+}
+
 // ── 9. Die Messung an Meta (Pixel + Conversions API) ───────────────────────
 abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
 {

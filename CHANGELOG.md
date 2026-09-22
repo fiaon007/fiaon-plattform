@@ -5,6 +5,29 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.09.2026 (Nacht) — Pixel-Einrichtung repariert: Firma über die Seite, Metas Grund im Klartext (E-210)
+
+**Was war:** Die Prüfliste meldete „Konnte keinen Datensatz anlegen" — und verschwieg zwei Dinge. Erstens suchte die
+Einrichtung die Firma über `me/businesses`; diese Kante gibt mit einem **Systemnutzer**-Token immer eine leere Liste
+zurück, es wurde also nie wirklich gesucht. Zweitens schluckte der Code Metas Antwort.
+
+**Was geändert wurde:**
+- Die Firma kommt jetzt über die Facebook-Seite (`{seite}?fields=business`), `me/businesses` bleibt nur Rückfall.
+- Metas Fehler wird angezeigt statt geschluckt, und der häufigste Fall bekommt einen Klickweg: „Die Firma hat die
+  Pixel-Bedingungen noch nicht angenommen. Einmal von Hand: business.facebook.com → Events-Manager → Daten verknüpfen
+  → Web → Bedingungen annehmen."
+- Ein neu angelegter Datensatz wird direkt dem Werbekonto zugewiesen (`{pixel}/shared_accounts`), sonst ließe er sich
+  in keiner Kampagne auswählen.
+
+**Live nachgewiesen (22.09., gegen das echte Konto):** Seite → Firma „FIAON Ltd." (1066626332803443) ✓, Werbekonto
+aktiv ✓, vorhandene Datensätze 0, und die Anlage scheitert mit genau `subcode 1784018 — Business has not accepted
+Pixel Terms of Service`.
+
+**Wo zu finden:** `server/lib/fiaon-meta-leads.ts` (Abschnitt 7 der Einrichtung), `server/lib/fiaon-meta.ts`
+(`fehlerKlartext`). Prüfstand: `scripts/pruef-lead-motor.ts` (310).
+
+---
+
 ## 22.09.2026 (Abend, 3) — WhatsApp für JEDEN Lead; Maras Anlauf fällt weg (E-210)
 
 **Was geändert wurde:**

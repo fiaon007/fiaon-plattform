@@ -124,6 +124,12 @@ export class MetaFehler extends Error {
 /** Meta-Fehlercodes → ein Satz, der sagt, was zu tun ist. */
 export function fehlerKlartext(code: number | null, subcode: number | null, roh: string): string {
   if (code === 190) return "Der Zugang ist ungültig oder abgelaufen — im Business-Manager einen neuen Systemnutzer-Token (Ablauf: nie) erzeugen und in Render eintragen.";
+  // 22.09.2026 live gesehen: Ein neues Portfolio darf erst dann einen Pixel
+  // anlegen, wenn jemand die Pixel-Bedingungen EINMAL im Events-Manager
+  // annimmt. Keine Schnittstelle kann das abnicken — deshalb der genaue Weg.
+  if (subcode === 1784018 || /pixel terms of service/i.test(roh)) {
+    return "Die Firma hat die Pixel-Bedingungen noch nicht angenommen. Einmal von Hand: business.facebook.com → Events-Manager → „Daten verknüpfen“ → Web → Bedingungen annehmen. Danach hier „Verbindung einrichten“ drücken.";
+  }
   if (code === 10 || code === 200 || (code !== null && code >= 200 && code < 300)) return `Meta verweigert ein Recht (${roh.slice(0, 160)}). Prüfe die Rechte des Tokens und den Leadzugriff der Seite.`;
   if (code === 4 || code === 17 || code === 32 || code === 613 || code === 80004) return "Meta bremst gerade (zu viele Anfragen). Der nächste Lauf versucht es von selbst erneut.";
   if (code === 100 && subcode === 33) return "Das Objekt gibt es nicht oder der Token darf es nicht sehen (falsche Seite, falsches Formular oder fehlender Leadzugriff).";

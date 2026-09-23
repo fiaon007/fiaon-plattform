@@ -15,6 +15,9 @@
 //   WhatsApp-Richtlinie (keine Mahnung, keine Forderung).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
+import "@/styles/office-rundgang.css";
 import "@/styles/whatsapp-raum.css";
 
 interface Gespraech {
@@ -116,6 +119,7 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
 
   return (
     <div className={`wr${gewaehlt ? " wr-chat-offen" : ""}`}>
+      <Rundgang raum="whatsapp" titel={RUNDGAENGE.whatsapp.titel} schritte={RUNDGAENGE.whatsapp.schritte} />
       <header className="wr-kopf">
         <div>
           <h1>WhatsApp</h1>

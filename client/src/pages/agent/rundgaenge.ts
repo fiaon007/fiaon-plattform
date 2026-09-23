@@ -1199,6 +1199,40 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
 ];
 
 // E-210 (22.09.2026): Der Lead-Motor — die Facebook-Leads direkt von Meta, ohne Make.
+export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
+  {
+    titel: "Hier schreibst du mit deinen Kunden.",
+    text: "Alles läuft über eine Nummer des Hauses (+49 1511 0761284) — nie über dein privates Telefon. Jede Nachricht, "
+      + "hin wie zurück, steht in der Akte des Menschen. Du musst nichts abtippen und nichts weiterleiten.",
+  },
+  {
+    ziel: ".wr-liste",
+    titel: "Links stehen die Gespräche.",
+    text: "Der grüne Punkt zeigt ungelesene Nachrichten, „Fenster offen“ heißt: Du darfst gerade frei schreiben. "
+      + "Steht „Mara“ daran, antwortet die digitale Assistentin hier selbst. Mit den Filtern siehst du nur Ungelesenes "
+      + "oder nur die Gespräche, in denen das Fenster noch läuft.",
+    tipp: "Hat jemand aus dem Team ein Gespräch offen, steht das an der Zeile — dann antwortet ihr nicht doppelt.",
+  },
+  {
+    ziel: ".wr-eingabe",
+    titel: "Das 24-Stunden-Fenster entscheidet, was du senden darfst.",
+    text: "WhatsApp erlaubt freien Text nur, solange der Mensch in den letzten 24 Stunden geschrieben hat. Im Kopf steht, "
+      + "wie lange das Fenster noch läuft. Ist es zu, sperrt sich das Feld und du wählst eine von Meta freigegebene "
+      + "Vorlage — antwortet der Mensch darauf, kannst du wieder frei schreiben.",
+  },
+  {
+    titel: "Mahnungen gehören NICHT hierher.",
+    text: "WhatsApp verbietet das Eintreiben von Forderungen. Offene Raten, Mahnungen und Rückstände laufen über Mail, "
+      + "Telefon oder Brief. Der Raum lässt solche Nachrichten gar nicht erst raus — das schützt unsere Nummer.",
+  },
+  {
+    ziel: ".wr-schalter",
+    titel: "Mara und du am selben Tisch.",
+    text: "Der Schalter sagt, ob Mara in diesem Gespräch selbst antwortet. Sobald du hier schreibst, schweigt sie "
+      + "automatisch — du hast das letzte Wort. Willst du sie wieder übernehmen lassen, schaltest du sie hier an.",
+  },
+];
+
 export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
   {
     titel: "Der Lead-Motor: jeder Facebook-Lead, direkt von Meta.",
@@ -1264,6 +1298,7 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },
   leadMotor:   { titel: "Lead-Motor", schritte: RUNDGANG_LEAD_MOTOR },
+  whatsapp:    { titel: "WhatsApp", schritte: RUNDGANG_WHATSAPP },
   global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },
   globalAkte:  { titel: "Global-Akte",  schritte: RUNDGANG_GLOBAL_AKTE },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },

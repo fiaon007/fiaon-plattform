@@ -5,6 +5,104 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (5) — Die Pipeline zeigte nur C-Kunden. Nicht wegen der Daten, wegen einer Definition (E-212)
+
+**Der Anlass (Daniel):** „In der Pipeline werden nur C-Kunden angezeigt, und irgendwie kommen da keine neuen
+Anträge rein." **Justin dazu:** „Uns ist aufgefallen, dass B-Kunden — Antrag wurde gestellt — als C-Kunden
+markiert sind." Und: „Schau, dass die Leute für mehrere Tage genügend zu arbeiten haben — die müssen auf
+Maximum arbeiten."
+
+**Zuerst gemessen, dann gebaut.** Die naheliegende Erklärung wäre gewesen: Die gespeicherte Stufe ist falsch.
+Sie ist es nicht. Ein Abgleich der Spalte `priority_tier` gegen die Regeln in `server/lib/tier.ts` über die
+gesamte Produktionsdatenbank ergab **null Abweichungen**. Kein einziger B-Kunde ist als C gespeichert.
+
+**Die wirkliche Ursache liegt in der Anzeige.** Die linke Spalte der Arbeitsliste heißt „Neu für dich" und war
+seit dem 09.09. definiert als **„noch nie angerufen"**. Von Daniels 32 A- und 356 B-Kunden waren zu diesem
+Zeitpunkt genau **drei** noch nie angerufen — aber **1.032 C-Leads**. Links konnte deshalb strukturell nur
+Stufe C stehen. Der Denkfehler: „neu" wurde mit „noch nie angefasst" gleichgesetzt. Ein Mensch, den wir vor
+drei Wochen als Lead am Telefon hatten und der **heute** einen Antrag ausfüllt, ist die frischeste Arbeit, die
+es gibt — er galt als „schon bearbeitet".
+
+**Geändert:**
+- **„Neu für dich" heißt jetzt: nie angerufen ODER seit dem letzten Anruf selbst etwas getan** — Antrag
+  abgeschickt oder Zahlung gemeldet. Nach dem nächsten Anruf ist der Kontakt wieder jünger als das Ereignis;
+  die Marke löscht sich von selbst. Gemessen: Daniel 3 → **11 B-Kunden** links, Nikita +5, Florentine +6.
+  Sie stehen vor den C-Leads, weil die Reihung Stufe 3 ohnehin ans Ende stellt.
+- **Ein frisches Ereignis hebt die Sperre auf.** „Nicht erreicht" und eine Wiedervorlage in der Zukunft
+  verdecken keinen Antrag von heute mehr. Im Quelltext stand als Absicht schon „… bis er erreicht wird oder
+  **sich selbst meldet**" — gebaut war die Selbstmeldung nie. **15 Menschen** im Team standen deshalb mit
+  frischem Antrag oder gemeldeter Zahlung in **keiner** Liste.
+- **Der Vorrat steht an den Spaltenköpfen** („noch 394"). Wer sechs Karten sieht und nicht weiß, dass
+  Hunderte dahinter warten, hört bei Karte sechs auf. Die vier alten Stufen-Zähler wurden berechnet und
+  **nie angezeigt** — sie sind ersetzt, nicht ergänzt: eine Abfrage wie vorher, keine zusätzliche Last.
+
+**Der Arbeitsvorrat, gemessen am 23.09.:** Daniel 394 fällige A/B-Kunden + 1.032 nie angerufene Leads,
+Florentine 326 + 1.015, Nikita 331 + 1.024. Bei 50 Anrufen am Tag reicht allein der A/B-Teil für gut acht
+Tage. Es fehlte nie an Arbeit — es fehlte am Blick darauf.
+
+**Wo zu finden:** `/agent/pipeline`, beide Spaltenköpfe. Quelltext: `server/routes/fiaon-office-vertrieb.ts`
+(`NEU_FUER_DICH_SQL`, `FRISCH_SQL`), `client/src/pages/agent/pipeline.tsx`.
+
+---
+
+## 23.09.2026 (6) — WhatsApp-Vorlagen, zweite Fassung: Karte im ersten Satz (E-212)
+
+**Der Anlass (Justin):** „Die Facebook-WhatsApp-Vorlagen habe ich mir angeguckt — sind sehr schlecht. Die
+Nachrichten müssen VIEL MEHR auf die Kreditkarte pitchen, auf das Limit, auf die schnelle Bearbeitung — weg
+mit der Absicherung von wegen ‚wir sind keine Bank'."
+
+**Geändert:** Alle acht Vorlagen neu geschrieben. Das Ziel steht jetzt im ersten Satz — die eigene Karte —,
+danach kommt, was FIAON dafür tut, und wie schnell es geht. Die Tag-3-Nachricht führt den Weg in drei
+Schritten und nennt den fertigen Link der Partnerbank.
+
+**Was ausdrücklich nicht geändert wurde:** Härter pitchen heißt nicht mehr versprechen. Die Bank entscheidet
+weiterhin über Zusage und Höhe — das steht drin, nur nicht mehr als Entschuldigung, sondern als der Grund,
+warum die Daten stimmen müssen. Die Karten-Sätze kommen unverändert aus `shared/fiaon-karten-weg.ts`.
+
+**Das Wort „Limit" steht bewusst nicht drin.** Es steht auf der Worthygiene-Liste unter „Kreditvermittlung /
+Kartenversprechen": Wer in der Kaltansprache mit einer Kreditsumme wirbt, wirbt für eine erlaubnispflichtige
+Leistung (§ 34c GewO). Die Sache steht drin, das Wort nicht — „wie viel Ihnen die Bank am Ende einräumt,
+entscheidet sie anhand Ihrer Daten, und genau diese Daten bringen wir vorher in Ordnung."
+
+**Neue Namen (`_v2`):** Die acht Vorlagen der ersten Fassung stehen bei Meta auf PENDING. Eine Vorlage in
+Prüfung lässt sich nicht bearbeiten — Meta erlaubt das erst nach „genehmigt" oder „abgelehnt". Der neue Name
+ist deshalb kein Schönheitsfehler, sondern der einzige Weg, die bessere Fassung überhaupt einzureichen.
+
+**Noch zu tun (Justin, ein Klick):** `/chef/s/lead-motor` → „Vorlagen einreichen". Erst danach prüft Meta die
+neue Fassung; bis zur Freigabe verschickt WhatsApp nichts außerhalb des 24-Stunden-Fensters.
+
+**Wo zu finden:** `shared/fiaon-lead-texte.ts`, Vorschau unter `/chef/s/lead-motor`.
+
+---
+
+## 23.09.2026 (7) — „Dubletten zusammenführen" steht jetzt in der Akte (E-212)
+
+**Der Anlass (Justin):** „Wenn man in einer Kundenakte ist, dann muss man einen Knopf haben mit ‚Dubletten
+zusammenfügen', wo man in der GESAMTEN Datenbank nach dem eingegebenen Namen suchen kann und die Person dann
+mit der ausgewählten ersetzen kann." Florentine findet Paare, die die automatische Erkennung nicht findet.
+
+**Warum die Automatik das nicht findet:** Sie erkennt Paare über Telefon, E-Mail, Name + Geburtsdatum und
+ähnliche Namen. Zwei Akten desselben Menschen mit anderem Namen (Heirat), anderer Schreibweise (Umschrift),
+Tippfehlern in **beiden** oder einer zweiten Anmeldung über die Nummer der Partnerin sieht ein Mensch — die
+Maschine nicht.
+
+**Gebaut:** In der Akte, in der Leitungszeile, steht der Knopf „Dubletten zusammenführen". Er öffnet eine
+Suche über die ganze Datenbank (Name, E-Mail, Nummer, Kennung), zeigt zu jedem Treffer Bestellungen, Betreuer
+und ob dort bezahlt wurde, und stellt dann die eine Frage, auf die es ankommt: **Welche Akte bleibt?** Der
+Vorschlag richtet sich danach, wo Geld liegt.
+
+**Was ausdrücklich nicht neu ist:** das Zusammenführen selbst. Es läuft über denselben Weg wie im Management
+(`personenZusammenfuehren`) — derselbe Schutz, dieselbe Spur im Protokoll. Der Gewinner behält seine Werte,
+Lücken werden aus der anderen Akte gefüllt, abweichende Angaben bleiben als frühere Werte erhalten. Eine
+zweite Merge-Fassung wäre die Gelegenheit, zwei verschiedene Ergebnisse zu erzeugen.
+
+**Wer darf:** Vertriebsleitung und Chefbüro — dieselbe Grenze wie im Management. Für alle anderen ist der
+Knopf unsichtbar.
+
+**Wo zu finden:** Akte öffnen → Leitungszeile oben → „Dubletten zusammenführen".
+
+---
+
 ## 23.09.2026 (4) — „Monatlich kündbar" war seit drei Wochen falsch — auf jeder Kundenseite, in jedem Leitfaden
 
 **Der Anlass (Justin):** Auf der Landingpage stand noch „Monatlich kündbar — kein Fine-Print, keine Haltefristen."

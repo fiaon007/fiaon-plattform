@@ -1055,7 +1055,7 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-spalte-leer{padding:26px 14px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:16px;color:#94a3b8}
 @media (max-width:1040px){.pi-spalten{grid-template-columns:1fr;gap:12px}.pi-spalte+.pi-spalte{border-left:0;padding-left:0;border-top:1px solid rgba(255,255,255,.08);padding-top:12px}}
 
-/* E-211 (23.09.2026): der Vorrat hinter den sechs Karten — ruhig, klein,
+/* E-212 (23.09.2026): der Vorrat hinter den sechs Karten — ruhig, klein,
    direkt neben der Spaltenüberschrift. Keine Kachel, keine Farbe: eine Zahl,
    die sagt, dass der Tag noch nicht zu Ende ist. */
 .pi-vorrat{
@@ -1064,7 +1064,7 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   white-space:nowrap;font-variant-numeric:tabular-nums;
 }
 
-/* ═══ Dubletten zusammenführen (23.09.2026, E-211) ═══════════════════════
+/* ═══ Dubletten zusammenführen (23.09.2026, E-212) ═══════════════════════
    Eine Lade über der Akte: suchen, eine Akte wählen, entscheiden welche
    bleibt. Ruhige Linie wie der Rest der Akte — Haarlinien statt Kästen,
    dünne Schrift, eine einzige blaue Handlung am Ende. */

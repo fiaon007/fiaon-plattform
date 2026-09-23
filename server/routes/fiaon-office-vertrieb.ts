@@ -385,7 +385,7 @@ const NIE_SQL = `(NOT EXISTS (
   SELECT 1 FROM fiaon_contact_log cr JOIN fiaon_applications an ON an.ref = cr.ref
    WHERE an.person_id = p.id AND cr.type = 'result' AND cr.voided_at IS NULL))`;
 // ═══════════════════════════════════════════════════════════════════════════
-// SEIT DEM LETZTEN ANRUF IST ETWAS PASSIERT (23.09.2026, E-211)
+// SEIT DEM LETZTEN ANRUF IST ETWAS PASSIERT (23.09.2026, E-212)
 //
 // ── DER BEFUND ────────────────────────────────────────────────────────────
 // Daniel: „In der Pipeline werden nur C-Kunden angezeigt, und irgendwie kommen
@@ -690,7 +690,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       "NOT p.is_blocked",
       `NOT ${ruhtSql("p")}`,
       `NOT ${wartetSql("p")}`,
-      // E-211: „oder er hat seit dem letzten Anruf selbst etwas getan" — eine
+      // E-212: „oder er hat seit dem letzten Anruf selbst etwas getan" — eine
       // Wiedervorlage für nächste Woche darf einen Antrag von heute nicht
       // verdecken. Gemessen am 23.09.: 15 Menschen im Team, alle mit frischem
       // Antrag oder gemeldeter Zahlung, standen deshalb in keiner Liste.
@@ -704,7 +704,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       // (Kunden → Filter „Nicht erreicht", Menüpunkt im Office) und nicht mehr
       // hier — bis er erreicht wird (erreicht_* setzt den Zähler zurück) oder
       // sich selbst meldet. Die Pipeline zieht dafür frischen Nachschub.
-      // E-211: „… oder sich selbst meldet" stand hier schon als Absicht im
+      // E-212: „… oder sich selbst meldet" stand hier schon als Absicht im
       // Text, war aber nirgends gebaut. Jetzt ist es gebaut: Wer nach dem
       // letzten Fehlversuch einen Antrag abschickt oder eine Zahlung meldet,
       // kommt sofort zurück — das ist genau die Selbstmeldung.
@@ -772,7 +772,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       // hier kommt nur noch dazu: nicht links — also mindestens ein Gesprächsergebnis
       // oder ein bezahlter Kunde mit fälliger Rate. Wer „nicht erreicht" bekommt, hat
       // seit E-162 die Wiedervorlage auf morgen und verschwindet damit für heute.
-      // E-211: dieselbe Wendung wie links, damit niemand in beiden Spalten steht.
+      // E-212: dieselbe Wendung wie links, damit niemand in beiden Spalten steht.
       .concat([`NOT ${NEU_FUER_DICH_SQL}`,
         // Ein Termin an einem SPÄTEREN Tag nimmt den Menschen aus beiden Spalten — heute nur, wer heute dran ist.
         `NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
@@ -846,7 +846,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // andere (nicht erreicht und fällig, Zusage gebrochen, Rückruf, Termin heute,
     // fällige Rate, Wiedervorlage) steht rechts unter „Wieder dran".
     //
-    // 23.09.2026 (E-211): Florentines Satz bleibt gültig — „ganz neue Anträge"
+    // 23.09.2026 (E-212): Florentines Satz bleibt gültig — „ganz neue Anträge"
     // war aber als „noch nie angerufen" gebaut, und damit stand links
     // ausschließlich Stufe C (Messung oben bei NEU_FUER_DICH_SQL). Ein Antrag
     // von heute ist ein ganz neuer Antrag, auch wenn derselbe Mensch vor drei
@@ -872,7 +872,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       return [...heiss, ...rest.filter((r) => !schon.has(Number(r.id)))];
     };
     // ══════════════════════════════════════════════════════════════════════
-    // DER VORRAT — WIE VIEL ARBEIT HINTER DEN SECHS PLÄTZEN STEHT (E-211)
+    // DER VORRAT — WIE VIEL ARBEIT HINTER DEN SECHS PLÄTZEN STEHT (E-212)
     //
     // Justin: „Schau, dass die Leute für mehrere Tage genügend zu arbeiten
     // haben — die müssen auf Maximum arbeiten."
@@ -932,7 +932,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       ok: true,
       rolle: "agent",
       slots,
-      // E-211: der echte Vorrat hinter den beiden Spalten.
+      // E-212: der echte Vorrat hinter den beiden Spalten.
       vorrat: { neu: Number(z.vorrat_neu || 0), wieder: Number(z.vorrat_wieder || 0) },
       mandate: { anzahl: mandate.anzahl, max: MANDATE_MAX },
     });

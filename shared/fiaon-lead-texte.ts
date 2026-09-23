@@ -64,7 +64,7 @@ const FRAGE: WaKnopf = { typ: "QUICK_REPLY", text: "Ich habe eine Frage" };
 const STOPP: WaKnopf = { typ: "QUICK_REPLY", text: "Keine Nachrichten mehr" };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE VORLAGEN, ZWEITE FASSUNG (23.09.2026, E-211)
+// DIE VORLAGEN, ZWEITE FASSUNG (23.09.2026, E-212)
 //
 // Justin nach dem Blick in den Meta-Vorlagenmanager: „Die WhatsApp-Vorlagen
 // sind sehr schlecht. Die Nachrichten müssen VIEL MEHR auf die Kreditkarte

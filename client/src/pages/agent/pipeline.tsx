@@ -598,7 +598,7 @@ function PipelineInnen() {
   const [slots, setSlots] = useState<Slot[]>([]);
   // 07.09.2026 (Justin): die rechte Spalte — nicht erreicht, Rückruf fällig, Termin heute.
   const [wieder, setWieder] = useState<Slot[]>([]);
-  // 23.09.2026 (E-211): Wie viele Menschen stehen HINTER den sechs Karten?
+  // 23.09.2026 (E-212): Wie viele Menschen stehen HINTER den sechs Karten?
   // VORHER wurden vier Stufen-Zähler geladen und nie angezeigt — der Verkäufer
   // sah sechs Karten und wusste nicht, dass 400 dahinter warten.
   const [vorrat, setVorrat] = useState<{ neu: number; wieder: number }>({ neu: 0, wieder: 0 });
@@ -945,7 +945,7 @@ function PipelineInnen() {
                   bleiben immer frische Menschen. */}
               <div className="pi-spalten">
               <div className="pi-spalte">
-              {/* E-211: Die Zahl dahinter ist der Vorrat, nicht die Kartenzahl —
+              {/* E-212: Die Zahl dahinter ist der Vorrat, nicht die Kartenzahl —
                   „6 von 394" sagt dem Verkäufer, dass der Tag nicht zu Ende ist. */}
               <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Neu für dich</b>
                 {vorrat.neu > kleine.length && <span className="pi-vorrat">noch {vorrat.neu}</span>}
@@ -1655,7 +1655,7 @@ function LeitungsZeile({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DUBLETTEN ZUSAMMENFÜHREN — AUS DER AKTE HERAUS (23.09.2026, E-211)
+// DUBLETTEN ZUSAMMENFÜHREN — AUS DER AKTE HERAUS (23.09.2026, E-212)
 //
 // Justin: „Wenn man in einer Kundenakte ist, dann muss man einen Knopf haben
 // mit ‚Dubletten zusammenfügen‘, wo man in der GESAMTEN Datenbank nach dem

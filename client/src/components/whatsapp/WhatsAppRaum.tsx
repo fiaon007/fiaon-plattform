@@ -60,6 +60,11 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
   const [sendet, setSendet] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [vorlageOffen, setVorlageOffen] = useState(false);
+  const [neuOffen, setNeuOffen] = useState(false);
+  const [neuSuche, setNeuSuche] = useState("");
+  const [treffer, setTreffer] = useState<{ art: string; id: number; name: string; nummer: string; betreuer: string | null }[]>([]);
+  const [neuZiel, setNeuZiel] = useState<{ art: string; id: number; name: string; nummer: string } | null>(null);
+  const [neuVorlagen, setNeuVorlagen] = useState<{ vorlagen: Vorlage[]; inPruefung: number } | null>(null);
   const endeRef = useRef<HTMLDivElement>(null);
 
   const melden = (t: string) => { setMeldung(t); window.setTimeout(() => setMeldung(null), 8000); };
@@ -108,6 +113,35 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
     } catch { melden("Keine Verbindung."); } finally { setSendet(false); }
   };
 
+  useEffect(() => {
+    if (!neuOffen || neuVorlagen) return;
+    void fetch(`${API}/vorlagen`, { credentials: "include" }).then((r) => r.json()).then((j) => { if (j?.ok) setNeuVorlagen(j); }).catch(() => {});
+  }, [neuOffen, neuVorlagen, API]);
+  useEffect(() => {
+    if (!neuOffen || neuSuche.trim().length < 2) { setTreffer([]); return; }
+    const id = window.setTimeout(() => {
+      void fetch(`${API}/suche?q=${encodeURIComponent(neuSuche.trim())}`, { credentials: "include" })
+        .then((r) => r.json()).then((j) => { if (j?.ok) setTreffer(j.treffer); }).catch(() => {});
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [neuOffen, neuSuche, API]);
+
+  const gespraechBeginnen = async (vorlage: string) => {
+    if (!neuZiel) return;
+    setSendet(true);
+    try {
+      const r = await fetch(`${API}/starten`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nummer: neuZiel.nummer, vorlage, personId: neuZiel.art === "person" ? neuZiel.id : null, leadId: neuZiel.art === "lead" ? neuZiel.id : null, werte: [neuZiel.name] }),
+      });
+      const j = await r.json();
+      if (!j?.ok) { melden(j?.error || "Das ging nicht raus."); return; }
+      melden(`Nachricht an ${neuZiel.name} ist unterwegs.`);
+      setNeuOffen(false); setNeuZiel(null); setNeuSuche(""); setTreffer([]);
+      await listeLaden(); setGewaehlt(j.nummer);
+    } catch { melden("Keine Verbindung."); } finally { setSendet(false); }
+  };
+
   const maraSchalten = async (an: boolean) => {
     if (!gewaehlt) return;
     try {
@@ -136,6 +170,7 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
         <aside className="wr-liste" aria-label="Gespräche">
           <div className="wr-suchfeld">
             <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, Nummer oder Text suchen" aria-label="Suchen" />
+            <button type="button" className="wr-neu" onClick={() => setNeuOffen(true)} title="Neues Gespräch beginnen" aria-label="Neues Gespräch beginnen">+</button>
           </div>
           <div className="wr-filter">
             {([["alle", "Alle"], ["ungelesen", "Ungelesen"], ["offen", "Fenster offen"]] as const).map(([k, t]) => (
@@ -201,22 +236,35 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
                   const vorher = chat.verlauf[i - 1];
                   const amTag = tag(n.empfangen_am ?? n.gesendet_am ?? n.created_at);
                   const neuerTag = !vorher || tag(vorher.empfangen_am ?? vorher.gesendet_am ?? vorher.created_at) !== amTag;
+                  const raus = n.richtung === "raus";
+                  const inhalt = n.text
+                    ? n.text
+                    : n.vorlage ? "(Vorlagentext — siehe Vorlagenname oben)"
+                      : "(Nachricht, die WhatsApp nicht übertragen kann — Sprachnachricht, Bild oder Ähnliches)";
                   return (
-                    <div key={n.id}>
+                    <div key={n.id} className="wr-reihe">
                       {neuerTag && <div className="wr-tag">{amTag}</div>}
-                      <div className={`wr-blase ${n.richtung === "rein" ? "rein" : "raus"}${n.status === "fehler" ? " fehler" : ""}`}>
-                        {n.vorlage && <span className="wr-vorlagenmarke">Vorlage · {n.vorlage}</span>}
-                        <p>{n.text || (n.vorlage ? "(Vorlagentext)" : "—")}</p>
-                        <span className="wr-blase-fuss">
-                          {n.von && n.richtung === "raus" ? `${n.von} · ` : ""}
-                          {zeit(n.empfangen_am ?? n.gesendet_am ?? n.created_at)}
-                          {n.richtung === "raus" && (
-                            <span className="wr-haken" title={n.gelesen_am ? "gelesen" : n.zugestellt_am ? "zugestellt" : "gesendet"}>
-                              {n.status === "fehler" ? " ✕" : n.gelesen_am ? " ✓✓" : n.zugestellt_am ? " ✓✓" : " ✓"}
+                      <div className={`wr-blasenreihe ${raus ? "raus" : "rein"}`}>
+                        <div className={`wr-blase ${raus ? "raus" : "rein"}${n.status === "fehler" ? " fehler" : ""}`}>
+                          {n.vorlage && <span className="wr-vorlagenmarke">Vorlage · {n.vorlage.replace(/^fiaon_/, "").replace(/_/g, " ")}</span>}
+                          <p>{inhalt}</p>
+                          <span className="wr-blase-fuss">
+                            {n.von && raus ? `${n.von} · ` : ""}
+                            {zeit(n.empfangen_am ?? n.gesendet_am ?? n.created_at)}
+                            {raus && (
+                              <span className={`wr-haken${n.gelesen_am ? " gelesen" : ""}`} title={n.status === "fehler" ? "nicht zugestellt" : n.gelesen_am ? "gelesen" : n.zugestellt_am ? "zugestellt" : "gesendet"}>
+                                {n.status === "fehler" ? " ✕" : n.gelesen_am || n.zugestellt_am ? " ✓✓" : " ✓"}
+                              </span>
+                            )}
+                          </span>
+                          {n.status === "fehler" && (
+                            <span className="wr-fehlertext">
+                              {/undeliverable/i.test(n.fehler ?? "")
+                                ? "Nicht zugestellt — diese Nummer hat kein WhatsApp."
+                                : n.fehler}
                             </span>
                           )}
-                        </span>
-                        {n.status === "fehler" && n.fehler && <span className="wr-fehlertext">{n.fehler}</span>}
+                        </div>
                       </div>
                     </div>
                   );
@@ -294,6 +342,56 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
           </aside>
         )}
       </div>
+
+      {neuOffen && (
+        <div className="wr-schleier" role="dialog" aria-modal="true" aria-label="Neues Gespräch" onClick={() => setNeuOffen(false)}>
+          <div className="wr-fenster" onClick={(e) => e.stopPropagation()}>
+            <div className="wr-fenster-kopf">
+              <div>
+                <h2>Neues Gespräch</h2>
+                <p className="wr-still">Wer nie geschrieben hat, darf nur eine von Meta freigegebene Vorlage bekommen. Antwortet er darauf, könnt ihr 24 Stunden frei schreiben.</p>
+              </div>
+              <button type="button" className="wr-klein" onClick={() => setNeuOffen(false)}>Schließen</button>
+            </div>
+            {!neuZiel ? (
+              <>
+                <input className="wr-feld" autoFocus value={neuSuche} onChange={(e) => setNeuSuche(e.target.value)} placeholder="Name oder Nummer — mindestens zwei Zeichen" aria-label="Menschen suchen" />
+                <div className="wr-treffer">
+                  {neuSuche.trim().length < 2 ? <p className="wr-still">Nur Menschen mit Handynummer erscheinen hier — an ein Festnetz stellt WhatsApp nichts zu.</p>
+                    : treffer.length === 0 ? <p className="wr-still">Niemand gefunden.</p>
+                      : treffer.map((t) => (
+                        <button key={`${t.art}-${t.id}`} type="button" className="wr-treffer-zeile" onClick={() => setNeuZiel(t)}>
+                          <span><b>{t.name}</b> <span className="wr-still">+{t.nummer}</span></span>
+                          <span className="wr-still">{t.art === "lead" ? "Interessent" : "Kunde"}{t.betreuer ? ` · ${t.betreuer}` : ""}</span>
+                        </button>
+                      ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="wr-ziel">An <b>{neuZiel.name}</b> <span className="wr-still">+{neuZiel.nummer}</span> <button type="button" className="wr-klein" onClick={() => setNeuZiel(null)}>ändern</button></p>
+                <div className="wr-vorlagen">
+                  {!neuVorlagen ? <p className="wr-still">Lädt …</p>
+                    : neuVorlagen.vorlagen.length === 0 ? (
+                      <p className="wr-still">
+                        Noch ist keine Vorlage freigegeben{neuVorlagen.inPruefung ? ` — ${neuVorlagen.inPruefung} liegen bei Meta in Prüfung` : ""}.
+                        Sobald die erste grün ist, kannst du von hier aus schreiben.
+                      </p>
+                    ) : neuVorlagen.vorlagen.map((v) => (
+                      <div key={v.name} className="wr-vorlage">
+                        <div className="wr-vorlage-kopf"><b>{v.name.replace(/^fiaon_/, "").replace(/_/g, " ")}</b><span className="wr-still">{v.zweck ?? ""}</span></div>
+                        <p>{(v.text ?? "").replace("{{1}}", neuZiel.name)}</p>
+                        <button type="button" className="wr-knopf voll" disabled={sendet} onClick={() => void gespraechBeginnen(v.name)}>
+                          {sendet ? "Sendet …" : "Diese Vorlage senden"}
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {meldung && <div className="wr-meldung" role="status">{meldung}</div>}
     </div>

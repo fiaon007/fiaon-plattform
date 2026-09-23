@@ -114,7 +114,7 @@ export default function ChefMara() {
                 onMouseUp={(ev) => void setzen("mara_aktion_je_stunde", (ev.target as HTMLInputElement).value, `Takt: ${(ev.target as HTMLInputElement).value} je Stunde.`)}
                 onTouchEnd={(ev) => void setzen("mara_aktion_je_stunde", (ev.target as HTMLInputElement).value, `Takt: ${(ev.target as HTMLInputElement).value} je Stunde.`)}
                 onKeyUp={(ev) => void setzen("mara_aktion_je_stunde", (ev.target as HTMLInputElement).value, `Takt: ${(ev.target as HTMLInputElement).value} je Stunde.`)} />
-              <small>Macht {e.jeStunde * 24} Mails am Tag. Wer hochdreht, sieht danach in den Rückläufern nach — eine Adresse im Spam nimmt jede Rechnung mit.</small>
+              <small>{(e.jeStunde * 24).toLocaleString("de-DE")} am Tag</small>
             </div>
             <div className="mp-feld">
               <label htmlFor="mp-euro">Kostendeckel je Tag</label>
@@ -123,7 +123,7 @@ export default function ChefMara() {
                   onBlur={(ev) => { if (Number(ev.target.value) !== e.tagEuro) void setzen("mara_aktion_tag_euro", ev.target.value, `Kostendeckel: ${ev.target.value} € am Tag.`); }} />
                 <span>€</span>
               </div>
-              <small>Eine Mail kostet rund einen halben Cent — {e.jeStunde * 24} am Tag sind etwa {((e.jeStunde * 24) * 0.005).toFixed(2)} €.</small>
+              <small>rund {(((e.jeStunde * 24) * 0.005)).toFixed(2).replace(".", ",")} € bei vollem Takt</small>
             </div>
             <div className="mp-feld">
               <span className="mp-etikett">Wer angeschrieben wird</span>
@@ -396,11 +396,7 @@ function Anweisungen({ melden }: { melden: (t: string) => void }) {
       <div className="mp-karte-kopf">
         <div>
           <h2>Deine Anweisung an Mara</h2>
-          <p className="mp-still">
-            Was hier steht, liest sie vor allem anderen — in ihrer eigenen Sprache, ohne Fachwörter.
-            Beispiel: „Nenne den Betrag immer im ersten Satz." Die Hausregeln (nichts garantieren, kein Empfehlen,
-            keine Mahnung per WhatsApp) bleiben darüber stehen, die kann auch eine Anweisung nicht aushebeln.
-          </p>
+          <p className="mp-still">Steht vor allem anderen in ihrem Auftrag. Die Hausregeln bleiben darüber.</p>
         </div>
       </div>
       {stand.fehler && <Fehlermeldung text={stand.fehler} erneut={stand.neu} />}

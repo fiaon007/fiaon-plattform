@@ -27,7 +27,7 @@ import {
   waTabellen, waSenden, waVerlauf, waZahlen, waKonfig, sendePruefung, vorlagenStand, fensterOffen,
 } from "../lib/fiaon-whatsapp";
 import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
-import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
+import { nummerFuerWhatsApp, whatsappUrteil } from "../../shared/fiaon-whatsapp-erlaubnis";
 
 const router = Router();
 
@@ -274,6 +274,97 @@ function routen(hole: (req: any) => Blick) {
     } catch (err) {
       console.error("[WHATSAPP-RAUM] senden:", err);
       res.status(500).json({ ok: false, error: "Das Senden ist abgebrochen." });
+    }
+  });
+
+  /**
+   * Menschen suchen, um ein Gespräch zu BEGINNEN. Nur wer eine Handynummer hat
+   * — an ein Festnetz stellt WhatsApp nichts zu.
+   */
+  r.get("/suche", async (req: any, res: Response) => {
+    try {
+      await bereit();
+      const blick = hole(req);
+      const q = String(req.query.q ?? "").trim();
+      if (q.length < 2) return res.json({ ok: true, treffer: [] });
+      const wie = `%${q.toLowerCase()}%`;
+      const ziffern = q.replace(/[^\d]/g, "");
+      const personen = (await sqlPool`
+        SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name, p.phone, p.assigned_agent_id, a.name AS betreuer
+          FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+         WHERE p.phone IS NOT NULL
+           AND (LOWER(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,''))) LIKE ${wie}
+                OR (${ziffern || null}::text IS NOT NULL AND regexp_replace(p.phone, '[^0-9]', '', 'g') LIKE ${"%" + ziffern}))
+         ORDER BY p.updated_at DESC NULLS LAST LIMIT 25`.catch(() => [])) as any[];
+      const leads = (await sqlPool`
+        SELECT le.id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS name, le.telefon AS phone,
+               le.assigned_agent_id, le.person_id, a.name AS betreuer
+          FROM fiaon_leads le LEFT JOIN fiaon_agents a ON a.id = le.assigned_agent_id
+         WHERE le.telefon IS NOT NULL AND le.person_id IS NULL
+           AND (LOWER(TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,''))) LIKE ${wie}
+                OR (${ziffern || null}::text IS NOT NULL AND regexp_replace(le.telefon, '[^0-9]', '', 'g') LIKE ${"%" + ziffern}))
+         ORDER BY le.erstellt_am DESC LIMIT 25`.catch(() => [])) as any[];
+
+      const treffer = [...personen.map((p) => ({ ...p, art: "person" })), ...leads.map((l) => ({ ...l, art: "lead" }))]
+        .filter((t) => blick.alles || Number(t.assigned_agent_id ?? 0) === blick.agentId)
+        .map((t) => ({ ...t, urteil: whatsappUrteil({ telefon: t.phone }) }))
+        .filter((t) => t.urteil.moeglich)
+        .slice(0, 20)
+        .map((t) => ({
+          art: t.art, id: Number(t.id), name: String(t.name || "").trim() || "(ohne Namen)",
+          nummer: t.urteil.nummer, betreuer: t.betreuer ?? null,
+        }));
+      res.json({ ok: true, treffer });
+    } catch (err) {
+      console.error("[WHATSAPP-RAUM] suche:", err);
+      res.status(500).json({ ok: false, error: "Die Suche ist abgebrochen." });
+    }
+  });
+
+  /** Ein neues Gespräch beginnen — nur mit freigegebener Vorlage (Fenster ist zu). */
+  r.post("/starten", async (req: any, res: Response) => {
+    try {
+      await bereit();
+      const blick = hole(req);
+      const nummer = nummerFuerWhatsApp(req.body?.nummer);
+      const vorlage = String(req.body?.vorlage ?? "").trim();
+      if (!nummer || !vorlage) return res.status(400).json({ ok: false, error: "Nummer und Vorlage werden gebraucht." });
+      const personId = Number(req.body?.personId) || null;
+      const leadId = Number(req.body?.leadId) || null;
+
+      if (!blick.alles) {
+        const [z] = (await sqlPool`
+          SELECT COALESCE(
+            (SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${personId}),
+            (SELECT assigned_agent_id FROM fiaon_leads WHERE id = ${leadId})) AS agent`) as any[];
+        if (Number(z?.agent ?? 0) !== blick.agentId) return res.status(403).json({ ok: false, error: "Dieser Mensch gehört einem anderen Betreuer." });
+      }
+      const erg = await waSenden(
+        nummer, { vorlage, werte: Array.isArray(req.body?.werte) ? req.body.werte.map(String) : undefined },
+        { personId, leadId, von: blick.name },
+      );
+      if (!erg.ok) return res.status(422).json({ ok: false, error: erg.grund });
+      await sqlPool`
+        INSERT INTO fiaon_whatsapp_gespraech (nummer, person_id, lead_id, mara_an, updated_at)
+        VALUES (${nummer}, ${personId}, ${leadId}, TRUE, NOW())
+        ON CONFLICT (nummer) DO UPDATE SET person_id = COALESCE(EXCLUDED.person_id, fiaon_whatsapp_gespraech.person_id), updated_at = NOW()`;
+      console.log(`[WHATSAPP-RAUM] ${blick.name} beginnt ein Gespräch mit ${nummer} (${vorlage}).`);
+      res.json({ ok: true, nummer });
+    } catch (err) {
+      console.error("[WHATSAPP-RAUM] starten:", err);
+      res.status(500).json({ ok: false, error: "Das Gespräch ließ sich nicht beginnen." });
+    }
+  });
+
+  /** Die freigegebenen Vorlagen — für das neue Gespräch. */
+  r.get("/vorlagen", async (_req: any, res: Response) => {
+    try {
+      const v = (await vorlagenStand().catch(() => []))
+        .filter((t) => t.status === "APPROVED" && t.name.startsWith("fiaon_"))
+        .map((t) => ({ ...t, ...(WA_VORLAGEN.find((x) => x.name === t.name) ?? {}) }));
+      res.json({ ok: true, vorlagen: v, inPruefung: (await vorlagenStand().catch(() => [])).filter((t) => t.status === "PENDING").length });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "Die Vorlagen ließen sich nicht laden." });
     }
   });
 

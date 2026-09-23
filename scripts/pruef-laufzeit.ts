@@ -134,5 +134,20 @@ ok(/ein blankes „monatlich kündbar" ohne die Laufzeit ist FALSCH und MUSS als
   "der Prüfer wertet „monatlich kündbar“ ohne Laufzeit als Fehler");
 ok(!/ist KORREKT und darf NICHT als Fehler gewertet werden/.test(academy), "die alte Freigabe ist raus");
 
+// ── 7. Die Landingpage siezt (Justin, 23.09.2026; E-002) ──────────────────
+abschnitt("Landingpage im Sie");
+const DU = /\b(du|dein|deine|deinem|deinen|deiner|dich|dir)\b/gi;
+for (const datei of ["client/src/pages/start.tsx", "client/src/lib/fiaon-land.ts"]) {
+  const text = lies(datei);
+  const treffer: string[] = [];
+  for (const m of text.matchAll(DU)) {
+    const i = m.index ?? 0;
+    const zeilenAnfang = text.lastIndexOf("\n", i) + 1;
+    if (/^\s*(\/\/|\*)/.test(text.slice(zeilenAnfang, i))) continue; // Kommentare
+    treffer.push(`Zeile ${text.slice(0, i).split("\n").length}: „${m[0]}“`);
+  }
+  ok(treffer.length === 0, `${datei} siezt durchgehend — gefunden: ${treffer.slice(0, 4).join(", ")}`);
+}
+
 console.log(`\n${fehler ? "✗" : "✓"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden${fehler ? `, ${fehler} Fehler` : ""}`);
 process.exit(fehler ? 1 : 0);

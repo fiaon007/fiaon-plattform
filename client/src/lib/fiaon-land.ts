@@ -62,7 +62,7 @@ const DE: LandProfil = {
   register: "SCHUFA", registerLang: "SCHUFA",
   ohneRegister: "Ohne SCHUFA.",
   registerNeutral: "Schufaneutral",
-  bankenSatz: "Während traditionelle Banken noch Formulare drucken, hast du dein Limit bereits aktiviert.",
+  bankenSatz: "Während traditionelle Banken noch Formulare drucken, haben Sie Ihr Limit bereits aktiviert.",
   staedte: ["Köln", "Berlin", "Hamburg", "München", "Frankfurt"],
   namen: ["Markus K.", "Sarah M.", "Daniel R.", "Julia W.", "Thomas B."],
 };
@@ -75,7 +75,7 @@ const AT: LandProfil = {
   register: "KSV", registerLang: "KSV1870",
   ohneRegister: "Ohne KSV-Abfrage.",
   registerNeutral: "KSV-neutral",
-  bankenSatz: "Während traditionelle Banken noch Formulare drucken, hast du dein Limit bereits aktiviert.",
+  bankenSatz: "Während traditionelle Banken noch Formulare drucken, haben Sie Ihr Limit bereits aktiviert.",
   staedte: ["Wien", "Graz", "Linz", "Salzburg", "Innsbruck"],
   namen: ["Michael H.", "Anna P.", "Stefan G.", "Katharina L.", "Andreas F."],
 };
@@ -92,7 +92,7 @@ const CH: LandProfil = {
   register: "ZEK", registerLang: "ZEK (Zentralstelle für Kreditinformation)",
   ohneRegister: "Ohne ZEK.",
   registerNeutral: "ZEK-neutral",
-  bankenSatz: "Während Schweizer Filialbanken noch Formulare drucken, hast du dein Limit bereits aktiviert.",
+  bankenSatz: "Während Schweizer Filialbanken noch Formulare drucken, haben Sie Ihr Limit bereits aktiviert.",
   staedte: ["Zürich", "Bern", "Zug", "Luzern", "Basel"],
   namen: ["Marc L.", "Beat S.", "Lukas M.", "Pascal K.", "Nadine R."],
 };

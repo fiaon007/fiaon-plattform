@@ -33,7 +33,7 @@ export const WISSEN: GlobalSeite[] = [
       titel: "Ratgeber US-Gesellschaft: LLC, EIN, Konto — FIAON Global",
       beschreibung: "16 Beiträge zur US-Gesellschaft: LLC gründen, EIN und ITIN, Registered Agent, Konto, Credit Score, Firmenkarten, Steuern — ehrlich erklärt, mit Quellen.",
     },
-    // 23.09.2026 (E-231): zehn Praxis-Beiträge dazu (wissen-gruendung.ts, wissen-konto-karten.ts), nach Themen geordnet.
+    // 23.09.2026 (E-232): zehn Praxis-Beiträge dazu (wissen-gruendung.ts, wissen-konto-karten.ts), nach Themen geordnet.
     stand: "2026-09-23",
     kennung: "FG · 22",
     auge: "Wissen",

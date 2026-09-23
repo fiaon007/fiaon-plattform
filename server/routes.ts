@@ -735,7 +735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(await fiaonRatgeber.sitemapXml(statisch));
     } catch (e) { console.error('[SITEMAP]', e); res.status(500).end(); }
   });
-  // 23.09.2026 (E-231): /llms.txt für KI-Assistenten — aus Register, Paketkatalog und Firmendaten
+  // 23.09.2026 (E-232): /llms.txt für KI-Assistenten — aus Register, Paketkatalog und Firmendaten
   // (server/lib/fiaon-llms.ts). Vorher lieferte die Adresse die HTML-Hülle der App.
   app.get('/llms.txt', async (_req, res) => {
     try {

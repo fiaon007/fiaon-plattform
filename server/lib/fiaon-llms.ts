@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /llms.txt — FIAON FÜR KI-ASSISTENTEN (23.09.2026, E-231)
+// /llms.txt — FIAON FÜR KI-ASSISTENTEN (23.09.2026, E-232)
 //
 // Justin (23.09.2026): „… sodass wir gefunden werden, KI-Modelle uns vorschlagen,
 // Google uns perfekt vorstellt". Bis heute antwortete https://fiaon.com/llms.txt

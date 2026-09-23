@@ -5,6 +5,44 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 24.09.2026 (2) — FIAON Global: zehn neue Ratgeber, Wissen neu geordnet, eigenes Vorschaubild, llms.txt (E-232)
+
+**Der Anlass (Justin, 23.09.):** „Schreibe 10 neue Ratgeber perfekt zu diesem Thema … 100 % SEO-optimiert … bring uns
+live, sodass wir gefunden werden, KI-Modelle uns vorschlagen, Google uns perfekt vorstellt" — und: „FIAON immer als
+die Lösung nennen".
+
+**Zehn neue Beiträge unter fiaon.com/business/wissen** (je mit Quellen, Stand, häufigen Fragen, Pflichthinweisen und
+dem Abschnitt „So übernimmt FIAON Global …" samt passendem Paket):
+LLC gründen (Anleitung in zehn Schritten) · EIN ohne US-Sozialversicherungsnummer (Form SS-4 Zeile für Zeile) ·
+ITIN (Form W-7, Pass, Verfall) · Registered Agent und US-Adresse · US-Konto: die Unterlagen · US-Bonität aufbauen
+(FICO) · Business Credit (D-U-N-S, PAYDEX) · US-Firmenkarte beantragen (Haftung, Einführungszeitraum, FTC-Fall) ·
+US-Steuererklärung der LLC (alle Fristen) · Tochter oder Zweigniederlassung (Abkommen, Quellensteuer).
+Jede Zahl (Gebühren, Fristen, Schwellen) steht einmal in `fakten.ts`, geprüft am 23.09. an IRS, FinCEN, FDIC,
+US-Bundesrecht, FICO, Dun & Bradstreet, FTC und dem Doppelbesteuerungsabkommen.
+
+**Die Wissen-Übersicht** ist nach Themen geordnet (Vor der Gründung · Steuernummern und US-Präsenz · Konto, Bonität
+und Karten · Steuern und Pflichten), das Menü „Wissen" zeigt drei der neuen Beiträge, und die Leistungs-, Zielgruppen-
+und Wissensseiten verweisen im „Weiterlesen" auf die passenden neuen Beiträge.
+
+**Vorschaubild:** Wer eine Business-Seite teilte (WhatsApp, LinkedIn, Mail), sah bisher „Das Betriebssystem für
+Bonität". Jetzt: eigenes Bild „FIAON Global — Ihre US-Gesellschaft. Aus einer Hand." (deutsch und englisch).
+
+**Für Google und KI-Assistenten:** Beiträge melden Erscheinungsdatum und Bild; englische Seiten tragen die Sprache
+„en" (vorher fälschlich „de"); das Unternehmen trägt seine Registernummer und die Themen von FIAON Global.
+**fiaon.com/llms.txt** gibt es jetzt wirklich (vorher kam dort die leere App-Hülle) — erzeugt aus Seitenregister,
+Paketkatalog und Firmendaten, also immer aktuell.
+
+**Prüfstand:** Titel und Beschreibungen werden in Pixeln gemessen wie bei Google (vier Stellen gekürzt).
+
+**Hinweis zur Nummer:** Der erste Commit dieser Arbeit (8473ea38) trägt im Titel „E-231" — die Nummer war zeitgleich
+für die Meta-Messung vergeben. Richtig ist E-232.
+
+**Wo:** shared/fiaon-global-seiten/wissen-gruendung.ts, wissen-konto-karten.ts, fakten.ts, wissen.ts;
+shared/fiaon-global-menue.ts; server/lib/fiaon-llms.ts; server/lib/fiaon-seiten-seo.ts; client/public/og-global*.jpg;
+shared/fiaon-pixel.ts; scripts/pruef-global-seiten.ts.
+
+---
+
 ## 23.09.2026 (16) — WhatsApp für Mara: Zentrale mit Knopf und Automatik, Vorlagen mit Bild (E-229)
 
 **Der Anlass (Justin):** „Ich muss das managen können: ‚WhatsApp starten (50)', Kundengruppe und Vorlage wählen —

@@ -38,7 +38,7 @@
 import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
 export const SEO_BASIS = "https://fiaon.com";
-/** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-231). */
+/** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-232). */
 export const GLOBAL_BILD = `${SEO_BASIS}/og-global.jpg`;
 export const GLOBAL_BILD_EN = `${SEO_BASIS}/og-global-en.jpg`;
 
@@ -329,7 +329,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // 19.09.2026 (E-191): auch für Privatpersonen; Standorte London · Zürich · Miami; Weiterlesen auf die Unterseiten.
   "/business": {
     pfad: "/business", art: "produkt", stand: "2026-09-19", prio: 0.9,
-    // 23.09.2026 (E-231): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
+    // 23.09.2026 (E-232): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
     bild: GLOBAL_BILD,
     titel: "US-Gesellschaft gründen ab 2.499 € — FIAON Global",
     beschreibung: "US-Gesellschaft gründen mit Team vor Ort — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto, Karten. Festpreis ab 2.499 €, alles inklusive.",

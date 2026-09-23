@@ -101,7 +101,7 @@ export function kopfEinsetzen(html: string, kopf: {
   setz("twitter:title", "name", kopf.titel);
   setz("twitter:description", "name", kopf.beschreibung);
   if (kopf.og?.type) setz("og:type", "property", kopf.og.type);
-  // 23.09.2026 (E-231): Beiträge tragen Erscheinungs- und Änderungsdatum auch im Open-Graph-Kopf.
+  // 23.09.2026 (E-232): Beiträge tragen Erscheinungs- und Änderungsdatum auch im Open-Graph-Kopf.
   if (kopf.og?.erschienen) setz("article:published_time", "property", kopf.og.erschienen);
   if (kopf.og?.geaendert) setz("article:modified_time", "property", kopf.og.geaendert);
   if (kopf.bild) {
@@ -160,7 +160,7 @@ export function organisationLd(): Record<string, unknown> {
     logo: { "@type": "ImageObject", url: `${BASIS}/icon-maskable-512.png`, width: 512, height: 512 },
     image: `${BASIS}/og-fiaon.jpg`,
     description: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
-    // 23.09.2026 (E-231): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
+    // 23.09.2026 (E-232): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
     identifier: { "@type": "PropertyValue", propertyID: "Companies House (England and Wales)", value: FIAON_FIRMA.companyNo },
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
     contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de"], areaServed: ["DE", "AT", "CH"] }],
@@ -197,7 +197,7 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
     "@context": "https://schema.org",
     "@type": s.art === "pfeiler" ? "Article" : "WebPage",
     "@id": `${url}#seite`,
-    // 23.09.2026 (E-231): Sprache der Seite statt fest „de“ (englische Seiten trugen „de“), Erscheinungsdatum und Bild für Beiträge.
+    // 23.09.2026 (E-232): Sprache der Seite statt fest „de“ (englische Seiten trugen „de“), Erscheinungsdatum und Bild für Beiträge.
     url, name: s.titel, headline: s.h1, description: s.beschreibung, inLanguage: s.sprache === "en" ? "en" : "de",
     dateModified: s.stand, isPartOf: { "@id": `${BASIS}/#website` },
     ...(s.art === "pfeiler" ? {

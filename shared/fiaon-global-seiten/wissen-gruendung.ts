@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL — WISSEN: GRÜNDUNG, STEUERNUMMERN, PRÄSENZ, STEUERN, STRUKTUR
-// (23.09.2026, E-231)
+// (23.09.2026, E-232)
 //
 // Justin (23.09.2026): „schreibe 10 neue Ratgeber perfekt zu diesem Thema …
 // 100% SEO optimiert … HIGH END" und dazu: „du musst dabei immer FIAON als die

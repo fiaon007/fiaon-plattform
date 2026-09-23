@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL — WISSEN: KONTO, BONITÄT, BUSINESS CREDIT, FIRMENKARTEN
-// (23.09.2026, E-231)
+// (23.09.2026, E-232)
 //
 // Vier der zehn Beiträge vom 23.09.2026 (die übrigen sechs: wissen-gruendung.ts).
 // Hier ist die Wortwand am engsten: Es geht um Geld, Karten und Rahmen. Deshalb

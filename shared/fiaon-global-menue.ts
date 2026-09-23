@@ -44,7 +44,7 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   { gruppe: "preise", pfad: "/business/vergleich", titel: "Vergleich", text: "Selbst, Gründungsdienst oder FIAON Global", reihe: 6 },
   { gruppe: "preise", pfad: "/business/fragen", titel: "Fragen und Antworten", text: "Alle Antworten an einem Ort", reihe: 7 },
 
-  // 23.09.2026 (E-231): drei der zehn Praxis-Beiträge im Menü — zehn Einträge, fünf Reihen im Panel.
+  // 23.09.2026 (E-232): drei der zehn Praxis-Beiträge im Menü — zehn Einträge, fünf Reihen im Panel.
   { gruppe: "wissen", pfad: "/business/wissen", titel: "Alle Beiträge", text: "16 Beiträge, von der Gründung bis zur Steuer", reihe: 1 },
   { gruppe: "wissen", pfad: "/business/wissen/llc-gruenden", titel: "LLC gründen: die Anleitung", text: "Zehn Schritte, aus Deutschland", reihe: 2 },
   { gruppe: "wissen", pfad: "/business/wissen/us-llc-steuern", titel: "Steuern, ehrlich erklärt", text: "Ist eine US-LLC ein Steuermodell?", reihe: 3 },

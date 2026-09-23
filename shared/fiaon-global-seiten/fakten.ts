@@ -90,7 +90,7 @@ export const QUELLEN_IRS: GlobalQuelle[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ZEHN PRAXIS-BEITRÄGE (23.09.2026, E-231) — Wege, Fristen und Schwellen der
+// ZEHN PRAXIS-BEITRÄGE (23.09.2026, E-232) — Wege, Fristen und Schwellen der
 // US-Behörden, geprüft am 23.09.2026 an den amtlichen Texten: Instructions for
 // Form SS-4 (12/2025), W-7, 1065, 1040-NR, 1120-F, Partnership Withholding,
 // FinCEN (BOI-Regel vom 11.08.2026, CDD-Ausnahme vom 13.02.2026, FBAR), FDIC,

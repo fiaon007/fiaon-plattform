@@ -5,6 +5,93 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (10) — Der Knopf, der fehlte, und Vorlagen nur noch auf die Karte (E-215)
+
+**Der Anlass (Justin):** „Ich kann keine Vorlage einreichen, weil ich keinen Knopf dafür habe, Alter." Und:
+„Die Texte in den Vorlagen passen auch nicht — weg mit Bonitätsauskunft und Löschung von Dateien, sondern NUR
+auf die Kreditkarte pitchen."
+
+**Er hatte recht, und es war ein Regelverstoß.** Der Einreich-Weg existierte seit gestern Abend als Funktion,
+aber an keiner Oberfläche. Die Hausregel heißt „erledigt heißt bedienbar" — eine Route ohne Knopf ist nicht
+fertig. Dass sie ausgerechnet an der Stelle gerissen wurde, die ohne diesen Klick gar nichts verschicken kann,
+macht es schlimmer.
+
+**Geändert:**
+- **Eigener Bereich „WhatsApp-Vorlagen"** auf der Lead-Motor-Seite. Oben eine Zeile, die sagt, was zu tun ist
+  („4 von 14 sind noch nicht bei Meta"), daneben zwei Knöpfe: einreichen und Altlasten aufräumen. Darunter jede
+  Vorlage als eine Zeile mit ihrem Stand bei Meta; der Text klappt auf, wer ihn lesen will. **Vorher** lagen
+  dieselben Vorlagen als reine Vorschau in einer zugeklappten Lade namens „Texte zur Freigabe" — ohne eine
+  einzige Handlung.
+- **Alle 14 Vorlagen neu geschrieben.** Raus: Bonitätsauskunft, Prüfung der Einträge, Schreiben an die
+  Auskunfteien. Das ist unsere Arbeit, nicht das Ziel des Kunden — und in einer Nachricht mit vier Zeilen kostet
+  es genau den Platz, an dem das Ziel stehen müsste. Rein: die Karte, in jedem Satz.
+
+**Das Wort „Kreditkarte" steht jetzt drin.** Es liegt auf der Worthygiene-Liste unter „Kreditvermittlung"
+(§ 34c GewO). Justin hat diese Grenze am 23.09. zweimal ausdrücklich überstimmt, nachdem ihm die Begründung
+vorlag. Das ist seine Entscheidung als Inhaber. Die Ausnahme ist deshalb **benannt** und gilt ausschließlich für
+WhatsApp-Vorlagen; Mails, Briefe und die gesamte Nachfass-Strecke werden unverändert gegen die volle Liste
+geprüft. Ein aus der Liste gestrichenes Wort hätte alles stillschweigend mitfreigegeben.
+
+**Was trotzdem nicht übernommen wurde:** der vorgeschlagene Satz „Ihr Antrag für Ihre Kreditkarte liegt am
+Tisch". Der Kunde hat bei FIAON keinen Kartenantrag gestellt, sondern eine Anfrage — der Kartenantrag läuft
+später bei der Partnerbank. Eine falsche Tatsachenbehauptung ist kein Pitch, sondern ein Widerrufsgrund, und
+Meta weist sie bei der Prüfung ohnehin ab. „Ihre Anfrage für Ihre Kreditkarte liegt auf meinem Tisch" trägt
+dasselbe Gefühl und hält. Der Prüfstand hält das fest, damit es nicht beim nächsten Umbau hineinrutscht.
+
+**Wo zu finden:** Chefbüro → Lead-Motor → Abschnitt „WhatsApp-Vorlagen".
+
+---
+
+## 23.09.2026 (11) — Der Tagesbericht: was das System weiß, und was es nicht wissen kann (E-216)
+
+**Der Anlass (Justin):** „Ich will, dass jeden Tag, nachdem der Mitarbeiter fertig ist, gefragt wird: ‚Das System
+hat Folgendes über Ihren heutigen Arbeitstag aufgezeichnet …‘ — so detailliert wie möglich, dass er sich denkt
+‚wow, geil, was die alles wissen‘. Und ich möchte jeden Tag einen Arbeitsbericht haben."
+
+**Der Befund, der das nötig macht.** Gemessen über sieben Tage: Von **933 gebuchten Gesprächsergebnissen hat
+rund die Hälfte keinen Anruf im System hinter sich.**
+
+| | Anrufe im System | gebuchte Ergebnisse | ohne Anruf |
+|---|---:|---:|---:|
+| Nikita | 274 | 393 | 119 |
+| Daniel | 10 | 282 | **272** |
+| Florentine | 0 | 193 | **193** |
+
+Es wird über das eigene Handy telefoniert. Das ist nicht verboten — aber es heißt: keine Aufnahme, keine Dauer,
+kein Transkript. Gesprächsqualität ist bei zwei von drei Verkäufern nicht beurteilbar, und niemand weiß, wie
+viele Gespräche ein Tag wirklich hatte.
+
+**Gebaut — drei Teile in dieser Reihenfolge:**
+1. **Was aufgezeichnet wurde.** Anrufe, Gespräche über 30 Sekunden, Minuten am Telefon, erster und letzter Anruf,
+   jedes Gesprächsergebnis nach Art, Termine mit Namen, wer Zahlung gemeldet hat, übernommene Mandate,
+   geschriebene WhatsApp-Nachrichten. Alles aus vorhandenen Tabellen — es wird nichts zusätzlich mitgeschrieben.
+2. **Was wir nicht wissen können.** Gespräche über das eigene Telefon (mit Namen) und Zusagen, die noch nirgends
+   stehen (mit Namen und Datum).
+3. **Wie der Tag war.** Gut, schlecht, Verbesserungsvorschlag — keine Pflicht.
+
+**Die vier Lücken, die dabei geschlossen wurden:**
+- **Keine zweite Wahrheit beim Geld.** Was nachgetragen wird, geht den *bestehenden* Weg: Gesprächsergebnis über
+  dieselbe Funktion wie in der Akte, Zusage als echte Zusage. Sonst gäbe es Zusagen, die Mahnlauf, Pipeline und
+  Mara nicht kennen.
+- **Zahlen lassen sich nicht aufblasen.** Systemzahl und Selbstangabe stehen nebeneinander und werden nie
+  addiert; jede Ergänzung braucht einen Namen.
+- **Ein Feedback-Kanal.** „Was sollen wir verbessern" wird ein Ticket im bestehenden Kanal, nicht ein zweiter
+  Topf, in den niemand schaut.
+- **Der Anreiz ist echt, nicht erfunden.** Wen der Mitarbeiter hier nachträgt, verschwindet morgen aus seiner
+  Liste — ein gebuchtes Ergebnis nimmt den Menschen aus „Neu für dich". Genau Daniels Klage vom 2. September.
+
+**Spiegelprinzip:** Der Mitarbeiter sieht genau dasselbe wie die Leitung. Keine Zahl über ihn, die er nicht
+selbst sieht. Es bleibt bei „keine Arbeitszeit-, Pausen- oder Anwesenheitserfassung" — gezeigt werden
+Arbeitsergebnisse und die Zeiten, die aus Anrufen ohnehin entstehen.
+
+**Die Pflicht, gestaffelt** (Justins Entscheidung): Bis zum 30.09.2026 erscheint der Bericht und lässt sich
+wegklicken; danach gibt es ohne den Bericht vom Vortag keine Arbeitsliste. So wird niemand am ersten Morgen
+ausgesperrt.
+
+**Wo zu finden:** Office → **Tagesbericht**. Für die Leitung: `GET /chef/tagesberichte` (Seite folgt).
+
+---
+
 ## 23.09.2026 (8) — Die Kündigung führt den Vorgang wirklich aus (E-213)
 
 **Der Anlass (Justin):** „Wenn Florentine oder ich auf ‚kündigen' klicken, dann muss die Kündigung auch wirklich

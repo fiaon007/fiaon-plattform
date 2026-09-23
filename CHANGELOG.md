@@ -5,6 +5,41 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 24.09.2026 (3) — Mara antwortet immer, kennt das Haus, erinnert an Monatsraten (E-230)
+
+**Der Anlass (Justin):** „Mara muss IMMER antworten, Mara hat auf einige Kunden nicht reagiert — was hat es damit auf
+sich? 100 % menschlich, 100 % Gehirn, pitcht perfekt mit den Kreditkarten." Und: „Schreib die Raten-Vorlage und reich sie ein."
+
+**Was los war:** Seit dem 23.09. um ca. 18 Uhr hat Mara auf WhatsApp niemandem geantwortet. Jede Antwort wurde
+vorbereitet, als „veraltet" verworfen und neu gedacht — 713-mal, ohne dass eine rausging. Nachts behoben (Sofortfix),
+heute der ganze Antwortweg neu.
+
+**Was Mara jetzt tut:**
+- **Jede Kundennachricht bekommt eine Antwort** — nach 6 bis 18 Sekunden. Fällt etwas durch (Neustart, Fehler),
+  holt ein Takt jede Minute nach. Nachts nur Frisches, Älteres ab 7 Uhr.
+- **Schreibt jemand aus dem Team selbst,** hält Mara sich heraus — bleibt der Kunde danach 15 Minuten ohne Antwort
+  (nachts sofort), übernimmt sie wieder. Wer Mara im Gespräch von Hand ausschaltet, schaltet sie wirklich aus.
+- **Nie mehr Schweigen:** Darf ein Satz nicht raus, schreibt sie ihn neu; klappt das nicht, sagt sie ehrlich, dass sie
+  die Frage an den Betreuer gibt — und legt die Aufgabe an. Das gilt auch, wenn sie einen Rückruf zusagt oder der
+  Kunde kündigen, widerrufen oder Geld zurück will.
+- **Ihr Wissen:** Preise, Ablauf, Vertrag und Kündigung wie in den AGB, Konto und Karte über die DKB, Unterlagen,
+  Firmendaten — und die Lage des Kunden (Antrag, erste Zahlung, bezahlt, Vertrag alt oder neu, gekündigt).
+- **Ehrlich:** Fragt jemand, ob er mit einer KI schreibt, sagt sie es. Sie schreibt immer auf Deutsch.
+- **Schutz:** höchstens 6 Antworten in 30 Minuten an dieselbe Nummer (gegen Abwesenheits-Automaten), „Stopp" wird
+  einmal bestätigt, ausländische Handynummern bekommen ihre Antwort (vorher an eine falsche +49-Nummer).
+
+**Neue Vorlage „Ihre Monatsrate":** Betrag, Fälligkeit, Verwendungszweck und der Knopf „Rate bezahlen" direkt zur
+Zahlungsseite genau dieser Rate — ohne Mahnwort. Bei Meta eingereicht am 24.09. In der WhatsApp-Zentrale gibt es die
+Gruppe **„Monatsrate fällig"**: höchstens alle 7 Tage und zweimal je Rate, nie wenn die Zahlung schon unverbucht auf
+dem Konto liegt oder ein Zahldatum zugesagt ist. Jede Gruppe zeigt, wie viele davon eingewilligt haben; angeschrieben
+werden alle mit WhatsApp-Nummer (Justins Entscheidung). Warten Kunden länger als 2 Minuten, steht es oben gelb.
+
+**Nebenbei behoben:** Zahlungsseiten und Rechnungen der Bestellungen im neuen Format ohne Bindestrich (FIAONXXXXXX-2)
+führten auf „nicht gefunden".
+
+**Wo:** server/lib/fiaon-whatsapp-mara.ts, server/lib/fiaon-wa-zentrale.ts, shared/fiaon-lead-texte.ts (fiaon_kk_rate),
+shared/fiaon-whatsapp-erlaubnis.ts, Chefbüro → Mara → WhatsApp-Zentrale.
+
 ## 24.09.2026 (2) — FIAON Global: zehn neue Ratgeber, Wissen neu geordnet, eigenes Vorschaubild, llms.txt (E-232)
 
 **Der Anlass (Justin, 23.09.):** „Schreibe 10 neue Ratgeber perfekt zu diesem Thema … 100 % SEO-optimiert … bring uns

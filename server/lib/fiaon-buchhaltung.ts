@@ -324,6 +324,28 @@ export function pinErzeugen(): string {
 
 const pinHash = (pin: string) => createHash("sha256").update(`${secret()}:${pin.replace(/-/g, "").toUpperCase()}`).digest("hex");
 
+// ── Bankreferenz (E-229, 23.09.2026) ────────────────────────────────────────
+// Justin trägt die Referenz von Hand bei Airwallex ein. Sie muss je Überweisung
+// eindeutig und variabel sein, damit der Rücklauf im Konto sauber zuzuordnen
+// ist. 14 Zeichen aus dem gleichen unverwechselbaren Alphabet wie der PIN
+// (ohne O/0, I/1, B/8, S/5 …) — kein Feld mehr zum Tippen.
+const REF_ALPHABET = "ACDEFGHJKMNPQRTUVWXY34679";
+export function bankReferenzErzeugen(): string {
+  const bytes = randomBytes(14);
+  let out = "";
+  for (let i = 0; i < 14; i++) out += REF_ALPHABET[bytes[i] % REF_ALPHABET.length];
+  return out;
+}
+/** Eine Referenz, die es im Buch noch nicht gibt. */
+async function freieBankReferenz(): Promise<string> {
+  for (let versuch = 0; versuch < 6; versuch++) {
+    const ref = bankReferenzErzeugen();
+    const [da] = (await sqlPool`SELECT 1 FROM fiaon_buch_auftrag WHERE bank_referenz = ${ref} LIMIT 1`) as any[];
+    if (!da) return ref;
+  }
+  return `${bankReferenzErzeugen().slice(0, 8)}${Date.now().toString(36).toUpperCase().slice(-6)}`.slice(0, 14);
+}
+
 /** Legt einen frischen PIN an und macht alle älteren derselben Person ungültig. */
 export async function pinAnlegen(person: BuchPerson): Promise<string> {
   await buchSchema();
@@ -910,10 +932,15 @@ export async function auftragFreigeben(id: number, von: BuchPerson, tan: string)
   if (!darf.ok) return darf;
   const t = await tanPruefen(von, "freigabe", freigabeZiel(a), tan);
   if (!t.ok) return t;
+  // E-229: Die eindeutige Bankreferenz entsteht mit der Freigabe — Justin
+  // kopiert sie und hinterlegt sie bei Airwallex. Payout-Aufträge tragen die
+  // vorhandene Referenz weiter, sonst wird eine frische erzeugt.
+  const referenz = a.bankReferenz?.trim() || (await freieBankReferenz());
   const rows = (await sqlPool`
     UPDATE fiaon_buch_auftrag
        SET status = 'freigegeben', entschieden_von = ${von.email}, entschieden_am = NOW(),
-           freigabe_art = ${darf.art}, eingereicht_am = COALESCE(eingereicht_am, NOW())
+           freigabe_art = ${darf.art}, eingereicht_am = COALESCE(eingereicht_am, NOW()),
+           bank_referenz = COALESCE(bank_referenz, ${referenz})
      WHERE id = ${id} AND status IN ('entwurf', 'eingereicht')
     RETURNING id`) as any[];
   if (!rows.length) return { ok: false, grund: "Der Auftrag hat sich inzwischen verändert. Bitte neu laden." };
@@ -970,8 +997,9 @@ export async function auftragAusfuehren(
   if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
   if (von.rolle !== "inhaber") return { ok: false, grund: "Die Überweisung trägt der Inhaber ein — er hält den Bankzugang." };
   if (a.status !== "freigegeben") return { ok: false, grund: "Ausführen geht erst nach der Freigabe." };
-  const ref = String(bankReferenz || "").trim();
-  if (!ref) return { ok: false, grund: "Bitte die Referenz der Bank eintragen — ohne sie ist die Ausführung nicht belegt." };
+  // E-229: Die Referenz steht seit der Freigabe fest. Der Handeintrag ist nur
+  // noch Rückfallebene für Altaufträge ohne generierte Referenz.
+  const ref = (a.bankReferenz && a.bankReferenz.trim()) || String(bankReferenz || "").trim() || (await freieBankReferenz());
   const tag = (wertAm && /^\d{4}-\d{2}-\d{2}$/.test(wertAm)) ? wertAm : new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
 
   let hinweis: string | undefined;

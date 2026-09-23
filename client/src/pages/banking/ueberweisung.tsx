@@ -110,7 +110,6 @@ export default function Ueberweisung({ ich, onFertig }: { ich: Ich; onFertig: ()
   const [laeuft, setLaeuft] = useState(false);
   const [auftrag, setAuftrag] = useState<Auftrag | null>(null);
   const [tanOffen, setTanOffen] = useState(false);
-  const [ref, setRef] = useState("");
   const [meldung, setMeldung] = useState<string | null>(null);
   const inhaber = ich.rolle === "inhaber";
   const setz = <K extends keyof Entwurf>(k: K, v: Entwurf[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -162,12 +161,12 @@ export default function Ueberweisung({ ich, onFertig }: { ich: Ich; onFertig: ()
     if (!auftrag) return;
     setLaeuft(true); setFehler(null);
     try {
-      const j = await ruf<{ auftrag: Auftrag; hinweis: string | null }>(`/buchhaltung/auftrag/${auftrag.id}/ausfuehren`, { body: { bankReferenz: ref, wertAm: heute() } });
+      const j = await ruf<{ auftrag: Auftrag; hinweis: string | null }>(`/buchhaltung/auftrag/${auftrag.id}/ausfuehren`, { body: { bankReferenz: auftrag.bankReferenz ?? "", wertAm: heute() } });
       setAuftrag(j.auftrag); setMeldung(j.hinweis || "Überweisung eingetragen. Die Zahlungsbestätigung liegt bereit.");
     } catch (e: any) { setFehler(e.message); } finally { setLaeuft(false); }
   };
 
-  const neu = () => { setF(LEER); setAuftrag(null); setSchritt("erfassen"); setRef(""); setMeldung(null); setFehler(null); onFertig(); };
+  const neu = () => { setF(LEER); setAuftrag(null); setSchritt("erfassen"); setMeldung(null); setFehler(null); onFertig(); };
 
   if (schritt === "fertig" && auftrag) {
     const freigegeben = auftrag.status === "freigegeben";
@@ -190,12 +189,11 @@ export default function Ueberweisung({ ich, onFertig }: { ich: Ich; onFertig: ()
                 {auftrag.bic ? <Kopierfeld l="BIC" w={auftrag.bic} /> : null}
                 <Kopierfeld l="Betrag" w={betragText(auftrag.betragCents)} />
                 <Kopierfeld l="Verwendungszweck" w={auftrag.zweck} mono={false} />
+                {auftrag.bankReferenz ? <Kopierfeld l="Referenz — bei Airwallex hinterlegen" w={auftrag.bankReferenz} /> : null}
               </div>
               <div className="bk-ausfuehren">
-                <Feld id="bk-ref" l="Referenz der Bank" hinweis="Die Nummer, unter der die Überweisung im Konto steht.">
-                  <input id="bk-ref" value={ref} onChange={(e) => setRef(e.target.value)} spellCheck={false} />
-                </Feld>
-                <Knopf art="primaer" zeichen="haken" disabled={!ref.trim() || laeuft} onClick={() => void ausfuehren()}>Überweisung eintragen</Knopf>
+                <p className="bk-leise bk-ausfuehren-hinweis">Überweise den Betrag im Geschäftskonto und trag die Referenz oben dort als Verwendungszweck ein. Danach hier bestätigen — der Rücklauf ordnet sich über die Referenz von selbst zu.</p>
+                <Knopf art="primaer" zeichen="haken" disabled={laeuft} onClick={() => void ausfuehren()}>Überweisung eingetragen</Knopf>
               </div>
             </>
           ) : null}

@@ -111,7 +111,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Ist eine US-Gesellschaft ein Steuermodell?", a: `Nein. Wird die Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, ist sie in der Regel dort steuerpflichtig, und in den USA kommen jährliche Meldepflichten hinzu. Eine US-Gesellschaft lohnt sich für echtes Geschäft in den USA und für den Aufbau von Kapital — nicht als Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
     ],
     paket: "global_struktur",
-    weiter: ["/business/ein-itin", "/business/kosten", "/business/privatpersonen", "/business/wissen/us-llc-steuern"],
+    weiter: ["/business/wissen/llc-gruenden", "/business/ein-itin", "/business/kosten", "/business/privatpersonen"],
     quellen: [
       { titel: "IRS — Limited Liability Company (LLC)", url: "https://www.irs.gov/businesses/small-businesses-self-employed/limited-liability-company-llc" },
       { titel: "IRS — Single Member Limited Liability Companies", url: "https://www.irs.gov/businesses/small-businesses-self-employed/single-member-limited-liability-companies" },
@@ -203,7 +203,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Wie lange dauert die ITIN?", a: "Nach Angabe der IRS etwa sieben Wochen; zwischen Mitte Januar und Ende April sowie bei Anträgen aus dem Ausland neun bis elf Wochen. FIAON kann das nicht beschleunigen — wir sorgen dafür, dass der Antrag vollständig ist, denn unvollständige Anträge sind der häufigste Grund für Verzögerungen." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/us-firmengruendung", "/business/firmenkarten-kapital", "/business/us-pflichten", "/business/kosten"],
+    weiter: ["/business/wissen/ein-beantragen", "/business/wissen/itin-beantragen", "/business/us-firmengruendung", "/business/us-pflichten"],
     quellen: [
       { titel: "IRS — Employer Identification Number", url: "https://www.irs.gov/businesses/small-businesses-self-employed/employer-identification-number" },
       { titel: "IRS — Form SS-4", url: "https://www.irs.gov/forms-pubs/about-form-ss-4" },
@@ -289,7 +289,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Hat FIAON Zugriff auf mein Konto?", a: "Nein. Kontoinhaber ist Ihre Gesellschaft. FIAON erhält keine Vollmacht und nimmt nie Geld für Sie entgegen." },
     ],
     paket: "global_banking",
-    weiter: ["/business/ein-itin", "/business/firmenkarten-kapital", "/business/us-firmengruendung", "/business/wissen/anbieter-pruefen"],
+    weiter: ["/business/wissen/us-bankkonto-unterlagen", "/business/firmenkarten-kapital", "/business/ein-itin", "/business/wissen/registered-agent-adresse"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -386,7 +386,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Wie lange dauert der Aufbau?", a: `Als Erfahrungswert: ${dauer("global_struktur")} bei Global Struktur, ${dauer("global_banking").replace("Begleitung in der Regel ", "")} bei Global Banking, ${dauer("global_kapital").replace("Begleitung in der Regel ", "")} bei Global Kapital. Wie schnell es geht, bestimmen die Institute und Ihre pünktliche Abrechnung.` },
     ],
     paket: "global_kapital",
-    weiter: ["/business/ein-itin", "/business/us-geschaeftskonto", "/business/miami", "/business/paket-finder"],
+    weiter: ["/business/wissen/us-firmenkarte-beantragen", "/business/wissen/business-credit-usa", "/business/wissen/us-bonitaet-aufbauen", "/business/us-geschaeftskonto"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -462,7 +462,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Was kostet die US-Gesellschaft ab dem zweiten Jahr?", a: "Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir all das für 699 € im Jahr, alle Gebühren inklusive; die Einzelbeträge je Bundesstaat stehen auf der Seite „Kosten“." },
     ],
     paket: "global_banking",
-    weiter: ["/business/wissen/form-5472", "/business/kosten", "/business/aus-deutschland", "/business/aus-der-schweiz"],
+    weiter: ["/business/wissen/llc-steuererklaerung", "/business/wissen/form-5472", "/business/wissen/registered-agent-adresse", "/business/aus-deutschland"],
     quellen: [
       { titel: "IRS — Instructions for Form 5472", url: "https://www.irs.gov/instructions/i5472" },
       { titel: "IRS — About Form 7004", url: "https://www.irs.gov/forms-pubs/about-form-7004" },

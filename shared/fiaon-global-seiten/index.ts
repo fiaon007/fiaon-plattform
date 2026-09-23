@@ -10,6 +10,8 @@ import { KOSTEN } from "./kosten";
 import { ZIELGRUPPEN } from "./zielgruppen";
 import { STAATEN } from "./staaten";
 import { WISSEN } from "./wissen";
+import { WISSEN_GRUENDUNG } from "./wissen-gruendung";
+import { WISSEN_KONTO_KARTEN } from "./wissen-konto-karten";
 import { PARTNER_SEITE } from "./partner";
 import { PRIVAT_SEITE } from "./privat";
 import { LANDINGPAGES } from "./landingpages";
@@ -18,7 +20,7 @@ import { fragenSeite } from "./fragen";
 export * from "./typen";
 
 /** Alle Unterseiten ohne die Fragen-Seite (die sammelt aus allen anderen). */
-const OHNE_FRAGEN: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, PARTNER_SEITE];
+const OHNE_FRAGEN: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, PARTNER_SEITE];
 
 export const GLOBAL_SEITEN: GlobalSeite[] = [...OHNE_FRAGEN, fragenSeite(OHNE_FRAGEN)];
 export { LANDINGPAGES };

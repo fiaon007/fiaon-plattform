@@ -30,39 +30,66 @@ export const WISSEN: GlobalSeite[] = [
     pfad: "/business/wissen",
     art: "hub",
     seo: {
-      titel: "US-Gesellschaft: Wissen für Unternehmer — FIAON Global",
-      beschreibung: "Steuern, Form 5472, LLC oder Corporation, LLC oder GmbH, Florida, Delaware, Wyoming: das Wissen vor einer US-Gründung — ehrlich erklärt, mit Quellen.",
+      titel: "Ratgeber US-Gesellschaft: LLC, EIN, Konto — FIAON Global",
+      beschreibung: "16 Beiträge zur US-Gesellschaft: LLC gründen, EIN und ITIN, Registered Agent, Konto, Credit Score, Firmenkarten, Steuern — ehrlich erklärt, mit Quellen.",
     },
-    stand: S,
+    // 23.09.2026 (E-232): zehn Praxis-Beiträge dazu (wissen-gruendung.ts, wissen-konto-karten.ts), nach Themen geordnet.
+    stand: "2026-09-23",
     kennung: "FG · 22",
     auge: "Wissen",
     h1: "Wissen vor der Gründung.",
     h1b: "Ehrlich erklärt, mit Quellen.",
-    lead: "Was Unternehmer aus Deutschland, Österreich und der Schweiz vor einer US-Gründung wissen sollten: Steuern, Meldepflichten, Rechtsformen, Bundesstaaten. Jeder Beitrag nennt seine Quellen und seinen Stand — und sagt auch, was eine US-Gesellschaft nicht kann.",
+    lead: "Was Unternehmer aus Deutschland, Österreich und der Schweiz über eine US-Gesellschaft wissen sollten: Gründung, EIN und ITIN, US-Präsenz, Konto, Karten, Steuererklärung und Struktur. Jeder Beitrag nennt seine Quellen und seinen Stand und sagt auch, was eine US-Gesellschaft nicht kann.",
     ziffern: [
-      { wert: "6 Beiträge", label: "Steuern, Rechtsformen, Meldungen, Anbieter" },
+      { wert: "16 Beiträge", label: "Gründung, Steuernummern, Konto, Karten, Steuern" },
       { wert: "3 Staaten", label: "Florida, Delaware, Wyoming" },
       { wert: FAKTEN_STAND, label: "Stand aller Zahlen" },
     ],
     blick: [
-      ["Steuern", "Ist eine US-LLC ein Steuermodell? Die ehrliche Antwort"],
-      ["Rechtsform", "LLC oder Corporation · LLC oder GmbH"],
-      ["Meldungen", "Form 5472 mit Form 1120"],
-      ["Bundesstaaten", "Florida, Delaware, Wyoming — und wie man wählt"],
+      ["Gründung", "Die Anleitung in zehn Schritten, Bundesstaat, Rechtsform, Struktur"],
+      ["Steuernummern", "EIN ohne SSN, ITIN mit Form W-7"],
+      ["US-Präsenz", "Registered Agent, Geschäftsadresse, Telefonnummer"],
+      ["Konto und Karten", "Unterlagen, Credit Score, Business Credit, Firmenkarten"],
+      ["Steuern", "Steuermodell oder nicht, Form 5472, die US-Steuererklärung"],
       ["Anbieter", "Woran Sie seriöse Begleitung erkennen"],
       ["Redaktion", "FIAON Global — Quellen am Ende jedes Beitrags"],
     ],
-    kurz: `Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft in den USA und für den Aufbau von Kapital — kein Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Wer die Gesellschaft aus Deutschland, Österreich oder der Schweiz führt, versteuert sie in der Regel zu Hause, meldet sie dem Finanzamt und gibt in den USA jährlich Form 5472 ab. Die Beiträge hier erklären, was das im Einzelnen bedeutet.`,
+    kurz: `Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft in den USA und für den Aufbau von Kapital — kein Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Wer die Gesellschaft aus Deutschland, Österreich oder der Schweiz führt, versteuert sie in der Regel zu Hause, meldet sie dem Finanzamt und gibt in den USA jährlich Form 5472 ab. Die Beiträge hier erklären jeden Schritt — von der Gründung über Steuernummern, Konto und Karten bis zur Steuererklärung.`,
     bloecke: [
       {
-        typ: "verzeichnis", id: "beitraege", h2: "Die Beiträge",
+        typ: "verzeichnis", id: "gruendung", h2: "Vor der Gründung",
         eintraege: [
-          { pfad: "/business/wissen/us-llc-steuern", tag: "Steuern" },
+          { pfad: "/business/wissen/llc-gruenden", tag: "Anleitung" },
+          { pfad: "/business/wissen/bundesstaat-waehlen", tag: "Bundesstaat" },
           { pfad: "/business/wissen/llc-oder-corporation", tag: "Rechtsform" },
           { pfad: "/business/wissen/llc-oder-gmbh", tag: "Rechtsform" },
-          { pfad: "/business/wissen/form-5472", tag: "Meldepflicht" },
-          { pfad: "/business/wissen/bundesstaat-waehlen", tag: "Bundesstaat" },
+          { pfad: "/business/wissen/tochter-oder-zweigniederlassung", tag: "Struktur" },
           { pfad: "/business/wissen/anbieter-pruefen", tag: "Anbieter" },
+        ],
+      },
+      {
+        typ: "verzeichnis", id: "steuernummern", h2: "Steuernummern und US-Präsenz",
+        eintraege: [
+          { pfad: "/business/wissen/ein-beantragen", tag: "Steuernummer" },
+          { pfad: "/business/wissen/itin-beantragen", tag: "Steuernummer" },
+          { pfad: "/business/wissen/registered-agent-adresse", tag: "US-Präsenz" },
+        ],
+      },
+      {
+        typ: "verzeichnis", id: "konto-karten", h2: "Konto, Bonität und Karten",
+        eintraege: [
+          { pfad: "/business/wissen/us-bankkonto-unterlagen", tag: "Konto" },
+          { pfad: "/business/wissen/us-bonitaet-aufbauen", tag: "Bonität" },
+          { pfad: "/business/wissen/business-credit-usa", tag: "Firmenbonität" },
+          { pfad: "/business/wissen/us-firmenkarte-beantragen", tag: "Firmenkarten" },
+        ],
+      },
+      {
+        typ: "verzeichnis", id: "steuern", h2: "Steuern und Pflichten",
+        eintraege: [
+          { pfad: "/business/wissen/us-llc-steuern", tag: "Steuern" },
+          { pfad: "/business/wissen/llc-steuererklaerung", tag: "Steuererklärung" },
+          { pfad: "/business/wissen/form-5472", tag: "Meldepflicht" },
         ],
       },
       {
@@ -80,6 +107,10 @@ export const WISSEN: GlobalSeite[] = [
           { pfad: "/business/aus-der-schweiz", tag: "Schweiz" },
           { pfad: "/business/partner", tag: "Standorte" },
         ],
+      },
+      {
+        typ: "pakete", id: "pakete", h2: "Alles aus einer Hand",
+        lead: "Jeder Beitrag hier beschreibt eine Aufgabe. FIAON Global übernimmt sie alle — Gründung, Steuernummern, US-Präsenz, Konto- und Kartenanträge, Pflichtenkalender und die erste US-Meldung, mit Partner-Anwalt, Partner-Steuerberater und US-CPA. Zum Festpreis, alle Gebühren für die Leistungen des Pakets inklusive.",
       },
     ],
     fragen: [],
@@ -172,7 +203,7 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Warum werben so viele mit einer steuerfreien LLC?", a: "Weil eine LLC mit ausländischem Gesellschafter in den USA oft keine Bundessteuer zahlt. Das stimmt für die USA, sagt aber nichts über die Steuerpflicht im Heimatland — und die hängt am Ort der Geschäftsleitung." },
       { f: "Wofür lohnt sich eine US-Gesellschaft dann?", a: `Für echtes Geschäft in den USA — Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung, eine eigene Kartenhistorie — und für den Aufbau von Kapital. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
     ],
-    weiter: ["/business/aus-deutschland", "/business/aus-der-schweiz", "/business/wissen/form-5472", "/business/wissen/anbieter-pruefen"],
+    weiter: ["/business/aus-deutschland", "/business/aus-der-schweiz", "/business/wissen/form-5472", "/business/wissen/llc-steuererklaerung"],
     quellen: [QUELLE_AO10, QUELLE_KSTG1, QUELLE_BMF, QUELLE_ASTG, QUELLE_AO138, QUELLE_DBG50, QUELLEN_IRS[4]],
   },
 
@@ -245,7 +276,7 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Welche Rechtsform brauche ich für US-Investoren?", a: "In der Regel eine Corporation, oft in Delaware. Investoren in den USA kennen diese Form und erwarten sie." },
       { f: "Kann ich eine LLC später in eine Corporation umwandeln?", a: "Ja, aber mit Aufwand: Gebühren, neue Unterlagen und eine steuerliche Prüfung in beiden Ländern." },
     ],
-    weiter: ["/business/delaware", "/business/wissen/llc-oder-gmbh", "/business/us-firmengruendung", "/business/agenturen-software"],
+    weiter: ["/business/delaware", "/business/wissen/llc-oder-gmbh", "/business/us-firmengruendung", "/business/wissen/llc-gruenden"],
     quellen: [QUELLE_I1120, QUELLEN_IRS[4], QUELLEN_STAATEN.delaware[3]],
   },
 
@@ -313,7 +344,7 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Kann meine GmbH eine US-LLC gründen?", a: "Ja. Die GmbH wird Gesellschafterin der LLC. Wir benötigen dann den Handelsregisterauszug der GmbH und die Pässe der Geschäftsführung." },
       { f: "Spart die LLC gegenüber der GmbH Steuern?", a: "In der Regel nicht. Beide sind dort steuerpflichtig, wo sie geführt werden; die LLC bringt zusätzlich Meldepflichten in den USA mit sich." },
     ],
-    weiter: ["/business/tochtergesellschaft-usa", "/business/wissen/llc-oder-corporation", "/business/aus-deutschland", "/business/wissen/us-llc-steuern"],
+    weiter: ["/business/tochtergesellschaft-usa", "/business/wissen/llc-oder-corporation", "/business/wissen/tochter-oder-zweigniederlassung", "/business/wissen/us-llc-steuern"],
     quellen: [QUELLE_GMBHG5, QUELLE_AO10, QUELLE_AO138, QUELLEN_STAATEN.florida[4]],
   },
 
@@ -388,7 +419,7 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Kann ich Form 5472 elektronisch einreichen?", a: "Für die Pro-forma-Form 1120 mit Form 5472 nein. Sie wird per Fax oder Post an die IRS geschickt." },
       { f: "Wie hoch ist die Strafe für eine vergessene Form 5472?", a: `Die IRS kann ${IRS.strafe5472} festsetzen, bei fortdauerndem Versäumnis nach einer Aufforderung weitere Beträge.` },
     ],
-    weiter: ["/business/us-pflichten", "/business/kosten", "/business/wissen/us-llc-steuern", "/business/ein-itin"],
+    weiter: ["/business/us-pflichten", "/business/wissen/llc-steuererklaerung", "/business/wissen/us-llc-steuern", "/business/wissen/ein-beantragen"],
     quellen: [QUELLEN_IRS[4], QUELLEN_IRS[5], QUELLE_I1120],
   },
 
@@ -463,7 +494,7 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Warum nicht einfach den günstigsten Staat?", a: "Weil eine Gesellschaft, die in einem anderen Staat tätig ist, sich dort zusätzlich registrieren muss — dann zahlt sie doppelt." },
       { f: "Beeinflusst der Bundesstaat meine Steuern zu Hause?", a: "Nein. Die Steuerpflicht im Heimatland hängt am Ort der Geschäftsleitung, nicht am Sitz der Gesellschaft." },
     ],
-    weiter: ["/business/florida", "/business/delaware", "/business/wyoming", "/business/kosten"],
+    weiter: ["/business/florida", "/business/delaware", "/business/wyoming", "/business/wissen/llc-gruenden"],
     quellen: [QUELLEN_STAATEN.florida[0], QUELLEN_STAATEN.delaware[0], QUELLEN_STAATEN.delaware[1], QUELLEN_STAATEN.wyoming[0]],
   },
 
@@ -531,7 +562,7 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Ist eine LLC an sich unseriös?", a: "Nein. Die LLC ist eine gewöhnliche Rechtsform in den USA. Über Seriosität entscheidet, wie ein Anbieter arbeitet — nicht, welche Rechtsform er hat." },
       { f: "Wie prüfe ich die Registernummer von FIAON?", a: "Im Companies House (England and Wales) unter der Nummer 17318250. Die Schwarzott Capital Partners AG finden Sie in Zefix unter CHE-102.119.428." },
     ],
-    weiter: ["/business/partner", "/business/vergleich", "/business/kosten", "/business/wissen/us-llc-steuern"],
+    weiter: ["/business/partner", "/business/vergleich", "/business/kosten", "/business/wissen/us-firmenkarte-beantragen"],
     quellen: [
       { titel: "Companies House — FIAON LTD", url: "https://find-and-update.company-information.service.gov.uk/company/17318250" },
       { titel: "Zefix — Schwarzott Capital Partners AG", url: "https://www.zefix.ch/de/search/entity/list/firm/304048" },

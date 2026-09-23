@@ -148,9 +148,39 @@ router.patch("/admin/cancellations/:id", async (req, res) => {
       return res.status(404).json({ ok: false, error: "Kündigungsantrag nicht gefunden." });
     }
 
-    logger.info(`[CANCELLATION] #${id} set to ${status} by ${processedBy ?? "Admin"}`);
+    // ══════════════════════════════════════════════════════════════════════
+    // BESTÄTIGEN HEISST KÜNDIGEN (23.09.2026, E-213)
+    //
+    // Bis hierher hat diese Route AUSSCHLIESSLICH `cancellation_requests.status`
+    // gesetzt. Der Vertrag blieb unberührt: Raten liefen weiter, Mahnungen
+    // gingen raus, der Kunde galt als aktiv. Genau dieser Fehler steht im Kopf
+    // von server/lib/fiaon-kuendigung.ts als Anlass für E-092 („Bestätigen
+    // änderte nur den Antrag, nie das Abo") — behoben wurde er damals überall,
+    // nur an dieser Tür nicht, weil sie in einer anderen Datei wohnt.
+    //
+    // Jetzt geht sie denselben Weg wie die drei anderen: kuendigungDurchfuehren
+    // setzt die Wirkung, fertigt die Urkunde aus und schickt die Bestätigung.
+    // ══════════════════════════════════════════════════════════════════════
+    let vorgang: any = null;
+    if (status === "confirmed" && updated.ref) {
+      const { kuendigungDurchfuehren } = await import("./fiaon-kuendigung");
+      // `cancellation_requests` führt keine person_id — der Verlauf hängt aber
+      // am Menschen. Also über die Bestellung nachschlagen.
+      const [pz] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${String(updated.ref)} LIMIT 1`.catch(() => [])) as any[];
+      vorgang = await kuendigungDurchfuehren(String(updated.ref), {
+        quelle: "formular",
+        grund: String(adminNote ?? updated.reason ?? "Kündigungsantrag bestätigt").slice(0, 300),
+        personId: pz?.person_id ?? null,
+        unterzeichner: { name: String(processedBy ?? "FIAON LTD"), rolle: "Geschäftsführung" },
+      }).catch((e: any) => {
+        logger.error("[CANCELLATION] Durchführung fehlgeschlagen:", e);
+        return { ok: false, error: String(e?.message || e) };
+      });
+    }
 
-    return res.json({ ok: true, data: updated });
+    logger.info(`[CANCELLATION] #${id} set to ${status} by ${processedBy ?? "Admin"}${vorgang ? ` — Vertrag: ${vorgang.weg ?? vorgang.error}` : ""}`);
+
+    return res.json({ ok: true, data: updated, vertrag: vorgang });
   } catch (err: any) {
     logger.error("[CANCELLATION] PATCH admin error:", err);
     return res.status(500).json({ ok: false, error: "Interner Serverfehler." });

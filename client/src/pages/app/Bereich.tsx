@@ -206,6 +206,33 @@ export default function AppBereich() {
     <div className={`ap-root${zeigeAktion ? " mit-aktion" : ""}${fuellt ? " ap-fuellt" : ""}`}>
       <Kopf b={b} basis={basis} demo={demo} />
       <main className="ap-inhalt">
+        {/* ══════════════════════════════════════════════════════════════════
+            GEKÜNDIGT — AUF JEDER SEITE (23.09.2026, E-213)
+
+            Justin: „… und überall, wo man die Ansicht hat, dass es auch als
+            gekündigt angezeigt wird."
+
+            Der Zustand stand bisher nur unter „Mehr → Abo" — drei Klicks tief.
+            Wer seinen Bereich öffnet, sah alles weiterlaufen, als hätte er nie
+            gekündigt. Das Band steht deshalb ÜBER dem Inhalt, auf jeder Seite.
+
+            Es ist bewusst ruhig und nicht rot: Gekündigt ist kein Fehler des
+            Kunden, sondern ein Zustand des Vertrags — und solange die letzte
+            Rate offen ist, wollen wir, dass er weiterliest und bezahlt. Ein
+            Alarmband erreicht das Gegenteil.
+            ══════════════════════════════════════════════════════════════════ */}
+        {b?.vertrag?.gekuendigtAm && (
+          <div className="ap-gekuendigt" role="status">
+            <b>{b.vertrag.beendet ? "Ihr Vertrag ist beendet." : "Ihre Kündigung liegt uns vor."}</b>
+            <span>
+              {b.vertrag.beendet
+                ? `Beendet am ${b.vertrag.endeAm ?? b.vertrag.gekuendigtAm}. Ihre Unterlagen bleiben hier einsehbar.`
+                : b.vertrag.letzteRateNr
+                  ? `Eingegangen am ${b.vertrag.gekuendigtAm}. Rate ${b.vertrag.letzteRateNr} ist die letzte — mit ihrer Zahlung endet der Vertrag. Neue Leistungen können Sie nicht mehr beauftragen.`
+                  : `Eingegangen am ${b.vertrag.gekuendigtAm}. Neue Leistungen können Sie nicht mehr beauftragen; Ihre Unterlagen bleiben einsehbar.`}
+            </span>
+          </div>
+        )}
         {fehler && <div className="ap-karte ap-leer"><b>{fehler}</b><button type="button" className="ap-knopf still" style={{ marginTop: 12 }} onClick={() => window.location.reload()}>Noch einmal</button></div>}
         {!b && !fehler && <Skelett />}
         {b && rw && bildschirm === "heute" && <Heute b={b} rw={rw} basis={basis} post={post} demo={demo} briefAn={briefAn} />}

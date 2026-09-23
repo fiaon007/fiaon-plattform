@@ -109,6 +109,29 @@ export const KARTE_SQL = `
     WHERE a.person_id = p.id AND a.merged_into IS NULL
       AND a.account_status = 'suspended') AS konto_gesperrt,
   -- ══════════════════════════════════════════════════════════════════════════
+  -- GEKÜNDIGT — UND ZWAR ÜBERALL (23.09.2026, E-213)
+  --
+  -- Justin: „… und überall, wo man die Ansicht hat, dass es auch als gekündigt
+  -- angezeigt wird."
+  --
+  -- Die Wirkung einer Kündigung gab es seit E-092: letzte Rate bleibt fällig,
+  -- alles danach entfällt, keine neuen Raten. Sichtbar war sie nur an EINER
+  -- Stelle — im Kündigungsblock der Akte, und den muss man aufklappen. In der
+  -- Pipeline, im Bestand, in der Telefonkartei und in jeder Kundenliste sah ein
+  -- gekündigter Mensch aus wie jeder andere. Wer ihn dort anruft, verkauft
+  -- einem Menschen etwas, der gerade gekündigt hat.
+  --
+  -- Die Karte ist die EINE Quelle für all diese Ansichten (KARTE_SQL/karte) —
+  -- deshalb steht es hier und nicht sechsmal daneben.
+  (SELECT a.gekuendigt_am FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gekuendigt_am IS NOT NULL
+      AND a.kuendigung_zurueckgenommen_am IS NULL
+    ORDER BY a.gekuendigt_am DESC LIMIT 1) AS gekuendigt_am,
+  (SELECT a.vertrag_ende_am FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gekuendigt_am IS NOT NULL
+      AND a.kuendigung_zurueckgenommen_am IS NULL
+    ORDER BY a.gekuendigt_am DESC LIMIT 1) AS vertrag_ende_am,
+  -- ══════════════════════════════════════════════════════════════════════════
   -- ALLE BUCHUNGEN, NICHT NUR DIE NEUESTE
   --
   -- Ein Agent (11.08.2026) über Shahed Mohammad: „Ursprünglich war er wegen
@@ -303,6 +326,11 @@ export function karte(p: any) {
     produkt: p.pack_name ? String(p.pack_name).split("\n")[0].trim() : null,
     // Die Hand-Sperre (27.08.2026) — Grundlage fuer den Knopf in der Akte.
     kontoGesperrt: p.konto_gesperrt === true,
+    // E-213: gekündigt — und ob der Vertrag schon beendet ist. „beendet" heißt:
+    // Das Ende liegt in der Vergangenheit, es steht nichts mehr offen.
+    gekuendigtAm: p.gekuendigt_am ?? null,
+    vertragEndeAm: p.vertrag_ende_am ?? null,
+    vertragBeendet: !!p.vertrag_ende_am && new Date(String(p.vertrag_ende_am)).getTime() <= Date.now(),
     // ── ALLE BUCHUNGEN ────────────────────────────────────────────────────
     // Damit der Agent sieht, was gebucht wurde, was bezahlt ist und was offen
     // — auch wenn es zwei Vorgänge sind (Paket + Bonitätsauskunft).

@@ -210,6 +210,12 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
       { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },
     ],
     knopf: { text: "Rechnung bezahlen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
+    // E-213: Die Kündigungsbestätigung als Dokument. Der Weg führt in den
+    // Bereich und nicht auf einen Direktlink: Die Zahlungsreferenz ist als
+    // Schlüssel für eine Zahlungsseite gut genug, für ein Schriftstück mit
+    // Namen und Vertragsdaten aber nicht — sie enthält einen Teil des Namens
+    // und ist damit halb erraten, bevor jemand anfängt zu raten.
+    knopf2: { text: "Kündigungsbestätigung ansehen", url: "{{params.portal_url}}" },
     fussnote: "Nach Vertragsende bleiben Ihre Unterlagen und Schreiben 90 Tage in Ihrem Bereich einsehbar.",
   },
 

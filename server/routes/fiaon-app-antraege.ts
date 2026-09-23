@@ -354,6 +354,12 @@ router.post("/kunde/:ref/app/vorgaenge", requireKunde, async (req: KundeRequest,
   try {
     await ensureAntraegeTabellen();
     if (!(await antraegeFreigeschaltet())) return res.status(403).json({ ok: false, grund: "antraege_aus", error: "Die Unterschrift in der App und die Anträge aus Ihrem Bereich schalten wir gerade frei. Bis dahin bereitet Ihre Ansprechperson Anträge mit Ihnen im Gespräch vor." });
+    // E-213: Nach einer Kündigung werden keine neuen Vorgänge mehr angestoßen.
+    // Die Regel steht in server/lib/fiaon-kuendigung.ts, nicht hier.
+    {
+      const { neueLeistungGesperrt, PORTAL_GESPERRT_SATZ } = await import("../lib/fiaon-kuendigung");
+      if (await neueLeistungGesperrt(req.kundeRef!)) return res.status(403).json({ ok: false, grund: "gekuendigt", error: PORTAL_GESPERRT_SATZ });
+    }
     const p = await personFuerRef(req.kundeRef!);
     if (!p) return keinePerson(res);
     const regelSchluessel = String(req.body?.regelSchluessel ?? "").trim();

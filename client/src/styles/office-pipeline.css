@@ -1112,3 +1112,11 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-dub-wahl button.an{border-color:rgba(147,197,253,.45);background:rgba(37,99,235,.16)}
 .pi-dub-wahl button.an b{color:#e7ecf4}
 @media (max-width:560px){ .pi-dub-wahl{grid-template-columns:1fr} }
+
+/* E-213 (23.09.2026): „Gekündigt" an der Karte und im Aktenkopf. Rot wie eine
+   Sperre wäre falsch — gekündigt ist kein Fehler des Kunden, sondern ein
+   Zustand des Vertrags. Bernstein: lesen, nicht erschrecken. */
+.pi-marke.gekuendigt{
+  background:rgba(251,146,60,.14);border-color:rgba(253,186,116,.42);color:#fdba74;
+  letter-spacing:.04em;
+}

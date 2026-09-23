@@ -286,10 +286,13 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
       await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck} WHERE id = ${id}`;
       return { ok: false, grund: "Ohne Bestellung kann keine Kündigung vorgemerkt werden." };
     }
-    const { kuendigungSetzen } = await import("../lib/fiaon-kuendigung");
-    const erg = await kuendigungSetzen(r.ref, {
+    // E-213: derselbe Vorgang wie in der Akte, in der Telefonkartei und über
+    // die Admin-Tür — die Urkunde entsteht hier nicht noch einmal eigens.
+    const { kuendigungDurchfuehren } = await import("./fiaon-kuendigung");
+    const erg = await kuendigungDurchfuehren(r.ref, {
       quelle: "mail", grund: String(wahl.kuendigung.grund || "").slice(0, 300) || null,
       postmeisterId: id, sofort: wahl.kuendigung.nachZahlung === false,
+      personId: (r as any).person_id ?? null,
     });
     if (!erg.ok) {
       await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Kündigung nicht vorgemerkt: ${erg.grund}`} WHERE id = ${id}`;

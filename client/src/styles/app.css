@@ -480,3 +480,15 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
     transform: none; visibility: visible; padding-top: 20px;
   }
 }
+
+/* ═══ Kündigung sichtbar (23.09.2026, E-213) ═══════════════════════════════
+   Ein ruhiges Band über dem Inhalt, auf jeder Seite des Bereichs. Bewusst
+   nicht rot: Solange die letzte Rate offen ist, soll der Kunde weiterlesen
+   und bezahlen — ein Alarmband erreicht das Gegenteil. */
+.ap-gekuendigt {
+  max-width: var(--ap-spalte); margin: 0 auto 14px; padding: 13px 16px;
+  display: grid; gap: 4px; border-radius: 14px;
+  background: #fff7ed; border: 1px solid #fed7aa;
+}
+.ap-gekuendigt b { font: 600 14px/1.35 Inter, sans-serif; color: #9a3412; }
+.ap-gekuendigt span { font: 400 13px/1.55 Inter, sans-serif; color: #7c2d12; }

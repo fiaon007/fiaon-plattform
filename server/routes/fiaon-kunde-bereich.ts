@@ -64,6 +64,12 @@ router.post("/kunde/:ref/abo/verlaengerung", requireKunde, async (req: KundeRequ
       FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
     if (!a.abo_verlaengerung_gefragt_am) return res.status(409).json({ ok: false, error: "Die Laufzeit ist noch nicht erreicht." });
+    // E-213: Wer gekündigt hat, verlängert nicht. „Beenden" bleibt erlaubt —
+    // das ist keine neue Leistung, sondern dieselbe Richtung.
+    if (bleiben) {
+      const { neueLeistungGesperrt, PORTAL_GESPERRT_SATZ } = await import("../lib/fiaon-kuendigung");
+      if (await neueLeistungGesperrt(ref)) return res.status(403).json({ ok: false, error: PORTAL_GESPERRT_SATZ });
+    }
     if (bleiben) {
       const { ABO_LAUFZEIT_RATEN, naechsteRateAnlegen } = await import("./fiaon-abo");
       await sqlPool`UPDATE fiaon_applications SET abo_verlaengert_am = NOW(), abo_verlaengert_raten = COALESCE(abo_verlaengert_raten, 0) + ${ABO_LAUFZEIT_RATEN},

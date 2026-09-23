@@ -139,6 +139,10 @@ import { schritteFuer } from "@shared/fiaon-gespraechs-schritte";
 // E-050: exportiert — bestand.tsx (Portfolio-Raum) nutzt dieselbe Form.
 export interface Kunde {
   karte?: { status: string | null; text: string | null; am: string | null } | null;
+  /** E-213: gekündigt — kommt aus KARTE_SQL und gilt damit in jeder Ansicht. */
+  gekuendigtAm?: string | null;
+  vertragEndeAm?: string | null;
+  vertragBeendet?: boolean;
   personId: number;
   name: string;
   termin?: { beginn: string; status: string | null; dauerMin: number | null; erledigt: boolean; art: string } | null;
@@ -1082,6 +1086,7 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
       <div className="pi-fokus-chips">
         <span className="pi-marke">Wert: {preis ? euro0(wert) : "–"} · 12 Raten</span>
         <span className="pi-marke gut">Deine Provision: {preis ? euro0(Math.round(wert * satz)) : "–"}</span>
+        {k.gekuendigtAm && <span className="pi-marke gekuendigt">{k.vertragBeendet ? "Vertrag beendet" : "Gekündigt"}</span>}
         <span className="pi-marke still">{wartezeit(k.letzterKontakt)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}</span>
         {/* E-184: Wann will der Kunde angerufen werden? Aus dem Antrag; „jetzt außerhalb“ heißt: sein Fenster ist gerade nicht. */}
         {k.erreichbarkeit && (
@@ -2545,6 +2550,13 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                   title={akt ? `Paket ${akt.vollstaendig.paketBezahlt ? "✓" : "–"} · SCHUFA ${akt.vollstaendig.schufaBezahlt ? "✓" : "–"} · Kontoauszug ${akt.vollstaendig.kontoauszug ? "✓" : "–"} · Ausweis ${akt.vollstaendig.ausweis ? "✓" : "–"}` : undefined}>
               Karte: {kartenText}
             </span>
+            {/* E-213: „gekündigt" steht VOR allem anderen. Wer die Akte öffnet,
+                soll es lesen, bevor er zum Hörer greift — nicht danach. */}
+            {k.gekuendigtAm && (
+              <span className="pi-marke gekuendigt" title={`Gekündigt am ${dtag(k.gekuendigtAm)}${k.vertragEndeAm ? ` · Vertragsende ${dtag(k.vertragEndeAm)}` : " · endet mit der letzten Rate"}`}>
+                {k.vertragBeendet ? "Vertrag beendet" : "Gekündigt"}
+              </span>
+            )}
             {/* E-202: die Boni-Ampel — ein Tipp zeigt die fünf Teile (Adresse, Einkommen, Ausgaben, Schulden, SCHUFA). */}
             <BoniAmpelAkte personId={k.personId} name={k.name} />
             {k.mandatSeit && <span className="pi-marke">Mandat seit {dtag(k.mandatSeit)}</span>}
@@ -4172,7 +4184,7 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
       const text = w === "letzte_rate" ? `Rate ${r.json?.letzteRateNr} bleibt fällig, danach ist Schluss. ${r.json?.mailGesendet ? "Die Bestätigung ist raus." : "Keine Mail (keine offene Rate oder schon bestätigt)."}`
         : w === "storno_unbezahlt" ? "Die unbezahlte Bestellung ist storniert — keine Erinnerungen mehr."
         : w === "bereits" ? "War schon gekündigt." : `Der Vertrag endet sofort.${r.json?.mailGesendet ? " Die Bestätigung ist raus." : ""}`;
-      melden("gut", "Kündigung durchgesetzt", text);
+      melden("gut", "Kündigung durchgesetzt", `${text}${r.json?.urkunde ? " Die Kündigungsbestätigung ist ausgefertigt." : r.json?.urkundeFehler ? " Achtung: Die Bestätigung konnte nicht erzeugt werden — bitte unten erneut öffnen." : ""}`);
     } else melden("gut", "Kündigung zurückgenommen", String(r.json?.meldung || "Das Konto läuft weiter."));
     setModus("zu"); setGrund(""); setSofort(false);
     await laden(); onFrisch();
@@ -4189,7 +4201,25 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
         {modus === "zu" && (stand.gekuendigt
           ? <button type="button" className="pi-knopf klein" onClick={() => setModus("zurueck")}>Kündigung zurücknehmen</button>
           : <button type="button" className="pi-knopf still klein" onClick={() => setModus("kuendigen")}>Kündigung durchsetzen</button>)}
+        {/* ── E-213: DIE URKUNDE ────────────────────────────────────────────
+            Justin: „Kündigungsunterlagen, Unterschrift durch den Mitarbeiter."
+            Der Knopf öffnet die gespeicherte Ausfertigung — nicht eine frisch
+            gerechnete, sonst stimmte die Prüfsumme darunter nicht mehr. Fehlt
+            sie (Kündigung von vor dem 23.09.), wird sie beim ersten Öffnen
+            nachgeholt und auf den gezeichnet, der sie öffnet. */}
+        {stand.gekuendigt && (
+          <a className="pi-knopf still klein" href={`/api/fiaon/agent/kunden/${personId}/kuendigung.pdf`} target="_blank" rel="noopener noreferrer">
+            Kündigungsbestätigung {stand.urkunde?.da ? "öffnen" : "ausfertigen"}
+          </a>
+        )}
       </div>
+      {stand.gekuendigt && stand.urkunde?.da && (
+        <span className="pi-fussnote">
+          Ausgefertigt von {stand.urkunde.von}{stand.urkunde.rolle ? ` · ${stand.urkunde.rolle}` : ""}
+          {stand.urkunde.am ? ` · ${tag(stand.urkunde.am)}` : ""}
+          {stand.urkunde.hash ? ` · Prüfsumme ${String(stand.urkunde.hash).slice(0, 12)}…` : ""}
+        </span>
+      )}
       {modus !== "zu" && (
         <div style={{ display: "grid", gap: 8 }}>
           <input className="pi-eingabe" value={grund} onChange={(e) => setGrund(e.target.value)} maxLength={300}

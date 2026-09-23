@@ -15,6 +15,8 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { sqlPool } from "../lib/db-pool";
 import { kuendigungSetzen, kuendigungZuruecknehmen, kuendigungSpalten, type KuendigungQuelle } from "../lib/fiaon-kuendigung";
 import { absoluteUrl } from "../fiaon-base-url";
+// E-213: Die Urkunde zur Kündigung — Papier, Unterschrift, Prüfsumme.
+import { urkundeAusfertigen, urkundeVerwerfen, urkundeStand, rolleInWorten } from "../lib/fiaon-kuendigung-urkunde";
 
 const router = Router();
 const QUELLEN: KuendigungQuelle[] = ["mail", "formular", "telefon", "admin", "altbestand"];
@@ -53,6 +55,80 @@ export async function bestaetigungSenden(ref: string): Promise<boolean> {
   if (erg === false) return false;
   await sqlPool`UPDATE fiaon_applications SET kuendigung_bestaetigt_mail_am = NOW() WHERE ref = ${ref}`.catch(() => {});
   return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER GANZE VORGANG — EINE FUNKTION, VIER TÜREN (23.09.2026, E-213)
+//
+// Justin: „Wenn Florentine oder ich auf ‚kündigen‘ klicken, dann muss die
+// Kündigung auch WIRKLICH durchgeführt werden … der gesamte Prozess eben."
+//
+// ── WARUM DAS NÖTIG WURDE ─────────────────────────────────────────────────
+// Eine Kündigung kann heute an VIER Stellen ausgesprochen werden: in der Akte
+// durch den Betreuer, im Postfach durch die Leitung, in der Telefonkartei als
+// Storno und über die Admin-Route. Jede Stelle hat sich ihren Ablauf selbst
+// zusammengesetzt — die eine schickte die Mail, die andere nicht, die dritte
+// schrieb ins Protokoll, die vierte (PATCH /admin/cancellations/:id) setzte
+// nur den Antragsstatus und ließ den Vertrag unberührt. Genau der Fehler, gegen
+// den E-092 gebaut wurde, hat an dieser einen Tür überlebt.
+//
+// Ab jetzt gibt es EINEN Vorgang. Wer kündigt, ruft ihn auf; was er tut, steht
+// hier und nirgends sonst:
+//   1. Wirkung setzen (kuendigungSetzen — letzte Rate bleibt, Rest entfällt)
+//   2. Urkunde ausfertigen, gezeichnet von dem, der gekündigt hat
+//   3. Bestätigung an den Kunden
+//   4. Den Kündigungsantrag im Formular-Topf schließen
+//   5. Alles in den Verlauf des Kunden
+//
+// Scheitert Schritt 2 oder 3, scheitert NICHT die Kündigung: Die Wirkung steht
+// schon in der Datenbank, und ein fehlendes Blatt Papier darf sie nicht
+// rückgängig machen. Was nicht klappte, steht in der Antwort — nicht im Log.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface DurchfuehrenOptionen {
+  quelle: KuendigungQuelle;
+  grund?: string | null;
+  sofort?: boolean;
+  am?: string | null;
+  postmeisterId?: number | null;
+  /** Wer zeichnet. Ohne Angabe die Gesellschaft selbst. */
+  unterzeichner?: { name: string; rolle: string; agentId?: number | null };
+  /** Für den Verlauf des Kunden. */
+  personId?: number | null;
+  /** false = keine Bestätigungsmail (nur für Proben und Altbestand-Läufe). */
+  mail?: boolean;
+}
+
+export async function kuendigungDurchfuehren(ref: string, opts: DurchfuehrenOptionen): Promise<any> {
+  const zeichner = opts.unterzeichner ?? { name: "FIAON LTD", rolle: "Geschäftsführung" };
+  const erg = await kuendigungSetzen(ref, {
+    quelle: opts.quelle, grund: opts.grund ?? null, am: opts.am ?? null,
+    postmeisterId: opts.postmeisterId ?? null, sofort: opts.sofort === true,
+  });
+  if (!erg.ok) return { ...erg, urkunde: false, mailGesendet: false };
+
+  let urkunde = false; let urkundeFehler: string | null = null;
+  let mailGesendet = false;
+  if (erg.weg !== "bereits") {
+    const u = await urkundeAusfertigen(ref, zeichner).catch((e) => ({ ok: false, error: String(e?.message || e) }));
+    urkunde = u.ok === true;
+    urkundeFehler = u.ok ? null : ((u as any).error ?? "unbekannt");
+    if (opts.mail !== false) mailGesendet = await bestaetigungSenden(ref).catch(() => false);
+  }
+
+  // Der Antrag im Formular-Topf ist damit erledigt — sonst liegt er weiter
+  // als „offen" in der Liste, obwohl der Vertrag längst gekündigt ist.
+  await sqlPool`
+    UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(),
+           admin_note = COALESCE(admin_note, '') || ${` [durch ${zeichner.name} bestätigt]`}
+     WHERE ref = ${ref} AND status = 'pending'`.catch(() => {});
+
+  if (opts.personId) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${ref}, ${opts.personId}, ${opts.unterzeichner?.agentId ?? null}, ${zeichner.name}, 'system',
+              ${`Kündigung durchgeführt (${erg.weg}${opts.sofort ? ", Kulanz sofort" : ""}). Grund: ${String(opts.grund ?? "").slice(0, 200)}. Urkunde: ${urkunde ? "ausgefertigt" : "FEHLT"}. Bestätigungsmail: ${mailGesendet ? "gesendet" : "nicht gesendet"}.`}, NOW())`.catch(() => {});
+  }
+  return { ...erg, urkunde, urkundeFehler, mailGesendet };
 }
 
 // WICHTIG: Diese Route steht VOR `/admin/kuendigung/:ref` — sonst fängt der
@@ -119,23 +195,18 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
 router.post("/admin/kuendigung/:ref", async (req: Request, res: Response) => {
   try {
     const quelle = QUELLEN.includes(req.body?.quelle) ? req.body.quelle as KuendigungQuelle : "admin";
-    const erg = await kuendigungSetzen(String(req.params.ref), {
+    // Die Probe bleibt die Probe: kuendigungSetzen selbst, nichts weiter.
+    if (req.body?.probe === true) {
+      res.json(await kuendigungSetzen(String(req.params.ref), {
+        quelle, grund: req.body?.grund ?? null, am: req.body?.am ?? null,
+        postmeisterId: req.body?.postmeisterId ?? null, probe: true,
+      }));
+      return;
+    }
+    res.json(await kuendigungDurchfuehren(String(req.params.ref), {
       quelle, grund: req.body?.grund ?? null, am: req.body?.am ?? null,
-      postmeisterId: req.body?.postmeisterId ?? null, probe: req.body?.probe === true,
-    });
-    let mailGesendet = false;
-    if (erg.ok && req.body?.probe !== true && req.body?.mail !== false) {
-      mailGesendet = await bestaetigungSenden(String(req.params.ref)).catch(() => false);
-    }
-    // Antrag im Formular-Topf mitziehen, falls vorhanden.
-    if (erg.ok && req.body?.probe !== true) {
-      await sqlPool`
-        UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(),
-               admin_note = COALESCE(admin_note, '') || ' [E-092 automatisch bestätigt]'
-         WHERE ref = ${String(req.params.ref)} AND status = 'pending'
-      `.catch(() => {});
-    }
-    res.json({ ...erg, mailGesendet });
+      postmeisterId: req.body?.postmeisterId ?? null, mail: req.body?.mail !== false,
+    }));
   } catch (e: any) {
     console.error("[KÜNDIGUNG] setzen:", e);
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
@@ -145,6 +216,9 @@ router.post("/admin/kuendigung/:ref", async (req: Request, res: Response) => {
 /** POST /admin/kuendigung/:ref/zuruecknehmen */
 router.post("/admin/kuendigung/:ref/zuruecknehmen", async (req: Request, res: Response) => {
   try {
+    // E-213: Ohne Kündigung keine Urkunde — ein Dokument über einen Zustand,
+    // den es nicht mehr gibt, ist schlimmer als gar keines.
+    await urkundeVerwerfen(String(req.params.ref));
     res.json(await kuendigungZuruecknehmen(String(req.params.ref), req.body?.grund ?? null));
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
@@ -194,6 +268,8 @@ router.get("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agent
       letzteRateNr: a.letzte_rate_nr, vertragEndeAm: a.vertrag_ende_am, zurueckgenommenAm: a.kuendigung_zurueckgenommen_am,
       bestaetigungsmailAm: a.kuendigung_bestaetigt_mail_am, rueckholBis: a.kuendigung_rueckhol_bis, offeneRaten: Number(a.offene_raten || 0),
       beendet: !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now(),
+      // E-213: Liegt die Urkunde vor, und wer hat sie gezeichnet?
+      urkunde: gekuendigt ? await urkundeStand(b.ref) : { da: false, von: null, rolle: null, am: null, hash: null },
     });
   } catch (e: any) {
     console.error("[KÜNDIGUNG] agent stand:", e);
@@ -208,20 +284,15 @@ router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agen
     const grund = String(req.body?.grund || "").trim();
     if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte den Grund in einem Satz — er steht dauerhaft am Kunden." });
     const sofort = req.body?.sofort === true;
-    const erg = await kuendigungSetzen(b.ref, { quelle: "telefon", grund: `${grund} (${req.agent!.name})`, sofort });
-    let mailGesendet = false;
-    if (erg.ok && erg.weg !== "bereits") mailGesendet = await bestaetigungSenden(b.ref).catch(() => false);
-    if (erg.ok) {
-      await sqlPool`
-        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
-        VALUES (${b.ref}, ${b.personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                ${`Kündigung durchgesetzt durch ${req.agent!.name} (${erg.weg}${sofort ? ", Kulanz sofort" : ""}). Grund: ${grund.slice(0, 200)}. Bestätigungsmail: ${mailGesendet ? "gesendet" : "nicht gesendet"}.`}, NOW())`.catch(() => {});
-      await sqlPool`
-        UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(),
-               admin_note = COALESCE(admin_note, '') || ${` [durch ${req.agent!.name} bestätigt]`}
-         WHERE ref = ${b.ref} AND status = 'pending'`.catch(() => {});
-    }
-    res.json({ ...erg, mailGesendet });
+    // E-213: EIN Vorgang für alle vier Türen — siehe kuendigungDurchfuehren.
+    const erg = await kuendigungDurchfuehren(b.ref, {
+      quelle: "telefon",
+      grund: `${grund} (${req.agent!.name})`,
+      sofort,
+      personId: b.personId,
+      unterzeichner: { name: req.agent!.name, rolle: rolleInWorten((req.agent as any)?.rolle), agentId: req.agent!.id },
+    });
+    res.json(erg);
   } catch (e: any) {
     console.error("[KÜNDIGUNG] agent setzen:", e);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -240,6 +311,7 @@ router.post("/agent/kunden/:personId/kuendigung/zuruecknehmen", requireAgent, as
       // Unbezahlte Bestellung war storniert — zurück auf „Zahlung offen", damit der Weg wieder läuft.
       await sqlPool`UPDATE fiaon_applications SET payment_status = 'pending_payment', cancelled_at = NULL, mahnstopp_am = NULL, updated_at = NOW() WHERE ref = ${b.ref}`;
     }
+    await urkundeVerwerfen(b.ref); // E-213
     const erg = await kuendigungZuruecknehmen(b.ref, `${grund} (${req.agent!.name}, Gespräch)`);
     await sqlPool`UPDATE fiaon_applications SET mahnstopp_am = NULL, kuendigung_bestaetigt_mail_am = NULL, updated_at = NOW() WHERE ref = ${b.ref}`.catch(() => {});
     await sqlPool`
@@ -298,6 +370,50 @@ router.get("/admin/kuendigungen", async (req: Request, res: Response) => {
   } catch (e: any) {
     console.error("[KÜNDIGUNG] liste:", e);
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE URKUNDE HERUNTERLADEN (23.09.2026, E-213)
+//
+// Drei Türen auf dasselbe Dokument: Mitarbeiter (nur eigene Kunden), Leitung
+// und Geschäftsführung. Ausgeliefert wird immer die GESPEICHERTE Ausfertigung —
+// nie eine frisch gerechnete, sonst stimmte die Prüfsumme nicht mehr.
+//
+// Fehlt die Urkunde, weil die Kündigung vor dem 23.09.2026 ausgesprochen wurde
+// oder das Rendern damals scheiterte, wird sie beim ersten Abruf nachgeholt und
+// auf den Abrufenden gezeichnet. Eine Kündigung ohne Papier bleibt sonst für
+// immer ohne Papier.
+// ═══════════════════════════════════════════════════════════════════════════
+function pdfAusliefern(res: Response, pdf: Buffer, dateiname: string): void {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${dateiname}"`);
+  res.setHeader("Content-Length", String(pdf.length));
+  res.end(pdf);
+}
+
+router.get("/agent/kunden/:personId/kuendigung.pdf", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const b = await bestellungFuerAgent(req, res); if (!b) return;
+    const erg = await urkundeAusfertigen(b.ref, {
+      name: req.agent!.name, rolle: rolleInWorten((req.agent as any)?.rolle), agentId: req.agent!.id,
+    });
+    if (!erg.ok || !erg.pdf) return res.status(409).json({ ok: false, error: erg.error ?? "Keine Urkunde." });
+    pdfAusliefern(res, erg.pdf, erg.dateiname!);
+  } catch (e: any) {
+    console.error("[KÜNDIGUNG] agent pdf:", e);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.get("/admin/kuendigung/:ref.pdf", async (req: Request, res: Response) => {
+  try {
+    const erg = await urkundeAusfertigen(String(req.params.ref), { name: "FIAON LTD", rolle: "Geschäftsführung" });
+    if (!erg.ok || !erg.pdf) return res.status(409).json({ ok: false, error: erg.error ?? "Keine Urkunde." });
+    pdfAusliefern(res, erg.pdf, erg.dateiname!);
+  } catch (e: any) {
+    console.error("[KÜNDIGUNG] admin pdf:", e);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

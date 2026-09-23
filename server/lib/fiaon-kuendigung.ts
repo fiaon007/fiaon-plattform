@@ -352,3 +352,53 @@ export async function istGekuendigt(ref: string): Promise<boolean> {
   const [a] = (await sqlPool`SELECT gekuendigt_am, kuendigung_zurueckgenommen_am FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
   return !!(a?.gekuendigt_am && !a?.kuendigung_zurueckgenommen_am);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE PORTALSPERRE — EINE TÜR, DIE NICHT ZUFÄLLT (23.09.2026, E-213)
+//
+// Justin: „… der gesamte Prozess (Portalsperre, Kündigungsunterlagen,
+// Unterschrift durch den Mitarbeiter, … der gesamte Prozess eben)."
+//
+// ── WARUM ES KEINE VOLLE SPERRE WIRD, UND WARUM DAS RICHTIG IST ───────────
+// Der naheliegende Weg wäre `account_status = 'suspended'` — der Kunde kommt
+// nicht mehr rein. Das widerspricht zwei Festlegungen dieses Hauses:
+//   1. „Kunden NIE deaktivieren" (Grundsätze 02.09.2026).
+//   2. Justins eigene Kündigungsregel (E-092): „… der Kunde muss, wenn er
+//      heute kündigt, dennoch seine offene Rate bezahlen." Wer ausgesperrt
+//      ist, sieht seine Rechnung nicht und bezahlt sie nicht. Die volle Sperre
+//      würde also genau das Geld kosten, das die Regel sichern soll.
+//
+// Deshalb: Die Tür bleibt offen, der LADEN ist zu. Was zu ist, steht hier —
+// an einer Stelle, damit niemand beim nächsten Umbau eine Hälfte vergisst.
+//
+//   ZU   Neue Leistungen beauftragen, Vertrag verlängern, neue Vorgänge und
+//        Schreiben anstoßen — alles, was den Vertrag fortsetzen würde.
+//   AUF  Bezahlen, Unterlagen und Rechnungen ansehen und herunterladen, die
+//        Kündigungsbestätigung, Mitteilungen lesen, Passwort ändern, die
+//        eigenen Daten berichtigen.
+//
+// Ein beendeter Vertrag (letzte Rate bezahlt) ändert daran nichts: Die
+// Unterlagen bleiben 90 Tage einsehbar, wie es in der Abschlussmail steht.
+// ═══════════════════════════════════════════════════════════════════════════
+export const PORTAL_GESPERRT_SATZ =
+  "Ihr Vertrag ist gekündigt. Neue Leistungen können darüber nicht mehr beauftragt werden — "
+  + "Ihre Unterlagen und offenen Rechnungen finden Sie weiterhin in Ihrem Bereich.";
+
+/**
+ * Prüft für eine Kunden-Sitzung, ob neue Leistungen noch beauftragt werden
+ * dürfen. `ref` ist die Bestellung der Sitzung; geprüft wird der MENSCH, denn
+ * eine Kündigung gilt der Person und nicht einer einzelnen Zeile.
+ */
+export async function neueLeistungGesperrt(ref: string): Promise<boolean> {
+  const [a] = (await sqlPool`
+    SELECT EXISTS (
+      SELECT 1 FROM fiaon_applications x
+       WHERE (x.ref = ${ref}
+              OR (x.person_id IS NOT NULL
+                  AND x.person_id = (SELECT y.person_id FROM fiaon_applications y WHERE y.ref = ${ref} LIMIT 1)))
+         AND x.merged_into IS NULL
+         AND x.gekuendigt_am IS NOT NULL
+         AND x.kuendigung_zurueckgenommen_am IS NULL
+    ) AS gesperrt`.catch(() => [])) as any[];
+  return a?.gesperrt === true;
+}

@@ -772,8 +772,10 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
       durch_agent_id = EXCLUDED.durch_agent_id, stand = EXCLUDED.stand, zurueck_am = NULL, zurueck_durch = NULL`;
 
   const punkte: string[] = [];
-  const { kuendigungSetzen } = await import("./fiaon-kuendigung");
-  const { bestaetigungSenden } = await import("../routes/fiaon-kuendigung");
+  // E-213: derselbe Vorgang wie in der Akte, im Postfach und über die
+  // Admin-Tür — Wirkung, Urkunde, Bestätigung, Verlauf. Vorher setzte dieser
+  // Weg die Wirkung und schickte die Mail, fertigte aber keine Urkunde aus.
+  const { kuendigungDurchfuehren } = await import("../routes/fiaon-kuendigung");
 
   // 1. Bestellungen — offene und laufende, nie ein Firmenauftrag (Global hat eigene Regeln).
   const bestellungen = (await sqlPool`
@@ -790,7 +792,11 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
     const kulanzRaten = bezahlt && opts.kulanz
       ? ((await sqlPool`SELECT id FROM fiaon_abo_raten WHERE ref = ${b.ref} AND status = 'offen'`) as any[]).map((r) => Number(r.id))
       : undefined;
-    const erg = await kuendigungSetzen(String(b.ref), { quelle: "telefon", grund: grundVoll, sofort: bezahlt && opts.kulanz });
+    const erg = await kuendigungDurchfuehren(String(b.ref), {
+      quelle: "telefon", grund: grundVoll, sofort: bezahlt && opts.kulanz, personId,
+      unterzeichner: { name: String(opts.akteur || "FIAON LTD"), rolle: "Geschäftsführung", agentId: opts.akteurId ?? null },
+      mail: bezahlt,
+    });
     stand.bestellungen.push({
       ref: String(b.ref), weg: erg.weg, ok: erg.ok,
       vorher: { payment_status: b.payment_status ?? null, cancelled_at: iso(b.cancelled_at), mahnstopp_am: iso(b.mahnstopp_am) },
@@ -802,10 +808,7 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
     else if (erg.weg === "letzte_rate") punkte.push(`${paketName}: gekündigt — Rate ${erg.letzteRateNr} bleibt fällig, ${erg.stornierteRaten} spätere entfallen`);
     else if (erg.weg === "kulanz_sofort") punkte.push(`${paketName}: sofort beendet (Kulanz), ${erg.stornierteRaten} offene Rate(n) entfallen`);
     else if (erg.weg === "sofort_beendet") punkte.push(`${paketName}: Vertrag beendet (alles bezahlt)`);
-    if (erg.ok && bezahlt && erg.weg !== "bereits") {
-      const gesendet = await bestaetigungSenden(String(b.ref)).catch(() => false);
-      if (gesendet) stand.mails.push(String(b.ref));
-    }
+    if (erg.mailGesendet) stand.mails.push(String(b.ref));
   }
 
   // 2. Leads — aus jeder Liste, die Lead-Mails hören auf.

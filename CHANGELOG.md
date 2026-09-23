@@ -5,6 +5,59 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (16) — WhatsApp für Mara: Zentrale mit Knopf und Automatik, Vorlagen mit Bild (E-229)
+
+**Der Anlass (Justin):** „Ich muss das managen können: ‚WhatsApp starten (50)', Kundengruppe und Vorlage wählen —
+oder eine Automatik, jede Stunde von 07:40 bis 20:45 fünf Kunden. Und die Vorlagen PERFEKT, in unserer CI."
+
+**Neu unter Chefbüro → Mara (fiaon.com/chef/s/mara), erster Reiter „WhatsApp-Zentrale":**
+- **Vier Kundengruppen mit ihrer Zahl:** neue Leads ohne Nachricht, erste Zahlung offen, im Antrag abgebrochen,
+  Leads ohne Antrag. Gezählt wird nur, wer heute wirklich angeschrieben werden darf.
+- **Versand von Hand:** Gruppe antippen, Vorlage wählen, Anzahl, „Vorschau" zeigt die nächsten Empfänger mit genau
+  dem Text, den sie bekommen — dann „WhatsApp starten (n)". Läuft im Hintergrund, lässt sich anhalten, zeigt je
+  Übersprungenem den Grund.
+- **Automatik:** ein Schalter, Uhrzeit von/bis, wie viele je Stunde, welche Gruppen in welcher Reihenfolge mit
+  welcher Vorlage. Gleichmäßig über die Stunde verteilt (5 je Stunde, 07:40–20:45 = 66 am Tag). Solange sie
+  läuft, pausiert die alte Stundenkette. Die Sofort-Begrüßung neuer Leads läuft immer. **Steht auf AUS.**
+- **Oben rechts:** wie viele neue Gespräche Meta heute noch erlaubt, und die Qualitätsbewertung der Nummer.
+- **Unten:** jede Nachricht mit zugestellt / gelesen / geantwortet.
+
+**Was immer gilt, auch von Hand:** nie zwischen 21 und 7 Uhr; höchstens ein Versuch je Mensch und Tag; wer
+„STOPP" schrieb, abgemeldet ist oder im Formular WhatsApp abgelehnt hat, bekommt nichts; wer bezahlt oder eine
+Zahlung gemeldet hat, auch nicht; Rechnungen nur mit Katalogpreis und echter Referenz.
+
+**Vorlagen mit Bild:** 15 neue Fassungen mit Kopfbild im FIAON-Design (Karte, Antrag, Zahlung, Termin, Kontakt),
+gleicher Wortlaut in Absätzen, Fuß „FIAON Ltd.". Bei Meta eingereicht; sobald sie freigegeben sind, gehen sie
+automatisch statt der reinen Textfassung raus.
+
+**Zwei Fehler behoben, die niemand sah:** Ein Nein zu WhatsApp im Lead-Formular wurde bisher von keinem Weg
+beachtet (bisher kein solcher Fall). Und die Vermerke „WhatsApp gesendet" landeten nie in der Akte.
+
+**Buchhaltung/Banking:** Das Feld „Referenz der Bank" ist weg — mit der TAN-Freigabe entsteht automatisch eine
+eindeutige 14-stellige Referenz zum Kopieren, die bei Airwallex eingetragen wird.
+
+**Wo:** server/lib/fiaon-wa-zentrale.ts, server/routes/fiaon-wa-zentrale.ts,
+client/src/components/admin/ChefWhatsAppZentrale.tsx, client/public/wa/, scripts/wa-kopfbilder.ts.
+
+## 23.09.2026 (15) — FIAON Banking: die Buchhaltung wird ein Banksystem (E-228)
+
+**Der Anlass (Justin):** „Das ist das FIAON Banking — extrem sicher, sehr hochwertig, ein vollwertiges Banksystem."
+
+- **Alle Umsätze an einer Stelle:** Kundeneingänge der Bank, Auszahlungen an Mitarbeiter und Kassenbuch-Buchungen,
+  jede Zeile mit Herkunft und laufendem Saldo; filtern, suchen, als CSV laden.
+- **Überweisung wie im Online-Banking:** Namen tippen, IBAN und BIC füllen sich aus der Empfänger-Kartei oder den
+  Bankdaten der Mitarbeiter; die IBAN wird beim Tippen geprüft.
+- **Sicher:** Anmeldung mit PIN, jede Freigabe mit TAN an genau diesen Vorgang gebunden, Sitzungen jederzeit
+  beendbar, Abmeldung nach 10 Minuten ohne Tätigkeit. Florentine legt an, nur Justin gibt frei und überweist.
+- **Auszahlungen aller Mitarbeiter** mit Abrechnung, Beleg und Journal als PDF; „Anweisen" schließt die Auszahlung
+  über denselben Weg wie /admin/payouts.
+- **Den Kontostand bewegt nur der Inhaber** — über protokollierte Buchungen (Einlage, Korrektur, Storno) mit TAN.
+- **Airwallex-Kontostand live** daneben, mit Differenz zum Buch.
+- **PDFs im Bank-Stil** (Guilloche, Mikroschrift, Prüfwert), ehrlich beschriftet: kein Kontoauszug der Bank.
+
+**Wo:** fiaon.com/buchhaltung · server/lib/fiaon-banking*.ts, server/lib/fiaon-buchhaltung.ts,
+client/src/pages/banking/.
+
 ## 23.09.2026 (14) — Die Buchhaltung: echtes Geld, vier Augen, ein Protokoll (E-227)
 
 **Der Anlass (Justin):** „Da Florentine in Kürze Geschäftsleitung sein wird, muss ich sie prüfen. Eine eigene

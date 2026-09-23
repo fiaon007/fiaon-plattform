@@ -174,6 +174,7 @@ function demoBereich(stufeRoh: unknown) {
     paket: {
       key: pk?.key || "pro", name: paketName, abo: true, rahmen, wunschlimit: rahmen, monatlichCents,
       zahlungsstatus: st.bezahlt ? "paid" : "pending_payment", zahlungsreferenz: "FIAON-DEMO-R01", faelligAm: tag(antrag),
+      jahresvertrag: true,
     },
     stufe: kontoStufe,
     bonitaet,

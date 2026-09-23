@@ -127,8 +127,8 @@ export const AGENDA: AgendaSchritt[] = [
       "„Ihr Paket ist ein laufendes Abo: Der Betrag ist jeden Monat fällig, nicht einmalig — "
         + "Sie überweisen ihn mit dem Verwendungszweck aus der Zahlungsmail.“ "
         + "Den Betrag NENNEN und das Datum der nächsten Fälligkeit.",
-      "„Kündbar zum Ende des laufenden Monats — schriftlich per E-Mail, formlos, "
-        + "kein Grund nötig.“ Keine Mindestlaufzeit erfinden.",
+      "„Die Laufzeit beträgt zwölf Monate; danach monatlich kündbar — schriftlich per E-Mail, formlos, "
+        + "kein Grund nötig.“ Die Laufzeit nennen, nicht beschönigen.",
       "„Die Bonitätsauskunft ist davon getrennt: 74 € EINMALIG, kein Abo.“ "
         + "Wenn er sie nicht will, ändert das nichts an seinem Paket.",
       "Rückfragen: „Ist das so für Sie in Ordnung?“ — die Antwort in die Notiz.",

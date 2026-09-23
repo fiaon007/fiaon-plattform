@@ -31,7 +31,7 @@ export const KAPITEL_10: KapitelInhalt = {
       akte: ["Schreiben 1: Löschantrag – abgelehnt, Mahnungen vorgelegt", "Schreiben 2: Widerspruch Inkasso – Frist läuft", "Nachrichten im Bereich: 2 ungelesen"],
       frage: "Wie reagierst du?",
       optionen: [
-        { text: "„Sie haben zwölf Raten unterschrieben, kündigen geht nicht.“", folge: "Falsch (kündbar formlos) und feindselig. Sie kündigt sicher – und schreibt eine Bewertung." },
+        { text: "„Sie haben zwölf Raten unterschrieben, kündigen geht nicht.“", folge: "Der Sache nach fast richtig – die Laufzeit beträgt zwölf Monate –, aber feindselig gesagt und ohne Widerrufsrecht und Kulanzweg. Sie kündigt sicher – und schreibt eine Bewertung." },
         { text: "Zuhören, dann die Akte konkret erklären: was in vier Monaten passiert ist, warum der Löschantrag abgelehnt wurde (Mahnungen lagen vor → Einigung statt Löschung), was bis Monatsende kommt. Kündigungsweg ehrlich nennen; wenn sie bleibt, nächsten sichtbaren Schritt vereinbaren.", richtig: true, folge: "Viele Kunden kündigen nicht die Arbeit, sondern die Unsichtbarkeit. Wer sieht, was passiert ist, bleibt oft – und wer trotzdem geht, geht ohne Groll." },
         { text: "Zwei Monate gratis anbieten.", folge: "Kein Versprechen, das du geben darfst – und es beantwortet ihre Enttäuschung nicht. Rabatte kaufen keine Geduld." },
       ],

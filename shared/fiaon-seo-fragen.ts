@@ -302,8 +302,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/preise": [
     {
-      "f": "Kann ich jederzeit kündigen?",
-      "a": "Ja – jederzeit zum Ende des laufenden Monats, formlos und ohne Grund: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das Paket ist auf zwölf Raten angelegt, weil Auskunft, Schreiben und Antworten Zeit brauchen – aber niemand ist gebunden. Das gesetzliche Widerrufsrecht von 14 Tagen gilt zusätzlich."
+      "f": "Wie lange läuft der Vertrag?",
+      "a": "Der Vertrag läuft über zwölf Monatsraten – so lange, weil Auskunft, Schreiben und Antworten Zeit brauchen. Danach läuft er unbefristet weiter und ist jederzeit mit einer Frist von einem Monat kündbar, formlos: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das gesetzliche Widerrufsrecht von 14 Tagen ab Vertragsschluss gilt zusätzlich."
     },
     {
       "f": "Wird die Auskunft angerechnet, wenn ich später ein Paket nehme?",
@@ -328,8 +328,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/en/pricing": [
     {
-      "f": "Can I cancel at any time?",
-      "a": "Yes — at any time to the end of the current month, informally and without giving a reason: in your customer area under Subscription & payments or by e-mail. The plan is set up for twelve instalments because reports, letters and replies take time — but nobody is tied in. The statutory 14-day right of withdrawal applies in addition."
+      "f": "How long does the contract run?",
+      "a": "The contract runs for twelve monthly instalments — that long because reports, letters and replies take time. After that it continues indefinitely and can be cancelled at any time with one month\\x27s notice, informally: in your customer area under Subscription & payments or by e-mail. The statutory 14-day right of withdrawal from the conclusion of the contract applies in addition."
     },
     {
       "f": "Is the report credited if I choose a plan later?",
@@ -697,7 +697,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie kündige ich, wenn ich nicht zufrieden bin?",
-      "a": "Jederzeit zum Ende des laufenden Monats, formlos und ohne Grund – im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das Widerrufsrecht von 14 Tagen gilt zusätzlich."
+      "a": "Der Vertrag läuft über zwölf Monatsraten; danach ist er jederzeit mit einer Frist von einem Monat kündbar – formlos im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das Widerrufsrecht von 14 Tagen ab Vertragsschluss gilt zusätzlich."
     },
     {
       "f": "Wo sind die Bewertungen?",
@@ -937,7 +937,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie kündige ich?",
-      "a": "Jederzeit zum Ende des laufenden Monats, formlos: im Kundenbereich unter Abo & Zahlungen mit einem Klick oder per E-Mail an support@fiaon.com. Sie bekommen eine Bestätigung; die letzte Rate ist die des laufenden Monats."
+      "a": "Der Vertrag läuft über zwölf Monatsraten; danach jederzeit mit einer Frist von einem Monat, formlos: im Kundenbereich unter Abo & Zahlungen mit einem Klick oder per E-Mail an support@fiaon.com. Sie bekommen eine Bestätigung."
     },
     {
       "f": "Gibt es ein Widerrufsrecht?",
@@ -1083,7 +1083,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How do I cancel?",
-      "a": "At any time to the end of the current month, informally: in the customer area under Subscription & payments with one click or by e-mail to support@fiaon.com. You get a confirmation; the last instalment is the one for the current month."
+      "a": "The contract runs for twelve monthly instalments; after that at any time with one month\\x27s notice, informally: in the customer area under Subscription & payments with one click or by e-mail to support@fiaon.com. You get a confirmation."
     },
     {
       "f": "Is there a right of withdrawal?",

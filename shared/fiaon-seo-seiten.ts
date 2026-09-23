@@ -389,7 +389,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/pricing",
       titel: "Pricing and plans: twelve instalments, no surprises | FIAON",
-      beschreibung: "What FIAON costs: monthly plans in twelve instalments, cancellable monthly thereafter, or the credit report on its own. Every service compared with doing it yourself.",
+      beschreibung: "What FIAON costs: twelve monthly instalments, then cancellable monthly, or the credit report on its own. Every service compared with doing it yourself.",
       h1: "One price, no surprises.",
       lead: "Twelve monthly instalments, then we ask whether you want to stay. No commission on limits, no fee per letter, no small print. Everything is here — including what it costs to do it yourself.",
       abschnitte: [

@@ -94,7 +94,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       SELECT a.password, a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.gekuendigt_am, a.vertrag_ende_am, a.letzte_rate_nr, a.kuendigung_zurueckgenommen_am, a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
              a.street, a.zip, a.city, a.country, a.birthdate,
              a.pack_key, a.pack_name, a.approved_limit, a.wanted_limit,
-             a.payment_status, a.payment_reference, a.amount_due, a.payment_due_date,
+             a.payment_status, a.payment_reference, a.amount_due, a.payment_due_date, a.agb_stand,
              a.created_at, a.account_status, a.kyc_status,
              -- 18.09.2026: Unterlagen gehören der PERSON — sie können an einer anderen
              -- (auch zusammengeführten) Bestellung hängen. Vorher sah der Kunde „Fehlt"
@@ -318,6 +318,9 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         monatlichCents: pk?.preisCents ?? (a.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null),
         zahlungsstatus: a.payment_status || "pending", zahlungsreferenz: a.payment_reference || null,
         faelligAm: tag(a.payment_due_date),
+        // 03.09.2026: Verträge ab diesem Tag laufen über zwölf Monatsraten (AGB § 6 Abs. 1).
+        // Ältere bleiben monatlich kündbar (§ 6 Abs. 8) — derselbe Schnitt wie in vertragsfassung().
+        jahresvertrag: !!a.agb_stand && new Date(a.agb_stand) >= new Date("2026-09-03"),
       },
       stufe: {
         stufe: abgeleitet?.stufe ?? konto?.stufe ?? null, text: konto?.text ?? null,

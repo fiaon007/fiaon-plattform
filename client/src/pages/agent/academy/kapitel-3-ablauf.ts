@@ -76,7 +76,7 @@ export const KAPITEL_3: KapitelInhalt = {
         tab(["#", "Schritt", "Zweck"], ...AGENDA.map((a, i) => [String(i + 1), a.titel, a.zweck])),
         ...AGENDA.map((a) => ({ art: "kacheln" as const, kacheln: [{ titel: a.titel, text: a.punkte.join(" · ") + (a.notizPflicht ? " — Pflichtnotiz: " + (a.notizFrage || "") : "") }] })),
         merk("Erst wenn alle Pflichtschritte mit Notiz stehen, lässt sich das Gespräch abschließen – und erst dann ist der Bereich vollständig freigeschaltet. Erscheint der Kunde nicht, bekommt er eine neue Einladung, keine Mahnung."),
-        p("Der häufigste Streitfall beginnt mit „Ich dachte, das war einmalig“. Deshalb Schritt 6: Betrag nennen, Datum der nächsten Rate nennen, Kündigungsweg nennen (Abo & Zahlungen im Bereich oder formlos per E-Mail, zum Ende des laufenden Monats) – und die Antwort des Kunden wörtlich in die Notiz."),
+        p("Der häufigste Streitfall beginnt mit „Ich dachte, das war einmalig“. Deshalb Schritt 6: Betrag nennen, Datum der nächsten Rate nennen, Kündigungsweg nennen (Abo & Zahlungen im Bereich oder formlos per E-Mail; Laufzeit zwölf Monate, danach monatlich) – und die Antwort des Kunden wörtlich in die Notiz."),
       ],
     },
     raten: {

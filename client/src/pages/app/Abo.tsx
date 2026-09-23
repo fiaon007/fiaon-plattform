@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /app/mehr/abo — GELD UND ABO (Bauvorlage 3.14, Scheibe 6, 06.09.2026)
 //
-// Paket, monatlicher Betrag, nächste Rate (aus b.abo.naechste), der Satz
-// „Kündbar zum Monatsende, formlos per E-Mail.“ und ein STILLER Textlink
+// Paket, monatlicher Betrag, nächste Rate (aus b.abo.naechste), der Kündigungssatz
+// — für Verträge ab dem 03.09.2026 „Zwölf Monatsraten, danach monatlich kündbar",
+// für ältere „Kündbar zum Monatsende" (b.paket.jahresvertrag) — und ein STILLER Textlink
 // „Abo kündigen“ → mailto:support@fiaon.com mit Kundennummer im Betreff (die
 // Seite /abo-kuendigen ist ein Du-Formular mit Prüfvorbehalt und passt nicht
 // zum Satz — Prüfung 06.09.2026). Kein Verlust-Satz, kein Rabatt, kein
@@ -114,7 +115,7 @@ export function Abo({ kundeRef, basis, demo, b }: { kundeRef: string; basis: str
       {/* Kündigung: der Satz und ein stiller Link, sonst nichts */}
       {b.paket.abo && !v?.beendet && !(entschieden && !entschieden.verlaengert) && (
         <div className="ap-auf v3" style={{ display: "grid", gap: 2 }}>
-          <p className="ap-fuss">Kündbar zum Monatsende, formlos per E-Mail.</p>
+          <p className="ap-fuss">{b.paket.jahresvertrag ? "Zwölf Monatsraten, danach monatlich kündbar — formlos per E-Mail." : "Kündbar zum Monatsende, formlos per E-Mail."}</p>
           {/* Nicht /abo-kuendigen: die Seite ist ein Du-Formular mit Pflichtgrund und Prüfvorbehalt — weder „formlos“ noch „per E-Mail“ noch Sie.
               Bis sie umgestellt ist, führt der Link dorthin, was der Satz verspricht: eine formlose E-Mail. */}
           <a href={`mailto:support@fiaon.com?subject=${encodeURIComponent(`Kündigung Kundennummer ${kundeRef}`)}`} className="ap-textknopf still" onClick={() => ereignisMelden(kundeRef, demo, "abo", "knopf")}>Abo kündigen</a>

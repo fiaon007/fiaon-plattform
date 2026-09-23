@@ -355,7 +355,7 @@ export default function PlattformKonzept() {
 
               {/* Disclaimer */}
               <p className="mt-8 text-sm text-gray-500">
-                Keine Schufa-Abfrage. Reine Datenanalyse. Monatlich kündbar.
+                Keine Schufa-Abfrage. Reine Datenanalyse. Zwölf Monatsraten.
               </p>
             </div>
           </div>

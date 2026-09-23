@@ -1247,7 +1247,7 @@ function Verlaengerung({ refKunde, raten }: { refKunde: string; raten: number })
     <div style={{ margin: "0 0 14px", padding: 14, borderRadius: 14, background: "linear-gradient(135deg,rgba(37,99,235,.08),rgba(40,141,250,.05))", border: "1px solid rgba(37,99,235,.18)" }}>
       <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--blau-tief)" }}>Ihre {raten} Raten sind geschafft</p>
       <h4 style={{ fontSize: 16, margin: "6px 0 4px" }}>Möchten Sie bleiben?</h4>
-      <p style={{ margin: 0, fontSize: 13, color: "var(--text-leise)" }}>Mit einem Klick läuft Ihr Abo weitere zwölf Monate — zum gleichen Preis, jederzeit zum Monatsende kündbar. Ohne Antwort endet es mit der letzten Rate.</p>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--text-leise)" }}>Mit einem Klick läuft Ihr Abo weiter — zum gleichen Preis, jederzeit mit einer Frist von einem Monat kündbar. Ohne Antwort endet es mit der letzten Rate.</p>
       {meldung ? <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 600, color: "var(--blau-tief)" }}>{meldung}</p> : (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <button type="button" className="mb-knopf" disabled={!!laeuft} onClick={() => void antworten(true)}>{laeuft === "ja" ? "Einen Moment …" : "Ja, ich bleibe"}</button>

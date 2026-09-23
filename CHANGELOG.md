@@ -5,6 +5,59 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (4) — „Monatlich kündbar" war seit drei Wochen falsch — auf jeder Kundenseite, in jedem Leitfaden
+
+**Der Anlass (Justin):** Auf der Landingpage stand noch „Monatlich kündbar — kein Fine-Print, keine Haltefristen."
+Seit dem 03.09.2026 laufen Privatverträge aber über zwölf Monatsraten. In der Nachfass-Strecke war der Satz am
+22.09. schon gestrichen worden; überall sonst stand er weiter.
+
+**Was der Vertrag wirklich sagt** (AGB, `client/src/pages/agb.tsx`): § 6 Abs. 1 — feste Erstlaufzeit von zwölf
+Monaten. § 5 Abs. 2 — „Die Ratenzahlung begründet kein monatliches Vertragsverhältnis." § 6 Abs. 2 — danach läuft
+der Vertrag unbefristet weiter und ist mit einem Monat Frist kündbar. § 6 Abs. 4 — ein vorzeitiger Ausstieg ist
+**Kulanz**, ausdrücklich ohne Anspruch. § 6 Abs. 8 — Verträge vor dem 03.09.2026 bleiben monatlich kündbar.
+
+**Entschieden (Justin, 23.09.):** Die Laufzeit wird benannt, nicht verschwiegen — „Zwölf Monatsraten, danach
+monatlich kündbar". Die Kulanz wird **nicht** beworben: Was § 6 Abs. 4 ausdrücklich als Nicht-Anspruch regelt,
+wäre als Werbeversprechen derselbe Fehler noch einmal. Auf der Landingpage tritt an die Stelle der
+Kündigungs-Kachel das **14-tägige Widerrufsrecht** — ein echtes Recht statt eines erfundenen.
+
+**Geändert — 36 Stellen in 19 Dateien:**
+- **Landingpage** `/start` und `/karte-sichern` (sechs Stellen) — dort landet der Meta-Traffic. Dieselbe Seite
+  duzte durchgehend (36 du-Formen, eine Sie-Form); sie ist jetzt vollständig im Sie (Justin, 23.09.).
+- **Preise, Vergleich, Erfahrungen, Hilfe, SEO-Seiten, Investorenseite** — deutsch und englisch.
+- **Strukturierte FAQ-Daten** (`shared/fiaon-seo-fragen.ts`) werden aus den Seiten **neu erzeugt**, nicht von Hand
+  gepflegt — sonst behauptet das FAQPage-Markup bei Google etwas, was auf der Seite nicht steht.
+- **Kundenbereich:** Jeder liest ab sofort die Regel **seines** Vertrages. Der Endpunkt liefert `jahresvertrag`
+  (aus `agb_stand >= 2026-09-03`, derselbe Schnitt wie in `vertragsfassung()`); Bestandskunden behalten
+  „Kündbar zum Monatsende", neue sehen „Zwölf Monatsraten, danach monatlich kündbar".
+- **Leitfäden und Academy:** Der **Annahmesatz** am Telefon sagte „zwölf Raten, jederzeit formlos kündbar" — damit
+  wurde der Vertrag auf einer falschen Auskunft geschlossen. Er nennt jetzt die Laufzeit. Im Academy-Training war
+  „Das Abo können Sie sofort nach der ersten Rate kündigen" als **gut** bewertet; jetzt als **schlecht**, mit
+  Begründung. Der KI-Prüfer der Academy war ausdrücklich angewiesen, „monatlich kündbar" als **korrekt** zu werten
+  und nicht als Fehler — genau umgekehrt.
+
+**Wächter:** `scripts/pruef-laufzeit.ts` (794 Prüfungen) — kein blankes „monatlich kündbar" ohne die Laufzeit,
+keine Freiheits-Floskeln, Kundenbereich unterscheidet Alt- und Jahresvertrag, FAQ-Auszeichnung wortgleich mit der
+Seite. Er prüft zusätzlich die **AGB selbst**: Ändert jemand die Laufzeit, wird der Prüfstand rot und erinnert
+daran, dass die Kundentexte mitziehen müssen.
+
+**Geprüft:** eslint sauber, tsc 185 (unverändert), vite + esbuild grün, Wortwand DE 3898/0 und EN 0,
+pruef-pakete 336/336, pruef-academy 179/0, pruef-lead-motor 368/368, seo-pruefen ohne Fehler,
+pruef-laufzeit 794/794. Vor dem Push: keine laufenden Telefonate (lesend über die externe EU-Datenbank).
+
+**Anmerkung zum Ablauf:** Ein Teil dieser Arbeit (sieben Dateien der Marketingseiten) wurde um 15:39 von einem
+`git commit -a` in den Commit „Zahlende Kunden verschwanden aus ihrer eigenen Akte" (`cd2a7d66`) eingesammelt und
+ist damit unter fremder Überschrift live gegangen. Inhaltlich ist nichts verloren; die Nachricht dort erwähnt es
+nur nicht.
+
+**Wo zu finden:** `client/src/pages/start.tsx`, `client/src/i18n/{preise,vergleich,hilfe,fiaon-erfahrungen}.ts`,
+`client/src/pages/site/{preise,investoren}.tsx`, `client/src/pages/app/{Abo,Geld,typen}.tsx`,
+`client/src/pages/agent/academy/*`, `server/routes/{fiaon-kunde-bereich,fiaon-office-academy,fiaon-demo}.ts`,
+`shared/{fiaon-seo-seiten,fiaon-seo-fragen,fiaon-onboarding-agenda}.ts`, `scripts/pruef-laufzeit.ts`.
+
+---
+
+
 ## 23.09.2026 (3) — Zahlende Kunden verschwanden aus ihrer eigenen Akte
 
 **Die Meldungen:** Florentine: „sie hat bezahlt, hab die Bonitätsauskunft beantragt, seitdem ist sie als Lead."

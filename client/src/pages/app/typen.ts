@@ -4,7 +4,7 @@ export interface Etappe { key: string; titel: string; text: string; stand: "fert
 export interface Rate { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null; referenz?: string | null }
 export interface Bereich {
   kunde: { ref: string; vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; geburtsdatum: string | null; kundeSeit: string | null };
-  paket: { key: string | null; name: string; abo: boolean; rahmen: number | null; wunschlimit: number | null; monatlichCents: number | null; zahlungsstatus: string; zahlungsreferenz: string | null; faelligAm: string | null };
+  paket: { key: string | null; name: string; abo: boolean; rahmen: number | null; wunschlimit: number | null; monatlichCents: number | null; zahlungsstatus: string; zahlungsreferenz: string | null; faelligAm: string | null; jahresvertrag?: boolean };
   stufe: { stufe: string | null; text: string | null; naechsterSchritt: string | null; vollAktiv: boolean; bezahlt: boolean };
   bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; preisEuro: number } | null;
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug?: boolean; erneutAusweis?: boolean; kycStatus: string; kontoStatus: string; hinweise?: string[] };

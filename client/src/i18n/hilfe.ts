@@ -58,7 +58,7 @@ const de = {
       { f: "Wie hoch ist der Rahmen am Anfang?", a: "Das entscheidet der Kartenpartner anhand der Akte; typisch beginnt es klein und wächst mit pünktlicher Abrechnung. Die Zeitachse steht auf der Seite Kreditkarte trotz Eintrag – ein typischer Verlauf, kein Versprechen." },
     ] },
     { key: "kuendigung", titel: "Kündigung und Widerruf", satz: "Monatlich, formlos, ohne Grund.", fragen: [
-      { f: "Wie kündige ich?", a: "Jederzeit zum Ende des laufenden Monats, formlos: im Kundenbereich unter Abo & Zahlungen mit einem Klick oder per E-Mail an support@fiaon.com. Sie bekommen eine Bestätigung; die letzte Rate ist die des laufenden Monats." },
+      { f: "Wie kündige ich?", a: "Der Vertrag läuft über zwölf Monatsraten; danach jederzeit mit einer Frist von einem Monat, formlos: im Kundenbereich unter Abo & Zahlungen mit einem Klick oder per E-Mail an support@fiaon.com. Sie bekommen eine Bestätigung." },
       { f: "Gibt es ein Widerrufsrecht?", a: "Ja, 14 Tage ab Vertragsschluss, ohne Angabe von Gründen – die Widerrufsbelehrung und das Musterformular stehen auf der Seite Widerrufsbelehrung. Bereits erbrachte Leistungen (etwa eine beschaffte Auskunft) werden anteilig berechnet." },
       { f: "Was passiert mit meinen Daten nach der Kündigung?", a: "Auf Wunsch löschen wir Auskunft, Unterlagen und Akte vollständig (Art. 17 DSGVO) und bestätigen das innerhalb von 30 Tagen. Gesetzliche Aufbewahrungspflichten für Rechnungen bleiben." },
       { f: "Laufen meine Schreiben nach der Kündigung weiter?", a: "Bereits versendete Schreiben bleiben wirksam – die Auskunftei muss antworten. Die Nachverfolgung durch FIAON endet mit dem Paket; Sie erhalten alle Unterlagen als Kopie." },
@@ -129,7 +129,7 @@ const en: typeof de = {
       { f: "How high is the limit at the start?", a: "The card partner decides that on the basis of the file; typically it starts small and grows with statements settled on time. The timeline is on the page A credit card despite an entry — a typical course, not a promise." },
     ] },
     { key: "kuendigung", titel: "Cancellation and withdrawal", satz: "Monthly, informal, without giving a reason.", fragen: [
-      { f: "How do I cancel?", a: "At any time to the end of the current month, informally: in the customer area under Subscription & payments with one click or by e-mail to support@fiaon.com. You get a confirmation; the last instalment is the one for the current month." },
+      { f: "How do I cancel?", a: "The contract runs for twelve monthly instalments; after that at any time with one month\x27s notice, informally: in the customer area under Subscription & payments with one click or by e-mail to support@fiaon.com. You get a confirmation." },
       { f: "Is there a right of withdrawal?", a: "Yes, 14 days from the conclusion of the contract, without giving reasons — the withdrawal notice and the model form are on the page Right of withdrawal. Services already provided (such as a report obtained) are charged proportionately." },
       { f: "What happens to my data after cancellation?", a: "On request we delete report, documents and file completely (Art. 17 GDPR) and confirm it within 30 days. Statutory retention obligations for invoices remain." },
       { f: "Do my letters continue after cancellation?", a: "Letters already sent remain effective — the credit bureau has to reply. Follow-up by FIAON ends with the plan; you receive all documents as copies." },

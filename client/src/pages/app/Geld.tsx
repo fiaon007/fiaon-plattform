@@ -82,7 +82,7 @@ export function Geld({ b, rw, kundeRef, basis }: { b: Bereich; rw: Rahmenweg; ku
 
       <div className="ap-karte ap-auf v4">
         <div className="ap-zeile"><span>Ihr Paket</span><b style={{ fontWeight: 500 }}>{b.paket.name}{b.paket.abo && b.paket.monatlichCents ? ` · ${eur(b.paket.monatlichCents)} im Monat` : ""}</b></div>
-        <p style={{ fontSize: 14, marginTop: 6 }}>{b.paket.abo ? "Kündbar zum Monatsende, formlos per E-Mail." : "Einmaliger Auftrag."} <Link href={`${basis}/mehr`} className="ap-link">Mehr</Link></p>
+        <p style={{ fontSize: 14, marginTop: 6 }}>{b.paket.abo ? (b.paket.jahresvertrag ? "Zwölf Monatsraten, danach monatlich kündbar — formlos per E-Mail." : "Kündbar zum Monatsende, formlos per E-Mail.") : "Einmaliger Auftrag."} <Link href={`${basis}/mehr`} className="ap-link">Mehr</Link></p>
       </div>
     </>
   );

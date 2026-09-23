@@ -108,7 +108,7 @@ const de = {
 
 const en: typeof de = {
   seoTitel: "Pricing and plans: twelve instalments, no surprises | FIAON",
-  seoBeschreibung: "What FIAON costs: monthly plans in twelve instalments, cancellable monthly thereafter, or the credit report on its own. Every service compared with doing it yourself.",
+  seoBeschreibung: "What FIAON costs: twelve monthly instalments, then cancellable monthly, or the credit report on its own. Every service compared with doing it yourself.",
   krume: "Pricing",
   pille: "Pricing & plans",
   h1a: "One price, ", h1b: "no surprises.",

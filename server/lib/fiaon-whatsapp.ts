@@ -105,7 +105,9 @@ export function sendePruefung(text: string): string[] {
 /** Unsere Vorlage im Format von Meta. */
 export function vorlageAlsMeta(v: WaVorlage): Record<string, unknown> {
   const knoepfe = v.knoepfe.map((k) => (k.typ === "URL"
-    ? { type: "URL", text: k.text, url: k.url, example: [k.beispiel] }
+    // E-214: `example` NUR bei einer URL mit Platzhalter — bei einer festen
+    // URL weist Meta die Vorlage mit „example not allowed" zurück.
+    ? { type: "URL", text: k.text, url: k.url, ...(k.beispiel ? { example: [k.beispiel] } : {}) }
     : { type: "QUICK_REPLY", text: k.text }));
   const komponenten: Record<string, unknown>[] = [{
     type: "BODY",
@@ -154,6 +156,41 @@ export async function vorlagenEinreichen(): Promise<{ eingereicht: string[]; sch
       erg.fehler.push({ name: v.name, grund: e instanceof MetaFehler ? e.klartext : String(e) });
     }
   }
+  return erg;
+}
+
+/**
+ * ALTE VORLAGEN LÖSCHEN (23.09.2026, E-214)
+ *
+ * Justin: „Die META-Vorlagen sind Müll, kannst alle löschen!"
+ *
+ * Gelöscht wird nur, was NICHT mehr in WA_VORLAGEN steht — der Quelltext ist
+ * die Wahrheit, Meta die Kopie. Eine Vorlage, die wir gerade erst eingereicht
+ * haben, darf ein Aufräumlauf nicht mitnehmen; deshalb der Abgleich und nicht
+ * ein „alles weg".
+ *
+ * Meta löscht per Name, nicht per ID, und entfernt damit ALLE Sprachfassungen
+ * dieses Namens. Das ist hier richtig: Wir führen nur Deutsch.
+ */
+export async function vorlagenAufraeumen(opts: { probe?: boolean } = {}): Promise<{
+  behalten: string[]; geloescht: string[]; fehler: { name: string; grund: string }[]; probe: boolean;
+}> {
+  const k = waKonfig();
+  const erg = { behalten: [] as string[], geloescht: [] as string[], fehler: [] as { name: string; grund: string }[], probe: opts.probe === true };
+  if (!k.wabaId) { erg.fehler.push({ name: "—", grund: "WHATSAPP_WABA_ID fehlt in der Umgebung." }); return erg; }
+  const aktuell = new Set(WA_VORLAGEN.map((v) => v.name));
+  const beiMeta = await vorlagenStand().catch(() => []);
+  for (const t of beiMeta) {
+    if (aktuell.has(t.name)) { erg.behalten.push(t.name); continue; }
+    if (opts.probe) { erg.geloescht.push(t.name); continue; }
+    try {
+      await graph(`${k.wabaId}/message_templates`, { methode: "DELETE", params: { name: t.name } });
+      erg.geloescht.push(t.name);
+    } catch (e) {
+      erg.fehler.push({ name: t.name, grund: e instanceof MetaFehler ? e.klartext : String(e) });
+    }
+  }
+  console.log(`[WHATSAPP] Aufräumen${opts.probe ? " (Probe)" : ""}: ${erg.geloescht.length} gelöscht, ${erg.behalten.length} behalten.`);
   return erg;
 }
 
@@ -261,6 +298,167 @@ export async function wemGehoert(nummer: string, lauf: Lauf = sqlPool): Promise<
   return { personId: null, leadId: null, name: null };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINE UNBEKANNTE NUMMER IST EIN LEAD, KEIN NIEMAND (23.09.2026, E-214)
+//
+// ── DER BEFUND ────────────────────────────────────────────────────────────
+// Sophia Handler hat am 23.09. um 15:19 Uhr auf unsere WhatsApp geschrieben.
+// Mara fragte sie Feld für Feld ab — Name, Geburtsdatum, E-Mail, Telefon —,
+// Sophia antwortete auf alles, und danach existierte: nichts. Das Gespräch hatte
+// keine Person, keinen Lead, keinen Antrag, keinen Betreuer. Vier Angaben eines
+// echten Interessenten lagen in einem herrenlosen Chat, den niemand aufmacht.
+//
+// Die Ursache: `wemGehoert` sucht eine Person oder einen Lead zur Nummer.
+// Findet es nichts, wurde die Nachricht mit person_id = NULL gespeichert — und
+// das war das Ende. Keine Anlage, keine Zuteilung, keine Arbeitsliste.
+//
+// ── DIE REGEL ─────────────────────────────────────────────────────────────
+// Wer uns schreibt, ist ein Lead. Punkt. Angelegt wird er über DENSELBEN Weg
+// wie ein Lead aus der Anzeige (`leadEingang` → `processIntake`): dieselbe
+// Namensreinigung, dieselbe Dublettenprüfung über 24 Stunden, dieselbe Bindung
+// an eine bestehende Person, dasselbe Protokoll. Quelle: `whatsapp_eingang`.
+//
+// Danach greift alles Übrige von selbst — Zuteilung, Arbeitsliste, Stufe C.
+// Kein eigener Sonderweg, der beim nächsten Umbau vergessen wird.
+// ═══════════════════════════════════════════════════════════════════════════
+async function leadAusEingang(nummer: string, ersterText: string): Promise<{ personId: number | null; leadId: number | null; name: string | null }> {
+  try {
+    const { leadEingang } = await import("../routes/fiaon-leads");
+    const erg: any = await leadEingang({
+      telefon: nummer.startsWith("+") ? nummer : `+${nummer}`,
+      quelle: "whatsapp_eingang",
+      // Ein Name steht hier ausdrücklich NICHT: Maras erste Nachricht ist kein
+      // Formular, und ein aus dem Fließtext geratener Name wäre falscher als
+      // gar keiner. Sobald der Mensch seinen Namen nennt, trägt ihn
+      // `namenAusGespraech` nach (unten).
+    });
+    if (!erg?.ok) { console.error("[WHATSAPP] Lead-Anlage abgelehnt:", erg?.error); return { personId: null, leadId: null, name: null }; }
+    const leadId = Number(erg.id ?? erg.leadId ?? 0) || null;
+    const [l] = leadId
+      ? (await sqlPool`SELECT person_id FROM fiaon_leads WHERE id = ${leadId} LIMIT 1`.catch(() => [])) as any[]
+      : [];
+    console.log(`[WHATSAPP] Unbekannte Nummer ${nummer} → Lead ${leadId} angelegt.`);
+    return { personId: l?.person_id ? Number(l.person_id) : null, leadId, name: null };
+  } catch (e) {
+    console.error("[WHATSAPP] Lead-Anlage:", e);
+    return { personId: null, leadId: null, name: null };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS DER MENSCH VON SELBST SAGT, GEHT NICHT MEHR VERLOREN (E-214)
+//
+// Sophia Handler hat „Sophia Handler", „25.09.1998" und „handler710@gmail.com"
+// geschrieben. Alles drei stand hinterher nirgends. Ab jetzt wird es am Lead
+// nachgetragen — aber NUR, wenn die Nachricht eindeutig ist und das Feld leer:
+//
+//   · eine Nachricht, die AUSSCHLIESSLICH eine E-Mail-Adresse ist
+//   · eine Nachricht aus zwei bis drei reinen Wortteilen, die wie ein Name aussieht
+//   · ein Datum in deutscher Schreibweise als Geburtsdatum
+//
+// Bewusst kein Herauslesen aus Fließtext: „Ich habe mit Herrn Müller gesprochen"
+// würde sonst zu „Herr Müller". Ein falscher Name in der Akte ist schlimmer als
+// gar keiner — er wandert in Anreden, Verträge und Schreiben.
+//
+// Und bewusst nur bei LEEREN Feldern: Was ein Mensch im Antrag angegeben hat,
+// schlägt eine beiläufige Chatnachricht immer.
+// ═══════════════════════════════════════════════════════════════════════════
+const NUR_MAIL = /^[^\s@]{1,64}@[^\s@]{2,63}\.[A-Za-z]{2,10}$/;
+const NUR_NAME = /^[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß'-]{1,24}(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß'-]{1,24}){1,2}$/;
+const NUR_DATUM = /^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/;
+const NICHT_NAME = new Set(["guten tag", "guten morgen", "guten abend", "vielen dank", "danke schön", "alles klar", "kein interesse", "ja bitte", "nein danke", "bitte anrufen"]);
+
+async function angabeNachtragen(leadId: number | null, personId: number | null, text: string, lauf: Lauf = sqlPool): Promise<void> {
+  if (!leadId && !personId) return;
+  const t = text.trim();
+  if (!t || t.length > 80) return;
+  try {
+    if (NUR_MAIL.test(t)) {
+      if (leadId) await lauf`UPDATE fiaon_leads SET email = ${t.toLowerCase()} WHERE id = ${leadId} AND NULLIF(TRIM(COALESCE(email,'')),'') IS NULL`;
+      if (personId) await lauf`UPDATE fiaon_persons SET primary_email = ${t.toLowerCase()}, updated_at = NOW() WHERE id = ${personId} AND NULLIF(TRIM(COALESCE(primary_email,'')),'') IS NULL`.catch(() => {});
+      return;
+    }
+    const d = NUR_DATUM.exec(t);
+    if (d) {
+      const jahr = Number(d[3]);
+      // Ein Geburtsdatum, das kein Geburtsdatum sein kann, ist keins.
+      // `fiaon_leads` führt kein Geburtsdatum — es gehört an den Menschen.
+      if (personId && jahr >= 1920 && jahr <= new Date().getFullYear() - 16) {
+        const iso = `${d[3]}-${String(d[2]).padStart(2, "0")}-${String(d[1]).padStart(2, "0")}`;
+        await lauf`UPDATE fiaon_persons SET birthdate = ${iso}, updated_at = NOW() WHERE id = ${personId} AND birthdate IS NULL`.catch(() => {});
+      }
+      return;
+    }
+    if (NUR_NAME.test(t) && !NICHT_NAME.has(t.toLowerCase())) {
+      const teile = t.split(/\s+/);
+      const vor = teile[0]; const nach = teile.slice(1).join(" ");
+      if (leadId) {
+        await lauf`
+          UPDATE fiaon_leads SET vorname = ${vor}, nachname = ${nach}
+           WHERE id = ${leadId}
+             AND NULLIF(TRIM(COALESCE(vorname,'')),'') IS NULL
+             AND NULLIF(TRIM(COALESCE(nachname,'')),'') IS NULL`;
+      }
+      if (personId) {
+        await lauf`
+          UPDATE fiaon_persons SET first_name = ${vor}, last_name = ${nach}, updated_at = NOW()
+           WHERE id = ${personId}
+             AND NULLIF(TRIM(COALESCE(first_name,'')),'') IS NULL
+             AND NULLIF(TRIM(COALESCE(last_name,'')),'') IS NULL`.catch(() => {});
+      }
+    }
+  } catch (e) { console.error("[WHATSAPP] Angabe nachtragen:", e); }
+}
+
+/**
+ * HERRENLOSE GESPRÄCHE NACHZIEHEN (23.09.2026, E-214)
+ *
+ * Die Regel oben gilt ab jetzt. Sophia Handler hat vorher geschrieben — ihr
+ * Gespräch hängt an keinem Menschen. Diese Funktion holt das nach: Sie sucht
+ * Gespräche ohne Person und ohne Lead, legt den Lead an und trägt nach, was
+ * der Mensch in seinen eigenen Nachrichten genannt hat.
+ *
+ * Sie läuft beim Öffnen des WhatsApp-Raums mit — gedeckelt und idempotent. Ein
+ * eigener Knopf wäre ein Knopf, den niemand drückt; ein Aufräumlauf im
+ * Tageslauf ließe Sophia bis morgen früh liegen.
+ */
+export async function verwaisteNachziehen(hoechstens = 25, lauf: Lauf = sqlPool): Promise<number> {
+  await waTabellen(lauf);
+  const offen = (await lauf`
+    SELECT nummer FROM fiaon_whatsapp_gespraech
+     WHERE person_id IS NULL AND lead_id IS NULL
+     ORDER BY updated_at DESC NULLS LAST LIMIT ${Math.min(Math.max(hoechstens, 1), 100)}`.catch(() => [])) as any[];
+  let angelegt = 0;
+  for (const g of offen) {
+    const nummer = String(g.nummer);
+    // Zwischendurch könnte jemand von Hand zugeordnet haben.
+    const jetzt = await wemGehoert(nummer, lauf);
+    if (jetzt.personId || jetzt.leadId) {
+      await lauf`UPDATE fiaon_whatsapp_gespraech SET person_id = ${jetzt.personId}, lead_id = ${jetzt.leadId} WHERE nummer = ${nummer}`.catch(() => {});
+      continue;
+    }
+    const [erste] = (await lauf`
+      SELECT text FROM fiaon_whatsapp WHERE nummer = ${nummer} AND richtung = 'rein' ORDER BY id ASC LIMIT 1`.catch(() => [])) as any[];
+    const neu = await leadAusEingang(nummer, String(erste?.text ?? ""));
+    if (!neu.leadId && !neu.personId) continue;
+    angelegt++;
+    await lauf`
+      UPDATE fiaon_whatsapp_gespraech SET person_id = ${neu.personId}, lead_id = ${neu.leadId}, updated_at = NOW()
+       WHERE nummer = ${nummer}`.catch(() => {});
+    await lauf`
+      UPDATE fiaon_whatsapp SET person_id = COALESCE(person_id, ${neu.personId}), lead_id = COALESCE(lead_id, ${neu.leadId})
+       WHERE nummer = ${nummer}`.catch(() => {});
+    // Alles, was der Mensch von sich aus geschrieben hat, in der Reihenfolge
+    // des Eingangs nachtragen — so gewinnt die erste Nennung, nicht die letzte.
+    const eigene = (await lauf`
+      SELECT text FROM fiaon_whatsapp WHERE nummer = ${nummer} AND richtung = 'rein' AND text IS NOT NULL
+       ORDER BY id ASC LIMIT 40`.catch(() => [])) as any[];
+    for (const z of eigene) await angabeNachtragen(neu.leadId, neu.personId, String(z.text), lauf);
+  }
+  if (angelegt) console.log(`[WHATSAPP] ${angelegt} herrenlose(s) Gespräch(e) nachgezogen.`);
+  return angelegt;
+}
+
 /**
  * Eine Meldung von Meta verarbeiten (Feld „messages"): eingehende Nachrichten
  * und Zustellstände. Idempotent über die Nachrichten-Kennung von WhatsApp.
@@ -272,8 +470,13 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
   for (const m of wert?.messages ?? []) {
     const nummer = nummerFuerWhatsApp(m?.from);
     if (!nummer) continue;
-    const gehoert = await wemGehoert(nummer, lauf);
     const text = String(m?.text?.body ?? m?.button?.text ?? m?.interactive?.button_reply?.title ?? "").slice(0, 4000);
+    let gehoert = await wemGehoert(nummer, lauf);
+    // E-214: Kennen wir die Nummer nicht, legen wir einen Lead an — sonst
+    // landet der Mensch in einem Chat, den niemand besitzt.
+    if (!gehoert.personId && !gehoert.leadId) {
+      gehoert = await leadAusEingang(nummer, text);
+    }
     const knopf = String(m?.button?.payload ?? m?.interactive?.button_reply?.id ?? "") || null;
     const zeilen = (await lauf`
       INSERT INTO fiaon_whatsapp (wa_id, richtung, nummer, person_id, lead_id, typ, text, knopf, status, empfangen_am)
@@ -283,6 +486,8 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
       ON CONFLICT (wa_id) DO NOTHING RETURNING id`) as any[];
     if (zeilen.length) {
       neu++;
+      // E-214: Was der Mensch von selbst nennt, wird am Lead nachgetragen.
+      await angabeNachtragen(gehoert.leadId, gehoert.personId, text, lauf);
       // Mara antwortet — im Hintergrund, damit der Webhook in Millisekunden
       // fertig ist (Meta wiederholt sonst die Meldung). Sie prüft selbst, ob
       // sie darf: Schalter am Gespräch, Fenster, Kostendeckel, Wortwand.

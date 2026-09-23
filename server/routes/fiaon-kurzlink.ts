@@ -110,6 +110,39 @@ router.get("/fb", async (req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// /e/:code — WER HAT WEN GEBRACHT (23.09.2026, E-214)
+//
+// Florentine: „Michaela Schneider hat gefragt, ob es Provisionen für Neukunden
+// gibt, wenn sie FIAON weiterempfiehlt."
+//
+// Der Link führt auf /start wie jeder andere Weg auch — die Landingpage ist die
+// beste, die wir haben, und ein eigener Bildschirm wäre eine zweite Strecke,
+// die niemand pflegt. Mitgegeben wird nur, WER empfohlen hat: als Cookie, das
+// der Antrag beim Absenden liest (dieselbe Bauart wie der Antrags-Cookie aus
+// E-152), und als `quelle=empfehlung` für die Auswertung.
+//
+// Ein unbekannter oder abgelaufener Code landet trotzdem auf /start. Wer hier
+// klickt, will zu FIAON — eine Fehlerseite wäre die schlechteste Antwort.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/e/:code", async (req: Request, res: Response) => {
+  schutzKoepfe(res);
+  try {
+    const { empfehlerFuerCode } = await import("../lib/fiaon-empfehlung");
+    const e = await empfehlerFuerCode(String(req.params.code || "")).catch(() => null);
+    if (e) {
+      res.cookie("fiaon_e", String(req.params.code), {
+        httpOnly: true, sameSite: "lax", secure: true,
+        maxAge: 90 * 24 * 60 * 60 * 1000, path: "/",
+      });
+    }
+    res.redirect(302, `/start?quelle=${e ? "empfehlung" : "empfehlung-unbekannt"}`);
+  } catch (err) {
+    console.error("[EMPFEHLUNG] /e:", err);
+    res.redirect(302, "/start?quelle=empfehlung");
+  }
+});
+
 router.get("/a/:code", weiterleiten);
 router.get("/a/:code/:kanal", weiterleiten);
 

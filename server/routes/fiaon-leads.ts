@@ -787,6 +787,15 @@ export interface MetaHerkunft {
   weg: "meta_webhook" | "meta_nachhol" | "meta_rueckstand";
 }
 
+// 23.09.2026 (E-214): EXPORTIERT. Eine eingehende WhatsApp von einer
+// unbekannten Nummer war bis heute ein Gespräch ohne Menschen — kein Lead,
+// keine Person, niemand zuständig (gefunden an Sophia Handler, die Mara ihren
+// Namen, ihr Geburtsdatum, ihre E-Mail und ihre Nummer genannt hatte). Der
+// Eingang nimmt jetzt denselben Weg wie ein Lead aus der Anzeige: dieselbe
+// Namensreinigung, dieselbe Dublettenprüfung, dieselbe Bindung an die Person.
+// Eine zweite Anlagestelle hätte genau diese vier Dinge vergessen.
+export async function leadEingang(b: any): Promise<IntakeResult> { return processIntake(b); }
+
 async function processIntake(b: any): Promise<IntakeResult> {
   await ensureLeadTables();
   const meta: MetaHerkunft | null = b && typeof b.meta === "object" && b.meta?.leadId ? b.meta : null;

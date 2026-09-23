@@ -4157,6 +4157,132 @@ function AngabenNachtragen({ personId, antrag, melden, onFertig }: {
 // Raten nach der letzten entfallen. Zurücknehmen holt die Raten zurück, das
 // Konto läuft weiter. Beides steht im Verlauf des Kunden.
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// WHATSAPP AUS DER AKTE (23.09.2026, E-214)
+//
+// Florentine: „Hab einen Kunden nicht erreicht und er hat keine E-Mail. Schick
+// nämlich allen, die ich nicht erreiche, einen Terminlink."
+//
+// Außerhalb des 24-Stunden-Fensters lässt WhatsApp nur freigegebene Vorlagen
+// zu. Deshalb steht hier die Liste der Vorlagen mit ihrem Stand — auch der
+// noch nicht freigegebenen. Eine leere Liste ohne Grund ist das Schlimmste:
+// Der Mitarbeiter denkt, es sei kaputt, und schreibt nie wieder.
+// ═══════════════════════════════════════════════════════════════════════════
+interface WaVorlageStand {
+  name: string; zweck: string; wann: string; text: string;
+  variablen: number; beispiele: string[]; status: string; nutzbar: boolean;
+}
+
+function WhatsAppSenden({ personId, name, melden }: {
+  personId: number; name: string; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+}) {
+  const [stand, setStand] = useState<{ nummer: string | null; fensterOffen: boolean; vorlagen: WaVorlageStand[] } | null>(null);
+  const [wahl, setWahl] = useState<string>("");
+  const [werte, setWerte] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let an = true;
+    void api(`/agent/kunden/${personId}/whatsapp-vorlagen`).then((r) => { if (an && r.ok) setStand(r.json); });
+    return () => { an = false; };
+  }, [personId]);
+  if (!stand) return <p className="pi-fussnote">Lädt …</p>;
+  if (!stand.nummer) return <p className="pi-fussnote">Zu diesem Menschen ist keine Nummer hinterlegt, über die WhatsApp läuft.</p>;
+
+  const v = stand.vorlagen.find((x) => x.name === wahl) ?? null;
+  const nutzbare = stand.vorlagen.filter((x) => x.nutzbar);
+  // Die erste Variable ist immer der Name, die zweite meist der Mitarbeiter —
+  // beide füllen wir vor, damit niemand seinen eigenen Namen tippen muss.
+  const vorschau = v
+    ? v.text.replace(/\{\{(\d)\}\}/g, (_m, n) => werte[Number(n) - 1] || v.beispiele[Number(n) - 1] || `{{${n}}}`)
+    : "";
+
+  const senden = async () => {
+    if (!v) return;
+    const fehlt = Array.from({ length: v.variablen }, (_x, i) => werte[i]).some((w) => !String(w || "").trim());
+    if (fehlt) { melden("schlecht", "Es fehlt noch etwas", "Bitte alle Felder ausfüllen — sie stehen so in der Nachricht."); return; }
+    setBusy(true);
+    const r = await api(`/agent/kunden/${personId}/whatsapp`, { method: "POST", body: JSON.stringify({ vorlage: v.name, werte: werte.slice(0, v.variablen) }) });
+    setBusy(false);
+    if (!r.ok) { melden("schlecht", "Nicht gesendet", r.json?.error || "Der Server hat abgelehnt."); return; }
+    melden("gut", "WhatsApp ist raus", `${name} hat die Nachricht bekommen. Sie steht im Verlauf und im WhatsApp-Raum.`);
+    setWahl(""); setWerte([]);
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <span className="pi-fussnote">
+        An {stand.nummer}{stand.fensterOffen ? " · Fenster offen, freier Text im WhatsApp-Raum möglich" : " · Fenster zu, nur Vorlagen"}
+      </span>
+      {nutzbare.length === 0 ? (
+        <p className="pi-fussnote">
+          Noch ist keine Vorlage von Meta freigegeben ({stand.vorlagen.length} eingereicht oder offen). Sobald die Freigabe da ist, erscheinen sie hier.
+        </p>
+      ) : (
+        <>
+          <select className="pi-eingabe" value={wahl} onChange={(e) => { setWahl(e.target.value); setWerte([]); }}>
+            <option value="">Vorlage wählen …</option>
+            {nutzbare.map((x) => <option key={x.name} value={x.name}>{x.zweck}</option>)}
+          </select>
+          {v && (
+            <>
+              {Array.from({ length: v.variablen }, (_x, i) => (
+                <input key={i} className="pi-eingabe" value={werte[i] ?? ""} maxLength={120}
+                       placeholder={v.beispiele[i] ? `z. B. ${v.beispiele[i]}` : `Platzhalter ${i + 1}`}
+                       onChange={(e) => setWerte((w) => { const n = [...w]; n[i] = e.target.value; return n; })} />
+              ))}
+              <p className="pi-fussnote" style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{vorschau}</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void senden()}>{busy ? "Sendet …" : "Jetzt senden"}</button>
+                <button type="button" className="pi-knopf still klein" onClick={() => { setWahl(""); setWerte([]); }}>Abbrechen</button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER LINK ZUM WEITEREMPFEHLEN (23.09.2026, E-214)
+//
+// Michaela Schneider hat gefragt, ob es etwas für eine Empfehlung gibt. Was es
+// gibt, entscheidet Justin; was es ab jetzt gibt, ist die Zuordnung: Wer über
+// diesen Link kommt, hängt an diesem Menschen.
+// ═══════════════════════════════════════════════════════════════════════════
+function EmpfehlungsBlock({ personId, melden }: {
+  personId: number; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+}) {
+  const [d, setD] = useState<any | null>(null);
+  useEffect(() => {
+    let an = true;
+    void api(`/agent/kunden/${personId}/empfehlung`).then((r) => { if (an) setD(r.ok ? r.json : { fehler: r.json?.error }); });
+    return () => { an = false; };
+  }, [personId]);
+  if (!d) return <p className="pi-fussnote">Lädt …</p>;
+  if (d.fehler) return <p className="pi-fussnote">{d.fehler}</p>;
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <code style={{ fontSize: 12.5, color: "#93c5fd", wordBreak: "break-all" }}>{d.url}</code>
+        <button type="button" className="pi-knopf still klein"
+                onClick={() => { void navigator.clipboard.writeText(String(d.url)).then(() => melden("gut", "Kopiert", "Der Link liegt in der Zwischenablage.")); }}>
+          Kopieren
+        </button>
+      </div>
+      <span className="pi-fussnote">
+        {d.klicks} Klick(s) · {d.antraege} Antrag/Anträge daraus · {d.bezahlt} davon bezahlt
+        {d.praemieCents == null ? " · Prämie noch nicht festgelegt" : ""}
+      </span>
+      {d.gebracht?.length > 0 && (
+        <span className="pi-fussnote">
+          Gebracht: {d.gebracht.slice(0, 5).map((g: any) => `${g.name}${g.bezahlt ? " (bezahlt)" : ""}`).join(", ")}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function KuendigungBlock({ personId, melden, onFrisch }: {
   personId: number; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void;
 }) {
@@ -4423,6 +4549,16 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
           NACHHER steht er hier. Er holt zuerst eine Nur-Lese-Sitzung vom Server
           und öffnet DANN den Tab; umgekehrt wäre der Tab da, bevor die Sitzung
           steht, und man landet wieder auf der Anmeldung. */}
+      {/* E-214: WhatsApp aus der Akte — Florentines „Terminlink für alle, die
+          ich nicht erreiche", und der Link zum Weiterempfehlen. */}
+      <Sek titel="WhatsApp schicken" erklaer="Für jeden Anlass eine freigegebene Vorlage — außerhalb von 24 Stunden lässt WhatsApp nur diese zu.">
+        <WhatsAppSenden personId={personId} name={name} melden={melden} />
+      </Sek>
+
+      <Sek titel="Weiterempfehlen" erklaer="Der persönliche Link dieses Menschen. Wer darüber kommt, wird ihm zugeordnet.">
+        <EmpfehlungsBlock personId={personId} melden={melden} />
+      </Sek>
+
       <Sek titel="Portal ansehen" erklaer="So sieht der Kunde seinen eigenen Bereich — zum Nachvollziehen, was bei ihm ankommt.">
         <PortalAnsehen personId={personId} name={name} melden={melden} />
         <KuendigungBlock personId={personId} melden={melden} onFrisch={onFrisch} />

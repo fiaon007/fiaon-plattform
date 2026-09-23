@@ -3012,6 +3012,22 @@ router.post("/application", async (req, res) => {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
       console.log("[FIAON-APP] Insert completed");
+      // ── WER HAT IHN GEBRACHT? (23.09.2026, E-214) ────────────────────────
+      // Der Empfehlungslink /e/:code hat ein Cookie gesetzt. Es wird GENAU HIER
+      // gelesen — beim Anlegen des Antrags, nicht beim Absenden: Wer vorher
+      // abbricht, war trotzdem eine Empfehlung, und wer später wiederkommt,
+      // soll nicht plötzlich jemand anderem zugeordnet werden.
+      try {
+        const eCode = String((req as any).cookies?.fiaon_e ?? "").trim();
+        if (eCode) {
+          const { empfehlerFuerCode } = await import("../lib/fiaon-empfehlung");
+          const e = await empfehlerFuerCode(eCode);
+          if (e) {
+            await sqlPool`UPDATE fiaon_applications SET empfohlen_von_person_id = ${e.personId}, empfohlen_code = ${eCode} WHERE ref = ${ref}`;
+            console.log(`[EMPFEHLUNG] ${ref} kommt von Person ${e.personId} (${e.name}).`);
+          }
+        }
+      } catch (e) { console.error("[EMPFEHLUNG] Zuordnung:", e); }
       // 06.09.2026: Der Browser, der den Antrag anlegt, bekommt das Antrags-Cookie (lib/fiaon-antrag-sitzung.ts).
       antragCookieSetzen(res, ref);
       if (password) {

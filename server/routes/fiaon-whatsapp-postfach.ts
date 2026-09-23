@@ -168,6 +168,11 @@ function routen(hole: (req: any) => Blick) {
     try {
       await bereit();
       const blick = hole(req);
+      // E-214: Herrenlose Gespräche bekommen ihren Lead, bevor die Liste
+      // gebaut wird — sonst steht hier eine Zeile ohne Namen, die niemandem
+      // gehört und die deshalb auch niemand anruft (gefunden an Sophia Handler).
+      const { verwaisteNachziehen } = await import("../lib/fiaon-whatsapp");
+      await verwaisteNachziehen().catch((e) => console.error("[WHATSAPP-RAUM] nachziehen:", e));
       const gespraeche = await gespraecheLaden(blick, { suche: String(req.query.suche ?? ""), filter: String(req.query.filter ?? "") });
       const k = waKonfig();
       res.json({
@@ -372,6 +377,32 @@ function routen(hole: (req: any) => Blick) {
       res.json({ ok: true, vorlagen: v, inPruefung: (await vorlagenStand().catch(() => [])).filter((t) => t.status === "PENDING").length });
     } catch (err) {
       res.status(500).json({ ok: false, error: "Die Vorlagen ließen sich nicht laden." });
+    }
+  });
+
+  /**
+   * VORLAGEN AUFRÄUMEN UND NEU EINREICHEN (23.09.2026, E-214)
+   *
+   * Justin: „Die META-Vorlagen sind Müll, kannst alle löschen!"
+   *
+   * Ein Knopf, zwei Schritte in der richtigen Reihenfolge: erst löschen, was
+   * nicht mehr im Quelltext steht, dann einreichen, was fehlt. Andersherum
+   * würde der Löschlauf die frisch eingereichten nicht antreffen — aber der
+   * Vorlagenmanager stünde zwischendurch voll mit Altlasten.
+   *
+   * Ohne `{ ausfuehren: true }` ist es eine PROBE: Sie sagt, was verschwinden
+   * würde, und fasst nichts an. Löschen bei Meta ist endgültig.
+   */
+  r.post("/vorlagen/aufraeumen", async (req: any, res: Response) => {
+    try {
+      const ausfuehren = req.body?.ausfuehren === true;
+      const { vorlagenAufraeumen, vorlagenEinreichen } = await import("../lib/fiaon-whatsapp");
+      const weg = await vorlagenAufraeumen({ probe: !ausfuehren });
+      const neu = ausfuehren ? await vorlagenEinreichen() : { eingereicht: [], schonDa: [], fehler: [] };
+      res.json({ ok: true, probe: !ausfuehren, geloescht: weg.geloescht, behalten: weg.behalten, loeschFehler: weg.fehler, ...neu });
+    } catch (err) {
+      console.error("[WHATSAPP-RAUM] vorlagen aufräumen:", err);
+      res.status(500).json({ ok: false, error: "Das Aufräumen ist abgebrochen — bei Meta wurde nichts verändert." });
     }
   });
 

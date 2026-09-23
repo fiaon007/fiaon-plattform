@@ -1370,6 +1370,109 @@ router.get("/agent/vertrieb/dubletten/paar/:a/:b", requireAgent, nurLeitung, nur
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// AUS DER AKTE EINE WHATSAPP SCHICKEN (23.09.2026, E-214)
+//
+// Florentine: „Können wir auch so einen Link haben? Hab einen Kunden nicht
+// erreicht und er hat keine E-Mail. Schick nämlich allen, die ich nicht
+// erreiche, einen Terminlink."
+//
+// ── WARUM ES NUR ÜBER VORLAGEN GEHT ───────────────────────────────────────
+// Außerhalb des 24-Stunden-Fensters lässt WhatsApp ausschließlich freigegebene
+// Vorlagen zu — freier Text wird von Meta abgewiesen. Deshalb gibt es seit
+// heute für JEDES Szenario eine Vorlage (shared/fiaon-lead-texte.ts), und
+// dieser Endpunkt reicht sie mit den Werten des Kunden durch.
+//
+// Gesendet wird über denselben Weg wie im WhatsApp-Raum (waSenden): dieselbe
+// Wand, dasselbe Protokoll, derselbe Verlauf. Kein zweiter Sendeweg.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/kunden/:personId/whatsapp-vorlagen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { vorlagenStand, fensterOffen } = await import("../lib/fiaon-whatsapp");
+    const { WA_VORLAGEN } = await import("../../shared/fiaon-lead-texte");
+    const { nummerFuerWhatsApp } = await import("../../shared/fiaon-whatsapp-erlaubnis");
+    const [p] = (await sqlPool`SELECT primary_phone FROM fiaon_persons WHERE id = ${personId} LIMIT 1`) as any[];
+    const nummer = nummerFuerWhatsApp(p?.primary_phone);
+    const frei = nummer ? await fensterOffen(nummer).catch(() => false) : false;
+    const stand = await vorlagenStand().catch(() => []);
+    const freigegeben = new Set(stand.filter((t) => t.status === "APPROVED").map((t) => t.name));
+    res.json({
+      ok: true,
+      nummer,
+      fensterOffen: frei,
+      // Auch die noch nicht freigegebenen werden genannt — mit ihrem Stand.
+      // Sonst steht der Mitarbeiter vor einer leeren Liste und weiß nicht, warum.
+      vorlagen: WA_VORLAGEN.map((v) => ({
+        name: v.name, zweck: v.zweck, wann: v.wann, text: v.text,
+        variablen: (v.text.match(/\{\{\d\}\}/g) ?? []).length,
+        beispiele: v.beispiele,
+        status: stand.find((t) => t.name === v.name)?.status ?? "FEHLT",
+        nutzbar: freigegeben.has(v.name),
+      })),
+    });
+  } catch (err) {
+    console.error("[VERTRIEB] whatsapp-vorlagen:", err);
+    res.status(500).json({ ok: false, error: "Die Vorlagen ließen sich nicht laden." });
+  }
+});
+
+router.post("/agent/kunden/:personId/whatsapp", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const vorlage = String(req.body?.vorlage ?? "").trim();
+    if (!Number.isFinite(personId) || personId <= 0 || !vorlage) return res.status(400).json({ ok: false, error: "Kunde und Vorlage werden gebraucht." });
+    const { waSenden } = await import("../lib/fiaon-whatsapp");
+    const { nummerFuerWhatsApp } = await import("../../shared/fiaon-whatsapp-erlaubnis");
+    const [p] = (await sqlPool`
+      SELECT primary_phone, TRIM(COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')) AS name, assigned_agent_id
+        FROM fiaon_persons WHERE id = ${personId} LIMIT 1`) as any[];
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const nummer = nummerFuerWhatsApp(p.primary_phone);
+    if (!nummer) return res.status(422).json({ ok: false, error: "Zu diesem Menschen ist keine Nummer hinterlegt, über die WhatsApp läuft." });
+    const werte = Array.isArray(req.body?.werte) ? req.body.werte.map(String) : [];
+    const erg = await waSenden(nummer, { vorlage, werte }, { personId, von: req.agent!.name });
+    if (!erg.ok) return res.status(422).json({ ok: false, error: erg.grund });
+    await sqlPool`
+      INSERT INTO fiaon_whatsapp_gespraech (nummer, person_id, mara_an, updated_at)
+      VALUES (${nummer}, ${personId}, TRUE, NOW())
+      ON CONFLICT (nummer) DO UPDATE SET person_id = COALESCE(EXCLUDED.person_id, fiaon_whatsapp_gespraech.person_id), updated_at = NOW()`.catch(() => {});
+    // Der Versand steht im Verlauf des Kunden — sonst weiß beim nächsten Anruf
+    // niemand, dass ihm schon eine Nachricht geschickt wurde.
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`WhatsApp geschickt: Vorlage „${vorlage}" an ${nummer}.`}, NOW())`.catch(() => {});
+    console.log(`[VERTRIEB] ${req.agent!.name} sendet WhatsApp ${vorlage} an Person ${personId}.`);
+    res.json({ ok: true, nummer });
+  } catch (err) {
+    console.error("[VERTRIEB] whatsapp senden:", err);
+    res.status(500).json({ ok: false, error: "Die Nachricht ging nicht raus." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER LINK ZUM WEITEREMPFEHLEN (23.09.2026, E-214)
+//
+// Florentine: „Michaela Schneider hat gefragt, ob es Provisionen für Neukunden
+// gibt, wenn sie FIAON weiterempfiehlt." Der Link entsteht beim ersten Abruf
+// und bleibt dann derselbe — ein Mensch, ein Link, dauerhaft.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/kunden/:personId/empfehlung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { empfehlungslink, empfehlungStand, PRAEMIE_CENTS } = await import("../lib/fiaon-empfehlung");
+    await empfehlungslink(personId, req.agent!.name);
+    const stand = await empfehlungStand(personId);
+    res.json({ ok: true, ...stand, praemieCents: PRAEMIE_CENTS });
+  } catch (err) {
+    console.error("[VERTRIEB] empfehlung:", err);
+    res.status(500).json({ ok: false, error: "Der Link ließ sich nicht erzeugen." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DUBLETTEN VON HAND SUCHEN — AUS DER AKTE HERAUS (23.09.2026, E-212)
 //
 // Justin: „Wenn man in einer Kundenakte ist, dann muss man einen Knopf haben

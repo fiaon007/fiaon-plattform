@@ -109,21 +109,32 @@ export function vorlageAlsMeta(v: WaVorlage): Record<string, unknown> {
     // URL weist Meta die Vorlage mit „example not allowed" zurück.
     ? { type: "URL", text: k.text, url: k.url, ...(k.beispiel ? { example: [k.beispiel] } : {}) }
     : { type: "QUICK_REPLY", text: k.text }));
-  const komponenten: Record<string, unknown>[] = [{
+  // E-221: Kopf und Fußzeile. Justin mit dem echten Chat vor Augen: „Das sieht
+  // so super billig aus." Die Nachricht begann mitten im Satz, ohne Absender
+  // und ohne Abschluss — Meta erlaubt beides, wir hatten es nur nie genutzt.
+  const komponenten: Record<string, unknown>[] = [];
+  if (v.kopf) komponenten.push({ type: "HEADER", format: "TEXT", text: v.kopf.slice(0, 60) });
+  komponenten.push({
     type: "BODY",
     text: v.text,
     ...(v.beispiele.length ? { example: { body_text: [v.beispiele] } } : {}),
-  }];
+  });
+  if (v.fuss) komponenten.push({ type: "FOOTER", text: v.fuss.slice(0, 60) });
   if (knoepfe.length) komponenten.push({ type: "BUTTONS", buttons: knoepfe });
   return { name: v.name, language: "de", category: v.kategorie, components: komponenten };
 }
 
 /** Was Meta über unsere Vorlagen weiß. */
-export async function vorlagenStand(): Promise<{ name: string; status: string; kategorie: string; id: string }[]> {
+export async function vorlagenStand(): Promise<{ name: string; status: string; kategorie: string; id: string; komponenten?: any[] }[]> {
   const k = waKonfig();
   if (!k.wabaId) return [];
-  const a = await graph(`${k.wabaId}/message_templates`, { params: { fields: "name,status,category,language", limit: 100 } });
-  return (a?.data ?? []).map((t: any) => ({ name: String(t.name), status: String(t.status), kategorie: String(t.category ?? ""), id: String(t.id) }));
+  const a = await graph(`${k.wabaId}/message_templates`, { params: { fields: "name,status,category,language,components", limit: 100 } });
+  return (a?.data ?? []).map((t: any) => ({
+    name: String(t.name), status: String(t.status), kategorie: String(t.category ?? ""), id: String(t.id),
+    // E-221: Für den Abgleich „hat sie schon Kopf und Fuß?" — sonst würden wir
+    // bei jedem Lauf alle Vorlagen zur Neuprüfung schicken.
+    komponenten: Array.isArray(t.components) ? t.components : [],
+  }));
 }
 
 /**
@@ -222,13 +233,84 @@ export function vorlagenLaufStarten(was: "einreichen" | "aufraeumen", opts: { au
   lauf = { laeuft: true, was, gesamt: 0, fertig: 0, seit: new Date().toISOString(), ergebnis: null, fehler: null };
   void (async () => {
     try {
-      const erg = was === "einreichen" ? await vorlagenEinreichen() : await vorlagenAufraeumen({ probe: opts.ausfuehren !== true });
+      // E-221: „Einreichen" heißt jetzt auch „auffrischen". Wer Kopf und Fuß
+      // ergänzt, will sie auch bei den Vorlagen haben, die schon durch sind —
+      // und muss sie nicht umbenennen. Meta lässt genehmigte Vorlagen
+      // bearbeiten; nur die in Prüfung nicht.
+      const erg = was === "einreichen" ? await vorlagenEinreichenUndAuffrischen() : await vorlagenAufraeumen({ probe: opts.ausfuehren !== true });
       lauf = { ...lauf, laeuft: false, ergebnis: erg as any, fertig: lauf.gesamt };
     } catch (e) {
       lauf = { ...lauf, laeuft: false, fehler: String((e as Error)?.message || e).slice(0, 300) };
     }
   })();
   return vorlagenLaufStand();
+}
+
+/**
+ * VORLAGEN AUFFRISCHEN (23.09.2026, E-221)
+ *
+ * Eine Vorlage, die bei Meta auf APPROVED oder REJECTED steht, lässt sich
+ * bearbeiten — nur eine in Prüfung nicht. Deshalb: einreichen, was fehlt, und
+ * auffrischen, was sich geändert hat. Sonst müsste jede Textänderung einen
+ * neuen Namen bekommen, und der Vorlagenmanager füllte sich mit Leichen.
+ *
+ * Verglichen wird an Kopf, Text und Fußzeile. Wer nur die Reihenfolge der
+ * Knöpfe ändert, löst keine neue Prüfung aus.
+ */
+export async function vorlagenEinreichenUndAuffrischen(): Promise<{
+  eingereicht: string[]; schonDa: string[]; aufgefrischt: string[]; fehler: { name: string; grund: string }[];
+}> {
+  const k = waKonfig();
+  const erg = { eingereicht: [] as string[], schonDa: [] as string[], aufgefrischt: [] as string[], fehler: [] as { name: string; grund: string }[] };
+  if (!k.wabaId) { erg.fehler.push({ name: "—", grund: "WHATSAPP_WABA_ID fehlt in der Umgebung." }); return erg; }
+
+  const beiMeta = await vorlagenStand().catch(() => []);
+  const nachName = new Map(beiMeta.map((t) => [t.name, t]));
+  const neuEinreichen: WaVorlage[] = [];
+  const auffrischen: { v: WaVorlage; id: string }[] = [];
+
+  for (const v of WA_VORLAGEN) {
+    const funde = sendePruefung(v.text.replace(/\{\{\d\}\}/g, "Maria Muster"));
+    if (funde.length) { erg.fehler.push({ name: v.name, grund: funde.join(" · ") }); continue; }
+    const da = nachName.get(v.name);
+    if (!da) { neuEinreichen.push(v); continue; }
+    erg.schonDa.push(v.name);
+    if (da.status !== "APPROVED" && da.status !== "REJECTED") continue; // in Prüfung: nicht anfassbar
+    const teile = (da.komponenten ?? []) as any[];
+    const kopfDa = String(teile.find((c) => c?.type === "HEADER")?.text ?? "");
+    const textDa = String(teile.find((c) => c?.type === "BODY")?.text ?? "");
+    const fussDa = String(teile.find((c) => c?.type === "FOOTER")?.text ?? "");
+    if (kopfDa === (v.kopf ?? "") && textDa === v.text && fussDa === (v.fuss ?? "")) continue;
+    auffrischen.push({ v, id: da.id });
+  }
+
+  lauf.gesamt = neuEinreichen.length + auffrischen.length;
+  await inWellen([
+    ...neuEinreichen.map((v) => async () => {
+      try {
+        const body = vorlageAlsMeta(v);
+        await graph(`${k.wabaId}/message_templates`, {
+          methode: "POST",
+          params: {
+            name: String(body.name), language: String(body.language), category: String(body.category),
+            components: JSON.stringify(body.components),
+          },
+        });
+        erg.eingereicht.push(v.name);
+      } catch (e) { erg.fehler.push({ name: v.name, grund: e instanceof MetaFehler ? e.klartext : String(e) }); }
+    }),
+    ...auffrischen.map(({ v, id }) => async () => {
+      try {
+        const body = vorlageAlsMeta(v);
+        // Beim Bearbeiten nimmt Meta NUR die Komponenten (und ggf. die
+        // Kategorie) — Name und Sprache stehen fest.
+        await graph(id, { methode: "POST", params: { components: JSON.stringify(body.components) } });
+        erg.aufgefrischt.push(v.name);
+      } catch (e) { erg.fehler.push({ name: v.name, grund: e instanceof MetaFehler ? e.klartext : String(e) }); }
+    }),
+  ]);
+  console.log(`[WHATSAPP] Vorlagen: ${erg.eingereicht.length} neu, ${erg.aufgefrischt.length} aufgefrischt, ${erg.fehler.length} Fehler.`);
+  return erg;
 }
 
 /**

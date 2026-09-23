@@ -12,6 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
+import { tageslauf } from "../lib/fiaon-crons";
 import { sqlPool } from "../lib/db-pool";
 import {
   aktionTabellen, aktionZaehler, einstellungenLesen, einstellungSetzen, kandidatenLaden, mailSchreiben, maraAktionLauf,
@@ -279,5 +280,102 @@ router.post("/chef/mara/durchgang", wache, async (_req: ChefRequest, res: Respon
     res.status(500).json({ ok: false, error: "Der Durchgang ist gescheitert." });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARA ANWEISEN — DIE ROUTEN (23.09.2026, E-219)
+//
+// Justin schreibt einen Satz, Mara legt einen Plan vor, er bestätigt mit einem
+// Klick. Nichts davon wirkt, bevor er geklickt hat — das ist seine Entscheidung
+// vom 23.09. („Plan zeigen, du bestätigst mit einem Klick").
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/chef/mara/auftrag", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const befehl = String(req.body?.befehl ?? "").trim();
+    if (befehl.length < 4) return res.status(400).json({ ok: false, error: "Sag mir in einem Satz, was ich tun soll." });
+    const { auftragAnlegen } = await import("../lib/fiaon-mara-auftrag");
+    const a = await auftragAnlegen(befehl, wer(req));
+    res.json({ ok: true, auftrag: a });
+  } catch (err) {
+    console.error("[MARA] auftrag:", err);
+    res.status(500).json({ ok: false, error: "Der Plan ließ sich nicht bauen." });
+  }
+});
+
+router.post("/chef/mara/auftrag/:id/ausfuehren", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { auftragAusfuehren } = await import("../lib/fiaon-mara-auftrag");
+    res.json(await auftragAusfuehren(Number(req.params.id), wer(req)));
+  } catch (err) {
+    console.error("[MARA] ausfuehren:", err);
+    res.status(500).json({ ok: false, error: "Der Auftrag ist abgebrochen." });
+  }
+});
+
+router.post("/chef/mara/auftrag/:id/verwerfen", wache, async (req: ChefRequest, res: Response) => {
+  const { auftragVerwerfen } = await import("../lib/fiaon-mara-auftrag");
+  const ok = await auftragVerwerfen(Number(req.params.id), wer(req));
+  res.status(ok ? 200 : 409).json(ok ? { ok: true } : { ok: false, error: "Dieser Auftrag lässt sich nicht mehr verwerfen." });
+});
+
+router.get("/chef/mara/auftraege", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { auftraege, dauerauftraege, WERKZEUGE, maraTag } = await import("../lib/fiaon-mara-auftrag");
+    const [liste, dauer, tag] = await Promise.all([auftraege(40), dauerauftraege(), maraTag()]);
+    res.json({
+      ok: true,
+      auftraege: liste.map((a: any) => ({
+        id: Number(a.id), befehl: a.befehl, absicht: a.absicht, status: a.status,
+        rueckfrage: a.rueckfrage,
+        plan: typeof a.plan === "string" ? JSON.parse(a.plan) : a.plan,
+        ergebnis: typeof a.ergebnis === "string" ? JSON.parse(a.ergebnis) : a.ergebnis,
+        von: a.von, erstelltAm: a.erstellt_am, fertigAm: a.fertig_am, dauerauftragId: a.dauerauftrag_id,
+      })),
+      dauerauftraege: dauer.map((d: any) => ({
+        id: Number(d.id), befehl: d.befehl, takt: d.takt, uhrzeit: d.uhrzeit, an: d.an === true,
+        letzterLauf: d.letzter_lauf, letzteMeldung: d.letzte_meldung,
+      })),
+      werkzeuge: WERKZEUGE.map((w) => ({ name: w.name, beschreibung: w.beschreibung, klasse: w.klasse, felder: w.felder })),
+      tag,
+    });
+  } catch (err) {
+    console.error("[MARA] auftraege:", err);
+    res.status(500).json({ ok: false, error: "Die Aufträge ließen sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/dauerauftrag", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { dauerauftragAnlegen } = await import("../lib/fiaon-mara-auftrag");
+    const befehl = String(req.body?.befehl ?? "").trim();
+    if (befehl.length < 4) return res.status(400).json({ ok: false, error: "Sag mir in einem Satz, was regelmäßig passieren soll." });
+    res.json({ ok: true, dauerauftrag: await dauerauftragAnlegen(befehl, String(req.body?.takt ?? "taeglich"), String(req.body?.uhrzeit ?? "09:00"), wer(req)) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Der Dauerauftrag ließ sich nicht anlegen." });
+  }
+});
+
+router.post("/chef/mara/dauerauftrag/:id", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { dauerauftragSchalten, dauerauftragLoeschen } = await import("../lib/fiaon-mara-auftrag");
+    if (req.body?.loeschen === true) await dauerauftragLoeschen(Number(req.params.id));
+    else await dauerauftragSchalten(Number(req.params.id), req.body?.an === true);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Das ließ sich nicht ändern." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER TAKT FÜR DIE DAUERAUFTRÄGE (23.09.2026, E-219)
+//
+// Alle zehn Minuten nachsehen, ob einer dran ist. Die Uhrzeit prüft der Lauf
+// selbst (Berliner Zeit), deshalb ohne `alleXStunden` — sonst könnte ein
+// Auftrag für 9:00 Uhr um 14:00 Uhr nachgeholt werden, und der Kunde bekäme
+// seine Geburtstagsnachricht am Nachmittag.
+// ═══════════════════════════════════════════════════════════════════════════
+tageslauf("mara-dauerauftraege", async () => {
+  const { dauerauftraegeLaufen } = await import("../lib/fiaon-mara-auftrag");
+  await dauerauftraegeLaufen();
+}, 10 * 60 * 1000);
 
 export default router;

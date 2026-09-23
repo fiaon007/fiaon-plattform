@@ -44,6 +44,257 @@ async function senden(pfad: string, body: unknown): Promise<any> {
   return j;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MARA ANWEISEN (23.09.2026, E-219)
+//
+// Justin: „Ich möchte quasi mit Mara kommunizieren … ich soll aber eben alles
+// steuern, von ihrem gesamten Wissen, allen Zugriffen — einfach alles."
+//
+// Ein Feld, ein Satz, ein Plan. Der Plan zeigt jeden Schritt mit Namen und
+// Klasse; endgültige Schritte sind rot. Erst der Klick wirkt.
+// ═══════════════════════════════════════════════════════════════════════════
+interface Schritt { werkzeug: string; argumente: any; wen: string; warum: string; klasse: string }
+interface Auftrag {
+  id: number; befehl: string; absicht: string | null; status: string; rueckfrage: string | null;
+  plan: Schritt[]; ergebnis: { werkzeug?: string; wen?: string; ok?: boolean; text?: string }[];
+  von: string; erstelltAm: string; fertigAm: string | null; dauerauftragId: number | null;
+}
+interface Dauer { id: number; befehl: string; takt: string; uhrzeit: string; an: boolean; letzterLauf: string | null; letzteMeldung: string | null }
+interface MaraDaten {
+  auftraege: Auftrag[];
+  dauerauftraege: Dauer[];
+  werkzeuge: { name: string; beschreibung: string; klasse: string; felder: string }[];
+  tag: any;
+}
+const KLASSE_TEXT: Record<string, string> = { lesen: "nachsehen", umkehrbar: "umkehrbar", endgueltig: "endgültig" };
+const STATUS_TEXT: Record<string, string> = {
+  entwurf: "wartet auf dich", rueckfrage: "Rückfrage", laeuft: "läuft",
+  fertig: "erledigt", teilweise: "teilweise", verworfen: "verworfen",
+};
+
+function MaraBefehl({ melden }: { melden: (t: string) => void }) {
+  const d = useDaten<MaraDaten>("/chef/mara/auftraege");
+  const [befehl, setBefehl] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [dauerBefehl, setDauerBefehl] = useState("");
+  const [dauerZeit, setDauerZeit] = useState("09:00");
+  const [dauerTakt, setDauerTakt] = useState("taeglich");
+  const [wissenOffen, setWissenOffen] = useState(false);
+
+  const ruf = async (pfad: string, koerper?: unknown) => {
+    const r = await fetch(`${API}${pfad}`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(koerper ?? {}),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || j?.ok === false) throw new Error(j?.error || "Das hat nicht geklappt.");
+    return j;
+  };
+
+  const planen = async () => {
+    if (befehl.trim().length < 4) return;
+    setBusy("plan");
+    try {
+      const j = await ruf("/chef/mara/auftrag", { befehl: befehl.trim() });
+      melden(j.auftrag?.status === "rueckfrage" ? "Mara hat eine Rückfrage — sie steht unten." : "Plan steht — sieh ihn dir an und bestätige.");
+      setBefehl(""); d.neu();
+    } catch (e: any) { melden(e.message); } finally { setBusy(null); }
+  };
+
+  const ausfuehren = async (a: Auftrag) => {
+    const endgueltig = a.plan.filter((s) => s.klasse === "endgueltig");
+    if (endgueltig.length && !window.confirm(
+      `Dieser Auftrag enthält ${endgueltig.length} endgültige(n) Schritt:\n\n`
+      + endgueltig.map((s) => `· ${s.werkzeug}${s.wen ? ` — ${s.wen}` : ""}`).join("\n")
+      + "\n\nDas lässt sich nicht mit einem Klick zurücknehmen. Ausführen?")) return;
+    setBusy(`a${a.id}`);
+    try {
+      const j = await ruf(`/chef/mara/auftrag/${a.id}/ausfuehren`);
+      melden((j.ergebnis ?? []).map((x: any) => x.text).join(" · ") || "Erledigt.");
+      d.neu();
+    } catch (e: any) { melden(e.message); } finally { setBusy(null); }
+  };
+
+  const verwerfen = async (id: number) => {
+    setBusy(`v${id}`);
+    try { await ruf(`/chef/mara/auftrag/${id}/verwerfen`); melden("Verworfen."); d.neu(); }
+    catch (e: any) { melden(e.message); } finally { setBusy(null); }
+  };
+
+  const dauerAnlegen = async () => {
+    if (dauerBefehl.trim().length < 4) return;
+    setBusy("dauer");
+    try {
+      await ruf("/chef/mara/dauerauftrag", { befehl: dauerBefehl.trim(), takt: dauerTakt, uhrzeit: dauerZeit });
+      melden("Dauerauftrag angelegt. Er wird bei jedem Lauf neu geplant.");
+      setDauerBefehl(""); d.neu();
+    } catch (e: any) { melden(e.message); } finally { setBusy(null); }
+  };
+
+  if (d.fehler) return <section className="mp-karte"><h2>Mara anweisen</h2><Fehlermeldung text={d.fehler} erneut={d.neu} /></section>;
+  if (!d.daten) return <section className="mp-karte"><h2>Mara anweisen</h2><Geruest zeilen={3} /></section>;
+
+  const t = d.daten.tag;
+  const offen = d.daten.auftraege.filter((a) => a.status === "entwurf" || a.status === "rueckfrage");
+  const erledigt = d.daten.auftraege.filter((a) => a.status !== "entwurf" && a.status !== "rueckfrage");
+
+  return (
+    <section className="mp-karte mp-befehl" aria-label="Mara anweisen">
+      <div className="mp-karte-kopf">
+        <div>
+          <h2>Mara anweisen</h2>
+          <p className="mp-still">
+            Schreib in einem Satz, was passieren soll. Mara legt dir einen Plan vor — nichts wirkt, bevor du bestätigst.
+          </p>
+        </div>
+      </div>
+
+      <div className="mp-befehl-eingabe">
+        <textarea rows={2} value={befehl} maxLength={1000}
+          onChange={(ev) => setBefehl(ev.target.value)}
+          onKeyDown={(ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) void planen(); }}
+          placeholder="Zum Beispiel: Kündige den Kunden Gerold Kuhn, er hat angerufen. (⌘ + Enter)" />
+        <button type="button" className="mp-knopf voll" disabled={busy === "plan" || befehl.trim().length < 4} onClick={() => void planen()}>
+          {busy === "plan" ? "Denkt nach …" : "Plan bauen"}
+        </button>
+      </div>
+
+      {/* ── Maras Tag ────────────────────────────────────────────────── */}
+      {t && (
+        <div className="mp-tag">
+          <b>Maras Tag</b>
+          <span>{t.mails?.geschrieben ?? 0} Mails · {t.whatsapp?.raus ?? 0} WhatsApp an {t.whatsapp?.menschen ?? 0} Menschen
+            · {t.auftraege?.gelaufen ?? 0} Aufträge gelaufen · {t.kostenEuro?.toLocaleString("de-DE", { minimumFractionDigits: 2 })} € KI-Kosten</span>
+          {(t.offen ?? []).length > 0 && (
+            <span className="mp-tag-offen">{t.offen.map((o: any) => `${o.wieviel} ${o.was}`).join(" · ")}</span>
+          )}
+        </div>
+      )}
+
+      {/* ── Was auf dich wartet ──────────────────────────────────────── */}
+      {offen.length > 0 && (
+        <div className="mp-auftraege">
+          <h3>Wartet auf dich</h3>
+          {offen.map((a) => (
+            <div key={a.id} className={`mp-auftrag${a.status === "rueckfrage" ? " frage" : ""}`}>
+              <p className="mp-auftrag-befehl">„{a.befehl}"</p>
+              {a.rueckfrage
+                ? <p className="mp-auftrag-frage">{a.rueckfrage}</p>
+                : (
+                  <>
+                    {a.absicht && <p className="mp-still">{a.absicht}</p>}
+                    <ol className="mp-plan">
+                      {a.plan.map((sch, i) => (
+                        <li key={i} className={sch.klasse === "endgueltig" ? "endgueltig" : ""}>
+                          <b>{sch.werkzeug.replace(/_/g, " ")}</b>
+                          {sch.wen ? <span className="mp-wen">{sch.wen}</span> : null}
+                          <span className={`mp-klasse ${sch.klasse}`}>{KLASSE_TEXT[sch.klasse] ?? sch.klasse}</span>
+                          {sch.warum && <span className="mp-still">{sch.warum}</span>}
+                        </li>
+                      ))}
+                    </ol>
+                  </>
+                )}
+              <div className="mp-auftrag-tun">
+                {!a.rueckfrage && a.plan.length > 0 && (
+                  <button type="button" className="mp-knopf voll" disabled={!!busy} onClick={() => void ausfuehren(a)}>
+                    {busy === `a${a.id}` ? "Läuft …" : "Ausführen"}
+                  </button>
+                )}
+                <button type="button" className="mp-klein" disabled={!!busy} onClick={() => void verwerfen(a.id)}>Verwerfen</button>
+                <span className="mp-still">{seit(a.erstelltAm)} · {a.von}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Daueraufträge ────────────────────────────────────────────── */}
+      <div className="mp-dauer">
+        <h3>Daueraufträge</h3>
+        <p className="mp-still">
+          Wiederkehrend, bei jedem Lauf neu geplant. Enthält ein Lauf einen endgültigen Schritt, wartet er auf deinen Klick —
+          ein Dauerauftrag kündigt niemanden von selbst.
+        </p>
+        {d.daten.dauerauftraege.map((x) => (
+          <div key={x.id} className="mp-dauer-zeile">
+            <div>
+              <b>„{x.befehl}"</b>
+              <span className="mp-still">{x.takt === "werktags" ? "werktags" : x.takt === "woechentlich" ? "montags" : "täglich"} um {x.uhrzeit}
+                {x.letzterLauf ? ` · zuletzt ${seit(x.letzterLauf)}` : " · noch nie gelaufen"}</span>
+              {x.letzteMeldung && <span className="mp-still">{x.letzteMeldung}</span>}
+            </div>
+            <div className="mp-dauer-tun">
+              <button type="button" className={`mp-schalter klein${x.an ? " an" : ""}`}
+                onClick={() => void ruf(`/chef/mara/dauerauftrag/${x.id}`, { an: !x.an }).then(() => d.neu()).catch((e) => melden(e.message))}>
+                <span className="mp-schalter-knopf" />{x.an ? "an" : "aus"}
+              </button>
+              <button type="button" className="mp-klein"
+                onClick={() => { if (window.confirm("Diesen Dauerauftrag löschen?")) void ruf(`/chef/mara/dauerauftrag/${x.id}`, { loeschen: true }).then(() => d.neu()).catch((e) => melden(e.message)); }}>
+                Löschen
+              </button>
+            </div>
+          </div>
+        ))}
+        <div className="mp-befehl-eingabe">
+          <input value={dauerBefehl} maxLength={500} onChange={(ev) => setDauerBefehl(ev.target.value)}
+            placeholder="Zum Beispiel: Schau, wer heute Geburtstag hat, und schick eine Glückwunsch-Nachricht." />
+          <select value={dauerTakt} onChange={(ev) => setDauerTakt(ev.target.value)}>
+            <option value="taeglich">täglich</option>
+            <option value="werktags">werktags</option>
+            <option value="woechentlich">montags</option>
+          </select>
+          <input type="time" value={dauerZeit} onChange={(ev) => setDauerZeit(ev.target.value)} />
+          <button type="button" className="mp-knopf" disabled={busy === "dauer" || dauerBefehl.trim().length < 4} onClick={() => void dauerAnlegen()}>
+            {busy === "dauer" ? "Legt an …" : "Dauerauftrag anlegen"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Ihr Wissen und ihre Zugriffe ─────────────────────────────── */}
+      <details className="mp-wissen" onToggle={(ev) => setWissenOffen((ev.target as HTMLDetailsElement).open)}>
+        <summary>Was Mara darf — {d.daten.werkzeuge.length} Werkzeuge</summary>
+        {wissenOffen && (
+          <ul className="mp-werkzeuge">
+            {d.daten.werkzeuge.map((w) => (
+              <li key={w.name}>
+                <b>{w.name.replace(/_/g, " ")}</b>
+                <span className={`mp-klasse ${w.klasse}`}>{KLASSE_TEXT[w.klasse] ?? w.klasse}</span>
+                <span className="mp-still">{w.beschreibung}</span>
+              </li>
+            ))}
+            <li className="mp-nicht">
+              <b>nicht: Texte im Quelltext der Website</b>
+              <span className="mp-still">
+                Dafür bräuchte sie Schreibrechte auf den laufenden Code; ein falscher Satz dort nimmt die ganze Seite mit.
+                Texte aus der Datenbank kann sie ändern.
+              </span>
+            </li>
+          </ul>
+        )}
+      </details>
+
+      {/* ── Was gelaufen ist ─────────────────────────────────────────── */}
+      {erledigt.length > 0 && (
+        <details className="mp-verlauf">
+          <summary>Was gelaufen ist ({erledigt.length})</summary>
+          {erledigt.map((a) => (
+            <div key={a.id} className="mp-auftrag erledigt">
+              <p className="mp-auftrag-befehl">„{a.befehl}" <span className="mp-klasse">{STATUS_TEXT[a.status] ?? a.status}</span></p>
+              <ul className="mp-ergebnis">
+                {(a.ergebnis ?? []).map((r, i) => (
+                  <li key={i} className={r.ok === false ? "fehler" : ""}>{r.text}{r.wen ? ` — ${r.wen}` : ""}</li>
+                ))}
+              </ul>
+              <span className="mp-still">{seit(a.fertigAm ?? a.erstelltAm)} · {a.von}</span>
+            </div>
+          ))}
+        </details>
+      )}
+    </section>
+  );
+}
+
 export default function ChefMara() {
   const stand = useDaten<Stand>("/chef/mara/stand");
   const [reiter, setReiter] = useState<Reiter>("gesendet");
@@ -164,6 +415,9 @@ export default function ChefMara() {
               </button>
             </div>
           </section>
+
+          {/* E-219: Mara anweisen — Befehl, Plan, ein Klick. */}
+          <MaraBefehl melden={melden} />
 
           <Anweisungen melden={melden} />
 

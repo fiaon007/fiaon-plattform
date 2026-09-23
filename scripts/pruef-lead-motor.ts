@@ -334,8 +334,18 @@ abschnitt("WhatsApp — Vorlagen, 24-Stunden-Fenster, keine Mahnung");
 
   const m = vorlageAlsMeta(WA_VORLAGEN[0]) as any;
   gleich(m.language, "de", "Vorlagen gehen auf Deutsch raus");
-  ok(m.components?.[0]?.type === "BODY" && m.components[0].example?.body_text?.length === 1, "Beispielwerte liegen bei (Meta verlangt sie)");
-  ok(m.components?.[1]?.buttons?.some((b: any) => b.type === "URL" && Array.isArray(b.example)), "Der Link-Knopf hat ein Beispiel");
+  // E-221: NICHT über feste Positionen prüfen — seit der Kopfzeile steht der
+  // Rumpf nicht mehr an Stelle 0. Eine Prüfung, die an der Reihenfolge hängt,
+  // geht beim nächsten Bauteil wieder kaputt.
+  const teil = (typ: string) => (m.components ?? []).find((c: any) => c?.type === typ);
+  ok(teil("BODY")?.example?.body_text?.length === 1, "Beispielwerte liegen bei (Meta verlangt sie)");
+  ok(teil("BUTTONS")?.buttons?.some((b: any) => b.type === "URL" && Array.isArray(b.example)), "Der Link-Knopf hat ein Beispiel");
+  ok(teil("HEADER")?.text?.length > 0 && teil("HEADER").text.length <= 60, "Kopfzeile vorhanden und höchstens 60 Zeichen");
+  ok(teil("FOOTER")?.text?.length > 0 && teil("FOOTER").text.length <= 60, "Fußzeile vorhanden und höchstens 60 Zeichen");
+  for (const v of WA_VORLAGEN) {
+    ok((v.kopf ?? "").length > 0 && (v.kopf ?? "").length <= 60, `${v.name}: Kopfzeile gesetzt und höchstens 60 Zeichen`);
+    ok((v.fuss ?? "").length > 0 && (v.fuss ?? "").length <= 60, `${v.name}: Fußzeile gesetzt und höchstens 60 Zeichen`);
+  }
 
   ok(/messaging_product: "whatsapp"/.test(wa), "Jede Nachricht nennt das Produkt");
   ok(/Das 24-Stunden-Fenster ist zu/.test(wa), "Ohne offenes Fenster nur Vorlagen");

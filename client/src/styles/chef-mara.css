@@ -206,3 +206,93 @@ a.mp-name:hover { text-decoration: underline; }
 .mp-wissen ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .mp-wissen li { font-size: 12.5px; color: var(--mp-text-2); }
 .mp-wissen li .mp-still { margin-right: 6px; }
+
+/* ═══ Mara anweisen (23.09.2026, E-219) ═══════════════════════════════════
+   Ein Feld, ein Plan, ein Klick. Endgültige Schritte sind rot umrandet —
+   sie sind der einzige Ort, an dem etwas passiert, das man nicht mit einem
+   Klick zurückholt. */
+.mp-befehl { display: grid; gap: 16px; }
+.mp-befehl-eingabe { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.mp-befehl-eingabe textarea, .mp-befehl-eingabe input[type="text"], .mp-befehl-eingabe input:not([type]) {
+  flex: 1 1 320px; min-height: 44px; padding: 11px 13px; border-radius: 12px; resize: vertical;
+  border: 1px solid rgba(148,163,184,.2); background: rgba(148,163,184,.06);
+  color: #e7ecf4; font: 400 13.5px/1.5 'Inter', sans-serif;
+}
+.mp-befehl-eingabe select, .mp-befehl-eingabe input[type="time"] {
+  min-height: 44px; padding: 0 11px; border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.2); background: rgba(148,163,184,.06);
+  color: #e7ecf4; font: 400 13px/1 'Inter', sans-serif;
+}
+.mp-befehl-eingabe textarea:focus, .mp-befehl-eingabe input:focus, .mp-befehl-eingabe select:focus {
+  outline: none; border-color: rgba(147,197,253,.5);
+}
+
+.mp-tag {
+  display: grid; gap: 3px; padding: 12px 14px; border-radius: 12px;
+  background: rgba(59,130,246,.08); border: 1px solid rgba(147,197,253,.22);
+}
+.mp-tag b { font: 500 12.5px/1 'Inter', sans-serif; color: #dbeafe; }
+.mp-tag span { font: 400 12px/1.55 'Inter', sans-serif; color: #93c5fd; }
+.mp-tag .mp-tag-offen { color: #fdba74; }
+
+.mp-auftraege, .mp-dauer { display: grid; gap: 10px; }
+.mp-auftraege h3, .mp-dauer h3 { margin: 0; font: 500 12px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #64748b; }
+
+.mp-auftrag {
+  display: grid; gap: 8px; padding: 13px 15px; border-radius: 13px;
+  border: 1px solid rgba(148,163,184,.16); background: rgba(148,163,184,.04);
+}
+.mp-auftrag.frage { border-color: rgba(253,186,116,.32); background: rgba(251,146,60,.07); }
+.mp-auftrag.erledigt { background: transparent; }
+.mp-auftrag-befehl { margin: 0; font: 400 13.5px/1.5 'Inter', sans-serif; color: #e7ecf4; }
+.mp-auftrag-frage { margin: 0; font: 400 13px/1.55 'Inter', sans-serif; color: #fdba74; }
+
+.mp-plan { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; counter-reset: p; }
+.mp-plan li {
+  counter-increment: p; position: relative; padding: 8px 12px 8px 34px; border-radius: 10px;
+  background: rgba(15,23,42,.6); border: 1px solid rgba(148,163,184,.12);
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+}
+.mp-plan li::before {
+  content: counter(p); position: absolute; left: 11px; top: 9px;
+  width: 16px; height: 16px; border-radius: 50%; background: #1e293b; color: #94a3b8;
+  font: 500 10px/16px 'Inter', sans-serif; text-align: center;
+}
+.mp-plan li.endgueltig { border-color: rgba(253,164,175,.4); background: rgba(244,63,94,.08); }
+.mp-plan li b { font: 500 12.5px/1.3 'Inter', sans-serif; color: #e7ecf4; }
+.mp-wen { font: 400 12px/1.3 'Inter', sans-serif; color: #93c5fd; }
+
+.mp-klasse {
+  font: 400 9.5px/1 'Inter', sans-serif; letter-spacing: .08em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 99px; border: 1px solid rgba(148,163,184,.2); color: #64748b; white-space: nowrap;
+}
+.mp-klasse.umkehrbar { color: #93c5fd; border-color: rgba(147,197,253,.3); }
+.mp-klasse.endgueltig { color: #fda4af; border-color: rgba(253,164,175,.4); }
+
+.mp-auftrag-tun { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.mp-dauer-zeile {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start;
+  padding: 11px 13px; border-radius: 12px; border: 1px solid rgba(148,163,184,.14);
+}
+.mp-dauer-zeile > div:first-child { display: grid; gap: 3px; min-width: 0; flex: 1 1 280px; }
+.mp-dauer-zeile b { font: 400 13px/1.45 'Inter', sans-serif; color: #e7ecf4; }
+.mp-dauer-tun { display: flex; gap: 7px; align-items: center; }
+
+.mp-wissen > summary, .mp-verlauf > summary {
+  cursor: pointer; list-style: none; font: 400 12.5px/1 'Inter', sans-serif; color: #8ea0b8; padding: 8px 0;
+}
+.mp-wissen > summary::-webkit-details-marker, .mp-verlauf > summary::-webkit-details-marker { display: none; }
+.mp-wissen > summary::before, .mp-verlauf > summary::before { content: "▸ "; color: #5d6c83; }
+.mp-wissen[open] > summary::before, .mp-verlauf[open] > summary::before { content: "▾ "; }
+
+.mp-werkzeuge { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 7px; }
+.mp-werkzeuge li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid rgba(148,163,184,.1); }
+.mp-werkzeuge li b { font: 500 12.5px/1.3 'Inter', sans-serif; color: #e7ecf4; }
+.mp-werkzeuge li.mp-nicht b { color: #fda4af; }
+
+.mp-ergebnis { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+.mp-ergebnis li { font: 400 12.5px/1.5 'Inter', sans-serif; color: #b4c0d2; padding-left: 14px; position: relative; }
+.mp-ergebnis li::before { content: "✓"; position: absolute; left: 0; color: #6ee7b7; }
+.mp-ergebnis li.fehler { color: #fda4af; }
+.mp-ergebnis li.fehler::before { content: "✕"; color: #fda4af; }

@@ -48,6 +48,18 @@ export type WaKnopf =
 export interface WaVorlage {
   /** Name bei Meta (klein, Unterstriche). */
   name: string;
+  /**
+   * KOPFZEILE (23.09.2026, E-221) — höchstens 60 Zeichen, fett über dem Text.
+   *
+   * Justin, mit dem echten Chat vor Augen: „Das sieht so super billig aus."
+   * Er hatte recht: Die Nachricht begann mitten im Satz, ohne Absender und
+   * ohne Abschluss. Meta erlaubt für Vorlagen einen KOPF und eine FUSSZEILE;
+   * wir haben beides nicht benutzt. Der Kopf ist die Zeile, die im Chat als
+   * Erstes ins Auge fällt — dort gehört hin, worum es geht.
+   */
+  kopf?: string;
+  /** FUSSZEILE — höchstens 60 Zeichen, klein und grau unter dem Text. */
+  fuss?: string;
   kategorie: "UTILITY" | "MARKETING";
   /** Wofür — für das Steuerpult. */
   zweck: string;
@@ -109,6 +121,8 @@ const JA: WaKnopf = { typ: "QUICK_REPLY", text: "Ja, bitte" };
 export const WA_VORLAGEN: WaVorlage[] = [
   {
     name: "fiaon_kk_anfrage",
+    kopf: "Ihre Kreditkarte",
+    fuss: "FIAON LTD · Mara Lindner",
     kategorie: "UTILITY",
     zweck: "Der erste Kontakt nach dem Formular — Karte im ersten Satz, KI-Hinweis, Weg zum Menschen.",
     wann: "Sekunden nach dem Meta-Formular — an jeden Lead mit Handynummer.",
@@ -123,6 +137,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_nicht_erreicht",
+    kopf: "Wir haben Sie nicht erreicht",
+    fuss: "FIAON LTD · Antworten Sie jederzeit hier",
     kategorie: "UTILITY",
     zweck: "Nach einem Anrufversuch, der niemanden erreichte — mit Terminlink.",
     wann: "Vom Mitarbeiter per Knopf in der Akte. Florentines Fall: „Hab einen Kunden nicht erreicht und er hat keine E-Mail.“",
@@ -134,6 +150,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_termin",
+    kopf: "Ihr Gesprächstermin",
+    fuss: "FIAON LTD · Antworten Sie jederzeit hier",
     kategorie: "UTILITY",
     zweck: "Terminlink ohne vorherigen Anrufversuch — wenn jemand aktiv ein Gespräch will.",
     wann: "Vom Mitarbeiter per Knopf in der Akte.",
@@ -144,6 +162,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_antrag_offen",
+    kopf: "Ihr Antrag wartet",
+    fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
     zweck: "Antrag begonnen, nicht beendet — zurück an dieselbe Stelle.",
     wann: "30 Minuten nach dem Abbruch.",
@@ -155,6 +175,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_aktivierung",
+    kopf: "Nur noch die Aktivierung",
+    fuss: "FIAON LTD · Fragen? Einfach hier antworten",
     kategorie: "UTILITY",
     zweck: "Antrag fertig, Konto noch nicht aktiviert — die erste Zahlung startet alles.",
     wann: "NUR für die Aktivierung nach dem Antrag. NIE für eine überfällige Rate: Mahnungen über WhatsApp sind nach der Richtlinie verboten.",
@@ -166,6 +188,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_aktiviert",
+    kopf: "Ihr Konto ist aktiviert",
+    fuss: "FIAON LTD · Wir bleiben an Ihrer Seite",
     kategorie: "UTILITY",
     zweck: "Zahlung gebucht — der Moment, auf den der Kunde gewartet hat.",
     wann: "Sobald die erste Zahlung gebucht und die Einladung der Partnerbank raus ist.",
@@ -177,6 +201,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_unterlagen",
+    kopf: "Es fehlt noch eine Unterlage",
+    fuss: "FIAON LTD · Antworten Sie jederzeit hier",
     kategorie: "UTILITY",
     zweck: "Es fehlen Unterlagen — ohne sie steht der Weg zur Karte.",
     wann: "Vom Mitarbeiter per Knopf in der Akte.",
@@ -187,6 +213,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_termin_morgen",
+    kopf: "Erinnerung an Ihren Termin",
+    fuss: "FIAON LTD · Antworten Sie jederzeit hier",
     kategorie: "UTILITY",
     zweck: "Erinnerung an einen gebuchten Termin.",
     wann: "Am Vortag des Termins.",
@@ -197,6 +225,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_rueckfrage",
+    kopf: "Eine kurze Rückfrage",
+    fuss: "FIAON LTD · Antworten Sie jederzeit hier",
     kategorie: "UTILITY",
     zweck: "Öffnet das Gespräch neu, wenn das 24-Stunden-Fenster geschlossen ist.",
     wann: "Vom Mitarbeiter per Knopf in der Akte.",
@@ -207,6 +237,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_empfehlung",
+    kopf: "Ihr persönlicher Link",
+    fuss: "FIAON LTD · Danke für Ihre Weiterempfehlung",
     kategorie: "MARKETING",
     zweck: "Weiterempfehlung — der eigene Link des Kunden.",
     wann: "Wenn ein Kunde fragt, ob es etwas für eine Empfehlung gibt (Michaela Schneider, 23.09.).",
@@ -218,6 +250,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_tag1",
+    kopf: "Ihre Kreditkarte wartet",
+    fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
     zweck: "Erste Erinnerung am Abend — Tempo als Argument.",
     wann: "Tag 1, 19 Uhr, wenn noch kein Antrag begonnen ist.",
@@ -229,6 +263,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_tag3",
+    kopf: "Ihr Weg zur Kreditkarte",
+    fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
     zweck: "Der Weg zur Karte in drei Schritten.",
     wann: "Tag 3.",
@@ -242,6 +278,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_tag7",
+    kopf: "Fünf Minuten am Telefon",
+    fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
     zweck: "Gespräch anbieten — fünf Minuten klären mehr als jede Nachricht.",
     wann: "Tag 7.",
@@ -252,6 +290,8 @@ export const WA_VORLAGEN: WaVorlage[] = [
   },
   {
     name: "fiaon_kk_letzte",
+    kopf: "Soll ich offenhalten?",
+    fuss: "FIAON LTD · Danach hören Sie nur per E-Mail",
     kategorie: "MARKETING",
     zweck: "Die letzte WhatsApp — danach nur noch E-Mail.",
     wann: "Tag 14.",

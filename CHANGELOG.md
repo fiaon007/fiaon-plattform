@@ -78,6 +78,44 @@ shared/fiaon-pixel.ts; scripts/pruef-global-seiten.ts.
 
 ---
 
+## 24.09.2026 (1) — Meta erfährt jetzt von gebuchten Gesprächen und erteilten Aufträgen bei FIAON Global (E-231)
+
+**Der Befund (23.09.):** Bucht jemand auf fiaon.com/business ein Gespräch oder erteilt einen Auftrag, kam bei
+Meta nichts an — weder aus dem Browser noch vom Server. Seit die Conversions API live ist (23.09. abends), hat sie
+„Antrag begonnen" und „Antrag abgeschickt" gemeldet, aber **nie** „Gespräch gebucht", „Auftrag erteilt" oder
+„Zahlung gebucht". Die Kampagnen für FIAON Global konnten also auf nichts optimieren.
+
+**Die drei Ursachen:**
+1. **Browser:** Die Meldung an Meta hing hinter der Prüfung auf das Google-Tag. Das Google-Tag ist nicht
+   eingerichtet — die Funktion hörte deshalb immer vor Meta auf, auch mit Marketing-Einwilligung.
+2. **Server, Gespräch:** Die Meldung „Gespräch gebucht" sitzt im Buchungsweg der Privatkunden. Ein Global-Gespräch
+   läuft über einen eigenen Weg und kam dort nie vorbei; eine Rückruf-Anfrage erst recht nicht.
+3. **Server, Auftrag:** Der Auftrag nahm die Werbe-Kennungen des Browsers nicht mit. Ohne sie meldet der Server
+   nichts — deshalb blieb auch die spätere Zahlung eines Global-Auftrags bei Meta unsichtbar.
+
+**Was jetzt gilt:**
+- Meta hängt nur noch an der **Marketing-Einwilligung** und am geladenen Pixel, nicht mehr am Google-Tag. Google
+  bleibt wie es war (Statistik bzw. Marketing + geladenes Google-Tag).
+- **Gespräch gebucht** (Kalender und Rückruf-Bitte) → „Schedule", **Auftrag erteilt** → „SubmitApplication",
+  **Zahlung eines Global-Auftrags** → „Purchase" (über den bestehenden Buchungsweg).
+- Browser und Server melden jedes Ereignis mit **derselben Kennung** — Meta zählt es einmal, nicht doppelt.
+  Beim Gespräch vergibt der Server die Kennung und gibt sie dem Browser mit zurück.
+- **Ohne Marketing-Einwilligung speichert der Server nichts** — keine Adresse, keinen Browser, keine Kennung.
+- Ein Global-Auftrag zählt bei Meta **nicht** als Privatantrag („Antrag begonnen/abgeschickt") — nur als Auftrag.
+- Nebenbei: Bei Firmenaufträgen ging bisher keine Telefonnummer an Meta mit (sie steht dort in einem anderen
+  Feld). Jetzt schon — das verbessert die Zuordnung. Privatanträge melden unverändert dasselbe.
+
+**Geprüft:** Alt gegen neu im nachgebauten Browser (alt: nichts an Meta; neu: richtige Kennung); gegen die echte
+Datenbank in einer zurückgerollten Transaktion (Privatantrag: alt = neu, Hash für Hash); Ende zu Ende auf einem
+lokalen Prüfstand ohne Schlüssel — Gespräch über die echte Oberfläche, Rückruf mit und ohne Einwilligung, Auftrag.
+
+**Wo:** client/src/lib/werbung.ts (werbeKonversion), client/src/components/site/GlobalGespraech.tsx,
+client/src/pages/business-start.tsx, server/lib/fiaon-meta-capi.ts (ereignisMitMessung, webEreignis),
+server/routes/fiaon-global-termin.ts, server/routes/fiaon-global.ts, server/lib/fiaon-global-auftrag.ts,
+server/routes/fiaon-antrag.ts. Sichtbar unter fiaon.com/chef/s/lead-motor → „Messung an Meta" → „Gemeldete
+Ereignisse (die letzten 40)" — Spalte „Antrag / Lead" zeigt global-termin-…, global-anfrage-… bzw. die Auftragsreferenz.
+
+
 ## 23.09.2026 (16) — WhatsApp für Mara: Zentrale mit Knopf und Automatik, Vorlagen mit Bild (E-229)
 
 **Der Anlass (Justin):** „Ich muss das managen können: ‚WhatsApp starten (50)', Kundengruppe und Vorlage wählen —

@@ -32,6 +32,7 @@ import { createHash } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { graph, metaKonfig, MetaFehler } from "./fiaon-meta";
 import { META_EREIGNIS, CRM_EREIGNIS, EREIGNIS_TEXT, metaEreignisId, type MetaEreignis } from "../../shared/fiaon-meta-ereignisse";
+import { telefonE164 } from "../../shared/fiaon-dach-telefon";
 
 type Lauf = typeof sqlPool;
 
@@ -158,36 +159,48 @@ export async function messungMerken(
 export const ereignisId = metaEreignisId;
 
 /**
+ * Kontakt für ein Ereignis ohne Antragszeile (FIAON-Global-Gespräch). Gilt nur
+ * als Rückfall — steht der Antrag da, zählen seine Felder.
+ */
+export interface WebKontakt { email?: string | null; telefon?: string | null; vorname?: string | null; nachname?: string | null }
+
+/**
  * Ein Web-Ereignis zu einem Antrag einreihen. Ohne Marketing-Einwilligung
  * passiert nichts — leise, ohne Fehler.
  */
 export async function webEreignis(
   name: MetaEreignis,
   ref: string,
-  opts: { wertCents?: number | null; paket?: string | null } = {},
+  opts: { wertCents?: number | null; paket?: string | null; kontakt?: WebKontakt } = {},
   lauf: Lauf = sqlPool,
 ): Promise<"eingereiht" | "keine_einwilligung" | "doppelt" | "aus"> {
   if (!ref) return "aus";
   await capiTabellen(lauf);
   if (!(await anAus(WEB_SCHALTER, true, lauf))) return "aus";
   const [m] = (await lauf`
-    SELECT m.fbp, m.fbc, m.einwilligung, m.ip, m.ua, m.seite, a.email, a.phone, a.phone_country_code,
+    SELECT m.fbp, m.fbc, m.einwilligung, m.ip, m.ua, m.seite, a.ref AS antrag_ref, a.email, a.phone, a.phone_country_code,
+           a.contact_email, a.contact_phone,
            a.first_name, a.last_name, a.zip, a.city, a.country, a.person_id, a.pack_name, a.amount_due
       FROM fiaon_meta_messung m
       LEFT JOIN fiaon_applications a ON a.ref = m.ref
      WHERE m.ref = ${ref}`) as any[];
   if (!m) return "keine_einwilligung";
   if (!m.einwilligung) return "keine_einwilligung";
-  const telefon = [m.phone_country_code, m.phone].filter(Boolean).join("");
+  // E-231: Firmenaufträge (FIAON Global) tragen Mail und Telefon in contact_*, nicht in email/phone —
+  // ohne Rückfall ging ihr Kauf ohne Telefon an Meta. Ein Gespräch ohne Antrag bringt den Kontakt selbst mit.
+  const kontakt = opts.kontakt ?? {};
+  const telefon = (m.phone ? [m.phone_country_code, m.phone].filter(Boolean).join("") : "")
+    || m.contact_phone || (kontakt.telefon ? telefonE164("+49", kontakt.telefon) : "");
   const nutzer: Record<string, unknown> = {};
   const setz = (k: string, v: string | null) => { if (v) nutzer[k] = [v]; };
-  setz("em", hashFeld("em", m.email));
+  setz("em", hashFeld("em", m.email || m.contact_email || kontakt.email));
   setz("ph", hashFeld("ph", telefon));
-  setz("fn", hashFeld("fn", m.first_name));
-  setz("ln", hashFeld("ln", m.last_name));
+  setz("fn", hashFeld("fn", m.first_name || kontakt.vorname));
+  setz("ln", hashFeld("ln", m.last_name || kontakt.nachname));
   setz("zp", hashFeld("zp", m.zip));
   setz("ct", hashFeld("ct", m.city));
-  setz("country", hashFeld("country", m.country === "AT" ? "at" : m.country === "CH" ? "ch" : m.country || "de"));
+  // Das Land nur, wenn ein Antrag es kennt — für ein Gespräch ohne Antrag wäre „de" geraten.
+  if (m.antrag_ref) setz("country", hashFeld("country", m.country === "AT" ? "at" : m.country === "CH" ? "ch" : m.country || "de"));
   if (m.fbp) nutzer.fbp = m.fbp;
   if (m.fbc) nutzer.fbc = m.fbc;
   if (m.ip) nutzer.client_ip_address = m.ip;
@@ -314,6 +327,36 @@ export function meldenUndSenden(fn: () => Promise<unknown>): void {
   void fn()
     .then(() => capiLauf(20))
     .catch((e) => console.error("[META-MESSUNG]", e));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EREIGNISSE AUSSERHALB DES ANTRAGS — FIAON GLOBAL (23.09.2026, E-231)
+//
+// FIAON Global hat zwei Wege, die nicht über das Antragsformular laufen: das
+// Gespräch (Kalender oder Rückruf-Anfrage) und den Auftrag auf /business/start.
+// Beide meldeten Meta nie etwas: Das Gespräch läuft nicht über
+// `buchungAnwenden` (dort sitzt die Schedule-Meldung der Privatkunden), und der
+// Auftrag legt seinen Antrag serverseitig an, ohne die Kennungen des Browsers.
+// Ohne Messsatz blieb deshalb auch der spätere Kauf (Purchase in
+// onCustomerPaid) für jeden Global-Auftrag still.
+//
+// Hier merkt sich der Server fbp/fbc, Adresse und Browser unter der Referenz,
+// die auch der Pixel benutzt (Gespräch: `messRef` aus der Antwort, Auftrag: die
+// Auftragsreferenz), und reiht das Ereignis ein — eine Kennung, ein Ereignis.
+// Ohne Marketing-Einwilligung wird NICHTS gespeichert, auch keine Adresse.
+// ═══════════════════════════════════════════════════════════════════════════
+export function ereignisMitMessung(
+  name: MetaEreignis,
+  ref: string,
+  messung: unknown,
+  zusatz: { ip?: string | null; ua?: string | null; wertCents?: number | null; paket?: string | null; kontakt?: WebKontakt } = {},
+): void {
+  const m = messung && typeof messung === "object" ? (messung as MessungVomBrowser) : null;
+  if (!ref || !m || m.einwilligung !== true) return;
+  meldenUndSenden(async () => {
+    await messungMerken(ref, m, { ip: zusatz.ip ?? null, ua: zusatz.ua ?? null });
+    await webEreignis(name, ref, { wertCents: zusatz.wertCents ?? null, paket: zusatz.paket ?? null, kontakt: zusatz.kontakt });
+  });
 }
 
 /** Zahlen für das Steuerpult. */

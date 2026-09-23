@@ -176,8 +176,26 @@ export function werbeEreignis(name: string, daten: Record<string, string | numbe
   try { w.gtag("event", name, daten); } catch { /* egal */ }
 }
 
-/** Eine Konversion: Gespräch gebucht oder Auftrag erteilt. GA4 mit Statistik-, Google Ads mit Marketing-Einwilligung. */
+/**
+ * Eine Konversion: Gespräch gebucht oder Auftrag erteilt. GA4 mit Statistik-,
+ * Google Ads und Meta mit Marketing-Einwilligung. `id` ist die Kennung, die auch
+ * der Server meldet (Gespräch: `messRef` aus der Antwort, Auftrag: die Referenz).
+ */
 export async function werbeKonversion(art: "gespraech" | "auftrag", daten: { wert?: number; id?: string; paket?: string } = {}): Promise<void> {
+  // ── META ZUERST, UND OHNE GOOGLE (23.09.2026, E-231) ──────────────────────
+  // Hier stand als erste Zeile `if (!e || !w.gtag) return;`, der Meta-Aufruf
+  // erst am Ende. Live ist kein Google-Tag eingerichtet (ga4 und ads leer) —
+  // w.gtag wurde also nie geladen, die Funktion kehrte sofort zurück, und Meta
+  // bekam aus dem Browser weder Schedule noch SubmitApplication, auch mit
+  // Marketing-Einwilligung nicht. Meta hängt nur an der Marketing-Einwilligung
+  // und am geladenen Pixel; beides prüft `metaEreignis` selbst.
+  // Gespräch = Schedule, Auftrag = SubmitApplication. „Purchase" bleibt der
+  // Zahlung vorbehalten (der Server meldet sie, wenn das Geld da ist).
+  metaEreignis(
+    art === "gespraech" ? META_EREIGNIS.termin : META_EREIGNIS.auftrag,
+    daten.id || `${art}.${Math.round(Date.now() / 60000)}`,
+    { ...(daten.wert ? { value: daten.wert } : {}), ...(daten.paket ? { content_name: daten.paket } : {}) },
+  );
   const e = einwilligungLesen();
   if (!e || !w.gtag) return;
   const m = await messungLaden();
@@ -191,13 +209,6 @@ export async function werbeKonversion(art: "gespraech" | "auftrag", daten: { wer
       w.gtag("event", "conversion", { send_to: `${m.ads}/${label}`, value: daten.wert ?? 0, currency: "EUR", transaction_id: daten.id ?? "" });
     }
   } catch { /* egal */ }
-  // Dasselbe an Meta: Gespräch = Schedule, Auftrag = SubmitApplication. „Purchase"
-  // bleibt der Zahlung vorbehalten (der Server meldet sie, wenn das Geld da ist).
-  metaEreignis(
-    art === "gespraech" ? META_EREIGNIS.termin : META_EREIGNIS.auftrag,
-    daten.id || `${art}.${Math.round(Date.now() / 60000)}`,
-    { ...(daten.wert ? { value: daten.wert } : {}), ...(daten.paket ? { content_name: daten.paket } : {}) },
-  );
 }
 
 // ── META: EREIGNISSE UND KENNUNGEN (22.09.2026, E-210) ──────────────────────

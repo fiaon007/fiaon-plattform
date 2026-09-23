@@ -24,7 +24,7 @@ import { Router, type Request, type Response } from "express";
 import { kampagneSpeichern } from "../lib/fiaon-werbung";
 import {
   globalAngebotLaden, globalKontaktLesen, globalZuViel, globalTerminBuchen, globalAnfrageAnnehmen,
-  globalKalenderZuToken, GLOBAL_ZEITZONE, type GlobalAngebotStand,
+  globalKalenderZuToken, GLOBAL_ZEITZONE, type GlobalAngebotStand, type GlobalKontakt,
 } from "../lib/fiaon-global-termin";
 import { GLOBAL_DAUER_MIN, GLOBAL_HORIZONT_TAGE } from "../lib/fiaon-global-zeiten";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
@@ -46,6 +46,21 @@ function angebotAntwort(a: GlobalAngebotStand) {
 
 function ipVon(req: Request): string {
   return String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+}
+
+// ── Die Messung an Meta (23.09.2026, E-231) ─────────────────────────────────
+// Ein Global-Gespräch lief nie über buchungAnwenden — dort sitzt die
+// Schedule-Meldung der Privatkunden. Deshalb meldet es diese Tür selbst, unter
+// einer Referenz, die der Browser als `messRef` zurückbekommt und für den
+// Pixel benutzt: eine Kennung, ein Ereignis. Ohne Marketing-Einwilligung im
+// Browser wird nichts gespeichert (ereignisMitMessung prüft das).
+function gespraechMelden(req: Request, messRef: string, kontakt: GlobalKontakt): void {
+  void import("../lib/fiaon-meta-capi")
+    .then((c) => c.ereignisMitMessung(c.META_EREIGNIS.termin, messRef, req.body?.messung, {
+      ip: ipVon(req) || null, ua: String(req.headers["user-agent"] ?? ""), paket: kontakt.paket,
+      kontakt: { email: kontakt.email, telefon: kontakt.telefon, vorname: kontakt.vorname, nachname: kontakt.nachname },
+    }))
+    .catch((e) => console.error(`[GLOBAL-TERMIN] Messung ${messRef} nicht gemeldet:`, e));
 }
 
 // ── GET /termine/frei ───────────────────────────────────────────────────────
@@ -89,9 +104,11 @@ router.post("/termine", async (req: Request, res: Response) => {
     const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema });
     if (erg.ok) {
       void kampagneSpeichern("termin", erg.terminId, b.kampagne);
+      const messRef = `global-termin-${erg.terminId}`;
+      gespraechMelden(req, messRef, kontakt);
       return res.json({
         ok: true, terminId: erg.terminId, wann: erg.wann, datumText: erg.datumText, uhrzeit: erg.uhrzeit,
-        ansprechpartner: erg.ansprechpartner, kalenderUrl: erg.kalenderUrl,
+        ansprechpartner: erg.ansprechpartner, kalenderUrl: erg.kalenderUrl, messRef,
       });
     }
     // 409: Die Zeit ist weg — die frischen Zeiten kommen gleich mit, damit die
@@ -131,12 +148,16 @@ router.post("/anfrage", async (req: Request, res: Response) => {
       ip: ipVon(req),
     });
     void kampagneSpeichern("anfrage", erg.anfrageId, b.kampagne);
+    // Die Rückruf-Bitte zählt wie das Gespräch (Schedule) — so meldete es der Pixel schon immer.
+    const messRef = `global-anfrage-${erg.anfrageId}`;
+    gespraechMelden(req, messRef, kontakt);
     // Die Antwort nennt die Person, bei der der Auftrag WIRKLICH liegt — und
     // nennt niemanden, wenn er beim Betreiber gelandet ist.
     res.json({
       ok: true,
       meldung: erg.zustaendigName && !erg.anBetreiber
         ? globalText(T.anfrageDanke, { name: erg.zustaendigName }) : T.anfrageDankeOhneName,
+      messRef,
     });
   } catch (err) {
     // Die Sperre wieder lösen: Ein Serverfehler darf den zweiten Versuch nicht

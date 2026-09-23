@@ -27,6 +27,9 @@ import {
   waTabellen, waSenden, waVerlauf, waZahlen, waKonfig, sendePruefung, vorlagenStand, fensterOffen,
 } from "../lib/fiaon-whatsapp";
 import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
+// E-218: Gesprächsergebnisse direkt aus dem Chat buchen — dieselbe Liste
+// und derselbe Weg wie in der Akte, kein zweiter Satz Ergebnisse.
+import { ERGEBNISSE, ERGEBNIS_TEXT, ergebnisAnwenden, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
 import { nummerFuerWhatsApp, whatsappUrteil } from "../../shared/fiaon-whatsapp-erlaubnis";
 
 const router = Router();
@@ -205,21 +208,64 @@ function routen(hole: (req: any) => Blick) {
           gelesen_bis = GREATEST(fiaon_whatsapp_gespraech.gelesen_bis, ${letzteId}),
           gelesen_von = ${blick.agentId}, bearbeiter_id = ${blick.agentId}, bearbeiter_seit = NOW(), updated_at = NOW()`;
 
+      // ══════════════════════════════════════════════════════════════════
+      // DIE LAGE — DER FALL AUF EINEN BLICK (23.09.2026, E-218)
+      //
+      // Justin: „Ein Mitarbeiter soll auch darüber Vertrieb machen können,
+      // wenn es ihm lieber ist."
+      //
+      // Dafür reicht „Name und Betreuer" nicht. Wer im Chat verkauft, braucht
+      // dasselbe wie am Telefon: Stufe, Paket, was bezahlt ist, was offen ist,
+      // wann zuletzt gesprochen wurde, ob ein Termin steht — und die Links,
+      // die er gleich schicken will. Sonst wechselt er für jede Zahl in die
+      // Akte und verliert den Faden.
+      //
+      // Alles kommt aus den vorhandenen Quellen; keine Zahl wird hier neu
+      // gerechnet. Der Zahlungslink ist der des Hauses (/zahlung/<Referenz>),
+      // der Antragslink der Kurzlink des Leads.
+      // ══════════════════════════════════════════════════════════════════
       const person = verlauf.find((v: any) => v.person_id)?.person_id ?? null;
       let lage: any = null;
       if (person) {
         const [p] = (await sqlPool`
           SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name, p.phone, p.email,
+                 p.priority_tier, p.follow_up_date, p.promised_payment_date,
+                 COALESCE(p.unreachable_count, 0) AS nicht_erreicht, p.mandat_seit,
                  (SELECT CASE
                            WHEN bool_or(a.payment_status = 'paid') THEN 'Kunde'
                            WHEN bool_or(a.claimed_paid_at IS NOT NULL) THEN 'A'
                            WHEN bool_or(COALESCE(a.current_step, 0) >= 8) THEN 'B'
                            ELSE 'C' END
                     FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL) AS stufe,
-                 a.name AS betreuer,
-                 (SELECT ref FROM fiaon_applications WHERE person_id = p.id AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1) AS ref,
-                 (SELECT pack_name FROM fiaon_applications WHERE person_id = p.id AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1) AS paket
-            FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+                 a.name AS betreuer, p.assigned_agent_id AS betreuer_id,
+                 b.ref, b.pack_name AS paket, b.payment_status AS zahlstatus, b.payment_reference AS zahlungsreferenz,
+                 b.gekuendigt_am,
+                 r.rate_nr, r.betrag_cents, r.faellig_am,
+                 (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl
+                   WHERE cl.person_id = p.id AND cl.type = 'result' AND cl.voided_at IS NULL) AS letzter_kontakt,
+                 (SELECT cl2.outcome FROM fiaon_contact_log cl2
+                   WHERE cl2.person_id = p.id AND cl2.type = 'result' AND cl2.voided_at IS NULL
+                   ORDER BY cl2.created_at DESC LIMIT 1) AS letztes_ergebnis,
+                 (SELECT tm.beginn FROM fiaon_termine tm
+                   WHERE tm.person_id = p.id AND tm.status = 'gebucht' AND tm.abgesagt_am IS NULL AND tm.beginn > NOW()
+                   ORDER BY tm.beginn LIMIT 1) AS termin,
+                 (SELECT le.link_code FROM fiaon_leads le WHERE le.person_id = p.id AND le.link_code IS NOT NULL
+                   ORDER BY le.erstellt_am DESC LIMIT 1) AS link_code
+            FROM fiaon_persons p
+            LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+            LEFT JOIN LATERAL (
+              SELECT ref, pack_name, payment_status, payment_reference, gekuendigt_am
+                FROM fiaon_applications x
+               WHERE x.person_id = p.id AND x.merged_into IS NULL
+                 AND (x.archived_at IS NULL OR x.payment_status = 'paid')
+               ORDER BY (x.pack_key IS NOT NULL AND x.ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
+                        (x.payment_status = 'paid') DESC, x.created_at DESC LIMIT 1
+            ) b ON TRUE
+            LEFT JOIN LATERAL (
+              SELECT rate_nr, betrag_cents, faellig_am FROM fiaon_abo_raten ra
+               WHERE ra.ref = b.ref AND ra.status = 'offen' AND ra.storniert_am IS NULL
+               ORDER BY ra.faellig_am LIMIT 1
+            ) r ON TRUE
            WHERE p.id = ${person}`) as any[];
         lage = p ?? null;
       }
@@ -239,12 +285,30 @@ function routen(hole: (req: any) => Blick) {
         .filter((t) => t.status === "APPROVED" && t.name.startsWith("fiaon_"))
         .map((t) => ({ ...t, ...(WA_VORLAGEN.find((v) => v.name === t.name) ?? {}) }));
 
+      // E-218: Die Links, die der Verkäufer gleich schicken will — fertig
+      // gebaut, damit niemand sie von Hand zusammensetzt und sich vertippt.
+      const links = lage
+        ? {
+          antrag: lage.link_code ? `https://fiaon.com/a/${lage.link_code}/w` : "https://fiaon.com/start",
+          zahlung: lage.zahlungsreferenz ? `https://fiaon.com/zahlung/${lage.zahlungsreferenz}` : null,
+          termin: "https://fiaon.com/termin",
+          bereich: "https://fiaon.com/login",
+          firmen: "https://fiaon.com/global",
+        }
+        : { antrag: "https://fiaon.com/start", zahlung: null, termin: "https://fiaon.com/termin", bereich: "https://fiaon.com/login", firmen: "https://fiaon.com/global" };
+
       res.json({
-        ok: true, nummer, verlauf, lage,
+        ok: true, nummer, verlauf, lage, links,
         fensterOffen: await fensterOffen(nummer),
         maraAn: g?.mara_an !== false,
         notiz: g?.notiz ?? null,
+        bearbeiter: g?.bearbeiter_id ?? null,
+        ich: blick.agentId,
         vorlagen,
+        // E-218: Die Ergebnisse, die aus einem Chat heraus Sinn ergeben.
+        ergebnisse: (ERGEBNISSE as readonly string[])
+          .filter((e) => e.startsWith("erreicht") || e === "rueckruf_termin")
+          .map((e) => ({ wert: e, text: (ERGEBNIS_TEXT as Record<string, string>)[e] ?? e })),
       });
     } catch (err) {
       console.error("[WHATSAPP-RAUM] gespraech:", err);
@@ -403,6 +467,73 @@ function routen(hole: (req: any) => Blick) {
     } catch (err) {
       console.error("[WHATSAPP-RAUM] vorlagen aufräumen:", err);
       res.status(500).json({ ok: false, error: "Das Aufräumen ist abgebrochen — bei Meta wurde nichts verändert." });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // AUS DEM CHAT HERAUS VERKAUFEN (23.09.2026, E-218)
+  //
+  // Justin: „Ein Mitarbeiter soll auch darüber Vertrieb machen können, wenn es
+  // ihm lieber ist — schau, dass da alles 100 % funktioniert."
+  //
+  // Verkaufen heißt nicht nur schreiben. Es heißt: das Ergebnis festhalten,
+  // damit die Pipeline es weiß; eine Wiedervorlage setzen; das Gespräch
+  // übernehmen, damit niemand doppelt schreibt. Ohne das ist der Raum ein
+  // hübsches Chatfenster, dessen Arbeit nirgends ankommt.
+  //
+  // Gebucht wird über `ergebnisAnwenden` — DENSELBEN Weg wie in der Akte.
+  // Ein zweiter Buchungsweg wäre ein zweiter Satz Regeln für Wiedervorlage,
+  // Zusage und Nicht-erreicht-Staffel.
+  // ══════════════════════════════════════════════════════════════════════
+  r.post("/gespraech/:nummer/ergebnis", async (req: any, res: Response) => {
+    try {
+      await bereit();
+      const blick = hole(req);
+      const nummer = nummerFuerWhatsApp(req.params.nummer);
+      if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
+      if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
+      const ergebnis = String(req.body?.ergebnis ?? "");
+      if (!istErgebnis(ergebnis)) return res.status(400).json({ ok: false, error: "Dieses Ergebnis kennen wir nicht." });
+
+      const [g] = (await sqlPool`SELECT person_id FROM fiaon_whatsapp_gespraech WHERE nummer = ${nummer}`) as any[];
+      const personId = Number(g?.person_id ?? 0) || null;
+      if (!personId) return res.status(409).json({ ok: false, error: "Zu diesem Gespräch gibt es noch keinen Menschen im System." });
+
+      const [a] = (await sqlPool`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
+         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+      await ergebnisAnwenden({
+        ref: a?.ref ?? null, personId, ergebnis: ergebnis as any,
+        zusageDatum: /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.zusageDatum ?? "")) ? String(req.body.zusageDatum) : null,
+        terminDatum: String(req.body?.terminDatum ?? "") || null,
+      });
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${a?.ref ?? null}, ${personId}, ${blick.agentId}, ${blick.name}, 'system',
+                ${`Ergebnis „${(ERGEBNIS_TEXT as Record<string, string>)[ergebnis] ?? ergebnis}" aus dem WhatsApp-Gespräch gebucht.`}, NOW())`.catch(() => {});
+      console.log(`[WHATSAPP-RAUM] ${blick.name} bucht ${ergebnis} für Person ${personId}.`);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[WHATSAPP-RAUM] ergebnis:", err);
+      res.status(500).json({ ok: false, error: "Das Ergebnis ließ sich nicht buchen." });
+    }
+  });
+
+  /** Das Gespräch übernehmen — damit nicht zwei gleichzeitig hineinschreiben. */
+  r.post("/gespraech/:nummer/uebernehmen", async (req: any, res: Response) => {
+    try {
+      await bereit();
+      const blick = hole(req);
+      const nummer = nummerFuerWhatsApp(req.params.nummer);
+      if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
+      if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
+      await sqlPool`
+        INSERT INTO fiaon_whatsapp_gespraech (nummer, bearbeiter_id, bearbeiter_seit, updated_at)
+        VALUES (${nummer}, ${blick.agentId}, NOW(), NOW())
+        ON CONFLICT (nummer) DO UPDATE SET bearbeiter_id = ${blick.agentId}, bearbeiter_seit = NOW(), updated_at = NOW()`;
+      res.json({ ok: true, bearbeiter: blick.agentId });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "Das ließ sich nicht übernehmen." });
     }
   });
 

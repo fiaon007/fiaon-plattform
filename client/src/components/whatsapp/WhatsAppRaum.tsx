@@ -34,6 +34,12 @@ interface Nachricht {
 }
 interface Vorlage { name: string; status: string; text?: string; zweck?: string; beispiele?: string[] }
 
+/** Zahlstatus in Worten — dieselben Begriffe wie in der Akte. */
+const ZAHLTEXT: Record<string, string> = {
+  paid: "bezahlt", claimed_paid: "Zahlung gemeldet", pending_payment: "Rechnung offen",
+  expired: "Frist abgelaufen", pending: "Antrag offen", cancelled: "storniert", refunded: "erstattet",
+};
+
 const zeit = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "";
 const tag = (s: string | null | undefined) =>
@@ -55,7 +61,15 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
   const [suche, setSuche] = useState("");
   const [filter, setFilter] = useState<"alle" | "ungelesen" | "offen">("alle");
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
-  const [chat, setChat] = useState<{ verlauf: Nachricht[]; lage: any; fensterOffen: boolean; maraAn: boolean; notiz: string | null; vorlagen: Vorlage[] } | null>(null);
+  const [chat, setChat] = useState<{
+    verlauf: Nachricht[]; lage: any; links: any; fensterOffen: boolean; maraAn: boolean;
+    notiz: string | null; bearbeiter: number | null; ich: number | null;
+    vorlagen: Vorlage[]; ergebnisse: { wert: string; text: string }[];
+  } | null>(null);
+  // E-218: Die rechte Spalte — der Fall auf einen Blick. Am Handy eingeklappt.
+  const [fallOffen, setFallOffen] = useState(false);
+  const [notizEntwurf, setNotizEntwurf] = useState("");
+  const [ergebnisOffen, setErgebnisOffen] = useState(false);
   const [entwurf, setEntwurf] = useState("");
   const [sendet, setSendet] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -82,7 +96,14 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
     try {
       const r = await fetch(`${API}/gespraech/${encodeURIComponent(nummer)}`, { credentials: "include" });
       const j = await r.json();
-      if (j?.ok) setChat({ verlauf: j.verlauf, lage: j.lage, fensterOffen: j.fensterOffen, maraAn: j.maraAn, notiz: j.notiz, vorlagen: j.vorlagen });
+      if (j?.ok) {
+        setChat({
+          verlauf: j.verlauf, lage: j.lage, links: j.links, fensterOffen: j.fensterOffen, maraAn: j.maraAn,
+          notiz: j.notiz, bearbeiter: j.bearbeiter ?? null, ich: j.ich ?? null,
+          vorlagen: j.vorlagen, ergebnisse: j.ergebnisse ?? [],
+        });
+        if (!leise) setNotizEntwurf(j.notiz ?? "");
+      }
       else melden(j?.error || "Das Gespräch ließ sich nicht laden.");
     } catch { melden("Keine Verbindung."); }
   }, [API]);
@@ -111,6 +132,48 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
       setEntwurf(""); setVorlageOffen(false);
       await chatLaden(gewaehlt, true); await listeLaden();
     } catch { melden("Keine Verbindung."); } finally { setSendet(false); }
+  };
+
+  // E-218: Ergebnis buchen und Notiz sichern — beide über die Hauswege.
+  const ergebnisBuchen = async (ergebnis: string) => {
+    if (!gewaehlt) return;
+    setSendet(true);
+    try {
+      const r = await fetch(`${API}/gespraech/${encodeURIComponent(gewaehlt)}/ergebnis`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ergebnis }),
+      });
+      const j = await r.json();
+      if (!j?.ok) { melden(j?.error || "Das Ergebnis ging nicht durch."); return; }
+      melden("Gebucht — die Akte und die Pipeline wissen es jetzt.");
+      setErgebnisOffen(false);
+      await chatLaden(gewaehlt, true); await listeLaden();
+    } catch { melden("Keine Verbindung."); } finally { setSendet(false); }
+  };
+
+  const uebernehmen = async () => {
+    if (!gewaehlt) return;
+    try {
+      const r = await fetch(`${API}/gespraech/${encodeURIComponent(gewaehlt)}/uebernehmen`, { method: "POST", credentials: "include" });
+      const j = await r.json();
+      if (!j?.ok) { melden(j?.error || "Das ließ sich nicht übernehmen."); return; }
+      melden("Du bearbeitest dieses Gespräch.");
+      await chatLaden(gewaehlt, true);
+    } catch { melden("Keine Verbindung."); }
+  };
+
+  const notizSpeichern = async () => {
+    if (!gewaehlt) return;
+    try {
+      const r = await fetch(`${API}/notiz`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nummer: gewaehlt, notiz: notizEntwurf }),
+      });
+      const j = await r.json();
+      if (!j?.ok) { melden(j?.error || "Die Notiz ließ sich nicht sichern."); return; }
+      melden("Notiz gesichert.");
+      await chatLaden(gewaehlt, true);
+    } catch { melden("Keine Verbindung."); }
   };
 
   useEffect(() => {
@@ -227,7 +290,10 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
                   <button type="button" className={`wr-schalter${chat?.maraAn ? " an" : ""}`} onClick={() => void maraSchalten(!chat?.maraAn)} aria-pressed={!!chat?.maraAn}>
                     <span aria-hidden="true" />Mara
                   </button>
-                  {chat?.lage?.id && !chat.lage.istLead && <a className="wr-klein" href={`/chef/s/akte?id=${chat.lage.id}`} target="_blank" rel="noreferrer">Akte</a>}
+                  <button type="button" className={`wr-klein wr-fall-knopf${fallOffen ? " an" : ""}`} onClick={() => setFallOffen(!fallOffen)}>Fall</button>
+                  {chat?.bearbeiter != null && chat.ich != null && chat.bearbeiter !== chat.ich && (
+                    <button type="button" className="wr-klein" onClick={() => void uebernehmen()}>Übernehmen</button>
+                  )}
                 </div>
               </div>
 
@@ -284,9 +350,21 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
                       rows={2}
                       aria-label="Nachricht"
                     />
-                    <button type="button" className="wr-senden" disabled={sendet || !entwurf.trim()} onClick={() => void senden({ text: entwurf.trim() })}>
-                      {sendet ? "Sendet …" : "Senden"}
-                    </button>
+                    <div className="wr-eingabe-tun">
+                      {/* E-218: Die Links, die im Verkauf ständig gebraucht werden —
+                          ein Klick setzt sie in den Entwurf, statt sie zu tippen. */}
+                      {chat?.links && (
+                        <div className="wr-links">
+                          <button type="button" title="Antragslink einfügen" onClick={() => setEntwurf((t) => `${t}${t && !t.endsWith(" ") ? " " : ""}${chat.links.antrag}`)}>Antrag</button>
+                          {chat.links.zahlung && <button type="button" title="Zahlungslink einfügen" onClick={() => setEntwurf((t) => `${t}${t && !t.endsWith(" ") ? " " : ""}${chat.links.zahlung}`)}>Zahlung</button>}
+                          <button type="button" title="Terminlink einfügen" onClick={() => setEntwurf((t) => `${t}${t && !t.endsWith(" ") ? " " : ""}${chat.links.termin}`)}>Termin</button>
+                          <button type="button" className={vorlageOffen ? "an" : ""} onClick={() => setVorlageOffen(!vorlageOffen)} title="Freigegebene Vorlagen">Vorlagen</button>
+                        </div>
+                      )}
+                      <button type="button" className="wr-senden" disabled={sendet || !entwurf.trim()} onClick={() => void senden({ text: entwurf.trim() })}>
+                        {sendet ? "Sendet …" : "Senden"}
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <div className="wr-zu">
@@ -319,22 +397,79 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
           )}
         </section>
 
-        {/* ── Der Mensch ────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════
+            DER FALL (23.09.2026, E-218)
+
+            Justin: „Ein Mitarbeiter soll auch darüber Vertrieb machen können."
+            Dafür braucht er hier dasselbe wie am Telefon: wer das ist, wo er
+            steht, was offen ist — und die Handlungen, ohne die Seite zu
+            wechseln. Am Handy klappt die Spalte über den Kopf auf.
+            ══════════════════════════════════════════════════════════════ */}
         {gewaehlt && chat?.lage && (
-          <aside className="wr-person" aria-label="Der Mensch">
+          <aside className={`wr-person${fallOffen ? " auf" : ""}`} aria-label="Der Fall">
             <h2>{chat.lage.name || aktuell?.name || "Unbekannt"}</h2>
+            <div className="wr-marken">
+              {chat.lage.stufe && <span className={`wr-marke stufe-${String(chat.lage.stufe).toLowerCase()}`}>{chat.lage.stufe === "Kunde" ? "Kunde" : `Stufe ${chat.lage.stufe}`}</span>}
+              {chat.lage.gekuendigt_am && <span className="wr-marke gekuendigt">Gekündigt</span>}
+              {chat.lage.mandat_seit && <span className="wr-marke">Mandat</span>}
+              {Number(chat.lage.nicht_erreicht) > 0 && <span className="wr-marke warn">{chat.lage.nicht_erreicht}× nicht erreicht</span>}
+            </div>
+
             <dl>
-              {chat.lage.stufe && <><dt>Stufe</dt><dd>{chat.lage.stufe}</dd></>}
-              {chat.lage.paket && <><dt>Paket</dt><dd>{chat.lage.paket}</dd></>}
-              {chat.lage.ref && <><dt>Antrag</dt><dd>{chat.lage.ref}</dd></>}
+              {chat.lage.paket && <><dt>Paket</dt><dd>{String(chat.lage.paket).split("\n")[0]}</dd></>}
+              {chat.lage.zahlstatus && <><dt>Zahlung</dt><dd>{ZAHLTEXT[chat.lage.zahlstatus] ?? chat.lage.zahlstatus}</dd></>}
+              {chat.lage.rate_nr != null && (
+                <><dt>Offene Rate</dt><dd>
+                  Rate {chat.lage.rate_nr} · {(Number(chat.lage.betrag_cents || 0) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                  {chat.lage.faellig_am ? ` · fällig ${tag(chat.lage.faellig_am)}` : ""}
+                </dd></>
+              )}
+              {chat.lage.termin && <><dt>Termin</dt><dd>{tag(chat.lage.termin)} {zeit(chat.lage.termin)}</dd></>}
+              {chat.lage.promised_payment_date && <><dt>Zusage</dt><dd>{tag(chat.lage.promised_payment_date)}</dd></>}
+              {chat.lage.follow_up_date && <><dt>Wiedervorlage</dt><dd>{tag(chat.lage.follow_up_date)}</dd></>}
+              {chat.lage.letzter_kontakt && <><dt>Zuletzt gesprochen</dt><dd>{tag(chat.lage.letzter_kontakt)}</dd></>}
               {chat.lage.betreuer && <><dt>Betreuer</dt><dd>{chat.lage.betreuer}</dd></>}
               {chat.lage.email && <><dt>E-Mail</dt><dd>{chat.lage.email}</dd></>}
+              {chat.lage.ref && <><dt>Antrag</dt><dd>{chat.lage.ref}</dd></>}
             </dl>
             {chat.lage.anzeige && <p className="wr-still">Kam über: {chat.lage.anzeige}</p>}
+
             <div className="wr-person-knoepfe">
-              {!chat.lage.istLead && <a className="wr-knopf" href={`/chef/s/akte?id=${chat.lage.id}`} target="_blank" rel="noreferrer">Akte öffnen</a>}
+              {!chat.lage.istLead && <a className="wr-knopf" href={`/agent/pipeline?person=${chat.lage.id}`} target="_blank" rel="noreferrer">Akte öffnen</a>}
               {chat.lage.phone && <a className="wr-knopf" href={`tel:${chat.lage.phone}`}>Anrufen</a>}
+              {chat.links?.zahlung && <a className="wr-knopf" href={chat.links.zahlung} target="_blank" rel="noreferrer">Zahlseite</a>}
             </div>
+
+            {/* ── Ergebnis buchen ──────────────────────────────────────── */}
+            {!chat.lage.istLead && (
+              <div className="wr-ergebnis">
+                <button type="button" className="wr-knopf voll" onClick={() => setErgebnisOffen(!ergebnisOffen)}>
+                  {ergebnisOffen ? "Schließen" : "Ergebnis buchen"}
+                </button>
+                {ergebnisOffen && (
+                  <div className="wr-ergebnis-liste">
+                    <p className="wr-still">Das Ergebnis geht denselben Weg wie in der Akte — Wiedervorlage und Pipeline ziehen mit.</p>
+                    {chat.ergebnisse.map((e) => (
+                      <button key={e.wert} type="button" className="wr-klein" disabled={sendet} onClick={() => void ergebnisBuchen(e.wert)}>
+                        {e.text}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Notiz ───────────────────────────────────────────────── */}
+            <div className="wr-notiz">
+              <label htmlFor="wr-notiz-feld">Notiz zum Gespräch</label>
+              <textarea id="wr-notiz-feld" rows={2} value={notizEntwurf} maxLength={1000}
+                        onChange={(e) => setNotizEntwurf(e.target.value)}
+                        placeholder="Was man beim nächsten Mal wissen muss." />
+              {notizEntwurf !== (chat.notiz ?? "") && (
+                <button type="button" className="wr-klein" onClick={() => void notizSpeichern()}>Notiz sichern</button>
+              )}
+            </div>
+
             <p className="wr-still wr-hinweis">
               Mahnungen, Forderungen und Ratenrückstände gehen nie über WhatsApp — das verbietet Meta und kostet im
               Ernstfall unsere Nummer. Dafür bleiben Mail, Telefon und Brief.

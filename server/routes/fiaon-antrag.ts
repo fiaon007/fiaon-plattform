@@ -3106,10 +3106,13 @@ router.post("/application", async (req, res) => {
         });
       }
       const schritt = Number(currentStep || 0);
-      if (schritt >= 1 && schritt < 8) meldenUndSenden(() => webEreignis(META_EREIGNIS.antragBegonnen, String(ref)));
+      // E-231: Der Firmenauftrag (FIAON Global) legt seinen Antrag über diese Route an und meldet
+      // sich selbst als „Auftrag erteilt" — hier zählt er nicht als Privatantrag.
+      const webMessung = req.body?.webMessungAus !== true;
+      if (webMessung && schritt >= 1 && schritt < 8) meldenUndSenden(() => webEreignis(META_EREIGNIS.antragBegonnen, String(ref)));
       if (schritt >= 8 || status === "submitted" || status === "completed") {
         meldenUndSenden(async () => {
-          await webEreignis(META_EREIGNIS.antragFertig, String(ref));
+          if (webMessung) await webEreignis(META_EREIGNIS.antragFertig, String(ref));
           await crmEreignis(CRM_EREIGNIS.antragFertig, { ref: String(ref) });
         });
       }

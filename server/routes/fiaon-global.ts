@@ -91,6 +91,21 @@ router.post("/global/auftrag", async (req: Request, res: Response) => {
     if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error, feld: erg.feld });
     // Kam der Auftrag aus einer Anzeige? Nur wenn der Browser es mitschickt (Einwilligung).
     void kampagneSpeichern("auftrag", (erg as any).ref, req.body?.kampagne);
+    // ── Meta: Auftrag erteilt (23.09.2026, E-231) ──────────────────────────
+    // Unter der Auftragsreferenz — dieselbe Kennung nimmt der Pixel auf der
+    // Seite (werbeKonversion mit id = ref). Der Messsatz bleibt stehen: Kommt
+    // das Geld, meldet onCustomerPaid den Kauf (Purchase) darüber. STEHT NACH
+    // globalAuftragAnlegen: Der interne Antrag darf den Satz nicht vorfinden,
+    // sonst zählte ein Firmenauftrag als „Antrag begonnen/abgeschickt".
+    {
+      const ref = String((erg as any).ref || "");
+      const wertCents = typeof (erg as any).betragCents === "number" ? (erg as any).betragCents : null;
+      void import("../lib/fiaon-meta-capi")
+        .then((c) => c.ereignisMitMessung(c.META_EREIGNIS.auftrag, ref, req.body?.messung, {
+          ip: clientIp(req) || null, ua: String(req.headers["user-agent"] ?? ""), wertCents, paket: p.daten.paket,
+        }))
+        .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Messung nicht gemeldet:`, e));
+    }
     res.json(erg);
   } catch (err) {
     console.error("[FIAON-GLOBAL] auftrag:", err);

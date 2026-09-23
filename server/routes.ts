@@ -310,6 +310,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', (await import('./routes/fiaon-whatsapp-postfach')).default);
   // Provisionsautomatik + Vormerkungen (23.09.2026).
   app.use('/api/fiaon', (await import('./routes/fiaon-provisionen')).default);
+  // E-216: Der Tagesbericht — Mitarbeiter und Leitung.
+  app.use('/api/fiaon', (await import('./routes/fiaon-tagesbericht')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('meta_meldungen', async () => await (await import('./lib/fiaon-meta-leads')).meldungenVerarbeiten(), 2 * 60 * 1000, { beimStartNach: 90_000 });
     tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });

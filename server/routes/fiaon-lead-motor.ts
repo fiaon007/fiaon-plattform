@@ -341,6 +341,65 @@ router.post("/chef/lead-motor/messung/probe", wache, async (req: ChefRequest, re
 });
 
 /** Die letzten gemeldeten Ereignisse. */
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE VORLAGEN — STAND UND KNÖPFE (23.09.2026, E-215)
+//
+// Justin: „Ich kann keine Vorlage einreichen, weil ich keinen Knopf dafür habe."
+//
+// Er hat recht, und es ist ein Verstoß gegen die Hausregel „erledigt heißt
+// bedienbar": Der Einreich-Weg existierte seit E-214 als Funktion, aber an
+// keiner Oberfläche. Eine Route ohne Knopf ist nicht fertig.
+//
+// Drei Endpunkte, mehr braucht es nicht:
+//   Stand      — was steht im Quelltext, was weiß Meta darüber?
+//   Einreichen — alles Fehlende an Meta, Wand davor.
+//   Aufräumen  — löscht bei Meta, was nicht mehr im Quelltext steht.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/lead-motor/vorlagen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { vorlagenStand } = await import("../lib/fiaon-whatsapp");
+    const stand = await vorlagenStand().catch(() => []);
+    const imQuelltext = new Set(WA_VORLAGEN.map((v) => v.name));
+    res.json({
+      ok: true,
+      vorlagen: WA_VORLAGEN.map((v) => ({
+        name: v.name, zweck: v.zweck, wann: v.wann, kategorie: v.kategorie,
+        text: v.text, beispiele: v.beispiele, knoepfe: v.knoepfe,
+        status: stand.find((t) => t.name === v.name)?.status ?? "FEHLT",
+      })),
+      // Was bei Meta liegt und hier nicht mehr steht — das sind die Altlasten.
+      altlasten: stand.filter((t) => !imQuelltext.has(t.name)).map((t) => ({ name: t.name, status: t.status })),
+    });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] vorlagen:", err);
+    res.status(500).json({ ok: false, error: "Der Stand ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/lead-motor/vorlagen/einreichen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { vorlagenEinreichen } = await import("../lib/fiaon-whatsapp");
+    const erg = await vorlagenEinreichen();
+    console.log(`[LEAD-MOTOR] Vorlagen eingereicht: ${erg.eingereicht.length} neu, ${erg.schonDa.length} schon da, ${erg.fehler.length} Fehler.`);
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] einreichen:", err);
+    res.status(500).json({ ok: false, error: "Das Einreichen ist abgebrochen — bei Meta wurde nichts verändert." });
+  }
+});
+
+router.post("/chef/lead-motor/vorlagen/aufraeumen", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const ausfuehren = req.body?.ausfuehren === true;
+    const { vorlagenAufraeumen } = await import("../lib/fiaon-whatsapp");
+    const erg = await vorlagenAufraeumen({ probe: !ausfuehren });
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] aufräumen:", err);
+    res.status(500).json({ ok: false, error: "Das Aufräumen ist abgebrochen — bei Meta wurde nichts verändert." });
+  }
+});
+
 router.get("/chef/lead-motor/messung/ereignisse", wache, async (_req: ChefRequest, res: Response) => {
   try {
     res.json({ ok: true, ereignisse: await letzteEreignisse(40) });

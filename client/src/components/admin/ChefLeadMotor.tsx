@@ -466,27 +466,16 @@ export default function ChefLeadMotor() {
             ))}
           </section>
 
+          <Vorlagen melden={setMeldung} />
+
           <details className="lm-karte lm-texte">
-            <summary>Texte zur Freigabe — Einwilligung und WhatsApp-Vorlagen</summary>
+            <summary>Hinweistext im Meta-Formular</summary>
             <div className="lm-texte-inhalt">
               <div className="lm-einwilligung">
                 <h3>Hinweistext im Meta-Formular</h3>
                 <p className="lm-still">Formular → „Datenschutzrichtlinie“ → „Eigene Hinweise“ → Text (KEIN Kästchen, sonst schreiben wir nur der Hälfte). Bitte einmal vom Anwalt absegnen lassen.</p>
                 <blockquote>{s.texte.einwilligung}</blockquote>
                 <button className="lm-knopf" onClick={() => kopieren(s.texte.einwilligung)}>Text kopieren</button>
-              </div>
-              <h3>WhatsApp-Vorlagen (Entwurf, gehen mit Phase 2 an Meta)</h3>
-              <div className="lm-vorlagen">
-                {s.texte.vorlagen.map((v) => (
-                  <div key={v.name} className="lm-vorlage">
-                    <div className="lm-vorlage-kopf"><b>{v.name}</b><span className="lm-chip">{v.kategorie === "UTILITY" ? "Service" : "Werbung"}</span></div>
-                    <p className="lm-still">{v.zweck} {v.wann}</p>
-                    <div className="lm-blase">
-                      <p>{v.text.replace("{{1}}", v.beispiele[0] ?? "Maria Muster").replace("{{2}}", v.beispiele[1] ?? "")}</p>
-                      {v.knoepfe.length > 0 && <div className="lm-blase-knoepfe">{v.knoepfe.map((k) => <span key={k.text}>{k.typ === "URL" ? "↗ " : ""}{k.text}</span>)}</div>}
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </details>
@@ -514,6 +503,141 @@ export default function ChefLeadMotor() {
       )}
       {meldung && <div className="lm-meldung" role="status">{meldung}</div>}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WHATSAPP-VORLAGEN — MIT KNÖPFEN (23.09.2026, E-215)
+//
+// Justin: „Ich kann keine Vorlage einreichen, weil ich keinen Knopf dafür habe.
+// … mach die Seite ein wenig übersichtlicher und cleaner, ich finde mich da
+// nicht zurecht!"
+//
+// VORHER lagen die Vorlagen als Vorschau-Liste in einer zugeklappten Lade mit
+// der Überschrift „Texte zur Freigabe" — ohne eine einzige Handlung. Man konnte
+// sie lesen und sonst nichts.
+//
+// NACHHER ist es ein eigener Bereich mit dem, was man wissen und tun muss:
+// oben eine Zeile, die sagt, wie viele nutzbar sind und was zu tun ist; dann
+// die zwei Knöpfe; darunter die Liste mit dem Stand JEDER Vorlage. Die Texte
+// selbst stehen in einer Lade darunter — wer sie lesen will, klappt sie auf;
+// wer einreichen will, muss nicht daran vorbei.
+// ═══════════════════════════════════════════════════════════════════════════
+interface VorlageStand {
+  name: string; zweck: string; wann: string; kategorie: string;
+  text: string; beispiele: string[]; knoepfe: WaKnopf[]; status: string;
+}
+const STATUS_TEXT: Record<string, { text: string; ton: string }> = {
+  APPROVED: { text: "freigegeben", ton: "gruen" },
+  PENDING: { text: "in Prüfung", ton: "gelb" },
+  REJECTED: { text: "abgelehnt", ton: "rot" },
+  PAUSED: { text: "pausiert", ton: "gelb" },
+  DISABLED: { text: "gesperrt", ton: "rot" },
+  FEHLT: { text: "noch nicht eingereicht", ton: "" },
+};
+
+function Vorlagen({ melden }: { melden: (t: string) => void }) {
+  const d = useDaten<{ vorlagen: VorlageStand[]; altlasten: { name: string; status: string }[] }>("/chef/lead-motor/vorlagen");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [offen, setOffen] = useState<string | null>(null);
+
+  const tun = async (pfad: string, koerper: unknown, was: string) => {
+    setBusy(was);
+    try {
+      const r = await fetch(`${API}${pfad}`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(koerper ?? {}),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Das hat nicht geklappt.");
+      return j;
+    } finally { setBusy(null); }
+  };
+
+  const einreichen = async () => {
+    try {
+      const j = await tun("/chef/lead-motor/vorlagen/einreichen", {}, "ein");
+      const fehler = (j.fehler ?? []).map((f: any) => `${f.name}: ${f.grund}`).join(" · ");
+      melden(`${j.eingereicht.length} eingereicht, ${j.schonDa.length} lagen schon bei Meta.${fehler ? ` Nicht durchgekommen — ${fehler}` : " Meta prüft jetzt; das dauert Minuten bis Stunden."}`);
+      d.neu();
+    } catch (e: any) { melden(e.message); }
+  };
+
+  const aufraeumen = async () => {
+    try {
+      const probe = await tun("/chef/lead-motor/vorlagen/aufraeumen", { ausfuehren: false }, "auf");
+      if (!probe.geloescht.length) { melden("Bei Meta liegt nichts Altes — es gibt nichts aufzuräumen."); return; }
+      if (!window.confirm(`Bei Meta endgültig löschen:\n\n${probe.geloescht.join("\n")}\n\nDas lässt sich nicht rückgängig machen.`)) return;
+      const j = await tun("/chef/lead-motor/vorlagen/aufraeumen", { ausfuehren: true }, "auf");
+      melden(`${j.geloescht.length} alte Vorlage(n) bei Meta gelöscht.`);
+      d.neu();
+    } catch (e: any) { melden(e.message); }
+  };
+
+  if (d.fehler) return <section className="lm-karte"><h2>WhatsApp-Vorlagen</h2><Fehlermeldung text={d.fehler} erneut={d.neu} /></section>;
+  if (!d.daten) return <section className="lm-karte"><h2>WhatsApp-Vorlagen</h2><Geruest zeilen={3} /></section>;
+
+  const v = d.daten.vorlagen;
+  const frei = v.filter((x) => x.status === "APPROVED").length;
+  const pruefung = v.filter((x) => x.status === "PENDING").length;
+  const fehlt = v.filter((x) => x.status === "FEHLT").length;
+  const satz = fehlt > 0
+    ? `${fehlt} von ${v.length} sind noch nicht bei Meta. Ohne Freigabe kann außerhalb des 24-Stunden-Fensters nichts verschickt werden.`
+    : pruefung > 0
+      ? `${pruefung} in Prüfung bei Meta. Das dauert Minuten bis Stunden — die Seite zeigt den Stand beim Neuladen.`
+      : `Alle ${v.length} sind freigegeben. Der Versand läuft.`;
+
+  return (
+    <section className="lm-karte lm-vorlagen-karte" aria-label="WhatsApp-Vorlagen">
+      <div className="lm-karte-kopf">
+        <div>
+          <h2>WhatsApp-Vorlagen</h2>
+          <p className="lm-still">{satz}</p>
+        </div>
+        <div className="lm-vorlagen-tun">
+          <button className="lm-knopf" disabled={!!busy || fehlt === 0} onClick={() => void einreichen()}>
+            {busy === "ein" ? "Reicht ein …" : fehlt > 0 ? `${fehlt} bei Meta einreichen` : "Alle sind eingereicht"}
+          </button>
+          {d.daten.altlasten.length > 0 && (
+            <button className="lm-klein" disabled={!!busy} onClick={() => void aufraeumen()}>
+              {busy === "auf" ? "Räumt auf …" : `${d.daten.altlasten.length} alte aufräumen`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="lm-vl-zahlen">
+        <span className="lm-chip gruen">{frei} freigegeben</span>
+        {pruefung > 0 && <span className="lm-chip gelb">{pruefung} in Prüfung</span>}
+        {fehlt > 0 && <span className="lm-chip">{fehlt} offen</span>}
+        {d.daten.altlasten.length > 0 && <span className="lm-chip rot">{d.daten.altlasten.length} Altlasten bei Meta</span>}
+      </div>
+
+      <ul className="lm-vl-liste">
+        {v.map((x) => {
+          const st = STATUS_TEXT[x.status] ?? { text: x.status.toLowerCase(), ton: "" };
+          const auf = offen === x.name;
+          return (
+            <li key={x.name} className={auf ? "auf" : ""}>
+              <button type="button" className="lm-vl-zeile" onClick={() => setOffen(auf ? null : x.name)}>
+                <span className="lm-vl-zweck">{x.zweck}</span>
+                <span className={`lm-chip ${st.ton}`}>{st.text}</span>
+              </button>
+              {auf && (
+                <div className="lm-vl-auf">
+                  <p className="lm-still">{x.wann}</p>
+                  <div className="lm-blase">
+                    <p>{x.text.replace("{{1}}", x.beispiele[0] ?? "Frau Muster").replace("{{2}}", x.beispiele[1] ?? "").replace("{{3}}", x.beispiele[2] ?? "")}</p>
+                    {x.knoepfe.length > 0 && <div className="lm-blase-knoepfe">{x.knoepfe.map((k) => <span key={k.text}>{k.typ === "URL" ? "↗ " : ""}{k.text}</span>)}</div>}
+                  </div>
+                  <span className="lm-still">Name bei Meta: {x.name} · {x.kategorie === "UTILITY" ? "Service" : "Werbung"}</span>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

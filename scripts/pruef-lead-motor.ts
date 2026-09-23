@@ -124,21 +124,25 @@ gleich(nummerFuerFormular("+393331234567"), null, "Ausland → nicht vorausgefü
 // ── 5. Texte gegen alle Wände ──────────────────────────────────────────────
 abschnitt("Feste Texte — Wortwand, Strecken-Wörter, Sie, Emojis");
 const { wandPruefen } = await import("../shared/fiaon-wortverbote");
-const { worthygiene, VARIANTEN, streckenKnopf } = await import("../shared/fiaon-lead-strecke");
+const { worthygiene, VARIANTEN, streckenKnopf, WHATSAPP_ERLAUBT } = await import("../shared/fiaon-lead-strecke");
 const { EINWILLIGUNG_HINWEIS, WA_VORLAGEN, vorlagenName } = await import("../shared/fiaon-lead-texte");
 const DU = /\b(du|dich|dir|dein|deine|deinen|deinem|deiner|deines|dein\w*)\b/;
 const EMOJI = new RegExp("[\\p{Extended_Pictographic}]", "u");
-const pruefeText = (name: string, text: string) => {
+// E-215: Für die WhatsApp-Vorlagen ist „Kreditkarte" freigegeben — Justins
+// ausdrückliche Entscheidung vom 23.09., nachdem ihm die Begründung vorlag
+// (§ 34c GewO). Die Ausnahme gilt NUR dort; Mails, Briefe und die
+// Nachfass-Strecke werden unverändert gegen die volle Liste geprüft.
+const pruefeText = (name: string, text: string, erlaubt: readonly string[] = []) => {
   const verboten = wandPruefen(text).filter((w) => w.art === "verboten");
   ok(verboten.length === 0, `${name}: nichts Verbotenes (${verboten.map((v) => v.treffer).join(", ")})`);
-  ok(worthygiene(text).length === 0, `${name}: keine Strecken-Verbotswörter (${worthygiene(text).join(", ")})`);
+  ok(worthygiene(text, erlaubt).length === 0, `${name}: keine Strecken-Verbotswörter (${worthygiene(text, erlaubt).join(", ")})`);
   ok(!DU.test(text), `${name}: gesiezt (${text.match(DU)?.[0] ?? ""})`);
   ok(!EMOJI.test(text) && !/\*[^*]+\*/.test(text), `${name}: keine Emojis, keine Sternchen`);
 };
 pruefeText("Hinweistext", EINWILLIGUNG_HINWEIS);
 ok(/WhatsApp/.test(EINWILLIGUNG_HINWEIS) && /FIAON LTD/.test(EINWILLIGUNG_HINWEIS) && /widerrufen/.test(EINWILLIGUNG_HINWEIS), "Hinweistext nennt WhatsApp, FIAON LTD und den Widerruf");
 for (const v of WA_VORLAGEN) {
-  pruefeText(`WhatsApp ${v.name}`, v.text);
+  pruefeText(`WhatsApp ${v.name}`, v.text, WHATSAPP_ERLAUBT);
   ok(!/^\s*\{\{/.test(v.text) && !/\}\}\s*[.!?]?\s*$/.test(v.text), `${v.name}: keine Variable am Anfang oder Ende (Meta-Regel)`);
   ok(v.text.length <= 1024, `${v.name}: höchstens 1.024 Zeichen`);
   ok(v.knoepfe.every((k) => k.text.length <= 25), `${v.name}: Knopftexte höchstens 25 Zeichen`);
@@ -147,6 +151,14 @@ for (const v of WA_VORLAGEN) {
   ok(!/mahn|inkasso|forderung|rate f[aä]llig|überfällig/i.test(v.text), `${v.name}: keine Mahnung über WhatsApp (Richtlinie)`);
 }
 ok(/digitale Assistentin/.test(WA_VORLAGEN[0].text), "erste WhatsApp gibt sich als KI zu erkennen (KI-VO Art. 50)");
+// E-215: Die falsche Tatsachenbehauptung, die NICHT freigegeben wurde. Sie
+// stand in Justins Vorschlag; der Kunde hat bei FIAON keinen Kartenantrag
+// gestellt, sondern eine Anfrage. Der Prüfstand hält das fest, damit es nicht
+// beim nächsten Umbau versehentlich hineinrutscht.
+for (const v of WA_VORLAGEN) {
+  ok(!/(ihr|ihren)\s+(kreditkarten-?)?antrag[^.]{0,30}(liegt|vorgelegt|vorliegt)/i.test(v.text),
+    `${v.name}: behauptet keinen Kartenantrag bei FIAON (es ist eine Anfrage)`);
+}
 ok(/Mensch/.test(WA_VORLAGEN[0].text), "erste WhatsApp nennt den Weg zum Menschen");
 gleich(vorlagenName("Hallo Maria Muster,"), "Maria Muster", "Name für {{1}}");
 gleich(vorlagenName("Hallo,"), "und willkommen", "ohne Namen → „Hallo und willkommen,“");

@@ -236,8 +236,44 @@ export const VERBOTENE_WORTE = [
 ] as const;
 
 /** Prüft einen Text auf Worthygiene. Gibt die Verstöße zurück. */
-export function worthygiene(text: string): string[] {
-  const t = text.toLowerCase();
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS WORT „KREDITKARTE" AUF WHATSAPP — JUSTINS ENTSCHEIDUNG (23.09.2026, E-215)
+//
+// Die Liste oben ist am 18.09. entstanden, damit FIAON in der Kaltansprache
+// nicht mit einer Kreditsumme wirbt: Das wäre Werbung für eine
+// erlaubnispflichtige Leistung (§ 34c GewO). Sie gilt weiter — für Mails,
+// Briefe und die gesamte Nachfass-Strecke.
+//
+// Für die WhatsApp-Vorlagen hat Justin am 23.09. anders entschieden, zweimal
+// und ausdrücklich, nachdem ihm die Begründung vorlag: „Es soll auf die
+// Kreditkarte gepitcht werden … ändere es, ob du willst oder nicht!" und
+// „NUR auf die Kreditkarte pitchen".
+//
+// Das ist seine Entscheidung und sein Risiko — er ist Inhaber, er kennt die
+// Begründung, und er hat sie überstimmt. Was NICHT zu seiner Disposition
+// stand und deshalb auch nicht geändert wurde: falsche Tatsachenbehauptungen.
+// „Ihr Kreditkartenantrag liegt mir vor" bleibt draußen, weil der Kunde bei
+// FIAON keinen Kartenantrag gestellt hat — die Anfrage ja, der Antrag läuft
+// bei der Partnerbank. Ein falscher Satz ist kein Pitch, sondern ein
+// Widerrufsgrund, und Meta weist ihn ohnehin ab.
+//
+// Die Ausnahme steht hier als PARAMETER und nicht als gelöschtes Wort: Wer sie
+// benutzt, muss sie benennen. Ein aus der Liste gestrichenes Wort hätte
+// stillschweigend auch jede Mail und jeden Brief freigegeben.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Für WhatsApp-Vorlagen freigegeben (Justin, 23.09.2026). Nur dort verwenden. */
+export const WHATSAPP_ERLAUBT = ["kreditkarte"] as const;
+
+/**
+ * Prüft einen Text auf Worthygiene. Gibt die Verstöße zurück.
+ *
+ * `erlaubt` nimmt Wörter heraus, BEVOR geprüft wird — nötig, weil „kredit" in
+ * „kreditkarte" steckt und sonst jede erlaubte Kreditkarte einen Treffer auf
+ * „kredit" erzeugen würde.
+ */
+export function worthygiene(text: string, erlaubt: readonly string[] = []): string[] {
+  let t = text.toLowerCase();
+  for (const e of erlaubt) t = t.split(e.toLowerCase()).join(" ");
   return VERBOTENE_WORTE.filter((w) => t.includes(w));
 }
 

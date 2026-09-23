@@ -205,3 +205,30 @@ a.lm-name:hover { text-decoration: underline; }
 .lm-unterklapp[open] > summary::before { content: "▾ "; }
 .lm-unterklapp > summary:hover { color: var(--lm-text-2); }
 @media (max-width: 640px) { .lm-mess-zeile { grid-template-columns: 1fr; } }
+
+/* ═══ WhatsApp-Vorlagen mit Knöpfen (23.09.2026, E-215) ═══════════════════
+   Justin: „Ich kann keine Vorlage einreichen, weil ich keinen Knopf dafür
+   habe … mach die Seite übersichtlicher, ich finde mich da nicht zurecht."
+   Eine Zeile je Vorlage — Zweck links, Stand rechts. Der Text klappt auf,
+   wer ihn lesen will; wer einreichen will, muss nicht daran vorbei. */
+.lm-vorlagen-tun { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lm-vl-zahlen { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.lm-vl-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px;
+  background: var(--lm-linie); border-radius: 12px; overflow: hidden; }
+.lm-vl-liste > li { background: var(--lm-flaeche); }
+.lm-vl-liste > li.auf { background: rgba(148, 163, 184, .06); }
+
+.lm-vl-zeile {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; border: 0; background: transparent; color: var(--lm-text);
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.lm-vl-zweck { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lm-vl-auf { display: grid; gap: 8px; padding: 0 14px 14px; }
+
+@media (max-width: 640px) {
+  .lm-vorlagen-tun { width: 100%; }
+  .lm-vorlagen-tun .lm-knopf { flex: 1 1 100%; justify-content: center; }
+  .lm-vl-zeile { flex-direction: column; align-items: flex-start; gap: 5px; }
+}

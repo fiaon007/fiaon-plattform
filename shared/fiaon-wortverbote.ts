@@ -36,6 +36,26 @@ export const WORTREGELN: Wortregel[] = [
   { muster: /\bempfehl\w+\b/i, art: "verboten", hinweis: "Keine Empfehlung aussprechen. Beschreibe die Möglichkeit und überlasse die Wahl." },
   { muster: /sicher\s+klappt|klappt\s+sicher|garantiert\s+gelöscht|garantierte\s+löschung/i, art: "verboten", hinweis: "Ergebnisse sind nie sicher. Beschreibe den Weg, nicht das Ergebnis." },
   { muster: /(verbessern|erhöhen|steigern)\s+(wir\s+)?(ihren|ihre)\s+(score|bonität)/i, art: "verboten", hinweis: "Der Score folgt den Daten. Sag, welche Daten sich ändern." },
+  // ══════════════════════════════════════════════════════════════════════════
+  // KEIN GELD ZUSAGEN (23.09.2026, E-225)
+  //
+  // Der Anlass ist eine echte Mail von heute Abend. Ferat Met fragte um 17:36,
+  // ob er für 79,99 € „den Kredit in Höhe von 15.000 € gleich ausbezahlt"
+  // bekommt. Um 18:41 antwortete Mara richtig: nein, FIAON vergibt keine
+  // Kredite, über den Rahmen entscheidet die Bank. Um 18:58 schrieb dieselbe
+  // Mara: „Der gewünschte Betrag ist sofort verfügbar. Bitte einzahlen und
+  // Account aktivieren." Sechs Minuten später der Kunde: „Ich verstehe jetzt
+  // nichts mehr."
+  //
+  // Die Anweisung verbot das längst — das Modell hat sie überschrieben. Ein
+  // Prompt ist ein Rat; hier braucht es eine Wand. Diese drei Regeln fangen
+  // die Klasse ab: verfügbares Geld, zugesagter Rahmen, zugesagte Karte.
+  { muster: /\b(betrag|summe|geld|kredit\w*|darlehen)\b[\s\S]{0,40}?\b(ist|sind|steht|stehen|wird|werden)\b[\s\S]{0,25}?\b(sofort\s+)?(verfügbar|ausgezahlt|bereit|zur\s+verfügung)\b/i,
+    art: "verboten", hinweis: "Kein Geld zusagen. FIAON zahlt nichts aus; über Konto, Karte und Rahmen entscheidet die Bank." },
+  { muster: /\b(ihr|das)\s+(wunsch)?(limit|rahmen|kreditrahmen)\b[\s\S]{0,30}?\b(passt|steht|ist\s+(genehmigt|bestätigt|sicher|freigegeben)|bekommen\s+sie)\b/i,
+    art: "verboten", hinweis: "Über den Rahmen entscheidet die Bank — nie zusagen, dass er passt oder steht." },
+  { muster: /\b(sie\s+(bekommen|erhalten))\b[\s\S]{0,25}?\b(die\s+)?(karte|kreditkarte)\b(?![\s\S]{0,40}\b(zusage|entscheidet|bank)\b)/i,
+    art: "verboten", hinweis: "Die Karte ist nicht zugesagt. Formuliere den Weg: nach der Zusage der Bank." },
   { muster: /\baffiliate\b/i, art: "verboten", hinweis: "Das Wort nie verwenden." },
   { muster: /\bkredit(vermittlung|e?\s+vermitteln)\b/i, art: "verboten", hinweis: "FIAON vermittelt keine Kredite." },
   { muster: /\b(dolmetscher|übersetzungsdienst|live-?chat|telefon-?konferenz)\b/i, art: "verboten", hinweis: "Diese Leistung gibt es bei FIAON nicht — biete stattdessen ein Telefongespräch an." },

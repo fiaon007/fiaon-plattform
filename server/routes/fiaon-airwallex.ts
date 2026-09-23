@@ -108,6 +108,12 @@ async function globalAccountId(): Promise<string> {
   return String(treffer.id);
 }
 
+/**
+ * Für das Banking (E-228): lesender Zugriff mit derselben Anmeldung, damit der
+ * Kontostand nicht über einen zweiten Airwallex-Weg geholt wird.
+ */
+export { awGet as airwallexGet, konfiguriert as airwallexKonfiguriert };
+
 type Eingang = { id: string; datum: string; cents: number; absender: string; zweck: string; status: string; art: string; schwebt: boolean };
 
 /**

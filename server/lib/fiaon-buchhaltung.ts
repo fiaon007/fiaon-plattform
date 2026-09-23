@@ -1,47 +1,46 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE BUCHHALTUNG — ein Kassenbuch mit vier Augen (23.09.2026, E-227)
+// FIAON BANKING — Zugang, Sitzungen, TAN, Zahlungsaufträge (E-227 → E-228)
 //
-// Justin: „Da Florentine in Kürze Geschäftsleitung sein wird, muss ich sie
-// prüfen. Eine eigene Seite mit Anmeldezugang, sie soll darüber Überweisungen
-// machen können — ich will sehen, wie sie damit umgeht."
+// 23.09.2026, E-227: Justin will Florentine prüfen, bevor sie die
+// Geschäftsleitung übernimmt. Gebaut wurde bewusst die ECHTE Fassung — kein
+// erfundener Kontostand, keine Bestätigungen für Zahlungen, die es nicht gibt.
+// Florentine arbeitet mit dem echten Geld des Hauses; Justin gibt frei.
 //
-// ── WAS HIER ECHT IST (und warum das die einzige Bauart war) ───────────────
-// Gewünscht war ursprünglich ein erfundener Kontostand und erfundene
-// Überweisungsbestätigungen. Erfundene Buchungsunterlagen sind keine Prüfung,
-// sondern eine Fälschung — und sie hätte genau die Person getäuscht, deren
-// Urteil geprüft werden soll. Gebaut ist deshalb die ehrliche Fassung, die
-// mehr über einen Menschen verrät als jede Attrappe: Florentine arbeitet mit
-// dem ECHTEN Geld des Hauses.
+// 23.09.2026 abends, E-228: „Das ist das FIAON Banking. Das muss EXTREM sicher
+// aussehen — Bank System eben. Den Kontostand kann ich bewegen, nicht
+// Florentine." Daraus in dieser Datei:
 //
-//   · Sie sieht den echten Bestand, die echten Eingänge, die echten Kosten.
-//   · Sie bereitet ECHTE Zahlungsaufträge vor — Empfänger, IBAN, Betrag,
-//     Zweck, Beleg.
-//   · Justin gibt frei oder lehnt ab (Vier-Augen-Prinzip: wer einen Auftrag
-//     angelegt hat, kann ihn nie selbst freigeben).
-//   · Erst nach der Freigabe wird überwiesen; die Ausführung wird mit der
-//     Bankreferenz eingetragen und erzeugt eine ECHTE Zahlungsbestätigung.
-//   · Justins Privateinlage steht als das im Buch, was sie ist: eine Einlage
-//     mit Datum und Betrag, die er selbst einträgt — kein Fantasiesaldo.
+//   · SITZUNGEN sind jetzt Datensätze, nicht nur ein signiertes Cookie. Damit
+//     gibt es eine Abmeldung nach Untätigkeit (serverseitig 15 Minuten, die
+//     Oberfläche meldet nach 10 ab), eine Höchstdauer, eine Liste aktiver
+//     Sitzungen mit Gerät und Adresse — und einen Knopf, der sie beendet.
+//   · TAN wie bei einer Bank: Freigaben und jede Bewegung des Kontostands
+//     brauchen eine 6-stellige TAN per Mail. Die TAN ist an GENAU diesen
+//     Vorgang gebunden (Betrag, Empfänger, Datum) — eine TAN für 50 € gibt
+//     keine 5.000 € frei.
+//   · DER KONTOSTAND gehört dem Inhaber. Anfangsbestand, Einlage, Eingang,
+//     Ausgabe, Korrektur und Bankabgleich darf nur Justin setzen.
+//   · EINZELZEICHNUNG: Justin kann eigene Aufträge mit seiner TAN selbst
+//     freigeben — er ist der Inhaber und hält den Bankzugang. Florentines
+//     Aufträge brauchen IMMER seine Freigabe. Die Regel „Wer anlegt, gibt nie
+//     selbst frei" gilt weiter für jeden außer dem Inhaber.
+//   · AUSZAHLUNGEN AN MITARBEITER laufen als Zahlungsauftrag. Wird die
+//     Überweisung bestätigt, passiert exakt dasselbe wie mit „Als überwiesen
+//     markieren" in /admin/payouts — über dieselbe Funktion
+//     (auszahlungUeberwiesen), nicht über eine zweite Kopie.
+//   · EMPFÄNGER-KARTEI: Wer einmal bezahlt wurde, steht beim nächsten Tippen
+//     als Vorschlag da — samt IBAN und BIC. Mitarbeiter mit hinterlegter
+//     Bankverbindung ebenso.
 //
-// ── DAS BUCH IST EIN BUCH, KEINE BANK ──────────────────────────────────────
-// Es gibt keine Banking-Schnittstelle. Der Bestand ist deshalb ausdrücklich
-// „laut Kassenbuch“: Anfangsbestand + Kundengeld seit diesem Tag + erfasste
-// Bewegungen. Was die Bank wirklich zeigt, trägt man im Bankabgleich ein —
-// die Seite rechnet die Differenz aus und benennt sie. Eine Buchhaltung, die
-// so tut, als kenne sie den Bankstand, wäre die nächste falsche Zahl.
-//
-// ── ANMELDUNG ──────────────────────────────────────────────────────────────
-// Erster Faktor: accounting@fiaon.com + Passwort (bcrypt in fiaon_settings,
-// NIE im Quelltext). Zweiter Faktor: die eigene Adresse angeben, einen
-// 12-stelligen PIN per Mail holen, eingeben. Der PIN entscheidet, WER in der
-// Sitzung sitzt — jede Buchung trägt ab dann einen Namen.
+// Was sich NICHT geändert hat: Das Buch behauptet keinen Bankstand, den es
+// nicht kennt (siehe server/lib/fiaon-banking.ts), und kein Papier entsteht
+// für Geld, das sich nicht bewegt hat.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { createHmac, randomBytes, createHash, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, createHash, timingSafeEqual, randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import type { Request } from "express";
 import { sqlPool } from "./db-pool";
-import { BANK } from "@shared/fiaon-bank";
 
 // ── Wer hier arbeiten darf ──────────────────────────────────────────────────
 // Bewusst eine feste, kurze Liste im Quelltext: Wer Zugriff auf das Geld des
@@ -63,19 +62,28 @@ export const BUCH_LEUTE: readonly BuchPerson[] = [
 /** Die gemeinsame Anmeldeadresse — erster Faktor, sagt noch nicht, wer kommt. */
 export const BUCH_LOGIN = "accounting@fiaon.com";
 
+/** Das Postfach, aus dem PIN, TAN und Hinweise kommen. */
+const ABSENDER = "js@fiaon.com";
+
 export function buchPerson(email: string): BuchPerson | null {
   const e = String(email || "").trim().toLowerCase();
   return BUCH_LEUTE.find((p) => p.email === e) ?? null;
 }
 
+export const inhaber = (): BuchPerson => BUCH_LEUTE.find((p) => p.rolle === "inhaber")!;
+
 // ── Schlüssel in fiaon_settings ─────────────────────────────────────────────
 const KEY_PASSWORT = "buchhaltung_passwort_hash";
-const KEY_ANFANG = "buchhaltung_anfangsbestand";     // JSON { cents, am, notiz, von }
-const KEY_ABGLEICH = "buchhaltung_bankabgleich";     // JSON { cents, am, von, erfasst }
-const KEY_UEBERGABE = "buchhaltung_uebergabe";       // JSON { bisher, stichtag, bestaetigt… }
+const KEY_ANFANG = "buchhaltung_anfangsbestand";     // JSON Anfangsbestand
+const KEY_ABGLEICH = "buchhaltung_bankabgleich";     // JSON Bankabgleich
+const KEY_UEBERGABE = "buchhaltung_uebergabe";       // JSON Uebergabe
+const KEY_SPERRE = "buchhaltung_sperre";             // JSON string[] gesperrter Adressen
 
 async function einstellung<T>(key: string): Promise<T | null> {
-  const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${key}`.catch(() => [] as any[])) as any[];
+  const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${key}`.catch((e: unknown) => {
+    console.warn(`[BANKING] Einstellung ${key}:`, String(e).slice(0, 120));
+    return [] as any[];
+  })) as any[];
   if (!r?.value) return null;
   try { return JSON.parse(String(r.value)) as T; } catch { return null; }
 }
@@ -136,7 +144,11 @@ export function buchSchema(): Promise<void> {
           bestaetigung_base64 TEXT,
           bestaetigung_hash TEXT
         )`;
+      // E-228: Auszahlungsbezug und die Art der Freigabe (vier Augen oder Einzelzeichnung).
+      await sqlPool`ALTER TABLE fiaon_buch_auftrag ADD COLUMN IF NOT EXISTS payout_id INTEGER`;
+      await sqlPool`ALTER TABLE fiaon_buch_auftrag ADD COLUMN IF NOT EXISTS freigabe_art VARCHAR`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_buch_auftrag_status_idx ON fiaon_buch_auftrag (status, id DESC)`;
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_buch_auftrag_payout_idx ON fiaon_buch_auftrag (payout_id)`;
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_buch_pin (
           id BIGSERIAL PRIMARY KEY,
@@ -157,6 +169,63 @@ export function buchSchema(): Promise<void> {
           zeit TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_buch_log_zeit_idx ON fiaon_buch_log (zeit DESC)`;
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_buch_sitzung (
+          sid TEXT PRIMARY KEY,
+          person TEXT NOT NULL,
+          erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          zuletzt_aktiv TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          ip TEXT,
+          geraet TEXT,
+          beendet_am TIMESTAMPTZ,
+          beendet_grund TEXT
+        )`;
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_buch_sitzung_person_idx ON fiaon_buch_sitzung (person, erstellt_am DESC)`;
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_buch_tan (
+          id BIGSERIAL PRIMARY KEY,
+          person TEXT NOT NULL,
+          zweck TEXT NOT NULL,
+          ziel TEXT NOT NULL,
+          tan_hash TEXT NOT NULL,
+          gueltig_bis TIMESTAMPTZ NOT NULL,
+          benutzt_am TIMESTAMPTZ,
+          versuche SMALLINT NOT NULL DEFAULT 0,
+          erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`;
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_buch_empfaenger (
+          id BIGSERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          iban TEXT NOT NULL,
+          bic TEXT,
+          kategorie TEXT,
+          notiz TEXT,
+          erstellt_von TEXT NOT NULL,
+          erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          zuletzt_genutzt TIMESTAMPTZ,
+          geloescht_am TIMESTAMPTZ
+        )`;
+      await sqlPool`
+        CREATE UNIQUE INDEX IF NOT EXISTS fiaon_buch_empfaenger_iban_uq
+          ON fiaon_buch_empfaenger (iban) WHERE geloescht_am IS NULL`;
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_buch_dauerauftrag (
+          id BIGSERIAL PRIMARY KEY,
+          empfaenger TEXT NOT NULL,
+          iban TEXT NOT NULL,
+          bic TEXT,
+          betrag_cents BIGINT NOT NULL,
+          zweck TEXT NOT NULL,
+          kategorie TEXT,
+          tag_im_monat SMALLINT NOT NULL,
+          naechste_am DATE NOT NULL,
+          erstellt_von TEXT NOT NULL,
+          erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          beendet_am TIMESTAMPTZ,
+          beendet_von TEXT,
+          letzter_auftrag_id BIGINT
+        )`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -168,67 +237,50 @@ export function buchProtokoll(person: string | null, aktion: string, ziel?: stri
     try {
       await buchSchema();
       await sqlPool`INSERT INTO fiaon_buch_log (person, aktion, ziel, notiz) VALUES (${person}, ${aktion}, ${ziel ?? null}, ${notiz ?? null})`;
-    } catch (e) { console.warn("[BUCH] Protokoll:", String(e).slice(0, 140)); }
+    } catch (e) { console.warn("[BANKING] Protokoll:", String(e).slice(0, 140)); }
   })();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ANMELDUNG
-// ═══════════════════════════════════════════════════════════════════════════
-const COOKIE = "fiaon_buch";
-/** Acht Stunden: ein Buchhaltungstag. */
-const TTL_MS = 8 * 60 * 60 * 1000;
-/** Der PIN lebt zehn Minuten. Wer ihn nicht nutzt, holt einen neuen. */
-const PIN_TTL_MS = 10 * 60 * 1000;
-const PIN_VERSUCHE = 5;
+// ── Mitteilungen ────────────────────────────────────────────────────────────
+/**
+ * Eine kurze Mail an eine Person des Bankings. Feuert und vergisst — eine
+ * Freigabe darf nie daran scheitern, dass eine Benachrichtigung hängt.
+ */
+export function benachrichtigen(an: string, betreff: string, zeilen: string[]): void {
+  void (async () => {
+    try {
+      const { mailNeuSenden, gmailBereit } = await import("./fiaon-gmail");
+      if (!gmailBereit()) { console.warn("[BANKING] Hinweis nicht versendbar — GOOGLE_SA_KEY fehlt"); return; }
+      await mailNeuSenden(ABSENDER, an, betreff, [...zeilen, "", "FIAON Banking · https://fiaon.com/buchhaltung"].join("\n"));
+    } catch (e) { console.warn("[BANKING] Hinweis an", an, String(e).slice(0, 140)); }
+  })();
+}
 
+const geldText = (cents: number) =>
+  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANMELDUNG — erster Faktor Passwort, zweiter Faktor PIN
+// ═══════════════════════════════════════════════════════════════════════════
 function secret(): string {
   return process.env.SESSION_SECRET || "fiaon-dev-buchhaltung-secret";
 }
-
-function sign(email: string, exp: number): string {
-  return createHmac("sha256", secret()).update(`buchzugang:${email}:${exp}`).digest("hex").slice(0, 40);
-}
-
-export function buchToken(email: string): string {
-  const exp = Date.now() + TTL_MS;
-  return `${Buffer.from(email).toString("base64url")}.${exp}.${sign(email, exp)}`;
-}
-
-export const BUCH_COOKIE = COOKIE;
-export const BUCH_TTL_MS = TTL_MS;
 
 function gleich(a: string, b: string): boolean {
   const x = Buffer.from(a); const y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/** Liest die Sitzung. null = niemand angemeldet. */
-export function buchSitzung(req: Request): BuchPerson | null {
-  const token = (req as any).cookies?.[COOKIE];
-  if (typeof token !== "string") return null;
-  const [b64, expStr, sig] = token.split(".");
-  if (!b64 || !expStr || !sig) return null;
-  const exp = Number(expStr);
-  if (!Number.isFinite(exp) || exp < Date.now()) return null;
-  let email = "";
-  try { email = Buffer.from(b64, "base64url").toString("utf8"); } catch { return null; }
-  if (!gleich(sig, sign(email, exp))) return null;
-  return buchPerson(email);
-}
-
 /** Prüft das gemeinsame Passwort. Kein Hash hinterlegt = Tür zu, nicht Tür offen. */
 export async function buchPasswortStimmt(passwort: string): Promise<boolean> {
-  const hash = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${KEY_PASSWORT}`.catch(() => [] as any[])) as any[];
-  const h = String(hash[0]?.value || "");
+  const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${KEY_PASSWORT}`.catch(() => [] as any[])) as any[];
+  const h = String(r?.value || "");
   if (!h) return false;
   return bcrypt.compare(String(passwort || ""), h).catch(() => false);
 }
 
-/** Setzt das gemeinsame Passwort (nur über das Einrichtungsskript / den Inhaber). */
 export async function buchPasswortSetzen(passwort: string): Promise<void> {
-  const h = await bcrypt.hash(String(passwort), 12);
-  await einstellungSetzen(KEY_PASSWORT, h);
+  await einstellungSetzen(KEY_PASSWORT, await bcrypt.hash(String(passwort), 12));
 }
 
 export async function buchPasswortGesetzt(): Promise<boolean> {
@@ -236,11 +288,33 @@ export async function buchPasswortGesetzt(): Promise<boolean> {
   return !!String(r?.value || "");
 }
 
+// ── Zugang sperren (Inhaber) ────────────────────────────────────────────────
+export async function gesperrte(): Promise<string[]> {
+  return (await einstellung<string[]>(KEY_SPERRE)) ?? [];
+}
+
+export async function istGesperrt(email: string): Promise<boolean> {
+  return (await gesperrte()).includes(String(email).toLowerCase());
+}
+
+export async function sperreSetzen(email: string, gesperrt: boolean, von: BuchPerson): Promise<void> {
+  const e = String(email).toLowerCase();
+  const alt = await gesperrte();
+  const neu = gesperrt ? Array.from(new Set([...alt, e])) : alt.filter((x) => x !== e);
+  await einstellungSetzen(KEY_SPERRE, neu);
+  if (gesperrt) await sitzungenBeenden(e, null, "Zugang gesperrt");
+  buchProtokoll(von.email, gesperrt ? "Zugang gesperrt" : "Zugang entsperrt", e, null);
+}
+
+// ── PIN ─────────────────────────────────────────────────────────────────────
 /**
  * Zwölf Stellen, gut vorlesbar: Großbuchstaben und Ziffern ohne die Paare,
  * die man am Telefon verwechselt (0/O, 1/I/L, 8/B, 5/S, 2/Z).
  */
 const PIN_ALPHABET = "ACDEFGHJKMNPQRTUVWXY34679";
+const PIN_TTL_S = 10 * 60;
+const PIN_VERSUCHE = 5;
+
 export function pinErzeugen(): string {
   const bytes = randomBytes(12);
   let out = "";
@@ -257,7 +331,7 @@ export async function pinAnlegen(person: BuchPerson): Promise<string> {
   await sqlPool`UPDATE fiaon_buch_pin SET benutzt_am = NOW() WHERE person = ${person.email} AND benutzt_am IS NULL`;
   await sqlPool`
     INSERT INTO fiaon_buch_pin (person, pin_hash, gueltig_bis)
-    VALUES (${person.email}, ${pinHash(pin)}, NOW() + ${`${Math.round(PIN_TTL_MS / 1000)} seconds`}::interval)`;
+    VALUES (${person.email}, ${pinHash(pin)}, NOW() + ${`${PIN_TTL_S} seconds`}::interval)`;
   return pin;
 }
 
@@ -284,138 +358,384 @@ export async function pinPruefen(person: BuchPerson, pin: string): Promise<PinEr
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DAS BUCH
+// SITZUNGEN
+//
+// Das Cookie trägt nur eine Sitzungsnummer mit Unterschrift. Ob die Sitzung
+// gilt, entscheidet die Tabelle: nicht beendet, zuletzt aktiv vor weniger als
+// 15 Minuten, nicht älter als 8 Stunden, Person nicht gesperrt. Dadurch lässt
+// sich eine Sitzung von außen beenden — mit einem signierten Ablaufdatum im
+// Cookie allein ginge das nicht.
 // ═══════════════════════════════════════════════════════════════════════════
-export interface Anfangsbestand { cents: number; am: string; notiz: string; von: string }
-export interface Bankabgleich { cents: number; am: string; von: string; erfasst: string }
+export const BUCH_COOKIE = "fiaon_buch";
+export const LEERLAUF_MIN = 15;
+export const HOECHSTDAUER_H = 8;
 
-export async function anfangsbestand(): Promise<Anfangsbestand | null> {
-  return einstellung<Anfangsbestand>(KEY_ANFANG);
+const sidSig = (sid: string) => createHmac("sha256", secret()).update(`buchsitzung:${sid}`).digest("hex").slice(0, 40);
+
+export interface Sitzung { sid: string; person: BuchPerson }
+
+function geraetBeschreiben(ua: string): string {
+  const s = String(ua || "");
+  const browser = /Edg\//.test(s) ? "Edge" : /Chrome\//.test(s) ? "Chrome" : /Firefox\//.test(s) ? "Firefox" : /Safari\//.test(s) ? "Safari" : "Browser";
+  const system = /iPhone|iPad/.test(s) ? "iOS" : /Android/.test(s) ? "Android" : /Mac OS X/.test(s) ? "macOS" : /Windows/.test(s) ? "Windows" : /Linux/.test(s) ? "Linux" : "unbekannt";
+  return `${browser} auf ${system}`;
 }
 
-export async function anfangsbestandSetzen(a: Anfangsbestand): Promise<void> {
-  await einstellungSetzen(KEY_ANFANG, a);
+export function clientIp(req: Request): string {
+  const fwd = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return fwd || req.ip || "unbekannt";
 }
 
-export async function bankabgleich(): Promise<Bankabgleich | null> {
-  return einstellung<Bankabgleich>(KEY_ABGLEICH);
+export async function sitzungAnlegen(person: BuchPerson, req: Request): Promise<string> {
+  await buchSchema();
+  const sid = randomUUID();
+  await sqlPool`
+    INSERT INTO fiaon_buch_sitzung (sid, person, ip, geraet)
+    VALUES (${sid}, ${person.email}, ${clientIp(req)}, ${geraetBeschreiben(String(req.headers["user-agent"] || ""))})`;
+  return `${sid}.${sidSig(sid)}`;
 }
 
-export async function bankabgleichSetzen(b: Bankabgleich): Promise<void> {
-  await einstellungSetzen(KEY_ABGLEICH, b);
+/** Liest und prüft die Sitzung. Verlängert sie (höchstens alle 30 s ein Schreibzugriff). */
+export async function sitzungPruefen(req: Request): Promise<Sitzung | null> {
+  const token = (req as any).cookies?.[BUCH_COOKIE];
+  if (typeof token !== "string") return null;
+  const [sid, sig] = token.split(".");
+  if (!sid || !sig || !gleich(sig, sidSig(sid))) return null;
+  await buchSchema();
+  const [r] = (await sqlPool`
+    SELECT person, erstellt_am, zuletzt_aktiv, beendet_am FROM fiaon_buch_sitzung WHERE sid = ${sid}`) as any[];
+  if (!r || r.beendet_am) return null;
+  const jetzt = Date.now();
+  if (jetzt - new Date(r.zuletzt_aktiv).getTime() > LEERLAUF_MIN * 60_000) {
+    await sqlPool`UPDATE fiaon_buch_sitzung SET beendet_am = NOW(), beendet_grund = 'Untätigkeit' WHERE sid = ${sid} AND beendet_am IS NULL`;
+    return null;
+  }
+  if (jetzt - new Date(r.erstellt_am).getTime() > HOECHSTDAUER_H * 3_600_000) {
+    await sqlPool`UPDATE fiaon_buch_sitzung SET beendet_am = NOW(), beendet_grund = 'Höchstdauer' WHERE sid = ${sid} AND beendet_am IS NULL`;
+    return null;
+  }
+  const person = buchPerson(String(r.person));
+  if (!person) return null;
+  if (await istGesperrt(person.email)) return null;
+  if (jetzt - new Date(r.zuletzt_aktiv).getTime() > 30_000) {
+    await sqlPool`UPDATE fiaon_buch_sitzung SET zuletzt_aktiv = NOW() WHERE sid = ${sid}`;
+  }
+  return { sid, person };
 }
 
-export interface Uebergabe {
-  /** Wer die Buchhaltung bisher geführt hat — Justins Angabe, nicht unsere Behauptung. */
-  bisher: string;
-  /** Ab wann Florentine verantwortlich ist (ISO). */
-  stichtag: string;
-  bestaetigtVon?: string;
-  bestaetigtAm?: string;
+export async function sitzungBeenden(sid: string, grund: string): Promise<void> {
+  await buchSchema();
+  await sqlPool`UPDATE fiaon_buch_sitzung SET beendet_am = NOW(), beendet_grund = ${grund} WHERE sid = ${sid} AND beendet_am IS NULL`;
 }
 
-export async function uebergabe(): Promise<Uebergabe | null> {
-  return einstellung<Uebergabe>(KEY_UEBERGABE);
+/** Beendet alle Sitzungen einer Person — außer der genannten (oder alle, wenn null). */
+export async function sitzungenBeenden(email: string, ausser: string | null, grund: string): Promise<number> {
+  await buchSchema();
+  const rows = (await sqlPool`
+    UPDATE fiaon_buch_sitzung SET beendet_am = NOW(), beendet_grund = ${grund}
+     WHERE person = ${email} AND beendet_am IS NULL AND (${ausser}::text IS NULL OR sid <> ${ausser})
+    RETURNING sid`) as any[];
+  return rows.length;
 }
 
-export async function uebergabeSetzen(u: Uebergabe): Promise<void> {
-  await einstellungSetzen(KEY_UEBERGABE, u);
+export interface SitzungZeile {
+  sid: string; person: string; name: string; erstelltAm: string; zuletztAktiv: string;
+  ip: string; geraet: string; aktiv: boolean; beendetAm: string | null; beendetGrund: string | null; diese: boolean;
 }
 
+/** Sitzungen der letzten 30 Tage. Der Inhaber sieht alle, die Buchhaltung nur die eigenen. */
+export async function sitzungenListe(ich: Sitzung): Promise<SitzungZeile[]> {
+  await buchSchema();
+  const rows = (ich.person.rolle === "inhaber"
+    ? await sqlPool`SELECT * FROM fiaon_buch_sitzung WHERE erstellt_am > NOW() - INTERVAL '30 days' ORDER BY erstellt_am DESC LIMIT 60`
+    : await sqlPool`SELECT * FROM fiaon_buch_sitzung WHERE person = ${ich.person.email} AND erstellt_am > NOW() - INTERVAL '30 days' ORDER BY erstellt_am DESC LIMIT 30`) as any[];
+  const grenze = Date.now() - LEERLAUF_MIN * 60_000;
+  return rows.map((r) => ({
+    sid: String(r.sid).slice(0, 8),
+    person: String(r.person),
+    name: buchPerson(String(r.person))?.name ?? String(r.person),
+    erstelltAm: new Date(r.erstellt_am).toISOString(),
+    zuletztAktiv: new Date(r.zuletzt_aktiv).toISOString(),
+    // Adressen nur gekürzt — wer mehr braucht, schaut ins Server-Log.
+    ip: String(r.ip || "").replace(/(\d+)\.(\d+)\.\d+\.\d+/, "$1.$2.•.•").replace(/^([0-9a-f]+:[0-9a-f]+):.*$/i, "$1:…"),
+    geraet: String(r.geraet || ""),
+    aktiv: !r.beendet_am && new Date(r.zuletzt_aktiv).getTime() > grenze,
+    beendetAm: r.beendet_am ? new Date(r.beendet_am).toISOString() : null,
+    beendetGrund: r.beendet_grund ?? null,
+    diese: String(r.sid) === ich.sid,
+  }));
+}
+
+/** Die vorletzte Anmeldung einer Person — für „Letzte Anmeldung" wie bei einer Bank. */
+export async function letzteAnmeldung(email: string, ausser: string): Promise<{ am: string; geraet: string } | null> {
+  await buchSchema();
+  const [r] = (await sqlPool`
+    SELECT erstellt_am, geraet FROM fiaon_buch_sitzung
+     WHERE person = ${email} AND sid <> ${ausser}
+     ORDER BY erstellt_am DESC LIMIT 1`) as any[];
+  return r ? { am: new Date(r.erstellt_am).toISOString(), geraet: String(r.geraet || "") } : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAN — an genau einen Vorgang gebunden
+//
+// Die TAN wird für einen ZWECK („freigabe", „kasse", „sperre") und ein ZIEL
+// erzeugt, das den Vorgang vollständig beschreibt (z. B. „auftrag:12:123456").
+// Die Mail nennt den Vorgang im Klartext. Wer eine TAN für einen anderen
+// Vorgang benutzt, bekommt „TAN passt nicht zu diesem Vorgang".
+// ═══════════════════════════════════════════════════════════════════════════
+const TAN_TTL_S = 5 * 60;
+const TAN_VERSUCHE = 3;
+const tanHash = (tan: string, ziel: string) =>
+  createHash("sha256").update(`${secret()}:tan:${ziel}:${String(tan).replace(/\D/g, "")}`).digest("hex");
+
+export async function tanAnfordern(person: BuchPerson, zweck: string, ziel: string, beschreibung: string): Promise<{ ok: true } | { ok: false; grund: string }> {
+  await buchSchema();
+  const tan = String(100000 + (randomBytes(4).readUInt32BE(0) % 900000));
+  await sqlPool`UPDATE fiaon_buch_tan SET benutzt_am = NOW() WHERE person = ${person.email} AND zweck = ${zweck} AND benutzt_am IS NULL`;
+  await sqlPool`
+    INSERT INTO fiaon_buch_tan (person, zweck, ziel, tan_hash, gueltig_bis)
+    VALUES (${person.email}, ${zweck}, ${ziel}, ${tanHash(tan, ziel)}, NOW() + ${`${TAN_TTL_S} seconds`}::interval)`;
+  try {
+    const { mailNeuSenden, gmailBereit } = await import("./fiaon-gmail");
+    if (!gmailBereit()) return { ok: false, grund: "Der TAN-Versand ist gerade nicht möglich (Mailzugang fehlt)." };
+    await mailNeuSenden(ABSENDER, person.email, `TAN ${tan.slice(0, 3)} ${tan.slice(3)} · FIAON Banking`, [
+      `Hallo ${person.name.split(" ")[0]},`,
+      "",
+      "deine TAN für diesen Vorgang:",
+      "",
+      `    ${beschreibung}`,
+      "",
+      `    TAN: ${tan.slice(0, 3)} ${tan.slice(3)}`,
+      "",
+      "Sie gilt 5 Minuten und nur für genau diesen Vorgang.",
+      "Stimmt der Vorgang nicht mit dem überein, was du gerade tun wolltest: TAN nicht eingeben.",
+      "",
+      "FIAON Banking",
+    ].join("\n"));
+  } catch (e) {
+    console.error("[BANKING] TAN-Versand:", String(e).slice(0, 160));
+    return { ok: false, grund: "Die TAN konnte nicht versendet werden." };
+  }
+  buchProtokoll(person.email, "TAN angefordert", ziel, beschreibung);
+  return { ok: true };
+}
+
+export async function tanPruefen(person: BuchPerson, zweck: string, ziel: string, tan: string): Promise<{ ok: true } | { ok: false; grund: string }> {
+  await buchSchema();
+  const [r] = (await sqlPool`
+    SELECT id, ziel, tan_hash, versuche FROM fiaon_buch_tan
+     WHERE person = ${person.email} AND zweck = ${zweck} AND benutzt_am IS NULL AND gueltig_bis > NOW()
+     ORDER BY id DESC LIMIT 1`) as any[];
+  if (!r) return { ok: false, grund: "Keine gültige TAN. Bitte eine neue anfordern." };
+  if (String(r.ziel) !== ziel) return { ok: false, grund: "Diese TAN gehört zu einem anderen Vorgang. Bitte eine neue anfordern." };
+  if (Number(r.versuche) >= TAN_VERSUCHE) {
+    await sqlPool`UPDATE fiaon_buch_tan SET benutzt_am = NOW() WHERE id = ${r.id}`;
+    return { ok: false, grund: "Zu viele Fehlversuche. Bitte eine neue TAN anfordern." };
+  }
+  const sauber = String(tan || "").replace(/\D/g, "");
+  if (sauber.length !== 6 || !gleich(String(r.tan_hash), tanHash(sauber, ziel))) {
+    await sqlPool`UPDATE fiaon_buch_tan SET versuche = versuche + 1 WHERE id = ${r.id}`;
+    return { ok: false, grund: "TAN falsch." };
+  }
+  await sqlPool`UPDATE fiaon_buch_tan SET benutzt_am = NOW() WHERE id = ${r.id}`;
+  return { ok: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KASSE — gehört dem Inhaber
+// ═══════════════════════════════════════════════════════════════════════════
 /**
- * Kundengeld seit einem Stichtag — dieselbe Regel wie /chef/zahlen:
- * bankbestätigt gebuchte Raten, bezahlte Bonitätsauskünfte, bezahlte
- * Global-Pakete; Testkonten nie. Die Definition liegt in
- * server/routes/fiaon-chef-zahlen.ts und wird von dort geholt, damit es im
- * Haus weiter genau EINE Umsatzwahrheit gibt.
+ * Der Anfangsbestand ist der ENDSTAND eines Tages: „Am Ende des 22.09. standen
+ * X € auf dem Konto." Gezählt wird ab dem Folgetag. So gibt es keine doppelt
+ * gezählten Eingänge des Stichtags — bei „Stand jetzt" wäre das nicht sauber
+ * zu trennen, weil die Bank Eingänge nur mit Datum, nicht mit Uhrzeit liefert.
  */
-export async function kundengeldSeit(amISO: string): Promise<number> {
-  const { kundengeldAb } = await import("../routes/fiaon-chef-zahlen");
-  return kundengeldAb(amISO);
-}
+export interface Anfangsbestand { cents: number; am: string; notiz: string; von: string }
+/** Der Bankabgleich ist ebenfalls ein Tagesendstand — verglichen wird mit dem Buch am selben Tag. */
+export interface Bankabgleich { cents: number; am: string; von: string; erfasst: string }
+export interface Uebergabe { bisher: string; stichtag: string; bestaetigtVon?: string; bestaetigtAm?: string }
 
-export interface Bewegung {
-  id: number;
-  art: string;
-  richtung: number;
+export const anfangsbestand = () => einstellung<Anfangsbestand>(KEY_ANFANG);
+export const bankabgleich = () => einstellung<Bankabgleich>(KEY_ABGLEICH);
+export const uebergabe = () => einstellung<Uebergabe>(KEY_UEBERGABE);
+
+export async function anfangsbestandSetzen(a: Anfangsbestand): Promise<void> { await einstellungSetzen(KEY_ANFANG, a); }
+export async function bankabgleichSetzen(b: Bankabgleich): Promise<void> { await einstellungSetzen(KEY_ABGLEICH, b); }
+export async function uebergabeSetzen(u: Uebergabe): Promise<void> { await einstellungSetzen(KEY_UEBERGABE, u); }
+
+// ── Bewegungen von Hand ─────────────────────────────────────────────────────
+export type BewegungArt = "einlage" | "eingang" | "ausgabe" | "korrektur";
+export const BEWEGUNG_ARTEN: readonly BewegungArt[] = ["einlage", "eingang", "ausgabe", "korrektur"];
+
+export interface BewegungEingabe {
+  art: BewegungArt;
+  /** Bei „korrektur" mit Vorzeichen, sonst positiv. */
   betragCents: number;
   wertAm: string;
   zweck: string;
-  gegenpartei: string | null;
-  beleg: string | null;
-  auftragId: number | null;
-  erfasstVon: string;
-  erfasstAm: string;
-  storniertAm: string | null;
-  stornoGrund: string | null;
+  gegenpartei?: string | null;
+  beleg?: string | null;
 }
 
-function zuBewegung(r: any): Bewegung {
-  return {
-    id: Number(r.id),
-    art: String(r.art),
-    richtung: Number(r.richtung),
-    betragCents: Number(r.betrag_cents),
-    wertAm: new Date(r.wert_am).toISOString().slice(0, 10),
-    zweck: String(r.zweck || ""),
-    gegenpartei: r.gegenpartei ?? null,
-    beleg: r.beleg ?? null,
-    auftragId: r.auftrag_id ? Number(r.auftrag_id) : null,
-    erfasstVon: String(r.erfasst_von || ""),
-    erfasstAm: new Date(r.erfasst_am).toISOString(),
-    storniertAm: r.storniert_am ? new Date(r.storniert_am).toISOString() : null,
-    stornoGrund: r.storno_grund ?? null,
-  };
-}
-
-export async function bewegungen(limit = 200): Promise<Bewegung[]> {
+export async function bewegungBuchen(ein: BewegungEingabe, von: BuchPerson): Promise<number> {
   await buchSchema();
-  const rows = (await sqlPool`
-    SELECT * FROM fiaon_buch_bewegung ORDER BY wert_am DESC, id DESC LIMIT ${Math.min(500, Math.max(1, limit))}`) as any[];
-  return rows.map(zuBewegung);
+  const richtung = ein.art === "ausgabe" ? -1 : ein.art === "korrektur" ? (ein.betragCents < 0 ? -1 : 1) : 1;
+  const [r] = (await sqlPool`
+    INSERT INTO fiaon_buch_bewegung (art, richtung, betrag_cents, wert_am, zweck, gegenpartei, beleg, erfasst_von)
+    VALUES (${ein.art}, ${richtung}, ${Math.abs(ein.betragCents)}, ${ein.wertAm}, ${ein.zweck},
+            ${ein.gegenpartei ?? null}, ${ein.beleg ?? null}, ${von.email})
+    RETURNING id`) as any[];
+  buchProtokoll(von.email, `Buchung ${ein.art}`, `buch:${r.id}`, `${richtung < 0 ? "−" : "+"}${geldText(Math.abs(ein.betragCents))} — ${ein.zweck}`);
+  return Number(r.id);
 }
 
-export interface Kasse {
-  anfang: Anfangsbestand | null;
-  kundengeldCents: number;
-  zuflussCents: number;
-  abflussCents: number;
-  bestandCents: number;
-  abgleich: Bankabgleich | null;
-  /** Bank minus Buch. Positiv = auf dem Konto liegt mehr, als das Buch kennt. */
-  differenzCents: number | null;
-}
-
-/**
- * Der Bestand laut Buch. Bewusst in vier offen ausgewiesenen Teilen, damit
- * jede Zahl nachrechenbar ist — eine Summe ohne ihre Teile ist eine Behauptung.
- */
-export async function kasse(): Promise<Kasse> {
+export async function bewegungStornieren(id: number, von: BuchPerson, grund: string): Promise<{ ok: boolean; grund?: string }> {
   await buchSchema();
-  const anfang = await anfangsbestand();
-  const kundengeldCents = anfang ? await kundengeldSeit(anfang.am).catch(() => 0) : 0;
-  const [s] = (await sqlPool`
-    SELECT
-      COALESCE(SUM(betrag_cents) FILTER (WHERE richtung > 0 AND storniert_am IS NULL), 0)::bigint AS zu,
-      COALESCE(SUM(betrag_cents) FILTER (WHERE richtung < 0 AND storniert_am IS NULL), 0)::bigint AS ab
-    FROM fiaon_buch_bewegung`) as any[];
-  const zuflussCents = Number(s?.zu || 0);
-  const abflussCents = Number(s?.ab || 0);
-  const bestandCents = (anfang?.cents ?? 0) + kundengeldCents + zuflussCents - abflussCents;
-  const abgleich = await bankabgleich();
-  return {
-    anfang, kundengeldCents, zuflussCents, abflussCents, bestandCents, abgleich,
-    differenzCents: abgleich ? abgleich.cents - bestandCents : null,
-  };
+  const [r] = (await sqlPool`SELECT id, auftrag_id, storniert_am FROM fiaon_buch_bewegung WHERE id = ${id}`) as any[];
+  if (!r) return { ok: false, grund: "Buchung nicht gefunden." };
+  if (r.storniert_am) return { ok: false, grund: "Diese Buchung ist bereits storniert." };
+  if (r.auftrag_id) return { ok: false, grund: "Diese Buchung gehört zu einem ausgeführten Zahlungsauftrag und wird nicht einzeln storniert." };
+  await sqlPool`UPDATE fiaon_buch_bewegung SET storniert_am = NOW(), storniert_von = ${von.email}, storno_grund = ${grund} WHERE id = ${id}`;
+  buchProtokoll(von.email, "Buchung storniert", `buch:${id}`, grund);
+  return { ok: true };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ZAHLUNGSAUFTRÄGE — vier Augen
+// IBAN
+// ═══════════════════════════════════════════════════════════════════════════
+export function ibanSauber(roh: string): string {
+  return String(roh || "").replace(/\s+/g, "").toUpperCase();
+}
+
+/** Prüfziffer (Modulo 97) — ein Zahlendreher in der IBAN ist teuer. */
+export function ibanGueltig(roh: string): boolean {
+  const s = ibanSauber(roh);
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s)) return false;
+  const um = s.slice(4) + s.slice(0, 4);
+  let rest = 0;
+  for (const z of um) {
+    const wert = /\d/.test(z) ? z : String(z.charCodeAt(0) - 55);
+    for (const d of wert) rest = (rest * 10 + Number(d)) % 97;
+  }
+  return rest === 1;
+}
+
+export function ibanHuebsch(roh: string): string {
+  return ibanSauber(roh).replace(/(.{4})/g, "$1 ").trim();
+}
+
+export function ibanMaskiert(roh: string): string {
+  const s = ibanSauber(roh);
+  if (s.length < 8) return s;
+  return `${s.slice(0, 4)} •••• •••• ${s.slice(-4)}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EMPFÄNGER-KARTEI
+// ═══════════════════════════════════════════════════════════════════════════
+export interface Empfaenger {
+  schluessel: string;              // "karte:12" | "mitarbeiter:13"
+  quelle: "karte" | "mitarbeiter";
+  name: string;
+  iban: string;
+  bic: string | null;
+  kategorie: string | null;
+  hinweis: string | null;
+}
+
+/** Legt einen Empfänger an oder frischt ihn auf (eine IBAN = ein Eintrag). */
+export async function empfaengerMerken(e: { name: string; iban: string; bic?: string | null; kategorie?: string | null }, von: BuchPerson): Promise<void> {
+  await buchSchema();
+  const iban = ibanSauber(e.iban);
+  if (!ibanGueltig(iban)) return;
+  const [da] = (await sqlPool`SELECT id FROM fiaon_buch_empfaenger WHERE iban = ${iban} AND geloescht_am IS NULL LIMIT 1`) as any[];
+  if (da) {
+    await sqlPool`
+      UPDATE fiaon_buch_empfaenger
+         SET name = ${e.name}, bic = COALESCE(${e.bic ?? null}, bic), kategorie = COALESCE(${e.kategorie ?? null}, kategorie),
+             zuletzt_genutzt = NOW()
+       WHERE id = ${da.id}`;
+    return;
+  }
+  await sqlPool`
+    INSERT INTO fiaon_buch_empfaenger (name, iban, bic, kategorie, erstellt_von, zuletzt_genutzt)
+    VALUES (${e.name}, ${iban}, ${e.bic ?? null}, ${e.kategorie ?? null}, ${von.email}, NOW())
+    ON CONFLICT DO NOTHING`;
+}
+
+export async function empfaengerLoeschen(id: number, von: BuchPerson): Promise<void> {
+  await buchSchema();
+  await sqlPool`UPDATE fiaon_buch_empfaenger SET geloescht_am = NOW() WHERE id = ${id} AND geloescht_am IS NULL`;
+  buchProtokoll(von.email, "Empfänger gelöscht", `empfaenger:${id}`, null);
+}
+
+export async function empfaengerKartei(): Promise<(Empfaenger & { id: number; zuletztGenutzt: string | null })[]> {
+  await buchSchema();
+  const rows = (await sqlPool`
+    SELECT id, name, iban, bic, kategorie, zuletzt_genutzt FROM fiaon_buch_empfaenger
+     WHERE geloescht_am IS NULL ORDER BY zuletzt_genutzt DESC NULLS LAST, name ASC LIMIT 200`) as any[];
+  return rows.map((r) => ({
+    id: Number(r.id), schluessel: `karte:${r.id}`, quelle: "karte" as const, name: String(r.name),
+    iban: String(r.iban), bic: r.bic ?? null, kategorie: r.kategorie ?? null, hinweis: null,
+    zuletztGenutzt: r.zuletzt_genutzt ? new Date(r.zuletzt_genutzt).toISOString() : null,
+  }));
+}
+
+/**
+ * Vorschläge beim Tippen: Kartei (bereits bezahlte Empfänger) und Mitarbeiter
+ * mit hinterlegter Bankverbindung. Die IBAN der Mitarbeiter liegt
+ * verschlüsselt vor und wird nur für diesen Vorschlag entschlüsselt.
+ */
+export async function empfaengerSuchen(q: string): Promise<Empfaenger[]> {
+  await buchSchema();
+  const text = String(q || "").trim();
+  if (text.length < 2) return [];
+  const muster = `%${text.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
+  const ibanTeil = ibanSauber(text);
+  const karte = (await sqlPool`
+    SELECT id, name, iban, bic, kategorie FROM fiaon_buch_empfaenger
+     WHERE geloescht_am IS NULL AND (name ILIKE ${muster} OR iban LIKE ${`%${ibanTeil}%`})
+     ORDER BY zuletzt_genutzt DESC NULLS LAST LIMIT 8`) as any[];
+  const leute = (await sqlPool`
+    SELECT id, name, first_name, last_name, bank_holder_enc, bank_iban_enc, bank_bic_enc
+      FROM fiaon_agents
+     WHERE bank_iban_enc IS NOT NULL
+       AND (name ILIKE ${muster} OR first_name ILIKE ${muster} OR last_name ILIKE ${muster})
+     ORDER BY active DESC NULLS LAST, name ASC LIMIT 8`) as any[];
+  const { decryptSecret } = await import("../routes/fiaon-agent");
+  const aus: Empfaenger[] = [];
+  const gesehen = new Set<string>();
+  for (const r of karte) {
+    const iban = String(r.iban);
+    gesehen.add(iban);
+    aus.push({ schluessel: `karte:${r.id}`, quelle: "karte", name: String(r.name), iban, bic: r.bic ?? null, kategorie: r.kategorie ?? null, hinweis: "Bereits bezahlt" });
+  }
+  for (const r of leute) {
+    const iban = ibanSauber(decryptSecret(r.bank_iban_enc) || "");
+    if (!iban || gesehen.has(iban) || !ibanGueltig(iban)) continue;
+    gesehen.add(iban);
+    const inhaberName = String(decryptSecret(r.bank_holder_enc) || "").trim();
+    const name = String(r.name || `${r.first_name || ""} ${r.last_name || ""}`).trim();
+    aus.push({
+      schluessel: `mitarbeiter:${r.id}`, quelle: "mitarbeiter", name: inhaberName || name, iban,
+      bic: (decryptSecret(r.bank_bic_enc) || "").trim().toUpperCase() || null,
+      kategorie: "Provision", hinweis: inhaberName && inhaberName !== name ? `Mitarbeiter: ${name}` : "Mitarbeiter",
+    });
+  }
+  return aus.slice(0, 10);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZAHLUNGSAUFTRÄGE
 //
 // entwurf → eingereicht → freigegeben → ausgefuehrt
-//                      ↘ abgelehnt
-// Wer anlegt, gibt nie frei. Das ist keine Höflichkeitsregel, sondern der
-// ganze Sinn: eine Zahlung hat immer zwei Namen.
+//                      ↘ abgelehnt        (zurueckgezogen aus entwurf/eingereicht)
+//
+// Freigabe: nur der Inhaber, immer mit TAN. Aufträge der Buchhaltung brauchen
+// seine Freigabe (vier Augen); eigene Aufträge gibt er als Einzelzeichner frei.
+// Ausführung: nur der Inhaber — er hält den Bankzugang, nur er kann die
+// Bankreferenz wahrheitsgemäß eintragen.
 // ═══════════════════════════════════════════════════════════════════════════
 export type AuftragStatus = "entwurf" | "eingereicht" | "freigegeben" | "abgelehnt" | "ausgefuehrt" | "zurueckgezogen";
 
@@ -438,10 +758,12 @@ export interface Auftrag {
   entschiedenVon: string | null;
   entschiedenAm: string | null;
   entscheidungNotiz: string | null;
+  freigabeArt: "vier_augen" | "einzel" | null;
   ausgefuehrtVon: string | null;
   ausgefuehrtAm: string | null;
   bankReferenz: string | null;
   hatBestaetigung: boolean;
+  payoutId: number | null;
 }
 
 function zuAuftrag(r: any): Auftrag {
@@ -464,24 +786,24 @@ function zuAuftrag(r: any): Auftrag {
     entschiedenVon: r.entschieden_von ?? null,
     entschiedenAm: r.entschieden_am ? new Date(r.entschieden_am).toISOString() : null,
     entscheidungNotiz: r.entscheidung_notiz ?? null,
+    freigabeArt: r.freigabe_art === "einzel" ? "einzel" : r.freigabe_art === "vier_augen" ? "vier_augen" : null,
     ausgefuehrtVon: r.ausgefuehrt_von ?? null,
     ausgefuehrtAm: r.ausgefuehrt_am ? new Date(r.ausgefuehrt_am).toISOString() : null,
     bankReferenz: r.bank_referenz ?? null,
     hatBestaetigung: !!r.hat_bestaetigung,
+    payoutId: r.payout_id ? Number(r.payout_id) : null,
   };
 }
 
 const AUFTRAG_FELDER = `id, nummer, empfaenger, iban, bic, betrag_cents, zweck, kategorie, faellig_am,
   beleg_name, (beleg_base64 IS NOT NULL) AS hat_beleg, status, erstellt_von, erstellt_am, eingereicht_am,
-  entschieden_von, entschieden_am, entscheidung_notiz, ausgefuehrt_von, ausgefuehrt_am, bank_referenz,
-  (bestaetigung_base64 IS NOT NULL) AS hat_bestaetigung`;
+  entschieden_von, entschieden_am, entscheidung_notiz, freigabe_art, ausgefuehrt_von, ausgefuehrt_am,
+  bank_referenz, (bestaetigung_base64 IS NOT NULL) AS hat_bestaetigung, payout_id`;
 
-export async function auftraege(status?: AuftragStatus[] | null, limit = 200): Promise<Auftrag[]> {
+export async function auftraege(limit = 200): Promise<Auftrag[]> {
   await buchSchema();
   const n = Math.min(500, Math.max(1, limit));
-  const rows = (status && status.length
-    ? await sqlPool.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag WHERE status = ANY($1) ORDER BY id DESC LIMIT ${n}`, [status])
-    : await sqlPool.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag ORDER BY id DESC LIMIT ${n}`)) as any[];
+  const rows = (await sqlPool.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag ORDER BY id DESC LIMIT ${n}`)) as any[];
   return rows.map(zuAuftrag);
 }
 
@@ -495,44 +817,32 @@ export async function auftrag(id: number): Promise<Auftrag | null> {
 async function naechsteNummer(): Promise<string> {
   const jahr = new Date().getFullYear();
   const [r] = (await sqlPool`
-    SELECT COUNT(*)::int AS n FROM fiaon_buch_auftrag WHERE nummer LIKE ${`ZA-${jahr}-%`}`) as any[];
+    SELECT COALESCE(MAX(SUBSTRING(nummer FROM '[0-9]{4}$')::int), 0) AS n
+      FROM fiaon_buch_auftrag WHERE nummer LIKE ${`ZA-${jahr}-%`}`) as any[];
   return `ZA-${jahr}-${String(Number(r?.n || 0) + 1).padStart(4, "0")}`;
-}
-
-/** IBAN prüfen (Modulo 97) — ein Zahlendreher in der IBAN ist teuer. */
-export function ibanGueltig(roh: string): boolean {
-  const s = String(roh || "").replace(/\s+/g, "").toUpperCase();
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s)) return false;
-  const um = s.slice(4) + s.slice(0, 4);
-  let rest = 0;
-  for (const z of um) {
-    const wert = /\d/.test(z) ? z : String(z.charCodeAt(0) - 55);
-    for (const d of wert) rest = (rest * 10 + Number(d)) % 97;
-  }
-  return rest === 1;
-}
-
-export function ibanHuebsch(roh: string): string {
-  return String(roh || "").replace(/\s+/g, "").toUpperCase().replace(/(.{4})/g, "$1 ").trim();
 }
 
 export interface AuftragEingabe {
   empfaenger: string; iban: string; bic?: string | null;
   betragCents: number; zweck: string; kategorie?: string | null;
   faelligAm?: string | null; belegName?: string | null; belegBase64?: string | null;
+  payoutId?: number | null;
 }
 
 export async function auftragAnlegen(ein: AuftragEingabe, von: BuchPerson): Promise<Auftrag> {
   await buchSchema();
   const nummer = await naechsteNummer();
+  const iban = ibanSauber(ein.iban);
   const [r] = (await sqlPool`
     INSERT INTO fiaon_buch_auftrag
-      (nummer, empfaenger, iban, bic, betrag_cents, zweck, kategorie, faellig_am, beleg_name, beleg_base64, status, erstellt_von)
-    VALUES (${nummer}, ${ein.empfaenger}, ${String(ein.iban).replace(/\s+/g, "").toUpperCase()}, ${ein.bic ?? null},
+      (nummer, empfaenger, iban, bic, betrag_cents, zweck, kategorie, faellig_am, beleg_name, beleg_base64, status, erstellt_von, payout_id)
+    VALUES (${nummer}, ${ein.empfaenger}, ${iban}, ${ein.bic ?? null},
             ${ein.betragCents}, ${ein.zweck}, ${ein.kategorie ?? null}, ${ein.faelligAm || null},
-            ${ein.belegName ?? null}, ${ein.belegBase64 ?? null}, 'entwurf', ${von.email})
+            ${ein.belegName ?? null}, ${ein.belegBase64 ?? null}, 'entwurf', ${von.email}, ${ein.payoutId ?? null})
     RETURNING id`) as any[];
-  buchProtokoll(von.email, "Auftrag angelegt", nummer, `${(ein.betragCents / 100).toFixed(2)} € an ${ein.empfaenger}`);
+  buchProtokoll(von.email, "Auftrag angelegt", nummer, `${geldText(ein.betragCents)} an ${ein.empfaenger}`);
+  // Die Kartei lernt mit — Auszahlungen an Mitarbeiter nicht, die kennt sie schon.
+  if (!ein.payoutId) void empfaengerMerken({ name: ein.empfaenger, iban, bic: ein.bic, kategorie: ein.kategorie }, von).catch(() => {});
   return (await auftrag(Number(r.id)))!;
 }
 
@@ -542,8 +852,21 @@ export async function auftragEinreichen(id: number, von: BuchPerson): Promise<Sc
   const a = await auftrag(id);
   if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
   if (a.status !== "entwurf") return { ok: false, grund: `Ein Auftrag im Zustand „${a.status}“ lässt sich nicht einreichen.` };
-  await sqlPool`UPDATE fiaon_buch_auftrag SET status = 'eingereicht', eingereicht_am = NOW() WHERE id = ${id}`;
+  if (a.erstelltVon !== von.email) return { ok: false, grund: "Einreichen kann nur, wer den Auftrag angelegt hat." };
+  await sqlPool`UPDATE fiaon_buch_auftrag SET status = 'eingereicht', eingereicht_am = NOW() WHERE id = ${id} AND status = 'entwurf'`;
   buchProtokoll(von.email, "Auftrag eingereicht", a.nummer, null);
+  if (von.rolle !== "inhaber") {
+    benachrichtigen(inhaber().email, `Freigabe erbeten: ${a.nummer} · ${geldText(a.betragCents)}`, [
+      `${von.name} hat einen Zahlungsauftrag zur Freigabe eingereicht:`,
+      "",
+      `  ${a.nummer}`,
+      `  ${geldText(a.betragCents)} an ${a.empfaenger}`,
+      `  IBAN ${ibanMaskiert(a.iban)}`,
+      `  Zweck: ${a.zweck}`,
+      "",
+      "Freigeben oder ablehnen im FIAON Banking unter „Aufträge“.",
+    ]);
+  }
   return { ok: true, auftrag: (await auftrag(id))! };
 }
 
@@ -553,261 +876,309 @@ export async function auftragZurueckziehen(id: number, von: BuchPerson): Promise
   if (!["entwurf", "eingereicht"].includes(a.status)) {
     return { ok: false, grund: "Nur Entwürfe und eingereichte Aufträge lassen sich zurückziehen." };
   }
+  if (a.erstelltVon !== von.email && von.rolle !== "inhaber") return { ok: false, grund: "Zurückziehen kann nur, wer den Auftrag angelegt hat." };
   await sqlPool`UPDATE fiaon_buch_auftrag SET status = 'zurueckgezogen' WHERE id = ${id}`;
   buchProtokoll(von.email, "Auftrag zurückgezogen", a.nummer, null);
   return { ok: true, auftrag: (await auftrag(id))! };
 }
 
-/**
- * Freigabe oder Ablehnung — nur der Inhaber, und nie der eigene Auftrag.
- * Das ist die Stelle, an der das Vier-Augen-Prinzip wirklich steht.
- */
-export async function auftragEntscheiden(
-  id: number, frei: boolean, von: BuchPerson, notiz?: string | null,
-): Promise<Schritt> {
+/** Das TAN-Ziel einer Freigabe — Auftrag, Betrag und IBAN. Ändert sich eins, passt die TAN nicht mehr. */
+export function freigabeZiel(a: Auftrag): string {
+  return `auftrag:${a.id}:${a.betragCents}:${ibanSauber(a.iban)}`;
+}
+
+export function freigabeBeschreibung(a: Auftrag): string {
+  return `Freigabe ${a.nummer}: ${geldText(a.betragCents)} an ${a.empfaenger} (${ibanMaskiert(a.iban)})`;
+}
+
+/** Darf diese Person diesen Auftrag jetzt freigeben? (ohne TAN-Prüfung) */
+export function freigabeMoeglich(a: Auftrag, von: BuchPerson): { ok: true; art: "vier_augen" | "einzel" } | { ok: false; grund: string } {
+  if (von.rolle !== "inhaber") return { ok: false, grund: "Freigeben darf nur der Inhaber." };
+  const eigen = a.erstelltVon === von.email;
+  if (eigen) {
+    if (!["entwurf", "eingereicht"].includes(a.status)) return { ok: false, grund: "Dieser Auftrag lässt sich nicht mehr freigeben." };
+    return { ok: true, art: "einzel" };
+  }
+  if (a.status !== "eingereicht") return { ok: false, grund: "Es lassen sich nur eingereichte Aufträge freigeben." };
+  return { ok: true, art: "vier_augen" };
+}
+
+export async function auftragFreigeben(id: number, von: BuchPerson, tan: string): Promise<Schritt> {
   const a = await auftrag(id);
   if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
-  if (a.status !== "eingereicht") return { ok: false, grund: "Es lassen sich nur eingereichte Aufträge entscheiden." };
-  if (von.rolle !== "inhaber") return { ok: false, grund: "Freigeben darf nur der Inhaber." };
-  if (a.erstelltVon === von.email) return { ok: false, grund: "Vier Augen: Wer einen Auftrag anlegt, gibt ihn nicht selbst frei." };
+  const darf = freigabeMoeglich(a, von);
+  if (!darf.ok) return darf;
+  const t = await tanPruefen(von, "freigabe", freigabeZiel(a), tan);
+  if (!t.ok) return t;
+  const rows = (await sqlPool`
+    UPDATE fiaon_buch_auftrag
+       SET status = 'freigegeben', entschieden_von = ${von.email}, entschieden_am = NOW(),
+           freigabe_art = ${darf.art}, eingereicht_am = COALESCE(eingereicht_am, NOW())
+     WHERE id = ${id} AND status IN ('entwurf', 'eingereicht')
+    RETURNING id`) as any[];
+  if (!rows.length) return { ok: false, grund: "Der Auftrag hat sich inzwischen verändert. Bitte neu laden." };
+  buchProtokoll(von.email, darf.art === "einzel" ? "Auftrag freigegeben (Einzelzeichnung)" : "Auftrag freigegeben", a.nummer, `TAN bestätigt · ${geldText(a.betragCents)}`);
+  const ersteller = buchPerson(a.erstelltVon);
+  if (ersteller && ersteller.email !== von.email) {
+    benachrichtigen(ersteller.email, `Freigegeben: ${a.nummer} · ${geldText(a.betragCents)}`, [
+      `${von.name} hat deinen Zahlungsauftrag freigegeben:`,
+      "",
+      `  ${a.nummer} · ${geldText(a.betragCents)} an ${a.empfaenger}`,
+      "",
+      "Die Überweisung erfolgt jetzt über das Geschäftskonto.",
+    ]);
+  }
+  return { ok: true, auftrag: (await auftrag(id))! };
+}
+
+export async function auftragAblehnen(id: number, von: BuchPerson, notiz: string): Promise<Schritt> {
+  const a = await auftrag(id);
+  if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
+  if (von.rolle !== "inhaber") return { ok: false, grund: "Ablehnen darf nur der Inhaber." };
+  if (a.status !== "eingereicht") return { ok: false, grund: "Es lassen sich nur eingereichte Aufträge ablehnen." };
+  if (!String(notiz || "").trim()) return { ok: false, grund: "Eine Ablehnung braucht einen Grund." };
   await sqlPool`
     UPDATE fiaon_buch_auftrag
-       SET status = ${frei ? "freigegeben" : "abgelehnt"}, entschieden_von = ${von.email},
-           entschieden_am = NOW(), entscheidung_notiz = ${notiz ?? null}
-     WHERE id = ${id}`;
-  buchProtokoll(von.email, frei ? "Auftrag freigegeben" : "Auftrag abgelehnt", a.nummer, notiz ?? null);
+       SET status = 'abgelehnt', entschieden_von = ${von.email}, entschieden_am = NOW(), entscheidung_notiz = ${notiz}
+     WHERE id = ${id} AND status = 'eingereicht'`;
+  buchProtokoll(von.email, "Auftrag abgelehnt", a.nummer, notiz);
+  const ersteller = buchPerson(a.erstelltVon);
+  if (ersteller && ersteller.email !== von.email) {
+    benachrichtigen(ersteller.email, `Abgelehnt: ${a.nummer}`, [
+      `${von.name} hat deinen Zahlungsauftrag abgelehnt:`,
+      "",
+      `  ${a.nummer} · ${geldText(a.betragCents)} an ${a.empfaenger}`,
+      `  Grund: ${notiz}`,
+    ]);
+  }
   return { ok: true, auftrag: (await auftrag(id))! };
 }
 
 /**
  * Ausgeführt: Die Überweisung ist bei der Bank raus. Erst hier entsteht eine
- * Bewegung im Buch und die Zahlungsbestätigung — vorher hat sich am Geld
- * nichts bewegt, und dann darf es auch kein Papier geben.
+ * Bewegung im Buch und die Zahlungsbestätigung.
+ *
+ * Ein Auftrag zu einer Mitarbeiter-Auszahlung legt KEINE eigene Bewegung an:
+ * Die Auszahlung selbst steht im Umsatz (aus fiaon_payouts), sonst zählte das
+ * Buch das Geld doppelt. Stattdessen läuft auszahlungUeberwiesen() — derselbe
+ * Weg wie „Als überwiesen markieren" in /admin/payouts.
  */
 export async function auftragAusfuehren(
   id: number, von: BuchPerson, bankReferenz: string, wertAm?: string | null,
-): Promise<Schritt> {
+): Promise<Schritt & { hinweis?: string }> {
   const a = await auftrag(id);
   if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
+  if (von.rolle !== "inhaber") return { ok: false, grund: "Die Überweisung trägt der Inhaber ein — er hält den Bankzugang." };
   if (a.status !== "freigegeben") return { ok: false, grund: "Ausführen geht erst nach der Freigabe." };
   const ref = String(bankReferenz || "").trim();
   if (!ref) return { ok: false, grund: "Bitte die Referenz der Bank eintragen — ohne sie ist die Ausführung nicht belegt." };
-  const tag = (wertAm && /^\d{4}-\d{2}-\d{2}$/.test(wertAm)) ? wertAm : new Date().toISOString().slice(0, 10);
+  const tag = (wertAm && /^\d{4}-\d{2}-\d{2}$/.test(wertAm)) ? wertAm : new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
 
-  await sqlPool.begin(async (tx: any) => {
-    await tx`
+  let hinweis: string | undefined;
+  if (a.payoutId) {
+    const [p] = (await sqlPool`SELECT status FROM fiaon_payouts WHERE id = ${a.payoutId}`) as any[];
+    if (!p) return { ok: false, grund: "Die zugehörige Auszahlung gibt es nicht mehr." };
+    if (p.status === "abgelehnt") return { ok: false, grund: "Die zugehörige Auszahlung wurde abgelehnt — bitte den Auftrag zurückziehen." };
+    // Erst den Auftrag beanspruchen — ein Doppelklick darf die Auszahlung nicht zweimal abschließen.
+    const beansprucht = (await sqlPool`
       UPDATE fiaon_buch_auftrag
          SET status = 'ausgefuehrt', ausgefuehrt_von = ${von.email}, ausgefuehrt_am = NOW(), bank_referenz = ${ref}
-       WHERE id = ${id}`;
-    await tx`
-      INSERT INTO fiaon_buch_bewegung (art, richtung, betrag_cents, wert_am, zweck, gegenpartei, beleg, auftrag_id, erfasst_von)
-      VALUES ('ausgabe', -1, ${a.betragCents}, ${tag}, ${a.zweck}, ${a.empfaenger}, ${a.nummer}, ${id}, ${von.email})`;
-  });
-  buchProtokoll(von.email, "Auftrag ausgeführt", a.nummer, `Bankreferenz ${ref}`);
+       WHERE id = ${id} AND status = 'freigegeben'
+      RETURNING id`) as any[];
+    if (!beansprucht.length) return { ok: false, grund: "Dieser Auftrag wurde bereits ausgeführt." };
+    if (p.status === "angefordert") {
+      try {
+        const { auszahlungUeberwiesen } = await import("../routes/fiaon-team");
+        const erg = await auszahlungUeberwiesen(a.payoutId);
+        if (!erg.ok) hinweis = erg.error;
+      } catch (e) {
+        hinweis = `Die Überweisung ist eingetragen, aber die Auszahlung ließ sich nicht abschließen: ${String(e).slice(0, 160)}. Bitte in /admin/payouts „Als überwiesen markieren“ drücken.`;
+        console.error("[BANKING] Auszahlung abschließen:", e);
+      }
+    } else {
+      hinweis = "Die Auszahlung war bereits als überwiesen gebucht — der Auftrag wird nur abgeschlossen.";
+    }
+  } else {
+    const erfolgt = await sqlPool.begin(async (tx: any) => {
+      const beansprucht = (await tx`
+        UPDATE fiaon_buch_auftrag
+           SET status = 'ausgefuehrt', ausgefuehrt_von = ${von.email}, ausgefuehrt_am = NOW(), bank_referenz = ${ref}
+         WHERE id = ${id} AND status = 'freigegeben'
+        RETURNING id`) as any[];
+      if (!beansprucht.length) return false;
+      await tx`
+        INSERT INTO fiaon_buch_bewegung (art, richtung, betrag_cents, wert_am, zweck, gegenpartei, beleg, auftrag_id, erfasst_von)
+        VALUES ('ausgabe', -1, ${a.betragCents}, ${tag}, ${a.zweck}, ${a.empfaenger}, ${a.nummer}, ${id}, ${von.email})`;
+      return true;
+    });
+    if (!erfolgt) return { ok: false, grund: "Dieser Auftrag wurde bereits ausgeführt." };
+  }
+  buchProtokoll(von.email, "Überweisung ausgeführt", a.nummer, `Bankreferenz ${ref}`);
 
   // Die Bestätigung darf die Ausführung nicht kippen — sie lässt sich jederzeit nachholen.
-  try { await bestaetigungErzeugen(id); } catch (e) { console.warn("[BUCH] Bestätigung:", String(e).slice(0, 140)); }
-  return { ok: true, auftrag: (await auftrag(id))! };
+  try {
+    const { bestaetigungErzeugen } = await import("./fiaon-banking-pdf");
+    await bestaetigungErzeugen(id);
+  } catch (e) { console.warn("[BANKING] Bestätigung:", String(e).slice(0, 140)); }
+  return { ok: true, auftrag: (await auftrag(id))!, ...(hinweis ? { hinweis } : {}) };
 }
 
-// ── Bewegungen von Hand ─────────────────────────────────────────────────────
-export interface BewegungEingabe {
-  art: "einlage" | "eingang" | "ausgabe";
-  betragCents: number; wertAm: string; zweck: string;
-  gegenpartei?: string | null; beleg?: string | null;
-}
-
-export async function bewegungBuchen(ein: BewegungEingabe, von: BuchPerson): Promise<Bewegung> {
+// ── Auszahlung → Zahlungsauftrag ────────────────────────────────────────────
+/**
+ * Legt zu einer angeforderten Mitarbeiter-Auszahlung den Zahlungsauftrag an.
+ * Die Bankverbindung kommt aus dem verschlüsselten Schnappschuss der
+ * Auszahlung — also genau die, die der Mitarbeiter bei der Anforderung
+ * hinterlegt hatte. Gibt es schon einen offenen Auftrag, wird er zurückgegeben.
+ */
+export async function auftragAusAuszahlung(payoutId: number, von: BuchPerson): Promise<Schritt> {
   await buchSchema();
-  const richtung = ein.art === "ausgabe" ? -1 : 1;
+  const [offen] = (await sqlPool`
+    SELECT id FROM fiaon_buch_auftrag
+     WHERE payout_id = ${payoutId} AND status NOT IN ('abgelehnt', 'zurueckgezogen')
+     ORDER BY id DESC LIMIT 1`) as any[];
+  if (offen) return { ok: true, auftrag: (await auftrag(Number(offen.id)))! };
+
+  const [p] = (await sqlPool`
+    SELECT p.id, p.status, p.amount_cents, p.bank_holder_enc, p.bank_iban_enc, p.bank_bic_enc, p.requested_at,
+           a.name, a.first_name, a.last_name,
+           EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.payout_id = p.id AND c.kind = 'gehalt') AS ist_gehalt
+      FROM fiaon_payouts p LEFT JOIN fiaon_agents a ON a.id = p.agent_id
+     WHERE p.id = ${payoutId}`) as any[];
+  if (!p) return { ok: false, grund: "Auszahlung nicht gefunden." };
+  if (p.status !== "angefordert") return { ok: false, grund: `Diese Auszahlung steht auf „${p.status}“ — anweisen lässt sich nur eine angeforderte.` };
+  const { decryptSecret } = await import("../routes/fiaon-agent");
+  const iban = ibanSauber(decryptSecret(p.bank_iban_enc) || "");
+  if (!ibanGueltig(iban)) return { ok: false, grund: "Zu dieser Auszahlung ist keine gültige IBAN hinterlegt." };
+  const name = String(p.name || `${p.first_name || ""} ${p.last_name || ""}`).trim() || `Mitarbeiter`;
+  const halter = String(decryptSecret(p.bank_holder_enc) || "").trim() || name;
+  const monat = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "Europe/Berlin" })
+    .format(new Date(p.requested_at || Date.now()));
+  return {
+    ok: true,
+    auftrag: await auftragAnlegen({
+      empfaenger: halter,
+      iban,
+      bic: (decryptSecret(p.bank_bic_enc) || "").trim().toUpperCase() || null,
+      betragCents: Number(p.amount_cents),
+      zweck: `FIAON Auszahlung Nr. ${p.id} · ${p.ist_gehalt ? "Gehalt" : "Provision"} ${monat}`,
+      kategorie: p.ist_gehalt ? "Gehalt / Vergütung" : "Provision",
+      payoutId: Number(p.id),
+    }, von),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAUERAUFTRÄGE
+//
+// Ein Dauerauftrag überweist nie selbst. Am Fälligkeitstag legt er einen
+// gewöhnlichen Zahlungsauftrag an und reicht ihn ein — die Freigabe mit TAN
+// bleibt beim Inhaber, wie bei jeder anderen Zahlung.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface Dauerauftrag {
+  id: number;
+  empfaenger: string;
+  iban: string;
+  bic: string | null;
+  betragCents: number;
+  zweck: string;
+  kategorie: string | null;
+  tagImMonat: number;
+  naechsteAm: string;
+  erstelltVon: string;
+  erstelltAm: string;
+  beendetAm: string | null;
+  letzterAuftragId: number | null;
+}
+
+function zuDauerauftrag(r: any): Dauerauftrag {
+  return {
+    id: Number(r.id), empfaenger: String(r.empfaenger), iban: String(r.iban), bic: r.bic ?? null,
+    betragCents: Number(r.betrag_cents), zweck: String(r.zweck), kategorie: r.kategorie ?? null,
+    tagImMonat: Number(r.tag_im_monat),
+    naechsteAm: r.naechste_am instanceof Date ? r.naechste_am.toISOString().slice(0, 10) : String(r.naechste_am).slice(0, 10),
+    erstelltVon: String(r.erstellt_von), erstelltAm: new Date(r.erstellt_am).toISOString(),
+    beendetAm: r.beendet_am ? new Date(r.beendet_am).toISOString() : null,
+    letzterAuftragId: r.letzter_auftrag_id != null ? Number(r.letzter_auftrag_id) : null,
+  };
+}
+
+/** Der nächste Termin nach `ab` für einen Tag im Monat — am 31. im Februar also der 28./29. */
+export function naechsterTermin(tagImMonat: number, ab: string): string {
+  const [j, m, t] = ab.split("-").map(Number);
+  const inMonat = (jahr: number, monat: number) => {
+    const letzter = new Date(Date.UTC(jahr, monat, 0)).getUTCDate();
+    return `${jahr}-${String(monat).padStart(2, "0")}-${String(Math.min(tagImMonat, letzter)).padStart(2, "0")}`;
+  };
+  const diesen = inMonat(j, m);
+  if (Number(diesen.slice(8)) >= t) return diesen;
+  return m === 12 ? inMonat(j + 1, 1) : inMonat(j, m + 1);
+}
+
+export async function dauerauftraege(): Promise<Dauerauftrag[]> {
+  await buchSchema();
+  const rows = (await sqlPool`SELECT * FROM fiaon_buch_dauerauftrag ORDER BY beendet_am NULLS FIRST, naechste_am ASC, id DESC LIMIT 100`) as any[];
+  return rows.map(zuDauerauftrag);
+}
+
+export async function dauerauftragAnlegen(ein: {
+  empfaenger: string; iban: string; bic?: string | null; betragCents: number; zweck: string;
+  kategorie?: string | null; tagImMonat: number; ab: string;
+}, von: BuchPerson): Promise<Dauerauftrag> {
+  await buchSchema();
+  const naechste = naechsterTermin(ein.tagImMonat, ein.ab);
   const [r] = (await sqlPool`
-    INSERT INTO fiaon_buch_bewegung (art, richtung, betrag_cents, wert_am, zweck, gegenpartei, beleg, erfasst_von)
-    VALUES (${ein.art}, ${richtung}, ${ein.betragCents}, ${ein.wertAm}, ${ein.zweck},
-            ${ein.gegenpartei ?? null}, ${ein.beleg ?? null}, ${von.email})
+    INSERT INTO fiaon_buch_dauerauftrag (empfaenger, iban, bic, betrag_cents, zweck, kategorie, tag_im_monat, naechste_am, erstellt_von)
+    VALUES (${ein.empfaenger}, ${ibanSauber(ein.iban)}, ${ein.bic ?? null}, ${ein.betragCents}, ${ein.zweck},
+            ${ein.kategorie ?? null}, ${ein.tagImMonat}, ${naechste}, ${von.email})
     RETURNING *`) as any[];
-  buchProtokoll(von.email, `Bewegung ${ein.art}`, String(r.id), `${(ein.betragCents / 100).toFixed(2)} € — ${ein.zweck}`);
-  return zuBewegung(r);
+  buchProtokoll(von.email, "Dauerauftrag angelegt", `dauer:${r.id}`, `${geldText(ein.betragCents)} monatlich zum ${ein.tagImMonat}. an ${ein.empfaenger}`);
+  void empfaengerMerken({ name: ein.empfaenger, iban: ein.iban, bic: ein.bic, kategorie: ein.kategorie }, von).catch(() => {});
+  return zuDauerauftrag(r);
 }
 
-export async function bewegungStornieren(id: number, von: BuchPerson, grund: string): Promise<{ ok: boolean; grund?: string }> {
+export async function dauerauftragBeenden(id: number, von: BuchPerson): Promise<{ ok: boolean; grund?: string }> {
   await buchSchema();
-  const [r] = (await sqlPool`SELECT id, auftrag_id, storniert_am FROM fiaon_buch_bewegung WHERE id = ${id}`) as any[];
-  if (!r) return { ok: false, grund: "Bewegung nicht gefunden." };
-  if (r.storniert_am) return { ok: false, grund: "Diese Bewegung ist bereits storniert." };
-  if (r.auftrag_id) return { ok: false, grund: "Diese Bewegung gehört zu einem ausgeführten Zahlungsauftrag und wird nicht einzeln storniert." };
-  await sqlPool`UPDATE fiaon_buch_bewegung SET storniert_am = NOW(), storniert_von = ${von.email}, storno_grund = ${grund} WHERE id = ${id}`;
-  buchProtokoll(von.email, "Bewegung storniert", String(id), grund);
+  const [r] = (await sqlPool`SELECT erstellt_von, beendet_am FROM fiaon_buch_dauerauftrag WHERE id = ${id}`) as any[];
+  if (!r) return { ok: false, grund: "Dauerauftrag nicht gefunden." };
+  if (r.beendet_am) return { ok: false, grund: "Dieser Dauerauftrag ist bereits beendet." };
+  if (r.erstellt_von !== von.email && von.rolle !== "inhaber") return { ok: false, grund: "Beenden kann nur, wer ihn angelegt hat, oder der Inhaber." };
+  await sqlPool`UPDATE fiaon_buch_dauerauftrag SET beendet_am = NOW(), beendet_von = ${von.email} WHERE id = ${id}`;
+  buchProtokoll(von.email, "Dauerauftrag beendet", `dauer:${id}`, null);
   return { ok: true };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PAPIERE
-// ═══════════════════════════════════════════════════════════════════════════
-const geld = (cents: number) =>
-  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
-
-const tag = (iso: string | null | undefined) =>
-  iso ? new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" }).format(new Date(iso)) : "—";
-
-/**
- * Die Zahlungsbestätigung zu einem AUSGEFÜHRTEN Auftrag. Sie beschreibt, was
- * FIAON getan hat — die Zahlung wurde beauftragt und ausgeführt. Sie behauptet
- * nicht, was die Bank getan hat; deshalb steht die Bankreferenz als Beleg drin
- * und kein Wort über Gutschriften beim Empfänger.
- */
-export async function bestaetigungErzeugen(id: number): Promise<Buffer> {
-  const a = await auftrag(id);
-  if (!a) throw new Error("Auftrag nicht gefunden");
-  if (a.status !== "ausgefuehrt") throw new Error("Bestätigung gibt es erst nach der Ausführung");
-  const { renderDocumentPdf, escapeHtml, docHash } = await import("./fiaon-html-pdf");
-  const frei = buchPerson(a.entschiedenVon || "")?.name || a.entschiedenVon || "—";
-  const erstellt = buchPerson(a.erstelltVon)?.name || a.erstelltVon;
-  const ausgef = buchPerson(a.ausgefuehrtVon || "")?.name || a.ausgefuehrtVon || "—";
-
-  const body = `
-    <p class="lead">Hiermit bestätigt die FIAON LTD, dass der folgende Zahlungsauftrag freigegeben
-    und zur Ausführung an die Bank übergeben wurde.</p>
-    <table class="kv">
-      <tr><th>Auftragsnummer</th><td class="mono">${escapeHtml(a.nummer)}</td></tr>
-      <tr><th>Empfänger</th><td>${escapeHtml(a.empfaenger)}</td></tr>
-      <tr><th>IBAN</th><td class="mono">${escapeHtml(ibanHuebsch(a.iban))}</td></tr>
-      ${a.bic ? `<tr><th>BIC</th><td class="mono">${escapeHtml(a.bic)}</td></tr>` : ""}
-      <tr><th>Betrag</th><td><strong>${escapeHtml(geld(a.betragCents))}</strong></td></tr>
-      <tr><th>Verwendungszweck</th><td>${escapeHtml(a.zweck)}</td></tr>
-      <tr><th>Ausgeführt am</th><td>${escapeHtml(tag(a.ausgefuehrtAm))}</td></tr>
-      <tr><th>Referenz der Bank</th><td class="mono">${escapeHtml(a.bankReferenz || "—")}</td></tr>
-      <tr><th>Belastetes Konto</th><td class="mono">${escapeHtml(BANK.ibanDisplay)} · ${escapeHtml(BANK.bank)}</td></tr>
-    </table>
-    <h2>Freigabe</h2>
-    <table class="kv">
-      <tr><th>Vorbereitet von</th><td>${escapeHtml(erstellt)}</td></tr>
-      <tr><th>Freigegeben von</th><td>${escapeHtml(frei)} · ${escapeHtml(tag(a.entschiedenAm))}</td></tr>
-      <tr><th>Ausführung eingetragen von</th><td>${escapeHtml(ausgef)}</td></tr>
-    </table>
-    <p class="fein">Diese Bestätigung dokumentiert die Beauftragung und Ausführung durch FIAON.
-    Wann der Betrag beim Empfänger gutgeschrieben wird, entscheidet dessen Bank.</p>`;
-
-  const pdf = await renderDocumentPdf({
-    documentTitle: "Zahlungsbestätigung",
-    subtitle: `${a.nummer} · ${tag(a.ausgefuehrtAm)}`,
-    bodyHtml: body,
-    zusatzCss: `
-      .kv { width:100%; border-collapse:collapse; margin:14px 0 20px; }
-      .kv th { text-align:left; width:200px; font-weight:500; color:#526277; padding:7px 12px 7px 0; vertical-align:top; border-bottom:1px solid #E1E8F2; }
-      .kv td { padding:7px 0; border-bottom:1px solid #E1E8F2; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .fein { color:#526277; font-size:11px; margin-top:18px; }`,
-  });
-  const hash = docHash(pdf.toString("base64"));
-  await sqlPool`
-    UPDATE fiaon_buch_auftrag SET bestaetigung_base64 = ${pdf.toString("base64")}, bestaetigung_hash = ${hash} WHERE id = ${id}`;
-  return pdf;
-}
-
-/** Die gespeicherte Bestätigung — immer dieselbe Datei, nie neu gerendert. */
-export async function bestaetigungLesen(id: number): Promise<Buffer | null> {
+/** Der Takt: fällige Daueraufträge werden zu eingereichten Zahlungsaufträgen. */
+export async function dauerauftraegeAusloesen(): Promise<number> {
   await buchSchema();
-  const [r] = (await sqlPool`SELECT bestaetigung_base64 FROM fiaon_buch_auftrag WHERE id = ${id}`) as any[];
-  if (r?.bestaetigung_base64) return Buffer.from(String(r.bestaetigung_base64), "base64");
-  return null;
-}
-
-export async function belegLesen(id: number): Promise<{ name: string; daten: Buffer } | null> {
-  await buchSchema();
-  const [r] = (await sqlPool`SELECT beleg_name, beleg_base64 FROM fiaon_buch_auftrag WHERE id = ${id}`) as any[];
-  if (!r?.beleg_base64) return null;
-  return { name: String(r.beleg_name || "beleg.pdf"), daten: Buffer.from(String(r.beleg_base64), "base64") };
-}
-
-/**
- * Der Übergabevermerk — ein INTERNES Papier. Es hält fest, wer die
- * Buchhaltung bisher geführt hat (Angabe des Inhabers) und ab wann
- * Florentine verantwortlich ist, samt ihrer Bestätigung.
- */
-export async function uebergabeVermerk(): Promise<Buffer> {
-  const u = await uebergabe();
-  if (!u) throw new Error("Keine Übergabe hinterlegt");
-  const { renderDocumentPdf, escapeHtml } = await import("./fiaon-html-pdf");
-  const k = await kasse();
-  const person = u.bestaetigtVon ? buchPerson(u.bestaetigtVon) : null;
-  const body = `
-    <p class="lead">Interner Vermerk zur Übergabe der laufenden Buchhaltung der FIAON LTD.</p>
-    <table class="kv">
-      <tr><th>Bisher geführt von</th><td>${escapeHtml(u.bisher)}</td></tr>
-      <tr><th>Übergabe zum</th><td>${escapeHtml(tag(u.stichtag))}</td></tr>
-      <tr><th>Übernimmt</th><td>Florentine Lombardi</td></tr>
-      <tr><th>Bestand laut Kassenbuch</th><td><strong>${escapeHtml(geld(k.bestandCents))}</strong></td></tr>
-      ${k.abgleich ? `<tr><th>Bankabgleich</th><td>${escapeHtml(geld(k.abgleich.cents))} zum ${escapeHtml(tag(k.abgleich.am))}</td></tr>` : ""}
-    </table>
-    <h2>Was übernommen wird</h2>
-    <ul>
-      <li>Das Kassenbuch der FIAON LTD mit allen erfassten Bewegungen.</li>
-      <li>Die Vorbereitung sämtlicher Zahlungsaufträge des Hauses.</li>
-      <li>Der Abgleich zwischen Kassenbuch und Bankkonto.</li>
-    </ul>
-    <h2>Was ausdrücklich nicht übergeht</h2>
-    <ul>
-      <li>Die Freigabe von Zahlungen. Sie bleibt beim Inhaber (Vier-Augen-Prinzip).</li>
-      <li>Der Zugang zum Bankkonto selbst.</li>
-    </ul>
-    ${u.bestaetigtVon
-      ? `<p class="fein">Übernahme bestätigt von ${escapeHtml(person?.name || u.bestaetigtVon)} am ${escapeHtml(tag(u.bestaetigtAm))}.</p>`
-      : `<p class="fein">Die Übernahme ist noch nicht bestätigt.</p>`}`;
-  return renderDocumentPdf({
-    documentTitle: "Übergabe der Buchhaltung",
-    subtitle: `Stichtag ${tag(u.stichtag)}`,
-    bodyHtml: body,
-    zusatzCss: `
-      .kv { width:100%; border-collapse:collapse; margin:14px 0 20px; }
-      .kv th { text-align:left; width:220px; font-weight:500; color:#526277; padding:7px 12px 7px 0; vertical-align:top; border-bottom:1px solid #E1E8F2; }
-      .kv td { padding:7px 0; border-bottom:1px solid #E1E8F2; }
-      .fein { color:#526277; font-size:11px; margin-top:18px; }`,
-  });
-}
-
-/**
- * Das Zugangsblatt. Es nennt Adresse, Weg und Regeln — das Passwort steht
- * NICHT darauf. Ein Passwort, das in einer PDF liegt, ist kein Passwort mehr;
- * es wird einmal persönlich übergeben.
- */
-export async function zugangsblatt(fuer: BuchPerson): Promise<Buffer> {
-  const { renderDocumentPdf, escapeHtml } = await import("./fiaon-html-pdf");
-  const body = `
-    <p class="lead">Zugang zur Buchhaltung der FIAON LTD für ${escapeHtml(fuer.name)} (${escapeHtml(fuer.titel)}).</p>
-    <h2>So kommst du hinein</h2>
-    <table class="kv">
-      <tr><th>Adresse</th><td class="mono">https://fiaon.com/buchhaltung</td></tr>
-      <tr><th>Anmeldename</th><td class="mono">${escapeHtml(BUCH_LOGIN)}</td></tr>
-      <tr><th>Passwort</th><td>wird persönlich übergeben — es steht bewusst nicht in diesem Dokument</td></tr>
-      <tr><th>Zweiter Schritt</th><td>eigene Adresse angeben (<span class="mono">${escapeHtml(fuer.email)}</span>), 12-stelligen PIN per Mail erhalten, eingeben</td></tr>
-      <tr><th>PIN gültig</th><td>10 Minuten, einmalig</td></tr>
-      <tr><th>Sitzung</th><td>8 Stunden</td></tr>
-    </table>
-    <h2>Was du darfst</h2>
-    <ul>
-      ${fuer.rolle === "inhaber"
-        ? `<li>Alles sehen, Zahlungen freigeben oder ablehnen, Einlagen und Anfangsbestand buchen.</li>`
-        : `<li>Das gesamte Kassenbuch einsehen: Bestand, Eingänge, Kosten, Verlauf.</li>
-           <li>Zahlungsaufträge vorbereiten und zur Freigabe einreichen.</li>
-           <li>Nach der Freigabe die Ausführung mit der Bankreferenz eintragen.</li>
-           <li>Den Bankabgleich pflegen.</li>`}
-    </ul>
-    <h2>Was gilt</h2>
-    <ul>
-      <li>Vier Augen: Wer einen Zahlungsauftrag anlegt, gibt ihn nie selbst frei.</li>
-      <li>Jede Handlung steht mit Namen und Uhrzeit im Protokoll. Das ist kein Misstrauen, sondern der Normalfall einer Buchhaltung.</li>
-      <li>Der PIN geht nur an die eigene Adresse. Er wird nicht weitergegeben — auch nicht an mich.</li>
-    </ul>
-    <p class="fein">Fragen zum Zugang: js@fiaon.com</p>`;
-  return renderDocumentPdf({
-    documentTitle: "Zugang zur Buchhaltung",
-    subtitle: escapeHtml(fuer.name),
-    bodyHtml: body,
-    zusatzCss: `
-      .kv { width:100%; border-collapse:collapse; margin:14px 0 20px; }
-      .kv th { text-align:left; width:180px; font-weight:500; color:#526277; padding:7px 12px 7px 0; vertical-align:top; border-bottom:1px solid #E1E8F2; }
-      .kv td { padding:7px 0; border-bottom:1px solid #E1E8F2; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .fein { color:#526277; font-size:11px; margin-top:18px; }`,
-  });
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const faellig = (await sqlPool`
+    SELECT * FROM fiaon_buch_dauerauftrag WHERE beendet_am IS NULL AND naechste_am <= ${heute}::date ORDER BY id`) as any[];
+  let angelegt = 0;
+  for (const roh of faellig) {
+    const d = zuDauerauftrag(roh);
+    const person = buchPerson(d.erstelltVon);
+    if (!person) continue;
+    // Erst den Termin weiterschieben — fällt danach etwas um, entsteht kein zweiter Auftrag.
+    const folgetag = new Date(new Date(`${d.naechsteAm}T12:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10);
+    const weiter = (await sqlPool`
+      UPDATE fiaon_buch_dauerauftrag SET naechste_am = ${naechsterTermin(d.tagImMonat, folgetag)}
+       WHERE id = ${d.id} AND naechste_am = ${d.naechsteAm}::date
+      RETURNING id`) as any[];
+    if (!weiter.length) continue;
+    const monat = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "Europe/Berlin" }).format(new Date(`${d.naechsteAm}T12:00:00Z`));
+    const neu = await auftragAnlegen({
+      empfaenger: d.empfaenger, iban: d.iban, bic: d.bic, betragCents: d.betragCents,
+      zweck: `${d.zweck} · ${monat}`, kategorie: d.kategorie, faelligAm: d.naechsteAm,
+    }, person);
+    await auftragEinreichen(neu.id, person);
+    await sqlPool`UPDATE fiaon_buch_dauerauftrag SET letzter_auftrag_id = ${neu.id} WHERE id = ${d.id}`;
+    buchProtokoll(null, "Dauerauftrag ausgelöst", neu.nummer, `aus Dauerauftrag ${d.id}`);
+    if (person.rolle === "inhaber") {
+      benachrichtigen(person.email, `Dauerauftrag fällig: ${neu.nummer} · ${geldText(d.betragCents)}`, [
+        `Der Dauerauftrag an ${d.empfaenger} ist fällig. Der Zahlungsauftrag ${neu.nummer} liegt zur Freigabe bereit.`,
+      ]);
+    }
+    angelegt += 1;
+  }
+  return angelegt;
 }

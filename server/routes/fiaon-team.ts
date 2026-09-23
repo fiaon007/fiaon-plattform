@@ -2173,95 +2173,116 @@ router.get("/admin/payouts", async (_req, res) => {
   }
 });
 
-/** H2: „Als überwiesen markieren" — setzt Einträge auf ausgezahlt + Make `agent_payout_done`. */
-router.post("/admin/payouts/:id/mark-paid", async (req, res) => {
-  try {
-    await ensureAgentTables();
-    const id = Number(req.params.id);
-    const rows = await sqlPool`
-      UPDATE fiaon_payouts SET status = 'ausgezahlt', processed_at = NOW()
-      WHERE id = ${id} AND status = 'angefordert'
-      RETURNING *
-    `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Anforderung nicht gefunden oder bereits verarbeitet" });
-    await sqlPool`UPDATE fiaon_commissions SET status = 'ausgezahlt', updated_at = NOW() WHERE payout_id = ${id} AND status = 'in_auszahlung'`;
-    const agent = await sqlPool`SELECT email, first_name, name FROM fiaon_agents WHERE id = ${rows[0].agent_id}`;
-    await logAgentEvent(rows[0].agent_id, "payout_paid", { payout_id: id, amount_cents: rows[0].amount_cents });
+/**
+ * „Als überwiesen markieren" — der EINE Weg, eine Auszahlung abzuschließen.
+ *
+ * Seit E-228 (23.09.2026) aus der Route herausgezogen: Das Banking (/buchhaltung)
+ * führt Auszahlungen jetzt als Zahlungsauftrag mit Freigabe, und wenn dort die
+ * Überweisung mit Bankreferenz bestätigt wird, muss GENAU DAS passieren, was
+ * dieser Knopf in /admin/payouts tut — Status, Provisionszeilen, Ereignis,
+ * Abrechnung, Mitteilung an den Mitarbeiter. Zwei Wege hätten sich binnen
+ * Wochen auseinandergelebt (Muster der 059-Kopien).
+ */
+export type AuszahlungErgebnis =
+  | { ok: true }
+  | { ok: false; code: "NICHT_GEFUNDEN"; error: string }
+  | { ok: false; code: "BELEG_FEHLT"; auszahlungGebucht: true; error: string };
 
-    // ══════════════════════════════════════════════════════════════════════
-    // DER BELEG WIRD ABGEWARTET (20.08.2026)
-    //
-    // ── DIE URSACHE VON FIAON-COM-2026-0011 STAND GENAU HIER ──────────────
-    // Vorher:
-    //     generateCommissionStatement(id).catch((e) => console.error(…));
-    //     res.json({ ok: true });
-    //
-    // Kein `await`, der Fehler nur in der Konsole, danach in JEDEM Fall
-    // „ok: true". Die Auszahlung wurde also als abgeschlossen gemeldet, während
-    // die Abrechnung im Hintergrund lief — und wenn dort das PDF scheiterte,
-    // erfuhr es niemand. Ergebnis: 386,40 € ausgezahlt, kein Beleg, und die
-    // Zentrale verweigerte die Herstellung.
-    //
-    // Es ist dieselbe Fehlerklasse, die am 19.08. schon zweimal behoben wurde
-    // (`sendMakeWebhook(...).catch(() => {})` bei der Zahlungsdaten-Mail). Ein
-    // verworfener Fehler an einer Geldstelle kommt zurück.
-    //
-    // ── WARUM DER STATUS TROTZDEM STEHEN BLEIBT ───────────────────────────
-    // Der Auftrag sagt: „schlägt die Erzeugung fehl, wird die Freigabe nicht als
-    // abgeschlossen markiert." Dem folge ich im ERGEBNIS (kein stilles „ok"),
-    // aber nicht im Statuswechsel — und das ist eine bewusste Abweichung:
-    //
-    // Dieser Knopf heisst „Als überwiesen markieren". Der Betreiber drückt ihn,
-    // NACHDEM er bei Wise überwiesen hat. Das Geld ist dann real weg. Würde das
-    // System den Status verweigern, weil ein PDF nicht druckt, stünde in der
-    // Buchhaltung „nicht ausgezahlt" bei einer erfolgten Zahlung — ein
-    // schlimmerer Zustand als ein fehlender Beleg, und einer, der die
-    // Provisionszeilen wieder freigäbe.
-    //
-    // Also: Status bleibt (er beschreibt die Wirklichkeit), aber die ANTWORT ist
-    // ein Fehler mit Handlungsanweisung. Und die Zentrale kann den Beleg jetzt
-    // nachträglich herstellen — die Wand dort ist korrigiert.
-    // ══════════════════════════════════════════════════════════════════════
-    const { generateCommissionStatement } = await import("./fiaon-onboarding");
-    let belegFehler: string | null = null;
-    try {
-      const erg = await generateCommissionStatement(id);
-      if (!erg.ok) belegFehler = "Die Abrechnung konnte nicht angelegt werden.";
-      else if (erg.pdfFehlt) {
-        belegFehler = `Die Abrechnung ${erg.statementNo} ist angelegt, aber das PDF `
-          + `konnte nicht gedruckt werden: ${erg.pdfGrund ?? "unbekannter Fehler"}`;
-      }
-    } catch (e) {
-      belegFehler = `Die Abrechnung ist nicht entstanden: ${e instanceof Error ? e.message : String(e)}`;
-      console.error("[FIAON-TEAM] statement gen:", e);
+export async function auszahlungUeberwiesen(id: number): Promise<AuszahlungErgebnis> {
+  await ensureAgentTables();
+  const rows = await sqlPool`
+    UPDATE fiaon_payouts SET status = 'ausgezahlt', processed_at = NOW()
+    WHERE id = ${id} AND status = 'angefordert'
+    RETURNING *
+  `;
+  if (rows.length === 0) return { ok: false, code: "NICHT_GEFUNDEN", error: "Anforderung nicht gefunden oder bereits verarbeitet" };
+  await sqlPool`UPDATE fiaon_commissions SET status = 'ausgezahlt', updated_at = NOW() WHERE payout_id = ${id} AND status = 'in_auszahlung'`;
+  const agent = await sqlPool`SELECT email, first_name, name FROM fiaon_agents WHERE id = ${rows[0].agent_id}`;
+  await logAgentEvent(rows[0].agent_id, "payout_paid", { payout_id: id, amount_cents: rows[0].amount_cents });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DER BELEG WIRD ABGEWARTET (20.08.2026)
+  //
+  // ── DIE URSACHE VON FIAON-COM-2026-0011 STAND GENAU HIER ──────────────
+  // Vorher:
+  //     generateCommissionStatement(id).catch((e) => console.error(…));
+  //     res.json({ ok: true });
+  //
+  // Kein `await`, der Fehler nur in der Konsole, danach in JEDEM Fall
+  // „ok: true". Die Auszahlung wurde also als abgeschlossen gemeldet, während
+  // die Abrechnung im Hintergrund lief — und wenn dort das PDF scheiterte,
+  // erfuhr es niemand. Ergebnis: 386,40 € ausgezahlt, kein Beleg, und die
+  // Zentrale verweigerte die Herstellung.
+  //
+  // Es ist dieselbe Fehlerklasse, die am 19.08. schon zweimal behoben wurde
+  // (`sendMakeWebhook(...).catch(() => {})` bei der Zahlungsdaten-Mail). Ein
+  // verworfener Fehler an einer Geldstelle kommt zurück.
+  //
+  // ── WARUM DER STATUS TROTZDEM STEHEN BLEIBT ───────────────────────────
+  // Der Auftrag sagt: „schlägt die Erzeugung fehl, wird die Freigabe nicht als
+  // abgeschlossen markiert." Dem folge ich im ERGEBNIS (kein stilles „ok"),
+  // aber nicht im Statuswechsel — und das ist eine bewusste Abweichung:
+  //
+  // Dieser Knopf heisst „Als überwiesen markieren". Der Betreiber drückt ihn,
+  // NACHDEM er bei Wise überwiesen hat. Das Geld ist dann real weg. Würde das
+  // System den Status verweigern, weil ein PDF nicht druckt, stünde in der
+  // Buchhaltung „nicht ausgezahlt" bei einer erfolgten Zahlung — ein
+  // schlimmerer Zustand als ein fehlender Beleg, und einer, der die
+  // Provisionszeilen wieder freigäbe.
+  //
+  // Also: Status bleibt (er beschreibt die Wirklichkeit), aber die ANTWORT ist
+  // ein Fehler mit Handlungsanweisung. Und die Zentrale kann den Beleg jetzt
+  // nachträglich herstellen — die Wand dort ist korrigiert.
+  // ══════════════════════════════════════════════════════════════════════
+  const { generateCommissionStatement } = await import("./fiaon-onboarding");
+  let belegFehler: string | null = null;
+  try {
+    const erg = await generateCommissionStatement(id);
+    if (!erg.ok) belegFehler = "Die Abrechnung konnte nicht angelegt werden.";
+    else if (erg.pdfFehlt) {
+      belegFehler = `Die Abrechnung ${erg.statementNo} ist angelegt, aber das PDF `
+        + `konnte nicht gedruckt werden: ${erg.pdfGrund ?? "unbekannter Fehler"}`;
     }
-    if (belegFehler) {
-      console.error(`[FIAON-PAYOUT] #${id} überwiesen markiert, aber OHNE Beleg: ${belegFehler}`);
-      sendMakeWebhook("agent_payout_done", {
-        email: agent[0].email,
-        vorname: agent[0].first_name || agent[0].name,
-        betrag: (rows[0].amount_cents / 100).toFixed(2),
-        iban_masked: rows[0].iban_masked,
-      }).catch(() => {});
-      return res.status(502).json({
-        ok: false,
-        code: "BELEG_FEHLT",
-        auszahlungGebucht: true,
-        error: `Die Auszahlung ist als überwiesen gebucht — aber der BELEG FEHLT. `
-          + `${belegFehler} `
-          + "Bitte in der Abrechnungs-Zentrale (/admin/abrechnungen) auf „Neu erzeugen“ "
-          + "drücken; das stellt den Beleg nachträglich her. Eine ausgezahlte Provision "
-          + "ohne Beleg darf nicht stehen bleiben.",
-      });
-    }
+  } catch (e) {
+    belegFehler = `Die Abrechnung ist nicht entstanden: ${e instanceof Error ? e.message : String(e)}`;
+    console.error("[FIAON-TEAM] statement gen:", e);
+  }
+  if (belegFehler) {
+    console.error(`[FIAON-PAYOUT] #${id} überwiesen markiert, aber OHNE Beleg: ${belegFehler}`);
     sendMakeWebhook("agent_payout_done", {
       email: agent[0].email,
       vorname: agent[0].first_name || agent[0].name,
       betrag: (rows[0].amount_cents / 100).toFixed(2),
       iban_masked: rows[0].iban_masked,
     }).catch(() => {});
-    console.log(`[FIAON-PAYOUT] Überwiesen markiert: #${id} (${(rows[0].amount_cents / 100).toFixed(2)} €)`);
-    res.json({ ok: true });
+    return {
+      ok: false,
+      code: "BELEG_FEHLT",
+      auszahlungGebucht: true,
+      error: `Die Auszahlung ist als überwiesen gebucht — aber der BELEG FEHLT. `
+        + `${belegFehler} `
+        + "Bitte in der Abrechnungs-Zentrale (/admin/abrechnungen) auf „Neu erzeugen“ "
+        + "drücken; das stellt den Beleg nachträglich her. Eine ausgezahlte Provision "
+        + "ohne Beleg darf nicht stehen bleiben.",
+    };
+  }
+  sendMakeWebhook("agent_payout_done", {
+    email: agent[0].email,
+    vorname: agent[0].first_name || agent[0].name,
+    betrag: (rows[0].amount_cents / 100).toFixed(2),
+    iban_masked: rows[0].iban_masked,
+  }).catch(() => {});
+  console.log(`[FIAON-PAYOUT] Überwiesen markiert: #${id} (${(rows[0].amount_cents / 100).toFixed(2)} €)`);
+  return { ok: true };
+}
+
+/** H2: „Als überwiesen markieren" — setzt Einträge auf ausgezahlt + Make `agent_payout_done`. */
+router.post("/admin/payouts/:id/mark-paid", async (req, res) => {
+  try {
+    const erg = await auszahlungUeberwiesen(Number(req.params.id));
+    if (erg.ok) return res.json({ ok: true });
+    if (erg.code === "NICHT_GEFUNDEN") return res.status(404).json({ ok: false, error: erg.error });
+    return res.status(502).json(erg);
   } catch (err) {
     console.error("[FIAON-TEAM] payout mark-paid:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

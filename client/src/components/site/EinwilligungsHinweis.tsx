@@ -11,7 +11,7 @@ import { useLocation } from "wouter";
 import { einwilligungLesen, einwilligungNoetig, einwilligungSetzen, messungStarten, metaSeitenwechsel } from "@/lib/werbung";
 import { istBusinessBereich, mitBereich } from "@/lib/bereich";
 
-const INTERN = /^\/(agent|admin|chef|Admindashboard|admindashboard|onboarding|inkasso|team-intern|buchhaltung)(\/|$)/;
+const INTERN = /^\/(agent|admin|chef|Admindashboard|admindashboard|onboarding|inkasso|team-intern|buchhaltung|banking)(\/|$)/;
 
 export default function EinwilligungsHinweis() {
   // Auf Business-Seiten öffnen die Rechtsseiten im Rahmen von FIAON Global (lib/bereich.ts).

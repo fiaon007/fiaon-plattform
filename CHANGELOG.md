@@ -5,6 +5,106 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (14) — Die Buchhaltung: echtes Geld, vier Augen, ein Protokoll (E-227)
+
+**Der Anlass (Justin):** „Da Florentine in Kürze Geschäftsleitung sein wird, muss ich sie prüfen. Eine eigene
+Seite mit Anmeldezugang, sie soll darüber Überweisungen machen können."
+
+**Was nicht gebaut wurde, und warum das die eigentliche Entscheidung ist.** Gewünscht war zuerst ein erfundener
+Kontostand von 211.293,42 €, eine erfundene Privateinlage als dessen Herkunft und Überweisungsbestätigungen für
+Zahlungen, die nie stattfinden — Florentine sollte glauben, sie bewege echtes Geld. Erfundene
+Buchungsunterlagen sind keine Prüfung, sondern eine Fälschung, und sie hätten genau die Person getäuscht, deren
+Urteil geprüft werden soll. An dem Tag, an dem sie es merkt, ist nicht ihr Urteil das Thema, sondern unseres.
+Gebaut ist deshalb die Fassung, die mehr über einen Menschen verrät als jede Attrappe: **Florentine arbeitet
+mit dem echten Geld des Hauses.**
+
+**Neu unter fiaon.com/buchhaltung:**
+- **Anmeldung in zwei Schritten.** Erst accounting@fiaon.com und das gemeinsame Passwort. Dann die eigene
+  Adresse angeben und einen zwölfstelligen PIN per Mail holen. Der PIN entscheidet, wer in der Sitzung sitzt —
+  ab da trägt jede Buchung einen Namen. Der PIN geht nur an die eigene Adresse, gilt zehn Minuten und einmal;
+  die Sitzung acht Stunden.
+- **Kassenbuch.** Der Bestand steht in vier offenen Teilen da: Anfangsbestand, Kundengeld seit diesem Tag,
+  erfasste Eingänge, erfasste Abflüsse. Das Kundengeld kommt aus derselben Quelle wie die Zahlen im Chefbüro —
+  eine zweite Umsatzwahrheit gibt es nicht.
+- **Es heißt „Bestand laut Kassenbuch", nicht Kontostand.** Es gibt keine Verbindung zur Bank. Stattdessen
+  trägt man den echten Kontostand als Bankabgleich ein, und die Seite sagt die Differenz mit Richtung:
+  „Das Buch kennt mehr, als auf dem Konto liegt — da fehlt ein Abfluss."
+- **Zahlungsaufträge mit vier Augen.** Entwurf → zur Freigabe einreichen → der Inhaber entscheidet →
+  überweisen → Bankreferenz eintragen. Wer einen Auftrag anlegt, gibt ihn nie selbst frei, auch der Inhaber
+  nicht. Die IBAN wird mit der Prüfziffer geprüft, eine Ablehnung braucht einen Grund, ohne Bankreferenz gibt
+  es keine Ausführung. Erst die Ausführung bucht ins Kassenbuch und erzeugt die Zahlungsbestätigung — vorher
+  hat sich am Geld nichts bewegt, also darf es auch kein Papier geben.
+- **Die Einlage ist, was sie ist:** eingezahltes Kapital mit Datum und Betrag, das Justin selbst einträgt.
+- **Papiere:** Zahlungsbestätigung, Übergabevermerk, Zugangsblatt. Auf keinem steht das Passwort — ein
+  Passwort in einer PDF ist keins mehr; es wird einmal persönlich übergeben.
+- **Protokoll:** jede Handlung mit Name und Uhrzeit, für beide Seiten sichtbar.
+
+**Wo:** fiaon.com/buchhaltung · Prüfstand `npx tsx scripts/pruef-buchhaltung.ts` (30 Prüfungen, 30 grün).
+
+**Was Justin noch selbst tun muss:** den Anfangsbestand aus dem echten Kontoauszug eintragen — ohne ihn beginnt
+das Buch nicht —, die Privateinlage mit Datum und Betrag buchen und die Übergabe hinterlegen.
+
+---
+
+## 23.09.2026 (13) — Mara verkauft, ohne ihre eigene Zusage zu entwerten (E-225/E-226)
+
+**Erst der Unfall.** Um 18:41 antwortete Mara einem Kunden korrekt. Um 18:58 schrieb sie ihm „Der gewünschte
+Betrag ist sofort verfügbar" — 15.000 €, die FIAON niemandem zusagen kann. Um 19:04 schrieb der Kunde: „Ich
+verstehe jetzt nichts mehr." Die Anweisung verbot das längst. Eine Anweisung ist eine Bitte; eine Wand ist eine
+Wand. Drei neue Regeln in der Wortwand fangen die Muster jetzt ab, und zwar für jeden Text, den das Haus
+erzeugt.
+
+**Dann die Gegenrichtung, und Justin hat recht.** „Du arbeitest sehr streng nach Theorie, das killt die
+Conversion. Sie kann den Kunden anheizen mit knappen Sachen wie: Nach der Zahlung = Aktivierung — und dann
+nicht schreiben: Limit entscheidet die Bank." Der Unterschied ist wichtig: Eine wahre Aussage darf man nicht im
+selben Atemzug entwerten. „Zahlung = Aktivierung" stimmt. Wer daran ungefragt „aber über das Limit entscheidet
+die Bank" hängt, macht aus einer Zusage eine Warnung — und der Kunde hört nur die Warnung.
+
+**Geändert:** Mara hat jetzt fünf wahre, kurze Sätze, die sie oft benutzen soll, und die Regel, ihre eigene
+Zusage nie zu entwerten. Dazu: mit der Welle gehen (ungeduldig → Tempo aufnehmen statt bremsen; skeptisch →
+Einwand in einem Satz beantworten und zurück zum Schritt; verärgert → erst recht geben, dann die Lösung), ein
+Ziel je Mail, Zahlungsdaten in die Mail statt hinter einen Klick.
+
+**Nebenbei:** Die Lead-Motor-Seite klappt ihre fünf schweren Bereiche ein. Und der Webhook-Alarm nennt jetzt die
+zwei echten Ursachen — App im Modus „Entwicklung" statt „Live", oder das Formular hängt an einer anderen Seite —
+statt auf einen Knopf zu zeigen, den Justin längst gedrückt hatte. Gemessen: in sieben Tagen kein Lead über den
+Webhook, während WhatsApp-Ereignisse über dieselbe Adresse im Sekundentakt ankommen. Verloren geht nichts, der
+Nachhol-Lauf holt jeden Lead binnen fünf Minuten.
+
+---
+
+## 23.09.2026 (12) — WhatsApp wird ein Arbeitsplatz (E-217 bis E-224)
+
+**Der Einreich-Knopf hing 94 Sekunden.** Justin: „Wenn ich auf einreichen klicke, passiert nichts." Es passierte
+sehr wohl etwas — vierzehn Vorlagen gingen nacheinander an Meta. Nach anderthalb Minuten ohne Rückmeldung ist
+ein Knopf kaputt, auch wenn er funktioniert. Jetzt laufen solche Serien im Hintergrund, in vier parallelen
+Wellen, mit einem Fortschritt, den die Seite alle drei Sekunden zeigt.
+
+**Die Kundensuche fand keinen einzigen Kunden.** Die Abfrage las eine Spalte, die es nicht gibt, und ein
+stilles `catch` verschluckte den Fehler — die Suche meldete nichts, sie lieferte nur nie etwas. Behoben, und
+zwei Regeln daraus: Ein `catch` um eine Abfrage schreibt immer ins Log, und geschrieben werden darf an jede
+frei eingetippte Nummer.
+
+**Der Raum kann jetzt Vertrieb.** Zu jedem Gespräch stehen Stufe, offene Rechnung, Betreuer und letzter Kontakt
+da; ein Gesprächsergebnis lässt sich direkt aus dem Chat buchen, ein Gespräch übernehmen, die Akte öffnen.
+
+**Mara lässt sich anweisen.** „Kündige den Kunden XY" — sechs Werkzeuge, zwei Durchgänge (erst Namen zu
+Kundennummern auflösen, dann nur auf die gefundenen planen), nichts passiert ohne Bestätigung, Daueraufträge im
+Tagestakt, alles im Protokoll.
+
+**Mara antwortete nicht.** Ursache: Wer im Raum eine Vorlage sendete, schaltete sie stumm — gedacht war das für
+frei getippten Text. Jetzt übernimmt nur noch echter Text das Gespräch; die Antwort kommt in sechs bis achtzehn
+Sekunden.
+
+**Vorlagen und Werkstatt.** Vierzehn Vorlagen mit Kopf, Fuß und Kreditkarten-Pitch, dazu eine überfällige
+Rechnung mit Zahlungslink (von Meta ausdrücklich erlaubt). Und eine Werkstatt, in der sich Vorlagen mit allen
+Meta-Bausteinen selbst bauen, prüfen und einreichen lassen — samt Profil des WhatsApp-Kontos.
+
+**Eine WhatsApp-Kette für neue Leads** ist gebaut, steht aber auf AUS. Deckel: höchstens eine Nachricht je
+Person und Tag, nur zwischen 8 und 20 Uhr, nur freigegebene Vorlagen, nie an Abmeldungen oder bezahlte Kunden.
+
+---
+
 ## 23.09.2026 (10) — Der Knopf, der fehlte, und Vorlagen nur noch auf die Karte (E-215)
 
 **Der Anlass (Justin):** „Ich kann keine Vorlage einreichen, weil ich keinen Knopf dafür habe, Alter." Und:

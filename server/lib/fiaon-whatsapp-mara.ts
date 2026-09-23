@@ -32,6 +32,18 @@ import { KARTE_LINK_SATZ, KARTE_ZEIT_KURZ } from "@shared/fiaon-karten-weg";
 
 export const DIENST_WA = "mara-whatsapp";
 
+/** Was ohne Text ankommt, soll Mara als das sehen, was es ist — nicht als leere Zeile (E-230). */
+const MEDIEN: Record<string, string> = {
+  audio: "(Sprachnachricht — du kannst sie nicht abhören; bitte ihn freundlich, es kurz zu schreiben)",
+  voice: "(Sprachnachricht — du kannst sie nicht abhören; bitte ihn freundlich, es kurz zu schreiben)",
+  image: "(ein Bild — du kannst es nicht sehen; frag kurz, worum es geht)",
+  video: "(ein Video — du kannst es nicht ansehen; frag kurz, worum es geht)",
+  document: "(ein Dokument — Unterlagen gehören in den Antrag bzw. den Kundenbereich, nicht in den Chat)",
+  sticker: "(ein Sticker)",
+  reaction: "(eine Reaktion auf deine Nachricht)",
+  location: "(ein Standort)",
+};
+
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -123,8 +135,13 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
     const heute = await kostenHeute(DIENST_WA).catch(() => 0);
     if (heute >= deckel) return { gesendet: false, grund: `Kostendeckel erreicht (${heute.toFixed(2)} € von ${deckel} €).` };
 
+    // ── DIE ID FEHLTE (24.09.2026, E-230) ────────────────────────────────
+    // Hier stand die Abfrage OHNE `id`. Die vorbereitete Antwort bekam deshalb
+    // antwort_auf_id = NULL, und versandLauf hielt jede Antwort für „veraltet"
+    // (letzte.id ≠ NULL), verwarf sie und dachte neu — endlos, ohne je zu
+    // senden. Gemessen am 23.09.: ab 18 Uhr 713 KI-Aufrufe, 0 Antworten.
     const verlauf = (await sqlPool`
-      SELECT richtung, text, vorlage, COALESCE(empfangen_am, gesendet_am, created_at) AS am, person_id, lead_id
+      SELECT id, richtung, text, typ, vorlage, COALESCE(empfangen_am, gesendet_am, created_at) AS am, person_id, lead_id
         FROM fiaon_whatsapp WHERE nummer = ${nummer} ORDER BY id DESC LIMIT 12`) as any[];
     if (!verlauf.length) return { gesendet: false, grund: "Kein Verlauf." };
     const neueste = verlauf[0];
@@ -175,7 +192,7 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
       wer, lage, link,
       gedaechtnis: personId ? await gedaechtnisText(personId).catch(() => "") : "",
       verlauf: verlauf.slice().reverse()
-        .map((v) => `${v.richtung === "rein" ? "ER" : "DU"}: ${String(v.text ?? (v.vorlage ? `(Vorlage ${v.vorlage})` : "")).slice(0, 500)}`)
+        .map((v) => `${v.richtung === "rein" ? "ER" : "DU"}: ${String(v.text || (v.vorlage ? `(Vorlage ${v.vorlage})` : MEDIEN[String(v.typ)] ?? (v.typ && v.typ !== "text" ? `(${v.typ})` : ""))).slice(0, 500)}`)
         .join("\n"),
     });
 
@@ -325,3 +342,57 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
   }
   return { gesendet, verworfen };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NIEMAND BLEIBT UNBEANTWORTET (24.09.2026, E-230)
+//
+// Justin: „Mara muss IMMER antworten." Bisher stieß NUR eine neu eingehende
+// Nachricht Mara an. Ging dabei etwas schief — Neustart des Dienstes mitten im
+// Denken, ein KI-Fehler, die id-Schleife oben —, blieb der Mensch für immer
+// ohne Antwort, weil ihn niemand mehr ansah.
+//
+// Dieser Takt sieht jedes Gespräch der letzten 24 Stunden an: Ist die letzte
+// Nachricht vom Kunden, älter als 90 Sekunden, keine Antwort vorbereitet und
+// Mara im Gespräch nicht abgeschaltet, denkt sie neu. Höchstens ein Versuch je
+// Nachricht alle zehn Minuten — ein Fehler soll nicht im Kreis laufen.
+// Nachts (22–7 Uhr) holt sie nur frische Nachrichten nach (jünger als 30
+// Minuten); ältere beantwortet sie ab 7 Uhr, solange das Fenster offen ist.
+// ═══════════════════════════════════════════════════════════════════════════
+const versucht = new Map<string, { id: number; am: number }>();
+
+export async function nachholLauf(): Promise<{ angestossen: number }> {
+  let angestossen = 0;
+  const teile = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).formatToParts(new Date());
+  const stunde = Number(teile.find((t) => t.type === "hour")?.value ?? "12") % 24;
+  const nacht = stunde >= 22 || stunde < 7;
+  const offen = (await sqlPool`
+    SELECT l.nummer, l.id, l.text, l.am, g.mara_an, g.antwort_text
+      FROM (
+        SELECT DISTINCT ON (nummer) nummer, id, richtung, text, COALESCE(empfangen_am, created_at) AS am
+          FROM fiaon_whatsapp
+         WHERE created_at > NOW() - INTERVAL '23 hours 30 minutes'
+         ORDER BY nummer, id DESC
+      ) l
+      LEFT JOIN fiaon_whatsapp_gespraech g ON g.nummer = l.nummer
+     WHERE l.richtung = 'rein'
+       AND l.am < NOW() - INTERVAL '90 seconds'
+       AND g.antwort_text IS NULL
+       AND COALESCE(g.mara_an, TRUE) IS TRUE
+     ORDER BY l.am
+     LIMIT 20`.catch((e) => { console.error("[MARA-WA] Nachholen:", e); return []; })) as any[];
+  for (const o of offen) {
+    const nummer = String(o.nummer);
+    const alt = Date.now() - new Date(o.am).getTime();
+    if (nacht && alt > 30 * 60_000) continue;
+    // Wer „STOPP" geschrieben hat, bekommt keine Verkaufsantwort.
+    if (/^\s*(stopp?|keine nachrichten)\b/i.test(String(o.text ?? ""))) continue;
+    const v = versucht.get(nummer);
+    if (v && v.id === Number(o.id) && Date.now() - v.am < 10 * 60_000) continue;
+    versucht.set(nummer, { id: Number(o.id), am: Date.now() });
+    angestossen++;
+    const r = await maraAntwortet(nummer).catch((e) => ({ gesendet: false, grund: String(e) }));
+    console.log(`[MARA-WA] Nachgeholt ${nummer.slice(-4)}: ${r.grund ?? (r.gesendet ? "gesendet" : "—")}`);
+  }
+  return { angestossen };
+}
+

@@ -322,6 +322,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Maras WhatsApp-Antworten gehen mit menschlicher Verzögerung raus — der
     // Takt schickt, was fällig ist (23.09.2026).
     tageslauf('mara_wa_versand', async () => await (await import('./lib/fiaon-whatsapp-mara')).versandLauf(), 20 * 1000, { beimStartNach: 45_000 });
+    // E-230: Jedes Gespräch, dessen letzte Nachricht vom Kunden ist und das keine Antwort bekam, wird nachgeholt.
+    tageslauf('mara_wa_nachholen', async () => { await (await import('./lib/fiaon-whatsapp-mara')).nachholLauf(); }, 60 * 1000, { beimStartNach: 60_000 });
   });
 
   // 📊 FIAON Finanz- & Sales-Analytics (Admin) — Funnel, Umsatz, CAC, Attribution

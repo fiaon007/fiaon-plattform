@@ -315,16 +315,53 @@ export async function waSenden(
     return { ok: false, grund: "Das 24-Stunden-Fenster ist zu — hier geht nur eine freigegebene Vorlage." };
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // DER KNOPFWERT — SONST LEHNT META AB (23.09.2026, E-220)
+  //
+  // Gemessen an einer echten Sendung: „(#131008) Required parameter is missing".
+  // Ursache: Mehrere Vorlagen haben einen URL-Knopf mit Platzhalter
+  // (https://fiaon.com/a/{{1}}). Für den verlangt Meta beim Senden eine eigene
+  // Komponente vom Typ `button` — der Textteil allein genügt nicht.
+  //
+  // Der Aufrufer soll das NICHT wissen müssen. Welche Vorlage einen Knopf mit
+  // Platzhalter hat, steht im Quelltext; also holt sich der Sendeweg den Wert
+  // selbst: der persönliche Link dieses Menschen, sonst der allgemeine Weg.
+  // Sonst müsste jede der sieben Aufrufstellen dieselbe Regel kennen, und sechs
+  // davon würden sie beim nächsten Umbau vergessen.
+  // ══════════════════════════════════════════════════════════════════════
+  const vorlage = inhalt.vorlage ? WA_VORLAGEN.find((v) => v.name === inhalt.vorlage) ?? null : null;
+  const urlKnopf = vorlage?.knoepfe.find((x) => x.typ === "URL" && x.url.includes("{{")) as { typ: "URL"; url: string } | undefined;
+  let knopfWert = inhalt.knopfWert ?? null;
+  if (urlKnopf && !knopfWert) {
+    // Der Platzhalter ist der Teil der Adresse NACH dem festen Anfang.
+    if (urlKnopf.url.includes("/a/") && zusatz.personId) {
+      const [l] = (await lauf`
+        SELECT link_code FROM fiaon_leads WHERE person_id = ${zusatz.personId} AND link_code IS NOT NULL
+         ORDER BY erstellt_am DESC LIMIT 1`.catch(() => [])) as any[];
+      if (l?.link_code) knopfWert = `${l.link_code}/w`;
+    }
+    if (!knopfWert && urlKnopf.url.includes("/zahlung/") && zusatz.personId) {
+      const [a] = (await lauf`
+        SELECT payment_reference FROM fiaon_applications WHERE person_id = ${zusatz.personId}
+           AND merged_into IS NULL AND payment_reference IS NOT NULL
+         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+      if (a?.payment_reference) knopfWert = String(a.payment_reference);
+    }
+    // Ohne eigenen Wert führt der Knopf auf den allgemeinen Weg. Ein Knopf,
+    // der irgendwohin führt, ist besser als eine Nachricht, die nicht rausgeht.
+    if (!knopfWert) knopfWert = urlKnopf.url.includes("/zahlung/") ? "start" : "start";
+  }
+
   const nutzlast: Record<string, unknown> = inhalt.vorlage
     ? {
         messaging_product: "whatsapp", to: nummer, type: "template",
         template: {
           name: inhalt.vorlage, language: { code: "de" },
-          ...(inhalt.werte?.length || inhalt.knopfWert
+          ...(inhalt.werte?.length || knopfWert
             ? {
                 components: [
                   ...(inhalt.werte?.length ? [{ type: "body", parameters: inhalt.werte.map((t) => ({ type: "text", text: t })) }] : []),
-                  ...(inhalt.knopfWert ? [{ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: inhalt.knopfWert }] }] : []),
+                  ...(knopfWert ? [{ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: knopfWert }] }] : []),
                 ],
               }
             : {}),
@@ -332,13 +369,20 @@ export async function waSenden(
       }
     : { messaging_product: "whatsapp", to: nummer, type: "text", text: { preview_url: false, body: inhalt.text } };
 
+  // E-220: Der Verlauf soll lesen, was der Kunde gelesen hat. „(Vorlagentext —
+  // siehe Vorlagenname oben)" hilft niemandem, der nachvollziehen will, was
+  // geschrieben wurde.
+  const gerendert = vorlage
+    ? vorlage.text.replace(/\{\{(\d)\}\}/g, (_m, n) => inhalt.werte?.[Number(n) - 1] ?? vorlage.beispiele[Number(n) - 1] ?? "")
+    : null;
+
   try {
     const a = await graph(`${k.nummerId}/messages`, { methode: "POST", roherKoerper: nutzlast });
     const waId = String(a?.messages?.[0]?.id ?? "");
     await lauf`
       INSERT INTO fiaon_whatsapp (wa_id, richtung, nummer, person_id, lead_id, typ, text, vorlage, status, von, gesendet_am)
       VALUES (${waId || null}, 'raus', ${nummer}, ${zusatz.personId ?? null}, ${zusatz.leadId ?? null},
-              ${inhalt.vorlage ? "vorlage" : "text"}, ${inhalt.text ?? null}, ${inhalt.vorlage ?? null}, 'gesendet',
+              ${inhalt.vorlage ? "vorlage" : "text"}, ${inhalt.text ?? gerendert}, ${inhalt.vorlage ?? null}, 'gesendet',
               ${zusatz.von ?? "Mara"}, NOW())
       ON CONFLICT (wa_id) DO NOTHING`;
     return { ok: true, waId };

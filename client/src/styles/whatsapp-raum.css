@@ -293,3 +293,10 @@
     overflow-y: auto; background: #0b1220; padding: 16px;
   }
 }
+
+/* E-220: Die frei getippte Nummer steht über den Treffern — sie ist der
+   schnellste Weg, wenn man den Menschen gar nicht erst sucht. */
+.wr-treffer-zeile.wr-frei {
+  border: 1px dashed rgba(147,197,253,.4); border-radius: 12px; margin-bottom: 8px;
+  background: rgba(37,99,235,.1);
+}

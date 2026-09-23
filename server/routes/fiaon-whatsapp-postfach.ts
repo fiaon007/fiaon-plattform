@@ -228,7 +228,11 @@ function routen(hole: (req: any) => Blick) {
       let lage: any = null;
       if (person) {
         const [p] = (await sqlPool`
-          SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name, p.phone, p.email,
+          SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name,
+                 -- 23.09.2026: fiaon_persons führt primary_phone und primary_email.
+                 -- Eine Spalte p.phone gibt es NICHT — die Abfrage ist daran jedes
+                 -- Mal gescheitert, und der Chat meldete „ließ sich nicht laden".
+                 p.primary_phone AS phone, p.primary_email AS email,
                  p.priority_tier, p.follow_up_date, p.promised_payment_date,
                  COALESCE(p.unreachable_count, 0) AS nicht_erreicht, p.mandat_seit,
                  (SELECT CASE
@@ -366,12 +370,15 @@ function routen(hole: (req: any) => Blick) {
       const wie = `%${q.toLowerCase()}%`;
       const ziffern = q.replace(/[^\d]/g, "");
       const personen = (await sqlPool`
-        SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name, p.phone, p.assigned_agent_id, a.name AS betreuer
+        SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name,
+               p.primary_phone AS phone, p.assigned_agent_id, a.name AS betreuer
           FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
-         WHERE p.phone IS NOT NULL
+         WHERE p.primary_phone IS NOT NULL AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
            AND (LOWER(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,''))) LIKE ${wie}
-                OR (${ziffern || null}::text IS NOT NULL AND regexp_replace(p.phone, '[^0-9]', '', 'g') LIKE ${"%" + ziffern}))
-         ORDER BY p.updated_at DESC NULLS LAST LIMIT 25`.catch(() => [])) as any[];
+                OR LOWER(COALESCE(p.company_name,'')) LIKE ${wie}
+                OR LOWER(COALESCE(p.primary_email,'')) LIKE ${wie}
+                OR (${ziffern || null}::text IS NOT NULL AND regexp_replace(p.primary_phone, '[^0-9]', '', 'g') LIKE ${"%" + ziffern}))
+         ORDER BY p.updated_at DESC NULLS LAST LIMIT 40`.catch((e) => { console.error("[WHATSAPP-RAUM] suche personen:", e); return []; })) as any[];
       const leads = (await sqlPool`
         SELECT le.id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS name, le.telefon AS phone,
                le.assigned_agent_id, le.person_id, a.name AS betreuer
@@ -405,10 +412,30 @@ function routen(hole: (req: any) => Blick) {
       const nummer = nummerFuerWhatsApp(req.body?.nummer);
       const vorlage = String(req.body?.vorlage ?? "").trim();
       if (!nummer || !vorlage) return res.status(400).json({ ok: false, error: "Nummer und Vorlage werden gebraucht." });
-      const personId = Number(req.body?.personId) || null;
+      let personId = Number(req.body?.personId) || null;
       const leadId = Number(req.body?.leadId) || null;
 
-      if (!blick.alles) {
+      // ══════════════════════════════════════════════════════════════════
+      // EINE FREI GETIPPTE NUMMER (23.09.2026, E-220)
+      //
+      // Justin: „Ich möchte ja, dass man JEDEN schreiben kann, auch nur eine
+      // Nummer frei eintippen und schreiben."
+      //
+      // Bisher ging nur, wer schon im System stand. Jetzt geht jede Nummer —
+      // und wenn wir sie kennen, wird das Gespräch dem Menschen zugeordnet,
+      // damit es nicht neben seiner Akte steht. Kennen wir sie nicht, entsteht
+      // beim ersten Eingang von selbst ein Lead (E-214).
+      if (!personId && !leadId) {
+        const letzte = nummer.replace(/\D/g, "").slice(-9);
+        const [p] = (await sqlPool`
+          SELECT id FROM fiaon_persons
+           WHERE merged_into_person_id IS NULL
+             AND regexp_replace(COALESCE(primary_phone, ''), '[^0-9]', '', 'g') LIKE ${"%" + letzte}
+           ORDER BY updated_at DESC NULLS LAST LIMIT 1`.catch(() => [])) as any[];
+        if (p?.id) personId = Number(p.id);
+      }
+
+      if (!blick.alles && (personId || leadId)) {
         const [z] = (await sqlPool`
           SELECT COALESCE(
             (SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${personId}),

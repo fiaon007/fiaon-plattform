@@ -116,6 +116,17 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
   useEffect(() => { if (gewaehlt) void chatLaden(gewaehlt); }, [gewaehlt, chatLaden]);
   useEffect(() => { endeRef.current?.scrollIntoView({ block: "end" }); }, [chat?.verlauf.length, gewaehlt]);
 
+  // E-220: Eine getippte Ziffernfolge ist ein gültiges Ziel — mit oder ohne
+  // Pluszeichen, mit oder ohne Leerzeichen. Deutsche 0-Nummern bekommen die 49.
+  const freieNummer = useMemo(() => {
+    const roh = neuSuche.replace(/[^\d+]/g, "");
+    if (!/\d/.test(roh)) return null;
+    let z = roh.replace(/\D/g, "");
+    if (roh.startsWith("00")) z = z.slice(2);
+    else if (roh.startsWith("0")) z = `49${z.slice(1)}`;
+    return z.length >= 10 && z.length <= 15 ? z : null;
+  }, [neuSuche]);
+
   const aktuell = useMemo(() => liste?.find((g) => g.nummer === gewaehlt) ?? null, [liste, gewaehlt]);
   const rest = restZeit(aktuell?.fensterBis ?? null);
 
@@ -195,11 +206,18 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
     try {
       const r = await fetch(`${API}/starten`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nummer: neuZiel.nummer, vorlage, personId: neuZiel.art === "person" ? neuZiel.id : null, leadId: neuZiel.art === "lead" ? neuZiel.id : null, werte: [neuZiel.name] }),
+        body: JSON.stringify({
+          nummer: neuZiel.nummer, vorlage,
+          personId: neuZiel.art === "person" ? neuZiel.id : null,
+          leadId: neuZiel.art === "lead" ? neuZiel.id : null,
+          // Ohne Namen keine erfundene Anrede — „und willkommen" ist der Weg
+          // des Hauses für genau diesen Fall (shared/fiaon-lead-texte.ts).
+          werte: [neuZiel.art === "frei" ? "und willkommen" : neuZiel.name],
+        }),
       });
       const j = await r.json();
       if (!j?.ok) { melden(j?.error || "Das ging nicht raus."); return; }
-      melden(`Nachricht an ${neuZiel.name} ist unterwegs.`);
+      melden(`Nachricht an ${neuZiel.art === "frei" ? `+${neuZiel.nummer}` : neuZiel.name} ist unterwegs.`);
       setNeuOffen(false); setNeuZiel(null); setNeuSuche(""); setTreffer([]);
       await listeLaden(); setGewaehlt(j.nummer);
     } catch { melden("Keine Verbindung."); } finally { setSendet(false); }
@@ -490,10 +508,19 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
             </div>
             {!neuZiel ? (
               <>
-                <input className="wr-feld" autoFocus value={neuSuche} onChange={(e) => setNeuSuche(e.target.value)} placeholder="Name oder Nummer — mindestens zwei Zeichen" aria-label="Menschen suchen" />
+                <input className="wr-feld" autoFocus value={neuSuche} onChange={(e) => setNeuSuche(e.target.value)} placeholder="Name, E-Mail oder Nummer — oder eine Nummer frei eintippen" aria-label="Menschen suchen" />
+                {/* E-220: Justin — „auch nur eine Nummer frei eintippen und
+                    schreiben". Wer eine Nummer tippt, kommt direkt weiter,
+                    auch wenn dazu niemand im System steht. */}
+                {freieNummer && (
+                  <button type="button" className="wr-treffer-zeile wr-frei" onClick={() => setNeuZiel({ art: "frei", id: 0, name: freieNummer, nummer: freieNummer })}>
+                    <span><b>+{freieNummer}</b> <span className="wr-still">frei eingetippt</span></span>
+                    <span className="wr-still">An diese Nummer schreiben</span>
+                  </button>
+                )}
                 <div className="wr-treffer">
-                  {neuSuche.trim().length < 2 ? <p className="wr-still">Nur Menschen mit Handynummer erscheinen hier — an ein Festnetz stellt WhatsApp nichts zu.</p>
-                    : treffer.length === 0 ? <p className="wr-still">Niemand gefunden.</p>
+                  {neuSuche.trim().length < 2 ? <p className="wr-still">Tippe einen Namen, eine E-Mail oder eine Nummer. Eine Nummer geht auch ohne Datensatz.</p>
+                    : treffer.length === 0 && !freieNummer ? <p className="wr-still">Niemand gefunden. Tippe die Nummer mit Landesvorwahl, dann geht es trotzdem.</p>
                       : treffer.map((t) => (
                         <button key={`${t.art}-${t.id}`} type="button" className="wr-treffer-zeile" onClick={() => setNeuZiel(t)}>
                           <span><b>{t.name}</b> <span className="wr-still">+{t.nummer}</span></span>
@@ -504,7 +531,11 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
               </>
             ) : (
               <>
-                <p className="wr-ziel">An <b>{neuZiel.name}</b> <span className="wr-still">+{neuZiel.nummer}</span> <button type="button" className="wr-klein" onClick={() => setNeuZiel(null)}>ändern</button></p>
+                <p className="wr-ziel">
+                  An <b>{neuZiel.art === "frei" ? `+${neuZiel.nummer}` : neuZiel.name}</b>
+                  {neuZiel.art !== "frei" && <span className="wr-still"> +{neuZiel.nummer}</span>}
+                  {" "}<button type="button" className="wr-klein" onClick={() => setNeuZiel(null)}>ändern</button>
+                </p>
                 <div className="wr-vorlagen">
                   {!neuVorlagen ? <p className="wr-still">Lädt …</p>
                     : neuVorlagen.vorlagen.length === 0 ? (

@@ -50,8 +50,15 @@ function gespraechTabelle(): Promise<void> {
           bearbeiter_id INTEGER,
           bearbeiter_seit TIMESTAMPTZ,
           notiz TEXT,
+          antwort_text TEXT,
+          antwort_faellig_am TIMESTAMPTZ,
+          antwort_auf_id BIGINT,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
+      // Nachträglich für bestehende Tabellen (23.09.2026: Maras Tempo).
+      await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_text TEXT`;
+      await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_faellig_am TIMESTAMPTZ`;
+      await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_auf_id BIGINT`;
     })().catch((e) => {
       const code = String((e as any)?.code ?? "");
       if (code === "23505" || code === "42P07") return;

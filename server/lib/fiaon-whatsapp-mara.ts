@@ -48,26 +48,53 @@ async function einstellung(key: string, vorgabe: string): Promise<string> {
   return String(r?.value ?? vorgabe);
 }
 
-/** Der Auftrag für den Chat — kurz, weil WhatsApp kurz ist. */
+/**
+ * Der Auftrag für den Chat. Kurz, weil WhatsApp kurz ist — und auf VERKAUF
+ * gestellt, nicht auf Datenaufnahme.
+ *
+ * 23.09.2026, nach Justins erstem Test: Mara fragte per Chat Name,
+ * Geburtsdatum, E-Mail und Telefon ab und nannte in neun Nachrichten kein
+ * einziges Mal den Nutzen, keine Zahl und keinen Link. Das ist das Gegenteil
+ * von Verkauf. Diese Regeln stehen deshalb ganz oben und sind hart:
+ *   · KEINE Datenabfrage. Der Antrag holt Name, Geburtsdatum, Mail und
+ *     Telefon in zwei Minuten selbst — und sicherer.
+ *   · JEDE Antwort hat ein Ziel: den Link öffnen.
+ *   · Zahlen und Nutzen nennen, nicht Verwaltung.
+ */
 async function auftrag(ein: {
-  name: string; wer: string; lage: string; verlauf: string; gedaechtnis: string; link: string | null;
+  name: string; wer: string; lage: string; verlauf: string; gedaechtnis: string; link: string;
 }): Promise<string> {
   const hausanweisung = await anweisungBlock("whatsapp").catch(() => "");
   return [
     hausanweisung,
-    `Du heißt ${ein.name} und arbeitest bei FIAON im Kundendienst. Du schreibst auf WhatsApp — kurz, warm, klar.`,
-    `Du bist eine digitale Assistentin. Wenn jemand fragt, ob er mit einem Menschen spricht, sagst du ehrlich, dass du digital bist und jederzeit eine Kollegin oder einen Kollegen dazuholst.`,
+    `Du heißt ${ein.name} und arbeitest bei FIAON. Du schreibst auf WhatsApp und dein Ziel ist EIN Satz weit: Der Mensch soll den Antrag öffnen und ausfüllen.`,
+    `Du bist eine digitale Assistentin. Fragt jemand danach, sagst du es offen und bietest sofort an, eine Kollegin oder einen Kollegen dazuzuholen.`,
+    ``,
+    `DAS WICHTIGSTE — DEIN LINK: ${ein.link}`,
+    `Diesen Link schickst du, sobald ein Interesse erkennbar ist. Nicht erst nach Rückfragen, nicht nach einem Formular — sofort.`,
+    `Für Unternehmen (GmbH, Firma, Gewerbe, US-Gesellschaft) gilt stattdessen: https://fiaon.com/global`,
+    ``,
+    `WAS DU NIE TUST:`,
+    `· Du fragst NIEMALS nach Name, Geburtsdatum, Adresse, E-Mail oder Telefonnummer. Das erledigt der Antrag in zwei Minuten, und er erledigt es besser.`,
+    `· Du spielst kein Menü („Privat oder Geschäftlich?"). Was du nicht weißt, erkennst du aus dem, was er schreibt — oder du schickst einfach den Privat-Link.`,
+    `· Du sagst nie „Wie kann ich Ihnen weiterhelfen?", „Danke für Ihre Nachricht" oder „Gerne helfe ich Ihnen". Solche Sätze sagt kein Mensch.`,
+    `· Du mahnst nicht, du treibst keine Forderung ein, du nennst keine offene Rate. Geht es ums Geld, sagst du, dass sich die Kollegin per E-Mail meldet, und setzt das Feld mensch auf true.`,
     ``,
     `SO SCHREIBST DU:`,
-    `· Höchstens vier Sätze. Ein Gedanke pro Satz. Keine Absatzmonster, kein Brief.`,
-    `· Immer Sie. Keine Emojis. Keine Aufzählungszeichen. Kein Betreff, keine Grußformel, keine Unterschrift.`,
-    `· Beantworte zuerst die Frage, dann kommt ein einziger nächster Schritt.`,
-    `· Du duzt nie, du versprichst nie, du garantierst nie, du empfiehlst nie.`,
-    `· Nenne keine Adresse (URL) im Text${ein.link ? " — der Link steht bereits in der Unterhaltung" : ""}.`,
+    `· Ein bis drei Sätze. Kurz wie am Telefon. Kein Brief, keine Aufzählung, keine Emojis, keine Grußformel, keine Unterschrift.`,
+    `· Immer Sie. Warm, direkt, ohne Anbiederung.`,
+    `· Nenne den Nutzen in konkreten Zahlen, wenn es passt: vier Pakete ab 7,99 € im Monat, Ziel-Rahmen bis 25.000 €, Antrag in unter zwei Minuten, Ergebnis sofort am Ende des Antrags.`,
+    `· Die Entscheidung über eine Karte trifft am Ende immer die Bank — das sagst du, wenn jemand nach Sicherheit fragt, aber nie ungefragt und nie als Einleitung.`,
+    `· Auf „Wie geht das?" antwortest du mit dem Weg UND dem Link, nicht mit einer Gegenfrage.`,
+    `· Auf Small Talk antwortest du in einem halben Satz und führst zurück zum Thema.`,
     ``,
-    `WAS DU NIE TUST: mahnen, eine Forderung eintreiben, eine offene Rate anmahnen. Das ist auf WhatsApp verboten und kostet uns die Nummer. Geht es ums Geld, sag freundlich, dass die Kollegin sich per E-Mail meldet, und setze das Feld mensch auf true.`,
+    `EINWÄNDE:`,
+    `· „Ist das seriös?" → FIAON ist eine britische Gesellschaft mit Sitz in London, alles steht im Antrag und im Vertrag. Dann zurück zum nächsten Schritt.`,
+    `· „Was kostet das?" → Vier Pakete ab 7,99 € im Monat; welches passt, sieht er im Antrag mit seinem Ziel-Rahmen.`,
+    `· „Ich habe Schufa-Einträge" → Genau dafür ist FIAON da: Wir sehen uns die Einträge an, erklären jeden und bereiten den Weg vor.`,
+    `· „Keine Zeit" → Zwei Minuten, der Link bleibt offen, er kann jederzeit weitermachen.`,
     ``,
-    `ÜBER DEN WEG ZUR KARTE (nur wenn er danach fragt): ${KARTE_LINK_SATZ} Danach ${KARTE_ZEIT_KURZ}. Die Entscheidung trifft die Bank.`,
+    `ÜBER DEN WEG ZUR KARTE (nur auf Nachfrage): ${KARTE_LINK_SATZ} Danach ${KARTE_ZEIT_KURZ}.`,
     ``,
     `WER DIR SCHREIBT: ${ein.wer}`,
     `SEINE LAGE: ${ein.lage}`,
@@ -113,7 +140,9 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
 
     let wer = "Ein Interessent, den wir noch nicht kennen.";
     let lage = "Noch kein Antrag.";
-    let link: string | null = null;
+    // Der Link ist das Ziel jeder Nachricht. Kennen wir den Menschen, ist er
+    // persönlich und füllt den Antrag vor; sonst die öffentliche Startseite.
+    let link = "https://fiaon.com/start";
     if (personId) {
       const [p] = (await sqlPool`
         SELECT TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name, a.name AS betreuer,
@@ -126,6 +155,9 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
         lage = p.zahlung === "paid" ? `Kunde mit ${p.paket ?? "einem Paket"}, bezahlt.`
           : Number(p.schritt) >= 8 ? `Antrag fertig (${p.paket ?? "Paket offen"}), noch nicht bezahlt.`
             : `Antrag angefangen, bei Schritt ${p.schritt ?? 0} stehen geblieben.`;
+        const [k] = (await sqlPool`
+          SELECT code FROM fiaon_kurzlinks WHERE person_id = ${personId} AND zweck = 'antrag' ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[];
+        if (k?.code) link = `https://fiaon.com/a/${String(k.code)}/w`;
       }
     } else if (leadId) {
       const [l] = (await sqlPool`
@@ -133,7 +165,7 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
       if (l) {
         wer = `${String(l.name || "").trim() || "Ein Interessent"} — kam über eine Anzeige${l.anzeige ? ` (${l.anzeige})` : ""}.`;
         lage = "Hat das Formular ausgefüllt, der Antrag ist für ihn vorbereitet.";
-        link = l.link_code ? String(l.link_code) : null;
+        if (l.link_code) link = `https://fiaon.com/a/${String(l.link_code)}/w`;
       }
     }
 
@@ -163,14 +195,25 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
       return { gesendet: false, grund: funde.join(" · ") };
     }
 
-    const erg = await waSenden(nummer, { text: antwort }, { personId, leadId, von: namen.voll });
-    if (!erg.ok) return { gesendet: false, grund: erg.grund };
+    // ── SIE ANTWORTET NICHT IN FÜNF SEKUNDEN (23.09.2026) ────────────────
+    // Justins Test: „Schreibt sie viel zu schnell zurück, das ist kaum
+    // menschlich." Die Antwort wird deshalb nur VORBEREITET und mit einer
+    // Verzögerung fällig gestellt — lesen, denken, tippen. Der Versandtakt
+    // (fiaon-whatsapp-mara: versandLauf) schickt sie dann ab; kommt bis dahin
+    // eine neue Nachricht, wird die Antwort verworfen und neu gedacht.
+    const faellig = new Date(Date.now() + verzoegerungMs(antwort, String(neueste.text ?? "")));
+    await sqlPool`
+      INSERT INTO fiaon_whatsapp_gespraech (nummer, antwort_text, antwort_faellig_am, antwort_auf_id, updated_at)
+      VALUES (${nummer}, ${antwort}, ${faellig}, ${Number(neueste.id ?? 0) || null}, NOW())
+      ON CONFLICT (nummer) DO UPDATE SET
+        antwort_text = ${antwort}, antwort_faellig_am = ${faellig},
+        antwort_auf_id = ${Number(neueste.id ?? 0) || null}, updated_at = NOW()`;
 
     if (personId && String(roh?.gemerkt ?? "").trim()) {
       await gedaechtnisMerken(personId, String(roh.gemerkt).trim(), "whatsapp").catch(() => {});
     }
     if (roh?.mensch === true) await aufgabeFuerMenschen(nummer, personId, "Der Mensch möchte mit jemandem aus dem Team sprechen (WhatsApp).");
-    return { gesendet: true };
+    return { gesendet: false, grund: `Antwort liegt bereit, geht in ${Math.round((faellig.getTime() - Date.now()) / 1000)} Sekunden raus.` };
   } catch (e) {
     console.error("[MARA-WA]", e);
     return { gesendet: false, grund: String(e).slice(0, 200) };
@@ -190,4 +233,68 @@ async function aufgabeFuerMenschen(nummer: string, personId: number | null, grun
     // Ein Auftrag je Mensch und Tag — nicht je Nachricht.
     schluessel: `wa-${personId}-${new Date().toISOString().slice(0, 10)}`,
   }).catch((e) => console.error("[MARA-WA] Aufgabe:", e));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS TEMPO
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Wie lange ein Mensch für diese Antwort bräuchte: lesen, denken, tippen.
+ * Grundlage: ~13 Zeichen je Sekunde am Handy, dazu eine Denkpause, die mit der
+ * Länge der Frage wächst, plus Streuung — nie zweimal dieselbe Zahl.
+ */
+export function verzoegerungMs(antwort: string, frage: string): number {
+  const lesen = Math.min(6000, String(frage).length * 45);
+  const denken = 4000 + Math.random() * 6000;
+  const tippen = Math.min(45_000, (String(antwort).length / 13) * 1000);
+  const streuung = 0.85 + Math.random() * 0.4;
+  return Math.round(Math.min(90_000, Math.max(20_000, (lesen + denken + tippen) * streuung)));
+}
+
+let versandLaeuft = false;
+
+/**
+ * Schickt die fälligen Antworten. Läuft im Takt (alle 20 Sekunden) und prüft
+ * vorher noch einmal alles, was sich in der Wartezeit geändert haben kann:
+ * neue Nachricht des Menschen, ein Mensch aus dem Team hat geschrieben, das
+ * Fenster ist zugefallen.
+ */
+export async function versandLauf(): Promise<{ gesendet: number; verworfen: number }> {
+  if (versandLaeuft) return { gesendet: 0, verworfen: 0 };
+  versandLaeuft = true;
+  let gesendet = 0, verworfen = 0;
+  try {
+    const faellig = (await sqlPool`
+      SELECT nummer, antwort_text, antwort_auf_id, mara_an FROM fiaon_whatsapp_gespraech
+       WHERE antwort_text IS NOT NULL AND antwort_faellig_am IS NOT NULL AND antwort_faellig_am <= NOW()
+       LIMIT 25`.catch(() => [])) as any[];
+    for (const g of faellig) {
+      const nummer = String(g.nummer);
+      const leeren = async () => {
+        await sqlPool`UPDATE fiaon_whatsapp_gespraech SET antwort_text = NULL, antwort_faellig_am = NULL, antwort_auf_id = NULL WHERE nummer = ${nummer}`;
+      };
+      if (g.mara_an === false) { await leeren(); verworfen++; continue; }
+      const [letzte] = (await sqlPool`
+        SELECT id, richtung FROM fiaon_whatsapp WHERE nummer = ${nummer} ORDER BY id DESC LIMIT 1`) as any[];
+      // Inzwischen etwas Neues? Dann ist die vorbereitete Antwort veraltet.
+      if (!letzte || Number(letzte.id) !== Number(g.antwort_auf_id)) {
+        await leeren();
+        verworfen++;
+        void maraAntwortet(nummer).catch(() => {});
+        continue;
+      }
+      if (!(await fensterOffen(nummer))) { await leeren(); verworfen++; continue; }
+      const [w] = (await sqlPool`SELECT person_id, lead_id FROM fiaon_whatsapp WHERE nummer = ${nummer} ORDER BY id DESC LIMIT 1`) as any[];
+      const namen = await agentNamen();
+      const erg = await waSenden(nummer, { text: String(g.antwort_text) }, { personId: w?.person_id ?? null, leadId: w?.lead_id ?? null, von: namen.voll });
+      await leeren();
+      if (erg.ok) gesendet++; else console.warn(`[MARA-WA] ${nummer}: ${erg.grund}`);
+    }
+  } catch (e) {
+    console.error("[MARA-WA] Versandtakt:", e);
+  } finally {
+    versandLaeuft = false;
+  }
+  return { gesendet, verworfen };
 }

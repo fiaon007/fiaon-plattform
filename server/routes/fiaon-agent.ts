@@ -1107,12 +1107,26 @@ async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number;
   const baseCents = eurToCents(app.amount_due);
   const amountCents = commissionCents(baseCents, rateBp);
   if (amountCents <= 0) return;
+  // ── DIE AUTOMATIK HAT EINEN SCHALTER (23.09.2026, Justin) ──────────────
+  // „Stelle es einstweilen ab, dass die Provision den Mitarbeitern automatisch
+  // gebucht wird." Steht der Schalter auf AUS, wird nichts gebucht, sondern
+  // vorgemerkt — nachzubuchen mit einem Klick unter /chef/s/provisionen.
+  const provNotiz = istGlobal ? `FIAON Global: Einmalpreis, Satz ${rateBp / 100} % aus global_provision_prozent (E-188)`
+    : statusBefore.bonusBp > 0 ? `inkl. ${statusBefore.bonusBp / 100} Prozentpunkte ${statusBefore.label}-Zuschlag` : null;
+  const { automatikAn, vormerken } = await import("../lib/fiaon-provision-automatik");
+  if (!(await automatikAn())) {
+    await vormerken({
+      agentId: Number(app.assigned_agent_id), ref, zahlungsreferenz: app.payment_reference, paket: app.pack_name,
+      basisCents: baseCents, satzBp: rateBp, betragCents: amountCents, art: "own", notiz: provNotiz,
+      anlass: "Erste Zahlung gebucht",
+    });
+    return;
+  }
   await sqlPool`
     INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind,
                                    note)
     VALUES (${app.assigned_agent_id}, ${ref}, ${app.payment_reference}, ${app.pack_name}, ${baseCents}, ${rateBp}, ${amountCents}, 'bestaetigt', 'own',
-            ${istGlobal ? `FIAON Global: Einmalpreis, Satz ${rateBp / 100} % aus global_provision_prozent (E-188)`
-              : statusBefore.bonusBp > 0 ? `inkl. ${statusBefore.bonusBp / 100} Prozentpunkte ${statusBefore.label}-Zuschlag` : null})
+            ${provNotiz})
   `;
   await logAgentEvent(app.assigned_agent_id, "commission_created", { ref, amount_cents: amountCents, rate_bp: rateBp });
   console.log(`[FIAON-COMMISSION] bestätigt: ${ref} → Agent ${app.assigned_agent_id}, ${(amountCents / 100).toFixed(2)} € (${rateBp / 100} %)`);
@@ -1230,10 +1244,20 @@ export async function onRatePaid(rateId: number): Promise<void> {
   const amountCents = commissionCents(baseCents, rateBp);
   if (amountCents <= 0) return;
 
+  const ratenNotiz = `Ratenprovision: Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz})${status.bonusBp > 0 ? ` · inkl. ${status.bonusBp / 100} Prozentpunkte ${status.label}-Zuschlag` : ""}`;
+  const { automatikAn: automatikAn2, vormerken: vormerken2 } = await import("../lib/fiaon-provision-automatik");
+  if (!(await automatikAn2())) {
+    await vormerken2({
+      agentId: Number(agents[0].id), ref: rate.ref, zahlungsreferenz: rate.zahlungsreferenz, paket: app.pack_name,
+      basisCents: baseCents, satzBp: rateBp, betragCents: amountCents, art: "own", notiz: ratenNotiz,
+      anlass: `Rate ${rate.rate_nr} bezahlt`,
+    });
+    return;
+  }
   await sqlPool`
     INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note)
     VALUES (${agents[0].id}, ${rate.ref}, ${rate.zahlungsreferenz}, ${app.pack_name}, ${baseCents}, ${rateBp}, ${amountCents}, 'bestaetigt', 'own',
-            ${`Ratenprovision: Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz})${status.bonusBp > 0 ? ` · inkl. ${status.bonusBp / 100} Prozentpunkte ${status.label}-Zuschlag` : ""}`})
+            ${ratenNotiz})
   `;
   await logAgentEvent(agents[0].id, "commission_created", { ref: rate.ref, rate: rate.zahlungsreferenz, amount_cents: amountCents, rate_bp: rateBp });
   console.log(`[FIAON-COMMISSION] Ratenprovision: ${rate.zahlungsreferenz} → Agent ${agents[0].id}, ${(amountCents / 100).toFixed(2)} € (${rateBp / 100} %)`);

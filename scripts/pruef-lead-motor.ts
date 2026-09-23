@@ -358,7 +358,7 @@ abschnitt("WhatsApp-Raum — zwei Türen, ein Raum; Mara antwortet im Fenster");
   ok(/amStueck >= 4/.test(mara), "Nach vier Antworten ohne Rückmeldung wartet sie");
   ok(/mara_wa_tag_euro/.test(mara), "Eigener Kostendeckel für den Chat");
   ok(/digitale Assistentin/.test(mara), "Sie gibt sich als KI zu erkennen (KI-VO Art. 50)");
-  ok(/mahnen, eine Forderung eintreiben/.test(mara), "Ihr Auftrag verbietet das Mahnen ausdrücklich");
+  ok(/Du mahnst nicht, du treibst keine Forderung ein/.test(mara), "Ihr Auftrag verbietet das Mahnen ausdrücklich");
   ok(/auftragFuerKunden/.test(mara), "Der Weg zum Menschen läuft über die bestehende Aufgabenkette");
 }
 

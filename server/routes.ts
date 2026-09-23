@@ -308,6 +308,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', (await import('./routes/fiaon-lead-motor')).default);
   // Der WhatsApp-Raum: /agent/whatsapp für die Mitarbeiter, /chef/whatsapp für die Leitung (E-210).
   app.use('/api/fiaon', (await import('./routes/fiaon-whatsapp-postfach')).default);
+  // Provisionsautomatik + Vormerkungen (23.09.2026).
+  app.use('/api/fiaon', (await import('./routes/fiaon-provisionen')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('meta_meldungen', async () => await (await import('./lib/fiaon-meta-leads')).meldungenVerarbeiten(), 2 * 60 * 1000, { beimStartNach: 90_000 });
     tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });
@@ -315,6 +317,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('lead_willkommen_nachholen', async () => await (await import('./lib/fiaon-lead-willkommen')).willkommenNachholen(), 5 * 60 * 1000, { beimStartNach: 150_000 });
     // Messung an Meta (Pixel + Conversions API): offene Ereignisse alle 3 Minuten nachsenden.
     tageslauf('meta_messung', async () => await (await import('./lib/fiaon-meta-capi')).capiLauf(), 3 * 60 * 1000, { beimStartNach: 200_000 });
+    // Maras WhatsApp-Antworten gehen mit menschlicher Verzögerung raus — der
+    // Takt schickt, was fällig ist (23.09.2026).
+    tageslauf('mara_wa_versand', async () => await (await import('./lib/fiaon-whatsapp-mara')).versandLauf(), 20 * 1000, { beimStartNach: 45_000 });
   });
 
   // 📊 FIAON Finanz- & Sales-Analytics (Admin) — Funnel, Umsatz, CAC, Attribution

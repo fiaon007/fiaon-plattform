@@ -75,7 +75,15 @@ export function antragBasisSql(a = "a"): string {
       -- ein als Testeintrag archivierter Antrag den Kunden weiter in Tier 2
       -- halten — und die Arbeitsliste bliebe voll mit etwas, das es fachlich
       -- nicht gibt (Teil 3).
-      AND ${a}.archived_at IS NULL`;
+      --
+      -- AUSNAHME BEZAHLT (23.09.2026, gefunden an Idris Maslah, gemeldet von
+      -- Florentine und Daniel): Eine BEZAHLTE Bestellung zählt immer, auch
+      -- archiviert. Sonst fällt ein zahlender Kunde auf „nur_lead" zurück —
+      -- er stand mit Stufe C in der Pipeline, Mara schrieb ihn als
+      -- Interessenten an, und in der Akte stand „Registriert – noch kein
+      -- Antrag", während der Überblick daneben eine überfällige Rate zeigte.
+      -- Archivieren heißt „nicht mehr im Arbeitsfluss", nicht „hat nie bezahlt".
+      AND (${a}.archived_at IS NULL OR ${a}.payment_status = 'paid')`;
 }
 
 /**

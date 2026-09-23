@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (2) — Provisionsautomatik aus, Mara verkauft statt zu fragen, bezahlte Kunden bleiben Kunden
+
+**Was geändert wurde:**
+- **Die Provisionsautomatik hat einen Schalter** und steht jetzt auf AUS (Justin). Es wird nichts mehr automatisch
+  gebucht — stattdessen **vorgemerkt**: wer, wofür, wie viel, auf welcher Grundlage. Neue Seite
+  **`/chef/s/provisionen`**: Schalter, Summe der offenen Vormerkungen, Nachbuchen einzeln oder alle, Verwerfen mit
+  Begründung, dazu die letzten echten Buchungen. Nichts geht verloren, nichts wird still gebucht.
+- **Mara auf WhatsApp verkauft jetzt.** Nach Justins Test (sie fragte Name, Geburtsdatum, Mail und Telefon ab und
+  nannte in neun Nachrichten weder Nutzen noch Link): Datenabfrage ist verboten, jede Antwort hat ein Ziel — den
+  Link öffnen. Privat `fiaon.com/start`, Unternehmen `fiaon.com/global`, und wenn wir den Menschen kennen, seinen
+  **persönlichen vorausgefüllten** Link. Dazu Zahlen statt Verwaltung (vier Pakete ab 7,99 €, Rahmen bis 25.000 €,
+  Antrag unter zwei Minuten) und Antworten auf die vier häufigsten Einwände.
+- **Menschliches Tempo:** Sie antwortete in fünf Sekunden. Jetzt wird die Antwort vorbereitet und mit Verzögerung
+  fällig gestellt (lesen + denken + tippen, 20 bis 90 Sekunden, mit Streuung). Ein eigener Takt schickt sie ab und
+  verwirft sie, wenn inzwischen eine neue Nachricht kam oder ein Mensch übernommen hat.
+- **Bezahlte Kunden fallen nicht mehr auf „Lead" zurück.** Gemeldet von Florentine („sie hat bezahlt, seitdem ist
+  sie als Lead") und Daniel („Pipeline zeigt nur C-Kunden"): Eine **archivierte** Bestellung wurde bei der
+  Einstufung ignoriert — auch wenn sie **bezahlt** war. Gemessen an Idris Maslah: bezahlte High-End-Bestellung,
+  archiviert, Person stand auf `nur_lead`/Stufe C, während der Überblick daneben eine überfällige Rate zeigte.
+  Ab sofort zählt eine bezahlte Bestellung immer.
+
+**Wo zu finden:** `server/lib/fiaon-provision-automatik.ts`, `server/routes/fiaon-provisionen.ts`,
+`client/src/components/admin/ChefProvisionen.tsx`, `server/lib/fiaon-whatsapp-mara.ts`, `server/lib/tier.ts`.
+
+---
+
 ## 23.09.2026 — Der WhatsApp-Raum für Team und Leitung, Mara antwortet im Chat (E-210)
 
 **Was geändert wurde:**

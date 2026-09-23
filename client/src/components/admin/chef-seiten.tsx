@@ -59,6 +59,7 @@ const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"))
 // 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
 const Mara = lazy(() => import("@/components/admin/ChefMara"));
 const LeadMotor = lazy(() => import("@/components/admin/ChefLeadMotor"));
+const Provisionen = lazy(() => import("@/components/admin/ChefProvisionen"));
 const WhatsAppRaumSeite = lazy(() => import("@/components/whatsapp/WhatsAppRaum").then((m) => ({ default: () => <m.default basis="/chef/whatsapp" /> })));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
@@ -132,6 +133,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "kontoabgleich", label: "Kontoabgleich", satz: "Bank-Eingänge exakt mit Kunden abgleichen.", Seite: Kontoabgleich, raum: "geld", mindest: "geschaeftsfuehrung", auch: "bank kontoauszug wise" },
   { slug: "auszahlungen", label: "Auszahlungen", satz: "Provisions-Anforderungen des Teams freigeben.", Seite: Auszahlungen, raum: "geld", mindest: "geschaeftsfuehrung" },
   { slug: "abrechnungen", label: "Abrechnungen", satz: "Provisionsabrechnungen ansehen, als PDF öffnen, versenden.", Seite: Abrechnungen, raum: "geld", mindest: "geschaeftsfuehrung" },
+  { slug: "provisionen", label: "Provisionen", satz: "Die Automatik an oder aus — und jede Provision, die währenddessen nur vorgemerkt wurde.", Seite: Provisionen, raum: "geld", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "provision automatik vormerkung buchen mitarbeiter" },
   { slug: "verbuchungen", label: "Verbuchungen", satz: "Bestätigte Zahlungen: Umsatz, Provision, Netto.", Seite: Verbuchungen, raum: "geld", mindest: "geschaeftsfuehrung" },
   { slug: "buchhaltung", label: "Buchhaltung", satz: "Buchungsjournal und Ausbuchung.", Seite: Buchhaltung, raum: "geld", mindest: "geschaeftsfuehrung", auch: "ledger journal" },
   { slug: "rechnungen", label: "Rechnungen", satz: "Alle erzeugten Rechnungen durchsuchen und laden.", Seite: Rechnungen, raum: "geld", mindest: "geschaeftsfuehrung" },

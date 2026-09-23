@@ -2,7 +2,7 @@
 // FIAON OFFICE — Vertriebs-Arbeitsliste, Mandate, volle Akte (23.08.2026)
 // E-043 (Plan §15) + E-044/§16/§16a.
 //
-//   GET  /agent/vertrieb/arbeitsliste        → 6 Slots (2+2+2) + Zähler + Mandate
+//   GET  /agent/vertrieb/arbeitsliste        → 6 Slots je Spalte + Vorrat + Mandate
 //   POST /agent/vertrieb/mandat/:personId    → Mandat übernommen (mandat_seit)
 //   GET  /agent/vertrieb/mandate             → Mandats-Kennungen + Anzahl (x/500)
 //   GET  /agent/vertrieb/aktivitaet/:personId→ Zeitleiste ALLER Kundenereignisse
@@ -384,6 +384,51 @@ const NIE_SQL = `(NOT EXISTS (
   AND NOT EXISTS (
   SELECT 1 FROM fiaon_contact_log cr JOIN fiaon_applications an ON an.ref = cr.ref
    WHERE an.person_id = p.id AND cr.type = 'result' AND cr.voided_at IS NULL))`;
+// ═══════════════════════════════════════════════════════════════════════════
+// SEIT DEM LETZTEN ANRUF IST ETWAS PASSIERT (23.09.2026, E-211)
+//
+// ── DER BEFUND ────────────────────────────────────────────────────────────
+// Daniel: „In der Pipeline werden nur C-Kunden angezeigt, und irgendwie kommen
+// da keine neuen Anträge rein." Justin dazu: „Uns ist aufgefallen, dass B-Kunden
+// – Antrag wurde gestellt – als C-Kunden markiert sind."
+//
+// GEMESSEN am 23.09.2026 gegen die Produktionsdatenbank: Die gespeicherte Stufe
+// ist auf KEINER Person falsch (Abgleich `priority_tier` gegen tier.ts:
+// 0 Abweichungen). Falsch war, was die linke Spalte ZEIGT. Sie war definiert
+// als „noch nie angerufen" (NIE_SQL) — und von Daniels 32 A- und 356 B-Kunden
+// waren genau DREI noch nie angerufen. Also konnte links strukturell nur
+// Stufe C stehen: 1.032 nie angerufene Leads standen bereit.
+//
+// Der Denkfehler: „neu" wurde mit „noch nie angefasst" gleichgesetzt. Ein
+// Mensch, den wir vor drei Wochen als Lead angerufen haben und der HEUTE einen
+// Antrag ausfüllt, ist die frischeste Arbeit, die es gibt — er galt aber als
+// „schon bearbeitet" und rutschte nach rechts unter „Wieder dran".
+//
+// ── DIE REGEL ─────────────────────────────────────────────────────────────
+// Neu ist, wer noch nie angerufen wurde ODER seit dem letzten Anruf etwas
+// getan hat: einen Antrag abgeschickt oder eine Zahlung gemeldet. Nach dem
+// nächsten Anruf ist der Kontakt wieder jünger als das Ereignis — die Marke
+// löscht sich von selbst, ohne Aufräumlauf.
+//
+// Beide Hälften sind wie NIE_SQL in je zwei indexfreundliche Unterabfragen
+// geteilt (person_id und ref getrennt); ein ODER über zwei Spalten hat die
+// Pipeline am 08.09. schon einmal zum Stehen gebracht.
+// ═══════════════════════════════════════════════════════════════════════════
+const LETZTER_KONTAKT_SQL = `GREATEST(
+  COALESCE((SELECT MAX(ck.created_at) FROM fiaon_contact_log ck
+              WHERE ck.person_id = p.id AND ck.type = 'result' AND ck.voided_at IS NULL), 'epoch'::timestamptz),
+  COALESCE((SELECT MAX(cm.created_at) FROM fiaon_contact_log cm JOIN fiaon_applications am ON am.ref = cm.ref
+              WHERE am.person_id = p.id AND cm.type = 'result' AND cm.voided_at IS NULL), 'epoch'::timestamptz))`;
+/** Das jüngste eigene Zutun: Antrag abgeschickt oder Zahlung gemeldet. */
+const EIGENES_TUN_SQL = `GREATEST(
+  COALESCE((SELECT MAX(a6.created_at) FROM fiaon_applications a6
+              WHERE a6.person_id = p.id AND a6.merged_into IS NULL AND NOT a6.ist_entwurf), 'epoch'::timestamptz),
+  COALESCE((SELECT MAX(a7.claimed_paid_at) FROM fiaon_applications a7
+              WHERE a7.person_id = p.id AND a7.merged_into IS NULL), 'epoch'::timestamptz))`;
+/** Seit dem letzten Anruf hat dieser Mensch etwas getan — das ist frische Arbeit. */
+const FRISCH_SQL = `(${EIGENES_TUN_SQL} > ${LETZTER_KONTAKT_SQL})`;
+/** „Neu für dich" — die linke Spalte: nie angerufen ODER seither etwas getan. */
+const NEU_FUER_DICH_SQL = `(p.priority_tier BETWEEN 1 AND 3 AND (${NIE_SQL} OR ${FRISCH_SQL}))`;
 // ── WANN WILL DER KUNDE ANGERUFEN WERDEN? (11.09.2026, E-184, Team-Feedback 2) ──
 // „Kunde gibt 08–12 an → wird nur in diesem Zeitraum angezeigt; 18–20 → erst
 // ab 18 Uhr; flexibel → den ganzen Tag." Die Angabe steht im jüngsten Antrag
@@ -645,7 +690,11 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       "NOT p.is_blocked",
       `NOT ${ruhtSql("p")}`,
       `NOT ${wartetSql("p")}`,
-      `(p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})`,
+      // E-211: „oder er hat seit dem letzten Anruf selbst etwas getan" — eine
+      // Wiedervorlage für nächste Woche darf einen Antrag von heute nicht
+      // verdecken. Gemessen am 23.09.: 15 Menschen im Team, alle mit frischem
+      // Antrag oder gemeldeter Zahlung, standen deshalb in keiner Liste.
+      `(p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE} OR ${FRISCH_SQL})`,
       // ── NICHT ERREICHT VERLÄSST DIE PIPELINE (07.09.2026, Justin) ─────────
       // „Heute rufen wir 50 an und klicken auf nicht erreicht, morgen kommen
       // dieselben 50 wieder rein." Bis hierher stand ein Mensch nach dem ersten
@@ -655,7 +704,11 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       // (Kunden → Filter „Nicht erreicht", Menüpunkt im Office) und nicht mehr
       // hier — bis er erreicht wird (erreicht_* setzt den Zähler zurück) oder
       // sich selbst meldet. Die Pipeline zieht dafür frischen Nachschub.
-      `COALESCE(p.unreachable_count, 0) = 0`,
+      // E-211: „… oder sich selbst meldet" stand hier schon als Absicht im
+      // Text, war aber nirgends gebaut. Jetzt ist es gebaut: Wer nach dem
+      // letzten Fehlversuch einen Antrag abschickt oder eine Zahlung meldet,
+      // kommt sofort zurück — das ist genau die Selbstmeldung.
+      `(COALESCE(p.unreachable_count, 0) = 0 OR ${FRISCH_SQL})`,
       // ══════════════════════════════════════════════════════════════════════
       // WER FÜR MORGEN ZAHLEN WILL, IST HEUTE NICHT DRAN
       // (26.08.2026, Florentines Punkt 6)
@@ -719,7 +772,8 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       // hier kommt nur noch dazu: nicht links — also mindestens ein Gesprächsergebnis
       // oder ein bezahlter Kunde mit fälliger Rate. Wer „nicht erreicht" bekommt, hat
       // seit E-162 die Wiedervorlage auf morgen und verschwindet damit für heute.
-      .concat([`NOT (p.priority_tier BETWEEN 1 AND 3 AND ${NIE_SQL})`,
+      // E-211: dieselbe Wendung wie links, damit niemand in beiden Spalten steht.
+      .concat([`NOT ${NEU_FUER_DICH_SQL}`,
         // Ein Termin an einem SPÄTEREN Tag nimmt den Menschen aus beiden Spalten — heute nur, wer heute dran ist.
         `NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
                      AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)`])
@@ -791,7 +845,13 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // Jetzt: links nur Stufe 1–3 ohne jedes Gesprächsergebnis (NIE_SQL); alles
     // andere (nicht erreicht und fällig, Zusage gebrochen, Rückruf, Termin heute,
     // fällige Rate, Wiedervorlage) steht rechts unter „Wieder dran".
-    const HEISS_SQL = `(p.priority_tier BETWEEN 1 AND 3 AND ${NIE_SQL})`;
+    //
+    // 23.09.2026 (E-211): Florentines Satz bleibt gültig — „ganz neue Anträge"
+    // war aber als „noch nie angerufen" gebaut, und damit stand links
+    // ausschließlich Stufe C (Messung oben bei NEU_FUER_DICH_SQL). Ein Antrag
+    // von heute ist ein ganz neuer Antrag, auch wenn derselbe Mensch vor drei
+    // Wochen als Lead am Telefon war. Genau das prüft NEU_FUER_DICH_SQL.
+    const HEISS_SQL = NEU_FUER_DICH_SQL;
     const slotsHolen = async (): Promise<any[]> => {
       const heiss = (await sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
@@ -811,15 +871,42 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       const schon = new Set(heiss.map((r) => Number(r.id)));
       return [...heiss, ...rest.filter((r) => !schon.has(Number(r.id)))];
     };
+    // ══════════════════════════════════════════════════════════════════════
+    // DER VORRAT — WIE VIEL ARBEIT HINTER DEN SECHS PLÄTZEN STEHT (E-211)
+    //
+    // Justin: „Schau, dass die Leute für mehrere Tage genügend zu arbeiten
+    // haben — die müssen auf Maximum arbeiten."
+    //
+    // GEMESSEN am 23.09.2026: Daniel hat 394 fällige A/B-Kunden und 1.032 noch
+    // nie angerufene Leads. Arbeit ist also reichlich da — sichtbar waren
+    // immer nur sechs Karten je Spalte, und was dahinter liegt, stand nirgends.
+    // Wer sechs Karten sieht und nicht weiß, dass 400 dahinter warten, hört bei
+    // Karte sechs auf.
+    //
+    // Die vier alten Stufen-Zähler wurden zwar berechnet, aber NIE angezeigt
+    // (client/src/pages/agent/pipeline.tsx: `slotsZaehler` wird gesetzt und nie
+    // gelesen) — eine teure Abfrage für nichts. Sie zählt jetzt das, was der
+    // Verkäufer wirklich wissen muss: wie viele Menschen hinter jeder Spalte
+    // stehen. Eine Abfrage wie vorher, ein Durchlauf, keine zusätzliche Last.
+    // ══════════════════════════════════════════════════════════════════════
+    const KEIN_TERMIN_ZUKUNFT = `NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
+         AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())`;
+    const basisGemeinsam = basisTeile
+      .filter((t) => !t.includes("unreachable_count, 0) = 0") && !t.includes("tz.status = 'gebucht'"))
+      .join(" AND ");
     const [gSlots, zaehlerR, gWieder] = await Promise.all([
       slotsHolen(),
       sqlPool.unsafe(
         `SELECT
-           COUNT(*) FILTER (WHERE p.priority_tier = 1)::int AS bezahlt_gemeldet,
-           COUNT(*) FILTER (WHERE p.priority_tier = 2)::int AS rechnung_offen,
-           COUNT(*) FILTER (WHERE p.priority_tier = 3)::int AS lead,
-           COUNT(*) FILTER (WHERE COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL})::int AS rate_faellig
-         FROM fiaon_persons p WHERE ${basis}`, [me],
+           COUNT(*) FILTER (WHERE (COALESCE(p.unreachable_count, 0) = 0 OR ${FRISCH_SQL})
+                              AND ${KEIN_TERMIN_ZUKUNFT} AND ${NEU_FUER_DICH_SQL})::int AS vorrat_neu,
+           COUNT(*) FILTER (WHERE NOT ${NEU_FUER_DICH_SQL}
+                              AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
+                                    AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
+                                    AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)
+                              AND (p.priority_tier BETWEEN 1 AND 3
+                                   OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL})))::int AS vorrat_wieder
+         FROM fiaon_persons p WHERE ${basisGemeinsam}`, [me],
       ),
       sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}, ${HITZE_SQL}
@@ -845,12 +932,8 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       ok: true,
       rolle: "agent",
       slots,
-      zaehler: {
-        bezahlt_gemeldet: Number(z.bezahlt_gemeldet || 0),
-        rechnung_offen: Number(z.rechnung_offen || 0),
-        lead: Number(z.lead || 0),
-        rate_faellig: Number(z.rate_faellig || 0),
-      },
+      // E-211: der echte Vorrat hinter den beiden Spalten.
+      vorrat: { neu: Number(z.vorrat_neu || 0), wieder: Number(z.vorrat_wieder || 0) },
       mandate: { anzahl: mandate.anzahl, max: MANDATE_MAX },
     });
   } catch (err) {

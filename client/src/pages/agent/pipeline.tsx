@@ -598,7 +598,10 @@ function PipelineInnen() {
   const [slots, setSlots] = useState<Slot[]>([]);
   // 07.09.2026 (Justin): die rechte Spalte — nicht erreicht, Rückruf fällig, Termin heute.
   const [wieder, setWieder] = useState<Slot[]>([]);
-  const [slotsZaehler, setSlotsZaehler] = useState<Record<string, number>>({});
+  // 23.09.2026 (E-211): Wie viele Menschen stehen HINTER den sechs Karten?
+  // VORHER wurden vier Stufen-Zähler geladen und nie angezeigt — der Verkäufer
+  // sah sechs Karten und wusste nicht, dass 400 dahinter warten.
+  const [vorrat, setVorrat] = useState<{ neu: number; wieder: number }>({ neu: 0, wieder: 0 });
   const [slotsLaedt, setSlotsLaedt] = useState(true);
   const [slotsFehler, setSlotsFehler] = useState<string | null>(null);
   const [fokusId, setFokusId] = useState<number | null>(null);
@@ -673,7 +676,7 @@ function PipelineInnen() {
     if (r.ok) {
       setSlots(r.json.slots || []);
       setWieder(r.json.wieder || []);
-      setSlotsZaehler(r.json.zaehler || {});
+      setVorrat({ neu: Number(r.json.vorrat?.neu || 0), wieder: Number(r.json.vorrat?.wieder || 0) });
       if (r.json.rolle) setRolle(r.json.rolle);
       if (r.json.mandate) setMandate((m) => ({ ...m, anzahl: Number(r.json.mandate.anzahl || 0) }));
       setSlotsFehler(null);
@@ -942,7 +945,11 @@ function PipelineInnen() {
                   bleiben immer frische Menschen. */}
               <div className="pi-spalten">
               <div className="pi-spalte">
-              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Neu für dich</b><span className="linie" aria-hidden="true" /></div>
+              {/* E-211: Die Zahl dahinter ist der Vorrat, nicht die Kartenzahl —
+                  „6 von 394" sagt dem Verkäufer, dass der Tag nicht zu Ende ist. */}
+              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Neu für dich</b>
+                {vorrat.neu > kleine.length && <span className="pi-vorrat">noch {vorrat.neu}</span>}
+                <span className="linie" aria-hidden="true" /></div>
               {/* E-051 Nr. 1 (Justin): VORHER ein 2-spaltiges Raster (FLIP) —
                   NACHHER ein 3D-Karussell: eine Karte mittig vorn, Nachbarn
                   perspektivisch dahinter; Pfeile, Wischen, Tastatur; Klick auf
@@ -958,7 +965,9 @@ function PipelineInnen() {
                                 onEntfernen={(k) => void karteileiche(k)} />)}
               </div>
               <div className="pi-spalte">
-              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Wieder dran</b><span className="linie" aria-hidden="true" /></div>
+              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Wieder dran</b>
+                {vorrat.wieder > wiederOhneFokus.length && <span className="pi-vorrat">noch {vorrat.wieder}</span>}
+                <span className="linie" aria-hidden="true" /></div>
               {wiederOhneFokus.length === 0 ? <p className="pi-fussnote pi-spalte-leer">Niemand wartet auf einen zweiten Versuch — nicht erreicht, Rückrufe und heutige Termine erscheinen hier.</p> : (
               <KleinesKarussell kinder={wiederOhneFokus} geht={geht} gesperrt={offen != null} flach={ruhig}
                                 onFokus={(id) => setFokusId(id)}
@@ -1640,7 +1649,151 @@ function LeitungsZeile({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" 
       </select>
       {wahl && <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void verschieben()}>{busy ? "…" : "Verschieben"}</button>}
       <button type="button" className="pi-knopf klein still" disabled={busy} onClick={() => void portal()} title="Nur-Lese-Ansicht, 30 Minuten, steht im Verlauf">Portal ansehen</button>
+      <DublettenKnopf k={k} melden={melden} onFrisch={onFrisch} />
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DUBLETTEN ZUSAMMENFÜHREN — AUS DER AKTE HERAUS (23.09.2026, E-211)
+//
+// Justin: „Wenn man in einer Kundenakte ist, dann muss man einen Knopf haben
+// mit ‚Dubletten zusammenfügen‘, wo man in der GESAMTEN Datenbank nach dem
+// eingegebenen Namen suchen kann und die Person dann mit der ausgewählten
+// ersetzen kann." Florentine findet Paare, die die automatische Erkennung
+// nicht findet: Heirat, andere Schreibweise, Tippfehler in beiden Akten.
+//
+// Zwei Entscheidungen, mehr nicht: WEN und WELCHE BLEIBT. Die zweite ist die
+// wichtige — deshalb steht sie als Frage da und nicht als Häkchen. Der
+// Vorschlag richtet sich danach, wo Geld liegt: Eine Akte mit bezahlter
+// Bestellung bleibt, sonst die mit mehr Bestellungen.
+//
+// Zusammengeführt wird über denselben Weg wie im Management
+// (POST /agent/vertrieb/dubletten/zusammenfuehren): Der Gewinner behält seine
+// Werte, Lücken werden aus der anderen Akte gefüllt, alles Übrige bleibt als
+// Alias erhalten. Es geht nichts verloren, und es steht im Protokoll.
+// ═══════════════════════════════════════════════════════════════════════════
+interface DublettenTreffer {
+  id: number; personRef: string; name: string; email: string | null; telefon: string | null;
+  geburtsdatum: string | null; ort: string | null; betreuer: string | null;
+  stufe: number; bestellungen: number; bezahlt: boolean; angelegt: string;
+}
+
+function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void }) {
+  const [offen, setOffen] = useState(false);
+  const [suche, setSuche] = useState("");
+  const [treffer, setTreffer] = useState<DublettenTreffer[] | null>(null);
+  const [laedt, setLaedt] = useState(false);
+  const [wahl, setWahl] = useState<DublettenTreffer | null>(null);
+  const [bleibt, setBleibt] = useState<"diese" | "gefundene">("diese");
+  const [busy, setBusy] = useState(false);
+
+  // Beim Öffnen gleich mit dem Namen suchen — das ist der Normalfall.
+  useEffect(() => {
+    if (!offen) return;
+    const start = (k.name || "").trim();
+    setSuche(start);
+    setWahl(null); setTreffer(null);
+  }, [offen, k.name]);
+
+  useEffect(() => {
+    if (!offen) return;
+    const q = suche.trim();
+    if (q.length < 2) { setTreffer(null); return; }
+    let an = true;
+    const t = window.setTimeout(async () => {
+      setLaedt(true);
+      const r = await api(`/agent/vertrieb/dubletten/suche?q=${encodeURIComponent(q)}&ausser=${k.personId}`);
+      if (!an) return;
+      setLaedt(false);
+      setTreffer(r.ok ? (r.json.treffer ?? []) : []);
+    }, 300);
+    return () => { an = false; window.clearTimeout(t); };
+  }, [offen, suche, k.personId]);
+
+  const waehlen = (t: DublettenTreffer) => {
+    setWahl(t);
+    // Vorschlag: Wo Geld liegt, bleibt die Akte.
+    setBleibt(t.bezahlt && !(k as any).bezahlt ? "gefundene" : "diese");
+  };
+
+  const zusammenfuehren = async () => {
+    if (!wahl) return;
+    const gewinnerId = bleibt === "diese" ? k.personId : wahl.id;
+    const verliererId = bleibt === "diese" ? wahl.id : k.personId;
+    const bleibtName = bleibt === "diese" ? k.name : wahl.name;
+    const gehtName = bleibt === "diese" ? wahl.name : k.name;
+    if (!window.confirm(`Zusammenführen:\n\n„${gehtName}" (${verliererId}) geht in „${bleibtName}" (${gewinnerId}) auf.\n\nBestellungen, Verlauf und Unterlagen wandern mit. Das lässt sich nicht mit einem Klick rückgängig machen.`)) return;
+    setBusy(true);
+    const r = await api("/agent/vertrieb/dubletten/zusammenfuehren", { method: "POST", body: JSON.stringify({ gewinnerId, verliererId }) });
+    setBusy(false);
+    if (!r.ok) { melden("schlecht", "Nicht zusammengeführt", r.json?.error || "Der Server hat abgelehnt — es wurde nichts geändert."); return; }
+    melden("gut", "Zusammengeführt", `„${gehtName}" ist jetzt Teil von „${bleibtName}".`);
+    setOffen(false); setWahl(null); onFrisch();
+  };
+
+  return (
+    <>
+      <button type="button" className="pi-knopf klein still" onClick={() => setOffen(true)} title="Zwei Akten desselben Menschen zu einer machen">Dubletten zusammenführen</button>
+      {offen && (
+        <div className="pi-dub-hintergrund" role="dialog" aria-modal="true" aria-label="Dubletten zusammenführen" onClick={(e) => { if (e.target === e.currentTarget) setOffen(false); }}>
+          <div className="pi-dub">
+            <header className="pi-dub-kopf">
+              <div>
+                <h3>Dubletten zusammenführen</h3>
+                <p>Diese Akte: <b>{k.name}</b>. Suche in der gesamten Datenbank — Name, E-Mail, Nummer oder Kennung.</p>
+              </div>
+              <button type="button" className="pi-dub-zu" onClick={() => setOffen(false)} aria-label="Schließen">×</button>
+            </header>
+
+            <input className="pi-dub-feld" value={suche} onChange={(e) => setSuche(e.target.value)}
+                   placeholder="Name, E-Mail, Nummer oder Kennung" autoFocus spellCheck={false} />
+
+            {laedt && <p className="pi-dub-still">Sucht …</p>}
+            {!laedt && treffer !== null && treffer.length === 0 && <p className="pi-dub-still">Nichts gefunden. Andere Schreibweise oder nur den Nachnamen probieren.</p>}
+
+            {!laedt && treffer !== null && treffer.length > 0 && (
+              <ul className="pi-dub-liste">
+                {treffer.map((t) => (
+                  <li key={t.id}>
+                    <button type="button" className={`pi-dub-zeile${wahl?.id === t.id ? " gewaehlt" : ""}`} onClick={() => waehlen(t)}>
+                      <span className="pi-dub-name">{t.name}{t.bezahlt && <em className="pi-dub-marke">bezahlt</em>}</span>
+                      <span className="pi-dub-sub">
+                        {[t.email, t.telefon, t.ort, t.geburtsdatum ? dtag(t.geburtsdatum) : null].filter(Boolean).join(" · ") || t.personRef}
+                      </span>
+                      <span className="pi-dub-sub leise">
+                        {t.bestellungen === 1 ? "1 Bestellung" : `${t.bestellungen} Bestellungen`}
+                        {t.betreuer ? ` · ${t.betreuer}` : " · ohne Betreuer"} · {t.personRef}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {wahl && (
+              <div className="pi-dub-fuss">
+                <p className="pi-dub-frage">Welche Akte bleibt?</p>
+                <div className="pi-dub-wahl">
+                  <button type="button" className={bleibt === "diese" ? "an" : ""} onClick={() => setBleibt("diese")}>
+                    <b>{k.name}</b><span>diese Akte</span>
+                  </button>
+                  <button type="button" className={bleibt === "gefundene" ? "an" : ""} onClick={() => setBleibt("gefundene")}>
+                    <b>{wahl.name}</b><span>{wahl.personRef}</span>
+                  </button>
+                </div>
+                <p className="pi-dub-still">
+                  Die andere Akte geht darin auf: Bestellungen, Verlauf und Unterlagen wandern mit, abweichende Angaben bleiben als frühere Werte erhalten.
+                </p>
+                <button type="button" className="pi-knopf gross" disabled={busy} onClick={() => void zusammenfuehren()}>
+                  {busy ? "Führt zusammen …" : "Jetzt zusammenführen"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

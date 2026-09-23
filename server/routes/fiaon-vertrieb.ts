@@ -1369,6 +1369,74 @@ router.get("/agent/vertrieb/dubletten/paar/:a/:b", requireAgent, nurLeitung, nur
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DUBLETTEN VON HAND SUCHEN — AUS DER AKTE HERAUS (23.09.2026, E-211)
+//
+// Justin: „Wenn man in einer Kundenakte ist, dann muss man einen Knopf haben
+// mit ‚Dubletten zusammenfügen‘, wo man in der GESAMTEN Datenbank nach dem
+// eingegebenen Namen suchen kann und die Person dann mit der ausgewählten
+// ersetzen kann. Florentine findet Dubletten, die das System nicht findet."
+//
+// ── WARUM DAS NÖTIG IST ───────────────────────────────────────────────────
+// Die Kandidatenliste (findeKandidaten) findet Paare über Telefon, E-Mail,
+// Name+Geburtsdatum und ähnliche Namen. Was sie NICHT findet: zwei Akten
+// desselben Menschen mit anderem Namen (Heirat), anderer Schreibweise
+// (Umschrift), Tippfehler in beiden, oder eine zweite Anmeldung mit der
+// Nummer der Partnerin. Ein Mensch sieht das — die Maschine nicht.
+//
+// ── WAS HIER NEU IST, UND WAS AUSDRÜCKLICH NICHT ──────────────────────────
+// Neu ist ausschließlich das SUCHEN. Das Zusammenführen selbst läuft
+// unverändert über `fuehreMergeAus` → `personenZusammenfuehren`: derselbe Weg,
+// dieselben Sperren, dieselbe Spur im Protokoll. Eine zweite Merge-Fassung
+// wäre die Gelegenheit, zwei verschiedene Ergebnisse zu erzeugen.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/vertrieb/dubletten/suche", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const q = String(req.query.q ?? "").trim();
+    const ausser = Number(req.query.ausser ?? 0) || 0;
+    if (q.length < 2) return res.json({ ok: true, treffer: [] });
+    // Ziffernfolge → auch als Nummer suchen (Leerzeichen und Bindestriche egal).
+    const ziffern = q.replace(/\D+/g, "");
+    const muster = `%${q}%`;
+    const zeilen = (await sqlPool`
+      SELECT p.id, p.person_ref, p.first_name, p.last_name, p.company_name, p.contact_name,
+             p.primary_email, p.primary_phone, p.birthdate, p.city, p.created_at,
+             p.priority_tier, ag.name AS betreuer,
+             (SELECT COUNT(*)::int FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NOT a.ist_entwurf) AS bestellungen,
+             EXISTS (SELECT 1 FROM fiaon_applications a2
+                      WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.payment_status = 'paid') AS bezahlt
+        FROM fiaon_persons p
+        LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+       WHERE p.merged_into_person_id IS NULL
+         AND (${ausser}::int = 0 OR p.id <> ${ausser})
+         AND (
+           TRIM(CONCAT_WS(' ', p.first_name, p.last_name)) ILIKE ${muster}
+           OR p.first_name ILIKE ${muster} OR p.last_name ILIKE ${muster}
+           OR p.company_name ILIKE ${muster} OR p.contact_name ILIKE ${muster}
+           OR p.primary_email ILIKE ${muster} OR p.person_ref ILIKE ${muster}
+           OR (${ziffern.length >= 5} AND REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g') LIKE ${`%${ziffern}%`})
+         )
+       ORDER BY bezahlt DESC, bestellungen DESC, p.created_at DESC
+       LIMIT 25`) as any[];
+    res.json({
+      ok: true,
+      treffer: zeilen.map((p) => ({
+        id: Number(p.id), personRef: p.person_ref,
+        name: [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.company_name || p.contact_name || p.primary_email || p.person_ref,
+        email: p.primary_email ?? null, telefon: p.primary_phone ?? null,
+        geburtsdatum: p.birthdate ?? null, ort: p.city ?? null,
+        betreuer: p.betreuer ?? null, stufe: Number(p.priority_tier ?? 3),
+        bestellungen: Number(p.bestellungen || 0), bezahlt: p.bezahlt === true,
+        angelegt: p.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] dubletten suche:", err);
+    res.status(500).json({ ok: false, error: "Die Suche ist fehlgeschlagen." });
+  }
+});
+
 router.post("/agent/vertrieb/dubletten/zusammenfuehren", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   const { fuehreMergeAus } = await import("./fiaon-dubletten");
   const { status, antwort } = await fuehreMergeAus(req.body, alsAkteur(req));

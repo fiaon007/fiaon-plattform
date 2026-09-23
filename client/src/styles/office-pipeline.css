@@ -1054,3 +1054,61 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-spalte+.pi-spalte{border-left:1px solid rgba(255,255,255,.08);padding-left:22px}
 .pi-spalte-leer{padding:26px 14px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:16px;color:#94a3b8}
 @media (max-width:1040px){.pi-spalten{grid-template-columns:1fr;gap:12px}.pi-spalte+.pi-spalte{border-left:0;padding-left:0;border-top:1px solid rgba(255,255,255,.08);padding-top:12px}}
+
+/* E-211 (23.09.2026): der Vorrat hinter den sechs Karten — ruhig, klein,
+   direkt neben der Spaltenüberschrift. Keine Kachel, keine Farbe: eine Zahl,
+   die sagt, dass der Tag noch nicht zu Ende ist. */
+.pi-vorrat{
+  flex:0 0 auto;font:400 10.5px/1 'Inter',sans-serif;letter-spacing:.08em;
+  color:#64748b;padding:4px 9px;border:1px solid rgba(148,163,184,.18);border-radius:99px;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+
+/* ═══ Dubletten zusammenführen (23.09.2026, E-211) ═══════════════════════
+   Eine Lade über der Akte: suchen, eine Akte wählen, entscheiden welche
+   bleibt. Ruhige Linie wie der Rest der Akte — Haarlinien statt Kästen,
+   dünne Schrift, eine einzige blaue Handlung am Ende. */
+.pi-dub-hintergrund{
+  position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(3,7,18,.72);backdrop-filter:blur(6px);
+}
+.pi-dub{
+  width:min(560px,100%);max-height:min(82vh,760px);overflow:auto;display:grid;gap:14px;
+  padding:22px;border-radius:20px;border:1px solid rgba(148,163,184,.16);
+  background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(11,17,32,.98));
+  box-shadow:0 30px 80px rgba(0,0,0,.55);
+}
+.pi-dub-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.pi-dub-kopf h3{margin:0;font:300 19px/1.2 'Inter',sans-serif;letter-spacing:-.01em;color:#e7ecf4}
+.pi-dub-kopf p{margin:6px 0 0;font:400 12.5px/1.55 'Inter',sans-serif;color:#8ea0b8}
+.pi-dub-kopf b{color:#cbd5e1;font-weight:500}
+.pi-dub-zu{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(148,163,184,.18);background:transparent;color:#94a3b8;font-size:17px;line-height:1;cursor:pointer}
+.pi-dub-feld{
+  width:100%;min-height:42px;padding:0 14px;border-radius:12px;
+  border:1px solid rgba(148,163,184,.2);background:rgba(148,163,184,.06);
+  color:#e7ecf4;font:400 13.5px/1 'Inter',sans-serif;
+}
+.pi-dub-feld:focus{outline:none;border-color:rgba(147,197,253,.5)}
+.pi-dub-still{margin:0;font:400 12px/1.6 'Inter',sans-serif;color:#64748b}
+.pi-dub-liste{list-style:none;margin:0;padding:0;display:grid;gap:1px;background:rgba(148,163,184,.12);border-radius:12px;overflow:hidden}
+.pi-dub-zeile{
+  width:100%;display:grid;gap:3px;padding:11px 13px;border:0;text-align:left;cursor:pointer;
+  background:#0d1526;color:#cbd5e1;font:inherit;
+}
+.pi-dub-zeile.gewaehlt{background:rgba(37,99,235,.18)}
+.pi-dub-name{font:500 13.5px/1.3 'Inter',sans-serif;color:#e7ecf4;display:flex;align-items:center;gap:8px}
+.pi-dub-marke{font:400 9.5px/1 'Inter',sans-serif;font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:#6ee7b7;border:1px solid rgba(110,231,183,.3);border-radius:99px;padding:3px 7px}
+.pi-dub-sub{font:400 11.5px/1.45 'Inter',sans-serif;color:#8ea0b8}
+.pi-dub-sub.leise{color:#5d6c83}
+.pi-dub-fuss{display:grid;gap:10px;padding-top:12px;border-top:1px solid rgba(148,163,184,.14)}
+.pi-dub-frage{margin:0;font:400 12.5px/1 'Inter',sans-serif;color:#94a3b8}
+.pi-dub-wahl{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.pi-dub-wahl button{
+  display:grid;gap:3px;padding:11px 13px;border-radius:12px;text-align:left;cursor:pointer;
+  border:1px solid rgba(148,163,184,.18);background:transparent;color:#8ea0b8;font:inherit;
+}
+.pi-dub-wahl button b{font:500 13px/1.3 'Inter',sans-serif;color:#cbd5e1}
+.pi-dub-wahl button span{font:400 11px/1.3 'Inter',sans-serif;color:#64748b}
+.pi-dub-wahl button.an{border-color:rgba(147,197,253,.45);background:rgba(37,99,235,.16)}
+.pi-dub-wahl button.an b{color:#e7ecf4}
+@media (max-width:560px){ .pi-dub-wahl{grid-template-columns:1fr} }

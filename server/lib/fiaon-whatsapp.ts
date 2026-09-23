@@ -19,7 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { graph, MetaFehler } from "./fiaon-meta";
-import { WA_VORLAGEN, type WaVorlage } from "../../shared/fiaon-lead-texte";
+import { WA_VORLAGEN, INKASSO_AUSNAHME, type WaVorlage } from "../../shared/fiaon-lead-texte";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
 
@@ -122,6 +122,27 @@ export function vorlageAlsMeta(v: WaVorlage): Record<string, unknown> {
   if (v.fuss) komponenten.push({ type: "FOOTER", text: v.fuss.slice(0, 60) });
   if (knoepfe.length) komponenten.push({ type: "BUTTONS", buttons: knoepfe });
   return { name: v.name, language: "de", category: v.kategorie, components: komponenten };
+}
+
+/**
+ * ALLE VORLAGEN — Haus und Werkstatt (23.09.2026, E-222)
+ *
+ * Die vierzehn aus dem Quelltext werden namentlich aufgerufen und bleiben dort.
+ * Die selbst gebauten stehen in der Datenbank. Für alles, was Vorlagen
+ * EINREICHT, AUFRÄUMT oder SENDET, sind beide dasselbe — deshalb gibt es
+ * genau eine Funktion, die sie zusammenlegt. Bei Namensgleichheit gewinnt der
+ * Quelltext: Was der Code aufruft, darf niemand aus der Oberfläche umbiegen.
+ */
+export async function alleVorlagen(): Promise<WaVorlage[]> {
+  try {
+    const { eigeneVorlagen } = await import("./fiaon-whatsapp-werkstatt");
+    const eigen = await eigeneVorlagen();
+    const haus = new Set(WA_VORLAGEN.map((v) => v.name));
+    return [...WA_VORLAGEN, ...eigen.filter((v) => !haus.has(v.name))];
+  } catch (e) {
+    console.error("[WHATSAPP] Eigene Vorlagen nicht lesbar:", e);
+    return [...WA_VORLAGEN];
+  }
 }
 
 /** Was Meta über unsere Vorlagen weiß. */
@@ -268,8 +289,9 @@ export async function vorlagenEinreichenUndAuffrischen(): Promise<{
   const nachName = new Map(beiMeta.map((t) => [t.name, t]));
   const neuEinreichen: WaVorlage[] = [];
   const auffrischen: { v: WaVorlage; id: string }[] = [];
+  const alle = await alleVorlagen();
 
-  for (const v of WA_VORLAGEN) {
+  for (const v of alle) {
     const funde = sendePruefung(v.text.replace(/\{\{\d\}\}/g, "Maria Muster"));
     if (funde.length) { erg.fehler.push({ name: v.name, grund: funde.join(" · ") }); continue; }
     const da = nachName.get(v.name);
@@ -332,7 +354,7 @@ export async function vorlagenAufraeumen(opts: { probe?: boolean } = {}): Promis
   const k = waKonfig();
   const erg = { behalten: [] as string[], geloescht: [] as string[], fehler: [] as { name: string; grund: string }[], probe: opts.probe === true };
   if (!k.wabaId) { erg.fehler.push({ name: "—", grund: "WHATSAPP_WABA_ID fehlt in der Umgebung." }); return erg; }
-  const aktuell = new Set(WA_VORLAGEN.map((v) => v.name));
+  const aktuell = new Set((await alleVorlagen()).map((v) => v.name));
   const beiMeta = await vorlagenStand().catch(() => []);
   const weg = beiMeta.filter((t) => {
     if (aktuell.has(t.name)) { erg.behalten.push(t.name); return false; }
@@ -388,8 +410,17 @@ export async function waSenden(
   if (!nummer) return { ok: false, grund: "Keine brauchbare Nummer." };
   await waTabellen(lauf);
 
-  const probe = inhalt.text ?? WA_VORLAGEN.find((v) => v.name === inhalt.vorlage)?.text ?? "";
-  const funde = sendePruefung(probe.replace(/\{\{\d\}\}/g, (m) => inhalt.werte?.[Number(m[2]) - 1] ?? "Maria Muster"));
+  const katalog = await alleVorlagen();
+  const gewaehlt = inhalt.vorlage ? katalog.find((v) => v.name === inhalt.vorlage) ?? null : null;
+  const probe = inhalt.text ?? gewaehlt?.text ?? "";
+  // E-222: Die Inkasso-Wand gilt — außer für die Vorlagen, die ausdrücklich
+  // als Zahlungserinnerung zur EIGENEN Rechnung gebaut wurden. Erlaubt ist das
+  // benannt: im Quelltext über INKASSO_AUSNAHME, in der Werkstatt über einen
+  // Haken, den ein Mensch gesetzt hat. Nie pauschal.
+  const inkassoOk = !!inhalt.vorlage
+    && ((INKASSO_AUSNAHME as readonly string[]).includes(inhalt.vorlage) || (gewaehlt as any)?.inkassoErlaubt === true);
+  const funde = sendePruefung(probe.replace(/\{\{\d\}\}/g, (m) => inhalt.werte?.[Number(m[2]) - 1] ?? "Maria Muster"))
+    .filter((f) => !(inkassoOk && /Mahnung oder Forderung/.test(f)));
   if (funde.length) return { ok: false, grund: funde.join(" · ") };
 
   const offen = await fensterOffen(nummer, lauf);
@@ -411,7 +442,7 @@ export async function waSenden(
   // Sonst müsste jede der sieben Aufrufstellen dieselbe Regel kennen, und sechs
   // davon würden sie beim nächsten Umbau vergessen.
   // ══════════════════════════════════════════════════════════════════════
-  const vorlage = inhalt.vorlage ? WA_VORLAGEN.find((v) => v.name === inhalt.vorlage) ?? null : null;
+  const vorlage = gewaehlt;
   const urlKnopf = vorlage?.knoepfe.find((x) => x.typ === "URL" && x.url.includes("{{")) as { typ: "URL"; url: string } | undefined;
   let knopfWert = inhalt.knopfWert ?? null;
   if (urlKnopf && !knopfWert) {

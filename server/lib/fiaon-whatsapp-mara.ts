@@ -209,6 +209,9 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
         antwort_text = ${antwort}, antwort_faellig_am = ${faellig},
         antwort_auf_id = ${Number(neueste.id ?? 0) || null}, updated_at = NOW()`;
 
+    // E-224: Wecker auf die Sekunde — der 20-Sekunden-Takt allein wäre zu grob.
+    weckerStellen(faellig.getTime() - Date.now());
+
     if (personId && String(roh?.gemerkt ?? "").trim()) {
       await gedaechtnisMerken(personId, String(roh.gemerkt).trim(), "whatsapp").catch(() => {});
     }
@@ -245,14 +248,35 @@ async function aufgabeFuerMenschen(nummer: string, personId: number | null, grun
  * Länge der Frage wächst, plus Streuung — nie zweimal dieselbe Zahl.
  */
 export function verzoegerungMs(antwort: string, frage: string): number {
-  const lesen = Math.min(6000, String(frage).length * 45);
-  const denken = 4000 + Math.random() * 6000;
-  const tippen = Math.min(45_000, (String(antwort).length / 13) * 1000);
-  const streuung = 0.85 + Math.random() * 0.4;
-  return Math.round(Math.min(90_000, Math.max(20_000, (lesen + denken + tippen) * streuung)));
+  // ── 23.09.2026 (E-224): SCHNELLER ────────────────────────────────────
+  // Justin: „Mara antwortet nicht, sie soll schneller antworten, binnen 20
+  // Sekunden." Die erste Fassung (21.09.) sollte menschlich wirken und lag bei
+  // 20 bis 90 Sekunden — bei einer langen Antwort also anderthalb Minuten.
+  // Wer eine Frage stellt und eine Minute nichts hört, ist weg.
+  //
+  // Neu: 6 bis 18 Sekunden. Das ist immer noch keine Maschine, die in 200
+  // Millisekunden zurückschießt — es ist jemand, der das Handy in der Hand
+  // hat. Die Streuung bleibt, damit es nie zweimal dieselbe Zahl ist.
+  const lesen = Math.min(2500, String(frage).length * 18);
+  const denken = 2000 + Math.random() * 2500;
+  const tippen = Math.min(9000, (String(antwort).length / 28) * 1000);
+  const streuung = 0.85 + Math.random() * 0.3;
+  return Math.round(Math.min(18_000, Math.max(6000, (lesen + denken + tippen) * streuung)));
 }
 
 let versandLaeuft = false;
+
+/**
+ * Genau dann senden, wenn es so weit ist (E-224).
+ *
+ * Der Takt läuft alle 20 Sekunden. Bei 6 Sekunden Verzögerung hieße das bis zu
+ * 26 Sekunden Wartezeit — über Justins Grenze. Deshalb wird zusätzlich ein
+ * Wecker gestellt, der auf die Sekunde genau auslöst. Der Takt bleibt als
+ * Netz darunter: Stirbt der Wecker beim Neustart, holt ihn der nächste Takt.
+ */
+function weckerStellen(ms: number): void {
+  setTimeout(() => { void versandLauf().catch((e) => console.error("[MARA-WA] Wecker:", e)); }, Math.max(500, ms + 300));
+}
 
 /**
  * Schickt die fälligen Antworten. Läuft im Takt (alle 20 Sekunden) und prüft
@@ -279,6 +303,10 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
         SELECT id, richtung FROM fiaon_whatsapp WHERE nummer = ${nummer} ORDER BY id DESC LIMIT 1`) as any[];
       // Inzwischen etwas Neues? Dann ist die vorbereitete Antwort veraltet.
       if (!letzte || Number(letzte.id) !== Number(g.antwort_auf_id)) {
+        // E-224: Inzwischen kam etwas Neues — die vorbereitete Antwort passt
+        // nicht mehr. Neu denken, aber NICHT von vorn warten: Wer vier Fragen
+        // in zehn Sekunden stellt, hat sonst viermal die Uhr zurückgedreht und
+        // bekommt nie eine Antwort. Genau das ist am 23.09. passiert.
         await leeren();
         verworfen++;
         void maraAntwortet(nummer).catch(() => {});

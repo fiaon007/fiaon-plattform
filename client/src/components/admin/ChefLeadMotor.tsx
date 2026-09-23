@@ -467,6 +467,8 @@ export default function ChefLeadMotor() {
           </section>
 
           <Vorlagen melden={setMeldung} />
+          {/* E-222/E-223: Werkstatt, Geschäftsprofil und die WhatsApp-Kette. */}
+          <Werkstatt melden={setMeldung} />
 
           <details className="lm-karte lm-texte">
             <summary>Hinweistext im Meta-Formular</summary>
@@ -674,6 +676,210 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
           );
         })}
       </ul>
+    </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WERKSTATT (23.09.2026, E-222/E-223)
+//
+// Justin: „Gib mir auch die Möglichkeit mit allen Funktionen, die Meta
+// anbietet, dass wir selbst Vorlagen anlegen, bearbeiten und gestalten können."
+// Und: „Mache das SUPER seriös, damit das zur Verkaufsmaschine wird."
+//
+// Drei Dinge an einem Ort: das Geschäftsprofil (was der Kunde im Chat oben
+// sieht), eigene Vorlagen (anlegen, ändern, löschen) und der Schalter für die
+// WhatsApp-Kette an neue Leads.
+// ═══════════════════════════════════════════════════════════════════════════
+interface EigeneVorlage {
+  name: string; kategorie: string; zweck: string; wann: string;
+  kopf?: string; fuss?: string; text: string; beispiele: string[]; knoepfe: WaKnopf[];
+  inkassoErlaubt?: boolean;
+}
+const LEER: EigeneVorlage = {
+  name: "", kategorie: "UTILITY", zweck: "", wann: "", kopf: "", fuss: "FIAON LTD · Antworten Sie jederzeit hier",
+  text: "", beispiele: [], knoepfe: [],
+};
+
+function Werkstatt({ melden }: { melden: (t: string) => void }) {
+  const d = useDaten<{ eigene: EigeneVorlage[]; profil: any; vorschlag: any; kette: boolean }>("/chef/lead-motor/werkstatt");
+  const [bau, setBau] = useState<EigeneVorlage | null>(null);
+  const [funde, setFunde] = useState<string[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [profil, setProfil] = useState<any | null>(null);
+
+  useEffect(() => { if (d.daten?.profil && !profil) setProfil({ ...d.daten.profil }); }, [d.daten, profil]);
+
+  const ruf = async (pfad: string, koerper?: unknown) => {
+    const r = await fetch(`${API}${pfad}`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(koerper ?? {}),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || j?.ok === false) throw new Error(j?.error || "Das hat nicht geklappt.");
+    return j;
+  };
+
+  // Die Prüfung läuft beim Tippen — der Mensch soll nicht erst beim Speichern
+  // erfahren, dass ein Wort nicht geht.
+  useEffect(() => {
+    if (!bau?.text) { setFunde([]); return; }
+    const t = window.setTimeout(() => {
+      void ruf("/chef/lead-motor/werkstatt/pruefen", bau).then((j) => setFunde(j.funde ?? [])).catch(() => {});
+    }, 500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bau?.text, bau?.inkassoErlaubt]);
+
+  const speichern = async () => {
+    if (!bau) return;
+    setBusy("v");
+    try {
+      await ruf("/chef/lead-motor/werkstatt/vorlage", bau);
+      melden("Gespeichert. Mit dem Knopf „einreichen“ oben geht sie an Meta.");
+      setBau(null); d.neu();
+    } catch (e: any) { melden(e.message); } finally { setBusy(null); }
+  };
+
+  if (d.fehler) return <section className="lm-karte"><h2>Werkstatt</h2><Fehlermeldung text={d.fehler} erneut={d.neu} /></section>;
+  if (!d.daten) return <section className="lm-karte"><h2>Werkstatt</h2><Geruest zeilen={3} /></section>;
+
+  const varianten = (bau?.text.match(/\{\{\d\}\}/g) ?? []).length;
+
+  return (
+    <section className="lm-karte lm-werkstatt" aria-label="Werkstatt">
+      <div className="lm-karte-kopf">
+        <div>
+          <h2>Werkstatt</h2>
+          <p className="lm-still">Das Geschäftsprofil, eigene Vorlagen und die WhatsApp-Kette an neue Leads.</p>
+        </div>
+        <button type="button" className={`lm-knopf${d.daten.kette ? "" : " "}`}
+          onClick={() => void ruf("/chef/lead-motor/werkstatt/kette", { an: !d.daten!.kette })
+            .then(() => { melden(d.daten!.kette ? "Kette aus — es geht keine WhatsApp mehr an neue Leads." : "Kette an. Neue Leads bekommen in Sekunden ihre erste WhatsApp."); d.neu(); })
+            .catch((e) => melden(e.message))}>
+          {d.daten.kette ? "WhatsApp-Kette läuft" : "WhatsApp-Kette einschalten"}
+        </button>
+      </div>
+
+      {/* ── Geschäftsprofil ──────────────────────────────────────────── */}
+      <details className="lm-profil">
+        <summary>Geschäftsprofil — was der Kunde im Chat oben sieht</summary>
+        {profil && (
+          <div className="lm-profil-felder">
+            <label>Statuszeile<input value={profil.about ?? ""} maxLength={139} onChange={(e) => setProfil({ ...profil, about: e.target.value })} /></label>
+            <label>Beschreibung<textarea rows={3} value={profil.description ?? ""} maxLength={512} onChange={(e) => setProfil({ ...profil, description: e.target.value })} /></label>
+            <label>Anschrift<input value={profil.address ?? ""} maxLength={256} onChange={(e) => setProfil({ ...profil, address: e.target.value })} /></label>
+            <label>E-Mail<input value={profil.email ?? ""} maxLength={128} onChange={(e) => setProfil({ ...profil, email: e.target.value })} /></label>
+            <label>Website<input value={(profil.websites ?? [])[0] ?? ""} onChange={(e) => setProfil({ ...profil, websites: [e.target.value, (profil.websites ?? [])[1]].filter(Boolean) })} /></label>
+            <div className="lm-profil-tun">
+              <button type="button" className="lm-knopf" disabled={busy === "p"}
+                onClick={() => { setBusy("p"); void ruf("/chef/lead-motor/werkstatt/profil", profil).then(() => { melden("Profil gesetzt — der Kunde sieht es beim nächsten Öffnen."); d.neu(); }).catch((e) => melden(e.message)).finally(() => setBusy(null)); }}>
+                {busy === "p" ? "Setzt …" : "Profil setzen"}
+              </button>
+              <button type="button" className="lm-klein" onClick={() => setProfil({ ...profil, ...d.daten!.vorschlag })}>Vorschlag übernehmen</button>
+            </div>
+            <p className="lm-still">
+              Das Profilbild lädst du in der Meta Business Suite hoch (WhatsApp Manager → Telefonnummer → Profil).
+              Alles andere steht hier.
+            </p>
+          </div>
+        )}
+      </details>
+
+      {/* ── Eigene Vorlagen ──────────────────────────────────────────── */}
+      <div className="lm-eigene">
+        <div className="lm-eigene-kopf">
+          <h3>Eigene Vorlagen ({d.daten.eigene.length})</h3>
+          <button type="button" className="lm-klein" onClick={() => setBau({ ...LEER })}>Neue Vorlage</button>
+        </div>
+        {d.daten.eigene.map((v) => (
+          <div key={v.name} className="lm-eigene-zeile">
+            <div>
+              <b>{v.zweck || v.name}</b>
+              <span className="lm-still">{v.name} · {v.kategorie === "UTILITY" ? "Service" : "Werbung"}{v.inkassoErlaubt ? " · Zahlungserinnerung" : ""}</span>
+            </div>
+            <div className="lm-eigene-tun">
+              <button type="button" className="lm-klein" onClick={() => setBau({ ...LEER, ...v })}>Ändern</button>
+              <button type="button" className="lm-klein" onClick={() => {
+                if (window.confirm(`Vorlage „${v.name}" löschen? Bei Meta bleibt sie, bis du oben aufräumst.`)) {
+                  void ruf("/chef/lead-motor/werkstatt/vorlage", { name: v.name, loeschen: true }).then(() => { melden("Gelöscht."); d.neu(); }).catch((e) => melden(e.message));
+                }
+              }}>Löschen</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Der Bauplatz ─────────────────────────────────────────────── */}
+      {bau && (
+        <div className="lm-bau">
+          <div className="lm-bau-felder">
+            <label>Name bei Meta<input value={bau.name} onChange={(e) => setBau({ ...bau, name: e.target.value })} placeholder="z. B. fiaon_kk_sommeraktion" /></label>
+            <label>Wofür<input value={bau.zweck} onChange={(e) => setBau({ ...bau, zweck: e.target.value })} placeholder="Steht in der Auswahlliste der Mitarbeiter" /></label>
+            <label>Art
+              <select value={bau.kategorie} onChange={(e) => setBau({ ...bau, kategorie: e.target.value })}>
+                <option value="UTILITY">Service (Vorgang, Erinnerung, Bestätigung)</option>
+                <option value="MARKETING">Werbung (Angebot, Nachfassen)</option>
+              </select>
+            </label>
+            <label>Kopfzeile <small>höchstens 60</small><input value={bau.kopf ?? ""} maxLength={60} onChange={(e) => setBau({ ...bau, kopf: e.target.value })} /></label>
+            <label>Text <small>Platzhalter als {"{{1}}"}, {"{{2}}"} …</small>
+              <textarea rows={5} value={bau.text} maxLength={1024} onChange={(e) => setBau({ ...bau, text: e.target.value })} /></label>
+            <label>Fußzeile <small>höchstens 60</small><input value={bau.fuss ?? ""} maxLength={60} onChange={(e) => setBau({ ...bau, fuss: e.target.value })} /></label>
+            {varianten > 0 && (
+              <div className="lm-beispiele">
+                <span className="lm-still">Ein Beispiel je Platzhalter — Meta verlangt sie zur Prüfung.</span>
+                {Array.from({ length: varianten }, (_x, i) => (
+                  <input key={i} value={bau.beispiele[i] ?? ""} placeholder={`Beispiel für {{${i + 1}}}`}
+                    onChange={(e) => { const b = [...bau.beispiele]; b[i] = e.target.value; setBau({ ...bau, beispiele: b }); }} />
+                ))}
+              </div>
+            )}
+            <div className="lm-knoepfe-bau">
+              <span className="lm-still">Knöpfe — höchstens zwei Links, Text je 25 Zeichen</span>
+              {bau.knoepfe.map((k, i) => (
+                <div key={i} className="lm-knopf-zeile">
+                  <select value={k.typ} onChange={(e) => { const n = [...bau.knoepfe]; n[i] = e.target.value === "URL" ? { typ: "URL", text: k.text, url: "https://fiaon.com/start" } as any : { typ: "QUICK_REPLY", text: k.text }; setBau({ ...bau, knoepfe: n }); }}>
+                    <option value="URL">Link</option>
+                    <option value="QUICK_REPLY">Antwortknopf</option>
+                  </select>
+                  <input value={k.text} maxLength={25} placeholder="Aufschrift"
+                    onChange={(e) => { const n = [...bau.knoepfe]; n[i] = { ...n[i], text: e.target.value } as any; setBau({ ...bau, knoepfe: n }); }} />
+                  {k.typ === "URL" && (
+                    <input value={(k as any).url ?? ""} placeholder="https://fiaon.com/…"
+                      onChange={(e) => { const n = [...bau.knoepfe]; (n[i] as any).url = e.target.value; setBau({ ...bau, knoepfe: [...n] }); }} />
+                  )}
+                  <button type="button" className="lm-klein" onClick={() => setBau({ ...bau, knoepfe: bau.knoepfe.filter((_x, j) => j !== i) })}>×</button>
+                </div>
+              ))}
+              <button type="button" className="lm-klein" onClick={() => setBau({ ...bau, knoepfe: [...bau.knoepfe, { typ: "QUICK_REPLY", text: "Ja, bitte" }] })}>Knopf hinzufügen</button>
+            </div>
+            <label className="lm-haken">
+              <input type="checkbox" checked={bau.inkassoErlaubt === true} onChange={(e) => setBau({ ...bau, inkassoErlaubt: e.target.checked })} />
+              Das ist eine Zahlungserinnerung zur eigenen Rechnung
+              <small>Hebt die Inkasso-Sperre für diese eine Vorlage auf. Sachlich bleiben: keine Frist mit Folgen, keine Gebühren, keine Androhung — sonst lehnt Meta ab.</small>
+            </label>
+          </div>
+
+          <div className="lm-vorschau-blase">
+            <span className="lm-still">So sieht sie im Chat aus</span>
+            <div className="lm-blase">
+              {bau.kopf && <b>{bau.kopf}</b>}
+              <p>{bau.text.replace(/\{\{(\d)\}\}/g, (_m, n) => bau.beispiele[Number(n) - 1] || `{{${n}}}`)}</p>
+              {bau.fuss && <span className="lm-still">{bau.fuss}</span>}
+              {bau.knoepfe.length > 0 && <div className="lm-blase-knoepfe">{bau.knoepfe.map((k, i) => <span key={i}>{k.typ === "URL" ? "↗ " : ""}{k.text}</span>)}</div>}
+            </div>
+            {funde.length > 0 && <ul className="lm-funde">{funde.map((f, i) => <li key={i}>{f}</li>)}</ul>}
+          </div>
+
+          <div className="lm-bau-tun">
+            <button type="button" className="lm-knopf" disabled={busy === "v" || funde.length > 0 || bau.text.length < 10} onClick={() => void speichern()}>
+              {busy === "v" ? "Speichert …" : "Vorlage speichern"}
+            </button>
+            <button type="button" className="lm-klein" onClick={() => { setBau(null); setFunde([]); }}>Abbrechen</button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

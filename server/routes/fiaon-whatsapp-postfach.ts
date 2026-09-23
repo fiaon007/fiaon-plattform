@@ -345,11 +345,30 @@ function routen(hole: (req: any) => Blick) {
       );
       if (!erg.ok) return res.status(422).json({ ok: false, error: erg.grund });
 
-      // Ein Mensch hat geschrieben → Mara hält hier die Klappe.
-      await sqlPool`
-        INSERT INTO fiaon_whatsapp_gespraech (nummer, mara_an, updated_at) VALUES (${nummer}, FALSE, NOW())
-        ON CONFLICT (nummer) DO UPDATE SET mara_an = FALSE, updated_at = NOW()`;
-      console.log(`[WHATSAPP-RAUM] ${blick.name} hat an ${nummer} geschrieben (${vorlage || "Freitext"}).`);
+      // ══════════════════════════════════════════════════════════════════
+      // NUR FREITEXT SCHALTET MARA AB (23.09.2026, E-224)
+      //
+      // GEMESSEN an Justins eigenem Chat: Er schickte um 18:32 und 18:37 zwei
+      // VORLAGEN aus dem Raum. Beide setzten `mara_an = FALSE`. Danach schrieb
+      // er vier Fragen — Mara bereitete jedes Mal eine Antwort vor
+      // („Antwort liegt bereit, geht in 20 Sekunden raus"), und der Versandtakt
+      // verwarf sie jedes Mal, weil der Schalter aus war. Für Justin sah es
+      // aus, als ob sie ihn ignoriert.
+      //
+      // Eine Vorlage ist ein Anstupser, kein Gespräch. Wer eine schickt, will
+      // den Menschen ins Reden bringen — und genau dann soll Mara antworten.
+      // Erst FREIER TEXT heißt: Hier sitzt ein Mensch und führt das Gespräch.
+      // ══════════════════════════════════════════════════════════════════
+      if (!vorlage) {
+        await sqlPool`
+          INSERT INTO fiaon_whatsapp_gespraech (nummer, mara_an, updated_at) VALUES (${nummer}, FALSE, NOW())
+          ON CONFLICT (nummer) DO UPDATE SET mara_an = FALSE, updated_at = NOW()`;
+      } else {
+        await sqlPool`
+          INSERT INTO fiaon_whatsapp_gespraech (nummer, updated_at) VALUES (${nummer}, NOW())
+          ON CONFLICT (nummer) DO UPDATE SET updated_at = NOW()`;
+      }
+      console.log(`[WHATSAPP-RAUM] ${blick.name} hat an ${nummer} geschrieben (${vorlage || "Freitext"}${vorlage ? ", Mara bleibt an" : ", Mara aus"}).`);
       res.json({ ok: true, waId: erg.waId });
     } catch (err) {
       console.error("[WHATSAPP-RAUM] senden:", err);

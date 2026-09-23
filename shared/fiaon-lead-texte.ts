@@ -33,6 +33,17 @@ export const EINWILLIGUNG_HINWEIS =
   + "per WhatsApp, SMS, E-Mail und Telefon. Sie können das jederzeit widerrufen, z. B. mit „STOPP“ auf WhatsApp oder über den "
   + "Abmeldelink in jeder E-Mail. Mehr dazu in unserer Datenschutzerklärung.";
 
+/**
+ * Vorlagen, bei denen die Inkasso-Wand nicht greift (23.09.2026, E-222).
+ *
+ * Eine Zahlungserinnerung zur eigenen Rechnung ist bei Meta eine gewöhnliche
+ * UTILITY-Vorlage — Justin hat das beim Meta-Support abgefragt. Die Ausnahme
+ * steht hier NAMENTLICH und nicht als gelockerte Regel: Wer eine zweite
+ * Vorlage mit Mahnton bauen will, muss sie hier eintragen und sich dabei
+ * ansehen, was er tut.
+ */
+export const INKASSO_AUSNAHME = ["fiaon_kk_rechnung"] as const;
+
 /** Der Name für {{1}} — ohne brauchbaren Namen „und willkommen". */
 export function vorlagenName(anredeChatZeile: string): string {
   const rest = anredeChatZeile.replace(/^Hallo\s*/, "").replace(/,\s*$/, "").trim();
@@ -287,6 +298,44 @@ export const WA_VORLAGEN: WaVorlage[] = [
       + "wie der Weg dorthin aussieht und was von Ihnen dafür gebraucht wird. Suchen Sie sich ein Zeitfenster aus.",
     beispiele: ["Frau Muster"],
     knoepfe: [TERMIN, { typ: "QUICK_REPLY", text: "Vormittags" }, { typ: "QUICK_REPLY", text: "Abends" }, STOPP],
+  },
+  {
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE OFFENE RECHNUNG (23.09.2026, E-222)
+    //
+    // Justin: „Baue auch — wir dürfen das laut Anfrage bei Meta Support — die
+    // Rechnungen mit dem Link an die Kunden schicken, die überfällig sind."
+    //
+    // ── WAS ERLAUBT IST, UND WO DIE GRENZE LIEGT ────────────────────────
+    // Meta verbietet INKASSO über WhatsApp. Eine Zahlungserinnerung zur
+    // EIGENEN Rechnung ist etwas anderes und bei Meta eine gewöhnliche
+    // UTILITY-Vorlage. Der Unterschied liegt im Ton, und er ist scharf:
+    //
+    //   ERLAUBT   Sachlich nennen, was offen ist, und wie man es begleicht.
+    //   VERBOTEN  Druck, Fristen mit Folgen, Mahngebühren, Verzugszinsen,
+    //             Androhung von Inkasso, Sperre oder Gericht.
+    //
+    // Deshalb stehen hier weder „Mahnung" noch „überfällig" noch „Rückstand" —
+    // nicht aus Zimperlichkeit, sondern weil genau diese Wörter die Vorlage
+    // bei der Prüfung kippen und im Wiederholungsfall die Nummer kosten.
+    // Gepitcht wird auf das, was den Kunden wirklich interessiert: Nach dem
+    // Eingang geht es sofort weiter.
+    //
+    // Der Prüfstand lässt diese eine Vorlage durch die Inkasso-Wand
+    // (INKASSO_AUSNAHME unten) — benannt, nicht stillschweigend.
+    // ══════════════════════════════════════════════════════════════════════
+    name: "fiaon_kk_rechnung",
+    kopf: "Ihre offene Rechnung",
+    fuss: "FIAON LTD · Fragen? Einfach hier antworten",
+    kategorie: "UTILITY",
+    zweck: "Offene Rechnung mit Zahlungslink — sachlich, mit dem Tempo als Argument.",
+    wann: "Wenn eine Rechnung offen ist. Sachlicher Ton ist Pflicht: keine Frist mit Folgen, keine Gebühren, keine Androhung.",
+    text: "Hallo {{1}}, Ihre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}. "
+      + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend, und Sie bekommen direkt den fertigen Link "
+      + "unserer Partnerbank für Ihre Kreditkarte. Je schneller die Zahlung da ist, desto schneller halten Sie die Karte in der Hand. "
+      + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
+    beispiele: ["Frau Muster", "99,99", "FIAONMUE7AZ"],
+    knoepfe: [ZAHLUNG, FRAGE],
   },
   {
     name: "fiaon_kk_letzte",

@@ -232,3 +232,58 @@ a.lm-name:hover { text-decoration: underline; }
   .lm-vorlagen-tun .lm-knopf { flex: 1 1 100%; justify-content: center; }
   .lm-vl-zeile { flex-direction: column; align-items: flex-start; gap: 5px; }
 }
+
+/* ═══ Werkstatt: Profil, eigene Vorlagen, Bauplatz (23.09.2026, E-222) ════
+   Links gebaut, rechts sofort die Blase, wie der Kunde sie sieht. Fehler
+   stehen unter der Vorschau — nicht als Meldung nach dem Speichern. */
+.lm-werkstatt { display: grid; gap: 16px; }
+
+.lm-profil > summary, .lm-profil > summary { cursor: pointer; list-style: none; font-size: 13px; color: var(--lm-leise); padding: 6px 0; }
+.lm-profil > summary::-webkit-details-marker { display: none; }
+.lm-profil > summary::before { content: "▸ "; color: var(--lm-still, #5d6c83); }
+.lm-profil[open] > summary::before { content: "▾ "; }
+.lm-profil-felder { display: grid; gap: 10px; padding-top: 8px; }
+.lm-profil-felder label, .lm-bau-felder label { display: grid; gap: 5px; font-size: 12px; color: var(--lm-leise); }
+.lm-profil-felder label small, .lm-bau-felder label small { color: var(--lm-still, #5d6c83); font-size: 11px; }
+.lm-profil-felder input, .lm-profil-felder textarea,
+.lm-bau-felder input, .lm-bau-felder textarea, .lm-bau-felder select {
+  width: 100%; min-height: 40px; padding: 9px 12px; border-radius: 10px; resize: vertical;
+  border: 1px solid rgba(148,163,184,.2); background: rgba(148,163,184,.06);
+  color: var(--lm-text, #e7ecf4); font: 400 13px/1.5 'Inter', sans-serif;
+}
+.lm-profil-felder input:focus, .lm-profil-felder textarea:focus,
+.lm-bau-felder input:focus, .lm-bau-felder textarea:focus, .lm-bau-felder select:focus {
+  outline: none; border-color: rgba(147,197,253,.5);
+}
+.lm-profil-tun { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.lm-eigene { display: grid; gap: 8px; }
+.lm-eigene-kopf { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.lm-eigene-kopf h3 { margin: 0; font: 500 12px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--lm-leise); }
+.lm-eigene-zeile {
+  display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap;
+  padding: 10px 13px; border-radius: 12px; border: 1px solid var(--lm-linie);
+}
+.lm-eigene-zeile > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.lm-eigene-zeile b { font: 400 13px/1.4 'Inter', sans-serif; color: var(--lm-text, #e7ecf4); }
+.lm-eigene-tun { display: flex; gap: 6px; }
+
+.lm-bau { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; padding-top: 14px; border-top: 1px solid var(--lm-linie); }
+.lm-bau-felder { display: grid; gap: 10px; }
+.lm-beispiele { display: grid; gap: 6px; }
+.lm-knoepfe-bau { display: grid; gap: 6px; }
+.lm-knopf-zeile { display: grid; grid-template-columns: 110px 1fr 1fr auto; gap: 6px; align-items: center; }
+.lm-haken { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; font-size: 12.5px; color: var(--lm-text, #e7ecf4); }
+.lm-haken input { width: 16px; height: 16px; min-height: 0; margin-top: 2px; }
+.lm-haken small { grid-column: 2; color: var(--lm-still, #5d6c83); font-size: 11.5px; line-height: 1.5; }
+
+.lm-vorschau-blase { display: grid; gap: 8px; align-content: start; }
+.lm-vorschau-blase .lm-blase b { display: block; margin-bottom: 4px; font: 600 13px/1.3 'Inter', sans-serif; }
+.lm-funde { margin: 0; padding-left: 16px; display: grid; gap: 4px; }
+.lm-funde li { font-size: 11.5px; line-height: 1.5; color: var(--lm-rot, #fda4af); }
+.lm-bau-tun { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .lm-bau { grid-template-columns: 1fr; }
+  .lm-knopf-zeile { grid-template-columns: 1fr 1fr; }
+}

@@ -674,6 +674,13 @@ export async function runLeadFollowups(opts: { force?: boolean } = {}): Promise<
 //
 // Ab jetzt über die EINE Registratur — dort steht die Bremse einmal.
 // ═══════════════════════════════════════════════════════════════════════════
+// E-223: Die WhatsApp-Kette für Leads — Tag 1, 3, 7, 14 und die offene
+// Rechnung. Eigener Takt, damit die Mail-Kette unberührt bleibt.
+tageslauf("lead-whatsapp-kette", async () => {
+  const { whatsappKetteLaufen } = await import("../lib/fiaon-lead-whatsapp");
+  await whatsappKetteLaufen();
+}, 30 * 60 * 1000);
+
 tageslauf("lead-nachfass-und-verteilung", async () => {
   // Kein `.catch()` mehr: Der Fehler gehört in die Lauf-Historie, nicht nur
   // ins Konsolenfenster. Siehe fiaon-crons.ts, „Warum hier kein catch steht".
@@ -901,6 +908,16 @@ async function processIntake(b: any): Promise<IntakeResult> {
     console.error("[FIAON-PERSON] Zuordnung nach Lead-Eingang:", e);
     return null;
   });
+
+  // ── E-223: DIE ERSTE WHATSAPP, SOFORT ───────────────────────────────────
+  // Gemessen an Lead #4664: drei Mails in dreizehn Minuten, null WhatsApp,
+  // dann Abmeldung. Es gab schlicht keinen Weg, der einem neuen Lead eine
+  // WhatsApp schickt. Jetzt gibt es ihn — im Hintergrund, damit der Eingang
+  // nicht daran hängt, und hinter einem Schalter, den Justin umlegt.
+  void import("../lib/fiaon-lead-whatsapp")
+    .then((m) => m.ersteWhatsAppFuerLead(id))
+    .then((r) => { if (!r.ok && r.grund) console.log(`[LEAD-WA] Lead ${id}: ${r.grund}`); })
+    .catch((e) => console.error("[LEAD-WA] erste Nachricht:", e));
   if (zuordnung && !zuordnung.angelegt) {
     // Derselbe Mensch klickt ein zweites Mal auf die Anzeige. Das ist EIN Mensch
     // mit hohem Interesse, kein zweiter Kunde — der Verlauf hält es fest und die

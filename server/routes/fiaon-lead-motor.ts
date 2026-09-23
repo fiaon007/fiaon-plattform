@@ -27,6 +27,8 @@ import {
 
 const router = Router();
 const wache = requireChef("inhaber");
+/** Wer hat gehandelt — für die Spur. */
+const wer = (req: ChefRequest) => (req.chef?.agentId ? `Chef #${req.chef.agentId}` : "Inhaber");
 
 /** Die Wege, auf denen ein Lead hereinkommt — mit dem Wort, das das Steuerpult zeigt. */
 const WEG_TEXT: Record<string, string> = {
@@ -386,6 +388,80 @@ router.post("/chef/lead-motor/vorlagen/einreichen", wache, async (_req: ChefRequ
   } catch (err) {
     console.error("[LEAD-MOTOR] einreichen:", err);
     res.status(500).json({ ok: false, error: "Das Einreichen ließ sich nicht starten — bei Meta wurde nichts verändert." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WERKSTATT UND DAS PROFIL (23.09.2026, E-222/E-223)
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/lead-motor/werkstatt", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { eigeneVorlagen, profilLesen, PROFIL_VORSCHLAG } = await import("../lib/fiaon-whatsapp-werkstatt");
+    const { ketteAn } = await import("../lib/fiaon-lead-whatsapp");
+    const [eigen, profil, kette] = await Promise.all([
+      eigeneVorlagen(),
+      profilLesen().catch(() => null),
+      ketteAn(),
+    ]);
+    res.json({ ok: true, eigene: eigen, profil, vorschlag: PROFIL_VORSCHLAG, kette });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] werkstatt:", err);
+    res.status(500).json({ ok: false, error: "Die Werkstatt ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/lead-motor/werkstatt/vorlage", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { vorlageSpeichern, vorlageLoeschen } = await import("../lib/fiaon-whatsapp-werkstatt");
+    if (req.body?.loeschen === true) {
+      await vorlageLoeschen(String(req.body?.name ?? ""));
+      return res.json({ ok: true });
+    }
+    const erg = await vorlageSpeichern(req.body ?? {}, wer(req));
+    res.status(erg.ok ? 200 : 400).json(erg.ok ? { ok: true, name: erg.name } : { ok: false, error: erg.grund });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] vorlage speichern:", err);
+    res.status(500).json({ ok: false, error: "Die Vorlage ließ sich nicht speichern." });
+  }
+});
+
+router.post("/chef/lead-motor/werkstatt/pruefen", wache, async (req: ChefRequest, res: Response) => {
+  const { vorlagePruefen } = await import("../lib/fiaon-whatsapp-werkstatt");
+  res.json({ ok: true, funde: vorlagePruefen(req.body ?? {}) });
+});
+
+router.post("/chef/lead-motor/werkstatt/profil", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { profilSetzen } = await import("../lib/fiaon-whatsapp-werkstatt");
+    const erg = await profilSetzen(req.body ?? {});
+    res.status(erg.ok ? 200 : 400).json(erg.ok ? { ok: true } : { ok: false, error: erg.grund });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Das Profil ließ sich nicht setzen." });
+  }
+});
+
+router.post("/chef/lead-motor/werkstatt/kette", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const an = req.body?.an === true;
+    const { SCHALTER } = await import("../lib/fiaon-lead-whatsapp");
+    const { sqlPool } = await import("../lib/db-pool");
+    await sqlPool`
+      INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${SCHALTER}, ${an ? "an" : "aus"}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
+    console.log(`[LEAD-WA] Kette ${an ? "AN" : "AUS"} (${wer(req)}).`);
+    res.json({ ok: true, an });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
+  }
+});
+
+/** Die Kette einmal von Hand anstoßen — für die Probe. */
+router.post("/chef/lead-motor/werkstatt/kette-lauf", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { whatsappKetteLaufen } = await import("../lib/fiaon-lead-whatsapp");
+    res.json({ ok: true, ...(await whatsappKetteLaufen()) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Der Lauf ist abgebrochen." });
   }
 });
 

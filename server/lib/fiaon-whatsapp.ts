@@ -443,6 +443,31 @@ export async function waSenden(
   // davon würden sie beim nächsten Umbau vergessen.
   // ══════════════════════════════════════════════════════════════════════
   const vorlage = gewaehlt;
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE PLATZHALTER — VOLLZÄHLIG, SONST LEHNT META AB (23.09.2026, E-229)
+  //
+  // Gemessen: „(#132000) Number of parameters does not match" bei
+  // fiaon_kk_rueckfrage — die Vorlage hat zwei Platzhalter (Name, Absender),
+  // der Knopf im Raum schickte einen. Dieselbe Regel wie beim Knopfwert: Der
+  // Aufrufer soll die Vorlage nicht auswendig kennen müssen. Aufgefüllt wird
+  // aber NUR, was sich ehrlich füllen lässt — die Anrede und der Absender.
+  // Fehlt ein Betrag oder eine Referenz, geht die Nachricht nicht raus: Ein
+  // Beispielwert aus der Vorlage darf nie bei einem Kunden landen.
+  // ══════════════════════════════════════════════════════════════════════
+  if (vorlage && inhalt.vorlage) {
+    const noetig = Math.max(0, ...Array.from(vorlage.text.matchAll(/\{\{(\d+)\}\}/g)).map((m) => Number(m[1])));
+    const werte = [...(inhalt.werte ?? [])];
+    const absender = String(zusatz.von || "").trim();
+    const absenderName = absender && !/^(leitung|system|automatik|mara-automatik)$/i.test(absender) ? absender.split(" ")[0] : "Mara";
+    for (let i = werte.length; i < noetig; i++) {
+      if (i === 0) werte.push("und willkommen");
+      else if (inhalt.vorlage === "fiaon_kk_rueckfrage" && i === 1) werte.push(absenderName);
+      else return { ok: false, grund: `Für die Vorlage „${inhalt.vorlage}“ fehlt die Angabe {{${i + 1}}} — so ginge sie nicht raus.` };
+    }
+    inhalt = { ...inhalt, werte: werte.slice(0, noetig) };
+  }
+
   const urlKnopf = vorlage?.knoepfe.find((x) => x.typ === "URL" && x.url.includes("{{")) as { typ: "URL"; url: string } | undefined;
   let knopfWert = inhalt.knopfWert ?? null;
   if (urlKnopf && !knopfWert) {

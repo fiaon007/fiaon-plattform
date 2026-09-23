@@ -60,9 +60,13 @@ export async function ketteAn(): Promise<boolean> {
  * Wer zahlen soll, bekommt den Zahlungsweg — nicht noch eine Erinnerung an
  * seinen Antrag.
  */
-function vorlageFuer(tageSeitEingang: number, hatOffeneRechnung: boolean, antragBegonnen: boolean): string | null {
+function vorlageFuer(tageSeitEingang: number, hatOffeneRechnung: boolean, antragBegonnen: boolean, schonAngeschrieben: boolean): string | null {
   if (hatOffeneRechnung) return "fiaon_kk_rechnung";
-  if (tageSeitEingang <= 0) return antragBegonnen ? "fiaon_kk_antrag_offen" : "fiaon_kk_anfrage";
+  // E-229: Wer noch NIE eine Nachricht bekommen hat, bekommt zuerst die
+  // Begrüßung — egal an welchem Tag. Vorher bekam ein Lead, der abends in die
+  // Lücke fiel, am nächsten Morgen als erste Nachricht „Tag 1" und damit eine
+  // Erinnerung an etwas, das er nie erhalten hatte.
+  if (!schonAngeschrieben || tageSeitEingang <= 0) return antragBegonnen ? "fiaon_kk_antrag_offen" : "fiaon_kk_anfrage";
   if (tageSeitEingang === 1) return "fiaon_kk_tag1";
   if (tageSeitEingang === 3) return "fiaon_kk_tag3";
   if (tageSeitEingang === 7) return "fiaon_kk_tag7";
@@ -107,7 +111,9 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
            (SELECT a4.payment_reference FROM fiaon_applications a4 WHERE a4.person_id = p.id AND a4.merged_into IS NULL
               AND a4.payment_status IN ('pending_payment','expired') ORDER BY a4.created_at DESC LIMIT 1) AS zahlungsreferenz,
            (SELECT ROUND(a5.amount_due, 2) FROM fiaon_applications a5 WHERE a5.person_id = p.id AND a5.merged_into IS NULL
-              AND a5.payment_status IN ('pending_payment','expired') ORDER BY a5.created_at DESC LIMIT 1) AS betrag
+              AND a5.payment_status IN ('pending_payment','expired') ORDER BY a5.created_at DESC LIMIT 1) AS betrag,
+           EXISTS (SELECT 1 FROM fiaon_whatsapp w0 WHERE w0.person_id = p.id AND w0.richtung = 'raus'
+                     AND w0.vorlage IS NOT NULL AND w0.status <> 'fehler') AS schon_angeschrieben
       FROM fiaon_persons p
       LEFT JOIN LATERAL (
         SELECT id, link_code, erstellt_am FROM fiaon_leads le
@@ -137,7 +143,7 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
     if (!nummer) { weg("keine WhatsApp-Nummer"); continue; }
 
     const tage = Math.floor((Date.now() - new Date(String(c.eingang)).getTime()) / 86400000);
-    const vorlage = vorlageFuer(tage, c.rechnung_offen === true, c.antrag_begonnen === true);
+    const vorlage = vorlageFuer(tage, c.rechnung_offen === true, c.antrag_begonnen === true, c.schon_angeschrieben === true);
     if (!vorlage) { weg("heute kein Schritt fällig"); continue; }
     if (!freigegeben.has(vorlage)) { weg(`Vorlage ${vorlage} noch nicht freigegeben`); continue; }
 

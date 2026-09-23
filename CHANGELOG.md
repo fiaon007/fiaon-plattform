@@ -5,6 +5,74 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (8) — Die Kündigung führt den Vorgang wirklich aus (E-213)
+
+**Der Anlass (Justin):** „Wenn Florentine oder ich auf ‚kündigen' klicken, dann muss die Kündigung auch wirklich
+durchgeführt werden und überall korrekt angezeigt werden. Also der gesamte Prozess (Portalsperre,
+Kündigungsunterlagen, Unterschrift durch den Mitarbeiter, … der gesamte Prozess eben)."
+
+**Der Befund:** Eine Kündigung konnte an VIER Stellen ausgesprochen werden — Akte, Postfach, Telefonkartei,
+Verwaltung — und jede hatte sich ihren Ablauf selbst zusammengesetzt. Die Tür `PATCH /admin/cancellations/:id`
+setzte **nur den Antragsstatus** und ließ den Vertrag unberührt: Raten liefen weiter, Erinnerungen gingen raus,
+der Kunde galt als aktiv. Genau der Fehler, gegen den E-092 gebaut wurde — er hat an dieser einen Tür überlebt,
+weil sie in einer anderen Datei wohnt.
+
+**Geändert:**
+- **Ein Vorgang, vier Türen** (`kuendigungDurchfuehren`): Wirkung setzen, Urkunde ausfertigen, Bestätigung
+  schicken, Kündigungsantrag schließen, Verlauf schreiben. Alle vier Stellen rufen ihn auf.
+- **Die Kündigungsurkunde** — PDF mit Vertrag, Kündigungsdatum, letzter Rate, Vertragsende und dem, was jetzt
+  gilt. Darunter steht der Mitarbeiter mit Name, Funktion, Zeitpunkt und einer Prüfsumme über den Inhalt.
+  Ausgeliefert wird immer die GESPEICHERTE Ausfertigung, nie eine frisch gerechnete — sonst wäre die Prüfsumme
+  wertlos. Eine Rücknahme verwirft sie.
+- **„Gekündigt" steht in der gemeinsamen Kartenquelle** (`KARTE_SQL`). Daran hängen Pipeline, Startseite,
+  Vertriebsraum und Aktenkopf — die Marke erscheint dort auf einmal, im Aktenkopf vor allem anderen.
+- **Kundenbereich:** ein ruhiges Band auf JEDER Seite statt nur unter „Mehr → Abo", drei Klicks tief.
+- **Die Portalsperre ist eine Regel, keine Tür.** Zu: neue Leistungen, Verlängerung. Auf: bezahlen, Unterlagen,
+  Rechnungen, die Bestätigung, Mitteilungen, Passwort. Eine volle Sperre verstieße gegen „Kunden nie
+  deaktivieren" UND gegen Justins eigene Regel, dass die letzte Rate noch zu zahlen ist — wer ausgesperrt ist,
+  sieht seine Rechnung nicht und bezahlt sie nicht.
+
+**Wo zu finden:** Akte → „Portal ansehen" → „Kündigung durchsetzen"; danach „Kündigungsbestätigung öffnen".
+
+---
+
+## 23.09.2026 (9) — Vierzehn Vorlagen auf die Karte gepitcht, und kein Lead geht mehr verloren (E-214)
+
+**Der Anlass (Justin):** „Die META-Vorlagen sind Müll, kannst alle löschen! Es soll auf die Kreditkarte gepitcht
+werden … viel, viel mehr nach ‚WOW ich kriege eine Kreditkarte!!'"
+**Und Florentine:** „Können wir auch so einen Link haben? Hab einen Kunden nicht erreicht und er hat keine
+E-Mail." · „Michaela Schneider hat gefragt, ob es Provisionen für Neukunden gibt." · „Nach dem Chat mit Sophia
+müsste es ja einen Antrag zu ihr geben, aber gibt es nicht."
+
+**Geändert:**
+- **Vierzehn Vorlagen statt acht**, jede öffnet mit einem Menschen und einem Vorgang, der läuft: „hier ist Mara
+  Lindner von FIAON, Ihre Anfrage für die eigene Karte liegt auf meinem Tisch". Für JEDES Szenario eine — vom
+  ersten Kontakt über „nicht erreicht mit Terminlink" bis zum Weiterempfehlen.
+- **`vorlagenAufraeumen()`** löscht bei Meta, was nicht mehr im Quelltext steht. Probe zuerst; Löschen bei Meta
+  ist endgültig.
+- **WhatsApp aus der Akte:** Vorlage wählen, Werte füllen, senden — derselbe Weg wie im WhatsApp-Raum, mit
+  Eintrag im Verlauf. Das ist Florentines Terminlink für alle, die sie nicht erreicht.
+- **Weiterempfehlen:** `/e/:code` je Mensch, Cookie, Zuordnung am Antrag. Die **Prämie ist nicht gesetzt** —
+  das ist eine kaufmännische Entscheidung, keine technische.
+- **Eine eingehende WhatsApp von einer unbekannten Nummer legt jetzt einen Lead an**, über denselben Weg wie ein
+  Lead aus der Anzeige. Vorher entstand gar nichts: Sophia Handler nannte Namen, Geburtsdatum, E-Mail und
+  Nummer, und alles lag in einem Chat ohne Besitzer. Bestehende herrenlose Gespräche werden beim Öffnen des
+  Raums nachgezogen. Was der Mensch von sich aus nennt, wird nachgetragen — nur bei leeren Feldern, nie aus
+  Fließtext geraten.
+
+**Zwei Wörter stehen bewusst nicht drin.** „Kreditkarte" und „Limit" liegen auf der Worthygiene-Liste unter
+„Kreditvermittlung": Wer in der Kaltansprache mit einer Kreditsumme oder einer Kreditkarte wirbt, wirbt für eine
+erlaubnispflichtige Leistung (§ 34c GewO), und Meta prüft Finanz-Vorlagen genau darauf. Die Sache steht überall
+drin — „Ihre eigene Karte", „die Karte Ihrer Partnerbank", „wie viel Ihnen die Bank einräumt". Ebenso nicht
+drin: „Ihr Kreditkartenantrag wurde mir vorgelegt" — der Kunde hat bei FIAON keinen Kartenantrag gestellt,
+sondern eine Anfrage. Der Satz wäre falsch, und eine falsche Behauptung ist kein Pitch, sondern ein
+Widerrufsgrund.
+
+**Noch zu tun (Justin, ein Klick):** `/chef/s/lead-motor` → „Vorlagen einreichen". Bis zur Freigabe durch Meta
+verschickt WhatsApp außerhalb des 24-Stunden-Fensters nichts — auch Florentines Terminlink nicht.
+
+---
+
 ## 23.09.2026 (5) — Die Pipeline zeigte nur C-Kunden. Nicht wegen der Daten, wegen einer Definition (E-212)
 
 **Der Anlass (Daniel):** „In der Pipeline werden nur C-Kunden angezeigt, und irgendwie kommen da keine neuen

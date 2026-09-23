@@ -73,6 +73,7 @@ import AgentProfilPage from "@/pages/agent/profil";
 import AgentAuszahlungPage from "@/pages/agent/auszahlung";
 import AgentSkriptePage from "@/pages/agent/skripte";
 import AgentMailsPage from "@/pages/agent/mails";
+import AgentWhatsAppPage from "@/pages/agent/whatsapp";
 import AgentKalenderPage from "@/pages/agent/kalender";
 import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
@@ -537,6 +538,8 @@ function Router() {
       <Route path="/agent/auszahlung-alt" component={AgentAuszahlungPage} />
       <Route path="/agent/skripte" component={AgentSkriptePage} />
       <Route path="/agent/mails" component={AgentMailsPage} />
+      {/* 23.09.2026 (E-210): Der WhatsApp-Raum für die Mitarbeiter. */}
+      <Route path="/agent/whatsapp" component={AgentWhatsAppPage} />
       <Route path="/agent/assistent">{() => <AgentAssistentPage />}</Route>
       <Route path="/agent/kalender" component={AgentCalendarPage} />
       <Route path="/agent/kalender-alt" component={AgentKalenderPage} />

@@ -281,7 +281,16 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
               ${String(m?.type ?? "text")}, ${text || null}, ${knopf}, 'empfangen',
               ${m?.timestamp ? new Date(Number(m.timestamp) * 1000) : new Date()})
       ON CONFLICT (wa_id) DO NOTHING RETURNING id`) as any[];
-    if (zeilen.length) neu++;
+    if (zeilen.length) {
+      neu++;
+      // Mara antwortet — im Hintergrund, damit der Webhook in Millisekunden
+      // fertig ist (Meta wiederholt sonst die Meldung). Sie prüft selbst, ob
+      // sie darf: Schalter am Gespräch, Fenster, Kostendeckel, Wortwand.
+      void import("./fiaon-whatsapp-mara")
+        .then((m) => m.maraAntwortet(nummer))
+        .then((r) => { if (!r.gesendet && r.grund) console.log(`[MARA-WA] ${nummer}: ${r.grund}`); })
+        .catch((e) => console.error("[MARA-WA] Aufruf:", e));
+    }
   }
 
   for (const s of wert?.statuses ?? []) {

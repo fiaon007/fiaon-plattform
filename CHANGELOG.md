@@ -5,6 +5,31 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 — Der WhatsApp-Raum für Team und Leitung, Mara antwortet im Chat (E-210)
+
+**Was geändert wurde:**
+- **Neuer Raum `/agent/whatsapp` (Team) und `/chef/s/whatsapp` (Leitung)** — dieselbe Oberfläche, zwei Brillen: Der
+  Mitarbeiter sieht die Gespräche seiner Menschen, die Leitung alle. Links die Liste (Suche, Filter „Ungelesen"
+  und „Fenster offen", ungelesen-Punkt, Stufe, Mara-Marke), in der Mitte der Verlauf mit Zustell- und Lesehaken,
+  rechts der Mensch (Stufe, Paket, Antrag, Betreuer, Akte, Anrufen) — bei Leads die Herkunft der Anzeige.
+- **Das 24-Stunden-Fenster ist sichtbar und wird durchgesetzt:** Ist es offen, steht die Restzeit im Kopf und das
+  Feld ist frei. Ist es zu, sperrt der Server den Freitext und der Raum bietet die freigegebenen Vorlagen mit
+  Vorschau an.
+- **Mara antwortet selbst** (`server/lib/fiaon-whatsapp-mara.ts`): Auf jede eingehende Nachricht, rund um die Uhr,
+  im offenen Fenster. Vier Wände davor: Schalter am Gespräch, eigener Tagesdeckel für KI-Kosten, höchstens vier
+  Antworten in Folge ohne Rückmeldung, und die Sendeprüfung (Wortwand, Sie-Form, kein Mahnen). Sie gibt sich als
+  digitale Assistentin zu erkennen (KI-VO Art. 50) und legt eine Aufgabe beim Betreuer an, wenn ein Mensch
+  übernehmen soll.
+- **Mensch vor Maschine:** Schreibt jemand aus dem Team in einem Gespräch, schaltet der Server Mara dort ab.
+- **Falle behoben:** Nummern, die schon international ankommen („4915112345602"), bekamen noch einmal 49 davor —
+  dadurch blieb der Verlauf leer und das Fenster galt als zu.
+
+**Wo zu finden:** `server/routes/fiaon-whatsapp-postfach.ts`, `server/lib/fiaon-whatsapp-mara.ts`,
+`client/src/components/whatsapp/WhatsAppRaum.tsx`, `client/src/styles/whatsapp-raum.css`,
+`client/src/pages/agent/whatsapp.tsx`. Prüfstand: `scripts/pruef-lead-motor.ts` (368).
+
+---
+
 ## 22.09.2026 (Nacht, 4) — Der WhatsApp-Kanal steht (E-210)
 
 **Was geändert wurde:**

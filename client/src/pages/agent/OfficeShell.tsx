@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, Sparkles, ChevronLeft, ChevronRight, X, Menu, Compass, Building2 } from "lucide-react";
+import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, Sparkles, ChevronLeft, ChevronRight, X, Menu, Compass, Building2, MessageCircle } from "lucide-react";
 import { Einfuehrung } from "@/components/agent/Einfuehrung";
 import { globalZugriffLesen, globalZugriffMerken } from "./global-zugriff";
 import "@/styles/office.css";
@@ -89,6 +89,10 @@ export const RAEUME: Raum[] = [
   // gezählt". NACHHER trägt nur eine Marke, wer wirklich gezählt wird.
   // 07.09.2026 (Daniel, Feedback 2): „Der komplette Bereich Inbox wird nicht benötigt." — aus dem Menü genommen;
   // die Adresse /agent/inbox leitet auf den Schreibtisch. Eingehendes wohnt in Tickets und Aufgaben.
+  // WhatsApp (23.09.2026, E-210): der Chat mit den eigenen Kunden. Steht vor
+  // den Aufgaben, weil eine offene Nachricht dringender ist als eine Notiz —
+  // das 24-Stunden-Fenster läuft ab, eine Aufgabe nicht.
+  { href: "/agent/whatsapp", label: "WhatsApp", Icon: MessageCircle, match: ["/agent/whatsapp"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/aufgaben", label: "Tasks", Icon: ListChecks, match: ["/agent/aufgaben"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/aufgaben" },
   { href: "/agent/anliegen", label: "Tickets", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },
   { href: "/agent/tools", label: "Tools", Icon: Wrench, match: ["/agent/tools"], szene: "schreibtisch", gruppe: "arbeit" },

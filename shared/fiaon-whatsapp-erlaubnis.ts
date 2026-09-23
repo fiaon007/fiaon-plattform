@@ -24,8 +24,16 @@ export function nummerFuerWhatsApp(roh: unknown, land: "DE" | "AT" | "CH" = "DE"
   if (!z) return null;
   if (z.startsWith("00")) z = `+${z.slice(2)}`;
   if (!z.startsWith("+")) {
-    const vorwahl = land === "AT" ? "+43" : land === "CH" ? "+41" : "+49";
-    z = z.startsWith("0") ? `${vorwahl}${z.slice(1)}` : `${vorwahl}${z}`;
+    // FALLE (23.09.2026): WhatsApp liefert Nummern OHNE Plus, also „4915112345602".
+    // Ohne diese Prüfung hängte die Umrechnung noch einmal 49 davor und der
+    // Verlauf blieb leer. Wer nicht mit 0 beginnt und mit einer DACH-Vorwahl
+    // anfängt, ist bereits international.
+    if (/^(49|43|41)\d{7,13}$/.test(z)) {
+      z = `+${z}`;
+    } else {
+      const vorwahl = land === "AT" ? "+43" : land === "CH" ? "+41" : "+49";
+      z = z.startsWith("0") ? `${vorwahl}${z.slice(1)}` : `${vorwahl}${z}`;
+    }
   }
   const ziffern = z.slice(1).replace(/\D/g, "");
   return ziffern.length >= 8 && ziffern.length <= 15 ? ziffern : null;

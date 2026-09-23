@@ -306,6 +306,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🧭 Lead-Motor-Steuerpult (nur Chefbüro, Stufe Inhaber) und seine Takte. Ohne Meta-Zugang in
   //    Render laufen die Meta-Takte leer; die Begrüßungs-Nachholung läuft nur mit Schalter AN.
   app.use('/api/fiaon', (await import('./routes/fiaon-lead-motor')).default);
+  // Der WhatsApp-Raum: /agent/whatsapp für die Mitarbeiter, /chef/whatsapp für die Leitung (E-210).
+  app.use('/api/fiaon', (await import('./routes/fiaon-whatsapp-postfach')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('meta_meldungen', async () => await (await import('./lib/fiaon-meta-leads')).meldungenVerarbeiten(), 2 * 60 * 1000, { beimStartNach: 90_000 });
     tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });

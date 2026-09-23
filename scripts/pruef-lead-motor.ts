@@ -335,6 +335,33 @@ abschnitt("WhatsApp — Vorlagen, 24-Stunden-Fenster, keine Mahnung");
   ok(/WhatsApp-Vorlagen freigegeben/.test(ml), "Die Prüfliste zeigt den Stand der Vorlagen");
 }
 
+// ── 8g. Der WhatsApp-Raum und Mara im Chat ─────────────────────────────────
+abschnitt("WhatsApp-Raum — zwei Türen, ein Raum; Mara antwortet im Fenster");
+{
+  const rt = lies("server/routes/fiaon-whatsapp-postfach.ts");
+  const ui = lies("client/src/components/whatsapp/WhatsAppRaum.tsx");
+  const mara = lies("server/lib/fiaon-whatsapp-mara.ts");
+  const wa = lies("server/lib/fiaon-whatsapp.ts");
+  const { nummerFuerWhatsApp } = await import("../shared/fiaon-whatsapp-erlaubnis");
+
+  gleich(nummerFuerWhatsApp("4915112345602"), "4915112345602", "Schon internationale Nummern werden nicht verdoppelt");
+  gleich(nummerFuerWhatsApp("0151 10761284"), "4915110761284", "Deutsche Schreibweise wird umgerechnet");
+  ok(/requireAgent/.test(rt) && /requireChef\("leitung"\)/.test(rt), "Zwei Türen: Mitarbeiter und Leitung");
+  ok(/blick\.alles \|\| Number\(z\.assigned_agent_id/.test(rt), "Der Mitarbeiter sieht nur seine Menschen");
+  ok(/darfAnNummer/.test(rt), "Auch beim Senden wird die Zuständigkeit geprüft");
+  ok(/mara_an = FALSE/.test(rt), "Schreibt ein Mensch, schweigt Mara in diesem Gespräch");
+  ok(/sendePruefung\(text\)/.test(rt), "Jede Zeile läuft vor dem Senden durch die Wand");
+  ok(/24-Stunden-Fenster ist zu/.test(ui), "Die Oberfläche erklärt das geschlossene Fenster");
+  ok(/wr-vorlagen/.test(ui) && /Diese Vorlage senden/.test(ui), "Bei geschlossenem Fenster gibt es Vorlagen statt Freitext");
+  ok(/maraAntwortet/.test(wa), "Eine eingehende Nachricht ruft Mara");
+  ok(/fensterOffen\(nummer\)/.test(mara), "Mara antwortet nur im offenen Fenster");
+  ok(/amStueck >= 4/.test(mara), "Nach vier Antworten ohne Rückmeldung wartet sie");
+  ok(/mara_wa_tag_euro/.test(mara), "Eigener Kostendeckel für den Chat");
+  ok(/digitale Assistentin/.test(mara), "Sie gibt sich als KI zu erkennen (KI-VO Art. 50)");
+  ok(/mahnen, eine Forderung eintreiben/.test(mara), "Ihr Auftrag verbietet das Mahnen ausdrücklich");
+  ok(/auftragFuerKunden/.test(mara), "Der Weg zum Menschen läuft über die bestehende Aufgabenkette");
+}
+
 // ── 9. Die Messung an Meta (Pixel + Conversions API) ───────────────────────
 abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
 {

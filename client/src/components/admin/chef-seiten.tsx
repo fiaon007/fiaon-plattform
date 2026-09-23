@@ -59,6 +59,7 @@ const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"))
 // 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
 const Mara = lazy(() => import("@/components/admin/ChefMara"));
 const LeadMotor = lazy(() => import("@/components/admin/ChefLeadMotor"));
+const WhatsAppRaumSeite = lazy(() => import("@/components/whatsapp/WhatsAppRaum").then((m) => ({ default: () => <m.default basis="/chef/whatsapp" /> })));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
 const Vertraege = lazy(() => import("@/pages/admin-vertraege"));
@@ -173,6 +174,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "mailwerk", label: "Mailwerk", satz: "Alle 41 Mails sehen und steuern: Versandweg, Takte, Prüfversand.", Seite: Mailwerk, raum: "kommunikation", mindest: "geschaeftsfuehrung", auch: "mail email brevo make vorlage template versand automatik" },
   // Justins Zentrale (01.09.2026): „das soll nur meine Zentrale sein" — Stufe inhaber.
   { slug: "postmeister", label: "Postfach", satz: "Alle Kundenmails an einem Ort: was der Kunde schrieb, seine Akte daneben, die Antwort zum Prüfen", Seite: Postmeister, raum: "kommunikation", mindest: "inhaber", auch: "email agent gmail postfach support ki automatisch" },
+  { slug: "whatsapp", label: "WhatsApp", satz: "Der Chat mit den Kunden: alle Gespräche, das 24-Stunden-Fenster, Vorlagen und Maras Schalter je Gespräch.", Seite: WhatsAppRaumSeite, raum: "kommunikation", eigenesDesign: true, auch: "whatsapp chat nachricht wa mara postfach kunde schreiben" },
   { slug: "lead-motor", label: "Lead-Motor", satz: "Die Facebook-Leads direkt von Meta: Verbindung mit einem Knopf einrichten, Rückstand nachholen, Begrüßungsmail schalten — und jeder Lead mit Herkunft, Begrüßung, Klick und Antrag.", Seite: LeadMotor, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link" },
   { slug: "mara", label: "Mara-Steuerpult", satz: "Mara schreibt rund um die Uhr jeden an, der noch nichts bezahlt hat — hier siehst du jede Mail, steuerst Takt und Kosten und nimmst Menschen aus der Aktion.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung" },
   { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "kommunikation" },

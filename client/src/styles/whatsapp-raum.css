@@ -1,0 +1,197 @@
+/* ═══ Der WhatsApp-Raum (23.09.2026, E-210) — Präfix .wr- ═══
+   Läuft in zwei dunklen Häusern (Office und Chefbüro), deshalb bringt er seine
+   eigenen Farben mit. Justins Linie: dünne Schrift, matte Flächen, Glas nur an
+   EINER Stelle (dem Kopf), das Blau-Paar als einziger Akzent. Am iPhone eine
+   Spalte: die Liste tritt zur Seite, sobald ein Gespräch offen ist. */
+
+.wr {
+  --wr-text: #e7ecf4;
+  --wr-text-2: #b9c4d5;
+  --wr-leise: #8292a8;
+  --wr-still: #5d6c83;
+  --wr-linie: rgba(148, 163, 184, .14);
+  --wr-flaeche: rgba(148, 163, 184, .05);
+  --wr-flaeche-hoch: rgba(148, 163, 184, .1);
+  --wr-blau: #288dfa;
+  --wr-blau-hell: #93c5fd;
+  --wr-gruen: #6ee7b7;
+  --wr-gelb: #fcd34d;
+  --wr-rot: #fda4af;
+  display: grid;
+  gap: 14px;
+  color: var(--wr-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
+  color-scheme: dark;
+}
+.wr h1, .wr h2 { margin: 0; font-weight: 500; color: var(--wr-text); }
+.wr h1 { font-size: 22px; letter-spacing: -.01em; }
+.wr h2 { font-size: 15px; }
+.wr p { margin: 0; }
+.wr-still { color: var(--wr-still); font-size: 12px; }
+.wr-leer { padding: 18px; font-size: 13px; color: var(--wr-leise); }
+
+/* ── Kopf: die eine Glasfläche ─────────────────────────────────────────── */
+.wr-kopf {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 16px 20px; border-radius: 18px; border: 1px solid var(--wr-linie);
+  background: linear-gradient(135deg, rgba(40, 141, 250, .14), rgba(15, 26, 45, .6));
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.wr-kopf p { margin-top: 3px; font-size: 12.5px; color: var(--wr-leise); }
+.wr-kopf b { color: var(--wr-text); font-weight: 500; }
+
+/* ── Der Raum: Liste · Verlauf · Mensch ────────────────────────────────── */
+.wr-raum {
+  display: grid; grid-template-columns: 320px minmax(0, 1fr) 260px; gap: 14px;
+  height: min(74vh, 780px); min-height: 460px;
+}
+
+/* ── Liste ─────────────────────────────────────────────────────────────── */
+.wr-liste {
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0;
+  border-radius: 18px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overflow: hidden;
+}
+.wr-suchfeld { padding: 12px 12px 8px; }
+.wr-suchfeld input {
+  width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--wr-linie);
+  background: rgba(15, 23, 42, .45); color: var(--wr-text); font: inherit; font-size: 13px;
+}
+.wr-suchfeld input:focus { outline: none; border-color: rgba(147, 197, 253, .5); }
+.wr-filter { display: flex; gap: 6px; padding: 0 12px 10px; }
+.wr-filter button {
+  flex: 1; padding: 7px 8px; border-radius: 10px; border: 1px solid var(--wr-linie);
+  background: transparent; color: var(--wr-leise); font: inherit; font-size: 11.5px; cursor: pointer;
+}
+.wr-filter button.an { background: rgba(40, 141, 250, .16); border-color: rgba(147, 197, 253, .4); color: var(--wr-blau-hell); }
+.wr-zeilen { overflow-y: auto; min-height: 0; }
+
+.wr-zeile {
+  display: flex; gap: 10px; width: 100%; padding: 11px 12px; border: 0; border-top: 1px solid var(--wr-linie);
+  background: transparent; text-align: left; cursor: pointer; color: inherit; font: inherit;
+}
+.wr-zeile.an { background: rgba(40, 141, 250, .12); }
+.wr-zeile.neu b { color: #fff; }
+.wr-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; font-size: 14px; font-weight: 500;
+}
+.wr-zeile-text { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.wr-zeile-kopf { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.wr-zeile-kopf b { font-size: 13.5px; font-weight: 500; color: var(--wr-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-zeile-unten { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.wr-vorschau { font-size: 12.5px; color: var(--wr-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-punkt {
+  min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px; background: #10b981; color: #04240f;
+  font-size: 11px; font-weight: 600; display: grid; place-items: center; flex: none;
+}
+.wr-marken { display: flex; gap: 5px; flex-wrap: wrap; }
+.wr-marke {
+  font-size: 10px; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--wr-linie); color: var(--wr-still);
+}
+.wr-marke.offen { color: var(--wr-gruen); border-color: rgba(110, 231, 183, .3); }
+.wr-marke.mara { color: var(--wr-blau-hell); border-color: rgba(147, 197, 253, .3); }
+.wr-marke.warn { color: var(--wr-gelb); border-color: rgba(252, 211, 77, .3); }
+.wr-marke.stufe-A { color: var(--wr-gruen); }
+.wr-marke.stufe-B { color: var(--wr-blau-hell); }
+
+/* ── Verlauf ───────────────────────────────────────────────────────────── */
+.wr-chat {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; min-height: 0;
+  border-radius: 18px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overflow: hidden;
+}
+.wr-nichts { display: grid; place-content: center; gap: 8px; text-align: center; padding: 40px; }
+.wr-nichts p:first-child { font-size: 15px; color: var(--wr-text-2); }
+.wr-nichts .wr-still { max-width: 46ch; line-height: 1.6; }
+.wr-chat-kopf { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--wr-linie); }
+.wr-chat-wer { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.wr-chat-wer b { font-size: 14px; font-weight: 500; color: var(--wr-text); }
+.wr-chat-knoepfe { display: flex; gap: 8px; align-items: center; }
+.wr-zurueck { display: none; border: 0; background: transparent; color: var(--wr-blau-hell); font-size: 24px; line-height: 1; cursor: pointer; }
+
+.wr-verlauf { overflow-y: auto; padding: 16px; display: grid; gap: 8px; align-content: start; min-height: 0; }
+.wr-tag { justify-self: center; font-size: 11px; color: var(--wr-still); padding: 3px 10px; border-radius: 99px; background: var(--wr-flaeche-hoch); margin: 6px 0; }
+.wr-blase {
+  max-width: min(74%, 560px); padding: 9px 12px; border-radius: 14px; display: grid; gap: 3px;
+  background: rgba(148, 163, 184, .1); border: 1px solid var(--wr-linie);
+}
+.wr-blase.rein { justify-self: start; border-bottom-left-radius: 4px; }
+.wr-blase.raus { justify-self: end; border-bottom-right-radius: 4px; background: linear-gradient(135deg, rgba(30, 64, 175, .5), rgba(37, 99, 235, .38)); border-color: rgba(147, 197, 253, .25); }
+.wr-blase.fehler { border-color: rgba(253, 164, 175, .45); background: rgba(253, 164, 175, .1); }
+.wr-blase p { font-size: 13.5px; line-height: 1.5; color: var(--wr-text); white-space: pre-wrap; word-break: break-word; }
+.wr-blase-fuss { font-size: 10.5px; color: var(--wr-still); justify-self: end; }
+.wr-haken { color: var(--wr-blau-hell); }
+.wr-vorlagenmarke { font-size: 10px; color: var(--wr-blau-hell); letter-spacing: .04em; }
+.wr-fehlertext { font-size: 11px; color: var(--wr-rot); }
+
+/* ── Eingabe ───────────────────────────────────────────────────────────── */
+.wr-eingabe { display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--wr-linie); align-items: flex-end; }
+.wr-eingabe textarea {
+  flex: 1; resize: none; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--wr-linie);
+  background: rgba(15, 23, 42, .45); color: var(--wr-text); font: inherit; font-size: 13.5px; line-height: 1.5;
+}
+.wr-eingabe textarea:focus { outline: none; border-color: rgba(147, 197, 253, .5); }
+.wr-senden, .wr-knopf, .wr-klein {
+  padding: 9px 16px; border-radius: 99px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche-hoch);
+  color: var(--wr-text-2); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.wr-senden { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; border-color: transparent; }
+.wr-senden:disabled { opacity: .5; cursor: default; }
+.wr-knopf.voll { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; border-color: transparent; }
+.wr-klein { padding: 6px 12px; font-size: 11.5px; }
+.wr-zu { display: grid; gap: 8px; width: 100%; }
+.wr-zu p { font-size: 12.5px; color: var(--wr-leise); line-height: 1.55; }
+.wr-zu b { color: var(--wr-gelb); font-weight: 500; }
+
+.wr-schalter {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 8px; border-radius: 99px;
+  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); font: inherit; font-size: 12px; cursor: pointer;
+}
+.wr-schalter span { width: 8px; height: 8px; border-radius: 50%; background: var(--wr-still); }
+.wr-schalter.an { color: var(--wr-blau-hell); border-color: rgba(147, 197, 253, .4); }
+.wr-schalter.an span { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, .6); }
+
+/* ── Vorlagen ──────────────────────────────────────────────────────────── */
+.wr-vorlagen { display: grid; gap: 10px; padding: 12px 16px 16px; border-top: 1px solid var(--wr-linie); max-height: 320px; overflow-y: auto; }
+.wr-vorlage { display: grid; gap: 7px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); }
+.wr-vorlage-kopf { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.wr-vorlage-kopf b { font-size: 13px; font-weight: 500; color: var(--wr-text); text-transform: capitalize; }
+.wr-vorlage p { font-size: 12.5px; line-height: 1.55; color: var(--wr-text-2); }
+.wr-vorlage .wr-knopf { justify-self: start; }
+
+/* ── Der Mensch ────────────────────────────────────────────────────────── */
+.wr-person {
+  display: grid; gap: 12px; align-content: start; padding: 16px; overflow-y: auto; min-height: 0;
+  border-radius: 18px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche);
+}
+.wr-person dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; margin: 0; font-size: 12.5px; }
+.wr-person dt { color: var(--wr-still); }
+.wr-person dd { margin: 0; color: var(--wr-text-2); overflow-wrap: anywhere; }
+.wr-person-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
+.wr-hinweis { line-height: 1.55; border-top: 1px solid var(--wr-linie); padding-top: 10px; }
+
+/* ── Meldung ───────────────────────────────────────────────────────────── */
+.wr-meldung {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 60;
+  padding: 11px 18px; border-radius: 14px; border: 1px solid rgba(147, 197, 253, .35);
+  background: rgba(15, 26, 45, .95); color: var(--wr-text); font-size: 13px; max-width: min(90vw, 620px);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+
+@media (hover: hover) {
+  .wr-zeile:hover { background: var(--wr-flaeche-hoch); }
+  .wr-knopf:hover, .wr-klein:hover, .wr-schalter:hover { border-color: rgba(147, 197, 253, .5); }
+}
+
+@media (max-width: 1180px) {
+  .wr-raum { grid-template-columns: 290px minmax(0, 1fr); }
+  .wr-person { display: none; }
+}
+@media (max-width: 760px) {
+  .wr-raum { grid-template-columns: 1fr; height: auto; }
+  .wr-liste { height: min(58vh, 520px); }
+  .wr-chat { display: none; }
+  .wr-chat-offen .wr-liste { display: none; }
+  .wr-chat-offen .wr-chat { display: grid; height: min(74vh, 620px); }
+  .wr-zurueck { display: block; }
+}

@@ -136,12 +136,18 @@ export async function vorlagenEinreichen(): Promise<{ eingereicht: string[]; sch
   const erg = { eingereicht: [] as string[], schonDa: [] as string[], fehler: [] as { name: string; grund: string }[] };
   if (!k.wabaId) { erg.fehler.push({ name: "—", grund: "WHATSAPP_WABA_ID fehlt in der Umgebung." }); return erg; }
   const vorhanden = new Set((await vorlagenStand().catch(() => [])).map((t) => t.name));
-  for (const v of WA_VORLAGEN) {
-    if (vorhanden.has(v.name)) { erg.schonDa.push(v.name); continue; }
+  const offen = WA_VORLAGEN.filter((v) => {
+    if (vorhanden.has(v.name)) { erg.schonDa.push(v.name); return false; }
     // Die Hauswand gilt auch hier — eine einmal freigegebene Vorlage bleibt
     // sonst jahrelang mit einem verbotenen Wort im Umlauf.
     const funde = sendePruefung(v.text.replace(/\{\{\d\}\}/g, "Maria Muster"));
-    if (funde.length) { erg.fehler.push({ name: v.name, grund: funde.join(" · ") }); continue; }
+    if (funde.length) { erg.fehler.push({ name: v.name, grund: funde.join(" · ") }); return false; }
+    return true;
+  });
+  lauf.gesamt = offen.length;
+  // E-217: vier gleichzeitig statt eine nach der anderen — 94 Sekunden waren
+  // länger als jede Geduld.
+  await inWellen(offen.map((v) => async () => {
     try {
       const body = vorlageAlsMeta(v);
       await graph(`${k.wabaId}/message_templates`, {
@@ -155,8 +161,74 @@ export async function vorlagenEinreichen(): Promise<{ eingereicht: string[]; sch
     } catch (e) {
       erg.fehler.push({ name: v.name, grund: e instanceof MetaFehler ? e.klartext : String(e) });
     }
-  }
+  }));
   return erg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER LAUF IM HINTERGRUND (23.09.2026, E-217)
+//
+// Justin: „Wenn ich auf einreichen klicke, passiert nichts."
+//
+// GEMESSEN im Protokoll: Es ist etwas passiert — `POST /vorlagen/einreichen`
+// lief durch und meldete „14 neu, 0 Fehler". Es dauerte nur **94 Sekunden**.
+// Vierzehn Vorlagen, eine nach der anderen an Meta, jede rund sieben Sekunden.
+// Der Knopf stand anderthalb Minuten auf „Reicht ein …", und wer so lange
+// wartet, hält das für kaputt — zu Recht.
+//
+// Zwei Dinge ändern sich deshalb:
+//   1. PARALLEL statt nacheinander, vier auf einmal. Aus 94 Sekunden werden
+//      rund 25. Mehr als vier gleichzeitig reizt Metas Drosselung.
+//   2. IM HINTERGRUND. Der Knopf startet den Lauf und bekommt sofort Antwort;
+//      die Seite fragt danach den Stand ab. Ein Auftrag, der länger dauert als
+//      die Geduld eines Menschen, darf nicht an einer offenen Verbindung hängen.
+//
+// Der Stand liegt im Arbeitsspeicher und nicht in der Datenbank: Er lebt
+// Sekunden, und ein Neustart des Dienstes macht ihn ohnehin gegenstandslos —
+// dann zeigt die Liste den echten Stand bei Meta, was die bessere Wahrheit ist.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface VorlagenLauf {
+  laeuft: boolean;
+  was: "einreichen" | "aufraeumen" | null;
+  gesamt: number;
+  fertig: number;
+  seit: string | null;
+  ergebnis: Record<string, unknown> | null;
+  fehler: string | null;
+}
+let lauf: VorlagenLauf = { laeuft: false, was: null, gesamt: 0, fertig: 0, seit: null, ergebnis: null, fehler: null };
+
+export function vorlagenLaufStand(): VorlagenLauf {
+  return { ...lauf };
+}
+
+/** Mehrere Aufträge gleichzeitig, aber nicht alle: Meta drosselt sonst. */
+async function inWellen<T>(stuecke: (() => Promise<T>)[], breite = 4): Promise<T[]> {
+  const raus: T[] = [];
+  for (let i = 0; i < stuecke.length; i += breite) {
+    raus.push(...(await Promise.all(stuecke.slice(i, i + breite).map((f) => f()))));
+    lauf.fertig = Math.min(lauf.gesamt, i + breite);
+  }
+  return raus;
+}
+
+/**
+ * Den Lauf starten. Läuft schon einer, wird KEIN zweiter gestartet — sonst
+ * reicht ein ungeduldiger Doppelklick dieselbe Vorlage zweimal ein, und Meta
+ * antwortet auf die zweite mit einem Fehler, den niemand versteht.
+ */
+export function vorlagenLaufStarten(was: "einreichen" | "aufraeumen", opts: { ausfuehren?: boolean } = {}): VorlagenLauf {
+  if (lauf.laeuft) return vorlagenLaufStand();
+  lauf = { laeuft: true, was, gesamt: 0, fertig: 0, seit: new Date().toISOString(), ergebnis: null, fehler: null };
+  void (async () => {
+    try {
+      const erg = was === "einreichen" ? await vorlagenEinreichen() : await vorlagenAufraeumen({ probe: opts.ausfuehren !== true });
+      lauf = { ...lauf, laeuft: false, ergebnis: erg as any, fertig: lauf.gesamt };
+    } catch (e) {
+      lauf = { ...lauf, laeuft: false, fehler: String((e as Error)?.message || e).slice(0, 300) };
+    }
+  })();
+  return vorlagenLaufStand();
 }
 
 /**
@@ -180,15 +252,22 @@ export async function vorlagenAufraeumen(opts: { probe?: boolean } = {}): Promis
   if (!k.wabaId) { erg.fehler.push({ name: "—", grund: "WHATSAPP_WABA_ID fehlt in der Umgebung." }); return erg; }
   const aktuell = new Set(WA_VORLAGEN.map((v) => v.name));
   const beiMeta = await vorlagenStand().catch(() => []);
-  for (const t of beiMeta) {
-    if (aktuell.has(t.name)) { erg.behalten.push(t.name); continue; }
-    if (opts.probe) { erg.geloescht.push(t.name); continue; }
-    try {
-      await graph(`${k.wabaId}/message_templates`, { methode: "DELETE", params: { name: t.name } });
-      erg.geloescht.push(t.name);
-    } catch (e) {
-      erg.fehler.push({ name: t.name, grund: e instanceof MetaFehler ? e.klartext : String(e) });
-    }
+  const weg = beiMeta.filter((t) => {
+    if (aktuell.has(t.name)) { erg.behalten.push(t.name); return false; }
+    return true;
+  });
+  if (opts.probe) {
+    erg.geloescht.push(...weg.map((t) => t.name));
+  } else {
+    lauf.gesamt = weg.length;
+    await inWellen(weg.map((t) => async () => {
+      try {
+        await graph(`${k.wabaId}/message_templates`, { methode: "DELETE", params: { name: t.name } });
+        erg.geloescht.push(t.name);
+      } catch (e) {
+        erg.fehler.push({ name: t.name, grund: e instanceof MetaFehler ? e.klartext : String(e) });
+      }
+    }));
   }
   console.log(`[WHATSAPP] Aufräumen${opts.probe ? " (Probe)" : ""}: ${erg.geloescht.length} gelöscht, ${erg.behalten.length} behalten.`);
   return erg;

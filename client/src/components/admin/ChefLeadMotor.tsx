@@ -8,7 +8,7 @@
 // Antrag. Die Regeln selbst stehen in server/lib/fiaon-meta-leads.ts und
 // server/lib/fiaon-lead-willkommen.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { API, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
@@ -536,10 +536,42 @@ const STATUS_TEXT: Record<string, { text: string; ton: string }> = {
   FEHLT: { text: "noch nicht eingereicht", ton: "" },
 };
 
+interface Lauf { laeuft: boolean; was: string | null; gesamt: number; fertig: number; ergebnis: any; fehler: string | null }
+
 function Vorlagen({ melden }: { melden: (t: string) => void }) {
-  const d = useDaten<{ vorlagen: VorlageStand[]; altlasten: { name: string; status: string }[] }>("/chef/lead-motor/vorlagen");
+  const d = useDaten<{ vorlagen: VorlageStand[]; altlasten: { name: string; status: string }[]; lauf: Lauf }>("/chef/lead-motor/vorlagen");
   const [busy, setBusy] = useState<string | null>(null);
   const [offen, setOffen] = useState<string | null>(null);
+
+  // ── E-217: NACHFRAGEN STATT WARTEN ─────────────────────────────────────
+  // Vierzehn Vorlagen an Meta dauerten 94 Sekunden; der Knopf stand
+  // anderthalb Minuten auf „Reicht ein …" und sah aus wie kaputt. Jetzt läuft
+  // die Arbeit im Hintergrund, und die Seite fragt alle drei Sekunden nach.
+  const laeuft = d.daten?.lauf?.laeuft === true;
+  useEffect(() => {
+    if (!laeuft) return;
+    const t = window.setInterval(() => d.neu(), 3000);
+    return () => window.clearInterval(t);
+    // `d.neu` ist stabil; die Abhängigkeit ist bewusst nur der Laufzustand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [laeuft]);
+
+  // Ist der Lauf fertig, einmal melden — und danach nicht wieder.
+  const [gemeldet, setGemeldet] = useState<string | null>(null);
+  useEffect(() => {
+    const l = d.daten?.lauf;
+    if (!l || l.laeuft || !l.ergebnis) return;
+    const kennung = `${l.was}-${JSON.stringify(l.ergebnis).length}`;
+    if (gemeldet === kennung) return;
+    setGemeldet(kennung);
+    if (l.was === "einreichen") {
+      const f = (l.ergebnis.fehler ?? []).map((x: any) => `${x.name}: ${x.grund}`).join(" · ");
+      melden(`${l.ergebnis.eingereicht?.length ?? 0} eingereicht, ${l.ergebnis.schonDa?.length ?? 0} lagen schon bei Meta.${f ? ` Nicht durchgekommen — ${f}` : " Meta prüft jetzt; das dauert Minuten bis Stunden."}`);
+    } else if (l.was === "aufraeumen") {
+      melden(`${l.ergebnis.geloescht?.length ?? 0} alte Vorlage(n) bei Meta gelöscht.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.daten?.lauf]);
 
   const tun = async (pfad: string, koerper: unknown, was: string) => {
     setBusy(was);
@@ -556,9 +588,9 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
 
   const einreichen = async () => {
     try {
-      const j = await tun("/chef/lead-motor/vorlagen/einreichen", {}, "ein");
-      const fehler = (j.fehler ?? []).map((f: any) => `${f.name}: ${f.grund}`).join(" · ");
-      melden(`${j.eingereicht.length} eingereicht, ${j.schonDa.length} lagen schon bei Meta.${fehler ? ` Nicht durchgekommen — ${fehler}` : " Meta prüft jetzt; das dauert Minuten bis Stunden."}`);
+      await tun("/chef/lead-motor/vorlagen/einreichen", {}, "ein");
+      melden("Läuft — die Vorlagen gehen jetzt an Meta. Der Stand hier aktualisiert sich von selbst.");
+      setGemeldet(null);
       d.neu();
     } catch (e: any) { melden(e.message); }
   };
@@ -568,8 +600,9 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
       const probe = await tun("/chef/lead-motor/vorlagen/aufraeumen", { ausfuehren: false }, "auf");
       if (!probe.geloescht.length) { melden("Bei Meta liegt nichts Altes — es gibt nichts aufzuräumen."); return; }
       if (!window.confirm(`Bei Meta endgültig löschen:\n\n${probe.geloescht.join("\n")}\n\nDas lässt sich nicht rückgängig machen.`)) return;
-      const j = await tun("/chef/lead-motor/vorlagen/aufraeumen", { ausfuehren: true }, "auf");
-      melden(`${j.geloescht.length} alte Vorlage(n) bei Meta gelöscht.`);
+      await tun("/chef/lead-motor/vorlagen/aufraeumen", { ausfuehren: true }, "auf");
+      melden("Läuft — die alten Vorlagen werden bei Meta gelöscht.");
+      setGemeldet(null);
       d.neu();
     } catch (e: any) { melden(e.message); }
   };
@@ -595,12 +628,16 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
           <p className="lm-still">{satz}</p>
         </div>
         <div className="lm-vorlagen-tun">
-          <button className="lm-knopf" disabled={!!busy || fehlt === 0} onClick={() => void einreichen()}>
-            {busy === "ein" ? "Reicht ein …" : fehlt > 0 ? `${fehlt} bei Meta einreichen` : "Alle sind eingereicht"}
+          <button className="lm-knopf" disabled={!!busy || laeuft || fehlt === 0} onClick={() => void einreichen()}>
+            {laeuft && d.daten.lauf.was === "einreichen"
+              ? `Reicht ein … ${d.daten.lauf.fertig}/${d.daten.lauf.gesamt || fehlt}`
+              : busy === "ein" ? "Startet …" : fehlt > 0 ? `${fehlt} bei Meta einreichen` : "Alle sind eingereicht"}
           </button>
           {d.daten.altlasten.length > 0 && (
-            <button className="lm-klein" disabled={!!busy} onClick={() => void aufraeumen()}>
-              {busy === "auf" ? "Räumt auf …" : `${d.daten.altlasten.length} alte aufräumen`}
+            <button className="lm-klein" disabled={!!busy || laeuft} onClick={() => void aufraeumen()}>
+              {laeuft && d.daten.lauf.was === "aufraeumen"
+                ? `Räumt auf … ${d.daten.lauf.fertig}/${d.daten.lauf.gesamt || d.daten.altlasten.length}`
+                : busy === "auf" ? "Startet …" : `${d.daten.altlasten.length} alte aufräumen`}
             </button>
           )}
         </div>

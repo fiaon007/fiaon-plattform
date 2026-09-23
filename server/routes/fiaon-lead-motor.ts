@@ -357,7 +357,7 @@ router.post("/chef/lead-motor/messung/probe", wache, async (req: ChefRequest, re
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/chef/lead-motor/vorlagen", wache, async (_req: ChefRequest, res: Response) => {
   try {
-    const { vorlagenStand } = await import("../lib/fiaon-whatsapp");
+    const { vorlagenStand, vorlagenLaufStand } = await import("../lib/fiaon-whatsapp");
     const stand = await vorlagenStand().catch(() => []);
     const imQuelltext = new Set(WA_VORLAGEN.map((v) => v.name));
     res.json({
@@ -369,6 +369,7 @@ router.get("/chef/lead-motor/vorlagen", wache, async (_req: ChefRequest, res: Re
       })),
       // Was bei Meta liegt und hier nicht mehr steht — das sind die Altlasten.
       altlasten: stand.filter((t) => !imQuelltext.has(t.name)).map((t) => ({ name: t.name, status: t.status })),
+      lauf: vorlagenLaufStand(),
     });
   } catch (err) {
     console.error("[LEAD-MOTOR] vorlagen:", err);
@@ -376,27 +377,29 @@ router.get("/chef/lead-motor/vorlagen", wache, async (_req: ChefRequest, res: Re
   }
 });
 
+// E-217: Beide Läufe starten im Hintergrund und antworten sofort. Vorher hing
+// die Verbindung 94 Sekunden offen, und der Knopf sah aus wie kaputt.
 router.post("/chef/lead-motor/vorlagen/einreichen", wache, async (_req: ChefRequest, res: Response) => {
   try {
-    const { vorlagenEinreichen } = await import("../lib/fiaon-whatsapp");
-    const erg = await vorlagenEinreichen();
-    console.log(`[LEAD-MOTOR] Vorlagen eingereicht: ${erg.eingereicht.length} neu, ${erg.schonDa.length} schon da, ${erg.fehler.length} Fehler.`);
-    res.json({ ok: true, ...erg });
+    const { vorlagenLaufStarten } = await import("../lib/fiaon-whatsapp");
+    res.json({ ok: true, lauf: vorlagenLaufStarten("einreichen") });
   } catch (err) {
     console.error("[LEAD-MOTOR] einreichen:", err);
-    res.status(500).json({ ok: false, error: "Das Einreichen ist abgebrochen — bei Meta wurde nichts verändert." });
+    res.status(500).json({ ok: false, error: "Das Einreichen ließ sich nicht starten — bei Meta wurde nichts verändert." });
   }
 });
 
 router.post("/chef/lead-motor/vorlagen/aufraeumen", wache, async (req: ChefRequest, res: Response) => {
   try {
     const ausfuehren = req.body?.ausfuehren === true;
-    const { vorlagenAufraeumen } = await import("../lib/fiaon-whatsapp");
-    const erg = await vorlagenAufraeumen({ probe: !ausfuehren });
-    res.json({ ok: true, ...erg });
+    const { vorlagenAufraeumen, vorlagenLaufStarten } = await import("../lib/fiaon-whatsapp");
+    // Die Probe ist schnell (ein Lesezugriff) und bleibt deshalb direkt —
+    // der Mensch soll SEHEN, was verschwindet, bevor er bestätigt.
+    if (!ausfuehren) return res.json({ ok: true, ...(await vorlagenAufraeumen({ probe: true })) });
+    res.json({ ok: true, lauf: vorlagenLaufStarten("aufraeumen", { ausfuehren: true }) });
   } catch (err) {
     console.error("[LEAD-MOTOR] aufräumen:", err);
-    res.status(500).json({ ok: false, error: "Das Aufräumen ist abgebrochen — bei Meta wurde nichts verändert." });
+    res.status(500).json({ ok: false, error: "Das Aufräumen ließ sich nicht starten — bei Meta wurde nichts verändert." });
   }
 });
 

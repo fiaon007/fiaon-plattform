@@ -28,7 +28,8 @@ export interface RechnungPdf {
   betrag: string;
 }
 
-const RATEN_MUSTER = /^(FIAON-[A-Z0-9]{6})-(\d{1,2})$/;
+// E-230: auch FIAONXXXXXX-N (neues Bestellformat ohne Bindestrich).
+const RATEN_MUSTER = /^(FIAON-?[A-Z0-9]{6})-(\d{1,2})$/;
 const RATEN_VON = 12;
 
 let spaltenBereit = false;

@@ -14,7 +14,7 @@ import { rechnungAlsPdf } from "./fiaon-rechnung-pdf";
 
 export interface AnhangPlan { art: "rechnung"; referenz: string; quelle: "automatik" | "werkzeug" | "mensch" }
 
-const REF_IN_URL = /\/zahlung\/(FIAON-[A-Z0-9]{6}(?:-\d{1,2})?)/i;
+const REF_IN_URL = /\/zahlung\/(FIAON-?[A-Z0-9]{6}(?:-\d{1,2})?)/i; // E-230: auch ohne Bindestrich
 
 /** Aus dem nächsten Schritt (Zahlungsseite) die Referenz lesen. */
 export function referenzAusSchritt(schritt: { art?: string; url?: string | null } | null | undefined): string | null {

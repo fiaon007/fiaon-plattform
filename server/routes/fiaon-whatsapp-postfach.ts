@@ -51,7 +51,7 @@ function nutzbareVorlagen(stand: { name: string; status: string; kategorie: stri
 // E-218: Gesprächsergebnisse direkt aus dem Chat buchen — dieselbe Liste
 // und derselbe Weg wie in der Akte, kein zweiter Satz Ergebnisse.
 import { ERGEBNISSE, ERGEBNIS_TEXT, ergebnisAnwenden, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
-import { nummerFuerWhatsApp, whatsappUrteil } from "../../shared/fiaon-whatsapp-erlaubnis";
+import { nummerFuerWhatsApp, waKanonisch, whatsappUrteil } from "../../shared/fiaon-whatsapp-erlaubnis";
 
 const router = Router();
 
@@ -83,6 +83,10 @@ function gespraechTabelle(): Promise<void> {
       await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_text TEXT`;
       await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_faellig_am TIMESTAMPTZ`;
       await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_auf_id BIGINT`;
+      // E-230: WARUM Mara hier schweigt — „mensch" (jemand schreibt, läuft ab)
+      // oder „schalter" (bewusst abgeschaltet, bleibt).
+      await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS mara_aus_grund TEXT`;
+      await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS mara_aus_am TIMESTAMPTZ`;
     })().catch((e) => {
       const code = String((e as any)?.code ?? "");
       if (code === "23505" || code === "42P07") return;
@@ -214,7 +218,7 @@ function routen(hole: (req: any) => Blick) {
     try {
       await bereit();
       const blick = hole(req);
-      const nummer = nummerFuerWhatsApp(req.params.nummer);
+      const nummer = waKanonisch(req.params.nummer);
       if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
       if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
 
@@ -324,6 +328,8 @@ function routen(hole: (req: any) => Blick) {
         ok: true, nummer, verlauf, lage, links,
         fensterOffen: await fensterOffen(nummer),
         maraAn: g?.mara_an !== false,
+        // E-230: „mensch" = pausiert, weil jemand schreibt (läuft ab); „schalter" = aus.
+        maraAusGrund: g?.mara_an === false ? (g?.mara_aus_grund ?? "mensch") : null,
         notiz: g?.notiz ?? null,
         bearbeiter: g?.bearbeiter_id ?? null,
         ich: blick.agentId,
@@ -344,7 +350,7 @@ function routen(hole: (req: any) => Blick) {
     try {
       await bereit();
       const blick = hole(req);
-      const nummer = nummerFuerWhatsApp(req.body?.nummer);
+      const nummer = waKanonisch(req.body?.nummer);
       if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
       if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
 
@@ -379,9 +385,16 @@ function routen(hole: (req: any) => Blick) {
       // Erst FREIER TEXT heißt: Hier sitzt ein Mensch und führt das Gespräch.
       // ══════════════════════════════════════════════════════════════════
       if (!vorlage) {
+        // E-230: Die Übernahme läuft ab. Schreibt der Kunde danach und antwortet
+        // kein Mensch binnen 15 Minuten (nachts sofort), übernimmt Mara wieder —
+        // sonst wartet er die ganze Nacht (so am 23.09. bei zwei Kunden).
         await sqlPool`
-          INSERT INTO fiaon_whatsapp_gespraech (nummer, mara_an, updated_at) VALUES (${nummer}, FALSE, NOW())
-          ON CONFLICT (nummer) DO UPDATE SET mara_an = FALSE, updated_at = NOW()`;
+          INSERT INTO fiaon_whatsapp_gespraech (nummer, mara_an, mara_aus_grund, mara_aus_am, updated_at) VALUES (${nummer}, FALSE, 'mensch', NOW(), NOW())
+          ON CONFLICT (nummer) DO UPDATE SET mara_an = FALSE,
+            -- Von Hand abgeschaltet bleibt abgeschaltet — eigener Text macht daraus keine Pause, die von selbst endet.
+            mara_aus_grund = CASE WHEN fiaon_whatsapp_gespraech.mara_an = FALSE AND fiaon_whatsapp_gespraech.mara_aus_grund = 'schalter' THEN 'schalter' ELSE 'mensch' END,
+            mara_aus_am = CASE WHEN fiaon_whatsapp_gespraech.mara_an = FALSE AND fiaon_whatsapp_gespraech.mara_aus_grund = 'schalter' THEN fiaon_whatsapp_gespraech.mara_aus_am ELSE NOW() END,
+            updated_at = NOW()`;
       } else {
         await sqlPool`
           INSERT INTO fiaon_whatsapp_gespraech (nummer, updated_at) VALUES (${nummer}, NOW())
@@ -552,7 +565,7 @@ function routen(hole: (req: any) => Blick) {
     try {
       await bereit();
       const blick = hole(req);
-      const nummer = nummerFuerWhatsApp(req.params.nummer);
+      const nummer = waKanonisch(req.params.nummer);
       if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
       if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
       const ergebnis = String(req.body?.ergebnis ?? "");
@@ -587,7 +600,7 @@ function routen(hole: (req: any) => Blick) {
     try {
       await bereit();
       const blick = hole(req);
-      const nummer = nummerFuerWhatsApp(req.params.nummer);
+      const nummer = waKanonisch(req.params.nummer);
       if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
       if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
       await sqlPool`
@@ -605,13 +618,18 @@ function routen(hole: (req: any) => Blick) {
     try {
       await bereit();
       const blick = hole(req);
-      const nummer = nummerFuerWhatsApp(req.body?.nummer);
+      const nummer = waKanonisch(req.body?.nummer);
       if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
       if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
       const an = req.body?.an === true;
+      // E-230: Von Hand abgeschaltet heißt „schalter" — das bleibt, bis jemand
+      // wieder einschaltet. Einschalten löscht den Grund; der Nachhol-Takt
+      // beantwortet dann binnen einer Minute, was offen ist.
+      const grund = an ? null : "schalter";
       await sqlPool`
-        INSERT INTO fiaon_whatsapp_gespraech (nummer, mara_an, updated_at) VALUES (${nummer}, ${an}, NOW())
-        ON CONFLICT (nummer) DO UPDATE SET mara_an = ${an}, updated_at = NOW()`;
+        INSERT INTO fiaon_whatsapp_gespraech (nummer, mara_an, mara_aus_grund, mara_aus_am, updated_at) VALUES (${nummer}, ${an}, ${grund}, ${an ? null : new Date()}, NOW())
+        ON CONFLICT (nummer) DO UPDATE SET mara_an = ${an}, mara_aus_grund = ${grund}, mara_aus_am = ${an ? null : new Date()}, updated_at = NOW()`;
+      console.log(`[WHATSAPP-RAUM] ${blick.name} schaltet Mara bei ${nummer} ${an ? "an" : "aus"}.`);
       res.json({ ok: true, an });
     } catch (err) {
       res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
@@ -623,7 +641,7 @@ function routen(hole: (req: any) => Blick) {
     try {
       await bereit();
       const blick = hole(req);
-      const nummer = nummerFuerWhatsApp(req.body?.nummer);
+      const nummer = waKanonisch(req.body?.nummer);
       if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
       if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
       await sqlPool`

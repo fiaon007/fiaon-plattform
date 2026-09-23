@@ -91,7 +91,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Wie lange dauert die Gründung der Tochter?", a: "Die Gesellschaft steht in der Regel nach wenigen Wochen, sobald die Unterlagen vollständig sind. Die EIN vergibt die IRS in eigener Frist." },
     ],
     paket: "global_banking",
-    weiter: ["/business/us-firmengruendung", "/business/wissen/llc-oder-corporation", "/business/aus-deutschland", "/business/us-pflichten"],
+    weiter: ["/business/wissen/tochter-oder-zweigniederlassung", "/business/wissen/llc-oder-corporation", "/business/aus-deutschland", "/business/us-pflichten"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Spare ich mit einer US-LLC Steuern?", a: "In der Regel nicht. Wird die Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, ist sie dort steuerpflichtig." },
     ],
     paket: "global_banking",
-    weiter: ["/business/us-geschaeftskonto", "/business/wissen/us-llc-steuern", "/business/us-pflichten", "/business/wyoming"],
+    weiter: ["/business/us-geschaeftskonto", "/business/wissen/us-bankkonto-unterlagen", "/business/us-pflichten", "/business/wyoming"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -219,7 +219,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Prüft FIAON meine Kundenverträge?", a: "Nein. Die Pakete enthalten das Operating Agreement durch unseren Partner-Anwalt. Kundenverträge prüft ein US-Anwalt auf eigenes Mandat." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/us-firmengruendung", "/business/wissen/llc-oder-corporation", "/business/delaware", "/business/ein-itin"],
+    weiter: ["/business/us-firmengruendung", "/business/wissen/llc-oder-corporation", "/business/delaware", "/business/wissen/llc-steuererklaerung"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Kann ich Termine vor Ort wahrnehmen lassen?", a: "Ja. Unser Team in Miami nimmt Termine bei Behörden und Instituten wahr. Im Paket Global VIP reisen Sie auf Wunsch selbst zum Auftakt an." },
     ],
     paket: "global_kapital",
-    weiter: ["/business/firmenkarten-kapital", "/business/miami", "/business/florida", "/business/partner"],
+    weiter: ["/business/firmenkarten-kapital", "/business/miami", "/business/florida", "/business/wissen/business-credit-usa"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -354,7 +354,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Wie ordnet das Finanzamt eine LLC ein?", a: "Über einen Typenvergleich: Je nach Operating Agreement wie eine Kapitalgesellschaft oder wie eine Personengesellschaft. Deshalb wird die Einordnung vor dem Operating Agreement geprüft." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/us-pflichten", "/business/privatpersonen"],
+    weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/wissen/llc-gruenden", "/business/privatpersonen"],
     quellen: [
       { titel: "§ 10 AO — Geschäftsleitung", url: "https://www.gesetze-im-internet.de/ao_1977/__10.html" },
       { titel: "§ 138 AO — Anzeigen über die Erwerbstätigkeit", url: "https://www.gesetze-im-internet.de/ao_1977/__138.html" },

@@ -107,7 +107,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
   ],
   paket: "global_struktur",
   auftraggeber: "privat",
-  weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/wissen/us-llc-steuern", "/business/paket-finder"],
+  weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/wissen/llc-gruenden", "/business/paket-finder"],
   quellen: [
     { titel: "§ 355 BGB — Widerrufsrecht bei Verbraucherverträgen", url: "https://www.gesetze-im-internet.de/bgb/__355.html" },
     { titel: "§ 356 BGB — Widerrufsrecht bei Fernabsatzverträgen", url: "https://www.gesetze-im-internet.de/bgb/__356.html" },

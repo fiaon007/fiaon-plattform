@@ -27,12 +27,14 @@
 //   · Eine Rechnung nur mit echtem Betrag (Katalogpreis) und echter Referenz.
 //   · Nur Vorlagen, die Meta freigegeben hat (Text- oder Bildfassung).
 //
-// ── WARUM ES KEINE GRUPPE „MONATSRATE OFFEN" GIBT ──────────────────────────
-// Die einzige Zahlungsvorlage (fiaon_kk_rechnung) verspricht „Sobald die
-// Zahlung eingeht, aktiviere ich Ihr Konto … Link unserer Partnerbank". Das
-// stimmt nur bei der ERSTEN Zahlung. Einem Bestandskunden mit offener
-// Monatsrate wäre es gelogen. Raten laufen über die Mail-Erinnerungen, bis
-// eine eigene Raten-Vorlage bei Meta freigegeben ist.
+// ── DIE MONATSRATE (E-230) ─────────────────────────────────────────────────
+// fiaon_kk_rechnung verspricht die Aktivierung — bei Bestandskunden gelogen.
+// Deshalb gibt es für sie eine eigene Vorlage (fiaon_kk_rate): welche Rate,
+// wann fällig, welcher Verwendungszweck, Knopf zur Zahlungsseite genau dieser
+// Rate. Gruppe „Monatsrate fällig": bezahlte Bestellung, Rate offen und fällig,
+// nicht gekündigt, kein Abo-/Mahnstopp, keine Zahlungszusage offen, nicht
+// eskaliert; höchstens alle 7 Tage und zweimal je Rate. Anfangs nur von Hand —
+// die Automatik nimmt die Gruppe erst, wenn Justin sie dazuschaltet.
 //
 // ── DIE ALTE STUNDENKETTE ──────────────────────────────────────────────────
 // Ist die Automatik hier AN, pausiert whatsappKetteLaufen() — sonst würde
@@ -44,9 +46,9 @@
 import { sqlPool } from "./db-pool";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { WA_VORLAGEN } from "@shared/fiaon-lead-texte";
-import { WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
+import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 
-export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen";
+export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen";
 
 export interface GruppenRegel {
   titel: string;
@@ -86,9 +88,16 @@ export const GRUPPEN: Record<Gruppe, GruppenRegel> = {
     standard: "fiaon_kk_rechnung",
     abstandTage: 2,
   },
+  rate_offen: {
+    titel: "Monatsrate fällig",
+    satz: "Bestandskunden mit fälliger, unbezahlter Monatsrate — nicht gekündigt, kein Abo- oder Mahnstopp. Höchstens alle 7 Tage, zweimal je Rate.",
+    vorlagen: ["fiaon_kk_rate"],
+    standard: "fiaon_kk_rate",
+    abstandTage: 7,
+  },
 };
 
-export const GRUPPEN_REIHE: Gruppe[] = ["neu", "zahlung_offen", "abbrecher", "ohne_antrag"];
+export const GRUPPEN_REIHE: Gruppe[] = ["neu", "zahlung_offen", "abbrecher", "ohne_antrag", "rate_offen"];
 export const istGruppe = (g: unknown): g is Gruppe => typeof g === "string" && (GRUPPEN_REIHE as string[]).includes(g);
 
 /** Was „stufen" je Kandidat bedeutet — für die Anzeige. */
@@ -136,8 +145,18 @@ export interface Kandidat {
   eingang: string;
   tage: number;
   letzteVorlageAm: string | null;
-  betrag: string | null;       // „99,99" für {{2}} der Rechnung
-  referenz: string | null;     // Verwendungszweck der ersten Zahlung
+  betrag: string | null;       // „99,99" für {{2}} der Rechnung bzw. der Rate
+  referenz: string | null;     // Verwendungszweck der ersten Zahlung bzw. der Rate
+  faelligAm: string | null;    // „22.09.2026" — nur bei der Monatsrate
+}
+
+/** „ANNA VON DER HEIDE" / „max mustermann" → „Anna von der Heide" / „Max Mustermann". Gemischte Schreibung bleibt. */
+export function schoenerName(roh: string): string {
+  const s = String(roh || "").replace(/\s+/g, " ").trim();
+  if (!s || (s !== s.toUpperCase() && s !== s.toLowerCase())) return s;
+  const klein = new Set(["von", "van", "der", "den", "de", "zu", "zur", "di", "da", "del", "la", "le"]);
+  return s.toLowerCase().split(" ").map((w, i) => (i > 0 && klein.has(w)) ? w
+    : w.split("-").map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join("-")).join(" ");
 }
 
 /** Die Menschen, die überhaupt in Frage kommen — die harten Regeln oben. */
@@ -164,22 +183,72 @@ export const BASIS = `
      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
        AND p.primary_phone IS NOT NULL AND TRIM(p.primary_phone) <> '' AND p.werbung_gesperrt_am IS NULL
        AND ${WHATSAPP_MOEGLICH_SQL("wx")}
+       -- 24.09.2026, Justin: „Wir schreiben alle per WhatsApp an, die wir haben, nicht nur die mit
+       -- Einwilligung." Kein Einwilligungs-Filter — die Seite zeigt je Gruppe, wie viele nachweislich
+       -- eingewilligt haben (Risiko: Meta-Qualität, bei Werbung an Website-Abbrecher § 7 UWG).
        -- Höchstens ein Versuch je Person und Tag — auch ein übersprungener
        -- (sonst griffe die Automatik alle fünf Minuten nach demselben Fall).
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_wa_aktion x WHERE x.person_id = p.id
             AND (x.erstellt_am AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)
-       AND p.created_at > NOW() - INTERVAL '120 days'
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_whatsapp w WHERE w.person_id = p.id AND w.richtung = 'raus'
             AND (w.created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_whatsapp s WHERE s.person_id = p.id AND s.richtung = 'rein'
             AND (s.text ILIKE '%stopp%' OR s.knopf ILIKE '%stopp%' OR s.text ILIKE '%keine nachrichten%' OR s.knopf ILIKE '%keine nachrichten%'))
+       -- E-230: Wer gerade mit uns schreibt, bekommt keine Vorlage mitten ins Gespräch — dort antwortet Mara.
        AND NOT EXISTS (
-         SELECT 1 FROM fiaon_applications ap WHERE ap.person_id = p.id AND ap.merged_into IS NULL
-            AND ap.payment_status IN ('paid', 'claimed_paid'))
+         SELECT 1 FROM fiaon_whatsapp e WHERE e.person_id = p.id AND e.richtung = 'rein' AND e.created_at > NOW() - INTERVAL '24 hours')
   )`;
+
+// Für die vier Gruppen VOR der ersten Zahlung (neu, ohne Antrag, abgebrochen,
+// erste Zahlung offen): nicht älter als 120 Tage, nichts bezahlt oder gemeldet.
+// Stand bis E-229 in BASIS — dort hätte es die Monatsrate (nur Bezahlte) leer gemacht.
+const VOR_DER_ZAHLUNG = `b.created_at > NOW() - INTERVAL '120 days'
+  AND NOT EXISTS (SELECT 1 FROM fiaon_applications ap WHERE ap.person_id = b.person_id AND ap.merged_into IS NULL
+                     AND ap.payment_status IN ('paid', 'claimed_paid'))`;
+
+/**
+ * Eine Rate, an die erinnert werden darf. `r` ist fiaon_abo_raten, `a` die
+ * Bestellung, `person` der Ausdruck für die Personen-ID. Gruppe UND Auswahl der
+ * Rate nutzen genau diesen Baustein — sonst liefen „höchstens zweimal je Rate"
+ * und die gewählte Rate auseinander (E-230-Durchsicht).
+ */
+export const RATE_ERINNERBAR = (r: string, a: string, person: string) => `(
+  ${RATE_OFFEN_FAELLIG(r)}
+  -- höchstens zwei WhatsApp je Rate
+  AND (SELECT COUNT(*) FROM fiaon_whatsapp wr WHERE wr.person_id = ${person} AND wr.richtung = 'raus'
+         AND wr.vorlage IN ('fiaon_kk_rate', 'fiaon_kkb_rate') AND wr.status <> 'fehler'
+         AND wr.text LIKE '%' || ${r}.zahlungsreferenz || '%') < 2
+  -- keine Erinnerung, wenn ein passender Eingang unverbucht im Bankbuch liegt (Regel der Rückholung)
+  AND NOT EXISTS (
+    SELECT 1 FROM fiaon_bank_txns t
+     WHERE t.applied = FALSE AND t.amount_cents > 0 AND t.booked_at > NOW() - INTERVAL '30 days'
+       AND (t.matched_ref = ${a}.ref
+            OR UPPER(REGEXP_REPLACE(COALESCE(t.extracted_ref, ''), '[^A-Za-z0-9]', '', 'g'))
+               LIKE UPPER(REGEXP_REPLACE(COALESCE(${a}.payment_reference, ${a}.ref), '[^A-Za-z0-9]', '', 'g')) || '%'
+            OR (LENGTH(TRIM(COALESCE(${a}.last_name, ''))) >= 4 AND t.payer_name ILIKE '%' || TRIM(${a}.last_name) || '%')))
+  -- ein zugesagtes Zahldatum abwarten (steht an der Person)
+  AND NOT EXISTS (SELECT 1 FROM fiaon_persons pz WHERE pz.id = ${person}
+                    AND pz.promised_payment_date >= (NOW() AT TIME ZONE 'Europe/Berlin')::date)
+)`;
+
+/** Rate offen, fällig, zahlbar über /zahlung/, nicht eskaliert, kein Beleg „überwiesen" in 14 Tagen. */
+const RATE_OFFEN_FAELLIG = (r: string) => `(
+  ${r}.status = 'offen' AND ${r}.storniert_am IS NULL AND ${r}.bezahlt_am IS NULL
+  AND ${r}.faellig_am < (NOW() AT TIME ZONE 'Europe/Berlin')::date
+  AND UPPER(${r}.zahlungsreferenz) ~ '^FIAON-?[A-Z0-9]{6}-[0-9]{1,2}$'
+  AND (${r}.inkasso_zusage_am IS NULL OR ${r}.inkasso_zusage_am < (NOW() AT TIME ZONE 'Europe/Berlin')::date)
+  AND ${r}.eskaliert_am IS NULL
+  AND NOT EXISTS (SELECT 1 FROM fiaon_raten_arbeit ra WHERE ra.rate_id = ${r}.id AND ra.ergebnis = 'ueberwiesen_beleg'
+                    AND ra.created_at > NOW() - INTERVAL '14 days'))`;
+
+/** Die Bestellung eines Bestandskunden, an dessen Rate erinnert werden darf. `a` ist fiaon_applications. */
+const BESTAND = (a: string) => `(${a}.merged_into IS NULL AND NOT COALESCE(${a}.ist_entwurf, FALSE) AND ${a}.payment_status = 'paid'
+  AND ${a}.archived_at IS NULL AND ${a}.gdpr_deleted_at IS NULL
+  AND (${a}.gekuendigt_am IS NULL OR ${a}.kuendigung_zurueckgenommen_am IS NOT NULL)
+  AND ${a}.abo_gestoppt_am IS NULL AND ${a}.mahnstopp_am IS NULL)`;
 
 // „Abgeschickt" — dieselbe Regel wie der Wiedereinstieg in fiaon-antrag.ts
 // (E-210): Schritt 8 erreicht oder ein Status außerhalb der unfertigen. Die
@@ -197,25 +266,32 @@ export function gruppenBedingung(g: Gruppe): string {
   const deckel = `b.vorlagen_30 < 8`;
   switch (g) {
     case "neu":
-      return `b.created_at > NOW() - INTERVAL '30 days' AND b.letzte_vorlage IS NULL AND ${OHNE_ANTRAG}`;
+      // „Noch nie angeschrieben" heißt: gar kein WhatsApp-Kontakt — auch keine Antwort von Mara, kein eigener Eingang.
+      return `${VOR_DER_ZAHLUNG} AND b.created_at > NOW() - INTERVAL '30 days' AND b.letzte_vorlage IS NULL AND ${OHNE_ANTRAG}
+              AND NOT EXISTS (SELECT 1 FROM fiaon_whatsapp wk WHERE wk.person_id = b.person_id AND (wk.richtung = 'rein' OR wk.status <> 'fehler'))`;
     case "ohne_antrag":
-      return `${OHNE_ANTRAG} AND b.created_at > NOW() - INTERVAL '90 days' AND ${deckel}
+      return `${VOR_DER_ZAHLUNG} AND ${OHNE_ANTRAG} AND b.created_at > NOW() - INTERVAL '90 days' AND ${deckel}
               AND ((b.letzte_vorlage IS NOT NULL AND b.letzte_vorlage < NOW() - INTERVAL '2 days')
                    OR (b.letzte_vorlage IS NULL AND b.created_at <= NOW() - INTERVAL '30 days'))`;
     case "abbrecher":
       // Abgebrochen = eine Bestellung, die noch vor dem Abschicken steht, seit
       // mindestens 30 Minuten unberührt — und keine abgeschickte daneben.
       // (Entwürfe mit ist_entwurf haben keine Person; sie sind hier nie dabei.)
-      return `EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL AND NOT a.ist_entwurf
+      return `${VOR_DER_ZAHLUNG} AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL AND NOT a.ist_entwurf
                         AND NOT ${abgeschickt("a")} AND a.payment_status NOT IN ('paid', 'claimed_paid', 'cancelled', 'superseded')
                         AND a.gekuendigt_am IS NULL AND COALESCE(a.updated_at, a.created_at) < NOW() - INTERVAL '30 minutes')
               AND NOT EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = b.person_id AND a2.merged_into IS NULL
                         AND NOT a2.ist_entwurf AND ${abgeschickt("a2")})
               AND b.created_at > NOW() - INTERVAL '90 days' AND ${abstand} AND ${deckel}`;
     case "zahlung_offen":
-      return `EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL AND NOT a.ist_entwurf
+      return `${VOR_DER_ZAHLUNG} AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL AND NOT a.ist_entwurf
                         AND ${abgeschickt("a")} AND a.payment_status IN ('pending_payment', 'expired', 'pending') AND a.mahnstopp_am IS NULL
                         AND a.gekuendigt_am IS NULL AND a.payment_reference IS NOT NULL)
+              AND ${abstand} AND ${deckel}`;
+    case "rate_offen":
+      // Höchstens zwei WhatsApp je Rate: Erinnerung, kein Dauermahnen (die Mail erinnert ohnehin, E-182).
+      return `EXISTS (SELECT 1 FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+                       WHERE a.person_id = b.person_id AND ${BESTAND("a")} AND ${RATE_ERINNERBAR("r", "a", "b.person_id")})
               AND ${abstand} AND ${deckel}`;
   }
 }
@@ -226,16 +302,26 @@ const ORDNUNG: Record<Gruppe, string> = {
   ohne_antrag: "b.letzte_vorlage ASC NULLS FIRST, b.created_at DESC",
   abbrecher: "b.created_at DESC",
   zahlung_offen: "b.letzte_vorlage ASC NULLS FIRST, b.created_at DESC",
+  rate_offen: "b.letzte_vorlage ASC NULLS FIRST, b.created_at DESC",
 };
 
 export async function gruppenZahlen(): Promise<Record<Gruppe, number>> {
+  return (await gruppenZahlenMitEinwilligung()).alle;
+}
+
+/** Je Gruppe: alle — und wie viele davon nachweislich eingewilligt haben (Meta-Formular mit Hinweis oder selbst geschrieben). */
+export async function gruppenZahlenMitEinwilligung(): Promise<{ alle: Record<Gruppe, number>; einwilligung: Record<Gruppe, number> }> {
   await zentraleSchema();
-  const aus = {} as Record<Gruppe, number>;
+  const alle = {} as Record<Gruppe, number>;
+  const einwilligung = {} as Record<Gruppe, number>;
   await Promise.all(GRUPPEN_REIHE.map(async (g) => {
-    const [r] = (await sqlPool.unsafe(`${BASIS} SELECT COUNT(*)::int AS n FROM basis b WHERE ${gruppenBedingung(g)}`)) as any[];
-    aus[g] = Number(r?.n || 0);
+    const [r] = (await sqlPool.unsafe(`${BASIS}
+      SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE ${WHATSAPP_EINWILLIGUNG_SQL("b.person_id")})::int AS e
+        FROM basis b WHERE ${gruppenBedingung(g)}`)) as any[];
+    alle[g] = Number(r?.n || 0);
+    einwilligung[g] = Number(r?.e || 0);
   }));
-  return aus;
+  return { alle, einwilligung };
 }
 
 export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = []): Promise<Kandidat[]> {
@@ -253,7 +339,20 @@ export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = [])
   for (const r of rows) {
     let betrag: string | null = null;
     let referenz: string | null = null;
-    if (g === "zahlung_offen") {
+    let faelligAm: string | null = null;
+    if (g === "rate_offen") {
+      // Die älteste fällige Rate — Betrag wie auf der Zahlungsseite (betrag_cents), nicht der Katalogpreis.
+      const [ra] = (await sqlPool.unsafe(`
+        SELECT r.zahlungsreferenz, r.betrag_cents, to_char(r.faellig_am, 'DD.MM.YYYY') AS faellig
+          FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+         WHERE a.person_id = $1 AND ${BESTAND("a")} AND ${RATE_ERINNERBAR("r", "a", "$1::int")}
+         ORDER BY r.faellig_am ASC, r.rate_nr ASC LIMIT 1`, [Number(r.person_id)])) as any[];
+      if (ra) {
+        betrag = (Number(ra.betrag_cents) / 100).toFixed(2).replace(".", ",");
+        referenz = String(ra.zahlungsreferenz);
+        faelligAm = String(ra.faellig);
+      }
+    } else if (g === "zahlung_offen") {
       const [a] = (await sqlPool`
         SELECT payment_reference, pack_key, amount_due FROM fiaon_applications
          WHERE person_id = ${r.person_id} AND merged_into IS NULL AND NOT ist_entwurf
@@ -270,13 +369,13 @@ export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = [])
     }
     aus.push({
       personId: Number(r.person_id),
-      name: String(r.name || "").trim(),
+      name: schoenerName(String(r.name || "")),
       telefon: String(r.telefon || ""),
       leadId: r.lead_id != null ? Number(r.lead_id) : null,
       eingang: new Date(r.created_at).toISOString(),
       tage: Math.floor(Number(r.tage_roh || 0)),
       letzteVorlageAm: r.letzte_vorlage ? new Date(r.letzte_vorlage).toISOString() : null,
-      betrag, referenz,
+      betrag, referenz, faelligAm,
     });
   }
   return aus;
@@ -299,6 +398,12 @@ export function vorlageFuerKandidat(gewaehlt: string, k: Kandidat): string {
 /** Die Werte für {{1}}, {{2}}, {{3}} — oder ein Grund, warum es nicht geht. */
 export function werteFuer(vorlage: string, k: Kandidat): { werte: string[]; knopfWert?: string } | { grund: string } {
   const anrede = k.name || "und willkommen";
+  if (vorlage === "fiaon_kk_rate") {
+    // Bestandskunden bekommen kein „Hallo und willkommen".
+    if (!k.name) return { grund: "Kein Name — bei Bestandskunden kein „und willkommen“" };
+    if (!k.betrag || !k.referenz || !k.faelligAm) return { grund: "Keine fällige Rate gefunden" };
+    return { werte: [k.name, k.betrag, k.faelligAm, k.referenz], knopfWert: k.referenz };
+  }
   if (vorlage === "fiaon_kk_rechnung") {
     if (!k.betrag || !k.referenz) return { grund: "Kein Betrag oder keine Referenz" };
     return { werte: [anrede, k.betrag, k.referenz], knopfWert: k.referenz };
@@ -516,7 +621,7 @@ const AUTOMATIK_KEY = "wa_zentrale_automatik";
 export const AUTOMATIK_VORGABE: Automatik = {
   an: false, von: "07:40", bis: "20:45", jeStunde: 5,
   gruppen: ["neu", "zahlung_offen", "abbrecher", "ohne_antrag"],
-  vorlagen: { neu: "fiaon_kk_anfrage", zahlung_offen: "fiaon_kk_rechnung", abbrecher: "fiaon_kk_antrag_offen", ohne_antrag: "stufen" },
+  vorlagen: { neu: "fiaon_kk_anfrage", zahlung_offen: "fiaon_kk_rechnung", abbrecher: "fiaon_kk_antrag_offen", ohne_antrag: "stufen", rate_offen: "fiaon_kk_rate" },
 };
 
 export async function automatik(): Promise<Automatik> {
@@ -640,7 +745,13 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
 // ═══════════════════════════════════════════════════════════════════════════
 export async function zentraleLage() {
   await zentraleSchema();
-  const [zahlen, a, frei, raum] = await Promise.all([gruppenZahlen(), automatik(), freigabeSatz(), tagesRaum()]);
+  const [zaehlung, a, frei, raum] = await Promise.all([gruppenZahlenMitEinwilligung(), automatik(), freigabeSatz(), tagesRaum()]);
+  const zahlen = zaehlung.alle;
+  // E-230: Wer wartet gerade auf eine Antwort? Justin soll Stille sehen, bevor ein Kunde sie spürt.
+  const { OFFENE_GESPRAECHE_SQL } = await import("./fiaon-whatsapp-mara");
+  const [wartend] = (await sqlPool.unsafe(`
+    SELECT COUNT(*)::int AS n, COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - o.am)) / 60), 0)::int AS laengste
+      FROM (${OFFENE_GESPRAECHE_SQL} AND r.am < NOW() - INTERVAL '2 minutes') o`).catch(() => [{ n: 0, laengste: 0 }])) as any[];
   const { waKonfig } = await import("./fiaon-whatsapp");
   const { ketteAn } = await import("./fiaon-lead-whatsapp");
   const kette = await ketteAn().catch(() => false);
@@ -696,7 +807,8 @@ export async function zentraleLage() {
   return {
     whatsappBereit: waKonfig().bereit,
     meta: raum,
-    gruppen: GRUPPEN_REIHE.map((g) => ({ schluessel: g, ...GRUPPEN[g], anzahl: zahlen[g] })),
+    wartend: { anzahl: Number(wartend?.n || 0), laengsteMin: Number(wartend?.laengste || 0) },
+    gruppen: GRUPPEN_REIHE.map((g) => ({ schluessel: g, ...GRUPPEN[g], anzahl: zahlen[g], mitEinwilligung: zaehlung.einwilligung[g] })),
     stufenText: STUFEN_TEXT,
     vorlagen: vorlagenListe,
     automatik: { ...a, dieseStunde: Number(stunde?.n || 0) },
@@ -731,7 +843,7 @@ export async function vorschau(g: Gruppe, vorlage: string, anzahl: number) {
     const hinderung = !istFrei(v, frei) ? "Vorlage bei Meta noch nicht freigegeben" : "grund" in w ? w.grund : null;
     return {
       personId: k.personId, name: k.name || "Ohne Namen", tage: k.tage, vorlage: v,
-      letzteVorlageAm: k.letzteVorlageAm, betrag: k.betrag, referenz: k.referenz, text, hinderung,
+      letzteVorlageAm: k.letzteVorlageAm, betrag: k.betrag, referenz: k.referenz, faelligAm: k.faelligAm, text, hinderung,
     };
   });
 }
@@ -749,21 +861,24 @@ export async function vorschau(g: Gruppe, vorlage: string, anzahl: number) {
 // stundenlang. Das Ergebnis steht in der Zeile.
 // ═══════════════════════════════════════════════════════════════════════════
 const BILD_KEY = "wa_bildvorlagen_eingereicht_e229";
-export async function bildvorlagenEinmalEinreichen(): Promise<void> {
+export const bildvorlagenEinmalEinreichen = () => vorlagenEinmalEinreichen(BILD_KEY);
+
+/** Einmal je Schlüssel: nur fehlende Vorlagen einreichen (E-230: fiaon_kk_rate + fiaon_kkb_rate). */
+export async function vorlagenEinmalEinreichen(schluessel: string): Promise<void> {
   const { waKonfig, vorlagenEinreichen } = await import("./fiaon-whatsapp");
   if (!waKonfig().bereit) return;
   const beansprucht = (await sqlPool`
-    INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${BILD_KEY}, 'laeuft', NOW())
+    INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${schluessel}, 'laeuft', NOW())
     ON CONFLICT (key) DO NOTHING RETURNING key`.catch(() => [])) as any[];
   if (!beansprucht.length) return;
   try {
     const erg = await vorlagenEinreichen();
     const wert = JSON.stringify({ am: new Date().toISOString(), eingereicht: erg.eingereicht, schonDa: erg.schonDa.length, fehler: erg.fehler });
-    await sqlPool`UPDATE fiaon_settings SET value = ${wert}, updated_at = NOW() WHERE key = ${BILD_KEY}`;
-    console.log(`[WA-ZENTRALE] Bildvorlagen eingereicht: ${erg.eingereicht.length} neu, ${erg.schonDa.length} schon da, ${erg.fehler.length} Fehler${erg.fehler.length ? ` — ${erg.fehler.map((f) => `${f.name}: ${f.grund}`).join(" | ").slice(0, 400)}` : ""}`);
+    await sqlPool`UPDATE fiaon_settings SET value = ${wert}, updated_at = NOW() WHERE key = ${schluessel}`;
+    console.log(`[WA-ZENTRALE] Vorlagen eingereicht (${schluessel}): ${erg.eingereicht.length} neu, ${erg.schonDa.length} schon da, ${erg.fehler.length} Fehler${erg.fehler.length ? ` — ${erg.fehler.map((f) => `${f.name}: ${f.grund}`).join(" | ").slice(0, 400)}` : ""}`);
   } catch (e) {
     const wert = JSON.stringify({ am: new Date().toISOString(), abbruch: String((e as Error)?.message || e).slice(0, 300) });
-    await sqlPool`UPDATE fiaon_settings SET value = ${wert}, updated_at = NOW() WHERE key = ${BILD_KEY}`.catch(() => {});
-    console.error("[WA-ZENTRALE] Bildvorlagen einreichen:", e);
+    await sqlPool`UPDATE fiaon_settings SET value = ${wert}, updated_at = NOW() WHERE key = ${schluessel}`.catch(() => {});
+    console.error(`[WA-ZENTRALE] Vorlagen einreichen (${schluessel}):`, e);
   }
 }

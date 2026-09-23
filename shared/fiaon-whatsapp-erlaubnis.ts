@@ -40,6 +40,54 @@ export function nummerFuerWhatsApp(roh: unknown, land: "DE" | "AT" | "CH" = "DE"
 }
 
 /**
+ * EINE NUMMER, DIE SCHON IN WHATSAPP-FORM VORLIEGT (24.09.2026, E-230).
+ *
+ * nummerFuerWhatsApp ist für EINGABEN gemacht (0151 …, +49 …, 0043 …): Was
+ * nicht mit 49/43/41 beginnt, bekommt dort ein +49 vorangestellt. Für Nummern,
+ * die schon fertig sind — die Absender-ID von Meta (immer mit Landesvorwahl,
+ * ohne Plus), `fiaon_whatsapp.nummer`, das Ergebnis von nummerFuerWhatsApp —
+ * ist genau das falsch: Aus der US-Nummer 12485302707 wurde 4912485302707,
+ * aus der türkischen 905321234567 die 49905321234567. Antworten gingen an eine
+ * Nummer, die es nicht gibt („Message undeliverable"), und Mara blieb stumm.
+ *
+ * Deshalb: Eine fertige Nummer (8–15 Ziffern, beginnt nicht mit 0, höchstens
+ * ein Plus davor) wird NIE mehr umgerechnet. Alles andere läuft wie bisher
+ * durch nummerFuerWhatsApp. Nur für Werte verwenden, die schon WhatsApp-Form
+ * haben — rohe Formularnummern gehen weiter durch nummerFuerWhatsApp.
+ */
+export function waKanonisch(roh: unknown): string | null {
+  const s = String(roh ?? "").replace(/[\s\-()/.]/g, "");
+  if (/^\+?[1-9]\d{7,14}$/.test(s)) return s.replace(/^\+/, "");
+  return nummerFuerWhatsApp(roh);
+}
+
+/**
+ * NACHGEWIESENE EINWILLIGUNG FÜR NACHRICHTEN, DIE WIR BEGINNEN (24.09.2026, E-230).
+ *
+ * NUR ZUR ANZEIGE: Justin hat am 24.09. entschieden, alle anzuschreiben, deren
+ * Nummer WhatsApp kann — nicht nur die mit Einwilligung. Die Zentrale zeigt
+ * je Gruppe, wie viele nachweislich eingewilligt haben.
+ *
+ * Meta erlaubt Vorlagen an Menschen nur mit Opt-in. Nachgewiesen ist es bei
+ * uns auf zwei Wegen: (1) ein Meta-Lead-Formular mit WhatsApp-Hinweis im Text
+ * (kein ausdrückliches Nein), (2) der Mensch hat uns selbst auf WhatsApp
+ * geschrieben. Der Antrag auf der Website erwähnt WhatsApp NICHT — wer nur
+ * dort beantragt hat, hat nicht eingewilligt. Gemessen am 24.09.: bei „Erste
+ * Zahlung offen" 42 von 84, bei „Monatsrate fällig" 66 von 202.
+ * Beschwerden solcher Empfänger drücken die Qualitätsbewertung der einen
+ * Nummer, über die auch Mara antwortet — bis zur Sperre.
+ *
+ * `personAlias` ist der Ausdruck für die Personen-ID (z. B. "p.id").
+ * Antworten im offenen 24-Stunden-Fenster brauchen das nicht — dort hat der
+ * Mensch selbst geschrieben.
+ */
+export const WHATSAPP_EINWILLIGUNG_SQL = (personAlias: string) => `(
+  EXISTS (SELECT 1 FROM fiaon_leads ew WHERE ew.person_id = ${personAlias} AND ew.quelle = 'facebook_lead_ads'
+            AND COALESCE(ew.whatsapp_erlaubt, TRUE) IS TRUE)
+  OR EXISTS (SELECT 1 FROM fiaon_whatsapp ei WHERE ei.person_id = ${personAlias} AND ei.richtung = 'rein')
+)`;
+
+/**
  * Handy oder Festnetz? WhatsApp gibt es nur auf Mobilnummern — eine Nachricht
  * an ein Festnetz kostet nur Zustellversuche und drückt die Qualitätsbewertung.
  * Erkannt werden DACH sicher, der Rest gilt als „unklar" (wir versuchen es).

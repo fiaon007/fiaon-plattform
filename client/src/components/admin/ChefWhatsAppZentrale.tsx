@@ -20,8 +20,8 @@ import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-wa-zentrale.css";
 
-type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen";
-interface GruppeInfo { schluessel: Gruppe; titel: string; satz: string; vorlagen: string[]; standard: string; abstandTage: number; anzahl: number }
+type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen";
+interface GruppeInfo { schluessel: Gruppe; titel: string; satz: string; vorlagen: string[]; standard: string; abstandTage: number; anzahl: number; mitEinwilligung?: number }
 interface Vorlage { name: string; kopf: string; zweck: string; text: string; frei: boolean; bild: boolean; kopfBild: string | null; fuss: string }
 interface Automatik {
   an: boolean; von: string; bis: string; jeStunde: number; gruppen: Gruppe[]; vorlagen: Partial<Record<Gruppe, string>>;
@@ -38,6 +38,7 @@ interface Eintrag {
 interface Lage {
   whatsappBereit: boolean;
   meta: { grenze: number; verbraucht: number; frei: number; stufe: string | null; qualitaet: string | null };
+  wartend?: { anzahl: number; laengsteMin: number };
   gruppen: GruppeInfo[];
   stufenText: string;
   vorlagen: Vorlage[];
@@ -49,10 +50,10 @@ interface Lage {
   lauf: Lauf | null;
   letzte: Eintrag[];
 }
-interface VorschauZeile { personId: number; name: string; tage: number; vorlage: string; letzteVorlageAm: string | null; betrag: string | null; referenz: string | null; text: string | null; hinderung: string | null }
+interface VorschauZeile { personId: number; name: string; tage: number; vorlage: string; letzteVorlageAm: string | null; betrag: string | null; referenz: string | null; faelligAm?: string | null; text: string | null; hinderung: string | null }
 
 const GRUPPEN_KURZ: Record<Gruppe, string> = {
-  neu: "Neue Leads", zahlung_offen: "Zahlung offen", abbrecher: "Abgebrochen", ohne_antrag: "Ohne Antrag",
+  neu: "Neue Leads", zahlung_offen: "Zahlung offen", abbrecher: "Abgebrochen", ohne_antrag: "Ohne Antrag", rate_offen: "Monatsrate",
 };
 const QUALITAET: Record<string, { text: string; art: "gut" | "warn" | "rot" }> = {
   GREEN: { text: "Qualität grün", art: "gut" }, YELLOW: { text: "Qualität gelb", art: "warn" }, RED: { text: "Qualität rot", art: "rot" },
@@ -232,6 +233,12 @@ export default function ChefWhatsAppZentrale() {
             </div>
           </header>
 
+          {d.wartend && d.wartend.anzahl > 0 ? (
+            <div className="wz-hinweis gelb">
+              {d.wartend.anzahl === 1 ? "1 Kunde wartet" : `${zahl(d.wartend.anzahl)} Kunden warten`} seit über 2 Minuten auf eine Antwort (längstens {zahl(d.wartend.laengsteMin)} Min.).
+              {" "}Mara holt jede Minute nach — nachts nur Frisches, Älteres ab 7 Uhr. <a href="/chef/s/whatsapp">Zum WhatsApp-Raum</a>
+            </div>
+          ) : null}
           {!d.whatsappBereit ? <div className="wz-hinweis rot">WhatsApp ist auf dem Server nicht eingerichtet — es kann nichts gesendet werden.</div> : null}
           {q?.art === "warn" ? <div className="wz-hinweis gelb">Meta bewertet die Nummer mit Gelb. Lieber kleinere Mengen senden, bis sie wieder grün ist.</div> : null}
           {d.kette.pausiert ? <div className="wz-hinweis">Die alte Stundenkette pausiert, solange die Automatik läuft. Die Sofort-Begrüßung neuer Leads läuft weiter.</div> : null}
@@ -260,6 +267,11 @@ export default function ChefWhatsAppZentrale() {
                   <span className="wz-gruppe-zahl">{zahl(gr.anzahl)}</span>
                   <span className="wz-gruppe-titel">{gr.titel}</span>
                   <span className="wz-gruppe-satz">{gr.satz}</span>
+                  {gr.mitEinwilligung != null && gr.anzahl > 0 ? (
+                    <span className="wz-gruppe-einw" title="Nachweislich eingewilligt: Meta-Formular mit WhatsApp-Hinweis oder hat uns selbst auf WhatsApp geschrieben. Der Antrag auf der Website fragt nicht nach WhatsApp.">
+                      davon {zahl(gr.mitEinwilligung)} mit Einwilligung
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -352,7 +364,7 @@ export default function ChefWhatsAppZentrale() {
               <p className="wz-takt-satz">≈ <b>{zahl(proTag)}</b> Nachrichten am Tag, gleichmäßig über jede Stunde verteilt.</p>
             </div>
             <ol className="wz-reihe">
-              {(["neu", "zahlung_offen", "abbrecher", "ohne_antrag"] as Gruppe[])
+              {(["neu", "zahlung_offen", "abbrecher", "ohne_antrag", "rate_offen"] as Gruppe[])
                 .sort((a, b) => {
                   const ia = auto.gruppen.indexOf(a), ib = auto.gruppen.indexOf(b);
                   return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);

@@ -47,7 +47,10 @@ export interface Zahlungsauftrag {
   sprache?: "de" | "en";
 }
 
-const RATEN_MUSTER = /^FIAON-[A-Z0-9]{6}-(\d{1,2})$/i;
+// E-230: Auch das neue Bestellformat ohne Bindestrich (FIAONXXXXXX-N). Vorher
+// führte jede Rate dieser Bestellungen auf „Bestellung nicht gefunden" (404) —
+// 135 Bestellungen im neuen Format, auch die Links in den Raten-Mails.
+const RATEN_MUSTER = /^FIAON-?[A-Z0-9]{6}-(\d{1,2})$/i;
 
 export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauftrag | null> {
   const ref = String(refRoh || "").trim().toUpperCase();

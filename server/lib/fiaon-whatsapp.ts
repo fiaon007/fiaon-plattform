@@ -20,7 +20,7 @@
 import { sqlPool } from "./db-pool";
 import { graph, MetaFehler } from "./fiaon-meta";
 import { WA_VORLAGEN, INKASSO_AUSNAHME, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
-import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
+import { nummerFuerWhatsApp, waKanonisch } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
 
 type Lauf = typeof sqlPool;
@@ -82,7 +82,14 @@ export function waTabellen(lauf: Lauf = sqlPool): Promise<void> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Worte, die WhatsApp als Inkasso liest — hier gilt die Richtlinie, nicht unser Geschmack. */
-const INKASSO = /\b(mahn\w*|inkasso|forderung\w*|zahlungsverzug|überfällig|verzugszins\w*|offene\s+rate|rückstand\w*|zwangs\w*)\b/i;
+// E-230: \b greift vor „ü" nie (kein \w), und „Inkassobüro"/„Zahlungsrückstand" rutschten
+// als Wortteile durch. Jetzt mit ausdrücklicher Buchstabenklasse statt \b, und das Gericht
+// (Amtsgericht, Mahnverfahren, Betreibungsamt) gehört auf WhatsApp ebenfalls nicht hin.
+const BUCHST = "[A-Za-zÄÖÜäöüß]";
+const INKASSO = new RegExp(
+  `(?<!${BUCHST})(mahn${BUCHST}*|${BUCHST}*inkasso${BUCHST}*|forderung${BUCHST}*|${BUCHST}*verzug${BUCHST}*|überfällig${BUCHST}*|offene\\s+rate${BUCHST}*|${BUCHST}*rückst[aä]nd${BUCHST}*|zwangs${BUCHST}*|${BUCHST}*gericht${BUCHST}*|betreibungsamt|mahnverfahren)(?!${BUCHST})`,
+  "i",
+);
 
 export function inkassoVerdacht(text: string): boolean {
   return INKASSO.test(String(text ?? ""));
@@ -93,7 +100,11 @@ export function sendePruefung(text: string): string[] {
   const funde: string[] = [];
   if (inkassoVerdacht(text)) funde.push("Klingt nach Mahnung oder Forderung — WhatsApp verbietet das (Mail, Telefon oder Brief nehmen).");
   for (const w of wandPruefen(text).filter((x) => x.art === "verboten")) funde.push(`Verbotenes Wort: ${w.treffer}`);
-  if (/\b(du|dich|dir|dein|deine|euch)\b/i.test(text)) funde.push("Du-Form — Kunden werden gesiezt.");
+  // E-230: Die Du-Prüfung nur für deutsche Texte — das französische „du"
+  // („du soutien") hielt eine korrekte Antwort in der Sprache des Kunden zurück.
+  const fremd = /\b(vous|votre|nous|merci|bonjour|pour|avec|les|une|est|soutien)\b/i.test(text)
+    && !/\b(Sie|Ihr|Ihre|Ihnen|und|nicht|ist|wir|ich|der|das|mit|kannst|bist|hast)\b/.test(text);
+  if (!fremd && /\b(du|dich|dir|dein|deine|euch)\b/i.test(text)) funde.push("Du-Form — Kunden werden gesiezt.");
   if (text.trim().length > 1024) funde.push("Länger als 1.024 Zeichen.");
   return funde;
 }
@@ -460,7 +471,7 @@ export async function vorlagenAufraeumen(opts: { probe?: boolean } = {}): Promis
 
 /** Hat uns dieser Mensch in den letzten 24 Stunden geschrieben? Dann ist Freitext erlaubt. */
 export async function fensterOffen(nummer: string, lauf: Lauf = sqlPool): Promise<boolean> {
-  const n = nummerFuerWhatsApp(nummer);
+  const n = waKanonisch(nummer);
   if (!n) return false;
   await waTabellen(lauf);
   const [z] = (await lauf`
@@ -509,7 +520,10 @@ export async function waSenden(
 ): Promise<SendeErgebnis> {
   const k = waKonfig();
   if (!k.bereit) return { ok: false, grund: `WhatsApp ist noch nicht eingerichtet (${k.fehlt.join(", ")}).` };
-  const nummer = nummerFuerWhatsApp(an);
+  // E-230: Alle Aufrufer übergeben eine fertige Nummer (aus nummerFuerWhatsApp
+  // oder fiaon_whatsapp.nummer). Noch einmal umrechnen machte aus jeder
+  // ausländischen Nummer eine falsche +49-Nummer.
+  const nummer = waKanonisch(an);
   if (!nummer) return { ok: false, grund: "Keine brauchbare Nummer." };
   await waTabellen(lauf);
 
@@ -582,6 +596,12 @@ export async function waSenden(
 
   const urlKnopf = vorlage?.knoepfe.find((x) => x.typ === "URL" && x.url.includes("{{")) as { typ: "URL"; url: string } | undefined;
   let knopfWert = inhalt.knopfWert ?? null;
+  // E-230: Die Raten-Erinnerung braucht die Referenz GENAU dieser Rate. Ohne
+  // sie griffe die Rückfallebene unten zur Referenz der Erstbestellung — deren
+  // Seite sagt „Ihr Konto ist aktiv", und der Kunde sähe die falsche Zahlung.
+  if (inhalt.vorlage && /^fiaon_kkb?_rate$/.test(inhalt.vorlage) && !/^FIAON-?[A-Z0-9]{6}-\d{1,2}$/i.test(String(knopfWert ?? ""))) {
+    return { ok: false, grund: "Die Raten-Erinnerung braucht die Referenz der Rate (FIAON-XXXXXX-N)." };
+  }
   if (urlKnopf && !knopfWert) {
     // Der Platzhalter ist der Teil der Adresse NACH dem festen Anfang.
     if (urlKnopf.url.includes("/a/") && zusatz.personId) {
@@ -654,14 +674,19 @@ export async function waSenden(
 
 /** Wer gehört zu dieser Nummer? Person zuerst, sonst Lead. */
 export async function wemGehoert(nummer: string, lauf: Lauf = sqlPool): Promise<{ personId: number | null; leadId: number | null; name: string | null }> {
-  const n = nummerFuerWhatsApp(nummer);
+  const n = waKanonisch(nummer);
   if (!n) return { personId: null, leadId: null, name: null };
   const letzte = n.slice(-9);
+  // E-230: Hier stand `phone` — die Spalte gibt es nicht (sie heißt primary_phone,
+  // der Suchschlüssel phone_key9). Der Fehler wurde vom .catch verschluckt, und
+  // jede Person ohne Lead mit derselben Nummer galt als unbekannt: 323 von 466
+  // zahlenden Kunden. Sie bekamen dann einen neuen Lead und die Werbe-Begrüßung.
   const [p] = (await lauf`
     SELECT id, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS name
       FROM fiaon_persons
-     WHERE regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE ${"%" + letzte}
-     ORDER BY updated_at DESC NULLS LAST LIMIT 1`.catch(() => [])) as any[];
+     WHERE merged_into_person_id IS NULL
+       AND (phone_key9 = ${letzte} OR regexp_replace(COALESCE(primary_phone, ''), '[^0-9]', '', 'g') LIKE ${"%" + letzte})
+     ORDER BY (ist_test_am IS NULL) DESC, updated_at DESC NULLS LAST LIMIT 1`.catch((e) => { console.error("[WHATSAPP] wemGehoert Person:", e); return []; })) as any[];
   if (p?.id) return { personId: Number(p.id), leadId: null, name: String(p.name || "").trim() || null };
   const [l] = (await lauf`
     SELECT id, person_id, TRIM(COALESCE(vorname, '') || ' ' || COALESCE(nachname, '')) AS name
@@ -842,7 +867,9 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
   let neu = 0, status = 0;
 
   for (const m of wert?.messages ?? []) {
-    const nummer = nummerFuerWhatsApp(m?.from);
+    // E-230: Meta liefert die Absender-ID immer MIT Landesvorwahl (ohne Plus).
+    // Sie ist schon fertig — nicht noch einmal als deutsche Eingabe deuten.
+    const nummer = waKanonisch(m?.from);
     if (!nummer) continue;
     const text = String(m?.text?.body ?? m?.button?.text ?? m?.interactive?.button_reply?.title ?? "").slice(0, 4000);
     let gehoert = await wemGehoert(nummer, lauf);
@@ -898,7 +925,7 @@ export async function waVerlauf(opts: { personId?: number | null; nummer?: strin
     return (await lauf`
       SELECT * FROM fiaon_whatsapp WHERE person_id = ${opts.personId} ORDER BY id DESC LIMIT ${grenze}`) as any[];
   }
-  const n = nummerFuerWhatsApp(opts.nummer);
+  const n = waKanonisch(opts.nummer);
   if (!n) return [];
   return (await lauf`SELECT * FROM fiaon_whatsapp WHERE nummer = ${n} ORDER BY id DESC LIMIT ${grenze}`) as any[];
 }

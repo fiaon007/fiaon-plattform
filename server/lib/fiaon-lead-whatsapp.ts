@@ -141,6 +141,10 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
          SELECT 1 FROM fiaon_whatsapp s
           WHERE s.person_id = p.id AND s.richtung = 'rein'
             AND (s.text ILIKE '%stopp%' OR s.knopf ILIKE '%stopp%' OR s.text ILIKE '%keine nachrichten%'))
+       -- E-230: Wer gerade mit uns schreibt (Eingang in 24 h), bekommt keine
+       -- Vorlage mitten ins Gespräch — dort antwortet Mara.
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_whatsapp g WHERE g.person_id = p.id AND g.richtung = 'rein' AND g.created_at > NOW() - INTERVAL '24 hours')
        -- E-229: Wer im Lead-Formular das Kontakt-Kästchen NICHT angehakt hat,
        -- hat WhatsApp ausdrücklich abgelehnt (whatsapp_erlaubt = FALSE).
        AND NOT EXISTS (
@@ -195,15 +199,23 @@ export async function ersteWhatsAppFuerLead(leadId: number): Promise<{ ok: boole
   const [l] = (await sqlPool`
     SELECT le.id, le.person_id, le.telefon, le.link_code,
            TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS name,
-           p.werbung_gesperrt_am, p.is_blocked, le.whatsapp_erlaubt
+           p.werbung_gesperrt_am, p.is_blocked, le.whatsapp_erlaubt, le.quelle
       FROM fiaon_leads le LEFT JOIN fiaon_persons p ON p.id = le.person_id
      WHERE le.id = ${leadId} LIMIT 1`.catch(() => [])) as any[];
   if (!l) return { ok: false, grund: "Lead nicht gefunden." };
   if (l.werbung_gesperrt_am || l.is_blocked) return { ok: false, grund: "Abgemeldet oder gesperrt." };
   // E-229: Das Kontakt-Kästchen im Formular NICHT angehakt = ausdrückliches Nein.
   if (l.whatsapp_erlaubt === false) return { ok: false, grund: "WhatsApp im Formular abgelehnt." };
+  // E-230: Entstand der Lead aus seiner eigenen WhatsApp, antwortet Mara — keine Begrüßung.
+  if (String(l.quelle ?? "") === "whatsapp_eingang") return { ok: false, grund: "Er hat uns selbst geschrieben — Mara antwortet im Gespräch." };
   const nummer = nummerFuerWhatsApp(l.telefon);
   if (!nummer) return { ok: false, grund: "Keine Nummer, über die WhatsApp läuft." };
+  // E-230: Hat er uns in den letzten 24 Stunden SELBST geschrieben, antwortet
+  // Mara auf seine Frage. Eine Begrüßungsvorlage würde sie überholen („Hallo und
+  // willkommen …" statt einer Antwort) — gemessen: 0,9 s nach seiner Nachricht.
+  const [selbst] = (await sqlPool`
+    SELECT 1 FROM fiaon_whatsapp WHERE nummer = ${nummer} AND richtung = 'rein' AND created_at > NOW() - INTERVAL '24 hours' LIMIT 1`.catch(() => [])) as any[];
+  if (selbst) return { ok: false, grund: "Er hat uns selbst geschrieben — Mara antwortet im Gespräch." };
 
   const freigegeben = new Set((await vorlagenStand().catch(() => [])).filter((t) => t.status === "APPROVED").map((t) => t.name));
   if (!freigegeben.has("fiaon_kk_anfrage") && !freigegeben.has("fiaon_kkb_anfrage")) return { ok: false, grund: "Die erste Vorlage ist bei Meta noch nicht freigegeben." };

@@ -332,7 +332,8 @@ export const rechnungAnhaengen: Werkzeug = {
   },
   async ausfuehren(p, k) {
     const ref = String(p.referenz || "").trim().toUpperCase();
-    if (!/^FIAON-[A-Z0-9]{6}(-\d{1,2})?$/.test(ref)) return { ok: false, ergebnis: "", fehler: "Das ist keine Zahlungsreferenz." };
+    // E-230: auch das neue Format ohne Bindestrich (FIAONXXXXXX, FIAONXXXXXX-N).
+    if (!/^FIAON-?[A-Z0-9]{6}(-\d{1,2})?$/.test(ref)) return { ok: false, ergebnis: "", fehler: "Das ist keine Zahlungsreferenz." };
     const { zahlungsauftragFinden } = await import("./fiaon-zahlungsauftrag");
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keine Rechnung." };
@@ -446,7 +447,7 @@ export const zahlungslinkBauen: Werkzeug = {
   },
   async ausfuehren(p, k) {
     const ref = String(p.referenz || "").trim().toUpperCase();
-    if (!/^FIAON-[A-Z0-9]{6}(-\d{1,2})?$/.test(ref)) return { ok: false, ergebnis: "", fehler: "Referenz sieht nicht wie eine Zahlungsreferenz aus." };
+    if (!/^FIAON-?[A-Z0-9]{6}(-\d{1,2})?$/.test(ref)) return { ok: false, ergebnis: "", fehler: "Referenz sieht nicht wie eine Zahlungsreferenz aus." };
     const { zahlungsauftragFinden } = await import("./fiaon-zahlungsauftrag");
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keinen offenen Auftrag." };

@@ -471,8 +471,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('wa_zentrale_takt', async () => { await (await import('./lib/fiaon-wa-zentrale')).automatikTakt(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });
   });
-  // Einmalig nach dem Ausrollen: die 15 Bildvorlagen bei Meta zur Prüfung einreichen (Sperre über fiaon_settings).
-  setTimeout(() => { void import('./lib/fiaon-wa-zentrale').then((m) => m.bildvorlagenEinmalEinreichen()).catch((e) => console.error('[WA-ZENTRALE] Bildvorlagen:', e)); }, 180_000);
+  // Einmalig nach dem Ausrollen: fehlende Vorlagen bei Meta zur Prüfung einreichen (Sperre über fiaon_settings).
+  // E-229: die 15 Bildvorlagen (erledigt 23.09.). E-230: die Raten-Vorlage fiaon_kk_rate + Bildfassung.
+  // Nur „einreichen, was fehlt" — freigegebene Vorlagen bleiben unberührt.
+  setTimeout(() => { void import('./lib/fiaon-wa-zentrale').then((m) => m.vorlagenEinmalEinreichen('wa_vorlagen_eingereicht_e230')).catch((e) => console.error('[WA-ZENTRALE] Vorlagen:', e)); }, 180_000);
   // 🚦 Boni-Ampel (21.09.2026, E-202): FIAONs eigene Einschätzung je Kunde — in der Akte der Mitarbeiter.
   const fiaonBoniAmpelRoutes = await import('./routes/fiaon-boni-ampel');
   app.use('/api/fiaon', fiaonBoniAmpelRoutes.default);

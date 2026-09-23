@@ -674,7 +674,7 @@ function belegPflichtig(text: string): string[] {
   const muster = [
     /\b\d{1,3}(?:[.,]\d{2})\s*(?:€|EUR)/gi,
     /\b\d{1,2}\.\d{1,2}\.\d{2,4}\b/g,
-    /\bFIAON-[A-Z0-9]{6}(?:-\d{1,2})?\b/g,
+    /\bFIAON-?[A-Z0-9]{6}(?:-\d{1,2})?\b/g, // E-230: auch ohne Bindestrich
     /\bRate\s+\d{1,2}\b/gi,
   ];
   for (const m of muster) {

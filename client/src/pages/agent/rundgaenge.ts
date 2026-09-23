@@ -1295,8 +1295,10 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
 export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
   {
     titel: "Die WhatsApp-Zentrale: wen Mara anschreibt — von Hand oder im Takt.",
-    text: "Vier Gruppen, jede mit ihrer passenden Vorlage: neue Leads ohne Nachricht, Anträge mit offener erster Zahlung, "
-      + "abgebrochene Anträge und Leads ohne Antrag. Antworten übernimmt Mara wie bisher im WhatsApp-Raum.",
+    text: "Fünf Gruppen, jede mit ihrer passenden Vorlage: neue Leads ohne Nachricht, Anträge mit offener erster Zahlung, "
+      + "abgebrochene Anträge, Leads ohne Antrag und Bestandskunden mit fälliger Monatsrate (eigene, sachliche Raten-Vorlage — "
+      + "höchstens alle 7 Tage, zweimal je Rate). Antworten übernimmt Mara im WhatsApp-Raum; warten Kunden länger als "
+      + "2 Minuten auf eine Antwort, steht es oben gelb.",
   },
   {
     ziel: ".wz-meta",

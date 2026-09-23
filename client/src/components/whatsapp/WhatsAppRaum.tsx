@@ -62,7 +62,7 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
   const [filter, setFilter] = useState<"alle" | "ungelesen" | "offen">("alle");
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [chat, setChat] = useState<{
-    verlauf: Nachricht[]; lage: any; links: any; fensterOffen: boolean; maraAn: boolean;
+    verlauf: Nachricht[]; lage: any; links: any; fensterOffen: boolean; maraAn: boolean; maraAusGrund?: string | null;
     notiz: string | null; bearbeiter: number | null; ich: number | null;
     vorlagen: Vorlage[]; ergebnisse: { wert: string; text: string }[];
   } | null>(null);
@@ -98,7 +98,7 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
       const j = await r.json();
       if (j?.ok) {
         setChat({
-          verlauf: j.verlauf, lage: j.lage, links: j.links, fensterOffen: j.fensterOffen, maraAn: j.maraAn,
+          verlauf: j.verlauf, lage: j.lage, links: j.links, fensterOffen: j.fensterOffen, maraAn: j.maraAn, maraAusGrund: j.maraAusGrund ?? null,
           notiz: j.notiz, bearbeiter: j.bearbeiter ?? null, ich: j.ich ?? null,
           vorlagen: j.vorlagen, ergebnisse: j.ergebnisse ?? [],
         });
@@ -207,7 +207,9 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
       const r = await fetch(`${API}/starten`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nummer: neuZiel.nummer, vorlage,
+          // E-230: Die Nummer ist schon fertig und wird als „+…" angezeigt — mit Plus
+          // schicken, sonst deutet der Server +1 248 … als deutsche Nummer (+49 1248 …).
+          nummer: `+${neuZiel.nummer}`, vorlage,
           personId: neuZiel.art === "person" ? neuZiel.id : null,
           leadId: neuZiel.art === "lead" ? neuZiel.id : null,
           // Ohne Namen keine erfundene Anrede — „und willkommen" ist der Weg
@@ -302,10 +304,12 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
                     +{gewaehlt}
                     {chat?.lage?.betreuer ? ` · Betreuer: ${chat.lage.betreuer}` : ""}
                     {rest ? ` · Fenster ${rest}` : " · Fenster zu"}
+                    {chat && !chat.maraAn ? (chat.maraAusGrund === "schalter" ? " · Mara aus" : " · Mara pausiert, übernimmt nach 15 Min. ohne Antwort") : ""}
                   </span>
                 </div>
                 <div className="wr-chat-knoepfe">
-                  <button type="button" className={`wr-schalter${chat?.maraAn ? " an" : ""}`} onClick={() => void maraSchalten(!chat?.maraAn)} aria-pressed={!!chat?.maraAn}>
+                  <button type="button" className={`wr-schalter${chat?.maraAn ? " an" : ""}`} onClick={() => void maraSchalten(!chat?.maraAn)} aria-pressed={!!chat?.maraAn}
+                    title={chat?.maraAn ? "Mara antwortet in diesem Gespräch." : chat?.maraAusGrund === "schalter" ? "Mara ist hier abgeschaltet, bis jemand sie wieder einschaltet." : "Mara pausiert, weil jemand aus dem Team schreibt. Bleibt der Kunde 15 Minuten ohne Antwort (nachts sofort), übernimmt sie wieder."}>
                     <span aria-hidden="true" />Mara
                   </button>
                   <button type="button" className={`wr-klein wr-fall-knopf${fallOffen ? " an" : ""}`} onClick={() => setFallOffen(!fallOffen)}>Fall</button>

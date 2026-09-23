@@ -388,7 +388,12 @@ abschnitt("WhatsApp-Raum — zwei Türen, ein Raum; Mara antwortet im Fenster");
   ok(/wr-vorlagen/.test(ui) && /Diese Vorlage senden/.test(ui), "Bei geschlossenem Fenster gibt es Vorlagen statt Freitext");
   ok(/maraAntwortet/.test(wa), "Eine eingehende Nachricht ruft Mara");
   ok(/fensterOffen\(nummer\)/.test(mara), "Mara antwortet nur im offenen Fenster");
-  ok(/amStueck >= 4/.test(mara), "Nach vier Antworten ohne Rückmeldung wartet sie");
+  // E-230: Statt „vier in Folge": Sie antwortet nur, wenn der Kunde NACH der letzten freien Antwort schrieb — nie gegen eine Wand.
+  ok(/Number\(letzteAntwort\.id\) > Number\(neuesteRein\.id\)/.test(mara), "Sie antwortet nur auf eine noch offene Kundennachricht (nie gegen eine Wand)");
+  ok(/nachholLauf/.test(mara) && /OFFENE_GESPRAECHE_SQL/.test(mara), "Offene Gespräche holt ein Takt nach — niemand bleibt unbeantwortet");
+  ok(/SELECT id, richtung/.test(mara), "Der Verlauf trägt die id (sonst Endlosschleife ohne Versand, 23.09.)");
+  ok(/rueckfallSatz/.test(mara) && /zweiter Versuch/.test(mara), "Trifft die Wand, gibt es einen zweiten Versuch und einen sicheren Rückfallsatz");
+  ok((await import("../server/lib/fiaon-whatsapp")).sendePruefung("Merci, vous recevrez du soutien de notre équipe.").length === 0, "Französisches „du\" ist keine Du-Form");
   ok(/mara_wa_tag_euro/.test(mara), "Eigener Kostendeckel für den Chat");
   ok(/digitale Assistentin/.test(mara), "Sie gibt sich als KI zu erkennen (KI-VO Art. 50)");
   ok(/Du mahnst nicht, du treibst keine Forderung ein/.test(mara), "Ihr Auftrag verbietet das Mahnen ausdrücklich");

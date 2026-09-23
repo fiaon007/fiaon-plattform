@@ -109,6 +109,9 @@ const TERMIN: WaKnopf = { typ: "URL", text: "Zeitfenster wählen", url: "https:/
 const BEREICH: WaKnopf = { typ: "URL", text: "Meinen Bereich öffnen", url: "https://fiaon.com/login" };
 const ZAHLUNG: WaKnopf = { typ: "URL", text: "Jetzt aktivieren", url: "https://fiaon.com/zahlung/{{1}}", beispiel: "https://fiaon.com/zahlung/FIAONMUE7AZ" };
 const START: WaKnopf = { typ: "URL", text: "Anfrage starten", url: "https://fiaon.com/start" };
+// E-230: Eigener Knopf für die Monatsrate — „Jetzt aktivieren" stimmt bei einem
+// Bestandskunden nicht, sein Account ist längst aktiv.
+const RATE_ZAHLUNG: WaKnopf = { typ: "URL", text: "Rate bezahlen", url: "https://fiaon.com/zahlung/{{1}}", beispiel: "https://fiaon.com/zahlung/FIAON-AB12CD-2" };
 const JA: WaKnopf = { typ: "QUICK_REPLY", text: "Ja, bitte" };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -364,6 +367,31 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
     beispiele: ["Frau Muster"],
     knoepfe: [WEITER, JA, STOPP],
   },
+  // ─────────────────────────────────────────────────────────────────────────
+  // E-230 (24.09.2026): DIE MONATSRATE. Justin: „Schreib die Raten-Vorlage und
+  // reich sie ein." fiaon_kk_rechnung verspricht die Aktivierung und den Link
+  // der Partnerbank — bei einem Bestandskunden, dessen Account längst aktiv
+  // ist, gelogen. Diese hier sagt nur, was stimmt: welche Rate, wann fällig,
+  // welcher Verwendungszweck, wo man bezahlt. Kein „von 12" (fast alle
+  // Empfänger haben Altverträge, monatlich kündbar), keine Frist mit Folgen,
+  // keine Gebühr, keine Mahnwörter — die Inkasso-Wand greift ohne Ausnahme.
+  // Werbung gehört NICHT hinein: Meta stuft Utility mit Werbesätzen zu
+  // Marketing um. Den Kartennutzen bringt Mara, wenn der Kunde antwortet.
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    name: "fiaon_kk_rate",
+    kopf: "Ihre Monatsrate",
+    fuss: "FIAON LTD · Fragen? Einfach hier antworten",
+    kategorie: "UTILITY",
+    zweck: "Erinnerung an eine fällige, unbezahlte Monatsrate eines Bestandskunden — Knopf zur Zahlungsseite genau dieser Rate.",
+    wann: "Nur über die WhatsApp-Zentrale, Gruppe „Monatsrate fällig“: bezahlte Bestellung, Rate offen und fällig, nicht gekündigt, kein Abo- oder Mahnstopp. Höchstens alle 7 Tage, höchstens zweimal je Rate.",
+    text: "Hallo {{1}}, eine kurze Erinnerung von FIAON: Ihre Monatsrate über {{2}} € war am {{3}} fällig — Verwendungszweck {{4}}. "
+      + "Über den Knopf öffnen Sie Ihre Zahlungsseite mit dem QR-Code für Ihre Banking-App; Empfänger, Betrag und Verwendungszweck sind dort schon ausgefüllt. "
+      + "Schon überwiesen? Dann hat sich diese Nachricht mit Ihrer Zahlung überschnitten — Sie müssen nichts weiter tun. "
+      + "Haben Sie eine Frage zu Ihrer Rate, antworten Sie einfach auf diese Nachricht.",
+    beispiele: ["Frau Muster", "59,99", "22.09.2026", "FIAON-AB12CD-2"],
+    knoepfe: [RATE_ZAHLUNG, FRAGE],
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -412,6 +440,8 @@ const BILD_FUER: Record<string, WaBild> = {
   fiaon_kk_tag7: "termin",
   fiaon_kk_rechnung: "zahlung",
   fiaon_kk_letzte: "karte",
+  // Nicht „zahlung": dieses Bild sagt „Zahlung und Aktivierung" — bei Bestandskunden falsch.
+  fiaon_kk_rate: "kontakt",
 };
 
 /**
@@ -458,6 +488,10 @@ const ABSAETZE: Record<string, string> = {
     + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
   fiaon_kk_letzte: "Hallo {{1}},\n\nIhr Antrag ist weiterhin vorbereitet und Ihr Platz steht.\n\n"
     + "Ein Klick, ein paar Minuten, dann ist Ihre Kreditkarte in Reichweite. Soll ich ihn für Sie offenhalten?",
+  fiaon_kk_rate: "Hallo {{1}},\n\neine kurze Erinnerung von FIAON: Ihre Monatsrate über {{2}} € war am {{3}} fällig — Verwendungszweck {{4}}.\n\n"
+    + "Über den Knopf öffnen Sie Ihre Zahlungsseite mit dem QR-Code für Ihre Banking-App; Empfänger, Betrag und Verwendungszweck sind dort schon ausgefüllt.\n\n"
+    + "Schon überwiesen? Dann hat sich diese Nachricht mit Ihrer Zahlung überschnitten — Sie müssen nichts weiter tun.\n\n"
+    + "Haben Sie eine Frage zu Ihrer Rate, antworten Sie einfach auf diese Nachricht.",
 };
 
 /** Fußzeile der Bildfassung: „FIAON Ltd." vorne, dann was die Textfassung sagt. */

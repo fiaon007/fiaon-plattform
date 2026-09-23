@@ -232,10 +232,9 @@ export default function ChefLeadMotor() {
             </div>
           </section>
 
-          <section className="lm-karte lm-verbindung" aria-label="Verbindung zu Meta">
+          <details className="lm-karte lm-klapp lm-verbindung"><summary>Verbindung zu Meta<span className="lm-klapp-still">Webhook, Rechte, Seite, Formulare</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <h2>Verbindung zu Meta</h2>
                 <p className="lm-still">{s.pruefliste ? `Zuletzt geprüft ${seit(s.pruefliste.am)}` : "Noch nie geprüft."} · Webhook-Adresse: <code>{s.adressen.webhook}</code></p>
               </div>
               <div className="lm-knoepfe">
@@ -261,12 +260,11 @@ export default function ChefLeadMotor() {
               ))}
               {!s.pruefliste && <li className="offen"><span className="lm-haken">–</span><div><b>Noch keine Prüfung</b><p>„Erneut prüfen“ zeigt, was fehlt.</p></div></li>}
             </ul>
-          </section>
+          </details>
 
-          <section className="lm-karte lm-messung" aria-label="Messung an Meta">
+          <details className="lm-karte lm-klapp lm-messung"><summary>Messung an Meta<span className="lm-klapp-still">Pixel, Conversions API, Ereignisse</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <h2>Messung an Meta</h2>
                 <p className="lm-still">
                   Damit die Werbung auf <b>zahlende Kunden</b> optimiert statt auf Formulare: Der Pixel im Browser und der Server melden
                   dieselben vier Schritte — Antrag begonnen, Antrag abgeschickt, Zahlung gebucht, Startgespräch. Beide tragen dieselbe
@@ -334,12 +332,11 @@ export default function ChefLeadMotor() {
               <summary>Gemeldete Ereignisse (die letzten 40)</summary>
               {ereignisseOffen && <EreignisListe />}
             </details>
-          </section>
+          </details>
 
-          <section className="lm-karte lm-willkommen" aria-label="Begrüßungsmail">
+          <details className="lm-karte lm-klapp lm-willkommen"><summary>Begrüßungsmail<span className="lm-klapp-still">Text, Schalter, Vorschau</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <h2>Begrüßungsmail</h2>
                 <p className="lm-still">Eine Mail in Sekunden nach dem Formular, gesiezt, mit dem persönlichen Link — Name, E-Mail und Telefon stehen im Antrag schon drin.</p>
               </div>
               <button className={`lm-schalter${s.willkommen.an ? " an" : ""}`} onClick={() => willkommenSchalten(!s.willkommen.an)} disabled={beschaeftigt === "willkommen"} aria-pressed={s.willkommen.an}>
@@ -359,12 +356,11 @@ export default function ChefLeadMotor() {
                 {beschaeftigt === "pruefung" ? "Sendet …" : `Prüfversand${s.willkommen.testAdresse ? ` an ${s.willkommen.testAdresse}` : ""}`}
               </button>
             </div>
-          </section>
+          </details>
 
-          <section className="lm-karte lm-rueckstand" aria-label="Rückstand nachholen">
+          <details className="lm-karte lm-klapp lm-rueckstand"><summary>Rückstand nachholen<span className="lm-klapp-still">Leads bei Meta abholen</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <h2>Rückstand nachholen</h2>
                 <p className="lm-still">Meta hält jeden Lead 90 Tage bereit. Seit dem 21.09. morgens kam über Make fast nichts an — diese Leads holt der Knopf. {s.nachholBis ? `Der Nachhol-Lauf steht bei ${zeit(s.nachholBis)}.` : ""}</p>
               </div>
             </div>
@@ -382,12 +378,11 @@ export default function ChefLeadMotor() {
                 {nachholErgebnis.fehler?.length ? <span className="lm-rot"> · {nachholErgebnis.fehler.join(" · ")}</span> : null}
               </p>
             )}
-          </section>
+          </details>
 
-          <section className="lm-karte lm-formulare" aria-label="Formulare">
+          <details className="lm-karte lm-klapp lm-formulare"><summary>Formulare<span className="lm-klapp-still">Meta-Formulare und ihre Felder</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <h2>Formulare</h2>
                 <p className="lm-still">Jeder Lead darf per WhatsApp angeschrieben werden — die Erlaubnis steht im Hinweistext des Formulars. Ein Kästchen brauchen wir nicht; nur ein ausdrückliches Nein zählt.</p>
               </div>
               <button className="lm-knopf" onClick={formulareNeu} disabled={!!beschaeftigt || !s.konfig.bereit}>{beschaeftigt === "formulare" ? "Lädt …" : "Formulare neu laden"}</button>
@@ -418,7 +413,7 @@ export default function ChefLeadMotor() {
                 </table>
               </div>
             )}
-          </section>
+          </details>
 
           <section className="lm-karte lm-leads" aria-label="Letzte Leads">
             <div className="lm-karte-kopf">

@@ -786,7 +786,32 @@ export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: stri
            COUNT(*) FILTER (WHERE weg = 'meta_nachhol')::int AS nachhol
       FROM fiaon_meta_leads WHERE gesehen_am > NOW() - INTERVAL '3 hours'`) as any[];
   const webhookStumm = Number(w?.nachhol || 0) >= 2 && Number(w?.webhook || 0) === 0;
-  await alarm("webhook", webhookStumm, "Der Webhook meldet keine Leads — der Nachhol-Lauf fängt sie auf (bis zu 5 Minuten später). Im Lead-Motor „Verbindung einrichten“ drücken.", lauf);
+  // ══════════════════════════════════════════════════════════════════════
+  // DER ALARM MUSS SAGEN, WAS ZU TUN IST (23.09.2026, E-226)
+  //
+  // Der alte Text schickte auf „Verbindung einrichten" — Justin hat gedrückt,
+  // alles blieb grün, und es kam trotzdem kein Lead über den Webhook.
+  //
+  // GEMESSEN am 23.09.: In sieben Tagen kein einziger Lead mit dem Eingangsweg
+  // `meta_webhook`; alles kam über den Nachhol-Lauf oder Make. Gleichzeitig
+  // erreichen uns WhatsApp-Ereignisse über DIESELBE Adresse im Sekundentakt
+  // (POST /api/meta/webhook, HTTP 200). Adresse, Prüftoken und Signatur sind
+  // also in Ordnung — sonst käme auch WhatsApp nicht an.
+  //
+  // Bleiben zwei Ursachen, und beide liegen bei Meta, nicht bei uns:
+  //   1. Die App steht auf „Entwicklung" statt „Live". Dann zeigt Meta jedes
+  //      Abo als bestehend an und liefert trotzdem keine echten Ereignisse.
+  //   2. Das Lead-Formular hängt an einer anderen Seite als der abonnierten.
+  //
+  // Der Alarm nennt das jetzt. Ein Alarm, der zu einem Knopf schickt, der das
+  // Problem nicht löst, ist schlimmer als keiner: Man drückt, es bleibt grün,
+  // und man glaubt, es liege an etwas anderem.
+  // ══════════════════════════════════════════════════════════════════════
+  await alarm("webhook", webhookStumm,
+    "Der Webhook meldet keine Leads — der Nachhol-Lauf fängt sie auf (bis zu 5 Minuten später), es geht also nichts verloren. "
+    + "Adresse und Token stimmen: Über dieselbe Adresse kommen WhatsApp-Ereignisse an. "
+    + "Prüfe bei Meta zwei Dinge: Steht die App im App-Dashboard auf „Live“ (nicht „Entwicklung“)? Und hängt das Lead-Formular an derselben Seite, die hier unten als abonniert steht?",
+    lauf);
   if (webhookStumm) aktiv.push("webhook");
 
   // Meldungen, die trotz Wiederholung nicht abrufbar sind.

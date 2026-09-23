@@ -287,3 +287,31 @@ a.lm-name:hover { text-decoration: underline; }
   .lm-bau { grid-template-columns: 1fr; }
   .lm-knopf-zeile { grid-template-columns: 1fr 1fr; }
 }
+
+/* ═══ Ruhe auf der Seite (23.09.2026, E-226) ══════════════════════════════
+   Justin: „Gestalte die Seite cleaner, nicht so überladen — mehr Abstand,
+   einklappbar." Die fünf schweren Bereiche (Verbindung, Messung, Begrüßung,
+   Rückstand, Formulare) sind jetzt zu. Offen bleibt, was man täglich sieht:
+   Alarme, Zahlen, Vorlagen, Werkstatt, Leads. */
+.lm { gap: 22px; }
+
+.lm-klapp { padding: 0; overflow: hidden; }
+.lm-klapp > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 16px 18px; font: 400 15px/1.3 'Inter', sans-serif; color: var(--lm-text, #e7ecf4);
+}
+.lm-klapp > summary::-webkit-details-marker { display: none; }
+.lm-klapp > summary::before {
+  content: "▸"; color: var(--lm-leise); font-size: 11px; width: 12px; flex: 0 0 12px;
+  transition: transform 160ms ease;
+}
+.lm-klapp[open] > summary::before { transform: rotate(90deg); }
+.lm-klapp[open] > summary { border-bottom: 1px solid var(--lm-linie); }
+.lm-klapp-still { font: 400 12px/1.4 'Inter', sans-serif; color: var(--lm-still, #5d6c83); }
+/* Der Inhalt bekommt den Rand, den die Karte sonst selbst hätte. */
+.lm-klapp > *:not(summary) { margin: 16px 18px; }
+.lm-klapp > *:not(summary):last-child { margin-bottom: 18px; }
+
+@media (hover: hover) {
+  .lm-klapp > summary:hover { background: rgba(148, 163, 184, .05); }
+}

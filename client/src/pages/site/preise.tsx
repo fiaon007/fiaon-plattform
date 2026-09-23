@@ -107,8 +107,8 @@ export default function Preise() {
 
   return (
     <Dunkel seite="privatkunden" titel={en ? "Pricing & plans" : "Preise & Pakete · FIAON"} beschreibung={en
-      ? `FIAON costs ${geld(privat[0].preisCents)} to ${geld(privat[privat.length - 1].preisCents)} a month, twelve instalments, cancellable monthly. Credit report ${schufaPreis} one-off.`
-      : `FIAON kostet ${geld(privat[0].preisCents)} bis ${geld(privat[privat.length - 1].preisCents)} im Monat, zwölf Raten, monatlich kündbar. Bonitätsauskunft ${SCHUFA_PREIS_EURO} € einmalig. Alle Pakete, alle Leistungen, keine Sternchen.`}>
+      ? `FIAON costs ${geld(privat[0].preisCents)} to ${geld(privat[privat.length - 1].preisCents)} a month, twelve instalments, cancellable monthly thereafter. Credit report ${schufaPreis} one-off.`
+      : `FIAON kostet ${geld(privat[0].preisCents)} bis ${geld(privat[privat.length - 1].preisCents)} im Monat, zwölf Raten, danach monatlich kündbar. Bonitätsauskunft ${SCHUFA_PREIS_EURO} € einmalig. Alle Pakete, alle Leistungen, keine Sternchen.`}>
       <SeoDaten pfad={en ? "/en/pricing" : "/preise"} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad: en ? "/en/pricing" : "/preise" }]} />
 
       <Hero

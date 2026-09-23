@@ -331,11 +331,11 @@ export default function Investoren() {
                ? "Der Kunde zahlt für Einsicht und Aktion. Der Partner zahlt für Zugang. Beides hängt an derselben Akte – deshalb wächst der Wert eines Kunden mit jeder Etappe."
                : "The customer pays for insight and action. The partner pays for access. Both hang on the same file — which is why a customer's value grows with every stage."}>
         <Karten items={de ? [
-          { tag: "Abo", titel: `Privat ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} im Monat`, text: "Vier Privatpakete — monatlich, zwölf Raten, monatlich kündbar, danach die ausdrückliche Frage, ob der Kunde bleibt. Jede Rate wird vom eigenen Team begleitet." },
+          { tag: "Abo", titel: `Privat ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} im Monat`, text: "Vier Privatpakete — monatlich, zwölf Raten, danach monatlich kündbar und die ausdrückliche Frage, ob der Kunde bleibt. Jede Rate wird vom eigenen Team begleitet." },
           { tag: "Auskunft", titel: `${euro(SCHUFA_PREIS_EURO * 100)} einmalig`, text: "Die Bonitätsauskunft als Einstieg für Kunden, die zuerst nur wissen wollen, was über sie gespeichert ist. Der erste Schritt in die Akte." },
           { tag: "Partner", titel: "Provision je Abschluss", text: "Konto und Finanzierung über Partnerbanken. Der Partner bekommt einen Kunden mit dokumentierter, reparierter Bonität – und zahlt dafür." },
         ] : [
-          { tag: "Subscription", titel: `Consumer ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} a month`, text: "Four consumer packages — monthly, twelve instalments, cancellable monthly, followed by the explicit question whether the customer stays. Every instalment is accompanied by our own team." },
+          { tag: "Subscription", titel: `Consumer ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} a month`, text: "Four consumer packages — monthly, twelve instalments, cancellable monthly thereafter, followed by the explicit question whether the customer stays. Every instalment is accompanied by our own team." },
           { tag: "Report", titel: `${euro(SCHUFA_PREIS_EURO * 100)} one-off`, text: "The credit report as the entry point for customers who first simply want to know what is stored about them. The first step into the file." },
           { tag: "Partners", titel: "Commission per completion", text: "Accounts and financing through partner banks. The partner receives a customer with documented, repaired creditworthiness — and pays for exactly that." },
         ]} />

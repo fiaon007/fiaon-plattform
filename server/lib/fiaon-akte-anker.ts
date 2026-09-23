@@ -63,8 +63,19 @@ function neueZahlungsreferenz(ref: string): string {
 export async function sorgeFuerAkte(personId: number, agentId: number | null): Promise<string | null> {
   const [da] = (await sqlPool`
     SELECT a.ref FROM fiaon_applications a
-     WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.archived_at IS NULL
-     ORDER BY a.created_at DESC LIMIT 1
+     WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+       -- 23.09.2026: Eine BEZAHLTE Bestellung trägt die Akte auch dann, wenn
+       -- sie archiviert wurde (gemeldet an Gerold Kuhn und Idris Maslah: als
+       -- „doppelt" archivierte, bezahlte Bestellungen ließen zahlende Kunden
+       -- als Leads ohne Paket dastehen).
+       AND (a.archived_at IS NULL OR a.payment_status = 'paid')
+     -- Ein PAKET trägt die Akte, nicht ein Zusatzprodukt: Gerold Kuhn hatte
+     -- High End bezahlt (02.07., archiviert) und am 14.08. eine
+     -- Bonitätsauskunft gekauft — die Akte wählte die Auskunft und meldete
+     -- „kein aktives Paket". Reihenfolge deshalb: Paket vor Zusatz, bezahlt
+     -- vor offen, dann das jüngste.
+     ORDER BY (a.pack_key IS NOT NULL AND a.ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
+              (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1
   `) as any[];
   if (da?.ref) return da.ref;
 

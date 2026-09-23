@@ -304,7 +304,13 @@ export async function kontoBestellungVon(
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
                     a.company_name, a.contact_name, a.email, a.ref) AS name
     FROM fiaon_applications a
-    WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.archived_at IS NULL
+    -- 23.09.2026 (gemeldet von Daniel an Gerold Kuhn): „Hier steht, er hat kein
+    -- aktives Paket" — obwohl er High End bezahlt hat. Seine bezahlte Bestellung
+    -- war am 04.09. als „doppelt" ARCHIVIERT worden. Archivieren heißt „nicht
+    -- mehr im Arbeitsfluss", nicht „hat nie bezahlt": Eine bezahlte Bestellung
+    -- trägt weiter das Portal, sonst verliert ein zahlender Kunde seinen Zugang.
+    WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+      AND (a.archived_at IS NULL OR a.payment_status = 'paid')
       -- Die Bonitätsauskunft ist ein PRODUKT, kein Konto (siehe
       -- server/fiaon-login-logic.ts, isAddonOrderRow). Ein Token auf sie
       -- ausgestellt würde ein halb leeres Portal zeigen.

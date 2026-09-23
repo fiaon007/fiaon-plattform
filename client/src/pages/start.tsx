@@ -61,8 +61,8 @@ if (typeof document !== "undefined" && !document.head.querySelector('style[data-
 
 /* ── packages (mirror of /antrag) ── */
 // ── DIE PAKETE TRAGEN ZAHLEN, KEINE WÄHRUNG ───────────────────────────────
-// Die Merkmale sind Funktionen des Landes: „Dein 25.000 € Black-Card Setup"
-// wird in Zürich zu „Dein CHF 25'000 Black-Card Setup", und
+// Die Merkmale sind Funktionen des Landes: „Ihr 25.000 € Black-Card Setup"
+// wird in Zürich zu „Ihr CHF 25'000 Black-Card Setup", und
 // „Schufaneutrale Profil-Prüfung" zu „ZEK-neutrale Profil-Prüfung".
 //
 // Die ZAHL bleibt gleich — 25.000 heißt in Zürich 25.000 CHF, nicht 23.800.
@@ -70,13 +70,13 @@ if (typeof document !== "undefined" && !document.head.querySelector('style[data-
 // sähen aus wie eine Preisliste vom Devisenschalter.
 const PACKS = [
   { key: "start", name: "FIAON Starter", sub: "Das Fundament", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)",
-    feats: (l: Land) => [`Dein ${betrag("500", l)} Einstiegs-Setup`, "Zugang: Basic Karten-Portfolio", `${LAENDER[l].registerNeutral}e Profil-Prüfung`, "Online-Dashboard & Verwaltung"] },
+    feats: (l: Land) => [`Ihr ${betrag("500", l)} Einstiegs-Setup`, "Zugang: Basic Karten-Portfolio", `${LAENDER[l].registerNeutral}e Profil-Prüfung`, "Online-Dashboard & Verwaltung"] },
   { key: "pro", name: "FIAON Pro", sub: "Standard", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)",
-    feats: (l: Land) => [`Dein ${betrag("5.000", l)} Limit-Protokoll`, "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },
+    feats: (l: Land) => [`Ihr ${betrag("5.000", l)} Limit-Protokoll`, "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },
   { key: "ultra", name: "FIAON Ultra", sub: "Elite Konto", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)",
-    feats: (l: Land) => [`Dein ${betrag("15.000", l)} Elite-Portfolio`, "Zugang: Gold- & Platinum-Karten", "Cashback- & Meilen-Aktivierung", "Individuelle Freigabe-Roadmap", "VIP-Support & Konto-Optimierung"] },
+    feats: (l: Land) => [`Ihr ${betrag("15.000", l)} Elite-Portfolio`, "Zugang: Gold- & Platinum-Karten", "Cashback- & Meilen-Aktivierung", "Individuelle Freigabe-Roadmap", "VIP-Support & Konto-Optimierung"] },
   { key: "highend", name: "FIAON High End", sub: "Das Maximum", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)",
-    feats: (l: Land) => [`Dein ${betrag("25.000", l)} Black-Card Setup`, "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
+    feats: (l: Land) => [`Ihr ${betrag("25.000", l)} Black-Card Setup`, "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
 ];
 
 /* ── propagate UTM/src to antrag ── */
@@ -305,7 +305,7 @@ function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               Schritt 1 von 2
             </div>
             <h3 className="text-[22px] sm:text-[24px] font-semibold tracking-tight text-gray-900 leading-snug">
-              Wähle dein <G>Wunschlimit</G>
+              Wählen Sie Ihr <G>Wunschlimit</G>
             </h3>
             <p className="text-[13px] text-gray-500 mt-1.5">0 € heute — Zahlung erst nach Freigabe</p>
           </div>
@@ -343,7 +343,7 @@ function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
           <div className="mt-5 flex items-center justify-center gap-1.5 text-[11.5px] text-gray-400">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-            {LAENDER[land].registerNeutral} · Monatlich kündbar · SSL-verschlüsselt
+            {LAENDER[land].registerNeutral} · Zwölf Monatsraten · SSL-verschlüsselt
           </div>
         </div>
       </div>
@@ -453,7 +453,7 @@ function Hero({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElement>;
 
         <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[580px] mx-auto mb-8 sm:mb-9" style={{ animation: "startCardEnter .6s cubic-bezier(.22,1,.36,1) .16s both" }}>
           {LAENDER[land].bankenSatz}{" "}
-          Dein internationaler Zugang zu Premium-Kreditkarten — <b className="text-gray-700">digital, diskret, kompromisslos.</b>
+          Ihr internationaler Zugang zu Premium-Kreditkarten — <b className="text-gray-700">digital, diskret, kompromisslos.</b>
         </p>
 
         {/* CTA */}
@@ -578,10 +578,10 @@ function Pains() {
   const obs = useReveal();
   const items = [
     // ── DAS REGISTER UND DIE HERKUNFT AUS DEM LAND ──────────────────────
-    // „Deine deutsche Vergangenheit" liest ein Schweizer als Beweis, dass die
-    // Seite für jemand anderen geschrieben wurde. „Deine bisherige" gilt
+    // „Ihre deutsche Vergangenheit" liest ein Schweizer als Beweis, dass die
+    // Seite für jemand anderen geschrieben wurde. „Ihre bisherige" gilt
     // überall und sagt dasselbe.
-    { icon: <path d="M3 12l3 3 15-15" />, t: `${LAENDER[land].register}? Egal.`, d: "Wir arbeiten mit dem US-Credit-Building-System. Deine bisherige Bonitätsgeschichte ist kein Teil unserer Gleichung." },
+    { icon: <path d="M3 12l3 3 15-15" />, t: `${LAENDER[land].register}? Egal.`, d: "Wir arbeiten mit dem US-Credit-Building-System. Ihre bisherige Bonitätsgeschichte ist kein Teil unserer Gleichung." },
     { icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>, t: "Echtzeit-Freigabe.", d: "Kein Aktenordner. Kein Sachbearbeiter. Algorithmische Bonitäts-Kalibrierung in unter 120 Sekunden." },
     { icon: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 11h18M7 16h3" /></>, t: "Sofort einsatzbereit.", d: "Virtuelle Karte direkt im Hub. Physische Metal-Card per Express binnen 48 h." },
   ];
@@ -626,12 +626,12 @@ function Packages() {
       <div className="relative z-10 max-w-[1200px] mx-auto px-5 sm:px-6">
         <div className="max-w-2xl mx-auto mb-12 text-center">
           <span className="inline-block mb-3 px-3.5 py-1 rounded-full text-[11px] font-bold tracking-[0.14em] uppercase"
-            style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.18)", color: "#2563eb" }}>Dein Setup</span>
+            style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.18)", color: "#2563eb" }}>Ihr Setup</span>
           <h2 className="font-extrabold tracking-tight mb-3" style={{ fontSize: "clamp(2rem, 4vw, 2.8rem)" }}>
-            <G>Wähle dein Limit. Der Rest läuft automatisch.</G>
+            <G>Wählen Sie Ihr Limit. Der Rest läuft automatisch.</G>
           </h2>
           <p className="text-gray-500 text-[15px] leading-relaxed max-w-[520px] mx-auto">
-            Vom Fundament bis zur Black Card — <b className="text-gray-700">du zahlst erst, wenn dein Limit freigegeben ist.</b> Keine Vorkasse. Monatlich kündbar.
+            Vom Fundament bis zur Black Card — <b className="text-gray-700">Sie zahlen erst, wenn Ihr Limit freigegeben ist.</b> Keine Vorkasse. Zwölf Monatsraten, danach monatlich kündbar.
           </p>
           <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200/70">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
@@ -717,7 +717,7 @@ function Packages() {
         </div>
         <p className="text-center text-[12px] text-gray-400 mt-6">
           <svg className="inline-block mr-1 -mt-0.5" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-          Monatlich kündbar · Keine versteckten Gebühren · Wirst du abgelehnt, zahlst du nichts
+          Zwölf Monatsraten, danach monatlich kündbar · Keine versteckten Gebühren · Werden Sie abgelehnt, zahlen Sie nichts
         </p>
       </div>
     </section>
@@ -742,7 +742,7 @@ function UseCases() {
         <div className="max-w-2xl mb-10 text-center mx-auto">
           <p className="text-[12px] font-semibold text-[#2563eb] tracking-[0.18em] uppercase mb-3">Für jeden Weg</p>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight"><G>Vom LKW-Fahrer bis zum CEO.</G></h2>
-          <p className="text-[14.5px] text-gray-500 leading-relaxed mt-3">Wir kalibrieren deine Bonitäts-Architektur neu — egal, wo du heute stehst.</p>
+          <p className="text-[14.5px] text-gray-500 leading-relaxed mt-3">Wir kalibrieren Ihre Bonitäts-Architektur neu — egal, wo Sie heute stehen.</p>
         </div>
         <div className="flex sm:grid sm:grid-cols-5 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory -mx-5 px-5 sm:mx-0 sm:px-0 pb-2 sm:pb-0">
           {cases.map((c, i) => (
@@ -769,7 +769,7 @@ function HowItWorks() {
   const obs = useReveal();
   const steps = [
     { n: "01", t: "Antrag stellen", d: "Daten eingeben, Paket wählen. Unter 2 Minuten. Kein Papierkram." },
-    { n: "02", t: "Algorithmische Freigabe", d: "Unsere Engine analysiert dein Profil live. Limit-Ziel in Sekunden kalibriert." },
+    { n: "02", t: "Algorithmische Freigabe", d: "Unsere Engine analysiert Ihr Profil live. Limit-Ziel in Sekunden kalibriert." },
     { n: "03", t: "Karte aktiv", d: "Virtuelle Karte sofort im Hub. Physische Metal-Card per Express binnen 48 h." },
   ];
   return (
@@ -819,7 +819,7 @@ function Testimonials() {
       <div className="max-w-[1120px] mx-auto px-5 sm:px-6">
         <div className="max-w-2xl mx-auto text-center mb-12">
           <p className="text-[12px] font-semibold text-[#2563eb] tracking-[0.18em] uppercase mb-3">Echte Ergebnisse</p>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight mb-4"><G>Sie haben nicht gewartet. Du auch nicht?</G></h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight mb-4"><G>Die anderen haben nicht gewartet. Sie auch nicht?</G></h2>
           <div className="flex items-center justify-center gap-3">
             <TrustStars size={13} />
             <span className="text-[13px] text-gray-500 font-medium">4,9 / 5 · Stand: {dateLabel}</span>
@@ -863,21 +863,21 @@ function SecurityStrip() {
   const land = useLand();
   const obs = useReveal();
   const items = [
-    { t: "AES-256 verschlüsselt", d: "Bank-Level-Security für jede Übertragung. Deine Daten verlassen nie die EU.", icon: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></> },
+    { t: "AES-256 verschlüsselt", d: "Bank-Level-Security für jede Übertragung. Ihre Daten verlassen nie die EU.", icon: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></> },
     { t: land === "ch" ? "Datenschutz auf Bankniveau" : "DSGVO & EU-Hosting",
       d: land === "ch"
         ? "AES-256-Verschlüsselung, Serverstandort Europa. Volle Datenhoheit, jederzeit Auskunft & Löschung."
         : "Serverstandort EU. Volle Datenhoheit, jederzeit Auskunft & Löschung.",
       icon: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></> },
     { t: "Zahlung erst nach Freigabe", d: "Keine Vorkasse, keine Einrichtungsgebühr. Abgelehnt = 0 € Kosten.", icon: <><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></> },
-    { t: "Monatlich kündbar", d: "Kein Fine-Print, keine Haltefristen. Ein Klick im Dashboard genügt.", icon: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></> },
+    { t: "14 Tage Widerrufsrecht", d: "Zwölf Monatsraten, danach monatlich kündbar. Den Vertrag können Sie 14 Tage lang ohne Grund widerrufen.", icon: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></> },
   ];
   return (
     <section className="py-16 sm:py-20 border-y border-gray-100 bg-white/70" ref={obs.ref}>
       <div className="max-w-[1120px] mx-auto px-5 sm:px-6">
         <div className="text-center mb-10">
           <p className="text-[12px] font-semibold text-[#2563eb] tracking-[0.18em] uppercase mb-3">Sicherheit zuerst</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight"><G>Dein Vertrauen. Unsere Garantien.</G></h2>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight"><G>Ihr Vertrauen. Unsere Garantien.</G></h2>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           {items.map((it, i) => (
@@ -905,19 +905,19 @@ function FAQ() {
   const obs = useReveal();
   const [open, setOpen] = useState<number | null>(0);
   const qas = [
-    { q: "Muss ich Vorkasse leisten?", a: "Nein. Niemals. Die Paket-Gebühr wird erst fällig, wenn dein Limit freigegeben wurde. Zero Risiko auf deiner Seite." },
+    { q: "Muss ich Vorkasse leisten?", a: "Nein. Niemals. Die Paket-Gebühr wird erst fällig, wenn Ihr Limit freigegeben wurde. Zero Risiko auf Ihrer Seite." },
     { q: "Wie lange dauert es wirklich?", a: "Antrag in unter 2 Minuten. Algorithmische Freigabe in unter 120 Sekunden. Virtuelle Karte sofort einsatzbereit." },
-    { q: `Ist das in meiner ${LAENDER[land].register} sichtbar?`, a: "Nein. Zu 100 % neutral. Wir holen keine Auskunft ein. Dein Score bleibt unangetastet." },
-    { q: "Was passiert, wenn ich abgelehnt werde?", a: "Dann zahlst du nichts. Unsere Engine ist transparent – du siehst die Entscheidung direkt und wir geben dir den strategischen Fahrplan zur Nachjustierung." },
-    { q: "Kann ich monatlich kündigen?", a: "Ja, jederzeit. Ohne Begründung. Kein Fine-Print, keine Haltefristen." },
-    { q: `Funktioniert das auch bei negativem ${LAENDER[land].register}-Eintrag?`, a: "Ja. Genau dafür existieren wir. Wir nutzen das US-Credit-Building-System — dein bisheriger Score ist für uns kein Ausschlusskriterium." },
+    { q: `Ist das in meiner ${LAENDER[land].register} sichtbar?`, a: "Nein. Zu 100 % neutral. Wir holen keine Auskunft ein. Ihr Score bleibt unangetastet." },
+    { q: "Was passiert, wenn ich abgelehnt werde?", a: "Dann zahlen Sie nichts. Unsere Engine ist transparent – Sie sehen die Entscheidung direkt und wir geben Ihnen den strategischen Fahrplan zur Nachjustierung." },
+    { q: "Wie lange läuft der Vertrag?", a: "Zwölf Monatsraten. Danach läuft er unbefristet weiter und ist jederzeit mit einem Monat Frist kündbar. Den Vertragsschluss können Sie 14 Tage lang ohne Grund widerrufen." },
+    { q: `Funktioniert das auch bei negativem ${LAENDER[land].register}-Eintrag?`, a: "Ja. Genau dafür existieren wir. Wir nutzen das US-Credit-Building-System — Ihr bisheriger Score ist für uns kein Ausschlusskriterium." },
   ];
   return (
     <section className="py-20 sm:py-28" ref={obs.ref}>
       <div className="max-w-[760px] mx-auto px-5 sm:px-6">
         <div className="text-center mb-12">
           <p className="text-[12px] font-semibold text-[#2563eb] tracking-[0.18em] uppercase mb-3">Kurz & hart</p>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight"><G>Die Fragen, die du wirklich hast.</G></h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight"><G>Die Fragen, die Sie wirklich haben.</G></h2>
         </div>
         <div className="space-y-3">
           {qas.map((f, i) => (
@@ -957,10 +957,10 @@ function Reversal({ onOpenPack }: { onOpenPack: () => void }) {
         <span className="inline-block mb-4 px-3.5 py-1 rounded-full text-[11px] font-bold tracking-[0.14em] uppercase text-[#93c5fd]"
           style={{ background: "rgba(37,99,235,0.14)", border: "1px solid rgba(37,99,235,0.28)" }}>Risiko-Umkehr</span>
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-white leading-[1.08] mb-5">
-          Du zahlst keinen Cent,<br /><span className="text-[#93c5fd]">bevor dein Limit aktiv ist.</span>
+          Sie zahlen keinen Cent,<br /><span className="text-[#93c5fd]">bevor Ihr Limit aktiv ist.</span>
         </h2>
         <p className="text-[15px] sm:text-[17px] text-gray-300 leading-relaxed max-w-[560px] mx-auto mb-9">
-          Keine Einrichtungsgebühr. Keine Vorkasse. Kein versteckter Haken. Wenn wir nicht liefern, zahlst du nichts. Punkt.
+          Keine Einrichtungsgebühr. Keine Vorkasse. Kein versteckter Haken. Wenn wir nicht liefern, zahlen Sie nichts. Punkt.
         </p>
         <button type="button" onClick={onOpenPack}
           className="relative inline-flex items-center gap-2 px-9 py-4 rounded-full text-[16px] font-semibold text-white overflow-hidden group"
@@ -972,7 +972,7 @@ function Reversal({ onOpenPack }: { onOpenPack: () => void }) {
         </button>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12.5px] text-gray-400 font-medium">
           <span className="inline-flex items-center gap-1.5"><Check /> {LAENDER[land].registerNeutral}</span>
-          <span className="inline-flex items-center gap-1.5"><Check /> Monatlich kündbar</span>
+          <span className="inline-flex items-center gap-1.5"><Check /> Zwölf Monatsraten</span>
           <span className="inline-flex items-center gap-1.5"><Check /> {land === "ch" ? "AES-256 · Serverstandort Europa" : "EU-Hosting · AES-256"}</span>
         </div>
       </div>
@@ -1005,10 +1005,10 @@ function StickyCTA({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElem
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">Deine FIAON Karte</span>
+            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">Ihre FIAON Karte</span>
           </div>
           <div className="text-[10.5px] leading-snug font-medium text-gray-600">
-            Beantrage direkt & erfahre dein Limit <b className="text-gray-900">in unter 2 Minuten</b>.
+            Beantragen Sie direkt & erfahren Sie Ihr Limit <b className="text-gray-900">in unter 2 Minuten</b>.
           </div>
         </div>
         <button type="button"

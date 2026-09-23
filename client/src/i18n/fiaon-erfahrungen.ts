@@ -35,7 +35,7 @@ const de = {
   keineWarn: "Keine Warnzeichen", vonSechs: (n: number) => `${n} von 6 Warnzeichen`, genauHinsehen: (n: number) => `${n} Warnzeichen – genau hinsehen`,
   bestehtCheck: "Dieser Anbieter besteht den Check.", fingerWeg: "Finger weg – oder zumindest: nichts unterschreiben, nichts vorab zahlen.", nachfragen: "Fragen Sie nach, bevor Sie beauftragen.",
   soWir: "So beantworten wir die sechs Fragen für FIAON",
-  soWirText: "Garantie: nein. Erfolgsbeteiligung: nein, Festpreis. Kostenlose Rechte: stehen auf jeder Werkzeugseite. Impressum: FIAON LTD, Company No. 17318250, 128 City Road, London – Support +41 44 244 93 01. Zeitdruck: keiner, kündbar zum Monatsende. Einsicht: jeder Schritt im Kundenbereich, jedes Schreiben vor dem Versand freigegeben.",
+  soWirText: "Garantie: nein. Erfolgsbeteiligung: nein, Festpreis. Kostenlose Rechte: stehen auf jeder Werkzeugseite. Impressum: FIAON LTD, Company No. 17318250, 128 City Road, London – Support +41 44 244 93 01. Zeitdruck: keiner. Laufzeit: zwölf Monatsraten, danach monatlich kündbar. Einsicht: jeder Schritt im Kundenbereich, jedes Schreiben vor dem Versand freigegeben.",
   warnH2a: "Woran Sie unseriöse Anbieter ", warnH2b: "erkennen.", warnLead: "Diese Kriterien gelten für jeden in diesem Markt – auch für uns. Prüfen Sie beides.",
   warn: [
     { tag: "Warnzeichen 1", titel: "Löschgarantien", text: "„Wir löschen jeden Eintrag“ ist rechtlich unmöglich: Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf. Seriös ist, wer Ihnen vorher sagt, welcher Eintrag bleibt." },

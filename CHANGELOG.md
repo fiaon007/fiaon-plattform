@@ -5,6 +5,27 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.09.2026 (3) — Zahlende Kunden verschwanden aus ihrer eigenen Akte
+
+**Die Meldungen:** Florentine: „sie hat bezahlt, hab die Bonitätsauskunft beantragt, seitdem ist sie als Lead."
+Daniel: „Gerold Kuhn 2× High End bezahlt … hier steht, er hat kein aktives Paket" und „Pipeline zeigt nur C-Kunden".
+
+**Zwei Ursachen, beide gemessen:**
+1. **Archiviert heißt nicht unbezahlt.** Vier bezahlte Bestellungen wurden zwischen 13.08. und 04.09. mit dem Grund
+   „doppelt" archiviert. Einstufung, Akte und Portal ignorierten archivierte Bestellungen vollständig — damit fiel
+   ein zahlender Kunde auf „nur_lead" zurück (Idris Maslah: bezahltes High End, Stufe C, daneben eine überfällige
+   Rate). Ab sofort zählt eine bezahlte Bestellung immer, auch archiviert.
+2. **Ein Zusatzprodukt trug die Akte.** Gerold Kuhn kaufte am 14.08. eine Bonitätsauskunft; die Akte sortierte nur
+   nach Datum und wählte sie statt des bezahlten High-End-Pakets vom 02.07. Ergebnis: „kein aktives Paket".
+   Die Reihenfolge lautet jetzt: Paket vor Zusatzprodukt, bezahlt vor offen, dann das jüngste.
+
+**Nachgewiesen:** Beide Menschen zeigen nach der Änderung ihr bezahltes FIAON High End.
+
+**Wo zu finden:** `server/lib/tier.ts` (antragBasisSql), `server/lib/fiaon-akte-anker.ts` (sorgeFuerAkte),
+`server/lib/fiaon-kundenansicht.ts` (kontoBestellungVon).
+
+---
+
 ## 23.09.2026 (2) — Provisionsautomatik aus, Mara verkauft statt zu fragen, bezahlte Kunden bleiben Kunden
 
 **Was geändert wurde:**

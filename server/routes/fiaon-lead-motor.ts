@@ -367,6 +367,7 @@ router.get("/chef/lead-motor/vorlagen", wache, async (_req: ChefRequest, res: Re
       vorlagen: WA_VORLAGEN.map((v) => ({
         name: v.name, zweck: v.zweck, wann: v.wann, kategorie: v.kategorie,
         text: v.text, beispiele: v.beispiele, knoepfe: v.knoepfe,
+        kopf: v.kopf ?? null, fuss: v.fuss ?? null, kopfBild: v.kopfBild ?? null, varianteVon: v.varianteVon ?? null,
         status: stand.find((t) => t.name === v.name)?.status ?? "FEHLT",
       })),
       // Was bei Meta liegt und hier nicht mehr steht — das sind die Altlasten.

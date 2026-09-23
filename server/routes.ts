@@ -461,6 +461,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('mara_aktion', async () => await (await import('./lib/fiaon-mara-aktion')).maraAktionLauf(), 10 * 60 * 1000, { beimStartNach: 300_000 });
   });
+  // 💬 WhatsApp-Zentrale (23.09.2026, E-229): Justin startet Versände an Kundengruppen von Hand
+  //    („WhatsApp starten (n)") oder lässt Mara im Takt schreiben (z. B. 5 je Stunde, 07:40–20:45).
+  //    Ist die Automatik an, pausiert die alte Stundenkette; die Sofort-Begrüßung bleibt.
+  const fiaonWaZentraleRoutes = await import('./routes/fiaon-wa-zentrale');
+  app.use('/api/fiaon', fiaonWaZentraleRoutes.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('wa_zentrale_takt', async () => { await (await import('./lib/fiaon-wa-zentrale')).automatikTakt(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });
+  });
+  // Einmalig nach dem Ausrollen: die 15 Bildvorlagen bei Meta zur Prüfung einreichen (Sperre über fiaon_settings).
+  setTimeout(() => { void import('./lib/fiaon-wa-zentrale').then((m) => m.bildvorlagenEinmalEinreichen()).catch((e) => console.error('[WA-ZENTRALE] Bildvorlagen:', e)); }, 180_000);
   // 🚦 Boni-Ampel (21.09.2026, E-202): FIAONs eigene Einschätzung je Kunde — in der Akte der Mitarbeiter.
   const fiaonBoniAmpelRoutes = await import('./routes/fiaon-boni-ampel');
   app.use('/api/fiaon', fiaonBoniAmpelRoutes.default);

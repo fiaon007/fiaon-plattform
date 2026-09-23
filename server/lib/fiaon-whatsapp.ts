@@ -19,7 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { graph, MetaFehler } from "./fiaon-meta";
-import { WA_VORLAGEN, INKASSO_AUSNAHME, type WaVorlage } from "../../shared/fiaon-lead-texte";
+import { WA_VORLAGEN, INKASSO_AUSNAHME, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
 
@@ -103,7 +103,7 @@ export function sendePruefung(text: string): string[] {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Unsere Vorlage im Format von Meta. */
-export function vorlageAlsMeta(v: WaVorlage): Record<string, unknown> {
+export function vorlageAlsMeta(v: WaVorlage, bildHandles: Partial<Record<WaBild, string>> = {}): Record<string, unknown> {
   const knoepfe = v.knoepfe.map((k) => (k.typ === "URL"
     // E-214: `example` NUR bei einer URL mit Platzhalter — bei einer festen
     // URL weist Meta die Vorlage mit „example not allowed" zurück.
@@ -113,7 +113,15 @@ export function vorlageAlsMeta(v: WaVorlage): Record<string, unknown> {
   // so super billig aus." Die Nachricht begann mitten im Satz, ohne Absender
   // und ohne Abschluss — Meta erlaubt beides, wir hatten es nur nie genutzt.
   const komponenten: Record<string, unknown>[] = [];
-  if (v.kopf) komponenten.push({ type: "HEADER", format: "TEXT", text: v.kopf.slice(0, 60) });
+  if (v.kopfBild) {
+    // E-229: Kopfbild. Meta verlangt beim Einreichen ein Beispiel als
+    // hochgeladenes Handle; beim Senden holt es sich das Bild über die Adresse.
+    const handle = bildHandles[v.kopfBild];
+    if (!handle) throw new Error(`Für das Kopfbild „${v.kopfBild}“ fehlt das Upload-Handle.`);
+    komponenten.push({ type: "HEADER", format: "IMAGE", example: { header_handle: [handle] } });
+  } else if (v.kopf) {
+    komponenten.push({ type: "HEADER", format: "TEXT", text: v.kopf.slice(0, 60) });
+  }
   komponenten.push({
     type: "BODY",
     text: v.text,
@@ -142,6 +150,70 @@ export async function alleVorlagen(): Promise<WaVorlage[]> {
   } catch (e) {
     console.error("[WHATSAPP] Eigene Vorlagen nicht lesbar:", e);
     return [...WA_VORLAGEN];
+  }
+}
+
+/**
+ * DAS KOPFBILD HOCHLADEN (E-229) — für die Einreichung einer Bildvorlage.
+ * Derselbe zweistufige Weg wie beim Profilbild (fiaon-whatsapp-werkstatt.ts):
+ * Upload-Sitzung am App-Konto öffnen, Bytes senden, Handle zurück.
+ */
+async function bildHandle(bild: WaBild): Promise<string> {
+  const appId = process.env.META_APP_ID;
+  const token = process.env.META_SYSTEM_TOKEN || process.env.META_TOKEN || "";
+  if (!appId || !token) throw new Error("META_APP_ID oder META_SYSTEM_TOKEN fehlt — ohne sie nimmt Meta kein Kopfbild an.");
+  const { readFile } = await import("fs/promises");
+  const { join } = await import("path");
+  let daten: Buffer | null = null;
+  for (const ordner of ["client/public/wa", "dist/public/wa", "public/wa"]) {
+    try { daten = await readFile(join(process.cwd(), ordner, `fiaon-${bild}.png`)); break; } catch { /* nächster Ort */ }
+  }
+  if (!daten) {
+    const r = await fetch(waBildUrl(bild), { signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) throw new Error(`Kopfbild ${bild} nicht lesbar (HTTP ${r.status}).`);
+    daten = Buffer.from(await r.arrayBuffer());
+  }
+  const sitzung = await graph(`${appId}/uploads`, { methode: "POST", params: { file_length: String(daten.length), file_type: "image/png" } });
+  const id = String(sitzung?.id ?? "");
+  if (!id) throw new Error("Meta hat keine Upload-Sitzung eröffnet.");
+  const basis = (process.env.META_GRAPH_URL || "https://graph.facebook.com").replace(/\/+$/, "");
+  const antwort = await fetch(`${basis}/v25.0/${id}`, {
+    method: "POST",
+    headers: { Authorization: `OAuth ${token}`, file_offset: "0", "Content-Type": "image/png" },
+    body: new Uint8Array(daten),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const j: any = await antwort.json().catch(() => null);
+  if (!antwort.ok || !j?.h) throw new Error(`Kopfbild ${bild} abgelehnt (HTTP ${antwort.status}): ${String(j?.error?.message ?? "").slice(0, 160)}`);
+  return String(j.h);
+}
+
+/** Handles für alle Kopfbilder, die in dieser Liste vorkommen. Fehler landen je Vorlage, nicht für alle. */
+async function bildHandlesFuer(vorlagen: WaVorlage[]): Promise<{ handles: Partial<Record<WaBild, string>>; fehler: Partial<Record<WaBild, string>> }> {
+  const handles: Partial<Record<WaBild, string>> = {};
+  const fehler: Partial<Record<WaBild, string>> = {};
+  const noetig = Array.from(new Set(vorlagen.map((v) => v.kopfBild).filter(Boolean))) as WaBild[];
+  for (const b of noetig) {
+    try { handles[b] = await bildHandle(b); } catch (e) { fehler[b] = String((e as Error)?.message || e).slice(0, 200); }
+  }
+  return { handles, fehler };
+}
+
+/**
+ * Welche Vorlagen hat Meta freigegeben? Fünf Minuten zwischengespeichert —
+ * waSenden fragt das bei jeder Nachricht, und Meta soll nicht bei jeder
+ * Nachricht die ganze Liste schicken müssen.
+ */
+let freigabeCache: { bis: number; namen: Set<string> } | null = null;
+export async function freigegebeneVorlagen(): Promise<Set<string>> {
+  if (freigabeCache && freigabeCache.bis > Date.now()) return freigabeCache.namen;
+  try {
+    const namen = new Set((await vorlagenStand()).filter((t) => t.status === "APPROVED").map((t) => t.name));
+    freigabeCache = { bis: Date.now() + 5 * 60_000, namen };
+    return namen;
+  } catch {
+    freigabeCache = { bis: Date.now() + 60_000, namen: freigabeCache?.namen ?? new Set() };
+    return freigabeCache.namen;
   }
 }
 
@@ -177,11 +249,13 @@ export async function vorlagenEinreichen(): Promise<{ eingereicht: string[]; sch
     return true;
   });
   lauf.gesamt = offen.length;
+  const bilder = await bildHandlesFuer(offen);
   // E-217: vier gleichzeitig statt eine nach der anderen — 94 Sekunden waren
   // länger als jede Geduld.
   await inWellen(offen.map((v) => async () => {
     try {
-      const body = vorlageAlsMeta(v);
+      if (v.kopfBild && bilder.fehler[v.kopfBild]) throw new Error(bilder.fehler[v.kopfBild]);
+      const body = vorlageAlsMeta(v, bilder.handles);
       await graph(`${k.wabaId}/message_templates`, {
         methode: "POST",
         params: {
@@ -307,10 +381,12 @@ export async function vorlagenEinreichenUndAuffrischen(): Promise<{
   }
 
   lauf.gesamt = neuEinreichen.length + auffrischen.length;
+  const bilder = await bildHandlesFuer([...neuEinreichen, ...auffrischen.map((a) => a.v)]);
   await inWellen([
     ...neuEinreichen.map((v) => async () => {
       try {
-        const body = vorlageAlsMeta(v);
+        if (v.kopfBild && bilder.fehler[v.kopfBild]) throw new Error(bilder.fehler[v.kopfBild]);
+        const body = vorlageAlsMeta(v, bilder.handles);
         await graph(`${k.wabaId}/message_templates`, {
           methode: "POST",
           params: {
@@ -323,7 +399,8 @@ export async function vorlagenEinreichenUndAuffrischen(): Promise<{
     }),
     ...auffrischen.map(({ v, id }) => async () => {
       try {
-        const body = vorlageAlsMeta(v);
+        if (v.kopfBild && bilder.fehler[v.kopfBild]) throw new Error(bilder.fehler[v.kopfBild]);
+        const body = vorlageAlsMeta(v, bilder.handles);
         // Beim Bearbeiten nimmt Meta NUR die Komponenten (und ggf. die
         // Kategorie) — Name und Sprache stehen fest.
         await graph(id, { methode: "POST", params: { components: JSON.stringify(body.components) } });
@@ -398,6 +475,32 @@ export interface SendeErgebnis { ok: boolean; waId?: string; grund?: string }
  * Eine Nachricht senden. Ohne offenes Fenster MUSS eine Vorlage genommen
  * werden — sonst lehnt Meta ab, und jede Ablehnung drückt die Qualität.
  */
+/**
+ * Ein Vermerk in der Akte — aber nur, wo die Akte ihn auch zeigt (E-229).
+ *
+ * fiaon_contact_log.ref ist Pflicht, und die Akte liest den Verlauf über die
+ * Bestellnummern der Person. Bis heute schrieben Kette und Mara OHNE ref — jede
+ * Zeile scheiterte still am NOT NULL (gemessen: 0 Vermerke in drei Tagen trotz
+ * gesendeter Vorlagen). Jetzt: die jüngste Bestellung der Person trägt den
+ * Vermerk. Hat sie keine (reiner Lead), steht der Verlauf im WhatsApp-Raum.
+ */
+export async function waAktenvermerk(personId: number | null | undefined, text: string, lauf: Lauf = sqlPool): Promise<boolean> {
+  if (!personId) return false;
+  const [a] = (await lauf`
+    SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL AND ref IS NOT NULL
+     ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+  if (!a?.ref) return false;
+  try {
+    await lauf`
+      INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note)
+      VALUES (${personId}, ${String(a.ref)}, NULL, 'Mara', 'system', ${text.slice(0, 1000)})`;
+    return true;
+  } catch (e) {
+    console.error("[WA] Aktenvermerk:", String((e as Error)?.message || e).slice(0, 160));
+    return false;
+  }
+}
+
 export async function waSenden(
   an: string,
   inhalt: { text?: string; vorlage?: string; werte?: string[]; knopfWert?: string },
@@ -411,6 +514,15 @@ export async function waSenden(
   await waTabellen(lauf);
 
   const katalog = await alleVorlagen();
+  // E-229: Die Aufrufer nennen die Textfassung. Ist die Bildfassung bei Meta
+  // freigegeben, geht sie raus — mit denselben Werten, denn der Wortlaut und
+  // die Platzhalter sind dieselben, nur in Absätze gegliedert.
+  if (inhalt.vorlage && !inhalt.vorlage.startsWith("fiaon_kkb_")) {
+    const bild = bildName(inhalt.vorlage);
+    if (bild !== inhalt.vorlage && katalog.some((v) => v.name === bild) && (await freigegebeneVorlagen()).has(bild)) {
+      inhalt = { ...inhalt, vorlage: bild };
+    }
+  }
   const gewaehlt = inhalt.vorlage ? katalog.find((v) => v.name === inhalt.vorlage) ?? null : null;
   const probe = inhalt.text ?? gewaehlt?.text ?? "";
   // E-222: Die Inkasso-Wand gilt — außer für die Vorlagen, die ausdrücklich
@@ -495,9 +607,10 @@ export async function waSenden(
         messaging_product: "whatsapp", to: nummer, type: "template",
         template: {
           name: inhalt.vorlage, language: { code: "de" },
-          ...(inhalt.werte?.length || knopfWert
+          ...(inhalt.werte?.length || knopfWert || vorlage?.kopfBild
             ? {
                 components: [
+                  ...(vorlage?.kopfBild ? [{ type: "header", parameters: [{ type: "image", image: { link: waBildUrl(vorlage.kopfBild) } }] }] : []),
                   ...(inhalt.werte?.length ? [{ type: "body", parameters: inhalt.werte.map((t) => ({ type: "text", text: t })) }] : []),
                   ...(knopfWert ? [{ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: knopfWert }] }] : []),
                 ],

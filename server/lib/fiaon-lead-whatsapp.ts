@@ -36,7 +36,7 @@
 //   · Nachts nichts: 8 bis 20 Uhr Berliner Zeit.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { waSenden, vorlagenStand, waKonfig } from "./fiaon-whatsapp";
+import { waSenden, vorlagenStand, waKonfig, waAktenvermerk } from "./fiaon-whatsapp";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
 
 /** Der Schalter. Vorgabe: AUS — Justin schaltet ihn im Steuerpult ein. */
@@ -81,6 +81,14 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
   const weg = (grund: string) => { erg.uebersprungen[grund] = (erg.uebersprungen[grund] ?? 0) + 1; };
 
   if (!(await ketteAn())) { weg("Kette aus"); return erg; }
+  // E-229: Läuft die Automatik der WhatsApp-Zentrale, übernimmt sie das
+  // Nachfassen im Takt, den Justin dort einstellt. Sonst schriebe die Kette
+  // zusätzlich — und „5 pro Stunde" wäre wertlos. Die Sofort-Begrüßung neuer
+  // Leads (ersteWhatsAppFuerLead) bleibt davon unberührt.
+  try {
+    const { automatikAn } = await import("./fiaon-wa-zentrale");
+    if (await automatikAn()) { weg("Zentrale-Automatik übernimmt"); return erg; }
+  } catch { /* Zentrale nicht lesbar: die Kette läuft wie bisher */ }
   const k = waKonfig();
   if (!k.bereit) { weg("WhatsApp nicht eingerichtet"); return erg; }
 
@@ -133,6 +141,10 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
          SELECT 1 FROM fiaon_whatsapp s
           WHERE s.person_id = p.id AND s.richtung = 'rein'
             AND (s.text ILIKE '%stopp%' OR s.knopf ILIKE '%stopp%' OR s.text ILIKE '%keine nachrichten%'))
+       -- E-229: Wer im Lead-Formular das Kontakt-Kästchen NICHT angehakt hat,
+       -- hat WhatsApp ausdrücklich abgelehnt (whatsapp_erlaubt = FALSE).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_leads ln WHERE ln.person_id = p.id AND ln.whatsapp_erlaubt IS FALSE)
      ORDER BY p.created_at DESC
      LIMIT ${Math.min(Math.max(deckel, 1), 200)}`.catch((e) => { console.error("[LEAD-WA] Kandidaten:", e); return []; })) as any[];
 
@@ -145,7 +157,7 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
     const tage = Math.floor((Date.now() - new Date(String(c.eingang)).getTime()) / 86400000);
     const vorlage = vorlageFuer(tage, c.rechnung_offen === true, c.antrag_begonnen === true, c.schon_angeschrieben === true);
     if (!vorlage) { weg("heute kein Schritt fällig"); continue; }
-    if (!freigegeben.has(vorlage)) { weg(`Vorlage ${vorlage} noch nicht freigegeben`); continue; }
+    if (!freigegeben.has(vorlage) && !freigegeben.has(vorlage.replace(/^fiaon_kk_/, "fiaon_kkb_"))) { weg(`Vorlage ${vorlage} noch nicht freigegeben`); continue; }
 
     // Die Werte je Vorlage — Name zuerst, dann was die Vorlage sonst braucht.
     const anrede = String(c.name || "").trim() || "und willkommen";
@@ -157,10 +169,7 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
     const r = await waSenden(nummer, { vorlage, werte }, { personId: Number(c.person_id), leadId: c.lead_id ? Number(c.lead_id) : null, von: "Mara" });
     if (r.ok) {
       erg.gesendet++;
-      await sqlPool`
-        INSERT INTO fiaon_contact_log (person_id, agent_name, type, note, created_at)
-        VALUES (${Number(c.person_id)}, 'Mara', 'system',
-                ${`WhatsApp „${vorlage}" gesendet (Tag ${tage} nach Eingang).`}, NOW())`.catch(() => {});
+      await waAktenvermerk(Number(c.person_id), `WhatsApp „${vorlage}“ gesendet (Tag ${tage} nach Eingang).`);
     } else {
       weg(r.grund ?? "Senden fehlgeschlagen");
     }
@@ -186,16 +195,18 @@ export async function ersteWhatsAppFuerLead(leadId: number): Promise<{ ok: boole
   const [l] = (await sqlPool`
     SELECT le.id, le.person_id, le.telefon, le.link_code,
            TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS name,
-           p.werbung_gesperrt_am, p.is_blocked
+           p.werbung_gesperrt_am, p.is_blocked, le.whatsapp_erlaubt
       FROM fiaon_leads le LEFT JOIN fiaon_persons p ON p.id = le.person_id
      WHERE le.id = ${leadId} LIMIT 1`.catch(() => [])) as any[];
   if (!l) return { ok: false, grund: "Lead nicht gefunden." };
   if (l.werbung_gesperrt_am || l.is_blocked) return { ok: false, grund: "Abgemeldet oder gesperrt." };
+  // E-229: Das Kontakt-Kästchen im Formular NICHT angehakt = ausdrückliches Nein.
+  if (l.whatsapp_erlaubt === false) return { ok: false, grund: "WhatsApp im Formular abgelehnt." };
   const nummer = nummerFuerWhatsApp(l.telefon);
   if (!nummer) return { ok: false, grund: "Keine Nummer, über die WhatsApp läuft." };
 
   const freigegeben = new Set((await vorlagenStand().catch(() => [])).filter((t) => t.status === "APPROVED").map((t) => t.name));
-  if (!freigegeben.has("fiaon_kk_anfrage")) return { ok: false, grund: "Die erste Vorlage ist bei Meta noch nicht freigegeben." };
+  if (!freigegeben.has("fiaon_kk_anfrage") && !freigegeben.has("fiaon_kkb_anfrage")) return { ok: false, grund: "Die erste Vorlage ist bei Meta noch nicht freigegeben." };
 
   const r = await waSenden(
     nummer,

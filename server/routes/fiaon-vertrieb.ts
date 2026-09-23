@@ -1403,12 +1403,14 @@ router.get("/agent/kunden/:personId/whatsapp-vorlagen", requireAgent, async (req
       fensterOffen: frei,
       // Auch die noch nicht freigegebenen werden genannt — mit ihrem Stand.
       // Sonst steht der Mitarbeiter vor einer leeren Liste und weiß nicht, warum.
-      vorlagen: WA_VORLAGEN.map((v) => ({
+      // E-229: Bildfassungen erscheinen nicht doppelt — gesendet wird die
+      // Textfassung, und waSenden nimmt die Bildfassung, sobald sie frei ist.
+      vorlagen: WA_VORLAGEN.filter((v) => !v.varianteVon).map((v) => ({
         name: v.name, zweck: v.zweck, wann: v.wann, text: v.text,
         variablen: (v.text.match(/\{\{\d\}\}/g) ?? []).length,
         beispiele: v.beispiele,
         status: stand.find((t) => t.name === v.name)?.status ?? "FEHLT",
-        nutzbar: freigegeben.has(v.name),
+        nutzbar: freigegeben.has(v.name) || freigegeben.has(v.name.replace(/^fiaon_kk_/, "fiaon_kkb_")),
       })),
     });
   } catch (err) {

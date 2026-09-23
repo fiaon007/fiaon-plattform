@@ -27,6 +27,27 @@ import {
   waTabellen, waSenden, waVerlauf, waZahlen, waKonfig, sendePruefung, vorlagenStand, fensterOffen,
 } from "../lib/fiaon-whatsapp";
 import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
+
+/**
+ * Die Vorlagen, die ein Mensch im Raum wählen kann (E-229): jede Textfassung,
+ * die selbst ODER deren Bildfassung freigegeben ist — die Bildfassung selbst
+ * nie als eigener Eintrag. Gesendet wird die Textfassung; waSenden nimmt die
+ * Bildfassung, sobald Meta sie freigegeben hat.
+ */
+function nutzbareVorlagen(stand: { name: string; status: string; kategorie: string; id: string }[]) {
+  const frei = new Set(stand.filter((t) => t.status === "APPROVED").map((t) => t.name));
+  const aus: any[] = [];
+  for (const t of stand) {
+    if (t.status !== "APPROVED" || !t.name.startsWith("fiaon_") || t.name.startsWith("fiaon_kkb_")) continue;
+    aus.push({ ...t, ...(WA_VORLAGEN.find((v) => v.name === t.name) ?? {}), mitBild: frei.has(t.name.replace(/^fiaon_kk_/, "fiaon_kkb_")) });
+  }
+  for (const v of WA_VORLAGEN) {
+    if (!v.varianteVon || !frei.has(v.name) || frei.has(v.varianteVon)) continue;
+    const text = WA_VORLAGEN.find((x) => x.name === v.varianteVon);
+    if (text) aus.push({ ...text, status: "APPROVED", id: "", mitBild: true });
+  }
+  return aus;
+}
 // E-218: Gesprächsergebnisse direkt aus dem Chat buchen — dieselbe Liste
 // und derselbe Weg wie in der Akte, kein zweiter Satz Ergebnisse.
 import { ERGEBNISSE, ERGEBNIS_TEXT, ergebnisAnwenden, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
@@ -285,9 +306,7 @@ function routen(hole: (req: any) => Blick) {
           if (l) lage = { ...l, stufe: "C", paket: null, istLead: true };
         }
       }
-      const vorlagen = (await vorlagenStand().catch(() => []))
-        .filter((t) => t.status === "APPROVED" && t.name.startsWith("fiaon_"))
-        .map((t) => ({ ...t, ...(WA_VORLAGEN.find((v) => v.name === t.name) ?? {}) }));
+      const vorlagen = nutzbareVorlagen(await vorlagenStand().catch(() => []));
 
       // E-218: Die Links, die der Verkäufer gleich schicken will — fertig
       // gebaut, damit niemand sie von Hand zusammensetzt und sich vertippt.
@@ -481,9 +500,7 @@ function routen(hole: (req: any) => Blick) {
   /** Die freigegebenen Vorlagen — für das neue Gespräch. */
   r.get("/vorlagen", async (_req: any, res: Response) => {
     try {
-      const v = (await vorlagenStand().catch(() => []))
-        .filter((t) => t.status === "APPROVED" && t.name.startsWith("fiaon_"))
-        .map((t) => ({ ...t, ...(WA_VORLAGEN.find((x) => x.name === t.name) ?? {}) }));
+      const v = nutzbareVorlagen(await vorlagenStand().catch(() => []));
       res.json({ ok: true, vorlagen: v, inPruefung: (await vorlagenStand().catch(() => [])).filter((t) => t.status === "PENDING").length });
     } catch (err) {
       res.status(500).json({ ok: false, error: "Die Vorlagen ließen sich nicht laden." });

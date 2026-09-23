@@ -226,9 +226,8 @@ export async function maraAntwortet(nummer: string): Promise<{ gesendet: boolean
 /** Ein Mensch muss übernehmen — als Aufgabe beim Betreuer, nicht als Zuruf. */
 async function aufgabeFuerMenschen(nummer: string, personId: number | null, grund: string): Promise<void> {
   if (!personId) return;
-  await sqlPool`
-    INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note)
-    VALUES (${personId}, NULL, 'Mara', 'system', ${`WhatsApp (+${nummer}): ${grund}`})`.catch(() => {});
+  const { waAktenvermerk } = await import("./fiaon-whatsapp");
+  await waAktenvermerk(personId, `WhatsApp (+${nummer}): ${grund}`);
   // Dieselbe Aufgabenkette wie im Postfach — nicht noch ein zweiter Weg.
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   await auftragFuerKunden({

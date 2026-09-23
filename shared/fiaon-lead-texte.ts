@@ -42,13 +42,18 @@ export const EINWILLIGUNG_HINWEIS =
  * Vorlage mit Mahnton bauen will, muss sie hier eintragen und sich dabei
  * ansehen, was er tut.
  */
-export const INKASSO_AUSNAHME = ["fiaon_kk_rechnung"] as const;
+export const INKASSO_AUSNAHME = ["fiaon_kk_rechnung", "fiaon_kkb_rechnung"] as const;
 
 /** Der Name für {{1}} — ohne brauchbaren Namen „und willkommen". */
 export function vorlagenName(anredeChatZeile: string): string {
   const rest = anredeChatZeile.replace(/^Hallo\s*/, "").replace(/,\s*$/, "").trim();
   return rest || "und willkommen";
 }
+
+export type WaBild = "karte" | "antrag" | "zahlung" | "termin" | "kontakt";
+
+/** Die öffentliche Adresse eines Kopfbilds — Meta holt es beim Senden selbst ab. */
+export const waBildUrl = (b: WaBild) => `https://fiaon.com/wa/fiaon-${b}.png`;
 
 export type WaKnopf =
   // `beispiel` nur bei einer URL MIT Platzhalter: Meta verlangt es dort und
@@ -69,6 +74,16 @@ export interface WaVorlage {
    * Erstes ins Auge fällt — dort gehört hin, worum es geht.
    */
   kopf?: string;
+  /**
+   * KOPFBILD (23.09.2026, E-229) — statt einer Textzeile ein Bild im FIAON-CI.
+   * Justin: „Man kann da richtig schöne Vorlagen erstellen … perfekt formatiert,
+   * passende Farben, alles super seriös mit FIAON Ltd. in unserem CI." Farbe
+   * gibt es im WhatsApp-Text nicht; im Kopfbild schon. Die Bilder liegen unter
+   * client/public/wa/ und werden aus scripts/wa-kopfbilder.ts erzeugt.
+   */
+  kopfBild?: WaBild;
+  /** Bei einer Bildfassung: der Name der Textfassung, die sie ersetzt. */
+  varianteVon?: string;
   /** FUSSZEILE — höchstens 60 Zeichen, klein und grau unter dem Text. */
   fuss?: string;
   kategorie: "UTILITY" | "MARKETING";
@@ -129,7 +144,7 @@ const JA: WaKnopf = { typ: "QUICK_REPLY", text: "Ja, bitte" };
 // Ebenso bleibt „bei Zusage der Bank" stehen. Nicht aus Vorsicht: FIAON stellt
 // keine Karte aus, und ein Versprechen, das ein Dritter halten muss, ist keines.
 // ═══════════════════════════════════════════════════════════════════════════
-export const WA_VORLAGEN: WaVorlage[] = [
+const WA_VORLAGEN_TEXT: WaVorlage[] = [
   {
     name: "fiaon_kk_anfrage",
     kopf: "Ihre Kreditkarte",
@@ -350,3 +365,120 @@ export const WA_VORLAGEN: WaVorlage[] = [
     knoepfe: [WEITER, JA, STOPP],
   },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BILDFASSUNGEN (23.09.2026, E-229)
+//
+// Justin: „Warum sieht die WhatsApp-Vorlage dennoch so beschissen aus — man
+// kann da richtig schöne Vorlagen erstellen … bitte, das ist total wichtig,
+// mach diese PERFEKT."
+//
+// Was eine WhatsApp-Nachricht „schön" macht, ist bei Meta eng begrenzt: ein
+// Kopf (Text, Bild, Video oder Dokument), ein Text mit Absätzen, eine
+// Fußzeile, Knöpfe. Farbe gibt es nur im Kopfbild. Die Bildfassungen nutzen
+// genau das: ein Kopfbild im FIAON-CI (Navy-Glas, Blau-Paar, dünne Schrift,
+// „FIAON Ltd."), denselben geprüften Wortlaut in kurze Absätze gegliedert,
+// „FIAON Ltd." in der Fußzeile.
+//
+// ── WARUM EIGENE NAMEN (fiaon_kkb_*) ─────────────────────────────────────
+// Eine Vorlage in Prüfung kann nicht senden. Würden die freigegebenen
+// Textfassungen umgebaut, stünde jede WhatsApp still, bis Meta fertig ist.
+// So laufen beide nebeneinander: waSenden nimmt die Bildfassung, sobald sie
+// freigegeben ist, und bis dahin die Textfassung. Kein Aufrufer muss davon
+// wissen — sie alle nennen weiter den Namen der Textfassung.
+//
+// ── WAS DIE BILDER NIE ZEIGEN ────────────────────────────────────────────
+// Kein „Zahlung eingegangen" an jemanden mit offener Rechnung, keine
+// abgehakten Schritte an jemanden, der noch nicht angefangen hat, kein
+// scheinbar echter QR-Code, kein Kartennetz-Logo. Das Bild ist Teil der
+// Aussage und muss für jeden stimmen, der es bekommt.
+// ═══════════════════════════════════════════════════════════════════════════
+export const BILD_PRAEFIX = "fiaon_kkb_";
+export const bildName = (name: string) => name.replace(/^fiaon_kk_/, BILD_PRAEFIX);
+
+const BILD_FUER: Record<string, WaBild> = {
+  fiaon_kk_anfrage: "karte",
+  fiaon_kk_nicht_erreicht: "termin",
+  fiaon_kk_termin: "termin",
+  fiaon_kk_antrag_offen: "antrag",
+  fiaon_kk_aktivierung: "zahlung",
+  fiaon_kk_aktiviert: "karte",
+  fiaon_kk_unterlagen: "antrag",
+  fiaon_kk_termin_morgen: "termin",
+  fiaon_kk_rueckfrage: "kontakt",
+  fiaon_kk_empfehlung: "kontakt",
+  fiaon_kk_tag1: "karte",
+  fiaon_kk_tag3: "antrag",
+  fiaon_kk_tag7: "termin",
+  fiaon_kk_rechnung: "zahlung",
+  fiaon_kk_letzte: "karte",
+};
+
+/**
+ * Derselbe Wortlaut, in Absätze gegliedert. Platzhalter in derselben
+ * Reihenfolge wie in der Textfassung — waSenden schickt für beide dieselben Werte.
+ */
+const ABSAETZE: Record<string, string> = {
+  fiaon_kk_anfrage: "Hallo {{1}},\n\nhier ist Mara Lindner von FIAON — ich bin die digitale Assistentin im Team.\n\n"
+    + "Ihre Anfrage für Ihre Kreditkarte liegt auf meinem Tisch. Ihr Antrag ist bereits vorbereitet, Ihre Angaben stehen drin — es fehlen nur wenige Minuten.\n\n"
+    + "Danach geht es direkt zur Partnerbank: Bei Zusage ist Ihre Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay.\n\n"
+    + "Über den Knopf geht es weiter. Wenn Sie lieber mit einem Menschen sprechen, sagen Sie es mir hier.",
+  fiaon_kk_nicht_erreicht: "Hallo {{1}},\n\nhier ist {{2}} von FIAON — ich habe gerade versucht, Sie zu erreichen.\n\n"
+    + "Es geht um Ihre Kreditkarte: Ihre Anfrage liegt bei mir, und es fehlt nur noch Ihr Ja.\n\n"
+    + "Suchen Sie sich ein Zeitfenster aus, dann rufe ich Sie genau dann an und wir bringen es zu Ende.",
+  fiaon_kk_termin: "Hallo {{1}},\n\nhier ist {{2}} von FIAON. Damit Ihre Kreditkarte zügig auf den Weg kommt, reicht ein kurzes Gespräch — meist sind es fünf Minuten.\n\n"
+    + "Suchen Sie sich ein Zeitfenster aus, dann melde ich mich genau dann.",
+  fiaon_kk_antrag_offen: "Hallo {{1}},\n\nSie waren fast durch — alles, was Sie eingetragen haben, ist gespeichert.\n\n"
+    + "Zwischen Ihnen und Ihrer eigenen Kreditkarte stehen noch wenige Minuten.\n\n"
+    + "Der Knopf bringt Sie genau an die Stelle zurück, an der Sie aufgehört haben.",
+  fiaon_kk_aktivierung: "Hallo {{1}},\n\nIhr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung.\n\n"
+    + "Mit der ersten Zahlung ist Ihr Konto aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte.\n\n"
+    + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und Ihren Verwendungszweck.",
+  fiaon_kk_aktiviert: "Hallo {{1}},\n\nIhr Konto ist aktiviert — und der Link unserer Partnerbank für Ihre Kreditkarte ist auf dem Weg zu Ihnen.\n\n"
+    + "Bei Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App der Bank mit Apple Pay.",
+  fiaon_kk_unterlagen: "Hallo {{1}},\n\nhier ist {{2}} von FIAON. Ihre Kreditkarte ist auf dem Weg, an einer Stelle warte ich noch auf Sie: {{3}}.\n\n"
+    + "In Ihrem Bereich laden Sie das in zwei Minuten hoch, dann geht es sofort weiter.",
+  fiaon_kk_termin_morgen: "Hallo {{1}},\n\nkurze Erinnerung: Wir sprechen {{2}} über Ihre Kreditkarte und die letzten Schritte dorthin.\n\n"
+    + "Passt die Zeit noch? Eine Nachricht hier genügt, dann verschieben wir.",
+  fiaon_kk_rueckfrage: "Hallo {{1}},\n\nhier ist {{2}} von FIAON. Ich habe eine kurze Rückfrage zu Ihrer Kreditkarte.\n\n"
+    + "Antworten Sie einfach auf diese Nachricht, dann bringen wir es heute zu Ende.",
+  fiaon_kk_empfehlung: "Hallo {{1}},\n\nSie hatten gefragt, ob Sie FIAON weiterempfehlen können — sehr gern.\n\n"
+    + "Über den Knopf öffnet sich Ihr persönlicher Link zum Weiterempfehlen. Wer ihn benutzt, ist Ihnen zugeordnet, und wir melden uns bei Ihnen, sobald daraus etwas geworden ist.",
+  fiaon_kk_tag1: "Hallo {{1}},\n\nhier noch einmal Mara Lindner von FIAON. Ihre Anfrage für Ihre Kreditkarte liegt weiterhin bei mir, und Ihr Antrag ist vorbereitet — ausgefüllt bis auf wenige Angaben.\n\n"
+    + "Je früher er steht, desto früher geht er zur Partnerbank.",
+  fiaon_kk_tag3: "Hallo {{1}},\n\nIhr Weg zur eigenen Kreditkarte in drei Schritten:\n\n"
+    + "1. Antrag abschließen\n2. Konto aktivieren\n3. Den fertigen Link unserer Partnerbank öffnen\n\n"
+    + "Bei Zusage der Bank ist Ihre Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay. "
+    + "Der erste Schritt dauert wenige Minuten — den Rest übernehmen wir.",
+  fiaon_kk_tag7: "Hallo {{1}},\n\nfünf Minuten am Telefon klären meist alles: was Ihre Kreditkarte für Sie möglich macht, wie der Weg dorthin aussieht und was von Ihnen dafür gebraucht wird.\n\n"
+    + "Suchen Sie sich ein Zeitfenster aus.",
+  fiaon_kk_rechnung: "Hallo {{1}},\n\nIhre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}.\n\n"
+    + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
+    + "Je schneller die Zahlung da ist, desto schneller halten Sie die Karte in der Hand.\n\n"
+    + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
+  fiaon_kk_letzte: "Hallo {{1}},\n\nIhr Antrag ist weiterhin vorbereitet und Ihr Platz steht.\n\n"
+    + "Ein Klick, ein paar Minuten, dann ist Ihre Kreditkarte in Reichweite. Soll ich ihn für Sie offenhalten?",
+};
+
+/** Fußzeile der Bildfassung: „FIAON Ltd." vorne, dann was die Textfassung sagt. */
+const fussBild = (fuss?: string) => {
+  const rest = String(fuss || "").replace(/^FIAON LTD\s*·?\s*/i, "").trim();
+  return (rest ? `FIAON Ltd. · ${rest}` : "FIAON Ltd.").slice(0, 60);
+};
+
+export const WA_VORLAGEN_BILD: WaVorlage[] = WA_VORLAGEN_TEXT.map((v) => ({
+  ...v,
+  name: bildName(v.name),
+  kopf: undefined,
+  kopfBild: BILD_FUER[v.name] ?? "karte",
+  text: ABSAETZE[v.name] ?? v.text,
+  fuss: fussBild(v.fuss),
+  varianteVon: v.name,
+}));
+
+/**
+ * ALLE Vorlagen des Hauses: erst die Textfassungen (die Aufrufer nennen),
+ * dann die Bildfassungen. Einreichen, Aufräumen und die Prüfstände sehen
+ * beide — Aufräumen darf die Bildfassungen nie für Altlast halten.
+ */
+export const WA_VORLAGEN: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_BILD];

@@ -1,0 +1,222 @@
+/* ═══ WhatsApp-Zentrale (23.09.2026, E-229) — Präfix .wz- ═══
+   Reiter in /chef/s/mara, dunkle ChefShell. Dieselbe Sprache wie das
+   Mara-Steuerpult: dünne Schrift, Haarlinien, matte Flächen, ein Blau-Paar.
+   Kein Verlauf, kein Glas — die Zahlen tragen die Seite. */
+
+.wz {
+  --wz-text: #e7ecf4;
+  --wz-text-2: #b9c4d5;
+  --wz-leise: #8292a8;
+  --wz-still: #5d6c83;
+  --wz-linie: rgba(148, 163, 184, .14);
+  --wz-flaeche: rgba(148, 163, 184, .05);
+  --wz-flaeche-hoch: rgba(148, 163, 184, .09);
+  --wz-blau: #288dfa;
+  --wz-blau-hell: #93c5fd;
+  --wz-gruen: #6ee7b7;
+  --wz-gelb: #fcd34d;
+  --wz-rot: #fda4af;
+  color: var(--wz-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
+  display: grid;
+  gap: 16px;
+  padding-bottom: 96px;
+  color-scheme: dark;
+  min-width: 0;
+}
+.wz h1, .wz h2 { margin: 0; font-weight: 500; color: var(--wz-text); }
+.wz p { margin: 0; }
+.wz a { color: var(--wz-blau-hell); text-decoration: none; }
+.wz a:hover { text-decoration: underline; }
+.wz-still { color: var(--wz-still); font-size: 12px; }
+
+/* ── Kopf ─────────────────────────────────────────────────────────────── */
+.wz-kopf {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  padding: 4px 2px 16px; border-bottom: 1px solid var(--wz-linie);
+}
+.wz-wer { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.wz-wer h1 { font-size: 26px; font-weight: 300; letter-spacing: -.02em; }
+.wz-wer p { font-size: 12.5px; color: var(--wz-leise); margin-top: 3px; max-width: 70ch; line-height: 1.5; }
+.wz-punkt { width: 12px; height: 12px; border-radius: 50%; background: var(--wz-still); flex: none; box-shadow: 0 0 0 4px rgba(93, 108, 131, .18); }
+.wz-punkt.an { background: var(--wz-gruen); box-shadow: 0 0 0 4px rgba(110, 231, 183, .16); animation: wz-atmen 2.4s ease-in-out infinite; }
+@keyframes wz-atmen { 50% { box-shadow: 0 0 0 7px rgba(110, 231, 183, .06); } }
+@media (prefers-reduced-motion: reduce) { .wz-punkt.an { animation: none; } }
+
+.wz-meta { display: grid; justify-items: end; gap: 4px; text-align: right; }
+.wz-meta-zahl { font-size: 13px; color: var(--wz-text-2); }
+.wz-meta-zahl b { font-size: 22px; font-weight: 300; color: var(--wz-text); font-variant-numeric: tabular-nums; margin-right: 4px; }
+
+.wz-marke {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 99px; font-size: 11.5px; line-height: 1.6;
+  border: 1px solid var(--wz-linie); color: var(--wz-text-2); background: var(--wz-flaeche); white-space: nowrap;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.wz-marke.gut { color: var(--wz-gruen); border-color: rgba(110, 231, 183, .3); }
+.wz-marke.warn { color: var(--wz-gelb); border-color: rgba(252, 211, 77, .3); }
+.wz-marke.rot { color: var(--wz-rot); border-color: rgba(253, 164, 175, .35); }
+
+.wz-hinweis {
+  padding: 11px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+  border: 1px solid var(--wz-linie); background: var(--wz-flaeche); color: var(--wz-text-2);
+}
+.wz-hinweis.gelb { border-color: rgba(252, 211, 77, .3); color: var(--wz-gelb); }
+.wz-hinweis.rot { border-color: rgba(253, 164, 175, .35); color: var(--wz-rot); }
+
+.wz-meldung { padding: 11px 14px; border-radius: 12px; font-size: 13.5px; border: 1px solid rgba(110, 231, 183, .3); color: var(--wz-gruen); background: rgba(16, 185, 129, .06); }
+.wz-meldung.fehler { border-color: rgba(253, 164, 175, .35); color: var(--wz-rot); background: rgba(244, 63, 94, .06); }
+
+/* ── Kennzahlen: eine Leiste mit Haarlinien ───────────────────────────── */
+.wz-zahlen {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--wz-linie); border-bottom: 1px solid var(--wz-linie);
+}
+.wz-zahlen > div { display: grid; gap: 3px; padding: 14px 16px; min-width: 0; }
+.wz-zahlen > div + div { border-left: 1px solid var(--wz-linie); }
+.wz-zahlen span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--wz-still); }
+.wz-zahlen b { font-size: 26px; font-weight: 300; color: var(--wz-text); font-variant-numeric: tabular-nums; }
+.wz-zahlen em { font-style: normal; font-size: 12px; color: var(--wz-leise); line-height: 1.4; }
+
+/* ── Karten ───────────────────────────────────────────────────────────── */
+.wz-karte { border: 1px solid var(--wz-linie); border-radius: 16px; background: var(--wz-flaeche); padding: 18px; display: grid; gap: 16px; min-width: 0; }
+.wz-karte-kopf { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.wz-karte-kopf h2 { font-size: 17px; font-weight: 400; }
+.wz-link { font-size: 13px; }
+
+/* Gruppen als wählbare Tafeln */
+.wz-gruppen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.wz-gruppe {
+  display: grid; gap: 4px; align-content: start; text-align: left; padding: 14px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--wz-linie); background: transparent; color: var(--wz-text-2); font: inherit; min-width: 0;
+  transition: border-color .15s, background .15s;
+}
+.wz-gruppe-zahl { font-size: 28px; font-weight: 300; color: var(--wz-text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.wz-gruppe-titel { font-size: 14px; color: var(--wz-text); }
+.wz-gruppe-satz { font-size: 12px; color: var(--wz-leise); line-height: 1.45; }
+.wz-gruppe.aktiv { border-color: var(--wz-blau); background: rgba(40, 141, 250, .08); box-shadow: inset 0 0 0 1px var(--wz-blau); }
+.wz-gruppe:focus-visible, .wz-knopf:focus-visible, .wz-schalter:focus-visible { outline: 2px solid var(--wz-blau-hell); outline-offset: 2px; }
+@media (hover: hover) { .wz-gruppe:hover { background: var(--wz-flaeche-hoch); } }
+
+/* Wahl: Vorlage, Anzahl, Knöpfe */
+.wz-wahl { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 14px; align-items: start; }
+.wz-feld { display: grid; gap: 6px; min-width: 0; }
+.wz-feld > span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--wz-still); }
+.wz-feld small { font-size: 12px; color: var(--wz-leise); line-height: 1.45; }
+.wz select, .wz input[type="number"], .wz input[type="time"] {
+  min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--wz-linie);
+  background: rgba(2, 6, 23, .35); color: var(--wz-text); font: inherit; font-size: 14px; min-width: 0; width: 100%;
+}
+.wz select:focus, .wz input:focus { outline: none; border-color: var(--wz-blau); }
+.wz select:disabled { opacity: .45; }
+.wz-feld-zahl input { font-variant-numeric: tabular-nums; }
+.wz-knoepfe { display: flex; gap: 10px; align-self: end; padding-bottom: 20px; flex-wrap: wrap; }
+
+.wz-knopf {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--wz-linie); background: var(--wz-flaeche-hoch); color: var(--wz-text);
+}
+.wz-knopf.haupt { background: var(--wz-blau); border-color: var(--wz-blau); color: #fff; font-weight: 500; }
+.wz-knopf.klein { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.wz-knopf:disabled { opacity: .45; cursor: not-allowed; }
+@media (hover: hover) { .wz-knopf.haupt:not(:disabled):hover { background: #1f7fe6; } .wz-knopf.still:not(:disabled):hover { background: rgba(148, 163, 184, .14); } }
+.wz-sperre { font-size: 12.5px; color: var(--wz-gelb); }
+
+/* Vorschau: WhatsApp-Blasen */
+.wz-vorschau { display: grid; gap: 14px; border-top: 1px solid var(--wz-linie); padding-top: 16px; }
+.wz-vorschau-zeile { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+.wz-vorschau-wer { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.wz-vorschau-wer a { font-size: 14px; }
+.wz-blase {
+  max-width: 420px; background: #1f2c34; border-radius: 4px 12px 12px 12px; padding: 6px 6px 8px; color: #e9edef;
+  font-size: 13.5px; line-height: 1.5; box-shadow: 0 1px 0 rgba(0, 0, 0, .3); display: grid; gap: 6px;
+}
+.wz-blase-bild { width: 100%; border-radius: 8px; display: block; aspect-ratio: 1200 / 628; object-fit: cover; }
+.wz-blase-kopf { padding: 2px 6px 0; font-weight: 600; color: #e9edef; }
+.wz-blase p { padding: 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wz-blase small { padding: 0 6px; font-size: 11.5px; color: #8696a0; }
+
+/* Laufender Versand */
+.wz-lauf { border: 1px solid var(--wz-linie); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.wz-lauf.laeuft { border-color: rgba(40, 141, 250, .45); }
+.wz-lauf-kopf { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.wz-lauf-kopf strong { font-weight: 500; color: var(--wz-text); }
+.wz-lauf-kopf button { margin-left: auto; }
+.wz-balken { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: rgba(148, 163, 184, .12); gap: 2px; }
+.wz-balken i { display: block; height: 100%; transition: width .4s; }
+.wz-balken i.gut { background: var(--wz-blau); border-radius: 99px 0 0 99px; }
+.wz-balken i.still { background: rgba(252, 211, 77, .55); }
+.wz-lauf-zahlen { font-size: 13px; font-variant-numeric: tabular-nums; }
+.wz-lauf-zahlen b { color: var(--wz-text); font-weight: 500; }
+.wz-gruende { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.wz-gruende li { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--wz-leise); border-bottom: 1px dashed var(--wz-linie); padding: 3px 0; }
+.wz-gruende b { font-weight: 500; color: var(--wz-text-2); font-variant-numeric: tabular-nums; }
+
+/* ── Automatik ────────────────────────────────────────────────────────── */
+.wz-schalter {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 18px 0 8px; border-radius: 99px;
+  border: 1px solid var(--wz-linie); background: var(--wz-flaeche); color: var(--wz-text); font: inherit; font-size: 14px; cursor: pointer;
+}
+.wz-schalter:disabled { opacity: .6; cursor: progress; }
+.wz-schalter-knopf { width: 44px; height: 26px; border-radius: 99px; background: rgba(148, 163, 184, .25); position: relative; transition: background .2s; }
+.wz-schalter-knopf::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.wz-schalter.an .wz-schalter-knopf { background: #10b981; }
+.wz-schalter.an .wz-schalter-knopf::after { transform: translateX(18px); }
+
+.wz-takt { display: grid; grid-template-columns: 130px 130px 120px minmax(0, 1fr); gap: 14px; align-items: end; }
+.wz-takt-satz { font-size: 13px; color: var(--wz-leise); padding-bottom: 12px; }
+.wz-takt-satz b { color: var(--wz-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.wz-reihe { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--wz-linie); }
+.wz-reihe li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px) 76px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--wz-linie); }
+.wz-reihe li.aus .wz-haken span { color: var(--wz-still); }
+.wz-haken { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
+.wz-haken input { width: 18px; height: 18px; accent-color: var(--wz-blau); flex: none; }
+.wz-haken span { color: var(--wz-text); font-size: 14px; }
+.wz-haken em { font-style: normal; font-size: 12px; color: var(--wz-leise); white-space: nowrap; }
+.wz-pfeile { display: flex; gap: 6px; justify-content: flex-end; }
+.wz-pfeile button {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--wz-linie); background: transparent;
+  color: var(--wz-text-2); font: inherit; cursor: pointer;
+}
+.wz-pfeile button:disabled { opacity: .3; cursor: default; }
+.wz-automatik-fuss { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+.wz-automatik-fuss .wz-still { max-width: 70ch; line-height: 1.5; }
+
+/* ── Verlauf ──────────────────────────────────────────────────────────── */
+.wz-tabelle-rolle { overflow-x: auto; margin: 0 -4px; }
+.wz-tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wz-tabelle th { text-align: left; font-weight: 400; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--wz-still); padding: 8px 10px; border-bottom: 1px solid var(--wz-linie); white-space: nowrap; }
+.wz-tabelle td { padding: 10px; border-bottom: 1px solid var(--wz-linie); color: var(--wz-text-2); vertical-align: middle; }
+.wz-tabelle tr.nicht td { color: var(--wz-leise); }
+.wz-tabelle td .wz-marke { max-width: 320px; }
+.wz-zeit { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--wz-leise); }
+
+/* ── Handy: eine Spalte ───────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .wz-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wz-zahlen > div { border-left: none !important; border-bottom: 1px solid var(--wz-linie); }
+  .wz-gruppen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wz-wahl { grid-template-columns: minmax(0, 1fr) 120px; }
+  .wz-knoepfe { grid-column: 1 / -1; padding-bottom: 0; }
+  .wz-knoepfe .wz-knopf { flex: 1; }
+  .wz-vorschau-zeile { grid-template-columns: minmax(0, 1fr); }
+  .wz-takt { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .wz-takt-satz { grid-column: 1 / -1; padding-bottom: 0; }
+  .wz-reihe li { grid-template-columns: minmax(0, 1fr) 76px; }
+  .wz-reihe li select { grid-column: 1 / -1; grid-row: 2; }
+  .wz-meta { justify-items: start; text-align: left; }
+}
+@media (max-width: 520px) {
+  .wz-gruppen { grid-template-columns: minmax(0, 1fr); }
+  .wz-karte { padding: 14px; }
+}
+
+/* ── Reiter oben auf /chef/s/mara ─────────────────────────────────────── */
+.mara-reiter { display: flex; gap: 4px; border-bottom: 1px solid rgba(148, 163, 184, .14); margin-bottom: 18px; overflow-x: auto; }
+.mara-reiter button {
+  min-height: 44px; padding: 0 16px; border: none; background: none; font: inherit; font-size: 14px; cursor: pointer;
+  color: #8292a8; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+.mara-reiter button[aria-selected="true"] { color: #e7ecf4; border-bottom-color: #288dfa; }
+.mara-reiter button:focus-visible { outline: 2px solid #93c5fd; outline-offset: -2px; }

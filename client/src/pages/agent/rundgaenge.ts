@@ -1291,7 +1291,48 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
   },
 ];
 
+// WhatsApp-Zentrale (23.09.2026, E-229) — Maras Versand an Kundengruppen.
+export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
+  {
+    titel: "Die WhatsApp-Zentrale: wen Mara anschreibt — von Hand oder im Takt.",
+    text: "Vier Gruppen, jede mit ihrer passenden Vorlage: neue Leads ohne Nachricht, Anträge mit offener erster Zahlung, "
+      + "abgebrochene Anträge und Leads ohne Antrag. Antworten übernimmt Mara wie bisher im WhatsApp-Raum.",
+  },
+  {
+    ziel: ".wz-meta",
+    titel: "Oben rechts: was Meta heute noch erlaubt.",
+    text: "Meta lässt je Nummer nur eine bestimmte Zahl neuer Gespräche in 24 Stunden zu. Die Zentrale rechnet mit 80 % davon "
+      + "und zählt alles mit — Begrüßung, Kette, Hand und Automatik. Steht die Qualität auf Rot, sind Massenversände gesperrt, "
+      + "sonst droht die Sperre der Nummer.",
+  },
+  {
+    ziel: ".wz-gruppen",
+    titel: "Gruppe wählen — die Zahl sagt, wer heute dran sein darf.",
+    text: "Gezählt wird nur, wer alle Regeln erfüllt: heute noch keine WhatsApp, kein „STOPP“, keine Werbesperre, nichts bezahlt "
+      + "oder gemeldet, genug Abstand zur letzten Vorlage, höchstens acht Vorlagen in 30 Tagen.",
+  },
+  {
+    ziel: ".wz-start",
+    titel: "Vorlage, Anzahl, Vorschau — dann „WhatsApp starten“.",
+    text: "Die Vorschau zeigt die nächsten Empfänger mit genau dem Text, den sie bekommen. Der Versand läuft im Hintergrund, eine "
+      + "Nachricht nach der anderen, und lässt sich jederzeit anhalten. Zwischen 21 und 7 Uhr geht nichts raus.",
+    tipp: "„Passende Erinnerung“ wählt je Lead die Stufe nach seinem Alter — so bekommt niemand zweimal dieselbe.",
+  },
+  {
+    ziel: ".wz-automatik",
+    titel: "Die Automatik: z. B. 5 je Stunde von 07:40 bis 20:45.",
+    text: "Gleichmäßig über die Stunde verteilt, Gruppen in der Reihenfolge, die hier steht. Solange sie läuft, pausiert die alte "
+      + "Stundenkette. Die Sofort-Begrüßung neuer Leads läuft immer weiter.",
+  },
+  {
+    ziel: ".wz-verlauf",
+    titel: "Jede Nachricht mit dem, was danach kam.",
+    text: "Zugestellt, gelesen, geantwortet — und bei Übersprungenen der Grund. Ein Klick auf den Namen öffnet die Akte.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  waZentrale:  { titel: "WhatsApp-Zentrale", schritte: RUNDGANG_WA_ZENTRALE },
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },

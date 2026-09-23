@@ -18,6 +18,8 @@ import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-mara.css";
+import "@/styles/chef-wa-zentrale.css";
+import ChefWhatsAppZentrale from "./ChefWhatsAppZentrale";
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null }
 interface Stand {
@@ -295,7 +297,7 @@ function MaraBefehl({ melden }: { melden: (t: string) => void }) {
   );
 }
 
-export default function ChefMara() {
+function MaraMailAktion() {
   const stand = useDaten<Stand>("/chef/mara/stand");
   const [reiter, setReiter] = useState<Reiter>("gesendet");
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -751,6 +753,37 @@ function ProbeFenster({ probe, onZu }: { probe: any; onZu: () => void }) {
         )}
         <p className="mp-still">Kosten dieser Probe: {Number(p.kostenCents || 0).toFixed(2).replace(".", ",")} ct</p>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZWEI REITER (23.09.2026, E-229)
+//
+// Justin: „bau mir eine von den Seiten um und neu auf, sodass ich von dort aus
+// wirklich alles steuern kann." Mara arbeitet über zwei Wege — WhatsApp und
+// Mail. Beide stehen hier, WhatsApp vorne. ?reiter=mail öffnet die Mail-Aktion.
+// ═══════════════════════════════════════════════════════════════════════════
+type MaraReiter = "whatsapp" | "mail";
+export default function ChefMara() {
+  const [reiter, setReiter] = useState<MaraReiter>(() => {
+    try { return new URLSearchParams(window.location.search).get("reiter") === "mail" ? "mail" : "whatsapp"; } catch { return "whatsapp"; }
+  });
+  const wechseln = (r: MaraReiter) => {
+    setReiter(r);
+    try {
+      const u = new URL(window.location.href);
+      if (r === "mail") u.searchParams.set("reiter", "mail"); else u.searchParams.delete("reiter");
+      window.history.replaceState(null, "", u.toString());
+    } catch { /* Adresse bleibt, der Reiter wechselt trotzdem */ }
+  };
+  return (
+    <div>
+      <div className="mara-reiter" role="tablist" aria-label="Maras Wege">
+        <button type="button" role="tab" aria-selected={reiter === "whatsapp"} onClick={() => wechseln("whatsapp")}>WhatsApp-Zentrale</button>
+        <button type="button" role="tab" aria-selected={reiter === "mail"} onClick={() => wechseln("mail")}>E-Mail-Aktion</button>
+      </div>
+      {reiter === "whatsapp" ? <ChefWhatsAppZentrale /> : <MaraMailAktion />}
     </div>
   );
 }

@@ -343,7 +343,18 @@ abschnitt("WhatsApp — Vorlagen, 24-Stunden-Fenster, keine Mahnung");
   ok(teil("HEADER")?.text?.length > 0 && teil("HEADER").text.length <= 60, "Kopfzeile vorhanden und höchstens 60 Zeichen");
   ok(teil("FOOTER")?.text?.length > 0 && teil("FOOTER").text.length <= 60, "Fußzeile vorhanden und höchstens 60 Zeichen");
   for (const v of WA_VORLAGEN) {
-    ok((v.kopf ?? "").length > 0 && (v.kopf ?? "").length <= 60, `${v.name}: Kopfzeile gesetzt und höchstens 60 Zeichen`);
+    // E-229: Bildfassungen tragen statt der Kopfzeile ein Kopfbild — das es als Datei geben muss.
+    if (v.kopfBild) {
+      const { existsSync } = await import("fs");
+      ok(existsSync(`client/public/wa/fiaon-${v.kopfBild}.png`), `${v.name}: Kopfbild fiaon-${v.kopfBild}.png liegt in client/public/wa`);
+      ok(!!v.varianteVon && WA_VORLAGEN.some((x) => x.name === v.varianteVon), `${v.name}: gehört zu einer Textfassung`);
+      const platz = (t: string) => (t.match(/\{\{\d\}\}/g) ?? []).join(",");
+      const text = WA_VORLAGEN.find((x) => x.name === v.varianteVon);
+      ok(!!text && platz(text.text) === platz(v.text), `${v.name}: dieselben Platzhalter in derselben Reihenfolge wie die Textfassung`);
+      ok(!/\n\n\n/.test(v.text) && v.text.length <= 1024, `${v.name}: höchstens zwei Umbrüche am Stück, höchstens 1024 Zeichen`);
+    } else {
+      ok((v.kopf ?? "").length > 0 && (v.kopf ?? "").length <= 60, `${v.name}: Kopfzeile gesetzt und höchstens 60 Zeichen`);
+    }
     ok((v.fuss ?? "").length > 0 && (v.fuss ?? "").length <= 60, `${v.name}: Fußzeile gesetzt und höchstens 60 Zeichen`);
   }
 

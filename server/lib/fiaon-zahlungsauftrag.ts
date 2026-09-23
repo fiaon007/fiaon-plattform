@@ -100,7 +100,21 @@ export interface Zahlungsauftrag {
 // E-230: Auch das neue Bestellformat ohne Bindestrich (FIAONXXXXXX-N). Vorher
 // führte jede Rate dieser Bestellungen auf „Bestellung nicht gefunden" (404) —
 // 135 Bestellungen im neuen Format, auch die Links in den Raten-Mails.
-const RATEN_MUSTER = /^FIAON-?[A-Z0-9]{6}-(\d{1,2})$/i;
+// E-235: exportiert — der Buchungsweg (liveVerbuchen in fiaon-wise.ts) erkennt
+// Raten mit genau diesem Muster, damit Zahlungsseite und Bankbuch dasselbe meinen.
+export const RATEN_MUSTER = /^(FIAON-?[A-Z0-9]{6})-(\d{1,2})$/i;
+
+/**
+ * E-235: Die Vergleichsform einer Zahlungsreferenz — nur Buchstaben und Ziffern,
+ * groß. Seit dem 08.08.2026 tragen neue Bestellungen FIAONXXXXXX statt
+ * FIAON-XXXXXX, und Kunden schreiben beides, mit Strich, Punkt oder Leerzeichen.
+ * Auf der Datenbankseite steht dieselbe Regel als
+ * UPPER(REGEXP_REPLACE(spalte, '[^A-Za-z0-9]', '', 'g')) — wie findApp in
+ * fiaon-reconcile.ts. Erst entfernen, dann groß: genau diese Reihenfolge.
+ */
+export function refVergleichsform(ref: string): string {
+  return String(ref ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
 
 export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauftrag | null> {
   const ref = String(refRoh || "").trim().toUpperCase();

@@ -33,6 +33,7 @@ import { Router, type Request, type Response } from "express";
 import { createSign } from "crypto";
 import { sqlPool } from "../lib/db-pool";
 import { tageslauf } from "../lib/fiaon-crons";
+import { RATEN_MUSTER, refVergleichsform } from "../lib/fiaon-zahlungsauftrag";
 
 const router = Router();
 const WISE_BASIS = "https://api.wise.com";
@@ -141,6 +142,7 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
   for (const g of gutschriften) {
     const zweck = String(g.details?.paymentReference || g.details?.description || "");
     const ref = refErkennen(zweck);
+    const basisVgl = ref ? refVergleichsform(ref.replace(/-\d{1,2}$/, "")) : null;
     const cents = Math.round(Number(g.amount?.value || 0) * 100);
     const eingefuegt = await sqlPool`
       INSERT INTO fiaon_bank_txns (txn_id, booked_at, amount_cents, currency, payer_name, reference_raw, extracted_ref, matched_ref, match_status, amount_ok, applied, note)
@@ -157,12 +159,14 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
              'Wise-Automatik — zur Freischaltung vorgemerkt, noch NICHT gebucht'
       FROM (SELECT ref, amount_due FROM (
               SELECT a.ref, a.amount_due, 1 AS o FROM fiaon_applications a
-              WHERE a.payment_reference = ${ref ? ref.replace(/-\d{1,2}$/, "") : null} AND a.merged_into IS NULL
+              WHERE UPPER(REGEXP_REPLACE(COALESCE(a.payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${basisVgl}
+                AND a.merged_into IS NULL
               ORDER BY a.created_at DESC LIMIT 1
             ) t
             UNION ALL SELECT NULL, NULL WHERE NOT EXISTS (
               SELECT 1 FROM fiaon_applications a2
-              WHERE a2.payment_reference = ${ref ? ref.replace(/-\d{1,2}$/, "") : null} AND a2.merged_into IS NULL)
+              WHERE UPPER(REGEXP_REPLACE(COALESCE(a2.payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${basisVgl}
+                AND a2.merged_into IS NULL)
            ) ziel
       WHERE NOT EXISTS (SELECT 1 FROM fiaon_bank_txns b WHERE b.txn_id = ${g.referenceNumber})
       RETURNING id
@@ -194,11 +198,23 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
 // Die Fälle van Beuzekom (Doppelzahlung), Demurtas (Nachzügler) und Harder
 // (Startzahlung ohne Beleg) vom 31.08./01.09. sind GENAU die Sorte, die diese
 // Automatik bewusst NICHT anfasst.
+//
+// E-235 (24.09.2026): Seit dem 08.08. tragen neue Bestellungen FIAONXXXXXX
+// (ohne Strich), ihre Raten FIAONXXXXXX-N. refErkennen setzt den Strich immer
+// ein, verglichen wurde aber exakt — 0 Treffer, der Eingang blieb liegen
+// (Beleg: AWX-ab5e210f…, 18.09., 99,99 €). Verglichen wird jetzt in der
+// Vergleichsform (refVergleichsform), gebucht und vermerkt mit der Schreibweise
+// aus der Datenbank. Mehrdeutig bleibt mehrdeutig: dann bucht nichts.
+//
+// `trocken`: dieselbe Regel, aber kein Vermerk und keine Buchung — die
+// Vorschau „was würde gebucht", bevor ein Mensch einen Nachhol-Lauf freigibt.
 // ═══════════════════════════════════════════════════════════════════════════
 export async function liveVerbuchen(
   txnId: string, ref: string | null, cents: number, datum: string,
+  opts: { trocken?: boolean } = {},
 ): Promise<{ gebucht: boolean; grund: string }> {
   const vermerk = async (note: string, applied = false) => {
+    if (opts.trocken) return;
     await sqlPool`
       UPDATE fiaon_bank_txns SET note = ${note}, applied = ${applied},
              applied_at = ${applied ? new Date() : null}, updated_at = NOW()
@@ -208,33 +224,35 @@ export async function liveVerbuchen(
   try {
     if (!ref || !datum) return { gebucht: false, grund: "keine Referenz" };
 
-    // ── Monatsrate: FIAON-XXXXXX-N ────────────────────────────────────────
-    const ratenTreffer = ref.match(/^(FIAON-[A-Z0-9]{6})-(\d{1,2})$/);
-    if (ratenTreffer) {
+    // ── Monatsrate: FIAON-XXXXXX-N, seit 08.08. auch FIAONXXXXXX-N ─────────
+    if (RATEN_MUSTER.test(ref)) {
       const raten = (await sqlPool`
-        SELECT id, betrag_cents, status FROM fiaon_abo_raten
-        WHERE zahlungsreferenz = ${ref} AND storniert_am IS NULL
+        SELECT id, zahlungsreferenz, betrag_cents, status FROM fiaon_abo_raten
+        WHERE UPPER(REGEXP_REPLACE(zahlungsreferenz, '[^A-Za-z0-9]', '', 'g')) = ${refVergleichsform(ref)}
+          AND storniert_am IS NULL
       `) as any[];
       if (raten.length !== 1) return { gebucht: false, grund: "Rate nicht eindeutig" };
+      const rateRef = String(raten[0].zahlungsreferenz);
       if (String(raten[0].status) === "bezahlt") {
-        await vermerk(`Wise-Automatik: Rate ${ref} ist bereits als bezahlt gebucht — Eingang bitte von Hand zuordnen (Doppelzahlung?).`);
+        await vermerk(`Wise-Automatik: Rate ${rateRef} ist bereits als bezahlt gebucht — Eingang bitte von Hand zuordnen (Doppelzahlung?).`);
         return { gebucht: false, grund: "Rate schon bezahlt" };
       }
       if (Number(raten[0].betrag_cents) !== cents) {
-        await vermerk(`Wise-Automatik: Rate ${ref} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
+        await vermerk(`Wise-Automatik: Rate ${rateRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
         return { gebucht: false, grund: "Betrag weicht ab" };
       }
+      if (opts.trocken) return { gebucht: false, grund: `würde buchen: Rate ${rateRef}` };
       const { rateBezahltBuchen } = await import("./fiaon-abo");
       const erg = await rateBezahltBuchen({
         rateId: Number(raten[0].id), zahlungsdatum: datum, quelle: "bank",
         notiz: `Bankeingang ${txnId} — automatisch gebucht (Wise-Automatik)`,
       });
       if (erg.ok && !erg.schonBezahlt) {
-        await vermerk(`Wise-Automatik: LIVE verbucht — Rate ${ref} bezahlt per ${datum} (inkl. Ratenprovision).`, true);
-        console.log(`[WISE] LIVE verbucht: Rate ${ref} (${(cents / 100).toFixed(2)} €)`);
+        await vermerk(`Wise-Automatik: LIVE verbucht — Rate ${rateRef} bezahlt per ${datum} (inkl. Ratenprovision).`, true);
+        console.log(`[WISE] LIVE verbucht: Rate ${rateRef} (${(cents / 100).toFixed(2)} €)`);
         return { gebucht: true, grund: "Rate gebucht" };
       }
-      await vermerk(`Wise-Automatik: Rate ${ref} NICHT automatisch gebucht (${erg.ok ? "war schon bezahlt" : erg.error || "abgelehnt"}) — bitte prüfen.`);
+      await vermerk(`Wise-Automatik: Rate ${rateRef} NICHT automatisch gebucht (${erg.ok ? "war schon bezahlt" : erg.error || "abgelehnt"}) — bitte prüfen.`);
       return { gebucht: false, grund: erg.ok ? "schon bezahlt" : String(erg.error || "abgelehnt") };
     }
 
@@ -242,26 +260,30 @@ export async function liveVerbuchen(
     const apps = (await sqlPool`
       SELECT ref, payment_reference, payment_status, ROUND(amount_due * 100)::int AS soll_cents
       FROM fiaon_applications
-      WHERE payment_reference = ${ref} AND merged_into IS NULL
+      WHERE UPPER(REGEXP_REPLACE(COALESCE(payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${refVergleichsform(ref)}
+        AND merged_into IS NULL
     `) as any[];
     if (apps.length !== 1) return { gebucht: false, grund: apps.length === 0 ? "keine Bestellung zur Referenz" : "Referenz mehrdeutig" };
     const app = apps[0];
+    // alsBezahltBuchen sucht exakt — also mit der Schreibweise aus der Datenbank.
+    const bestellRef = String(app.payment_reference);
     if (!["pending_payment", "claimed_paid"].includes(String(app.payment_status))) {
-      await vermerk(`Wise-Automatik: Bestellung ${ref} steht auf '${app.payment_status}' — nichts automatisch gebucht, bitte von Hand zuordnen (Rate? Doppelzahlung?).`);
+      await vermerk(`Wise-Automatik: Bestellung ${bestellRef} steht auf '${app.payment_status}' — nichts automatisch gebucht, bitte von Hand zuordnen (Rate? Doppelzahlung?).`);
       return { gebucht: false, grund: `Status ${app.payment_status}` };
     }
     if (Number(app.soll_cents) !== cents) {
-      await vermerk(`Wise-Automatik: Bestellung ${ref} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(app.soll_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
+      await vermerk(`Wise-Automatik: Bestellung ${bestellRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(app.soll_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
       return { gebucht: false, grund: "Betrag weicht ab" };
     }
+    if (opts.trocken) return { gebucht: false, grund: `würde buchen: Erstzahlung ${bestellRef}` };
     const { alsBezahltBuchen } = await import("./fiaon-antrag");
-    const erg = await alsBezahltBuchen(ref, { zahlungsdatum: datum, quelle: "wise-automatik" });
+    const erg = await alsBezahltBuchen(bestellRef, { zahlungsdatum: datum, quelle: "wise-automatik" });
     if (erg.ok) {
-      await vermerk(`Wise-Automatik: LIVE verbucht — ${ref} bezahlt per ${datum}, Kunde freigeschaltet (Aktivierungsmail + Provision über den einen Buchungsweg).`, true);
-      console.log(`[WISE] LIVE verbucht: ${ref} (${(cents / 100).toFixed(2)} €) — Kunde freigeschaltet`);
+      await vermerk(`Wise-Automatik: LIVE verbucht — ${bestellRef} bezahlt per ${datum}, Kunde freigeschaltet (Aktivierungsmail + Provision über den einen Buchungsweg).`, true);
+      console.log(`[WISE] LIVE verbucht: ${bestellRef} (${(cents / 100).toFixed(2)} €) — Kunde freigeschaltet`);
       return { gebucht: true, grund: "Erstzahlung gebucht" };
     }
-    await vermerk(`Wise-Automatik: ${ref} NICHT automatisch gebucht (${erg.error}) — bitte prüfen.`);
+    await vermerk(`Wise-Automatik: ${bestellRef} NICHT automatisch gebucht (${erg.error}) — bitte prüfen.`);
     return { gebucht: false, grund: String(erg.error) };
   } catch (e: any) {
     console.error("[WISE] liveVerbuchen:", e?.message || e);

@@ -31,6 +31,7 @@ import { sqlPool } from "../lib/db-pool";
 import { tageslauf } from "../lib/fiaon-crons";
 import { BANK } from "@shared/fiaon-bank";
 import { refErkennen, liveVerbuchen } from "./fiaon-wise";
+import { refVergleichsform } from "../lib/fiaon-zahlungsauftrag";
 
 const router = Router();
 
@@ -246,7 +247,8 @@ export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; ne
   for (const e of eingaenge) {
     const txnId = `AWX-${e.id}`;
     const ref = refErkennen(e.zweck);
-    const basisRef = ref ? ref.replace(/-\d{1,2}$/, "") : null;
+    // E-235: Vergleichsform — „FIAON-XXXXXX" im Zweck trifft auch FIAONXXXXXX (seit 08.08.).
+    const basisVgl = ref ? refVergleichsform(ref.replace(/-\d{1,2}$/, "")) : null;
     const eingefuegt = await sqlPool`
       INSERT INTO fiaon_bank_txns (txn_id, booked_at, amount_cents, currency, payer_name, reference_raw, extracted_ref, matched_ref, match_status, amount_ok, applied, note)
       SELECT ${txnId}, ${e.datum || null}, ${e.cents}, 'EUR', ${e.absender}, ${e.zweck}, ${ref},
@@ -259,12 +261,14 @@ export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; ne
                : `Airwallex-Automatik — zur Freischaltung vorgemerkt, noch NICHT gebucht${e.status ? ` (Status ${e.status})` : ""}`}
       FROM (SELECT ref, amount_due FROM (
               SELECT a.ref, a.amount_due FROM fiaon_applications a
-              WHERE a.payment_reference = ${basisRef} AND a.merged_into IS NULL
+              WHERE UPPER(REGEXP_REPLACE(COALESCE(a.payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${basisVgl}
+                AND a.merged_into IS NULL
               ORDER BY a.created_at DESC LIMIT 1
             ) t
             UNION ALL SELECT NULL, NULL WHERE NOT EXISTS (
               SELECT 1 FROM fiaon_applications a2
-              WHERE a2.payment_reference = ${basisRef} AND a2.merged_into IS NULL)
+              WHERE UPPER(REGEXP_REPLACE(COALESCE(a2.payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${basisVgl}
+                AND a2.merged_into IS NULL)
            ) ziel
       WHERE NOT EXISTS (SELECT 1 FROM fiaon_bank_txns b WHERE b.txn_id = ${txnId})
       RETURNING id

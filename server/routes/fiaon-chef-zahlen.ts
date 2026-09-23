@@ -69,12 +69,7 @@ const IST_GLOBAL = `${produktkategorieSql("a")} = 'global'`;
 // JEDER Umsatzwert im Chefbüro kommt ab jetzt aus DIESER Funktion.
 // Umsatz = bezahlte Raten + bezahlte Bonitätsauskünfte, Testkonten nie.
 // ═══════════════════════════════════════════════════════════════════════════
-export async function umsatzBausteine(): Promise<{
-  heuteCents: number; wocheCents: number; monatCents: number;
-  vormonatCents: number; jahrCents: number; gesamtCents: number;
-  verlauf: { monat: string; ratenCents: number; auskunftCents: number; globalCents: number; zahlungen: number }[];
-}> {
-  const QUELLE = `
+const QUELLE = `
     SELECT r.betrag_cents AS cents, r.bezahlt_am AS am, 'rate' AS art
       FROM fiaon_abo_raten r
       JOIN fiaon_applications a ON a.ref = r.ref
@@ -96,6 +91,26 @@ export async function umsatzBausteine(): Promise<{
        AND ${IST_GLOBAL} AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
        AND ${ECHT}`;
 
+/**
+ * Kundengeld ab einem Stichtag (einschließlich) in Cent — dieselbe QUELLE wie
+ * alle anderen Zahlen des Hauses. Die Buchhaltung (E-227) rechnet damit ihren
+ * Kassenbestand ab dem Tag des Anfangsbestands; eine zweite, eigene Definition
+ * dort wäre genau die zweite Wahrheit, die es hier nie wieder geben soll.
+ */
+export async function kundengeldAb(amISO: string): Promise<number> {
+  const tag = /^\d{4}-\d{2}-\d{2}$/.test(String(amISO)) ? String(amISO) : "1970-01-01";
+  const [r] = (await sqlPool.unsafe(
+    `WITH q AS (${QUELLE})
+     SELECT COALESCE(SUM(cents), 0)::bigint AS summe
+       FROM q WHERE (am AT TIME ZONE 'Europe/Berlin')::date >= $1::date`, [tag])) as any[];
+  return Number(r?.summe || 0);
+}
+
+export async function umsatzBausteine(): Promise<{
+  heuteCents: number; wocheCents: number; monatCents: number;
+  vormonatCents: number; jahrCents: number; gesamtCents: number;
+  verlauf: { monat: string; ratenCents: number; auskunftCents: number; globalCents: number; zahlungen: number }[];
+}> {
   const [summen] = (await sqlPool.unsafe(`
     WITH q AS (${QUELLE})
     SELECT

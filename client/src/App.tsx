@@ -144,6 +144,7 @@ const AgentAssistentPage = lazy(() => import("@/pages/agent/assistent")); // FIA
 const AgentOnboardingRaumPage = lazy(() => import("@/pages/agent/onboarding-raum")); // E-051
 const AgentBestandPage = lazy(() => import("@/pages/agent/bestand")); // E-050 Portfolio-Raum
 const ChefPage = lazy(() => import("@/pages/chef")); // E-053 Chefbüro
+const BuchhaltungPage = lazy(() => import("@/pages/buchhaltung")); // E-227 Buchhaltung
 const AgentPraesentationPage = lazy(() => import("@/pages/agent/praesentation")); // E-054
 const AgentPipelinePage = lazy(() => import("@/pages/agent/pipeline"));
 const AgentTagesberichtPage = lazy(() => import("@/pages/agent/tagesbericht"));
@@ -614,6 +615,9 @@ function Router() {
       <Route path="/agent/tagesbericht" component={AgentTagesberichtPage} />
       <Route path="/agent/bestand" component={AgentBestandPage} />
       <Route path="/agent/praesentation" component={AgentPraesentationPage} />
+      {/* E-227 (23.09.2026): eigener Zugang, eigenes Kassenbuch, Vier-Augen-Freigabe.
+          Bewusst außerhalb von /chef und /agent — wer hier arbeitet, arbeitet am Geld. */}
+      <Route path="/buchhaltung" component={BuchhaltungPage} />
       <Route path="/chef" component={ChefPage} />
       <Route path="/chef/:raum" component={ChefPage} />
       {/* 27.08.2026: Jede übernommene Admin-Seite läuft unter /chef/s/<slug>

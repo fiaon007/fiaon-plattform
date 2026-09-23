@@ -912,6 +912,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const chefZahlen = await import('./routes/fiaon-chef-zahlen');
   app.use('/api/fiaon', chefZahlen.default);
 
+  // 🧾 Buchhaltung (23.09.2026, E-227): eigener Zugang (accounting@fiaon.com +
+  // PIN an die eigene Adresse), Kassenbuch, Zahlungsaufträge mit Vier-Augen-
+  // Freigabe. Bewusst NICHT unter /admin — sonst mauert adminCodeGate die Tür zu.
+  const buchhaltung = await import('./routes/fiaon-buchhaltung');
+  app.use('/api/fiaon', buchhaltung.default);
+
   // ✉️ Das Mailwerk (28.08.2026): sehen und steuern, was das Mail-System tut —
   // Versandweg-Schalter (make|direkt), Takte der Automatik, Prüfversand.
   const mailwerk = await import('./routes/fiaon-mailwerk');

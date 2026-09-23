@@ -733,6 +733,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(await fiaonRatgeber.sitemapXml(statisch));
     } catch (e) { console.error('[SITEMAP]', e); res.status(500).end(); }
   });
+  // 23.09.2026 (E-231): /llms.txt für KI-Assistenten — aus Register, Paketkatalog und Firmendaten
+  // (server/lib/fiaon-llms.ts). Vorher lieferte die Adresse die HTML-Hülle der App.
+  app.get('/llms.txt', async (_req, res) => {
+    try {
+      const { llmsTxt } = await import('./lib/fiaon-llms');
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.send(llmsTxt());
+    } catch (e) { console.error('[LLMS]', e); res.status(500).end(); }
+  });
   // ══════════════════════════════════════════════════════════════════════════
   // EIN EIGENER KOPF FÜR JEDE ÖFFENTLICHE SEITE (25.08.2026)
   //

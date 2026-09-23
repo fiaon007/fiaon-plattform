@@ -84,6 +84,8 @@ export interface GlobalSeite {
   seo: { titel: string; beschreibung: string };
   /** Datum der letzten inhaltlichen Änderung. */
   stand: string;
+  /** Tag der Erstveröffentlichung (Article: datePublished) — fehlt = 19.09.2026, Start des Registers (E-191). */
+  erschienen?: string;
   /** Merkblatt-Nummer im Kopf, z. B. „FG · 01“. */
   kennung: string;
   /** Die Oberzeile über der H1. */

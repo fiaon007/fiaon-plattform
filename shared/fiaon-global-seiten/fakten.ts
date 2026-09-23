@@ -88,3 +88,76 @@ export const QUELLEN_IRS: GlobalQuelle[] = [
   { titel: "IRS — Instructions for Form 5472", url: "https://www.irs.gov/instructions/i5472" },
   { titel: "IRS — Instructions for Form 7004", url: "https://www.irs.gov/instructions/i7004" },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZEHN PRAXIS-BEITRÄGE (23.09.2026, E-231) — Wege, Fristen und Schwellen der
+// US-Behörden, geprüft am 23.09.2026 an den amtlichen Texten: Instructions for
+// Form SS-4 (12/2025), W-7, 1065, 1040-NR, 1120-F, Partnership Withholding,
+// FinCEN (BOI-Regel vom 11.08.2026, CDD-Ausnahme vom 13.02.2026, FBAR), FDIC,
+// Regulation Z, myFICO, Dun & Bradstreet, FTC (Seek Capital, 17.11.2025).
+// ═══════════════════════════════════════════════════════════════════════════
+export const EIN_WEG = {
+  telefon: "+1 267-941-1099",
+  telefonZeit: "Montag bis Freitag von 6 bis 23 Uhr Ostküstenzeit",
+  faxAusland: "+1 304-707-9471",
+  post: "Internal Revenue Service, Attn: EIN International Operation, Cincinnati, OH 45999",
+  zeile9a: "Foreign-owned U.S. disregarded entity-Form 5472",
+} as const;
+
+/** Fristen bei Kalenderjahr als Steuerjahr. */
+export const FRISTEN = {
+  f1065: "15. März",
+  f1040nr: "15. Juni, wenn keine US-Löhne mit Steuerabzug bezogen werden",
+  f1120f: "15. April mit Büro in den USA, sonst 15. Juni",
+  fbar: "15. April, automatisch verlängert bis 15. Oktober",
+} as const;
+
+export const SCHWELLEN = {
+  fbar: "10.000 US-Dollar",
+  fdic: "250.000 US-Dollar",
+  eigentuemer: "25 Prozent",
+  abzug1446: "37 Prozent für Personen, 21 Prozent für Gesellschaften",
+} as const;
+
+export const QUELLEN_WISSEN = {
+  ss4: QUELLEN_IRS[1],
+  ein: QUELLEN_IRS[0],
+  itin: QUELLEN_IRS[2],
+  w7: QUELLEN_IRS[3],
+  i5472: QUELLEN_IRS[4],
+  i1120: { titel: "IRS — Instructions for Form 1120", url: "https://www.irs.gov/instructions/i1120" },
+  i1065: { titel: "IRS — Instructions for Form 1065", url: "https://www.irs.gov/instructions/i1065" },
+  i1040nr: { titel: "IRS — Instructions for Form 1040-NR", url: "https://www.irs.gov/instructions/i1040nr" },
+  i1120f: { titel: "IRS — Instructions for Form 1120-F", url: "https://www.irs.gov/instructions/i1120f" },
+  f8822b: { titel: "IRS — About Form 8822-B", url: "https://www.irs.gov/forms-pubs/about-form-8822-b" },
+  f8832: { titel: "IRS — About Form 8832", url: "https://www.irs.gov/forms-pubs/about-form-8832" },
+  smllc: { titel: "IRS — Single Member Limited Liability Companies", url: "https://www.irs.gov/businesses/small-businesses-self-employed/single-member-limited-liability-companies" },
+  abzug1446: { titel: "IRS — Partnership Withholding", url: "https://www.irs.gov/individuals/international-taxpayers/partnership-withholding" },
+  caa: { titel: "IRS — ITIN Acceptance Agent Program", url: "https://www.irs.gov/individuals/itin-acceptance-agent-program" },
+  itinAusland: { titel: "IRS — Obtaining an ITIN from abroad", url: "https://www.irs.gov/individuals/international-taxpayers/obtaining-an-itin-from-abroad" },
+  itinUebersicht: { titel: "IRS — Individual Taxpayer Identification Number (ITIN)", url: "https://www.irs.gov/tin/itin/individual-taxpayer-identification-number-itin" },
+  boi: { titel: "FinCEN — Beneficial Ownership Information", url: "https://www.fincen.gov/boi" },
+  boiEnde: { titel: "FinCEN — Ende der BOI-Meldung für US-Gesellschaften (August 2026)", url: "https://www.fincen.gov/news/news-releases/fincen-permanently-ends-beneficial-ownership-reporting-requirements-millions" },
+  cip: { titel: "31 CFR 1020.220 — Customer Identification Program", url: "https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1020/subpart-B/section-1020.220" },
+  cdd: { titel: "31 CFR 1010.230 — Wirtschaftlich Berechtigte", url: "https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1010/subpart-B/section-1010.230" },
+  cddAusnahme: { titel: "FinCEN — Ausnahme zur Prüfung je Konto (13.02.2026)", url: "https://www.fincen.gov/system/files/2026-02/FinCEN-Order-CCDExceptiveRelief.pdf" },
+  fdic: { titel: "FDIC — Understanding Deposit Insurance", url: "https://www.fdic.gov/resources/deposit-insurance/understanding-deposit-insurance" },
+  fbar: { titel: "FinCEN — Report Foreign Bank and Financial Accounts (FBAR)", url: "https://www.fincen.gov/report-foreign-bank-and-financial-accounts" },
+  ficoFaktoren: { titel: "myFICO — What's in my FICO Scores", url: "https://www.myfico.com/credit-education/whats-in-your-credit-score" },
+  ficoMindest: { titel: "myFICO — Minimum requirements for a FICO Score", url: "https://www.myfico.com/credit-education/faq/scores/fico-score-requirements" },
+  ftcAuskunft: { titel: "FTC — Free credit reports", url: "https://consumer.ftc.gov/articles/free-credit-reports" },
+  ftcCredit: { titel: "FTC — Fixing your credit FAQs", url: "https://consumer.ftc.gov/articles/fixing-your-credit-faqs" },
+  duns: { titel: "Dun & Bradstreet — D-U-N-S Number", url: "https://www.dnb.com/en-us/smb/duns.html" },
+  paydex: { titel: "Dun & Bradstreet — What is a PAYDEX Score", url: "https://www.dnb.com/en-us/smb/resources/credit-scores/what-is-paydex-score.html" },
+  experian: { titel: "Experian — Business credit score", url: "https://www.experian.com/small-business/business-credit-score" },
+  ftcSeek: { titel: "FTC — Seek Capital and CEO permanently banned (17.11.2025)", url: "https://www.ftc.gov/news-events/news/press-releases/2025/11/seek-capital-ceo-are-permanently-banned-providing-business-financing-other-services-settle-ftc" },
+  ftcSeekUrteil: { titel: "FTC v. Seek Capital — Entscheidung des Gerichts", url: "https://www.ftc.gov/system/files/ftc_gov/pdf/SeekCapital-SummaryJudgmentRuling.pdf" },
+  regZ3: { titel: "12 CFR 1026.3 — Ausnahmen von Regulation Z", url: "https://www.ecfr.gov/current/title-12/chapter-X/part-1026/subpart-A/section-1026.3" },
+  regZ12: { titel: "12 CFR 1026.12 — Ausgabe von Karten, Haftung bei Missbrauch", url: "https://www.ecfr.gov/current/title-12/chapter-X/part-1026/subpart-B/section-1026.12" },
+  dba: { titel: "DBA Deutschland–USA mit Protokoll (Bekanntmachung 2008)", url: "https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Internationales_Steuerrecht/Staatenbezogene_Informationen/Laender_A_Z/Verein_Staaten/2008-06-23-USA-Abkommen-DBA-Bekanntmachung.pdf?__blob=publicationFile&v=5" },
+  ao138: { titel: "§ 138 AO — Anzeigen über die Erwerbstätigkeit", url: "https://www.gesetze-im-internet.de/ao_1977/__138.html" },
+  astg1: { titel: "§ 1 AStG — Fremdvergleich", url: "https://www.gesetze-im-internet.de/astg/__1.html" },
+  kstg8b: { titel: "§ 8b KStG — Beteiligung an anderen Körperschaften", url: "https://www.gesetze-im-internet.de/kstg_1977/__8b.html" },
+  delawareAgent: { titel: "Delaware Code, Title 6, Chapter 18, Subchapter I — Registered Agent", url: "https://delcode.delaware.gov/title6/c018/sc01/index.html" },
+  floridaAufloesung: { titel: "Florida Statutes 2026, § 605.0714 — Auflösung von Amts wegen", url: "https://www.flsenate.gov/Laws/Statutes/2026/605.0714" },
+} as const;

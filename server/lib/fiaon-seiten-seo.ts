@@ -31,7 +31,7 @@
 import fs from "fs";
 import path from "path";
 import {
-  SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN,
+  SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN, GLOBAL_BILD, GLOBAL_BILD_EN,
   seoSeite, seoFragen, seoIndexierbar, type SeoSeite, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
@@ -76,6 +76,8 @@ export function beschreibungKuerzen(text: string, max = 155): string {
 export function kopfEinsetzen(html: string, kopf: {
   titel: string; beschreibung: string; url: string; ld?: unknown[];
   og?: Record<string, string>; robots?: string; bild?: string;
+  /** Alternativtext zum Vorschaubild (23.09.2026) — sonst bliebe der aus index.html („Betriebssystem für Bonität“). */
+  bildAlt?: string;
   /** Sprache der Seite (02.09.2026) — setzt html lang, meta language, og:locale. Fehlt = Deutsch. */
   sprache?: Sprache;
   /** hreflang-Paar: deutsche und englische Adresse derselben Seite (absolut). x-default zeigt auf Deutsch. */
@@ -99,10 +101,14 @@ export function kopfEinsetzen(html: string, kopf: {
   setz("twitter:title", "name", kopf.titel);
   setz("twitter:description", "name", kopf.beschreibung);
   if (kopf.og?.type) setz("og:type", "property", kopf.og.type);
+  // 23.09.2026 (E-231): Beiträge tragen Erscheinungs- und Änderungsdatum auch im Open-Graph-Kopf.
+  if (kopf.og?.erschienen) setz("article:published_time", "property", kopf.og.erschienen);
+  if (kopf.og?.geaendert) setz("article:modified_time", "property", kopf.og.geaendert);
   if (kopf.bild) {
     setz("og:image", "property", kopf.bild);
     setz("og:image:secure_url", "property", kopf.bild);
     setz("twitter:image", "name", kopf.bild);
+    if (kopf.bildAlt) { setz("og:image:alt", "property", kopf.bildAlt); setz("twitter:image:alt", "name", kopf.bildAlt); }
   } else if (kopf.bild === "") {
     // 04.09.2026: Ein leeres `bild` heisst ausdruecklich „kein Vorschaubild".
     // Ohne das erbt jede Seite das Werbebild aus index.html — auch der
@@ -153,12 +159,15 @@ export function organisationLd(): Record<string, unknown> {
     url: BASIS,
     logo: { "@type": "ImageObject", url: `${BASIS}/icon-maskable-512.png`, width: 512, height: 512 },
     image: `${BASIS}/og-fiaon.jpg`,
-    description: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz.",
+    description: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
+    // 23.09.2026 (E-231): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
+    identifier: { "@type": "PropertyValue", propertyID: "Companies House (England and Wales)", value: FIAON_FIRMA.companyNo },
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
     contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de"], areaServed: ["DE", "AT", "CH"] }],
     areaServed: [{ "@type": "Country", name: "Deutschland" }, { "@type": "Country", name: "Österreich" }, { "@type": "Country", name: "Schweiz" }],
     knowsLanguage: "de",
-    knowsAbout: ["Bonität", "SCHUFA", "KSV1870", "CRIF", "Bonitätsauskunft", "Löschfristen", "Inkasso", "Kreditkarte trotz Eintrag"],
+    knowsAbout: ["Bonität", "SCHUFA", "KSV1870", "CRIF", "Bonitätsauskunft", "Löschfristen", "Inkasso", "Kreditkarte trotz Eintrag",
+      "US-LLC-Gründung", "US-Firmengründung aus Deutschland", "Employer Identification Number (EIN)", "ITIN", "Form 5472", "Registered Agent", "US-Geschäftskonto", "US-Firmenkarten"],
     // sameAs bleibt leer, bis Justin die Profile freigibt (LinkedIn, Trustpilot,
     // ProvenExpert …). Ein leeres Feld ist besser als ein erfundenes.
   };
@@ -188,15 +197,19 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
     "@context": "https://schema.org",
     "@type": s.art === "pfeiler" ? "Article" : "WebPage",
     "@id": `${url}#seite`,
-    url, name: s.titel, headline: s.h1, description: s.beschreibung, inLanguage: "de",
+    // 23.09.2026 (E-231): Sprache der Seite statt fest „de“ (englische Seiten trugen „de“), Erscheinungsdatum und Bild für Beiträge.
+    url, name: s.titel, headline: s.h1, description: s.beschreibung, inLanguage: s.sprache === "en" ? "en" : "de",
     dateModified: s.stand, isPartOf: { "@id": `${BASIS}/#website` },
-    ...(s.art === "pfeiler" ? { author: { "@id": `${BASIS}/#organisation` }, publisher: { "@id": `${BASIS}/#organisation` }, mainEntityOfPage: url } : {}),
+    ...(s.art === "pfeiler" ? {
+      author: { "@id": `${BASIS}/#organisation` }, publisher: { "@id": `${BASIS}/#organisation` }, mainEntityOfPage: url,
+      datePublished: s.erschienen ?? s.stand, image: s.bild || `${BASIS}/og-fiaon.jpg`,
+    } : {}),
   });
   if (fragen.length) {
     ld.push({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: fragen.map((f) => ({ "@type": "Question", name: f.f, acceptedAnswer: { "@type": "Answer", text: f.a } })) });
   }
   if (s.werkzeug) {
-    ld.push({ "@context": "https://schema.org", "@type": "WebApplication", name: s.werkzeug, url, applicationCategory: "FinanceApplication", operatingSystem: "Web", inLanguage: "de", isAccessibleForFree: true, offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" }, provider: { "@id": `${BASIS}/#organisation` } });
+    ld.push({ "@context": "https://schema.org", "@type": "WebApplication", name: s.werkzeug, url, applicationCategory: "FinanceApplication", operatingSystem: "Web", inLanguage: s.sprache === "en" ? "en" : "de", isAccessibleForFree: true, offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" }, provider: { "@id": `${BASIS}/#organisation` } });
   }
   if ((s.pfad === "/werkzeuge" || s.pfad === "/en/tools")) {
     ld.push({ "@context": "https://schema.org", "@type": "ItemList", name: s.sprache === "en" ? "Free FIAON tools" : "Kostenlose FIAON-Werkzeuge", itemListElement: (s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w, i) => ({ "@type": "ListItem", position: i + 1, name: w.name, url: `${BASIS}${s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad}` })) });
@@ -321,7 +334,10 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
   const alternativen = s.schwester
     ? { de: absolut(sprache === "de" ? s.pfad : s.schwester), en: absolut(sprache === "en" ? s.pfad : s.schwester) }
     : undefined;
-  let out = kopfEinsetzen(html, { titel: s.titel, beschreibung, url, ld, robots: s.robots, bild: s.bild, og: { type: s.art === "pfeiler" ? "article" : "website" }, sprache, alternativen });
+  const bildAlt = s.bild === GLOBAL_BILD ? "FIAON Global – Ihre US-Gesellschaft aus einer Hand" : s.bild === GLOBAL_BILD_EN ? "FIAON Global – your US company from one source" : undefined;
+  const og: Record<string, string> = { type: s.art === "pfeiler" ? "article" : "website" };
+  if (s.art === "pfeiler") { og.erschienen = s.erschienen ?? s.stand; og.geaendert = s.stand; }
+  let out = kopfEinsetzen(html, { titel: s.titel, beschreibung, url, ld, robots: s.robots, bild: s.bild, bildAlt, og, sprache, alternativen });
   // Der Korpus nur für indexierbare Seiten — ein Login-Formular braucht
   // keinen Vorab-Text, und interne Wege sollen nichts preisgeben.
   if (!s.robots?.includes("noindex")) {

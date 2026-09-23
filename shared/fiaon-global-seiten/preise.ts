@@ -90,7 +90,7 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
     art: "werkzeug",
     seo: {
       titel: "Paket-Finder: Welches Paket passt? — FIAON Global",
-      beschreibung: "Vier Fragen zu Ziel, Kapitalrahmen, Zeit und Begleitung — der Paket-Finder zeigt, welches Paket von FIAON Global zu Ihrem Vorhaben passt. Ohne Anmeldung.",
+      beschreibung: "Vier Fragen zu Ziel, Kapitalrahmen, Zeit und Begleitung — der Paket-Finder zeigt, welches Paket von FIAON Global zu Ihnen passt. Ohne Anmeldung.",
     },
     stand: S,
     kennung: "FG · 09",

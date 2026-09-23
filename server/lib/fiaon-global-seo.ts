@@ -9,7 +9,7 @@
 // Warum hier und nicht in shared/fiaon-seo-seiten.ts: siehe dort
 // („Einträge, die der SERVER ergänzt").
 // ═══════════════════════════════════════════════════════════════════════════
-import { seoZusatzEintragen, type SeoArt, type SeoSeite, type SeoAbschnitt } from "@shared/fiaon-seo-seiten";
+import { seoZusatzEintragen, GLOBAL_BILD, type SeoArt, type SeoSeite, type SeoAbschnitt } from "@shared/fiaon-seo-seiten";
 import { GLOBAL_SEITEN, LANDINGPAGES, blockAlsText, globalKrumen, type GlobalSeitenArt } from "@shared/fiaon-global-seiten";
 
 const seoArt = (a: GlobalSeitenArt): SeoArt => (a === "wissen" || a === "hub" ? "pfeiler" : a === "werkzeug" ? "werkzeug" : a === "land" ? "land" : "produkt");
@@ -20,7 +20,7 @@ const titelVon = (p: string) => {
 
 export const GLOBAL_SEO_EINTRAEGE: SeoSeite[] = [
   ...GLOBAL_SEITEN.map((g): SeoSeite => ({
-    pfad: g.pfad, art: seoArt(g.art), stand: g.stand,
+    pfad: g.pfad, art: seoArt(g.art), stand: g.stand, erschienen: g.erschienen ?? "2026-09-19", bild: GLOBAL_BILD,
     prio: g.prio ?? (g.art === "leistung" ? 0.8 : g.art === "preise" || g.art === "zielgruppe" || g.art === "land" ? 0.7 : 0.6),
     titel: g.seo.titel, beschreibung: g.seo.beschreibung,
     h1: `${g.h1}${g.h1b ? ` ${g.h1b}` : ""}`, lead: g.lead,
@@ -30,7 +30,7 @@ export const GLOBAL_SEO_EINTRAEGE: SeoSeite[] = [
     global: g.art,
   })),
   ...LANDINGPAGES.map((lp): SeoSeite => ({
-    pfad: lp.pfad, art: "intern", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow",
+    pfad: lp.pfad, art: "intern", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD,
     titel: lp.seo.titel, beschreibung: lp.seo.beschreibung, h1: `${lp.h1}${lp.h1b ? ` ${lp.h1b}` : ""}`, lead: lp.lead,
   })),
 ];

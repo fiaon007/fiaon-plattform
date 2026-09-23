@@ -38,6 +38,9 @@
 import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
 export const SEO_BASIS = "https://fiaon.com";
+/** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-231). */
+export const GLOBAL_BILD = `${SEO_BASIS}/og-global.jpg`;
+export const GLOBAL_BILD_EN = `${SEO_BASIS}/og-global-en.jpg`;
 
 export type SeoArt = "start" | "produkt" | "land" | "pfeiler" | "werkzeug" | "unternehmen" | "recht" | "intern";
 
@@ -70,6 +73,8 @@ export interface SeoSeite {
   canonical?: string;
   /** Datum der letzten inhaltlichen Änderung (Sitemap lastmod). */
   stand: string;
+  /** Tag der Erstveröffentlichung — Article: datePublished (fehlt = stand). */
+  erschienen?: string;
   /** Sitemap-Priorität 0.1–1.0. */
   prio: number;
   /** Name des Werkzeugs → WebApplication-Markup. */
@@ -100,6 +105,8 @@ export interface SeoEnglisch {
   /** Weiterlesen-Ziele (deutsche Pfade — der Renderer nimmt die englische Schwester, wo es sie gibt). */
   weiter?: string[];
   krumen?: { name: string; pfad: string }[];
+  /** Eigenes Vorschaubild der englischen Fassung (sonst das der deutschen). */
+  bild?: string;
 }
 
 // ── Die Navigation und die Fußzeile, wie sie auf der gerenderten Seite stehen.
@@ -322,6 +329,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // 19.09.2026 (E-191): auch für Privatpersonen; Standorte London · Zürich · Miami; Weiterlesen auf die Unterseiten.
   "/business": {
     pfad: "/business", art: "produkt", stand: "2026-09-19", prio: 0.9,
+    // 23.09.2026 (E-231): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
+    bild: GLOBAL_BILD,
     titel: "US-Gesellschaft gründen ab 2.499 € — FIAON Global",
     beschreibung: "US-Gesellschaft gründen mit Team vor Ort — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto, Karten. Festpreis ab 2.499 €, alles inklusive.",
     h1: "US-Gesellschaft gründen. Aus einer Hand, zum Festpreis.",
@@ -338,6 +347,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     krumen: [{ name: "Business", pfad: "/business" }],
     en: {
       pfad: "/en/business",
+      bild: GLOBAL_BILD_EN,
       titel: "Form a US company from €2,499 — FIAON Global",
       beschreibung: "Form a US company with a team on the ground — for companies and private individuals: formation, EIN, ITIN, account, cards. Fixed price from €2,499.",
       h1: "Form a US company. From one source, at a fixed price.",
@@ -1738,11 +1748,11 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/app/demo": { pfad: "/app/demo", art: "intern", stand: "2026-09-05", prio: 0.1, robots: "noindex,nofollow", titel: "Mein FIAON — Demo-Ansicht", beschreibung: "Feste Vorführdaten des FIAON-Kundenbereichs, kein echtes Konto.", h1: "Demo-Ansicht", lead: "Feste Vorführdaten, kein echtes Konto." },
   "/passwort-vergessen": { pfad: "/passwort-vergessen", art: "intern", stand: "2026-08-23", prio: 0.1, robots: "noindex,follow", titel: "Passwort vergessen — FIAON", beschreibung: "Setzen Sie Ihr Passwort für den FIAON-Kundenbereich zurück.", h1: "Passwort zurücksetzen", lead: "Setzen Sie Ihr Passwort für den FIAON-Kundenbereich zurück." },
   "/antrag": { pfad: "/antrag", art: "intern", stand: "2026-08-23", prio: 0.1, robots: "noindex,follow", titel: "Antrag stellen — FIAON", beschreibung: "Ihr Antrag bei FIAON in wenigen Schritten: Paket wählen, Angaben machen, Vertrag annehmen – und sofort in Ihrem Bereich.", h1: "Ihr Antrag bei FIAON", lead: "Paket wählen, wenige Angaben, Vertrag annehmen – zwei Minuten, dann ist Ihr Bereich aktiv." },
-  "/business/auftrag": { pfad: "/business/auftrag", art: "intern", stand: "2026-09-17", prio: 0.1, robots: "noindex,nofollow", titel: "Mein Auftrag — FIAON Global", beschreibung: "Stand Ihres Auftrags bei FIAON Global: Etappen, nächster Schritt, Dokumente, Pflichtenkalender und Ihr Ansprechpartner.", h1: "Mein Auftrag", lead: "Etappen, nächster Schritt, Dokumente und Pflichtenkalender Ihres Auftrags.", en: { pfad: "/en/business/auftrag", titel: "My order — FIAON Global", beschreibung: "The status of your FIAON Global order: stages, next step, documents, compliance calendar and your contact.", h1: "My order", lead: "Stages, next step, documents and compliance calendar of your order." } },
+  "/business/auftrag": { pfad: "/business/auftrag", art: "intern", stand: "2026-09-17", prio: 0.1, robots: "noindex,nofollow", bild: GLOBAL_BILD, titel: "Mein Auftrag — FIAON Global", beschreibung: "Stand Ihres Auftrags bei FIAON Global: Etappen, nächster Schritt, Dokumente, Pflichtenkalender und Ihr Ansprechpartner.", h1: "Mein Auftrag", lead: "Etappen, nächster Schritt, Dokumente und Pflichtenkalender Ihres Auftrags.", en: { pfad: "/en/business/auftrag", bild: GLOBAL_BILD_EN, titel: "My order — FIAON Global", beschreibung: "The status of your FIAON Global order: stages, next step, documents, compliance calendar and your contact.", h1: "My order", lead: "Stages, next step, documents and compliance calendar of your order." } },
   // 19.09.2026: Rechtliches der Business-Welt (client/src/pages/site/global-recht.tsx).
   "/business/widerrufsbelehrung": { pfad: "/business/widerrufsbelehrung", art: "recht", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", titel: "Widerrufsbelehrung — FIAON Global", beschreibung: "Die Widerrufsbelehrung für Aufträge über FIAON Global, die Sie als Privatperson und Verbraucher erteilen — mit Muster-Widerrufsformular.", h1: "Widerrufsbelehrung für Privatpersonen", lead: "Sie gilt für Aufträge über FIAON Global, die Sie als Verbraucher erteilen. Derselbe Wortlaut steht als Anlage in Ihrem Vertrag.", en: { pfad: "/en/business/widerrufsbelehrung", titel: "Withdrawal instructions — FIAON Global", beschreibung: "The withdrawal instructions for FIAON Global orders placed by private individuals as consumers — with the model withdrawal form.", h1: "Withdrawal instructions for private individuals", lead: "They apply to FIAON Global orders you place as a consumer. The same wording is attached to your contract as an annex." } },
   "/business/mustervertrag": { pfad: "/business/mustervertrag", art: "intern", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", titel: "Mustervertrag — FIAON Global", beschreibung: "Der Auftrag über FIAON Global Wort für Wort, wie er zur Unterschrift vorgelegt wird — für alle vier Pakete, als Unternehmen oder als Privatperson.", h1: "Der Vertrag, bevor Sie beauftragen.", lead: "So lautet Ihr Auftrag — Wort für Wort, wie er Ihnen zur Unterschrift vorgelegt wird.", en: { pfad: "/en/business/mustervertrag", titel: "Model contract — FIAON Global", beschreibung: "The FIAON Global engagement word for word, as presented for signature — for all four packages, as a company or as a private individual.", h1: "The contract, before you order.", lead: "This is your engagement — word for word, as it is presented to you for signature." } },
-  "/business/start": { pfad: "/business/start", art: "intern", stand: "2026-09-17", prio: 0.1, robots: "noindex,follow", titel: "Auftrag — FIAON Global", beschreibung: "FIAON Global direkt beauftragen: Paket wählen, Unternehmen eintragen, Vertrag am Bildschirm unterschreiben.", h1: "Ihr Auftrag in vier Schritten", lead: "Paket wählen, Unternehmen eintragen, Vertrag unterschreiben. Vertrag und Rechnung erhalten Sie per E-Mail.", en: { pfad: "/en/business/start", titel: "Order — FIAON Global", beschreibung: "Order FIAON Global directly: choose a package, enter your company, sign the contract on screen.", h1: "Your order in four steps", lead: "Choose a package, enter your company, sign the contract. Contract and invoice arrive by email." } },
+  "/business/start": { pfad: "/business/start", art: "intern", stand: "2026-09-17", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Auftrag — FIAON Global", beschreibung: "FIAON Global direkt beauftragen: Paket wählen, Unternehmen eintragen, Vertrag am Bildschirm unterschreiben.", h1: "Ihr Auftrag in vier Schritten", lead: "Paket wählen, Unternehmen eintragen, Vertrag unterschreiben. Vertrag und Rechnung erhalten Sie per E-Mail.", en: { pfad: "/en/business/start", bild: GLOBAL_BILD_EN, titel: "Order — FIAON Global", beschreibung: "Order FIAON Global directly: choose a package, enter your company, sign the contract on screen.", h1: "Your order in four steps", lead: "Choose a package, enter your company, sign the contract. Contract and invoice arrive by email." } },
   "/bonitaet-antrag": { pfad: "/bonitaet-antrag", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Bonitätsauskunft beantragen — FIAON", beschreibung: "Beantragen Sie Ihre geprüfte Bonitätsauskunft bei FIAON.", h1: "Bonitätsauskunft beantragen", lead: "Beantragen Sie Ihre geprüfte Bonitätsauskunft bei FIAON." },
   "/bonitaet-danke": { pfad: "/bonitaet-danke", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Vielen Dank — FIAON", beschreibung: "Ihre Anfrage ist bei uns eingegangen.", h1: "Vielen Dank", lead: "Ihre Anfrage ist bei uns eingegangen." },
   "/abo-kuendigen": { pfad: "/abo-kuendigen", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Kündigung — FIAON", beschreibung: "Kündigen Sie Ihr FIAON-Abonnement.", h1: "Kündigung", lead: "Kündigen Sie Ihr FIAON-Abonnement." },
@@ -1785,7 +1795,7 @@ for (const s of Object.values(SEO_SEITEN)) {
     pfad: en.pfad, art: s.art, stand: s.stand, prio: Math.max(0.1, Math.round((s.prio - 0.1) * 10) / 10),
     titel: en.titel, beschreibung: en.beschreibung, h1: en.h1, lead: en.lead,
     abschnitte: en.abschnitte, weiter: en.weiter, krumen: en.krumen,
-    werkzeug: s.werkzeug, bild: s.bild, robots: s.robots,
+    werkzeug: s.werkzeug, bild: en.bild ?? s.bild, robots: s.robots,
     sprache: "en", schwester: s.pfad,
   };
   s.sprache = "de";

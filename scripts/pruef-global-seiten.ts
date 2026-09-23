@@ -48,8 +48,10 @@ import { GLOBAL_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalJahresbetreuungPreisText } from "../shared/fiaon-global";
 import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
+import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX } from "../shared/fiaon-pixel";
 
-const HEUTE = "2026-09-19";
+// 23.09.2026 (E-231): der heutige Tag in Berlin statt eines festen Datums — ein Stand von heute ist kein Fehler.
+const HEUTE = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date());
 let fehler = 0; let geprueft = 0;
 const hinweise: string[] = [];
 const ok = (bedingung: boolean, was: string) => { geprueft++; if (!bedingung) { fehler++; console.log(`  FEHLER  ${was}`); } };
@@ -179,6 +181,9 @@ for (const s of GLOBAL_SEITEN) {
   ok(s.seo.titel.length <= 62, `${s.pfad}: Titel ${s.seo.titel.length} Zeichen (max 62)`);
   ok(s.seo.beschreibung.length >= 110 && s.seo.beschreibung.length <= 155, `${s.pfad}: Beschreibung ${s.seo.beschreibung.length} Zeichen (110–155)`);
   ok(/— FIAON Global$/.test(s.seo.titel), `${s.pfad}: Titel endet nicht auf „— FIAON Global“`);
+  // 23.09.2026 (E-231): Google schneidet nach Pixeln ab, nicht nach Zeichen (Arial 20 px ≤ 580, Arial 14 px ≤ 1000; shared/fiaon-pixel.ts).
+  ok(titelPixel(s.seo.titel) <= TITEL_MAX_PX, `${s.pfad}: Titel ${titelPixel(s.seo.titel)} px breit (max ${TITEL_MAX_PX}) — Google kürzt ihn`);
+  ok(beschreibungPixel(s.seo.beschreibung) <= BESCHREIBUNG_MAX_PX, `${s.pfad}: Beschreibung ${beschreibungPixel(s.seo.beschreibung)} px breit (max ${BESCHREIBUNG_MAX_PX}) — Google kürzt sie`);
   ok(seoIndexierbar().some((x: any) => x.pfad === s.pfad), `${s.pfad}: nicht indexierbar (fehlt in der Sitemap)`);
   const faq = seoFragen(s.pfad);
   ok(faq.length === s.fragen.length, `${s.pfad}: FAQ-Daten ${faq.length}, sichtbar ${s.fragen.length}`);

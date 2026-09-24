@@ -5,6 +5,46 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 25.09.2026 (1) — Die Bonitätsauskunft als eigenes Produkt: verkaufen, liefern, ehrlich bleiben (E-240)
+
+**Der Anlass (Justin):** „Was ist eigentlich mit den ganzen 74-€-Bonitätsauszügen? Warum verkaufen wir die nicht mehr? …
+Ohne Abo 149 €, mit Abo 74 € … für Unternehmen 349 € ohne Abo und 199 € mit Abo … Jeder Kunde, der keine
+Bonitätsauskunft gekauft oder hinterlegt hat, muss in einen Sales-Prozess." Dazu der Fall Doris Hösl: Sie schrieb
+„Ich hab keine." — Mara verwies auf den Kundenbereich und drängte auf die offene Rate.
+
+**Warum kaum noch verkauft wurde (gemessen):** Die Auskunft war ein Zusatz für frisch zahlende Paketkunden (≈ 22 % in
+den ersten 14 Tagen) — und neue Zahler brachen von 30–75 auf 1–3 je Woche ein. Den Bestand bot niemand an: Die
+Unterlagen-Mail empfahl die kostenlose Datenkopie ohne Preis und Kaufknopf (am 24.09. 961 Mails, 104 davon an
+Gekündigte oder Menschen mit Werbesperre, 111 Österreicher lasen „SCHUFA"), Mara hatte kein Werkzeug, /preise versprach
+die Auskunft als Paketleistung. Und: 59 von 66 Käufern hatten nie etwas bekommen.
+
+**Was jetzt gilt:**
+- **Vier Preise, eine Stelle:** 149 € einzeln, 74 € mit laufendem Paket; Firma 349 € / 199 €. Welcher Preis gilt,
+  entscheidet nur der Server. Die Auskunft ist ein Zusatzprodukt — kein Text verspricht sie mehr als Paketleistung.
+- **Leistung je Land:** Datenkopien bei SCHUFA, CRIF und Creditreform Boniversum (DE), KSV1870 und CRIF (AT), CRIF und
+  Intrum (CH); jede Zeile erklärt, Fristen geprüft, Handlungsplan, fertige Schreiben zur Freigabe. Firmen zusätzlich
+  Creditreform/CRIF-Firmendaten.
+- **Kaufen:** öffentliche Bestellseite /bonitaet-antrag (Sie-Form, Widerruf, Vollmacht, „zahlungspflichtig bestellen"),
+  Kaufkarte im Kundenbereich und in /app, signierter Kauflink aus Mail und WhatsApp mit Bestätigungsseite.
+- **Mara verkauft:** Sagt jemand „habe keine Auskunft", bietet Mara sie mit echtem Zahlungslink an, pitcht Karte und
+  Wunschlimit (ohne Zusage) und gibt dem Betreuer eine Aufgabe mit Mail — sichtbar im neuen Popup „Neu von Mara".
+  Der Zitatfehler, der Doris' Antwort zum Entwurf machte, ist behoben (19 von 21 Fehl-Übergaben in 14 Tagen).
+- **Liefern:** Nach der Zahlung entstehen je Auskunftei die Anfragen, eine Aufgabe beim Betreuer und die Mail mit dem
+  Unterschriftslink. Der Rückstand (59) steht im Chefbüro unter /chef/s/auskunft mit Knopf „Lieferung starten".
+- **Verkaufstakt** (Mail, dann WhatsApp) — Standard AUS; automatisch nur, wo § 7 Abs. 3 UWG es trägt. Eine gemeinsame
+  Bremse verhindert zwei Angebote in drei Tagen über verschiedene Wege.
+- **Sperre heißt Sperre:** Die Werbesperre stoppt jetzt auch die Lead-Strecke (ohne Brevo-Umweg), werbliche
+  WhatsApp-Vorlagen und die Mail-Zentrale; die Vertriebssperre stoppt Rückholung und Lead-Strecke. In 30 Tagen hätte
+  das rund 895 Mails und 22 WhatsApp verhindert.
+- **Recht:** Widerrufsbelehrung in Textform und Vertragsbestätigung in der Zahlungsdaten-Mail der Auskunft; die
+  interne Notiz, die auf /widerrufsbelehrung öffentlich stand, ist entfernt.
+
+**Wo:** shared/fiaon-auskunft.ts, shared/fiaon-auskunft-widerruf.ts, server/lib/fiaon-auskunft*.ts,
+server/routes/fiaon-auskunft-kauf.ts, fiaon-chef-auskunft.ts, fiaon-agent-aufgaben-popup.ts, Migration 083;
+Postmeister-, WhatsApp-Mara-, Mail- und Sperr-Dateien. Prüfstände: E2E 69/69, Postmeister 120 + 149, Sperre 60,
+WA-Sperre 64, Widerruf 283 + 55, Unterlagen 75, Verkauf 93, Popup 44, Mara-Verkauf 126, Lead-Motor 734,
+Katalogpreis-Wand 30.
+
 ## 24.09.2026 (8) — Meta-Messung, die auf Verkäufe arbeiten kann (E-239)
 
 **Der Anlass (Justin):** „Schau, dass alle META Events passen … damit wir wirklich auf Verkäufe arbeiten können — und

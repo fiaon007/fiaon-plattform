@@ -430,7 +430,9 @@ abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
   ok(!/user_data[\s\S]{0,400}?\bemail\b\s*:/.test(capi), "Keine E-Mail im Klartext in der Nutzlast");
 
   // Einwilligung und Schalter.
-  ok(/if \(!m\.einwilligung\) return "keine_einwilligung"/.test(capi), "Ohne Marketing-Einwilligung kein Web-Ereignis");
+  // E-239 (24.09.2026): Einwilligung nur ab der Fassung des Hinweises, die Meta nennt.
+  ok(/if \(!mess\?\.einwilligung\) return "keine_einwilligung"/.test(capi) && /COALESCE\(fassung, 1\) >= \$\{META_FASSUNG_AB\}/.test(capi),
+    "Ohne Marketing-Einwilligung (ab Fassung 2, die Meta nennt) kein Web-Ereignis");
   ok(/if \(!\(await anAus\(WEB_SCHALTER/.test(capi) && /if \(!\(await anAus\(CRM_SCHALTER/.test(capi), "Beide Messwege haben einen Schalter");
   ok(/einwilligungLesen\(\)\?\.marketing/.test(werbung.split("export function metaEreignis")[1] ?? ""), "Der Pixel feuert nur mit Einwilligung");
   ok(/consent", "grant"/.test(werbung), "Der Pixel bekommt die Einwilligung ausdrücklich mitgeteilt");
@@ -439,7 +441,9 @@ abschnitt("Messung an Meta — eine Quelle, eine Kennung, keine Klartextdaten");
   ok(/ereignis_id TEXT NOT NULL UNIQUE/.test(capi), "Jedes Ereignis kann nur einmal in der Schlange stehen");
   ok(/ON CONFLICT \(ereignis_id\) DO NOTHING/.test(capi), "Ein zweiter Versuch legt nichts doppelt an");
   ok(/action_source: "system_generated"/.test(capi) && /event_source: "crm"/.test(capi), "Lead-Stufen gehen als CRM-Ereignis an Meta");
-  ok(/user_data: \{ lead_id: Number\(metaLeadId\) \}/.test(capi), "Die Lead-Stufe trägt die Meta-Lead-Kennung");
+  // E-239: als TEXT (Number() verliert bei 17 Stellen die letzte Ziffer), erst im JSON die Ziffernfolge.
+  ok(/user_data: \{ lead_id: String\(metaLeadId\) \}/.test(capi) && /"lead_id":\$1/.test(capi),
+    "Die Lead-Stufe trägt die Meta-Lead-Kennung exakt (Text, im JSON als Ziffernfolge)");
   ok(/versuche < 6/.test(capi), "Ein Ereignis wird höchstens sechsmal versucht");
 
   // Die Stellen, an denen gemessen wird.

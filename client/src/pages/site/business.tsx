@@ -112,7 +112,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   const sprache = useSprache();
   const s = sprache === "en" ? "en" : "de";
   const start = (paket?: string) => globalStartPfad(paket, s, privat ? "privat" : undefined);
-  const seitePfad = privat ? "/business/privatpersonen" : s === "en" ? "/en/business" : "/business";
+  const seitePfad = privat ? (s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen") : s === "en" ? "/en/business" : "/business";
   const abPreis = globalPreisText("global_struktur", s);
 
   // Der Paketwunsch reist von der Tafel („Erst sprechen") in den Kalender.
@@ -268,7 +268,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <div className="fg-ehrlich">
                 <b>{t.ehrlichTitel}</b>
                 <p>{t.ehrlichText}</p>
-                {s === "de" && <a href="/business/vergleich">{t.ehrlichLink}<Pfeil /></a>}
+                <a href={s === "en" ? "/en/business/comparison" : "/business/vergleich"}>{t.ehrlichLink}<Pfeil /></a>
               </div>
             </Auf>
           </div>
@@ -436,7 +436,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <p>
                 {t.vertragVorab} <a href={s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag"}>{t.mustervertragLesen}</a>. {t.perRechnung} {t.kostenHinweis}
               </p>
-              {s === "de" && <p>{t.finderFrage} <a href="/business/paket-finder">{t.finderLink}</a></p>}
+              <p>{t.finderFrage} <a href={s === "en" ? "/en/business/package-finder" : "/business/paket-finder"}>{t.finderLink}</a></p>
             </div>
 
             <Auf>
@@ -574,7 +574,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                   <span className="fg-privat-knopf">{basis.privat.gegenKnopf}<Pfeil /></span>
                 </a>
               ) : (
-                <a className="fg-privat" href={s === "en" ? globalStartPfad(undefined, "en", "privat") : "/business/privatpersonen"}>
+                <a className="fg-privat" href={s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen"}>
                   <span className="fg-privat-rumpf">
                     <span className="fg-auge">{t.privatAuge}</span>
                     <b>{t.privatTitel}</b>
@@ -625,7 +625,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                     </li>
                   ))}
                 </ul>
-                <p className="fg-leise">{t.standorteVerbunden}{s === "de" && <> <a href="/business/partner">{t.standorteMehr}</a></>}</p>
+                <p className="fg-leise">{t.standorteVerbunden} <a href={s === "en" ? "/en/business/partners" : "/business/partner"}>{t.standorteMehr}</a></p>
               </div>
             </Auf>
           </div>
@@ -641,11 +641,11 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                 <b>{t.fragenNicht}</b>
                 <p>{t.fragenNichtText}</p>
                 <p><a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a><br /><a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a></p>
-                {s === "de" && <a className="fg-fragen-alle" href="/business/fragen">{t.fragenAlle}<Pfeil /></a>}
+                <a className="fg-fragen-alle" href={s === "en" ? "/en/business/faq" : "/business/fragen"}>{t.fragenAlle}<Pfeil /></a>
               </div>
             </Auf>
             {/* Privatpersonen: die Fragen aus dem Registereintrag — dasselbe FAQ-Markup wie das Vorab-HTML dieser Adresse. */}
-            <Fragen items={privat ? globalSeite("/business/privatpersonen")?.fragen ?? t.fragen : t.fragen} />
+            <Fragen items={privat ? globalSeite(s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen")?.fragen ?? t.fragen : t.fragen} />
           </div>
         </section>
 

@@ -20,6 +20,7 @@ import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
 import { GLOBAL_AUFTRAG_WOERTER } from "../client/src/i18n/global-auftrag";
+import { GLOBAL_SEITE_WOERTER } from "../client/src/i18n/global-seite";
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalKapital } from "../shared/fiaon-global";
 import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 import { SEO_SEITEN } from "../shared/fiaon-seo-seiten";
@@ -53,6 +54,8 @@ sammle(GLOBAL_WOERTER.de, "i18n/global", texte);
 sammle(GLOBAL_GESPRAECH_WOERTER.de, "i18n/global#gespraech", texte);
 sammle(GLOBAL_START_WOERTER.de, "i18n/global-start", texte);
 sammle(GLOBAL_AUFTRAG_WOERTER.de, "i18n/global-auftrag", texte);
+// 24.09.2026 (E-234): die festen Wörter der Unterseiten-Vorlage und die Fragen des Paket-Finders (bis heute ungeprüft im JSX).
+sammle(GLOBAL_SEITE_WOERTER.de, "i18n/global-seite", texte);
 for (const p of GLOBAL_PAKETE) sammle(p.de, `fiaon-global/${p.key}`, texte);
 sammle(GLOBAL_PFLICHTHINWEIS.de, "fiaon-global/pflichthinweis", texte);
 sammle(GLOBAL_ROLLEN.de, "fiaon-global/rollen", texte);
@@ -70,8 +73,9 @@ for (const pfad of ["/business", "/business/start", "/business/auftrag"]) {
 }
 
 for (const seite of [...GLOBAL_SEITEN, ...LANDINGPAGES]) sammle(seite, `seiten${seite.pfad}`, texte);
-sammle(GLOBAL_MENUE, "menue", texte);
-sammle(GLOBAL_STANDORTE, "standorte", texte);
+// 24.09.2026 (E-234): Menü und Standorte tragen ihre englischen Felder mit — die prüft scripts/pruef-global-en.ts, nicht die deutsche Wand.
+sammle(GLOBAL_MENUE.map(({ en: _en, ...m }) => m), "menue", texte);
+sammle(GLOBAL_STANDORTE.map(({ en: _en, ...o }) => o), "standorte", texte);
 sammle(GLOBAL_VERBUNDEN, "verbunden", texte);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle

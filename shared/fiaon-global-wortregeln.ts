@@ -69,3 +69,54 @@ export function globalWortPruefen(text: string, gedeckt: string[] = []): GlobalW
   }
   return funde;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIESELBEN GRENZEN AUF ENGLISCH (24.09.2026, E-234)
+// Für die englischen Unterseiten (/en/business/…). Wortgleich mit SCHAERFER_EN in
+// scripts/pruef-global-querschnitt.ts (Mails), dazu die Hausverbote aus
+// scripts/seo-wortverbote-en.ts (guarantee, advice — nur verneint erlaubt —,
+// recommend, affiliate, „improve your score") und die drei Geld-Zusagen der
+// deutschen Wand (E-225) sinngemäß. Die EINE erlaubte Stelle für „up to" ist die
+// VIP-Zahl, wie globalKapital("global_vip", "en") sie schreibt.
+// ═══════════════════════════════════════════════════════════════════════════
+export const GLOBAL_SCHAERFER_EN: GlobalWortregel[] = [
+  { muster: /\bup to\b/i, grund: "“up to” is a peak-value promise (only the VIP figure may use it)" },
+  { muster: /\b(capital one|american express|amex|bank of america|chase|mercury|brex|ramp)\b/i, grund: "no bank names (and no “chase”/“ramp” as verbs — say “follow up”, “increase”)" },
+  { muster: /\b(within|in)\s+\d+\s*(–|-|to)?\s*\d*\s*(working\s+|business\s+|calendar\s+)?(hours?|days?|weeks?|months?)\b/i, grund: "no deadline with digits (write the number as a word or give a date)" },
+  { muster: /\btarget[- ]?(limit|credit line|credit limit)\b|\bfunding[- ]limit\b/i, grund: "capital range — never a target or funding limit" },
+  { muster: /\b0\s?%|\b(0|zero)\s?per\s?cent\b/i, grund: "no interest rate as a number — “introductory period without debit interest”" },
+  { muster: /\brecommend\w*\b/i, grund: "no recommendation" },
+  { muster: /\b(without|no|zero)\s+(any\s+)?collateral\b|\bcollateral[- ]free\b|\bunsecured\b/i, grund: "the personal guarantee IS the security — “no cash deposit”" },
+  { muster: /\bconsult(ing|ancy|ant|ants)\b|\badvisory\s+(firm|group|company)\b|\bfiaon group\b/i, grund: "self-description (not a consultancy, not a group)" },
+  { muster: /\b(save|saves|saving)\s+(on\s+)?tax(es)?\b|\btax[- ](saving|savings|advantage|advantages|benefit|benefits|break|breaks)\b|(?<![“"‘])\btax[- ]free\b/i, grund: "no tax promise (“tax-free” only as a quoted myth)" },
+  { muster: /\baffiliate/i, grund: "banned word" },
+  { muster: /\bimprove(s|d)? (your|the|his|her|their) (score|credit score|credit rating)\b/i, grund: "the score follows the data — say which data change" },
+  { muster: /\b(credit|loan)[- ]?brok(er|ers|erage|ing)\b|\bwe\s+(broker|arrange)\s+(loans?|credit|financing)\b/i, grund: "FIAON does not broker credit" },
+  { muster: /\b(we|i)\s+(promise|assure)\b/i, grund: "no promise — name the next step and who decides" },
+  { muster: /\b(funds|money|amount|loan|credit|capital)\b[\s\S]{0,40}?\b(is|are|will be|becomes?)\b[\s\S]{0,20}?\b(available|paid out|disbursed|ready)\b/i, grund: "no money promise — the institution decides" },
+  { muster: /\b(your|the) (limit|credit line|credit limit)\b[\s\S]{0,30}?\b(is|will be) (approved|confirmed|secured|guaranteed)\b/i, grund: "the institution decides on every limit" },
+  { muster: /\byou (will )?(get|receive)\b[\s\S]{0,25}?\b(the |a )?(card|credit card)\b(?![\s\S]{0,40}\b(approv|decid|decision|issuer|bank|institution)\w*)/i, grund: "the card is not promised — describe the route: after the issuer's approval" },
+];
+
+/** „guarantee"/„advice" nur verneint oder als Warnung (wie scripts/seo-wortverbote-en.ts). */
+const EN_SATZ_ERLAUBT = /\b(no|not|never|nobody|no one|cannot|can't|neither|nor|without|instead|beware|promis\w*|dubious|replace[sd]?)\b/i;
+
+/** Prüft einen englischen Text der Business-Welt. `ohneVip` entfernt vorher die eine erlaubte VIP-Zahl. */
+export function globalWortPruefenEn(text: string, ohneVip = ""): { treffer: string; hinweis: string }[] {
+  const t = ohneVip ? String(text ?? "").split(ohneVip).join("") : String(text ?? "");
+  if (!t.trim()) return [];
+  const funde: { treffer: string; hinweis: string }[] = [];
+  for (const r of GLOBAL_SCHAERFER_EN) {
+    const m = t.match(r.muster);
+    if (m) funde.push({ treffer: m[0].slice(0, 60), hinweis: r.grund });
+  }
+  for (const m of Array.from(t.matchAll(/\b(guarantee[sd]?|guaranteeing|advice|advise[sd]?|advising)\b/gi))) {
+    const a = Math.max(t.lastIndexOf(". ", m.index!), t.lastIndexOf("\n", m.index!), t.lastIndexOf("? ", m.index!), 0);
+    const ende = [t.indexOf(". ", m.index!), t.indexOf("\n", m.index!), t.indexOf("? ", m.index!)].filter((x) => x >= 0);
+    const satz = t.slice(a, ende.length ? Math.min(...ende) + 1 : t.length);
+    // „personal guarantee" ist der Fachbegriff für die persönliche Haftung — kein Versprechen von FIAON.
+    if (/personal guarantee/i.test(m.input!.slice(Math.max(0, m.index! - 9), m.index! + m[0].length))) continue;
+    if (!EN_SATZ_ERLAUBT.test(satz)) funde.push({ treffer: m[0], hinweis: `“${m[0]}” only when negated or as a warning: ${satz.trim().slice(0, 90)}` });
+  }
+  return funde;
+}

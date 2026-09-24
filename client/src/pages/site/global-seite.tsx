@@ -4,6 +4,9 @@
 // Eine Seite, viele Adressen: /business/<slug> und /business/wissen/<slug>
 // lesen ihren Inhalt aus shared/fiaon-global-seiten (dieselbe Quelle, aus der
 // der Server Titel, Korpus und FAQ für Suchmaschinen rendert).
+// Seit 24.09.2026 (E-234) auch englisch: /en/business/<slug> und
+// /en/business/knowledge/<slug> — die Sprache kommt aus der Registerseite
+// (globalSprache), die festen Wörter aus client/src/i18n/global-seite.ts.
 //
 // ── AUFBAU („Dossier") ─────────────────────────────────────────────────────
 //   Lesefortschritt
@@ -21,13 +24,15 @@ import GlobalGespraech from "@/components/site/GlobalGespraech";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import NotFound from "@/pages/not-found";
 import { GLOBAL_WOERTER } from "@/i18n/global";
+import { GLOBAL_SEITE_WOERTER } from "@/i18n/global-seite";
 import {
-  globalSeite, globalKrumen, globalInhalt, type GlobalBlock, type GlobalSeite,
+  globalSeite, globalKrumen, globalInhalt, globalSprache, GLOBAL_SEITE_WORTE, type GlobalBlock, type GlobalSeite,
 } from "@shared/fiaon-global-seiten";
 import { globalMenuePunkt } from "@shared/fiaon-global-menue";
 import { GLOBAL_PAKETE, globalKapital, globalPaket, globalPreisText, type GlobalSchluessel } from "@shared/fiaon-global";
-import { globalStartPfad } from "@shared/fiaon-global-wege";
-import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN } from "@shared/fiaon-global-partner";
+import { globalStartPfad, globalPaketePfad, globalSeitePfad } from "@shared/fiaon-global-wege";
+import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN } from "@shared/fiaon-global-partner";
+import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { werbeEreignis } from "@/lib/werbung";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
@@ -47,7 +52,8 @@ export function Pfeil({ groesse = 15 }: { groesse?: number }) {
   return <svg width={groesse} height={groesse} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
 }
 
-const datumDe = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
+type Sp = "de" | "en";
+const datumIn = (iso: string, sp: Sp) => new Date(`${iso}T12:00:00`).toLocaleDateString(sp === "en" ? "en-GB" : "de-DE", { day: "numeric", month: "long", year: "numeric" });
 const glatt = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth") as ScrollBehavior;
 
 // ── Die Seite ────────────────────────────────────────────────────────────────
@@ -59,7 +65,10 @@ export default function GlobalSeitePage() {
 }
 
 function Seite({ s }: { s: GlobalSeite }) {
-  const t = GLOBAL_WOERTER.de;
+  const sp = globalSprache(s);
+  const t = GLOBAL_WOERTER[sp];
+  const u = GLOBAL_SEITE_WOERTER[sp];
+  const w = GLOBAL_SEITE_WORTE[sp];
   const inhalt = useMemo(() => globalInhalt(s), [s]);
   const nummer = useMemo(() => {
     const m = new Map<string, string>();
@@ -87,13 +96,14 @@ function Seite({ s }: { s: GlobalSeite }) {
   }, []);
 
   const paket = s.paket ?? null;
-  const beauftragen = paket ? globalStartPfad(paket, "de", s.auftraggeber) : "/business#pakete";
+  const beauftragen = paket ? globalStartPfad(paket, sp, s.auftraggeber) : globalPaketePfad(sp);
+  const paketName = paket ? globalPaket(paket)![sp].name : "";
   const zumGespraech = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }); };
   const klickBeauftragen = () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: s.pfad });
   const krumen = globalKrumen(s);
 
   return (
-    <Dunkel seite="business" titel={s.seo.titel} beschreibung={s.seo.beschreibung}>
+    <Dunkel seite="business" titel={s.seo.titel} beschreibung={s.seo.beschreibung} sprache={sp}>
       <div className="fg fd">
         <div className="fd-fortschritt" aria-hidden="true"><i ref={fortschritt as any} /></div>
 
@@ -101,7 +111,7 @@ function Seite({ s }: { s: GlobalSeite }) {
         <header className="fd-kopf">
           <div className="fg-rahmen fd-kopf-raster">
             <Auf>
-              <nav aria-label="Brotkrumen">
+              <nav aria-label={u.krumen}>
                 <ol className="fd-krumen">
                   {/* 19.09.2026: Die Brotkrumen beginnen bei FIAON Global — nie auf der Startseite der Privatkunden. */}
                   {krumen.map((k, i) => (
@@ -114,7 +124,7 @@ function Seite({ s }: { s: GlobalSeite }) {
               <p className="fd-lead">{s.lead}</p>
               <div className="fg-knoepfe fd-kopf-knoepfe">
                 <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>
-                  {paket ? `${globalPaket(paket)!.de.name} beauftragen` : t.knopfPakete}<Pfeil />
+                  {paket ? t.beauftragen(paketName) : t.knopfPakete}<Pfeil />
                 </a>
                 <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
               </div>
@@ -125,10 +135,10 @@ function Seite({ s }: { s: GlobalSeite }) {
               ) : null}
             </Auf>
             <Auf verzoegerung={140}>
-              <aside className="fd-merkblatt" aria-label="Auf einen Blick">
-                <div className="fd-merkblatt-kopf"><b>Auf einen Blick</b><span>{s.kennung}</span></div>
+              <aside className="fd-merkblatt" aria-label={u.blick}>
+                <div className="fd-merkblatt-kopf"><b>{u.blick}</b><span>{s.kennung}</span></div>
                 <dl>{s.blick.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-                <div className="fd-merkblatt-fuss"><span>Stand {datumDe(s.stand)}</span><span>FIAON LTD · Companies House 17318250</span></div>
+                <div className="fd-merkblatt-fuss"><span>{u.stand(datumIn(s.stand, sp))}</span><span>{FIAON_FIRMA.name} · Companies House {FIAON_FIRMA.companyNo}</span></div>
               </aside>
             </Auf>
           </div>
@@ -136,8 +146,8 @@ function Seite({ s }: { s: GlobalSeite }) {
 
         {/* ── Körper ─────────────────────────────────────────────────────── */}
         <div className="fd-koerper">
-          <nav className="fd-inhalt" aria-label="Inhalt dieser Seite">
-            <p>Inhalt</p>
+          <nav className="fd-inhalt" aria-label={u.inhaltLabel}>
+            <p>{u.inhalt}</p>
             <ol>
               {inhalt.map((e) => (
                 <li key={e.id}><a href={`#${e.id}`} aria-current={aktiv === e.id ? "true" : undefined}
@@ -147,46 +157,46 @@ function Seite({ s }: { s: GlobalSeite }) {
               ))}
             </ol>
             <div className="fd-inhalt-fuss">
-              <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>{paket ? "Jetzt beauftragen" : t.knopfPakete}</a>
+              <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>{paket ? u.jetzt : t.knopfPakete}</a>
               <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
             </div>
           </nav>
 
           <article className="fd-text">
             <details className="fd-inhalt-mobil">
-              <summary>Inhalt dieser Seite</summary>
+              <summary>{u.inhaltLabel}</summary>
               <ol>
                 {inhalt.map((e) => <li key={e.id}><a href={`#${e.id}`}><i>{e.id === "kurz" ? "—" : nummer.get(e.id)}</i>{e.titel}</a></li>)}
               </ol>
             </details>
 
-            <section id="kurz" className="fd-kurz" aria-label="Kurz beantwortet">
-              <span className="fd-marke">Kurz beantwortet</span>
+            <section id="kurz" className="fd-kurz" aria-label={w.kurz}>
+              <span className="fd-marke">{w.kurz}</span>
               <p>{s.kurz}</p>
             </section>
 
-            {s.bloecke.map((b) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} />)}
+            {s.bloecke.map((b) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} />)}
 
             {/* 19.09.2026 (E-196): die Jahresbetreuung ab dem zweiten Jahr — auf jeder Seite, dieselben Sätze wie im Vertrag. */}
-            <GlobalJahresbetreuung sprache="de" startPfad={beauftragen} knopf={t.jbKnopf} so={t.jbSo} />
+            <GlobalJahresbetreuung sprache={sp} startPfad={beauftragen} knopf={t.jbKnopf} so={t.jbSo} />
 
             {s.fragen.length > 0 && (
               <section id="fragen" className="fd-abschnitt">
                 <span className="fd-nr">{nummer.get("fragen")}.</span>
-                <h2 className="fd-h2 fg-h2">Häufige Fragen</h2>
+                <h2 className="fd-h2 fg-h2">{w.fragen}</h2>
                 <div className="fd-fragen"><Fragen items={s.fragen} /></div>
               </section>
             )}
 
             <footer className="fd-vermerk">
-              <span><b>Stand:</b> {datumDe(s.stand)} · <b>Redaktion:</b> FIAON Global · <b>Kennung:</b> {s.kennung}</span>
+              <span><b>{u.vermerkStand}</b> {datumIn(s.stand, sp)} · <b>{u.vermerkRedaktion}</b> FIAON Global · <b>{u.vermerkKennung}</b> {s.kennung}</span>
               {s.quellen?.length ? (
                 <>
-                  <span><b>Quellen</b></span>
+                  <span><b>{u.quellen}</b></span>
                   <ol>{s.quellen.map((q) => <li key={q.url}><a href={q.url} target="_blank" rel="noopener noreferrer">{q.titel}</a></li>)}</ol>
                 </>
               ) : null}
-              <span>Diese Seite erklärt Grundlagen und ersetzt keine steuerliche oder rechtliche Prüfung Ihres Falls. Die Prüfung vor der Gründung durch unseren Partner-Steuerberater ist in jedem Paket enthalten.</span>
+              <span>{u.vermerkHinweis}</span>
             </footer>
           </article>
         </div>
@@ -207,15 +217,15 @@ function Seite({ s }: { s: GlobalSeite }) {
         {/* ── Weiterlesen ────────────────────────────────────────────────── */}
         {s.weiter.length > 0 && (
           <section className="fd-weiter" aria-labelledby="fd-weiter-titel">
-            <span className="fg-auge" id="fd-weiter-titel">Weiterlesen</span>
+            <span className="fg-auge" id="fd-weiter-titel">{u.weiterlesen}</span>
             <div className="fd-weiter-raster">
               {s.weiter.map((p) => {
-                const z = p === "/business" ? null : globalSeite(p);
+                const z = p === globalSeitePfad(sp) ? null : globalSeite(p);
                 return (
                   <a key={p} href={p}>
                     <span className="tag">{z ? z.auge.split(" · ").pop() : "FIAON Global"}</span>
-                    <span className="titel">{z ? `${z.h1.replace(/[.]$/, "")}` : "Die Übersicht"}</span>
-                    <span className="text">{z ? globalMenuePunkt(z.pfad)?.text ?? z.seo.beschreibung.slice(0, 90) + "…" : "Pakete, Leistungen, Vertragspartner"}</span>
+                    <span className="titel">{z ? `${z.h1.replace(/[.]$/, "")}` : u.uebersichtTitel}</span>
+                    <span className="text">{z ? globalMenuePunkt(z.pfad)?.text ?? z.seo.beschreibung.slice(0, 90) + "…" : u.uebersichtText}</span>
                     <span className="pfeil"><Pfeil /></span>
                   </a>
                 );
@@ -230,7 +240,7 @@ function Seite({ s }: { s: GlobalSeite }) {
             <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
             <p className="fg-lead">{s.schluss?.text ?? t.schlussText}</p>
             <div className="fg-knoepfe">
-              <a className="fg-knopf" href="/business#pakete">{t.knopfPakete}<Pfeil /></a>
+              <a className="fg-knopf" href={globalPaketePfad(sp)}>{t.knopfPakete}<Pfeil /></a>
               <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
             </div>
           </div>
@@ -238,8 +248,8 @@ function Seite({ s }: { s: GlobalSeite }) {
 
         {/* ── Handlungsleiste am Handy ───────────────────────────────────── */}
         <div className={`fd-mobil${leiste ? " da" : ""}`} aria-hidden={!leiste}>
-          <a className="hell" href="#gespraech" onClick={zumGespraech} tabIndex={leiste ? 0 : -1}>Erstgespräch</a>
-          <a className="voll" href={beauftragen} onClick={paket ? klickBeauftragen : undefined} tabIndex={leiste ? 0 : -1}>{paket ? `${globalPaket(paket)!.de.name.replace(/^Global\s+/, "")} beauftragen` : `Pakete ab ${globalPreisText("global_struktur")}`}</a>
+          <a className="hell" href="#gespraech" onClick={zumGespraech} tabIndex={leiste ? 0 : -1}>{t.leisteGespraech}</a>
+          <a className="voll" href={beauftragen} onClick={paket ? klickBeauftragen : undefined} tabIndex={leiste ? 0 : -1}>{paket ? (sp === "en" ? u.jetzt : t.beauftragen(paketName.replace(/^Global\s+/, ""))) : t.leistePakete(globalPreisText("global_struktur", sp))}</a>
         </div>
       </div>
     </Dunkel>
@@ -273,7 +283,8 @@ function Kopf({ nr, h2, lead }: { nr?: string; h2: string; lead?: string }) {
   );
 }
 
-function Baustein({ b, nr, seite }: { b: GlobalBlock; nr?: string; seite: GlobalSeite }): ReactNode {
+function Baustein({ b, nr, seite, sp }: { b: GlobalBlock; nr?: string; seite: GlobalSeite; sp: Sp }): ReactNode {
+  const u = GLOBAL_SEITE_WOERTER[sp];
   switch (b.typ) {
     case "text":
       return (
@@ -307,7 +318,7 @@ function Baustein({ b, nr, seite }: { b: GlobalBlock; nr?: string; seite: Global
         <section id={b.id} className="fd-abschnitt">
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
           <div className="fd-rollen">
-            {([["FIAON übernimmt", b.fiaon, "fiaon"], ["Partner übernehmen", b.partner, ""], ["Sie übernehmen", b.sie, ""]] as const).map(([titel, liste, k]) => (
+            {([[u.rollen.fiaon, b.fiaon, "fiaon"], [u.rollen.partner, b.partner, ""], [u.rollen.sie, b.sie, ""]] as const).map(([titel, liste, k]) => (
               <div key={titel} className={`fd-rolle ${k}`}><h3>{titel}</h3><ul>{liste.map((x) => <li key={x}>{x}</li>)}</ul></div>
             ))}
           </div>
@@ -349,40 +360,40 @@ function Baustein({ b, nr, seite }: { b: GlobalBlock; nr?: string; seite: Global
           <div className="fd-hinweis">
             <span className="fd-marke">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5" /><path d="M12 11v6M12 7.5v.5" /></svg>
-              Vermerk
+              {u.vermerk}
             </span>
             <ol>{b.punkte.map((p) => <li key={p.slice(0, 50)}><span>{p}</span></li>)}</ol>
           </div>
         </section>
       );
     case "zitat":
-      return <blockquote id={b.id} className="fd-zitat"><p>„{b.text}“</p>{b.quelle && <footer>{b.quelle}</footer>}</blockquote>;
+      return <blockquote id={b.id} className="fd-zitat"><p>{u.zitat(b.text)}</p>{b.quelle && <footer>{b.quelle}</footer>}</blockquote>;
     case "paket":
       return (
         <section id={b.id} className="fd-abschnitt">
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <PaketTafel k={b.paket} seite={seite.pfad} art={seite.auftraggeber} />
+          <PaketTafel k={b.paket} seite={seite.pfad} art={seite.auftraggeber} sp={sp} />
         </section>
       );
     case "pakete":
       return (
         <section id={b.id} className="fd-abschnitt">
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <PaketeKompakt seite={seite.pfad} art={seite.auftraggeber} />
+          <PaketeKompakt seite={seite.pfad} art={seite.auftraggeber} sp={sp} />
         </section>
       );
     case "standorte":
       return (
         <section id={b.id} className="fd-abschnitt">
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <Standorte />
+          <Standorte sp={sp} />
         </section>
       );
     case "finder":
       return (
         <section id={b.id} className="fd-abschnitt">
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <PaketFinder />
+          <PaketFinder sp={sp} seite={seite.pfad} />
         </section>
       );
     case "verzeichnis":
@@ -414,11 +425,12 @@ function Baustein({ b, nr, seite }: { b: GlobalBlock; nr?: string; seite: Global
 }
 
 // ── Das eine passende Paket ──────────────────────────────────────────────────
-export function PaketTafel({ k, seite, art }: { k: GlobalSchluessel; seite: string; art?: "privat" }) {
+export function PaketTafel({ k, seite, art, sp = "de" }: { k: GlobalSchluessel; seite: string; art?: "privat"; sp?: Sp }) {
   const p = globalPaket(k)!;
-  const w = p.de;
-  const kapital = globalKapital(k, "de");
-  const t = GLOBAL_WOERTER.de;
+  const w = p[sp];
+  const kapital = globalKapital(k, sp);
+  const t = GLOBAL_WOERTER[sp];
+  const u = GLOBAL_SEITE_WOERTER[sp];
   return (
     <div className="fd-tafel">
       <div className="fd-tafel-links">
@@ -426,7 +438,7 @@ export function PaketTafel({ k, seite, art }: { k: GlobalSchluessel; seite: stri
         <h3>{w.name}</h3>
         <p className="fuer">{w.fuer}</p>
         <ul>{w.leistungen.slice(0, 6).map((x) => <li key={x}><Haken />{x}</li>)}</ul>
-        <a className="mehr" href="/business#pakete">Alle Pakete und Leistungen im Vergleich</a>
+        <a className="mehr" href={globalPaketePfad(sp)}>{u.alleImVergleich}</a>
       </div>
       <div className="fd-tafel-rechts">
         <div className="fg-kapital">
@@ -436,11 +448,11 @@ export function PaketTafel({ k, seite, art }: { k: GlobalSchluessel; seite: stri
         </div>
         <div className="fg-preis">
           <span className="fg-preis-marke">{t.festpreis}</span>
-          <b className="fg-glanz">{globalPreisText(k)}</b>
+          <b className="fg-glanz">{globalPreisText(k, sp)}</b>
           <span className="fg-chip"><Haken groesse={13} />{t.inklusive}</span>
         </div>
         <div className="tun">
-          <a className="fg-knopf voll" href={globalStartPfad(k, "de", art)} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: k, seite })}>{w.name} beauftragen<Pfeil /></a>
+          <a className="fg-knopf voll" href={globalStartPfad(k, sp, art)} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: k, seite })}>{t.beauftragen(w.name)}<Pfeil /></a>
           <a className="fg-textknopf" href="#gespraech" style={{ textAlign: "center" }} onClick={(e) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }); }}>{t.erstSprechen}</a>
         </div>
       </div>
@@ -449,19 +461,22 @@ export function PaketTafel({ k, seite, art }: { k: GlobalSchluessel; seite: stri
 }
 
 // ── Alle vier Pakete kompakt ─────────────────────────────────────────────────
-export function PaketeKompakt({ seite, art }: { seite: string; art?: "privat" }) {
+export function PaketeKompakt({ seite, art, sp = "de" }: { seite: string; art?: "privat"; sp?: Sp }) {
+  const t = GLOBAL_WOERTER[sp];
+  const u = GLOBAL_SEITE_WOERTER[sp];
   return (
     <div className="fd-pakete">
       {GLOBAL_PAKETE.map((p) => {
-        const kapital = globalKapital(p.key, "de");
+        const kapital = globalKapital(p.key, sp);
+        const w = p[sp];
         return (
-          <a key={p.key} className={`fd-paket${p.key === FOKUS ? " fokus" : ""}`} href={globalStartPfad(p.key, "de", art)} aria-label={`${p.de.name} beauftragen`}
+          <a key={p.key} className={`fd-paket${p.key === FOKUS ? " fokus" : ""}`} href={globalStartPfad(p.key, sp, art)} aria-label={t.beauftragen(w.name)}
              onClick={() => werbeEreignis("global_beauftragen_klick", { paket: p.key, seite })}>
-            <span className="marke">{p.de.marke}</span>
-            <span className="name">{p.de.name}</span>
-            <span className="kap">Kapitalrahmen{kapital.bisZu ? ` ${kapital.bisZu}` : ""}</span>
+            <span className="marke">{w.marke}</span>
+            <span className="name">{w.name}</span>
+            <span className="kap">{u.kapitalrahmen}{kapital.bisZu ? ` ${kapital.bisZu}` : ""}</span>
             <span className="kapwert fg-glanz">{kapital.wert}</span>
-            <span className="zeile"><span>{p.de.dauerKurz.charAt(0).toUpperCase() + p.de.dauerKurz.slice(1)}</span><b>{globalPreisText(p.key)}</b></span>
+            <span className="zeile"><span>{w.dauerKurz.charAt(0).toUpperCase() + w.dauerKurz.slice(1)}</span><b>{globalPreisText(p.key, sp)}</b></span>
             <span className="pfeil"><Pfeil /></span>
           </a>
         );
@@ -471,60 +486,41 @@ export function PaketeKompakt({ seite, art }: { seite: string; art?: "privat" })
 }
 
 // ── London · Zürich · Miami — mit Ortszeit ───────────────────────────────────
-export function Standorte() {
+export function Standorte({ sp = "de" }: { sp?: Sp }) {
   const [jetzt, setJetzt] = useState(() => new Date());
   useEffect(() => { const t = window.setInterval(() => setJetzt(new Date()), 30_000); return () => window.clearInterval(t); }, []);
-  const zeit = (tz: string) => jetzt.toLocaleTimeString("de-DE", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+  const zeit = (tz: string) => jetzt.toLocaleTimeString(sp === "en" ? "en-GB" : "de-DE", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+  const u = GLOBAL_SEITE_WOERTER[sp];
   return (
     <>
       <div className="fd-standorte">
-        {GLOBAL_STANDORTE.map((o) => (
+        {GLOBAL_STANDORTE.map((o) => {
+          const x = sp === "en" ? o.en : o;
+          return (
           <div key={o.schluessel} className="fd-standort">
-            <div className="stadt"><b>{o.stadt}</b><span className="zeit" aria-label={`Ortszeit ${o.stadt}`}>{zeit(o.zeitzone)}</span></div>
-            <span className="land">{o.land}</span>
+            <div className="stadt"><b>{x.stadt}</b><span className="zeit" aria-label={u.ortszeit(x.stadt)}>{zeit(o.zeitzone)}</span></div>
+            <span className="land">{x.land}</span>
             <span className="ges">{o.gesellschaft}</span>
-            <span className="rechtsform">{o.rechtsform}</span>
-            <p className="rolle">{o.rolle}</p>
+            <span className="rechtsform">{x.rechtsform}</span>
+            <p className="rolle">{x.rolle}</p>
             <address>{o.adresse.map((z) => <span key={z}>{z}</span>)}</address>
             {o.register && <span className="reg">{o.register}</span>}
           </div>
-        ))}
+          );
+        })}
       </div>
-      <p className="fd-verbunden">{GLOBAL_VERBUNDEN}</p>
+      <p className="fd-verbunden">{sp === "en" ? GLOBAL_VERBUNDEN_EN : GLOBAL_VERBUNDEN}</p>
     </>
   );
 }
 
 // ── Der Paket-Finder ─────────────────────────────────────────────────────────
-const FRAGEN_FINDER: { frage: string; hilfe: string; kurz: string; antworten: { titel: string; text: string; stufe: 0 | 1 | 2 | 3 }[] }[] = [
-  // 19.09.2026: „mit der US-Gesellschaft" statt „in den USA" — das Kapital ist nicht an die USA gebunden. Deckungsgleich mit preise.ts (Merkblatt).
-  { kurz: "Ziel", frage: "Was ist Ihr Ziel mit der US-Gesellschaft?", hilfe: "Wählen Sie, was dem Vorhaben am nächsten kommt.", antworten: [
-    { titel: "Eine US-Gesellschaft mit Steuernummern", text: "Gründung, EIN, ITIN, Adresse — und der erste Konto- und Kartenantrag.", stufe: 0 },
-    { titel: "Gesellschaft, Konto und weitere Karten", text: "Nach der ersten Karte planvoll weitere Herausgeber gewinnen.", stufe: 1 },
-    { titel: "Kapital aufbauen bis zum Bankdarlehen", text: "Über mehrere Herausgeber bis zur Kennzahlen-Mappe.", stufe: 2 },
-    { titel: "Alles davon — mit Auftakt vor Ort", text: "Der Aufbau persönlich in Miami, mit Terminen vor Ort.", stufe: 3 },
-  ] },
-  { kurz: "Kapitalrahmen", frage: "Welchen Kapitalrahmen streben Sie an?", hilfe: "Ihr Ziel — über jeden Rahmen entscheidet das Institut.", antworten: [
-    { titel: "Rund 50.000 $", text: "Der Einstieg mit der ersten Karte.", stufe: 0 },
-    { titel: "Rund 100.000 $", text: "Mehrere Karten in einer klugen Reihenfolge.", stufe: 1 },
-    { titel: "Rund 250.000 $", text: "Über mehrere Herausgeber hinweg.", stufe: 2 },
-    { titel: "Darüber hinaus", text: "Der größte Rahmen, den ein Paket begleitet.", stufe: 3 },
-  ] },
-  { kurz: "Zeit", frage: "Wie viel Zeit geben Sie dem Aufbau?", hilfe: "Erfahrungswerte — Behörden und Institute bestimmen ihr Tempo.", antworten: [
-    { titel: "Rund acht Wochen", text: "Gründung, Steuernummern, erste Karte.", stufe: 0 },
-    { titel: "Drei bis fünf Monate", text: "Zeit für die Kartenleiter.", stufe: 1 },
-    { titel: "Sechs Monate und länger", text: "Zeit bis zur Kapital-Etappe.", stufe: 2 },
-    { titel: "So lange, wie es braucht", text: "Mit Auftakt vor Ort und Vorrang bei Terminen.", stufe: 3 },
-  ] },
-  { kurz: "Begleitung", frage: "Wie möchten Sie begleitet werden?", hilfe: "Jedes Paket hat einen festen Ansprechpartner.", antworten: [
-    { titel: "Digital, aus der Ferne", text: "Dokumentenraum und Ansprechpartner genügen.", stufe: 0 },
-    { titel: "Mit monatlichem Durchgang", text: "Ein fester Termin im Monat mit Ihrem Ansprechpartner.", stufe: 1 },
-    { titel: "Mit Vorrang bei Terminen vor Ort", text: "Unser Team in Miami nimmt Termine für Sie vorrangig wahr.", stufe: 2 },
-    { titel: "Persönlich in Miami", text: "Sie sitzen selbst am Tisch — Flug und Hotel inklusive.", stufe: 3 },
-  ] },
-];
-
-export function PaketFinder() {
+// Die Fragen stehen seit 24.09.2026 (E-234) in client/src/i18n/global-seite.ts — deutsch und englisch,
+// die vierte Antwort jeder Frage ist Stufe 3 (Global VIP), die erste Stufe 0 (Global Struktur).
+export function PaketFinder({ sp = "de", seite = "/business/paket-finder" }: { sp?: Sp; seite?: string }) {
+  const u = GLOBAL_SEITE_WOERTER[sp];
+  const t = GLOBAL_WOERTER[sp];
+  const FRAGEN_FINDER = u.finder.fragen;
   const [antworten, setAntworten] = useState<(number | null)[]>([null, null, null, null]);
   const [schritt, setSchritt] = useState(0);
   const fertig = schritt >= FRAGEN_FINDER.length;
@@ -533,16 +529,17 @@ export function PaketFinder() {
     window.setTimeout(() => setSchritt((x) => Math.min(x + 1, FRAGEN_FINDER.length)), 220);
   };
   // Das Paket muss jede Anforderung tragen — also die höchste Stufe aus Ziel, Kapitalrahmen und Begleitung.
-  const stufen = antworten.map((a, i) => (a == null ? 0 : FRAGEN_FINDER[i].antworten[a].stufe));
+  const stufen = antworten.map((a) => (a == null ? 0 : Math.min(3, a)));
   const stufe = Math.max(stufen[0], stufen[1], stufen[3]) as 0 | 1 | 2 | 3;
   const ergebnis = GLOBAL_PAKETE[stufe];
+  const e = ergebnis[sp];
   useEffect(() => { if (fertig) werbeEreignis("global_paketfinder_ergebnis", { paket: ergebnis.key }); }, [fertig]);
-  const kapital = globalKapital(ergebnis.key, "de");
+  const kapital = globalKapital(ergebnis.key, sp);
   const zeitKnapp = stufen[2] < stufe;
 
   return (
     <div className="fd-finder">
-      <ol className="fd-finder-stufen" aria-label="Fortschritt">
+      <ol className="fd-finder-stufen" aria-label={u.finder.fortschritt}>
         {FRAGEN_FINDER.map((f, i) => (
           <li key={f.kurz} data-stand={i === schritt ? "aktiv" : i < schritt ? "fertig" : "offen"}><b>{ROEMISCH[i]}</b>{f.kurz}</li>
         ))}
@@ -560,43 +557,43 @@ export function PaketFinder() {
             ))}
           </div>
           <div className="fd-finder-fuss" style={{ padding: "22px 0 18px" }}>
-            <button type="button" className="fg-textknopf" disabled={schritt === 0} onClick={() => setSchritt((x) => Math.max(0, x - 1))}>Zurück</button>
-            <span className="fg-leise">Frage {schritt + 1} von {FRAGEN_FINDER.length}</span>
+            <button type="button" className="fg-textknopf" disabled={schritt === 0} onClick={() => setSchritt((x) => Math.max(0, x - 1))}>{u.finder.zurueck}</button>
+            <span className="fg-leise">{u.finder.frageVon(schritt + 1, FRAGEN_FINDER.length)}</span>
           </div>
         </fieldset>
       ) : (
         <div className="fd-ergebnis" aria-live="polite">
-          <span className="fd-marke">Am ehesten passt</span>
-          <h3>{ergebnis.de.name} <span style={{ fontSize: ".55em", color: "var(--leise)" }}>· {ergebnis.de.marke}</span></h3>
+          <span className="fd-marke">{u.finder.ergebnis}</span>
+          <h3>{e.name} <span style={{ fontSize: ".55em", color: "var(--leise)" }}>· {e.marke}</span></h3>
           <ul className="gruende">
             {FRAGEN_FINDER.map((f, i) => antworten[i] != null && (
               <li key={f.kurz}><Haken /><span><b style={{ fontWeight: 500, color: "var(--tinte)" }}>{f.kurz}:</b> {f.antworten[antworten[i]!].titel}</span></li>
             ))}
           </ul>
-          {zeitKnapp && <p className="fd-p" style={{ fontSize: 14.5 }}>Ihr Zeitrahmen ist knapper, als dieses Paket in der Regel braucht ({ergebnis.de.dauerKurz}). Das besprechen wir im Gespräch ehrlich mit Ihnen.</p>}
+          {zeitKnapp && <p className="fd-p" style={{ fontSize: 14.5 }}>{u.finder.zeitKnapp(e.dauerKurz)}</p>}
           <div className="fd-tafel" style={{ marginTop: 22 }}>
             <div className="fd-tafel-links">
-              <span className="marke">{ergebnis.de.marke}</span>
-              <h3>{ergebnis.de.name}</h3>
-              <p className="fuer">{ergebnis.de.fuer}</p>
-              <ul>{ergebnis.de.leistungen.slice(0, 5).map((x) => <li key={x}><Haken />{x}</li>)}</ul>
+              <span className="marke">{e.marke}</span>
+              <h3>{e.name}</h3>
+              <p className="fuer">{e.fuer}</p>
+              <ul>{e.leistungen.slice(0, 5).map((x) => <li key={x}><Haken />{x}</li>)}</ul>
             </div>
             <div className="fd-tafel-rechts">
               <div className="fg-kapital">
-                <span>{kapital.bisZu ? `Kapitalrahmen ${kapital.bisZu}` : "Kapitalrahmen"}</span>
+                <span>{kapital.bisZu ? `${u.kapitalrahmen} ${kapital.bisZu}` : u.kapitalrahmen}</span>
                 <b className="fg-glanz">{kapital.wert}</b>
-                <em>Ihr Ziel — über den Rahmen entscheidet das Institut</em>
+                <em>{t.planungZusatz}</em>
               </div>
-              <div className="fg-preis"><b className="fg-glanz">{globalPreisText(ergebnis.key)}</b><span>Festpreis · einmalig</span></div>
+              <div className="fg-preis"><b className="fg-glanz">{globalPreisText(ergebnis.key, sp)}</b><span>{u.festpreisEinmalig}</span></div>
               <div className="tun">
-                <a className="fg-knopf voll" href={globalStartPfad(ergebnis.key, "de")} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: ergebnis.key, seite: "/business/paket-finder" })}>{ergebnis.de.name} beauftragen<Pfeil /></a>
-                <a className="fg-textknopf" href="#gespraech" style={{ textAlign: "center" }} onClick={(e) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }); }}>Erst sprechen</a>
+                <a className="fg-knopf voll" href={globalStartPfad(ergebnis.key, sp)} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: ergebnis.key, seite })}>{t.beauftragen(e.name)}<Pfeil /></a>
+                <a className="fg-textknopf" href="#gespraech" style={{ textAlign: "center" }} onClick={(ev) => { ev.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }); }}>{u.finder.erstSprechen}</a>
               </div>
             </div>
           </div>
           <div className="fd-finder-fuss" style={{ padding: "18px 0 0" }}>
-            <button type="button" className="fg-textknopf" onClick={() => { setAntworten([null, null, null, null]); setSchritt(0); }}>Noch einmal beginnen</button>
-            <span className="fg-leise">Eine Orientierung — keine Zusage.</span>
+            <button type="button" className="fg-textknopf" onClick={() => { setAntworten([null, null, null, null]); setSchritt(0); }}>{u.finder.neu}</button>
+            <span className="fg-leise">{u.finder.orientierung}</span>
           </div>
         </div>
       )}

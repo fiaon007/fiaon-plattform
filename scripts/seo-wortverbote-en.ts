@@ -16,7 +16,9 @@ import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 
 const WURZEL = path.resolve(import.meta.dirname ?? ".", "..");
 const VERBOTEN: { muster: RegExp; erlaubtDavor: RegExp | null; name: string }[] = [
-  { muster: /\bguarantee[sd]?\b/gi, erlaubtDavor: /\b(no|not|never|without|nobody can|cannot|can't|nor)\s*(a |any |legal )?$/i, name: "guarantee" },
+  // 24.09.2026 (E-234): „personal guarantee" ist der Fachbegriff für die persönliche Haftung des Inhabers bei Firmenkarten —
+  // eine Pflichtangabe (GLOBAL_PFLICHTHINWEIS.en[2]), kein Versprechen von FIAON.
+  { muster: /\bguarantee[sd]?\b/gi, erlaubtDavor: /(\b(no|not|never|without|nobody can|cannot|can't|nor)\s*(a |any |legal )?|\bpersonal\s+)$/i, name: "guarantee" },
   { muster: /\badvice\b/gi, erlaubtDavor: /\b(no|not|never|without|neither|nor|instead of|replace|replaces|is not|are not)\s*(legal |financial |investment |loan |debt |professional |tax |a |any |or )*$/i, name: "advice" },
   { muster: /\brecommend(s|ed|ation|ations)?\b/gi, erlaubtDavor: null, name: "recommend" },
   { muster: /\bimprove(s|d)? (your|the|his|her|their) (score|credit score)\b/gi, erlaubtDavor: /\b(nobody can|cannot|can't|not|never|no one can)\s*$/i, name: "improve your score" },
@@ -61,6 +63,19 @@ pruefeText(Object.values(GLOBAL_JAHRESBETREUUNG.en).flat().filter((x): x is stri
 // 19.09.2026 (Justin): „Das Kapital ist nicht an die USA gebunden" — die englischen Felder der einen Quelle.
 pruefeText(Object.values(GLOBAL_KAPITAL_FREI.en).join("\n"), "shared/fiaon-global.ts (GLOBAL_KAPITAL_FREI.en)", treffer);
 for (const m of GLOBAL_SCHLAGZEILEN.meldungen) pruefeText(`${m.en}\n${m.kurzEn}`, "shared/fiaon-global-schlagzeilen.ts", treffer);
+// 24.09.2026 (E-234): Die englischen Unterseiten von FIAON Global trägt der Server erst zur Laufzeit in die
+// SEO-Tabelle ein — der Quelltext-Blick oben sieht sie nicht. Hier: jeder englische Eintrag der Business-Welt
+// (Titel, Beschreibung, H1, Lead, Abschnitte, FAQ), genau der Text, den Suchmaschinen lesen. Die schärferen
+// Global-Regeln prüft scripts/pruef-global-en.ts am Register.
+{
+  await import("../server/lib/fiaon-global-seo");
+  const { SEO_SEITEN, seoFragen } = await import("../shared/fiaon-seo-seiten");
+  for (const e of Object.values(SEO_SEITEN)) {
+    if (e.sprache !== "en" || !/^\/en\/business\//.test(e.pfad)) continue;
+    const teile = [e.titel, e.beschreibung, e.h1, e.lead, ...(e.abschnitte ?? []).flatMap((x) => [x.h2, x.text, ...(x.punkte ?? [])]), ...seoFragen(e.pfad).flatMap((f) => [f.f, f.a])];
+    for (const t of teile) if (t) pruefeText(t, `SEO ${e.pfad}`, treffer);
+  }
+}
 
 if (treffer.length) {
   console.log(`Wortverbote (EN): ${treffer.length} Treffer`);

@@ -37,6 +37,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
+import { globalSchwester } from "./fiaon-global-pfade";
+
 export const SEO_BASIS = "https://fiaon.com";
 /** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-232). */
 export const GLOBAL_BILD = `${SEO_BASIS}/og-global.jpg`;
@@ -359,7 +361,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "Also for private individuals.", text: "You do not need a company of your own: founders, freelancers and business owners ordering privately instruct FIAON Global directly and become the shareholder of the US company themselves. Contract and invoice are issued in their name, the fixed price is a final price, and the statutory right of withdrawal applies to consumers." },
       ],
       // 19.09.2026: Kein Verweis mehr auf /preise und /privatkunden — die Business-Welt verlinkt nie die Privatkunden-Seiten.
-      weiter: [],
+      // 24.09.2026 (E-234): dieselben Ziele wie deutsch — weiterlesen() nimmt die englischen Schwestern.
+      weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
       krumen: [{ name: "Business", pfad: "/en/business" }],
     },
   },
@@ -1750,8 +1753,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/antrag": { pfad: "/antrag", art: "intern", stand: "2026-08-23", prio: 0.1, robots: "noindex,follow", titel: "Antrag stellen — FIAON", beschreibung: "Ihr Antrag bei FIAON in wenigen Schritten: Paket wählen, Angaben machen, Vertrag annehmen – und sofort in Ihrem Bereich.", h1: "Ihr Antrag bei FIAON", lead: "Paket wählen, wenige Angaben, Vertrag annehmen – zwei Minuten, dann ist Ihr Bereich aktiv." },
   "/business/auftrag": { pfad: "/business/auftrag", art: "intern", stand: "2026-09-17", prio: 0.1, robots: "noindex,nofollow", bild: GLOBAL_BILD, titel: "Mein Auftrag — FIAON Global", beschreibung: "Stand Ihres Auftrags bei FIAON Global: Etappen, nächster Schritt, Dokumente, Pflichtenkalender und Ihr Ansprechpartner.", h1: "Mein Auftrag", lead: "Etappen, nächster Schritt, Dokumente und Pflichtenkalender Ihres Auftrags.", en: { pfad: "/en/business/auftrag", bild: GLOBAL_BILD_EN, titel: "My order — FIAON Global", beschreibung: "The status of your FIAON Global order: stages, next step, documents, compliance calendar and your contact.", h1: "My order", lead: "Stages, next step, documents and compliance calendar of your order." } },
   // 19.09.2026: Rechtliches der Business-Welt (client/src/pages/site/global-recht.tsx).
-  "/business/widerrufsbelehrung": { pfad: "/business/widerrufsbelehrung", art: "recht", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", titel: "Widerrufsbelehrung — FIAON Global", beschreibung: "Die Widerrufsbelehrung für Aufträge über FIAON Global, die Sie als Privatperson und Verbraucher erteilen — mit Muster-Widerrufsformular.", h1: "Widerrufsbelehrung für Privatpersonen", lead: "Sie gilt für Aufträge über FIAON Global, die Sie als Verbraucher erteilen. Derselbe Wortlaut steht als Anlage in Ihrem Vertrag.", en: { pfad: "/en/business/widerrufsbelehrung", titel: "Withdrawal instructions — FIAON Global", beschreibung: "The withdrawal instructions for FIAON Global orders placed by private individuals as consumers — with the model withdrawal form.", h1: "Withdrawal instructions for private individuals", lead: "They apply to FIAON Global orders you place as a consumer. The same wording is attached to your contract as an annex." } },
-  "/business/mustervertrag": { pfad: "/business/mustervertrag", art: "intern", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", titel: "Mustervertrag — FIAON Global", beschreibung: "Der Auftrag über FIAON Global Wort für Wort, wie er zur Unterschrift vorgelegt wird — für alle vier Pakete, als Unternehmen oder als Privatperson.", h1: "Der Vertrag, bevor Sie beauftragen.", lead: "So lautet Ihr Auftrag — Wort für Wort, wie er Ihnen zur Unterschrift vorgelegt wird.", en: { pfad: "/en/business/mustervertrag", titel: "Model contract — FIAON Global", beschreibung: "The FIAON Global engagement word for word, as presented for signature — for all four packages, as a company or as a private individual.", h1: "The contract, before you order.", lead: "This is your engagement — word for word, as it is presented to you for signature." } },
+  "/business/widerrufsbelehrung": { pfad: "/business/widerrufsbelehrung", art: "recht", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Widerrufsbelehrung — FIAON Global", beschreibung: "Die Widerrufsbelehrung für Aufträge über FIAON Global, die Sie als Privatperson und Verbraucher erteilen — mit Muster-Widerrufsformular.", h1: "Widerrufsbelehrung für Privatpersonen", lead: "Sie gilt für Aufträge über FIAON Global, die Sie als Verbraucher erteilen. Derselbe Wortlaut steht als Anlage in Ihrem Vertrag.", en: { pfad: "/en/business/widerrufsbelehrung", bild: GLOBAL_BILD_EN, titel: "Withdrawal instructions — FIAON Global", beschreibung: "The withdrawal instructions for FIAON Global orders placed by private individuals as consumers — with the model withdrawal form.", h1: "Withdrawal instructions for private individuals", lead: "They apply to FIAON Global orders you place as a consumer. The same wording is attached to your contract as an annex." } },
+  "/business/mustervertrag": { pfad: "/business/mustervertrag", art: "intern", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Mustervertrag — FIAON Global", beschreibung: "Der Auftrag über FIAON Global Wort für Wort, wie er zur Unterschrift vorgelegt wird — für alle vier Pakete, als Unternehmen oder als Privatperson.", h1: "Der Vertrag, bevor Sie beauftragen.", lead: "So lautet Ihr Auftrag — Wort für Wort, wie er Ihnen zur Unterschrift vorgelegt wird.", en: { pfad: "/en/business/mustervertrag", bild: GLOBAL_BILD_EN, titel: "Model contract — FIAON Global", beschreibung: "The FIAON Global engagement word for word, as presented for signature — for all four packages, as a company or as a private individual.", h1: "The contract, before you order.", lead: "This is your engagement — word for word, as it is presented to you for signature." } },
   "/business/start": { pfad: "/business/start", art: "intern", stand: "2026-09-17", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Auftrag — FIAON Global", beschreibung: "FIAON Global direkt beauftragen: Paket wählen, Unternehmen eintragen, Vertrag am Bildschirm unterschreiben.", h1: "Ihr Auftrag in vier Schritten", lead: "Paket wählen, Unternehmen eintragen, Vertrag unterschreiben. Vertrag und Rechnung erhalten Sie per E-Mail.", en: { pfad: "/en/business/start", bild: GLOBAL_BILD_EN, titel: "Order — FIAON Global", beschreibung: "Order FIAON Global directly: choose a package, enter your company, sign the contract on screen.", h1: "Your order in four steps", lead: "Choose a package, enter your company, sign the contract. Contract and invoice arrive by email." } },
   "/bonitaet-antrag": { pfad: "/bonitaet-antrag", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Bonitätsauskunft beantragen — FIAON", beschreibung: "Beantragen Sie Ihre geprüfte Bonitätsauskunft bei FIAON.", h1: "Bonitätsauskunft beantragen", lead: "Beantragen Sie Ihre geprüfte Bonitätsauskunft bei FIAON." },
   "/bonitaet-danke": { pfad: "/bonitaet-danke", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Vielen Dank — FIAON", beschreibung: "Ihre Anfrage ist bei uns eingegangen.", h1: "Vielen Dank", lead: "Ihre Anfrage ist bei uns eingegangen." },
@@ -1805,9 +1808,11 @@ for (const s of Object.values(SEO_SEITEN)) {
 /** Die Schwesterseite in der Zielsprache — oder null, wenn es sie (noch) nicht gibt. */
 export function schwesterPfad(pfad: string, ziel: "de" | "en"): string | null {
   const s = seoSeite(pfad);
-  if (!s) return null;
-  if ((s.sprache ?? "de") === ziel) return s.pfad;
-  return s.schwester ?? null;
+  if (s && (s.sprache ?? "de") === ziel) return s.pfad;
+  if (s?.schwester) return s.schwester;
+  // 24.09.2026 (E-234): Die Unterseiten von FIAON Global trägt erst der Server in diese Tabelle ein —
+  // im Browser kennt sie nur die kleine Paartabelle (shared/fiaon-global-pfade.ts).
+  return globalSchwester(pfad, ziel);
 }
 
 /** Die FAQ einer Seite — aus der generierten Datei, nie von Hand. */

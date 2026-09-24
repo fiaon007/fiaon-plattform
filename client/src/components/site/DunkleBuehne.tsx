@@ -14,7 +14,7 @@ import "@/styles/dunkel.css";
 
 type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "login" | "privatkunden" | "kontakt" | "business" | "plattform-konzept" | "was-ist-fiaon";
 
-export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite; titel: string; beschreibung: string; children: ReactNode }) {
+export function Dunkel({ seite, titel, beschreibung, sprache, children }: { seite: Seite; titel: string; beschreibung: string; sprache?: "de" | "en"; children: ReactNode }) {
   useEffect(() => {
     // 02.09.2026 (E-079): Steht die Seite in der gemeinsamen SEO-Tabelle,
     // gilt DEREN Titel und Beschreibung — dieselben, die der Server ins HTML
@@ -39,11 +39,14 @@ export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite;
     const alt = m?.getAttribute("content") || "";
     m?.setAttribute("content", neueBeschreibung);
     // html lang folgt der Seite: Screenreader, Silbentrennung und Google lesen es.
+    // 24.09.2026 (E-234): Die englischen Unterseiten von FIAON Global stehen im Browser nicht in der Tabelle
+    // (der Server trägt sie ein) — sie sagen ihre Sprache selbst (Prop `sprache`).
+    const englisch = tabelle?.sprache === "en" || sprache === "en";
     const langVorher = document.documentElement.lang;
-    if (tabelle?.sprache === "en") document.documentElement.lang = "en";
+    if (englisch) document.documentElement.lang = "en";
     window.scrollTo(0, 0);
-    return () => { document.title = vorher; m?.setAttribute("content", alt); if (tabelle?.sprache === "en") document.documentElement.lang = langVorher || "de"; };
-  }, [titel, beschreibung]);
+    return () => { document.title = vorher; m?.setAttribute("content", alt); if (englisch) document.documentElement.lang = langVorher || "de"; };
+  }, [titel, beschreibung, sprache]);
   // 19.09.2026: Die Business-Seiten sind hell (Kanzlei) und tragen Kopf und Fuß von FIAON Global —
   // GlassNav und PremiumFooter schalten im Business-Bereich selbst um (lib/bereich.ts).
   const business = seite === "business";

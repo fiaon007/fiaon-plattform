@@ -36,6 +36,7 @@ import {
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
 import { globalMenue } from "@shared/fiaon-global-menue";
+import { globalStartPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 // Trägt die Unterseiten von FIAON Global in die SEO-Tabelle ein — VOR jeder Abfrage.
 import "./fiaon-global-seo";
@@ -168,8 +169,11 @@ export function organisationLd(): Record<string, unknown> {
     knowsLanguage: "de",
     knowsAbout: ["Bonität", "SCHUFA", "KSV1870", "CRIF", "Bonitätsauskunft", "Löschfristen", "Inkasso", "Kreditkarte trotz Eintrag",
       "US-LLC-Gründung", "US-Firmengründung aus Deutschland", "Employer Identification Number (EIN)", "ITIN", "Form 5472", "Registered Agent", "US-Geschäftskonto", "US-Firmenkarten"],
-    // sameAs bleibt leer, bis Justin die Profile freigibt (LinkedIn, Trustpilot,
-    // ProvenExpert …). Ein leeres Feld ist besser als ein erfundenes.
+    // 24.09.2026 (E-234, Justin: „Profile freigeben … mach alles du"): Nur was nachweislich FIAON ist.
+    // Der Registereintrag im Companies House ist die amtliche Seite der Firma. Eine LinkedIn-Firmenseite
+    // gibt es noch nicht, einen Trustpilot-Eintrag auch nicht (Prüfung 23.09.: die „2.347 Bewertungen" auf /start waren
+    // erfunden); die neue Facebook-Seite „FIAON" kommt dazu, sobald ihre Adresse feststeht. Nie erfinden.
+    sameAs: [`https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`],
   };
 }
 
@@ -228,14 +232,18 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
   // zu Einmalpreisen — die Zahlen kommen aus dem Katalog, nie von Hand.
   if (s.pfad === "/business" || s.pfad === "/en/business" || s.global === "leistung" || s.global === "preise" || s.global === "zielgruppe" || s.global === "land") {
     const preise = GLOBAL_PAKETE.map((p) => (globalKatalog(p.key)?.preisCents ?? 0) / 100).filter((x) => x > 0);
+    // 24.09.2026 (E-234): englische Seiten tragen das englische Angebot — bis heute stand auf /en/business das deutsche.
+    const en = s.sprache === "en";
+    const sp = en ? "en" : "de";
     ld.push({
-      "@context": "https://schema.org", "@type": "Service", "@id": `${BASIS}/business#leistung`,
-      name: "FIAON Global", serviceType: "Gründung einer US-Gesellschaft, US-Steuernummern (EIN, ITIN), Registered Agent, Vorbereitung von Konto- und Kartenanträgen",
-      description: "US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, US-Adresse, Partner-Anwalt, Partner-Steuerberater und US-CPA — Festpreis, einmalig.",
-      provider: { "@id": `${BASIS}/#organisation` }, areaServed: ["DE", "AT", "CH"], audience: { "@type": "Audience", audienceType: "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url,
+      "@context": "https://schema.org", "@type": "Service", "@id": `${BASIS}${en ? "/en/business" : "/business"}#leistung`,
+      name: "FIAON Global",
+      serviceType: en ? "Formation of a US company, US tax numbers (EIN, ITIN), registered agent, preparation of account and card applications" : "Gründung einer US-Gesellschaft, US-Steuernummern (EIN, ITIN), Registered Agent, Vorbereitung von Konto- und Kartenanträgen",
+      description: en ? "Your US company from one source: formation, EIN and ITIN, registered agent, US address, partner lawyer, partner tax adviser and US CPA — fixed price, one-off." : "US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, US-Adresse, Partner-Anwalt, Partner-Steuerberater und US-CPA — Festpreis, einmalig.",
+      provider: { "@id": `${BASIS}/#organisation` }, areaServed: ["DE", "AT", "CH"], audience: { "@type": "Audience", audienceType: en ? "Companies, self-employed people, founders and private individuals" : "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url, inLanguage: sp,
       offers: {
-        "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: Math.min(...preise).toFixed(2), highPrice: Math.max(...preise).toFixed(2), offerCount: preise.length, url: `${BASIS}/business#pakete`,
-        offers: GLOBAL_PAKETE.map((p) => ({ "@type": "Offer", name: `FIAON ${p.de.name}`, price: ((globalKatalog(p.key)?.preisCents ?? 0) / 100).toFixed(2), priceCurrency: "EUR", url: `${BASIS}/business/start?paket=${p.key}`, availability: "https://schema.org/InStock" })),
+        "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: Math.min(...preise).toFixed(2), highPrice: Math.max(...preise).toFixed(2), offerCount: preise.length, url: `${BASIS}${globalPaketePfad(sp)}`,
+        offers: GLOBAL_PAKETE.map((p) => ({ "@type": "Offer", name: `FIAON ${p[sp].name}`, price: ((globalKatalog(p.key)?.preisCents ?? 0) / 100).toFixed(2), priceCurrency: "EUR", url: `${BASIS}${globalStartPfad(p.key, sp)}`, availability: "https://schema.org/InStock" })),
       },
     });
   }
@@ -250,7 +258,9 @@ function weiterlesen(s: SeoSeite, nurBusiness = false): string {
   // Englische Seiten verweisen auf die englische Schwester des Ziels, wo es sie gibt.
   // Im Business-Rahmen nur Ziele der Business-Welt — das Impressum verweist sonst auf AGB und Kontakt der Privatkunden.
   const ziele = (s.weiter ?? []).map((p) => seoSeite(en ? (schwesterPfad(p, "en") ?? p) : p))
-    .filter((z): z is SeoSeite => !!z && (!nurBusiness || /^\/(en\/)?business(\/|$)/.test(z.pfad)));
+    .filter((z): z is SeoSeite => !!z && (!nurBusiness || /^\/(en\/)?business(\/|$)/.test(z.pfad)))
+    // 24.09.2026 (E-234): Eine englische Business-Seite verweist nie auf eine deutsche (fehlende Schwester = kein Eintrag).
+    .filter((z) => !(en && nurBusiness) || z.sprache === "en");
   if (!ziele.length) return "";
   const titel = en ? "Read on" : "Weiterlesen";
   return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))} – ${esc(z.beschreibung)}</li>`).join("")}</ul></nav>`;
@@ -279,13 +289,9 @@ export function seoRahmen(sprache: Sprache = "de"): { kopf: string; fuss: string
 function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: string } {
   const en = sprache === "en";
   const start = en ? "/en/business" : "/business";
-  // Englisch gibt es die Hauptseite, den Auftrag und die Rechtsseiten; die Fachseiten gibt es deutsch — die englische
-  // Seite verweist offen darauf („in German"), statt Besucher und Suchmaschine ohne Wege zu lassen (19.09.2026).
-  const deutsch = globalMenue().map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
-  const gruppen = en
-    ? [{ titel: "FIAON Global", eintraege: [["/en/business#pakete", "Packages and prices"], ["/en/business/start", "Order now"], ["/en/business#gespraech", "Arrange a call"], ["/en/business/auftrag", "My order"]] },
-       ...deutsch.map((g, i) => ({ titel: `${["Services", "Who it is for", "Prices and process", "Knowledge"][i] ?? g.titel} (in German)`, eintraege: g.eintraege }))]
-    : deutsch;
+  // 24.09.2026 (E-234): dieselben vier Spalten in beiden Sprachen — die Fachseiten gibt es jetzt auch englisch
+  // (bis heute verwies die englische Seite auf die deutschen, „in German").
+  const gruppen = globalMenue(sprache).map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
   const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
   const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
   const zeile = `FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250 · ${en ? "Phone" : "Telefon"} ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}`;

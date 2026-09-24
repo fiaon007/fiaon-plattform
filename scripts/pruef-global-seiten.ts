@@ -47,7 +47,7 @@ import { istBusinessBereich, mitBereich } from "../client/src/lib/bereich";
 import { GLOBAL_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalJahresbetreuungPreisText } from "../shared/fiaon-global";
 import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
-import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
+import { globalWortPruefen, globalWortPruefenEn } from "../shared/fiaon-global-wortregeln";
 import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX } from "../shared/fiaon-pixel";
 
 // 23.09.2026 (E-232): der heutige Tag in Berlin statt eines festen Datums — ein Stand von heute ist kein Fehler.
@@ -115,7 +115,11 @@ for (const l of LANDINGPAGES) {
   ok(/^\/business\/lp\/[a-z0-9-]+$/.test(l.pfad), `${l.pfad}: Pfad passt nicht auf /business/lp/:slug`);
 }
 const appTsx = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/App.tsx"), "utf8");
-for (const route of ["/business/lp/:slug", "/business/wissen/:slug", "/business/:slug"]) ok(appTsx.includes(`path="${route}"`), `App.tsx: Route ${route} fehlt`);
+for (const route of ["/business/lp/:slug", "/business/wissen/:slug", "/business/:slug", "/en/business/knowledge/:slug", "/en/business/:slug"]) ok(appTsx.includes(`path="${route}"`), `App.tsx: Route ${route} fehlt`);
+// 24.09.2026 (E-234): die festen englischen Wege VOR /en/business/:slug — sonst schluckt :slug sie.
+for (const r of ["/en/business/start", "/en/business/auftrag/:ref?", "/en/business/widerrufsbelehrung", "/en/business/mustervertrag", "/en/business/private-individuals", "/en/business/knowledge/:slug"]) {
+  ok(appTsx.includes(`path="${r}"`) && appTsx.indexOf(`path="${r}"`) < appTsx.indexOf(`path="/en/business/:slug"`), `App.tsx: ${r} fehlt oder steht hinter /en/business/:slug`);
+}
 ok(appTsx.indexOf(`path="/business/start"`) < appTsx.indexOf(`path="/business/:slug"`), "App.tsx: /business/start steht HINTER /business/:slug und würde verschluckt");
 
 // ── 2b: Kein Soft-404 (19.09.2026) ──────────────────────────────────────────
@@ -128,7 +132,8 @@ for (const p of ["/business", "/business/", "/business/start", "/business/auftra
   "/en/business", "/en/business/start", "/en/business/auftrag", "/en/business/auftrag/FG-2026-0001"]) ok(bekannt(p), `${p}: App-Weg bekäme 404`);
 for (const p of ["/business/gibt-es-nicht", "/business/wissen/gibt-es-nicht", "/business/lp/gibt-es-nicht", "/business/lp",
   "/business/kosten/weiter", "/business/auftrag/FG-2026-0001/weiter", "/business/wp-login.php",
-  "/en/business/gibt-es-nicht", "/en/business/us-firmengruendung"]) ok(seiteUnbekannt(p), `${p}: Müll-Adresse bekäme 200 (Soft-404)`);
+  "/en/business/gibt-es-nicht", "/en/business/us-firmengruendung", "/en/business/wissen/form-5472", "/en/business/knowledge/gibt-es-nicht",
+  "/en/business/lp/gruendung", "/business/us-company-formation", "/business/knowledge/form-5472"]) ok(seiteUnbekannt(p), `${p}: Müll-Adresse bekäme 200 (Soft-404)`);
 for (const p of ["/", "/preise", "/gibt-es-nicht", "/business-antrag", "/businessplan", "/en/pricing"]) ok(bekannt(p), `${p}: liegt außerhalb von /business und darf nicht angefasst werden`);
 // Jede /business-Route des Clients muss der Server kennen — sonst liefert er für eine Seite,
 // die im Browser erscheint, 404. Parameter mit Musterwert (optionale auch ohne); die drei
@@ -229,6 +234,8 @@ const BUSINESS_DATEIEN = [
   "client/src/pages/site/global-seite.tsx", "client/src/pages/site/global-lp.tsx", "client/src/pages/site/global-recht.tsx",
   "client/src/pages/business-start.tsx", "client/src/pages/business-auftrag.tsx", "client/src/components/site/GlobalGespraech.tsx",
   "client/src/i18n/global.ts", "client/src/i18n/global-start.ts", "client/src/i18n/global-auftrag.ts", "shared/fiaon-global-menue.ts",
+  // 24.09.2026 (E-234): die englische Vorlage, die Adresspaare und die englischen Registerdateien.
+  "client/src/i18n/global-seite.ts", "shared/fiaon-global-pfade.ts",
 ];
 const PRIVAT_ZIEL = /href=\{?["'`]\/(?:en\/)?(privatkunden|personal|login|antrag|bonitaet|bonitaetsauskunft|kreditkarte|credit-card|ratgeber|guides|dashboard|mein-bereich|agb|termin|werkzeuge|schufa|kredit|preise|pricing|karriere|team)(?:[/"'`?#]|$)/;
 for (const datei of BUSINESS_DATEIEN) {
@@ -317,7 +324,9 @@ abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
   ok(GLOBAL_JAHRESBETREUUNG.preisCents === 69900, `Jahresbetreuung: Preis ${GLOBAL_JAHRESBETREUUNG.preisCents} statt 69900`);
   for (const sp of ["de", "en"] as const) {
     const j = GLOBAL_JAHRESBETREUUNG[sp];
-    const funde = globalWortPruefen([j.kurz, j.lead, ...j.leistungen, j.bedingungen, j.buchen, j.gebucht, j.nichtHeute].join("\n"));
+    const jt = [j.kurz, j.lead, ...j.leistungen, j.bedingungen, j.buchen, j.gebucht, j.nichtHeute].join("\n");
+    // 24.09.2026 (E-234): die englische Hälfte mit den englischen Regeln — die deutschen fanden in ihr nichts.
+    const funde = sp === "en" ? globalWortPruefenEn(jt) : globalWortPruefen(jt);
     ok(funde.length === 0, `Jahresbetreuung (${sp}) verletzt die Wortregeln: ${funde.map((x) => x.treffer).join(", ")}`);
     ok(/Staatsgeb|state fee/i.test(j.leistungen.join(" ")), `Jahresbetreuung (${sp}): die Staatsgebühr fehlt in den Leistungen`);
     ok(/nicht von selbst|does not renew/i.test(j.bedingungen), `Jahresbetreuung (${sp}): „verlängert sich nicht von selbst" fehlt`);
@@ -351,7 +360,7 @@ abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
     ok(/^https:\/\//.test(x.url) && x.quelle.trim().length > 1, `Schlagzeile ohne Quelle oder https-Adresse: ${x.de}`);
     ok(/^\d{4}-\d{2}-\d{2}$/.test(x.datum) && x.datum >= grenze && x.datum <= GLOBAL_SCHLAGZEILEN.stand, `Schlagzeile mit Datum außerhalb der zwölf Monate: ${x.datum} ${x.de}`);
     ok(x.de.length <= 70 && x.en.length <= 70, `Schlagzeile länger als 70 Zeichen: ${x.de}`);
-    const funde = globalWortPruefen([x.de, x.kurzDe].join("\n")).concat(globalWortPruefen([x.en, x.kurzEn].join("\n")));
+    const funde = [...globalWortPruefen([x.de, x.kurzDe].join("\n")), ...globalWortPruefenEn([x.en, x.kurzEn].join("\n"))];
     ok(funde.length === 0, `Schlagzeile verletzt die Wortregeln (${funde.map((y) => y.treffer).join(", ")}): ${x.de}`);
   }
 }
@@ -366,7 +375,8 @@ abschnitt("Kapital auch in Europa (GLOBAL_KAPITAL_FREI)");
 {
   for (const sp of ["de", "en"] as const) {
     const k = GLOBAL_KAPITAL_FREI[sp];
-    const funde = globalWortPruefen([k.kurz, k.satz, k.steuer, k.frage, k.antwort].join("\n"));
+    const kt = [k.kurz, k.satz, k.steuer, k.frage, k.antwort].join("\n");
+    const funde = sp === "en" ? globalWortPruefenEn(kt) : globalWortPruefen(kt);
     ok(funde.length === 0, `GLOBAL_KAPITAL_FREI.${sp} verletzt die Wortregeln: ${funde.map((x) => x.treffer).join(", ")}`);
     // Die zwei ehrlichen Sätze: Rahmen und Bedingungen setzt das Institut, die Steuer klärt der Partner-Steuerberater vorab.
     const institut = sp === "de" ? /Institut/ : /institution/;
@@ -403,6 +413,85 @@ abschnitt("Kapital auch in Europa (GLOBAL_KAPITAL_FREI)");
     ?? lpTexte.match(/nach Europa überweisen|in Europa investieren|in Europa einsetzbar|nicht an die USA gebunden/i)?.[0];
   ok(!lpFund, `Landingpages: der Kapital-Satz steht auf einer Anzeigenseite („${String(lpFund).slice(0, 50)}“)`);
   ok(!/GLOBAL_KAPITAL_FREI/.test(lpQuelle), "global-lp.tsx liest GLOBAL_KAPITAL_FREI — der Satz gehört nicht auf die Anzeigenseiten");
+}
+
+// ═══ 11: DIE ENGLISCHEN UNTERSEITEN (24.09.2026, E-234) ═════════════════════
+// Justin: „Mach die englischen Fassungen der Business-Unterseiten." Jede deutsche Seite hat genau eine
+// englische Schwester (shared/fiaon-global-pfade.ts). Den Aufbau Seite für Seite (Bausteine, Anker, Zahlen,
+// Wortregeln, deutsche Reste) prüft scripts/pruef-global-en.ts — hier läuft er mit. Dazu das, was nur im
+// Zusammenspiel sichtbar wird: Paare in beide Richtungen, SEO-Tabelle, hreflang, Vorab-HTML, Menü, Wege.
+abschnitt("Englische Unterseiten");
+{
+  const { GLOBAL_SEITEN_EN } = await import("../shared/fiaon-global-seiten");
+  const { GLOBAL_EN_PFADE, globalSchwester, globalEnPfad } = await import("../shared/fiaon-global-pfade");
+  const { globalMenue } = await import("../shared/fiaon-global-menue");
+  const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
+  const { GLOBAL_BILD_EN, SEO_BASIS } = await import("../shared/fiaon-seo-seiten");
+  const { execFileSync } = await import("child_process");
+  const enPfade = new Set(GLOBAL_SEITEN_EN.map((s) => s.pfad));
+  // Paare: jede deutsche Seite hat ihre englische, jede englische ihre deutsche — und die Tabelle kennt beide Wege.
+  ok(GLOBAL_SEITEN_EN.length === GLOBAL_SEITEN.length, `Englisch ${GLOBAL_SEITEN_EN.length} Seiten, Deutsch ${GLOBAL_SEITEN.length}`);
+  for (const d of GLOBAL_SEITEN) {
+    const en = GLOBAL_EN_PFADE[d.pfad];
+    ok(!!en && enPfade.has(en), `${d.pfad}: keine englische Schwester (${en ?? "kein Eintrag in fiaon-global-pfade.ts"})`);
+    if (en) ok(globalSchwester(en, "de") === d.pfad && globalSchwester(d.pfad, "en") === en, `${d.pfad} ↔ ${en}: Paar nicht in beide Richtungen`);
+  }
+  const titelEn = GLOBAL_SEITEN_EN.map((s) => s.seo.titel);
+  ok(new Set(titelEn).size === titelEn.length, `Englische Titel doppelt: ${titelEn.filter((t, i) => titelEn.indexOf(t) !== i).join(" | ")}`);
+  for (const e of GLOBAL_SEITEN_EN) {
+    const w = e.pfad;
+    ok(/^\/en\/business\/(knowledge\/)?[a-z0-9-]+$/.test(w), `${w}: Pfad passt auf keine englische Route`);
+    ok(!seiteUnbekannt(w) && !seiteUnbekannt(`${w}/`), `${w}: der Server hielte die Seite für unbekannt (404)`);
+    ok(globalInhalt(e).length >= 4 && globalInhalt(e)[0].titel === "In brief", `${w}: Inhaltsverzeichnis zu kurz oder deutsch`);
+    const t = tabelle[w];
+    ok(!!t && t.sprache === "en" && t.schwester === e.schwester && tabelle[e.schwester ?? ""]?.schwester === w, `${w}: SEO-Eintrag fehlt oder das hreflang-Paar ist nicht gegenseitig`);
+    if (!t) continue;
+    ok(t.titel === e.seo.titel && t.beschreibung === e.seo.beschreibung && t.bild === GLOBAL_BILD_EN && t.global === e.art && !!t.erschienen, `${w}: SEO-Eintrag weicht ab (Titel, Beschreibung, Bild, global, erschienen)`);
+    ok(seoIndexierbar().some((x: any) => x.pfad === w), `${w}: nicht indexierbar (fehlt in der Sitemap)`);
+    ok(seoFragen(w).length === e.fragen.length, `${w}: FAQ-Daten ${seoFragen(w).length}, sichtbar ${e.fragen.length}`);
+    ok((t.krumen ?? []).every((k: any) => k.pfad.startsWith("/en/business")) && (t.krumen ?? [])[0]?.pfad === "/en/business", `${w}: Brotkrumen führen aus der englischen Welt`);
+    // Vorab-HTML: Sprache, hreflang-Trio, keine deutschen Business-Links, kein „(in German)", englisches Angebot.
+    const html = seitenHtml(w) ?? "";
+    ok(html.includes('<html lang="en">') && html.includes(`hreflang="en" href="${SEO_BASIS}${w}"`) && html.includes(`hreflang="de" href="${SEO_BASIS}${e.schwester}"`) && html.includes(`hreflang="x-default" href="${SEO_BASIS}${e.schwester}"`), `${w}: html lang oder hreflang-Trio fehlt`);
+    const vorab = html.split('<div class="vorab">')[1] ?? html.split('<div id="root">')[1] ?? "";
+    const deutscheLinks = [...vorab.matchAll(/href="(\/business[^"]*)"/g)].map((m) => m[1]);
+    ok(deutscheLinks.length === 0, `${w}: Vorab-HTML verlinkt deutsche Business-Seiten (${deutscheLinks.slice(0, 3).join(", ")})`);
+    ok(!/\(in German\)|Kurz beantwortet|Weiterlesen|Häufige Fragen/.test(html), `${w}: deutsche Rahmenwörter im Vorab-HTML`);
+    if (["leistung", "preise", "zielgruppe", "land"].includes(e.art)) ok(html.includes(`"@id":"${SEO_BASIS}/en/business#leistung"`) && !html.includes(`${SEO_BASIS}/business/start?paket=`), `${w}: Service-Markup nicht englisch`);
+    // Die deutsche Schwester nennt die englische.
+    const htmlDe = seitenHtml(e.schwester ?? "") ?? "";
+    ok(htmlDe.includes(`hreflang="en" href="${SEO_BASIS}${w}"`), `${e.schwester}: hreflang auf ${w} fehlt`);
+  }
+  // Menü: englische Pfade führen auf englische Seiten (oder Anker der englischen Übersicht), Längen passen ins Panel.
+  for (const g of globalMenue("en")) for (const m of g.eintraege) {
+    const basis = m.pfad.split("#")[0];
+    ok(basis === "/en/business" || enPfade.has(basis), `Menü (en) „${m.titel}" → ${m.pfad} ist keine englische Seite`);
+    ok(m.titel.length <= 30 && m.text.length <= 52, `Menü (en) „${m.titel}": Titel oder Zeile zu lang für das Panel`);
+    ok(globalWortPruefenEn(`${m.titel}\n${m.text}`).length === 0, `Menü (en) „${m.titel}": ${globalWortPruefenEn(`${m.titel}\n${m.text}`).map((f) => f.hinweis).join("; ")}`);
+  }
+  const jbEn = globalMenue("en").flatMap((g) => g.eintraege).find((m) => m.pfad === "/en/business#jahresbetreuung");
+  ok(!!jbEn && jbEn.text.includes(globalJahresbetreuungPreisText("en")), "Menü (en): Jahresbetreuung fehlt oder nennt einen anderen Preis");
+  // Übersicht /en/business: „Who it is for" und die Länder führen auf englische Seiten; Privatpersonen: Kopf = Register.
+  for (const k of GLOBAL_WOERTER.en.fuer) ok(!!k.pfad && enPfade.has(k.pfad), `/en/business „Who it is for": ${k.tag} → ${k.pfad || "(leer)"}`);
+  for (const [ziel] of GLOBAL_WOERTER.en.fuerLaenderLinks) ok(enPfade.has(ziel), `/en/business: ${ziel} gibt es nicht`);
+  const privatEn = GLOBAL_SEITEN_EN.find((x) => x.pfad === "/en/business/private-individuals");
+  ok(!!privatEn && privatEn.auftraggeber === "privat" && GLOBAL_WOERTER.en.privat.metaTitel === privatEn.seo.titel && GLOBAL_WOERTER.en.privat.metaBeschreibung === privatEn.seo.beschreibung,
+    "Private individuals: Titel/Beschreibung der Startseite weichen vom englischen Registereintrag ab (oder art privat fehlt)");
+  ok(GLOBAL_WOERTER.en.standorteVerbunden === (await import("../shared/fiaon-global-partner")).GLOBAL_VERBUNDEN_EN, "i18n/global.ts en.standorteVerbunden weicht von GLOBAL_VERBUNDEN_EN ab");
+  // Das Kapital ist nicht an die USA gebunden — dieselbe Frage auf den englischen Schwestern.
+  for (const pfad of ["/business/firmenkarten-kapital", "/business/privatpersonen", "/business/bau-immobilien"]) {
+    const e = GLOBAL_SEITEN_EN.find((x) => x.schwester === pfad);
+    ok(!!e?.fragen.some((x) => x.f === GLOBAL_KAPITAL_FREI.en.frage && x.a === GLOBAL_KAPITAL_FREI.en.antwort), `${globalEnPfad(pfad)}: die Frage zum Kapital fehlt oder weicht von GLOBAL_KAPITAL_FREI.en ab`);
+  }
+  const faqEn = GLOBAL_SEITEN_EN.find((x) => x.pfad === "/en/business/faq");
+  ok(!!faqEn?.bloecke.some((b) => b.typ === "fragen" && b.fragen.some((x) => x.f === GLOBAL_KAPITAL_FREI.en.frage)), "/en/business/faq: die Frage zum Kapital fehlt");
+  const zaehle = (liste: GlobalSeite[]) => liste.find((x) => x.art === "preise" && x.bloecke.every((b) => b.typ === "fragen"))?.bloecke.reduce((n, b) => n + (b.typ === "fragen" ? b.fragen.length : 0), 0) ?? 0;
+  ok(zaehle(GLOBAL_SEITEN_EN) === zaehle(GLOBAL_SEITEN), `Fragen-Seite: englisch ${zaehle(GLOBAL_SEITEN_EN)} Fragen, deutsch ${zaehle(GLOBAL_SEITEN)}`);
+  // Seite für Seite: scripts/pruef-global-en.ts (Aufbau, Wortregeln, deutsche Reste).
+  let enOk = true;
+  try { execFileSync("npx", ["tsx", "scripts/pruef-global-en.ts"], { cwd: WURZEL, stdio: "pipe" }); } catch (e: any) { enOk = false; console.log(String(e.stdout ?? "").split("\n").filter((z: string) => z.includes("FEHLER")).slice(0, 20).join("\n")); }
+  ok(enOk, "scripts/pruef-global-en.ts meldet Fehler (siehe oben)");
+  console.log(`  ${GLOBAL_SEITEN_EN.length} englische Seiten, Paare und Vorab-HTML geprüft`);
 }
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════

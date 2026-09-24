@@ -77,8 +77,16 @@ export type GlobalBlock =
   | { typ: "fragen"; id: string; h2: string; lead?: string; fragen: { f: string; a: string }[] };
 
 export interface GlobalSeite {
-  /** Adresse, z. B. /business/us-firmengruendung. */
+  /** Adresse, z. B. /business/us-firmengruendung (englisch: /en/business/us-company-formation). */
   pfad: string;
+  /**
+   * Sprache der Seite (24.09.2026, E-234) — fehlt = Deutsch. Englische Seiten stehen in
+   * shared/fiaon-global-seiten/en/, ihre Adresse kommt aus en-pfade.ts (GLOBAL_EN_PFADE),
+   * die Schwester ist immer die deutsche Seite, aus der sie übersetzt ist.
+   */
+  sprache?: "de" | "en";
+  /** Die Schwesterseite in der anderen Sprache (Pfad) — Grundlage für hreflang, Umschalter und Prüfstand. */
+  schwester?: string;
   art: GlobalSeitenArt;
   /** <title> (Suchwort vorn, ≤ 60 Zeichen) und Meta-Description (120–155). */
   seo: { titel: string; beschreibung: string };

@@ -16,7 +16,7 @@
 // Rahmen, kein Steuerversprechen, FIAON ist keine Bank und keine Kanzlei.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "@shared/fiaon-global";
-import { GLOBAL_SEITEN, type GlobalSeite } from "@shared/fiaon-global-seiten";
+import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "@shared/fiaon-global-seiten";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { SEO_BASIS, seoSeite } from "@shared/fiaon-seo-seiten";
 
@@ -35,7 +35,7 @@ function privatLinks(): string[] {
 
 export function llmsTxt(): string {
   const art = (...a: GlobalSeite["art"][]) => GLOBAL_SEITEN.filter((s) => a.includes(s.art));
-  const stand = GLOBAL_SEITEN.map((s) => s.stand).sort().pop();
+  const stand = [...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN].map((s) => s.stand).sort().pop();
   return [
     "# FIAON",
     "",
@@ -62,6 +62,15 @@ export function llmsTxt(): string {
     ...gruppe("Bundesstaaten", art("staat")),
     ...gruppe("Wissen: Ratgeber zur US-Gesellschaft (mit Quellen)", art("hub", "wissen")),
     ...gruppe("Standorte und Partner", art("partner")),
+    // 24.09.2026 (E-234): dieselben Seiten auf Englisch — für Assistenten, die englisch gefragt werden.
+    ...(GLOBAL_SEITEN_EN.length ? [
+      "## FIAON Global in English",
+      "",
+      "> The same pages in British English for companies, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US bank account and business credit card applications, US compliance — at a fixed price. FIAON is neither a bank nor a law firm; the institution concerned decides on every account, card and limit.",
+      "",
+      ...GLOBAL_SEITEN_EN.map(zeile),
+      "",
+    ] : []),
     "## FIAON Bonität (Privatkunden)",
     "",
     ...privatLinks(),

@@ -329,6 +329,10 @@ function Router() {
       <Route path="/en/business/auftrag/:ref?" component={BusinessAuftragPage} />
       <Route path="/en/business/widerrufsbelehrung" component={GlobalWiderrufPage} />
       <Route path="/en/business/mustervertrag" component={GlobalMustervertragPage} />
+      {/* 24.09.2026 (E-234): die englischen Unterseiten — NACH start/auftrag/widerrufsbelehrung/mustervertrag, sonst schluckt :slug sie. */}
+      <Route path="/en/business/private-individuals" component={BusinessPrivatPage} />
+      <Route path="/en/business/knowledge/:slug" component={GlobalSeitePage} />
+      <Route path="/en/business/:slug" component={GlobalSeitePage} />
       <Route path="/en/credit-card" component={SiteKreditkarte} />
       <Route path="/en/about" component={SiteUeberUns} />
       <Route path="/en/team" component={SiteTeam} />

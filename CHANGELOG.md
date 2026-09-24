@@ -5,6 +5,40 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 24.09.2026 (4) — FIAON Global komplett auf Englisch, Google Search Console, Bing/IndexNow (E-234)
+
+**Der Anlass (Justin):** „Mach die englischen Fassungen der Business-Unterseiten — mach alles du, setze alles um"
+(dazu: Sitemap bei Google einreichen, die zehn neuen Ratgeber zur Indexierung anmelden, Profile fürs Firmenprofil).
+
+**Alle 39 Business-Unterseiten gibt es jetzt auf Englisch** (britisches Englisch), jede mit englischer Adresse, z. B.
+fiaon.com/en/business/us-company-formation, /en/business/costs, /en/business/knowledge/form-a-us-llc — die 16 Ratgeber
+unter /en/business/knowledge. Übersetzt von zehn Übersetzern, jede Datei von zwei unabhängigen Prüfern (Inhalt/Recht
+und Sprache/Suchbegriffe) gegengelesen und korrigiert. Zahlen, Fristen und Quellen sind dieselben wie deutsch.
+
+**Was dazugehört:**
+- Englisches Menü mit denselben vier Spalten (vorher auf Englisch nur vier Sprungmarken), englische Fußzeile ohne
+  „(in German)", der Umschalter DE/EN führt auf die Schwesterseite statt immer auf die Übersicht.
+- Die englische Übersicht /en/business verlinkt jetzt Vergleich, Paket-Finder, Standorte, Fragen und die Zielgruppen.
+- Paket-Finder, Seitenvorlage und Standorte sprechen Englisch; Preise im englischen Format (€2,499, $50,000).
+- Für Google: jede deutsche und englische Seite nennt die andere (hreflang), englisches Angebots-Markup, eigene
+  englische Fragen im FAQ-Markup, Sitemap mit allen englischen Adressen, llms.txt mit englischem Abschnitt.
+- Fakt aus der Prüfung korrigiert: Die englische Privatpersonen-Seite sagte „Contract in German" — englische
+  Aufträge bekommen einen englischen Vertrag (nach deutschem Recht).
+
+**Google Search Console:** fiaon.com ist jetzt im Google-Konto bestätigt (Datei + Meta-Tag), die Sitemap ist
+eingereicht, für alle zehn neuen Ratgeber ist die Indexierung beantragt. **Bing/IndexNow:** Schlüssel liegt auf
+fiaon.com, die Business-Adressen sind gemeldet (Bing speist auch die Suche von ChatGPT und Copilot).
+**Firmenprofil:** Der Companies-House-Eintrag steht als offizielles Profil im Markup (sameAs).
+
+**Prüfstand neu:** scripts/pruef-global-en.ts (jede englische Seite gegen ihre deutsche: Aufbau, Anker, Quellen,
+Wege, Wortregeln, deutsche Reste); pruef-global-seiten.ts prüft Paare, hreflang, Menü, Routen und Vorab-HTML.
+
+**Wo:** shared/fiaon-global-seiten/en/, fakten-en.ts, shared/fiaon-global-pfade.ts, shared/fiaon-global-menue.ts,
+client/src/i18n/global-seite.ts, client/src/pages/site/global-seite.tsx, GlobalNav.tsx, GlobalFuss.tsx,
+server/lib/fiaon-global-seo.ts, server/lib/fiaon-seiten-seo.ts, scripts/pruef-global-en.ts.
+
+---
+
 ## 24.09.2026 (2) — FIAON Global: zehn neue Ratgeber, Wissen neu geordnet, eigenes Vorschaubild, llms.txt (E-232)
 
 **Der Anlass (Justin, 23.09.):** „Schreibe 10 neue Ratgeber perfekt zu diesem Thema … 100 % SEO-optimiert … bring uns

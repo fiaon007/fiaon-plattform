@@ -22,7 +22,7 @@ export default function NotFound() {
     const start = en ? "/en/business" : "/business";
     const NAVY = "#12284a";
     const wege = en
-      ? [{ href: `${start}#pakete`, label: "Packages and prices" }, { href: `${start}#gespraech`, label: "Arrange a first call" }]
+      ? [{ href: `${start}#pakete`, label: "Packages and prices" }, { href: `${start}#gespraech`, label: "Arrange a first call" }, { href: "/en/business/faq", label: "Questions and answers" }]
       : [{ href: `${start}#pakete`, label: "Pakete und Preise" }, { href: `${start}#gespraech`, label: "Erstgespräch vereinbaren" }, { href: "/business/fragen", label: "Fragen und Antworten" }];
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 px-4">

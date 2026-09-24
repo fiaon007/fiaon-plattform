@@ -49,6 +49,8 @@ export interface GlobalStandort {
   rolle: string;
   /** Was die Gesellschaft für FIAON-Global-Kunden tut. */
   aufgaben: string[];
+  /** Dieselben Angaben auf Englisch (24.09.2026, E-234) — Anschrift und Register bleiben, wie sie sind. */
+  en: { stadt: string; land: string; rechtsform: string; rolle: string; aufgaben: string[] };
 }
 
 export const GLOBAL_STANDORTE: GlobalStandort[] = [
@@ -67,6 +69,15 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
       "koordiniert Gründung, Steuernummern, Partner und Termine",
       "trägt die Honorare der Partner für die Leistungen Ihres Pakets",
     ],
+    en: {
+      stadt: "London", land: "United Kingdom", rechtsform: "Private Limited Company",
+      rolle: "Your contracting party — contract, invoice and dedicated contact",
+      aufgaben: [
+        "concludes the engagement with you and issues the invoice",
+        "coordinates formation, tax numbers, partners and appointments",
+        "pays the partners’ fees for the services in your package",
+      ],
+    },
   },
   {
     schluessel: "zuerich",
@@ -83,6 +94,15 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
       "Ansprechpartner vor Ort für Unternehmen aus der Schweiz",
       "Beteiligungs- und Investmentgesellschaft — keine Bank, keine Kreditvergabe",
     ],
+    en: {
+      stadt: "Zurich", land: "Switzerland", rechtsform: "Aktiengesellschaft (Swiss company limited by shares)",
+      rolle: "Partner for the capital stage and for clients from Switzerland",
+      aufgaben: [
+        "supports the capital stage: key figures and documents for financing discussions",
+        "local contact for companies from Switzerland",
+        "an investment and holding company — not a bank, no lending",
+      ],
+    },
   },
   {
     schluessel: "miami",
@@ -99,6 +119,15 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
       "reicht Unterlagen ein und holt Dokumente ab",
       "richtet den Auftakt des Pakets Global VIP in Miami aus",
     ],
+    en: {
+      stadt: "Miami", land: "Florida, USA", rechtsform: "Limited Liability Company",
+      rolle: "Our team on the ground — appointments, filings and the kick-off in Miami",
+      aufgaben: [
+        "attends appointments with authorities and banks on the ground",
+        "files documents and collects paperwork",
+        "hosts the kick-off of the Global VIP package in Miami",
+      ],
+    },
   },
 ];
 
@@ -115,3 +144,7 @@ export function standortNachweis(o: GlobalStandort): string {
 /** Der Satz zur Verbindung — steht überall, wo die Partner genannt werden. */
 export const GLOBAL_VERBUNDEN =
   "Die Schwarzott Capital Partners AG und die Schwarzott Global LLC sind mit FIAON über unseren Gründer Justin Schwarzott verbunden. Ihr Vertragspartner ist in jedem Fall die FIAON LTD.";
+
+/** Derselbe Satz auf Englisch (24.09.2026, E-234) — eine Quelle für Seite, Fuß und Register. */
+export const GLOBAL_VERBUNDEN_EN =
+  "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.";

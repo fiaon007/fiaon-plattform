@@ -10,7 +10,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useSprache } from "@/i18n/sprache";
 import { globalMenue } from "@shared/fiaon-global-menue";
-import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, standortNachweis } from "@shared/fiaon-global-partner";
+import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN, standortNachweis } from "@shared/fiaon-global-partner";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
@@ -21,12 +21,7 @@ import "@/styles/global-rahmen.css";
 const EN = {
   satz: "Your US company from one source — for companies and private individuals. Fixed price, everything included.",
   gespraech: "Arrange a call", beauftragen: "Order now", auftrag: "My order",
-  themen: [
-    { titel: "FIAON Global", eintraege: [["/en/business#leistungen", "Services"], ["/en/business#pakete", "Packages and prices"], ["/en/business#ablauf", "How it works"], ["/en/business#fragen", "FAQ"], ["/en/business/auftrag", "My order"]] },
-  ],
   orte: { london: "Contracting party", zuerich: "Capital stage partner", miami: "Team on the ground" },
-  gruppen: { leistungen: "Services", fuerwen: "Who it is for", preise: "Prices and process", wissen: "Knowledge" } as Record<string, string>,
-  verbunden: "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.",
   recht: [["/impressum", "Legal notice"], ["/datenschutz", "Privacy policy"], ["/cookie-einstellungen", "Cookie settings"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]],
   registriert: "Registered in England and Wales",
   keineBank: "FIAON is neither a bank nor a law firm. Accounts, cards and loans are decided solely by the institutions; tax and legal questions are handled by our partners under your engagement.",
@@ -70,11 +65,8 @@ export default function GlobalFuss() {
           </div>
 
           <nav className="gf-themen" aria-label={en ? "Topics" : "Themen"}>
-            {(en
-              // Die Fachseiten gibt es deutsch — die englische Fußzeile führt offen dorthin („in German").
-              ? [...EN.themen.map((g) => ({ titel: g.titel, eintraege: g.eintraege.map(([pfad, titel]) => ({ pfad, titel })) })),
-                 ...globalMenue().map((g) => ({ titel: `${EN.gruppen[g.gruppe]} (in German)`, eintraege: g.eintraege }))]
-              : globalMenue()).map((g) => (
+            {/* 24.09.2026 (E-234): dieselben vier Spalten in beiden Sprachen — die Unterseiten gibt es jetzt auch englisch. */}
+            {globalMenue(en ? "en" : "de").map((g) => (
               <div key={g.titel} className="gf-spalte">
                 <p className="gf-titel">{g.titel}</p>
                 <ul>{g.eintraege.map((e) => <li key={e.pfad}><a href={e.pfad}>{e.titel}</a></li>)}</ul>
@@ -86,7 +78,7 @@ export default function GlobalFuss() {
         <ul className="gf-orte" aria-label={en ? "Locations" : "Standorte"}>
           {GLOBAL_STANDORTE.map((o) => (
             <li key={o.schluessel}>
-              <span className="gf-stadt">{o.stadt}</span>
+              <span className="gf-stadt">{en ? o.en.stadt : o.stadt}</span>
               <b>{o.gesellschaft}</b>
               <span>{en ? EN.orte[o.schluessel] : DE_ORTE[o.schluessel]} · {standortNachweis(o)}</span>
             </li>
@@ -97,7 +89,7 @@ export default function GlobalFuss() {
           <div className="gf-firma">
             <p>© {jahr} {FIAON_FIRMA.name} · {en ? EN.registriert : "Eingetragen in England und Wales"}, Company No. {FIAON_FIRMA.companyNo} · {FIAON_FIRMA.strasse}, {FIAON_FIRMA.ortZeile}</p>
             <p className="gf-verbunden">{en ? EN.keineBank : KEINE_BANK}</p>
-            <p className="gf-verbunden">{en ? EN.verbunden : GLOBAL_VERBUNDEN}</p>
+            <p className="gf-verbunden">{en ? GLOBAL_VERBUNDEN_EN : GLOBAL_VERBUNDEN}</p>
           </div>
           <nav className="gf-recht" aria-label={en ? "Legal" : "Rechtliches"}>
             {recht.map(([p, l]) => <a key={p} href={rechtHref(p)}>{l}</a>)}

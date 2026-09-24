@@ -16,7 +16,7 @@ const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, 
 // 25.08.2026: Hier stand "https://www.fiaon.com". GEMESSEN: www antwortet mit
 // 301 auf die Adresse ohne www — jede Sitemap-Zeile und jedes Canonical
 // schickte Google also erst durch eine Umleitung. Eine Adresse, eine Wahrheit.
-import { BASIS, beschreibungKuerzen, organisationLd, indexHtml, kopfEinsetzen, seoRahmen, VORAB_STIL } from "./fiaon-seiten-seo";
+import { BASIS, beschreibungKuerzen, organisationLd, indexHtml, kopfEinsetzen, seoRahmen } from "./fiaon-seiten-seo";
 import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
 
 // Titel für die Trefferliste: höchstens 60 Zeichen. Der Report vom 02.09.
@@ -41,7 +41,7 @@ export async function ratgeberSeitenHtml(slug: string | null): Promise<string | 
         hasPart: rows.map((r) => ({ "@type": "Article", headline: r.titel, url: `${BASIS}/ratgeber/${r.slug}`, datePublished: r.published_at })) },
       { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }] },
     ];
-    return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: "Ratgeber: SCHUFA, Bonität, Inkasso erklärt | FIAON", beschreibung: "SCHUFA-Eintrag löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüfte Ratgeber von FIAON, ehrlich und ohne Versprechen.", url: `${BASIS}/ratgeber`, ld })
+    return kopfEinsetzen(html, { titel: "Ratgeber: SCHUFA, Bonität, Inkasso erklärt | FIAON", beschreibung: "SCHUFA-Eintrag löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüfte Ratgeber von FIAON, ehrlich und ohne Versprechen.", url: `${BASIS}/ratgeber`, ld })
       .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
   }
   const [a] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${slug} AND status = 'veroeffentlicht' LIMIT 1`) as any[];
@@ -61,7 +61,7 @@ export async function ratgeberSeitenHtml(slug: string | null): Promise<string | 
     faq.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((f: any) => ({ "@type": "Question", name: f.frage, acceptedAnswer: { "@type": "Answer", text: f.antwort } })) } : null,
     { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
   ].filter(Boolean);
-  return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" } })
+  return kopfEinsetzen(html, { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" } })
     .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
 }
 

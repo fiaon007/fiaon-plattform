@@ -21,3 +21,18 @@
 .ld-balken i{display:block;height:100%;width:40%;border-radius:999px;background:linear-gradient(90deg,transparent,#3b82f6,#93c5fd,transparent);animation:ldLauf 1.15s ease-in-out infinite}
 @keyframes ldLauf{from{transform:translateX(-110%)}to{transform:translateX(390%)}}
 @media(prefers-reduced-motion:reduce){.ld-ring,.ld-bahn,.ld-balken i,.ld-sterne{animation:none}}
+
+/* ═══ Hell (24.09.2026): FIAON Global und die hellen Rechtstexte (App.tsx, HELLER_LADER) —
+   Papierweiß und Navy wie der Kanzlei-Rahmen (global-rahmen.css), dieselbe Kugel. ═══ */
+.ld.hell{background:#fff}
+.ld.hell .ld-glut{background:radial-gradient(ellipse 60% 45% at 50% 58%,rgba(29,78,216,.07),transparent 70%)}
+.ld.hell .ld-sterne{display:none}
+.ld.hell .ld-kern{background:radial-gradient(circle at 34% 30%,rgba(96,165,250,.26),rgba(29,78,216,.08) 45%,rgba(255,255,255,0) 72%);box-shadow:inset 0 0 30px rgba(29,78,216,.18),0 0 44px rgba(29,78,216,.1)}
+.ld.hell .ld-ring{border-color:rgba(18,40,74,.3)}
+.ld.hell .ld-ring.r2{border-color:rgba(18,40,74,.16)}
+.ld.hell .ld-ring.r3{border-color:rgba(29,78,216,.3)}
+.ld.hell .ld-bahn{border-color:rgba(18,40,74,.14)}
+.ld.hell .ld-satellit{background:#1d4ed8;box-shadow:0 0 10px 2px rgba(29,78,216,.3)}
+.ld.hell .ld-wort{color:#0c1a2e}
+.ld.hell .ld-balken{background:rgba(12,26,46,.08)}
+.ld.hell .ld-balken i{background:linear-gradient(90deg,transparent,#1d4ed8,#60a5fa,transparent)}

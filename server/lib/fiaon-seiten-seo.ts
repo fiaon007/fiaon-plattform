@@ -311,13 +311,23 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
   const werkzeuge = (s.pfad === "/werkzeuge" || s.pfad === "/en/tools") ? `<section><h2>${s.sprache === "en" ? "The twenty tools" : "Die zwanzig Werkzeuge"}</h2><ul>${(s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w) => `<li>${link(s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
   const glossar = (s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary") ? `<section><h2>${s.sprache === "en" ? "The terms" : "Die Begriffe"}</h2><dl>${(s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => `<dt>${esc(g.wort)}</dt><dd>${esc(g.text)}</dd>`).join("")}</dl></section>` : "";
   const faq = fragen.length ? `<section><h2>${en ? "Frequently asked questions" : "Häufige Fragen"}</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>` : "";
-  return `<div class="vorab">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s, business)}</article></main>${fuss}</div>`;
+  // 24.09.2026: Der Korpus ist bis zum Start von React der Ladezustand der Seite — und trägt deshalb
+  // ihre Farbe. Dunkel wie die Bühne (Standard), hell wo die fertige Seite hell ist: FIAON Global
+  // (Kanzlei), die Rechtstexte und die alte Auskunftsseite. Die Gestaltung steht in client/index.html.
+  const hell = business || s.art === "recht" || HELLE_SEITEN.has(s.pfad);
+  return `<div class="${hell ? "vorab vorab-hell" : "vorab"}">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s, business)}</article></main>${fuss}</div>`;
 }
 
-// Der Korpus ist für die Sekunde vor React da — und für Crawler. Ein wenig
-// Schrift und Abstand, damit die Sekunde nicht wie ein Fehler aussieht.
-// Bewusst NICHT versteckt (display:none wäre Cloaking).
-export const VORAB_STIL = `<style>.vorab{max-width:760px;margin:0 auto;padding:24px 20px;font:16px/1.6 Inter,system-ui,sans-serif;color:#0f172a}.vorab h1{font-size:2rem;line-height:1.2;margin:16px 0}.vorab h2{font-size:1.25rem;margin:28px 0 8px}.vorab h3{font-size:1.05rem;margin:18px 0 4px}.vorab ul,.vorab ol{padding-left:20px}.vorab nav ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px 16px}.vorab a{color:#1d4ed8}.vorab footer{margin-top:40px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:14px}.vorab dt{font-weight:600;margin-top:12px}</style>`;
+/** Öffentliche Seiten mit weißem Grund außerhalb von /business und den Rechtstexten (pages/bonitaet.tsx). */
+const HELLE_SEITEN = new Set(["/bonitaet"]);
+
+// ── WO DIE GESTALTUNG DES KORPUS WOHNT (24.09.2026) ───────────────────────────
+// Hier stand VORAB_STIL: ein <style> vor </head> — weißer Grund, blaue Links
+// (#1d4ed8). Genau das sah man die ersten Sekunden, bevor die dunkle Bühne kam
+// (Justin: „ein komischer weißer Bildschirm"). Die Gestaltung steht jetzt in
+// client/index.html, damit sie auf JEDER ausgelieferten Seite dieselbe ist
+// (auch im Ratgeber) und ohne das 440-KB-Stilblatt greift. Weiterhin gilt:
+// nichts wird versteckt (display:none wäre Cloaking).
 
 /**
  * Fertiges HTML für eine öffentliche Seite — oder null, wenn sie nicht geführt wird.
@@ -347,7 +357,7 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
   // Der Korpus nur für indexierbare Seiten — ein Login-Formular braucht
   // keinen Vorab-Text, und interne Wege sollen nichts preisgeben.
   if (!s.robots?.includes("noindex")) {
-    out = out.replace("</head>", `    ${VORAB_STIL}\n  </head>`).replace('<div id="root"></div>', `<div id="root">${korpus(s, optionen.bereich === "business")}</div>`);
+    out = out.replace('<div id="root"></div>', `<div id="root">${korpus(s, optionen.bereich === "business")}</div>`);
   }
   return out;
 }

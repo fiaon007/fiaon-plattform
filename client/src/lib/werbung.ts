@@ -10,7 +10,8 @@
 //
 // ── WAS HIER GILT ─────────────────────────────────────────────────────────
 // · Drei Stufen: notwendig (immer), Statistik (Clarity, Google Analytics),
-//   Marketing (Google Ads). Nichts lädt vor der Entscheidung.
+//   Marketing (Google Ads, Meta-Pixel samt Conversions API vom Server).
+//   Nichts lädt vor der Entscheidung.
 // · Die Kennungen kommen vom Server (/api/fiaon/global/messung, aus Render).
 //   Fehlt eine Kennung, lädt das zugehörige Werkzeug nicht — der Hinweis
 //   erscheint nur, wenn es überhaupt etwas einzuwilligen gibt.
@@ -19,10 +20,20 @@
 // · Kein Retargeting: ad_personalization bleibt IMMER „denied“ und die
 //   Personalisierungssignale sind aus — gemessen wird nur, ob eine Anzeige zu
 //   einem Gespräch oder Auftrag geführt hat. So steht es auf der Cookie-Seite.
-// · Klick-Kennungen aus Anzeigen (gclid, gbraid, wbraid, utm_*) werden beim
-//   Aufruf aus der Adresse gelesen und im Arbeitsspeicher gehalten — reicht
+// · Klick-Kennungen aus Anzeigen (gclid, gbraid, wbraid, fbclid, utm_*) werden
+//   beim Aufruf aus der Adresse gelesen und im Arbeitsspeicher gehalten — reicht
 //   für die Landingpages, auf denen Klick und Buchung auf einer Seite liegen.
 //   Über Seitenwechsel hinweg (sessionStorage) nur mit Marketing-Einwilligung.
+//
+// ── EINWILLIGUNG NENNT META, FASSUNG 2 (24.09.2026, E-239) ──────────────────
+// Seit 22.09. lädt die Marketing-Einwilligung den Meta-Pixel, und der Server
+// meldet dieselben Ereignisse per Conversions API. Hinweis, Cookie-Seite und
+// Datenschutzerklärung nannten aber nur Google Ads — eine Einwilligung, die den
+// Empfänger nicht nennt, ist nicht informiert (Art. 4 Nr. 11, Art. 7 DSGVO).
+// Deshalb FASSUNG 2: Jede alte Entscheidung gilt nicht mehr, der Hinweis
+// erscheint jedem einmal neu — jetzt mit Meta im Text.
+// Dazu überlebt fbclid den Seitenwechsel wie gclid (mit Ankunftszeit, denn Meta
+// will in fbc die Zeit des ERSTEN Aufrufs mit fbclid, nicht die des Absendens).
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface Einwilligung { statistik: boolean; marketing: boolean; zeit: string; fassung: number }
@@ -31,7 +42,11 @@ import { META_EREIGNIS, metaEreignisId } from "@shared/fiaon-meta-ereignisse";
 export interface Messung { ga4: string | null; ads: string | null; labels: { gespraech: string | null; auftrag: string | null }; clarity: string | null; metaPixel: string | null }
 
 const SCHLUESSEL = "fiaon_einwilligung";
-const FASSUNG = 1;
+// 24.09.2026 (E-239): 1 → 2. Fassung 1 nannte bei Marketing nur Google Ads, geladen
+// wurde aber auch der Meta-Pixel — diese Einwilligungen decken Meta nicht. Mit der
+// neuen Nummer liest einwilligungLesen() sie als „keine Entscheidung", der Hinweis
+// fragt neu. Jede spätere Änderung am Kreis der Empfänger zählt hier eins weiter.
+const FASSUNG = 2;
 const KAMPAGNE_SCHLUESSEL = "fiaon_kampagne";
 export const EINWILLIGUNG_EREIGNIS = "fiaon-einwilligung";
 
@@ -49,6 +64,19 @@ export function einwilligungLesen(): Einwilligung | null {
 }
 
 export function einwilligungSetzen(wahl: { statistik: boolean; marketing: boolean }): void {
+  // E-239: War Marketing vorher erlaubt (auch in Fassung 1) und ist es jetzt aus,
+  // erfährt es der Server — sonst meldete er spätere Ereignisse (etwa die
+  // Zahlung) weiter an Meta. Die Pixel-Kennung wird VOR dem Überschreiben gelesen.
+  let vorherMarketing = false;
+  try { vorherMarketing = !!(JSON.parse(localStorage.getItem(SCHLUESSEL) || "null") as Einwilligung | null)?.marketing; } catch { /* egal */ }
+  if (vorherMarketing && !wahl.marketing) {
+    try {
+      void fetch("/api/meta/widerruf", {
+        method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true, credentials: "same-origin",
+        body: JSON.stringify({ fbp: keks("_fbp") }),
+      }).catch(() => { /* der nächste Antrag schickt „keine Einwilligung" ohnehin mit */ });
+    } catch { /* egal */ }
+  }
   const e: Einwilligung = { statistik: !!wahl.statistik, marketing: !!wahl.marketing, zeit: new Date().toISOString(), fassung: FASSUNG };
   try { localStorage.setItem(SCHLUESSEL, JSON.stringify(e)); } catch { /* privates Fenster: gilt für diesen Aufruf */ }
   if (!e.marketing) { try { sessionStorage.removeItem(KAMPAGNE_SCHLUESSEL); } catch { /* egal */ } }
@@ -103,9 +131,18 @@ async function anwenden(e: Einwilligung | null): Promise<void> {
     document.head.appendChild(s2);
     try {
       w.fbq!("consent", "grant");
+      // 24.09.2026 (E-239): keine automatischen Ereignisse (erkannte Knopf-Klicks, Seiten-
+      // Metadaten) — der Pixel meldet nur, was hier ausdrücklich steht. So steht es in der
+      // Datenschutzerklärung VI a Nr. 2. Muss VOR „init" stehen.
+      w.fbq!("set", "autoConfig", false, m.metaPixel);
       w.fbq!("init", m.metaPixel);
       w.fbq!("track", "PageView");
     } catch { /* ohne Pixel weiter */ }
+  } else if (pixelGeladen && w.fbq) {
+    // 24.09.2026 (E-239): Widerruf auf derselben Seite. Das Skript lässt sich nicht entladen —
+    // „revoke" hält es still, bis die Seite neu lädt (dann lädt es ohne Einwilligung gar nicht).
+    // Wer danach wieder zustimmt, gibt es mit „grant" frei.
+    try { w.fbq("consent", e.marketing ? "grant" : "revoke"); } catch { /* egal */ }
   }
 
   const brauchtGtag = (e.statistik && m.ga4) || (e.marketing && m.ads);
@@ -141,7 +178,12 @@ export function messungStarten(): void {
 }
 
 // ── Anzeigen-Zuordnung ───────────────────────────────────────────────────────
-const KAMPAGNE_FELDER = ["gclid", "gbraid", "wbraid", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
+// 24.09.2026 (E-239): fbclid dazu. Bis hier las nur messungsDaten() die Klick-Kennung
+// aus der AKTUELLEN Adresse — nach dem ersten Seitenwechsel war sie weg, und wer ohne
+// Pixel-Cookie (_fbc) weiterging, kam beim Server ohne Klick an. `fbclid_zeit` ist die
+// Ankunftszeit in Millisekunden: Meta verlangt in fbc die Zeit des ersten Aufrufs mit
+// fbclid. Beides liegt wie alles hier vor der Einwilligung NUR im Arbeitsspeicher.
+const KAMPAGNE_FELDER = ["gclid", "gbraid", "wbraid", "fbclid", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
 let kampagneImSpeicher: Record<string, string> | null = null;
 
 function kampagneAusAdresse(): void {
@@ -151,10 +193,18 @@ function kampagneAusAdresse(): void {
     for (const f of KAMPAGNE_FELDER) { const v = q.get(f); if (v) k[f] = v.slice(0, 300); }
     if (Object.keys(k).length) {
       k.landing = window.location.pathname.slice(0, 300);
+      // Neu laden mit derselben Adresse ist kein neuer Klick — die erste Ankunftszeit bleibt.
+      if (k.fbclid) k.fbclid_zeit = ankunftVon(kampagne(), k.fbclid) ?? String(Date.now());
       kampagneImSpeicher = k;
       if (einwilligungLesen()?.marketing) kampagneSichern();
     }
   } catch { /* ohne Zuordnung weiter */ }
+}
+
+/** Die gemerkte Ankunftszeit (ms) zu genau dieser fbclid — oder null. */
+function ankunftVon(k: Record<string, string> | undefined, fbclid: string): string | null {
+  const zeit = k && k.fbclid === fbclid ? k.fbclid_zeit : undefined;
+  return zeit && /^\d{13}$/.test(zeit) ? zeit : null;
 }
 
 function kampagneSichern(): void {
@@ -244,14 +294,44 @@ export function metaSeitenwechsel(pfad: string): void {
   try { w.fbq("track", "PageView"); } catch { /* egal */ }
 }
 
-/** Was der Server für die Conversions API braucht — reist mit dem Antrag mit. */
-export function messungsDaten(): { fbp: string | null; fbc: string | null; einwilligung: boolean; seite: string } {
-  const fbclid = (() => { try { return new URLSearchParams(window.location.search).get("fbclid"); } catch { return null; } })();
+/**
+ * Die Klick-Kennung als fbc (24.09.2026, E-239): `fb.1.<Ankunftszeit ms>.<fbclid>`.
+ * Reihenfolge: fbclid aus der aktuellen Adresse, sonst die gemerkte aus kampagne().
+ * Die Zeit ist immer die der ANKUNFT — bis hier stand Date.now() beim Absenden,
+ * und Meta sah jeden Klick so jung wie das Speichern des Antrags.
+ */
+function fbcAusKlick(): string | null {
+  try {
+    const inAdresse = new URLSearchParams(window.location.search).get("fbclid")?.slice(0, 300) || null;
+    // Steht eine fbclid in der Adresse, die noch nicht gemerkt ist (Wechsel innerhalb des Einseiters), jetzt merken.
+    if (inAdresse && kampagne()?.fbclid !== inAdresse) kampagneAusAdresse();
+    const k = kampagne();
+    const fbclid = inAdresse ?? k?.fbclid ?? null;
+    if (!fbclid) return null;
+    return `fb.1.${ankunftVon(k, fbclid) ?? String(Date.now())}.${fbclid}`;
+  } catch { return null; }
+}
+
+/**
+ * Was der Server für die Conversions API braucht — reist mit dem Antrag mit.
+ * fbp und fbc nur mit Marketing-Einwilligung (E-239): Ohne sie meldet der Server
+ * ohnehin nichts an Meta, also braucht er die Kennungen auch nicht. Und ein altes
+ * _fbp-Cookie nach einem Widerruf reist so nicht weiter.
+ */
+export function messungsDaten(): { fbp: string | null; fbc: string | null; einwilligung: boolean; seite: string; fassung: number; kampagne?: Record<string, string> } {
+  const einwilligung = !!einwilligungLesen()?.marketing;
+  // E-239: Die Fassung des Hinweises reist mit (der Server meldet nur ab Fassung 2, die Meta
+  // nennt), und mit Einwilligung die Kampagnen-Kennung des Klicks (utm_campaign/utm_id) —
+  // damit der Kostenbericht einen Kauf über die Website seiner Kampagne zuordnen kann.
+  const k = einwilligung ? kampagne() : undefined;
   return {
-    fbp: keks("_fbp"),
-    // Kommt der Mensch frisch aus einer Anzeige, steht die Klick-Kennung noch in der Adresse.
-    fbc: keks("_fbc") ?? (fbclid ? `fb.1.${Date.now()}.${fbclid}` : null),
-    einwilligung: !!einwilligungLesen()?.marketing,
+    fassung: FASSUNG,
+    ...(k ? { kampagne: k } : {}),
+    fbp: einwilligung ? keks("_fbp") : null,
+    // Der Pixel setzt _fbc selbst, wenn er die fbclid in der Adresse sieht. Kam die
+    // Einwilligung erst nach einem Seitenwechsel, fehlt das Cookie — dann gilt der gemerkte Klick.
+    fbc: einwilligung ? (keks("_fbc") ?? fbcAusKlick()) : null,
+    einwilligung,
     seite: (() => { try { return window.location.pathname.slice(0, 300); } catch { return ""; } })(),
   };
 }

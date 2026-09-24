@@ -1257,6 +1257,17 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
       + "Formular nach — fällt die Meldung einmal aus, geht trotzdem kein Lead verloren. Ein Lead, der auf beiden Wegen kommt, "
       + "wird einmal angelegt.",
   },
+  // E-239 (24.09.2026): Werbekosten neben echtem Geld.
+  {
+    ziel: ".lm-kosten",
+    titel: "Was ein zahlender Kunde wirklich kostet.",
+    text: "Die Ausgaben je Kampagne kommen alle drei Stunden von Meta und stehen neben unserem Geld: Leads, fertige Anträge, "
+      + "zahlende Kunden und Umsatz. Zahlend heißt, Rate 1 ist auf dem Konto gebucht — nicht „Kunde sagt, er hat bezahlt“. "
+      + "Daraus rechnet die Karte die Kosten je Lead, je Antrag und je zahlendem Kunden auf den Cent. Gibt es noch keinen "
+      + "zahlenden Kunden, steht genau das da — keine erfundene Zahl.",
+    tipp: "Die alte Kampagne „DE Kampagne 2“ lief über ein anderes Werbekonto: Ihre Leads und Zahlenden stehen da, ihre Kosten nicht. "
+      + "„Kosten jetzt abrufen“ holt den gewählten Zeitraum sofort.",
+  },
   {
     ziel: ".lm-verbindung",
     titel: "Die Prüfliste zeigt, was bei Meta steht.",

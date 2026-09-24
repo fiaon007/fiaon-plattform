@@ -5,6 +5,15 @@
 // Ablehnung darf nicht schwerer sein als die Zustimmung). Erscheint nur, wenn
 // es überhaupt etwas einzuwilligen gibt, und nie in den internen Bereichen.
 // Wieder öffnen: Ereignis „fiaon-einwilligung-oeffnen" (Cookie-Einstellungen).
+//
+// 24.09.2026 (E-239): Seit 22.09. lädt Marketing auch den Meta-Pixel, und der
+// Server meldet dieselben Ereignisse per Conversions API (gehashte Kontaktdaten).
+// Der Text nannte nur Google Ads — eine Einwilligung ohne den Empfänger ist nicht
+// informiert (Art. 4 Nr. 11, Art. 7 DSGVO). Jetzt nennt schon die erste Ebene
+// Google und Meta (wer „Alle erlauben" drückt, sieht die Schalter nie), die
+// Marketing-Zeile nennt Meta Platforms Ireland und die USA. FASSUNG in
+// lib/werbung.ts steht deshalb auf 2: Jeder wird einmal neu gefragt.
+// Englische Fassung: gibt es noch nicht — der Hinweis erscheint auch auf /en/ deutsch.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -69,12 +78,12 @@ export default function EinwilligungsHinweis() {
         .ew-schalter:disabled{opacity:.6;cursor:default}
       `}</style>
       <h2 id="ew-titel">Ihre Wahl zu Cookies</h2>
-      <p>Wir messen nur mit Ihrer Einwilligung, welche Seiten gelesen und welche Anzeigen geklickt werden. Ohne sie funktioniert fiaon.com genauso. Einzelheiten stehen in den <a href={verweis("/cookie-einstellungen")}>Cookie-Einstellungen</a> und der <a href={verweis("/datenschutz")}>Datenschutzerklärung</a>.</p>
+      <p>Nur mit Ihrer Einwilligung messen wir, welche Seiten gelesen werden (Microsoft Clarity, Google Analytics), und ob ein Antrag, Gespräch oder Kauf aus einer Anzeige bei Google, Facebook oder Instagram kam, um unsere Anzeigen zu optimieren (Google Ads, Meta). Dafür gehen Daten an diese Anbieter, auch in die USA, an Meta auch Ihre Kontaktdaten aus Antrag oder Buchung in gehashter Form. Ohne Einwilligung funktioniert fiaon.com genauso. Einzelheiten stehen in den <a href={verweis("/cookie-einstellungen")}>Cookie-Einstellungen</a> und der <a href={verweis("/datenschutz")}>Datenschutzerklärung</a>.</p>
       {auswahl && (
         <div className="ew-wahl">
           <label className="ew-zeile"><span><b>Notwendig</b><small>Anmeldung, Sicherheit, diese Entscheidung. Immer aktiv.</small></span><input className="ew-schalter" type="checkbox" checked disabled aria-label="Notwendig" /></label>
           <label className="ew-zeile"><span><b>Statistik</b><small>Microsoft Clarity und Google Analytics: welche Seiten gelesen werden, wo Besucher hängen bleiben.</small></span><input className="ew-schalter" type="checkbox" checked={statistik} onChange={(e) => setStatistik(e.target.checked)} aria-label="Statistik" /></label>
-          <label className="ew-zeile"><span><b>Marketing</b><small>Google Ads: ob ein Gespräch oder Auftrag aus einer Anzeige kam.</small></span><input className="ew-schalter" type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} aria-label="Marketing" /></label>
+          <label className="ew-zeile"><span><b>Marketing</b><small>Google Ads und Meta (Facebook, Instagram): ob ein Antrag, Gespräch oder Kauf aus einer Anzeige kam, und die Optimierung unserer Anzeigen. Meta Platforms Ireland erhält dafür auch Ihre Kontaktdaten aus Antrag oder Buchung, gehasht (SHA-256); Übermittlung auch in die USA.</small></span><input className="ew-schalter" type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} aria-label="Marketing" /></label>
         </div>
       )}
       <div className="ew-knoepfe">

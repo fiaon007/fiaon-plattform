@@ -332,6 +332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('lead_willkommen_nachholen', async () => await (await import('./lib/fiaon-lead-willkommen')).willkommenNachholen(), 5 * 60 * 1000, { beimStartNach: 150_000 });
     // Messung an Meta (Pixel + Conversions API): offene Ereignisse alle 3 Minuten nachsenden.
     tageslauf('meta_messung', async () => await (await import('./lib/fiaon-meta-capi')).capiLauf(), 3 * 60 * 1000, { beimStartNach: 200_000 });
+    tageslauf('meta_kosten', async () => await (await import('./lib/fiaon-meta-kosten')).kostenAbruf(7), 3 * 60 * 60 * 1000, { beimStartNach: 300_000 }); // E-239: Werbekosten je Anzeige und Tag (7 Tage, Meta korrigiert nach)
     // Maras WhatsApp-Antworten gehen mit menschlicher Verzögerung raus — der
     // Takt schickt, was fällig ist (23.09.2026).
     tageslauf('mara_wa_versand', async () => await (await import('./lib/fiaon-whatsapp-mara')).versandLauf(), 20 * 1000, { beimStartNach: 45_000 });

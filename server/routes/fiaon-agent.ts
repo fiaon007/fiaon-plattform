@@ -910,12 +910,23 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   // („dieser Lead hat bezahlt") — das ist das Signal, auf das die Kampagne
   // optimieren kann. Idempotent über die Ereignis-Kennung.
   try {
-    const { webEreignis, crmEreignis, META_EREIGNIS, CRM_EREIGNIS, meldenUndSenden } = await import("../lib/fiaon-meta-capi");
-    const [a] = (await sqlPool`SELECT person_id, amount_due FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
-    const wertCents = a?.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null;
+    const { webEreignis, crmEreignis, produktFuer, META_EREIGNIS, CRM_EREIGNIS, meldenUndSenden } = await import("../lib/fiaon-meta-capi");
+    // E-239: Wert = die tatsächlich gebuchte erste Zahlung (Rate 1), Zeitpunkt =
+    // ihre Buchung. amount_due ist Altlast (E-181) und nur noch der Rückfall —
+    // für Auskünfte (FIAON-SCHUFA-…) und Firmenaufträge gibt es keine Raten.
+    const [a] = (await sqlPool`
+      SELECT a.person_id, a.pack_key, a.type, a.amount_due, a.paid_at,
+             r.betrag_cents AS rate1_cents, r.bezahlt_am AS rate1_am
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_abo_raten r ON r.ref = a.ref AND r.rate_nr = 1 AND r.status = 'bezahlt'
+       WHERE a.ref = ${ref} LIMIT 1`) as any[];
+    const wertCents = a?.rate1_cents != null ? Number(a.rate1_cents)
+      : a?.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null;
+    const zeit = a?.rate1_am ?? a?.paid_at ?? null;
+    const produkt = produktFuer(ref, a?.pack_key, a?.type);
     meldenUndSenden(async () => {
-      await webEreignis(META_EREIGNIS.zahlung, ref, { wertCents });
-      await crmEreignis(CRM_EREIGNIS.zahlung, { ref, personId: a?.person_id ?? null, wertCents });
+      await webEreignis(META_EREIGNIS.zahlung, ref, { wertCents, produkt, zeit });
+      await crmEreignis(CRM_EREIGNIS.zahlung, { ref, personId: a?.person_id ?? null, wertCents, zeit });
     });
   } catch (e) {
     console.error("[META-MESSUNG] Zahlung:", e);

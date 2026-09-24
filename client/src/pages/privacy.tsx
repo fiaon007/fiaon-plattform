@@ -21,6 +21,17 @@
 // Kampagnen-Zuordnung (gclid/utm, 13 Monate) und der Widerruf über den Knopf.
 // VII a gilt jetzt für Unternehmen UND Privatpersonen. Beides zur anwaltlichen
 // Durchsicht (Register E-191).
+//
+// 24.09.2026 (E-239): VI a neu — Meta (Facebook, Instagram). Seit 22.09. lädt die
+// Marketing-Einwilligung den Meta-Pixel, der Server meldet dieselben Ereignisse per
+// Conversions API (gehashte Kontaktdaten, IP, Browser, fbp/fbc), und Leads aus
+// Meta-Lead-Formularen kommen direkt an (server/lib/fiaon-meta-leads.ts); ihre Stufen
+// gehen nur mit der Lead-Kennung zurück (crmEreignis in server/lib/fiaon-meta-capi.ts).
+// Die Erklärung nannte Meta nirgends. Einen Abschnitt zu WhatsApp Business gab es nicht
+// — darum eigener Abschnitt statt Ergänzung. Nummer „VI a" wie bei VII a/b: die
+// späteren Nummern bleiben. VI.3/VI.4 verweisen darauf, Stand auf 24.09. gesetzt.
+// Beschrieben ist, was der Code HEUTE tut — auch, dass der Server einen Widerruf im
+// Browser nicht erfährt (siehe VI a Nr. 7). ANWALT: VI a mit Controller Addendum prüfen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
@@ -31,7 +42,12 @@ const auswahlOeffnen = () => window.dispatchEvent(new Event("fiaon-einwilligung-
 
 export default function PrivacyPage() {
   useEffect(() => {
-    window.scrollTo(0, 0);
+    // Ein Verweis mit Anker (z. B. /datenschutz#meta von der Cookie-Seite) springt zum Abschnitt —
+    // die Seite lädt verzögert, der Browser findet den Anker allein nicht.
+    // decodeURIComponent wirft bei kaputtem Anker (z. B. „#%E0") — dann einfach nach oben.
+    const ziel = (() => { try { return window.location.hash ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null; } catch { return null; } })();
+    if (ziel) ziel.scrollIntoView();
+    else window.scrollTo(0, 0);
   }, []);
 
   return (
@@ -248,17 +264,65 @@ export default function PrivacyPage() {
                       <li><b>Microsoft Clarity</b> (Statistik) — Anbieter: Microsoft Corporation, One Microsoft Way, Redmond, WA 98052, USA; in der EU Microsoft Ireland Operations Limited, One Microsoft Place, South County Business Park, Leopardstown, Dublin 18, Irland. Zweck: Nutzung der Website verstehen (aufgerufene Seiten, Klicks, Scrolltiefe, Heatmaps und Sitzungsaufzeichnungen, in denen Formulareingaben maskiert sind). Cookies: _clck (1 Jahr), _clsk (1 Tag).</li>
                       <li><b>Google Analytics 4</b> (Statistik) — Anbieter: Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland. Zweck: Zugriffszahlen und Wege durch die Website; Google-Signale und Personalisierung sind ausgeschaltet. Cookies: _ga und _ga_* (2 Jahre).</li>
                       <li><b>Google Ads Conversion-Messung</b> (Marketing) — Anbieter: Google Ireland Limited (Anschrift wie oben). Zweck: zu erkennen, ob ein Gespräch oder ein Auftrag aus einer unserer Anzeigen kam. Personalisierte Werbung und Retargeting sind ausgeschaltet. Cookie: _gcl_au (90 Tage).</li>
+                      <li><b>Meta Pixel und Conversions API</b> (Marketing) — Anbieter: Meta Platforms Ireland Limited, Merrion Road, Dublin 4, D04 X2K5, Irland. Zweck: Messung und Optimierung unserer Anzeigen auf Facebook und Instagram. Cookies: _fbp und _fbc (90 Tage). Einzelheiten, auch zur gemeinsamen Verantwortlichkeit mit Meta, in Abschnitt VI a.</li>
                     </ul>
-                    <p className="text-sm mt-2">Rechtsgrundlage ist Ihre Einwilligung nach § 25 Abs. 1 TDDDG und Art. 6 Abs. 1 lit. a DSGVO. Microsoft und Google können Daten in den USA verarbeiten; beide sind nach dem EU-US Data Privacy Framework zertifiziert, für das die Europäische Kommission am 10. Juli 2023 ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO).</p>
+                    <p className="text-sm mt-2">Rechtsgrundlage ist Ihre Einwilligung nach § 25 Abs. 1 TDDDG und Art. 6 Abs. 1 lit. a DSGVO. Microsoft, Google und Meta können Daten in den USA verarbeiten; alle drei sind nach dem EU-US Data Privacy Framework zertifiziert, für das die Europäische Kommission am 10. Juli 2023 ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO).</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">4. Zuordnung von Anzeigen und Kampagnen</h3>
-                    <p className="text-sm">Kommen Sie über eine Anzeige oder einen Kampagnen-Link zu uns, enthält die Adresse Kampagnenangaben (zum Beispiel utm_campaign oder die Klick-Kennung gclid). Vereinbaren Sie während desselben Besuchs ein Gespräch oder erteilen Sie einen Auftrag, speichern wir diese Angaben zusammen mit der Buchung oder dem Auftrag, um zu erkennen, welche Kampagne zu einem Auftrag geführt hat. Auf Ihrem Gerät abgelegt (Session Storage) werden die Angaben nur mit Ihrer Einwilligung in Marketing. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; unser berechtigtes Interesse ist die Bewertung unserer Werbung. An Google geben wir diese Angaben nicht weiter. Wir löschen sie nach 13 Monaten.</p>
+                    <p className="text-sm">Kommen Sie über eine Anzeige oder einen Kampagnen-Link zu uns, enthält die Adresse Kampagnenangaben (zum Beispiel utm_campaign oder die Klick-Kennungen gclid von Google und fbclid von Meta). Vereinbaren Sie während desselben Besuchs ein Gespräch oder erteilen Sie einen Auftrag, speichern wir diese Angaben zusammen mit der Buchung oder dem Auftrag, um zu erkennen, welche Kampagne zu einem Auftrag geführt hat. Auf Ihrem Gerät abgelegt (Session Storage, „fiaon_kampagne“) werden die Angaben nur mit Ihrer Einwilligung in Marketing. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; unser berechtigtes Interesse ist die Bewertung unserer Werbung. An Google geben wir diese Angaben nicht weiter. Die Meta-Klick-Kennung fbclid gehört nicht zu diesen gespeicherten Kampagnenangaben: Nur mit Ihrer Einwilligung in Marketing halten wir sie als Kennung _fbc bei Ihrem Antrag, Gespräch oder Auftrag fest und übermitteln sie mit den Ereignissen in Abschnitt VI a an Meta. Wir löschen die Kampagnenangaben nach 13 Monaten.</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">5. Widerruf Ihrer Einwilligung</h3>
                     <p className="text-sm">Sie können Ihre Einwilligung jederzeit mit Wirkung für die Zukunft ändern oder widerrufen — über den Knopf unten oder die Seite <a href="/cookie-einstellungen" className="text-blue-600 hover:text-blue-700 underline">Cookie-Einstellungen</a>. Bereits gesetzte Cookies der Anbieter löschen Sie über Ihren Browser.</p>
                     <button type="button" onClick={auswahlOeffnen} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#12284a] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0b1c36] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">Cookie-Einstellungen öffnen</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* VI a. Meta (Facebook, Instagram) — E-239, 24.09.2026 */}
+            {/* LEGAL REVIEW REQUIRED: gemeinsame Verantwortlichkeit (Art. 26) mit dem Meta Controller Addendum abgleichen; Rechtsgrundlage lit. f für die Stufenmeldung der Lead-Formulare; Speicherdauer (bisher keine Löschfrist im Code für fiaon_meta_messung / fiaon_meta_capi). */}
+            <div id="meta" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 6s ease-in-out infinite"
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">VI a. Meta (Facebook, Instagram): Pixel, Conversions API und Lead-Formulare</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Anbieter und gemeinsame Verantwortlichkeit</h3>
+                    <p className="text-sm">Anbieter ist die Meta Platforms Ireland Limited, Merrion Road, Dublin 4, D04 X2K5, Irland („Meta“). Für die Erhebung der Daten auf fiaon.com und ihre Übermittlung an Meta sind wir und Meta gemeinsam verantwortlich (Art. 26 DSGVO). Die Vereinbarung dazu ist der Nachtrag von Meta für gemeinsam Verantwortliche (<a href="https://www.facebook.com/legal/controller_addendum" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Controller Addendum</a>). Danach informieren wir Sie über die gemeinsame Verarbeitung — mit diesem Abschnitt —, und Meta ist für Ihre Rechte nach Art. 15 bis 20 DSGVO zu den Daten zuständig, die Meta nach der Übermittlung speichert. Sie können Ihre Rechte aber gegenüber jedem von uns geltend machen (Art. 26 Abs. 3 DSGVO). Was Meta nach der Übermittlung mit den Daten tut, verantwortet Meta allein; Einzelheiten stehen in der <a href="https://www.facebook.com/privacy/policy" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Datenschutzrichtlinie von Meta</a>.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Der Meta-Pixel im Browser</h3>
+                    <p className="text-sm">Nur wenn Sie Marketing zustimmen, lädt fiaon.com den Meta-Pixel. Er meldet Meta die aufgerufenen Seiten und diese Schritte: Antrag begonnen, Paket gewechselt, Antrag abgeschickt, Gespräch gebucht und Auftrag erteilt — soweit vorhanden mit dem gewählten Paket und seinem Preis. Dabei erhält Meta Ihre IP-Adresse, Angaben zu Browser und Gerät, die aufgerufene Adresse und die Cookies _fbp (Kennung Ihres Browsers) und _fbc (Klick-Kennung aus der Anzeige), beide 90 Tage gültig. Sind Sie im selben Browser bei Facebook oder Instagram angemeldet, kann Meta den Besuch Ihrem Konto zuordnen. Den automatischen Abgleich von Formulareingaben durch den Pixel („Advanced Matching“) und seine automatischen Ereignisse (etwa selbst erkannte Klicks auf Schaltflächen) haben wir ausgeschaltet.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Conversions API: dasselbe Ereignis von unserem Server</h3>
+                    <p className="text-sm">Werbeblocker und Browser-Einstellungen verhindern oft, dass der Pixel meldet. Deshalb übermittelt unser Server die wichtigen Ereignisse zusätzlich direkt an Meta: Antrag begonnen, Antrag abgeschickt, Gespräch gebucht, Auftrag erteilt und — sobald sie bei uns eingeht — Ihre Zahlung. Jedes Ereignis trägt dieselbe Kennung wie im Pixel, sodass Meta es nur einmal zählt. Übermittelt werden: E-Mail-Adresse, Telefonnummer, Vor- und Nachname, Postleitzahl, Ort und Land als SHA-256-Hashwert (Meta bildet aus den eigenen Daten dieselben Hashwerte und ordnet so das Ereignis einem Konto zu), IP-Adresse und Browser-Kennung, die Kennungen _fbp und _fbc, Art, Zeitpunkt und Seite des Ereignisses, Ihre Antrags- oder Auftragsnummer, Paket und Produktart sowie beim Auftrag und beim Kauf der Betrag. Angaben zu Bonität, Einkommen, Schulden oder SCHUFA-Einträgen übermitteln wir nicht. Auch dieser Weg läuft nur mit Ihrer Einwilligung in Marketing.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">4. Rechtsgrundlage für Pixel und Server-Ereignisse</h3>
+                    <p className="text-sm">Rechtsgrundlage ist Ihre Einwilligung (Art. 6 Abs. 1 lit. a DSGVO; für das Setzen und Lesen der Cookies in Verbindung mit § 25 Abs. 1 TDDDG). Ohne Einwilligung lädt der Pixel nicht, und unser Server meldet Meta keine Ereignisse zu Ihrem Besuch oder Antrag. Einzige Ausnahme sind Anfragen, die über ein Lead-Formular von Meta zu uns kamen: Deren Stufe melden wir nach Nr. 5 ohne Kontaktdaten zurück.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">5. Lead-Formulare auf Facebook und Instagram</h3>
+                    <p className="text-sm">Füllen Sie in einer unserer Anzeigen auf Facebook oder Instagram ein Formular aus, übermittelt Meta uns, was Sie dort eintragen oder bestätigen (Name, E-Mail-Adresse, Telefonnummer, Land, Antworten auf die Fragen des Formulars, Zustimmungen im Formular), dazu die Lead-Kennung von Meta sowie Anzeige, Kampagne und Plattform, über die Sie kamen. Wir nutzen diese Angaben, um Sie wie gewünscht zu kontaktieren und Ihre Anfrage zu bearbeiten (Art. 6 Abs. 1 lit. b DSGVO). Stellen Sie danach Ihren Antrag fertig oder geht Ihre Zahlung ein, melden wir Meta diese Stufe („Antrag fertig“ oder „bezahlt“) — nur mit der Lead-Kennung, die Meta selbst vergeben hat, dem Zeitpunkt und gegebenenfalls dem Betrag, ohne Namen, E-Mail-Adresse, Telefonnummer oder andere Angaben im Klartext. So erkennt Meta, welche Anzeigen zu Kunden führen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; unser berechtigtes Interesse ist, unsere Werbung auf die Menschen auszurichten, denen wir tatsächlich helfen können. Sie können dem jederzeit widersprechen (Art. 21 DSGVO) — eine Nachricht an support@fiaon.com genügt.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">6. Übermittlung in die USA</h3>
+                    <p className="text-sm">Meta verarbeitet Daten auch bei der Meta Platforms, Inc. in den USA. Meta Platforms, Inc. ist nach dem EU-US Data Privacy Framework zertifiziert, für das die Europäische Kommission am 10. Juli 2023 ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO).</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">7. Widerruf und Widerspruch</h3>
+                    <p className="text-sm">Ihre Einwilligung widerrufen Sie jederzeit mit Wirkung für die Zukunft über die <a href="/cookie-einstellungen" className="text-blue-600 hover:text-blue-700 underline">Cookie-Einstellungen</a> oder den Knopf in Abschnitt VI Nr. 5. Ab dann meldet der Pixel nichts mehr und lädt bei späteren Aufrufen nicht mehr, und Ihr Browser gibt uns keine Meta-Kennungen mehr mit. Ihr Widerruf erreicht auch unseren Server: Ereignisse, die erst später bei uns entstehen — etwa der Eingang Ihrer Zahlung —, meldet er danach nicht mehr an Meta. Bereits gesetzte Cookies löschen Sie über Ihren Browser. Welche Werbung Meta Ihnen zeigt, stellen Sie in Ihrem Facebook- oder Instagram-Konto unter den Werbepräferenzen ein.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">8. Dauer der Speicherung</h3>
+                    <p className="text-sm">Die Cookies _fbp und _fbc gelten 90 Tage. Die Kennungen (_fbp, _fbc, IP-Adresse, Browser-Kennung, Kampagnen-Kennung des Anzeigenklicks) speichern wir nur mit Ihrer Einwilligung; sie und der Nachweis der an Meta übermittelten Ereignisse werden nach 13 Monaten gelöscht, nach einem Widerruf werden die Kennungen sofort entfernt. Angaben aus Lead-Formularen behandeln wir wie jede andere Anfrage. Wie lange Meta die Daten speichert, legt Meta in seiner Datenschutzrichtlinie fest.</p>
                   </div>
                 </div>
               </div>
@@ -429,7 +493,7 @@ export default function PrivacyPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">X. Aktualität und Änderung dieser Datenschutzerklärung</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 19. September 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
+                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 24. September 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
                 </p>
               </div>
             </div>

@@ -24,6 +24,8 @@ import { whatsappUrteil, WHATSAPP_MOEGLICH_SQL } from "../../shared/fiaon-whatsa
 import {
   capiZahlen, capiLauf, probeSenden, letzteEreignisse, datensatzSetzen, messungSchalten, META_EREIGNIS, CRM_EREIGNIS,
 } from "../lib/fiaon-meta-capi";
+import { kostenBericht, kostenAbruf, datumOderNull } from "../lib/fiaon-meta-kosten";
+import { berlinToday, berlinPlusTage } from "../lib/fiaon-time";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -486,6 +488,44 @@ router.get("/chef/lead-motor/messung/ereignisse", wache, async (_req: ChefReques
   } catch (err) {
     console.error("[LEAD-MOTOR] messung/ereignisse:", err);
     res.status(500).json({ ok: false, error: "Die Ereignisse ließen sich nicht laden." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS EIN ZAHLENDER KUNDE KOSTET (24.09.2026, E-239)
+//
+// Justin will eine Kampagne auf „Kaufen" spielen und cent-genau sehen, was ein
+// echter zahlender Kunde kostet. Die Regeln der Zählung stehen in
+// server/lib/fiaon-meta-kosten.ts — hier nur Zeitraum und Knopf.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Der Bericht: ?tage=7|30|90 oder ?von=JJJJ-MM-TT&bis=JJJJ-MM-TT (Berliner Tage, Standard 30 Tage bis heute). */
+router.get("/chef/lead-motor/kosten", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const tage = Math.max(1, Math.min(400, Math.floor(Number(req.query.tage) || 30)));
+    const bis = datumOderNull(req.query.bis) ?? berlinToday();
+    const von = datumOderNull(req.query.von) ?? berlinPlusTage(-(tage - 1));
+    if (von > bis) return res.status(400).json({ ok: false, error: "„Von“ liegt nach „bis“." });
+    const spanne = (new Date(`${bis}T12:00:00Z`).getTime() - new Date(`${von}T12:00:00Z`).getTime()) / 86_400_000;
+    if (spanne > 400) return res.status(400).json({ ok: false, error: "Höchstens 400 Tage auf einmal." });
+    res.json({ ok: true, bericht: await kostenBericht(von, bis), metaBereit: metaKonfig().bereit });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] kosten:", err);
+    res.status(500).json({ ok: false, error: "Der Kostenbericht ließ sich nicht laden." });
+  }
+});
+
+/** Kosten jetzt bei Meta abrufen (dort nur lesend) — für die letzten `tage` Tage, höchstens 90. */
+router.post("/chef/lead-motor/kosten/abrufen", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    if (!metaKonfig().bereit) return res.status(409).json({ ok: false, error: "Erst den Meta-Zugang eintragen." });
+    const tage = Math.max(1, Math.min(90, Math.floor(Number(req.body?.tage) || 30)));
+    const erg = await kostenAbruf(tage);
+    console.log(`[LEAD-MOTOR] Kosten abgerufen (${erg.seit} bis ${erg.bis}, ${erg.zeilen} Zeilen) von ${wer(req)}`);
+    if (!erg.konten.length) return res.status(409).json({ ok: false, error: erg.hinweis ?? "Kein Werbekonto bekannt.", ergebnis: erg });
+    res.json({ ok: true, ergebnis: erg });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] kosten/abrufen:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Der Abruf ist abgebrochen." });
   }
 });
 

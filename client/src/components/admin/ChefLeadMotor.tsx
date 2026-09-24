@@ -232,6 +232,9 @@ export default function ChefLeadMotor() {
             </div>
           </section>
 
+          {/* E-239: Werbekosten neben echtem Geld — was kostet ein zahlender Kunde? */}
+          <KostenKarte melden={melden} />
+
           <details className="lm-karte lm-klapp lm-verbindung"><summary>Verbindung zu Meta<span className="lm-klapp-still">Webhook, Rechte, Seite, Formulare</span></summary>
             <div className="lm-karte-kopf">
               <div>
@@ -879,6 +882,183 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS EIN ZAHLENDER KUNDE KOSTET (24.09.2026, E-239)
+//
+// Justin will eine Kampagne auf „Kaufen" spielen und cent-genau sehen, was ein
+// ECHTER zahlender Kunde kostet. Die Karte legt die Ausgaben laut Meta neben
+// unser Geld: zahlend heißt Rate 1 ist gebucht, nie „Kunde sagt, er hat
+// bezahlt". Die Regeln der Zählung stehen in server/lib/fiaon-meta-kosten.ts.
+// Wo es nichts zu teilen gibt, steht ein Satz — nie ∞ und nie eine 0 als Ersatz.
+// ═══════════════════════════════════════════════════════════════════════════
+interface KostenZeile {
+  schluessel: string; art: "konto" | "extern" | "website"; kampagneId: string | null; name: string;
+  ausgabenCents: number | null; impressionen: number | null; klicks: number | null; leadsMeta: number | null;
+  leads: number; ueberWebsite: number; menschen: number; antraege: number; zahlende: number;
+  umsatzRatenCents: number; auskuenfte: number; auskunftCents: number;
+  kostenJeLeadCents: number | null; kostenJeAntragCents: number | null; kostenJeZahlendemCents: number | null;
+  hinweis: string | null;
+}
+interface KostenBericht {
+  von: string; bis: string; stand: string | null;
+  letzterAbruf: { am: string; ok: boolean; seit: string; bis: string; fehler: string[]; hinweis: string | null; konten: string[] } | null;
+  werbekonten: string[];
+  zeilen: KostenZeile[];
+  summe: Omit<KostenZeile, "schluessel" | "art" | "kampagneId" | "name" | "hinweis"> & { ausgabenCents: number };
+}
+
+/** Cent → „1.234,56 €" (Komma, zwei Stellen). */
+const euro = (cents: number) => `${(cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const tagText = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+function KostenKarte({ melden }: { melden: (t: string) => void }) {
+  const [tage, setTage] = useState(30);
+  const d = useDaten<{ bericht: KostenBericht; metaBereit: boolean }>(`/chef/lead-motor/kosten?tage=${tage}`, [tage]);
+  const [busy, setBusy] = useState(false);
+  const b = d.daten?.bericht ?? null;
+
+  const abrufen = async () => {
+    setBusy(true);
+    try {
+      const j = await senden("/chef/lead-motor/kosten/abrufen", { tage: Math.min(tage, 90) });
+      const e = j.ergebnis;
+      melden(e?.fehler?.length
+        ? `Teilweise abgerufen — ${e.fehler.join(" · ")}`
+        : `Kosten abgerufen: ${euro(e?.ausgabenCents ?? 0)} vom ${tagText(e.seit)} bis ${tagText(e.bis)}.`);
+      d.neu();
+    } catch (err: any) { melden(err.message); } finally { setBusy(false); }
+  };
+
+  const jeZahlendem = (z: { art?: KostenZeile["art"]; kostenJeZahlendemCents: number | null; hinweis?: string | null }) => {
+    // Der Satz kommt vom Server: Make-Kampagne außerhalb des Kontos, Lead ohne Kampagne oder Kosten noch nicht abgerufen.
+    if (z.art === "extern") return <span className="lm-still">{z.hinweis ?? "Kosten nicht abrufbar"}</span>;
+    if (z.art === "website") return <span className="lm-still">Kampagne unbekannt — zählt nicht in die Summe</span>;
+    return z.kostenJeZahlendemCents != null ? <b>{euro(z.kostenJeZahlendemCents)}</b> : <span className="lm-still">noch kein zahlender Kunde</span>;
+  };
+  const unterzeile = (text: string | null) => (text ? <div className="lm-still">{text}</div> : null);
+
+  return (
+    <section className="lm-karte lm-kosten" aria-label="Was ein zahlender Kunde kostet">
+      <div className="lm-karte-kopf">
+        <div>
+          <h2>Was ein zahlender Kunde kostet</h2>
+          <p className="lm-still">
+            Ausgaben laut Meta neben echtem Geld: zahlend heißt, Rate 1 ist auf dem Konto gebucht — nicht „Kunde sagt, er hat bezahlt“.
+            Gezählt nach Eingang: die Leads aus dem Zeitraum und alles, was sie seitdem bezahlt haben.
+          </p>
+        </div>
+        <div className="lm-knoepfe">
+          <div className="lm-reiter" role="group" aria-label="Zeitraum">
+            {[7, 30, 90].map((n) => (
+              <button key={n} className={`lm-reiter-knopf${tage === n ? " an" : ""}`} onClick={() => setTage(n)} aria-pressed={tage === n}>{n} Tage</button>
+            ))}
+          </div>
+          <button className="lm-knopf" onClick={() => void abrufen()} disabled={busy || !d.daten?.metaBereit}
+            title={d.daten?.metaBereit === false ? "Erst den Meta-Zugang eintragen" : "Ausgaben je Anzeige und Tag bei Meta holen (dort nur lesend)"}>
+            {busy ? "Ruft ab …" : "Kosten jetzt abrufen"}
+          </button>
+        </div>
+      </div>
+
+      {d.fehler && <Fehlermeldung text={d.fehler} erneut={d.neu} />}
+      {d.laedt && !b && <Geruest zeilen={4} />}
+      {b && (
+        <>
+          <p className="lm-still">
+            {tagText(b.von)} bis {tagText(b.bis)} · Kosten-Stand: {b.stand ? `${zeit(b.stand)} (${seit(b.stand)})` : "noch nie abgerufen"}
+            {" · "}Werbekonto {b.werbekonten.length ? b.werbekonten.join(", ") : "noch unbekannt"}
+          </p>
+          {!b.stand && (
+            <div className="lm-hinweis">
+              Noch keine Kosten in der Datenbank. „Kosten jetzt abrufen“ holt sie bei Meta — danach alle drei Stunden von selbst.
+            </div>
+          )}
+          {b.letzterAbruf && (b.letzterAbruf.fehler?.length > 0 || (!b.letzterAbruf.konten?.length && b.letzterAbruf.hinweis)) && (
+            <div className="lm-hinweis gelb">
+              Letzter Abruf {zeit(b.letzterAbruf.am)}: {b.letzterAbruf.fehler?.length ? b.letzterAbruf.fehler.join(" · ") : b.letzterAbruf.hinweis}
+            </div>
+          )}
+
+          {b.zeilen.length === 0 ? <p className="lm-leer">In diesem Zeitraum weder Ausgaben noch Leads aus Meta.</p> : (
+            <div className="lm-tabelle-huelle">
+              <table className="lm-tabelle">
+                <thead>
+                  <tr><th>Kampagne</th><th>Ausgaben</th><th>Leads</th><th>Anträge fertig</th><th>Zahlende</th><th>Umsatz</th><th>Kosten je Zahlendem</th></tr>
+                </thead>
+                <tbody>
+                  {b.zeilen.map((z) => (
+                    <tr key={z.schluessel}>
+                      <td>
+                        <b>{z.name}</b>
+                        {unterzeile(z.art === "website" ? "auch unbezahlte Klicks aus Beiträgen" : z.art === "extern" && z.schluessel.startsWith("extern:") ? "Leads über Make" : null)}
+                      </td>
+                      <td className="lm-zahlzelle">
+                        {z.ausgabenCents != null ? euro(z.ausgabenCents) : "—"}
+                        {unterzeile(z.kostenJeLeadCents != null ? `je Lead ${euro(z.kostenJeLeadCents)}` : null)}
+                      </td>
+                      <td className="lm-zahlzelle">
+                        {z.leads.toLocaleString("de-DE")}
+                        {unterzeile(z.art === "website" ? "Anträge mit Meta-Klick" : z.leadsMeta != null ? `Meta zählt ${z.leadsMeta.toLocaleString("de-DE")}` : null)}
+                        {unterzeile(z.art !== "website" && z.ueberWebsite > 0 ? `davon ${z.ueberWebsite.toLocaleString("de-DE")} über die Website` : null)}
+                      </td>
+                      <td className="lm-zahlzelle">
+                        {z.antraege.toLocaleString("de-DE")}
+                        {unterzeile(z.kostenJeAntragCents != null ? `je Antrag ${euro(z.kostenJeAntragCents)}` : null)}
+                      </td>
+                      <td className="lm-zahlzelle">
+                        {z.zahlende.toLocaleString("de-DE")}
+                        {unterzeile(z.auskuenfte > 0 ? `+ ${z.auskuenfte} ${z.auskuenfte === 1 ? "Auskunft" : "Auskünfte"} bezahlt` : null)}
+                      </td>
+                      <td className="lm-zahlzelle">
+                        {euro(z.umsatzRatenCents + z.auskunftCents)}
+                        {unterzeile(z.auskunftCents > 0 ? `davon Auskünfte ${euro(z.auskunftCents)}` : null)}
+                      </td>
+                      <td className="lm-zahlzelle">{jeZahlendem(z)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td><b>Summe Werbekonto</b>{unterzeile("nur Kampagnen mit bekannten Kosten")}</td>
+                    <td className="lm-zahlzelle">
+                      <b>{euro(b.summe.ausgabenCents)}</b>
+                      {unterzeile(b.summe.kostenJeLeadCents != null ? `je Lead ${euro(b.summe.kostenJeLeadCents)}` : null)}
+                    </td>
+                    <td className="lm-zahlzelle">
+                      <b>{b.summe.leads.toLocaleString("de-DE")}</b>
+                      {unterzeile(`Meta zählt ${(b.summe.leadsMeta ?? 0).toLocaleString("de-DE")}`)}
+                    </td>
+                    <td className="lm-zahlzelle">
+                      <b>{b.summe.antraege.toLocaleString("de-DE")}</b>
+                      {unterzeile(b.summe.kostenJeAntragCents != null ? `je Antrag ${euro(b.summe.kostenJeAntragCents)}` : null)}
+                    </td>
+                    <td className="lm-zahlzelle">
+                      <b>{b.summe.zahlende.toLocaleString("de-DE")}</b>
+                      {unterzeile(b.summe.auskuenfte > 0 ? `+ ${b.summe.auskuenfte} ${b.summe.auskuenfte === 1 ? "Auskunft" : "Auskünfte"} bezahlt` : null)}
+                    </td>
+                    <td className="lm-zahlzelle"><b>{euro(b.summe.umsatzRatenCents + b.summe.auskunftCents)}</b></td>
+                    <td className="lm-zahlzelle">{jeZahlendem({ kostenJeZahlendemCents: b.summe.kostenJeZahlendemCents })}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          <div className="lm-hinweis gelb">
+            Die Kosten der alten Kampagne „DE Kampagne 2“ (Leads über Make) liegen in einem anderen Werbekonto — hier sind sie nicht abrufbar.
+            Ihre Leads, Anträge und Zahlenden stehen trotzdem in der Tabelle, nur ohne Kosten.
+          </div>
+          <p className="lm-still">
+            Ein Mensch zählt einmal, sein erster Lead im Zeitraum bestimmt die Kampagne. Antrag und Zahlung zählen nur, wenn sie nach dem Lead kamen
+            (einen Tag Spielraum). Umsatz = bezahlte Raten und bezahlte Bonitätsauskünfte, wie in der Geld-Wahrheit.
+            {b.zeilen.some((z) => z.art === "website") ? " „Website (Meta-Klick)“: Anträge nach einem Klick aus Facebook oder Instagram ohne Kampagnenkennung — sie zählen nicht in die Summe." : ""}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** Was wir Meta gemeldet haben — erst geladen, wenn der Bereich aufgeklappt ist. */
 function EreignisListe() {
   const e = useDaten<{ ereignisse: Ereignis[] }>("/chef/lead-motor/messung/ereignisse");
@@ -897,7 +1077,8 @@ function EreignisListe() {
               <td>{z.quelle === "crm" ? "Lead-Stufe" : "Website"}</td>
               <td>{z.ref ?? (z.meta_lead_id ? `Lead ${z.meta_lead_id}` : "—")}</td>
               <td className="lm-zahlzelle">{z.wert_cents != null ? `${(z.wert_cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "—"}</td>
-              <td className={z.status === "fehler" ? "lm-rot" : ""}>{z.status === "gesendet" ? "gemeldet" : z.status === "fehler" ? `Fehler: ${z.fehler ?? ""}` : "wartet"}</td>
+              {/* E-239: „abgelehnt" (Meta lehnt genau dieses Ereignis ab, kein neuer Versuch), „zu_alt" (älter als 7 Tage), „widerrufen" (Einwilligung zurückgenommen). */}
+              <td className={z.status === "fehler" || z.status === "abgelehnt" ? "lm-rot" : ""}>{z.status === "gesendet" ? "gemeldet" : z.status === "fehler" ? `Fehler: ${z.fehler ?? ""}` : z.status === "abgelehnt" ? `abgelehnt: ${z.fehler ?? ""}` : z.status === "zu_alt" ? "zu alt (über 7 Tage)" : z.status === "widerrufen" ? "nicht gesendet (widerrufen)" : "wartet"}</td>
             </tr>
           ))}
         </tbody>

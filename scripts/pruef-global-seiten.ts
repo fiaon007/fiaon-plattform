@@ -273,7 +273,7 @@ for (const [pfad, e] of Object.entries(tabelle) as [string, any][]) {
 // (server/routes.ts → seitenHtml(pfad, { bereich: "business" })) — ohne Weiterlesen in die Privatkunden-Linie.
 {
   const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
-  const links = (html: string) => [...(html.split('<div class="vorab">')[1] ?? "").matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]);
+  const links = (html: string) => [...(html.split(/<div class="vorab[^"]*">/)[1] ?? "").matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]);
   const erlaubt = /^(\/(en\/)?(business|impressum|datenschutz|cookie-einstellungen|privacy|legal-notice|cookie-settings)([/?#]|$)|tel:|mailto:|https?:)/;
   for (const pfad of ["/impressum", "/privacy"]) {
     const html = seitenHtml(pfad, { bereich: "business" }) ?? "";
@@ -453,7 +453,7 @@ abschnitt("Englische Unterseiten");
     // Vorab-HTML: Sprache, hreflang-Trio, keine deutschen Business-Links, kein „(in German)", englisches Angebot.
     const html = seitenHtml(w) ?? "";
     ok(html.includes('<html lang="en">') && html.includes(`hreflang="en" href="${SEO_BASIS}${w}"`) && html.includes(`hreflang="de" href="${SEO_BASIS}${e.schwester}"`) && html.includes(`hreflang="x-default" href="${SEO_BASIS}${e.schwester}"`), `${w}: html lang oder hreflang-Trio fehlt`);
-    const vorab = html.split('<div class="vorab">')[1] ?? html.split('<div id="root">')[1] ?? "";
+    const vorab = html.split(/<div class="vorab[^"]*">/)[1] ?? html.split('<div id="root">')[1] ?? "";
     const deutscheLinks = [...vorab.matchAll(/href="(\/business[^"]*)"/g)].map((m) => m[1]);
     ok(deutscheLinks.length === 0, `${w}: Vorab-HTML verlinkt deutsche Business-Seiten (${deutscheLinks.slice(0, 3).join(", ")})`);
     ok(!/\(in German\)|Kurz beantwortet|Weiterlesen|Häufige Fragen/.test(html), `${w}: deutsche Rahmenwörter im Vorab-HTML`);

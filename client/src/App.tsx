@@ -66,17 +66,38 @@ const AdminEventsPage = lazy(() => import("@/pages/admin-events"));
 const AdminEinstellungenPage = lazy(() => import("@/pages/admin-einstellungen"));
 const AdminAuditPage = lazy(() => import("@/pages/admin-audit"));
 const AdminRechtPage = lazy(() => import("@/pages/admin-recht"));
-import AdminShell from "@/components/admin/AdminShell";
-import AgentPortalPage from "@/pages/agent";
-import AgentSetupPage from "@/pages/agent/setup";
-import AgentPasswortPage from "@/pages/agent/passwort";
-import AgentProfilPage from "@/pages/agent/profil";
-import AgentAuszahlungPage from "@/pages/agent/auszahlung";
-import AgentSkriptePage from "@/pages/agent/skripte";
-import AgentMailsPage from "@/pages/agent/mails";
-import AgentWhatsAppPage from "@/pages/agent/whatsapp";
-import AgentKalenderPage from "@/pages/agent/kalender";
-import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
+// ── OFFICE UND VERWALTUNG AUS DEM HAUPTBÜNDEL (24.09.2026) ─────────────────
+// Diese Seiten standen hier als feste Importe — und zogen samt Telefon
+// (Softphone, das AdminShell und der Kalender fest einbinden), Rundgängen und
+// dem Update-Archiv (updates-data.ts, 250 KB) rund 800 KB in das Bündel, das
+// JEDER Besucher der Startseite lädt, bevor er etwas sieht. Nachgeladen wie
+// die übrigen Office-Seiten; SoftphoneHost lädt das Telefon ohnehin selbst.
+//
+// Ihre Stilblätter bleiben dagegen im Haupt-Stilblatt, in derselben Reihenfolge
+// wie vorher: Klassen daraus nutzen auch Seiten, die sie nicht selbst
+// einbinden (fi-knopf-primaer, fi-ebene-*, ru-*, of-modal …). Gemessen: das
+// gebaute Haupt-Stilblatt ist Byte für Byte dasselbe wie vor der Trennung.
+import "@/styles/anruf-buehne.css";
+import "@/styles/office-termintreue.css";
+import "@/styles/office-einfuehrung.css";
+import "@/styles/office.css";
+import "@/styles/office-onboarding.css";
+import "@/styles/office-ansprueche.css";
+import "@/styles/softphone.css";
+import "@/styles/agent-anmeldung.css";
+import "@/styles/office-rundgang.css";
+import "@/styles/whatsapp-raum.css";
+const AdminShell = lazy(() => import("@/components/admin/AdminShell"));
+const AgentPortalPage = lazy(() => import("@/pages/agent"));
+const AgentSetupPage = lazy(() => import("@/pages/agent/setup"));
+const AgentPasswortPage = lazy(() => import("@/pages/agent/passwort"));
+const AgentProfilPage = lazy(() => import("@/pages/agent/profil"));
+const AgentAuszahlungPage = lazy(() => import("@/pages/agent/auszahlung"));
+const AgentSkriptePage = lazy(() => import("@/pages/agent/skripte"));
+const AgentMailsPage = lazy(() => import("@/pages/agent/mails"));
+const AgentWhatsAppPage = lazy(() => import("@/pages/agent/whatsapp"));
+const AgentKalenderPage = lazy(() => import("@/pages/agent/kalender"));
+const AgentPartnerProgrammPage = lazy(() => import("@/pages/agent/partner-programm"));
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
 const TerminPage = lazy(() => import("@/pages/termin"));
@@ -124,13 +145,13 @@ const AdminTeamZentralePage = lazy(() => import("@/pages/admin-team-zentrale"));
 const MailZentralePage = lazy(() => import("@/pages/mail-zentrale"));
 const AgentStartgespraechePage = lazy(() => import("@/pages/agent/startgespraeche"));
 const AgentVertriebPage = lazy(() => import("@/pages/agent/vertrieb"));
-import AgentVerdienstPage from "@/pages/agent/verdienst";
+const AgentVerdienstPage = lazy(() => import("@/pages/agent/verdienst"));
 const AgentGehaltPage = lazy(() => import("@/pages/agent/gehalt"));
 const AgentFlurPage = lazy(() => import("@/pages/agent/flur"));
 const AgentSchreibtischPage = lazy(() => import("@/pages/agent/schreibtisch"));
 const AgentArbeitszeitenPage = lazy(() => import("@/pages/agent/arbeitszeiten"));
-import AgentUpdatesPage from "@/pages/agent/updates";
-import AgentFeedbackPage from "@/pages/agent/feedback";
+const AgentUpdatesPage = lazy(() => import("@/pages/agent/updates"));
+const AgentFeedbackPage = lazy(() => import("@/pages/agent/feedback"));
 // Office-Räume (23.08.2026, Plan §4): native dunkle Räume; alte Seiten bleiben unter -alt erreichbar
 const AgentCalendarPage = lazy(() => import("@/pages/agent/calendar"));
 const AgentTasksPage = lazy(() => import("@/pages/agent/tasks"));
@@ -154,7 +175,7 @@ const AgentPaketfinderPage = lazy(() => import("@/pages/agent/tools/paketfinder"
 const AgentGespraechPage = lazy(() => import("@/pages/agent/tools/gespraech"));
 const AgentRechtPage = lazy(() => import("@/pages/agent/tools/recht"));
 const AgentTagescheckPage = lazy(() => import("@/pages/agent/tools/tagescheck"));
-import AgentMehrPage from "@/pages/agent/mehr";
+const AgentMehrPage = lazy(() => import("@/pages/agent/mehr"));
 const AgentAcademyPage = lazy(() => import("@/pages/agent/academy"));
 const AgentKundenbereichNeuPage = lazy(() => import("@/pages/agent/kundenbereich-neu"));
 const AgentAcademyNeuPage = lazy(() => import("@/pages/agent/academy/index")); // Ausbildung (E-040)
@@ -171,8 +192,8 @@ const AdminDublettenPage = lazy(() => import("@/pages/admin-dubletten"));
 const AdminKuendigungenPage = lazy(() => import("@/pages/admin-kuendigungen"));
 const AdminInvestorenPage = lazy(() => import("@/pages/admin-investoren"));
 const AdminBuchhaltungPage = lazy(() => import("@/pages/admin-buchhaltung"));
-import AgentLeistungPage from "@/pages/agent/leistung";
-import AgentDokumentePage from "@/pages/agent/dokumente";
+const AgentLeistungPage = lazy(() => import("@/pages/agent/leistung"));
+const AgentDokumentePage = lazy(() => import("@/pages/agent/dokumente"));
 const AdminVertraegePage = lazy(() => import("@/pages/admin-vertraege"));
 const AdminFahrplanPage = lazy(() => import("@/pages/admin-fahrplan"));
 const AdminKarteiPage = lazy(() => import("@/pages/admin-kartei"));
@@ -282,9 +303,14 @@ function admin(Component: ComponentType) {
 // mehr, sondern unsere Weltkugel — dunkel, Glas, ein Satellit auf der Bahn.
 // Bewusst reines CSS (keine three.js-Szene): Er erscheint für Sekundenbruchteile
 // und darf selbst nichts laden müssen.
-function SeiteLaedt() {
+//
+// 24.09.2026: Hell, wo die Seite hell ist — FIAON Global (Kanzlei) und die
+// hellen Rechtstexte. Vorher stand zwischen dem hellen Vorab-HTML bzw. zwei
+// hellen Business-Seiten für einen Augenblick die dunkle Weltkugel.
+const HELLER_LADER = /^\/(en\/)?business(\/|$)|^\/(privacy|datenschutz|bonitaet)\/?$/;
+function SeiteLaedt({ hell = false }: { hell?: boolean }) {
   return (
-    <div className="ld" role="status" aria-label="Seite wird geladen">
+    <div className={hell ? "ld hell" : "ld"} role="status" aria-label="Seite wird geladen">
       <div className="ld-glut" /><div className="ld-sterne" />
       <div className="ld-mitte">
         <div className="ld-kugel">
@@ -307,7 +333,7 @@ function Router() {
 
   return (
     <>
-    <Suspense fallback={<SeiteLaedt />}>
+    <Suspense fallback={<SeiteLaedt hell={HELLER_LADER.test(tabPfad)} />}>
     <Switch>
       <Route path="/" component={FiaonHome} />
       <Route path="/investoren" component={SiteInvestoren} />

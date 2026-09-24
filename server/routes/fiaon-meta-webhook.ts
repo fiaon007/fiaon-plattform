@@ -54,4 +54,33 @@ router.post("/webhook", async (req: Request, res: Response) => {
   }
 });
 
+// ── POST /api/meta/widerruf — DER WIDERRUF ERREICHT DEN SERVER (24.09.2026, E-239) ──
+// Wählt jemand im Einwilligungs-Hinweis „Marketing" ab, schickt der Browser
+// seine Pixel-Kennung (_fbp). Jeder Messsatz dieses Browsers verliert die
+// Einwilligung; ist er angemeldet, jeder Satz der Person. Ohne Anmeldung, weil
+// ein Widerruf so einfach sein muss wie die Zustimmung (Art. 7 Abs. 3 DSGVO) —
+// und eine fremde _fbp kann niemand raten. Die Antwort verrät nichts.
+router.post("/widerruf", async (req: Request, res: Response) => {
+  try {
+    const fbp = typeof req.body?.fbp === "string" ? req.body.fbp : null;
+    let personId: number | null = null;
+    try {
+      const { kundeAusCookie } = await import("../lib/fiaon-kunde-session");
+      const ref = kundeAusCookie(req);
+      if (ref) {
+        const { sqlPool } = await import("../lib/db-pool");
+        const [a] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${String(ref)} LIMIT 1`) as any[];
+        personId = a?.person_id ?? null;
+      }
+    } catch { /* ohne Anmeldung: nur über die Pixel-Kennung */ }
+    const { einwilligungWiderrufen } = await import("../lib/fiaon-meta-capi");
+    const n = await einwilligungWiderrufen({ fbp, personId });
+    if (n) console.log(`[META-MESSUNG] Widerruf: ${n} Messsatz/-sätze ohne Einwilligung gesetzt`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[META-MESSUNG] Widerruf:", err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 export default router;

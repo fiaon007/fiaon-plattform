@@ -6,6 +6,17 @@ import PremiumFooter from "@/components/PremiumFooter";
 // aber bei jedem Aufruf. Seitdem lädt nichts außer dem Notwendigen ohne Zustimmung (client/src/lib/
 // werbung.ts); die Auswahl öffnet der Knopf unten (Ereignis „fiaon-einwilligung-oeffnen", gehört dem
 // Hinweis components/site/EinwilligungsHinweis.tsx). ANWALT: Text mit der Datenschutzerklärung (VI.) abgleichen.
+//
+// 24.09.2026 (E-239): Meta nachgetragen. Seit 22.09. lädt Marketing den Meta-Pixel, und der Server
+// schickt dieselben Ereignisse per Conversions API (gehashte Kontaktdaten) — diese Seite nannte nur
+// Google Ads. Neu: Einleitung nennt Meta, Tabellenzeile Meta, fiaon_kampagne im Session Storage,
+// USA-Absatz mit Meta. Das Retargeting-Versprechen ist jetzt so gefasst, dass es wahr bleibt: Wir
+// legen keine Zielgruppen aus Besuchern an (Werbekonto am 24.09. geprüft: keine eigenen Zielgruppen);
+// Messung und die Optimierung der Auslieferung durch Meta sind genannt. „Keine Werbenetzwerke" stimmte
+// mit dem Pixel nicht mehr — gemeint war: keine fremde Werbung auf fiaon.com. ANWALT: mit VI a abgleichen.
+// Gegenlesen 24.09.: „ausschließlich durch die Abonnement-Gebühren" und „keine Weiterleitung an Banken
+// über Provisionslinks" stimmten seit der Einladung zur Partnerbank (DKB, E-067/E-206, 10 € je Eröffnung)
+// nicht mehr — gestrichen, statt „vor allem durch die Gebühren unserer Kunden".
 const auswahlOeffnen = () => window.dispatchEvent(new Event("fiaon-einwilligung-oeffnen"));
 
 export default function CookieEinstellungenPage() {
@@ -51,10 +62,10 @@ export default function CookieEinstellungenPage() {
                   <h2 className="text-xl font-semibold text-gray-900">Unser Grundsatz</h2>
                 </div>
                 <p className="text-gray-700 leading-relaxed">
-                  Als unabhängige Software-as-a-Service (SaaS) Plattform finanzieren wir uns ausschließlich durch die Abonnement-Gebühren unserer Nutzer. Wir verkaufen keine Daten, wir leiten Sie nicht über Affiliate-Links an Banken weiter und wir nutzen keine Werbenetzwerke.
+                  Als unabhängige Software-as-a-Service (SaaS) Plattform finanzieren wir uns vor allem durch die Gebühren unserer Kunden. Wir verkaufen keine Daten und zeigen auf fiaon.com keine fremde Werbung.
                 </p>
                 <p className="text-gray-700 leading-relaxed mt-4">
-                  Ohne Ihre Zustimmung laden wir nur, was für den sicheren und fehlerfreien Betrieb zwingend nötig ist. Statistik (Microsoft Clarity, Google Analytics) und die Messung unserer Anzeigen (Google Ads) laden erst, wenn Sie zustimmen. Retargeting, also Werbung, die Ihnen über andere Websites folgt, setzen wir nicht ein — auch nicht mit Ihrer Zustimmung.
+                  Ohne Ihre Zustimmung laden wir nur, was für den sicheren und fehlerfreien Betrieb zwingend nötig ist. Statistik (Microsoft Clarity, Google Analytics) und die Messung unserer Anzeigen (Google Ads sowie Meta Pixel und Conversions API für Facebook und Instagram) laden erst, wenn Sie zustimmen. Gemessen wird, ob ein Antrag, Termin oder Kauf auf eine unserer Anzeigen folgt; mit diesen Meldungen optimiert Meta die Auslieferung unserer Anzeigen. Zielgruppen aus den Besuchern von fiaon.com (Retargeting) legen wir nicht an — auch nicht mit Ihrer Zustimmung.
                 </p>
                 <p className="text-gray-700 leading-relaxed mt-4">
                   Ihre Wahl können Sie jederzeit ändern oder widerrufen:
@@ -225,16 +236,26 @@ export default function CookieEinstellungenPage() {
                         <td className="py-3 pr-4">Zugriffszahlen und Wege durch die Website, ohne Google-Signale und ohne Personalisierung.</td>
                         <td className="py-3">_ga, _ga_* (2 Jahre)</td>
                       </tr>
-                      <tr className="align-top">
+                      <tr className="border-b border-gray-100 align-top">
                         <td className="py-3 pr-4"><b>Google Ads Conversion-Messung</b> (Marketing)<br />Google Ireland Limited, Dublin</td>
                         <td className="py-3 pr-4">Ob ein Gespräch oder ein Auftrag aus einer unserer Anzeigen kam. Keine personalisierte Werbung, kein Retargeting.</td>
                         <td className="py-3">_gcl_au (90 Tage)</td>
+                      </tr>
+                      <tr className="align-top">
+                        <td className="py-3 pr-4"><b>Meta Pixel und Conversions API</b> (Marketing)<br />Meta Platforms Ireland Ltd., Dublin</td>
+                        <td className="py-3 pr-4">
+                          Messung und Optimierung unserer Anzeigen auf Facebook und Instagram: ob ein Antrag, ein Termin oder ein Kauf auf eine Anzeige folgt. Unser Server übermittelt dasselbe Ereignis zusätzlich — mit gehashten Kontaktdaten (SHA-256) —, damit es auch zählt, wenn Ihr Browser den Pixel blockiert; auch das nur mit Ihrer Einwilligung. Für die Erhebung auf fiaon.com und die Übermittlung an Meta sind wir mit Meta gemeinsam verantwortlich (Art. 26 DSGVO, <a href="https://www.facebook.com/legal/controller_addendum" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Meta Controller Addendum</a>). Einzelheiten: <a href="/datenschutz#meta" className="text-blue-600 hover:text-blue-700 underline">Datenschutzerklärung, Abschnitt VI a</a>.
+                        </td>
+                        <td className="py-3">_fbp, _fbc (90 Tage)</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
                 <p className="text-gray-700 leading-relaxed mb-4 text-sm">
-                  Microsoft und Google können Daten in den USA verarbeiten. Beide sind nach dem EU-US Data Privacy Framework zertifiziert, für das die Europäische Kommission am 10. Juli 2023 ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO). Einzelheiten stehen in unserer <a href="/datenschutz" className="text-blue-600 hover:text-blue-700 underline">Datenschutzerklärung</a> (Abschnitt VI).
+                  Mit Ihrer Einwilligung in Marketing merken wir uns außerdem für die Dauer Ihres Besuchs, aus welcher Anzeige oder Kampagne Sie kamen (Klick-Kennungen wie gclid und fbclid, utm-Angaben), als „fiaon_kampagne“ im Session Storage Ihres Browsers. Der Eintrag verschwindet, wenn Sie den Tab oder das Fenster schließen, und sofort, wenn Sie Marketing abwählen.
+                </p>
+                <p className="text-gray-700 leading-relaxed mb-4 text-sm">
+                  Microsoft, Google und Meta können Daten in den USA verarbeiten. Alle drei sind nach dem EU-US Data Privacy Framework zertifiziert, für das die Europäische Kommission am 10. Juli 2023 ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO). Einzelheiten stehen in unserer <a href="/datenschutz" className="text-blue-600 hover:text-blue-700 underline">Datenschutzerklärung</a> (Abschnitte VI und VI a).
                 </p>
                 <p className="text-gray-700 leading-relaxed mb-4 font-semibold">
                   Was wir auch mit Ihrer Zustimmung nicht tun:
@@ -259,7 +280,7 @@ export default function CookieEinstellungenPage() {
                     </div>
                     <div>
                       <p className="font-semibold">Kein Retargeting:</p>
-                      <p className="text-sm">Wir verfolgen Sie nicht mit Werbeanzeigen über das Internet und bilden keine Zielgruppen aus Ihrem Besuch.</p>
+                      <p className="text-sm">Aus Ihrem Besuch legen wir keine Zielgruppen an und buchen keine Anzeigen, die sich gezielt an Besucher von fiaon.com richten. Was wir an Google und Meta melden, dient der Messung und der Optimierung unserer Anzeigen.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -270,7 +291,7 @@ export default function CookieEinstellungenPage() {
                     </div>
                     <div>
                       <p className="font-semibold">Kein Verkauf von Profilen:</p>
-                      <p className="text-sm">Ihre lokal gespeicherten Sitzungsdaten werden niemals mit Drittanbietern geteilt.</p>
+                      <p className="text-sm">Wir verkaufen keine Daten über Sie. Ihre Anmeldung und Ihre Sitzung auf fiaon.com teilen wir mit niemandem; an Microsoft, Google und Meta geht nur, was oben beschrieben ist — und nur mit Ihrer Zustimmung.</p>
                     </div>
                   </div>
                 </div>
@@ -288,6 +309,7 @@ export default function CookieEinstellungenPage() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">5. Verwaltung Ihrer Browser-Einstellungen</h2>
                 <p className="text-gray-700 leading-relaxed mb-4">
                   Ihre Auswahl zu Statistik und Marketing ändern oder widerrufen Sie jederzeit über den Knopf „Cookie-Einstellungen öffnen“ oben auf dieser Seite. Der Widerruf gilt ab dann; bereits gesetzte Cookies der Anbieter löschen Sie über Ihren Browser.
+                  {" "}Der Widerruf erreicht auch unseren Server: Meldungen, die sonst später an Meta gingen (etwa beim Eingang Ihrer Zahlung), unterbleiben danach.
                 </p>
                 <p className="text-gray-700 leading-relaxed mb-4">
                   Wenn Sie dennoch nicht möchten, dass essenzielle Cookies oder Local Storage-Daten auf Ihrem Endgerät gespeichert werden, können Sie dies über die Einstellungen Ihres Webbrowsers verhindern oder bestehende Daten löschen.

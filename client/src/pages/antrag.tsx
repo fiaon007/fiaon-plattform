@@ -4,6 +4,7 @@ import { ERREICHBARKEIT_WERTE } from "@shared/fiaon-erreichbarkeit";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
 import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
 import { messungsDaten, metaEreignis, META_EREIGNIS } from "@/lib/werbung";
+import { META_PAKETWECHSEL } from "@shared/fiaon-meta-ereignisse";
 import { PaketAufstieg } from "@/components/antrag/PaketAufstieg";
 import { appViewport } from "@/lib/app-viewport";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
@@ -667,7 +668,7 @@ function AntragSeite() {
     setApproved(neuesPaket.lim);
     setAufstiegZu(neuesPaket.key);
     track("upsell_wechsel", { von: vorher, zu: neuesPaket.key, limit: neuesPaket.lim }, ref);
-    metaEreignis(META_EREIGNIS.antragBegonnen, `${ref}.${neuesPaket.key}`, { content_name: neuesPaket.name, value: neuesPaket.fee });
+    metaEreignis(META_PAKETWECHSEL, `${ref}.${neuesPaket.key}`, { content_name: neuesPaket.name, value: neuesPaket.fee });
   }, [pack, ref]);
 
   const topRef = useRef<HTMLDivElement>(null);

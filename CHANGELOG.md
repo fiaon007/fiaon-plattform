@@ -5,6 +5,72 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 24.09.2026 (8) — Meta-Messung, die auf Verkäufe arbeiten kann (E-239)
+
+**Der Anlass (Justin):** „Schau, dass alle META Events passen … damit wir wirklich auf Verkäufe arbeiten können — und
+denke an die SCHUFA." Und: „Warum kommen die nicht direkt von META?"
+
+**Was gefunden und behoben wurde:**
+- **Lead-IDs verloren die letzte Ziffer.** 17-stellige IDs wurden als JavaScript-Zahl gespeichert
+  (28570028345986229 → …228); Meta lehnte ab. Die ID reist jetzt als Text und geht exakt an Meta.
+- **Ein kaputtes Ereignis riss bis zu 49 gute mit.** Jetzt wird bei einem Inhaltsfehler halbiert, bis das eine schlechte
+  Ereignis allein steht („abgelehnt"); alle anderen gehen raus. Älter als 7 Tage: „zu alt" statt sechs Fehlversuche.
+- **Der Kauf trägt den echten Betrag und die Produktart.** Wert = die gebuchte erste Zahlung, Zeitpunkt = die Buchung,
+  dazu `content_category` Karte, Auskunft oder Firmenkunde. Auskünfte aus dem Kundenbereich erben den Messsatz der
+  Person — vorher war jeder Auskunft-Kauf für Meta unsichtbar.
+- **Telefonnummern wurden falsch gehasht** („+49" + „0151…" ergab 490151…). Jetzt über dieselbe Umrechnung wie überall.
+  Namen und Orte ohne Leer- und Sonderzeichen.
+- **Der Paketwechsel im Antrag zählte als neuer Antrag.** Jetzt „CustomizeProduct".
+- **Die Klick-Kennung (fbclid) überlebt den Seitenwechsel** — mit der Ankunftszeit, nur mit Einwilligung gespeichert.
+- **Einwilligung nennt jetzt Meta.** Hinweis, Cookie-Seite und Datenschutzerklärung (neuer Abschnitt VI a) nannten nur
+  Google. Die Fassung des Hinweises ist jetzt 2, jeder wird einmal neu gefragt; Messsätze aus Fassung 1 lösen nichts
+  mehr aus. Ein Widerruf erreicht jetzt auch den Server (vorher: „einmal ja, immer ja"). Ohne Einwilligung werden keine
+  IP-Adresse und kein Browser mehr gespeichert; nach 13 Monaten wird gelöscht. Die Seite /sicherheit sagt jetzt die
+  Wahrheit über die Anzeigenmessung.
+- **Neu: „Was ein zahlender Kunde kostet"** im Lead-Motor (/chef/s/lead-motor): Werbekosten je Kampagne von Meta (alle
+  3 Stunden), Leads, fertige Anträge, Zahlende (Rate 1 gebucht) und die Kosten je Stück auf den Cent. Stand heute:
+  35,70 € ausgegeben, 0,85 € je Lead und 2,48 € je Antrag in Kampagne #2 — noch kein zahlender Kunde.
+
+**Warum Leads nicht direkt von Meta kommen:** Abo und Adresse stimmen (WhatsApp kommt über dieselbe Adresse an), Meta
+schickt die Lead-Meldungen trotzdem nicht. Wahrscheinlichste Ursache: Die App „FIAON Ltd." steht auf „Entwicklung"
+statt „Live" — das schaltet nur Justin im App-Dashboard um. Bis dahin holt der Nachhol-Lauf alle 5 Minuten.
+
+**Wo:** server/lib/fiaon-meta-capi.ts, server/lib/fiaon-meta-kosten.ts (neu), server/routes/fiaon-meta-webhook.ts
+(POST /api/meta/widerruf), server/routes/fiaon-agent.ts (Kauf), client/src/lib/werbung.ts, EinwilligungsHinweis.tsx,
+cookie-einstellungen.tsx, privacy.tsx, i18n/sicherheit.ts, ChefLeadMotor.tsx. Prüfstand: 30 Fälle grün (lokale DB +
+nachgebauter Meta-Server).
+## 24.09.2026 (7) — Kein weißer Bildschirm mehr beim Öffnen von fiaon.com
+
+**Der Anlass (Justin):** „Wenn man die FIAON-Seite öffnet, kommen die ersten Sekunden so ein komischer weißer
+Bildschirm."
+
+**Die Ursache:** Der Browser durfte nichts zeichnen, bis das große Stilblatt (440 KB) und die Google-Schriften geladen
+waren — bis dahin blieb die Seite weiß. Danach erschien der Text, den der Server für Google in die Seite legt, mit einer
+Notgestaltung: weißer Grund, blaue Links untereinander. Erst wenn das Programm (2,2 MB) geladen war, kam die dunkle
+Startseite — ein Umschlagen von Weiß auf Nachtblau.
+
+**Was jetzt passiert:**
+- Der Google-Text ist jetzt der Ladezustand der Seite und sieht aus wie sie: Nachtblau wie die Bühne, Wortmarke FIAON,
+  dezente Navigation in einer Zeile, lesbare Schrift, oben ein feiner laufender Ladestrich. FIAON Global (/business),
+  die Rechtstexte und /bonitaet laden hell (Papierweiß, Navy, Serife). Versteckt wird nichts — Google liest denselben
+  Text wie vorher (Stichprobe: identisch mit der Live-Seite).
+- Stilblatt und Schriften halten das erste Bild nicht mehr auf. Die App startet erst, wenn das Stilblatt da ist, sie
+  erscheint also nie ungestaltet.
+- Der Lade-Bildschirm zwischen zwei Seiten (die Weltkugel) ist auf FIAON Global jetzt hell statt dunkel.
+- Office, Verwaltung und Telefon stecken nicht mehr im Paket, das jeder Besucher der Startseite lädt: 2,2 MB → 1,4 MB
+  (komprimiert 505 KB → 316 KB). Die Stile bleiben unverändert (Haupt-Stilblatt Byte für Byte gleich).
+
+**Gemessen (Stilblatt und Programm künstlich um 1,5 s verzögert):** erstes Bild vorher nach 1,6–1,7 s (davor weiß),
+jetzt nach 0,02–0,03 s. Office-, Verwaltungs- und Chefbüro-Adressen stichprobenweise geprüft: gleiche Anzeige, keine
+Fehler. Screenshots vorher/nachher: `10_Nacharbeit/weisser-bildschirm/` (VERGLEICH_handy_vorher_nachher.png).
+
+**Wo zu finden:** `client/index.html` (Gestaltung des Ladezustands), `vite.config.ts` (Stilblatt ohne Sperre),
+`client/src/main.tsx` (Start erst mit Stilblatt), `client/src/App.tsx` + `client/src/styles/laden.css` (nachgeladene
+Office-Seiten, heller Lader), `server/lib/fiaon-seiten-seo.ts` (hell/dunkel je Seite; die alte Notgestaltung
+`VORAB_STIL` ist entfernt, auch im Ratgeber).
+
+---
+
 ## 24.09.2026 (6) — Mara verkauft statt abzuschrecken und trägt Rückrufe selbst ein (E-236)
 
 **Der Anlass (Justin):** „Wenn der Kunde sagt: Ich suche unkompliziert eine Kreditkarte, dann sagt Mara: Ja, da sind Sie

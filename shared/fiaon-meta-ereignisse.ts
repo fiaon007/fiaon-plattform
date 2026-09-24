@@ -18,6 +18,22 @@ export const META_EREIGNIS = {
 export type MetaEreignis = typeof META_EREIGNIS[keyof typeof META_EREIGNIS];
 
 /**
+ * Nur im Browser (24.09.2026, E-239): Paketwechsel im Ergebnis. Stand vorher als
+ * zweites „InitiateCheckout" mit eigener Kennung — Meta zählte jeden Wechsel als
+ * neuen begonnenen Antrag. „CustomizeProduct" ist das Standardereignis dafür.
+ */
+export const META_PAKETWECHSEL = "CustomizeProduct" as const;
+
+/**
+ * Was gekauft wurde — als `content_category` am Kauf. Damit legt Justin im
+ * Events-Manager je Produkt eine eigene Conversion an („Kauf Karte",
+ * „Kauf Auskunft") und kann eine Kampagne auf genau EIN Produkt optimieren.
+ * Bewusst nur die Produktart: nie Bonität, Score, Schulden oder Beträge einzelner Posten.
+ */
+export const META_PRODUKT = { karte: "kreditkarte", auskunft: "auskunft", global: "firmenkunde" } as const;
+export type MetaProdukt = typeof META_PRODUKT[keyof typeof META_PRODUKT];
+
+/**
  * Die Stufen eines Leads aus einer Lead-Anzeige. Damit lernt Meta, welche
  * Menschen wirklich zahlen — die Grundlage für Kampagnen auf Conversion-Leads.
  */
@@ -33,6 +49,7 @@ export const EREIGNIS_TEXT: Record<string, string> = {
   [META_EREIGNIS.termin]: "Startgespräch gebucht",
   [CRM_EREIGNIS.antragFertig]: "Lead hat den Antrag fertig",
   [CRM_EREIGNIS.zahlung]: "Lead hat bezahlt",
+  [META_PAKETWECHSEL]: "Paket gewechselt",
   PageView: "Seite gesehen",
 };
 

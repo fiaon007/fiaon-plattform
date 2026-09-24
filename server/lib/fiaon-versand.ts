@@ -92,7 +92,19 @@ export type VersandArt =
   // erfüllt sind — deshalb steht er bewusst NICHT im allgemeinen Sendemenü,
   // sondern nur am eigenen Knopf in der Akte.
   | "konto_karte_einladung"    // Girokonto beim Kooperationspartner — Tür zur Kreditkarte
-  | "number_update_request";   // Bitte um Korrektur der Rufnummer
+  | "number_update_request"    // Bitte um Korrektur der Rufnummer
+  // ── 24.09.2026 (E-240): die Unterlagen-Mail bekommt eine Zustandsregel ────
+  // Sie stand bis heute in keiner Liste — mailSenden prüfte deshalb NICHTS
+  // (nicht einmal Kontaktsperre und Archiv), und weil sie in PFLICHTMAILS
+  // steht (fiaon-mail-frequenz.ts), auch die Werbesperre nicht. Am 24.09.
+  // gingen 961 Stück an 361 Menschen; gemessen hätten die Regeln unten 100
+  // davon gar nicht erreicht (90 gekündigt, 8 mit Kontaktsperre, 2 mit
+  // vollständig archivierten Bestellungen), 6 weitere mit Werbesperre bekämen
+  // die Bitte ohne Kaufangebot.
+  // Angeboten wird sie im Versandzentrum NICHT (artenFuerRolle) — sie geht
+  // nur über „Anfordern“ an den Unterlagen, weil nur dieser Auslöser weiß,
+  // WAS fehlt. Die Regel hier gilt trotzdem für jeden Weg durch mailSenden.
+  | "documents_change_request";
 
 export interface VersandKnopf {
   art: VersandArt;
@@ -147,6 +159,11 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
     titel: "Bitte um neue Rufnummer",
     zweck: "Wenn die hinterlegte Nummer nicht stimmt.",
   },
+  // 24.09.2026 (E-240): nur Regel und Titel für die Historie, kein Knopf im Versandzentrum.
+  documents_change_request: {
+    titel: "Unterlagen anfordern",
+    zweck: "Bitte um fehlende Unterlagen — bei der Bonitätsauskunft mit dem Angebot, sie für den Kunden zu holen.",
+  },
 };
 
 /**
@@ -181,6 +198,15 @@ interface Zustand {
   archiviert: boolean;
   /** 18.09.2026: Gibt es einen als verpasst vermerkten Termin? Ohne ihn hat „termin_verpasst" kein Datum. */
   hatVerpasst: boolean;
+  // ── 24.09.2026 (E-240): vier Zustände für die Unterlagen-Mail ────────────
+  /** Eine Kündigung liegt vor und ist nicht zurückgenommen (gilt der Person, nicht einer Zeile). */
+  gekuendigt: boolean;
+  /** Das Vertragsende ist erreicht, und es läuft kein anderes bezahltes Paket. */
+  vertragVorbei: boolean;
+  /** Als Testkunde markiert (fiaon_persons.ist_test_am). */
+  testkonto: boolean;
+  /** „Stopp“ gesagt oder abgemeldet (fiaon_persons.werbung_gesperrt_am) — nichts Werbliches mehr. */
+  werbesperre: boolean;
 }
 
 async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zustand | null> {
@@ -203,7 +229,18 @@ async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zusta
       EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id
                 AND t.status = 'gebucht' AND t.beginn > NOW()) AS hat_termin,
       EXISTS (SELECT 1 FROM fiaon_termine t2 WHERE t2.person_id = p.id
-                AND t2.status = 'verpasst') AS hat_verpasst
+                AND t2.status = 'verpasst') AS hat_verpasst,
+      -- E-240: dieselbe Lesart wie neueLeistungGesperrt (fiaon-kuendigung.ts) — gekündigt ist der MENSCH.
+      EXISTS (SELECT 1 FROM fiaon_applications a6 WHERE a6.person_id = p.id AND a6.merged_into IS NULL
+                AND a6.gekuendigt_am IS NOT NULL AND a6.kuendigung_zurueckgenommen_am IS NULL) AS gekuendigt,
+      (EXISTS (SELECT 1 FROM fiaon_applications a7 WHERE a7.person_id = p.id AND a7.merged_into IS NULL
+                 AND a7.vertrag_ende_am IS NOT NULL AND a7.vertrag_ende_am <= NOW())
+       AND NOT EXISTS (SELECT 1 FROM fiaon_applications a8 WHERE a8.person_id = p.id AND a8.merged_into IS NULL
+                 AND a8.payment_status = 'paid' AND a8.cancelled_at IS NULL
+                 AND (a8.vertrag_ende_am IS NULL OR a8.vertrag_ende_am > NOW())
+                 AND COALESCE(a8.type, '') <> 'schufa' AND a8.ref NOT LIKE 'FIAON-SCHUFA-%')) AS vertrag_vorbei,
+      (p.ist_test_am IS NOT NULL) AS testkonto,
+      (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre
     FROM fiaon_persons p WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
   `) as any[];
   if (!z) return null;
@@ -216,6 +253,10 @@ async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zusta
     gdpr: !!z.gdpr,
     archiviert: !!z.alles_archiviert,
     hatVerpasst: !!z.hat_verpasst,
+    gekuendigt: !!z.gekuendigt,
+    vertragVorbei: !!z.vertrag_vorbei,
+    testkonto: !!z.testkonto,
+    werbesperre: !!z.werbesperre,
   };
 }
 
@@ -262,6 +303,37 @@ function bewerten(
   // zum 18.09.2026 an „welcome" — seitdem an der Zugangsmail.
   if (z.gesperrt && art !== "zugang_link") {
     return { erlaubt: false, grund: "Der Kunde hat abgelehnt oder eine Kontaktsperre — kein Versand.", warnung: null, heute };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE UNTERLAGEN-MAIL (24.09.2026, E-240)
+  //
+  // Sie steht in PFLICHTMAILS, also greift an der Tür (fiaon-mail-frequenz.ts)
+  // weder Deckel noch Werbesperre. Das ist richtig für die BITTE um eine
+  // Unterlage — nicht für Menschen, die gar nicht mehr Kunde sind. Drei Wände:
+  //   · Gekündigt (und nicht zurückgenommen): Wer gekündigt hat, bekommt keine
+  //     Aufforderung mehr, für einen Vertrag etwas nachzureichen, den er
+  //     beendet — und schon gar kein Angebot (E-213: Portalsperre für neue
+  //     Leistungen). Am 24.09. ging die Mail an solche Menschen.
+  //   · Vertragsende erreicht, kein anderes Paket läuft: dasselbe, nur später.
+  //   · Testkonto: keine echte Post an Testdatensätze (Prüfversand geht über
+  //     den eigenen Weg an die Testadresse).
+  // Die Werbesperre ist KEINE Wand: Die Bitte um eine Unterlage für den
+  // laufenden Vertrag ist keine Werbung. Aber das Kaufangebot für die Auskunft
+  // ist es — der Auslöser (fiaon-telefonie.ts, Anfordern) lässt es dann weg.
+  // Hier steht es als Warnung, damit es der Mitarbeiter vor dem Klick liest.
+  // ══════════════════════════════════════════════════════════════════════
+  if (art === "documents_change_request") {
+    if (z.testkonto) return { erlaubt: false, grund: "Testkonto — Unterlagen-Mails gehen nicht an Testdatensätze.", warnung: null, heute };
+    if (z.gekuendigt) return { erlaubt: false, grund: "Der Kunde hat gekündigt — keine Aufforderung mehr, Unterlagen nachzureichen.", warnung: null, heute };
+    if (z.vertragVorbei) return { erlaubt: false, grund: "Der Vertrag ist beendet — keine Aufforderung mehr, Unterlagen nachzureichen.", warnung: null, heute };
+    if (z.archiviert) return { erlaubt: false, grund: "Alle Bestellungen dieses Kunden sind archiviert.", warnung: null, heute };
+    return {
+      erlaubt: true, grund: null, heute,
+      warnung: z.werbesperre
+        ? "Werbesperre: Die Mail geht als reine Bitte um die Unterlagen — ohne Angebot, die Auskunft für den Kunden zu holen, und ohne Zahlungslink."
+        : null,
+    };
   }
 
   if (art === "payment_details") {

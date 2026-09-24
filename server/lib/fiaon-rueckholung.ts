@@ -76,6 +76,9 @@
 //    werbung_gesperrt_am, UWG § 7 / DSGVO Art. 21) nimmt den Menschen aus
 //    der Grundmenge; gebouncte oder als Spam gemeldete Adressen bekommen nie
 //    wieder Post — dort kommt nichts an, jeder Versuch schadet allen anderen.
+//    Seit 25.09.2026 (E-240) ebenso die Vertriebssperre (is_blocked): Wer
+//    „kein Interesse" gesagt hat, bekommt keine Rückhol-Werbung — dieselbe
+//    Bedingung wie Mara-Aktion und WhatsApp-Zentrale.
 //
 // Versand ausschließlich über `versendenUndProtokollieren` — der eine Weg.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -224,6 +227,22 @@ function grundmenge() {
        AND NOT (${sqlPool.unsafe(produktkategorieSql("a"))} = 'global')
        AND p.ist_test_am IS NULL
        AND p.werbung_gesperrt_am IS NULL
+       -- E-240 (25.09.2026): die Vertriebssperre (is_blocked) — GENAU die Bedingung von
+       -- Mara-Aktion (fiaon-mara-aktion.ts) und WhatsApp-Zentrale (fiaon-wa-zentrale.ts).
+       -- Gemessen (Produktion, 14 Tage bis 24.09.): 347 Rückhol-Mails an 308 Menschen,
+       -- die heute gesperrt sind — 295 an 268, die es schon beim Versand waren.
+       AND COALESCE(p.is_blocked, FALSE) = FALSE
+       -- E-240 (24.09.2026): „gekündigt" gilt für den MENSCHEN (E-213), nicht nur für die
+       -- eine Bestellung. Wer NACH diesem Antrag irgendeinen Vertrag gekündigt hat, bekommt
+       -- für diesen Antrag keine Rückhol-Werbung mehr (gemessen: 1 Mail in 14 Tagen). Wer
+       -- nach einer Kündigung NEU beantragt, bleibt drin — das ist neues Interesse. Die
+       -- Werbesperre an einer ANDEREN Person mit derselben Adresse fängt die Tür
+       -- (werbesperreAnAdresse in fiaon-mail-frequenz.ts).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_applications g
+          WHERE g.person_id = a.person_id AND g.merged_into IS NULL
+            AND g.gekuendigt_am IS NOT NULL AND g.kuendigung_zurueckgenommen_am IS NULL
+            AND g.gekuendigt_am >= a.created_at)
   `;
 }
 
@@ -266,10 +285,12 @@ function dauerpflegeMenge(abstandTage: number) {
     -- Wen die Frequenzbremse in den letzten 6 Stunden zurückgehalten hat —
     -- egal für welches Rückhol-Ereignis: Die Bremse zählt je Empfänger, nicht
     -- je Ereignis, sie hielte die Dauerpflege genauso zurück.
+    -- E-240 (25.09.2026): „Sperre:" ist dasselbe Urteil der Tür (make-webhook.ts,
+    -- Werbesperre an der Adresse, unzustellbar) — nur ehrlich benannt.
     gebremst AS (
       SELECT DISTINCT LOWER(TRIM(empfaenger)) AS adr FROM fiaon_mail_log
        WHERE status = 'fehlgeschlagen'
-         AND grund LIKE 'Frequenzbremse:%' AND empfaenger IS NOT NULL
+         AND (grund LIKE 'Frequenzbremse:%' OR grund LIKE 'Sperre:%') AND empfaenger IS NOT NULL
          AND created_at > NOW() - INTERVAL '24 hours'
     ),
     -- Gebounct oder als Spam gemeldet: nie wieder, ohne Verfallsdatum. Die
@@ -472,11 +493,11 @@ export async function rueckholKandidaten(segment: Segment, limit: number): Promi
        -- Wen die Frequenzbremse HEUTE schon zurückgehalten hat, versucht der
        -- Lauf heute nicht noch einmal — sonst hängt er alle 30 Minuten an
        -- denselben zehn Blockierten fest und kommt nie zu den Nächsten
-       -- (Hotfix 02.09.2026: 240 Versuche, 0 Versände).
+       -- (Hotfix 02.09.2026: 240 Versuche, 0 Versände). E-240: „Sperre:" ebenso.
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_mail_log f
           WHERE f.event = ${event} AND f.status = 'fehlgeschlagen'
-            AND f.grund LIKE 'Frequenzbremse:%'
+            AND (f.grund LIKE 'Frequenzbremse:%' OR f.grund LIKE 'Sperre:%')
             AND LOWER(TRIM(f.empfaenger)) = LOWER(TRIM(b.email))
             AND f.created_at > NOW() - INTERVAL '6 hours')
        -- Kein Rückhol-Anschreiben an jemanden, dessen Geld womöglich schon

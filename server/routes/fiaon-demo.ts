@@ -36,6 +36,8 @@
 import { Router, type Request, type Response } from "express";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 import { demoStand, demoStufeAus, demoAlterTage, DEMO_STUFEN, DEMO_STUFEN_MAX } from "@shared/fiaon-demo-stufen";
+import { auskunftPreisCents, euroText } from "@shared/fiaon-auskunft";
+import { auskunftKaufBlock } from "./fiaon-kunde-bereich";
 
 export const DEMO_REF = "FIAON-DEMO";
 const router = Router();
@@ -107,23 +109,43 @@ function demoBereich(stufeRoh: unknown) {
       ? { stufe: "aktiv", text: "Ihr Konto ist freigeschaltet. Nach dem Startgespräch geht es an Ihre Akte.", grund: null, naechsterSchritt: "Startgespräch", vollAktiv: false, pflicht: false, bezahlt: true }
       : { stufe: "voll_aktiv", text: "Ihr Konto ist vollständig aktiv.", grund: null, naechsterSchritt: null, vollAktiv: true, pflicht: false, bezahlt: true };
 
+  // ── DIE AUSKUNFT IST EIN EIGENER AUFTRAG (24.09.2026, E-240) ─────────────
+  // Bis heute erzählte die Demo „Wir haben Ihre Auskunft beauftragt", sobald
+  // die erste Rate da war — als wäre sie im Paket. Sie ist es nicht (74 € mit
+  // Paket, 149 € einzeln). Die Demo erzählt jetzt den echten Weg: Nach der
+  // ersten Zahlung steht die Kaufkarte im Bereich; Max Mustermann beauftragt
+  // die Auskunft im Startgespräch, ab dann fordert FIAON die Datenkopien an.
+  // Der Block hat dieselbe Form wie im echten Bereich (auskunftKaufBlock).
+  const auskunftBeauftragt = st.startgespraech || st.auskunft;
+  const auskunft = auskunftKaufBlock({
+    stufe: auskunftBeauftragt ? "bezahlt" : "nichts",
+    sperre: st.bezahlt ? null : "paket_offen",
+    werbung: true,
+    preisCents: auskunftPreisCents("privat", st.bezahlt),
+    mitAbo: st.bezahlt,
+    land: "DE",
+    offen: null,
+  });
   const bonitaet = {
-    stufe: st.analyse ? "geprueft" : st.auskunft ? "eingegangen" : st.bezahlt ? "beauftragt" : "offen",
+    stufe: st.analyse ? "geprueft" : st.auskunft ? "eingegangen" : auskunftBeauftragt ? "beschaffung_laeuft" : "nichts",
     fuerKunden: st.analyse
       ? "Ihre Auskunft liegt vor und ist ausgewertet: drei Einträge, zwei davon angreifbar – beide sind bereits angegangen."
       : st.auskunft
         ? "Ihre Auskunft ist eingegangen. Ein Mensch geht sie gerade Eintrag für Eintrag durch."
-        : st.bezahlt
-          ? "Wir haben Ihre Auskunft beauftragt. Sobald sie da ist, tragen wir sie hier ein."
-          : "Ihre Auskunft beschaffen wir, sobald Ihre erste Zahlung eingegangen ist.",
+        : auskunftBeauftragt
+          ? `Ihre Auskunft ist beauftragt. Wir fordern Ihre Datenkopien bei ${auskunft.bei} an und tragen sie hier ein.`
+          : st.bezahlt
+            ? `Die Bonitätsauskunft ist nicht im Paket enthalten. Sie können sie hier für ${auskunft.preisText} dazu beauftragen.`
+            : `Die Bonitätsauskunft ist nicht im Paket enthalten. Nach Ihrer ersten Zahlung können Sie sie hier für ${euroText(auskunftPreisCents("privat", true))} dazu beauftragen.`,
     naechsterSchritt: st.schreiben
       ? "Warten auf die Antwort zum ersten Schreiben. Wir melden uns, sobald sie da ist."
       : st.analyse
         ? "Aus der Prüfung entsteht Ihr erstes Schreiben. Sie unterschreiben, wir versenden."
         : "Wir melden uns, sobald es etwas zu entscheiden gibt.",
-    bezahlt: st.bezahlt, hatDokument: st.auskunft, geprueft: st.analyse,
-    darfKaufen: false, darfHochladen: false, bestellRef: "FIAON-SCHUFA-DEMO",
-    zahlungsreferenz: "FIAON-SCHUFA-DEMO", zahlungsstatus: st.bezahlt ? "paid" : "pending", preisEuro: 74,
+    bezahlt: auskunftBeauftragt, hatDokument: st.auskunft, geprueft: st.analyse,
+    darfKaufen: auskunft.darfKaufen, darfHochladen: false, bestellRef: auskunftBeauftragt ? "FIAON-SCHUFA-DEMO" : null,
+    zahlungsreferenz: auskunftBeauftragt ? "FIAON-SCHUFA-DEMO" : null, zahlungsstatus: auskunftBeauftragt ? "paid" : null,
+    preisEuro: auskunft.preisCents / 100, auskunftStufe: auskunft.stufe,
   };
 
   // Die Finanzauswertung entsteht AUS dem Kontoauszug. Vor Schritt 5 gibt es
@@ -178,8 +200,9 @@ function demoBereich(stufeRoh: unknown) {
     },
     stufe: kontoStufe,
     bonitaet,
+    auskunft,
     unterlagen: {
-      kontoauszug: st.unterlagen, ausweis: st.unterlagen, auskunft: st.auskunft,
+      kontoauszug: st.unterlagen, ausweis: st.unterlagen, auskunft: st.auskunft, auskunftKauf: auskunft,
       erneutKontoauszug: false, erneutAusweis: false,
       kycStatus: st.unterlagen ? "verified" : "offen", kontoStatus: st.bezahlt ? "active" : "pending",
     },

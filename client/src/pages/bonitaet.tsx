@@ -1,11 +1,39 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import {
+  AUSKUNFT_PREISE_CENTS, AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ, auskunfteienText, euroText,
+} from "@shared/fiaon-auskunft";
 
 /* ════════════════════════════════════════════
-   FIAON · Bonitäts-Auszug  /bonitaet
-   Schufa Vollauskunft Express — 74 EUR
+   FIAON · Bonitätsauskunft  /bonitaet
+   Mit Handlungsplan — 149 € einzeln, 74 € mit Paket
    ════════════════════════════════════════════ */
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEUE TEXTE (24.09.2026, E-240)
+//
+// Die Seite stammt aus der Du-Zeit und stand gegen jede Hausregel: Express-
+// Lieferung am Bestelltag, eine Bearbeitungs-Garantie, das Versprechen, den
+// Score „massiv" zu heben, ein „zu 100 %" neutraler Abruf, eine animierte
+// Score-Ampel mit „+562 Punkte" und „35 % aller Einträge sind falsch" ohne
+// Beleg. Nichts davon ist lieferbar oder belegt — die Datenkopie braucht in der
+// Regel bis zu einem Monat, und über den Score entscheiden die Daten, nicht wir.
+//
+// Jetzt: Sie-Form, dieselbe Leistung wie überall (shared/fiaon-auskunft.ts),
+// beide Preise nebeneinander (nie als Streichpreis), die ehrliche Antwort auf
+// „kostenlos?" in den Fragen. Die Bilder bleiben — sie zeigen jetzt, was
+// geliefert wird (erklärte Einträge, Handlungsplan), statt eines Punktesprungs.
+// Alle Knöpfe führen auf /bonitaet-antrag. Der SEO-Eintrag (shared/
+// fiaon-seo-seiten.ts, "/bonitaet") ist mitgezogen.
+// ═══════════════════════════════════════════════════════════════════════════
+const PREIS_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
+const PREIS_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
+const PREIS_FIRMA_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln);
+const PREIS_FIRMA_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo);
+// PAngV § 6 (Fernabsatz): neben dem Preis steht, dass die Steuer drin ist — Wortlaut wie
+// AGB § 5 Abs. 1 und die Bestellseite (client/src/i18n/bonitaet-antrag.ts, PREIS_STEUER).
+const PREIS_ZEILE = `${PREIS_EINZELN} einmalig · ${PREIS_MIT_PAKET} mit Paket · kein Abo · Endpreise inkl. etwaiger USt.`;
 
 /* ── Keyframe injection ── */
 if (typeof document !== "undefined" && !document.head.querySelector('style[data-bonitaet-anims]')) {
@@ -106,7 +134,7 @@ function DocumentVisual() {
           {/* Doc header */}
           <div className="px-6 pt-6 pb-4 border-b border-white/10">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-blue-400">SCHUFA Vollauskunft</span>
+              <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-blue-400">Bonitätsauskunft</span>
               <div style={{ animation: `bonLockOpen ${unlocked ? "0.6s ease forwards" : "none"}` }}>
                 {unlocked ? (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round">
@@ -120,15 +148,15 @@ function DocumentVisual() {
               </div>
             </div>
             <div className="text-white font-semibold text-[15px]">Max Mustermann</div>
-            <div className="text-white/40 text-[12px] mt-0.5">Bonitätsprofil · Tagesaktuell</div>
+            <div className="text-white/40 text-[12px] mt-0.5">Beispiel · Ihre Auswertung</div>
           </div>
           {/* Doc body */}
           <div className="px-6 py-4 space-y-3">
             {[
-              { label: "Basis-Score", val: unlocked ? "847 / 1.000" : "●●● / ●●●", col: unlocked ? "#10b981" : "rgba(255,255,255,0.25)" },
-              { label: "Offene Einträge", val: unlocked ? "2 (behebbar)" : "●●●●●●●●", col: unlocked ? "#f59e0b" : "rgba(255,255,255,0.25)" },
-              { label: "Letzte Anfragen", val: unlocked ? "1 (Eigenabfrage)" : "●●●●●●●", col: unlocked ? "#3b82f6" : "rgba(255,255,255,0.25)" },
-              { label: "Branchen-Scores", val: unlocked ? "Vollständig" : "●●●●●●●●●", col: unlocked ? "#10b981" : "rgba(255,255,255,0.25)" },
+              { label: "Auskunfteien", val: unlocked ? "3 angefragt" : "●●●●●●●", col: unlocked ? "#3b82f6" : "rgba(255,255,255,0.25)" },
+              { label: "Einträge erklärt", val: unlocked ? "7 von 7" : "●●●●●●●●", col: unlocked ? "#10b981" : "rgba(255,255,255,0.25)" },
+              { label: "Frist prüfen", val: unlocked ? "2 Einträge" : "●●●●●●●", col: unlocked ? "#f59e0b" : "rgba(255,255,255,0.25)" },
+              { label: "Schreiben", val: unlocked ? "2 zur Freigabe" : "●●●●●●●●●", col: unlocked ? "#10b981" : "rgba(255,255,255,0.25)" },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between">
                 <span className="text-white/50 text-[12px]">{row.label}</span>
@@ -140,7 +168,7 @@ function DocumentVisual() {
           <div className="px-6 pb-6">
             <div className={`w-full rounded-xl py-2.5 text-center text-[12px] font-bold tracking-wider transition-all duration-500 ${unlocked ? "text-white" : "text-white/40"}`}
               style={{ background: unlocked ? "linear-gradient(135deg,#2563eb,#3b82f6)" : "rgba(255,255,255,0.06)", border: unlocked ? "none" : "1px solid rgba(255,255,255,0.1)" }}>
-              {unlocked ? "✓ FIAON ANALYSE BEREIT" : "KLICKEN ZUM ENTSPERREN"}
+              {unlocked ? "✓ HANDLUNGSPLAN BEREIT" : "KLICKEN ZUM ÖFFNEN"}
             </div>
           </div>
         </div>
@@ -152,18 +180,22 @@ function DocumentVisual() {
       {/* Click hint */}
       {!unlocked && (
         <div className="absolute -bottom-8 text-center">
-          <span className="text-[11px] text-gray-400 font-medium tracking-wider">↑ Tippen zum Freischalten</span>
+          <span className="text-[11px] text-gray-400 font-medium tracking-wider">↑ Tippen zum Öffnen</span>
         </div>
       )}
     </div>
   );
 }
 
-/* ── SCHUFA-Ampel visual (Hero) ── */
+/* ── Auswertungs-Ampel (Hero) ──
+   E-240: Hier zählte ein SCHUFA-Score von 285 auf 847 hoch („+562 Punkte").
+   Das ist ein Ergebnisversprechen, das niemand geben kann. Die Ampel zeigt
+   jetzt, was wir liefern: erklärte Einträge bis zum fertigen Handlungsplan. */
+const EINTRAEGE_BEISPIEL = 7;
 function SchufahAmpel() {
   const [phase, setPhase] = useState<0 | 1 | 2>(0); // 0=rot, 1=gelb, 2=grün
-  const [score, setScore] = useState(285);
-  const targetScores = [285, 541, 847];
+  const [score, setScore] = useState(0);
+  const targetScores = [0, 4, EINTRAEGE_BEISPIEL];
 
   /* Auto-run the sequence */
   useEffect(() => {
@@ -189,13 +221,13 @@ function SchufahAmpel() {
   }, [phase]);
 
   const lights = [
-    { color: "#ef4444", glow: "ampelRedGlow", label: "Kritisch",    active: phase === 0 },
-    { color: "#f59e0b", glow: "ampelYelGlow", label: "Ausreichend", active: phase === 1 },
-    { color: "#10b981", glow: "ampelGrnGlow", label: "Sehr gut",    active: phase === 2 },
+    { color: "#ef4444", glow: "ampelRedGlow", label: "Unklar",     active: phase === 0 },
+    { color: "#f59e0b", glow: "ampelYelGlow", label: "In Prüfung", active: phase === 1 },
+    { color: "#10b981", glow: "ampelGrnGlow", label: "Plan steht", active: phase === 2 },
   ];
 
-  const phaseLabel  = ["Kritisch",    "Ausreichend",  "Sehr gut"][phase];
-  const phaseSub    = ["Dringend handeln", "Verbesserung läuft", "Ziel erreicht ✓"][phase];
+  const phaseLabel  = ["Unklar",    "In Prüfung",  "Plan steht"][phase];
+  const phaseSub    = ["Was ist gespeichert?", "Einträge werden erklärt", "Handlungsplan fertig ✓"][phase];
   const phaseColor  = ["#ef4444",     "#f59e0b",      "#10b981"][phase];
   const barWidth    = ["22%",         "54%",          "88%"][phase];
 
@@ -225,13 +257,13 @@ function SchufahAmpel() {
         {/* Header */}
         <div className="px-7 pt-7 pb-4 border-b border-white/[0.07]">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-blue-400">SCHUFA Ampel</span>
+            <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-blue-400">Ihre Auswertung</span>
             <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full"
               style={{ background: `${phaseColor}22`, color: phaseColor, transition: "all .8s ease" }}>
               {phaseSub}
             </span>
           </div>
-          <div className="text-white/30 text-[11px] font-medium">Bonitätsstatus · Live-Analyse</div>
+          <div className="text-white/30 text-[11px] font-medium">Beispiel · jede Zeile erklärt</div>
         </div>
 
         {/* Main content: Ampel + Score */}
@@ -255,10 +287,10 @@ function SchufahAmpel() {
 
           {/* Score display */}
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-white/35 mb-1 uppercase tracking-wider">SCHUFA-Score</div>
+            <div className="text-[11px] font-semibold text-white/35 mb-1 uppercase tracking-wider">Einträge erklärt</div>
             <div className="font-mono text-[34px] font-extrabold leading-none transition-colors duration-700 mb-1"
               style={{ color: phaseColor }}>
-              {score}
+              {score}<span className="text-[16px] font-bold text-white/30"> / {EINTRAEGE_BEISPIEL}</span>
             </div>
             <div className="text-[11.5px] font-bold transition-colors duration-700"
               style={{ color: phaseColor }}>{phaseLabel}</div>
@@ -272,7 +304,7 @@ function SchufahAmpel() {
             </div>
             <div className="flex justify-between mt-1">
               <span className="text-[9px] text-white/25 font-medium">0</span>
-              <span className="text-[9px] text-white/25 font-medium">1.000</span>
+              <span className="text-[9px] text-white/25 font-medium">{EINTRAEGE_BEISPIEL}</span>
             </div>
           </div>
         </div>
@@ -290,7 +322,7 @@ function SchufahAmpel() {
               boxShadow: phase === 2 ? "0 8px 24px rgba(16,185,129,0.38)" : "none",
               animation: phase === 2 ? "ampelBadge .5s cubic-bezier(.22,1,.36,1)" : "none",
             }}>
-            {phase === 2 ? "✓ FIAON ZIEL ERREICHT" : phase === 1 ? "↑ FIAON ANALYSE LÄUFT" : "⚠ HANDLUNGSBEDARF"}
+            {phase === 2 ? "✓ HANDLUNGSPLAN FERTIG" : phase === 1 ? "↑ FIAON ERKLÄRT" : "⚠ LAGE UNKLAR"}
           </div>
         </div>
 
@@ -301,7 +333,7 @@ function SchufahAmpel() {
         </div>
       </div>
 
-      {/* Floating "+562 Punkte" badge at green phase */}
+      {/* Floating badge at green phase — was geliefert wird, kein Punktesprung */}
       {phase === 2 && (
         <div className="absolute -top-4 -right-4 z-20 px-3.5 py-1.5 rounded-full font-bold text-[12.5px] text-white"
           style={{
@@ -309,13 +341,13 @@ function SchufahAmpel() {
             boxShadow: "0 8px 20px rgba(16,185,129,0.45)",
             animation: "ampelBadge .55s cubic-bezier(.22,1,.36,1)",
           }}>
-          +562 Punkte
+          2 Schreiben bereit
         </div>
       )}
 
       {phase === 0 && (
         <div className="absolute -bottom-6 text-center w-full">
-          <span className="text-[11px] text-gray-400 font-medium tracking-wider">↑ FIAON analysiert automatisch</span>
+          <span className="text-[11px] text-gray-400 font-medium tracking-wider">↑ So entsteht Ihr Handlungsplan</span>
         </div>
       )}
     </div>
@@ -342,7 +374,7 @@ function Hero() {
             <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500"
               style={{ animation: "bonPulseDot 1.8s ease-in-out infinite" }} />
             <span className="text-[12px] sm:text-[13px] font-semibold text-gray-700 tracking-wide uppercase">
-              EXPRESS-BEARBEITUNG AKTIV: Lieferung noch heute am Werktag
+              Deutschland · Österreich · Schweiz — alle Auskunfteien Ihres Landes
             </span>
           </div>
         </div>
@@ -352,15 +384,15 @@ function Hero() {
           {/* Left — Text */}
           <div className="text-center lg:text-left" style={{ animation: "bonFadeUp 0.7s cubic-bezier(.22,1,.36,1) both" }}>
             <h1 className="text-[2.6rem] sm:text-[3.4rem] lg:text-[3.8rem] font-extrabold leading-[1.03] tracking-tight mb-6">
-              <G>Deine Schufa-Vollauskunft.</G>
+              <G>Ihre Bonitätsauskunft.</G>
               <br />
-              <span className="text-gray-900">Express am</span>{" "}
-              <G>selben Werktag.</G>
+              <span className="text-gray-900">Mit</span>{" "}
+              <G>Handlungsplan.</G>
             </h1>
 
             <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[520px] mx-auto lg:mx-0 mb-10">
-              Keine wochenlange Wartezeit. Wir holen deine tagesaktuelle Schufa-Akte und liefern dir die exakte, sofort umsetzbare Roadmap, um deinen Score massiv zu verbessern.{" "}
-              <b className="text-gray-800">Komplett. Diskret. Digital.</b>
+              Wir fordern Ihre Datenkopien bei allen Auskunfteien Ihres Landes an, erklären jeden Eintrag, prüfen die Speicherfristen und liefern Ihren Handlungsplan mit fertigen Schreiben.{" "}
+              <b className="text-gray-800">Sie geben frei, wir übermitteln.</b>
             </p>
 
             {/* CTA */}
@@ -370,7 +402,7 @@ function Hero() {
                 className="fiaon-btn-gradient relative inline-flex items-center justify-center gap-3 px-9 py-4 rounded-full text-[15px] sm:text-[16px] font-bold text-white overflow-hidden group"
                 style={{ minHeight: 56, letterSpacing: "0.04em" }}
               >
-                <span className="relative z-10">JETZT VOLLAUSKUNFT EINFORDERN</span>
+                <span className="relative z-10">BONITÄTSAUSKUNFT BESTELLEN</span>
                 <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)", animation: "bonShimmer 3s ease-in-out infinite" }} />
               </a>
@@ -379,17 +411,17 @@ function Hero() {
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 text-[12.5px] text-gray-500 font-medium">
                 <span className="inline-flex items-center gap-1.5">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.8" strokeLinecap="round"><polyline points="4 12 10 18 20 6" /></svg>
-                  Einmalig nur 74 €
+                  {PREIS_EINZELN} einmalig · {PREIS_MIT_PAKET} mit Paket
                 </span>
                 <span className="hidden sm:block w-px h-3 bg-gray-200" />
                 <span className="inline-flex items-center gap-1.5">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.8" strokeLinecap="round"><polyline points="4 12 10 18 20 6" /></svg>
-                  Keine Abo-Falle
+                  Kein Abo
                 </span>
                 <span className="hidden sm:block w-px h-3 bg-gray-200" />
                 <span className="inline-flex items-center gap-1.5">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round"><polyline points="4 12 10 18 20 6" /></svg>
-                  Schufa-neutraler Abruf
+                  Sie geben jedes Schreiben frei
                 </span>
               </div>
             </div>
@@ -419,8 +451,8 @@ function PainPoints() {
       ),
       accent: "#f59e0b",
       accentBg: "rgba(245,158,11,0.1)",
-      title: "Wochenlanges Warten.",
-      text: "Wer die kostenlose Auskunft beantragt, wartet oft Wochen per Post. In dieser Zeit ist das Traumauto, die Wohnung oder das Business-Investment längst weg.",
+      title: "Jede Auskunftei einzeln.",
+      text: `Die Datenkopie ist kostenlos — aber jede Auskunftei will einzeln angeschrieben werden: in Deutschland ${auskunfteienText("DE")}, in Österreich ${auskunfteienText("AT")}, in der Schweiz ${auskunfteienText("CH")}.`,
     },
     {
       icon: (
@@ -430,8 +462,8 @@ function PainPoints() {
       ),
       accent: "#ef4444",
       accentBg: "rgba(239,68,68,0.1)",
-      title: "Unwissenheit kostet Geld.",
-      text: "Fast 35 % aller Schufa-Einträge sind fehlerhaft, veraltet oder schlichtweg falsch. Du wirst abgelehnt und weißt nicht einmal, warum.",
+      title: "Abgelehnt — und kein Grund.",
+      text: "Wer eine Absage bekommt, erfährt selten, welcher Eintrag dahintersteht. Veraltete oder falsche Einträge bleiben so unentdeckt.",
     },
     {
       icon: (
@@ -441,8 +473,8 @@ function PainPoints() {
       ),
       accent: "#8b5cf6",
       accentBg: "rgba(139,92,246,0.1)",
-      title: "Nur Daten, keine Lösung.",
-      text: "Ein nackter Schufa-Zettel sagt dir nicht, wie du den Score hochbekommst. Du bleibst mit deinen Problemen allein im Regen stehen.",
+      title: "Nur Daten, kein Plan.",
+      text: "Eine Datenkopie zeigt, was gespeichert ist — aber nicht, was Sie jetzt tun können und welche Frist wann abläuft.",
     },
   ];
 
@@ -457,7 +489,7 @@ function PainPoints() {
         <div className="max-w-2xl mx-auto text-center mb-16">
           <p className="text-[12px] font-bold text-blue-400 tracking-[0.22em] uppercase mb-4">Das Problem</p>
           <h2 className="text-[2rem] sm:text-[2.6rem] font-extrabold tracking-tight leading-tight text-white">
-            Warum die meisten an ihrer <G>Schufa verzweifeln.</G>
+            Warum eine Auskunft allein <G>selten weiterhilft.</G>
           </h2>
         </div>
 
@@ -501,11 +533,11 @@ function PainPoints() {
             className="fiaon-btn-gradient relative inline-flex items-center gap-2.5 px-9 py-4 rounded-full text-[15px] font-bold text-white overflow-hidden"
             style={{ boxShadow: "0 12px 32px rgba(37,99,235,0.35)" }}
           >
-            <span className="relative z-10">Jetzt meine Schufa analysieren lassen</span>
+            <span className="relative z-10">Bonitätsauskunft bestellen</span>
             <svg className="relative z-10" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent)", animation: "bonShimmer 3s ease-in-out infinite" }} />
           </a>
-          <p className="mt-3 text-[12.5px] text-white/35 font-medium">Einmalig 74 € · Kein Abo · Schufa-neutral</p>
+          <p className="mt-3 text-[12.5px] text-white/35 font-medium">{PREIS_ZEILE}</p>
         </div>
       </div>
     </section>
@@ -519,16 +551,16 @@ function Solution() {
   const { ref, visible } = useReveal();
   const features = [
     {
-      bold: "100% tagesaktuelle Vollauskunft:",
-      text: "Alle gespeicherten Branchen-Scores, Banken-Anfragen, Zahlungsstörungen und Einträge auf einen Blick.",
+      bold: "Alle Auskunfteien Ihres Landes:",
+      text: `In Deutschland ${auskunfteienText("DE")}, in Österreich ${auskunfteienText("AT")}, in der Schweiz ${auskunfteienText("CH")} — wir fordern Ihre Datenkopien mit Ihrer Vollmacht an, Sie müssen keinen Brief schreiben.`,
     },
     {
-      bold: "Express-Abruf am selben Werktag:",
-      text: "Wenn du heute bis 15:00 Uhr bestellst, liegt deine Akte noch heute digital in deinem Hub.",
+      bold: "Jede Zeile erklärt, jede Frist geprüft:",
+      text: "Wir erklären jeden Eintrag in klaren Worten und prüfen, ob Speicherfristen abgelaufen sind oder Daten falsch gemeldet wurden.",
     },
     {
-      bold: "FIAON Handlungsanweisung (Der Gamechanger):",
-      text: "Unsere Experten analysieren deine Akte. Du erhältst eine glasklare Anleitung, welche Einträge du sofort löschen lassen kannst, wie du Fristen verkürzt und wie du deinen Score aktiv nach oben schraubst.",
+      bold: "Ihr Handlungsplan mit fertigen Schreiben:",
+      text: "Was Sie konkret tun können, in welcher Reihenfolge — dazu die Schreiben, etwa Löschung nach Fristablauf oder Berichtigung falscher Daten. Sie geben frei, wir übermitteln.",
     },
   ];
 
@@ -544,10 +576,10 @@ function Solution() {
         <div className="max-w-2xl mx-auto text-center mb-16">
           <p className="text-[12px] font-bold text-[#2563eb] tracking-[0.22em] uppercase mb-4">Die Lösung</p>
           <h2 className="text-[2rem] sm:text-[2.6rem] font-extrabold tracking-tight leading-tight mb-5">
-            <G>Die Vollauskunft + Deine maßgeschneiderte Sanierungs-Roadmap.</G>
+            <G>Ihre Auskunft — und Ihr Handlungsplan.</G>
           </h2>
           <p className="text-[16px] text-gray-500 leading-relaxed">
-            Wir liefern dir nicht nur die nackten Zahlen. Wir geben dir die exakte Waffe an die Hand, um deine Bonität gezielt zu reparieren.
+            Wir liefern nicht nur Daten, sondern den nächsten Schritt für jeden Eintrag. Ob eine Auskunftei löscht, entscheidet sie — wir sorgen dafür, dass für jeden angreifbaren Eintrag das passende Schreiben bereitliegt.
           </p>
         </div>
 
@@ -583,7 +615,7 @@ function Solution() {
               className="fiaon-btn-gradient relative inline-flex items-center gap-2.5 px-7 py-3.5 rounded-full text-[14.5px] font-bold text-white overflow-hidden"
               style={{ boxShadow: "0 10px 28px rgba(37,99,235,0.25)" }}
             >
-              <span className="relative z-10">Vollauskunft einfordern</span>
+              <span className="relative z-10">Bonitätsauskunft bestellen</span>
               <svg className="relative z-10" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent)", animation: "bonShimmer 3.5s ease-in-out infinite" }} />
             </a>
@@ -615,18 +647,18 @@ function Steps() {
   const steps = [
     {
       n: "01",
-      title: "Express-Formular ausfüllen.",
-      text: "Gib deine Daten in unter 2 Minuten sicher ein. Unser System verifiziert deine Identität komplett schufaneutral.",
+      title: "Bestellen und Vollmacht erteilen.",
+      text: "Name, Anschrift, Geburtsdatum — mehr brauchen die Auskunfteien nicht. Mit Ihrer Vollmacht dürfen wir die Datenkopien für Sie anfordern.",
     },
     {
       n: "02",
-      title: "Live-Abruf & Analyse.",
-      text: "Unsere Engine fordert deine Vollauskunft an und filtert sofort alle fehlerhaften und optimierbaren Einträge heraus.",
+      title: "Anfordern und erklären.",
+      text: "Wir fordern Ihre Datenkopien an; die Auskunfteien haben dafür gesetzlich in der Regel einen Monat Zeit. Danach erklären wir jeden Eintrag und prüfen die Fristen.",
     },
     {
       n: "03",
-      title: "Lieferung & Umsetzung.",
-      text: "Du erhältst deine Akte und deine persönliche Handlungsanweisung direkt als Download. Du weißt ab Sekunde eins exakt, was zu tun ist.",
+      title: "Handlungsplan und Schreiben.",
+      text: "Ihr Handlungsplan und die fertigen Schreiben liegen in Ihrem Kundenbereich. Sie geben frei, wir übermitteln.",
     },
   ];
 
@@ -637,7 +669,7 @@ function Steps() {
         <div className="max-w-2xl mx-auto text-center mb-16">
           <p className="text-[12px] font-bold text-[#2563eb] tracking-[0.22em] uppercase mb-4">So einfach geht's</p>
           <h2 className="text-[2rem] sm:text-[2.6rem] font-extrabold tracking-tight leading-tight">
-            <G>In 3 Schritten zu deiner sauberen Bonität.</G>
+            <G>In drei Schritten zu Ihrem Handlungsplan.</G>
           </h2>
         </div>
 
@@ -705,10 +737,10 @@ function Steps() {
 function Comparison() {
   const { ref, visible } = useReveal();
   const rows = [
-    { criterion: "Zeit", left: "Bis zu 4 Wochen", leftSub: "Klassischer Postweg", right: "Am selben Werktag", rightSub: "Digital & sofort" },
-    { criterion: "Inhalt", left: "Nur nackte Daten", leftSub: "Keine Hilfe, kein Plan", right: "Vollauskunft + konkrete Lösch-Anleitung", rightSub: "Sofort umsetzbar" },
-    { criterion: "Score-Auswirkung", left: "Risiko von Fehleinträgen", leftSub: "Unkontrolliert", right: "Zu 100 % scoreneutraler Abruf", rightSub: "Keine Auswirkung" },
-    { criterion: "Support", left: "Kein Ansprechpartner", leftSub: "Allein gelassen", right: "Personal Advisor Support", rightSub: "Bei allen Rückfragen" },
+    { criterion: "Preis", left: "0 €", leftSub: "Ihr gesetzliches Recht", right: `${PREIS_EINZELN} einmalig`, rightSub: `${PREIS_MIT_PAKET} mit laufendem Paket` },
+    { criterion: "Anforderung", left: "Jede Auskunftei einzeln", leftSub: "Sie schreiben selbst", right: "Alle Auskunfteien Ihres Landes", rightSub: "Mit Ihrer Vollmacht" },
+    { criterion: "Inhalt", left: "Rohdaten und Fachbegriffe", leftSub: "Ohne Erklärung", right: "Jeder Eintrag erklärt", rightSub: "Speicherfristen geprüft" },
+    { criterion: "Danach", left: "Schreiben selbst aufsetzen", leftSub: "Fristen selbst verfolgen", right: "Handlungsplan und fertige Schreiben", rightSub: "Sie geben frei, wir übermitteln" },
   ];
 
   return (
@@ -721,8 +753,8 @@ function Comparison() {
         <div className="max-w-2xl mx-auto text-center mb-16">
           <p className="text-[12px] font-bold text-blue-400 tracking-[0.22em] uppercase mb-4">Der direkte Vergleich</p>
           <h2 className="text-[2rem] sm:text-[2.6rem] font-extrabold tracking-tight text-white leading-tight">
-            Warum warten, wenn es auch{" "}
-            <span className="fiaon-heading-gradient">sofort</span>{" "}geht?
+            Selbst anfordern{" "}
+            <span className="fiaon-heading-gradient">oder abgeben?</span>
           </h2>
         </div>
 
@@ -734,12 +766,12 @@ function Comparison() {
             style={{ background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="p-5 text-[12px] font-bold text-white/40 uppercase tracking-wider">Kriterium</div>
             <div className="p-5 border-l border-white/5 text-center">
-              <span className="text-[12px] font-semibold text-white/40 uppercase tracking-wider">Klassische Post-Auskunft</span>
+              <span className="text-[12px] font-semibold text-white/40 uppercase tracking-wider">Selbst anfordern</span>
             </div>
             <div className="p-5 border-l text-center relative"
               style={{ borderColor: "rgba(37,99,235,0.3)", background: "rgba(37,99,235,0.1)" }}>
               <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: "linear-gradient(90deg,transparent,#2563eb,#60a5fa,transparent)", animation: "bonNeonPulse 3s ease-in-out infinite" }} />
-              <span className="text-[12px] font-bold text-blue-300 uppercase tracking-wider">FIAON Express-Akte</span>
+              <span className="text-[12px] font-bold text-blue-300 uppercase tracking-wider">FIAON-Bonitätsauskunft</span>
             </div>
           </div>
           {/* Rows */}
@@ -783,16 +815,24 @@ function FAQ() {
   const [open, setOpen] = useState<number | null>(0);
   const qas = [
     {
-      q: "Verschlechtert dieser Abruf meinen Schufa-Score?",
-      a: `Nein. Absolut nicht. Wir rufen deine Daten über ein spezielles Verfahren ab, das als \u201EAnfrage des Kunden\u201C deklariert ist. Das ist für Banken unsichtbar und beeinträchtigt deinen Score zu null Prozent.`,
+      q: "Sehen Banken, dass ich eine Auskunft anfordere?",
+      a: "Nein. Die Eigenauskunft ist keine Kreditanfrage: Sie wird anderen Banken nicht als Anfrage angezeigt und verändert Ihren Score nicht — auch nicht, wenn wir sie mit Ihrer Vollmacht für Sie anfordern.",
     },
     {
-      q: "Was genau beinhaltet die Handlungsanweisung?",
-      a: "Wir prüfen, welche Einträge unberechtigt oder veraltet sind. Du erhältst vorgefertigte Textbausteine und eine Schritt-für-Schritt-Anleitung, wie du diese sofort und ohne teuren Anwalt löschen lassen kannst.",
+      q: "Was genau steht im Handlungsplan?",
+      a: "Wir prüfen jeden Eintrag: Stimmt er? Ist die Speicherfrist abgelaufen? Sie bekommen eine Reihenfolge, was Sie konkret tun können, und fertige Schreiben — etwa Löschung nach Fristablauf oder Berichtigung falscher Daten. Sie geben jedes Schreiben frei, wir übermitteln es. Ob gelöscht wird, entscheidet die Auskunftei.",
     },
     {
-      q: "Gibt es hier versteckte Kosten oder ein Abo?",
-      a: "Nein. Du zahlst einmalig 74 EUR für den Express-Abruf und die Analyse. Es gibt kein Abonnement, keine versteckten Gebühren und keine Folgekosten.",
+      q: "Kann ich die Auskunft nicht kostenlos selbst anfordern?",
+      a: AUSKUNFT_KOSTENLOS_ANTWORT,
+    },
+    {
+      q: "Was kostet es — gibt es ein Abo?",
+      a: `Einmalig ${PREIS_EINZELN}. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von ${PREIS_MIT_PAKET}; für Unternehmen ${PREIS_FIRMA_EINZELN} einzeln, ${PREIS_FIRMA_MIT_PAKET} mit Paket. Alle Preise sind Endpreise einschließlich einer etwaig anfallenden Umsatzsteuer. Kein Abo, keine Folgekosten, keine Erfolgsbeteiligung.`,
+    },
+    {
+      q: "Wie lange dauert es?",
+      a: "Die Auskunfteien haben für die Datenkopie gesetzlich in der Regel einen Monat Zeit, oft geht es schneller. Sobald die Kopien da sind, erklären und prüfen wir sie und legen Handlungsplan und Schreiben in Ihren Kundenbereich.",
     },
   ];
 
@@ -803,7 +843,7 @@ function FAQ() {
         <div className="text-center mb-14">
           <p className="text-[12px] font-bold text-[#2563eb] tracking-[0.22em] uppercase mb-4">FAQ</p>
           <h2 className="text-[2rem] sm:text-[2.6rem] font-extrabold tracking-tight leading-tight">
-            <G>Kurz &amp; Hart. Deine Fragen.</G>
+            <G>Ihre Fragen. Kurz beantwortet.</G>
           </h2>
         </div>
 
@@ -845,11 +885,11 @@ function FAQ() {
             className="fiaon-btn-gradient relative inline-flex items-center gap-2.5 px-9 py-4 rounded-full text-[15px] font-bold text-white overflow-hidden"
             style={{ boxShadow: "0 12px 32px rgba(37,99,235,0.28)" }}
           >
-            <span className="relative z-10">Vollauskunft jetzt anfordern (74 €)</span>
+            <span className="relative z-10">Bonitätsauskunft bestellen</span>
             <svg className="relative z-10" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent)", animation: "bonShimmer 3s ease-in-out infinite" }} />
           </a>
-          <p className="mt-3 text-[13px] text-gray-400 font-medium">Einmalig · Kein Abo · Express am selben Werktag</p>
+          <p className="mt-3 text-[13px] text-gray-400 font-medium">{PREIS_ZEILE}</p>
         </div>
       </div>
     </section>
@@ -894,7 +934,7 @@ function FinalCTA() {
           </div>
           <div className="mt-4 px-5 py-1.5 rounded-full text-[11px] font-bold tracking-[0.22em] uppercase"
             style={{ background: "rgba(37,99,235,0.15)", border: "1px solid rgba(37,99,235,0.3)", color: "#60a5fa" }}>
-            FIAON VERIFIED
+            DE · AT · CH
           </div>
         </div>
 
@@ -902,15 +942,15 @@ function FinalCTA() {
           className={`text-[2.4rem] sm:text-[3.2rem] font-extrabold tracking-tight text-white leading-tight mb-6 transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
           style={{ transitionDelay: "0.15s" }}
         >
-          Null Risiko. Volle Klarheit.{" "}
-          <span className="fiaon-heading-gradient">Noch heute.</span>
+          Volle Klarheit.{" "}
+          <span className="fiaon-heading-gradient">Ein Plan.</span>
         </h2>
 
         <p
           className={`text-[16px] sm:text-[17px] text-white/55 leading-relaxed max-w-[580px] mx-auto mb-10 transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
           style={{ transitionDelay: "0.22s" }}
         >
-          Wir wissen, wie dringend finanzielle Angelegenheiten sind. Deshalb garantieren wir dir die Bearbeitung am selben Werktag. Schließe deine Ungewissheit ab und hol dir die Kontrolle über deine Finanzen zurück.
+          Sie sehen, was die Auskunfteien über Sie speichern, was davon stimmt und was Sie tun können. {AUSKUNFT_NUTZEN_SATZ} Über Karte und Limit entscheidet die Bank.
         </p>
 
         {/* Final CTA */}
@@ -923,7 +963,7 @@ function FinalCTA() {
             className="fiaon-btn-gradient relative inline-flex items-center justify-center gap-3 px-10 py-5 rounded-full text-[16px] sm:text-[17px] font-bold text-white overflow-hidden"
             style={{ minHeight: 60, letterSpacing: "0.03em", boxShadow: "0 20px 60px rgba(37,99,235,0.4)" }}
           >
-            <span className="relative z-10">VOLLAUSKUNFT JETZT ANFORDERN (74 €)</span>
+            <span className="relative z-10">BONITÄTSAUSKUNFT BESTELLEN</span>
             <svg className="relative z-10" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent)", animation: "bonShimmer 3s ease-in-out infinite" }} />
           </a>
@@ -934,12 +974,12 @@ function FinalCTA() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round">
                 <path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z" />
               </svg>
-              Verschlüsselt mit AES-256
+              Server in Frankfurt, verschlüsselt
             </div>
             <span className="w-px h-3 bg-white/15" />
             <div className="flex items-center gap-2 text-[12.5px] text-white/50 font-medium">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round"><polyline points="4 12 10 18 20 6" /></svg>
-              Höchste deutsche Datenschutzstandards
+              Sie geben jedes Schreiben frei
             </div>
             <span className="w-px h-3 bg-white/15" />
             <div className="flex items-center gap-2 text-[12.5px] text-white/50 font-medium">

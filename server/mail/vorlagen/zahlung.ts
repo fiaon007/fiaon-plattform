@@ -68,7 +68,12 @@ export const ZAHLUNG_VORLAGEN: Record<string, MailBaustein> = {
     marke: "Erinnerung {{params.reminder_number}}",
     absaetze: [
       "Guten Tag {{params.vorname}}, Ihre erste Zahlung für <b>{{params.paket}}</b> ist noch nicht bei uns eingegangen — und solange können wir für Sie nicht loslegen.",
-      "Das passiert leicht: Eine Überweisung braucht ein bis zwei Bankarbeitstage, und manchmal geht sie im Alltag unter. Sobald das Geld da ist, öffnet sich Ihr Bereich automatisch und wir holen Ihre Auskunft.",
+      // 25.09.2026 (E-240): vorher „… öffnet sich Ihr Bereich automatisch und wir holen Ihre Auskunft." —
+      // die Auskunft ist seit E-240 ein Zusatzprodukt, und diese Erinnerung geht an Paket- UND
+      // Auskunft-Bestellungen. Der Satz stimmt jetzt für beide.
+      // Gegenlesen 25.09.2026 (E-240): „dann" statt „jederzeit" — vor der ersten Zahlung hat ein
+      // Paketkunde noch keinen Bereich (fiaon-kontostufe.ts: Zugang erst mit gebuchter Zahlung).
+      "Das passiert leicht: Eine Überweisung braucht ein bis zwei Bankarbeitstage, und manchmal geht sie im Alltag unter. Sobald das Geld da ist, legen wir automatisch los — und in Ihrem Bereich sehen Sie dann, was als Nächstes für Sie ansteht.",
       "Haben Sie bereits überwiesen? Dann ist diese Nachricht schon überholt — oder antworten Sie kurz, wir sehen sofort nach.",
     ],
     daten: [

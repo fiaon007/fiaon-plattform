@@ -25,6 +25,14 @@
 // (Deutsch) und /en/pricing (Englisch). Alle Texte stehen im Wörterbuch
 // client/src/i18n/preise.ts; die Sprache kommt aus der Adresse (useWoerter).
 // Die Logik (Paketfinder, Fallrechner) bleibt eine — nur die Worte wechseln.
+//
+// 24.09.2026 (E-240): Die Bonitätsauskunft ist in KEINEM Paket enthalten.
+// Vorher trug jede Paketspalte „Bonitätsauskunft beschafft ✓", der Fallrechner
+// zählte sie als „inklusive", und „Nur Auskunft" führte auf /antrag?pack=schufa
+// — ein Paket, das der Antrag nicht kennt. Jetzt: Spalte „Auskunft" mit dem
+// Einzelpreis, Paketspalten „+ 74 € Kundenpreis", der Fallrechner rechnet sie
+// als Zusatz, und jeder Auskunft-Knopf führt auf /bonitaet-antrag. Preise aus
+// shared/fiaon-auskunft.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
@@ -32,7 +40,8 @@ import { PREISE_WOERTER } from "@/i18n/preise";
 import { Dunkel, Hero, Block, Licht, Knopf, Auf, Kennzahlen, Fragen, Zwischenruf, Abschluss, Glas } from "@/components/site/DunkleBuehne";
 import KartenSzene from "@/components/home3d/KartenSzene";
 import SeoDaten from "@/components/site/SeoDaten";
-import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { PAKETE } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS, auskunftSchluessel, euroText } from "@shared/fiaon-auskunft";
 import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
 import { globalGespraechPfad, globalPaketePfad, globalStartPfad } from "@shared/fiaon-global-wege";
 import "@/styles/preise.css";
@@ -42,13 +51,16 @@ import "@/styles/ratgeber.css";
 
 // Die Zeilen der Leistungstabelle: welche Spalte was hat. Die Texte kommen aus
 // dem Wörterbuch (Reihenfolge = leistungen[]); "s" = zum Selbstversand,
-// "v" = FIAON versendet, "t" = ab Schwelle.
-const MATRIX: Record<string, boolean | "s" | "v" | "t">[] = [
-  { schufa: true, start: true, pro: true, ultra: true, highend: true },
+// "v" = FIAON versendet, "t" = ab Schwelle, "z" = zubuchbar zum Kundenpreis
+// (die Auskunft ist nicht im Paket), "a" = Schreiben an Auskunfteien zur
+// Freigabe (Teil der Auskunft).
+type Zelle = boolean | "s" | "v" | "t" | "z" | "a";
+const MATRIX: Record<string, Zelle>[] = [
+  { schufa: true, start: "z", pro: "z", ultra: "z", highend: "z" },
   { schufa: true, start: true, pro: true, ultra: true, highend: true },
   { schufa: true, start: true, pro: true, ultra: true, highend: true },
   { schufa: false, start: true, pro: true, ultra: true, highend: true },
-  { schufa: false, start: "s", pro: "v", ultra: "v", highend: "v" },
+  { schufa: "a", start: "s", pro: "v", ultra: "v", highend: "v" },
   { schufa: false, start: false, pro: true, ultra: true, highend: true },
   { schufa: false, start: false, pro: true, ultra: true, highend: true },
   { schufa: false, start: false, pro: true, ultra: true, highend: true },
@@ -62,12 +74,15 @@ const SPALTEN = ["schufa", "start", "pro", "ultra", "highend"];
 // ── Paketfinder — dieselben drei Fragen wie auf /plattform-konzept. ───────────
 // Die Logik liefert den Paketschlüssel und den SCHLÜSSEL des Grundes; der
 // Text zum Grund steht im Wörterbuch (beide Sprachen).
+// E-240: „Nur wissen, was drinsteht" ist die Auskunft ohne Paket — also der
+// Einzelpreis (auskunft_privat), nicht der Kundenpreis „schufa".
 type Antwort = Record<string, string>;
+const AUSKUNFT_EINZELN = auskunftSchluessel("privat", false);
 function paketFuer(a: Antwort): { key: string; grund: string } | null {
   // E-188: Ein Unternehmen bekommt sofort seine Antwort — FIAON Global.
   if (a.wer === "business") return { key: "global", grund: "global" };
   if (!a.wer || !a.lage || !a.tempo) return null;
-  if (a.lage === "klar") return { key: "schufa", grund: "schufa" };
+  if (a.lage === "klar") return { key: AUSKUNFT_EINZELN, grund: "schufa" };
   if (a.lage === "eintrag") return a.tempo === "ruhig" ? { key: "start", grund: "start" } : { key: "pro", grund: "pro_fristen" };
   if (a.lage === "zugang") return { key: "pro", grund: "pro_zugang" };
   return a.tempo === "sofort" ? { key: "highend", grund: "highend" } : { key: "ultra", grund: "ultra" };
@@ -81,8 +96,11 @@ export default function Preise() {
   // Zahlen in der Sprache der Seite: 79,99 € (de) — €79.99 (en).
   const geld = (c: number) => en ? "€" + (c / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 }) : (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " €";
   const euro0 = (n: number) => n.toLocaleString(en ? "en-GB" : "de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-  const schufaPreis = en ? "€" + SCHUFA_PREIS_EURO.toFixed(2) : SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
-  const zelle = (w: boolean | "s" | "v" | "t") => w === true ? <span className="pr-ja">✓</span> : w === false ? <span className="pr-nein">–</span> : <span className="pr-text">{w === "s" ? t.selbstversand : w === "v" ? t.fiaonVersendet : t.abSchwelle}</span>;
+  // E-240: zwei Preise der Auskunft — einzeln und mit laufendem Paket (Kundenpreis).
+  const euroKurz = (c: number) => en ? "€" + (c / 100).toLocaleString("en-GB") : euroText(c);
+  const auskunftEinzeln = euroKurz(AUSKUNFT_PREISE_CENTS.privat.einzeln);
+  const auskunftMitPaket = euroKurz(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
+  const zelle = (w: Zelle) => w === true ? <span className="pr-ja">✓</span> : w === false ? <span className="pr-nein">–</span> : <span className="pr-text">{w === "s" ? t.selbstversand : w === "v" ? t.fiaonVersendet : w === "a" ? t.anAuskunfteien : w === "z" ? t.zubuchbar(auskunftMitPaket) : t.abSchwelle}</span>;
   const privat = PAKETE.filter((p) => p.art === "privat" && p.abo && !p.eingestellt);
   const pro = PAKETE.find((p) => p.key === "pro")!;
 
@@ -97,18 +115,21 @@ export default function Preise() {
   const [ziel, setZiel] = useState<"auskunft" | "konto" | "karte">("konto");
   const [stunden, setStunden] = useState(25);
   const fall = useMemo(() => {
-    const key = ziel === "auskunft" ? "schufa" : eintraege >= 4 ? "ultra" : "pro";
+    const key = ziel === "auskunft" ? AUSKUNFT_EINZELN : eintraege >= 4 ? "ultra" : "pro";
     const p = PAKETE.find((x) => x.key === key)!;
-    const gesamt = p.abo ? (p.preisCents / 100) * 12 : SCHUFA_PREIS_EURO;
+    // E-240: Mit Paket kommt die Auskunft zum Kundenpreis dazu — sie ist nicht enthalten.
+    const auskunftCents = p.abo ? AUSKUNFT_PREISE_CENTS.privat.mitAbo : 0;
+    const raten = p.abo ? (p.preisCents / 100) * 12 : p.preisCents / 100;
+    const gesamt = raten + auskunftCents / 100;
     const anwalt = eintraege * 190 + (laender - 1) * 60;
     const selbstZeit = eintraege * 3 + 4 + (laender - 1) * 2;
-    return { p, gesamt, anwalt, selbstZeit, selbstWert: selbstZeit * stunden + eintraege * 11 };
+    return { p, raten, gesamt, auskunftCents, anwalt, selbstZeit, selbstWert: selbstZeit * stunden + eintraege * 11 };
   }, [eintraege, laender, ziel, stunden]);
 
   return (
     <Dunkel seite="privatkunden" titel={en ? "Pricing & plans" : "Preise & Pakete · FIAON"} beschreibung={en
-      ? `FIAON costs ${geld(privat[0].preisCents)} to ${geld(privat[privat.length - 1].preisCents)} a month, twelve instalments, cancellable monthly thereafter. Credit report ${schufaPreis} one-off.`
-      : `FIAON kostet ${geld(privat[0].preisCents)} bis ${geld(privat[privat.length - 1].preisCents)} im Monat, zwölf Raten, danach monatlich kündbar. Bonitätsauskunft ${SCHUFA_PREIS_EURO} € einmalig. Alle Pakete, alle Leistungen, keine Sternchen.`}>
+      ? `FIAON costs ${geld(privat[0].preisCents)} to ${geld(privat[privat.length - 1].preisCents)} a month, twelve instalments, cancellable monthly thereafter. Credit report ${auskunftEinzeln} one-off, ${auskunftMitPaket} with a plan.`
+      : `FIAON kostet ${geld(privat[0].preisCents)} bis ${geld(privat[privat.length - 1].preisCents)} im Monat, zwölf Raten, danach monatlich kündbar. Bonitätsauskunft ${auskunftEinzeln} einmalig, mit Paket ${auskunftMitPaket}. Alle Pakete, alle Leistungen, keine Sternchen.`}>
       <SeoDaten pfad={en ? "/en/pricing" : "/preise"} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad: en ? "/en/pricing" : "/preise" }]} />
 
       <Hero
@@ -121,7 +142,7 @@ export default function Preise() {
       />
 
       <Block eng>
-        <Kennzahlen items={[{ wert: "12", label: t.kz1 }, { wert: en ? "€0" : "0 €", label: t.kz2 }, { wert: en ? `€${SCHUFA_PREIS_EURO}` : `${SCHUFA_PREIS_EURO} €`, label: t.kz3 }, { wert: geld(privat[0].preisCents), label: t.kz4 }]} />
+        <Kennzahlen items={[{ wert: "12", label: t.kz1 }, { wert: en ? "€0" : "0 €", label: t.kz2 }, { wert: auskunftEinzeln, label: t.kz3(auskunftMitPaket) }, { wert: geld(privat[0].preisCents), label: t.kz4 }]} />
       </Block>
 
       <Licht>
@@ -145,10 +166,10 @@ export default function Preise() {
             {paketV && vorschlag && (
               <div className="pk-ergebnis">
                 <small>{t.vorschlag}</small>
-                <h3>{paketV.label}</h3>
-                <p className="pk-preis">{paketV.abo ? <>{geld(paketV.preisCents)} <span>{t.imMonat} · {t.zwoelfRaten} · {geld(paketV.preisCents * 12)} {t.gesamt}</span></> : <>{schufaPreis} <span>{t.einmalig}</span></>}</p>
+                <h3>{paketV.abo ? paketV.label : t.auskunftTitel}</h3>
+                <p className="pk-preis">{paketV.abo ? <>{geld(paketV.preisCents)} <span>{t.imMonat} · {t.zwoelfRaten} · {geld(paketV.preisCents * 12)} {t.gesamt}</span></> : <>{auskunftEinzeln} <span>{t.einmalig} · {t.mitPaket(auskunftMitPaket)}</span></>}</p>
                 <p>{t.gruende[vorschlag.grund]}</p>
-                <div className="pk-weg-knoepfe"><Knopf href={paketV.key === "schufa" ? "/antrag?pack=schufa" : `/antrag?pack=${paketV.key}&src=preise`}>{t.diesesPaket}</Knopf><Knopf href={zu("/kontakt")} still>{t.lieberReden}</Knopf></div>
+                <div className="pk-weg-knoepfe"><Knopf href={paketV.abo ? `/antrag?pack=${paketV.key}&src=preise` : "/bonitaet-antrag"}>{paketV.abo ? t.diesesPaket : t.auskunftBestellen}</Knopf><Knopf href={zu("/kontakt")} still>{t.lieberReden}</Knopf></div>
               </div>
             )}
           </div>
@@ -158,9 +179,9 @@ export default function Preise() {
       <Block id="privat" pille={t.privatPille} titel={<>{t.privatH2a}<span className="dk-verlauf">{t.privatH2b}</span></>} lead={t.privatLead}>
         <div className="pr-tabelle-huelle">
           <table className="pr-tabelle">
-            <thead><tr><th>{t.leistung}</th><th><small>{t.einmaligGross}</small>{t.auskunft}<b>{schufaPreis}</b></th>{privat.map((p) => <th key={p.key} className={p.key === "pro" ? "hervor" : ""}><small>{p.key === "pro" ? t.meistgewaehlt : t.proMonat}</small>{p.label.replace("FIAON ", "").replace(" (Standard)", "")}<b>{geld(p.preisCents)}</b></th>)}</tr></thead>
+            <thead><tr><th>{t.leistung}</th><th><small>{t.einmaligGross}</small>{t.auskunft}<b>{auskunftEinzeln}</b><small style={{ marginTop: 6, marginBottom: 0 }}>{t.mitPaket(auskunftMitPaket)}</small></th>{privat.map((p) => <th key={p.key} className={p.key === "pro" ? "hervor" : ""}><small>{p.key === "pro" ? t.meistgewaehlt : t.proMonat}</small>{p.label.replace("FIAON ", "").replace(" (Standard)", "")}<b>{geld(p.preisCents)}</b></th>)}</tr></thead>
             <tbody>{t.leistungen.map((l, i) => <tr key={l}><td>{l}</td>{SPALTEN.map((k) => <td key={k} className={k === "pro" ? "hervor" : ""}>{zelle(MATRIX[i][k])}</td>)}</tr>)}</tbody>
-            <tfoot><tr><td /><td><a href="/antrag?pack=schufa" className="pr-knopf still">{t.nurAuskunft}</a></td>{privat.map((p) => <td key={p.key} className={p.key === "pro" ? "hervor" : ""}><a href={`/antrag?pack=${p.key}&src=preise`} className={`pr-knopf${p.key === "pro" ? "" : " still"}`}>{t.waehlen}</a></td>)}</tr></tfoot>
+            <tfoot><tr><td /><td><a href="/bonitaet-antrag" className="pr-knopf still">{t.nurAuskunft}</a></td>{privat.map((p) => <td key={p.key} className={p.key === "pro" ? "hervor" : ""}><a href={`/antrag?pack=${p.key}&src=preise`} className={`pr-knopf${p.key === "pro" ? "" : " still"}`}>{t.waehlen}</a></td>)}</tr></tfoot>
           </table>
         </div>
         <p className="dk-leise" style={{ marginTop: 14 }}>{t.preisHinweis}{t.antragHinweis ? ` ${t.antragHinweis}` : ""}</p>
@@ -183,9 +204,9 @@ export default function Preise() {
               <div className="pr-spalte hervor">
                 <small>{fall.p.label}</small>
                 <ul>
-                  <li><span>{fall.p.abo ? t.zwoelfRatenA + geld(fall.p.preisCents) : t.einmaligGross}</span><b>{euro0(fall.gesamt)}</b></li>
-                  <li><span>{t.auskunftBei(laender)}</span><b>{t.inklusive}</b></li>
-                  <li><span>{fall.p.key === "schufa" ? t.schreiben : fall.p.key === "start" ? t.schreibenSelbst : t.schreibenVersand}</span><b>{fall.p.key === "schufa" ? "–" : t.inklusive}</b></li>
+                  <li><span>{fall.p.abo ? t.zwoelfRatenA + geld(fall.p.preisCents) : t.einmaligGross}</span><b>{euro0(fall.raten)}</b></li>
+                  <li><span>{fall.p.abo ? t.auskunftMitPaket : t.auskunftBei(laender)}</span><b>{fall.p.abo ? euro0(fall.auskunftCents / 100) : t.inklusive}</b></li>
+                  <li><span>{!fall.p.abo ? t.schreibenAuskunft : fall.p.key === "start" ? t.schreibenSelbst : t.schreibenVersand}</span><b>{t.inklusive}</b></li>
                   <li><span>{t.ihreZeit}</span><b>{euro0(stunden)}</b></li>
                   <li className="summe"><span>{t.summeGesamt}</span><b>{euro0(fall.gesamt + stunden)}</b></li>
                 </ul>
@@ -238,7 +259,7 @@ export default function Preise() {
       </Licht>
 
       <Zwischenruf text={<><b>{t.zwischenrufA}</b>{t.zwischenrufB}</>} knopf={t.paketfinder} href="#finder" still={{ knopf: t.kontakt, href: zu("/kontakt") }} />
-      <Abschluss titel={<>{t.abschlussA}<span className="dk-verlauf">{t.abschlussB}</span></>} text={t.abschlussText(geld(privat[0].preisCents))} knoepfe={<><Knopf href={`/antrag?pack=${pro.key}&src=preise`}>{t.mitStarten(pro.label.replace(" (Standard)", ""))}</Knopf><Knopf href="/antrag?pack=schufa" still>{t.nurDieAuskunft}</Knopf></>} />
+      <Abschluss titel={<>{t.abschlussA}<span className="dk-verlauf">{t.abschlussB}</span></>} text={t.abschlussText(geld(privat[0].preisCents))} knoepfe={<><Knopf href={`/antrag?pack=${pro.key}&src=preise`}>{t.mitStarten(pro.label.replace(" (Standard)", ""))}</Knopf><Knopf href="/bonitaet-antrag" still>{t.nurDieAuskunft}</Knopf></>} />
     </Dunkel>
   );
 }

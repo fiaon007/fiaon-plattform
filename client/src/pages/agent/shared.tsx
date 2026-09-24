@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 // (components/SoftphoneHost.tsx). Der Rahmen meldet nur noch die Sitzung.
 import { agentSitzung, telefon } from "@/lib/office-zustand";
 import { TerminErinnerung } from "@/components/TerminErinnerung";
+import { AufgabenErinnerung } from "@/components/AufgabenErinnerung";
 import { VerkaufsstartBanner } from "@/components/VerkaufsstartBanner";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
 import OnboardingGate from "./onboarding";
@@ -1034,6 +1035,9 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
         <div className="agent-scope">{children}</div>
       </OfficeShell>
       <TerminErinnerung />
+      {/* 24.09.2026 (E-240): „Neu von Mara" — ungelesene eigene Aufgaben als
+          Karte unten rechts; die Terminleiste bleibt oben, das Popup in der Mitte. */}
+      <AufgabenErinnerung />
       {/* <Softphone /> stand hier bis zum 09.09.2026 — und wurde mit jedem
           Seitenwechsel abgebaut (jede Seite hat ihren eigenen Rahmen). Jetzt:
           components/SoftphoneHost.tsx, einmal an der App (E-169). */}

@@ -36,7 +36,8 @@ import {
 import { KONTO_VORLAGEN } from "./vorlagen/konto";
 import { ZAHLUNG_VORLAGEN } from "./vorlagen/zahlung";
 import { TERMIN_VORLAGEN, GLOBAL_TERMIN_EN } from "./vorlagen/termin";
-import { AUSKUNFT_LEAD_VORLAGEN } from "./vorlagen/auskunft-lead";
+import { AUSKUNFT_LEAD_VORLAGEN, AUSKUNFT_ZAHLUNG_VORLAGEN, auskunftZahlungsdatenBaustein, auskunftZahlungEingangBaustein, istAuskunftNutzlast } from "./vorlagen/auskunft-lead";
+import { AUSKUNFT_VERKAUF_VORLAGEN, auskunftAngebotBaustein } from "./vorlagen/auskunft-verkauf";
 import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
 import { APP_VORLAGEN } from "./vorlagen/app";
@@ -50,6 +51,8 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...ZAHLUNG_VORLAGEN,
   ...TERMIN_VORLAGEN,
   ...AUSKUNFT_LEAD_VORLAGEN,
+  // E-240 (24.09.2026): das Angebot der Bonitätsauskunft (Werbung, drei Fassungen).
+  ...AUSKUNFT_VERKAUF_VORLAGEN,
   ...TEAM_VORLAGEN,
   ...RUECKHOLUNG_VORLAGEN,
   ...APP_VORLAGEN,
@@ -126,6 +129,9 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
  */
 export const ABMELDEPFLICHT = new Set<string>([
   "lead_followup", "lead_willkommen", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
+  // E-240 (24.09.2026): Das Angebot der Bonitätsauskunft geht an Bestandskunden —
+  // Werbung nach § 7 Abs. 3 UWG, also nur mit Abmeldelink und Widerspruchshinweis.
+  "auskunft_angebot",
 ]);
 
 /**
@@ -249,6 +255,19 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   // E-188: Trägt die Nutzlast `sprache: "en"` und gibt es die Vorlage auf Englisch, gilt diese.
   if (String((payload as any)?.sprache ?? "") === "en" && VORLAGEN_EN[event]) vorlage = VORLAGEN_EN[event];
   if (event === "lead_followup") vorlage = leadStreckenBaustein(payload) ?? vorlage;
+  // ── DIE AUSKUNFT (24.09.2026, E-240) ────────────────────────────────────────
+  // Das Angebot baut sich aus der Nutzlast (Land, Paket, Fassung) — ein Satz,
+  // der in Österreich „SCHUFA" sagt, soll gar nicht erst als Platzhalter
+  // existieren. Zahlungsdaten und Zahlungsbestätigung einer AUSKUNFT sprechen
+  // nicht vom Freischalten eines Bereichs und nicht vom Startgespräch.
+  if (event === "auskunft_angebot") vorlage = auskunftAngebotBaustein(payload);
+  if ((event === "payment_details" || event === "payment_confirmed") && istAuskunftNutzlast(payload)) {
+    // 25.09.2026 (E-240): Die Zahlungsdaten sind zugleich die Vertragsbestätigung — mit Leistung,
+    // Anbieter und Widerrufsbelehrung in Textform (§ 312f Abs. 2, § 356 Abs. 3 BGB). Welche Belehrung
+    // (Verbraucher/Unternehmen) und welcher Satz zur Wahl des Beginns, entscheidet die Nutzlast.
+    vorlage = event === "payment_details" ? auskunftZahlungsdatenBaustein(payload) : auskunftZahlungEingangBaustein(payload);
+    if (String((payload as any).auskunfteien ?? "").trim() === "") payload = { ...payload, auskunfteien: "den Auskunfteien Ihres Landes" };
+  }
 
   const fehlend = new Set<string>();
   const entfalleneKnoepfe: { platzhalter: string; text: string }[] = [];

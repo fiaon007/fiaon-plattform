@@ -97,7 +97,8 @@ router.get("/agent/postmeister/:id/anhang/:idx", requireAgent, async (req: Agent
  * antwortete, stand in einer Zentrale, die nur der Inhaber öffnet. Jetzt eine
  * Zeitleiste: Ausgang (fiaon_mail_log, automatisch und von Hand) und Eingang
  * (fiaon_postmeister, jede Kundenmail mit Antwort oder Entwurf). Zugang wie
- * überall: eigener Kunde oder Leitung.
+ * überall: eigener Kunde oder Leitung. Seit 24.09.2026 (E-240) auch WhatsApp
+ * (fiaon_whatsapp nach person_id), Zeilen mit `kanal`.
  */
 router.get("/agent/schriftverkehr/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -131,22 +132,47 @@ router.get("/agent/schriftverkehr/:personId", requireAgent, async (req: AgentReq
           OR EXISTS (SELECT 1 FROM unnest(${adressen}::text[]) a WHERE LOWER(p.von) LIKE '%' || a || '%')
        ORDER BY COALESCE(p.empfangen_am, p.created_at) DESC LIMIT 60
     `.catch(() => [] as any[])) as any[];
+    // ── WHATSAPP GEHÖRT ZUM SCHRIFTVERKEHR (24.09.2026, E-240) ──────────────
+    // Justin: „Mara speichert alles Besprochene in der Akte." Der Betreuer sah
+    // bisher nur Mails — was Mara auf WhatsApp anbot oder zusagte, stand in einem
+    // Raum, den er erst öffnen musste. Jetzt jede Nachricht mit dieser Person.
+    // `kanal: "whatsapp"` und eine NEGATIVE id: Die Mail-Ansicht (PostmeisterMail)
+    // öffnet nur Postmeister-ids — eine WhatsApp-Zeile kann so nie eine fremde
+    // Mail aufrufen, schlimmstenfalls „gibt es nicht".
+    const wa = (await sqlPool`
+      SELECT id, richtung, text, typ, vorlage, von, status, COALESCE(empfangen_am, gesendet_am, created_at) AS am
+        FROM fiaon_whatsapp
+       WHERE person_id = ${personId} AND status <> 'fehler'
+       ORDER BY id DESC LIMIT 80
+    `.catch(() => [] as any[])) as any[];
+    const waText = (r: any) => String(r.text || (r.typ && r.typ !== "text" ? `(${r.typ})` : "")).replace(/\s+/g, " ").trim().slice(0, 400);
     const OFFEN = new Set(["entwurf", "fehler", "versand_wartet", "versand_fehlgeschlagen"]);
     const zeilen = [
+      ...wa.map((r) => (r.richtung === "rein"
+        ? {
+          art: "ein" as const, kanal: "whatsapp" as const, id: -Number(r.id), am: r.am,
+          betreff: "WhatsApp", text: waText(r), status: "empfangen", offen: false, dringend: false, postfach: "WhatsApp",
+        }
+        : {
+          art: "aus" as const, kanal: "whatsapp" as const, id: -Number(r.id), am: r.am,
+          betreff: r.vorlage ? `WhatsApp · Vorlage ${String(r.vorlage)}` : "WhatsApp", text: waText(r),
+          status: String(r.status || "versandt"), offen: false, dringend: false,
+          von: r.von ? String(r.von) : "automatisch",
+        })),
       ...eingang.map((r) => ({
-        art: "ein" as const, id: Number(r.id), am: r.empfangen_am ?? r.created_at,
+        art: "ein" as const, kanal: "mail" as const, id: Number(r.id), am: r.empfangen_am ?? r.created_at,
         betreff: String(r.betreff || "(ohne Betreff)"), text: String(r.zusammenfassung || ""),
         status: r.gesendet_am ? "beantwortet" : OFFEN.has(String(r.aktion)) && r.hat_antwort ? "entwurf" : String(r.aktion || ""),
         offen: !r.gesendet_am && OFFEN.has(String(r.aktion)), dringend: !!r.dringend, postfach: r.postfach,
       })),
       ...ausgang.map((r) => ({
-        art: "aus" as const, id: Number(r.id), am: r.created_at,
+        art: "aus" as const, kanal: "mail" as const, id: Number(r.id), am: r.created_at,
         betreff: String(r.betreff || r.event || "E-Mail"), text: r.status === "versandt" ? "" : String(r.grund || ""),
         status: String(r.zustellung || r.status || ""), offen: false, dringend: false,
         von: r.ausgeloest_von ? String(r.ausgeloest_von) : "automatisch",
       })),
     ].sort((a, b) => new Date(b.am).getTime() - new Date(a.am).getTime());
-    res.json({ ok: true, zeilen, offen: zeilen.filter((z) => z.offen).length });
+    res.json({ ok: true, zeilen, offen: zeilen.filter((z) => z.offen).length, whatsapp: wa.length });
   } catch (err) {
     console.error("[AGENT-POSTMEISTER] schriftverkehr:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

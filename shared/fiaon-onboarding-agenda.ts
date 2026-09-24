@@ -9,7 +9,7 @@
 // sie, der Prüfstand prüft sie.
 //
 // ── WORTHYGIENE, UND SIE IST NICHT VERHANDELBAR ────────────────────────────
-// Die 74 € sind eine BONITÄTSAUSKUNFT. Kein Rat, keine Beratung, keine
+// Die Auskunft ist eine BONITÄTSAUSKUNFT. Kein Rat, keine Beratung, keine
 // Empfehlung, keine Bewertung. Wer im Gespräch „wir beraten Sie" oder „wir
 // verbessern Ihren Score" sagt, verspricht eine Leistung, die wir nicht
 // erbringen — und begibt sich in einen Bereich, der erlaubnispflichtig ist.
@@ -21,7 +21,18 @@
 // Die Liste unten wird vom Prüfstand gegen den Text jedes Schritts geprüft.
 // Ein Wort, das man nicht sagen soll, gehört in eine Prüfung — nicht in eine
 // Schulung, die man vergisst.
+//
+// ── DER PREIS DER AUSKUNFT (24.09.2026, E-240) ─────────────────────────────
+// Hier stand „74 € einmalig" als fester Text. Seit E-240 hat die Auskunft zwei
+// Preise (einzeln 149 €, mit laufendem Paket 74 €) — im Startgespräch sitzt
+// immer ein zahlender Paketkunde, also gilt der Kundenpreis. Beide Zahlen kommen
+// aus shared/fiaon-auskunft.ts; Titel und Zweck stehen auch öffentlich
+// (/plattform-konzept) und in Maras Wissen (shared/fiaon-wissen.ts).
 // ═══════════════════════════════════════════════════════════════════════════
+import { AUSKUNFT_PREISE_CENTS, euroText } from "./fiaon-auskunft";
+
+const AUSKUNFT_KUNDENPREIS = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
+const AUSKUNFT_EINZELPREIS = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
 
 export interface AgendaSchritt {
   /** Stabiler Schlüssel — er landet in `fiaon_termine.agenda_stand`. */
@@ -88,12 +99,12 @@ export const AGENDA: AgendaSchritt[] = [
   },
   {
     key: "bonitaet",
-    titel: "Bonitätsauskunft erklärt (74 €)",
-    zweck: "Eine Auskunft, kein Rat. Der Kunde entscheidet selbst — und weiß, wie er zahlt.",
+    titel: `Bonitätsauskunft erklärt (${AUSKUNFT_KUNDENPREIS} Kundenpreis)`,
+    zweck: "Eine Auskunft, kein Rat. Sie ist nicht im Paket enthalten; der Kunde entscheidet selbst — und weiß, wie er zahlt.",
     punkte: [
-      "Was er bekommt: eine tagesaktuelle Auskunft über seine Bonität, plus einen Handlungsplan.",
-      "Der Abruf ist neutral — er verändert seinen Score nicht.",
-      "74 € einmalig, kein Abo. Den Zahlweg im Portal zeigen: Verwendungszweck ist Pflicht.",
+      "Was er bekommt: seine Datenkopien bei allen Auskunfteien seines Landes, jeden Eintrag erklärt, Speicherfristen geprüft, einen Handlungsplan und fertige Schreiben zur Freigabe.",
+      "Die Eigenauskunft ist neutral: keine Kreditanfrage — Banken sehen sie nicht als Anfrage.",
+      `Mit Paket ${AUSKUNFT_KUNDENPREIS} einmalig (einzeln ${AUSKUNFT_EINZELPREIS}), kein Abo. Will er sie: in der Akte bestellen, er bekommt den Link zur Zahlungsseite — der Verwendungszweck ist Pflicht. Fragt er nach dem kostenlosen Weg: ehrlich ja sagen — und was wir ihm abnehmen.`,
     ],
     notizFrage: "Wollte der Kunde die Auskunft? Wenn nein: warum nicht?",
   },
@@ -129,7 +140,7 @@ export const AGENDA: AgendaSchritt[] = [
         + "Den Betrag NENNEN und das Datum der nächsten Fälligkeit.",
       "„Die Laufzeit beträgt zwölf Monate; danach monatlich kündbar — schriftlich per E-Mail, formlos, "
         + "kein Grund nötig.“ Die Laufzeit nennen, nicht beschönigen.",
-      "„Die Bonitätsauskunft ist davon getrennt: 74 € EINMALIG, kein Abo.“ "
+      `„Die Bonitätsauskunft ist davon getrennt und nicht im Paket enthalten: mit Paket ${AUSKUNFT_KUNDENPREIS} EINMALIG, kein Abo.“ `
         + "Wenn er sie nicht will, ändert das nichts an seinem Paket.",
       "Rückfragen: „Ist das so für Sie in Ordnung?“ — die Antwort in die Notiz.",
     ],

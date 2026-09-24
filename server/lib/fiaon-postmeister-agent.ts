@@ -27,10 +27,16 @@ import { gedaechtnisText, gedaechtnisMerken, MERKEN_BESCHREIBUNG } from "./fiaon
 import { wandPruefen, wandUrteil, type Wandtreffer } from "@shared/fiaon-wortverbote";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
-  ERLAUBTE_SCHRITTE, AUTO_LAGEN, LEERE_FLAGS,
+  ERLAUBTE_SCHRITTE, AUTO_LAGEN, LEERE_FLAGS, AUSKUNFT_LAGEN, KEIN_VERKAUF_FLAGS, warnlampen,
   type Flags, type Kategorie, type Kundenlage, type Beleg, type NaechsterSchritt,
 } from "@shared/fiaon-postmeister-typen";
-import { werkzeugeAlsTools, werkzeugVonName, werkzeugeFuerLage, type WerkzeugKontext, type WerkzeugErgebnis } from "./fiaon-postmeister-werkzeuge";
+import {
+  AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_PREISE_CENTS, euroText, auskunfteienText,
+} from "@shared/fiaon-auskunft";
+import {
+  werkzeugeAlsTools, werkzeugVonName, werkzeugeFuerLage, auskunftBetreuerMelden, akteRef,
+  type WerkzeugKontext, type WerkzeugErgebnis,
+} from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute } from "./fiaon-postmeister-schema";
 import { wissenFakten } from "@shared/fiaon-wissen";
@@ -81,6 +87,121 @@ const RIEGEL: { flag: keyof Flags; muster: RegExp }[] = [
   { flag: "rueckruf_wunsch", muster: /\b(rufen\s+sie\s+(mich)?\s*an|rückruf|telefonisch\s+erreichen|melden\s+sie\s+sich\s+telefonisch)\b/i },
   { flag: "zahlungsunfaehig", muster: /\b(kann\s+(gerade\s+)?nicht\s+zahlen|kein\s+geld|arbeitslos|insolvenz|privatinsolvenz|hartz|bürgergeld|pfänd\w+)\b/i },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER RIEGEL FÜR „ICH HAB KEINE AUSKUNFT" (24.09.2026, E-240)
+//
+// Am 24.09. gingen 961 Unterlagen-Mails hinaus, 403 davon baten um die
+// Bonitätsauskunft („… sonst antworten Sie kurz auf diese E-Mail"). Die
+// Antworten sind knapp: „Ich hab keine." (Doris Hösl, 5612), „Nicht vorhanden
+// Lg" (5609), „leider liegt mir auch keine vor" (5538). Ohne das Zitat — das
+// ohneZitat abschneidet — weiß das Modell nicht, WAS fehlt: Der Betreff „Wir
+// brauchen ein Dokument von Ihnen" ist für Ausweis, Kontoauszug und Auskunft
+// derselbe. Deshalb zwei Wege:
+//   · DIREKT: Der Kunde nennt die Auskunft selbst („habe keine SCHUFA-Auskunft",
+//     „die Datenkopie habe ich nicht") — gilt immer.
+//   · KONTEXT: eine kurze Verneinung („Ich hab keine.", „nicht vorhanden") als
+//     Antwort, wenn wir ihn in den letzten 30 Tagen um die Auskunft gebeten
+//     haben (fiaon_mail_log) oder der Betreff sie nennt.
+// „Keine Schufa-Einträge" ist KEIN fehlendes Dokument, sondern eine gute
+// Nachricht — das Muster schließt Eintrag/Score/Problem/Abfrage aus. Und wer
+// „keine Zeit" oder „keine Kontoauszüge" hat, meint nicht die Auskunft.
+// ═══════════════════════════════════════════════════════════════════════════
+const AUSKUNFT_WORT = String.raw`(?:schufa(?:[\s-]*(?:auskunft|datenkopie|selbstauskunft))?(?![\s-]*(?:eintr|score|problem|prüf|pruef|abfrage|frei|negativ|klausel))|bonitätsauskunft|bonitaetsauskunft|selbstauskunft|datenkopie|auskunft|ksv(?:1870)?(?:[\s-]*auskunft)?|crif(?:[\s-]*auskunft)?)`;
+const FUELL = String.raw`(?:leider\s+|noch\s+|auch\s+|gar\s+|überhaupt\s+|momentan\s+|aktuell\s+|derzeit\s+)*`;
+const AUSKUNFT_DIREKT: RegExp[] = [
+  // „Ich habe (noch) keine SCHUFA-Auskunft", „hab keine Datenkopie"
+  new RegExp(String.raw`\b(?:hab|habe|hätte|haben|besitze)\s+(?:ich\s+|wir\s+)?${FUELL}keine?n?\s+(?:aktuelle\s+|gültige\s+|eigene\s+)?${AUSKUNFT_WORT}`, "i"),
+  // „Eine SCHUFA-Auskunft habe ich nicht", „Die Datenkopie hab ich noch nicht" — die
+  // Verneinung schließt den Satz (sonst: „74 € für die KSV-Prüfung, damit habe ich keine
+  // Raten offen" — Fund im Postfach, 3783).
+  new RegExp(String.raw`\b${AUSKUNFT_WORT}\b[^.!?\n]{0,40}?\b(?:hab|habe|besitze|haben)\s+(?:ich|wir)\s+${FUELL}(?:nicht|keine?)\s*(?:[.!?,;]|$)`, "i"),
+  // „keine Auskunft vorhanden", „keine SCHUFA da"
+  new RegExp(String.raw`\bkeine?\s+${AUSKUNFT_WORT}\s+(?:vorhanden|da|zur\s+hand)\b`, "i"),
+  // „Die Auskunft liegt mir nicht vor"
+  new RegExp(String.raw`\b${AUSKUNFT_WORT}\b[^.!?\n]{0,30}?\b(?:liegt|ist)\s+(?:mir\s+)?${FUELL}(?:nicht|keine?)\s+(?:vor|vorhanden|da)\b`, "i"),
+  // „Wie komme ich an eine SCHUFA-Auskunft?", „weiß nicht, wie ich die Auskunft bekomme"
+  new RegExp(String.raw`\bwie\s+(?:komme|bekomme|kriege|erhalte)\s+ich\s+(?:an\s+)?(?:die|eine|meine)\s+${AUSKUNFT_WORT}`, "i"),
+];
+/** Was nach „habe keine" steht und NICHT die Auskunft meint. */
+const KEINE_AUSKUNFT_NOMEN = String.raw`(?:zeit|lust|ahnung|geld|arbeit|kontoausz\w*|auszüge|ausweis|pass|reisepass|personalausweis|interesse|mail|e-mail|nachricht\w*|login|zugang|passwort|kraft|nerven|termin\w*|probleme?|schulden|einträge?|karte|negative?\w*|offenen?\w*|schufa[\s-]*(?:eintr|score|problem|negativ)\w*)`;
+const AUSKUNFT_KONTEXT: RegExp[] = [
+  // „Ich hab keine." / „Habe ich nicht." — aber nicht „habe keine Zeit", nicht „habe nicht bezahlt".
+  new RegExp(String.raw`\b(?:hab|habe|hätte|haben|besitze)\s+(?:ich\s+|wir\s+)?${FUELL}(?:keine?n?\b(?!\s+${KEINE_AUSKUNFT_NOMEN}\b)|nicht\s*(?:[.!?,;]|$))`, "i"),
+  /\bnicht\s+vorhanden\b/i,
+  new RegExp(String.raw`\bliegt\s+(?:mir\s+)?${FUELL}(?:nicht|keine?)\s+vor\b`, "i"),
+  /\bkeine?\s+(?:da|vorhanden)\b/i,
+  // Ein bloßes „Nein." / „Leider keine." — und sonst höchstens ein Gruß.
+  /^\s*(?:nein|nö|leider\s+nein|leider\s+nicht|leider\s+keine?|keine?)\s*[.!,]*\s*(?:(?:lg|mfg|liebe\s+grüße|viele\s+grüße|gruß|grüße|danke)\b[\s\S]{0,60})?$/i,
+];
+
+/**
+ * Sagt der Kunde, er habe keine Bonitätsauskunft? Rein — für Einordnung und
+ * Prüfstand. `angefordert` = wir haben ihn in den letzten 30 Tagen darum gebeten.
+ */
+export function auskunftFehltErkennen(betreff: string, text: string, angefordert = false): boolean {
+  const t = String(text || "");
+  if (AUSKUNFT_DIREKT.some((m) => m.test(t))) return true;
+  const b = String(betreff || "");
+  const betreffAuskunft = /\b(?:bonit\w*|schufa|auskunft|datenkopie|ksv|crif)/i.test(b);
+  // Gegenlesen E-240: Die Anforderung zählt nur für eine Antwort auf die
+  // Unterlagen-Mail („Wir brauchen ein Dokument …", seit E-240 „Noch fehlende
+  // Unterlagen …") oder ohne Betreff — „Habe ich nicht." auf eine
+  // Zahlungserinnerung aus denselben 30 Tagen meint etwas anderes.
+  const antwortAufUnterlagen = !b.trim() || /\b(?:dokument\w*|unterlage\w*)/i.test(b);
+  const kontext = betreffAuskunft || (angefordert && antwortAufUnterlagen);
+  // Nur eine KURZE Antwort ist eine Antwort auf unsere Frage — ein langer Brief
+  // mit „habe keine" handelt von etwas anderem.
+  const kurz = t.replace(/\s+/g, " ").trim();
+  return kontext && kurz.length > 0 && kurz.length <= 300 && AUSKUNFT_KONTEXT.some((m) => m.test(kurz));
+}
+
+/**
+ * Den Riegel auf das Urteil des Modells legen — was hier trifft, gilt (rein,
+ * damit der Prüfstand es ohne Modell prüfen kann). Seit E-240 dazu: das
+ * Verkaufs-Signal auskunft_fehlt samt Kategorie „auskunft" — und ohne
+ * „sonstiges", denn das hielte die Mail beim Menschen fest (menschNoetig),
+ * obwohl Mara hier selbst die beste Antwort hat.
+ */
+export function riegelAnwenden(ein: {
+  betreff: string; text: string; kategorien: Kategorie[]; flags: Flags; auskunftAngefordert?: boolean;
+}): { kategorien: Kategorie[]; flags: Flags } {
+  const flags: Flags = { ...LEERE_FLAGS, ...ein.flags };
+  const pruefText = `${ein.betreff}\n${ein.text}`;
+  for (const r of RIEGEL) if (r.muster.test(pruefText)) flags[r.flag] = true;
+  if (flags.droht_anwalt || flags.widerruf) flags.rechtlich = true;
+  // Ohne den Anhang-Hinweis des Laufs — sonst wäre keine Antwort mit Datei mehr „kurz".
+  if (auskunftFehltErkennen(ein.betreff, kundeTextOhneAnhang(ein.text), !!ein.auskunftAngefordert)) flags.auskunft_fehlt = true;
+  let kategorien = [...ein.kategorien];
+  if (flags.auskunft_fehlt) {
+    kategorien = kategorien.filter((k) => k !== "sonstiges");
+    if (!kategorien.includes("auskunft")) kategorien.push("auskunft");
+  }
+  return { kategorien, flags };
+}
+
+/**
+ * Haben wir diesen Absender in den letzten 30 Tagen um seine Bonitätsauskunft
+ * gebeten (Unterlagen-Mail documents_change_request)? Liest nur; ein Fehler
+ * heißt „nein" — dann greift nur der direkte Weg.
+ */
+export async function auskunftZuletztAngefordert(von: string): Promise<boolean> {
+  const adresse = String(von || "").toLowerCase().match(/<([^>]+)>/)?.[1]?.trim() ?? String(von || "").toLowerCase().trim();
+  if (!adresse.includes("@")) return false;
+  try {
+    const { sqlPool } = await import("./db-pool");
+    const [r] = (await sqlPool`
+      SELECT 1 AS ja FROM fiaon_mail_log
+       WHERE event = 'documents_change_request' AND created_at > NOW() - INTERVAL '30 days'
+         AND LOWER(TRIM(COALESCE(empfaenger, ''))) = ${adresse}
+         AND payload::text ~* '(bonit|schufa|ksv|crif|datenkopie)'
+       LIMIT 1
+    `) as any[];
+    return !!r;
+  } catch {
+    return false;
+  }
+}
 
 export interface Einordnung {
   kategorien: Kategorie[];
@@ -323,17 +444,22 @@ const SCHEMA_A = {
         beschwerde: { type: "boolean" }, rechtlich: { type: "boolean" }, stopp: { type: "boolean" },
         zahlung_behauptet: { type: "boolean" }, rueckruf_wunsch: { type: "boolean" },
         droht_anwalt: { type: "boolean" }, zahlungsunfaehig: { type: "boolean" },
+        auskunft_fehlt: { type: "boolean" },
       },
-      required: ["kuendigung", "bestreitet", "widerruf", "beschwerde", "rechtlich", "stopp", "zahlung_behauptet", "rueckruf_wunsch", "droht_anwalt", "zahlungsunfaehig"],
+      required: ["kuendigung", "bestreitet", "widerruf", "beschwerde", "rechtlich", "stopp", "zahlung_behauptet", "rueckruf_wunsch", "droht_anwalt", "zahlungsunfaehig", "auskunft_fehlt"],
     },
   },
   required: ["kategorien", "dringend", "sprache", "fragen", "zusammenfassung", "flags"],
 };
 
 export async function einordnen(mail: { betreff: string; text: string; von: string; alterTage: number }): Promise<Einordnung> {
+  // E-240: Haben wir ihn zuletzt um die Auskunft gebeten? Dann ist „Ich hab keine." eine Antwort darauf.
+  const auskunftAngefordert = await auskunftZuletztAngefordert(mail.von);
   const system = [
     "Du ordnest eingehende Kundenmails eines deutschen Dienstleisters ein. Du antwortest NICHT, du beschreibst nur.",
-    "Kategorien (mehrere möglich): zahlung, zugang_login, termin, unterlagen, status_frage, neuinteresse, vertrieb_komplex, kuendigung, beschwerde, rechtlich, abmeldung, werbung_newsletter, spam, intern, sonstiges.",
+    "Kategorien (mehrere möglich): zahlung, zugang_login, termin, unterlagen, status_frage, neuinteresse, vertrieb_komplex, kuendigung, beschwerde, rechtlich, abmeldung, werbung_newsletter, spam, intern, auskunft, sonstiges.",
+    "auskunft = der Kunde spricht über seine Bonitätsauskunft (SCHUFA, KSV, CRIF, Datenkopie): hat keine, will eine, weiß nicht, wie er an eine kommt, fragt nach Preis, Lieferung oder Inhalt.",
+    "Flag auskunft_fehlt = true, wenn der Kunde sagt, er habe keine Bonitätsauskunft/SCHUFA/Datenkopie oder wisse nicht, wie er an eine kommt — auch knapp als Antwort auf unsere Bitte um die Auskunft („Ich hab keine.“, „nicht vorhanden“). „Keine Einträge“ oder „keine Schulden“ ist NICHT gemeint.",
     "werbung_newsletter = Newsletter, Angebote, Rundschreiben von Firmen an uns. spam = unerbetene Kaltakquise an uns (SEO, Webdesign, Leads, Krypto, Kreditangebote, Massenmails), Phishing, wirre Texte ohne Bezug zu uns. Beides ist KEIN Kunde und bekommt genau eine Kategorie. Ein Mensch, der über sein Anliegen bei FIAON schreibt — auch wütend, auch knapp, auch in schlechtem Deutsch — ist NIE werbung_newsletter oder spam.",
     "fragen: jede Frage des Kunden als eigener kurzer Satz, in seinen Worten. Keine Frage erfinden.",
     "zusammenfassung: ein bis zwei Sätze, was der Kunde will und in welcher Stimmung er ist.",
@@ -344,19 +470,25 @@ export async function einordnen(mail: { betreff: string; text: string; von: stri
     dienst: "postmeister-einordnen", modell: MODELL_KLEIN(), aufwand: "low", maxTokens: 3000, schema: SCHEMA_A,
     nachrichten: [
       { role: "system", content: system },
-      { role: "user", content: `VON: ${mail.von}\nBETREFF: ${mail.betreff}\nALTER: ${mail.alterTage} Tage\n\n${String(mail.text || "").slice(0, 6000)}` },
+      {
+        role: "user",
+        content: `VON: ${mail.von}\nBETREFF: ${mail.betreff}\nALTER: ${mail.alterTage} Tage\n`
+          + (auskunftAngefordert ? "HINWEIS: Wir haben diesen Absender zuletzt per E-Mail um seine Bonitätsauskunft gebeten (die zitierte Mail ist abgeschnitten).\n" : "")
+          + `\n${String(mail.text || "").slice(0, 6000)}`,
+      },
     ],
   });
   const roh = antwortLesen(j, "Einordnung");
-  const flags: Flags = { ...LEERE_FLAGS, ...(roh.flags ?? {}) };
 
   // Der Riegel gewinnt immer.
-  const pruefText = `${mail.betreff}\n${mail.text}`;
-  for (const r of RIEGEL) if (r.muster.test(pruefText)) flags[r.flag] = true;
-  if (flags.droht_anwalt || flags.widerruf) flags.rechtlich = true;
+  const { kategorien, flags } = riegelAnwenden({
+    betreff: mail.betreff, text: mail.text, auskunftAngefordert,
+    kategorien: (Array.isArray(roh.kategorien) ? roh.kategorien : ["sonstiges"]) as Kategorie[],
+    flags: { ...LEERE_FLAGS, ...(roh.flags ?? {}) },
+  });
 
   return {
-    kategorien: (Array.isArray(roh.kategorien) ? roh.kategorien : ["sonstiges"]) as Kategorie[],
+    kategorien,
     dringend: !!roh.dringend || flags.droht_anwalt || flags.beschwerde || flags.bestreitet,
     sprache: String(roh.sprache || "de").slice(0, 5),
     fragen: Array.isArray(roh.fragen) ? roh.fragen.slice(0, 8).map(String) : [],
@@ -416,6 +548,71 @@ function sprachName(code: string): string {
     de: "Deutsch",
   };
   return namen[k] ?? code;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BONITÄTSAUSKUNFT VERKAUFST DU (24.09.2026, E-240)
+//
+// Justin: Die Auskunft soll „weggehen wie warme Semmeln". Bis hierher sagte
+// der Prompt an drei Stellen das Gegenteil: „selbst angefordert mit unserer
+// Anleitung oder über FIAON" (Selbstweg zuerst), „wir holen Ihre
+// Bonitätsauskunft" (als wäre sie im Paket), und das Hauswissen „wird im
+// Kundenbereich angeboten, sobald das Paket bezahlt ist" — ohne Preis, ohne
+// Knopf. Doris Hösl bekam deshalb „Sie können sie in Ihrem Bereich anfordern".
+//
+// Die Musterantwort unten ist GENAU ihr Fall („Ich hab keine.", Rate 3 offen) —
+// mit Platzhalternamen und Beispielwerten, damit das Modell nie einen echten
+// Kundennamen in eine fremde Mail trägt. Der Prüfstand hält sie gegen die
+// Wortwand und gegen auskunftPruefung (.pruef/pruef-postmeister-auskunft.ts).
+// ═══════════════════════════════════════════════════════════════════════════
+export const AUSKUNFT_MUSTER_KUNDE = "Ich hab keine.";
+export const AUSKUNFT_MUSTER_ANTWORT = [
+  "Das ist gar kein Problem, Frau Beispiel — genau das übernehmen wir für Sie. Wir fordern Ihre Datenkopien bei SCHUFA, CRIF und Creditreform Boniversum an, Sie müssen keinen Brief schreiben.",
+  "",
+  "Danach erklären wir Ihnen jeden Eintrag in klaren Worten und prüfen, ob Speicherfristen abgelaufen sind. Dazu kommen Ihr persönlicher Handlungsplan und fertige Schreiben, die Sie nur noch freigeben. Mit Ihrer Auskunft sehen wir, was die Bank sieht — und richten Ihren Weg zu Karte und Wunschlimit genau danach aus.",
+  "",
+  "Mit Ihrem Paket gilt für Sie der Kundenpreis von 74 € (einzeln 149 €). Ein Klick auf den Knopf unten genügt: Dort bestätigen Sie den Auftrag und sehen gleich danach Betrag, Bankdaten und Verwendungszweck.",
+  "",
+  "Offen ist außerdem noch Ihre Rate 3 über 7,99 € mit dem Verwendungszweck FIAON-AB12CD-3; die Rechnung dazu hängt an. Ich freue mich auf Ihre Rückmeldung.",
+].join("\n");
+
+/** Der Prompt-Block zur Auskunft — je nach Lage ganz, knapp oder gar nicht. */
+export function auskunftBlock(lage: Kundenlage, akteAuskunft?: { stufe?: string; land?: string } | null): string {
+  if (lage === "gesperrt" || lage === "fremd" || lage === "unklar" || lage === "bestreitet" || lage === "gekuendigt") {
+    return "DIE BONITÄTSAUSKUNFT bietest du diesem Kunden NICHT an. Fragt er selbst danach, antworte sachlich mit dem Hauswissen — ohne Angebot, ohne Knopf.";
+  }
+  if (!AUSKUNFT_LAGEN.includes(lage)) {
+    return "DIE BONITÄTSAUSKUNFT: In dieser Lage (erste Zahlung fehlt noch) bietest du sie nicht mit Knopf an — das Ziel dieser Mail ist die offene Zahlung. Fragt er danach, sag in einem Satz, dass FIAON sie ihm nach der ersten Zahlung zum Kundenpreis besorgt. Die kostenlose Datenkopie nur, wenn er danach fragt.";
+  }
+  if (akteAuskunft?.stufe === "bezahlt" || akteAuskunft?.stufe === "dokument") {
+    return `DIE BONITÄTSAUSKUNFT ${akteAuskunft.stufe === "bezahlt" ? "hat dieser Kunde schon bezahlt" : "liegt für diesen Kunden schon in der Akte"} — du verkaufst sie NICHT noch einmal. Fragt er danach oder schreibt, er habe keine, sag ihm freundlich, wo sie steht, und dass sein Betreuer die Auswertung mit ihm durchgeht.`;
+  }
+  // Gegenlesen E-240: Bei „Zahlung gemeldet" ist die erste Zahlung noch nicht gebucht —
+  // die Bestätigungsseite lässt dann nicht beauftragen (angebotLage, fiaon-auskunft-kauf.ts).
+  // Nur eine schon offene Auskunft-Bestellung bekommt ihren Zahlungsweg; sonst gilt
+  // dasselbe wie bei „unbezahlt", und der Betreuer erfährt es über die Aufgabe.
+  if (lage === "zahlung_gemeldet" && akteAuskunft?.stufe !== "offen") {
+    return "DIE BONITÄTSAUSKUNFT: Die erste Zahlung dieses Kunden ist gemeldet, aber noch nicht gebucht — du bietest die Auskunft jetzt nicht mit Knopf an. Schreibt er, er habe keine, oder fragt danach, sag in einem Satz, dass FIAON sie für ihn holt, sobald die erste Zahlung gebucht ist, und dass sich sein Betreuer dazu meldet. Die kostenlose Datenkopie nur, wenn er danach fragt.";
+  }
+  const p = AUSKUNFT_PREISE_CENTS.privat;
+  const stand = akteAuskunft?.stufe ? ` Stand dieses Kunden (Akte, Feld auskunft): „${akteAuskunft.stufe}".` : "";
+  const landRoh = String(akteAuskunft?.land ?? "");
+  const land: "AT" | "CH" | null = landRoh === "AT" || landRoh === "CH" ? landRoh : null;
+  return [
+    `DIE BONITÄTSAUSKUNFT VERKAUFST DU. Sie ist ein eigenes Produkt, NICHT im Paket enthalten: ${euroText(p.mitAbo)} für Kunden mit laufendem Paket, ${euroText(p.einzeln)} einzeln. Für Firmenkunden gelten andere Preise. Den Preis für DIESEN Kunden nennt dir auskunft_anbieten (Feld betragText) — nie aus dem Kopf.${stand}`,
+    `WANN: Schreibt der Kunde über Auskunft, SCHUFA, KSV, Datenkopie, Bonität, Einträge, Limit oder Karte — sagt er, er habe keine Auskunft (auch knapp: „Ich hab keine.", „nicht vorhanden") — oder zeigt die Akte unter auskunft die Stufe „nichts" und er hat ein gewöhnliches Anliegen: Rufe auskunft_anbieten, BEVOR du schreibst. Liefert es einen Knopf (Feld knopf), ist die Auskunft das Ziel dieser Mail, und der Knopf unten führt dorthin (Schritt auskunft). Das Werkzeug bestellt nichts — beauftragen tut der Kunde selbst auf der Seite hinter dem Knopf. Bei Kündigung, Beschwerde, Bestreiten, „Stopp" oder „kann nicht zahlen" verkaufst du nichts.`,
+    `WIE: begeistert, konkret, kurz. (1) Nimm seine Lage auf („Das ist gar kein Problem — genau das übernehmen wir für Sie."). (2) Was er bekommt, aus dem Feld leistung: Wir fordern seine Datenkopien bei den Auskunfteien seines Landes an (Feld auskunfteien, mit seiner Vollmacht — er muss keinen Brief schreiben), erklären jeden Eintrag, prüfen die Speicherfristen, liefern den persönlichen Handlungsplan und fertige Schreiben, die er nur freigibt. (3) Sein Ziel: „${AUSKUNFT_NUTZEN_SATZ}" — nie eine Zusage zu Karte, Limit oder Löschung. (4) Preis (betragText; mit Paket beide Preise nebeneinander, nie „statt") und der Weg aus dem Feld weg: Ist noch nichts beauftragt, bestätigt er hinter dem Knopf den Auftrag und sieht danach Betrag, Bankdaten und Verwendungszweck — schreib dann nie, er habe schon bestellt oder eine Rechnung sei offen. Ist die Auskunft schon beauftragt (stufe offen), führt der Knopf direkt zur Zahlungsseite; dann nennst du Betrag und Verwendungszweck.`,
+    `DAS WORT: Nenne die Auskunft so wie das Werkzeug (Feld wort).${land ? ` Dieser Kunde lebt in ${land === "AT" ? "Österreich" : "der Schweiz"} — dort gibt es keine SCHUFA: Das Wort „SCHUFA" schreibst du nicht, die Auskunfteien heißen ${auskunfteienText(land)}.` : ` In Österreich und der Schweiz schreibst du nie „SCHUFA".`}`,
+    `DIE KOSTENLOSE DATENKOPIE erwähnst du nicht von dir aus — und verschweigst sie nie, wenn er fragt („Kann ich die nicht kostenlos selbst anfordern?"). Dann ehrlich, sinngemäß: „${AUSKUNFT_KOSTENLOS_ANTWORT}" — und danach der Knopf.`,
+    `VERBOTEN: „fordern Sie sie in Ihrem Bereich an", „Sie können sie selbst anfordern", eine Anleitung zum Selbst-Anfordern als Hauptweg; Löschzusagen, „Score verbessern", Fristen mit Zahl, „anwaltlich geprüft".`,
+    `IST SCHON ETWAS DA: Meldet auskunft_anbieten verkaufen: false (bezahlt, Zahlung gemeldet oder in der Akte), verkaufst du nichts — sag ihm, wo seine Auskunft steht und dass sein Betreuer die Auswertung mit ihm durchgeht.`,
+    `IST EINE RATE OFFEN: Die offene Rate bleibt in DERSELBEN Mail, in EINEM Satz mit Nummer, Betrag und Verwendungszweck aus zahlungslink_bauen — die Rechnung dazu hängt an. Der Knopf unten gehört dann der Auskunft.`,
+    `DER BETREUER erfährt vom Angebot automatisch (auskunft_anbieten legt ihm die Aufgabe an) — dafür keine eigene Aufgabe und keine Notiz.`,
+    `MUSTER (Beispielwerte; Name, Preis, Rate und Verwendungszweck kommen bei dir aus Akte und Werkzeugen). Die Kundin antwortet auf unsere Bitte um die Auskunft nur: „${AUSKUNFT_MUSTER_KUNDE}" — Rate 3 ist offen. Deine Antwort:`,
+    // Gegenlesen E-240: Für Österreich/Schweiz das Muster mit den Auskunfteien des
+    // Landes — sonst schreibt das Modell das deutsche Muster samt „SCHUFA" ab.
+    land ? AUSKUNFT_MUSTER_ANTWORT.replace(auskunfteienText("DE"), auskunfteienText(land)) : AUSKUNFT_MUSTER_ANTWORT,
+  ].join("\n");
 }
 
 function systemPrompt(ein: {
@@ -548,7 +745,7 @@ function systemPrompt(ein: {
     // auf die es ankam, stand kein Betrag, keine IBAN, kein Verwendungszweck
     // und kein Link. Ein Kunde, der zahlen will, muss suchen — und sucht nicht.
     // ══════════════════════════════════════════════════════════════════════
-    `ZAHLUNGSDATEN GEHÖREN IN DIE MAIL, NICHT HINTER EINEN KLICK. Ist eine Rechnung offen, nennst du in JEDER Antwort: den Betrag, die Fälligkeit, den Verwendungszweck und die IBAN — zum Ablesen und Kopieren, nicht nur als Knopf. Den Knopf zur Zahlungsseite (zahlungslink_bauen) setzt du zusätzlich, und die Rechnung hängst du an (rechnung_anhaengen). Drei Wege zum selben Ziel, weil jeder Mensch einen anderen nimmt. Eine Antwort an einen Kunden mit offener Rechnung OHNE diese Angaben ist unvollständig.`,
+    `ZAHLUNGSDATEN GEHÖREN IN DIE MAIL, NICHT HINTER EINEN KLICK. Ist eine Rechnung offen, nennst du in JEDER Antwort: den Betrag, die Fälligkeit, den Verwendungszweck und die IBAN — zum Ablesen und Kopieren, nicht nur als Knopf. Den Knopf zur Zahlungsseite (zahlungslink_bauen) setzt du zusätzlich, und die Rechnung hängst du an (rechnung_anhaengen). Drei Wege zum selben Ziel, weil jeder Mensch einen anderen nimmt. Eine Antwort an einen Kunden mit offener Rechnung OHNE diese Angaben ist unvollständig. (Verkaufst du in derselben Mail die Bonitätsauskunft, gehört der Knopf ihr; Betrag und Verwendungszweck der Rate stehen trotzdem im Text, die Rechnung der Rate hängt an.)`,
 
     // ══════════════════════════════════════════════════════════════════════
     // DER MANTRA-SATZ (23.09.2026, E-225)
@@ -579,20 +776,22 @@ function systemPrompt(ein: {
 · „Zahlung = Aktivierung." Sobald die erste Zahlung gebucht ist, ist sein Account aktiv — sofort, nicht irgendwann.
 · „Danach geht direkt der fertige Link unserer Partnerbank an Sie raus."
 · „Ihr Betreuer sitzt daneben, Sie machen das nicht allein."
-· „Wir holen Ihre Bonitätsauskunft, erklären jeden Eintrag und übernehmen die Schreiben an die Auskunfteien."
+· „Mit der Bonitätsauskunft über FIAON fordern wir Ihre Datenkopien bei den Auskunfteien Ihres Landes an, erklären jeden Eintrag und bereiten die Schreiben vor — Sie geben nur frei." (Die Auskunft ist ein Zusatz mit eigenem Preis — siehe DIE BONITÄTSAUSKUNFT VERKAUFST DU.)
 · „Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay."
 ENTWERTE NIE DEINE EIGENE ZUSAGE. Wenn du etwas Wahres und Starkes gesagt hast, hänge KEINEN Einschränkungssatz daran, nach dem niemand gefragt hat. Der Satz über die Bank kommt, wenn der Kunde nach Geld, Auszahlung, Limit oder Zusage fragt — dann sofort, klar und ohne Ausflüchte. Sonst nicht.
 GEH MIT DER WELLE. Ist der Kunde ungeduldig („ich brauche das sofort"), nimm das Tempo auf, statt zu bremsen: Sag, was HEUTE noch geht — zahlen, Account aktiv, Link der Partnerbank. Ist er skeptisch, nimm den Einwand ernst, beantworte ihn in einem Satz und führ ihn zurück zum nächsten Schritt. Ist er verärgert, gib ihm zuerst recht, dann die Lösung. Nie ausweichen, nie an einen Kollegen abschieben, nie „ich prüfe das".
-EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahlen (mit Betrag, Verwendungszweck, IBAN und Knopf), Unterlagen hochladen oder ein Termin. Nie zwei Ziele, nie eine Mail ohne Ziel.`,
+EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahlen (mit Betrag, Verwendungszweck, IBAN und Knopf), die Bonitätsauskunft bestellen (Knopf aus auskunft_anbieten), Unterlagen hochladen oder ein Termin. Nie zwei Knöpfe, nie eine Mail ohne Ziel. Hat auskunft_anbieten einen Knopf geliefert, trägt der Knopf die Auskunft — eine offene Rate steht dann als EIN Satz mit Betrag und Verwendungszweck in derselben Mail (24.09.2026, E-240).`,
 
-    `DER SATZ ÜBER DIE BANK GEHÖRT AN SEINEN PLATZ, NICHT IN JEDE MAIL. „Über Konto, Karte und Rahmen entscheidet die Bank" schreibst du, wenn der Kunde nach Geld, Auszahlung, Limit oder Zusage fragt — dann aber klar und ohne Umschweife. Fragt er etwas anderes, lässt du ihn weg. In jeder Mail wiederholt klingt er wie eine Warnung vor dem eigenen Angebot, und genau so liest ihn der Kunde. Positiv sagen, was FIAON TUT: Account, Startgespräch, Bonitätsauskunft, Auswertung, Schreiben an die Auskunfteien, der fertige Link der Partnerbank — dafür zahlt er, und das bekommt er sicher.`,
+    `DER SATZ ÜBER DIE BANK GEHÖRT AN SEINEN PLATZ, NICHT IN JEDE MAIL. „Über Konto, Karte und Rahmen entscheidet die Bank" schreibst du, wenn der Kunde nach Geld, Auszahlung, Limit oder Zusage fragt — dann aber klar und ohne Umschweife. Fragt er etwas anderes, lässt du ihn weg. In jeder Mail wiederholt klingt er wie eine Warnung vor dem eigenen Angebot, und genau so liest ihn der Kunde. Positiv sagen, was FIAON TUT: Account, Startgespräch, Betreuer, Auswertung seiner Unterlagen, der fertige Link der Partnerbank — dafür zahlt er, und das bekommt er. Die Bonitätsauskunft mit Handlungsplan und fertigen Schreiben ist ein Zusatz, den du ihm anbietest (auskunft_anbieten).`,
+    // E-240: der Verkaufsblock zur Auskunft — je nach Lage ganz, knapp oder gar nicht.
+    auskunftBlock(ein.lage, ein.akte?.auskunft ?? null),
 
     // ══════════════════════════════════════════════════════════════════════
     // KÜNDIGUNG MIT OFFENER RECHNUNG (23.09.2026, E-225, Justins Wortlaut)
     // ══════════════════════════════════════════════════════════════════════
     `WILL JEMAND KÜNDIGEN: Du kündigst ihm — aber nicht, solange eine Rechnung offen ist. Dann sagst du es ihm freundlich und gerade heraus, sinngemäß: „Dass Sie kündigen möchten, verstehe ich, und Sie können das auch. Es besteht ein Vertrag, und solange die Rechnung im System offen ist, kann ich die Kündigung nicht abschließen. Begleichen Sie bitte die letzte Rechnung — sobald sie da ist, setze ich die Kündigung um und die Sache ist für Sie erledigt." Dazu Betrag, Fälligkeit, Verwendungszweck, IBAN und Zahlungsseite. Bleibt er nach ZWEI bis DREI solchen Wechseln dabei und zahlt nicht, führst du die Kündigung trotzdem durch (kuendigung_vormerken) — die letzte Rate bleibt fällig, das sagst du dazu. Nie drohen, nie mit Inkasso, Gericht oder Kosten winken. Ein Widerruf innerhalb von 14 Tagen ist etwas anderes und gilt sofort.`,
 
-    `KARTE UND KONTO (seit 21.09.2026, Justin: „viel mehr auf die Kreditkarte gepitcht, immer nett und motivierend"): Die Karte ist das Ziel des Kunden — schreib positiv, warm und ermutigend darüber, nie abwehrend. Der Weg: Sobald die erste Zahlung gebucht ist, ist sein Account aktiviert und er bekommt DIREKT den fertigen Link unserer Partnerbank (DKB) für Konto und Karte; das geht automatisch raus. Die Sätze dazu: „${KARTE_LINK_SATZ}" und „${KARTE_ZEIT_SATZ}" In der Antragszeit lädt er in seinem Bereich Kontoauszüge (6 Monate), Ausweis/Reisepass und seine Bonitätsauskunft hoch (selbst angefordert mit unserer Anleitung oder über FIAON), dann folgt unsere Bonitätsanalyse. Fragt er „wann bekomme ich meine Karte?" oder schreibt „bezahle ich nicht": freundlich und motivierend antworten — was er bekommt, wie einfach der nächste Schritt ist, und dass es mit der ersten Zahlung sofort losgeht; ist die Zahlung offen, gehört der Zahlungsweg in die Antwort. Nutze SEINEN Stand aus der Akte (Feld karte): Steht in karte.einladung ein Datum, ist der Link raus — dann sag, wann, und dass er ihn in der Mail „Ihr Link zur Karte ist da" findet (erneut schicken kann sein Betreuer). Über Konto und Karte entscheidet die Bank; FIAON verschickt keine Karte und keine PIN. Nie „ich empfehle", nie „garantiert", nie eine feste Frist.`,
+    `KARTE UND KONTO (seit 21.09.2026, Justin: „viel mehr auf die Kreditkarte gepitcht, immer nett und motivierend"): Die Karte ist das Ziel des Kunden — schreib positiv, warm und ermutigend darüber, nie abwehrend. Der Weg: Sobald die erste Zahlung gebucht ist, ist sein Account aktiviert und er bekommt DIREKT den fertigen Link unserer Partnerbank (DKB) für Konto und Karte; das geht automatisch raus. Die Sätze dazu: „${KARTE_LINK_SATZ}" und „${KARTE_ZEIT_SATZ}" In der Antragszeit lädt er in seinem Bereich Kontoauszüge (6 Monate) und Ausweis/Reisepass hoch; seine Bonitätsauskunft besorgt FIAON für ihn (auskunft_anbieten) — hat er schon eine aktuelle, lädt er sie hoch. Dann folgt unsere Bonitätsanalyse. Fragt er „wann bekomme ich meine Karte?" oder schreibt „bezahle ich nicht": freundlich und motivierend antworten — was er bekommt, wie einfach der nächste Schritt ist, und dass es mit der ersten Zahlung sofort losgeht; ist die Zahlung offen, gehört der Zahlungsweg in die Antwort. Nutze SEINEN Stand aus der Akte (Feld karte): Steht in karte.einladung ein Datum, ist der Link raus — dann sag, wann, und dass er ihn in der Mail „Ihr Link zur Karte ist da" findet (erneut schicken kann sein Betreuer). Über Konto und Karte entscheidet die Bank; FIAON verschickt keine Karte und keine PIN. Nie „ich empfehle", nie „garantiert", nie eine feste Frist.`,
     `WENN DER KUNDE VON „KREDIT" SPRICHT, hat er das Produkt missverstanden — das ist der Kern seines Widerstands, nicht ein Nebensatz. FIAON vergibt keine Kredite und vermittelt keine. Erkläre in zwei Sätzen, was er tatsächlich gebucht hat und wofür die Rate ist. Erst dann sprich über die Zahlung.`,
     // ═══════════════════════════════════════════════════════════════════
     // DAS RETTUNGSGESPRÄCH (04.09.2026, Justin): „Warum führt die KI keine
@@ -661,7 +860,7 @@ export function gerichtFuer(land?: string | null, ort?: string | null): string {
 export function akteKompakt(a: any): any {
   if (!a || typeof a !== "object") return a;
   const { verlauf: _v, mails: _m, offeneAufgaben: _o, ...rest } = a;
-  return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, vertrag: a.vertrag, karte: a.karte, ...rest };
+  return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, vertrag: a.vertrag, karte: a.karte, auskunft: a.auskunft ?? null, ...rest };
 }
 
 /**
@@ -682,6 +881,185 @@ function belegPflichtig(text: string): string[] {
     if (treffer) for (const t of treffer) gefunden[t.trim()] = true;
   }
   return Object.keys(gefunden);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WAND UM DIE AUSKUNFT (24.09.2026, E-240) — rein, damit der Prüfstand sie
+// ohne Modell und ohne Datenbank prüft. Ein Prompt ist eine Bitte; das hier
+// entscheidet, ob die Antwort rausgeht oder ein zweiter Versuch nötig ist.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der Kundentext ohne den Anhang-Hinweis, den der Lauf für das Modell anhängt. */
+function kundeTextOhneAnhang(t: string): string {
+  return String(t || "").split("\n\n[Der Kunde hat ")[0].trim();
+}
+
+/** Muss Mara in diesem Vorgang auskunft_anbieten rufen? */
+export function auskunftPflicht(ein: { flags?: Partial<Flags> | null; lage: Kundenlage; stufe?: string | null }): boolean {
+  return !!ein.flags?.auskunft_fehlt && AUSKUNFT_LAGEN.includes(ein.lage)
+    && (ein.stufe == null || ein.stufe === "nichts" || ein.stufe === "offen")
+    && !KEIN_VERKAUF_FLAGS.some((f) => !!ein.flags?.[f]);
+}
+
+/**
+ * „Sie können sie in Ihrem Bereich anfordern" (Maras Entwurf an Doris Hösl) —
+ * der Selbstweg als Hauptweg. Erlaubt nur, wenn der Kunde selbst nach dem
+ * kostenlosen Weg fragt (dann gilt AUSKUNFT_KOSTENLOS_ANTWORT).
+ */
+const SELBSTWEG: RegExp[] = [
+  /\b[Ff]ordern Sie (?:sie|die|Ihre)\b[^.!?\n]{0,60}\b(?:selbst|kostenlos|in Ihrem Bereich|online|bei der SCHUFA|direkt)\b/,
+  /\bSie\s+(?:können|könnten|sollten|müssten)\s+(?:sie|die|diese|Ihre)\b[^.!?\n]{0,70}\b(?:an)?fordern\b/,
+  /\b(?:in Ihrem Bereich|selbst|kostenlos)\s+(?:an)?(?:zu)?fordern\b/i,
+  /\bselbst\s+(?:beantragen|bestellen|besorgen|anfragen)\b/i,
+  /\b[Bb]eantragen Sie (?:sie|die|Ihre)\b[^.!?\n]{0,60}\b(?:selbst|kostenlos|online|bei der SCHUFA)\b/,
+];
+export function auskunftSelbstweg(antwort: string, kundeText = ""): boolean {
+  if (/\b(kostenlos|gratis|umsonst|selbst|selber|art\.?\s*15|nichts\s+kosten|kostet\s+nichts)\b/i.test(String(kundeText || ""))) return false;
+  const saetze = String(antwort || "").split(/[.!?]\s+|\n+/);
+  // „… müssen Sie nicht selbst anfordern — das übernehmen wir" ist Verkauf, kein Selbstweg.
+  return saetze.some((s) => SELBSTWEG.some((m) => m.test(s))
+    && !/\b(?:für Sie|über (?:uns|FIAON)|Knopf|unten)\b/.test(s) && !/\bnicht\s+(?:mehr\s+)?selbst\b/i.test(s));
+}
+
+/** Die Prüfung rund um die Auskunft — jede Zeile ist ein Mangel. */
+export function auskunftPruefung(ein: {
+  text: string; kundeText: string; lage: Kundenlage; flags?: Partial<Flags> | null;
+  werkzeugDaten: Record<string, any>; gelaufen: string[];
+  /**
+   * Alle gerufenen Werkzeuge, auch die abgelehnten (Gegenlesen E-240): Lehnt
+   * auskunft_anbieten ab (Vertriebssperre, erste Zahlung fehlt), ist die Pflicht
+   * erfüllt — sonst hinge jede solche Mail als „nicht gerufen" im Entwurf fest.
+   */
+  versucht?: string[];
+  akteAuskunft?: { stufe?: string | null; land?: string | null } | null;
+}): string[] {
+  const fehlend: string[] = [];
+  const t = String(ein.text || "");
+  const aa = ein.werkzeugDaten.auskunft_anbieten;
+  if (auskunftPflicht({ flags: ein.flags, lage: ein.lage, stufe: ein.akteAuskunft?.stufe })
+    && !(ein.versucht ?? ein.gelaufen).includes("auskunft_anbieten")) {
+    fehlend.push("Der Kunde hat keine Bonitätsauskunft — auskunft_anbieten wurde nicht gerufen");
+  }
+  if (auskunftSelbstweg(t, ein.kundeText)) {
+    fehlend.push("Die Antwort schickt den Kunden, die Auskunft selbst anzufordern — biete sie über FIAON an (auskunft_anbieten); die kostenlose Datenkopie nur auf seine Frage");
+  }
+  if (aa?.verkaufen && (aa?.knopf || aa?.zahlungsseite)) {
+    const zahl = String(aa.betragText || "").replace(/\s*€\s*$/, "").trim();
+    const preis = zahl ? new RegExp(String.raw`\b${zahl.replace(/[.,]/, "[,.]")}(?:[,.]00)?\s*(?:€|euro)`, "i") : null;
+    if (preis && !preis.test(t)) fehlend.push(`Preis der Auskunft (${aa.betragText}) fehlt im Text`);
+    // Gegenlesen E-240: Der Kauflink bestellt nichts — erst der Klick auf der
+    // Bestätigungsseite. „Ihre Auskunft ist bestellt" wäre unwahr.
+    if (aa.stufe === "nichts" && /(?:auskunft|\bsie)\b[^.!?\n]{0,60}?\b(?:ist|wurde|haben wir)\s+(?:schon\s+|bereits\s+)?(?:für Sie\s+)?(?:bestellt|beauftragt|angelegt)\b/i.test(t)) {
+      fehlend.push("Die Antwort sagt, die Auskunft sei bestellt — bestellt ist erst mit dem Klick auf der Bestätigungsseite");
+    }
+  }
+  if (!ein.gelaufen.includes("auskunft_anbieten")
+    && /\b(?:bonitätsauskunft|schufa-auskunft|ksv-auskunft|auskunft)\b/i.test(t) && /\b(?:74|149|199|349)(?:[,.]00)?\s*(?:€|euro)/i.test(t)) {
+    fehlend.push("Auskunft mit Preis angeboten, ohne auskunft_anbieten — Preis und Knopf kommen nur aus dem Werkzeug");
+  }
+  const land = aa?.land ?? ein.akteAuskunft?.land ?? null;
+  if ((land === "AT" || land === "CH") && /schufa/i.test(t) && !/schufa/i.test(String(ein.kundeText || ""))) {
+    fehlend.push(`„SCHUFA" in einer Mail an einen Kunden in ${land === "AT" ? "Österreich" : "der Schweiz"} — dort heißen die Auskunfteien ${auskunfteienText(land)}`);
+  }
+  return fehlend;
+}
+
+/**
+ * Der nächste Schritt (Knopf) — aus dem Vorschlag des Modells und dem, was die
+ * Werkzeuge wirklich geliefert haben. Rein; vorher stand das mitten in
+ * pruefenUndAbschliessen und war nicht prüfbar.
+ */
+export function schrittBestimmen(roh: any, lage: Kundenlage, werkzeugDaten: Record<string, any>): { schritt: NaechsterSchritt | null; storniert: boolean } {
+  const schritt: NaechsterSchritt | null = roh?.naechster_schritt
+    ? { art: String(roh.naechster_schritt.art) as any, url: roh.naechster_schritt.url ?? null, text: String(roh.naechster_schritt.text || "") }
+    : null;
+  // E-240: Die Adresse der Auskunft kommt NUR aus auskunft_anbieten — eine vom
+  // Modell eingesetzte gilt nicht (sonst stünde ein erfundener Link im Knopf).
+  // Gegenlesen E-240: `knopf` (Kauflink oder Zahlungsseite der offenen Bestellung).
+  const aa = werkzeugDaten.auskunft_anbieten;
+  const auskunftSeite = aa?.verkaufen ? (aa.knopf ?? aa.zahlungsseite ?? null) : null;
+  if (schritt && schritt.art === "auskunft" && !auskunftSeite) schritt.url = null;
+  // 04.09.2026 (E-119b): Schritte mit bekannter Adresse bekommen sie vom Server —
+  // „Zu meinem Bereich" braucht kein Werkzeug. Vorher fiel ein Schritt ohne Adresse
+  // still durch (kein Knopf in der Mail) oder galt seit heute als Mangel.
+  if (schritt && !schritt.url) {
+    const vorgabe: Record<string, string> = { bereich: "/mein-bereich", unterlagen: "/mein-bereich", antrag: "/antrag", angebot: "/antrag" };
+    if (vorgabe[String(schritt.art)]) schritt.url = absoluteUrl(vorgabe[String(schritt.art)]);
+  }
+  // In einer Zahlungslage ist die Zahlungsseite der Knopf — Hausregel, kein
+  // Ermessen des Modells. 63 von 157 Entwürfen hingen am 04.09. nur daran,
+  // dass das Modell „erledigt" oder „rueckruf" als Schritt wählte, obwohl die
+  // Seite vorab geholt war. Der Text darf vom Rückruf handeln; der Knopf zahlt.
+  const zahlungsSeite = werkzeugDaten.zahlungslink_bauen?.zahlungsseite;
+  // ── NACH EINEM STORNO KEIN ZAHLUNGSKNOPF (05.09.2026, E-135) ──────────
+  // Gesehen: „Ihre Bestellung ist storniert, es bleibt nichts offen" — und
+  // darunter „Rechnung ansehen und bezahlen". Ist die Bestellung storniert
+  // oder der Vertrag beendet, gibt es nichts zu zahlen; der Schritt ist
+  // „erledigt", und die Zahlungsseite wird nicht verlangt.
+  const storniert = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"].includes(String(werkzeugDaten.kuendigung_vormerken?.weg || ""));
+  const zahlungsSchritt: NaechsterSchritt | null = !storniert && ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(lage) && zahlungsSeite
+    ? { art: "zahlung" as any, url: String(zahlungsSeite), text: "Rechnung ansehen und bezahlen" }
+    : null;
+  // ── HAT auskunft_anbieten GELIEFERT, IST DIE AUSKUNFT DER KNOPF (E-240) ──
+  // Auch in einer Zahlungslage: Die offene Rate steht dann als ein Satz mit
+  // Betrag und Verwendungszweck im Text (Prüfung unten), ihre Rechnung hängt an.
+  const auskunftSchritt: NaechsterSchritt | null = !storniert && auskunftSeite && ERLAUBTE_SCHRITTE[lage].includes("auskunft")
+    ? { art: "auskunft", url: String(auskunftSeite), text: "Bonitätsauskunft bestellen" }
+    : null;
+  const schrittFinal: NaechsterSchritt | null = storniert
+    ? (schritt && schritt.art !== "zahlung" && schritt.art !== "auskunft" ? schritt : ({ art: "erledigt" } as NaechsterSchritt))
+    : auskunftSchritt
+      ?? (zahlungsSchritt && (!schritt || !schritt.url || schritt.art !== "zahlung") ? zahlungsSchritt : schritt);
+  return { schritt: schrittFinal, storniert };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JEDE MARA-MAIL STEHT IN DER AKTE (24.09.2026, E-240)
+//
+// Bisher: ein Vermerk beim Eingang (Betreff + Zusammenfassung) und einer nach
+// dem AUTOMATISCHEN Versand — ein Entwurf hinterließ nichts, und was Mara tat,
+// stand verstreut in einzelnen Werkzeug-Zeilen. Der Betreuer, der den Kunden
+// anruft, sah nicht, was besprochen war. Jetzt EIN Vermerk je Antwort, auch je
+// Entwurf: was der Kunde schrieb, was Mara antwortete, was sie tat. Ohne
+// Bestellung im Vorgang unter der jüngsten der Person (akteRef).
+// ═══════════════════════════════════════════════════════════════════════════
+export interface MaraVermerk {
+  kundeText: string;
+  antwort: string | null;
+  art: "gesendet" | "entwurf";
+  handlungen: { werkzeug: string; ergebnis: string; ok: boolean }[];
+  grund?: string | null;
+  anhaenge?: string[];
+}
+
+export function maraMailVermerkText(ein: MaraVermerk): string {
+  const kurz = (s: string, n: number) => {
+    const t = String(s || "").replace(/\s+/g, " ").trim();
+    return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+  };
+  const taten = (ein.handlungen || []).filter((h) => h.ok).map((h) => `${h.werkzeug}: ${kurz(h.ergebnis, 90)}`);
+  return [
+    `Mara (Mail): Kunde schrieb „${kurz(ein.kundeText, 200) || "(ohne Text)"}"`,
+    ein.art === "gesendet"
+      ? `Mara antwortete${ein.anhaenge?.length ? ` (mit ${ein.anhaenge.join(", ")})` : ""}: „${kurz(ein.antwort ?? "", 320)}"`
+      : `Mara entwarf, wartet auf Freigabe${ein.grund ? ` (${kurz(ein.grund, 90)})` : ""}: „${kurz(ein.antwort ?? "", 320)}"`,
+    `Handlungen: ${taten.length ? taten.join("; ") : "keine"}`,
+  ].join(" — ").slice(0, 1400);
+}
+
+/** Den Vermerk schreiben — ohne Person nichts; ein Fehler lässt die Mail nie scheitern. */
+export async function maraMailVermerk(ein: MaraVermerk & { personId: number | null; ref: string | null }): Promise<void> {
+  try {
+    const ref = await akteRef(ein.personId, ein.ref);
+    if (!ref) return;
+    const { sqlPool } = await import("./db-pool");
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${ein.personId}, NULL, 'Postmeister', 'system', ${maraMailVermerkText(ein)})
+    `;
+  } catch (e) {
+    console.warn("[POSTMEISTER] Aktenvermerk:", String((e as any)?.message || e).slice(0, 160));
+  }
 }
 
 export async function antwortErzeugen(ein: {
@@ -709,6 +1087,10 @@ export async function antwortErzeugen(ein: {
   const kontext: WerkzeugKontext = {
     personId: ein.personId, ref: ein.ref, postfach: ein.postfach,
     postmeisterId: ein.postmeisterId, kundenlage: lage,
+    // E-240: Lampen (kein Verkauf bei Kündigung, Beschwerde …) und Kundentext (für die Betreuer-Aufgabe).
+    flags: ein.einordnung.flags, kundeText: kundeTextOhneAnhang(ein.mail.text).slice(0, 600),
+    // Integration 25.09.2026 (E-240): „Re:" auf das Angebot — die gemeinsame Bremse lässt Maras Link dann durch.
+    betreff: ein.mail.betreff,
   };
   const werkzeuge = werkzeugeFuerLage(lage);
   const tools = werkzeugeAlsTools(lage);
@@ -726,7 +1108,7 @@ export async function antwortErzeugen(ein: {
   // vergaß das Modell den Aufruf in jedem siebten Fall („Zahlungsseite nicht
   // geholt") — und die Umformulierung kann keine Werkzeuge mehr rufen.
   const zahlLagen = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"];
-  let vorab = "";
+  const vorab: string[] = [];
   if (zahlLagen.includes(lage)) {
     const offeneRate = (akte.raten ?? []).filter((r: any) => r.status === "offen" && r.referenz).sort((a: any, b: any) => Number(a.nr) - Number(b.nr))[0];
     const bestellung = (akte.bestellungen ?? []).find((b: any) => b.ref === ein.ref) ?? (akte.bestellungen ?? [])[0];
@@ -736,10 +1118,36 @@ export async function antwortErzeugen(ein: {
       const erg: WerkzeugErgebnis = await w.ausfuehren({ referenz }, kontext).catch((e): WerkzeugErgebnis => ({ ok: false, ergebnis: "", fehler: String(e?.message || e) }));
       handlungen.push({ werkzeug: "zahlungslink_bauen", ergebnis: erg.ok ? erg.ergebnis : (erg.fehler || "fehlgeschlagen"), ok: erg.ok });
       if (erg.ok && erg.daten) werkzeugDaten.zahlungslink_bauen = erg.daten;
-      vorab = erg.ok
+      vorab.push(erg.ok
         ? `VORAB GEHOLT (zahlungslink_bauen ist gelaufen, nicht noch einmal rufen): ${erg.ergebnis} ${JSON.stringify(erg.daten)}`
-        : `HINWEIS: Zahlungsseite für ${referenz} konnte nicht geholt werden (${erg.fehler || "unbekannt"}) — keine Zahlungsaufforderung schreiben, sondern dem Betreuer eine Aufgabe geben.`;
+        : `HINWEIS: Zahlungsseite für ${referenz} konnte nicht geholt werden (${erg.fehler || "unbekannt"}) — keine Zahlungsaufforderung schreiben, sondern dem Betreuer eine Aufgabe geben.`);
     }
+  }
+
+  // ── DIE AUSKUNFT VORAB (24.09.2026, E-240) ───────────────────────────────
+  // Sagt der Kunde „Ich hab keine.", holt der Server das Angebot selbst — aus
+  // demselben Grund wie die Zahlungsseite oben: Das Modell vergisst Werkzeuge,
+  // und die Umformulierung kann keine mehr rufen. Ohne Werkzeug gäbe es keinen
+  // echten Knopf, und Mara schriebe wieder „fordern Sie sie in Ihrem Bereich an".
+  if (auskunftPflicht({ flags: ein.einordnung.flags, lage, stufe: akte.auskunft?.stufe })) {
+    const w = werkzeuge.find((x) => x.name === "auskunft_anbieten");
+    if (w) {
+      const erg: WerkzeugErgebnis = await w.ausfuehren({ anlass: "Kunde schreibt, er habe keine Bonitätsauskunft" }, kontext)
+        .catch((e): WerkzeugErgebnis => ({ ok: false, ergebnis: "", fehler: String(e?.message || e).slice(0, 200) }));
+      handlungen.push({ werkzeug: "auskunft_anbieten", ergebnis: erg.ok ? erg.ergebnis : (erg.fehler || "fehlgeschlagen"), ok: erg.ok });
+      if (erg.ok && erg.daten) werkzeugDaten.auskunft_anbieten = erg.daten;
+      vorab.push(erg.ok
+        ? `VORAB GEHOLT (auskunft_anbieten ist gelaufen, nicht noch einmal rufen): ${erg.ergebnis} ${JSON.stringify(erg.daten)}`
+        : `HINWEIS: Die Bonitätsauskunft ließ sich nicht anbieten (${erg.fehler || "unbekannt"}) — nenne keinen Preis und keinen Link dafür.`);
+    }
+  }
+  // Der Betreuer erfährt „hat keine Auskunft" auch dann, wenn Mara hier nicht
+  // verkaufen durfte (erste Zahlung fehlt) oder die Auskunft schon bezahlt ist —
+  // dann fehlt etwas in der Lieferung. auskunftBetreuerMelden prüft Sperren und Lampen.
+  if (ein.einordnung.flags?.auskunft_fehlt && ein.personId && !kontext.auskunftGemeldet) {
+    await auskunftBetreuerMelden(kontext, {
+      angeboten: false, stufe: (akte.auskunft?.stufe ?? "nichts") as any, anlass: "Kunde schreibt, er habe keine Bonitätsauskunft",
+    }).catch((e) => console.error("[POSTMEISTER] Auskunft an Betreuer:", String(e).slice(0, 160)));
   }
 
   const nachrichten: any[] = [
@@ -753,7 +1161,7 @@ export async function antwortErzeugen(ein: {
       name: await agentName(),
       kundenweg: weg?.text ?? null,
       gedaechtnis,
-    }), vorab].filter(Boolean).join("\n\n") },
+    }), ...vorab].filter(Boolean).join("\n\n") },
   ];
   if (ein.verlauf.length) {
     nachrichten.push({
@@ -793,6 +1201,7 @@ export async function antwortErzeugen(ein: {
       await gedaechtnisMerken(ein.personId, roh?.merken, "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));
       return await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
+        kundeText: kundeTextOhneAnhang(ein.mail.text),
       });
     }
 
@@ -821,6 +1230,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   lage: Kundenlage; akte: any; einordnung: Einordnung; kundenweg?: string | null;
   handlungen: AgentErgebnis["handlungen"]; werkzeugDaten: Record<string, any>;
   kosten: number; kontext: WerkzeugKontext; nachrichten: any[];
+  /** Was der Kunde geschrieben hat — für die Auskunft-Prüfung (Selbstweg nur auf seine Frage). */
+  kundeText?: string;
 }): Promise<AgentErgebnis> {
   let text = String(roh.antwort || "").trim();
   // 02.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort
@@ -829,36 +1240,22 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // ein sinnloses Einzelwort. Ein Statuswort am Ende, allein auf einer Zeile
   // oder als letzter „Satz", wird abgeschnitten.
   text = text.replace(
-    /(?:^|\n)\s*(erledigt|zahlung|termin|bereich|unterlagen|antrag|angebot|startgespraech|startgespräch|rueckruf|rückruf|keiner|nichts)\s*\.?\s*$/i,
+    /(?:^|\n)\s*(erledigt|zahlung|termin|bereich|unterlagen|antrag|angebot|auskunft|startgespraech|startgespräch|rueckruf|rückruf|keiner|nichts)\s*\.?\s*$/i,
     "",
   ).trim();
-  const schritt: NaechsterSchritt | null = roh.naechster_schritt
-    ? { art: String(roh.naechster_schritt.art) as any, url: roh.naechster_schritt.url ?? null, text: String(roh.naechster_schritt.text || "") }
-    : null;
-  // 04.09.2026 (E-119b): Schritte mit bekannter Adresse bekommen sie vom Server —
-  // „Zu meinem Bereich" braucht kein Werkzeug. Vorher fiel ein Schritt ohne Adresse
-  // still durch (kein Knopf in der Mail) oder galt seit heute als Mangel.
-  if (schritt && !schritt.url) {
-    const vorgabe: Record<string, string> = { bereich: "/mein-bereich", unterlagen: "/mein-bereich", antrag: "/antrag", angebot: "/antrag" };
-    if (vorgabe[String(schritt.art)]) schritt.url = absoluteUrl(vorgabe[String(schritt.art)]);
+  // Der Knopf — seit E-240 in schrittBestimmen (rein, im Prüfstand geprüft).
+  const { schritt: schrittFinal, storniert } = schrittBestimmen(roh, k.lage, k.werkzeugDaten);
+  const zahlLage = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage);
+  // ── DIE RECHNUNG DER RATE GEHT MIT (24.09.2026, E-240) ──────────────────
+  // Trägt der Knopf die Auskunft, hängt der Lauf die Rechnung der offenen Rate
+  // nicht mehr von selbst an (er liest sie aus einem Zahlungs-Knopf). Die Rate
+  // bleibt aber Teil derselben Mail — also hängt der Server sie hier an.
+  const rateRef = k.werkzeugDaten.zahlungslink_bauen?.verwendungszweck;
+  if (schrittFinal?.art === "auskunft" && zahlLage && rateRef && !k.handlungen.some((h) => h.ok && h.werkzeug === "rechnung_anhaengen")) {
+    const w = werkzeugVonName("rechnung_anhaengen");
+    const erg: WerkzeugErgebnis | null = w ? await w.ausfuehren({ referenz: rateRef }, k.kontext).catch(() => null) : null;
+    if (erg?.ok) k.handlungen.push({ werkzeug: "rechnung_anhaengen", ergebnis: erg.ergebnis, ok: true });
   }
-  // In einer Zahlungslage ist die Zahlungsseite der Knopf — Hausregel, kein
-  // Ermessen des Modells. 63 von 157 Entwürfen hingen am 04.09. nur daran,
-  // dass das Modell „erledigt" oder „rueckruf" als Schritt wählte, obwohl die
-  // Seite vorab geholt war. Der Text darf vom Rückruf handeln; der Knopf zahlt.
-  const zahlungsSeite = k.werkzeugDaten.zahlungslink_bauen?.zahlungsseite;
-  // ── NACH EINEM STORNO KEIN ZAHLUNGSKNOPF (05.09.2026, E-135) ──────────
-  // Gesehen: „Ihre Bestellung ist storniert, es bleibt nichts offen" — und
-  // darunter „Rechnung ansehen und bezahlen". Ist die Bestellung storniert
-  // oder der Vertrag beendet, gibt es nichts zu zahlen; der Schritt ist
-  // „erledigt", und die Zahlungsseite wird nicht verlangt.
-  const storniert = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"].includes(String(k.werkzeugDaten.kuendigung_vormerken?.weg || ""));
-  const zahlungsSchritt: NaechsterSchritt | null = !storniert && ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage) && zahlungsSeite
-    ? { art: "zahlung" as any, url: String(zahlungsSeite), text: "Rechnung ansehen und bezahlen" }
-    : null;
-  const schrittFinal: NaechsterSchritt | null = storniert
-    ? (schritt && schritt.art !== "zahlung" ? schritt : ({ art: "erledigt" } as NaechsterSchritt))
-    : zahlungsSchritt && (!schritt || !schritt.url || schritt.art !== "zahlung") ? zahlungsSchritt : schritt;
   const belege: Beleg[] = Array.isArray(roh.belege) ? roh.belege : [];
   const gelaufen = k.handlungen.filter((h) => h.ok).map((h) => h.werkzeug);
 
@@ -884,8 +1281,23 @@ async function pruefenUndAbschliessen(roh: any, k: {
       // Antworten (2427 Jusic: alles richtig, Knopf da, trotzdem Entwurf).
       // Es zählt: Zahlungsseite geholt UND als nächster Schritt gesetzt.
       if (!seite) fehlend.push("Zahlungsseite nicht geholt (zahlungslink_bauen fehlt)");
+      else if (schrittFinal?.art === "auskunft") {
+        // E-240: Der Knopf gehört der Auskunft — dann muss die offene Rate als
+        // Satz im Text stehen: Verwendungszweck und Betrag (Justin: „die offene
+        // Rate bleibt EIN Satz in derselben Mail").
+        const vz = String(k.werkzeugDaten.zahlungslink_bauen?.verwendungszweck || "");
+        const betrag = String(k.werkzeugDaten.zahlungslink_bauen?.betrag || "");
+        if (vz && !t.toUpperCase().includes(vz.toUpperCase())) fehlend.push(`offene Rate fehlt im Text (Verwendungszweck ${vz})`);
+        if (betrag && !t.includes(betrag) && !t.includes(betrag.replace(".", ","))) fehlend.push(`offene Rate fehlt im Text (Betrag ${betrag.replace(".", ",")} €)`);
+      }
       else if (!t.includes(String(seite)) && String(schrittFinal?.url || "") !== String(seite)) fehlend.push("Zahlungsseite weder im Text noch als Knopf");
     }
+    // E-240: Auskunft — Pflicht zum Werkzeug, kein Selbstweg, Preis im Text, kein „SCHUFA" in AT/CH.
+    fehlend.push(...auskunftPruefung({
+      text: t, kundeText: k.kundeText ?? "", lage: k.lage, flags: k.einordnung.flags,
+      werkzeugDaten: k.werkzeugDaten, gelaufen, akteAuskunft: k.akte?.auskunft ?? null,
+      versucht: k.handlungen.map((h) => h.werkzeug),
+    }));
     // Termin in den nächsten sieben Tagen muss vorkommen
     const naher = (k.akte.termine ?? []).find((tm: any) => /heute|morgen|in \d+ Tagen/.test(tm.beginn) && tm.status === "gebucht");
     if (naher && !/termin|gespräch|uhr/i.test(t)) fehlend.push("gebuchter Termin nicht erwähnt");
@@ -895,7 +1307,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
       if (!ERLAUBTE_SCHRITTE[k.lage].includes(schrittFinal.art)) fehlend.push(`Schritt „${schrittFinal.art}" ist in dieser Lage nicht erlaubt`);
       // Die Adresse des Schritts hängt der Server als Knopf an — sie muss nicht
       // im Text stehen. Nur eine leere Adresse bei einem Schritt, der eine braucht, ist ein Mangel.
-      if (!schrittFinal.url && ["zahlung", "termin", "startgespraech"].includes(String(schrittFinal.art))) fehlend.push(`Schritt „${schrittFinal.art}" ohne Adresse — Werkzeug nicht gerufen`);
+      if (!schrittFinal.url && ["zahlung", "termin", "startgespraech", "auskunft"].includes(String(schrittFinal.art))) fehlend.push(`Schritt „${schrittFinal.art}" ohne Adresse — Werkzeug nicht gerufen`);
     }
     // Sie-Form — Justin 04.09.2026: „wir schreiben immer in SIE-Form". Ein Prompt
     // ist eine Bitte; das hier ist die Wand. Kleingeschriebenes du/dich/dir/dein
@@ -950,8 +1362,10 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // Buchungsstand, belegt. Beschwerde, Bestreiten, Anwalt, Widerruf halten weiter.
   if (flags.kuendigung && gelaufen.includes("kuendigung_vormerken")
     && !flags.beschwerde && !flags.bestreitet && !flags.rechtlich && !flags.droht_anwalt && !flags.widerruf && !flags.stopp && !flags.zahlungsunfaehig) flags.kuendigung = false;
+  // E-240: Verkaufs-Signale (auskunft_fehlt) sind keine Warnlampe — „Ich hab
+  // keine." darf mit einem sauberen Angebot automatisch beantwortet werden.
   const automatisch = sauber && urteil.automatisch && AUTO_LAGEN.includes(k.lage)
-    && !Object.values(flags).some(Boolean) && !k.einordnung.dringend;
+    && warnlampen(flags).length === 0 && !k.einordnung.dringend;
 
   return {
     ok: !!text,

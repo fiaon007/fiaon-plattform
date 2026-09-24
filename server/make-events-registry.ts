@@ -12,6 +12,9 @@
 
 import type { MakeEventType } from "./make-webhook";
 import { BANK, BANK_ALT_GESPERRT } from "@shared/fiaon-bank";
+// E-240 (Gegenlesen 24.09.2026): Preise und Auskunfteien der Auskunft nur aus der einen Quelle —
+// eine Zahl im Beschreibungstext wäre die nächste, die beim Preiswechsel stehen bleibt.
+import { AUSKUNFT_PREISE_CENTS, auskunftLeistung, auskunfteienText, euroText } from "@shared/fiaon-auskunft";
 
 export interface MakeEventDef {
   type: MakeEventType;
@@ -648,7 +651,12 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn der Admin eine Dokumenten-Nachbesserung anfordert (changes_requested). Vorgesetzten-TODO: Make-Zweig 'documents_change_request' + Brevo-Template mit login_url.",
     customerBound: true,
     recommendationOnly: true,
-    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte laden Sie einen aktuellen Kontoauszug (letzte 3 Monate) hoch." },
+    // E-240 (24.09.2026): Knopftexte und -ziele bringt der Auslöser mit (Anfordern an den Unterlagen) —
+    // hier der Fall ohne Auskunft-Angebot: Hochladen als Hauptweg, das eigene Passwort daneben.
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Ihre Kontoauszüge der letzten drei Monate.",
+      knopf_text: "Jetzt hochladen", knopf_url: "https://www.fiaon.com/login",
+      knopf2_text: "Noch kein Passwort? Hier festlegen", knopf2_url: "https://www.fiaon.com/passwort-vergessen",
+      unterlagen_arten: "kontoauszug" },
   },
   {
     type: "zustimmung_link",
@@ -792,31 +800,63 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       kalender_url: "https://www.fiaon.com/api/fiaon/global/termine/kalender/9b2c….ics",
     },
   },
+  // ── DIE BONITÄTSAUSKUNFT (24.09.2026, E-240) ─────────────────────────────
+  // Bis heute standen alle drei als „EMPFEHLUNG (noch kein Auto-Versand)" hier,
+  // und geliefert wurde nichts: 59 von 66 Käufern ohne Dokument. Jetzt feuert
+  // das System sie selbst aus dem Liefer-Weg (server/lib/fiaon-auskunft-lieferung.ts)
+  // — Direktversand über den Motor, Vorlagen in server/mail/vorlagen/auskunft-lead.ts.
   {
     type: "schufa_approved",
-    label: "SCHUFA/Bonität genehmigt (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung genehmigt wird. Vorgesetzten-TODO: Make-Zweig 'schufa_approved' + Brevo-Template.",
+    label: "Datenkopie eingegangen (Kunde)",
+    description: "Feuert automatisch, wenn ein Mitarbeiter im Vorgang „Selbstauskunft“ das Ergebnis „Datenkopie eingegangen“ (bewilligt) einträgt — eine Mail je Auskunftei, mit dem Hinweis, wer noch aussteht. Pflichtmail (Statusnachricht zu SEINEM Auftrag).",
     customerBound: true,
-    recommendationOnly: true,
-    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login" },
+    example: { ...CUSTOMER_EXAMPLE, anrede: "Guten Tag Max Mustermann,", login_url: "https://www.fiaon.com/app/vorgaenge", auskunftei: "SCHUFA", rest_satz: "Von CRIF und Creditreform Boniversum steht die Antwort noch aus — sobald sie da ist, sagen wir Ihnen Bescheid." },
   },
   {
     type: "schufa_rejected",
-    label: "SCHUFA/Bonität abgelehnt (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung abgelehnt wird. Vorgesetzten-TODO: Make-Zweig 'schufa_rejected' + Brevo-Template.",
+    label: "Rückfrage einer Auskunftei (Kunde)",
+    description: "Feuert automatisch, wenn ein Mitarbeiter im Vorgang „Selbstauskunft“ das Ergebnis „abgelehnt“ einträgt — die Auskunftei hat eine Rückfrage (frühere Anschrift, Identitätsnachweis). Der Grund ist der Satz des Mitarbeiters (Wortwand geprüft). Gleichzeitig entsteht die Aufgabe „Ablehnung besprechen“.",
     customerBound: true,
-    recommendationOnly: true,
-    example: { ...CUSTOMER_EXAMPLE, grund: "Eingereichtes Dokument nicht lesbar" },
+    example: { ...CUSTOMER_EXAMPLE, anrede: "Guten Tag Max Mustermann,", login_url: "https://www.fiaon.com/app/vorgaenge", auskunftei: "CRIF", grund: "Die Auskunftei bittet um Ihre frühere Anschrift, um Sie eindeutig zuzuordnen." },
   },
   {
     type: "schufa_requested",
-    label: "Neues SCHUFA-Dokument angefordert (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein neues SCHUFA-/Bonitätsdokument angefordert wird. Vorgesetzten-TODO: Make-Zweig 'schufa_requested' + Brevo-Template mit login_url.",
+    label: "Auskunft beauftragt: bitte unterschreiben (Kunde)",
+    description: "Feuert automatisch nach der Zahlung einer Bonitätsauskunft (onCustomerPaid → lieferungStarten), genau einmal je Bestellung: Die Anfragen an die Auskunfteien des Landes sind angelegt, der Kunde unterschreibt Vollmacht und Anfragen über unterschrift_url (/app/unterschrift). Pflichtmail — er hat bezahlt.",
     customerBound: true,
-    recommendationOnly: true,
-    // 28.08.2026 (Justin): WIR holen die Auskunft ein und laden sie hoch —
-    // der Kunde tut nichts. Der alte Beispiel-Hinweis beschrieb den falschen Weg.
-    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Wir holen Ihre Auskunft für Sie ein — Sie müssen nichts tun." },
+    example: {
+      ...CUSTOMER_EXAMPLE,
+      antrag_id: "FIAON-SCHUFA-MB2XK4LQ-7T9A",
+      paket: "Bonitätsauskunft inkl. Handlungsplan",
+      anrede: "Guten Tag Max Mustermann,",
+      auskunfteien: auskunfteienText("DE"),
+      unterschrift_satz: "Damit wir das dürfen, unterschreiben Sie bitte einmal die Vollmacht zur Übermittlung und gleich danach Ihre drei Anfragen — nacheinander auf einer Seite, mit dem Finger am Bildschirm.",
+      unterschrift_url: "https://www.fiaon.com/app/unterschrift/123.1799999999000.0f3a9b7c2e4d0f3a9b7c2e4d0f3a9b7c",
+      login_url: "https://www.fiaon.com/app/vorgaenge",
+    },
+  },
+  {
+    type: "auskunft_angebot",
+    label: "Angebot Bonitätsauskunft (Werbung, Kunde)",
+    description: `WERBUNG an Bestandskunden ohne Auskunft: was wir tun, bei welchen Auskunfteien (je Land), Preis (${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} mit Paket, ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} einzeln; Firma ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)} / ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}), Knopf „Auskunft beauftragen“ (kauf_url) und „Ich habe schon eine — hochladen“. Drei Fassungen im Wechsel (fassung a/b/c). Abmeldelink Pflicht; die Tür lehnt ab bei Werbesperre (auch von Hand), Vertriebssperre, gekaufter oder vorliegender Auskunft, Kündigung und — automatisch — ohne Grundlage nach § 7 Abs. 3 UWG (Kunde vor dem 02.09.2026 12:35; Regel: sperrUrteil in fiaon-mail-frequenz.ts). Nutzlast und Vorprüfung: auskunftAngebotNutzlast / auskunftAngebotSperre (server/lib/fiaon-auskunft-lieferung.ts).`,
+    customerBound: false,
+    example: {
+      email: "max.mustermann@example.com",
+      person_id: 4711,
+      vorname: "Max",
+      nachname: "Mustermann",
+      anrede: "Guten Tag Max Mustermann,",
+      preis_text: euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo),
+      mit_abo: true,
+      land: "DE",
+      art: "privat",
+      auskunfteien: auskunfteienText("DE"),
+      leistung: auskunftLeistung("privat", "DE"),
+      fassung: "a",
+      kauf_url: "https://www.fiaon.com/api/fiaon/auskunft/bestellen?p=4711&art=privat&exp=1799999999000&sig=0f3a9b7c2e4d",
+      upload_url: "https://www.fiaon.com/app/unterlagen",
+      abmelde_url: "https://www.fiaon.com/api/fiaon/abmelden/p/4711.0f3a9b7c2e4d",
+    },
   },
   {
     type: "account_activated",

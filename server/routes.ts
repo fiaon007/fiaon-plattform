@@ -581,6 +581,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    antwortet alles sauber mit einem Einrichtungs-Zustand — nichts crasht.
   const fiaonTelefonie = await import('./routes/fiaon-telefonie');
   app.use('/api/fiaon', fiaonTelefonie.default);
+  // 🧾 Bonitätsauskunft aus der Unterlagen-Mail beauftragen (24.09.2026, E-240):
+  //    signierter Link → Bestätigungsseite → Zahlungsseite. Ohne Anmeldung.
+  const fiaonAuskunftKauf = await import('./routes/fiaon-auskunft-kauf');
+  app.use('/api/fiaon', fiaonAuskunftKauf.default);
 
   // 💼 Forderungsmanagement — eigener Bereich fuer die Rolle 'inkasso'.
   //    Sichtfeld hart auf bezahlte Kunden mit laufender Ratenzahlung begrenzt.
@@ -604,6 +608,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Justins TODO-Liste (E-025) — hinter dem Admin-Gate wie alles unter /admin.
   const fiaonTodoRoutes = await import('./routes/fiaon-betreiber-todo');
   app.use('/api/fiaon', fiaonTodoRoutes.default);
+  // 24.09.2026 (E-240): „Neu von Mara" — die Karte unten rechts im Office (ungelesene eigene Aufgaben).
+  app.use('/api/fiaon', (await import('./routes/fiaon-agent-aufgaben-popup')).default);
   const fiaonVermerkeRoutes = await import('./routes/fiaon-vermerke');
   app.use('/api/fiaon', fiaonVermerkeRoutes.default);
 
@@ -993,6 +999,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (v > 0) console.log(`[RUECKHOLUNG] ${v} Mails: ` + erg.map((e) => `${e.segment}=${e.verschickt}`).join(' '));
       return erg;
     }, 30 * 60 * 1000, { beimStartNach: 180_000 });
+  });
+
+  // 🧾 Verkaufstakt Bonitätsauskunft (24.09.2026, E-240): Angebots-Mail, WhatsApp, zweite Mail —
+  //    höchstens drei Berührungen, nur § 7 Abs. 3 UWG. AUS, bis auskunft_verkauf_an = 1 (Chefbüro
+  //    /chef/s/auskunft). Die Route trägt auch den öffentlichen Knopf der WhatsApp-Vorlage (/auskunft/k/:token).
+  const chefAuskunft = await import('./routes/fiaon-chef-auskunft');
+  app.use('/api/fiaon', chefAuskunft.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('auskunft_verkauf', async () => await (await import('./lib/fiaon-auskunft-verkauf')).verkaufsTakt(), 30 * 60 * 1000, { beimStartNach: 420_000 });
   });
 
   // 💶 Die Einladung zum Bankeinzug (Lauf „sepa-werbung", E-072) ist seit 19.09.2026

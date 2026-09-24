@@ -295,18 +295,36 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Bitte, ein Dokument im Bereich hochzuladen — mit dem Hinweis, was fehlt. Geht über „Anfordern“ an den Unterlagen.",
     vonHand: false, pflichtFelder: ["hinweis"],
   },
+  // ── DIE BONITÄTSAUSKUNFT (24.09.2026, E-240) ──────────────────────────────
+  // Alle drei entstehen jetzt im Liefer-Weg (server/lib/fiaon-auskunft-lieferung.ts)
+  // und tragen, was nur er kennt: Unterschriftslink, Auskunfteien des Landes,
+  // die antwortende Auskunftei. Aus dem Sende-Menü wären sie ohne Knopf bzw.
+  // ohne Namen — deshalb vonHand: false. Die klartext-Sätze stimmen jetzt mit
+  // dem überein, was die Mail sagt (vorher: „Bitte um die Bonitätsauskunft").
   schufa_requested: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
-    klartext: "Bitte um die Bonitätsauskunft.",
+    klartext: "Nach der Zahlung einer Auskunft: Die Anfragen an die Auskunfteien des Landes sind angelegt — bitte Vollmacht und Anfragen unterschreiben. Geht automatisch, einmal je Bestellung.",
+    vonHand: false, pflichtFelder: ["anrede", "unterschrift_url", "unterschrift_satz", "auskunfteien"],
   },
   schufa_approved: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
-    klartext: "Die eingereichte Auskunft ist angenommen.",
+    klartext: "Die Datenkopie einer Auskunftei ist eingegangen — die Auswertung beginnt. Geht automatisch, wenn im Vorgang „Selbstauskunft“ das Ergebnis eingetragen wird.",
+    vonHand: false, pflichtFelder: ["anrede", "auskunftei"],
   },
   schufa_rejected: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
-    klartext: "Die eingereichte Auskunft genügt nicht — mit Begründung.",
-    vonHand: false, pflichtFelder: ["grund"],
+    klartext: "Eine Auskunftei hat eine Rückfrage — mit dem Satz des Mitarbeiters. Geht automatisch mit dem Ergebnis „abgelehnt“ im Vorgang „Selbstauskunft“.",
+    vonHand: false, pflichtFelder: ["anrede", "grund", "auskunftei"],
+  },
+  // WERBUNG (E-240): Das Angebot der Bonitätsauskunft. Rollen: das System (Takt)
+  // und jeder Mitarbeiter mit Kundenkontakt — nach einem Gespräch, in dem der
+  // Kunde es wollte. Nicht im allgemeinen Menü: Preis, Kauflink und Abmeldelink
+  // baut auskunftAngebotNutzlast; der Aufrufer gibt sie als `zusatz` mit. Die Tür
+  // (make-webhook.ts) lehnt bei Werbesperre auch den Handversand ab.
+  auskunft_angebot: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding", "inkasso"],
+    klartext: "Werbung: das Angebot der Bonitätsauskunft (Preis je Paketstand, Auskunfteien je Land, Knopf zum Beauftragen). Nie an Käufer, nie bei Werbe- oder Vertriebssperre oder Kündigung; automatisch nur an Kunden ab dem 02.09.2026 (§ 7 Abs. 3 UWG).",
+    vonHand: false, pflichtFelder: ["kauf_url", "upload_url", "abmelde_url", "preis_text"],
   },
   // 18.09.2026: Das ist die ENTSPERRUNG („Ihr Zugang ist wieder frei") — sie
   // geht beim Freischalten in der Akte. Aus dem Menü an einen Kunden, der nie

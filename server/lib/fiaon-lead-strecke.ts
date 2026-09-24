@@ -5,20 +5,34 @@
 // steht, WER dran ist, WAS ihn stoppt und WIE gesendet wird.
 //
 // ── STOPP HEISST STOPP ─────────────────────────────────────────────────────
-// Sechs Gründe beenden die Strecke endgültig:
+// Sieben Gründe beenden die Strecke endgültig:
 //
 //   antrag      Der Mensch hat einen Antrag gestellt → er ist Stufe B, ein
 //               Agent ruft an. Weiter zu mailen wäre doppelte Ansprache.
 //   kunde       Er hat bezahlt. Ein Kunde ist kein Lead mehr.
 //   abgemeldet  Er hat auf den Abmelde-Link geklickt. Ein Klick, ohne Rückfrage.
+//   werbesperre Er hat „Stopp" gesagt — per Mail, WhatsApp oder am Telefon
+//               (fiaon_persons.werbung_gesperrt_am, auch an einer
+//               zusammengeführten Person). 25.09.2026, E-240.
 //   bounce      Die Adresse existiert nicht. Weiter zu senden schadet der
 //               Zustellbarkeit ALLER Mails des Hauses.
 //   dsgvo       Gelöscht.
 //   test        Testeintrag.
 //
 // Die Prüfung steht in EINER Funktion (`stoppGrund`) — nicht in der WHERE-Zeile
-// des Tageslaufs. Sonst prüft der Lauf sechs Bedingungen und der Handversand
+// des Tageslaufs. Sonst prüft der Lauf sieben Bedingungen und der Handversand
 // keine.
+//
+// ── EIN NEIN DER TÜR IST EIN NEIN (25.09.2026, E-240) ──────────────────────
+// Justin: „Bekommt der eine Sperre, dass wir dem nichts weiter schicken?"
+// Bis heute nicht verlässlich: Lehnte die Mail-Tür (sendMakeWebhookMitGrund)
+// eine Strecken-Mail ab, schickte `streckenMail` sie über Brevo direkt nach.
+// Gemessen (Produktion, 30 Tage bis 24.09.2026): 221 Strecken-Mails an 110
+// Leads gingen so an der Tür vorbei — 165 an unzustellbare Adressen, 53 an
+// blockierende Postfächer, 2 nach einer Werbesperre, 1 über dem Wochendeckel.
+// Dazu 4 Strecken-Mails an 2 Leads, deren Person vor dem Versand „Stopp"
+// gesagt hatte. Jetzt: Der Rückfall gilt nur, wenn die Tür JA gesagt hat und
+// der Weg dahinter (Make oder Direktversand) gescheitert ist (`transport`).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { randomBytes } from "node:crypto";
@@ -34,12 +48,12 @@ type Lauf = typeof sqlPool;
 /** Höchstens so viele Strecken-Mails am Tag. Einstellbar. */
 export const STAFFEL_VORGABE = 200;
 
-export type StoppGrund = "antrag" | "kunde" | "abgemeldet" | "bounce" | "dsgvo" | "test" | "hand";
+export type StoppGrund = "antrag" | "kunde" | "abgemeldet" | "werbesperre" | "bounce" | "dsgvo" | "test" | "hand";
 
 /**
  * Warum ist dieser Lead nicht (mehr) in der Strecke? `null` = er läuft.
  *
- * Eine Funktion, sechs Gründe. Der Tageslauf ruft sie, der Handversand ruft
+ * Eine Funktion, sieben Gründe. Der Tageslauf ruft sie, der Handversand ruft
  * sie, der Prüfstand ruft sie.
  */
 export async function stoppGrund(leadId: number, lauf: Lauf = sqlPool): Promise<{
@@ -72,7 +86,29 @@ export async function stoppGrund(leadId: number, lauf: Lauf = sqlPool): Promise<
            EXISTS (
              SELECT 1 FROM fiaon_persons p
              WHERE p.id = le.person_id AND p.ist_test_am IS NOT NULL
-           ) AS ist_test
+           ) AS ist_test,
+           -- E-240 (25.09.2026): die Werbesperre des MENSCHEN — an seiner Person,
+           -- an der Person, in die sie zusammengeführt wurde, oder an jeder anderen,
+           -- die in dieselbe zusammengeführt wurde (die Sperre wandert beim
+           -- Zusammenführen nicht mit, fiaon-person-model.ts).
+           EXISTS (
+             SELECT 1 FROM fiaon_persons p
+               JOIN fiaon_persons q
+                 ON q.id = COALESCE(p.merged_into_person_id, p.id)
+                 OR q.merged_into_person_id = COALESCE(p.merged_into_person_id, p.id)
+             WHERE p.id = le.person_id AND q.werbung_gesperrt_am IS NOT NULL
+           ) AS werbesperre,
+           -- 25.09.2026: auch die Vertriebssperre (is_blocked) — dieselbe Bedingung wie
+           -- Mara-Aktion, WA-Zentrale und Rückholung. Gemessen: 57 Strecken-Mails an 23
+           -- gesperrte Leads in 30 Tagen. Justin: „bekommt der eine Sperre, dass wir dem
+           -- nichts weiter schicken?"
+           EXISTS (
+             SELECT 1 FROM fiaon_persons p
+               JOIN fiaon_persons q
+                 ON q.id = COALESCE(p.merged_into_person_id, p.id)
+                 OR q.merged_into_person_id = COALESCE(p.merged_into_person_id, p.id)
+             WHERE p.id = le.person_id AND COALESCE(q.is_blocked, FALSE)
+           ) AS vertriebssperre
     FROM fiaon_leads le WHERE le.id = ${leadId}
   `) as any[];
   if (!l) return { stopp: "hand", klartext: "Lead nicht gefunden." };
@@ -83,6 +119,8 @@ export async function stoppGrund(leadId: number, lauf: Lauf = sqlPool): Promise<
     return { stopp: String(l.strecke_stopp) as StoppGrund, klartext: `Bereits gestoppt: ${l.strecke_stopp}` };
   }
   if (l.abgemeldet_am) return { stopp: "abgemeldet", klartext: "Der Mensch hat sich abgemeldet." };
+  if (l.werbesperre) return { stopp: "werbesperre", klartext: "Der Mensch hat um keine weitere Werbung gebeten (Werbesperre)." };
+  if (l.vertriebssperre) return { stopp: "hand", klartext: "Vertriebssperre — der Mensch wird nicht mehr angeschrieben." };
   if (l.bounce_am) return { stopp: "bounce", klartext: "Die Adresse ist nicht erreichbar (harter Bounce)." };
   if (l.person_weg) return { stopp: "dsgvo", klartext: "Die Person wurde gelöscht (DSGVO)." };
   if (l.ist_test) return { stopp: "test", klartext: "Testeintrag." };
@@ -206,12 +244,17 @@ export async function faellige(
  * die Vorlage sie einsetzen kann. Fehlt bei Make eine Behandlung dafür, geht
  * die Mail über die direkte Brevo-Schiene mit dem FIAON-Rahmen raus — dann
  * kommt sie trotzdem an, und der Betreiber sieht es im Protokoll.
+ *
+ * E-240 (25.09.2026): Der Rückfall NUR bei einer Störung hinter der Tür
+ * (`transport`). Hat die Tür selbst abgelehnt, ist das Ergebnis
+ * „uebersprungen" — mit `stopp`, wenn das Nein endgültig ist (Werbesperre,
+ * unzustellbare Adresse).
  */
 export async function streckenMail(
   lead: { id: number; email: string; vorname: string | null; nachname: string | null; person_id?: number | null; anrede?: string | null },
   stufe: number,
   lauf: Lauf = sqlPool,
-): Promise<{ status: "versandt" | "fehlgeschlagen" | "uebersprungen"; grund?: string; variante: string }> {
+): Promise<{ status: "versandt" | "fehlgeschlagen" | "uebersprungen"; grund?: string; variante: string; stopp?: StoppGrund }> {
   const v = varianteFuer(stufe, lead.id);
   const abmelden = await abmeldeLink(lead.id, lauf);
   // E-210 (22.09.2026): der persönliche Link statt /antrag?lead=<id> — den las der Antrag
@@ -261,8 +304,23 @@ export async function streckenMail(
     } as any);
     if (erg.ok) return { status: "versandt", variante: v.key };
 
+    // ── EIN NEIN DER TÜR IST KEIN FALL FÜR DEN ZWEITEN WEG (25.09.2026, E-240) ──
+    // `transport` setzt die Tür nur, wenn SIE die Mail durchgelassen hat und erst
+    // der Weg dahinter scheiterte (Make, Direktversand). Alles andere ist ihr
+    // Urteil über diesen Empfänger — Werbesperre, unzustellbare Adresse,
+    // blockierendes Postfach, Deckel, fehlender Abmeldelink, keine Adresse. Bis
+    // heute schickte die Strecke genau diese Mails über Brevo nach (221 in 30
+    // Tagen). Endgültig ist das Nein bei der Werbesperre und bei einer hart
+    // unzustellbaren Adresse (Rückläufer, Spam-Meldung): Dann endet die Strecke.
+    if (!erg.transport) {
+      const g = String(erg.grund ?? "").trim() || "Die Mail-Tür hat abgelehnt.";
+      const stopp: StoppGrund | undefined = /Werbesperre/.test(g) ? "werbesperre" : /unzustellbar/.test(g) ? "bounce" : undefined;
+      return { status: "uebersprungen", grund: g, variante: v.key, ...(stopp ? { stopp } : {}) };
+    }
+
     // ── DER ZWEITE WEG ──────────────────────────────────────────────────
-    // Make hat abgelehnt oder ist nicht erreichbar. Die direkte Brevo-Schiene
+    // Make hat abgelehnt oder ist nicht erreichbar (oder der Direktversand
+    // scheiterte) — NACHDEM die Tür Ja gesagt hat. Die direkte Brevo-Schiene
     // mit dem FIAON-Rahmen ist der Rückfall: Besser eine schlichte Mail als
     // keine. Der Grund des ersten Versuchs bleibt im Protokoll.
     const { eigeneMailSenden } = await import("./fiaon-brevo");
@@ -291,13 +349,13 @@ export async function streckenMail(
  */
 export async function streckeTageslauf(opts: {
   hoechstens?: number; lauf?: Lauf;
-} = {}): Promise<{ versandt: number; fehlgeschlagen: number; gestoppt: number; hinweis: string }> {
+} = {}): Promise<{ versandt: number; fehlgeschlagen: number; gestoppt: number; zurueckgehalten: number; hinweis: string }> {
   const lauf = opts.lauf ?? sqlPool;
 
   // Ohne Kanal läuft nichts — und es wird protokolliert, nicht verschluckt.
   const { versandErlaubtOderProtokoll } = await import("./fiaon-versandkanal");
   if (!(await versandErlaubtOderProtokoll("Lead-Strecke", lauf))) {
-    return { versandt: 0, fehlgeschlagen: 0, gestoppt: 0,
+    return { versandt: 0, fehlgeschlagen: 0, gestoppt: 0, zurueckgehalten: 0,
              hinweis: "Kein Versandkanal — übersprungen, nichts verbraucht." };
   }
 
@@ -334,13 +392,16 @@ export async function streckeTageslauf(opts: {
   const dran = await faellige(grenze, lauf);
   let versandt = 0;
   let fehlgeschlagen = 0;
+  // E-240: von der Mail-Tür abgewiesen (kein Versand, kein Rückfall über Brevo).
+  let zurueckgehalten = 0;
+  let einzelStopps = 0;
 
   for (const l of dran) {
     // Die Einzelprüfung noch einmal: Zwischen Auswahl und Versand kann eine
     // Abmeldung eingegangen sein.
     const pruefung = await stoppGrund(Number(l.id), lauf);
     if (pruefung.stopp) {
-      await streckeStoppen(Number(l.id), pruefung.stopp, lauf);
+      if ((await streckeStoppen(Number(l.id), pruefung.stopp, lauf)).gestoppt) einzelStopps++;
       continue;
     }
 
@@ -363,6 +424,18 @@ export async function streckeTageslauf(opts: {
         WHERE id = ${l.id}
       `;
       versandt++;
+    } else if (erg.status === "uebersprungen") {
+      // E-240: Die Tür hat Nein gesagt. Endgültig (Werbesperre, unzustellbar) →
+      // die Strecke endet; sonst (Deckel, Blockade) ein neuer Versuch frühestens
+      // nach dem Mindestabstand — dieselbe Stufe, nichts verbraucht.
+      zurueckgehalten++;
+      if (erg.stopp) {
+        if ((await streckeStoppen(Number(l.id), erg.stopp, lauf)).gestoppt) einzelStopps++;
+      } else {
+        await lauf`
+          UPDATE fiaon_leads SET strecke_letzte_am = NOW(), updated_at = NOW() WHERE id = ${l.id}
+        `;
+      }
     } else {
       fehlgeschlagen++;
       // Nur den Zeitpunkt setzen, NICHT die Stufe: So versucht der nächste
@@ -380,10 +453,12 @@ export async function streckeTageslauf(opts: {
 
   const hinweis = `${versandt} Strecken-Mail(s) versandt`
     + (fehlgeschlagen ? `, ${fehlgeschlagen} fehlgeschlagen` : "")
+    + (zurueckgehalten ? `, ${zurueckgehalten} von der Mail-Tür zurückgehalten` : "")
     + (gestoppt.length ? `, ${gestoppt.length} Strecke(n) beendet (Antrag/Kunde)` : "")
+    + (einzelStopps ? `, ${einzelStopps} Strecke(n) beendet (Einzelprüfung: Werbesperre, Abmeldung, Rückläufer u. a.)` : "")
     + `. Grenze: ${grenze}/Tag.`;
-  if (versandt || fehlgeschlagen || gestoppt.length) console.log(`[LEAD-STRECKE] ${hinweis}`);
-  return { versandt, fehlgeschlagen, gestoppt: gestoppt.length, hinweis };
+  if (versandt || fehlgeschlagen || zurueckgehalten || gestoppt.length || einzelStopps) console.log(`[LEAD-STRECKE] ${hinweis}`);
+  return { versandt, fehlgeschlagen, gestoppt: gestoppt.length + einzelStopps, zurueckgehalten, hinweis };
 }
 
 /**

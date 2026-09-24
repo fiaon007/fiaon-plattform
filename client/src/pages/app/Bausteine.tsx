@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { FRAGEN, befunde, beantwortet as anzahlBeantwortet, summeMonatlichCents, type Antworten, type Frage } from "@shared/fiaon-ansprueche";
 import type { Vorgang } from "./typen";
+import { AuskunftKaufkarte, type AuskunftKauf } from "@/components/kunde/AuskunftKauf";
 import { demoStand, demoAlterTage, DEMO_STUFEN_MAX } from "@shared/fiaon-demo-stufen";
 
 export const eur = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -290,8 +291,22 @@ function Mehrfach({ frage, wert, onWeiter }: { frage: Frage; wert: string[]; onW
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UNTERLAGEN — derselbe Endpunkt wie bisher (/upload-kyc), neue Oberfläche
+//
+// 24.09.2026 (E-240): Die Bonitätsauskunft stand hier nur als „Eigene
+// Bonitätsauskunft (optional)" — ein Upload-Feld, kein Wort davon, dass FIAON
+// sie holt. Der Weg (shared/fiaon-rahmenweg.ts, Schritt 6) schickt mit
+// „Auskunft beauftragen" genau hierher. Jetzt steht über der Liste die Wahl:
+// FIAON holt sie (Preis vom Server, Auftrag nach § 312j BGB) — oder Sie laden
+// eine aktuelle selbst hoch (das Feld unten, als zweiter, kleiner Weg). Der
+// Block kommt als `u.auskunftKauf`, weil Bereich.tsx diesem Schirm nur
+// `b.unterlagen` reicht.
 // ═══════════════════════════════════════════════════════════════════════════
-export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: string; demo: boolean; u: { hinweise?: string[]; kontoauszug: boolean; ausweis: boolean; auskunft: boolean; kycStatus?: string }; basis?: string }) {
+export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: string; demo: boolean; u: { hinweise?: string[]; kontoauszug: boolean; ausweis: boolean; auskunft: boolean; auskunftKauf?: AuskunftKauf | null; kycStatus?: string }; basis?: string }) {
+  const kauf = u.auskunftKauf ?? null;
+  // Auch vor der ersten Rate und nach einer Kündigung steht hier ein Satz: Der Weg
+  // schickt mit „Auskunft beauftragen" hierher, und eine leere Stelle wäre eine Sackgasse.
+  const kaufSperre = !!kauf && kauf.stufe === "nichts" && !!kauf.sperre;
+  const kaufZeigen = !!kauf && !u.auskunft && (kauf.darfKaufen || kauf.stufe === "offen" || kauf.stufe === "bezahlt" || kaufSperre);
   const [dateien, setDateien] = useState<{ bankStatement?: File; idCard?: File; schufaDoc?: File }>({});
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
@@ -332,10 +347,26 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
           <span className="ap-link" style={{ display: "inline-block", marginTop: 8 }}>Mehr dazu →</span>
         </Link>
       )}
+      {kaufZeigen && kauf && (
+        <section className="ap-abschnitt ap-auf v1">
+          <h2 className="ap-abschnitt-titel">{kauf.darfKaufen ? "Ihre Bonitätsauskunft: FIAON holt sie – oder Sie laden sie hoch" : "Ihre Bonitätsauskunft"}</h2>
+          <div className="ap-karte">
+            {kaufSperre ? (
+              <p style={{ margin: 0 }}>
+                {kauf.sperre === "gekuendigt"
+                  ? "Ihr Vertrag ist gekündigt — eine Bonitätsauskunft lässt sich darüber nicht mehr neu beauftragen. Eine eigene, aktuelle Auskunft können Sie unten hochladen."
+                  : `Die Bonitätsauskunft ist nicht im Paket enthalten. Sobald die erste Zahlung für Ihr Paket eingegangen ist, beauftragen Sie sie hier: Wir fordern Ihre Datenkopien bei ${kauf.bei} an und erklären jeden Eintrag.`}
+              </p>
+            ) : (
+              <AuskunftKaufkarte kauf={kauf} variante="ap" demo={demo} hochladen={kauf.darfKaufen ? "#auskunft-hochladen" : null} />
+            )}
+          </div>
+        </section>
+      )}
       <div className="ap-karte ap-auf v1">
         <ol className="ap-etappen">
           {felder.map((f) => (
-            <li key={f.key} className={`ap-etappe ${f.da ? "fertig" : "jetzt"}`}>
+            <li key={f.key} id={f.key === "schufaDoc" ? "auskunft-hochladen" : undefined} className={`ap-etappe ${f.da ? "fertig" : "jetzt"}`}>
               <span className={`ap-punkt ${f.da ? "fertig" : f.optional ? "" : "jetzt"}`}>{f.da ? "✓" : null}</span>
               <div>
                 <b>{f.titel}{f.optional && !f.da ? " (optional)" : ""}</b>

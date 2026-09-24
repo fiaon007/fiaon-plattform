@@ -2326,10 +2326,18 @@ export default router;
 // „Ich telefoniere mit dem Kunden und er will die Bonitaetsauskunft — aber
 // ich kann sie nicht fuer ihn beantragen; er muss selbst auf die Plattform."
 // (Beispiel Kurt Schuhmeister.) Jetzt legt der Mitarbeiter die Bestellung
-// direkt aus der Akte an; der Kunde muss nur noch ueberweisen. Der
-// Verwendungszweck entsteht wie ueberall durch den Trigger aus Migration 037.
-// Gibt es schon eine offene oder bezahlte Auskunfts-Bestellung, wird DIE
-// zurueckgegeben — kein Doppel.
+// direkt aus der Akte an; der Kunde muss nur noch ueberweisen. Gibt es schon
+// eine offene oder bezahlte Auskunfts-Bestellung, wird DIE zurueckgegeben —
+// kein Doppel.
+//
+// 24.09.2026 (E-240): Hier stand ein eigener INSERT mit 74 € fest, ohne
+// Rechnung und ohne Zahlungsmail — und nur Referenzen mit FIAON-SCHUFA-Praefix
+// galten als „schon da". Jetzt der EINE Weg (server/lib/fiaon-auskunft.ts,
+// auskunftBestellen): Preis vom Server (74 € mit laufendem Paket, sonst 149 €),
+// offene Bestellung wiederverwenden (bis 21 Tage, gemeldete immer), sonst
+// anlegen, Rechnung und Zahlungsmail ueber bestellungFuerAntrag. Die Antwort
+// behaelt ihre Form (ok, existing, ref, paymentReference, preisEuro, hinweis) —
+// Pipeline, Akte und das Assistenten-Werkzeug bonitaet_bestellen lesen sie.
 // ═══════════════════════════════════════════════════════════════════════════
 router.post("/agent/crm/kunden/:personId/bonitaet-bestellen", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -2337,61 +2345,39 @@ router.post("/agent/crm/kunden/:personId/bonitaet-bestellen", requireAgent, asyn
     const p = await meinePerson(personId, req.agent!.id);
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
-    // Bestehende Auskunfts-Bestellung? Dann die — mit ihrem Zweck.
-    const [da] = (await sqlPool`
-      SELECT ref, payment_reference, payment_status, amount_due
-        FROM fiaon_applications
-       WHERE person_id = ${personId} AND merged_into IS NULL AND ref LIKE 'FIAON-SCHUFA-%'
-         AND COALESCE(payment_status, '') IN ('pending_payment', 'claimed_paid', 'paid')
-       ORDER BY created_at DESC LIMIT 1
-    `) as any[];
-    if (da) {
+    // Firma nur auf ausdrücklichen Wunsch (art: "firma"); sonst die private Auskunft.
+    const art = req.body?.art === "firma" ? "firma" : "privat";
+    const { auskunftBestellen } = await import("../lib/fiaon-auskunft");
+    const best = await auskunftBestellen({
+      personId, art, quelle: "betreuer", von: req.agent!.name, agentId: req.agent!.id,
+    });
+
+    if (best.art === "bezahlt") {
       return res.json({
-        ok: true, existing: true, ref: da.ref, paymentReference: da.payment_reference,
-        status: da.payment_status, preisEuro: Number(da.amount_due || 74),
-        hinweis: da.payment_status === "paid"
-          ? "Die Bonitätsauskunft ist bereits bezahlt."
-          : "Es gibt bereits eine offene Auskunfts-Bestellung — Zahlungsdaten einfach erneut senden.",
+        ok: true, existing: true, ref: best.ref, paymentReference: null, status: "paid",
+        preisEuro: null, mitAbo: best.mitAbo,
+        hinweis: "Die Bonitätsauskunft ist bereits bezahlt — es wird nichts neu bestellt.",
       });
     }
-
-    // Stammdaten: die beste Bestellung der Person als Vorlage, sonst die Person.
-    const [v] = (await sqlPool`
-      SELECT a.first_name, a.last_name, a.email, a.street, a.zip, a.city, a.country,
-             a.birthdate, a.phone, a.phone_country_code
-        FROM fiaon_applications a
-       WHERE a.person_id = ${personId} AND a.merged_into IS NULL
-       ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1
-    `) as any[];
-    const { randomBytes } = await import("node:crypto");
-    const code = randomBytes(3).toString("hex").toUpperCase().slice(0, 4);
-    const ref = `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${code}`;
-    const { SCHUFA_PREIS_EURO } = await import("../../shared/fiaon-pakete");
-    const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await sqlPool`
-      INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_name,
-                                      street, zip, city, country, birthdate, phone, phone_country_code, person_id,
-                                      payment_status, payment_due_date, amount_due, currency, created_at, updated_at)
-      VALUES (${ref}, 'schufa', 'submitted',
-              ${v?.first_name || p.first_name || null}, ${v?.last_name || p.last_name || null},
-              ${v?.email || p.primary_email || null}, 'Bonitätsauskunft inkl. Handlungsplan',
-              ${v?.street || null}, ${v?.zip || null}, ${v?.city || null}, ${v?.country || null},
-              ${v?.birthdate || null}, ${v?.phone || null}, ${v?.phone_country_code || null}, ${personId},
-              'pending_payment', ${dueDate}, ${SCHUFA_PREIS_EURO.toFixed(2)}, 'EUR', NOW(), NOW())
-    `;
-    const [neu] = (await sqlPool`SELECT payment_reference FROM fiaon_applications WHERE ref = ${ref}`) as any[];
-
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-      VALUES (${ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-              ${`Bonitätsauskunft (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €) auf Kundenwunsch aus der Akte bestellt — Verwendungszweck ${neu?.payment_reference || ref}. Der Kunde zahlt per Überweisung; danach regulär in der Zahlungszentrale buchen.`})
-    `.catch(() => {});
-
+    if (best.art === "offen") {
+      return res.json({
+        ok: true, existing: true, ref: best.ref, paymentReference: best.paymentReference, status: "offen",
+        preisEuro: best.betragCents / 100, betragText: best.betragText, mitAbo: best.mitAbo,
+        zahlungsseite: best.zahlungsseite,
+        hinweis: `Es gibt bereits eine offene Auskunfts-Bestellung (${best.betragText}) — keine zweite. `
+          + (best.zahlungsseite ? `Link zur Zahlungsseite für den Kunden: ${best.zahlungsseite}` : "Zahlungsdaten einfach erneut senden."),
+      });
+    }
+    if (!best.ok || !best.ref) {
+      return res.status(500).json({ ok: false, error: best.fehler ?? "Die Bonitätsauskunft ließ sich nicht anlegen." });
+    }
     res.json({
-      ok: true, existing: false, ref, paymentReference: neu?.payment_reference || null,
-      preisEuro: SCHUFA_PREIS_EURO,
-      hinweis: "Bestellung angelegt. Jetzt \u201eZahlungsdaten senden\u201c klicken oder IBAN und Verwendungszweck am Telefon durchgeben.",
+      ok: true, existing: false, ref: best.ref, paymentReference: best.paymentReference, status: "pending_payment",
+      preisEuro: best.betragCents / 100, betragText: best.betragText, mitAbo: best.mitAbo,
+      zahlungsseite: best.zahlungsseite,
+      hinweis: `Bonitätsauskunft angelegt: ${best.betragText} (${best.mitAbo ? "Kundenpreis mit laufendem Paket" : "Einzelpreis, kein laufendes Paket"}). `
+        + "Die Zahlungsdaten gehen dem Kunden per E-Mail zu"
+        + (best.zahlungsseite ? ` — Zahlungsseite: ${best.zahlungsseite}` : "") + ".",
     });
   } catch (err) {
     console.error("[CRM] bonitaet-bestellen:", err);

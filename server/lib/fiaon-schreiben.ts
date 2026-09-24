@@ -32,13 +32,19 @@
 
 import { renderDocumentPdf, docHash, escapeHtml } from "./fiaon-html-pdf";
 import type { Antworten } from "@shared/fiaon-ansprueche";
+import { AUSKUNFTEIEN, type Auskunftei } from "@shared/fiaon-auskunft";
 
 // ── Arten ───────────────────────────────────────────────────────────────────
 
 /** Die Antragsarten, für die es ein Schreiben und eine Vollmacht-Zeile gibt. */
 export type AntragsArt = "p_konto" | "p_konto_umwandlung" | "rundfunk" | "wohngeld" | "kfz" | "handy";
 
-export type SchreibenArt = "vollmacht" | AntragsArt | "nachfass" | "nachfrage";
+// „selbstauskunft“ (24.09.2026, E-240) steht bewusst NICHT in AntragsArt: Die
+// sechs Antragsarten sind Befunde aus dem Anspruchs-Check, die Selbstauskunft
+// ist die Lieferung einer gekauften Bonitätsauskunft (fiaon-auskunft-lieferung.ts).
+// Sie wäre sonst stillschweigend Teil der Vorgabe-Vollmacht („leer = alle
+// Antragsarten“) und des Prüfstands scripts/pruef-schreiben.ts geworden.
+export type SchreibenArt = "vollmacht" | AntragsArt | "selbstauskunft" | "nachfass" | "nachfrage";
 
 export const ANTRAGSARTEN: readonly AntragsArt[] = ["p_konto", "p_konto_umwandlung", "rundfunk", "wohngeld", "kfz", "handy"];
 
@@ -54,12 +60,15 @@ export const ANTRAGSART_KLARTEXT: Record<AntragsArt, { titel: string; stelle: st
 
 /**
  * Zeilen, die eine Vollmacht umfassen kann — die sechs Antragsarten plus die
- * Selbstauskunft (Vorgangsart aus 080, ohne eigene Vorlage hier). Der Router
+ * Selbstauskunft (Vorgangsart aus 080; Vorlage seit 24.09.2026 unten). Der Router
  * gibt `vollmachtUmfang` als diese SCHLÜSSEL; unbekannte Werte fallen weg.
  */
 export const VOLLMACHT_ZEILEN: Record<string, { titel: string; stelle: string }> = {
   ...ANTRAGSART_KLARTEXT,
-  selbstauskunft: { titel: "Selbstauskunft nach Art. 15 DSGVO", stelle: "die Auskunfteien" },
+  // 24.09.2026 (E-240): Die Zeile nannte nur Art. 15 DSGVO — für Kunden in der
+  // Schweiz gilt Art. 25 DSG (CRIF AG, Intrum AG). Die Vollmacht beschreibt, was
+  // sie deckt; eine falsche Rechtsgrundlage darin wäre die erste Rückfrage der Stelle.
+  selbstauskunft: { titel: "Anfrage auf Selbstauskunft (Datenkopie nach Art. 15 DSGVO, in der Schweiz Art. 25 DSG)", stelle: "die Auskunfteien" },
 };
 export const VOLLMACHT_UMFANG_SCHLUESSEL: readonly string[] = Object.keys(VOLLMACHT_ZEILEN);
 
@@ -109,6 +118,13 @@ export interface SchreibenDaten {
   bezug?: { aktenzeichen: string; versandtAm: string; empfaenger: string } | null;
   /** Nur Kündigungen: Vertrags- oder Kundennummer und Kennzeichen, wenn der Kunde sie angegeben hat. */
   vertrag?: { nummer?: string | null; kennzeichen?: string | null } | null;
+  /**
+   * Nur Selbstauskunft (E-240): der Schlüssel der Auskunftei aus
+   * shared/fiaon-auskunft.ts (AUSKUNFTEIEN). Fehlt er, wird sie über den Namen
+   * des Empfängers gefunden — so rendert auch ein gespeicherter Vorgang, der
+   * nur empfaenger_name trägt, wieder dasselbe Schreiben.
+   */
+  auskunftei?: string | null;
 }
 
 export interface Schreiben {
@@ -461,11 +477,80 @@ function nachfrage(d: SchreibenDaten): Schreiben {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SELBSTAUSKUNFT — DIE ANFRAGE AN EINE AUSKUNFTEI (24.09.2026, E-240)
+//
+// Bis heute kaufte ein Kunde die Bonitätsauskunft und bekam — nichts: 59 von 66
+// Käufern hatten kein Dokument, fiaon_vorgaenge war leer. Die Lieferung
+// (server/lib/fiaon-auskunft-lieferung.ts) legt je Auskunftei seines Landes
+// einen Vorgang an; das hier ist das Schreiben darin.
+//
+// Wie jedes Schreiben dieser Datei eine ERKLÄRUNG DES KUNDEN in Ich-Form: Die
+// Vollmacht zur Übermittlung erlaubt FIAON nur, unterschriebene Erklärungen zu
+// übermitteln — nicht, selbst Auskunft zu verlangen. Deshalb unterschreibt der
+// Kunde jede Anfrage; FIAON versendet sie als Bote.
+//
+// Die Antwort geht an die Anschrift des Kunden, nicht an FIAON: Auskunfteien
+// schicken die Datenkopie an die Wohnanschrift der betroffenen Person. Der
+// Kunde fotografiert sie im Vorgang (Weg „Bescheid“ im Router).
+//
+// Rechtsnormen genannt, nicht ausgelegt: Art. 15 DSGVO (Deutschland,
+// Österreich) bzw. Art. 25 DSG (Schweiz) aus AUSKUNFTEIEN.recht. Keine Frist mit
+// Zahl — die gesetzliche Frist wird mit ihrer Norm benannt.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Auskunftei zu einem Schreiben: Schlüssel, sonst Name des Empfängers. */
+export function auskunfteiFuerSchreiben(d: Pick<SchreibenDaten, "auskunftei" | "empfaenger">): Auskunftei | null {
+  const key = String(d.auskunftei ?? "").trim();
+  if (key) {
+    const a = AUSKUNFTEIEN.find((x) => x.key === key);
+    if (a) return a;
+  }
+  const name = String(d.empfaenger?.name ?? "").trim();
+  return name ? AUSKUNFTEIEN.find((x) => x.name === name) ?? null : null;
+}
+
+function selbstauskunft(d: SchreibenDaten): Schreiben {
+  const a = auskunfteiFuerSchreiben(d);
+  const e = a
+    ? { name: a.name, adresse: a.anschrift.join("\n") }
+    : empfaengerOder(d, "An die Auskunftei");
+  const kurz = a?.kurz ?? "der Auskunftei";
+  const name = vollerName(d.kunde);
+  const schweiz = a?.land === "CH";
+  const geb = d.kunde.geburtsdatum ? `, geboren am ${escapeHtml(datumDeutsch(d.kunde.geburtsdatum))}` : "";
+  const anschrift = [d.kunde.strasse, [d.kunde.plz, d.kunde.ort].filter(Boolean).join(" ")].filter((x) => String(x || "").trim()).join(", ");
+  const wohnhaft = anschrift ? `, wohnhaft ${escapeHtml(anschrift)}` : "";
+
+  const inhalt = schweiz
+    ? absatz(`Ich, ${escapeHtml(name)}${geb}${wohnhaft}, verlange gestützt auf Art. 25 des Bundesgesetzes über den Datenschutz (DSG) Auskunft darüber, ob und welche Personendaten Sie über mich bearbeiten.`)
+      + absatz(`Bitte teilen Sie mir dabei die Angaben nach Art. 25 Abs. 2 DSG mit: die bearbeiteten Personendaten als solche, den Bearbeitungszweck, die Aufbewahrungsdauer oder die Kriterien dafür, die verfügbaren Angaben über die Herkunft der Daten, gegebenenfalls das Vorliegen einer automatisierten Einzelentscheidung und die Logik, auf der sie beruht, sowie gegebenenfalls die Empfänger, denen Sie meine Daten bekanntgeben.`)
+      + absatz(`Bitte erteilen Sie mir die Auskunft innert der gesetzlichen Frist schriftlich an meine oben genannte Anschrift.`)
+    : absatz(`Ich, ${escapeHtml(name)}${geb}${wohnhaft}, bitte Sie um Auskunft nach Art. 15 DSGVO, ob und welche personenbezogenen Daten Sie zu meiner Person verarbeiten, und um eine Kopie dieser Daten nach Art. 15 Abs. 3 DSGVO.`)
+      + absatz(`Bitte teilen Sie mir dabei auch die Angaben nach Art. 15 Abs. 1 DSGVO mit: die Zwecke der Verarbeitung, die Empfänger, denen die Daten offengelegt wurden oder werden, die geplante Dauer der Speicherung, die Herkunft der Daten sowie das Bestehen einer automatisierten Entscheidungsfindung einschließlich Profiling, mit aussagekräftigen Informationen über die dabei verwendete Logik.`)
+      + absatz(`Die Auskunft ist nach Art. 12 Abs. 5 DSGVO unentgeltlich. Bitte erteilen Sie sie innerhalb der Frist des Art. 12 Abs. 3 DSGVO an meine oben genannte Anschrift.`);
+
+  const html = kopf(d, e.name, e.adresse, schweiz ? "Auskunftsbegehren nach Art. 25 DSG" : "Auskunft nach Art. 15 DSGVO und Kopie meiner Daten")
+    + inhalt
+    + absatz(`Zu meiner Identifizierung dienen die oben genannten Angaben. Benötigen Sie weitere Angaben, etwa frühere Anschriften oder einen Nachweis meiner Identität, teilen Sie mir das bitte mit.`)
+    + gruss(d.kunde);
+
+  return {
+    titel: `Datenkopie bei ${a?.kurz ?? "der Auskunftei"}`,
+    empfaengerName: e.name,
+    empfaengerAdresse: e.adresse,
+    html,
+    hinweisFuerKunden: `Mit dieser Anfrage verlangen Sie von ${kurz} die Daten, die dort über Sie gespeichert sind. Die Antwort kommt in der Regel per Post an Ihre Anschrift – fotografieren Sie sie hier, sobald sie da ist. Danach erklären wir Ihnen jeden Eintrag, prüfen die Speicherfristen und legen Ihnen Ihren Handlungsplan vor.`,
+    fusszeile: fusszeileFuer(d.aktenzeichen),
+  };
+}
+
 // ── Öffentliche Schnittstelle ───────────────────────────────────────────────
 
 export function schreibenErzeugen(art: SchreibenArt, daten: SchreibenDaten): Schreiben {
   switch (art) {
     case "vollmacht": return vollmacht(daten);
+    case "selbstauskunft": return selbstauskunft(daten);
     case "p_konto": return pKonto(daten);
     case "p_konto_umwandlung": return pKontoUmwandlung(daten);
     case "rundfunk": return rundfunk(daten);

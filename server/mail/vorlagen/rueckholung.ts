@@ -228,7 +228,8 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
     titel: "Ihr Antrag liegt bei uns",
     absaetze: [
       "Guten Tag {{params.vorname}}, Sie haben bei uns einen Antrag für <b>{{params.paket}}</b> gestellt. Er ist vollständig bei uns eingegangen — und wir haben uns dazu bisher nicht bei Ihnen gemeldet. Das holen wir hiermit nach.",
-      "Was passiert, sobald es losgeht: Wir holen Ihre Auskunft ein, prüfen jeden einzelnen Eintrag und schreiben die an, die angreifbar sind. Jeden Schritt sehen Sie in Ihrem persönlichen Bereich, und ein fester Ansprechpartner begleitet Sie dabei.",
+      // 25.09.2026 (E-240): vorher „Wir holen Ihre Auskunft ein, …" — die Auskunft ist ein Zusatzprodukt.
+      "Was passiert, sobald es losgeht: Wir werten Ihre Unterlagen aus, erklären jeden Eintrag Ihrer Bonitätsauskunft und schreiben die an, die angreifbar sind. Jeden Schritt sehen Sie in Ihrem persönlichen Bereich, und ein fester Ansprechpartner begleitet Sie dabei.",
       "Bevor etwas Verbindliches geschieht, sollten wir aber miteinander gesprochen haben. Wählen Sie unten einen Termin — fünfzehn Minuten, in denen wir Ihre Lage ansehen und Sie uns alles fragen, was offen ist. Was danach kommt, entscheiden Sie.",
       "Sie möchten lieber gleich beginnen, ohne auf ein Gespräch zu warten? Dann geht das auch: Der QR-Code unten enthält Ihre fertige Überweisung, ganz unten steht der Link „Zahlungsseite ansehen“. Ihr Ansprechpartner meldet sich danach genauso bei Ihnen.",
     ],
@@ -276,7 +277,8 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
     titel: "Ihre Akte liegt weiter bereit",
     absaetze: [
       "Guten Tag {{params.vorname}}, Ihr Antrag für <b>{{params.paket}}</b> ist bei uns offen geblieben. Wir haben ihn nicht geschlossen — Ihre Akte liegt unverändert bereit, und das bleibt so, bis Sie sich entscheiden.",
-      "Was wir täten, sobald Sie möchten: Ihre Auskunft einholen, jeden Eintrag einzeln prüfen und die anschreiben, die angreifbar sind. Ein fester Ansprechpartner begleitet Sie dabei, und jeden Schritt sehen Sie in Ihrem persönlichen Bereich.",
+      // 25.09.2026 (E-240): vorher „Ihre Auskunft einholen, …" — die Auskunft ist ein Zusatzprodukt.
+      "Was wir täten, sobald Sie möchten: Ihre Unterlagen auswerten, jeden Eintrag Ihrer Bonitätsauskunft einzeln prüfen und die anschreiben, die angreifbar sind. Ein fester Ansprechpartner begleitet Sie dabei, und jeden Schritt sehen Sie in Ihrem persönlichen Bereich.",
       "Nach fünfzehn Minuten wissen Sie drei Dinge: was in Ihrem Fall der nächste Schritt wäre, was er kostet und ob er sich für Sie lohnt — und wenn nicht, sagen wir Ihnen das genauso offen. Den Termin wählen Sie unten selbst; wir rufen Sie dann an.",
       "Möchten Sie keine Nachrichten mehr von uns: Antworten Sie mit <b>Stopp</b> oder nutzen Sie den Abmeldelink am Ende — dann schreiben wir Ihnen nicht mehr.",
     ],

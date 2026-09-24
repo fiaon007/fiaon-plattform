@@ -23,7 +23,8 @@
 //     in 30 Tagen.
 //   · „STOPP" oder „Keine Nachrichten mehr" ist endgültig. Werbesperre,
 //     Sperre, Testkonto, zusammengeführte Personen: nie.
-//   · Wer bezahlt oder eine Zahlung gemeldet hat, bekommt nichts von hier.
+//   · Wer bezahlt oder eine Zahlung gemeldet hat, bekommt nichts von hier —
+//     außer den zwei benannten Gruppen „Monatsrate fällig" und „Auskunft fehlt".
 //   · Eine Rechnung nur mit echtem Betrag (Katalogpreis) und echter Referenz.
 //   · Nur Vorlagen, die Meta freigegeben hat (Text- oder Bildfassung).
 //
@@ -36,6 +37,20 @@
 // eskaliert; höchstens alle 7 Tage und zweimal je Rate. Anfangs nur von Hand —
 // die Automatik nimmt die Gruppe erst, wenn Justin sie dazuschaltet.
 //
+// ── DIE AUSKUNFT FEHLT (24.09.2026, E-240) ─────────────────────────────────
+// Zweite Ausnahme von „wer bezahlt, bekommt nichts": zahlende Kunden mit
+// laufendem Paket, denen die Bonitätsauskunft fehlt (weder bestellt noch
+// hochgeladen). Hier geht es nicht um Geld, das sie uns schulden, sondern um
+// die Leistung, ohne die ihr Weg zur Karte nicht weitergeht — und die seit dem
+// 22.08. niemand mehr per Knopf kaufen kann. Werbung bleibt es trotzdem:
+// Deshalb nur, wer nach dem 02.09.2026 12:35 zum ersten Mal beantragt hat
+// (§ 7 Abs. 3 UWG, Widerspruchs-Hinweis im Antrag), einmal je Kunde, und nur mit der Vorlage
+// fiaon_kk_auskunft — die als ENTWURF bereitliegt (WA_VORLAGEN_ENTWURF) und
+// erst nach Justins Durchsicht bei Meta eingereicht wird. Bis Meta sie
+// freigibt, zeigt die Gruppe nur, wer dran wäre. Der Verkaufstakt
+// (fiaon-auskunft-verkauf.ts) sendet über auskunftWhatsAppSenden — mit allen
+// Regeln dieser Datei und zusätzlich nur bei nachgewiesener Einwilligung.
+//
 // ── DIE ALTE STUNDENKETTE ──────────────────────────────────────────────────
 // Ist die Automatik hier AN, pausiert whatsappKetteLaufen() — sonst würde
 // zweimal geschrieben und Justins „5 pro Stunde" wäre wertlos. Die
@@ -45,10 +60,17 @@
 
 import { sqlPool } from "./db-pool";
 import { paketPreisCents } from "@shared/fiaon-pakete";
-import { WA_VORLAGEN } from "@shared/fiaon-lead-texte";
+import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
+import { AUSKUNFT_FEHLT_SQL, NACH_STICHTAG_SQL, ANGEBOT_EVENT, HOECHSTENS_BERUEHRUNGEN } from "./fiaon-auskunft-verkauf";
+import { angebotSpurenSql } from "./fiaon-auskunft";
 
-export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen";
+export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
+
+/** Eine Vorlage des Hauses — eingereicht oder als Entwurf bereitgelegt (E-240). */
+export function vorlageDef(name: string): WaVorlage | undefined {
+  return WA_VORLAGEN.find((v) => v.name === name) ?? WA_VORLAGEN_ENTWURF.find((v) => v.name === name);
+}
 
 export interface GruppenRegel {
   titel: string;
@@ -95,9 +117,19 @@ export const GRUPPEN: Record<Gruppe, GruppenRegel> = {
     standard: "fiaon_kk_rate",
     abstandTage: 7,
   },
+  // E-240 (24.09.2026): Begründung der Ausnahme im Kopf dieser Datei.
+  auskunft_fehlt: {
+    titel: "Auskunft fehlt",
+    satz: "Zahlende Kunden mit laufendem Paket ohne Bonitätsauskunft (nicht bestellt, nicht hochgeladen), nicht gekündigt — "
+      + "nur wer nach dem 02.09.2026 12:35 zum ersten Mal beantragt hat (§ 7 Abs. 3 UWG). Einmal je Kunde, höchstens drei Berührungen mit den Angebots-Mails. "
+      + "Die Vorlage liegt als Entwurf bereit und muss erst bei Meta freigegeben werden.",
+    vorlagen: [AUSKUNFT_VORLAGE],
+    standard: AUSKUNFT_VORLAGE,
+    abstandTage: 3,
+  },
 };
 
-export const GRUPPEN_REIHE: Gruppe[] = ["neu", "zahlung_offen", "abbrecher", "ohne_antrag", "rate_offen"];
+export const GRUPPEN_REIHE: Gruppe[] = ["neu", "zahlung_offen", "abbrecher", "ohne_antrag", "rate_offen", "auskunft_fehlt"];
 export const istGruppe = (g: unknown): g is Gruppe => typeof g === "string" && (GRUPPEN_REIHE as string[]).includes(g);
 
 /** Was „stufen" je Kandidat bedeutet — für die Anzeige. */
@@ -148,6 +180,8 @@ export interface Kandidat {
   betrag: string | null;       // „99,99" für {{2}} der Rechnung bzw. der Rate
   referenz: string | null;     // Verwendungszweck der ersten Zahlung bzw. der Rate
   faelligAm: string | null;    // „22.09.2026" — nur bei der Monatsrate
+  /** Nur Gruppe „auskunft_fehlt" (E-240): {{2}}–{{4}} und der Knopf der Vorlage fiaon_kk_auskunft. */
+  auskunft?: { wort: string; bei: string; preis: string; token: string } | null;
 }
 
 /** „ANNA VON DER HEIDE" / „max mustermann" → „Anna von der Heide" / „Max Mustermann". Gemischte Schreibung bleibt. */
@@ -293,6 +327,19 @@ export function gruppenBedingung(g: Gruppe): string {
       return `EXISTS (SELECT 1 FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
                        WHERE a.person_id = b.person_id AND ${BESTAND("a")} AND ${RATE_ERINNERBAR("r", "a", "b.person_id")})
               AND ${abstand} AND ${deckel}`;
+    case "auskunft_fehlt":
+      // E-240: EINE Definition mit dem Verkaufstakt (fiaon-auskunft-verkauf.ts) — laufendes Paket,
+      // keine Auskunft, nicht gekündigt, nicht Global; dazu § 7 Abs. 3 UWG (Stichtag). Einmal je
+      // Kunde (eine gesendete Vorlage dieser Gruppe beendet es), und nie über die drei Berührungen
+      // hinaus, die der Takt mit seinen Angebots-Mails zählt.
+      return `${AUSKUNFT_FEHLT_SQL("b.person_id")} AND ${NACH_STICHTAG_SQL("b.person_id")}
+              AND NOT EXISTS (SELECT 1 FROM fiaon_wa_aktion xa WHERE xa.person_id = b.person_id AND xa.gruppe = 'auskunft_fehlt' AND xa.ok)
+              AND (SELECT COUNT(*) FROM fiaon_mail_log xm WHERE xm.person_id = b.person_id AND xm.event = '${ANGEBOT_EVENT}'
+                     AND xm.status = 'versandt' AND COALESCE(xm.art, 'echt') = 'echt') < ${HOECHSTENS_BERUEHRUNGEN}
+              -- Integration 25.09.2026 (E-240): die gemeinsame Bremse (fiaon-auskunft.ts) — kein zweites
+              -- Angebot binnen drei Tagen nach einer Angebots- oder Unterlagen-Mail oder Maras Angebot.
+              AND NOT EXISTS (SELECT 1 FROM (${angebotSpurenSql("b.person_id")}) ap_spur)
+              AND ${abstand} AND ${deckel}`;
   }
 }
 
@@ -303,6 +350,7 @@ const ORDNUNG: Record<Gruppe, string> = {
   abbrecher: "b.created_at DESC",
   zahlung_offen: "b.letzte_vorlage ASC NULLS FIRST, b.created_at DESC",
   rate_offen: "b.letzte_vorlage ASC NULLS FIRST, b.created_at DESC",
+  auskunft_fehlt: "b.letzte_vorlage ASC NULLS FIRST, b.created_at DESC",
 };
 
 export async function gruppenZahlen(): Promise<Record<Gruppe, number>> {
@@ -336,7 +384,42 @@ export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = [])
      ORDER BY ${ORDNUNG[g]}
      LIMIT ${n}`, ausschluss.length ? [ausschluss] : [])) as any[];
   const aus: Kandidat[] = [];
-  for (const r of rows) {
+  for (const r of rows) aus.push(await zeileZuKandidat(g, r));
+  return aus;
+}
+
+/**
+ * Genau ein Mensch aus der Gruppe „auskunft_fehlt" — oder null, wenn eine
+ * Regel ihn heute ausschließt (E-240). `mitEinwilligung` verlangt zusätzlich
+ * die nachgewiesene WhatsApp-Einwilligung: Der Verkaufstakt schreibt von sich
+ * aus, dort gilt die strengere Regel.
+ */
+export async function auskunftKandidat(personId: number, opts: { mitEinwilligung?: boolean } = {}): Promise<Kandidat | null> {
+  await zentraleSchema();
+  const [r] = (await sqlPool.unsafe(`
+    ${BASIS}
+    SELECT b.*, EXTRACT(EPOCH FROM (NOW() - b.created_at)) / 86400 AS tage_roh
+      FROM basis b
+     WHERE b.person_id = $1 AND ${gruppenBedingung("auskunft_fehlt")}
+       ${opts.mitEinwilligung ? `AND ${WHATSAPP_EINWILLIGUNG_SQL("b.person_id")}` : ""}
+     LIMIT 1`, [personId])) as any[];
+  return r ? zeileZuKandidat("auskunft_fehlt", r) : null;
+}
+
+/** Eine Zeile der BASIS → Kandidat, mit den Werten, die die Vorlage der Gruppe braucht. */
+async function zeileZuKandidat(g: Gruppe, r: any): Promise<Kandidat> {
+  {
+    // (Bis E-240 der Rumpf der Schleife in kandidaten() — unverändert, nur herausgezogen,
+    //  damit auskunftKandidat() dieselbe Umrechnung benutzt.)
+    let auskunft: Kandidat["auskunft"] = null;
+    if (g === "auskunft_fehlt") {
+      // Preis, Wort und Auskunfteien je Land; der Knopf trägt den signierten Kauflink als Pfadstück.
+      const { waVorlagenWerte } = await import("./fiaon-auskunft-verkauf");
+      auskunft = await waVorlagenWerte(Number(r.person_id)).catch((e) => {
+        console.error("[WA-ZENTRALE] Auskunft-Werte:", e);
+        return null;
+      });
+    }
     let betrag: string | null = null;
     let referenz: string | null = null;
     let faelligAm: string | null = null;
@@ -367,7 +450,7 @@ export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = [])
         referenz = String(a.payment_reference);
       }
     }
-    aus.push({
+    return {
       personId: Number(r.person_id),
       name: schoenerName(String(r.name || "")),
       telefon: String(r.telefon || ""),
@@ -376,9 +459,9 @@ export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = [])
       tage: Math.floor(Number(r.tage_roh || 0)),
       letzteVorlageAm: r.letzte_vorlage ? new Date(r.letzte_vorlage).toISOString() : null,
       betrag, referenz, faelligAm,
-    });
+      ...(g === "auskunft_fehlt" ? { auskunft } : {}),
+    };
   }
-  return aus;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -408,6 +491,12 @@ export function werteFuer(vorlage: string, k: Kandidat): { werte: string[]; knop
     if (!k.betrag || !k.referenz) return { grund: "Kein Betrag oder keine Referenz" };
     return { werte: [anrede, k.betrag, k.referenz], knopfWert: k.referenz };
   }
+  if (vorlage === AUSKUNFT_VORLAGE) {
+    // E-240: Bestandskunden — kein „Hallo und willkommen"; Preis und Kauflink nur vom Server.
+    if (!k.name) return { grund: "Kein Name — bei Bestandskunden kein „und willkommen“" };
+    if (!k.auskunft) return { grund: "Kein Preis oder Kauflink — Auskunft inzwischen bestellt oder kein laufendes Paket" };
+    return { werte: [k.name, k.auskunft.wort, k.auskunft.bei, k.auskunft.preis], knopfWert: k.auskunft.token };
+  }
   // {{2}} ist bei diesen Vorlagen der Absender: „hier ist Mara von FIAON".
   if (["fiaon_kk_rueckfrage", "fiaon_kk_termin", "fiaon_kk_nicht_erreicht"].includes(vorlage)) return { werte: [anrede, "Mara"] };
   return { werte: [anrede] };
@@ -415,7 +504,8 @@ export function werteFuer(vorlage: string, k: Kandidat): { werte: string[]; knop
 
 export function vorlagePasst(g: Gruppe, vorlage: string): boolean {
   if (!GRUPPEN[g].vorlagen.includes(vorlage)) return false;
-  return vorlage === "stufen" || WA_VORLAGEN.some((v) => v.name === vorlage);
+  // Ein Entwurf (E-240) „passt" — gesendet wird er trotzdem erst, wenn Meta ihn freigibt (istFrei).
+  return vorlage === "stufen" || !!vorlageDef(vorlage);
 }
 
 /** Freigegeben heißt: die Textfassung oder ihre Bildfassung ist bei Meta APPROVED. */
@@ -522,7 +612,7 @@ async function protokoll(k: Kandidat, g: Gruppe, vorlage: string, quelle: string
 }
 
 async function einzelnSenden(
-  g: Gruppe, gewaehlt: string, k: Kandidat, quelle: "hand" | "automatik", laufId: string, von: string | null, frei: Set<string>,
+  g: Gruppe, gewaehlt: string, k: Kandidat, quelle: "hand" | "automatik" | "verkaufstakt", laufId: string, von: string | null, frei: Set<string>,
 ): Promise<{ ok: boolean; grund?: string }> {
   const vorlage = vorlageFuerKandidat(gewaehlt, k);
   if (!istFrei(vorlage, frei)) {
@@ -546,9 +636,31 @@ async function einzelnSenden(
   await protokoll(k, g, vorlage, quelle, laufId, von, r.ok, r.ok ? null : String(r.grund || "Senden fehlgeschlagen"), r.waId ?? null);
   if (r.ok) {
     const { waAktenvermerk } = await import("./fiaon-whatsapp");
-    await waAktenvermerk(k.personId, `WhatsApp „${vorlage}“ gesendet (${GRUPPEN[g].titel}, ${quelle === "hand" ? `von Hand gestartet${von ? ` durch ${von}` : ""}` : "Automatik"}).`);
+    await waAktenvermerk(k.personId, `WhatsApp „${vorlage}“ gesendet (${GRUPPEN[g].titel}, ${quelle === "hand" ? `von Hand gestartet${von ? ` durch ${von}` : ""}` : quelle === "verkaufstakt" ? "Verkaufstakt Bonitätsauskunft" : "Automatik"}).`);
   }
   return r.ok ? { ok: true } : { ok: false, grund: r.grund };
+}
+
+/**
+ * DIE WHATSAPP DES VERKAUFSTAKTS (24.09.2026, E-240) — eine Nachricht an
+ * genau einen Menschen der Gruppe „auskunft_fehlt". Dieselben Wände wie jeder
+ * Versand hier (Ruhezeit, Meta-Freigabe, Tagesraum, Qualität, BASIS), dazu
+ * die nachgewiesene Einwilligung. Protokolliert als quelle „verkaufstakt" —
+ * so zehrt sie nicht vom Stundenkontingent der Automatik, wohl aber vom
+ * Meta-Tagesraum (der zählt jede Vorlage).
+ */
+export async function auskunftWhatsAppSenden(personId: number, opts: { laufId: string; von: string }): Promise<{ ok: boolean; grund?: string }> {
+  if (!tagsueber()) return { ok: false, grund: "Ruhezeit (21–7 Uhr)" };
+  const { waKonfig } = await import("./fiaon-whatsapp");
+  if (!waKonfig().bereit) return { ok: false, grund: "WhatsApp nicht eingerichtet" };
+  const frei = await freigabeSatz();
+  if (!istFrei(AUSKUNFT_VORLAGE, frei)) return { ok: false, grund: "Vorlage bei Meta noch nicht freigegeben" };
+  const raum = await tagesRaum();
+  if (raum.qualitaet === "RED") return { ok: false, grund: "Meta-Qualität ROT" };
+  if (raum.frei <= 0) return { ok: false, grund: "Meta-Tageslimit erreicht" };
+  const k = await auskunftKandidat(personId, { mitEinwilligung: true });
+  if (!k) return { ok: false, grund: "Heute nicht in der Gruppe (Regeln der Zentrale, Einwilligung oder Stichtag)" };
+  return einzelnSenden("auskunft_fehlt", AUSKUNFT_VORLAGE, k, "verkaufstakt", opts.laufId, opts.von, frei);
 }
 
 /**
@@ -796,12 +908,15 @@ export async function zentraleLage() {
       LEFT JOIN fiaon_whatsapp w ON w.wa_id = x.wa_id AND x.wa_id IS NOT NULL
      ORDER BY x.erstellt_am DESC LIMIT 60`) as any[];
 
-  const vorlagenListe = WA_VORLAGEN.filter((v) => !v.varianteVon && v.name.startsWith("fiaon_kk_")).map((v) => ({
+  // E-240: Die Entwürfe (WA_VORLAGEN_ENTWURF) stehen mit in der Liste — mit „entwurf", damit
+  // Auswahl und Vorschau sie zeigen können; frei sind sie erst, wenn Meta sie freigibt.
+  const vorlagenListe = [...WA_VORLAGEN.filter((v) => !v.varianteVon && v.name.startsWith("fiaon_kk_")), ...WA_VORLAGEN_ENTWURF].map((v) => ({
     name: v.name, kopf: v.kopf ?? "", zweck: v.zweck, text: v.text,
     frei: istFrei(v.name, frei),
     bild: frei.has(v.name.replace(/^fiaon_kk_/, "fiaon_kkb_")),
     kopfBild: WA_VORLAGEN.find((x) => x.varianteVon === v.name)?.kopfBild ?? null,
     fuss: v.fuss ?? "",
+    entwurf: WA_VORLAGEN_ENTWURF.includes(v),
   }));
 
   return {
@@ -838,7 +953,7 @@ export async function vorschau(g: Gruppe, vorlage: string, anzahl: number) {
   return liste.map((k) => {
     const v = vorlageFuerKandidat(vorlage, k);
     const w = werteFuer(v, k);
-    const def = WA_VORLAGEN.find((x) => x.name === v);
+    const def = vorlageDef(v);
     const text = def && !("grund" in w) ? def.text.replace(/\{\{(\d)\}\}/g, (_m, n) => w.werte[Number(n) - 1] ?? "") : null;
     const hinderung = !istFrei(v, frei) ? "Vorlage bei Meta noch nicht freigegeben" : "grund" in w ? w.grund : null;
     return {

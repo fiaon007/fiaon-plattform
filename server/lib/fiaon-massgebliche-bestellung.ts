@@ -67,6 +67,7 @@ import {
   FORMULAR_SCHRITTE_SQL,
 } from "./fiaon-antrag-vollstaendig";
 import { PAKETE, paket, paketPreisCents } from "../../shared/fiaon-pakete";
+import { istAuskunftSchluessel } from "../../shared/fiaon-auskunft";
 
 type Lauf = typeof sqlPool;
 
@@ -92,7 +93,13 @@ export function katalogpreisCents(
 ): number | null {
   const ref = String(zeile.ref ?? "");
   if (String(zeile.type ?? "") === "schufa" || ref.startsWith("FIAON-SCHUFA-")) {
-    return paketPreisCents("schufa");
+    // 25.09.2026 (E-240, Integration): Die Auskunft hat vier Preise (74/149 €, Firma
+    // 199/349 €), der Schlüssel steht im pack_key der Auskunft-Zeile. Nur ein
+    // AUSKUNFT-Schlüssel zählt dort — ein Stufenpaket aus dem Dubletten-Merge
+    // (der Befund oben) bleibt beim Altpreis „schufa". Ohne diese Zeile stellte der
+    // Rechnungslauf eine 149-€-Auskunft über 74 € aus. Dieselbe Regel im Trigger
+    // (db/migrations/083_auskunft_katalogpreis.sql).
+    return istAuskunftSchluessel(zeile.pack_key) ? paketPreisCents(zeile.pack_key) : paketPreisCents("schufa");
   }
   return paket(zeile.pack_key) ? paketPreisCents(zeile.pack_key) : null;
 }

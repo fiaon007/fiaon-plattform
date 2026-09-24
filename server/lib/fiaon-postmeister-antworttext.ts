@@ -50,14 +50,14 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussNeutral: (n) => `Guten Tag${n ? ` ${n}` : ""},`,
     grussHerr: (n) => `Guten Tag Herr ${n},`,
     grussFrau: (n) => `Guten Tag Frau ${n},`,
-    knopf: { zahlung: "Rechnung ansehen und bezahlen", termin: "Termin wählen", startgespraech: "Startgespräch buchen", bereich: "Zu meinem Bereich", unterlagen: "Unterlagen hochladen", antrag: "Antrag starten", angebot: "Angebot ansehen", weiter: "Weiter" },
+    knopf: { zahlung: "Rechnung ansehen und bezahlen", termin: "Termin wählen", startgespraech: "Startgespräch buchen", bereich: "Zu meinem Bereich", unterlagen: "Unterlagen hochladen", antrag: "Antrag starten", angebot: "Angebot ansehen", auskunft: "Bonitätsauskunft bestellen", weiter: "Weiter" }, // auskunft: E-240
     abschied: "Freundliche Grüße",
   },
   en: {
     grussNeutral: (n) => `Dear${n ? ` ${n}` : " Sir or Madam"},`,
     grussHerr: (n) => `Dear Mr ${n},`,
     grussFrau: (n) => `Dear Ms ${n},`,
-    knopf: { zahlung: "View and pay invoice", termin: "Choose an appointment", startgespraech: "Book your first consultation", bereich: "Go to my account", unterlagen: "Upload documents", antrag: "Start application", angebot: "View offer", weiter: "Continue" },
+    knopf: { zahlung: "View and pay invoice", termin: "Choose an appointment", startgespraech: "Book your first consultation", bereich: "Go to my account", unterlagen: "Upload documents", antrag: "Start application", angebot: "View offer", auskunft: "Order credit report", weiter: "Continue" },
     abschied: "Kind regards",
   },
   fr: {

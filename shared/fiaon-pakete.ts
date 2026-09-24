@@ -51,6 +51,11 @@ export interface Paket {
    * Preisliste, kein Auswahlfeld und kein Antrag bietet ihn mehr an.
    */
   eingestellt?: boolean;
+  /**
+   * Ein Zusatzprodukt, kein Paket (24.09.2026, E-240): die Bonitätsauskunft in
+   * ihren vier Preisen. Auswahllisten für Pakete lassen solche Einträge weg.
+   */
+  zusatz?: "auskunft";
 }
 
 export const PAKETE: Paket[] = [
@@ -69,7 +74,16 @@ export const PAKETE: Paket[] = [
   // ── KEIN ABO ─────────────────────────────────────────────────────────────
   // Die Bonitätsauskunft ist ein Einmalkauf. Sie steht hier, damit sie einen
   // Preis hat — und mit `abo: false`, damit sie NIE eine Rate erzeugt.
-  { key: "schufa",              label: "Bonitätsauskunft",          preisCents:  7400, art: "privat",   abo: false },
+  { key: "schufa",              label: "Bonitätsauskunft",          preisCents:  7400, art: "privat",   abo: false, zusatz: "auskunft" },
+  // ── DIE AUSKUNFT IN VIER PREISEN (24.09.2026, E-240) ─────────────────────
+  // Justin: „ohne ABO 149 € mit ABO 74 € … für Unternehmen 349 € ohne ABO und
+  // 199 € mit ABO". „schufa" oben bleibt der Privatpreis mit Abo (Altbestand).
+  // Welcher Preis gilt, entscheidet NUR der Server (fiaon-auskunft.ts,
+  // auskunftPreis): bezahltes, laufendes Paket → „mit Abo". Preise und
+  // Leistung stehen in shared/fiaon-auskunft.ts.
+  { key: "auskunft_privat",     label: "Bonitätsauskunft (einzeln)",          preisCents: 14900, art: "privat",   abo: false, zusatz: "auskunft" },
+  { key: "auskunft_firma",      label: "Firmen-Bonitätsauskunft (einzeln)",   preisCents: 34900, art: "business", abo: false, zusatz: "auskunft" },
+  { key: "auskunft_firma_abo",  label: "Firmen-Bonitätsauskunft (Kundenpreis)", preisCents: 19900, art: "business", abo: false, zusatz: "auskunft" },
   // ── FIAON GLOBAL (17.09.2026, E-188) — EINMALPREISE, KEIN ABO ────────────
   // Justin: „3 Pakete und 1 VIP Paket — die Preise so wie sie sind sind gut."
   // Was ein Paket enthält, steht in shared/fiaon-global.ts. `abo: false` ist
@@ -110,7 +124,12 @@ export function istGlobalPaket(key: unknown): boolean {
 
 /** Was heute verkauft wird — eingestellte Pakete fehlen. */
 export function verkaufbarePakete(art?: Paket["art"]): Paket[] {
-  return PAKETE.filter((p) => !p.eingestellt && (!art || p.art === art));
+  // E-240: Von der Auskunft steht nur „schufa" in Auswahllisten — EIN Eintrag
+  // „Bonitätsauskunft"; welcher der vier Preise gilt, entscheidet der Server
+  // (fiaon-auskunft.ts). Die drei neuen Schlüssel dürfen nie als Konto-Paket
+  // auftauchen: Viele Listen trennen nur über key !== "schufa" und hätten sie
+  // sonst als Stufenpaket angeboten (und eine offene Paketbestellung stillgelegt).
+  return PAKETE.filter((p) => !p.eingestellt && (!p.zusatz || p.key === "schufa") && (!art || p.art === art));
 }
 
 /** Schlüssel aller Pakete, die KEINE Rate erzeugen dürfen — für SQL-Filter des Abo-Motors. */
@@ -118,7 +137,7 @@ export const NICHT_ABO_SCHLUESSEL: string[] = PAKETE.filter((p) => !p.abo).map((
 
 /** Die Preisliste in Euro — für Stellen, die historisch mit Euro rechnen. */
 export const PAKET_PREISE_EURO: Record<string, number> = Object.fromEntries(
-  PAKETE.filter((p) => p.key !== "schufa").map((p) => [p.key, p.preisCents / 100]),
+  PAKETE.filter((p) => !p.zusatz).map((p) => [p.key, p.preisCents / 100]),
 );
 
 /** Die Preisliste in Cent — für alles, was Geld ausrechnet. */

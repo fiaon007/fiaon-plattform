@@ -28,6 +28,80 @@ interface Stand {
   dokumente: Dokument[]; inhaltErlaubt: boolean;
   /** 18.09.2026: ersetzte Fassungen — nichts geht mehr verloren. */
   fruehere?: { id: number; art: string; am: string; kb: number }[];
+  /** 24.09.2026 (E-240): der Stand der Bonitätsauskunft — vom Server (auskunftStand). */
+  auskunft?: AuskunftStand | null;
+}
+
+interface AuskunftStand {
+  stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+  preisText: string;
+  mitAbo: boolean;
+  offen: { betragText: string; gemeldet: boolean } | null;
+  wort: string;
+  /** Bietet die Mail die Auskunft an? Nein bei Werbesperre oder unbezahltem Paket — dann nur die Bitte. */
+  angebot?: boolean;
+  ohneAngebot?: "werbesperre" | "paket_offen" | "kuerzlich_angeboten" | null;
+}
+
+const OHNE_ANGEBOT: Record<string, string> = {
+  werbesperre: "Werbesperre",
+  paket_offen: "Paket noch nicht bezahlt",
+  // Integration 25.09.2026 (E-240): die gemeinsame Bremse — ein Angebot je Kunde in drei Tagen.
+  kuerzlich_angeboten: "in den letzten drei Tagen schon angeboten",
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER KNOPF JE UNTERLAGE (24.09.2026, E-240)
+//
+// Bis heute stand an jeder fehlenden Unterlage „Anfordern" — auch an der
+// Auskunft von Menschen, die sie längst bezahlt hatten (am 24.09. ging die
+// Bitte an 27 von ihnen). Die Auskunft hat jetzt vier Zustände, und der Knopf
+// folgt ihnen: „Auskunft anbieten" (die Mail bietet an, sie für den Kunden zu
+// holen — mit seinem Preis), „Zahlungslink senden" (bestellt, nicht bezahlt),
+// kein Knopf (bezahlt, gemeldet oder liegt vor). Was die Mail genau sagt,
+// entscheidet der Server (Werbesperre oder unbezahltes Paket: ohne Angebot,
+// dann steht hier wieder „Anfordern").
+// ═══════════════════════════════════════════════════════════════════════════
+function anforderKnopf(d: Dokument, auskunft: AuskunftStand | null | undefined): { text: string; titel: string } | null {
+  if (d.vorhanden || !d.benoetigt) return null;
+  if (d.art !== "schufa" || !auskunft) return { text: "Anfordern", titel: "Mail an den Kunden: Bitte um diese Unterlage." };
+  if (auskunft.stufe === "nichts") {
+    // Ohne Angebot (Werbesperre, Paket unbezahlt) ist es wieder die schlichte Bitte — der Knopf sagt das.
+    if (auskunft.angebot === false) {
+      return {
+        text: "Anfordern",
+        titel: `Mail mit der Bitte um die ${auskunft.wort}, ohne Angebot (${OHNE_ANGEBOT[String(auskunft.ohneAngebot)] ?? "kein Angebot"}).`,
+      };
+    }
+    return {
+      text: "Auskunft anbieten",
+      titel: `Mail mit dem Angebot, die ${auskunft.wort} für den Kunden zu holen (${auskunft.preisText}) — und dem Weg, eine eigene hochzuladen.`,
+    };
+  }
+  if (auskunft.stufe === "offen" && auskunft.offen && !auskunft.offen.gemeldet) {
+    // Gegenlesen 24.09.2026: Bei Werbesperre schickt der Server auch keinen
+    // Zahlungslink (auskunftMailTeil) — der Knopf verspricht ihn dann nicht.
+    if (auskunft.ohneAngebot === "werbesperre") {
+      return { text: "Anfordern", titel: `Mail mit der Bitte um die ${auskunft.wort}, ohne Zahlungslink (Werbesperre).` };
+    }
+    return { text: "Zahlungslink senden", titel: `Mail mit dem Link zur Zahlung der offenen Auskunft (${auskunft.offen.betragText}).` };
+  }
+  return null;
+}
+
+/** Die kleine Zeile unter der Auskunft-Kachel: wo der Kunde steht. */
+function auskunftZeile(auskunft: AuskunftStand | null | undefined): string | null {
+  if (!auskunft) return null;
+  if (auskunft.stufe === "bezahlt") return "Bezahlt — wir holen die Auskunft ein.";
+  if (auskunft.stufe === "offen" && auskunft.offen?.gemeldet) return `Zahlung gemeldet (${auskunft.offen.betragText}) — wird geprüft.`;
+  if (auskunft.stufe === "offen" && auskunft.offen) {
+    return `Bestellt, Zahlung offen (${auskunft.offen.betragText})${auskunft.ohneAngebot === "werbesperre" ? " — Werbesperre: die Mail nennt keinen Zahlungslink" : ""}.`;
+  }
+  // Die Auskunft liegt an einer anderen Bestellung derselben Person — deshalb kein Knopf.
+  if (auskunft.stufe === "dokument") return "Liegt an einer anderen Bestellung dieser Person vor.";
+  if (auskunft.stufe === "nichts" && auskunft.angebot === false) return `Kein Angebot: ${OHNE_ANGEBOT[String(auskunft.ohneAngebot)] ?? "gesperrt"}.`;
+  if (auskunft.stufe === "nichts") return `Preis für diesen Kunden: ${auskunft.preisText}${auskunft.mitAbo ? " (mit Paket)" : " (einzeln)"}.`;
+  return null;
 }
 
 const KYC_TEXT: Record<string, { text: string; farbe: string }> = {
@@ -84,11 +158,13 @@ export function DokumenteSektion({
 
   useEffect(() => { void laden(); }, [laden]);
 
-  const anfordern = async (art: string) => {
-    setBusy(art);
+  // 24.09.2026 (E-240): mehrere Unterlagen in EINER Mail. `schluessel` ist die
+  // Kachel (oder „alle"), an der das „…" steht, solange die Anfrage läuft.
+  const anfordern = async (arten: string[], schluessel: string) => {
+    setBusy(schluessel);
     const r = await fetch(`/api/fiaon/dokumente/${personId}/anfordern`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ art }),
+      body: JSON.stringify({ arten }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     setBusy(null);
@@ -99,6 +175,7 @@ export function DokumenteSektion({
   if (!stand) return <p className="text-[12.5px] text-slate-400">Wird geladen …</p>;
 
   const kyc = KYC_TEXT[String(stand.kycStatus || "pending")] ?? KYC_TEXT.pending;
+  const anforderbar = stand.dokumente.filter((d) => anforderKnopf(d, stand.auskunft) !== null).map((d) => d.art);
 
   return (
     <div>
@@ -115,6 +192,15 @@ export function DokumenteSektion({
           <span className="text-[11.5px] text-slate-400">
             · Inhalte öffnet, wer den Kunden betreut, und die Leitung
           </span>
+        )}
+        {/* E-240: alle fehlenden Unterlagen in EINER Mail statt je Klick eine. */}
+        {anforderbar.length > 1 && (
+          <button type="button" onClick={() => void anfordern(anforderbar, "alle")} disabled={busy !== null}
+                  title="Eine Mail mit allen fehlenden Unterlagen. Dieselbe Unterlage geht höchstens alle drei Tage raus."
+                  className="dk-knopf ml-auto px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold text-white disabled:opacity-40"
+                  style={{ background: "#1d4ed8" }}>
+            {busy === "alle" ? "…" : `Alle fehlenden anfordern (${anforderbar.length})`}
+          </button>
         )}
       </div>
 
@@ -152,6 +238,9 @@ export function DokumenteSektion({
                 {d.erneutAngefordert && (
                   <p className="text-[11px] text-amber-700 mt-0.5">erneut angefordert</p>
                 )}
+                {d.art === "schufa" && !d.vorhanden && auskunftZeile(stand.auskunft) && (
+                  <p className="dk-auskunft text-[11px] text-slate-500 mt-0.5">{auskunftZeile(stand.auskunft)}</p>
+                )}
               </div>
             </div>
 
@@ -169,13 +258,17 @@ export function DokumenteSektion({
                   Ansehen
                 </button>
               )}
-              {!d.vorhanden && d.benoetigt && (
-                <button type="button" onClick={() => void anfordern(d.art)} disabled={busy === d.art}
-                        className="dk-knopf px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold bg-white text-slate-600 disabled:opacity-40"
-                        style={{ border: "1px solid #e8eef6" }}>
-                  {busy === d.art ? "…" : "Anfordern"}
-                </button>
-              )}
+              {(() => {
+                const k = anforderKnopf(d, stand.auskunft);
+                if (!k) return null;
+                return (
+                  <button type="button" onClick={() => void anfordern([d.art], d.art)} disabled={busy !== null} title={k.titel}
+                          className="dk-knopf px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold bg-white text-slate-600 disabled:opacity-40"
+                          style={{ border: "1px solid #e8eef6" }}>
+                    {busy === d.art ? "…" : k.text}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         ))}

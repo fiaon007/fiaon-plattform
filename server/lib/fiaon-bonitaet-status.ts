@@ -33,9 +33,11 @@
 // Rückfall für die 9 alten Zeilen ohne Person.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
 
 /** Preis der Auskunft in Euro. Steht auch in fiaon-antrag.ts (SCHUFA_PRICE). */
-export const BONITAET_PREIS = 74;
+// E-240: aus dem Katalog (Privatpreis mit Paket) — nie mehr eine zweite, feste Zahl.
+export const BONITAET_PREIS = AUSKUNFT_PREISE_CENTS.privat.mitAbo / 100;
 
 export type BonitaetStufe =
   /** Nichts da: nicht gekauft, kein Dokument. */

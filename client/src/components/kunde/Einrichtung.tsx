@@ -12,12 +12,20 @@
 //        Banking-App, „Ich habe überwiesen“ (claim-paid)
 //   3b · Termin: Link aus /antrag/:ref/termin-link → Terminseite. Ein Gespräch,
 //        nicht zwei — ist die Zahlung bis dahin da, wird es das Startgespräch.
+//
+// ── DIE AUSKUNFT IST NICHT IM PAKET (24.09.2026, E-240) ────────────────────
+// Drei Sätze hier versprachen „Ihre Auskunft wird beantragt", sobald Zahlung
+// und Startgespräch da sind. Sie ist ein eigener Auftrag (74 € mit Paket). Die
+// Sätze sagen jetzt, was wirklich passiert; wer bezahlt hat und noch keine
+// Auskunft hat, sieht beim Startgespräch-Schritt die kleine Kaufkarte — unter
+// dem Terminknopf, denn der Termin bleibt der Pflichtschritt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { buildEpcQrPayload } from "@/lib/epc-qr";
+import { AuskunftKaufkarte, type AuskunftKauf } from "@/components/kunde/AuskunftKauf";
 
-interface BereichMin { kunde: { ref: string; vorname: string }; paket: { name: string; monatlichCents: number | null; zahlungsreferenz: string | null; zahlungsstatus: string; faelligAm: string | null }; stufe: { bezahlt: boolean; vollAktiv: boolean }; passwortGesetzt?: boolean; termin: { beginn: string; status: string; agent: string | null } | null }
+interface BereichMin { kunde: { ref: string; vorname: string }; paket: { name: string; monatlichCents: number | null; zahlungsreferenz: string | null; zahlungsstatus: string; faelligAm: string | null }; stufe: { bezahlt: boolean; vollAktiv: boolean }; passwortGesetzt?: boolean; termin: { beginn: string; status: string; agent: string | null } | null; auskunft?: AuskunftKauf | null }
 interface Order { paymentReference: string; amountDue: string; dueDate: string; status: string; bank: { recipient: string; iban: string; ibanDisplay?: string; bic: string } }
 
 async function api(pfad: string, init?: RequestInit) {
@@ -116,7 +124,7 @@ export function Einrichtung({ bereich, name, start = "auto", onFertig }: { berei
               <button type="button" className="ein-option haupt" onClick={() => setSchritt("zahlung")}>
                 <span className="ein-band">Empfohlen</span>
                 <small>Weg 1</small><b>Jetzt aktivieren</b>
-                <p>Zahlungsdaten mit QR-Code für Ihre Banking-App. Nach Zahlungseingang ist Ihr Bereich vollständig aktiv und Ihre Auskunft wird beantragt.</p>
+                <p>Zahlungsdaten mit QR-Code für Ihre Banking-App. Nach Zahlungseingang buchen Sie Ihr Startgespräch – danach ist Ihr Bereich vollständig aktiv.</p>
                 <span>{eurCents(bereich.paket.monatlichCents)} · monatlich</span>
               </button>
               <button type="button" className="ein-option" onClick={() => setSchritt("termin")}>
@@ -160,7 +168,7 @@ export function Einrichtung({ bereich, name, start = "auto", onFertig }: { berei
             {gemeldet && (
               <div className="ein-fertig">
                 <b>Danke – wir prüfen den Eingang.</b>
-                <p>Ein Schritt noch: Ihr Startgespräch. Fünfzehn Minuten mit Ihrer Ansprechpartnerin – danach ist Ihr Bereich vollständig freigeschaltet und Ihre Auskunft wird beantragt.</p>
+                <p>Ein Schritt noch: Ihr Startgespräch. Fünfzehn Minuten mit Ihrer Ansprechpartnerin – danach steht Ihnen Ihr Bereich vollständig offen.</p>
                 <button type="button" className="mb-knopf" onClick={() => setSchritt("terminPflicht")}>Startgespräch buchen</button>
               </div>
             )}
@@ -175,13 +183,18 @@ export function Einrichtung({ bereich, name, start = "auto", onFertig }: { berei
             <div className="ein-zeilen">
               <div className="ein-merk"><b>15 Minuten</b><span>am Telefon, zur Zeit Ihrer Wahl</span></div>
               <div className="ein-merk"><b>Ein Mensch</b><span>der danach Ihre Akte kennt</span></div>
-              <div className="ein-merk"><b>Danach frei</b><span>alle Bereiche, Auskunft wird beantragt</span></div>
+              <div className="ein-merk"><b>Danach frei</b><span>alle Bereiche, Ihr Fahrplan steht</span></div>
             </div>
             {fehler && <p className="ein-fehler">{fehler}</p>}
             <div className="ein-knoepfe">
               <button type="button" className="mb-knopf" onClick={terminBuchen} disabled={laeuft}>{laeuft ? "Einen Moment …" : "Zeit wählen"}</button>
             </div>
             <p className="ein-hinweis">Ohne Startgespräch bleibt der Bereich noch geschlossen – es ist der Moment, in dem aus einem Antrag eine betreute Akte wird.</p>
+            {/* E-240: Paket bezahlt, keine Auskunft — die kleine Kaufkarte, unter dem Pflichtschritt.
+                Werbesperre (auskunft.werbung = false): hier nicht, nur im Abschnitt „Ihre Bonität". */}
+            {bereich.auskunft?.darfKaufen && bereich.auskunft.werbung && (
+              <AuskunftKaufkarte kauf={bereich.auskunft} kompakt />
+            )}
           </div>
         )}
 

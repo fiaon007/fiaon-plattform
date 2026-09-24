@@ -2,7 +2,8 @@ import { Router } from "express";
 import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
-import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, istGlobalPaket } from "@shared/fiaon-pakete";
+import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, istGlobalPaket, paketPreisEuro } from "@shared/fiaon-pakete";
+import { istAuskunftSchluessel } from "@shared/fiaon-auskunft";
 // E-188 (17.09.2026): FIAON Global ist eine eigene Produktkategorie — siehe GLOBAL_SCHLUESSEL unten.
 import { GLOBAL_PAKETE } from "@shared/fiaon-global";
 import { istAuslandsnummer, NUR_DACH_MELDUNG } from "@shared/fiaon-dach-telefon";
@@ -979,7 +980,13 @@ export async function bestellungFuerAntrag(
     };
   }
 
-  const amount = app.type === "schufa" ? SCHUFA_PRICE : PACK_PRICES[app.pack_key];
+  // E-240: Die Auskunft hat vier Preise (Katalog, pack_key). Alte Zeilen ohne pack_key: 74 €.
+  // Integration 25.09.2026: nur ein AUSKUNFT-Schlüssel zählt — sechs Auskunft-Zeilen tragen im
+  // pack_key das Stufenpaket ihres Kunden (Dubletten-Merge); dort wären sonst 99,99 € entstanden.
+  // Dieselbe Regel wie katalogpreisCents (fiaon-massgebliche-bestellung.ts) und der Trigger (Migration 083).
+  const amount = app.type === "schufa"
+    ? (istAuskunftSchluessel(app.pack_key) ? paketPreisEuro(app.pack_key) : SCHUFA_PRICE)
+    : PACK_PRICES[app.pack_key];
   if (!amount) return { status: 400, body: { ok: false, error: `Unbekanntes Paket: ${app.pack_key}` } };
 
   const paymentReference = app.payment_reference || (await generateUniquePaymentReference());
@@ -1148,15 +1155,73 @@ router.post("/payment-order", async (req, res) => {
         }
       }
       const geburt = typeof b.birthDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate) ? b.birthDate : (vorlage?.birthdate ?? null);
+      // ── DER PREIS KOMMT VOM SERVER (24.09.2026, E-240) ───────────────────
+      // Mit bezahltem, laufendem Paket 74 € (Firma 199 €), sonst 149 € (349 €).
+      // Wer eine Auskunft schon offen hat, bekommt deren Zahlungslink statt einer
+      // zweiten Zahlungsaufforderung (auskunftBestellen, ein Weg für alle Türen).
+      const auskunftArt = b.art === "firma" ? "firma" : "privat";
+      const { auskunftPreis, auskunftBestellen, hatLaufendesPaket } = await import("../lib/fiaon-auskunft");
+      // Die Messung für Meta (nur mit Marketing-Einwilligung aus dem Browser) — für JEDE
+      // Referenz, die hier herauskommt, auch die wiederverwendete. Ohne sie war jeder
+      // Auskunft-Kauf für Meta unsichtbar (0 Messzeilen für FIAON-SCHUFA-Referenzen).
+      const messen = (r: string | null) => {
+        if (!r || !b.messung || typeof b.messung !== "object") return;
+        import("../lib/fiaon-meta-capi").then((c) => c.messungMerken(r, b.messung, {
+          personId,
+          ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
+          ua: String(req.headers["user-agent"] ?? ""),
+        })).catch((e) => console.error("[META-MESSUNG] Auskunft:", e));
+      };
+      if (personId != null) {
+        const best = await auskunftBestellen({ personId, art: auskunftArt, quelle: "kundenbereich", von: "Kunde (Kundenbereich)" });
+        if (best.art === "bezahlt") return res.json({ ok: true, alreadyPaid: true });
+        if (!best.ok || !best.paymentReference) {
+          // Nie eine zweite Zeile daneben anlegen — lieber ehrlich scheitern.
+          return res.status(500).json({ ok: false, error: best.fehler || "Bestellung konnte nicht angelegt werden" });
+        }
+        messen(best.ref);
+        // Integration 25.09.2026 (E-240): die Erklärungen der Bestellseite an die NEUE Bestellung.
+        if (best.art === "neu" && best.ref) {
+          const { auskunftBestellungBelegen } = await import("../lib/fiaon-auskunft");
+          await auskunftBestellungBelegen(best.ref, b, {
+            ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
+            ua: String(req.headers["user-agent"] ?? ""),
+          }).catch((e) => console.error("[AUSKUNFT] Zustimmungen nicht belegt:", e));
+        }
+        return res.json({ ok: true, paymentReference: best.paymentReference, existing: best.art !== "neu", betrag: best.betragText });
+      }
+      // ── BESTANDSKUNDEN ZAHLEN NIE DEN EINZELPREIS ─────────────────────────
+      // Bestellt ein zahlender Paketkunde ohne Anmeldung über die öffentliche
+      // Seite, hätte er 149 € statt 74 € bezahlt — und die Bestellung hinge an
+      // keiner Person. Über die E-Mail wird NICHT angehängt (sonst könnte jeder
+      // eine Bestellung in eine fremde Akte schreiben), sondern auf die Anmeldung
+      // verwiesen, wo der Kundenpreis gilt.
+      const mailRoh = String(email || "").trim();
+      if (mailRoh) {
+        const treffer = (await sqlPool`
+          SELECT DISTINCT person_id FROM fiaon_applications
+           WHERE person_id IS NOT NULL AND merged_into IS NULL AND payment_status = 'paid'
+             AND fiaon_mail_norm(email) = fiaon_mail_norm(${mailRoh}) LIMIT 3`.catch(() => [])) as any[];
+        for (const t of treffer) {
+          if (await hatLaufendesPaket(Number(t.person_id))) {
+            return res.status(409).json({
+              ok: false, anmelden: true,
+              error: "Sie sind bereits FIAON-Kunde. Bitte melden Sie sich in Ihrem Kundenbereich an — dort bestellen Sie die Auskunft zum Kundenpreis.",
+            });
+          }
+        }
+      }
+      const preis = await auskunftPreis(personId, auskunftArt);
       // `payment_reference` wird hier NICHT mitgegeben und trotzdem gesetzt: Der
       // Trigger aus db/migrations/037 füllt sie. Genau das ist der Punkt — eine
       // neue Anlagestelle kann den Verwendungszweck nicht mehr vergessen.
       await sqlPool`
-        INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_name,
+        INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_key, pack_name, company_name,
                                         street, zip, city, country, birthdate, phone, person_id, created_at, updated_at)
         VALUES (${ref}, 'schufa', 'submitted',
                 ${firstName || vorlage?.first_name || null}, ${lastName || vorlage?.last_name || null}, ${email || vorlage?.email || null},
-                'Bonitätsauskunft inkl. Handlungsplan',
+                ${preis.key}, ${auskunftArt === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "Bonitätsauskunft inkl. Handlungsplan"},
+                ${auskunftArt === "firma" ? String(b.firma || b.companyName || "").slice(0, 200) || null : null},
                 ${b.street || vorlage?.street || null}, ${b.plz || b.zip || vorlage?.zip || null}, ${b.city || vorlage?.city || null},
                 ${b.country || vorlage?.country || null}, ${geburt}, ${b.phone || vorlage?.phone || null}, ${personId},
                 NOW(), NOW())
@@ -1165,7 +1230,24 @@ router.post("/payment-order", async (req, res) => {
 
     if (!ref) return res.status(400).json({ ok: false, error: "ref fehlt" });
 
+    // E-240: Messung für die öffentliche Einzelbestellung (die Kundenbereich-Bestellung misst oben).
+    if (kind === "schufa" && req.body?.messung && typeof req.body.messung === "object") {
+      import("../lib/fiaon-meta-capi").then((c) => c.messungMerken(String(ref), req.body.messung, {
+        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
+        ua: String(req.headers["user-agent"] ?? ""),
+      })).catch((e) => console.error("[META-MESSUNG] Auskunft:", e));
+    }
+
     const erg = await bestellungFuerAntrag(ref);
+    // Integration 25.09.2026 (E-240): Was der Kunde auf der Bestellseite erklärt hat (§ 356 Abs. 4 BGB,
+    // Vollmacht, Rechtsform), steht an der neuen Auskunft-Bestellung — vorher ging es verloren.
+    if (kind === "schufa" && erg.status < 300 && (erg.body as any)?.ok && !(erg.body as any)?.existing) {
+      const { auskunftBestellungBelegen } = await import("../lib/fiaon-auskunft");
+      await auskunftBestellungBelegen(String(ref), req.body || {}, {
+        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
+        ua: String(req.headers["user-agent"] ?? ""),
+      }).catch((e) => console.error("[AUSKUNFT] Zustimmungen nicht belegt:", e));
+    }
     res.status(erg.status).json(erg.body);
   } catch (err) {
     console.error("[FIAON-PAYMENT] payment-order:", err);

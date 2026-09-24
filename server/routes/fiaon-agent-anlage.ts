@@ -39,10 +39,91 @@
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { paket, paketPreisEuro, verkaufbarePakete, type Paket } from "../../shared/fiaon-pakete";
+import { istAuskunftSchluessel, auskunftSchluessel, type AuskunftArt } from "../../shared/fiaon-auskunft";
 import { produktkategorie, produktkategorieSql } from "../lib/fiaon-produktkategorie";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE AUSKUNFT IST KEIN KONTO-PAKET (24.09.2026, E-240)
+//
+// Bis heute legten drei Routen dieser Datei die Bonitätsauskunft mit eigenem
+// INSERT an: 74 € fest, und in der Neuanlage und bei /bestellung sogar als
+// type='private' — also als KONTO-Bestellung, die weder die Kategoriegrenze
+// noch der Kundenbereich als Auskunft erkannte. Seit E-240 hat die Auskunft
+// vier Preise (privat/Firma, einzeln/mit laufendem Paket), und welcher gilt,
+// entscheidet NUR der Server nach dem Stand des Menschen.
+//
+// Deshalb geht jede Auskunft — egal über welchen der vier Katalogschlüssel sie
+// ankommt — durch den EINEN Weg: auskunftBestellen (server/lib/fiaon-auskunft.ts).
+// Er verwendet eine offene Bestellung wieder, statt eine zweite Zahlungs-
+// aufforderung zu erzeugen, legt sonst an und schickt über bestellungFuerAntrag
+// Rechnung und Zahlungsmail. Die Antworten behalten die bekannte Form
+// (409 „bezahlt" / „schon_offen", 200 mit ref, paket, zahlungsreferenz).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ist der gewählte Katalogeintrag die Auskunft — und wenn ja, welche Art? */
+function auskunftArtVon(p: Paket | null | undefined): AuskunftArt | null {
+  if (!p || !istAuskunftSchluessel(p.key)) return null;
+  return p.art === "business" ? "firma" : "privat";
+}
+
+/** Die Auskunft für einen bekannten Menschen anlegen — über den einen Weg. */
+async function auskunftFuerPerson(
+  personId: number, art: AuskunftArt, agent: { id: number; name: string },
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const { auskunftBestellen } = await import("../lib/fiaon-auskunft");
+  const best = await auskunftBestellen({ personId, art, quelle: "betreuer", von: agent.name, agentId: agent.id });
+  if (best.art === "bezahlt") {
+    return {
+      status: 409,
+      body: {
+        ok: false, grund: "bezahlt",
+        error: `Die Bonitätsauskunft ist schon bezahlt (${best.ref}). Ein zweites Mal kassieren wäre falsch.`,
+        vorhanden: { ref: best.ref, paket: "Bonitätsauskunft" },
+      },
+    };
+  }
+  if (best.art === "offen") {
+    return {
+      status: 409,
+      body: {
+        ok: false, grund: "schon_offen",
+        error: `Es gibt schon eine offene Bonitätsauskunft (${best.ref}, ${best.betragText}). Zwei offene Bestellungen `
+          + "wären zwei Zahlungsaufforderungen für dieselbe Auskunft"
+          + (best.zahlungsseite ? ` — schick dem Kunden diesen Link: ${best.zahlungsseite}` : "."),
+        vorhanden: { ref: best.ref, paket: "Bonitätsauskunft" },
+        zahlungsreferenz: best.paymentReference, zahlungsseite: best.zahlungsseite,
+      },
+    };
+  }
+  if (!best.ok || !best.ref) {
+    return { status: 500, body: { ok: false, error: best.fehler ?? "Die Bonitätsauskunft ließ sich nicht anlegen." } };
+  }
+  const key = auskunftSchluessel(art, best.mitAbo);
+  const label = paket(key)?.label ?? "Bonitätsauskunft";
+  const preisEuro = best.betragCents / 100;
+  const { aktivitaetSchreiben } = await import("../lib/fiaon-aktivitaet");
+  await aktivitaetSchreiben({
+    typ: "produkt_angelegt", wer: agent.name, agentId: agent.id,
+    referenz: best.ref, grund: label,
+    meta: { packKey: key, preisEuro, mitAbo: best.mitAbo, quelle: "betreuer" },
+  }).catch(() => {});
+  return {
+    status: 200,
+    body: {
+      ok: true, ref: best.ref,
+      paket: { key, label, preisEuro },
+      zahlungsreferenz: best.paymentReference,
+      zahlungsseite: best.zahlungsseite,
+      mitAbo: best.mitAbo,
+      ersetzt: [],
+      hinweis: `Bonitätsauskunft angelegt: ${best.betragText} (${best.mitAbo ? "Kundenpreis mit laufendem Paket" : "Einzelpreis, kein laufendes Paket"}). `
+        + `Die Zahlungsdaten gehen dem Kunden per E-Mail zu${best.zahlungsseite ? ` — Zahlungsseite: ${best.zahlungsseite}` : ""}.`,
+    },
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL IN DER ANLAGE (17.09.2026, E-188)
@@ -153,10 +234,21 @@ router.get("/agent/katalog", requireAgent, async (_req: AgentRequest, res: Respo
     // stehen in keinem Auswahlfeld mehr; `abo: false` sagt der Oberfläche,
     // dass sie „einmalig" statt „monatlich" schreiben muss (FIAON Global,
     // Bonitätsauskunft).
+    //
+    // E-240: Die Auskunft bleibt EIN Eintrag („Bonitätsauskunft", Schlüssel
+    // schufa). Die drei neuen Schlüssel (auskunft_privat, auskunft_firma,
+    // auskunft_firma_abo) stehen nicht in der Liste — sonst sähe die Oberfläche
+    // vier Auskünfte mit vier Preisen und hielte sie für Konto-Pakete. Den Preis
+    // wählt beim Anlegen der Server (74 € mit laufendem Paket, sonst 149 €);
+    // `zusatz` sagt der Oberfläche, dass der Katalogpreis nur einer von zweien ist.
+    // Das Weglassen der drei Schlüssel macht verkaufbarePakete() selbst
+    // (shared/fiaon-pakete.ts) — ein zweiter Filter hier wäre die zweite Regel,
+    // und scripts/pruef-pakete.ts prüft genau diese eine Zeile.
     pakete: verkaufbarePakete().map((p) => ({
       key: p.key, label: p.label,
       preisEuro: p.preisCents / 100,
       art: p.art, abo: p.abo,
+      ...(p.zusatz ? { zusatz: p.zusatz } : {}),
     })),
   });
 });
@@ -288,15 +380,22 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
     // Ein mitgeschickter Betrag wird IGNORIERT, nicht übernommen. Ein frei
     // getippter Preis landet in Rechnung, Abo-Rate und Provisionsrechnung —
     // und niemand kann hinterher sagen, ob er stimmt.
-    const paketKey = String(b.packKey ?? "").trim().toLowerCase();
-    const p = paket(paketKey);
-    if (paketKey && !p) {
+    const gewaehlterKey = String(b.packKey ?? "").trim().toLowerCase();
+    const gewaehlt = paket(gewaehlterKey);
+    if (gewaehlterKey && !gewaehlt) {
       return res.status(400).json({
         ok: false,
-        error: `Unbekanntes Paket „${paketKey}". Preise kommen nur aus dem Katalog.`,
+        error: `Unbekanntes Paket „${gewaehlterKey}". Preise kommen nur aus dem Katalog.`,
       });
     }
-    const eingestelltFehler = nichtMehrImVerkauf(p);
+    // E-240: Die Auskunft wird NICHT als Konto-Zeile angelegt (früher type
+    // 'private', pack_key schufa, 74 €). Der Mensch entsteht ohne Paket; die
+    // Auskunft kommt danach über auskunftBestellen — mit dem Preis, den der
+    // Server für ihn wählt, und als eigene FIAON-SCHUFA-Bestellung.
+    const auskunftArt = auskunftArtVon(gewaehlt);
+    const paketKey = auskunftArt ? "" : gewaehlterKey;
+    const p = auskunftArt ? null : gewaehlt;
+    const eingestelltFehler = nichtMehrImVerkauf(gewaehlt);
     if (eingestelltFehler) return res.status(400).json({ ok: false, grund: "eingestellt", error: eingestelltFehler });
     if (b.amountDue != null || b.preis != null) {
       // Kein stiller Fehlschlag: Wer einen Betrag mitschickt, soll wissen,
@@ -401,6 +500,19 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
       `.catch(() => {});
     }
 
+    // ── DIE AUSKUNFT, WENN SIE GEWÄHLT WAR (E-240) ─────────────────────────
+    // Erst jetzt, weil sie an der PERSON hängt. Ohne Person keine Auskunft —
+    // die Warnung unten sagt es dem Agenten.
+    let auskunft: { status: number; body: Record<string, any> } | null = null;
+    if (auskunftArt && person?.personId) {
+      auskunft = await auskunftFuerPerson(person.personId, auskunftArt, { id: req.agent!.id, name: req.agent!.name })
+        .catch((e) => {
+          console.error("[AGENT-ANLAGE] Auskunft bestellen:", e);
+          return { status: 500, body: { ok: false, error: "Die Bonitätsauskunft ließ sich nicht anlegen." } };
+        });
+    }
+    const auskunftOk = auskunft?.status === 200 && !!auskunft.body.ref;
+
     // ── DIE SPUR ───────────────────────────────────────────────────────────
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
@@ -409,6 +521,7 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
                 + `${vorname} ${nachname}, ${mail ?? "keine E-Mail"}, ${nummer ?? "keine Nummer"}. `
                 + (p ? `Paket ${p.label} (${paketPreisEuro(paketKey).toFixed(2)} € ${p.abo ? "im Monat" : "einmalig"} aus dem Katalog), `
                      + `Verwendungszweck ${zahlungsreferenz}.`
+                   : auskunftOk ? `Bonitätsauskunft als eigene Bestellung ${auskunft!.body.ref} angelegt.`
                    : "Noch kein Paket gewählt.")})
     `.catch(() => {});
 
@@ -422,19 +535,31 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
       wer: req.agent!.name,
       agentId: req.agent!.id,
       referenz: ref,
-      grund: p ? `Paket ${p.label}` : "ohne Paket",
-      meta: { name: `${vorname} ${nachname}`, packKey: paketKey || null, mail, nummer },
+      grund: p ? `Paket ${p.label}` : auskunftOk ? "Bonitätsauskunft" : "ohne Paket",
+      meta: { name: `${vorname} ${nachname}`, packKey: paketKey || (auskunftOk ? auskunft!.body.paket?.key : null) || null, mail, nummer },
     }).catch(() => {});
 
+    // E-240: Mit Auskunft zeigt die Antwort DEREN Bestellung (Referenz,
+    // Verwendungszweck, Betrag) — dorthin gehen Zahlungsdaten, Rechnung und
+    // Terminlink. Die Person ist dieselbe.
+    const antwortRef = auskunftOk ? String(auskunft!.body.ref) : ref;
+    const antwortZweck: string | null = auskunftOk ? (auskunft!.body.zahlungsreferenz ?? null) : (paketKey ? zahlungsreferenz : null);
+    const antwortPreis: number | null = auskunftOk ? Number(auskunft!.body.paket?.preisEuro ?? 0) : (p ? paketPreisEuro(paketKey) : null);
+    const auskunftWarnung = auskunftArt && !auskunftOk
+      ? `Die Bonitätsauskunft wurde nicht angelegt: ${String(auskunft?.body.error ?? "ohne Person keine Auskunft")}. `
+        + "Bitte in der Akte über „Produkt hinzufügen“ nachholen."
+      : null;
+
     res.json({
-      ok: true, ref,
+      ok: true, ref: antwortRef,
       personId: person?.personId ?? null,
       name: `${vorname} ${nachname}`,
-      paket: p ? { key: p.key, label: p.label, preisEuro: paketPreisEuro(paketKey) } : null,
-      zahlungsreferenz: paketKey ? zahlungsreferenz : null,
+      paket: p ? { key: p.key, label: p.label, preisEuro: paketPreisEuro(paketKey) } : auskunftOk ? auskunft!.body.paket : null,
+      zahlungsreferenz: antwortZweck,
+      zahlungsseite: auskunftOk ? auskunft!.body.zahlungsseite ?? null : null,
       // Der fertige Text für WhatsApp — aus derselben Funktion wie Karte und
       // Rechnung. Der handgeschriebene Text im Client hatte keine IBAN.
-      zahlungsKlartext: paketKey ? await zahlungsKlartextFuer(zahlungsreferenz, p ? paketPreisEuro(paketKey) : null) : null,
+      zahlungsKlartext: antwortZweck ? await zahlungsKlartextFuer(antwortZweck, antwortPreis) : null,
       // ── DIE PERSON FEHLT: DAS DARF NICHT STILL BLEIBEN (24.08.2026) ──────
       // Ohne Person hängt die Bestellung an niemandem: Die Arbeitsliste und
       // alle Zuständigkeitsprüfungen lesen fiaon_persons, und der Terminlink
@@ -443,14 +568,15 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
       // sind) — aber wortlos wäre er der teuerste: ein Kunde, der niemandem
       // gehört und in keiner Liste auftaucht.
       warnung: person?.personId
-        ? null
+        ? auskunftWarnung
         : "Der Kontakt ist gespeichert, aber die Person konnte nicht angelegt werden. "
           + "Solange das so ist, steht der Kunde in keiner Arbeitsliste und es gibt "
-          + "keinen Terminlink. Bitte in der Akte E-Mail oder Telefonnummer erneut speichern.",
+          + "keinen Terminlink. Bitte in der Akte E-Mail oder Telefonnummer erneut speichern."
+          + (auskunftWarnung ? ` ${auskunftWarnung}` : ""),
       // Was der Agent als nächstes tun kann — in der Reihenfolge des Gesprächs.
       weiter: {
-        zahlungsdatenSenden: paketKey ? `/agent/customers/${encodeURIComponent(ref)}/send-payment-email` : null,
-        rechnung: paketKey ? `/api/fiaon/invoice/${encodeURIComponent(ref)}` : null,
+        zahlungsdatenSenden: antwortZweck ? `/agent/customers/${encodeURIComponent(antwortRef)}/send-payment-email` : null,
+        rechnung: antwortZweck ? `/api/fiaon/invoice/${encodeURIComponent(antwortRef)}` : null,
         // 24.08.2026: VORHER ?ref= — die Seite liest nur ?person=, der Weg zur
         // Akte endete auf einer Seite ohne geöffnete Akte. NACHHER über die
         // personId; nur wenn die fehlt, bleibt die Referenz als letzte Spur.
@@ -476,13 +602,15 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
 // und überweist zweimal.
 //
 // Die Bonitätsauskunft ist KEIN Stufenpaket: Sie ist ein Einmalkauf neben dem
-// Konto (`type='schufa'`, 74 €). Sie darf nie ein Paket stilllegen und wird
+// Konto (`type='schufa'`; seit E-240 74 € mit laufendem Paket, sonst 149 €,
+// Firma 199/349 €). Sie darf nie ein Paket stilllegen und wird
 // von keinem Paket stillgelegt. Diese Kategoriegrenze fehlte einmal ganz — sie
 // kostete 583,98 € offenen Umsatz bei den kaufwilligsten Bestandskunden
 // (siehe supersedeSisterOrders in fiaon-antrag.ts, 03.08.2026).
 //
-// Aber: Auch die Auskunft gibt es nur EINMAL lebend. Zwei offene 74-€-Zeilen
-// sind zwei Zahlungsaufforderungen für dieselbe Auskunft.
+// Aber: Auch die Auskunft gibt es nur EINMAL lebend. Zwei offene Auskunft-Zeilen
+// sind zwei Zahlungsaufforderungen für dieselbe Auskunft. Seit E-240 regelt das
+// auskunftBestellen (oben, auskunftFuerPerson) — hier steht kein eigenes INSERT mehr.
 // ═══════════════════════════════════════════════════════════════════════════
 router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -525,33 +653,33 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
       });
     }
 
-    const istAuskunft = p.key === "schufa";
+    // E-240: Jeder der vier Auskunft-Schlüssel ist „die Auskunft" — den Preis
+    // wählt auskunftBestellen, nicht der gewählte Katalogeintrag.
+    const auskunftArt = auskunftArtVon(p);
+    if (auskunftArt) {
+      if (quelle.person_id == null) {
+        return res.status(400).json({
+          ok: false,
+          error: "Dieser Bestellung fehlt eine Person — ohne sie lässt sich die Auskunft nicht zuordnen. "
+            + "Bitte zuerst E-Mail oder Telefonnummer nachtragen.",
+        });
+      }
+      const erg = await auskunftFuerPerson(Number(quelle.person_id), auskunftArt, { id: req.agent!.id, name: req.agent!.name });
+      return res.status(erg.status).json(erg.body);
+    }
     // ── DREI KATEGORIEN STATT ZWEI (17.09.2026, E-188) ─────────────────────
     // Bisher: Auskunft oder nicht. FIAON Global ist ein drittes Fach — es darf
     // die offene Privatbestellung desselben Menschen nicht stilllegen und
     // umgekehrt. Verglichen wird deshalb die Kategorie (auskunft | global |
-    // konto), nicht mehr nur „ist es die Auskunft?".
-    const kategorie = istAuskunft ? "auskunft" : produktkategorie({ pack_key: p.key });
+    // konto), nicht mehr nur „ist es die Auskunft?". Die Auskunft selbst ist
+    // seit E-240 oben abgezweigt; hier kommen nur noch Konto und Global an.
+    //
+    // WAND 1 (Bezahltes ist unantastbar) stand hier als Abfrage, die nur für
+    // die Auskunft griff — sie lebt jetzt in auskunftBestellen (Stufe
+    // „bezahlt" → 409 grund "bezahlt"). Ein bezahltes Konto-Paket verhindert
+    // kein Upgrade; stillgelegt werden unten nur OFFENE Bestellungen.
+    const kategorie = produktkategorie({ pack_key: p.key });
     const KATEGORIE_SQL = produktkategorieSql();
-
-    // ── WAND 1: BEZAHLTES IST UNANTASTBAR ──────────────────────────────────
-    // Gibt es dieses Produkt schon BEZAHLT, wird nichts angelegt. Ein zweites
-    // Mal kassieren wäre ein Fehler, den kein Verlaufseintrag heilt.
-    const [schonBezahlt] = (await sqlPool`
-      SELECT ref, pack_name, paid_at FROM fiaon_applications
-      WHERE person_id = ${quelle.person_id} AND merged_into IS NULL
-        AND payment_status = 'paid'
-        AND ${sqlPool.unsafe(KATEGORIE_SQL)} = ${kategorie}::text
-      ORDER BY created_at DESC LIMIT 1
-    `) as any[];
-    if (schonBezahlt && istAuskunft) {
-      return res.status(409).json({
-        ok: false, grund: "bezahlt",
-        error: `Die Bonitätsauskunft ist schon bezahlt (${schonBezahlt.ref}). `
-          + "Ein zweites Mal kassieren wäre falsch.",
-        vorhanden: { ref: schonBezahlt.ref, paket: schonBezahlt.pack_name },
-      });
-    }
 
     // ── DIE OFFENEN DERSELBEN KATEGORIE ────────────────────────────────────
     const offene = (await sqlPool`
@@ -562,24 +690,9 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
       ORDER BY created_at DESC
     `) as any[];
 
-    // Die Auskunft nur EINMAL lebend: Zwei offene 74-€-Zeilen sind zwei
-    // Zahlungsaufforderungen für dieselbe Auskunft.
-    if (istAuskunft && offene.length > 0) {
-      return res.status(409).json({
-        ok: false, grund: "schon_offen",
-        error: `Es gibt schon eine offene Bonitätsauskunft (${offene[0].ref}). `
-          + "Zwei offene Bestellungen wären zwei Zahlungsaufforderungen für dieselbe Auskunft.",
-        vorhanden: { ref: offene[0].ref, paket: offene[0].pack_name },
-      });
-    }
-
     // ── ANLEGEN ────────────────────────────────────────────────────────────
-    const ref = istAuskunft
-      // Die Auskunft trägt ihr eigenes Präfix — daran erkennen alle Abfragen
-      // die Kategorie, auch die alten, die `type` nicht lesen.
-      ? `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
-      : neueRef();
-    const zahlungsreferenz = neueZahlungsreferenz(ref.replace("SCHUFA-", ""));
+    const ref = neueRef();
+    const zahlungsreferenz = neueZahlungsreferenz(ref);
 
     await sqlPool`
       INSERT INTO fiaon_applications (
@@ -591,7 +704,7 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
         person_id, assigned_agent_id, created_at, updated_at
       ) VALUES (
         ${ref},
-        ${istAuskunft ? "schufa" : bestellTyp(p)},
+        ${bestellTyp(p)},
         'payment_pending', 'pending_payment', 5,
         ${p.key}, ${p.label}, ${paketPreisEuro(p.key)}, 'EUR', ${zahlungsreferenz},
         ${quelle.first_name}, ${quelle.last_name}, ${quelle.company_name},
@@ -607,25 +720,23 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
 
     // ── PAKET-HYGIENE: DIE ALTE OFFENE STUFE STILLLEGEN ────────────────────
     const ersetzt: string[] = [];
-    if (!istAuskunft) {
-      for (const alt of offene) {
-        await sqlPool`
-          UPDATE fiaon_applications
-          SET merged_into = ${ref}, updated_at = NOW()
-          WHERE ref = ${alt.ref} AND merged_into IS NULL
-            -- Sicherheitsnetz: Nur wirklich Offene. Zwischen Lesen und
-            -- Schreiben kann eine Zahlung eingegangen sein.
-            AND payment_status IN ('pending_payment', 'claimed_paid')
-        `;
-        ersetzt.push(String(alt.ref));
-        await sqlPool`
-          INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
-          VALUES (${alt.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                  ${`Stillgelegt: ersetzt durch ${ref} (${p.label}). `
-                    + `Ein Konto hat genau eine Stufe — zwei offene Bestellungen wären `
-                    + `zwei Zahlungsaufforderungen.`})
-        `.catch(() => {});
-      }
+    for (const alt of offene) {
+      await sqlPool`
+        UPDATE fiaon_applications
+        SET merged_into = ${ref}, updated_at = NOW()
+        WHERE ref = ${alt.ref} AND merged_into IS NULL
+          -- Sicherheitsnetz: Nur wirklich Offene. Zwischen Lesen und
+          -- Schreiben kann eine Zahlung eingegangen sein.
+          AND payment_status IN ('pending_payment', 'claimed_paid')
+      `;
+      ersetzt.push(String(alt.ref));
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${alt.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`Stillgelegt: ersetzt durch ${ref} (${p.label}). `
+                  + `Ein Konto hat genau eine Stufe — zwei offene Bestellungen wären `
+                  + `zwei Zahlungsaufforderungen.`})
+      `.catch(() => {});
     }
 
     await sqlPool`
@@ -870,6 +981,15 @@ router.post("/agent/crm/kunden/:personId/bestellung", requireAgent, async (req: 
     }
     const eingestelltFehler = nichtMehrImVerkauf(pk);
     if (eingestelltFehler) return res.status(400).json({ ok: false, grund: "eingestellt", error: eingestelltFehler });
+
+    // E-240: Die Auskunft ist keine Konto-Bestellung — sie geht über den einen
+    // Weg (auskunftFuerPerson → auskunftBestellen), mit dem Preis, den der Server
+    // für diesen Menschen wählt. Eine offene Paket-Bestellung sperrt sie nicht.
+    const auskunftArt = auskunftArtVon(pk);
+    if (auskunftArt) {
+      const erg = await auskunftFuerPerson(personId, auskunftArt, { id: req.agent!.id, name: req.agent!.name });
+      return res.status(erg.status).json(erg.body);
+    }
 
     const [person] = (await sqlPool`
       SELECT id, first_name, last_name, primary_email, primary_phone,

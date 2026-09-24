@@ -281,7 +281,8 @@ async function main(): Promise<void> {
       // ohne Kommentare — der erklärende Kommentar nennt schufa_requested selbst.
       const telefonieCode = telefonieQuelle.split("\n").filter((z) => !/^\s*(\/\/|\*)/.test(z)).join("\n");
       ok("„Anfordern“ schickt documents_change_request mit Hinweis, nie schufa_requested",
-        /event: "documents_change_request"/.test(telefonieCode) && /hinweis: notiz \|\| ANFORDERN_HINWEIS\[art\]/.test(telefonieCode)
+        // 24.09.2026 (E-240): EINE Mail für mehrere Unterlagen — der Hinweis ist jetzt die Aufzählung der Posten.
+        /event: "documents_change_request"/.test(telefonieCode) && /hinweis: notiz \|\| unterlagenAufzaehlung\(posten\)/.test(telefonieCode)
         && !/schufa_requested/.test(telefonieCode));
       ok("… über mailSenden, also mit Zustandsprüfung", /mailSenden\(\{/.test(telefonieQuelle));
       ok("Die Datei-Route setzt no-store", /no-store, private/.test(telefonieQuelle));

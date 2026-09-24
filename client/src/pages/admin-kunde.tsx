@@ -751,7 +751,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                       {/* 17.09.2026 (E-188): aus dem Katalog statt aus einer harten Liste — FIAON Global
                           fehlte hier, und die eingestellten Business-Abos bleiben nur für den Nachtrag
                           an Bestandskunden wählbar (dieselbe Liste wie PACKS_ALLOWED auf dem Server). */}
-                      {PAKETE.filter((pk) => pk.key !== "schufa").map((pk) => (
+                      {PAKETE.filter((pk) => !pk.zusatz).map((pk) => (
                         <option key={pk.key} value={pk.key}>{pk.label}{pk.eingestellt ? " (eingestellt — nur Bestand)" : pk.abo ? "" : " (einmalig)"}</option>
                       ))}
                     </select>

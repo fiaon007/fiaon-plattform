@@ -54,12 +54,15 @@ async function versuch(tx: any, fn: () => Promise<unknown>): Promise<string | nu
 
 async function main(): Promise<void> {
   const migration = readFileSync("db/migrations/065_katalogpreis_wand.sql", "utf8");
+  // 25.09.2026 (E-240): 083 ersetzt die Funktion — die Auskunft hat vier Preise.
+  const migration083 = readFileSync("db/migrations/083_auskunft_katalogpreis.sql", "utf8");
 
   await sqlPool.begin(async (tx: any) => {
     // ═══════════════════════════════════════════════════════════════════════
     titel("1. DIE WAND EINSPIELEN (in der Transaktion, wird zurückgerollt)");
     // ═══════════════════════════════════════════════════════════════════════
     await tx.unsafe(migration);
+    await tx.unsafe(migration083);
     const [{ da }] = (await tx`
       SELECT COUNT(*)::int AS da FROM pg_trigger
       WHERE tgname = 'trg_fiaon_katalogpreis_wand'
@@ -162,6 +165,25 @@ async function main(): Promise<void> {
     ok("katalogpreisCents liefert den Stufenpreis (Ultra = 7999)",
       katalogpreisCents({ ref: "FIAON-Z", type: "private", pack_key: "ultra" }) === 7999);
 
+    // ── 25.09.2026 (E-240): die vier Auskunft-Preise (Migration 083) ──────
+    // Ein AUSKUNFT-Schlüssel im pack_key gilt — ein Stufenpaket dort nicht (oben).
+    const vierPreise: [string, string, string][] = [
+      ["P1", "auskunft_privat", "149.00"], ["P2", "auskunft_firma", "349.00"],
+      ["P3", "auskunft_firma_abo", "199.00"], ["P4", "schufa", "74.00"],
+    ];
+    for (const [z, key, betrag] of vierPreise) {
+      const f = await versuch(tx, () => anlegen(`FIAON-SCHUFA-${marke}-${z}`, key, betrag, "schufa"));
+      ok(`Auskunft ${key} zu ${betrag} € geht durch`, f === null, f ?? "");
+      ok(`katalogpreisCents: Auskunft ${key} = ${Math.round(Number(betrag) * 100)}`,
+        katalogpreisCents({ ref: `FIAON-SCHUFA-${z}`, type: "schufa", pack_key: key }) === Math.round(Number(betrag) * 100));
+    }
+    const falsch149 = await versuch(tx, () => anlegen(`FIAON-SCHUFA-${marke}-P5`, "auskunft_privat", "74.00", "schufa"));
+    ok("Auskunft auskunft_privat zu 74,00 € wird ABGELEHNT (Einzelpreis ist 149 €)",
+      falsch149 !== null && /Katalogpreis/.test(falsch149), falsch149 ?? "durchgelassen");
+    const falschFirma = await versuch(tx, () => anlegen(`FIAON-SCHUFA-${marke}-P6`, "auskunft_firma_abo", "149.00", "schufa"));
+    ok("Firmen-Auskunft mit Paket zu 149,00 € wird ABGELEHNT (199 €)",
+      falschFirma !== null, falschFirma ?? "durchgelassen");
+
     // ═══════════════════════════════════════════════════════════════════════
     titel("5. DAS PAKET WECHSELN NIMMT DEN BETRAG MIT");
     // ═══════════════════════════════════════════════════════════════════════
@@ -198,7 +220,9 @@ async function main(): Promise<void> {
     const [rest] = (await tx`
       SELECT COUNT(*)::int AS n FROM fiaon_applications a
       JOIN fiaon_paketpreise k ON k.pack_key = CASE
-        WHEN COALESCE(a.type,'') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%' THEN 'schufa'
+        WHEN COALESCE(a.type,'') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%' THEN
+          CASE WHEN LOWER(TRIM(COALESCE(a.pack_key,''))) IN ('schufa','auskunft_privat','auskunft_firma','auskunft_firma_abo')
+               THEN LOWER(TRIM(a.pack_key)) ELSE 'schufa' END
         ELSE LOWER(TRIM(COALESCE(a.pack_key,''))) END
       WHERE a.amount_due IS NOT NULL
         AND COALESCE(a.payment_status,'') <> 'paid'

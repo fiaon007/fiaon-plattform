@@ -63,6 +63,15 @@ export interface MailBaustein {
   daten?: { label: string; wert: string }[];
   /** Kleiner Zusatz unter dem Knopf — Hinweis, Frist, Rückversicherung. */
   fussnote?: string;
+  /**
+   * Abschnitte UNTER der Fußnote, je mit Überschrift (25.09.2026, E-240). Für
+   * Pflichttexte in Textform, die den Handlungsaufruf nicht verdrängen dürfen:
+   * Vertragsbestätigung und Widerrufsbelehrung der Bonitätsauskunft (§ 312f
+   * Abs. 2, § 356 Abs. 3 BGB) stehen nach Zahlungsdaten, QR-Code und Knopf.
+   * Ohne Angabe bleibt jede Mail Byte für Byte, wie sie war (HTML und Text).
+   * Ein Zeilenumbruch im Absatz wird zu <br />, einfaches <b> ist erlaubt.
+   */
+  anhang?: { titel: string; absaetze: string[] }[];
   /** Großes Kartenbild direkt unter dem Kopf — für die Ankunftsmomente. */
   heroKarte?: boolean;
   /** Der Karten-Ziel-Block vor der Fußzeile (Bild + KARTE_SATZ). */
@@ -197,6 +206,16 @@ export function mailHtml(b: MailBaustein): string {
   const fussnote = b.fussnote
     ? `<p style="margin:14px 0 0;font:400 13px/1.6 ${SCHRIFT};color:${LEISE};">${b.fussnote}</p>` : "";
 
+  // 25.09.2026 (E-240): Pflichttexte nach dem Knopf — kleiner gesetzt, aber in
+  // Textfarbe (lesbar, auch im Dunkelmodus: dieselbe <font>-Absicherung wie oben).
+  // Steht direkt hinter der Fußnote in derselben Zeile: ohne Anhang ändert sich kein Byte.
+  const anhang = b.anhang?.length
+    ? b.anhang.map((a) => `
+            <div style="margin:26px 0 0;padding:20px 0 0;border-top:1px solid ${LINIE};">
+              <h2 style="margin:0 0 12px;font:700 16px/1.35 ${SCHRIFT};color:${NAVY};">${a.titel}</h2>
+              ${a.absaetze.map((x) => `<p class="fiaon-text" style="margin:0 0 10px;font:400 13px/1.6 ${SCHRIFT};color:${TEXT} !important;"><font color="${TEXT}" style="color:${TEXT} !important;">${String(x).replace(/\n/g, "<br />")}</font></p>`).join("\n              ")}
+            </div>`).join("") : "";
+
   const hero = b.heroKarte
     ? `<tr><td style="background:${NAVY_TIEF};"><img src="${BANNER_BILD}" width="600" alt="Die FIAON Karte" style="display:block;width:100%;max-width:600px;height:auto;" /></td></tr>` : "";
 
@@ -269,7 +288,7 @@ export function mailHtml(b: MailBaustein): string {
             ${bild}
             ${knopf}
             ${knopf2}
-            ${fussnote}
+            ${fussnote}${anhang}
         </td></tr>
         ${ziel}
 
@@ -338,6 +357,8 @@ export function mailText(b: MailBaustein, titelFuellen: (s: string) => string = 
     ...(b.knopf ? ["", `${b.knopf.text}: ${b.knopf.url}`] : []),
     ...(b.knopf2 ? [`${b.knopf2.text}: ${b.knopf2.url}`] : []),
     ...(b.fussnote ? ["", ohneTags(b.fussnote)] : []),
+    // E-240 (25.09.2026): die Pflichtabschnitte auch im Text-Teil — Überschrift groß, Absätze ohne Tags.
+    ...(b.anhang?.length ? b.anhang.flatMap((a) => ["", a.titel.toUpperCase(), ...a.absaetze.map((x) => ohneTags(x))]) : []),
     ...(b.karteZiel ? ["", KARTE_SATZ] : []),
     "",
     "—",

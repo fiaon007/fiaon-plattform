@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (8), /en/request-your-credit-report (8), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -306,12 +306,12 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Der Vertrag läuft über zwölf Monatsraten – so lange, weil Auskunft, Schreiben und Antworten Zeit brauchen. Danach läuft er unbefristet weiter und ist jederzeit mit einer Frist von einem Monat kündbar, formlos: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das gesetzliche Widerrufsrecht von 14 Tagen ab Vertragsschluss gilt zusätzlich."
     },
     {
-      "f": "Wird die Auskunft angerechnet, wenn ich später ein Paket nehme?",
-      "a": "Ja. Wer zuerst nur die Auskunft bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag auf die erste Rate angerechnet. Sagen Sie es im Startgespräch oder im Kundenbereich – Ihr Ansprechpartner trägt es ein."
+      "f": "Ist die Bonitätsauskunft im Paket enthalten?",
+      "a": "Nein, sie ist ein eigenes Produkt. Mit laufendem Paket kostet sie einmalig 74 €, ohne Paket 149 € (für Unternehmen 199 € mit Paket, 349 € ohne). Sie bekommen die Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, die Speicherfristen geprüft, einen Handlungsplan und fertige Schreiben zur Freigabe. Ihre Datenkopie steht Ihnen bei jeder Auskunftei auch kostenlos zu – fordern Sie sie selbst an, laden Sie sie im Kundenbereich hoch, und Ihr Paket erklärt sie."
     },
     {
       "f": "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?",
-      "a": "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten."
+      "a": "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – dazu auf Wunsch die Bonitätsauskunft. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten."
     },
     {
       "f": "Wie wird bezahlt?",
@@ -332,12 +332,12 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "The contract runs for twelve monthly instalments — that long because reports, letters and replies take time. After that it continues indefinitely and can be cancelled at any time with one month\\x27s notice, informally: in your customer area under Subscription & payments or by e-mail. The statutory 14-day right of withdrawal from the conclusion of the contract applies in addition."
     },
     {
-      "f": "Is the report credited if I choose a plan later?",
-      "a": "Yes. If you buy the report on its own first and choose a plan within 30 days, the amount is credited against the first instalment. Say so in the onboarding call or in your customer area — your contact person records it."
+      "f": "Is the credit report included in a plan?",
+      "a": "No, it is a separate product. With a running plan it costs €74 one-off, without a plan €149 (for companies €199 with a plan, €349 without). You receive the data copies from every credit bureau in your country, every line explained, storage periods checked, an action plan and finished letters for your approval. You are also entitled to your data copy from each bureau free of charge — request it yourself, upload it in your customer area and your plan explains it."
     },
     {
       "f": "Are there fees per letter or success commissions?",
-      "a": "No. Neither per letter nor on deletions, accounts or card limits. The plan price is the price. Registered-letter postage, follow-up, escalation — all included."
+      "a": "No. Neither per letter nor on deletions, accounts or card limits. The plan price is the price — plus the credit report if you want it. Registered-letter postage, follow-up, escalation — all included."
     },
     {
       "f": "How do I pay?",
@@ -1409,61 +1409,69 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/bonitaetsauskunft-beantragen": [
     {
       "f": "Ist eine Bonitätsauskunft wirklich kostenlos möglich?",
-      "a": "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei SCHUFA, KSV und CRIF. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Kostenpflichtig ist bei den Auskunfteien nur die Verpackung (Bonitätszertifikat zum Weitergeben) — und bei FIAON die Arbeit drumherum: beschaffen, erklären, prüfen."
+      "a": "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei jeder Auskunftei, in der Schweiz nach Art. 25 DSG. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Kostenpflichtig ist bei den Auskunfteien nur das Bonitätszertifikat zum Weitergeben — und bei FIAON die Arbeit drumherum: anfordern bei allen Auskunfteien Ihres Landes, jede Zeile erklären, Fristen prüfen, Handlungsplan und fertige Schreiben."
     },
     {
       "f": "Was kostet die Bonitätsauskunft über FIAON?",
-      "a": "74 Euro, einmalig. Darin enthalten: die Beschaffung Ihrer Auskünfte, die Aufbereitung in Klartext, die Prüfung jedes Eintrags auf Zulässigkeit und Verfristung sowie ein Handlungsplan. Keine Erfolgsbeteiligung, kein Abo-Zwang — seriöse Arbeit rechnet nicht pro „gelöschtem Eintrag“ ab."
+      "a": "Einmalig 149 €. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von 74 €. Für Unternehmen: 349 € einzeln, 199 € mit Paket. Darin enthalten: die Anforderung Ihrer Datenkopien bei allen Auskunfteien Ihres Landes, die Erklärung jeder Zeile, die Prüfung der Speicherfristen, Ihr Handlungsplan und fertige Schreiben zur Freigabe. Kein Abo, keine Erfolgsbeteiligung — seriöse Arbeit rechnet nicht pro „gelöschtem Eintrag“ ab."
     },
     {
       "f": "Wie lange dauert es, bis ich meine Auskunft habe?",
-      "a": "Der Antrag dauert etwa zwei Minuten. Die Auskunfteien liefern die Datenkopie je nach Haus und Weg innerhalb weniger Tage bis etwa vier Wochen (gesetzliche Obergrenze: ein Monat). Sobald sie vorliegt, sehen Sie Aufbereitung und Prüfung in Ihrem Kundenbereich — in der Regel binnen 24 Stunden."
+      "a": "Die Bestellung dauert wenige Minuten. Die Auskunfteien haben für die Datenkopie gesetzlich in der Regel einen Monat Zeit, oft geht es schneller. Sobald die Kopien vorliegen, erklären und prüfen wir sie und legen Handlungsplan und Schreiben in Ihren Kundenbereich."
     },
     {
       "f": "Was ist der Unterschied zwischen Datenkopie und Bonitätszertifikat?",
-      "a": "Die Datenkopie ist für SIE: vollständig, mit jedem Eintrag und jedem Detail — und kostenlos. Das Bonitätszertifikat der Auskunfteien ist für DRITTE (z. B. Vermieter): gekürzt, dafür zum Vorzeigen gedacht und kostenpflichtig. Wer seine Lage verstehen oder verbessern will, braucht die Datenkopie."
+      "a": "Die Datenkopie ist für SIE: vollständig, mit jedem Eintrag und jedem Detail — und kostenlos. Das Bonitätszertifikat der Auskunfteien ist für DRITTE (z. B. Vermieter): gekürzt, dafür zum Vorzeigen gedacht und kostenpflichtig. Wer seine Lage verstehen und angehen will, braucht die Datenkopie."
     },
     {
       "f": "Sieht die SCHUFA, dass ich eine Auskunft beantrage?",
-      "a": "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Sie können sie so oft anfordern, wie Sie wollen."
+      "a": "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Das gilt auch, wenn FIAON sie mit Ihrer Vollmacht für Sie anfordert."
     },
     {
-      "f": "Prüft FIAON auch KSV (Österreich) und CRIF (Schweiz)?",
-      "a": "Ja. FIAON arbeitet für den gesamten DACH-Raum und beschafft die Auskünfte aller drei Häuser aus einer Hand. Die Rechte sind vergleichbar: In Österreich gilt die DSGVO unmittelbar, die Schweiz kennt mit dem revidierten DSG eigene Auskunfts- und Berichtigungsrechte."
+      "f": "Gilt das auch für Österreich und die Schweiz?",
+      "a": "Ja. In Deutschland fordern wir bei SCHUFA, CRIF und Creditreform Boniversum an, in Österreich bei KSV1870 und CRIF, in der Schweiz bei CRIF und Intrum. In Österreich gilt die DSGVO unmittelbar, die Schweiz kennt mit dem revidierten DSG eigene Auskunfts- und Berichtigungsrechte (Art. 25 DSG)."
     },
     {
-      "f": "Kann FIAON garantieren, dass Einträge gelöscht werden?",
-      "a": "Nein — und niemand kann das seriös. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf. Was FIAON leistet: jeden Eintrag gegen die gesetzlichen Voraussetzungen halten und angreifen, was angreifbar ist. Anbieter mit Löschgarantie erkennen Sie als unseriös."
+      "f": "Gibt es die Bonitätsauskunft auch für Unternehmen?",
+      "a": "Ja. Für Unternehmen fordern wir die Firmendaten bei den Wirtschaftsauskunfteien an (u. a. Creditreform und CRIF) und dazu die persönliche Datenkopie der Inhaberin, des Inhabers oder der Geschäftsführung. Jeder Eintrag wird erklärt, dazu Handlungsplan und fertige Schreiben. Sie kostet 349 € einzeln und 199 € mit laufendem FIAON-Paket."
+    },
+    {
+      "f": "Kann FIAON zusagen, dass Einträge gelöscht werden?",
+      "a": "Nein — und niemand kann das seriös. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf. Was FIAON leistet: jeden Eintrag gegen die gesetzlichen Voraussetzungen halten und für das, was angreifbar ist, die Schreiben fertig machen. Ob gelöscht wird, entscheidet die Auskunftei. Anbieter, die eine Löschung versprechen, erkennen Sie als unseriös."
     }
   ],
   "/en/request-your-credit-report": [
     {
       "f": "Is a credit report really possible free of charge?",
-      "a": "Yes. The data copy under Art. 15 GDPR is free by law — at SCHUFA, KSV and CRIF. It contains all stored data including reporting date and reporting body. What the bureaus charge for is only the packaging (a credit certificate to pass on) — and what FIAON charges for is the work around it: obtaining, explaining, checking."
+      "a": "Yes. The data copy under Art. 15 GDPR is free by law — at every credit bureau, in Switzerland under Art. 25 DSG. It contains all stored data including reporting date and reporting body. What the bureaus charge for is only the credit certificate to pass on — and what FIAON charges for is the work around it: requesting from every bureau in your country, explaining every line, checking deadlines, an action plan and finished letters."
     },
     {
       "f": "What does the credit report via FIAON cost?",
-      "a": "€74, one-off. Included: obtaining your reports, preparation in plain language, the check of every entry for lawfulness and expiry, and an action plan. No success fee, no subscription required — serious work does not charge per “deleted entry”."
+      "a": "€149 one-off. With a running FIAON plan you pay the customer price of €74. For companies: €349 on its own, €199 with a plan. Included: requesting your data copies from every credit bureau in your country, explaining every line, checking the storage periods, your action plan and finished letters for your approval. No subscription, no success fee — serious work does not charge per “deleted entry”."
     },
     {
       "f": "How long until I have my report?",
-      "a": "The application takes about two minutes. Depending on the bureau and the route, the credit bureaus deliver the data copy within a few days to about four weeks (legal maximum: one month). As soon as it is there, you see preparation and review in your customer area — usually within 24 hours."
+      "a": "Ordering takes a few minutes. By law the credit bureaus usually have one month for the data copy, often it is faster. As soon as the copies arrive, we explain and check them and put the action plan and letters in your customer area."
     },
     {
       "f": "What is the difference between a data copy and a credit certificate?",
-      "a": "The data copy is for YOU: complete, with every entry and every detail — and free. The credit bureaus' credit certificate is for THIRD PARTIES (landlords, say): abridged, meant for showing, and paid. Anyone who wants to understand or change their situation needs the data copy."
+      "a": "The data copy is for YOU: complete, with every entry and every detail — and free. The credit bureaus' credit certificate is for THIRD PARTIES (landlords, say): abridged, meant for showing, and paid. Anyone who wants to understand and tackle their situation needs the data copy."
     },
     {
       "f": "Does SCHUFA see that I am requesting a report?",
-      "a": "Self-disclosure is neutral: it is not stored as an enquiry that other banks see, and it does not change your score. You can request it as often as you like."
+      "a": "Self-disclosure is neutral: it is not stored as an enquiry that other banks see, and it does not change your score. That also applies when FIAON requests it for you with your authorisation."
     },
     {
-      "f": "Does FIAON also check KSV (Austria) and CRIF (Switzerland)?",
-      "a": "Yes. FIAON works across the whole DACH region and obtains the reports of all three bureaus from one hand. The rights are comparable: in Austria the GDPR applies directly, Switzerland has its own rights of access and rectification under the revised DSG."
+      "f": "Does this also apply in Austria and Switzerland?",
+      "a": "Yes. In Germany we request from SCHUFA, CRIF and Creditreform Boniversum, in Austria from KSV1870 and CRIF, in Switzerland from CRIF and Intrum. In Austria the GDPR applies directly, Switzerland has its own rights of access and rectification under the revised DSG (Art. 25 DSG)."
     },
     {
-      "f": "Can FIAON guarantee that entries are deleted?",
-      "a": "No — and nobody can, seriously. Justified, lawfully reported entries stay until the deadline expires. What FIAON does: hold every entry against the legal requirements and challenge what can be challenged. You can recognise providers with deletion guarantees as not serious."
+      "f": "Is the credit report also available for companies?",
+      "a": "Yes. For companies we request the company's data from the business credit bureaus (including Creditreform and CRIF) plus the personal data copy of the owner or the managing director. Every entry is explained, with an action plan and finished letters. It costs €349 on its own and €199 with a running FIAON plan."
+    },
+    {
+      "f": "Can FIAON promise that entries will be deleted?",
+      "a": "No — and nobody can, seriously. Justified, lawfully reported entries stay until the deadline expires. What FIAON does: hold every entry against the legal requirements and prepare the letters for whatever can be challenged. Whether an entry is deleted is decided by the credit bureau. You can recognise providers who promise deletion as not serious."
     }
   ],
   "/inkasso-brief-erhalten": [

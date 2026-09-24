@@ -1986,17 +1986,87 @@ router.post(
 );
 
 /**
- * Der Satz, den die Mail „Ein Dokument fehlt noch" fett druckt — je Unterlage
- * (18.09.2026). Gesiezt, ohne Frist, ohne Zusage: Die Bonitätsauskunft holt
- * FIAON sonst selbst ein, deshalb steht dort der Ausweg per Antwort.
+ * Die Unterlagen, wie die Mail sie aufzählt — je Art ein Listenposten
+ * (18.09.2026; seit 24.09.2026, E-240, Posten statt ganzer Sätze, damit
+ * mehrere in EINE Mail passen). Gesiezt, ohne Frist, ohne Zusage.
+ *
+ * Die Auskunft steht hier nur als Rückfall: Den Posten liefert
+ * auskunftMailTeil je Land („Ihre SCHUFA-Auskunft" / „Ihre KSV-Auskunft" /
+ * „Ihre Bonitätsauskunft"). Bis heute stand hier für alle „SCHUFA-Datenkopie" —
+ * am 24.09. auch für 111 Kunden in Österreich.
  */
 const ANFORDERN_HINWEIS: Record<string, string> = {
-  ausweis: "Bitte laden Sie eine gut lesbare Kopie Ihres Ausweises hoch — Vorder- und Rückseite.",
-  kontoauszug: "Bitte laden Sie Ihre Kontoauszüge der letzten drei Monate hoch.",
-  schufa: "Ihre Bonitätsauskunft (SCHUFA-Datenkopie) liegt uns noch nicht vor. Haben Sie eine, laden Sie sie bitte hoch — sonst antworten Sie kurz auf diese E-Mail.",
+  ausweis: "eine gut lesbare Kopie Ihres Ausweises (Vorder- und Rückseite)",
+  kontoauszug: "Ihre Kontoauszüge der letzten drei Monate",
+  schufa: "Ihre Bonitätsauskunft",
 };
 
-/** POST /dokumente/:personId/anfordern — über die Registry, mit Zustandsprüfung. */
+/**
+ * Dieselbe Unterlage an dieselbe Person höchstens einmal in diesem Zeitraum
+ * (24.09.2026, E-240). Am 24.09. gingen 961 Unterlagen-Mails an 361 Menschen,
+ * 322 davon bekamen mehrere, einer sechs — je Klick eine Mail, derselbe Kunde
+ * mehrfach. Das ist keine Warnung, sondern eine Wand: Eine dritte gleiche Bitte
+ * am selben Tag bewegt niemanden, sie trainiert den Spamfilter.
+ */
+const ANFORDERN_SPERRE_STUNDEN = 72;
+
+/** „A", „A und B", „A, B und C" — mit großem Anfang und Punkt. */
+function unterlagenAufzaehlung(posten: string[]): string {
+  const satz = posten.length <= 1 ? (posten[0] ?? "")
+    : `${posten.slice(0, -1).join(", ")} und ${posten[posten.length - 1]}`;
+  return satz ? `${satz.charAt(0).toUpperCase()}${satz.slice(1)}.` : "";
+}
+
+function berlinZeitpunkt(d: Date): string {
+  const tag = d.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" });
+  const uhr = d.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+  return `${tag}, ${uhr} Uhr`;
+}
+
+/**
+ * Welche Unterlagen gingen dieser Person zuletzt per Unterlagen-Mail zu —
+ * je Art der jüngste echte Versand im Sperrzeitraum.
+ *
+ * Neue Mails tragen `unterlagen_arten` in der Nutzlast. Die vom 24.09. tragen
+ * nur den Hinweistext — daraus wird die Art gelesen, damit die Sperre die Flut
+ * von heute schon mitzählt. Die Nutzlast liegt als jsonb-TEXT vor (die
+ * bekannte Falle: ein JSON-String in jsonb) — deshalb wird sie hier in
+ * JavaScript gelesen, nicht per ::jsonb in SQL, wo ein kaputter Eintrag die
+ * ganze Abfrage risse.
+ */
+async function zuletztAngefordert(personId: number): Promise<Map<string, Date>> {
+  const zeilen = (await sqlPool`
+    SELECT created_at,
+           CASE WHEN jsonb_typeof(payload) = 'string' THEN payload #>> '{}' ELSE payload::text END AS roh
+      FROM fiaon_mail_log
+     WHERE person_id = ${personId} AND event = 'documents_change_request'
+       AND status = 'versandt' AND COALESCE(art, 'echt') = 'echt'
+       AND created_at > NOW() - make_interval(hours => ${ANFORDERN_SPERRE_STUNDEN})
+     ORDER BY created_at DESC
+  `) as any[];
+  const je = new Map<string, Date>();
+  for (const z of zeilen) {
+    let p: any = null;
+    try { p = JSON.parse(String(z.roh ?? "")); } catch { /* unlesbar — zählt nicht */ }
+    const arten = typeof p?.unterlagen_arten === "string" && p.unterlagen_arten
+      ? String(p.unterlagen_arten).split(",")
+      : [
+          ...(/ausweis/i.test(String(p?.hinweis ?? "")) ? ["ausweis"] : []),
+          ...(/kontoausz/i.test(String(p?.hinweis ?? "")) ? ["kontoauszug"] : []),
+          ...(/bonitätsauskunft|schufa|ksv|auskunft/i.test(String(p?.hinweis ?? "")) ? ["schufa"] : []),
+        ];
+    for (const a of arten) if (!je.has(a)) je.set(a, new Date(z.created_at));
+  }
+  return je;
+}
+
+/**
+ * POST /dokumente/:personId/anfordern — über die Registry, mit Zustandsprüfung.
+ *
+ * Nimmt `arten: string[]` (mehrere Unterlagen in EINER Mail, „Alle fehlenden
+ * anfordern") oder wie bisher `art`. Antwort wie mailSenden, dazu
+ * `angefordert` und `ausgelassen` (je Art mit Grund).
+ */
 router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
@@ -2004,8 +2074,85 @@ router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentReq
     if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
       return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
     }
-    const art = String(req.body?.art || "");
-    if (!istDokumentArt(art)) return res.status(400).json({ ok: false, error: "Unbekannte Unterlage." });
+    const roh: unknown[] = Array.isArray(req.body?.arten) ? req.body.arten : [req.body?.art];
+    const gewuenscht = Array.from(new Set(roh.map((a) => String(a ?? "").trim()).filter(Boolean)));
+    if (!gewuenscht.length || !gewuenscht.every((a) => istDokumentArt(a))) {
+      return res.status(400).json({ ok: false, error: "Unbekannte Unterlage." });
+    }
+    // In der Reihenfolge der Kacheln: Ausweis, Kontoauszug, Auskunft.
+    // (gewuenscht ist nach der every-Prüfung auf DokumentArt[] verengt — includes nimmt dann keinen string; tsc, Integration 25.09.2026)
+    let arten: string[] = DOKUMENTE.map((d) => d.art as string).filter((a) => (gewuenscht as string[]).includes(a));
+    const label = (a: string) => DOKUMENTE.find((d) => d.art === a)?.label ?? a;
+    const ausgelassen: { art: string; grund: string }[] = [];
+    const abgelehnt = (grund: string) =>
+      res.json({ ok: false, status: "abgelehnt", grund, meldung: grund, angefordert: [], ausgelassen });
+
+    // ── 1. DIE ZUSTANDSREGEL ZUERST (24.09.2026, E-240) ─────────────────────
+    // mailSenden prüft sie ohnehin — aber erst, NACHDEM hier ein Kauflink für
+    // die Auskunft gebaut wäre. Für einen Gekündigten entsteht keiner.
+    const { versandErlaubt } = await import("../lib/fiaon-versand");
+    const regel = await versandErlaubt(personId, "documents_change_request");
+    if (!regel.erlaubt) return abgelehnt(regel.grund || "Nicht erlaubt.");
+
+    // ── 2. DIESELBE UNTERLAGE HÖCHSTENS ALLE 72 STUNDEN ─────────────────────
+    const zuletzt = await zuletztAngefordert(personId);
+    arten = arten.filter((a) => {
+      const am = zuletzt.get(a);
+      if (!am) return true;
+      ausgelassen.push({
+        art: a,
+        grund: `${label(a)}: schon am ${berlinZeitpunkt(am)} angefordert — wieder möglich ab ${berlinZeitpunkt(new Date(am.getTime() + ANFORDERN_SPERRE_STUNDEN * 3_600_000))}.`,
+      });
+      return false;
+    });
+
+    // ── 3. DIE AUSKUNFT: VERKAUFEN, ZAHLUNG ZEIGEN ODER GAR NICHT ANMAHNEN ──
+    // Bezahlt, liegt vor oder Zahlung gemeldet: nicht anmahnen (am 24.09. ging
+    // die Bitte an 27 Menschen, die sie schon bezahlt hatten). Offen: der Link
+    // zur Zahlungsseite der offenen Bestellung. Sonst: das Angebot mit dem
+    // Preis dieses Menschen — außer bei Werbesperre oder solange das Paket
+    // nicht bezahlt ist (angebotLage in fiaon-auskunft-kauf.ts, wie im Bereich).
+    const { auskunftMailTeil, OHNE_ANGEBOT_TEXT, WIDERSPRUCH_SATZ } = await import("./fiaon-auskunft-kauf");
+    let teil: Exclude<import("./fiaon-auskunft-kauf").AuskunftMailTeil, { modus: "weglassen" }> | null = null;
+    if (arten.includes("schufa")) {
+      const t = await auskunftMailTeil(personId);
+      if (t.modus === "weglassen") {
+        ausgelassen.push({ art: "schufa", grund: `${label("schufa")}: ${t.grund}` });
+        arten = arten.filter((a) => a !== "schufa");
+      } else {
+        teil = t;
+      }
+    }
+    if (!arten.length) {
+      return abgelehnt(`Nichts verschickt. ${ausgelassen.map((a) => a.grund).join(" ")}`);
+    }
+
+    // ── 4. EINE MAIL FÜR ALLE FEHLENDEN UNTERLAGEN ──────────────────────────
+    const notiz = String(req.body?.notiz || "").trim();
+    const posten = arten.map((a) => (a === "schufa" && teil ? teil.posten : ANFORDERN_HINWEIS[a]));
+    // Angebot oder Zahlungslink: dann ist das der Hauptknopf (bei Werbesperre gibt es keinen).
+    const hauptweg = teil?.knopf ?? null;
+    const hochladen = absoluteUrl("/login");
+    const zusatz: Record<string, unknown> = {
+      hinweis: notiz || unterlagenAufzaehlung(posten),
+      // Wahlweiser Absatz: leer = er entfällt (Mail-Motor).
+      angebot_text: hauptweg ? (teil?.satz ?? "") : "",
+      // Mit Angebot: Kaufen bzw. Bezahlen ist der Hauptweg, Hochladen die Wahl
+      // daneben. Ohne: Hochladen ist der Hauptweg, daneben das eigene Passwort.
+      knopf_text: hauptweg ? hauptweg.text : arten.length > 1 ? "Unterlagen hochladen" : "Jetzt hochladen",
+      knopf_url: hauptweg ? hauptweg.url : hochladen,
+      knopf2_text: hauptweg
+        ? (arten.length > 1 ? "Unterlagen hochladen" : "Ich habe schon eine — hochladen")
+        : "Noch kein Passwort? Hier festlegen",
+      knopf2_url: hauptweg ? hochladen : absoluteUrl("/passwort-vergessen"),
+      // Gegenlesen 24.09.2026: Nur MIT Kaufangebot ist die Mail (auch) Werbung —
+      // dann gehört der Widerspruchs-Hinweis hinein (§ 7 Abs. 3 Nr. 4 UWG). Leer = entfällt.
+      widerspruch_text: teil?.modus === "angebot" ? WIDERSPRUCH_SATZ : "",
+      // Für die 72-Stunden-Sperre und die Auswertung (Mail-Protokoll).
+      unterlagen_arten: arten.join(","),
+      auskunft_modus: teil?.modus ?? "",
+      auskunft_betrag: teil?.betragText ?? "",
+    };
     // ── EIN EREIGNIS, MIT DEM SATZ, DEN DIE VORLAGE DRUCKT (18.09.2026) ──────
     // VORHER: bei „schufa" das Ereignis schufa_requested („Wir holen jetzt Ihre
     //   Bonitätsauskunft ein — Sie müssen nichts tun") — das Gegenteil einer
@@ -2015,15 +2162,27 @@ router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentReq
     //   das Ereignis nur für die Verwaltung freigegeben war, lehnte mailSenden
     //   jeden Klick des Teams ab.
     // NACHHER: immer documents_change_request, mit einem Hinweis je Unterlage
-    //   (oder der Notiz des Mitarbeiters); login_url baut der Link-Baustein.
+    //   (oder der Notiz des Mitarbeiters). Seit 24.09.2026 (E-240) bringt
+    //   dieser Auslöser auch Knopftexte und -ziele mit (siehe oben).
     const { mailSenden } = await import("../lib/fiaon-mail-senden");
-    const notiz = String(req.body?.notiz || "").trim();
     const erg = await mailSenden({
-      event: "documents_change_request", personId,
-      zusatz: { hinweis: notiz || ANFORDERN_HINWEIS[art] },
+      event: "documents_change_request", personId, zusatz,
       akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
     });
-    res.json(erg);
+    const nachsatz = [
+      erg.ok && teil?.modus === "angebot" ? `Mit Angebot: Auskunft für ${teil.betragText}.` : "",
+      erg.ok && teil?.modus === "zahlen" ? `Mit Link zur Zahlung der offenen Auskunft (${teil.betragText}).` : "",
+      erg.ok && teil?.modus === "upload" && teil.ohneAngebot
+        // Integration 25.09.2026: bei der gemeinsamen Bremse mit Weg und Zeitpunkt des letzten Angebots.
+        ? `${OHNE_ANGEBOT_TEXT[teil.ohneAngebot]}${teil.zuletzt ? ` Zuletzt ${teil.zuletzt}.` : ""}` : "",
+      ausgelassen.length ? `Nicht angefordert: ${ausgelassen.map((a) => a.grund).join(" ")}` : "",
+    ].filter(Boolean).join(" ");
+    res.json({
+      ...erg,
+      meldung: nachsatz ? `${erg.meldung} ${nachsatz}` : erg.meldung,
+      angefordert: erg.ok ? arten : [],
+      ausgelassen,
+    });
   } catch (err) {
     console.error("[DOK] anfordern:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

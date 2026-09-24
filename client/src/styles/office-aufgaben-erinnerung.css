@@ -1,0 +1,241 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON OFFICE — „NEU VON MARA", DIE AUFGABENKARTE (24.09.2026, E-240)
+   Präfix .fi-auf- (Familie der Terminleiste .fi-erin- und der Anrufkarte
+   .fi-ein-). Komponente: components/AufgabenErinnerung.tsx.
+
+   Unten rechts (über dem Telefonknopf), weil oben rechts die Anrufkarte
+   (.fi-ein, z 300) und oben die Terminleiste (.fi-erin, z 280) wohnen. z-index 285: über dem Office und
+   den Akte-Laden (60/61), unter Telefon (290/300), Modalen (320) und dem
+   Termin-Popup (340) — was sofort reagieren muss, liegt immer darüber.
+
+   Dasselbe Navy-Glas wie die Anrufkarte, Haarlinien im Blau-Paar, dünne
+   Schrift (Justins Regel: Überschriften 300/400, Knöpfe 500, Fett nur, wo
+   ein Name steht). Jede Schriftfarbe steht ausdrücklich auf zwei Klassen —
+   auf dunklem Grund gewinnt sonst eine geerbte Farbe (gemessen am 11.08.2026
+   in der Kostenleiste, siehe TerminErinnerung.tsx).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fi-auf {
+  --fi-auf-rand: rgba(147,197,253,.28);
+  --fi-auf-rot: rgba(248,113,113,.75);
+  --fi-auf-hell: #eef3fb;
+  --fi-auf-still: rgba(203,213,225,.82);
+  --fi-auf-leise: rgba(148,163,184,.9);
+  --fi-auf-blau: #93c5fd;
+  position: fixed; z-index: 285;
+  /* Über dem Telefonknopf, nie auf ihm — Begründung unten bei „Platz machen". */
+  right: 16px; bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 70px);
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(72vh, 580px);
+  display: flex; flex-direction: column;
+  border-radius: 20px;
+  background: linear-gradient(158deg, #16305f, #0b1b3f 58%, #071129);
+  border: 1px solid var(--fi-auf-rand);
+  box-shadow:
+    0 2px 8px -3px rgba(7,17,41,.5),
+    0 28px 60px -26px rgba(7,17,41,.85),
+    inset 0 1px 0 rgba(255,255,255,.14);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--fi-auf-hell);
+  overflow: hidden;
+  animation: fiAufAuf 340ms cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fiAufAuf {
+  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+/* Dringend: der Rand wird rot — keine rote Fläche, die Karte bleibt ruhig. */
+.fi-auf[data-dringend="1"] {
+  border-color: var(--fi-auf-rot);
+  box-shadow:
+    0 2px 8px -3px rgba(7,17,41,.5),
+    0 28px 60px -26px rgba(7,17,41,.85),
+    0 0 0 1px rgba(248,113,113,.25),
+    inset 0 1px 0 rgba(255,255,255,.14);
+}
+
+/* ── Kopf: Punkt · Pille · Zahl ───────────────────────────────────────────── */
+.fi-auf .fi-auf-kopf {
+  display: flex; align-items: center; gap: 8px;
+  padding: 13px 16px 0;
+}
+.fi-auf .fi-auf-punkt {
+  width: 7px; height: 7px; border-radius: 999px; flex-shrink: 0;
+  background: var(--fi-auf-blau);
+  animation: fiAufPuls 2s ease-out infinite;
+}
+.fi-auf[data-dringend="1"] .fi-auf-punkt { background: #fca5a5; }
+@keyframes fiAufPuls {
+  0%   { box-shadow: 0 0 0 0 rgba(147,197,253,.55); }
+  70%  { box-shadow: 0 0 0 8px rgba(147,197,253,0); }
+  100% { box-shadow: 0 0 0 0 rgba(147,197,253,0); }
+}
+.fi-auf .fi-auf-pille {
+  font: 500 10px/1 'Inter', sans-serif; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--fi-auf-blau);
+  padding: 6px 10px; border-radius: 999px;
+  border: 1px solid rgba(147,197,253,.4);
+}
+.fi-auf .fi-auf-zahl {
+  margin-left: auto;
+  font: 400 11.5px/1 'Inter', sans-serif; font-variant-numeric: tabular-nums;
+  color: var(--fi-auf-leise);
+}
+
+/* ── Die neueste Aufgabe, groß ────────────────────────────────────────────── */
+.fi-auf .fi-auf-haupt { padding: 12px 16px 14px; }
+.fi-auf .fi-auf-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.fi-auf .fi-auf-quelle {
+  font: 400 10.5px/1.2 'Inter', sans-serif; letter-spacing: .04em;
+  color: var(--fi-auf-still);
+}
+/* „von Mara" — Haarlinie im Blau-Paar wie .fi-erin-mara an den Rückrufen. */
+.fi-auf .fi-auf-quelle.mara {
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid rgba(147,197,253,.55);
+  color: #dbeafe;
+}
+.fi-auf .fi-auf-dringend {
+  font: 500 10px/1.2 'Inter', sans-serif; letter-spacing: .08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--fi-auf-rot);
+  color: #fecaca;
+}
+.fi-auf .fi-auf-wann {
+  margin-left: auto;
+  font: 400 11px/1.2 'Inter', sans-serif;
+  color: var(--fi-auf-leise);
+}
+.fi-auf .fi-auf-kunde {
+  margin: 10px 0 0;
+  font: 400 18px/1.25 'Inter', sans-serif; letter-spacing: -.01em;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.fi-auf .fi-auf-titel {
+  margin: 4px 0 0;
+  font: 400 13px/1.45 'Inter', sans-serif;
+  color: var(--fi-auf-blau);
+}
+.fi-auf .fi-auf-auszug {
+  margin: 8px 0 0;
+  font: 300 12.5px/1.55 'Inter', sans-serif;
+  color: var(--fi-auf-still);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.fi-auf .fi-auf-knoepfe { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 14px; }
+.fi-auf .fi-auf-knopf {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 40px; padding: 0 18px; border-radius: 999px; border: 0;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff; text-decoration: none; cursor: pointer;
+  font: 500 13.5px/1 'Inter', sans-serif;
+  box-shadow: 0 10px 24px -8px rgba(37,99,235,.6);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.fi-auf .fi-auf-knopf:hover { transform: translateY(-1px); box-shadow: 0 14px 28px -8px rgba(37,99,235,.7); }
+.fi-auf .fi-auf-knopf.still {
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.16);
+  color: #cbd5e1; box-shadow: none;
+}
+.fi-auf .fi-auf-knopf.still:hover { background: rgba(255,255,255,.12); transform: none; }
+.fi-auf .fi-auf-knopf:focus-visible,
+.fi-auf .fi-auf-zeile:focus-visible,
+.fi-auf .fi-auf-alle:focus-visible,
+.fi-auf .fi-auf-ton:focus-visible { outline: 2px solid var(--fi-auf-blau); outline-offset: 2px; }
+
+/* ── Weitere Aufgaben als Zeilen ──────────────────────────────────────────── */
+.fi-auf .fi-auf-liste {
+  list-style: none; margin: 0; padding: 4px 10px 6px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  overflow-y: auto; overscroll-behavior: contain; min-height: 0;
+  scrollbar-width: thin;
+}
+.fi-auf .fi-auf-zeile {
+  display: grid; gap: 2px;
+  margin-top: 6px; padding: 8px 10px 9px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  border-left: 2px solid rgba(147,197,253,.35);
+  background: rgba(255,255,255,.035);
+  text-decoration: none;
+  transition: background .15s ease;
+}
+.fi-auf .fi-auf-zeile:hover { background: rgba(255,255,255,.075); }
+.fi-auf .fi-auf-zeile[data-dringend="1"] { border-left-color: var(--fi-auf-rot); }
+.fi-auf .fi-auf-zeile-oben { display: flex; align-items: center; gap: 7px; }
+.fi-auf .fi-auf-zeile-name {
+  font: 500 13px/1.35 'Inter', sans-serif;
+  color: var(--fi-auf-hell);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fi-auf .fi-auf-zeile-titel {
+  font: 400 12px/1.35 'Inter', sans-serif;
+  color: var(--fi-auf-still);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Fuß: alle Aufgaben · Ton ─────────────────────────────────────────────── */
+.fi-auf .fi-auf-fuss {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px 11px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.fi-auf .fi-auf-alle {
+  font: 400 12px/1.2 'Inter', sans-serif;
+  color: var(--fi-auf-blau); text-decoration: none;
+  border-bottom: 1px solid rgba(147,197,253,.3);
+}
+.fi-auf .fi-auf-alle:hover { border-bottom-color: var(--fi-auf-blau); }
+.fi-auf .fi-auf-ton {
+  margin-left: auto; border: 0; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px;
+  font: 400 11px/1.2 'Inter', sans-serif;
+  background: rgba(255,255,255,.06);
+  color: var(--fi-auf-leise);
+}
+.fi-auf .fi-auf-ton[aria-pressed="true"] { color: #dbeafe; }
+.fi-auf .fi-auf-ton:hover { background: rgba(255,255,255,.12); }
+
+/* ── Platz machen (Gegenlesen 24.09.2026, E-240) ──────────────────────────────
+   VORHER stand die Karte 16 px über der Kante und rückte nur bei der
+   Telefon-Pille (.fi-tel-pille) nach oben. Unten rechts steht aber IMMER der
+   runde Telefonknopf (.fi-telefonknopf, Softphone.tsx: right 16, bottom 12,
+   58 × 58, z 290) — er lag auf der Karte und verdeckte „Ton an/aus"
+   (im Prüfstand gemessen, Desktop und Handy).
+   NACHHER sitzt die Karte immer darüber: 12 px Kante + 58 px Knopf + 12 px
+   Luft. Das deckt die Gesprächs-Pille (an derselben Stelle, niedriger) und am
+   Handy den Schreib-Knopf im Team-Feed (.sp-fab, bis 66 px) gleich mit —
+   eine Regel statt drei. Der Rundgang-Knopf (.ru-knopf, z 280) liegt, solange
+   die Karte steht, unter ihr; „Später" gibt ihn frei. Der Wert steht oben
+   an .fi-auf. */
+
+/* Stand die Karte schon auf der vorigen Seite, erscheint sie ohne Einflug —
+   sonst flöge sie bei jedem Seitenwechsel neu herein. */
+.fi-auf[data-ruhig="1"] { animation: none; }
+
+/* Während der Präsentation verschwinden die schwebenden Bedienelemente
+   (office-praesentation.css: Telefonknopf, Anrufkarte) — die Karte auch. */
+html.pr-an .fi-auf { display: none !important; }
+
+/* Telefon: die ganze Breite abzüglich 12 px Rand je Seite, etwas kompakter. */
+@media (max-width: 639px) {
+  .fi-auf {
+    right: 12px; left: 12px; width: auto;
+    max-height: 60vh;
+  }
+  .fi-auf .fi-auf-kunde { font-size: 16.5px; }
+  .fi-auf .fi-auf-auszug { -webkit-line-clamp: 2; }
+  /* Am Handy deckt die Karte sonst den halben Bildschirm: weitere Aufgaben nur mit Name. */
+  .fi-auf .fi-auf-zeile-titel { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-auf { animation: none; }
+  .fi-auf .fi-auf-punkt { animation: none; box-shadow: 0 0 0 3px rgba(147,197,253,.25); }
+  .fi-auf .fi-auf-knopf, .fi-auf .fi-auf-zeile { transition: none; }
+  .fi-auf .fi-auf-knopf:hover { transform: none; }
+}

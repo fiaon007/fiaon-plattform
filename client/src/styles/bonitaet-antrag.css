@@ -1,0 +1,248 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /bonitaet-antrag — DIE BESTELLSEITE DER BONITÄTSAUSKUNFT (24.09.2026, E-240)
+
+   Hell wie der Leseraum der Ratgeber (ratgeber.css, .dk-licht): blaustichiger
+   Grund, weiße Karten mit den drei Schattenstufen, Inter 300/400, das Blau-Paar
+   #288DFA (Licht) und #1D4ED8 (Tiefe). Das Navy-Glas (#0B1220 → #1A2744) steht
+   an genau EINER Stelle — der Bestellkarte mit Preis und Leistung, dem
+   wichtigsten Instrument der Seite (Justins Regel, E-013). Kein Dark-Mode:
+   Eine Bestellung liest sich in seinem Dunkel-Betrachter sonst schwarz.
+
+   Alles hängt unter .ba, damit nichts auf andere Seiten ausläuft.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ba{
+  --ba-text:#0f172a; --ba-leise:#475569; --ba-still:#64748b; --ba-hauch:#94a3b8;
+  --ba-linie:rgba(15,23,42,.08); --ba-rand:rgba(15,23,42,.14);
+  --ba-blau:#2563eb; --ba-tief:#1d4ed8; --ba-licht:#288dfa; --ba-hell:#f5f8ff;
+  --ba-rot:#dc2626; --ba-gruen:#059669;
+  --ba-navy-a:#0b1220; --ba-navy-b:#1a2744;
+  --ba-schatten-1:0 1px 2px rgba(15,23,42,.04);
+  --ba-schatten-2:0 2px 4px rgba(15,23,42,.03),0 18px 44px rgba(37,99,235,.08);
+  --ba-schatten-3:0 4px 8px rgba(15,23,42,.04),0 30px 60px rgba(37,99,235,.14);
+  color-scheme:light only;
+  position:relative;min-height:100vh;color:var(--ba-text);
+  font:300 16px/1.6 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:linear-gradient(180deg,#eef4ff 0%,#f7faff 26%,#ffffff 52%,#f5f8ff 100%);
+  -webkit-font-smoothing:antialiased;
+}
+.ba *,.ba *::before,.ba *::after{box-sizing:border-box}
+/* Zwei ruhige Lichtnebel oben — statisch (Dauer-Animation hinter Glas = Lüfter). */
+.ba-nebel{position:absolute;inset:0 0 auto 0;height:720px;pointer-events:none;overflow:hidden;z-index:0}
+.ba-nebel::before,.ba-nebel::after{content:"";position:absolute;border-radius:50%;filter:blur(70px)}
+.ba-nebel::before{width:560px;height:560px;left:-160px;top:-120px;background:radial-gradient(circle,rgba(40,141,250,.16),transparent 65%)}
+.ba-nebel::after{width:520px;height:520px;right:-140px;top:40px;background:radial-gradient(circle,rgba(29,78,216,.1),transparent 65%)}
+
+.ba-rahmen{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:0 24px}
+
+/* ── Kopf ── */
+.ba-kopf{padding-top:132px;padding-bottom:34px;text-align:left}
+.ba-pille{display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:999px;background:rgba(255,255,255,.8);border:1px solid rgba(37,99,235,.2);color:var(--ba-tief);font:400 12px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;box-shadow:var(--ba-schatten-1)}
+.ba-pille i{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--ba-licht),var(--ba-tief));box-shadow:0 0 0 4px rgba(40,141,250,.14)}
+.ba-h1{margin:22px 0 0;font:400 clamp(32px,4.4vw,54px)/1.06 'Inter',sans-serif;letter-spacing:-.035em;color:var(--ba-text);max-width:20ch;text-wrap:balance}
+.ba-verlauf{background:linear-gradient(100deg,var(--ba-tief) 0%,var(--ba-licht) 60%,#60a5fa 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ba-lead{margin:18px 0 0;max-width:60ch;font:300 clamp(16px,1.35vw,18.5px)/1.65 'Inter',sans-serif;color:var(--ba-leise)}
+.ba-fakten{display:flex;flex-wrap:wrap;gap:10px 22px;margin:22px 0 0;padding:0;list-style:none}
+.ba-fakten li{display:inline-flex;align-items:center;gap:8px;font:400 13.5px/1.3 'Inter',sans-serif;color:#334155}
+.ba-fakten svg{color:var(--ba-blau);flex:0 0 auto}
+
+/* ── Raster: Formular links, Bestellkarte rechts ── */
+.ba-raster{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:36px;align-items:start;padding-bottom:40px}
+.ba-spalte{display:grid;gap:20px;min-width:0}
+.ba-seite{position:sticky;top:96px}
+
+/* ── Karten ── */
+.ba-karte{background:#fff;border:1px solid var(--ba-linie);border-radius:22px;padding:28px 30px;box-shadow:var(--ba-schatten-2)}
+.ba-karte-kopf{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.ba-nr{flex:0 0 30px;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(180deg,var(--ba-blau),var(--ba-tief));color:#fff;font:500 13px/1 'Inter',sans-serif;box-shadow:0 6px 14px rgba(37,99,235,.28)}
+.ba-karte h2{margin:2px 0 0;font:400 21px/1.3 'Inter',sans-serif;letter-spacing:-.015em;color:var(--ba-text)}
+.ba-karte-kopf p{margin:4px 0 0;font:300 14px/1.55 'Inter',sans-serif;color:var(--ba-still)}
+.ba-unter{margin:22px 0 10px;font:500 11px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--ba-still)}
+
+/* ── Wahl-Kacheln (Privat/Unternehmen, Land) ── */
+.ba-wahl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ba-wahl.drei{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ba-kachel{position:relative;display:flex;gap:12px;align-items:flex-start;width:100%;min-width:0;text-align:left;padding:16px 34px 15px 16px;border-radius:16px;border:1px solid var(--ba-rand);background:#fff;cursor:pointer;color:inherit;font:inherit;transition:border-color .2s,box-shadow .2s,transform .2s,background .2s}
+.ba-kachel:hover{border-color:rgba(37,99,235,.45);transform:translateY(-1px);box-shadow:var(--ba-schatten-2)}
+.ba-kachel:focus-visible{outline:2px solid var(--ba-blau);outline-offset:2px}
+.ba-kachel[aria-checked="true"]{border-color:var(--ba-blau);background:var(--ba-hell);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.ba-kachel[disabled]{cursor:default;opacity:.55;transform:none;box-shadow:none}
+.ba-kachel b{display:block;font:500 15px/1.3 'Inter',sans-serif;color:var(--ba-text)}
+.ba-kachel small{display:block;margin-top:3px;font:300 12.5px/1.45 'Inter',sans-serif;color:var(--ba-still)}
+.ba-kachel .zeichen{flex:0 0 36px;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(40,141,250,.12),rgba(29,78,216,.16));color:var(--ba-tief)}
+.ba-kachel .kuerzel{flex:0 0 auto;min-width:34px;height:26px;padding:0 7px;border-radius:8px;display:grid;place-items:center;background:#eef2f7;color:#334155;font:500 12px/1 'Inter',sans-serif;letter-spacing:.06em}
+.ba-kachel[aria-checked="true"] .kuerzel{background:var(--ba-blau);color:#fff}
+.ba-kachel .haken{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;background:var(--ba-blau);color:#fff;display:none;place-items:center}
+.ba-kachel[aria-checked="true"] .haken{display:grid}
+
+/* ── Felder ── */
+.ba-felder{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 16px}
+.ba-felder .voll{grid-column:1/-1}
+.ba-felder.plz{grid-template-columns:140px minmax(0,1fr)}
+.ba-feld{min-width:0}
+.ba-feld label{display:block;margin:0 0 7px;font:500 13px/1.3 'Inter',sans-serif;color:#334155}
+.ba-feld label .pflicht{color:var(--ba-blau);margin-left:3px}
+.ba-eingabe{width:100%;height:50px;padding:0 15px;border-radius:12px;border:1px solid var(--ba-rand);background:#fff;color:var(--ba-text);font:400 16px/1.2 'Inter',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none;appearance:none}
+.ba-eingabe::placeholder{color:#a3aebf}
+.ba-eingabe:hover{border-color:rgba(15,23,42,.24)}
+.ba-eingabe:focus{border-color:var(--ba-blau);box-shadow:0 0 0 4px rgba(37,99,235,.14)}
+.ba-feld.fehlt .ba-eingabe{border-color:rgba(220,38,38,.55);background:#fffafa}
+select.ba-eingabe{padding-right:40px;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 15px center}
+.ba-vorwahl{display:flex;align-items:stretch}
+.ba-vorwahl span{display:grid;place-items:center;padding:0 13px;border:1px solid var(--ba-rand);border-right:0;border-radius:12px 0 0 12px;background:#f8fafc;color:#334155;font:400 15px/1 'Inter',sans-serif}
+.ba-vorwahl .ba-eingabe{border-radius:0 12px 12px 0}
+.ba-fehler{margin:6px 0 0;font:400 12.5px/1.45 'Inter',sans-serif;color:var(--ba-rot)}
+.ba-hinweis{margin:6px 0 0;font:300 12.5px/1.5 'Inter',sans-serif;color:var(--ba-still)}
+
+/* ── Angemeldet ── */
+.ba-konto{display:grid;gap:4px}
+.ba-konto dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 22px;margin:14px 0 0}
+.ba-konto dt{font:400 12px/1.3 'Inter',sans-serif;color:var(--ba-still)}
+.ba-konto dd{margin:2px 0 0;font:400 14.5px/1.45 'Inter',sans-serif;color:var(--ba-text);overflow-wrap:anywhere}
+.ba-textknoepfe{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px}
+.ba-textknopf{padding:0;border:0;background:none;color:var(--ba-tief);font:400 14px/1.4 'Inter',sans-serif;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(37,99,235,.35);text-underline-offset:3px}
+.ba-textknopf:hover{text-decoration-color:var(--ba-tief)}
+.ba-mitteilung{padding:16px 18px;border-radius:14px;background:var(--ba-hell);border:1px solid rgba(37,99,235,.18);color:#1e293b;font:300 14.5px/1.6 'Inter',sans-serif}
+.ba-mitteilung.warm{background:#fffbeb;border-color:rgba(217,119,6,.28);color:#78350f}
+.ba-mitteilung.rot{background:#fef2f2;border-color:rgba(220,38,38,.25);color:#7f1d1d}
+.ba-mitteilung .ba-knopf{margin-top:14px}
+
+/* ── Zusammenfassung vor dem Knopf (§ 312j Abs. 2 BGB) ── */
+.ba-zf{margin:0;border:1px solid var(--ba-linie);border-radius:16px;overflow:hidden}
+.ba-zf>div{display:grid;grid-template-columns:128px minmax(0,1fr);gap:14px;padding:13px 16px;border-bottom:1px solid var(--ba-linie)}
+.ba-zf>div:last-child{border-bottom:0}
+.ba-zf dt{font:500 12.5px/1.5 'Inter',sans-serif;color:var(--ba-still)}
+.ba-zf dd{margin:0;font:300 14px/1.55 'Inter',sans-serif;color:#1e293b}
+.ba-zf .preis dd{font:400 14px/1.5 'Inter',sans-serif}
+.ba-zf .preis b{display:block;font:400 26px/1.1 'Inter',sans-serif;letter-spacing:-.02em;color:var(--ba-text);font-variant-numeric:tabular-nums}
+.ba-zf .preis small{display:block;margin-top:4px;font:300 12.5px/1.45 'Inter',sans-serif;color:var(--ba-still)}
+
+.ba-recht{margin-top:16px;display:grid;gap:10px}
+.ba-auf{border:1px solid var(--ba-linie);border-radius:14px;background:#fcfdff}
+.ba-auf summary{cursor:pointer;list-style:none;padding:13px 16px;display:flex;justify-content:space-between;align-items:center;gap:14px;font:400 14.5px/1.4 'Inter',sans-serif;color:var(--ba-text)}
+.ba-auf summary::-webkit-details-marker{display:none}
+.ba-auf summary::after{content:"+";flex:0 0 24px;width:24px;height:24px;border-radius:50%;border:1px solid rgba(15,23,42,.15);display:grid;place-items:center;color:var(--ba-tief);font:400 15px/1 'Inter',sans-serif;transition:transform .25s}
+.ba-auf[open] summary::after{transform:rotate(45deg)}
+.ba-auf-inhalt{padding:2px 16px 16px;font:300 13.5px/1.65 'Inter',sans-serif;color:#334155}
+.ba-auf-inhalt h4{margin:14px 0 6px;font:500 13.5px/1.4 'Inter',sans-serif;color:var(--ba-text)}
+.ba-auf-inhalt p{margin:0 0 8px}
+.ba-auf-inhalt dl{margin:0;display:grid;gap:8px}
+.ba-auf-inhalt dl>div{display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px}
+.ba-auf-inhalt dt{font-weight:500;color:var(--ba-text)}
+.ba-auf-inhalt dd{margin:0;overflow-wrap:anywhere}
+.ba-formular{margin-top:10px;padding:14px 16px;border-radius:12px;background:#fff;border:1px dashed rgba(15,23,42,.18)}
+.ba-formular p{margin:0 0 6px}
+.ba-verweis{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:var(--ba-leise)}
+.ba-verweis a,.ba-auf-inhalt a{color:var(--ba-tief);text-decoration:underline;text-decoration-color:rgba(37,99,235,.35);text-underline-offset:3px}
+
+/* ── Häkchen ── */
+.ba-haken{margin-top:18px;display:grid;gap:10px}
+.ba-haken label{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start;padding:14px 16px;border-radius:14px;border:1px solid var(--ba-linie);background:#fff;cursor:pointer;transition:border-color .2s,background .2s}
+.ba-haken label:hover{border-color:rgba(37,99,235,.35)}
+.ba-haken label.an{border-color:rgba(37,99,235,.45);background:var(--ba-hell)}
+.ba-haken label.fehlt{border-color:rgba(220,38,38,.5);background:#fffafa}
+.ba-haken input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.ba-haken .kasten{width:22px;height:22px;border-radius:7px;border:1.5px solid rgba(15,23,42,.3);background:#fff;display:grid;place-items:center;color:#fff;transition:all .2s;margin-top:1px}
+.ba-haken label.an .kasten{background:var(--ba-blau);border-color:var(--ba-blau)}
+.ba-haken input:focus-visible+.kasten{outline:2px solid var(--ba-blau);outline-offset:2px}
+.ba-haken .satz{font:300 14px/1.6 'Inter',sans-serif;color:#1e293b}
+.ba-haken .satz em{font-style:normal;color:var(--ba-blau);margin-left:4px}
+.ba-uwg{margin:14px 0 0;font:300 12.5px/1.6 'Inter',sans-serif;color:var(--ba-still)}
+
+/* ── Knöpfe ── */
+.ba-knopf{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 28px;border-radius:999px;border:0;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,var(--ba-blau) 0%,#3b82f6 100%);color:#fff;font:500 15.5px/1 'Inter',sans-serif;letter-spacing:.01em;box-shadow:0 10px 26px rgba(37,99,235,.32),inset 0 1px 0 rgba(255,255,255,.22);transition:transform .25s,box-shadow .25s,opacity .2s}
+.ba-knopf:hover{transform:translateY(-1px);box-shadow:0 16px 36px rgba(37,99,235,.42),inset 0 1px 0 rgba(255,255,255,.25);color:#fff}
+.ba-knopf:focus-visible{outline:2px solid var(--ba-tief);outline-offset:3px}
+.ba-knopf:disabled{opacity:.6;cursor:progress;transform:none}
+.ba-knopf.still{background:#fff;color:var(--ba-text);border:1px solid rgba(15,23,42,.14);box-shadow:var(--ba-schatten-1)}
+.ba-knopf.still:hover{color:var(--ba-text);background:#f8fafc}
+.ba-knopf.breit{width:100%;margin-top:18px}
+.ba-knopf .dreht{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;animation:baDreht .8s linear infinite}
+@keyframes baDreht{to{transform:rotate(360deg)}}
+/* Direkt über dem Knopf: Leistung, Laufzeit, Endpreis (§ 312j Abs. 2 BGB). */
+.ba-endzeile{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:18px;padding:14px 16px;border-radius:14px;background:var(--ba-hell);border:1px solid rgba(37,99,235,.16)}
+.ba-endzeile span{font:400 14px/1.45 'Inter',sans-serif;color:#1e293b;min-width:0}
+.ba-endzeile small{display:block;margin-top:2px;font:300 12px/1.45 'Inter',sans-serif;color:var(--ba-still)}
+.ba-endzeile b{flex:0 0 auto;font:400 24px/1 'Inter',sans-serif;letter-spacing:-.02em;color:var(--ba-text);font-variant-numeric:tabular-nums}
+.ba-endzeile+.ba-knopf.breit{margin-top:12px}
+.ba-unterknopf{margin:10px 0 0;text-align:center;font:300 12.5px/1.5 'Inter',sans-serif;color:var(--ba-still)}
+
+/* ── Die Bestellkarte: die EINE Navy-Stelle ── */
+.ba-bestell{position:relative;overflow:hidden;border-radius:24px;padding:28px 28px 26px;color:#e2e8f0;
+  background:linear-gradient(160deg,var(--ba-navy-a) 0%,var(--ba-navy-b) 100%);
+  border:1px solid rgba(148,163,184,.18);
+  box-shadow:0 30px 60px rgba(11,18,32,.26),0 8px 18px rgba(11,18,32,.14),inset 0 1px 0 rgba(255,255,255,.08)}
+.ba-bestell::before{content:"";position:absolute;right:-90px;top:-110px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(40,141,250,.38),transparent 65%);pointer-events:none}
+.ba-bestell::after{content:"";position:absolute;left:24px;right:24px;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(147,197,253,.6),transparent);pointer-events:none}
+.ba-bestell>*{position:relative}
+.ba-bestell .tag{font:400 11px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd}
+.ba-bestell .fuer{margin:10px 0 0;font:400 16px/1.35 'Inter',sans-serif;color:#fff}
+.ba-bestell .betrag{margin:18px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ba-bestell .betrag b{font:300 54px/1 'Inter',sans-serif;letter-spacing:-.04em;color:#fff;font-variant-numeric:tabular-nums}
+.ba-bestell .betrag span{font:400 13px/1.3 'Inter',sans-serif;color:#cbd5e1}
+.ba-bestell .steuer{margin:8px 0 0;font:300 12px/1.5 'Inter',sans-serif;color:#94a3b8}
+.ba-bestell .kundenpreis{margin:16px 0 0;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font:300 13px/1.55 'Inter',sans-serif;color:#cbd5e1}
+.ba-bestell .kundenpreis a{display:inline-block;margin-top:4px;color:#93c5fd;text-decoration:underline;text-decoration-color:rgba(147,197,253,.45);text-underline-offset:3px}
+.ba-bestell .kundenpreis a:hover{color:#bfdbfe}
+.ba-bestell h3{margin:22px 0 10px;font:400 11px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd}
+.ba-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ba-chips span{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);font:400 12.5px/1 'Inter',sans-serif;color:#e2e8f0}
+.ba-liste{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.ba-liste li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;font:300 13.5px/1.55 'Inter',sans-serif;color:rgba(226,232,240,.9)}
+.ba-liste svg{margin-top:3px;color:#60a5fa}
+
+/* ── Ablauf und Fragen ── */
+.ba-block{padding:40px 0 20px}
+.ba-block h2{margin:0 0 18px;font:400 clamp(24px,2.6vw,32px)/1.2 'Inter',sans-serif;letter-spacing:-.025em;color:var(--ba-text)}
+.ba-schritte{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:0;padding:0;list-style:none;counter-reset:ba}
+.ba-schritte li{counter-increment:ba;padding:22px 20px;border-radius:20px;background:#fff;border:1px solid var(--ba-linie);box-shadow:var(--ba-schatten-2)}
+.ba-schritte li::before{content:counter(ba);display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:linear-gradient(180deg,var(--ba-blau),var(--ba-tief));color:#fff;font:500 13px/1 'Inter',sans-serif;box-shadow:0 6px 14px rgba(37,99,235,.28);margin-bottom:14px}
+.ba-schritte b{display:block;font:500 15px/1.35 'Inter',sans-serif;color:var(--ba-text)}
+.ba-schritte p{margin:6px 0 0;font:300 13.5px/1.6 'Inter',sans-serif;color:var(--ba-leise)}
+.ba-fragen{max-width:820px}
+.ba-fragen details{border-bottom:1px solid var(--ba-linie)}
+.ba-fragen summary{cursor:pointer;list-style:none;padding:17px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;font:400 16px/1.45 'Inter',sans-serif;color:var(--ba-text)}
+.ba-fragen summary::-webkit-details-marker{display:none}
+.ba-fragen summary::after{content:"+";flex:0 0 28px;width:28px;height:28px;border-radius:50%;border:1px solid rgba(15,23,42,.15);display:grid;place-items:center;color:var(--ba-tief);transition:transform .25s}
+.ba-fragen details[open] summary::after{transform:rotate(45deg)}
+.ba-fragen details p{margin:0 0 18px;max-width:68ch;font:300 15px/1.7 'Inter',sans-serif;color:var(--ba-leise)}
+.ba-fuss-luft{height:56px}
+
+/* ── Erscheinen: ruhig, einmal ── */
+.ba-rein{animation:baRein .55s cubic-bezier(.22,1,.36,1) both}
+.ba-rein.v1{animation-delay:.06s}.ba-rein.v2{animation-delay:.12s}
+@keyframes baRein{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ── Tablet und Handy ── */
+@media (max-width:1023px){
+  .ba-raster{grid-template-columns:minmax(0,1fr);gap:20px}
+  .ba-seite{position:static;order:-1}
+  .ba-schritte{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:640px){
+  .ba-rahmen{padding:0 16px}
+  .ba-kopf{padding-top:104px;padding-bottom:24px}
+  .ba-pille{font-size:10.5px;letter-spacing:.08em;padding:7px 12px}
+  .ba-h1{font-size:31px}
+  .ba-karte{padding:22px 18px;border-radius:20px}
+  .ba-bestell{padding:24px 20px 22px;border-radius:22px}
+  .ba-bestell .betrag b{font-size:46px}
+  .ba-wahl.drei{grid-template-columns:minmax(0,1fr)}
+  .ba-wahl.drei .ba-kachel{align-items:center}
+  .ba-felder{grid-template-columns:minmax(0,1fr)}
+  .ba-felder.plz{grid-template-columns:110px minmax(0,1fr)}
+  .ba-felder.zwei-bleibt{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ba-zf>div{grid-template-columns:minmax(0,1fr);gap:4px}
+  .ba-auf-inhalt dl>div{grid-template-columns:minmax(0,1fr);gap:2px}
+  .ba-konto dl{grid-template-columns:minmax(0,1fr)}
+  .ba-schritte{grid-template-columns:minmax(0,1fr)}
+  .ba-kachel{padding:14px 32px 13px 14px}
+  /* Privat/Unternehmen nebeneinander: Zeichen über den Text, sonst läuft „Unternehmen" aus der Kachel. */
+  .ba-wahl:not(.drei) .ba-kachel{flex-direction:column;gap:10px}
+  .ba-kachel .zeichen{flex-basis:32px;width:32px;height:32px}
+  .ba-schritte li{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:14px;padding:18px}
+  .ba-schritte li::before{margin:0;grid-row:span 2}
+}
+@media (prefers-reduced-motion:reduce){
+  .ba *,.ba *::before,.ba *::after{animation:none!important;transition:none!important}
+}

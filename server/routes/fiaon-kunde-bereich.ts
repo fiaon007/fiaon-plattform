@@ -15,6 +15,9 @@ import { sqlPool } from "../lib/db-pool";
 import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, istGehasht, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { effectiveLimit } from "./fiaon-antrag";
 import { paket as paketVon } from "@shared/fiaon-pakete";
+import {
+  auskunftLeistung, auskunfteienText, auskunftWort, auskunftPreisCents, euroText, AUSKUNFT_NUTZEN_SATZ, type AuskunftLand,
+} from "@shared/fiaon-auskunft";
 
 const router = Router();
 
@@ -26,6 +29,128 @@ const tag = (d: any): string | null => {
   const x = new Date(d); if (Number.isNaN(x.getTime())) return null;
   return x.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER KUNDENBEREICH VERKAUFT DIE AUSKUNFT (24.09.2026, E-240)
+//
+// ── DER BEFUND ─────────────────────────────────────────────────────────────
+// Am 22.08. fielen mit dem alten Dashboard die Kaufknöpfe weg — über sie kamen
+// 97 von 146 Auskunft-Bestellungen. Der neue Bereich zeigte seither „74 €
+// einmalig" als Text, der Knopf führte auf die alte Du-Seite /bonitaet-antrag
+// (ohne Widerruf, ohne AGB), und für Menschen vor dem Startgespräch gab es gar
+// keinen. /app kannte die Auskunft nur als Upload-Feld. Dazu versprachen
+// Einrichtung und Demo „Ihre Auskunft wird beantragt" — als wäre sie im Paket.
+//
+// ── DIE REGEL ──────────────────────────────────────────────────────────────
+// EIN Block beschreibt, was der Kunde zur Auskunft sieht — Stufe, Preis, was
+// geliefert wird, bei wem angefragt wird. Er entsteht HIER aus auskunftStand()
+// (server/lib/fiaon-auskunft.ts) und wird von /mein-bereich, /app, Einrichtung
+// und der Akte (fiaon-app-uebersicht.ts) gleich gelesen. Der Preis kommt nie
+// aus dem Browser: 74 € mit laufendem Paket, sonst 149 €.
+//
+// Kaufen darf, wer ein bezahltes Paket hat, dessen Auskunft-Stand „nichts" ist
+// (nicht bestellt, nicht bezahlt, kein Dokument) und wer nicht gekündigt hat
+// (E-213: gekündigt = keine neuen Leistungen). Vor der ersten Rate bleibt es
+// bei einem Hinweis — ein Schritt nach dem anderen, und der erste ist das Paket.
+//
+// ── WERBESPERRE ────────────────────────────────────────────────────────────
+// Das Angebot im eigenen Bereich ist keine Werbung an den Kunden — es ist der
+// Ort, an dem er seine Auskunft verwaltet (UWG-Befund 24.09.: „Angebot im
+// Kundenbereich" ist ohne Einwilligung erlaubt). Wer aber eine Werbesperre
+// hat, bekommt es nicht ungefragt vor die Nase: `werbung = false` blendet die
+// Hinweise AUSSERHALB des Auskunft-Abschnitts aus (Band auf Heute, Karte in der
+// Einrichtung und am Startgesprächs-Vorhang). Im Abschnitt „Ihre Bonität" und
+// bei den Unterlagen bleibt die Wahl sichtbar — dort sucht er sie selbst.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface AuskunftKauf {
+  /** Aus auskunftStand(): bezahlt | offen (bestellt, Zahlung aus) | dokument (selbst hochgeladen) | nichts. */
+  stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+  /** Die Kaufkarte zeigen? Nur bei „nichts", bezahltem Paket und ohne Kündigung. */
+  darfKaufen: boolean;
+  /** Warum (noch) nicht: erste Rate offen oder Vertrag gekündigt. */
+  sperre: "paket_offen" | "gekuendigt" | null;
+  /** false = Werbesperre: keine Hinweise außerhalb des Auskunft-Abschnitts. */
+  werbung: boolean;
+  preisCents: number;
+  preisText: string;
+  /** Kundenpreis mit laufendem Paket (74 €) statt Einzelpreis (149 €). */
+  mitAbo: boolean;
+  land: AuskunftLand;
+  /** „SCHUFA-Auskunft" / „KSV-Auskunft" / „Bonitätsauskunft" — nie „SCHUFA" in AT/CH. */
+  wort: string;
+  /** Die Auskunfteien des Landes als Satzteil („SCHUFA, CRIF und Creditreform Boniversum"). */
+  bei: string;
+  /** Was geliefert wird — auskunftLeistung("privat", land), wortwand-fest. */
+  leistung: string[];
+  nutzen: string;
+  /** Die offene Bestellung: relativer Pfad zur Zahlungsseite, Betrag, „habe überwiesen" gemeldet? */
+  offen: { zahlungsseite: string | null; betragText: string; gemeldet: boolean } | null;
+}
+
+/** Den Block bauen — rein, ohne Datenbank, damit das Demo-Konto dieselbe Form liefert. */
+export function auskunftKaufBlock(ein: {
+  stufe: AuskunftKauf["stufe"]; sperre: AuskunftKauf["sperre"]; werbung: boolean;
+  preisCents: number; mitAbo: boolean; land: AuskunftLand; offen: AuskunftKauf["offen"];
+}): AuskunftKauf {
+  return {
+    stufe: ein.stufe,
+    darfKaufen: ein.stufe === "nichts" && ein.sperre === null,
+    sperre: ein.sperre,
+    werbung: ein.werbung,
+    preisCents: ein.preisCents,
+    preisText: euroText(ein.preisCents),
+    mitAbo: ein.mitAbo,
+    land: ein.land,
+    wort: auskunftWort(ein.land),
+    bei: auskunfteienText(ein.land),
+    leistung: auskunftLeistung("privat", ein.land),
+    nutzen: AUSKUNFT_NUTZEN_SATZ,
+    offen: ein.offen,
+  };
+}
+
+/**
+ * Ist der Kunde bei der Auskunft am Zug (beauftragen oder bezahlen)? Das ist
+ * `bonitaet.darfKaufen` im Bereich und im Weg — nicht dasselbe wie die
+ * Kaufkarte (`AuskunftKauf.darfKaufen`). Ohne Block gilt die Bonitäts-Wahrheit.
+ */
+export function kundeAmZugAuskunft(kauf: AuskunftKauf | null, bonitaetDarfKaufen: boolean): boolean {
+  if (!kauf) return bonitaetDarfKaufen;
+  return (kauf.stufe === "nichts" && bonitaetDarfKaufen) || kauf.stufe === "offen";
+}
+
+/**
+ * Der Block für einen echten Menschen. `paketBezahlt` ist der Zahlstand der
+ * Bestellung, auf der die Sitzung steht; ein laufendes Paket an einer anderen
+ * Zeile derselben Person zählt ebenfalls (auskunftStand → preis.mitAbo).
+ * Ohne Person gibt es keinen Block — dann fehlt die Karte, nie der Bereich.
+ */
+export async function auskunftKaufFuer(personId: number | null, ref: string, paketBezahlt: boolean): Promise<AuskunftKauf | null> {
+  if (!personId) return null;
+  const { auskunftStand } = await import("../lib/fiaon-auskunft");
+  const { neueLeistungGesperrt } = await import("../lib/fiaon-kuendigung");
+  const [stand, gesperrt, personen] = await Promise.all([
+    auskunftStand(personId),
+    neueLeistungGesperrt(ref),
+    sqlPool`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${personId} LIMIT 1`,
+  ]);
+  const person = (personen as any[])[0];
+  const bezahlt = paketBezahlt || stand.preis.mitAbo;
+  const pr = stand.offen?.paymentReference ?? null;
+  return auskunftKaufBlock({
+    stufe: stand.stufe,
+    sperre: gesperrt ? "gekuendigt" : bezahlt ? null : "paket_offen",
+    werbung: !person?.werbung_gesperrt_am,
+    preisCents: stand.preis.cents,
+    mitAbo: stand.preis.mitAbo,
+    land: stand.land,
+    offen: stand.offen ? {
+      zahlungsseite: pr ? `/zahlung/${encodeURIComponent(pr)}` : null,
+      betragText: euroText(stand.offen.betragCents),
+      gemeldet: stand.offen.status === "claimed_paid",
+    } : null,
+  });
+}
 
 /**
  * GET /kunde/me — ist jemand angemeldet, und wer?
@@ -121,11 +246,20 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     const { stufeVon } = await import("../lib/fiaon-kontostufe");
     const { stufeAbleiten } = await import("../lib/fiaon-kundenstufe");
     const { bonitaetFuer } = await import("../lib/fiaon-bonitaet-status");
-    const [konto, abgeleitet, bonitaet] = await Promise.all([
+    const [konto, abgeleitet, bonitaet, kaufRoh] = await Promise.all([
       stufeVon(ref).catch(() => null),
       stufeAbleiten(ref).catch(() => null),
       bonitaetFuer(ref).catch(() => null),
+      // E-240: Fällt die Auskunft-Abfrage aus, fehlt nur die Kaufkarte — nie der Bereich.
+      auskunftKaufFuer(a.person_id ? Number(a.person_id) : null, ref, String(a.payment_status) === "paid")
+        .catch((e) => { console.error("[MEIN-BEREICH] auskunftKauf:", e?.message || e); return null; }),
     ]);
+    // Zwei Stände, eine Karte: Sieht die Bonitäts-Wahrheit (die auch alte Käufe
+    // ohne Person über die E-Mail findet) schon eine Auskunft, wird nichts
+    // angeboten — ein Angebot für etwas, das man hat, sagt: Die kennen mich nicht.
+    const kauf: AuskunftKauf | null = kaufRoh && bonitaet && !bonitaet.darfKaufen && kaufRoh.darfKaufen
+      ? { ...kaufRoh, darfKaufen: false }
+      : kaufRoh;
 
     // Termine des Kunden (Startgespräch)
     const termine = a.person_id ? ((await sqlPool`
@@ -219,6 +353,12 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     const auskunftDa = !!bonitaet?.hatDokument;
     // E-178: Die automatische Auswertung gilt — Dirk Ladewig stand mit fertiger Analyse auf „Analyse durch FIAON: kommt“.
     const analyseFertig = !!bonitaet?.dokumentGeprueft || !!bonitaet?.ausgewertet;
+    // E-240: Vor der ersten Rate ist der gültige Preis noch der Einzelpreis — mit dem
+    // bezahlten Abo-Paket wird es der Kundenpreis. Der Fahrplan nennt den Preis, der
+    // für diesen Menschen gilt, sobald er die Auskunft beauftragen kann.
+    const kundenpreisSpaeter = kauf?.sperre === "paket_offen" && !!pk?.abo;
+    const auskunftPreisText = kundenpreisSpaeter ? euroText(auskunftPreisCents("privat", true)) : kauf?.preisText ?? "";
+    const auskunftPreisSatz = `${kundenpreisSpaeter ? "Mit Ihrem Paket " : ""}${auskunftPreisText}`;
 
     const etappen: Etappe[] = [
       {
@@ -238,13 +378,24 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
              !a.hat_ausweis || a.reupload_id_card ? "Ausweis oder Reisepass" : null].filter(Boolean).join(" und ") + " fehlt noch. Ein Handyfoto genügt, wenn alles lesbar ist.",
         stand: unterlagenOk ? "fertig" : "kommt", datum: null, stempel: unterlagenOk ? "geprüft" : "offen", href: "#unterlagen",
       },
+      // E-240: Die Auskunft ist ein eigener Auftrag, nicht Teil des Pakets. Preis
+      // und Auskunfteien kommen aus dem Kauf-Block (Katalog + Land) — vorher
+      // stand hier „74 € einmalig" hart, auch für Österreicher und Gekündigte.
       {
         key: "auskunft", titel: "Bonitätsauskunft",
         text: auskunftDa ? "Ihre Auskunft ist eingegangen."
-          : auskunftBezahlt ? "Bezahlt — wir beschaffen die Auskunft und melden uns, sobald sie vorliegt."
-          : "Eine tagesaktuelle Auskunft, neutral abgerufen — der Abruf verändert Ihren Wert nicht. Einmalig 74 €, kein Abo.",
+          : auskunftBezahlt || kauf?.stufe === "bezahlt" ? `Bezahlt — wir fordern Ihre Datenkopien${kauf ? ` bei ${kauf.bei}` : ""} an und melden uns, sobald sie vorliegen.`
+          : kauf?.stufe === "offen" ? `Beauftragt — sobald Ihre Zahlung${kauf.offen ? ` über ${kauf.offen.betragText}` : ""} da ist, fordern wir Ihre Datenkopien an.`
+          : kauf?.sperre === "gekuendigt" ? "Nicht im Paket enthalten — nach der Kündigung lässt sie sich hier nicht mehr neu beauftragen."
+          : kauf ? `Nicht im Paket enthalten: Wir fordern Ihre Datenkopien bei ${kauf.bei} an, erklären jeden Eintrag, prüfen die Fristen und schreiben Ihren Handlungsplan. ${auskunftPreisSatz} einmalig, kein Abo.`
+          : "Nicht im Paket enthalten: Wir fordern Ihre Datenkopien bei den Auskunfteien an, erklären jeden Eintrag und schreiben Ihren Handlungsplan.",
         stand: auskunftDa ? "fertig" : "kommt", datum: null,
-        stempel: auskunftDa ? "liegt vor" : auskunftBezahlt ? "in Beschaffung" : "74 € einmalig", href: "#bonitaet",
+        stempel: auskunftDa ? "liegt vor"
+          : auskunftBezahlt || kauf?.stufe === "bezahlt" ? "in Beschaffung"
+          : kauf?.stufe === "offen" ? "Zahlung offen"
+          : kauf?.sperre === "gekuendigt" ? "nicht beauftragt"
+          : kauf ? `${auskunftPreisText} einmalig` : "Zusatzauftrag",
+        href: "#bonitaet",
       },
       {
         key: "analyse", titel: "Analyse durch FIAON",
@@ -252,7 +403,9 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
           : "Wir gehen jeden Eintrag durch, bewerten seine Wirkung und leiten daraus Ihre nächsten Schritte ab.",
         stand: analyseFertig ? "fertig" : "kommt", datum: null, stempel: analyseFertig ? "fertig" : "nach der Auskunft",
       },
-      { key: "schreiben", titel: "Schreiben versenden", text: "Löschanträge, Widersprüche und Ratenvereinbarungen — fertig vorbereitet, juristisch geprüft, mit einem Klick versendet.", stand: "kommt", datum: null, stempel: "nach der Analyse", href: "#schreiben" },
+      // E-240: „juristisch geprüft" ohne Beleg und „mit einem Klick versendet" waren
+      // zwei Versprechen, die niemand halten kann (Wortwand). Der Weg ist: Sie geben frei, wir übermitteln.
+      { key: "schreiben", titel: "Schreiben versenden", text: "Löschanträge, Widersprüche und Ratenvereinbarungen — fertig vorbereitet aus Ihrer Auswertung. Sie geben frei, wir übermitteln.", stand: "kommt", datum: null, stempel: "nach der Analyse", href: "#schreiben" },
       { key: "girokonto", titel: "Girokonto bei der DKB", text: "Kostenlos, unabhängig von Ihrer Bonität. Spart im Jahr rund 60 € Kontoführung.", stand: "kommt", datum: null, stempel: "heute möglich", href: "#vorteile" },
       { key: "karte", titel: `Kreditkarte${a.wanted_limit ? ` bis ${Number(a.wanted_limit).toLocaleString("de-DE")} €` : ""}`, text: "Das Ziel. Realistisch, sobald Ihr Wert die Schwelle des Kartenpartners erreicht — wir sagen Ihnen, wann es so weit ist.", stand: "kommt", datum: null, stempel: "Ziel", href: "#vorteile" },
     ];
@@ -335,18 +488,36 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         pflicht: konto?.pflicht ?? false,
         bezahlt: String(a.payment_status) === "paid",
       },
+      // E-240: Zwei „darf kaufen", zwei Fragen.
+      //   · `auskunft.darfKaufen` (Kauf-Block): Steht die Kaufkarte? Nur mit
+      //     bezahltem Paket, ohne Kündigung, ohne Bestellung/Dokument.
+      //   · `bonitaet.darfKaufen` (hier): Ist der KUNDE bei der Auskunft am Zug?
+      //     Das liest der Weg in /app (shared/fiaon-rahmenweg.ts, Schritt 6) —
+      //     true heißt „Auskunft beauftragen" beim Kunden, false heißt „Wir
+      //     beschaffen Ihre Auskunft". Darum ist es auch bei offener Zahlung
+      //     true: Vorher stand dort „Wir beschaffen …", während die Bestellung
+      //     auf seine Überweisung wartete. Die Akte (fiaon-app-uebersicht.ts)
+      //     rechnet genauso.
+      // `preisEuro` ist der Preis, der für diesen Menschen gilt (vorher fest 74).
       bonitaet: bonitaet ? {
         stufe: bonitaet.stufe, fuerKunden: bonitaet.fuerKunden, naechsterSchritt: bonitaet.naechsterSchritt,
-        bezahlt: bonitaet.bezahlt, hatDokument: bonitaet.hatDokument, geprueft: bonitaet.dokumentGeprueft || bonitaet.ausgewertet, ausgewertet: bonitaet.ausgewertet,
-        darfKaufen: bonitaet.darfKaufen, darfHochladen: bonitaet.darfHochladen, bestellRef: bonitaet.bestellRef,
+        bezahlt: bonitaet.bezahlt || kauf?.stufe === "bezahlt", hatDokument: bonitaet.hatDokument, geprueft: bonitaet.dokumentGeprueft || bonitaet.ausgewertet, ausgewertet: bonitaet.ausgewertet,
+        darfKaufen: kundeAmZugAuskunft(kauf, bonitaet.darfKaufen), darfHochladen: bonitaet.darfHochladen, bestellRef: bonitaet.bestellRef,
         zahlungsreferenz: schufa?.payment_reference || null, zahlungsstatus: schufa?.payment_status || null,
-        preisEuro: schufa?.amount_due != null ? Number(schufa.amount_due) : 74,
+        preisEuro: kauf ? kauf.preisCents / 100 : schufa?.amount_due != null ? Number(schufa.amount_due) : auskunftPreisCents("privat", true) / 100,
+        auskunftStufe: kauf?.stufe ?? null,
       } : null,
+      // Der Kauf-Block (E-240): Stufe, Preis, Leistung, Zahlungsseite. null ohne Person.
+      auskunft: kauf,
       karte,
       // Schritt 10 des Weges — null, solange keine Kontoeröffnung gemeldet ist.
       konto: kontoEroeffnung,
       unterlagen: {
         kontoauszug: !!a.hat_kontoauszug, ausweis: !!a.hat_ausweis, auskunft: auskunftDa,
+        // E-240: Der Unterlagen-Schirm in /app bekommt nur diesen Teil der Antwort
+        // (Bereich.tsx reicht `b.unterlagen` durch) — dort steht die Wahl
+        // „FIAON holt sie" oder „selbst hochladen". Derselbe Block wie oben.
+        auskunftKauf: kauf,
         erneutKontoauszug: !!a.reupload_bank_statement, erneutAusweis: !!a.reupload_id_card,
         kycStatus: a.kyc_status || "pending", kontoStatus: a.account_status || "pending",
         // P9 (01.09.2026): Sofort-Befunde der automatischen Prüfung, in
@@ -754,5 +925,116 @@ router.post("/kunde/:ref/bonitaet/loeschantrag", requireKunde, async (req: Kunde
   } catch (err) {
     console.error("[KUNDE] bonitaet loeschantrag:", err);
     res.status(500).json({ ok: false, error: "Der Antrag konnte nicht beauftragt werden. Bitte versuchen Sie es erneut." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /kunde/auskunft/bestellen  { sofortBeginn?: boolean }
+// Die Kaufkarte im Kundenbereich (24.09.2026, E-240)
+//
+// Der Kunde hat auf der Karte Preis, Leistung, AGB und Widerrufsbelehrung
+// gesehen und „Zahlungspflichtig beauftragen" gedrückt (§ 312j Abs. 3 BGB —
+// darum heißt der Knopf so und nicht „Auskunft beauftragen"). Die Referenz
+// kommt aus dem Cookie, nicht aus der Adresse: Es gibt nichts, das jemand
+// für einen anderen bestellen könnte. Die Als-Kunde-Ansicht kommt hier nicht
+// durch (requireKunde lässt dort nur GET zu).
+//
+// Angelegt wird ausschließlich über auskunftBestellen() — derselbe Weg wie
+// Mara, Betreuer und Assistent: Preis vom Server (74 € mit laufendem Paket,
+// sonst 149 €), eine offene Bestellung wird wiederverwendet statt verdoppelt,
+// Zahlungsreferenz, Rechnung und Zahlungsmail entstehen in bestellungFuerAntrag.
+//
+// ── DER WIDERRUF (§ 356 Abs. 4, § 357a Abs. 2 BGB) ────────────────────────
+// Die Auskunft ist eine Dienstleistung an einen Verbraucher im Fernabsatz.
+// Beginnen wir vor Ablauf der Widerrufsfrist, ohne dass er es ausdrücklich
+// verlangt hat, schuldet er bei einem Widerruf nichts. Die Karte fragt es
+// deshalb ab — freiwillig, nie vorangekreuzt (Muster: business-start.tsx) —
+// und der Verlauf hält die Wahl fest, damit die Beschaffung weiß, ab wann sie
+// anfangen darf. Ohne Haken: Beginn nach Ablauf der Frist.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Zwei Klicks in einer Sekunde dürfen keine zwei Bestellungen werden. */
+const bestellungLaeuft = new Set<number>();
+
+router.post("/kunde/auskunft/bestellen", requireKunde, async (req: KundeRequest, res: Response) => {
+  // Nur wer die Sperre GESETZT hat, gibt sie wieder frei — sonst löste die
+  // abgewiesene zweite Anfrage die Sperre der ersten.
+  let meineSperre: number | null = null;
+  try {
+    const ref = req.kundeRef!;
+    const sofortBeginn = req.body?.sofortBeginn === true;
+    const [a] = (await sqlPool`
+      SELECT person_id, payment_status FROM fiaon_applications
+       WHERE ref = ${ref} AND merged_into IS NULL AND gdpr_deleted_at IS NULL LIMIT 1`) as any[];
+    if (!a) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
+    if (!a.person_id) {
+      return res.status(409).json({ ok: false, error: "Ihr Konto ist noch nicht vollständig angelegt. Ihre Ansprechpartnerin legt die Auskunft für Sie an." });
+    }
+    const personId = Number(a.person_id);
+
+    const kauf = await auskunftKaufFuer(personId, ref, String(a.payment_status) === "paid");
+    if (!kauf) return res.status(409).json({ ok: false, error: "Ihr Konto ist noch nicht vollständig angelegt." });
+    if (kauf.sperre === "gekuendigt") {
+      const { PORTAL_GESPERRT_SATZ } = await import("../lib/fiaon-kuendigung");
+      return res.status(403).json({ ok: false, grund: "gekuendigt", error: PORTAL_GESPERRT_SATZ });
+    }
+    if (kauf.stufe === "dokument") {
+      return res.status(409).json({ ok: false, grund: "dokument", error: "Ihre Auskunft liegt uns bereits vor — wir werten sie aus. Sie sehen das Ergebnis unter „Ihre Bonität“." });
+    }
+    if (kauf.stufe === "nichts" && !kauf.darfKaufen) {
+      return res.status(409).json({ ok: false, grund: "paket_offen", error: "Die Bonitätsauskunft beauftragen Sie hier, sobald die erste Zahlung für Ihr Paket eingegangen ist." });
+    }
+    // Gegenlesen 24.09.2026 (E-240): dieselbe Wand wie die Karte im GET. Die
+    // Bonitäts-Wahrheit findet auch alte Käufe ohne Person (über die E-Mail) und
+    // selbst hochgeladene Dokumente an einer Schwester-Zeile. Sieht sie schon
+    // eine Auskunft oder eine Bestellung, wird nichts angelegt — sonst zahlte
+    // jemand zweimal, weil er den Knopf aus einem alten Tab heraus drückte.
+    if (kauf.stufe === "nichts") {
+      const { bonitaetFuer } = await import("../lib/fiaon-bonitaet-status");
+      const bo = await bonitaetFuer(ref).catch(() => null);
+      if (bo && !bo.darfKaufen) {
+        return res.status(409).json({ ok: false, grund: "vorhanden", error: "Zu Ihrer Bonitätsauskunft liegt uns schon ein Auftrag oder ein Dokument vor. Den Stand sehen Sie unter „Ihre Bonität“." });
+      }
+    }
+
+    if (bestellungLaeuft.has(personId)) {
+      return res.status(409).json({ ok: false, grund: "laeuft", error: "Ihre Bestellung wird gerade angelegt — einen Moment bitte." });
+    }
+    bestellungLaeuft.add(personId);
+    meineSperre = personId;
+
+    const { auskunftBestellen, auskunftArtFuer } = await import("../lib/fiaon-auskunft");
+    const b = await auskunftBestellen({ personId, art: await auskunftArtFuer(personId), quelle: "kundenbereich", von: "Kunde (Kundenbereich)" });
+    if (!b.ok) {
+      console.error(`[KUNDE] auskunft bestellen ${ref}:`, b.fehler);
+      return res.status(502).json({ ok: false, error: "Die Bestellung ließ sich gerade nicht anlegen. Bitte versuchen Sie es in einer Minute erneut." });
+    }
+
+    // Nur eine NEUE Bestellung ist ein neuer Auftrag mit neuer Widerrufswahl.
+    // Eine wiederverwendete offene hat ihre Wahl schon — sonst stünde eine
+    // zweite, womöglich andere im Verlauf.
+    if (b.art === "neu" && b.ref) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${b.ref}, ${personId}, NULL, 'Kunde (Kundenbereich)', 'system',
+                ${`Bonitätsauskunft im Kundenbereich zahlungspflichtig beauftragt (${b.betragText}${b.mitAbo ? ", Kundenpreis mit Paket" : ", Einzelpreis"}). `
+                  + (sofortBeginn
+                    ? "Beginn vor Ablauf der Widerrufsfrist AUSDRÜCKLICH VERLANGT — Hinweis auf anteiligen Wertersatz und Erlöschen des Widerrufsrechts bei vollständiger Erfüllung bestätigt."
+                    : "Beginn vor Ablauf der Widerrufsfrist NICHT verlangt — mit der Anforderung erst nach Ablauf der 14-tägigen Widerrufsfrist beginnen.")})`
+        .catch((e) => console.error("[KUNDE] auskunft Widerrufsvermerk:", e));
+    }
+
+    const zahlungsseite = b.paymentReference ? `/zahlung/${encodeURIComponent(b.paymentReference)}` : null;
+    res.json({
+      ok: true, art: b.art, ref: b.ref, paymentReference: b.paymentReference,
+      betragText: b.betragText, mitAbo: b.mitAbo, zahlungsseite,
+      meldung: b.art === "bezahlt" ? "Ihre Auskunft ist bereits bezahlt — wir fordern Ihre Datenkopien an."
+        : zahlungsseite ? null : "Ihre Bestellung ist angelegt. Die Zahlungsdaten kommen per E-Mail.",
+    });
+  } catch (err) {
+    console.error("[KUNDE] auskunft bestellen:", err);
+    res.status(500).json({ ok: false, error: "Die Bestellung ließ sich gerade nicht anlegen. Bitte versuchen Sie es in einer Minute erneut." });
+  } finally {
+    if (meineSperre != null) bestellungLaeuft.delete(meineSperre);
   }
 });

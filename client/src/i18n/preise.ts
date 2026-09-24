@@ -11,6 +11,15 @@
 //
 // Der FAQ-Generator (scripts/seo-fragen-erzeugen.ts) teilt diese Datei an
 // „const en": erste Hälfte → /preise, zweite → /en/pricing.
+//
+// 24.09.2026 (E-240): Die Bonitätsauskunft ist in KEINEM Paket enthalten. Hier
+// stand „Jedes Paket beginnt mit Ihrer Bonitätsauskunft", die Auskunft als
+// Leistung jeder Spalte und das Versprechen, den Betrag binnen 30 Tagen auf ein
+// Paket anzurechnen — eine Anrechnung gibt es nicht, und der Aufpreis (149 € einzeln, 74 € mit Paket)
+// widersprach der Tabelle. Preise kommen als Argument aus
+// shared/fiaon-auskunft.ts; nur in den FAQ stehen sie als Text, weil der
+// FAQ-Generator ausschließlich reine Zeichenketten liest — bei einem
+// Preiswechsel dort mitziehen.
 // ═══════════════════════════════════════════════════════════════════════════
 const de = {
   seoTitel: "Preise & Pakete: FIAON ab 7,99 € im Monat",
@@ -20,7 +29,7 @@ const de = {
   h1a: "Ein Preis, ", h1b: "keine Überraschung.",
   lead: "Zwölf Monatsraten, danach monatlich kündbar – und wir fragen, ob Sie bleiben. Keine Provision auf Rahmen, keine Gebühr je Schreiben, kein Kleingedrucktes. Hier steht alles – inklusive dessen, was Selbermachen und Anwalt kosten.",
   knopfFinder: "Welches Paket passt?", knopfAlle: "Alle Pakete",
-  kz1: "Raten, danach monatlich kündbar", kz2: "Provision, Gebühr je Schreiben, Aufschlag", kz3: "Auskunft einmalig, anrechenbar", kz4: "günstigstes Paket im Monat",
+  kz1: "Raten, danach monatlich kündbar", kz2: "Provision, Gebühr je Schreiben, Aufschlag", kz3: (mitPaket: string) => `Bonitätsauskunft einzeln · mit Paket ${mitPaket}`, kz4: "günstigstes Paket im Monat",
   finderH2a: "Drei Fragen, ", finderH2b: "ein Paket.",
   finderLead: "Kein Verkaufsgespräch – eine ehrliche Zuordnung. Jedes Paket lässt sich im Antrag und im Startgespräch noch ändern.",
   frage: "Frage",
@@ -37,7 +46,7 @@ const de = {
   globalAb: (ab: string) => `ab ${ab} einmalig`,
   globalGespraech: "Erst sprechen",
   gruende: {
-    schufa: "Nur die Auskunft, erklärt – kein Abo. Wer danach mehr will, rechnet den Betrag an.",
+    schufa: "Nur die Auskunft: Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, Fristen geprüft, Handlungsplan und fertige Schreiben – einmalig, kein Abo.",
     start: "Auskunft, Erklärung und die Schreiben zum Selbstversand – günstig und vollständig.",
     pro_fristen: "FIAON versendet und verfolgt – bei Fristen der sichere Weg.",
     pro_zugang: "Konto- und Kartenvorbereitung sind ab Pro enthalten.",
@@ -45,16 +54,18 @@ const de = {
     ultra: "Bereinigen, Konto, Karte und ein fester Ansprechpartner – das volle Programm.",
   } as Record<string, string>,
   vorschlag: "Unser Vorschlag", imMonat: "im Monat", zwoelfRaten: "zwölf Raten", gesamt: "gesamt", einmalig: "einmalig",
-  zurBusiness: "Zu FIAON Global", diesesPaket: "Dieses Paket wählen", lieberReden: "Lieber erst reden",
-  privatPille: "Privatkunden", privatH2a: "Vier Pakete, ", privatH2b: "eine Auskunft.",
-  privatLead: "Jedes Paket beginnt mit Ihrer Bonitätsauskunft, erklärt in Menschensprache – inklusive des neuen SCHUFA-Scores je Kriterium. Der Unterschied liegt darin, wie viel FIAON danach übernimmt.",
-  leistung: "Leistung", auskunft: "Auskunft", meistgewaehlt: "Meistgewählt", proMonat: "im Monat", nurAuskunft: "Nur Auskunft", waehlen: "Wählen",
+  zurBusiness: "Zu FIAON Global", diesesPaket: "Dieses Paket wählen", auskunftBestellen: "Bonitätsauskunft bestellen", lieberReden: "Lieber erst reden",
+  privatPille: "Privatkunden", privatH2a: "Vier Pakete ", privatH2b: "und Ihre Auskunft.",
+  privatLead: "Jedes Paket erklärt Ihre Bonitätsauskunft in Menschensprache – inklusive des neuen SCHUFA-Scores je Kriterium. Die Auskunft selbst ist nicht im Paket enthalten: Sie bestellen sie bei FIAON zum Kundenpreis dazu oder laden eine selbst angeforderte Datenkopie hoch. Der Unterschied der Pakete liegt darin, wie viel FIAON danach übernimmt.",
+  leistung: "Leistung", auskunft: "Auskunft", auskunftTitel: "Bonitätsauskunft", meistgewaehlt: "Meistgewählt", proMonat: "im Monat", nurAuskunft: "Nur Auskunft", waehlen: "Wählen",
+  mitPaket: (preis: string) => `mit Paket ${preis}`,
   leistungen: [
-    "Bonitätsauskunft beschafft und erklärt (SCHUFA, KSV, CRIF)", "Neuer SCHUFA-Score (100–999) je Kriterium eingeordnet", "Löschfristen und 100-Tage-Regel je Eintrag",
+    "Bonitätsauskunft: Datenkopien aller Auskunfteien Ihres Landes angefordert", "Jeder Eintrag erklärt, neuer SCHUFA-Score (100–999) je Kriterium eingeordnet", "Löschfristen und 100-Tage-Regel je Eintrag",
     "Finanzauswertung aus dem Kontoauszug", "Schreiben an Gläubiger und Auskunfteien", "Fristen verfolgt, Antworten bewertet, Eskalation zur Aufsicht",
     "Ratenvereinbarungen mit Gläubigern", "Girokonto vorbereitet", "Kreditkarte vorbereitet", "Fester Ansprechpartner", "Vorrang bei Fristen und Rückfragen", "Direkte Durchwahl, alles aus einer Hand",
   ],
   selbstversand: "zum Selbstversand", fiaonVersendet: "FIAON versendet", abSchwelle: "ab Schwelle",
+  anAuskunfteien: "an Auskunfteien, zur Freigabe", zubuchbar: (preis: string) => `+ ${preis} Kundenpreis`,
   preisHinweis: "Alle Preise inklusive Umsatzsteuer. Zwölf Raten, jede per Überweisung; danach monatlich kündbar. Über Konto, Karte und Rahmen entscheidet die Bank – FIAON bereitet vor. Preise gelten in Deutschland, Österreich und der Schweiz (Abrechnung in Euro).",
   antragHinweis: "",
   fallH2a: "Was kostet ", fallH2b: "mein Fall?",
@@ -63,7 +74,7 @@ const de = {
   zielAuskunft: "Nur wissen, was drinsteht", zielKonto: "Einträge angehen, Konto", zielKarte: "Bis zur Kreditkarte",
   zwoelfRatenA: "Zwölf Raten à ", einmaligGross: "Einmalig",
   auskunftBei: (n: number) => `Auskunft${n > 1 ? ` bei ${n} Auskunfteien` : ""}, Erklärung, Fristen`,
-  schreiben: "Schreiben", schreibenSelbst: "Schreiben zum Selbstversand", schreibenVersand: "Schreiben, Versand, Nachfassen", inklusive: "inklusive",
+  schreiben: "Schreiben", schreibenAuskunft: "Schreiben an Auskunfteien, zur Freigabe", auskunftMitPaket: "Bonitätsauskunft (Kundenpreis mit Paket)", schreibenSelbst: "Schreiben zum Selbstversand", schreibenVersand: "Schreiben, Versand, Nachfassen", inklusive: "inklusive",
   ihreZeit: "Ihre Zeit: Freigaben, rund 1 Stunde", summeGesamt: "Gesamt",
   selbstOhneAnwalt: "Selbst, ohne Anwalt", datenkopie: "Datenkopie (Art. 15 DSGVO)", einschreiben: "Einschreiben, je Eintrag zwei",
   eigeneZeit: (h: number) => `Eigene Zeit, rund ${h} Stunden`, mitAnwalt: "Mit Anwalt je Schreiben (Richtwert)",
@@ -80,7 +91,7 @@ const de = {
   weiterlesen: "Zum Weiterlesen",
   weiter: [
     { href: "/fiaon-erfahrungen", t: "So arbeitet FIAON", s: "Bankbestätigte Zahlen, Ablauf, Grenzen, Seriositäts-Check für jeden Anbieter." },
-    { href: "/bonitaetsauskunft-beantragen", t: "Bonitätsauskunft beantragen", s: "Was die 74 Euro leisten – und wann der kostenlose Weg reicht." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Bonitätsauskunft beantragen", s: "Was die Bonitätsauskunft leistet – und wann der kostenlose Weg reicht." },
     { href: "/kreditkarte", t: "Kreditkarte trotz Eintrag", s: "Welche Karte heute realistisch ist und wie der Rahmen wächst." },
     { href: "/werkzeuge", t: "20 kostenlose Werkzeuge", s: "Alles, was Sie selbst tun können – bevor Sie etwas bezahlen." },
   ],
@@ -93,8 +104,8 @@ const de = {
   fragenPille: "Häufige Fragen",
   fragen: [
     { f: "Wie lange läuft der Vertrag?", a: "Der Vertrag läuft über zwölf Monatsraten – so lange, weil Auskunft, Schreiben und Antworten Zeit brauchen. Danach läuft er unbefristet weiter und ist jederzeit mit einer Frist von einem Monat kündbar, formlos: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das gesetzliche Widerrufsrecht von 14 Tagen ab Vertragsschluss gilt zusätzlich." },
-    { f: "Wird die Auskunft angerechnet, wenn ich später ein Paket nehme?", a: "Ja. Wer zuerst nur die Auskunft bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag auf die erste Rate angerechnet. Sagen Sie es im Startgespräch oder im Kundenbereich – Ihr Ansprechpartner trägt es ein." },
-    { f: "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?", a: "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten." },
+    { f: "Ist die Bonitätsauskunft im Paket enthalten?", a: "Nein, sie ist ein eigenes Produkt. Mit laufendem Paket kostet sie einmalig 74 €, ohne Paket 149 € (für Unternehmen 199 € mit Paket, 349 € ohne). Sie bekommen die Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, die Speicherfristen geprüft, einen Handlungsplan und fertige Schreiben zur Freigabe. Ihre Datenkopie steht Ihnen bei jeder Auskunftei auch kostenlos zu – fordern Sie sie selbst an, laden Sie sie im Kundenbereich hoch, und Ihr Paket erklärt sie." },
+    { f: "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?", a: "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – dazu auf Wunsch die Bonitätsauskunft. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten." },
     { f: "Wie wird bezahlt?", a: "Jede Rate per Überweisung – die erste wie alle weiteren. Die Zahlungsdaten mit QR-Code stehen im Kundenbereich, Bankverbindung und Verwendungszweck zusätzlich in jeder Zahlungsmail. Keine Kreditkarte nötig, keine Vorkasse für Leistungen, die noch nicht erbracht sind." },
     { f: "Kann ich das Paket wechseln?", a: "Im Antrag, im Startgespräch und danach jederzeit nach oben; nach unten zum nächsten Ratenlauf. Der Paketfinder auf dieser Seite gibt die erste Orientierung – die endgültige Zuordnung besprechen Sie im Startgespräch." },
     { f: "Was, wenn alle meine Einträge berechtigt sind?", a: "Dann sagen wir es Ihnen nach der Auskunft – und Sie entscheiden, ob Sie weitermachen. Auch bei berechtigten Einträgen gibt es einen Weg: Erledigt-Vermerke, Ratenvereinbarungen mit Meldeverzicht, das Girokonto, die Zahlungshistorie. Nur Löschung gibt es dann nicht, und das versprechen wir auch nicht." },
@@ -102,7 +113,7 @@ const de = {
   zwischenrufA: "Nicht sicher, welches Paket?", zwischenrufB: " Drei Fragen im Paketfinder oben – oder 15 Minuten mit einem Mitarbeiter.",
   paketfinder: "Paketfinder", kontakt: "Kontakt aufnehmen",
   abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.",
-  abschlussText: (ab: string) => `Antrag in zwei Minuten, Auskunft innerhalb von 24 Stunden nach Vorliegen, ein Mensch, der Sie durch alles führt – ab ${ab} im Monat, zwölf Raten.`,
+  abschlussText: (ab: string) => `Antrag in zwei Minuten, jeder Eintrag Ihrer Auskunft erklärt, ein Mensch, der Sie durch alles führt – ab ${ab} im Monat, zwölf Raten.`,
   mitStarten: (paket: string) => `Mit ${paket} starten`, nurDieAuskunft: "Nur die Auskunft",
 };
 
@@ -114,7 +125,7 @@ const en: typeof de = {
   h1a: "One price, ", h1b: "no surprises.",
   lead: "Twelve monthly instalments, cancellable monthly thereafter — and then we ask whether you want to stay. No commission on limits, no fee per letter, no small print. Everything is here — including what doing it yourself or a lawyer costs.",
   knopfFinder: "Which plan fits?", knopfAlle: "All plans",
-  kz1: "instalments, cancellable monthly thereafter", kz2: "commission, fee per letter, mark-up", kz3: "credit report, one-off, credited later", kz4: "cheapest plan per month",
+  kz1: "instalments, cancellable monthly thereafter", kz2: "commission, fee per letter, mark-up", kz3: (mitPaket: string) => `credit report on its own · ${mitPaket} with a plan`, kz4: "cheapest plan per month",
   finderH2a: "Three questions, ", finderH2b: "one plan.",
   finderLead: "No sales pitch — an honest match. Every plan can still be changed in the application and in the onboarding call.",
   frage: "Question",
@@ -128,7 +139,7 @@ const en: typeof de = {
   globalAb: (ab: string) => `from ${ab} one-off`,
   globalGespraech: "Talk first",
   gruende: {
-    schufa: "Just the report, explained — no subscription. If you want more later, the amount is credited.",
+    schufa: "Just the report: data copies from every credit bureau in your country, every line explained, deadlines checked, an action plan and finished letters — one-off, no subscription.",
     start: "Report, explanation and the letters for you to send — affordable and complete.",
     pro_fristen: "FIAON sends and follows up — the safe route when deadlines are involved.",
     pro_zugang: "Account and card preparation are included from Pro upwards.",
@@ -136,16 +147,18 @@ const en: typeof de = {
     ultra: "Clean-up, account, card and a named contact person — the full programme.",
   },
   vorschlag: "Our suggestion", imMonat: "a month", zwoelfRaten: "twelve instalments", gesamt: "in total", einmalig: "one-off",
-  zurBusiness: "To FIAON Global", diesesPaket: "Choose this plan", lieberReden: "Talk first",
-  privatPille: "Personal", privatH2a: "Four plans, ", privatH2b: "one credit report.",
-  privatLead: "Every plan starts with your credit report, explained in plain language — including the new SCHUFA score, criterion by criterion. The difference is how much FIAON takes on afterwards.",
-  leistung: "Service", auskunft: "Report", meistgewaehlt: "Most chosen", proMonat: "a month", nurAuskunft: "Report only", waehlen: "Choose",
+  zurBusiness: "To FIAON Global", diesesPaket: "Choose this plan", auskunftBestellen: "Order the credit report", lieberReden: "Talk first",
+  privatPille: "Personal", privatH2a: "Four plans ", privatH2b: "and your credit report.",
+  privatLead: "Every plan explains your credit report in plain language — including the new SCHUFA score, criterion by criterion. The report itself is not included in a plan: you add it from FIAON at the customer price or upload a data copy you requested yourself. The difference between the plans is how much FIAON takes on afterwards.",
+  leistung: "Service", auskunft: "Report", auskunftTitel: "Credit report", meistgewaehlt: "Most chosen", proMonat: "a month", nurAuskunft: "Report only", waehlen: "Choose",
+  mitPaket: (preis: string) => `${preis} with a plan`,
   leistungen: [
-    "Credit report obtained and explained (SCHUFA, KSV, CRIF)", "New SCHUFA score (100–999) explained per criterion", "Deletion deadlines and the 100-day rule per entry",
+    "Credit report: data copies requested from every bureau in your country", "Every entry explained, new SCHUFA score (100–999) per criterion", "Deletion deadlines and the 100-day rule per entry",
     "Financial analysis from your bank statement", "Letters to creditors and credit bureaus", "Deadlines tracked, replies assessed, escalation to the supervisory authority",
     "Instalment agreements with creditors", "Current account prepared", "Credit card prepared", "Named contact person", "Priority on deadlines and queries", "Direct line, everything from one hand",
   ],
   selbstversand: "you send them", fiaonVersendet: "FIAON sends them", abSchwelle: "from threshold",
+  anAuskunfteien: "to credit bureaus, for your approval", zubuchbar: (preis: string) => `+ ${preis} customer price`,
   preisHinweis: "All prices include VAT. Twelve instalments, each by bank transfer; cancellable monthly thereafter. The bank decides on account, card and limit — FIAON prepares. Prices apply in Germany, Austria and Switzerland (billed in euros).",
   antragHinweis: "The application and the customer area are currently in German; our team speaks English on the phone.",
   fallH2a: "What does ", fallH2b: "my case cost?",
@@ -154,7 +167,7 @@ const en: typeof de = {
   zielAuskunft: "Just know what is on file", zielKonto: "Tackle entries, get an account", zielKarte: "All the way to a credit card",
   zwoelfRatenA: "Twelve instalments of ", einmaligGross: "One-off",
   auskunftBei: (n: number) => `Report${n > 1 ? ` from ${n} bureaus` : ""}, explanation, deadlines`,
-  schreiben: "Letters", schreibenSelbst: "Letters for you to send", schreibenVersand: "Letters, sending, follow-up", inklusive: "included",
+  schreiben: "Letters", schreibenAuskunft: "Letters to credit bureaus, for your approval", auskunftMitPaket: "Credit report (customer price with a plan)", schreibenSelbst: "Letters for you to send", schreibenVersand: "Letters, sending, follow-up", inklusive: "included",
   ihreZeit: "Your time: approvals, around 1 hour", summeGesamt: "Total",
   selbstOhneAnwalt: "Yourself, without a lawyer", datenkopie: "Data copy (Art. 15 GDPR)", einschreiben: "Registered letters, two per entry",
   eigeneZeit: (h: number) => `Your own time, around ${h} hours`, mitAnwalt: "With a lawyer per letter (guide value)",
@@ -171,7 +184,7 @@ const en: typeof de = {
   weiterlesen: "Read on",
   weiter: [
     { href: "/fiaon-erfahrungen", t: "How FIAON works", s: "Bank-confirmed figures, process, limits, a seriousness check for any provider." },
-    { href: "/bonitaetsauskunft-beantragen", t: "Requesting your credit report", s: "What the €74 report delivers — and when the free route is enough." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Requesting your credit report", s: "What the credit report delivers — and when the free route is enough." },
     { href: "/kreditkarte", t: "A credit card despite an entry", s: "Which card is realistic today and how the limit grows." },
     { href: "/werkzeuge", t: "20 free tools", s: "Everything you can do yourself — before you pay for anything." },
   ],
@@ -184,8 +197,8 @@ const en: typeof de = {
   fragenPille: "Frequently asked questions",
   fragen: [
     { f: "How long does the contract run?", a: "The contract runs for twelve monthly instalments — that long because reports, letters and replies take time. After that it continues indefinitely and can be cancelled at any time with one month\x27s notice, informally: in your customer area under Subscription & payments or by e-mail. The statutory 14-day right of withdrawal from the conclusion of the contract applies in addition." },
-    { f: "Is the report credited if I choose a plan later?", a: "Yes. If you buy the report on its own first and choose a plan within 30 days, the amount is credited against the first instalment. Say so in the onboarding call or in your customer area — your contact person records it." },
-    { f: "Are there fees per letter or success commissions?", a: "No. Neither per letter nor on deletions, accounts or card limits. The plan price is the price. Registered-letter postage, follow-up, escalation — all included." },
+    { f: "Is the credit report included in a plan?", a: "No, it is a separate product. With a running plan it costs €74 one-off, without a plan €149 (for companies €199 with a plan, €349 without). You receive the data copies from every credit bureau in your country, every line explained, storage periods checked, an action plan and finished letters for your approval. You are also entitled to your data copy from each bureau free of charge — request it yourself, upload it in your customer area and your plan explains it." },
+    { f: "Are there fees per letter or success commissions?", a: "No. Neither per letter nor on deletions, accounts or card limits. The plan price is the price — plus the credit report if you want it. Registered-letter postage, follow-up, escalation — all included." },
     { f: "How do I pay?", a: "Every instalment by bank transfer — the first and all further ones. The payment details with a QR code are in your customer area, and bank details and payment reference are also in every payment e-mail. No credit card needed, no payment in advance for services not yet delivered." },
     { f: "Can I change plans?", a: "In the application, in the onboarding call and upwards at any time afterwards; downwards from the next instalment cycle. The plan finder on this page gives a first orientation — the final choice is discussed in the onboarding call." },
     { f: "What if all my entries are justified?", a: "Then we tell you so after the report — and you decide whether to continue. Even with justified entries there is a way forward: settled markers, instalment agreements with a waiver of reporting, the current account, your payment history. Only deletion is off the table then, and we do not promise it." },
@@ -193,7 +206,7 @@ const en: typeof de = {
   zwischenrufA: "Not sure which plan?", zwischenrufB: " Three questions in the plan finder above — or 15 minutes with one of our team.",
   paketfinder: "Plan finder", kontakt: "Get in touch",
   abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.",
-  abschlussText: (ab: string) => `Application in two minutes, your report explained within 24 hours of receipt, a person who guides you through everything — from ${ab} a month, twelve instalments.`,
+  abschlussText: (ab: string) => `Application in two minutes, every entry in your report explained, a person who guides you through everything — from ${ab} a month, twelve instalments.`,
   mitStarten: (paket: string) => `Start with ${paket}`, nurDieAuskunft: "Report only",
 };
 

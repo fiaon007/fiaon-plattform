@@ -45,7 +45,10 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
     absaetze: [
       "Guten Tag {{params.vorname}} {{params.nachname}}, schön, dass Sie da sind. Ihr Antrag für <b>{{params.paket}}</b> ist bei uns angelegt — damit ist der erste Schritt getan.",
       "So geht es weiter: <b>1.</b> Sobald Sie den Antrag abschließen, erhalten Sie eine eigene E-Mail mit Ihren Zahlungsdaten. <b>2.</b> Sobald Ihre Zahlung da ist, öffnet sich Ihr persönlicher Bereich. <b>3.</b> Ihr Ansprechpartner meldet sich zum Startgespräch — fünfzehn Minuten, in denen wir Ihre Akte gemeinsam durchgehen.",
-      "Ab dann arbeiten wir für Sie: Auskunft holen, jeden Eintrag prüfen, angreifbare Einträge anschreiben. Jeden Schritt sehen Sie live in Ihrem Bereich.",
+      // 25.09.2026 (E-240): vorher „Auskunft holen, jeden Eintrag prüfen …" — die Auskunft ist
+      // ein Zusatzprodukt, nicht Teil des Pakets. Der vierte Absatz sagt, wie sie in die Akte kommt.
+      "Ab dann arbeiten wir für Sie: Ihre Unterlagen auswerten, jeden Eintrag Ihrer Bonitätsauskunft erklären, angreifbare Einträge anschreiben. Jeden Schritt sehen Sie live in Ihrem Bereich.",
+      "Ihre Bonitätsauskunft gehört nicht zum Paket: Eine selbst angeforderte Datenkopie laden Sie einfach in Ihrem Bereich hoch — oder Sie beauftragen sie dort als Zusatz bei uns.",
     ],
     daten: [
       { label: "Ihr Paket", wert: "{{params.paket}}" },
@@ -95,6 +98,13 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
     fussnote: "Noch kein Passwort? Wählen Sie beim Anmelden „Passwort vergessen“ — Sie vergeben es in einem Schritt selbst.",
   },
 
+  // ── NUR FÜR PAKETE (24.09.2026, E-240) ────────────────────────────────────
+  // payment_details und payment_confirmed hier sprechen vom Paket (Bereich
+  // freischalten, Startgespräch). Ist die Bestellung eine Bonitätsauskunft, nimmt
+  // der Motor die Fassungen aus auskunft-lead.ts (AUSKUNFT_ZAHLUNG_VORLAGEN) —
+  // dort stehen die Sätze zur Auskunft. Wer hier etwas ändert, prüft beide.
+  // 25.09.2026 (E-240): payment_details der Auskunft ist zugleich die
+  // Vertragsbestätigung mit Widerrufsbelehrung (auskunftZahlungsdatenBaustein).
   payment_details: {
     betreff: "Ihre Zahlungsdaten — {{params.payment_reference}}",
     preheader: "Ein Schritt trennt Sie von Ihrem Bereich: die erste Zahlung.",
@@ -141,24 +151,49 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
     titel: "Da fehlt nur noch ein Stück",
     absaetze: [
       "Guten Tag {{params.vorname}}, Sie haben Ihren FIAON-Antrag begonnen und bei „{{params.schritt_text}}“ unterbrochen. Alles, was Sie eingegeben haben, ist gespeichert — Sie machen genau dort weiter, wo Sie aufgehört haben.",
-      "Warum es sich lohnt, jetzt fertig zu machen: Je früher Ihre Akte bei uns liegt, desto früher holen wir Ihre Auskunft und sehen, welche Einträge angreifbar sind. Jede Woche Wartezeit ist eine Woche, in der sich nichts verbessert.",
+      // 25.09.2026 (E-240): vorher „… desto früher holen wir Ihre Auskunft …" — Zusatzprodukt, nicht im Paket.
+      "Warum es sich lohnt, jetzt fertig zu machen: Je früher Ihre Akte bei uns liegt, desto früher sehen wir gemeinsam, wo Sie stehen und welche Einträge angreifbar sind. Jede Woche Wartezeit ist eine Woche, in der sich nichts verbessert.",
     ],
     knopf: { text: "Antrag fortsetzen", url: "{{params.weiter_link}}" },
     fussnote: "Dauert keine fünf Minuten. Bei Fragen: einfach auf diese E-Mail antworten.",
     karteZiel: true,
   },
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE UNTERLAGEN-MAIL (24.09.2026, E-240)
+  //
+  // VORHER: eine Unterlage je Mail (am 24.09. bis zu sechs an dieselbe Person),
+  //   die Bonitätsauskunft hieß überall „SCHUFA-Datenkopie" — auch für 111
+  //   Österreicher —, es gab keinen Weg, sie bei uns zu beauftragen, und die
+  //   Fußzeile drohte mit „Akte auf Pause", obwohl technisch nichts pausiert.
+  // NACHHER: Alle fehlenden Unterlagen stehen in EINER Mail ({{params.hinweis}}).
+  //   Fehlt die Auskunft, kommt ein wahlweiser Absatz dazu
+  //   ({{params.angebot_text}}: wir holen sie — mit Preis —, oder der Weg zur
+  //   Zahlung einer schon beauftragten), und der Hauptknopf ist dieser Weg; der
+  //   zweite Knopf lässt immer die Wahl, selbst hochzuladen. Ohne Auskunft ist
+  //   der Upload der Hauptknopf, und der zweite führt zum eigenen Passwort —
+  //   ohne Passwort kommt niemand an den Upload.
+  // Knopftexte und -ziele baut der Auslöser (fiaon-telefonie.ts, Anfordern),
+  // weil nur er weiß, welcher Fall vorliegt. Betreff, Titel und Fußnote passen
+  // für eine wie für drei Unterlagen.
+  // Gegenlesen 24.09.2026: {{params.widerspruch_text}} steht nur in der Mail MIT
+  // Kaufangebot (dann ist sie auch Werbung, § 7 Abs. 3 Nr. 4 UWG: Hinweis auf
+  // das Widerspruchsrecht bei jeder Verwendung) — leer entfällt der Absatz.
+  // ══════════════════════════════════════════════════════════════════════════
   documents_change_request: {
-    betreff: "Wir brauchen ein Dokument von Ihnen, {{params.vorname}}",
-    preheader: "Ein Upload fehlt oder war nicht lesbar — so reichen Sie nach.",
-    titel: "Ein Dokument fehlt noch",
+    betreff: "Noch fehlende Unterlagen für Ihre Akte, {{params.vorname}}",
+    preheader: "Was noch fehlt — und wie Sie es am schnellsten nachreichen.",
+    titel: "Das fehlt noch in Ihrer Akte",
     absaetze: [
-      "Guten Tag {{params.vorname}}, bei der Prüfung Ihrer Unterlagen ist uns etwas aufgefallen:",
+      "Guten Tag {{params.vorname}}, damit wir mit Ihrer Akte weiterarbeiten können, fehlt uns noch:",
       "<b>{{params.hinweis}}</b>",
-      "Laden Sie das Dokument einfach in Ihrem Bereich neu hoch — als PDF, gut lesbar, alle vier Ecken im Bild. Danach prüfen wir sofort weiter.",
+      "{{params.angebot_text}}",
+      "Unterlagen, die Sie schon haben oder selbst anfordern, laden Sie einfach in Ihrem Bereich hoch — als PDF, gut lesbar, alle vier Ecken im Bild.",
+      "{{params.widerspruch_text}}",
     ],
-    knopf: { text: "Dokument hochladen", url: "{{params.login_url}}" },
-    fussnote: "Solange das Dokument fehlt, liegt Ihre Akte auf Pause — je schneller es da ist, desto schneller geht es weiter.",
+    knopf: { text: "{{params.knopf_text}}", url: "{{params.knopf_url}}" },
+    knopf2: { text: "{{params.knopf2_text}}", url: "{{params.knopf2_url}}" },
+    fussnote: "Ihre Unterlagen sind die Grundlage Ihrer Bonitätsanalyse. Fragen dazu? Antworten Sie einfach auf diese E-Mail.",
   },
 
   // E-184 (11.09.2026): Der Zustimmungs-Link aus der Akte. Vorher nahm die Route

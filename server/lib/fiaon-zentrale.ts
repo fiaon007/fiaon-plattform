@@ -6,10 +6,13 @@
 // Bisher: Nachricht an den Vorgesetzten, der macht es irgendwann. Ab jetzt:
 // „Hi {Anrede}, wie besprochen: {Zahlungsdaten}" — zwanzig Sekunden.
 //
-// DIE DREI AUSSCHLÜSSE, DIE IMMER GELTEN
+// DIE AUSSCHLÜSSE, DIE IMMER GELTEN
 // Testeinträge, DSGVO-Gelöschte und archivierte Bestellungen fallen aus JEDER
 // Zielgruppe — nicht als Filteroption, sondern fest. Eine Rundmail, die einen
-// gelöschten Datensatz erreicht, ist ein meldepflichtiger Vorfall.
+// gelöschten Datensatz erreicht, ist ein meldepflichtiger Vorfall. Dazu die
+// Vertriebssperre (is_blocked) und seit 25.09.2026 (E-240) die Werbesperre:
+// Die Zentrale schickt über Brevo direkt (eigeneMailSenden), also NICHT durch
+// die Mail-Tür in make-webhook.ts — die Sperre muss hier stehen.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
@@ -98,11 +101,16 @@ export function bausteineFuellen(text: string, e: Empfaenger): string {
  *
  * `ist_test_am` kam mit diesem Paket dazu: Zehn „Justin Schwarzott"-Zeilen
  * standen bis heute als echte Kunden in jeder Zielgruppe.
+ *
+ * `werbung_gesperrt_am` (25.09.2026, E-240): Wer „Stopp" gesagt hat, steht in
+ * keiner Zielgruppe und in keiner Suche — gemessen: 56 wählbare Menschen mit
+ * Werbesperre. „Dann nehmen wir Sie aus allen Verteilern" ist ein Versprechen.
  */
 const IMMER_RAUS = `
   p.merged_into_person_id IS NULL
   AND p.ist_test_am IS NULL
   AND NOT p.is_blocked
+  AND p.werbung_gesperrt_am IS NULL
   AND NOT EXISTS (SELECT 1 FROM fiaon_applications g
                     WHERE g.person_id = p.id AND g.gdpr_deleted_at IS NOT NULL)
   AND EXISTS (SELECT 1 FROM fiaon_applications l
@@ -284,15 +292,24 @@ export async function zielgruppeLaden(
     for (const r of rows) dazu(zuEmpfaenger(r));
   }
 
+  // (25.09.2026, E-240) Gegenlesen: Eine von Hand getippte Adresse lief an der
+  // Werbesperre vorbei — IMMER_RAUS sieht nur Personen, und der Versand geht
+  // über Brevo direkt, nicht durch die Mail-Tür. Gehört die Adresse einem
+  // Menschen mit Werbesperre (Hauptadresse, Antrag, Lead-Formular oder eine
+  // zusammengeführte Person, werbesperreAnAdresse), fällt sie hier heraus.
+  let externGesperrt = 0;
+  const { werbesperreAnAdresse } = await import("./fiaon-mail-frequenz");
   for (const roh of ein.extern || []) {
     const adresse = String(roh).trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(adresse)) continue;
+    if (await werbesperreAnAdresse(adresse)) { externGesperrt++; continue; }
     dazu({ personId: null, name: adresse, email: adresse, vorname: "", extern: true });
   }
 
   return {
     empfaenger: aus,
-    ausgeschlossen: "Testeinträge, DSGVO-gelöschte und archivierte Datensätze sind immer ausgeschlossen.",
+    ausgeschlossen: "Testeinträge, DSGVO-gelöschte und archivierte Datensätze sowie Menschen mit Vertriebs- oder Werbesperre sind immer ausgeschlossen."
+      + (externGesperrt ? ` ${externGesperrt} von Hand getippte Adresse(n) gehören zu einem Menschen mit Werbesperre und wurden entfernt.` : ""),
   };
 }
 

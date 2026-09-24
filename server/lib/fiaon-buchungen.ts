@@ -38,6 +38,7 @@
 
 import { sqlPool } from "./db-pool";
 import { PAKET_PREIS_CENTS } from "./fiaon-abo-pflicht";
+import { istAuskunftSchluessel } from "@shared/fiaon-auskunft";
 
 type Lauf = typeof sqlPool;
 
@@ -84,6 +85,8 @@ export interface Buchung {
  */
 export function artVon(ref: string, packKey: unknown, packName: unknown, betrag: unknown): BuchungsArt {
   if (String(ref).includes("SCHUFA")) return "bonitaet";
+  // E-240: Die Auskunft hat vier Preise — am Katalogschlüssel erkennen, nicht nur an 74 €.
+  if (istAuskunftSchluessel(packKey)) return "bonitaet";
   if (Number(betrag) === 74) return "bonitaet";
   const n = String(packName ?? "").toLowerCase();
   if (n.includes("onitäts") || n.includes("onitaets")) return "bonitaet";

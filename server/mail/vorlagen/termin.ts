@@ -129,7 +129,9 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
     titel: "Zeit für Ihr Startgespräch",
     absaetze: [
       "Guten Tag {{params.vorname}}, Ihr Bereich ist offen, Ihre Akte liegt bereit — jetzt fehlt nur noch das Startgespräch: fünfzehn Minuten mit Ihrem persönlichen Ansprechpartner.",
-      "Darin gehen wir gemeinsam durch, was in Ihrer Auskunft steht, welche Einträge angreifbar sind und was die nächsten Schritte sind. Danach wissen Sie genau, woran Sie sind — und wir legen los.",
+      // 25.09.2026 (E-240): vorher „… was in Ihrer Auskunft steht" — als läge sie mit dem Paket schon
+      // vor. Die Auskunft ist ein Zusatzprodukt; im Startgespräch wird sie besprochen, WENN sie da ist.
+      "Darin gehen wir gemeinsam durch, wo Sie stehen, welche Unterlagen noch fehlen und was die nächsten Schritte sind — liegt Ihre Bonitätsauskunft schon vor, auch jeden Eintrag darin. Danach wissen Sie genau, woran Sie sind — und wir legen los.",
     ],
     knopf: { text: "Startgespräch buchen", url: "{{params.termin_link}}" },
     fussnote: "Der Kalender zeigt alle freien Zeiten. Wir rufen Sie zur gewählten Zeit an.",

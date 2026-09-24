@@ -96,7 +96,7 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
          GROUP BY date_trunc('week', created_at) ORDER BY date_trunc('week', created_at)`,
       sqlPool`
         SELECT COUNT(*)::int n FROM fiaon_mail_log
-         WHERE status = 'fehlgeschlagen' AND grund LIKE 'Frequenzbremse:%'
+         WHERE status = 'fehlgeschlagen' AND (grund LIKE 'Frequenzbremse:%' OR grund LIKE 'Sperre:%')
            AND created_at > NOW() - INTERVAL '24 hours'`,
       // Wirkung: Rückhol-Mail → Termin → Zahlung, je Person nach dem Versand.
       sqlPool`

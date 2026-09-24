@@ -1,0 +1,174 @@
+/* ═══ Auskunft-Verkauf (24.09.2026, E-240) — Präfix .ak- ═══
+   Dieselbe ruhige Linie wie die eigenen Chefbüro-Seiten (Provisionen, Lead-Motor):
+   dünne Schrift, Haarlinien statt Kästen, das Blau-Paar als einziger Akzent,
+   Zahlen tabellarisch. Die Seite steht mit eigenesDesign in der Hülle (.cbs-eigen) —
+   die Hell→Dunkel-Übersetzung .cbs übermalt hier nichts. Hover nur in
+   @media (hover: hover): Am iPhone „klebt" er sonst nach dem Tippen. */
+
+.ak {
+  --ak-text: #e7ecf4;
+  --ak-text-2: #b9c4d5;
+  --ak-leise: #8292a8;
+  --ak-still: #5d6c83;
+  --ak-linie: rgba(148, 163, 184, .14);
+  --ak-flaeche: rgba(148, 163, 184, .05);
+  --ak-blau: #288dfa;
+  --ak-blau-hell: #93c5fd;
+  --ak-gruen: #6ee7b7;
+  --ak-gelb: #fcd34d;
+  --ak-rot: #fca5a5;
+  display: grid; gap: 22px; padding-bottom: 90px;
+  color: var(--ak-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color-scheme: dark;
+  min-width: 0;
+}
+.ak h1 { margin: 0; font-size: 26px; font-weight: 300; letter-spacing: -.02em; color: var(--ak-text); }
+.ak h2 { margin: 0; font-size: 15px; font-weight: 400; color: var(--ak-text); letter-spacing: -.005em; }
+.ak p { margin: 0; }
+.ak-still { color: var(--ak-still); font-size: 12px; }
+.ak-leise { color: var(--ak-leise); font-size: 12.5px; line-height: 1.55; }
+.ak-leer { padding: 16px 2px; font-size: 13px; color: var(--ak-leise); }
+
+/* ── Kopf ─────────────────────────────────────────────────────────────── */
+.ak-kopf {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  padding: 2px 2px 16px; border-bottom: 1px solid var(--ak-linie);
+}
+.ak-kopf p { margin-top: 4px; font-size: 12.5px; color: var(--ak-leise); max-width: 72ch; line-height: 1.5; }
+.ak-schalter {
+  display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border-radius: 99px;
+  border: 1px solid var(--ak-linie); background: transparent; color: var(--ak-leise);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.ak-schalter span { width: 9px; height: 9px; border-radius: 50%; background: var(--ak-gelb); }
+.ak-schalter.an { color: var(--ak-gruen); border-color: rgba(110, 231, 183, .35); }
+.ak-schalter.an span { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, .55); }
+.ak-schalter:disabled { opacity: .55; cursor: default; }
+
+/* ── Heute gegen das Ziel ─────────────────────────────────────────────── */
+.ak-ziel { display: grid; gap: 12px; }
+.ak-ziel-zahlen { display: flex; align-items: baseline; gap: 26px; flex-wrap: wrap; }
+.ak-ziel-zahl { display: grid; gap: 2px; }
+.ak-ziel-zahl span { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ak-still); }
+.ak-ziel-zahl b { font-size: 40px; font-weight: 200; letter-spacing: -.03em; color: var(--ak-text); font-variant-numeric: tabular-nums; line-height: 1; }
+.ak-ziel-zahl b small { font-size: 16px; font-weight: 300; color: var(--ak-still); margin-left: 4px; }
+.ak-ziel-zahl.bezahlt b { color: var(--ak-gruen); }
+.ak-balken {
+  position: relative; height: 12px; border-radius: 99px; overflow: hidden;
+  background: var(--ak-flaeche); border: 1px solid var(--ak-linie);
+}
+.ak-balken i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; min-width: 2px; }
+.ak-balken i.bestellt { background: rgba(40, 141, 250, .45); }
+.ak-balken i.bezahlt { background: linear-gradient(90deg, #10b981, #6ee7b7); }
+.ak-balken-legende { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--ak-still); }
+.ak-balken-legende em { font-style: normal; display: inline-flex; align-items: center; gap: 6px; }
+.ak-balken-legende em::before { content: ""; width: 9px; height: 9px; border-radius: 3px; background: rgba(40, 141, 250, .45); }
+.ak-balken-legende em.bezahlt::before { background: #10b981; }
+
+/* ── 14 Tage ──────────────────────────────────────────────────────────── */
+.ak-tage { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 6px; align-items: end; min-height: 120px; }
+.ak-tag { display: grid; gap: 4px; justify-items: center; min-width: 0; }
+.ak-tag-saeulen { display: flex; align-items: flex-end; gap: 2px; height: 84px; }
+.ak-tag-saeulen i { display: block; width: 9px; min-height: 2px; border-radius: 3px 3px 0 0; background: rgba(40, 141, 250, .45); }
+.ak-tag-saeulen i.bezahlt { background: #10b981; }
+.ak-tag b { font-size: 11px; font-weight: 500; color: var(--ak-text-2); font-variant-numeric: tabular-nums; }
+.ak-tag span { font-size: 10px; color: var(--ak-still); white-space: nowrap; }
+.ak-tag.heute span { color: var(--ak-blau-hell); }
+.ak-tag .ak-wt { font-style: normal; }
+
+/* ── Karten (Haarlinie oben statt Kasten) ─────────────────────────────── */
+.ak-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 28px; }
+.ak-karte { display: grid; gap: 12px; align-content: start; min-width: 0; padding-top: 14px; border-top: 1px solid var(--ak-linie); }
+.ak-karte-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+.ak-zahlen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+.ak-zahl { display: grid; gap: 3px; padding: 10px 14px; border-left: 1px solid var(--ak-linie); min-width: 0; }
+.ak-zahl:first-child, .ak-zahl:nth-child(3n + 1) { border-left: 0; padding-left: 2px; }
+.ak-zahl span { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ak-still); }
+.ak-zahl b { font-size: 24px; font-weight: 300; letter-spacing: -.02em; color: var(--ak-text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ak-zahl b.blau { color: var(--ak-blau-hell); }
+.ak-zahl b.gelb { color: var(--ak-gelb); }
+.ak-zahl small { font-size: 11px; color: var(--ak-still); line-height: 1.4; }
+
+.ak-hinweis {
+  font-size: 12.5px; line-height: 1.55; color: var(--ak-leise);
+  padding: 10px 12px; border-radius: 12px; background: var(--ak-flaeche); border: 1px solid var(--ak-linie);
+}
+.ak-hinweis b { color: var(--ak-text-2); font-weight: 500; }
+.ak-hinweis.warn { border-color: rgba(252, 211, 77, .3); color: #fde68a; background: rgba(252, 211, 77, .06); }
+
+/* ── Takt ─────────────────────────────────────────────────────────────── */
+.ak-takt-zeile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.ak-takt-zeile label { display: inline-flex; align-items: center; gap: 8px; color: var(--ak-leise); }
+.ak-takt-zeile input {
+  width: 84px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--ak-linie);
+  background: rgba(2, 6, 23, .35); color: var(--ak-text); font: inherit; font-size: 13.5px; font-variant-numeric: tabular-nums;
+}
+.ak-knopf, .ak-klein {
+  padding: 8px 14px; border-radius: 99px; border: 1px solid var(--ak-linie); background: rgba(148, 163, 184, .09);
+  color: var(--ak-text-2); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.ak-knopf.voll { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; border-color: transparent; }
+.ak-klein { padding: 5px 10px; font-size: 11.5px; color: var(--ak-leise); }
+.ak-knopf:disabled, .ak-klein:disabled { opacity: .5; cursor: default; }
+.ak-marke {
+  display: inline-block; font-size: 10.5px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--ak-linie);
+  color: var(--ak-leise); white-space: nowrap;
+}
+.ak-marke.gruen { color: var(--ak-gruen); border-color: rgba(110, 231, 183, .35); }
+.ak-marke.gelb { color: var(--ak-gelb); border-color: rgba(252, 211, 77, .35); }
+.ak-marke.blau { color: var(--ak-blau-hell); border-color: rgba(147, 197, 253, .35); }
+
+/* ── WhatsApp-Vorlage ─────────────────────────────────────────────────── */
+.ak-blase {
+  max-width: 460px; padding: 10px 12px 8px; border-radius: 4px 14px 14px 14px;
+  background: rgba(16, 185, 129, .07); border: 1px solid rgba(110, 231, 183, .18);
+  font-size: 13px; line-height: 1.55; color: var(--ak-text-2); white-space: pre-wrap;
+}
+.ak-blase b { display: block; margin-bottom: 4px; color: var(--ak-text); font-weight: 600; }
+.ak-blase small { display: block; margin-top: 6px; font-size: 11px; color: var(--ak-still); }
+.ak-blase-knoepfe { display: flex; gap: 6px; flex-wrap: wrap; max-width: 460px; }
+.ak-blase-knoepfe span {
+  flex: 1 1 auto; text-align: center; padding: 7px 10px; border-radius: 10px; font-size: 12px;
+  color: var(--ak-blau-hell); background: var(--ak-flaeche); border: 1px solid var(--ak-linie);
+}
+
+/* ── Tabellen ─────────────────────────────────────────────────────────── */
+.ak-tabelle-huelle { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ak-tabelle { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ak-tabelle th {
+  text-align: left; font-weight: 500; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ak-still); padding: 9px 10px; border-bottom: 1px solid var(--ak-linie); white-space: nowrap;
+}
+.ak-tabelle td { padding: 10px; border-bottom: 1px solid var(--ak-linie); vertical-align: top; }
+.ak-tabelle td.r, .ak-tabelle th.r { text-align: right; font-variant-numeric: tabular-nums; }
+.ak-tabelle a { color: var(--ak-blau-hell); text-decoration: none; }
+.ak-tabelle b { color: var(--ak-text); font-weight: 500; }
+.ak-tat { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.ak-mehr { justify-self: start; }
+
+.ak-meldung {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 80;
+  padding: 11px 18px; border-radius: 14px; border: 1px solid rgba(147, 197, 253, .35);
+  background: rgba(15, 26, 45, .96); color: var(--ak-text); font-size: 13px; max-width: min(90vw, 620px);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@media (hover: hover) {
+  .ak-tabelle tbody tr:hover { background: var(--ak-flaeche); }
+  .ak-knopf:hover, .ak-klein:hover, .ak-schalter:hover:not(:disabled) { border-color: rgba(147, 197, 253, .5); }
+  .ak-tabelle a:hover { text-decoration: underline; }
+}
+@media (max-width: 980px) {
+  .ak-raster { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .ak-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ak-zahl, .ak-zahl:nth-child(3n + 1) { border-left: 0; padding-left: 2px; }
+  .ak-ziel-zahl b { font-size: 32px; }
+  .ak-tage { gap: 3px; }
+  .ak-tag-saeulen i { width: 6px; }
+  .ak-tag span { font-size: 9.5px; }
+  .ak-tag .ak-wt { display: none; }
+}

@@ -59,6 +59,8 @@ const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"))
 // 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
 const Mara = lazy(() => import("@/components/admin/ChefMara"));
 const LeadMotor = lazy(() => import("@/components/admin/ChefLeadMotor"));
+// 24.09.2026 (E-240): Die Bonitätsauskunft verkaufen — Tageszahl gegen Ziel 150, Pool, Takt, Rückstand.
+const AuskunftVerkauf = lazy(() => import("@/components/admin/ChefAuskunft"));
 const Provisionen = lazy(() => import("@/components/admin/ChefProvisionen"));
 const WhatsAppRaumSeite = lazy(() => import("@/components/whatsapp/WhatsAppRaum").then((m) => ({ default: () => <m.default basis="/chef/whatsapp" /> })));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
@@ -147,6 +149,8 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "kuendigungen", label: "Kündigungen", satz: "Wer hat gekündigt, und was ist daraus geworden?", Seite: Kunden, raum: "kunden", suche: "kuendigungen=1", auch: "storno beenden" },
   { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat, aus dem nachgefasst wird.", Seite: Kunden, raum: "kunden", suche: "stufe=C", auch: "vorrat kalt" },
   { slug: "ohne-onboarding", label: "Bezahlt ohne Startgespräch", satz: "Die Kunden, bei denen das Onboarding hängt.", Seite: Kunden, raum: "kunden", suche: "bezahltOhneOnboarding=1" },
+  // 24.09.2026 (E-240): Justin — die Auskunft soll „weggehen wie warme Semmeln" (Ziel 150 am Tag).
+  { slug: "auskunft", label: "Auskunft-Verkauf", satz: "Bonitätsauskunft: bestellt und bezahlt heute gegen das Ziel 150, wer sie noch nicht hat, offene Bestellungen, Rückstand und der Verkaufstakt.", Seite: AuskunftVerkauf, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf angebot takt ziel 150 handlungsplan rückstand rueckstand lieferung" },
   // 17.09.2026 (E-188): FIAON Global — Firmenaufträge über die US-Struktur. Eigene Liste, weil ein
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.

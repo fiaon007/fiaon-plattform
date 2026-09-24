@@ -43,10 +43,20 @@ export const KATEGORIE_TEXT: Record<Produktkategorie, string> = {
 export function produktkategorie(
   zeile: { type?: unknown; ref?: unknown; pack_key?: unknown },
 ): Produktkategorie {
-  if (String(zeile.type ?? "").toLowerCase() === "schufa" || String(zeile.ref ?? "").startsWith("FIAON-SCHUFA-")) {
+  if (String(zeile.type ?? "").toLowerCase() === "schufa" || String(zeile.ref ?? "").startsWith("FIAON-SCHUFA-")
+      || paket(zeile.pack_key)?.zusatz === "auskunft") {
     return "auskunft";
   }
   return paket(zeile.pack_key)?.art === "global" ? "global" : "konto";
+}
+
+// E-240: Die vier Auskunft-Schlüssel (schufa, auskunft_privat, auskunft_firma,
+// auskunft_firma_abo) sind ebenfalls „auskunft" — auch wenn eine künftige
+// Anlagestelle type/Präfix vergäße.
+function auskunftSchluesselListe(): string {
+  const keys = PAKETE.filter((p) => p.zusatz === "auskunft").map((p) => p.key);
+  if (keys.some((k) => !/^[a-z0-9_]+$/.test(k))) throw new Error("[KATEGORIE] Auskunft-Schlüssel mit unerlaubten Zeichen");
+  return keys.length > 0 ? keys.map((k) => `'${k}'`).join(", ") : "''";
 }
 
 // Die Schlüssel landen als Literale in SQL — sie kommen aus dem eigenen
@@ -68,7 +78,8 @@ export function produktkategorieSql(alias = ""): string {
   if (alias && !/^[a-z][a-z0-9_]*$/i.test(alias)) throw new Error(`[KATEGORIE] Ungültiger Tabellenalias: ${alias}`);
   const s = (spalte: string) => (alias ? `${alias}.${spalte}` : spalte);
   return `(CASE
-    WHEN COALESCE(${s("type")}, '') = 'schufa' OR COALESCE(${s("ref")}, '') LIKE 'FIAON-SCHUFA-%' THEN 'auskunft'
+    WHEN COALESCE(${s("type")}, '') = 'schufa' OR COALESCE(${s("ref")}, '') LIKE 'FIAON-SCHUFA-%'
+      OR LOWER(TRIM(COALESCE(${s("pack_key")}, ''))) IN (${auskunftSchluesselListe()}) THEN 'auskunft'
     WHEN LOWER(TRIM(COALESCE(${s("pack_key")}, ''))) IN (${globalSchluesselListe()}) THEN 'global'
     ELSE 'konto' END)`;
 }

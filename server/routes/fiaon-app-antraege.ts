@@ -69,12 +69,17 @@ const REGEL_ZU_ART: Record<string, SchreibenArt> = {
   p_konto_erhoehung: "p_konto", p_konto_umwandlung: "p_konto_umwandlung", rundfunk_befreiung: "rundfunk",
   wohngeld_pruefung: "wohngeld", kfz_vergleich: "kfz", handy_vergleich: "handy",
 };
-const ANTRAGSARTEN: SchreibenArt[] = ["p_konto", "p_konto_umwandlung", "rundfunk", "wohngeld", "kfz", "handy"];
+// 24.09.2026 (E-240): „selbstauskunft" dazu — die Anfrage an eine Auskunftei aus
+// der Lieferung einer gekauften Bonitätsauskunft (server/lib/fiaon-auskunft-lieferung.ts).
+// Sie entsteht nicht aus einem Befund (kein REGEL_ZU_ART-Eintrag), läuft aber
+// denselben Weg: Schreiben → Vollmacht → Unterschrift → Versand quittieren → Antwort.
+export const ANTRAGSARTEN: SchreibenArt[] = ["p_konto", "p_konto_umwandlung", "rundfunk", "wohngeld", "kfz", "handy", "selbstauskunft"];
 
 /** Titel je Vorgangsart, so wie der Kunde sie liest. */
 const ART_TITEL: Record<string, string> = {
   brief: "Ihr Brief", p_konto: "Antrag: höherer Schutzbetrag (P-Konto)", p_konto_umwandlung: "Umwandlung in ein P-Konto",
-  rundfunk: "Antrag: Befreiung vom Rundfunkbeitrag", selbstauskunft: "Selbstauskunft (Art. 15 DSGVO)", wohngeld: "Anschreiben Wohngeldstelle",
+  // E-240: nicht mehr „(Art. 15 DSGVO)" — in der Schweiz gilt Art. 25 DSG.
+  rundfunk: "Antrag: Befreiung vom Rundfunkbeitrag", selbstauskunft: "Datenkopie bei einer Auskunftei", wohngeld: "Anschreiben Wohngeldstelle",
   kfz: "Kündigung Kfz-Versicherung", handy: "Kündigung Handyvertrag",
 };
 
@@ -86,7 +91,7 @@ const UMFANG_OPTIONEN: { wert: string; text: string }[] = [
   { wert: "wohngeld", text: "Anschreiben an Ihre Wohngeldstelle" },
   { wert: "kfz", text: "Kündigung Ihrer Kfz-Versicherung" },
   { wert: "handy", text: "Kündigung Ihres Handyvertrags" },
-  { wert: "selbstauskunft", text: "Selbstauskunft nach Art. 15 DSGVO an Auskunfteien" },
+  { wert: "selbstauskunft", text: "Anfrage auf Ihre Datenkopie (Selbstauskunft) an die Auskunfteien" },
 ];
 const UMFANG_WERTE = new Set(UMFANG_OPTIONEN.map((o) => o.wert));
 
@@ -188,10 +193,10 @@ export function unterschriftTokenPruefen(token: unknown): { zweck: TokenZweck; i
 const unterschriftPfad = (token: string) => `/app/unterschrift/${token}`;
 
 // ── Der Mensch und seine Daten ──────────────────────────────────────────────
-interface Kunde { personId: number; ref: string | null; vorname: string; nachname: string; name: string; daten: SchreibenDaten["kunde"] }
+export interface Kunde { personId: number; ref: string | null; vorname: string; nachname: string; name: string; daten: SchreibenDaten["kunde"] }
 
 /** Person + jüngster Antrag: Name, Adresse, Geburtsdatum — für Schreiben und Aufträge. */
-async function kundeLaden(personId: number): Promise<Kunde | null> {
+export async function kundeLaden(personId: number): Promise<Kunde | null> {
   const [z] = (await sqlPool`
     SELECT p.first_name, p.last_name, p.company_name, p.street, p.zip, p.city, p.birthdate,
            a.ref, a.first_name AS a_vor, a.last_name AS a_nach, a.street AS a_str, a.zip AS a_zip, a.city AS a_ort, a.birthdate AS a_geb
@@ -217,10 +222,10 @@ async function antwortenLaden(personId: number): Promise<Antworten> {
   return a as Antworten;
 }
 
-const aktenzeichenFuer = (id: number) => `AZ ${berlinHeute().j}-${String(id).padStart(6, "0")}`;
+export const aktenzeichenFuer = (id: number) => `AZ ${berlinHeute().j}-${String(id).padStart(6, "0")}`;
 
 type Lauf = typeof sqlPool;
-async function ereignis(vorgangId: number, personId: number, art: string, text: string | null, textFuerKunden: string | null = null, agentId: number | null = null, lauf: Lauf = sqlPool): Promise<void> {
+export async function ereignis(vorgangId: number, personId: number, art: string, text: string | null, textFuerKunden: string | null = null, agentId: number | null = null, lauf: Lauf = sqlPool): Promise<void> {
   await lauf`INSERT INTO fiaon_vorgang_ereignisse (vorgang_id, person_id, art, text, text_fuer_kunden, agent_id)
              VALUES (${vorgangId}, ${personId}, ${art}, ${text}, ${textFuerKunden}, ${agentId})`;
 }
@@ -274,7 +279,7 @@ async function vollmachtLetzte(personId: number): Promise<VollmachtZeile | null>
  * Der Weg zur Unterschrift für einen Vorgang: erst die Vollmacht (wenn sie fehlt
  * oder die Art nicht deckt), dann der Antrag. Der Client zeigt „1 von 2“.
  */
-async function unterschriftWeg(personId: number, vorgangId: number, art: string): Promise<{ vollmachtNoetig: boolean; url: string }> {
+export async function unterschriftWeg(personId: number, vorgangId: number, art: string): Promise<{ vollmachtNoetig: boolean; url: string }> {
   const noetig = !(await vollmachtDeckt(personId, art));
   const token = noetig ? unterschriftTokenErzeugen("vollmacht", personId) : unterschriftTokenErzeugen("antrag", vorgangId);
   return { vollmachtNoetig: noetig, url: unterschriftPfad(token) };
@@ -320,6 +325,12 @@ const eurText = (cents: number) => new Intl.NumberFormat("de-DE", { style: "curr
 function standSatz(v: any, letztesErgebnisAm: string | null, nachgefragtAm: string | null = null): string {
   const emp = v.empfaenger_name ? String(v.empfaenger_name) : "die zuständige Stelle";
   const eigener = String(v.stand_text || "").trim();
+  // E-240: Eine Auskunftei „bewilligt" nichts — sie erteilt die Datenkopie oder
+  // hat eine Rückfrage. „Bewilligt am …: 0,00 € im Monat" wäre Unsinn im Bereich.
+  if (String(v.art) === "selbstauskunft") {
+    if (String(v.stand) === "bewilligt") return `Ihre Datenkopie ist eingegangen${letztesErgebnisAm ? ` (${letztesErgebnisAm})` : ""}. Wir werten sie jetzt für Sie aus.${eigener ? ` ${eigener}` : ""}`;
+    if (String(v.stand) === "abgelehnt") return `Die Auskunftei hat eine Rückfrage${letztesErgebnisAm ? ` (${letztesErgebnisAm})` : ""}. ${eigener || "Was zu tun ist, steht in der Notiz Ihrer Ansprechperson im Verlauf."}`;
+  }
   switch (String(v.stand)) {
     case "entwurf": return "Wird vorbereitet.";
     case "unterschrift_offen": return "Wartet auf Ihre Unterschrift.";
@@ -758,8 +769,39 @@ const LINK_ABGELAUFEN = "Dieser Link ist abgelaufen. Öffnen Sie den Vorgang in 
 
 /** Der jüngste Antrag der Person, der noch auf die Unterschrift wartet — für „1 von 2“. */
 async function naechsterOffenerAntrag(personId: number): Promise<{ id: number; art: string } | null> {
-  const [v] = (await sqlPool`SELECT id, art FROM fiaon_vorgaenge WHERE person_id = ${personId} AND stand = 'unterschrift_offen' AND art <> 'brief' ORDER BY created_at DESC LIMIT 1`) as any[];
+  // E-240: `id ASC` als Zweitschlüssel — die Lieferung einer Auskunft legt ihre
+  // Anfragen in EINER Transaktion an (gleiches created_at). Ohne ihn wäre die
+  // Reihenfolge Zufall; so kommt die erste Auskunftei des Landes (SCHUFA, KSV1870,
+  // CRIF AG) zuerst, wie in der Mail genannt.
+  const [v] = (await sqlPool`SELECT id, art FROM fiaon_vorgaenge WHERE person_id = ${personId} AND stand = 'unterschrift_offen' AND art <> 'brief' ORDER BY created_at DESC, id ASC LIMIT 1`) as any[];
   return v ? { id: Number(v.id), art: String(v.art) } : null;
+}
+
+// ── DIE ANFRAGEN EINER AUSKUNFT ALS KETTE (24.09.2026, E-240) ────────────────
+// Eine gekaufte Auskunft bringt je Auskunftei eine Anfrage (Deutschland: drei).
+// Jede ist eine eigene Erklärung des Kunden und braucht ihre Unterschrift — die
+// Vollmacht erlaubt nur das Übermitteln. Bis heute endete die Kette nach der
+// ersten Anfrage („1 von 2“); die übrigen hätte der Kunde unter Vorgänge suchen
+// müssen. Jetzt führt jede unterschriebene Anfrage zur nächsten offenen.
+
+/** Die noch offenen Anfragen auf Selbstauskunft dieser Person, in Reihenfolge der Anlage. */
+async function offeneSelbstauskuenfte(personId: number): Promise<{ id: number; empfaenger: string | null }[]> {
+  const z = (await sqlPool`SELECT id, empfaenger_name FROM fiaon_vorgaenge
+                            WHERE person_id = ${personId} AND art = 'selbstauskunft' AND stand = 'unterschrift_offen'
+                            ORDER BY id ASC`) as any[];
+  return z.map((r) => ({ id: Number(r.id), empfaenger: r.empfaenger_name ? String(r.empfaenger_name) : null }));
+}
+
+/** „Schritt n von m“ für eine Anfrage: ihre Stelle unter den mit ihr angelegten Anfragen (plus Vollmacht, wenn eben erst erteilt). */
+async function selbstauskunftSchritt(v: any, vollmachtEbenErst: boolean): Promise<{ nr: number; von: number }> {
+  const geschwister = (await sqlPool`SELECT id FROM fiaon_vorgaenge
+                                      WHERE person_id = ${Number(v.person_id)} AND art = 'selbstauskunft'
+                                        AND created_at BETWEEN ${v.created_at}::timestamptz - INTERVAL '1 minute' AND ${v.created_at}::timestamptz + INTERVAL '1 minute'
+                                      ORDER BY id ASC`) as any[];
+  const ids = geschwister.map((g) => Number(g.id));
+  const stelle = Math.max(0, ids.indexOf(Number(v.id)));
+  const plus = vollmachtEbenErst ? 1 : 0;
+  return { nr: stelle + 1 + plus, von: Math.max(1, ids.length) + plus };
 }
 
 /** GET /app/unterschrift/:token — was ist zu unterschreiben, und in welchem Zustand ist es? */
@@ -792,13 +834,15 @@ router.get("/app/unterschrift/:token", async (req: Request, res: Response) => {
       const vorbelegt = aktiv ? alleWerte.filter((w) => aktiv.umfang.indexOf(w) !== -1 || w === naechster?.art) : alleWerte;
       const s = schreibenErzeugen("vollmacht", schreibenDaten(k, "", { vollmachtUmfang: vorbelegt }));
       const weiterToken = zustand !== "unterschrieben" && naechster ? unterschriftTokenErzeugen("antrag", naechster.id) : null;
+      // E-240: Folgen mehrere Anfragen auf Selbstauskunft, zählt die Kette sie alle.
+      const folgen = weiterToken && naechster?.art === "selbstauskunft" ? Math.max(1, (await offeneSelbstauskuenfte(k.personId)).length) : 1;
       return res.json({
         ok: true, art: "vollmacht", titel: s.titel, empfaenger: s.empfaengerName, aktenzeichen: null,
         html: aktiv && zustand === "unterschrieben" ? await vollmachtHtml(aktiv.id) ?? s.html : s.html,
         name: k.name, umfangOptionen: UMFANG_OPTIONEN, umfangVorbelegt: vorbelegt,
         gueltigBis: aktiv ? tag(aktiv.gueltig_bis) : tag(zwoelfMonateSpaeter()), unterschriebenAm: aktiv ? zeitText(aktiv.signed_at) : null,
         hinweisFuerKunden: s.hinweisFuerKunden ?? null,
-        zustand, schritt: weiterToken ? { nr: 1, von: 2 } : { nr: 1, von: 1 }, weiterToken,
+        zustand, schritt: weiterToken ? { nr: 1, von: 1 + folgen } : { nr: 1, von: 1 }, weiterToken,
         vorgangId: naechster?.id ?? null,
       });
     }
@@ -816,12 +860,14 @@ router.get("/app/unterschrift/:token", async (req: Request, res: Response) => {
     const aktiv = await vollmachtAktiv(k.personId);
     // „2 von 2“, wenn die Vollmacht eben erst unterschrieben wurde (Kette aus der Vollmacht-Seite).
     const ebenErst = !!aktiv?.signed_at && Date.now() - new Date(aktiv.signed_at).getTime() < 2 * 60 * 60 * 1000;
+    // E-240: Anfragen auf Selbstauskunft zählen ihre Geschwister mit („Schritt 3 von 4“).
+    const schritt = String(v.art) === "selbstauskunft" ? await selbstauskunftSchritt(v, ebenErst) : ebenErst ? { nr: 2, von: 2 } : { nr: 1, von: 1 };
     res.json({
       ok: true, art: v.art, titel: vorlage.titel || String(v.titel), empfaenger: v.empfaenger_name ?? vorlage.empfaengerName, empfaengerAdresse: v.empfaenger_adresse ?? vorlage.empfaengerAdresse,
       aktenzeichen: v.aktenzeichen ?? null, html: html ?? vorlage.html, name: k.name, umfangOptionen: null,
       gueltigBis: null, unterschriebenAm: unterschrift ? zeitText(unterschrift.am) : null, hinweisFuerKunden: vorlage.hinweisFuerKunden ?? null,
       vollmachtNoetig: !(aktiv && aktiv.umfang.indexOf(String(v.art)) !== -1),
-      zustand, schritt: ebenErst ? { nr: 2, von: 2 } : { nr: 1, von: 1 }, weiterToken: null, vorgangId: Number(v.id),
+      zustand, schritt, weiterToken: null, vorgangId: Number(v.id),
     });
   } catch (e: any) {
     console.error("[APP] unterschrift laden:", e?.message || e);
@@ -966,17 +1012,41 @@ router.post("/app/unterschrift/:token", async (req: Request, res: Response) => {
       throw e;
     }
     await ereignis(vorgangId, personId, "unterschrieben", `Unterschrieben als „${name}“ (IP ${ip ?? "unbekannt"}, ${(userAgent ?? "").slice(0, 120)}; Signatur-Hash ${hashVon(`${gesamtHtml}\n${signaturePng}`).slice(0, 16)}; PDF #${dokId}).`, `Von Ihnen unterschrieben am ${datumText}, ${uhrzeitText} Uhr.`);
-    const frist = werktageSpaeter(2);
+    let frist = werktageSpaeter(2);
+    let fristText = `Frist: zwei Werktage (${frist}).`;
+    // E-240 (Gegenlesen 24.09.2026): Hat der Kunde bei einer gekauften Auskunft den Beginn vor
+    // Ablauf der Widerrufsfrist nicht verlangt, geht die Anfrage erst danach hinaus — der Auftrag
+    // wird dann erst zu diesem Tag fällig und sagt es (Sperre am Versand: auskunftVersandSperre).
+    if (String(v.art) === "selbstauskunft") {
+      const { auskunftVersandFrist } = await import("../lib/fiaon-auskunft-lieferung");
+      const w = await auskunftVersandFrist(vorgangId).catch(() => null);
+      if (w?.warten && w.ab) {
+        if (w.ab > frist) frist = w.ab;
+        fristText = `ACHTUNG Widerrufsfrist: Der Kunde hat den Beginn vor Ablauf der Widerrufsfrist nicht verlangt — erst ab dem ${w.abText} versenden (vorher lässt der Vorgang das Quittieren nicht zu).`;
+      }
+    }
     try {
       const erg = await auftragFuerKunden({
         personId, ref: k.ref, agentId: v.zustaendig_agent_id ? Number(v.zustaendig_agent_id) : null,
         titel: `${k.name}: Antrag versenden und quittieren (${az})`,
-        text: `Der Kunde hat „${String(v.titel)}“ unterschrieben (${az}, Vorgang #${vorgangId}). Empfänger: ${String(v.empfaenger_name || "siehe Schreiben")}${v.empfaenger_adresse ? `, ${String(v.empfaenger_adresse).replace(/\n/g, ", ")}` : ""}.${v.empfaenger_adresse ? "" : " ACHTUNG: Empfänger-Anschrift fehlt in der Akte – vor dem Versand beim Kunden erfragen (Bank, Versicherer oder Anbieter mit Anschrift; bei Kündigungen auch Vertrags- bzw. Versicherungsschein-Nummer und Kennzeichen)."} Das unterschriebene PDF liegt in der Akte (Dokument #${dokId}). Bitte versenden (Post oder E-Mail an die Stelle) und danach im Vorgang den Versand bestätigen – erst dann sieht der Kunde „Versandt“ und die Frist läuft. Frist: zwei Werktage (${frist}).`,
+        text: `Der Kunde hat „${String(v.titel)}“ unterschrieben (${az}, Vorgang #${vorgangId}). Empfänger: ${String(v.empfaenger_name || "siehe Schreiben")}${v.empfaenger_adresse ? `, ${String(v.empfaenger_adresse).replace(/\n/g, ", ")}` : ""}.${v.empfaenger_adresse ? "" : " ACHTUNG: Empfänger-Anschrift fehlt in der Akte – vor dem Versand beim Kunden erfragen (Bank, Versicherer oder Anbieter mit Anschrift; bei Kündigungen auch Vertrags- bzw. Versicherungsschein-Nummer und Kennzeichen)."} Das unterschriebene PDF liegt in der Akte (Dokument #${dokId}). Bitte versenden (Post oder E-Mail an die Stelle) und danach im Vorgang den Versand bestätigen – erst dann sieht der Kunde „Versandt“ und die Frist läuft. ${fristText}`,
         faelligAm: frist, schluessel: `app-antrag-versand:${vorgangId}`, quelle: "kundenbereich", bereich: "pruefen",
         link: `/agent/app-vorgaenge/${vorgangId}`, autorName: "Kundenbereich",
       });
       if (erg.agentId && !v.zustaendig_agent_id) await sqlPool`UPDATE fiaon_vorgaenge SET zustaendig_agent_id = ${erg.agentId} WHERE id = ${vorgangId}`;
     } catch (e: any) { console.error("[APP] Auftrag Versand:", e?.message || e); }
+    // E-240: Eine Anfrage auf Selbstauskunft führt zur nächsten offenen — der
+    // Kunde unterschreibt alle Auskunfteien seines Landes in einem Zug.
+    if (String(v.art) === "selbstauskunft") {
+      const naechste = (await offeneSelbstauskuenfte(personId).catch(() => [] as { id: number; empfaenger: string | null }[]))[0] ?? null;
+      if (naechste) {
+        return res.json({ ok: true, art: v.art, vorgangId, aktenzeichen: az, dokumentId: dokId,
+          weiterToken: unterschriftTokenErzeugen("antrag", naechste.id), weiterVorgangId: naechste.id,
+          text: `Unterschrieben am ${datumText}, ${uhrzeitText} Uhr. Als Nächstes unterschreiben Sie Ihre Anfrage an ${naechste.empfaenger ?? "die nächste Auskunftei"}.` });
+      }
+      return res.json({ ok: true, art: v.art, vorgangId, aktenzeichen: az, dokumentId: dokId, weiterToken: null,
+        text: `Unterschrieben am ${datumText}, ${uhrzeitText} Uhr. Damit sind alle Anfragen unterschrieben – wir versenden sie und bestätigen den Versand unter Vorgänge.` });
+    }
     res.json({ ok: true, art: v.art, vorgangId, aktenzeichen: az, dokumentId: dokId, weiterToken: null,
       text: `Unterschrieben am ${datumText}, ${uhrzeitText} Uhr. Ein Mitarbeiter versendet den Antrag und bestätigt den Versand unter Vorgänge.` });
   } catch (e: any) {
@@ -1023,6 +1093,14 @@ router.post("/agent/app/vorgaenge/:id/versandt", requireAgent, async (req: Agent
     const id = Number(v.id); const personId = Number(v.person_id);
     // Ohne gedeckte Vollmacht keine Übermittlung — ein Widerruf oder Ablauf zwischen Unterschrift und Versand muss hier greifen.
     if (!(await vollmachtDeckt(personId, String(v.art)))) return fehler(res, 409, "Die Vollmacht des Kunden fehlt, ist widerrufen oder umfasst diese Antragsart nicht – nicht versenden. Der Kunde muss zuerst eine neue Vollmacht unterschreiben.");
+    // E-240 (Gegenlesen 24.09.2026): Eine Anfrage auf Selbstauskunft aus einer gekauften
+    // Auskunft geht erst nach der Widerrufsfrist hinaus, wenn der Kunde den früheren Beginn
+    // nicht verlangt hat — so steht es auf beiden Kaufseiten (fiaon-auskunft-lieferung.ts, Abschnitt 0).
+    if (String(v.art) === "selbstauskunft") {
+      const { auskunftVersandSperre } = await import("../lib/fiaon-auskunft-lieferung");
+      const sperre = await auskunftVersandSperre(id).catch(() => null);
+      if (sperre) return fehler(res, 409, sperre);
+    }
     const empfaenger = String(req.body?.empfaenger ?? "").trim().slice(0, 200) || String(v.empfaenger_name || "").trim() || null;
     // Frist: als Tage (fristTage) oder als Datum (fristAm, YYYY-MM-DD — so schickt es das Mitarbeiter-Portal); sonst 21 Tage.
     const fristTageRoh = Number(req.body?.fristTage);
@@ -1083,6 +1161,17 @@ router.post("/agent/app/vorgaenge/:id/ergebnis", requireAgent, async (req: Agent
       } catch (e: any) { console.error("[APP] Auftrag Ablehnung:", e?.message || e); }
     }
     if (stand === "bewilligt") void pushBeiEreignis(personId, "vorgang_bewilligt", { vorgangId: id, titel: ART_TITEL[String(v.art)] ?? String(v.titel), betragCents, monatlich }).catch(() => {});
+    // E-240: Bei einer Anfrage auf Selbstauskunft erfährt der Kunde es per Mail —
+    // „Ihre Datenkopie ist da" (schufa_approved) bzw. die Rückfrage der Auskunftei
+    // mit dem Satz des Mitarbeiters (schufa_rejected). Einmal je Vorgang; ein
+    // Fehler hier nimmt das eingetragene Ergebnis nicht zurück.
+    if (String(v.art) === "selbstauskunft") {
+      try {
+        const lieferung = await import("../lib/fiaon-auskunft-lieferung");
+        if (stand === "bewilligt") await lieferung.auskunftEingangMelden(id, { von: req.agent!.name, agentId: req.agent!.id });
+        else await lieferung.auskunftRueckfrageMelden(id, textFuerKunden, { von: req.agent!.name, agentId: req.agent!.id });
+      } catch (e: any) { console.error("[APP] Auskunft-Mail nach Ergebnis:", e?.message || e); }
+    }
     res.json({ ok: true, stand, betragCents, monatlich });
   } catch (e: any) {
     console.error("[APP] ergebnis:", e?.message || e);

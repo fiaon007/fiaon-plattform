@@ -46,6 +46,7 @@
 // `darfAnEmpfaenger` ebenfalls davor — Absprache mit fiaon-8e vom 02.09.2026.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { istAboPaket } from "@shared/fiaon-pakete";
 
 /**
  * Pflichtmails: Antworten auf eine Handlung des Menschen. Diese laufen IMMER
@@ -76,6 +77,8 @@ export const PFLICHTMAILS = new Set<string>([
   "schufa_rejected",
   "gdpr_deleted",
   "account_suspended",
+  // E-240: ohne Deckel, aber NICHT ohne Bedingung — nur mit lebendem Vertrag und nie mit
+  // Kaufangebot an eine Werbesperre (NUR_MIT_VERTRAG / sperrUrteil, unten).
   "documents_change_request",
   "commission_statement_issued",
   "app_login_link",          // 06.09.2026: Zugang — der Kunde hat den Anmelde-Link selbst angefordert; gebremst wäre die Tür zu.
@@ -184,10 +187,11 @@ export async function frequenzRuhe(email: string, event: string): Promise<string
     const [r] = (await sqlPool`
       SELECT grund FROM fiaon_mail_log
        WHERE LOWER(TRIM(empfaenger)) = ${adresse} AND event = ${event}
-         AND status = 'fehlgeschlagen' AND grund LIKE 'Frequenzbremse:%'
+         -- 25.09.2026 (E-240): Sperr-Ablehnungen heißen jetzt „Sperre:" (make-webhook.ts).
+         AND status = 'fehlgeschlagen' AND (grund LIKE 'Frequenzbremse:%' OR grund LIKE 'Sperre:%')
          AND created_at > NOW() - INTERVAL '20 hours'
        ORDER BY created_at DESC LIMIT 1`) as any[];
-    return r ? `Frequenzbremse-Ruhe (kein neuer Versuch binnen 20 Stunden): ${String(r.grund).replace(/^Frequenzbremse: /, "")}` : null;
+    return r ? `Frequenzbremse-Ruhe (kein neuer Versuch binnen 20 Stunden): ${String(r.grund).replace(/^(Frequenzbremse|Sperre): /, "")}` : null;
   } catch { return null; }
 }
 
@@ -198,9 +202,27 @@ export async function frequenzRuhe(email: string, event: string): Promise<string
  *   automatisierten Systemprozess stehen." Vorher blockte der Wochendeckel auch die
  *   Zahlungserinnerung, die Daniel von Hand an Frau Gummelt schicken wollte.
  */
-export async function darfAnEmpfaenger(email: string, event: string, opts: { manuell?: boolean } = {}): Promise<FrequenzUrteil> {
+export async function darfAnEmpfaenger(
+  email: string,
+  event: string,
+  opts: { manuell?: boolean; /** E-240: die Nutzlast — nur für die Frage „Kaufangebot in der Unterlagen-Mail?" */ nutzlast?: Record<string, unknown> | null } = {},
+): Promise<FrequenzUrteil> {
   const adresse = String(email || "").trim().toLowerCase();
   if (!adresse) return { ok: true, grund: null };
+
+  // ── E-240 (24.09.2026): DIE SPERREN, DIE AUCH PFLICHT UND HANDVERSAND TREFFEN ──
+  // Drei Fälle, die bisher ungeprüft durchliefen (Messung im Kopf der Werbesperre
+  // unten): die Unterlagen-Mail an Gekündigte, das Auskunft-Angebot ohne
+  // Rechtsgrundlage und Werbung „von Hand" an Menschen mit Werbesperre.
+  if (NUR_MIT_VERTRAG.has(event) || NUR_BIS_VERTRAGSENDE.has(event) || event === AUSKUNFT_ANGEBOT || (opts.manuell && istWerbungImmer(event))) {
+    try {
+      const staende = await personSperren(await personenAnAdresse(adresse));
+      const grund = sperrUrteil(event, staende, { manuell: !!opts.manuell, nutzlast: opts.nutzlast ?? null });
+      if (grund) return { ok: false, grund };
+    } catch (err) {
+      console.error("[FREQUENZ] Sperrprüfung E-240 fehlgeschlagen, lasse durch:", err instanceof Error ? err.message : err);
+    }
+  }
 
   // Pflichtmails und Team-Post laufen ohne Prüfung durch.
   if (PFLICHTMAILS.has(event)) return { ok: true, grund: null };
@@ -282,22 +304,10 @@ export async function darfAnEmpfaenger(email: string, event: string, opts: { man
     // Die S5-Mail verspricht wörtlich: „Dann nehmen wir Sie aus allen
     // Verteilern zu diesem Vorgang.“ Diese Abfrage löst das Versprechen ein.
     // Pflichtmails sind oben schon durchgelassen — die Sperre trifft nur Werbung.
-    const [gesperrt] = (await sqlPool`
-      SELECT 1 AS g FROM fiaon_persons p
-      WHERE p.werbung_gesperrt_am IS NOT NULL
-        AND (
-          LOWER(TRIM(COALESCE(p.primary_email, ''))) = ${adresse}
-          OR EXISTS (
-            SELECT 1 FROM fiaon_applications a
-            WHERE a.person_id = p.id AND a.merged_into IS NULL
-              AND ${adresse} IN (
-                LOWER(TRIM(COALESCE(a.email, ''))),
-                LOWER(TRIM(COALESCE(a.contact_email, ''))),
-                LOWER(TRIM(COALESCE(a.billing_email, ''))))
-          )
-        )
-      LIMIT 1
-    `) as any[];
+    // E-240: über werbesperreAnAdresse — kennt jetzt auch die Adresse aus dem
+    // Lead-Formular und die einer zusammengeführten Person (Fall im Kopf der
+    // Werbesperre unten: zwei lead_followup nach „Stopp“).
+    const gesperrt = await werbesperreAnAdresse(adresse);
     if (gesperrt && !ZAHLUNGSPOST.has(event)) {
       return { ok: false, grund: "Werbesperre: Diese Person hat um keine weitere Post gebeten" };
     }
@@ -337,4 +347,283 @@ export async function darfAnEmpfaenger(email: string, event: string, opts: { man
     console.error("[FREQUENZ] Prüfung fehlgeschlagen, lasse durch:", err instanceof Error ? err.message : err);
     return { ok: true, grund: null };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WERBESPERRE — EINE REGEL FÜR JEDEN KANAL (24.09.2026, E-240)
+//
+// Justins Frage: „Bekommt der eine Sperre, dass wir dem nichts weiter
+// schicken?" Gemessen an der Produktion (nur lesend, 24.09.2026, 206 Menschen
+// mit fiaon_persons.werbung_gesperrt_am):
+//   · Die Unterlagen-Mail (documents_change_request) stand in PFLICHTMAILS und
+//     lief an jeder Sperre vorbei: 57 Stück an 23 Menschen mit Werbesperre am
+//     24.09. (nach person_id) — dazu an Gekündigte und Menschen mit beendetem Vertrag.
+//   · Zwei lead_followup gingen am 16./17.09. an eine Adresse mit Werbesperre:
+//     Die Adresse stand an einer zweiten Person (später zusammengeführt) und im
+//     Lead-Formular — die Tür verglich nur primary_email und die Bestellungen.
+//   · Gegenlesen 24.09.2026: Die Lead-Strecke (fiaon-lead-strecke.ts, „DER ZWEITE
+//     WEG") schickt JEDE von hier abgelehnte Mail über Brevo direkt nach — 30 Tage:
+//     2 nach Werbesperre (Lead 1660, 17./18.09.), 165 an unzustellbare Adressen,
+//     53 an blockierende Postfächer, 1 über dem Wochendeckel. Ein „nein" dieser
+//     Tür ist dort kein Nein — Reparatur gehört in jene Datei.
+//   · Handversand (opts.manuell) übersprang die Werbesperre vollständig.
+//   · Mara-Aktion (Gmail direkt) und Mara auf WhatsApp gehen nicht durch diese
+//     Tür; sie fragen jetzt personSperre() (dieselbe Regel).
+//   · `fiaon_persons.gesperrt_seit` ist leer (0 Zeilen) und wird nirgends
+//     gelesen — die Sperren des Hauses sind werbung_gesperrt_am (Werbung),
+//     is_blocked (Vertrieb) und die Kündigung an der Bestellung.
+//
+// WAS DIE WERBESPERRE BEDEUTET (Kundenweg: „keine Werbe- und Erinnerungsmails
+// mehr; Vertragspost bleibt"): Alles, was verkauft oder zum Abschluss drängt,
+// hört auf — automatisch UND von Hand. Was bleibt: Antworten auf seine eigene
+// Nachricht (ohne Verkauf), Vertragspost (Zugang, Rechnung, Kündigung,
+// Termine, die er selbst gebucht hat), die Rate aus einem laufenden Vertrag
+// (ZAHLUNGSPOST oben).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Das Auskunft-Angebot (server/mail/vorlagen/auskunft-verkauf.ts) — Werbung mit eigener Rechtsgrundlage. */
+export const AUSKUNFT_ANGEBOT = "auskunft_angebot";
+
+/**
+ * Ereignisse, die IMMER Werbung sind — egal, wer klickt. Die Werbesperre hält
+ * sie auch beim Handversand auf („Dann nehmen wir Sie aus allen Verteilern" ist
+ * ein Versprechen an den Menschen, nicht an die Automatik).
+ */
+const WERBUNG_IMMER = new Set<string>([
+  "lead_followup", "lead_application_link", "followup_48h", "antrag_erinnerung", AUSKUNFT_ANGEBOT,
+]);
+export function istWerbungImmer(event: string): boolean {
+  return WERBUNG_IMMER.has(event) || event.startsWith("rueckhol_");
+}
+
+/**
+ * Vertragspost, die nur zu einem lebenden Vertrag gehört. Wer gekündigt hat
+ * oder dessen Vertrag vorbei ist, wird nicht mehr um Unterlagen gebeten — am
+ * 24.09. ging die Bitte an 104 solche Menschen.
+ */
+export const NUR_MIT_VERTRAG = new Set<string>(["documents_change_request"]);
+
+/**
+ * Leistungen aus dem Vertrag, die mit dem VERTRAGSENDE enden — nicht mit der
+ * Kündigung: Wer gekündigt hat, zahlt bis zum Ende und bekommt bis dahin, was
+ * er bezahlt (Startgespräch, Konto & Karte, der Anruf-Versuch). Danach nicht
+ * mehr. Gemessen (30 Tage bis 24.09.2026): 309 Einladungen zum Startgespräch
+ * an 99 Gekündigte, 28 davon nach dem Vertragsende; dazu 9 Karten-Einladungen
+ * und 31 „nicht erreicht" — alle von Hand, an keiner Sperre vorbei, weil es
+ * keine gab.
+ */
+export const NUR_BIS_VERTRAGSENDE = new Set<string>(["onboarding_einladung", "konto_karte_einladung", "nicht_erreicht_termin"]);
+
+/**
+ * Seit wann der Antrag auf das Widerspruchsrecht hinweist (§ 7 Abs. 3 Nr. 4
+ * UWG). Werbung per Mail ohne Einwilligung an Bestandskunden ist nur gedeckt,
+ * wenn der Hinweis schon bei der Erhebung der Adresse stand — 293 von 298
+ * Auskunft-Zielkunden wurden davor Kunde.
+ */
+export const WIDERSPRUCH_HINWEIS_SEIT = "2026-09-02T12:35:00+02:00";
+
+export interface PersonSperre {
+  personId: number;
+  werbesperre: boolean;
+  werbesperreSeit: string | null;
+  /** is_blocked — Vertriebssperre (kein Anruf, keine Anrufliste). */
+  vertriebssperre: boolean;
+  test: boolean;
+  /**
+   * Eine Kündigung liegt vor und ist nicht zurückgenommen (der MENSCH, E-213) —
+   * es sei denn, er hat DANACH neu beantragt (neues Interesse, Fall Trommer).
+   */
+  gekuendigt: boolean;
+  /** Ein Vertragsende ist erreicht, kein anderes Paket läuft und kein neuer Antrag kam danach. */
+  vertragVorbei: boolean;
+  /** Ein bezahltes, laufendes Paket (Abo), unabhängig von einer Kündigung. */
+  laufendesPaket: boolean;
+  /** Ein bezahltes, laufendes Paket OHNE Kündigung. */
+  laufendUngekuendigt: boolean;
+  /**
+   * Kunde mit ungekündigtem Paket, dessen ERSTER Antrag überhaupt (dort wurde die
+   * Adresse erhoben) schon den Widerspruchs-Hinweis trug (≥ WIDERSPRUCH_HINWEIS_SEIT).
+   * Dieselbe, engere Lesart wie der Verkaufstakt (fiaon-auskunft-verkauf.ts,
+   * ERSTER_ANTRAG_SQL) — bei einer Rechtsfrage gilt im Zweifel die engere.
+   */
+  kundeMitHinweis: boolean;
+}
+
+/** Die Personen hinter einer Mailadresse — Hauptadresse, Bestellungen, Lead-Formular, Zusammengeführte. */
+export async function personenAnAdresse(adresse: string): Promise<number[]> {
+  const a = String(adresse || "").trim().toLowerCase();
+  if (!a) return [];
+  const zeilen = (await sqlPool`
+    SELECT DISTINCT COALESCE(p.merged_into_person_id, p.id)::int AS id FROM fiaon_persons p
+     WHERE LOWER(TRIM(COALESCE(p.primary_email, ''))) = ${a}
+    UNION
+    SELECT DISTINCT x.person_id::int FROM fiaon_applications x
+     WHERE x.person_id IS NOT NULL AND ${a} IN (
+       LOWER(TRIM(COALESCE(x.email, ''))), LOWER(TRIM(COALESCE(x.contact_email, ''))), LOWER(TRIM(COALESCE(x.billing_email, ''))))
+    UNION
+    SELECT DISTINCT l.person_id::int FROM fiaon_leads l
+     WHERE l.person_id IS NOT NULL AND LOWER(TRIM(COALESCE(l.email, ''))) = ${a}
+  `) as any[];
+  return Array.from(new Set(zeilen.map((z) => Number(z.id)).filter((n) => Number.isInteger(n) && n > 0)));
+}
+
+/**
+ * Hat irgendein Mensch hinter dieser Adresse eine Werbesperre? Vergleicht
+ * Hauptadresse, alle drei Adressen jeder Bestellung (auch zusammengeführter),
+ * die Adresse aus dem Lead-Formular und die Hauptadresse zusammengeführter
+ * Personen. Wirft bei einer Störung — der Aufrufer entscheidet.
+ */
+export async function werbesperreAnAdresse(adresse: string): Promise<boolean> {
+  const a = String(adresse || "").trim().toLowerCase();
+  if (!a) return false;
+  const [g] = (await sqlPool`
+    SELECT 1 AS g FROM fiaon_persons p
+     WHERE p.werbung_gesperrt_am IS NOT NULL
+       AND (
+         LOWER(TRIM(COALESCE(p.primary_email, ''))) = ${a}
+         OR EXISTS (
+           SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id
+              AND ${a} IN (LOWER(TRIM(COALESCE(x.email, ''))), LOWER(TRIM(COALESCE(x.contact_email, ''))), LOWER(TRIM(COALESCE(x.billing_email, '')))))
+         OR EXISTS (SELECT 1 FROM fiaon_leads l WHERE l.person_id = p.id AND LOWER(TRIM(COALESCE(l.email, ''))) = ${a})
+         OR EXISTS (SELECT 1 FROM fiaon_persons m WHERE m.merged_into_person_id = p.id AND LOWER(TRIM(COALESCE(m.primary_email, ''))) = ${a})
+       )
+     LIMIT 1
+  `) as any[];
+  return !!g;
+}
+
+const istAuskunftZeile = (z: any) => String(z?.typ ?? "") === "schufa" || String(z?.ref ?? "").startsWith("FIAON-SCHUFA-");
+
+/** Der Stand mehrerer Menschen in EINER Abfrage — die Regeln stehen in JavaScript (istAboPaket). */
+export async function personSperren(ids: number[]): Promise<PersonSperre[]> {
+  const liste = Array.from(new Set(ids.filter((n) => Number.isInteger(n) && n > 0)));
+  if (!liste.length) return [];
+  const zeilen = (await sqlPool`
+    SELECT p.id, p.werbung_gesperrt_am, COALESCE(p.is_blocked, FALSE) AS is_blocked, (p.ist_test_am IS NOT NULL) AS test,
+           (SELECT MIN(f.created_at) FROM fiaon_applications f WHERE f.person_id = p.id) AS erster_antrag,
+           COALESCE(json_agg(json_build_object(
+             'ref', a.ref, 'typ', a.type, 'key', a.pack_key, 'bezahlt', a.payment_status = 'paid',
+             'storniert', a.cancelled_at IS NOT NULL, 'ende', a.vertrag_ende_am,
+             'gekuendigt', a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL,
+             'gekuendigt_am', a.gekuendigt_am, 'angelegt', a.created_at)) FILTER (WHERE a.ref IS NOT NULL), '[]'::json) AS antraege
+      FROM fiaon_persons p
+      LEFT JOIN fiaon_applications a ON a.person_id = p.id AND a.merged_into IS NULL
+     WHERE p.id = ANY(${liste})
+     GROUP BY p.id, p.werbung_gesperrt_am, p.is_blocked, p.ist_test_am
+  `) as any[];
+  const jetzt = Date.now();
+  const hinweisAb = new Date(WIDERSPRUCH_HINWEIS_SEIT).getTime();
+  return zeilen.map((z) => {
+    const antraege: any[] = Array.isArray(z.antraege) ? z.antraege : (() => { try { return JSON.parse(String(z.antraege)); } catch { return []; } })();
+    const endeVorbei = (a: any) => !!a.ende && new Date(a.ende).getTime() <= jetzt;
+    const laufend = (a: any) => !istAuskunftZeile(a) && istAboPaket(a.key) && a.bezahlt === true && !a.storniert && !endeVorbei(a);
+    const laufendesPaket = antraege.some(laufend);
+    // Ein Antrag NACH diesem Zeitpunkt (keine Auskunft-Bestellung) = neues Interesse.
+    const neuerAntragNach = (t: unknown) => !!t && antraege.some((n) => !istAuskunftZeile(n) && new Date(n.angelegt).getTime() > new Date(String(t)).getTime());
+    const gekuendigt = antraege.some((a) => a.gekuendigt === true && !neuerAntragNach(a.gekuendigt_am));
+    const beendet = antraege.filter(endeVorbei);
+    return {
+      personId: Number(z.id),
+      werbesperre: !!z.werbung_gesperrt_am,
+      werbesperreSeit: z.werbung_gesperrt_am ? new Date(z.werbung_gesperrt_am).toISOString() : null,
+      vertriebssperre: !!z.is_blocked,
+      test: !!z.test,
+      gekuendigt,
+      vertragVorbei: beendet.length > 0 && !laufendesPaket && !beendet.some((a) => neuerAntragNach(a.ende)),
+      laufendesPaket,
+      laufendUngekuendigt: antraege.some((a) => laufend(a) && a.gekuendigt !== true),
+      kundeMitHinweis: antraege.some((a) => laufend(a) && a.gekuendigt !== true)
+        && !!z.erster_antrag && new Date(z.erster_antrag).getTime() >= hinweisAb,
+    };
+  });
+}
+
+/** Der Stand eines Menschen — null, wenn es ihn nicht gibt. */
+export async function personSperre(personId: number): Promise<PersonSperre | null> {
+  return (await personSperren([personId]))[0] ?? null;
+}
+
+/**
+ * Das Urteil für eine Mail an die Menschen hinter einer Adresse — rein, ohne
+ * Datenbank (Prüfstand: scripts/pruef-mara-verkauf.ts). null = darf raus.
+ *
+ *  · Werbung (WERBUNG_IMMER) von Hand: nie an eine Werbesperre.
+ *  · Unterlagen-Mail: nur, solange ein Vertrag lebt — also nicht, wenn JEDER
+ *    Mensch an der Adresse gekündigt hat oder dessen Vertrag vorbei ist und
+ *    keiner ein ungekündigtes Paket hat; nie an reine Testkonten; bei
+ *    Werbesperre nie MIT Kaufangebot (angebot_text / auskunft_modus „angebot").
+ *  · Startgespräch, Konto & Karte, „nicht erreicht": nur bis zum Vertragsende.
+ *  · Auskunft-Angebot: nie an Werbesperre, Test, Gekündigte ohne laufendes
+ *    Paket. Automatisch nur an Kunden mit ungekündigtem Paket, deren erster
+ *    Antrag schon den Widerspruchs-Hinweis trug (§ 7 Abs. 3 UWG); von Hand an Kunden, mit denen
+ *    der Betreuer gesprochen hat (Antwort auf seine Bitte), ohne diese Grenze.
+ */
+export function sperrUrteil(
+  event: string,
+  staende: PersonSperre[],
+  opts: { manuell: boolean; nutzlast?: Record<string, unknown> | null },
+): string | null {
+  const irgendeineSperre = staende.some((s) => s.werbesperre);
+  const nurTest = staende.length > 0 && staende.every((s) => s.test);
+  const ohneVertrag = staende.length > 0
+    && staende.every((s) => !s.laufendUngekuendigt && (s.gekuendigt || s.vertragVorbei));
+
+  if (event === AUSKUNFT_ANGEBOT) {
+    if (irgendeineSperre) return "Werbesperre: Diese Person hat um keine weitere Post gebeten";
+    if (!staende.length) return "Auskunft-Angebot nur an bekannte Kunden — zu dieser Adresse gibt es keinen";
+    if (nurTest) return "Testkonto — kein Auskunft-Angebot";
+    if (ohneVertrag) return "Gekündigt oder Vertrag beendet — kein Auskunft-Angebot";
+    if (!opts.manuell && !staende.some((s) => s.kundeMitHinweis)) {
+      return "§ 7 Abs. 3 UWG: automatisch nur an Kunden, deren Antrag schon den Widerspruchs-Hinweis trug (ab 02.09.2026 12:35) — Angebot im Kundenbereich bleibt";
+    }
+    return null;
+  }
+  if (NUR_MIT_VERTRAG.has(event)) {
+    if (nurTest) return "Testkonto — keine Unterlagen-Aufforderung";
+    if (ohneVertrag) return "Gekündigt oder Vertrag beendet — keine Aufforderung mehr, Unterlagen nachzureichen";
+    const n = opts.nutzlast ?? null;
+    const mitAngebot = !!n && (String(n.angebot_text ?? "").trim() !== "" || String(n.auskunft_modus ?? "") === "angebot");
+    if (irgendeineSperre && mitAngebot) return "Werbesperre: Die Unterlagen-Mail darf nur die Bitte enthalten, kein Kaufangebot";
+    return null;
+  }
+  if (NUR_BIS_VERTRAGSENDE.has(event)) {
+    if (nurTest) return "Testkonto — keine Einladung";
+    if (staende.length > 0 && staende.every((s) => s.vertragVorbei && !s.laufendesPaket)) {
+      return "Vertrag beendet — keine Einladung und kein Anruf-Versuch mehr aus dem Vertrag";
+    }
+    return null;
+  }
+  if (opts.manuell && istWerbungImmer(event) && irgendeineSperre) {
+    return "Werbesperre: Diese Person hat um keine Werbung gebeten — auch von Hand nicht";
+  }
+  return null;
+}
+
+/**
+ * WhatsApp-Vorlagen, die Vertrags- oder Zahlungspost sind — alles andere aus
+ * WA_VORLAGEN (fiaon_kk_*, fiaon_kkb_*) wirbt für Antrag, Aktivierung oder
+ * Empfehlung. Die Termin-Vorlagen gehören zu einem Termin, den er selbst hat.
+ */
+const WA_NICHT_WERBLICH = new Set<string>([
+  "fiaon_kk_rate", "fiaon_kkb_rate", "fiaon_kk_termin", "fiaon_kkb_termin",
+  "fiaon_kk_termin_morgen", "fiaon_kkb_termin_morgen", "fiaon_kk_aktiviert", "fiaon_kkb_aktiviert",
+]);
+export function waVorlageWerblich(name: string): boolean {
+  return !WA_NICHT_WERBLICH.has(String(name || "").trim());
+}
+
+/**
+ * Darf diesem Menschen gerade Werbung geschickt werden — egal auf welchem
+ * Kanal (Mail außerhalb der Tür, WhatsApp-Vorlage, Verkaufstakt)? null = ja.
+ * Werbesperre, Testkonto und „gekündigt ohne laufendes Paket" sagen nein; die
+ * Vertriebssperre (is_blocked) ebenfalls — wer „kein Interesse" gesagt hat,
+ * bekommt keinen Verkauf (Mara-Aktion und WhatsApp-Zentrale halten es schon so).
+ */
+export function werbungVerboten(s: PersonSperre | null): string | null {
+  if (!s) return null;
+  if (s.werbesperre) return "Werbesperre";
+  if (s.test) return "Testkonto";
+  if (s.vertriebssperre) return "Vertriebssperre";
+  if (!s.laufendUngekuendigt && (s.gekuendigt || s.vertragVorbei)) return "gekündigt oder Vertrag beendet";
+  return null;
 }

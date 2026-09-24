@@ -348,7 +348,10 @@ async function teilZwei(knopfPlatzhalter: (ev: string) => string[]): Promise<voi
         INSERT INTO fiaon_termine ${tx({ person_id: personId, agent_id: agent.id, beginn: new Date(Date.now() - 86400000), status: "verpasst", quelle: "onboarding_call", storno_token: `knopf${stempel}` } as any)}`;
 
       const events = (await mailEvents(tx as any)).filter((e) => e.zielgruppe === "kunde" && !e.deprecated && motor.hatVorlage(e.type));
-      const angeboten = events.filter((e) => e.rollen.some((r) => imMenue(e, r).ja) || istVersandArt(e.type));
+      // 24.09.2026 (E-240): documents_change_request ist jetzt eine Versandart (Zustandsregel in
+      // mailSenden), steht aber in keinem Menü — nur der Auslöser „Anfordern" kennt den Hinweis, WAS fehlt.
+      const NUR_AUSLOESER = new Set<string>(["documents_change_request"]);
+      const angeboten = events.filter((e) => (e.rollen.some((r) => imMenue(e, r).ja) || istVersandArt(e.type)) && !NUR_AUSLOESER.has(e.type));
       log(`  ${angeboten.length} Kunden-Ereignisse stehen in einem Menü oder im Versandzentrum.`);
       for (const e of angeboten) {
         const g = await sendePayloadBauen(e.type, personId, tx as any, { vorschau: true, akteurName: "Prüfstand" });

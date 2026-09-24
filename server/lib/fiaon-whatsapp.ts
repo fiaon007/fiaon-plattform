@@ -512,6 +512,67 @@ export async function waAktenvermerk(personId: number | null | undefined, text: 
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE SPERRE GILT AUCH AUF WHATSAPP (25.09.2026, E-240)
+//
+// Justin: „Bekommt der eine Sperre, dass wir dem nichts weiter schicken? Macht
+// Mara das auch wirklich?" Mara-Aktion, WA-Zentrale und Maras Antworten prüften
+// die Sperre je für sich — waSenden selbst nicht. Raum, Akte („WhatsApp
+// schicken") und Mara-Auftrag schickten jede Vorlage an jeden. Gemessen
+// (Produktion, 23.–24.09.2026, 142 werbliche Vorlagen): 22 davon an 10 Menschen
+// mit Werbesperre vor dem Versand (13), Vertriebssperre nach heutigem Stand
+// (20) oder Kündigung (2) — Mehrfachnennung möglich.
+//
+// Jetzt hier, an der einen Tür, durch die jede WhatsApp muss:
+//   · WERBLICHE Vorlage (waVorlageWerblich — alles außer Rate, Termin,
+//     Aktivierung) an einen Menschen mit Werbesperre, Vertriebssperre oder
+//     Kündigung ohne laufenden Vertrag (werbungVerboten) → abgelehnt.
+//   · Service-Vorlagen (Monatsrate, Termin, Termin morgen, „Konto aktiviert")
+//     gehen weiter raus — das ist Vertrags- und Zahlungspost.
+//   · Freier Text geht nur im offenen 24-Stunden-Fenster, also nur als Antwort
+//     auf seine eigene Nachricht — bleibt erlaubt (was darin steht, regelt
+//     Maras Lage: bei Werbesperre ohne Verkauf, fiaon-whatsapp-mara.ts).
+//   · Der Mensch ist die Person des Aufrufs, sonst die des Leads, sonst die
+//     der Nummer (wemGehoert); mit allen zusammengeführten Personen — die
+//     Werbesperre wandert beim Zusammenführen nicht mit.
+//   · Testkonten bleiben erreichbar: An ihnen prüft Justin die Vorlagen.
+// Bei einer Störung der Prüfung geht die Vorlage NICHT raus — Werbung darf
+// warten, ein gebrochenes „Stopp" nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function waVorlagenSperre(
+  vorlage: string,
+  nummer: string,
+  zusatz: { personId?: number | null; leadId?: number | null } = {},
+  lauf: Lauf = sqlPool,
+): Promise<string | null> {
+  const { waVorlageWerblich, personSperren, werbungVerboten } = await import("./fiaon-mail-frequenz");
+  if (!waVorlageWerblich(vorlage)) return null;
+  try {
+    let personId = zusatz.personId && Number(zusatz.personId) > 0 ? Number(zusatz.personId) : null;
+    if (!personId && zusatz.leadId) {
+      const [l] = (await lauf`SELECT person_id FROM fiaon_leads WHERE id = ${Number(zusatz.leadId)} LIMIT 1`) as any[];
+      if (l?.person_id) personId = Number(l.person_id);
+    }
+    if (!personId) personId = (await wemGehoert(nummer, lauf)).personId;
+    if (!personId) return null; // Unbekannter Mensch: Es gibt keine Sperre, die wir kennen könnten.
+    const familie = (await lauf`
+      SELECT q.id FROM fiaon_persons p
+        JOIN fiaon_persons q
+          ON q.id = COALESCE(p.merged_into_person_id, p.id)
+          OR q.merged_into_person_id = COALESCE(p.merged_into_person_id, p.id)
+       WHERE p.id = ${personId}`) as any[];
+    const ids = Array.from(new Set([personId, ...familie.map((f) => Number(f.id))]));
+    for (const s of await personSperren(ids)) {
+      const grund = werbungVerboten({ ...s, test: false });
+      if (grund) return `${grund}: Keine werbliche WhatsApp-Vorlage („${vorlage}“) an diesen Menschen. Schreibt er selbst, geht eine Antwort im offenen 24-Stunden-Fenster.`;
+    }
+    return null;
+  } catch (e) {
+    console.error("[WHATSAPP] Sperrprüfung:", String((e as Error)?.message || e).slice(0, 200));
+    return "Die Sperre dieses Menschen ließ sich gerade nicht prüfen — die werbliche Vorlage geht nicht raus. Bitte später erneut.";
+  }
+}
+
 export async function waSenden(
   an: string,
   inhalt: { text?: string; vorlage?: string; werte?: string[]; knopfWert?: string },
@@ -526,6 +587,13 @@ export async function waSenden(
   const nummer = waKanonisch(an);
   if (!nummer) return { ok: false, grund: "Keine brauchbare Nummer." };
   await waTabellen(lauf);
+
+  // E-240 (25.09.2026): Werbesperre, Vertriebssperre, Kündigung — vor allem
+  // anderen, auch vor jeder Frage an Meta (waVorlagenSperre, oben).
+  if (inhalt.vorlage) {
+    const sperre = await waVorlagenSperre(inhalt.vorlage, nummer, zusatz, lauf);
+    if (sperre) return { ok: false, grund: sperre };
+  }
 
   const katalog = await alleVorlagen();
   // E-229: Die Aufrufer nennen die Textfassung. Ist die Bildfassung bei Meta

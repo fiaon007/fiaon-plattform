@@ -145,6 +145,54 @@ export interface DokumentLageVoll {
   inhaltErlaubt: boolean;
   /** 18.09.2026: ersetzte Fassungen (Archiv), neueste zuerst. */
   fruehere: { id: number; art: string; am: string; kb: number }[];
+  /**
+   * 24.09.2026 (E-240): Wo steht der Mensch bei der Bonitätsauskunft? Die Akte
+   * zeigt danach den Knopf — „Auskunft anbieten" (nichts), „Zahlungslink senden"
+   * (offen) oder keinen (bezahlt, liegt vor). Vorher bot die Kachel auch denen
+   * „Anfordern" an, die sie längst bezahlt hatten. Null, wenn keine Person dranhängt.
+   */
+  auskunft: {
+    stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+    /** Der Preis für DIESEN Menschen (74 € mit Paket, sonst 149 €). */
+    preisText: string;
+    mitAbo: boolean;
+    /** Betrag der offenen Bestellung; „gemeldet" = der Kunde sagt, er habe überwiesen. */
+    offen: { betragText: string; gemeldet: boolean } | null;
+    /** „SCHUFA-Auskunft" / „KSV-Auskunft" / „Bonitätsauskunft" — wie der Kunde sie kennt. */
+    wort: string;
+    /**
+     * Würde die Unterlagen-Mail die Auskunft ANBIETEN? Nein bei Werbesperre und
+     * solange das Paket nicht bezahlt ist (angebotLage) — dann bittet sie nur darum.
+     * „werbesperre" gilt auch bei einer offenen Bestellung: Dann geht die Mail
+     * ohne Zahlungslink (auskunftMailTeil, Gegenlesen 24.09.2026).
+     */
+    angebot: boolean;
+    /** „kuerzlich_angeboten" (Integration 25.09.2026): die gemeinsame Bremse — ein Angebot in den letzten drei Tagen. */
+    ohneAngebot: "werbesperre" | "paket_offen" | "kuerzlich_angeboten" | null;
+  } | null;
+}
+
+/** Der Auskunft-Stand für die Akte — darf die Dokumentansicht nie aufhalten. */
+async function auskunftFuerAkte(personId: number | null, lauf: Lauf): Promise<DokumentLageVoll["auskunft"]> {
+  if (personId == null) return null;
+  try {
+    const { auskunftStand } = await import("./fiaon-auskunft");
+    const { auskunftWort, euroText } = await import("@shared/fiaon-auskunft");
+    const { angebotLage } = await import("../routes/fiaon-auskunft-kauf");
+    const [s, lage] = await Promise.all([auskunftStand(personId, lauf), angebotLage(personId, lauf)]);
+    // Integration 25.09.2026: Dieselbe Bremse wie die Unterlagen-Mail (auskunftMailTeil) — sonst
+    // verspräche der Knopf „Auskunft anbieten" ein Angebot, das der Server gerade weglässt.
+    const { zuletztAngeboten } = await import("./fiaon-auskunft");
+    const kuerzlich = lage.angebot && s.stufe === "nichts" && !s.dokumentDa ? await zuletztAngeboten(personId, {}, lauf) : null;
+    return {
+      stufe: s.stufe, preisText: s.preis.text, mitAbo: s.preis.mitAbo, wort: auskunftWort(s.land),
+      offen: s.offen ? { betragText: euroText(s.offen.betragCents || s.preis.cents), gemeldet: s.offen.status === "claimed_paid" } : null,
+      angebot: lage.angebot && !kuerzlich, ohneAngebot: kuerzlich ? "kuerzlich_angeboten" : lage.grund,
+    };
+  } catch (e) {
+    console.error("[DOK] Auskunft-Stand:", String(e).slice(0, 160));
+    return null;
+  }
 }
 
 /**
@@ -289,6 +337,7 @@ export async function dokumentStand(
     hochgeladenAm: a.documents_uploaded_at ?? null,
     inhaltErlaubt: darfInhalt(opts.rolle) || !!opts.zustaendig,
     fruehere: personId != null ? await fruehereFassungen(personId, lauf) : [],
+    auskunft: await auskunftFuerAkte(personId, lauf),
     dokumente: DOKUMENTE.map((d) => {
       const gr = groessen[d.art];
       return {

@@ -340,7 +340,11 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
       // hing bisher still als Kommentar an — ungelesen blieb nichts, und von 199
       // offenen Postfach-Aufgaben waren 178 nie geöffnet. Jetzt gilt die Aufgabe
       // wieder als ungelesen und steht wieder offen.
-      if (quelle === "postmeister") {
+      // 25.09.2026 (E-240, Integration): dasselbe für Mara auf WhatsApp — sonst
+      // kam die zweite Bitte desselben Kunden am selben Tag nur als Kommentar an,
+      // und die Karte „Neu von Mara" im Office (fiaon-agent-aufgaben-popup.ts,
+      // liest agent_gelesen_am IS NULL) zeigte sie nicht.
+      if (quelle === "postmeister" || quelle === "mara-whatsapp") {
         await sqlPool`
           UPDATE fiaon_betreiber_todos
              SET agent_gelesen_am = NULL, letzte_aktivitaet = NOW(),

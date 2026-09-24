@@ -24,8 +24,11 @@
 
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
-import type { Kundenlage } from "@shared/fiaon-postmeister-typen";
+import { AUSKUNFT_LAGEN, KEIN_VERKAUF_FLAGS, type Flags, type Kundenlage } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
+import { auskunftLeistung, auskunftWort, auskunfteienText, euroText, AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
+import { auskunftArtFuer } from "./fiaon-postmeister-dossier";
+import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fiaon-auskunft";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -39,6 +42,14 @@ export interface WerkzeugKontext {
   kundenlage: Kundenlage;
   /** Wörtliches Zitat aus der Kundenmail — Pflicht bei Sperren und Kündigung. */
   zitat?: string | null;
+  /** Die Lampen der Einordnung (E-240): Bei Kündigung, Beschwerde, „Stopp" usw. wird nichts verkauft. */
+  flags?: Partial<Flags> | null;
+  /** Was der Kunde geschrieben hat (gekürzt) — steht in der Aufgabe an den Betreuer (E-240). */
+  kundeText?: string | null;
+  /** Betreff seiner Mail — „Re: …" auf ein Angebot heißt: er antwortet darauf (gemeinsame Bremse, 25.09.2026). */
+  betreff?: string | null;
+  /** Gesetzt, sobald der Betreuer in diesem Lauf von der Auskunft erfahren hat — nie zweimal je Mail. */
+  auskunftGemeldet?: boolean;
 }
 
 export interface WerkzeugErgebnis {
@@ -81,11 +92,29 @@ async function kundenNameFuer(personId: number | null, ref: string | null): Prom
   return null;
 }
 
+/**
+ * Die Referenz, unter der ein Vermerk in der Akte steht (24.09.2026, E-240).
+ * `fiaon_contact_log.ref` ist NOT NULL — ohne Bestellung im Vorgang ging jede
+ * Handlung Maras bisher still verloren. Jetzt: die Bestellung des Vorgangs,
+ * sonst die jüngste der Person (bezahlte zuerst), ohne Person gar nichts.
+ */
+export async function akteRef(personId: number | null, ref: string | null): Promise<string | null> {
+  if (ref) return ref;
+  if (!personId) return null;
+  const [b] = (await sqlPool`
+    SELECT ref FROM fiaon_applications
+     WHERE person_id = ${personId} AND merged_into IS NULL
+     ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1
+  `.catch(() => [])) as any[];
+  return b?.ref ?? null;
+}
+
 async function protokoll(k: WerkzeugKontext, werkzeug: string, text: string, sichtbar = true): Promise<void> {
-  if (k.ref && sichtbar) {
+  const ref = sichtbar ? await akteRef(k.personId, k.ref) : null;
+  if (ref) {
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-      VALUES (${k.ref}, ${k.personId ?? null}, NULL, 'Postmeister', 'system', ${text.slice(0, 900)})
+      VALUES (${ref}, ${k.personId ?? null}, NULL, 'Postmeister', 'system', ${text.slice(0, 900)})
     `.catch(() => {});
   }
   if (k.postmeisterId) {
@@ -160,25 +189,27 @@ export const notizAnBetreuer: Werkzeug = {
     const text = String(p.text || "").trim().slice(0, 800);
     if (text.length < 10) return { ok: false, ergebnis: "", fehler: "Die Notiz ist zu kurz." };
     await protokoll(k, "notiz_an_betreuer", `Postmeister an ${wer.name}: ${text}`);
-    // Aufgabe für den Menschen — idempotent je Person und Tag.
-    await sqlPool`
-      INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, link, quelle, status, zustaendig_art, zustaendig_agent_id, zustaendig_name)
-      VALUES (${`postmeister:${k.personId ?? k.ref ?? "unbekannt"}:${new Date().toISOString().slice(0, 10)}`},
-              ${p.dringend ? "Kunde braucht heute jemanden" : "Hinweis vom Postmeister"},
-              ${text}, 'postmeister', ${p.dringend ? 1 : 3},
-              ${p.dringend ? new Date() : new Date(Date.now() + 2 * 864e5)},
-              ${k.personId ? `/agent/kunden?person=${k.personId}` : k.ref ? `/agent/kunden?ref=${k.ref}` : null}, 'postmeister', 'offen',
-              ${wer.id ? "agent" : "betreiber"}, ${wer.id}, ${wer.name})
-      ON CONFLICT (schluessel) DO UPDATE SET text = fiaon_betreiber_todos.text || E'\\n\\n' || EXCLUDED.text,
-             prioritaet = LEAST(fiaon_betreiber_todos.prioritaet, EXCLUDED.prioritaet), letzte_aktivitaet = NOW()
-    `.catch(async () => {
-      // Ohne Unique-Index auf schluessel: einfach anlegen.
-      await sqlPool`
-        INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, quelle, status, zustaendig_art, zustaendig_agent_id, zustaendig_name)
-        VALUES (${p.dringend ? "Kunde braucht heute jemanden" : "Hinweis vom Postmeister"}, ${text}, 'postmeister',
-                ${p.dringend ? 1 : 3}, 'postmeister', 'offen', ${wer.id ? "agent" : "betreiber"}, ${wer.id}, ${wer.name})
-      `.catch(() => {});
-    });
+    // ── DIE NOTIZ ERREICHT DEN MENSCHEN (24.09.2026, E-240) ───────────────
+    // Bis hierher ein nacktes INSERT in fiaon_betreiber_todos: keine Übergabe
+    // (agent_gelesen_am, delegiert_am blieben leer), keine Mail an den
+    // Betreuer, kein Ereignis in fiaon_agent_events — die Notiz stand nur da,
+    // wenn jemand zufällig in seine Aufträge sah (392 von 404 Aufgaben
+    // ungelesen). Jetzt derselbe Weg wie aufgabe_an_betreuer: auftragFuerKunden
+    // übergibt, schreibt die Mail aufgabe_zugewiesen und das Ereignis, auf das
+    // das Betreuer-Popup hört. Idempotent je Person und Tag wie vorher —
+    // weitere Notizen hängen sich an und machen die Aufgabe wieder ungelesen.
+    const heute = new Date().toISOString().slice(0, 10);
+    const kundenName = await kundenNameFuer(k.personId, k.ref);
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    await auftragFuerKunden({
+      personId: k.personId, ref: k.ref,
+      titel: `${kundenName ? `${kundenName}: ` : ""}${p.dringend ? "braucht heute jemanden" : "Hinweis von Mara"}`.slice(0, 160),
+      text, dringend: !!p.dringend,
+      faelligAm: p.dringend ? heute : new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10),
+      schluessel: `postmeister:${k.personId ?? k.ref ?? "unbekannt"}:${heute}`,
+      quelle: "postmeister", autorName: "Mara", agentId: wer.id ?? null,
+      link: k.personId ? `/agent/kunden?person=${k.personId}` : k.ref ? `/agent/kunden?ref=${k.ref}` : null,
+    }).catch((e) => console.error("[POSTMEISTER] Notiz an Betreuer:", String(e).slice(0, 160)));
     if (p.anrufen && k.personId) {
       try {
         const { rueckrufAufnehmen } = await import("./fiaon-rueckruf");
@@ -347,6 +378,267 @@ export const rechnungAnhaengen: Werkzeug = {
     }
     await protokoll(k, "rechnung_anhaengen", `Rechnung ${ref} (${z.amountDue} €) wird als PDF angehängt.`, false);
     return { ok: true, ergebnis: `Die Rechnung zu ${ref} über ${z.amountDue} € wird als PDF angehängt.`, daten: { rechnung: ref, betrag: z.amountDue, rechnung_status: z.status } };
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BONITÄTSAUSKUNFT ANBIETEN (24.09.2026, E-240)
+//
+// DER FALL: Doris Hösl (Person 4513) bekam die Unterlagen-Mail „Ihre
+// Bonitätsauskunft liegt uns noch nicht vor … sonst antworten Sie kurz" und
+// antwortete „Ich hab keine." Mara hatte kein Werkzeug, um die Auskunft zu
+// verkaufen, die offene Rate schlug alles, und heraus kam „Sie können sie in
+// Ihrem Bereich anfordern" — ein Mensch, der gerade Ja zu uns gesagt hätte,
+// bekam den Weg ohne uns gezeigt. Justin: Die Auskunft soll „weggehen wie
+// warme Semmeln".
+//
+// DAS WERKZEUG liefert den ECHTEN Knopf: Preis für genau diesen Menschen
+// (auskunftStand/auskunftPreis entscheiden 74 € mit Paket / 149 € einzeln,
+// Firma 199/349 €), Leistung und die Auskunfteien seines Landes. Mara nennt
+// nur, was hier steht — kein erfundener Link, kein Preis aus dem Gedächtnis.
+// Eine bezahlte, gemeldete oder hochgeladene Auskunft wird nicht noch einmal
+// verkauft.
+//
+// ── ANBIETEN IST NICHT BESTELLEN (24.09.2026, E-240, Gegenlesen) ──────────
+// Die erste Fassung rief hier auskunftBestellen: Jede Antwort Maras legte eine
+// Bestellung an, vergab eine fortlaufende Rechnungsnummer, schickte die Mail
+// payment_details und setzte die Zahlungserinnerungen in Gang — bevor der
+// Kunde Ja gesagt hatte (Prüfstand: FIAON-INV-2026-00018 für ein bloßes
+// Angebot). Eine Zahlungsaufforderung für eine nicht bestellte Leistung ist
+// § 241a BGB / UWG Anhang Nr. 29, und ohne Knopf „zahlungspflichtig" und
+// Widerrufsbelehrung fehlt die Button-Lösung (§ 312j Abs. 3 BGB).
+// Jetzt: Ist nichts bestellt, führt der Knopf auf die signierte
+// Bestätigungsseite (kaufLink, fiaon-auskunft-kauf.ts) — derselbe Weg wie
+// Unterlagen-Mail und Verkaufstakt. Erst der Klick dort bestellt. Ist schon
+// eine Bestellung offen, führt er zu ihrer Zahlungsseite; es entsteht nichts.
+//
+// DIE GRENZEN stehen im Code, nicht im Prompt: nur in den Lagen mit gebuchtem
+// Paket (AUSKUNFT_LAGEN), nie bei Kündigung, Beschwerde, Bestreiten, „Stopp",
+// Zahlungsunfähigkeit (KEIN_VERKAUF_FLAGS), nie bei Werbe- oder Vertriebssperre,
+// nie bei FIAON Global (Wand unten). Das Angebot ist eine Antwort auf eine Mail
+// des Kunden — keine Werbemail an Bestandskunden (§ 7 Abs. 3 UWG).
+//
+// DER BETREUER erfährt es sofort (auskunftBetreuerMelden): Aufgabe, Mail
+// aufgabe_zugewiesen, Ereignis für das Popup — „bitte heute nachfassen".
+// ═══════════════════════════════════════════════════════════════════════════
+
+const LAMPE_TEXT: Partial<Record<keyof Flags, string>> = {
+  kuendigung: "will kündigen", bestreitet: "bestreitet die Forderung", widerruf: "widerruft",
+  beschwerde: "beschwert sich", rechtlich: "hat ein rechtliches Anliegen", stopp: "will keine Nachrichten mehr",
+  droht_anwalt: "droht mit rechtlichen Schritten", zahlungsunfaehig: "sagt, er könne nicht zahlen",
+};
+
+/** Darf Mara in diesem Vorgang die Auskunft verkaufen? `null` = ja, sonst der Satz für das Modell. Rein. */
+export function auskunftVerkaufGesperrt(k: Pick<WerkzeugKontext, "kundenlage" | "flags">): string | null {
+  if (!AUSKUNFT_LAGEN.includes(k.kundenlage)) {
+    return `In der Lage „${k.kundenlage}" wird die Bonitätsauskunft nicht angeboten (nur mit gebuchtem Paket und laufendem Vertrag). Beantworte das Anliegen des Kunden.`;
+  }
+  const lampen = KEIN_VERKAUF_FLAGS.filter((f) => !!k.flags?.[f]);
+  if (lampen.length) {
+    return `Jetzt nichts verkaufen — der Kunde ${lampen.map((f) => LAMPE_TEXT[f] ?? f).join(" und ")}. Beantworte sein Anliegen, ohne Angebot.`;
+  }
+  return null;
+}
+
+/**
+ * DEN BETREUER INFORMIEREN — Aufgabe über auftragFuerKunden (Übergabe, Mail
+ * aufgabe_zugewiesen, fiaon_agent_events), eine je Kunde (Schlüssel
+ * postmeister:auskunft:<person>): Ein zweites Angebot hängt sich an und macht
+ * die Aufgabe wieder ungelesen (agent_gelesen_am = NULL) — darauf hört das Popup.
+ *
+ * Werblich (Stufe nichts/offen) nur ohne Sperre und ohne Warnlampe; ein
+ * Service-Fall (bezahlt, Dokument da, der Kunde sagt trotzdem „habe keine")
+ * geht immer an den Betreuer — dort fehlt etwas in der Lieferung.
+ */
+export async function auskunftBetreuerMelden(k: WerkzeugKontext, ein: {
+  angeboten: boolean;
+  /** „gemeldet" = der Kunde hat die Zahlung für die Auskunft gemeldet, das Geld ist nicht da. */
+  stufe: "bezahlt" | "offen" | "dokument" | "nichts" | "gemeldet";
+  betragText?: string | null;
+  mitAbo?: boolean;
+  verwendungszweck?: string | null;
+  bezahltRef?: string | null;
+  anlass?: string | null;
+}): Promise<{ ok: boolean; grund?: string; aufgabeId?: number | null; betreuer?: string | null }> {
+  if (!k.personId) return { ok: false, grund: "ohne Person" };
+  if (k.auskunftGemeldet) return { ok: false, grund: "in dieser Mail schon gemeldet" };
+  if (k.kundenlage === "fremd" || k.kundenlage === "unklar") return { ok: false, grund: `Lage ${k.kundenlage}` };
+  const service = ein.stufe === "bezahlt" || ein.stufe === "dokument" || ein.stufe === "gemeldet";
+  // Erste Zahlung fürs Paket fehlt noch: Kaufen kann er die Auskunft erst danach
+  // (angebotLage, Kaufseite) — der Betreuer soll nicht zuerst die Auskunft verkaufen.
+  const paketOffen = ["interessent", "unbezahlt", "zahlung_gemeldet"].includes(k.kundenlage);
+  if (!service) {
+    if (["gesperrt", "gekuendigt", "bestreitet"].includes(k.kundenlage)) return { ok: false, grund: `Lage ${k.kundenlage}` };
+    if (KEIN_VERKAUF_FLAGS.some((f) => !!k.flags?.[f])) return { ok: false, grund: "Warnlampe" };
+    const [p] = (await sqlPool`SELECT werbung_gesperrt_am, is_blocked FROM fiaon_persons WHERE id = ${k.personId} LIMIT 1`.catch(() => [])) as any[];
+    if (p?.werbung_gesperrt_am || p?.is_blocked) return { ok: false, grund: "Werbe- oder Vertriebssperre" };
+  }
+  if (await istGlobalVorgang(k)) return { ok: false, grund: "FIAON Global" };
+
+  const name = (await kundenNameFuer(k.personId, k.ref)) ?? "Kunde";
+  const titel = ein.angeboten
+    ? `Mara hat ${name} die Bonitätsauskunft angeboten — bitte heute nachfassen (Karte/Limit)`
+    : service
+      ? `${name} schreibt, die Bonitätsauskunft fehle — bitte heute klären`
+      : paketOffen
+        ? `${name} hat keine Bonitätsauskunft — erste Zahlung fehlt noch, bitte nachfassen`
+        : `${name} hat keine Bonitätsauskunft — bitte heute nachfassen (Karte/Limit)`;
+  const zitat = String(k.kundeText || "").replace(/\s+/g, " ").trim().slice(0, 220);
+  const zeilen = [
+    zitat ? `Kunde schrieb${k.postmeisterId ? ` [Mail #${k.postmeisterId}]` : ""}: „${zitat}${zitat.length >= 220 ? " …" : ""}"` : "",
+    ein.anlass ? `Anlass: ${String(ein.anlass).slice(0, 200)}` : "",
+    ein.angeboten
+      ? ein.verwendungszweck
+        ? `Die Auskunft ist schon beauftragt, die Zahlung über ${ein.betragText ?? "?"} fehlt noch (Verwendungszweck ${ein.verwendungszweck}) — Mara hat den Weg zur Zahlungsseite geschickt.`
+        : `Mara hat die Bonitätsauskunft für ${ein.betragText ?? "?"}${ein.mitAbo ? " (Kundenpreis mit Paket)" : " (einzeln)"} angeboten; der Kauflink steht in ihrer Antwort. Beauftragt ist sie erst, wenn der Kunde auf der Bestätigungsseite zahlungspflichtig klickt.`
+      : ein.stufe === "bezahlt"
+        ? `Laut Akte ist die Auskunft bezahlt${ein.bezahltRef ? ` (${ein.bezahltRef})` : ""} — bitte prüfen, wo die Lieferung steht, und dem Kunden Bescheid geben.`
+        : ein.stufe === "gemeldet"
+          ? "Der Kunde hat die Zahlung für die Auskunft gemeldet, das Geld ist noch nicht gebucht — bitte mit der Zahlungsstelle klären und dem Kunden Bescheid geben."
+          : ein.stufe === "dokument"
+            ? "Laut Akte liegt schon ein Auskunft-Dokument vor — bitte klären, ob es aktuell und vollständig ist."
+            : ein.stufe === "offen"
+              ? "Eine Auskunft ist bestellt, aber noch nicht bezahlt — bitte im Gespräch den Zahlungsweg zeigen."
+              : paketOffen
+                ? "Die erste Zahlung für das Paket ist noch nicht gebucht — beauftragen kann er die Auskunft erst danach. Bitte zuerst die Zahlung klären, dann die Auskunft anbieten."
+                : "Mara konnte sie in dieser Lage nicht selbst anbieten — bitte im Gespräch anbieten.",
+    (ein.angeboten || !service) && !paketOffen
+      ? "Bitte heute anrufen: die Auskunft erklären (Datenkopien, Erklärung jeder Zeile, Fristen, Handlungsplan, fertige Schreiben) und Karte und Wunschlimit besprechen — keine Zusage, die Bank entscheidet."
+      : "",
+  ].filter(Boolean);
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const erg = await auftragFuerKunden({
+    personId: k.personId, ref: k.ref, titel: titel.slice(0, 160), text: zeilen.join("\n"),
+    faelligAm: new Date().toISOString().slice(0, 10), dringend: false,
+    schluessel: `postmeister:auskunft:${k.personId}`,
+    quelle: "postmeister", autorName: "Mara",
+    link: `/agent/kunden?person=${k.personId}`,
+    anlageText: "Angelegt von Mara aus dem Postfach (Bonitätsauskunft).",
+  });
+  k.auskunftGemeldet = true;
+  await protokoll(k, "auskunft_betreuer", `Betreuer informiert (${erg.agentName ?? "Leitung"}): ${titel}`);
+  return { ok: true, aufgabeId: erg.id, betreuer: erg.agentName };
+}
+
+export const auskunftAnbieten: Werkzeug = {
+  name: "auskunft_anbieten",
+  beschreibung: "Bietet dem Kunden die Bonitätsauskunft über FIAON an und liefert den ECHTEN Knopf dafür (Feld knopf): Preis für genau diesen Kunden (betragText — mit laufendem Paket der Kundenpreis, sonst einzeln), was er bekommt (leistung), bei welchen Auskunfteien wir anfragen (auskunfteien), wie die Auskunft in seinem Land heißt (wort) und wohin der Knopf führt (weg). Das Werkzeug BESTELLT NICHTS: Ist noch nichts beauftragt, führt der Knopf auf die Bestätigungsseite, auf der der Kunde selbst zahlungspflichtig beauftragt; ist schon eine Bestellung offen, direkt zu ihrer Zahlungsseite. Rufe es, wenn der Kunde schreibt, er habe keine Auskunft, SCHUFA oder Datenkopie (auch knapp: „Ich hab keine.“, „nicht vorhanden“), wenn er nach Auskunft, Bonität, Einträgen, Limit oder Karte fragt, oder wenn die Akte unter auskunft die Stufe „nichts“ zeigt. Ist schon eine bezahlt, gemeldet oder in der Akte, sagt es dir das (verkaufen: false) — dann verkaufst du nichts. Den Betreuer informiert das Werkzeug selbst — dafür keine eigene Aufgabe anlegen.",
+  stufe: "frei",
+  lagen: AUSKUNFT_LAGEN,
+  parameter: {
+    type: "object", additionalProperties: false,
+    properties: {
+      anlass: { type: "string", description: "In einem Satz, was der Kunde gesagt hat (z. B. „hat keine SCHUFA-Auskunft“, „fragt nach seinem Limit“) — steht in der Aufgabe für den Betreuer." },
+    },
+    required: ["anlass"],
+  },
+  async ausfuehren(p, k) {
+    if (!k.personId) return { ok: false, ergebnis: "", fehler: "Ohne Personendatensatz gibt es kein Angebot — biete nichts an." };
+    const sperre = auskunftVerkaufGesperrt(k);
+    if (sperre) return { ok: false, ergebnis: "", fehler: sperre };
+    const [person] = (await sqlPool`SELECT werbung_gesperrt_am, is_blocked FROM fiaon_persons WHERE id = ${k.personId} LIMIT 1`) as any[];
+    if (person?.werbung_gesperrt_am || person?.is_blocked) {
+      return { ok: false, ergebnis: "", fehler: "Für diesen Kunden gilt eine Werbe- oder Vertriebssperre — biete nichts an, beantworte nur sein Anliegen." };
+    }
+    const anlass = String(p.anlass || "").trim().slice(0, 200) || null;
+    const { auskunftStand } = await import("./fiaon-auskunft");
+    const art = await auskunftArtFuer(k.personId);
+    const stand = await auskunftStand(k.personId, sqlPool, art);
+    const land = stand.land;
+    const basis = { wort: auskunftWort(land), auskunfteien: auskunfteienText(land), land, art };
+
+    const nichtVerkaufen = async (stufe: "bezahlt" | "dokument" | "gemeldet", bezahltRef: string | null): Promise<WerkzeugErgebnis> => {
+      // Sagt der Kunde „habe keine", obwohl eine bezahlt, gemeldet oder da ist, fehlt
+      // etwas in der Lieferung — das gehört zum Betreuer, nicht in ein Angebot.
+      if (k.flags?.auskunft_fehlt) await auskunftBetreuerMelden(k, { angeboten: false, stufe, bezahltRef, anlass }).catch(() => null);
+      return {
+        ok: true,
+        ergebnis: stufe === "bezahlt"
+          ? "Die Bonitätsauskunft ist bereits bezahlt — nicht noch einmal anbieten. Sag dem Kunden, dass FIAON sie für ihn anfordert und sein Betreuer die Auswertung mit ihm durchgeht."
+          : stufe === "gemeldet"
+            ? "Der Kunde hat die Zahlung für die Auskunft schon gemeldet — nicht noch einmal anbieten und nicht erneut zur Zahlung auffordern. Sag ihm, dass wir den Eingang prüfen und uns melden."
+            : "Eine Auskunft liegt schon in der Akte — nichts verkaufen. Sag dem Kunden, dass sie vorliegt und in seine Auswertung einfließt; hat er eine neuere, lädt er sie in seinem Bereich hoch.",
+        daten: { ...basis, stufe, verkaufen: false, knopf: null, zahlungsseite: null },
+      };
+    };
+    if (stand.stufe === "bezahlt") return nichtVerkaufen("bezahlt", stand.bezahltRef);
+    if (stand.offen?.status === "claimed_paid") return nichtVerkaufen("gemeldet", null);
+    // Wie die Unterlagen-Mail (auskunftMailTeil): Wer selbst eine hochgeladen hat,
+    // bekommt weder ein Angebot noch eine Zahlungsbitte — auch bei offener Bestellung.
+    if (stand.dokumentDa) return nichtVerkaufen("dokument", null);
+
+    const preisHinweis = (mitAbo: boolean) => mitAbo
+      ? `Kundenpreis mit laufendem Paket (einzeln ${euroText(AUSKUNFT_PREISE_CENTS[art].einzeln)}) — beide Preise nebeneinander, nie „statt"`
+      : "Einzelpreis (kein laufendes Paket)";
+    let daten: Record<string, unknown>;
+    if (stand.offen?.paymentReference) {
+      // Schon beauftragt, Zahlung offen: der Weg zur Zahlung — nichts Neues entsteht.
+      const zahlungsseite = absoluteUrl(`/zahlung/${encodeURIComponent(stand.offen.paymentReference)}`);
+      const cents = stand.offen.betragCents || stand.preis.cents;
+      daten = {
+        ...basis, stufe: "offen", verkaufen: true,
+        knopf: zahlungsseite, zahlungsseite,
+        weg: "Die Auskunft ist schon beauftragt — der Knopf führt direkt zur Zahlungsseite (Betrag, Bankdaten, Verwendungszweck, QR-Code).",
+        betragText: euroText(cents),
+        // „74.00" — die Belegprüfung vergleicht Beträge in Punktschreibweise.
+        betrag: (cents / 100).toFixed(2),
+        verwendungszweck: stand.offen.paymentReference,
+        mitAbo: stand.preis.mitAbo, preis_hinweis: preisHinweis(stand.preis.mitAbo),
+        leistung: auskunftLeistung(art, land), nutzen: AUSKUNFT_NUTZEN_SATZ,
+      };
+    } else {
+      // Neu: nur, wenn die Bestätigungsseite ihn auch beauftragen lässt — sonst
+      // endete der Knopf auf „Erst die erste Zahlung für Ihr Paket" (angebotLage)
+      // oder „Keine neue Beauftragung möglich" (Kündigung, E-213).
+      const { angebotLage, kaufLink } = await import("../routes/fiaon-auskunft-kauf");
+      const lageA = await angebotLage(k.personId);
+      if (!lageA.paketBezahlt) {
+        return { ok: false, ergebnis: "", fehler: "Die erste Zahlung für das Paket ist noch nicht gebucht — beauftragen kann der Kunde die Auskunft erst danach. Biete sie jetzt nicht an; fragt er, sag in einem Satz, dass FIAON sie nach der ersten Zahlung für ihn holt." };
+      }
+      const [gek] = (await sqlPool`
+        SELECT 1 AS ja FROM fiaon_applications
+         WHERE person_id = ${k.personId} AND merged_into IS NULL
+           AND gekuendigt_am IS NOT NULL AND kuendigung_zurueckgenommen_am IS NULL LIMIT 1
+      `) as any[];
+      if (gek) return { ok: false, ergebnis: "", fehler: "Der Kunde hat gekündigt — keine neue Leistung anbieten. Beantworte nur sein Anliegen." };
+      // Integration 25.09.2026 (E-240): die gemeinsame Bremse (zuletztAngeboten, fiaon-auskunft.ts).
+      // Schreibt der Kunde selbst über die Auskunft („habe keine", SCHUFA, Bonität …) oder antwortet
+      // er auf das Angebot bzw. die Unterlagen-Mail („Re: …"), ist der Link seine Antwort — dann gilt sie nicht. Sonst: Kam das Angebot in den letzten drei Tagen schon
+      // (Angebots-Mail, Unterlagen-Mail, WhatsApp, Mara), wiederholt Mara es nicht ungefragt.
+      if (!k.flags?.auskunft_fehlt && !kundeFragtNachAuskunft(k.kundeText) && !antwortAufAngebot(k.betreff)) {
+        const { zuletztAngeboten } = await import("./fiaon-auskunft");
+        const zuletzt = await zuletztAngeboten(k.personId);
+        if (zuletzt) {
+          return { ok: false, ergebnis: "", fehler: `Die Bonitätsauskunft wurde ihm ${zuletzt.text} schon angeboten — biete sie in dieser Antwort nicht erneut an und nenne keinen Preis. Beantworte sein Anliegen; fragt er selbst danach, hilfst du weiter.` };
+        }
+      }
+      daten = {
+        ...basis, stufe: "nichts", verkaufen: true,
+        knopf: kaufLink(k.personId, art), zahlungsseite: null,
+        weg: "Der Knopf führt auf die Bestätigungsseite: Leistung, Preis, AGB und Widerrufsbelehrung — dort beauftragt der Kunde mit einem Klick zahlungspflichtig und sieht danach Betrag, Bankdaten und Verwendungszweck. Bis zu diesem Klick ist NICHTS bestellt: Schreib nie, er habe bestellt oder es sei eine Rechnung offen.",
+        betragText: stand.preis.text,
+        betrag: (stand.preis.cents / 100).toFixed(2),
+        verwendungszweck: null,
+        mitAbo: stand.preis.mitAbo, preis_hinweis: preisHinweis(stand.preis.mitAbo),
+        leistung: auskunftLeistung(art, land), nutzen: AUSKUNFT_NUTZEN_SATZ,
+      };
+    }
+    const offen = daten.stufe === "offen";
+    await protokoll(k, "auskunft_anbieten", offen
+      ? `Bonitätsauskunft: Zahlungsweg der offenen Bestellung geschickt (${daten.betragText}, Verwendungszweck ${daten.verwendungszweck}).`
+      // Der Anfang (ANGEBOT_VERMERK) ist die Spur, an der die gemeinsame Bremse Maras Mail-Angebot erkennt.
+      : `${ANGEBOT_VERMERK} (${daten.betragText}${daten.mitAbo ? ", Kundenpreis mit Paket" : ", einzeln"}${art === "firma" ? ", Firma" : ""}) — Kauflink zur Bestätigungsseite, noch nichts bestellt.`);
+    const meldung = await auskunftBetreuerMelden(k, {
+      angeboten: true, stufe: offen ? "offen" : "nichts", betragText: String(daten.betragText), mitAbo: !!daten.mitAbo,
+      verwendungszweck: offen ? String(daten.verwendungszweck) : null, anlass,
+    }).catch((e) => { console.error("[POSTMEISTER] Auskunft an Betreuer:", String(e).slice(0, 160)); return null; });
+    return {
+      ok: true,
+      ergebnis: offen
+        ? `Die Bonitätsauskunft ist schon beauftragt, offen sind ${daten.betragText} (Verwendungszweck ${daten.verwendungszweck}) — der Knopf führt zur Zahlungsseite.${meldung?.ok ? " Der Betreuer ist informiert." : ""}`
+        : `Angebot Bonitätsauskunft für ${daten.betragText}${daten.mitAbo ? " (Kundenpreis mit Paket)" : ""}: Der Knopf führt auf die Bestätigungsseite, bestellt ist noch nichts.${meldung?.ok ? " Der Betreuer ist informiert." : ""}`,
+      daten,
+    };
   },
 };
 
@@ -584,8 +876,11 @@ export const eskalationVorbereiten: Werkzeug = {
 // Aufgabe, Vermerk, Werbesperre — und das eigene Werkzeug global_zugang_senden.
 // Für jeden Vorgang OHNE Global-Bestellung ändert sich nichts.
 // ═══════════════════════════════════════════════════════════════════════════
+// 24.09.2026 (E-240): auskunft_anbieten — die Auskunft zu 74/149 € gehört zur
+// Privatkundenlinie; ein Firmenkunde bekommt keine Privat-Auskunft angeboten.
 export const NUR_PRIVATKUNDEN_WERKZEUGE = new Set<string>([
   "kuendigung_vormerken", "mahnstopp_setzen", "eskalation_vorbereiten", "konto_freischalten", "terminlink_bauen",
+  "auskunft_anbieten",
 ]);
 
 /** Rein: Darf dieses Werkzeug in diesem Vorgang laufen? `null` = ja; sonst der Satz für das Modell. */
@@ -657,7 +952,7 @@ function mitGlobalWand(w: Werkzeug): Werkzeug {
 
 /** Alle Werkzeuge, in der Reihenfolge, in der das Modell sie sehen soll. */
 export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
-  zahlungslinkBauen, rechnungAnhaengen, terminlinkBauen, notizAnBetreuer, aufgabeAnBetreuer, vermerkSchreiben,
+  zahlungslinkBauen, rechnungAnhaengen, auskunftAnbieten, terminlinkBauen, notizAnBetreuer, aufgabeAnBetreuer, vermerkSchreiben,
   kuendigungVormerken, werbesperreSetzen, mahnstoppSetzen, eskalationVorbereiten, kontoFreischalten,
   globalZugangSendenWerkzeug,
 ].map(mitGlobalWand);

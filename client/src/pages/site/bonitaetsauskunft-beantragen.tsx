@@ -4,22 +4,53 @@
 //
 // Suchintention: „bonitätsauskunft beantragen / kostenlos“. Die Seite ist
 // ehrlich: Der kostenlose Weg (Datenkopie nach Art. 15 DSGVO) steht ganz
-// vorne — und daneben der FIAON-Weg für alle, die Beschaffung, Erklärung
-// und Prüfung abgeben wollen (74 €, einmalig). Ehrlichkeit ist hier keine
+// vorne — und daneben die FIAON-Bonitätsauskunft für alle, die Anforderung,
+// Erklärung und Fristenprüfung abgeben wollen. Ehrlichkeit ist hier keine
 // Tugend, sondern die Verkaufsstrategie: Wer den Gratisweg verschweigt,
 // wirkt wie die Anbieter, vor denen wir warnen.
 // JSON-LD: Service + FAQPage.
 // ═══════════════════════════════════════════════════════════════════════════
 // 02.09.2026: zweisprachig — /bonitaetsauskunft-beantragen und
 // /en/request-your-credit-report; Texte im Wörterbuch client/src/i18n/bonitaetsauskunft-beantragen.ts.
-import { useEffect } from "react";
+//
+// 24.09.2026 (E-240): Die Seite verkaufte „74 € einmalig" und schickte jeden
+// Knopf auf /antrag — in die Paketstrecke, die die Auskunft gar nicht kennt.
+// Jetzt:
+//   · jeder Kaufknopf führt auf /bonitaet-antrag (Unternehmen mit ?art=firma,
+//     aus dem Länder-Umschalter zusätzlich ?land=; die Antragsseite liest beides
+//     vor, POST /payment-order nimmt art:"firma" an),
+//   · beide Preise nebeneinander (149 € einzeln, 74 € mit laufendem Paket —
+//     nie als Streichpreis), dazu die Firmenpreise,
+//   · die Leistung je Land und Art aus shared/fiaon-auskunft.ts (Österreich
+//     und Schweiz lesen nie „SCHUFA" als Anbieter),
+//   · JSON-LD mit zwei Angeboten: privat 149 €, Unternehmen 349 € (die
+//     Einzelpreise — der Kundenpreis gilt nur mit Paket und ist kein
+//     öffentliches Angebot),
+//   · der Abschluss mit eigenen Knöpfen statt KartenAufruf (der führt fest
+//     auf /antrag); Fußsatz und Kartenbild bleiben dieselben.
+// ═══════════════════════════════════════════════════════════════════════════
+import { useEffect, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Fragen, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
-import KartenAufruf from "@/components/site/KartenAufruf";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { BONITAETSAUSKUNFT_WOERTER } from "@/i18n/bonitaetsauskunft-beantragen";
+import {
+  AUSKUNFT_PREISE_CENTS, auskunfteienFuer, euroText,
+  type AuskunftArt, type AuskunftLand,
+} from "@shared/fiaon-auskunft";
 import "@/styles/ratgeber.css";
 import "@/styles/seo-seiten.css";
+
+/** Der öffentliche Bestellweg — privat und für Unternehmen. */
+const BESTELLEN = "/bonitaet-antrag";
+const BESTELLEN_FIRMA = "/bonitaet-antrag?art=firma";
+const KARTENBILD = "https://fiaon.com/mail/fiaon-karte-banner.jpg";
+const LAENDER: AuskunftLand[] = ["DE", "AT", "CH"];
+const ARTEN: AuskunftArt[] = ["privat", "firma"];
+
+function Haken() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>;
+}
 
 export default function BonitaetsauskunftBeantragen() {
   const t = useWoerter(BONITAETSAUSKUNFT_WOERTER);
@@ -27,7 +58,23 @@ export default function BonitaetsauskunftBeantragen() {
   const en = sprache === "en";
   const zu = (p: string) => inSprache(p, sprache);
   const pfad = en ? "/en/request-your-credit-report" : "/bonitaetsauskunft-beantragen";
-  // Service-Markup: die Dienstleistung, wie sie sichtbar auf der Seite steht.
+
+  // Preise in der Sprache der Seite: „149 €" (de) — „€149" (en).
+  const euro = (c: number) => (en ? "€" + (c / 100).toLocaleString("en-GB") : euroText(c));
+  const P = AUSKUNFT_PREISE_CENTS;
+  const einzeln = euro(P.privat.einzeln);
+  const mitPaket = euro(P.privat.mitAbo);
+
+  // Die Auskunfteien eines Landes als Satzteil, in der Sprache der Seite.
+  const bei = (land: AuskunftLand) => {
+    const n = auskunfteienFuer(land).map((a) => a.kurz);
+    return n.length <= 1 ? (n[0] ?? "") : `${n.slice(0, -1).join(", ")} ${en ? "and" : "und"} ${n[n.length - 1]}`;
+  };
+  const [land, setLand] = useState<AuskunftLand>("DE");
+  const [art, setArt] = useState<AuskunftArt>("privat");
+
+  // Service-Markup: die Dienstleistung, wie sie sichtbar auf der Seite steht —
+  // zwei Angebote zu den Einzelpreisen (privat und Unternehmen).
   useEffect(() => {
     const el = document.createElement("script");
     el.type = "application/ld+json";
@@ -38,11 +85,19 @@ export default function BonitaetsauskunftBeantragen() {
       serviceType: t.ldArt,
       provider: { "@type": "Organization", name: "FIAON", url: "https://fiaon.com" },
       areaServed: ["DE", "AT", "CH"],
-      offers: { "@type": "Offer", price: "74", priceCurrency: "EUR" },
+      offers: [
+        { "@type": "Offer", name: t.ldName, price: String(P.privat.einzeln / 100), priceCurrency: "EUR", url: `https://fiaon.com${BESTELLEN}` },
+        { "@type": "Offer", name: t.ldFirma, price: String(P.firma.einzeln / 100), priceCurrency: "EUR", url: `https://fiaon.com${BESTELLEN_FIRMA}` },
+      ],
     });
     document.head.appendChild(el);
     return () => el.remove();
-  }, [t.ldName, t.ldArt]);
+  }, [t.ldName, t.ldArt, t.ldFirma, P.privat.einzeln, P.firma.einzeln]);
+
+  const leistung = t.leistung(art, land, bei(land));
+  const preisDerArt = art === "firma"
+    ? t.leistungPreis(euro(P.firma.einzeln), euro(P.firma.mitAbo))
+    : t.leistungPreis(einzeln, mitPaket);
 
   return (
     <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
@@ -53,10 +108,10 @@ export default function BonitaetsauskunftBeantragen() {
         <div className="dk-rahmen">
           <span className="dk-pille">{t.pille}</span>
           <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
-          <p className="dk-lead">{t.lead}</p>
+          <p className="dk-lead">{t.lead(einzeln, mitPaket)}</p>
           <div className="dk-knoepfe">
-            <Knopf href="/antrag">{t.antragStarten}</Knopf>
-            <Knopf href={zu("/kontakt")} still>{t.kostenlosPruefen}</Knopf>
+            <Knopf href={BESTELLEN}>{t.antragStarten}</Knopf>
+            <Knopf href={BESTELLEN_FIRMA} still>{t.fuerFirmen}</Knopf>
           </div>
         </div>
       </section>
@@ -66,12 +121,39 @@ export default function BonitaetsauskunftBeantragen() {
           <div className="wz-tabelle-huelle">
             <table className="wz-tabelle">
               <thead><tr>{t.kopf.map((k, i) => <th key={i} scope="col">{k || "\u00a0"}</th>)}</tr></thead>
-              <tbody>{t.zeilen.map((z) => <tr key={z[0]}>{z.map((c, i) => <td key={i}>{c}</td>)}</tr>)}</tbody>
+              <tbody>{[t.preisZeile(einzeln, mitPaket), ...t.zeilen].map((z) => <tr key={z[0]}>{z.map((c, i) => <td key={i}>{c}</td>)}</tr>)}</tbody>
             </table>
           </div>
           <p className="dk-leise" style={{ marginTop: 14 }}>
             {t.gratisA}<a href={zu("/werkzeuge/selbstauskunft")} style={{ color: "#1d4ed8" }}>{t.gratisLink1}</a>{t.gratisB}<a href={zu("/werkzeuge/eintrag-pruefen")} style={{ color: "#1d4ed8" }}>{t.gratisLink2}</a>{t.gratisC}
           </p>
+        </Block>
+
+        {/* ── WAS GELIEFERT WIRD — JE LAND UND ART (E-240) ───────────────────
+            Dieselbe Liste wie in Mail, Kundenbereich und Maras Wissen
+            (auskunftLeistung). Wer in Österreich wohnt, sieht KSV1870 und CRIF —
+            nicht „SCHUFA". */}
+        <Block schmal mitte titel={t.leistungTitel} lead={t.leistungLead}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+            <div className="sx-umschalter" role="group" aria-label={t.leistungTitel}>
+              {LAENDER.map((l) => <button key={l} type="button" className={land === l ? "an" : ""} aria-pressed={land === l} onClick={() => setLand(l)}>{t.laender[l]}</button>)}
+            </div>
+            <div className="sx-umschalter" role="group" aria-label={t.fuerFirmen}>
+              {ARTEN.map((a) => <button key={a} type="button" className={art === a ? "an" : ""} aria-pressed={art === a} onClick={() => setArt(a)}>{t.arten[a]}</button>)}
+            </div>
+          </div>
+          <Auf>
+            <div className="sx-preis" style={{ maxWidth: 560 }}>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#fff" }}>{preisDerArt}</p>
+              <ul className="zeilen">
+                {leistung.map((z) => <li key={z}><Haken />{z}</li>)}
+              </ul>
+              <div className="dk-knoepfe" style={{ justifyContent: "center", marginTop: 22 }}>
+                {/* Art und Land gehen mit: /bonitaet-antrag liest ?art= und ?land= vor. */}
+                <Knopf href={`${BESTELLEN}?art=${art}&land=${land}`}>{t.antragStarten}</Knopf>
+              </div>
+            </div>
+          </Auf>
         </Block>
 
         <Block schmal titel={t.ablaufTitel} lead={t.ablaufLead}>
@@ -101,17 +183,16 @@ export default function BonitaetsauskunftBeantragen() {
         <Block schmal mitte titel={t.preisTitel}>
           <Auf>
             <div className="sx-preis">
-              <div className="betrag">{t.preisBetrag}<small>{t.preisEinmalig}</small></div>
+              <div className="betrag">{einzeln}<small>{t.preisEinmalig}</small></div>
+              <p style={{ margin: "6px 0 0", fontSize: 14, color: "rgba(226, 236, 250, .85)" }}>{t.preisMitPaket(mitPaket)}</p>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "rgba(196, 216, 246, .7)" }}>{t.preisFirma(euro(P.firma.einzeln), euro(P.firma.mitAbo))}</p>
+              <p style={{ margin: "4px 0 0", fontSize: 12, color: "rgba(196, 216, 246, .6)" }}>{t.preisSteuer}</p>
               <ul className="zeilen">
-                {t.preisZeilen.map((z) => (
-                  <li key={z}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
-                    {z}
-                  </li>
-                ))}
+                {t.preisZeilen.map((z) => <li key={z}><Haken />{z}</li>)}
               </ul>
               <div className="dk-knoepfe" style={{ justifyContent: "center", marginTop: 22 }}>
-                <Knopf href="/antrag">{t.antragStarten}</Knopf>
+                <Knopf href={BESTELLEN}>{t.antragStarten}</Knopf>
+                <Knopf href={BESTELLEN_FIRMA} still>{t.fuerFirmen}</Knopf>
               </div>
             </div>
           </Auf>
@@ -127,7 +208,30 @@ export default function BonitaetsauskunftBeantragen() {
         </Block>
       </Licht>
 
-      <KartenAufruf titel={t.aufrufTitel} satz={t.aufrufSatz} />
+      {/* ── DER ABSCHLUSS — wie KartenAufruf, aber mit dem Bestellweg der Auskunft.
+          KartenAufruf führt fest auf /antrag (Paketstrecke); dieselben Klassen,
+          dasselbe Kartenbild, derselbe Compliance-Fußsatz. */}
+      <section className="sx-aufruf">
+        <div className="dk-rahmen">
+          <Auf>
+            <div className="sx-aufruf-glas">
+              <span className="sx-aufruf-schein" aria-hidden="true" />
+              <div className="sx-aufruf-text">
+                <h2>{t.aufrufTitel}</h2>
+                <p>{t.aufrufSatz(einzeln, mitPaket)}</p>
+                <div className="sx-aufruf-knoepfe">
+                  <Knopf href={BESTELLEN}>{t.antragStarten}</Knopf>
+                  <Knopf href={zu("/kontakt")} still>{t.kostenlosPruefen}</Knopf>
+                </div>
+              </div>
+              <div className="sx-aufruf-bild">
+                <img src={KARTENBILD} alt={t.kartenbildAlt} loading="lazy" decoding="async" width="520" height="320" />
+              </div>
+            </div>
+            <p className="sx-fuss">{t.aufrufFuss}</p>
+          </Auf>
+        </div>
+      </section>
     </Dunkel>
   );
 }

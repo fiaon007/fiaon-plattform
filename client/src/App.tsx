@@ -48,10 +48,11 @@ import CookieEinstellungenPage from "@/pages/cookie-einstellungen";
 import EinwilligungsHinweis from "@/components/site/EinwilligungsHinweis";
 import PasswortVergessenPage from "@/pages/passwort-vergessen";
 const AboKuendigenPage = lazy(() => import("@/pages/abo-kuendigen"));
+// 24.09.2026 (E-240): Die Auskunft wird nur noch auf /bonitaet-antrag bestellt. /bonitaet ist
+// die (neu geschriebene, Sie-Form) Vorstellungsseite, deren Knöpfe alle dorthin führen;
+// /bonitaet-service und /bonitaet-danke (Du-Form, „Express am selben Werktag", Stripe) leiten dorthin.
 const BonitaetPage = lazy(() => import("@/pages/bonitaet"));
 const BonitaetAntragPage = lazy(() => import("@/pages/bonitaet-antrag"));
-const BonitaetServicePage = lazy(() => import("@/pages/bonitaet-service"));
-const BonitaetDankePage = lazy(() => import("@/pages/bonitaet-danke"));
 const InvestorLoginPage = lazy(() => import("@/pages/investor-login"));
 const InvestorDashboardPage = lazy(() => import("@/pages/investor-dashboard"));
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
@@ -746,10 +747,14 @@ function Router() {
           der Server kannte /zugang/:ref/pruefen und /setzen, der Browser keine Seite dazu. */}
       <Route path="/zugang/:ref" component={ZugangSetzenPage} />
       <Route path="/abo-kuendigen" component={AboKuendigenPage} />
+      {/* E-240: Die alten Auskunft-Seiten versprachen „Express am selben Werktag" und eine
+          „garantierte" Bearbeitung (Wortwand) — Service und Danke führen jetzt auf die eine
+          Bestellseite. /bonitaet bleibt: Sie ist neu geschrieben, steht im SEO-Register
+          (canonical /bonitaetsauskunft-beantragen) und ist Ziel alter Kampagnen-Links. */}
       <Route path="/bonitaet" component={BonitaetPage} />
       <Route path="/bonitaet-antrag" component={BonitaetAntragPage} />
-      <Route path="/bonitaet-service" component={BonitaetServicePage} />
-      <Route path="/bonitaet-danke" component={BonitaetDankePage} />
+      <Route path="/bonitaet-service"><Redirect to="/bonitaet-antrag" replace /></Route>
+      <Route path="/bonitaet-danke"><Redirect to="/bonitaet-antrag" replace /></Route>
       <Route path="/banking" component={InvestorLoginPage} />
       <Route path="/banking/dashboard" component={InvestorDashboardPage} />
       <Route component={NotFound} />

@@ -105,9 +105,12 @@ export type MakeEventType =
   | "global_frist"           // Erinnerung aus dem Pflichtenkalender (rund einen Monat / eine Woche vorher)
   | "global_dokument"        // FIAON hat ein Dokument im Dokumentenraum bereitgestellt
   | "global_zahlung_erinnerung" // ruhige Erinnerung am 3. und 7. Tag nach dem Auftrag (server/lib/fiaon-global-zahlungstakt.ts)
-  | "schufa_approved"         // SCHUFA genehmigt
-  | "schufa_rejected"         // SCHUFA abgelehnt
-  | "schufa_requested"        // neues SCHUFA-Dokument angefordert
+  // ── Die Bonitätsauskunft (E-240, 24.09.2026): seit heute automatisch aus dem
+  //    Liefer-Weg (server/lib/fiaon-auskunft-lieferung.ts), die Namen bleiben.
+  | "schufa_approved"         // eine Datenkopie ist eingegangen (Vorgang Selbstauskunft „bewilligt")
+  | "schufa_rejected"         // eine Auskunftei hat eine Rückfrage (Vorgang Selbstauskunft „abgelehnt")
+  | "schufa_requested"        // nach der Zahlung: Anfragen angelegt, Vollmacht und Anfragen unterschreiben
+  | "auskunft_angebot"        // WERBUNG: das Angebot der Auskunft an Bestandskunden (drei Fassungen, Abmeldelink Pflicht)
   | "account_suspended"       // Konto gesperrt
   | "account_activated"       // Konto aktiviert
   | "profile_query"           // Profil-Rückfrage an den Kunden
@@ -151,6 +154,14 @@ export interface MakeVersand {
   brevoMessageId?: string | null;
   /** 18.09.2026: Hinweis an den Mitarbeiter (z. B. Adresse zuletzt gesperrt), auch bei Erfolg. */
   hinweis?: string | null;
+  /**
+   * 25.09.2026 (E-240): true = die Tür hat JA gesagt, erst der Weg dahinter
+   * (Make, Direktversand) ist gescheitert. Fehlt es bei `ok: false`, war es ein
+   * Urteil der Tür über den Empfänger (Sperre, Bremse, keine Adresse …) — dann
+   * darf KEIN Aufrufer die Mail auf einem zweiten Weg nachschicken
+   * (fiaon-lead-strecke.ts, „DER ZWEITE WEG").
+   */
+  transport?: boolean;
 }
 
 // ── DER VERSANDWEG-SCHALTER (28.08.2026) ────────────────────────────────────
@@ -260,6 +271,46 @@ export async function sendMakeWebhookMitGrund(
     }
   }
 
+  // ── DAS AUSKUNFT-ANGEBOT NIE AN KÄUFER (24.09.2026, E-240) ─────────────────
+  // Am 24.09. bekamen 27 Menschen die Aufforderung zur Auskunft, die sie längst
+  // bezahlt hatten. Die Werbesperre, die Kündigung und die Grundlage nach § 7
+  // Abs. 3 UWG prüft die Frequenzbremse (sperrUrteil in fiaon-mail-frequenz.ts,
+  // auch beim Handversand); hier steht, was nur der Stand der Auskunft weiß:
+  // bezahlt, Zahlung gemeldet oder ein Dokument in der Akte — dann kein Angebot,
+  // auch nicht von Hand. Bei einer Störung lässt die Tür durch wie die Bremse.
+  if (!payload.test && eventType === "auskunft_angebot") {
+    try {
+      // Gegenlesen 24.09.2026: dazu die Vertriebssperre (is_blocked) — wer „kein Interesse"
+      // gesagt hat, bekommt auch per Mail keinen Verkauf (werbungVerboten in fiaon-mail-frequenz.ts).
+      const { auskunftAngebotTuerSperre } = await import("./lib/fiaon-auskunft-lieferung");
+      const personId = payload.person_id != null && Number(payload.person_id) > 0 ? Number(payload.person_id) : await personAusNutzlast(payload);
+      const sperre = await auskunftAngebotTuerSperre(personId);
+      if (sperre) {
+        const erg: MakeVersand = { ok: false, grund: sperre };
+        protokollNebenbei(eventType, payload, erg);
+        console.warn(`[MAKE-WEBHOOK] 'auskunft_angebot' NICHT gesendet an ${payload.email || "?"}: ${sperre}`);
+        return erg;
+      }
+    } catch (e) {
+      console.error("[MAKE-WEBHOOK] Stand der Auskunft nicht prüfbar — lasse durch wie die Frequenzbremse:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // ── ZAHLUNGSMAILS EINER AUSKUNFT (24.09.2026, E-240) ──────────────────────
+  // payment_details und payment_confirmed kommen aus sechs Aufrufstellen, keine
+  // sagt, WAS bestellt wurde. Die Tür schaut an der Bestellung nach: Ist es eine
+  // Bonitätsauskunft, trägt die Nutzlast `produktkategorie: "auskunft"` und die
+  // Auskunfteien des Landes — und der Motor nimmt die Auskunft-Fassung statt
+  // „schalten wir Ihren Bereich frei" / „Ihr Zugang ist da".
+  if (eventType === "payment_details" || eventType === "payment_confirmed") {
+    try {
+      const { auskunftMailAnreichern } = await import("./lib/fiaon-auskunft-lieferung");
+      payload = await auskunftMailAnreichern(payload);
+    } catch (e) {
+      console.warn(`[MAKE-WEBHOOK] '${eventType}': Produktkategorie nicht bestimmbar — Paket-Fassung bleibt:`, e instanceof Error ? e.message : e);
+    }
+  }
+
   // ── DIE FREQUENZBREMSE (02.09.2026) ────────────────────────────────────
   // Sie steht hier und nicht in den Läufen, weil es mehr als einen Auslöser
   // gibt: der Mahn-Takt, der Massenversand (der `maxReminders: null` setzt und
@@ -277,14 +328,25 @@ export async function sendMakeWebhookMitGrund(
     const ruhe = await frequenzRuhe(String(payload.email || ""), eventType);
     if (ruhe) return { ok: false, grund: ruhe };
   }
-  const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType, { manuell: opts.manuell === true });
+  // E-240: die Nutzlast reist mit — die Bremse entscheidet an ihr, ob eine Unterlagen-Mail an eine
+  // Werbesperre ein Kaufangebot trägt (sperrUrteil in fiaon-mail-frequenz.ts).
+  const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType, { manuell: opts.manuell === true, nutzlast: payload as Record<string, unknown> });
   if (frequenz.ok && frequenz.sperreAufheben) {
     const { brevoSperreAufheben } = await import("./lib/fiaon-brevo");
     const aufgehoben = await brevoSperreAufheben(String(payload.email || ""));
     console.log(`[FREQUENZ] Handversand '${eventType}' an ${payload.email}: Brevo-Sperre ${aufgehoben ? "aufgehoben" : "nicht aufhebbar"}.`);
   }
   if (!frequenz.ok) {
-    const erg: MakeVersand = { ok: false, grund: `Frequenzbremse: ${frequenz.grund}` };
+    // ── „FREQUENZBREMSE" NUR, WO SIE ES IST (25.09.2026, E-240) ─────────────
+    // Die Bremse ist seit dem 11.09. aus (frequenzbremse_an = 0, E-182) — trotzdem
+    // stand vor jeder Ablehnung „Frequenzbremse:", auch vor der Werbesperre, der
+    // unzustellbaren Adresse und den Vertragsregeln (sperrUrteil). Bremse sind nur
+    // die Deckel und die 14-Tage-Ruhe nach Blockaden (darfAnEmpfaenger); alles
+    // andere heißt „Sperre:". Beide Präfixe lesen die Protokoll-Leser als Urteil
+    // über den Empfänger (fiaon-rueckholung.ts, fiaon-auskunft-verkauf.ts); die
+    // 20-Stunden-Ruhe (frequenzRuhe) folgt nur der echten Bremse.
+    const istBremse = /^(Tages|Wochen|Monats)deckel erreicht|^Postfach hat zuletzt mehrfach blockiert/.test(String(frequenz.grund ?? ""));
+    const erg: MakeVersand = { ok: false, grund: `${istBremse ? "Frequenzbremse" : "Sperre"}: ${frequenz.grund}` };
     protokollNebenbei(eventType, payload, erg);
     console.warn(`[FREQUENZ] '${eventType}' an ${payload.email} zurueckgehalten: ${frequenz.grund}`);
     return erg;
@@ -295,13 +357,24 @@ export async function sendMakeWebhookMitGrund(
   // ein unbekanntes neues Ereignis fällt also nie ins Leere.
   let erg: MakeVersand;
   const schalter = await versandwegLesen();
-  if (schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) {
+  // ── AUSKUNFT NUR ÜBER DEN MOTOR (25.09.2026, E-240) ─────────────────────
+  // Die Auskunft-Mails gibt es nur als Quelltext-Vorlage: Die Zahlungsdaten
+  // tragen die Widerrufsbelehrung in Textform (ohne sie beginnt die Frist nicht)
+  // und die Vertragsbestätigung (§ 312f BGB); Angebot und schufa_* haben kein
+  // Make-Szenario. Stünde der Schalter auf „make" (die Notbremse) oder das
+  // Ereignis auf der Ausnahmenliste, bekäme ein Auskunft-Käufer die Paket-Mail
+  // aus Brevo („wir schalten Ihren Bereich frei") — ohne Belehrung.
+  const auskunftZeile = String(payload.produktkategorie ?? "") === "auskunft"
+    || /^FIAON-SCHUFA-/i.test(String(payload.antrag_id ?? ""));
+  const nurMotor = ["auskunft_angebot", "schufa_requested", "schufa_approved", "schufa_rejected"].includes(eventType)
+    || ((eventType === "payment_details" || eventType === "payment_confirmed") && auskunftZeile);
+  if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
     if (motor.hatVorlage(eventType)) {
       const d = await motor.mailDirektSenden(eventType, payload as Record<string, unknown>);
       erg = d.ok
         ? { ok: true, grund: d.grund, brevoMessageId: d.messageId }
-        : { ok: false, grund: `Direktversand: ${d.grund}` };
+        : { ok: false, grund: `Direktversand: ${d.grund}`, transport: true };
       if (d.ok) {
         console.log(`[MAIL-DIREKT] '${eventType}' über Brevo gesendet (${payload.antrag_id ?? ""}, ${d.messageId ?? "ohne Id"})`);
         recordLastSent(eventType);
@@ -345,6 +418,9 @@ const PRIVATLINIE = new Set<string>([
   "agent_payment_reminder", "payment_reactivated", "abo_payment_reminder", "abo_verlaengerung_frage",
   "onboarding_einladung", "konto_karte_einladung", "zustimmung_link", "antrag_erinnerung",
   "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
+  // E-240: Die Bonitätsauskunft ist ein Produkt der Privatkundenlinie — ihr Angebot
+  // und ihre Liefer-Mails sprechen vom Kundenbereich und von Karte und Limit.
+  "auskunft_angebot", "schufa_requested", "schufa_approved", "schufa_rejected",
 ]);
 
 /** Gehört die Bestellung dieser Nutzlast zu FIAON Global (Katalog-Art "global")? */
@@ -399,7 +475,8 @@ async function webhookRoh(eventType: MakeEventType, payload: MakeWebhookPayload)
   const url = process.env.MAKE_WEBHOOK_URL;
   if (!url) {
     console.warn(`[MAKE-WEBHOOK] MAKE_WEBHOOK_URL nicht gesetzt — Event '${eventType}' (${payload.antrag_id}) übersprungen`);
-    return { ok: false, grund: "MAKE_WEBHOOK_URL ist nicht gesetzt — es kann keine Mail rausgehen." };
+    // E-240: `transport` — die Tür hat Ja gesagt, nur der Weg fehlt (MakeVersand).
+    return { ok: false, grund: "MAKE_WEBHOOK_URL ist nicht gesetzt — es kann keine Mail rausgehen.", transport: true };
   }
   try {
     const res = await fetch(url, {
@@ -422,7 +499,7 @@ async function webhookRoh(eventType: MakeEventType, payload: MakeWebhookPayload)
         hint: "Prüfe das Make-Szenario (aktiv? Webhook erreichbar?) und ob die Payload-Struktur des Events dort bekannt ist (E-Mail-Events → Test senden).",
         ref: payload.payment_reference || payload.antrag_id,
       });
-      return { ok: false, grund: `Make hat abgelehnt (HTTP ${res.status}) — Szenario aktiv? Event-Zweig vorhanden?` };
+      return { ok: false, grund: `Make hat abgelehnt (HTTP ${res.status}) — Szenario aktiv? Event-Zweig vorhanden?`, transport: true };
     }
     console.log(`[MAKE-WEBHOOK] '${eventType}' gesendet (${payload.antrag_id}${payload.payment_reference ? `, ${payload.payment_reference}` : ""})`);
     recordLastSent(eventType);
@@ -439,6 +516,7 @@ async function webhookRoh(eventType: MakeEventType, payload: MakeWebhookPayload)
     return {
       ok: false,
       grund: `Make nicht erreichbar: ${err instanceof Error ? err.message : String(err)}`,
+      transport: true,
     };
   }
 }

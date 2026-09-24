@@ -15,7 +15,13 @@
 //
 // Diese Datei ist bewusst REIN (keine Abhängigkeiten): Der Prüfstand kann sie
 // vollständig durchrechnen, und Client wie Server lesen dieselben Schritte.
+//
+// 24.09.2026 (E-240): Einzige Ausnahme ist shared/fiaon-auskunft.ts — selbst
+// rein, ohne eigene Importe. Hier stand „74 €" fest im Satz; ein Interessent
+// ohne Paket zahlt seit E-240 aber 149 €, mit Paket 74 €. Beide Zahlen kommen
+// deshalb aus der einen Quelle.
 // ═══════════════════════════════════════════════════════════════════════════
+import { AUSKUNFT_PREISE_CENTS, euroText } from "./fiaon-auskunft";
 
 /** Ein Reiter der Akte, zu dem ein Schritt springen kann. */
 export type SchrittReiter = "antrag" | "daten" | "zahlungen" | "dokumente" | "gespraeche";
@@ -39,7 +45,7 @@ export const GESPRAECHS_SCHRITTE: Record<string, GespraechsSchritt[]> = {
   lead_ohne_antrag: [
     { titel: "Interesse prüfen.", satz: "„Sie hatten sich bei uns nach einem Rahmen erkundigt — passt es gerade?“ Erst zuhören, dann anbieten." },
     { titel: "Daten aufnehmen.", satz: "Name, Geburtsdatum, Anschrift, E-Mail — direkt im Antrag ergänzen, nicht auf einem Zettel.", reiter: "antrag" },
-    { titel: "Bonitätsauskunft verkaufen.", satz: "74 € — sie ist die Grundlage für alles Weitere. Paket am Telefon annehmen lassen.", reiter: "daten" },
+    { titel: "Bonitätsauskunft verkaufen.", satz: `Sie ist die Grundlage für alles Weitere: ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} einzeln, mit Paket ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}. Paket am Telefon annehmen lassen.`, reiter: "daten" },
   ],
   zahlung_gemeldet: [
     { titel: "Zahlung verifizieren.", satz: "Wann überwiesen, von welcher Bank, mit welcher Referenz? Erst prüfen, dann danken.", reiter: "zahlungen" },

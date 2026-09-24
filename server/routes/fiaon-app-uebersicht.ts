@@ -38,6 +38,7 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { tag, berlinHeute, ensureAppTabellen, antwortenLaden, STAND_TEXT, OFFENE_STAENDE } from "./fiaon-app";
 import { rahmenwegAus, type BereichEingang, type Rahmenweg } from "@shared/fiaon-rahmenweg";
 import { FRAGEN, REGELN, beantwortet, type Antworten } from "@shared/fiaon-ansprueche";
+import type { AuskunftKauf } from "./fiaon-kunde-bereich";
 
 const router = Router();
 
@@ -127,6 +128,8 @@ export interface EingangErgebnis {
   vorgaengeVersandt: number;
   /** Kontoeröffnung aus fiaon_konto_karte; `am` als dd.mm.yyyy oder null. */
   konto: { eroeffnet: boolean; am: string | null; gemeldetVon: string | null };
+  /** E-240: Was der Kunde zur Bonitätsauskunft sieht (Kaufkarte, Preis, offene Zahlung). */
+  auskunft: AuskunftKauf | null;
 }
 
 /**
@@ -202,6 +205,25 @@ export async function bereichEingangFuerPerson(personId: number): Promise<Eingan
     } catch (e: any) { console.error("[UEBERSICHT] bonitaetFuer:", e?.message || e); }
   }
 
+  // ── DIE AUSKUNFT ALS KAUF (24.09.2026, E-240) ───────────────────────────
+  // Der Kundenbereich zeigt die Kaufkarte nur, wer ein bezahltes Paket hat,
+  // noch nichts bestellt oder hochgeladen hat und nicht gekündigt ist — mit dem
+  // Preis, der für ihn gilt (74 € mit laufendem Paket, sonst 149 €). Dieselben
+  // Funktionen hier (auskunftKaufFuer, kundeAmZugAuskunft aus
+  // fiaon-kunde-bereich.ts): Sonst stünde Schritt 6 des Weges in der Akte auf
+  // „Wir beschaffen", während der Kunde „Zahlung offen" liest — oder umgekehrt.
+  let auskunft: AuskunftKauf | null = null;
+  if (ref) {
+    try {
+      const { auskunftKaufFuer, kundeAmZugAuskunft } = await import("./fiaon-kunde-bereich");
+      const k = await auskunftKaufFuer(personId, ref, String(a?.payment_status || "") === "paid");
+      auskunft = k && bonitaet && !bonitaet.darfKaufen && k.darfKaufen ? { ...k, darfKaufen: false } : k;
+      if (bonitaet && auskunft) {
+        bonitaet = { ...bonitaet, darfKaufen: kundeAmZugAuskunft(auskunft, bonitaet.darfKaufen), bezahlt: bonitaet.bezahlt || auskunft.stufe === "bezahlt" };
+      }
+    } catch (e: any) { console.error("[UEBERSICHT] auskunftKauf:", e?.message || e); }
+  }
+
   // Konto und Karte: Tore und Versand — dieselbe Funktion wie Portal und Akte.
   let karte: BereichEingang["karte"] = null;
   try {
@@ -247,7 +269,7 @@ export async function bereichEingangFuerPerson(personId: number): Promise<Eingan
     fahrplan: [],
   };
 
-  return { eingang, ref, check, vorgaengeVersandt: Number(vz?.n || 0), konto };
+  return { eingang, ref, check, vorgaengeVersandt: Number(vz?.n || 0), konto, auskunft };
 }
 
 /** Den Weg dieses Menschen rechnen — genau wie ihn sein Bereich zeichnet. */
@@ -362,6 +384,14 @@ router.get("/agent/app/kunde/:personId/uebersicht", requireAgent, async (req: Ag
       bericht,
       check: erg.check,
       konto: { eroeffnet: erg.konto.eroeffnet, am: erg.konto.am, gemeldetVon: erg.konto.gemeldetVon },
+      // E-240: Was der Kunde zur Auskunft sieht — ob die Kaufkarte steht, zu welchem
+      // Preis, und ob eine Bestellung auf Zahlung wartet. Der Betreuer muss den
+      // Kunden nicht fragen, was auf dessen Bildschirm steht.
+      auskunft: erg.auskunft ? {
+        stufe: erg.auskunft.stufe, darfKaufen: erg.auskunft.darfKaufen, sperre: erg.auskunft.sperre,
+        werbung: erg.auskunft.werbung, preisEuro: erg.auskunft.preisCents / 100, preisText: erg.auskunft.preisText,
+        mitAbo: erg.auskunft.mitAbo, land: erg.auskunft.land, offen: erg.auskunft.offen,
+      } : null,
       bereichBesucht: { zuletzt: zeitText(be?.zuletzt), bildschirme: Number(be?.bildschirme || 0) },
     });
   } catch (e: any) {

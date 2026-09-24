@@ -31,12 +31,25 @@
 // stiller Klick darf nicht zweimal passieren.
 // ══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
+import { AUSKUNFT_PREISE_CENTS, istAuskunftSchluessel } from "@shared/fiaon-auskunft";
 
 interface Paket {
   key: string; label: string; preisEuro: number;
   // 17.09.2026 (E-188): „global" = FIAON Global, Einmalpreis für Unternehmen.
   art: "privat" | "business" | "global"; abo: boolean;
+  /** 24.09.2026 (E-240): „auskunft" = Zusatzprodukt, kein Konto-Paket. */
+  zusatz?: "auskunft";
 }
+
+// ── DIE AUSKUNFT IST EIN EINTRAG (24.09.2026, E-240) ──────────────────────
+// Der Katalog kennt sie unter vier Schlüsseln (privat/Firma, einzeln/mit
+// Paket); keiner davon erscheint als Konto-Paket. Sie bleibt EIN Eintrag
+// („Bonitätsauskunft") mit beiden Preisen — welcher gilt, wählt der Server
+// (auskunftBestellen) nach dem Stand des Kunden, und er schickt Rechnung und
+// Zahlungsdaten selbst per E-Mail.
+const AUSKUNFT_EINZELN_EURO = AUSKUNFT_PREISE_CENTS.privat.einzeln / 100;
+const AUSKUNFT_MIT_PAKET_EURO = AUSKUNFT_PREISE_CENTS.privat.mitAbo / 100;
+const istAuskunft = (p: Paket | undefined) => !!p && (p.zusatz === "auskunft" || istAuskunftSchluessel(p.key));
 
 export interface Buchung {
   ref: string; art: "paket" | "bonitaet" | "sonstiges"; bezeichnung: string;
@@ -100,7 +113,7 @@ export function ProduktDialog({
   // ersetzt keine offene Privatbestellung und umgekehrt. Die Anzeige darf
   // deshalb nicht „ersetzt" sagen, wenn nichts ersetzt wird.
   const offenesIstGlobal = /FIAON Global/i.test(String(offenesPaket?.bezeichnung ?? ""));
-  const ersetztOffenes = istTausch && !!paket && paket.key !== "schufa" && (paket.art === "global") === offenesIstGlobal;
+  const ersetztOffenes = istTausch && !!paket && !istAuskunft(paket) && (paket.art === "global") === offenesIstGlobal;
   const anlegen = async () => {
     if (!paket) return;
     setLaeuft(true);
@@ -176,10 +189,19 @@ export function ProduktDialog({
               </p>
             )}
           </div>
-          <p className="text-[12px] text-slate-500 mt-2.5 leading-relaxed">
-            Jetzt die Zahlungsdaten schicken — die Mail trägt den <b>neuen</b> Betrag
-            und den neuen Verwendungszweck.
-          </p>
+          {erfolg.zahlungsseite ? (
+            // E-240: Bei der Auskunft hat der Server Rechnung und Zahlungsdaten schon
+            // per E-Mail geschickt — ein zweiter Versand wäre eine Doppel-Mail.
+            <p className="text-[12px] text-slate-500 mt-2.5 leading-relaxed">
+              Rechnung und Zahlungsdaten sind per E-Mail unterwegs. Für WhatsApp oder
+              das Telefon: <b>{erfolg.zahlungsseite}</b>
+            </p>
+          ) : (
+            <p className="text-[12px] text-slate-500 mt-2.5 leading-relaxed">
+              Jetzt die Zahlungsdaten schicken — die Mail trägt den <b>neuen</b> Betrag
+              und den neuen Verwendungszweck.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2 mt-2">
             <button type="button"
                     onClick={() => { setErfolg(null); setGewaehlt(""); aufKlappen(false); }}
@@ -199,7 +221,7 @@ export function ProduktDialog({
             <select value={gewaehlt} onChange={(e) => setGewaehlt(e.target.value)}
                     className={feld} style={{ minHeight: 44 }}>
               <option value="">— bitte wählen —</option>
-              {pakete.filter((p) => p.key !== "schufa").map((p) => (
+              {pakete.filter((p) => !istAuskunft(p)).map((p) => (
                 <option key={p.key} value={p.key}
                         disabled={offenesPaket?.bezeichnung?.includes(p.label)}>
                   {p.label} — {euro(p.preisEuro)}{p.abo ? " / Monat" : " einmalig"}
@@ -212,7 +234,7 @@ export function ProduktDialog({
                   erklärt es vorher. */}
               {pakete.filter((p) => p.key === "schufa").map((p) => (
                 <option key={p.key} value={p.key} disabled={auskunftOffen || auskunftBezahlt}>
-                  {p.label} — {euro(p.preisEuro)} einmalig
+                  {p.label} — {euro(AUSKUNFT_MIT_PAKET_EURO)} mit Paket, sonst {euro(AUSKUNFT_EINZELN_EURO)} einmalig
                   {auskunftBezahlt ? " (schon bezahlt)"
                     : auskunftOffen ? " (schon offen)" : ""}
                 </option>
@@ -223,15 +245,17 @@ export function ProduktDialog({
           {paket && (
             <p className="text-[12px] text-slate-600 leading-relaxed px-3 py-2.5 rounded-xl"
                style={{ background: "rgba(15,23,42,.035)" }}>
-              <b>{paket.label}</b> · {euro(paket.preisEuro)}
+              <b>{paket.label}</b> · {istAuskunft(paket)
+                ? `${euro(AUSKUNFT_MIT_PAKET_EURO)} mit laufendem Paket, sonst ${euro(AUSKUNFT_EINZELN_EURO)} — den Preis wählt der Server`
+                : euro(paket.preisEuro)}
               {paket.abo ? " monatlich" : " einmalig"}
               {ersetztOffenes && (
                 <> · ersetzt <b>{offenesPaket!.bezeichnung}</b></>
               )}
-              {istTausch && !ersetztOffenes && paket.key !== "schufa" && (
+              {istTausch && !ersetztOffenes && !istAuskunft(paket) && (
                 <> · <b>eigenes Produkt</b> – {offenesPaket!.bezeichnung} bleibt offen</>
               )}
-              {paket.key === "schufa" && (
+              {istAuskunft(paket) && (
                 <> · <b>zusätzlich</b> zum Konto, kein Ersatz</>
               )}
             </p>

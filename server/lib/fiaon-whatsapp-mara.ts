@@ -52,6 +52,13 @@ import { wissenFakten } from "@shared/fiaon-wissen";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { WA_VORLAGEN } from "@shared/fiaon-lead-texte";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
+import {
+  AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_PREISE_CENTS, auskunftWort, auskunfteienText, euroText,
+  type AuskunftLand,
+} from "@shared/fiaon-auskunft";
+import { personSperre, werbungVerboten } from "./fiaon-mail-frequenz";
+import { absoluteUrl } from "../fiaon-base-url";
+import { zuletztAngeboten } from "./fiaon-auskunft";
 
 export const DIENST_WA = "mara-whatsapp";
 
@@ -277,6 +284,158 @@ const HUERDEN: { wort: RegExp; frage: RegExp; was: string }[] = [
 const LINK_GEFRAGT = /link|\bwo\b|antrag|seite|zahl|überweis|qr|schick|nochmal|noch\s+mal|finde|öffne|klick/i;
 const ZUSTIMMUNG = /^\s*(?:ja|jo|jep|gern|gerne|ok|okay|klar|bitte|los|passt|mach|machen\s+wir)\b/i;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BONITÄTSAUSKUNFT AUF WHATSAPP (24.09.2026, E-240)
+//
+// Doris Hösl (Person 4513) schrieb auf die Unterlagen-Bitte „Ich hab keine".
+// Mara konnte nur „fordern Sie sie in Ihrem Bereich an" sagen — kein Preis,
+// kein Link, kein Betreuer, der davon erfuhr. Jetzt:
+//   · Zahlender Kunde (bezahltes Paket), keine Auskunft bei uns, und er
+//     schreibt über Bonität, SCHUFA, Einträge, Limit, Karte oder „keine
+//     Auskunft" → Mara bietet sie als VORTEIL an (Preis aus auskunftStand,
+//     74 € mit Paket), holt mit auskunft_anbieten den echten Link und gibt
+//     dem Betreuer Bescheid (Aufgabe = Mail + Hinweis im Office).
+//   · Leads (Stufe C) und offene Anträge (Stufe B) bleiben unverändert:
+//     nichts von Bonität, Kontoauszügen o. ä. (Justin, 24.09.).
+//   · Werbesperre: Mara antwortet weiter, verkauft aber nichts — die Auskunft
+//     nur, wenn er sie ausdrücklich haben will (seine Anfrage, keine Werbung).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Er schreibt über das, wofür die Auskunft ein Vorteil ist. */
+export const AUSKUNFT_THEMA = /schufa|bonit|auskunft|crif|\bksv|boniversum|creditreform|intrum|eintr[aä]g|\bscore|negativ|limit|rahmen|karte|abgelehnt|ablehnung|kreditwürd/i;
+
+/**
+ * Hat er der Auskunft zugestimmt — „Ja" auf Maras Angebot (ihre letzte
+ * Nachricht fragt nach der Auskunft) oder ausdrücklich „bestellen Sie sie"?
+ * Nur dann legt das Werkzeug eine Bestellung an (sonst: Kauflink mit
+ * Bestätigungsseite — keine Rechnung für etwas, das er nicht wollte).
+ */
+export function auskunftZugestimmt(kunde: string, letzteDu: string): boolean {
+  const k = String(kunde ?? "").trim();
+  const du = String(letzteDu ?? "").trim();
+  if (!k || /\b(?:nicht|nein|kein\w*|später|überleg\w*|schon|bereits)\b/i.test(k)) return false;
+  const bestellt = /\b(?:bestell\w*|beauftrag\w*|kaufen|buchen)\b|\bholen\s+sie\b|\bmachen\s+sie\s+das\b|\bnehme\s+(?:ich\s+)?(?:sie|die|das)\b/i.test(k)
+    && (/auskunft|schufa|\bksv|bonit/i.test(k) || /auskunft/i.test(du));
+  // Nur ein reines Ja — „Bitte rufen Sie mich an" beginnt auch mit „Bitte", ist aber kein Auftrag.
+  const jaAufAngebot = NUR_JA.test(k) && /auskunft/i.test(du) && /\?\s*$/.test(du);
+  return bestellt || jaAufAngebot;
+}
+const NUR_JA = /^\s*(?:(?:ja|jo|jep|jawohl|gern|gerne|sehr\s+gern|ok|okay|klar|bitte|los|passt|gut|super|perfekt|mach(?:en\s+(?:sie|wir))?(?:\s+das)?|schicken\s+sie(?:\s+(?:ihn|den\s+link|sie))?|bestellen\s+sie(?:\s+sie)?)[\s,.!]*)+$/i;
+
+/** Will er die Auskunft selbst — seine eigene Anfrage (erlaubt auch bei Werbesperre)? */
+export function auskunftGefragt(kunde: string): boolean {
+  const k = String(kunde ?? "");
+  return /auskunft|schufa|\bksv|bonit/i.test(k)
+    && /kauf|bestell|beauftrag|holen|anforder|wie\s+bekomm|wo\s+bekomm|woher|was\s+kostet|preis|haben\s+will|möchte\s+(?:sie|die)|brauche\s+(?:sie|die|eine)/i.test(k);
+}
+
+/** Was Mara über seine Auskunft weiß — aus auskunftStand, nie vom Modell. */
+export interface AuskunftTeil {
+  stufe: "nichts" | "offen" | "bezahlt" | "dokument";
+  land: AuskunftLand;
+  /** Sein Preis: „74 €" (mit Paket) bzw. „149 €". */
+  preisText: string;
+  mitAbo: boolean;
+  offenLink: string | null;
+  offenBetrag: string | null;
+  /** Er schreibt gerade darüber (oder hat Maras Angebot beantwortet) — dann Angebot und Werkzeug. */
+  jetzt: boolean;
+  werbesperre: boolean;
+  /** Gegenlesen 24.09.2026: Mara hat sie in diesem Gespräch schon mit Preis angeboten. */
+  schonAngeboten?: boolean;
+  /**
+   * Integration 25.09.2026 (E-240): die gemeinsame Bremse (zuletztAngeboten, fiaon-auskunft.ts) —
+   * „per Angebots-Mail am 24.09., um 10:12 Uhr". Gesetzt, wenn ein Weg sie in den letzten drei Tagen angeboten hat.
+   */
+  angebotAnderswo?: string | null;
+}
+
+/**
+ * Worüber er schreibt, wenn es DIREKT um die Auskunft geht — ohne Karte, Limit,
+ * Rahmen und Ablehnung. Gegenlesen 24.09.2026: Nach dem ersten Angebot löst nur
+ * noch das ein neues aus; sonst stünde die Auskunft in jeder Antwort an einen
+ * Kunden, der fünfmal nach seiner Karte fragt.
+ */
+const AUSKUNFT_DIREKT = /schufa|bonit|auskunft|crif|\bksv|boniversum|creditreform|intrum|eintr[aä]g|\bscore|negativ/i;
+
+/**
+ * Wann Mara die Auskunft JETZT anbietet (Auftrag + Werkzeug) — eine Regel für
+ * den Betrieb (maraAntwortet) und den Prüfstand. letzteDu: Maras eigene
+ * Nachrichten, neueste zuerst.
+ */
+export function auskunftJetzt(ein: {
+  kunde: string; letzteDu: string[]; werbesperre: boolean;
+  /** Integration 25.09.2026: In den letzten drei Tagen kam das Angebot schon über einen anderen Weg (gemeinsame Bremse). */
+  anderswo?: boolean;
+}): { jetzt: boolean; schonAngeboten: boolean } {
+  const kunde = String(ein.kunde ?? "");
+  const du = ein.letzteDu.map((t) => String(t ?? ""));
+  const zugestimmt = auskunftZugestimmt(kunde, du[0] ?? "");
+  // Ein Angebot per Mail oder Vorlage zählt wie eines in diesem Gespräch: danach nur noch,
+  // wenn er selbst auf die Auskunft zurückkommt (AUSKUNFT_DIREKT) oder Ja sagt.
+  const schonAngeboten = !!ein.anderswo || du.slice(0, 8).some((t) => /auskunft/i.test(t) && /\d\s*(?:€|euro\b)/i.test(t));
+  if (ein.werbesperre) return { jetzt: auskunftGefragt(kunde) || zugestimmt, schonAngeboten };
+  return { jetzt: zugestimmt || (schonAngeboten ? AUSKUNFT_DIREKT.test(kunde) : AUSKUNFT_THEMA.test(kunde)), schonAngeboten };
+}
+
+/** Bekommt Mara in diesem Gespräch das Werkzeug auskunft_anbieten? */
+export function auskunftWerkzeugAn(t: AuskunftTeil | null | undefined): boolean {
+  return !!t && (t.stufe === "nichts" || t.stufe === "offen") && t.jetzt;
+}
+
+/** Der Teil des Auftrags über seine Auskunft. Exportiert für den Prüfstand. */
+export function auskunftBlock(t: AuskunftTeil | null | undefined): string[] {
+  if (!t) return [];
+  const wort = auskunftWort(t.land);
+  const bei = auskunfteienText(t.land);
+  const einzeln = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
+  const landWort = t.land === "DE" ? "" : ` In seinem Land heißt sie „${wort}" — das Wort SCHUFA schreibst du ihm nie.`;
+  if (t.stufe === "bezahlt") return [`SEINE BONITÄTSAUSKUNFT: bezahlt — wir fordern seine Datenkopien bei ${bei} an. Nicht noch einmal anbieten; fragt er nach dem Stand, sieht sein Betreuer nach.${landWort}`, ``];
+  if (t.stufe === "dokument") return [`SEINE BONITÄTSAUSKUNFT: Eine Auskunft liegt in seiner Akte. Nichts dazu verkaufen.${landWort}`, ``];
+  if (t.werbesperre && !t.jetzt) {
+    return [`SEINE BONITÄTSAUSKUNFT: liegt uns noch nicht vor. Er hat um keine Werbung gebeten — du bietest sie ihm nicht an. Nur wenn er sie ausdrücklich haben will, nennst du den Preis (${t.offenBetrag ?? t.preisText} einmalig).${landWort}`, ``];
+  }
+  if (t.stufe === "offen") {
+    return [
+      `═══ SEINE BONITÄTSAUSKUNFT ═══`,
+      `Er hat sie bestellt, die Zahlung über ${t.offenBetrag ?? t.preisText} ist noch offen (einmalig, keine Monatsrate).${t.jetzt ? " Er schreibt gerade über Bonität, Limit, Karte oder die Auskunft — zeig ihm, dass nur noch dieser Schritt fehlt, und schick seine Zahlungsseite (auskunft_anbieten liefert sie)." : " Fragt er danach, schick ihm seine Zahlungsseite."}`,
+      `· Warum es sich lohnt: „${AUSKUNFT_NUTZEN_SATZ}"`,
+      `· Einen Link oder Betrag, der nicht hier oder im Werkzeug steht, nennst du nie.${landWort}`,
+      ``,
+    ];
+  }
+  if (!t.jetzt) {
+    if (t.schonAngeboten) {
+      const wann = t.angebotAnderswo ? `Er hat sie ${t.angebotAnderswo} schon angeboten bekommen` : "Du hast sie ihm in diesem Gespräch schon angeboten";
+      return [`SEINE BONITÄTSAUSKUNFT: ${wann} (${t.preisText} einmalig). Wiederhole das Angebot nicht — beantworte seine Frage. Kommt er selbst darauf zurück, hilfst du weiter.${landWort}`, ``];
+    }
+    return [`SEINE BONITÄTSAUSKUNFT: liegt uns noch nicht vor (für ihn ${t.preisText} einmalig${t.mitAbo ? ", Kundenpreis mit Paket" : ""}). Er hat gerade nicht danach gefragt — erwähne sie nur, wenn er über Bonität, SCHUFA, Einträge, Limit, Karte oder seine fehlende Auskunft schreibt, und nie als Hürde.${landWort}`, ``];
+  }
+  return [
+    `═══ DEIN ANGEBOT FÜR IHN: DIE BONITÄTSAUSKUNFT ═══`,
+    `Er ist Kunde, und seine Auskunft liegt uns noch nicht vor. Er schreibt gerade über Bonität, Einträge, Limit, Karte oder seine fehlende Auskunft — genau jetzt ist sie für ihn ein Vorteil, keine Hürde und keine Pflicht. Biete sie ihm an: positiv, in ein bis zwei Sätzen, dann der Schritt.`,
+    `· Was wir tun: Wir fordern seine Datenkopien bei ${bei} an (mit seiner Vollmacht — er schreibt keinen Brief), erklären jeden Eintrag, prüfen die Speicherfristen und liefern seinen Handlungsplan und fertige Schreiben (etwa Löschung nach Fristablauf, Berichtigung) zur Freigabe.`,
+    `· Warum: „${AUSKUNFT_NUTZEN_SATZ}"`,
+    `· Sein Preis: ${t.preisText} einmalig${t.mitAbo ? ` — Kundenpreis mit Paket (einzeln kostet sie ${einzeln})` : ""}. Keine Monatsrate, keine zwölf Raten.${landWort}`,
+    `· Sagt er, er habe keine Auskunft, will er sie oder sagt er Ja zu deinem Angebot: rufe auskunft_anbieten auf und schick GENAU den Link aus dem Ergebnis. Einen Link, Preis oder Betrag, der nicht hier oder im Werkzeug steht, nennst du nie.`,
+    `· Fragt er, ob er die Datenkopie nicht kostenlos selbst anfordern kann, sagst du ehrlich: „${AUSKUNFT_KOSTENLOS_ANTWORT}" Von dir aus empfiehlst du den kostenlosen Weg nie.`,
+    `· Keine Zusage: nie „dann bekommen Sie die Karte" oder „Ihr Limit steigt", keine Löschzusage, kein „Score verbessern", keine Frist mit Zahl. Über Karte und Limit entscheidet die Bank — wir bereiten ihn darauf vor.`,
+    ``,
+  ];
+}
+
+/** Die vier Auskunft-Preise in Cent — nur diese Beträge gibt es. */
+const AUSKUNFT_CENTS = new Set<number>([
+  AUSKUNFT_PREISE_CENTS.privat.einzeln, AUSKUNFT_PREISE_CENTS.privat.mitAbo,
+  AUSKUNFT_PREISE_CENTS.firma.einzeln, AUSKUNFT_PREISE_CENTS.firma.mitAbo,
+]);
+/** „74 €", „74,00 €", „149 Euro" → Cent. */
+function centsAus(t: string): number | null {
+  const m = String(t).match(/(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{2}))?/);
+  if (!m) return null;
+  return Number(m[1].replace(/\./g, "")) * 100 + Number(m[2] ?? 0);
+}
+
 /** Nicht auf Deutsch — Englisch an Funktionswörtern, jede andere Sprache daran, dass kein deutsches steht. */
 function nichtDeutsch(a: string): boolean {
   const ohneLink = a.replace(/https?:\/\/\S+/g, "");
@@ -289,7 +448,13 @@ function nichtDeutsch(a: string): boolean {
  * Prüft einen Entwurf darauf, ob er verkauft oder abschreckt. Gibt Hinweise für
  * den zweiten Entwurf zurück — leer heißt: gut so.
  */
-export function verkaufsPruefung(antwort: string, ein: { kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean; zahlungslage?: boolean }): string[] {
+export function verkaufsPruefung(antwort: string, ein: {
+  kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean; zahlungslage?: boolean;
+  /** E-240: Mara darf hier die Auskunft anbieten (zahlender Kunde, er schreibt darüber) — dann ist sie keine Hürde. */
+  auskunftAngebot?: boolean;
+  /** E-240: Werbesperre — antworten ja, verkaufen nein. */
+  werbesperre?: boolean;
+}): string[] {
   const a = String(antwort ?? "").trim();
   const kunde = String(ein.kunde ?? "");
   // Was er in den letzten Nachrichten selbst angesprochen hat, darf Mara aufgreifen (nicht nur die neueste).
@@ -307,6 +472,9 @@ export function verkaufsPruefung(antwort: string, ein: { kunde: string; kontext?
     const mitPreis = /\d+,\d{2}\s*€/.test(a);
     for (const h of HUERDEN) {
       if (h.was === "Laufzeit oder Kündigung" && mitPreis) continue; // Preis nennt die zwölf Raten immer mit (PAngV)
+      // E-240: Das Angebot der Auskunft an einen zahlenden Kunden, der gerade über Bonität,
+      // Limit oder Karte schreibt, ist ein Vorteil, den er kaufen kann — keine Hürde vor der Karte.
+      if (h.was === "die Bonitätsauskunft" && ein.auskunftAngebot) continue;
       const m = a.match(h.wort);
       if (m && !h.frage.test(kontext)) hinweise.push(`Er hat nicht nach ${h.was} gefragt („${m[0].trim()}“) — lass es weg.`);
     }
@@ -319,12 +487,24 @@ export function verkaufsPruefung(antwort: string, ein: { kunde: string; kontext?
   if (ein.zahlungslage && /partnerbank|\bdkb\b|link\s+(?:unserer|der)\s+bank/i.test(a) && !/partnerbank|\bdkb\b|\bbank\b|karte/i.test(kunde)) {
     hinweise.push("Es geht um seine Zahlung: „Nach der Zahlung ist Ihr Account aktiv“ — kein Satz über die Partnerbank oder einen Link der Bank.");
   }
+  // E-240: Werbesperre — die Antwort bleibt, der Verkauf fällt weg.
+  if (ein.werbesperre) {
+    const link = /(?:https?:\/\/)?fiaon\.com\/[^\s)]+/i.test(a);
+    const pitch = /soll\s+ich\s+ihnen\s+(?:den|die|einen)\s+(?:antrag|link)|wollen\s+wir\s+starten|legen\s+wir\s+los|starten\s+wir|jetzt\s+(?:starten|abschließen|bestellen)|nur\s+noch\s+(?:ein|einen)\s+(?:klick|schritt)/i.test(a);
+    // Gegenlesen 24.09.2026: außer seiner Zahlungsseite, wenn es um seine Zahlung geht (Rate aus der
+    // Erinnerung, Zahlungspost E-182) — die ist Vertragspost, keine Werbung.
+    if (link && !ein.zahlungslage && !LINK_GEFRAGT.test(kunde) && !auskunftGefragt(kunde)) hinweise.push("Er hat um keine Werbung gebeten — schick keinen Link, nach dem er nicht gefragt hat.");
+    if (pitch) hinweise.push("Er hat um keine Werbung gebeten — beantworte nur seine Frage, ohne Aufforderung zum Abschluss.");
+  }
   if (heikel && /woran\s+es\s+hängt|darf\s+ich\s+fragen|warum\s+möchten|überleg|schade/i.test(a)) {
     hinweise.push("Bei Kündigung, Widerruf oder Storno: nicht nach dem Grund fragen, nicht umstimmen — verstehen und übergeben.");
   }
   if (nichtDeutsch(a)) hinweise.push("Nicht auf Deutsch — schreib die ganze Antwort auf Deutsch, auch wenn er in einer anderen Sprache schreibt.");
-  if (a.length > 500) hinweise.push(`Zu lang (${a.length} Zeichen) — höchstens drei kurze Sätze.`);
-  else if (a.length > 330 && kunde.trim().length < 60) hinweise.push(`Zu lang für seine kurze Nachricht (${a.length} Zeichen) — ein bis zwei Sätze.`);
+  // E-240: Gezählt wird, was er liest — ein Link zählt nicht mit (der signierte Kauflink der
+  // Auskunft allein hat rund 130 Zeichen und hätte jedes Angebot „zu lang" gemacht).
+  const lesbar = a.replace(/https?:\/\/\S+/g, "").trim().length;
+  if (lesbar > 500) hinweise.push(`Zu lang (${lesbar} Zeichen) — höchstens drei kurze Sätze.`);
+  else if (lesbar > 330 && kunde.trim().length < 60) hinweise.push(`Zu lang für seine kurze Nachricht (${lesbar} Zeichen) — ein bis zwei Sätze.`);
   return Array.from(new Set(hinweise));
 }
 
@@ -377,6 +557,9 @@ function gespraechSchema(): Promise<void> {
       // E-236: Ein Rückfallsatz wegen KI-Ausfall hält das Gespräch offen — Mara antwortet richtig, sobald die KI zurück ist.
       await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS ki_rueckfall_auf_id BIGINT`;
       await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS ki_rueckfall_am TIMESTAMPTZ`;
+      // E-240: Was der Kunde schrieb und was Mara tat — der Aktenvermerk entsteht erst beim Versand.
+      await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_kunde TEXT`;
+      await sqlPool`ALTER TABLE fiaon_whatsapp_gespraech ADD COLUMN IF NOT EXISTS antwort_handlung TEXT`;
     })().catch((e) => {
       const code = String((e as any)?.code ?? "");
       if (code === "23505" || code === "42P07") return;
@@ -395,6 +578,8 @@ function auftrag(ein: {
   gedaechtnis: string; verlauf: string; wissen: string; hausanweisung: string; kiHinweis?: boolean;
   /** Mara darf Termine eintragen und Links schicken (es gibt eine Person). */
   werkzeuge?: boolean; betreuer?: string | null; jetzt?: string;
+  /** E-240: seine Bonitätsauskunft (nur zahlende Kunden) — Angebot, offene Zahlung oder „schon da". */
+  auskunft?: AuskunftTeil | null;
 }): string {
   const vorname = ein.name.split(" ")[0];
   const b = ein.betreuer ?? "[Betreuer]";
@@ -439,7 +624,7 @@ function auftrag(ein: {
     ``,
   ] : [
     `═══ HIER VERKAUFST DU NICHT ═══`,
-    `DEIN ZIEL unten ist kein Verkauf (bestehender Kunde, Monatsrate oder Vertrag beendet). Kein Pitch — freundlich, kurz, hilfreich, vollständig und ehrlich, und der Schritt aus DEIN ZIEL. Nach Unterlagen, Karte oder Ablauf fragt er als Kunde; antworte ihm vollständig. Kündigung, Storno, Widerruf: verstehen, nicht umstimmen, übergeben.`,
+    `DEIN ZIEL unten ist kein Verkauf (bestehender Kunde, Monatsrate oder Vertrag beendet). Kein Pitch — freundlich, kurz, hilfreich, vollständig und ehrlich, und der Schritt aus DEIN ZIEL. Nach Unterlagen, Karte oder Ablauf fragt er als Kunde; antworte ihm vollständig. Kündigung, Storno, Widerruf: verstehen, nicht umstimmen, übergeben.${auskunftWerkzeugAn(ein.auskunft) ? " Einzige Ausnahme: das Angebot zu seiner Bonitätsauskunft weiter unten — erst seine Frage beantworten, dann die Auskunft als Vorteil." : ""}`,
     ``,
   ];
   const werkzeugTeil = ein.werkzeuge ? [
@@ -449,6 +634,7 @@ function auftrag(ein: {
     `· rueckruf_eintragen — trägt den Rückruf ECHT in den Kalender ein. Nutze es, sobald er eine Uhrzeit oder ein Zeitfenster nennt („12:25", „1-3", „nachmittags", „morgen früh") oder einer angebotenen Zeit zustimmt. Das Werkzeug legt den Wunsch auf den nächsten freien Platz im Kalender. Danach nennst du ihm GENAU die Zeit und den Namen aus dem Ergebnis: „Ist eingetragen: heute, 12:30 Uhr — Nikita ruft Sie an." Weicht die Zeit von seinem Wunsch ab, sag es offen. Geht es nicht, biete die Alternativen aus dem Ergebnis an.`,
     `· zahlungszusage_merken — hält fest, wann er zahlen will („ich kann erst am 30.09."). Danach bekommt er bis zu diesem Tag keine Zahlungserinnerung, und sein Betreuer sieht den Termin. Nutze es immer, wenn er einen Zahltag nennt; bestätige ihm dann kurz den Tag.`,
     `· terminlink_schicken — sein persönlicher Link, auf dem er selbst eine Zeit bei seinem Betreuer wählt. Nutze ihn, wenn er sich nicht festlegen will, keine der Zeiten passt oder er „ich melde mich" sagt. Den Link aus dem Ergebnis schickst du mit.`,
+    ...(auskunftWerkzeugAn(ein.auskunft) ? [`· auskunft_anbieten — sein echter Link zur Bonitätsauskunft (zum Beauftragen mit einem Klick, bei offener Bestellung seine Zahlungsseite) mit seinem Preis; gibt auch ${b} Bescheid. Nutze es, sobald er sie will, sagt, dass er keine hat, oder Ja zu deinem Angebot sagt. Den Link und den Betrag aus dem Ergebnis schickst du genau so.`] : []),
     `Regeln: Eine Zeit, die nicht aus einem Werkzeug kommt, nennst du nie. „Ist eingetragen", „steht", „ruft Sie um … an" sagst du nur, wenn rueckruf_eintragen ok gemeldet hat. Hat er schon einen Termin, nennst du ihn statt einen neuen zu machen (verschieben: true nur, wenn er ausdrücklich eine andere Zeit will). Zu „vormittags/nachmittags/abends" nimmst du das Fenster 09:00–12:00, 12:00–17:00 oder 17:00–20:00 des genannten Tages (ohne Tag: heute, wenn noch möglich, sonst morgen).`,
     ``,
   ] : [
@@ -462,6 +648,7 @@ function auftrag(ein: {
     ``,
     ...verkaufsTeil,
     ...werkzeugTeil,
+    ...auskunftBlock(ein.auskunft),
     `WER DU BIST — UND WAS DU NIE VORGIBST`,
     `· Fragt jemand, ob du ein Bot oder eine KI bist: „Ja, ich bin ${vorname}, die digitale Assistentin von FIAON." Fragt er, ob du ein Mensch oder echt bist: „Ich bin ${vorname}, die digitale Assistentin von FIAON — kein Mensch." Dann bietest du an, jemanden aus dem Team dazuzuholen, und beantwortest trotzdem seine Frage.`,
     `· Du gibst dich nie als Mensch aus: keine erfundenen Gefühle, kein Körper, kein Büro. Auf „Wie geht es Ihnen?" genügt „Danke, nett gefragt!" — dann zurück zu ihm.`,
@@ -498,7 +685,9 @@ function auftrag(ein: {
     `· „Nach der Zahlung ist Ihr Account aktiv." (Genau so — nicht mehr: kein Satz über einen Link der Partnerbank, kein Zeitpunkt dafür.)`,
     `· „Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay."`,
     `· „Ihr Betreuer ist an Ihrer Seite, Sie machen das nicht allein."`,
-    `· „Wir holen Ihre Auskunft, erklären jeden Eintrag und übernehmen die Schreiben an die Auskunfteien."`,
+    // E-240: Die Bonitätsauskunft ist ein Zusatzprodukt, NICHT im Paket (shared/fiaon-auskunft.ts) — „Wir holen Ihre
+    // Auskunft" als Paketleistung war nicht mehr wahr. Im Paket: erklären und die Schreiben übernehmen.
+    `· „Wir erklären jeden Eintrag Ihrer Auskunft und übernehmen die Schreiben an die Auskunfteien."`,
     `· „Einen Gehaltsnachweis brauchen Sie nicht." · „Ihre Schufa muss nicht perfekt sein — genau da setzen wir an."`,
     `· „FIAON Start gibt es ab 7,99 € im Monat, in zwölf zinsfreien Monatsraten." (Preise aller Pakete in den Fakten unten.)`,
     `Entwerte deine eigene Zusage nie: Hänge an einen wahren, starken Satz keine Einschränkung, nach der niemand gefragt hat. Der Satz über die Bank kommt genau dann, wenn er nach Limit, Betrag, Kredit, Geld, Zusage oder Sicherheit fragt — dann einmal, positiv gerahmt. Eine Reihenfolge, die nicht in den Fakten steht, erfindest du nicht.`,
@@ -511,14 +700,14 @@ function auftrag(ein: {
     `· „Was kostet das?" → Die Preise aus den Fakten (Start, Pro, Ultra, High-End je Monat), immer mit „zwölf zinsfreie Monatsraten", jede überweist er selbst, nichts wird abgebucht. Kündigungsfristen erklärst du, wenn er nach Laufzeit, Bindung oder Kündigung fragt: Neue Verträge laufen zwölf Monate; gekündigt wird mit einem Monat Frist zum Ende der zwölf Monate, sonst läuft der Vertrag weiter und ist dann jederzeit mit einem Monat Frist kündbar (AGB § 6). Bei bestehenden Kunden gilt, was in SEINE LAGE steht. Eine vorzeitige Entlassung oder Kulanz sagst du nie zu.`,
     `· „Welches Paket?" → Du ordnest zu, du wählst nicht für ihn: Je höher das Paket, desto höher der Ziel-Rahmen im Programm (Start 500 €, Pro 5.000 €, Ultra 15.000 €, High-End 25.000 €); das Limit legt die Partnerbank fest. Das Paket lässt sich im Antrag und im Startgespräch ändern.`,
     `· „Ist das seriös?" → Gute Frage! Firmendaten aus den Fakten (FIAON LTD, London, Companies House-Nummer), Vertrag und Rechnung schriftlich, jede Zahlung überweist er selbst, 14 Tage Widerrufsrecht. Dann zurück zum Schritt.`,
-    `· Schufa-Einträge, Minus, eine Ablehnung → Genau dafür gibt es FIAON: Auskunft holen, jeden Eintrag erklären, die Schreiben an die Auskunfteien übernehmen — und parallel Konto und Karte bei der Partnerbank vorbereiten.`,
+    `· Schufa-Einträge, Minus, eine Ablehnung → Genau dafür gibt es FIAON: jeden Eintrag erklären, die Schreiben an die Auskunfteien übernehmen — und parallel Konto und Karte bei der Partnerbank vorbereiten.`,
     `· „Könnt ihr Einträge löschen?" → Wir prüfen jeden Eintrag und stellen für angreifbare die Anträge an die Auskunftei; entscheiden tut die Auskunftei. Kein „Ja".`,
     `· „Ohne Schufa?" → „Die Partnerbank schaut selbst auf die Schufa — aber sie muss nicht perfekt sein, genau da setzen wir an."`,
     `· „Ohne Einkommen, ohne Gehaltsnachweis, nur mit Ausweis?" → „Einen Gehaltsnachweis brauchen Sie nicht." Dann der Schritt.`,
     `· „Welche Unterlagen brauche ich?" (nur wenn er DAS fragt) → „Für den Start nur den Antrag. Danach laden Sie in Ihrem Bereich Ausweis, Kontoauszüge und Ihre Schufa-Auskunft hoch — ein Handyfoto genügt, und bei der Auskunft helfen wir Ihnen."`,
     `· „Bekomme ich einen Kredit? Wird Geld ausgezahlt? Wie schnell ist das Geld auf meinem Konto?" → Klar und freundlich: Kredite gibt es bei uns nicht, und wir zahlen kein Geld aus — wir bringen ihn zu Konto und Kreditkarte bei unserer Partnerbank; über die Karte entscheidet die Bank. Dann der Schritt. Keine Zuordnung Kreditbetrag → Paket ohne den Satz über die Bank.`,
     `· „Im Antrag stand 25.000 €" oder „mir wurde etwas genehmigt" → Die Zahl im Antrag ist sein Ziel-Rahmen im Programm, darauf arbeiten wir hin; über Karte und Limit entscheidet die Partnerbank.`,
-    `· „Ich dachte, ich zahle erst nach der Freigabe." / „Warum vorher zahlen?" → Die erste Rate ist mit dem Vertrag fällig; mit ihr wird sein Account aktiv, und die Leistung beginnt: Auskunft, Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer. Über die Karte entscheidet die Bank. Ist er verärgert, zeig Verständnis und übergib.`,
+    `· „Ich dachte, ich zahle erst nach der Freigabe." / „Warum vorher zahlen?" → Die erste Rate ist mit dem Vertrag fällig; mit ihr wird sein Account aktiv, und die Leistung beginnt: Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer. Über die Karte entscheidet die Bank. Ist er verärgert, zeig Verständnis und übergib.`,
     `· „Lastschrift, Karte, PayPal?" → Ganz einfach per Überweisung mit seinem Verwendungszweck; Bankdaten und QR-Code stehen auf seiner Zahlungsseite.`,
     `· „Welche Bank ist das?" → Unsere Partnerbank ist die DKB: erst das Girokonto, daraus bucht er die Visa-Kreditkarte dazu — genau in dieser Reihenfolge begleiten wir ihn.`,
     `· „Was passiert nach der Zahlung?" → Sobald sie gebucht ist, ist sein Account aktiv; dann das Startgespräch mit seinem festen Betreuer, etwa 15 Minuten am Telefon.`,
@@ -585,7 +774,15 @@ async function erneutAngefragt(personId: number, seit: unknown): Promise<boolean
 // DIE LAGE — wo der Mensch steht, welches Ziel gilt, welcher Link passt
 // ═══════════════════════════════════════════════════════════════════════════
 /** verkaufen = false: bestehender Kunde, Monatsrate oder Vertrag beendet — dann kein Pitch und keine Verkaufsprüfung. */
-interface Lage { wer: string; lage: string; ziel: string; link: string; betreuer: string | null; verkaufen: boolean }
+interface Lage {
+  wer: string; lage: string; ziel: string; link: string; betreuer: string | null; verkaufen: boolean;
+  /** E-240: fiaon_persons.werbung_gesperrt_am — antworten ja, verkaufen nein. */
+  werbesperre: boolean;
+  /** Gegenlesen 24.09.2026: fiaon_persons.is_blocked — kein Auskunft-Angebot von sich aus. */
+  vertriebssperre: boolean;
+  /** E-240: seine Bonitätsauskunft — nur für zahlende Kunden (bezahltes Paket, nicht gekündigt). */
+  auskunft: Omit<AuskunftTeil, "jetzt" | "werbesperre"> | null;
+}
 
 async function lageFuer(personId: number | null, leadId: number | null, letzteVorlage: { name: string; text: string | null } | null): Promise<Lage> {
   const erg: Lage = {
@@ -596,6 +793,9 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
     link: "https://fiaon.com/antrag",
     betreuer: null,
     verkaufen: true,
+    werbesperre: false,
+    vertriebssperre: false,
+    auskunft: null,
   };
   if (personId) {
     const [p] = (await sqlPool`
@@ -662,6 +862,21 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
       erg.ziel = "Es geht um Karte, Unterlagen und Startgespräch. Sein Bereich: fiaon.com/login.";
       erg.link = "https://fiaon.com/login";
       erg.verkaufen = false;
+      // E-240: Wo steht er bei der Bonitätsauskunft? Der Preis kommt vom Server (74 € mit Paket).
+      try {
+        const { auskunftStand } = await import("./fiaon-auskunft");
+        const st = await auskunftStand(personId);
+        const offenLink = st.offen?.paymentReference ? `https://fiaon.com/zahlung/${encodeURIComponent(st.offen.paymentReference)}` : null;
+        erg.auskunft = {
+          stufe: st.stufe, land: st.land, preisText: st.preis.text, mitAbo: st.preis.mitAbo,
+          offenLink, offenBetrag: st.offen ? euroText(st.offen.betragCents) : null,
+        };
+        const wort = auskunftWort(st.land);
+        erg.lage += st.stufe === "nichts" ? ` Seine ${wort} liegt uns noch nicht vor (weder bestellt noch hochgeladen).`
+          : st.stufe === "offen" ? ` Seine ${wort} ist bestellt, die Zahlung ist offen.`
+          : st.stufe === "bezahlt" ? ` Seine ${wort} ist bezahlt — wir fordern sie an.`
+          : ` Eine Auskunft liegt in seiner Akte.`;
+      } catch (e) { console.warn("[MARA-WA] Auskunft-Stand:", String((e as Error)?.message || e).slice(0, 120)); }
       // Hat er zuletzt unsere Raten-Erinnerung bekommen: GENAU diese Rate (Referenz aus dem gesendeten Text),
       // nicht „die älteste offene" — sonst zeigte Mara nach der Zahlung auf die nächste, noch nicht fällige Rate.
       const ratenRef = letzteVorlage && /^fiaon_kkb?_rate$/.test(letzteVorlage.name)
@@ -699,6 +914,27 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
       erg.wer = `${String(l.name || "").trim() || "Ein Interessent"} — kam über eine Anzeige${l.anzeige ? ` (${l.anzeige})` : ""}, noch ohne festen Betreuer.`;
       erg.lage = "Hat das Formular ausgefüllt, der Antrag ist für ihn vorbereitet und seine Angaben sind schon drin.";
       if (l.link_code) erg.link = `https://fiaon.com/a/${String(l.link_code)}/w`;
+    }
+  }
+  // ── E-240: DIE WERBESPERRE GILT IN JEDER LAGE ─────────────────────────────
+  // Antworten auf seine eigene Nachricht bleiben erlaubt (das ist keine Werbung),
+  // aber ohne Verkauf: kein Pitch, kein Link, nach dem er nicht fragt. Gemessen
+  // am 24.09.: Mara schrieb einem Menschen mit Werbesperre „starten Sie einfach
+  // hier neu" samt Antragslink.
+  if (personId) {
+    const s = await personSperre(personId).catch(() => null);
+    erg.vertriebssperre = !!s?.vertriebssperre;
+    if (s?.werbesperre) {
+      erg.werbesperre = true;
+      erg.lage += " WERBESPERRE: Er hat gebeten, keine Werbung mehr zu bekommen.";
+      // Gegenlesen 24.09.2026: Nur ein VERKAUFSZIEL (Lead, Antrag, erste Zahlung) wird ersetzt.
+      // Ein Service-Ziel bleibt stehen und bekommt die Sperre dazu — sonst verlor Mara bei einer
+      // Werbesperre „Kein Wort vom Bezahlen" (Zahlung gemeldet), die Zahlungsseite der Rate aus
+      // der Erinnerung (Zahlungspost, E-182) und „übergibst du" beim gekündigten Vertrag.
+      erg.ziel = erg.verkaufen
+        ? "Du beantwortest nur, was er fragt — vollständig und freundlich. Kein Angebot, kein Pitch, keine Aufforderung zum Abschluss, kein Link, nach dem er nicht fragt (fragt er danach, bekommt er ihn)."
+        : `${erg.ziel} Wegen seiner Werbesperre: Kein Angebot, kein Pitch, keine Aufforderung zum Abschluss — du beantwortest, was er fragt, und was zu seinem Vertrag gehört.`;
+      erg.verkaufen = false;
     }
   }
   return erg;
@@ -782,7 +1018,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // STOPP: genau eine kurze Bestätigung, ohne Pitch — und nur, solange sie frisch ist.
     if (istStopp(neuesteRein.text, neuesteRein.knopf)) {
       if (Date.now() - new Date(neuesteRein.am).getTime() > 60 * 60_000) return { gesendet: false, grund: "STOPP — zu alt für eine Bestätigung." };
-      await vorbereiten(nummer, STOPP_ANTWORT, Number(neuesteRein.id), String(neuesteRein.text ?? ""));
+      await vorbereiten(nummer, STOPP_ANTWORT, Number(neuesteRein.id), String(neuesteRein.text ?? ""), { kunde: String(neuesteRein.text || neuesteRein.knopf || ""), handlung: "WhatsApp-Stopp bestätigt — keine Vorlagen mehr" });
       return { gesendet: false, grund: "STOPP bestätigt (liegt bereit)." };
     }
 
@@ -832,11 +1068,37 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const kiHinweis = !vorgestellt;
     const jetzt = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date());
     const heuteIso = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+
+    const frage = String(neuesteRein.text ?? "");
+    const letzteDu = verlauf.filter((v) => v.richtung === "raus" && !v.vorlage && istMara(v.von)).map((v) => String(v.text ?? ""));
+    const kunde = offeneRein.slice().reverse().map((v) => String(v.text || v.knopf || "")).join("\n");
+    const kontext = verlauf.filter((v) => v.richtung === "rein").slice(0, 5).map((v) => String(v.text || v.knopf || "")).join("\n");
+    const verlaufText = verlauf.map((v) => String(v.text ?? "")).join("\n");
+    // E-240: Angebot „jetzt", wenn er gerade über Bonität, Limit, Karte oder die Auskunft schreibt
+    // (seine offenen Nachrichten) oder Maras letzte Frage zur Auskunft beantwortet. Bei Werbesperre
+    // nur, wenn er sie ausdrücklich will — dann ist es seine Anfrage, keine Werbung.
+    // Gegenlesen 24.09.2026: dieselbe Zurückhaltung bei Vertriebssperre (is_blocked, „kein
+    // Interesse") — das Werkzeug lehnte dort ohnehin ab (werbungVerboten), der Auftrag bot aber an.
+    // Und nach dem ersten Angebot nur noch, wenn er selbst auf die Auskunft zurückkommt (auskunftJetzt).
+    const ohneAngebot = lage.werbesperre || lage.vertriebssperre;
+    // Integration 25.09.2026 (E-240): die gemeinsame Bremse — kam das Angebot in den letzten drei
+    // Tagen schon (Angebots-Mail, Unterlagen-Mail, Vorlage, Mara per Mail), bietet Mara nur noch an,
+    // wenn er selbst auf die Auskunft zurückkommt. Nur bei „nichts": Der Zahlungslink einer offenen
+    // Bestellung ist kein Angebot.
+    const anderswo = personId && lage.auskunft?.stufe === "nichts"
+      ? await zuletztAngeboten(Number(personId)).catch(() => null) : null;
+    const auskunft: AuskunftTeil | null = lage.auskunft ? {
+      ...lage.auskunft,
+      werbesperre: ohneAngebot,
+      angebotAnderswo: anderswo?.text ?? null,
+      ...auskunftJetzt({ kunde, letzteDu, werbesperre: ohneAngebot, anderswo: !!anderswo }),
+    } : null;
+
     const text = auftrag({
       kiHinweis,
       name: namen.voll,
       werkzeuge: !!personId, betreuer: lage.betreuer ? lage.betreuer.split(" ")[0] : null, jetzt: `${jetzt} (heute = ${heuteIso})`,
-      wer: lage.wer, lage: lage.lage, ziel: lage.ziel, link: lage.link, verkaufen: lage.verkaufen,
+      wer: lage.wer, lage: lage.lage, ziel: lage.ziel, link: lage.link, verkaufen: lage.verkaufen, auskunft,
       gedaechtnis: personId ? await gedaechtnisText(Number(personId)).catch(() => "") : "",
       wissen: wissenFuerWhatsApp(),
       hausanweisung: await anweisungBlock("whatsapp").catch(() => ""),
@@ -850,14 +1112,19 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         .join("\n"),
     });
 
-    const frage = String(neuesteRein.text ?? "");
-    const letzteDu = verlauf.filter((v) => v.richtung === "raus" && !v.vorlage && istMara(v.von)).map((v) => String(v.text ?? ""));
-    const kunde = offeneRein.slice().reverse().map((v) => String(v.text || v.knopf || "")).join("\n");
-    const kontext = verlauf.filter((v) => v.richtung === "rein").slice(0, 5).map((v) => String(v.text || v.knopf || "")).join("\n");
-    const verlaufText = verlauf.map((v) => String(v.text ?? "")).join("\n");
     const zahlungslage = /Account aktiv|Eingang wird geprüft|Zahlungsseite/.test(lage.ziel);
-    const e = await entwerfen(text, { kunde, kontext, letzteDu: letzteDu.slice(0, 2), verkaufen: lage.verkaufen, verlaufText, zahlungslage },
-      personId ? { personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer } : null);
+    const e = await entwerfen(text, {
+      kunde, kontext, letzteDu: letzteDu.slice(0, 2), verkaufen: lage.verkaufen, verlaufText, zahlungslage,
+      auskunftAngebot: auskunftWerkzeugAn(auskunft), werbesperre: lage.werbesperre,
+      bekannt: {
+        links: [lage.link, ...(auskunft?.offenLink ? [auskunft.offenLink] : [])],
+        auskunftPreise: auskunft ? [auskunft.preisText, ...(auskunft.offenBetrag ? [auskunft.offenBetrag] : []), ...(auskunft.mitAbo ? [euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)] : [])] : null,
+        land: auskunft?.land ?? null,
+      },
+    }, personId ? {
+      personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer,
+      kunde, letzteDu: letzteDu[0] ?? "", auskunft,
+    } : null);
     let roh = e.roh;
     let antwort = e.antwort;
     const funde = e.funde;
@@ -908,6 +1175,13 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     if (!funde.length && !e.kiFehler && link && !antwort.includes(link)) {
       antwort = `${antwort} Hier wählen Sie selbst eine Zeit: ${link}`.trim();
     }
+    // E-240: Hat auskunft_anbieten einen Link geholt, muss er beim Kunden ankommen — genau dieser.
+    const auskunftAktion = e.aktionen.find((x) => x.werkzeug === "auskunft_anbieten" && x.ok && x.link) ?? null;
+    // Gegenlesen 24.09.2026: verglichen wird der Pfad — schreibt Mara „fiaon.com/zahlung/…" statt
+    // „https://www.fiaon.com/zahlung/…", stand der Link sonst zweimal in der Nachricht.
+    if (!funde.length && !e.kiFehler && auskunftAktion?.link && !antwort.includes(auskunftAktion.link.replace(/^https?:\/\/[^/]+/i, ""))) {
+      antwort = `${antwort} Hier geht es direkt weiter: ${auskunftAktion.link}`.trim();
+    }
 
     // Zusagen („Ihr Betreuer ruft Sie an", „weitergeleitet", „vorgemerkt") müssen eingelöst werden:
     // Wer so etwas schreibt, übergibt — unabhängig davon, was das Modell im Feld mensch gesetzt hat.
@@ -934,7 +1208,19 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       antwort = `Hier ist ${namen.voll.split(" ")[0]}, die digitale Assistentin von FIAON. ${antwort}`;
     }
 
-    await vorbereiten(nummer, antwort, Number(neuesteRein.id), frage);
+    // E-240: Was Mara getan hat — für den Aktenvermerk, der beim Versand entsteht (versandLauf).
+    const handlung = [
+      ...e.aktionen.filter((x) => x.ok).map((x) => x.werkzeug === "rueckruf_eintragen" && x.termin ? `Rückruf eingetragen (${x.termin.text}, ${x.termin.vorname})`
+        : x.werkzeug === "freie_zeiten" ? "freie Zeiten angeboten"
+        : x.werkzeug === "zahlungszusage_merken" ? "Zahlungszusage festgehalten"
+        : x.werkzeug === "terminlink_schicken" ? "Terminlink geschickt"
+        : x.werkzeug === "auskunft_anbieten" ? `Bonitätsauskunft angeboten (${x.betrag ?? "Preis vom Server"}, ${x.art === "bestellt" ? "bestellt" : x.art === "offen" ? "Zahlungsseite der offenen Bestellung" : "Kauflink"})`
+        : x.werkzeug),
+      ...(funde.length || e.kiFehler ? ["Rückfallsatz"] : []),
+      ...(mensch ? [`an ${lage.betreuer ?? "das Team"} übergeben${uebergabe ? `: ${uebergabe.slice(0, 140)}` : ""}`] : []),
+      ...(String(roh?.gemerkt ?? "").trim() ? [`gemerkt: ${String(roh.gemerkt).trim().slice(0, 140)}`] : []),
+    ].join("; ") || "keine";
+    await vorbereiten(nummer, antwort, Number(neuesteRein.id), frage, { kunde, handlung });
 
     if (personId && String(roh?.gemerkt ?? "").trim()) {
       await gedaechtnisMerken(Number(personId), [String(roh.gemerkt).trim()], "whatsapp").catch(() => {});
@@ -1034,6 +1320,25 @@ const WERKZEUGE = [
   },
 ];
 
+/**
+ * E-240: Die Bonitätsauskunft — nur in Gesprächen, in denen Mara sie anbieten
+ * darf (auskunftWerkzeugAn). Kein Preis und kein Link kommt vom Modell: Das
+ * Werkzeug liefert beides vom Server.
+ */
+const WERKZEUG_AUSKUNFT = {
+  type: "function",
+  function: {
+    name: "auskunft_anbieten",
+    description: "Sein echter Link zur Bonitätsauskunft mit seinem Preis (einmalig): bei offener Bestellung seine Zahlungsseite, sonst der Link, über den er sie mit einem Klick beauftragt (dort sieht er Preis, AGB und Widerrufsbelehrung, danach die Zahlungsseite). Gibt seinem Betreuer Bescheid.",
+    parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
+  },
+};
+
+/** Die Werkzeuge für dieses Gespräch. */
+function werkzeugeFuer(ctx: WerkzeugKontext | null): any[] {
+  return auskunftWerkzeugAn(ctx?.auskunft) ? [...WERKZEUGE, WERKZEUG_AUSKUNFT] : WERKZEUGE;
+}
+
 /** Was ein Werkzeug getan hat — für Prüfung, Nachbesserung und Protokoll. */
 export interface Aktion {
   werkzeug: string; ok: boolean;
@@ -1041,10 +1346,18 @@ export interface Aktion {
   zeiten: string[];
   termin?: { id: number; text: string; uhrzeit: string; vorname: string; agentName: string; datum: string; wochentag: string };
   link?: string;
+  /** E-240 (auskunft_anbieten): der Betrag vom Server und was geschah. */
+  betrag?: string;
+  art?: "angebot" | "offen" | "bestellt";
 }
-export interface WerkzeugKontext { personId: number; leadId: number | null; nummer: string }
+export interface WerkzeugKontext {
+  personId: number; leadId: number | null; nummer: string;
+  /** E-240: seine offenen Nachrichten und Maras letzte — für „hat er zugestimmt?" (Server, nicht Modell). */
+  kunde?: string; letzteDu?: string;
+  auskunft?: AuskunftTeil | null;
+}
 
-async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
+export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
   const mt = await import("./fiaon-mara-termin");
   if (name === "freie_zeiten") {
     const ang = await mt.freieZeiten(ctx.personId);
@@ -1107,7 +1420,92 @@ async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext)
     const r = await mt.terminlinkFuer(ctx);
     return { ergebnis: r.ok ? { ok: true, link: r.link, zeiten_von: r.agent ?? "unserem Team" } : { ok: false, grund: r.meldung }, aktion: { werkzeug: name, ok: r.ok, zeiten: [], link: r.link } };
   }
+  if (name === "auskunft_anbieten") return auskunftAnbieten(ctx);
   return { ergebnis: { ok: false, grund: "Unbekanntes Werkzeug." }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
+}
+
+/**
+ * auskunft_anbieten (E-240). Zwei Wege, beide mit echtem Link:
+ *   · offene Bestellung → ihre Zahlungsseite (nichts Neues),
+ *   · sonst → der signierte Kauflink: Bestätigungsseite mit Preis, AGB,
+ *     Widerrufsbelehrung und der Wahl zum Beginn (ein Klick), danach die
+ *     Zahlungsseite. Gegenlesen 24.09.2026: kein direktes Anlegen mehr nach
+ *     einem „Ja" im Chat (Begründung unten am Kauflink).
+ * Bezahlt, liegt vor oder gemeldet: nichts verkaufen. Werbesperre (oder
+ * Vertriebssperre, gekündigt): nur auf seinen ausdrücklichen Wunsch.
+ */
+async function auskunftAnbieten(ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
+  const name = "auskunft_anbieten";
+  const nein = (grund: string) => ({ ergebnis: { ok: false, grund }, aktion: { werkzeug: name, ok: false, zeiten: [] } as Aktion });
+  if (!ctx.auskunft) return nein("Für ihn gibt es hier kein Auskunft-Angebot (kein zahlender Kunde) — nenne keinen Preis und keinen Link.");
+  const { auskunftStand, auskunftArtFuer } = await import("./fiaon-auskunft");
+  // Dieselbe Art wie der Kauflink unten — sonst nennte Mara 74 € und die Seite zeigte 199 €.
+  const auskunftArt = await auskunftArtFuer(ctx.personId);
+  const stand = await auskunftStand(ctx.personId, undefined, auskunftArt);
+  if (stand.stufe === "bezahlt") return nein("Die Auskunft ist schon bezahlt — wir fordern sie an. Nichts verkaufen.");
+  if (stand.stufe === "dokument") return nein("Eine Auskunft liegt schon in seiner Akte — nichts verkaufen.");
+  if (stand.offen?.status === "claimed_paid") return nein("Er hat die Zahlung der Auskunft schon gemeldet — die Zahlungsstelle prüft den Eingang. Kein Link.");
+  const kunde = String(ctx.kunde ?? "");
+  const du = String(ctx.letzteDu ?? "");
+  const zugestimmt = auskunftZugestimmt(kunde, du);
+  const sperre = werbungVerboten(await personSperre(ctx.personId).catch(() => null));
+  if (sperre && !zugestimmt && !auskunftGefragt(kunde)) return nein(`${sperre} — die Auskunft nur, wenn er sie ausdrücklich haben will. Kein Angebot.`);
+
+  let link: string;
+  let betrag = stand.preis.text;
+  let art: Aktion["art"] = "angebot";
+  if (stand.stufe === "offen" && stand.offen?.paymentReference) {
+    link = absoluteUrl(`/zahlung/${encodeURIComponent(stand.offen.paymentReference)}`);
+    betrag = euroText(stand.offen.betragCents);
+    art = "offen";
+  } else {
+    // ── GEGENLESEN 24.09.2026: EINE NEUE BESTELLUNG NUR ÜBER DIE BESTÄTIGUNGSSEITE ──
+    // Die erste Fassung legte nach einem „Ja" die Bestellung direkt an (auskunftBestellen,
+    // quelle mara_wa): Rechnungsnummer, Zahlungsdaten-Mail — ohne dass er Preis, AGB und
+    // Widerrufsbelehrung vor dem Vertrag gesehen und ohne die Wahl „vor Ablauf der
+    // Widerrufsfrist beginnen". Ohne dokumentierte Wahl liefert der Liefer-Weg sofort
+    // (fiaon-auskunft-lieferung.ts, Abschnitt 0) — widerruft er danach, schuldet er keinen
+    // Wertersatz (§ 357a Abs. 2 BGB), und sein Widerrufsrecht erlischt nicht (§ 356 Abs. 4).
+    // Und „Ja" auf „Soll ich Ihnen den Link schicken?" ist kein Auftrag. Der signierte
+    // Kauflink führt auf die Seite mit „Zahlungspflichtig beauftragen", AGB, Widerrufs-
+    // belehrung und der Wahl — ein Klick, dann dieselbe Zahlungsseite.
+    const { kaufLink } = await import("../routes/fiaon-auskunft-kauf");
+    link = kaufLink(ctx.personId, auskunftArt);
+  }
+  await betreuerZurAuskunft(ctx.personId, { art, betrag, kunde });
+  return {
+    ergebnis: {
+      ok: true, link, preis: betrag, einmalig: true, kundenpreis_mit_paket: stand.preis.mitAbo,
+      wort: auskunftWort(stand.land), auskunfteien: auskunfteienText(stand.land),
+      was_passiert: art === "angebot"
+        ? "Über den Link bestätigt er die Bestellung mit einem Klick; danach sieht er Betrag, Verwendungszweck und QR-Code."
+        : "Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code.",
+      so_schreiben: `Hier geht es direkt weiter: ${link}`,
+    },
+    aktion: { werkzeug: name, ok: true, zeiten: [], link, betrag, art },
+  };
+}
+
+/**
+ * Der Betreuer erfährt es sofort — als Aufgabe (Mail + Hinweis im Office),
+ * eine je Kunde und Tag. Justin (Fall Doris Hösl): „informiert den Betreuer aktiv".
+ */
+async function betreuerZurAuskunft(personId: number, ein: { art: Aktion["art"]; betrag: string; kunde: string }): Promise<void> {
+  const tag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const was = ein.art === "bestellt" ? `hat die Bonitätsauskunft für ihn bestellt (${ein.betrag}, Zahlung offen)`
+    : ein.art === "offen" ? `hat ihm den Link zur offenen Zahlung seiner Bonitätsauskunft geschickt (${ein.betrag})`
+    : `hat ihm die Bonitätsauskunft angeboten (${ein.betrag}) und den Link zum Bestellen geschickt`;
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    await auftragFuerKunden({
+      personId, ref: null,
+      titel: ein.art === "bestellt" ? "WhatsApp: Bonitätsauskunft bestellt — bitte begleiten" : "WhatsApp: Bonitätsauskunft angeboten — bitte nachfassen",
+      text: `Mara ${was}. Der Kunde schrieb: „${ein.kunde.replace(/\s+/g, " ").slice(0, 240)}". Bitte kurz anrufen: Auskunft, Karte und Wunschlimit besprechen.`,
+      quelle: "mara-whatsapp", dringend: false, link: `/agent/kunden?person=${personId}`,
+      schluessel: `wa-auskunft-${personId}-${tag}`, autorName: "Mara",
+      anlageText: "Angelegt von Mara aus WhatsApp.",
+    });
+  } catch (e) { console.error("[MARA-WA] Auskunft-Aufgabe:", String((e as Error)?.message || e).slice(0, 160)); }
 }
 
 /**
@@ -1115,7 +1513,11 @@ async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext)
  *   · „eingetragen/gebucht/steht" ohne erfolgreiche Buchung
  *   · eine Uhrzeit, die weder aus einem Werkzeug noch vom Kunden stammt
  */
-export function handlungsPruefung(antwort: string, aktionen: Aktion[], kunde: string, verlaufText = ""): string[] {
+export function handlungsPruefung(
+  antwort: string, aktionen: Aktion[], kunde: string, verlaufText = "",
+  /** E-240: Links und Auskunft-Preise, die aus SEINE LAGE stammen (null = Lead: nur die vier Katalogpreise). */
+  bekannt: { links?: string[]; auskunftPreise?: string[] | null; /** Gegenlesen 24.09.2026: sein Land (nur bei Kunden bekannt). */ land?: AuskunftLand | null } = {},
+): string[] {
   const a = String(antwort ?? "");
   const funde: string[] = [];
   const gebucht = aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok);
@@ -1123,11 +1525,52 @@ export function handlungsPruefung(antwort: string, aktionen: Aktion[], kunde: st
     && !/\b(?:schon|bereits)\b[^.!?]{0,40}\b(?:termin|rückruf)\b/i.test(a)) {
     funde.push("Du hast keinen Rückruf eingetragen — sag nicht, er sei eingetragen oder gebucht. Trag ihn mit rueckruf_eintragen ein oder frag nach der Zeit.");
   }
-  const bekannt = new Set<string>([...aktionen.flatMap((x) => x.zeiten), ...(`${kunde}\n${verlaufText}`.match(/\b\d{1,2}[:.]\d{2}\b/g) ?? []).map((t) => t.replace(".", ":").padStart(5, "0"))]);
+  const bekannteZeiten = new Set<string>([...aktionen.flatMap((x) => x.zeiten), ...(`${kunde}\n${verlaufText}`.match(/\b\d{1,2}[:.]\d{2}\b/g) ?? []).map((t) => t.replace(".", ":").padStart(5, "0"))]);
   const genannt = (a.match(/\b\d{1,2}:\d{2}\b/g) ?? []).map((t) => t.padStart(5, "0"));
-  const fremd = genannt.filter((t) => !bekannt.has(t));
+  const fremd = genannt.filter((t) => !bekannteZeiten.has(t));
   if (fremd.length) funde.push(`Die Uhrzeit ${fremd.join(", ")} stammt aus keinem Werkzeug — nenne nur Zeiten aus freie_zeiten oder rueckruf_eintragen.`);
-  return funde;
+
+  // ── E-240: KEIN ERFUNDENER ZAHLUNGS- ODER KAUFLINK ─────────────────────────
+  // Jeder Link auf eine Zahlungsseite oder die Auskunft-Bestellung muss aus einem
+  // Werkzeug, aus SEINE LAGE oder aus dem Verlauf stammen (dort hat er ihn schon).
+  const pfad = (u: string): string | null => {
+    const m = String(u).match(/\/(?:zahlung\/[^\s)"“”<>]+|api\/fiaon\/auskunft\/bestellen\?[^\s)"“”<>]+)/i);
+    return m ? m[0].replace(/[.,;:!?]+$/, "").toLowerCase() : null;
+  };
+  const erlaubteLinks = new Set<string>(
+    [...aktionen.map((x) => x.link ?? ""), ...(bekannt.links ?? []), ...(verlaufText.match(/\S+/g) ?? [])]
+      .map(pfad).filter((x): x is string => !!x),
+  );
+  const fremdeLinks = (a.match(/\S*\/(?:zahlung\/|api\/fiaon\/auskunft\/bestellen\?)\S*/gi) ?? [])
+    .filter((u) => { const p = pfad(u); return !!p && !erlaubteLinks.has(p); });
+  if (fremdeLinks.length) funde.push(`Den Link ${fremdeLinks[0].slice(0, 80)} hast du aus keinem Werkzeug — schick nur Links aus auskunft_anbieten, terminlink_schicken oder aus SEINE LAGE.`);
+
+  // ── E-240: KEIN ERFUNDENER AUSKUNFT-PREIS ──────────────────────────────────
+  // In jedem Satz über die Auskunft: nur Beträge, die es gibt — für einen Kunden
+  // sein Preis (und zum Vergleich der Einzelpreis), für alle anderen die vier
+  // Katalogpreise (74/149/199/349 €).
+  const erlaubtePreise = new Set<number>(bekannt.auskunftPreise
+    ? bekannt.auskunftPreise.map(centsAus).filter((x): x is number => x != null)
+    : Array.from(AUSKUNFT_CENTS));
+  for (const x of aktionen) { const c = x.betrag ? centsAus(x.betrag) : null; if (c != null) erlaubtePreise.add(c); }
+  for (const satz of a.split(/(?<=[.!?])\s+/)) {
+    if (!/auskunft|schufa|\bksv\b|bonität/i.test(satz)) continue;
+    for (const m of Array.from(satz.matchAll(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*(?:€|euro\b)/gi))) {
+      // Gegenlesen 24.09.2026: Eine Monatsrate im selben Satz („… Ihr Paket 59,99 € im Monat") ist kein Auskunft-Preis.
+      const danach = satz.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 20);
+      if (/^\s*(?:im|pro|je|\/)\s*monat|^\s*monatlich/i.test(danach)) continue;
+      const c = centsAus(m[1]);
+      if (c != null && !erlaubtePreise.has(c)) funde.push(`Der Betrag ${m[0].trim()} für die Auskunft stimmt nicht — nenne nur den Preis aus SEINE LAGE oder aus auskunft_anbieten.`);
+    }
+  }
+  // ── GEGENLESEN 24.09.2026: ÖSTERREICH UND SCHWEIZ NIE „SCHUFA" ─────────────
+  // Harte Regel des Auftrags (E-240). Bisher stand sie nur im Auftrag an das Modell;
+  // die allgemeinen Sätze („Ihre Schufa muss nicht perfekt sein") sagen das Wort aber.
+  // Schreibt er es selbst, darf Mara es aufgreifen.
+  if (bekannt.land && bekannt.land !== "DE" && /schufa/i.test(a) && !/schufa/i.test(kunde)) {
+    funde.push(`In seinem Land heißt sie „${auskunftWort(bekannt.land)}" — schreib nie „SCHUFA", sondern ${auskunfteienText(bekannt.land)} bzw. „Bonitätsauskunft".`);
+  }
+  return Array.from(new Set(funde));
 }
 
 /**
@@ -1138,7 +1581,11 @@ export function handlungsPruefung(antwort: string, aktionen: Aktion[], kunde: st
  */
 export async function entwerfen(
   system: string,
-  pruef: { kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean; verlaufText?: string; zahlungslage?: boolean },
+  pruef: {
+    kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean; verlaufText?: string; zahlungslage?: boolean;
+    auskunftAngebot?: boolean; werbesperre?: boolean;
+    bekannt?: { links?: string[]; auskunftPreise?: string[] | null; land?: AuskunftLand | null };
+  },
   werkzeugKontext?: WerkzeugKontext | null,
 ): Promise<{ roh: any; antwort: string; funde: string[]; hinweise: string[]; zweiter: boolean; kiFehler: string | null; aktionen: Aktion[] }> {
   const d1 = await denken(system, [], werkzeugKontext ?? null);
@@ -1146,8 +1593,8 @@ export async function entwerfen(
   const roh1 = d1.roh;
   if (!roh1) return { roh: null, antwort: "", funde: ["Kein Text erzeugt."], hinweise: [], zweiter: false, kiFehler: d1.fehler || "KI nicht erreichbar", aktionen };
   const pruefe = (a: string) => ({
-    hart: a ? [...sendePruefung(a), ...wahrheitsBefunde(a, pruef.kunde).map((f) => f.text), ...handlungsPruefung(a, aktionen, pruef.kunde, pruef.verlaufText)] : ["Kein Text erzeugt."],
-    nurJa: a ? (() => { const w = wahrheitsBefunde(a, pruef.kunde); return w.length > 0 && w.every((f) => f.art === "ja") && !sendePruefung(a).length && !handlungsPruefung(a, aktionen, pruef.kunde, pruef.verlaufText).length; })() : false,
+    hart: a ? [...sendePruefung(a), ...wahrheitsBefunde(a, pruef.kunde).map((f) => f.text), ...handlungsPruefung(a, aktionen, pruef.kunde, pruef.verlaufText, pruef.bekannt)] : ["Kein Text erzeugt."],
+    nurJa: a ? (() => { const w = wahrheitsBefunde(a, pruef.kunde); return w.length > 0 && w.every((f) => f.art === "ja") && !sendePruefung(a).length && !handlungsPruefung(a, aktionen, pruef.kunde, pruef.verlaufText, pruef.bekannt).length; })() : false,
     weich: a ? verkaufsPruefung(a, pruef) : [],
   });
   const a1 = String(roh1?.antwort ?? "").trim();
@@ -1226,7 +1673,7 @@ async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontex
         j = await kiAufruf({
           dienst: DIENST_WA, modell: MODELL(), aufwand: "low", maxTokens: 2500, schema: SCHEMA,
           nachrichten: [...basis, ...werkzeugVerlauf] as any,
-          ...(mitWerkzeugen ? { tools: WERKZEUGE } : {}),
+          ...(mitWerkzeugen ? { tools: werkzeugeFuer(ctx) } : {}),
         });
         void kostenCentsAus(MODELL(), j?.usage);
       } catch (e) {
@@ -1263,14 +1710,67 @@ async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontex
  * und nach 6–18 Sekunden fällig — lesen, denken, tippen. Kommt bis dahin eine
  * neue Nachricht, denkt sie neu (versandLauf).
  */
-async function vorbereiten(nummer: string, antwort: string, aufId: number, frage: string): Promise<void> {
+async function vorbereiten(nummer: string, antwort: string, aufId: number, frage: string, meta: { kunde?: string; handlung?: string } = {}): Promise<void> {
   const faellig = new Date(Date.now() + verzoegerungMs(antwort, frage));
+  const kunde = String(meta.kunde ?? frage ?? "").slice(0, 1000);
+  const handlung = String(meta.handlung ?? "").slice(0, 1000) || null;
   await sqlPool`
-    INSERT INTO fiaon_whatsapp_gespraech (nummer, antwort_text, antwort_faellig_am, antwort_auf_id, updated_at)
-    VALUES (${nummer}, ${antwort}, ${faellig}, ${aufId}, NOW())
+    INSERT INTO fiaon_whatsapp_gespraech (nummer, antwort_text, antwort_faellig_am, antwort_auf_id, antwort_kunde, antwort_handlung, updated_at)
+    VALUES (${nummer}, ${antwort}, ${faellig}, ${aufId}, ${kunde}, ${handlung}, NOW())
     ON CONFLICT (nummer) DO UPDATE SET
-      antwort_text = ${antwort}, antwort_faellig_am = ${faellig}, antwort_auf_id = ${aufId}, updated_at = NOW()`;
+      antwort_text = ${antwort}, antwort_faellig_am = ${faellig}, antwort_auf_id = ${aufId},
+      antwort_kunde = ${kunde}, antwort_handlung = ${handlung}, updated_at = NOW()`;
   weckerStellen(faellig.getTime() - Date.now());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER AKTENVERMERK ZU JEDER MARA-ANTWORT (24.09.2026, E-240)
+//
+// Justin: „Mara speichert alles Besprochene in der Akte." Bisher stand dort nur,
+// was Mara übergab (aufgabeFuerMenschen) oder als Zahlungszusage festhielt —
+// ein normales Gespräch hinterließ nichts; fiaon_contact_log.ref ist NOT NULL,
+// deshalb am jüngsten Vorgang der Person (wie waAktenvermerk). Gebündelt: ein
+// Vermerk je Person und Stunde, spätere Antworten werden angehängt — sonst
+// stünden bei einem lebhaften Chat dreißig Zeilen zwischen zwei Telefonaten.
+// ═══════════════════════════════════════════════════════════════════════════
+export const VERMERK_KOPF = "Mara (WhatsApp):";
+const VERMERK_MAX = 3800;
+
+const knapp = (t: unknown, n: number) => {
+  const s = String(t ?? "").replace(/\s+/g, " ").trim();
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+};
+
+/** Eine Zeile des Vermerks — exportiert für den Prüfstand. */
+export function vermerkZeile(teil: { kunde: string; mara: string; handlung: string }): string {
+  return `Kunde „${knapp(teil.kunde, 180) || "(ohne Text)"}" — Mara „${knapp(teil.mara, 220)}" — Handlung: ${knapp(teil.handlung, 300) || "keine"}`;
+}
+
+export async function maraWaVermerk(personId: number | null, teil: { kunde: string; mara: string; handlung: string }): Promise<"neu" | "ergaenzt" | "ohne_vorgang" | "fehler"> {
+  if (!personId) return "ohne_vorgang";
+  const zeile = vermerkZeile(teil);
+  try {
+    const [alt] = (await sqlPool`
+      SELECT id, LENGTH(note) AS laenge FROM fiaon_contact_log
+       WHERE person_id = ${personId} AND agent_name = 'Mara' AND type = 'system' AND voided_at IS NULL
+         AND note LIKE ${VERMERK_KOPF + "%"} AND created_at > NOW() - INTERVAL '1 hour'
+       ORDER BY id DESC LIMIT 1`) as any[];
+    if (alt && Number(alt.laenge || 0) + zeile.length + 3 <= VERMERK_MAX) {
+      await sqlPool`UPDATE fiaon_contact_log SET note = note || ${" | " + zeile} WHERE id = ${Number(alt.id)}`;
+      return "ergaenzt";
+    }
+    const [a] = (await sqlPool`
+      SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL AND ref IS NOT NULL
+       ORDER BY created_at DESC LIMIT 1`) as any[];
+    if (!a?.ref) return "ohne_vorgang";
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note)
+      VALUES (${personId}, ${String(a.ref)}, NULL, 'Mara', 'system', ${`${VERMERK_KOPF} ${zeile}`})`;
+    return "neu";
+  } catch (e) {
+    console.error("[MARA-WA] Aktenvermerk:", String((e as Error)?.message || e).slice(0, 160));
+    return "fehler";
+  }
 }
 
 /** Ein Mensch muss übernehmen — als Aufgabe beim Betreuer (oder beim Team, wenn es keinen gibt). */
@@ -1342,7 +1842,7 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
   try {
     await gespraechSchema();
     const faellig = (await sqlPool`
-      SELECT nummer, antwort_text, antwort_auf_id, mara_an, mara_aus_grund, COALESCE(antwort_versuche, 0) AS versuche FROM fiaon_whatsapp_gespraech
+      SELECT nummer, antwort_text, antwort_auf_id, antwort_kunde, antwort_handlung, mara_an, mara_aus_grund, COALESCE(antwort_versuche, 0) AS versuche FROM fiaon_whatsapp_gespraech
        WHERE antwort_text IS NOT NULL AND antwort_faellig_am IS NOT NULL AND antwort_faellig_am <= NOW()
        LIMIT 25`.catch(() => [])) as any[];
     for (const g of faellig) {
@@ -1351,7 +1851,8 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
       // Nur leeren, was wir gelesen haben — eine inzwischen neu vorbereitete Antwort bleibt.
       const leeren = async () => {
         await sqlPool`
-          UPDATE fiaon_whatsapp_gespraech SET antwort_text = NULL, antwort_faellig_am = NULL, antwort_auf_id = NULL
+          UPDATE fiaon_whatsapp_gespraech SET antwort_text = NULL, antwort_faellig_am = NULL, antwort_auf_id = NULL,
+                 antwort_kunde = NULL, antwort_handlung = NULL
            WHERE nummer = ${nummer} AND antwort_auf_id IS NOT DISTINCT FROM ${aufId}`;
       };
       if (g.mara_an === false && g.mara_aus_grund === "schalter") { await leeren(); verworfen++; continue; }
@@ -1378,6 +1879,10 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
       if (erg.ok) {
         await leeren();
         await sqlPool`UPDATE fiaon_whatsapp_gespraech SET antwort_versuche = 0 WHERE nummer = ${nummer}`;
+        // E-240: Was besprochen wurde, steht in der Akte — erst jetzt, wo es wirklich raus ist.
+        await maraWaVermerk(w?.person_id ? Number(w.person_id) : null, {
+          kunde: String(g.antwort_kunde ?? ""), mara: String(g.antwort_text ?? ""), handlung: String(g.antwort_handlung ?? ""),
+        });
         // Eine echte Antwort beendet das „Nachholen nach KI-Ausfall".
         if (!istRueckfall(g.antwort_text)) {
           await sqlPool`UPDATE fiaon_whatsapp_gespraech SET ki_rueckfall_auf_id = NULL, ki_rueckfall_am = NULL WHERE nummer = ${nummer}`;
@@ -1462,3 +1967,5 @@ export async function nachholLauf(): Promise<{ angestossen: number }> {
 }
 /** Für den Prüfstand (scripts/pruef-mara-verkauf.ts): derselbe Auftrag, den Mara im Betrieb bekommt. */
 export { auftrag as maraAuftrag };
+/** Für den Prüfstand (E-240): dieselbe Lage, die Mara im Betrieb bekommt. */
+export { lageFuer as maraLage };

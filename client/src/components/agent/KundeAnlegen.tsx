@@ -60,6 +60,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState, type MouseEvent } from "react";
 import { LABEL_VERTRIEB } from "@shared/fiaon-zustaendigkeit-text";
+import { AUSKUNFT_PREISE_CENTS, istAuskunftSchluessel } from "@shared/fiaon-auskunft";
 // Das Bauteil bringt seine Formensprache selbst mit: Es steht in pipeline.tsx
 // (lädt die Datei ohnehin) UND in kunden-neu.tsx (/agent/kunden-alt, lädt sie
 // nicht). Ohne diesen Import wäre es dort unformatiert. Die Datei enthält
@@ -71,6 +72,8 @@ interface Paket {
   // 17.09.2026 (E-188): „global" = FIAON Global (Einmalpreis, Firmenkunde). Der
   // Katalog liefert nur noch, was verkauft wird — die Business-Abos fehlen.
   art: "privat" | "business" | "global"; abo: boolean;
+  /** 24.09.2026 (E-240): „auskunft" = Zusatzprodukt, kein Konto-Paket. */
+  zusatz?: "auskunft";
 }
 
 interface Treffer {
@@ -214,8 +217,17 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
 
   const kannAnlegen = fehlt.length === 0 && !laeuft;
   const gewaehlt = pakete.find((p) => p.key === f.packKey);
-  const konten = pakete.filter((p) => p.key !== "schufa");
+  // ── DIE AUSKUNFT IST KEIN KONTO-PAKET (24.09.2026, E-240) ───────────────
+  // Der Katalog kennt die Auskunft seit E-240 unter vier Schlüsseln (privat/
+  // Firma, einzeln/mit Paket). Keiner davon darf als Konto-Paket erscheinen; die
+  // Auskunft bleibt EIN Eintrag („Bonitätsauskunft", Schlüssel schufa). Welcher
+  // Preis gilt, wählt der Server beim Anlegen (auskunftBestellen): für einen
+  // neuen Menschen ohne laufendes Paket der Einzelpreis.
+  const konten = pakete.filter((p) => !p.zusatz && !istAuskunftSchluessel(p.key));
   const auskunft = pakete.filter((p) => p.key === "schufa");
+  const istAuskunftGewaehlt = !!gewaehlt && istAuskunftSchluessel(gewaehlt.key);
+  const auskunftEinzeln = AUSKUNFT_PREISE_CENTS.privat.einzeln / 100;
+  const auskunftMitPaket = AUSKUNFT_PREISE_CENTS.privat.mitAbo / 100;
   const akteZiel = akteWeg(erfolg?.personId, erfolg?.ref);
 
   /** „Zur Akte“ öffnet die Lade im selben Raum, wenn der Raum es anbietet. */
@@ -291,6 +303,16 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
           {erfolg.zahlungsreferenz && (
             <div className="pi-anl-schritt">
               <b><i>1</i> Zahlungsdaten</b>
+              {/* E-240 (24.09.2026): Die Auskunft legt der Server über
+                  auskunftBestellen an — der schickt Rechnung und Zahlungsmail
+                  schon selbst (erkennbar an „zahlungsseite"). Ein Klick auf
+                  „senden" wäre sonst die zweite Mail derselben Minute. */}
+              {erfolg.zahlungsseite && (
+                <p className="pi-anl-hinweis">
+                  Rechnung und Zahlungsdaten sind schon per E-Mail unterwegs. Für WhatsApp
+                  oder das Telefon: {erfolg.zahlungsseite}
+                </p>
+              )}
               <div className="pi-reihe">
                 <button type="button" disabled={laeuft}
                         onClick={async () => {
@@ -301,8 +323,8 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
                             ? "Zahlungsdaten sind unterwegs."
                             : `Die Mail ging nicht raus: ${j?.error ?? "unbekannt"}`);
                         }}
-                        className="pi-knopf gross">
-                  Zahlungsdaten senden
+                        className={erfolg.zahlungsseite ? "pi-knopf still gross" : "pi-knopf gross"}>
+                  {erfolg.zahlungsseite ? "Zahlungsdaten erneut senden" : "Zahlungsdaten senden"}
                 </button>
                 {/* ── DER WHATSAPP-WEG ────────────────────────────────────
                     Viele Kunden bekommen die Daten über WhatsApp, weil sie am
@@ -495,13 +517,19 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
                 <button key={p.key} type="button" onClick={() => setF({ ...f, packKey: p.key })}
                         className={`pi-paket${f.packKey === p.key ? " an" : ""}`}>
                   <b>{p.label}</b>
-                  <span>{euro(p.preisEuro)}</span>
-                  <em>einmalig</em>
+                  <span>{euro(auskunftEinzeln)}</span>
+                  <em>einmalig · mit Paket {euro(auskunftMitPaket)}</em>
                 </button>
               ))}
             </div>
             {pakete.length === 0 && <p className="pi-anl-hinweis">Der Katalog lädt …</p>}
-            {gewaehlt ? (
+            {istAuskunftGewaehlt ? (
+              <p className="pi-anl-hinweis">
+                Den Preis wählt der Server: {euro(auskunftEinzeln)} einmalig, mit laufendem Paket
+                {" "}{euro(auskunftMitPaket)}. Die Auskunft wird als eigene Bestellung angelegt, der
+                Kunde bekommt Rechnung und Zahlungsdaten per E-Mail.
+              </p>
+            ) : gewaehlt ? (
               <p className="pi-anl-hinweis">
                 {euro(gewaehlt.preisEuro)}{gewaehlt.abo ? " monatlich" : " einmalig"} — der Preis
                 kommt aus dem Katalog und ist nicht änderbar. Der Kunde steht danach sofort

@@ -8,11 +8,20 @@
 // Paketfinder → Kundenbereich-Karte → Startgespräch → DACH → Technik &
 // Sicherheit → was FIAON nicht ist → Fragen → Abschluss.
 // Texte: client/src/i18n/plattform-konzept.ts. Preise nur aus shared/fiaon-pakete.
+//
+// 24.09.2026 (E-240): „Nur wissen, was drinsteht" ist die Bonitätsauskunft ohne
+// Paket — also der Einzelpreis (149 €, auskunft_privat), daneben der
+// Kundenpreis mit Paket (74 €), beide aus shared/fiaon-auskunft.ts. Der Knopf
+// führt auf /bonitaet-antrag statt auf /antrag?pack=schufa (das Paket kennt
+// der Antrag nicht). Der Grund-Satz im Wörterbuch versprach eine Anrechnung auf
+// ein späteres Paket, die es nicht gibt — bis das Wörterbuch nachgezogen ist,
+// steht der ehrliche Satz hier (AUSKUNFT_GRUND).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import { Dunkel, Hero, Block, Licht, Knopf, Auf, Glas, Karten, Kennzahlen, Zeilen, Fragen, Zwischenruf, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
-import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { PAKETE } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS, auskunftSchluessel } from "@shared/fiaon-auskunft";
 import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
 import { globalGespraechPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { AGENDA } from "@shared/fiaon-onboarding-agenda";
@@ -21,6 +30,11 @@ import { PLATTFORM_KONZEPT_WOERTER } from "@/i18n/plattform-konzept";
 import "@/styles/plattform-konzept.css";
 
 type Antwort = Record<string, string>;
+const AUSKUNFT_EINZELN = auskunftSchluessel("privat", false);
+const AUSKUNFT_GRUND = {
+  de: (mitPaket: string) => `Nur die Auskunft: Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, Fristen geprüft, Handlungsplan und fertige Schreiben – einmalig, kein Abo. Mit einem FIAON-Paket kostet sie ${mitPaket}.`,
+  en: (mitPaket: string) => `Just the report: data copies from every credit bureau in your country, every line explained, deadlines checked, an action plan and finished letters — one-off, no subscription. With a FIAON plan it costs ${mitPaket}.`,
+};
 // 17.09.2026 (E-188): Die Business-Abos sind eingestellt. Ein Unternehmen
 // bekommt sofort seine Antwort — FIAON Global (Einmalpreis) — und wird nicht
 // mehr nach Lage und Tempo gefragt; das sind Fragen der Bonitätslinie.
@@ -28,7 +42,7 @@ type Antwort = Record<string, string>;
 function paketFuer(a: Antwort): { key: string; grund: string } | null {
   if (a.wer === "business") return { key: "global", grund: "global" };
   if (!a.wer || !a.lage || !a.tempo) return null;
-  if (a.lage === "klar") return { key: "schufa", grund: "schufa" };
+  if (a.lage === "klar") return { key: AUSKUNFT_EINZELN, grund: "schufa" };
   if (a.lage === "eintrag") return a.tempo === "ruhig" ? { key: "start", grund: "start" } : { key: "pro", grund: "pro_fristen" };
   if (a.lage === "zugang") return { key: "pro", grund: "pro_zugang" };
   return a.tempo === "sofort" ? { key: "highend", grund: "highend" } : { key: "ultra", grund: "ultra" };
@@ -105,10 +119,10 @@ export default function PlattformKonzept() {
             {paket && vorschlag && (
               <div className="pk-ergebnis">
                 <small>{t.vorschlag}</small>
-                <h3>{paket.label}</h3>
-                <p className="pk-preis">{paket.abo ? <>{euro(paket.preisCents)} <span>{t.imMonat}</span></> : <>{euro(Math.round(SCHUFA_PREIS_EURO * 100))} <span>{t.einmalig}</span></>}</p>
-                <p>{t.gruende[vorschlag.grund]}</p>
-                <div className="pk-weg-knoepfe"><Knopf href={paket.key === "schufa" ? "/antrag?pack=schufa" : `/antrag?pack=${paket.key}&src=konzept`}>{t.mitPaket}</Knopf><Knopf href={zu("/privatkunden")} still>{t.alleVergleichen}</Knopf></div>
+                <h3>{paket.abo ? paket.label : (en ? "Credit report" : "Bonitätsauskunft")}</h3>
+                <p className="pk-preis">{paket.abo ? <>{euro(paket.preisCents)} <span>{t.imMonat}</span></> : <>{euro(paket.preisCents)} <span>{t.einmalig}</span></>}</p>
+                <p>{paket.abo ? t.gruende[vorschlag.grund] : AUSKUNFT_GRUND[en ? "en" : "de"](euro(AUSKUNFT_PREISE_CENTS.privat.mitAbo))}</p>
+                <div className="pk-weg-knoepfe"><Knopf href={paket.abo ? `/antrag?pack=${paket.key}&src=konzept` : "/bonitaet-antrag"}>{paket.abo ? t.mitPaket : (en ? "Order the credit report" : "Bonitätsauskunft bestellen")}</Knopf><Knopf href={zu("/privatkunden")} still>{t.alleVergleichen}</Knopf></div>
               </div>
             )}
           </div>

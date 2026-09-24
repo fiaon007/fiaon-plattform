@@ -49,6 +49,7 @@ import { anredeBestimmen, antwortBauen, grussMitAgent } from "./fiaon-postmeiste
 import { postfachGruss } from "./fiaon-postmeister-postfaecher";
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { absoluteUrl } from "../fiaon-base-url";
+import { personSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
 
 export const DIENST = "mara-aktion";
 export const PAKETE_PRIVAT = ["start", "pro", "highend", "ultra"];
@@ -198,6 +199,15 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
        AND p.merged_into_person_id IS NULL
        AND p.werbung_gesperrt_am IS NULL
        AND COALESCE(p.is_blocked, FALSE) = FALSE
+       -- E-240 (24.09.2026): keine Testkonten, und wer NACH diesem Antrag irgendeinen Vertrag
+       -- gekündigt hat, bekommt dafür keine Werbung (gekündigt ist der Mensch, E-213). Wer
+       -- nach einer Kündigung NEU beantragt hat, bleibt drin — das ist neues Interesse.
+       AND p.ist_test_am IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_applications g
+          WHERE g.person_id = app.person_id AND g.merged_into IS NULL
+            AND g.gekuendigt_am IS NOT NULL AND g.kuendigung_zurueckgenommen_am IS NULL
+            AND g.gekuendigt_am >= app.created_at)
        AND app.person_id NOT IN (SELECT person_id FROM bezahlt)
        AND app.person_id NOT IN (SELECT person_id FROM ausgenommen)
        AND app.person_id NOT IN (SELECT person_id FROM storniert)
@@ -491,6 +501,22 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
     for (const k of kandidaten) {
       if (gesendet >= erlaubt) break;
       if ((await kostenHeute(DIENST).catch(() => 0)) >= e.tagEuro) break;
+      // ── E-240: DIE SPERRE DIREKT VOR DEM SCHREIBEN ─────────────────────────
+      // Diese Mails gehen über Gmail, nicht durch die Tür in make-webhook.ts —
+      // die Schlange oben ist also die einzige Prüfung, und zwischen Schlange und
+      // Versand vergehen Minuten (KI). Zweimal nachsehen: der Mensch (Werbesperre,
+      // Vertriebssperre, Test) und die ADRESSE (eine Werbesperre an einer zweiten
+      // Person oder im Lead-Formular mit derselben Adresse). Die Kündigung prüft
+      // die Schlange (mit Zeitpunkt: wer danach neu beantragt, bleibt drin).
+      const ps = await personSperre(k.personId).catch(() => null);
+      const sperre = (ps ? werbungVerboten({ ...ps, gekuendigt: false, vertragVorbei: false }) : null)
+        ?? ((await werbesperreAnAdresse(k.email).catch(() => false)) ? "Werbesperre an dieser Adresse" : null);
+      if (sperre) {
+        abgelehnt++;
+        await sqlPool`INSERT INTO fiaon_mara_aktion (person_id, ref, stufe, schritt, status, grund, empfaenger, postfach)
+          VALUES (${k.personId}, ${k.ref}, ${k.stufe}, ${k.schritt}, 'abgelehnt', ${`Sperre: ${sperre}`}, ${k.email}, ${e.postfach})`.catch(() => {});
+        continue;
+      }
       const m = await mailSchreiben(k, e).catch((err): Entwurf => ({ ok: false, grund: String(err?.message || err).slice(0, 200), betreff: "", text: "", html: "", kern: "", kostenCents: 0, maengel: [] }));
       if (!m.ok) {
         abgelehnt++;

@@ -38,6 +38,21 @@
 import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
 import { globalSchwester } from "./fiaon-global-pfade";
+// 24.09.2026 (E-240): Die Bonitätsauskunft ist ein Zusatzprodukt mit zwei
+// Preisen (149 € einzeln, 74 € mit laufendem Paket; Unternehmen 349/199 €) —
+// nicht „74 € einmalig", ohne Anrechnung auf ein Paket (die gab es nie), und in
+// keinem Paket enthalten. Die Preise kommen aus der einen Quelle. Mitgezogen
+// im selben Zug: keine Behauptung einer
+// Prüfung durch Anwälte (kein Beleg, LEXR-Freigabe ausstehend) und keine
+// Lieferfrist mit Zahl für die Auskunft (Wortwand, shared/fiaon-wortverbote.ts).
+import { AUSKUNFT_PREISE_CENTS, auskunfteienText, euroText } from "./fiaon-auskunft";
+
+const AUSK_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
+const AUSK_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
+const AUSK_FIRMA_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln);
+const AUSK_FIRMA_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo);
+/** Englische Schreibweise: „€149". */
+const euroEn = (c: number) => `€${c / 100}`;
 
 export const SEO_BASIS = "https://fiaon.com";
 /** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-232). */
@@ -243,10 +258,10 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, repariert es mit Ihnen – und öffnet die Tür zu Konto, Karte und Finanzierung. Für Deutschland, Österreich und die Schweiz.",
     abschnitte: [
       { h2: "Ihre Bonität entscheidet über Konto, Karte und Kredit. Nur Sie selbst sehen sie nie.", text: "100 Millionen Menschen in Deutschland, Österreich und der Schweiz haben einen Eintrag bei SCHUFA, KSV oder CRIF. Allein in Deutschland gelten sechs Millionen als überschuldet. Die meisten wissen nicht, was dort steht – und niemand hilft ihnen, es zu ändern." },
-      { h2: "Drei Schichten. Ein Weg.", text: "Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir ändern es mit Ihnen – und wir öffnen danach die Tür. Im Kern arbeitet die FIAON-Analyse, gebaut für Bonität im DACH-Raum.", punkte: ["Einsicht: Bonitätsauskunft bei SCHUFA, KSV oder CRIF, jeder Eintrag in Menschensprache erklärt, Kontoauszug-Analyse mit Einnahmen, Fixkosten und Spielraum.", "Aktion: Löschanträge, Widersprüche und Ratenvereinbarungen aus anwaltlich geprüften Vorlagen – Sie geben frei, FIAON versendet und verfolgt die Antwort.", "Zugang: Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor."] },
-      { h2: "In drei Schritten zu Ihrer Bonität.", text: "Konto anlegen: E-Mail-Adresse, wenige Angaben, zwei Minuten. Auskunft erhalten: FIAON beantragt Ihre Auskunft, innerhalb von 24 Stunden sehen Sie, was gespeichert ist. Handeln und Zugang erhalten: Schreiben freigeben, Raten vereinbaren, Etappen abschließen – am Ende stehen Konto und Karte." },
-      { h2: "Wählen Sie, wie weit Sie gehen. Nicht, ob.", text: "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Pakete ab 7,99 € im Monat, zwölf Raten, keine versteckten Posten." },
-      { h2: "Geführt wie ein Finanzinstitut. Gebaut wie eine App.", text: "FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben, das Sie über FIAON versenden, ist anwaltlich geprüft. Jede Zahlung läuft per Überweisung auf das Geschäftskonto der FIAON LTD. Ihre Daten liegen verschlüsselt auf Servern in der EU." },
+      { h2: "Drei Schichten. Ein Weg.", text: "Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir ändern es mit Ihnen – und wir öffnen danach die Tür. Im Kern arbeitet die FIAON-Analyse, gebaut für Bonität im DACH-Raum.", punkte: ["Einsicht: Bonitätsauskunft bei SCHUFA, KSV oder CRIF, jeder Eintrag in Menschensprache erklärt, Kontoauszug-Analyse mit Einnahmen, Fixkosten und Spielraum.", "Aktion: Löschanträge, Widersprüche und Ratenvereinbarungen aus fertigen Vorlagen – Sie geben frei, FIAON versendet und verfolgt die Antwort.", "Zugang: Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor."] },
+      { h2: "In drei Schritten zu Ihrer Bonität.", text: "Konto anlegen: E-Mail-Adresse, wenige Angaben, zwei Minuten. Auskunft erhalten: Sie sehen, was gespeichert ist – jeder Eintrag erklärt. Handeln und Zugang erhalten: Schreiben freigeben, Raten vereinbaren, Etappen abschließen – am Ende stehen Konto und Karte." },
+      { h2: "Wählen Sie, wie weit Sie gehen. Nicht, ob.", text: `Jedes Paket erklärt Ihre Auskunft. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Pakete ab 7,99 € im Monat, zwölf Raten, keine versteckten Posten; die Bonitätsauskunft selbst gibt es dazu (mit Paket ${AUSK_MIT_PAKET}, einzeln ${AUSK_EINZELN}).` },
+      { h2: "Geführt wie ein Finanzinstitut. Gebaut wie eine App.", text: "FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben, das Sie über FIAON versenden, geben Sie vorher frei. Jede Zahlung läuft per Überweisung auf das Geschäftskonto der FIAON LTD. Ihre Daten liegen verschlüsselt auf Servern in der EU." },
       { h2: "Kostenlos, sofort, ohne Anmeldung.", text: "Zehn Werkzeuge, die Ihnen heute schon etwas bringen – keine Anfrage bei einer Auskunftei, keine Spur im Score, nichts wird gespeichert: Datenkopie anfordern, Eintrag prüfen, Löschfrist und Verjährung berechnen, Inkassokosten nachrechnen, Kredit- und Umschuldungsrechner, Schulden-Check, Spielraum und Karten-Check." },
     ],
     weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/ratgeber", "/kreditkarte"],
@@ -275,7 +290,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Ein Markt, der nur anzeigt.", text: "100 Millionen Menschen in Deutschland, Österreich und der Schweiz haben einen Eintrag bei SCHUFA, KSV oder CRIF. Score-Apps zeigen eine Zahl, dann nichts. Schuldnerberatungen sind wertvoll – und analog. Banken entscheiden nach der Akte, nicht nach dem Menschen." },
       { h2: "FIAON tut wirklich etwas.", text: "Das ist der Unterschied zu allem, was es bisher gab – und der Grund, warum FIAON ein Betriebssystem ist und keine App: Aus jeder Einsicht wird ein Schreiben, das hinausgeht. Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen – vorbereitet, geprüft, von Ihnen freigegeben." },
       { h2: "Niemand geht leer aus. Jeder hat ein nächstes Ziel.", text: "Die Logik ist einfach und ehrlich: Bonität gut – Karte sofort. Bonität schlecht – FIAON-Programm, Karte später. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor und begleitet Sie." },
-      { h2: "Von der E-Mail-Adresse zur Karte.", text: "Konto anlegen, Startgespräch, Einsicht innerhalb von 24 Stunden, Aktion Etappe für Etappe mit festem Ansprechpartner, Zugang zu Konto, Karte und später Finanzierung – vorgestellt bei Partnerbanken, die eine dokumentierte Bonität sehen." },
+      { h2: "Von der E-Mail-Adresse zur Karte.", text: "Konto anlegen, Startgespräch, Einsicht mit jedem Eintrag erklärt, Aktion Etappe für Etappe mit festem Ansprechpartner, Zugang zu Konto, Karte und später Finanzierung – vorgestellt bei Partnerbanken, die eine dokumentierte Bonität sehen." },
       { h2: "Gesellschafter, die selbst im Betrieb stehen.", text: "FIAON wird nicht von einer Zentrale geführt. Die drei Gesellschafter sehen täglich Kunden – im Startgespräch, im Vertrieb, in der Akte. Sie-Form immer, keine Fantasiezahlen, jede Entscheidung ein Eintrag im Register." },
     ],
     weiter: ["/privatkunden", "/plattform-konzept", "/fiaon-erfahrungen", "/team", "/preise", "/sicherheit"],
@@ -289,7 +304,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       abschnitte: [
         { h2: "Creditworthiness is not a verdict — it is a state", text: "Today a report you have never seen decides on your account, your card, your flat and your loan. FIAON turns that around: first you see what is stored, then you change it, then the door opens.", punkte: ["Layer 1 · Insight: your report from SCHUFA, KSV or CRIF, explained in plain language", "Layer 2 · Action: deletion requests, corrections, objections and instalment agreements — prepared, reviewed, sent", "Layer 3 · Access: a current account, a credit card, later finance — the bank decides"] },
         { h2: "Why FIAON exists", text: "100 million people in Germany, Austria and Switzerland have an entry with a credit bureau; six million in Germany alone are considered over-indebted. Score apps show a number, debt counselling is analogue, banks decide by the file. FIAON occupies the layer in between." },
-        { h2: "The path from e-mail address to card", text: "Create an account in two minutes, an onboarding call with a person, your report explained within 24 hours, letters approved and tracked stage by stage, then account and card prepared for partner banks. The bank always decides on the issue." },
+        { h2: "The path from e-mail address to card", text: "Create an account in two minutes, an onboarding call with a person, your report explained entry by entry, letters approved and tracked stage by stage, then account and card prepared for partner banks. The bank always decides on the issue." },
       ],
       weiter: ["/preise", "/"],
       krumen: [{ name: "What is FIAON", pfad: "/en/what-is-fiaon" }],
@@ -302,10 +317,10 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     h1: "Die Kreditkarte, die am Ende Ihrer Bonität wartet.",
     lead: "Ein Eintrag ist kein Urteil. FIAON beschafft Ihre Auskunft, erklärt jeden Eintrag, lässt angreifbare löschen – und öffnet dann die Tür: Girokonto sofort, Kreditkarte, sobald Ihr Wert reicht.",
     abschnitte: [
-      { h2: "Vier Etappen. Ein Ziel.", text: "Niemand bekommt eine Karte, weil er sie beantragt. Er bekommt sie, weil seine Akte sie trägt. Genau daran arbeitet FIAON – in dieser Reihenfolge.", punkte: ["Einsicht: Ihre Auskunft innerhalb von 24 Stunden, jeder Eintrag erklärt – berechtigt, bezahlt-aber-nicht-gelöscht, ohne Mahnung gemeldet.", "Aktion: Löschanträge, Widersprüche, Ratenvereinbarungen – anwaltlich geprüft, von Ihnen freigegeben, per Einschreiben versendet.", "Konto: Ein Girokonto für jeden Kunden, unabhängig von der Bonität. Ab hier läuft Ihr Zahlungsverhalten sauber.", "Karte: Aus Einträgen, Einkommen und Kontoverhalten berechnet FIAON Ihre Readiness. Reicht der Wert, ist der Antrag beim Kartenpartner vorbereitet – die Bank entscheidet."] },
-      { h2: "Wählen Sie, wie weit Sie gehen. Nicht, ob.", text: "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto näher rückt die Karte. FIAON Start ab 7,99 €, FIAON Pro 59,99 €, FIAON Ultra 79,99 €, FIAON High-End 99,99 € im Monat – zwölf Raten, danach fragen wir, ob Sie bleiben." },
+      { h2: "Vier Etappen. Ein Ziel.", text: "Niemand bekommt eine Karte, weil er sie beantragt. Er bekommt sie, weil seine Akte sie trägt. Genau daran arbeitet FIAON – in dieser Reihenfolge.", punkte: ["Einsicht: Ihre Auskunft, jeder Eintrag erklärt – berechtigt, bezahlt-aber-nicht-gelöscht, ohne Mahnung gemeldet.", "Aktion: Löschanträge, Widersprüche, Ratenvereinbarungen – fertig vorbereitet, von Ihnen freigegeben, per Einschreiben versendet.", "Konto: Ein Girokonto für jeden Kunden, unabhängig von der Bonität. Ab hier läuft Ihr Zahlungsverhalten sauber.", "Karte: Aus Einträgen, Einkommen und Kontoverhalten berechnet FIAON Ihre Readiness. Reicht der Wert, ist der Antrag beim Kartenpartner vorbereitet – die Bank entscheidet."] },
+      { h2: "Wählen Sie, wie weit Sie gehen. Nicht, ob.", text: `Jedes Paket erklärt Ihre Auskunft. Je weiter Sie gehen, desto näher rückt die Karte. FIAON Start ab 7,99 €, FIAON Pro 59,99 €, FIAON Ultra 79,99 €, FIAON High-End 99,99 € im Monat – zwölf Raten, danach fragen wir, ob Sie bleiben. Die Bonitätsauskunft ist nicht enthalten: mit Paket ${AUSK_MIT_PAKET}, einzeln ${AUSK_EINZELN}.` },
       { h2: "So nah ist Ihre Karte.", text: "FIAON berechnet aus Einträgen, Einkommen und Kontoverhalten Ihre Karten-Readiness – und zeigt, welcher Schritt sie wie weit bewegt. Kein Versprechen, sondern ein Fortschrittsbalken, der steigt. Girokonto für jeden, Kreditkarte bis 5.000 € nach sauberen Monaten, bis 25.000 € Rahmen bei guter Bonität über unseren Kartenpartner." },
-      { h2: "Geführt wie ein Finanzinstitut. Gebaut wie eine App.", text: "FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben anwaltlich geprüft, jede Zahlung per Überweisung, jede Akte verschlüsselt in der EU. Ein Mensch am Telefon – jeder Kunde beginnt mit einem Startgespräch. Ehrlich bis zum Nein: Berechtigte Einträge lassen sich nicht weglöschen." },
+      { h2: "Geführt wie ein Finanzinstitut. Gebaut wie eine App.", text: "FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben erst nach Ihrer Freigabe, jede Zahlung per Überweisung, jede Akte verschlüsselt in der EU. Ein Mensch am Telefon – jeder Kunde beginnt mit einem Startgespräch. Ehrlich bis zum Nein: Berechtigte Einträge lassen sich nicht weglöschen." },
     ],
     weiter: ["/preise", "/kreditkarte", "/girokonto-trotz-negativer-bonitaet", "/schufa-eintrag-loeschen", "/werkzeuge/eintrag-pruefen", "/fiaon-erfahrungen"],
     krumen: [{ name: "Privatkunden", pfad: "/privatkunden" }],
@@ -316,9 +331,9 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       h1: "The credit card waiting at the end of your credit file.",
       lead: "An entry is not a verdict. FIAON obtains your report, explains every entry, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
       abschnitte: [
-        { h2: "Four stages, one goal", text: "Nobody gets a card because they apply for it; they get it because their file supports it.", punkte: ["Insight: your report within 24 hours, every entry explained", "Action: deletion requests, objections and instalment agreements — reviewed, approved by you, sent by registered post", "Account: a current account for every customer, regardless of the file", "Card: FIAON calculates your readiness and prepares the application with the card partner"] },
-        { h2: "Four plans, one credit report", text: "FIAON Start, Pro, Ultra and High End in twelve monthly instalments, cancellable monthly thereafter; just the credit report as a one-off. Every plan starts with your report; the difference is how much FIAON takes on afterwards. The bank always decides on account, card and limit." },
-        { h2: "Honest comparison", text: "A score app shows a number, a lawyer charges by the hour, FIAON obtains the report within 24 hours, sends the letters by registered post, prepares the account and the path to a card — with a person who knows your file." },
+        { h2: "Four stages, one goal", text: "Nobody gets a card because they apply for it; they get it because their file supports it.", punkte: ["Insight: your report, every entry explained", "Action: deletion requests, objections and instalment agreements — reviewed, approved by you, sent by registered post", "Account: a current account for every customer, regardless of the file", "Card: FIAON calculates your readiness and prepares the application with the card partner"] },
+        { h2: "Four plans, one credit report", text: "FIAON Start, Pro, Ultra and High End in twelve monthly instalments, cancellable monthly thereafter; just the credit report as a one-off. Every plan explains your report (the report itself is extra); the difference is how much FIAON takes on afterwards. The bank always decides on account, card and limit." },
+        { h2: "Honest comparison", text: "A score app shows a number, a lawyer charges by the hour, FIAON explains every entry of your report, sends the letters by registered post, prepares the account and the path to a card — with a person who knows your file." },
       ],
       weiter: ["/preise", "/was-ist-fiaon"],
       krumen: [{ name: "Personal", pfad: "/en/personal" }],
@@ -370,17 +385,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // übersetzt und nicht mehr eigenständig indexiert; canonical zeigt auf die neue, zweisprachige
   // Seite /bonitaetsauskunft-beantragen. Erreichbar bleibt sie (Verweise, Kampagnen-Links).
   "/bonitaet": {
-    pfad: "/bonitaet", art: "produkt", stand: "2026-08-22", prio: 0.7, canonical: "/bonitaetsauskunft-beantragen",
-    titel: "SCHUFA-Vollauskunft am selben Werktag — FIAON",
-    beschreibung: "Ihre vollständige Auskunft mit Erklärung: welcher Eintrag woher stammt, wie lange er bleibt, welcher angreifbar ist. Durch FIAON beantragt, 74 € einmalig.",
-    h1: "Deine Schufa-Vollauskunft. Express am selben Werktag.",
-    lead: "FIAON beantragt die Auskunft für dich, liest sie und erklärt jeden Eintrag: woher er stammt, wie lange er bleibt und ob er angreifbar ist. Kein wochenlanges Warten, keine Formulare.",
+    // 24.09.2026 (E-240): wie die Seite neu in Sie-Form, ohne Lieferfrist und Score-Versprechen.
+    pfad: "/bonitaet", art: "produkt", stand: "2026-09-24", prio: 0.7, canonical: "/bonitaetsauskunft-beantragen",
+    titel: "Bonitätsauskunft mit Handlungsplan — FIAON",
+    beschreibung: `Datenkopien aller Auskunfteien Ihres Landes, jeder Eintrag erklärt, Fristen geprüft, Handlungsplan und Schreiben: ${AUSK_EINZELN} einmalig, mit Paket ${AUSK_MIT_PAKET}.`,
+    h1: "Ihre Bonitätsauskunft. Mit Handlungsplan.",
+    lead: "FIAON fordert Ihre Datenkopien bei allen Auskunfteien Ihres Landes an, erklärt jeden Eintrag, prüft die Speicherfristen und liefert Ihren Handlungsplan mit fertigen Schreiben. Sie geben frei, wir übermitteln.",
     abschnitte: [
-      { h2: "Warum eine geprüfte Auskunft?", text: "Wochenlanges Warten, Unwissenheit, die Geld kostet, und Daten ohne Lösung – das ist die kostenlose Datenkopie, wenn niemand sie erklärt. Die geprüfte FIAON-Auskunft beschafft die Daten bei SCHUFA, KSV oder CRIF und liefert die Einordnung dazu: erledigt, löschbar, berichtigbar, angreifbar." },
-      { h2: "So läuft es ab", text: "Express-Formular ausfüllen, Vollmacht digital unterschreiben, FIAON beschafft die Auskunft, du siehst das Ergebnis erklärt im Kundenbereich – mit dem nächsten Schritt für jeden Eintrag." },
+      { h2: "Warum eine Auskunft allein selten weiterhilft.", text: "Jede Auskunftei will einzeln angeschrieben werden, eine Absage nennt selten den Eintrag dahinter, und eine Datenkopie zeigt nicht, was Sie jetzt tun können. Die FIAON-Bonitätsauskunft liefert die Einordnung dazu: erklärt, Frist geprüft, nächster Schritt." },
+      { h2: "So läuft es ab", text: "Bestellen und Vollmacht erteilen, FIAON fordert die Datenkopien an – die Auskunfteien haben dafür gesetzlich in der Regel einen Monat Zeit –, danach Erklärung, Fristenprüfung, Handlungsplan und fertige Schreiben in Ihrem Kundenbereich." },
+      { h2: "Was es kostet", text: `${AUSK_EINZELN} einmalig, mit laufendem FIAON-Paket ${AUSK_MIT_PAKET}; für Unternehmen ${AUSK_FIRMA_EINZELN} bzw. ${AUSK_FIRMA_MIT_PAKET}. Kein Abo. Die Datenkopie steht Ihnen bei jeder Auskunftei auch kostenlos zu – wir nehmen Ihnen Anforderung, Auswertung und Schreiben ab.` },
     ],
     weiter: ["/bonitaetsauskunft-beantragen", "/selbstauskunft-checkliste", "/werkzeuge/selbstauskunft", "/preise"],
-    krumen: [{ name: "Bonitäts-Auszug", pfad: "/bonitaet" }],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaet" }],
   },
   "/preise": {
     pfad: "/preise", art: "produkt", stand: PFEILER, prio: 0.9,
@@ -390,7 +407,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Zwölf Monatsraten, danach monatlich kündbar – und wir fragen, ob Sie bleiben. Keine Provision auf Rahmen, keine Gebühr je Schreiben, kein Kleingedrucktes. Hier steht alles – inklusive dessen, was Selbermachen und Anwalt kosten.",
     abschnitte: [
       { h2: "Drei Fragen, ein Paket.", text: "Der Paketfinder ordnet ehrlich zu: Für wen, wie ist die Lage, wie schnell soll es gehen – und nennt das Paket mit Monatsrate und Gesamtpreis über zwölf Raten. Jedes Paket lässt sich im Startgespräch noch ändern." },
-      { h2: "Vier Pakete, eine Auskunft.", text: "Jedes Paket beginnt mit Ihrer Bonitätsauskunft, erklärt in Menschensprache – inklusive des neuen SCHUFA-Scores je Kriterium.", punkte: ["FIAON Start – 7,99 € im Monat: Auskunft erklärt, Finanzauswertung, Schreiben zum Selbstversand, fester Ansprechpartner.", "FIAON Pro (Standard) – 59,99 € im Monat: FIAON versendet und verfolgt, Ratenvereinbarungen, Girokonto vorbereitet, Kreditkarte ab Schwelle.", "FIAON Ultra – 79,99 € im Monat: dazu Kreditkarte vorbereitet und Vorrang bei Fristen und Rückfragen.", "FIAON High-End – 99,99 € im Monat: alles aus Ultra plus direkte Durchwahl, alles aus einer Hand.", "Bonitätsauskunft einzeln – 74 € einmalig, anrechenbar auf ein Paket innerhalb von 30 Tagen."] },
+      { h2: "Vier Pakete und Ihre Auskunft.", text: "Jedes Paket erklärt Ihre Bonitätsauskunft in Menschensprache – inklusive des neuen SCHUFA-Scores je Kriterium. Die Auskunft selbst ist nicht im Paket enthalten: Sie bestellen sie bei FIAON zum Kundenpreis dazu oder laden eine selbst angeforderte Datenkopie hoch.", punkte: ["FIAON Start – 7,99 € im Monat: Auskunft erklärt, Finanzauswertung, Schreiben zum Selbstversand, fester Ansprechpartner.", "FIAON Pro (Standard) – 59,99 € im Monat: FIAON versendet und verfolgt, Ratenvereinbarungen, Girokonto vorbereitet, Kreditkarte ab Schwelle.", "FIAON Ultra – 79,99 € im Monat: dazu Kreditkarte vorbereitet und Vorrang bei Fristen und Rückfragen.", "FIAON High-End – 99,99 € im Monat: alles aus Ultra plus direkte Durchwahl, alles aus einer Hand.", `Bonitätsauskunft – ${AUSK_EINZELN} einmalig, mit laufendem Paket ${AUSK_MIT_PAKET}: Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, Handlungsplan und fertige Schreiben.`] },
       { h2: "Was kostet mein Fall?", text: "Einträge, Auskunfteien und Ziel eingeben – der Rechner nennt das passende Paket, den Gesamtpreis über zwölf Raten und was derselbe Fall in eigener Zeit oder beim Anwalt (Richtwert 190 € je Schreiben) kostet. Bei einem einzigen klaren Eintrag reichen die kostenlosen Werkzeuge oft aus." },
       { h2: "Der Zahlungsweg – Schritt für Schritt.", text: "Antrag und Vertrag, erste Rate per Überweisung (bankbestätigt, dann Startgespräch), ab Monat zwei jede weitere Rate ebenfalls per Überweisung; nach der zwölften Rate jederzeit mit einer Frist von einem Monat kündbar, formlos. Keine Vorkasse für Leistungen, die noch nicht erbracht sind." },
       // 17.09.2026 (E-188): Business-Abos eingestellt, für Unternehmen gibt es FIAON Global (Einmalpreise aus shared/fiaon-pakete.ts, geprüft von scripts/pruef-pakete.ts).
@@ -406,7 +423,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       h1: "One price, no surprises.",
       lead: "Twelve monthly instalments, then we ask whether you want to stay. No commission on limits, no fee per letter, no small print. Everything is here — including what it costs to do it yourself.",
       abschnitte: [
-        { h2: "Four personal plans, one credit report", text: "Every plan starts with your credit report, explained in plain language. The difference is how much FIAON takes on afterwards: letters to send yourself or sent by FIAON, deadlines tracked, a current account and card prepared, priority on queries." },
+        { h2: "Four personal plans and your credit report", text: `Every plan explains your credit report in plain language. The report itself is not included: add it at the customer price of ${euroEn(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} (${euroEn(AUSKUNFT_PREISE_CENTS.privat.einzeln)} on its own) or upload a data copy you requested yourself. The difference is how much FIAON takes on afterwards: letters to send yourself or sent by FIAON, deadlines tracked, a current account and card prepared, priority on queries.` },
         { h2: "What doing it yourself costs", text: "Everything FIAON does you can do yourself — the data copy under Art. 15 GDPR is free and the law is public. The question is what your time is worth and how often you will have to chase. Our calculator on this page compares registered letters, hours and a lawyer's fee with a twelve-month plan." },
         { h2: "How you pay", text: "Every instalment by bank transfer, the first and all further ones (payment details with a QR code in your customer area and in every payment e-mail). No credit card needed. Prices include VAT. The bank decides on account, card and limit." },
       ],
@@ -424,7 +441,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Welche Karte heute geht.", text: "Es gibt nicht „die“ Kreditkarte. Es gibt drei Wege – Debitkarte zum Konto, Prepaid-Karte mit Guthaben, echte Kreditkarte mit Rahmen – und für jede Lage einen, der offen ist." },
       { h2: "So wächst der Rahmen.", text: "Kein Versprechen – der typische Verlauf über zwölf Monate, wenn Auskunft, Konto und Abrechnung stimmen: erst das Konto auf Guthabenbasis, dann ein kleiner Rahmen, dann die Aufstockung, sobald die Zahlungshistorie sie trägt." },
       { h2: "Die fünf Dinge, die zählen.", text: "Kartenpartner lesen Ihre Auskunft in einer Minute. Negativmerkmale, offene Forderungen, Kreditanfragen der letzten zwölf Monate, Kontoverhalten und Einkommen sind die Stellen, an denen sie hängen bleiben – und genau daran arbeitet FIAON." },
-      { h2: "Was wir nicht versprechen.", text: "Keine Karte ohne Bonitätsprüfung, keinen garantierten Rahmen, keine Löschung berechtigter Einträge. Wer das verspricht, verkauft Hoffnung. Der Weg über die bereinigte Auskunft ist langsamer – und der einzige, der trägt." },
+      { h2: "Was wir nicht versprechen.", text: "Keine Karte ohne Bonitätsprüfung, keinen zugesagten Rahmen, keine Löschung berechtigter Einträge. Wer das verspricht, verkauft Hoffnung. Der Weg über die bereinigte Auskunft ist langsamer – und der einzige, der trägt." },
     ],
     weiter: ["/girokonto-trotz-negativer-bonitaet", "/werkzeuge/karten-check", "/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/preise", "/privatkunden"],
     krumen: [{ name: "Kreditkarte trotz Eintrag", pfad: "/kreditkarte" }],
@@ -650,7 +667,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "FIAON bringt Ihnen keinen Antrag, sondern eine Akte: bereinigte Einträge, dokumentierter Spielraum aus dem Kontoauszug, eine Zahlungshistorie aus zwölf Raten – und die Einwilligung des Kunden, Ihnen genau das zu zeigen.",
     abschnitte: [
       { h2: "Vier Partner. Eine Akte.", text: "Banken und Kartenherausgeber bekommen Neukunden mit Geschichte statt Antrag. Auskunfteien bekommen weniger Streit und saubere Daten. Inkasso bekommt Ratenvereinbarungen, die halten. Vermittler bekommen Provision je Abschluss." },
-      { h2: "Was passiert, bevor ein Kunde bei Ihnen ankommt.", text: "Drei Etappen, jede dokumentiert: Einsicht (Auskunft und Kontoauszug), Aktion (anwaltlich geprüfte Schreiben, Ratenvereinbarungen), Zugang (Vorstellung mit Einwilligung und Zahlungshistorie)." },
+      { h2: "Was passiert, bevor ein Kunde bei Ihnen ankommt.", text: "Drei Etappen, jede dokumentiert: Einsicht (Auskunft und Kontoauszug), Aktion (vom Kunden freigegebene Schreiben, Ratenvereinbarungen), Zugang (Vorstellung mit Einwilligung und Zahlungshistorie)." },
       { h2: "In vier Schritten zum Pilot.", text: "Anfrage – Gespräch mit der Plattform auf dem Bildschirm – Pilot mit begrenzter Kundenzahl und Auswertung nach 90 Tagen – Anbindung per Schnittstelle oder strukturierter Übergabe. Ein Mensch antwortet innerhalb von zwei Werktagen." },
     ],
     weiter: ["/investoren", "/was-ist-fiaon", "/sicherheit", "/kontakt"],
@@ -663,7 +680,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       lead: "FIAON brings you not an application but a file: cleaned-up entries, documented headroom from the bank statement, a payment history of twelve instalments – and the customer's consent to show you exactly that.",
       abschnitte: [
         { h2: "Four partners. One file.", text: "Banks and card issuers get new customers with a history; credit bureaus get structured requests and complete deletion applications; debt collectors and creditors get instalment agreements that hold; introducers get commission per deal and per collected instalment." },
-        { h2: "What happens before a customer arrives with you", text: "Insight (report and bank statement analysis), action (lawyer-reviewed letters, instalment agreements), access (introduction with consent and all documents)." },
+        { h2: "What happens before a customer arrives with you", text: "Insight (report and bank statement analysis), action (letters approved by the customer, instalment agreements), access (introduction with consent and all documents)." },
         { h2: "Four steps to a pilot", text: "Enquiry, conversation with the platform on screen, pilot with a limited number of customers and joint evaluation after 90 days, then integration and scaling." },
       ],
       weiter: ["/business", "/investoren", "/karriere"],
@@ -673,25 +690,25 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/presse": {
     pfad: "/presse", art: "unternehmen", stand: PFEILER, prio: 0.5,
     titel: "Presse: Fakten, Zahlen, Bildmaterial, Ansprechpartner",
-    beschreibung: "FIAON in den Medien: Kurzprofil, Marktzahlen zum Zitieren, Themen für Interviews und Gastbeiträge, Bildmaterial und ein Ansprechpartner am selben Werktag.",
+    beschreibung: "FIAON in den Medien: Kurzprofil, Marktzahlen zum Zitieren, Themen für Interviews und Gastbeiträge, Bildmaterial und ein Ansprechpartner für Anfragen.",
     h1: "FIAON in den Medien.",
     lead: "Das Betriebssystem für Bonität: FIAON zeigt Menschen in Deutschland, Österreich und der Schweiz, was Auskunfteien über sie wissen – repariert es mit ihnen und öffnet danach die Tür zu Konto, Karte und Finanzierung. Hier finden Sie alles für Ihre Recherche.",
     abschnitte: [
       { h2: "In drei Sätzen erzählt.", text: "Wer FIAON in einem Absatz beschreiben will, braucht nur die drei Schichten: Einsicht, Aktion, Zugang." },
       { h2: "Worüber wir sprechen können.", text: "Justin Schwarzott steht für Interviews, Hintergrundgespräche und Gastbeiträge zur Verfügung: Was steht eigentlich in meiner SCHUFA? Warum Score-Apps nicht reichen. KI, die Kontoauszüge liest. Kunden werden Mitarbeiter." },
-      { h2: "Wortmarke und Produktansichten.", text: "Druckfähige Dateien, Screenshots des Kundenbereichs und ein Porträt des Gründers erhalten Sie auf Anfrage innerhalb eines Werktags. Presseanfragen: Medium, Thema und Frist – Antwort in der Regel am selben Werktag." },
+      { h2: "Wortmarke und Produktansichten.", text: "Druckfähige Dateien, Screenshots des Kundenbereichs und ein Porträt des Gründers erhalten Sie auf Anfrage. Presseanfragen: Medium, Thema und Frist – wir antworten so schnell wie möglich." },
     ],
     weiter: ["/team", "/was-ist-fiaon", "/investoren", "/kontakt"],
     krumen: [{ name: "Presse", pfad: "/presse" }],
     en: {
       pfad: "/en/press",
       titel: "Press: facts, figures, imagery, contact — FIAON",
-      beschreibung: "FIAON in the media: short profile, market figures to quote, topics for interviews and guest articles, imagery and a contact on the same working day.",
+      beschreibung: "FIAON in the media: short profile, market figures to quote, topics for interviews and guest articles, imagery and a named contact for enquiries.",
       h1: "FIAON in the media.",
       lead: "The operating system for creditworthiness: FIAON shows people in Germany, Austria and Switzerland what credit bureaus know about them – repairs it with them and then opens the door to account, card and financing.",
       abschnitte: [
         { h2: "Facts at a glance", text: "FIAON LTD, London; founder and director Justin Schwarzott; markets Germany, Austria, Switzerland; product insight, action, access; payment by bank transfer in twelve instalments; press contact presse@fiaon.com." },
-        { h2: "Told in three sentences", text: "People see their credit report for the first time; then they change what is wrong with lawyer-reviewed letters; and they get what was denied to them before – via partner banks that see a documented credit file." },
+        { h2: "Told in three sentences", text: "People see their credit report for the first time; then they change what is wrong with letters they approve; and they get what was denied to them before – via partner banks that see a documented credit file." },
         { h2: "What we can talk about", text: "What is in my SCHUFA file, why score apps are not enough, AI that reads bank statements, customers who become staff. Justin Schwarzott is available for interviews and guest articles." },
       ],
       weiter: ["/ueber-uns", "/team", "/transparenz"],
@@ -731,7 +748,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Wer „FIAON Erfahrungen“ sucht, will wissen: Kann ich denen trauen? Die ehrlichste Antwort ist, Ihnen alles Prüfbare hinzulegen – Zahlen aus dem Betrieb, den Ablauf, die Preise, die Grenzen. Und einen Check, mit dem Sie jeden Anbieter prüfen können. Auch uns.",
     abschnitte: [
       { h2: "FIAON in Zahlen", text: "Stand 3. September 2026, bankbestätigt: über 440 zahlende Kunden, 440 bezahlte Monatsraten, drei Länder (Deutschland, Österreich, Schweiz), 20 kostenlose Werkzeuge. Gezählt wird nur, was die Bank bestätigt hat." },
-      { h2: "So funktioniert's – in drei Schritten", text: "Antrag mit Festpreis und Startgespräch mit einem Menschen; Einsicht – Auskunft bei SCHUFA, KSV, CRIF beschafft und jede Zeile gegen § 31 BDSG und die Löschfristen geprüft; Aktion und Zugang – anwaltlich geprüfte Schreiben, Fristen, Girokonto und Karte beim Partnerinstitut. Die Entscheidung trifft die Bank." },
+      { h2: "So funktioniert's – in drei Schritten", text: "Antrag mit Festpreis und Startgespräch mit einem Menschen; Einsicht – Auskunft bei SCHUFA, KSV, CRIF beschafft und jede Zeile gegen § 31 BDSG und die Löschfristen geprüft; Aktion und Zugang – fertige Schreiben nach Ihrer Freigabe, Fristen, Girokonto und Karte beim Partnerinstitut. Die Entscheidung trifft die Bank." },
       { h2: "Der Seriositäts-Check – für jeden Anbieter", text: "Sechs Fragen: Löschgarantie? Erfolgsbeteiligung pro Eintrag? Kostenlose Rechte genannt? Vollständiges Impressum? Zeitdruck? Jeder Schritt sichtbar? FIAON beantwortet sie offen – Festpreis, keine Garantie, Impressum mit Registernummer, zwölf Monatsraten und danach monatlich kündbar." },
       { h2: "Woran Sie unseriöse Anbieter erkennen", text: "Löschgarantien, Erfolgsbeteiligung pro Eintrag, verschwiegene Gratis-Rechte, Vorkasse an anonyme Empfänger, Erfolg über Nacht, Druck statt Klarheit." },
       { h2: "Zwei typische Verläufe", text: "Nachgestellt aus der Praxis: der Eintrag, der nie hätte gemeldet werden dürfen (Löschung nach acht Wochen, Konto nach zehn) – und der berechtigte Eintrag, bei dem keine Löschung möglich ist, aber Ratenvereinbarung, Erledigt-Vermerk und Guthabenkonto den Weg bauen." },
@@ -747,7 +764,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       lead: "Anyone searching for “FIAON reviews” wants to know: can I trust them? The most honest answer is to lay out everything verifiable — figures from operations, the process, the prices, the limits. And a check with which you can test any provider. Including us.",
       abschnitte: [
         { h2: "Figures, not claims", text: "Over 440 paying customers with bank-confirmed payment, 440 paid monthly instalments, three countries, 20 free tools — as of 3 September 2026. Only what the bank has confirmed is counted." },
-        { h2: "How it works in three steps", text: "An application with a fixed price and a 15-minute onboarding call; the report obtained with authorisation and every line checked against Section 31 BDSG and the deletion deadlines; letters reviewed by lawyers sent by registered post, deadlines tracked, account and card prepared with the partner institution. The bank decides." },
+        { h2: "How it works in three steps", text: "An application with a fixed price and a 15-minute onboarding call; the report obtained with authorisation and every line checked against Section 31 BDSG and the deletion deadlines; letters approved by you sent by registered post, deadlines tracked, account and card prepared with the partner institution. The bank decides." },
         { h2: "The seriousness check", text: "Six questions that apply to every provider: deletion guarantees, success fees, concealed free rights, a missing legal notice, time pressure, no insight into the steps. FIAON answers all six — and shows where reviews stand: being set up, nothing invented.", punkte: ["Six warning signs of dubious providers", "Two typical journeys, reconstructed from practice", "Honest up to the no: justified entries stay"] },
       ],
       weiter: ["/preise", "/ueber-uns", "/transparenz"],
@@ -773,7 +790,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     beschreibung: "Lieber erst reden? Zeitfenster wählen – ein Mitarbeiter ruft Sie an, erklärt, was Ihre Auskunft hergibt und welches Paket passt. Kostenlos.",
     h1: "Lieber erst reden?",
     lead: "15 Minuten am Telefon, ein Mensch, der die Auskunft lesen kann. Sie sagen, was Sie beschäftigt – wir sagen, was geht, was nicht geht und was es kosten würde. Wählen Sie ein Zeitfenster; der Rückruf kommt spätestens am nächsten Werktag.",
-    abschnitte: [{ h2: "Was in den 15 Minuten passiert.", text: "Ihre Lage, was die Auskunft hergibt, Ihr Ziel, der ehrliche Vorschlag (Werkzeuge, Auskunft für 74 Euro oder Paket) und die nächsten Schritte – dieselbe Agenda wie in jedem Startgespräch." }, { h2: "Zeitfenster wählen – wir rufen an.", text: "Name, Telefon, E-Mail, Land, Wunsch-Zeitfenster und Anliegen. Kostenlos, ohne Verpflichtung, werktags 9 bis 19 Uhr." }, { h2: "Warum reden, bevor Sie etwas kaufen?", text: "Weil die Antwort manchmal „Sie brauchen uns nicht“ lautet: Bei einem klaren Eintrag reichen die Werkzeuge; die Frist, die gerade läuft, klären wir in zwei Minuten; das passende Paket ist selten das größte." }],
+    abschnitte: [{ h2: "Was in den 15 Minuten passiert.", text: "Ihre Lage, was die Auskunft hergibt, Ihr Ziel, der ehrliche Vorschlag (Werkzeuge, Bonitätsauskunft oder Paket) und die nächsten Schritte – dieselbe Agenda wie in jedem Startgespräch." }, { h2: "Zeitfenster wählen – wir rufen an.", text: "Name, Telefon, E-Mail, Land, Wunsch-Zeitfenster und Anliegen. Kostenlos, ohne Verpflichtung, werktags 9 bis 19 Uhr." }, { h2: "Warum reden, bevor Sie etwas kaufen?", text: "Weil die Antwort manchmal „Sie brauchen uns nicht“ lautet: Bei einem klaren Eintrag reichen die Werkzeuge; die Frist, die gerade läuft, klären wir in zwei Minuten; das passende Paket ist selten das größte." }],
     weiter: ["/kontakt", "/preise", "/werkzeuge/eintrag-pruefen", "/fiaon-erfahrungen", "/hilfe"],
     krumen: [{ name: "Startgespräch buchen", pfad: "/termin" }],
     en: {
@@ -795,7 +812,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     beschreibung: "Antrag, Zahlung, Auskunft, Schreiben, Konto und Karte, Kündigung, Datenschutz, Mitarbeiter werden: das FIAON-Hilfe-Center mit Suche.",
     h1: "Antworten, bevor Sie fragen müssen.",
     lead: "Acht Themen, dieselben Antworten wie am Telefon und im Assistenten. Suchen Sie – oder öffnen Sie das Thema, das gerade dran ist.",
-    abschnitte: [{ h2: "Antrag und Start", text: "Zwei Minuten Antrag, Passwort, „Jetzt aktivieren“ oder „Zuerst sprechen“, Startgespräch nach Zahlungseingang." }, { h2: "Zahlung und Raten", text: "Jede Rate per Überweisung, Zahlungskalender, Rechnung je Rate, Anrechnung der Auskunft." }, { h2: "Auskunft und Einträge", text: "SCHUFA, KSV1870, CRIF, Intrum und Betreibungsregister mit Vollmacht; jeder Eintrag eingeordnet; der neue SCHUFA-Score je Kriterium." }, { h2: "Schreiben und Fristen", text: "Anwaltlich geprüfte Vorlagen, Freigabe vor dem Versand, Einschreiben ab Pro, ein Monat Antwortfrist, Beschwerde bei der Aufsicht." }, { h2: "Konto und Karte", text: "Girokonto für jeden Kunden, Karte sobald die Akte die Schwelle erreicht – die Bank entscheidet; Karten-Readiness als Fortschritt." }, { h2: "Kündigung und Widerruf", text: "Jederzeit zum Monatsende, formlos; 14 Tage Widerruf; Löschung auf Wunsch binnen 30 Tagen." }, { h2: "Datenschutz und Sicherheit", text: "Server in Frankfurt, verschlüsselt; Akte nur für Ansprechpartner und Betreiber; kein Zugriff auf Online-Banking." }, { h2: "Mitarbeiter werden", text: "Bewerbung in vier Schritten, fest oder frei, remote in DACH, Academy vor dem ersten Kundengespräch." }],
+    abschnitte: [{ h2: "Antrag und Start", text: "Zwei Minuten Antrag, Passwort, „Jetzt aktivieren“ oder „Zuerst sprechen“, Startgespräch nach Zahlungseingang." }, { h2: "Zahlung und Raten", text: "Jede Rate per Überweisung, Zahlungskalender, Rechnung je Rate; die Bonitätsauskunft als eigener Einmalkauf." }, { h2: "Auskunft und Einträge", text: "SCHUFA, KSV1870, CRIF, Intrum und Betreibungsregister mit Vollmacht; jeder Eintrag eingeordnet; der neue SCHUFA-Score je Kriterium." }, { h2: "Schreiben und Fristen", text: "Fertige Vorlagen, Freigabe vor dem Versand, Einschreiben ab Pro, ein Monat Antwortfrist, Beschwerde bei der Aufsicht." }, { h2: "Konto und Karte", text: "Girokonto für jeden Kunden, Karte sobald die Akte die Schwelle erreicht – die Bank entscheidet; Karten-Readiness als Fortschritt." }, { h2: "Kündigung und Widerruf", text: "Jederzeit zum Monatsende, formlos; 14 Tage Widerruf; Löschung auf Wunsch binnen 30 Tagen." }, { h2: "Datenschutz und Sicherheit", text: "Server in Frankfurt, verschlüsselt; Akte nur für Ansprechpartner und Betreiber; kein Zugriff auf Online-Banking." }, { h2: "Mitarbeiter werden", text: "Bewerbung in vier Schritten, fest oder frei, remote in DACH, Academy vor dem ersten Kundengespräch." }],
     weiter: ["/kontakt", "/termin", "/preise", "/sicherheit", "/werkzeuge", "/karriere"],
     krumen: [{ name: "Hilfe-Center", pfad: "/hilfe" }],
     en: {
@@ -817,7 +834,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     beschreibung: "SCHUFA-Eintrag löschen lassen: FIAON, Anwalt, Score-App oder selbst im ehrlichen Vergleich – Kosten, Dauer, Verfolgung, Konto danach.",
     h1: "Anwalt, App, selbst – oder FIAON?",
     lead: "Vier Wege führen zu einer sauberen Auskunft, und keiner ist immer der richtige. Hier stehen Kosten, Dauer und Grenzen nebeneinander – inklusive der Fälle, in denen Sie uns nicht brauchen.",
-    abschnitte: [{ h2: "Vier Wege nebeneinander.", text: "Selbst mit Werkzeugen (0 Euro plus Porto), Score-App (0 Euro, zeigt nur), Anwalt (150–300 Euro je Schreiben, unersetzlich bei Klage und Schadensersatz), FIAON (74 Euro Auskunft, 7,99–99,99 Euro im Monat über zwölf Raten; Versand, Nachfassen, Raten, Konto und Karte vorbereitet). Kein Weg löscht berechtigte Einträge vor der Frist." }, { h2: "Drei Fragen, ein Weg.", text: "Lage, Zeit, Ziel – zwei der vier Antworten führen weg von FIAON: zum Anwalt bei Streit und Schadensersatz, zu den kostenlosen Werkzeugen bei einem klaren Eintrag." }, { h2: "Die drei Alternativen – fair betrachtet.", text: "Selbermachen ist der günstigste Weg, wenn Sie dranbleiben. Score-Apps sehen, handeln nicht. Der Anwalt ist unersetzlich, wenn es streitig wird – und für den ersten Löschantrag oft teurer als nötig." }],
+    abschnitte: [{ h2: "Vier Wege nebeneinander.", text: `Selbst mit Werkzeugen (0 Euro plus Porto), Score-App (0 Euro, zeigt nur), Anwalt (150–300 Euro je Schreiben, unersetzlich bei Klage und Schadensersatz), FIAON (Bonitätsauskunft ${AUSK_EINZELN}, mit Paket ${AUSK_MIT_PAKET}; Pakete 7,99–99,99 Euro im Monat über zwölf Raten; Versand, Nachfassen, Raten, Konto und Karte vorbereitet). Kein Weg löscht berechtigte Einträge vor der Frist.` }, { h2: "Drei Fragen, ein Weg.", text: "Lage, Zeit, Ziel – zwei der vier Antworten führen weg von FIAON: zum Anwalt bei Streit und Schadensersatz, zu den kostenlosen Werkzeugen bei einem klaren Eintrag." }, { h2: "Die drei Alternativen – fair betrachtet.", text: "Selbermachen ist der günstigste Weg, wenn Sie dranbleiben. Score-Apps sehen, handeln nicht. Der Anwalt ist unersetzlich, wenn es streitig wird – und für den ersten Löschantrag oft teurer als nötig." }],
     weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/widerspruch", "/preise", "/fiaon-erfahrungen", "/termin", "/werkzeuge"],
     krumen: [{ name: "Vergleich", pfad: "/vergleich" }],
     en: {
@@ -1047,28 +1064,30 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       krumen: [{ name: "Understanding the SCHUFA score", pfad: "/en/schufa-score" }],
     },
   },
+  // 24.09.2026 (E-240): zwei Preise, alle Auskunfteien des Landes, keine Anrechnung,
+  // keine Lieferfrist mit Zahl — wie die Seite (client/src/i18n/bonitaetsauskunft-beantragen.ts).
   "/bonitaetsauskunft-beantragen": {
-    pfad: "/bonitaetsauskunft-beantragen", art: "pfeiler", stand: PFEILER, prio: 0.9,
-    titel: "Bonitätsauskunft beantragen: kostenlos oder geprüft",
-    beschreibung: "Bonitätsauskunft beantragen: kostenlos nach Art. 15 DSGVO oder geprüft über FIAON für 74 € – Ablauf, Dauer und der Unterschied Datenkopie oder Zertifikat.",
-    h1: "Bonitätsauskunft beantragen — kostenlos oder geprüft.",
-    lead: "Der kostenlose Weg nach Art. 15 DSGVO und der geprüfte FIAON-Weg für 74 € im Vergleich. Beides führt zur Auskunft. Der Unterschied ist, wer die Arbeit macht – und wer die Einträge versteht.",
+    pfad: "/bonitaetsauskunft-beantragen", art: "pfeiler", stand: "2026-09-24", prio: 0.9,
+    titel: "Bonitätsauskunft beantragen: kostenlos oder mit FIAON",
+    beschreibung: `Bonitätsauskunft beantragen: kostenlos nach Art. 15 DSGVO oder über FIAON (${AUSK_EINZELN}, mit Paket ${AUSK_MIT_PAKET}) – alle Auskunfteien Ihres Landes.`,
+    h1: "Bonitätsauskunft beantragen — kostenlos oder mit FIAON.",
+    lead: `Ihre Datenkopie steht Ihnen gesetzlich kostenlos zu — das sagen wir zuerst. Die FIAON-Bonitätsauskunft ist für alle, die Anforderung, Erklärung und Fristenprüfung abgeben wollen: einmalig ${AUSK_EINZELN}, mit laufendem FIAON-Paket ${AUSK_MIT_PAKET}, kein Abo.`,
     abschnitte: [
-      { h2: "Selbst beantragen oder beschaffen lassen?", text: "Die Datenkopie nach Art. 15 DSGVO ist kostenlos – bei SCHUFA, KSV1870 und CRIF. Unser Generator erzeugt den fertigen Brief. Die geprüfte Auskunft über FIAON beschafft die Daten bei allen drei Häusern aus einer Hand und erklärt jeden Eintrag." },
-      { h2: "So läuft es ab", text: "Vier Etappen – Sie sehen jede davon live in Ihrem Kundenbereich: Vollmacht digital unterschreiben, FIAON stellt die Anfrage, die Auskunft liegt vor, jeder Eintrag wird eingeordnet: erledigt, löschbar, berichtigbar, angreifbar." },
-      { h2: "Was Sie erhalten", text: "Kein Zahlenfriedhof, sondern eine geprüfte Übersicht mit dem nächsten Schritt für jeden Eintrag. Ein Preis, keine Überraschungen: 74 € einmalig, anrechenbar auf ein späteres Paket." },
+      { h2: "Selbst anfordern oder anfordern lassen?", text: `Die Datenkopie nach Art. 15 DSGVO ist kostenlos – bei jeder Auskunftei. Unser Generator erzeugt den fertigen Brief. Die FIAON-Bonitätsauskunft fordert die Daten bei allen Auskunfteien Ihres Landes an – in Deutschland bei ${auskunfteienText("DE")}, in Österreich bei ${auskunfteienText("AT")}, in der Schweiz bei ${auskunfteienText("CH")} –, erklärt jede Zeile und prüft die Fristen.` },
+      { h2: "So läuft es ab", text: "Vier Etappen – Sie sehen jede davon in Ihrem Kundenbereich: bestellen und Vollmacht erteilen, FIAON fordert die Datenkopien an (die Auskunfteien haben dafür gesetzlich in der Regel einen Monat Zeit), Erklärung und Fristenprüfung, Handlungsplan und fertige Schreiben zur Freigabe." },
+      { h2: "Zwei Preise, keine Überraschungen", text: `${AUSK_EINZELN} einmalig, mit laufendem FIAON-Paket ${AUSK_MIT_PAKET}; für Unternehmen ${AUSK_FIRMA_EINZELN} einzeln, ${AUSK_FIRMA_MIT_PAKET} mit Paket. Kein Abo, keine Erfolgsbeteiligung.` },
     ],
     weiter: ["/werkzeuge/selbstauskunft", "/selbstauskunft-checkliste", "/auskunfteien", "/schufa-score-verstehen", "/werkzeuge/eintrag-pruefen", "/preise"],
     krumen: [{ name: "Bonitätsauskunft beantragen", pfad: "/bonitaetsauskunft-beantragen" }],
     en: {
       pfad: "/en/request-your-credit-report",
-      titel: "Requesting your credit report: free or reviewed | FIAON",
-      beschreibung: "The free route under Art. 15 GDPR and the reviewed FIAON route for €74 compared: obtaining, plain-language explanation, a check of every entry.",
-      h1: "Requesting your credit report — free or reviewed.",
-      lead: "You are legally entitled to your report free of charge — we say that first. FIAON is the route for everyone who wants to hand over obtaining it, the plain-language explanation and the check of every entry: €74 one-off, no subscription required.",
+      titel: "Requesting your credit report: free or with FIAON",
+      beschreibung: `The free route under Art. 15 GDPR and the FIAON credit report (${euroEn(AUSKUNFT_PREISE_CENTS.privat.einzeln)}, ${euroEn(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} with a plan) compared — every bureau in your country.`,
+      h1: "Requesting your credit report — free or with FIAON.",
+      lead: `You are legally entitled to your data copy free of charge — we say that first. The FIAON credit report is for everyone who wants to hand over requesting it, the plain-language explanation and the deadline check: ${euroEn(AUSKUNFT_PREISE_CENTS.privat.einzeln)} one-off, ${euroEn(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} with a running FIAON plan, no subscription.`,
       abschnitte: [
-        { h2: "Request it yourself or have it obtained?", text: "Self-disclosure under Art. 15 GDPR costs nothing and delivers raw data from each bureau separately; the FIAON route costs €74 one-off and delivers SCHUFA, KSV and CRIF from one hand, every line explained, every entry checked against Section 31 BDSG and the deletion deadlines, plus an action plan. Our free tools prepare the free route." },
-        { h2: "How it works", text: "Open an account and place the order in two minutes; FIAON obtains the data copies within a few days to four weeks; plain language and review within 24 hours of receipt; an action plan and, if you wish, the implementation. Self-disclosure is neutral and does not change your score.", punkte: ["No success fee, no hidden costs", "Also KSV (Austria) and CRIF (Switzerland)", "No deletion guarantee — justified entries stay"] },
+        { h2: "Request it yourself or have it requested?", text: `Self-disclosure under Art. 15 GDPR costs nothing and delivers raw data from each bureau separately; the FIAON credit report costs ${euroEn(AUSKUNFT_PREISE_CENTS.privat.einzeln)} one-off (${euroEn(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} with a running plan) and requests from every bureau in your country, explains every line, checks the storage periods and adds an action plan with finished letters. Our free tools prepare the free route.` },
+        { h2: "How it works", text: "Order and give your authorisation in a few minutes; FIAON requests the data copies — by law the bureaus usually have one month; then explanation, deadline check, action plan and finished letters for your approval. Self-disclosure is neutral and does not change your score.", punkte: ["No success fee, no hidden costs", "Every credit bureau in Germany, Austria and Switzerland", "No deletion promise — justified entries stay"] },
       ],
       weiter: ["/schufa-score-verstehen", "/auskunfteien", "/preise"],
       krumen: [{ name: "Requesting your credit report", pfad: "/en/request-your-credit-report" }],

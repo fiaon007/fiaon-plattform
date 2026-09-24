@@ -941,6 +941,28 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   } catch (e) {
     console.error(`[FIAON-GLOBAL] ${ref}: Start nach Zahlungseingang fehlgeschlagen — die Aufgabe „US-Struktur starten" fehlt, der Kunde hat KEINE Startmail:`, e);
   }
+  // ══════════════════════════════════════════════════════════════════════════
+  // BONITÄTSAUSKUNFT: NACH DER ZAHLUNG WIRD GELIEFERT (24.09.2026, E-240)
+  //
+  // Bis heute passierte nach der Zahlung einer Auskunft nichts — 59 von 66
+  // Käufern hatten kein Dokument, fiaon_vorgaenge war leer. Aus demselben Grund
+  // wie Global an DIESER Stelle: Alle Buchungswege gehen hier durch. Die
+  // Lieferung legt je Auskunftei des Landes eine Anfrage an, stellt dem
+  // Betreuer die Aufgabe und schickt dem Kunden den Weg zur Unterschrift.
+  // Idempotent (Sperre je Bestellung), ein Fehler hält die Buchung nicht auf.
+  // Eigener Block, bewusst NACH Meta und Global — nichts davon hängt daran.
+  // ══════════════════════════════════════════════════════════════════════════
+  try {
+    const [k] = (await sqlPool`SELECT ref, type, pack_key, payment_status FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+    const { produktkategorie } = await import("../lib/fiaon-produktkategorie");
+    if (k && k.payment_status === "paid" && produktkategorie(k) === "auskunft") {
+      const { lieferungStarten } = await import("../lib/fiaon-auskunft-lieferung");
+      const erg = await lieferungStarten(ref);
+      console.log(`[AUSKUNFT-LIEFERUNG] ${ref}: ${erg.text}`);
+    }
+  } catch (e) {
+    console.error(`[AUSKUNFT-LIEFERUNG] ${ref}: Lieferung nach Zahlungseingang fehlgeschlagen — KEINE Anfragen, KEINE Aufgabe, KEINE Mail; im Chefbüro unter „Auskunft-Rückstand“ nachholen:`, e);
+  }
 }
 
 async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {

@@ -49,7 +49,12 @@ export type SchrittArt =
   | "bereich"          // Link in den Kundenbereich (nur wenn freigeschaltet)
   | "unterlagen"       // Upload-Weg
   | "antrag"           // Antragsstrecke (Interessenten)
-  | "angebot"          // Bonitätsauskunft, Upgrade
+  | "angebot"          // Upgrade (die Bonitätsauskunft hat seit E-240 ihren eigenen Schritt)
+  // 24.09.2026 (E-240): Der Knopf der Bonitätsauskunft — NUR mit der Adresse aus
+  // auskunft_anbieten (Kauflink zur Bestätigungsseite oder Zahlungsseite einer
+  // schon offenen Bestellung). Vorher lief die Auskunft über „angebot" mit der
+  // Vorgabe /antrag: ein zahlender Kunde landete im Antrag für Neukunden.
+  | "auskunft"
   | "erledigt"         // nichts zu tun (Stopp gesetzt, Kündigung vermerkt)
   | "wartet_auf_uns";  // wir melden uns (nur mit Aufgabe im System)
 
@@ -64,19 +69,32 @@ export type SchrittArt =
  */
 // 04.09.2026 (E-119): „rueckruf" in allen Lagen erlaubt — ein Rückruf ist überall
 // ein ehrlicher nächster Schritt; vorher wich das Modell auf „termin" ohne Adresse aus.
+// 24.09.2026 (E-240): „auskunft" nur, wo ein Paket gebucht ist und Geld fließt
+// (gemeldet, bezahlt, aktiv, Rate offen). NICHT bei „unbezahlt": Wer die erste
+// Rate noch nicht gezahlt hat, bekommt kein zweites Produkt vor das erste
+// gestellt. Bei rate_ueberfaellig bleibt die offene Rate ein Satz derselben Mail
+// (Prüfung in pruefenUndAbschliessen), der Knopf gehört dann der Auskunft.
 export const ERLAUBTE_SCHRITTE: Record<Kundenlage, SchrittArt[]> = {
   interessent: ["antrag", "termin", "rueckruf"],
   unbezahlt: ["zahlung", "termin", "rueckruf", "erledigt"],
-  zahlung_gemeldet: ["zahlung", "rueckruf", "wartet_auf_uns", "erledigt"],
-  bezahlt_ohne_startgespraech: ["startgespraech", "termin", "bereich", "rueckruf"],
-  aktiv: ["bereich", "unterlagen", "termin", "angebot", "rueckruf", "erledigt"],
-  rate_ueberfaellig: ["zahlung", "termin", "rueckruf"],
+  zahlung_gemeldet: ["zahlung", "auskunft", "rueckruf", "wartet_auf_uns", "erledigt"],
+  bezahlt_ohne_startgespraech: ["startgespraech", "auskunft", "termin", "bereich", "rueckruf"],
+  aktiv: ["bereich", "auskunft", "unterlagen", "termin", "angebot", "rueckruf", "erledigt"],
+  rate_ueberfaellig: ["zahlung", "auskunft", "termin", "rueckruf"],
   gekuendigt: ["zahlung", "termin", "rueckruf", "erledigt"],
   bestreitet: ["rueckruf", "wartet_auf_uns"],
   gesperrt: ["erledigt"],
   fremd: ["erledigt", "wartet_auf_uns"],
   unklar: ["rueckruf", "wartet_auf_uns"],
 };
+
+/**
+ * In welchen Lagen Mara die Bonitätsauskunft anbieten darf — abgeleitet aus
+ * der Tabelle oben, damit Werkzeug (auskunft_anbieten), Prüfung und Prompt
+ * nie zwei verschiedene Listen führen (24.09.2026, E-240).
+ */
+export const AUSKUNFT_LAGEN: Kundenlage[] = (Object.keys(ERLAUBTE_SCHRITTE) as Kundenlage[])
+  .filter((l) => ERLAUBTE_SCHRITTE[l].includes("auskunft"));
 
 /** Lagen, in denen ein Automat überhaupt selbst senden darf (Rest: Entwurf). */
 export const AUTO_LAGEN: Kundenlage[] = [
@@ -93,14 +111,21 @@ export const AUTO_LAGEN: Kundenlage[] = [
 ];
 
 /** Was der Kunde will — mehrere gleichzeitig sind erlaubt. */
+// „auskunft" (24.09.2026, E-240): Der Kunde spricht über seine Bonitätsauskunft
+// (hat keine, will eine, fragt nach Preis oder Lieferung). Eine eigene Kategorie,
+// damit so eine Mail nicht als „sonstiges" beim Menschen landet (menschNoetig).
 export const KATEGORIEN = [
   "zahlung", "zugang_login", "termin", "unterlagen", "status_frage", "neuinteresse",
   "vertrieb_komplex", "kuendigung", "beschwerde", "rechtlich", "abmeldung",
-  "werbung_newsletter", "spam", "intern", "sonstiges",
+  "werbung_newsletter", "spam", "intern", "auskunft", "sonstiges",
 ] as const;
 export type Kategorie = typeof KATEGORIEN[number];
 
-/** Warnlampen. Jede einzelne verhindert den Auto-Versand. */
+/**
+ * Warnlampen — jede einzelne verhindert den Auto-Versand. Ausnahme sind die
+ * VERKAUFS-SIGNALE (VERKAUFS_FLAGS): Sie sagen Mara, was sie anbieten soll,
+ * und halten nichts an.
+ */
 export interface Flags {
   kuendigung: boolean;
   bestreitet: boolean;
@@ -112,11 +137,33 @@ export interface Flags {
   rueckruf_wunsch: boolean;
   droht_anwalt: boolean;
   zahlungsunfaehig: boolean;
+  // 24.09.2026 (E-240): „Ich hab keine." (Doris Hösl auf die Unterlagen-Mail) —
+  // der Kunde hat keine Bonitätsauskunft. Kein Grund für einen Menschen: Mara
+  // bietet sie an und informiert den Betreuer (auskunft_anbieten).
+  auskunft_fehlt: boolean;
 }
 export const LEERE_FLAGS: Flags = {
   kuendigung: false, bestreitet: false, widerruf: false, beschwerde: false, rechtlich: false,
   stopp: false, zahlung_behauptet: false, rueckruf_wunsch: false, droht_anwalt: false, zahlungsunfaehig: false,
+  auskunft_fehlt: false,
 };
+
+/** Signale, die nichts anhalten — Anlass für ein Angebot, nicht für einen Menschen. */
+export const VERKAUFS_FLAGS: (keyof Flags)[] = ["auskunft_fehlt"];
+
+/**
+ * Die Lampen, bei denen Mara NICHTS verkauft: Wer kündigt, bestreitet, sich
+ * beschwert, „Stopp" schreibt oder nicht zahlen kann, bekommt eine Antwort auf
+ * sein Anliegen — kein Angebot (24.09.2026, E-240).
+ */
+export const KEIN_VERKAUF_FLAGS: (keyof Flags)[] = [
+  "kuendigung", "bestreitet", "widerruf", "beschwerde", "rechtlich", "stopp", "droht_anwalt", "zahlungsunfaehig",
+];
+
+/** Die brennenden Warnlampen — ohne Verkaufs-Signale. Rein, für Server und Prüfstand. */
+export function warnlampen(f: Partial<Record<keyof Flags, unknown>> | null | undefined): (keyof Flags)[] {
+  return (Object.keys(f ?? {}) as (keyof Flags)[]).filter((k) => !!(f as any)[k] && !VERKAUFS_FLAGS.includes(k));
+}
 
 /** Was mit einer Mail geschah. */
 export type Aktion =
@@ -213,6 +260,28 @@ export interface AkteKurz {
   kuendigung: { am: string | null; letzteRate: number | null; vertragEnde: string | null } | null;
   sperren: { werbung: string | null; anrufe: boolean; konto: string | null };
   offeneAufgaben: number;
+  /** Stand der Bonitätsauskunft (24.09.2026, E-240) — null ohne Person oder bei FIAON Global. */
+  auskunft?: AuskunftDossier | null;
+}
+
+/**
+ * Die Bonitätsauskunft, wie Mara sie in der Akte liest (24.09.2026, E-240).
+ * Stufe und Preis rechnet der Server (server/lib/fiaon-auskunft.ts) — Mara
+ * nennt nie einen Preis aus dem Gedächtnis.
+ */
+export interface AuskunftDossier {
+  stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+  /** „firma" bei laufendem FIAON-Business-Paket (Firmen-Auskunft), sonst „privat" — Gegenlesen E-240. */
+  art?: "privat" | "firma";
+  /** Was die Stufe für die Antwort heißt, in einem Satz an Mara. */
+  bedeutung: string;
+  land: "DE" | "AT" | "CH";
+  /** „SCHUFA-Auskunft" (DE), „KSV-Auskunft" (AT), „Bonitätsauskunft" (CH). */
+  wort: string;
+  /** „SCHUFA, CRIF und Creditreform Boniversum" — bei wem angefragt wird. */
+  auskunfteien: string;
+  preis: { fuerIhn: string; betragZahl: string; mitPaket: boolean; einzeln: string; kundenpreis: string };
+  offen: { verwendungszweck: string | null; betrag: string; gemeldet: boolean; seit: string } | null;
 }
 
 /** Antwort der Postfach-Liste. */

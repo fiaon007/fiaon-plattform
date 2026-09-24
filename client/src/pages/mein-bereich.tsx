@@ -12,6 +12,10 @@
 // Noch nicht angebunden (ehrlich gezeigt statt leer): Kontoanbindung (E-014),
 // Schreiben-Generator, KI-Auswertung der Auskunft (E-015).
 // Seit 19.09.2026 (E-194) gibt es keine Lastschrift mehr: Jede Rate wird überwiesen.
+// Seit 24.09.2026 (E-240) verkauft der Bereich die Bonitätsauskunft wieder: die
+// Kaufkarte (components/kunde/AuskunftKauf.tsx) im Abschnitt „Ihre Bonität",
+// ein Hinweis beim gebuchten Startgespräch und — klein — am Vorhang. Sie ist
+// nicht im Paket; kein Satz hier darf mehr „wird beantragt" versprechen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ, bankAnleitungFuer } from "@shared/fiaon-bank-anleitungen";
@@ -19,6 +23,8 @@ import { kategorieLabel, istFest } from "@shared/fiaon-kontoauszug-kategorien";
 import { LayoutDashboard, ShieldCheck, Link2, Wallet, Map, FileText, FolderOpen, Gift, UserRound, CreditCard, Lock, LifeBuoy, LogOut, ChevronLeft, ChevronRight, X } from "lucide-react";
 import "@/styles/mein-bereich.css";
 import { Einrichtung, einrichtungsPhase } from "@/components/kunde/Einrichtung";
+import { AuskunftKaufkarte, type AuskunftKauf } from "@/components/kunde/AuskunftKauf";
+import { auskunfteienText, auskunftLand } from "@shared/fiaon-auskunft";
 
 // Demo-Konto (23.08.2026): unter /demo/kundenbereich zeigt dieselbe Seite die
 // Platzhalterdaten von FIAON-DEMO (server/routes/fiaon-demo.ts) — ohne Login.
@@ -36,7 +42,9 @@ interface Bereich {
   kunde: { ref: string; vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; geburtsdatum: string | null; kundeSeit: string | null; profilRueckfrage: boolean; profilHinweis: string | null };
   paket: { key: string | null; name: string; abo: boolean; rahmen: number | null; wunschlimit: number | null; monatlichCents: number | null; zahlungsstatus: string; zahlungsreferenz: string | null; faelligAm: string | null };
   stufe: { stufe: string | null; text: string | null; grund: string | null; naechsterSchritt: string | null; vollAktiv: boolean; pflicht: boolean; bezahlt: boolean };
-  bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; bestellRef: string | null; zahlungsreferenz: string | null; zahlungsstatus: string | null; preisEuro: number } | null;
+  bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; bestellRef: string | null; zahlungsreferenz: string | null; zahlungsstatus: string | null; preisEuro: number; auskunftStufe?: string | null } | null;
+  /** E-240: Stufe, Preis, Leistung und Zahlungsseite der Bonitätsauskunft — null ohne Person. */
+  auskunft?: AuskunftKauf | null;
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug: boolean; erneutAusweis: boolean; kycStatus: string; kontoStatus: string; hinweise?: string[] };
   abo: { verlaengerung?: { gefragt: boolean; entschieden: boolean; verlaengert: boolean; beendet: boolean; bezahlteRaten: number }; naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null }[] };
   termin: { beginn: string; status: string; agent: string | null } | null;
@@ -262,7 +270,11 @@ export default function MeinBereichPage() {
              zum Buchen auffordert, ist sinnlos — er kann ohnehin nichts tun.
           ══════════════════════════════════════════════════════════════════ */}
       {d.stufe.bezahlt && !d.termin && !d.onboardingGelaufen && !istAnsicht && !d.stufe.vollAktiv && !vorhang && (
-        <div className="mb-vorhang mb-gate" role="dialog" aria-label="Startgespräch buchen">
+        // E-240: Trägt der Vorhang die Kaufkarte, wird er höher als ein Handy — dann
+        // oben ausrichten und scrollen lassen (wie .mb-vorhang.ein), sonst schnitte
+        // die Mitte-Ausrichtung den Kopf ab.
+        <div className="mb-vorhang mb-gate" role="dialog" aria-label="Startgespräch buchen"
+             style={d.auskunft?.darfKaufen && d.auskunft.werbung ? { overflowY: "auto", alignItems: "start", padding: "8vh 16px 40px" } : undefined}>
           <div className="mb-vorhang-innen">
             <div className="z1" style={{ animationDelay: ".1s" }}>Ein Schritt noch</div>
             <h1 className="z2" style={{ animationDelay: ".25s", fontSize: 30 }}>Ihr Startgespräch — dann ist alles frei.</h1>
@@ -272,6 +284,12 @@ export default function MeinBereichPage() {
               {!d.stufe.pflicht && <button className="mb-knopf still" type="button" style={{ animationDelay: ".7s" }} onClick={() => document.querySelector(".mb-gate")?.classList.add("zu")}>Später</button>}
               <button className="mb-knopf still" type="button" style={{ animationDelay: ".8s" }} onClick={abmelden}>Abmelden</button>
             </div>
+            {/* E-240: unter dem Pflichtschritt, klein — der Termin bleibt die Hauptsache. */}
+            {d.auskunft?.darfKaufen && d.auskunft.werbung && (
+              <div className="z3" style={{ animationDelay: "1s", marginTop: 28, maxWidth: 520 }}>
+                <AuskunftKaufkarte kauf={d.auskunft} kompakt />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -361,7 +379,7 @@ export default function MeinBereichPage() {
                 <div>
                   <div className="mb-eyebrow">Ihr Paket ist noch offen</div>
                   <h3>{d.termin ? `Ihr Gespräch ist gebucht${d.termin.beginn ? ` – ${new Date(d.termin.beginn).toLocaleString("de-DE", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })} Uhr` : ""}.` : "Ihr Gespräch ist gebucht."}</h3>
-                  <p>Damit daraus Ihr Startgespräch wird und FIAON Ihre Auskunft beantragen kann, fehlt noch die erste Rate: {d.paket.monatlichCents != null ? eurCents(d.paket.monatlichCents) : "Ihr Paket"}{d.paket.zahlungsreferenz ? ` · Verwendungszweck ${d.paket.zahlungsreferenz}` : ""}. Überweisen Sie jetzt – oder im Gespräch gemeinsam mit Ihrer Ansprechpartnerin.</p>
+                  <p>Damit daraus Ihr Startgespräch wird, fehlt noch die erste Rate: {d.paket.monatlichCents != null ? eurCents(d.paket.monatlichCents) : "Ihr Paket"}{d.paket.zahlungsreferenz ? ` · Verwendungszweck ${d.paket.zahlungsreferenz}` : ""}. Überweisen Sie jetzt – oder im Gespräch gemeinsam mit Ihrer Ansprechpartnerin.</p>
                 </div>
                 <div className="mb-offen-knoepfe">
                   <button type="button" className="mb-knopf" onClick={() => setEinrichtungStart("zahlung")}>Jetzt bezahlen</button>
@@ -372,7 +390,12 @@ export default function MeinBereichPage() {
             {/* ═══ STARTGESPRÄCH — Termin gebucht, noch nicht geführt ═══ */}
             {d.stufe.bezahlt && d.termin && d.termin.status !== "erledigt" && (
               <div className="mb-pflicht">
-                <div><h3>Ihr Startgespräch ist gebucht</h3><p>{new Date(d.termin.beginn).toLocaleString("de-DE", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })} Uhr{d.termin.agent ? ` mit ${d.termin.agent}` : ""}. Wir rufen Sie an — halten Sie bitte Ihren Bereich geöffnet, wir gehen ihn gemeinsam durch.</p></div>
+                <div><h3>Ihr Startgespräch ist gebucht</h3><p>{new Date(d.termin.beginn).toLocaleString("de-DE", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })} Uhr{d.termin.agent ? ` mit ${d.termin.agent}` : ""}. Wir rufen Sie an — halten Sie bitte Ihren Bereich geöffnet, wir gehen ihn gemeinsam durch.</p>
+                  {/* E-240: Muster „Der Grundstein" — der Termin steht, und bis dahin lässt sich die Auskunft schon beauftragen. */}
+                  {d.auskunft?.darfKaufen && d.auskunft.werbung && (
+                    <p style={{ marginTop: 8 }}>Bis dahin können Sie schon den Grundstein legen: <a href="#bonitaet" style={{ color: "var(--blau-tief)", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>Ihre {d.auskunft.wort} für {d.auskunft.preisText} beauftragen</a>.</p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -396,21 +419,34 @@ export default function MeinBereichPage() {
                   <div className="mb-warte"><b>Ihre Auskunft wird gerade ausgewertet.</b> Das dauert wenige Minuten. Laden Sie die Seite danach neu.</div>
                 ) : d.bonitaet?.geprueft || d.bonitaet?.hatDokument ? (
                   <div className="mb-warte"><b>Ihre Auskunft ist eingegangen.</b> Wir gehen jeden Eintrag durch und leiten daraus Ihre nächsten Schritte ab. Sie hören von uns, sobald die Auswertung vorliegt.</div>
-                ) : d.bonitaet?.bezahlt ? (
-                  <div className="mb-warte"><b>Bezahlt — die Auskunft wird beschafft.</b> {d.bonitaet.naechsterSchritt}</div>
+                ) : d.bonitaet?.bezahlt || d.auskunft?.stufe === "bezahlt" ? (
+                  <div className="mb-warte"><b>Bezahlt — wir fordern Ihre Datenkopien an.</b> {d.auskunft ? `Bei ${d.auskunft.bei}. ` : ""}Sobald sie vorliegen, sehen Sie hier jeden Eintrag erklärt und Ihren Handlungsplan.</div>
                 ) : (
+                  // ── DIE KAUFKARTE (24.09.2026, E-240) ──────────────────────
+                  // Vorher: „Einmalig 74 €" als Satz, der Knopf auf die alte
+                  // Du-Seite /bonitaet-antrag (ohne Widerruf, ohne AGB), und der
+                  // Upload als gleichrangiger zweiter Knopf. Jetzt: die Karte mit
+                  // Preis vom Server, Leistung je Land und einem Auftrag nach
+                  // § 312j BGB; der Upload ist der kleine zweite Weg darunter.
                   <div className="mb-raster">
                     <div>
-                      <h4 style={{ fontSize: 16, fontWeight: 700 }}>Bonitätsauskunft — der Grundstein</h4>
-                      <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--text-leise)", maxWidth: "56ch" }}>Bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: Was steht über Sie in den Auskunfteien? Die Auskunft wird neutral abgerufen und verändert Ihren Wert nicht. Einmalig 74 €, kein Abo.</p>
-                      <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {!d.stufe.bezahlt && !DEMO
-                          ? <span className="mb-hinweis" style={{ display: "block" }}>Sobald Ihr Paket bezahlt ist, beauftragen Sie hier Ihre Bonitätsauskunft – ein Schritt nach dem anderen.</span>
-                          : d.bonitaet?.zahlungsreferenz && d.bonitaet.zahlungsstatus !== "paid"
-                          ? <a className="mb-knopf" href={`/zahlung/${encodeURIComponent(d.bonitaet.zahlungsreferenz)}`}>Auskunft jetzt bezahlen</a>
-                          : d.bonitaet?.darfKaufen ? <a className="mb-knopf" href={`/bonitaet-antrag?ref=${encodeURIComponent(d.kunde.ref)}`}>Auskunft beauftragen</a> : null}
-                        {d.bonitaet?.darfHochladen && <a className="mb-knopf still" href="#unterlagen">Sie haben schon eine Auskunft? Hochladen</a>}
-                      </div>
+                      {d.auskunft && (d.auskunft.stufe === "offen" || d.auskunft.darfKaufen) ? (
+                        <AuskunftKaufkarte kauf={d.auskunft} demo={DEMO} hochladen={d.bonitaet?.darfHochladen !== false ? "#unterlagen" : null} />
+                      ) : (
+                        <>
+                          <h4 style={{ fontSize: 16, fontWeight: 700 }}>Ihre Bonitätsauskunft</h4>
+                          <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--text-leise)", maxWidth: "56ch" }}>
+                            {d.auskunft?.sperre === "gekuendigt"
+                              ? "Ihr Vertrag ist gekündigt — eine Bonitätsauskunft lässt sich darüber nicht mehr neu beauftragen."
+                              : d.auskunft?.sperre === "paket_offen" || !d.stufe.bezahlt
+                              ? "Die Bonitätsauskunft ist nicht im Paket enthalten. Sobald die erste Zahlung für Ihr Paket eingegangen ist, beauftragen Sie sie hier — ein Schritt nach dem anderen."
+                              : "Die Bonitätsauskunft ist nicht im Paket enthalten. Ihre Ansprechpartnerin richtet sie mit Ihnen ein."}
+                          </p>
+                          {d.bonitaet?.darfHochladen && (
+                            <a href="#unterlagen" style={{ display: "inline-block", marginTop: 12, fontSize: 12.5, color: "var(--text-still)", textDecoration: "underline", textUnderlineOffset: 3 }}>Sie haben schon eine aktuelle Auskunft? Hier hochladen</a>
+                          )}
+                        </>
+                      )}
                     </div>
                     <div className="mb-warte"><b>Was Sie danach sehen:</b> Ihren Wert als Bogen, die drei größten Einträge mit ihrer Wirkung in Punkten, und zu jedem eine Einschätzung — rechtmäßig, angreifbar oder rechtswidrig.</div>
                   </div>
@@ -467,15 +503,19 @@ export default function MeinBereichPage() {
 
             {/* ═══ SCHREIBEN ═══ */}
             <section id="schreiben">
-              <div className="mb-abschnitt-kopf"><div><h2>Ihre Schreiben</h2><p>Fertig ausgefüllt, juristisch geprüft, mit einem Klick versendet.</p></div></div>
+              {/* E-240: „juristisch geprüft", „mit einem Klick versendet" und „vom Anwaltsteam
+                  freigegeben" standen hier ohne Beleg (Wortwand: „anwaltlich geprüft" nur mit
+                  Beleg). Die dritte Kachel warb für die kostenlose Datenkopie als Hauptweg und
+                  nannte Österreichern die SCHUFA — sie beschreibt jetzt, was die Auskunft liefert. */}
+              <div className="mb-abschnitt-kopf"><div><h2>Ihre Schreiben</h2><p>Fertig vorbereitet aus Ihrer Auswertung — Sie geben frei, wir übermitteln.</p></div></div>
               <div className="mb-raster">
-                {[["Löschantrag · Art. 17 DSGVO", "Für Einträge ohne Rechtsgrund. Die Auskunftei muss innerhalb eines Monats antworten."],
-                  ["Ratenvereinbarung", "Für offene Forderungen: ein tragbarer Vorschlag, den das Inkasso annehmen kann."],
-                  ["Selbstauskunft · Art. 15 DSGVO", "Ihre kostenlose Datenkopie bei SCHUFA, KSV1870 oder CRIF — vorbereitet, Sie unterschreiben."]].map(([t, x]) => (
-                  <article className="mb-kachel" key={t}><h4>{t}</h4><p>{x}</p><div className="mb-kachel-fuss"><span className="mb-lage ruht">Nach der Analyse</span></div></article>
+                {[["Löschantrag · Art. 17 DSGVO", "Für Einträge ohne Rechtsgrund. Die Auskunftei muss innerhalb eines Monats antworten.", "Nach der Analyse"],
+                  ["Ratenvereinbarung", "Für offene Forderungen: ein tragbarer Vorschlag, den das Inkasso annehmen kann.", "Nach der Analyse"],
+                  ["Datenkopien · Art. 15 DSGVO", `Teil Ihrer Bonitätsauskunft: Wir fordern sie bei ${d.auskunft?.bei || auskunfteienText(auskunftLand(d.kunde.land))} an — mit Ihrer Vollmacht.`, "Mit der Auskunft"]].map(([t, x, wann]) => (
+                  <article className="mb-kachel" key={t}><h4>{t}</h4><p>{x}</p><div className="mb-kachel-fuss"><span className="mb-lage ruht">{wann}</span></div></article>
                 ))}
               </div>
-              <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Jeder Brieftyp wird vor dem ersten Versand vom Anwaltsteam freigegeben</b> und mit Datum versioniert. Welche Fassung an Sie ging, steht später im Verlauf — nachvollziehbar, auch Jahre später.</div>
+              <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Jedes Schreiben geht erst nach Ihrer Freigabe hinaus.</b> Welche Fassung an wen ging, steht danach in Ihrem Verlauf — nachvollziehbar, auch Jahre später.</div>
             </section>
 
             {/* ═══ UNTERLAGEN ═══ */}
@@ -1284,7 +1324,10 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
       key: "idCard", label: "Ausweis oder Reisepass (PDF oder Foto)", zeigen: fehlt.ausweis,
       hinweis: "Vorder- und Rückseite zusammen auswählen — ein neuer Upload ersetzt den vorigen.",
     },
-    // Die Auskunft beschafft FIAON — das Feld ist ein Angebot für Kunden, die schon eine haben, keine Aufforderung.
+    // Die Auskunft ist ein eigener Auftrag (E-240, Kaufkarte unter „Ihre Bonität") — das Feld
+    // ist der kleine zweite Weg für Kunden, die schon eine aktuelle haben, keine Aufforderung.
+    // 24.09.2026: „(kostenlos …)" ist aus dem Hinweis heraus — die Datenkopie wird nicht
+    // verschwiegen (Mara und Betreuer sagen es, wer fragt), aber hier nicht beworben.
     // 02.09.2026 (Daniel: „Das Bild von der Schufa laden so viele hoch"): Der
     // Satz „Ein Handyfoto genügt" steht über allen drei Feldern. Für Ausweis
     // und Kontoauszug ist er richtig — für die Auskunft führt er in die Irre,
@@ -1294,7 +1337,7 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
       key: "schufaDoc",
       label: "Eigene Bonitätsauskunft — nur falls Sie schon eine haben (optional)",
       zeigen: fehlt.auskunft,
-      hinweis: "Gemeint ist die vollständige Datenkopie nach Art. 15 DSGVO (kostenlos, meist mehrere Seiten) — bitte alle Seiten auf einmal auswählen. Ein Foto oder Screenshot der reinen Score-Anzeige aus einer App können wir nicht verwenden.",
+      hinweis: "Gemeint ist die vollständige Datenkopie nach Art. 15 DSGVO (meist mehrere Seiten) — bitte alle Seiten auf einmal auswählen. Ein Foto oder Screenshot der reinen Score-Anzeige aus einer App können wir nicht verwenden.",
     },
   ];
   const sichtbar = felder.filter((f) => f.zeigen);

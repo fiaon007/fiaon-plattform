@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { Redirect } from "wouter";
 import { ERREICHBARKEIT_WERTE } from "@shared/fiaon-erreichbarkeit";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
 import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
@@ -496,8 +497,35 @@ function Sel({ value, onChange, children, ...p }: any) {
   return <select value={value} onChange={(e: any) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none appearance-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", paddingRight: "38px" }} {...p}>{children}</select>;
 }
 
+/* === DIE AUSKUNFT HAT IHRE EIGENE BESTELLSEITE (24.09.2026, E-240) ===
+ * /preise, /plattform-konzept und ältere Mails verlinken „/antrag?pack=schufa". Diesen
+ * Schlüssel kennt der Antrag nicht (PACKS sind die Karten-Pakete): Wer nur die Auskunft
+ * kaufen wollte, landete in der Paketwahl — und kaufte meist gar nichts. Bestellt wird die
+ * Auskunft auf /bonitaet-antrag (Einzelpreis, Widerruf, Vollmacht). Alle übrigen Parameter
+ * (fbclid, utm_…, src) reisen mit, damit Messung und Herkunft nicht verloren gehen. */
+const AUSKUNFT_PACKS: Record<string, "privat" | "firma"> = {
+  schufa: "privat", auskunft: "privat", auskunft_privat: "privat", auskunft_firma: "firma", auskunft_firma_abo: "firma",
+};
+function auskunftZiel(): string | null {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const art = AUSKUNFT_PACKS[String(q.get("pack") || "").trim().toLowerCase()];
+    if (!art) return null;
+    q.delete("pack");
+    if (art === "firma") q.set("art", "firma");
+    const rest = q.toString();
+    return `/bonitaet-antrag${rest ? `?${rest}` : ""}`;
+  } catch { return null; }
+}
+
 /* === MAIN COMPONENT === */
 export default function AntragPage() {
+  const [auskunft] = useState(auskunftZiel);
+  if (auskunft) return <Redirect to={auskunft} replace />;
+  return <AntragSeite />;
+}
+
+function AntragSeite() {
   // Mit ?pack=… (Privatkunden-Seite, WhatsApp) beginnt der Antrag sofort bei Schritt 1 — ohne dass die Paketwahl kurz aufblitzt.
   const [step, setStep] = useState(() => { try { const k = new URLSearchParams(window.location.search).get("pack"); return k && PACKS.some((p) => p.key === k) ? 1 : 0; } catch { return 0; } });
   // ── WIEDEREINSTIEG (E-023) ──────────────────────────────────────────────

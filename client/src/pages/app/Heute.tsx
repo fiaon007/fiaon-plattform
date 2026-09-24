@@ -1,6 +1,14 @@
 // /app — Heute (Bauvorlage 3.2): Gruß, Ruhe-Zeile, Band, Rahmen-Karte (das eine
 // Navy-Glas), Jetzt-Karte, In Arbeit bei FIAON, Brief-Karte, Ansprechperson.
 // Der Primärknopf sitzt NICHT hier, sondern in der Aktionsleiste (Bereich.tsx).
+//
+// 24.09.2026 (E-240): Das Band kennt die Bonitätsauskunft. Sie ist nicht im
+// Paket, und /app zeigte sie nur als optionales Upload-Feld — wer ein bezahltes
+// Paket und keine Auskunft hat, las nirgends, dass FIAON sie holen kann. Jetzt
+// zwei Zustände: „bestellt, Zahlung offen" (seine eigene Bestellung, immer) und
+// „fehlt noch" (Angebot, nur ohne Werbesperre). Beide nach den Pflichtschritten
+// Zahlung, Rate, Selbstauskunft und Terminwahl — vor dem Hinweis auf einen schon
+// gebuchten Termin, den Zielkarte und „Jetzt dran" ohnehin zeigen.
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import type { Rahmenweg } from "@shared/fiaon-rahmenweg";
@@ -29,13 +37,18 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
   }, [b.kunde.ref, demo]);
 
   // Band: genau ein Zustand, in dieser Reihenfolge.
-  let band: { text: string; aktion: string | null; href: string | null } | null = null;
+  let band: { text: string; zusatz?: string; aktion: string | null; href: string | null; extern?: boolean } | null = null;
+  const ak = b.auskunft ?? null;
   if (!b.stufe.bezahlt) band = { text: `Ihre erste Zahlung ist noch offen${b.paket.monatlichCents ? `: ${eur(b.paket.monatlichCents)}` : ""}${b.paket.zahlungsreferenz ? ` · Verwendungszweck ${b.paket.zahlungsreferenz}` : ""}`, aktion: "Jetzt zahlen", href: `${basis}/geld/zahlen` };
   else if (rw.raten.ueberfaellig) band = { text: `Rate ${rw.raten.ueberfaellig.nr} ist${rw.raten.ueberfaellig.seit ? ` seit ${rw.raten.ueberfaellig.seit}` : ""} offen.`, aktion: "Rate zahlen", href: `${basis}/geld/zahlen` };
   // 09.09.2026 (E-168, Punkt 8): Beim ersten Einstieg zuerst die Selbstauskunft — vor dem Startgespräch.
   else if (rw.schritte.some((s) => s.key === "anspruchs_check" && s.stand !== "erledigt")) band = { text: "Ihre Selbstauskunft: Angaben zu Ihrer persönlichen und finanziellen Situation – in Ruhe, eine Frage nach der anderen.", aktion: "Selbstauskunft ausfüllen", href: `${basis}/ansprueche/check` };
+  else if (!startFertig && !terminGebucht) band = { text: "Ihr Startgespräch: Wählen Sie eine Zeit. Das Gespräch führen wir am Telefon.", aktion: "Zeit wählen", href: `${basis}/weg` };
+  // E-240: seine eigene Bestellung wartet auf Zahlung — die Zahlungsseite ist eine eigene Seite (kein /app-Reiter).
+  else if (ak?.stufe === "offen" && ak.offen && !ak.offen.gemeldet && ak.offen.zahlungsseite && !demo) band = { text: "Ihre Bonitätsauskunft ist bestellt – die Zahlung ist noch offen.", zusatz: `${ak.offen.betragText} · danach fordern wir Ihre Datenkopien bei ${ak.bei} an.`, aktion: "Zur Zahlung", href: ak.offen.zahlungsseite, extern: true };
+  // E-240: Paket bezahlt, keine Auskunft, keine Werbesperre — die Wahl steht unter Unterlagen.
+  else if (ak?.darfKaufen && ak.werbung) band = { text: "Ihre Bonitätsauskunft fehlt noch.", zusatz: `Wir fordern Ihre Datenkopien bei ${ak.bei} an und erklären jeden Eintrag – ${ak.preisText} einmalig.`, aktion: "Ansehen", href: `${basis}/unterlagen` };
   else if (!startFertig && terminGebucht) band = { text: `Ihr Startgespräch: ${zeit(b.termin!.beginn)} Uhr am Telefon${b.termin!.agent ? ` mit ${b.termin!.agent}` : ""}. Halten Sie Ihr Handy bereit.`, aktion: null, href: null };
-  else if (!startFertig) band = { text: "Ihr Startgespräch: Wählen Sie eine Zeit. Das Gespräch führen wir am Telefon.", aktion: "Zeit wählen", href: `${basis}/weg` };
 
   return (
     <>
@@ -46,8 +59,10 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
         {rw.lage === "nichts_offen" && <><b>Sie müssen heute nichts tun.</b> Gerade liegt nichts an.</>}
       </p>
 
-      {band && (band.href ? (
-        <Link href={band.href} className="ap-band ap-auf v1"><div><b>{band.text}</b></div>{band.aktion && <span style={{ color: "var(--fi-primaer)", fontWeight: 500, whiteSpace: "nowrap" }}>{band.aktion} →</span>}</Link>
+      {band && (band.href && band.extern ? (
+        <a href={band.href} className="ap-band ap-auf v1" style={{ textDecoration: "none" }}><div><b>{band.text}</b>{band.zusatz && <span>{band.zusatz}</span>}</div>{band.aktion && <span style={{ color: "var(--fi-primaer)", fontWeight: 500, whiteSpace: "nowrap" }}>{band.aktion} →</span>}</a>
+      ) : band.href ? (
+        <Link href={band.href} className="ap-band ap-auf v1"><div><b>{band.text}</b>{band.zusatz && <span>{band.zusatz}</span>}</div>{band.aktion && <span style={{ color: "var(--fi-primaer)", fontWeight: 500, whiteSpace: "nowrap" }}>{band.aktion} →</span>}</Link>
       ) : (
         <div className="ap-band ap-auf v1"><div><b>{band.text}</b></div></div>
       ))}

@@ -6,8 +6,20 @@
 // der Server dem Modell als Anweisung gibt. Preise kommen aus dem Paketkatalog,
 // damit nichts doppelt gepflegt wird. Was hier nicht steht, weiß der Assistent
 // nicht — und sagt das dann auch (statt zu raten).
+//
+// 24.09.2026 (E-240): Die Bonitätsauskunft hat einen eigenen Faktenblock
+// (auskunftWissen unten). Bis heute stand hier dreierlei: „74 € ohne Paket",
+// „wird im Kundenbereich angeboten, sobald das Paket bezahlt ist" und im
+// Startgespräch „74 € einmalig" — Mara konnte Doris Hösl („Ich hab keine")
+// deshalb nur in den Kundenbereich schicken. Jetzt eine Wahrheit aus
+// shared/fiaon-auskunft.ts: Zusatzprodukt, NICHT im Paket, 149 € einzeln /
+// 74 € mit Paket (Firma 349/199 €), sofort bestellbar.
 // ═══════════════════════════════════════════════════════════════════════════
-import { PAKETE, SCHUFA_PREIS_EURO } from "./fiaon-pakete";
+import { PAKETE } from "./fiaon-pakete";
+import {
+  AUSKUNFT_PREISE_CENTS, AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ,
+  auskunfteienText, auskunftLeistung, euroText,
+} from "./fiaon-auskunft";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK,
   globalKatalog, globalPreisText, globalPlanungText, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI,
@@ -85,6 +97,36 @@ Die früheren Business-Abos sind seit dem 17.09.2026 NICHT MEHR IM VERKAUF — b
 ${eingestellteZeilen()}`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BONITÄTSAUSKUNFT — EIN FAKTENBLOCK (24.09.2026, E-240)
+//
+// Preise, Auskunfteien und Leistung kommen aus shared/fiaon-auskunft.ts —
+// dieselben Sätze wie auf /bonitaetsauskunft-beantragen, im Kundenbereich und
+// in der Zahlungsmail. Der Block steht in wissenFakten, damit der
+// Website-Assistent UND Mara (Postmeister, Mail und WhatsApp) dasselbe wissen.
+// ═══════════════════════════════════════════════════════════════════════════
+export function auskunftWissen(): string {
+  const p = AUSKUNFT_PREISE_CENTS;
+  const privat = auskunftLeistung("privat", "DE").slice(1).map((z) => `- ${z}`).join("\n");
+  // Die Leistung ist je Land dieselbe, nur die Auskunfteien wechseln — die stehen
+  // oben je Land; hier deshalb „die Auskunfteien ihres Landes" statt der DE-Liste.
+  const firma = auskunftLeistung("firma", "DE")
+    .map((z) => `- ${z.replace(auskunfteienText("DE"), "den Auskunfteien ihres Landes")}`).join("\n");
+  return `DIE BONITÄTSAUSKUNFT — EIN ZUSATZPRODUKT, NICHT IM PAKET
+Sie ist in KEINEM Paket enthalten und wird nicht auf ein Paket angerechnet (eine Anrechnung gibt es nicht). Sie ist ein Einmalkauf per Überweisung, kein Abo, und erzeugt nie eine Rate.
+Preise: für Privatpersonen ${euroText(p.privat.einzeln)} einzeln (ohne Paket) und ${euroText(p.privat.mitAbo)} als Kundenpreis für jeden mit einem bezahlten, laufenden FIAON-Paket; für Unternehmen ${euroText(p.firma.einzeln)} einzeln und ${euroText(p.firma.mitAbo)} mit Paket. Welcher Preis gilt, setzt das System beim Bestellen — nie von Hand. Weißt du nicht, ob jemand ein laufendes Paket hat, nenne beide Preise.
+Bei wem angefragt wird: in Deutschland bei ${auskunfteienText("DE")}; in Österreich bei ${auskunfteienText("AT")}; in der Schweiz bei ${auskunfteienText("CH")}. Österreichern und Schweizern gegenüber nie „SCHUFA" schreiben — dort heißt sie KSV-Auskunft (Österreich) bzw. Bonitätsauskunft (Schweiz).
+Was der Kunde bekommt (privat): Wir fordern seine Datenkopien bei allen Auskunfteien seines Landes an — mit seiner Vollmacht zur Übermittlung, er muss keinen Brief schreiben.
+${privat}
+Für Unternehmen:
+${firma}
+Der Nutzen in einem Satz: ${AUSKUNFT_NUTZEN_SATZ}
+Bestellen: (1) öffentlich unter fiaon.com/bonitaet-antrag — auch ohne Paket; (2) im Kundenbereich per Knopf; (3) wer die Akte vor sich hat (Mara, die Betreuerin oder der Betreuer), legt die Bestellung direkt an, und der Kunde bekommt den Link zu seiner Zahlungsseite fiaon.com/zahlung/<Verwendungszweck>. Angelegt wird nur nach einem klaren Ja des Kunden — die Bestellung erzeugt Rechnung und Zahlungsaufforderung, und eine Rechnung für etwas, das er nicht bestellt hat, darf es nicht geben. Ist schon eine Auskunft offen, gilt deren Zahlungslink — nie eine zweite Bestellung. Ist sie bezahlt, wird nichts neu bestellt.
+Nach dem Zahlungseingang fordert FIAON die Datenkopien an; die Auskunfteien haben dafür gesetzlich in der Regel einen Monat Zeit. Danach folgen Erklärung, Fristenprüfung, Handlungsplan und die Schreiben zur Freigabe im Kundenbereich. Für FIAONs eigene Arbeit nennst du keine Frist mit Zahl.
+Die kostenlose Datenkopie: Fragt jemand, ob er die Auskunft nicht kostenlos selbst anfordern kann, lautet die ehrliche Antwort: „${AUSKUNFT_KOSTENLOS_ANTWORT}" Verschweige das Recht nie, wenn jemand fragt — schlage es aber nicht von dir aus als Hauptweg vor. Eine selbst angeforderte Datenkopie lädt der Kunde im Kundenbereich unter Unterlagen hoch.
+Grenzen: keine Löschzusage (ob eine Auskunftei löscht, entscheidet sie), keine Aussage, FIAON hebe den Score, keine Frist mit Zahl, keine Behauptung, die Schreiben seien von Anwälten geprüft (dafür gibt es keinen Beleg), keine Zusage zu Karte oder Limit — darüber entscheidet die Bank.`;
+}
+
 export function wissenText(): string {
   return `${wissenFakten()}
 
@@ -112,27 +154,29 @@ export function wissenFakten(): string {
 
 WAS FIAON IST
 FIAON ist eine Bonitätsplattform für Deutschland, Österreich und die Schweiz („das Betriebssystem für Bonität“). Drei Schichten:
-1. Einsicht: FIAON beschafft die Bonitätsauskunft des Kunden (SCHUFA in Deutschland, KSV1870/CRIF in Österreich, CRIF/Intrum in der Schweiz) mit Vollmacht und erklärt jeden Eintrag in Menschensprache; dazu eine Analyse des Kontoauszugs (Einnahmen, Fixkosten, Spielraum).
-2. Aktion: Für angreifbare Einträge liegen anwaltlich geprüfte Schreiben bereit (Löschantrag Art. 17 DSGVO, Widerspruch, Berichtigung Art. 16, Selbstauskunft Art. 15, Ratenangebot). Der Kunde gibt frei, FIAON versendet, verfolgt Fristen und Antworten.
+1. Einsicht: Die Bonitätsauskunft des Kunden — die FIAON-Bonitätsauskunft (Zusatzprodukt, siehe DIE BONITÄTSAUSKUNFT) oder eine selbst angeforderte Datenkopie, die er hochlädt. FIAON erklärt jeden Eintrag in Menschensprache; dazu eine Analyse des Kontoauszugs (Einnahmen, Fixkosten, Spielraum).
+2. Aktion: Für angreifbare Einträge liegen fertige Schreiben bereit (Löschantrag Art. 17 DSGVO, Widerspruch, Berichtigung Art. 16, Selbstauskunft Art. 15, Ratenangebot). Der Kunde gibt frei, FIAON versendet, verfolgt Fristen und Antworten.
 3. Zugang: Girokonto für jeden Kunden (unabhängig von der Bonität, z. B. DKB), Kreditkarte, sobald der Wert die Schwelle des Kartenpartners erreicht (bis 25.000 € bei guter Bonität), später Finanzierung. Über Konto, Karte und Rahmen entscheidet immer die Bank — FIAON bereitet vor.
 Jeder Kunde beginnt mit einem Startgespräch (15 Minuten am Telefon) und hat danach eine feste Ansprechpartnerin bzw. einen festen Ansprechpartner.
-Wortregeln: FIAON berät nicht, garantiert nichts und „verbessert“ keinen Score. Sage nie „Beratung“, „Empfehlung“, „Garantie“, „sicher“, „auf jeden Fall“. Erlaubt: Auskunft, Übersicht, Handlungsplan, „FIAON übernimmt/bereitet vor/versendet/verfolgt“.
+Wortregeln: FIAON berät nicht, sagt kein Ergebnis zu und „verbessert“ keinen Score. Sage nie „Beratung“, „Empfehlung“, „Garantie“, „sicher“, „auf jeden Fall“. Erlaubt: Auskunft, Übersicht, Handlungsplan, „FIAON übernimmt/bereitet vor/versendet/verfolgt“.
 
 PAKETE UND PREISE (Stand heute, aus dem Katalog)
 ${pakete}
-- Nur die Bonitätsauskunft, ohne Paket: ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig, kein Abo.
+- Die Bonitätsauskunft ist kein Paket und in keinem Paket enthalten, sondern ein Zusatzprodukt: ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} einzeln, ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} mit laufendem Paket (siehe DIE BONITÄTSAUSKUNFT).
 Das Paket lässt sich im Antrag und im Startgespräch ändern. Zahlung: Jede Rate per Überweisung auf das Geschäftskonto der FIAON LTD, die erste wie alle weiteren (Zahlungsdaten mit QR-Code im Kundenbereich; Bankverbindung und Verwendungszweck in jeder Zahlungsmail).
 Zahlweg — die feste Antwort: „Kann ich per Lastschrift zahlen?“ Nein. FIAON bietet keine Lastschrift und keine Zahlung per Bank-App an und bucht nichts vom Konto des Kunden ab; jede Rate überweist der Kunde selbst, mit seinem Verwendungszweck. Fragt jemand nach einer früheren Abbuchung, verweise an die eigene Ansprechpartnerin (Kundenbereich unter Hilfe) oder den Support — sage selbst keinen Betrag und keinen Termin zu.
 Für Unternehmen gibt es keine Monatspakete mehr, sondern FIAON Global (nächster Abschnitt).
 
 ${globalWissen()}
 
+${auskunftWissen()}
+
 DER WEG FÜR NEUE KUNDEN
 1. Paket wählen (fiaon.com/privatkunden oder fiaon.com/antrag) — der Antrag dauert etwa zwei Minuten: E-Mail, Name, Geburtsdatum, Telefon, Adresse (füllt sich beim Tippen selbst aus), Beschäftigung, Einkommen, Wunschlimit.
 2. Vertrag annehmen — danach ist der Kunde sofort in seinem Bereich eingeloggt, legt ein Passwort fest und wählt: „Jetzt aktivieren“ (Zahlungsdaten, QR-Code, Kopieren) oder „Zuerst sprechen“ (Termin mit einem Mitarbeiter).
 3. Nach Zahlungseingang: Startgespräch buchen (Pflicht — bis dahin bleibt der Bereich geschlossen). Wer vorher einen Termin gebucht hat, braucht keinen zweiten: derselbe Termin wird zum Startgespräch.
-4. Nach dem Startgespräch: Bereich vollständig aktiv, Auskunft wird beantragt, Einsicht innerhalb von etwa 24 Stunden nach Eingang.
-Die Bonitätsauskunft (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €) wird im Kundenbereich angeboten, sobald das Paket bezahlt ist.
+4. Nach dem Startgespräch: Bereich vollständig aktiv. Liegt eine Auskunft vor (FIAON-Bonitätsauskunft oder hochgeladene Datenkopie), wird sie ausgewertet und jeder Eintrag erklärt.
+Die Bonitätsauskunft ist jederzeit bestellbar, mit oder ohne Paket (siehe DIE BONITÄTSAUSKUNFT) — mit bezahltem Paket zum Kundenpreis.
 
 DER KUNDENBEREICH (fiaon.com/login → „Mein Bereich“)
 Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (Kontoauszug der letzten drei Monate, Ausweis — Handyfoto genügt; je Unterlage mehrere Dateien auf einmal auswählen, z. B. drei Monatsauszüge oder Vorder- und Rückseite, sie werden zu einem Dokument zusammengefügt — ein neuer Upload ersetzt den vorigen), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen.
@@ -162,6 +206,7 @@ KOSTENLOSE WERKZEUGE UND RATGEBER
 - fiaon.com/business: FIAON Global für Unternehmen – US-Gesellschaft aus einer Hand, vier Pakete zum Einmalpreis (siehe FIAON GLOBAL). Direkt beauftragen: fiaon.com/business/start. Gespräch buchen: fiaon.com/business#gespraech.
 - fiaon.com/plattform-konzept: die ganze Plattform erklärt, Paketfinder, Weg Tag für Tag.
 - fiaon.com/preise: alle Pakete im Leistungsvergleich, Werkzeug „Was kostet Selbermachen?“.
+- fiaon.com/bonitaet-antrag: die Bonitätsauskunft direkt bestellen. fiaon.com/bonitaetsauskunft-beantragen: beide Wege (kostenlose Datenkopie und FIAON-Bonitätsauskunft) erklärt.
 - fiaon.com/kreditkarte: Kreditkarte trotz Eintrag – drei Wege, Rahmen-Zeitachse.
 - fiaon.com/oesterreich: FIAON in Österreich (KSV1870, CRIF). fiaon.com/schweiz: FIAON in der Schweiz (CRIF, Intrum, Betreibungsregister).
 - fiaon.com/sicherheit: Datenschutz und Technik.
@@ -184,7 +229,7 @@ VERTRAG UND KÜNDIGUNG
 KONTO UND KARTE — REIHENFOLGE UND BEDINGUNGEN
 - Erst das Girokonto, dann die Karte: FIAON vermittelt das Girokonto der Partnerbank DKB (Kooperationspartner — nie „Affiliate"); die Visa-Kreditkarte bucht der Kunde aus dem fertigen Banking selbst dazu. Wer ohne Konto zur Karte geschickt würde, bekäme eine Ablehnung, und die stünde wieder in seiner Auskunft.
 - Die Einladung zum Konto- und Kartenantrag (Link der Partnerbank) verschickt FIAON automatisch, sobald die erste Zahlung gebucht ist — der Account ist dann aktiviert (seit 21.09.2026; vorher erst nach zwei Raten). Voraussetzung ist nur ein vollständiger Antrag (Name, Geburtsdatum, Anschrift, E-Mail).
-- In der Antragszeit lädt der Kunde im Kundenbereich hoch: Kontoauszüge der letzten sechs Monate, Ausweis oder Reisepass und seine Bonitätsauskunft — die Auskunft fordert er entweder selbst an (Anleitung im Kundenbereich) oder bezieht sie über FIAON (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €). Daraus macht FIAON seine Bonitätsanalyse.
+- In der Antragszeit lädt der Kunde im Kundenbereich hoch: Kontoauszüge der letzten sechs Monate, Ausweis oder Reisepass und seine Bonitätsauskunft — entweder die FIAON-Bonitätsauskunft (Kundenpreis ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, Leistung siehe DIE BONITÄTSAUSKUNFT) oder eine selbst angeforderte Datenkopie (Anleitung im Kundenbereich). Daraus macht FIAON seine Bonitätsanalyse.
 - Zeit bis zur Karte: Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen beim Kunden; meist kann er sie schon vorher in der App der Bank mit Apple Pay nutzen. Nie als feste Frist oder Zusage formulieren.
 - Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON stellt keine Karte aus und verschickt keine Karte oder PIN; FIAON bereitet vor und begleitet. Ein Kartenrahmen bis 25.000 € ist bei guter Bonität möglich, nie zugesagt.
 - Der Stand je Kunde (welche Bedingung fehlt, ob die Einladung schon raus ist, ob die Bank entschieden hat) steht in seiner Akte.`;

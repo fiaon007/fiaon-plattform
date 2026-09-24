@@ -936,7 +936,7 @@ router.post("/admin/kunden/:ref/stammdaten", async (req: Request, res: Response)
 // Stufenpaket ist und in der Akte nicht umgestellt wird.
 // ═══════════════════════════════════════════════════════════════════════════
 const PACKS_ALLOWED: Record<string, string> = Object.fromEntries(
-  PAKETE.filter((p) => p.key !== "schufa").map((p) => [p.key, p.label]),
+  PAKETE.filter((p) => !p.zusatz).map((p) => [p.key, p.label]),
 );
 router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response) => {
   try {

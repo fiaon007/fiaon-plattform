@@ -5,8 +5,14 @@
 // Budget) → passendes Paket aus dem Katalog (shared/fiaon-pakete.ts, nie Preise
 // von Hand), Rate, Laufzeit, meine Provision (Satz aus GET /agent/provision-satz,
 // Vorgabe 25 % je bankbestätigter Rate) und drei Sätze fürs Gespräch (Sie-Form).
-// Wortregeln: FIAON berät nicht und garantiert nichts – hier steht „passt“,
+// Wortregeln: FIAON berät nicht und sagt kein Ergebnis zu – hier steht „passt“,
 // „zeigt“, „bereitet vor“.
+//
+// 24.09.2026 (E-240): Die Bonitätsauskunft ist in KEINEM Paket enthalten. Hier
+// stand bei Start „Bonitätsauskunft beschafft", und als Ausweg „nur die
+// Bonitätsauskunft" mit 74 € — ohne Paket kostet sie aber 149 €
+// (shared/fiaon-auskunft.ts). Die Pakete erklären jetzt die Auskunft, die der
+// Kunde mitbringt oder dazubestellt; der Ausweg zeigt den Einzelpreis.
 //
 // 17.09.2026 (E-188): Die Business-Abos sind eingestellt. „Unternehmen“ führt
 // nicht mehr durch die Bonitätsfragen (Negativeinträge, Budget im Monat — beides
@@ -20,6 +26,7 @@ import { ArrowLeft, Copy, Check } from "lucide-react";
 import { AgentShell, api } from "../shared";
 import { useOffice } from "../OfficeShell";
 import { PAKETE, type Paket } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS, auskunftSchluessel, euroText } from "@shared/fiaon-auskunft";
 import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import "@/styles/office-tools.css";
 
@@ -33,7 +40,7 @@ const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currenc
 
 /** Was in den Paketen steckt (Leistungen, keine Preise — die kommen aus dem Katalog). */
 const LEISTUNG: Record<string, { kurz: string; punkte: string[] }> = {
-  start: { kurz: "Auskunft beschafft und erklärt, Finanzauswertung, Schreiben zum Selbstversand", punkte: ["Bonitätsauskunft beschafft und jeder Eintrag erklärt", "Löschfristen und 100-Tage-Regel je Eintrag", "Finanzauswertung aus dem Kontoauszug", "Schreiben an Gläubiger und Auskunfteien – zum Selbstversand", "Fester Ansprechpartner"] },
+  start: { kurz: "Auskunft erklärt, Finanzauswertung, Schreiben zum Selbstversand", punkte: [`Jeder Eintrag der Auskunft erklärt (Auskunft nicht enthalten: selbst angefordert oder über FIAON für ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} mit Paket)`, "Löschfristen und 100-Tage-Regel je Eintrag", "Finanzauswertung aus dem Kontoauszug", "Schreiben an Gläubiger und Auskunfteien – zum Selbstversand", "Fester Ansprechpartner"] },
   pro: { kurz: "FIAON versendet und verfolgt die Schreiben, Girokonto vorbereitet, Karte ab Schwelle", punkte: ["Alles aus Start", "FIAON versendet die Schreiben und verfolgt Fristen und Antworten", "Girokonto vorbereitet", "Kreditkarte vorbereitet, sobald die Schwelle des Kartenpartners erreicht ist"] },
   ultra: { kurz: "Kreditkarte vorbereitet, Vorrang bei Fristen und Rückfragen", punkte: ["Alles aus Pro", "Kreditkarte vorbereitet", "Vorrang bei Fristen und Rückfragen"] },
   highend: { kurz: "alles aus einer Hand mit direkter Durchwahl", punkte: ["Alles aus Ultra", "Direkte Durchwahl, alles aus einer Hand", "Das Maximum an Begleitung"] },
@@ -51,7 +58,7 @@ function finden(art: Art, ziel: Ziel, negativ: Negativ, dringlich: Dringlich, bu
   let stufe = 0;
   if (ziel === "kreditkarte") { stufe = negativ === "nein" ? 1 : 2; gruende.push(negativ === "nein" ? "Ziel Kreditkarte ohne Negativeinträge – Pro bereitet die Karte vor, sobald die Schwelle erreicht ist." : "Ziel Kreditkarte – ab Ultra ist die Kreditkarte fest Teil des Pakets."); }
   if (ziel === "kredit") { stufe = 2; gruende.push("Ziel Kredit – dafür zählt eine saubere Auskunft und Vorrang bei Fristen (Ultra)."); }
-  if (ziel === "wohnung") { stufe = 0; gruende.push("Ziel Wohnung – der Vermieter will die Auskunft sehen; Start beschafft und erklärt sie."); }
+  if (ziel === "wohnung") { stufe = 0; gruende.push(`Ziel Wohnung – der Vermieter will die Auskunft sehen; Start erklärt sie. Die Auskunft selbst mit Paket für ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} dazubestellen.`); }
   if (ziel === "unternehmen") { stufe = 1; gruende.push("Ziel Selbstständigkeit – Pro mit Girokonto und verfolgten Schreiben. Für ein Unternehmen mit US-Bezug gibt es FIAON Global (oben „Unternehmen“)."); }
   if (negativ === "ja" && stufe < 1) { stufe = 1; gruende.push("Negativeinträge vorhanden – ab Pro versendet und verfolgt FIAON die Schreiben selbst."); }
   if (negativ === "ja" && dringlich === "sofort") { stufe = 3; gruende.push("Negativeinträge und es eilt – High-End: alles aus einer Hand, direkte Durchwahl."); }
@@ -68,7 +75,8 @@ function finden(art: Art, ziel: Ziel, negativ: Negativ, dringlich: Dringlich, bu
     } else {
       paket = pakete[0];
       budgetHinweis = `Kein Paket liegt unter ${euro0(budgetCents)} im Monat. ${paket.label} ist der kleinste Einstieg – oder nur die Bonitätsauskunft einmalig.`;
-      alternative = PAKETE.find((p) => p.key === "schufa") ?? null; alternativeText = "Ohne Abo";
+      // Ohne Paket gilt der Einzelpreis der Auskunft (auskunft_privat), nicht der Kundenpreis.
+      alternative = PAKETE.find((p) => p.key === auskunftSchluessel("privat", false)) ?? null; alternativeText = "Ohne Abo";
     }
   } else if (stufe > 0) {
     alternative = pakete[stufe - 1]; alternativeText = "Schmalere Stufe";
@@ -79,10 +87,10 @@ function finden(art: Art, ziel: Ziel, negativ: Negativ, dringlich: Dringlich, bu
 }
 
 const ZIEL_SATZ: Record<Ziel, string> = {
-  kreditkarte: "Ihr Ziel ist die Kreditkarte. FIAON beschafft zuerst Ihre Bonitätsauskunft, erklärt jeden Eintrag und bereitet den Kartenantrag vor, sobald Ihre Bonität die Schwelle des Kartenpartners erreicht. Über die Karte entscheidet am Ende die Bank – FIAON sorgt dafür, dass Ihre Unterlagen stimmen.",
-  kredit: "Ihr Ziel ist ein Kredit. Banken schauen zuerst in die Auskunft – FIAON beschafft sie, zeigt, welche Einträge angreifbar sind, und versendet die Schreiben in Ihrem Namen. Je sauberer die Auskunft, desto besser Ihre Ausgangslage beim Gespräch mit der Bank.",
-  wohnung: "Ihr Ziel ist die Wohnung. Der Vermieter will Ihre Auskunft sehen – FIAON beschafft sie, erklärt jeden Eintrag und zeigt, was sich vor der Bewerbung noch klären lässt.",
-  unternehmen: "Ihr Ziel ist die Selbstständigkeit. FIAON beschafft Ihre Auskunft als Inhaber, zeigt, was Banken dort sehen, und bereitet Girokonto und Karte vor – über Konto, Karte und Rahmen entscheidet die Bank.",
+  kreditkarte: "Ihr Ziel ist die Kreditkarte. Zuerst braucht es Ihre Bonitätsauskunft: FIAON erklärt jeden Eintrag und bereitet den Kartenantrag vor, sobald Ihre Bonität die Schwelle des Kartenpartners erreicht. Über die Karte entscheidet am Ende die Bank – FIAON sorgt dafür, dass Ihre Unterlagen stimmen.",
+  kredit: "Ihr Ziel ist ein Kredit. Banken schauen zuerst in die Auskunft – FIAON erklärt sie, zeigt, welche Einträge angreifbar sind, und versendet die Schreiben in Ihrem Namen. Je sauberer die Auskunft, desto besser Ihre Ausgangslage beim Gespräch mit der Bank.",
+  wohnung: "Ihr Ziel ist die Wohnung. Der Vermieter will Ihre Auskunft sehen – FIAON erklärt jeden Eintrag und zeigt, was sich vor der Bewerbung noch klären lässt.",
+  unternehmen: "Ihr Ziel ist die Selbstständigkeit. FIAON erklärt Ihre Auskunft als Inhaber, zeigt, was Banken dort sehen, und bereitet Girokonto und Karte vor – über Konto, Karte und Rahmen entscheidet die Bank.",
 };
 
 export default function AgentPaketfinderPage() { return <AgentShell><PaketfinderInnen /></AgentShell>; }
@@ -106,7 +114,7 @@ function PaketfinderInnen() {
   const saetze = e ? [
     { t: "Einstieg", s: `Nach dem, was Sie mir schildern, passt FIAON ${e.paket.label.replace("FIAON ", "").replace(" (Standard)", "")} zu Ihnen: ${LEISTUNG[e.paket.key]?.kurz ?? ""}. ${e.paket.abo ? `Das sind ${euro(e.paket.preisCents)} im Monat, zwölf Raten – danach entscheiden Sie, ob Sie bleiben.` : `Das sind einmalig ${euro(e.paket.preisCents)}, kein Abo.`}` },
     { t: "Nutzen", s: ZIEL_SATZ[ziel as Ziel] },
-    { t: "Abschluss", s: e.paket.abo ? "Wenn das für Sie passt, schicke ich Ihnen jetzt die Zahlungsdaten. Mit der ersten Rate ist Ihr Bereich aktiv, und wir buchen direkt Ihr Startgespräch – fünfzehn Minuten, dann weiß Ihre Ansprechpartnerin genau, worum es bei Ihnen geht." : "Wenn das für Sie passt, schicke ich Ihnen jetzt die Zahlungsdaten. Nach dem Eingang beschafft FIAON Ihre Auskunft, und Sie sehen jeden Eintrag erklärt in Ihrem Bereich." },
+    { t: "Abschluss", s: e.paket.abo ? `Wenn das für Sie passt, schicke ich Ihnen jetzt die Zahlungsdaten. Mit der ersten Rate ist Ihr Bereich aktiv, und wir buchen direkt Ihr Startgespräch – fünfzehn Minuten, dann weiß Ihre Ansprechpartnerin genau, worum es bei Ihnen geht. Ihre Bonitätsauskunft bekommen Sie mit Paket für ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} dazu.` : "Wenn das für Sie passt, schicke ich Ihnen jetzt die Zahlungsdaten. Nach dem Eingang fordert FIAON Ihre Datenkopien bei den Auskunfteien an, und Sie sehen jeden Eintrag erklärt in Ihrem Bereich – mit Handlungsplan." },
   ] : [];
   const kopieren = async (i: number, text: string) => { try { await navigator.clipboard.writeText(text); setKopiert(i); setTimeout(() => setKopiert(null), 1800); } catch { /* egal */ } };
   const Opt = <T extends string>({ wert, an, setzen, b, s }: { wert: T; an: T | ""; setzen: (v: T) => void; b: string; s?: string }) => (
@@ -183,7 +191,7 @@ function PaketfinderInnen() {
             <div className="to-ergebnis">
               <span className="to-stufe" style={{ background: "#1d4ed8" }}>{e.paket.abo ? "Abo · 12 Raten" : "Einmalig"}</span>
               <h3>{e.paket.label}</h3>
-              <p>{LEISTUNG[e.paket.key]?.kurz ? `${LEISTUNG[e.paket.key].kurz}.` : "Bonitätsauskunft beschafft und erklärt, ohne Abo."}</p>
+              <p>{LEISTUNG[e.paket.key]?.kurz ? `${LEISTUNG[e.paket.key].kurz}.` : "Bonitätsauskunft bei allen Auskunfteien des Landes angefordert, jeder Eintrag erklärt, mit Handlungsplan – ohne Abo."}</p>
               <div className="to-zahlen">
                 <div className="to-zahl"><small>Rate</small><b>{euro(e.paket.preisCents)}</b><span>{e.paket.abo ? "im Monat" : "einmalig"}</span></div>
                 <div className="to-zahl"><small>Laufzeit</small><b>{laufzeit}</b><span>{e.paket.abo ? "Raten, dann entscheidet der Kunde" : "Zahlung, kein Abo"}</span></div>

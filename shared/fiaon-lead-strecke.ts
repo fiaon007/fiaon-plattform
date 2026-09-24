@@ -31,7 +31,10 @@
 // Eine Regel, die nur in einer Schulung steht, gilt bis zur ersten Vertretung.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { PAKETE, SCHUFA_PREIS_EURO } from "./fiaon-pakete";
+import { PAKETE } from "./fiaon-pakete";
+// 24.09.2026 (E-240): Der Auskunftspreis kommt aus der einen Quelle. Leads haben
+// kein Paket — für sie gilt der Einzelpreis; der Kundenpreis steht daneben.
+import { AUSKUNFT_PREISE_CENTS } from "./fiaon-auskunft";
 import { FIAON_FIRMA } from "./fiaon-firma";
 
 /**
@@ -135,7 +138,8 @@ export const VARIANTEN: StreckenVariante[] = [
     betreff: "Der erste Schritt ist immer derselbe",
     text: "Bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: "
       + "Was steht eigentlich über Sie in den Auskunfteien?\n\n"
-      + `Diese Auskunft ist der Grundstein — sie kostet einmalig ${EURO(SCHUFA_PREIS_EURO * 100)} und wird `
+      + `Diese Auskunft ist der Grundstein — sie kostet einmalig ${EURO(AUSKUNFT_PREISE_CENTS.privat.einzeln)}, `
+      + `mit einem FIAON-Paket ${EURO(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, und wird `
       + "neutral abgerufen, verändert also nichts an Ihrem Stand. Sie sehen danach "
       + "schwarz auf weiß, wo Sie anfangen.",
   },
@@ -148,7 +152,8 @@ export const VARIANTEN: StreckenVariante[] = [
     betreff: "Was kostet das eigentlich?",
     text: "Eine berechtigte Frage, und die Antwort steht auf der Seite — nicht im Kleingedruckten.\n\n"
       + `Es gibt ${ZAHLWORT[PRIVATPAKETE.length] ?? PRIVATPAKETE.length} Pakete ab ${EURO(AB_CENTS)} im Monat. Jede Rate überweisen Sie selbst — `
-      + `abgebucht wird nichts. Dazu einmalig die Bonitätsauskunft für ${EURO(SCHUFA_PREIS_EURO * 100)}. `
+      + `abgebucht wird nichts. Die Bonitätsauskunft ist nicht im Paket enthalten: mit Paket einmalig `
+      + `${EURO(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, einzeln ${EURO(AUSKUNFT_PREISE_CENTS.privat.einzeln)}. `
       + "Keine Anschlussgebühr und keine Überraschung auf dem Kontoauszug.",
   },
   {

@@ -7,6 +7,11 @@
 // oder Entwurf) und Ausgang (was automatisch oder von Hand rausging). Offene
 // Entwürfe stehen oben markiert; ein Klick öffnet die Mail mit den Knöpfen
 // „So an den Kunden senden" und „Selbst beantwortet".
+//
+// (25.09.2026, E-240) Seit dem 24.09. liefert die Route auch WhatsApp
+// (`kanal: "whatsapp"`, negative id). Diese Zeilen tragen das Etikett
+// „WhatsApp …" statt „Kunde schreibt"/„An Kunde" und keinen Knopf „Mail
+// öffnen" — es gibt keine Mail dahinter, die Nachricht steht vollständig da.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { PostmeisterMail } from "./PostmeisterMail";
@@ -14,6 +19,19 @@ import { PostmeisterMail } from "./PostmeisterMail";
 interface Zeile {
   art: "ein" | "aus"; id: number; am: string; betreff: string; text: string;
   status: string; offen: boolean; dringend: boolean; von?: string; postfach?: string;
+  kanal?: "mail" | "whatsapp";
+}
+
+/** Das Etikett über der Zeile — Richtung und Kanal. */
+function etikett(z: Zeile): string {
+  if (z.kanal === "whatsapp") return z.art === "ein" ? "WhatsApp vom Kunden" : `WhatsApp an Kunde · ${z.von ?? "automatisch"}`;
+  return z.art === "ein" ? "Kunde schreibt" : `An Kunde · ${z.von}`;
+}
+
+/** Bei WhatsApp sagt das Etikett schon „WhatsApp" — der Betreff nennt nur noch die Vorlage, wenn es eine gab. */
+function betreffZeile(z: Zeile): string {
+  if (z.kanal !== "whatsapp") return z.betreff;
+  return z.betreff.replace(/^WhatsApp( · )?/, "").trim();
 }
 
 function zeit(v: string): string {
@@ -24,6 +42,10 @@ const STATUS: Record<string, string> = {
   beantwortet: "beantwortet", entwurf: "Entwurf wartet", auto_beantwortet: "beantwortet", geordnet: "erledigt",
   ignoriert: "abgelegt", vorgeordnet: "eingeordnet", versandt: "gesendet", zugestellt: "zugestellt",
   geoeffnet: "geöffnet", fehlgeschlagen: "nicht gesendet", gebounct: "zurückgekommen", spam: "als Spam gemeldet",
+  // (25.09.2026, E-240) Gegenlesen: WhatsApp-Zeilen tragen Metas Stand (fiaon_whatsapp.status) —
+  // gemessen: read, delivered, gesendet, empfangen. Vorher stand „read" roh in der Akte.
+  read: "gelesen", delivered: "zugestellt", sent: "gesendet", gesendet: "gesendet", empfangen: "empfangen",
+  failed: "nicht gesendet",
 };
 
 export function Schriftverkehr({ personId }: { personId: number }) {
@@ -40,7 +62,7 @@ export function Schriftverkehr({ personId }: { personId: number }) {
 
   if (fehler) return <p className="pi-sek-satz leise">{fehler}</p>;
   if (!zeilen) return <p className="pi-sek-satz leise">Lade den Schriftverkehr …</p>;
-  if (zeilen.length === 0) return <p className="pi-sek-satz leise">Mit diesem Kunden gab es noch keinen Mailverkehr.</p>;
+  if (zeilen.length === 0) return <p className="pi-sek-satz leise">Mit diesem Kunden gab es noch keinen Mail- oder WhatsApp-Verkehr.</p>;
   const sortiert = [...zeilen.filter((z) => z.offen), ...zeilen.filter((z) => !z.offen)];
   return (
     <div style={{ display: "grid", gap: 6 }}>
@@ -48,19 +70,19 @@ export function Schriftverkehr({ personId }: { personId: number }) {
         <div key={`${z.art}-${z.id}`} style={{ border: "1px solid var(--fi-rand, #e5e9f0)", borderRadius: 10, padding: "8px 10px", background: z.offen ? "rgba(217,119,6,.06)" : "transparent" }}>
           <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: z.art === "ein" ? "#b45309" : "var(--fi-text-still, #64748b)" }}>
-              {z.art === "ein" ? "Kunde schreibt" : `An Kunde · ${z.von}`}
+              {etikett(z)}
             </span>
             <span style={{ fontSize: 11.5, color: "var(--fi-text-still, #64748b)" }}>{zeit(z.am)}</span>
             <span style={{ fontSize: 11.5, fontWeight: 600, color: z.offen ? "#b45309" : "var(--fi-text-still, #64748b)" }}>{STATUS[z.status] ?? z.status}{z.dringend ? " · dringend" : ""}</span>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{z.betreff}</div>
+          {betreffZeile(z) && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{betreffZeile(z)}</div>}
           {z.text && <div style={{ fontSize: 12.5, color: "var(--fi-text-still, #64748b)", marginTop: 2 }}>{z.text}</div>}
-          {z.art === "ein" && (
+          {z.art === "ein" && z.kanal !== "whatsapp" && (
             <button type="button" className="pi-link" style={{ marginTop: 4 }} onClick={() => setOffen(offen === z.id ? null : z.id)}>
               {offen === z.id ? "schließen" : z.offen ? "Mail und Entwurf öffnen" : "Mail öffnen"}
             </button>
           )}
-          {offen === z.id && <PostmeisterMail id={z.id} />}
+          {offen === z.id && z.kanal !== "whatsapp" && <PostmeisterMail id={z.id} />}
         </div>
       ))}
     </div>

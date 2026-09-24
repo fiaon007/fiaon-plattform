@@ -26,7 +26,7 @@ import { sqlPool } from "./db-pool";
 
 export interface Ereignis {
   am: Date;
-  /** Kurzes Etikett: mail_raus, mail_rein, anruf, termin, zahlung, rate, notiz, aufgabe, portal, unterlagen, vertrag, system */
+  /** Kurzes Etikett: mail_raus, mail_rein, wa_raus, wa_rein, anruf, termin, zahlung, rate, notiz, aufgabe, portal, unterlagen, vertrag, system */
   art: string;
   text: string;
 }
@@ -130,6 +130,23 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     SELECT created_at, ergebnis, zusage_am, wiedervorlage, notiz, agent_name FROM fiaon_raten_arbeit WHERE ref = ANY(${refs}) ORDER BY created_at DESC LIMIT 30` as unknown as Promise<any[]>) : [];
   for (const a of ratenArbeit) add(a.created_at, "anruf", `Forderungsmanagement${a.agent_name ? ` (${a.agent_name})` : ""}: ${a.ergebnis || "—"}${a.zusage_am ? `, Zusage ${tag(a.zusage_am)}` : ""}${a.wiedervorlage ? `, Wiedervorlage ${tag(a.wiedervorlage)}` : ""}${a.notiz ? ` — ${kurz(a.notiz, 160)}` : ""}`);
 
+  // ── WhatsApp (24.09.2026, E-240) ───────────────────────────────────────
+  // Justin: „Mara speichert alles Besprochene in der Akte." Bis heute kannte
+  // der Weg kein einziges WhatsApp-Wort — Mara im Postfach wusste nicht, was
+  // Mara auf WhatsApp eine Stunde vorher zugesagt hatte. Jetzt jede Nachricht
+  // (nach person_id, ohne Fehlerzeilen), Vorlagen mit ihrem Namen.
+  const wa = personId ? await quelle("whatsapp", () => sqlPool`
+    SELECT richtung, text, typ, vorlage, von, status, COALESCE(empfangen_am, gesendet_am, created_at) AS am
+      FROM fiaon_whatsapp WHERE person_id = ${personId} AND status <> 'fehler'
+     ORDER BY id DESC LIMIT 60` as unknown as Promise<any[]>) : [];
+  for (const w of wa) {
+    const inhalt = kurz(w.text, 260) || (w.typ && w.typ !== "text" ? `(${w.typ})` : "");
+    if (w.richtung === "rein") add(w.am, "wa_rein", `WHATSAPP KUNDE: „${inhalt}"`);
+    else add(w.am, "wa_raus", w.vorlage
+      ? `WhatsApp-Vorlage „${w.vorlage}" an ihn${inhalt ? `: „${inhalt}"` : ""}`
+      : `WhatsApp ${w.von ? `von ${kurz(w.von, 40)}` : "von uns"}: „${inhalt}"`);
+  }
+
   // ── Kontakt-Log (Person ODER eine ihrer Bestellungen) ──────────────────
   const kontakte = (personId || refs.length) ? await quelle("contact_log", () => sqlPool`
     SELECT created_at, type, outcome, note, agent_name, promised_date, scheduled_at FROM fiaon_contact_log
@@ -139,6 +156,8 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     // Der Postmeister schreibt Ein- und Ausgang auch ins Kontakt-Log — die Zeilen
     // stehen schon aus fiaon_postmeister in der Liste, mit mehr Inhalt.
     if (k.agent_name === "Postmeister" && /^(E-Mail an |Antwort gesendet|Antwort freigegeben)/.test(String(k.note || ""))) continue;
+    // E-240: Maras WhatsApp-Vermerk fasst Nachrichten zusammen, die oben schon einzeln stehen.
+    if (wa.length && k.agent_name === "Mara" && /^Mara \(WhatsApp\):/.test(String(k.note || ""))) continue;
     const wer = k.agent_name && k.agent_name !== "System" ? `${k.agent_name}: ` : "";
     const art = k.type === "result" ? "anruf" : k.type === "email_sent" ? "mail_raus" : k.type === "note" ? "notiz" : k.type === "kunde_anliegen" ? "portal" : "system";
     add(k.created_at, art, `${wer}${k.outcome ? `[${k.outcome}] ` : ""}${kurz(k.note, 320)}${k.promised_date ? ` (Zusage: ${tag(k.promised_date)})` : ""}`);
@@ -333,6 +352,7 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     `${E.length} Ereignisse${E.length ? ` seit ${berlin(E[0].am).slice(0, 8)}` : ""}`,
     `${n("mail_raus")} Mails von uns${mails.length ? ` (${mails.filter((m) => m.zustellung === "geoeffnet" || m.zustellung === "geklickt").length} geöffnet, ${mails.filter((m) => ["gebounct", "blockiert", "spam"].includes(String(m.zustellung))).length} nicht zugestellt)` : ""}`,
     `${n("mail_rein")} Mails vom Kunden`,
+    ...(wa.length ? [`${n("wa_rein")} WhatsApp vom Kunden, ${n("wa_raus")} an ihn`] : []),
     `${n("anruf")} Anruf-/Rückruf-Einträge`,
     `${termine.length} Termine (${termine.filter((t) => t.status === "verpasst").length} verpasst)`,
     `${raten.filter((r) => r.status === "bezahlt").length} Raten bezahlt, ${raten.filter((r) => r.status === "offen").length} offen`,

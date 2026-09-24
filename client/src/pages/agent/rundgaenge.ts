@@ -432,6 +432,23 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "Eintrag auf diesem Gerät aus; der Termin selbst bleibt im Kalender.",
     tipp: "Ruf pünktlich an: Mara hat dem Kunden genau diese Uhrzeit bestätigt.",
   },
+  {
+    // 24.09.2026 (E-240): Die Karte „Neu von Mara“ (components/AufgabenErinnerung.tsx)
+    // hängt am Office-Rahmen, nicht an einer Seite — der Rahmen hat keinen eigenen
+    // Rundgang, deshalb steht sie hier neben Maras Terminen. Ohne Karte (nichts
+    // ungelesen) zeigt der Rundgang diesen Schritt mittig.
+    ziel: ".fi-auf",
+    titel: "Maras Aufgaben kommen zu dir.",
+    text: "Legt Mara eine Aufgabe für dich an — ein Kunde hat geschrieben oder will auf WhatsApp einen Menschen "
+      + "sprechen —, erscheint unten rechts über dem Telefonknopf die Karte „Neu von Mara“, auf jeder Seite im Office. "
+      + "Oben steht die neueste mit Kunde und Maras Zusammenfassung, darunter bis zu vier weitere. „Öffnen“ bringt dich "
+      + "in die Akte und zählt diese eine Aufgabe als gesehen. „Später“ blendet die Karte aus, ohne etwas als gesehen "
+      + "zu zählen. Danach ruht die Karte, bis die nächste neue kommt — alle ungelesenen stehen weiter unter Tasks. "
+      + "Ein roter Rand heißt: dringend.",
+    // Gegenlesen 24.09.2026: Der Knopf zeigt den ZUSTAND („Ton an"), nicht die Handlung —
+    // vorher verwies der Tipp auf einen Knopf „Ton aus", den man bei eingeschaltetem Ton nicht findet.
+    tipp: "Trifft eine neue Aufgabe ein, während du arbeitest, klingt ein leiser Doppelton — nie während eines Gesprächs. Ein Tipp auf „Ton an“ unten in der Karte schaltet ihn ab.",
+  },
 ];
 
 export const RUNDGANG_GEHALT: RundgangSchritt[] = [
@@ -791,6 +808,21 @@ export const RUNDGANG_APP_VORGANG: RundgangSchritt[] = [
       + "Brief, den er fotografiert hat. Du bist der Mensch dazwischen: Du versendest, du quittierst, du trägst das "
       + "Ergebnis ein. Nichts davon passiert automatisch, und der Kunde sieht jeden deiner Schritte sofort in seinem Bereich.",
     tipp: "Öffne die Akte über den Kundennamen oben, wenn du den Zusammenhang brauchst — hier bleibt nur der eine Vorgang.",
+  },
+  // E-240 (24.09.2026): Die gekaufte Bonitätsauskunft läuft über denselben Vorgang —
+  // angelegt vom System nach der Zahlung, mit einer Mail an den Kunden beim Ergebnis.
+  {
+    titel: "Datenkopie bei einer Auskunftei: die gekaufte Auskunft.",
+    text: "Hat der Kunde die Bonitätsauskunft bezahlt, legt das System je Auskunftei seines Landes so eine Anfrage an "
+      + "(Deutschland: SCHUFA, CRIF, Creditreform Boniversum · Österreich: KSV1870, CRIF · Schweiz: CRIF, Intrum). Der Kunde "
+      + "unterschreibt Vollmacht und Anfragen nacheinander, du versendest und quittierst. Kommt die Datenkopie, trägst du "
+      + "„bewilligt“ ein — hier heißt das: Datenkopie eingegangen. „Abgelehnt“ heißt: Die Auskunftei hat eine Rückfrage. "
+      + "Ausnahme von der Regel oben: In beiden Fällen bekommt der Kunde automatisch eine Mail — bei der Rückfrage mit deinem Satz "
+      + "als Grund, beim Eingang mit dem Hinweis, von welcher Auskunftei die Antwort noch aussteht. "
+      // Gegenlesen 24.09.2026: die Widerrufsfrist (fiaon-auskunft-lieferung.ts, Abschnitt 0).
+      + "Hat der Kunde beim Kauf NICHT verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen, lässt der Vorgang das "
+      + "Quittieren des Versands erst ab dem Tag danach zu — Unterschriften darfst du vorher schon einholen.",
+    tipp: "Lade die Datenkopie zusätzlich in der Akte unter Unterlagen als Bonitätsauskunft hoch — erst dann startet die Analyse.",
   },
   {
     ziel: ".av-stand",
@@ -1312,10 +1344,11 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
 export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
   {
     titel: "Die WhatsApp-Zentrale: wen Mara anschreibt — von Hand oder im Takt.",
-    text: "Fünf Gruppen, jede mit ihrer passenden Vorlage: neue Leads ohne Nachricht, Anträge mit offener erster Zahlung, "
-      + "abgebrochene Anträge, Leads ohne Antrag und Bestandskunden mit fälliger Monatsrate (eigene, sachliche Raten-Vorlage — "
-      + "höchstens alle 7 Tage, zweimal je Rate). Antworten übernimmt Mara im WhatsApp-Raum; warten Kunden länger als "
-      + "2 Minuten auf eine Antwort, steht es oben gelb.",
+    text: "Sechs Gruppen, jede mit ihrer passenden Vorlage: neue Leads ohne Nachricht, Anträge mit offener erster Zahlung, "
+      + "abgebrochene Anträge, Leads ohne Antrag, Bestandskunden mit fälliger Monatsrate (eigene, sachliche Raten-Vorlage — "
+      + "höchstens alle 7 Tage, zweimal je Rate) und — seit 24.09. — zahlende Kunden, denen die Bonitätsauskunft fehlt "
+      + "(„Auskunft fehlt“, nur wer nach dem 02.09.2026 12:35 zum ersten Mal beantragt hat, einmal je Kunde). Antworten übernimmt Mara im "
+      + "WhatsApp-Raum; warten Kunden länger als 2 Minuten auf eine Antwort, steht es oben gelb.",
   },
   {
     ziel: ".wz-meta",
@@ -1328,7 +1361,10 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
     ziel: ".wz-gruppen",
     titel: "Gruppe wählen — die Zahl sagt, wer heute dran sein darf.",
     text: "Gezählt wird nur, wer alle Regeln erfüllt: heute noch keine WhatsApp, kein „STOPP“, keine Werbesperre, nichts bezahlt "
-      + "oder gemeldet, genug Abstand zur letzten Vorlage, höchstens acht Vorlagen in 30 Tagen.",
+      + "oder gemeldet (außer „Monatsrate fällig“ und „Auskunft fehlt“ — die gelten gerade zahlenden Kunden), genug Abstand zur "
+      + "letzten Vorlage, höchstens acht Vorlagen in 30 Tagen.",
+    // 24.09.2026 (E-240)
+    tipp: "Die Vorlage „Auskunft fehlt“ liegt als Entwurf bereit und zeigt „wartet auf Meta“ — senden geht erst, wenn Meta sie freigegeben hat.",
   },
   {
     ziel: ".wz-start",
@@ -1363,7 +1399,62 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/auskunft (24.09.2026, E-240) — die Bonitätsauskunft verkaufen ─────
+export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
+  {
+    titel: "Auskunft-Verkauf: wo wir gegen das Ziel stehen.",
+    text: "Justins Ziel sind 150 Bonitätsauskünfte am Tag. Oben steht ehrlich, wie viele heute bestellt und wie viele bezahlt "
+      + "wurden — der blaue Balken ist bestellt, der grüne bezahlt, gemessen am Ziel. Darunter die letzten 14 Tage: "
+      + "„3/1“ heißt drei bestellt, eine bezahlt.",
+    tipp: "Bezahlt zählt der Tag, an dem das Geld verbucht wurde — nicht der Tag der Bestellung.",
+  },
+  {
+    ziel: ".ak-pool",
+    titel: "Wer sie noch nicht hat — und wen wir von uns aus anschreiben dürfen.",
+    text: "Gezählt werden zahlende Kunden mit laufendem Paket, die keine Auskunft bestellt, bezahlt oder hochgeladen haben und nicht "
+      + "gekündigt sind. „Automatisch erlaubt“ sind nur die, die nach dem 02.09.2026 12:35 zum ersten Mal beantragt haben — erst "
+      + "seitdem weist der Antrag auf das Widerspruchsrecht hin (§ 7 Abs. 3 UWG). Alle anderen sind nur gezählt: Sie erreicht das "
+      + "Angebot im Kundenbereich, im Gespräch mit dem Betreuer und über Mara, wenn sie selbst schreiben.",
+    // Gegenlesen 24.09.2026: „auch nicht von Hand" gilt nur für die Werbesperre (die Tür im Mail-Motor) —
+    // ein „Stopp" auf WhatsApp oder an Mara nimmt den Kunden aus Takt und WhatsApp, nicht aus dem Knopf in der Akte.
+    tipp: "Die Werbesperre ist endgültig — dann geht kein Angebot mehr raus, auch nicht von Hand. Ein „Stopp“ auf WhatsApp oder in einer Antwort an Mara nimmt den Kunden für immer aus dem Takt.",
+  },
+  {
+    ziel: ".ak-takt",
+    titel: "Der Verkaufstakt: an oder aus, und wie viele am Tag.",
+    text: "Läuft er, schreibt er alle 30 Minuten zwischen 8 und 20 Uhr an, wer dran ist: zuerst die Angebots-Mail mit Preis und "
+      + "Knopf, frühestens nach 3 Tagen eine WhatsApp (nur mit Einwilligung und freigegebener Vorlage), nach 7 Tagen die zweite "
+      + "Mail — höchstens drei Berührungen. Kauf, Upload, Werbesperre, „Stopp“ oder Kündigung beenden es sofort. Der Tagesdeckel "
+      + "zählt Mails und WhatsApp zusammen.",
+    tipp: "„Wer wäre heute dran?“ zeigt die Liste, ohne etwas zu senden — auch wenn der Takt aus ist.",
+  },
+  {
+    ziel: ".ak-vorlage",
+    titel: "Die WhatsApp-Vorlage liegt als Entwurf bereit.",
+    text: "So sähe die Nachricht aus — mit Beispielwerten. Sie ist Werbung (Kategorie Marketing) und deshalb NICHT bei Meta "
+      + "eingereicht. Erst nach Freigabe des Textes wird sie eingereicht; bis Meta sie freigibt, geht keine WhatsApp damit raus.",
+  },
+  {
+    ziel: ".ak-offen",
+    titel: "Bestellt, nicht bezahlt: Das Geld liegt schon auf dem Tisch.",
+    text: "Jede offene Bestellung mit Betrag, Alter und Betreuer. „Zahlungsseite“ öffnet die Seite mit QR-Code, Betrag und "
+      + "Verwendungszweck, „Link kopieren“ legt sie in die Zwischenablage — für eine Nachricht an den Kunden. Gelb steht, wer die "
+      + "Zahlung schon gemeldet hat: Dort nicht erinnern, sondern das Geld suchen.",
+  },
+  {
+    ziel: ".ak-rueckstand",
+    titel: "Bezahlt, noch nicht geliefert.",
+    text: "Wer bezahlt hat und noch kein Auskunft-Dokument in der Akte hat, die ältesten zuerst. Gelb heißt: länger als zwei "
+      + "Wochen. Diese Kunden haben geliefert, was wir verlangt haben — jetzt sind wir dran.",
+    // Integration 25.09.2026 (E-240): der Knopf zum Rückstand — neue Zahlungen starten die Lieferung von selbst.
+    tipp: "„Lieferung starten“ legt die Anfragen an die Auskunfteien an, gibt dem Betreuer die Aufgabe und schickt dem Kunden "
+      + "den Link zur Unterschrift. „ohne Mail“ macht dasselbe ohne Mail — dann holt der Betreuer die Unterschrift im Gespräch. "
+      + "Neue Zahlungen brauchen den Knopf nicht: Dort startet die Lieferung von selbst.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  auskunft:    { titel: "Auskunft-Verkauf", schritte: RUNDGANG_AUSKUNFT },
   waZentrale:  { titel: "WhatsApp-Zentrale", schritte: RUNDGANG_WA_ZENTRALE },
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },

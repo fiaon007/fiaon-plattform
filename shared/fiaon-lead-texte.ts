@@ -516,3 +516,68 @@ export const WA_VORLAGEN_BILD: WaVorlage[] = WA_VORLAGEN_TEXT.map((v) => ({
  * beide — Aufräumen darf die Bildfassungen nie für Altlast halten.
  */
 export const WA_VORLAGEN: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_BILD];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENTWÜRFE — BEREITGELEGT, NICHT EINGEREICHT (24.09.2026, E-240)
+//
+// Justin: Die Bonitätsauskunft soll „weggehen wie warme Semmeln". Die
+// WA-Zentrale bekommt dafür die Gruppe „auskunft_fehlt" (zahlende Kunden ohne
+// Auskunft) und der Verkaufstakt (server/lib/fiaon-auskunft-verkauf.ts) eine
+// WhatsApp als zweite Berührung — mit dieser Vorlage.
+//
+// ── WARUM SIE NICHT IN WA_VORLAGEN STEHT ──────────────────────────────────
+// Alles in WA_VORLAGEN reicht vorlagenEinreichen() bei Meta ein — beim Knopf
+// im Postfach und beim Start (vorlagenEinmalEinreichen). Diese hier soll
+// Justin erst lesen: Sie ist WERBUNG (Kategorie MARKETING) an Bestandskunden,
+// und § 7 Abs. 3 UWG erlaubt sie nur an Kunden, die nach dem 02.09.2026 12:35
+// beantragt haben (Widerspruchs-Hinweis im Antrag). Die Chefseite
+// /chef/s/auskunft zeigt sie mit „muss bei Meta freigegeben werden". Senden
+// kann sie niemand, solange Meta sie nicht als APPROVED führt (istFrei).
+// Zum Einreichen: in WA_VORLAGEN_TEXT verschieben (die Bildfassung entsteht
+// dann von selbst) und im Postfach „Vorlagen einreichen".
+//
+// ── WAS DRINSTEHT UND WARUM ───────────────────────────────────────────────
+// · Mara gibt sich als digitale Assistentin zu erkennen (KI-VO Art. 50) —
+//   viele Bestandskunden haben nie mit ihr geschrieben.
+// · Leistung und Nutzen wörtlich aus shared/fiaon-auskunft.ts (AUSKUNFT_NUTZEN_SATZ,
+//   auskunftLeistung) — keine Garantie, keine Löschzusage, kein „Score
+//   verbessern", keine Frist mit Zahl, keine Karten- oder Limitzusage.
+// · {{2}} ist das Wort, das der Kunde kennt (SCHUFA-/KSV-/Bonitätsauskunft),
+//   {{3}} die Auskunfteien seines Landes — Österreich liest nie „SCHUFA".
+// · Der Widerspruchs-Hinweis steht in JEDER Nachricht (§ 7 Abs. 3 Nr. 4 UWG)
+//   und ist zugleich ein Knopf („Keine Nachrichten mehr" = STOPP der Zentrale).
+// · Der Knopf führt auf die Bestätigungsseite mit „zahlungspflichtig
+//   beauftragen" — die Nachricht bestellt nichts (§ 312j Abs. 3 BGB). {{1}} im
+//   Knopf ist EIN Pfadstück („4711-p-…"), kein Abfrageteil — kaufKurzToken.
+// ═══════════════════════════════════════════════════════════════════════════
+export const AUSKUNFT_VORLAGE = "fiaon_kk_auskunft";
+
+export const WA_VORLAGEN_ENTWURF: WaVorlage[] = [
+  {
+    name: AUSKUNFT_VORLAGE,
+    kopf: "Ihre Bonitätsauskunft",
+    fuss: "FIAON LTD · Mara Lindner",
+    kategorie: "MARKETING",
+    zweck: "Angebot der Bonitätsauskunft an zahlende Kunden ohne Auskunft — Knopf zur Bestätigungsseite mit Preis.",
+    wann: "Gruppe „Auskunft fehlt“ der WA-Zentrale und Verkaufstakt (zweite Berührung, frühestens 3 Tage nach der Angebots-Mail) — nur an Kunden nach dem 02.09.2026 12:35, einmal je Kunde.",
+    text: "Hallo {{1}}, hier ist Mara Lindner von FIAON, die digitale Assistentin im Team. In Ihrer Akte fehlt noch Ihre {{2}}. "
+      + "Mit ihr sehen wir, was die Bank sieht, und richten Ihren Weg zur Karte genau danach aus. "
+      + "Wir holen sie gern für Sie: Wir fordern Ihre Datenkopien bei {{3}} an, erklären jeden Eintrag, prüfen die Speicherfristen "
+      + "und geben Ihnen Ihren persönlichen Handlungsplan mit fertigen Schreiben zur Freigabe. Ihr Preis: {{4}} einmalig. "
+      + "Über den Knopf sehen Sie alles in Ruhe und beauftragen die Auskunft. Sie haben schon eine aktuelle? Dann laden Sie sie einfach in Ihrem Bereich hoch. "
+      + "Fragen beantworte ich gern hier, oder ich gebe Sie an Ihren Betreuer weiter. "
+      // Gegenlesen 24.09.2026: § 7 Abs. 3 Nr. 4 UWG verlangt bei JEDER Verwendung den Hinweis, dass der
+      // Kunde JEDERZEIT widersprechen kann, ohne andere als die Übermittlungskosten nach den Basistarifen —
+      // vorher stand nur „tippen Sie auf …". Inhaltsgleich mit der Fußnote der Angebots-Mail (auskunft-verkauf.ts).
+      + "Sie können solchen Nachrichten jederzeit widersprechen, ohne dass andere als die Übermittlungskosten nach den Basistarifen entstehen: "
+      + "Tippen Sie einfach auf „Keine Nachrichten mehr“.",
+    // {{1}} ist der ganze Name wie bei der Monatsrate (werteFuer: k.name) — das Beispiel zeigt es so.
+    beispiele: ["Maria Muster", "SCHUFA-Auskunft", "SCHUFA, CRIF und Creditreform Boniversum", "74 €"],
+    knoepfe: [
+      { typ: "URL", text: "Auskunft beauftragen", url: "https://fiaon.com/api/fiaon/auskunft/k/{{1}}",
+        beispiel: "https://fiaon.com/api/fiaon/auskunft/k/4711-p-mfy3k2q0-0f3a9b7c2e4d0f3a9b7c2e4d0f3a9b7c" },
+      FRAGE,
+      STOPP,
+    ],
+  },
+];

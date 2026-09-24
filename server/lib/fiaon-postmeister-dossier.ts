@@ -21,8 +21,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import type { Kundenlage, AkteKurz } from "@shared/fiaon-postmeister-typen";
+import type { Kundenlage, AkteKurz, AuskunftDossier } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
+import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
 
 /** Berliner Zeitangaben — nie Number(format()), immer formatToParts. */
 function berlinJetzt(): { text: string; iso: string } {
@@ -116,10 +117,21 @@ export async function personSuchen(absender: string, text: string): Promise<{
   }
 
   if (personId) {
+    // ── DER VORGANG IST DAS PAKET, NICHT DIE AUSKUNFT (24.09.2026, E-240, Gegenlesen) ──
+    // Bisher gewann bei gleichem Zahlstand die JÜNGSTE Zeile — und das ist nach
+    // einem Auskunft-Kauf die FIAON-SCHUFA-Zeile. Lage, Raten und Vertrag
+    // rechnet die Akte aber aus dieser Referenz: Eine bezahlte Auskunft hat
+    // keine Raten, also stand der Kunde als „aktiv" da, auch mit überfälliger
+    // Rate. Gemessen (Produktion, nur lesend): 74 Personen hatten die Auskunft
+    // als Vorgang, 62 davon mit bezahltem Paket, 37 mit überfälliger Rate.
+    // Jetzt: Bei gleichem Zahlstand geht das Paket vor. Wer nur eine Auskunft
+    // hat, behält sie als Vorgang; eine offene Auskunft neben einem stornierten
+    // Paket auch (dort ist sie die einzige offene Rechnung).
     const [b] = (await sqlPool`
       SELECT ref FROM fiaon_applications
        WHERE person_id = ${personId} AND merged_into IS NULL
-       ORDER BY (payment_status = 'paid') DESC, (payment_status <> 'cancelled') DESC, created_at DESC LIMIT 1
+       ORDER BY (payment_status = 'paid') DESC, (payment_status <> 'cancelled') DESC,
+                (COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%') DESC, created_at DESC LIMIT 1
     `) as any[];
     return { personId, ref: b?.ref ?? null, sicher: true, wie, kandidaten: [] };
   }
@@ -215,7 +227,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   `) as any[] : [null];
 
   const bestellungen = personId ? (await sqlPool`
-    SELECT ref, pack_name, payment_status, amount_due, payment_reference, created_at, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, agb_stand,
+    SELECT ref, pack_key, pack_name, payment_status, amount_due, payment_reference, created_at, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, agb_stand,
            city, country
       FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
      ORDER BY created_at DESC LIMIT 6
@@ -278,6 +290,16 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       console.warn("[POSTMEISTER] Kartenstand nicht lesbar:", String((e as any)?.message || e).slice(0, 120));
     }
   }
+
+  // ── BONITÄTSAUSKUNFT (24.09.2026, E-240) ────────────────────────────────
+  // Doris Hösl schrieb „Ich hab keine." — und Mara wusste weder, ob eine
+  // Auskunft bestellt, bezahlt oder hochgeladen war, noch was sie kostet. Sie
+  // antwortete „fordern Sie sie in Ihrem Bereich an". Jetzt steht der Stand in
+  // der Akte, aus derselben Quelle wie Kundenbereich und Bestellweg
+  // (auskunftStand): Stufe, Preis für GENAU diesen Menschen, offene Bestellung.
+  // Nicht für reine FIAON-Global-Kunden — deren Produkt ist ein anderes.
+  const nurGlobal = bestellungen.length > 0 && bestellungen.every((b) => istGlobalPaket(b.pack_key));
+  const auskunft = personId && !nurGlobal ? await auskunftDossier(personId) : null;
 
   return {
     heute,
@@ -344,7 +366,69 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       konto: person?.account_status === "suspended" ? "gesperrt" : null,
     },
     offeneAufgaben: Number(aufgaben?.n || 0),
+    auskunft,
   };
+}
+
+/** Was jede Stufe für Maras Antwort heißt — ein Satz, damit das Modell nicht rät. */
+const AUSKUNFT_BEDEUTUNG: Record<AuskunftDossier["stufe"], string> = {
+  nichts: "Keine Auskunft bestellt und keine in der Akte — anbieten: auskunft_anbieten rufen, Preis und Knopf kommen von dort.",
+  offen: "Auskunft bestellt, Zahlung offen — keine zweite Bestellung; auskunft_anbieten liefert dieselbe Zahlungsseite. Steht offen.gemeldet auf true, hat der Kunde die Zahlung schon gemeldet: nicht erneut zur Zahlung auffordern.",
+  bezahlt: "Auskunft bezahlt — nicht noch einmal verkaufen; FIAON fordert sie an, der Betreuer geht die Auswertung mit dem Kunden durch.",
+  dokument: "Eine Auskunft liegt schon in der Akte (hochgeladen oder geliefert) — nichts verkaufen.",
+};
+
+/**
+ * Welche Auskunft passt — privat oder für die Firma? (24.09.2026, E-240,
+ * Gegenlesen) Dieselbe Regel wie der
+ * Verkaufstakt (fiaon-auskunft-verkauf.ts, waVorlagenWerte): Ein laufendes
+ * FIAON-Business-Paket heißt Firmen-Auskunft (199/349 €), alles andere privat.
+ * Vorher bekam ein Business-Kunde von Mara die Privat-Auskunft zu 74 € und vom
+ * Verkaufstakt die Firmen-Auskunft zu 199 € (6 Personen, 24.09.).
+ */
+export async function auskunftArtFuer(personId: number): Promise<"privat" | "firma"> {
+  // 25.09.2026: die Regel steht jetzt EINMAL in server/lib/fiaon-auskunft.ts.
+  const { auskunftArtFuer: zentral } = await import("./fiaon-auskunft");
+  return zentral(personId);
+}
+
+/**
+ * Der Auskunft-Abschnitt der Akte. Scheitert die Abfrage, fehlt der Abschnitt —
+ * die Mail wird trotzdem beantwortet (dann eben ohne Angebot).
+ */
+export async function auskunftDossier(personId: number): Promise<AuskunftDossier | null> {
+  try {
+    const { auskunftStand } = await import("./fiaon-auskunft");
+    // Gegenlesen E-240: dieselbe Art wie auskunft_anbieten — sonst stünde für einen
+    // Business-Kunden hier 74 € und im Werkzeug 199 €.
+    const art = await auskunftArtFuer(personId);
+    const s = await auskunftStand(personId, sqlPool, art);
+    return {
+      stufe: s.stufe,
+      art,
+      bedeutung: AUSKUNFT_BEDEUTUNG[s.stufe],
+      land: s.land,
+      wort: auskunftWort(s.land),
+      auskunfteien: auskunfteienText(s.land),
+      preis: {
+        fuerIhn: s.preis.text,
+        // „74.00" — die Belegprüfung vergleicht Beträge in Punktschreibweise.
+        betragZahl: (s.preis.cents / 100).toFixed(2),
+        mitPaket: s.preis.mitAbo,
+        einzeln: euroText(AUSKUNFT_PREISE_CENTS[art].einzeln),
+        kundenpreis: euroText(AUSKUNFT_PREISE_CENTS[art].mitAbo),
+      },
+      offen: s.offen ? {
+        verwendungszweck: s.offen.paymentReference,
+        betrag: euroText(s.offen.betragCents),
+        gemeldet: s.offen.status === "claimed_paid",
+        seit: relativ(s.offen.angelegt),
+      } : null,
+    };
+  } catch (e) {
+    console.warn("[POSTMEISTER] Auskunft-Stand nicht lesbar:", String((e as any)?.message || e).slice(0, 120));
+    return null;
+  }
 }
 
 /** Welche Vertragsfassung gilt für diesen Kunden? Entscheidet den Wortlaut. */

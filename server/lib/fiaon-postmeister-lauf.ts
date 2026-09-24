@@ -19,7 +19,7 @@ import {
   nachrichtLesen, nachrichtLabeln, labelSicherstellen, entwurfAnlegen, antwortSenden,
   type GmailNachricht,
 } from "./fiaon-gmail";
-import { einordnen, antwortErzeugen } from "./fiaon-postmeister-agent";
+import { einordnen, antwortErzeugen, maraMailVermerk } from "./fiaon-postmeister-agent";
 import { personSuchen, akteLesen } from "./fiaon-postmeister-dossier";
 import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
@@ -105,7 +105,25 @@ async function ablegen(postfach: string, gmailId: string, ordner: string, weg: s
   }
 }
 
-/** Gmail-Zitatblöcke abschneiden — sonst „liest" das Modell die eigene Rundmail. */
+/**
+ * Zitatblöcke abschneiden — sonst „liest" das Modell die eigene Rundmail.
+ *
+ * 24.09.2026 (E-240): Yahoo und die GMX-App setzen den Zitatkopf NICHT auf eine
+ * eigene Zeile („  Am Do., Sept. 24, 2026 at 18:39 schrieb FIAON Welcome<…>:
+ * Ein Dokument fehlt noch …"), Gmail setzt den Absender vor „schrieb". Die alten
+ * Muster verlangten ^Am … :$ — unsere ganze Mail blieb im Kundentext, und
+ * menschNoetig fand darin unseren eigenen Fuß „direkt an Ihren Ansprechpartner".
+ * Gemessen: 19 von 21 Übergaben „möchte seinen Ansprechpartner sprechen" in 14
+ * Tagen waren dieser Fehlalarm (Doris Hösl, 5612: „Ich hab keine." → Entwurf).
+ * Deshalb zusätzlich: Zitatköpfe mitten in der Zeile, sobald sie eine Adresse
+ * oder FIAON nennen, und als letzter Riegel unsere eigenen festen Sätze.
+ */
+const EIGENE_SAETZE = [
+  /FIAON\s*\|?\s*Bonität ist machbar\./i,
+  /Fragen\? Antworten Sie einfach auf diese E-Mail/i,
+  /Diese Nachricht wurde automatisch zu Ihrem Vorgang erstellt/i,
+  /Questions\? Just reply to this email/i,
+];
 export function ohneZitat(text: string): string {
   const t = String(text || "");
   const marken = [
@@ -115,6 +133,12 @@ export function ohneZitat(text: string): string {
     /^Von:\s.{0,80}$/m,
     /^From:\s.{0,80}$/m,
     /^_{10,}$/m,
+    // Mitten in der Zeile (Yahoo, GMX-App): „Am … schrieb <Absender mit Adresse oder FIAON>:"
+    /\bAm\s[^\n]{3,80}?\sschrieb\s[^\n]{0,100}?(?:@|&lt;|fiaon)[^\n]{0,60}?:/i,
+    /\bOn\s[^\n]{3,80}?\s[^\n]{0,100}?(?:@|&lt;|fiaon)[^\n]{0,60}?\swrote:/i,
+    // Absender zuerst (Gmail deutsch): „FIAON Welcome <welcome@fiaon.com> schrieb am …:"
+    /^[^\n]{0,80}(?:<|&lt;)\s*[\w.+-]+@\s*[\w.-]+\s*(?:>|&gt;)\s*(?:schrieb|wrote)\b[^\n]{0,80}:/im,
+    ...EIGENE_SAETZE,
   ];
   let ende = t.length;
   for (const m of marken) {
@@ -145,7 +169,10 @@ export function menschNoetig(e: { kategorien: readonly string[]; flags: object; 
   const k = new Set(e.kategorien || []);
   if (k.has("beschwerde") || k.has("rechtlich") || k.has("vertrieb_komplex") || k.has("sonstiges")) return "Anliegen braucht einen Menschen";
   if (e.dringend) return "dringend";
-  if (/\b(ansprechpartner(in)?|betreuer(in)?|sachbearbeiter(in)?|mitarbeiter(in)?|einen menschen|mit jemandem sprechen|persönlich sprechen|rufen sie mich|ruft mich|rückruf|zurückrufen|anrufen)\b/i.test(String(text || ""))) {
+  // E-240: Unser eigener Fuß („… direkt an Ihren Ansprechpartner") zählt nie als Wunsch des Kunden —
+  // falls ein Zitat doch einmal durchrutscht, ohneZitat ist der erste Riegel.
+  const eigenerText = String(text || "").replace(/Fragen\? Antworten Sie einfach auf diese E-Mail[^\n]{0,160}?Ansprechpartner\.?/gi, "");
+  if (/\b(ansprechpartner(in)?|betreuer(in)?|sachbearbeiter(in)?|mitarbeiter(in)?|einen menschen|mit jemandem sprechen|persönlich sprechen|rufen sie mich|ruft mich|rückruf|zurückrufen|anrufen)\b/i.test(eigenerText)) {
     return "Kunde möchte mit seinem Ansprechpartner sprechen";
   }
   return null;
@@ -508,19 +535,24 @@ export async function mailBearbeiten(ein: {
       // Vermerk gleich scheitern oder der Server neu startet (E-184).
       await sqlPool`UPDATE fiaon_postmeister SET gesendet_am = NOW(), aktion = 'auto_beantwortet', updated_at = NOW() WHERE id = ${id}`.catch(() => {});
       await ablegen(postfach, gmailId, "FIAON/Auto-beantwortet", ["UNREAD"]);
-      if (wer.ref) {
-        await sqlPool`
-          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-          VALUES (${wer.ref}, ${wer.personId}, NULL, 'Postmeister', 'system',
-                  ${`Antwort gesendet${gebaut.dateien.length ? ` (mit ${gebaut.dateien.map((d) => d.dateiname).join(", ")})` : ""}: ${fertigeAntwort.text.slice(0, 400)}`})
-        `.catch(() => {});
-      }
+      // E-240: EIN Vermerk je Antwort — Kunde schrieb, Mara antwortete, Handlungen
+      // (vorher nur der Antworttext, und nur mit Bestellung im Vorgang).
+      await maraMailVermerk({
+        personId: wer.personId, ref: wer.ref, kundeText: neuerText, antwort: erg.antwort, art: "gesendet",
+        handlungen: erg.handlungen, anhaenge: gebaut.dateien.map((d) => d.dateiname),
+      });
       return fertig({ ...felder, aktion: "auto_beantwortet", gesendet_am: new Date(), begruendung: erg.grund }, erg.grund);
     }
 
     const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien).catch(() => null);
     await ablegen(postfach, gmailId, "FIAON/Entwurf wartet");
     const ergebnis = await fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: mensch ? `Übergabe an den Betreuer: ${mensch}` : erg.grund }, erg.grund);
+    // E-240: Auch der Entwurf steht in der Akte — der Betreuer, der anruft, sieht,
+    // was Mara vorgeschlagen und schon getan hat (Angebot, Aufgabe, Rechnung).
+    await maraMailVermerk({
+      personId: wer.personId, ref: wer.ref, kundeText: neuerText, antwort: erg.antwort, art: "entwurf",
+      handlungen: erg.handlungen, grund: mensch ? `Übergabe an den Betreuer: ${mensch}` : erg.grund,
+    });
     // Der Entwurf wartet nicht mehr nur in der Zentrale: Der Betreuer bekommt
     // die Mail samt Maras Vorschlag als Aufgabe und kann ihn senden, ändern
     // oder selbst antworten (Aufgaben → „E-Mail anzeigen").

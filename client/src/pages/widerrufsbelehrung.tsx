@@ -145,11 +145,16 @@ export default function WiderrufsbelehrungPage() {
                   <li>Sie zuvor ausdrücklich zugestimmt haben, dass wir mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist beginnen, und</li>
                   <li>Sie Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung des Vertrags Ihr Widerrufsrecht verlieren.</li>
                 </ul>
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-                  <p className="text-sm text-amber-900">
-                    <span className="font-semibold">(Hinweis der Anbieterin:</span> Um Ihnen den sofortigen Zugang zu unseren Systemen direkt nach der Buchung zu ermöglichen, holen wir diese Zustimmung und Bestätigung über eine zwingend anzukreuzende Checkbox im Checkout-Prozess ein).
-                  </p>
-                </div>
+                {/* ── NUR KOMMENTAR, NIE KUNDENTEXT (25.09.2026, E-240) ─────────────────
+                    Hier stand öffentlich sichtbar eine Umsetzungsnotiz der Anbieterin:
+                    „(Hinweis der Anbieterin: Um Ihnen den sofortigen Zugang zu unseren
+                    Systemen direkt nach der Buchung zu ermöglichen, holen wir diese
+                    Zustimmung und Bestätigung über eine zwingend anzukreuzende Checkbox im
+                    Checkout-Prozess ein)." Das ist keine Belehrung, sondern eine Notiz zum
+                    Bestellweg — und für die Bonitätsauskunft falsch: Kaufkarte und Kauflink
+                    verweisen hierher, und dort ist der Haken freiwillig („Ohne diesen Haken
+                    beginnen wir nach Ablauf der Widerrufsfrist"). Die Belehrung der Auskunft
+                    steht in shared/fiaon-auskunft-widerruf.ts. */}
               </div>
             </div>
 

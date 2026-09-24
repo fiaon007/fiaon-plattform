@@ -3128,7 +3128,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
         {/* ═══ E-MAILS ═══ */}
         {reiter === "mails" && (<>
           {/* 18.09.2026 (Team-Feedback Priorität 6): der ganze Mailverkehr — auch was der Kunde schrieb. */}
-          <Sek titel="Schriftverkehr" erklaer="Jede E-Mail zwischen Kunde und FIAON: was er geschrieben hat, was Mara oder du geantwortet hast, was automatisch rausging. Offene Entwürfe stehen oben.">
+          {/* 25.09.2026 (E-240): Die Route liefert seit dem 24.09. auch WhatsApp — der Satz sagt es jetzt. */}
+          <Sek titel="Schriftverkehr" erklaer="Jede E-Mail und WhatsApp zwischen Kunde und FIAON: was er geschrieben hat, was Mara oder du geantwortet hast, was automatisch rausging. Offene Entwürfe stehen oben.">
             <Schriftverkehr personId={k.personId} />
           </Sek>
           <Sek titel="Versand" erklaer="Was an diesen Kunden rausging und was du erneut schicken kannst. Freie E-Mails mit Vorschau öffnen im Sendefenster darüber."

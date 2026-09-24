@@ -5,7 +5,8 @@
 // OfficeShell.tsx (Räume), Plan §4/§7/§10.4.
 // ═══════════════════════════════════════════════════════════════════════════
 import { type KapitelInhalt, p, ul, ol, merk, warn, tab, sichten, kacheln, link, frage } from "./typen";
-import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { PAKETE } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS, euroText } from "@shared/fiaon-auskunft";
 import { GLOBAL_PAKETE, GLOBAL_ROLLEN, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import { SUPPORT } from "@shared/fiaon-wissen";
 
@@ -15,7 +16,11 @@ const PRIVAT = PAKETE.filter((x) => x.abo && x.art === "privat" && !x.eingestell
 // es FIAON Global — vier Einmalpreise, Texte aus shared/fiaon-global.ts.
 const ALT_BUSINESS = PAKETE.filter((x) => x.abo && x.art === "business" && x.eingestellt);
 const preis = (key: string) => eur(PAKETE.find((x) => x.key === key)?.preisCents ?? 0);
-const schufa = SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
+// 24.09.2026 (E-240): Die Auskunft hat zwei Preise — einzeln und mit laufendem
+// Paket (Kundenpreis). Beide aus shared/fiaon-auskunft.ts, nie aus dem Kopf.
+const auskunftEinzeln = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
+const auskunftMitPaket = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
+const auskunftFirma = `${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)} einzeln, ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)} mit Paket`;
 
 export const KAPITEL_2: KapitelInhalt = {
   inhalte: {
@@ -48,7 +53,7 @@ export const KAPITEL_2: KapitelInhalt = {
         warn("Bei FIAON Global sagst du nie einen Rahmen, eine Karte, einen Zinssatz oder eine Frist zu, und du nennst keine Bank als Zusage. Über Konto, Karte und Rahmen entscheidet allein das Institut. Die Dollar-Zahl am Paket ist der Kapitalrahmen des Kunden, kein Ergebnis. Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat – nicht du."),
         p(`Die früheren Business-Abos (${ALT_BUSINESS.map((x) => `${x.label} ${eur(x.preisCents)}`).join(", ")} im Monat) werden nicht mehr verkauft. Bestandskunden laufen unverändert weiter – gleiche Rate, gleiche Provision. Die Provision für Global-Abschlüsse ist eine eigene Einstellung der Geschäftsführung; nenne keinen Satz, den du nicht im Office gesehen hast.`),
         link("/business", "FIAON Global ansehen"),
-        p(`Ohne Paket, einmalig: Bonitätsauskunft ${schufa} – kein Abo, erzeugt nie eine Rate. Sie wird im Kundenbereich angeboten, sobald das Paket bezahlt ist. Im Startgespräch erklärst du sie als Auskunft, nicht als Rat; der Kunde entscheidet selbst.`),
+        p(`Die Bonitätsauskunft ist ein Zusatzprodukt und in KEINEM Paket enthalten: ${auskunftEinzeln} einzeln, ${auskunftMitPaket} für Kunden mit laufendem Paket (Unternehmen ${auskunftFirma}). Einmalig, kein Abo, erzeugt nie eine Rate. Den Preis wählt das System – du bestellst sie in der Akte, der Kunde bekommt den Link zur Zahlungsseite. Im Startgespräch erklärst du sie als Auskunft, nicht als Rat; der Kunde entscheidet selbst. Fragt er nach dem kostenlosen Weg: ehrlich ja – und sagen, was wir ihm abnehmen (Anforderung bei allen Auskunfteien seines Landes, jede Zeile erklärt, Fristen geprüft, Handlungsplan und fertige Schreiben).`),
         ul(
           "Zwölf Raten, jede per Überweisung mit Zahlungsreferenz – die erste wie alle weiteren (QR-Code im Bereich, Bankverbindung und Verwendungszweck in jeder Zahlungsmail). Das Geld landet direkt auf dem Geschäftskonto der FIAON LTD.",
           "Nach der zwölften Rate entscheidet der Kunde, ob er bleibt. Deine Provision läuft auch in der Verlängerung.",
@@ -177,7 +182,7 @@ export const KAPITEL_2: KapitelInhalt = {
   test: [
     frage("Was sieht der Kunde direkt nach dem Vertrag im Antrag?", ["Die Startseite", "Zwei Karten: „Jetzt aktivieren“ oder „Zuerst sprechen“", "Die Bonitätsauskunft", "Ein Kreditangebot"], 1, "Zahlung oder Termin – keine der Karten lässt sich wegklicken."),
     frage(`Was kostet FIAON Start im Monat?`, [preis("start"), preis("pro"), preis("ultra"), preis("highend")], 0, "Preise kommen aus dem Paketkatalog."),
-    frage("Die Bonitätsauskunft ohne Paket …", ["ist ein Abo", `kostet ${schufa} einmalig und erzeugt nie eine Rate`, "ist kostenlos", "gibt es nur für Geschäftskunden"], 1, "Einmalkauf, kein Abo."),
+    frage("Die Bonitätsauskunft ohne Paket …", ["ist ein Abo", `kostet ${auskunftEinzeln} einmalig und erzeugt nie eine Rate`, "ist in jedem Paket enthalten", "gibt es nur für Geschäftskunden"], 1, `Einmalkauf, kein Abo. Mit laufendem Paket kostet sie ${auskunftMitPaket}.`),
     frage("Welche Unterlagen braucht der Kunde im Bereich?", ["Steuerbescheid", "Kontoauszug der letzten drei Monate und Ausweis – Handyfoto genügt", "Arbeitsvertrag", "Mietvertrag"], 1, "Fehlende Unterlagen sind der häufigste Grund, warum es nicht weitergeht."),
     frage("Wo landet ein Anliegen aus „Hilfe“ im Kundenbereich?", ["In deiner privaten Mail", "Unter Tickets im Office – eigene Kunden zuerst", "Bei der SCHUFA", "Nirgends"], 1, "Anliegen sind Datensätze mit Zustand, keine Mails ins Nirgendwo."),
     frage("Was ist FIAON-DEMO?", ["Ein echter Kunde", "Ein Prüfkonto mit echten Zahlungen", "Ein festes Demo-Konto mit Platzhalterdaten – nie ein Datensatz", "Die Admin-Ansicht"], 2, "Feste Referenz ohne Datenbank, für Präsentationen und diesen Rundgang."),

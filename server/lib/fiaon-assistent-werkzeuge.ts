@@ -35,6 +35,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { parseBerlinInput, formatBerlin } from "./fiaon-time";
+import { AUSKUNFT_PREISE_CENTS, euroText } from "../../shared/fiaon-auskunft";
 import { WERKZEUGE_TAG } from "./fiaon-assistent-werkzeuge-tag";
 import { WERKZEUGE_WISSEN } from "./fiaon-assistent-werkzeuge-wissen";
 
@@ -443,12 +444,19 @@ export const WERKZEUGE: Werkzeug[] = [
       return { ok: true, meldung: `Termin gebucht: ${t.datumText || beginn}${t.uhrzeit ? `, ${t.uhrzeit} Uhr` : ""}` };
     },
   },
+  // 24.09.2026 (E-240): Die Auskunft hat zwei Preise — mit laufendem Paket 74 €,
+  // sonst 149 € (Firma 199/349 €). Welcher gilt, entscheidet die Zielroute über
+  // auskunftBestellen (server/lib/fiaon-auskunft.ts), nie das Modell. Die Vorschau
+  // nennt deshalb beide Preise und liest keine Kundendaten (sie läuft vor jeder
+  // Zugriffsprüfung).
   {
     name: "bonitaet_bestellen",
     titel: "Bonitätsauskunft bestellen",
     beschreibung:
-      "Legt für einen Kunden die Bonitätsauskunft (74 Euro) als Bestellung an. Gibt es bereits eine offene "
-      + "Auskunfts-Bestellung, meldet der Server das und legt nichts doppelt an. Wird dem Menschen zur Bestätigung vorgelegt.",
+      `Legt für einen Kunden die Bonitätsauskunft als Bestellung an (${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} mit laufendem Paket, `
+      + `sonst ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} — den Preis wählt der Server). Die Zahlungsdaten gehen dem Kunden per E-Mail zu. `
+      + "Gibt es bereits eine offene Auskunfts-Bestellung, kommt deren Zahlungslink zurück und nichts wird doppelt angelegt. "
+      + "Wird dem Menschen zur Bestätigung vorgelegt.",
     stufe: "bestaetigen",
     zugang: "agent",
     rollen: ALLE_ROLLEN,
@@ -464,7 +472,7 @@ export const WERKZEUGE: Werkzeug[] = [
     vorschau: async (p) => {
       const id = alsZahl(p?.personId);
       if (!Number.isFinite(id)) throw new Error("personId fehlt.");
-      return { zusammenfassung: `Bonitätsauskunft (74 €) für Kunde ${id} bestellen — bestehende offene Auskunfts-Bestellungen nutzt der Server weiter, statt doppelt anzulegen.` };
+      return { zusammenfassung: `Bonitätsauskunft für Kunde ${id} bestellen (${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} mit laufendem Paket, sonst ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)}) — die Zahlungsdaten gehen per E-Mail an den Kunden; eine offene Auskunfts-Bestellung nutzt der Server weiter, statt doppelt anzulegen.` };
     },
     ausfuehren: async (p, kontext) => {
       const id = alsZahl(p?.personId);

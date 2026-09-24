@@ -47,4 +47,25 @@ function zoomAmTelefonSperren() {
 }
 zoomAmTelefonSperren();
 
-createRoot(document.getElementById("root")!).render(<App />);
+// ═══════════════════════════════════════════════════════════════════════════
+// ERST DAS STILBLATT, DANN DIE APP (24.09.2026)
+//
+// Das Haupt-Stilblatt lädt seit heute, ohne das erste Bild zu sperren
+// (vite.config.ts, „stilblattOhneSperre"), damit das Vorab-HTML sofort in der
+// Farbe der Seite steht statt weiß. Vorher wartete dieses Skript automatisch
+// darauf (ein sperrendes Stilblatt hält auch Modul-Skripte an) — das
+// übernimmt jetzt diese Schranke. Ohne sie könnte React auf einer langsamen
+// Leitung ungestaltet erscheinen. Im Dev-Server gibt es den Link nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+function stilblattBereit(): Promise<void> {
+  const links = Array.from(document.querySelectorAll<HTMLLinkElement>("link[data-fiaon-stil]"));
+  return Promise.all(links.map((link) => new Promise<void>((fertig) => {
+    const anwenden = () => { link.media = "all"; fertig(); };
+    if (link.sheet) return anwenden();
+    link.addEventListener("load", anwenden, { once: true });
+    // Fehlgeschlagen: nicht ewig warten — die App startet, wie sie es bei einem 404 auch vorher tat.
+    link.addEventListener("error", () => fertig(), { once: true });
+  }))).then(() => undefined);
+}
+
+stilblattBereit().then(() => createRoot(document.getElementById("root")!).render(<App />));

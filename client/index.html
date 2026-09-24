@@ -64,7 +64,11 @@
     <!-- 19.09.2026: Newsreader (Serife von FIAON Global) im selben Abruf wie Inter — vorher per @import
          in zwei Stilblättern mit unterschiedlichen Schnitten. Die Schriftdateien lädt der Browser nur,
          wo die Serife wirklich vorkommt. -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" rel="stylesheet" />
+    <!-- 24.09.2026: Das Schrift-Stilblatt sperrt das erste Bild nicht mehr (media="print" bis geladen).
+         Vorher wartete der Browser auf fonts.googleapis.com, bevor er irgendetwas zeichnete. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" rel="stylesheet" media="print" onload="this.onload=null;this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" rel="stylesheet" /></noscript>
     
     <!-- Strukturierte Daten (Organization, WebSite, Breadcrumb, FAQ …) setzt der
          Server je Seite ein: server/lib/fiaon-seiten-seo.ts (E-079). -->
@@ -80,6 +84,67 @@
         min-height: 100vh;
         background: #ffffff;
       }
+    </style>
+    <!-- ── DER VORAB-ZUSTAND (24.09.2026, Justin: „die ersten Sekunden ein komischer weißer Bildschirm") ──
+         Der Server legt auf öffentlichen Seiten den lesbaren Korpus für Suchmaschinen in #root
+         (Block mit der Klasse „vorab“, server/lib/fiaon-seiten-seo.ts). Bis React startet, IST er die Seite.
+         Vorher: weiß mit blauen Standard-Links, danach die dunkle Bühne — ein Umschlagen.
+         Jetzt: dieselbe Nachtblau-Welt wie DunkleBuehne (dunkel.css), Business und Recht hell
+         (.vorab-hell). Nichts wird versteckt (kein display:none — das wäre Cloaking); React
+         ersetzt den Block beim Start, danach greift keine dieser Regeln mehr. -->
+    <style>
+      html:has(>body>#root>.vorab),#root:has(>.vorab){background:#0a1628}
+      html:has(>body>#root>.vorab-hell),#root:has(>.vorab-hell){background:#fff}
+      html:has(>body>#root>.vorab),html:has(>body>#root>.vorab) body,#root:has(>.vorab){height:auto}
+      .vorab{--v-tinte:#fff;--v-text:#9ca3af;--v-leise:#6b7280;--v-link:#bfdbfe;--v-linie:rgba(255,255,255,.08);--v-akzent:#60a5fa;
+        box-sizing:border-box;min-height:100vh;padding:0 24px 56px;overflow-x:hidden;
+        background:linear-gradient(135deg,#0a1628 0%,#121a33 50%,#0b0f24 100%) #0a1628;color:var(--v-text);
+        font:300 16px/1.75 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;letter-spacing:normal;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+      .vorab-hell{--v-tinte:#0c1a2e;--v-text:#3b4658;--v-leise:#6b7587;--v-link:#12284a;--v-linie:#e3e7ee;--v-akzent:#1d4ed8;background:#fff}
+      .vorab::before{content:"";position:fixed;z-index:1;top:0;left:0;width:40%;height:2px;pointer-events:none;
+        background:linear-gradient(90deg,transparent,var(--v-akzent),#93c5fd,transparent);transform:translateX(-100%);animation:vorabLauf 1.15s ease-in-out infinite}
+      @keyframes vorabLauf{to{transform:translateX(250%)}}
+      @media (prefers-reduced-motion:reduce){.vorab::before{animation:none;transform:none;width:100%;opacity:.35}}
+      .vorab>main,.vorab>footer{max-width:760px;margin:0 auto}
+      .vorab>header{max-width:1152px;margin:0 auto}
+      .vorab a{color:var(--v-link);text-decoration:none}
+      .vorab h1,.vorab h2,.vorab h3{margin:0;color:var(--v-tinte);font-weight:400;letter-spacing:-.02em;text-wrap:balance}
+      .vorab h1{margin-bottom:24px;font-size:clamp(31px,4.2vw,54px);line-height:1.12}
+      .vorab h2{margin:64px 0 14px;font-size:clamp(21px,2.2vw,26px);line-height:1.25}
+      .vorab h3{margin:28px 0 6px;font-size:16px;font-weight:500;line-height:1.4;letter-spacing:-.01em}
+      .vorab p{margin:0 0 14px}
+      .vorab h1+p{font-size:17px}
+      .vorab strong{font-weight:600;color:var(--v-tinte)}
+      .vorab ul,.vorab ol{margin:12px 0 0;padding:0 0 0 20px;list-style:disc}
+      .vorab ol{list-style:decimal}
+      .vorab li{margin:6px 0}
+      .vorab li::marker{color:var(--v-akzent)}
+      .vorab dt{margin-top:16px;color:var(--v-tinte);font-weight:500}
+      .vorab dd{margin:4px 0 0}
+      .vorab table{width:100%;margin:16px 0;border-collapse:collapse;font-size:14px}
+      .vorab th,.vorab td{padding:8px 10px 8px 0;border-bottom:1px solid var(--v-linie);text-align:left}
+      .vorab blockquote{margin:16px 0;padding-left:16px;border-left:2px solid var(--v-akzent)}
+      .vorab img{max-width:100%;height:auto}
+      .vorab header nav{display:flex;align-items:center;gap:32px;height:72px}
+      .vorab header nav>a{flex:0 0 auto}
+      .vorab header strong{font-size:15px;font-weight:600;letter-spacing:.34em}
+      .vorab header ul{display:flex;gap:22px;margin:0;padding:0;list-style:none;overflow-x:auto;white-space:nowrap;scrollbar-width:none;
+        -webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}
+      .vorab header ul::-webkit-scrollbar{display:none}
+      .vorab header li{margin:0;font-size:13px}
+      .vorab header li a,.vorab footer a{color:var(--v-text)}
+      .vorab main{padding-top:clamp(64px,14vh,140px)}
+      .vorab main>nav ol{display:flex;flex-wrap:wrap;gap:4px 10px;margin:0 0 20px;padding:0;list-style:none;font-size:12.5px}
+      .vorab main>nav li{margin:0}
+      .vorab main>nav li+li::before{content:"›";margin-right:10px;color:var(--v-leise)}
+      .vorab main>nav a{color:var(--v-leise)}
+      .vorab footer{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:28px 24px;margin-top:96px;padding-top:40px;border-top:1px solid var(--v-linie);font-size:13px}
+      .vorab footer h2{margin:0 0 10px;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--v-akzent)}
+      .vorab footer ul{margin:0;padding:0;list-style:none}
+      .vorab footer li{margin:0 0 7px}
+      .vorab footer p{grid-column:1/-1;margin:8px 0 0;font-size:12px;color:var(--v-leise)}
+      .vorab-hell main h1,.vorab-hell main h2{font-family:Newsreader,"Iowan Old Style",Georgia,serif;font-weight:300;letter-spacing:-.012em}
+      .vorab-hell header strong{font-size:19px;letter-spacing:-.01em}
     </style>
   </head>
   <body>

@@ -5,6 +5,38 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 24.09.2026 (7) — Kein weißer Bildschirm mehr beim Öffnen von fiaon.com
+
+**Der Anlass (Justin):** „Wenn man die FIAON-Seite öffnet, kommen die ersten Sekunden so ein komischer weißer
+Bildschirm."
+
+**Die Ursache:** Der Browser durfte nichts zeichnen, bis das große Stilblatt (440 KB) und die Google-Schriften geladen
+waren — bis dahin blieb die Seite weiß. Danach erschien der Text, den der Server für Google in die Seite legt, mit einer
+Notgestaltung: weißer Grund, blaue Links untereinander. Erst wenn das Programm (2,2 MB) geladen war, kam die dunkle
+Startseite — ein Umschlagen von Weiß auf Nachtblau.
+
+**Was jetzt passiert:**
+- Der Google-Text ist jetzt der Ladezustand der Seite und sieht aus wie sie: Nachtblau wie die Bühne, Wortmarke FIAON,
+  dezente Navigation in einer Zeile, lesbare Schrift, oben ein feiner laufender Ladestrich. FIAON Global (/business),
+  die Rechtstexte und /bonitaet laden hell (Papierweiß, Navy, Serife). Versteckt wird nichts — Google liest denselben
+  Text wie vorher (Stichprobe: identisch mit der Live-Seite).
+- Stilblatt und Schriften halten das erste Bild nicht mehr auf. Die App startet erst, wenn das Stilblatt da ist, sie
+  erscheint also nie ungestaltet.
+- Der Lade-Bildschirm zwischen zwei Seiten (die Weltkugel) ist auf FIAON Global jetzt hell statt dunkel.
+- Office, Verwaltung und Telefon stecken nicht mehr im Paket, das jeder Besucher der Startseite lädt: 2,2 MB → 1,4 MB
+  (komprimiert 505 KB → 316 KB). Die Stile bleiben unverändert (Haupt-Stilblatt Byte für Byte gleich).
+
+**Gemessen (Stilblatt und Programm künstlich um 1,5 s verzögert):** erstes Bild vorher nach 1,6–1,7 s (davor weiß),
+jetzt nach 0,02–0,03 s. Office-, Verwaltungs- und Chefbüro-Adressen stichprobenweise geprüft: gleiche Anzeige, keine
+Fehler. Screenshots vorher/nachher: `10_Nacharbeit/weisser-bildschirm/` (VERGLEICH_handy_vorher_nachher.png).
+
+**Wo zu finden:** `client/index.html` (Gestaltung des Ladezustands), `vite.config.ts` (Stilblatt ohne Sperre),
+`client/src/main.tsx` (Start erst mit Stilblatt), `client/src/App.tsx` + `client/src/styles/laden.css` (nachgeladene
+Office-Seiten, heller Lader), `server/lib/fiaon-seiten-seo.ts` (hell/dunkel je Seite; die alte Notgestaltung
+`VORAB_STIL` ist entfernt, auch im Ratgeber).
+
+---
+
 ## 24.09.2026 (6) — Mara verkauft statt abzuschrecken und trägt Rückrufe selbst ein (E-236)
 
 **Der Anlass (Justin):** „Wenn der Kunde sagt: Ich suche unkompliziert eine Kreditkarte, dann sagt Mara: Ja, da sind Sie

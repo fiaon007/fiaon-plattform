@@ -9,9 +9,12 @@
 //   · Kopf: läuft die Automatik, was erlaubt Meta heute noch.
 //   · Versand von Hand: Gruppe → Vorlage → Anzahl → Vorschau → starten.
 //   · Automatik: an/aus, Fenster, je Stunde, Gruppen in Reihenfolge.
+//   · Was Mara getan hat (E-236): jede Handlung aus fiaon_mara_protokoll mit
+//     dem Ergebnis der Nachprüfung — „Ich muss sehen, was Mara gemacht hat und
+//     ob das alles stimmt und passt."
 //   · Verlauf: jede Nachricht mit Zustellung und Antwort.
-// Die Regeln stehen in server/lib/fiaon-wa-zentrale.ts — hier wird nur gezeigt
-// und ausgelöst.
+// Die Regeln stehen in server/lib/fiaon-wa-zentrale.ts und
+// server/lib/fiaon-mara-termin.ts — hier wird nur gezeigt und ausgelöst.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState } from "react";
 import { API, seit, zahl, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
@@ -73,6 +76,243 @@ function vorlagenName(name: string, vorlagen: Vorlage[]): string {
   if (name === "stufen") return "Passende Erinnerung (nach Alter)";
   const v = vorlagen.find((x) => x.name === name);
   return v?.kopf || name.replace(/^fiaon_kk_/, "").replace(/_/g, " ");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS MARA GETAN HAT (24.09.2026, E-236)
+//
+// Liest GET /chef/wa-zentrale/mara-protokoll?tage=3 — jede Handlung, die Mara
+// auf WhatsApp selbst ausgeführt hat, neueste zuerst. Bei eingetragenen
+// Terminen steht das Ergebnis des Prüftakts dabei („✓ Termin steht · ✗ …").
+// „Jetzt nachprüfen" hängt &pruefen=1 an: Der Server prüft sofort und liefert
+// den neuen Stand. Zeiten immer in Berliner Zeit — egal, wo der Rechner steht.
+// ═══════════════════════════════════════════════════════════════════════════
+type MaraArt = "zeiten_angeboten" | "termin_gebucht" | "termin_verschoben" | "termin_nicht_moeglich" | "terminlink" | "uebergabe" | "rueckfall";
+interface MaraZeile {
+  id: number; am: string; art: MaraArt; ok: boolean; text: string; nummer: string | null; personId: number | null; kunde: string | null;
+  terminId: number | null; pruefungOk: boolean | null; pruefung: string | null; pruefungAm: string | null;
+}
+interface MaraProtokollDaten {
+  ok: boolean; tage: number;
+  summe: { termine: number; links: number; nichtMoeglich: number; uebergaben: number; rueckfaelle: number; pruefungFehler: number };
+  zeilen: MaraZeile[];
+}
+type MaraFilter = "alle" | "termine" | "uebergaben" | "probleme";
+
+const MARA_TAGE = 3;
+const MARA_SEITE = 25;
+const MARA_ART: Record<MaraArt, { text: string; art: "" | "blau" | "warn" }> = {
+  zeiten_angeboten: { text: "Zeiten angeboten", art: "" },
+  termin_gebucht: { text: "Termin eingetragen", art: "blau" },
+  termin_verschoben: { text: "Termin verschoben", art: "blau" },
+  termin_nicht_moeglich: { text: "Nicht möglich", art: "warn" },
+  terminlink: { text: "Terminlink", art: "" },
+  uebergabe: { text: "Übergabe", art: "" },
+  rueckfall: { text: "Rückfall", art: "warn" },
+};
+const MARA_FILTER: { schluessel: MaraFilter; text: string }[] = [
+  { schluessel: "alle", text: "Alle" }, { schluessel: "termine", text: "Termine" },
+  { schluessel: "uebergaben", text: "Übergaben" }, { schluessel: "probleme", text: "Probleme" },
+];
+const TERMIN_ARTEN: ReadonlySet<string> = new Set(["zeiten_angeboten", "termin_gebucht", "termin_verschoben", "termin_nicht_moeglich", "terminlink"]);
+/** Ein eingetragener Termin — nur diese Zeilen prüft der Takt nach. */
+const istBuchung = (z: MaraZeile) => z.art === "termin_gebucht" || z.art === "termin_verschoben";
+/** Buchung mit ok=false: gespeicherte Zeit weicht ab — der Prüftakt sieht sie nie (er prüft nur ok-Zeilen). */
+const istUnsauber = (z: MaraZeile) => istBuchung(z) && !z.ok;
+/** Rot = Nachprüfung stimmt nicht ODER Buchung nicht sauber. Die Summe „Prüfung rot" zählt genau diese Zeilen. */
+const istRot = (z: MaraZeile) => z.pruefungOk === false || istUnsauber(z);
+const istProblem = (z: MaraZeile) => !z.ok || z.pruefungOk === false || z.art === "termin_nicht_moeglich" || z.art === "rueckfall";
+const passt = (z: MaraZeile, f: MaraFilter) =>
+  f === "alle" ? true : f === "termine" ? TERMIN_ARTEN.has(z.art) : f === "uebergaben" ? z.art === "uebergabe" : istProblem(z);
+
+const BERLIN = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+/** TT.MM. HH:MM in Berliner Zeit — über formatToParts, nie über Zahl(format()). */
+function berlinZeit(s: string): string {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "—";
+  const t: Record<string, string> = {};
+  for (const p of BERLIN.formatToParts(d)) t[p.type] = p.value;
+  return `${t.day}.${t.month}. ${t.hour}:${t.minute}`;
+}
+/** Voller Zeitpunkt für den Titel — ebenfalls Berliner Zeit, damit Liste und Tooltip nie auseinanderlaufen. */
+const berlinLang = (s: string) => {
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? "—"
+    : `${d.toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })} Uhr (Berliner Zeit)`;
+};
+const nummerZeigen = (n: string) => (n.startsWith("+") ? n : `+${n}`);
+
+/** „✗ außerhalb der Arbeitszeit · ✓ Termin steht" → einzelne Punkte. */
+function pruefPunkte(s: string | null): { ok: boolean; text: string }[] {
+  if (!s) return [];
+  return s.split(" · ").map((t) => t.trim()).filter(Boolean).map((t) =>
+    t.startsWith("✗") ? { ok: false, text: t.replace(/^✗\s*/, "") } : { ok: true, text: t.replace(/^✓\s*/, "") });
+}
+
+function MaraPruefung({ z }: { z: MaraZeile }) {
+  const punkte = pruefPunkte(z.pruefung);
+  if (z.pruefungOk === null && punkte.length === 0) {
+    return <p className="wz-mp-offen">Noch nicht nachgeprüft — „Jetzt nachprüfen“ prüft sofort.</p>;
+  }
+  return (
+    <div className={`wz-mp-pruefung${z.pruefungOk === false ? " rot" : ""}`}>
+      <span className="wz-mp-pruefung-titel">{z.pruefungOk === false ? "Nachprüfung: stimmt nicht" : "Nachprüfung: stimmt"}</span>
+      {punkte.length ? (
+        <ul aria-label="Ergebnis der Nachprüfung">
+          {punkte.map((p, i) => (
+            <li key={i} className={p.ok ? "gut" : "rot"}>
+              <span aria-hidden="true">{p.ok ? "✓" : "✗"}</span>
+              <span className="wz-sr">{p.ok ? "erfüllt: " : "nicht erfüllt: "}</span>
+              {p.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {z.pruefungAm ? <span className="wz-still">geprüft {seit(z.pruefungAm)}</span> : null}
+    </div>
+  );
+}
+
+function MaraProtokoll() {
+  const prot = useDaten<MaraProtokollDaten>(`/chef/wa-zentrale/mara-protokoll?tage=${MARA_TAGE}`);
+  const p = prot.daten;
+  const [filter, setFilter] = useState<MaraFilter>("alle");
+  const [alleZeigen, setAlleZeigen] = useState(false);
+  const [prueft, setPrueft] = useState(false);
+  const [hinweis, setHinweis] = useState<{ text: string; art: "gut" | "fehler" } | null>(null);
+
+  // Mara arbeitet rund um die Uhr: jede Minute still nachladen, solange die Seite sichtbar ist.
+  useEffect(() => {
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") prot.neu(); }, 60_000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => { setAlleZeigen(false); }, [filter]);
+  useEffect(() => {
+    if (!hinweis) return;
+    const t = window.setTimeout(() => setHinweis(null), 12_000);
+    return () => window.clearTimeout(t);
+  }, [hinweis]);
+
+  const nachpruefen = async () => {
+    setPrueft(true); setHinweis(null);
+    try {
+      const r = await fetch(`${API}/chef/wa-zentrale/mara-protokoll?tage=${MARA_TAGE}&pruefen=1`, { credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Die Nachprüfung hat nicht geklappt.");
+      const neueZeilen: MaraZeile[] = Array.isArray(j.zeilen) ? j.zeilen : [];
+      const rot = Number(j.summe?.pruefungFehler || 0);
+      const unsauber = neueZeilen.filter(istUnsauber).length;
+      const termine = Number(j.summe?.termine || 0);
+      const teile: string[] = [];
+      if (rot) teile.push(`${rot === 1 ? "1 Termin stimmt" : `${zahl(rot)} Termine stimmen`} nicht — als dringende Aufgabe an die Leitung gemeldet`);
+      if (unsauber) teile.push(`${unsauber === 1 ? "1 Buchung ist" : `${zahl(unsauber)} Buchungen sind`} nicht sauber gespeichert — bitte im Kalender ansehen`);
+      setHinweis(teile.length
+        ? { art: "fehler", text: `Nachgeprüft: ${teile.join("; ")}. Rot markiert.` }
+        : { art: "gut", text: termine ? `Nachgeprüft: ${termine === 1 ? "Der eine Mara-Termin stimmt" : `Alle ${zahl(termine)} Mara-Termine stimmen`}.` : `Nachgeprüft: In den letzten ${MARA_TAGE} Tagen hat Mara keinen Termin eingetragen.` });
+      prot.neu();
+    } catch (e: any) { setHinweis({ art: "fehler", text: e?.message || "Die Nachprüfung hat nicht geklappt." }); } finally { setPrueft(false); }
+  };
+
+  const zeilen = p?.zeilen ?? [];
+  const anzahl: Record<MaraFilter, number> = {
+    alle: zeilen.length,
+    termine: zeilen.filter((z) => passt(z, "termine")).length,
+    uebergaben: zeilen.filter((z) => passt(z, "uebergaben")).length,
+    probleme: zeilen.filter((z) => passt(z, "probleme")).length,
+  };
+  const gefiltert = zeilen.filter((z) => passt(z, filter));
+  const sichtbar = alleZeigen ? gefiltert : gefiltert.slice(0, MARA_SEITE);
+  const s = p?.summe;
+  // Server zählt nur pruefung_ok=false; nicht sauber gespeicherte Buchungen kommen dazu — sonst stünde „alles stimmt" neben einer roten Zeile.
+  const rotZahl = s ? Math.max(s.pruefungFehler, zeilen.filter(istRot).length) : 0;
+
+  return (
+    <section className="wz-karte wz-mara" aria-labelledby="wz-mara-titel">
+      <div className="wz-karte-kopf">
+        <div className="wz-mp-titel">
+          <h2 id="wz-mara-titel">Was Mara getan hat</h2>
+          <span className="wz-still">Letzte {MARA_TAGE} Tage · jeder eingetragene Termin wird nachgeprüft</span>
+        </div>
+        <button type="button" className="wz-knopf klein still" onClick={() => void nachpruefen()} disabled={prueft || !p}>
+          {prueft ? "Prüft …" : "Jetzt nachprüfen"}
+        </button>
+      </div>
+
+      {hinweis ? <div className={`wz-meldung ${hinweis.art}`} role="status">{hinweis.text}</div> : null}
+      {prot.laedt && !p ? <Geruest zeilen={4} /> : null}
+      {prot.fehler && !p ? <Fehlermeldung text={prot.fehler} erneut={prot.neu} /> : null}
+      {prot.fehler && p ? <p className="wz-still" role="status">Neu laden hat nicht geklappt — zu sehen ist der letzte Stand.</p> : null}
+
+      {p && s ? (
+        <>
+          <div className="wz-zahlen wz-mp-summe" role="group" aria-label={`Summen der letzten ${MARA_TAGE} Tage`}>
+            <div><span>Termine eingetragen</span><b>{zahl(s.termine)}</b><em>gebucht oder verschoben</em></div>
+            <div><span>Terminlinks</span><b>{zahl(s.links)}</b><em>persönlich geschickt</em></div>
+            <div className={s.nichtMoeglich ? "warn" : ""}><span>Nicht möglich</span><b>{zahl(s.nichtMoeglich)}</b><em>kein Termin eingetragen</em></div>
+            <div><span>Übergaben</span><b>{zahl(s.uebergaben)}</b><em>an einen Menschen</em></div>
+            <div className={s.rueckfaelle ? "warn" : ""}><span>Rückfälle</span><b>{zahl(s.rueckfaelle)}</b><em>Ersatzsatz statt Antwort</em></div>
+            <div className={rotZahl ? "rot" : "gut"}><span>Prüfung rot</span><b>{zahl(rotZahl)}</b><em>{rotZahl ? "Termine stimmen nicht" : "alles stimmt"}</em></div>
+          </div>
+
+          {zeilen.length === 0 ? (
+            <p className="wz-mp-leer">Mara hat in den letzten {MARA_TAGE} Tagen noch nichts eingetragen.</p>
+          ) : (
+            <>
+              <div className="wz-mp-filter" role="group" aria-label="Filter">
+                {MARA_FILTER.map((f) => (
+                  <button key={f.schluessel} type="button" aria-pressed={filter === f.schluessel}
+                    className={`${filter === f.schluessel ? "aktiv" : ""}${f.schluessel === "probleme" && anzahl.probleme > 0 ? " rot" : ""}`}
+                    onClick={() => setFilter(f.schluessel)}>
+                    {f.text}<em>{zahl(anzahl[f.schluessel])}</em>
+                  </button>
+                ))}
+              </div>
+
+              {gefiltert.length === 0 ? (
+                <p className="wz-mp-leer">
+                  {filter === "probleme" ? `Keine Probleme in den letzten ${MARA_TAGE} Tagen.` : filter === "uebergaben" ? "Keine Übergaben in diesem Zeitraum." : "Keine Termine in diesem Zeitraum."}
+                </p>
+              ) : (
+                <ol className="wz-mp-liste">
+                  {sichtbar.map((z) => {
+                    const art = MARA_ART[z.art] ?? { text: String(z.art), art: "" as const };
+                    const rot = istRot(z);
+                    const warn = !rot && istProblem(z);
+                    const wer = z.kunde || (z.nummer ? nummerZeigen(z.nummer) : "Unbekannt");
+                    const zeigePruefung = (istBuchung(z) && z.ok && z.terminId != null) || z.pruefung != null;
+                    return (
+                      <li key={z.id} className={`wz-mp-zeile${rot ? " rot" : warn ? " warn" : ""}`}>
+                        <time className="wz-mp-zeit" dateTime={z.am} title={berlinLang(z.am)}>{berlinZeit(z.am)}</time>
+                        <div className="wz-mp-inhalt">
+                          <div className="wz-mp-kopf">
+                            <span className="wz-mp-kunde">
+                              {z.personId ? <a href={`/chef/s/akte?id=${z.personId}`}>{wer}</a> : wer}
+                              {z.kunde && z.nummer ? <span className="wz-still"> · {nummerZeigen(z.nummer)}</span> : null}
+                            </span>
+                            <span className={`wz-marke${art.art ? ` ${art.art}` : ""}`}>{art.text}</span>
+                            {!z.ok && istBuchung(z) ? <span className="wz-marke rot">nicht sauber</span> : null}
+                            {z.terminId != null ? <span className="wz-still">Termin #{z.terminId}</span> : null}
+                          </div>
+                          <p className="wz-mp-text">{z.text}</p>
+                          {zeigePruefung ? <MaraPruefung z={z} /> : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+              {!alleZeigen && gefiltert.length > MARA_SEITE ? (
+                <button type="button" className="wz-knopf klein still wz-mp-mehr" onClick={() => setAlleZeigen(true)}>
+                  Alle {zahl(gefiltert.length)} zeigen
+                </button>
+              ) : null}
+            </>
+          )}
+        </>
+      ) : null}
+    </section>
+  );
 }
 
 /** Eine Nachricht so, wie sie im Handy aussieht — Kopfbild, Text, Fuß. */
@@ -407,6 +647,9 @@ export default function ChefWhatsAppZentrale() {
               </button>
             </div>
           </section>
+
+          {/* ── Was Mara getan hat (E-236) ───────────────────────────────── */}
+          <MaraProtokoll />
 
           {/* ── Verlauf ──────────────────────────────────────────────────── */}
           <section className="wz-karte wz-verlauf">

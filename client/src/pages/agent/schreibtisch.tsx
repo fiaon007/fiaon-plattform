@@ -16,6 +16,7 @@ import { useAcademyFortschritt } from "./academy/fortschritt";
 import "@/styles/office-schreibtisch.css";
 import "@/styles/office-termintreue.css";
 import { terminArtAusQuelle } from "@shared/fiaon-termin-art";
+import { maraMarke, MARA_NEU_STUNDEN } from "@shared/fiaon-mara-marke";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
@@ -31,6 +32,36 @@ const terminZiel = (t: any) => {
   return t.quelle === "global" ? `/agent/firmen?person=${pid}` : `/agent/kunden?person=${pid}`;
 };
 const anrufen = (nummer: string | null | undefined, personId: number | null, name: string) => { if (!nummer) return; window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name } })); };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEU VON MARA (24.09.2026, E-236)
+//
+// Justin: „im jeweiligen Dashboard anzeigen lassen, dass ein neuer Termin über
+// Mara gebucht wurde". Mara trägt Rückrufe selbst beim Betreuer ein
+// (herkunft mara_whatsapp/mara_mail) oder der Kunde bucht über ihren Link
+// (mara_whatsapp_link). Ohne Hinweis stand so ein Termin still in der Liste —
+// der Mitarbeiter hat ihn nie angelegt und wusste nicht, dass der Kunde wartet.
+//
+// Der Block zeigt jeden Mara-Termin, der in den letzten 72 Stunden
+// eingetragen wurde und noch bevorsteht. „Gesehen" blendet ihn für DIESES
+// Gerät aus (localStorage, reine Bequemlichkeit — der Termin selbst steht
+// weiter im Kalender und in den Listen darunter, mit Marke).
+// ═══════════════════════════════════════════════════════════════════════════
+const MARA_GESEHEN_KEY = "fiaon-mara-termine-gesehen";
+function maraGesehenLesen(): number[] {
+  try { const v = JSON.parse(localStorage.getItem(MARA_GESEHEN_KEY) || "[]"); return Array.isArray(v) ? v.map(Number).filter(Number.isFinite) : []; }
+  catch { return []; }
+}
+function maraGesehenSchreiben(ids: number[]) {
+  // Nur die letzten 200 — die Liste soll nicht endlos wachsen.
+  try { localStorage.setItem(MARA_GESEHEN_KEY, JSON.stringify(ids.slice(-200))); } catch { /* gesperrt: dann eben erneut sichtbar */ }
+}
+/** Die Aufschrift „von Mara" neben der Terminart — dieselbe wie im Kalender. */
+function MaraHinweis({ herkunft }: { herkunft?: string | null }) {
+  const m = maraMarke(herkunft);
+  if (!m) return null;
+  return <span className="st-mara" title={m.titel}>{m.text}<span className="sr-only"> – {m.titel}</span></span>;
+}
 
 export default function AgentSchreibtischPage() { return <AgentShell><SchreibtischInnen /></AgentShell>; }
 
@@ -99,6 +130,18 @@ function SchreibtischInnen() {
   const datum = jetzt.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" });
   const uhrzeit = jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
   const naechster = termineHeute.find((t) => new Date(t.beginn).getTime() > Date.now() - 15 * 60000);
+  // ── Neu von Mara (E-236) ─────────────────────────────────────────────────
+  const [maraGesehen, setMaraGesehen] = useState<number[]>(() => maraGesehenLesen());
+  const maraNeu = useMemo(() => termine
+    .filter((t) => maraMarke(t.herkunft) && t.status === "gebucht" && t.gebuchtAm
+      && Date.now() - new Date(t.gebuchtAm).getTime() < MARA_NEU_STUNDEN * 3_600_000
+      && new Date(t.beginn).getTime() > Date.now() - 15 * 60000
+      && !maraGesehen.includes(Number(t.id)))
+    .sort((a, b) => new Date(a.beginn).getTime() - new Date(b.beginn).getTime()), [termine, maraGesehen]);
+  const maraAbhaken = (ids: number[]) => {
+    const neu = Array.from(new Set([...maraGesehen, ...ids]));
+    maraGesehenSchreiben(neu); setMaraGesehen(neu);
+  };
   // Was heute wirklich auf dem Tisch liegt — dieselbe Menge, die „Jetzt dran"
   // darunter Zeile für Zeile zeigt. Die Überschrift darf nichts anderes zählen.
   const dranGesamt = termineHeute.length + rueckrufeFaellig.length + zusagenFaellig.length;
@@ -153,6 +196,39 @@ function SchreibtischInnen() {
         )}
       </section>
 
+      {maraNeu.length > 0 && (
+        <section className="st-mara-block" aria-label="Neue Termine von Mara">
+          <div className="st-block-kopf">
+            <b>Neu von Mara</b>
+            <small>{maraNeu.length === 1 ? "Ein Termin" : `${maraNeu.length} Termine`} — von Mara für dich vereinbart oder über ihren Link gebucht. Der Kunde wartet auf deinen Anruf.</small>
+          </div>
+          {maraNeu.map((t) => {
+            const m = maraMarke(t.herkunft)!;
+            return (
+              <div key={`m${t.id}`} className="st-zeile">
+                <div className="st-zeit">
+                  <b>{uhr(t.beginn)}</b>
+                  <small>{new Date(t.beginn).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) === heute ? "heute" : new Date(t.beginn).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })}</small>
+                </div>
+                <div className="st-wer">
+                  <b>{t.name}</b>
+                  <small>{m.titel}{t.gebuchtAm ? ` · eingetragen ${new Date(t.gebuchtAm).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })} Uhr` : ""}</small>
+                  {t.notiz && <small className="st-notiz" title={t.notiz}>{t.notiz}</small>}
+                </div>
+                <div className="st-aktion">
+                  <Link href={terminZiel(t)} className="st-knopf">Akte</Link>
+                  <button type="button" className="st-knopf still" onClick={() => maraAbhaken([Number(t.id)])}
+                          aria-label={`${t.name}: als gesehen markieren`}>Gesehen</button>
+                </div>
+              </div>
+            );
+          })}
+          {maraNeu.length > 1 && (
+            <button type="button" className="st-mara-alle" onClick={() => maraAbhaken(maraNeu.map((t) => Number(t.id)))}>Alle als gesehen markieren</button>
+          )}
+        </section>
+      )}
+
       <section className="st-spalten">
         <div className="st-block">
           <div className="st-block-kopf"><b>Jetzt dran</b><small>{dranGesamt} heute fällig · Termine, dann Rückrufe, dann Zahlungszusagen</small></div>
@@ -164,7 +240,9 @@ function SchreibtischInnen() {
                       zurück — auf dem Dashboard stand wörtlich „agent_manuell"
                       und „onboarding_call". NACHHER übersetzt derselbe Helfer
                       wie im Kalender in Klartext (Onboarding/Vertrieb/Rückruf/Zahlung). */}
-              <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}{t.status === "verpasst" ? " · verpasst" : ""}</small></div>
+              {/* 24.09.2026 (E-236): „von Mara" neben der Art, darunter die
+                  Notiz (worum es geht) — sie stand auf dem Dashboard nirgends. */}
+              <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}{t.status === "verpasst" ? " · verpasst" : ""}<MaraHinweis herkunft={t.herkunft} /></small>{t.notiz && <small className="st-notiz" title={t.notiz}>{t.notiz}</small>}</div>
               <div className="st-aktion">
                 <button type="button" className="st-knopf" onClick={() => anrufen(t.telefon ?? t.primary_phone, t.personId ?? t.person_id, t.name)} disabled={!(t.telefon ?? t.primary_phone)}><Phone size={15} /> Anrufen</button>
                 <Link href={terminZiel(t)} className="st-knopf still">Akte</Link>
@@ -229,7 +307,7 @@ function SchreibtischInnen() {
           {termineSpaeter.map((t) => (
             <div key={`s${t.id}`} className="st-zeile klein">
               <div className="st-zeit"><b>{new Date(t.beginn).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })}</b><small>{uhr(t.beginn)}</small></div>
-              <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}</small></div>
+              <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}<MaraHinweis herkunft={t.herkunft} /></small>{t.notiz && <small className="st-notiz" title={t.notiz}>{t.notiz}</small>}</div>
               <Link href={terminZiel(t)} className="st-knopf still">Akte</Link>
             </div>
           ))}

@@ -5,6 +5,45 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 24.09.2026 (5) — Mara verkauft statt abzuschrecken und trägt Rückrufe selbst ein (E-236)
+
+**Der Anlass (Justin):** „Wenn der Kunde sagt: Ich suche unkompliziert eine Kreditkarte, dann sagt Mara: Ja, da sind Sie
+bei uns genau richtig! — nichts von Bonität, Kontoauszügen o. ä. Mara soll verkaufen, nicht erschrecken." Und: „Macht
+Mara Nikita auch wirklich den Termin? … Mara muss 100 % handeln."
+
+**Mara verkauft jetzt anders:** Sie holt den Kunden positiv ab, nennt keine Hürden, nach denen niemand gefragt hat,
+redet niemanden raus, bleibt kurz und endet mit genau einem Schritt. Sie geht auf sein Ziel ein (Urlaub, Auto, Miete)
+und bietet von sich aus einen Anruf mit konkreten Zeiten an. Die Grenze bleibt: Nichts Unwahres — ein Nein beginnt nie
+mit „Ja", „ohne Schufa" wird nie bejaht, keine Stundung, keine Zusage in fremder Sprache oder „gleich", kein „Sie haben
+recht" auf einen Betrugsvorwurf. Jeder Entwurf läuft durch eine Verkaufs- und eine Wahrheitsprüfung.
+
+**Mara handelt selbst:** Sagt ein Kunde „12:25 Uhr" oder „nachmittags", trägt Mara den Rückruf echt in den Kalender des
+Betreuers ein — nur in dessen Arbeitszeit, nur auf einen freien Platz, mit 20 Minuten Vorlauf — und nennt dem Kunden
+genau die eingetragene Uhrzeit. Ist der Betreuer nicht da (gesperrt, ohne Zeiten, Forderungsmanagement), gilt der Pool
+wie auf der Terminseite. Unentschlossene bekommen ihren persönlichen Terminlink (Sie-Fassung). Ein Kunde hat höchstens
+einen Termin; verschoben wird nur, was Mara selbst gebucht hat.
+
+**Alles ist sichtbar und wird nachgeprüft:** Jede Handlung steht in einem eigenen Protokoll — als Systemzeile im
+WhatsApp-Raum, als Karte „Was Mara getan hat" im Chefbüro (/chef/s/mara), als Marke „von Mara" im Kalender, in der
+Erinnerungsleiste, im Popup und auf dem Schreibtisch („Neu von Mara"). Alle fünf Minuten prüft ein Takt jede
+Mara-Buchung: steht der Termin, Arbeitszeit, keine Überschneidung, Mitarbeiter aktiv, Mail raus, Kunde hat die
+Uhrzeit. Stimmt etwas nicht, wird es rot und eine dringende Aufgabe.
+
+**Buchungsmail an Mitarbeiter:** nennt den Wochentag („Donnerstag, 24.09.2026 um 12:30 Uhr") und sagt bei
+Mara-Terminen „Mara hat per WhatsApp einen Rückruf vereinbart" statt fälschlich „hat sich selbst ausgesucht".
+
+**Wenn die KI ausfällt** (24.09. 07:00: OpenAI-Guthaben leer): sechs Minuten still weiterversuchen, dann ein
+Rückfallsatz (nie zweimal derselbe), die Frage bleibt zwölf Stunden offen und wird beantwortet, sobald die KI zurück
+ist; die Geschäftsführung bekommt eine dringende Aufgabe.
+
+**Passwort-Reset repariert (Dashboard-Sitzung, RESET-05):** Seit 10.09. scheiterten 59 von 71 Passwort-Resets, weil
+der gespeicherte Werbe-Herkunftswert bei fast allen Anträgen kein Objekt ist. Der Fehler ist behoben und geprüft.
+
+**Sofort umgesetzt:** Die beiden heute vereinbarten Rückrufe (Ferat Met 12:30 bei Nikita, Hitesh Dahiya 13:10 bei
+Daniel) stehen im Kalender, die Mails sind raus.
+
+---
+
 ## 24.09.2026 (4) — FIAON Global komplett auf Englisch, Google Search Console, Bing/IndexNow (E-234)
 
 **Der Anlass (Justin):** „Mach die englischen Fassungen der Business-Unterseiten — mach alles du, setze alles um"

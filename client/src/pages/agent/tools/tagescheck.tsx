@@ -15,6 +15,7 @@ import { ArrowLeft, Phone, FileText, PhoneCall, Users, Calendar, Trophy, ListChe
 import { AgentShell, api } from "../shared";
 import { useOffice } from "../OfficeShell";
 import "@/styles/office-tools.css";
+import { maraMarke } from "@shared/fiaon-mara-marke";
 
 const ZIEL = 5;
 const heuteBerlin = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
@@ -27,6 +28,12 @@ function tagesbeginnBerlin(): Date {
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const anrufen = (nummer: string | null | undefined, personId: number, name: string) => { if (!nummer) return; window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name } })); };
 const kontaktTage = (iso: string | null) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : null);
+
+/** „ · von Mara" hinter der Terminart (E-236) — Aufschrift aus shared/fiaon-mara-marke.ts. */
+function MaraZusatz({ herkunft }: { herkunft?: string | null }) {
+  const m = maraMarke(herkunft);
+  return m ? <span title={m.titel} style={{ color: "#bfdbfe" }}> · {m.text}<span className="sr-only"> – {m.titel}</span></span> : null;
+}
 
 interface Vorschlag { personId: number; name: string; grund: "rueckruf" | "zusage" | "A" | "B"; text: string; nummer: string | null }
 
@@ -145,7 +152,8 @@ function TagescheckInnen() {
               {termineHeute.map((t) => (
                 <div key={t.id} className="to-zeile">
                   <span className="grund">{uhr(t.beginn)}</span>
-                  <div className="wer"><b>{t.name}</b><small>{t.terminArtText || t.quelle || "Gespräch"}{t.status === "verpasst" ? " · verpasst" : ""}</small></div>
+                  {/* 24.09.2026 (E-236): „von Mara" und die Notiz (worum es geht). */}
+                  <div className="wer"><b>{t.name}</b><small>{t.terminArtText || t.quelle || "Gespräch"}{t.status === "verpasst" ? " · verpasst" : ""}<MaraZusatz herkunft={t.herkunft} /></small>{t.notiz && <small title={t.notiz} style={{ color: "#cbd5e1" }}>{t.notiz}</small>}</div>
                   <div className="tun">
                     <button type="button" className="to-knopf klein" disabled={!t.telefon} onClick={() => anrufen(t.telefon, t.personId, t.name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>
                     <Link href={`/agent/pipeline?person=${t.personId}`} className="to-knopf still klein">Akte</Link>

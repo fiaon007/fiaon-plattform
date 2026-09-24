@@ -193,8 +193,67 @@
 .wz-tabelle td .wz-marke { max-width: 320px; }
 .wz-zeit { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--wz-leise); }
 
+/* ── Was Mara getan hat (24.09.2026, E-236) — Präfix .wz-mp- ──────────
+   Summenleiste wie .wz-zahlen (sechs Felder), darunter eine ruhige Liste.
+   Rot nur dort, wo eine Nachprüfung nicht stimmt; Gelb für „nicht möglich"
+   und Rückfälle. Kein Verlauf, keine Schatten. */
+.wz-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.wz-mp-titel { display: grid; gap: 3px; min-width: 0; }
+.wz-marke.blau { color: var(--wz-blau-hell); border-color: rgba(40, 141, 250, .38); background: rgba(40, 141, 250, .07); }
+
+.wz-zahlen.wz-mp-summe { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.wz-mp-summe > div { padding: 12px 14px; }
+.wz-mp-summe b { font-size: 22px; }
+.wz-mp-summe > div.warn b { color: var(--wz-gelb); }
+.wz-mp-summe > div.rot b { color: var(--wz-rot); }
+.wz-mp-summe > div.rot { background: rgba(244, 63, 94, .06); }
+
+.wz-mp-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.wz-mp-filter button {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--wz-linie); background: transparent; color: var(--wz-leise); font: inherit; font-size: 13px;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.wz-mp-filter button em { font-style: normal; font-size: 12px; color: var(--wz-still); font-variant-numeric: tabular-nums; }
+.wz-mp-filter button.rot em { color: var(--wz-rot); }
+.wz-mp-filter button.aktiv { border-color: var(--wz-blau); background: rgba(40, 141, 250, .1); color: var(--wz-text); }
+.wz-mp-filter button.aktiv em { color: var(--wz-blau-hell); }
+.wz-mp-filter button.aktiv.rot em { color: var(--wz-rot); }
+@media (hover: hover) { .wz-mp-filter button:not(.aktiv):hover { background: var(--wz-flaeche-hoch); color: var(--wz-text-2); } }
+@media (pointer: coarse) { .wz-mp-filter button { min-height: 44px; } }
+.wz-mp-filter button:focus-visible, .wz-mara a:focus-visible { outline: 2px solid var(--wz-blau-hell); outline-offset: 2px; border-radius: 6px; }
+.wz-mp-filter button:focus-visible { border-radius: 99px; }
+
+.wz-mp-leer { font-size: 13.5px; color: var(--wz-leise); padding: 6px 2px; }
+
+.wz-mp-liste { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--wz-linie); }
+.wz-mp-zeile {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: start;
+  padding: 12px 12px 12px 10px; border-bottom: 1px solid var(--wz-linie); border-left: 2px solid transparent;
+}
+.wz-mp-zeile.warn { border-left-color: rgba(252, 211, 77, .55); }
+.wz-mp-zeile.rot { border-left-color: var(--wz-rot); background: rgba(244, 63, 94, .06); }
+.wz-mp-zeit { font-size: 12.5px; color: var(--wz-leise); font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 2px; }
+.wz-mp-inhalt { display: grid; gap: 6px; min-width: 0; }
+.wz-mp-kopf { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; min-width: 0; }
+.wz-mp-kunde { font-size: 14px; color: var(--wz-text); min-width: 0; overflow-wrap: anywhere; }
+.wz-mp-text { font-size: 13px; line-height: 1.5; color: var(--wz-text-2); overflow-wrap: anywhere; }
+.wz-mp-zeile.rot .wz-mp-text { color: var(--wz-text); }
+
+.wz-mp-pruefung { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--wz-linie); }
+.wz-mp-pruefung.rot { border-color: rgba(253, 164, 175, .4); }
+.wz-mp-pruefung-titel { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--wz-still); }
+.wz-mp-pruefung.rot .wz-mp-pruefung-titel { color: var(--wz-rot); }
+.wz-mp-pruefung ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.wz-mp-pruefung li { display: inline-flex; gap: 6px; align-items: baseline; font-size: 12.5px; line-height: 1.45; }
+.wz-mp-pruefung li.gut { color: var(--wz-gruen); }
+.wz-mp-pruefung li.rot { color: var(--wz-rot); font-weight: 500; }
+.wz-mp-offen { font-size: 12.5px; color: var(--wz-leise); }
+.wz-mp-mehr { justify-self: start; }
+
 /* ── Handy: eine Spalte ───────────────────────────────────────────────── */
 @media (max-width: 900px) {
+  .wz-zahlen.wz-mp-summe { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .wz-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wz-zahlen > div { border-left: none !important; border-bottom: 1px solid var(--wz-linie); }
   .wz-gruppen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -211,6 +270,9 @@
 @media (max-width: 520px) {
   .wz-gruppen { grid-template-columns: minmax(0, 1fr); }
   .wz-karte { padding: 14px; }
+  .wz-zahlen.wz-mp-summe { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wz-mp-zeile { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px 4px 12px 10px; }
+  .wz-mp-filter button { flex: 1 1 auto; justify-content: center; }
 }
 
 /* ── Reiter oben auf /chef/s/mara ─────────────────────────────────────── */

@@ -109,13 +109,63 @@ async function bestaetigungSenden(
 // ÖFFENTLICH — kein Login
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ───────────────────────────────────────────────────────────────────────────
+// DU ODER SIE — NUR DIE WORTWAHL (24.09.2026, E-236)
+//
+// Mara schickt Terminlinks mit `?anrede=sie`; die Seite /termin/:token reicht
+// die Anrede beim Laden (Query), Buchen (Body) und Absagen (Query) durch. Die
+// Weiche wählt AUSSCHLIESSLICH, in welcher Form die Kundensätze dieser Routen
+// zurückkommen — Zeiten, Gesprächsart, Buchung und Herkunft lesen sie nicht.
+//
+// Ohne Anrede bleibt jeder Satz wortgleich wie vorher (Du).
+// Zweites Netz wie auf der Seite: Eine Herkunft `mara_…` spricht immer Sie.
+// ───────────────────────────────────────────────────────────────────────────
+function anredeSie(req: Request): boolean {
+  const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+  const q = String(req.query?.anrede ?? "").toLowerCase();
+  const b = String(body.anrede ?? "").toLowerCase();
+  const weg = String(body.herkunft ?? req.query?.von ?? "");
+  return q === "sie" || b === "sie" || weg.startsWith("mara_");
+}
+
+/** Kam der Kunde über Mara (WhatsApp)? Dann ist WhatsApp sein Rückweg, nicht „der Ansprechpartner". */
+function ueberMara(req: Request): boolean {
+  const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+  return String(body.herkunft ?? req.query?.von ?? "").startsWith("mara_");
+}
+
+/**
+ * Letzte Zeile gegen ein durchrutschendes „du": Die Meldungen aus
+ * `TerminFehler` (server/lib/fiaon-termine.ts) sind gemischt — manche siezen,
+ * „falsche_rolle" duzt („Bitte wähl eine andere Zeit"). In der Sie-Fassung
+ * wird jede Meldung mit Du-Spur ersetzt, statt sie auszuliefern.
+ */
+const DU_SPUR = /(^|[^a-zäöüß])(du|dich|dir|dein|deine|deinem|deinen|deiner|deines|wähl|wähle|melde|versuch|versuche|lade|sag)(?![a-zäöüß])/i;
+
+function terminFehlerSie(code: string, text: string): string {
+  if (code === "falsche_rolle") {
+    return "Diese Zeit passt nicht zu Ihrem Gespräch. Bitte wählen Sie eine der angezeigten Zeiten.";
+  }
+  if (DU_SPUR.test(text)) {
+    return "Diese Zeit lässt sich leider nicht buchen. Bitte wählen Sie eine andere.";
+  }
+  return text;
+}
+
 /** GET /termin/:token — freie Slots für diese Person. */
 router.get("/termin/:token", async (req: Request, res: Response) => {
   try {
     const geprueft = terminTokenPruefen(req.params.token);
     if (!geprueft) return res.status(404).json({ ok: false, error: "Dieser Link ist ungültig." });
     if (geprueft.abgelaufen) {
-      return res.status(410).json({ ok: false, error: "abgelaufen", hinweis: "Dieser Link ist nicht mehr gültig. Ihr Ansprechpartner meldet sich bei Ihnen." });
+      // 24.09.2026 (E-236): Wer über Maras Link kam, bekommt den Rückweg, den er
+      // kennt — WhatsApp. Alle anderen lesen den Satz wie bisher.
+      return res.status(410).json({
+        ok: false, error: "abgelaufen",
+        hinweis: ueberMara(req)
+          ? "Dieser Link ist nicht mehr gültig. Schreiben Sie uns einfach kurz auf WhatsApp — Sie bekommen dort einen neuen."
+          : "Dieser Link ist nicht mehr gültig. Ihr Ansprechpartner meldet sich bei Ihnen.",
+      });
     }
 
     const [person] = (await sqlPool`
@@ -242,7 +292,15 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("[TERMIN] slots:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
+    // Sie-Fassung mit einem Satz, den ein Kunde versteht (die Seite zeigt
+    // `hinweis` vor `error`). Die Du-Fassung bleibt wie sie war.
+    res.status(500).json({
+      ok: false, error: "Serverfehler",
+      ...(anredeSie(req)
+        ? { hinweis: "Da ist bei uns etwas schiefgelaufen — nicht bei Ihnen. Bitte laden Sie die Seite "
+            + "in ein paar Minuten neu." }
+        : {}),
+    });
   }
 });
 
@@ -304,6 +362,15 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
   const gewuenscht = "auto";
   const wunsch = quelle ? String(quelle) : null;
   let personId: number | null = null;
+  // ── DIE ANREDE DER ANTWORT (24.09.2026, E-236) ─────────────────────────────
+  // Nur Wortwahl: `sie` wählt die Sie-Fassung der Sätze unten, `mara` den
+  // Rückweg („schreiben Sie uns auf WhatsApp" statt „melden Sie sich bei Ihrem
+  // Ansprechpartner" — wer über Mara kam, kennt seinen Ansprechpartner noch
+  // nicht). Die Buchung selbst liest keinen der beiden Werte.
+  const sie = anredeSie(req);
+  const rueckwegSie = ueberMara(req)
+    ? "schreiben Sie uns einfach kurz auf WhatsApp."
+    : "melden Sie sich bei Ihrem Ansprechpartner.";
 
   const ablehnen = async (grund: string, text: string, status = 409) => {
     await versuchProtokollieren({
@@ -318,13 +385,20 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
     const geprueft = terminTokenPruefen(req.params.token);
     if (!geprueft || geprueft.abgelaufen) {
       return await ablehnen("link_ungueltig",
-        "Dieser Link ist ungültig oder abgelaufen. Melde dich bitte bei deinem "
-        + "Ansprechpartner — er schickt dir einen neuen.", 404);
+        sie
+          ? (ueberMara(req)
+              ? "Dieser Link ist ungültig oder abgelaufen. Schreiben Sie uns einfach kurz auf "
+                + "WhatsApp — Sie bekommen dort einen neuen."
+              : "Dieser Link ist ungültig oder abgelaufen. Bitte melden Sie sich bei Ihrem "
+                + "Ansprechpartner — er schickt Ihnen einen neuen.")
+          : "Dieser Link ist ungültig oder abgelaufen. Melde dich bitte bei deinem "
+            + "Ansprechpartner — er schickt dir einen neuen.", 404);
     }
     personId = geprueft.personId;
 
     if (!beginn || !agentId) {
-      return await ablehnen("keine_auswahl", "Bitte wähle zuerst eine Zeit aus.", 400);
+      return await ablehnen("keine_auswahl",
+        sie ? "Bitte wählen Sie zuerst eine Zeit aus." : "Bitte wähle zuerst eine Zeit aus.", 400);
     }
 
     // Der Kunde darf nur Slots buchen, die ihm auch angeboten wurden — sonst
@@ -341,6 +415,14 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
       // der Slot wurde gerade vergeben, oder er ist aus dem Angebot gefallen
       // (Vorlauf abgelaufen, während die Seite offen lag).
       const nochFrei = auskunft.slots.length;
+      if (sie) {
+        return await ablehnen("nicht_angeboten",
+          nochFrei > 0
+            ? "Dieser Termin wurde gerade vergeben — bitte wählen Sie einen anderen. "
+              + (nochFrei === 1 ? "Es steht noch eine Zeit zur Auswahl." : `Es stehen noch ${nochFrei} Zeiten zur Auswahl.`)
+            : "Dieser Termin wurde gerade vergeben, und im Moment sind alle anderen "
+              + `Zeiten belegt. Laden Sie die Seite in ein paar Minuten neu oder ${rueckwegSie}`);
+      }
       return await ablehnen("nicht_angeboten",
         nochFrei > 0
           ? "Dieser Termin wurde gerade vergeben — bitte wähle einen anderen. "
@@ -371,7 +453,15 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
       herkunft: herkunft ?? null,
     });
     await buchungAnwenden(buchung);
-    await bestaetigungSenden(buchung);
+    // ── DER ABSAGE-LINK DER MAIL TRÄGT DIE ANREDE (24.09.2026, E-236) ───────
+    // Die Bestätigungsmail siezt immer. Ihr Absage-Link führte aber auf die
+    // Du-Fassung von /termin/absagen — wer gesiezt gebucht hat (Maras Link),
+    // wurde dort plötzlich geduzt, und „Neuen Termin wählen" duzte weiter.
+    // Bei einer Sie-Buchung bekommt der Link deshalb `?anrede=sie`. Ohne
+    // Anrede geht die Mail unverändert raus.
+    await bestaetigungSenden(buchung, sie && buchung.stornoToken
+      ? { zusatz: { storno_link: `${stornoLink(buchung.stornoToken)}?anrede=sie` } }
+      : {});
 
     await versuchProtokollieren({
       ergebnis: "gebucht", personId: geprueft.personId, slotBeginn: beginn,
@@ -389,7 +479,8 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
     if (err instanceof TerminFehler) {
       // Der Code aus `TerminFehler` IST der Grund-Code — „belegt", „zu_frueh",
       // „kein_slot" und die anderen. Er wird nicht neu erfunden.
-      return await ablehnen(err.code, err.message);
+      // Sie-Fassung: dieselbe Meldung, nur ohne Du-Spur (terminFehlerSie).
+      return await ablehnen(err.code, sie ? terminFehlerSie(err.code, err.message) : err.message);
     }
     console.error("[TERMIN] buchen:", err);
     await versuchProtokollieren({
@@ -399,8 +490,11 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
     });
     res.status(500).json({
       ok: false,
-      error: "Da ist bei uns etwas schiefgelaufen — nicht bei dir. Bitte versuche "
-        + "es noch einmal; klappt es weiter nicht, melde dich bei deinem Ansprechpartner.",
+      error: sie
+        ? "Da ist bei uns etwas schiefgelaufen — nicht bei Ihnen. Bitte versuchen Sie "
+          + `es noch einmal; klappt es weiter nicht, ${rueckwegSie}`
+        : "Da ist bei uns etwas schiefgelaufen — nicht bei dir. Bitte versuche "
+          + "es noch einmal; klappt es weiter nicht, melde dich bei deinem Ansprechpartner.",
       grund: "serverfehler",
     });
   }
@@ -433,10 +527,21 @@ router.post("/termin/absagen/:stornoToken", async (req: Request, res: Response) 
       const { absoluteUrl } = await import("../fiaon-base-url");
       return res.json({ ok: true, neuBuchen: absoluteUrl("/business#gespraech") });
     }
-    res.json({ ok: true, neuBuchen: terminLink(Number(ergebnis.termin.person_id)) });
+    // 24.09.2026 (E-236): Wer gesiezt absagt (?anrede=sie von der Absage-Seite),
+    // wählt gesiezt neu — die Anrede wandert an den frischen Link. Nur Wortwahl.
+    const neu = terminLink(Number(ergebnis.termin.person_id));
+    res.json({
+      ok: true,
+      neuBuchen: anredeSie(req) ? `${neu}${neu.includes("?") ? "&" : "?"}anrede=sie` : neu,
+    });
   } catch (err) {
     console.error("[TERMIN] absagen:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
+    res.status(500).json({
+      ok: false,
+      error: anredeSie(req)
+        ? "Da ist bei uns etwas schiefgelaufen — nicht bei Ihnen. Bitte versuchen Sie es in ein paar Minuten noch einmal."
+        : "Serverfehler",
+    });
   }
 });
 
@@ -473,6 +578,11 @@ router.get("/agent/termine", requireAgent, async (req: AgentRequest, res: Respon
   try {
     const rows = (await sqlPool`
       SELECT t.id, t.person_id, t.beginn, t.dauer_min, t.status, t.quelle, t.notiz,
+             -- 24.09.2026 (E-236): der WEG (von Mara vereinbart?) und wann
+             -- eingetragen wurde — für die Marke „von Mara" und „neu" auf dem
+             -- Dashboard. herkunft über to_jsonb wie im Kalender (Spalte
+             -- entsteht lazy, ensureHerkunftSpalte). Nur lesend.
+             (to_jsonb(t) ->> 'herkunft') AS herkunft, t.created_at AS gebucht_am,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                       p.company_name, p.contact_name, p.primary_email) AS name,
              p.primary_phone, p.priority_tier, p.tier_reason
@@ -524,6 +634,8 @@ router.get("/agent/termine", requireAgent, async (req: AgentRequest, res: Respon
           status: t.status,
           quelle: t.quelle,
           notiz: t.notiz,
+          herkunft: t.herkunft ?? null,
+          gebuchtAm: t.gebucht_am ?? null,
           tier: Number(t.priority_tier),
           tierGrund: t.tier_reason,
           heute: berlinDatumText(t.beginn) === berlinDatumText(new Date()),

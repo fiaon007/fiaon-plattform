@@ -301,7 +301,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
     if (rueckrufAm && k.personId && erg.agentId) {
       try {
         const { terminBuchen } = await import("./fiaon-termine");
-        const b = await terminBuchen({ personId: k.personId, agentId: Number(erg.agentId), beginn: rueckrufAm, quelle: "agent_manuell", herkunft: "agent" });
+        const b = await terminBuchen({ personId: k.personId, agentId: Number(erg.agentId), beginn: rueckrufAm, quelle: "agent_manuell", herkunft: "mara_mail" });
         await sqlPool`UPDATE fiaon_termine SET notiz = ${`Rückrufwunsch aus E-Mail [Mail #${k.postmeisterId ?? "?"}]: ${text.slice(0, 300)}`}, updated_at = NOW() WHERE id = ${b.id}`.catch(() => {});
         const { buchungMelden } = await import("./fiaon-termin-meldung");
         await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});

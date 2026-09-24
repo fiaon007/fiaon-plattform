@@ -3509,6 +3509,13 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
              -- zerlegen, auf der sie noch fehlt — dieser Weg liefert dort
              -- NULL und sonst den Wert.
              (to_jsonb(t) ->> 'herkunft') AS herkunft,
+             -- ── DIE NOTIZ UND DER BUCHUNGSZEITPUNKT (24.09.2026, E-236) ──
+             -- Mara schreibt in notiz, worum es geht („Rückruf, von Mara per
+             -- WhatsApp vereinbart … Anliegen"). Die Zeile hatte sie nicht —
+             -- Popover und Dialog lesen note und blieben bei jedem Termin
+             -- aus fiaon_termine leer. gebucht_am sagt, WANN eingetragen
+             -- wurde (Marke „neu" bei Mara-Terminen). Nur lesend.
+             t.notiz AS note, t.created_at AS gebucht_am,
              t.abgesagt_am, t.abgesagt_von, t.erledigt_am,
              (SELECT a.ref FROM fiaon_applications a
                WHERE a.person_id = t.person_id AND a.merged_into IS NULL AND a.archived_at IS NULL

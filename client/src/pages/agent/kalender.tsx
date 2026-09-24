@@ -4,6 +4,7 @@ import { Phone, Check, Clock, X, StickyNote, CalendarClock, ExternalLink } from 
 import { AgentShell, Card, Badge, FlashMessage, api, fmtDT, fmtTime, inputCls, btnPrimary, btnGhost } from "./shared";
 import { Reveal } from "./motion";
 import { anrufStarten } from "@/components/Softphone";
+import { maraMarke } from "@shared/fiaon-mara-marke";
 
 // ============================================================================
 // /agent/kalender (J1) — Tages-/Wochenansicht der eigenen Rückruf-Termine
@@ -239,6 +240,7 @@ function KalenderContent() {
   const Row = ({ a, showDate }: { a: Appointment; showDate?: boolean }) => {
     const phone = apptPhone(a);
     const isOverdue = apptTime(a) < now;
+    const mara = (a as any).quelle === "termin" ? maraMarke(a.herkunft) : null;
     return (
       <div
         className={`px-4 py-3 cursor-pointer hover:bg-slate-50/70 transition-colors ${isOverdue ? "border-l-2 border-l-slate-400" : ""}`}
@@ -329,9 +331,14 @@ function KalenderContent() {
                   steht in derselben Tabelle — und stand hier mit „Rückruf" UND
                   „Kunde hat gebucht" nebeneinander. NACHHER entscheidet
                   `selbstGebucht` aus der Antwort des Servers (24.08.2026). */}
-              {(a as any).quelle === "termin" ? (
+              {/* 24.09.2026 (E-236): Mara bucht Rückrufe mit `agent_manuell` —
+                  ihr Termin stand hier als „selbst eingetragen". Die Marke kommt
+                  aus shared/fiaon-mara-marke.ts (wie im neuen Kalender). */}
+              {mara?.vonMaraEingetragen ? (
+                <span className="text-blue-700" title={mara.titel}>{mara.text}</span>
+              ) : (a as any).quelle === "termin" ? (
                 selbstGebucht(a)
-                  ? <span className="text-emerald-700">Kunde hat gebucht</span>
+                  ? <span className="text-emerald-700">Kunde hat gebucht{mara ? <span className="text-blue-700" title={mara.titel}> · {mara.text}</span> : null}</span>
                   : <span>selbst eingetragen</span>
               ) : (
                 <span>{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>

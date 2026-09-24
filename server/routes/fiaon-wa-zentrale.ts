@@ -34,6 +34,37 @@ router.get("/chef/wa-zentrale/lage", wache, async (_req: ChefRequest, res: Respo
   }
 });
 
+/**
+ * E-236: Was Mara getan hat — Termine, Links, Übergaben, Rückfälle — mit dem Ergebnis der
+ * Nachprüfung. Justin: „Ich muss sehen, was Mara gemacht hat und ob das alles stimmt."
+ */
+router.get("/chef/wa-zentrale/mara-protokoll", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    const { protokollLesen, maraTermineNachpruefen } = await import("../lib/fiaon-mara-termin");
+    if (String((req.query as any)?.pruefen ?? "") === "1") await maraTermineNachpruefen();
+    const tage = Math.min(Math.max(Number((req.query as any)?.tage) || 3, 1), 30);
+    const zeilen = await protokollLesen({ tage });
+    const zaehlen = (art: string) => zeilen.filter((z: any) => z.art === art).length;
+    res.json({
+      ok: true, tage,
+      summe: {
+        termine: zaehlen("termin_gebucht") + zaehlen("termin_verschoben"), links: zaehlen("terminlink"),
+        nichtMoeglich: zaehlen("termin_nicht_moeglich"), uebergaben: zaehlen("uebergabe"), rueckfaelle: zaehlen("rueckfall"),
+        pruefungFehler: zeilen.filter((z: any) => z.pruefung_ok === false).length,
+      },
+      zeilen: zeilen.map((z: any) => ({
+        id: Number(z.id), am: z.am, art: z.art, ok: z.ok !== false, text: z.text, nummer: z.nummer,
+        personId: z.person_id ?? null, kunde: z.kunde || null, terminId: z.termin_id ?? null,
+        pruefungOk: z.pruefung_ok ?? null, pruefung: z.pruefung_text ?? null, pruefungAm: z.pruefung_am ?? null,
+      })),
+    });
+  } catch (e) {
+    console.error("[WA-ZENTRALE] Mara-Protokoll:", e);
+    res.status(500).json({ ok: false, error: "Das Protokoll ließ sich nicht laden." });
+  }
+});
+
 router.get("/chef/wa-zentrale/vorschau", wache, async (req: ChefRequest, res: Response) => {
   try {
     const gruppe = String(req.query.gruppe || "");

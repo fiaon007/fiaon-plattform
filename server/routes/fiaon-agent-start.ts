@@ -765,6 +765,7 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
       sqlPool`
         SELECT DISTINCT ON (a.person_id)
                cl.id AS log_id, a.person_id, cl.scheduled_at, cl.note,
+               NULL::text AS herkunft,
                COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                         p.company_name, p.contact_name, p.primary_phone, 'Ohne Namen') AS name
         FROM fiaon_contact_log cl
@@ -786,7 +787,12 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
       // Leiste erinnerte also an abgesagte Termine. Erledigte und verpasste
       // hält weiterhin `status = 'gebucht'` fern.
       sqlPool`
-        SELECT t.id AS log_id, t.person_id, t.beginn AS scheduled_at, NULL::text AS note,
+        -- 24.09.2026 (E-236): Hier stand „NULL::text AS note" — die Leiste
+        -- zeigte bei gebuchten Terminen nie, worum es geht. Mara schreibt das
+        -- Anliegen in notiz; dazu der WEG für die Marke „von Mara".
+        -- Nur lesend, an der Auswahl der Zeilen ändert sich nichts.
+        SELECT t.id AS log_id, t.person_id, t.beginn AS scheduled_at, t.notiz AS note,
+               (to_jsonb(t) ->> 'herkunft') AS herkunft,
                t.quelle,
                COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                         p.company_name, p.contact_name, 'Ohne Namen') AS name
@@ -817,6 +823,7 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
         wann: new Date(r.scheduled_at).toISOString(),
         inMinuten: Math.round((new Date(r.scheduled_at).getTime() - Date.now()) / 60_000),
         notiz: r.note ? String(r.note).slice(0, 90) : null,
+        herkunft: r.herkunft ?? null,
         art,
         terminArt: marke.art,
         terminArtText: marke.text,

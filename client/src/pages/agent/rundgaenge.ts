@@ -280,7 +280,10 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "Steht auf einer Karte „FIAON Global“, hat ein Unternehmen über fiaon.com/business ein "
       + "Erstgespräch gebucht: 30 Minuten, du rufst an — und „Zur Akte“ führt dich ins "
       + "Firmen-Cockpit, wo Firma, Paketwunsch und Verlauf liegen.",
-    tipp: "Auf jeder Terminkarte steht außerdem, ob der Kunde selbst gebucht hat oder ob du den Termin eingetragen hast.",
+    // 24.09.2026 (E-236) mitgezogen: Mara trägt Rückrufe selbst ein.
+    tipp: "Auf jeder Terminkarte steht außerdem, ob der Kunde selbst gebucht hat oder ob du den Termin eingetragen hast. "
+      + "„von Mara“ (im Wochenraster ein blauer Punkt) heißt: Mara hat den Rückruf per WhatsApp oder E-Mail mit dem Kunden "
+      + "vereinbart — die Notiz darunter sagt, worum es geht. „über Maras Link“: der Kunde hat selbst über Maras Terminlink gebucht.",
   },
   {
     ziel: ".ca-knopf",
@@ -418,6 +421,16 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
     text: "Zuerst die Termine von heute in ihrer Reihenfolge, danach die Rückrufe, die du zugesagt "
       + "hast. Wer diese Liste von oben nach unten abarbeitet, hat am Abend nichts vergessen.",
     tipp: "Zugesagte Rückrufe sind Versprechen. Sie stehen deshalb bewusst vor allem anderen, was du dir selbst vorgenommen hast.",
+  },
+  {
+    // 24.09.2026 (E-236): Mara handelt selbst — der Block zeigt, was neu von ihr kommt.
+    ziel: ".st-mara-block",
+    titel: "Neu von Mara.",
+    text: "Hier stehen die Rückrufe, die Mara in den letzten 72 Stunden per WhatsApp oder E-Mail für dich vereinbart hat, "
+      + "und Termine, die Kunden über Maras Terminlink gewählt haben — mit "
+      + "Uhrzeit, Name und der Notiz, worum es geht. Du bekommst dazu auch eine Mail. „Gesehen“ blendet den "
+      + "Eintrag auf diesem Gerät aus; der Termin selbst bleibt im Kalender.",
+    tipp: "Ruf pünktlich an: Mara hat dem Kunden genau diese Uhrzeit bestätigt.",
   },
 ];
 
@@ -1229,7 +1242,11 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
     ziel: ".wr-schalter",
     titel: "Mara und du am selben Tisch.",
     text: "Der Schalter sagt, ob Mara in diesem Gespräch selbst antwortet. Sobald du hier schreibst, schweigt sie "
-      + "automatisch — du hast das letzte Wort. Willst du sie wieder übernehmen lassen, schaltest du sie hier an.",
+      + "automatisch — du hast das letzte Wort. Willst du sie wieder übernehmen lassen, schaltest du sie hier an. "
+      // 24.09.2026 (E-236): Maras Handlungen stehen als Systemzeilen im Verlauf.
+      + "Was Mara selbst erledigt hat — Rückruf beim Betreuer eingetragen, Terminlink geschickt, an einen Menschen "
+      + "übergeben — steht als eigene Zeile zwischen den Nachrichten. So siehst du vor deiner Antwort, was schon vereinbart ist. "
+      + "Bei eingetragenen Terminen zeigt eine Marke, ob die Nachprüfung stimmt („geprüft“) oder was fehlt — ein Klick darauf zeigt jeden Prüfpunkt.",
   },
 ];
 
@@ -1325,6 +1342,19 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
     titel: "Die Automatik: z. B. 5 je Stunde von 07:40 bis 20:45.",
     text: "Gleichmäßig über die Stunde verteilt, Gruppen in der Reihenfolge, die hier steht. Solange sie läuft, pausiert die alte "
       + "Stundenkette. Die Sofort-Begrüßung neuer Leads läuft immer weiter.",
+  },
+  // 24.09.2026 (E-236): Mara handelt selbst — und jede Handlung steht hier mit Nachprüfung.
+  {
+    ziel: ".wz-mara",
+    titel: "Was Mara getan hat — und ob es stimmt.",
+    text: "Jede Handlung, die Mara auf WhatsApp selbst ausführt, steht hier mit Uhrzeit und Kunde: Rückruf beim Betreuer "
+      + "eingetragen oder verschoben, persönlichen Terminlink geschickt, Termin nicht möglich, an einen Menschen übergeben, "
+      + "Ersatzsatz statt eigener Antwort (Rückfall). Oben stehen die Summen der letzten 3 Tage. Jeden eingetragenen Termin "
+      + "prüft ein Takt nach: Steht er, liegt er in der Arbeitszeit, überschneidet er sich mit nichts, ist die Mail an den "
+      + "Mitarbeiter raus und hat der Kunde die Uhrzeit per WhatsApp bekommen? Was nicht stimmt, steht rot da und geht einmal "
+      + "als dringende Aufgabe an die Leitung. Rot steht auch eine Buchung, deren gespeicherte Zeit abweicht („nicht sauber“) — "
+      + "die bitte selbst im Kalender ansehen.",
+    tipp: "„Probleme“ zeigt nur, was Aufmerksamkeit braucht. „Jetzt nachprüfen“ prüft sofort, statt auf den nächsten Takt zu warten.",
   },
   {
     ziel: ".wz-verlauf",

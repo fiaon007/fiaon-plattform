@@ -86,3 +86,23 @@
 .st-kachel.karte{background:linear-gradient(135deg,rgba(5,150,105,.24),rgba(5,150,105,.06));
   border-color:rgba(52,211,153,.4)}
 .st-kachel.karte b{color:#a7f3d0}
+
+/* ── Neu von Mara (24.09.2026, E-236) ───────────────────────────────────────
+   Justin: „im jeweiligen Dashboard anzeigen, dass ein neuer Termin über Mara
+   gebucht wurde". Derselbe Block wie „Jetzt dran", nur mit blauer Haarlinie —
+   das Blau-Paar an genau dieser Stelle, keine Fläche, kein Verlauf. Die Marke
+   „von Mara" steht auch in den Terminzeilen darunter. */
+.st-mara-block{padding:18px 22px;border-radius:22px;background:rgba(15,23,42,.6);border:1px solid rgba(59,130,246,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.st-mara-block .st-block-kopf{flex-wrap:wrap}
+.st-mara-block .st-block-kopf b{color:#bfdbfe}
+.st-mara-block .st-block-kopf small{color:#94a3b8}
+.st-mara-alle{margin-top:10px;border:0;background:transparent;padding:6px 0;color:#93c5fd;font:400 12.5px/1 'Inter',sans-serif;cursor:pointer}
+.st-mara-alle:hover{color:#bfdbfe}
+.st-mara{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;border:1px solid rgba(59,130,246,.6);font:500 10.5px/1.4 'Inter',sans-serif;letter-spacing:.04em;color:#bfdbfe;vertical-align:1px}
+.st-zeile .st-wer{min-width:0}
+.st-wer small.st-notiz{font:300 12px/1.45 'Inter',sans-serif;color:#cbd5e1;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-mara-block .st-knopf:focus-visible,.st-mara-alle:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+@media(max-width:700px){
+  .st-mara-block{padding:16px 16px}
+  .st-wer small.st-notiz{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+}

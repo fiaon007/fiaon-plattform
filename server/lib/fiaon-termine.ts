@@ -129,6 +129,12 @@ export const HERKUENFTE = {
   gruender_link: "Persönlicher Terminlink von Justin (WhatsApp)",
   // 17.09.2026 (E-188): der Gesprächskalender auf /business (FIAON Global).
   global_seite: "Gesprächskalender FIAON Global (/business)",
+  // 24.09.2026 (E-236): Mara handelt selbst. Justin: „Ich muss sehen, was Mara
+  // gemacht hat" — deshalb eigene Wege statt „agent", sonst sähe ein von Mara
+  // vereinbarter Rückruf aus wie vom Mitarbeiter selbst eingetragen.
+  mara_whatsapp: "Von Mara per WhatsApp vereinbart (Rückruf)",
+  mara_whatsapp_link: "Über Maras persönlichen Terminlink (WhatsApp) selbst gebucht",
+  mara_mail: "Von Mara aus einer E-Mail vereinbart (Rückruf)",
   unbekannt: "Weg nicht mitgeführt",
 } as const;
 
@@ -967,7 +973,8 @@ export async function versuchProtokollieren(
     agentId?: number | null;
     grund?: string | null;
     quelle?: string | null;
-    akteur?: "kunde" | "agent";
+    /** 24.09.2026 (E-236): „mara" — Rückrufe, die Mara per WhatsApp selbst eingetragen hat. */
+    akteur?: "kunde" | "agent" | "mara";
   },
   lauf: Lauf = sqlPool,
 ): Promise<void> {

@@ -34,6 +34,69 @@ interface Nachricht {
 }
 interface Vorlage { name: string; status: string; text?: string; zweck?: string; beispiele?: string[] }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MARAS HANDLUNGEN IM VERLAUF (24.09.2026, E-236)
+//
+// Justin: „Ich muss sehen, was Mara gemacht hat und ob das alles stimmt und
+// passt." Mara trägt Rückrufe ein, schickt Terminlinks, übergibt an Menschen —
+// jede Handlung steht in fiaon_mara_protokoll und kommt mit dem Gespräch als
+// `ereignisse`. Sie erscheinen als schmale Systemzeile ZWISCHEN den Blasen,
+// nie als Blase: Sie sind keine Nachricht, zählen nicht als Antwort und
+// ändern weder die Gelesen-Haken noch die Richtung rein/raus.
+// ═══════════════════════════════════════════════════════════════════════════
+interface MaraEreignis {
+  id: number; am: string;
+  art: "zeiten_angeboten" | "termin_gebucht" | "termin_verschoben" | "termin_nicht_moeglich" | "terminlink" | "uebergabe" | "rueckfall" | string;
+  ok: boolean; text: string; terminId: number | null;
+  /** null = (noch) nicht geprüft; der Prüftakt prüft nur eingetragene Termine. */
+  pruefungOk: boolean | null; pruefung: string | null;
+}
+/** Ein Eintrag im Verlauf: eine echte Nachricht oder eine Systemzeile von Mara. */
+type Eintrag = { art: "nachricht"; n: Nachricht; am: string } | { art: "mara"; e: MaraEreignis; am: string };
+
+/** Ton der Systemzeile je Handlung — grün, wenn etwas steht; gelb/rot, wenn nicht. */
+const MARA_TON: Record<string, string> = {
+  termin_gebucht: "gut", termin_verschoben: "gut", terminlink: "gut",
+  termin_nicht_moeglich: "warn", rueckfall: "rot",
+  uebergabe: "", zeiten_angeboten: "leise",
+};
+
+const wann = (n: Nachricht) => n.empfangen_am ?? n.gesendet_am ?? n.created_at;
+const msVon = (s: string | null | undefined) => (s ? new Date(s).getTime() : Number.NaN);
+
+/**
+ * Mischt Maras Handlungen nach Zeit zwischen die Nachrichten. Die Reihenfolge
+ * der Nachrichten selbst bleibt UNANGETASTET (so, wie der Server sie liefert);
+ * eine Handlung steht vor der ersten Nachricht, die später kam. Gleichstand →
+ * erst die Nachricht. Handlungen ohne lesbare Zeit stehen am Ende.
+ */
+function mischen(verlauf: Nachricht[], ereignisse: MaraEreignis[]): Eintrag[] {
+  const spaet = (s: string) => { const t = msVon(s); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
+  const ev = ereignisse
+    .filter((e) => e && e.id != null && typeof e.text === "string")
+    .sort((a, b) => (spaet(a.am) - spaet(b.am)) || Number(a.id) - Number(b.id));
+  const aus: Eintrag[] = [];
+  let i = 0;
+  for (const n of verlauf) {
+    const t = msVon(wann(n));
+    while (i < ev.length && msVon(ev[i].am) < t) { aus.push({ art: "mara", e: ev[i], am: ev[i].am }); i++; }
+    aus.push({ art: "nachricht", n, am: wann(n) });
+  }
+  for (; i < ev.length; i++) aus.push({ art: "mara", e: ev[i], am: ev[i].am });
+  return aus;
+}
+
+/**
+ * „✗ außerhalb der Arbeitszeit · ✓ Termin steht" → einzelne Punkte mit Urteil.
+ * Der Prüftakt schreibt die Probleme zuerst (server/lib/fiaon-mara-termin.ts).
+ */
+function pruefTeile(text: string | null): { gut: boolean; text: string }[] {
+  return (text ?? "").split(" · ").map((t) => t.trim()).filter(Boolean).map((t) => ({
+    gut: !/^[✗✕✘]/.test(t),
+    text: t.replace(/^[✓✔✗✕✘]\s*/, ""),
+  }));
+}
+
 /** Zahlstatus in Worten — dieselben Begriffe wie in der Akte. */
 const ZAHLTEXT: Record<string, string> = {
   paid: "bezahlt", claimed_paid: "Zahlung gemeldet", pending_payment: "Rechnung offen",
@@ -65,7 +128,11 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
     verlauf: Nachricht[]; lage: any; links: any; fensterOffen: boolean; maraAn: boolean; maraAusGrund?: string | null;
     notiz: string | null; bearbeiter: number | null; ich: number | null;
     vorlagen: Vorlage[]; ergebnisse: { wert: string; text: string }[];
+    /** E-236: optional — ältere Antworten ohne das Feld brechen nichts. */
+    ereignisse?: MaraEreignis[];
   } | null>(null);
+  // E-236: Welche Prüfung gerade aufgeklappt ist (Handy: kein Tooltip).
+  const [pruefOffen, setPruefOffen] = useState<number | null>(null);
   // E-218: Die rechte Spalte — der Fall auf einen Blick. Am Handy eingeklappt.
   const [fallOffen, setFallOffen] = useState(false);
   const [notizEntwurf, setNotizEntwurf] = useState("");
@@ -101,6 +168,7 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
           verlauf: j.verlauf, lage: j.lage, links: j.links, fensterOffen: j.fensterOffen, maraAn: j.maraAn, maraAusGrund: j.maraAusGrund ?? null,
           notiz: j.notiz, bearbeiter: j.bearbeiter ?? null, ich: j.ich ?? null,
           vorlagen: j.vorlagen, ergebnisse: j.ergebnisse ?? [],
+          ereignisse: Array.isArray(j.ereignisse) ? j.ereignisse : [],
         });
         if (!leise) setNotizEntwurf(j.notiz ?? "");
       }
@@ -114,7 +182,11 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
     return () => window.clearInterval(id);
   }, [listeLaden, chatLaden, gewaehlt]);
   useEffect(() => { if (gewaehlt) void chatLaden(gewaehlt); }, [gewaehlt, chatLaden]);
-  useEffect(() => { endeRef.current?.scrollIntoView({ block: "end" }); }, [chat?.verlauf.length, gewaehlt]);
+  // E-236: Eine neue Handlung von Mara zählt wie eine neue Nachricht — der
+  // Verlauf springt nach unten. Eine NACHGEPRÜFTE Handlung ändert nur ihre
+  // Marke, nicht die Anzahl, und lässt die Leseposition in Ruhe.
+  useEffect(() => { endeRef.current?.scrollIntoView({ block: "end" }); }, [chat?.verlauf.length, chat?.ereignisse?.length, gewaehlt]);
+  const eintraege = useMemo(() => (chat ? mischen(chat.verlauf, chat.ereignisse ?? []) : []), [chat]);
 
   // E-220: Eine getippte Ziffernfolge ist ein gültiges Ziel — mit oder ohne
   // Pluszeichen, mit oder ohne Leerzeichen. Deutsche 0-Nummern bekommen die 49.
@@ -320,10 +392,65 @@ export default function WhatsAppRaum({ basis }: { basis: string }) {
               </div>
 
               <div className="wr-verlauf">
-                {!chat ? <p className="wr-leer">Lädt …</p> : chat.verlauf.length === 0 ? <p className="wr-leer">Noch keine Nachricht.</p> : chat.verlauf.map((n, i) => {
-                  const vorher = chat.verlauf[i - 1];
-                  const amTag = tag(n.empfangen_am ?? n.gesendet_am ?? n.created_at);
-                  const neuerTag = !vorher || tag(vorher.empfangen_am ?? vorher.gesendet_am ?? vorher.created_at) !== amTag;
+                {!chat ? <p className="wr-leer">Lädt …</p> : eintraege.length === 0 ? <p className="wr-leer">Noch keine Nachricht.</p> : eintraege.map((eintrag, i) => {
+                  // Der Tagestrenner schaut auf den vorigen EINTRAG — eine Handlung
+                  // am neuen Tag bekommt ihr Datum wie eine Nachricht.
+                  const vorher = eintraege[i - 1];
+                  const amTag = tag(eintrag.am);
+                  const neuerTag = !vorher || tag(vorher.am) !== amTag;
+
+                  if (eintrag.art === "mara") {
+                    const e = eintrag.e;
+                    // termin_nicht_moeglich schreibt der Server IMMER mit ok=false
+                    // (fiaon-mara-termin.ts) — es bleibt trotzdem gelb; rot wird nur,
+                    // was eigentlich hätte stehen sollen (z. B. Buchung mit Abweichung).
+                    const grundTon = MARA_TON[e.art] ?? "";
+                    const ton = e.ok === false && grundTon !== "warn" ? "rot" : grundTon;
+                    const teile = pruefTeile(e.pruefung);
+                    const fehler = teile.filter((t) => !t.gut);
+                    const offen = pruefOffen === e.id && teile.length > 0;
+                    const listenId = `wr-pruef-${e.id}`;
+                    const wirdGeprueft = e.pruefungOk == null && e.ok !== false && e.terminId != null
+                      && (e.art === "termin_gebucht" || e.art === "termin_verschoben");
+                    const marke = e.pruefungOk === false
+                      ? { klasse: "fehler", text: `Prüfung: ${fehler[0]?.text ?? "nicht bestanden"}${fehler.length > 1 ? ` (+${fehler.length - 1})` : ""}` }
+                      : e.pruefungOk === true ? { klasse: "ok", text: "geprüft" } : null;
+                    return (
+                      <div key={`mara-${e.id}`} className="wr-reihe">
+                        {neuerTag && <div className="wr-tag">{amTag}</div>}
+                        <div className={`wr-system${ton ? ` ${ton}` : ""}`} data-art={e.art}>
+                          <p className="wr-system-satz">
+                            <b>Mara</b> · <time dateTime={e.am}>{zeit(e.am)}</time> · {e.text}
+                          </p>
+                          {marke && (teile.length > 0 ? (
+                            <button type="button" className={`wr-pruefmarke ${marke.klasse}`} title={e.pruefung ?? undefined}
+                              aria-expanded={offen} aria-controls={offen ? listenId : undefined}
+                              onClick={() => setPruefOffen(offen ? null : e.id)}>
+                              {marke.text}
+                            </button>
+                          ) : (
+                            <span className={`wr-pruefmarke ${marke.klasse}`} title={e.pruefung ?? undefined}>{marke.text}</span>
+                          ))}
+                          {wirdGeprueft && (
+                            <span className="wr-pruefmarke offen" title="Der Prüftakt kontrolliert diesen Termin in den nächsten Minuten.">wird geprüft</span>
+                          )}
+                          {offen && (
+                            <ul id={listenId} className="wr-pruefliste" aria-label="Ergebnis der Nachprüfung">
+                              {teile.map((t, k) => (
+                                <li key={k} className={t.gut ? "gut" : "fehler"}>
+                                  <span aria-hidden="true">{t.gut ? "✓" : "✗"}</span>
+                                  <span className="wr-unsichtbar">{t.gut ? "In Ordnung: " : "Fehler: "}</span>
+                                  {t.text}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const n = eintrag.n;
                   const raus = n.richtung === "raus";
                   const inhalt = n.text
                     ? n.text

@@ -7,6 +7,7 @@ import {
   Tilt, Ebene, Skelett, eur, useReduzierteBewegung, useToast,
 } from "@/lib/fiaon-ui";
 import { ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
+import { maraMarke } from "@shared/fiaon-mara-marke";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/start — die Startseite INFORMIERT, sie arbeitet nicht
@@ -126,6 +127,21 @@ interface AgentTermin {
   terminArtText?: string | null;
   terminArtTon?: string | null;
   terminArtErklaerung?: string | null;
+  /** 24.09.2026 (E-236): Weg (von Mara vereinbart?) und Notiz (worum es geht). */
+  herkunft?: string | null;
+  notiz?: string | null;
+}
+
+/**
+ * Wer hat den Termin eingetragen? Seit 24.09.2026 (E-236) zuerst Mara: Sie
+ * bucht Rückrufe mit `quelle='agent_manuell'` — ohne diese Abfrage stand hier
+ * „von dir angelegt", obwohl der Mitarbeiter ihn nie angelegt hat.
+ */
+function werGebucht(t: AgentTermin): string {
+  const m = maraMarke(t.herkunft);
+  if (m?.vonMaraEingetragen) return m.titel;
+  if (m) return "vom Kunden über Maras Link gewählt";
+  return t.quelle === "agent_manuell" ? "von dir angelegt" : "vom Kunden gewählt";
 }
 
 function Inhalt() {
@@ -614,9 +630,15 @@ function Inhalt() {
                               „vom Kunden gewählt" ist verbindlicher als ein selbst
                               angelegter Termin. */}
                           <span className="truncate">
-                            {t.dauerMin} Minuten · {t.quelle === "agent_manuell" ? "von dir angelegt" : "vom Kunden gewählt"}
+                            {t.dauerMin} Minuten · {werGebucht(t)}
                           </span>
                         </span>
+                        {t.notiz && (
+                          <span className="block text-[12px] truncate mt-0.5" title={t.notiz}
+                                style={{ color: "var(--fi-text-still)" }}>
+                            {t.notiz}
+                          </span>
+                        )}
                       </span>
                       {t.heute && (
                         <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-md"

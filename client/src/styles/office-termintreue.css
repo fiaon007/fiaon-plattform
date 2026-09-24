@@ -16,6 +16,26 @@
 }
 .tt-popup { text-align: center; }
 
+/* 24.09.2026 (E-236): Hat Mara den Termin vereinbart, sagt das Popup es —
+   und zeigt die Notiz (worum es geht). Haarlinie im Blau-Paar, die Notiz
+   höchstens vier Zeilen, damit die Knöpfe auf dem Handy sichtbar bleiben. */
+.of-modal p.tt-mara {
+  margin-top: 12px;
+  font-size: 13px; line-height: 1.55;
+  color: #dbeafe;
+}
+.of-modal p.tt-notiz {
+  margin: 12px auto 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(59,130,246,.38);
+  font-size: 13px; line-height: 1.5;
+  color: #cbd5e1;
+  text-align: left;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
 .tt-uhrzeit {
   font-variant-numeric: tabular-nums;
   color: #fff;

@@ -37,6 +37,7 @@ import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-calendar.css";
 import { TERMIN_ARTEN, terminArtAusQuelle } from "@shared/fiaon-termin-art";
+import { maraMarke, MARA_NEU_STUNDEN, type MaraMarke } from "@shared/fiaon-mara-marke";
 import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
   from "@shared/fiaon-anruf-nachbereitung";
 import { Rundgang } from "@/components/agent/Rundgang";
@@ -186,6 +187,8 @@ interface Termin {
   // der Server (`selbstGebucht`), und die Marke folgt ihm.
   selbstGebucht?: boolean; herkunft?: string | null;
   terminArtText?: string | null; terminArtTon?: string | null; terminArtErklaerung?: string | null;
+  /** Wann der Termin eingetragen wurde (fiaon_termine.created_at, seit 24.09.2026). */
+  gebucht_am?: string | null;
 }
 const tName = (a: Termin) => a.company_name || [a.first_name, a.last_name].filter(Boolean).join(" ") || a.contact_name || a.ref;
 const tPhone = (a: Termin) => a.phone ? `${a.phone_country_code || ""}${a.phone}`.replace(/\s/g, "") : a.contact_phone ? a.contact_phone.replace(/\s/g, "") : null;
@@ -198,6 +201,15 @@ const tKey = (a: Termin) => a.schluessel ?? `${a.art ?? "verlauf"}:${a.id}`;
 // nicht trägt — dann entscheidet dieselbe Regel aus der Buchungsquelle.
 const tSelbstGebucht = (a: Termin) =>
   a.quelle === "termin" && (a.selbstGebucht ?? a.buchungsquelle !== "agent_manuell");
+// ── HAT MARA DEN TERMIN VEREINBART? (24.09.2026, E-236) ────────────────────
+// Mara bucht Rückrufe mit `quelle='agent_manuell'` — ohne diese Abfrage stand
+// ihr Termin als „selbst eingetragen" da, obwohl der Mitarbeiter ihn nie
+// angelegt hat. Der Weg steht in `herkunft`; die Aufschrift kommt aus
+// shared/fiaon-mara-marke.ts (dieselbe wie Dashboard und Erinnerungsleiste).
+const tMara = (a: Termin): MaraMarke | null => (a.quelle === "termin" ? maraMarke(a.herkunft) : null);
+/** Frisch von Mara eingetragen — die Marke bekommt den Zusatz „neu". */
+const tMaraNeu = (a: Termin) => !!tMara(a) && !!a.gebucht_am
+  && Date.now() - new Date(a.gebucht_am).getTime() < MARA_NEU_STUNDEN * 3_600_000;
 // ── DER TERMIN FUEHRT IN SEINEN ARBEITSBEREICH (27.08.2026, Team-P.11) ─────
 // Vorher landete JEDER Klick in der CRM-Akte — auch ein Onboarding-Termin
 // (dort fehlen Agenda und Abschluss) und ein Zahlungs-Termin (dort fehlt die
@@ -577,6 +589,8 @@ function CalendarInnen() {
         <p className="ca-arten-satz">
           Hier stehen <b>alle deine Termine</b> — Vertriebsgespräche, Rückrufe, Zahlungsgespräche
           und Startgespräche. Die Farbe links an jedem Termin sagt dir, welche Art es ist.
+          {/* 24.09.2026 (E-236) */}
+          {" "}Rückrufe, die Mara per WhatsApp oder E-Mail für dich vereinbart hat, tragen die Marke <b>„von Mara“</b> — darunter steht, worum es geht.
         </p>
         <span className="ca-arten-legende">
           {TERMIN_ARTEN.map((a) => (
@@ -655,15 +669,20 @@ function CalendarInnen() {
                       const l = lage.get(tKey(a))!;
                       const kompakt = l.hoehe < 50; // erst ab ausreichender Höhe zweizeilig
                       const ton = a.terminArtTon || (a.art === "verlauf" ? "#94a3b8" : "#3b82f6");
+                      // E-236: Mara-Termine tragen einen blauen Punkt oben
+                      // rechts (auch im kompakten Block) und ab zwei Zeilen
+                      // die Aufschrift; der Titel sagt es in Worten.
+                      const mara = tMara(a);
                       return (
                         <button key={tKey(a)} type="button"
-                                className={`ca-w-termin${a.art === "verlauf" ? " verlauf" : ""}${a.abgesagt ? " abgesagt" : ""}${a.status === "verpasst" ? " verpasst" : ""}${tZeit(a) < jetzt && !a.abgesagt ? " vorbei" : ""}${!inVerfuegbarkeit(tZeit(a)) ? " ausser" : ""}${kompakt ? " kompakt" : ""}`}
+                                className={`ca-w-termin${a.art === "verlauf" ? " verlauf" : ""}${a.abgesagt ? " abgesagt" : ""}${a.status === "verpasst" ? " verpasst" : ""}${tZeit(a) < jetzt && !a.abgesagt ? " vorbei" : ""}${!inVerfuegbarkeit(tZeit(a)) ? " ausser" : ""}${kompakt ? " kompakt" : ""}${mara ? " mara" : ""}`}
                                 style={{ top: l.top, height: l.hoehe, left: `calc(${l.links}% + 3px)`, width: `calc(${l.breite}% - 6px)`, "--ca-ton": ton } as CSSProperties}
                                 onClick={(e) => window.matchMedia("(hover: none)").matches ? popAuf(a, e.currentTarget, true) : zurAkte(a)}
                                 onMouseEnter={(e) => hoverAuf(a, e.currentTarget)}
                                 onMouseLeave={hoverZu}
-                                title={`${uhr(tZeit(a))} ${tName(a)} – Klick öffnet die Akte`}>
-                          {kompakt ? <span className="eins"><b>{uhr(tZeit(a))}</b> · {tName(a)}</span> : <><b>{uhr(tZeit(a))}</b><span>{tName(a)}</span></>}
+                                title={`${uhr(tZeit(a))} ${tName(a)}${mara ? ` – ${mara.titel}` : ""} – Klick öffnet die Akte`}>
+                          {kompakt ? <span className="eins"><b>{uhr(tZeit(a))}</b> · {tName(a)}</span> : <><b>{uhr(tZeit(a))}</b><span>{tName(a)}</span>{mara && l.hoehe >= 64 && <span className="ca-w-mara">{mara.text}</span>}</>}
+                          {mara && <span className="sr-only"> – {mara.titel}</span>}
                         </button>
                       );
                     })}
@@ -677,6 +696,8 @@ function CalendarInnen() {
             <span><i style={{ background: "repeating-linear-gradient(135deg,rgba(255,255,255,.25) 0 3px,transparent 3px 6px)" }} />Außerhalb deiner Zeiten</span>
             <span><i style={{ background: "linear-gradient(180deg,#3b82f6,#2563eb)" }} />Vom Kunden gebucht</span>
             <span><i style={{ background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.3)" }} />Selbst notiert / Zusage</span>
+            {/* E-236: der Punkt oben rechts an einem Termin, den Mara vereinbart hat. */}
+            <span title="Rückruf, den Mara per WhatsApp oder E-Mail vereinbart hat — oder über Maras Link gebucht"><i className="ca-w-legende-mara" />Von Mara</span>
             <span><i style={{ background: "#fbbf24", height: 2, marginTop: 5 }} />Jetzt</span>
           </div>
           {/* Handy: die Woche als Tageskarten */}
@@ -747,6 +768,41 @@ const GRUENDE: { key: string; label: string; folge: string }[] = [
     folge: "Der Termin wird abgesagt, er bekommt eine neue Einladung." },
 ];
 
+// ── „VON MARA" — EINE AUFSCHRIFT FÜR ZEILE, POPOVER UND DIALOG (E-236) ─────
+// Der Tooltip sagt den ganzen Satz, der Bildschirmleser bekommt ihn als
+// versteckten Text (title allein wird nicht zuverlässig vorgelesen).
+function MaraMarkeSpan({ m, neu }: { m: MaraMarke; neu?: boolean }) {
+  return (
+    <span className="ca-marke mara" title={m.titel} data-fiaon="mara-marke">
+      {m.text}{neu && <em className="ca-mara-neu">neu</em>}
+      <span className="sr-only"> – {m.titel}</span>
+    </span>
+  );
+}
+
+/**
+ * Wer hat den Termin in den Kalender gebracht? Eine Antwort für alle drei
+ * Anzeigen. `still` = die Zeile, dort steht „selbst eingetragen" als
+ * einfacher Text statt als Marke (Bestand seit 24.08.2026).
+ *
+ * 24.09.2026 (E-236): Hat Mara den Rückruf eingetragen, ersetzt ihre Marke
+ * das „selbst eingetragen" — der Mitarbeiter hat ihn nicht angelegt. Hat der
+ * Kunde über Maras Link gebucht, bleibt „Kunde hat gebucht" und die Marke
+ * „über Maras Link" steht daneben.
+ */
+function WerMarke({ a, still, verlaufText }: { a: Termin; still?: boolean; verlaufText: string }) {
+  const mara = tMara(a);
+  if (a.quelle !== "termin") return <span className={still ? undefined : "ca-marke"}>{verlaufText}</span>;
+  if (mara?.vonMaraEingetragen) return <MaraMarkeSpan m={mara} neu={tMaraNeu(a)} />;
+  if (tSelbstGebucht(a)) {
+    return <>
+      <span className="ca-marke kunde">Kunde hat gebucht</span>
+      {mara && <MaraMarkeSpan m={mara} neu={tMaraNeu(a)} />}
+    </>;
+  }
+  return <span className={still ? undefined : "ca-marke"}>selbst eingetragen</span>;
+}
+
 function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, onNichtZustande }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; jetzt: number; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void; onNichtZustande: (grund: string) => void }) {
   const tel = tPhone(a); const d = tZeit(a);
   const [grundOffen, setGrundOffen] = useState(false);
@@ -766,17 +822,19 @@ function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, o
         {a.absageText && <span className="ca-hinweis warn">{a.absageText}</span>}
         {a.status === "verpasst" && <span className="ca-hinweis rot">Ohne Ergebnis verstrichen – mit „Nicht erschienen“ abschließen</span>}
         <small>
-          {a.terminArtText && <span className="ca-marke blau" title={a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
+          {a.terminArtText && <span className="ca-marke blau" title={tMara(a)?.vonMaraEingetragen ? tMara(a)!.titel : a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
           {/* VORHER: „Kunde hat gebucht" bei JEDEM Datensatz aus fiaon_termine —
               also auch bei einem Rückruf, den der Mitarbeiter selbst
-              eingetragen hat. NACHHER entscheidet `selbstGebucht`. */}
-          {a.quelle === "termin"
-            ? (tSelbstGebucht(a)
-                ? <span className="ca-marke kunde">Kunde hat gebucht</span>
-                : <span>selbst eingetragen</span>)
-            : <span>{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>}
+              eingetragen hat. NACHHER entscheidet `selbstGebucht` — und seit
+              24.09.2026 (E-236) zuerst, ob Mara ihn vereinbart hat. */}
+          <WerMarke a={a} still verlaufText={a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"} />
           {ausser && <span className="ca-marke warn" title="Liegt außerhalb deiner eingetragenen Verfügbarkeit"><Clock size={10} style={{ marginRight: 4 }} />außerhalb deiner Zeiten</span>}
         </small>
+        {/* 24.09.2026 (E-236): Die Notiz stand nur im Popover und im Dialog —
+            in der Zeile, die man den ganzen Tag sieht, fehlte, worum es geht.
+            Bei Mara-Terminen steht hier das Anliegen des Kunden. Eine Zeile,
+            der volle Text im Tooltip und im Dialog. */}
+        {a.note && <span className="ca-zeile-notiz" title={a.note}><StickyNote size={12} strokeWidth={1.75} aria-hidden="true" />{a.note}</span>}
       </div>
       {/* 24.08.2026 (Justin): VORHER „Anrufen · Haken · Mehr". „Mehr" führte in
           einen Dialog und sagte nicht, wofür es gut ist. NACHHER sagen die drei
@@ -852,13 +910,9 @@ function Popover({ a, fest, links, oben, ausser, onZu, onHalten, onLoslassen, on
         </div>
         <div className="ca-popover-zeit"><CalendarClock size={14} strokeWidth={1.75} /><span>{zeitTag(d.toISOString())} Uhr</span><small>{ende && dauer ? `bis ${uhr(ende)} · ${dauer} min` : "ohne feste Dauer"}</small></div>
         <div className="ca-popover-marken">
-          {a.terminArtText && <span className="ca-marke blau" title={a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
-          {/* Wie in der Zeile: nur bei `selbstGebucht` (24.08.2026). */}
-          {a.quelle === "termin"
-            ? (tSelbstGebucht(a)
-                ? <span className="ca-marke kunde">Kunde hat gebucht</span>
-                : <span className="ca-marke">selbst eingetragen</span>)
-            : <span className="ca-marke">{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>}
+          {a.terminArtText && <span className="ca-marke blau" title={tMara(a)?.vonMaraEingetragen ? tMara(a)!.titel : a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
+          {/* Wie in der Zeile: nur bei `selbstGebucht` (24.08.2026), Mara zuerst (E-236). */}
+          <WerMarke a={a} verlaufText={a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"} />
           {a.abgesagt && <span className="ca-marke warn">{a.absageText || "abgesagt"}</span>}
           {a.status === "verpasst" && <span className="ca-marke rot">nicht erschienen – offen</span>}
           {ausser && <span className="ca-marke warn">außerhalb deiner Zeiten</span>}
@@ -916,6 +970,7 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
   const [agentId, setAgentId] = useState("");
   const [grund, setGrund] = useState("");
   const tel = tPhone(a); const d = tZeit(a); const istTermin = a.art === "termin"; const gebucht = istTermin && !a.abgesagt && a.status !== "verpasst";
+  const mara = tMara(a);
   useEffect(() => { setModus(null); setWert(""); setAgentId(""); setGrund(""); }, [a]);
   // Mit ?termin= sortiert der Server die Zuständigen nach oben (C12-e).
   useEffect(() => {
@@ -934,13 +989,10 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
         <div className="ca-dialog-zeile"><CalendarClock size={16} strokeWidth={1.75} /><span>{zeitTag(d.toISOString())} Uhr</span><small>deutsche Zeit{a.dauer_min ? ` · ${a.dauer_min} min` : ""}</small></div>
         <div className="ca-dialog-zeile" style={{ flexWrap: "wrap" }}>
           {a.terminArtText && <span className="ca-marke blau" style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
-          {/* Wie in der Zeile: nur bei `selbstGebucht` (24.08.2026). Ein selbst
-              eingetragener Rückruf heisst hier weiter „Rückruf-Termin". */}
-          {a.quelle === "termin"
-            ? (tSelbstGebucht(a)
-                ? <span className="ca-marke kunde">Kunde hat gebucht</span>
-                : <span className="ca-marke">selbst eingetragen</span>)
-            : <span className="ca-marke">{a.scheduled_at ? "Rückruf-Termin" : "Zahlungs-Zusage"}</span>}
+          {/* Wie in der Zeile: nur bei `selbstGebucht` (24.08.2026), Mara zuerst
+              (E-236). Ein selbst notierter Verlaufseintrag heisst hier weiter
+              „Rückruf-Termin". */}
+          <WerMarke a={a} verlaufText={a.scheduled_at ? "Rückruf-Termin" : "Zahlungs-Zusage"} />
           {a.abgesagt && <span className="ca-marke warn">{a.absageText || "abgesagt"}</span>}
           {a.status === "verpasst" && <span className="ca-marke rot">nicht erschienen – offen</span>}
           {ausser && <span className="ca-marke warn">außerhalb deiner Zeiten</span>}
@@ -969,7 +1021,17 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             solange es die Funktion nicht gab. Jetzt geht es, und der Hinweis
             sagt stattdessen, worauf zu achten ist: Der Mensch hat sich diese
             Zeit selbst ausgesucht, also gehört ein Wort dazu. */}
-        {tSelbstGebucht(a) && !modus && <p className="ca-lade" style={{ marginTop: 12 }}>Diese Zeit hat der Kunde selbst gewählt. Verschieben geht — sag ihm vorher Bescheid; die neue Zeit bekommt er auch per Mail.</p>}
+        {/* 24.09.2026 (E-236): Bei einem Mara-Termin sagt der Satz, WER ihn
+            vereinbart hat und wann — der Mitarbeiter hat ihn nie angelegt und
+            soll wissen, dass der Kunde auf seinen Anruf wartet. */}
+        {mara && !modus && (
+          <p className="ca-mara-satz">
+            {mara.satz}
+            {a.gebucht_am ? ` Eingetragen am ${zeitTag(a.gebucht_am)} Uhr.` : ""}
+            {tSelbstGebucht(a) ? " Verschieben geht — sag ihm vorher Bescheid; die neue Zeit bekommt er auch per Mail." : ""}
+          </p>
+        )}
+        {!mara && tSelbstGebucht(a) && !modus && <p className="ca-lade" style={{ marginTop: 12 }}>Diese Zeit hat der Kunde selbst gewählt. Verschieben geht — sag ihm vorher Bescheid; die neue Zeit bekommt er auch per Mail.</p>}
 
         {modus === "verschieben" && (
           <div className="ca-form">

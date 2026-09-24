@@ -24,6 +24,12 @@
 
 import { sqlPool } from "./db-pool";
 import { berlinDatumText, berlinUhrzeit } from "./fiaon-termine";
+
+/** „Donnerstag" — Wochentag eines Zeitpunkts in Berlin. */
+export function berlinWochentagName(at: Date | string): string {
+  const d = typeof at === "string" ? new Date(at) : at;
+  return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long" }).format(d);
+}
 import { absoluteUrl } from "../fiaon-base-url";
 
 type Lauf = typeof sqlPool;
@@ -33,7 +39,7 @@ const QUELLE_TEXT: Record<string, string> = {
   onboarding_call: "Startgespräch (Pflichttermin nach der Zahlung)",
   onboarding: "Onboarding-Termin",
   nichterreicht_mail: "Rückruf-Termin (zweimal nicht erreicht)",
-  agent_manuell: "von dir selbst angelegt",
+  agent_manuell: "Rückruf/Termin, von Hand eingetragen",
   gruender: "Gespräch mit dem Gründer — selbst gebucht über fiaon.com/justin",
   // E-188: Die BUCHUNG eines Global-Gesprächs meldet der Auftrag
   // (fiaon-global-termin.ts), nicht diese Datei — die ABSAGE läuft hier durch.
@@ -50,6 +56,8 @@ interface Beteiligte {
   notiz: string | null;
   ref: string | null;
   personId: number;
+  /** Der Weg der Buchung (HERKUENFTE) — entscheidet, wie die Mail den Termin beschreibt. */
+  herkunft: string | null;
 }
 
 async function beteiligteZu(terminId: number, lauf: Lauf): Promise<Beteiligte | null> {
@@ -60,7 +68,7 @@ async function beteiligteZu(terminId: number, lauf: Lauf): Promise<Beteiligte | 
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                     p.company_name, p.contact_name, p.primary_email, 'Ohne Namen') AS kunde,
            p.primary_phone AS kunde_telefon,
-           t.notiz,
+           t.notiz, t.herkunft,
            (SELECT a.ref FROM fiaon_applications a
              WHERE a.person_id = t.person_id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS ref
@@ -79,6 +87,7 @@ async function beteiligteZu(terminId: number, lauf: Lauf): Promise<Beteiligte | 
     notiz: r.notiz ? String(r.notiz) : null,
     ref: r.ref ?? null,
     personId: Number(r.person_id),
+    herkunft: r.herkunft ? String(r.herkunft) : null,
   };
 }
 
@@ -94,26 +103,44 @@ async function melden(opts: {
   const b = await beteiligteZu(opts.terminId, opts.lauf);
   if (!b) return { gemeldet: false, grund: "Termin nicht gefunden" };
 
-  const wann = `${berlinDatumText(opts.beginn)} um ${berlinUhrzeit(opts.beginn)} Uhr`;
+  // Wochentag dazu (24.09.2026): „24.09.2026 um 12:25 Uhr" allein wird schnell verlesen;
+  // mit „Donnerstag" fällt ein verrutschter Tag sofort auf.
+  const wann = `${berlinWochentagName(opts.beginn)}, ${berlinDatumText(opts.beginn)} um ${berlinUhrzeit(opts.beginn)} Uhr`;
+  // ══════════════════════════════════════════════════════════════════════
+  // WER HAT GEBUCHT? (24.09.2026, E-236)
+  // Die Mail sagte bei JEDEM Termin „hat sich selbst einen Termin bei dir
+  // ausgesucht" — auch, wenn Mara (WhatsApp oder Mail) einen Rückruf
+  // vereinbart hatte, und dazu „Art: von dir selbst angelegt". Beides falsch.
+  // Justin: „Die Mails mit den Buchungen müssen die Zeiten und alles stimmen."
+  // ══════════════════════════════════════════════════════════════════════
+  const vonMara = b.herkunft === "mara_whatsapp" || b.herkunft === "mara_mail";
+  const kanal = b.herkunft === "mara_mail" ? "E-Mail" : "WhatsApp";
+  const einleitung = vonMara
+    ? `Mara hat per ${kanal} einen Rückruf mit ${b.kunde} für dich vereinbart. Ruf bitte pünktlich an; was Mara mit dem Kunden besprochen hat, steht unten.`
+    : b.herkunft === "mara_whatsapp_link"
+      ? `${b.kunde} hat sich über den Terminlink, den Mara per WhatsApp geschickt hat, selbst einen Termin bei dir ausgesucht.`
+      : opts.quelle === "agent_manuell"
+        ? `Für ${b.kunde} wurde ein Termin bei dir eingetragen.`
+        : `${b.kunde} hat sich selbst einen Termin bei dir ausgesucht.`;
   // E-188: Ein Global-Gespräch hängt an einem Firmen-Lead — seine „Akte" ist
   // das Firmen-Cockpit, die Kundenakte wäre für einen Firmenkontakt leer.
   const akte = !b.personId ? absoluteUrl("/agent/kalender")
     : opts.quelle === "global" ? absoluteUrl(`/agent/firmen?person=${b.personId}`)
     : absoluteUrl(`/agent/kunden?person=${b.personId}`);
-  const quelle = QUELLE_TEXT[opts.quelle] ?? opts.quelle;
+  const quelle = vonMara ? `Rückruf — von Mara per ${kanal} vereinbart` : (QUELLE_TEXT[opts.quelle] ?? opts.quelle);
 
   const betreff = opts.art === "buchung"
-    ? `Neuer Termin: ${b.kunde} — ${wann}`
+    ? `Neuer Termin${vonMara ? " (von Mara)" : ""}: ${b.kunde} — ${wann}`
     : `Termin ABGESAGT: ${b.kunde} — ${wann}`;
 
   const text = opts.art === "buchung"
     ? `Hallo ${b.agentVorname},\n\n`
-      + `${b.kunde} hat sich selbst einen Termin bei dir ausgesucht.\n\n`
+      + `${einleitung}\n\n`
       + `Wann: ${wann}\n`
       + `Art: ${quelle}\n`
       + (b.kundeTelefon ? `Telefon: ${b.kundeTelefon}\n` : "")
       + (b.ref ? `Bestellung: ${b.ref}\n` : "")
-      + (b.notiz ? `\nAnliegen:\n${b.notiz}\n` : "")
+      + (b.notiz ? `\n${vonMara ? "Worum es geht" : "Anliegen"}:\n${b.notiz}\n` : "")
       + `\nZur Akte: ${akte}\n\n`
       + `Der Termin steht in deinem Kalender und meldet sich 30 Minuten vorher.`
     : `Hallo ${b.agentVorname},\n\n`

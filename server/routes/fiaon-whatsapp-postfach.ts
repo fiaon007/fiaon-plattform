@@ -324,8 +324,16 @@ function routen(hole: (req: any) => Blick) {
         }
         : { antrag: "https://fiaon.com/start", zahlung: null, termin: "https://fiaon.com/termin", bereich: "https://fiaon.com/login", firmen: "https://fiaon.com/global" };
 
+      // E-236: Was Mara in diesem Gespräch GETAN hat (Termin eingetragen, Link geschickt, Übergabe) —
+      // als Systemzeilen im Verlauf. Eigene Tabelle, NIE als Zeile in fiaon_whatsapp (sonst gälte das
+      // Gespräch als beantwortet und Mara schwiege).
+      const { protokollLesen } = await import("../lib/fiaon-mara-termin");
+      const ereignisse = (await protokollLesen({ nummer }).catch(() => [])).map((p: any) => ({
+        id: Number(p.id), am: p.am, art: String(p.art), ok: p.ok !== false, text: String(p.text),
+        terminId: p.termin_id ?? null, pruefungOk: p.pruefung_ok ?? null, pruefung: p.pruefung_text ?? null,
+      }));
       res.json({
-        ok: true, nummer, verlauf, lage, links,
+        ok: true, nummer, verlauf, lage, links, ereignisse,
         fensterOffen: await fensterOffen(nummer),
         maraAn: g?.mara_an !== false,
         // E-230: „mensch" = pausiert, weil jemand schreibt (läuft ab); „schalter" = aus.

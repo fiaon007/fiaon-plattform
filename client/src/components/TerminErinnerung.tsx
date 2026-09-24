@@ -48,6 +48,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import { maraMarke } from "@shared/fiaon-mara-marke";
 import "@/styles/office-termintreue.css";
 
 interface Faellig {
@@ -65,6 +66,8 @@ interface Faellig {
   terminArtText?: string | null;
   terminArtTon?: string | null;
   terminArtErklaerung?: string | null;
+  /** Der Buchungsweg (fiaon_termine.herkunft) — „mara_whatsapp" & Co. tragen die Marke „von Mara" (E-236). */
+  herkunft?: string | null;
 }
 
 /** Ein eigener gebuchter Termin aus /agent/termine — die Quelle des Popups. */
@@ -79,6 +82,9 @@ interface EigenTermin {
   uhrzeit: string;
   status: string;
   terminArt?: string | null;
+  /** 24.09.2026 (E-236): Weg und Notiz — das Popup sagt, dass Mara vereinbart hat und worum es geht. */
+  herkunft?: string | null;
+  notiz?: string | null;
 }
 
 // 17.09.2026 (E-188): Ein Erstgespräch zu FIAON Global hängt an einem
@@ -233,22 +239,33 @@ export function TerminErinnerung() {
     }) + " Uhr";
   };
 
-  /** Ein Eintrag im Band: Art · Zeit · Name (Klick → Akte) · Notiz. */
-  const eintrag = (t: Faellig, praefix: string) => (
+  /** Ein Eintrag im Band: Art · (von Mara) · Zeit · Name (Klick → Akte) · Notiz. */
+  const eintrag = (t: Faellig, praefix: string) => {
+    // 24.09.2026 (E-236): Ein Rückruf, den Mara vereinbart hat, sagt das
+    // hier — sonst hält der Mitarbeiter ihn für seinen eigenen und weiß
+    // nicht, dass der Kunde gerade auf ihn wartet.
+    const mara = maraMarke(t.herkunft);
+    return (
     <span className="fi-erin-seg" key={`${praefix}${t.art}-${t.logId}`}>
       <span className="fi-erin-art"
-            title={t.terminArtErklaerung || undefined}
+            title={(mara?.vonMaraEingetragen ? mara.titel : t.terminArtErklaerung) || undefined}
             style={t.terminArtTon ? { color: t.terminArtTon } : undefined}>
         {t.terminArtText || (t.art === "startgespraech" ? "Onboarding" : "Rückruf")}
       </span>
+      {mara && (
+        <span className="fi-erin-mara" title={mara.titel}>
+          {mara.text}<span className="sr-only"> – {mara.titel}</span>
+        </span>
+      )}
       <span className="fi-erin-zeit" data-ueber={t.inMinuten < 0 ? "1" : "0"}>{zeit(t)}</span>
       {/* Der Klick führt DIREKT zum Kunden — Punkt 8 der Rückmeldung vom
           11.08.: „Beim Klick auf den Termin direkt den zugehörigen
           Kundendatensatz öffnen." */}
       <Link href={akteZiel(t, "/agent/kunden")} className="fi-erin-name">{t.name}</Link>
-      {t.notiz && <span className="fi-erin-notiz">{t.notiz}</span>}
+      {t.notiz && <span className="fi-erin-notiz" title={t.notiz}>{t.notiz}</span>}
     </span>
-  );
+    );
+  };
 
   const jetzt = Date.now();
 
@@ -265,6 +282,8 @@ export function TerminErinnerung() {
     }));
     setPopup(null);
   };
+
+  const popupMara = popup ? maraMarke(popup.herkunft) : null;
 
   return (
     <>
@@ -301,10 +320,14 @@ export function TerminErinnerung() {
         <div className="of-modal-hintergrund tt-hintergrund" role="dialog" aria-modal="true"
              aria-label={`Terminerinnerung: ${popup.name}`}>
           <div className="of-modal tt-popup">
-            <span className="of-modal-pille blau">Dein Termin</span>
+            <span className="of-modal-pille blau">{popupMara ? `Dein Termin · ${popupMara.text}` : "Dein Termin"}</span>
             <h2>{popup.name}</h2>
             <p>Das Gespräch beginnt um <span className="tt-uhrzeit">{popup.uhrzeit} Uhr</span>.
               {" "}Ruf pünktlich an — der Kunde wartet.</p>
+            {/* 24.09.2026 (E-236): wer den Termin vereinbart hat und worum es
+                geht — zwei Minuten vor dem Anruf ist das die wichtigste Zeile. */}
+            {popupMara && <p className="tt-mara">{popupMara.satz}</p>}
+            {popup.notiz && <p className="tt-notiz" title={popup.notiz}>{popup.notiz}</p>}
             <div className={`tt-countdown${restSek <= 60 ? " knapp" : ""}`} aria-live="polite">
               {countdown}
               <small>{restSek > 0 ? "bis zum Beginn" : "es geht los"}</small>
@@ -400,6 +423,13 @@ const ERINNERUNG_CSS = `
   font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; max-width: 34ch;
   color: rgba(214,231,255,.72) !important;
+}
+/* 24.09.2026 (E-236): „von Mara" — Haarlinie im Blau-Paar, keine Fläche. */
+.fi-erin-mara {
+  flex-shrink: 0; font-size: 10px; font-weight: 500; letter-spacing: .05em;
+  padding: 1px 7px; border-radius: 999px;
+  border: 1px solid rgba(147,197,253,.55);
+  color: #dbeafe !important;
 }
 .fi-erin-mehr {
   flex-shrink: 0; font-size: 11px; font-weight: 700;

@@ -132,7 +132,7 @@ export async function einmalPasswortSetzen(
     UPDATE fiaon_applications
     -- 06.09.2026: gehasht statt Klartext, und keine Kopie mehr in utm (die Anmeldung liest die Spalte).
     SET password = ${passwortHashen(passwort)},
-        utm = COALESCE(utm, '{}'::jsonb) - 'password',
+        utm = CASE WHEN jsonb_typeof(utm) = 'object' THEN utm - 'password' ELSE COALESCE(utm, '{}'::jsonb) END,
         einmal_passwort_bis = ${bis},
         passwort_wechsel_noetig = TRUE,
         updated_at = NOW()
@@ -160,7 +160,7 @@ export async function passwortSetzen(
   await lauf`
     UPDATE fiaon_applications
     SET password = ${passwortHashen(neu)},
-        utm = COALESCE(utm, '{}'::jsonb) - 'password',
+        utm = CASE WHEN jsonb_typeof(utm) = 'object' THEN utm - 'password' ELSE COALESCE(utm, '{}'::jsonb) END,
         einmal_passwort_bis = NULL,
         passwort_wechsel_noetig = FALSE,
         updated_at = NOW()

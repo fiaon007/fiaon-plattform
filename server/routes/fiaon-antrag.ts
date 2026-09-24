@@ -5252,10 +5252,14 @@ router.post("/reset-password-direct", async (req, res) => {
     const { ref } = entry;
     // utm wird ERGÄNZT, nicht ersetzt — das Ersetzen war Teil der Ursache
     // (es löschte die Rückfall-Kopie und alle übrigen utm-Schlüssel).
+    // 24.09.2026: Bei Altzeilen ist utm ein JSON-Skalar (Zeichenkette statt Objekt) —
+    // „utm - 'password'“ brach dort mit „cannot delete from scalar“ ab (RESET-05, 59 von
+    // 71 Resets seit 10.09.). Entfernt wird der Schlüssel nur noch aus Objekten; die
+    // Anmeldung liest ohnehin die Spalte password (storedPasswordOf).
     const updated = await sqlPool`
       UPDATE fiaon_applications
       SET password = ${passwortHashen(String(newPassword))},
-          utm = COALESCE(utm, '{}'::jsonb) - 'password',
+          utm = CASE WHEN jsonb_typeof(utm) = 'object' THEN utm - 'password' ELSE COALESCE(utm, '{}'::jsonb) END,
           updated_at = NOW()
       WHERE ref = ${ref}
       RETURNING ref

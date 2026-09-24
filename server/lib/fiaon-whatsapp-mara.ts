@@ -29,8 +29,10 @@
 // bleibt der Kunde danach 15 Minuten ohne Antwort (20–8 Uhr sofort),
 // übernimmt sie wieder.
 //
-// „100 % menschlich" heißt Ton und Einfühlung, nicht Täuschung: Fragt jemand,
-// sagt sie offen, dass sie eine digitale Assistentin ist (EU AI Act Art. 50).
+// „100 % menschlich" heißt Ton und Einfühlung, nicht Täuschung. KI-Verordnung
+// Art. 50 (seit 02.08.2026): Sie stellt sich in ihrer ersten Antwort jedes
+// Gesprächs als digitale Assistentin vor (falls noch nicht geschehen) und sagt
+// es jederzeit offen, wenn jemand fragt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { kiAufruf, antwortLesen, MODELL, agentNamen } from "./fiaon-postmeister-agent";
@@ -155,10 +157,11 @@ function gespraechSchema(): Promise<void> {
 // ═══════════════════════════════════════════════════════════════════════════
 function auftrag(ein: {
   name: string; wer: string; lage: string; ziel: string; link: string;
-  gedaechtnis: string; verlauf: string; wissen: string; hausanweisung: string;
+  gedaechtnis: string; verlauf: string; wissen: string; hausanweisung: string; kiHinweis?: boolean;
 }): string {
   return [
     ein.hausanweisung,
+    ein.kiHinweis ? `PFLICHT IN DIESER ANTWORT (KI-Verordnung Art. 50): Du hast dich in diesem Gespräch noch nicht als digitale Assistentin vorgestellt. Sag es im ersten Satz in einem kurzen, freundlichen Halbsatz („Hier ist ${ein.name.split(" ")[0]}, die digitale Assistentin von FIAON —") und beantworte dann seine Frage.` : ``,
     `Du bist ${ein.name} und schreibst für FIAON auf WhatsApp. Du bist eine digitale Assistentin — im Ton aber so menschlich wie die beste Kollegin im Team: aufmerksam, warm, schnell, und du weißt genau, wovon du redest.`,
     ``,
     `WER DU BIST — UND WAS DU NIE VORGIBST`,
@@ -473,7 +476,15 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     }
 
     const namen = await agentNamen();
+    // KI-Hinweis (KI-Verordnung Art. 50, seit 02.08.2026): spätestens bei der ersten Interaktion.
+    // Nur die Begrüßung fiaon_kk_anfrage trägt ihn — wer auf eine andere Vorlage antwortet oder
+    // uns direkt schreibt, erfährt es in Maras erster Antwort.
+    const [vorgestellt] = (await sqlPool`
+      SELECT 1 FROM fiaon_whatsapp WHERE nummer = ${nummer} AND richtung = 'raus' AND status <> 'fehler'
+         AND text ILIKE '%digitale Assistentin%' LIMIT 1`.catch(() => [])) as any[];
+    const kiHinweis = !vorgestellt;
     const text = auftrag({
+      kiHinweis,
       name: namen.voll,
       wer: lage.wer, lage: lage.lage, ziel: lage.ziel, link: lage.link,
       gedaechtnis: personId ? await gedaechtnisText(Number(personId)).catch(() => "") : "",
@@ -525,6 +536,11 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     if (heikel && !mensch) {
       mensch = true;
       uebergabe = uebergabe || `Heikles Anliegen (Kündigung/Widerruf/Erstattung/Beschwerde): „${offenerText.slice(0, 240)}"`;
+    }
+
+    // Fehlt der Pflicht-Hinweis trotz Auftrag, wird er vorangestellt — nie eine erste Antwort ohne ihn.
+    if (kiHinweis && !/digitale Assistentin/i.test(antwort)) {
+      antwort = `Hier ist ${namen.voll.split(" ")[0]}, die digitale Assistentin von FIAON. ${antwort}`;
     }
 
     await vorbereiten(nummer, antwort, Number(neuesteRein.id), frage);

@@ -38,7 +38,40 @@ client/src/i18n/global-seite.ts, client/src/pages/site/global-seite.tsx, GlobalN
 server/lib/fiaon-global-seo.ts, server/lib/fiaon-seiten-seo.ts, scripts/pruef-global-en.ts.
 
 ---
+## 24.09.2026 (3) — Mara antwortet immer, kennt das Haus, erinnert an Monatsraten (E-230)
 
+**Der Anlass (Justin):** „Mara muss IMMER antworten, Mara hat auf einige Kunden nicht reagiert — was hat es damit auf
+sich? 100 % menschlich, 100 % Gehirn, pitcht perfekt mit den Kreditkarten." Und: „Schreib die Raten-Vorlage und reich sie ein."
+
+**Was los war:** Seit dem 23.09. um ca. 18 Uhr hat Mara auf WhatsApp niemandem geantwortet. Jede Antwort wurde
+vorbereitet, als „veraltet" verworfen und neu gedacht — 713-mal, ohne dass eine rausging. Nachts behoben (Sofortfix),
+heute der ganze Antwortweg neu.
+
+**Was Mara jetzt tut:**
+- **Jede Kundennachricht bekommt eine Antwort** — nach 6 bis 18 Sekunden. Fällt etwas durch (Neustart, Fehler),
+  holt ein Takt jede Minute nach. Nachts nur Frisches, Älteres ab 7 Uhr.
+- **Schreibt jemand aus dem Team selbst,** hält Mara sich heraus — bleibt der Kunde danach 15 Minuten ohne Antwort
+  (nachts sofort), übernimmt sie wieder. Wer Mara im Gespräch von Hand ausschaltet, schaltet sie wirklich aus.
+- **Nie mehr Schweigen:** Darf ein Satz nicht raus, schreibt sie ihn neu; klappt das nicht, sagt sie ehrlich, dass sie
+  die Frage an den Betreuer gibt — und legt die Aufgabe an. Das gilt auch, wenn sie einen Rückruf zusagt oder der
+  Kunde kündigen, widerrufen oder Geld zurück will.
+- **Ihr Wissen:** Preise, Ablauf, Vertrag und Kündigung wie in den AGB, Konto und Karte über die DKB, Unterlagen,
+  Firmendaten — und die Lage des Kunden (Antrag, erste Zahlung, bezahlt, Vertrag alt oder neu, gekündigt).
+- **Ehrlich:** Fragt jemand, ob er mit einer KI schreibt, sagt sie es. Sie schreibt immer auf Deutsch.
+- **Schutz:** höchstens 6 Antworten in 30 Minuten an dieselbe Nummer (gegen Abwesenheits-Automaten), „Stopp" wird
+  einmal bestätigt, ausländische Handynummern bekommen ihre Antwort (vorher an eine falsche +49-Nummer).
+
+**Neue Vorlage „Ihre Monatsrate":** Betrag, Fälligkeit, Verwendungszweck und der Knopf „Rate bezahlen" direkt zur
+Zahlungsseite genau dieser Rate — ohne Mahnwort. Bei Meta eingereicht am 24.09. In der WhatsApp-Zentrale gibt es die
+Gruppe **„Monatsrate fällig"**: höchstens alle 7 Tage und zweimal je Rate, nie wenn die Zahlung schon unverbucht auf
+dem Konto liegt oder ein Zahldatum zugesagt ist. Jede Gruppe zeigt, wie viele davon eingewilligt haben; angeschrieben
+werden alle mit WhatsApp-Nummer (Justins Entscheidung). Warten Kunden länger als 2 Minuten, steht es oben gelb.
+
+**Nebenbei behoben:** Zahlungsseiten und Rechnungen der Bestellungen im neuen Format ohne Bindestrich (FIAONXXXXXX-2)
+führten auf „nicht gefunden".
+
+**Wo:** server/lib/fiaon-whatsapp-mara.ts, server/lib/fiaon-wa-zentrale.ts, shared/fiaon-lead-texte.ts (fiaon_kk_rate),
+shared/fiaon-whatsapp-erlaubnis.ts, Chefbüro → Mara → WhatsApp-Zentrale.
 ## 24.09.2026 (2) — FIAON Global: zehn neue Ratgeber, Wissen neu geordnet, eigenes Vorschaubild, llms.txt (E-232)
 
 **Der Anlass (Justin, 23.09.):** „Schreibe 10 neue Ratgeber perfekt zu diesem Thema … 100 % SEO-optimiert … bring uns
@@ -76,6 +109,44 @@ shared/fiaon-global-menue.ts; server/lib/fiaon-llms.ts; server/lib/fiaon-seiten-
 shared/fiaon-pixel.ts; scripts/pruef-global-seiten.ts.
 
 ---
+
+## 24.09.2026 (1) — Meta erfährt jetzt von gebuchten Gesprächen und erteilten Aufträgen bei FIAON Global (E-231)
+
+**Der Befund (23.09.):** Bucht jemand auf fiaon.com/business ein Gespräch oder erteilt einen Auftrag, kam bei
+Meta nichts an — weder aus dem Browser noch vom Server. Seit die Conversions API live ist (23.09. abends), hat sie
+„Antrag begonnen" und „Antrag abgeschickt" gemeldet, aber **nie** „Gespräch gebucht", „Auftrag erteilt" oder
+„Zahlung gebucht". Die Kampagnen für FIAON Global konnten also auf nichts optimieren.
+
+**Die drei Ursachen:**
+1. **Browser:** Die Meldung an Meta hing hinter der Prüfung auf das Google-Tag. Das Google-Tag ist nicht
+   eingerichtet — die Funktion hörte deshalb immer vor Meta auf, auch mit Marketing-Einwilligung.
+2. **Server, Gespräch:** Die Meldung „Gespräch gebucht" sitzt im Buchungsweg der Privatkunden. Ein Global-Gespräch
+   läuft über einen eigenen Weg und kam dort nie vorbei; eine Rückruf-Anfrage erst recht nicht.
+3. **Server, Auftrag:** Der Auftrag nahm die Werbe-Kennungen des Browsers nicht mit. Ohne sie meldet der Server
+   nichts — deshalb blieb auch die spätere Zahlung eines Global-Auftrags bei Meta unsichtbar.
+
+**Was jetzt gilt:**
+- Meta hängt nur noch an der **Marketing-Einwilligung** und am geladenen Pixel, nicht mehr am Google-Tag. Google
+  bleibt wie es war (Statistik bzw. Marketing + geladenes Google-Tag).
+- **Gespräch gebucht** (Kalender und Rückruf-Bitte) → „Schedule", **Auftrag erteilt** → „SubmitApplication",
+  **Zahlung eines Global-Auftrags** → „Purchase" (über den bestehenden Buchungsweg).
+- Browser und Server melden jedes Ereignis mit **derselben Kennung** — Meta zählt es einmal, nicht doppelt.
+  Beim Gespräch vergibt der Server die Kennung und gibt sie dem Browser mit zurück.
+- **Ohne Marketing-Einwilligung speichert der Server nichts** — keine Adresse, keinen Browser, keine Kennung.
+- Ein Global-Auftrag zählt bei Meta **nicht** als Privatantrag („Antrag begonnen/abgeschickt") — nur als Auftrag.
+- Nebenbei: Bei Firmenaufträgen ging bisher keine Telefonnummer an Meta mit (sie steht dort in einem anderen
+  Feld). Jetzt schon — das verbessert die Zuordnung. Privatanträge melden unverändert dasselbe.
+
+**Geprüft:** Alt gegen neu im nachgebauten Browser (alt: nichts an Meta; neu: richtige Kennung); gegen die echte
+Datenbank in einer zurückgerollten Transaktion (Privatantrag: alt = neu, Hash für Hash); Ende zu Ende auf einem
+lokalen Prüfstand ohne Schlüssel — Gespräch über die echte Oberfläche, Rückruf mit und ohne Einwilligung, Auftrag.
+
+**Wo:** client/src/lib/werbung.ts (werbeKonversion), client/src/components/site/GlobalGespraech.tsx,
+client/src/pages/business-start.tsx, server/lib/fiaon-meta-capi.ts (ereignisMitMessung, webEreignis),
+server/routes/fiaon-global-termin.ts, server/routes/fiaon-global.ts, server/lib/fiaon-global-auftrag.ts,
+server/routes/fiaon-antrag.ts. Sichtbar unter fiaon.com/chef/s/lead-motor → „Messung an Meta" → „Gemeldete
+Ereignisse (die letzten 40)" — Spalte „Antrag / Lead" zeigt global-termin-…, global-anfrage-… bzw. die Auftragsreferenz.
+
 
 ## 23.09.2026 (16) — WhatsApp für Mara: Zentrale mit Knopf und Automatik, Vorlagen mit Bild (E-229)
 

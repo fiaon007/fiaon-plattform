@@ -187,13 +187,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const adminEnrichRoutes = await import('./routes/admin-enrich');
   app.use('/api/admin', adminEnrichRoutes.default);
 
-  // 🔧 Setup Admin Database Routes (view all database tables)
-  const adminDatabaseRoutes = await import('./routes/admin-database');
-  app.use('/api/database', adminDatabaseRoutes.default);
+  // ═══════════════════════════════════════════════════════════════════════
+  // SICHERHEIT (24.09.2026, Befund aus der Admindashboard-Sitzung, bestätigt):
+  // /api/database (ARAS-Altcode, server/routes/admin-database.ts) las OHNE
+  // jede Anmeldung jede Tabelle der Produktions-DB — Liste, Struktur, INHALT.
+  // Niemand im Frontend nutzt es → ausgehängt. Die Datei bleibt, der Weg ist zu.
+  // /api/ceo-mind-os und /api/todos (Altwege, Postfach/Notizen/Aufgaben) lagen
+  // ebenfalls offen → nur noch Inhaber (Chefbüro oder Admin-Code). Offen bleiben
+  // nur der externe Mail-Webhook (POST /inbound-mail, CloudMailin) und /health.
+  // ═══════════════════════════════════════════════════════════════════════
+  const { requireChef: altwegWacheFabrik } = await import('./routes/fiaon-chef-zugang');
+  const altwegWache = altwegWacheFabrik('inhaber');
+  app.use('/api/database', (_req, res) => res.status(410).json({ ok: false, error: 'Dieser Zugang ist abgeschaltet.' }));
 
   // 🧠 CEO Mind-OS — Strategie-Notizbuch mit Groq + Tavily
   const ceoMindOsRoutes = await import('./routes/ceo-mind-os');
-  app.use('/api/ceo-mind-os', ceoMindOsRoutes.default);
+  app.use('/api/ceo-mind-os', (req, res, next) => {
+    if ((req.method === 'POST' && req.path === '/inbound-mail') || req.path === '/health') return next();
+    return altwegWache(req as any, res, next);
+  }, ceoMindOsRoutes.default);
+  app.use('/api/todos', (req, res, next) => altwegWache(req as any, res, next));
 
   // 🏆 Founding Member Pass — Public Routes (no auth)
   const { publicRouter: foundingPublicRoutes } = await import('./routes/founding');

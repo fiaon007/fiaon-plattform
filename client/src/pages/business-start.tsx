@@ -52,7 +52,7 @@ import SignaturePad from "@/components/agent/SignaturPad";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_START_WOERTER } from "@/i18n/global-start";
 import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, GLOBAL_GELD_ZURUECK, GLOBAL_JAHRESBETREUUNG, globalPaket, globalPreisText, globalPlanungText, istFiaonSelbst } from "@shared/fiaon-global";
-import { kampagne, werbeKonversion } from "@/lib/werbung";
+import { kampagne, messungsDaten, werbeKonversion } from "@/lib/werbung";
 import "@/styles/global-start.css";
 
 type Land = "DE" | "AT" | "CH";
@@ -414,6 +414,9 @@ export default function BusinessStart() {
         bestaetigungen: privat ? { ...hakenPrivat, sofortBeginn } : haken, unterschriftPng: unterschrift, sprache: s, quelle: new URLSearchParams(window.location.search).get("quelle") || "business_seite", falle,
         jahresbetreuung,
         kampagne: kampagne(),
+        // E-231: fbp/fbc und die Einwilligung — der Server meldet den Auftrag (SubmitApplication) und später
+        // die Zahlung (Purchase) unter der Referenz; der Pixel unten nimmt dieselbe Kennung.
+        messung: messungsDaten(),
       }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) {

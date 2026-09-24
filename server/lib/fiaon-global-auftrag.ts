@@ -860,6 +860,9 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
         // ag1 = Vertragsbedingungen, ag3 = Vertragsannahme. ag2 wäre die Einwilligung in die
         // Bonitätsprüfung — die gibt es hier nicht, also wird sie auch nicht behauptet.
         ag1: true, ag2: false, ag3: true,
+        // E-231: Ein Firmenauftrag ist kein Privatantrag — an Meta geht er als „Auftrag erteilt"
+        // (Route /global/auftrag), nicht als „Antrag begonnen/abgeschickt".
+        webMessungAus: true,
       }),
       signal: AbortSignal.timeout(20_000),
     });

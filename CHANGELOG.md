@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 24.09.2026 (5) — Englischer Vertragswortlaut: „business credit cards", neue Vertragsfassung 2026-09-24 (E-234, Nachtrag)
+
+**Der Anlass (Justin):** „Vertragswortlaut natürlich auf business credit cards — und alles andere ebenfalls fertig machen."
+
+**Was sich ändert:** Der dritte Pflichthinweis im englischen Vertrag sagte „US business cards" — im britischen Englisch
+ist das eine Visitenkarte. Jetzt: „US business credit cards generally require a personal guarantee from the owner."
+Der erste Pflichthinweis nennt das Gesetz vollständig: „section 138 of the German Fiscal Code, AO" (vorher nur „Fiscal
+Code"). Weil beide Sätze wörtlich im englischen Vertrag stehen, ist das eine **neue Vertragsfassung 2026-09-24**
+(vorher 2026-09-19c); sie steht ab sofort in jedem neuen PDF und in jeder neuen Auftragsakte. Bestehende Aufträge
+behalten ihre Fassung. Der deutsche Vertragstext ist unverändert.
+
+**Mitgezogen (dieselben Wörter):** Haken im englischen Bestellweg („personal guarantee for business credit cards"),
+Einleitung der englischen Übersicht /en/business („bank account and business credit cards"), Schritt im englischen
+Kundenbereich („German Fiscal Code, AO"), Menüpunkt „Credit cards and capital" (vorher „Business credit and capital",
+die Seite heißt „Business credit cards and capital"), Kurzdauer Global VIP „same as Global Capital, kick-off on site".
+
+**Prüfstand:** scripts/pruef-global-vertrag.ts verlangt jetzt die Fassung 2026-09-24 und die Wörter „business credit
+cards" / „German Fiscal Code, AO" im englischen Pflichthinweis.
+
+**Wo:** shared/fiaon-global.ts (GLOBAL_PFLICHTHINWEIS.en, GLOBAL_VERTRAG_VERSION), shared/fiaon-global-bereich.ts,
+shared/fiaon-global-menue.ts, shared/fiaon-seo-seiten.ts, client/src/i18n/global.ts, client/src/i18n/global-start.ts.
+
+---
+
 ## 24.09.2026 (4) — FIAON Global komplett auf Englisch, Google Search Console, Bing/IndexNow (E-234)
 
 **Der Anlass (Justin):** „Mach die englischen Fassungen der Business-Unterseiten — mach alles du, setze alles um"

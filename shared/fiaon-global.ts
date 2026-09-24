@@ -205,7 +205,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
       marke: "In person on site",
       fuer: "For everyone who wants to experience the build-up in person in Miami and sit at the table themselves.",
       dauer: "Support as in Global Capital, with the kick-off in person on site",
-      dauerKurz: "as Global Capital, kick-off on site",
+      dauerKurz: "same as Global Capital, kick-off on site",
       leistungen: [
         "Everything in Global Capital",
         "The kick-off in person in Miami",
@@ -274,9 +274,9 @@ export const GLOBAL_PFLICHTHINWEIS = {
     "US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
   ],
   en: [
-    "A US company that is managed from Germany, Austria or Switzerland remains taxable there; its formation must be reported to the tax office (in Germany under section 138 of the Fiscal Code).",
+    "A US company that is managed from Germany, Austria or Switzerland remains taxable there; its formation must be reported to the tax office (in Germany under section 138 of the German Fiscal Code, AO).",
     "Annual filing duties apply in the United States even without revenue (Form 5472 with Form 1120), along with state fees and the cost of the registered agent.",
-    "US business cards generally require a personal guarantee from the owner. The institution alone decides on the account, the card and the limit.",
+    "US business credit cards generally require a personal guarantee from the owner. The institution alone decides on the account, the card and the limit.",
   ],
 } as const;
 
@@ -585,8 +585,10 @@ export const GLOBAL_GELD_ZURUECK = {
   },
 } as const;
 
-/** Version des Vertragstexts — steht im PDF und in der Auftragsakte. */
-export const GLOBAL_VERTRAG_VERSION = "2026-09-19c";
+/** Version des Vertragstexts — steht im PDF und in der Auftragsakte.
+ *  2026-09-24 (E-234, Justin): englischer Pflichthinweis „US business credit cards" statt „US business cards"
+ *  (britisch = Visitenkarte) und „German Fiscal Code, AO" statt „Fiscal Code". Deutscher Text unverändert. */
+export const GLOBAL_VERTRAG_VERSION = "2026-09-24";
 
 // ── FIAON IST IMMER DIE GEGENSEITE (19.09.2026, Florentines Fund) ─────────────
 // Im Bestellweg ließ sich als eigenes Unternehmen „FIAON LTD" mit einer Anschrift

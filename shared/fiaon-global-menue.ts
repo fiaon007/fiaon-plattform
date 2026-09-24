@@ -29,7 +29,7 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   { gruppe: "leistungen", pfad: "/business/us-firmengruendung", titel: "US-Firmengründung", text: "LLC oder Corporation, mit Team vor Ort", reihe: 1, en: { titel: "US company formation", text: "LLC or corporation, with a team on the ground" } },
   { gruppe: "leistungen", pfad: "/business/ein-itin", titel: "EIN und ITIN", text: "Die US-Steuernummern für Firma und Person", reihe: 2, en: { titel: "EIN and ITIN", text: "The US tax numbers for company and person" } },
   { gruppe: "leistungen", pfad: "/business/us-geschaeftskonto", titel: "US-Geschäftskonto", text: "Antrag vollständig vorbereitet", reihe: 3, en: { titel: "US business bank account", text: "Application fully prepared" } },
-  { gruppe: "leistungen", pfad: "/business/firmenkarten-kapital", titel: "Firmenkarten und Kapital", text: "Kartenleiter und Kapitalrahmen", reihe: 4, en: { titel: "Business credit and capital", text: "Card ladder and capital range" } },
+  { gruppe: "leistungen", pfad: "/business/firmenkarten-kapital", titel: "Firmenkarten und Kapital", text: "Kartenleiter und Kapitalrahmen", reihe: 4, en: { titel: "Credit cards and capital", text: "Business credit cards, card ladder, capital range" } },
   { gruppe: "leistungen", pfad: "/business/us-pflichten", titel: "US-Pflichten und Steuern", text: "Form 5472, Jahresmeldung, Registered Agent", reihe: 5, en: { titel: "US compliance and taxes", text: "Form 5472, annual report, registered agent" } },
   { gruppe: "leistungen", pfad: "/business/miami", titel: "Global VIP · Miami", text: "Der Auftakt vor Ort, Flug und Hotel inklusive", reihe: 6, en: { titel: "Global VIP · Miami", text: "The kick-off on site, flight and hotel included" } },
 

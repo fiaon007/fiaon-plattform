@@ -359,7 +359,8 @@ ok(auftrag.globalAuftragPruefen(firmaOhneArt).ok === true && (auftrag.globalAuft
 // Wort davon — und dass ein nicht gebuchter Vertrag Byte für Byte der bisherige bleibt.
 {
   const { GLOBAL_JAHRESBETREUUNG, globalJahresbetreuungPreisText } = await import("../shared/fiaon-global");
-  const NEUE_FASSUNG = "2026-09-19c";
+  // 24.09.2026 (E-234): englischer Pflichthinweis „business credit cards" / „German Fiscal Code, AO" → Fassung 2026-09-24.
+  const NEUE_FASSUNG = "2026-09-24";
   const entitaeten = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
   // Der Text EINER Ziffer — damit geprüft wird, WO ein Satz steht, nicht nur, DASS er irgendwo steht.
   const zifferText = (vorschau: string, nr: number) => entitaeten(vorschau.split('<section class="gv-ziffer">')[nr] ?? "");
@@ -371,6 +372,7 @@ ok(auftrag.globalAuftragPruefen(firmaOhneArt).ok === true && (auftrag.globalAuft
 
   abschnitt("Jahresbetreuung: Fassung");
   ok(GLOBAL_VERTRAG_VERSION >= NEUE_FASSUNG, `Vertragsfassung ist „${GLOBAL_VERTRAG_VERSION}“ — der Vertrag mit Jahresbetreuung ist eine neue Fassung und braucht „${NEUE_FASSUNG}“ oder später (shared/fiaon-global.ts, GLOBAL_VERTRAG_VERSION)`);
+  ok(!/\bbusiness cards?\b/i.test(GLOBAL_PFLICHTHINWEIS.en.join(" ")) && GLOBAL_PFLICHTHINWEIS.en[2].startsWith("US business credit cards") && GLOBAL_PFLICHTHINWEIS.en[0].includes("German Fiscal Code, AO"), "Englischer Pflichthinweis: „business credit cards“ (nicht „business cards“ = Visitenkarte) und „German Fiscal Code, AO“ (E-234, Fassung 2026-09-24)");
   ok(GLOBAL_JAHRESBETREUUNG.preisCents === 69900 && globalJahresbetreuungPreisText("de") === "699 €" && globalJahresbetreuungPreisText("en") === "€699", `Preis der Quelle: ${GLOBAL_JAHRESBETREUUNG.preisCents} / ${globalJahresbetreuungPreisText("de")} / ${globalJahresbetreuungPreisText("en")}`);
 
   let faelle = 0;

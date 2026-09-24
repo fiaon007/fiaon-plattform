@@ -294,7 +294,7 @@ const en: typeof de = {
   auge: "FIAON Global · For companies and private individuals",
   h1a: "Form a US company.",
   h1b: "From one source, at a fixed price.",
-  lead: "Formation, EIN and ITIN, bank account and business cards in the United States — handled by our team in Miami, partner lawyers and partner tax advisers. One contact, one contract under German law, one fixed price.",
+  lead: "Formation, EIN and ITIN, bank account and business credit cards in the United States — handled by our team in Miami, partner lawyers and partner tax advisers. One contact, one contract under German law, one fixed price.",
   knopfPakete: "Packages and prices",
   knopfGespraech: "Arrange a first call",
   gespraechMikro: "Thirty minutes with your contact — free of charge and without obligation.",

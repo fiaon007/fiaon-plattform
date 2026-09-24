@@ -353,7 +353,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       titel: "Form a US company from €2,499 — FIAON Global",
       beschreibung: "Form a US company with a team on the ground — for companies and private individuals: formation, EIN, ITIN, account, cards. Fixed price from €2,499.",
       h1: "Form a US company. From one source, at a fixed price.",
-      lead: "Formation, EIN and ITIN, bank account and business cards in the United States — handled by our team in Miami, our partner lawyers and partner tax advisers. One contact, one contract under German law, one fixed price — all fees included.",
+      lead: "Formation, EIN and ITIN, bank account and business credit cards in the United States — handled by our team in Miami, our partner lawyers and partner tax advisers. One contact, one contract under German law, one fixed price — all fees included.",
       abschnitte: [
         { h2: "Eight points of contact — or one contract.", text: "Anyone building a US company alone deals with a formation service, registered agent, the US tax authority, a lawyer, a tax adviser, a US CPA, banks and card issuers. At FIAON Global one contact coordinates them all. Tax advisers, US CPA and lawyers act under the client’s engagement; FIAON pays their fees. The institution concerned decides on account, card and limit. If all you need is the company, a pure formation service costs less." },
         { h2: "Four stages. A sequence that has proven itself.", text: "Formation and documents (company, EIN, ITIN, registered agent, US address), the first business card with a small limit, the card ladder across further issuers and, later, a possible bank loan. FIAON gives durations as typical experience — authorities and institutions set the pace." },

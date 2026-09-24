@@ -267,13 +267,13 @@ const en: typeof de = {
   erneut: "Reload",
   haken: {
     vertrag: "I have read the contract and instruct FIAON on these terms.",
-    pflichthinweis: "I have noted the information on tax liability in my country of residence, the annual US filings and the personal guarantee for business cards.",
+    pflichthinweis: "I have noted the information on tax liability in my country of residence, the annual US filings and the personal guarantee for business credit cards.",
     unternehmer: "I am acting as a business and not as a consumer.",
     vertretung: "I am authorised to represent the company for this order.",
   },
   hakenPrivat: {
     vertrag: "I have read the contract and instruct FIAON on these terms.",
-    pflichthinweis: "I have noted the information on tax liability in my country of residence, the annual US filings and the personal guarantee for business cards.",
+    pflichthinweis: "I have noted the information on tax liability in my country of residence, the annual US filings and the personal guarantee for business credit cards.",
     widerruf: "I have noted the withdrawal instructions and the model withdrawal form in the annex.",
   },
   unterschrift: "Your signature",

@@ -506,7 +506,7 @@ export function globalHeimatMeldungSchritt(land: unknown, sprache: BereichSprach
   const l = String(land ?? "").trim().toUpperCase();
   if (sprache === "en") {
     return l === "DE"
-      ? "Report the formation of your US company to your tax office (in Germany under section 138 of the Fiscal Code) — your tax adviser tells you the form and the deadline."
+      ? "Report the formation of your US company to your tax office (in Germany under section 138 of the German Fiscal Code, AO) — your tax adviser tells you the form and the deadline."
       : "Report the formation of your US company to the tax authority in your country of residence — your tax adviser tells you the form and the deadline.";
   }
   return l === "DE"

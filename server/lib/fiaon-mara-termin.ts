@@ -59,7 +59,7 @@ export const MARA_HERKUNFT_LINK = "mara_whatsapp_link";
 // ═══════════════════════════════════════════════════════════════════════════
 export type ProtokollArt =
   | "zeiten_angeboten" | "termin_gebucht" | "termin_verschoben" | "termin_nicht_moeglich"
-  | "terminlink" | "uebergabe" | "rueckfall";
+  | "terminlink" | "uebergabe" | "rueckfall" | "zahlungszusage";
 
 let tabelleBereit: Promise<void> | null = null;
 export function protokollTabelle(lauf: Lauf = sqlPool): Promise<void> {

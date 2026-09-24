@@ -289,7 +289,7 @@ function nichtDeutsch(a: string): boolean {
  * Prüft einen Entwurf darauf, ob er verkauft oder abschreckt. Gibt Hinweise für
  * den zweiten Entwurf zurück — leer heißt: gut so.
  */
-export function verkaufsPruefung(antwort: string, ein: { kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean }): string[] {
+export function verkaufsPruefung(antwort: string, ein: { kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean; zahlungslage?: boolean }): string[] {
   const a = String(antwort ?? "").trim();
   const kunde = String(ein.kunde ?? "");
   // Was er in den letzten Nachrichten selbst angesprochen hat, darf Mara aufgreifen (nicht nur die neueste).
@@ -314,6 +314,10 @@ export function verkaufsPruefung(antwort: string, ein: { kunde: string; kontext?
     const schonDa = urls.some((u) => ein.letzteDu.some((d) => d.includes(u.replace(/^https?:\/\//i, ""))));
     const zugestimmt = ZUSTIMMUNG.test(kunde.trim()) && /\?\s*$/.test(String(ein.letzteDu[0] ?? "").trim());
     if (schonDa && !LINK_GEFRAGT.test(kunde) && !zugestimmt) hinweise.push("Den Link hat er gerade erst von dir bekommen — nicht noch einmal schicken, ende mit einer kurzen Frage.");
+  }
+  // Justin (24.09., Niko M.): Geht es um seine Zahlung, sagt Mara „Nach der Zahlung ist Ihr Account aktiv" — nichts von der Partnerbank.
+  if (ein.zahlungslage && /partnerbank|\bdkb\b|link\s+(?:unserer|der)\s+bank/i.test(a) && !/partnerbank|\bdkb\b|\bbank\b|karte/i.test(kunde)) {
+    hinweise.push("Es geht um seine Zahlung: „Nach der Zahlung ist Ihr Account aktiv“ — kein Satz über die Partnerbank oder einen Link der Bank.");
   }
   if (heikel && /woran\s+es\s+hängt|darf\s+ich\s+fragen|warum\s+möchten|überleg|schade/i.test(a)) {
     hinweise.push("Bei Kündigung, Widerruf oder Storno: nicht nach dem Grund fragen, nicht umstimmen — verstehen und übergeben.");
@@ -411,7 +415,7 @@ function auftrag(ein: {
     `KUNDE: Ich suche unkompliziert eine Kreditkarte.`,
     `DU: Ja, da sind Sie bei uns genau richtig! Der Antrag dauert etwa zwei Minuten, den Rest übernehmen wir mit Ihnen: [Link]`,
     `KUNDE: Brauche ich Einkommensnachweise für die Pakete?`,
-    `DU: Einen Gehaltsnachweis brauchen Sie nicht — im Antrag geben Sie Ihr Einkommen nur an. Sobald Ihre erste Rate bei uns gebucht ist, geht der Link unserer Partnerbank von selbst an Sie raus.`,
+    `DU: Einen Gehaltsnachweis brauchen Sie nicht — im Antrag geben Sie Ihr Einkommen nur an. Sobald Ihre erste Rate bei uns gebucht ist, ist Ihr Account aktiv — und es geht direkt weiter.`,
     `KUNDE: Dann geht es nicht, mein Konto ist im Minus.`,
     `DU: Keine Sorge — ein Minus auf dem Konto ist bei uns kein Hindernis, genau für solche Lagen gibt es FIAON. Wir bereiten Konto und Karte bei unserer Partnerbank mit Ihnen so vor, dass Ihre Chancen so gut wie möglich stehen. Wollen wir starten?`,
     `KUNDE: Ich brauche eine Kreditkarte bis 10.000 Euro, ohne Schufa und ohne Gehaltsnachweis, nur mit Ausweis.`,
@@ -419,7 +423,7 @@ function auftrag(ein: {
     `KUNDE: Geht das auch ganz ohne Schufa-Abfrage?`,
     `DU: Die Partnerbank schaut selbst auf die Schufa — aber sie muss nicht perfekt sein, genau da setzen wir an und bereiten Ihren Antrag vorher so stark wie möglich vor. Wollen wir starten?`,
     `KUNDE: Ich brauche dringend Geld, die Miete ist fällig.`,
-    `DU: Das verstehe ich. Geld zahlen wir nicht aus — was wir möglich machen, ist Ihre Kreditkarte: Sobald Ihre erste Rate gebucht ist, geht der Link unserer Partnerbank raus, und nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen da, meist vorher schon per Apple Pay nutzbar. Soll ${b} Ihnen den schnellsten Weg am Telefon zeigen?`,
+    `DU: Das verstehe ich. Geld zahlen wir nicht aus — was wir möglich machen, ist Ihre Kreditkarte: Nach der Zahlung ist Ihr Account aktiv, und nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen da, meist vorher schon per Apple Pay nutzbar. Soll ${b} Ihnen den schnellsten Weg am Telefon zeigen?`,
     `KUNDE: Ich brauche 5.000 Euro Kredit.`,
     `DU: Einen Kredit gibt es bei uns nicht, und wir zahlen kein Geld aus — wir bereiten Konto und Kreditkarte bei unserer Partnerbank mit Ihnen vor; den Rahmen legt die Bank fest. Soll ich Ihnen den Antrag schicken?`,
     `KUNDE: Kann ich mit PayPal zahlen?`,
@@ -443,6 +447,7 @@ function auftrag(ein: {
     `JETZT: ${ein.jetzt ?? ""} (Berliner Zeit). Zeiten gibst du immer als „YYYY-MM-DD HH:MM" an.`,
     `· freie_zeiten — die freien Anrufzeiten seines Betreuers (nur in dessen Arbeitszeit, ohne Überschneidung, frühestens in 20 Minuten). Nutze es, sobald er angerufen werden will, unsicher ist oder du ihm einen Anruf anbietest. Nenn ihm dann zwei oder drei dieser Zeiten — nie eine andere.`,
     `· rueckruf_eintragen — trägt den Rückruf ECHT in den Kalender ein. Nutze es, sobald er eine Uhrzeit oder ein Zeitfenster nennt („12:25", „1-3", „nachmittags", „morgen früh") oder einer angebotenen Zeit zustimmt. Das Werkzeug legt den Wunsch auf den nächsten freien Platz im Kalender. Danach nennst du ihm GENAU die Zeit und den Namen aus dem Ergebnis: „Ist eingetragen: heute, 12:30 Uhr — Nikita ruft Sie an." Weicht die Zeit von seinem Wunsch ab, sag es offen. Geht es nicht, biete die Alternativen aus dem Ergebnis an.`,
+    `· zahlungszusage_merken — hält fest, wann er zahlen will („ich kann erst am 30.09."). Danach bekommt er bis zu diesem Tag keine Zahlungserinnerung, und sein Betreuer sieht den Termin. Nutze es immer, wenn er einen Zahltag nennt; bestätige ihm dann kurz den Tag.`,
     `· terminlink_schicken — sein persönlicher Link, auf dem er selbst eine Zeit bei seinem Betreuer wählt. Nutze ihn, wenn er sich nicht festlegen will, keine der Zeiten passt oder er „ich melde mich" sagt. Den Link aus dem Ergebnis schickst du mit.`,
     `Regeln: Eine Zeit, die nicht aus einem Werkzeug kommt, nennst du nie. „Ist eingetragen", „steht", „ruft Sie um … an" sagst du nur, wenn rueckruf_eintragen ok gemeldet hat. Hat er schon einen Termin, nennst du ihn statt einen neuen zu machen (verschieben: true nur, wenn er ausdrücklich eine andere Zeit will). Zu „vormittags/nachmittags/abends" nimmst du das Fenster 09:00–12:00, 12:00–17:00 oder 17:00–20:00 des genannten Tages (ohne Tag: heute, wenn noch möglich, sonst morgen).`,
     ``,
@@ -467,6 +472,7 @@ function auftrag(ein: {
     `· Kannst du etwas nicht wahr beantworten, sagst du in einem Satz, wer es klärt, und setzt mensch auf true. Nie raten, nie erfinden.`,
     `· Hat eine frühere Nachricht nicht gepasst, korrigierst du nach vorn — ohne über dich selbst oder deine Regeln zu reden („missverständlich", „meine vorige Aussage", „ich darf nicht", „ich erfinde nichts").`,
     `· Du erzählst nie ungefragt, was du über ihn im System siehst (etwa einen alten, gekündigten Vertrag). Du nutzt es nur, um richtig zu antworten.`,
+    `· Logisch und im Kontext: Deine Antwort passt zu dem, was ER gerade gesagt hat und wo er steht — nie ein Satz aus einer anderen Lage (kein Antragslink für einen, der schon bezahlt; kein Partnerbank-Satz, wenn es um seine Zahlung geht; keine Wiederholung dessen, was die Vorlage schon sagte). Sagt er „ich zahle am 30.09.", ist die Antwort: passt, festgehalten, seine Zahlungsseite bleibt offen — sonst nichts.`,
     ``,
     `SO SCHREIBST DU`,
     `· Immer Sie. Keine Anrede mit Herr oder Frau (du kennst sein Geschlecht nicht) — höchstens mal sein Vorname und Nachname, meist gar keine Anrede. Über Kolleginnen und Kollegen schreibst du mit Namen, nicht mit „er" oder „sie".`,
@@ -489,7 +495,7 @@ function auftrag(ein: {
     `Den Link schickst du, sobald Interesse erkennbar ist. Für Unternehmen (GmbH, Gewerbe, Firma): fiaon.com/business.`,
     ``,
     `WAHRE SÄTZE, MIT DENEN DU VERKAUFST (in eigenen Worten)`,
-    `· „Sobald Ihre erste Rate bei uns gebucht ist, ist Ihr Account aktiv — und der fertige Link unserer Partnerbank für Konto und Karte geht von selbst an Sie raus."`,
+    `· „Nach der Zahlung ist Ihr Account aktiv." (Genau so — nicht mehr: kein Satz über einen Link der Partnerbank, kein Zeitpunkt dafür.)`,
     `· „Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay."`,
     `· „Ihr Betreuer ist an Ihrer Seite, Sie machen das nicht allein."`,
     `· „Wir holen Ihre Auskunft, erklären jeden Eintrag und übernehmen die Schreiben an die Auskunfteien."`,
@@ -500,8 +506,8 @@ function auftrag(ein: {
     ``,
     `WAHRE ANTWORTEN AUF DIE HÄUFIGSTEN FRAGEN (kurz halten!)`,
     `· „Wo stelle ich den Antrag?" → Der Link, dazu: etwa zwei Minuten.`,
-    `· „Wie läuft das?" → Antrag abschließen, mit der ersten Rate aktivieren, den Link unserer Partnerbank öffnen: erst das Girokonto, daraus die Karte. Den Rest begleitet sein Betreuer.`,
-    `· „Wie lange dauert das?" → Antrag etwa zwei Minuten. Sobald seine erste Rate gebucht ist, geht der Link der Partnerbank von selbst raus. Nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon Apple Pay.`,
+    `· „Wie läuft das?" → Antrag abschließen, mit der ersten Rate den Account aktivieren, dann begleitet ihn sein Betreuer Schritt für Schritt zu Konto und Karte.`,
+    `· „Wie lange dauert das?" → Antrag etwa zwei Minuten. Nach der Zahlung ist sein Account aktiv. Nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon Apple Pay.`,
     `· „Was kostet das?" → Die Preise aus den Fakten (Start, Pro, Ultra, High-End je Monat), immer mit „zwölf zinsfreie Monatsraten", jede überweist er selbst, nichts wird abgebucht. Kündigungsfristen erklärst du, wenn er nach Laufzeit, Bindung oder Kündigung fragt: Neue Verträge laufen zwölf Monate; gekündigt wird mit einem Monat Frist zum Ende der zwölf Monate, sonst läuft der Vertrag weiter und ist dann jederzeit mit einem Monat Frist kündbar (AGB § 6). Bei bestehenden Kunden gilt, was in SEINE LAGE steht. Eine vorzeitige Entlassung oder Kulanz sagst du nie zu.`,
     `· „Welches Paket?" → Du ordnest zu, du wählst nicht für ihn: Je höher das Paket, desto höher der Ziel-Rahmen im Programm (Start 500 €, Pro 5.000 €, Ultra 15.000 €, High-End 25.000 €); das Limit legt die Partnerbank fest. Das Paket lässt sich im Antrag und im Startgespräch ändern.`,
     `· „Ist das seriös?" → Gute Frage! Firmendaten aus den Fakten (FIAON LTD, London, Companies House-Nummer), Vertrag und Rechnung schriftlich, jede Zahlung überweist er selbst, 14 Tage Widerrufsrecht. Dann zurück zum Schritt.`,
@@ -512,10 +518,10 @@ function auftrag(ein: {
     `· „Welche Unterlagen brauche ich?" (nur wenn er DAS fragt) → „Für den Start nur den Antrag. Danach laden Sie in Ihrem Bereich Ausweis, Kontoauszüge und Ihre Schufa-Auskunft hoch — ein Handyfoto genügt, und bei der Auskunft helfen wir Ihnen."`,
     `· „Bekomme ich einen Kredit? Wird Geld ausgezahlt? Wie schnell ist das Geld auf meinem Konto?" → Klar und freundlich: Kredite gibt es bei uns nicht, und wir zahlen kein Geld aus — wir bringen ihn zu Konto und Kreditkarte bei unserer Partnerbank; über die Karte entscheidet die Bank. Dann der Schritt. Keine Zuordnung Kreditbetrag → Paket ohne den Satz über die Bank.`,
     `· „Im Antrag stand 25.000 €" oder „mir wurde etwas genehmigt" → Die Zahl im Antrag ist sein Ziel-Rahmen im Programm, darauf arbeiten wir hin; über Karte und Limit entscheidet die Partnerbank.`,
-    `· „Ich dachte, ich zahle erst nach der Freigabe." / „Warum vorher zahlen?" → Die erste Rate ist mit dem Vertrag fällig; mit ihr wird sein Account aktiv, der Link der Partnerbank geht raus, und die Leistung beginnt: Auskunft, Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer. Über die Karte entscheidet die Bank. Ist er verärgert, zeig Verständnis und übergib.`,
+    `· „Ich dachte, ich zahle erst nach der Freigabe." / „Warum vorher zahlen?" → Die erste Rate ist mit dem Vertrag fällig; mit ihr wird sein Account aktiv, und die Leistung beginnt: Auskunft, Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer. Über die Karte entscheidet die Bank. Ist er verärgert, zeig Verständnis und übergib.`,
     `· „Lastschrift, Karte, PayPal?" → Ganz einfach per Überweisung mit seinem Verwendungszweck; Bankdaten und QR-Code stehen auf seiner Zahlungsseite.`,
     `· „Welche Bank ist das?" → Unsere Partnerbank ist die DKB: erst das Girokonto, daraus bucht er die Visa-Kreditkarte dazu — genau in dieser Reihenfolge begleiten wir ihn.`,
-    `· „Was passiert nach der Zahlung?" → Sobald sie gebucht ist: Account aktiv, der Link der Partnerbank geht raus, dann das Startgespräch mit seinem festen Betreuer, etwa 15 Minuten am Telefon.`,
+    `· „Was passiert nach der Zahlung?" → Sobald sie gebucht ist, ist sein Account aktiv; dann das Startgespräch mit seinem festen Betreuer, etwa 15 Minuten am Telefon.`,
     `· „Wann kommt mein Link oder meine Karte?" → Nimm den Stand aus seiner Lage (die Karte kommt erst, wenn er den Link der Partnerbank öffnet, dort das Konto eröffnet und die Karte dazubucht). Steht dort nichts, sag, dass sein Betreuer nachsieht, und übergib.`,
     `· „Keine Zeit", „später" → Klar — sein Antrag bleibt gespeichert, der Link funktioniert jederzeit, es dauert nur zwei Minuten.`,
     `· Bewertungen, Kundenzahlen, Presse → Du nennst keine Zahl und keine Plattform, die nicht in den Fakten steht; stattdessen die Firmendaten und das Widerrufsrecht.`,
@@ -674,13 +680,13 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
       }
     } else if (b.payment_status === "claimed_paid") {
       erg.lage = `Antrag fertig (${paket ?? "Paket offen"}), er hat seine Zahlung gemeldet — die Buchung steht noch aus.`;
-      erg.ziel = "Kein Wort vom Bezahlen. Danken, der Eingang wird geprüft, mit der Buchung ist der Account aktiv und der Link der Partnerbank geht von selbst raus.";
+      erg.ziel = "Kein Wort vom Bezahlen. Danken, der Eingang wird geprüft, mit der Buchung ist sein Account aktiv.";
       erg.link = "https://fiaon.com/login";
       erg.verkaufen = false;
     } else if (abgeschickt && b.payment_reference) {
       const cents = paketPreisCents(b.pack_key);
       erg.lage = `Antrag fertig und abgeschickt (${paket ?? "Paket offen"}), die erste Zahlung${cents ? ` über ${(cents / 100).toFixed(2).replace(".", ",")} €` : ""} ist noch offen.`;
-      erg.ziel = "Er aktiviert seinen Account mit der ersten Zahlung. Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code.";
+      erg.ziel = "Er aktiviert seinen Account mit der ersten Zahlung („Nach der Zahlung ist Ihr Account aktiv“ — kein Satz über die Partnerbank). Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code. Nennt er einen Zahltag, hältst du ihn mit zahlungszusage_merken fest.";
       erg.link = `https://fiaon.com/zahlung/${String(b.payment_reference)}`;
     } else {
       erg.lage = `Antrag angefangen, bei Schritt ${b.schritt ?? 0} stehen geblieben${paket ? ` (${paket})` : ""}. Seine Angaben sind gespeichert.`;
@@ -849,7 +855,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const kunde = offeneRein.slice().reverse().map((v) => String(v.text || v.knopf || "")).join("\n");
     const kontext = verlauf.filter((v) => v.richtung === "rein").slice(0, 5).map((v) => String(v.text || v.knopf || "")).join("\n");
     const verlaufText = verlauf.map((v) => String(v.text ?? "")).join("\n");
-    const e = await entwerfen(text, { kunde, kontext, letzteDu: letzteDu.slice(0, 2), verkaufen: lage.verkaufen, verlaufText },
+    const zahlungslage = /Account aktiv|Eingang wird geprüft|Zahlungsseite/.test(lage.ziel);
+    const e = await entwerfen(text, { kunde, kontext, letzteDu: letzteDu.slice(0, 2), verkaufen: lage.verkaufen, verlaufText, zahlungslage },
       personId ? { personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer } : null);
     let roh = e.roh;
     let antwort = e.antwort;
@@ -1008,6 +1015,18 @@ const WERKZEUGE = [
   {
     type: "function",
     function: {
+      name: "zahlungszusage_merken",
+      description: "Merkt den Tag, an dem der Kunde zahlen will (Zahlungszusage). Bis dahin keine Erinnerungen; der Betreuer sieht es. Nur mit einem konkreten Datum.",
+      parameters: {
+        type: "object", additionalProperties: false,
+        properties: { datum: { type: "string", description: "Zahltag YYYY-MM-DD." }, hinweis: { type: "string", description: "Ein Satz für den Betreuer, in den Worten des Kunden." } },
+        required: ["datum"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "terminlink_schicken",
       description: "Sein persönlicher Link, auf dem er selbst eine Zeit bei seinem Betreuer wählt. Für Unentschlossene oder wenn keine angebotene Zeit passt.",
       parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
@@ -1064,6 +1083,26 @@ async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext)
       },
     };
   }
+  if (name === "zahlungszusage_merken") {
+    const datum = String(args?.datum ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return { ergebnis: { ok: false, grund: "Kein gültiges Datum (YYYY-MM-DD)." }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
+    const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    if (datum < heute) return { ergebnis: { ok: false, grund: "Der Tag liegt in der Vergangenheit." }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
+    const [alt] = (await sqlPool`SELECT promised_payment_date FROM fiaon_persons WHERE id = ${ctx.personId}`) as any[];
+    await sqlPool`UPDATE fiaon_persons SET promised_payment_date = ${datum}::date, updated_at = NOW() WHERE id = ${ctx.personId}`;
+    const schoen = new Date(`${datum}T12:00:00Z`).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+    const vorher = alt?.promised_payment_date ? new Date(alt.promised_payment_date).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : null;
+    await mt.protokollieren({
+      art: "zahlungszusage", nummer: ctx.nummer, personId: ctx.personId, leadId: ctx.leadId,
+      text: `Zahlungszusage festgehalten: ${schoen}${vorher ? ` (vorher ${vorher})` : ""}.${args?.hinweis ? ` „${String(args.hinweis).slice(0, 160)}"` : ""}`,
+      daten: { datum, vorher: alt?.promised_payment_date ?? null },
+    });
+    try {
+      const { waAktenvermerk } = await import("./fiaon-whatsapp");
+      await waAktenvermerk(ctx.personId, `Zahlungszusage per WhatsApp: ${schoen}.${args?.hinweis ? ` „${String(args.hinweis).slice(0, 160)}"` : ""}`);
+    } catch { /* ohne Bestellung keine Akte */ }
+    return { ergebnis: { ok: true, festgehalten: schoen, so_schreiben: `Festgehalten: ${schoen}. Ihre Zahlungsseite bleibt bis dahin offen.` }, aktion: { werkzeug: name, ok: true, zeiten: [] } };
+  }
   if (name === "terminlink_schicken") {
     const r = await mt.terminlinkFuer(ctx);
     return { ergebnis: r.ok ? { ok: true, link: r.link, zeiten_von: r.agent ?? "unserem Team" } : { ok: false, grund: r.meldung }, aktion: { werkzeug: name, ok: r.ok, zeiten: [], link: r.link } };
@@ -1099,7 +1138,7 @@ export function handlungsPruefung(antwort: string, aktionen: Aktion[], kunde: st
  */
 export async function entwerfen(
   system: string,
-  pruef: { kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean; verlaufText?: string },
+  pruef: { kunde: string; kontext?: string; letzteDu: string[]; verkaufen: boolean; verlaufText?: string; zahlungslage?: boolean },
   werkzeugKontext?: WerkzeugKontext | null,
 ): Promise<{ roh: any; antwort: string; funde: string[]; hinweise: string[]; zweiter: boolean; kiFehler: string | null; aktionen: Aktion[] }> {
   const d1 = await denken(system, [], werkzeugKontext ?? null);

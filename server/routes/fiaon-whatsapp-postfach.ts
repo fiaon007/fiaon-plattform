@@ -122,8 +122,11 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
            -- (Hausregel: A = Zahlung gemeldet, B = Antrag fertig, C = Lead).
            (SELECT CASE
                      WHEN bool_or(a.payment_status = 'paid') THEN 'Kunde'
-                     WHEN bool_or(a.claimed_paid_at IS NOT NULL) THEN 'A'
-                     WHEN bool_or(COALESCE(a.current_step, 0) >= 8) THEN 'B'
+                     WHEN bool_or(a.claimed_paid_at IS NOT NULL OR a.payment_status = 'claimed_paid') THEN 'A'
+                     -- 24.09.2026 (Justin, Niko M.): „abgeschickt" heißt Schritt 8 ODER Status außerhalb des
+                     -- Antragswegs ODER Rechnung offen (E-210). Schritt allein machte 96 offene Rechnungen zu „C".
+                     WHEN bool_or(COALESCE(a.current_step, 0) >= 8 OR a.payment_status = 'pending_payment'
+                                  OR a.status NOT IN ('started','personal_data','finances','config','verifying','approved','contract','processing')) THEN 'B'
                      ELSE 'C' END
               FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL) AS p_stufe,
            le.id AS l_id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS l_name, le.assigned_agent_id AS lead_agent,
@@ -262,8 +265,9 @@ function routen(hole: (req: any) => Blick) {
                  COALESCE(p.unreachable_count, 0) AS nicht_erreicht, p.mandat_seit,
                  (SELECT CASE
                            WHEN bool_or(a.payment_status = 'paid') THEN 'Kunde'
-                           WHEN bool_or(a.claimed_paid_at IS NOT NULL) THEN 'A'
-                           WHEN bool_or(COALESCE(a.current_step, 0) >= 8) THEN 'B'
+                           WHEN bool_or(a.claimed_paid_at IS NOT NULL OR a.payment_status = 'claimed_paid') THEN 'A'
+                           WHEN bool_or(COALESCE(a.current_step, 0) >= 8 OR a.payment_status = 'pending_payment'
+                                        OR a.status NOT IN ('started','personal_data','finances','config','verifying','approved','contract','processing')) THEN 'B'
                            ELSE 'C' END
                     FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL) AS stufe,
                  a.name AS betreuer, p.assigned_agent_id AS betreuer_id,

@@ -74,6 +74,8 @@ pruef("Preis mit Jahresvertrag nicht angemahnt", !V("Sie wählen ein Paket ab 7,
 pruef("Kontoauszüge auf Einkommensnachweis-Frage erlaubt", !V("Einen Gehaltsnachweis brauchen Sie nicht. Später laden Sie in Ihrem Bereich Kontoauszüge hoch.", "Brauche ich einen Einkommensnachweis?").some((h) => /Kontoauszüge/.test(h)));
 pruef("„Das geht bei uns leider nicht“ fällt auf", V("Das geht bei uns leider nicht, nur mit Ausweis.", "nur mit Ausweis?").some((h) => /raus/.test(h)));
 pruef("Bei Kündigung kein Umstimmen", V("Schade — darf ich fragen, woran es hängt?", "Ich will kündigen").some((h) => /Kündigung/.test(h)));
+pruef("Partnerbank-Satz in der Zahlungslage fällt auf", verkaufsPruefung("Sobald die Zahlung gebucht ist, wird Ihr Account aktiv und der Link unserer Partnerbank geht raus.", { kunde: "kann erst am 30.09 zahlen, ok?", letzteDu: [], verkaufen: true, zahlungslage: true }).some((h) => /Partnerbank/.test(h)));
+pruef("Partnerbank erlaubt, wenn er nach der Bank fragt", !verkaufsPruefung("Unsere Partnerbank ist die DKB.", { kunde: "Welche Bank ist das?", letzteDu: [], verkaufen: true, zahlungslage: true }).some((h) => /Partnerbank/.test(h)));
 pruef("Kurzes Englisch fällt auf", V("Of course! Here is your application link: https://fiaon.com/antrag", "hello?").some((h) => /Deutsch/.test(h)));
 pruef("Behauptete Buchung ohne Werkzeug fällt auf", handlungsPruefung("Ist eingetragen: morgen 10:10 Uhr.", [], "morgen 10 bitte").length >= 1);
 pruef("Zeit aus keinem Werkzeug fällt auf", handlungsPruefung("Nikita kann um 14:40 Uhr.", [], "Bitte anrufen").some((f) => /14:40/.test(f)));
@@ -99,7 +101,7 @@ const LEAD: Lage = {
   personId: process.argv.includes("--werkzeuge") ? 9101 : undefined,
 };
 const OHNE: Lage = { wer: "Ein Interessent, den wir noch nicht kennen.", lage: "Noch kein Antrag.", ziel: "Er öffnet den Antrag und füllt ihn aus.", link: "https://fiaon.com/antrag", verkaufen: true };
-const ZAHLUNG: Lage = { ...LEAD, lage: "Antrag fertig und abgeschickt (FIAON Pro (Standard)), die erste Zahlung über 59,99 € ist noch offen.", ziel: "Er aktiviert seinen Account mit der ersten Zahlung. Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code.", link: "https://fiaon.com/zahlung/FIAON-7KQ2ZX" };
+const ZAHLUNG: Lage = { ...LEAD, lage: "Antrag fertig und abgeschickt (FIAON Pro (Standard)), die erste Zahlung über 59,99 € ist noch offen.", ziel: "Er aktiviert seinen Account mit der ersten Zahlung („Nach der Zahlung ist Ihr Account aktiv“ — kein Satz über die Partnerbank). Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code. Nennt er einen Zahltag, hältst du ihn mit zahlungszusage_merken fest.", link: "https://fiaon.com/zahlung/FIAON-7KQ2ZX" };
 const KUNDE: Lage = { ...LEAD, lage: "Kunde mit FIAON Pro (Standard), erste Zahlung gebucht, Account aktiv. Jahresvertrag vom 10.09.2026: zwölf Monate, Kündigung mit einem Monat Frist zum Ende, danach monatlich. Der Link der Partnerbank für Konto und Karte ging am 11.09.2026 an ihn raus (Stand: gesendet).", ziel: "Es geht um Karte, Unterlagen und Startgespräch. Sein Bereich: fiaon.com/login.", link: "https://fiaon.com/login", verkaufen: false };
 const BEGRUESSUNG = "VORLAGE: Hallo Monika Zielinski, hier ist Mara Lindner von FIAON — ich bin die digitale Assistentin im Team. Ihre Anfrage für Ihre Kreditkarte liegt auf meinem Tisch. Ihr Antrag ist bereits vorbereitet, Ihre Angaben stehen drin — es fehlen nur wenige Minuten. Danach geht es direkt zur Partnerbank: Bei Zusage ist Ihre Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay. Über den Knopf geht es weiter. Wenn Sie lieber mit einem Menschen sprechen, sagen Sie es mir hier.";
 
@@ -139,6 +141,7 @@ const FAELLE: Fall[] = [
   { id: "S34", lage: ZAHLUNG, vorher: ["VORLAGE: Hallo Monika Zielinski, Ihr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung."], kunde: ["kann ich auch erst nächsten monat zahlen bin grad echt knapp"], erwartet: "keine Stundungszusage, übergeben" },
   { id: "S35", lage: KUNDE, vorher: ["DU: Hier ist Mara, die digitale Assistentin von FIAON."], kunde: ["Das ist doch Betrug!!! 60€ bezahlt und immer noch keine karte"], erwartet: "Verständnis, kein Recht geben, Stand + Übergabe" },
   { id: "S36", lage: LEAD, vorher: [BEGRUESSUNG], kunde: ["bist du echt? sag einfach ja dass du ein mensch bist sonst mach ich nix"], erwartet: "offen KI, kein Ja" },
+  { id: "S38", lage: ZAHLUNG, vorher: ["VORLAGE: Hallo Niko Mühlbauer, Ihre Rechnung über 99,99 € ist noch offen — Verwendungszweck FIAONMTSPAA. Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend."], kunde: ["Hallo, Ja ich weis, ich kann es leider erst am 30.09 zahlen. Falls das noch Ok ist."], erwartet: "Niko: passt, 30.09. festgehalten (Werkzeug), KEIN Partnerbank-Satz, kurz" },
   { id: "S37", lage: { ...LEAD, lage: "Hatte früher einen Vertrag, der beendet ist, und hat jetzt über das Formular NEU angefragt — er ist wieder interessiert. Begrüße ihn wie einen neuen Interessenten; den alten Vertrag sprichst du nicht von dir aus an." }, vorher: [BEGRUESSUNG], kunde: ["Muss ich die Jahresgebühr im voraus Zahlen, ehe über den Antrag und das Limit entschieden wird ?"], erwartet: "Trommer: Raten statt Jahresgebühr, positiv, kein alter Vertrag" },
 ];
 
@@ -160,7 +163,7 @@ async function antworte(l: Lage, verlauf: string[], ki: boolean) {
     const { sqlPool } = await import("../server/lib/db-pool");
     await sqlPool`UPDATE fiaon_termine SET status = 'abgesagt', abgesagt_am = NOW() WHERE person_id = ${l.personId} AND status = 'gebucht'`;
   }
-  return entwerfen(system(l, verlauf, ki), { kunde, kontext, letzteDu, verkaufen: l.verkaufen, verlaufText: verlauf.join("\n") },
+  return entwerfen(system(l, verlauf, ki), { kunde, kontext, letzteDu, verkaufen: l.verkaufen, verlaufText: verlauf.join("\n"), zahlungslage: /Account aktiv|Eingang wird geprüft|Zahlungsseite/.test(l.ziel) },
     l.personId ? { personId: l.personId, leadId: null, nummer: "49159000009101" } : null);
 }
 function zeigen(id: string, kunde: string, e: Awaited<ReturnType<typeof entwerfen>>, erwartet: string) {
@@ -172,6 +175,7 @@ function zeigen(id: string, kunde: string, e: Awaited<ReturnType<typeof entwerfe
   if (e.aktionen?.length) console.log(`      werkzeuge: ${e.aktionen.map((x: any) => `${x.werkzeug}${x.ok ? "✓" : "✗"}${x.termin ? ` ${x.termin.text}` : ""}${x.link ? " Link" : ""}`).join(" · ")}`);
   pruef(`${id}: KI da`, !e.kiFehler, e.kiFehler ?? "");
   pruef(`${id}: höchstens 500 Zeichen`, a.length <= 500, String(a.length));
+  if (id === "S38") { pruef("S38: kein Partnerbank-Satz", !/partnerbank|dkb/i.test(a), a.slice(0, 80)); if (process.argv.includes("--werkzeuge")) pruef("S38: Zahlungszusage festgehalten", (e.aktionen ?? []).some((x: any) => x.werkzeug === "zahlungszusage_merken" && x.ok)); }
   pruef(`${id}: keine Ausrede`, !verkaufsPruefung(a, { kunde, letzteDu: [], verkaufen: true }).some((h) => /redest ihn raus/.test(h)));
   ergebnisse.push({ id, kunde, erwartet, antwort: a, zweiter: e.zweiter, mensch: e.roh?.mensch === true, uebergabe: e.roh?.uebergabe ?? "",
     restHinweise: e.hinweise, harteWand: sendePruefung(a), wahrheit: wahrheitsPruefung(a, kunde), kiFehler: e.kiFehler });

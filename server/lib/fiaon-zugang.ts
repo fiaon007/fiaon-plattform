@@ -23,6 +23,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { passwortHashen } from "./fiaon-kunde-session";
+import { UTM_SCHLUESSEL_LISTE } from "./fiaon-utm";
 import { absoluteUrl } from "../fiaon-base-url";
 
 type Lauf = typeof sqlPool;
@@ -131,8 +132,12 @@ export async function einmalPasswortSetzen(
   await lauf`
     UPDATE fiaon_applications
     -- 06.09.2026: gehasht statt Klartext, und keine Kopie mehr in utm (die Anmeldung liest die Spalte).
+    -- 25.09.2026 (E-242): utm wird auf die Erlaubnisliste gekürzt — auch Text-/Array-Altformen, in denen
+    -- das Klartext-Passwort nach E-152 liegen blieb, werden hier zu einem leeren Objekt.
     SET password = ${passwortHashen(passwort)},
-        utm = CASE WHEN jsonb_typeof(utm) = 'object' THEN utm - 'password' ELSE COALESCE(utm, '{}'::jsonb) END,
+        utm = CASE WHEN utm IS NULL THEN NULL
+                   WHEN jsonb_typeof(utm) = 'object' THEN (SELECT COALESCE(jsonb_object_agg(k, v), '{}'::jsonb) FROM jsonb_each(utm) AS u(k, v) WHERE k = ANY(${UTM_SCHLUESSEL_LISTE}::text[]))
+                   ELSE '{}'::jsonb END,
         einmal_passwort_bis = ${bis},
         passwort_wechsel_noetig = TRUE,
         updated_at = NOW()
@@ -160,7 +165,9 @@ export async function passwortSetzen(
   await lauf`
     UPDATE fiaon_applications
     SET password = ${passwortHashen(neu)},
-        utm = CASE WHEN jsonb_typeof(utm) = 'object' THEN utm - 'password' ELSE COALESCE(utm, '{}'::jsonb) END,
+        utm = CASE WHEN utm IS NULL THEN NULL
+                   WHEN jsonb_typeof(utm) = 'object' THEN (SELECT COALESCE(jsonb_object_agg(k, v), '{}'::jsonb) FROM jsonb_each(utm) AS u(k, v) WHERE k = ANY(${UTM_SCHLUESSEL_LISTE}::text[]))
+                   ELSE '{}'::jsonb END,
         einmal_passwort_bis = NULL,
         passwort_wechsel_noetig = FALSE,
         updated_at = NOW()

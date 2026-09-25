@@ -17,6 +17,7 @@ import { sqlPool } from "../lib/db-pool";
 // 06.09.2026 (Lücken-Audit): Kundenrouten hinter requireKunde, Passwörter nur noch gehasht,
 // Antrags-Cookie statt „Referenz reicht“ — siehe lib/fiaon-antrag-sitzung.ts.
 import { requireKunde, istGehasht, passwortHashen } from "../lib/fiaon-kunde-session";
+import { UTM_SCHLUESSEL_LISTE } from "../lib/fiaon-utm";
 import { antragCookieSetzen, antragPasst, angabenPassen, requireKundeOderAntrag } from "../lib/fiaon-antrag-sitzung";
 import { antragsSpaltenOhneAnhaenge } from "../lib/fiaon-antrag-spalten";
 import { produktkategorie, produktkategorieSql, KATEGORIE_TEXT } from "../lib/fiaon-produktkategorie";
@@ -4674,7 +4675,7 @@ router.post("/admin/create-test-user", async (req, res) => {
         wanted_limit, purpose, billing, addon, nfc,
         approved_limit, email, iban, billing_method, salary_receipt_day,
         consent_agb, consent_schufa, consent_contract,
-        ip, user_agent, utm, created_at, updated_at
+        ip, user_agent, password, created_at, updated_at
       ) VALUES (
         ${testRef}, 'private', 'approved', 5, 'standard', 'FIAON Standard',
         'Dev', 'User', '1985-03-15', '+491701234567', '+49',
@@ -4683,7 +4684,8 @@ router.post("/admin/create-test-user", async (req, res) => {
         10000, 'Allgemeine Nutzung', 'Vollzahlung', false, true,
         10000, ${testEmail}, 'DE89 3704 0044 0532 0130 00', 'SEPA', 15,
         true, true, true,
-        '127.0.0.1', 'Mozilla/5.0 (Test)', ${JSON.stringify({ password: testPassword })}, NOW(), NOW()
+        -- 25.09.2026 (E-242): Passwort gehasht in die Spalte, nicht mehr als Klartext in utm.
+        '127.0.0.1', 'Mozilla/5.0 (Test)', ${passwortHashen(testPassword)}, NOW(), NOW()
       )
     `;
 
@@ -5209,7 +5211,9 @@ function duplicateScore(a: any): number {
   else if (a.payment_status === "pending_payment") s += 2000;
   if (a.payment_reference) s += 500;
   if (a.consent_contract) s += 200;
-  if (a.utm) s += 100; // enthält Passwort → Konto angelegt
+  // Bis 06.09.2026 lag in utm die Passwort-Kopie, daher „utm gesetzt ≈ Konto angelegt“. Seit E-242 ist
+  // utm ein bereinigtes Objekt ({} bei Altzeilen) — die Wertung bleibt bewusst gleich.
+  if (a.utm) s += 100;
   for (const v of Object.values(a)) { if (v !== null && v !== undefined && v !== "") s += 1; }
   return s;
 }
@@ -5472,10 +5476,14 @@ router.post("/reset-password-direct", async (req, res) => {
     // „utm - 'password'“ brach dort mit „cannot delete from scalar“ ab (RESET-05, 59 von
     // 71 Resets seit 10.09.). Entfernt wird der Schlüssel nur noch aus Objekten; die
     // Anmeldung liest ohnehin die Spalte password (storedPasswordOf).
+    // 25.09.2026 (E-242): Genau in diesen Text-/Array-Altformen lag das Klartext-Passwort weiter.
+    // Jetzt wird utm auf die Erlaubnisliste (lib/fiaon-utm.ts) gekürzt, Altformen werden zu {}.
     const updated = await sqlPool`
       UPDATE fiaon_applications
       SET password = ${passwortHashen(String(newPassword))},
-          utm = CASE WHEN jsonb_typeof(utm) = 'object' THEN utm - 'password' ELSE COALESCE(utm, '{}'::jsonb) END,
+          utm = CASE WHEN utm IS NULL THEN NULL
+                     WHEN jsonb_typeof(utm) = 'object' THEN (SELECT COALESCE(jsonb_object_agg(k, v), '{}'::jsonb) FROM jsonb_each(utm) AS u(k, v) WHERE k = ANY(${UTM_SCHLUESSEL_LISTE}::text[]))
+                     ELSE '{}'::jsonb END,
           updated_at = NOW()
       WHERE ref = ${ref}
       RETURNING ref

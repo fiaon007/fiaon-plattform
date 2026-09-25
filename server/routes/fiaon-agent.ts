@@ -1422,7 +1422,8 @@ export function normalizePhone(raw: string): string | null {
  *
  * E-Mail-Änderung zieht den Kunden-Login automatisch mit: der Login sucht den
  * Antrag PER E-MAIL (fiaon-antrag.ts POST /login), das Passwort liegt am selben
- * Datensatz (utm.password) — beides ändert sich in EINEM atomaren UPDATE.
+ * Datensatz (Spalte password; bis E-242 auch eine Kopie in utm) — beides ändert
+ * sich in EINEM atomaren UPDATE.
  *
  * Jede Feldänderung erzeugt einen Audit-Eintrag in fiaon_contact_log
  * (type 'edit', „E-Mail korrigiert durch …: alt → neu") für die Kunden-Timeline.
@@ -1582,10 +1583,8 @@ export async function updateCustomerContact(
   }
 
   // Hat der Kunde bereits ein Konto mit Passwort? → Hinweis „meldet sich künftig mit neuer E-Mail an"
-  let hasPassword = Boolean(cur.password);
-  if (!hasPassword && cur.utm_string) {
-    try { hasPassword = Boolean(JSON.parse(cur.utm_string)?.password); } catch { /* ignorieren */ }
-  }
+  // E-242: nur die Spalte — die utm-Kopie ist bereinigt (und war über utm_string nie lesbar).
+  const hasPassword = Boolean(cur.password);
   const loginEmailChanged = hasPassword && changes.some((c) => c.field === "E-Mail");
 
   console.log(`[FIAON-CONTACT-EDIT] ${ref} durch ${actor.name}: ${changes.map((c) => c.field).join(", ")}${duplicate ? ` (DUBLETTE mit ${duplicate.ref})` : ""}`);

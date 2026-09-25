@@ -980,6 +980,32 @@ server/routes/fiaon-auskunft-kauf.ts, fiaon-chef-auskunft(-beschaffung).ts, serv
 auskunft-lead.ts, client/src/pages/site/bonitaetsauskunft/ (neu), ChefAuskunft(Beschaffung).tsx. Prüfstände: E2E 72,
 Takt 143, Beschaffung 98 + 46, Mails 1.843, Texte 906, Postmeister 185/237, Mara-Verkauf 196, Lead-Motor 788,
 Sperre alle Wege 60, E-240-E2E 79, Seiten 8 (0 Wortwand-Treffer), SEO und Global-Seiten ohne Fehler; tsc 183 (Altbestand).
+## 25.09.2026 (2) — utm trägt nur noch Kampagnen-Angaben, nie mehr Passwörter (E-242)
+
+**Der Anlass:** Beim Bau des Meta-Kostenberichts fiel auf, dass `fiaon_applications.utm` fast nie ein Objekt ist,
+sondern JSON-Text oder ein Array — und darin Kundenpasswörter im Klartext stehen.
+
+**Die Ursache:** Vom 16.04. bis 06.09.2026 legte der Antrag das Passwort zusätzlich in `utm` ab (Notlösung aus dem
+April). Über die bekannte JSONB-Falle (`JSON.stringify(...)::jsonb`) wurde daraus Text, ab 29.07. hängte
+`utm || …` weitere Texte an (→ Array). Die Aufräumung vom 06.09. (E-152) entfernte den Schlüssel nur aus echten
+Objekten; ihre Kontrollzählung `utm ? 'password'` sieht in Text und Array nicht hinein und meldete deshalb 0.
+Die Kundenakte im Agentenportal gab `utm` ungefiltert als „herkunft" aus.
+
+**Was jetzt gilt:**
+- **Eine Erlaubnisliste** (`server/lib/fiaon-utm.ts`): utm_source, utm_medium, utm_campaign, utm_id, utm_content,
+  utm_term, gclid, fbclid, landing, ref — sonst nichts, immer als Objekt.
+- **Lesen:** Die Kundenakte (`GET /agent/crm/kunden/:personId`) gibt nur noch diese Schlüssel heraus.
+- **Schreiben:** Die drei Passwort-Setz-Wege (Passwort vergessen, Einmal-Passwort, Setz-Link) kürzen utm auf die
+  Liste und machen Text-/Array-Altformen zu `{}`. Das Entwickler-Testkonto speichert sein Passwort gehasht in der
+  Spalte statt im Klartext in utm. Die Anmeldung liest nur noch die Spalte `password` (der utm-Rückfall war seit
+  Monaten wirkungslos).
+- **Bestand:** `scripts/sql/utm-bereinigung.sql` — Vorschau nur lesend, Probelauf mit ROLLBACK, Ausführung nur mit
+  Freigabe. Protokoll `fiaon_utm_bereinigung_protokoll` hält nur Schlüsselnamen und Zähler, nie Werte. Danach
+  verweigert der CHECK `fiaon_applications_utm_erlaubt` jede andere Form.
+
+**Prüfstand:** `scripts/pruef-utm-erlaubnisliste.ts` (lokale Struktur-Kopie; stellt die alten Schreibfehler wörtlich
+nach, fährt die echten Funktionen, Bereinigung und CHECK; Rotprobe `PRUEF_ROT=1`). `scripts/pruef-reset-utm-skalar.ts`
+auf den neuen Ausdruck nachgezogen.
 
 ## 25.09.2026 (1) — Die Bonitätsauskunft als eigenes Produkt: verkaufen, liefern, ehrlich bleiben (E-240)
 

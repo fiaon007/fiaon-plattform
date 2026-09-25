@@ -278,13 +278,19 @@ export async function sendMakeWebhookMitGrund(
   // auch beim Handversand); hier steht, was nur der Stand der Auskunft weiß:
   // bezahlt, Zahlung gemeldet oder ein Dokument in der Akte — dann kein Angebot,
   // auch nicht von Hand. Bei einer Störung lässt die Tür durch wie die Bremse.
+  //
+  // E-241 (25.09.2026): Die Tür kennt den KREIS des Verkaufstakts (auskunft_verkauf_kreis).
+  // Sie fragt angebotTuerSperre (fiaon-auskunft-verkauf.ts) — dieselbe Grundmenge, aus der der
+  // Takt wählt, damit Takt und Tür nie auseinanderlaufen: bei „uwg" die Tür aus E-240 unverändert
+  // (erst die erste Paketzahlung), bei „alle" automatisch nur Segment A/B/C ohne Sperrgrund, von
+  // Hand der Kaufstand. Werbesperre, Abmeldung, STOPP und Vertriebssperre sperren in JEDEM Kreis.
   if (!payload.test && eventType === "auskunft_angebot") {
     try {
       // Gegenlesen 24.09.2026: dazu die Vertriebssperre (is_blocked) — wer „kein Interesse"
       // gesagt hat, bekommt auch per Mail keinen Verkauf (werbungVerboten in fiaon-mail-frequenz.ts).
-      const { auskunftAngebotTuerSperre } = await import("./lib/fiaon-auskunft-lieferung");
+      const { angebotTuerSperre } = await import("./lib/fiaon-auskunft-verkauf");
       const personId = payload.person_id != null && Number(payload.person_id) > 0 ? Number(payload.person_id) : await personAusNutzlast(payload);
-      const sperre = await auskunftAngebotTuerSperre(personId);
+      const sperre = await angebotTuerSperre(personId, { manuell: opts.manuell === true });
       if (sperre) {
         const erg: MakeVersand = { ok: false, grund: sperre };
         protokollNebenbei(eventType, payload, erg);

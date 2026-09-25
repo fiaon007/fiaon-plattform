@@ -355,7 +355,8 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
               <p style={{ margin: 0 }}>
                 {kauf.sperre === "gekuendigt"
                   ? "Ihr Vertrag ist gekündigt — eine Bonitätsauskunft lässt sich darüber nicht mehr neu beauftragen. Eine eigene, aktuelle Auskunft können Sie unten hochladen."
-                  : `Die Bonitätsauskunft ist nicht im Paket enthalten. Sobald die erste Zahlung für Ihr Paket eingegangen ist, beauftragen Sie sie hier: Wir fordern Ihre Datenkopien bei ${kauf.bei} an und erklären jeden Eintrag.`}
+                  // 25.09.2026 (E-241): nur noch „Zahlung gemeldet“ — Stufe B sieht die Kaufkarte zum Einzelpreis.
+                  : `Die Bonitätsauskunft ist nicht im Paket enthalten. Ihre Zahlung für das Paket wird gerade geprüft — sobald sie gebucht ist, beauftragen Sie sie hier zum Kundenpreis: Wir beschaffen Ihre Auskunft bei ${kauf.bei} und erklären jeden Eintrag.`}
               </p>
             ) : (
               <AuskunftKaufkarte kauf={kauf} variante="ap" demo={demo} hochladen={kauf.darfKaufen ? "#auskunft-hochladen" : null} />

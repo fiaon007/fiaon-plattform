@@ -191,7 +191,7 @@ function PaketfinderInnen() {
             <div className="to-ergebnis">
               <span className="to-stufe" style={{ background: "#1d4ed8" }}>{e.paket.abo ? "Abo · 12 Raten" : "Einmalig"}</span>
               <h3>{e.paket.label}</h3>
-              <p>{LEISTUNG[e.paket.key]?.kurz ? `${LEISTUNG[e.paket.key].kurz}.` : "Bonitätsauskunft bei allen Auskunfteien des Landes angefordert, jeder Eintrag erklärt, mit Handlungsplan – ohne Abo."}</p>
+              <p>{LEISTUNG[e.paket.key]?.kurz ? `${LEISTUNG[e.paket.key].kurz}.` : "Bonitätsauskunft bei den großen Auskunfteien des Landes angefordert, jeder Eintrag erklärt, mit Handlungsplan – ohne Abo."}</p>
               <div className="to-zahlen">
                 <div className="to-zahl"><small>Rate</small><b>{euro(e.paket.preisCents)}</b><span>{e.paket.abo ? "im Monat" : "einmalig"}</span></div>
                 <div className="to-zahl"><small>Laufzeit</small><b>{laufzeit}</b><span>{e.paket.abo ? "Raten, dann entscheidet der Kunde" : "Zahlung, kein Abo"}</span></div>

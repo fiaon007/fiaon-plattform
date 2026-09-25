@@ -36,7 +36,7 @@ import {
 import { KONTO_VORLAGEN } from "./vorlagen/konto";
 import { ZAHLUNG_VORLAGEN } from "./vorlagen/zahlung";
 import { TERMIN_VORLAGEN, GLOBAL_TERMIN_EN } from "./vorlagen/termin";
-import { AUSKUNFT_LEAD_VORLAGEN, AUSKUNFT_ZAHLUNG_VORLAGEN, auskunftZahlungsdatenBaustein, auskunftZahlungEingangBaustein, istAuskunftNutzlast } from "./vorlagen/auskunft-lead";
+import { AUSKUNFT_LEAD_VORLAGEN, AUSKUNFT_ZAHLUNG_VORLAGEN, auskunftZahlungsdatenBaustein, auskunftZahlungEingangBaustein, istAuskunftNutzlast, schufaRequestedBaustein } from "./vorlagen/auskunft-lead";
 import { AUSKUNFT_VERKAUF_VORLAGEN, auskunftAngebotBaustein } from "./vorlagen/auskunft-verkauf";
 import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
@@ -261,6 +261,9 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   // existieren. Zahlungsdaten und Zahlungsbestätigung einer AUSKUNFT sprechen
   // nicht vom Freischalten eines Bereichs und nicht vom Startgespräch.
   if (event === "auskunft_angebot") vorlage = auskunftAngebotBaustein(payload);
+  // 25.09.2026 (E-241): Im Einkauf bittet schufa_requested um die Bestätigung des
+  // Beschaffungsauftrags statt um die Vollmacht (eigener Betreff, Kasten und Knopf).
+  if (event === "schufa_requested") vorlage = schufaRequestedBaustein(payload) ?? vorlage;
   if ((event === "payment_details" || event === "payment_confirmed") && istAuskunftNutzlast(payload)) {
     // 25.09.2026 (E-240): Die Zahlungsdaten sind zugleich die Vertragsbestätigung — mit Leistung,
     // Anbieter und Widerrufsbelehrung in Textform (§ 312f Abs. 2, § 356 Abs. 3 BGB). Welche Belehrung

@@ -25,6 +25,14 @@
 // nur „beauftragen" sagt, ließe den Vertrag nach § 312j Abs. 4 gar nicht
 // zustande kommen — und die Rechnung wäre ohne Grundlage.
 //
+// ── DER BESCHAFFUNGSAUFTRAG (25.09.2026, E-241) ─────────────────────────────
+// Bis die API steht, kaufen wir die Auskunft selbst ein — die Vollmacht zur
+// Übermittlung deckt das nicht. Der Auftrag trägt deshalb einen Pflicht-Haken
+// mit dem Wortlaut vom Server (`auftragText`, AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT);
+// ohne ihn geht nichts an den Server, und der Server legt ohne `auftrag: true`
+// nichts an. Stufe B (Paket bestellt, nicht bezahlt) sieht die Karte seit
+// E-241 auch — mit dem Einzelpreis und dem Satz zum Kundenpreis (`paketPreisSatz`).
+//
 // ── DIE KOSTENLOSE DATENKOPIE ──────────────────────────────────────────────
 // Wird hier nicht beworben und nicht verschwiegen: Wer schon eine aktuelle
 // Auskunft hat, lädt sie als zweiten, kleinen Weg hoch. Wer fragt, bekommt
@@ -32,6 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState, type CSSProperties } from "react";
 import { AUSKUNFT_WIDERRUF } from "@shared/fiaon-auskunft-widerruf";
+import { AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT } from "@shared/fiaon-auskunft";
 
 /** Spiegel von `AuskunftKauf` in server/routes/fiaon-kunde-bereich.ts. */
 export interface AuskunftKauf {
@@ -49,7 +58,14 @@ export interface AuskunftKauf {
   leistung: string[];
   nutzen: string;
   offen: { zahlungsseite: string | null; betragText: string; gemeldet: boolean } | null;
+  /** E-241: privat oder für die Firma (Server: auskunftArtFuer). Ältere Antworten ohne Feld: privat. */
+  art?: "privat" | "firma";
+  /** E-241: der Wortlaut des Beschaffungsauftrags — Pflicht-Haken im Auftrag. */
+  auftragText?: string;
+  /** E-241: Stufe B — der Kundenpreis mit aktivem Paket als ganzer Satz, sonst null. */
+  paketPreisSatz?: string | null;
 }
+
 
 /**
  * Gegenlesen 24.09.2026 (E-240): Der Auftrag nennt den Preis als Endpreis —
@@ -68,14 +84,15 @@ export const SOFORT_BEGINN_SATZ =
 /**
  * Die Bestellung — POST /api/fiaon/kunde/auskunft/bestellen. Die Referenz
  * kommt aus dem Kunden-Cookie; ein Preis wird nicht mitgeschickt, weil der
- * Server ihn entscheidet.
+ * Server ihn entscheidet. E-241: `auftrag` = der Pflicht-Haken des
+ * Beschaffungsauftrags (ohne ihn legt der Server nichts an).
  */
-export async function auskunftBeauftragen(sofortBeginn: boolean): Promise<{ ok: boolean; ziel: string | null; meldung: string | null }> {
+export async function auskunftBeauftragen(sofortBeginn: boolean, auftrag: boolean): Promise<{ ok: boolean; ziel: string | null; meldung: string | null }> {
   try {
     const r = await fetch("/api/fiaon/kunde/auskunft/bestellen", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sofortBeginn }),
+      body: JSON.stringify({ sofortBeginn, auftrag }),
     });
     const j = await r.json().catch(() => null);
     if (r.ok && j?.ok) return { ok: true, ziel: j.zahlungsseite ?? null, meldung: j.meldung ?? null };
@@ -119,15 +136,22 @@ function Leistungsliste({ kauf, v }: { kauf: AuskunftKauf; v: Variante }) {
 function Auftrag({ kauf, v, demo, onZurueck }: { kauf: AuskunftKauf; v: Variante; demo?: boolean; onZurueck: () => void }) {
   const s = stil(v);
   const [sofort, setSofort] = useState(false);
+  const [auftrag, setAuftrag] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
+  const firma = kauf.art === "firma";
   const bestellen = async () => {
+    // E-241: ohne den Beschaffungsauftrag keine Bestellung — auch nicht in der Demo.
+    if (!auftrag) {
+      setMeldung({ ton: "fehler", text: "Bitte bestätigen Sie den Auftrag, damit wir Ihre Auskunft für Sie beschaffen dürfen." });
+      return;
+    }
     if (demo) {
       setMeldung({ ton: "gut", text: "In der Demo wird nichts beauftragt. Im echten Bereich öffnet sich jetzt die Zahlungsseite mit Betrag, Empfänger und Verwendungszweck." });
       return;
     }
     setLaeuft(true); setMeldung(null);
-    const r = await auskunftBeauftragen(sofort);
+    const r = await auskunftBeauftragen(sofort, auftrag);
     if (r.ok && r.ziel) { window.location.href = r.ziel; return; }
     setLaeuft(false);
     if (r.ok) { setMeldung({ ton: "gut", text: r.meldung || "Ihre Bestellung ist angelegt." }); setTimeout(() => window.location.reload(), 2200); }
@@ -137,7 +161,7 @@ function Auftrag({ kauf, v, demo, onZurueck }: { kauf: AuskunftKauf; v: Variante
     <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
       <div style={{ padding: "12px 14px", borderRadius: 12, border: `1px solid ${s.linie}`, background: v === "mb" ? "var(--flaeche-still)" : "#fff" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
-          <b style={{ color: s.text, fontWeight: 650 }}>Bonitätsauskunft inkl. Handlungsplan</b>
+          <b style={{ color: s.text, fontWeight: 650 }}>{firma ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "Bonitätsauskunft inkl. Handlungsplan"}</b>
           <b style={{ color: s.text, fontWeight: 650, whiteSpace: "nowrap" }}>{kauf.preisText} einmalig</b>
         </div>
         <p style={{ margin: "6px 0 0", fontSize: 12.5, lineHeight: 1.55, color: s.leise }}>
@@ -146,6 +170,12 @@ function Auftrag({ kauf, v, demo, onZurueck }: { kauf: AuskunftKauf; v: Variante
           Bezahlt wird per Überweisung — Betrag, Empfänger und Verwendungszweck stehen auf der nächsten Seite.
         </p>
       </div>
+      {/* E-241: der Beschaffungsauftrag — Pflicht, nie vorangekreuzt. */}
+      <label style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: 10, alignItems: "start", fontSize: 12.5, lineHeight: 1.55, color: s.text, cursor: "pointer" }}>
+        <input type="checkbox" required checked={auftrag} onChange={(e) => { setAuftrag(e.target.checked); if (e.target.checked) setMeldung(null); }} style={{ width: 18, height: 18, marginTop: 2 }} />
+        {/* Rückfall aus derselben Quelle, falls ein Server mit älterem Stand keinen Wortlaut schickt. */}
+        <span>{kauf.auftragText || AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(firma ? "firma" : "privat")}</span>
+      </label>
       <label style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: 10, alignItems: "start", fontSize: 12.5, lineHeight: 1.55, color: s.leise, cursor: "pointer" }}>
         <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2 }} />
         <span>{SOFORT_BEGINN_SATZ}</span>
@@ -246,7 +276,7 @@ export function AuskunftKaufkarte({ kauf, variante = "mb", demo, kompakt, hochla
       <div style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${s.linie}`, background: "linear-gradient(180deg,rgba(37,99,235,.05),transparent)", textAlign: "left" }}>
         <p style={ueber}>Solange Sie warten: der Grundstein</p>
         <h4 style={{ ...titel, fontSize: 15.5 }}>Ihre {kauf.wort} — {kauf.preisText} einmalig</h4>
-        <p style={{ ...satz, fontSize: 13 }}>{kauf.nutzen}</p>
+        <p style={{ ...satz, fontSize: 13 }}>{kauf.nutzen}{kauf.paketPreisSatz ? ` ${kauf.paketPreisSatz}` : ""}</p>
         <button type="button" className={`${s.still}${variante === "mb" ? " klein" : ""}`} style={{ ...KNOPF_SOFORT, marginTop: 12 }} onClick={() => setSchritt("auftrag")}>Auskunft jetzt beauftragen</button>
       </div>
     );
@@ -260,6 +290,7 @@ export function AuskunftKaufkarte({ kauf, variante = "mb", demo, kompakt, hochla
       <Leistungsliste kauf={kauf} v={variante} />
       <p style={{ ...satz, fontSize: 12.5, color: s.still2 }}>
         {kauf.mitAbo ? "Ihr Preis als FIAON-Kunde mit Paket. " : ""}Einmalig, kein Abo — nicht im Paket enthalten, ein eigener Auftrag.
+        {kauf.paketPreisSatz ? ` ${kauf.paketPreisSatz}` : ""}
       </p>
       {schritt === "karte"
         ? <button type="button" className={s.knopf} style={{ ...KNOPF_SOFORT, marginTop: 14 }} onClick={() => setSchritt("auftrag")}>Auskunft jetzt beauftragen</button>

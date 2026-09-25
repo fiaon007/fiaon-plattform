@@ -303,7 +303,7 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // dem überein, was die Mail sagt (vorher: „Bitte um die Bonitätsauskunft").
   schufa_requested: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
-    klartext: "Nach der Zahlung einer Auskunft: Die Anfragen an die Auskunfteien des Landes sind angelegt — bitte Vollmacht und Anfragen unterschreiben. Geht automatisch, einmal je Bestellung.",
+    klartext: "Nach der Zahlung einer Auskunft: Die Anfragen an die Auskunfteien des Landes sind angelegt — bitte Vollmacht und Anfragen unterschreiben (Vollmacht-Weg). Im Einkauf (E-241): die Bitte, den Beschaffungsauftrag kurz zu bestätigen. Geht automatisch, einmal je Bestellung.",
     vonHand: false, pflichtFelder: ["anrede", "unterschrift_url", "unterschrift_satz", "auskunfteien"],
   },
   schufa_approved: {

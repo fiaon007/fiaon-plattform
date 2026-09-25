@@ -436,10 +436,12 @@ export default function MeinBereichPage() {
                         <>
                           <h4 style={{ fontSize: 16, fontWeight: 700 }}>Ihre Bonitätsauskunft</h4>
                           <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--text-leise)", maxWidth: "56ch" }}>
+                            {/* 25.09.2026 (E-241): Stufe B (Paket bestellt, nicht bezahlt) sieht oben die Kaufkarte zum
+                                Einzelpreis — hier bleibt nur „Zahlung gemeldet“ (nach der Buchung gilt der Kundenpreis). */}
                             {d.auskunft?.sperre === "gekuendigt"
                               ? "Ihr Vertrag ist gekündigt — eine Bonitätsauskunft lässt sich darüber nicht mehr neu beauftragen."
-                              : d.auskunft?.sperre === "paket_offen" || !d.stufe.bezahlt
-                              ? "Die Bonitätsauskunft ist nicht im Paket enthalten. Sobald die erste Zahlung für Ihr Paket eingegangen ist, beauftragen Sie sie hier — ein Schritt nach dem anderen."
+                              : d.auskunft?.sperre === "paket_offen"
+                              ? "Die Bonitätsauskunft ist nicht im Paket enthalten. Ihre Zahlung für das Paket wird gerade geprüft — sobald sie gebucht ist, beauftragen Sie die Auskunft hier zum Kundenpreis."
                               : "Die Bonitätsauskunft ist nicht im Paket enthalten. Ihre Ansprechpartnerin richtet sie mit Ihnen ein."}
                           </p>
                           {d.bonitaet?.darfHochladen && (

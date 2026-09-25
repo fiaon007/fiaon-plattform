@@ -217,7 +217,14 @@ export async function darfAnEmpfaenger(
   if (NUR_MIT_VERTRAG.has(event) || NUR_BIS_VERTRAGSENDE.has(event) || event === AUSKUNFT_ANGEBOT || (opts.manuell && istWerbungImmer(event))) {
     try {
       const staende = await personSperren(await personenAnAdresse(adresse));
-      const grund = sperrUrteil(event, staende, { manuell: !!opts.manuell, nutzlast: opts.nutzlast ?? null });
+      // E-241 (25.09.2026): Das Auskunft-Angebot fragt den Kreis des Verkaufstakts — EINE Quelle
+      // (verkaufKreis, fiaon-auskunft-verkauf.ts; bei einer Störung „uwg", die engere Lesart).
+      // Gegenlesen 25.09.2026: auch ein Ladefehler des Moduls ergibt „uwg" — sonst ließe der catch unten
+      // die ganze Sperrprüfung (Werbesperre, Test, Kündigung) aus.
+      const kreis = event === AUSKUNFT_ANGEBOT
+        ? await import("./fiaon-auskunft-verkauf").then((m) => m.verkaufKreis()).catch(() => "uwg" as const)
+        : undefined;
+      const grund = sperrUrteil(event, staende, { manuell: !!opts.manuell, nutzlast: opts.nutzlast ?? null, kreis });
       if (grund) return { ok: false, grund };
     } catch (err) {
       console.error("[FREQUENZ] Sperrprüfung E-240 fehlgeschlagen, lasse durch:", err instanceof Error ? err.message : err);
@@ -554,14 +561,20 @@ export async function personSperre(personId: number): Promise<PersonSperre | nul
  *    Werbesperre nie MIT Kaufangebot (angebot_text / auskunft_modus „angebot").
  *  · Startgespräch, Konto & Karte, „nicht erreicht": nur bis zum Vertragsende.
  *  · Auskunft-Angebot: nie an Werbesperre, Test, Gekündigte ohne laufendes
- *    Paket. Automatisch nur an Kunden mit ungekündigtem Paket, deren erster
- *    Antrag schon den Widerspruchs-Hinweis trug (§ 7 Abs. 3 UWG); von Hand an Kunden, mit denen
- *    der Betreuer gesprochen hat (Antwort auf seine Bitte), ohne diese Grenze.
+ *    Paket. Automatisch im Kreis „uwg" (Standard) nur an Kunden mit
+ *    ungekündigtem Paket, deren erster Antrag schon den Widerspruchs-Hinweis
+ *    trug (§ 7 Abs. 3 UWG); von Hand an Kunden, mit denen der Betreuer
+ *    gesprochen hat (Antwort auf seine Bitte), ohne diese Grenze.
+ *    E-241 (25.09.2026): Im Kreis „alle" (Justins Entscheidung) entfällt die
+ *    Stichtag-Grenze — wer dann in Frage kommt (Segment A/B/C ohne Sperre),
+ *    entscheidet die Tür davor (angebotTuerSperre, fiaon-auskunft-verkauf.ts,
+ *    dieselbe Grundmenge wie der Takt). Werbesperre, Test und Kündigung
+ *    sperren hier in JEDEM Kreis.
  */
 export function sperrUrteil(
   event: string,
   staende: PersonSperre[],
-  opts: { manuell: boolean; nutzlast?: Record<string, unknown> | null },
+  opts: { manuell: boolean; nutzlast?: Record<string, unknown> | null; /** E-241: der Kreis des Verkaufstakts; ohne Angabe „uwg". */ kreis?: "uwg" | "alle" },
 ): string | null {
   const irgendeineSperre = staende.some((s) => s.werbesperre);
   const nurTest = staende.length > 0 && staende.every((s) => s.test);
@@ -573,7 +586,7 @@ export function sperrUrteil(
     if (!staende.length) return "Auskunft-Angebot nur an bekannte Kunden — zu dieser Adresse gibt es keinen";
     if (nurTest) return "Testkonto — kein Auskunft-Angebot";
     if (ohneVertrag) return "Gekündigt oder Vertrag beendet — kein Auskunft-Angebot";
-    if (!opts.manuell && !staende.some((s) => s.kundeMitHinweis)) {
+    if (!opts.manuell && opts.kreis !== "alle" && !staende.some((s) => s.kundeMitHinweis)) {
       return "§ 7 Abs. 3 UWG: automatisch nur an Kunden, deren Antrag schon den Widerspruchs-Hinweis trug (ab 02.09.2026 12:35) — Angebot im Kundenbereich bleibt";
     }
     return null;

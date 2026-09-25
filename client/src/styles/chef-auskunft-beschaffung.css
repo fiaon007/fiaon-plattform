@@ -1,0 +1,214 @@
+/* ═══ Auskunft-Beschaffung (25.09.2026, E-241) — Präfix .akb- ═══
+   Dieselbe ruhige Linie wie der Auskunft-Verkauf (.ak-, chef-auskunft.css):
+   dünne Schrift, Haarlinien statt Kästen, das Blau-Paar als einziger Akzent,
+   Zahlen tabellarisch. Eigenes Präfix .akb- — .ab- gehört der Anruf-Bühne (anruf-buehne.css,
+   global geladen mit dem Softphone); die Klassen stießen zusammen. Die Seite steht mit eigenesDesign in der Hülle.
+   Hover nur in @media (hover: hover): Am iPhone „klebt" er sonst nach dem Tippen. */
+
+.akb {
+  --akb-text: #e7ecf4;
+  --akb-text-2: #b9c4d5;
+  --akb-leise: #8292a8;
+  --akb-still: #5d6c83;
+  --akb-linie: rgba(148, 163, 184, .14);
+  --akb-flaeche: rgba(148, 163, 184, .05);
+  --akb-blau: #288dfa;
+  --akb-blau-hell: #93c5fd;
+  --akb-gruen: #6ee7b7;
+  --akb-gelb: #fcd34d;
+  --akb-rot: #fca5a5;
+  display: grid; gap: 20px; padding-bottom: 90px;
+  color: var(--akb-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color-scheme: dark;
+  min-width: 0;
+}
+.akb h1 { margin: 0; font-size: 26px; font-weight: 300; letter-spacing: -.02em; color: var(--akb-text); }
+.akb h3 { margin: 0; font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--akb-still); }
+.akb p { margin: 0; }
+.akb-still { color: var(--akb-still); font-size: 12px; }
+.akb-leise { color: var(--akb-leise); font-size: 12.5px; line-height: 1.55; }
+.akb-leise b { color: var(--akb-text-2); font-weight: 500; }
+.akb-leer { padding: 22px 2px; font-size: 13px; color: var(--akb-leise); }
+
+/* ── Kopf und Lieferweg ─────────────────────────────────────────────────── */
+.akb-kopf {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  padding: 2px 2px 16px; border-bottom: 1px solid var(--akb-linie);
+}
+.akb-kopf p { margin-top: 4px; font-size: 12.5px; color: var(--akb-leise); max-width: 72ch; line-height: 1.5; }
+.akb-modus { display: inline-flex; padding: 3px; border-radius: 99px; border: 1px solid var(--akb-linie); background: var(--akb-flaeche); }
+.akb-modus button {
+  border: 0; background: transparent; color: var(--akb-leise); font: inherit; font-size: 12.5px;
+  padding: 7px 14px; border-radius: 99px; cursor: pointer;
+}
+.akb-modus button.an { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; }
+.akb-modus button:disabled { opacity: .6; cursor: default; }
+
+.akb-lage { display: grid; gap: 10px; }
+.akb-marken { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.akb-marke {
+  display: inline-block; font-size: 10.5px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--akb-linie);
+  color: var(--akb-leise); white-space: nowrap;
+}
+.akb-marke.gruen { color: var(--akb-gruen); border-color: rgba(110, 231, 183, .35); }
+.akb-marke.gelb { color: var(--akb-gelb); border-color: rgba(252, 211, 77, .35); }
+.akb-marke.rot { color: var(--akb-rot); border-color: rgba(252, 165, 165, .35); }
+.akb-marke.blau { color: var(--akb-blau-hell); border-color: rgba(147, 197, 253, .35); }
+.akb-marke.st-fertig { color: var(--akb-gruen); border-color: rgba(110, 231, 183, .35); }
+.akb-marke.st-in_arbeit { color: var(--akb-blau-hell); border-color: rgba(147, 197, 253, .35); }
+.akb-marke.st-hochgeladen, .akb-marke.st-problem { color: var(--akb-rot); border-color: rgba(252, 165, 165, .35); }
+
+.akb-hinweis {
+  font-size: 12.5px; line-height: 1.55; color: var(--akb-leise);
+  padding: 10px 12px; border-radius: 12px; background: var(--akb-flaeche); border: 1px solid var(--akb-linie);
+}
+.akb-hinweis.warn { border-color: rgba(252, 211, 77, .3); color: #fde68a; background: rgba(252, 211, 77, .06); }
+
+/* ── Zahlen ─────────────────────────────────────────────────────────────── */
+.akb-zahlen { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-top: 1px solid var(--akb-linie); border-bottom: 1px solid var(--akb-linie); }
+.akb-zahl {
+  display: grid; gap: 3px; text-align: left; padding: 12px 14px; border: 0; border-left: 1px solid var(--akb-linie);
+  background: transparent; color: inherit; font: inherit; cursor: pointer; min-width: 0;
+}
+.akb-zahl:first-child { border-left: 0; padding-left: 2px; }
+.akb-zahl span { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--akb-still); }
+.akb-zahl b { font-size: 28px; font-weight: 200; letter-spacing: -.02em; color: var(--akb-text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.akb-zahl b.blau { color: var(--akb-blau-hell); }
+.akb-zahl b.gelb { color: var(--akb-gelb); }
+.akb-zahl b.rot { color: var(--akb-rot); }
+.akb-zahl b.gruen { color: var(--akb-gruen); }
+.akb-zahl small { font-size: 11px; color: var(--akb-still); line-height: 1.4; }
+
+.akb-regeln { font-size: 12.5px; color: var(--akb-leise); }
+.akb-regeln summary { cursor: pointer; color: var(--akb-text-2); padding: 2px 0; }
+.akb-regeln ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.55; max-width: 90ch; }
+.akb-regeln b { color: var(--akb-text-2); font-weight: 500; }
+
+/* ── Reiter und Suche ───────────────────────────────────────────────────── */
+.akb-reiter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.akb-reiter button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 99px;
+  border: 1px solid var(--akb-linie); background: transparent; color: var(--akb-leise); font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.akb-reiter button i { font-style: normal; font-size: 11px; color: var(--akb-still); font-variant-numeric: tabular-nums; }
+.akb-reiter button.an { color: var(--akb-text); border-color: rgba(147, 197, 253, .45); background: rgba(40, 141, 250, .1); }
+.akb-reiter button.an i { color: var(--akb-blau-hell); }
+.akb-suche {
+  margin-left: auto; min-width: 0; width: 240px; padding: 8px 12px; border-radius: 99px; border: 1px solid var(--akb-linie);
+  background: rgba(2, 6, 23, .35); color: var(--akb-text); font: inherit; font-size: 13px;
+}
+
+/* ── Karten ─────────────────────────────────────────────────────────────── */
+.akb-liste { display: grid; gap: 16px; }
+.akb-karte {
+  display: grid; gap: 14px; padding: 16px 18px; border-radius: 16px;
+  border: 1px solid var(--akb-linie); background: rgba(15, 23, 42, .35); min-width: 0;
+}
+.akb-karte.st-hochgeladen, .akb-karte.st-problem { border-color: rgba(252, 165, 165, .28); }
+.akb-karte.st-fertig { opacity: .72; }
+.akb-karte-kopf { display: grid; gap: 4px; }
+.akb-wer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.akb-wer a { color: var(--akb-text); font-size: 16px; font-weight: 400; text-decoration: none; letter-spacing: -.01em; }
+
+.akb-ampel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--akb-linie); border-bottom: 1px solid var(--akb-linie); }
+.akb-schritt { display: grid; gap: 3px; align-content: start; padding: 10px 14px; border-left: 1px solid var(--akb-linie); min-width: 0; }
+.akb-schritt:first-child { border-left: 0; padding-left: 2px; }
+.akb-schritt span { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--akb-still); }
+.akb-schritt b { font-size: 15px; font-weight: 400; color: var(--akb-text); }
+.akb-schritt small { font-size: 11.5px; color: var(--akb-leise); line-height: 1.45; }
+.akb-schritt.gut b { color: var(--akb-gruen); }
+.akb-schritt.halt b { color: var(--akb-gelb); }
+.akb-schritt.warte b { color: var(--akb-blau-hell); }
+.akb-schritt .akb-knopf { justify-self: start; margin-top: 6px; }
+
+.akb-warnungen { display: grid; gap: 6px; font-size: 12.5px; line-height: 1.5; }
+.akb-warnungen p { padding-left: 10px; border-left: 2px solid var(--akb-linie); }
+.akb-warnungen .rot { color: var(--akb-rot); border-color: rgba(252, 165, 165, .5); }
+.akb-warnungen .gelb { color: #fde68a; border-color: rgba(252, 211, 77, .5); }
+
+.akb-raster { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px 26px; }
+.akb-block-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.akb-felder { margin: 0; display: grid; gap: 0; }
+.akb-feld { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--akb-linie); align-items: baseline; }
+.akb-feld dt { font-size: 11.5px; color: var(--akb-still); }
+.akb-feld dd { margin: 0; display: flex; gap: 8px; align-items: baseline; justify-content: space-between; min-width: 0; }
+.akb-feld dd span { color: var(--akb-text); font-size: 13.5px; overflow-wrap: anywhere; user-select: all; }
+.akb-feld.leer dd span { color: var(--akb-rot); user-select: none; }
+.akb-kopie {
+  flex: none; border: 1px solid var(--akb-linie); background: transparent; color: var(--akb-leise);
+  font: inherit; font-size: 10.5px; padding: 2px 8px; border-radius: 99px; cursor: pointer;
+}
+.akb-stellen { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.akb-stellen li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--akb-linie); }
+.akb-stellen li b { font-size: 13px; font-weight: 500; color: var(--akb-text); }
+.akb-stellen li span { font-size: 11.5px; color: var(--akb-leise); line-height: 1.45; }
+.akb-stellen li.da { border-color: rgba(110, 231, 183, .3); }
+.akb-stellen li.da b { color: var(--akb-gruen); }
+
+.akb-notiz {
+  margin: 0; white-space: pre-wrap; font: inherit; font-size: 12px; line-height: 1.55; color: var(--akb-leise);
+  padding: 8px 10px; border-radius: 10px; background: var(--akb-flaeche);
+}
+
+/* ── Hochladen ──────────────────────────────────────────────────────────── */
+.akb-upload { display: grid; gap: 10px; padding: 12px; border-radius: 12px; border: 1px dashed rgba(147, 197, 253, .3); }
+.akb-datei {
+  position: relative; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; color: var(--akb-text-2);
+  padding: 14px 16px; border-radius: 12px; border: 1px solid var(--akb-linie); background: rgba(2, 6, 23, .3);
+}
+.akb-datei::before { content: "PDF"; flex: none; font-size: 10px; letter-spacing: .08em; color: var(--akb-blau-hell); border: 1px solid rgba(147, 197, 253, .4); border-radius: 6px; padding: 3px 6px; }
+/* Das Dateifeld selbst unsichtbar (der Browser beschriftet es sonst in seiner Sprache) — die Beschriftung ist die Fläche. */
+.akb-datei input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.akb-datei:focus-within { border-color: rgba(147, 197, 253, .6); }
+.akb-datei span { overflow-wrap: anywhere; }
+.akb-wahl { border: 0; margin: 0; padding: 0; display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+.akb-wahl legend { font-size: 11.5px; color: var(--akb-still); margin-bottom: 6px; padding: 0; }
+.akb-wahl label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.akb-zeile { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* ── Knöpfe und Fuß ─────────────────────────────────────────────────────── */
+.akb-knopf, .akb-klein {
+  padding: 8px 14px; border-radius: 99px; border: 1px solid var(--akb-linie); background: rgba(148, 163, 184, .09);
+  color: var(--akb-text-2); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.akb-knopf.voll { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; border-color: transparent; }
+.akb-klein { padding: 5px 10px; font-size: 11.5px; color: var(--akb-leise); background: transparent; }
+.akb-knopf:disabled, .akb-klein:disabled { opacity: .5; cursor: default; }
+.akb-fuss { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--akb-linie); }
+.akb-taten { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+.akb-meldung {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 80;
+  padding: 11px 18px; border-radius: 14px; border: 1px solid rgba(147, 197, 253, .35);
+  background: rgba(15, 26, 45, .96); color: var(--akb-text); font-size: 13px; max-width: min(90vw, 620px);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5;
+}
+
+@media (hover: hover) {
+  .akb-knopf:hover, .akb-klein:hover, .akb-kopie:hover, .akb-reiter button:hover, .akb-modus button:hover:not(.an):not(:disabled) { border-color: rgba(147, 197, 253, .5); color: var(--akb-text); }
+  .akb-zahl:hover { background: var(--akb-flaeche); }
+  .akb-wer a:hover { text-decoration: underline; }
+}
+@media (max-width: 1100px) {
+  .akb-zahlen { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .akb-zahl:nth-child(3n + 1) { border-left: 0; padding-left: 2px; }
+  .akb-zahl:nth-child(n + 4) { border-top: 1px solid var(--akb-linie); }
+}
+@media (max-width: 860px) {
+  .akb-raster { grid-template-columns: minmax(0, 1fr); }
+  .akb-ampel { grid-template-columns: minmax(0, 1fr); }
+  .akb-schritt, .akb-schritt:first-child { border-left: 0; padding-left: 2px; border-top: 1px solid var(--akb-linie); }
+  .akb-schritt:first-child { border-top: 0; }
+  .akb-suche { margin-left: 0; width: 100%; }
+}
+@media (max-width: 560px) {
+  .akb-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .akb-zahl, .akb-zahl:nth-child(3n + 1) { border-left: 0; padding-left: 2px; }
+  .akb-zahl:nth-child(n + 3) { border-top: 1px solid var(--akb-linie); }
+  .akb-zahl b { font-size: 24px; }
+  .akb-karte { padding: 14px; }
+  .akb-feld { grid-template-columns: 1fr; gap: 2px; }
+  .akb-modus { width: 100%; justify-content: space-between; }
+  .akb-modus button { flex: 1; }
+}

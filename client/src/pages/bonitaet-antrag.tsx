@@ -17,8 +17,8 @@
 // Informationen (Art. 246a EGBGB), der Muster-Widerrufsbelehrung (seit
 // 25.09.2026 aus shared/fiaon-auskunft-widerruf.ts, wörtlich — dieselbe Fassung
 // geht mit der Zahlungsdaten-Mail als Vertragsbestätigung hinaus), den Pflicht-Häkchen (§ 356 Abs. 4
-// BGB; Vollmacht zur Übermittlung im Botenmodell wie server/lib/
-// fiaon-schreiben.ts) und dem Hinweis nach § 7 Abs. 3 UWG. Der Knopf heißt
+// BGB; seit 25.09.2026 (E-241) der Beschaffungsauftrag statt der Vollmacht zur
+// Übermittlung — die deckte den Kauf der Auskunft nicht) und dem Hinweis nach § 7 Abs. 3 UWG. Der Knopf heißt
 // „Zahlungspflichtig bestellen" (§ 312j Abs. 3 BGB) — und NUR er bestellt:
 // Die Eingabetaste in einem Feld schickt nichts ab.
 //
@@ -41,6 +41,13 @@
 // `kundeRef` beim Bestellen aber ausschließlich am Kunden-Cookie. Ohne diese
 // Wand hätte die Seite „Angemeldet als …" gezeigt und eine Bestellung ohne
 // Namen und E-Mail angelegt.
+//
+// 25.09.2026 (E-241): Die Seite gehört optisch zur Seitenfamilie
+// /bonitaetsauskunft — oben der Rückweg dorthin und der Weg in vier Schritten
+// (Schritt 1 „Bestellen" ist hier), unten Verweise auf Fragen, Ablauf und
+// Handlungsplan. NUR Optik: Prüfung, Bestellung, Zustimmungen und Preislogik
+// sind unverändert. Die Bausteine der Familie (bausteine.tsx) werden hier
+// bewusst NICHT geladen — sie ziehen die dunkle Bühne samt three.js mit.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import GlassNav from "@/components/GlassNav";
@@ -61,11 +68,13 @@ import {
   T, BESTELL_FASSUNG, BESTELL_KNOPF, PREIS_STEUER, LANDNAMEN, VORWAHLEN, RECHTSFORMEN, REGISTER_BEISPIEL,
 } from "@/i18n/bonitaet-antrag";
 import "@/styles/bonitaet-antrag.css";
+import { BX, BX_PFAD, BX_SCHRITTE } from "@/i18n/bonitaetsauskunft-familie";
+import "@/styles/bonitaetsauskunft.css";
 
 const LAENDER: AuskunftLand[] = ["DE", "AT", "CH"];
 const PLZ_STELLEN: Record<AuskunftLand, number> = { DE: 5, AT: 4, CH: 4 };
 
-type Haken = "beginn" | "vollmacht" | "unternehmer";
+type Haken = "beginn" | "auftrag" | "unternehmer";
 type Daten = {
   vorname: string; nachname: string; geburt: string;
   strasse: string; plz: string; ort: string;
@@ -269,7 +278,7 @@ export default function BonitaetAntragPage() {
   const [land, setLand] = useState<AuskunftLand>(() => ausAdresse<AuskunftLand>("land", LAENDER, "DE"));
   const [d, setD] = useState<Daten>(LEER);
   /** Wann welches Häkchen gesetzt wurde (ISO) — reist mit der Bestellung; null = nicht gesetzt. */
-  const [haken, setHaken] = useState<Record<Haken, string | null>>({ beginn: null, vollmacht: null, unternehmer: null });
+  const [haken, setHaken] = useState<Record<Haken, string | null>>({ beginn: null, auftrag: null, unternehmer: null });
   const [fehler, setFehler] = useState<Record<string, string>>({});
   const [senden, setSenden] = useState<"bereit" | "laeuft" | "weiter">("bereit");
   const [meldung, setMeldung] = useState<{ ton: "rot" | "blau"; text: string; link?: { href: string; text: string } } | null>(null);
@@ -313,14 +322,14 @@ export default function BonitaetAntragPage() {
     return () => { weg = true; };
   }, []);
 
-  // Ändern sich Art oder Land, ändert sich der Text der Vollmacht (andere Auskunfteien) —
+  // Ändern sich Art oder Land, ändert sich der Text des Auftrags bzw. die Auskunfteien darüber —
   // eine Zustimmung gilt nur für den Text, den der Mensch beim Ankreuzen gesehen hat.
   const vorherArtLand = useRef(`${art}|${land}`);
   useEffect(() => {
     const jetzt = `${art}|${land}`;
     if (vorherArtLand.current === jetzt) return;
     vorherArtLand.current = jetzt;
-    setHaken({ beginn: null, vollmacht: null, unternehmer: null });
+    setHaken({ beginn: null, auftrag: null, unternehmer: null });
   }, [art, land]);
 
   const mitAbo = !!kunde?.mitAbo;
@@ -329,7 +338,8 @@ export default function BonitaetAntragPage() {
   const firma = art === "firma";
   const privat = !firma;
   const widerruf = AUSKUNFT_WIDERRUF;
-  const vollmachtText = firma ? T.hakenVollmachtFirma(bei) : T.hakenVollmacht(bei);
+  // 25.09.2026 (E-241): der Beschaffungsauftrag (ein Haken) statt der Vollmacht zur Übermittlung.
+  const auftragText = T.hakenAuftrag(art);
 
   // Angemeldet und schon bestellt oder bezahlt: keine zweite Bestellung. Gekündigt: keine neue Leistung.
   const gesperrt = !!kunde && (kunde.stufe === "bezahlt" || kunde.stufe === "offen" || kunde.stufe === "gesperrt");
@@ -372,7 +382,7 @@ export default function BonitaetAntragPage() {
     }
     if (privat && !haken.beginn) f.haken_beginn = T.f.haken;
     if (firma && !haken.unternehmer) f.haken_unternehmer = T.f.haken;
-    if (!haken.vollmacht) f.haken_vollmacht = T.f.haken;
+    if (!haken.auftrag) f.haken_auftrag = T.f.haken;
     return f;
   }
 
@@ -401,7 +411,7 @@ export default function BonitaetAntragPage() {
       punkte: [
         ...(privat ? [{ schluessel: "vorzeitiger_beginn", text: T.hakenBeginn, zugestimmt: true, am: haken.beginn }] : []),
         ...(firma ? [{ schluessel: "unternehmer", text: T.hakenUnternehmer, zugestimmt: true, am: haken.unternehmer }] : []),
-        { schluessel: "vollmacht_uebermittlung", text: vollmachtText, zugestimmt: true, am: haken.vollmacht },
+        { schluessel: "beschaffungsauftrag", text: auftragText, zugestimmt: true, am: haken.auftrag },
         { schluessel: "agb_datenschutz", text: `${T.agbA}${T.agbLink} (/agb)${T.agbB}${T.dsLink} (/datenschutz)${T.agbC}`, angezeigt: true },
         privat
           ? { schluessel: "widerrufsbelehrung", text: T.widerrufAngezeigt, angezeigt: true }
@@ -435,6 +445,8 @@ export default function BonitaetAntragPage() {
       // {anmelden:true} ab (sie zahlen im Bereich 74 € statt 149 €). Vorher stand hier
       // „ließ sich gerade nicht anlegen … versuchen Sie es noch einmal" — eine Schleife.
       else if (r.status === 409 && j?.anmelden) setMeldung({ ton: "blau", text: T.f.anmelden, link: { href: "/login", text: T.f.anmeldenLink } });
+      // Gegenlesen 25.09.2026 (E-241): Der Server legt ohne den Haken des Auftrags nichts an.
+      else if (r.status === 400 && j?.grund === "auftrag_fehlt") setMeldung({ ton: "rot", text: String(j.error || T.f.haken) });
       else setMeldung({ ton: "rot", text: T.f.senden });
     } catch {
       setMeldung({ ton: "rot", text: T.f.senden });
@@ -450,9 +462,22 @@ export default function BonitaetAntragPage() {
   return (
     <div className="ba">
       <div className="ba-nebel" aria-hidden="true" />
-      <GlassNav />
+      {/* E-241: im Menü ist „Bonitätsauskunft" hervorgehoben, nicht „Startseite". */}
+      <GlassNav activePage="bonitaetsauskunft" />
 
       <header className="ba-rahmen ba-kopf ba-rein">
+        {/* E-241: Rückweg in die Seitenfamilie und der Weg in vier Schritten — nur Optik. */}
+        <div className="bx-antrag-kopf">
+          <a className="bx-zurueck" href={BX_PFAD.hub}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            {BX.antragZurueck}
+          </a>
+          <ol className="bx-fortschritt" aria-label={BX.antragWegAria}>
+            {BX_SCHRITTE.map((s, i) => (
+              <li key={s.kurz} aria-current={i === 0 ? "step" : undefined}><span className="n" aria-hidden="true">{i + 1}</span><span className="t">{s.kurz}</span></li>
+            ))}
+          </ol>
+        </div>
         <span className="ba-pille"><i aria-hidden="true" />{T.pille}</span>
         <h1 className="ba-h1">{T.h1a}<span className="ba-verlauf">{T.h1b}</span></h1>
         <p className="ba-lead">{T.lead}</p>
@@ -658,8 +683,8 @@ export default function BonitaetAntragPage() {
                   {firma && (
                     <Pflichthaken an={!!haken.unternehmer} fehlt={!!fehler.haken_unternehmer} onWechsel={(an) => hakenSetzen("unternehmer", an)}>{T.hakenUnternehmer}</Pflichthaken>
                   )}
-                  <Pflichthaken an={!!haken.vollmacht} fehlt={!!fehler.haken_vollmacht} onWechsel={(an) => hakenSetzen("vollmacht", an)}>{vollmachtText}</Pflichthaken>
-                  {(fehler.haken_beginn || fehler.haken_vollmacht || fehler.haken_unternehmer) && <p className="ba-fehler" role="alert">{T.f.haken}</p>}
+                  <Pflichthaken an={!!haken.auftrag} fehlt={!!fehler.haken_auftrag} onWechsel={(an) => hakenSetzen("auftrag", an)}>{auftragText}</Pflichthaken>
+                  {(fehler.haken_beginn || fehler.haken_auftrag || fehler.haken_unternehmer) && <p className="ba-fehler" role="alert">{T.f.haken}</p>}
                 </div>
                 <p className="ba-uwg">{T.uwg}</p>
 
@@ -696,6 +721,9 @@ export default function BonitaetAntragPage() {
         <section className="ba-block ba-fragen" aria-labelledby="ba-fragen">
           <h2 id="ba-fragen">{T.fragenTitel}</h2>
           {T.fragen.map((q) => <details key={q.f}><summary>{q.f}</summary><p>{q.a}</p></details>)}
+          <p className="bx-antrag-mehr">
+            {BX.antragMehr.map((l, i) => <span key={l.href}>{i > 0 ? " · " : ""}<a href={l.href}>{l.t}</a></span>)}
+          </p>
         </section>
         <div className="ba-fuss-luft" />
       </main>

@@ -51,6 +51,8 @@ const AboKuendigenPage = lazy(() => import("@/pages/abo-kuendigen"));
 // 24.09.2026 (E-240): Die Auskunft wird nur noch auf /bonitaet-antrag bestellt. /bonitaet ist
 // die (neu geschriebene, Sie-Form) Vorstellungsseite, deren Knöpfe alle dorthin führen;
 // /bonitaet-service und /bonitaet-danke (Du-Form, „Express am selben Werktag", Stripe) leiten dorthin.
+// 25.09.2026 (E-241): /bonitaet und /bonitaet-service leiten auf die Übersicht /bonitaetsauskunft —
+// mit Abfrage (utm_*, fbclid) und Anker; pages/bonitaet.tsx ist nur noch diese Weiterleitung.
 const BonitaetPage = lazy(() => import("@/pages/bonitaet"));
 const BonitaetAntragPage = lazy(() => import("@/pages/bonitaet-antrag"));
 const InvestorLoginPage = lazy(() => import("@/pages/investor-login"));
@@ -267,6 +269,16 @@ const AuskunfteienSeite = lazy(() => import("@/pages/site/auskunfteien"));
 // Die zehn Themenseiten (SEO/SEA, 30.08.2026) — Pfeiler + Glossar-Hub.
 const SchufaScoreVerstehen = lazy(() => import("@/pages/site/schufa-score-verstehen"));
 const BonitaetsauskunftBeantragen = lazy(() => import("@/pages/site/bonitaetsauskunft-beantragen"));
+// 25.09.2026 (E-241): die Seitenfamilie der Bonitätsauskunft — Übersicht, drei Länder,
+// Unternehmen, Ablauf, Handlungsplan, Fragen (client/src/pages/site/bonitaetsauskunft/).
+const BaUebersicht = lazy(() => import("@/pages/site/bonitaetsauskunft/index"));
+const BaDeutschland = lazy(() => import("@/pages/site/bonitaetsauskunft/schufa"));
+const BaOesterreich = lazy(() => import("@/pages/site/bonitaetsauskunft/oesterreich"));
+const BaSchweiz = lazy(() => import("@/pages/site/bonitaetsauskunft/schweiz"));
+const BaUnternehmen = lazy(() => import("@/pages/site/bonitaetsauskunft/unternehmen"));
+const BaAblauf = lazy(() => import("@/pages/site/bonitaetsauskunft/ablauf"));
+const BaHandlungsplan = lazy(() => import("@/pages/site/bonitaetsauskunft/handlungsplan"));
+const BaFragen = lazy(() => import("@/pages/site/bonitaetsauskunft/fragen"));
 const InkassoBriefErhalten = lazy(() => import("@/pages/site/inkasso-brief-erhalten"));
 const EintragVerjaehrung = lazy(() => import("@/pages/site/eintrag-verjaehrung"));
 const GirokontoTrotzNegativerBonitaet = lazy(() => import("@/pages/site/girokonto-trotz-negativer-bonitaet"));
@@ -307,7 +319,8 @@ function admin(Component: ComponentType) {
 // 24.09.2026: Hell, wo die Seite hell ist — FIAON Global (Kanzlei) und die
 // hellen Rechtstexte. Vorher stand zwischen dem hellen Vorab-HTML bzw. zwei
 // hellen Business-Seiten für einen Augenblick die dunkle Weltkugel.
-const HELLER_LADER = /^\/(en\/)?business(\/|$)|^\/(privacy|datenschutz|bonitaet)\/?$/;
+// 25.09.2026 (E-241): /bonitaet ist keine helle Seite mehr, sondern die Weiterleitung auf die dunkle Übersicht.
+const HELLER_LADER = /^\/(en\/)?business(\/|$)|^\/(privacy|datenschutz)\/?$/;
 function SeiteLaedt({ hell = false }: { hell?: boolean }) {
   return (
     <div className={hell ? "ld hell" : "ld"} role="status" aria-label="Seite wird geladen">
@@ -444,6 +457,14 @@ function Router() {
       <Route path="/auskunfteien" component={AuskunfteienSeite} />
       <Route path="/schufa-score-verstehen" component={SchufaScoreVerstehen} />
       <Route path="/bonitaetsauskunft-beantragen" component={BonitaetsauskunftBeantragen} />
+      <Route path="/bonitaetsauskunft" component={BaUebersicht} />
+      <Route path="/bonitaetsauskunft/schufa" component={BaDeutschland} />
+      <Route path="/bonitaetsauskunft/oesterreich" component={BaOesterreich} />
+      <Route path="/bonitaetsauskunft/schweiz" component={BaSchweiz} />
+      <Route path="/bonitaetsauskunft/unternehmen" component={BaUnternehmen} />
+      <Route path="/bonitaetsauskunft/ablauf" component={BaAblauf} />
+      <Route path="/bonitaetsauskunft/handlungsplan" component={BaHandlungsplan} />
+      <Route path="/bonitaetsauskunft/fragen" component={BaFragen} />
       <Route path="/inkasso-brief-erhalten" component={InkassoBriefErhalten} />
       <Route path="/eintrag-verjaehrung" component={EintragVerjaehrung} />
       <Route path="/girokonto-trotz-negativer-bonitaet" component={GirokontoTrotzNegativerBonitaet} />
@@ -776,10 +797,12 @@ function Router() {
       {/* E-240: Die alten Auskunft-Seiten versprachen „Express am selben Werktag" und eine
           „garantierte" Bearbeitung (Wortwand) — Service und Danke führen jetzt auf die eine
           Bestellseite. /bonitaet bleibt: Sie ist neu geschrieben, steht im SEO-Register
-          (canonical /bonitaetsauskunft-beantragen) und ist Ziel alter Kampagnen-Links. */}
+          (canonical /bonitaetsauskunft-beantragen) und ist Ziel alter Kampagnen-Links.
+          E-241 (25.09.2026): /bonitaet und /bonitaet-service leiten mit Abfrage auf die
+          Übersicht /bonitaetsauskunft (pages/bonitaet.tsx); Danke weiter auf die Bestellseite. */}
       <Route path="/bonitaet" component={BonitaetPage} />
       <Route path="/bonitaet-antrag" component={BonitaetAntragPage} />
-      <Route path="/bonitaet-service"><Redirect to="/bonitaet-antrag" replace /></Route>
+      <Route path="/bonitaet-service" component={BonitaetPage} />
       <Route path="/bonitaet-danke"><Redirect to="/bonitaet-antrag" replace /></Route>
       <Route path="/banking" component={InvestorLoginPage} />
       <Route path="/banking/dashboard" component={InvestorDashboardPage} />

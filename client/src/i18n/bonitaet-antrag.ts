@@ -30,7 +30,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import {
-  AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_PREISE_CENTS, euroText, type AuskunftArt, type AuskunftLand,
+  AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_PREISE_CENTS, euroText, type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import {
   AUSKUNFT_ANBIETER_ZEILE, AUSKUNFT_KEIN_WIDERRUF, AUSKUNFT_KONTAKT_ZEILE, AUSKUNFT_LAUFZEIT, AUSKUNFT_PREIS_STEUER,
@@ -42,8 +42,11 @@ import {
  * 2026-09-25 (E-240): Belehrung aus shared/fiaon-auskunft-widerruf.ts — Anbieter
  * wie im Impressum („Vereinigtes Königreich"), im Muster-Formular Anschrift und
  * E-Mail ohne Telefon (Anlage 2 zu Art. 246a EGBGB). Sonst wortgleich.
+ * 2026-09-25b (E-241): Der Haken „Vollmacht zur Übermittlung" ist jetzt der
+ * Beschaffungsauftrag (hakenAuftrag, Schlüssel „beschaffungsauftrag") — die
+ * Vollmacht deckte nur die kostenlose Datenkopie, nicht den Kauf der Auskunft.
  */
-export const BESTELL_FASSUNG = "2026-09-25";
+export const BESTELL_FASSUNG = "2026-09-25b";
 
 /** Der Knopf nach § 312j Abs. 3 BGB — wörtlich, ohne Zusatz. */
 export const BESTELL_KNOPF = "Zahlungspflichtig bestellen";
@@ -77,8 +80,8 @@ export const T = {
   pille: "Bonitätsauskunft · Einmalpreis, kein Abo",
   h1a: "Ihre Bonitätsauskunft.",
   h1b: " Angefordert, erklärt, mit Plan.",
-  lead: "Wir fordern Ihre Datenkopien bei allen Auskunfteien Ihres Landes an, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen einen Handlungsplan mit fertigen Schreiben.",
-  fakten: ["Alle Auskunfteien Ihres Landes", "Jede Zeile in klaren Worten", "Schreiben zur Freigabe"],
+  lead: "Wir fordern Ihre Datenkopien bei den großen Auskunfteien Ihres Landes an, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen einen Handlungsplan mit fertigen Schreiben.",
+  fakten: ["Die großen Auskunfteien Ihres Landes", "Jede Zeile in klaren Worten", "Schreiben zur Freigabe"],
 
   // ── Schritt 1 ──
   s1: "Für wen bestellen Sie?",
@@ -152,10 +155,12 @@ export const T = {
 
   // ── Die Häkchen: genau diese Sätze werden mit Zeitstempel gespeichert ──
   hakenBeginn: "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Leistung beginnt. Mir ist bekannt, dass ich mein Widerrufsrecht bei vollständiger Vertragserfüllung verliere.",
-  hakenVollmacht: (bei: string) =>
-    `Ich verlange bei ${bei} eine Kopie der über mich gespeicherten Daten und bevollmächtige FIAON, diese Anfragen für mich zu übermitteln, den Bearbeitungsstand zu erfragen und die Antworten für mich entgegenzunehmen (Vollmacht zur Übermittlung). FIAON gibt keine eigenen Erklärungen in meinem Namen ab und hat kein weitergehendes Vertretungsrecht. Die Vollmacht gilt zwölf Monate und ist jederzeit widerruflich.`,
-  hakenVollmachtFirma: (bei: string) =>
-    `Ich bevollmächtige FIAON, die Anfragen des Unternehmens nach den gespeicherten Daten bei den Wirtschaftsauskunfteien — und, sofern ich Inhaberin, Inhaber oder Geschäftsführung bin, meine persönliche Datenkopie bei ${bei} — zu übermitteln, den Bearbeitungsstand zu erfragen und die Antworten entgegenzunehmen (Vollmacht zur Übermittlung). FIAON gibt keine eigenen Erklärungen im Namen des Unternehmens oder in meinem Namen ab und hat kein weitergehendes Vertretungsrecht. Die Vollmacht gilt zwölf Monate und ist jederzeit widerruflich.`,
+  // 25.09.2026 (E-241): EIN Haken, der Beschaffungsauftrag — statt der „Vollmacht zur
+  // Übermittlung" (bis Fassung 2026-09-25). Die schloss ausdrücklich aus, in meinem Namen
+  // Erklärungen abzugeben; den Kauf der Auskunft (bis zur API kaufen wir sie selbst) deckte
+  // sie nicht. Der Wortlaut steht in shared/fiaon-auskunft.ts — wortgleich an allen Kauftüren.
+  // „Bei den oben genannten Auskunfteien": Die Zeile „Leistung" darüber nennt sie je Land.
+  hakenAuftrag: (art: AuskunftArt) => AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art),
   hakenUnternehmer: "Ich bestelle für das genannte Unternehmen zu gewerblichen Zwecken und bin berechtigt, es dabei zu vertreten.",
   uwg: `Wir nutzen Ihre E-Mail-Adresse auch, um Sie über eigene ähnliche Leistungen von FIAON zu informieren. Dem können Sie jederzeit widersprechen — über den Abmeldelink in jeder dieser E-Mails oder an ${FIAON_FIRMA.email} —, ohne dass dafür andere als die Übermittlungskosten nach den Basistarifen entstehen (§ 7 Abs. 3 UWG).`,
 
@@ -192,7 +197,7 @@ export const T = {
   kundeZurZahlung: "Zur Zahlungsseite",
   kundeZumBereich: "Zum Kundenbereich",
   kundeDokument: "In Ihrer Akte liegt bereits eine Auskunft, die Sie selbst hochgeladen haben — wir werten sie aus.",
-  kundeTrotzdem: "Trotzdem die Auskunft bei allen Auskunfteien bestellen",
+  kundeTrotzdem: "Trotzdem die Auskunft bestellen",
   // Der Bereich sieht schon eine Auskunft (alte Käufe über die E-Mail, Dokument an einer
   // Schwester-Zeile), die Kaufkarte bleibt dort zu — hier ebenso, nur mit bewusster Wahl.
   kundeVorhanden: "Zu Ihrem Konto ist bereits eine Bonitätsauskunft hinterlegt — den Stand sehen Sie in Ihrem Kundenbereich.",

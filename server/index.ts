@@ -60,6 +60,8 @@ app.use((req, res, next) => {
       // POST /global/auftrag Nummer UND Token trägt, wird für diese Pfade keine Antwort mitgeschrieben.
       const pfadOhneToken = path
         .replace(/\/(abschluss|zustimmung)\/[^/?]+/, "/$1/…")
+        // 25.09.2026 (E-241): die Auftragsbestätigung der Bonitätsauskunft (Token im Pfad, fiaon-auskunft-kauf.ts).
+        .replace(/\/auskunft\/auftrag\/[^/?]+/, "/auskunft/auftrag/…")
         // „Mein Auftrag" (Kunde) und die Office-/Leitungsrouten dazu: dieselbe Nummer, derselbe Schutz.
         .replace(/\/global\/(auftrag|mein-auftrag|auftraege)\/[^/?]+/, "/global/$1/…");
       // Die Antworten der Office- und Leitungsrouten tragen den Kundenlink mit frischem Token — auch sie bleiben draußen.

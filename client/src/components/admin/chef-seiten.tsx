@@ -61,6 +61,8 @@ const Mara = lazy(() => import("@/components/admin/ChefMara"));
 const LeadMotor = lazy(() => import("@/components/admin/ChefLeadMotor"));
 // 24.09.2026 (E-240): Die Bonitätsauskunft verkaufen — Tageszahl gegen Ziel 150, Pool, Takt, Rückstand.
 const AuskunftVerkauf = lazy(() => import("@/components/admin/ChefAuskunft"));
+// 25.09.2026 (E-241): „Bis zur API kaufen wir sie selbst" — der Arbeitsplatz der Beschaffung.
+const AuskunftBeschaffung = lazy(() => import("@/components/admin/ChefAuskunftBeschaffung"));
 const Provisionen = lazy(() => import("@/components/admin/ChefProvisionen"));
 const WhatsAppRaumSeite = lazy(() => import("@/components/whatsapp/WhatsAppRaum").then((m) => ({ default: () => <m.default basis="/chef/whatsapp" /> })));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
@@ -150,7 +152,10 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat, aus dem nachgefasst wird.", Seite: Kunden, raum: "kunden", suche: "stufe=C", auch: "vorrat kalt" },
   { slug: "ohne-onboarding", label: "Bezahlt ohne Startgespräch", satz: "Die Kunden, bei denen das Onboarding hängt.", Seite: Kunden, raum: "kunden", suche: "bezahltOhneOnboarding=1" },
   // 24.09.2026 (E-240): Justin — die Auskunft soll „weggehen wie warme Semmeln" (Ziel 150 am Tag).
-  { slug: "auskunft", label: "Auskunft-Verkauf", satz: "Bonitätsauskunft: bestellt und bezahlt heute gegen das Ziel 150, wer sie noch nicht hat, offene Bestellungen, Rückstand und der Verkaufstakt.", Seite: AuskunftVerkauf, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf angebot takt ziel 150 handlungsplan rückstand rueckstand lieferung" },
+  // 25.09.2026 (E-241): Trichter (angeschrieben → geliefert) und Steuerung (Kreis, Mails/WhatsApp je Tag, Liefermodus, Protokoll).
+  { slug: "auskunft", label: "Auskunft-Verkauf", satz: "Bonitätsauskunft: der Trichter heute und über 14 Tage gegen das Ziel 150, die Steuerung des Verkaufs mit Protokoll, wer sie noch nicht hat, offene Bestellungen und Rückstand.", Seite: AuskunftVerkauf, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf angebot takt ziel 150 handlungsplan rückstand rueckstand lieferung trichter klicks kreis liefermodus einkauf protokoll steuerung" },
+  // 25.09.2026 (E-241): Bis die API steht, beschaffen wir die bezahlten Auskünfte selbst — hier, je Auftrag.
+  { slug: "auskunft-beschaffung", label: "Auskunft-Beschaffung", satz: "Bezahlte Bonitätsauskünfte beschaffen: alle Daten zum Bestellen, Vollmacht, Frist, PDF hochladen — Akte, Analyse und Mail an den Kunden folgen von selbst.", Seite: AuskunftBeschaffung, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft beschaffung beschaffen einkauf kaufen bestellen schufa ksv crif intrum boniversum hochladen upload pdf vollmacht einwilligung widerrufsfrist rückstand rueckstand lieferung api" },
   // 17.09.2026 (E-188): FIAON Global — Firmenaufträge über die US-Struktur. Eigene Liste, weil ein
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.

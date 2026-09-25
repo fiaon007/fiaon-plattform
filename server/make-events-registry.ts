@@ -15,6 +15,8 @@ import { BANK, BANK_ALT_GESPERRT } from "@shared/fiaon-bank";
 // E-240 (Gegenlesen 24.09.2026): Preise und Auskunfteien der Auskunft nur aus der einen Quelle —
 // eine Zahl im Beschreibungstext wäre die nächste, die beim Preiswechsel stehen bleibt.
 import { AUSKUNFT_PREISE_CENTS, auskunftLeistung, auskunfteienText, euroText } from "@shared/fiaon-auskunft";
+// E-241 (25.09.2026): Die Sätze von schufa_requested je Lieferweg — das Beispiel zeigt den Vollmacht-Weg.
+import { schufaRequestedSaetze } from "./mail/vorlagen/auskunft-lead";
 
 export interface MakeEventDef {
   type: MakeEventType;
@@ -822,7 +824,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "schufa_requested",
     label: "Auskunft beauftragt: bitte unterschreiben (Kunde)",
-    description: "Feuert automatisch nach der Zahlung einer Bonitätsauskunft (onCustomerPaid → lieferungStarten), genau einmal je Bestellung: Die Anfragen an die Auskunfteien des Landes sind angelegt, der Kunde unterschreibt Vollmacht und Anfragen über unterschrift_url (/app/unterschrift). Pflichtmail — er hat bezahlt.",
+    description: "Feuert automatisch nach der Zahlung einer Bonitätsauskunft (onCustomerPaid → lieferungStarten), genau einmal je Bestellung: Die Anfragen an die Auskunfteien des Landes sind angelegt, der Kunde unterschreibt Vollmacht und Anfragen über unterschrift_url (/app/unterschrift). Im Einkauf (E-241) nur, wenn für die Bestellung keine Einwilligung dokumentiert ist — dann als Bitte um die Auftragsbestätigung (eigene Vorlage AUSKUNFT_AUFTRAG_BESTAETIGEN, Knopf „Auftrag bestätigen“ → /api/fiaon/auskunft/auftrag/:token; auch von Hand aus dem Chefbüro, Auskunft-Beschaffung, „Auftragsbestätigung senden“). Pflichtmail — er hat bezahlt.",
     customerBound: true,
     example: {
       ...CUSTOMER_EXAMPLE,
@@ -830,6 +832,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       paket: "Bonitätsauskunft inkl. Handlungsplan",
       anrede: "Guten Tag Max Mustermann,",
       auskunfteien: auskunfteienText("DE"),
+      ...schufaRequestedSaetze("vollmacht"),
       unterschrift_satz: "Damit wir das dürfen, unterschreiben Sie bitte einmal die Vollmacht zur Übermittlung und gleich danach Ihre drei Anfragen — nacheinander auf einer Seite, mit dem Finger am Bildschirm.",
       unterschrift_url: "https://www.fiaon.com/app/unterschrift/123.1799999999000.0f3a9b7c2e4d0f3a9b7c2e4d0f3a9b7c",
       login_url: "https://www.fiaon.com/app/vorgaenge",
@@ -837,8 +840,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   },
   {
     type: "auskunft_angebot",
-    label: "Angebot Bonitätsauskunft (Werbung, Kunde)",
-    description: `WERBUNG an Bestandskunden ohne Auskunft: was wir tun, bei welchen Auskunfteien (je Land), Preis (${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} mit Paket, ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} einzeln; Firma ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)} / ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}), Knopf „Auskunft beauftragen“ (kauf_url) und „Ich habe schon eine — hochladen“. Drei Fassungen im Wechsel (fassung a/b/c). Abmeldelink Pflicht; die Tür lehnt ab bei Werbesperre (auch von Hand), Vertriebssperre, gekaufter oder vorliegender Auskunft, Kündigung und — automatisch — ohne Grundlage nach § 7 Abs. 3 UWG (Kunde vor dem 02.09.2026 12:35; Regel: sperrUrteil in fiaon-mail-frequenz.ts). Nutzlast und Vorprüfung: auskunftAngebotNutzlast / auskunftAngebotSperre (server/lib/fiaon-auskunft-lieferung.ts).`,
+    // Gegenlesen 25.09.2026 (E-241): Beschreibung auf die drei Segmente und den Kreis des Verkaufstakts nachgezogen.
+    label: "Angebot Bonitätsauskunft (Werbung)",
+    description: `WERBUNG an Menschen ohne Auskunft — je nach Kreis des Verkaufstakts (auskunft_verkauf_kreis): „uwg“ nur zahlende Kunden nach dem 02.09.2026 12:35 (§ 7 Abs. 3 UWG), „alle“ dazu fertige, unbezahlte Anträge und Leads. Neun Texte: segment kunde | antrag | lead × fassung a (was die Bank sieht) | b (Einwand „kostenlos?“) | c (kurz, persönlich), jeweils mit eigenen Firmen-Sätzen. Inhalt: was wir tun, bei welchen Auskunfteien (je Land, AT/CH nie „SCHUFA“), Preis (Kunde mit Paket ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, sonst ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)}; Firma ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)} / ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}; beim Antrag mit Hinweis auf den Paketpreis, paket_preis_hinweis), Knopf „Auskunft für … beauftragen“ (kauf_url) und „Schon eine aktuelle Auskunft? Hier hochladen“ (upload_url, nie beim Lead). Abmeldelink und Widerspruchs-Hinweis Pflicht; die Tür lehnt ab bei Werbesperre (auch von Hand), Vertriebssperre, gekaufter oder vorliegender Auskunft, Kündigung und — im Kreis „uwg“ automatisch — ohne Grundlage nach § 7 Abs. 3 UWG (Regel: sperrUrteil in fiaon-mail-frequenz.ts). Nutzlast und Vorprüfung: auskunftAngebotNutzlast / auskunftAngebotSperre (server/lib/fiaon-auskunft-lieferung.ts), für den Takt angebotNutzlast (server/lib/fiaon-auskunft-verkauf.ts).`,
     customerBound: false,
     example: {
       email: "max.mustermann@example.com",
@@ -852,6 +856,10 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       art: "privat",
       auskunfteien: auskunfteienText("DE"),
       leistung: auskunftLeistung("privat", "DE"),
+      // E-241 (25.09.2026): Segment (kunde | antrag | lead) und Fassung (a | b | c) wählen einen der
+      // neun Texte (server/mail/vorlagen/auskunft-verkauf.ts). paket_preis_hinweis nennt beim Antrag
+      // den Preis mit aktivem Paket (ohne Angabe: nur im Segment „antrag"); beim Kunden nie.
+      segment: "kunde",
       fassung: "a",
       kauf_url: "https://www.fiaon.com/api/fiaon/auskunft/bestellen?p=4711&art=privat&exp=1799999999000&sig=0f3a9b7c2e4d",
       upload_url: "https://www.fiaon.com/app/unterlagen",

@@ -19,7 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { graph, MetaFehler } from "./fiaon-meta";
-import { WA_VORLAGEN, INKASSO_AUSNAHME, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
+import { WA_VORLAGEN, INKASSO_AUSNAHME, AUSKUNFT_VORLAGEN_ALLE, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
 import { nummerFuerWhatsApp, waKanonisch } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
 
@@ -669,6 +669,15 @@ export async function waSenden(
   // Seite sagt „Ihr Konto ist aktiv", und der Kunde sähe die falsche Zahlung.
   if (inhalt.vorlage && /^fiaon_kkb?_rate$/.test(inhalt.vorlage) && !/^FIAON-?[A-Z0-9]{6}-\d{1,2}$/i.test(String(knopfWert ?? ""))) {
     return { ok: false, grund: "Die Raten-Erinnerung braucht die Referenz der Rate (FIAON-XXXXXX-N)." };
+  }
+  // E-241 (25.09.2026): Die Auskunft-Vorlagen (fiaon_kk_auskunft, fiaon_kk_auskunft_lead und ihre
+  // Bildfassungen) sind WERBUNG — waVorlageWerblich kennt sie nicht als Service-Post, die Sperre oben
+  // greift also. Ihr Knopf braucht den signierten Kurz-Kauflink GENAU dieses Menschen (kaufKurzToken);
+  // ohne ihn griffe die Rückfallebene unten zu „start" und der Knopf führte auf eine tote Seite — und
+  // Preis und Auskunfteien hätte ein Mensch von Hand getippt. Sie gehen nur über WA-Zentrale und Verkaufstakt.
+  if (inhalt.vorlage && AUSKUNFT_VORLAGEN_ALLE.includes(inhalt.vorlage)
+    && !/^\d{1,10}-[pf]-[0-9a-z]{6,12}-[0-9a-f]{32}$/.test(String(knopfWert ?? ""))) {
+    return { ok: false, grund: "Die Auskunft-Vorlage braucht den Kauflink dieses Menschen — sie geht über die WhatsApp-Zentrale oder den Verkaufstakt, nicht von Hand." };
   }
   if (urlKnopf && !knopfWert) {
     // Der Platzhalter ist der Teil der Adresse NACH dem festen Anfang.

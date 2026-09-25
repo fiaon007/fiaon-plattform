@@ -1891,30 +1891,19 @@ export default function DashboardPage() {
               {/* CTA — Bestellung per Banküberweisung anlegen und zur Zahlungsseite */}
               <button
                 type="button"
-                onClick={async (e) => {
+                onClick={(e) => {
                   e.stopPropagation();
-                  try {
-                    const res = await fetch("/api/fiaon/payment-order", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        kind: "schufa",
-                        email: user.email || "",
-                        firstName: user.firstName || "",
-                        lastName: user.lastName || "",
-                      }),
-                    });
-                    const json = await res.json().catch(() => null);
-                    if (res.ok && json?.ok && json.paymentReference) {
-                      setSchufaModal(false);
-                      window.location.href = `/zahlung/${json.paymentReference}`;
-                    }
-                  } catch {}
+                  // Gegenlesen 25.09.2026 (E-241): Bestellt wird nur noch auf der Bestellseite — Preis vom
+                  // Server, Widerrufsbelehrung und der Pflicht-Haken des Beschaffungsauftrags. Vorher ging
+                  // hier ein POST /payment-order OHNE jeden Haken hinaus; der Server lehnt das jetzt ab.
+                  setSchufaModal(false);
+                  window.location.href = "/bonitaet-antrag";
                 }}
                 className="block w-full text-center py-4 rounded-2xl text-[15px] font-extrabold text-white relative overflow-hidden"
                 style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb, #3b82f6)', boxShadow: '0 16px 40px rgba(37,99,235,0.4)', letterSpacing: '0.04em' }}
               >
-                <span className="relative z-10">Jetzt bezahlen &amp; Auskunft erhalten — 74 €</span>
+                {/* E-241: kein fester Preis mehr — die Bestellseite nennt den Preis, der für ihn gilt (74 € oder 149 €). */}
+                <span className="relative z-10">Weiter zur Bestellung der Auskunft</span>
                 <div className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)', animation: 'bonShimmer 3s ease-in-out infinite' }} />
               </button>
               <p className="text-[11px] text-white/25 text-center mt-3 flex items-center justify-center gap-1.5">

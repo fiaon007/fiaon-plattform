@@ -825,7 +825,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e) { console.error('[SEITEN-SEO] bereich:', e); next(); }
   });
 
-  const UMGEZOGEN: Record<string, string> = { '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start' };
+  // 25.09.2026 (E-241): /bonitaet und /bonitaet-service sind umgezogen auf die Übersicht der Seitenfamilie
+  // /bonitaetsauskunft — 301 mit Abfrage (utm_*, fbclid alter Kampagnen-Links); der Anker bleibt im Browser.
+  // Vorher leitete nur der Client weiter (pages/bonitaet.tsx, bleibt als Rückfall): erst weißer Grund, dann Sprung.
+  const UMGEZOGEN: Record<string, string> = {
+    '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start',
+    '/bonitaet': '/bonitaetsauskunft', '/bonitaet-service': '/bonitaetsauskunft',
+  };
   app.get(Object.keys(UMGEZOGEN), (req, res) => {
     const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
     res.redirect(301, UMGEZOGEN[req.path.replace(/\/$/, '')] + (req.path === '/business-antrag' ? '' : abfrage));
@@ -1007,6 +1013,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    /chef/s/auskunft). Die Route trägt auch den öffentlichen Knopf der WhatsApp-Vorlage (/auskunft/k/:token).
   const chefAuskunft = await import('./routes/fiaon-chef-auskunft');
   app.use('/api/fiaon', chefAuskunft.default);
+  // 🛒 E-241 (25.09.2026): Auskunft-Beschaffung (/chef/s/auskunft-beschaffung) — bis zur API kaufen wir sie selbst.
+  app.use('/api/fiaon', (await import('./routes/fiaon-chef-auskunft-beschaffung')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('auskunft_verkauf', async () => await (await import('./lib/fiaon-auskunft-verkauf')).verkaufsTakt(), 30 * 60 * 1000, { beimStartNach: 420_000 });
   });

@@ -299,7 +299,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   // (auskunftStand): Stufe, Preis für GENAU diesen Menschen, offene Bestellung.
   // Nicht für reine FIAON-Global-Kunden — deren Produkt ist ein anderes.
   const nurGlobal = bestellungen.length > 0 && bestellungen.every((b) => istGlobalPaket(b.pack_key));
-  const auskunft = personId && !nurGlobal ? await auskunftDossier(personId) : null;
+  const auskunft = personId && !nurGlobal ? await auskunftDossier(personId, lage) : null;
 
   return {
     heute,
@@ -396,12 +396,19 @@ export async function auskunftArtFuer(personId: number): Promise<"privat" | "fir
  * Der Auskunft-Abschnitt der Akte. Scheitert die Abfrage, fehlt der Abschnitt —
  * die Mail wird trotzdem beantwortet (dann eben ohne Angebot).
  */
-export async function auskunftDossier(personId: number): Promise<AuskunftDossier | null> {
+export async function auskunftDossier(personId: number, lage?: Kundenlage | null): Promise<AuskunftDossier | null> {
   try {
     const { auskunftStand } = await import("./fiaon-auskunft");
     // Gegenlesen E-240: dieselbe Art wie auskunft_anbieten — sonst stünde für einen
     // Business-Kunden hier 74 € und im Werkzeug 199 €.
-    const art = await auskunftArtFuer(personId);
+    // Integration 25.09.2026 (E-241): bei offenem Antrag und Interessent wie das Werkzeug aus der
+    // Grundmenge des Takts (auskunftArtLandVerkauf) — sonst stand für einen Business-Antrag hier
+    // „privat, 149 €", während Werkzeug und Angebots-Mail 349 € nennen. Das Land kommt für Leads
+    // seit E-241 aus auskunftStand (landOhneAntrag), also schon passend.
+    const { AUSKUNFT_ANTWORT_LAGEN } = await import("@shared/fiaon-postmeister-typen");
+    const art = lage && AUSKUNFT_ANTWORT_LAGEN.includes(lage)
+      ? (await (await import("./fiaon-postmeister-werkzeuge")).auskunftArtLandVerkauf(personId)).art
+      : await auskunftArtFuer(personId);
     const s = await auskunftStand(personId, sqlPool, art);
     return {
       stufe: s.stufe,

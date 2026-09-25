@@ -11,16 +11,21 @@
 // bei einem Preiswechsel dort mitziehen.
 // Das Gratisrecht steht weiter vorne: Wer den kostenlosen Weg verschweigt,
 // wirkt wie die Anbieter, vor denen wir warnen.
+//
+// 25.09.2026 (E-241): Die Seite trägt die Gestaltung der Seitenfamilie
+// /bonitaetsauskunft (Kopf, Preiszeile, Abschluss, Kaufleiste am Handy) und
+// verweist in sie. Neu hier nur die Worte dafür (schlussPille … familieLinks) —
+// die FAQ bleiben unverändert (scripts/seo-fragen-erzeugen.ts liest sie).
 import { auskunftLeistung, type AuskunftArt, type AuskunftLand } from "@shared/fiaon-auskunft";
 
 const de = {
   metaTitel: "Bonitätsauskunft beantragen: kostenlos oder mit FIAON",
-  metaBeschreibung: "Bonitätsauskunft beantragen: der kostenlose Weg nach Art. 15 DSGVO und die FIAON-Bonitätsauskunft mit Handlungsplan im Vergleich — alle Auskunfteien Ihres Landes.",
+  metaBeschreibung: "Bonitätsauskunft beantragen: der kostenlose Weg nach Art. 15 DSGVO und die FIAON-Bonitätsauskunft mit Handlungsplan im Vergleich — die großen Auskunfteien Ihres Landes.",
   seoTitel: "Bonitätsauskunft beantragen: beide Wege | FIAON",
-  seoBeschreibung: "Bonitätsauskunft beantragen: der kostenlose Weg nach Art. 15 DSGVO und die FIAON-Bonitätsauskunft mit Handlungsplan im Vergleich — alle Auskunfteien Ihres Landes.",
+  seoBeschreibung: "Bonitätsauskunft beantragen: der kostenlose Weg nach Art. 15 DSGVO und die FIAON-Bonitätsauskunft mit Handlungsplan im Vergleich — die großen Auskunfteien Ihres Landes.",
   krume: "Bonitätsauskunft beantragen",
   ldName: "FIAON-Bonitätsauskunft mit Handlungsplan",
-  ldArt: "Anforderung und Erklärung von Bonitätsauskünften bei allen Auskunfteien des Landes (Deutschland, Österreich, Schweiz)",
+  ldArt: "Anforderung und Erklärung von Bonitätsauskünften bei den großen Auskunfteien des Landes (Deutschland, Österreich, Schweiz)",
   ldFirma: "FIAON-Bonitätsauskunft für Unternehmen",
   pille: "Zwei Wege, volle Klarheit", h1a: "Bonitätsauskunft beantragen — ", h1b: "kostenlos oder mit FIAON.",
   lead: (einzeln: string, mitPaket: string) => `Ihre Datenkopie steht Ihnen gesetzlich kostenlos zu — das sagen wir zuerst. Die FIAON-Bonitätsauskunft ist für alle, die Anforderung, Erklärung und Fristenprüfung abgeben wollen: einmalig ${einzeln}, mit laufendem FIAON-Paket ${mitPaket}, kein Abo.`,
@@ -29,7 +34,7 @@ const de = {
   kopf: ["", "Selbstauskunft (Art. 15 DSGVO)", "FIAON-Bonitätsauskunft"],
   preisZeile: (einzeln: string, mitPaket: string) => ["Preis", "0 € — gesetzliches Recht", `${einzeln} einmalig · mit Paket ${mitPaket}`],
   zeilen: [
-    ["Anforderung", "Sie schreiben jede Auskunftei einzeln an", "FIAON fordert bei allen Auskunfteien Ihres Landes an — mit Ihrer Vollmacht"],
+    ["Anforderung", "Sie schreiben jede Auskunftei einzeln an", "FIAON fordert bei den großen Auskunfteien Ihres Landes an — in Ihrem Auftrag"],
     ["Form", "Rohdaten, Fachbegriffe, Abkürzungen", "Jede Zeile in klaren Worten erklärt"],
     ["Prüfung", "machen Sie selbst (unsere Werkzeuge helfen kostenlos)", "Speicherfristen und Richtigkeit jedes Eintrags geprüft"],
     ["Danach", "Schreiben selbst aufsetzen, Fristen selbst verfolgen", "Handlungsplan und fertige Schreiben — Sie geben frei, wir übermitteln"],
@@ -38,7 +43,7 @@ const de = {
   gratisA: "Den Gratisweg bereiten unsere Werkzeuge kostenlos vor: ", gratisLink1: "Selbstauskunft anfordern", gratisB: " und ", gratisLink2: "Eintrag prüfen", gratisC: ". Wer beides anbietet und den Gratisweg verschweigt, verkauft Ihnen Ihr eigenes Recht.",
   // ── WAS GELIEFERT WIRD, JE LAND UND ART ─────────────────────────────────
   leistungTitel: "Was Sie bekommen — je Land",
-  leistungLead: "Angefragt wird bei allen Auskunfteien Ihres Landes. Für Unternehmen gibt es eine eigene Variante mit den Firmendaten.",
+  leistungLead: "Angefragt wird bei den großen Auskunfteien Ihres Landes. Für Unternehmen gibt es eine eigene Variante mit den Firmendaten.",
   laender: { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" } as Record<AuskunftLand, string>,
   arten: { privat: "Für mich privat", firma: "Für mein Unternehmen" } as Record<AuskunftArt, string>,
   // Deutsch: wörtlich die eine Liste aus shared/fiaon-auskunft.ts. Die dritte
@@ -48,7 +53,7 @@ const de = {
   ablaufTitel: "So läuft es ab", ablaufLead: "Vier Etappen — Sie sehen jede davon in Ihrem Kundenbereich.",
   ablauf: [
     { dauer: "wenige Minuten", titel: "Bestellen und Vollmacht erteilen", text: "Name, Anschrift, Geburtsdatum — mehr brauchen die Auskunfteien nicht, um Sie sicher zuzuordnen. Mit Ihrer Vollmacht dürfen wir die Datenkopien für Sie anfordern." },
-    { dauer: "in der Regel bis zu einem Monat", titel: "FIAON fordert die Datenkopien an", text: "Wir fordern Ihre Datenkopien bei allen Auskunfteien Ihres Landes an. Die Häuser haben dafür gesetzlich in der Regel einen Monat Zeit — oft geht es schneller. Sie müssen nichts tun." },
+    { dauer: "in der Regel bis zu einem Monat", titel: "FIAON fordert die Datenkopien an", text: "Wir fordern Ihre Datenkopien bei den großen Auskunfteien Ihres Landes an. Die Häuser haben dafür gesetzlich in der Regel einen Monat Zeit — oft geht es schneller. Sie müssen nichts tun." },
     { dauer: "sobald sie vorliegen", titel: "Erklärung und Fristenprüfung", text: "Jede Zeile wird in klaren Worten erklärt und geprüft: zulässig gemeldet? Speicherfrist abgelaufen? Inhaltlich richtig? Sie sehen das Ergebnis in Ihrem Kundenbereich." },
     { dauer: "danach", titel: "Handlungsplan und fertige Schreiben", text: "Ihr Handlungsplan sagt, was Sie konkret tun können, in welcher Reihenfolge. Die Schreiben — etwa Löschung nach Fristablauf oder Berichtigung falscher Daten — liegen fertig bereit: Sie geben frei, wir übermitteln. Über Konto und Karte entscheidet die Bank." },
   ],
@@ -64,14 +69,14 @@ const de = {
   // PAngV § 6 (Fernabsatz): neben dem Preis sagen, dass die Steuer drin ist — wortgleich
   // mit AGB § 5 Abs. 1 und der Bestellseite (client/src/i18n/bonitaet-antrag.ts, PREIS_STEUER).
   preisSteuer: "Endpreise einschließlich einer etwaig anfallenden Umsatzsteuer.",
-  preisZeilen: ["Datenkopien bei allen Auskunfteien Ihres Landes — mit Ihrer Vollmacht", "Jede Zeile in klaren Worten erklärt", "Speicherfristen und Richtigkeit jedes Eintrags geprüft", "Persönlicher Handlungsplan und fertige Schreiben zur Freigabe", "Einmalzahlung per Überweisung — kein Abo, keine Erfolgsbeteiligung"],
+  preisZeilen: ["Datenkopien bei den großen Auskunfteien Ihres Landes — in Ihrem Auftrag", "Jede Zeile in klaren Worten erklärt", "Speicherfristen und Richtigkeit jedes Eintrags geprüft", "Persönlicher Handlungsplan und fertige Schreiben zur Freigabe", "Einmalzahlung per Überweisung — kein Abo, keine Erfolgsbeteiligung"],
   fragenTitel: "Häufige Fragen zur Bonitätsauskunft",
   fragen: [
-    { f: "Ist eine Bonitätsauskunft wirklich kostenlos möglich?", a: "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei jeder Auskunftei, in der Schweiz nach Art. 25 DSG. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Kostenpflichtig ist bei den Auskunfteien nur das Bonitätszertifikat zum Weitergeben — und bei FIAON die Arbeit drumherum: anfordern bei allen Auskunfteien Ihres Landes, jede Zeile erklären, Fristen prüfen, Handlungsplan und fertige Schreiben." },
-    { f: "Was kostet die Bonitätsauskunft über FIAON?", a: "Einmalig 149 €. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von 74 €. Für Unternehmen: 349 € einzeln, 199 € mit Paket. Darin enthalten: die Anforderung Ihrer Datenkopien bei allen Auskunfteien Ihres Landes, die Erklärung jeder Zeile, die Prüfung der Speicherfristen, Ihr Handlungsplan und fertige Schreiben zur Freigabe. Kein Abo, keine Erfolgsbeteiligung — seriöse Arbeit rechnet nicht pro „gelöschtem Eintrag“ ab." },
+    { f: "Ist eine Bonitätsauskunft wirklich kostenlos möglich?", a: "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei jeder Auskunftei, in der Schweiz nach Art. 25 DSG. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Kostenpflichtig ist bei den Auskunfteien nur das Bonitätszertifikat zum Weitergeben — und bei FIAON die Arbeit drumherum: anfordern bei den großen Auskunfteien Ihres Landes, jede Zeile erklären, Fristen prüfen, Handlungsplan und fertige Schreiben." },
+    { f: "Was kostet die Bonitätsauskunft über FIAON?", a: "Einmalig 149 €. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von 74 €. Für Unternehmen: 349 € einzeln, 199 € mit Paket. Darin enthalten: die Anforderung Ihrer Datenkopien bei den großen Auskunfteien Ihres Landes, die Erklärung jeder Zeile, die Prüfung der Speicherfristen, Ihr Handlungsplan und fertige Schreiben zur Freigabe. Kein Abo, keine Erfolgsbeteiligung — seriöse Arbeit rechnet nicht pro „gelöschtem Eintrag“ ab." },
     { f: "Wie lange dauert es, bis ich meine Auskunft habe?", a: "Die Bestellung dauert wenige Minuten. Die Auskunfteien haben für die Datenkopie gesetzlich in der Regel einen Monat Zeit, oft geht es schneller. Sobald die Kopien vorliegen, erklären und prüfen wir sie und legen Handlungsplan und Schreiben in Ihren Kundenbereich." },
     { f: "Was ist der Unterschied zwischen Datenkopie und Bonitätszertifikat?", a: "Die Datenkopie ist für SIE: vollständig, mit jedem Eintrag und jedem Detail — und kostenlos. Das Bonitätszertifikat der Auskunfteien ist für DRITTE (z. B. Vermieter): gekürzt, dafür zum Vorzeigen gedacht und kostenpflichtig. Wer seine Lage verstehen und angehen will, braucht die Datenkopie." },
-    { f: "Sieht die SCHUFA, dass ich eine Auskunft beantrage?", a: "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Das gilt auch, wenn FIAON sie mit Ihrer Vollmacht für Sie anfordert." },
+    { f: "Sieht die SCHUFA, dass ich eine Auskunft beantrage?", a: "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Das gilt auch, wenn FIAON sie in Ihrem Auftrag für Sie anfordert." },
     { f: "Gilt das auch für Österreich und die Schweiz?", a: "Ja. In Deutschland fordern wir bei SCHUFA, CRIF und Creditreform Boniversum an, in Österreich bei KSV1870 und CRIF, in der Schweiz bei CRIF und Intrum. In Österreich gilt die DSGVO unmittelbar, die Schweiz kennt mit dem revidierten DSG eigene Auskunfts- und Berichtigungsrechte (Art. 25 DSG)." },
     { f: "Gibt es die Bonitätsauskunft auch für Unternehmen?", a: "Ja. Für Unternehmen fordern wir die Firmendaten bei den Wirtschaftsauskunfteien an (u. a. Creditreform und CRIF) und dazu die persönliche Datenkopie der Inhaberin, des Inhabers oder der Geschäftsführung. Jeder Eintrag wird erklärt, dazu Handlungsplan und fertige Schreiben. Sie kostet 349 € einzeln und 199 € mit laufendem FIAON-Paket." },
     { f: "Kann FIAON zusagen, dass Einträge gelöscht werden?", a: "Nein — und niemand kann das seriös. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf. Was FIAON leistet: jeden Eintrag gegen die gesetzlichen Voraussetzungen halten und für das, was angreifbar ist, die Schreiben fertig machen. Ob gelöscht wird, entscheidet die Auskunftei. Anbieter, die eine Löschung versprechen, erkennen Sie als unseriös." },
@@ -85,6 +90,18 @@ const de = {
   aufrufSatz: (einzeln: string, mitPaket: string) => `Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, Fristen geprüft, Handlungsplan und fertige Schreiben — einmalig ${einzeln}, mit laufendem FIAON-Paket ${mitPaket}.`,
   aufrufFuss: "FIAON ist keine Rechtsberatung und verspricht keine Löschung berechtigter Einträge. Über Konto, Karte und Rahmen entscheidet immer die Bank.",
   kartenbildAlt: "Die FIAON-Karte auf dunklem Grund mit blauem Leuchtring",
+  // ── E-241: Gestaltung der Seitenfamilie ─────────────────────────────────
+  krumeFamilie: "Bonitätsauskunft",
+  preisZeileEinmal: "einmalig · kein Abo",
+  schlussPille: "Einmalig · kein Abo",
+  leisteWas: "Bonitätsauskunft",
+  leistePaket: (mitPaket: string) => `mit Paket ${mitPaket}`,
+  leisteKnopf: "Bestellen",
+  familieSatz: "Mehr zur Bonitätsauskunft: ",
+  familieLinks: [
+    { href: "/bonitaetsauskunft", t: "Übersicht" }, { href: "/bonitaetsauskunft/ablauf", t: "Ablauf" },
+    { href: "/bonitaetsauskunft/handlungsplan", t: "Handlungsplan" }, { href: "/bonitaetsauskunft/fragen", t: "alle Fragen" },
+  ] as { href: string; t: string }[],
 };
 const en: typeof de = {
   metaTitel: "Requesting your credit report: free or with FIAON",
@@ -167,5 +184,14 @@ const en: typeof de = {
   aufrufSatz: (einzeln: string, mitPaket: string) => `Data copies from every credit bureau in your country, every line explained, deadlines checked, an action plan and finished letters — ${einzeln} one-off, ${mitPaket} with a running FIAON plan.`,
   aufrufFuss: "FIAON is not legal advice and does not promise the deletion of justified entries. The bank always decides on account, card and limit.",
   kartenbildAlt: "The FIAON card on a dark background with a blue ring of light",
+  // E-241: the page family /bonitaetsauskunft exists in German only — no family links here.
+  krumeFamilie: "Credit report",
+  preisZeileEinmal: "one-off · no subscription",
+  schlussPille: "One-off · no subscription",
+  leisteWas: "Credit report",
+  leistePaket: (mitPaket: string) => `${mitPaket} with a plan`,
+  leisteKnopf: "Order",
+  familieSatz: "",
+  familieLinks: [],
 };
 export const BONITAETSAUSKUNFT_WOERTER = { de, en };

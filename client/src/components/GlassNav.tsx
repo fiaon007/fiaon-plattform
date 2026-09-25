@@ -11,7 +11,8 @@ import { useBusinessBereich } from "@/lib/bereich";
 interface GlassNavProps {
   /** Erzwingt den Rahmen von FIAON Global — z. B. die Zahlungsseite eines Firmenauftrags ohne ?bereich=business. */
   bereich?: "business";
-  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "kontakt";
+  // 25.09.2026 (E-241): „bonitaetsauskunft" — die Seitenfamilie unter /bonitaetsauskunft hebt ihren Menüpunkt hervor.
+  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "kontakt" | "bonitaetsauskunft";
 }
 
 /**
@@ -226,7 +227,8 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: "/en", label: "Home", text: "Insight · Action · Access" },
                 { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "The vision, explained properly" },
                 { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing" },
-                { href: zu("/bonitaet"), label: "Credit report", text: "Your report, obtained by FIAON" },
+                // E-241: die englische Seite zur Auskunft (die Familie /bonitaetsauskunft gibt es nur auf Deutsch).
+                { href: zu("/bonitaetsauskunft-beantragen"), label: "Credit report", text: "Your report, obtained by FIAON" },
                 { href: zu("/business"), label: "Business", text: "FIAON Global: US company, banking, capital" },
               ] },
               { titel: "Company", eintraege: [
@@ -242,7 +244,8 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang" },
                 { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Vision, genau erklärt" },
                 { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise" },
-                { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON" },
+                // 25.09.2026 (E-241): der Menüpunkt führt auf die Übersicht der Seitenfamilie (/bonitaet leitet dorthin).
+                { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Erklärt, mit Handlungsplan – DE, AT, CH" },
                 { href: "/business", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital" },
                 { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos" },
                 { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft" },
@@ -307,7 +310,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: zu("/ratgeber"), label: "Guides", text: "Entries, reports, cards — explained honestly", key: "ratgeber" },
                     { href: zu("/werkzeuge/eintrag-pruefen"), label: "Check an entry", text: "Five questions — can your entry be challenged?", key: "werkzeuge" },
                     { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing", key: "privatkunden" },
-                    { href: zu("/bonitaet"), label: "Credit report", text: "Your report, obtained by FIAON", key: "bonitaet" },
+                    { href: zu("/bonitaetsauskunft-beantragen"), label: "Credit report", text: "Your report, obtained by FIAON", key: "bonitaetsauskunft" },
                     { href: zu("/business"), label: "Business", text: "FIAON Global: US company, banking, capital", key: "business" },
                   ] },
                   { titel: "Company", eintraege: [
@@ -325,7 +328,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/ratgeber", label: "Ratgeber", text: "Einträge, Auskunft, Karte – ehrlich erklärt", key: "ratgeber" },
                     { href: "/werkzeuge/eintrag-pruefen", label: "Eintrag prüfen", text: "Fünf Fragen – ist Ihr Eintrag angreifbar?", key: "werkzeuge" },
                     { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
-                    { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
+                    { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Erklärt, mit Handlungsplan – DE, AT, CH", key: "bonitaetsauskunft" },
                     { href: "/business", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital", key: "business" },
                     { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
                     { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft", key: "hilfe" },

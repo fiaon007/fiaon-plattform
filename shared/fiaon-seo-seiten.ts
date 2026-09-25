@@ -45,7 +45,10 @@ import { globalSchwester } from "./fiaon-global-pfade";
 // im selben Zug: keine Behauptung einer
 // Prüfung durch Anwälte (kein Beleg, LEXR-Freigabe ausstehend) und keine
 // Lieferfrist mit Zahl für die Auskunft (Wortwand, shared/fiaon-wortverbote.ts).
-import { AUSKUNFT_PREISE_CENTS, auskunfteienText, euroText } from "./fiaon-auskunft";
+import { AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_PREISE_CENTS, auskunfteienFuer, auskunfteienText, auskunftLeistung, euroText, type AuskunftLand } from "./fiaon-auskunft";
+// 25.09.2026 (E-241): die Seitenfamilie /bonitaetsauskunft — Leistungszeit und Unternehmer-Satz
+// wortgleich mit Bestellseite und Vertragsbestätigung.
+import { AUSKUNFT_KEIN_WIDERRUF, auskunftLeistungszeit } from "./fiaon-auskunft-widerruf";
 
 const AUSK_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
 const AUSK_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
@@ -53,6 +56,8 @@ const AUSK_FIRMA_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln);
 const AUSK_FIRMA_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo);
 /** Englische Schreibweise: „€149". */
 const euroEn = (c: number) => `€${c / 100}`;
+/** Die Auskunfteien eines Landes als Zeilen — wie die Liste „Bei wem wir anfragen" (E-241). */
+const auskunfteienZeilen = (land: AuskunftLand) => auskunfteienFuer(land).map((a) => `${a.kurz}: ${a.name}, ${a.anschrift[1].replace(/^\d+\s*/, "")} — Datenkopie nach ${a.recht}`);
 
 export const SEO_BASIS = "https://fiaon.com";
 /** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-232). */
@@ -133,7 +138,8 @@ export const SEO_NAV: [string, string][] = [
   ["/", "Startseite"],
   ["/was-ist-fiaon", "Was ist FIAON"],
   ["/privatkunden", "Privatkunden"],
-  ["/bonitaet", "Bonitäts-Auszug"],
+  // 25.09.2026 (E-241): wie GlassNav — der Menüpunkt führt auf die Übersicht der Seitenfamilie.
+  ["/bonitaetsauskunft", "Bonitätsauskunft"],
   ["/business", "Business"],
   ["/ratgeber", "Ratgeber"],
   ["/werkzeuge", "Kostenlose Werkzeuge"],
@@ -386,18 +392,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // Seite /bonitaetsauskunft-beantragen. Erreichbar bleibt sie (Verweise, Kampagnen-Links).
   "/bonitaet": {
     // 24.09.2026 (E-240): wie die Seite neu in Sie-Form, ohne Lieferfrist und Score-Versprechen.
-    pfad: "/bonitaet", art: "produkt", stand: "2026-09-24", prio: 0.7, canonical: "/bonitaetsauskunft-beantragen",
-    titel: "Bonitätsauskunft mit Handlungsplan — FIAON",
-    beschreibung: `Datenkopien aller Auskunfteien Ihres Landes, jeder Eintrag erklärt, Fristen geprüft, Handlungsplan und Schreiben: ${AUSK_EINZELN} einmalig, mit Paket ${AUSK_MIT_PAKET}.`,
-    h1: "Ihre Bonitätsauskunft. Mit Handlungsplan.",
-    lead: "FIAON fordert Ihre Datenkopien bei allen Auskunfteien Ihres Landes an, erklärt jeden Eintrag, prüft die Speicherfristen und liefert Ihren Handlungsplan mit fertigen Schreiben. Sie geben frei, wir übermitteln.",
-    abschnitte: [
-      { h2: "Warum eine Auskunft allein selten weiterhilft.", text: "Jede Auskunftei will einzeln angeschrieben werden, eine Absage nennt selten den Eintrag dahinter, und eine Datenkopie zeigt nicht, was Sie jetzt tun können. Die FIAON-Bonitätsauskunft liefert die Einordnung dazu: erklärt, Frist geprüft, nächster Schritt." },
-      { h2: "So läuft es ab", text: "Bestellen und Vollmacht erteilen, FIAON fordert die Datenkopien an – die Auskunfteien haben dafür gesetzlich in der Regel einen Monat Zeit –, danach Erklärung, Fristenprüfung, Handlungsplan und fertige Schreiben in Ihrem Kundenbereich." },
-      { h2: "Was es kostet", text: `${AUSK_EINZELN} einmalig, mit laufendem FIAON-Paket ${AUSK_MIT_PAKET}; für Unternehmen ${AUSK_FIRMA_EINZELN} bzw. ${AUSK_FIRMA_MIT_PAKET}. Kein Abo. Die Datenkopie steht Ihnen bei jeder Auskunftei auch kostenlos zu – wir nehmen Ihnen Anforderung, Auswertung und Schreiben ab.` },
-    ],
-    weiter: ["/bonitaetsauskunft-beantragen", "/selbstauskunft-checkliste", "/werkzeuge/selbstauskunft", "/preise"],
-    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaet" }],
+    // 25.09.2026 (E-241): /bonitaet leitet im Client auf die Übersicht /bonitaetsauskunft (mit Abfrage).
+    // Bis ein 301 im Server steht: noindex, canonical auf die Übersicht — Kopf und Korpus wie dort.
+    pfad: "/bonitaet", art: "produkt", stand: "2026-09-25", prio: 0.1, robots: "noindex,follow", canonical: "/bonitaetsauskunft",
+    titel: "Bonitätsauskunft mit Handlungsplan: DE, AT, CH | FIAON",
+    beschreibung: `Bonitätsauskunft aus den Auskunfteien Ihres Landes: jeder Eintrag erklärt, Fristen geprüft, Handlungsplan, Schreiben. ${AUSK_EINZELN} einmalig, mit Paket ${AUSK_MIT_PAKET}.`,
+    h1: "Ihre Bonitätsauskunft — erklärt, mit Handlungsplan.",
+    lead: "Wir fordern Ihre Datenkopien bei den großen Auskunfteien Ihres Landes an, erklären jeden Eintrag, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben bereit. Sie geben frei, wir übermitteln.",
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/fragen", "/bonitaetsauskunft-beantragen"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }],
   },
   "/preise": {
     pfad: "/preise", art: "produkt", stand: PFEILER, prio: 0.9,
@@ -1073,12 +1076,14 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     h1: "Bonitätsauskunft beantragen — kostenlos oder mit FIAON.",
     lead: `Ihre Datenkopie steht Ihnen gesetzlich kostenlos zu — das sagen wir zuerst. Die FIAON-Bonitätsauskunft ist für alle, die Anforderung, Erklärung und Fristenprüfung abgeben wollen: einmalig ${AUSK_EINZELN}, mit laufendem FIAON-Paket ${AUSK_MIT_PAKET}, kein Abo.`,
     abschnitte: [
-      { h2: "Selbst anfordern oder anfordern lassen?", text: `Die Datenkopie nach Art. 15 DSGVO ist kostenlos – bei jeder Auskunftei. Unser Generator erzeugt den fertigen Brief. Die FIAON-Bonitätsauskunft fordert die Daten bei allen Auskunfteien Ihres Landes an – in Deutschland bei ${auskunfteienText("DE")}, in Österreich bei ${auskunfteienText("AT")}, in der Schweiz bei ${auskunfteienText("CH")} –, erklärt jede Zeile und prüft die Fristen.` },
+      { h2: "Selbst anfordern oder anfordern lassen?", text: `Die Datenkopie nach Art. 15 DSGVO ist kostenlos – bei jeder Auskunftei. Unser Generator erzeugt den fertigen Brief. Die FIAON-Bonitätsauskunft fordert die Daten bei den großen Auskunfteien Ihres Landes an – in Deutschland bei ${auskunfteienText("DE")}, in Österreich bei ${auskunfteienText("AT")}, in der Schweiz bei ${auskunfteienText("CH")} –, erklärt jede Zeile und prüft die Fristen.` },
       { h2: "So läuft es ab", text: "Vier Etappen – Sie sehen jede davon in Ihrem Kundenbereich: bestellen und Vollmacht erteilen, FIAON fordert die Datenkopien an (die Auskunfteien haben dafür gesetzlich in der Regel einen Monat Zeit), Erklärung und Fristenprüfung, Handlungsplan und fertige Schreiben zur Freigabe." },
       { h2: "Zwei Preise, keine Überraschungen", text: `${AUSK_EINZELN} einmalig, mit laufendem FIAON-Paket ${AUSK_MIT_PAKET}; für Unternehmen ${AUSK_FIRMA_EINZELN} einzeln, ${AUSK_FIRMA_MIT_PAKET} mit Paket. Kein Abo, keine Erfolgsbeteiligung.` },
     ],
-    weiter: ["/werkzeuge/selbstauskunft", "/selbstauskunft-checkliste", "/auskunfteien", "/schufa-score-verstehen", "/werkzeuge/eintrag-pruefen", "/preise"],
-    krumen: [{ name: "Bonitätsauskunft beantragen", pfad: "/bonitaetsauskunft-beantragen" }],
+    // 25.09.2026 (E-241): die Seite verweist in die Seitenfamilie (Übersicht, Ablauf, Fragen) — canonical bleibt eigenständig.
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/fragen", "/werkzeuge/selbstauskunft", "/selbstauskunft-checkliste", "/auskunfteien", "/schufa-score-verstehen", "/werkzeuge/eintrag-pruefen", "/preise"],
+    // E-241: Brotkrumen über die Übersicht der Seitenfamilie — wie sichtbar auf der Seite.
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Bonitätsauskunft beantragen", pfad: "/bonitaetsauskunft-beantragen" }],
     en: {
       pfad: "/en/request-your-credit-report",
       titel: "Requesting your credit report: free or with FIAON",
@@ -1092,6 +1097,183 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       weiter: ["/schufa-score-verstehen", "/auskunfteien", "/preise"],
       krumen: [{ name: "Requesting your credit report", pfad: "/en/request-your-credit-report" }],
     },
+  },
+  // ═════════════════════════════════════════════════════════════════════════
+  // DIE SEITENFAMILIE DER BONITÄTSAUSKUNFT (25.09.2026, E-241)
+  // client/src/pages/site/bonitaetsauskunft/*, Texte in client/src/i18n/bonitaetsauskunft-familie.ts.
+  // H1, Einleitung und die H2 hier sind wortgleich mit der sichtbaren Seite —
+  // .pruef/e241-seiten.ts vergleicht beide. Preise, Leistung, Auskunfteien und
+  // Leistungszeit aus shared/fiaon-auskunft(-widerruf).ts. Die FAQ stehen
+  // sichtbar auf den Seiten und als FAQPage im Client (SeoDaten); ins
+  // Vorab-HTML kommen sie erst mit einem Eintrag in scripts/seo-fragen-erzeugen.ts.
+  // ═════════════════════════════════════════════════════════════════════════
+  "/bonitaetsauskunft": {
+    pfad: "/bonitaetsauskunft", art: "produkt", stand: "2026-09-25", prio: 0.9,
+    titel: "Bonitätsauskunft mit Handlungsplan: DE, AT, CH | FIAON",
+    beschreibung: `Bonitätsauskunft aus den Auskunfteien Ihres Landes: jeder Eintrag erklärt, Fristen geprüft, Handlungsplan, Schreiben. ${AUSK_EINZELN} einmalig, mit Paket ${AUSK_MIT_PAKET}.`,
+    h1: "Ihre Bonitätsauskunft — erklärt, mit Handlungsplan.",
+    lead: "Wir fordern Ihre Datenkopien bei den großen Auskunfteien Ihres Landes an, erklären jeden Eintrag, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben bereit. Sie geben frei, wir übermitteln.",
+    abschnitte: [
+      { h2: "Was Sie bekommen", text: `Angefragt wird bei den großen Auskunfteien Ihres Landes — in Deutschland bei ${auskunfteienText("DE")}, in Österreich bei ${auskunfteienText("AT")}, in der Schweiz bei ${auskunfteienText("CH")}.`, punkte: [...auskunftLeistung("privat", "DE"), `${AUSK_EINZELN} einmalig · ${AUSK_MIT_PAKET} für FIAON-Kunden mit laufendem Paket`] },
+      { h2: "Für wen", text: "Für Privatpersonen in Deutschland, Österreich und der Schweiz — und für Unternehmen, mit einer eigenen Variante für die Firmendaten.", punkte: [
+        `Deutschland: ${auskunfteienText("DE")} — ${AUSK_EINZELN}, mit Paket ${AUSK_MIT_PAKET}`,
+        `Österreich: ${auskunfteienText("AT")} — ${AUSK_EINZELN}, mit Paket ${AUSK_MIT_PAKET}`,
+        `Schweiz: ${auskunfteienText("CH")} — ${AUSK_EINZELN}, mit Paket ${AUSK_MIT_PAKET}`,
+        `Unternehmen: Firmendaten u. a. bei Creditreform und CRIF, dazu die persönliche Datenkopie der Inhaber — ${AUSK_FIRMA_EINZELN}, mit Paket ${AUSK_FIRMA_MIT_PAKET}`,
+      ] },
+      { h2: "Der Ablauf in vier Schritten", text: "Bestellen, bezahlen — dann arbeiten wir. Handlungsplan und Schreiben finden Sie in Ihrem Kundenbereich.", punkte: [
+        "Bestellen: Ihre Angaben und Ihr Auftrag — mehr braucht es nicht.",
+        "Bezahlen: Per Überweisung, einmalig. Ihre Zahlungsseite öffnet sich gleich nach der Bestellung.",
+        "Wir fordern an: Wir übermitteln Ihre Anfragen an die großen Auskunfteien Ihres Landes. Sie müssen nichts schreiben.",
+        "Auswertung und Plan: Jeder Eintrag erklärt, Fristen geprüft, Handlungsplan und fertige Schreiben in Ihrem Kundenbereich.",
+      ] },
+      { h2: "So sieht ein Handlungsplan aus", text: "Ein Beispiel mit erfundenen Daten: jeder Eintrag eingeordnet, der nächste Schritt benannt, das passende Schreiben bereit zur Freigabe." },
+      { h2: "Kostenlos selbst anfordern — oder von uns?", text: AUSKUNFT_KOSTENLOS_ANTWORT },
+    ],
+    weiter: ["/bonitaetsauskunft/schufa", "/bonitaetsauskunft/oesterreich", "/bonitaetsauskunft/schweiz", "/bonitaetsauskunft/unternehmen", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/handlungsplan", "/bonitaetsauskunft/fragen", "/selbstauskunft-checkliste", "/auskunfteien", "/schufa-eintrag-loeschen", "/bonitaetsauskunft-beantragen", "/preise"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }],
+  },
+  "/bonitaetsauskunft/schufa": {
+    pfad: "/bonitaetsauskunft/schufa", art: "produkt", stand: "2026-09-25", prio: 0.8,
+    titel: "SCHUFA-Auskunft mit Handlungsplan anfordern | FIAON",
+    beschreibung: `SCHUFA, CRIF und Creditreform Boniversum in einem Auftrag: Datenkopien angefordert, jeder Eintrag erklärt, Handlungsplan und Schreiben. ${AUSK_EINZELN} einmalig.`,
+    h1: "SCHUFA-Auskunft mit Handlungsplan — dazu CRIF und Creditreform Boniversum.",
+    lead: "In Deutschland fragen wir bei den drei Auskunfteien an, deren Wege wir geprüft haben: SCHUFA, CRIF und Creditreform Boniversum. Jede Datenkopie erklärt, die Speicherfristen geprüft, dazu Ihr Handlungsplan mit fertigen Schreiben.",
+    abschnitte: [
+      { h2: "Bei wem wir anfragen", text: "Drei Auskunfteien, ein Auftrag. Jede Datenkopie verlangen wir nach Art. 15 DSGVO — in Ihrem Auftrag. Sie müssen keinen Brief schreiben.", punkte: auskunfteienZeilen("DE") },
+      { h2: "Was Sie bekommen", text: "Ein Auftrag, ein Preis — für alle drei Auskunfteien zusammen.", punkte: auskunftLeistung("privat", "DE") },
+      { h2: "Warum nicht nur die SCHUFA?", text: "Händler, Vermieter, Mobilfunkanbieter und Banken arbeiten mit unterschiedlichen Auskunfteien. Ein Eintrag kann bei einer Auskunftei stehen und bei der anderen fehlen — oder dort anders gemeldet sein. Wer nur eine Datenkopie liest, sieht nur einen Ausschnitt.", punkte: [
+        "Die Auskunft ist kein Bonitätszertifikat zum Vorzeigen beim Vermieter — sie ist die vollständige Datenkopie für Sie.",
+        "Sie ist keine Kreditanfrage: Nach Angaben der Auskunfteien fließt die Eigenauskunft nicht in Ihre Bewertung ein.",
+        "Sie ist keine Löschzusage: Ob ein Eintrag gelöscht wird, entscheidet die Auskunftei.",
+      ] },
+    ],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/handlungsplan", "/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/auskunfteien"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Deutschland", pfad: "/bonitaetsauskunft/schufa" }],
+  },
+  "/bonitaetsauskunft/oesterreich": {
+    pfad: "/bonitaetsauskunft/oesterreich", art: "produkt", stand: "2026-09-25", prio: 0.8,
+    titel: "KSV-Auskunft und CRIF für Österreich erklärt | FIAON",
+    beschreibung: `Bonitätsauskunft für Österreich: Datenkopien bei KSV1870 und CRIF angefordert, jeder Eintrag erklärt, Fristen geprüft, Handlungsplan. ${AUSK_EINZELN} einmalig.`,
+    h1: "KSV-Auskunft und CRIF — für Österreich, mit Handlungsplan.",
+    lead: "In Österreich fragen wir bei KSV1870 und CRIF an. Beide Datenkopien erklärt, die Speicherfristen geprüft, dazu Ihr Handlungsplan mit fertigen Schreiben — zum selben Preis wie überall.",
+    abschnitte: [
+      { h2: "Bei wem wir anfragen", text: "KSV1870 und CRIF, beide in Wien. Die Datenkopie verlangen wir nach Art. 15 DSGVO, die in Österreich unmittelbar gilt — in Ihrem Auftrag.", punkte: auskunfteienZeilen("AT") },
+      { h2: "Was Sie bekommen", text: "Ein Auftrag, ein Preis — für KSV1870 und CRIF zusammen.", punkte: auskunftLeistung("privat", "AT") },
+      { h2: "Derselbe Preis, derselbe Weg", text: "Die Auskunft kostet in Österreich dasselbe wie in Deutschland und der Schweiz: einmalig, kein Abo, per Überweisung. Bestellen Sie mit Wohnsitz in Österreich, fragen wir bei KSV1870 und CRIF an.", punkte: [`${AUSK_EINZELN} einmalig · ${AUSK_MIT_PAKET} für FIAON-Kunden mit laufendem Paket`] },
+    ],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/handlungsplan", "/oesterreich", "/auskunfteien"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Österreich", pfad: "/bonitaetsauskunft/oesterreich" }],
+  },
+  "/bonitaetsauskunft/schweiz": {
+    pfad: "/bonitaetsauskunft/schweiz", art: "produkt", stand: "2026-09-25", prio: 0.8,
+    titel: "Bonitätsauskunft Schweiz: CRIF und Intrum | FIAON",
+    beschreibung: `Bonitätsauskunft für die Schweiz: Auskunft nach Art. 25 DSG bei CRIF und Intrum, jeder Eintrag erklärt, Handlungsplan und Schreiben. ${AUSK_EINZELN} einmalig.`,
+    h1: "Bonitätsauskunft Schweiz — CRIF und Intrum, mit Handlungsplan.",
+    lead: "In der Schweiz fragen wir bei CRIF und Intrum an — nach Art. 25 DSG, dem Auskunftsrecht des revidierten Datenschutzgesetzes. Beide Auskünfte erklärt, die Einträge geprüft, dazu Ihr Handlungsplan mit fertigen Schreiben.",
+    abschnitte: [
+      { h2: "Bei wem wir anfragen", text: "CRIF in Zürich und Intrum in Schwerzenbach, jeweils nach Art. 25 DSG — in Ihrem Auftrag.", punkte: auskunfteienZeilen("CH") },
+      { h2: "Was Sie bekommen", text: "Ein Auftrag, ein Preis — für CRIF und Intrum zusammen.", punkte: auskunftLeistung("privat", "CH") },
+      { h2: "Was nicht dazugehört — und der Preis", text: "Den Betreibungsregisterauszug stellt das Betreibungsamt Ihres Wohnorts aus; er ist ein amtliches Dokument und nicht Teil dieser Auskunft. ZEK und IKO fragen wir derzeit nicht an.", punkte: [
+        "Der Preis gilt in Euro — einmalig, per Überweisung, wie in Deutschland und Österreich.",
+        "Die Auskunft nach Art. 25 DSG ist in der Regel kostenlos; wir nehmen Ihnen Anforderung, Erklärung und Schreiben ab.",
+      ] },
+    ],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/handlungsplan", "/schweiz", "/auskunfteien"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Schweiz", pfad: "/bonitaetsauskunft/schweiz" }],
+  },
+  "/bonitaetsauskunft/unternehmen": {
+    pfad: "/bonitaetsauskunft/unternehmen", art: "produkt", stand: "2026-09-25", prio: 0.8,
+    titel: "Bonitätsauskunft für Unternehmen erklärt | FIAON",
+    beschreibung: `Firmendaten bei Creditreform und CRIF, dazu die Datenkopie der Inhaber – jeder Eintrag erklärt, mit Handlungsplan. ${AUSK_FIRMA_EINZELN} einmalig, mit Paket ${AUSK_FIRMA_MIT_PAKET}.`,
+    h1: "Bonitätsauskunft für Unternehmen — was Wirtschaftsauskunfteien über Ihre Firma speichern.",
+    lead: "Wir fordern die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an — u. a. Creditreform und CRIF — und dazu die persönliche Datenkopie der Inhaberin, des Inhabers oder der Geschäftsführung. Jeder Eintrag erklärt, Fristen und veraltete Firmendaten geprüft, dazu Handlungsplan und fertige Schreiben.",
+    abschnitte: [
+      { h2: "Was Sie bekommen", text: "Die Firmenvariante: Wirtschaftsauskunfteien für das Unternehmen, dazu die persönliche Datenkopie im Land des Firmensitzes.", punkte: [...auskunftLeistung("firma", "DE"), `${AUSK_FIRMA_EINZELN} einmalig · ${AUSK_FIRMA_MIT_PAKET} für FIAON-Kunden mit laufendem Paket`] },
+      { h2: "Für wen", text: "Bestellen darf, wer das Unternehmen vertreten kann — Inhaberin, Inhaber, Geschäftsführung oder eine berechtigte Person. Bei der Bestellung wählen Sie die Rechtsform:", punkte: [
+        "Deutschland: Einzelunternehmen, e.K., GbR, UG (haftungsbeschränkt), GmbH, GmbH & Co. KG, KG, OHG, AG und freie Berufe",
+        "Österreich: Einzelunternehmen, e.U., OG, KG, GmbH, FlexCo und AG",
+        "Schweiz: Einzelunternehmen, Kollektivgesellschaft, GmbH und AG",
+      ] },
+      { h2: "Wie lange es dauert", text: auskunftLeistungszeit("firma") },
+      { h2: "Kein Widerrufsrecht für Unternehmen", text: `${AUSKUNFT_KEIN_WIDERRUF} Bei der Bestellung bestätigen Sie, dass Sie für das Unternehmen zu gewerblichen Zwecken bestellen und es vertreten dürfen.` },
+    ],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/handlungsplan", "/bonitaetsauskunft/fragen", "/auskunfteien"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Unternehmen", pfad: "/bonitaetsauskunft/unternehmen" }],
+  },
+  "/bonitaetsauskunft/ablauf": {
+    pfad: "/bonitaetsauskunft/ablauf", art: "produkt", stand: "2026-09-25", prio: 0.7,
+    titel: "Bonitätsauskunft: der Ablauf nach der Bestellung | FIAON",
+    beschreibung: "Was nach der Bestellung Ihrer Bonitätsauskunft passiert: Zahlung, Anfragen an die Auskunfteien, Auswertung, Handlungsplan – und Ihr Widerrufsrecht.",
+    h1: "Was nach der Bestellung passiert — Schritt für Schritt.",
+    lead: "Vom Klick auf „Zahlungspflichtig bestellen“ bis zu Handlungsplan und Schreiben in Ihrem Kundenbereich: was wann passiert, wovon es abhängt — und wo Sie gefragt sind.",
+    abschnitte: [
+      { h2: "Schritt 1 · Bestellen", text: "Wenige Minuten: Name, Anschrift, Geburtsdatum, E-Mail und Telefon. Mit Ihrem Auftrag dürfen wir Ihr Auskunftsverlangen an die Auskunfteien übermitteln, den Stand erfragen und die Antworten für Sie entgegennehmen. Eigene Erklärungen in Ihrem Namen geben wir nicht ab; die Vollmacht gilt zwölf Monate und ist jederzeit widerruflich." },
+      { h2: "Schritt 2 · Bezahlen", text: "Direkt nach der Bestellung öffnet sich Ihre Zahlungsseite mit Bankverbindung, Verwendungszweck und Betrag. Sie zahlen per Überweisung, einmalig, kein Abo. Die Rechnung und die Bestätigung Ihres Vertrags mit Widerrufsbelehrung kommen per E-Mail." },
+      { h2: "Schritt 3 · Wir fordern an", text: "Sobald Ihre Zahlung eingegangen ist, übermitteln wir Ihre Anfragen an die großen Auskunfteien Ihres Landes. Verlangt eine Auskunftei zusätzlich einen Identitätsnachweis, sagen wir Ihnen Bescheid." },
+      { h2: "Schritt 4 · Auswertung, Handlungsplan, Schreiben", text: "Sobald die Antworten vorliegen, erklären wir jeden Eintrag, prüfen die Speicherfristen und legen Handlungsplan und fertige Schreiben in Ihren Kundenbereich. Sie geben jedes Schreiben frei, wir übermitteln es." },
+      { h2: "Wie lange es realistisch dauert", text: `Es hängt an zwei Dingen, die niemand ganz in der Hand hat: wann Ihre Überweisung eingeht und wann die Auskunfteien antworten. ${auskunftLeistungszeit("privat")} Einen festen Tag sagen wir deshalb nicht zu — den Stand Ihrer Anfragen sehen Sie in Ihrem Kundenbereich.` },
+      { h2: "Ihr Widerrufsrecht, verständlich", text: "Als Verbraucherin oder Verbraucher können Sie den Vertrag vierzehn Tage lang ohne Angabe von Gründen widerrufen.", punkte: [
+        "Damit wir nicht erst nach Ablauf dieser Frist anfragen, verlangen Sie auf unserer Bestellseite ausdrücklich, dass wir vorher beginnen.",
+        "Widerrufen Sie danach, zahlen Sie nur den Anteil der bis dahin erbrachten Leistung.",
+        "Ist die Leistung vollständig erbracht, erlischt das Widerrufsrecht.",
+        "Die vollständige Belehrung sehen Sie auf der Bestellseite vor dem Klick, und Sie erhalten sie mit der Vertragsbestätigung per E-Mail.",
+        "Für Unternehmen gilt kein gesetzliches Widerrufsrecht.",
+      ] },
+    ],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/handlungsplan", "/bonitaetsauskunft/fragen", "/selbstauskunft-checkliste", "/widerrufsbelehrung"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Ablauf", pfad: "/bonitaetsauskunft/ablauf" }],
+  },
+  "/bonitaetsauskunft/handlungsplan": {
+    pfad: "/bonitaetsauskunft/handlungsplan", art: "produkt", stand: "2026-09-25", prio: 0.7,
+    titel: "Handlungsplan zur Bonitätsauskunft mit Schreiben | FIAON",
+    beschreibung: "Was im FIAON-Handlungsplan steht: jeder Eintrag eingeordnet, Fristen geprüft, die Reihenfolge – und fertige Schreiben zur Löschung oder Berichtigung.",
+    h1: "Der Handlungsplan — was drinsteht und was Sie damit tun.",
+    lead: "Eine Datenkopie sagt, was gespeichert ist. Der Handlungsplan sagt, was Sie jetzt tun können — Eintrag für Eintrag, in einer klaren Reihenfolge, mit den fertigen Schreiben dazu.",
+    abschnitte: [
+      { h2: "Was im Handlungsplan steht", text: "Fünf Teile, in derselben Ordnung für jede Auskunftei.", punkte: [
+        "Jeder Eintrag in klaren Worten: wer ihn gemeldet hat, seit wann, mit welchem Stand.",
+        "Die Einordnung: Positivmerkmal, berechtigt gemeldet, Frist abgelaufen oder inhaltlich falsch.",
+        "Die Speicherfrist jedes Eintrags — mit ihrer Grundlage.",
+        "Die Reihenfolge: was zuerst, was danach, was von selbst endet.",
+        "Die passenden Schreiben — fertig zur Freigabe.",
+      ] },
+      { h2: "So sieht ein Handlungsplan aus", text: "Ein Beispiel mit erfundenen Daten: jeder Eintrag eingeordnet, der nächste Schritt benannt, das passende Schreiben bereit zur Freigabe." },
+      { h2: "Die Schreiben", text: "Jedes Schreiben ist auf Ihren Eintrag zugeschnitten, gestützt auf die DSGVO (in der Schweiz auf das DSG). Sie geben frei, wir übermitteln — kein Schreiben geht ohne Ihre Freigabe hinaus.", punkte: [
+        "Löschung nach Fristablauf (Art. 17 DSGVO): Die Speicherfrist eines erledigten Eintrags ist abgelaufen — und er steht trotzdem noch in Ihrer Datenkopie.",
+        "Berichtigung falscher Daten (Art. 16 DSGVO): Betrag, Datum, Anschrift oder die Person stimmen nicht — etwa eine alte Anschrift oder eine Verwechslung.",
+        "Erledigung nachtragen (Art. 16 DSGVO): Sie haben bezahlt, der Eintrag steht aber noch als offen in der Datenkopie.",
+      ] },
+      { h2: "So liest sich ein Schreiben", text: "Ein Auszug — mit erfundenen Daten, wie das Beispiel oben." },
+      { h2: "Was der Plan nicht ist", text: "Keine Rechtsberatung im Einzelfall und keine Löschzusage: Berechtigt gemeldete Einträge bleiben bis zum Ende ihrer Speicherfrist. Ob gelöscht oder berichtigt wird, entscheidet die Auskunftei — über Konto, Karte und Rahmen die Bank. Was wir leisten: jeden Eintrag gegen die Voraussetzungen halten und für das, was angreifbar ist, die Schreiben fertig machen." },
+    ],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/werkzeuge/loeschfrist", "/werkzeuge/eintrag-pruefen", "/eintrag-verjaehrung", "/schufa-eintrag-loeschen"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Handlungsplan", pfad: "/bonitaetsauskunft/handlungsplan" }],
+  },
+  "/bonitaetsauskunft/fragen": {
+    pfad: "/bonitaetsauskunft/fragen", art: "produkt", stand: "2026-09-25", prio: 0.7,
+    titel: "Bonitätsauskunft: Fragen zu Preis, Dauer, Score | FIAON",
+    beschreibung: "Kostenlos oder bei FIAON? Was es kostet, wie lange es dauert, ob es den Score ändert, wie Sie widerrufen: die Antworten zur Bonitätsauskunft.",
+    h1: "Fragen zur Bonitätsauskunft — ehrlich beantwortet.",
+    lead: "Die Fragen, die uns am häufigsten gestellt werden — mit den Antworten, die wir auch am Telefon geben. Auch die unbequemen.",
+    // Die Fragen selbst (sichtbar auf der Seite) als Punkte — die Antworten und das
+    // FAQPage-Markup setzt der Client (SeoDaten); .pruef/e241-seiten.ts hält beide gleich.
+    abschnitte: [
+      { h2: "Preis und Leistung", text: "Was es kostet, was drin ist und was Sie auch kostenlos bekommen.", punkte: [
+        "Kann ich die Datenkopie nicht kostenlos selbst anfordern?", "Was kostet die Bonitätsauskunft bei FIAON?", "Was genau bekomme ich?",
+        "Brauche ich dafür ein FIAON-Paket?", "Ist das dasselbe wie ein Bonitätszertifikat?", "Kann FIAON zusagen, dass Einträge gelöscht werden?",
+        "Ist FIAON ein Partner der SCHUFA oder anderer Auskunfteien?",
+      ] },
+      { h2: "Dauer und Ablauf", text: "Wann was passiert und was Sie dafür tun.", punkte: [
+        "Wie lange dauert es, bis ich meine Auswertung habe?", "Muss ich selbst etwas an die Auskunfteien schicken?", "Wie bezahle ich?",
+        "Was passiert, wenn eine Auskunftei nicht antwortet?",
+      ] },
+      { h2: "Score, Datenschutz und Widerruf", text: "Was die Anfrage bewirkt, was mit Ihren Daten geschieht, wie Sie widerrufen.", punkte: [
+        "Verändert die Anfrage meinen Score?", "Wird mein Score danach besser?", "Was passiert mit meinen Daten?", "Kann ich den Vertrag widerrufen?",
+      ] },
+    ],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/handlungsplan", "/schufa-score-verstehen", "/sicherheit", "/bonitaetsauskunft-beantragen"],
+    krumen: [{ name: "Bonitätsauskunft", pfad: "/bonitaetsauskunft" }, { name: "Fragen", pfad: "/bonitaetsauskunft/fragen" }],
   },
   "/inkasso-brief-erhalten": {
     pfad: "/inkasso-brief-erhalten", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -1787,7 +1969,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/banking": { pfad: "/banking", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Girokonto trotz negativem Eintrag — FIAON", beschreibung: "Das Basiskonto steht Ihnen per Gesetz zu – auch mit Eintrag.", h1: "Girokonto", lead: "Das Basiskonto steht Ihnen per Gesetz zu – auch mit Eintrag.", canonical: "/girokonto-trotz-negativer-bonitaet" },
   "/als-kunde": { pfad: "/als-kunde", art: "intern", stand: "2026-08-25", prio: 0.1, robots: "noindex,nofollow", titel: "Kundenansicht — FIAON", beschreibung: "Interne Ansicht des Kundenbereichs für Mitarbeiter.", h1: "Kundenansicht", lead: "Interne Ansicht." },
   "/banking/dashboard": { pfad: "/banking/dashboard", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Investoren-Banking — FIAON", beschreibung: "Geschützter Bereich.", h1: "Investoren-Banking", lead: "Geschützter Bereich." },
-  "/bonitaet-service": { pfad: "/bonitaet-service", art: "produkt", stand: "2026-08-22", prio: 0.4, canonical: "/bonitaetsauskunft-beantragen", titel: "Bonitäts-Auszug: Erklärung des Service — FIAON", beschreibung: "Was der Bonitäts-Auszug über FIAON leistet: Beschaffung bei SCHUFA, KSV oder CRIF, Erklärung jedes Eintrags und der nächste Schritt für jeden Eintrag.", h1: "KI-gestützte Bonitätsanalyse. Transparent. Sicher. Wirksam.", lead: "Die Erklärung des Bonitäts-Auszugs über FIAON – die aktuelle Fassung steht unter Bonitäts-Auszug.", weiter: ["/bonitaet", "/bonitaetsauskunft-beantragen"] },
+  // 25.09.2026 (E-241): leitet im Client auf die Übersicht /bonitaetsauskunft (vorher: auf die Bestellseite).
+  "/bonitaet-service": { pfad: "/bonitaet-service", art: "produkt", stand: "2026-09-25", prio: 0.1, robots: "noindex,follow", canonical: "/bonitaetsauskunft", titel: "Bonitätsauskunft mit Handlungsplan — FIAON", beschreibung: "Die Bonitätsauskunft über FIAON: Datenkopien aller Auskunfteien Ihres Landes, jeder Eintrag erklärt, Fristen geprüft, Handlungsplan und fertige Schreiben.", h1: "Ihre Bonitätsauskunft — erklärt, mit Handlungsplan.", lead: "Die Bonitätsauskunft über FIAON – alles zu Leistung, Preis, Ablauf und Fragen steht auf der Übersicht.", weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft-beantragen"] },
   "/vereinbarung": { pfad: "/vereinbarung", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", bild: "", titel: "Vertrauliches Dokument — FIAON", beschreibung: "Diese Seite ist geschützt.", h1: "Vertrauliches Dokument", lead: "Diese Seite ist geschützt." },
   "/scp-datenraum": { pfad: "/scp-datenraum", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", bild: "", titel: "Datenraum", beschreibung: "Vertraulicher Zugang.", h1: "Datenraum", lead: "Vertraulicher Zugang." },
 };

@@ -5,6 +5,41 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 25.09.2026 (2) — Die Bonitätsauskunft geht in den Verkauf: an alle ohne Auskunft, neue Seiten, Beschaffung durch FIAON (E-241)
+
+**Der Anlass (Justin):** „Ich kümmere mich heute um die API, bis dahin kaufen wir sie selbst. Richte alles her, dass die
+Boni-Auskunft an ALLE, die keine hinterlegt oder gekauft haben, in den Verkauf geht … die Boni-Seite komplett überarbeiten
+und mehrere Seiten anlegen … jeden Tag zusätzlich 30 per WhatsApp und 500 Mails."
+
+**Was jetzt gilt:**
+- **Verkaufstakt an alle** (Chefbüro /chef/s/auskunft): drei Segmente — zahlende Kunden (74 €), Anträge ohne Zahlung
+  (149 €), Leads ohne Antrag (149 €); je Mensch höchstens drei Mails (a, b nach 6 Tagen, c nach 14) und eine WhatsApp.
+  Deckel 500 Mails und 30 WhatsApp je Tag, gleichmäßig 8–20 Uhr, Kunden zuerst. Niemand bekommt am selben Tag zwei
+  Werbemails. Kreis „uwg" (nur § 7 Abs. 3 UWG) oder „alle" (Justins Entscheidung) per Schalter; Werbesperre, Abmeldung,
+  STOPP und Vertriebssperre sperren immer. Jede Mail mit Abmeldelink und Widerspruchshinweis. WhatsApp nur mit
+  nachgewiesener WhatsApp-Einwilligung und erst nach Freigabe der Vorlagen durch Meta.
+- **Texte:** neun Mail-Fassungen (Segment × Stufe, Firma eigene), zwei WhatsApp-Vorlagen (Kunden, Anträge/Leads) — an
+  Anträge und Leads ohne das Wort „Limit".
+- **Mara** verkauft auch Anträgen und Leads, wenn sie auf das Angebot antworten oder selbst fragen — nie ungefragt.
+- **Kaufen:** Kauflink auch für Anträge und Leads; Kaufkarte im Kundenbereich auch bei Stufe B. An jeder Kauftür ein
+  Pflicht-Haken „Beschaffungsauftrag" (deckt auch den Kauf einer kostenpflichtigen Auskunft; die Vollmacht zur
+  Übermittlung deckte nur die kostenlose Datenkopie).
+- **Beschaffung bis zur API:** Liefermodus „einkauf" — nach der Zahlung (und der Widerrufsfrist, wenn nicht anders
+  gewünscht) entsteht ein Auftrag auf dem neuen Arbeitsplatz /chef/s/auskunft-beschaffung mit allen Daten zum Kaufen;
+  PDF hochladen → Analyse → Mail „Ihre Auskunft ist da". Fehlt der Auftrag, geht ein Bestätigungslink. Die API wird
+  in server/lib/fiaon-auskunft-quelle.ts angeschlossen (Modus „api").
+- **Seiten:** /bonitaetsauskunft mit sieben Unterseiten (Deutschland/SCHUFA, Österreich, Schweiz, Unternehmen, Ablauf,
+  Handlungsplan, Fragen), Kauf in einem Klick, klebender Kaufknopf am Handy; /bonitaet und /bonitaet-service leiten
+  per 301 weiter. Angefragt wird bei den großen Auskunfteien des Landes (nicht „allen").
+- **Chefbüro:** Steuerung (an/aus, Kreis, Mails/Tag, WhatsApp/Tag, Liefermodus) mit Protokoll; Trichter angeschrieben →
+  geklickt → bestellt → bezahlt → geliefert je Segment und Weg; Klicks auf den Kauflink werden gezählt.
+
+**Wo:** server/lib/fiaon-auskunft-verkauf.ts, fiaon-auskunft-lieferung.ts, fiaon-auskunft-quelle.ts (neu),
+server/routes/fiaon-auskunft-kauf.ts, fiaon-chef-auskunft(-beschaffung).ts, server/mail/vorlagen/auskunft-verkauf.ts,
+auskunft-lead.ts, client/src/pages/site/bonitaetsauskunft/ (neu), ChefAuskunft(Beschaffung).tsx. Prüfstände: E2E 72,
+Takt 143, Beschaffung 98 + 46, Mails 1.843, Texte 906, Postmeister 185/237, Mara-Verkauf 196, Lead-Motor 788,
+Sperre alle Wege 60, E-240-E2E 79, Seiten 8 (0 Wortwand-Treffer), SEO und Global-Seiten ohne Fehler; tsc 183 (Altbestand).
+
 ## 25.09.2026 (1) — Die Bonitätsauskunft als eigenes Produkt: verkaufen, liefern, ehrlich bleiben (E-240)
 
 **Der Anlass (Justin):** „Was ist eigentlich mit den ganzen 74-€-Bonitätsauszügen? Warum verkaufen wir die nicht mehr? …

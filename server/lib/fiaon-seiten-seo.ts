@@ -318,8 +318,12 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
   return `<div class="${hell ? "vorab vorab-hell" : "vorab"}">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s, business)}</article></main>${fuss}</div>`;
 }
 
-/** Öffentliche Seiten mit weißem Grund außerhalb von /business und den Rechtstexten (pages/bonitaet.tsx). */
-const HELLE_SEITEN = new Set(["/bonitaet"]);
+/**
+ * Öffentliche Seiten mit weißem Grund außerhalb von /business und den Rechtstexten.
+ * 25.09.2026 (E-241): /bonitaet ist keine helle Seite mehr — sie leitet per 301 (routes.ts, UMGEZOGEN)
+ * auf die dunkle Übersicht /bonitaetsauskunft. Die Menge bleibt für künftige helle Seiten.
+ */
+const HELLE_SEITEN = new Set<string>([]);
 
 // ── WO DIE GESTALTUNG DES KORPUS WOHNT (24.09.2026) ───────────────────────────
 // Hier stand VORAB_STIL: ein <style> vor </head> — weißer Grund, blaue Links

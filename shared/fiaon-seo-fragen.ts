@@ -1409,11 +1409,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/bonitaetsauskunft-beantragen": [
     {
       "f": "Ist eine Bonitätsauskunft wirklich kostenlos möglich?",
-      "a": "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei jeder Auskunftei, in der Schweiz nach Art. 25 DSG. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Kostenpflichtig ist bei den Auskunfteien nur das Bonitätszertifikat zum Weitergeben — und bei FIAON die Arbeit drumherum: anfordern bei allen Auskunfteien Ihres Landes, jede Zeile erklären, Fristen prüfen, Handlungsplan und fertige Schreiben."
+      "a": "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei jeder Auskunftei, in der Schweiz nach Art. 25 DSG. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Kostenpflichtig ist bei den Auskunfteien nur das Bonitätszertifikat zum Weitergeben — und bei FIAON die Arbeit drumherum: anfordern bei den großen Auskunfteien Ihres Landes, jede Zeile erklären, Fristen prüfen, Handlungsplan und fertige Schreiben."
     },
     {
       "f": "Was kostet die Bonitätsauskunft über FIAON?",
-      "a": "Einmalig 149 €. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von 74 €. Für Unternehmen: 349 € einzeln, 199 € mit Paket. Darin enthalten: die Anforderung Ihrer Datenkopien bei allen Auskunfteien Ihres Landes, die Erklärung jeder Zeile, die Prüfung der Speicherfristen, Ihr Handlungsplan und fertige Schreiben zur Freigabe. Kein Abo, keine Erfolgsbeteiligung — seriöse Arbeit rechnet nicht pro „gelöschtem Eintrag“ ab."
+      "a": "Einmalig 149 €. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von 74 €. Für Unternehmen: 349 € einzeln, 199 € mit Paket. Darin enthalten: die Anforderung Ihrer Datenkopien bei den großen Auskunfteien Ihres Landes, die Erklärung jeder Zeile, die Prüfung der Speicherfristen, Ihr Handlungsplan und fertige Schreiben zur Freigabe. Kein Abo, keine Erfolgsbeteiligung — seriöse Arbeit rechnet nicht pro „gelöschtem Eintrag“ ab."
     },
     {
       "f": "Wie lange dauert es, bis ich meine Auskunft habe?",
@@ -1425,7 +1425,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Sieht die SCHUFA, dass ich eine Auskunft beantrage?",
-      "a": "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Das gilt auch, wenn FIAON sie mit Ihrer Vollmacht für Sie anfordert."
+      "a": "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Das gilt auch, wenn FIAON sie in Ihrem Auftrag für Sie anfordert."
     },
     {
       "f": "Gilt das auch für Österreich und die Schweiz?",

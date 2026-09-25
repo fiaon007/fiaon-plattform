@@ -162,20 +162,15 @@ function BonitaetsKarte({ kundenRef, email, vorname, nachname }: {
     }
   }, []);
 
-  const bestellen = useCallback(async () => {
+  // Gegenlesen 25.09.2026 (E-241): Bestellt wird nur noch auf der Bestellseite /bonitaet-antrag —
+  // Preis vom Server, Widerrufsbelehrung und der Pflicht-Haken des Beschaffungsauftrags
+  // (AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT). Hier ging vorher ein POST /payment-order OHNE jeden Haken
+  // hinaus; der Server lehnt das seit E-241 ab. E-Mail und Name füllt die Bestellseite selbst
+  // (angemeldet: aus der Sitzung).
+  const bestellen = useCallback(() => {
     setBusy(true); setFehler(null);
-    try {
-      const r = await fetch("/api/fiaon/payment-order", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "schufa", email, firstName: vorname, lastName: nachname }),
-      });
-      const j = await r.json().catch(() => null);
-      if (j?.ok && j.paymentReference) await zahlwegOeffnen(String(j.paymentReference));
-      else setFehler(j?.error ?? "Die Bestellung hat nicht funktioniert.");
-    } catch {
-      setFehler("Verbindung fehlgeschlagen.");
-    } finally { setBusy(false); }
-  }, [email, vorname, nachname, zahlwegOeffnen]);
+    window.location.href = "/bonitaet-antrag";
+  }, []);
 
   // Wer sie schon hat, sieht kein Angebot. Ein Angebot für etwas, das man
   // besitzt, sagt dem Kunden: Die kennen mich nicht.

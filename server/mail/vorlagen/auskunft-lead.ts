@@ -17,6 +17,18 @@
 // (server/lib/fiaon-auskunft-lieferung.ts) und sagen genau das: wo angefragt
 // wird (je Land, nie „SCHUFA" in AT/CH), was der Kunde tut, was danach kommt.
 //
+// ── BIS ZUR API KAUFEN WIR SIE SELBST (25.09.2026, E-241) ─────────────────
+// Im Liefermodus „einkauf" (fiaon_settings.auskunft_liefermodus) beschafft
+// FIAON die Auskunft selbst. payment_confirmed, schufa_requested und
+// schufa_approved sagen dann: „Wir beschaffen jetzt Ihre Auskunft … Sobald sie
+// da ist, bekommen Sie Bescheid und finden Handlungsplan und Schreiben in Ihrem
+// Bereich." Den Weg trägt die Nutzlast (`auskunft_liefermodus`); ohne ihn gilt
+// der Vollmacht-Text vom 24.09. Die Sätze je Weg: schufaRequestedSaetze().
+// Seit dem Befund der Beschaffungs-Prüfer (25.09.2026, E-241) bittet
+// schufa_requested im Einkauf nicht mehr um die Vollmacht zur Übermittlung (sie
+// deckt den Kauf nicht), sondern um die Bestätigung des Beschaffungsauftrags
+// (AUSKUNFT_AUFTRAG_BESTAETIGEN, schufaRequestedBaustein).
+//
 // ── KEIN LEAD-TEXT VERSPRICHT DIE AUSKUNFT MEHR ALS PAKETLEISTUNG (25.09.2026, E-240)
 // lead_followup („Auskunft holen, jeden Eintrag prüfen …"), lead_willkommen
 // („Danach holen wir Ihre Bonitätsauskunft") und lead_application_link
@@ -49,38 +61,59 @@ export const AUSKUNFT_LEAD_VORLAGEN: Record<string, MailBaustein> = {
   // ob die Vollmacht schon vorliegt; `unterschrift_url` ist der signierte Link
   // auf /app/unterschrift (Vollmacht zuerst, dann die Anfragen nacheinander).
   // Keine Dauer mit Zahl: Wann die Auskunfteien antworten, bestimmen sie.
+  //
+  // ── ZWEI LIEFERWEGE, EINE VORLAGE (25.09.2026, E-241) ─────────────────────
+  // Seit E-241 gibt es neben der Vollmacht (Anfragen per Post) den Einkauf: Bis
+  // die API steht, beschafft FIAON die Auskunft selbst (fiaon_settings.
+  // auskunft_liefermodus, server/lib/fiaon-auskunft-quelle.ts). Dann schickt
+  // diese Mail nur den Weg zur VOLLMACHT — es gibt keine Anfragen zu
+  // unterschreiben, und keine Datenkopie kommt per Post zum Kunden. Der Motor
+  // kennt je Ereignis genau eine Vorlage; deshalb ist, was sich je Weg
+  // unterscheidet, ein Satzteil aus der Nutzlast: `auftrag_anfang` und
+  // `auftrag_ende` um die Auskunfteien herum (Pflicht — die Namen bleiben EIN
+  // Platzhalter, `auskunfteien`), `unterschrift_satz` (Pflicht), `danach_satz`
+  // und `fuss_satz` (wahlweise).
+  // Die Sätze entstehen in schufaRequestedSaetze() unten — für beide Wege, EINE
+  // Quelle. Betreff, Titel, Kasten und Knöpfe sind für beide Wege wahr.
   schufa_requested: {
     betreff: "Ihre Auskunft: Jetzt fehlt nur noch Ihre Unterschrift",
-    preheader: "Wir fordern Ihre Datenkopien an — dafür braucht es Ihre Unterschrift am Bildschirm.",
-    titel: "Wir fordern Ihre Datenkopien an",
+    preheader: "Damit wir Ihre Auskunft einholen dürfen, braucht es Ihre Unterschrift am Bildschirm.",
+    titel: "Ihre Unterschrift für Ihre Auskunft",
     absaetze: [
-      "{{params.anrede}} danke für Ihren Auftrag. Wir fordern jetzt Ihre Datenkopien bei <b>{{params.auskunfteien}}</b> an.",
+      "{{params.anrede}} danke für Ihren Auftrag. {{params.auftrag_anfang}} <b>{{params.auskunfteien}}</b>{{params.auftrag_ende}}",
       "{{params.unterschrift_satz}}",
-      "Erst mit Ihrer Unterschrift gehen die Anfragen hinaus. Die Auskunfteien schicken Ihre Datenkopie per Post an Ihre Anschrift — fotografieren Sie sie dann in Ihrem Bereich unter Vorgänge. Wir erklären Ihnen jeden Eintrag, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.",
+      "{{params.danach_satz}}",
     ],
     daten: [
-      { label: "Anfragen an", wert: "{{params.auskunfteien}}" },
+      { label: "Auskunft bei", wert: "{{params.auskunfteien}}" },
       { label: "Ihr nächster Schritt", wert: "Am Bildschirm unterschreiben" },
     ],
     knopf: { text: "Jetzt unterschreiben", url: "{{params.unterschrift_url}}" },
-    knopf2: { text: "Zu meinen Vorgängen", url: "{{params.login_url}}" },
-    fussnote: "Die Vollmacht erlaubt uns nur, Ihre unterschriebenen Anfragen zu übermitteln — widerrufen können Sie sie jederzeit in Ihrem Bereich. Ist der Link abgelaufen, finden Sie unter Vorgänge einen neuen.",
+    knopf2: { text: "In meinen Bereich", url: "{{params.login_url}}" },
+    fussnote: "{{params.fuss_satz}}",
     karteZiel: true,
   },
 
-  // Der Mitarbeiter trägt im Vorgang „Datenkopie eingegangen" ein (Ergebnis
-  // bewilligt einer Anfrage auf Selbstauskunft). Eine Mail je Auskunftei; der
-  // wahlweise Absatz nennt, wer noch aussteht.
+  // Die Auskunft ist da. Zwei Auslöser (25.09.2026, E-241):
+  //   · Vollmacht: Der Mitarbeiter trägt im Vorgang „Datenkopie eingegangen" ein
+  //     (Ergebnis bewilligt einer Anfrage auf Selbstauskunft) — eine Mail je
+  //     Auskunftei, der wahlweise Absatz nennt, wer noch aussteht.
+  //   · Einkauf: Die Beschaffung lädt die gekaufte Auskunft im Chefbüro hoch
+  //     (beschaffungHochladen) — `bereich_satz` sagt, wo Handlungsplan und
+  //     Schreiben liegen.
+  // Deshalb „Auskunft" statt „Datenkopie" und der Knopf in den Bereich: beides
+  // stimmt für beide Wege.
   schufa_approved: {
-    betreff: "Ihre Datenkopie von {{params.auskunftei}} ist da",
-    preheader: "{{params.auskunftei}} hat geantwortet — jetzt beginnt die Auswertung.",
-    titel: "Ihre Datenkopie ist eingegangen",
+    betreff: "Ihre Auskunft ist da: {{params.auskunftei}}",
+    preheader: "Sie liegt in Ihrer Akte — jetzt beginnt die Auswertung.",
+    titel: "Ihre Auskunft ist eingegangen",
     absaetze: [
-      "{{params.anrede}} Ihre Datenkopie von <b>{{params.auskunftei}}</b> ist eingegangen und liegt in Ihrer Akte.",
+      "{{params.anrede}} Ihre Auskunft ist eingegangen und liegt in Ihrer Akte: <b>{{params.auskunftei}}</b>.",
       "Jetzt beginnt die Auswertung: Wir erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Ihren Handlungsplan vor — mit fertigen Schreiben, die Sie freigeben, bevor etwas hinausgeht.",
+      "{{params.bereich_satz}}",
       "{{params.rest_satz}}",
     ],
-    knopf: { text: "Zu meinen Vorgängen", url: "{{params.login_url}}" },
+    knopf: { text: "In meinen Bereich", url: "{{params.login_url}}" },
     karteZiel: true,
   },
 
@@ -223,6 +256,118 @@ export const AUSKUNFT_ZAHLUNG_VORLAGEN: Record<"payment_details" | "payment_conf
   },
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE SÄTZE DER LIEFER-MAILS JE LIEFERWEG (25.09.2026, E-241)
+//
+// Justin: „Bis zur API kaufen wir sie selbst." Im Einkauf gibt es keine
+// Anfragen zu unterschreiben und keine Post an den Kunden: FIAON beschafft die
+// Auskunft, lädt sie hoch, und der Kunde findet Handlungsplan und Schreiben in
+// seinem Bereich. Bestätigen muss er nur, wenn für die Bestellung noch kein
+// Beschaffungsauftrag dokumentiert ist (Betreuer, Mara, Altbestellungen —
+// Bestellseite, Kauflink und Kaufkarte holen ihn seit 25.09.2026 als
+// Pflicht-Haken ein). Die Sätze sind reiner Text ohne Tags — sie kommen als Wert
+// in die Vorlage, und der Text-Teil der Mail entfernt nur die Tags der Vorlage.
+// Keine Frist mit Zahl, keine Zusage über das Ergebnis.
+// ═══════════════════════════════════════════════════════════════════════════
+export type AuskunftLieferweg = "vollmacht" | "einkauf";
+
+/** Einkauf ist alles, was nicht ausdrücklich „vollmacht" heißt — auch „api" (sie fällt auf den Einkauf zurück). */
+export function lieferwegAusNutzlast(p: Record<string, unknown>): AuskunftLieferweg | null {
+  const m = String(p.auskunft_liefermodus ?? "").trim();
+  if (!m) return null;
+  return m === "vollmacht" ? "vollmacht" : "einkauf";
+}
+
+export interface SchufaRequestedSaetze {
+  /** Vor den Auskunfteien („Wir fordern jetzt Ihre Datenkopien bei"). */
+  auftrag_anfang: string;
+  /** Nach den Auskunfteien (nie leer: „ an." bzw. „."). */
+  auftrag_ende: string;
+  danach_satz: string;
+  fuss_satz: string;
+  /**
+   * Nur im Einkauf (dort: die Bitte um die Auftragsbestätigung) — im Vollmacht-Weg
+   * baut die Lieferung ihn (sie weiß, ob die Vollmacht schon vorliegt).
+   */
+  unterschrift_satz?: string;
+}
+
+/**
+ * Die Sätze für schufa_requested. Die Auskunfteien selbst setzt die Vorlage
+ * aus `{{params.auskunfteien}}` ein (je Land, nie „SCHUFA" in AT/CH) — hier
+ * stehen nur die Worte davor und danach. `wartenAb`: Beginn vor Ablauf der
+ * Widerrufsfrist nicht verlangt → ab diesem Tag (TT.MM.JJJJ).
+ */
+export function schufaRequestedSaetze(
+  weg: AuskunftLieferweg, ein: { art?: AuskunftArt; wartenAb?: string | null } = {},
+): SchufaRequestedSaetze {
+  if (weg === "vollmacht") {
+    return {
+      auftrag_anfang: "Wir fordern jetzt Ihre Datenkopien bei",
+      auftrag_ende: " an.",
+      danach_satz: "Erst mit Ihrer Unterschrift gehen die Anfragen hinaus. Die Auskunfteien schicken Ihre Datenkopie per Post an Ihre Anschrift — fotografieren Sie sie dann in Ihrem Bereich unter Vorgänge. Wir erklären Ihnen jeden Eintrag, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.",
+      fuss_satz: "Die Vollmacht erlaubt uns nur, Ihre unterschriebenen Anfragen zu übermitteln — widerrufen können Sie sie jederzeit in Ihrem Bereich. Ist der Link abgelaufen, finden Sie unter Vorgänge einen neuen.",
+    };
+  }
+  const ab = ein.wartenAb && DATUM_DE.test(ein.wartenAb) ? ein.wartenAb : null;
+  // ── IM EINKAUF: DIE AUFTRAGSBESTÄTIGUNG (25.09.2026, E-241) ──────────────
+  // Bis heute bat diese Mail im Einkauf um die „Vollmacht zur Übermittlung"
+  // (/app/unterschrift). Die deckt nur die kostenlose Datenkopie, nicht den Kauf
+  // einer Auskunft im Namen des Kunden (Befund der Beschaffungs-Prüfer). Jetzt
+  // bittet sie um die kurze Bestätigung des Beschaffungsauftrags — der Knopf
+  // führt auf /api/fiaon/auskunft/auftrag/:token (Vorlage
+  // AUSKUNFT_AUFTRAG_BESTAETIGEN, der Motor nimmt sie im Einkauf). Kein „jetzt":
+  // Beschafft wird erst nach der Bestätigung (und ggf. nach der Widerrufsfrist).
+  return {
+    auftrag_anfang: ein.art === "firma"
+      ? "Wir beschaffen die Auskünfte Ihres Unternehmens und die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei"
+      : "Wir beschaffen Ihre Auskunft bei",
+    auftrag_ende: ".",
+    unterschrift_satz: (ab ? `Wie bei der Beauftragung gewählt, beginnen wir damit erst nach Ablauf der Widerrufsfrist, ab dem ${ab}. ` : "")
+      + "Bitte bestätigen Sie kurz Ihren Auftrag, damit wir Ihre Auskunft beschaffen dürfen — ein Klick auf den Knopf unten genügt"
+      + (ab ? ", und das geht schon jetzt." : "."),
+    danach_satz: "Sobald Ihre Auskunft da ist, bekommen Sie Bescheid. Sie liegt dann in Ihrem Bereich — mit der Erklärung jedes Eintrags, Ihrem Handlungsplan und fertigen Schreiben zur Freigabe.",
+    fuss_satz: "Mit Ihrem Auftrag fordern wir Ihre Auskunft bei den genannten Auskunfteien für Sie an bzw. beschaffen sie — auch als kostenpflichtige Auskunft; deren Kosten sind im Preis enthalten. "
+      + "Bis zur Beschaffung können Sie den Auftrag jederzeit widerrufen: Antworten Sie einfach auf diese E-Mail. Ist der Link abgelaufen, antworten Sie ebenfalls — dann bekommen Sie einen neuen.",
+  };
+}
+
+/**
+ * schufa_requested im Einkauf (25.09.2026, E-241): die Bitte um die
+ * Auftragsbestätigung statt um die Vollmacht. Dieselben Platzhalter wie die
+ * Vollmacht-Fassung (schufaRequestedSaetze("einkauf")), eigener Betreff, Titel,
+ * Kasten und Knopf. `unterschrift_url` trägt hier den signierten Link zur
+ * Auftragsbestätigung — der Name bleibt, weil das Mail-Protokoll genau diesen
+ * Schlüssel verbirgt (payloadSchwaerzen) und das Ereignis ihn als Pflichtfeld führt.
+ */
+export const AUSKUNFT_AUFTRAG_BESTAETIGEN: MailBaustein = {
+  betreff: "Ihre Auskunft: Bitte bestätigen Sie kurz Ihren Auftrag",
+  preheader: "Ein Klick genügt — dann beschaffen wir Ihre Auskunft für Sie.",
+  titel: "Bitte bestätigen Sie Ihren Auftrag",
+  absaetze: [
+    "{{params.anrede}} danke für Ihren Auftrag. {{params.auftrag_anfang}} <b>{{params.auskunfteien}}</b>{{params.auftrag_ende}}",
+    "{{params.danach_satz}}",
+    "{{params.unterschrift_satz}}",
+  ],
+  daten: [
+    { label: "Auskunft bei", wert: "{{params.auskunfteien}}" },
+    { label: "Ihr nächster Schritt", wert: "Auftrag bestätigen — ein Klick" },
+  ],
+  knopf: { text: "Auftrag bestätigen", url: "{{params.unterschrift_url}}" },
+  knopf2: { text: "In meinen Bereich", url: "{{params.login_url}}" },
+  fussnote: "{{params.fuss_satz}}",
+  karteZiel: true,
+};
+
+/** Die Vorlage für schufa_requested im Einkauf — null = die Vorlage des Vollmacht-Wegs bleibt (der Motor fragt hier). */
+export function schufaRequestedBaustein(p: Record<string, unknown>): MailBaustein | null {
+  return lieferwegAusNutzlast(p) === "einkauf" ? AUSKUNFT_AUFTRAG_BESTAETIGEN : null;
+}
+
+/** Der wahlweise Satz in schufa_approved, wenn FIAON die Auskunft beschafft hat. */
+export const AUSKUNFT_DA_BEREICH_SATZ =
+  "Handlungsplan und Schreiben finden Sie in Ihrem Bereich, sobald die Auswertung fertig ist. Melden Sie sich dort mit der E-Mail-Adresse an, an die diese Nachricht ging.";
+
 /**
  * Ist die Bestellung dieser Nutzlast eine Auskunft? Rein, ohne Datenbank: Die
  * Tür (make-webhook.ts) setzt `produktkategorie` aus der Bestellzeile; ohne sie
@@ -280,12 +425,54 @@ export function auskunftZahlungEingangBaustein(p: Record<string, unknown>): Mail
   const art: AuskunftArt = String(p.auskunft_art ?? "").trim() === "firma" ? "firma" : "privat";
   const wahl = art === "privat" ? auskunftBeginnWahl(p.widerruf_wahl) : "offen";
   const ab = DATUM_DE.test(String(p.widerruf_ab ?? "").trim()) ? String(p.widerruf_ab).trim() : null;
+  // 25.09.2026 (E-241): Im Einkauf beschafft FIAON die Auskunft selbst — kein
+  // „Anfragen unterschreiben", keine Datenkopie per Post zum Kunden. Die Tür
+  // (auskunftMailAnreichern) setzt `auskunft_liefermodus` und, ob für die
+  // Bestellung schon eine Vollmacht dokumentiert ist (`auskunft_einwilligung`).
+  if (lieferwegAusNutzlast(p) === "einkauf") return auskunftZahlungEingangEinkauf(p, art, wahl === "nicht_verlangt" ? ab : null, wahl === "nicht_verlangt");
   const zweiter = art === "firma"
     ? "Als Nächstes fordern wir die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an, dazu die persönliche Datenkopie der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}. Damit wir das dürfen, braucht es Ihre Unterschrift unter der Vollmacht zur Übermittlung und unter Ihren Anfragen — den Weg dorthin schicken wir Ihnen in einer eigenen E-Mail."
     : wahl === "nicht_verlangt"
       ? `Als Nächstes bereiten wir Ihre Anfragen an {{params.auskunfteien}} vor; die Vollmacht zur Übermittlung unterschreiben Sie über den Link in einer eigenen E-Mail. Wie bei Ihrer Bestellung gewählt, übermitteln wir die Anfragen erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""}.`
       : basis.absaetze[1];
   return { ...basis, absaetze: [basis.absaetze[0], zweiter, ...basis.absaetze.slice(2)] };
+}
+
+/**
+ * Die Zahlungsbestätigung im Einkauf (25.09.2026, E-241): „Wir beschaffen jetzt
+ * Ihre Auskunft … Sobald sie da ist, bekommen Sie Bescheid und finden
+ * Handlungsplan und Schreiben in Ihrem Bereich." Fehlt die Einwilligung, sagt
+ * der zweite Absatz, dass der Link zur Auftragsbestätigung in einer eigenen
+ * Mail kommt (schufa_requested aus der Lieferung, seit 25.09.2026 statt der
+ * Vollmacht). Wer den Beginn vor Fristablauf nicht
+ * verlangt hat, liest, dass wir erst danach anfangen — ohne Frist mit Zahl.
+ */
+function auskunftZahlungEingangEinkauf(p: Record<string, unknown>, art: AuskunftArt, ab: string | null, nachFrist: boolean): MailBaustein {
+  const basis = AUSKUNFT_ZAHLUNG_VORLAGEN.payment_confirmed;
+  // 25.09.2026 (E-241): Fehlt die Einwilligung, kommt nicht mehr der Link zur Vollmacht, sondern der
+  // zur Auftragsbestätigung (auftragLinkSenden) — der Satz sagt das, ohne „jetzt“ davor.
+  const auftragFehlt = String(p.auskunft_einwilligung ?? "").trim() === "nein";
+  const was = art === "firma"
+    ? "die Auskünfte Ihres Unternehmens und die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}"
+    : "Ihre Auskunft bei {{params.auskunfteien}}";
+  const fristSatz = nachFrist
+    ? ` Wie bei Ihrer Bestellung gewählt, beginnen wir damit erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""}.`
+    : "";
+  // Gegenlesen 25.09.2026: „jetzt“ nur ohne Wartezeit (sonst Widerspruch zum Fristsatz) — und nie,
+  // solange der Auftrag noch bestätigt werden muss.
+  const wann = nachFrist || auftragFehlt ? "" : "jetzt ";
+  const zweiter = auftragFehlt
+    ? `Wir beschaffen ${wann}${was}. Damit wir sie für Sie anfordern bzw. beschaffen dürfen, fehlt nur noch Ihre kurze Bestätigung des Auftrags — den Link dazu schicken wir Ihnen in einer eigenen E-Mail.${fristSatz}`
+    : `Wir beschaffen ${wann}${was}.${fristSatz} Sie müssen dafür nichts weiter tun.`;
+  return {
+    ...basis,
+    preheader: auftragFehlt ? "Danke! Als Nächstes braucht es nur Ihre kurze Bestätigung des Auftrags." : nachFrist ? "Danke! Nach Ablauf der Widerrufsfrist beschaffen wir Ihre Auskunft." : "Danke! Wir beschaffen jetzt Ihre Auskunft.",
+    absaetze: [
+      basis.absaetze[0],
+      zweiter,
+      "Sobald Ihre Auskunft da ist, bekommen Sie Bescheid und finden Handlungsplan und Schreiben in Ihrem Bereich: Wir erklären jeden Eintrag, prüfen die Speicherfristen und legen Ihnen fertige Schreiben zur Freigabe vor. Fehlt uns dafür noch eine Angabe, klärt Ihre Ansprechperson sie mit Ihnen.",
+    ],
+  };
 }
 
 export function auskunftZahlungsdatenBaustein(p: Record<string, unknown>): MailBaustein {
@@ -306,7 +493,25 @@ export function auskunftZahlungsdatenBaustein(p: Record<string, unknown>): MailB
   // Datenkopien bei {{params.auskunfteien}} an" — das sind die Auskunfteien der PERSÖNLICHEN
   // Datenkopie; die Firmendaten der Wirtschaftsauskunfteien, die die Vertragsbestätigung darunter
   // als erste Leistung nennt (auskunftLeistung), fehlten. Jetzt sagt der Absatz beides, wie unten.
-  const absaetze = nachFrist
+  //
+  // Gegenlesen 25.09.2026 (E-241): Im Einkauf (Standard seit E-241) gibt es keine Anfragen zu
+  // unterschreiben — der zweite Absatz kündigte sonst eine Mail „Vollmacht und Anfragen“ an, die
+  // nie kommt. Der Vollmacht-Satz ist BEDINGT: Diese Mail geht direkt nach der Bestellung los,
+  // bevor die Bestellseite ihren Haken in den Verlauf schreibt (widerrufWahlFuerMail) — so stimmt
+  // er mit und ohne dokumentierte Vollmacht. Vertragsbestätigung und Belehrung unten bleiben.
+  const einkaufWas = art === "firma"
+    ? "die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien und die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}"
+    : "Ihre Auskunft bei {{params.auskunfteien}}";
+  // 25.09.2026 (E-241): Kein Satz mehr zur Vollmacht — die Kauftüren holen den Beschaffungsauftrag
+  // selbst ein (Pflicht-Haken), und wo er fehlt, bittet die Beschaffung nach der Zahlung in einer
+  // eigenen Mail um die Bestätigung (die Zahlungsbestätigung sagt das dann).
+  const einkaufAbsatz = lieferwegAusNutzlast(p) === "einkauf"
+    ? `Sobald Ihre Überweisung eingeht, beschaffen wir ${einkaufWas}${nachFrist ? ` — wie bei Ihrer Bestellung gewählt, erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""} —` : ""} `
+      + `und melden uns, sobald ${art === "firma" ? "sie da sind" : "sie da ist"}.`
+    : null;
+  const absaetze = einkaufAbsatz
+    ? [basis.absaetze[0], einkaufAbsatz, basis.absaetze[2]]
+    : nachFrist
     ? [
         basis.absaetze[0],
         `Sobald Ihre Überweisung eingeht, bereiten wir Ihre Anfragen an {{params.auskunfteien}} vor, und Sie bekommen eine eigene E-Mail mit dem Link, über den Sie Vollmacht und Anfragen am Bildschirm unterschreiben. Wie bei Ihrer Bestellung gewählt, übermitteln wir die Anfragen erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""}.`,
@@ -357,7 +562,8 @@ export function auskunftZahlungsdatenBaustein(p: Record<string, unknown>): MailB
 
   return {
     ...basis,
-    preheader: nachFrist ? "Ihre Zahlungsdaten, Ihre Vertragsbestätigung und Ihr Widerrufsrecht." : basis.preheader,
+    preheader: nachFrist ? "Ihre Zahlungsdaten, Ihre Vertragsbestätigung und Ihr Widerrufsrecht."
+      : einkaufAbsatz ? "Sobald Ihre Überweisung da ist, beschaffen wir Ihre Auskunft." : basis.preheader,
     absaetze,
     anhang,
   };

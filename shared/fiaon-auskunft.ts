@@ -140,15 +140,17 @@ export function auskunftWort(land: AuskunftLand): string {
 export function auskunftLeistung(art: AuskunftArt, land: AuskunftLand): string[] {
   const bei = auskunfteienText(land);
   const privat = [
-    `Wir fordern Ihre Datenkopien bei ${bei} an — mit Ihrer Vollmacht zur Übermittlung, Sie müssen keinen Brief schreiben.`,
+    `Wir fordern Ihre Datenkopien bei ${bei} an — in Ihrem Auftrag, Sie müssen keinen Brief schreiben.`,
     "Wir erklären jeden Eintrag in klaren Worten und prüfen, ob Speicherfristen abgelaufen sind.",
     "Ihr persönlicher Handlungsplan: was Sie konkret tun können, in welcher Reihenfolge.",
     "Fertige Schreiben (z. B. Löschung nach Fristablauf, Berichtigung falscher Daten) — Sie geben frei, wir übermitteln.",
-    "Ihr Betreuer geht die Auswertung mit Ihnen durch und richtet Ihren Weg zu Karte und Limit danach aus.",
+    // 25.09.2026 (E-241): ohne „Limit" — die Liste steht auch in Mails an Anträge und Leads, und
+    // „Limit" gehört dort zu VERBOTENE_WORTE (shared/fiaon-lead-strecke.ts, § 34c GewO).
+    "Ihr Betreuer geht die Auswertung mit Ihnen durch und richtet Ihren Weg zur Karte danach aus.",
   ];
   if (art === "privat") return privat;
   return [
-    "Wir fordern die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an (u. a. Creditreform und CRIF) — mit Ihrer Vollmacht.",
+    "Wir fordern die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an (u. a. Creditreform und CRIF) — in Ihrem Auftrag.",
     `Dazu die persönliche Datenkopie der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei ${bei}.`,
     "Wir erklären jeden Eintrag, prüfen Fristen und falsche oder veraltete Firmendaten.",
     "Ihr Handlungsplan für das Unternehmen: was Sie konkret tun können, in welcher Reihenfolge.",
@@ -162,9 +164,65 @@ export function auskunftLeistung(art: AuskunftArt, land: AuskunftLand): string[]
  */
 export const AUSKUNFT_KOSTENLOS_ANTWORT =
   "Ja, die Datenkopie steht Ihnen bei jeder Auskunftei kostenlos zu — das bleibt so. "
-  + "Wir nehmen Ihnen die Arbeit ab: Wir fordern sie bei allen Auskunfteien Ihres Landes an, "
+  + "Wir nehmen Ihnen die Arbeit ab: Wir fordern sie bei den großen Auskunfteien Ihres Landes an, "
   + "erklären jeden Eintrag, prüfen die Fristen und liefern Handlungsplan und fertige Schreiben.";
 
-/** Ein Satz für den Verkauf — Karte und Limit, ohne Zusage (die Bank entscheidet). */
+/**
+ * Ein Satz für den Verkauf — Karte und Limit, ohne Zusage (die Bank entscheidet).
+ * NUR für zahlende Kunden (Segment „kunde", laufendes Paket). Anträge und Leads
+ * lesen AUSKUNFT_NUTZEN_SATZ_KARTE.
+ */
 export const AUSKUNFT_NUTZEN_SATZ =
   "Mit Ihrer Auskunft sehen wir, was die Bank sieht — und richten Ihren Weg zu Karte und Wunschlimit genau danach aus.";
+
+/**
+ * Derselbe Nutzen ohne „Limit" (25.09.2026, E-241) — für fertige, unbezahlte
+ * Anträge und Leads (Segmente „antrag"/„lead", Kaufseite und Kaufkarte ohne
+ * bezahltes Paket). „Limit" steht in VERBOTENE_WORTE der Kaltansprache
+ * (shared/fiaon-lead-strecke.ts): Werbung mit einer Kreditsumme an Menschen
+ * ohne Vertrag wäre Werbung für eine erlaubnispflichtige Leistung (§ 34c GewO).
+ */
+export const AUSKUNFT_NUTZEN_SATZ_KARTE =
+  "Mit Ihrer Auskunft sehen wir, was die Bank sieht — und richten Ihren Weg zur Karte genau danach aus.";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER BESCHAFFUNGSAUFTRAG (25.09.2026, E-241)
+//
+// Justin: „Ich kümmere mich heute um die API, bis dahin kaufen wir sie selbst."
+// Befund der Beschaffungs-Prüfer: Die „Vollmacht zur Übermittlung" (Haken der
+// Bestellseite bis Fassung 2026-09-25, fiaon-schreiben.ts, /app/unterschrift)
+// deckt NUR, die kostenlose Datenkopie nach Art. 15 DSGVO zu übermitteln — sie
+// schließt ausdrücklich aus, im Namen des Kunden Verträge zu schließen. Den KAUF
+// einer (kostenpflichtigen) Auskunft deckt sie nicht. Dieser Satz tut es — und
+// steht wortgleich an jeder Kauftür als Pflicht-Haken: Bestellseite
+// (/bonitaet-antrag), Kauflink aus der Mail, Kaufkarte im Kundenbereich und die
+// Bestätigungsseite nach der Zahlung (/api/fiaon/auskunft/auftrag/:token).
+// „Bei den oben genannten Auskunfteien": Jede dieser Seiten nennt sie darüber
+// (je Land — AT und CH lesen nie „SCHUFA").
+//
+// Wer den Wortlaut ändert, erhöht AUSKUNFT_AUFTRAG_FASSUNG (und auf der
+// Bestellseite BESTELL_FASSUNG) — die Fassung steht mit jedem Vermerk im Verlauf.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Fassung des Auftragstextes — steht in jedem Vermerk (AUSKUNFT_BESCHAFFUNG_VERMERK). */
+export const AUSKUNFT_AUFTRAG_FASSUNG = "2026-09-25";
+
+/** Der Wortlaut des Beschaffungsauftrags — Pflicht-Haken an jeder Kauftür. */
+export function AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art: AuskunftArt): string {
+  const kosten = "— auch als kostenpflichtige Auskunft der Auskunftei; deren Kosten sind im Preis enthalten. "
+    + "Diesen Auftrag kann ich bis zur Beschaffung jederzeit widerrufen.";
+  return art === "firma"
+    ? "Ich beauftrage und bevollmächtige FIAON, die Bonitätsauskunft meines Unternehmens bei den Wirtschaftsauskunfteien und, "
+      + "sofern ich Inhaberin, Inhaber oder Geschäftsführung bin, meine persönliche Bonitätsauskunft bei den oben genannten "
+      + `Auskunfteien anzufordern bzw. zu beschaffen ${kosten}`
+    : `Ich beauftrage und bevollmächtige FIAON, meine Bonitätsauskunft bei den oben genannten Auskunfteien für mich anzufordern bzw. zu beschaffen ${kosten}`;
+}
+
+/**
+ * Die Marke im Verlauf der Bestellung (fiaon_contact_log, ref = die Auskunft-
+ * Bestellung), an der die Beschaffung den Auftrag erkennt — wie
+ * AUSKUNFT_VOLLMACHT_VERMERK (fiaon-auskunft-lieferung.ts). Geschrieben wird er
+ * nur über beschaffungsauftragVermerken (server/lib/fiaon-auskunft.ts): Marke,
+ * Wortlaut, Fassung, Zeit und Weg in einer Zeile.
+ */
+export const AUSKUNFT_BESCHAFFUNG_VERMERK = "Beschaffungsauftrag ERTEILT";

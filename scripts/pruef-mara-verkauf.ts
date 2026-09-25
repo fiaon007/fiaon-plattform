@@ -8,6 +8,9 @@
 //      Betrieb (maraAuftrag → entwerfen: Modell, harte Wand, Verkaufsprüfung,
 //      zweiter Entwurf). Ruft das echte Modell — etwa 40 Aufrufe, wenige Euro.
 //      Keine Datenbank, kein Versand.
+//   E-241 (25.09.2026): offline dazu Anträge und Leads, die auf das Angebot der
+//   Auskunft antworten oder selbst fragen (Kauflink 149 €), ungefragt nichts,
+//   Werbesperre ohne Wunsch nichts, ein Nein bleibt ein Nein; mit --ki E4–E6.
 //
 //   env -i PATH="$PATH" HOME="$HOME" OPENAI_API_KEY=… DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine \
 //     npx tsx scripts/pruef-mara-verkauf.ts [--ki] [--nur S4]
@@ -16,9 +19,12 @@ import {
   verkaufsPruefung, wahrheitsPruefung, entwerfen, maraAuftrag, wissenFuerWhatsApp, jaStreichen, handlungsPruefung,
   AUSKUNFT_THEMA, auskunftZugestimmt, auskunftGefragt, auskunftWerkzeugAn, auskunftBlock, vermerkZeile, VERMERK_KOPF,
   auskunftJetzt, type AuskunftTeil,
+  // E-241 (25.09.2026): Anträge und Leads, die auf das Angebot antworten
+  istAuskunftAngebot, antwortetAufAuskunftAngebot, bezogenAufAngebot, werkzeugAusfuehren,
 } from "../server/lib/fiaon-whatsapp-mara";
 import { sendePruefung } from "../server/lib/fiaon-whatsapp";
 import { sperrUrteil, werbungVerboten, waVorlageWerblich, istWerbungImmer, type PersonSperre } from "../server/lib/fiaon-mail-frequenz";
+import { fragtNachAuskunftSelbst, lehntAuskunftAb } from "../shared/fiaon-postmeister-typen";
 
 let ok = 0, fehl = 0;
 function pruef(name: string, bed: boolean, info = "") {
@@ -221,6 +227,127 @@ pruef("GL falscher Preis im selben Satz fällt weiter auf", handlungsPruefung("D
 // e) Werbesperre bei seiner Rate: die Zahlungsseite ist Zahlungspost, kein Werbelink.
 pruef("GL Werbesperre + Rate: Zahlungsseite ohne Werbe-Hinweis", !verkaufsPruefung("Ihre Zahlungsseite: https://fiaon.com/zahlung/FIAON-ABC123-2", { kunde: "ok", letzteDu: [], verkaufen: false, werbesperre: true, zahlungslage: true }).some((h) => /keine Werbung/.test(h)));
 console.log(`E-240 (Auskunft, Akte, Werbesperre): ${ok - vorherOk} bestanden, ${fehl - vorherFehl} nicht.`);
+
+// ── E-241 (25.09.2026): ANTRÄGE UND LEADS, DIE AUF DAS ANGEBOT ANTWORTEN ──────
+// Justin: die Auskunft „an ALLE". Der Takt bietet sie Stufe B und Leads an; Mara
+// verkauft dort nur als Antwort (Vorlage fiaon_kk_auskunft_lead, Mail, eigene
+// Frage) — ungefragt bleibt es bei der Karte (Justin 24.09.).
+const vor241Ok = ok, vor241Fehl = fehl;
+const LEAD_AUSKUNFT: AuskunftTeil = { stufe: "nichts", land: "DE", preisText: "149 €", mitAbo: false, offenLink: null, offenBetrag: null, jetzt: false, werbesperre: false, segment: "lead", art: "privat" };
+const LEAD_VORLAGE = { vorlage: "fiaon_kk_auskunft_lead", text: "Hallo Monika Zielinski, hier ist Mara Lindner von FIAON, die digitale Assistentin im Team. Bevor eine Bank über Ihre Karte entscheidet … Ihr Preis: 149 € einmalig, ohne Abo." };
+const promptLead = (a: AuskunftTeil | null, verlauf = "KUNDE: Ja, gern") => maraAuftrag({
+  name: "Mara Lindner", wer: "Monika Zielinski, noch ohne festen Betreuer.", lage: "Hat das Formular ausgefüllt, der Antrag ist für ihn vorbereitet und seine Angaben sind schon drin.",
+  ziel: "Er öffnet den Antrag und füllt ihn aus.", link: "https://fiaon.com/a/x/w", verkaufen: true, gedaechtnis: "", verlauf, wissen: "", hausanweisung: "",
+  werkzeuge: true, betreuer: null, jetzt: "Freitag, 25.09.2026, 10:00", auskunft: a,
+});
+// 1. Lead antwortet „Ja, gern" auf die Auskunft-Vorlage → Angebot mit Werkzeug, 149 €
+pruef("E241 Vorlage fiaon_kk_auskunft_lead ist ein Angebot (auch Bildfassung fiaon_kkb_…)", istAuskunftAngebot(LEAD_VORLAGE) && istAuskunftAngebot({ vorlage: "fiaon_kkb_auskunft_lead" }) && istAuskunftAngebot({ vorlage: "fiaon_kk_auskunft" }));
+pruef("E241 Begrüßung und Rate sind kein Auskunft-Angebot", !istAuskunftAngebot({ vorlage: "fiaon_kk_anfrage" }) && !istAuskunftAngebot({ vorlage: "fiaon_kk_rate" }) && !istAuskunftAngebot({ vorlage: "fiaon_kk_auskunftx" }));
+const jaLead = auskunftJetzt({ kunde: "Ja, gern", letzteDu: [], werbesperre: false, segment: "lead", aufAngebot: antwortetAufAuskunftAngebot({ kunde: "Ja, gern", letzteRaus: LEAD_VORLAGE }) });
+pruef("E241 Lead „Ja, gern“ auf die Vorlage → jetzt, als Antwort auf das Angebot", jaLead.jetzt && jaLead.aufAngebot === true, JSON.stringify(jaLead));
+const jaTeil: AuskunftTeil = { ...LEAD_AUSKUNFT, ...jaLead };
+pruef("E241 Lead „Ja, gern“ → Werkzeug auskunft_anbieten an", auskunftWerkzeugAn(jaTeil));
+const blockJa = auskunftBlock(jaTeil).join("\n");
+pruef("E241 Lead: Block „SEINE FRAGE“ mit 149 € einmalig, Werkzeug und „keine Voraussetzung“",
+  /SEINE FRAGE: DIE BONITÄTSAUSKUNFT/.test(blockJa) && /149 € einmalig/.test(blockJa) && /auskunft_anbieten/.test(blockJa) && /KEINE Voraussetzung/.test(blockJa) && /antwortet auf unser Angebot/.test(blockJa), blockJa.slice(0, 200));
+pruef("E241 Lead: Block ohne Kundenpreis 74 €", !/74 €/.test(blockJa));
+const pJa = promptLead(jaTeil);
+pruef("E241 Lead: Werkzeug im Auftrag, Bescheid an „unserem Team“ (kein [Betreuer])", /· auskunft_anbieten —/.test(pJa) && /gibt auch unserem Team Bescheid/.test(pJa) && !/\[Betreuer\] Bescheid/.test(pJa));
+const kaufLead = "https://www.fiaon.com/api/fiaon/auskunft/bestellen?p=9101&art=privat&exp=1&sig=abc";
+const antwortLead = `Sehr gern — für 149 € einmalig holen wir Ihre Datenkopien bei SCHUFA, CRIF und Creditreform Boniversum und erklären Ihnen jeden Eintrag. Hier geht es direkt weiter: ${kaufLead}`;
+const aktionLead = [{ werkzeug: "auskunft_anbieten", ok: true, zeiten: [], link: kaufLead, betrag: "149 €", art: "angebot" as const }];
+const bekanntLead = { links: ["https://fiaon.com/a/x/w"], auskunftPreise: ["149 €"], land: "DE" as const };
+pruef("E241 Lead: Antwort mit Kauflink aus dem Werkzeug und 149 € besteht die harte Prüfung",
+  handlungsPruefung(antwortLead, aktionLead, "Ja, gern", "", bekanntLead).length === 0 && sendePruefung(antwortLead).length === 0 && wahrheitsPruefung(antwortLead, "Ja, gern").length === 0,
+  [...handlungsPruefung(antwortLead, aktionLead, "Ja, gern", "", bekanntLead), ...sendePruefung(antwortLead)].join(" | "));
+pruef("E241 Lead: 74 € (Kundenpreis) für den Lead fällt auf", handlungsPruefung("Die Auskunft kostet für Sie nur 74 € einmalig.", aktionLead, "Ja, gern", "", bekanntLead).some((f) => /74 €/.test(f)));
+const vpLead = verkaufsPruefung(antwortLead, { kunde: "Ja, gern", letzteDu: [], verkaufen: true, auskunftAngebot: true });
+pruef("E241 Lead: das Angebot ist keine „Hürde“ (Verkaufsprüfung still)", vpLead.length === 0, vpLead.join(" | "));
+// Der Kauflink des Leads ist ein gültiger, signierter Link auf ihn (kaufLink, ohne Datenbank).
+{
+  const kauf = await import("../server/routes/fiaon-auskunft-kauf");
+  const link = kauf.kaufLink(9101, "privat");
+  const urteil = kauf.kaufLinkPruefen(Object.fromEntries(new URL(link).searchParams));
+  pruef("E241 Lead: Kauflink signiert und gehört ihm (art privat)", urteil.ok === true && (urteil as any).personId === 9101 && (urteil as any).art === "privat", `${link} → ${JSON.stringify(urteil)}`);
+}
+// Das Werkzeug prüft selbst: ohne Antwort/Frage kein Angebot an einen Lead — auch wenn das Modell es ruft.
+{
+  const r0 = await werkzeugAusfuehren("auskunft_anbieten", {}, { personId: 9101, leadId: null, nummer: "49159000009101", kunde: "Wann kommt meine Karte?", letzteDu: "", auskunft: { ...LEAD_AUSKUNFT, jetzt: false } });
+  pruef("E241 Werkzeug: Lead ohne Antwort/Frage → abgelehnt, kein Link", r0.ergebnis.ok === false && /weder auf unser Angebot/.test(String(r0.ergebnis.grund)) && !r0.aktion.link, JSON.stringify(r0.ergebnis));
+}
+// 2. Lead fragt ungefragt nach der Karte → kein Wort Bonität
+for (const k of ["Ich suche unkompliziert eine Kreditkarte", "Wann kommt meine Karte? Wie hoch ist das Limit?", "Ich habe Schufa Einträge, geht das trotzdem?", "Geht das auch ganz ohne Schufa-Abfrage?", "Können Sie mir Auskunft geben, wie lange das dauert?"]) {
+  const j = auskunftJetzt({ kunde: k, letzteDu: [], werbesperre: false, segment: "lead", aufAngebot: antwortetAufAuskunftAngebot({ kunde: k, letzteRaus: { vorlage: "fiaon_kk_anfrage" } }) });
+  pruef(`E241 Lead ungefragt „${k.slice(0, 40)}“ → kein Angebot`, !j.jetzt && !auskunftWerkzeugAn({ ...LEAD_AUSKUNFT, ...j }), JSON.stringify(j));
+}
+const karteTeil: AuskunftTeil = { ...LEAD_AUSKUNFT, ...auskunftJetzt({ kunde: "Ich suche unkompliziert eine Kreditkarte", letzteDu: [], werbesperre: false, segment: "lead" }) };
+pruef("E241 Lead ungefragt: Block leer — der Auftrag bleibt wie vor E-241", auskunftBlock(karteTeil).length === 0);
+const pKarte = promptLead(karteTeil, "KUNDE: Ich suche unkompliziert eine Kreditkarte");
+pruef("E241 Lead ungefragt: kein Auskunft-Block, kein Werkzeug im Auftrag", !/DEIN ANGEBOT FÜR IHN|SEINE BONITÄTSAUSKUNFT|SEINE FRAGE|auskunft_anbieten/.test(pKarte));
+pruef("E241 Lead ungefragt: „Bonitätsauskunft“ in der Antwort bleibt eine Hürde", V("Ja, da sind Sie bei uns genau richtig! Danach holen wir noch Ihre Bonitätsauskunft.", "Ich suche unkompliziert eine Kreditkarte").some((h) => /Bonitätsauskunft/.test(h)));
+// 3. B fragt „was kostet die Auskunft?" → Angebot
+const bFrage = auskunftJetzt({ kunde: "Was kostet die Auskunft?", letzteDu: [], werbesperre: false, segment: "antrag" });
+pruef("E241 B „Was kostet die Auskunft?“ → jetzt, als eigene Frage", bFrage.jetzt && bFrage.selbst === true && !bFrage.aufAngebot, JSON.stringify(bFrage));
+const bTeil: AuskunftTeil = { ...LEAD_AUSKUNFT, segment: "antrag", ...bFrage };
+const blockB = auskunftBlock(bTeil).join("\n");
+pruef("E241 B: Block fragt selbst, erste Zahlung höchstens ein Satz ohne zweiten Link, 149 €",
+  /fragt selbst nach der Bonitätsauskunft/.test(blockB) && /erste Zahlung/.test(blockB) && /ohne zweiten Link/.test(blockB) && /149 € einmalig/.test(blockB) && auskunftWerkzeugAn(bTeil), blockB.slice(0, 240));
+for (const k of ["Können Sie meine Schufa-Auskunft holen?", "Ich hätte gern eine Datenkopie", "Können Sie meine Schufa anfordern?", "Was steht in meiner Schufa?", "Wie komme ich an meine SCHUFA?"]) {
+  pruef(`E241 eigene Frage erkannt: „${k}“`, fragtNachAuskunftSelbst(k) && auskunftJetzt({ kunde: k, letzteDu: [], werbesperre: false, segment: "antrag" }).jetzt);
+}
+// 4. Werbesperre ohne Wunsch → kein Angebot (auch nicht als Antwort auf eine Vorlage)
+const sperrJa = auskunftJetzt({ kunde: "Ja, gern", letzteDu: [], werbesperre: true, segment: "lead", aufAngebot: true });
+pruef("E241 Werbesperre: „Ja, gern“ auf eine Vorlage → kein Angebot", !sperrJa.jetzt && !auskunftWerkzeugAn({ ...LEAD_AUSKUNFT, werbesperre: true, ...sperrJa }));
+pruef("E241 Werbesperre: Frage nach der Karte → kein Angebot", !auskunftJetzt({ kunde: "Wann kommt meine Karte?", letzteDu: [], werbesperre: true, segment: "antrag" }).jetzt);
+pruef("E241 Werbesperre: „Die Auskunft ist doch Abzocke“ → kein Angebot", !auskunftJetzt({ kunde: "Die Auskunft ist doch Abzocke", letzteDu: [], werbesperre: true, segment: "lead" }).jetzt);
+pruef("E241 Werbesperre: ausdrücklicher Wunsch → ja", auskunftJetzt({ kunde: "Was kostet die Schufa-Auskunft bei Ihnen?", letzteDu: [], werbesperre: true, segment: "lead" }).jetzt);
+pruef("E241 Werbesperre ohne Wunsch: Block leer", auskunftBlock({ ...LEAD_AUSKUNFT, werbesperre: true, ...sperrJa }).length === 0);
+// 5. Ein Nein bleibt ein Nein
+for (const k of ["Nein danke", "Kein Interesse.", "Habe schon eine", "Brauche ich nicht", "Später vielleicht"]) {
+  pruef(`E241 Ablehnung „${k}“ auf die Vorlage → kein Angebot`, lehntAuskunftAb(k) && !auskunftJetzt({ kunde: k, letzteDu: [], werbesperre: false, segment: "lead", aufAngebot: true }).jetzt);
+}
+pruef("E241 „Ich habe keine Auskunft“ ist keine Ablehnung", !lehntAuskunftAb("Ich habe keine Auskunft") && !lehntAuskunftAb("Brauche ich die nicht?") && !lehntAuskunftAb("Das ist nötig"));
+// 6. Mail-Angebot der letzten 14 Tage: nur, wenn er sich darauf bezieht
+pruef("E241 Mail-Angebot + „Wegen Ihrer Mail: ja gern“ → Antwort auf das Angebot", antwortetAufAuskunftAngebot({ kunde: "Wegen Ihrer Mail: ja gern", letzteRaus: { vorlage: "fiaon_kk_anfrage" }, angebotKuerzlich: "per Angebots-Mail am 24.09., um 10:12 Uhr" }));
+pruef("E241 Mail-Angebot + bloßes „Ja gern“ nach der Begrüßung → meint den Antrag", !antwortetAufAuskunftAngebot({ kunde: "Ja gern", letzteRaus: { vorlage: "fiaon_kk_anfrage" }, angebotKuerzlich: "per Angebots-Mail am 24.09., um 10:12 Uhr" }));
+pruef("E241 Maras eigenes Angebot (Preis) davor zählt", istAuskunftAngebot({ vorlage: null, text: "Für 149 € einmalig holen wir Ihre Auskunft." }) && !istAuskunftAngebot({ vorlage: null, text: "Ihre Auskunft liegt vor." }));
+pruef("E241 Maras eigenes Angebot, danach „Wann kommt meine Karte?“ → keine Antwort auf das Angebot (kein zweites)",
+  !antwortetAufAuskunftAngebot({ kunde: "Wann kommt meine Karte?", letzteRaus: { vorlage: null, text: "Für 149 € einmalig holen wir Ihre Auskunft. Hier geht es direkt weiter: https://fiaon.com/api/fiaon/auskunft/bestellen?p=1" } })
+  && antwortetAufAuskunftAngebot({ kunde: "Was kostet das genau?", letzteRaus: { vorlage: null, text: "Wir holen Ihre Auskunft für 149 € einmalig." } }));
+pruef("E241 bezogenAufAngebot: Ja/Rückfrage ja, Kartenfrage nein", bezogenAufAngebot("Ja, gern") && bezogenAufAngebot("Wie läuft das ab?") && bezogenAufAngebot("Klingt gut") && !bezogenAufAngebot("Wann kommt meine Karte?"));
+// 7. Zahlender Kunde unverändert (E-240) — und die Firma liest ihren Einzelpreis
+pruef("E241 Kunde ohne segment: „Wann kommt meine Karte?“ → Angebot wie bisher", auskunftJetzt({ kunde: "Wann kommt meine Karte?", letzteDu: [], werbesperre: false }).jetzt);
+// Dieselbe Lücke beim zahlenden Kunden: „Ja, gern" auf fiaon_kk_auskunft (Bremse: Vorlage vor 1 Tag)
+const kundeJa = auskunftJetzt({ kunde: "Ja, gern", letzteDu: [], werbesperre: false, anderswo: true, aufAngebot: antwortetAufAuskunftAngebot({ kunde: "Ja, gern", letzteRaus: { vorlage: "fiaon_kk_auskunft" } }) });
+pruef("E241 Kunde „Ja, gern“ auf die Vorlage → jetzt, trotz Bremse (seine Antwort)", kundeJa.jetzt && kundeJa.aufAngebot === true, JSON.stringify(kundeJa));
+pruef("E241 Kunde: Block sagt „antwortet auf unser Angebot“", /antwortet auf unser Angebot der Bonitätsauskunft/.test(auskunftBlock({ ...AUSKUNFT_DE, ...kundeJa }).join("\n")));
+const kundeKarte = auskunftJetzt({ kunde: "Wann kommt meine Karte?", letzteDu: [], werbesperre: false, anderswo: true, aufAngebot: true });
+pruef("E241 Kunde „Wann kommt meine Karte?“ nach der Vorlage → kein zweites Angebot (E-240 bleibt)", !kundeKarte.jetzt && kundeKarte.schonAngeboten, JSON.stringify(kundeKarte));
+pruef("E241 Kunde mit Werbesperre: „Ja, gern“ auf eine Vorlage → kein Angebot", !auskunftJetzt({ kunde: "Ja, gern", letzteDu: [], werbesperre: true, aufAngebot: true }).jetzt);
+pruef("E241 Firma: „einzeln kostet sie 349 €“ statt 149 €", /einzeln kostet sie 349 €/.test(auskunftBlock({ ...AUSKUNFT_DE, art: "firma", preisText: "199 €", jetzt: true }).join("\n")));
+// 8. Gegenlesen 25.09.2026: Auf WhatsApp ist jede spätere Nachricht „nach der Vorlage" — als Antwort
+// auf das Angebot zählt sie nur, wenn sie sich darauf bezieht. Und ein Widerspruch ist immer ein Nein.
+const nachVorlage = (k: string, segment: "lead" | "antrag" = "lead") => auskunftJetzt({ kunde: k, letzteDu: [], werbesperre: false, segment, aufAngebot: antwortetAufAuskunftAngebot({ kunde: k, letzteRaus: LEAD_VORLAGE }) });
+for (const k of ["Wann kommt meine Karte?", "Ich suche unkompliziert eine Kreditkarte", "Wie hoch ist das Limit?", "Hallo, ich habe den Antrag ausgefüllt, wie geht es weiter mit der Karte?", "Wie viel Limit bekomme ich?"]) {
+  const j = nachVorlage(k);
+  pruef(`GL E241 Lead nach der Auskunft-Vorlage „${k.slice(0, 38)}“ → kein zweites Angebot`, !j.jetzt && !auskunftWerkzeugAn({ ...LEAD_AUSKUNFT, ...j }) && auskunftBlock({ ...LEAD_AUSKUNFT, ...j }).length === 0, JSON.stringify(j));
+}
+for (const k of ["Woher haben Sie meine Nummer?", "Löschen Sie bitte meine Daten.", "Ich habe mich nie angemeldet, ja?", "Ich widerspreche der Nutzung meiner Daten", "Bitte schicken Sie mir keine Nachrichten mehr, danke", "Wie kann ich mich abmelden?"]) {
+  pruef(`GL E241 Widerspruch „${k}“ → Nein (auch als Frage), kein Angebot`, lehntAuskunftAb(k) && !nachVorlage(k).jetzt && !nachVorlage(k, "antrag").jetzt);
+}
+for (const k of ["Ja gerne 👍", "Ich habe eine Frage", "Was kostet das?", "Wieviel?", "Klingt interessant, wie läuft das ab?", "Ich habe Schufa Einträge, geht das trotzdem?", "Hallo, ja bitte schicken Sie mir das"]) {
+  const j = nachVorlage(k);
+  pruef(`GL E241 Lead nach der Auskunft-Vorlage „${k}“ → Antwort auf das Angebot`, j.jetzt && j.aufAngebot === true && auskunftWerkzeugAn({ ...LEAD_AUSKUNFT, ...j }), JSON.stringify(j));
+}
+pruef("GL E241 kein Nein: „Ich will nicht lange warten, ja bitte“, „Habe schon eine Kreditkarte, aber ja gern“",
+  !lehntAuskunftAb("Ich will nicht lange warten, ja bitte") && !lehntAuskunftAb("Habe schon eine Kreditkarte, aber ja gern") && lehntAuskunftAb("Habe schon eine aktuelle Auskunft.") && lehntAuskunftAb("Will ich nicht, danke"));
+// Die Firma im offenen Antrag (Takt: Business-Paket → Firmen-Auskunft 349 €) — der Block nennt ihren Preis.
+const blockFirmaB = auskunftBlock({ ...LEAD_AUSKUNFT, segment: "antrag", art: "firma", preisText: "349 €", ...bFrage }).join("\n");
+pruef("GL E241 B Firma: Block „349 € einmalig“, kein 149 €", /349 € einmalig/.test(blockFirmaB) && !/149 €/.test(blockFirmaB), blockFirmaB.slice(0, 200));
+// Österreich: Block nennt KSV1870; „SCHUFA“ steht höchstens im Verbot selbst.
+const blockAT = auskunftBlock({ ...LEAD_AUSKUNFT, land: "AT", ...jaLead }).join("\n");
+pruef("GL E241 Lead AT: Block nennt KSV1870, „SCHUFA“ nur als Verbot", /KSV1870/.test(blockAT) && !/SCHUFA/.test(blockAT.replace(/das Wort SCHUFA schreibst du ihm nie/g, "")), blockAT.slice(0, 240));
+console.log(`E-241 (Anträge und Leads, nur als Antwort): ${ok - vor241Ok} bestanden, ${fehl - vor241Fehl} nicht.`);
 console.log(`Gesamt offline: ${ok} bestanden, ${fehl} nicht.`);
 
 // ── 2. Mit dem echten Modell ───────────────────────────────────────────────
@@ -291,6 +418,14 @@ const FAELLE: Fall[] = [
   { id: "E3", lage: { ...LEAD, werbesperre: true, verkaufen: false, lage: `${LEAD.lage} WERBESPERRE: Er hat gebeten, keine Werbung mehr zu bekommen.`, ziel: "Du beantwortest nur, was er fragt — vollständig und freundlich. Kein Angebot, kein Pitch, keine Aufforderung zum Abschluss, kein Link, nach dem er nicht fragt (fragt er danach, bekommt er ihn)." },
     vorher: [BEGRUESSUNG], kunde: ["Wie lange dauert das eigentlich?"], erwartet: "Antwort ohne Pitch und ohne Link" },
   { id: "S37", lage: { ...LEAD, lage: "Hatte früher einen Vertrag, der beendet ist, und hat jetzt über das Formular NEU angefragt — er ist wieder interessiert. Begrüße ihn wie einen neuen Interessenten; den alten Vertrag sprichst du nicht von dir aus an." }, vorher: [BEGRUESSUNG], kunde: ["Muss ich die Jahresgebühr im voraus Zahlen, ehe über den Antrag und das Limit entschieden wird ?"], erwartet: "Trommer: Raten statt Jahresgebühr, positiv, kein alter Vertrag" },
+  // E-241 (25.09.2026): Antrag und Lead — die Auskunft nur als Antwort (ohne --werkzeuge ohne DB, dann nur der Text).
+  { id: "E4", lage: { ...LEAD, auskunft: { stufe: "nichts", land: "DE", preisText: "149 €", mitAbo: false, offenLink: null, offenBetrag: null, segment: "lead" } },
+    vorher: [BEGRUESSUNG, "VORLAGE: Hallo Monika Zielinski, hier ist Mara Lindner von FIAON, die digitale Assistentin im Team. Bevor eine Bank über Ihre Karte entscheidet, fragt sie bei den Auskunfteien nach — mit Ihrer SCHUFA-Auskunft sehen Sie vorher, was dort über Sie steht. Wir holen die Daten bei SCHUFA, CRIF und Creditreform Boniversum ein, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen Ihren Handlungsplan. Ihr Preis: 149 € einmalig, ohne Abo."],
+    kunde: ["Ja, gern"], erwartet: "Auskunft 149 € einmalig, keine Hürde, nichts von Kontoauszügen/Hochladen" },
+  { id: "E5", lage: { ...LEAD, auskunft: { stufe: "nichts", land: "DE", preisText: "149 €", mitAbo: false, offenLink: null, offenBetrag: null, segment: "lead" } },
+    vorher: [BEGRUESSUNG], kunde: ["Ich suche unkompliziert eine Kreditkarte"], erwartet: "Lead mit Auskunft-Teil, ungefragt: nur Karte — KEIN Wort zu Bonität, Auskunft, Kontoauszügen" },
+  { id: "E6", lage: { ...ZAHLUNG, auskunft: { stufe: "nichts", land: "DE", preisText: "149 €", mitAbo: false, offenLink: null, offenBetrag: null, segment: "antrag" } },
+    vorher: ["VORLAGE: Hallo Monika Zielinski, Ihr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung."], kunde: ["Was kostet die Auskunft bei Ihnen?"], erwartet: "B: 149 € einmalig, keine Voraussetzung, erste Zahlung höchstens ein Satz" },
 ];
 
 const wissen = wissenFuerWhatsApp();
@@ -308,7 +443,11 @@ function auskunftFuer(l: Lage, verlauf: string[]): AuskunftTeil | null {
   const kunde = verlauf.slice(letzteAntwort + 1).filter((z) => z.startsWith("KUNDE:")).map((z) => z.slice(7)).join("\n");
   const du = verlauf.filter((z) => z.startsWith("DU:")).map((z) => z.slice(4)).reverse();
   const werbesperre = !!l.werbesperre;
-  return { ...l.auskunft, werbesperre, ...auskunftJetzt({ kunde, letzteDu: du, werbesperre }) };
+  // E-241: wie maraAntwortet — unsere letzte Nachricht vor seinen offenen (VORLAGE/DU/TEAM) war das Angebot?
+  const ersteOffene = verlauf.findIndex((z, i) => i > letzteAntwort && z.startsWith("KUNDE:"));
+  const davor = verlauf.slice(0, ersteOffene < 0 ? verlauf.length : ersteOffene).reverse().find((z) => /^(VORLAGE|DU|TEAM):/.test(z)) ?? null;
+  const aufAngebot = istAuskunftAngebot(davor ? { vorlage: null, text: davor.replace(/^\w+:\s*/, "") } : null);
+  return { ...l.auskunft, werbesperre, ...auskunftJetzt({ kunde, letzteDu: du, werbesperre, segment: l.auskunft.segment, aufAngebot }) };
 }
 async function antworte(l: Lage, verlauf: string[], ki: boolean) {
   // Wie im Betrieb: alle Kundenzeilen nach der letzten Antwort (DU/TEAM) sind offen.
@@ -324,7 +463,8 @@ async function antworte(l: Lage, verlauf: string[], ki: boolean) {
   return entwerfen(system(l, verlauf, ki), {
     kunde, kontext, letzteDu, verkaufen: l.verkaufen, verlaufText: verlauf.join("\n"), zahlungslage: /Account aktiv|Eingang wird geprüft|Zahlungsseite/.test(l.ziel),
     auskunftAngebot: auskunftWerkzeugAn(a), werbesperre: !!l.werbesperre,
-    bekannt: { links: [l.link], auskunftPreise: a ? [a.preisText, ...(a.mitAbo ? ["149 €"] : [])] : null, land: a?.land ?? null },
+    // E-241: wie maraAntwortet — bei Antrag/Lead Preis und Land nur, wenn es um die Auskunft geht.
+    bekannt: (() => { const im = !!a && ((a.segment ?? "kunde") === "kunde" || a.jetzt); return { links: [l.link], auskunftPreise: a && im ? [a.preisText, ...(a.mitAbo ? ["149 €"] : [])] : null, land: im ? a?.land ?? null : null }; })(),
   },
     l.personId ? { personId: l.personId, leadId: null, nummer: "49159000009101" } : null);
 }
@@ -344,6 +484,9 @@ function zeigen(id: string, kunde: string, e: Awaited<ReturnType<typeof entwerfe
   if (id === "E1") pruef("E1: Auskunft angeboten, 74 €, keine Karten-/Löschzusage", /auskunft/i.test(a) && /74\s*€/.test(a) && !/kostenlos/i.test(a) && !/bekommen sie die karte|lösch\w* (?:wir|sicher)/i.test(a), a.slice(0, 120));
   if (id === "E2") pruef("E2: kein Wort zu Bonität/Auskunft/Kontoauszügen", !/bonit|schufa|auskunft|kontoausz/i.test(a), a.slice(0, 120));
   if (id === "E3") pruef("E3: Werbesperre — kein Link, kein Pitch", !/fiaon\.com\//i.test(a) && !/legen wir los|wollen wir starten|soll ich ihnen den antrag/i.test(a), a.slice(0, 120));
+  // E-241: Lead/B als Antwort — 149 €, keine Hürde; ungefragt kein Wort.
+  if (id === "E4" || id === "E6") pruef(`${id}: Auskunft mit 149 €, keine Karten-/Löschzusage, keine Kontoauszüge`, /auskunft/i.test(a) && /149\s*€/.test(a) && !/74\s*€/.test(a) && !/kontoausz|hochlad/i.test(a) && !/bekommen sie die karte|lösch\w* (?:wir|sicher)/i.test(a), a.slice(0, 160));
+  if (id === "E5") pruef("E5: kein Wort zu Bonität/Auskunft/Kontoauszügen", !/bonit|schufa|auskunft|kontoausz/i.test(a), a.slice(0, 120));
   ergebnisse.push({ id, kunde, erwartet, antwort: a, zweiter: e.zweiter, mensch: e.roh?.mensch === true, uebergabe: e.roh?.uebergabe ?? "",
     restHinweise: e.hinweise, harteWand: sendePruefung(a), wahrheit: wahrheitsPruefung(a, kunde), kiFehler: e.kiFehler });
 }

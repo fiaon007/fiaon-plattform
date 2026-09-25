@@ -20,6 +20,7 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { istAboPaket } from "@shared/fiaon-pakete";
 import {
   auskunftPreisCents, auskunftSchluessel, auskunftLand, euroText, ALLE_AUSKUNFT_SCHLUESSEL,
+  AUSKUNFT_BESCHAFFUNG_VERMERK, AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, AUSKUNFT_AUFTRAG_FASSUNG,
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 
@@ -85,7 +86,11 @@ export interface AuskunftStand {
  * Wo steht dieser Mensch bei der Auskunft? „nichts" = verkaufen, „offen" =
  * Zahlungslink statt neuer Bestellung, „bezahlt"/„dokument" = nicht verkaufen.
  */
-export async function auskunftStand(personId: number, lauf: Lauf = sqlPool, art: AuskunftArt = "privat"): Promise<AuskunftStand> {
+export async function auskunftStand(
+  personId: number, lauf: Lauf = sqlPool, art: AuskunftArt = "privat",
+  /** E-241: `land: false` = nur der Kaufstand gefragt (Türen, Takt) — spart die Abfrage der Grundmenge bei Leads. */
+  opts: { land?: boolean } = {},
+): Promise<AuskunftStand> {
   const [z] = (await lauf`
     SELECT
       (SELECT country FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL AND country IS NOT NULL
@@ -107,7 +112,32 @@ export async function auskunftStand(personId: number, lauf: Lauf = sqlPool, art:
     angelegt: new Date(o.created_at).toISOString(),
   } : null;
   const stufe: AuskunftStufe = z?.bezahlt_ref ? "bezahlt" : offen ? "offen" : z?.dokument_da ? "dokument" : "nichts";
-  return { stufe, offen, bezahltRef: z?.bezahlt_ref ?? null, dokumentDa: !!z?.dokument_da, land: auskunftLand(z?.land), preis };
+  // Integration 25.09.2026 (E-241): Ohne Land im Antrag (Leads) gilt das Land der Grundmenge (landOhneAntrag).
+  const land = String(z?.land ?? "").trim() || opts.land === false
+    ? auskunftLand(z?.land) : ((await landOhneAntrag(personId, lauf)) ?? "DE");
+  return { stufe, offen, bezahltRef: z?.bezahlt_ref ?? null, dokumentDa: !!z?.dokument_da, land, preis };
+}
+
+/**
+ * Das Land eines Menschen, dessen Anträge kein Land tragen (Integration
+ * 25.09.2026, E-241) — vor allem Leads: Sie geben im Formular kein Land an
+ * (gemessen 25.09.: alle 3.036 Leads ohne Antrag ohne country). Dieselbe Regel
+ * wie die Grundmenge des Verkaufstakts (personImPool: Land der Person, sonst
+ * Vorwahl +43/+41, Kampagne, Adress-Endung .at/.ch — LAND_HINWEIS_SQL in
+ * fiaon-auskunft-verkauf.ts). Vorher las ein Lead aus Wien in der Angebots-Mail
+ * und bei Mara „KSV1870", auf der Kaufseite, in der Bestellung und in der
+ * Beschaffung aber „SCHUFA". null = kein Hinweis (dann Deutschland).
+ */
+async function landOhneAntrag(personId: number, lauf: Lauf): Promise<AuskunftLand | null> {
+  try {
+    const { personImPool } = await import("./fiaon-auskunft-verkauf");
+    const z = await personImPool(personId, lauf);
+    if (z) return z.land;
+  } catch (e) {
+    console.warn("[AUSKUNFT] Land aus der Grundmenge nicht lesbar — Rückfall auf die Person:", String((e as Error)?.message || e).slice(0, 160));
+  }
+  const [p] = (await lauf`SELECT country FROM fiaon_persons WHERE id = ${personId} LIMIT 1`.catch(() => [])) as any[];
+  return String(p?.country ?? "").trim() ? auskunftLand(p.country) : null;
 }
 
 export type AuskunftQuelle = "kunde" | "kundenbereich" | "mara_mail" | "mara_wa" | "betreuer" | "assistent" | "verkaufstakt" | "oeffentlich";
@@ -179,13 +209,16 @@ export async function auskunftBestellen(ein: {
   const packName = art === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "Bonitätsauskunft inkl. Handlungsplan";
   // payment_reference setzt der Trigger (Migration 037); bestellungFuerAntrag
   // setzt Betrag, Frist, Rechnung und schickt die Zahlungsdaten.
+  // Integration 25.09.2026 (E-241): Ohne Land in der Quelle (Lead) trägt die Bestellung das Land
+  // aus auskunftStand (landOhneAntrag) — Zahlungsmails und Beschaffung lesen es an genau dieser Zeile.
+  // AT und CH sind damit nie mehr „SCHUFA“, nur weil der Lead kein Land angegeben hat.
   await lauf`
     INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, first_name, last_name, company_name, email,
                                     street, zip, city, country, birthdate, phone, phone_country_code, person_id, assigned_agent_id,
                                     created_at, updated_at)
     VALUES (${ref}, 'schufa', 'submitted', ${preis.key}, ${packName},
             ${v.first_name}, ${v.last_name}, ${v.company_name}, ${v.email},
-            ${v.street}, ${v.zip}, ${v.city}, ${v.country}, ${v.birthdate}, ${v.phone}, ${v.phone_country_code},
+            ${v.street}, ${v.zip}, ${v.city}, ${String(v.country ?? "").trim() || stand.land}, ${v.birthdate}, ${v.phone}, ${v.phone_country_code},
             ${ein.personId}, ${v.assigned_agent_id ?? null}, NOW(), NOW())`;
   const { bestellungFuerAntrag } = await import("../routes/fiaon-antrag");
   // ── KEINE VERWAISTE ZEILE (Integration 25.09.2026, E-240) ─────────────────
@@ -252,6 +285,84 @@ export async function auskunftBestellen(ein: {
 
 const kurzText = (v: unknown, n: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER BESCHAFFUNGSAUFTRAG IM VERLAUF (25.09.2026, E-241)
+//
+// Die „Vollmacht zur Übermittlung" deckt nur die kostenlose Datenkopie — nicht,
+// eine (kostenpflichtige) Auskunft im Namen des Kunden zu kaufen (Befund der
+// Beschaffungs-Prüfer). Jede Kauftür fragt deshalb den Beschaffungsauftrag als
+// Pflicht-Haken ab (AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, shared/fiaon-auskunft.ts)
+// und schreibt ihn HIER in den Verlauf der Auskunft-Bestellung: Marke
+// (AUSKUNFT_BESCHAFFUNG_VERMERK), Weg, Zeit, Fassung und Wortlaut in einer Zeile.
+// Die Beschaffung (auskunftEinwilligungen, fiaon-auskunft-lieferung.ts) liest die
+// Marke als Einwilligung „auftrag".
+//
+// Idempotent je Bestellung: Steht schon ein (nicht zurückgenommener) Vermerk,
+// bleibt es bei dem ersten — ein zweiter Klick ist kein zweiter Auftrag.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type AuftragWeg = "bestellseite" | "kauflink" | "kundenbereich" | "bestaetigung";
+
+const AUFTRAG_WEG_TEXT: Record<AuftragWeg, string> = {
+  bestellseite: "auf der Bestellseite /bonitaet-antrag",
+  kauflink: "über den Kauflink der E-Mail",
+  kundenbereich: "im Kundenbereich (Kaufkarte)",
+  bestaetigung: "über den Bestätigungslink aus der E-Mail",
+};
+
+/** „25.09.2026, 14:03 Uhr" (Berlin) — nur über formatToParts (Zeit-Falle Berlin-Stunde). */
+function zeitBerlin(d: Date): string {
+  const t = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(d);
+  const w = (a: string) => t.find((p) => p.type === a)?.value ?? "00";
+  return `${w("day")}.${w("month")}.${w("year")}, ${w("hour")}:${w("minute")} Uhr`;
+}
+
+/**
+ * Den Beschaffungsauftrag an der Auskunft-Bestellung `ref` vermerken. Rückgabe:
+ * true = neu vermerkt, false = stand schon da (oder die Bestellung fehlt).
+ * `wortlaut`: was der Kunde gesehen hat (Bestellseite schickt ihn mit) — sonst
+ * der Text der Art aus der gemeinsamen Quelle.
+ */
+export async function beschaffungsauftragVermerken(ein: {
+  ref: string;
+  personId: number | null;
+  art: AuskunftArt;
+  weg: AuftragWeg;
+  /** Autor im Verlauf („Kunde (Kauflink aus der E-Mail)"). */
+  von: string;
+  wortlaut?: string | null;
+  fassung?: string | null;
+  /** Zeitpunkt des Hakens (Bestellseite: der Zeitstempel des Browsers); sonst jetzt. */
+  am?: string | Date | null;
+}, lauf: Lauf = sqlPool): Promise<boolean> {
+  const ref = String(ein.ref ?? "").trim();
+  if (!ref) return false;
+  const wortlaut = kurzText(ein.wortlaut, 1500) || AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(ein.art);
+  const fassung = kurzText(ein.fassung, 20) || AUSKUNFT_AUFTRAG_FASSUNG;
+  const amRoh = ein.am ? new Date(ein.am as any) : new Date();
+  const am = Number.isNaN(amRoh.getTime()) ? new Date() : amRoh;
+  const note = `${AUSKUNFT_BESCHAFFUNG_VERMERK} ${AUFTRAG_WEG_TEXT[ein.weg]} am ${zeitBerlin(am)} (${am.toISOString()}, Textfassung ${fassung}). `
+    + `Wortlaut: „${wortlaut}"`;
+  // Eine Transaktionssperre je Bestellung: zwei Türen im selben Augenblick (Doppelklick,
+  // Kaufkarte + Kauflink) schreiben nicht zwei Vermerke.
+  return lauf.begin(async (tx) => {
+    const t = tx as unknown as Lauf;
+    await t`SELECT pg_advisory_xact_lock(hashtext(${`auskunft-auftrag:${ref}`}))`;
+    const [da] = (await t`
+      SELECT 1 AS da FROM fiaon_contact_log
+       WHERE ref = ${ref} AND voided_at IS NULL AND note LIKE ${`${AUSKUNFT_BESCHAFFUNG_VERMERK}%`} LIMIT 1`) as any[];
+    if (da) return false;
+    const zeilen = (await t`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      SELECT a.ref, COALESCE(a.person_id, ${ein.personId}), NULL, ${ein.von}, 'system', ${note}
+        FROM fiaon_applications a WHERE a.ref = ${ref}
+      RETURNING id`) as any[];
+    return zeilen.length > 0;
+  }) as Promise<boolean>;
+}
+
 export async function auskunftBestellungBelegen(
   ref: string, b: any, meta: { ip: string | null; ua: string }, lauf: Lauf = sqlPool,
 ): Promise<boolean> {
@@ -282,16 +393,56 @@ export async function auskunftBestellungBelegen(
     SELECT a.ref, a.person_id, NULL, 'Kunde (Bestellseite)', 'system', ${note}
       FROM fiaon_applications a WHERE a.ref = ${ref}
     RETURNING id`) as any[];
+  // 25.09.2026 (E-241): Seit Fassung 2026-09-25b heißt der eine Haken „beschaffungsauftrag"
+  // (Wortlaut AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT). Ein älterer Browser-Stand schickt noch
+  // „vollmacht_uebermittlung" — das bleibt eine Einwilligung zur Übermittlung, aber kein Auftrag,
+  // eine Auskunft zu kaufen: Nur der neue Haken schreibt AUSKUNFT_BESCHAFFUNG_VERMERK.
+  //
+  // Gegenlesen 25.09.2026 (E-241): „ERTEILT" nur für den Wortlaut der gemeinsamen Quelle. Der Text
+  // kommt aus dem Browser — ein anderer (verändertes Formular, eine künftige Fassung in einem alten
+  // Tab) ist kein Auftrag, den die Beschaffung als Deckung für einen Kauf lesen darf. Dann bleibt
+  // die Bestellung ohne Vermerk UND ohne consent_schufa (sonst läse die Beschaffung „Vollmacht auf der
+  // Bestellseite" und schickte keinen Link), und nach der Zahlung holt die Auftragsbestätigung ihn ein.
+  const auftragArt: AuskunftArt = firma ? "firma" : "privat";
+  const auftrag = punkte.find((p) => p.schluessel === "beschaffungsauftrag" && p.zugestimmt && p.text);
+  const auftragGueltig = !!auftrag && auftrag.text === kurzText(AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(auftragArt), 1500);
+  if (auftrag && !auftragGueltig) {
+    console.warn(`[AUSKUNFT] ${ref}: Haken „beschaffungsauftrag" mit fremdem Wortlaut — kein Vermerk (Auftragsbestätigung nach der Zahlung).`);
+  }
   await lauf`
     UPDATE fiaon_applications SET
       consent_agb = TRUE,
       consent_contract = TRUE,
-      consent_schufa = ${angekreuzt("vollmacht_uebermittlung")},
+      consent_schufa = ${auftragGueltig || angekreuzt("vollmacht_uebermittlung")},
       legal_form = COALESCE(${firma ? kurzText(b?.rechtsform, 60) || null : null}, legal_form),
       company_name = COALESCE(NULLIF(company_name, ''), ${firma ? kurzText(b?.firma, 200) || null : null}),
       updated_at = NOW()
     WHERE ref = ${ref}`;
+  if (auftrag && auftragGueltig && zeilen.length > 0) {
+    await beschaffungsauftragVermerken({
+      ref, personId: null, art: auftragArt, weg: "bestellseite", von: "Kunde (Bestellseite)",
+      wortlaut: auftrag.text, fassung: kurzText(z.fassung, 20) || null, am: auftrag.am,
+    }, lauf).catch((e) => console.error(`[AUSKUNFT] ${ref}: Beschaffungsauftrag nicht vermerkt:`, e));
+  }
   return zeilen.length > 0;
+}
+
+/**
+ * Hat die Bestellseite den Auftrag angehakt? (Gegenlesen 25.09.2026, E-241)
+ *
+ * POST /payment-order kind=schufa legt ohne Anmeldung eine zahlungspflichtige
+ * Bestellung an — vorher auch OHNE jeden Haken (die alten Knöpfe auf
+ * /dashboard-alt schickten nur E-Mail und Namen). Kein Kaufweg ohne den
+ * Pflicht-Haken: „auftrag" = der Beschaffungsauftrag (seit Fassung
+ * 2026-09-25b), „alt" = der Haken „Vollmacht zur Übermittlung" eines Tabs, der
+ * noch die Fassung bis 2026-09-25 zeigt — bestellt wird, aber ohne Vermerk
+ * (die Vollmacht deckt den Kauf nicht; nach der Zahlung kommt die
+ * Auftragsbestätigung). null = kein Haken → die Route lehnt ab.
+ */
+export function bestellseiteHaken(b: any): "auftrag" | "alt" | null {
+  const punkte = b?.zustimmungen && Array.isArray(b.zustimmungen.punkte) ? (b.zustimmungen.punkte as any[]).slice(0, 10) : [];
+  const an = (k: string) => punkte.some((p) => kurzText(p?.schluessel, 40) === k && p?.zugestimmt === true && kurzText(p?.text, 1500) !== "");
+  return an("beschaffungsauftrag") ? "auftrag" : an("vollmacht_uebermittlung") ? "alt" : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -1411,39 +1411,76 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
 ];
 
 // ── /chef/s/auskunft (24.09.2026, E-240) — die Bonitätsauskunft verkaufen ─────
+// 25.09.2026 (E-241): Trichter, Steuerung mit Kreis und zwei Tagesdeckeln, Liefermodus,
+// Protokoll, 14 Tage mit Ziel-Balken und der Zähler der Beschaffung.
 export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
   {
-    titel: "Auskunft-Verkauf: wo wir gegen das Ziel stehen.",
-    text: "Justins Ziel sind 150 Bonitätsauskünfte am Tag. Oben steht ehrlich, wie viele heute bestellt und wie viele bezahlt "
-      + "wurden — der blaue Balken ist bestellt, der grüne bezahlt, gemessen am Ziel. Darunter die letzten 14 Tage: "
-      + "„3/1“ heißt drei bestellt, eine bezahlt.",
-    tipp: "Bezahlt zählt der Tag, an dem das Geld verbucht wurde — nicht der Tag der Bestellung.",
+    titel: "Auskunft-Verkauf: der ganze Verkauf auf einer Seite.",
+    text: "Justins Ziel sind 150 Bonitätsauskünfte am Tag. Oben steht, was HEUTE passiert ist, in fünf Stufen: angeschrieben, "
+      + "geklickt (Kauflink geöffnet), bestellt, bezahlt, geliefert (Auskunft liegt in der Akte). Darunter der Balken gegen das "
+      + "Ziel — blau bestellt, grün bezahlt.",
+    tipp: "Jede Stufe zählt an dem Tag, an dem sie geschah. Wer heute bezahlt, kann letzte Woche bestellt haben — die Zahlen "
+      + "nebeneinander sind nicht dieselben Menschen.",
+  },
+  {
+    ziel: ".ak-beschaffung",
+    titel: "Die Beschaffung: was bezahlt ist und noch geholt werden muss.",
+    text: "Offen sind die Aufträge im Arbeitsplatz Beschaffung, die noch nicht fertig sind. Überfällig heißt: seit mehr als zwei "
+      + "Tagen fällig und noch nicht hochgeladen — ein Kunde hat bezahlt und wartet. „Zum Einlesen“ sind bezahlte Auskünfte ohne "
+      + "Dokument, die noch keinen Auftrag haben; der Arbeitsplatz übernimmt sie beim Öffnen. Ein Klick führt dorthin.",
+  },
+  {
+    ziel: ".ak-steuer",
+    titel: "Die Steuerung: an oder aus, wen, wie viele, wie geliefert.",
+    text: "Verkaufstakt an oder aus. Kreis „Nur § 7 Abs. 3 UWG“ schreibt nur an, wer seit dem Widerspruchs-Hinweis im Antrag "
+      + "zum ersten Mal beantragt hat; Kreis „Alle ohne Auskunft“ nimmt zahlende Kunden, Anträge und Leads dazu — Justins "
+      + "Entscheidung vom 25.09. Werbesperre, Abmeldung und Vertriebssperre gelten immer. Mails und WhatsApp haben je einen "
+      + "eigenen Tagesdeckel, der Balken darunter zeigt, wie viel heute schon raus ist. Der Liefermodus sagt, wie eine bezahlte "
+      + "Auskunft zu uns kommt: Einkauf (wir kaufen sie selbst), Vollmacht (Datenkopie bei den Auskunfteien) oder Schnittstelle.",
+    tipp: "Jede Änderung steht im Protokoll darunter — wer, wann, vorher und nachher. WhatsApp geht nur an Menschen mit "
+      + "nachgewiesener Einwilligung und erst, wenn Meta die Vorlage freigegeben hat.",
+  },
+  {
+    ziel: ".ak-trichter",
+    titel: "Der Trichter je Weg oder je Segment.",
+    text: "Dieselben fünf Stufen, aufgeteilt nach dem Weg (E-Mail, WhatsApp, Mara, Kundenbereich, öffentliche Seite) oder nach "
+      + "dem Segment (zahlende Kunden, Anträge, Leads) — heute oder über 14 Tage. „—“ heißt: Auf diesem Weg wird nicht "
+      + "angeschrieben, dort kommen die Menschen selbst. Die Quote in der 14-Tage-Ansicht ist bezahlt je angeschrieben.",
+    tipp: "Den Weg einer Bestellung hält jede Tür selbst fest. Ältere Bestellungen aus der Akte stehen unter „Betreuer“; "
+      + "was sonst vor dem 25.09. bestellt wurde, unter „Ohne Herkunft“.",
+  },
+  {
+    ziel: ".ak-verlauf",
+    titel: "Die letzten 14 Tage, jeder Tag mit dem Ziel-Balken.",
+    text: "Eine Zeile je Tag, heute oben: angeschrieben, geklickt, bestellt, bezahlt, geliefert, Umsatz — und rechts der Balken "
+      + "gegen 150. Ein Punkt heißt: an diesem Tag nichts.",
   },
   {
     ziel: ".ak-pool",
-    titel: "Wer sie noch nicht hat — und wen wir von uns aus anschreiben dürfen.",
-    text: "Gezählt werden zahlende Kunden mit laufendem Paket, die keine Auskunft bestellt, bezahlt oder hochgeladen haben und nicht "
-      + "gekündigt sind. „Automatisch erlaubt“ sind nur die, die nach dem 02.09.2026 12:35 zum ersten Mal beantragt haben — erst "
-      + "seitdem weist der Antrag auf das Widerspruchsrecht hin (§ 7 Abs. 3 UWG). Alle anderen sind nur gezählt: Sie erreicht das "
-      + "Angebot im Kundenbereich, im Gespräch mit dem Betreuer und über Mara, wenn sie selbst schreiben.",
+    titel: "Wer sie noch nicht hat — je Segment.",
+    text: "A sind Kunden mit laufendem Paket, B fertige Anträge ohne Zahlung, C Leads ohne Antrag — jeweils ohne Auskunft. "
+      + "„Erreichbar“ heißt ohne jeden Sperrgrund, „Im Kreis“ ist die Menge, die der Takt im eingestellten Kreis anschreiben darf, "
+      + "„Heute fällig“ die, bei denen heute ein Schritt ansteht. „Mail a · WA · b · c“ zeigt, wie weit sie schon sind. Darunter "
+      + "stehen die Sperrgründe mit ihrer Zahl.",
     // Gegenlesen 24.09.2026: „auch nicht von Hand" gilt nur für die Werbesperre (die Tür im Mail-Motor) —
     // ein „Stopp" auf WhatsApp oder an Mara nimmt den Kunden aus Takt und WhatsApp, nicht aus dem Knopf in der Akte.
     tipp: "Die Werbesperre ist endgültig — dann geht kein Angebot mehr raus, auch nicht von Hand. Ein „Stopp“ auf WhatsApp oder in einer Antwort an Mara nimmt den Kunden für immer aus dem Takt.",
   },
   {
     ziel: ".ak-takt",
-    titel: "Der Verkaufstakt: an oder aus, und wie viele am Tag.",
-    text: "Läuft er, schreibt er alle 30 Minuten zwischen 8 und 20 Uhr an, wer dran ist: zuerst die Angebots-Mail mit Preis und "
-      + "Knopf, frühestens nach 3 Tagen eine WhatsApp (nur mit Einwilligung und freigegebener Vorlage), nach 7 Tagen die zweite "
-      + "Mail — höchstens drei Berührungen. Kauf, Upload, Werbesperre, „Stopp“ oder Kündigung beenden es sofort. Der Tagesdeckel "
-      + "zählt Mails und WhatsApp zusammen.",
-    tipp: "„Wer wäre heute dran?“ zeigt die Liste, ohne etwas zu senden — auch wenn der Takt aus ist.",
+    titel: "Wer als Nächstes dran ist.",
+    text: "Dieselbe Auswahl wie der Takt, getrennt nach WhatsApp und E-Mail, mit Segment, Schritt (Mail a, b, c oder WhatsApp) "
+      + "und dem Preis, den dieser Mensch sieht — ohne etwas zu senden, auch wenn der Takt aus ist. Kauf, Upload, Werbesperre, "
+      + "Abmeldung, „Stopp“, Kündigung oder Vertriebssperre beenden es sofort; wer gerade selbst geschrieben hat oder mit einem "
+      + "Mitarbeiter sprach, wartet.",
+    tipp: "Ein Klick auf den Namen öffnet die Akte.",
   },
   {
     ziel: ".ak-vorlage",
-    titel: "Die WhatsApp-Vorlage liegt als Entwurf bereit.",
-    text: "So sähe die Nachricht aus — mit Beispielwerten. Sie ist Werbung (Kategorie Marketing) und deshalb NICHT bei Meta "
-      + "eingereicht. Erst nach Freigabe des Textes wird sie eingereicht; bis Meta sie freigibt, geht keine WhatsApp damit raus.",
+    titel: "Die WhatsApp-Vorlagen.",
+    text: "So sehen die Nachrichten aus — mit Beispielwerten, eine für zahlende Kunden (A), eine für Anträge und Leads (B, C). "
+      + "Beide sind Werbung (Kategorie Marketing). Bis Meta eine freigibt, geht an ihr Segment keine WhatsApp raus; der Takt "
+      + "schreibt dort dann nur per Mail.",
   },
   {
     ziel: ".ak-offen",
@@ -1464,8 +1501,53 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/auskunft-beschaffung (25.09.2026, E-241) — bis zur API kaufen wir sie selbst ─────
+export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
+  {
+    titel: "Auskunft-Beschaffung: jede bezahlte Auskunft ist hier ein Auftrag.",
+    text: "Bis die API angebunden ist, beschaffen wir die Bonitätsauskünfte selbst. Nach jeder Zahlung entsteht hier ein Auftrag — "
+      + "und der Rückstand (bezahlt, nie geliefert) steht von selbst dabei, ohne dass die Kunden dafür eine Mail bekommen. "
+      + "Oben stellst du den Lieferweg: Einkauf (von Hand), Vollmacht (Anfragen per Post wie bisher) oder API.",
+    tipp: "Steht der Lieferweg auf API und die Schnittstelle antwortet nicht, bleibt jeder Auftrag hier im Einkauf — es geht nichts verloren.",
+  },
+  {
+    ziel: ".akb-zahlen",
+    titel: "Was heute zu tun ist.",
+    text: "„Jetzt beschaffen“: Einwilligung da, Frist vorbei — kaufen. „Auftrag fehlt“: erst den Link zur Auftragsbestätigung schicken. "
+      + "„Wartet“: Der Kunde hat den Beginn vor Ablauf der Widerrufsfrist nicht verlangt — vorher nicht anfordern. "
+      + "„Mail fehlt“: hochgeladen, aber der Kunde weiß es noch nicht. Ein Klick auf eine Zahl öffnet die passende Liste.",
+  },
+  {
+    ziel: ".akb-ampel",
+    titel: "Drei Fragen vor jedem Kauf.",
+    text: "Liegt der Beschaffungsauftrag vor? Ist der Auftrag fällig? Wer kauft? Der Auftrag liegt vor, wenn der Kunde ihn an der Kauftür "
+      + "(Bestellseite, Kauflink, Kaufkarte) angehakt oder über den Link aus der Mail bestätigt hat — nur er deckt den Kauf einer "
+      + "kostenpflichtigen Auskunft. Fehlt er, schickt „Auftragsbestätigung senden“ den Link; nach der Bestätigung springt der Auftrag "
+      + "von selbst auf „Jetzt beschaffen“. „Nur Datenkopie“ heißt: Es gibt nur eine Vollmacht zur Übermittlung — damit keine Auskunft kaufen.",
+    tipp: "Erst „Übernehmen“, dann kaufen — so kauft niemand dieselbe Auskunft doppelt.",
+  },
+  {
+    ziel: ".akb-felder",
+    titel: "Alles zum Bestellen, mit Kopierknopf.",
+    text: "Name, Geburtsdatum, Anschrift, bei einem Umzug die Voranschrift, E-Mail und Telefon — jedes Feld einzeln oder mit "
+      + "„alles kopieren“ auf einmal. Rechts steht, bei welchen Auskunfteien des Landes beschafft wird, mit Anschrift. "
+      + "Rot heißt: fehlt in der Akte — erst erfragen.",
+  },
+  {
+    ziel: ".akb-hochladen",
+    titel: "Hochladen — der Rest geht von selbst.",
+    text: "PDF wählen (mehrere Dateien werden zu einer gebunden), ankreuzen, von welcher Auskunftei sie stammt, hochladen. Die "
+      + "Auskunft liegt dann in der Akte, die Analyse startet, und der Kunde bekommt „Ihre Auskunft ist da“. Kommt eine Auskunftei "
+      + "später, einfach nachladen — sie wird angehängt, der Auftrag ist fertig, wenn alle da sind. Hakst du auch alle schon "
+      + "gelieferten an, ersetzt die neue Datei die alte (die alte bleibt im Archiv der Akte), und der Kunde bekommt keine zweite Mail.",
+    tipp: "Ging die Mail nicht raus, steht der Auftrag auf „Mail fehlt“ — dann „Mail erneut senden“. „Abschließen“ ohne Upload schickt dem Kunden nichts. "
+      + "Steht die Bestellung nicht mehr auf bezahlt (erstattet, storniert), liegt der Auftrag unter „Problem“ — nicht beschaffen.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   auskunft:    { titel: "Auskunft-Verkauf", schritte: RUNDGANG_AUSKUNFT },
+  auskunftBeschaffung: { titel: "Auskunft-Beschaffung", schritte: RUNDGANG_AUSKUNFT_BESCHAFFUNG },
   waZentrale:  { titel: "WhatsApp-Zentrale", schritte: RUNDGANG_WA_ZENTRALE },
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },

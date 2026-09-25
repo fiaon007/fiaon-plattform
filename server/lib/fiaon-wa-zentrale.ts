@@ -51,6 +51,17 @@
 // (fiaon-auskunft-verkauf.ts) sendet über auskunftWhatsAppSenden — mit allen
 // Regeln dieser Datei und zusätzlich nur bei nachgewiesener Einwilligung.
 //
+// E-241 (25.09.2026): Wer in der Gruppe steht, entscheidet der KREIS des
+// Verkaufstakts (auskunft_verkauf_kreis, /chef/s/auskunft) — dieselbe
+// Grundmenge, die der Takt anschreibt (grundmengeIdsSql, fiaon-auskunft-verkauf.ts),
+// gelesen aus derselben Einstellung. „uwg" = wie oben (zahlende Kunden nach dem
+// Stichtag); „alle" = dazu fertige, unbezahlte Anträge (B) und Leads ohne
+// Antrag (C) — Justins Entscheidung vom 25.09. Die harten Regeln der BASIS
+// (Werbesperre, Sperre, STOPP, Test) gelten unverändert für alle drei.
+// Die Vorlagen (fiaon_kk_auskunft für Kunden, fiaon_kk_auskunft_lead für B und
+// C) stehen seit E-241 in WA_VORLAGEN, nicht mehr im Entwurf — gesendet wird
+// trotzdem erst, wenn Meta genau die Vorlage des Segments freigegeben hat.
+//
 // ── DIE ALTE STUNDENKETTE ──────────────────────────────────────────────────
 // Ist die Automatik hier AN, pausiert whatsappKetteLaufen() — sonst würde
 // zweimal geschrieben und Justins „5 pro Stunde" wäre wertlos. Die
@@ -60,9 +71,9 @@
 
 import { sqlPool } from "./db-pool";
 import { paketPreisCents } from "@shared/fiaon-pakete";
-import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
+import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
-import { AUSKUNFT_FEHLT_SQL, NACH_STICHTAG_SQL, ANGEBOT_EVENT, HOECHSTENS_BERUEHRUNGEN } from "./fiaon-auskunft-verkauf";
+import { grundmengeIdsSql, ANGEBOT_EVENT, HOECHSTENS_MAILS } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
 
 export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
@@ -120,10 +131,13 @@ export const GRUPPEN: Record<Gruppe, GruppenRegel> = {
   // E-240 (24.09.2026): Begründung der Ausnahme im Kopf dieser Datei.
   auskunft_fehlt: {
     titel: "Auskunft fehlt",
-    satz: "Zahlende Kunden mit laufendem Paket ohne Bonitätsauskunft (nicht bestellt, nicht hochgeladen), nicht gekündigt — "
-      + "nur wer nach dem 02.09.2026 12:35 zum ersten Mal beantragt hat (§ 7 Abs. 3 UWG). Einmal je Kunde, höchstens drei Berührungen mit den Angebots-Mails. "
-      + "Die Vorlage liegt als Entwurf bereit und muss erst bei Meta freigegeben werden.",
-    vorlagen: [AUSKUNFT_VORLAGE],
+    // E-241: Die Menge folgt dem Kreis des Verkaufstakts (Einstellung auskunft_verkauf_kreis).
+    satz: "Menschen ohne Bonitätsauskunft (nicht bestellt, nicht hochgeladen) im Kreis des Verkaufstakts: bei „uwg“ zahlende Kunden, "
+      + "die nach dem 02.09.2026 12:35 zum ersten Mal beantragt haben (§ 7 Abs. 3 UWG); bei „alle“ dazu fertige, unbezahlte Anträge "
+      + "und Leads ohne Antrag. Ohne Sperre, einmal je Mensch, nicht nach der dritten Angebots-Mail. "
+      + "Die Vorlage folgt dem Segment: Kunden fiaon_kk_auskunft, Anträge und Leads fiaon_kk_auskunft_lead — gesendet wird erst, wenn Meta sie freigibt.",
+    // E-241: Die Wahl ist nur der Einstieg — vorlageFuerKandidat nimmt immer die Vorlage des Segments.
+    vorlagen: [AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE],
     standard: AUSKUNFT_VORLAGE,
     abstandTage: 3,
   },
@@ -181,7 +195,7 @@ export interface Kandidat {
   referenz: string | null;     // Verwendungszweck der ersten Zahlung bzw. der Rate
   faelligAm: string | null;    // „22.09.2026" — nur bei der Monatsrate
   /** Nur Gruppe „auskunft_fehlt" (E-240): {{2}}–{{4}} und der Knopf der Vorlage fiaon_kk_auskunft. */
-  auskunft?: { wort: string; bei: string; preis: string; token: string } | null;
+  auskunft?: { wort: string; bei: string; preis: string; token: string; segment?: string; vorlage?: string } | null;
 }
 
 /** „ANNA VON DER HEIDE" / „max mustermann" → „Anna von der Heide" / „Max Mustermann". Gemischte Schreibung bleibt. */
@@ -328,14 +342,15 @@ export function gruppenBedingung(g: Gruppe): string {
                        WHERE a.person_id = b.person_id AND ${BESTAND("a")} AND ${RATE_ERINNERBAR("r", "a", "b.person_id")})
               AND ${abstand} AND ${deckel}`;
     case "auskunft_fehlt":
-      // E-240: EINE Definition mit dem Verkaufstakt (fiaon-auskunft-verkauf.ts) — laufendes Paket,
-      // keine Auskunft, nicht gekündigt, nicht Global; dazu § 7 Abs. 3 UWG (Stichtag). Einmal je
-      // Kunde (eine gesendete Vorlage dieser Gruppe beendet es), und nie über die drei Berührungen
-      // hinaus, die der Takt mit seinen Angebots-Mails zählt.
-      return `${AUSKUNFT_FEHLT_SQL("b.person_id")} AND ${NACH_STICHTAG_SQL("b.person_id")}
+      // E-241 (25.09.2026): EINE Definition mit dem Verkaufstakt — die Grundmenge im Kreis der
+      // Einstellung (grundmengeIdsSql, fiaon-auskunft-verkauf.ts: Segment, keine Auskunft, kein
+      // Sperrgrund; bei „uwg" nur Kunden nach dem Stichtag). Die Unterabfrage hat keinen Bezug auf
+      // b und entsteht einmal je Abfrage. Einmal je Mensch (eine gesendete Vorlage dieser Gruppe
+      // beendet es), und nicht mehr nach der dritten Angebots-Mail — dann ist der Verkauf zu Ende.
+      return `b.person_id IN (${grundmengeIdsSql()})
               AND NOT EXISTS (SELECT 1 FROM fiaon_wa_aktion xa WHERE xa.person_id = b.person_id AND xa.gruppe = 'auskunft_fehlt' AND xa.ok)
               AND (SELECT COUNT(*) FROM fiaon_mail_log xm WHERE xm.person_id = b.person_id AND xm.event = '${ANGEBOT_EVENT}'
-                     AND xm.status = 'versandt' AND COALESCE(xm.art, 'echt') = 'echt') < ${HOECHSTENS_BERUEHRUNGEN}
+                     AND xm.status = 'versandt' AND COALESCE(xm.art, 'echt') = 'echt') < ${HOECHSTENS_MAILS}
               -- Integration 25.09.2026 (E-240): die gemeinsame Bremse (fiaon-auskunft.ts) — kein zweites
               -- Angebot binnen drei Tagen nach einer Angebots- oder Unterlagen-Mail oder Maras Angebot.
               AND NOT EXISTS (SELECT 1 FROM (${angebotSpurenSql("b.person_id")}) ap_spur)
@@ -475,6 +490,9 @@ function stufenVorlage(tage: number): string {
 }
 
 export function vorlageFuerKandidat(gewaehlt: string, k: Kandidat): string {
+  // E-241: Die Auskunft-Vorlage folgt dem Segment (waVorlagenWerte, fiaon-auskunft-verkauf.ts) — ein Lead
+  // liest nie „In Ihrer Akte … Ihr Preis als FIAON-Kunde", auch wenn von Hand die andere gewählt wurde.
+  if ((gewaehlt === AUSKUNFT_VORLAGE || gewaehlt === AUSKUNFT_LEAD_VORLAGE) && k.auskunft?.vorlage) return k.auskunft.vorlage;
   return gewaehlt === "stufen" ? stufenVorlage(k.tage) : gewaehlt;
 }
 
@@ -491,10 +509,10 @@ export function werteFuer(vorlage: string, k: Kandidat): { werte: string[]; knop
     if (!k.betrag || !k.referenz) return { grund: "Kein Betrag oder keine Referenz" };
     return { werte: [anrede, k.betrag, k.referenz], knopfWert: k.referenz };
   }
-  if (vorlage === AUSKUNFT_VORLAGE) {
+  if (vorlage === AUSKUNFT_VORLAGE || vorlage === AUSKUNFT_LEAD_VORLAGE) {
     // E-240: Bestandskunden — kein „Hallo und willkommen"; Preis und Kauflink nur vom Server.
     if (!k.name) return { grund: "Kein Name — bei Bestandskunden kein „und willkommen“" };
-    if (!k.auskunft) return { grund: "Kein Preis oder Kauflink — Auskunft inzwischen bestellt oder kein laufendes Paket" };
+    if (!k.auskunft) return { grund: "Kein Preis oder Kauflink — Auskunft inzwischen bestellt oder nicht mehr im Kreis des Verkaufs" };
     return { werte: [k.name, k.auskunft.wort, k.auskunft.bei, k.auskunft.preis], knopfWert: k.auskunft.token };
   }
   // {{2}} ist bei diesen Vorlagen der Absender: „hier ist Mara von FIAON".
@@ -654,13 +672,16 @@ export async function auskunftWhatsAppSenden(personId: number, opts: { laufId: s
   const { waKonfig } = await import("./fiaon-whatsapp");
   if (!waKonfig().bereit) return { ok: false, grund: "WhatsApp nicht eingerichtet" };
   const frei = await freigabeSatz();
-  if (!istFrei(AUSKUNFT_VORLAGE, frei)) return { ok: false, grund: "Vorlage bei Meta noch nicht freigegeben" };
+  if (!istFrei(AUSKUNFT_VORLAGE, frei) && !istFrei(AUSKUNFT_LEAD_VORLAGE, frei)) return { ok: false, grund: "Vorlage bei Meta noch nicht freigegeben" };
   const raum = await tagesRaum();
   if (raum.qualitaet === "RED") return { ok: false, grund: "Meta-Qualität ROT" };
   if (raum.frei <= 0) return { ok: false, grund: "Meta-Tageslimit erreicht" };
   const k = await auskunftKandidat(personId, { mitEinwilligung: true });
-  if (!k) return { ok: false, grund: "Heute nicht in der Gruppe (Regeln der Zentrale, Einwilligung oder Stichtag)" };
-  return einzelnSenden("auskunft_fehlt", AUSKUNFT_VORLAGE, k, "verkaufstakt", opts.laufId, opts.von, frei);
+  if (!k) return { ok: false, grund: "Heute nicht in der Gruppe (Regeln der Zentrale, Einwilligung oder Kreis des Verkaufs)" };
+  // E-241: die Vorlage des Segments — ist genau sie nicht frei, wartet dieser Mensch (einzelnSenden protokolliert es).
+  const vorlage = vorlageFuerKandidat(AUSKUNFT_VORLAGE, k);
+  if (!istFrei(vorlage, frei)) return { ok: false, grund: `Vorlage „${vorlage}“ bei Meta noch nicht freigegeben` };
+  return einzelnSenden("auskunft_fehlt", vorlage, k, "verkaufstakt", opts.laufId, opts.von, frei);
 }
 
 /**

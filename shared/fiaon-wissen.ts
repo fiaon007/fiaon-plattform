@@ -116,7 +116,7 @@ export function auskunftWissen(): string {
 Sie ist in KEINEM Paket enthalten und wird nicht auf ein Paket angerechnet (eine Anrechnung gibt es nicht). Sie ist ein Einmalkauf per Überweisung, kein Abo, und erzeugt nie eine Rate.
 Preise: für Privatpersonen ${euroText(p.privat.einzeln)} einzeln (ohne Paket) und ${euroText(p.privat.mitAbo)} als Kundenpreis für jeden mit einem bezahlten, laufenden FIAON-Paket; für Unternehmen ${euroText(p.firma.einzeln)} einzeln und ${euroText(p.firma.mitAbo)} mit Paket. Welcher Preis gilt, setzt das System beim Bestellen — nie von Hand. Weißt du nicht, ob jemand ein laufendes Paket hat, nenne beide Preise.
 Bei wem angefragt wird: in Deutschland bei ${auskunfteienText("DE")}; in Österreich bei ${auskunfteienText("AT")}; in der Schweiz bei ${auskunfteienText("CH")}. Österreichern und Schweizern gegenüber nie „SCHUFA" schreiben — dort heißt sie KSV-Auskunft (Österreich) bzw. Bonitätsauskunft (Schweiz).
-Was der Kunde bekommt (privat): Wir fordern seine Datenkopien bei allen Auskunfteien seines Landes an — mit seiner Vollmacht zur Übermittlung, er muss keinen Brief schreiben.
+Was der Kunde bekommt (privat): Wir fordern seine Datenkopien bei den großen Auskunfteien seines Landes an — in seinem Auftrag, er muss keinen Brief schreiben.
 ${privat}
 Für Unternehmen:
 ${firma}

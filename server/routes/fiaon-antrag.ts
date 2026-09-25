@@ -1136,6 +1136,18 @@ router.post("/payment-order", async (req, res) => {
     let ref: string | null = refInput || null;
 
     if (kind === "schufa") {
+      // ── KEIN KAUFWEG OHNE PFLICHT-HAKEN (Gegenlesen 25.09.2026, E-241) ─────
+      // Bis zur API kaufen wir die Auskunft selbst — dafür braucht es den
+      // Beschaffungsauftrag (AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT). Die Bestellseite
+      // schickt ihn als Haken mit; ein Aufruf ohne jeden Haken (früher die Knöpfe
+      // auf /dashboard-alt) legt nichts mehr an. Geprüft VOR jeder Zeile.
+      const { bestellseiteHaken } = await import("../lib/fiaon-auskunft");
+      if (!bestellseiteHaken(req.body)) {
+        return res.status(400).json({
+          ok: false, grund: "auftrag_fehlt",
+          error: "Bitte bestätigen Sie den Auftrag, damit wir Ihre Auskunft für Sie beschaffen dürfen.",
+        });
+      }
       // SCHUFA/Bonitätsauskunft: eigene Bestellzeile, unabhängig vom ABO
       ref = `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${randomPaymentCode(4)}`;
       // ── ALLE ANGABEN KOMMEN AN (22.08.2026, Justins Kundentest) ───────────

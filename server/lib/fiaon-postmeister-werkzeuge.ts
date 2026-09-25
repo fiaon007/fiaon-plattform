@@ -24,11 +24,19 @@
 
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
-import { AUSKUNFT_LAGEN, KEIN_VERKAUF_FLAGS, type Flags, type Kundenlage } from "@shared/fiaon-postmeister-typen";
+import {
+  AUSKUNFT_LAGEN, AUSKUNFT_ANTWORT_LAGEN, KEIN_VERKAUF_FLAGS, auskunftLageErlaubt, fragtNachAuskunftSelbst, lehntAuskunftAb,
+  bezogenAufAuskunftAngebot, widersprichtWerbung,
+  type Flags, type Kundenlage,
+} from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
-import { auskunftLeistung, auskunftWort, auskunfteienText, euroText, AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
+import {
+  auskunftLeistung, auskunftWort, auskunfteienText, euroText, AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_PREISE_CENTS,
+  type AuskunftArt, type AuskunftLand,
+} from "@shared/fiaon-auskunft";
 import { auskunftArtFuer } from "./fiaon-postmeister-dossier";
 import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fiaon-auskunft";
+import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN } from "../mail/vorlagen/auskunft-verkauf";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -50,6 +58,13 @@ export interface WerkzeugKontext {
   betreff?: string | null;
   /** Gesetzt, sobald der Betreuer in diesem Lauf von der Auskunft erfahren hat — nie zweimal je Mail. */
   auskunftGemeldet?: boolean;
+  /**
+   * 25.09.2026 (E-241): Antwortet die Mail auf das Angebot der Auskunft („angebot")
+   * oder fragt der Kunde selbst danach („frage")? Nur dann verkauft Mara sie auch
+   * einem offenen Antrag oder einem Lead (AUSKUNFT_ANTWORT_LAGEN). Rechnet der Lauf
+   * (auskunftAntwortArt), nie das Modell.
+   */
+  auskunftAntwort?: AuskunftAntwort;
 }
 
 export interface WerkzeugErgebnis {
@@ -428,9 +443,197 @@ const LAMPE_TEXT: Partial<Record<keyof Flags, string>> = {
   droht_anwalt: "droht mit rechtlichen Schritten", zahlungsunfaehig: "sagt, er könne nicht zahlen",
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ANTWORTET ER AUF DAS ANGEBOT — ODER FRAGT ER SELBST? (25.09.2026, E-241)
+//
+// Seit E-241 geht das Angebot (Mail auskunft_angebot, drei Fassungen) auch an
+// offene Anträge und Leads. Deren Antwort ist ein „Re:"/„AW:" auf genau diese
+// Betreffs. Die Betreffs stehen EINMAL in der Vorlage
+// (server/mail/vorlagen/auskunft-verkauf.ts) — hier werden sie aus ihr gebaut
+// (jede Fassung × privat/Firma × Land × Segment, ohne Vornamen), nicht
+// abgeschrieben: Ändert jemand dort einen Betreff oder bekommt ein Segment einen
+// eigenen, erkennt Mara die Antwort trotzdem.
+//
+// Bewusst NICHT antwortAufAngebot (fiaon-auskunft.ts): Das zählt auch die
+// Unterlagen-Mail („Noch fehlende Unterlagen …") mit — für einen zahlenden
+// Kunden ist das richtig (dort steht das Kaufangebot), für einen offenen Antrag
+// nicht: Wer darauf seinen Ausweis schickt, hat nicht nach der Auskunft gefragt.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type AuskunftAntwort = "angebot" | "frage" | null;
+
+const ANTWORT_PRAEFIX = /^\s*(?:re|aw|antw|sv)\s*(?:\[\d+\])?\s*:\s*/i;
+
+function betreffNorm(s: unknown): string {
+  let t = String(s ?? "").replace(/\s+/g, " ").trim();
+  for (let i = 0; i < 5; i++) {
+    const n = t.replace(ANTWORT_PRAEFIX, "");
+    if (n === t) break;
+    t = n;
+  }
+  return t.toLowerCase().replace(/[„“”"'’‚‘]/g, "").trim();
+}
+
+let angebotsBetreffs: string[] | null = null;
+/** Alle Betreffs der Angebots-Mail, ohne Vornamen, normalisiert. Einmal gebaut, dann gemerkt. */
+export function auskunftAngebotsBetreffs(): string[] {
+  if (angebotsBetreffs) return angebotsBetreffs;
+  const alle = new Set<string>();
+  for (const fassung of ANGEBOT_FASSUNGEN) {
+    for (const art of ["privat", "firma"]) {
+      for (const land of ["DE", "AT", "CH"]) {
+        for (const segment of ["kunde", "antrag", "lead"]) {
+          for (const mit_abo of [true, false]) {
+            try {
+              const b = betreffNorm(auskunftAngebotBaustein({ fassung, art, land, segment, mit_abo, vorname: null, nachname: null }).betreff);
+              // Ein Betreff aus einem Wort erkennt jede zweite Mail — nur echte Sätze zählen.
+              if (b.length >= 15) alle.add(b);
+            } catch { /* eine Fassung, die ohne Daten nicht baut, zählt nicht */ }
+          }
+        }
+      }
+    }
+  }
+  angebotsBetreffs = Array.from(alle);
+  return angebotsBetreffs;
+}
+
+/** „AW: Doris, sehen Sie, was die Bank über Sie sieht" → true. Nur Antworten, keine Weiterleitungen. Rein. */
+export function antwortAufAuskunftAngebot(betreff: unknown): boolean {
+  const roh = String(betreff ?? "");
+  if (!ANTWORT_PRAEFIX.test(roh)) return false;
+  const b = betreffNorm(roh);
+  return auskunftAngebotsBetreffs().some((v) => b.includes(v));
+}
+
+/**
+ * Nur, was der Kunde SELBST geschrieben hat — ohne ein Zitat unserer Mails, das
+ * ohneZitat (fiaon-postmeister-lauf.ts) nicht erkannt hat. Gemessen (Produktion,
+ * nur lesend, 25.09.2026): In 8 von 51 Kundenmails mit „Auskunft" stand das Wort
+ * nur im mitgeschickten Zitat — „bei der Prüfung Ihrer Unterlagen ist uns etwas
+ * aufgefallen: Ihre Bonitätsauskunft …", „welcome@ fiaon.com : Bitte laden Sie die
+ * SCHUFA-Auskunft …". Ein offener Antrag, der darauf nur seinen Ausweis schickt,
+ * hat nicht nach der Auskunft gefragt. Rein.
+ */
+const ZITAT_BEGINN: RegExp[] = [
+  /\bAm\s[^\n]{0,90}?\s(?:schrieb|wrote)\b/i,
+  /\bschrieb\s+(?:am\b|FIAON|Mara|welcome)/i,
+  /-{2,}\s*(?:Original|Ursprüngliche|Forwarded|Weitergeleitet)/i,
+  /(?:^|\n)\s*(?:Von|From|Gesendet|Sent|An|To|Betreff|Subject)\s*:\s/i,
+  /welcome@\s?fiaon\.com/i,
+  /FIAON\s+Welcome/i,
+  // Gegenlesen E-241: nur als Zeile (Signatur im Zitat) — „Hallo Mara Lindner, ja gerne" ist SEIN Text.
+  /\n[ \t>]*Mara\s+Lindner\b/i,
+  /(?:^|\n)\s*>/,
+  /ist\s+uns\s+etwas\s+aufgefallen/i,
+];
+export function kundenTeil(text: unknown): string {
+  const t = String(text ?? "");
+  let ende = t.length;
+  for (const m of ZITAT_BEGINN) {
+    const i = t.search(m);
+    if (i >= 0 && i < ende) ende = i;
+  }
+  return t.slice(0, ende).trim();
+}
+
+/**
+ * Antwortet diese Mail auf das Angebot der Auskunft — oder fragt der Kunde
+ * selbst danach? Rein, für Lauf und Prüfstand.
+ *   · „frage": er sagt, er habe keine (auskunft_fehlt, E-240), oder fragt nach
+ *     der Auskunft selbst (fragtNachAuskunftSelbst) — im Text oder im Betreff
+ *     einer neuen Mail.
+ *   · „angebot": ein „Re:" auf die Angebots-Mail, das nicht ablehnt und sich
+ *     auf das Angebot bezieht (Ja, Rückfrage, das Thema — Gegenlesen E-241).
+ *   · null: ein Nein („Nein danke", „habe schon eine"), ein Widerspruch
+ *     („Löschen Sie meine Daten"), eine Warnlampe (Kündigung, Beschwerde,
+ *     „Stopp" …) oder schlicht ein anderes Anliegen.
+ */
+export function auskunftAntwortArt(ein: { betreff?: string | null; kundeText?: string | null; flags?: Partial<Flags> | null }): AuskunftAntwort {
+  if (KEIN_VERKAUF_FLAGS.some((f) => !!ein.flags?.[f])) return null;
+  // Nur sein eigener Text zählt — ein durchgerutschtes Zitat unserer Mail ist keine Frage.
+  const text = kundenTeil(ein.kundeText);
+  // Gegenlesen E-241: „Woher haben Sie meine Daten? Löschen Sie sie." ist ein Widerspruch —
+  // nie ein Verkauf, auch nicht mit „habe keine Auskunft" im selben Satz.
+  if (widersprichtWerbung(text)) return null;
+  if (ein.flags?.auskunft_fehlt) return "frage";
+  if (lehntAuskunftAb(text)) return null;
+  // Gegenlesen E-241: Ein „AW:" allein ist noch keine Antwort AUF DAS ANGEBOT — wer auf die
+  // Angebots-Mail „Wann bekomme ich meine Karte?" schreibt, bekommt die Karte, kein zweites
+  // Angebot. Es zählt ein Ja, eine Rückfrage dazu oder das Thema selbst (bezogenAufAuskunftAngebot).
+  if (antwortAufAuskunftAngebot(ein.betreff) && bezogenAufAuskunftAngebot(text)) return "angebot";
+  const neueMail = !ANTWORT_PRAEFIX.test(String(ein.betreff ?? ""));
+  if (fragtNachAuskunftSelbst(text) || (neueMail && fragtNachAuskunftSelbst(ein.betreff))) return "frage";
+  return null;
+}
+
+/**
+ * Welche Auskunft und welches Land für einen offenen Antrag oder Lead (Gegenlesen
+ * 25.09.2026, E-241)? DIESELBE Grundmenge wie der Verkaufstakt (artFuerVerkauf,
+ * fiaon-auskunft-verkauf.ts) — denn auf dessen Angebot antwortet er. Vorher:
+ * Der Takt bot einem Business-Antrag die Firmen-Auskunft für 349 € an und einem
+ * Lead mit österreichischer Nummer die „KSV1870-Auskunft"; auf sein „Ja bitte"
+ * nannte Mara 149 € privat und „SCHUFA" — auskunftArtFuer kennt nur bezahlte
+ * Pakete, auskunftStand das Land nur aus dem Antrag (ein Lead hat keinen).
+ * `land: null` = das Land aus auskunftStand. Steht er in keinem Segment oder
+ * scheitert die Abfrage: die alte Regel (auskunftArtFuer, Land aus dem Antrag).
+ */
+export async function auskunftArtLandVerkauf(personId: number): Promise<{ art: AuskunftArt; land: AuskunftLand | null }> {
+  try {
+    const { artFuerVerkauf } = await import("./fiaon-auskunft-verkauf");
+    const v = await artFuerVerkauf(personId);
+    if (v.segment) return { art: v.art, land: v.land };
+  } catch (e) {
+    console.warn("[POSTMEISTER] Art/Land der Auskunft (Grundmenge):", String((e as Error)?.message || e).slice(0, 160));
+  }
+  return { art: await auskunftArtFuer(personId), land: null };
+}
+
+/**
+ * Wer bekommt die Aufgabe, wenn Mara einem offenen Antrag oder Lead die
+ * Auskunft anbietet (E-241)? Die Regel des Hauses, in dieser Reihenfolge:
+ *   1. sein Betreuer (fiaon_persons.assigned_agent_id — aktiv, kein Testkonto, nicht gesperrt),
+ *   2. wer seinen Lead aus der Kartei übernommen hat (fiaon_leads.assigned_agent_id —
+ *      die bekannte Falle: der Lead-Betreuer steht nicht immer an der Person),
+ *   3. sonst die Ableitung jeder Mara-Aufgabe (auftragEmpfaenger: Vertriebsleitung
+ *      mit der kleinsten Last).
+ * Findet sich niemand: null — dann KEINE Aufgabe (nicht beim Betreiber abladen).
+ * Eine automatische Lead-Zuteilung gibt es seit der offenen Kartei nicht mehr
+ * (distributeUnassignedLeads ist ein Leerlauf, sofortZuteilen schließt Stufe 3 aus);
+ * hier wird auch niemandem ein Lead ZUGETEILT — nur die Aufgabe adressiert.
+ */
+export async function auskunftAufgabeAn(personId: number): Promise<{ agentId: number; name: string | null; weg: "betreuer" | "lead" | "leitung" } | null> {
+  const [z] = (await sqlPool`
+    SELECT pa.id AS p_id, pa.name AS p_name, la.id AS l_id, la.name AS l_name
+      FROM fiaon_persons p
+      LEFT JOIN fiaon_agents pa ON pa.id = p.assigned_agent_id
+             AND COALESCE(pa.active, TRUE) AND NOT COALESCE(pa.is_test_account, FALSE) AND pa.zugang_gesperrt_am IS NULL
+      LEFT JOIN LATERAL (
+        SELECT a.id, a.name FROM fiaon_leads l JOIN fiaon_agents a ON a.id = l.assigned_agent_id
+         WHERE l.person_id = p.id
+           AND COALESCE(a.active, TRUE) AND NOT COALESCE(a.is_test_account, FALSE) AND a.zugang_gesperrt_am IS NULL
+         ORDER BY l.erstellt_am DESC LIMIT 1
+      ) la ON TRUE
+     WHERE p.id = ${personId} LIMIT 1
+  `.catch(() => [])) as any[];
+  if (z?.p_id) return { agentId: Number(z.p_id), name: z.p_name ?? null, weg: "betreuer" };
+  if (z?.l_id) return { agentId: Number(z.l_id), name: z.l_name ?? null, weg: "lead" };
+  try {
+    const { auftragEmpfaenger } = await import("../routes/fiaon-betreiber-todo");
+    const wer = await auftragEmpfaenger(personId);
+    return wer?.id ? { agentId: Number(wer.id), name: wer.name ?? null, weg: "leitung" } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Darf Mara in diesem Vorgang die Auskunft verkaufen? `null` = ja, sonst der Satz für das Modell. Rein. */
-export function auskunftVerkaufGesperrt(k: Pick<WerkzeugKontext, "kundenlage" | "flags">): string | null {
-  if (!AUSKUNFT_LAGEN.includes(k.kundenlage)) {
+export function auskunftVerkaufGesperrt(k: Pick<WerkzeugKontext, "kundenlage" | "flags"> & Partial<Pick<WerkzeugKontext, "auskunftAntwort">>): string | null {
+  if (!auskunftLageErlaubt(k.kundenlage, !!k.auskunftAntwort)) {
+    // E-241: Bei einem offenen Antrag oder einem Lead nur als Antwort — ungefragt nie.
+    if (AUSKUNFT_ANTWORT_LAGEN.includes(k.kundenlage)) {
+      return `In der Lage „${k.kundenlage}" wird die Bonitätsauskunft nur angeboten, wenn der Kunde auf unser Angebot antwortet oder selbst danach fragt — hier tut er keins von beiden. Biete sie nicht an und nenne keinen Preis; beantworte sein Anliegen.`;
+    }
     return `In der Lage „${k.kundenlage}" wird die Bonitätsauskunft nicht angeboten (nur mit gebuchtem Paket und laufendem Vertrag). Beantworte das Anliegen des Kunden.`;
   }
   const lampen = KEIN_VERKAUF_FLAGS.filter((f) => !!k.flags?.[f]);
@@ -475,8 +678,22 @@ export async function auskunftBetreuerMelden(k: WerkzeugKontext, ein: {
   }
   if (await istGlobalVorgang(k)) return { ok: false, grund: "FIAON Global" };
 
+  // ── E-241: ANGEBOT AN EINEN OFFENEN ANTRAG ODER LEAD ─────────────────────
+  // Die Aufgabe geht nach der Regel des Hauses (auskunftAufgabeAn): Betreuer,
+  // sonst wer den Lead übernommen hat, sonst die Vertriebsleitung mit der
+  // kleinsten Last — findet sich niemand, gibt es keine Aufgabe.
+  const alsAntwort = ein.angeboten && AUSKUNFT_ANTWORT_LAGEN.includes(k.kundenlage);
+  let agentId: number | null = null;
+  if (alsAntwort) {
+    const an = await auskunftAufgabeAn(k.personId);
+    if (!an) return { ok: false, grund: "niemand zuständig (kein Betreuer, keine Vertriebsleitung) — keine Aufgabe" };
+    agentId = an.agentId;
+  }
+
   const name = (await kundenNameFuer(k.personId, k.ref)) ?? "Kunde";
-  const titel = ein.angeboten
+  const titel = alsAntwort
+    ? `Mara hat ${name} die Bonitätsauskunft angeboten (${k.kundenlage === "unbezahlt" ? "Antrag offen" : "Interessent"}) — bitte heute nachfassen`
+    : ein.angeboten
     ? `Mara hat ${name} die Bonitätsauskunft angeboten — bitte heute nachfassen (Karte/Limit)`
     : service
       ? `${name} schreibt, die Bonitätsauskunft fehle — bitte heute klären`
@@ -487,6 +704,9 @@ export async function auskunftBetreuerMelden(k: WerkzeugKontext, ein: {
   const zeilen = [
     zitat ? `Kunde schrieb${k.postmeisterId ? ` [Mail #${k.postmeisterId}]` : ""}: „${zitat}${zitat.length >= 220 ? " …" : ""}"` : "",
     ein.anlass ? `Anlass: ${String(ein.anlass).slice(0, 200)}` : "",
+    alsAntwort
+      ? `${k.auskunftAntwort === "angebot" ? "Er hat auf unser Angebot der Bonitätsauskunft geantwortet" : "Er hat selbst nach seiner Bonitätsauskunft gefragt"} — ${k.kundenlage === "unbezahlt" ? "sein Antrag liegt vor, die erste Zahlung fürs Paket ist noch offen" : "er hat noch keinen Antrag"}.`
+      : "",
     ein.angeboten
       ? ein.verwendungszweck
         ? `Die Auskunft ist schon beauftragt, die Zahlung über ${ein.betragText ?? "?"} fehlt noch (Verwendungszweck ${ein.verwendungszweck}) — Mara hat den Weg zur Zahlungsseite geschickt.`
@@ -502,12 +722,17 @@ export async function auskunftBetreuerMelden(k: WerkzeugKontext, ein: {
               : paketOffen
                 ? "Die erste Zahlung für das Paket ist noch nicht gebucht — beauftragen kann er die Auskunft erst danach. Bitte zuerst die Zahlung klären, dann die Auskunft anbieten."
                 : "Mara konnte sie in dieser Lage nicht selbst anbieten — bitte im Gespräch anbieten.",
-    (ein.angeboten || !service) && !paketOffen
+    alsAntwort
+      ? k.kundenlage === "unbezahlt"
+        ? "Bitte heute anrufen: die Auskunft erklären (Datenkopien, Erklärung jeder Zeile, Fristen, Handlungsplan, fertige Schreiben) und die erste Zahlung für sein Paket mitnehmen — keine Zusage zu Karte oder Limit, die Bank entscheidet."
+        : "Bitte heute anrufen: die Auskunft erklären (Datenkopien, Erklärung jeder Zeile, Fristen, Handlungsplan, fertige Schreiben) und seinen Antrag mitnehmen — keine Zusage zu Karte oder Limit, die Bank entscheidet."
+      : (ein.angeboten || !service) && !paketOffen
       ? "Bitte heute anrufen: die Auskunft erklären (Datenkopien, Erklärung jeder Zeile, Fristen, Handlungsplan, fertige Schreiben) und Karte und Wunschlimit besprechen — keine Zusage, die Bank entscheidet."
       : "",
   ].filter(Boolean);
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   const erg = await auftragFuerKunden({
+    ...(agentId ? { agentId } : {}),
     personId: k.personId, ref: k.ref, titel: titel.slice(0, 160), text: zeilen.join("\n"),
     faelligAm: new Date().toISOString().slice(0, 10), dringend: false,
     schluessel: `postmeister:auskunft:${k.personId}`,
@@ -522,8 +747,10 @@ export async function auskunftBetreuerMelden(k: WerkzeugKontext, ein: {
 
 export const auskunftAnbieten: Werkzeug = {
   name: "auskunft_anbieten",
-  beschreibung: "Bietet dem Kunden die Bonitätsauskunft über FIAON an und liefert den ECHTEN Knopf dafür (Feld knopf): Preis für genau diesen Kunden (betragText — mit laufendem Paket der Kundenpreis, sonst einzeln), was er bekommt (leistung), bei welchen Auskunfteien wir anfragen (auskunfteien), wie die Auskunft in seinem Land heißt (wort) und wohin der Knopf führt (weg). Das Werkzeug BESTELLT NICHTS: Ist noch nichts beauftragt, führt der Knopf auf die Bestätigungsseite, auf der der Kunde selbst zahlungspflichtig beauftragt; ist schon eine Bestellung offen, direkt zu ihrer Zahlungsseite. Rufe es, wenn der Kunde schreibt, er habe keine Auskunft, SCHUFA oder Datenkopie (auch knapp: „Ich hab keine.“, „nicht vorhanden“), wenn er nach Auskunft, Bonität, Einträgen, Limit oder Karte fragt, oder wenn die Akte unter auskunft die Stufe „nichts“ zeigt. Ist schon eine bezahlt, gemeldet oder in der Akte, sagt es dir das (verkaufen: false) — dann verkaufst du nichts. Den Betreuer informiert das Werkzeug selbst — dafür keine eigene Aufgabe anlegen.",
+  beschreibung: "Bietet dem Kunden die Bonitätsauskunft über FIAON an und liefert den ECHTEN Knopf dafür (Feld knopf): Preis für genau diesen Kunden (betragText — mit laufendem Paket der Kundenpreis, sonst einzeln), was er bekommt (leistung), bei welchen Auskunfteien wir anfragen (auskunfteien), wie die Auskunft in seinem Land heißt (wort) und wohin der Knopf führt (weg). Das Werkzeug BESTELLT NICHTS: Ist noch nichts beauftragt, führt der Knopf auf die Bestätigungsseite, auf der der Kunde selbst zahlungspflichtig beauftragt; ist schon eine Bestellung offen, direkt zu ihrer Zahlungsseite. Rufe es, wenn der Kunde schreibt, er habe keine Auskunft, SCHUFA oder Datenkopie (auch knapp: „Ich hab keine.“, „nicht vorhanden“), wenn er nach Auskunft, Bonität, Einträgen, Limit oder Karte fragt, oder wenn die Akte unter auskunft die Stufe „nichts“ zeigt. Ist schon eine bezahlt, gemeldet oder in der Akte, sagt es dir das (verkaufen: false) — dann verkaufst du nichts. Bei einem offenen Antrag oder einem Interessenten gibt es das Werkzeug nur, weil er auf unser Angebot der Auskunft antwortet oder selbst danach fragt — dann gilt der Einzelpreis, und das Feld hinweis sagt dir, was zu seinem Antrag in die Mail gehört. Den Betreuer informiert das Werkzeug selbst — dafür keine eigene Aufgabe anlegen.",
   stufe: "frei",
+  // E-241: In AUSKUNFT_ANTWORT_LAGEN (unbezahlt, interessent) bietet werkzeugeFuerLage
+  // es zusätzlich an — nur, wenn die Mail eine Antwort auf das Angebot ist oder er fragt.
   lagen: AUSKUNFT_LAGEN,
   parameter: {
     type: "object", additionalProperties: false,
@@ -542,9 +769,16 @@ export const auskunftAnbieten: Werkzeug = {
     }
     const anlass = String(p.anlass || "").trim().slice(0, 200) || null;
     const { auskunftStand } = await import("./fiaon-auskunft");
-    const art = await auskunftArtFuer(k.personId);
+    // E-241: Ein offener Antrag oder ein Lead, der auf das Angebot antwortet oder
+    // selbst fragt (auskunftVerkaufGesperrt oben hat das geprüft), beauftragt zum
+    // Einzelpreis — ohne Paket, mit Art und Land wie im Angebot des Takts
+    // (auskunftArtLandVerkauf). „Zahlung gemeldet" wartet weiter auf die Buchung
+    // (dann gilt der Kundenpreis).
+    const alsAntwort = AUSKUNFT_ANTWORT_LAGEN.includes(k.kundenlage);
+    const verkauf = alsAntwort ? await auskunftArtLandVerkauf(k.personId) : null;
+    const art = verkauf?.art ?? await auskunftArtFuer(k.personId);
     const stand = await auskunftStand(k.personId, sqlPool, art);
-    const land = stand.land;
+    const land = verkauf?.land ?? stand.land;
     const basis = { wort: auskunftWort(land), auskunfteien: auskunfteienText(land), land, art };
 
     const nichtVerkaufen = async (stufe: "bezahlt" | "dokument" | "gemeldet", bezahltRef: string | null): Promise<WerkzeugErgebnis> => {
@@ -584,15 +818,17 @@ export const auskunftAnbieten: Werkzeug = {
         betrag: (cents / 100).toFixed(2),
         verwendungszweck: stand.offen.paymentReference,
         mitAbo: stand.preis.mitAbo, preis_hinweis: preisHinweis(stand.preis.mitAbo),
-        leistung: auskunftLeistung(art, land), nutzen: AUSKUNFT_NUTZEN_SATZ,
+        // E-241: „Limit“ nur für Kunden mit laufendem Paket — Antrag und Lead lesen den Satz ohne (VERBOTENE_WORTE).
+        leistung: auskunftLeistung(art, land), nutzen: stand.preis.mitAbo ? AUSKUNFT_NUTZEN_SATZ : AUSKUNFT_NUTZEN_SATZ_KARTE,
       };
     } else {
       // Neu: nur, wenn die Bestätigungsseite ihn auch beauftragen lässt — sonst
       // endete der Knopf auf „Erst die erste Zahlung für Ihr Paket" (angebotLage)
       // oder „Keine neue Beauftragung möglich" (Kündigung, E-213).
       const { angebotLage, kaufLink } = await import("../routes/fiaon-auskunft-kauf");
-      const lageA = await angebotLage(k.personId);
-      if (!lageA.paketBezahlt) {
+      // E-241: B und Lead ohne Paket-Prüfung (alsAntwort, oben).
+      const lageA = alsAntwort ? null : await angebotLage(k.personId);
+      if (lageA && !lageA.paketBezahlt) {
         return { ok: false, ergebnis: "", fehler: "Die erste Zahlung für das Paket ist noch nicht gebucht — beauftragen kann der Kunde die Auskunft erst danach. Biete sie jetzt nicht an; fragt er, sag in einem Satz, dass FIAON sie nach der ersten Zahlung für ihn holt." };
       }
       const [gek] = (await sqlPool`
@@ -605,7 +841,10 @@ export const auskunftAnbieten: Werkzeug = {
       // Schreibt der Kunde selbst über die Auskunft („habe keine", SCHUFA, Bonität …) oder antwortet
       // er auf das Angebot bzw. die Unterlagen-Mail („Re: …"), ist der Link seine Antwort — dann gilt sie nicht. Sonst: Kam das Angebot in den letzten drei Tagen schon
       // (Angebots-Mail, Unterlagen-Mail, WhatsApp, Mara), wiederholt Mara es nicht ungefragt.
-      if (!k.flags?.auskunft_fehlt && !kundeFragtNachAuskunft(k.kundeText) && !antwortAufAngebot(k.betreff)) {
+      // E-241: dazu jede Antwort auf die Angebots-Mail (auch die Betreffs der Segmente) und
+      // jede eigene Frage nach der Auskunft (auskunftAntwort, vom Lauf gerechnet).
+      if (!k.flags?.auskunft_fehlt && !kundeFragtNachAuskunft(k.kundeText) && !antwortAufAngebot(k.betreff)
+        && !k.auskunftAntwort && !antwortAufAuskunftAngebot(k.betreff)) {
         const { zuletztAngeboten } = await import("./fiaon-auskunft");
         const zuletzt = await zuletztAngeboten(k.personId);
         if (zuletzt) {
@@ -620,7 +859,14 @@ export const auskunftAnbieten: Werkzeug = {
         betrag: (stand.preis.cents / 100).toFixed(2),
         verwendungszweck: null,
         mitAbo: stand.preis.mitAbo, preis_hinweis: preisHinweis(stand.preis.mitAbo),
-        leistung: auskunftLeistung(art, land), nutzen: AUSKUNFT_NUTZEN_SATZ,
+        // E-241: „Limit“ nur für Kunden mit laufendem Paket — Antrag und Lead lesen den Satz ohne (VERBOTENE_WORTE).
+        leistung: auskunftLeistung(art, land), nutzen: stand.preis.mitAbo ? AUSKUNFT_NUTZEN_SATZ : AUSKUNFT_NUTZEN_SATZ_KARTE,
+        // E-241: Was zu seinem Antrag in dieselbe Mail gehört — ein Satz, nicht mehr.
+        ...(alsAntwort ? {
+          hinweis: k.kundenlage === "unbezahlt"
+            ? "Sein Paket ist noch nicht bezahlt: Die erste Zahlung nennst du in EINEM Satz mit Betrag und Verwendungszweck aus zahlungslink_bauen — die Rechnung hängt an. Der Knopf gehört der Auskunft. Die Auskunft ist keine Voraussetzung für seinen Antrag oder die Karte."
+            : "Er hat noch keinen Antrag: Die Auskunft ist ein eigener Auftrag und keine Voraussetzung für Antrag oder Karte. Den Antrag erwähnst du höchstens in einem Satz; der Knopf gehört der Auskunft.",
+        } : {}),
       };
     }
     const offen = daten.stufe === "offen";
@@ -957,14 +1203,20 @@ export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
   globalZugangSendenWerkzeug,
 ].map(mitGlobalWand);
 
-/** Welche Werkzeuge in dieser Lage angeboten werden. */
-export function werkzeugeFuerLage(lage: Kundenlage): Werkzeug[] {
-  return POSTMEISTER_WERKZEUGE.filter((w) => w.lagen === "alle" || w.lagen.includes(lage));
+/**
+ * Welche Werkzeuge in dieser Lage angeboten werden. 25.09.2026 (E-241):
+ * `auskunftAntwort` = die Mail antwortet auf das Angebot der Auskunft oder der
+ * Kunde fragt selbst danach — dann gibt es auskunft_anbieten auch bei einem
+ * offenen Antrag oder einem Lead (AUSKUNFT_ANTWORT_LAGEN), sonst dort nie.
+ */
+export function werkzeugeFuerLage(lage: Kundenlage, opts: { auskunftAntwort?: boolean } = {}): Werkzeug[] {
+  return POSTMEISTER_WERKZEUGE.filter((w) => w.lagen === "alle" || w.lagen.includes(lage)
+    || (w.name === "auskunft_anbieten" && !!opts.auskunftAntwort && AUSKUNFT_ANTWORT_LAGEN.includes(lage)));
 }
 
 /** Das Format, das OpenAI erwartet. */
-export function werkzeugeAlsTools(lage: Kundenlage): unknown[] {
-  return werkzeugeFuerLage(lage).map((w) => ({
+export function werkzeugeAlsTools(lage: Kundenlage, opts: { auskunftAntwort?: boolean } = {}): unknown[] {
+  return werkzeugeFuerLage(lage, opts).map((w) => ({
     type: "function",
     function: { name: w.name, description: w.beschreibung, parameters: w.parameter },
   }));

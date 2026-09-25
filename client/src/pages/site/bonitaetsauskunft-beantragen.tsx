@@ -28,9 +28,18 @@
 //     öffentliches Angebot),
 //   · der Abschluss mit eigenen Knöpfen statt KartenAufruf (der führt fest
 //     auf /antrag); Fußsatz und Kartenbild bleiben dieselben.
+//
+// 25.09.2026 (E-241): Die Seite gehört optisch zur Seitenfamilie
+// /bonitaetsauskunft — derselbe Kopf (BxHero mit Preiszeile), dieselben
+// Knöpfe, derselbe Abschluss (BxSchluss statt Kartenbild) und die Kaufleiste
+// am Handy; auf Deutsch dazu die Unternavigation und Verweise in die Familie.
+// Inhalt, FAQ und canonical bleiben (die Seite ist das Suchziel zu
+// „Bonitätsauskunft beantragen"). Brotkrumen: FIAON › Bonitätsauskunft ›
+// Bonitätsauskunft beantragen — sichtbar und im Markup gleich.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Fragen, Auf } from "@/components/site/DunkleBuehne";
+import { BxHero, BxSchluss, KaufLeiste, PreisZeile, type BxEigeneWorte } from "@/pages/site/bonitaetsauskunft/bausteine";
 import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { BONITAETSAUSKUNFT_WOERTER } from "@/i18n/bonitaetsauskunft-beantragen";
@@ -44,7 +53,6 @@ import "@/styles/seo-seiten.css";
 /** Der öffentliche Bestellweg — privat und für Unternehmen. */
 const BESTELLEN = "/bonitaet-antrag";
 const BESTELLEN_FIRMA = "/bonitaet-antrag?art=firma";
-const KARTENBILD = "https://fiaon.com/mail/fiaon-karte-banner.jpg";
 const LAENDER: AuskunftLand[] = ["DE", "AT", "CH"];
 const ARTEN: AuskunftArt[] = ["privat", "firma"];
 
@@ -95,26 +103,31 @@ export default function BonitaetsauskunftBeantragen() {
   }, [t.ldName, t.ldArt, t.ldFirma, P.privat.einzeln, P.firma.einzeln]);
 
   const leistung = t.leistung(art, land, bei(land));
+  // E-241: die Worte für Preiszeile, Abschluss und Kaufleiste der Seitenfamilie — in der Sprache der Seite.
+  const worte: BxEigeneWorte = {
+    einzeln, einmal: t.preisZeileEinmal, mitPaket: t.preisMitPaket(mitPaket), steuer: t.preisSteuer,
+    leisteWas: t.leisteWas, leistePaket: t.leistePaket(mitPaket), leisteKnopf: t.leisteKnopf,
+  };
   const preisDerArt = art === "firma"
     ? t.leistungPreis(euro(P.firma.einzeln), euro(P.firma.mitAbo))
     : t.leistungPreis(einzeln, mitPaket);
 
   return (
     <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
-      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad }]} />
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen}
+        krumen={en ? [{ name: t.krume, pfad }] : [{ name: t.krumeFamilie, pfad: "/bonitaetsauskunft" }, { name: t.krume, pfad }]} />
 
-      <section className="dk-hero kurz">
-        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/akten.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div>
-        <div className="dk-rahmen">
-          <span className="dk-pille">{t.pille}</span>
-          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
-          <p className="dk-lead">{t.lead(einzeln, mitPaket)}</p>
-          <div className="dk-knoepfe">
-            <Knopf href={BESTELLEN}>{t.antragStarten}</Knopf>
-            <Knopf href={BESTELLEN_FIRMA} still>{t.fuerFirmen}</Knopf>
-          </div>
-        </div>
-      </section>
+      <div className="bx">
+      <BxHero
+        seite={null} bild="/kino/akten.jpg" krume={t.krume} familie={!en}
+        krumen={en ? <nav className="bx-krumen" aria-label="Breadcrumbs"><a href="/en">FIAON</a><i aria-hidden="true">/</i><span aria-current="page">{t.krume}</span></nav> : undefined}
+        pille={t.pille} h1a={t.h1a.trim()} h1b={t.h1b} lead={t.lead(einzeln, mitPaket)}
+        preis={<PreisZeile eigen={worte} />}
+        knoepfe={<>
+          <Knopf href={BESTELLEN}>{t.antragStarten}</Knopf>
+          <Knopf href={BESTELLEN_FIRMA} still>{t.fuerFirmen}</Knopf>
+        </>}
+      />
 
       <Licht>
         <Block schmal titel={t.vergleichTitel} lead={t.vergleichLead}>
@@ -205,33 +218,19 @@ export default function BonitaetsauskunftBeantragen() {
             {t.weiterLinks.map((l, i) => <span key={l.href}><a href={zu(l.href)} style={{ color: "#1d4ed8" }}>{l.t}</a>{i < t.weiterLinks.length - 1 ? " · " : ". "}</span>)}
             {t.fussSatz}
           </p>
+          {t.familieLinks.length > 0 && (
+            <p className="bx-antrag-mehr">
+              {t.familieSatz}
+              {t.familieLinks.map((l, i) => <span key={l.href}><a href={l.href}>{l.t}</a>{i < t.familieLinks.length - 1 ? " · " : ""}</span>)}
+            </p>
+          )}
         </Block>
       </Licht>
 
-      {/* ── DER ABSCHLUSS — wie KartenAufruf, aber mit dem Bestellweg der Auskunft.
-          KartenAufruf führt fest auf /antrag (Paketstrecke); dieselben Klassen,
-          dasselbe Kartenbild, derselbe Compliance-Fußsatz. */}
-      <section className="sx-aufruf">
-        <div className="dk-rahmen">
-          <Auf>
-            <div className="sx-aufruf-glas">
-              <span className="sx-aufruf-schein" aria-hidden="true" />
-              <div className="sx-aufruf-text">
-                <h2>{t.aufrufTitel}</h2>
-                <p>{t.aufrufSatz(einzeln, mitPaket)}</p>
-                <div className="sx-aufruf-knoepfe">
-                  <Knopf href={BESTELLEN}>{t.antragStarten}</Knopf>
-                  <Knopf href={zu("/kontakt")} still>{t.kostenlosPruefen}</Knopf>
-                </div>
-              </div>
-              <div className="sx-aufruf-bild">
-                <img src={KARTENBILD} alt={t.kartenbildAlt} loading="lazy" decoding="async" width="520" height="320" />
-              </div>
-            </div>
-            <p className="sx-fuss">{t.aufrufFuss}</p>
-          </Auf>
-        </div>
-      </section>
+      {/* ── DER ABSCHLUSS (E-241): wie die Seitenfamilie — mit den Worten dieser Seite, in beiden Sprachen. ── */}
+      <BxSchluss eigen={{ ...worte, pille: t.schlussPille, titel: t.aufrufTitel, satz: t.aufrufSatz(einzeln, mitPaket), knopf: t.antragStarten, knopf2: { text: t.kostenlosPruefen, href: zu("/kontakt") }, fuss: t.aufrufFuss }} />
+      </div>
+      <KaufLeiste eigen={worte} />
     </Dunkel>
   );
 }

@@ -72,6 +72,18 @@ export function bestellPfad(art: AuskunftArt = "privat", land?: AuskunftLand): s
   return `/bonitaet-antrag${q.length ? `?${q.join("&")}` : ""}`;
 }
 
+/**
+ * Der Weg für Kunden mit laufendem Paket (26.09.2026, E-243): dieselbe Bestellseite mit
+ * geöffnetem Kunden-Zweig (?kunde=1) — dort fordern sie ihren Kundenpreis-Link an, ohne
+ * Anmeldung und ohne etwas einzutippen. Den Preis entscheidet der Server an der Person.
+ */
+export function kundenpreisPfad(art: AuskunftArt = "privat", land?: AuskunftLand): string {
+  const q = ["kunde=1"];
+  if (art === "firma") q.push("art=firma");
+  if (land) q.push(`land=${land}`);
+  return `/bonitaet-antrag?${q.join("&")}`;
+}
+
 const P = AUSKUNFT_PREISE_CENTS;
 /** Die vier Preise als Text — nur aus shared/fiaon-auskunft.ts. */
 export const BX_PREIS = {
@@ -150,6 +162,8 @@ export const BX = {
   // ── Kleine Zeilen ──
   preisEinmal: "einmalig",
   preisMitPaket: (paket: string) => `${paket} für FIAON-Kunden mit laufendem Paket`,
+  // 26.09.2026 (E-243): am Preis — führt auf die Bestellseite mit geöffnetem Kunden-Zweig (kundenpreisPfad).
+  kundenpreisLink: "Schon FIAON-Kunde? Kundenpreis-Link anfordern",
   weiterlesen: "Weiterlesen",
   stand: "Stand September 2026 — keine Rechtsberatung im Einzelfall.",
 };

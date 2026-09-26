@@ -936,14 +936,15 @@ interface Lage {
 /** Wo steht er bei der Auskunft? Preis und Art vom Server (auskunftStand, auskunftArtFuer) — wie Werkzeug und Kauflink. */
 async function auskunftLage(personId: number, segment: AuskunftSegment): Promise<Lage["auskunft"]> {
   try {
-    const { auskunftStand, auskunftArtFuer } = await import("./fiaon-auskunft");
+    const { auskunftStand, auskunftArtFuer, standZumZeigen } = await import("./fiaon-auskunft");
     // Gegenlesen E-241: Antrag und Lead mit Art und Land aus dem Angebot des Takts
     // (auskunftArtLandVerkauf) — sonst nannte Mara einem Business-Antrag 149 € privat
     // statt der angebotenen Firmen-Auskunft und einem Lead aus Österreich „SCHUFA".
     const verkauf = segment === "kunde" ? null
       : await (await import("./fiaon-postmeister-werkzeuge")).auskunftArtLandVerkauf(personId);
     const art = verkauf?.art ?? await auskunftArtFuer(personId);
-    const st = await auskunftStand(personId, undefined, art);
+    // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+    const st = standZumZeigen(await auskunftStand(personId, undefined, art));
     const offenLink = st.offen?.paymentReference ? `https://fiaon.com/zahlung/${encodeURIComponent(st.offen.paymentReference)}` : null;
     return {
       stufe: st.stufe, land: verkauf?.land ?? st.land, preisText: st.preis.text, mitAbo: st.preis.mitAbo,
@@ -1640,12 +1641,13 @@ async function auskunftAnbieten(ctx: WerkzeugKontext): Promise<{ ergebnis: any; 
   if (segment !== "kunde" && !ctx.auskunft.jetzt) {
     return nein("Er hat weder auf unser Angebot geantwortet noch selbst nach der Auskunft gefragt — biete sie nicht an, nenne keinen Preis und keinen Link.");
   }
-  const { auskunftStand, auskunftArtFuer } = await import("./fiaon-auskunft");
+  const { auskunftStand, auskunftArtFuer, standZumZeigen } = await import("./fiaon-auskunft");
   // Dieselbe Art wie der Kauflink unten — sonst nennte Mara 74 € und die Seite zeigte 199 €.
   // Gegenlesen E-241: Art und Land aus seiner Lage (auskunftLage) — bei Antrag und Lead die des
   // Takt-Angebots, beim zahlenden Kunden dieselbe Regel wie bisher (auskunftArtFuer, Land aus dem Antrag).
   const auskunftArt = ctx.auskunft.art ?? await auskunftArtFuer(ctx.personId);
-  const stand = await auskunftStand(ctx.personId, undefined, auskunftArt);
+  // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+  const stand = standZumZeigen(await auskunftStand(ctx.personId, undefined, auskunftArt));
   const land = ctx.auskunft.land ?? stand.land;
   if (stand.stufe === "bezahlt") return nein("Die Auskunft ist schon bezahlt — wir fordern sie an. Nichts verkaufen.");
   if (stand.stufe === "dokument") return nein("Eine Auskunft liegt schon in seiner Akte — nichts verkaufen.");

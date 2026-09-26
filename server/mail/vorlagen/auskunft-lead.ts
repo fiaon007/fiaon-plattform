@@ -112,6 +112,16 @@ export const AUSKUNFT_LEAD_VORLAGEN: Record<string, MailBaustein> = {
       "Jetzt beginnt die Auswertung: Wir erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Ihren Handlungsplan vor — mit fertigen Schreiben, die Sie freigeben, bevor etwas hinausgeht.",
       "{{params.bereich_satz}}",
       "{{params.rest_satz}}",
+      // 26.09.2026 (E-243): „Ihr nächster Schritt zur Karte" — NUR für Menschen ohne laufendes
+      // Paket (und ohne Sperre); beide Sätze baut auskunftPaketSchrittSaetze unten, der Liefer-Weg
+      // legt sie in die Nutzlast. Fehlen sie, entfallen beide Absätze still (Motor: Absatz aus
+      // einem Platzhalter ohne Wert).
+      "{{params.paket_schritt_satz}}",
+      "{{params.paket_link_satz}}",
+      // Gegenlesen 26.09.2026 (E-243): Mit dem Abschnitt ist diese Pflichtmail AUCH Werbung
+      // (§ 7 Abs. 3 Nr. 4 UWG: Hinweis auf den Widerspruch bei JEDER Verwendung) — der Satz
+      // kommt nur mit dem Abschnitt, nie allein.
+      "{{params.paket_widerspruch_satz}}",
     ],
     knopf: { text: "In meinen Bereich", url: "{{params.login_url}}" },
     karteZiel: true,
@@ -257,6 +267,43 @@ export const AUSKUNFT_ZAHLUNG_VORLAGEN: Record<"payment_details" | "payment_conf
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// „ICH HABE ÜBERWIESEN" BEI EINER AUSKUNFT (Integration 26.09.2026, E-243)
+//
+// Justin: „Warum die gleiche Zahlungsseite für Nicht-Kunden — da steht ‚Konto
+// aktivieren', die bestellen ja nur die Auskunft!" Die Zahlungsseite spricht
+// seit E-243 von der Auskunft (client/src/i18n/zahlung-auskunft.ts). Die Mail
+// danach (claim_received, server/mail/vorlagen/zahlung.ts) sagte aber weiter:
+// „Sobald das Geld zugeordnet ist, geht Ihr Bereich automatisch auf und Sie
+// erhalten Ihre Zugangs-Mail" — für einen Auskunft-Käufer falsch (kein Bereich,
+// der aufgeht, keine Zugangs-Mail). Dieselbe Weiche wie payment_details und
+// payment_confirmed: Die Tür (make-webhook.ts) setzt `produktkategorie`, der
+// Motor nimmt diese Fassung. Gleicher Ereignisname — Pflichtmail, Protokoll und
+// Bankwechsel-Liste bleiben. Wie die Paket-Fassung: kein Zahlknopf, kein QR-Code
+// (er hat gerade überwiesen — ein Knopf lüde zur zweiten Zahlung ein), die
+// Bankverbindung nur zum Abgleichen. Was nach der Zuordnung kommt, sagt die
+// Bestätigung (auskunftZahlungEingangBaustein) — je Lieferweg und Widerrufswahl
+// richtig; hier deshalb nur, DASS sie kommt.
+// ═══════════════════════════════════════════════════════════════════════════
+export const AUSKUNFT_ZAHLUNG_GEMELDET_VORLAGE: MailBaustein = {
+  betreff: "Danke — wir prüfen Ihre Zahlung für die Bonitätsauskunft",
+  preheader: "Ihre Meldung ist da. Wir gleichen mit dem Konto ab und melden uns.",
+  titel: "Ihre Zahlungsmeldung ist da",
+  absaetze: [
+    "Guten Tag {{params.vorname}}, Sie haben uns mitgeteilt, dass Sie <b>{{params.betrag}} €</b> für <b>{{params.paket}}</b> überwiesen haben — danke dafür.",
+    "Wir gleichen Ihre Zahlung jetzt mit dem Bankkonto ab. Das dauert in der Regel einen Bankarbeitstag. Sobald das Geld zugeordnet ist, bestätigen wir Ihnen den Eingang per E-Mail — darin steht auch, wie es mit Ihrer Auskunft bei {{params.auskunfteien}} weitergeht.",
+    "Eine Bitte, damit das glattgeht: Sehen Sie kurz nach, ob Sie den Verwendungszweck unten mitgeschickt haben — daran finden wir Ihre Zahlung. Überweisen Sie bitte auf keinen Fall ein zweites Mal — wir melden uns, sobald Ihre Zahlung zugeordnet ist.",
+  ],
+  daten: [
+    { label: "Gemeldeter Betrag", wert: "{{params.betrag}} €" },
+    { label: "Empfänger", wert: "{{params.empfaenger}}" },
+    { label: "IBAN", wert: "{{params.iban}}" },
+    { label: "BIC", wert: "{{params.bic}}" },
+    { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
+  ],
+  fussnote: "Kein Verwendungszweck angegeben? Dann kann die Zuordnung länger dauern — antworten Sie in dem Fall kurz mit Datum und Betrag Ihrer Überweisung.",
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE SÄTZE DER LIEFER-MAILS JE LIEFERWEG (25.09.2026, E-241)
 //
 // Justin: „Bis zur API kaufen wir sie selbst." Im Einkauf gibt es keine
@@ -367,6 +414,59 @@ export function schufaRequestedBaustein(p: Record<string, unknown>): MailBaustei
 /** Der wahlweise Satz in schufa_approved, wenn FIAON die Auskunft beschafft hat. */
 export const AUSKUNFT_DA_BEREICH_SATZ =
   "Handlungsplan und Schreiben finden Sie in Ihrem Bereich, sobald die Auswertung fertig ist. Melden Sie sich dort mit der E-Mail-Adresse an, an die diese Nachricht ging.";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „IHR NÄCHSTER SCHRITT ZUR KARTE" IN schufa_approved (26.09.2026, E-243)
+//
+// Justin: „Ziel ist, die Bonitätsauskunft zu verkaufen UND ein Abo zu verkaufen."
+// Wer die Auskunft ohne Paket gekauft hat, liest nach der Lieferung — einmal je
+// Bestellung, in der ersten „Ihre Auskunft ist da" —, was als
+// Nächstes kommt — ehrlich: Auswertung, Handlungsplan und Schreiben hat er mit
+// der Auskunft schon; das Paket begleitet ihn darüber hinaus (Fristen, Antworten,
+// Weg zur Karte); über die Karte entscheidet die Bank. Mit dem Abschnitt ist die
+// Mail auch Werbung — deshalb kommt paket_widerspruch_satz immer mit (§ 7 Abs. 3
+// Nr. 4 UWG; „Stopp“ an welcome@ liest der Postmeister). Kein „Limit" (kein zahlender
+// Paketkunde, VERBOTENE_WORTE), keine Zusage, keine Frist, kein Preis ohne
+// Laufzeit (der steht im Antrag, AGB §§ 5/6).
+// Wer es bekommt, entscheidet auskunftPaketSchritt (server/lib/fiaon-auskunft.ts):
+//   „neu"    — kein Paket-Antrag offen → Antrag (src=auskunft_da: ohne den Zusatz,
+//              die Auskunft hat er ja),
+//   „antrag" — ein fertiger Antrag wartet auf die erste Zahlung → seine
+//              Zahlungsseite (kein zweiter Antrag).
+// OHNE Tags in den Werten (wie unterschrift_satz, fiaon-auskunft-lieferung.ts):
+// Der Motor füllt Werte erst NACH mailText ein — ein <b> oder <a> stünde im
+// Text-Teil wörtlich. Deshalb die Überschrift als Satzanfang und die Adresse
+// ausgeschrieben (die Postfächer machen sie klickbar, der Text-Teil bleibt lesbar).
+// Die Adresse kommt von absoluteUrl — trotzdem entschärft (&, <, >, {{).
+// ═══════════════════════════════════════════════════════════════════════════
+export function auskunftPaketSchrittSaetze(variante: "neu" | "antrag", url: string): {
+  paket_schritt_satz: string; paket_link_satz: string; paket_widerspruch_satz: string;
+} {
+  const adresse = String(url ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\{\{/g, "{ {").trim();
+  // Gegenlesen 26.09.2026 (E-243): Auswertung, Handlungsplan und Schreiben GEHÖREN zur gekauften
+  // Auskunft (auskunftLeistung, shared/fiaon-auskunft.ts) — der Abschnitt verkauft sie nicht noch
+  // einmal als Paketleistung, sondern sagt, was das Paket DARÜBER HINAUS tut (fiaon-wissen.ts:
+  // feste Ansprechperson, Fristen und Antworten verfolgen, Weg zur Karte). Keine Zusage.
+  const widerspruch = "Hinweise auf weitere Leistungen von FIAON per E-Mail können Sie jederzeit abbestellen: Eine kurze Antwort „Stopp“ genügt, "
+    + "dafür entstehen keine anderen als die Übermittlungskosten nach den Basistarifen. Ihre Auskunft und Ihr Handlungsplan bleiben davon unberührt.";
+  if (variante === "antrag") {
+    return {
+      paket_schritt_satz: "Ihr nächster Schritt zur Karte: Ihr Antrag für ein FIAON-Paket liegt schon bei uns — es fehlt nur Ihre erste Zahlung. "
+        + "Danach begleitet Sie Ihre feste Ansprechperson über die Auskunft hinaus: Sie verfolgt Fristen und Antworten der Auskunfteien "
+        + "und richtet Ihren Weg zur passenden Karte danach aus. Über die Karte entscheidet die Bank — wir bereiten Sie darauf vor.",
+      paket_link_satz: `Betrag, Bankdaten und Verwendungszweck finden Sie hier: ${adresse}`,
+      paket_widerspruch_satz: widerspruch,
+    };
+  }
+  return {
+    paket_schritt_satz: "Ihr nächster Schritt zur Karte: Ihre Auskunft zeigt, wo Sie stehen — Auswertung, Handlungsplan und Schreiben gehören schon dazu. "
+      + "Wer danach nicht allein weitergehen möchte, nimmt ein FIAON-Paket dazu: Ihre feste Ansprechperson begleitet Sie über die Auskunft hinaus, "
+      + "verfolgt Fristen und Antworten der Auskunfteien und richtet Ihren Weg zur passenden Karte danach aus. "
+      + "Über die Karte entscheidet die Bank — wir bereiten Sie darauf vor.",
+    paket_link_satz: `Pakete ansehen und Antrag stellen (Ihre Auskunft ist schon da, Sie brauchen keine zweite): ${adresse}`,
+    paket_widerspruch_satz: widerspruch,
+  };
+}
 
 /**
  * Ist die Bestellung dieser Nutzlast eine Auskunft? Rein, ohne Datenbank: Die
@@ -568,3 +668,43 @@ export function auskunftZahlungsdatenBaustein(p: Record<string, unknown>): MailB
     anhang,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER KUNDENPREIS-LINK (26.09.2026, E-243)
+//
+// Die Antwort auf „Kundenpreis-Link anfordern" (/bonitaet-antrag, Frage „Sind
+// Sie schon FIAON-Kunde mit laufendem Paket?"). Der Kunde hat sie selbst
+// angefordert — deshalb keine Werbung (kein Abmeldelink, kein
+// Widerspruchs-Hinweis, in PFLICHTMAILS), und deshalb kurz und sachlich: Preis,
+// Leistung, ein Knopf. Wer sie NICHT bekommt und warum: Kopf „DER
+// KUNDENPREIS-LINK" in server/routes/fiaon-auskunft-kauf.ts
+// (kundenpreisLinkAnfordern) — dort entstehen auch alle Sätze mit Land und Art:
+//   · anrede        — anredeMail (nie „Guten Tag max,")
+//   · was           — „Ihre Bonitätsauskunft" / „die Bonitätsauskunft Ihres Unternehmens"
+//   · preis_text    — vom Server (auskunftPreis; bei offener Bestellung deren Betrag)
+//   · auskunfteien  — je Land (AT/CH nie „SCHUFA")
+//   · leistung_satz — privat oder Firma
+//   · weg_satz, knopf_text, kauf_url — neue Bestellung (Kauflink → Bestätigungsseite
+//     mit Beschaffungsauftrag) oder die Zahlungsseite einer schon offenen
+//   · gueltig_tage  — KAUF_LINK_TAGE
+// Wortwand: kein „statt 149 €" (PAngV § 11 — kein Streichpreis), keine Frist
+// mit Zahl als Versprechen, keine Zusage über das Ergebnis, kein „Limit".
+// ═══════════════════════════════════════════════════════════════════════════
+export const AUSKUNFT_KUNDENPREIS_VORLAGEN: Record<"auskunft_kundenpreis", MailBaustein> = {
+  auskunft_kundenpreis: {
+    betreff: "Ihr Kundenpreis für die Bonitätsauskunft: {{params.preis_text}}",
+    preheader: "Der Link, den Sie auf fiaon.com angefordert haben — Ihre Angaben sind schon eingetragen.",
+    titel: "Ihr Link zum Kundenpreis",
+    absaetze: [
+      "{{params.anrede}} Sie haben auf fiaon.com den Link zu Ihrem Kundenpreis angefordert. Weil Ihr FIAON-Paket läuft, kostet Sie {{params.was}} <b>{{params.preis_text}}</b> — einmalig, kein Abo.",
+      "{{params.leistung_satz}}",
+      "{{params.weg_satz}}",
+    ],
+    daten: [
+      { label: "Ihr Kundenpreis", wert: "{{params.preis_text}} einmalig" },
+      { label: "Auskunft bei", wert: "{{params.auskunfteien}}" },
+    ],
+    knopf: { text: "{{params.knopf_text}}", url: "{{params.kauf_url}}" },
+    fussnote: "Sie haben diesen Link selbst auf fiaon.com angefordert. Er gilt {{params.gueltig_tage}} Tage und ist persönlich für Sie — bitte nicht weitergeben. Waren Sie das nicht, ignorieren Sie diese E-Mail einfach: Ohne Ihren Klick wird nichts bestellt.",
+  },
+};

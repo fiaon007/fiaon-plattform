@@ -82,6 +82,9 @@ export const PFLICHTMAILS = new Set<string>([
   "documents_change_request",
   "commission_statement_issued",
   "app_login_link",          // 06.09.2026: Zugang — der Kunde hat den Anmelde-Link selbst angefordert; gebremst wäre die Tür zu.
+  // 26.09.2026 (E-243): der Kundenpreis-Link der Bonitätsauskunft — eben selbst auf /bonitaet-antrag
+  // angefordert (auch mit Werbesperre). Wer ihn NICHT bekommt, entscheidet die Route (fiaon-auskunft-kauf.ts).
+  "auskunft_kundenpreis",
   "global_zugang",           // E-188: dasselbe für Firmenkunden — der Link zu „Mein Auftrag" ist ihr einziger Zugang.
   // Betriebsmeldungen an die Hausleitung, nie an Kunden — dürfen nie stocken.
   "kritisch", "warnung", "info",
@@ -566,10 +569,10 @@ export async function personSperre(personId: number): Promise<PersonSperre | nul
  *    trug (§ 7 Abs. 3 UWG); von Hand an Kunden, mit denen der Betreuer
  *    gesprochen hat (Antwort auf seine Bitte), ohne diese Grenze.
  *    E-241 (25.09.2026): Im Kreis „alle" (Justins Entscheidung) entfällt die
- *    Stichtag-Grenze — wer dann in Frage kommt (Segment A/B/C ohne Sperre),
- *    entscheidet die Tür davor (angebotTuerSperre, fiaon-auskunft-verkauf.ts,
- *    dieselbe Grundmenge wie der Takt). Werbesperre, Test und Kündigung
- *    sperren hier in JEDEM Kreis.
+ *    Stichtag-Grenze — wer dann in Frage kommt (Segment A/B/C ohne Sperre,
+ *    seit E-243 auch Abbrecher; Stornierte nie), entscheidet die Tür davor
+ *    (angebotTuerSperre, fiaon-auskunft-verkauf.ts, dieselbe Grundmenge wie
+ *    der Takt). Werbesperre, Test und Kündigung sperren hier in JEDEM Kreis.
  */
 export function sperrUrteil(
   event: string,

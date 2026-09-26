@@ -974,6 +974,28 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   } catch (e) {
     console.error(`[AUSKUNFT-LIEFERUNG] ${ref}: Lieferung nach Zahlungseingang fehlgeschlagen — KEINE Anfragen, KEINE Aufgabe, KEINE Mail; im Chefbüro unter „Auskunft-Rückstand“ nachholen:`, e);
   }
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS BÜNDEL: AUSKUNFT ZUM KUNDENPREIS NACH DER ERSTEN PAKETZAHLUNG (26.09.2026, E-243)
+  //
+  // Hat der Kunde im Antrag „Bonitätsauskunft zum Kundenpreis dazubestellen"
+  // angehakt (Vermerk an der Paket-Bestellung), entsteht JETZT — das Paket ist
+  // bezahlt, der Kundenpreis 74 € bzw. 199 € gilt — die Auskunft-Bestellung mit
+  // Beschaffungsauftrag aus dem Antrag; die Zahlungsdaten-Mail geht wie üblich.
+  // Aus demselben Grund wie Global und Lieferung an DIESER Stelle (alle
+  // Buchungswege gehen hier durch) und bewusst ZULETZT, als eigener Block: Die
+  // Buchung, das Abo und die Provision hängen nicht daran. Einmal je Person
+  // (auskunftBuendelNachZahlung, server/lib/fiaon-auskunft.ts); ein zweiter
+  // Buchungslauf legt nichts doppelt an. Die Funktion wirft nicht — der
+  // try/catch fängt nur das Unerwartete (z. B. der Import selbst).
+  // ══════════════════════════════════════════════════════════════════════════
+  try {
+    const { auskunftBuendelNachZahlung } = await import("../lib/fiaon-auskunft");
+    const b = await auskunftBuendelNachZahlung(ref);
+    if (b.art === "fehler") console.error(`[AUSKUNFT-BUENDEL] ${b.text}`);
+    else if (b.art !== "kein_paket" && b.art !== "kein_wunsch") console.log(`[AUSKUNFT-BUENDEL] ${b.text}`);
+  } catch (e) {
+    console.error(`[AUSKUNFT-BUENDEL] ${ref}: Bündel nach Zahlungseingang nicht geprüft — die Auskunft zum Kundenpreis fehlt ggf.; von Hand bestellen (Akte → Bonitätsauskunft):`, e);
+  }
 }
 
 async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {

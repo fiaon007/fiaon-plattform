@@ -1210,10 +1210,16 @@ router.post("/payment-order", async (req, res) => {
       // verwiesen, wo der Kundenpreis gilt.
       const mailRoh = String(email || "").trim();
       if (mailRoh) {
-        const treffer = (await sqlPool`
+        // Integration 26.09.2026 (E-243): dieselbe Personensuche wie der Kundenpreis-Link (kundenpreisPersonen:
+        // Hauptadresse der Person, dazu E-Mail, Kontakt- und Rechnungsadresse jeder Bestellung, Zusammengeführte
+        // auf die Überlebende). Vorher nur die E-Mail bezahlter Bestellzeilen — ein Kunde, der seine Hauptadresse
+        // tippte, zahlte ohne Anmeldung 149 € statt 74 €. Scheitert die Suche, gilt die alte Abfrage.
+        const altSuche = async () => ((await sqlPool`
           SELECT DISTINCT person_id FROM fiaon_applications
            WHERE person_id IS NOT NULL AND merged_into IS NULL AND payment_status = 'paid'
-             AND fiaon_mail_norm(email) = fiaon_mail_norm(${mailRoh}) LIMIT 3`.catch(() => [])) as any[];
+             AND fiaon_mail_norm(email) = fiaon_mail_norm(${mailRoh}) LIMIT 3`.catch(() => [])) as any[]).map((z) => Number(z.person_id));
+        const ids = await (await import("./fiaon-auskunft-kauf")).kundenpreisPersonen(mailRoh).catch(altSuche);
+        const treffer = ids.map((person_id) => ({ person_id }));
         for (const t of treffer) {
           if (await hatLaufendesPaket(Number(t.person_id))) {
             return res.status(409).json({
@@ -3182,6 +3188,26 @@ router.post("/application", async (req, res) => {
       const { antragAnLeadHaengen } = await import("../lib/fiaon-kurzlink");
       await antragAnLeadHaengen(String(req.body.leadLink), String(ref)).catch((e) =>
         console.error("[KURZLINK] Antrag an Lead:", e));
+    }
+
+    // ── ZUSATZ: BONITÄTSAUSKUNFT ZUM KUNDENPREIS (26.09.2026, E-243) ──────────
+    // Der Haken aus „Vertrag annehmen" (antrag.tsx) reist beim Abschicken mit —
+    // ab Schritt 7. Hier wird er NUR vermerkt (an dieser Paket-Bestellung, mit
+    // Wortlaut, Fassung und Zeit); die Auskunft-Bestellung entsteht erst nach der
+    // ersten Paketzahlung (onCustomerPaid → auskunftBuendelNachZahlung), dann zum
+    // Kundenpreis. Steht NACH Person und persönlichem Link: Der Vermerk trägt die
+    // Person der Bestellung. Ein Fehler hier hält den Antrag nie auf.
+    if (req.body?.auskunftZusatz && typeof req.body.auskunftZusatz === "object"
+        && (Number(currentStep || 0) >= 7 || status === "submitted" || status === "completed")) {
+      try {
+        const { buendelWunschVermerken } = await import("../lib/fiaon-auskunft");
+        const v = await buendelWunschVermerken({
+          ref: String(ref), packKey, zusatz: req.body.auskunftZusatz, ip, ua: String(req.headers["user-agent"] ?? ""),
+        });
+        if (v === "vermerkt") console.log(`[AUSKUNFT-BUENDEL] ${ref}: Zusatz „Auskunft zum Kundenpreis“ vermerkt.`);
+      } catch (e) {
+        console.error(`[AUSKUNFT-BUENDEL] ${ref}: Zusatz nicht vermerkt:`, e);
+      }
     }
 
     // ── DIE MESSUNG (22.09.2026, E-210) ───────────────────────────────────

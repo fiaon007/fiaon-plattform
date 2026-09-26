@@ -111,6 +111,7 @@ export type MakeEventType =
   | "schufa_rejected"         // eine Auskunftei hat eine Rückfrage (Vorgang Selbstauskunft „abgelehnt")
   | "schufa_requested"        // nach der Zahlung: Anfragen angelegt, Vollmacht und Anfragen unterschreiben
   | "auskunft_angebot"        // WERBUNG: das Angebot der Auskunft an Bestandskunden (drei Fassungen, Abmeldelink Pflicht)
+  | "auskunft_kundenpreis"    // E-243: der Kundenpreis-Link, vom Kunden selbst auf /bonitaet-antrag angefordert (keine Werbung)
   | "account_suspended"       // Konto gesperrt
   | "account_activated"       // Konto aktiviert
   | "profile_query"           // Profil-Rückfrage an den Kunden
@@ -284,6 +285,8 @@ export async function sendMakeWebhookMitGrund(
   // Takt wählt, damit Takt und Tür nie auseinanderlaufen: bei „uwg" die Tür aus E-240 unverändert
   // (erst die erste Paketzahlung), bei „alle" automatisch nur Segment A/B/C ohne Sperrgrund, von
   // Hand der Kaufstand. Werbesperre, Abmeldung, STOPP und Vertriebssperre sperren in JEDEM Kreis.
+  // E-243 (26.09.2026): „alle" umfasst dazu die Abbrecher (Antrag begonnen) — und schließt Stornierte
+  // aus; beides entscheidet dieselbe Grundmenge (personImPool), hier ändert sich nichts.
   if (!payload.test && eventType === "auskunft_angebot") {
     try {
       // Gegenlesen 24.09.2026: dazu die Vertriebssperre (is_blocked) — wer „kein Interesse"
@@ -308,7 +311,9 @@ export async function sendMakeWebhookMitGrund(
   // Bonitätsauskunft, trägt die Nutzlast `produktkategorie: "auskunft"` und die
   // Auskunfteien des Landes — und der Motor nimmt die Auskunft-Fassung statt
   // „schalten wir Ihren Bereich frei" / „Ihr Zugang ist da".
-  if (eventType === "payment_details" || eventType === "payment_confirmed") {
+  // Integration 26.09.2026 (E-243): dazu claim_received („Ich habe überwiesen") — die Auskunft-Fassung
+  // sagt nicht „Ihr Bereich geht auf, Sie erhalten Ihre Zugangs-Mail".
+  if (eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") {
     try {
       const { auskunftMailAnreichern } = await import("./lib/fiaon-auskunft-lieferung");
       payload = await auskunftMailAnreichern(payload);
@@ -372,8 +377,9 @@ export async function sendMakeWebhookMitGrund(
   // aus Brevo („wir schalten Ihren Bereich frei") — ohne Belehrung.
   const auskunftZeile = String(payload.produktkategorie ?? "") === "auskunft"
     || /^FIAON-SCHUFA-/i.test(String(payload.antrag_id ?? ""));
-  const nurMotor = ["auskunft_angebot", "schufa_requested", "schufa_approved", "schufa_rejected"].includes(eventType)
-    || ((eventType === "payment_details" || eventType === "payment_confirmed") && auskunftZeile);
+  // 26.09.2026 (E-243): auskunft_kundenpreis gibt es ebenfalls nur als Quelltext-Vorlage.
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "schufa_requested", "schufa_approved", "schufa_rejected"].includes(eventType)
+    || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
     if (motor.hatVorlage(eventType)) {

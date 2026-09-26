@@ -405,7 +405,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "claim_received",
     label: "Überweisung angekündigt (Danke)",
-    description: "Feuert genau einmal, wenn der Kunde auf „Ich habe die Überweisung getätigt“ klickt — dankt und nennt das Freischalt-Zeitfenster (werktags bis 18:00 Uhr).",
+    description: "Feuert genau einmal, wenn der Kunde auf „Ich habe die Überweisung getätigt“ klickt — dankt und nennt das Freischalt-Zeitfenster (werktags bis 18:00 Uhr). Bei einer Bonitätsauskunft (seit 26.09.2026, E-243) die eigene Fassung ohne „Bereich geht auf / Zugangs-Mail“ (AUSKUNFT_ZAHLUNG_GEMELDET_VORLAGE, nur über den Motor).",
     customerBound: true,
     example: { ...CUSTOMER_EXAMPLE, invoice_url: INVOICE_URL_EXAMPLE },
   },
@@ -841,8 +841,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "auskunft_angebot",
     // Gegenlesen 25.09.2026 (E-241): Beschreibung auf die drei Segmente und den Kreis des Verkaufstakts nachgezogen.
+    // 26.09.2026 (E-243): vier Segmente (neu: abbrecher), neue Winkel je Fassung, zwei Betreffs je Stufe, Paketweg.
     label: "Angebot Bonitätsauskunft (Werbung)",
-    description: `WERBUNG an Menschen ohne Auskunft — je nach Kreis des Verkaufstakts (auskunft_verkauf_kreis): „uwg“ nur zahlende Kunden nach dem 02.09.2026 12:35 (§ 7 Abs. 3 UWG), „alle“ dazu fertige, unbezahlte Anträge und Leads. Neun Texte: segment kunde | antrag | lead × fassung a (was die Bank sieht) | b (Einwand „kostenlos?“) | c (kurz, persönlich), jeweils mit eigenen Firmen-Sätzen. Inhalt: was wir tun, bei welchen Auskunfteien (je Land, AT/CH nie „SCHUFA“), Preis (Kunde mit Paket ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, sonst ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)}; Firma ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)} / ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}; beim Antrag mit Hinweis auf den Paketpreis, paket_preis_hinweis), Knopf „Auskunft für … beauftragen“ (kauf_url) und „Schon eine aktuelle Auskunft? Hier hochladen“ (upload_url, nie beim Lead). Abmeldelink und Widerspruchs-Hinweis Pflicht; die Tür lehnt ab bei Werbesperre (auch von Hand), Vertriebssperre, gekaufter oder vorliegender Auskunft, Kündigung und — im Kreis „uwg“ automatisch — ohne Grundlage nach § 7 Abs. 3 UWG (Regel: sperrUrteil in fiaon-mail-frequenz.ts). Nutzlast und Vorprüfung: auskunftAngebotNutzlast / auskunftAngebotSperre (server/lib/fiaon-auskunft-lieferung.ts), für den Takt angebotNutzlast (server/lib/fiaon-auskunft-verkauf.ts).`,
+    description: `WERBUNG an Menschen ohne Auskunft — je nach Kreis des Verkaufstakts (auskunft_verkauf_kreis): „uwg“ nur zahlende Kunden nach dem 02.09.2026 12:35 (§ 7 Abs. 3 UWG), „alle“ dazu fertige, unbezahlte Anträge, Leads und Abbrecher (Antrag begonnen, nicht fertig). Texte: segment kunde | antrag | lead | abbrecher × fassung a („Abgelehnt — und keiner sagt Ihnen, warum?“) | b („Vorsicht bei ‚Kredit ohne SCHUFA‘“ — AT „ohne KSV“, CH „ohne Bonitätsprüfung“ — mit der ehrlichen Antwort zur kostenlosen Datenkopie) | c („Wissen, was die Bank sieht — bevor sie entscheidet“, kurz, ohne Druck), jeweils mit eigenen Firmen-Sätzen und zwei Betreffzeilen im Wechsel (betreff_variante 1 | 2, ohne Angabe aus der Person). Inhalt: was wir tun, bei welchen Auskunfteien (je Land, AT/CH nie „SCHUFA“), Preis (Kunde mit Paket ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, sonst ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)}; Firma ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)} / ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}; beim Antrag mit Hinweis auf den Paketpreis, paket_preis_hinweis), Knopf „Auskunft für … beauftragen“ (kauf_url) und darunter entweder „Schon eine aktuelle Auskunft? Hier hochladen“ (upload_url, nur Kunde und Antrag) oder — bei Lead und Abbrecher, privat — der Paketweg „Lieber gleich mit FIAON-Paket? Dann ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} für die Auskunft“ (paket_url, sonst /antrag?src=auskunft&auskunft=1 — dort steht der Zusatz „Auskunft zum Kundenpreis dazubestellen“ aufgeklappt, nie vorangekreuzt, fällig erst nach der ersten Paketzahlung; paket_weg=false schaltet ihn aus). Abmeldelink und Widerspruchs-Hinweis Pflicht; die Tür lehnt ab bei Werbesperre (auch von Hand), Vertriebssperre, gekaufter oder vorliegender Auskunft, Kündigung und — im Kreis „uwg“ automatisch — ohne Grundlage nach § 7 Abs. 3 UWG (Regel: sperrUrteil in fiaon-mail-frequenz.ts). Nutzlast und Vorprüfung: auskunftAngebotNutzlast / auskunftAngebotSperre (server/lib/fiaon-auskunft-lieferung.ts), für den Takt angebotNutzlast (server/lib/fiaon-auskunft-verkauf.ts).`,
     customerBound: false,
     example: {
       email: "max.mustermann@example.com",
@@ -856,14 +857,37 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       art: "privat",
       auskunfteien: auskunfteienText("DE"),
       leistung: auskunftLeistung("privat", "DE"),
-      // E-241 (25.09.2026): Segment (kunde | antrag | lead) und Fassung (a | b | c) wählen einen der
-      // neun Texte (server/mail/vorlagen/auskunft-verkauf.ts). paket_preis_hinweis nennt beim Antrag
+      // E-241 (25.09.2026): Segment (kunde | antrag | lead, seit E-243 auch abbrecher) und Fassung (a | b | c)
+      // wählen den Text (server/mail/vorlagen/auskunft-verkauf.ts). paket_preis_hinweis nennt beim Antrag
       // den Preis mit aktivem Paket (ohne Angabe: nur im Segment „antrag"); beim Kunden nie.
+      // E-243 (26.09.2026): betreff_variante 1 | 2 — ohne Angabe im Wechsel aus der Person.
       segment: "kunde",
       fassung: "a",
+      betreff_variante: 1,
       kauf_url: "https://www.fiaon.com/api/fiaon/auskunft/bestellen?p=4711&art=privat&exp=1799999999000&sig=0f3a9b7c2e4d",
       upload_url: "https://www.fiaon.com/app/unterlagen",
       abmelde_url: "https://www.fiaon.com/api/fiaon/abmelden/p/4711.0f3a9b7c2e4d",
+    },
+  },
+  // ── DER KUNDENPREIS-LINK (26.09.2026, E-243) ─────────────────────────────
+  {
+    type: "auskunft_kundenpreis",
+    label: "Kundenpreis-Link Bonitätsauskunft (Kunde)",
+    description: `Feuert automatisch, wenn jemand auf /bonitaet-antrag „Kundenpreis-Link anfordern“ klickt (POST /api/fiaon/auskunft/kundenpreis, server/routes/fiaon-auskunft-kauf.ts) und zur Adresse eine Person mit laufendem, bezahltem Paket gehört — die Seite antwortet immer gleich, die Mail geht nur an die Adresse der Person. Inhalt: Kundenpreis vom Server (${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, Firma ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)}), Auskunfteien je Land, ein Knopf: der signierte Kauflink (Bestätigungsseite mit Beschaffungsauftrag, dann Zahlungsseite) oder die Zahlungsseite einer schon offenen Auskunft. Keine Werbung (selbst angefordert, in PFLICHTMAILS); nicht an Gelöschte, Gekündigte, gesperrte Konten, Vertriebssperre, bezahlte oder gemeldete Auskünfte. Bremse: 3 je Adresse, 20 je IP und Stunde, dazu höchstens 5 je Person in 24 Stunden (Mail-Protokoll).`,
+    customerBound: true,
+    example: {
+      ...CUSTOMER_EXAMPLE,
+      anrede: "Guten Tag Max Mustermann,",
+      was: "Ihre Bonitätsauskunft",
+      preis_text: euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo),
+      auskunfteien: auskunfteienText("DE"),
+      leistung_satz: `Das bekommen Sie: Wir holen Ihre Auskunft bei ${auskunfteienText("DE")} ein, erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.`,
+      weg_satz: "Mit dem Knopf öffnen Sie Ihre Bestellung. Ihre Angaben kennen wir aus Ihrem Konto: Sie sehen Leistung und Preis, bestätigen den Auftrag und kommen danach direkt zur Zahlungsseite.",
+      knopf_text: `Auskunft für ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} beauftragen`,
+      kauf_url: "https://www.fiaon.com/api/fiaon/auskunft/bestellen?p=4711&art=privat&exp=1799999999000&sig=0f3a9b7c2e4d0f3a9b7c2e4d0f3a9b7c",
+      gueltig_tage: "14",
+      auskunft_art: "privat",
+      auskunft_land: "DE",
     },
   },
   {

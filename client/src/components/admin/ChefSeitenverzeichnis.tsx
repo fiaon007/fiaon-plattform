@@ -164,7 +164,7 @@ export default function ChefSeitenverzeichnis() {
     const chef: Gruppe = {
       titel: "Chefbüro",
       hinweis: "Alle Räume unter /chef/s/ — aus der Registry, immer vollständig.",
-      eintraege: CHEF_SEITEN.filter((s) => s.slug !== "akte").map((s) => [chefPfad(s), s.label] as Eintrag),
+      eintraege: CHEF_SEITEN.filter((s) => s.slug !== "akte" && s.raum).map((s) => [chefPfad(s), s.label] as Eintrag),
     };
     return [...GRUPPEN.slice(0, 7), chef, ...GRUPPEN.slice(7)];
   }, []);

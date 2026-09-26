@@ -5,7 +5,9 @@
    die Hell→Dunkel-Übersetzung .cbs übermalt hier nichts. Hover nur in
    @media (hover: hover): Am iPhone „klebt" er sonst nach dem Tippen.
    25.09.2026 (E-241): Trichter heute als Stufenleiste, Steuerung mit Wahlschaltern
-   und Protokoll, Trichter-Tabelle je Weg/Segment, 14 Tage als Tabelle mit Ziel-Balken. */
+   und Protokoll, Trichter-Tabelle je Weg/Segment, 14 Tage als Tabelle mit Ziel-Balken.
+   26.09.2026 (E-243): das Band „Verkauf scharf stellen" — die EINE Stelle mit Navy-Glas
+   auf der Seite — und die Rückfrage darunter. */
 
 .ak {
   --ak-text: #e7ecf4;
@@ -225,6 +227,29 @@
 .ak-tat { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 .ak-mehr { justify-self: start; }
 
+/* E-243: Verkauf scharf stellen — ein Band, links der Stand, rechts zwei Knöpfe. */
+.ak-scharf {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px 24px; flex-wrap: wrap;
+  padding: 18px 20px; border-radius: 18px; border: 1px solid rgba(147, 197, 253, .18);
+  background: linear-gradient(135deg, rgba(15, 30, 62, .72), rgba(12, 22, 44, .55));
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.ak-scharf.an { border-color: rgba(110, 231, 183, .3); }
+.ak-scharf-text { display: grid; gap: 6px; min-width: 0; flex: 1 1 420px; }
+.ak-scharf-text h2 { font-size: 17px; font-weight: 300; letter-spacing: -.01em; }
+.ak-scharf.an .ak-scharf-text h2 { color: var(--ak-gruen); }
+.ak-scharf-text p { font-size: 12.5px; color: var(--ak-leise); line-height: 1.55; max-width: 92ch; }
+.ak-scharf-vorlagen { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 2px; }
+.ak-scharf-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
+.ak-scharf-knoepfe .ak-knopf { padding: 10px 16px; font-size: 13px; }
+.ak-rueckfrage { padding: 16px 18px; border: 1px solid rgba(252, 211, 77, .25); border-radius: 16px; background: rgba(148, 163, 184, .04); }
+.ak-rueckfrage tfoot td { border-bottom: 0; border-top: 1px solid rgba(148, 163, 184, .3); color: var(--ak-text); font-variant-numeric: tabular-nums; }
+.ak-rueckfrage-liste { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 12.5px; color: var(--ak-text-2); line-height: 1.5; }
+.ak-rueckfrage-liste b { color: var(--ak-text); font-weight: 500; }
+.ak-rf-kurz { display: none; }
+.ak-marke.rot { color: var(--ak-rot); border-color: rgba(252, 165, 165, .35); }
+.ak-vorlage-stand { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
 /* Trichter und Tage: Zahlen hell, wo etwas ist — die Punkte und Striche treten zurück. */
 .ak-trichter-tabelle td, .ak-tage-tabelle td { vertical-align: middle; }
 .ak-trichter-tabelle td.voll, .ak-tage-tabelle td.voll { color: var(--ak-text); }
@@ -236,10 +261,13 @@
 .ak-tage-tabelle tr.heute td:first-child { color: var(--ak-blau-hell); }
 .ak-ziel-spalte { width: 22%; min-width: 110px; }
 
+/* Gegenlesen 26.09.2026 (E-243): Die Meldung hängt per Portal an document.body — AUSSERHALB von .ak,
+   wo --ak-text nicht gilt. Die Schrift erbte die dunkle Seitenfarbe: ein leerer Kasten (Foto nach
+   „Jetzt scharf stellen"). Deshalb die Farbe hier ausgeschrieben. */
 .ak-meldung {
   position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 80;
   padding: 11px 18px; border-radius: 14px; border: 1px solid rgba(147, 197, 253, .35);
-  background: rgba(15, 26, 45, .96); color: var(--ak-text); font-size: 13px; max-width: min(90vw, 620px);
+  background: rgba(15, 26, 45, .96); color: #e7ecf4; font-size: 13px; line-height: 1.5; max-width: min(90vw, 620px);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -273,4 +301,12 @@
   .ak-feld:not(:first-child) { border-top: 1px solid var(--ak-linie); }
   .ak-protokoll li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .ak-kopf-rechts { width: 100%; }
+  .ak-scharf { padding: 16px; }
+  .ak-rueckfrage { padding: 14px 12px; }
+  .ak-rf-lang, .ak-rf-breit { display: none; }
+  .ak-rf-kurz { display: inline; }
+  .ak-rf-tabelle th, .ak-rf-tabelle td { padding: 8px 6px; }
+  .ak-rf-tabelle th { white-space: normal; letter-spacing: .04em; }
+  .ak-scharf-knoepfe, .ak-scharf-knoepfe .ak-knopf { width: 100%; }
+  .ak-scharf-knoepfe .ak-knopf { justify-content: center; }
 }

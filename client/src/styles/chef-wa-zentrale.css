@@ -283,3 +283,11 @@
 }
 .mara-reiter button[aria-selected="true"] { color: #e7ecf4; border-bottom-color: #288dfa; }
 .mara-reiter button:focus-visible { outline: 2px solid #93c5fd; outline-offset: -2px; }
+/* E-243: Unteransicht im Reiter „Bonitätsauskunft" — Verkauf | Beschaffung */
+.mara-ansicht { display: inline-flex; gap: 2px; padding: 3px; margin: -6px 0 16px; border: 1px solid rgba(148, 163, 184, .16); border-radius: 10px; }
+.mara-ansicht button {
+  min-height: 36px; padding: 0 14px; border: none; border-radius: 7px; background: none; font: inherit; font-size: 13px;
+  color: #8292a8; cursor: pointer;
+}
+.mara-ansicht button[aria-pressed="true"] { background: rgba(40, 141, 250, .16); color: #e7ecf4; }
+.mara-ansicht button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }

@@ -408,9 +408,9 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
 //
 //   · fiaon_kk_auskunft       — zahlende Kunden: „In Ihrer Akte fehlt noch …",
 //                               Kundenpreis, Hochlade-Weg im Bereich, Betreuer.
-//   · fiaon_kk_auskunft_lead  — fertige Anträge ohne Zahlung (B) und Leads (C):
-//                               ohne Akte, ohne Betreuer, ohne Bereich — der
-//                               Einstieg ist die Frage, was die Bank sieht.
+//   · fiaon_kk_auskunft_lead  — fertige Anträge ohne Zahlung (B), Leads (C) und
+//                               seit E-243 Abbrecher: ohne Akte, ohne Betreuer,
+//                               ohne Bereich (Wortlaut: siehe E-243 unten).
 //
 // ── DIESELBEN VIER PLATZHALTER IN DERSELBEN REIHENFOLGE ───────────────────
 // {{1}} Name (anredeChat ohne „Hallo"), {{2}} das Wort, das der Mensch kennt
@@ -455,24 +455,64 @@ const AUSKUNFT_KAUF: WaKnopf = {
 const AUSKUNFT_STOPP_SATZ = "Sie können solchen Nachrichten jederzeit widersprechen: Antworten Sie STOPP — "
   + "es entstehen keine anderen als die Übermittlungskosten nach den Basistarifen.";
 
+// ── NEU GETEXTET: EHRLICH, ABER VERKAUFEND (26.09.2026, E-243) ─────────────
+// Justin: „Mach WhatsApp fix fertig … jeden Tag 20 WhatsApp … wo wir das
+// richtig verkaufen." Beide Vorlagen waren noch nicht eingereicht — sie dürfen
+// neu. Jeder Mensch bekommt genau EINE davon (einmal je Mensch), also trägt sie
+// den stärksten Winkel der Angebots-Mail, Fassung a: „Schon einmal abgelehnt,
+// ohne zu erfahren, warum?" — der Grund steht oft bei den Auskunfteien,
+// dort schaut die Bank nach; wir zeigen, OB und was bremst, mit fertigen
+// Schreiben. Die Warnung vor „Kredit ohne SCHUFA" steht NICHT hier: „Kredit"
+// ist auf WhatsApp gesperrt (nur „Kreditkarte" ist freigegeben, WHATSAPP_ERLAUBT),
+// und Meta prüft Finanzthemen streng — sie bleibt der Mail (Fassung b).
+// Die Lead-Vorlage (Anträge, Leads, seit E-243 auch Abbrecher) sagt ehrlich
+// „mit einem FIAON-Paket wird die Auskunft günstiger" — ohne Zahl, weil der
+// feste Text für privat (74 €) und Firma (199 €) stimmen muss; die Zahl nennt
+// die Bestätigungsseite. Text- und Bildfassung entstehen aus DENSELBEN
+// Absätzen (AUSKUNFT_ABSAETZE): Der Wortlaut kann nicht auseinanderlaufen.
+// Platzhalter unverändert {{1}}–{{4}} in derselben Reihenfolge (werteFuer).
+const AUSKUNFT_ABSAETZE: Record<string, string[]> = {
+  [AUSKUNFT_VORLAGE]: [
+    "Hallo {{1}},",
+    "hier ist Mara, die digitale Assistentin von FIAON.",
+    "Schon einmal abgelehnt, ohne zu erfahren, warum? Der Grund steht oft bei den Auskunfteien — "
+      + "dort sieht die Bank nach, bevor sie über Ihre Karte entscheidet.",
+    "In Ihrer Akte fehlt noch Ihre {{2}}. Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, "
+      + "zeigen, ob und was Sie bremst, und legen fertige Schreiben zur Freigabe vor.",
+    "Ihr Preis als FIAON-Kunde: {{4}} einmalig, ohne Abo. Über den Knopf sehen Sie alles in Ruhe; "
+      + "beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen. "
+      + "Schon eine aktuelle Auskunft? Dann laden Sie sie in Ihrem Bereich hoch.",
+    "Fragen beantworte ich gern hier, oder ich hole Ihren Betreuer dazu.",
+    AUSKUNFT_STOPP_SATZ,
+  ],
+  [AUSKUNFT_LEAD_VORLAGE]: [
+    "Hallo {{1}},",
+    "hier ist Mara, die digitale Assistentin von FIAON.",
+    "Schon einmal abgelehnt, ohne zu erfahren, warum? Der Grund steht oft bei den Auskunfteien — "
+      + "dort sieht die Bank nach, bevor sie über Ihre Karte entscheidet.",
+    "Mit Ihrer {{2}} sehen Sie vorher, was dort steht: Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, "
+      + "zeigen, ob und was Sie bremst, und legen fertige Schreiben zur Freigabe vor.",
+    "Ihr Preis: {{4}} einmalig, ohne Abo — mit einem FIAON-Paket wird die Auskunft günstiger. "
+      + "Über den Knopf sehen Sie alles in Ruhe; beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen.",
+    "Fragen beantworte ich gern hier, oder ich verbinde Sie mit einem Menschen aus unserem Team.",
+    AUSKUNFT_STOPP_SATZ,
+  ],
+};
+/** Textfassung (E-243): ein Absatz, die Absätze mit Leerzeichen verbunden. */
+const auskunftText = (name: string) => AUSKUNFT_ABSAETZE[name].join(" ");
+
 const WA_VORLAGEN_AUSKUNFT: WaVorlage[] = [
   {
     name: AUSKUNFT_VORLAGE,
-    kopf: "Ihre Bonitätsauskunft",
+    kopf: "Ihre Bonitätsauskunft fehlt noch",
     fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
-    zweck: "Angebot der Bonitätsauskunft an zahlende Kunden ohne Auskunft — Kundenpreis, Knopf zur Bestätigungsseite, Hochlade-Weg im Bereich.",
-    wann: "Gruppe „Auskunft fehlt“ der WA-Zentrale und Verkaufstakt (frühestens 3 Tage nach der Angebots-Mail) — zahlende Kunden ohne Auskunft, "
+    zweck: "Angebot der Bonitätsauskunft an zahlende Kunden ohne Auskunft — Winkel „abgelehnt, ohne zu erfahren, warum?“, Kundenpreis, Knopf zur Bestätigungsseite, Hochlade-Weg im Bereich.",
+    // Integration 26.09.2026 (E-243): frühestens 1 Tag nach Mail a (vorher 3), Fenster Mo–So 07:00–20:30.
+    wann: "Gruppe „Auskunft fehlt“ der WA-Zentrale und Verkaufstakt (frühestens 1 Tag nach der Angebots-Mail, Mo–So 07:00–20:30) — zahlende Kunden ohne Auskunft, "
       + "je nach Verkaufskreis (auskunft_verkauf_kreis) nur ab dem 02.09.2026 12:35 oder alle; nur mit WhatsApp-Einwilligung, einmal je Kunde, "
-      + "zusammen mit fiaon_kk_auskunft_lead höchstens auskunft_verkauf_wa_pro_tag (Standard 30) am Tag.",
-    text: "Hallo {{1}}, hier ist Mara Lindner von FIAON, die digitale Assistentin im Team. "
-      + "In Ihrer Akte fehlt noch Ihre {{2}} — dabei zeigt genau sie, was die Bank sieht, bevor sie über Ihre Karte entscheidet. "
-      + "Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen Ihren Handlungsplan, "
-      + "wo nötig mit fertigen Schreiben zur Freigabe. Ihr Preis als FIAON-Kunde: {{4}} einmalig, ohne Abo. "
-      + "Über den Knopf sehen Sie alles in Ruhe; beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen. "
-      + "Schon eine aktuelle Auskunft? Dann laden Sie sie einfach in Ihrem Bereich hoch. "
-      + "Fragen beantworte ich gern hier, oder ich gebe Sie an Ihren Betreuer weiter. "
-      + AUSKUNFT_STOPP_SATZ,
+      + "zusammen mit fiaon_kk_auskunft_lead höchstens auskunft_verkauf_wa_pro_tag am Tag.",
+    text: auskunftText(AUSKUNFT_VORLAGE),
     // {{1}} ist der ganze Name wie bei der Monatsrate (werteFuer: k.name) — das Beispiel zeigt es so.
     beispiele: ["Maria Muster", "SCHUFA-Auskunft", "SCHUFA, CRIF und Creditreform Boniversum", "74 €"],
     knoepfe: [AUSKUNFT_KAUF, FRAGE, STOPP],
@@ -482,16 +522,11 @@ const WA_VORLAGEN_AUSKUNFT: WaVorlage[] = [
     kopf: "Was die Bank über Sie sieht",
     fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
-    zweck: "Angebot der Bonitätsauskunft an fertige Anträge ohne Zahlung und an Leads — Einzelpreis, Knopf zur Bestätigungsseite; ohne Akte, Betreuer und Hochlade-Weg.",
-    wann: "Nur im Verkaufskreis „alle“ (auskunft_verkauf_kreis): Verkaufstakt und WA-Zentrale für Antrag fertig ohne Zahlung (B) und Leads (C) ohne Auskunft — "
-      + "nur mit WhatsApp-Einwilligung, einmal je Mensch, zusammen mit fiaon_kk_auskunft höchstens auskunft_verkauf_wa_pro_tag (Standard 30) am Tag.",
-    text: "Hallo {{1}}, hier ist Mara Lindner von FIAON, die digitale Assistentin im Team. "
-      + "Bevor eine Bank über Ihre Karte entscheidet, fragt sie bei den Auskunfteien nach — mit Ihrer {{2}} sehen Sie vorher, was dort über Sie steht. "
-      + "Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen Ihren Handlungsplan, "
-      + "wo nötig mit fertigen Schreiben zur Freigabe. Ihr Preis: {{4}} einmalig, ohne Abo. "
-      + "Über den Knopf sehen Sie alles in Ruhe; beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen. "
-      + "Fragen beantworte ich gern hier, oder ich verbinde Sie mit einem Menschen aus unserem Team. "
-      + AUSKUNFT_STOPP_SATZ,
+    zweck: "Angebot der Bonitätsauskunft an fertige Anträge ohne Zahlung, Leads und Abbrecher — Winkel „abgelehnt, ohne zu erfahren, warum?“, "
+      + "Einzelpreis mit dem Hinweis, dass die Auskunft mit Paket günstiger ist, Knopf zur Bestätigungsseite; ohne Akte, Betreuer und Hochlade-Weg.",
+    wann: "Nur im Verkaufskreis „alle“ (auskunft_verkauf_kreis): Verkaufstakt und WA-Zentrale für Antrag fertig ohne Zahlung (B), Leads (C) und Abbrecher ohne Auskunft — "
+      + "nur mit WhatsApp-Einwilligung, einmal je Mensch, zusammen mit fiaon_kk_auskunft höchstens auskunft_verkauf_wa_pro_tag am Tag.",
+    text: auskunftText(AUSKUNFT_LEAD_VORLAGE),
     beispiele: ["Maria Muster", "SCHUFA-Auskunft", "SCHUFA, CRIF und Creditreform Boniversum", "149 €"],
     knoepfe: [AUSKUNFT_KAUF, FRAGE, STOPP],
   },
@@ -598,22 +633,9 @@ const ABSAETZE: Record<string, string> = {
     + "Über den Knopf öffnen Sie Ihre Zahlungsseite mit dem QR-Code für Ihre Banking-App; Empfänger, Betrag und Verwendungszweck sind dort schon ausgefüllt.\n\n"
     + "Schon überwiesen? Dann hat sich diese Nachricht mit Ihrer Zahlung überschnitten — Sie müssen nichts weiter tun.\n\n"
     + "Haben Sie eine Frage zu Ihrer Rate, antworten Sie einfach auf diese Nachricht.",
-  // E-241: Wortlaut der Textfassungen oben, Satz für Satz — nur in Absätze gegliedert.
-  fiaon_kk_auskunft: "Hallo {{1}},\n\nhier ist Mara Lindner von FIAON, die digitale Assistentin im Team.\n\n"
-    + "In Ihrer Akte fehlt noch Ihre {{2}} — dabei zeigt genau sie, was die Bank sieht, bevor sie über Ihre Karte entscheidet.\n\n"
-    + "Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen Ihren Handlungsplan, "
-    + "wo nötig mit fertigen Schreiben zur Freigabe.\n\nIhr Preis als FIAON-Kunde: {{4}} einmalig, ohne Abo.\n\n"
-    + "Über den Knopf sehen Sie alles in Ruhe; beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen. "
-    + "Schon eine aktuelle Auskunft? Dann laden Sie sie einfach in Ihrem Bereich hoch.\n\n"
-    + "Fragen beantworte ich gern hier, oder ich gebe Sie an Ihren Betreuer weiter.\n\n"
-    + AUSKUNFT_STOPP_SATZ,
-  fiaon_kk_auskunft_lead: "Hallo {{1}},\n\nhier ist Mara Lindner von FIAON, die digitale Assistentin im Team.\n\n"
-    + "Bevor eine Bank über Ihre Karte entscheidet, fragt sie bei den Auskunfteien nach — mit Ihrer {{2}} sehen Sie vorher, was dort über Sie steht.\n\n"
-    + "Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen Ihren Handlungsplan, "
-    + "wo nötig mit fertigen Schreiben zur Freigabe.\n\nIhr Preis: {{4}} einmalig, ohne Abo.\n\n"
-    + "Über den Knopf sehen Sie alles in Ruhe; beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen.\n\n"
-    + "Fragen beantworte ich gern hier, oder ich verbinde Sie mit einem Menschen aus unserem Team.\n\n"
-    + AUSKUNFT_STOPP_SATZ,
+  // E-243 (26.09.2026): dieselben Absätze wie die Textfassung (AUSKUNFT_ABSAETZE), mit Leerzeile gegliedert.
+  [AUSKUNFT_VORLAGE]: AUSKUNFT_ABSAETZE[AUSKUNFT_VORLAGE].join("\n\n"),
+  [AUSKUNFT_LEAD_VORLAGE]: AUSKUNFT_ABSAETZE[AUSKUNFT_LEAD_VORLAGE].join("\n\n"),
 };
 
 /** Fußzeile der Bildfassung: „FIAON Ltd." vorne, dann was die Textfassung sagt. */

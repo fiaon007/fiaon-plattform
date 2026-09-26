@@ -23,6 +23,8 @@
 // Kunden werden gesiezt, Mitarbeiter geduzt — auch hier.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { RundgangSchritt } from "@/components/agent/Rundgang";
+// 26.09.2026 (E-243): die Auskunft-Preise im Rundgang aus der EINEN Quelle (reine Werte, keine Abhängigkeiten).
+import { auskunftPreisCents, euroText } from "@shared/fiaon-auskunft";
 
 export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
   {
@@ -1204,6 +1206,16 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
 // ── /chef/s/mara (21.09.2026) ─────────────────────────────────────────────────
 export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
+    // E-243 (26.09.2026): drei Reiter — der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite.
+    ziel: ".mara-reiter",
+    titel: "Drei Reiter: WhatsApp, Mail, Bonitätsauskunft.",
+    text: "Alles, womit wir Kunden von uns aus ansprechen, steht hier: die WhatsApp-Zentrale (Gruppen anschreiben, von Hand oder "
+      + "im Takt), die E-Mail-Aktion (Mara schreibt A und B an) und die Bonitätsauskunft — mit dem Knopf „Verkauf scharf "
+      + "stellen“, der Steuerung, dem Trichter gegen das Ziel 150 und der Beschaffung.",
+    tipp: "Die Adresse merkt sich den Reiter: /chef/s/mara?reiter=auskunft öffnet direkt den Auskunft-Verkauf, "
+      + "&ansicht=beschaffung die Beschaffung. Die Beschaffung gibt es für das Team zusätzlich im Raum „Kunden“.",
+  },
+  {
     titel: "Maras Steuerpult: alles, was sie tut, an einer Stelle.",
     text: "Mara beantwortet das Postfach — und schreibt von sich aus jeden an, der noch nichts bezahlt hat: zuerst A (Zahlung "
       + "gemeldet, Geld nicht da), dann B (Antrag fertig, Rechnung offen), rund um die Uhr, die frischesten zuerst. Jede Mail "
@@ -1413,14 +1425,28 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
 // ── /chef/s/auskunft (24.09.2026, E-240) — die Bonitätsauskunft verkaufen ─────
 // 25.09.2026 (E-241): Trichter, Steuerung mit Kreis und zwei Tagesdeckeln, Liefermodus,
 // Protokoll, 14 Tage mit Ziel-Balken und der Zähler der Beschaffung.
+// 26.09.2026 (E-243): das Band „Verkauf scharf stellen" mit Rückfrage, das Segment Abbrecher,
+// das Fenster Mo–So 07:00–20:30, die WhatsApp-Rangfolge und der Stand der Vorlagen bei Meta.
 export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
   {
-    titel: "Auskunft-Verkauf: der ganze Verkauf auf einer Seite.",
-    text: "Justins Ziel sind 150 Bonitätsauskünfte am Tag. Oben steht, was HEUTE passiert ist, in fünf Stufen: angeschrieben, "
+    titel: "Bonitätsauskunft: der ganze Verkauf an einer Stelle.",
+    text: "Der Verkauf der Bonitätsauskunft ist der dritte Reiter im Mara-Steuerpult, neben WhatsApp-Zentrale und Mail-Aktion "
+      + "(die alte Adresse /chef/s/auskunft führt hierher). Oben wählst du „Verkauf“ oder „Beschaffung“. "
+      + "Justins Ziel sind 150 Bonitätsauskünfte am Tag. Oben steht, was HEUTE passiert ist, in fünf Stufen: angeschrieben, "
       + "geklickt (Kauflink geöffnet), bestellt, bezahlt, geliefert (Auskunft liegt in der Akte). Darunter der Balken gegen das "
       + "Ziel — blau bestellt, grün bezahlt.",
     tipp: "Jede Stufe zählt an dem Tag, an dem sie geschah. Wer heute bezahlt, kann letzte Woche bestellt haben — die Zahlen "
       + "nebeneinander sind nicht dieselben Menschen.",
+  },
+  {
+    ziel: ".ak-scharf",
+    titel: "Verkauf scharf stellen: ein Knopf für alles.",
+    text: "„Verkauf scharf stellen“ stellt auf einmal: Takt an, Kreis „alle“, 500 Mails und 20 WhatsApp am Tag (Mo–So 07:00 bis "
+      + "20:30, gleichmäßig über den Tag), Liefermodus Einkauf — und reicht die fehlenden WhatsApp-Vorlagen bei Meta ein. Vorher "
+      + "fragt die Seite nach und zeigt je Segment, wer im Kreis ist, wem heute ein Schritt ansteht und wer per WhatsApp erreichbar "
+      + "ist. „Anhalten“ stoppt jeden Versand sofort; Kreis und Deckel bleiben stehen.",
+    tipp: "Neben dem Knopf steht der Stand der WhatsApp-Vorlagen bei Meta: noch nicht eingereicht, eingereicht (Meta prüft), "
+      + "freigegeben oder abgelehnt. Bis Meta freigibt, schreibt der Takt nur per Mail. Jede Änderung steht im Protokoll.",
   },
   {
     ziel: ".ak-beschaffung",
@@ -1433,8 +1459,9 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
     ziel: ".ak-steuer",
     titel: "Die Steuerung: an oder aus, wen, wie viele, wie geliefert.",
     text: "Verkaufstakt an oder aus. Kreis „Nur § 7 Abs. 3 UWG“ schreibt nur an, wer seit dem Widerspruchs-Hinweis im Antrag "
-      + "zum ersten Mal beantragt hat; Kreis „Alle ohne Auskunft“ nimmt zahlende Kunden, Anträge und Leads dazu — Justins "
-      + "Entscheidung vom 25.09. Werbesperre, Abmeldung und Vertriebssperre gelten immer. Mails und WhatsApp haben je einen "
+      + "zum ersten Mal beantragt hat; Kreis „Alle ohne Auskunft“ nimmt zahlende Kunden, Anträge, Abbrecher und Leads dazu — "
+      + "Justins Entscheidung vom 25./26.09.; nie Stornierte und Gekündigte. Werbesperre, Abmeldung und Vertriebssperre gelten "
+      + "immer. Gesendet wird Mo–So von 07:00 bis 20:30. Mails und WhatsApp haben je einen "
       + "eigenen Tagesdeckel, der Balken darunter zeigt, wie viel heute schon raus ist. Der Liefermodus sagt, wie eine bezahlte "
       + "Auskunft zu uns kommt: Einkauf (wir kaufen sie selbst), Vollmacht (Datenkopie bei den Auskunfteien) oder Schnittstelle.",
     tipp: "Jede Änderung steht im Protokoll darunter — wer, wann, vorher und nachher. WhatsApp geht nur an Menschen mit "
@@ -1444,7 +1471,7 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
     ziel: ".ak-trichter",
     titel: "Der Trichter je Weg oder je Segment.",
     text: "Dieselben fünf Stufen, aufgeteilt nach dem Weg (E-Mail, WhatsApp, Mara, Kundenbereich, öffentliche Seite) oder nach "
-      + "dem Segment (zahlende Kunden, Anträge, Leads) — heute oder über 14 Tage. „—“ heißt: Auf diesem Weg wird nicht "
+      + "dem Segment (zahlende Kunden, Anträge, Abbrecher, Leads) — heute oder über 14 Tage. „—“ heißt: Auf diesem Weg wird nicht "
       + "angeschrieben, dort kommen die Menschen selbst. Die Quote in der 14-Tage-Ansicht ist bezahlt je angeschrieben.",
     tipp: "Den Weg einer Bestellung hält jede Tür selbst fest. Ältere Bestellungen aus der Akte stehen unter „Betreuer“; "
       + "was sonst vor dem 25.09. bestellt wurde, unter „Ohne Herkunft“.",
@@ -1458,10 +1485,14 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
   {
     ziel: ".ak-pool",
     titel: "Wer sie noch nicht hat — je Segment.",
-    text: "A sind Kunden mit laufendem Paket, B fertige Anträge ohne Zahlung, C Leads ohne Antrag — jeweils ohne Auskunft. "
+    // Gegenlesen 26.09.2026 (E-243): die Preise aus der EINEN Quelle (shared/fiaon-auskunft.ts), nicht fest im Text.
+    text: `A sind Kunden mit laufendem Paket (Preis ${euroText(auskunftPreisCents("privat", true))}, Firma `
+      + `${euroText(auskunftPreisCents("firma", true))}), B fertige Anträge ohne Zahlung, Abbrecher begonnene, nicht abgeschickte `
+      + `Anträge, C Leads ohne Antrag (alle drei ${euroText(auskunftPreisCents("privat", false))}, Firma `
+      + `${euroText(auskunftPreisCents("firma", false))}) — jeweils ohne Auskunft. `
       + "„Erreichbar“ heißt ohne jeden Sperrgrund, „Im Kreis“ ist die Menge, die der Takt im eingestellten Kreis anschreiben darf, "
-      + "„Heute fällig“ die, bei denen heute ein Schritt ansteht. „Mail a · WA · b · c“ zeigt, wie weit sie schon sind. Darunter "
-      + "stehen die Sperrgründe mit ihrer Zahl.",
+      + "„Heute fällig“ die, bei denen heute ein Schritt ansteht, „WA-fähig im Kreis“ die mit WhatsApp-Einwilligung und Handy. "
+      + "„Mail a · WA · b · c“ zeigt, wie weit sie schon sind. Darunter stehen die Sperrgründe mit ihrer Zahl — auch „storniert“.",
     // Gegenlesen 24.09.2026: „auch nicht von Hand" gilt nur für die Werbesperre (die Tür im Mail-Motor) —
     // ein „Stopp" auf WhatsApp oder an Mara nimmt den Kunden aus Takt und WhatsApp, nicht aus dem Knopf in der Akte.
     tipp: "Die Werbesperre ist endgültig — dann geht kein Angebot mehr raus, auch nicht von Hand. Ein „Stopp“ auf WhatsApp oder in einer Antwort an Mara nimmt den Kunden für immer aus dem Takt.",
@@ -1471,23 +1502,31 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
     titel: "Wer als Nächstes dran ist.",
     text: "Dieselbe Auswahl wie der Takt, getrennt nach WhatsApp und E-Mail, mit Segment, Schritt (Mail a, b, c oder WhatsApp) "
       + "und dem Preis, den dieser Mensch sieht — ohne etwas zu senden, auch wenn der Takt aus ist. Kauf, Upload, Werbesperre, "
-      + "Abmeldung, „Stopp“, Kündigung oder Vertriebssperre beenden es sofort; wer gerade selbst geschrieben hat oder mit einem "
-      + "Mitarbeiter sprach, wartet.",
+      + "Abmeldung, „Stopp“, Kündigung, Storno oder Vertriebssperre beenden es sofort; wer gerade selbst geschrieben hat oder mit "
+      + "einem Mitarbeiter sprach, wartet. Die WhatsApp geht zuerst an alle, die den Kauflink geöffnet und nicht bestellt haben "
+      + "(Marke „Link geöffnet“), dann an Kunden, Anträge, Abbrecher und Leads — frühestens einen Tag nach der ersten Mail.",
     tipp: "Ein Klick auf den Namen öffnet die Akte.",
   },
   {
     ziel: ".ak-vorlage",
     titel: "Die WhatsApp-Vorlagen.",
-    text: "So sehen die Nachrichten aus — mit Beispielwerten, eine für zahlende Kunden (A), eine für Anträge und Leads (B, C). "
-      + "Beide sind Werbung (Kategorie Marketing). Bis Meta eine freigibt, geht an ihr Segment keine WhatsApp raus; der Takt "
-      + "schreibt dort dann nur per Mail.",
+    text: "So sehen die Nachrichten aus — mit Beispielwerten, eine für zahlende Kunden (A), eine für Anträge, Abbrecher und Leads. "
+      + "Beide sind Werbung (Kategorie Marketing). Rechts oben steht der Stand bei Meta: noch nicht eingereicht, eingereicht, "
+      + "freigegeben oder abgelehnt. Bis Meta eine freigibt, geht an ihr Segment keine WhatsApp raus; der Takt schreibt dort dann "
+      + "nur per Mail.",
   },
   {
     ziel: ".ak-offen",
     titel: "Bestellt, nicht bezahlt: Das Geld liegt schon auf dem Tisch.",
     text: "Jede offene Bestellung mit Betrag, Alter und Betreuer. „Zahlungsseite“ öffnet die Seite mit QR-Code, Betrag und "
       + "Verwendungszweck, „Link kopieren“ legt sie in die Zwischenablage — für eine Nachricht an den Kunden. Gelb steht, wer die "
-      + "Zahlung schon gemeldet hat: Dort nicht erinnern, sondern das Geld suchen.",
+      + "Zahlung schon gemeldet hat: Dort nicht erinnern, sondern das Geld suchen. "
+      // 26.09.2026 (E-243): Die Auskunft hat ihre eigene Zahlungs- und Dankeseite.
+      + "Die Seite spricht nur von der Auskunft — kein „Konto aktivieren“, keine Karte, kein Startgespräch: Einmalpreis, "
+      + "die Auskunfteien seines Landes und was nach der Zahlung passiert. Wer kein Paket hat, sieht nach „Ich habe überwiesen“ "
+      + "einen ruhigen Hinweis auf den Weg zur Karte mit einem FIAON-Paket — nach denselben Sperren wie die Mail „Ihre Auskunft "
+      + "ist da“ (nie bei Kündigung, Storno oder Sperre; wartet schon ein Paket-Antrag auf die erste Zahlung, kein zweiter Antrag). "
+      + "Eine stornierte oder ersetzte Auskunft-Bestellung zeigt keine Zahlungsdaten mehr.",
   },
   {
     ziel: ".ak-rueckstand",
@@ -1498,6 +1537,21 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
     tipp: "„Lieferung starten“ legt die Anfragen an die Auskunfteien an, gibt dem Betreuer die Aufgabe und schickt dem Kunden "
       + "den Link zur Unterschrift. „ohne Mail“ macht dasselbe ohne Mail — dann holt der Betreuer die Unterschrift im Gespräch. "
       + "Neue Zahlungen brauchen den Knopf nicht: Dort startet die Lieferung von selbst.",
+  },
+  // Integration 26.09.2026 (E-243): Rundgang-Pflicht — Kundenpreis-Link, Zusatz im Antrag, Ersatz der teureren
+  // Bestellung und die neue Aufgabe nach der Lieferung (Justin: „Wie stellen wir sicher, dass Kunden den Preis bekommen?").
+  {
+    titel: "Der richtige Preis — auf jedem Weg.",
+    text: `Den Preis entscheidet nur der Server: mit laufendem Paket ${euroText(auskunftPreisCents("privat", true))} `
+      + `(Firma ${euroText(auskunftPreisCents("firma", true))}), sonst ${euroText(auskunftPreisCents("privat", false))} `
+      + `(Firma ${euroText(auskunftPreisCents("firma", false))}). Auf der öffentlichen Bestellseite fragt die Seite oben „Schon `
+      + "FIAON-Kunde?“ — der Kunde gibt nur seine E-Mail-Adresse ein und bekommt den Kundenpreis-Link an die Adresse in seiner "
+      + "Akte. Bestellt ein Kunde dort ohne Anmeldung, nimmt die Seite den Einzelpreis nicht an und führt ihn zu diesem Link. Im "
+      + "Antrag lässt sich die Auskunft beim Vertrag annehmen zum Kundenpreis dazubestellen — nie vorangekreuzt, fällig erst nach "
+      + "der ersten Paketzahlung. Hat jemand erst einzeln bestellt und zahlt dann ein Paket, ersetzt die Bestellung zum "
+      + "Kundenpreis die teurere.",
+    tipp: "Ist die Auskunft eines Menschen ohne Paket geliefert, bekommt sein Betreuer die Aufgabe „Auskunft geliefert — "
+      + "Auswertung besprechen und Paket anbieten“. Das ist der zweite Verkauf: erst die Auskunft, dann das Paket.",
   },
 ];
 

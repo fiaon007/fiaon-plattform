@@ -62,6 +62,13 @@
 // C) stehen seit E-241 in WA_VORLAGEN, nicht mehr im Entwurf — gesendet wird
 // trotzdem erst, wenn Meta genau die Vorlage des Segments freigegeben hat.
 //
+// E-243 (26.09.2026): Der Kreis „alle" umfasst jetzt auch die Abbrecher (Antrag
+// begonnen, nicht abgeschickt; Vorlage fiaon_kk_auskunft_lead). Die gemeinsame
+// Angebots-Bremse gilt für diese Gruppe mit EINEM Tag (WA_ANGEBOT_ABSTAND_TAGE)
+// statt drei — die WhatsApp folgt der Angebots-Mail a am nächsten Tag. Und der
+// Handversand nimmt dieselbe Reihenfolge wie der Takt (waRangSql: Kauflink
+// geöffnet, Kunde, Antrag, Abbrecher, Lead).
+//
 // ── DIE ALTE STUNDENKETTE ──────────────────────────────────────────────────
 // Ist die Automatik hier AN, pausiert whatsappKetteLaufen() — sonst würde
 // zweimal geschrieben und Justins „5 pro Stunde" wäre wertlos. Die
@@ -73,7 +80,7 @@ import { sqlPool } from "./db-pool";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
-import { grundmengeIdsSql, ANGEBOT_EVENT, HOECHSTENS_MAILS } from "./fiaon-auskunft-verkauf";
+import { grundmengeIdsSql, waRangSql, tabellenBereit as verkaufTabellenBereit, WA_ANGEBOT_ABSTAND_TAGE } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
 
 export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
@@ -133,9 +140,10 @@ export const GRUPPEN: Record<Gruppe, GruppenRegel> = {
     titel: "Auskunft fehlt",
     // E-241: Die Menge folgt dem Kreis des Verkaufstakts (Einstellung auskunft_verkauf_kreis).
     satz: "Menschen ohne Bonitätsauskunft (nicht bestellt, nicht hochgeladen) im Kreis des Verkaufstakts: bei „uwg“ zahlende Kunden, "
-      + "die nach dem 02.09.2026 12:35 zum ersten Mal beantragt haben (§ 7 Abs. 3 UWG); bei „alle“ dazu fertige, unbezahlte Anträge "
-      + "und Leads ohne Antrag. Ohne Sperre, einmal je Mensch, nicht nach der dritten Angebots-Mail. "
-      + "Die Vorlage folgt dem Segment: Kunden fiaon_kk_auskunft, Anträge und Leads fiaon_kk_auskunft_lead — gesendet wird erst, wenn Meta sie freigibt.",
+      + "die nach dem 02.09.2026 12:35 zum ersten Mal beantragt haben (§ 7 Abs. 3 UWG); bei „alle“ dazu fertige, unbezahlte Anträge, "
+      + "begonnene Anträge (Abbrecher) und Leads ohne Antrag — nie Stornierte oder Gekündigte. Ohne Sperre, einmal je Mensch, "
+      + "frühestens einen Tag nach einem Angebot, auch nach der dritten Angebots-Mail noch. Wer den Kauflink geöffnet und nicht bestellt hat, steht vorn. "
+      + "Die Vorlage folgt dem Segment: Kunden fiaon_kk_auskunft, Anträge, Abbrecher und Leads fiaon_kk_auskunft_lead — gesendet wird erst, wenn Meta sie freigibt.",
     // E-241: Die Wahl ist nur der Einstieg — vorlageFuerKandidat nimmt immer die Vorlage des Segments.
     vorlagen: [AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE],
     standard: AUSKUNFT_VORLAGE,
@@ -346,14 +354,14 @@ export function gruppenBedingung(g: Gruppe): string {
       // Einstellung (grundmengeIdsSql, fiaon-auskunft-verkauf.ts: Segment, keine Auskunft, kein
       // Sperrgrund; bei „uwg" nur Kunden nach dem Stichtag). Die Unterabfrage hat keinen Bezug auf
       // b und entsteht einmal je Abfrage. Einmal je Mensch (eine gesendete Vorlage dieser Gruppe
-      // beendet es), und nicht mehr nach der dritten Angebots-Mail — dann ist der Verkauf zu Ende.
+      // beendet es). E-243 (Justin 26.09.2026, „jeden Tag 20 WhatsApp"): auch nach der dritten
+      // Angebots-Mail noch — dieselbe Regel wie der Takt (WA_FAELLIG_SQL, fiaon-auskunft-verkauf.ts).
       return `b.person_id IN (${grundmengeIdsSql()})
               AND NOT EXISTS (SELECT 1 FROM fiaon_wa_aktion xa WHERE xa.person_id = b.person_id AND xa.gruppe = 'auskunft_fehlt' AND xa.ok)
-              AND (SELECT COUNT(*) FROM fiaon_mail_log xm WHERE xm.person_id = b.person_id AND xm.event = '${ANGEBOT_EVENT}'
-                     AND xm.status = 'versandt' AND COALESCE(xm.art, 'echt') = 'echt') < ${HOECHSTENS_MAILS}
               -- Integration 25.09.2026 (E-240): die gemeinsame Bremse (fiaon-auskunft.ts) — kein zweites
-              -- Angebot binnen drei Tagen nach einer Angebots- oder Unterlagen-Mail oder Maras Angebot.
-              AND NOT EXISTS (SELECT 1 FROM (${angebotSpurenSql("b.person_id")}) ap_spur)
+              -- Angebot kurz nach einer Angebots- oder Unterlagen-Mail oder Maras Angebot. E-243 (26.09.2026):
+              -- für die WhatsApp EIN Tag (WA_ANGEBOT_ABSTAND_TAGE) statt drei — sie folgt der Mail a am nächsten Tag.
+              AND NOT EXISTS (SELECT 1 FROM (${angebotSpurenSql("b.person_id", WA_ANGEBOT_ABSTAND_TAGE)}) ap_spur)
               AND ${abstand} AND ${deckel}`;
   }
 }
@@ -391,12 +399,17 @@ export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = [])
   await zentraleSchema();
   const n = Math.min(500, Math.max(1, Math.round(anzahl)));
   const ausschluss = ohne.filter((x) => Number.isInteger(x));
+  // E-243 (26.09.2026): „Auskunft fehlt" in der Reihenfolge des Verkaufstakts (waRangSql) — wer den Kauflink
+  // geöffnet hat, zuerst; dann Kunde, Antrag, Abbrecher, Lead, je die frischeste Aktivität zuerst.
+  const rang = g === "auskunft_fehlt";
+  if (rang) await verkaufTabellenBereit();
   const rows = (await sqlPool.unsafe(`
     ${BASIS}
     SELECT b.*, EXTRACT(EPOCH FROM (NOW() - b.created_at)) / 86400 AS tage_roh
       FROM basis b
+      ${rang ? `LEFT JOIN (${waRangSql()}) ax_rang ON ax_rang.person_id = b.person_id` : ""}
      WHERE ${gruppenBedingung(g)} ${ausschluss.length ? `AND b.person_id <> ALL($1::int[])` : ""}
-     ORDER BY ${ORDNUNG[g]}
+     ORDER BY ${rang ? "ax_rang.rang ASC NULLS LAST, ax_rang.klick_am DESC NULLS LAST, ax_rang.aktiv_am DESC NULLS LAST, " : ""}${ORDNUNG[g]}
      LIMIT ${n}`, ausschluss.length ? [ausschluss] : [])) as any[];
   const aus: Kandidat[] = [];
   for (const r of rows) aus.push(await zeileZuKandidat(g, r));

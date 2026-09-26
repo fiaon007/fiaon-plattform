@@ -409,7 +409,8 @@ export async function auskunftDossier(personId: number, lage?: Kundenlage | null
     const art = lage && AUSKUNFT_ANTWORT_LAGEN.includes(lage)
       ? (await (await import("./fiaon-postmeister-werkzeuge")).auskunftArtLandVerkauf(personId)).art
       : await auskunftArtFuer(personId);
-    const s = await auskunftStand(personId, sqlPool, art);
+    // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+    const s = (await import("./fiaon-auskunft")).standZumZeigen(await auskunftStand(personId, sqlPool, art));
     return {
       stufe: s.stufe,
       art,

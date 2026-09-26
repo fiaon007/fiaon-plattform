@@ -36,6 +36,18 @@ import {
   AUSKUNFT_ANBIETER_ZEILE, AUSKUNFT_KEIN_WIDERRUF, AUSKUNFT_KONTAKT_ZEILE, AUSKUNFT_LAUFZEIT, AUSKUNFT_PREIS_STEUER,
   AUSKUNFT_VERTRAGSSPRACHE, AUSKUNFT_WIDERRUF, auskunftLeistungszeit,
 } from "@shared/fiaon-auskunft-widerruf";
+import { verkaufbarePakete } from "@shared/fiaon-pakete";
+
+/**
+ * Die Monatsrate des günstigsten Pakets, das heute verkauft wird — für den ehrlichen
+ * Vergleich „Nur die Auskunft" / „Mit FIAON-Paket" (26.09.2026, E-243). Eine Quelle:
+ * shared/fiaon-pakete.ts (Katalog). Ohne verkaufbares Abo-Paket entfällt die Zahl.
+ */
+const PAKET_RATEN = verkaufbarePakete("privat").filter((p) => p.abo && !p.zusatz).map((p) => p.preisCents);
+export const PAKET_AB: string | null = PAKET_RATEN.length ? euroText(Math.min(...PAKET_RATEN)) : null;
+
+/** Der Weg ins Paket mit Auskunft — das Bündel baut der Antrag (/antrag), hier nur der Link. */
+export const PAKET_MIT_AUSKUNFT_PFAD = "/antrag?src=auskunft&auskunft=1";
 
 /**
  * Die Fassung der Rechtssätze dieser Seite — reist mit jeder Bestellung zum Server.
@@ -175,8 +187,12 @@ export const T = {
   karteTag: "Ihre Bonitätsauskunft",
   karteEinmal: "einmalig · kein Abo",
   kartePaket: (privat: string, firma: string) => `FIAON-Kunden mit Paket zahlen ${privat} (Unternehmen ${firma}).`,
-  kartePaketLink: "Im Kundenbereich bestellen",
+  // 26.09.2026 (E-243): vorher „Im Kundenbereich bestellen" (/login) — jetzt öffnet der Link den
+  // Kunden-Zweig oben (Kundenpreis-Link ohne Anmeldung); die Anmeldung steht dort als zweiter Weg.
+  kartePaketLink: "Schon Kunde? Kundenpreis-Link anfordern",
   karteKundenpreis: "Ihr Preis als FIAON-Kunde mit Paket",
+  // Im Kunden-Zweig: die Karte zeigt den Kundenpreis, bestellt wird über den Link aus der Mail.
+  karteKundenZweig: "Ihr Preis als FIAON-Kunde mit laufendem Paket. Sie bestellen über Ihren persönlichen Link — Ihre Angaben sind dort schon eingetragen.",
   // Angemeldet, aber ohne laufendes, bezahltes Paket: Warum hier der Einzelpreis steht —
   // sonst sieht ein Kunde 149 €, obwohl sein Betreuer von 74 € sprach.
   karteKundeOhnePaket: (kundenpreis: string) => `Der Kundenpreis von ${kundenpreis} gilt, solange ein FIAON-Paket läuft und bezahlt ist. Für Ihr Konto gilt deshalb der Einzelpreis.`,
@@ -217,7 +233,8 @@ export const T = {
     { f: "Wirkt sich die Anfrage auf meine Bonität aus?", a: "Die Anfrage auf Ihre eigene Datenkopie ist keine Kreditanfrage. Nach Angaben der Auskunfteien fließt sie nicht in Ihre Bewertung ein." },
     { f: "Wie lange dauert es?", a: "Wir übermitteln Ihre Anfragen, sobald Ihre Zahlung eingegangen ist. Die Auskunfteien müssen innerhalb der gesetzlichen Frist antworten, in der Regel innerhalb eines Monats. Sobald die Antworten vorliegen, erhalten Sie Auswertung, Handlungsplan und Schreiben." },
     { f: "Kann FIAON Einträge löschen lassen?", a: "Löschen kann nur die Auskunftei. Wir prüfen die Speicherfristen und bereiten die Schreiben vor — etwa zur Löschung nach Fristablauf oder zur Berichtigung falscher Daten. Sie geben jedes Schreiben frei; ob ein Eintrag gelöscht wird, entscheidet die Auskunftei." },
-    { f: "Ich bin schon FIAON-Kunde. Was zahle ich?", a: `Mit einem laufenden Paket gilt der Kundenpreis: ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} (Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)}). Einzeln kostet die Auskunft ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} (Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}). Melden Sie sich an und bestellen Sie über Ihren Kundenbereich — der Kundenpreis gilt dort von selbst.` },
+    // 26.09.2026 (E-243): der Kundenpreis-Link ohne Anmeldung als erster Weg.
+    { f: "Ich bin schon FIAON-Kunde. Was zahle ich?", a: `Mit einem laufenden Paket gilt der Kundenpreis: ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} (Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)}). Einzeln kostet die Auskunft ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} (Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}). Wählen Sie oben „Ja, ich bin Kunde" und fordern Sie Ihren Kundenpreis-Link an — er kommt an die Adresse in Ihrem Konto, Ihre Angaben sind dort schon eingetragen. Oder melden Sie sich an und bestellen Sie im Kundenbereich; dort gilt der Kundenpreis von selbst.` },
     // Die kostenlose Datenkopie: ehrliche Antwort auf die Frage — nicht als erster Punkt, nicht als Hauptweg.
     { f: "Kann ich die Datenkopie nicht auch kostenlos selbst anfordern?", a: AUSKUNFT_KOSTENLOS_ANTWORT },
     { f: "Brauchen Sie weitere Unterlagen von mir?", a: "Zunächst nur die Angaben auf dieser Seite. Verlangt eine Auskunftei zusätzlich einen Identitätsnachweis, sagen wir Ihnen Bescheid." },
@@ -243,10 +260,61 @@ export const T = {
     oben: "Bitte prüfen Sie die markierten Angaben.",
     senden: `Die Bestellung ließ sich gerade nicht anlegen. Bitte versuchen Sie es in einem Moment noch einmal — oder schreiben Sie an ${FIAON_FIRMA.email}.`,
     bezahlt: "Für Sie ist bereits eine bezahlte Bonitätsauskunft hinterlegt — den Stand sehen Sie in Ihrem Kundenbereich.",
-    // Antwort 409 {anmelden:true}: Zu der E-Mail gehört ein laufendes Paket (fiaon-antrag.ts,
-    // POST /payment-order). Bewusst ohne „Sie sind FIAON-Kunde" — wer eine fremde Adresse
-    // eintippt, soll daraus nicht lesen, wer bei uns Kunde ist.
-    anmelden: "Mit dieser E-Mail-Adresse können wir die Bestellung hier nicht anlegen. Sind Sie bereits FIAON-Kunde, melden Sie sich bitte an und bestellen Sie in Ihrem Kundenbereich — dort gilt der Kundenpreis.",
-    anmeldenLink: "Zur Anmeldung",
+    // Antwort 409 {anmelden:true}: seit 26.09.2026 (E-243) kein Verweis auf die Anmeldung mehr,
+    // sondern der Wechsel in den Kunden-Zweig — Text: kf.nach409.
+  },
+
+  // ── Die Frage nach dem Paket (26.09.2026, E-243) ──────────────────────────
+  // Justin: „Wo wird da gefragt?" — hier, ganz oben. „Ja" gibt NICHT den Kundenpreis, sondern
+  // den Weg, ihn nachzuweisen: den Kundenpreis-Link an die Adresse der Person (POST
+  // /api/fiaon/auskunft/kundenpreis). Den Preis entscheidet der Server an der Person.
+  // Die Antwort ist für jede Adresse dieselbe — sie verrät nicht, wer bei uns Kunde ist.
+  kf: {
+    titel: "Sind Sie schon FIAON-Kunde mit laufendem Paket?",
+    // Gegenlesen 26.09.2026: vorher „Sie tippen hier nichts ein" — die E-Mail-Adresse tippt er doch.
+    sub: "Dann gilt Ihr Kundenpreis. Sie geben nur Ihre E-Mail-Adresse ein — wir schicken Ihnen einen persönlichen Link, Ihre übrigen Angaben kennen wir schon.",
+    aria: "Sind Sie schon FIAON-Kunde?",
+    ja: "Ja, ich bin Kunde",
+    // Zwei Zeilen je Kachel — am Handy bricht „· Unternehmen 349 €" sonst mitten im Betrag um.
+    jaZeilen: (privat: string, firma: string) => [`Kundenpreis ${privat}`, `Unternehmen ${firma}`],
+    nein: "Nein, einzeln bestellen",
+    neinZeilen: (privat: string, firma: string) => [`${privat} einmalig`, `Unternehmen ${firma}`],
+    emailLabel: "Ihre E-Mail-Adresse bei FIAON",
+    emailHinweis: "Die Adresse, unter der Sie Ihr Paket bestellt haben.",
+    emailFehler: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+    knopf: "Kundenpreis-Link anfordern",
+    knopfLaeuft: "Wird angefordert …",
+    unterKnopf: "Der Link öffnet Ihre Bestellung zum Kundenpreis. Bezahlt wird erst, nachdem Sie dort bestätigt haben.",
+    // Wortgleich mit KUNDENPREIS_ANTWORT (server/routes/fiaon-auskunft-kauf.ts) — die Seite zeigt,
+    // was der Server sagt; dieser Satz ist nur der Rückfall.
+    antwort: "Wenn zu dieser Adresse ein FIAON-Paket läuft, haben wir Ihnen gerade den Link mit Ihrem Kundenpreis geschickt. Schauen Sie in Ihr Postfach.",
+    spam: "Nichts angekommen? Schauen Sie auch im Spam-Ordner nach — oder melden Sie sich an: Im Kundenbereich gilt der Kundenpreis von selbst.",
+    anmelden: "Im Kundenbereich anmelden",
+    // Nach der 409 der Bestellung (fiaon-antrag.ts): Bewusst ohne „Sie sind FIAON-Kunde" — wer eine
+    // fremde Adresse eintippt, soll daraus nicht lesen, wer bei uns Kunde ist.
+    nach409: "Mit dieser E-Mail-Adresse können wir die Auskunft hier nicht einzeln bestellen. Sind Sie bereits FIAON-Kunde, fordern Sie hier Ihren Kundenpreis-Link an — er kommt an die Adresse in Ihrem Konto.",
+    doch: "Doch nicht Kunde? Einzeln bestellen",
+    fehler: "Das hat gerade nicht geklappt. Bitte versuchen Sie es in einem Moment noch einmal — oder melden Sie sich im Kundenbereich an.",
+  },
+
+  // ── Der ehrliche Vergleich im Zweig „Nein" (26.09.2026, E-243) ─────────────
+  // Justin: „Ziel ist, die Bonitätsauskunft zu verkaufen UND ein Abo — wenn nicht, auch gut."
+  // Beide Wege nebeneinander, ohne Streichpreis (PAngV § 11), mit Laufzeit und ohne „Limit"
+  // (Nicht-Kunden, § 34c GewO). Den Kundenpreis gibt es erst mit der ersten bezahlten Rate
+  // (hatLaufendesPaket) — das steht dabei.
+  vg: {
+    titel: "Einzeln oder mit Paket?",
+    nurTitel: "Nur die Auskunft",
+    nurText: "einmalig, kein Abo — Sie bestellen gleich hier unten.",
+    paketTitel: "Mit FIAON-Paket",
+    paketText: `für die Auskunft — dazu Ihr Paket${PAKET_AB ? ` ab ${PAKET_AB} im Monat` : ""}, Laufzeit zwölf Monate. Eine feste Ansprechperson begleitet Sie auf Ihrem Weg zur Karte, und wir übernehmen die Schreiben an die Auskunfteien. Der Kundenpreis gilt, sobald die erste Rate Ihres Pakets eingegangen ist.`,
+    paketLink: "Paket wählen und Antrag starten",
+    // Gegenlesen 26.09.2026 (E-243): Für die FIRMEN-Auskunft gibt es keinen Paketweg im Antrag —
+    // die Business-Pakete sind eingestellt, das Bündel im Antrag legt nach der ersten Rate eine
+    // PRIVAT-Auskunft an (buendelArt, shared/fiaon-auskunft-buendel.ts). Der Link „Paket wählen"
+    // hätte „Firmen-Auskunft 199 € mit Paket" versprochen und eine private Auskunft geliefert.
+    // Deshalb bei „Unternehmen" nur die ehrliche Auskunft, wann der Kundenpreis gilt — ohne Paketlink.
+    // Darunter statt des Paketlinks der Weg für Kunden (kartePaketLink → Kunden-Zweig).
+    paketTextFirma: "für die Firmen-Auskunft, solange ein FIAON-Paket läuft und bezahlt ist — der Link zum Kundenpreis kommt an die Adresse in Ihrem Konto.",
   },
 };

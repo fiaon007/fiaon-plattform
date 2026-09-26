@@ -163,14 +163,15 @@ export function kundeAmZugAuskunft(kauf: AuskunftKauf | null, bonitaetDarfKaufen
  */
 export async function auskunftKaufFuer(personId: number | null, ref: string, paketBezahlt: boolean): Promise<AuskunftKauf | null> {
   if (!personId) return null;
-  const { auskunftStand, auskunftArtFuer } = await import("../lib/fiaon-auskunft");
+  const { auskunftStand, auskunftArtFuer, standZumZeigen } = await import("../lib/fiaon-auskunft");
   const { neueLeistungGesperrt } = await import("../lib/fiaon-kuendigung");
   const { kaufSperre } = await import("./fiaon-auskunft-kauf");
   // E-241: dieselbe Art wie beim Bestellen (POST /kunde/auskunft/bestellen → auskunftArtFuer) —
   // sonst zeigte die Karte einem Business-Kunden den Privatpreis und bestellte die Firmen-Auskunft.
   const art = await auskunftArtFuer(personId);
   const [stand, gesperrt, personen, sperreKauf] = await Promise.all([
-    auskunftStand(personId, sqlPool, art),
+    // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+    auskunftStand(personId, sqlPool, art).then(standZumZeigen),
     neueLeistungGesperrt(ref),
     sqlPool`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${personId} LIMIT 1`,
     kaufSperre(personId),

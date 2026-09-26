@@ -27,7 +27,7 @@
 // (META_PRODUKT) — nur mit Marketing-Einwilligung und geladenem Pixel;
 // metaEreignis prüft beides selbst (client/src/lib/werbung.ts).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Dunkel, Licht, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
@@ -39,7 +39,7 @@ import {
 } from "@shared/fiaon-auskunft";
 import { landErkennen } from "@/lib/land-erkennen";
 import {
-  BX, BX_BEISPIEL, BX_FAMILIE, BX_PFAD, BX_PREIS, BX_SCHRITTE, bestellPfad, bxPreis, type BxSeite,
+  BX, BX_BEISPIEL, BX_FAMILIE, BX_PFAD, BX_PREIS, BX_SCHRITTE, bestellPfad, bxPreis, kundenpreisPfad, type BxSeite,
 } from "@/i18n/bonitaetsauskunft-familie";
 import type { BxFrage } from "@/i18n/bonitaetsauskunft-fragen";
 import "@/styles/bonitaetsauskunft.css";
@@ -132,6 +132,20 @@ export function BxHero({ seite, bild, krume, krumen, pille, h1a, h1b, lead, prei
   );
 }
 
+/**
+ * Der Weg zum Kundenpreis am Preis (26.09.2026, E-243): „Schon FIAON-Kunde? Kundenpreis-Link
+ * anfordern" → /bonitaet-antrag?kunde=1. Nur auf den deutschen Seiten der Familie — die
+ * zweisprachige Seite (eigene Worte, `eigen`) bekommt ihn nur, wenn sie ihn selbst mitbringt.
+ */
+export function KundenpreisLink({ art, land, eigen, className, stil }: {
+  art: AuskunftArt; land?: AuskunftLand; eigen?: BxEigeneWorte; className?: string; stil?: CSSProperties;
+}) {
+  const text = eigen ? eigen.kundenpreis : BX.kundenpreisLink;
+  if (!text) return null;
+  return <a className={className} style={stil} href={kundenpreisPfad(art, land)}>{text}</a>;
+}
+const LINK_IM_KOPF: CSSProperties = { color: "inherit", textDecoration: "underline", textDecorationColor: "rgba(147,197,253,.45)", textUnderlineOffset: 3 };
+
 /** Die Preiszeile im Kopf: beide Preise nebeneinander, nie als Streichpreis (PAngV § 11). */
 export function PreisZeile({ art = "privat", eigen }: { art?: AuskunftArt; eigen?: BxEigeneWorte }) {
   const p = bxPreis(art);
@@ -141,6 +155,10 @@ export function PreisZeile({ art = "privat", eigen }: { art?: AuskunftArt; eigen
       <p><b className="zahl">{e.einzeln ?? p.einzeln}</b><span>{e.einmal ?? BX.karteEinmal}</span></p>
       <p className="zweit">{e.mitPaket ?? BX.preisMitPaket(p.paket)}</p>
       <p className="steuer">{e.steuer ?? BX_PREIS.steuer}</p>
+      {/* E-243: der Kundenpreis-Link direkt unter dem Preis. */}
+      {(!eigen || eigen.kundenpreis) && (
+        <p className="zweit" style={{ marginTop: 10 }}><KundenpreisLink art={art} eigen={eigen} stil={LINK_IM_KOPF} /></p>
+      )}
     </div>
   );
 }
@@ -319,6 +337,8 @@ export function Bestellkarte({ art, land, aktiv }: { art: AuskunftArt; land: Aus
         <a className="bx-karte-knopf" href={bestellPfad(art, land ?? undefined)}>
           {art === "firma" ? BX.knopfBestellenFirma : BX.knopfBestellen}<Pfeil />
         </a>
+        {/* E-243: Kunden mit laufendem Paket direkt zum Kundenpreis-Link. */}
+        <KundenpreisLink art={art} land={land ?? undefined} className="bx-karte-leise" />
         {aktiv !== "ablauf" && <a className="bx-karte-leise" href={BX_PFAD.ablauf}>{BX.karteAblauf}</a>}
       </div>
       <nav className="bx-seiten" aria-label={BX.karteSeitenTitel}>
@@ -362,6 +382,8 @@ export interface BxEigeneWorte {
   pille?: string; titel?: string; satz?: string; einzeln?: string; einmal?: string; mitPaket?: string; steuer?: string;
   knopf?: string; knopf2?: { text: string; href: string }; fuss?: string;
   leisteWas?: string; leistePaket?: string; leisteKnopf?: string;
+  /** E-243: der Satz zum Kundenpreis-Link — ohne ihn zeigt eine Seite mit eigenen Worten keinen. */
+  kundenpreis?: string;
 }
 
 export function BxSchluss({ art = "privat", land, eigen }: { art?: AuskunftArt; land?: AuskunftLand; eigen?: BxEigeneWorte }) {
@@ -382,6 +404,8 @@ export function BxSchluss({ art = "privat", land, eigen }: { art?: AuskunftArt; 
             <Knopf href={bestellPfad(art, land)}>{e.knopf ?? (art === "firma" ? BX.knopfBestellenFirma : BX.knopfBestellen)}</Knopf>
             <Knopf href={zweiter.href} still>{zweiter.text}</Knopf>
           </div>
+          {/* E-243: der Weg zum Kundenpreis unter den Knöpfen (nicht auf Seiten mit eigenen Worten ohne Satz). */}
+          <KundenpreisLink art={art} land={land} eigen={eigen} className="bx-karte-leise" stil={{ marginTop: 16 }} />
           <p className="fuss">{e.fuss ?? BX.schlussFuss}</p>
         </Auf>
       </div>

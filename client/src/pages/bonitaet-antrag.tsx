@@ -48,6 +48,24 @@
 // Handlungsplan. NUR Optik: Prüfung, Bestellung, Zustimmungen und Preislogik
 // sind unverändert. Die Bausteine der Familie (bausteine.tsx) werden hier
 // bewusst NICHT geladen — sie ziehen die dunkle Bühne samt three.js mit.
+//
+// ── DIE FRAGE NACH DEM PAKET (26.09.2026, E-243) ──────────────────────────
+// Justin: „Wie stellen wir sicher, dass FIAON-Kunden den Preis bekommen …? Wo
+// wird da gefragt?" Jetzt ganz oben, für jeden ohne Kunden-Sitzung: „Sind Sie
+// schon FIAON-Kunde mit laufendem Paket?"
+//   · Ja → E-Mail-Feld „Kundenpreis-Link anfordern" (POST
+//     /api/fiaon/auskunft/kundenpreis). Die Antwort ist für jede Adresse
+//     dieselbe; hinter ihr schickt der Server der PERSON mit laufendem Paket
+//     ihren signierten Kauflink (Stammdaten aus der Akte, Preis vom Server).
+//     Das Bestellformular bleibt in diesem Zweig zu — ein Kunde soll hier
+//     nicht 149 € bestellen.
+//   · Nein (Vorgabe) → Einzelkauf wie bisher, dazu der ehrliche Vergleich
+//     „Nur die Auskunft" gegen „Mit FIAON-Paket" (Link in den Antrag).
+//   · ?kunde=1 (Übersicht, Bestellkarte der Familie) öffnet den Ja-Zweig.
+//   · Die 409 „anmelden" der Bestellung ist keine Sackgasse mehr: Die Seite
+//     wechselt in den Ja-Zweig, die getippte Adresse steht schon im Feld.
+// Den Preis entscheidet auch hier NICHT die Seite: „Ja" ist kein Kundenpreis,
+// sondern der Weg, ihn nachzuweisen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import GlassNav from "@/components/GlassNav";
@@ -65,7 +83,7 @@ import {
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import {
-  T, BESTELL_FASSUNG, BESTELL_KNOPF, PREIS_STEUER, LANDNAMEN, VORWAHLEN, RECHTSFORMEN, REGISTER_BEISPIEL,
+  T, BESTELL_FASSUNG, BESTELL_KNOPF, PREIS_STEUER, LANDNAMEN, VORWAHLEN, RECHTSFORMEN, REGISTER_BEISPIEL, PAKET_MIT_AUSKUNFT_PFAD,
 } from "@/i18n/bonitaet-antrag";
 import "@/styles/bonitaet-antrag.css";
 import { BX, BX_PFAD, BX_SCHRITTE } from "@/i18n/bonitaetsauskunft-familie";
@@ -100,6 +118,8 @@ interface Kunde {
 
 // ── Kleine Helfer ─────────────────────────────────────────────────────────
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+/** Ein Betrag, der nie zwischen Zahl und „€" umbricht (Kacheln der Kundenfrage, E-243). */
+const euroNb = (cents: number) => euroText(cents).replace(/ €$/, "\u00a0€");
 
 /** Die Nummer als +49…/+43…/+41… — ohne führende 0 ergänzt die Vorwahl des gewählten Landes. */
 function telefonE164(roh: string, land: AuskunftLand): string | null {
@@ -225,22 +245,29 @@ function KarteKopf({ nr, titel, text }: { nr: number; titel: string; text?: stri
 }
 
 /** Die EINE Navy-Stelle der Seite: Preis, Auskunfteien, Leistung. */
-function Bestellkarte({ art, land, preisCents, mitAbo, angemeldet, paketOffen }: {
+function Bestellkarte({ art, land, preisCents, mitAbo, angemeldet, paketOffen, kundenZweig, onKunde }: {
   art: AuskunftArt; land: AuskunftLand; preisCents: number; mitAbo: boolean; angemeldet: boolean; paketOffen: boolean;
+  /** 26.09.2026 (E-243): Der Kunden-Zweig ist offen — die Karte zeigt den Kundenpreis, bestellt wird über den Link. */
+  kundenZweig: boolean; onKunde: () => void;
 }) {
   const bei = auskunfteienFuer(land);
+  // Im Kunden-Zweig steht der Kundenpreis groß — er gilt aber erst über den Link (der Server prüft die Person).
+  const betrag = kundenZweig && !angemeldet ? auskunftPreisCents(art, true) : preisCents;
   return (
     <aside className="ba-bestell ba-rein v1" aria-label="Ihre Bestellung">
       <div className="tag">{T.karteTag}</div>
       <p className="fuer">{art === "firma" ? T.artFirma : T.artPrivat} · {LANDNAMEN[land]}</p>
-      <div className="betrag"><b>{euroText(preisCents)}</b><span>{T.karteEinmal}</span></div>
+      <div className="betrag"><b>{euroText(betrag)}</b><span>{T.karteEinmal}</span></div>
       <p className="steuer">{PREIS_STEUER}</p>
       {mitAbo ? (
         <div className="kundenpreis">{T.karteKundenpreis}</div>
+      ) : !angemeldet && kundenZweig ? (
+        <div className="kundenpreis">{T.karteKundenZweig}</div>
       ) : !angemeldet ? (
         <div className="kundenpreis">
           {T.kartePaket(euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo), euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo))}
-          <br /><a href="/login">{T.kartePaketLink}</a>
+          {/* E-243: öffnet den Kunden-Zweig oben (ohne Skript: dieselbe Seite mit ?kunde=1). */}
+          <br /><a href={`/bonitaet-antrag?kunde=1${art === "firma" ? "&art=firma" : ""}`} onClick={(e) => { e.preventDefault(); onKunde(); }}>{T.kartePaketLink}</a>
         </div>
       ) : (
         <div className="kundenpreis">
@@ -286,6 +313,12 @@ export default function BonitaetAntragPage() {
   const [trotzdem, setTrotzdem] = useState(false);
   const beruehrt = useRef(false);
   const meldungRef = useRef<HTMLDivElement>(null);
+  // 26.09.2026 (E-243): die Frage nach dem Paket — ?kunde=1 öffnet den Kunden-Zweig.
+  const [kundeFrage, setKundeFrage] = useState<"ja" | "nein">(() => (ausAdresse<"1" | "0">("kunde", ["1", "0"], "0") === "1" ? "ja" : "nein"));
+  const [kp, setKp] = useState<{ email: string; status: "bereit" | "laeuft" | "gesendet"; text: string | null; fehler: string | null; nach409: boolean }>(
+    { email: "", status: "bereit", text: null, fehler: null, nach409: false },
+  );
+  const kfRef = useRef<HTMLElement>(null);
 
   useEffect(() => appViewport(), []);
   useEffect(() => {
@@ -386,6 +419,33 @@ export default function BonitaetAntragPage() {
     return f;
   }
 
+  /** In den Kunden-Zweig wechseln (Bestellkarte, 409 der Bestellung) — mit der Adresse, wenn es eine gibt. */
+  function zumKundenZweig(opts: { email?: string; nach409?: boolean } = {}) {
+    beruehrt.current = true;
+    setKundeFrage("ja");
+    setMeldung(null);
+    setKp((v) => ({ ...v, email: opts.email ?? v.email, nach409: !!opts.nach409, status: "bereit", text: null, fehler: null }));
+    window.setTimeout(() => kfRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+
+  /** „Kundenpreis-Link anfordern" — die Antwort ist für jede Adresse dieselbe (Server). */
+  async function kundenpreisAnfordern() {
+    if (kp.status === "laeuft") return;
+    const email = kp.email.trim().toLowerCase();
+    if (!emailOk(email)) { setKp((v) => ({ ...v, fehler: T.kf.emailFehler })); return; }
+    setKp((v) => ({ ...v, email, status: "laeuft", text: null, fehler: null }));
+    try {
+      const r = await fetch("/api/fiaon/auskunft/kundenpreis", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, art }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.ok) { setKp((v) => ({ ...v, status: "gesendet", text: String(j.text || T.kf.antwort) })); return; }
+      setKp((v) => ({ ...v, status: "bereit", fehler: T.kf.fehler }));
+    } catch {
+      setKp((v) => ({ ...v, status: "bereit", fehler: T.kf.fehler }));
+    }
+  }
+
   async function bestellen() {
     if (senden !== "bereit" || !bestellbar) return;
     setMeldung(null);
@@ -442,9 +502,15 @@ export default function BonitaetAntragPage() {
       }
       if (r.ok && j?.ok && j.alreadyPaid) setMeldung({ ton: "blau", text: T.f.bezahlt, link: { href: "/mein-bereich", text: T.kundeZumBereich } });
       // Gegenlesen 24.09.2026: Der Server weist zahlende Paketkunden ohne Anmeldung mit 409
-      // {anmelden:true} ab (sie zahlen im Bereich 74 € statt 149 €). Vorher stand hier
+      // {anmelden:true} ab (sie zahlen 74 € statt 149 €). Vorher stand hier
       // „ließ sich gerade nicht anlegen … versuchen Sie es noch einmal" — eine Schleife.
-      else if (r.status === 409 && j?.anmelden) setMeldung({ ton: "blau", text: T.f.anmelden, link: { href: "/login", text: T.f.anmeldenLink } });
+      // 26.09.2026 (E-243): Auch „Zur Anmeldung" war eine Hürde — jetzt wechselt die Seite in den
+      // Kunden-Zweig, die getippte Adresse steht schon im Feld; ein Klick schickt den Kundenpreis-Link.
+      else if (r.status === 409 && j?.anmelden) {
+        setSenden("bereit");
+        zumKundenZweig({ email: d.email.trim().toLowerCase(), nach409: true });
+        return;
+      }
       // Gegenlesen 25.09.2026 (E-241): Der Server legt ohne den Haken des Auftrags nichts an.
       else if (r.status === 400 && j?.grund === "auftrag_fehlt") setMeldung({ ton: "rot", text: String(j.error || T.f.haken) });
       else setMeldung({ ton: "rot", text: T.f.senden });
@@ -525,7 +591,80 @@ export default function BonitaetAntragPage() {
               </section>
             )}
 
-            {bestellbar && (<>
+            {/* ── Die Frage nach dem Paket (26.09.2026, E-243) — nur ohne Kunden-Sitzung ── */}
+            {!kunde && (
+              <section className="ba-karte" id="ba-kundenfrage" ref={kfRef} aria-label={T.kf.aria} style={{ scrollMarginTop: 116 }}>
+                <h2 style={{ margin: 0 }}>{T.kf.titel}</h2>
+                <p className="ba-hinweis" style={{ marginTop: 4, marginBottom: 16, fontSize: 14 }}>{T.kf.sub}</p>
+                <div className="ba-wahl" role="radiogroup" aria-label={T.kf.aria}>
+                  {([
+                    ["ja", T.kf.ja, T.kf.jaZeilen(euroNb(AUSKUNFT_PREISE_CENTS.privat.mitAbo), euroNb(AUSKUNFT_PREISE_CENTS.firma.mitAbo))],
+                    ["nein", T.kf.nein, T.kf.neinZeilen(euroNb(AUSKUNFT_PREISE_CENTS.privat.einzeln), euroNb(AUSKUNFT_PREISE_CENTS.firma.einzeln))],
+                  ] as const).map(([k, titel, zeilen]) => (
+                    <button key={k} type="button" role="radio" aria-checked={kundeFrage === k} className="ba-kachel"
+                            onClick={() => { beruehrt.current = true; setKundeFrage(k); setMeldung(null); }}>
+                      <span><b>{titel}</b><small>{zeilen[0]}<br />{zeilen[1]}</small></span>
+                      <span className="haken" aria-hidden="true"><Haken12 /></span>
+                    </button>
+                  ))}
+                </div>
+
+                {kundeFrage === "ja" ? (
+                  <div style={{ marginTop: 20 }}>
+                    {kp.nach409 && <div className="ba-mitteilung" role="status" style={{ marginBottom: 16 }}>{T.kf.nach409}</div>}
+                    <div className="ba-felder">
+                      <Feld id="kp-email" label={T.kf.emailLabel} pflicht fehler={kp.fehler ?? undefined} hinweis={T.kf.emailHinweis} voll>
+                        <input id="ba-e-kp-email" className="ba-eingabe" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                               value={kp.email} placeholder={T.emailPlatz[land]}
+                               // Gegenlesen 26.09.2026: Eine neue Adresse nimmt die alte Antwort weg — sonst stünde „haben wir … geschickt" unter einer nie angeforderten Adresse.
+                               onChange={(e) => { const v = e.target.value.trim(); setKp((s) => ({ ...s, email: v, fehler: null, ...(s.status === "gesendet" && v !== s.email ? { status: "bereit" as const, text: null } : {}) })); }}
+                               // Die Eingabetaste fordert den Link an — sie bestellt nie (§ 312j Abs. 3 BGB: nur der Bestellknopf).
+                               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void kundenpreisAnfordern(); } }} />
+                      </Feld>
+                    </div>
+                    <button type="button" className="ba-knopf breit" disabled={kp.status === "laeuft"} onClick={() => void kundenpreisAnfordern()}>
+                      {kp.status === "laeuft" ? <><span className="dreht" aria-hidden="true" />{T.kf.knopfLaeuft}</> : T.kf.knopf}
+                    </button>
+                    <p className="ba-unterknopf">{T.kf.unterKnopf}</p>
+                    {kp.status === "gesendet" && kp.text && (
+                      <div className="ba-mitteilung" role="status" style={{ marginTop: 16 }}>
+                        {kp.text}<br /><span style={{ display: "inline-block", marginTop: 6 }}>{T.kf.spam}</span>
+                      </div>
+                    )}
+                    <div className="ba-textknoepfe">
+                      <a className="ba-textknopf" href="/login">{T.kf.anmelden}</a>
+                      <button type="button" className="ba-textknopf" onClick={() => { setKundeFrage("nein"); setKp((s) => ({ ...s, nach409: false })); }}>{T.kf.doch}</button>
+                    </div>
+                  </div>
+                ) : (
+                  // Der ehrliche Vergleich: einzeln oder mit Paket — beide Preise nebeneinander, kein Streichpreis.
+                  <div style={{ marginTop: 18 }}>
+                    <p className="ba-unter" style={{ marginTop: 0 }}>{T.vg.titel}</p>
+                    <dl className="ba-zf">
+                      <div className="preis">
+                        <dt>{T.vg.nurTitel}</dt>
+                        <dd><b>{euroText(AUSKUNFT_PREISE_CENTS[art].einzeln)}</b><small>{T.vg.nurText}</small></dd>
+                      </div>
+                      <div className="preis">
+                        <dt>{T.vg.paketTitel}</dt>
+                        <dd>
+                          {/* Gegenlesen 26.09.2026: Firma ohne Paketweg (das Bündel im Antrag liefert privat) — dort der Kunden-Zweig. */}
+                          <b>{euroText(AUSKUNFT_PREISE_CENTS[art].mitAbo)}</b><small>{art === "firma" ? T.vg.paketTextFirma : T.vg.paketText}</small>
+                          <p className="ba-verweis" style={{ marginTop: 8 }}>
+                            {art === "firma"
+                              ? <button type="button" className="ba-textknopf" onClick={() => zumKundenZweig()}>{T.kartePaketLink}</button>
+                              : <a href={PAKET_MIT_AUSKUNFT_PFAD}>{T.vg.paketLink}</a>}
+                          </p>
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="ba-hinweis">{PREIS_STEUER}</p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {bestellbar && (!!kunde || kundeFrage === "nein") && (<>
               {/* ── 1 · Für wen ── */}
               <section className="ba-karte" aria-label={T.s1}>
                 <KarteKopf nr={1} titel={T.s1} />
@@ -709,7 +848,8 @@ export default function BonitaetAntragPage() {
           </form>
 
           <div className="ba-seite">
-            <Bestellkarte art={art} land={land} preisCents={preisCents} mitAbo={mitAbo} angemeldet={!!kunde} paketOffen={!!kunde?.paketOffen} />
+            <Bestellkarte art={art} land={land} preisCents={preisCents} mitAbo={mitAbo} angemeldet={!!kunde} paketOffen={!!kunde?.paketOffen}
+                          kundenZweig={!kunde && kundeFrage === "ja"} onKunde={() => zumKundenZweig()} />
           </div>
         </div>
 

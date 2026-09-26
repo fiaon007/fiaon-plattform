@@ -216,7 +216,8 @@ export async function auskunftMailTeil(personId: number, lauf: Lauf = sqlPool): 
   // 25.09.2026: dieselbe Art-Regel wie alle Türen (Business-Paket → Firmen-Auskunft).
   const { auskunftArtFuer } = await import("../lib/fiaon-auskunft");
   const art = await auskunftArtFuer(personId, lauf);
-  const stand = await auskunftStand(personId, lauf, art);
+  // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+  const stand = (await import("../lib/fiaon-auskunft")).standZumZeigen(await auskunftStand(personId, lauf, art));
   if (stand.stufe === "bezahlt") return { modus: "weglassen", grund: "Die Auskunft ist bezahlt — wir holen sie ein, der Kunde muss nichts liefern." };
   // dokumentDa statt stufe === "dokument": Die Stufe stellt eine offene Bestellung
   // VOR das Dokument — wer selbst eine hochgeladen hat, bekommt trotzdem keine Zahlungsbitte.
@@ -610,7 +611,12 @@ router.get("/auskunft/bestellen", async (req: Request, res: Response) => {
         "Die Zahlung ist bei uns eingegangen — wir holen Ihre Auskunft ein. Den Stand sehen Sie in Ihrem Bereich.");
     }
     // Eine offene Bestellung: direkt zu ihrer Zahlungsseite, es entsteht nichts Neues.
-    if (stand.offen?.paymentReference) {
+    // Integration 26.09.2026 (E-243): nur, wenn auskunftBestellen sie auch wiederverwenden würde
+    // (offenWiederverwendbar — EINE Regel). Ist sie älter als 21 Tage oder teurer als der Preis von
+    // heute (zum Einzelpreis bestellt, danach Paket), zeigt die Seite den heutigen Preis; der Klick
+    // legt die Bestellung dazu an und ersetzt die alte. Vorher stand der Kunde auf der 149-€-Seite.
+    const { offenWiederverwendbar } = await import("../lib/fiaon-auskunft");
+    if (stand.offen?.paymentReference && offenWiederverwendbar(stand)) {
       return res.redirect(303, absoluteUrl(`/zahlung/${encodeURIComponent(stand.offen.paymentReference)}`));
     }
     // Werbesperre zählt hier nicht — der Mensch hat selbst geklickt. Das Paket seit E-241 auch nicht
@@ -883,6 +889,244 @@ router.post("/auskunft/auftrag/:token", async (req: Request, res: Response) => {
     console.error("[AUSKUNFT-AUFTRAG] Bestätigen:", err);
     hinweisSeite(res, 500, "Das hat gerade nicht geklappt", "Bitte versuchen Sie es in ein paar Minuten noch einmal — oder antworten Sie einfach auf unsere E-Mail.");
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER KUNDENPREIS-LINK (26.09.2026, E-243)
+//
+// ── DER BEFUND ─────────────────────────────────────────────────────────────
+// Justin: „Wie stellen wir sicher, dass FIAON-Kunden den Preis bekommen (privat
+// 74 €, B2B 199 €) und nur die ohne Abo 149/349 € zahlen? Wo wird da gefragt?"
+// Gefragt wurde nirgends. Die Bestellseite /bonitaet-antrag kannte den Kunden
+// nur mit Kunden-Sitzung; ohne Anmeldung tippte er alle Angaben ein und bekam
+// beim Absenden die 409 „anmelden" (POST /payment-order) — eine Sackgasse vor
+// einer Passwort-Hürde, die jeder fünfte Kunde nicht nimmt (fiaon-login-gate).
+//
+// ── DIE REGEL ──────────────────────────────────────────────────────────────
+// Den Preis entscheidet IMMER der Server über die PERSON (auskunftPreis →
+// hatLaufendesPaket; Art per auskunftArtFuer: Business-Paket → Firma 199 €).
+// „Kunde" heißt: die Person ist bekannt — angemeldet (Kaufkarte), signierter
+// Kauflink (Mail, WhatsApp, Mara) oder NEU dieser Kundenpreis-Link:
+//   POST /api/fiaon/auskunft/kundenpreis {email, art?}
+//   · Antwort IMMER gleich und SOFORT, bevor die Datenbank gefragt wird —
+//     keine Auskunft darüber, ob die Adresse Kunde ist (Muster: Anmelde-Link,
+//     fiaon-app-login.ts). Auch die Antwortzeit verrät nichts.
+//   · Dahinter: Person(en) zur Adresse über fiaon_mail_norm (Hauptadresse und
+//     email/contact_email/billing_email jeder Bestellung), die erste mit
+//     laufendem Paket bekommt die Mail `auskunft_kundenpreis` mit ihrem
+//     Kauflink (kaufLink, oben) — Stammdaten aus der Akte, Preis vom Server.
+//   · Die Mail geht an die Adresse der PERSON (adresseBestimmen in
+//     make-webhook.ts), nie an eine fremde getippte Adresse.
+//   · Bremse im Speicher: 3 je Adresse und 20 je IP und Stunde. Ein Neustart
+//     vergisst sie — verkraftbar, der Deckel schützt vor Serien, nicht vor
+//     einem einzelnen Klick. Dazu (Gegenlesen 26.09.2026) der Tagesdeckel je
+//     PERSON im Mail-Protokoll: höchstens 5 Kundenpreis-Mails in 24 Stunden,
+//     egal über welche IP oder welche ihrer Adressen angefordert wurde.
+//
+// ── WER KEINE MAIL BEKOMMT (und trotzdem dieselbe Antwort sieht) ───────────
+//   · kein laufendes Paket (dann gilt ohnehin der Einzelpreis),
+//   · DSGVO-gelöscht, gekündigt (E-213: keine neue Leistung — der Kauflink
+//     sagte sonst „Keine neue Beauftragung möglich"), Konto gesperrt
+//     (account_status 'suspended'), Vertriebssperre (is_blocked) — wer so
+//     gesperrt ist, meldet sich an; die Kaufkarte im Bereich gilt weiter,
+//   · Auskunft schon bezahlt oder Zahlung gemeldet — es gibt nichts zu kaufen.
+// Eine offene Auskunft-Bestellung ÜBER dem Kundenpreis (vor dem Paket zum
+// Einzelpreis angelegt) hielt die Mail bis zur Integration auf. Seit
+// offenWiederverwendbar (fiaon-auskunft.ts, Integration 26.09.2026) geht der
+// Kauflink raus: Kaufseite und auskunftBestellen ersetzen die teurere Bestellung
+// durch die zum Kundenpreis (superseded_by). Gemessen 26.09.2026: 0 Fälle.
+// Die Werbesperre hält diese Mail NICHT auf: Der Mensch hat sie gerade selbst
+// angefordert (PFLICHTMAILS in fiaon-mail-frequenz.ts, wie der Anmelde-Link).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die EINE Antwort des POST — für jede Eingabe dieselbe (auch bei Bremse und Tippfehler). */
+export const KUNDENPREIS_ANTWORT = {
+  ok: true as const,
+  text: "Wenn zu dieser Adresse ein FIAON-Paket läuft, haben wir Ihnen gerade den Link mit Ihrem Kundenpreis geschickt. Schauen Sie in Ihr Postfach.",
+};
+
+const KP_JE_ADRESSE = 3;
+const KP_JE_IP = 20;
+const KP_FENSTER_MS = 60 * 60 * 1000;
+const kpBremse = new Map<string, number[]>();
+let kpPflege = 0;
+
+/** Zählt einen Versuch und sagt, ob er noch im Deckel liegt (Muster: bremseErlaubt, fiaon-app-login.ts). */
+function kpErlaubt(schluessel: string, deckel: number, jetzt = Date.now()): boolean {
+  if (jetzt - kpPflege > 5 * 60 * 1000) {
+    kpPflege = jetzt;
+    const alt: string[] = [];
+    kpBremse.forEach((zeiten, k) => { if (!zeiten.some((t) => jetzt - t < KP_FENSTER_MS)) alt.push(k); });
+    for (const k of alt) kpBremse.delete(k);
+  }
+  const frisch = (kpBremse.get(schluessel) ?? []).filter((t) => jetzt - t < KP_FENSTER_MS);
+  if (frisch.length >= deckel) { kpBremse.set(schluessel, frisch); return false; }
+  frisch.push(jetzt);
+  kpBremse.set(schluessel, frisch);
+  return true;
+}
+
+/** Nur für den Prüfstand: Bremse leeren. */
+export function kundenpreisBremseZuruecksetzen(): void { kpBremse.clear(); }
+
+/** Laufende Hintergrund-Arbeiten — der Prüfstand wartet darauf (kundenpreisLeerlauf). */
+const kpLaeufe = new Set<Promise<unknown>>();
+export async function kundenpreisLeerlauf(): Promise<void> { await Promise.allSettled(Array.from(kpLaeufe)); }
+
+/** Die Adresse nie im Klartext ins Log — und nie als Schlüssel im Speicher. */
+const kpHash = (s: string) => createHmac("sha256", "auskunft-kundenpreis").update(s).digest("hex").slice(0, 32);
+const kpMaske = (s: string) => { const at = s.indexOf("@"); return at < 1 ? "(ungültig)" : `${s.slice(0, 2)}•••${s.slice(at)}`; };
+
+export type KundenpreisErgebnis =
+  | "versandt" | "kein_kunde" | "geloescht" | "gekuendigt" | "gesperrt"
+  | "schon_bezahlt" | "zahlung_gemeldet" | "offen_zum_einzelpreis" | "mail_abgelehnt" | "bremse_tag";
+
+/**
+ * Gegenlesen 26.09.2026 (E-243): der Tagesdeckel JE PERSON — im Mail-Protokoll, nicht im Speicher.
+ * Die Bremse oben zählt je getippter Adresse und je IP und vergisst beim Neustart. Wer die IP
+ * wechselt (oder Haupt- und Kontaktadresse abwechselnd tippt), hätte einem Kunden sonst bis zu
+ * drei Mails je Stunde und Adresse schicken lassen können, ohne dass der Kunde je geklickt hat.
+ * Gezählt: versandte Kundenpreis-Mails an diese Person in den letzten 24 Stunden.
+ */
+const KP_JE_PERSON_TAG = 5;
+
+/** Die Personen hinter einer Adresse (höchstens 5), zusammengeführte auf ihre Überlebende gezeigt. */
+export async function kundenpreisPersonen(email: string): Promise<number[]> {
+  const zeilen = (await sqlPool`
+    WITH treffer AS (
+      SELECT p.id FROM fiaon_persons p WHERE fiaon_mail_norm(p.primary_email) = fiaon_mail_norm(${email})
+      UNION
+      SELECT a.person_id FROM fiaon_applications a
+       WHERE a.person_id IS NOT NULL
+         AND (fiaon_mail_norm(a.email) = fiaon_mail_norm(${email})
+           OR fiaon_mail_norm(a.contact_email) = fiaon_mail_norm(${email})
+           OR fiaon_mail_norm(a.billing_email) = fiaon_mail_norm(${email}))
+    )
+    SELECT DISTINCT COALESCE(p.merged_into_person_id, p.id)::int AS id
+      FROM treffer t JOIN fiaon_persons p ON p.id = t.id
+     ORDER BY 1 LIMIT 5`) as any[];
+  return zeilen.map((z) => Number(z.id)).filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/**
+ * Die Arbeit hinter der Antwort: Kunde finden, Sperren prüfen, Mail schicken.
+ * Das Ergebnis ist für Log und Prüfstand — NIE für die HTTP-Antwort.
+ */
+export async function kundenpreisLinkAnfordern(ein: { email: string; art?: unknown }): Promise<{
+  ergebnis: KundenpreisErgebnis; personId: number | null; art?: AuskunftArt; preis?: string; grund?: string;
+}> {
+  const email = String(ein.email ?? "").trim().toLowerCase();
+  const { hatLaufendesPaket, auskunftArtFuer, auskunftStand } = await import("../lib/fiaon-auskunft");
+  let personId: number | null = null;
+  for (const id of await kundenpreisPersonen(email)) {
+    if (await hatLaufendesPaket(id)) { personId = id; break; }
+  }
+  if (personId == null) return { ergebnis: "kein_kunde", personId: null };
+
+  // Dieselben Wände wie der Kauflink (vorpruefen) — dazu Kontosperre und Vertriebssperre.
+  const person = await personAufloesen(personId);
+  if (!person || person.geloescht) return { ergebnis: "geloescht", personId };
+  if (person.gekuendigt) return { ergebnis: "gekuendigt", personId };
+  const [s] = (await sqlPool`
+    SELECT p.first_name, p.last_name, COALESCE(p.is_blocked, FALSE) AS vertriebssperre,
+           -- Gegenlesen 26.09.2026: auch die Sperre an der PERSON (gemessen: 1 Person 'suspended', 72 Bestellungen).
+           (COALESCE(p.account_status, '') = 'suspended'
+            OR EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+                         AND a.account_status = 'suspended')) AS kontosperre
+      FROM fiaon_persons p WHERE p.id = ${personId} LIMIT 1`) as any[];
+  if (!s || s.vertriebssperre || s.kontosperre) return { ergebnis: "gesperrt", personId };
+
+  // Wunsch „Unternehmen" von der Seite gilt (der Kundenpreis 199 € gilt für jedes laufende
+  // Paket, auskunftPreis); sonst die EINE Art-Regel: Business-Paket → Firma.
+  let art: AuskunftArt = ein.art === "firma" ? "firma" : await auskunftArtFuer(personId);
+  const stand = await auskunftStand(personId, sqlPool, art);
+  if (stand.stufe === "bezahlt") return { ergebnis: "schon_bezahlt", personId, art };
+  if (stand.offen?.status === "claimed_paid") return { ergebnis: "zahlung_gemeldet", personId, art };
+  if (!stand.preis.mitAbo) return { ergebnis: "kein_kunde", personId, art };
+  // Integration 26.09.2026 (E-243): Eine offene Bestellung nur, wenn auskunftBestellen sie auch
+  // wiederverwenden würde (offenWiederverwendbar — jünger als 21 Tage, nicht teurer als heute).
+  // Eine teurere (vor dem Paket zum Einzelpreis bestellt) hielt die Mail bisher ganz auf
+  // („offen_zum_einzelpreis") — der Kunde, der gerade nach SEINEM Preis fragt, bekam nichts.
+  // Jetzt geht der Kauflink raus, in der Art der offenen Bestellung: Die Kaufseite zeigt den
+  // Kundenpreis, der Klick legt die Bestellung dazu an und ersetzt die alte (superseded_by).
+  const { offenWiederverwendbar } = await import("../lib/fiaon-auskunft");
+  const offenGilt = stand.offen?.status === "pending_payment" && offenWiederverwendbar(stand);
+  // Gegenlesen 26.09.2026 (E-243): Die offene Bestellung bestimmt die Art der Mail — die gültige (ihr
+  // Knopf führt zu IHRER Zahlungsseite, wie der Kauflink selbst, GET oben) und ebenso die ersetzte
+  // (der Kauflink bestellt dasselbe Produkt zum Kundenpreis). Vorher: Wunsch „Unternehmen" + offene
+  // Privat-Auskunft → „die Bonitätsauskunft Ihres Unternehmens … 74 €" mit dem Knopf zur
+  // Privat-Bestellung. `art` der offenen kommt aus ihrem Katalogschlüssel (auskunftStand).
+  if (stand.offen?.status === "pending_payment" && stand.offen.art) art = stand.offen.art;
+  const offen = offenGilt && stand.offen?.paymentReference ? stand.offen : null;
+  // Je Sendung EINE Zählung: Bei gleichzeitigen Anforderungen kann das Protokoll eine Sendung
+  // doppelt führen (gleiche Brevo-Kennung, Prüfstand 26.09.2026) — daher DISTINCT über die Kennung.
+  const [tag] = (await sqlPool`
+    SELECT COUNT(DISTINCT COALESCE(brevo_message_id, id::text))::int AS n FROM fiaon_mail_log
+     WHERE person_id = ${personId} AND event = 'auskunft_kundenpreis' AND status = 'versandt'
+       AND art <> 'test' AND created_at > NOW() - INTERVAL '24 hours'`) as any[];
+  if (Number(tag?.n ?? 0) >= KP_JE_PERSON_TAG) return { ergebnis: "bremse_tag", personId, art };
+
+  // E-243: der Kundenpreis der ART dieser Mail (sie kann die der offenen Bestellung sein, oben) — nie der von `stand`.
+  const preis = offen ? euroText(offen.betragCents || auskunftPreisCents(art, true)) : euroText(auskunftPreisCents(art, true));
+  const bei = auskunfteienText(stand.land);
+  const { mailSenden } = await import("../lib/fiaon-mail-senden");
+  const versand = await mailSenden({
+    event: "auskunft_kundenpreis",
+    personId,
+    akteur: { rolle: "admin", name: "System (Kundenpreis-Link)", agentId: null },
+    zusatz: {
+      anrede: anredeMail({ vorname: s.first_name, nachname: s.last_name }),
+      was: art === "firma" ? "die Bonitätsauskunft Ihres Unternehmens" : "Ihre Bonitätsauskunft",
+      preis_text: preis,
+      auskunfteien: bei,
+      leistung_satz: art === "firma"
+        ? `Das bekommen Sie: Wir holen die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien ein, dazu die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei ${bei}, erklären jeden Eintrag und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.`
+        : `Das bekommen Sie: Wir holen Ihre Auskunft bei ${bei} ein, erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.`,
+      weg_satz: offen
+        ? `Für Sie ist schon eine Bestellung über ${preis} angelegt — es fehlt nur noch die Überweisung. Der Knopf führt Sie direkt zur Zahlungsseite mit Bankverbindung und Verwendungszweck.`
+        : "Mit dem Knopf öffnen Sie Ihre Bestellung. Ihre Angaben kennen wir aus Ihrem Konto: Sie sehen Leistung und Preis, bestätigen den Auftrag und kommen danach direkt zur Zahlungsseite.",
+      knopf_text: offen ? `Zahlungsseite öffnen — ${preis}` : `Auskunft für ${preis} beauftragen`,
+      kauf_url: offen ? absoluteUrl(`/zahlung/${encodeURIComponent(String(offen.paymentReference))}`) : kaufLink(personId, art),
+      gueltig_tage: String(KAUF_LINK_TAGE),
+      auskunft_art: art,
+      auskunft_land: stand.land,
+    },
+  });
+  if (!versand.ok) return { ergebnis: "mail_abgelehnt", personId, art, preis, grund: versand.grund ?? versand.meldung };
+  return { ergebnis: "versandt", personId, art, preis };
+}
+
+/**
+ * POST /api/fiaon/auskunft/kundenpreis {email, art?} — ÖFFENTLICH.
+ * Antwortet sofort und immer gleich; die Arbeit läuft danach im Hintergrund.
+ */
+router.post("/auskunft/kundenpreis", (req: Request, res: Response) => {
+  // IP wie beim Anmelde-Link: req.ip (trust proxy 1) — nie der erste X-Forwarded-For-Eintrag.
+  const ip = String(req.ip || req.socket?.remoteAddress || "unbekannt");
+  const email = String((req.body as any)?.email ?? "").trim().toLowerCase();
+  const art = (req.body as any)?.art === "firma" ? "firma" : undefined;
+
+  // Erst die Antwort — dann die Arbeit. Kein Zweig darf die Antwort verändern.
+  res.setHeader("Cache-Control", "no-store");
+  res.json(KUNDENPREIS_ANTWORT);
+
+  const plausibel = email.length >= 5 && email.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+  if (!plausibel) return;
+  if (!kpErlaubt(`ip:${ip}`, KP_JE_IP)) {
+    console.log(`[AUSKUNFT-KUNDENPREIS] Bremse IP — ${kpMaske(email)}`);
+    return;
+  }
+  if (!kpErlaubt(`adresse:${kpHash(email)}`, KP_JE_ADRESSE)) {
+    console.log(`[AUSKUNFT-KUNDENPREIS] Bremse Adresse — ${kpMaske(email)}`);
+    return;
+  }
+  const lauf = kundenpreisLinkAnfordern({ email, art })
+    .then((erg) => {
+      console.log(`[AUSKUNFT-KUNDENPREIS] ${erg.ergebnis} — ${kpMaske(email)}${erg.personId ? ` (Person ${erg.personId}${erg.preis ? `, ${erg.preis}` : ""})` : ""}${erg.grund ? ` — ${erg.grund}` : ""}`);
+    })
+    .catch((e) => console.error("[AUSKUNFT-KUNDENPREIS] Fehler:", String((e as Error)?.message || e).slice(0, 300)))
+    .finally(() => { kpLaeufe.delete(lauf); });
+  kpLaeufe.add(lauf);
 });
 
 export default router;

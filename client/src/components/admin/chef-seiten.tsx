@@ -31,7 +31,8 @@
 // Deshalb tragen die Einträge hier den Filter GLEICH MIT. Kein Sprung, kein
 // Umweg — der Raum öffnet die Ansicht, die gemeint ist.
 // ═══════════════════════════════════════════════════════════════════════════
-import { lazy, type ComponentType } from "react";
+import { lazy, useEffect, type ComponentType } from "react";
+import { useLocation } from "wouter";
 import type { ChefStufe } from "./ChefShell";
 
 const Kunden = lazy(() => import("@/pages/admin-kunden"));
@@ -59,8 +60,14 @@ const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"))
 // 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
 const Mara = lazy(() => import("@/components/admin/ChefMara"));
 const LeadMotor = lazy(() => import("@/components/admin/ChefLeadMotor"));
-// 24.09.2026 (E-240): Die Bonitätsauskunft verkaufen — Tageszahl gegen Ziel 150, Pool, Takt, Rückstand.
-const AuskunftVerkauf = lazy(() => import("@/components/admin/ChefAuskunft"));
+// 24.09.2026 (E-240): Die Bonitätsauskunft verkaufen — seit 26.09.2026 (E-243) der Reiter „Bonitätsauskunft"
+// im Mara-Steuerpult (Justin: „nicht schon wieder eine neue eigene Seite"). Die alte Adresse führt dorthin.
+function Umzug({ nach, wohin }: { nach: string; wohin: string }) {
+  const [, navigate] = useLocation();
+  useEffect(() => { navigate(nach, { replace: true }); }, [nach, navigate]);
+  return <div className="cb-hinweis" role="status"><b>Umgezogen.</b><p>Das steht jetzt im <a href={nach}>{wohin}</a>.</p></div>;
+}
+const AuskunftUmzug = () => <Umzug nach="/chef/s/mara?reiter=auskunft" wohin="Mara-Steuerpult, Reiter „Bonitätsauskunft“" />;
 // 25.09.2026 (E-241): „Bis zur API kaufen wir sie selbst" — der Arbeitsplatz der Beschaffung.
 const AuskunftBeschaffung = lazy(() => import("@/components/admin/ChefAuskunftBeschaffung"));
 const Provisionen = lazy(() => import("@/components/admin/ChefProvisionen"));
@@ -153,7 +160,8 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "ohne-onboarding", label: "Bezahlt ohne Startgespräch", satz: "Die Kunden, bei denen das Onboarding hängt.", Seite: Kunden, raum: "kunden", suche: "bezahltOhneOnboarding=1" },
   // 24.09.2026 (E-240): Justin — die Auskunft soll „weggehen wie warme Semmeln" (Ziel 150 am Tag).
   // 25.09.2026 (E-241): Trichter (angeschrieben → geliefert) und Steuerung (Kreis, Mails/WhatsApp je Tag, Liefermodus, Protokoll).
-  { slug: "auskunft", label: "Auskunft-Verkauf", satz: "Bonitätsauskunft: der Trichter heute und über 14 Tage gegen das Ziel 150, die Steuerung des Verkaufs mit Protokoll, wer sie noch nicht hat, offene Bestellungen und Rückstand.", Seite: AuskunftVerkauf, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf angebot takt ziel 150 handlungsplan rückstand rueckstand lieferung trichter klicks kreis liefermodus einkauf protokoll steuerung" },
+  // E-243 (26.09.2026): umgezogen ins Mara-Steuerpult — keine Kachel mehr (raum ""), die Adresse leitet weiter.
+  { slug: "auskunft", label: "Auskunft-Verkauf (jetzt im Mara-Steuerpult)", satz: "Umgezogen: Mara-Steuerpult, Reiter „Bonitätsauskunft“.", Seite: AuskunftUmzug, raum: "", mindest: "inhaber", eigenesDesign: true },
   // 25.09.2026 (E-241): Bis die API steht, beschaffen wir die bezahlten Auskünfte selbst — hier, je Auftrag.
   { slug: "auskunft-beschaffung", label: "Auskunft-Beschaffung", satz: "Bezahlte Bonitätsauskünfte beschaffen: alle Daten zum Bestellen, Vollmacht, Frist, PDF hochladen — Akte, Analyse und Mail an den Kunden folgen von selbst.", Seite: AuskunftBeschaffung, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft beschaffung beschaffen einkauf kaufen bestellen schufa ksv crif intrum boniversum hochladen upload pdf vollmacht einwilligung widerrufsfrist rückstand rueckstand lieferung api" },
   // 17.09.2026 (E-188): FIAON Global — Firmenaufträge über die US-Struktur. Eigene Liste, weil ein
@@ -187,7 +195,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "postmeister", label: "Postfach", satz: "Alle Kundenmails an einem Ort: was der Kunde schrieb, seine Akte daneben, die Antwort zum Prüfen", Seite: Postmeister, raum: "kommunikation", mindest: "inhaber", auch: "email agent gmail postfach support ki automatisch" },
   { slug: "whatsapp", label: "WhatsApp", satz: "Der Chat mit den Kunden: alle Gespräche, das 24-Stunden-Fenster, Vorlagen und Maras Schalter je Gespräch.", Seite: WhatsAppRaumSeite, raum: "kommunikation", eigenesDesign: true, auch: "whatsapp chat nachricht wa mara postfach kunde schreiben" },
   { slug: "lead-motor", label: "Lead-Motor", satz: "Die Facebook-Leads direkt von Meta: Verbindung mit einem Knopf einrichten, Rückstand nachholen, Begrüßungsmail schalten — und jeder Lead mit Herkunft, Begrüßung, Klick und Antrag.", Seite: LeadMotor, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
-  { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale und Mail-Aktion: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt — und jede Mail, jeden Takt und die Kosten steuern.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher" },
+  { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale, Mail-Aktion und der Verkauf der Bonitätsauskunft: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt —, jede Mail, jeden Takt und die Kosten steuern, den Auskunft-Verkauf scharf stellen.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung" },
   { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "kommunikation" },
   { slug: "space", label: "Space", satz: "Der Feed des Teams — mitlesen, anpinnen, moderieren.", Seite: Space, raum: "kommunikation" },
 

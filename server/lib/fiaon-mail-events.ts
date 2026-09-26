@@ -326,6 +326,14 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Werbung: das Angebot der Bonitätsauskunft (Preis je Paketstand, Auskunfteien je Land, Knopf zum Beauftragen). Nie an Käufer, nie bei Werbe- oder Vertriebssperre oder Kündigung; automatisch nur an Kunden ab dem 02.09.2026 (§ 7 Abs. 3 UWG).",
     vonHand: false, pflichtFelder: ["kauf_url", "upload_url", "abmelde_url", "preis_text"],
   },
+  // 26.09.2026 (E-243): Der Kundenpreis-Link — nur das System (die Route kundenpreis in
+  // fiaon-auskunft-kauf.ts) schickt ihn, auf Anforderung des Kunden. Kauflink, Preis und
+  // Sätze kennt nur sie; im Sende-Menü stünde die Mail ohne Knopf.
+  auskunft_kundenpreis: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Der Link zum Kundenpreis der Bonitätsauskunft — geht automatisch, wenn ein Kunde mit laufendem Paket ihn auf /bonitaet-antrag anfordert. Selbst angefordert, keine Werbung.",
+    vonHand: false, pflichtFelder: ["anrede", "kauf_url", "preis_text", "weg_satz", "knopf_text", "leistung_satz"],
+  },
   // 18.09.2026: Das ist die ENTSPERRUNG („Ihr Zugang ist wieder frei") — sie
   // geht beim Freischalten in der Akte. Aus dem Menü an einen Kunden, der nie
   // gesperrt war, wäre sie falsch; die erste Freischaltung ist bereich_freigeschaltet.

@@ -5,6 +5,44 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 26.09.2026 (1) — Bonitätsauskunft: der richtige Preis auf jedem Weg, eigene Zahlungsseite, Verkauf scharf im Mara-Steuerpult (E-243)
+
+**Der Anlass (Justin):** „Wie stellen wir sicher, dass FIAON-Kunden den Preis bekommen (privat 74 €, B2B 199 €) … wo wird
+da gefragt? Warum die gleiche Zahlungsseite für Nicht-Kunden — da steht ‚Konto aktivieren' … Ziel ist, die Auskunft UND
+ein Abo zu verkaufen … JEDER (außer stornierte Kunden) … jeden Tag 20 WhatsApp (Mo–So 07:00 bis 20:30)." Später: „Das
+soll nicht schon wieder eine neue eigene Seite sein, pflege das logisch hier ein: /chef/s/mara."
+
+**Was jetzt gilt:**
+- **Preis:** Den Preis setzt nur der Server (149/74 €, Firma 349/199 €). Auf /bonitaet-antrag fragt die Seite „Schon
+  FIAON-Kunde?" → Kundenpreis-Link per Mail an die hinterlegte Adresse (immer dieselbe Antwort, kein Verrat, ob jemand
+  Kunde ist). Die öffentliche Bestellung erkennt Kunden jetzt auch an Hauptadresse, Kontakt- und Rechnungsadresse.
+  Eine offene, teurere Bestellung wird ersetzt, sobald der Kundenpreis gilt.
+- **Eigene Zahlungsseite:** „Ihre Bonitätsauskunft — nur noch überweisen", ohne „Konto aktivieren", ohne Termin-Kachel;
+  Danke-Seite und Mail nach „Ich habe überwiesen" in einer Auskunft-Fassung. Nicht-Kunden sehen danach den Weg zum Paket.
+- **Auskunft + Abo:** Im Antrag ein Haken (nie vorangekreuzt) „Bonitätsauskunft zum Kundenpreis dazubestellen" — fällig
+  erst nach der ersten Paketzahlung, dann automatisch 74 €.
+- **Verkauf:** neue Mail-Serie (Kunde, Antrag, Abbrecher, Lead × Mail a/b/c, Firma eigene, je zwei Betreffzeilen),
+  ehrlich, aber verkaufend; WhatsApp-Vorlagen neu getextet. Zielgruppe „alle": jeder außer storniert/gekündigt, wer schon
+  eine Auskunft hat (hochgeladen, bezahlt, offen bestellt) und den immer gesperrten (Werbesperre, Abmeldung, STOPP,
+  Vertriebssperre, unzustellbar); neu das Segment Abbrecher. Fenster Mo–So 07:00–20:30 für Mail und WhatsApp,
+  500 Mails und 20 WhatsApp am Tag. Die WhatsApp geht an die Passendsten zuerst (Kauflink geöffnet → Kunde → Antrag →
+  Abbrecher → Lead), frühestens einen Tag nach der ersten Mail, höchstens eine je Mensch — und auch nach der dritten Mail
+  noch, damit es wirklich jeden Tag 20 sind (vorher wären sie ab etwa 22.10. ausgegangen).
+- **Bedienung im Mara-Steuerpult:** /chef/s/mara hat den dritten Reiter **„Bonitätsauskunft"** (Verkauf | Beschaffung)
+  mit dem Knopf **„Verkauf scharf stellen"**: setzt Takt an, Kreis „alle", 500 Mails, 20 WhatsApp, Liefermodus Einkauf,
+  schreibt alles ins Protokoll und reicht fehlende WhatsApp-Vorlagen bei Meta ein. Die alte Adresse /chef/s/auskunft
+  leitet dorthin; die Beschaffung bleibt zusätzlich im Raum „Kunden" für das Team.
+
+**Wo:** server/lib/fiaon-auskunft.ts, fiaon-auskunft-verkauf.ts, fiaon-auskunft-lieferung.ts, fiaon-zahlungsauftrag.ts,
+fiaon-wa-zentrale.ts, shared/fiaon-auskunft-buendel.ts (neu), shared/fiaon-lead-texte.ts, server/mail/vorlagen/
+auskunft-verkauf.ts + auskunft-lead.ts, server/routes/fiaon-antrag.ts, fiaon-auskunft-kauf.ts, fiaon-chef-auskunft.ts,
+client/src/pages/zahlung.tsx, antrag.tsx, bonitaet-antrag.tsx, i18n/zahlung-auskunft.ts (neu), ChefMara.tsx,
+ChefAuskunft.tsx, chef-seiten.tsx, rundgaenge.ts. Prüfstände: E-243-E2E 58, Takt 103 (neu: WhatsApp nach Mail c), Bündel 69, Kundenpreis 76, Zahlungsseite 27 + 608 Sätze
+Wortwand, Mails 6.501, WA-Vorlagen 89, Mara-Reiter im Browser (Desktop + Handy, alte Adresse leitet um); E-241-Stände
+(E2E 72, Takt 143, Beschaffung 98, Mails 2.428, Texte 906), Auskunft-E2E 80, Sperre alle Wege 60, Unterlagen-Mail 78,
+Postmeister 185/237, Mara-Verkauf 196, Lead-Motor 788, Mail-Knöpfe 152, Meta-CAPI grün, Global-Seiten 2.402, SEO und
+Backticks ohne Fehler; Server startet, tsc 183 (Altbestand).
+
 ## 25.09.2026 (2) — Die Bonitätsauskunft geht in den Verkauf: an alle ohne Auskunft, neue Seiten, Beschaffung durch FIAON (E-241)
 
 **Der Anlass (Justin):** „Ich kümmere mich heute um die API, bis dahin kaufen wir sie selbst. Richte alles her, dass die

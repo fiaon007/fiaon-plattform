@@ -9,6 +9,7 @@ import PremiumFooter from "@/components/PremiumFooter";
 import { buildEpcQrPayload } from "@/lib/epc-qr";
 import { BANK } from "@shared/fiaon-bank";
 import { ZAHLUNG_WOERTER, type ZahlungWorte } from "@/i18n/zahlung";
+import { ZAHLUNG_AUSKUNFT, type AuskunftSicht } from "@/i18n/zahlung-auskunft";
 
 // ============================================================================
 // /zahlung/[payment_reference] — Zahlungsseite (SEPA-Vorkasse), v2
@@ -41,7 +42,29 @@ interface PaymentOrder {
   firmenName?: string;
   /** Nur beim Firmenauftrag: die Sprache des Auftrags (/en/business/start → "en"). */
   sprache?: "de" | "en";
+  /**
+   * E-243 (26.09.2026): eine Bonitätsauskunft — Einmalkauf, kein Konto, das „aktiviert"
+   * wird, keine Karte „unterwegs", kein Startgespräch. Die Seite spricht dann nur von der
+   * Auskunft (Sätze in client/src/i18n/zahlung-auskunft.ts); Bankdaten, GiroCode und
+   * Verwendungszweck bleiben dieselben (eine Quelle: shared/fiaon-bank.ts).
+   */
+  produkt?: "auskunft";
+  auskunftArt?: "privat" | "firma";
+  land?: "DE" | "AT" | "CH";
+  auskunfteien?: string;
+  /** Läuft heute ein bezahltes Paket? Nur ohne Paket zeigt die Dankeseite „Ihr nächster Schritt zur Karte". */
+  mitAbo?: boolean;
+  kundenpreis?: boolean;
+  beginnAb?: string;
+  /** Gegenlese E-243: Welcher Hinweis zur Karte auf der Dankeseite — null = keiner (Server, dieselbe Regel wie „Ihre Auskunft ist da"). */
+  paketSchritt?: "neu" | "antrag" | null;
   bank: { recipient: string; iban: string; ibanDisplay: string; bic: string };
+}
+
+/** Die Sicht der Auskunft-Sätze aus der Antwort des Servers — null, wenn es keine Auskunft ist. */
+function auskunftSicht(o: Partial<PaymentOrder> | null | undefined): AuskunftSicht | null {
+  if (!o || o.produkt !== "auskunft") return null;
+  return { art: o.auskunftArt === "firma" ? "firma" : "privat", auskunfteien: o.auskunfteien ?? null, beginnAb: o.beginnAb ?? null };
 }
 
 // E-188: Das kleine Wörterbuch der Seite (deutsch = Bestand, englisch nur für den Firmenauftrag,
@@ -126,19 +149,25 @@ function CopyField({ label, display, copyValue, highlight, hint, w = WORTE.de }:
 }
 
 // Ruhige Vertrauens-Badges (SSL / SEPA / EU-Konto) — keine reißerischen Elemente
-function TrustBadges({ w = WORTE.de }: { w?: Worte }) {
+function TrustBadges({ w = WORTE.de, labels }: { w?: Worte; labels?: readonly [string, string, string] }) {
+  // E-243: Die Auskunft trägt als drittes Siegel „Einmalig, kein Abo" statt „EU-Konto" —
+  // Auskunft-Käufer sollen auf ihrer Seite kein „Konto" lesen (siehe zahlung-auskunft.ts).
+  const b = labels ?? w.badges;
   const items = [
     {
-      label: w.badges[0],
+      label: b[0],
       icon: <path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z" />,
     },
     {
-      label: w.badges[1],
+      label: b[1],
       icon: <><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></>,
     },
     {
-      label: w.badges[2],
-      icon: <><circle cx="12" cy="12" r="9" /><path d="M3.5 9h17M3.5 15h17M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></>,
+      label: b[2],
+      // Gegenlese E-243: „Einmalig, kein Abo" trägt einen Haken — der Globus gehört zu „EU-Konto".
+      icon: labels
+        ? <><circle cx="12" cy="12" r="9" /><polyline points="8 12.5 11 15.5 16.5 9.5" /></>
+        : <><circle cx="12" cy="12" r="9" /><path d="M3.5 9h17M3.5 15h17M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></>,
     },
   ];
   return (
@@ -244,12 +273,148 @@ function TerminAngebot({ paymentReference, art }: { paymentReference: string; ar
   );
 }
 
+// ── DIE AUSKUNFT: KURZFASSUNG STATT „KONTO SOFORT AKTIV" (26.09.2026, E-243) ─────
+// Bei einer Bonitätsauskunft steht oben nicht die Kachel „Jetzt überweisen — Konto
+// sofort aktiv" und keine Startgespräch-Kachel (die Auskunft hat kein Startgespräch;
+// fiaon-kontostufe.ts nimmt sie aus). Stattdessen: was nach der Überweisung passiert,
+// in drei Schritten, und EIN gefüllter Knopf zu den Zahlungsdaten — dieselbe
+// Farbfamilie wie die Kachel der Pakete (Justin 02.09.: ein Hauptknopf, Blau).
+function zuDenZahlungsdatenScrollen() {
+  const ziel = document.getElementById("zahlungsdaten");
+  ziel?.scrollIntoView({ behavior: "smooth", block: "start" });
+  ziel?.classList.add("zahlung-ziel-blitz");
+  setTimeout(() => ziel?.classList.remove("zahlung-ziel-blitz"), 1400);
+}
+
+function AuskunftKurzfassung({ sicht }: { sicht: AuskunftSicht }) {
+  const t = ZAHLUNG_AUSKUNFT;
+  return (
+    <div className="zahlung-auskunft-kurz mb-6 p-5 sm:p-6 rounded-2xl text-left"
+         style={{
+           border: "1px solid rgba(147,197,253,.55)",
+           background: "linear-gradient(160deg, rgba(37,99,235,.16), rgba(29,78,216,.06))",
+           boxShadow: "0 16px 40px -18px rgba(37,99,235,.65)",
+         }}>
+      <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#2563eb" }}>{t.kurzfassungTitel}</p>
+      <p className="text-[14px] sm:text-[15px] font-semibold text-slate-900 leading-relaxed">{t.kurzfassung(sicht)}</p>
+      <ol className="mt-4 space-y-3">
+        {t.schritte(sicht).map((x, i) => (
+          <li key={x.titel} className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">{i + 1}</span>
+            <span className="text-[13px] sm:text-[13.5px] text-slate-600 leading-relaxed"><b className="text-slate-900">{x.titel}</b> — {x.text}</span>
+          </li>
+        ))}
+      </ol>
+      <button type="button" onClick={zuDenZahlungsdatenScrollen}
+              className="inline-flex items-center justify-center w-full mt-4 rounded-xl text-[13px] font-bold text-white"
+              style={{ minHeight: 44, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)", boxShadow: "0 8px 22px -10px rgba(29,78,216,.8)" }}>
+        {t.zuDenZahlungsdaten}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Die Dankeseite der Auskunft (26.09.2026, E-243): was als Nächstes kommt — und nur für
+ * Menschen OHNE laufendes Paket ein ruhiger Hinweis „Ihr nächster Schritt zur Karte".
+ * Der Hinweis erscheint nur, wenn der Server sicher „kein Paket" gesagt hat; im Zweifel
+ * (Seite noch nicht geladen, Fehler) bleibt er weg. Gegenlese E-243: Ob und welcher, sagt
+ * paketSchritt — dieselben Sperren wie „Ihre Auskunft ist da" (Kündigung, Storno, Sperre;
+ * offener Paket-Antrag → kein zweiter Antrag, nur der Hinweis auf die erste Zahlung).
+ */
+function AuskunftDanke({ sicht, geladen, paketSchritt }: { sicht: AuskunftSicht; geladen: boolean; paketSchritt: "neu" | "antrag" | null }) {
+  const t = ZAHLUNG_AUSKUNFT.danke;
+  const weiter = paketSchritt ? t.weiter(sicht.art, paketSchritt) : null;
+  return (
+    <div className="py-10 sm:py-14">
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-4">{t.titel}</h1>
+        <p className="text-[15px] text-slate-600 leading-relaxed max-w-md mx-auto">{t.lead(sicht.art)}</p>
+      </div>
+
+      {geladen && (
+        <div className="zahlung-auskunft-danke mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 text-left" style={{ animation: "zahlungFadeUp .4s ease" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#2563eb] mb-3">{t.wasKommt}</p>
+          <ol className="space-y-3">
+            {t.schritte(sicht).map((x, i) => (
+              <li key={x.titel} className="flex gap-3">
+                <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">{i + 1}</span>
+                <span className="text-[13.5px] text-slate-600 leading-relaxed"><b className="text-slate-900">{x.titel}</b> — {x.text}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {geladen && weiter && (
+        <div className="zahlung-auskunft-weiter mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6 text-left" style={{ animation: "zahlungFadeUp .5s ease" }}>
+          <p className="text-[14px] font-bold text-slate-900 mb-1.5">{weiter.titel}</p>
+          <p className="text-[13px] text-slate-600 leading-relaxed">{weiter.text}</p>
+          {weiter.ziel && weiter.knopf && (
+            <a href={weiter.ziel}
+               className="inline-flex items-center justify-center mt-4 px-5 rounded-xl text-[13px] font-bold text-slate-900 border border-slate-300 bg-white hover:bg-slate-50"
+               style={{ minHeight: 44 }}>
+              {weiter.knopf}
+            </a>
+          )}
+        </div>
+      )}
+
+      <div className="mt-10">
+        <TrustBadges labels={ZAHLUNG_AUSKUNFT.badges} />
+      </div>
+    </div>
+  );
+}
+
 // ── Danke-Seite nach "Ich habe die Überweisung getätigt" ──────────────
 export function ZahlungDankePage() {
   // E-188: Der Firmenauftrag kommt mit ?art=firma — dort wird kein Konto freigeschaltet, dort beginnt ein Projekt.
   const firma = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("art") === "firma";
   // … und mit &sprache=en, wenn der Auftrag englisch geführt wurde (Feld `sprache` der Zahlungsseite).
   const englisch = firma && new URLSearchParams(window.location.search).get("sprache") === "en";
+  // ── E-243 (26.09.2026): DIE AUSKUNFT HAT IHRE EIGENE DANKESEITE ──────────────
+  // Die Zahlungsseite schickt ?art=auskunft (&typ=firma) — so steht der richtige Satz
+  // sofort da. Was als Nächstes kommt (Auskunfteien des Landes) und ob ein Paket läuft,
+  // liest die Seite beim Server nach (dieselbe öffentliche Antwort wie die Zahlungsseite).
+  // Auch ohne Adress-Marke (alte Links) erkennt sie eine Auskunft an der Antwort.
+  const [, dankeParams] = useRoute("/zahlung/:paymentRef/danke");
+  const dankeRef = dankeParams?.paymentRef || "";
+  const suche = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const auskunftAdresse = !firma && suche.get("art") === "auskunft";
+  const [dankeOrder, setDankeOrder] = useState<PaymentOrder | null>(null);
+  const [dankeGeladen, setDankeGeladen] = useState(false);
+  useEffect(() => {
+    if (firma || !dankeRef) { setDankeGeladen(true); return; }
+    let ab = false;
+    void (async () => {
+      const res = await fetch(`/api/fiaon/payment-order/${encodeURIComponent(dankeRef)}`).catch(() => null);
+      const json = await res?.json().catch(() => null);
+      if (ab) return;
+      if (res?.ok && json?.ok) setDankeOrder(json);
+      setDankeGeladen(true);
+    })();
+    return () => { ab = true; };
+  }, [firma, dankeRef]);
+  const auskunft: AuskunftSicht | null = auskunftSicht(dankeOrder)
+    ?? (auskunftAdresse ? { art: suche.get("typ") === "firma" ? "firma" : "privat", auskunfteien: null, beginnAb: null } : null);
+  if (auskunft) {
+    return (
+      <div className="antrag-dk dk min-h-screen antialiased">
+        <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
+        <GlassNav />
+        <div className="relative z-10 max-w-xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
+          <AuskunftDanke sicht={auskunft} geladen={dankeGeladen}
+                         paketSchritt={dankeOrder?.produkt === "auskunft" && dankeOrder.mitAbo === false ? (dankeOrder.paketSchritt ?? null) : null} />
+        </div>
+        <PremiumFooter />
+        <style>{ZAHLUNG_STYLES}</style>
+      </div>
+    );
+  }
   // 19.09.2026: Der Firmenauftrag steht hell im Rahmen von FIAON Global (siehe ZahlungPage).
   return (
     <div className={firma ? "zahlung-business min-h-screen antialiased" : "antrag-dk dk min-h-screen antialiased"} lang={englisch ? "en" : undefined}>
@@ -371,6 +536,13 @@ export default function ZahlungPage() {
   }, [paymentRef]);
 
   const amount = order ? Number(order.amountDue) : 0;
+  // E-243: Bonitätsauskunft → eigene Sätze, keine Paket-Sätze („Konto aktivieren", „Karte", Startgespräch).
+  const auskunft = auskunftSicht(order);
+  const ta = ZAHLUNG_AUSKUNFT;
+  // Gegenlese E-243: Eine stornierte, ersetzte oder abgelaufene Auskunft zeigt keine Zahlungsdaten mehr —
+  // sonst überweist jemand auf eine stornierte Bestellung oder zu einem Preis, der nicht mehr gilt.
+  // Abgelaufen führt direkt zur neuen Bestellung (der Server setzt den Preis dort neu).
+  const auskunftNichtOffen = !!auskunft && (order?.status === "cancelled" || order?.status === "superseded" || order?.status === "expired");
   // E-188: Englisch nur für den Firmenauftrag, dessen Auftrag englisch geführt wurde — sonst wörtlich der Bestand.
   const englisch = !!order?.firmenauftrag && order.sprache === "en";
   const w: Worte = englisch ? WORTE.en : WORTE.de;
@@ -446,7 +618,9 @@ export default function ZahlungPage() {
         });
       } catch {}
       // 19.09.2026: Der Firmenauftrag bleibt auch auf der Dankeseite im Rahmen von FIAON Global (lib/bereich.ts).
-      window.location.href = `/zahlung/${order.paymentReference}/danke${order.firmenauftrag ? `?art=firma&bereich=business${order.sprache === "en" ? "&sprache=en" : ""}` : ""}`;
+      // E-243: Die Auskunft hat ihre eigene Dankeseite (?art=auskunft, bei Firmen &typ=firma).
+      const auskunftMarke = order.produkt === "auskunft" ? `?art=auskunft${order.auskunftArt === "firma" ? "&typ=firma" : ""}` : "";
+      window.location.href = `/zahlung/${order.paymentReference}/danke${order.firmenauftrag ? `?art=firma&bereich=business${order.sprache === "en" ? "&sprache=en" : ""}` : auskunftMarke}`;
     },
     [order, claiming],
   );
@@ -488,22 +662,43 @@ export default function ZahlungPage() {
             <p className="text-[14px] text-gray-500">
               {order.firmenauftrag
                 ? w.bezahltFirma(order.firmenName || "", order.packName || "")
-                : <>{order.firstName ? `${order.firstName}, Ihre` : "Ihre"} Zahlung ist bei uns eingegangen — Ihr Konto ist aktiv und Ihre Karte ist unterwegs.</>}
+                : auskunft
+                  ? ta.bezahlt(auskunft, order.firstName || "")
+                  : <>{order.firstName ? `${order.firstName}, Ihre` : "Ihre"} Zahlung ist bei uns eingegangen — Ihr Konto ist aktiv und Ihre Karte ist unterwegs.</>}
             </p>
           </div>
         )}
 
-        {!loading && order && order.status !== "paid" && (
+        {!loading && order && auskunft && auskunftNichtOffen && (
+          <div className="zahlung-auskunft-zu text-center py-24">
+            <h1 className="text-2xl font-bold mb-3">{ta.nichtOffenTitel}</h1>
+            <p className="text-[14px] text-gray-500 max-w-md mx-auto leading-relaxed">
+              {order.status === "cancelled" ? ta.storniert : order.status === "expired" ? ta.abgelaufen : ta.ersetzt}
+            </p>
+            {order.status === "expired" && (
+              <a href={ta.neuBestellen(auskunft.art).ziel}
+                 className="inline-flex items-center justify-center mt-5 px-6 rounded-xl text-[14px] font-bold text-white"
+                 style={{ minHeight: 48, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)", boxShadow: "0 8px 22px -10px rgba(29,78,216,.8)" }}>
+                {ta.neuBestellen(auskunft.art).text}
+              </a>
+            )}
+            <p className="text-[12px] text-slate-400 mt-4">{order.paymentReference}</p>
+          </div>
+        )}
+
+        {!loading && order && order.status !== "paid" && !auskunftNichtOffen && (
           <div style={{ animation: "zahlungFadeUp .4s ease" }}>
             {/* 1. Headline mit dezentem Gradient-Shimmer */}
             <div className="text-center mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-3 leading-tight pb-1">
-                {order.art === "rate" ? `Ihre Monatsrate ${order.rateNr ?? ""} von ${order.ratenVon ?? 12}` : order.firmenauftrag ? w.titelFirma : "Letzter Schritt: Konto aktivieren"}
+                {order.art === "rate" ? `Ihre Monatsrate ${order.rateNr ?? ""} von ${order.ratenVon ?? 12}` : auskunft ? ta.titel(auskunft.art) : order.firmenauftrag ? w.titelFirma : "Letzter Schritt: Konto aktivieren"}
               </h1>
               {/* 2. Statuszeile */}
               <p className="text-[13px] sm:text-[14px] text-slate-500">
                 {order.art === "rate"
                   ? <>Fällig am <b className="text-slate-900">{dueDateStr}</b> — Ihr Verwendungszweck: <b className="text-slate-900">{order.paymentReference}</b></>
+                  : auskunft
+                    ? <>{ta.statusVor}<b className="text-slate-900">{betragText} €</b>{ta.statusNach}{order.dueDate ? <>{ta.statusFaellig}<b className="text-slate-900">{dueDateStr}</b>.</> : null}</>
                   : order.firmenauftrag
                     ? <>{w.statusFirma[0]}<b className="text-slate-900">{englisch ? `€${betragText}` : `${betragText} €`}</b>{w.statusFirma[1]}<b className="text-slate-900">{dueDateStr}</b>{w.statusFirma[2]}</>
                     : <>Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.</>}
@@ -513,14 +708,20 @@ export default function ZahlungPage() {
                   {order.firmenName ? `${order.firmenName} · ` : ""}{order.packName ? `${order.packName.replace(/\n/g, " ")} · ${w.einmalig} · ` : ""}{order.paymentReference}
                 </p>
               )}
-              {!order.firmenauftrag && order.firstName && (
+              {auskunft && (
+                <p className="text-[12px] text-slate-400 mt-1.5">
+                  {[order.firmenName || order.firstName, order.packName, order.kundenpreis ? ta.kundenpreis : "", order.paymentReference]
+                    .filter(Boolean).join(" · ")}
+                </p>
+              )}
+              {!auskunft && !order.firmenauftrag && order.firstName && (
                 <p className="text-[12px] text-slate-400 mt-1.5">
                   {order.firstName}
                   {order.packName ? ` · ${order.packName.replace(/\n/g, " ")}` : ""} · {order.paymentReference}
                 </p>
               )}
               <div className="mt-4">
-                <TrustBadges w={w} />
+                <TrustBadges w={w} labels={auskunft ? ta.badges : undefined} />
               </div>
             </div>
 
@@ -533,14 +734,18 @@ export default function ZahlungPage() {
             {/* E-188: Nicht beim Firmenauftrag — die Kacheln versprechen „Konto sofort aktiv" und bieten das
                 Startgespräch der Privatkundenlinie an. Dort führt die Rechnung, und den Termin macht der
                 Ansprechpartner aus der Auftragsbestätigung. */}
-            {!order.firmenauftrag && <TerminAngebot paymentReference={order.paymentReference} art={order.art} />}
+            {/* E-243: Nicht bei der Auskunft — dort steht die Kurzfassung (kein Konto, kein Startgespräch). */}
+            {!order.firmenauftrag && !auskunft && <TerminAngebot paymentReference={order.paymentReference} art={order.art} />}
+            {auskunft && <AuskunftKurzfassung sicht={auskunft} />}
 
             {order.status === "claimed_paid" && (
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
                 <p className="text-[13px] font-semibold text-emerald-700">
                   {order.firmenauftrag
                     ? w.gemeldetFirma
-                    : "Danke! Wir prüfen Ihren Zahlungseingang – meist innerhalb von 24 Stunden. Sie bekommen eine E-Mail, sobald Ihr Konto frei ist."}
+                    : auskunft
+                      ? ta.gemeldet(auskunft.art)
+                      : "Danke! Wir prüfen Ihren Zahlungseingang – meist innerhalb von 24 Stunden. Sie bekommen eine E-Mail, sobald Ihr Konto frei ist."}
                 </p>
               </div>
             )}
@@ -555,9 +760,9 @@ export default function ZahlungPage() {
 
             {/* 3. Erklär-Box: So bezahlen Sie – ganz einfach */}
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 sm:p-6 mb-5">
-              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">{order.art === "rate" ? "Rate überweisen – ganz einfach" : order.firmenauftrag ? w.boxTitelFirma : <>Konto aktivieren &amp; Karte versenden – ganz einfach</>}</p>
+              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">{order.art === "rate" ? "Rate überweisen – ganz einfach" : auskunft ? ta.boxTitel : order.firmenauftrag ? w.boxTitelFirma : <>Konto aktivieren &amp; Karte versenden – ganz einfach</>}</p>
 
-              <p className="text-[12px] font-bold uppercase tracking-wider text-[#2563eb] mb-2.5">{order.firmenauftrag ? w.schnellFirma : <>Empfohlen (schnell &amp; fehlerfrei)</>}</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-[#2563eb] mb-2.5">{auskunft ? ta.schnell : order.firmenauftrag ? w.schnellFirma : <>Empfohlen (schnell &amp; fehlerfrei)</>}</p>
               <ol className="space-y-2.5 mb-5">
                 <li className="flex gap-3 text-[13.5px] sm:text-[14px] text-slate-700 leading-relaxed">
                   <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">1</span>

@@ -41,7 +41,8 @@ const INHALT: BxFrage = {
 };
 const PAKET: BxFrage = {
   f: "Brauche ich dafür ein FIAON-Paket?",
-  a: `Nein. Die Bonitätsauskunft können Sie einzeln bestellen, für ${P.privat}. Läuft bei Ihnen bereits ein bezahltes FIAON-Paket, zahlen Sie ${P.privatPaket} — melden Sie sich dafür an und bestellen Sie über Ihren Kundenbereich.`,
+  // Integration 26.09.2026 (E-243): der Weg ohne Anmeldung — „Schon FIAON-Kunde? Kundenpreis-Link anfordern" (BX.kundenpreisLink).
+  a: `Nein. Die Bonitätsauskunft können Sie einzeln bestellen, für ${P.privat}. Läuft bei Ihnen bereits ein bezahltes FIAON-Paket, zahlen Sie ${P.privatPaket} — über „Schon FIAON-Kunde? Kundenpreis-Link anfordern“ genügt dafür Ihre E-Mail-Adresse, oder Sie bestellen in Ihrem Kundenbereich.`,
 };
 const ZERTIFIKAT: BxFrage = {
   f: "Ist das dasselbe wie ein Bonitätszertifikat?",

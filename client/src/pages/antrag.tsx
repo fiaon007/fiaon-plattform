@@ -17,6 +17,15 @@ import { AdresseSuche } from "@/components/antrag/AdresseSuche";
 import { EmailBekannt } from "@/components/antrag/EmailBekannt";
 import PremiumFooter from "@/components/PremiumFooter";
 import { checkPhone, dachPruefen } from "@/lib/phone";
+import {
+  AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, AUSKUNFT_NUTZEN_SATZ_KARTE, auskunftLand, auskunftLeistung, type AuskunftArt,
+} from "@shared/fiaon-auskunft";
+import { AUSKUNFT_KEIN_WIDERRUF, AUSKUNFT_PREIS_STEUER, AUSKUNFT_WIDERRUF } from "@shared/fiaon-auskunft-widerruf";
+import {
+  BUENDEL_FAELLIG_SATZ, BUENDEL_FASSUNG, BUENDEL_SOFORT_OHNE, BUENDEL_SOFORT_TEXT,
+  buendelAnzeige, buendelArt, buendelHakenText, buendelPreisZeile, buendelTitel,
+  type BuendelAnzeige, type BuendelZusatz,
+} from "@shared/fiaon-auskunft-buendel";
 
 /**
  * Hart nach oben scrollen — umgeht das globale `html { scroll-behavior: smooth }`
@@ -519,6 +528,91 @@ function auskunftZiel(): string | null {
   } catch { return null; }
 }
 
+/* === ZUSATZ: BONITÄTSAUSKUNFT ZUM KUNDENPREIS (26.09.2026, E-243) ===
+ * Justin: „Ziel ist, die Bonitätsauskunft zu verkaufen UND ein Abo zu verkaufen."
+ * Im Schritt „Vertrag annehmen" steht der Zusatz — NIE vorangekreuzt. Mit
+ * ?auskunft=1 oder src=auskunft (Wege von /bonitaetsauskunft) aufgeklappt, sonst
+ * eingeklappt und dezent; mit src=auskunft_da (Mail „Ihre Auskunft ist da") gar
+ * nicht. Der Haken trägt Bestellung UND Beschaffungsauftrag (wortgleich
+ * AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT); „die oben genannten Auskunfteien" nennt die
+ * Liste darüber, je Land (AT/CH nie „SCHUFA"). Die Wahl zum Beginn vor Fristablauf
+ * erscheint erst mit dem Haken, ist freiwillig und wortgleich mit Kauflink und
+ * Kaufkarte. Bezahlt wird nichts jetzt: Die Bestellung entsteht nach der ersten
+ * Paketzahlung — zum Kundenpreis, den der Server setzt (shared/fiaon-auskunft-buendel.ts).
+ * Kein „Limit" hier: Wer den Antrag abschickt, ist noch kein zahlender Kunde. */
+type ZusatzWert = { an: boolean; am: string | null; sofort: boolean; sofortAm: string | null };
+
+function ZusatzKaestchen({ an }: { an: boolean }) {
+  return (
+    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${an ? "border-[#2563eb] bg-[#2563eb]" : "border-gray-300"}`}>
+      {an && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8" /></svg>}
+    </div>
+  );
+}
+
+function AuskunftZusatz({ art, land, offen, onOeffnen, wert, onHaken, onSofort }: {
+  art: AuskunftArt; land: string; offen: boolean; onOeffnen: () => void;
+  wert: ZusatzWert; onHaken: (an: boolean) => void; onSofort: (an: boolean) => void;
+}) {
+  const leistung = auskunftLeistung(art, auskunftLand(land)).slice(0, 4);
+  if (!offen) {
+    return (
+      <button type="button" onClick={onOeffnen} aria-expanded={false} data-auskunft-zusatz="zu"
+        className="w-full flex gap-3 items-start p-3.5 rounded-xl mb-3 text-left fiaon-glass-panel hover:bg-white/60 transition-all">
+        <span className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center shrink-0 mt-0.5 text-[13px] leading-none text-[#2563eb]">+</span>
+        <span className="min-w-0">
+          <span className="block text-[13px] font-semibold text-gray-900">{buendelTitel(art)}</span>
+          <span className="block text-[12px] text-gray-500">Freiwillig · wir holen sie für Sie ein · fällig erst nach Ihrer ersten Paketzahlung</span>
+        </span>
+      </button>
+    );
+  }
+  return (
+    <div className="rounded-xl mb-3 p-4 fiaon-glass-panel" data-auskunft-zusatz="auf">
+      <p className="text-[10.5px] font-semibold text-[#2563eb] uppercase tracking-[.18em] mb-1">Zusatz · freiwillig</p>
+      <p className="text-[14px] font-semibold text-gray-900 leading-snug">{buendelTitel(art)}</p>
+      <p className="text-[12px] text-gray-500 mb-2">{buendelPreisZeile(art)}</p>
+      <p className="text-[12.5px] text-gray-600 mb-2">{AUSKUNFT_NUTZEN_SATZ_KARTE}</p>
+      <ul className="mb-3 space-y-1">
+        {leistung.map((t) => <li key={t} className="text-[12px] text-gray-600 flex gap-2"><span className="text-[#2563eb]">·</span><span>{t}</span></li>)}
+      </ul>
+      <button type="button" onClick={() => onHaken(!wert.an)} aria-pressed={wert.an}
+        className={`w-full flex gap-3 items-start p-3.5 rounded-xl text-left transition-all ${wert.an ? "fiaon-glass-card-selected" : "bg-white/50 hover:bg-white/60"}`}>
+        <ZusatzKaestchen an={wert.an} />
+        <p className="text-[12px] text-gray-700 leading-relaxed">{buendelHakenText(art)}</p>
+      </button>
+      {wert.an && art === "privat" && (
+        <>
+          <button type="button" onClick={() => onSofort(!wert.sofort)} aria-pressed={wert.sofort}
+            className={`w-full flex gap-3 items-start p-3.5 rounded-xl text-left transition-all mt-2 ${wert.sofort ? "fiaon-glass-card-selected" : "bg-white/50 hover:bg-white/60"}`}>
+            <ZusatzKaestchen an={wert.sofort} />
+            <p className="text-[12px] text-gray-700 leading-relaxed">{BUENDEL_SOFORT_TEXT}</p>
+          </button>
+          <p className="text-[11px] text-gray-400 mt-1 ml-8">{BUENDEL_SOFORT_OHNE}</p>
+        </>
+      )}
+      <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">{BUENDEL_FAELLIG_SATZ} {AUSKUNFT_PREIS_STEUER}. Vertragspartner ist die FIAON LTD.</p>
+      {art === "firma" ? (
+        <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">{AUSKUNFT_KEIN_WIDERRUF}</p>
+      ) : (
+        <details className="mt-2">
+          <summary className="text-[11.5px] text-[#2563eb] cursor-pointer">Widerrufsbelehrung zur Bonitätsauskunft</summary>
+          <div className="mt-2 space-y-2">
+            {AUSKUNFT_WIDERRUF.abschnitte.map((a) => (
+              <div key={a.h}>
+                <p className="text-[11.5px] font-semibold text-gray-700">{a.h}</p>
+                {a.absaetze.map((s) => <p key={s.slice(0, 40)} className="text-[11px] text-gray-500 leading-relaxed">{s}</p>)}
+              </div>
+            ))}
+            <p className="text-[11.5px] font-semibold text-gray-700">{AUSKUNFT_WIDERRUF.erloeschen.h}</p>
+            <p className="text-[11px] text-gray-500 leading-relaxed">{AUSKUNFT_WIDERRUF.erloeschen.text}</p>
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
 /* === MAIN COMPONENT === */
 export default function AntragPage() {
   const [auskunft] = useState(auskunftZiel);
@@ -640,6 +734,21 @@ function AntragSeite() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [showPackSwitcher, setShowPackSwitcher] = useState(false);
 
+  // ── ZUSATZ: BONITÄTSAUSKUNFT ZUM KUNDENPREIS (26.09.2026, E-243) ──────────
+  // Gelesen EINMAL beim Laden (?auskunft=1 / src=auskunft / src=auskunft_da) —
+  // der persönliche Link und der Wiedereinstieg räumen die Adresszeile später auf.
+  // Der Haken reist nur mit, wenn er gesetzt ist, und erst beim Abschicken (ab Schritt 7).
+  const [zusatzAnzeige] = useState<BuendelAnzeige>(() => { try { return buendelAnzeige(window.location.search); } catch { return "dezent"; } });
+  const [zusatzOffen, setZusatzOffen] = useState(zusatzAnzeige === "offen");
+  const [zusatz, setZusatz] = useState<ZusatzWert>({ an: false, am: null, sofort: false, sofortAm: null });
+  const zusatzArt: AuskunftArt = buendelArt(pack?.key);
+  const zusatzNutzlast = (): BuendelZusatz | undefined => (zusatzAnzeige === "aus" || !zusatz.an ? undefined : {
+    gewaehlt: true, art: zusatzArt, fassung: BUENDEL_FASSUNG,
+    haken: buendelHakenText(zusatzArt), auftrag: AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(zusatzArt), am: zusatz.am,
+    sofort: zusatzArt === "privat" && zusatz.sofort, sofortText: BUENDEL_SOFORT_TEXT, sofortAm: zusatz.sofort ? zusatz.sofortAm : null,
+    anzeige: zusatzAnzeige, land: d.country || null,
+  });
+
   // Paket wechseln während Antragsprozess (Up- oder Downgrade)
   const switchPack = useCallback((newPack: typeof PACKS[0]) => {
     if (!newPack) return;
@@ -691,7 +800,7 @@ function AntragSeite() {
       // 1) Antrag speichern (Status: submitted — Zahlung folgt im Bereich)
       await fetch("/api/fiaon/application", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ref, type: "private", status: "submitted", currentStep: 8, ...d, packKey: pack.key, packName: paketNameFuerDaten(pack.key) ?? pack.name, approvedLimit: approved, leadLink, messung: messungsDaten() }),
+        body: JSON.stringify({ ref, type: "private", status: "submitted", currentStep: 8, ...d, packKey: pack.key, packName: paketNameFuerDaten(pack.key) ?? pack.name, approvedLimit: approved, leadLink, messung: messungsDaten(), auskunftZusatz: zusatzNutzlast() }),
       });
       // 2) Zahlungsauftrag anlegen (Verwendungszweck, Betrag, Frist)
       await fetch("/api/fiaon/payment-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref }) }).catch(() => null);
@@ -709,7 +818,7 @@ function AntragSeite() {
       setEinrichtungFehler("Keine Verbindung. Bitte versuchen Sie es gleich noch einmal.");
       setEinrichtungLaeuft(false);
     }
-  }, [pack, ref, d, approved, einrichtungLaeuft]);
+  }, [pack, ref, d, approved, einrichtungLaeuft, zusatz]);
 
   // Synchronized progress for verification screen
   useEffect(() => {
@@ -859,7 +968,7 @@ function AntragSeite() {
   useEffect(() => {
     if (step > 0) {
       const status = zustandFuerSchritt(step);
-      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink, messung: messungsDaten() }) })
+      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink, messung: messungsDaten(), auskunftZusatz: step >= 7 ? zusatzNutzlast() : undefined }) })
         .then((r) => {
           if (!r.ok) console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert: HTTP ${r.status}`);
         })
@@ -1244,6 +1353,16 @@ function AntragSeite() {
                     </button>
                   ))}
                   {errors.consent && <p className="text-[11px] font-semibold text-red-500 bg-red-50/80 px-3 py-2 rounded-lg mb-3">{errors.consent}</p>}
+                  {/* E-243 (26.09.2026): der Zusatz „Bonitätsauskunft zum Kundenpreis" — freiwillig, nie vorangekreuzt. */}
+                  {zusatzAnzeige !== "aus" && pack && (
+                    <AuskunftZusatz
+                      art={zusatzArt} land={d.country} offen={zusatzOffen}
+                      onOeffnen={() => { setZusatzOffen(true); track("auskunft_zusatz_auf", { anzeige: zusatzAnzeige }, ref); }}
+                      wert={zusatz}
+                      onHaken={(an) => { setZusatz((z) => ({ ...z, an, am: an ? new Date().toISOString() : null, ...(an ? {} : { sofort: false, sofortAm: null }) })); track("auskunft_zusatz", { an, anzeige: zusatzAnzeige }, ref); }}
+                      onSofort={(an) => setZusatz((z) => ({ ...z, sofort: an, sofortAm: an ? new Date().toISOString() : null }))}
+                    />
+                  )}
                 </>}
 
                 {/* Buttons */}

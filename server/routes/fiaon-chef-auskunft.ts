@@ -27,6 +27,18 @@
 // Ein Startknopf fehlt ABSICHTLICH (wie in der Rückholung): Der Takt läuft
 // alle 30 Minuten und gehorcht Schalter und Tagesdeckeln. Wer ihn anhalten
 // will, schaltet ihn hier aus.
+//
+// 26.09.2026 (E-243) — Justin: „stelle mit sofortiger Wirkung das Marketing,
+// den Verkauf für die Bonitätsauskunft scharf". Dazu:
+//   GET  /chef/auskunft/scharf       die Zahlen für die Rückfrage vor dem Knopf
+//                                    (Kreis „alle": je Segment im Kreis, heute
+//                                    fällig, WhatsApp-fähig; Stand der Vorlagen)
+//   POST /chef/auskunft/scharf       Takt an, Kreis „alle", 500 Mails, 20 WhatsApp,
+//                                    Liefermodus Einkauf — in EINER Buchung
+//                                    (scharfStellen), jede Änderung im Protokoll,
+//                                    dann die fehlenden WhatsApp-Vorlagen bei Meta
+//                                    einreichen (vorlagenEinreichen, nur Fehlende).
+// „Anhalten" ist der bestehende Weg: POST /chef/auskunft/einstellung an = 0.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
@@ -39,8 +51,9 @@ import { klicksTabelle, KAUF_LINK_TAGE } from "./fiaon-auskunft-kauf";
 import {
   HOECHSTENS_PRO_TAG, HOECHSTENS_WA_PRO_TAG, UWG_STICHTAG, HOECHSTENS_BERUEHRUNGEN, ANGEBOT_EVENT, WA_GRUPPE,
   SCHALTER_AN, SCHALTER_KREIS, SCHALTER_MAILS, SCHALTER_WA, SCHALTER_LIEFERMODUS, SCHALTER_PRO_TAG, SEGMENT_TEXT, SPERRGRUND_TEXT,
-  poolZahlen, beruehrungenHeute, whatsappMoeglich, vorschau, istSendezeit, kurzTokenLesen,
-  verkaufEinstellungen, einstellungSetzen, type VerkaufEinstellungen,
+  SEGMENTE as VERKAUF_SEGMENTE, SCHARF_WERTE, SENDE_AB_MIN, SENDE_BIS_MIN, auskunftVorlageFuer,
+  poolZahlen, beruehrungenHeute, whatsappMoeglich, vorschau, istSendezeit, kurzTokenLesen, heuteMoeglich,
+  verkaufEinstellungen, einstellungSetzen, scharfStellen, type VerkaufEinstellungen,
 } from "../lib/fiaon-auskunft-verkauf";
 
 const router = Router();
@@ -63,7 +76,7 @@ const AB_14 = `(((NOW() AT TIME ZONE 'Europe/Berlin')::date - 13)::timestamp AT 
 //   auskunft_verkauf_kreis           'uwg' | 'alle'                 Standard 'uwg'
 //   auskunft_verkauf_mails_pro_tag   0 … HOECHSTENS_PRO_TAG         Standard '500'
 //                                    (Rückfall: der alte Schlüssel auskunft_verkauf_pro_tag)
-//   auskunft_verkauf_wa_pro_tag      0 … HOECHSTENS_WA_PRO_TAG      Standard '30'
+//   auskunft_verkauf_wa_pro_tag      0 … HOECHSTENS_WA_PRO_TAG      Standard '20' (E-243; vorher '30')
 //   auskunft_liefermodus             'einkauf' | 'vollmacht' | 'api' Standard 'einkauf'
 //
 // „alle" ist Justins Entscheidung vom 25.09.2026: Werbe-Mails auch an Kunden
@@ -171,15 +184,17 @@ async function protokollLesen(anzahl = 15): Promise<ProtokollZeile[]> {
 //                  Upload im Arbeitsplatz Beschaffung (fiaon_auskunft_beschaffung).
 //
 // Das Segment gilt ZUM ZEITPUNKT der Stufe (bei bezahlt/geliefert: der
-// Bestellung): kunde = ein bezahltes Paket, antrag = ein Antrag ohne Zahlung,
-// lead = kein Antrag (auch jede Bestellung ohne Person von der öffentlichen Seite).
+// Bestellung): kunde = ein bezahltes Paket, antrag = ein abgeschickter Antrag
+// ohne Zahlung, abbrecher = nur begonnen (E-243), lead = kein Antrag (auch jede
+// Bestellung ohne Person von der öffentlichen Seite).
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const STUFEN = ["angeschrieben", "geklickt", "bestellt", "bezahlt", "geliefert"] as const;
 export type Stufe = (typeof STUFEN)[number];
 export const WEGE = ["mail", "whatsapp", "mara", "kundenbereich", "oeffentlich", "betreuer", "unbekannt"] as const;
 export type Weg = (typeof WEGE)[number];
-export const SEGMENTE = ["kunde", "antrag", "lead"] as const;
+// E-243 (26.09.2026): dazu „abbrecher" (Antrag begonnen, nicht abgeschickt) — wie im Takt.
+export const SEGMENTE = ["kunde", "antrag", "abbrecher", "lead"] as const;
 export type Segment = (typeof SEGMENTE)[number];
 /** Wo „angeschrieben" und „geklickt" überhaupt entstehen können — sonst zeigt die Seite „—". */
 const ANSCHREIBENDE_WEGE: Weg[] = ["mail", "whatsapp", "mara"];
@@ -193,8 +208,13 @@ export const SEGMENT_ZUM_ZEITPUNKT_SQL = (person: string, zeit: string) => `CASE
   WHEN EXISTS (SELECT 1 FROM fiaon_applications sg_k WHERE sg_k.person_id = ${person} AND sg_k.merged_into IS NULL
                  AND sg_k.payment_status = 'paid' AND ${KEIN_AUSKUNFT_PAKET("sg_k")}
                  AND COALESCE(sg_k.paid_at, sg_k.completed_at::timestamptz, sg_k.created_at::timestamptz) <= ${zeit}) THEN 'kunde'
+  -- E-243: abgeschickt (Hausregel E-210) = Antrag; nur begonnen = Abbrecher. Gelesen wird der Stand des Antrags HEUTE.
   WHEN EXISTS (SELECT 1 FROM fiaon_applications sg_a WHERE sg_a.person_id = ${person} AND ${KEIN_AUSKUNFT_PAKET("sg_a")}
-                 AND sg_a.created_at::timestamptz <= ${zeit}) THEN 'antrag'
+                 AND sg_a.created_at::timestamptz <= ${zeit}
+                 AND (COALESCE(sg_a.current_step, 0) >= 8 OR sg_a.payment_status = 'pending_payment'
+                      OR COALESCE(sg_a.status, '') NOT IN ('started', 'personal_data', 'finances', 'config', 'verifying', 'approved', 'contract', 'processing'))) THEN 'antrag'
+  WHEN EXISTS (SELECT 1 FROM fiaon_applications sg_b WHERE sg_b.person_id = ${person} AND ${KEIN_AUSKUNFT_PAKET("sg_b")}
+                 AND sg_b.created_at::timestamptz <= ${zeit}) THEN 'abbrecher'
   ELSE 'lead' END`;
 
 /** Die Klicks als Quelle — für den Lese-Prüfstand gegen die Produktion (dort gibt es die Tabelle noch nicht) austauschbar. */
@@ -605,6 +625,8 @@ router.get("/chef/auskunft", wache, async (_req: Request, res: Response) => {
         heute: heuteBeruehrt, sendezeit: istSendezeit(),
         stichtag: UWG_STICHTAG, hoechstensBeruehrungen: HOECHSTENS_BERUEHRUNGEN,
         whatsapp: wa,
+        // E-243: das Sendefenster Mo–So, für die Seite als „07:00" und „20:30"
+        fenster: { ab: uhrzeit(SENDE_AB_MIN), bis: uhrzeit(SENDE_BIS_MIN) },
       },
       wirkung30: {
         angeschrieben: Number(w.angeschrieben || 0), bestellt: Number(w.bestellt || 0),
@@ -614,6 +636,8 @@ router.get("/chef/auskunft", wache, async (_req: Request, res: Response) => {
       // `vorlage` bleibt (die Kunden-Vorlage) für ältere Stände der Seite.
       vorlage: vorlage[0] ?? null,
       vorlagen: vorlage,
+      // E-243: Läuft das Einreichen der Vorlagen gerade (Knopf „Verkauf scharf stellen")?
+      einreichen: einreichenStand(),
     });
   } catch (err) {
     console.error("[CHEF-AUSKUNFT] lesen:", err);
@@ -621,11 +645,49 @@ router.get("/chef/auskunft", wache, async (_req: Request, res: Response) => {
   }
 });
 
+/** Minuten seit Mitternacht → „07:00". */
+function uhrzeit(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Der Stand der Vorlagen bei Meta (E-243): eingereicht, freigegeben, abgelehnt.
+ * Fünf Minuten zwischengespeichert — die Seite fragt bei jedem Laden, Meta soll
+ * nicht jedes Mal die ganze Liste schicken. `frisch` nach dem Einreichen.
+ * null = WhatsApp nicht eingerichtet oder Meta nicht erreichbar.
+ */
+let metaStandCache: { bis: number; stand: Map<string, string> } | null = null;
+async function metaVorlagenStand(frisch = false): Promise<Map<string, string> | null> {
+  try {
+    const { waKonfig, vorlagenStand: beiMeta } = await import("../lib/fiaon-whatsapp");
+    if (!waKonfig().bereit) return null;
+    if (!frisch && metaStandCache && metaStandCache.bis > Date.now()) return metaStandCache.stand;
+    const stand = new Map((await beiMeta()).map((t) => [t.name, String(t.status || "").toUpperCase()]));
+    metaStandCache = { bis: Date.now() + 5 * 60_000, stand };
+    return stand;
+  } catch {
+    return metaStandCache?.stand ?? null;
+  }
+}
+
+export type MetaStatus = "freigegeben" | "eingereicht" | "abgelehnt" | "pausiert" | "fehlt" | "unbekannt";
+/** Metas Wort → unseres. PENDING/IN_APPEAL = Meta prüft noch. */
+export function metaStatus(roh: string | undefined | null, bekannt: boolean): MetaStatus {
+  if (!bekannt) return "unbekannt";
+  const s = String(roh ?? "").toUpperCase();
+  if (!s) return "fehlt";
+  if (s === "APPROVED") return "freigegeben";
+  if (s === "REJECTED") return "abgelehnt";
+  if (s === "PAUSED" || s === "DISABLED" || s === "LIMIT_EXCEEDED") return "pausiert";
+  return "eingereicht";
+}
+
 /**
  * Die WhatsApp-Vorlagen des Takts: Text mit Beispielwerten, Stand bei Meta — seit E-241 zwei
- * (auskunftVorlageFuer: Kunden fiaon_kk_auskunft, Anträge und Leads fiaon_kk_auskunft_lead).
+ * (auskunftVorlageFuer: Kunden fiaon_kk_auskunft, Anträge, Abbrecher und Leads fiaon_kk_auskunft_lead).
+ * E-243: dazu der Stand bei Meta je Text- und Bildfassung (eingereicht, freigegeben, abgelehnt).
  */
-async function vorlagenStand() {
+async function vorlagenStand(opts: { frisch?: boolean } = {}) {
   const { WA_VORLAGEN_ENTWURF, WA_VORLAGEN, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE } = await import("@shared/fiaon-lead-texte");
   // Freigegeben? Aus dem 5-Minuten-Zwischenspeicher der Freigaben — kein Graph-Aufruf je Seitenaufruf.
   let frei: Set<string> | null = null;
@@ -637,23 +699,155 @@ async function vorlagenStand() {
       frei = await freigegebeneVorlagen();
     }
   } catch { /* Meta nicht erreichbar — die Seite zeigt „unbekannt" */ }
-  const zeilen = [
-    { name: AUSKUNFT_VORLAGE, fuer: "A · Kunden mit laufendem Paket" },
-    { name: AUSKUNFT_LEAD_VORLAGE, fuer: "B · Anträge und C · Leads" },
-  ];
-  return zeilen.flatMap(({ name, fuer }) => {
+  const meta = await metaVorlagenStand(opts.frisch === true);
+  // Für wen welche Vorlage gilt — aus derselben Regel wie der Takt (auskunftVorlageFuer).
+  const fuer = (name: string) => VERKAUF_SEGMENTE.filter((sg) => auskunftVorlageFuer(sg) === name).map((sg) => SEGMENT_TEXT[sg]).join(", ");
+  const zeilen = [AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE];
+  return zeilen.flatMap((name) => {
     const def = WA_VORLAGEN.find((v) => v.name === name) ?? WA_VORLAGEN_ENTWURF.find((v) => v.name === name);
     if (!def) return [];
+    const bild = name.replace(/^fiaon_kk_/, "fiaon_kkb_");
+    const hatBild = bild !== name && WA_VORLAGEN.some((v) => v.name === bild);
     return [{
-      name: def.name, fuer, kopf: def.kopf ?? "", fuss: def.fuss ?? "", kategorie: def.kategorie,
+      name: def.name, fuer: fuer(name), kopf: def.kopf ?? "", fuss: def.fuss ?? "", kategorie: def.kategorie,
       text: def.text, beispiel: def.text.replace(/\{\{(\d)\}\}/g, (_m, n) => def.beispiele[Number(n) - 1] ?? ""),
       knoepfe: def.knoepfe.map((k) => k.text),
       entwurf: !WA_VORLAGEN.some((v) => v.name === name),
       /** true/false; null = WhatsApp nicht eingerichtet oder Meta nicht erreichbar. */
       freigegeben: frei && istFrei ? istFrei(name, frei) : null,
+      // E-243: der Stand bei Meta — Textfassung und (falls es sie gibt) Bildfassung.
+      meta: metaStatus(meta?.get(name), !!meta),
+      metaBild: hatBild ? metaStatus(meta?.get(bild), !!meta) : null,
     }];
   });
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// E-243: „VERKAUF SCHARF STELLEN" — Rückfrage, Knopf, Einreichen der Vorlagen
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Das Einreichen der fehlenden Vorlagen läuft im Hintergrund (Meta braucht je
+ * Vorlage Sekunden, E-217) — hier sein Stand. Bewusst vorlagenEinreichen (nur
+ * FEHLENDE) und nicht „einreichen und auffrischen" wie der Knopf im Lead-Motor:
+ * Das Auffrischen schickte jede freigegebene Vorlage, deren Text bei Meta auch
+ * nur um ein Leerzeichen abweicht, zurück in die Prüfung — die Sendungen der
+ * Lead-Kette stünden stundenlang (dieselbe Abwägung wie
+ * vorlagenEinmalEinreichen, fiaon-wa-zentrale.ts). Eine ABGELEHNTE Vorlage
+ * reicht der Knopf im Lead-Motor nach der Textänderung neu ein.
+ */
+interface EinreichenStand { laeuft: boolean; seit: string | null; bis: string | null; eingereicht: string[]; schonDa: number; fehler: { name: string; grund: string }[]; abbruch: string | null }
+let einreichen: EinreichenStand = { laeuft: false, seit: null, bis: null, eingereicht: [], schonDa: 0, fehler: [], abbruch: null };
+export function einreichenStand(): EinreichenStand { return { ...einreichen, fehler: [...einreichen.fehler], eingereicht: [...einreichen.eingereicht] }; }
+
+/** Startet das Einreichen (einmal zur Zeit) — antwortet sofort mit dem Stand. */
+export async function vorlagenEinreichenStarten(): Promise<EinreichenStand> {
+  if (einreichen.laeuft) return einreichenStand();
+  const wa = await import("../lib/fiaon-whatsapp");
+  // Läuft schon der Lauf des Lead-Motors, reicht er dieselben Fehlenden ein — kein zweiter daneben.
+  if (wa.vorlagenLaufStand().laeuft) {
+    return { ...einreichenStand(), abbruch: "Im Lead-Motor läuft gerade ein Einreichen — der reicht die fehlenden Vorlagen ein." };
+  }
+  einreichen = { laeuft: true, seit: new Date().toISOString(), bis: null, eingereicht: [], schonDa: 0, fehler: [], abbruch: null };
+  void (async () => {
+    try {
+      const erg = await wa.vorlagenEinreichen();
+      einreichen = { ...einreichen, laeuft: false, bis: new Date().toISOString(), eingereicht: erg.eingereicht, schonDa: erg.schonDa.length, fehler: erg.fehler };
+      console.log(`[CHEF-AUSKUNFT] Vorlagen eingereicht: ${erg.eingereicht.length} neu, ${erg.schonDa.length} schon da, ${erg.fehler.length} Fehler`
+        + (erg.fehler.length ? ` — ${erg.fehler.map((f) => `${f.name}: ${f.grund}`).join(" | ").slice(0, 300)}` : ""));
+      await metaVorlagenStand(true).catch(() => null);
+    } catch (e) {
+      einreichen = { ...einreichen, laeuft: false, bis: new Date().toISOString(), abbruch: String((e as Error)?.message || e).slice(0, 300) };
+      console.error("[CHEF-AUSKUNFT] Vorlagen einreichen:", e);
+    }
+  })();
+  return einreichenStand();
+}
+
+/** Kurze Namen für das Handy (die Buchstaben A/B/C allein sagen dort niemandem etwas). */
+const SEGMENT_KURZ: Record<string, string> = { kunde: "Kunden", antrag: "Anträge", abbrecher: "Abbrecher", lead: "Leads" };
+
+/** Der Rechtssatz der Rückfrage — wörtlich (Auftrag E-243). */
+export const SCHARF_RECHTSSATZ = "Werbe-Mails auch an Anträge, Abbrecher und Leads ohne Einwilligung — deine Entscheidung vom 25./26.09.; "
+  + "Werbesperre, Abmeldung und Vertriebssperre gelten immer.";
+
+/** GET /chef/auskunft/scharf — die Zahlen für die Rückfrage: immer im Kreis „alle", egal was eingestellt ist. */
+router.get("/chef/auskunft/scharf", wache, async (_req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    const [pool, moeglich, einst, wa, vorlagen] = await Promise.all([
+      poolZahlen(sqlPool, { kreis: "alle" }), heuteMoeglich("alle"), einstellungenLesen(), whatsappMoeglich(), vorlagenStand(),
+    ]);
+    // heuteMoeglich = nach der Tagesrücksicht — ehrlicher als „fällig" allein (E-243).
+    const segmente = VERKAUF_SEGMENTE.map((sg) => {
+      const z = pool.segmente[sg];
+      return {
+        segment: sg, text: SEGMENT_TEXT[sg], kurz: SEGMENT_KURZ[sg], imKreis: z.imKreis, heuteFaellig: z.heuteFaellig,
+        heuteMoeglich: moeglich[sg].mail, waHeute: moeglich[sg].whatsapp, waFaehig: z.imKreisMitWhatsApp, gesperrt: z.gesamt - z.erreichbar,
+      };
+    });
+    const summe = segmente.reduce((a, z) => ({
+      imKreis: a.imKreis + z.imKreis, heuteFaellig: a.heuteFaellig + z.heuteFaellig, heuteMoeglich: a.heuteMoeglich + z.heuteMoeglich,
+      waHeute: a.waHeute + z.waHeute, waFaehig: a.waFaehig + z.waFaehig, gesperrt: a.gesperrt + z.gesperrt,
+    }), { imKreis: 0, heuteFaellig: 0, heuteMoeglich: 0, waHeute: 0, waFaehig: 0, gesperrt: 0 });
+    res.json({
+      ok: true, segmente, summe, gesperrt: pool.gesperrt, sperrgrundText: SPERRGRUND_TEXT,
+      ziel: Object.fromEntries(SCHARF_WERTE.map((w) => [w.key, w.wert])), einstellungen: einst,
+      deckel: { mails: Number(SCHARF_WERTE.find((w) => w.key === SCHALTER_MAILS)?.wert ?? 0), whatsapp: Number(SCHARF_WERTE.find((w) => w.key === SCHALTER_WA)?.wert ?? 0) },
+      fenster: { ab: uhrzeit(SENDE_AB_MIN), bis: uhrzeit(SENDE_BIS_MIN) },
+      rechtssatz: SCHARF_RECHTSSATZ, whatsapp: wa, vorlagen, einreichen: einreichenStand(),
+    });
+  } catch (err) {
+    console.error("[CHEF-AUSKUNFT] scharf (Rückfrage):", err);
+    res.status(500).json({ ok: false, error: "Die Zahlen für die Rückfrage ließen sich nicht laden." });
+  }
+});
+
+/**
+ * POST /chef/auskunft/scharf — Justins „mit sofortiger Wirkung". Wache wie die
+ * Einstellungen (Geschäftsführung oder Inhaber). Setzt die fünf Werte in EINER
+ * Buchung (scharfStellen), schreibt jede Änderung ins Protokoll (alt → neu)
+ * und startet das Einreichen der fehlenden WhatsApp-Vorlagen. Zweimal gedrückt
+ * ändert nichts doppelt (unveränderte Werte stehen nicht im Protokoll).
+ */
+router.post("/chef/auskunft/scharf", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const alterMailSchluessel = await rohWert(SCHALTER_PRO_TAG);
+    const erg = await scharfStellen();
+    const geaendert: string[] = [];
+    for (const w of SCHARF_WERTE) {
+      const regel = STEUERUNG[w.key];
+      if (!regel || erg.rohVorher[w.key] === w.wert) continue;
+      const herkunft = erg.rohVorher[w.key] != null ? "" : w.key === SCHALTER_MAILS && alterMailSchluessel != null ? " (alter Schlüssel)" : " (Standard)";
+      const text = `${regel.name}: ${regel.wert(erg.vorher)}${herkunft} → ${regel.wert(erg.nachher)} (Verkauf scharf gestellt)`;
+      geaendert.push(text);
+      await chefProtokoll(req, `${PROTOKOLL_ZIEL}${w.key}`, text);
+    }
+    const lauf = await vorlagenEinreichenStarten().catch((e) => ({ ...einreichenStand(), abbruch: String((e as Error)?.message || e).slice(0, 200) }));
+    await chefProtokoll(req, `${PROTOKOLL_ZIEL}scharf`,
+      `Verkauf scharf gestellt${geaendert.length ? "" : " (alle Werte standen schon so)"} · WhatsApp-Vorlagen: `
+      + (lauf.abbruch ? lauf.abbruch : lauf.laeuft ? "Einreichen gestartet" : "nichts zu tun"));
+    const wer = req.chef?.agentId ? `Chef #${req.chef.agentId}` : "Chefbüro";
+    console.log(`[CHEF-AUSKUNFT] Verkauf scharf gestellt durch ${wer}: ${geaendert.length ? geaendert.join(" | ") : "unverändert"}`);
+    const [einstellungen, protokoll] = await Promise.all([einstellungenLesen(), protokollLesen()]);
+    res.json({ ok: true, einstellungen, protokoll, geaendert, einreichen: lauf });
+  } catch (err) {
+    console.error("[CHEF-AUSKUNFT] scharf:", err);
+    res.status(500).json({ ok: false, error: "Scharf stellen ging nicht — es wurde nichts geändert." });
+  }
+});
+
+/** GET /chef/auskunft/vorlagen — der Stand bei Meta frisch und das Einreichen (die Seite fragt nach dem Knopf nach). */
+router.get("/chef/auskunft/vorlagen", wache, async (_req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    // Nach dem Einreichen hat metaVorlagenStand schon frisch gefragt; sonst gilt der 5-Minuten-Speicher.
+    res.json({ ok: true, vorlagen: await vorlagenStand(), einreichen: einreichenStand() });
+  } catch (err) {
+    console.error("[CHEF-AUSKUNFT] vorlagen:", err);
+    res.status(500).json({ ok: false, error: "Der Stand der Vorlagen ließ sich nicht laden." });
+  }
+});
 
 // ───────────────────────────────────────────────────────────────────────────
 // GET /chef/auskunft/vorschau — wer als Nächstes angeschrieben würde

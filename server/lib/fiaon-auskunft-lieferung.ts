@@ -482,6 +482,81 @@ async function nutzlastFuer(l: VorgangLage, lauf: Lauf): Promise<Record<string, 
   return { ...basis, person_id: personId, vorname, anrede: html(anredeMail({ vorname, nachname })), login_url: absoluteUrl("/app/vorgaenge") };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NACH DER LIEFERUNG: DER SCHRITT ZUM PAKET (26.09.2026, E-243)
+//
+// Justin: „Ziel ist, die Bonitätsauskunft zu verkaufen UND ein Abo zu verkaufen
+// — wenn nicht, auch gut, dann nur die Bonität." Wer die Auskunft OHNE
+// laufendes Paket bekommen hat, liest in der ersten „Ihre Auskunft ist da" je
+// Bestellung den Abschnitt „Ihr nächster Schritt zur Karte"
+// (auskunftPaketSchrittSaetze, server/mail/vorlagen/auskunft-lead.ts), und sein
+// Betreuer — sonst die Zuteilungsregel (auftragEmpfaenger) — bekommt EINE
+// Aufgabe je Bestellung: „Auskunft geliefert — Auswertung besprechen und Paket
+// anbieten". Wer das Angebot nicht bekommen darf (Sperre, Kündigung, Storno,
+// Zahlung gemeldet), entscheidet auskunftPaketSchritt (fiaon-auskunft.ts).
+// Beides hält die Lieferung nie auf.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die zwei Mail-Sätze — leer, wenn kein Angebot (laufendes Paket, Sperre) oder schon in einer früheren Mail dieser Bestellung. */
+async function paketSchrittNutzlast(personId: number, ref: string, marke: string, lauf: Lauf): Promise<Record<string, string>> {
+  try {
+    const [frueher] = (await lauf`
+      SELECT 1 AS da FROM fiaon_contact_log
+       WHERE ref = ${ref} AND note LIKE ${`%${marke}%`} AND note NOT LIKE ${"%nicht gesendet%"} LIMIT 1`) as any[];
+    if (frueher) return {};
+    const { auskunftPaketSchritt } = await import("./fiaon-auskunft");
+    const schritt = await auskunftPaketSchritt(personId, lauf);
+    if (!schritt) return {};
+    const { auskunftPaketSchrittSaetze } = await import("../mail/vorlagen/auskunft-lead");
+    return auskunftPaketSchrittSaetze(schritt.variante, schritt.url);
+  } catch (e) {
+    console.error(`[AUSKUNFT-LIEFERUNG] ${ref}: Paket-Schritt für die Mail nicht bestimmbar — Mail ohne ihn:`, String((e as Error)?.message || e).slice(0, 200));
+    return {};
+  }
+}
+
+/** Die Aufgabe „Auswertung besprechen und Paket anbieten" — einmal je Auskunft-Bestellung. Rückgabe: ihre Nummer oder null. */
+async function paketAngebotAufgabe(personId: number, ref: string, lauf: Lauf): Promise<number | null> {
+  try {
+    const schluessel = `auskunft-paket-angebot:${ref}`;
+    const [da] = (await lauf`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ${schluessel} LIMIT 1`.catch(() => [])) as any[];
+    if (da?.id) return null;
+    const { auskunftPaketSchritt } = await import("./fiaon-auskunft");
+    const schritt = await auskunftPaketSchritt(personId, lauf);
+    if (!schritt) return null;
+    const [p] = (await lauf`SELECT TRIM(CONCAT_WS(' ', first_name, last_name)) AS name FROM fiaon_persons WHERE id = ${personId} LIMIT 1`.catch(() => [])) as any[];
+    const wer = String(p?.name || "").trim() || "Der Kunde";
+    const weg = schritt.variante === "antrag"
+      ? `Ein fertiger Paket-Antrag wartet auf die erste Zahlung — Zahlungsseite: ${schritt.url}`
+      : `Einen Paket-Antrag gibt es noch nicht — Antrag (ohne den Auskunft-Zusatz): ${schritt.url}`;
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const { werktageSpaeter } = await import("../routes/fiaon-app");
+    const erg = await auftragFuerKunden({
+      personId, ref, agentId: null, faelligAm: werktageSpaeter(1),
+      titel: "Auskunft geliefert — Auswertung besprechen und Paket anbieten",
+      text: `${wer} hat die Bonitätsauskunft (Bestellung ${ref}) bekommen, ein FIAON-Paket läuft nicht. Bitte: `
+        + "1. anrufen und die Auswertung durchgehen — jeden Eintrag, die Fristen, Handlungsplan und Schreiben (das gehört zur gekauften Auskunft); "
+        + "2. danach das Paket anbieten: feste Ansprechperson, Schreiben an die Auskunfteien, Antrag auf die passende Karte — "
+        + "ohne Zusage, über die Karte entscheidet die Bank; kein Wunschlimit nennen; "
+        + `3. Ergebnis im Verlauf eintragen. ${weg}`,
+      schluessel, quelle: "bestellung", bereich: "pruefen",
+      link: `/agent/kunden?person=${personId}`, autorName: "Auskunft-Lieferung",
+      anlageText: "Angelegt von der Auskunft-Lieferung: Die Auskunft ist beim Kunden, ein Paket läuft nicht.",
+    });
+    if (erg?.id) {
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${ref}, ${personId}, NULL, 'Auskunft-Lieferung', 'system',
+                ${`Bonitätsauskunft geliefert, kein laufendes Paket — Aufgabe #${erg.id} „Auswertung besprechen und Paket anbieten“${erg.agentName ? ` an ${erg.agentName}` : ""}.`})`
+        .catch(() => {});
+    }
+    return erg?.id ?? null;
+  } catch (e) {
+    console.error(`[AUSKUNFT-LIEFERUNG] ${ref}: Aufgabe „Paket anbieten“ nicht angelegt:`, String((e as Error)?.message || e).slice(0, 200));
+    return null;
+  }
+}
+
 /**
  * Datenkopie eingegangen (Ergebnis „bewilligt" einer Anfrage auf Selbstauskunft):
  * Mail schufa_approved einmal je Vorgang und die Aufgabe „auswerten" an den Betreuer.
@@ -504,8 +579,10 @@ export async function auskunftEingangMelden(vorgangId: number, wer: { von?: stri
     ? `Von ${html(namenText(restNamen))} steht die Antwort noch aus — sobald sie da ist, sagen wir Ihnen Bescheid.`
     : "";
   const { sendMakeWebhookMitGrund } = await import("../make-webhook");
+  // 26.09.2026 (E-243): ohne laufendes Paket „Ihr nächster Schritt zur Karte" — nur in der ersten Mail der Bestellung.
+  const paketSchritt = await paketSchrittNutzlast(personId, l.ref, "[auskunft-eingang:", lauf);
   const versand = await sendMakeWebhookMitGrund("schufa_approved", {
-    ...(await nutzlastFuer(l, lauf)) as any, auskunftei: html(l.kurz), rest_satz: restSatz,
+    ...(await nutzlastFuer(l, lauf)) as any, auskunftei: html(l.kurz), rest_satz: restSatz, ...paketSchritt,
   }).catch((e) => ({ ok: false, grund: String(e) }));
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   const { werktageSpaeter } = await import("../routes/fiaon-app");
@@ -521,6 +598,8 @@ export async function auskunftEingangMelden(vorgangId: number, wer: { von?: stri
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
     VALUES (${l.ref}, ${personId}, ${wer.agentId ?? null}, ${wer.von ?? "System"}, 'system',
             ${`Bonitätsauskunft: Datenkopie von ${l.kurz} eingegangen (Vorgang #${vorgangId}). Mail „Ihre Datenkopie ist da“: ${versand.ok ? `gesendet. ${marke}` : `nicht gesendet (${(versand as any).grund ?? "?"}) — beim nächsten Eintragen des Ergebnisses wird sie erneut versucht.`}`})`;
+  // 26.09.2026 (E-243): ohne laufendes Paket die Aufgabe „Auswertung besprechen und Paket anbieten" (einmal je Bestellung).
+  await paketAngebotAufgabe(personId, l.ref, lauf);
   return { ok: versand.ok, mail: versand.ok ? "gesendet" : "fehlgeschlagen" };
 }
 
@@ -729,6 +808,10 @@ export async function auskunftAngebotKaufstand(personId: number | null, lauf: La
   if (stand.stufe === "bezahlt") return "Diese Person hat die Auskunft schon bezahlt — kein Angebot.";
   if (stand.stufe === "dokument") return "Für diese Person liegt schon eine Auskunft in der Akte — kein Angebot.";
   if (stand.offen?.status === "claimed_paid") return "Diese Person hat die Zahlung für die Auskunft schon gemeldet — kein Angebot.";
+  // 26.09.2026 (E-243): Im Antrag zum Kundenpreis dazubestellt, das Bündel wartet auf die erste
+  // Paketzahlung — ein Angebot zum Einzelpreis wäre ein Widerspruch (buendelWartet, fiaon-auskunft.ts).
+  const { buendelWartet } = await import("./fiaon-auskunft");
+  if (await buendelWartet(personId, lauf)) return "Diese Person hat die Auskunft im Antrag zum Kundenpreis dazubestellt (fällig nach der ersten Paketzahlung) — kein Angebot.";
   return null;
 }
 
@@ -1695,6 +1778,8 @@ export async function beschaffungHochladen(
   // Die Mail „Ihre Auskunft ist da" — und danach der Stand.
   const mail = ein.mail === false ? "aus" : mailStellen.length ? await beschaffungMailSenden(a, mailStellen, rest, lauf) : "schon_gemeldet";
   const status = await nachLieferungStand(id, a.ref, mail, rest.length === 0, lauf);
+  // 26.09.2026 (E-243): ohne laufendes Paket die Aufgabe „Auswertung besprechen und Paket anbieten" (einmal je Bestellung).
+  await paketAngebotAufgabe(a.personId, a.ref, lauf);
   const hinweis = verschluesselt ? "Die PDF ist verschlüsselt — die Analyse kann sie vielleicht nicht lesen. Dann bitte über „Drucken → Als PDF sichern“ neu speichern und noch einmal hochladen." : null;
   return {
     ok: true, status, mail, dokumentRef: traeger, analyse: analyseStand, hinweis,
@@ -1733,6 +1818,8 @@ async function beschaffungMailSenden(a: BeschaffungAuftrag, gewaehlt: string[], 
   const vorname = a.kunde.vorname || (basis as any).vorname || null;
   const nachname = a.kunde.nachname || (basis as any).nachname || null;
   const namen = a.stellen.filter((st) => gewaehlt.includes(st.key)).map((st) => st.mailName);
+  // 26.09.2026 (E-243): ohne laufendes Paket „Ihr nächster Schritt zur Karte" — nur in der ersten Mail dieses Auftrags.
+  const paketSchritt = await paketSchrittNutzlast(a.personId, a.ref, `[auskunft-beschaffung:${a.id}:`, lauf);
   const versand = await sendMakeWebhookMitGrund("schufa_approved", {
     ...(basis as any),
     person_id: a.personId,
@@ -1743,6 +1830,7 @@ async function beschaffungMailSenden(a: BeschaffungAuftrag, gewaehlt: string[], 
     rest_satz: rest.length ? `Von ${html(namenText(rest.map((st) => st.mailName)))} steht die Auskunft noch aus — sobald sie da ist, sagen wir Ihnen Bescheid.` : "",
     login_url: absoluteUrl("/login"),
     auskunft_liefermodus: "einkauf",
+    ...paketSchritt,
   }).catch((e) => ({ ok: false, grund: String((e as Error)?.message || e) }));
   await lauf`
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)

@@ -36,7 +36,7 @@ import {
 } from "@shared/fiaon-auskunft";
 import { auskunftArtFuer } from "./fiaon-postmeister-dossier";
 import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fiaon-auskunft";
-import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN } from "../mail/vorlagen/auskunft-verkauf";
+import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN, ANGEBOT_SEGMENTE, ANGEBOT_BETREFF_VARIANTEN } from "../mail/vorlagen/auskunft-verkauf";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -482,13 +482,16 @@ export function auskunftAngebotsBetreffs(): string[] {
   for (const fassung of ANGEBOT_FASSUNGEN) {
     for (const art of ["privat", "firma"]) {
       for (const land of ["DE", "AT", "CH"]) {
-        for (const segment of ["kunde", "antrag", "lead"]) {
+        // 26.09.2026 (E-243): alle Segmente der Vorlage (neu: abbrecher) und beide Betreffzeilen je Stufe.
+        for (const segment of ANGEBOT_SEGMENTE) {
           for (const mit_abo of [true, false]) {
-            try {
-              const b = betreffNorm(auskunftAngebotBaustein({ fassung, art, land, segment, mit_abo, vorname: null, nachname: null }).betreff);
-              // Ein Betreff aus einem Wort erkennt jede zweite Mail — nur echte Sätze zählen.
-              if (b.length >= 15) alle.add(b);
-            } catch { /* eine Fassung, die ohne Daten nicht baut, zählt nicht */ }
+            for (const betreff_variante of ANGEBOT_BETREFF_VARIANTEN) {
+              try {
+                const b = betreffNorm(auskunftAngebotBaustein({ fassung, art, land, segment, mit_abo, betreff_variante, vorname: null, nachname: null }).betreff);
+                // Ein Betreff aus einem Wort erkennt jede zweite Mail — nur echte Sätze zählen.
+                if (b.length >= 15) alle.add(b);
+              } catch { /* eine Fassung, die ohne Daten nicht baut, zählt nicht */ }
+            }
           }
         }
       }
@@ -768,7 +771,7 @@ export const auskunftAnbieten: Werkzeug = {
       return { ok: false, ergebnis: "", fehler: "Für diesen Kunden gilt eine Werbe- oder Vertriebssperre — biete nichts an, beantworte nur sein Anliegen." };
     }
     const anlass = String(p.anlass || "").trim().slice(0, 200) || null;
-    const { auskunftStand } = await import("./fiaon-auskunft");
+    const { auskunftStand, standZumZeigen } = await import("./fiaon-auskunft");
     // E-241: Ein offener Antrag oder ein Lead, der auf das Angebot antwortet oder
     // selbst fragt (auskunftVerkaufGesperrt oben hat das geprüft), beauftragt zum
     // Einzelpreis — ohne Paket, mit Art und Land wie im Angebot des Takts
@@ -777,7 +780,8 @@ export const auskunftAnbieten: Werkzeug = {
     const alsAntwort = AUSKUNFT_ANTWORT_LAGEN.includes(k.kundenlage);
     const verkauf = alsAntwort ? await auskunftArtLandVerkauf(k.personId) : null;
     const art = verkauf?.art ?? await auskunftArtFuer(k.personId);
-    const stand = await auskunftStand(k.personId, sqlPool, art);
+    // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+    const stand = standZumZeigen(await auskunftStand(k.personId, sqlPool, art));
     const land = verkauf?.land ?? stand.land;
     const basis = { wort: auskunftWort(land), auskunfteien: auskunfteienText(land), land, art };
 

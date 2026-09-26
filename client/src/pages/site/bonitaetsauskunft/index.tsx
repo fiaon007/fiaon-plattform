@@ -23,7 +23,7 @@ import {
 } from "@/i18n/bonitaetsauskunft-familie";
 import { BX_FRAGEN_HUB } from "@/i18n/bonitaetsauskunft-fragen";
 import {
-  Abschnitt, Band, BeispielPlan, BxHero, BxRahmen, Haken, LeistungListe, Pfeil, PreisZeile, Schalter, Weiterlesen, WegSchritte,
+  Abschnitt, Band, BeispielPlan, BxHero, BxRahmen, Haken, KundenpreisLink, LeistungListe, Pfeil, PreisZeile, Schalter, Weiterlesen, WegSchritte,
   useAuskunftAnsicht, useLandWahl,
 } from "./bausteine";
 
@@ -61,6 +61,8 @@ function Mappe({ land, setLand, linkLand }: { land: AuskunftLand; setLand: (l: A
         <p className="unter">{BX.karteBei}</p>
         <div className="bx-chips">{auskunfteienFuer(land).map((a) => <span key={a.key}>{a.kurz}</span>)}</div>
         <a className="bx-karte-knopf" href={bestellPfad("privat", linkLand)}>{BX.knopfBestellen}<Pfeil /></a>
+        {/* E-243: Kunden mit laufendem Paket direkt zum Kundenpreis-Link (die Preiszeile links entfällt ab 1024 px). */}
+        <KundenpreisLink art="privat" land={linkLand} className="bx-karte-leise" />
       </div>
     </div>
   );
@@ -104,6 +106,10 @@ export default function BonitaetsauskunftUebersicht() {
               {/* Gegenlesen E-241: Preis mit Kaufknopf — die Steuerzeile gehört dazu (PAngV). */}
               <p className="steuer">{BX_PREIS.steuer}</p>
               <Knopf href={bestellPfad(art, linkLand)}>{art === "firma" ? BX.knopfBestellenFirma : BX.knopfBestellen}</Knopf>
+              {/* E-243: der Weg zum Kundenpreis unter dem Kaufknopf. */}
+              <p style={{ marginTop: 14, textAlign: "center" }}>
+                <KundenpreisLink art={art} land={linkLand} stil={{ color: "var(--bx-tinte)", textDecoration: "underline", textDecorationColor: "rgba(37,99,235,.35)", textUnderlineOffset: 3 }} />
+              </p>
             </div>
           </div>
         </Auf>

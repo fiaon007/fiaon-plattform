@@ -176,10 +176,11 @@ export interface DokumentLageVoll {
 async function auskunftFuerAkte(personId: number | null, lauf: Lauf): Promise<DokumentLageVoll["auskunft"]> {
   if (personId == null) return null;
   try {
-    const { auskunftStand } = await import("./fiaon-auskunft");
+    const { auskunftStand, standZumZeigen } = await import("./fiaon-auskunft");
     const { auskunftWort, euroText } = await import("@shared/fiaon-auskunft");
     const { angebotLage } = await import("../routes/fiaon-auskunft-kauf");
-    const [s, lage] = await Promise.all([auskunftStand(personId, lauf), angebotLage(personId, lauf)]);
+    // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+    const [s, lage] = await Promise.all([auskunftStand(personId, lauf).then(standZumZeigen), angebotLage(personId, lauf)]);
     // Integration 25.09.2026: Dieselbe Bremse wie die Unterlagen-Mail (auskunftMailTeil) — sonst
     // verspräche der Knopf „Auskunft anbieten" ein Angebot, das der Server gerade weglässt.
     const { zuletztAngeboten } = await import("./fiaon-auskunft");

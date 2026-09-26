@@ -12,7 +12,7 @@
 //     Gedächtnis zu dem Menschen und „Aus der Aktion nehmen".
 // Die Regeln selbst stehen in server/lib/fiaon-mara-aktion.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { API, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
@@ -20,6 +20,9 @@ import "@/styles/office-rundgang.css";
 import "@/styles/chef-mara.css";
 import "@/styles/chef-wa-zentrale.css";
 import ChefWhatsAppZentrale from "./ChefWhatsAppZentrale";
+// E-243 (26.09.2026): Der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite — erst beim Öffnen geladen.
+const AuskunftVerkauf = lazy(() => import("./ChefAuskunft"));
+const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null }
 interface Stand {
@@ -758,32 +761,66 @@ function ProbeFenster({ probe, onZu }: { probe: any; onZu: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ZWEI REITER (23.09.2026, E-229)
+// DREI REITER (23.09.2026, E-229 · 26.09.2026, E-243)
 //
 // Justin: „bau mir eine von den Seiten um und neu auf, sodass ich von dort aus
 // wirklich alles steuern kann." Mara arbeitet über zwei Wege — WhatsApp und
 // Mail. Beide stehen hier, WhatsApp vorne. ?reiter=mail öffnet die Mail-Aktion.
+//
+// E-243, Justin 26.09.2026: „das soll nicht schon wieder eine neue eigene Seite
+// sein, pflege das logisch hier irgendwo ein" — der dritte Reiter ist der
+// Verkauf der Bonitätsauskunft (vorher /chef/s/auskunft): Trichter, „Verkauf
+// scharf stellen", Steuerung, Pool, Rückstand. ?reiter=auskunft öffnet ihn,
+// &ansicht=beschaffung die Beschaffung. Die Beschaffung bleibt zusätzlich als
+// Arbeitsplatz im Raum „Kunden" (/chef/s/auskunft-beschaffung): Dort arbeitet
+// das Team ab Stufe Geschäftsführung, und die Aufgaben verlinken dorthin.
 // ═══════════════════════════════════════════════════════════════════════════
-type MaraReiter = "whatsapp" | "mail";
+type MaraReiter = "whatsapp" | "mail" | "auskunft";
+type AuskunftAnsicht = "verkauf" | "beschaffung";
+
+function ausAdresse(): { reiter: MaraReiter; ansicht: AuskunftAnsicht } {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const r = q.get("reiter");
+    return {
+      reiter: r === "mail" ? "mail" : r === "auskunft" ? "auskunft" : "whatsapp",
+      ansicht: q.get("ansicht") === "beschaffung" ? "beschaffung" : "verkauf",
+    };
+  } catch { return { reiter: "whatsapp", ansicht: "verkauf" }; }
+}
+
 export default function ChefMara() {
-  const [reiter, setReiter] = useState<MaraReiter>(() => {
-    try { return new URLSearchParams(window.location.search).get("reiter") === "mail" ? "mail" : "whatsapp"; } catch { return "whatsapp"; }
-  });
-  const wechseln = (r: MaraReiter) => {
-    setReiter(r);
+  const [stand, setStand] = useState(ausAdresse);
+  const wechseln = (reiter: MaraReiter, ansicht: AuskunftAnsicht = "verkauf") => {
+    setStand({ reiter, ansicht });
     try {
       const u = new URL(window.location.href);
-      if (r === "mail") u.searchParams.set("reiter", "mail"); else u.searchParams.delete("reiter");
+      if (reiter === "whatsapp") u.searchParams.delete("reiter"); else u.searchParams.set("reiter", reiter);
+      if (reiter === "auskunft" && ansicht === "beschaffung") u.searchParams.set("ansicht", "beschaffung"); else u.searchParams.delete("ansicht");
       window.history.replaceState(null, "", u.toString());
     } catch { /* Adresse bleibt, der Reiter wechselt trotzdem */ }
   };
+  const { reiter, ansicht } = stand;
   return (
     <div>
       <div className="mara-reiter" role="tablist" aria-label="Maras Wege">
         <button type="button" role="tab" aria-selected={reiter === "whatsapp"} onClick={() => wechseln("whatsapp")}>WhatsApp-Zentrale</button>
         <button type="button" role="tab" aria-selected={reiter === "mail"} onClick={() => wechseln("mail")}>E-Mail-Aktion</button>
+        <button type="button" role="tab" aria-selected={reiter === "auskunft"} onClick={() => wechseln("auskunft")}>Bonitätsauskunft</button>
       </div>
-      {reiter === "whatsapp" ? <ChefWhatsAppZentrale /> : <MaraMailAktion />}
+      {reiter === "whatsapp" && <ChefWhatsAppZentrale />}
+      {reiter === "mail" && <MaraMailAktion />}
+      {reiter === "auskunft" && (
+        <>
+          <div className="mara-ansicht" role="group" aria-label="Bonitätsauskunft">
+            <button type="button" aria-pressed={ansicht === "verkauf"} onClick={() => wechseln("auskunft", "verkauf")}>Verkauf</button>
+            <button type="button" aria-pressed={ansicht === "beschaffung"} onClick={() => wechseln("auskunft", "beschaffung")}>Beschaffung</button>
+          </div>
+          <Suspense fallback={<Geruest zeilen={8} />}>
+            {ansicht === "verkauf" ? <AuskunftVerkauf /> : <AuskunftBeschaffung />}
+          </Suspense>
+        </>
+      )}
     </div>
   );
 }

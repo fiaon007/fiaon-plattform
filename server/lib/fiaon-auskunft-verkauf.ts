@@ -22,7 +22,7 @@
 //                  Antragswegs; nicht „Zahlung gemeldet") → 149 € (Business 349 €),
 //       C „lead"   Lead mit Person, ohne jeden Antrag → 149 €.
 //     Reihenfolge je Tag: A vor B vor C, in jedem Segment die frischeste
-//     Aktivität zuerst.
+//     Aktivität zuerst. (E-243: dazu „abbrecher" zwischen B und C — unten.)
 //
 // ── DIE RECHTSLAGE BEI 'alle' — OFFEN GESAGT ──────────────────────────────
 // Für B und C gibt es keine ausdrückliche Werbe-Einwilligung per E-Mail
@@ -36,8 +36,8 @@
 //
 // ── DIE STUFEN JE MENSCH (höchstens 3 Mails + 1 WhatsApp, dann Ende) ──────
 //   1. Mail Fassung a — sofort, wenn er in die Menge fällt.
-//   2. WhatsApp-Vorlage fiaon_kk_auskunft — frühestens 2 Tage nach Mail a
-//      (die gemeinsame 3-Tage-Bremse macht daraus 3), nur mit nachgewiesener
+//   2. WhatsApp-Vorlage fiaon_kk_auskunft — frühestens 1 Tag nach Mail a
+//      (E-243; bis dahin 2, mit der gemeinsamen 3-Tage-Bremse 3), nur mit nachgewiesener
 //      Einwilligung (WHATSAPP_EINWILLIGUNG_SQL) und nur, wenn Meta die Vorlage
 //      freigegeben hat — über die WA-Zentrale mit allen ihren Regeln.
 //   3. Mail Fassung b — frühestens 6 Tage nach a und 2 nach der letzten Berührung.
@@ -53,12 +53,14 @@
 //   · auskunft_verkauf_an = 0 (Standard): Der Takt tut NICHTS.
 //   · Zwei Deckel je Berliner Kalendertag: auskunft_verkauf_mails_pro_tag
 //     (Standard 500, Rückfall auf den alten Schlüssel auskunft_verkauf_pro_tag)
-//     und auskunft_verkauf_wa_pro_tag (Standard 30).
+//     und auskunft_verkauf_wa_pro_tag (Standard 20 seit E-243, vorher 30).
 //   · Gleichmäßig über den Tag: Der Takt läuft alle 30 Minuten und nimmt je
-//     Lauf höchstens ceil(Rest / verbleibende Läufe) + 5 — keine 500 Mails um
-//     08:00 (Zustellbarkeit, und das Team hätte alle Rückfragen auf einmal).
-//   · Nachtruhe 8–20 Uhr Berlin — über formatToParts. NIE Number(Intl.format()):
-//     Das ergab am 02.09. NaN (neun Mails um 01:17 aus der Rückholung).
+//     Lauf das Soll bis jetzt minus schon Gesendetes (laufDeckel, E-243) —
+//     keine 500 Mails um 07:00 (Zustellbarkeit, und das Team hätte alle
+//     Rückfragen auf einmal), keine 20 WhatsApp bis halb elf.
+//   · Sendefenster Mo–So 07:00–20:30 Berlin (E-243; vorher 08:00–19:59) — über
+//     formatToParts. NIE Number(Intl.format()): Das ergab am 02.09. NaN (neun
+//     Mails um 01:17 aus der Rückholung).
 //   · Rücksicht: schrieb selbst in 7 Tagen, Mitarbeiter in 12 h dran, andere
 //     Mail in 6 h, WERBLICHE Mail in 20 h (E-241: niemand bekommt zwei
 //     Werbemails an einem Tag), Unterlagen-Mail mit Angebot in 3 Tagen,
@@ -71,6 +73,31 @@
 //
 // Versand ausschließlich über versendenUndProtokollieren (Mail) und die
 // WA-Zentrale (WhatsApp) — jede Berührung steht im Mail- bzw. WA-Protokoll.
+//
+// ── E-243 (26.09.2026): VERKAUF SCHARF, ZIELGRUPPE NACH JUSTIN ─────────────
+// Justin: „JEDER (außer stornierte Kunden und die, die etwas hochgeladen oder
+// schon bezahlt haben) bekommt eine E-Mail; WhatsApp ebenso, jeden Tag 20
+// (Mo–So 07:00 bis 20:30)." Was sich gegenüber E-241 ändert:
+//   · Kreis 'alle' = JEDER mit E-Mail. Neues Segment „abbrecher" (Antrag
+//     begonnen, nicht abgeschickt — bis E-241 in keinem Segment, gemessen 914)
+//     mit dem Einzelpreis 149 € (Business 349 €). Reihenfolge je Tag: kunde,
+//     antrag, abbrecher, lead; in jedem Segment die frischeste Aktivität zuerst.
+//   · Neuer Sperrgrund „storniert": Anträge da, aber keiner lebt mehr
+//     (storniert, ersetzt, erstattet, archiviert) oder in der Telefonkartei
+//     storniert. Gekündigt/Vertrag beendet zählt wie storniert (eigener Grund
+//     „gekuendigt", wie bisher). Wer so ausgeschlossen ist, steht zur Zählung
+//     im Segment, das er hatte — angeschrieben wird er nie.
+//   · Das Fenster: Mo–So 07:00 bis 20:30 Berlin für Mail UND WhatsApp
+//     (vorher 08:00–19:59), gleichmäßig über die Läufe des Tages verteilt —
+//     auch bei kleinen Deckeln (20 WhatsApp = etwa eine je Lauf, nicht sechs
+//     um sieben Uhr). Standard: 500 Mails, 20 WhatsApp.
+//   · WhatsApp „an die Passenden zuerst" (kandidatenHeute, art „whatsapp"):
+//     wer den Kauflink geöffnet und nicht bestellt hat, dann Kunden, fertige
+//     Anträge, Abbrecher, Leads — Begründung bei WA_RANG_SQL. WhatsApp
+//     frühestens 1 Tag nach Mail a (vorher 2, faktisch 3), höchstens eine je
+//     Mensch.
+//   · „Verkauf scharf stellen" (scharfStellen, Chefseite): alle fünf
+//     Einstellungen in EINER Buchung.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { PAKETE } from "@shared/fiaon-pakete";
@@ -81,7 +108,7 @@ import {
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { WHATSAPP_EINWILLIGUNG_SQL, WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 import { AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE } from "@shared/fiaon-lead-texte";
-import { ANGEBOT_ABSTAND_TAGE, ANGEBOT_WEG_TEXT, angebotSpurenSql, zuletztAngeboten, type AuskunftStand } from "./fiaon-auskunft";
+import { ANGEBOT_ABSTAND_TAGE, ANGEBOT_WEG_TEXT, angebotSpurenSql, buendelWartendeSql, zuletztAngeboten, type AuskunftStand } from "./fiaon-auskunft";
 
 type Lauf = typeof sqlPool;
 
@@ -104,7 +131,8 @@ export const SCHALTER_LIEFERMODUS = "auskunft_liefermodus";
 export const SCHALTER_PRO_TAG = "auskunft_verkauf_pro_tag";
 
 export const STANDARD_MAILS_PRO_TAG = 500;
-export const STANDARD_WA_PRO_TAG = 30;
+/** E-243 (26.09.2026): Justin „jeden Tag 20 WhatsApp" — vorher 30. */
+export const STANDARD_WA_PRO_TAG = 20;
 /** Rückwärts verträglich (Chefseite E-240): der Standard der Mails am Tag. */
 export const STANDARD_PRO_TAG = STANDARD_MAILS_PRO_TAG;
 /** Obergrenze der Mails am Tag — mehr Werbung von fiaon.com an einem Tag gefährdet die Zustellung JEDER Rechnung. */
@@ -117,15 +145,35 @@ export const HOECHSTENS_WHATSAPP = 1;
 /** Alle Berührungen je Mensch: drei Mails und eine WhatsApp. */
 export const HOECHSTENS_BERUEHRUNGEN = HOECHSTENS_MAILS + HOECHSTENS_WHATSAPP;
 
-const TAGE_BIS_WHATSAPP = 2;
+/** E-243 (26.09.2026): WhatsApp frühestens 1 Tag nach Mail a (vorher 2 — mit der 3-Tage-Bremse faktisch 3). */
+const TAGE_BIS_WHATSAPP = 1;
+/**
+ * E-243: Der Abstand der WhatsApp zur letzten Berührung und zu jedem anderen
+ * Angebot (gemeinsame Bremse, Adress-Bremse, Unterlagen-Mail) — 1 Tag statt 3.
+ * Die WhatsApp ist der zweite Kanal zur Mail a, kein zweites Angebot auf dem
+ * gleichen Weg; ein Tag Pause bleibt. Die WA-Zentrale liest denselben Wert.
+ */
+export const WA_ANGEBOT_ABSTAND_TAGE = 1;
 const TAGE_BIS_MAIL_B = 6;
 const TAGE_BIS_MAIL_C = 14;
 const MINDESTABSTAND_TAGE = 2;
 /** Eine offene Bestellung jünger als das bekommt den Zahlungslink, kein neues Angebot (auskunftBestellen, fiaon-auskunft.ts). */
 const OFFEN_WIEDERVERWENDEN_TAGE = 21;
-const RUHE_BIS = 8, RUHE_AB = 20;
+/**
+ * E-243 (26.09.2026): das Sendefenster Mo–So 07:00 bis 20:30 Berlin, beide
+ * Grenzen eingeschlossen (20:30 sendet noch, 20:31 nicht) — für Mail UND
+ * WhatsApp. Vorher 08:00–19:59.
+ */
+export const SENDE_AB_MIN = 7 * 60;
+export const SENDE_BIS_MIN = 20 * 60 + 30;
 const TAKT_MINUTEN = 30;
 const LAUF_PUFFER = 5;
+/**
+ * E-243: Ein Abbrecher gehört erst in den Verkauf, wenn sein Antrag eine Stunde
+ * unberührt liegt — wer gerade ausfüllt, bekommt kein Angebot mitten hinein
+ * (die WA-Zentrale wartet für ihre Abbrecher 30 Minuten).
+ */
+const ABBRUCH_RUHE_MINUTEN = 60;
 const WERBUNG_RUHE_STUNDEN = 20;
 /** Gegenlesen 25.09.2026: WhatsApp-Versuche je Mensch (zugestellt wird höchstens einer) und ihr Abstand. */
 const WA_VERSUCHE = 2;
@@ -135,20 +183,23 @@ export type VerkaufKreis = "uwg" | "alle";
 export const KREISE: readonly VerkaufKreis[] = ["uwg", "alle"];
 export type Liefermodus = "einkauf" | "vollmacht" | "api";
 export const LIEFERMODI: readonly Liefermodus[] = ["einkauf", "vollmacht", "api"];
-export type Segment = "kunde" | "antrag" | "lead";
-export const SEGMENTE: readonly Segment[] = ["kunde", "antrag", "lead"];
+export type Segment = "kunde" | "antrag" | "abbrecher" | "lead";
+/** E-243: in dieser Reihenfolge je Tag (Mail) — kunde, antrag, abbrecher, lead. */
+export const SEGMENTE: readonly Segment[] = ["kunde", "antrag", "abbrecher", "lead"];
 export type AngebotFassung = "a" | "b" | "c";
 
 export const SEGMENT_TEXT: Record<Segment, string> = {
   kunde: "A · Kunde mit laufendem Paket",
   antrag: "B · Antrag fertig, nicht bezahlt",
+  // E-243: ohne eigenen Buchstaben — A/B/C sind die Kundenstufen des Hauses, ein „D" gibt es nicht.
+  abbrecher: "Abbrecher · Antrag begonnen, nicht abgeschickt",
   lead: "C · Lead ohne Antrag",
 };
 
 /** Warum jemand aus einem Segment NICHT angeschrieben wird — je Mensch der erste zutreffende Grund. */
 export type Sperrgrund =
   | "test" | "dsgvo" | "werbesperre" | "abgemeldet" | "stopp" | "vertriebssperre"
-  | "gekuendigt" | "global" | "ausland" | "kein_interesse" | "zahlung_gemeldet" | "nicht_zustellbar";
+  | "gekuendigt" | "storniert" | "global" | "ausland" | "kein_interesse" | "zahlung_gemeldet" | "nicht_zustellbar";
 
 export const SPERRGRUND_TEXT: Record<Sperrgrund, string> = {
   test: "Testkonto",
@@ -157,7 +208,9 @@ export const SPERRGRUND_TEXT: Record<Sperrgrund, string> = {
   abgemeldet: "vom Lead-Verteiler abgemeldet",
   stopp: "„STOPP“ auf WhatsApp",
   vertriebssperre: "Vertriebssperre (kein Interesse)",
-  gekuendigt: "gekündigt oder Vertrag beendet",
+  // E-243: Justin „außer stornierte Kunden" — gekündigt zählt wie storniert.
+  gekuendigt: "gekündigt oder Vertrag beendet (zählt wie storniert)",
+  storniert: "storniert (keine lebende Bestellung oder in der Telefonkartei storniert)",
   global: "FIAON Global (eigener Ansprechpartner)",
   ausland: "Wohnsitz außerhalb von Deutschland, Österreich und der Schweiz",
   kein_interesse: "Lead „kein Interesse“",
@@ -272,6 +325,45 @@ export async function einstellungSetzen(
   return { ok: true, key: ziel, wert: w, einstellungen: await verkaufEinstellungen(lauf) };
 }
 
+/**
+ * „VERKAUF SCHARF STELLEN" (26.09.2026, E-243) — Justins Auftrag „mit sofortiger
+ * Wirkung": die fünf Einstellungen auf einmal. Takt an, Kreis „alle", 500 Mails
+ * und 20 WhatsApp am Tag, Liefermodus Einkauf (bis die Schnittstelle steht).
+ */
+export const SCHARF_WERTE: readonly { key: string; wert: string }[] = [
+  { key: SCHALTER_AN, wert: "1" },
+  { key: SCHALTER_KREIS, wert: "alle" },
+  { key: SCHALTER_MAILS, wert: String(STANDARD_MAILS_PRO_TAG) },
+  { key: SCHALTER_WA, wert: String(STANDARD_WA_PRO_TAG) },
+  { key: SCHALTER_LIEFERMODUS, wert: "einkauf" },
+];
+
+/**
+ * Alle fünf in EINER Buchung — über einstellungSetzen (dieselbe Erlaubnisliste,
+ * dieselbe Prüfung). Scheitert eine, bleibt keine geändert. Zurück: die
+ * wirksamen Einstellungen vorher und nachher und je Schlüssel der Rohwert davor
+ * (null = nicht gesetzt, es galt der Standard) — fürs Protokoll „alt → neu".
+ */
+export async function scharfStellen(lauf: Lauf = sqlPool): Promise<{
+  vorher: VerkaufEinstellungen; nachher: VerkaufEinstellungen; rohVorher: Record<string, string | null>;
+}> {
+  const vorher = await verkaufEinstellungen(lauf);
+  const keys = SCHARF_WERTE.map((w) => w.key);
+  const roh = (await lauf`SELECT key, value FROM fiaon_settings WHERE key = ANY(${keys})`) as any[];
+  const rohVorher: Record<string, string | null> = Object.fromEntries(keys.map((k) => {
+    const z = roh.find((r) => String(r.key) === k);
+    const v = z?.value == null ? "" : String(z.value).trim();
+    return [k, v === "" ? null : v];
+  }));
+  await (lauf as any).begin(async (tx: Lauf) => {
+    for (const w of SCHARF_WERTE) {
+      const erg = await einstellungSetzen(w.key, w.wert, tx);
+      if (!erg.ok) throw new Error(`[AUSKUNFT-VERKAUF] scharf stellen: ${w.key} — ${erg.fehler}`);
+    }
+  });
+  return { vorher, nachher: await verkaufEinstellungen(lauf), rohVorher };
+}
+
 /** Der Kreis als SQL-Ausdruck: fest (geprüftes Literal) oder aus der Einstellung gelesen. */
 export function kreisLiteral(k: VerkaufKreis): string {
   return k === "alle" ? "'alle'" : "'uwg'";
@@ -329,6 +421,41 @@ export const ANTRAG_OFFEN_SQL = (a: string) => `(
   AND (COALESCE(${a}.current_step, 0) >= 8 OR COALESCE(${a}.status, '') NOT IN ${UNFERTIG_SQL}
        OR ${a}.payment_status = 'pending_payment'))`;
 
+/** Abgeschickt — dieselbe Hausregel wie der Wiedereinstieg (E-210): Schritt 8 oder ein Status außerhalb der unfertigen. */
+const ABGESCHICKT_SQL = (a: string) => `(COALESCE(${a}.current_step, 0) >= 8 OR COALESCE(${a}.status, '') NOT IN ${UNFERTIG_SQL})`;
+
+/**
+ * Segment „abbrecher" (26.09.2026, E-243): ein Antrag, begonnen und gespeichert,
+ * aber nicht abgeschickt — genau das Gegenstück zu ANTRAG_OFFEN_SQL (dieselbe
+ * Liste der unfertigen Status, „pending_payment" zählt dort als abgeschickt).
+ * Nicht storniert, nicht archiviert, nicht gelöscht, kein Entwurf ohne Person,
+ * nicht gekündigt, keine Auskunft-Bestellung, kein Test — und seit
+ * ABBRUCH_RUHE_MINUTEN unberührt (wer gerade ausfüllt, ist kein Abbrecher).
+ */
+export const ANTRAG_UNFERTIG_SQL = (a: string) => `(
+  ${a}.merged_into IS NULL AND NOT COALESCE(${a}.ist_entwurf, FALSE) AND ${a}.archived_at IS NULL
+  AND ${a}.gdpr_deleted_at IS NULL AND ${a}.cancelled_at IS NULL AND ${a}.gekuendigt_am IS NULL
+  AND NOT ${IST_AUSKUNFT(a)} AND ${a}.ref NOT LIKE 'FIAON-TEST%'
+  AND COALESCE(${a}.payment_status, 'pending') IN ('pending', 'expired')
+  AND NOT ${ABGESCHICKT_SQL(a)}
+  AND COALESCE(${a}.updated_at::timestamptz, ${a}.created_at::timestamptz) < NOW() - INTERVAL '${ABBRUCH_RUHE_MINUTEN} minutes')`;
+
+/**
+ * Eine LEBENDE Bestellung (E-243) — Justin: „außer stornierte Kunden". Nicht
+ * storniert (cancelled_at, cancelled), nicht ersetzt ohne Nachfolger
+ * (superseded — der Nachfolger lebt dann selbst), nicht erstattet, nicht
+ * archiviert (doppelt, Testeintrag, „Kunde widerrufen"), nicht gelöscht.
+ * Wer echte Anträge hat, aber keinen lebenden, ist storniert.
+ */
+const LEBEND_SQL = (a: string) => `(
+  ${a}.merged_into IS NULL AND NOT COALESCE(${a}.ist_entwurf, FALSE) AND NOT ${IST_AUSKUNFT(a)} AND ${a}.ref NOT LIKE 'FIAON-TEST%'
+  AND ${a}.cancelled_at IS NULL AND ${a}.archived_at IS NULL AND ${a}.refunded_at IS NULL AND ${a}.gdpr_deleted_at IS NULL
+  AND COALESCE(${a}.payment_status, '') NOT IN ('cancelled', 'superseded', 'refunded'))`;
+
+/** Ein echter Antrag (kein Entwurf ohne Person, keine Auskunft, kein Test) — Grundlage für „storniert". */
+const ECHTER_ANTRAG_SQL = (a: string) => `(
+  ${a}.merged_into IS NULL AND NOT COALESCE(${a}.ist_entwurf, FALSE) AND NOT ${IST_AUSKUNFT(a)} AND ${a}.ref NOT LIKE 'FIAON-TEST%')`;
+
 /**
  * auskunftStand „nichts" — und strenger: Auch eine Analyse oder eine archivierte
  * Auskunft (frueher_schufa) heißt „hat eine". Lieber einen Kauf verpassen als
@@ -336,6 +463,11 @@ export const ANTRAG_OFFEN_SQL = (a: string) => `(
  * E-241: Eine OFFENE Bestellung sperrt nur, solange sie jünger als 21 Tage ist
  * (dann gilt ihr Zahlungslink) — danach legt auskunftBestellen ohnehin eine neue
  * an, und der Mensch gehört wieder in den Verkauf. „Zahlung gemeldet" sperrt immer.
+ * Integration 26.09.2026 (E-243): Auch das BÜNDEL zählt als „bestellt" — wer die
+ * Auskunft im Antrag zum Kundenpreis dazubestellt hat und auf die erste
+ * Paketzahlung wartet (höchstens BUENDEL_WARTET_TAGE), steht nicht im Kreis. So
+ * urteilen Takt, Tür, WA-Gruppe (auch der Handversand) und Chefseite gleich —
+ * vorher sperrte nur die Tür (buendelWartendeSql in fiaon-auskunft.ts).
  * `person` ist der SQL-Ausdruck für die Personen-ID.
  */
 export const OHNE_AUSKUNFT_SQL = (person: string) => `(
@@ -346,6 +478,8 @@ export const OHNE_AUSKUNFT_SQL = (person: string) => `(
   AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax_d WHERE ax_d.person_id = ${person} AND ax_d.gdpr_deleted_at IS NULL AND ax_d.schufa_pdf IS NOT NULL)
   -- ohne Bezug (NOT IN): fiaon_schufa_analysen hat keinen Index auf person_id — je Mensch ein Seq Scan wäre teuer
   AND ${person} NOT IN (SELECT ax_a.person_id FROM fiaon_schufa_analysen ax_a WHERE ax_a.person_id IS NOT NULL)
+  -- E-243: das Bündel wartet auf die erste Paketzahlung (ohne Bezug, einmal als Hash-Liste)
+  AND ${person} NOT IN (${buendelWartendeSql()})
   AND NOT EXISTS (SELECT 1 FROM fiaon_dokumente ax_k WHERE ax_k.person_id = ${person} AND ax_k.geloescht_am IS NULL AND ax_k.art ILIKE '%schufa%'))`;
 
 /** Nicht gekündigt (Rücknahme hebt auf) — Gekündigte bekommen keine Werbung, E-213. */
@@ -443,6 +577,12 @@ WITH ax_antr AS (
                  AND (a.vertrag_ende_am IS NULL OR a.vertrag_ende_am > NOW()) AND NOT ${IST_AUSKUNFT("a")}) AS paket_laeuft,
          bool_or(a.merged_into IS NULL AND a.payment_status = 'claimed_paid' AND NOT ${IST_AUSKUNFT("a")}) AS zahlung_gemeldet,
          bool_or(${ANTRAG_OFFEN_SQL("a")}) AS antrag_offen,
+         -- E-243: Abbrecher, lebende und überhaupt echte Anträge, und was er einmal hatte (für die Zählung Stornierter)
+         bool_or(${ANTRAG_UNFERTIG_SQL("a")}) AS antrag_unfertig,
+         bool_or(${LEBEND_SQL("a")}) AS lebend,
+         bool_or(${ECHTER_ANTRAG_SQL("a")}) AS hat_antrag_echt,
+         bool_or(${ECHTER_ANTRAG_SQL("a")} AND (a.payment_status IN ('paid', 'refunded') OR a.paid_at IS NOT NULL)) AS war_bezahlt,
+         bool_or(${ECHTER_ANTRAG_SQL("a")} AND ${ABGESCHICKT_SQL("a")}) AS war_abgeschickt,
          bool_or(a.merged_into IS NULL AND NOT ${IST_AUSKUNFT("a")}) AS hat_antrag,
          bool_or(a.merged_into IS NULL AND ${produktkategorieSql("a")} = 'global') AS global,
          bool_or(a.merged_into IS NULL AND a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL) AS gekuendigt,
@@ -484,6 +624,14 @@ ax_basis AS (
          CASE WHEN COALESCE(an.abo_laeuft, FALSE) THEN 'kunde'
               -- „Zahlung gemeldet" gehört zu B, damit die Chefseite es als Grund zählt — angeschrieben wird es nie (sperrgrund)
               WHEN (COALESCE(an.antrag_offen, FALSE) OR COALESCE(an.zahlung_gemeldet, FALSE)) AND NOT COALESCE(an.paket_laeuft, FALSE) THEN 'antrag'
+              -- E-243: begonnen, nicht abgeschickt
+              WHEN COALESCE(an.antrag_unfertig, FALSE) AND NOT COALESCE(an.paket_laeuft, FALSE) THEN 'abbrecher'
+              -- E-243: storniert, gekündigt oder Vertrag vorbei — NUR zur Zählung im Segment, das er hatte
+              -- (der Sperrgrund unten schließt ihn aus). Vorher standen sie in keinem Segment und fehlten in „gesperrt je Grund".
+              WHEN COALESCE(an.hat_antrag_echt, FALSE) AND NOT COALESCE(an.paket_laeuft, FALSE)
+                   AND (NOT COALESCE(an.lebend, FALSE) OR COALESCE(an.gekuendigt, FALSE)
+                        OR (an.ende_max IS NOT NULL AND COALESCE(an.letzter_antrag_am, '-infinity'::timestamptz) <= an.ende_max))
+                THEN CASE WHEN COALESCE(an.war_bezahlt, FALSE) THEN 'kunde' WHEN COALESCE(an.war_abgeschickt, FALSE) THEN 'antrag' ELSE 'abbrecher' END
               WHEN NOT COALESCE(an.hat_antrag, FALSE) AND COALESCE(le.lead_echt, FALSE) THEN 'lead'
          END AS segment,
          COALESCE(an.zahlung_gemeldet, FALSE) AS zahlung_gemeldet,
@@ -491,6 +639,8 @@ ax_basis AS (
          COALESCE(an.gekuendigt, FALSE) AS gekuendigt,
          (an.ende_max IS NOT NULL AND NOT COALESCE(an.paket_laeuft, FALSE)
           AND COALESCE(an.letzter_antrag_am, '-infinity'::timestamptz) <= an.ende_max) AS vertrag_vorbei,
+         -- E-243: echte Anträge, aber keiner lebt mehr (Telefonkartei-Storno prüft ax_merk)
+         (COALESCE(an.hat_antrag_echt, FALSE) AND NOT COALESCE(an.lebend, FALSE)) AS ohne_lebende_bestellung,
          COALESCE(an.dsgvo, FALSE) AS dsgvo,
          an.erster_antrag_am,
          COALESCE(le.abgemeldet, FALSE) AS lead_abgemeldet,
@@ -518,6 +668,16 @@ ax_offen AS (
     FROM fiaon_applications a
    WHERE a.person_id IS NOT NULL AND ${ANTRAG_OFFEN_SQL("a")}
    ORDER BY a.person_id, a.created_at DESC
+),
+-- E-243: der jüngste unfertige Antrag (Segment „abbrecher") — Paket (Firma/privat), Name, Adresse, letzte Berührung
+ax_unfertig AS (
+  SELECT DISTINCT ON (a.person_id) a.person_id, a.ref, LOWER(TRIM(COALESCE(a.pack_key, ''))) AS pack_key,
+         NULLIF(TRIM(a.email), '') AS antrag_email, NULLIF(TRIM(a.first_name), '') AS antrag_vorname,
+         NULLIF(TRIM(a.last_name), '') AS antrag_nachname,
+         GREATEST(a.created_at::timestamptz, COALESCE(a.updated_at::timestamptz, a.created_at::timestamptz)) AS aktiv_am
+    FROM fiaon_applications a
+   WHERE a.person_id IS NOT NULL AND ${ANTRAG_UNFERTIG_SQL("a")}
+   ORDER BY a.person_id, COALESCE(a.updated_at::timestamptz, a.created_at::timestamptz) DESC
 ),
 ax_mail AS (
   SELECT person_id, COUNT(*)::int AS n, MIN(created_at) AS erste, MAX(created_at) AS letzte
@@ -566,27 +726,33 @@ ax_abgemeldet AS MATERIALIZED (
 ),
 ax_pool AS (
   SELECT b.person_id, b.segment,
-         COALESCE(l.ref, o.ref) AS ref,
-         COALESCE(l.pack_key, o.pack_key) AS pack_key,
-         CASE WHEN COALESCE(l.pack_key, o.pack_key, '') LIKE 'business_%' THEN 'firma' ELSE 'privat' END AS art,
-         COALESCE(NULLIF(TRIM(b.p_vorname), ''), l.antrag_vorname, o.antrag_vorname, b.lead_vorname) AS vorname,
-         COALESCE(NULLIF(TRIM(b.p_nachname), ''), l.antrag_nachname, o.antrag_nachname, b.lead_nachname) AS nachname,
-         COALESCE(NULLIF(TRIM(b.p_email), ''), l.antrag_email, o.antrag_email, b.lead_email) AS email,
+         -- E-243: dazu der unfertige Antrag (u) — bei einem Abbrecher sind l und o leer
+         COALESCE(l.ref, o.ref, u.ref) AS ref,
+         COALESCE(l.pack_key, o.pack_key, u.pack_key) AS pack_key,
+         CASE WHEN COALESCE(l.pack_key, o.pack_key, u.pack_key, '') LIKE 'business_%' THEN 'firma' ELSE 'privat' END AS art,
+         COALESCE(NULLIF(TRIM(b.p_vorname), ''), l.antrag_vorname, o.antrag_vorname, u.antrag_vorname, b.lead_vorname) AS vorname,
+         COALESCE(NULLIF(TRIM(b.p_nachname), ''), l.antrag_nachname, o.antrag_nachname, u.antrag_nachname, b.lead_nachname) AS nachname,
+         COALESCE(NULLIF(TRIM(b.p_email), ''), l.antrag_email, o.antrag_email, u.antrag_email, b.lead_email) AS email,
          NULLIF(TRIM(b.p_telefon), '') AS telefon,
-         COALESCE((SELECT c.country FROM fiaon_applications c WHERE c.person_id = b.person_id AND c.merged_into IS NULL AND c.country IS NOT NULL
+         -- E-243: ein LEERES Land im Antrag (gemessen 26.09.: 28 Abbrecher im Kreis) ist kein Land — sonst stand dort
+         -- '' statt des Hinweises aus Nummer und Kampagne (ein Wiener Abbrecher läse „SCHUFA").
+         COALESCE((SELECT UPPER(TRIM(c.country)) FROM fiaon_applications c WHERE c.person_id = b.person_id AND c.merged_into IS NULL
+                      AND NULLIF(TRIM(c.country), '') IS NOT NULL
                     ORDER BY (c.payment_status = 'paid') DESC, c.created_at DESC LIMIT 1), NULLIF(TRIM(b.p_land), ''),
                   ${LAND_HINWEIS_SQL("COALESCE(NULLIF(TRIM(b.p_telefon), ''), b.lead_telefon)",
-                    "COALESCE(NULLIF(TRIM(b.p_email), ''), l.antrag_email, o.antrag_email, b.lead_email)", "b.lead_kampagne")}) AS land_roh,
+                    "COALESCE(NULLIF(TRIM(b.p_email), ''), l.antrag_email, o.antrag_email, u.antrag_email, b.lead_email)", "b.lead_kampagne")}) AS land_roh,
          b.erster_antrag_am,
-         CASE b.segment WHEN 'kunde' THEN l.aktiv_am WHEN 'antrag' THEN o.aktiv_am ELSE b.lead_am END AS aktiv_am,
+         CASE b.segment WHEN 'kunde' THEN l.aktiv_am WHEN 'antrag' THEN o.aktiv_am WHEN 'abbrecher' THEN u.aktiv_am ELSE b.lead_am END AS aktiv_am,
          b.werbung_gesperrt_am, b.assigned_agent_id, b.test, b.vertriebssperre,
          b.zahlung_gemeldet, b.global, b.gekuendigt, b.vertrag_vorbei, b.dsgvo, b.lead_abgemeldet, b.kein_interesse, b.lead_wa_erlaubt,
+         b.ohne_lebende_bestellung,
          COALESCE(m.n, 0) AS n_mail, m.erste AS erste_mail_am, m.letzte AS letzte_mail_am,
          w.am AS wa_am, w.ok_am AS wa_ok_am, (w.person_id IS NOT NULL) AS wa_versucht, COALESCE(w.ok, FALSE) AS wa_ok,
          COALESCE(w.fehl, 0) AS wa_fehl
     FROM ax_basis b
     LEFT JOIN ax_lauf l ON l.person_id = b.person_id
     LEFT JOIN ax_offen o ON o.person_id = b.person_id
+    LEFT JOIN ax_unfertig u ON u.person_id = b.person_id
     LEFT JOIN ax_mail m ON m.person_id = b.person_id
     LEFT JOIN ax_wa w ON w.person_id = b.person_id
    WHERE b.segment IS NOT NULL
@@ -611,6 +777,10 @@ ax_merk AS (
                                                   AND (la.abgemeldet_am IS NOT NULL OR la.strecke_stopp = 'abgemeldet'))
                                      OR LOWER(TRIM(ac.primary_email)) IN (SELECT ab.adr FROM ax_abgemeldet ab WHERE ab.adr IS NOT NULL)))) AS abgemeldet,
          ${WA_STOPP_SQL("x.person_id")} AS wa_stopp,
+         -- E-243: storniert — keine lebende Bestellung, oder in der Telefonkartei storniert (Justin 21.09.: „storniert
+         -- werden, auf eine eigene Liste kommen und nirgendwo mehr erscheinen"; ohne Bezug, einmal als Hash-Liste)
+         (x.ohne_lebende_bestellung
+          OR x.person_id IN (SELECT ts.person_id FROM fiaon_telefonkartei_storno ts WHERE ts.person_id IS NOT NULL AND ts.zurueck_am IS NULL)) AS storniert,
          (x.email IS NOT NULL AND x.email LIKE '%_@_%._%'
           AND LOWER(TRIM(x.email)) NOT IN (SELECT u.adr FROM ax_kaputt u WHERE u.adr IS NOT NULL)) AS zustellbar,
          -- Einwilligung UND eine Handynummer, die WhatsApp hat (WHATSAPP_MOEGLICH_SQL, wie die BASIS der
@@ -629,7 +799,10 @@ ax_flag AS (
               WHEN y.abgemeldet THEN 'abgemeldet'
               WHEN y.wa_stopp THEN 'stopp'
               WHEN y.vertriebssperre THEN 'vertriebssperre'
-              WHEN y.gekuendigt OR (y.segment <> 'kunde' AND y.vertrag_vorbei) THEN 'gekuendigt'
+              -- E-243: vertrag_vorbei in JEDEM Segment — ein früherer Kunde steht zur Zählung jetzt im Segment „kunde"
+              -- (vertrag_vorbei ist bei laufendem Paket nie wahr, ein echter Kunde bleibt also unberührt).
+              WHEN y.gekuendigt OR y.vertrag_vorbei THEN 'gekuendigt'
+              WHEN y.storniert THEN 'storniert'
               WHEN y.global THEN 'global'
               -- Integration 25.09.2026 (E-241): Ein Land im Antrag außerhalb von DACH (gemessen: 10 Menschen im Kreis
               -- „alle", BG, HU, HR, SK, BA, AD) — auskunftLand machte daraus Deutschland, das Angebot sagte „SCHUFA".
@@ -679,8 +852,16 @@ const WERBLICHE_EVENTS = [
 /**
  * Die Rücksicht des Tages — wie Maras Aktion (fiaon-mara-aktion.ts). Nur für den
  * Versand; die Zählung auf der Chefseite zeigt die Menge ohne sie.
+ * E-243 (26.09.2026): je Weg — die WhatsApp folgt der Mail a nach EINEM Tag
+ * (WA_ANGEBOT_ABSTAND_TAGE); mit den drei Tagen der Mail-Bremsen (gemeinsame
+ * Bremse, Adress-Bremse, Unterlagen-Mail) käme sie nie vor Tag 3. Alles andere
+ * gilt für beide Wege gleich; der Fehlversuch der MAIL betrifft nur die Mail.
  */
-export const RUECKSICHT_SQL = `
+export function ruecksichtSql(weg: "mail" | "whatsapp" = "mail"): string {
+  const angebotTage = weg === "whatsapp" ? WA_ANGEBOT_ABSTAND_TAGE : ANGEBOT_ABSTAND_TAGE;
+  const unterlagenTage = weg === "whatsapp" ? WA_ANGEBOT_ABSTAND_TAGE : 3;
+  const werblich = `(${WERBLICHE_EVENTS.map((e) => `'${e}'`).join(", ")})`;
+  return `
   -- Performance (25.09.2026, E-241): Jede Rücksicht ist eine Unterabfrage OHNE Bezug auf den Menschen
   -- (NOT IN, Personen-ID nie NULL) — Postgres rechnet die Liste einmal und prüft per Hash. Korreliert
   -- (NOT EXISTS) lief z. B. der Postfach-Stopp als Seq Scan je Mensch: 2.907 × 3,8 ms = 11 s von 15 s
@@ -701,30 +882,34 @@ export const RUECKSICHT_SQL = `
   AND f.person_id NOT IN (SELECT ml.person_id FROM fiaon_mail_log ml WHERE ml.person_id IS NOT NULL AND COALESCE(ml.art, 'echt') = 'echt'
                              AND ml.status = 'versandt' AND ml.created_at > NOW() - INTERVAL '6 hours')
   -- E-241: eine andere WERBLICHE Mail in den letzten WERBUNG_RUHE_STUNDEN (Lead-Strecke, Rückholung, Mara-Aktion …) —
-  -- niemand bekommt zwei Werbemails an einem Tag. Nach Person UND Adresse (die Lead-Strecke kennt nicht
-  -- immer die Person).
+  -- niemand bekommt zwei Werbemails an einem Tag (E-243: auch keine Werbe-WhatsApp neben einer Werbemail).
+  -- Nach Person UND Adresse (die Lead-Strecke kennt nicht immer die Person).
   AND f.person_id NOT IN (SELECT wz.person_id FROM fiaon_mail_log wz
                            WHERE wz.person_id IS NOT NULL AND wz.created_at > NOW() - INTERVAL '${WERBUNG_RUHE_STUNDEN} hours'
                              AND COALESCE(wz.art, 'echt') = 'echt' AND wz.status IN ('versandt', 'gesendet')
-                             AND (wz.event IN (${WERBLICHE_EVENTS.map((e) => `'${e}'`).join(", ")}) OR wz.event LIKE 'rueckhol%'))
+                             AND (wz.event IN ${werblich} OR wz.event LIKE 'rueckhol%'))
   AND LOWER(TRIM(f.email)) NOT IN (SELECT LOWER(TRIM(wy.empfaenger)) FROM fiaon_mail_log wy
                            WHERE wy.empfaenger IS NOT NULL AND wy.created_at > NOW() - INTERVAL '${WERBUNG_RUHE_STUNDEN} hours'
                              AND COALESCE(wy.art, 'echt') = 'echt' AND wy.status IN ('versandt', 'gesendet')
-                             AND (wy.event IN (${WERBLICHE_EVENTS.map((e) => `'${e}'`).join(", ")}) OR wy.event LIKE 'rueckhol%'))
+                             AND (wy.event IN ${werblich} OR wy.event LIKE 'rueckhol%'))
   -- Gegenlesen 25.09.2026: dieselbe ADRESSE an einer zweiten, nicht zusammengeführten Person (Doppel) —
-  -- ein Angebot je Adresse in ANGEBOT_ABSTAND_TAGE; die gemeinsame Bremse unten kennt nur die Person.
+  -- ein Angebot je Adresse in ANGEBOT_ABSTAND_TAGE (WhatsApp: WA_ANGEBOT_ABSTAND_TAGE); die gemeinsame Bremse kennt nur die Person.
   AND LOWER(TRIM(f.email)) NOT IN (SELECT LOWER(TRIM(av.empfaenger)) FROM fiaon_mail_log av
                            WHERE av.empfaenger IS NOT NULL AND av.event = '${ANGEBOT_EVENT}' AND av.status = 'versandt'
-                             AND COALESCE(av.art, 'echt') = 'echt' AND av.created_at > NOW() - INTERVAL '${ANGEBOT_ABSTAND_TAGE} days')
-  -- die Unterlagen-Mail trägt das Angebot schon (E-240) — nicht zweimal in drei Tagen
+                             AND COALESCE(av.art, 'echt') = 'echt' AND av.created_at > NOW() - INTERVAL '${angebotTage} days')
+  -- die Unterlagen-Mail trägt das Angebot schon (E-240) — nicht zweimal in drei Tagen (WhatsApp: einem Tag)
   AND f.person_id NOT IN (SELECT du.person_id FROM fiaon_mail_log du WHERE du.person_id IS NOT NULL AND du.event = 'documents_change_request'
-                             AND du.status = 'versandt' AND du.created_at > NOW() - INTERVAL '3 days')
-  -- ein Fehlversuch dieses Angebots: heute nicht noch einmal (sonst hinge der Takt alle 30 Minuten an denselben)
+                             AND du.status = 'versandt' AND du.created_at > NOW() - INTERVAL '${unterlagenTage} days')
+  ${weg === "mail" ? `-- ein Fehlversuch dieses Angebots: heute nicht noch einmal (sonst hinge der Takt alle 30 Minuten an denselben)
   AND f.person_id NOT IN (SELECT fx.person_id FROM fiaon_mail_log fx WHERE fx.person_id IS NOT NULL AND fx.event = '${ANGEBOT_EVENT}'
-                             AND fx.status <> 'versandt' AND fx.created_at > NOW() - INTERVAL '24 hours')
+                             AND fx.status <> 'versandt' AND fx.created_at > NOW() - INTERVAL '24 hours')` : ""}
   -- die gemeinsame Bremse — ein Angebot über irgendeinen Weg (auch Mara, WhatsApp-Vorlage von Hand)
-  -- in den letzten ANGEBOT_ABSTAND_TAGE, dann heute nicht (fiaon-auskunft.ts; über Indizes je Person).
-  AND NOT EXISTS (SELECT 1 FROM (${angebotSpurenSql("f.person_id")}) ap_spur)`;
+  -- in den letzten ANGEBOT_ABSTAND_TAGE (WhatsApp: WA_ANGEBOT_ABSTAND_TAGE), dann heute nicht (fiaon-auskunft.ts).
+  AND NOT EXISTS (SELECT 1 FROM (${angebotSpurenSql("f.person_id", angebotTage)}) ap_spur)`;
+}
+
+/** Stand E-241: die Rücksicht der Mail als Text (Prüfstände und lesende Messungen). */
+export const RUECKSICHT_SQL = ruecksichtSql("mail");
 
 /** Welche Mail als Nächstes fällig ist (mail1/mail2/mail3) — oder NULL. */
 const MAIL_SCHRITT_SQL = `(CASE
@@ -736,18 +921,75 @@ const MAIL_SCHRITT_SQL = `(CASE
   END)`;
 
 /**
- * Ist die WhatsApp fällig? Zwischen erster und dritter Mail, einmal ZUGESTELLT, mit Einwilligung.
+ * Ist die WhatsApp fällig? Ab einem Tag nach der ersten Mail (auch nach der dritten), einmal ZUGESTELLT, mit Einwilligung.
  * Gegenlesen 25.09.2026: Ein Fehlversuch (Meta-Störung, Vorlage beim Handversand der Zentrale noch
  * nicht frei, fehlender Name) beendete den Schritt bisher für immer — die Zentrale protokolliert ihn
  * als ok = false, und „versucht" hieß „erledigt". Jetzt: höchstens zwei Versuche (WA_VERSUCHE), der
  * zweite frühestens 20 Stunden nach dem ersten (WA_WIEDER_STUNDEN). Zugestellt wird höchstens eine.
+ * E-243 (26.09.2026): frühestens TAGE_BIS_WHATSAPP (1) Tag nach Mail a und WA_ANGEBOT_ABSTAND_TAGE (1)
+ * nach der letzten Berührung — vorher 2 und 2 (mit der Bremse 3).
+ * E-243, Justin 26.09.2026 „jeden Tag 20 WhatsApp": Die eine WhatsApp darf auch NACH der Mail c
+ * kommen (vierte und letzte Berührung). Vorher endete sie mit Mail c (Tag 14) — mit 20 am Tag wären
+ * die Zwanzig nur bis etwa 22.10. gegangen und rund 1.400 WhatsApp-fähige hätten nie eine bekommen
+ * (Simulation mit Produktionszahlen). Höchstens eine je Mensch bleibt, ebenso Einwilligung und Rücksicht.
  */
-const WA_FAELLIG_SQL = `(f.n_mail BETWEEN 1 AND ${HOECHSTENS_MAILS - 1} AND NOT f.wa_ok AND f.wa_fehl < ${WA_VERSUCHE}
+const WA_FAELLIG_SQL = `(f.n_mail BETWEEN 1 AND ${HOECHSTENS_MAILS} AND NOT f.wa_ok AND f.wa_fehl < ${WA_VERSUCHE}
     AND (f.wa_am IS NULL OR f.wa_am <= NOW() - INTERVAL '${WA_WIEDER_STUNDEN} hours') AND f.wa_einwilligung
     AND f.erste_mail_am <= NOW() - INTERVAL '${TAGE_BIS_WHATSAPP} days'
-    AND f.letzte_beruehrung <= NOW() - INTERVAL '${MINDESTABSTAND_TAGE} days')`;
+    AND f.letzte_beruehrung <= NOW() - INTERVAL '${WA_ANGEBOT_ABSTAND_TAGE} days')`;
 
-const SEGMENT_REIHE_SQL = `CASE f.segment WHEN 'kunde' THEN 0 WHEN 'antrag' THEN 1 ELSE 2 END`;
+/** Die Reihenfolge der Mail je Tag (E-243): kunde, antrag, abbrecher, lead. */
+const SEGMENT_REIHE_SQL = `CASE f.segment WHEN 'kunde' THEN 0 WHEN 'antrag' THEN 1 WHEN 'abbrecher' THEN 2 ELSE 3 END`;
+
+/**
+ * Hat den Kauflink geöffnet und danach nichts bestellt (E-243) — der jüngste
+ * solche Klick oder NULL. Ein Klick zählt nicht mehr, sobald danach (5 Minuten
+ * Spiel für die Uhr) eine Auskunft-Bestellung entstand; die sperrt ohnehin 21
+ * Tage (OHNE_AUSKUNFT_SQL) — danach ist er wieder im Verkauf, und der alte Klick
+ * soll ihn nicht nach vorn holen. Braucht fiaon_auskunft_klicks (tabellenBereit).
+ */
+const KLICK_OHNE_BESTELLUNG_SQL = (person: string) => `(
+  SELECT MAX(kx.zeit) FROM fiaon_auskunft_klicks kx
+   WHERE kx.person_id = ${person}
+     AND NOT EXISTS (SELECT 1 FROM fiaon_applications kb WHERE kb.person_id = kx.person_id AND kb.merged_into IS NULL
+                       AND ${IST_AUSKUNFT("kb")} AND kb.created_at::timestamptz >= kx.zeit - INTERVAL '5 minutes'))`;
+
+/**
+ * „FINDE DIE PASSENDEN KUNDEN" — die Rangfolge der WhatsApp (26.09.2026, E-243).
+ * Zwanzig WhatsApp am Tag sind knapp; jede soll dorthin, wo sie am ehesten zum
+ * Kauf führt. Deshalb:
+ *   0. Kauflink geöffnet, nicht bestellt — das stärkste Signal, das wir haben:
+ *      Er hat Angebot und Preis gesehen und ist an der Bestätigung stehen
+ *      geblieben. Ein persönlicher Anstoß auf dem Kanal, den er am ehesten
+ *      liest, holt genau diesen Rest. Innerhalb: der jüngste Klick zuerst.
+ *   1. Kunde mit Paket — kennt uns, zahlt schon, bekommt den Kundenpreis
+ *      (74 €/199 €), und die Auskunft ist der fehlende Baustein seiner Akte.
+ *   2. Antrag fertig, nicht bezahlt — hat uns Daten und Absicht gegeben; die
+ *      Auskunft ist ein kleiner erster Schritt, und der Weg zum Paket liegt offen.
+ *   3. Abbrecher — hat angefangen, also echtes Interesse, aber an einer Hürde
+ *      gestoppt; kälter als ein fertiger Antrag.
+ *   4. Lead ohne Antrag — der kälteste Kontakt.
+ * In 1–4 die frischeste Aktivität zuerst: Je jünger der Kontakt, desto eher
+ * erinnert er sich an uns (Speed-to-Lead, Gedächtnis: Marktdaten).
+ * Nur für die Reihenfolge — wer überhaupt eine WhatsApp bekommen darf,
+ * entscheiden Kreis, Einwilligung, WA_FAELLIG_SQL und die Rücksicht.
+ */
+const WA_RANG_SQL = `CASE WHEN kl.klick_am IS NOT NULL THEN 0 ELSE 1 + (${SEGMENT_REIHE_SQL}) END`;
+
+/**
+ * Die Rangfolge der WhatsApp als Unterabfrage (E-243) — für die WA-Zentrale
+ * (Gruppe „auskunft_fehlt", Handversand „WhatsApp starten"): dieselbe
+ * Reihenfolge wie der Takt, im Kreis der Einstellung. Spalten: person_id,
+ * rang (0 = Kauflink geöffnet … 4 = Lead), klick_am, aktiv_am. Braucht die
+ * Klick-Tabelle (tabellenBereit).
+ */
+export function waRangSql(): string {
+  return `${poolCte()}
+    SELECT f.person_id, ${WA_RANG_SQL} AS rang, kl.klick_am, f.aktiv_am
+      FROM ax_flag f
+      LEFT JOIN LATERAL (SELECT ${KLICK_OHNE_BESTELLUNG_SQL("f.person_id")} AS klick_am) kl ON TRUE
+     WHERE ${IM_KREIS_SQL(KREIS_AUS_EINSTELLUNG_SQL)}`;
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Die Uhr
@@ -771,30 +1013,47 @@ export function berlinMinuten(jetzt: Date = new Date()): number {
   return (h % 24) * 60 + m;
 }
 
-/** Senden erlaubt? 08:00 bis 19:59 Berlin. */
+/** Senden erlaubt? E-243 (26.09.2026): Mo–So 07:00 bis 20:30 Berlin, beide Minuten eingeschlossen. */
 export function istSendezeit(jetzt: Date = new Date()): boolean {
   const m = berlinMinuten(jetzt);
-  return m >= RUHE_BIS * 60 && m < RUHE_AB * 60;
+  return m >= SENDE_AB_MIN && m <= SENDE_BIS_MIN;
 }
 
-/** Läufe an einem Sendetag: 08:00 bis 19:30, alle 30 Minuten. */
-const LAEUFE_JE_TAG = ((RUHE_AB - RUHE_BIS) * 60) / TAKT_MINUTEN;
+/** Läufe an einem Sendetag, wenn der Takt zur vollen und halben Stunde läuft: 07:00 … 20:30 = 28. */
+const LAEUFE_JE_TAG = Math.floor((SENDE_BIS_MIN - SENDE_AB_MIN) / TAKT_MINUTEN) + 1;
 
 /**
- * Wie viele in DIESEM Lauf — gleichmäßig über den Tag (E-241): der Rest geteilt
- * durch die Läufe bis 20 Uhr (alle 30 Minuten), aufgerundet, plus 5 Puffer für
- * Übersprungene. Nachts 0. Beispiel: 500 um 08:00 → 26 je Lauf.
- * Mit `tagesDeckel` zusätzlich nie mehr als das Doppelte des gleichmäßigen
- * Anteils (+5): Wird der Takt erst um 19:30 eingeschaltet, gingen sonst alle 500
- * in einem Lauf raus — so sind es höchstens 47.
+ * Wie viele in DIESEM Lauf — gleichmäßig über den Tag.
+ *
+ * Mit `tagesDeckel` (so ruft der Takt, E-243): Soll bis jetzt = Deckel × (Läufe
+ * bis einschließlich diesem) ÷ (Läufe des Tages), aufgerundet; dieser Lauf nimmt
+ * Soll minus schon Gesendetes. Die Läufe zählen ab der tatsächlichen Minute —
+ * der Takt läuft alle 30 Minuten ab dem Start des Dienstes, nicht zur vollen
+ * Stunde (07:07, 07:37 … 20:07 sind 27 Läufe). So gehen 20 WhatsApp als etwa
+ * eine je Lauf raus (E-241 nahm ceil(Rest ÷ Läufe) + 5: sechs um sieben Uhr, um
+ * halb elf war der Tag voll), 500 Mails als 18 bis 19 je Lauf. Lief ein Lauf
+ * leer, holt der nächste nach — nie mehr als das Doppelte des gleichmäßigen
+ * Anteils plus 5 (wird der Takt um 19:30 eingeschaltet, nicht 450 auf einmal).
+ * Der letzte Lauf des Tages darf den Rest nehmen (bis zu dieser Obergrenze).
+ *
+ * Ohne `tagesDeckel` (Stand E-241): ceil(Rest ÷ verbleibende Läufe) + 5.
+ * Außerhalb des Fensters immer 0.
  */
 export function laufDeckel(rest: number, jetzt: Date = new Date(), tagesDeckel?: number): number {
   if (!Number.isFinite(rest) || rest <= 0) return 0;
   const m = berlinMinuten(jetzt);
-  if (m < RUHE_BIS * 60 || m >= RUHE_AB * 60) return 0;
-  const laeufe = Math.max(1, Math.ceil((RUHE_AB * 60 - m) / TAKT_MINUTEN));
-  const obergrenze = tagesDeckel && tagesDeckel > 0 ? 2 * Math.ceil(tagesDeckel / LAEUFE_JE_TAG) + LAUF_PUFFER : Infinity;
-  return Math.min(Math.floor(rest), Math.ceil(rest / laeufe) + LAUF_PUFFER, obergrenze);
+  if (m < SENDE_AB_MIN || m > SENDE_BIS_MIN) return 0;
+  /** Läufe seit 07:00 bis einschließlich diesem — und von diesem bis einschließlich 20:30. */
+  const bisher = Math.floor((m - SENDE_AB_MIN) / TAKT_MINUTEN) + 1;
+  const noch = Math.floor((SENDE_BIS_MIN - m) / TAKT_MINUTEN) + 1;
+  if (!tagesDeckel || !Number.isFinite(tagesDeckel) || tagesDeckel <= 0) {
+    return Math.min(Math.floor(rest), Math.ceil(rest / noch) + LAUF_PUFFER);
+  }
+  const laeufe = bisher + noch - 1;
+  const gesendet = Math.max(0, tagesDeckel - rest);
+  const soll = Math.ceil((tagesDeckel * bisher) / laeufe);
+  const obergrenze = 2 * Math.ceil(tagesDeckel / LAEUFE_JE_TAG) + LAUF_PUFFER;
+  return Math.max(0, Math.min(Math.floor(rest), soll - gesendet, obergrenze));
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -814,6 +1073,8 @@ export interface SegmentZahlen {
   /** Wie weit die Menschen im Kreis sind: Mail a, WhatsApp, Mail b, Mail c erreicht. */
   stufen: { a: number; wa: number; b: number; c: number };
   mitWhatsAppEinwilligung: number;
+  /** E-243: im Kreis UND WhatsApp-fähig (Einwilligung, Handy) — wen der Takt per WhatsApp erreichen kann. */
+  imKreisMitWhatsApp: number;
   gesperrt: Record<Sperrgrund, number>;
   /** Im Segment, hat aber schon eine Auskunft (bezahlt, gemeldet, Dokument, Analyse, offene Bestellung < 21 Tage). */
   hatAuskunft: number;
@@ -860,8 +1121,7 @@ export async function poolZahlen(lauf: Lauf = sqlPool, opts: { kreis?: VerkaufKr
     SELECT f.segment, UPPER(COALESCE(f.land_roh, 'DE')) AS land_roh, f.sperrgrund, f.hat_auskunft,
            COUNT(*)::int AS n,
            COUNT(*) FILTER (WHERE ${K})::int AS im_kreis,
-           COUNT(*) FILTER (WHERE ${K} AND f.n_mail < ${HOECHSTENS_MAILS}
-                              AND (${MAIL_SCHRITT_SQL} IS NOT NULL OR ${WA_FAELLIG_SQL}))::int AS faellig,
+           COUNT(*) FILTER (WHERE ${K} AND (${MAIL_SCHRITT_SQL} IS NOT NULL OR ${WA_FAELLIG_SQL}))::int AS faellig,
            COUNT(*) FILTER (WHERE ${K} AND f.n_mail >= 1)::int AS st_a,
            COUNT(*) FILTER (WHERE ${K} AND f.wa_ok)::int AS st_wa,
            COUNT(*) FILTER (WHERE ${K} AND f.n_mail >= 2)::int AS st_b,
@@ -875,7 +1135,9 @@ export async function poolZahlen(lauf: Lauf = sqlPool, opts: { kreis?: VerkaufKr
            COUNT(*) FILTER (WHERE NOT f.zustellbar)::int AS nicht_zustellbar,
            COUNT(*) FILTER (WHERE f.nach_stichtag)::int AS nach_stichtag,
            COUNT(*) FILTER (WHERE f.beruehrungen > 0)::int AS angeschrieben,
-           COUNT(*) FILTER (WHERE f.n_mail >= ${HOECHSTENS_MAILS})::int AS fertig
+           -- fertig: alle drei Mails raus und keine WhatsApp mehr offen (E-243: sie darf nach Mail c noch kommen)
+           COUNT(*) FILTER (WHERE f.n_mail >= ${HOECHSTENS_MAILS}
+                              AND (f.wa_ok OR NOT f.wa_einwilligung OR f.wa_fehl >= ${WA_VERSUCHE}))::int AS fertig
       FROM ax_flag f
      GROUP BY 1, 2, 3, 4`)) as any[];
   const [ohne] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_leads WHERE person_id IS NULL AND COALESCE(quelle, '') <> 'TEST Import'`
@@ -883,7 +1145,7 @@ export async function poolZahlen(lauf: Lauf = sqlPool, opts: { kreis?: VerkaufKr
 
   const segmente = Object.fromEntries(SEGMENTE.map((s) => [s, {
     segment: s, gesamt: 0, erreichbar: 0, imKreis: 0, heuteFaellig: 0, stufen: { a: 0, wa: 0, b: 0, c: 0 },
-    mitWhatsAppEinwilligung: 0, gesperrt: leereGruende(), hatAuskunft: 0,
+    mitWhatsAppEinwilligung: 0, imKreisMitWhatsApp: 0, gesperrt: leereGruende(), hatAuskunft: 0,
     jeLand: (["DE", "AT", "CH"] as AuskunftLand[]).map((land) => ({ land, gesamt: 0, imKreis: 0, heuteFaellig: 0, mitWhatsAppEinwilligung: 0 })),
   } satisfies SegmentZahlen])) as Record<Segment, SegmentZahlen>;
   const gesperrt = leereGruende();
@@ -906,6 +1168,7 @@ export async function poolZahlen(lauf: Lauf = sqlPool, opts: { kreis?: VerkaufKr
     s.stufen.a += Number(z.st_a || 0); s.stufen.wa += Number(z.st_wa || 0);
     s.stufen.b += Number(z.st_b || 0); s.stufen.c += Number(z.st_c || 0);
     s.mitWhatsAppEinwilligung += Number(z.wa_einw || 0);
+    s.imKreisMitWhatsApp += Number(z.wa_einw_kreis || 0);
     const sl = s.jeLand.find((x) => x.land === land)!;
     sl.gesamt += n; sl.imKreis += imKreis; sl.heuteFaellig += faellig; sl.mitWhatsAppEinwilligung += Number(z.wa_einw_kreis || 0);
 
@@ -935,6 +1198,29 @@ export async function poolZahlen(lauf: Lauf = sqlPool, opts: { kreis?: VerkaufKr
     jeLand: (["DE", "AT", "CH"] as AuskunftLand[]).map((l) => altLand.get(l) ?? { land: l, gesamt: 0, automatisch: 0, werbesperre: 0 }),
     kreis, segmente, gesperrt, leadsOhnePerson: Number(ohne?.n || 0), heuteFaellig,
   };
+}
+
+/**
+ * Heute wirklich möglich — je Segment, NACH der Tagesrücksicht (26.09.2026, E-243):
+ * wem heute eine Mail bzw. die WhatsApp zustünde und wen keine Rücksicht aufhält
+ * (Unterlagen-Mail in 3 Tagen, andere Werbemail in 20 h, Mitarbeiter in 12 h …).
+ * Für die Rückfrage vor „Verkauf scharf stellen": „heute fällig" allein
+ * versprach mehr, als rausgeht (gemessen 26.09.: 181 Kunden fällig, 3 möglich —
+ * 174 hatten am 24.09. die Unterlagen-Mail bekommen). Die WhatsApp zählt hier
+ * ohne die Frage nach Meta; der Tagesdeckel ist nicht abgezogen.
+ */
+export async function heuteMoeglich(kreis: VerkaufKreis = "alle", lauf: Lauf = sqlPool): Promise<Record<Segment, { mail: number; whatsapp: number }>> {
+  await tabellenBereit();
+  const zeilen = (await lauf.unsafe(`${poolCte()}
+    SELECT f.segment,
+           COUNT(*) FILTER (WHERE (${MAIL_SCHRITT_SQL}) IS NOT NULL ${ruecksichtSql("mail")})::int AS mail,
+           COUNT(*) FILTER (WHERE ${WA_FAELLIG_SQL} ${ruecksichtSql("whatsapp")})::int AS wa
+      FROM ax_flag f
+     WHERE ${IM_KREIS_SQL(kreisLiteral(kreis))} AND (f.n_mail < ${HOECHSTENS_MAILS} OR ${WA_FAELLIG_SQL})
+     GROUP BY 1`)) as any[];
+  const aus = Object.fromEntries(SEGMENTE.map((sg) => [sg, { mail: 0, whatsapp: 0 }])) as Record<Segment, { mail: number; whatsapp: number }>;
+  for (const z of zeilen) if (aus[z.segment as Segment]) aus[z.segment as Segment] = { mail: Number(z.mail || 0), whatsapp: Number(z.wa || 0) };
+  return aus;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -968,6 +1254,8 @@ export interface VerkaufFall {
   letzteBeruehrung: string | null;
   ersterAntragAm: string | null;
   aktivAm: string | null;
+  /** E-243: jüngster Klick auf den Kauflink ohne Bestellung danach — nur in der WhatsApp-Reihe gefüllt. */
+  klickAm: string | null;
 }
 
 function fallAusZeile(z: any): VerkaufFall {
@@ -984,15 +1272,17 @@ function fallAusZeile(z: any): VerkaufFall {
     mailSchritt: ms, waFaellig: !!z.wa_faellig, mail2Reif: ms === "mail2",
     ersteMailAm: iso(z.erste_mail_am), letzteBeruehrung: iso(z.letzte_beruehrung),
     ersterAntragAm: iso(z.erster_antrag_am), aktivAm: iso(z.aktiv_am),
+    klickAm: iso(z.klick_am),
   };
 }
 
 /**
  * Die Kandidaten des Tages, versandfertig gefiltert: im Kreis, Schritt fällig,
- * Tagesrücksicht bestanden. Reihenfolge A vor B vor C, in jedem Segment die
- * frischeste Aktivität zuerst.
+ * Tagesrücksicht bestanden. Reihenfolge der Mail (E-243): kunde, antrag,
+ * abbrecher, lead, in jedem Segment die frischeste Aktivität zuerst.
  *   · art "mail"     — nur, wem eine Mail fällig ist,
- *   · art "whatsapp" — nur, wem die WhatsApp fällig ist (setzt waMoeglich voraus),
+ *   · art "whatsapp" — nur, wem die WhatsApp fällig ist (setzt waMoeglich voraus);
+ *                      eigene Rangfolge WA_RANG_SQL (Kauflink geöffnet zuerst),
  *   · art "beide"    — beides (Vorschau, Stand E-240).
  */
 export async function kandidatenHeute(limit: number, opts: {
@@ -1013,22 +1303,30 @@ export async function kandidatenHeute(limit: number, opts: {
   const bedingung = art === "mail" ? `s.mail_schritt IS NOT NULL`
     : !waOk ? (art === "whatsapp" ? "FALSE" : `s.mail_schritt IS NOT NULL`)
       : art === "whatsapp" ? waBed : `(s.mail_schritt IS NOT NULL OR ${waBed})`;
+  // E-243: Die WhatsApp hat ihre eigene Rücksicht (ein Tag nach der Mail a statt drei) und ihre eigene
+  // Rangfolge (WA_RANG_SQL: Kauflink geöffnet zuerst); die Mail bleibt bei kunde → antrag → abbrecher → lead.
+  const mitKlick = art !== "mail";
+  const ordnung = art === "whatsapp"
+    ? `${WA_RANG_SQL}, kl.klick_am DESC NULLS LAST, f.aktiv_am DESC NULLS LAST, f.person_id ASC`
+    : `${SEGMENT_REIHE_SQL}, f.aktiv_am DESC NULLS LAST, f.person_id ASC`;
   const zeilen = (await lauf.unsafe(`${poolCte(nur.length ? "$2" : null)}
-    SELECT f.*, s.mail_schritt, s.wa_faellig
+    SELECT f.*, s.mail_schritt, s.wa_faellig${mitKlick ? ", kl.klick_am" : ""}
       FROM ax_flag f
       CROSS JOIN LATERAL (SELECT ${MAIL_SCHRITT_SQL} AS mail_schritt, ${WA_FAELLIG_SQL} AS wa_faellig) s
+      ${mitKlick ? `LEFT JOIN LATERAL (SELECT ${KLICK_OHNE_BESTELLUNG_SQL("f.person_id")} AS klick_am) kl ON TRUE` : ""}
      WHERE ${IM_KREIS_SQL(kreisLiteral(kreis))}
-       AND f.n_mail < ${HOECHSTENS_MAILS}
+       AND (f.n_mail < ${HOECHSTENS_MAILS} OR s.wa_faellig)
        AND ${bedingung}
-       ${opts.ohneRuecksicht ? "" : RUECKSICHT_SQL}
-     ORDER BY ${SEGMENT_REIHE_SQL}, f.aktiv_am DESC NULLS LAST, f.person_id ASC
+       ${opts.ohneRuecksicht ? "" : ruecksichtSql(art === "whatsapp" ? "whatsapp" : "mail")}
+     ORDER BY ${ordnung}
      LIMIT $1`, params as any[])) as any[];
   return zeilen.map(fallAusZeile);
 }
 
 /** Welcher Schritt für diesen Fall dran ist — oder null (warten). Die erste Mail geht immer vor. */
 export function schrittFuer(f: VerkaufFall, waMoeglich: boolean): Schritt | null {
-  if (f.nMail >= HOECHSTENS_MAILS) return null;
+  // E-243: Nach der Mail c kann nur noch die eine WhatsApp kommen.
+  if (f.nMail >= HOECHSTENS_MAILS) return waMoeglich && f.waFaellig ? "whatsapp" : null;
   if (f.mailSchritt === "mail1") return "mail1";
   if (waMoeglich && f.waFaellig) return "whatsapp";
   return f.mailSchritt;
@@ -1134,7 +1432,7 @@ export async function angebotTuerSperre(
   if (immer) return immer;
   if (opts.manuell) return null;
   const z = await personImPool(personId, lauf);
-  if (!z) return "Sperre: Kreis „alle“ — weder laufendes Paket noch fertiger Antrag noch Lead ohne Antrag, kein Auskunft-Angebot.";
+  if (!z) return "Sperre: Kreis „alle“ — weder laufendes Paket noch Antrag (fertig oder begonnen) noch Lead ohne Antrag, kein Auskunft-Angebot.";
   if (z.hatAuskunft) return "Sperre: Auskunft liegt schon vor oder ist bestellt — kein Auskunft-Angebot.";
   if (z.sperrgrund) return `Sperre: ${SPERRGRUND_TEXT[z.sperrgrund]} — kein Auskunft-Angebot.`;
   return null;
@@ -1215,7 +1513,9 @@ export async function artFuerVerkauf(personId: number, lauf: Lauf = sqlPool): Pr
  * Hochlade-Weg, Einzelpreis) — beide aus shared/fiaon-lead-texte.ts.
  */
 export function auskunftVorlageFuer(segment: Segment | null | undefined): string {
-  return segment === "antrag" || segment === "lead" ? AUSKUNFT_LEAD_VORLAGE : AUSKUNFT_VORLAGE;
+  // 26.09.2026 (E-243): auch der Abbrecher liest die Lead-Vorlage — „In Ihrer Akte fehlt noch …" und
+  // „Ihr Preis als FIAON-Kunde" wären für ihn falsch (kein Paket, keine Akte, kein Bereich).
+  return segment === "antrag" || segment === "lead" || segment === "abbrecher" ? AUSKUNFT_LEAD_VORLAGE : AUSKUNFT_VORLAGE;
 }
 
 export interface WaVorlagenWerte { wort: string; bei: string; preis: string; token: string; segment: Segment; vorlage: string }
@@ -1268,10 +1568,13 @@ export async function angebotNutzlast(f: VerkaufFall, schritt: Exclude<Schritt, 
     ...(landAnders ? { land: f.land, auskunfteien: auskunfteienText(f.land), leistung: auskunftLeistung(f.art, f.land) } : {}),
     ...(f.ref ? { antrag_id: f.ref } : {}),
     person_id: f.personId,
+    // E-243: auch „abbrecher" — die Vorlage kennt es (ANGEBOT_SEGMENTE); der Takt prüft das vor dem Versand.
     segment: f.segment,
     fassung: FASSUNG_JE_SCHRITT[schritt],
     auskunft_art: f.art,
-    paket_preis_hinweis: f.segment === "antrag",
+    // E-243: Kunde nie (er hat das Paket); fertiger Antrag und Abbrecher an (beide stehen vor der ersten
+    // Paketzahlung — Auskunft UND Paket verkaufen); beim Lead entscheidet die Vorlage (kein Schlüssel).
+    ...(f.segment === "lead" ? {} : { paket_preis_hinweis: f.segment === "antrag" || f.segment === "abbrecher" }),
   };
 }
 
@@ -1318,12 +1621,23 @@ function berlinTag(jetzt: Date = new Date()): string {
   } catch { return "?"; }
 }
 
-/** fiaon_wa_aktion legt die WA-Zentrale an; ohne sie scheitert die Grundmenge. */
-async function tabellenBereit(): Promise<void> {
+/**
+ * fiaon_wa_aktion legt die WA-Zentrale an; ohne sie scheitert die Grundmenge.
+ * E-243 (26.09.2026): dazu die Storno-Liste der Telefonkartei (Sperrgrund
+ * „storniert" in der Grundmenge) und die Klicks auf den Kauflink (Rangfolge der
+ * WhatsApp) — beide entstehen sonst erst beim ersten Storno bzw. Klick (die
+ * Klick-Tabelle gab es am 26.09. in der Produktion noch nicht).
+ * Exportiert für die WA-Zentrale (Gruppe „auskunft_fehlt").
+ */
+export async function tabellenBereit(): Promise<void> {
   if (!spaltenBereit) {
     spaltenBereit = (async () => {
       const { zentraleSchema } = await import("./fiaon-wa-zentrale");
       await zentraleSchema();
+      const { karteiTabellen } = await import("./fiaon-telefonkartei");
+      await karteiTabellen();
+      const { klicksTabelle } = await import("../routes/fiaon-auskunft-kauf");
+      await klicksTabelle();
     })().catch((e) => { spaltenBereit = null; throw e; });
   }
   return spaltenBereit;
@@ -1368,12 +1682,14 @@ const IST_URTEIL = /^(Frequenzbremse|Sperre:)|kein (Auskunft-)?Angebot/i;
 const KREIS_SATZ: Record<VerkaufKreis, Record<Segment, string>> = {
   uwg: {
     kunde: "Grundlage § 7 Abs. 3 UWG — Kunde seit dem Widerspruchs-Hinweis im Antrag.",
-    antrag: "Kreis „uwg“.", lead: "Kreis „uwg“.",
+    antrag: "Kreis „uwg“.", lead: "Kreis „uwg“.", abbrecher: "Kreis „uwg“.",
   },
   alle: {
     kunde: "Kreis „alle“ (Entscheidung Justin 25.09.2026), Segment A — Kunde mit laufendem Paket.",
     antrag: "Kreis „alle“ (Entscheidung Justin 25.09.2026), Segment B — Antrag fertig, nicht bezahlt.",
     lead: "Kreis „alle“ (Entscheidung Justin 25.09.2026), Segment C — Lead ohne Antrag.",
+    // E-243 (26.09.2026)
+    abbrecher: "Kreis „alle“ (Entscheidung Justin 25./26.09.2026), Abbrecher — Antrag begonnen, nicht abgeschickt.",
   },
 };
 
@@ -1428,13 +1744,30 @@ export async function verkaufsTakt(opts: {
     const laufId = `AV${Date.now().toString(36)}`;
     const { auskunftStand } = await import("./fiaon-auskunft");
 
-    /** Frisch nachsehen, BEVOR etwas rausgeht — null = darf. */
-    const vorVersand = async (f: VerkaufFall): Promise<string | null> => {
+    /**
+     * E-243: Welche Segmente kennt die Mail-Vorlage? Eine Vorlage, die „abbrecher" nicht kennt, machte
+     * daraus „kunde" (angebotSegment) — der Abbrecher läse „Ihr Preis als FIAON-Kunde". Dann lieber keine
+     * Mail an dieses Segment, bis die Vorlage es kann.
+     */
+    const vorlageKennt = await import("../mail/vorlagen/auskunft-verkauf")
+      .then((m: any) => new Set<string>(Array.isArray(m.ANGEBOT_SEGMENTE) ? m.ANGEBOT_SEGMENTE.map(String) : ["kunde", "antrag", "lead"]))
+      .catch(() => new Set<string>(["kunde", "antrag", "lead"]));
+
+    /**
+     * Gegenlesen 26.09.2026 (E-243): „Anhalten" auf der Chefseite heißt „ab sofort nichts mehr" — ein Lauf,
+     * der gerade 19 Mails abarbeitet, fragt deshalb VOR JEDER Sendung den Schalter neu (eine Zeile in
+     * fiaon_settings). Vorher las der Takt ihn nur am Anfang des Laufs. Eine Störung beim Lesen heißt
+     * „aus" (verkaufEinstellungen gibt dann den sicheren Stand).
+     */
+    const nochAn = async (): Promise<boolean> => opts.mitSchalter === false || (await verkaufEinstellungen()).an;
+
+    /** Frisch nachsehen, BEVOR etwas rausgeht — null = darf. `weg` = der Kanal (E-243: die WhatsApp bremst 1 Tag, die Mail 3). */
+    const vorVersand = async (f: VerkaufFall, weg: "mail" | "whatsapp" = "mail"): Promise<string | null> => {
       // Hat er gerade gekauft oder hochgeladen? Dann nichts.
       const nein = standVerkaufbar(await auskunftStand(f.personId, sqlPool, f.art, { land: false }));
       if (nein) return nein;
       // Die gemeinsame Bremse frisch — zwischen Auswahl und Versand kann Mara oder ein Mitarbeiter angeboten haben.
-      const zuletzt = await zuletztAngeboten(f.personId);
+      const zuletzt = await zuletztAngeboten(f.personId, weg === "whatsapp" ? { tage: WA_ANGEBOT_ABSTAND_TAGE } : {});
       if (zuletzt) return `Angebot vor Kurzem (${ANGEBOT_WEG_TEXT[zuletzt.weg]})`;
       // Die Tür selbst fragen, BEVOR eine Nutzlast entsteht — mit dem Kreis dieses Laufs.
       const sperre = await angebotSperre(f.personId, { kreis: e.kreis });
@@ -1446,8 +1779,9 @@ export async function verkaufsTakt(opts: {
       if (waPlatz <= 0) break;
       if (opts.trocken) { erg.plan!.push({ personId: f.personId, schritt: "whatsapp", segment: f.segment }); waPlatz--; continue; }
       if (!istSendezeit(opts.jetzt)) { zaehle("Nachtruhe begonnen — Rest nicht gesendet"); break; }
+      if (!(await nochAn())) { erg.grund = "angehalten — Rest nicht gesendet"; break; }
       try {
-        const nein = await vorVersand(f);
+        const nein = await vorVersand(f, "whatsapp");
         if (nein) { waHeuteNicht.set(f.personId, tag); zaehle(nein); continue; }
         const { auskunftWhatsAppSenden } = await import("./fiaon-wa-zentrale");
         const r = await auskunftWhatsAppSenden(f.personId, { laufId, von: "Verkaufstakt" });
@@ -1473,8 +1807,10 @@ export async function verkaufsTakt(opts: {
       if (!istSendezeit(opts.jetzt)) { zaehle("Nachtruhe begonnen — Rest nicht gesendet"); break; }
       const adr = f.email.trim().toLowerCase();
       if (adressenImLauf.has(adr)) { zaehle("Adresse in diesem Lauf schon angeschrieben"); continue; }
+      if (!vorlageKennt.has(f.segment)) { mailHeuteNicht.set(f.personId, tag); zaehle(`Mail-Vorlage kennt das Segment „${f.segment}“ noch nicht`); continue; }
+      if (!(await nochAn())) { erg.grund = "angehalten — Rest nicht gesendet"; break; }
       try {
-        const nein = await vorVersand(f);
+        const nein = await vorVersand(f, "mail");
         if (nein) { mailHeuteNicht.set(f.personId, tag); zaehle(nein); continue; }
         adressenImLauf.add(adr);
         const nutzlast = await angebotNutzlast(f, schritt);
@@ -1530,6 +1866,8 @@ export interface VorschauZeile {
   kundeSeit: string | null;
   aktivAm: string | null;
   ersteMailAm: string | null;
+  /** E-243: Kauflink geöffnet, nicht bestellt (nur WhatsApp-Reihe) — der Grund, warum er vorn steht. */
+  klickAm: string | null;
 }
 
 function preisFuer(f: VerkaufFall): string {
@@ -1545,7 +1883,7 @@ function vorschauZeile(f: VerkaufFall, schritt: Schritt | null): VorschauZeile {
     preis: preisFuer(f),
     // Adressen gekürzt: Die Seite braucht sie nicht, jede weniger im Netzverkehr ist eine weniger.
     mail: f.email.replace(/^(.{2}).*(@.*)$/, "$1…$2"),
-    kundeSeit: f.ersterAntragAm, aktivAm: f.aktivAm, ersteMailAm: f.ersteMailAm,
+    kundeSeit: f.ersterAntragAm, aktivAm: f.aktivAm, ersteMailAm: f.ersteMailAm, klickAm: f.klickAm,
   };
 }
 

@@ -165,14 +165,21 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
        WHERE a.gdpr_deleted_at IS NULL AND a.merged_into IS NULL AND a.person_id IS NOT NULL
          AND a.payment_status = ANY(${status}) AND a.pack_key = ANY(${PAKETE_PRIVAT})
          AND a.gekuendigt_am IS NULL AND a.cancelled_at IS NULL
+         -- E-244 (26.09.2026): keine Auskunft-Bestellung. Zwei offene tragen den Paketschlüssel
+         -- highend, Maras Mail spricht aber vom Paket. Erkannt wie IST_AUSKUNFT; an die
+         -- Auskunft-Zahlung erinnert ein eigener Lauf.
+         AND COALESCE(a.type, '') <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
        ORDER BY a.person_id, (a.payment_status = 'claimed_paid') DESC, a.created_at DESC
     ),
     letzte AS (
       SELECT person_id, MAX(gesendet_am) AS am, COUNT(*)::int AS n
         FROM fiaon_mara_aktion WHERE status = 'gesendet' GROUP BY person_id
     ),
-    -- „nichts bezahlt": wer schon eine bezahlte Bestellung hat, ist Kunde
-    bezahlt AS (SELECT DISTINCT person_id FROM fiaon_applications WHERE payment_status = 'paid' AND merged_into IS NULL AND person_id IS NOT NULL),
+    -- „nichts bezahlt": wer schon eine bezahlte Bestellung hat, ist Kunde.
+    -- E-244 (26.09.2026): Eine bezahlte Bonitätsauskunft ist kein Paket — wer nur sie bezahlt hat und
+    -- einen offenen Paketantrag hat, bleibt in Maras Erinnerung (vorher fiel er dauerhaft heraus).
+    bezahlt AS (SELECT DISTINCT person_id FROM fiaon_applications WHERE payment_status = 'paid' AND merged_into IS NULL AND person_id IS NOT NULL
+                  AND COALESCE(type, '') <> 'schufa' AND COALESCE(ref, '') NOT LIKE 'FIAON-SCHUFA-%'),
     ausgenommen AS (SELECT person_id FROM fiaon_mara_ausschluss),
     storniert AS (SELECT DISTINCT person_id FROM fiaon_telefonkartei_storno WHERE zurueck_am IS NULL AND person_id IS NOT NULL),
     -- „Stopp" per Antwort, egal wann (flags steht teils als JSON-Text in der jsonb-Spalte —

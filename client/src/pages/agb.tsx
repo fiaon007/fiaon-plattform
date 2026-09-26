@@ -49,7 +49,8 @@ export default function AGBPage() {
           {/* Fassung und Geltung — wichtig für Bestandskunden (02.09.2026) */}
           <div className="fiaon-glass-panel rounded-2xl p-6">
             <p className="text-sm text-gray-600 leading-relaxed">
-              <strong>Fassung vom 3. September 2026.</strong> Diese Bedingungen gelten für Verträge, die ab diesem Tag geschlossen werden.
+              <strong>Fassung vom 26. September 2026.</strong> Diese Bedingungen gelten für Verträge, die ab diesem Tag geschlossen werden.
+              Gegenüber der Fassung vom 3. September 2026 ist allein § 3 (Vertragsschluss) neu gefasst; der frühere Wortlaut von § 3 steht zum Nachlesen am Ende dieses Paragrafen.
               Für früher geschlossene Verträge gelten die jeweils bei Vertragsschluss vereinbarten Bedingungen fort (siehe § 6 Absatz 8).
               Welche Fassung für Ihren Vertrag gilt, steht in Ihrer Bestellbestätigung und in Ihrem Kundenbereich.
             </p>
@@ -121,18 +122,38 @@ export default function AGBPage() {
             }} />
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 3 Vertragsschluss und Registrierung</h2>
+              {/* E-244 (26.09.2026): Der Knopf heißt „Zahlungspflichtig annehmen" (§ 312j Abs. 3 BGB). Damit das Wort
+                  „annehmen" stimmt, gibt die Anbieterin im Schritt „Vertrag" das Angebot ab und der Nutzer nimmt es an —
+                  vorher stand hier ein Knopf „Konto eröffnen", den es nicht gab, und der Klick war das Angebot des Nutzers. */}
               <p className="text-gray-700 leading-relaxed mb-4">
-                Die Präsentation der Leistungspakete (z. B. Starter, Pro, Ultra, High End) auf der Website stellt kein rechtlich bindendes Angebot dar, sondern eine Aufforderung zur Abgabe einer Bestellung (invitatio ad offerendum).
+                <strong>(1)</strong> Die Darstellung der Leistungspakete (z. B. Starter, Pro, Ultra, High End) auf der Website ist noch kein rechtlich bindendes Angebot.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Um die Plattform zu nutzen, muss der Nutzer ein Kundenkonto (Setup) anlegen. Der Vertrag kommt zustande, indem der Nutzer am Ende des Bestellprozesses den Button „Konto eröffnen" (oder eine entsprechend eindeutig beschriftete Schaltfläche) anklickt und die Anbieterin das Angebot durch eine Auftragsbestätigung per E-Mail oder durch die unmittelbare Freischaltung des Dashboards annimmt.
+                <strong>(2) Angebot der Anbieterin.</strong> Im Antrag wählt der Nutzer ein Leistungspaket und macht seine Angaben. Im Schritt „Vertrag" des Antrags unterbreitet die Anbieterin dem Nutzer ein verbindliches Angebot zum Abschluss des Vertrages über das gewählte Paket. Paket, Leistung, Höhe der Monatsrate, Gesamtvergütung, Laufzeit, Zahlungsweise und Kündigungsregel stehen dabei in der Bestellübersicht unmittelbar über der Schaltfläche nach Absatz 3.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Der Nutzer verpflichtet sich, bei der Registrierung wahrheitsgemäße und vollständige Angaben zu machen.
+                <strong>(3) Annahme durch den Nutzer.</strong> Der Nutzer nimmt das Angebot an, indem er die Schaltfläche „Zahlungspflichtig annehmen" anklickt. Mit diesem Klick kommt der Vertrag zustande. Vor dem Klick sieht der Nutzer im Schritt „Vertrag" seine Angaben und kann sie über die Schaltfläche „Angaben ändern" berichtigen.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(4) Nachgeholte Erklärung.</strong> Fehlt nach dem Antrag noch die Annahme des Vertrages, kann der Nutzer sie über einen persönlichen Bestätigungslink nachholen, sofern Paket und Monatsrate feststehen. Auch dort stehen die Angaben nach Absatz 2 unmittelbar über der Schaltfläche „Zahlungspflichtig annehmen", und der Vertrag kommt mit deren Anklicken zustande.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(5)</strong> Der Nutzer verpflichtet sich, bei der Registrierung wahrheitsgemäße und vollständige Angaben zu machen.
               </p>
               <p className="text-gray-700 leading-relaxed">
-                <strong>Account-Sharing-Verbot:</strong> Die Zugangsdaten sind personalisiert und streng vertraulich zu behandeln. Die Weitergabe der Zugangsdaten an Dritte ist untersagt. Bei Zuwiderhandlung behält sich die Anbieterin das Recht vor, den Account fristlos zu sperren und Schadensersatz geltend zu machen.
+                <strong>(6) Account-Sharing-Verbot:</strong> Die Zugangsdaten sind personalisiert und streng vertraulich zu behandeln. Die Weitergabe der Zugangsdaten an Dritte ist untersagt. Bei Zuwiderhandlung behält sich die Anbieterin das Recht vor, den Account fristlos zu sperren und Schadensersatz geltend zu machen.
               </p>
+              {/* E-244 NACHBESSERUNG: Die Fassung vom 03.09. gilt für die bis zum Wechsel geschlossenen Verträge fort
+                  (Kasten oben, § 6 Abs. 8) — ihr § 3 muss deshalb abrufbar bleiben. Wortlaut unverändert übernommen. */}
+              <details className="mt-4 rounded-xl border border-gray-200 bg-white/60 px-4 py-3">
+                <summary className="cursor-pointer text-sm font-semibold text-gray-700">Frühere Fassung von § 3 (Fassung vom 3. September 2026)</summary>
+                <div className="mt-3 text-sm text-gray-600 leading-relaxed space-y-3">
+                  <p>Die Präsentation der Leistungspakete (z. B. Starter, Pro, Ultra, High End) auf der Website stellt kein rechtlich bindendes Angebot dar, sondern eine Aufforderung zur Abgabe einer Bestellung (invitatio ad offerendum).</p>
+                  <p>Um die Plattform zu nutzen, muss der Nutzer ein Kundenkonto (Setup) anlegen. Der Vertrag kommt zustande, indem der Nutzer am Ende des Bestellprozesses den Button „Konto eröffnen" (oder eine entsprechend eindeutig beschriftete Schaltfläche) anklickt und die Anbieterin das Angebot durch eine Auftragsbestätigung per E-Mail oder durch die unmittelbare Freischaltung des Dashboards annimmt.</p>
+                  <p>Der Nutzer verpflichtet sich, bei der Registrierung wahrheitsgemäße und vollständige Angaben zu machen.</p>
+                  <p><strong>Account-Sharing-Verbot:</strong> Die Zugangsdaten sind personalisiert und streng vertraulich zu behandeln. Die Weitergabe der Zugangsdaten an Dritte ist untersagt. Bei Zuwiderhandlung behält sich die Anbieterin das Recht vor, den Account fristlos zu sperren und Schadensersatz geltend zu machen.</p>
+                </div>
+              </details>
             </div>
           </div>
 

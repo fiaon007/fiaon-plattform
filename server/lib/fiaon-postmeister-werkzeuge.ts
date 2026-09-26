@@ -921,22 +921,111 @@ export const kuendigungVormerken: Werkzeug = {
     }
     const erg = await kuendigungSetzen(k.ref, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null });
     if (!erg.ok) return { ok: false, ergebnis: "", fehler: erg.grund };
-    const t = erg.weg === "storno_unbezahlt"
-      ? "Die Bestellung wurde storniert; es bleibt nichts offen."
-      : erg.weg === "sofort_beendet"
-        ? "Alle Raten sind bezahlt — der Vertrag ist beendet."
-        : `Die Kündigung ist vermerkt. Offen bleibt Rate ${erg.letzteRateNr} über ${((erg.letzteRateBetragCents ?? 0) / 100).toFixed(2)} €; mit dieser Zahlung endet der Vertrag.`;
+    // 26.09.2026 (E-244): Was offen bleibt, liest das Werkzeug NACH der Buchung
+    // aus den Raten — nicht aus dem Ergebnis. Bei „bereits gekündigt" liefert
+    // kuendigungSetzen weder Rate noch Betrag; daraus wurde in der Akte und im
+    // Werkzeug-Ergebnis für das Modell „Offen bleibt Rate null über 0.00 €"
+    // (bis 26.09. 23 Aktenvermerke, keiner davon in einer Kundenmail).
+    //
+    // Nachbesserung (E-244): Bei „bereits" zuerst der Stand der Bestellung. Ist
+    // sie storniert/erstattet oder der Vertrag beendet, fordert Mara NICHTS —
+    // auch wenn dort noch eine nicht stornierte Rate „offen" steht (Produktion
+    // 26.09.: 4 Bestellungen, z. B. FIAON-MRLWQ2AD-FBJM, Rate 2 über 79,99 €
+    // offen, obwohl storniert und beendet). Das ist ein Datenfehler, keine
+    // Forderung: Er geht als Prüffall an die Leitung, nie in die Kundenmail.
+    let beendet = false;
+    if (erg.weg === "bereits") {
+      const [b] = (await sqlPool`
+        SELECT payment_status, (vertrag_ende_am IS NOT NULL AND vertrag_ende_am <= NOW()) AS vorbei
+          FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+      beendet = !!b && (["cancelled", "canceled", "storniert", "refunded"].includes(String(b.payment_status)) || b.vorbei === true);
+    }
+    const offene = (["letzte_rate", "bereits"].includes(erg.weg)
+      ? await sqlPool`
+          SELECT rate_nr, betrag_cents, to_char(faellig_am, 'DD.MM.YYYY') AS faellig
+            FROM fiaon_abo_raten
+           WHERE ref = ${k.ref} AND storniert_am IS NULL AND status = 'offen'
+           ORDER BY rate_nr ASC`.catch(() => null)
+      : []) as any[] | null;
+    const gelesen: OffeneRate[] | null = offene
+      ? offene.map((r) => ({ nr: Number(r.rate_nr), cents: Number(r.betrag_cents), faellig: r.faellig ?? null }))
+      : null;
+    if (beendet && gelesen && echteOffeneRaten(gelesen).length) {
+      const wider = echteOffeneRaten(gelesen);
+      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      await auftragFuerKunden({
+        personId: k.personId, ref: k.ref, anBetreiber: true, quelle: "postmeister", autorName: "Mara",
+        titel: `Prüffall: offene Rate trotz beendetem Vertrag (${k.ref})`.slice(0, 160),
+        text: `Die Bestellung ${k.ref} ist storniert oder beendet, trotzdem steht noch ${wider.map((r) => `Rate ${r.nr} über ${rateEuro(r.cents)}`).join(", ")} als offen (nicht storniert). `
+          + `Mara hat dem Kunden keine Zahlung genannt. Bitte prüfen: Rate stornieren oder Bestellung richtigstellen.`,
+        schluessel: `postmeister:kuendigung-raten:${k.ref}`,
+      }).catch((e) => console.error("[POSTMEISTER] Prüffall Raten:", String(e).slice(0, 160)));
+    }
+    const raten: OffeneRate[] | null = beendet ? [] : gelesen;
+    const t = kuendigungSatz(erg.weg, raten, { beendet });
+    const echte = raten ? echteOffeneRaten(raten) : [];
+    const letzte = echte.length ? echte[echte.length - 1] : null;
     await protokoll(k, "kuendigung_vormerken", `Kündigung per E-Mail entgegengenommen. ${t}`);
-    return { ok: true, ergebnis: t, daten: { weg: erg.weg, letzte_rate: erg.letzteRateNr, betrag: erg.letzteRateBetragCents ? (erg.letzteRateBetragCents / 100).toFixed(2) : null, faellig: erg.letzteRateFaellig } };
+    return {
+      ok: true, ergebnis: t,
+      daten: {
+        weg: erg.weg,
+        vertrag_beendet: beendet,
+        letzte_rate: letzte?.nr ?? null,
+        betrag: letzte ? (letzte.cents / 100).toFixed(2) : null,
+        faellig: letzte?.faellig ?? null,
+        offene_raten: echte.map((r) => ({ rate: r.nr, betrag: (r.cents / 100).toFixed(2), faellig: r.faellig })),
+        offen_summe: echte.length ? (echte.reduce((s, r) => s + r.cents, 0) / 100).toFixed(2) : null,
+      },
+    };
   },
 };
+
+/** Eine offene Rate, wie der Kündigungssatz sie braucht. */
+export interface OffeneRate { nr: number; cents: number; faellig: string | null }
+
+/** Immer mit Cent — „59,99 €“, „7,99 €“ (euroText aus shared kürzt glatte Beträge). */
+const rateEuro = (cents: number) => `${(cents / 100).toFixed(2).replace(".", ",")} €`;
+const echteOffeneRaten = (raten: OffeneRate[]) =>
+  raten.filter((r) => Number.isFinite(r.nr) && r.nr > 0 && Number.isFinite(r.cents) && r.cents > 0);
+
+/**
+ * DER SATZ NACH DER KÜNDIGUNG (26.09.2026, E-244) — rein, im Prüfstand geprüft.
+ *
+ * Nennt nur, was wirklich offen ist: keine Rate „null", kein „0,00 €". Ist
+ * nichts offen, fällt der Satz über die offene Rate weg. `raten = null` heißt:
+ * Die Raten konnten nicht gelesen werden — dann steht dort nur der Stand der
+ * Kündigung, keine Zahl.
+ */
+export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { beendet?: boolean } = {}): string {
+  if (weg === "storno_unbezahlt") return "Die Bestellung wurde storniert; es bleibt nichts offen.";
+  if (weg === "sofort_beendet") return "Alle Raten sind bezahlt — der Vertrag ist beendet.";
+  if (weg === "kulanz_sofort") return "Der Vertrag ist beendet; offene Raten entfallen.";
+  // Storniert oder beendet: nie ein Betrag, auch wenn die Daten eine Rate zeigen (E-244).
+  if (weg === "bereits" && opt.beendet) return "Die Kündigung lag bereits vor; der Vertrag ist beendet.";
+  const kopf = weg === "bereits" ? "Die Kündigung lag bereits vor." : "Die Kündigung ist vermerkt.";
+  if (raten == null) return `${kopf} Die offenen Raten konnten gerade nicht gelesen werden.`;
+  const echte = echteOffeneRaten(raten);
+  if (!echte.length) return `${kopf} Es ist keine Rate mehr offen.`;
+  if (echte.length === 1) {
+    const r = echte[0];
+    return `${kopf} Offen bleibt Rate ${r.nr} über ${rateEuro(r.cents)}${r.faellig ? ` (fällig ${r.faellig})` : ""}; mit dieser Zahlung endet der Vertrag.`;
+  }
+  const liste = echte.map((r) => `Rate ${r.nr} über ${rateEuro(r.cents)}`);
+  const summe = echte.reduce((s, r) => s + r.cents, 0);
+  return `${kopf} Offen bleiben ${liste.slice(0, -1).join(", ")} und ${liste[liste.length - 1]}, zusammen ${rateEuro(summe)}; mit diesen Zahlungen endet der Vertrag.`;
+}
 
 /** WERBESPERRE — nur auf ausdrücklichen Wunsch, mit Zitat. */
 export const werbesperreSetzen: Werkzeug = {
   name: "werbesperre_setzen",
   beschreibung: "Nimmt den Kunden aus allen Werbe- und Erinnerungsmails. Nur wenn er ausdrücklich darum bittet ('keine Mails mehr', 'Stopp', 'aus dem Verteiler nehmen'). Vertragspost wie Rechnungen bleibt davon unberührt.",
   stufe: "frei",
-  lagen: ["interessent", "unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv", "rate_ueberfaellig", "gekuendigt", "bestreitet", "unklar"],
+  // 26.09.2026 (E-244): auch „gesperrt" — dort landen beendete und stornierte
+  // Verträge. Genau die schrieben am 24.09. „keine weiteren E-Mails" (Mail 5597)
+  // und Mara konnte die Sperre nicht setzen: 5 von 8 offenen Stopp-Entwürfen
+  // ohne Werbesperre.
+  lagen: ["interessent", "unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv", "rate_ueberfaellig", "gekuendigt", "bestreitet", "gesperrt", "unklar"],
   parameter: {
     type: "object", additionalProperties: false,
     properties: { zitat: { type: "string", description: "Der wörtliche Satz, mit dem der Kunde darum bittet." } },

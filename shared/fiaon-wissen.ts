@@ -173,7 +173,7 @@ ${auskunftWissen()}
 
 DER WEG FÜR NEUE KUNDEN
 1. Paket wählen (fiaon.com/privatkunden oder fiaon.com/antrag) — der Antrag dauert etwa zwei Minuten: E-Mail, Name, Geburtsdatum, Telefon, Adresse (füllt sich beim Tippen selbst aus), Beschäftigung, Einkommen, Wunschlimit.
-2. Vertrag annehmen — danach ist der Kunde sofort in seinem Bereich eingeloggt, legt ein Passwort fest und wählt: „Jetzt aktivieren“ (Zahlungsdaten, QR-Code, Kopieren) oder „Zuerst sprechen“ (Termin mit einem Mitarbeiter).
+2. Im Schritt „Vertrag“ „Zahlungspflichtig annehmen“ klicken (darüber stehen Paket, Monatsrate, zwölf Monate Laufzeit, Gesamtbetrag und Kündigungsregel; über „Angaben ändern“ lassen sich die Angaben vorher berichtigen; erst dieser Klick schließt den Vertrag) — danach ist der Kunde sofort in seinem Bereich eingeloggt, legt ein Passwort fest und wählt: „Jetzt aktivieren“ (Zahlungsdaten, QR-Code, Kopieren) oder „Zuerst sprechen“ (Termin mit einem Mitarbeiter).
 3. Nach Zahlungseingang: Startgespräch buchen (Pflicht — bis dahin bleibt der Bereich geschlossen). Wer vorher einen Termin gebucht hat, braucht keinen zweiten: derselbe Termin wird zum Startgespräch.
 4. Nach dem Startgespräch: Bereich vollständig aktiv. Liegt eine Auskunft vor (FIAON-Bonitätsauskunft oder hochgeladene Datenkopie), wird sie ausgewertet und jeder Eintrag erklärt.
 Die Bonitätsauskunft ist jederzeit bestellbar, mit oder ohne Paket (siehe DIE BONITÄTSAUSKUNFT) — mit bezahltem Paket zum Kundenpreis.

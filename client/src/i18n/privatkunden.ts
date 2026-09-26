@@ -6,10 +6,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const de = {
   metaTitel: "Privatkunden · Bonität, Konto, Kreditkarte",
-  metaBeschreibung: "Einträge bereinigen, Girokonto eröffnen, Kreditkarte bis 25.000 € – FIAON beschafft Ihre Auskunft, erklärt jeden Eintrag, versendet die Schreiben und öffnet die Tür. Pakete ab 7,99 € im Monat.",
+  metaBeschreibung: "Einträge bereinigen, Girokonto eröffnen, Kreditkarte bis 25.000 € – FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, versendet die Schreiben und öffnet die Tür. Pakete ab 7,99 € im Monat.",
   pille: "Für Privatkunden · Deutschland, Österreich, Schweiz",
   h1a: "Die Kreditkarte, die am Ende ", h1b: "Ihrer Bonität wartet.",
-  lead: "Ein Eintrag ist kein Urteil. FIAON beschafft Ihre Auskunft, erklärt jeden Eintrag, lässt angreifbare löschen – und öffnet dann die Tür: Girokonto sofort, Kreditkarte, sobald Ihr Wert reicht.",
+  lead: "Ein Eintrag ist kein Urteil. FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, lässt angreifbare löschen – und öffnet dann die Tür: Girokonto sofort, Kreditkarte, sobald Ihr Wert reicht.",
   paketWaehlen: "Paket wählen", eintragPruefen: "Ist mein Eintrag angreifbar?",
   zahlen: [
     { wert: "24 h", label: "bis Sie sehen, was SCHUFA, KSV oder CRIF über Sie gespeichert haben" },
@@ -29,7 +29,7 @@ const de = {
   paketeLead: "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto näher rückt die Karte. Ein Klick – und Sie sind im Antrag, Schritt 1, Paket gesetzt.",
   beliebt: "Beliebt", zielRahmen: "Ziel-Rahmen", proMonat: "/ Monat", ziel: "Ziel: ", mitStarten: (n: string) => `Mit ${n} starten`, waehlenUndStarten: (n: string) => `${n} wählen und Antrag starten`,
   pakete: {
-    start: { sub: "Der Einstieg", ziel: "Wissen, was gespeichert ist", feats: ["Auskunft bei SCHUFA, KSV oder CRIF – beschafft und erklärt", "Kontoauszug-Analyse mit Ihrem Spielraum", "Ihr Bereich mit Fahrplan", "Unterstützung per E-Mail"] },
+    start: { sub: "Der Einstieg", ziel: "Wissen, was gespeichert ist", feats: ["Auswertung Ihrer Bonitätsauskunft – jeder Eintrag erklärt (Ihre selbst angeforderte Datenkopie oder die Auskunft als Zusatz)", "Kontoauszug-Analyse mit Ihrem Spielraum", "Ihr Bereich mit Fahrplan", "Unterstützung per E-Mail"] },
     pro: { sub: "Standard", ziel: "Einträge bereinigen, Konto eröffnen", feats: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und feste Ansprechpartnerin", "Girokonto für jeden Kunden"] },
     ultra: { sub: "Mit Karte", ziel: "Kreditkarte bis 15.000 € bei guter Bonität", feats: ["Alles aus Pro", "Begleitung bis zur Kreditkarte – Readiness, Meilensteine, Antrag", "Bevorzugte Bearbeitung Ihrer Schreiben", "Telefonische Betreuung"] },
     highend: { sub: "Das Maximum", ziel: "Karte bis 25.000 €, Finanzierung, persönliche Betreuung", feats: ["Alles aus Ultra", "Persönlicher Betreuer für Ihre Akte", "Vorbereitung auf Finanzierungen", "Erreichbar auch außerhalb der Bürozeiten"] },
@@ -78,7 +78,7 @@ const de = {
     { f: "Was kostet es – und wie lange bin ich gebunden?", a: "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung. Nach der zwölften fragen wir, ob Sie bleiben. Nur die Auskunft: 74,00 € einmalig." },
     { f: "Kann ich das Paket später ändern?", a: "Ja – im Antrag direkt, und im Startgespräch prüfen wir gemeinsam, ob es passt." },
     { f: "Gilt das auch in Österreich und der Schweiz?", a: "Ja. FIAON arbeitet mit KSV1870 und CRIF (Österreich) sowie CRIF und Intrum (Schweiz). Die Rechte aus DSGVO bzw. DSG sind vergleichbar, die Fristen unterscheiden sich – wir kennen beide." },
-    { f: "Was braucht FIAON von mir?", a: "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszug der letzten drei Monate – ein Handyfoto genügt. Die Auskunft beschafft FIAON." },
+    { f: "Was braucht FIAON von mir?", a: "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszug der letzten drei Monate – ein Handyfoto genügt. Dazu Ihre Bonitätsauskunft: Ihre selbst angeforderte Datenkopie – oder die Auskunft als Zusatz, die FIAON in Ihrem Auftrag anfordert." },
     { f: "Wie erreiche ich meine Ansprechpartnerin?", a: "Im Bereich, per E-Mail, telefonisch – und für viele Kunden per WhatsApp. Jede Frage landet bei der Person, die Ihre Akte kennt." },
   ],
   abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einem Klick.",
@@ -88,10 +88,10 @@ const de = {
 
 const en: typeof de = {
   metaTitel: "Personal · credit file, account, credit card",
-  metaBeschreibung: "Clean up entries, open a current account, a credit card up to €25,000 — FIAON obtains your report, explains every entry, sends the letters and opens the door. Plans from €7.99 a month.",
+  metaBeschreibung: "Clean up entries, open a current account, a credit card up to €25,000 — FIAON explains every entry in your credit report, sends the letters and opens the door. Plans from €7.99 a month.",
   pille: "For personal customers · Germany, Austria, Switzerland",
   h1a: "The credit card waiting at the end ", h1b: "of your credit file.",
-  lead: "An entry is not a verdict. FIAON obtains your report, explains every entry, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
+  lead: "An entry is not a verdict. FIAON explains every entry in your credit report, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
   paketWaehlen: "Choose a plan", eintragPruefen: "Can my entry be challenged?",
   zahlen: [
     { wert: "24 h", label: "until you see what SCHUFA, KSV or CRIF hold on you" },
@@ -111,7 +111,7 @@ const en: typeof de = {
   paketeLead: "Every plan starts with your report. The further you go, the closer the card comes. One click — and you are in the application, step 1, plan set.",
   beliebt: "Popular", zielRahmen: "Target limit", proMonat: "/ month", ziel: "Goal: ", mitStarten: (n: string) => `Start with ${n}`, waehlenUndStarten: (n: string) => `Choose ${n} and start the application`,
   pakete: {
-    start: { sub: "The entry point", ziel: "Know what is on file", feats: ["Report from SCHUFA, KSV or CRIF — obtained and explained", "Bank statement analysis with your headroom", "Your area with a roadmap", "Support by e-mail"] },
+    start: { sub: "The entry point", ziel: "Know what is on file", feats: ["Review of your credit report — every entry explained (a data copy you requested yourself, or the report as an add-on)", "Bank statement analysis with your headroom", "Your area with a roadmap", "Support by e-mail"] },
     pro: { sub: "Standard", ziel: "Clean up entries, open an account", feats: ["Everything in Start", "Deletion requests and objections — prepared, sent, tracked", "Instalment agreements with reply tracking", "Onboarding call and a named contact person", "A current account for every customer"] },
     ultra: { sub: "With a card", ziel: "A credit card up to €15,000 with a good file", feats: ["Everything in Pro", "Guidance all the way to the credit card — readiness, milestones, application", "Priority handling of your letters", "Support by phone"] },
     highend: { sub: "The maximum", ziel: "A card up to €25,000, finance, personal support", feats: ["Everything in Ultra", "A personal manager for your file", "Preparation for finance", "Reachable outside office hours too"] },
@@ -160,7 +160,7 @@ const en: typeof de = {
     { f: "What does it cost — and how long am I tied in?", a: "Plans from €7.99 a month, twelve instalments by bank transfer. After the twelfth we ask whether you want to stay. Just the report: €74.00 one-off." },
     { f: "Can I change the plan later?", a: "Yes — directly in the application, and in the onboarding call we check together whether it fits." },
     { f: "Does this also apply in Austria and Switzerland?", a: "Yes. FIAON works with KSV1870 and CRIF (Austria) and with CRIF and Intrum (Switzerland). The rights under the GDPR and the Swiss DSG are comparable, the deadlines differ — we know both." },
-    { f: "What does FIAON need from me?", a: "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough. FIAON obtains the report." },
+    { f: "What does FIAON need from me?", a: "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough. Plus your credit report: a data copy you requested yourself — or the report as an add-on, which FIAON requests on your behalf." },
     { f: "How do I reach my contact person?", a: "In your area, by e-mail, by phone — and for many customers by WhatsApp. Every question lands with the person who knows your file." },
   ],
   abschlussA: "Your journey starts ", abschlussB: "with one click.",

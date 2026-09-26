@@ -119,7 +119,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was braucht FIAON von mir?",
-      "a": "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszug der letzten drei Monate – ein Handyfoto genügt. Die Auskunft beschafft FIAON."
+      "a": "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszug der letzten drei Monate – ein Handyfoto genügt. Dazu Ihre Bonitätsauskunft: Ihre selbst angeforderte Datenkopie – oder die Auskunft als Zusatz, die FIAON in Ihrem Auftrag anfordert."
     },
     {
       "f": "Wie erreiche ich meine Ansprechpartnerin?",
@@ -153,7 +153,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does FIAON need from me?",
-      "a": "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough. FIAON obtains the report."
+      "a": "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough. Plus your credit report: a data copy you requested yourself — or the report as an add-on, which FIAON requests on your behalf."
     },
     {
       "f": "How do I reach my contact person?",
@@ -853,7 +853,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Ich habe den Antrag abgebrochen – was nun?",
-      "a": "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Es entstehen keine Kosten, bis Sie den Vertrag annehmen und die erste Rate zahlen."
+      "a": "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Kosten entstehen erst, wenn Sie im Schritt „Vertrag“ auf „Zahlungspflichtig annehmen“ klicken – direkt darüber sehen Sie Paket, Monatsrate, Laufzeit und Gesamtbetrag."
     },
     {
       "f": "Wie bezahle ich die erste Rate?",
@@ -999,7 +999,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "I abandoned the application — what now?",
-      "a": "You can continue at any time: the link in the e-mail takes you back into the application. No costs arise until you accept the contract and pay the first instalment."
+      "a": "You can continue at any time: the link in the e-mail takes you back into the application. Costs only arise when you click “Zahlungspflichtig annehmen” (accept with obligation to pay) in the “Contract” step — directly above it you see the plan, monthly instalment, term and total amount."
     },
     {
       "f": "How do I pay the first instalment?",

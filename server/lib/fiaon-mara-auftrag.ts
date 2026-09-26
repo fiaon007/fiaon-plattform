@@ -530,9 +530,18 @@ export async function dauerauftraegeLaufen(): Promise<{ geplant: number; ausgefu
 // ist: Mails, WhatsApp, Aufträge, Kosten. Eine eigene Zählung wäre eine zweite
 // Wahrheit, und die erste steht schon in den Tabellen.
 // ═══════════════════════════════════════════════════════════════════════════
+// E-244 (26.09.2026): ehrlich beschriftet. „mails" sind die Antworten im
+// POSTFACH (fiaon_postmeister), nicht die Mail-Aktion; „whatsapp" zählt ALLE
+// Absender (Mara, Team, Leitung) und Nummern, nicht nur Mara; „kostenEuro"
+// liest kostenHeute() mit dem Dienstnamen „postmeister" (den es in
+// fiaon_ki_nutzung nicht gibt) plus „mara-auftrag" — ist also praktisch nur
+// die Auftrags-KI. Maras Zahlen je Weg und die vollen KI-Kosten stehen in
+// Maras Bilanz (fiaon-mara-bilanz.ts), die Karte darüber im Steuerpult.
 export interface MaraTag {
   tag: string;
+  /** Postfach: gesendete Antworten und offene Entwürfe an diesem Tag (fiaon_postmeister). */
   mails: { geschrieben: number; entwuerfe: number };
+  /** WhatsApp gesamt, alle Absender: raus, rein, verschiedene Nummern (fiaon_whatsapp). */
   whatsapp: { raus: number; rein: number; menschen: number };
   auftraege: { gelaufen: number; wartend: number; verworfen: number };
   dauerauftraege: { an: number; heuteGelaufen: number };

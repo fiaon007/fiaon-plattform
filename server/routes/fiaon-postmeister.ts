@@ -765,6 +765,10 @@ async function entwurfVersenden(zeile: any, text: string): Promise<void> {
               ${`Antwortentwurf aus der Zentrale freigegeben und gesendet (${zeile.postfach}): „${String(zeile.betreff || "").slice(0, 90)}“`})
     `.catch(() => {});
   }
+  // E-244: Die Antwort ist draußen — die Übergabe-Aufgabe beim Betreuer schließt mit.
+  const { uebergabeSchliessen } = await import("../lib/fiaon-postmeister-lauf");
+  await uebergabeSchliessen({ id: Number(zeile.id), personId: zeile.person_id ?? null, ref: zeile.ref ?? null },
+    "Postfach-Zentrale", `Antwort gesendet (Postfach-Zentrale), Mail #${zeile.id}.`);
 }
 
 /** Die wartenden Entwürfe — mit vollem Wortlaut zum Ändern. */

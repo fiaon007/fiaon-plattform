@@ -6,6 +6,9 @@ import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
 import { messungsDaten, metaEreignis, META_EREIGNIS } from "@/lib/werbung";
 import { META_PAKETWECHSEL } from "@shared/fiaon-meta-ereignisse";
 import { PaketAufstieg } from "@/components/antrag/PaketAufstieg";
+import { Bestelluebersicht } from "@/components/antrag/Bestelluebersicht";
+import { KNOPF_ZAHLUNGSPFLICHTIG, PAKET_KERN, HAKEN_VERTRAG_TITEL, HAKEN_VERTRAG_TEXT, bestellUebersicht } from "@/components/antrag/bestelluebersicht-daten";
+import { paketPreisEuro } from "@shared/fiaon-pakete";
 import { appViewport } from "@/lib/app-viewport";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
 import { zustandFuerSchritt } from "@shared/fiaon-antrag-schritte";
@@ -314,12 +317,12 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
 }
 
 /* === PREMIUM BUTTON COMPONENT === */
-function PremiumButton({ children, onClick, disabled = false }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+function PremiumButton({ children, onClick, disabled = false, className = "" }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean; className?: string }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className="antrag-weiter relative inline-flex items-center justify-center gap-2 py-2.5 px-5 fiaon-btn-gradient rounded-full text-[14px] font-medium text-white overflow-hidden group transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+      className={`antrag-weiter relative inline-flex items-center justify-center gap-2 py-2.5 ${className || "px-5"} fiaon-btn-gradient rounded-full text-[14px] font-medium text-white overflow-hidden group transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none`}
       style={{ minHeight: 42 }}
     >
       <span className="relative z-10">{children}</span>
@@ -343,11 +346,16 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
 // So machen es `start.tsx` und `fiaon-home.tsx` seit immer. Nur diese Seite
 // und `fiaon-landing.tsx` nicht — und genau die schreiben in die Datenbank.
 // ══════════════════════════════════════════════════════════════════════════
+// E-244 (26.09.2026): `fee` kommt aus dem Katalog (shared/fiaon-pakete.ts) — vorher stand der Preis
+// hier ein zweites Mal. Die Bestellübersicht über dem Knopf rechnet ebenfalls nur aus dem Katalog.
+// `feats` kommen aus PAKET_KERN (dieselben Kernleistungen wie in der Bestellübersicht, nach der
+// Preisseite) — vorher „Ihr 5.000 € Limit-Protokoll", „Black-Card Setup", „Sofortige Score-Auswertung":
+// Limit- und Kartenversprechen, die AGB § 4 Abs. 2 und die Übersicht („entscheidet allein die Bank") widerlegen.
 const PACKS = [
-  { key:"start", name:"FIAON Starter", sub:"Das Fundament", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Ihr 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"] },
-  { key:"pro", name:"FIAON Pro", sub:"Standard", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Ihr 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"] },
-  { key:"ultra", name:"FIAON Ultra", sub:"Elite Konto", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Ihr 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"] },
-  { key:"highend", name:"FIAON High End", sub:"Das Maximum", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Ihr 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"] },
+  { key:"start", name:"FIAON Starter", sub:"Das Fundament", fee:paketPreisEuro("start"), lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:PAKET_KERN.start.punkte },
+  { key:"pro", name:"FIAON Pro", sub:"Standard", fee:paketPreisEuro("pro"), lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:PAKET_KERN.pro.punkte },
+  { key:"ultra", name:"FIAON Ultra", sub:"Elite Konto", fee:paketPreisEuro("ultra"), lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:PAKET_KERN.ultra.punkte },
+  { key:"highend", name:"FIAON High End", sub:"Das Maximum", fee:paketPreisEuro("highend"), lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:PAKET_KERN.highend.punkte },
 ];
 
 /* === CHECK ICON COMPONENT === */
@@ -389,7 +397,7 @@ async function track(event: string, data?: any, ref?: string) {
 }
 
 /* === LIVE CREDIT CARD — HYPER-REALISTIC DESIGN === */
-function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: string; name: string; lim: string; className?: string; compact?: boolean }) {
+function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: string; name: string; lim: string | null; className?: string; compact?: boolean }) {
   const displayName = name || "MAX MUSTERMANN";
   const nameLen = displayName.length;
   const nameFontSize = useMemo(() => {
@@ -433,7 +441,8 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
               textShadow: "0 2px 8px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2)",
               letterSpacing: "0.02em"
             }}>
-              {lim}€
+              {/* E-244: im Schritt „Vertrag" ohne Betrag (lim = null) — neben der Übersicht steht kein Limit. */}
+              {lim ? `${lim}€` : ""}
             </div>
           </div>
         </div>
@@ -725,6 +734,14 @@ function AntragSeite() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadLink]);
   const [approved, setApproved] = useState(0);
+  // ── E-244 NACHBESSERUNG: „ANGABEN ÄNDERN" VOR DEM ZAHLUNGSPFLICHTIGEN KLICK ──
+  // § 312i Abs. 1 Nr. 1 BGB: Eingabefehler müssen VOR der Bestellung erkennbar und
+  // berichtigbar sein. Vorher führte „Zurück" in Schritt 6 nur nach Schritt 5, und
+  // Schritt 5 hat keinen Zurück-Knopf — Name, Adresse, Finanzangaben waren nach der
+  // Prüfung nicht mehr erreichbar. Jetzt: „Angaben ändern" in Schritt 6 → Schritt 1;
+  // `korrektur` sorgt dafür, dass Schritt 3 direkt zurück nach Schritt 6 führt,
+  // OHNE die Prüfung (Schritt 4) und das Ergebnis (Schritt 5) erneut zu durchlaufen.
+  const [korrektur, setKorrektur] = useState(false);
   const [aufstiegZu, setAufstiegZu] = useState<string | null>(null);
   const [verifyDone, setVerifyDone] = useState(false);
   const [checkProgress, setCheckProgress] = useState(0);
@@ -918,8 +935,12 @@ function AntragSeite() {
     } else if (step === 6) {
       if (!d.email || !d.email.includes("@")) e.email = "Gültige E-Mail eingeben";
       if (!d.ag1 || !d.ag2 || !d.ag3) e.consent = "Bitte allen Bedingungen zustimmen";
+      // E-244: Ohne Paket gibt es keine Bestellübersicht — und ohne Übersicht keinen zahlungspflichtigen Klick.
+      if (!bestellUebersicht(pack?.key)) e.consent = "Bitte wählen Sie zuerst Ihr Paket.";
     }
     if (Object.keys(e).length) { setErrors(e); return; }
+    // E-244: Nach „Angaben ändern" führt Schritt 3 direkt zurück zum Vertrag — keine zweite Prüfung.
+    if (step === 3 && korrektur) { setKorrektur(false); goStep(6); return; }
     if (step === 3) { goStep(4); runVerify(); return; }
     if (step === 6) { goStep(7); setTimeout(() => goStep(8), 6000); return; }
     goStep(step + 1);
@@ -968,7 +989,10 @@ function AntragSeite() {
   useEffect(() => {
     if (step > 0) {
       const status = zustandFuerSchritt(step);
-      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink, messung: messungsDaten(), auskunftZusatz: step >= 7 ? zusatzNutzlast() : undefined }) })
+      // E-244 (Nachbesserung 26.09.): ag3 heißt nur „Bestellung geprüft" — angenommen wird allein mit dem
+      // Knopf (AGB § 3 Abs. 3). Vor Schritt 7 (= nach dem Klick) geht der Haken deshalb NIE als Annahme mit;
+      // sonst stünde nach „Zurück"/„Angaben ändern" consent_contract = TRUE ohne Klick. Der Server prüft es noch einmal.
+      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, ag3: step >= 7 ? d.ag3 : false, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink, messung: messungsDaten(), auskunftZusatz: step >= 7 ? zusatzNutzlast() : undefined }) })
         .then((r) => {
           if (!r.ok) console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert: HTTP ${r.status}`);
         })
@@ -1137,7 +1161,9 @@ function AntragSeite() {
     }
   }
 
-  const sideCard = <LiveCard bg={pack?.bg || PACKS[1].bg} name={cardName} lim={(pack?.lim || 5000).toLocaleString("de-DE")} />;
+  // E-244: Im Schritt „Vertrag" (6) zeigt die Karte keinen Betrag — neben „Zahlungspflichtig annehmen" steht
+  // kein Limit, das die Übersicht („über Rahmen entscheidet allein die Bank") widerlegen würde.
+  const sideCard = <LiveCard bg={pack?.bg || PACKS[1].bg} name={cardName} lim={step === 6 ? null : (pack?.lim || 5000).toLocaleString("de-DE")} />;
 
   return (
     <div className="antrag-dk dk min-h-screen antialiased" style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
@@ -1341,10 +1367,23 @@ function AntragSeite() {
                 {step === 6 && <>
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 4 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Vertrag annehmen</h2>
-                  <p className="text-[14px] text-gray-400 mb-6">Bestätigen Sie Ihre Daten und nehmen Sie den Vertrag an.</p>
+                  <p className="text-[14px] text-gray-400 mb-6">Prüfen Sie Ihre Angaben und die Bestellübersicht. Erst der Knopf unten schließt den Vertrag.</p>
+                  {/* E-244: Die Angaben aus den Schritten 1–3 sichtbar und änderbar (§ 312i Abs. 1 Nr. 1 BGB, AGB § 3 Abs. 3). */}
+                  <div data-angaben className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 min-w-0">
+                    <div className="min-w-0 text-[12.5px] text-slate-700 leading-relaxed break-words">
+                      <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.18em] mb-1">Ihre Angaben</p>
+                      <p>{[`${d.firstName} ${d.lastName}`.trim(), d.birthDay && d.birthMonth && d.birthYear ? `geb. ${d.birthDay.padStart(2, "0")}.${d.birthMonth.padStart(2, "0")}.${d.birthYear}` : ""].filter(Boolean).join(" · ")}</p>
+                      <p>{[d.street, [d.zip, d.city].filter(Boolean).join(" "), d.country].filter(Boolean).join(", ")}</p>
+                      <p>{d.phone ? `${d.phoneCountryCode} ${d.phone}` : ""}</p>
+                    </div>
+                    <button type="button" data-angaben-aendern onClick={() => { setKorrektur(true); goStep(1); track("angaben_aendern", {}, ref); }}
+                      className="self-start shrink-0 text-[12.5px] font-semibold text-[#2563eb] underline underline-offset-4">
+                      Angaben ändern
+                    </button>
+                  </div>
                   
                   <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={d.email} onChange={(v: string) => up("email", v)} placeholder={land === "AT" ? "max@gmx.at" : land === "CH" ? "max@bluewin.ch" : "max@beispiel.de"} /><EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} /></Field>
-                  {[["ag1","AGB & Datenschutz","Ich stimme zu und habe die vorvertraglichen Informationen erhalten. FIAON darf mich per E-Mail über eigene Leistungen informieren; dem kann ich jederzeit widersprechen, etwa über den Abmeldelink in jeder E-Mail (§ 7 Abs. 3 UWG)."],["ag2","Bonitätsprüfung","Ich willige in die Übermittlung meiner Daten ein."],["ag3","Vertragsannahme","Ich nehme den Vertrag verbindlich an."]].map(([key,title,desc]) => (
+                  {[["ag1","AGB & Datenschutz","Ich stimme zu und habe die vorvertraglichen Informationen erhalten. FIAON darf mich per E-Mail über eigene Leistungen informieren; dem kann ich jederzeit widersprechen, etwa über den Abmeldelink in jeder E-Mail (§ 7 Abs. 3 UWG)."],["ag2","Bonitätsprüfung","Ich willige in die Übermittlung meiner Daten ein."],["ag3",HAKEN_VERTRAG_TITEL,HAKEN_VERTRAG_TEXT]].map(([key,title,desc]) => (
                     <button key={key} onClick={() => up(key, !(d as any)[key])} className={`w-full flex gap-3 items-start p-4 rounded-xl mb-3 text-left transition-all ${(d as any)[key] ? "fiaon-glass-card-selected" : "fiaon-glass-panel hover:bg-white/60"}`}>
                       <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${(d as any)[key] ? "border-[#2563eb] bg-[#2563eb]" : "border-gray-300"}`}>
                         {(d as any)[key] && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>}
@@ -1363,13 +1402,18 @@ function AntragSeite() {
                       onSofort={(an) => setZusatz((z) => ({ ...z, sofort: an, sofortAm: an ? new Date().toISOString() : null }))}
                     />
                   )}
+                  {/* E-244 (26.09.2026): § 312j Abs. 2 BGB — Paket, Rate, Laufzeit, Gesamtbetrag, Zahlungsweise,
+                      Kündigung (AGB §§ 5/6) unmittelbar über „Zahlungspflichtig annehmen"; mit Zusatz auch die Auskunft. */}
+                  <Bestelluebersicht packKey={pack?.key} zusatz={zusatzAnzeige !== "aus" && zusatz.an ? zusatzArt : null} className="mt-4" />
                 </>}
 
                 {/* Buttons */}
-                <div className="antrag-knopfzeile flex items-center justify-between gap-3 mt-8 pt-4 border-t border-white/40">
+                {/* Schritt 6: der Knopf steht auf dem Handy in voller Breite DIREKT unter der Übersicht, „Zurück" darunter. */}
+                <div className={`antrag-knopfzeile flex justify-between gap-3 pt-4 border-t border-white/40 ${step === 6 ? "mt-4 flex-col-reverse items-stretch sm:flex-row sm:items-center" : "mt-8 items-center"}`}>
                   <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="antrag-zurueck px-4 py-2.5 rounded-full text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
-                  <PremiumButton onClick={next}>
-                    {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : `Weiter · ${SCHRITT_NAMEN[step] || ""}`}
+                  {/* E-244: „Zahlungspflichtig annehmen" bleibt bei 320 px einzeilig (schmalerer Innenrand, kein Umbruch). */}
+                  <PremiumButton onClick={next} disabled={step === 6 && !bestellUebersicht(pack?.key)} className={step === 6 ? "px-3 sm:px-5 whitespace-nowrap" : ""}>
+                    {step === 3 ? (korrektur ? "Zurück zum Vertrag" : "Prüfen lassen") : step === 6 ? KNOPF_ZAHLUNGSPFLICHTIG : `Weiter · ${SCHRITT_NAMEN[step] || ""}`}
                   </PremiumButton>
                 </div>
               </div>
@@ -1398,13 +1442,16 @@ function AntragSeite() {
                           <p className="text-[16px] font-bold fiaon-gradient-text-animated">{eur(pack?.fee || 0)}/Mt.</p>
                         </div>
                         
+                        {/* E-244: Im Schritt „Vertrag" kein Limit und kein Upgrade-Rahmen neben der Bestellübersicht. */}
+                        {step !== 6 && <>
                         <div className="h-px bg-white/50" />
                         
                         <div>
                           <p className="text-[11px] font-medium text-gray-400 uppercase tracking-[.1em] mb-1">Limit</p>
                           <p className="text-[16px] font-bold fiaon-gradient-text-animated">bis {(pack?.lim || 0).toLocaleString("de-DE")} €</p>
                         </div>
-                        {nextPack && (
+                        </>}
+                        {nextPack && step !== 6 && (
                           <button type="button" className="antrag-upgrade-zeile" onClick={() => upgraden(nextPack)}>
                             <span>Upgrade auf {nextPack.name.replace("FIAON ", "")}</span>
                             <b>bis {eur(nextPack.lim)} · {eur(nextPack.fee)}/Mt.</b>
@@ -1586,7 +1633,8 @@ function AntragSeite() {
             {pack && <PaketAufstieg pakete={PACKS} aktuell={pack} onWechsel={(p) => aufstieg(p as typeof PACKS[0])} gewechseltZu={aufstiegZu} />}
 
             <button onClick={() => goStep(6)} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full fiaon-btn-gradient text-[14px] font-medium text-white transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] w-full sm:w-auto" style={{ minHeight: 48 }}>
-              <span>Vertrag annehmen &amp; fortfahren</span>
+              {/* E-244: bindet NICHT — erst Schritt 6 mit „Zahlungspflichtig annehmen" schließt den Vertrag. */}
+              <span>Weiter zum Vertrag</span>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </button>
           </div>
@@ -1629,11 +1677,15 @@ function AntragSeite() {
               </button>
             </div>
             {einrichtungFehler && <p className="mt-4 text-[13px] text-red-400">{einrichtungFehler}</p>}
-            <p className="text-center text-[12.5px] text-gray-400 mt-5">{pack ? `${pack.fee.toFixed(2).replace(".", ",")} € monatlich · inkl. Kartenversand` : ""} · Zahlung und Termin wählen Sie im Bereich</p>
+            <p className="text-center text-[12.5px] text-gray-400 mt-5">{pack ? `${pack.fee.toFixed(2).replace(".", ",")} € monatlich · 12 Monate · ` : ""}Zahlung und Termin wählen Sie im Bereich</p>
             <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap mt-8">
               {["SSL-verschlüsselt", "SEPA-Überweisung", "Server in der EU"].map((t) => <span key={t} className="text-[11px] text-slate-400">{t}</span>)}
             </div>
-            <button type="button" onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} className="mt-6 text-[12px] text-slate-400 underline underline-offset-4">Vertrag herunterladen</button>
+            {/* E-244 NACHBESSERUNG: „Vertrag herunterladen" ist raus. Das PDF hinter /api/fiaon/contract/:ref
+                heißt „Kreditkartenvertrag", nennt eine 4-Wochen-Kündigung, Schriftform und „SCHUFA-Prüfung
+                durchgeführt" — es widerspricht der eben gezeigten Übersicht und AGB §§ 2/5/6 (§ 305c Abs. 2 BGB:
+                Unklarheiten gehen zulasten des Verwenders). Bis das PDF neu geschrieben ist: die AGB. */}
+            <a href="/agb" target="_blank" rel="noopener noreferrer" onClick={() => track("agb_nach_abschluss", { ref }, ref)} className="inline-block mt-6 text-[12px] text-slate-400 underline underline-offset-4">AGB ansehen</a>
           </div>
         )}
 

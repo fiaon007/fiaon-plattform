@@ -205,7 +205,34 @@ export function leadAusMeta(roh: MetaRohLead, einwilligungSchluessel?: string | 
 // ═══════════════════════════════════════════════════════════════════════════
 // EINSPIELEN — idempotent über die Meta-Lead-ID
 // ═══════════════════════════════════════════════════════════════════════════
-export type EinspielErgebnis = { status: "neu" | "dublette" | "ungueltig"; leadId: number | null; grund?: string };
+export type EinspielErgebnis = { status: "neu" | "dublette" | "ungueltig" | "test"; leadId: number | null; grund?: string };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST-LEADS VON META (26.09.2026, E-244)
+//
+// Das Lead-Ads-Testing-Tool (developers.facebook.com/tools/lead-ads-testing)
+// ist der einzige Weg, den Webhook ohne Werbegeld zu beweisen. Sein Lead läuft
+// aber durch denselben Weg wie ein echter — ohne diese Sperre würde er zum
+// Kunden: Datensatz, Person, Zuteilung an einen Betreuer, ECHTE
+// Begrüßungsmail an Metas Test-Adresse, ein Stufe-C-Lead in allen Zahlen.
+//
+// Meta füllt jedes Feld mit „<test lead: dummy data for …>“, die Mail mit
+// test@fb.com (neuer: test@meta.com). Ein solcher Lead wird nur gemerkt
+// (fiaon_meta_leads, weg meta_test, ohne Lead) — die Meldung zählt als
+// Beweis, dass der Webhook liefert, sonst passiert nichts.
+// ═══════════════════════════════════════════════════════════════════════════
+const TEST_MAILS = new Set(["test@fb.com", "test@meta.com", "test@facebook.com"]);
+export function istTestLead(roh: MetaRohLead | null | undefined): boolean {
+  for (const f of roh?.field_data ?? []) {
+    for (const v of f?.values ?? []) {
+      const s = String(v ?? "").trim().toLowerCase();
+      if (!s) continue;
+      if (s.startsWith("<test lead") || s.includes("dummy data for")) return true;
+      if (TEST_MAILS.has(s)) return true;
+    }
+  }
+  return false;
+}
 
 /** Das Formular kennen wir? Sonst jetzt laden (Name, Kästchen) — für Anzeige und Einwilligung. */
 async function formularSichern(formularId: string | undefined, seiteId: string | null, lauf: Lauf): Promise<{ name: string | null; einwilligungSchluessel: string | null }> {
@@ -234,6 +261,15 @@ export async function metaLeadEinspielen(
   if (!roh?.id) return { status: "ungueltig", leadId: null, grund: "Lead ohne ID" };
   const [schon] = (await lauf`SELECT lead_id FROM fiaon_meta_leads WHERE meta_lead_id = ${String(roh.id)}`) as any[];
   if (schon) return { status: "dublette", leadId: schon.lead_id ?? null };
+
+  if (istTestLead(roh)) {
+    // Kein processIntake: kein Lead, keine Person, keine Zuteilung, keine Mail.
+    await lauf`
+      INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg)
+      VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, 'meta_test')
+      ON CONFLICT (meta_lead_id) DO NOTHING`;
+    return { status: "test", leadId: null, grund: "Test-Lead von Meta — nicht angelegt" };
+  }
 
   const formular = await formularSichern(roh.form_id, seiteId, lauf);
   const f = leadAusMeta(roh, formular.einwilligungSchluessel);
@@ -272,6 +308,11 @@ export async function metaLeadEinspielen(
 // ═══════════════════════════════════════════════════════════════════════════
 // WEBHOOK-MELDUNGEN: speichern, dann verarbeiten
 // ═══════════════════════════════════════════════════════════════════════════
+/** Die Beispielmeldung aus dem App-Dashboard: Kennungen nur aus Vieren (444444444444). */
+export function istBeispielMeldung(wert: any): boolean {
+  return /^4{6,}$/.test(String(wert?.leadgen_id ?? ""));
+}
+
 /** Eine signierte Meldung ablegen. Gibt zurück, wie viele Lead-Meldungen darin waren. */
 export async function meldungSpeichern(nutzlast: any, lauf: Lauf = sqlPool): Promise<{ leads: number; andere: number }> {
   await metaTabellen(lauf);
@@ -281,7 +322,16 @@ export async function meldungSpeichern(nutzlast: any, lauf: Lauf = sqlPool): Pro
     for (const aenderung of Array.isArray(eintrag?.changes) ? eintrag.changes : []) {
       const feld = String(aenderung?.field ?? "unbekannt");
       const wert = aenderung?.value ?? {};
-      if (objekt === "page" && feld === "leadgen" && wert?.leadgen_id) {
+      if (objekt === "page" && feld === "leadgen" && wert?.leadgen_id && istBeispielMeldung(wert)) {
+        // E-244: Der Knopf „Test“ im App-Dashboard (Webhooks → Page → leadgen)
+        // schickt eine Beispielmeldung mit erfundener Kennung 444… — nicht
+        // abrufbar, und sie beweist das Seiten-Abo NICHT. Gemerkt, nie verarbeitet.
+        await lauf`
+          INSERT INTO fiaon_meta_ereignisse (objekt, feld, schluessel, seite_id, nutzlast, status, verarbeitet_am)
+          VALUES (${objekt}, ${feld}, ${String(wert.leadgen_id)}, ${String(wert.page_id ?? eintrag?.id ?? "") || null}, ${lauf.json(wert)}, 'beispiel', NOW())
+          ON CONFLICT (objekt, feld, schluessel) WHERE schluessel IS NOT NULL DO NOTHING`;
+        andere++;
+      } else if (objekt === "page" && feld === "leadgen" && wert?.leadgen_id) {
         await lauf`
           INSERT INTO fiaon_meta_ereignisse (objekt, feld, schluessel, seite_id, nutzlast)
           VALUES (${objekt}, ${feld}, ${String(wert.leadgen_id)}, ${String(wert.page_id ?? eintrag?.id ?? "") || null}, ${lauf.json(wert)})
@@ -331,7 +381,7 @@ export async function meldungenVerarbeiten(hoechstens = 25, lauf: Lauf = sqlPool
         const erg = await metaLeadEinspielen(roh, "meta_webhook", e.seite_id ?? null, lauf);
         if (erg.status === "neu") neu++;
         await lauf`
-          UPDATE fiaon_meta_ereignisse SET status = ${erg.status === "ungueltig" ? "ungueltig" : "verarbeitet"},
+          UPDATE fiaon_meta_ereignisse SET status = ${erg.status === "ungueltig" || erg.status === "test" ? erg.status : "verarbeitet"},
                  lead_id = ${erg.leadId}, verarbeitet_am = NOW(), fehler = ${erg.grund ?? null}, versuche = versuche + 1
            WHERE id = ${e.id}`;
       } catch (err) {
@@ -431,9 +481,9 @@ let nachholLaeuft = false;
  * allerersten Lauf die letzten 2 Tage.
  */
 export async function nachholLauf(opts: { seit?: Date; weg?: "meta_nachhol" | "meta_rueckstand"; hoechstens?: number } = {}, lauf: Lauf = sqlPool): Promise<{
-  formulare: number; gefunden: number; neu: number; schonDa: number; ungueltig: number; fehler: string[]; seit: string;
+  formulare: number; gefunden: number; neu: number; schonDa: number; ungueltig: number; test: number; fehler: string[]; seit: string;
 }> {
-  const leer = { formulare: 0, gefunden: 0, neu: 0, schonDa: 0, ungueltig: 0, fehler: [] as string[], seit: "" };
+  const leer = { formulare: 0, gefunden: 0, neu: 0, schonDa: 0, ungueltig: 0, test: 0, fehler: [] as string[], seit: "" };
   if (nachholLaeuft) return { ...leer, fehler: ["Ein Nachhol-Lauf läuft bereits."] };
   if (!metaKonfig().bereit) return { ...leer, fehler: ["Meta-Zugang fehlt noch."] };
   nachholLaeuft = true;
@@ -461,7 +511,7 @@ export async function nachholLauf(opts: { seit?: Date; weg?: "meta_nachhol" | "m
         erg.gefunden += leads.length;
         for (const roh of leads) {
           const e = await metaLeadEinspielen(roh, opts.weg ?? "meta_nachhol", f.seite_id ?? null, lauf);
-          if (e.status === "neu") erg.neu++; else if (e.status === "dublette") erg.schonDa++; else erg.ungueltig++;
+          if (e.status === "neu") erg.neu++; else if (e.status === "dublette") erg.schonDa++; else if (e.status === "test") erg.test++; else erg.ungueltig++;
           const t = Date.parse(String(roh.created_time ?? ""));
           if (!Number.isNaN(t) && t > juengster) juengster = t;
         }
@@ -732,7 +782,10 @@ export async function letztePruefliste(lauf: Lauf = sqlPool): Promise<Pruefliste
 // ═══════════════════════════════════════════════════════════════════════════
 // DER WÄCHTER
 // ═══════════════════════════════════════════════════════════════════════════
-async function alarm(art: string, an: boolean, text: string, lauf: Lauf): Promise<void> {
+/** Wie eine Aufgabe angelegt wird — im Betrieb todoAnlegen, im Prüfstand ein Zähler. */
+export type AufgabeAnlegen = (schluessel: string, t: { titel: string; text?: string; bereich?: string; prioritaet?: number; link?: string | null; quelle?: string }) => Promise<void>;
+
+async function alarm(art: string, an: boolean, text: string, lauf: Lauf, opts: { aufgabe?: AufgabeAnlegen; jetzt?: Date } = {}): Promise<void> {
   if (an) {
     const [z] = (await lauf`
       INSERT INTO fiaon_meta_alarme (art, text) VALUES (${art}, ${text})
@@ -742,8 +795,8 @@ async function alarm(art: string, an: boolean, text: string, lauf: Lauf): Promis
         erledigt_am = NULL
       RETURNING zaehler`) as any[];
     if (Number(z?.zaehler) === 1) {
-      const { todoAnlegen } = await import("../routes/fiaon-betreiber-todo");
-      await todoAnlegen(`lead-motor:${art}:${new Date().toISOString().slice(0, 10)}`, {
+      const anlegen: AufgabeAnlegen = opts.aufgabe ?? (await import("../routes/fiaon-betreiber-todo")).todoAnlegen;
+      await anlegen(`lead-motor:${art}:${(opts.jetzt ?? new Date()).toISOString().slice(0, 10)}`, {
         titel: `Lead-Motor: ${text.split(" — ")[0]}`, text, bereich: "vertrieb", prioritaet: 1,
         link: "/chef/s/lead-motor", quelle: "lead-motor",
       }).catch((e) => console.error("[LEAD-MOTOR] Aufgabe:", e));
@@ -760,25 +813,272 @@ function berlinStunde(d = new Date()): number {
   return Number.isFinite(n) ? n % 24 : d.getUTCHours();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STILLE UND AUSLIEFERUNG (26.09.2026, E-244)
+//
+// GEMESSEN am 26.09.: Seit dem 24.09. gegen 19 Uhr lieferte Meta keine einzige
+// Anzeige mehr aus — 0 € Ausgaben, 0 Impressionen, alle vier Kampagnen standen
+// trotzdem auf „Aktiv". Kein Lead, zwei Tage lang. Der Wächter merkte es
+// genau einen Nachmittag (25.09. 16:03–18:48) und schwieg danach: Die alte
+// Stille-Regel verlangte „gestern zur selben Zeit mindestens drei Leads" —
+// ab dem zweiten stillen Tag ist gestern selbst still, und die Regel wird
+// blind, obwohl der Stillstand weiterläuft.
+//
+// ZWEI REGELN, beide als reine Rechnung (prüfbar ohne Datenbank):
+//   · stilleBeurteilen: Die Erwartung kommt aus den sieben Tagen VOR dem
+//     letzten Lead, nicht aus gestern. Je länger die Stille, desto sicherer
+//     der Alarm — er geht erst aus, wenn wieder ein Lead kommt.
+//   · auslieferungBeurteilen: gestern UND heute 0 € Ausgaben bei Meta
+//     (fiaon_meta_kosten), in den sieben Tagen davor aber Geld geflossen —
+//     oder gestern weniger als 30 % des Tagesschnitts der sieben Tage davor.
+//     Die Ausgaben zählen nur, wenn der Kostenabruf frisch und fehlerfrei ist;
+//     ein alter Stand ist KEIN Beleg für „0 €".
+// Der Alarmtext nennt Prüfschritte, keine Vermutung: Ein Alarm, der auf eine
+// falsche Ursache zeigt (bis heute: „App auf Live?"), ist schlimmer als keiner.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** JJJJ-MM-TT plus n Tage — reine Kalenderrechnung ohne Zeitzone. */
+export function tagPlus(tag: string, n: number): string {
+  const [j, m, t] = tag.split("-").map((x) => parseInt(x, 10));
+  return new Date(Date.UTC(j, (m || 1) - 1, (t || 1) + n)).toISOString().slice(0, 10);
+}
+/** „2026-09-25" → „25.09." */
+function tagKurz(tag: string): string {
+  const [, m, t] = tag.split("-");
+  return `${t}.${m}.`;
+}
+const euro = (cents: number) => (cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+
+/** Die Prüfschritte bei Meta — dieselben in jedem Alarm, damit niemand rät. */
+export const PRUEFSCHRITTE_AUSLIEFERUNG =
+  "1. Werbeanzeigenmanager (adsmanager.facebook.com) → Konto „FIAON Ltd.“ → Kampagnen: Laufen sie überhaupt noch (Enddatum erreicht, pausiert, Budget aufgebraucht)? Dann ist die Pause gewollt. "
+  + "Sonst in der Spalte „Auslieferung“ die Maus auf den Status halten, dort nennt Meta den Grund. "
+  + "2. Abrechnung & Zahlungen (business.facebook.com/billing_hub) → Zahlungsaktivität: offene oder abgelehnte Zahlung? Zahlungsmethode bestätigen. "
+  + "3. Kontoqualität (business.facebook.com/business-support-home): Einschränkung für Werbekonto, Seite oder Profil? "
+  + "4. Den Webhook unabhängig davon beweisen: developers.facebook.com/tools/lead-ads-testing → Seite FIAON → Formular → „Lead erstellen“ (einen alten Test-Lead dort vorher löschen). "
+  + "Die Plattform erkennt den Test-Lead: kein Kunde, keine Zuteilung, keine Mail — hier springt nur die Kopfzeile auf „Webhook bestätigt“.";
+
+export interface StilleDaten {
+  /** Berliner Stunde 0–23. */
+  stunde: number;
+  jetztMs: number;
+  /** Zeitpunkt des letzten Meta-Leads (ms) oder null. */
+  letzterMs: number | null;
+  /** Leads im Fenster 27–24 Stunden vor jetzt (die alte Regel). */
+  gesternFenster: number;
+  /** Leads in den sieben Tagen bis zum letzten Lead (einschließlich). */
+  vorher7: number;
+}
+export interface StilleUrteil {
+  /** Alarm jetzt an: tagsüber UND still. */
+  an: boolean;
+  /** Die Bedingung ohne Tageszeit — nachts entscheidet sie nur über „aus“. */
+  still: boolean;
+  tagsueber: boolean;
+  stundenSeit: number | null; erwartet: number; text: string;
+}
+
+export function stilleBeurteilen(d: StilleDaten): StilleUrteil {
+  const stundenSeit = d.letzterMs == null ? null : Math.max(0, (d.jetztMs - d.letzterMs) / 3_600_000);
+  // Erwartung aus der Rate der sieben Tage VOR der Stille (168 Stunden Uhrzeit).
+  const erwartet = stundenSeit == null ? 0 : (Math.max(0, d.vorher7) / 168) * stundenSeit;
+  const tagsueber = d.stunde >= 9 && d.stunde < 22;
+  const still = stundenSeit != null && stundenSeit >= 3
+    && (d.gesternFenster >= 3 || (d.vorher7 >= 7 && erwartet >= 3));
+  const seitText = d.letzterMs == null ? "" : new Date(d.letzterMs).toLocaleString("de-DE", {
+    timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
+  const text = `Kein Lead aus Meta seit ${seitText} — in dieser Zeit wären nach den sieben Tagen davor etwa ${Math.round(erwartet)} Leads zu erwarten gewesen. `
+    + `Kosten des Tages im Lead-Motor ansehen (fließt noch Geld?), dann bei Meta prüfen: ${PRUEFSCHRITTE_AUSLIEFERUNG}`;
+  return { an: tagsueber && still, still, tagsueber, stundenSeit, erwartet, text };
+}
+
+export interface AuslieferungDaten {
+  /** Heute in Berlin, JJJJ-MM-TT. */
+  heute: string;
+  /** Der Kostenabruf ist fehlerfrei, jünger als 7 Stunden und reicht bis heute. */
+  kostenFrisch: boolean;
+  /** Ausgaben je Tag in Cent (Kampagnen-Ebene). Tage ohne Zeile = 0 €. */
+  ausgabenJeTag: Record<string, number>;
+  /** Meta-Leads je Berliner Tag. */
+  leadsJeTag: Record<string, number>;
+  /** Bis zu welchem Tag der letzte fehlerfreie Kostenabruf reicht (auch wenn er alt ist). */
+  kostenBis?: string | null;
+}
+export interface AuslieferungUrteil {
+  an: boolean;
+  grund: "keine_ausgaben" | "leads_eingebrochen" | null;
+  /** Belegt: frischer Kostenstand, gestern und heute 0 € — egal, was davor war. */
+  ohneAusgaben: boolean;
+  /** Erster Tag ohne Ausgaben (nur bei keine_ausgaben). */
+  seit: string | null;
+  letzteAusgabe: { tag: string; cents: number } | null;
+  leadsGestern: number;
+  leadsSchnitt: number;
+  text: string;
+}
+
+/** Der Anfang jedes Einbruch-Textes — daran erkennt der Wächter die Art eines offenen Alarms. */
+export const EINBRUCH_ANFANG = "Meta-Leads eingebrochen";
+
+export function auslieferungBeurteilen(d: AuslieferungDaten): AuslieferungUrteil {
+  const gestern = tagPlus(d.heute, -1);
+  const aus = (t: string) => Math.max(0, Number(d.ausgabenJeTag[t] || 0));
+  const leads = (t: string) => Math.max(0, Number(d.leadsJeTag[t] || 0));
+  // Die sieben Tage VOR gestern: heute-8 … heute-2.
+  const davor = Array.from({ length: 7 }, (_, i) => tagPlus(d.heute, -2 - i));
+  const ausgabenDavor = davor.reduce((s, t) => s + aus(t), 0);
+  const letzterTag = davor.find((t) => aus(t) > 0) ?? null;
+  const ohneAusgaben = d.kostenFrisch && aus(gestern) === 0 && aus(d.heute) === 0;
+  const keineAusgaben = ohneAusgaben && ausgabenDavor > 0;
+
+  const leadsGestern = leads(gestern);
+  const leadsSchnitt = davor.reduce((s, t) => s + leads(t), 0) / 7;
+  const eingebrochen = leadsSchnitt >= 3 && leadsGestern < 0.3 * leadsSchnitt;
+
+  const schnittText = leadsSchnitt.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+  const leadSatz = `Gestern kamen ${leadsGestern} Leads aus Meta, in den sieben Tagen davor im Schnitt ${schnittText} am Tag.`;
+  if (keineAusgaben && letzterTag) {
+    const seit = tagPlus(letzterTag, 1);
+    return {
+      an: true, grund: "keine_ausgaben", ohneAusgaben, seit, letzteAusgabe: { tag: letzterTag, cents: aus(letzterTag) }, leadsGestern, leadsSchnitt,
+      text: `Meta liefert seit ${tagKurz(seit)} nicht aus — im eigenen Werbekonto gestern und heute 0 € Ausgaben, zuletzt ${euro(aus(letzterTag))} am ${tagKurz(letzterTag)}. `
+        + `Solange dort kein Geld fließt, bringen die eigenen Anzeigen keine Leads; an Webhook und Nachhol-Lauf liegt das nicht. ${leadSatz} `
+        + `Ist die Pause gewollt (Kampagnen beendet oder pausiert), erlischt dieser Hinweis nach sieben Tagen ohne Ausgaben von selbst. Prüfen: ${PRUEFSCHRITTE_AUSLIEFERUNG}`,
+    };
+  }
+  if (eingebrochen) {
+    return {
+      an: true, grund: "leads_eingebrochen", ohneAusgaben, seit: null, letzteAusgabe: letzterTag ? { tag: letzterTag, cents: aus(letzterTag) } : null, leadsGestern, leadsSchnitt,
+      text: `${EINBRUCH_ANFANG}: gestern ${leadsGestern} statt Ø ${schnittText} — ${leadSatz} `
+        + `Erst im Lead-Motor die Kosten ansehen: Fließt noch Geld, liegt es an Anzeige oder Formular; fließt keins, liefert Meta nicht aus. Prüfen: ${PRUEFSCHRITTE_AUSLIEFERUNG}`,
+    };
+  }
+  return { an: false, grund: null, ohneAusgaben, seit: null, letzteAusgabe: null, leadsGestern, leadsSchnitt, text: "" };
+}
+
+/** Holt die Zahlen für auslieferungBeurteilen — nur lesend. */
+export async function auslieferungDaten(lauf: Lauf = sqlPool, jetzt: Date = new Date()): Promise<AuslieferungDaten> {
+  const { berlinToday } = await import("./fiaon-time");
+  const { kostenTabelle, KOSTEN_STAND_SCHLUESSEL } = await import("./fiaon-meta-kosten");
+  await kostenTabelle(lauf);
+  const heute = berlinToday(jetzt);
+  const ab = tagPlus(heute, -9);
+  const kosten = (await lauf`
+    SELECT to_char(tag, 'YYYY-MM-DD') AS tag, SUM(ausgaben_cents)::bigint AS cents
+      FROM fiaon_meta_kosten WHERE ebene = 'kampagne' AND tag >= ${ab}::date GROUP BY 1`) as any[];
+  const leads = (await lauf`
+    SELECT to_char((erstellt_am AT TIME ZONE 'Europe/Berlin')::date, 'YYYY-MM-DD') AS tag, COUNT(*)::int AS n
+      FROM fiaon_leads WHERE quelle = 'facebook_lead_ads'
+       AND erstellt_am > ${jetzt}::timestamptz - INTERVAL '11 days' AND erstellt_am <= ${jetzt}::timestamptz GROUP BY 1`) as any[];
+  let kostenFrisch = false;
+  let kostenBis: string | null = null;
+  try {
+    const st = JSON.parse((await einstellung(KOSTEN_STAND_SCHLUESSEL, lauf)) ?? "null");
+    kostenBis = st?.ok && /^\d{4}-\d{2}-\d{2}$/.test(String(st?.bis ?? "")) ? String(st.bis) : null;
+    kostenFrisch = !!st?.ok && String(st?.bis ?? "") === heute
+      && Number.isFinite(Date.parse(st?.am)) && jetzt.getTime() - Date.parse(st.am) < 7 * 3_600_000;
+  } catch { kostenFrisch = false; }
+  const ausgabenJeTag: Record<string, number> = {};
+  for (const r of kosten) ausgabenJeTag[String(r.tag)] = Number(r.cents || 0);
+  const leadsJeTag: Record<string, number> = {};
+  for (const r of leads) leadsJeTag[String(r.tag)] = Number(r.n || 0);
+  return { heute, kostenFrisch, ausgabenJeTag, leadsJeTag, kostenBis };
+}
+
+/**
+ * Ruhe für die Stille-Regel: Kein Werbegeld erklärt keine Leads. Belegt bei
+ * frischem Stand (gestern und heute 0 €). Bei ALTEM Stand zählt, was er noch
+ * weiß: Reicht er bis gestern und stand gestern wie heute 0 €, bleibt die
+ * Stille ruhig — sonst würde jeder ausgefallene Kostenabruf mitten in einer
+ * gewollten Pause eine neue Prio-1-Aufgabe bringen. Reicht er nicht mehr bis
+ * gestern, entscheidet wieder die Stille allein.
+ */
+export function stilleRuhe(d: AuslieferungDaten): boolean {
+  const gestern = tagPlus(d.heute, -1);
+  const null0 = (t: string) => Number(d.ausgabenJeTag[t] || 0) <= 0;
+  if (d.kostenFrisch) return null0(gestern) && null0(d.heute);
+  return !!d.kostenBis && d.kostenBis >= gestern && null0(gestern) && null0(d.heute);
+}
+
+/**
+ * Stille und Auslieferung — der Teil des Wächters, der nur die Datenbank
+ * braucht (kein Meta-Zugang). Eigene Stufe, damit der Prüfstand Läufe über
+ * Tag/Nacht und alten/frischen Kostenstand gegen eine zurückgerollte Buchung
+ * fahren kann (.pruef/e244-meta-waechter.mts).
+ *
+ * NACHBESSERUNG 26.09.2026 (Gegenprüfung E-244):
+ *   · Stille ENDET nicht mehr nachts: Außerhalb 9–22 Uhr wird der Alarm nur
+ *     ausgeschaltet, wenn die Stille vorbei ist — nie „erledigt“, nur weil es
+ *     Nacht ist. Vorher begann der Zähler jeden Morgen bei 1, und jeder Tag
+ *     brachte eine NEUE Prio-1-Aufgabe.
+ *   · Keine Ausgaben erklären keine Leads: Steht bei frischem Kostenstand
+ *     gestern und heute 0 €, gibt es keinen Stille-Alarm — egal, was davor
+ *     war (auch nach dem geplanten Kampagnenende, dann dauerhaft ruhig).
+ *   · Ein alter Kostenstand darf „Meta liefert nicht aus“ weder an- noch
+ *     ausschalten; ein offener EINBRUCH-Alarm geht aber aus, sobald die Leads
+ *     wieder fließen — dafür braucht es keine Kosten.
+ */
+export async function waechterLeadRegeln(lauf: Lauf = sqlPool, opts: { jetzt?: Date; aufgabe?: AufgabeAnlegen } = {}): Promise<string[]> {
+  await metaTabellen(lauf);
+  const jetzt = opts.jetzt ?? new Date();
+  const aOpts = { aufgabe: opts.aufgabe, jetzt };
+  const aktiv: string[] = [];
+
+  const [st] = (await lauf`
+    WITH l AS (SELECT MAX(erstellt_am) AS letzter FROM fiaon_leads WHERE quelle = 'facebook_lead_ads' AND erstellt_am <= ${jetzt}::timestamptz)
+    SELECT l.letzter,
+      (SELECT COUNT(*)::int FROM fiaon_leads WHERE quelle = 'facebook_lead_ads'
+         AND erstellt_am BETWEEN ${jetzt}::timestamptz - INTERVAL '27 hours' AND ${jetzt}::timestamptz - INTERVAL '24 hours') AS gestern,
+      (SELECT COUNT(*)::int FROM fiaon_leads WHERE quelle = 'facebook_lead_ads'
+         AND erstellt_am > l.letzter - INTERVAL '7 days' AND erstellt_am <= l.letzter) AS vorher7
+      FROM l
+  `) as any[];
+  const stille = stilleBeurteilen({
+    stunde: berlinStunde(jetzt), jetztMs: jetzt.getTime(), letzterMs: st?.letzter ? new Date(st.letzter).getTime() : null,
+    gesternFenster: Number(st?.gestern || 0), vorher7: Number(st?.vorher7 || 0),
+  });
+
+  // Auslieferung: fließt bei Meta überhaupt noch Geld?
+  let ohneAusgaben = false;
+  try {
+    const au = await auslieferungDaten(lauf, jetzt);
+    const u = auslieferungBeurteilen(au);
+    if (au.kostenFrisch || u.an) {
+      await alarm("auslieferung", u.an, u.text, lauf, aOpts);
+    } else {
+      // Alter Kostenstand, kein Einbruch: nur ein offener EINBRUCH-Alarm darf
+      // aus („liefert nicht aus“ entscheidet erst ein frischer Stand).
+      await lauf`
+        UPDATE fiaon_meta_alarme SET erledigt_am = NOW()
+         WHERE art = 'auslieferung' AND erledigt_am IS NULL AND text LIKE ${EINBRUCH_ANFANG + "%"}`;
+    }
+    if (u.an) aktiv.push("auslieferung");
+    ohneAusgaben = stilleRuhe(au);
+  } catch (e) {
+    console.warn("[LEAD-MOTOR] Auslieferung nicht prüfbar:", e instanceof Error ? e.message : String(e));
+  }
+
+  // Stille: Ohne Werbegeld ist sie keine Störung (die Auslieferung sagt es,
+  // wenn davor Geld floss). Nachts nur aus, nie an und nie „erledigt“ aus
+  // bloßer Tageszeit.
+  if (ohneAusgaben || !stille.still) {
+    await alarm("stille", false, stille.text, lauf, aOpts);
+  } else if (stille.tagsueber) {
+    await alarm("stille", true, stille.text, lauf, aOpts);
+    aktiv.push("stille");
+  }
+  return aktiv;
+}
+
 export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: string[] }> {
   await metaTabellen(lauf);
   const k = metaKonfig();
   const aktiv: string[] = [];
   if (!k.bereit) return { alarme: aktiv };
-  const stunde = berlinStunde();
 
-  // Stille: tagsüber 3 Stunden ohne einen einzigen Facebook-Lead, obwohl zur
-  // selben Zeit gestern mindestens drei kamen.
-  const [st] = (await lauf`
-    SELECT
-      (SELECT MAX(erstellt_am) FROM fiaon_leads WHERE quelle = 'facebook_lead_ads') AS letzter,
-      (SELECT COUNT(*)::int FROM fiaon_leads WHERE quelle = 'facebook_lead_ads'
-         AND erstellt_am BETWEEN NOW() - INTERVAL '27 hours' AND NOW() - INTERVAL '24 hours') AS gestern
-  `) as any[];
-  const still = stunde >= 9 && stunde < 22 && Number(st?.gestern || 0) >= 3
-    && (!st?.letzter || Date.now() - new Date(st.letzter).getTime() > 3 * 3_600_000);
-  await alarm("stille", still, "Seit drei Stunden kein Lead — Anzeigen im Werbeanzeigenmanager prüfen (pausiert? Budget? Formular?) und im Lead-Motor „Verbindung prüfen“.", lauf);
-  if (still) aktiv.push("stille");
+  // Stille und Auslieferung (E-244) — siehe waechterLeadRegeln.
+  aktiv.push(...(await waechterLeadRegeln(lauf)));
 
   // Webhook schweigt, Nachhol-Lauf findet: Das Abo ist weg oder gestört.
   const [w] = (await lauf`
@@ -806,11 +1106,20 @@ export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: stri
   // Der Alarm nennt das jetzt. Ein Alarm, der zu einem Knopf schickt, der das
   // Problem nicht löst, ist schlimmer als keiner: Man drückt, es bleibt grün,
   // und man glaubt, es liege an etwas anderem.
+  //
+  // NACHTRAG 26.09.2026 (E-244): Ursache 1 ist erledigt — Justin hat die App
+  // auf „Live" gestellt. Ursache 2 ist über die Schnittstelle ausgeschlossen:
+  // Beide Lead-Anzeigen nutzen Formulare der abonnierten Seite FIAON. Die
+  // Frage nach dem Live-Modus fällt deshalb aus dem Text; stattdessen stehen
+  // dort die drei Stellen, an denen man den Webhook bei Meta selbst sieht.
   // ══════════════════════════════════════════════════════════════════════
   await alarm("webhook", webhookStumm,
     "Der Webhook meldet keine Leads — der Nachhol-Lauf fängt sie auf (bis zu 5 Minuten später), es geht also nichts verloren. "
     + "Adresse und Token stimmen: Über dieselbe Adresse kommen WhatsApp-Ereignisse an. "
-    + "Prüfe bei Meta zwei Dinge: Steht die App im App-Dashboard auf „Live“ (nicht „Entwicklung“)? Und hängt das Lead-Formular an derselben Seite, die hier unten als abonniert steht?",
+    + "Prüfen: 1. developers.facebook.com/tools/lead-ads-testing → Seite FIAON → Formular → „Lead erstellen“ — kommt die Meldung, springt hier die Kopfzeile auf „Webhook bestätigt“ "
+    + "(der Test-Lead wird erkannt: kein Kunde, keine Zuteilung, keine Mail). "
+    + "2. App-Dashboard → Webhooks → Objekt „Page“: Feld „leadgen“ abonniert, Adresse wie unten unter „Verbindung zu Meta“. "
+    + "3. Seite FIAON → Einstellungen → Integrationen → Leadzugriff: Die App „FIAON Ltd.“ ist zugelassen.",
     lauf);
   if (webhookStumm) aktiv.push("webhook");
 
@@ -831,6 +1140,26 @@ export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: stri
     if (kaputt.length) aktiv.push("verbindung");
   }
   return { alarme: aktiv };
+}
+
+/**
+ * E-244: Ist der Webhook bewiesen? Nur eine Lead-Meldung (page/leadgen), die
+ * die Signaturprüfung bestanden hat UND deren Lead sich bei Meta abrufen ließ
+ * (status verarbeitet, ungueltig oder test). Die Beispielmeldung aus dem
+ * App-Dashboard (status beispiel, Kennung 444…) zählt NICHT — sie beweist das
+ * Seiten-Abo nicht. Eine grüne Prüfliste beweist es auch nicht (Meta zeigt
+ * Abos auch dann als bestehend, wenn nie etwas geliefert wird).
+ */
+export const WEBHOOK_BEWEIS_STATUS = ["verarbeitet", "ungueltig", "test"] as const;
+export async function webhookBeweis(lauf: Lauf = sqlPool): Promise<{ ersteMeldung: string | null; letzteMeldung: string | null; webhookLeads: number }> {
+  await metaTabellen(lauf);
+  const [r] = (await lauf`
+    SELECT MIN(empfangen_am) AS erste, MAX(empfangen_am) AS letzte,
+           (SELECT COUNT(*)::int FROM fiaon_meta_leads WHERE weg = 'meta_webhook') AS leads
+      FROM fiaon_meta_ereignisse
+     WHERE objekt = 'page' AND feld = 'leadgen' AND status IN ${lauf([...WEBHOOK_BEWEIS_STATUS])}`) as any[];
+  const iso = (v: unknown) => (v ? new Date(v as any).toISOString() : null);
+  return { ersteMeldung: iso(r?.erste), letzteMeldung: iso(r?.letzte), webhookLeads: Number(r?.leads || 0) };
 }
 
 /** Für Hinweise im Steuerpult: die öffentliche Adresse des Webhooks und der Plattform. */

@@ -18,7 +18,9 @@ muss("Kartenregel: keine alte Zwei-Raten-Regel mehr", !/mindestens zwei Monatsra
 muss("Kartenregel: Unterlagen in der Antragszeit", /Kontoauszüge der letzten sechs Monate/.test(f));
 muss("Karte: 2–5 Werktage nur „in der Regel“ und nach Zusage der Bank", /Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen/.test(f));
 muss("Mara: Karte positiv gepitcht, ohne Empfehlung", /viel mehr auf die Kreditkarte gepitcht/.test(agent) && /Nie „ich empfehle“|Nie „ich empfehle"/.test(agent));
-muss(`Kartenregel: Auskunft ${SCHUFA_PREIS_EURO} €`, f.includes(`${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €`));
+// E-244: Seit E-240 schreiben die Fakten „74 €" (euroText, ganze Euro ohne Nachkommastellen) — beide Schreibweisen gelten.
+muss(`Kartenregel: Auskunft ${SCHUFA_PREIS_EURO} €`, f.includes(`${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €`)
+  || new RegExp(`\\b${SCHUFA_PREIS_EURO}\\s€`).test(f));
 muss("Kartenregel: erst Konto, dann Karte", /Erst das Girokonto, dann die Karte/.test(f));
 muss("Kartenregel: Bank entscheidet, keine Karte/PIN von FIAON", /entscheidet immer die Bank/.test(f) && /keine Karte oder PIN/.test(f));
 muss("Vertrag: zwölf Monatsraten ab 03.09.2026", /ab dem 03\.09\.2026 laufen über zwölf Monatsraten/.test(f));

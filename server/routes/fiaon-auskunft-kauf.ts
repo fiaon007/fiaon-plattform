@@ -216,7 +216,7 @@ export async function auskunftMailTeil(personId: number, lauf: Lauf = sqlPool): 
   // 25.09.2026: dieselbe Art-Regel wie alle Türen (Business-Paket → Firmen-Auskunft).
   const { auskunftArtFuer } = await import("../lib/fiaon-auskunft");
   const art = await auskunftArtFuer(personId, lauf);
-  // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
+  // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (teurer als heute oder ohne Betrag — seit E-244 ohne Altersgrenze), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
   const stand = (await import("../lib/fiaon-auskunft")).standZumZeigen(await auskunftStand(personId, lauf, art));
   if (stand.stufe === "bezahlt") return { modus: "weglassen", grund: "Die Auskunft ist bezahlt — wir holen sie ein, der Kunde muss nichts liefern." };
   // dokumentDa statt stufe === "dokument": Die Stufe stellt eine offene Bestellung
@@ -612,23 +612,31 @@ router.get("/auskunft/bestellen", async (req: Request, res: Response) => {
     }
     // Eine offene Bestellung: direkt zu ihrer Zahlungsseite, es entsteht nichts Neues.
     // Integration 26.09.2026 (E-243): nur, wenn auskunftBestellen sie auch wiederverwenden würde
-    // (offenWiederverwendbar — EINE Regel). Ist sie älter als 21 Tage oder teurer als der Preis von
-    // heute (zum Einzelpreis bestellt, danach Paket), zeigt die Seite den heutigen Preis; der Klick
+    // (offenWiederverwendbar — EINE Regel). Ist sie teurer als der Preis von heute (zum Einzelpreis
+    // bestellt, danach Paket; seit E-244 zählt das Alter nicht mehr), zeigt die Seite den heutigen Preis; der Klick
     // legt die Bestellung dazu an und ersetzt die alte. Vorher stand der Kunde auf der 149-€-Seite.
-    const { offenWiederverwendbar } = await import("../lib/fiaon-auskunft");
-    if (stand.offen?.paymentReference && offenWiederverwendbar(stand)) {
+    // Nachbesserung 26.09.2026 (E-244): Eine wiederverwendbare offene OHNE Wahl zum Beginn vor Ablauf der
+    // Widerrufsfrist (Altbestand, von Betreuer/System angelegt — offenOhneWahl) führt nicht direkt zur
+    // Zahlungsseite: Die Seite zeigt das Formular zu IHREM Betrag, der Klick verwendet sie wieder
+    // (auskunftBestellen) und trägt Beschaffungsauftrag und Wahl nach. Vorher (bis Tag 21 wiederverwendet,
+    // danach neu angelegt) legte ein späterer Klick eine neue Bestellung mit allen Erklärungen an.
+    const { offenWiederverwendbar, offenOhneWahl } = await import("../lib/fiaon-auskunft");
+    const nachtragen = offenOhneWahl(stand) ? stand.offen : null;
+    if (!nachtragen && stand.offen?.paymentReference && offenWiederverwendbar(stand)) {
       return res.redirect(303, absoluteUrl(`/zahlung/${encodeURIComponent(stand.offen.paymentReference)}`));
     }
     // Werbesperre zählt hier nicht — der Mensch hat selbst geklickt. Das Paket seit E-241 auch nicht
     // (kaufSperre oben): B und C beauftragen zum Einzelpreis, nur „Zahlung gemeldet" wartet auf die Buchung.
-    if (await kaufSperre(ok.personId)) return zahlungGemeldetSeite(res, ok.art);
+    // Eine schon offene Auskunft darf weiter — wie im POST.
+    if (!nachtragen && (await kaufSperre(ok.personId))) return zahlungGemeldetSeite(res, ok.art);
     // Ein Lead ohne Antrag hat keinen Bereich mit Unterlagen — dann kein Hochlade-Hinweis (wie die Angebots-Mail).
     const mitBereich = await hatAntrag(ok.personId);
     // Gegenlesen 24.09.2026: Der Link kennt auch art=firma (Mara, Verkaufstakt) —
     // dann ist es nicht „Ihre SCHUFA-Auskunft", sondern die des Unternehmens.
     const wort = ok.art === "firma" ? "Firmen-Bonitätsauskunft" : auskunftWort(stand.land);
     const leistung = auskunftLeistung(ok.art, stand.land);
-    const preis = stand.preis.text;
+    // E-244: bei einer offenen Bestellung ihr Betrag (der Klick verwendet sie wieder), sonst der Preis von heute.
+    const preis = nachtragen ? euroText(nachtragen.betragCents) : stand.preis.text;
     // Das Formular schickt denselben signierten Link zurück — die Signatur gilt
     // der Person im Link (bei einer Zusammenführung der alten Kennung).
     const aktion = kaufAktion(req);
@@ -697,12 +705,16 @@ router.post("/auskunft/bestellen", async (req: Request, res: Response) => {
     // offene hat ihre Wahl schon — sonst stünden zwei, womöglich widersprüchliche,
     // im Verlauf) und im Wortlaut der Kaufkarte im Bereich (fiaon-kunde-bereich.ts),
     // damit die Beschaffung EINEN Satz sucht, egal durch welche Tür bestellt wurde.
+    // Nachbesserung 26.09.2026 (E-244): auch an eine wiederverwendete offene, an der noch
+    // KEINE Wahl steht (best.wahlFehlt — Altbestand); dann ist es die erste, nie eine zweite.
     const sofort = String((req.body as any)?.sofort ?? "") === "ja";
-    if (best.art === "neu" && best.ref) {
+    if ((best.art === "neu" || (best.art === "offen" && best.wahlFehlt)) && best.ref) {
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${best.ref}, ${ok.personId}, NULL, 'Kunde (Kauflink aus der E-Mail)', 'system',
-                ${`Bonitätsauskunft über den Kauflink der E-Mail zahlungspflichtig beauftragt (${best.betragText || "Preis laut Bestellung"}${best.mitAbo ? ", Kundenpreis mit Paket" : ", Einzelpreis"}). `
+                ${(best.art === "offen"
+                  ? `Offene Bonitätsauskunft-Bestellung über den Kauflink der E-Mail zahlungspflichtig beauftragt (${best.betragText || "Betrag laut Bestellung"}, Betrag der offenen Bestellung). `
+                  : `Bonitätsauskunft über den Kauflink der E-Mail zahlungspflichtig beauftragt (${best.betragText || "Preis laut Bestellung"}${best.mitAbo ? ", Kundenpreis mit Paket" : ", Einzelpreis"}). `)
                   + (sofort
                     ? "Beginn vor Ablauf der Widerrufsfrist AUSDRÜCKLICH VERLANGT — Hinweis auf anteiligen Wertersatz und Erlöschen des Widerrufsrechts bei vollständiger Erfüllung bestätigt."
                     : "Beginn vor Ablauf der Widerrufsfrist NICHT verlangt — mit der Anforderung erst nach Ablauf der 14-tägigen Widerrufsfrist beginnen.")})
@@ -714,6 +726,15 @@ router.post("/auskunft/bestellen", async (req: Request, res: Response) => {
       await beschaffungsauftragVermerken({
         ref: best.ref, personId: ok.personId, art: ok.art, weg: "kauflink", von: "Kunde (Kauflink aus der E-Mail)",
       }).catch((e) => console.error("[AUSKUNFT-KAUF] Beschaffungsauftrag:", e));
+    }
+    // Nachbesserung 26.09.2026 (Gegenprüfung): Die wiederverwendete Bestellung ohne Erklärung bekommt KEIN payment_details
+    // (das gibt es nur für eine neue) — ohne diese Mail käme die Vertragsbestätigung mit Belehrung erst mit der nächsten
+    // Erinnerung, bei sofortiger Zahlung nie. Einmal je Bestellung, im Hintergrund (die Weiterleitung wartet nicht).
+    if (best.art === "offen" && best.wahlFehlt && best.ref && ok.art === "privat") {
+      const ref = best.ref;
+      import("../lib/fiaon-auskunft-erinnerung")
+        .then((m) => m.bestaetigungNachErklaerung(ref, "kauflink"))
+        .catch((e) => console.error("[AUSKUNFT-KAUF] Vertragsbestätigung nach der Bestätigung:", e));
     }
     return res.redirect(303, best.zahlungsseite);
   } catch (err) {
@@ -1044,20 +1065,23 @@ export async function kundenpreisLinkAnfordern(ein: { email: string; art?: unkno
   if (stand.offen?.status === "claimed_paid") return { ergebnis: "zahlung_gemeldet", personId, art };
   if (!stand.preis.mitAbo) return { ergebnis: "kein_kunde", personId, art };
   // Integration 26.09.2026 (E-243): Eine offene Bestellung nur, wenn auskunftBestellen sie auch
-  // wiederverwenden würde (offenWiederverwendbar — jünger als 21 Tage, nicht teurer als heute).
+  // wiederverwenden würde (offenWiederverwendbar — nicht teurer als heute, seit E-244 jeden Alters).
   // Eine teurere (vor dem Paket zum Einzelpreis bestellt) hielt die Mail bisher ganz auf
   // („offen_zum_einzelpreis") — der Kunde, der gerade nach SEINEM Preis fragt, bekam nichts.
   // Jetzt geht der Kauflink raus, in der Art der offenen Bestellung: Die Kaufseite zeigt den
   // Kundenpreis, der Klick legt die Bestellung dazu an und ersetzt die alte (superseded_by).
-  const { offenWiederverwendbar } = await import("../lib/fiaon-auskunft");
+  const { offenWiederverwendbar, offenOhneWahl } = await import("../lib/fiaon-auskunft");
   const offenGilt = stand.offen?.status === "pending_payment" && offenWiederverwendbar(stand);
+  // Nachbesserung 26.09.2026 (E-244): eine offene ohne Wahl zum Beginn (Altbestand) bekommt den Kauflink —
+  // die Kaufseite zeigt ihren Betrag und holt Beschaffungsauftrag und Wahl nach (GET oben, offenOhneWahl).
+  const nachtragen = offenGilt && offenOhneWahl(stand) ? stand.offen : null;
   // Gegenlesen 26.09.2026 (E-243): Die offene Bestellung bestimmt die Art der Mail — die gültige (ihr
   // Knopf führt zu IHRER Zahlungsseite, wie der Kauflink selbst, GET oben) und ebenso die ersetzte
   // (der Kauflink bestellt dasselbe Produkt zum Kundenpreis). Vorher: Wunsch „Unternehmen" + offene
   // Privat-Auskunft → „die Bonitätsauskunft Ihres Unternehmens … 74 €" mit dem Knopf zur
   // Privat-Bestellung. `art` der offenen kommt aus ihrem Katalogschlüssel (auskunftStand).
   if (stand.offen?.status === "pending_payment" && stand.offen.art) art = stand.offen.art;
-  const offen = offenGilt && stand.offen?.paymentReference ? stand.offen : null;
+  const offen = offenGilt && !nachtragen && stand.offen?.paymentReference ? stand.offen : null;
   // Je Sendung EINE Zählung: Bei gleichzeitigen Anforderungen kann das Protokoll eine Sendung
   // doppelt führen (gleiche Brevo-Kennung, Prüfstand 26.09.2026) — daher DISTINCT über die Kennung.
   const [tag] = (await sqlPool`
@@ -1067,7 +1091,7 @@ export async function kundenpreisLinkAnfordern(ein: { email: string; art?: unkno
   if (Number(tag?.n ?? 0) >= KP_JE_PERSON_TAG) return { ergebnis: "bremse_tag", personId, art };
 
   // E-243: der Kundenpreis der ART dieser Mail (sie kann die der offenen Bestellung sein, oben) — nie der von `stand`.
-  const preis = offen ? euroText(offen.betragCents || auskunftPreisCents(art, true)) : euroText(auskunftPreisCents(art, true));
+  const preis = offen || nachtragen ? euroText((offen ?? nachtragen)!.betragCents || auskunftPreisCents(art, true)) : euroText(auskunftPreisCents(art, true));
   const bei = auskunfteienText(stand.land);
   const { mailSenden } = await import("../lib/fiaon-mail-senden");
   const versand = await mailSenden({

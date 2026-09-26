@@ -4,6 +4,7 @@ import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, istGlobalPaket, paketPreisEuro } from "@shared/fiaon-pakete";
 import { istAuskunftSchluessel } from "@shared/fiaon-auskunft";
+import { AGB_FASSUNG } from "@shared/fiaon-vertrag-paket";
 // E-188 (17.09.2026): FIAON Global ist eine eigene Produktkategorie — siehe GLOBAL_SCHLUESSEL unten.
 import { GLOBAL_PAKETE } from "@shared/fiaon-global";
 import { istAuslandsnummer, NUR_DACH_MELDUNG } from "@shared/fiaon-dach-telefon";
@@ -172,6 +173,21 @@ export function effectiveLimit(packKey: string | null | undefined, approvedLimit
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// ── DIE VERTRAGSANNAHME KOMMT NUR MIT DEM KNOPF (E-244, Nachbesserung 26.09.2026) ──
+// ag3 heißt im Antrag nur noch „Bestellung geprüft"; angenommen wird allein mit „Zahlungspflichtig
+// annehmen" (AGB § 3 Abs. 3). Die Zwischenspeicherung läuft bei JEDEM Schrittwechsel — auch bei
+// „Zurück" und „Angaben ändern". Ein gesetzter Haken allein war deshalb kein Beleg: Wer ihn setzte und
+// dann zurückging, stand als Vertragsannehmer in der Datenbank.
+// Eindeutig belegt ist der Klick durch den Schritt: Schritt 7 („processing") setzt das Formular erst
+// im Klick-Handler (antrag.tsx next() bei step 6), 8/9 folgen danach. Die Loopback-Aufträge (FIAON
+// Global, /global/auftrag) schicken currentStep 6 mit status „submitted" — dort IST der Absenden-Klick
+// samt Unterschrift schon geschehen. „contract"/„approved" und alles davor sind nie eine Annahme.
+const ANNAHME_ZUSTAENDE = new Set(["processing", "completed", "submitted"]);
+function vertragAngenommen(ag3: unknown, currentStep: unknown, status: unknown): boolean {
+  if (ag3 !== true) return false;
+  return Number(currentStep) >= 7 || ANNAHME_ZUSTAENDE.has(String(status ?? ""));
+}
+
 // Zeichensatz ohne verwechselbare Zeichen: keine 0, 1, O, I, L
 const PAYMENT_REF_CHARSET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 
@@ -257,7 +273,9 @@ async function ensurePaymentColumns(): Promise<void> {
   `;
   // Ab jetzt trägt jede NEUE Bestellung die Fassung vom 02.09.2026 (Jahresvertrag
   // mit Ratenzahlung). Bestehende Zeilen bleiben leer = alte Fassung, monatlich.
-  await sqlPool`ALTER TABLE fiaon_applications ALTER COLUMN agb_stand SET DEFAULT '2026-09-03'`.catch(() => {});
+  // E-244 (26.09.2026): neue Fassung mit § 3 „Zahlungspflichtig annehmen" (AGB_FASSUNG).
+  // Alle Leser vergleichen „>= 2026-09-03" — das spätere Datum ändert nichts am Jahresvertrag.
+  await sqlPool.unsafe(`ALTER TABLE fiaon_applications ALTER COLUMN agb_stand SET DEFAULT '${AGB_FASSUNG}'`).catch(() => {});
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
   paymentColumnsEnsured = true;
@@ -1193,7 +1211,9 @@ router.post("/payment-order", async (req, res) => {
         }
         messen(best.ref);
         // Integration 25.09.2026 (E-240): die Erklärungen der Bestellseite an die NEUE Bestellung.
-        if (best.art === "neu" && best.ref) {
+        // Nachbesserung 26.09.2026 (E-244): auch an eine wiederverwendete offene ohne Wahl zum Beginn
+        // (best.wahlFehlt — Altbestand jeden Alters); sonst gingen Haken und Wahl des Kunden verloren.
+        if ((best.art === "neu" || (best.art === "offen" && best.wahlFehlt)) && best.ref) {
           const { auskunftBestellungBelegen } = await import("../lib/fiaon-auskunft");
           await auskunftBestellungBelegen(best.ref, b, {
             ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || null,
@@ -1901,6 +1921,20 @@ async function claimReminderBatch(
         -- Einzel- und Sammelversand laufen beide durch diese Abfrage.
         -- ════════════════════════════════════════════════════════════════
         AND NOT (${sqlPool.unsafe(produktkategorieSql("fa"))} = 'global')
+        -- ════════════════════════════════════════════════════════════════
+        -- DIE BONITÄTSAUSKUNFT BEKOMMT DIESE ERINNERUNG NICHT (26.09.2026, E-244)
+        --
+        -- payment_reminder spricht vom Paket („Ihre Akte wartet auf den Start",
+        -- Werbeblock zur Karte) und ging auch an „Zahlung gemeldet": 381 Mails an
+        -- 13 Auskunft-Bestellungen seit dem 11.08., davon 208 an Menschen, die
+        -- schon überwiesen hatten. Die Regel „nichts an Menschen mit bezahlter
+        -- Bestellung" warf dafür 29 von 33 Auskunft-Bestellern mit Paket hinaus.
+        -- Eine offene Auskunft hat seit E-244 ihren eigenen, ruhigen Takt
+        -- (server/lib/fiaon-auskunft-erinnerung.ts): eigener Text, nie an
+        -- „Zahlung gemeldet", Belehrung in Textform, Aufgabe ab Tag 30.
+        -- Einzel- und Sammelversand laufen beide durch diese Abfrage.
+        -- ════════════════════════════════════════════════════════════════
+        AND NOT (${sqlPool.unsafe(produktkategorieSql("fa"))} = 'auskunft')
         AND fa.mahnstopp_am IS NULL
         -- Mahnstopp (02.09.2026): Die Rueckholung verspricht diesen Menschen
         -- schriftlich, dass die Erinnerungen enden. Hier wird es eingeloest.
@@ -2292,6 +2326,9 @@ router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
         -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
         -- Mail, die der Kunde nicht versteht.
         AND fa.archived_at IS NULL
+        -- E-244 (26.09.2026): Die Zählung nennt, was der Versand wirklich nimmt (claimReminderBatch) —
+        -- ohne FIAON Global und ohne Bonitätsauskunft (eigener Takt, fiaon-auskunft-erinnerung.ts).
+        AND ${sqlPool.unsafe(produktkategorieSql("fa"))} NOT IN ('global', 'auskunft')
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
         AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
@@ -2329,6 +2366,9 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
         -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
         -- Mail, die der Kunde nicht versteht.
         AND fa.archived_at IS NULL
+        -- E-244 (26.09.2026): Die Zählung nennt, was der Versand wirklich nimmt (claimReminderBatch) —
+        -- ohne FIAON Global und ohne Bonitätsauskunft (eigener Takt, fiaon-auskunft-erinnerung.ts).
+        AND ${sqlPool.unsafe(produktkategorieSql("fa"))} NOT IN ('global', 'auskunft')
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
@@ -3022,7 +3062,7 @@ router.post("/application", async (req, res) => {
       approvedLimit: approvedLimit || null, email, iban, billingMethod, salaryReceiptDay,
       // P18 (28.08.2026): Wann der Kunde telefonisch erreichbar sein will.
       erreichbarkeit: erreichbarkeit || null,
-      consentAgb: ag1 || false, consentSchufa: ag2 || false, consentContract: ag3 || false,
+      consentAgb: ag1 || false, consentSchufa: ag2 || false, consentContract: vertragAngenommen(ag3, currentStep, status),
       ip, userAgent: req.headers["user-agent"] || "",
       updatedAt: new Date(),
     };
@@ -3094,7 +3134,14 @@ router.post("/application", async (req, res) => {
           erreichbarkeit = COALESCE(${values.erreichbarkeit ?? null}, erreichbarkeit),
           consent_agb = ${values.consentAgb ?? null},
           consent_schufa = ${values.consentSchufa ?? null},
-          consent_contract = ${values.consentContract ?? null},
+          -- E-244 (Nachbesserung 26.09.): Die Annahme kommt NUR mit dem Knopf (vertragAngenommen) und
+          -- fällt nie zurück — eine Zwischenspeicherung ohne Knopf lässt den gespeicherten Wert stehen.
+          consent_contract = CASE WHEN ${values.consentContract === true}::boolean THEN TRUE
+                                  ELSE COALESCE(consent_contract, FALSE) END,
+          -- E-244: Wer JETZT den Vertrag annimmt, nimmt die AGB-Fassung des Knopfs an (Zeile evtl. älter).
+          agb_stand = CASE WHEN ${values.consentContract === true}::boolean AND COALESCE(consent_contract, FALSE) = FALSE
+                            AND (agb_stand IS NULL OR agb_stand < ${AGB_FASSUNG}::date)
+                           THEN ${AGB_FASSUNG}::date ELSE agb_stand END,
           ip = ${values.ip ?? null},
           user_agent = ${values.userAgent ?? null},
           updated_at = ${values.updatedAt ?? null}

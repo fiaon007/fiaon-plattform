@@ -890,6 +890,28 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       auskunft_land: "DE",
     },
   },
+  // ── DIE ZAHLUNGSERINNERUNG DER AUSKUNFT (26.09.2026, E-244) ─────────────────
+  {
+    type: "auskunft_zahlung_erinnerung",
+    label: "Zahlungserinnerung Bonitätsauskunft (Kunde)",
+    description: "Geht automatisch an jede bestellte, nicht bezahlte Bonitätsauskunft (Lauf auskunft_erinnerung alle 30 Minuten, Mo–So 07:00–20:30, server/lib/fiaon-auskunft-erinnerung.ts): Tag 1, 4, 10 und 18 nach der Bestellung, danach alle auskunft_erinnerung_dauer_tage Tage (Standard 7, 0 = Schluss), je Stufe einmal, mindestens 2 Tage Abstand. Nie bei „Zahlung gemeldet“, Mahnstopp, Test oder unzustellbarer Adresse; Werbesperre hält sie nicht auf (Zahlungspost). Inhalt: Anlass je Stufe, Leistung mit den Auskunfteien des Landes (AT/CH nie „SCHUFA“), Betrag, Bankdaten, Verwendungszweck, GiroCode, Knopf zur Zahlungsseite, „Schon überwiesen?“ und „Sie möchten die Auskunft nicht mehr?“. Solange keine Belehrung in Textform protokolliert ist, mit Vertragsbestätigung und Widerrufsbelehrung. Nur über den Motor (kein Make-Zweig).",
+    customerBound: true,
+    example: {
+      ...CUSTOMER_EXAMPLE,
+      antrag_id: "FIAON-SCHUFA-MU5QVVB0-AB12",
+      payment_reference: "FIAON-SCHUFA-MU5QVVB0",
+      paket: "Bonitätsauskunft inkl. Handlungsplan",
+      betrag: (AUSKUNFT_PREISE_CENTS.privat.mitAbo / 100).toFixed(2),
+      anrede: "Guten Tag Max Mustermann,",
+      stufe: 2,
+      stufe_text: "2. Erinnerung (Tag 4)",
+      bestellt_am: "22.09.2026",
+      mit_belehrung: "nein",
+      auskunfteien: auskunfteienText("DE"),
+      auskunft_art: "privat",
+      auskunft_land: "DE",
+    },
+  },
   {
     type: "account_activated",
     label: "Konto wieder freigeschaltet (Kunde)",

@@ -334,6 +334,14 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Der Link zum Kundenpreis der Bonitätsauskunft — geht automatisch, wenn ein Kunde mit laufendem Paket ihn auf /bonitaet-antrag anfordert. Selbst angefordert, keine Werbung.",
     vonHand: false, pflichtFelder: ["anrede", "kauf_url", "preis_text", "weg_satz", "knopf_text", "leistung_satz"],
   },
+  // 26.09.2026 (E-244): Die Zahlungserinnerung der Auskunft — nur der Lauf auskunft_erinnerung schickt sie
+  // (Stufe, Belehrung ja/nein und Marke an der Bestellung kennt nur er). Von Hand gibt es sie nicht:
+  // Der Betreuer ruft an oder schickt die Zahlungsseite aus der Akte.
+  auskunft_zahlung_erinnerung: {
+    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Zahlungserinnerung an eine bestellte, nicht bezahlte Bonitätsauskunft — Tag 1, 4, 10, 18, danach wöchentlich. Nie bei „Zahlung gemeldet“. Geht automatisch.",
+    vonHand: false, pflichtFelder: ["anrede", "stufe", "bestellt_am"],
+  },
   // 18.09.2026: Das ist die ENTSPERRUNG („Ihr Zugang ist wieder frei") — sie
   // geht beim Freischalten in der Akte. Aus dem Menü an einen Kunden, der nie
   // gesperrt war, wäre sie falsch; die erste Freischaltung ist bereich_freigeschaltet.

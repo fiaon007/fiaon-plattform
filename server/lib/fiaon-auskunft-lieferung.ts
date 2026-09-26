@@ -48,6 +48,9 @@ import {
   type AuskunftArt, type AuskunftLand, type Auskunftei,
 } from "@shared/fiaon-auskunft";
 
+// E-244 (Gesamtdurchsicht): die echten Wahl-Sätze aus EINER Quelle (fiaon-auskunft.ts — nur leichte Importe, kein Kreis).
+import { WIDERRUF_WAHL_SQL, WIDERRUF_WAHL_VERLANGT } from "./fiaon-auskunft";
+
 // Die Marke des Beschaffungsauftrags steht in der gemeinsamen Quelle (25.09.2026, E-241) — hier
 // weitergereicht, damit Prüfstände und Chefbüro sie neben AUSKUNFT_VOLLMACHT_VERMERK finden.
 export { AUSKUNFT_BESCHAFFUNG_VERMERK };
@@ -141,14 +144,33 @@ const isoDeutsch = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${is
 
 /** Die dokumentierte Wahl zur Widerrufsfrist einer Auskunft-Bestellung und was daraus für heute folgt. */
 export async function auskunftWiderrufStand(ref: string, lauf: Lauf = sqlPool): Promise<WiderrufStand> {
+  // Nachbesserung 26.09.2026 (E-244, Gesamtdurchsicht): NUR die echten Wahl-Sätze (WIDERRUF_WAHL_SQL). Vorher
+  // zählte jede Zeile mit „Beginn vor Ablauf der Widerrufsfrist" — auch die Systemnotiz der Lieferung selbst
+  // („Lieferung gestartet … (Beginn vor Ablauf der Widerrufsfrist nicht verlangt)"); ab dann rutschte der
+  // Fristbeginn auf den Liefertag, und das Quittieren des Versands hielt die Anfrage eine Woche länger fest
+  // als Mail und Aufgabe zusagten. Die EINSTUFUNG (verlangt / nicht verlangt) kommt aus der jüngsten Wahl,
+  // der FRISTBEGINN aus der ersten (eine zweite Wahl verlängert die Frist nicht).
   const [n] = (await lauf`
-    SELECT note FROM fiaon_contact_log
-     WHERE ref = ${ref} AND note LIKE ${"%Beginn vor Ablauf der Widerrufsfrist%"}
-     ORDER BY created_at DESC LIMIT 1`) as any[];
-  if (!n) return { warten: false, verlangt: null, ab: null, abText: null };
-  if (/AUSDRÜCKLICH VERLANGT/.test(String(n.note))) return { warten: false, verlangt: true, ab: null, abText: null };
+    SELECT (SELECT c.note FROM fiaon_contact_log c WHERE c.ref = ${ref} AND ${lauf.unsafe(WIDERRUF_WAHL_SQL("c"))}
+             ORDER BY c.created_at DESC, c.id DESC LIMIT 1) AS juengste,
+           (SELECT MIN(c.created_at) FROM fiaon_contact_log c WHERE c.ref = ${ref} AND ${lauf.unsafe(WIDERRUF_WAHL_SQL("c"))}) AS erste`) as any[];
+  if (!n?.juengste) return { warten: false, verlangt: null, ab: null, abText: null };
+  if (String(n.juengste).includes(WIDERRUF_WAHL_VERLANGT)) return { warten: false, verlangt: true, ab: null, abText: null };
   const [a] = (await lauf`SELECT created_at FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
-  const ab = anforderungAb(a?.created_at ? new Date(a.created_at) : new Date());
+  // Nachbesserung 26.09.2026 (E-244): Die Frist läuft ab der SPÄTEREN von Anlage und Erklärung. Seit
+  // offene Bestellungen jeden Alters wiederverwendet werden, erklärt ein Kunde seine Wahl womöglich
+  // Wochen nach der Anlage (Altbestand vom Betreuer, Wahl erst über Kauflink/Bestellseite/Bündel) —
+  // mit der Anlage als Beginn wäre sein „NICHT verlangt" sofort abgelaufen. Bei jeder anderen Tür
+  // steht die Wahl Sekunden nach der Anlage; dort ändert sich nichts.
+  const anlage = a?.created_at ? new Date(a.created_at).getTime() : Date.now();
+  const erklaert = n.erste ? new Date(n.erste).getTime() : 0;
+  // Nachbesserung 26.09.2026 (E-244, Gesamtdurchsicht): Die nachgeholte Belehrung der Zahlungserinnerung sagt dem
+  // Kunden „vierzehn Tage ab dem Tag, an dem Sie diese E-Mail erhalten haben" — und ihr Anhang „übermitteln … erst
+  // nach Ablauf der Widerrufsfrist". Deshalb ist ihr Versand eine weitere Untergrenze, plus ein Tag für den Zugang.
+  const { belehrungNachgeholtAm } = await import("./fiaon-auskunft-erinnerung");
+  const belehrt = await belehrungNachgeholtAm(ref, lauf).catch(() => null);
+  const belehrtZugang = belehrt ? belehrt.getTime() + 86_400_000 : 0;
+  const ab = anforderungAb(new Date(Math.max(anlage, Number.isNaN(erklaert) ? 0 : erklaert, belehrtZugang)));
   const heute = berlinTag(new Date()).toISOString().slice(0, 10);
   return { warten: heute < ab, verlangt: false, ab, abText: isoDeutsch(ab) };
 }

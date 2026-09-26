@@ -220,7 +220,7 @@ async function handlungMerken(id: number, werkzeug: string, ergebnis: string, ok
 }
 
 /** Ein Entwurf wird gesendet — mit frischer Prüfung kurz davor. */
-export async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWahl = {}): Promise<{ ok: boolean; grund: string; erledigt?: string[] }> {
+export async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWahl = {}, von = "Postfach-Zentrale"): Promise<{ ok: boolean; grund: string; erledigt?: string[] }> {
   // 11.09.2026 (E-184): Auch eine wartende oder endgültig gescheiterte
   // Antwort darf ein Mensch sofort von Hand senden. Geht es schief, fällt die
   // Zeile in IHREN Zustand zurück — der Nachhol-Zeitplan bleibt erhalten.
@@ -319,6 +319,9 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
       faelligAm: new Date(Date.now() + tage * 864e5).toISOString().slice(0, 10), dringend: !!wahl.aufgabe.dringend,
       schluessel: `postmeister:${id}:aufgabe-mensch`, quelle: "postmeister", autorName: "Postfach",
     });
+    // Wiedereröffnet? Dann ohne alte Erledigt-Spuren (sonst schließt ensureTodoTabelle sie beim Neustart still).
+    const { wiederOffenBereinigen } = await import("../lib/fiaon-postmeister-lauf");
+    await wiederOffenBereinigen(a.id);
     const satz = `Aufgabe für ${a.agentName ?? "die Leitung"}: „${String(wahl.aufgabe.titel).trim().slice(0, 80)}" (fällig ${a.faelligAm}).`;
     await handlungMerken(id, "aufgabe_an_betreuer", satz);
     gelaufen.push("aufgabe_an_betreuer");
@@ -367,6 +370,12 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${r.ref}, ${r.person_id}, NULL, 'Postmeister', 'system', ${`Antwort freigegeben und gesendet${gebaut.dateien.length ? ` (mit ${gebaut.dateien.map((d) => d.dateiname).join(", ")})` : ""}: ${text.slice(0, 400)}`})
       `.catch(() => {});
+    }
+    // E-244: Die Antwort ist draußen — die Übergabe-Aufgabe beim Betreuer ist
+    // erledigt, sofern für diesen Kunden kein weiterer Entwurf wartet.
+    const { uebergabeSchliessen } = await import("../lib/fiaon-postmeister-lauf");
+    if (await uebergabeSchliessen({ id, personId: r.person_id ?? null, ref: r.ref ?? null }, von, `Antwort gesendet (${von}), Mail #${id}.`)) {
+      erledigt.push("Aufgabe beim Betreuer erledigt");
     }
     return { ok: true, grund: "gesendet", erledigt };
   } catch (e: any) {
@@ -572,14 +581,18 @@ router.post("/admin/postmeister/entwuerfe-uebergeben", async (_req: Request, res
        WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND (person_id IS NOT NULL OR ref IS NOT NULL)
        ORDER BY COALESCE(empfangen_am, created_at) ASC LIMIT 300
     `) as any[];
-    const { anBetreuerUebergeben } = await import("../lib/fiaon-postmeister-lauf");
+    const { anBetreuerUebergeben, UEBERGABE_GRUND } = await import("../lib/fiaon-postmeister-lauf");
     let n = 0;
     for (const z of zeilen) {
+      // E-244 (Nachbesserung): Trug der Entwurf schon einen Übergabe-Grund
+      // (Beschwerde, Rückruf …), reist er mit — sonst schlösse das Senden die
+      // Aufgabe, als hätte nur eine Antwort gefehlt (uebergabeUrteil).
+      const mensch = String(z.begruendung || "").match(/^Übergabe an den Betreuer:\s*(.+)$/)?.[1]?.trim();
       await anBetreuerUebergeben({
         id: Number(z.id), personId: z.person_id != null ? Number(z.person_id) : null, ref: z.ref ?? null,
         postfach: String(z.postfach || ""), betreff: String(z.betreff || ""),
         zusammenfassung: String(z.zusammenfassung || ""),
-        grund: "Kunde wartet auf eine Antwort (Entwurf lag in der Zentrale)", dringend: !!z.dringend,
+        grund: mensch || UEBERGABE_GRUND.zentrale, dringend: !!z.dringend || !!mensch,
       });
       n++;
     }

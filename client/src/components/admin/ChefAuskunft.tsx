@@ -27,7 +27,16 @@
 // „Abbrecher", das Sendefenster Mo–So 07:00–20:30 und der Stand der
 // WhatsApp-Vorlagen bei Meta (eingereicht, freigegeben, abgelehnt).
 //
-// Server: server/routes/fiaon-chef-auskunft.ts · Regeln: server/lib/fiaon-auskunft-verkauf.ts
+// 26.09.2026 (E-244) — Justin: „Jeder, der die SCHUFA offen hat, braucht eine
+// E-Mail mit Zahlungserinnerung." Dazu die Karte „Zahlungserinnerung" (An/Aus,
+// je Tag, Dauer-Tage — jede Änderung im Protokoll der Steuerung; heute versandt,
+// heute fällig) und in „Bestellt, nicht bezahlt" je Bestellung die Stufe mit
+// Datum, die nächste Fälligkeit, der Grund, wenn keine Mail geht, und die Knöpfe
+// „Stornieren" (mit Rückfrage) und „Mahnstopp". Archivierte und Tests stehen
+// dort nicht mehr.
+//
+// Server: server/routes/fiaon-chef-auskunft.ts · Regeln: server/lib/fiaon-auskunft-verkauf.ts,
+// Zahlungserinnerung: server/lib/fiaon-auskunft-erinnerung.ts
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -56,9 +65,12 @@ interface Trichter {
   jeSegment: TrichterZeile<Segment>[];
   anschreibendeWege: Weg[];
 }
+/** E-244: die Zahlungserinnerung an offene Auskünfte (Standard an). */
+interface ErinnerungEinst { an: boolean; proTag: number; dauerTage: number; hoechstensProTag: number; hoechstensDauerTage: number }
 interface Einstellungen {
   an: boolean; kreis: Kreis; mailsProTag: number; waProTag: number; liefermodus: Liefermodus;
   hoechstensMails: number; hoechstensWa: number; apiAngebunden: boolean;
+  erinnerung?: ErinnerungEinst;
 }
 interface ProtokollZeile { zeit: string; schluessel: string; text: string; wer: string }
 /** Ein Segment im Vorrat des Takts (poolZahlen, fiaon-auskunft-verkauf.ts). */
@@ -80,6 +92,20 @@ interface Offen {
   ref: string; personId: number | null; name: string; status: string; gemeldetAm: string | null; betrag: string | null;
   angelegt: string; tage: number; land: Land; betreuer: string | null; werbesperre: boolean;
   zahlungsseite: string | null; verwendungszweck: string | null;
+  /** E-244: der Stand der Zahlungserinnerung dieser Bestellung. */
+  erinnerung?: {
+    stufe: number; stufeText: string; letzteAm: string | null; naechste: string | null; grund: string | null;
+    stornieren: boolean; hinweis: string | null; aufgabeAm: string | null; mahnstopp: boolean;
+    /** Gesamtdurchsicht 26.09.2026: „frage" = ohne Erklärung des Kunden — bekommt die Nachfrage statt der Zahlungserinnerung. */
+    fassung?: "erinnerung" | "frage";
+  };
+}
+/** E-244: die Karte „Zahlungserinnerung". */
+interface ErinnerungKarte extends ErinnerungEinst {
+  heuteVersandt: number; heuteFaellig: number; imTakt: number; jeLauf: number; stufenTage: number[]; aufgabeAbTagen: number;
+  /** Gesamtdurchsicht 26.09.2026: offene Bestellungen ohne Erklärung des Kunden (Fassung „Frage"). */
+  ohneErklaerung?: number;
+  fenster: { ab: string; bis: string };
 }
 interface Rueck { personId: number; ref: string; name: string; land: string; auskunfteien: string; gekauftAm: string; tageSeitKauf: number; betreuer: string | null; vorgaenge: number }
 interface Stand {
@@ -93,6 +119,7 @@ interface Stand {
   protokoll: ProtokollZeile[];
   beschaffung: { offen: number; ueberfaellig: number; nichtEingelesen: number; ueberfaelligAbTagen: number; quelle: "beschaffung" | "rueckstand" };
   offen: Offen[];
+  erinnerung?: ErinnerungKarte;
   rueckstand: { zeilen: Rueck[]; quelle: "lieferung" | "eigen" };
   takt: {
     an: boolean; mailsProTag: number; waProTag: number;
@@ -185,6 +212,8 @@ const tagText = (iso: string) => {
   return `${WOCHENTAG[d.getDay()]} ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`;
 };
 const stichtagText = (iso: string) => new Date(iso).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+/** „2026-09-28" → „Mo 28.09." (E-244: die nächste Fälligkeit der Zahlungserinnerung). */
+const naechsteText = (iso: string | null, heuteIso: string) => (!iso ? "—" : iso === heuteIso ? "heute" : tagText(iso));
 const prozent = (teil: number, ganz: number) => (ganz > 0 ? `${(Math.round((teil / ganz) * 1000) / 10).toLocaleString("de-DE")} %` : "—");
 
 async function senden(pfad: string, body: unknown): Promise<any> {
@@ -228,6 +257,9 @@ export default function ChefAuskunft() {
   const [meldung, setMeldung] = useState<string | null>(null);
   const [mails, setMails] = useState<string>("");
   const [wa, setWa] = useState<string>("");
+  // E-244: Zahlungserinnerung — je Tag und Dauer-Tage als Eingabe
+  const [erTag, setErTag] = useState<string>("");
+  const [erDauer, setErDauer] = useState<string>("");
   const [einstNeu, setEinstNeu] = useState<{ e: Einstellungen; p: ProtokollZeile[] } | null>(null);
   const [vorschau, setVorschau] = useState<Vorschau | null>(null);
   const [zeitraum, setZeitraum] = useState<"heute" | "summe">("heute");
@@ -261,6 +293,8 @@ export default function ChefAuskunft() {
   const e = einstNeu?.e ?? s?.einstellungen ?? null;
   const protokoll = einstNeu?.p ?? s?.protokoll ?? [];
   useEffect(() => { if (e) { setMails(String(e.mailsProTag)); setWa(String(e.waProTag)); } }, [e?.mailsProTag, e?.waProTag]);
+  const er = e?.erinnerung ?? s?.erinnerung ?? null;
+  useEffect(() => { if (er) { setErTag(String(er.proTag)); setErDauer(String(er.dauerTage)); } }, [er?.proTag, er?.dauerTage]);
   // „Wer als Nächstes" lädt einmal von selbst, sobald der Stand da ist — nur lesen.
   useEffect(() => { if (s && !vorschau) void vorschauLaden(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [s]);
 
@@ -274,7 +308,7 @@ export default function ChefAuskunft() {
       melden(j.geaendert === false ? "Unverändert — der Wert stand schon so." : fertig);
       // Gegenlesen 25.09.2026 (E-241): Kreis und Tagesdeckel ändern den Vorrat („Im Kreis", „Heute fällig")
       // und „Wer als Nächstes" — ohne neues Laden zeigte die Seite bis zum Neuladen die Zahlen des alten Kreises.
-      if (j.geaendert !== false && (id === "kreis" || id === "mails" || id === "wa")) {
+      if (j.geaendert !== false && (id === "kreis" || id === "mails" || id === "wa" || id.startsWith("er-"))) {
         setVorschau(null);
         stand.neu();
       }
@@ -365,6 +399,32 @@ export default function ChefAuskunft() {
       stand.neu();
     } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
+  // ── E-244: Zahlungserinnerung ──────────────────────────────────────────
+  const erinnerungSchalten = (an: boolean) => {
+    if (!an && !window.confirm("Zahlungserinnerung ausschalten?\n\nDann bekommt niemand mit offener Bonitätsauskunft mehr eine Erinnerung — auch nicht die fälligen von heute. Die Änderung steht mit deinem Namen im Protokoll.")) return;
+    if (an && !window.confirm(`Zahlungserinnerung einschalten?\n\nAb dem nächsten Lauf (alle 30 Minuten, Mo–So ${fenster.ab}–${fenster.bis}) bekommt jede offene Bonitätsauskunft ihre fällige Erinnerung — nie bei „Zahlung gemeldet“.`)) return;
+    void setzen("auskunft_erinnerung_an", an ? "1" : "0",
+      an ? "Die Zahlungserinnerung läuft." : "Die Zahlungserinnerung ist aus. Es geht keine mehr raus.", "er-an");
+  };
+  const stornieren = async (o: Offen) => {
+    if (!window.confirm(`Bestellung von ${o.name} stornieren?\n\n${o.betrag ?? ""} · Verwendungszweck ${o.verwendungszweck ?? "—"}\n\nDie Bestellung wird storniert: keine Zahlungserinnerung mehr, kein neues Auskunft-Angebot, es entstehen keine Kosten. Der Kunde bekommt dazu KEINE automatische Mail — bitte ihm kurz antworten, wenn er darum gebeten hat.`)) return;
+    setBeschaeftigt(`storno:${o.ref}`);
+    try {
+      await senden("/chef/auskunft/stornieren", { ref: o.ref });
+      melden(`Storniert: ${o.name}.`);
+      stand.neu();
+    } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
+  };
+  const mahnstopp = async (o: Offen, an: boolean) => {
+    if (an && !window.confirm(`Mahnstopp für ${o.name}?\n\nDann geht zu dieser Bestellung keine Zahlungserinnerung mehr raus. Die Bestellung bleibt offen — bezahlen kann der Kunde weiterhin.`)) return;
+    setBeschaeftigt(`mahnstopp:${o.ref}`);
+    try {
+      await senden("/chef/auskunft/mahnstopp", { ref: o.ref, an });
+      melden(an ? `Mahnstopp gesetzt: ${o.name}.` : `Mahnstopp aufgehoben: ${o.name} — die Erinnerung läuft wieder.`);
+      stand.neu();
+    } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
+  };
+
   const kopieren = async (text: string) => {
     try { await navigator.clipboard.writeText(text); melden("Zahlungslink kopiert."); } catch { melden("Kopieren ging nicht — bitte den Link öffnen und dort kopieren."); }
   };
@@ -881,34 +941,125 @@ export default function ChefAuskunft() {
             </section>
           ))}
 
+          {/* ── E-244: Zahlungserinnerung ─────────────────────────────────── */}
+          {er && (
+            <section className="ak-karte ak-erinnerung" aria-label="Zahlungserinnerung">
+              <div className="ak-karte-kopf">
+                <h2>Zahlungserinnerung</h2>
+                <span className="ak-still">
+                  an jede bestellte, nicht bezahlte Auskunft · alle 30 Minuten, Mo–So {s.erinnerung?.fenster.ab ?? fenster.ab}–{s.erinnerung?.fenster.bis ?? fenster.bis} · höchstens {zahl(s.erinnerung?.jeLauf ?? 10)} je Lauf
+                </span>
+              </div>
+              <div className="ak-zahlen vier" role="group" aria-label="Zahlungserinnerung heute">
+                <div className="ak-zahl"><span>Heute versandt</span><b>{zahl(s.erinnerung?.heuteVersandt ?? 0)}</b><small>von höchstens {zahl(er.proTag)} am Tag</small></div>
+                <div className="ak-zahl"><span>Heute fällig</span><b className={(s.erinnerung?.heuteFaellig ?? 0) > 0 ? "gelb" : ""}>{zahl(s.erinnerung?.heuteFaellig ?? 0)}</b><small>{er.an ? "gehen im Sendefenster raus" : "Erinnerung ist aus"}</small></div>
+                <div className="ak-zahl"><span>Im Takt</span><b>{zahl(s.erinnerung?.imTakt ?? 0)}</b><small>offene Bestellungen, die erinnert werden</small></div>
+                <div className="ak-zahl"><span>Bestätigen lassen</span><b className={(s.erinnerung?.ohneErklaerung ?? 0) > 0 ? "gelb" : ""}>{zahl(s.erinnerung?.ohneErklaerung ?? 0)}</b><small>ohne Erklärung des Kunden — bekommen die Nachfrage</small></div>
+              </div>
+              <div className="ak-steuer-raster">
+                <div className="ak-feld">
+                  <span className="ak-feld-name">Zahlungserinnerung</span>
+                  <Wahl label="Zahlungserinnerung" werte={["aus", "an"]} wert={er.an ? "an" : "aus"} namen={{ aus: "Aus", an: "An" }}
+                    gesperrt={beschaeftigt === "er-an"} onWahl={(v) => erinnerungSchalten(v === "an")} />
+                  <small>{er.an ? "Läuft — Zahlungspost, die Werbesperre hält sie nicht auf; „Zahlung gemeldet“ bekommt nie eine." : "Aus — es geht keine Erinnerung raus."}</small>
+                </div>
+                <div className="ak-feld">
+                  <span className="ak-feld-name">Erinnerungen je Tag</span>
+                  <div className="ak-feld-zeile">
+                    <input type="number" min={0} max={er.hoechstensProTag} value={erTag} inputMode="numeric" aria-label="Erinnerungen je Tag"
+                      onChange={(ev) => setErTag(ev.target.value)} />
+                    <button type="button" className="ak-knopf" disabled={beschaeftigt === "er-tag" || erTag.trim() === String(er.proTag)}
+                      onClick={() => void setzen("auskunft_erinnerung_pro_tag", erTag.trim(), `Zahlungserinnerungen je Tag: ${erTag.trim()}.`, "er-tag")}>
+                      {beschaeftigt === "er-tag" ? "Speichert …" : "Speichern"}
+                    </button>
+                  </div>
+                  <Verbrauch heute={s.erinnerung?.heuteVersandt ?? 0} deckel={er.proTag} einheit="Erinnerungen" />
+                  <small>0 bis {zahl(er.hoechstensProTag)}</small>
+                </div>
+                <div className="ak-feld">
+                  <span className="ak-feld-name">Danach alle … Tage</span>
+                  <div className="ak-feld-zeile">
+                    <input type="number" min={0} max={er.hoechstensDauerTage} value={erDauer} inputMode="numeric" aria-label="Dauerstufe alle … Tage"
+                      onChange={(ev) => setErDauer(ev.target.value)} />
+                    <button type="button" className="ak-knopf" disabled={beschaeftigt === "er-dauer" || erDauer.trim() === String(er.dauerTage)}
+                      onClick={() => void setzen("auskunft_erinnerung_dauer_tage", erDauer.trim(), erDauer.trim() === "0" ? "Nach Tag 18 keine weitere Erinnerung." : `Dauerstufe: alle ${erDauer.trim()} Tage.`, "er-dauer")}>
+                      {beschaeftigt === "er-dauer" ? "Speichert …" : "Speichern"}
+                    </button>
+                  </div>
+                  <small>Tag {(s.erinnerung?.stufenTage ?? [1, 4, 10, 18]).join(", ")} nach der Bestellung, danach {er.dauerTage > 0 ? `alle ${er.dauerTage} Tage` : "keine mehr"} · 0 = nach Tag 18 Schluss</small>
+                </div>
+              </div>
+              <p className="ak-still ak-er-satz">
+                Jede Mail nennt Betrag, Bankdaten, Verwendungszweck und den Knopf zur Zahlungsseite, dazu „Schon überwiesen? …“ und
+                „Sie möchten die Auskunft nicht mehr? …“. Die erste Erinnerung einer Bestellung ohne Belehrung in Textform trägt
+                Vertragsbestätigung und Widerrufsbelehrung. Bestellungen ohne Erklärung des Kunden (vom Betreuer oder von Mara angelegt, kein Klick auf
+                „zahlungspflichtig“) bekommen stattdessen die Nachfrage „möchten Sie sie noch?“ ohne Bankdaten, mit dem Knopf zum Bestätigen — Tag 1, 4, 10, 18,
+                danach höchstens zwei weitere. Legt ein Betreuer die Auskunft neu an, gehen keine Zahlungsdaten hinaus, sondern sofort die erste Nachfrage.
+                Bestätigt der Kunde, bekommt er gleich die Vertragsbestätigung mit Widerrufsbelehrung und Zahlungsdaten. Ab Tag {s.erinnerung?.aufgabeAbTagen ?? 30} und frühestens 7 Tage nach der letzten Mail bekommt der Betreuer einmal die Aufgabe „anrufen oder stornieren“.
+                Änderungen stehen im Protokoll der Steuerung.
+              </p>
+            </section>
+          )}
+
           {/* ── Bestellt, nicht bezahlt ──────────────────────────────────── */}
           <section className="ak-karte ak-offen" aria-label="Bestellt, nicht bezahlt">
             <div className="ak-karte-kopf">
               <h2>Bestellt, nicht bezahlt ({zahl(s.offen.length)})</h2>
-              <span className="ak-still">der Zahlungslink führt auf die Zahlungsseite mit QR-Code und Bankdaten</span>
+              <span className="ak-still">ohne Archivierte und Tests · der Zahlungslink führt auf die Zahlungsseite mit QR-Code und Bankdaten</span>
             </div>
             {s.offen.length === 0 ? <p className="ak-leer">Keine offene Bestellung.</p> : (
               <div className="ak-tabelle-huelle">
-                <table className="ak-tabelle">
-                  <thead><tr><th>Kunde</th><th className="r">Betrag</th><th>Bestellt</th><th>Stand</th><th>Betreuer</th><th /></tr></thead>
+                <table className="ak-tabelle ak-offen-tabelle">
+                  <thead><tr><th>Kunde</th><th className="r">Betrag</th><th>Bestellt</th><th>Stand</th><th>Erinnerung</th><th>Betreuer</th><th /></tr></thead>
                   <tbody>
-                    {offenListe.map((o) => (
-                      <tr key={o.ref}>
-                        <td>{o.personId ? <a href={`/chef/s/akte?id=${o.personId}`}>{o.name}</a> : o.name}<span className="ak-still"> · {o.land}{o.werbesperre ? " · Werbesperre" : ""}</span></td>
-                        <td className="r"><b>{o.betrag ?? "—"}</b></td>
-                        <td className="ak-still">{seit(o.angelegt)}</td>
-                        <td>{o.status === "claimed_paid" ? <span className="ak-marke gelb">Zahlung gemeldet</span> : <span className="ak-marke">offen · {o.tage} T.</span>}</td>
-                        <td className="ak-still">{o.betreuer ?? "—"}</td>
-                        <td className="ak-tat">
-                          {o.zahlungsseite ? (
-                            <>
-                              <a className="ak-klein" href={o.zahlungsseite} target="_blank" rel="noreferrer">Zahlungsseite</a>
-                              <button type="button" className="ak-klein" onClick={() => void kopieren(o.zahlungsseite!)}>Link kopieren</button>
-                            </>
-                          ) : <span className="ak-still">ohne Verwendungszweck</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {offenListe.map((o) => {
+                      const r = o.erinnerung;
+                      const heuteIso = new Date(s.stand).toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+                      return (
+                        <tr key={o.ref}>
+                          <td>{o.personId ? <a href={`/chef/s/akte?id=${o.personId}`}>{o.name}</a> : o.name}<span className="ak-still"> · {o.land}{o.werbesperre ? " · Werbesperre" : ""}</span></td>
+                          <td className="r"><b>{o.betrag ?? "—"}</b></td>
+                          <td className="ak-still">{seit(o.angelegt)}</td>
+                          <td>{o.status === "claimed_paid" ? <span className="ak-marke gelb">Zahlung gemeldet</span> : <span className="ak-marke">offen · {o.tage} T.</span>}
+                            {o.status === "pending_payment" && r?.fassung === "frage" && (
+                              <span className="ak-marke gelb" style={{ marginLeft: 6 }} title="Ohne Erklärung des Kunden (kein Klick auf „zahlungspflichtig“, keine Wahl, kein Beschaffungsauftrag) — er bekommt die Nachfrage mit dem Knopf zum Bestätigen, keine Zahlungserinnerung. Bitte keine Zahlungsseite schicken, bevor er bestätigt hat.">bestätigen lassen</span>
+                            )}</td>
+                          <td><div className="ak-er-zelle">
+                            {r ? (
+                              <>
+                                <span>{r.stufe > 0 && r.letzteAm ? <>{r.stufeText} <span className="ak-still">· {datumZeit(r.letzteAm)}</span></> : <span className="ak-still">noch keine</span>}</span>
+                                {r.grund
+                                  ? <span className={`ak-er-grund${r.stornieren ? " storno" : ""}`}>{r.grund}</span>
+                                  : <span className="ak-still">nächste: {naechsteText(r.naechste, heuteIso)}</span>}
+                                {r.hinweis && <span className="ak-er-grund">{r.hinweis}</span>}
+                                {r.aufgabeAm && <span className="ak-still">Aufgabe „anrufen oder stornieren“ seit {datumZeit(r.aufgabeAm)}</span>}
+                              </>
+                            ) : <span className="ak-still">—</span>}
+                          </div></td>
+                          <td className="ak-still">{o.betreuer ?? "—"}</td>
+                          {/* E-244: die Knöpfe in einem Kasten IN der Zelle — eine Zelle mit display:flex verliert ihre Tabellenlinie. */}
+                          <td className="ak-tat-zelle"><div className="ak-tat">
+                            {/* Gegenprüfung 26.09.2026: ohne Erklärung des Kunden keine Zahlungsseite — erst bestätigt er selbst (Knopf in der Nachfrage). */}
+                            {o.status === "pending_payment" && r?.fassung === "frage" ? (
+                              <span className="ak-still" title="Der Kunde hat diese Bestellung nicht selbst bestätigt. Er bekommt die Nachfrage mit dem Knopf „Bestellung ansehen und bestätigen“; danach Vertragsbestätigung und Zahlungsdaten.">Zahlungsseite erst nach Bestätigung</span>
+                            ) : o.zahlungsseite ? (
+                              <>
+                                <a className="ak-klein" href={o.zahlungsseite} target="_blank" rel="noreferrer">Zahlungsseite</a>
+                                <button type="button" className="ak-klein" onClick={() => void kopieren(o.zahlungsseite!)}>Link kopieren</button>
+                              </>
+                            ) : <span className="ak-still">ohne Verwendungszweck</span>}
+                            {o.status === "pending_payment" && (
+                              <>
+                                <button type="button" className={`ak-klein${r?.stornieren ? " ak-warn" : ""}`} disabled={beschaeftigt === `storno:${o.ref}`}
+                                  onClick={() => void stornieren(o)}>{beschaeftigt === `storno:${o.ref}` ? "Storniert …" : "Stornieren"}</button>
+                                <button type="button" className="ak-klein" disabled={beschaeftigt === `mahnstopp:${o.ref}`}
+                                  onClick={() => void mahnstopp(o, !r?.mahnstopp)}>{r?.mahnstopp ? "Mahnstopp aufheben" : "Mahnstopp"}</button>
+                              </>
+                            )}
+                          </div></td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -37,6 +37,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { fehlendeZustimmungen, NUR_KUNDE_SPALTEN } from "./fiaon-antrag-vollstaendig";
+import { AGB_FASSUNG, vertragsPaketKey } from "@shared/fiaon-vertrag-paket";
 
 type Lauf = typeof sqlPool;
 
@@ -87,6 +88,13 @@ export interface ZustimmungsLage {
   spalten: string[];
   /** Schon alles erteilt? Dann zeigt die Seite eine Bestätigung, kein Formular. */
   fertig: boolean;
+  /**
+   * E-244 (26.09.2026): das Privatpaket mit Rate (start/pro/ultra/highend) oder null —
+   * nur damit zeigt die Seite die Bestellübersicht und den Knopf „Zahlungspflichtig annehmen".
+   */
+  packKey: string | null;
+  /** Die AGB-Fassung, die mit der Annahme gilt — null, wenn über diesen Link kein Vertrag möglich ist. */
+  vertragsFassung: string | null;
 }
 
 /** Welche Erklärungen fehlen dieser Bestellung noch? */
@@ -94,7 +102,7 @@ export async function zustimmungsLage(
   ref: string, lauf: Lauf = sqlPool,
 ): Promise<ZustimmungsLage | null> {
   const [a] = (await lauf`
-    SELECT ref, type, pack_name,
+    SELECT ref, type, pack_name, pack_key,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), ''),
                     company_name, contact_name, '') AS name,
            consent_agb, consent_schufa, consent_contract
@@ -110,6 +118,8 @@ export async function zustimmungsLage(
     offen,
     spalten: NUR_KUNDE_SPALTEN.filter((s) => a[s] !== true),
     fertig: offen.length === 0,
+    packKey: vertragsPaketKey(a.pack_key, a.pack_name),
+    vertragsFassung: vertragsPaketKey(a.pack_key, a.pack_name) ? AGB_FASSUNG : null,
   };
 }
 
@@ -136,6 +146,17 @@ export async function zustimmungFesthalten(
     return { ok: false, grund: "Bitte allen Punkten zustimmen — sonst kommt der Vertrag nicht zustande." };
   }
 
+  // E-244 (26.09.2026, § 312j BGB): Eine Vertragsannahme gibt es über diesen Link nur, wenn ein
+  // Privatpaket mit Rate dahintersteht — nur dann sah der Kunde die Bestellübersicht über dem Knopf.
+  if (erlaubt.includes("consent_contract")) {
+    const [z] = (await lauf`
+      SELECT pack_key, pack_name FROM fiaon_applications WHERE ref = ${ref} AND gdpr_deleted_at IS NULL LIMIT 1
+    `) as any[];
+    if (!z || !vertragsPaketKey(z.pack_key, z.pack_name)) {
+      return { ok: false, grund: "Der Vertrag lässt sich über diesen Link nicht annehmen — bitte melden Sie sich bei support@fiaon.com." };
+    }
+  }
+
   const { istRoboterUnterschrift } = await import("./fiaon-vertrieb-zusage");
   const roboter = istRoboterUnterschrift(nachweis.ip, nachweis.userAgent);
   if (roboter.roboter) {
@@ -144,7 +165,11 @@ export async function zustimmungFesthalten(
 
   // Die Spaltennamen kommen aus einer festen Liste in dieser Datei — sie
   // stammen nie aus der Anfrage, auch wenn die Anfrage sie benennt.
-  const setzen = erlaubt.map((s) => `${s} = TRUE`).join(", ");
+  const setzen = erlaubt.map((s) => `${s} = TRUE`).join(", ")
+    // E-244: Mit der Vertragsannahme gilt die AGB-Fassung des Knopfs „Zahlungspflichtig annehmen".
+    + (erlaubt.includes("consent_contract")
+      ? `, agb_stand = CASE WHEN agb_stand IS NULL OR agb_stand < DATE '${AGB_FASSUNG}' THEN DATE '${AGB_FASSUNG}' ELSE agb_stand END`
+      : "");
   await lauf.unsafe(`
     UPDATE fiaon_applications
     SET ${setzen},

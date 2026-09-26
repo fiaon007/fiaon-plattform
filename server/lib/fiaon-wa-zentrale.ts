@@ -80,6 +80,7 @@ import { sqlPool } from "./db-pool";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
+import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
 import { grundmengeIdsSql, waRangSql, tabellenBereit as verkaufTabellenBereit, WA_ANGEBOT_ABSTAND_TAGE } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
 
@@ -195,6 +196,8 @@ export interface Kandidat {
   personId: number;
   name: string;
   telefon: string;
+  /** E-244: Land der Person (fiaon_persons.country) — für nummerFuerVersand, nie als +1 raten. */
+  land?: string | null;
   leadId: number | null;
   eingang: string;
   tage: number;
@@ -221,6 +224,7 @@ export const BASIS = `
     SELECT p.id AS person_id,
            TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS name,
            p.primary_phone AS telefon,
+           p.country AS land,
            p.created_at,
            (SELECT MAX(w.created_at) FROM fiaon_whatsapp w
              WHERE w.person_id = p.id AND w.richtung = 'raus' AND w.vorlage IS NOT NULL AND w.status <> 'fehler') AS letzte_vorlage,
@@ -239,6 +243,11 @@ export const BASIS = `
      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
        AND p.primary_phone IS NOT NULL AND TRIM(p.primary_phone) <> '' AND p.werbung_gesperrt_am IS NULL
        AND ${WHATSAPP_MOEGLICH_SQL("wx")}
+       -- E-244 (26.09.2026): Nummer unzustellbar (Meta 131026, seitdem kein Lebenszeichen) oder in der
+       -- 131049-Pause — fiaon-wa-unzustellbar.ts. Bis dahin zählten gescheiterte Vorlagen hier nicht als
+       -- angeschrieben, und dieselben 39 Nummern bekamen 72 Vorlagen, 10 davon an drei Tagen hintereinander.
+       -- Verglichen wird die volle Versandnummer (nummerFuerVersand mit p.country, wie einzelnSenden).
+       AND NOT ${WA_NUMMER_UNZUSTELLBAR_SQL("p.primary_phone", "p.country")}
        -- 24.09.2026, Justin: „Wir schreiben alle per WhatsApp an, die wir haben, nicht nur die mit
        -- Einwilligung." Kein Einwilligungs-Filter — die Seite zeigt je Gruppe, wie viele nachweislich
        -- eingewilligt haben (Risiko: Meta-Qualität, bei Werbung an Website-Abbrecher § 7 UWG).
@@ -340,9 +349,13 @@ export function gruppenBedingung(g: Gruppe): string {
                         AND NOT a2.ist_entwurf AND ${abgeschickt("a2")})
               AND b.created_at > NOW() - INTERVAL '90 days' AND ${abstand} AND ${deckel}`;
     case "zahlung_offen":
+      // E-244 (26.09.2026): Auskunft-Bestellungen zählen hier nicht — die Vorlage spricht vom Paket.
+      // Zwei offene Auskünfte tragen den Paketschlüssel „highend"; erkannt wird wie IST_AUSKUNFT
+      // (fiaon-auskunft-verkauf.ts). An die Auskunft-Zahlung erinnert ein eigener Lauf.
       return `${VOR_DER_ZAHLUNG} AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL AND NOT a.ist_entwurf
                         AND ${abgeschickt("a")} AND a.payment_status IN ('pending_payment', 'expired', 'pending') AND a.mahnstopp_am IS NULL
-                        AND a.gekuendigt_am IS NULL AND a.payment_reference IS NOT NULL)
+                        AND a.gekuendigt_am IS NULL AND a.payment_reference IS NOT NULL
+                        AND COALESCE(a.type, '') <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%')
               AND ${abstand} AND ${deckel}`;
     case "rate_offen":
       // Höchstens zwei WhatsApp je Rate: Erinnerung, kein Dauermahnen (die Mail erinnert ohnehin, E-182).
@@ -469,6 +482,7 @@ async function zeileZuKandidat(g: Gruppe, r: any): Promise<Kandidat> {
          WHERE person_id = ${r.person_id} AND merged_into IS NULL AND NOT ist_entwurf
            AND payment_status IN ('pending_payment', 'expired', 'pending') AND payment_reference IS NOT NULL
            AND mahnstopp_am IS NULL AND gekuendigt_am IS NULL
+           AND COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
            AND (COALESCE(current_step, 0) >= 8 OR COALESCE(status, '') NOT IN ('started', 'personal_data', 'finances', 'config', 'verifying', 'approved', 'contract', 'processing'))
          ORDER BY created_at DESC LIMIT 1`) as any[];
       if (a) {
@@ -482,6 +496,7 @@ async function zeileZuKandidat(g: Gruppe, r: any): Promise<Kandidat> {
       personId: Number(r.person_id),
       name: schoenerName(String(r.name || "")),
       telefon: String(r.telefon || ""),
+      land: r.land != null ? String(r.land) : null,
       leadId: r.lead_id != null ? Number(r.lead_id) : null,
       eingang: new Date(r.created_at).toISOString(),
       tage: Math.floor(Number(r.tage_roh || 0)),
@@ -657,8 +672,9 @@ async function einzelnSenden(
     return { ok: false, grund: w.grund };
   }
   const { waSenden } = await import("./fiaon-whatsapp");
-  const { nummerFuerWhatsApp } = await import("@shared/fiaon-whatsapp-erlaubnis");
-  const nummer = nummerFuerWhatsApp(k.telefon);
+  // E-244: mit dem Land der Person; „+15…" aus dem Meta-Formular ist eine deutsche Handynummer, kein +1.
+  const { nummerFuerVersand } = await import("@shared/fiaon-whatsapp-erlaubnis");
+  const nummer = nummerFuerVersand(k.telefon, k.land);
   if (!nummer) {
     await protokoll(k, g, vorlage, quelle, laufId, von, false, "Keine WhatsApp-Nummer");
     return { ok: false, grund: "Keine WhatsApp-Nummer" };
@@ -922,16 +938,10 @@ export async function zentraleLage() {
            COUNT(*) FILTER (WHERE richtung = 'raus' AND status = 'fehler')::int AS fehler
       FROM fiaon_whatsapp
      WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date`.catch(() => [{}])) as any[];
-  const [wirkung] = (await sqlPool`
-    WITH gesendet AS (
-      SELECT person_id, MIN(erstellt_am) AS am FROM fiaon_wa_aktion
-       WHERE ok AND erstellt_am > NOW() - INTERVAL '7 days' AND person_id IS NOT NULL GROUP BY person_id
-    )
-    SELECT COUNT(*)::int AS menschen,
-           COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.person_id = g.person_id AND w.richtung = 'rein' AND w.created_at > g.am))::int AS geantwortet,
-           COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM fiaon_applications ap WHERE ap.person_id = g.person_id AND ap.merged_into IS NULL AND NOT ap.ist_entwurf AND ap.created_at > g.am))::int AS antrag,
-           COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM fiaon_applications ap WHERE ap.person_id = g.person_id AND ap.merged_into IS NULL AND ap.payment_status IN ('paid','claimed_paid') AND COALESCE(ap.paid_at, ap.updated_at) > g.am))::int AS gezahlt
-      FROM gesendet g`) as any[];
+  // E-244 (26.09.2026): „gezahlt" zählte gemeldete Zahlungen mit, und COALESCE(paid_at, updated_at)
+  // wanderte bei jeder Änderung am Antrag. Jetzt gebuchtes Geld aus Maras Bilanz-Logik.
+  const { waWirkung7 } = await import("./fiaon-mara-bilanz");
+  const wirkung = await waWirkung7();
   const letzte = (await sqlPool`
     SELECT x.id, x.person_id, x.gruppe, x.vorlage, x.quelle, x.ok, x.grund, x.erstellt_am, x.ausgeloest_von,
            TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS name,
@@ -970,7 +980,7 @@ export async function zentraleLage() {
       vorlagenGesamt: Number(alle?.vorlagen || 0), maraAntworten: Number(alle?.mara_antworten || 0),
       rein: Number(alle?.rein || 0), menschenRein: Number(alle?.menschen_rein || 0), fehler: Number(alle?.fehler || 0),
     },
-    wirkung7: { menschen: Number(wirkung?.menschen || 0), geantwortet: Number(wirkung?.geantwortet || 0), antrag: Number(wirkung?.antrag || 0), gezahlt: Number(wirkung?.gezahlt || 0) },
+    wirkung7: { menschen: Number(wirkung?.menschen || 0), geantwortet: Number(wirkung?.geantwortet || 0), antrag: Number(wirkung?.antrag || 0), gezahlt: Number(wirkung?.gezahlt || 0), gezahltCents: Number(wirkung?.gezahlt_cents || 0) },
     lauf: laufStand(),
     letzte: letzte.map((r) => ({
       id: Number(r.id), personId: r.person_id != null ? Number(r.person_id) : null, name: String(r.name || "").trim() || "Ohne Namen",

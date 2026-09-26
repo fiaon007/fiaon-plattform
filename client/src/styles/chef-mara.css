@@ -296,3 +296,103 @@ a.mp-name:hover { text-decoration: underline; }
 .mp-ergebnis li::before { content: "✓"; position: absolute; left: 0; color: #6ee7b7; }
 .mp-ergebnis li.fehler { color: #fda4af; }
 .mp-ergebnis li.fehler::before { content: "✕"; color: #fda4af; }
+
+/* ═══ Maras Bilanz (26.09.2026, E-244) — Präfix .mbz- (nicht .mb-: das gehört dem Kundenbereich, mein-bereich.css) ═══
+   Die eine Navy-Glas-Stelle der Seite: über den drei Reitern. Fünf Spalten
+   mit Haarlinien, eine große dünne Zahl je Weg, darunter der Rahmen.
+   Am iPhone gestapelt, keine Querrolle. */
+.mbz {
+  --mbz-text: #e7ecf4;
+  --mbz-text-2: #b9c4d5;
+  --mbz-leise: #8292a8;
+  --mbz-still: #6b7b93;
+  --mbz-linie: rgba(148, 163, 184, .14);
+  --mbz-blau: #288dfa;
+  --mbz-blau-hell: #93c5fd;
+  position: relative; display: grid; gap: 18px; margin: 0 0 22px; padding: 22px 24px 18px;
+  border-radius: 18px; border: 1px solid rgba(147, 197, 253, .14);
+  background: linear-gradient(160deg, rgba(26, 39, 68, .92) 0%, rgba(11, 18, 32, .94) 70%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 18px 50px -24px rgba(29, 78, 216, .45);
+  color: var(--mbz-text-2); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 400;
+  color-scheme: dark; min-width: 0;
+}
+.mbz::before { /* Glanzkante oben */
+  content: ""; position: absolute; left: 24px; right: 24px; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(147, 197, 253, .45), transparent);
+}
+.mbz-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
+.mbz-kopf h2 { margin: 0; font-size: 22px; font-weight: 300; letter-spacing: -.015em; color: var(--mbz-text); }
+.mbz-kopf p { margin: 4px 0 0; font-size: 12.5px; color: var(--mbz-leise); line-height: 1.5; max-width: 70ch; }
+.mbz-umschalter { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid rgba(148, 163, 184, .18); border-radius: 10px; background: rgba(11, 18, 32, .5); }
+.mbz-umschalter button {
+  min-height: 34px; padding: 0 14px; border: none; border-radius: 7px; background: none; font: inherit; font-size: 13px;
+  color: var(--mbz-leise); cursor: pointer; white-space: nowrap;
+}
+.mbz-umschalter button[aria-pressed="true"] { background: rgba(40, 141, 250, .2); color: var(--mbz-text); }
+.mbz-umschalter button:focus-visible { outline: 2px solid var(--mbz-blau-hell); outline-offset: 1px; }
+@media (hover: hover) { .mbz-umschalter button:not([aria-pressed="true"]):hover { color: var(--mbz-text-2); background: rgba(148, 163, 184, .08); } }
+
+.mbz-spalten {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--mbz-linie); border-bottom: 1px solid var(--mbz-linie);
+}
+.mbz-spalte { display: grid; align-content: start; gap: 8px; padding: 16px 16px 14px; min-width: 0; border-left: 1px solid var(--mbz-linie); }
+.mbz-spalte:first-child { border-left: 0; padding-left: 0; }
+.mbz-spalte h3 { margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--mbz-leise); }
+.mbz-ab { font-size: 11px; color: var(--mbz-still); margin-top: -4px; }
+.mbz-held { display: grid; gap: 2px; padding: 4px 0 6px; cursor: help; }
+.mbz-held b {
+  font-size: 28px; font-weight: 300; letter-spacing: -.02em; color: var(--mbz-blau-hell); line-height: 1.1;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mbz-held span { font-size: 11.5px; color: var(--mbz-still); }
+.mbz-spalte dl { margin: 0; display: grid; gap: 1px; }
+.mbz-zeile { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 10px; padding: 4px 0; font-size: 12.5px; cursor: help; min-width: 0; }
+.mbz-zeile dt { color: var(--mbz-leise); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mbz-zeile dd { margin: 0; color: var(--mbz-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mbz-zeile.leise dt, .mbz-zeile.leise dd { color: var(--mbz-still); }
+@media (hover: hover) { .mbz-zeile:hover dt { color: var(--mbz-text-2); } }
+
+.mbz-rahmen { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+.mbz-rahmen > div { display: grid; gap: 3px; padding: 4px 16px; border-left: 1px solid var(--mbz-linie); min-width: 0; cursor: help; }
+.mbz-rahmen > div:first-child { border-left: 0; padding-left: 0; }
+.mbz-rahmen span { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mbz-still); }
+.mbz-rahmen b { font-size: 22px; font-weight: 300; color: var(--mbz-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mbz-rahmen .blau b { color: var(--mbz-blau-hell); }
+.mbz-rahmen .gegen b { color: #fda4af; }
+.mbz-rahmen em { font-style: normal; font-size: 11.5px; color: var(--mbz-still); line-height: 1.4; }
+/* Tippen statt Maus: die Quelle klappt unter der Zahl auf (Handy hat kein title). */
+.mbz-held[role="button"], .mbz-zeile[role="button"], .mbz-rahmen > div[role="button"] { outline: none; }
+.mbz-held[role="button"]:focus-visible, .mbz-zeile[role="button"]:focus-visible, .mbz-rahmen > div[role="button"]:focus-visible {
+  box-shadow: 0 0 0 2px var(--mbz-blau-hell); border-radius: 6px;
+}
+.mbz-info {
+  flex: 1 0 100%; margin: 4px 0 2px; padding: 6px 8px; border-radius: 6px; background: rgba(40, 141, 250, .08);
+  font-size: 11.5px; line-height: 1.45; color: var(--mbz-text-2); white-space: normal; text-transform: none; letter-spacing: 0;
+}
+.mbz-info i { font-style: normal; color: var(--mbz-still); display: block; margin-top: 2px; }
+.mbz-zeile dd.mbz-info { color: var(--mbz-text-2); white-space: normal; }
+.mbz-hinweis { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--mbz-still); max-width: 120ch; }
+.mbz-hinweis b { font-weight: 500; color: var(--mbz-leise); }
+
+@media (max-width: 1180px) {
+  .mbz-spalten { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mbz-spalte:nth-child(4) { border-left: 0; padding-left: 0; }
+  .mbz-spalte:nth-child(n + 4) { border-top: 1px solid var(--mbz-linie); }
+  .mbz-rahmen { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 14px; }
+  .mbz-rahmen > div:nth-child(4) { border-left: 0; padding-left: 0; }
+}
+@media (max-width: 640px) {
+  .mbz { padding: 18px 16px 16px; border-radius: 14px; }
+  .mbz-umschalter { width: 100%; }
+  .mbz-umschalter button { flex: 1; min-height: 40px; padding: 0 8px; }
+  .mbz-spalten { grid-template-columns: minmax(0, 1fr); }
+  .mbz-spalte, .mbz-spalte:nth-child(4) { border-left: 0; padding: 14px 0 12px; }
+  .mbz-spalte + .mbz-spalte { border-top: 1px solid var(--mbz-linie); }
+  .mbz-held b { font-size: 26px; }
+  .mbz-rahmen b { font-size: 19px; }
+  .mbz-rahmen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mbz-rahmen > div, .mbz-rahmen > div:nth-child(4) { padding: 2px 12px; border-left: 1px solid var(--mbz-linie); }
+  .mbz-rahmen > div:nth-child(odd) { border-left: 0; padding-left: 0; }
+}
+@media (pointer: coarse) { .mbz-umschalter button { min-height: 44px; } }

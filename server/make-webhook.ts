@@ -112,6 +112,7 @@ export type MakeEventType =
   | "schufa_requested"        // nach der Zahlung: Anfragen angelegt, Vollmacht und Anfragen unterschreiben
   | "auskunft_angebot"        // WERBUNG: das Angebot der Auskunft an Bestandskunden (drei Fassungen, Abmeldelink Pflicht)
   | "auskunft_kundenpreis"    // E-243: der Kundenpreis-Link, vom Kunden selbst auf /bonitaet-antrag angefordert (keine Werbung)
+  | "auskunft_zahlung_erinnerung" // E-244: Zahlungserinnerung an eine offene Auskunft-Bestellung (server/lib/fiaon-auskunft-erinnerung.ts)
   | "account_suspended"       // Konto gesperrt
   | "account_activated"       // Konto aktiviert
   | "profile_query"           // Profil-Rückfrage an den Kunden
@@ -313,7 +314,9 @@ export async function sendMakeWebhookMitGrund(
   // „schalten wir Ihren Bereich frei" / „Ihr Zugang ist da".
   // Integration 26.09.2026 (E-243): dazu claim_received („Ich habe überwiesen") — die Auskunft-Fassung
   // sagt nicht „Ihr Bereich geht auf, Sie erhalten Ihre Zugangs-Mail".
-  if (eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") {
+  // E-244 (26.09.2026): dazu die Zahlungserinnerung der Auskunft — sie braucht Land, Art und die Widerrufs-Werte
+  // (Vertragsbestätigung und Belehrung, solange keine protokolliert ist) aus derselben Anreicherung.
+  if (eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received" || eventType === "auskunft_zahlung_erinnerung") {
     try {
       const { auskunftMailAnreichern } = await import("./lib/fiaon-auskunft-lieferung");
       payload = await auskunftMailAnreichern(payload);
@@ -378,7 +381,8 @@ export async function sendMakeWebhookMitGrund(
   const auskunftZeile = String(payload.produktkategorie ?? "") === "auskunft"
     || /^FIAON-SCHUFA-/i.test(String(payload.antrag_id ?? ""));
   // 26.09.2026 (E-243): auskunft_kundenpreis gibt es ebenfalls nur als Quelltext-Vorlage.
-  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "schufa_requested", "schufa_approved", "schufa_rejected"].includes(eventType)
+  // E-244 (26.09.2026): die Zahlungserinnerung der Auskunft ebenso — sie trägt die Belehrung, und Make kennt sie nicht.
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected"].includes(eventType)
     || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
@@ -433,6 +437,8 @@ const PRIVATLINIE = new Set<string>([
   // E-240: Die Bonitätsauskunft ist ein Produkt der Privatkundenlinie — ihr Angebot
   // und ihre Liefer-Mails sprechen vom Kundenbereich und von Karte und Limit.
   "auskunft_angebot", "schufa_requested", "schufa_approved", "schufa_rejected",
+  // E-244: die Zahlungserinnerung der Auskunft (Privatkundenlinie, Bankdaten im Text).
+  "auskunft_zahlung_erinnerung",
 ]);
 
 /** Gehört die Bestellung dieser Nutzlast zu FIAON Global (Katalog-Art "global")? */

@@ -23,7 +23,7 @@ import { einordnen, antwortErzeugen, maraMailVermerk } from "./fiaon-postmeister
 import { personSuchen, akteLesen } from "./fiaon-postmeister-dossier";
 import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
-import { wirdBedient } from "./fiaon-postmeister-postfaecher";
+import { wirdBedient, POSTFAECHER } from "./fiaon-postmeister-postfaecher";
 import { AUTOMATEN_DOMAENEN, type Aktion } from "@shared/fiaon-postmeister-typen";
 
 /**
@@ -63,12 +63,13 @@ async function aufgabeNachAufgabe(ein: {
     const text = ein.art === "versand"
       ? `Postfach ${ein.postfach}, Betreff „${betreff}“, Fehler: ${ein.grund}. Die Antwort liegt in der Postmeister-Zentrale (Zu prüfen) und kann von Hand gesendet werden — oder den Kunden anrufen.`
       : `Postfach ${ein.postfach}, Betreff „${betreff}“, Fehler: ${ein.grund}. Mara konnte viermal keine Antwort erzeugen. Die Mail liegt in der Postmeister-Zentrale (Zu prüfen) — bitte von Hand antworten oder den Kunden anrufen.`;
-    await auftragFuerKunden({
+    const a = await auftragFuerKunden({
       personId: ein.personId, ref: ein.ref,
       titel: ein.art === "versand" ? "Mail-Antwort konnte nicht gesendet werden" : "Mail-Antwort konnte nicht erzeugt werden",
       text, dringend: true, schluessel: `postmeister:${ein.id}:${ein.art}`, quelle: "postmeister", autorName: "Mara",
       link: "/chef/s/postmeister", anBetreiber: !ein.personId && !ein.ref,
     });
+    await wiederOffenBereinigen(a.id);
   } catch (e) {
     console.error("[POSTMEISTER] Aufgabe an Menschen:", String(e).slice(0, 160));
   }
@@ -159,23 +160,71 @@ export function ohneZitat(text: string): string {
  * Zahlungsunfähigkeit, dringende Fälle, unklare Anliegen — und wer ausdrücklich
  * einen Menschen sprechen will — gehen an den Betreuer.
  */
+/**
+ * Die Gründe einer Übergabe — wörtlich, denn sie stehen im Aufgabentext
+ * („<Grund>. Betreff „…" an … [Mail #id]") und uebergabeUrteil liest sie dort
+ * wieder heraus. NIE umformulieren, ohne die alten Formen in
+ * GRUENDE_NUR_ANTWORT mitzuführen.
+ */
+export const UEBERGABE_GRUND = {
+  beschwerde: "Beschwerde",
+  bestreitet: "Kunde bestreitet eine Forderung",
+  rechtlich: "rechtliches Anliegen",
+  widerruf: "Widerruf",
+  zahlungsunfaehig: "Kunde kann nicht zahlen",
+  mensch: "Anliegen braucht einen Menschen",
+  dringend: "dringend",
+  ansprechpartner: "Kunde möchte mit seinem Ansprechpartner sprechen",
+  entwurf: "Mara hat einen Entwurf vorbereitet, aber nicht gesendet.",
+  zentrale: "Kunde wartet auf eine Antwort (Entwurf lag in der Zentrale)",
+} as const;
+
+/**
+ * Gründe, die allein eine ANTWORT verlangen (E-244, Nachbesserung 26.09.).
+ * Nur Aufgaben, deren Blöcke ALLE einen dieser Gründe tragen, schließt das
+ * Senden. Rückrufwunsch, Beschwerde, Widerspruch/Bestreiten, Rechtliches,
+ * Widerruf, Zahlungsunfähigkeit und „braucht einen Menschen" bleiben beim
+ * Betreuer offen — die Antwort per Mail erledigt dort nicht die Arbeit.
+ * „dringend" (ohne jeden anderen Grund) ist nur eine eilige Frage.
+ */
+export const GRUENDE_NUR_ANTWORT: readonly string[] = [UEBERGABE_GRUND.entwurf, UEBERGABE_GRUND.zentrale, UEBERGABE_GRUND.dringend];
+
 export function menschNoetig(e: { kategorien: readonly string[]; flags: object; dringend: boolean }, text: string): string | null {
   const f = (e.flags || {}) as Record<string, boolean>;
-  if (f.beschwerde) return "Beschwerde";
-  if (f.bestreitet) return "Kunde bestreitet eine Forderung";
-  if (f.droht_anwalt || f.rechtlich) return "rechtliches Anliegen";
-  if (f.widerruf) return "Widerruf";
-  if (f.zahlungsunfaehig) return "Kunde kann nicht zahlen";
+  if (f.beschwerde) return UEBERGABE_GRUND.beschwerde;
+  if (f.bestreitet) return UEBERGABE_GRUND.bestreitet;
+  if (f.droht_anwalt || f.rechtlich) return UEBERGABE_GRUND.rechtlich;
+  if (f.widerruf) return UEBERGABE_GRUND.widerruf;
+  if (f.zahlungsunfaehig) return UEBERGABE_GRUND.zahlungsunfaehig;
   const k = new Set(e.kategorien || []);
-  if (k.has("beschwerde") || k.has("rechtlich") || k.has("vertrieb_komplex") || k.has("sonstiges")) return "Anliegen braucht einen Menschen";
-  if (e.dringend) return "dringend";
+  if (k.has("beschwerde") || k.has("rechtlich") || k.has("vertrieb_komplex") || k.has("sonstiges")) return UEBERGABE_GRUND.mensch;
+  if (e.dringend) return UEBERGABE_GRUND.dringend;
   // E-240: Unser eigener Fuß („… direkt an Ihren Ansprechpartner") zählt nie als Wunsch des Kunden —
   // falls ein Zitat doch einmal durchrutscht, ohneZitat ist der erste Riegel.
   const eigenerText = String(text || "").replace(/Fragen\? Antworten Sie einfach auf diese E-Mail[^\n]{0,160}?Ansprechpartner\.?/gi, "");
   if (/\b(ansprechpartner(in)?|betreuer(in)?|sachbearbeiter(in)?|mitarbeiter(in)?|einen menschen|mit jemandem sprechen|persönlich sprechen|rufen sie mich|ruft mich|rückruf|zurückrufen|anrufen)\b/i.test(eigenerText)) {
-    return "Kunde möchte mit seinem Ansprechpartner sprechen";
+    return UEBERGABE_GRUND.ansprechpartner;
   }
   return null;
+}
+
+/**
+ * E-244 (Nachbesserung 26.09.): Öffnet auftragFuerKunden eine erledigte
+ * Postfach-Aufgabe wieder (ON CONFLICT: status 'erledigt' → 'offen'), bleiben
+ * erledigt_am/erledigt_von/ergebnis stehen — und ensureTodoTabelle setzt beim
+ * nächsten Neustart jede Zeile mit erledigt_am wieder auf 'erledigt'. Die neue
+ * Beschwerde wäre still erledigt. Deshalb hier: offen heißt ohne Erledigt-Spuren.
+ * (Die eigentliche Stelle ist das ON CONFLICT in fiaon-betreiber-todo.ts — dort
+ * vorgeschlagen; dieser Riegel deckt die Postfach-Wege bis dahin.)
+ */
+export async function wiederOffenBereinigen(todoId: number | null | undefined): Promise<void> {
+  if (!todoId) return;
+  await sqlPool`
+    UPDATE fiaon_betreiber_todos
+       SET erledigt_am = NULL, erledigt_von = NULL, ergebnis = NULL
+     WHERE id = ${Number(todoId)} AND status <> 'erledigt'
+       AND (erledigt_am IS NOT NULL OR erledigt_von IS NOT NULL OR ergebnis IS NOT NULL)
+  `.catch((e) => console.error("[POSTMEISTER] Wiedereröffnung bereinigen:", String(e).slice(0, 160)));
 }
 
 /** Die Aufgabe beim Betreuer: eine je Kunde, weitere Mails hängen sich an. */
@@ -185,20 +234,283 @@ export async function anBetreuerUebergeben(ein: {
 }): Promise<void> {
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-    await auftragFuerKunden({
+    const a = await auftragFuerKunden({
       personId: ein.personId, ref: ein.ref,
       titel: ein.dringend ? "Kunde hat geschrieben — bitte heute antworten" : "Kunde hat geschrieben — bitte antworten",
-      text: `${ein.grund}. Betreff „${String(ein.betreff || "(ohne Betreff)").slice(0, 120)}“ an ${ein.postfach}: `
-        + `${String(ein.zusammenfassung || "").slice(0, 400)} Mara hat einen Entwurf vorbereitet — ansehen, senden, ändern oder selbst antworten. [Mail #${ein.id}]`,
+      text: uebergabeBlock(ein),
       dringend: ein.dringend,
-      schluessel: `postmeister:antwort:${ein.personId ?? ein.ref ?? ein.id}`,
+      schluessel: uebergabeSchluessel(ein),
       quelle: "postmeister", autorName: "Mara",
       link: ein.personId ? `/agent/kunden?person=${ein.personId}` : ein.ref ? `/agent/kunden?ref=${ein.ref}` : "/chef/s/postmeister",
       anBetreiber: !ein.personId && !ein.ref,
     });
+    await wiederOffenBereinigen(a.id);
   } catch (e) {
     console.error("[POSTMEISTER] Übergabe an Betreuer:", String(e).slice(0, 160));
   }
+}
+
+/**
+ * Ein Block des Aufgabentexts — je übergebener Mail einer; eine zweite Mail
+ * desselben Kunden hängt ihren Block an (ON CONFLICT in auftragFuerKunden).
+ * Form: „<Grund>. Betreff „…" an <Postfach>: <Zusammenfassung> … [Mail #<id>]".
+ * uebergabeBloecke liest genau diese Form zurück.
+ */
+export function uebergabeBlock(ein: { id: number; postfach: string; betreff: string; zusammenfassung: string; grund: string }): string {
+  return `${ein.grund}. Betreff „${String(ein.betreff || "(ohne Betreff)").slice(0, 120)}“ an ${ein.postfach}: `
+    + `${String(ein.zusammenfassung || "").slice(0, 400)} Mara hat einen Entwurf vorbereitet — ansehen, senden, ändern oder selbst antworten. [Mail #${ein.id}]`;
+}
+
+/**
+ * Den Aufgabentext in Blöcke zerlegen: Jeder Block endet mit „[Mail #id]", sein
+ * Grund steht vor dem ersten „. Betreff „". Rein. null, sobald etwas nicht in
+ * diese Form passt (fremder Text, Handeintrag, Rest hinter der letzten Marke) —
+ * dann schließt das Senden nie (lieber eine Aufgabe zu viel offen).
+ * Produktion 26.09.: 153 offene Übergaben, 313 Blöcke, alle in dieser Form.
+ */
+export function uebergabeBloecke(text: string): { grund: string; mailId: number }[] | null {
+  const t = String(text || "");
+  const bloecke: { grund: string; mailId: number }[] = [];
+  const marke = /\[Mail #(\d+)\]/g;
+  let start = 0;
+  for (let m = marke.exec(t); m; m = marke.exec(t)) {
+    const stueck = t.slice(start, m.index).trim();
+    start = m.index + m[0].length;
+    const i = stueck.indexOf(". Betreff „");
+    if (i <= 0) return null;
+    bloecke.push({ grund: stueck.slice(0, i).trim(), mailId: Number(m[1]) });
+  }
+  if (!bloecke.length || t.slice(start).trim()) return null;
+  return bloecke;
+}
+
+/** Eine Zeile aus fiaon_postmeister, wie uebergabeUrteil sie braucht. */
+export interface UebergabeMail {
+  id: number; postfach: string; thread: string | null;
+  /** empfangen_am (sonst created_at) in ms */
+  am: number;
+  /** gesendet_am gesetzt ODER vom Betreuer übernommen */
+  beantwortet: boolean;
+  /** begruendung der Zeile — trägt bei Übergaben „Übergabe an den Betreuer: <Grund>" */
+  begruendung?: string | null;
+}
+
+/**
+ * DARF DIESE ANTWORT DIE ÜBERGABE SCHLIESSEN? (E-244, Nachbesserung 26.09.) — rein.
+ *
+ * Befund der Gesamtdurchsicht: uebergabeSchliessen schloss bei JEDER
+ * gesendeten Antwort — auch den Rückrufwunsch, die Beschwerde, den Widerruf,
+ * und auch dann, wenn Mara automatisch auf eine ANDERE Mail antwortete, nachdem
+ * der Entwurf zur auslösenden Mail verworfen war. Jetzt gilt, der Reihe nach:
+ *
+ *   1. Der Aufgabentext ist lesbar (uebergabeBloecke), sonst bleibt sie offen.
+ *   2. Die gesendete Mail TRIFFT die Aufgabe: Sie ist eine der auslösenden
+ *      Mails ([Mail #id]) oder eine spätere Mail in DEMSELBEN Faden
+ *      (Postfach + Thread, empfangen nicht vor der auslösenden).
+ *   3. Jeder Block trägt einen Grund, der allein eine Antwort verlangt
+ *      (GRUENDE_NUR_ANTWORT) — auch laut der Mail-Zeile selbst, falls dort
+ *      „Übergabe an den Betreuer: <anderer Grund>" steht. Entfällt nur, wenn
+ *      der Betreuer selbst „übernommen/erledigt" meldet (menschEntscheidet).
+ *   4. JEDE auslösende Mail hat eine Antwort: selbst gesendet/übernommen, oder
+ *      eine spätere Mail desselben Fadens ist beantwortet, oder es ist die
+ *      gerade gesendete.
+ *
+ * `trifft` sagt, ob die Antwort zu dieser Aufgabe gehört — nur dann bekommt
+ * eine offen bleibende Aufgabe einen Hinweis im Verlauf.
+ */
+export function uebergabeUrteil(ein: {
+  text: string; gesendet: UebergabeMail; mails: UebergabeMail[]; menschEntscheidet?: boolean;
+}): { schliessen: boolean; trifft: boolean; grund: string } {
+  const bloecke = uebergabeBloecke(ein.text);
+  if (!bloecke) return { schliessen: false, trifft: false, grund: "Aufgabentext nicht lesbar" };
+  const s = ein.gesendet;
+  const zeile = (id: number) => (id === s.id ? s : ein.mails.find((m) => m.id === id) ?? null);
+  const gleicherFaden = (a: UebergabeMail, b: UebergabeMail) =>
+    !!a.thread && a.thread === b.thread && a.postfach.toLowerCase() === b.postfach.toLowerCase();
+  // 2. Trifft die gesendete Mail die Aufgabe?
+  const trifft = bloecke.some((b) => {
+    if (b.mailId === s.id) return true;
+    const m = zeile(b.mailId);
+    return !!m && gleicherFaden(m, s) && s.am >= m.am;
+  });
+  if (!trifft) return { schliessen: false, trifft: false, grund: "Antwort gehört zu einer anderen Mail" };
+  // 3. Verlangt ein Grund mehr als eine Antwort?
+  if (!ein.menschEntscheidet) {
+    const mehr = new Set<string>();
+    for (const b of bloecke) {
+      if (!GRUENDE_NUR_ANTWORT.includes(b.grund)) mehr.add(b.grund);
+      const zeilenGrund = String(zeile(b.mailId)?.begruendung ?? "").match(/^Übergabe an den Betreuer:\s*(.+)$/)?.[1]?.trim();
+      if (zeilenGrund && !GRUENDE_NUR_ANTWORT.includes(zeilenGrund)) mehr.add(zeilenGrund);
+    }
+    if (mehr.size) return { schliessen: false, trifft: true, grund: `verlangt mehr als eine Antwort: ${Array.from(mehr).join(", ")}` };
+  }
+  // 4. Hat jede auslösende Mail eine Antwort?
+  for (const b of bloecke) {
+    if (b.mailId === s.id) continue;
+    const m = zeile(b.mailId);
+    if (!m) return { schliessen: false, trifft: true, grund: `Mail #${b.mailId} nicht gefunden` };
+    if (m.beantwortet) continue;
+    const spaeter = [s, ...ein.mails].some((x) => x.id !== m.id && (x.id === s.id || x.beantwortet) && gleicherFaden(x, m) && x.am >= m.am);
+    if (!spaeter) return { schliessen: false, trifft: true, grund: `Mail #${b.mailId} hat noch keine Antwort` };
+  }
+  return { schliessen: true, trifft: true, grund: "" };
+}
+
+/**
+ * Der Schlüssel der Übergabe-Aufgabe — eine je Kunde (Person, sonst Bestellung,
+ * sonst Mail). Rein.
+ *
+ * 26.09.2026 (E-244, Nachbesserung): Ohne Kunde hieß der Schlüssel bisher
+ * „postmeister:antwort:<Mail-ID>" — dieselbe Form wie für eine Person. Mail 5619
+ * und Person 5619 teilten sich so eine Aufgabe (Produktion 26.09.: 22 offene
+ * Übergaben ohne Kunde, jede ID gibt es auch als Person). Neue Aufgaben ohne
+ * Kunde heißen jetzt „postmeister:antwort:mail:<Mail-ID>"; die alten schließt
+ * uebergabeSchliessen über schliessKandidaten mit.
+ */
+export function uebergabeSchluessel(ein: { id: number; personId: number | null; ref: string | null }): string {
+  if (ein.personId != null) return `postmeister:antwort:${ein.personId}`;
+  if (ein.ref) return `postmeister:antwort:${ein.ref}`;
+  return `postmeister:antwort:mail:${ein.id}`;
+}
+
+/**
+ * Welche Aufgaben eine gesendete Mail schließen darf — rein, im Prüfstand geprüft.
+ *
+ *   · der Schlüssel des Kunden (Person, sonst Bestellung, sonst mail:<id>);
+ *   · immer auch „mail:<id>" — wurde die Person erst nachträglich zugeordnet
+ *     (Zentrale „Person zuordnen"), hängt die Aufgabe noch am Mail-Schlüssel;
+ *   · der ALTE Mail-Schlüssel „postmeister:antwort:<id>" — aber nur als
+ *     `nurOhneKunde`: er zählt nur, wenn die Aufgabe als Mail ohne Kunde angelegt
+ *     wurde (Link /chef/s/postmeister). Sonst könnte das Senden der Mail 5619
+ *     die Aufgabe der Person 5619 schließen.
+ *
+ * `sperreNr`: Endet der Schlüssel auf eine Zahl, hält jede noch wartende Zeile
+ * mit dieser Zahl als Person ODER als Mail-ID die Aufgabe offen — denn eine
+ * Altaufgabe kann beides gesammelt haben (ON CONFLICT hängt an).
+ */
+export function schliessKandidaten(ein: { id: number; personId: number | null; ref: string | null }):
+  { schluessel: string; nurOhneKunde: boolean; sperrePerson: number | null; sperreMail: number | null; sperreRef: string | null }[] {
+  const liste: { schluessel: string; nurOhneKunde: boolean; sperrePerson: number | null; sperreMail: number | null; sperreRef: string | null }[] = [];
+  const dazu = (k: (typeof liste)[number]) => { if (!liste.some((x) => x.schluessel === k.schluessel)) liste.push(k); };
+  if (ein.personId != null) {
+    // Alter Namensraum: Person N und Mail N teilen sich den Schlüssel.
+    dazu({ schluessel: `postmeister:antwort:${ein.personId}`, nurOhneKunde: false, sperrePerson: ein.personId, sperreMail: ein.personId, sperreRef: null });
+  } else if (ein.ref) {
+    dazu({ schluessel: `postmeister:antwort:${ein.ref}`, nurOhneKunde: false, sperrePerson: null, sperreMail: null, sperreRef: ein.ref });
+  }
+  dazu({ schluessel: `postmeister:antwort:mail:${ein.id}`, nurOhneKunde: false, sperrePerson: null, sperreMail: ein.id, sperreRef: null });
+  if (ein.personId !== ein.id) {
+    dazu({ schluessel: `postmeister:antwort:${ein.id}`, nurOhneKunde: true, sperrePerson: ein.id, sperreMail: ein.id, sperreRef: null });
+  }
+  return liste;
+}
+
+/**
+ * DIE ÜBERGABE ENDET MIT DER ANTWORT (26.09.2026, E-244)
+ *
+ * Bis heute schloss NICHTS die Aufgabe „Kunde hat geschrieben — bitte
+ * antworten": weder das Senden aus der Zentrale noch das Senden oder
+ * Übernehmen durch den Betreuer. Stand 26.09.: 153 offene Übergaben seit dem
+ * 18.09., keine einzige erledigt — 116 davon zu Kunden, deren Entwurf längst
+ * gesendet war. Der Betreuer sah also vor allem Aufgaben, die keine mehr waren.
+ *
+ * Geschlossen wird nur, wenn für denselben Kunden KEIN weiterer Entwurf wartet
+ * (die Aufgabe ist eine je Kunde; eine zweite Mail hängt sich an). Nichts wird
+ * gelöscht — „erledigt" mit Ergebnis, wie jede andere Aufgabe. Verwerfen
+ * schließt NICHT: Dann hat der Kunde noch keine Antwort.
+ *
+ * Aufgerufen von JEDEM Weg, auf dem eine Antwort hinausgeht: Zentrale (beide
+ * Sendewege), Betreuer (Senden, „übernommen"), Maras Auto-Versand und das
+ * Nachholen eines gescheiterten Versands.
+ *
+ * NACHBESSERUNG (26.09.2026, Gesamtdurchsicht E-244): Nicht jede Antwort
+ * erledigt die Aufgabe. uebergabeUrteil entscheidet — nur die auslösende Mail
+ * (oder eine spätere im selben Faden), nur Gründe, die allein eine Antwort
+ * verlangen, und nur, wenn jede auslösende Mail beantwortet ist. Bleibt eine
+ * Aufgabe wegen ihres Grundes offen (Rückruf, Beschwerde, Widerruf …), bekommt
+ * sie einen Hinweis im Verlauf: Die Antwort ist raus, der Rest wartet.
+ * `menschEntscheidet`: Der Betreuer meldet selbst „übernommen/erledigt" — dann
+ * zählt sein Wort statt des Grundes (Schritt 3 entfällt).
+ *
+ * Was NICHT mehr wartet und deshalb nie sperrt: Zeilen eines nicht bedienten
+ * Postfachs (js@, E-171 — nie sendbar) und alte Fehlerzeilen (älter als 14
+ * Tage, z. B. „Nach Neustart hängen geblieben" vom 31.08.–02.09.).
+ */
+export async function uebergabeSchliessen(
+  ein: { id: number; personId: number | null; ref: string | null },
+  wer: string, ergebnis: string,
+  opt: { menschEntscheidet?: boolean } = {},
+): Promise<boolean> {
+  const bedient = POSTFAECHER.map((p) => p.adresse.toLowerCase());
+  let geschlossen = false;
+  for (const k of schliessKandidaten(ein)) {
+    try {
+      const [t] = (await sqlPool`
+        SELECT t.id, t.text FROM fiaon_betreiber_todos t
+         WHERE t.schluessel = ${k.schluessel} AND t.status <> 'erledigt'
+           AND (${k.nurOhneKunde}::boolean = FALSE OR t.link LIKE '/chef/s/postmeister%')
+         LIMIT 1
+      `) as any[];
+      if (!t) continue;
+      const text = String(t.text ?? "");
+      const ids = Array.from(new Set((uebergabeBloecke(text) ?? []).map((b) => b.mailId).concat(ein.id)));
+      // Die auslösenden Mails, die gesendete und alle Zeilen ihrer Fäden.
+      const zeilen = (await sqlPool`
+        WITH basis AS (
+          SELECT LOWER(p.postfach) AS postfach, p.thread_id FROM fiaon_postmeister p
+           WHERE p.id = ANY(${ids}::int[]) AND NULLIF(p.thread_id, '') IS NOT NULL)
+        SELECT p.id, LOWER(p.postfach) AS postfach, p.thread_id,
+               COALESCE(p.empfangen_am, p.created_at) AS am, p.begruendung,
+               (p.gesendet_am IS NOT NULL OR COALESCE(p.begruendung, '') LIKE 'Vom Betreuer übernommen%') AS beantwortet
+          FROM fiaon_postmeister p
+         WHERE p.id = ANY(${ids}::int[])
+            OR (NULLIF(p.thread_id, '') IS NOT NULL AND (LOWER(p.postfach), p.thread_id) IN (SELECT postfach, thread_id FROM basis))
+         LIMIT 500
+      `) as any[];
+      const mails: UebergabeMail[] = zeilen.map((r) => ({
+        id: Number(r.id), postfach: String(r.postfach || ""), thread: r.thread_id ?? null,
+        am: r.am ? new Date(r.am).getTime() : 0, beantwortet: !!r.beantwortet, begruendung: r.begruendung ?? null,
+      }));
+      const gesendet = mails.find((m) => m.id === ein.id);
+      if (!gesendet) continue;
+      const urteil = uebergabeUrteil({ text, gesendet, mails, menschEntscheidet: !!opt.menschEntscheidet });
+      if (!urteil.schliessen) {
+        // Die Antwort gehört zu dieser Aufgabe, aber ihr Grund verlangt mehr —
+        // der Betreuer soll sehen, dass die Mail raus ist und was noch fehlt.
+        if (urteil.trifft && urteil.grund.startsWith("verlangt mehr")) {
+          await sqlPool`
+            INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, art, text)
+            VALUES (${Number(t.id)}, 'system', 'Mara', 'kommentar',
+                    ${`Antwort auf Mail #${ein.id} ist gesendet (${wer.slice(0, 80)}). Die Aufgabe bleibt offen — ${urteil.grund}. Bitte selbst nachfassen und dann erledigen.`})
+          `.catch((e) => console.error("[POSTMEISTER] Übergabe-Hinweis:", String(e).slice(0, 160)));
+          await sqlPool`UPDATE fiaon_betreiber_todos SET letzte_aktivitaet = NOW(), updated_at = NOW() WHERE id = ${Number(t.id)}`.catch(() => {});
+        }
+        continue;
+      }
+      const fertig = (await sqlPool`
+        UPDATE fiaon_betreiber_todos t
+           SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${wer.slice(0, 120)},
+               ergebnis = ${ergebnis.slice(0, 500)}, updated_at = NOW(), letzte_aktivitaet = NOW()
+         WHERE t.id = ${Number(t.id)} AND t.status <> 'erledigt'
+           -- Hat sich inzwischen eine weitere Mail angehängt, entscheidet der nächste Versand.
+           AND t.text IS NOT DISTINCT FROM ${t.text ?? null}
+           AND NOT EXISTS (
+             SELECT 1 FROM fiaon_postmeister p
+              WHERE p.id <> ${ein.id} AND p.gesendet_am IS NULL
+                AND p.aktion IN ('entwurf', 'fehler', 'versand_wartet', 'versand_fehlgeschlagen', 'sendet')
+                AND LOWER(p.postfach) = ANY(${bedient}::text[])
+                AND NOT (p.aktion = 'fehler' AND p.created_at < NOW() - INTERVAL '14 days')
+                AND ((${k.sperrePerson}::int IS NOT NULL AND p.person_id = ${k.sperrePerson}::int)
+                  OR (${k.sperreMail}::int IS NOT NULL AND p.id = ${k.sperreMail}::int)
+                  OR (${k.sperreRef}::text IS NOT NULL AND p.ref = ${k.sperreRef}::text)))
+         RETURNING t.id
+      `) as any[];
+      if (fertig.length) geschlossen = true;
+    } catch (e) {
+      console.error("[POSTMEISTER] Übergabe schließen:", String(e).slice(0, 160));
+    }
+  }
+  return geschlossen;
 }
 
 /**
@@ -533,7 +845,18 @@ export async function mailBearbeiten(ein: {
       }
       // Sofort festhalten, dass die Mail draußen ist — auch wenn Ablage oder
       // Vermerk gleich scheitern oder der Server neu startet (E-184).
-      await sqlPool`UPDATE fiaon_postmeister SET gesendet_am = NOW(), aktion = 'auto_beantwortet', updated_at = NOW() WHERE id = ${id}`.catch(() => {});
+      // Faden und Eingang gleich mit — die Zeile trägt bis zu fertig(...) noch
+      // thread_id = '' (Anspruch), und uebergabeSchliessen erkennt „spätere Mail
+      // im selben Faden" nur mit Faden (Nachbesserung E-244).
+      await sqlPool`
+        UPDATE fiaon_postmeister SET gesendet_am = NOW(), aktion = 'auto_beantwortet',
+               thread_id = ${String(mail.threadId || "")}, empfangen_am = ${mail.datum ?? null}, updated_at = NOW()
+         WHERE id = ${id}
+      `.catch(() => {});
+      // E-244 (Nachbesserung): Auch Maras eigener Versand beantwortet — eine
+      // Übergabe aus einem früheren Entwurf desselben Kunden (z. B. nach
+      // „Alle Entwürfe neu schreiben") schließt mit, sofern nichts mehr wartet.
+      await uebergabeSchliessen({ id, personId: wer.personId ?? null, ref: wer.ref ?? null }, "Mara (automatisch)", `Antwort automatisch gesendet, Mail #${id}.`);
       await ablegen(postfach, gmailId, "FIAON/Auto-beantwortet", ["UNREAD"]);
       // E-240: EIN Vermerk je Antwort — Kunde schrieb, Mara antwortete, Handlungen
       // (vorher nur der Antworttext, und nur mit Bestellung im Vorgang).
@@ -667,6 +990,7 @@ export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
         UPDATE fiaon_postmeister SET aktion = 'auto_beantwortet', gesendet_am = NOW(), versand_versuche = ${versuch},
                versand_fehler = NULL, naechster_versuch_am = NULL, in_arbeit_seit = NULL, updated_at = NOW() WHERE id = ${id}
       `.catch((e) => console.error("[POSTMEISTER] nachholen speichern:", String(e).slice(0, 160)));
+      await uebergabeSchliessen({ id, personId, ref }, "Mara (automatisch)", `Antwort gesendet (nachgeholt, Versuch ${versuch}), Mail #${id}.`);
       await ablegen(String(r.postfach), String(r.gmail_id), "FIAON/Auto-beantwortet", ["UNREAD"]);
       await akteVermerk(ref, personId, `Antwort gesendet (nachgeholt, Versuch ${versuch}${gebaut.dateien.length ? `, mit ${gebaut.dateien.map((d) => d.dateiname).join(", ")}` : ""}): ${text.slice(0, 400)}`);
       console.log(`[POSTMEISTER] Versand ${r.postfach}/${r.gmail_id} nachgeholt (Versuch ${versuch}).`);

@@ -484,5 +484,116 @@ abschnitt("Danke-Seite /fb — vom Formular direkt in den vorausgefüllten Antra
   ok(/f: "Facebook-Formular"/.test(link) && /"f" \| "x"/.test(link), "Der Kanal f ist überall bekannt");
 }
 
+// ── 11. Wächter: Stille und Auslieferung (E-244, 26.09.2026) ──────────────
+abschnitt("Wächter — Stille ohne blinden Fleck, „Meta liefert nicht aus“");
+{
+  const { stilleBeurteilen, auslieferungBeurteilen, stilleRuhe, tagPlus, PRUEFSCHRITTE_AUSLIEFERUNG, istTestLead, istBeispielMeldung, WEBHOOK_BEWEIS_STATUS } = await import("../server/lib/fiaon-meta-leads");
+  gleich(tagPlus("2026-10-01", -1), "2026-09-30", "tagPlus über die Monatsgrenze");
+  gleich(tagPlus("2026-12-31", 1), "2027-01-01", "tagPlus über die Jahresgrenze");
+  gleich(tagPlus("2026-10-25", 1), "2026-10-26", "tagPlus über die Zeitumstellung");
+
+  // Der echte Fall: letzter Lead 24.09. 21:26 Berlin, geprüft 26.09. 20:00 — die alte Regel schwieg hier.
+  const letzter = Date.parse("2026-09-24T21:26:00+02:00");
+  const jetzt = Date.parse("2026-09-26T20:00:00+02:00");
+  const echt = stilleBeurteilen({ stunde: 20, jetztMs: jetzt, letzterMs: letzter, gesternFenster: 0, vorher7: 90 });
+  ok(echt.an, "Zweiter stiller Tag: Alarm bleibt an (alte Regel „gestern ≥ 3“ war hier blind)");
+  ok(echt.erwartet > 20, `Erwartung aus den sieben Tagen VOR der Stille (${echt.erwartet.toFixed(1)})`);
+  ok(/^Kein Lead aus Meta seit 24\.09\., 21:26 — /.test(echt.text), `Titel nennt den letzten Lead (${echt.text.slice(0, 50)})`);
+  const nacht = stilleBeurteilen({ stunde: 23, jetztMs: jetzt, letzterMs: letzter, gesternFenster: 0, vorher7: 90 });
+  ok(!nacht.an, "Nachts kein Stille-Alarm");
+  ok(nacht.still && !nacht.tagsueber, "Nachts bleibt die Stille als Zustand erhalten (still, aber nicht tagsüber) — der Wächter lässt den Alarm offen");
+  ok(!stilleBeurteilen({ stunde: 12, jetztMs: letzter + 2.5 * 3_600_000, letzterMs: letzter, gesternFenster: 5, vorher7: 90 }).an, "Unter drei Stunden kein Alarm");
+  ok(stilleBeurteilen({ stunde: 12, jetztMs: letzter + 3.5 * 3_600_000, letzterMs: letzter, gesternFenster: 3, vorher7: 0 }).an, "Alte Regel bleibt: gestern zur selben Zeit ≥ 3 → Alarm nach drei Stunden");
+  ok(!stilleBeurteilen({ stunde: 12, jetztMs: letzter + 30 * 3_600_000, letzterMs: letzter, gesternFenster: 0, vorher7: 5 }).an, "Wenig Verkehr (unter 7 in der Woche): kein Alarm");
+  ok(!stilleBeurteilen({ stunde: 12, jetztMs: letzter + 10 * 3_600_000, letzterMs: letzter, gesternFenster: 0, vorher7: 20 }).an, "20 in der Woche, 10 Stunden still: erwartet 1,2 → noch kein Alarm");
+  ok(stilleBeurteilen({ stunde: 12, jetztMs: letzter + 26 * 3_600_000, letzterMs: letzter, gesternFenster: 0, vorher7: 20 }).an, "20 in der Woche, 26 Stunden still: erwartet 3,1 → Alarm");
+  ok(!stilleBeurteilen({ stunde: 12, jetztMs: jetzt, letzterMs: null, gesternFenster: 0, vorher7: 0 }).an, "Noch nie ein Lead: kein Stille-Alarm");
+
+  // Auslieferung — der echte Stand vom 26.09.
+  const ausgaben = { "2026-09-23": 1783, "2026-09-24": 1792 };
+  const leadsTag = { "2026-09-20": 52, "2026-09-21": 8, "2026-09-22": 1, "2026-09-23": 17, "2026-09-24": 12 };
+  const a1 = auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: ausgaben, leadsJeTag: leadsTag });
+  ok(a1.an && a1.grund === "keine_ausgaben", "Gestern und heute 0 €, davor Geld → „Meta liefert nicht aus“");
+  gleich(a1.seit, "2026-09-25", "Seit = erster Tag ohne Ausgaben");
+  gleich(a1.letzteAusgabe?.cents, 1792, "Letzte Ausgabe 17,92 € am 24.09.");
+  ok(/^Meta liefert seit 25\.09\. nicht aus — /.test(a1.text), `Titel „Meta liefert seit 25.09. nicht aus“ (${a1.text.slice(0, 45)})`);
+  ok(/17,92 €/.test(a1.text), "Text nennt die letzte Ausgabe in Euro");
+  const a2 = auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: false, ausgabenJeTag: ausgaben, leadsJeTag: {} });
+  ok(!a2.an, "Alter Kostenstand ist kein Beleg für 0 € → kein Alarm");
+  const a3 = auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: false, ausgabenJeTag: ausgaben, leadsJeTag: leadsTag });
+  ok(a3.an && a3.grund === "leads_eingebrochen", "Ohne frische Kosten greift der Lead-Einbruch (0 statt Ø 12,9)");
+  ok(/^Meta-Leads eingebrochen: gestern 0 statt Ø 12,9 — /.test(a3.text), `Titel des Einbruchs (${a3.text.slice(0, 50)})`);
+  ok(!auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: { ...ausgaben, "2026-09-26": 350 }, leadsJeTag: { ...leadsTag, "2026-09-25": 9 } }).an,
+    "Heute fließt wieder Geld und gestern kamen genug Leads → kein Alarm");
+  ok(!auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: { ...ausgaben, "2026-09-25": 900 }, leadsJeTag: { ...leadsTag, "2026-09-25": 9 } }).an,
+    "Gestern Geld, heute (noch) 0 € → kein Alarm");
+  ok(!auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: {}, leadsJeTag: {} }).an, "Nie Geld ausgegeben → kein Alarm");
+  ok(!auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: { "2026-09-17": 2000 }, leadsJeTag: {} }).an,
+    "Letzte Ausgabe vor neun Tagen (außerhalb der Woche) → Alarm endet von selbst");
+  const woche = (n: number) => Object.fromEntries(Array.from({ length: 7 }, (_, i) => [tagPlus("2026-09-26", -2 - i), n]));
+  ok(auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: { "2026-09-25": 1000, "2026-09-26": 500 }, leadsJeTag: { ...woche(10), "2026-09-25": 2 } }).an,
+    "Geld fließt, aber gestern nur 2 statt Ø 10 (20 %) → Einbruch");
+  ok(!auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: { "2026-09-25": 1000 }, leadsJeTag: { ...woche(10), "2026-09-25": 3 } }).an,
+    "Gestern 3 statt Ø 10 (genau 30 %) → kein Einbruch");
+  ok(!auslieferungBeurteilen({ heute: "2026-09-26", kostenFrisch: true, ausgabenJeTag: { "2026-09-25": 1000 }, leadsJeTag: { ...woche(2), "2026-09-25": 0 } }).an,
+    "Unter Ø 3 am Tag ist ein leerer Tag Zufall → kein Einbruch");
+
+  // Kein Alarm fragt mehr nach dem Live-Modus — die App ist live (26.09.), die Frage schickte in die Irre.
+  for (const [name, text] of [["Stille", echt.text], ["Auslieferung", a1.text], ["Einbruch", a3.text], ["Prüfschritte", PRUEFSCHRITTE_AUSLIEFERUNG]] as const) {
+    ok(!/Live|Entwicklung/.test(text), `${name}: keine Live-Modus-Frage`);
+  }
+  ok(/billing_hub/.test(PRUEFSCHRITTE_AUSLIEFERUNG) && /Auslieferung/.test(PRUEFSCHRITTE_AUSLIEFERUNG) && /lead-ads-testing/.test(PRUEFSCHRITTE_AUSLIEFERUNG),
+    "Prüfschritte: Auslieferung, Abrechnung, Lead-Ads-Testing-Tool");
+
+  // Gegenprüfung E-244: keine Ausgaben erklären keine Leads — egal, was davor war.
+  ok(a1.ohneAusgaben, "Gestern und heute 0 € bei frischem Stand → ohneAusgaben");
+  ok(auslieferungBeurteilen({ heute: "2026-10-20", kostenFrisch: true, ausgabenJeTag: {}, leadsJeTag: {} }).ohneAusgaben,
+    "Kampagnen seit Wochen beendet: ohneAusgaben bleibt wahr (keine Stille-Aufgabe jeden Tag)");
+  ok(!a2.ohneAusgaben, "Alter Stand: ohneAusgaben nicht belegt");
+  ok(stilleRuhe({ heute: "2026-10-20", kostenFrisch: false, kostenBis: "2026-10-19", ausgabenJeTag: {}, leadsJeTag: {} }),
+    "Alter Stand, der bis gestern reicht und 0 € zeigt → Stille bleibt ruhig");
+  ok(!stilleRuhe({ heute: "2026-10-20", kostenFrisch: false, kostenBis: "2026-10-17", ausgabenJeTag: {}, leadsJeTag: {} }),
+    "Alter Stand, der nicht mehr bis gestern reicht → Stille entscheidet allein");
+  ok(!stilleRuhe({ heute: "2026-10-20", kostenFrisch: true, ausgabenJeTag: { "2026-10-20": 100 }, leadsJeTag: {} }), "Heute fließt Geld → keine Ruhe");
+  ok(/Enddatum/.test(PRUEFSCHRITTE_AUSLIEFERUNG) && /eigenen Werbekonto/.test(a1.text) && /erlischt dieser Hinweis nach sieben Tagen/.test(a1.text),
+    "Gewolltes Kampagnenende: erster Prüfschritt fragt danach, Text sagt, wann der Hinweis erlischt");
+
+  // Test-Leads von Meta legen nichts an (keine Mail, keine Zuteilung).
+  ok(istTestLead({ id: "1", field_data: [{ name: "full_name", values: ["<test lead: dummy data for full_name>"] }] }), "Test-Lead an „<test lead: …>“ erkannt");
+  ok(istTestLead({ id: "1", field_data: [{ name: "email", values: ["TEST@fb.com"] }] }), "Test-Lead an test@fb.com erkannt");
+  ok(istTestLead({ id: "1", field_data: [{ name: "email", values: ["test@meta.com"] }] }), "Test-Lead an test@meta.com erkannt");
+  ok(!istTestLead({ id: "1", field_data: [{ name: "full_name", values: ["Anna Test"] }, { name: "email", values: ["anna.test@gmx.de"] }] }), "Echter Lead (Name „Test“) bleibt echt");
+  ok(!istTestLead({ id: "1" }) && !istTestLead(null), "Ohne Felder kein Test-Lead");
+  ok(istBeispielMeldung({ leadgen_id: "444444444444" }) && !istBeispielMeldung({ leadgen_id: "1234567890123456" }), "Beispielmeldung 444… aus dem App-Dashboard erkannt");
+  ok(/kein Kunde, keine Zuteilung, keine Mail/.test(PRUEFSCHRITTE_AUSLIEFERUNG), "Prüfschritt 4 sagt, dass der Test-Lead nichts auslöst");
+  gleich([...WEBHOOK_BEWEIS_STATUS].join(","), "verarbeitet,ungueltig,test", "Beweis nur mit abgerufener Meldung");
+
+  const ml = lies("server/lib/fiaon-meta-leads.ts");
+  const einspielen = ml.split("export async function metaLeadEinspielen")[1]?.split("\n}\n")[0] ?? "";
+  ok(einspielen.indexOf("istTestLead(roh)") > 0 && einspielen.indexOf("istTestLead(roh)") < einspielen.indexOf("processIntake"),
+    "Test-Lead wird VOR processIntake abgefangen");
+  const beweis = ml.split("export async function webhookBeweis")[1] ?? "";
+  ok(/feld = 'leadgen' AND status IN/.test(beweis), "webhookBeweis zählt nur abgerufene Lead-Meldungen");
+  ok(/istBeispielMeldung\(wert\)/.test(ml.split("export async function meldungSpeichern")[1] ?? ""), "Beispielmeldung wird nie verarbeitet");
+  const regeln = ml.split("export async function waechterLeadRegeln")[1]?.split("export async function waechterLauf")[0] ?? "";
+  const waechter = ml.split("export async function waechterLauf")[1] ?? "";
+  ok(/waechterLeadRegeln\(lauf\)/.test(waechter), "Der Wächter nutzt die geprüfte Stufe waechterLeadRegeln");
+  ok(/stilleBeurteilen\(/.test(regeln) && /alarm\("auslieferung"/.test(regeln), "Die Stufe nutzt beide Regeln");
+  ok(!/Number\(st\?\.gestern \|\| 0\) >= 3\s*\n?\s*&&/.test(regeln), "Der blinde Fleck „nur wenn gestern ≥ 3“ ist weg");
+  ok(!/App-Dashboard auf „Live“/.test(waechter) && /lead-ads-testing/.test(waechter), "Webhook-Alarm: Prüfschritte statt Live-Modus-Frage");
+  ok(/if \(au\.kostenFrisch \|\| u\.an\)/.test(regeln) && /text LIKE \$\{EINBRUCH_ANFANG/.test(regeln),
+    "Alter Kostenstand: „liefert nicht aus“ bleibt, ein Einbruch-Alarm darf aus");
+  ok(/if \(ohneAusgaben \|\| !stille\.still\)/.test(regeln) && /else if \(stille\.tagsueber\)/.test(regeln),
+    "Stille: ohne Werbegeld aus, nachts nie „erledigt“ aus bloßer Tageszeit");
+
+  const ui = lies("client/src/components/admin/ChefLeadMotor.tsx");
+  ok(/Webhook bestätigt\$\{s\.ersteMeldung \? ` \(erste Meldung am/.test(ui) && /bisher nur Nachhol-Lauf — Webhook noch unbewiesen/.test(ui), "Kopfzeile unterscheidet bestätigt / unbewiesen");
+  ok(!/"Webhook unbewiesen"/.test(ui), "Kein doppelter Webhook-Chip neben dem Kopfsatz");
+  ok(/jedes bekannte Formular/.test(ui), "Nachhol-Satz verspricht nicht „jedes Formular“");
+  ok(/const webhookBewiesen = !!s\?\.letzteMeldung/.test(ui), "Bewiesen erst mit einer echten Meldung, nicht mit grüner Prüfliste");
+  ok(/a\.art === "auslieferung"/.test(ui), "Kopfzeile zeigt „Meta liefert seit … nicht aus“");
+  ok(!/Seit dem 21\.09\. morgens kam über Make fast nichts an/.test(ui), "Veralteter Make-Satz ist gestrichen");
+}
+
 console.log(`\n${fehler ? "✗" : "✓"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler ? 1 : 0);

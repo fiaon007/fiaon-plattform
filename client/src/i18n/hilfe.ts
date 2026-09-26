@@ -27,7 +27,7 @@ const de = {
       { f: "Was passiert nach dem Antrag?", a: "Sie legen ein Passwort fest und wählen: „Jetzt aktivieren“ (Zahlungsdaten mit QR-Code) oder „Zuerst sprechen“ (Termin mit einem Mitarbeiter). Nach Zahlungseingang buchen Sie das Startgespräch – bis dahin bleibt der Bereich geschlossen." },
       { f: "Was ist das Startgespräch?", a: "Ein Telefonat von rund 15 Minuten mit einem Mitarbeiter: Lage, Ziel, Unterlagen, nächste Schritte. Es ist Pflicht, weil danach Ihre Auskunft beantragt wird. Wer vorher einen Termin über /termin gebucht hat, braucht keinen zweiten." },
       { f: "Kann ich das Paket noch ändern?", a: "Ja – im Antrag, im Startgespräch und danach jederzeit nach oben; nach unten zum nächsten Ratenlauf. Der Paketfinder auf der Preisseite gibt die erste Orientierung." },
-      { f: "Ich habe den Antrag abgebrochen – was nun?", a: "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Es entstehen keine Kosten, bis Sie den Vertrag annehmen und die erste Rate zahlen." },
+      { f: "Ich habe den Antrag abgebrochen – was nun?", a: "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Kosten entstehen erst, wenn Sie im Schritt „Vertrag“ auf „Zahlungspflichtig annehmen“ klicken – direkt darüber sehen Sie Paket, Monatsrate, Laufzeit und Gesamtbetrag." },
     ] },
     { key: "zahlung", titel: "Zahlung und Raten", satz: "Überweisung, Raten, Zahlungskalender.", fragen: [
       { f: "Wie bezahle ich die erste Rate?", a: "Per Überweisung an die Zahlungsdaten im Kundenbereich (mit QR-Code zum Scannen). Sobald die Bank den Eingang bestätigt, ist Ihr Paket aktiv – „bezahlt“ heißt bei FIAON immer bankbestätigt, nicht nur gemeldet." },
@@ -98,7 +98,7 @@ const en: typeof de = {
       { f: "What happens after the application?", a: "You set a password and choose: “Activate now” (payment details with a QR code) or “Talk first” (an appointment with one of our team). After the payment arrives you book the onboarding call — until then the area stays closed." },
       { f: "What is the onboarding call?", a: "A phone call of around 15 minutes with one of our team: situation, goal, documents, next steps. It is mandatory because your report is requested afterwards. Anyone who booked a call beforehand does not need a second one." },
       { f: "Can I still change the plan?", a: "Yes — in the application, in the onboarding call and upwards at any time afterwards; downwards from the next instalment cycle. The plan finder on the pricing page gives a first orientation." },
-      { f: "I abandoned the application — what now?", a: "You can continue at any time: the link in the e-mail takes you back into the application. No costs arise until you accept the contract and pay the first instalment." },
+      { f: "I abandoned the application — what now?", a: "You can continue at any time: the link in the e-mail takes you back into the application. Costs only arise when you click “Zahlungspflichtig annehmen” (accept with obligation to pay) in the “Contract” step — directly above it you see the plan, monthly instalment, term and total amount." },
     ] },
     { key: "zahlung", titel: "Payment and instalments", satz: "Bank transfer, instalments, payment calendar.", fragen: [
       { f: "How do I pay the first instalment?", a: "By bank transfer to the payment details in the customer area (with a QR code to scan). As soon as the bank confirms receipt, your plan is active — at FIAON “paid” always means bank-confirmed, not just reported." },

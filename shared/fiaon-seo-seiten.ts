@@ -1907,7 +1907,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     krumen: [{ name: "Datenschutzerklärung", pfad: "/privacy" }],
   },
   "/agb": {
-    pfad: "/agb", art: "recht", stand: "2026-08-22", prio: 0.3,
+    pfad: "/agb", art: "recht", stand: "2026-09-26", prio: 0.3,
     titel: "Allgemeine Geschäftsbedingungen (AGB) — FIAON",
     beschreibung: "Die Bedingungen für die Leistungen von FIAON: Vertragsschluss, Laufzeit von zwölf Monatsraten, Zahlung per Überweisung, Kündigung, Widerruf und Haftung.",
     h1: "Allgemeine Geschäftsbedingungen (AGB)",

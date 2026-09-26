@@ -40,6 +40,8 @@ import { AUSKUNFT_LEAD_VORLAGEN, AUSKUNFT_ZAHLUNG_VORLAGEN, AUSKUNFT_ZAHLUNG_GEM
 import { AUSKUNFT_VERKAUF_VORLAGEN, auskunftAngebotBaustein } from "./vorlagen/auskunft-verkauf";
 // 26.09.2026 (E-243): der Kundenpreis-Link — vom Kunden selbst angefordert (keine Werbung).
 import { AUSKUNFT_KUNDENPREIS_VORLAGEN } from "./vorlagen/auskunft-lead";
+// 26.09.2026 (E-244): die Zahlungserinnerung an eine offene Bonitätsauskunft (Zahlungspost, keine Werbung).
+import { AUSKUNFT_ERINNERUNG_VORLAGEN, auskunftErinnerungBaustein } from "./vorlagen/auskunft-erinnerung";
 import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
 import { APP_VORLAGEN } from "./vorlagen/app";
@@ -56,6 +58,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   // E-240 (24.09.2026): das Angebot der Bonitätsauskunft (Werbung, drei Fassungen).
   ...AUSKUNFT_VERKAUF_VORLAGEN,
   ...AUSKUNFT_KUNDENPREIS_VORLAGEN,
+  ...AUSKUNFT_ERINNERUNG_VORLAGEN,
   ...TEAM_VORLAGEN,
   ...RUECKHOLUNG_VORLAGEN,
   ...APP_VORLAGEN,
@@ -115,6 +118,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   global_auftrag: "accounting",
   // … und die ruhige Erinnerung an dieselbe Rechnung ebenfalls.
   global_zahlung_erinnerung: "accounting",
+  // E-244 (26.09.2026): die Erinnerung an eine offene Bonitätsauskunft — Zahlungspost aus der Buchhaltung.
+  auskunft_zahlung_erinnerung: "accounting",
   // 18.09.2026: Diese drei kamen als „FIAON Welcome" — die Stimme der
   // Begrüßung. Der Kontowechsel ist Buchhaltung; Kündigung und Vertragsende
   // sind Vertragspost und kommen wie die Kündigung eines Mitarbeiters (E-185)
@@ -272,6 +277,12 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
     // Anbieter und Widerrufsbelehrung in Textform (§ 312f Abs. 2, § 356 Abs. 3 BGB). Welche Belehrung
     // (Verbraucher/Unternehmen) und welcher Satz zur Wahl des Beginns, entscheidet die Nutzlast.
     vorlage = event === "payment_details" ? auskunftZahlungsdatenBaustein(payload) : auskunftZahlungEingangBaustein(payload);
+    if (String((payload as any).auskunfteien ?? "").trim() === "") payload = { ...payload, auskunfteien: "den Auskunfteien Ihres Landes" };
+  }
+  // E-244 (26.09.2026): die Zahlungserinnerung an eine offene Auskunft — Anlass je Stufe, Belehrung nur,
+  // solange keine protokolliert ist (server/mail/vorlagen/auskunft-erinnerung.ts). Ohne Land kein geratenes „SCHUFA".
+  if (event === "auskunft_zahlung_erinnerung") {
+    vorlage = auskunftErinnerungBaustein(payload);
     if (String((payload as any).auskunfteien ?? "").trim() === "") payload = { ...payload, auskunfteien: "den Auskunfteien Ihres Landes" };
   }
   // Integration 26.09.2026 (E-243): „Ich habe überwiesen" bei einer Auskunft — ohne „Ihr Bereich geht auf,

@@ -34,6 +34,8 @@ interface Stand {
   };
   letzterLead: { am: string; weg: string } | null;
   letzteMeldung: string | null;
+  /** E-244: erste Lead-Meldung per Webhook (liefert die Route erst nach dem Nachtrag webhookBeweis). */
+  ersteMeldung?: string | null;
   nachholBis: string | null;
   alarme: { id: number; art: string; text: string; erstellt_am: string; zuletzt_am: string; zaehler: number }[];
   formulare: Formular[];
@@ -175,12 +177,22 @@ export default function ChefLeadMotor() {
   };
 
   const direkt = !!s?.konfig.bereit && !!s?.pruefliste?.bereit;
-  const punktKlasse = !s ? "" : s.alarme.length ? " warn" : direkt ? " an" : s.konfig.bereit ? " halb" : "";
+  // E-244 (26.09.2026): Eine grüne Prüfliste beweist den Webhook NICHT — Meta zeigt
+  // Abos auch dann als bestehend, wenn nie etwas geliefert wird. Bewiesen ist er erst,
+  // wenn eine Lead-Meldung angekommen ist, deren Lead sich abrufen ließ (letzteMeldung;
+  // die Beispielmeldung „Test“ aus dem App-Dashboard zählt nicht — Route über webhookBeweis).
+  const webhookBewiesen = !!s?.letzteMeldung;
+  const auslieferung = s?.alarme.find((a) => a.art === "auslieferung") ?? null;
+  const auslieferungTitel = auslieferung ? auslieferung.text.split(" — ")[0] : null;
+  const punktKlasse = !s ? "" : s.alarme.length ? " warn" : direkt && webhookBewiesen ? " an" : s.konfig.bereit ? " halb" : "";
+  const letzterLeadText = s?.letzterLead ? `Letzter Lead ${seit(s.letzterLead.am)} (${s.letzterLead.weg}).` : "Noch kein Lead.";
   const kopfSatz = !s ? "" : !s.konfig.bereit
     ? "Der Meta-Zugang fehlt noch — bis dahin kommen die Leads über Make (dort Weg 1 löschen, dann läuft es wieder). Jeden Schritt bei Meta siehst du hier."
-    : direkt
-      ? `Direkt von Meta. Letzter Lead ${s.letzterLead ? `${seit(s.letzterLead.am)} (${s.letzterLead.weg})` : "—"}.`
-      : "Der Zugang ist eingetragen — jetzt „Verbindung einrichten“ drücken.";
+    : !direkt
+      ? "Der Zugang ist eingetragen — jetzt „Verbindung einrichten“ drücken."
+      : webhookBewiesen
+        ? `Webhook bestätigt${s.ersteMeldung ? ` (erste Meldung am ${zeit(s.ersteMeldung)})` : ""}. ${letzterLeadText}`
+        : `Verbunden, aber bisher nur Nachhol-Lauf — Webhook noch unbewiesen. ${letzterLeadText}`;
   const wege = s ? Object.entries(s.zahlen.jeWeg).sort((a, b) => b[1] - a[1]) : [];
 
   return (
@@ -199,6 +211,7 @@ export default function ChefLeadMotor() {
               </div>
             </div>
             <div className="lm-kopf-rechts">
+              {auslieferungTitel && <span className="lm-chip rot" role="status">{auslieferungTitel}</span>}
               <span className="lm-still">Letzte Meldung von Meta: {s.letzteMeldung ? seit(s.letzteMeldung) : "noch keine"}</span>
             </div>
           </header>
@@ -364,7 +377,7 @@ export default function ChefLeadMotor() {
           <details className="lm-karte lm-klapp lm-rueckstand"><summary>Rückstand nachholen<span className="lm-klapp-still">Leads bei Meta abholen</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <p className="lm-still">Meta hält jeden Lead 90 Tage bereit. Seit dem 21.09. morgens kam über Make fast nichts an — diese Leads holt der Knopf. {s.nachholBis ? `Der Nachhol-Lauf steht bei ${zeit(s.nachholBis)}.` : ""}</p>
+                <p className="lm-still">Meta hält jeden Lead 90 Tage bereit. Der Nachhol-Lauf fragt alle 5 Minuten jedes bekannte Formular ab — ein neues Formular kennt er erst nach „Verbindung einrichten“ oder der nächsten Prüfung (alle 6 Stunden). Der Knopf holt zusätzlich alles ab einem Tag nach — wer schon da ist, wird nicht doppelt angelegt. {s.nachholBis ? `Der Nachhol-Lauf steht bei ${zeit(s.nachholBis)}.` : ""}</p>
               </div>
             </div>
             <div className="lm-reihe">
@@ -378,6 +391,7 @@ export default function ChefLeadMotor() {
               <p className="lm-ergebnis">
                 {nachholErgebnis.formulare} Formulare gefragt · {nachholErgebnis.gefunden} Leads bei Meta · <b>{nachholErgebnis.neu} neu angelegt</b> · {nachholErgebnis.schonDa} schon da
                 {nachholErgebnis.ungueltig ? ` · ${nachholErgebnis.ungueltig} ohne Mail und Telefon` : ""}
+                {nachholErgebnis.test ? ` · ${nachholErgebnis.test} Test-Lead${nachholErgebnis.test === 1 ? "" : "s"} von Meta (nicht angelegt)` : ""}
                 {nachholErgebnis.fehler?.length ? <span className="lm-rot"> · {nachholErgebnis.fehler.join(" · ")}</span> : null}
               </p>
             )}
@@ -1102,7 +1116,7 @@ function MeldungenListe() {
             <tr key={m.id}>
               <td>{zeit(m.empfangen_am)}</td>
               <td>{m.objekt === "page" && m.feld === "leadgen" ? "Lead" : `${m.objekt}/${m.feld}`}</td>
-              <td>{m.status === "verarbeitet" ? "angelegt" : m.status}{m.versuche > 1 ? ` (${m.versuche} Versuche)` : ""}</td>
+              <td>{m.status === "verarbeitet" ? "angelegt" : m.status === "test" ? "Test-Lead (nicht angelegt)" : m.status === "beispiel" ? "Beispiel aus dem App-Dashboard" : m.status}{m.versuche > 1 ? ` (${m.versuche} Versuche)` : ""}</td>
               <td className="lm-zahlzelle">{m.lead_id ?? "—"}</td>
               <td className="lm-still">{m.fehler ?? ""}</td>
             </tr>

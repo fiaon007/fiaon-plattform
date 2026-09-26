@@ -194,7 +194,7 @@ router.post("/agent/postmeister/:id/senden", requireAgent, async (req: AgentRequ
     if (z.r.gesendet_am) return res.status(409).json({ ok: false, error: "Diese Antwort ist schon gesendet." });
     const text = typeof req.body?.text === "string" && req.body.text.trim().length >= 10 ? String(req.body.text) : null;
     const { entwurfSenden } = await import("./fiaon-postmeister-zentrale");
-    const erg = await entwurfSenden(Number(req.params.id), text);
+    const erg = await entwurfSenden(Number(req.params.id), text, {}, req.agent!.name || "Betreuer");
     if (erg.ok && z.r.ref) {
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
@@ -224,6 +224,16 @@ router.post("/agent/postmeister/:id/erledigt", requireAgent, async (req: AgentRe
     if (r?.antwort_draft_id) {
       const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
       await entwurfLoeschen(r.postfach, r.antwort_draft_id).catch(() => {});
+    }
+    // E-244: Übernommen heißt beantwortet — die Übergabe-Aufgabe schließt mit
+    // (nur wenn für diesen Kunden kein weiterer Entwurf wartet und jede
+    // auslösende Mail erledigt ist). Hier entscheidet der Betreuer selbst
+    // („selbst beantwortet oder angerufen") — sein Wort gilt auch bei Rückruf
+    // oder Beschwerde (menschEntscheidet), anders als beim bloßen Senden.
+    if (r) {
+      const { uebergabeSchliessen } = await import("../lib/fiaon-postmeister-lauf");
+      await uebergabeSchliessen({ id: Number(req.params.id), personId: z.r.person_id ?? null, ref: z.r.ref ?? null },
+        req.agent!.name || "Betreuer", `Vom Betreuer übernommen: ${wie}. Mail #${Number(req.params.id)}.`, { menschEntscheidet: true });
     }
     if (z.r.ref) {
       await sqlPool`

@@ -28,7 +28,7 @@ interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen
 interface Stand {
   einstellungen: Einstellungen;
   zaehler: { letzteStunde: number; heute: number; tagesDeckel: number; kostenHeuteEuro: number };
-  zahlen: { gesendet: number; menschen: number; antworten: number; gemeldet: number; bezahlt: number; abgelehnt: number; fehler: number; ausgeschlossen: number; postfach?: { heute_rein?: number; heute_beantwortet?: number; entwuerfe?: number } };
+  zahlen: { gesendet: number; menschen: number; antworten: number; gemeldet: number; bezahlt: number; bezahltEuro?: number; abgelehnt: number; fehler: number; ausgeschlossen: number; postfach?: { heute_rein?: number; heute_beantwortet?: number; entwuerfe?: number } };
   kosten: { heuteEuro: number; wocheEuro: number };
   schlange: { personId: number; ref: string; stufe: "A" | "B"; schritt: number; name: string; paket: string | null; betragEuro: number | null; wunschlimit: number | null; ereignisAm: string; zuletztAm: string | null }[];
 }
@@ -167,9 +167,13 @@ function MaraBefehl({ melden }: { melden: (t: string) => void }) {
       {/* ── Maras Tag ────────────────────────────────────────────────── */}
       {t && (
         <div className="mp-tag">
-          <b>Maras Tag</b>
-          <span>{t.mails?.geschrieben ?? 0} Mails · {t.whatsapp?.raus ?? 0} WhatsApp an {t.whatsapp?.menschen ?? 0} Menschen
-            · {t.auftraege?.gelaufen ?? 0} Aufträge gelaufen · {t.kostenEuro?.toLocaleString("de-DE", { minimumFractionDigits: 2 })} € KI-Kosten</span>
+          <b>Heute insgesamt</b>
+          {/* E-244: ehrlich beschriftet — „Mails" waren die Antworten im Postfach, „WhatsApp" alle Absender,
+              die KI-Kosten nur die der Aufträge. Maras eigene Zahlen je Weg stehen in „Maras Bilanz" oben. */}
+          <span title="Postfach = Antworten auf eingegangene Mails (nicht die Mail-Aktion). WhatsApp = alle Absender (Mara, Team, Leitung). Maras eigene Zahlen und alle KI-Kosten: Karte „Maras Bilanz“ oben.">
+            Postfach: {t.mails?.geschrieben ?? 0} Antworten{t.mails?.entwuerfe ? ` · ${t.mails.entwuerfe} Entwürfe` : ""}
+            {" "}· WhatsApp alle Absender: {t.whatsapp?.raus ?? 0} raus an {t.whatsapp?.menschen ?? 0} Nummern
+            {" "}· {t.auftraege?.gelaufen ?? 0} Aufträge gelaufen</span>
           {(t.offen ?? []).length > 0 && (
             <span className="mp-tag-offen">{t.offen.map((o: any) => `${o.wieviel} ${o.was}`).join(" · ")}</span>
           )}
@@ -359,7 +363,7 @@ function MaraMailAktion() {
             <Zahl titel="Letzte Stunde" wert={`${s.zaehler.letzteStunde}`} unter={`Takt jetzt ${rate} je Stunde`} />
             <Zahl titel="In der Schlange" wert={`${s.schlange.length}${s.schlange.length >= 40 ? "+" : ""}`} unter="fällig, nach Hitze" />
             <Zahl titel="Antworten" wert={`${s.zahlen.antworten}`} unter={`von ${s.zahlen.menschen} Menschen · 14 Tage`} ton="blau" />
-            <Zahl titel="Zahlung danach" wert={`${s.zahlen.bezahlt}`} unter={`bezahlt · ${s.zahlen.gemeldet} gemeldet · 14 Tage`} ton="gruen" />
+            <Zahl titel="Geld danach" wert={`${s.zahlen.bezahlt}`} unter={`${euro(s.zahlen.bezahltEuro ?? 0)} gebucht · ${s.zahlen.gemeldet} gemeldet · 14 Tage`} ton="gruen" />
             <Zahl titel="Kosten heute" wert={euro(s.kosten.heuteEuro)} unter={`Deckel ${euro(e.tagEuro)} · Woche ${euro(s.kosten.wocheEuro)}`} />
           </section>
 
@@ -515,7 +519,7 @@ function Mails({ status, runde, melden }: { status: Reiter; runde: number; melde
               <span className="mp-still">Mail {m.schritt} · {zeit(m.am)}</span>
               {m.antwortAm && <span className="mp-chip blau">hat geantwortet</span>}
               {m.gemeldetAm && <span className="mp-chip gelb">Zahlung gemeldet</span>}
-              {m.bezahltAm && <span className="mp-chip gruen">bezahlt</span>}
+              {m.bezahltAm && <span className="mp-chip gruen" title="Gebuchte Zahlung höchstens 14 Tage nach dieser Mail (wie /chef/zahlen) — zeitliche Folge, kein Beweis.">Geld gebucht</span>}
               {m.ausgeschlossen && <span className="mp-chip">aus der Aktion</span>}
             </span>
             <span className="mp-betreff">{m.betreff || "—"}</span>
@@ -761,6 +765,255 @@ function ProbeFenster({ probe, onZu }: { probe: any; onZu: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MARAS BILANZ (26.09.2026, E-244)
+//
+// Justin: „Wo finde ich Maras Abschlussbericht? Ich will wissen, was wir durch
+// Mara bislang hatten oder durch die neuen Leads."
+//
+// Eine Karte über den drei Reitern: Heute | 7 Tage | Seit Start, fünf Wege,
+// darunter der Rahmen. Jede Zahl trägt ihre Quelle als title (aus dem JSON der
+// Route, nicht aus dem Client). Die Rechnung: server/lib/fiaon-mara-bilanz.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+type BilanzName = "heute" | "woche" | "start";
+interface BilanzGeld { zahlungen: number; menschen: number; cents: number }
+interface BilanzZeitraum {
+  name: BilanzName;
+  mail: { ab: string; gesendet: number; menschen: number; antworten: number; gemeldet: number; geld: BilanzGeld; geldVorherGemeldet?: BilanzGeld };
+  whatsapp: { ab: string; rein: number; reinNummern: number; antworten: number; gespraeche: number; vorlagen: number; fehler: number; termine: number; uebergaben: number; auskunft: number; geld: BilanzGeld };
+  postfach: { ab: string; beantwortet: number; entwuerfe: number; handgriffe: number; handgriffeJe: Record<string, number> };
+  auskunft: { ab: string; angebote: number; angeboteMenschen: number; whatsapp: number; klicks: number; bestellt: number; bezahlt: number; bezahltCents: number };
+  leads: { von: string; bis: string; leads: number; leadsKonto: number; menschen: number; begonnen: number; fertig: number; zahlende: number; umsatzCents: number; werbungCents: number; kostenJeLeadCents: number | null; kostenJeZahlendemCents: number | null };
+  rahmen: { ab: string; geldCents: number; zahlungen: number; rate1Cents: number; rate2Cents: number; auskunftCents: number; globalCents: number; nachMaraCents: number; nachMaraZahlungen: number; nachMaraOhneMeldungCents?: number; nachMailCents: number; nachWhatsappCents: number; kiCents: number; kiJeDienst: Record<string, number>; kuendigungen: number; kuendigungNachMail: number };
+}
+interface BilanzDaten {
+  stand: string; heuteBerlin: string; dauerMs: number; ausZwischenspeicher: boolean; nachTagen: number; hinweis: string;
+  starts: Record<string, { am: string; beleg: string; tag?: string }>;
+  kostenStand: string | null;
+  zeitraeume: Record<BilanzName, BilanzZeitraum>;
+  definitionen: Record<string, { quelle: string; definition: string }>;
+}
+const BILANZ_REITER: { name: BilanzName; text: string }[] = [
+  { name: "heute", text: "Heute" }, { name: "woche", text: "7 Tage" }, { name: "start", text: "Seit Start" },
+];
+const HANDGRIFF_TEXT: Record<string, string> = {
+  zahlungslink_bauen: "Zahlungslink", aufgabe_an_betreuer: "an Betreuer", vermerk_schreiben: "Vermerk", rechnung_anhaengen: "Rechnung",
+  kuendigung_vormerken: "Kündigung", notiz_an_betreuer: "Notiz", auskunft_anbieten: "Auskunft angeboten", terminlink_bauen: "Terminlink",
+  werbesperre_setzen: "Werbesperre", mahnstopp_setzen: "Mahnstopp", konto_freischalten: "Konto frei", eskalation_vorbereiten: "Eskalation",
+  global_zugang_senden: "Global-Zugang",
+};
+const ct = (c: number | null | undefined) => (c == null ? "—" : euro(Number(c) / 100));
+const zz = (n: number | null | undefined) => Number(n || 0).toLocaleString("de-DE");
+const tagZeit = (s: string) => {
+  try {
+    return new Date(s).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch { return ""; }
+};
+const tagNur = (s: string) => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.` : "");
+
+type BInfo = { quelle: string; definition: string } | undefined;
+const infoText = (info: BInfo, zusatz?: string) => (info ? `${info.definition}${zusatz ? `\n${zusatz}` : ""}\nQuelle: ${info.quelle}` : undefined);
+
+/** Eine Zeile der Bilanz. Maus: Quelle im title. Handy: Tippen klappt die Quelle unter der Zeile auf. */
+function BZeile({ text, wert, info, leise }: { text: string; wert: string; info?: BInfo; leise?: boolean }) {
+  const [offen, setOffen] = useState(false);
+  return (
+    <div
+      className={`mbz-zeile${leise ? " leise" : ""}${offen ? " offen" : ""}`} title={infoText(info)}
+      role={info ? "button" : undefined} tabIndex={info ? 0 : undefined} aria-expanded={info ? offen : undefined}
+      onClick={info ? () => setOffen((o) => !o) : undefined}
+      onKeyDown={info ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOffen((o) => !o); } } : undefined}
+    >
+      <dt>{text}</dt><dd>{wert}</dd>
+      {offen && info ? <dd className="mbz-info">{info.definition} <i>Quelle: {info.quelle}</i></dd> : null}
+    </div>
+  );
+}
+
+/** Die große Zahl je Weg — ebenfalls per Tippen erklärbar. */
+function BHeld({ wert, unter, info }: { wert: string; unter: string; info?: BInfo }) {
+  const [offen, setOffen] = useState(false);
+  return (
+    <div
+      className={`mbz-held${offen ? " offen" : ""}`} title={infoText(info)}
+      role={info ? "button" : undefined} tabIndex={info ? 0 : undefined} aria-expanded={info ? offen : undefined}
+      onClick={info ? () => setOffen((o) => !o) : undefined}
+      onKeyDown={info ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOffen((o) => !o); } } : undefined}
+    >
+      <b>{wert}</b>
+      <span>{unter}</span>
+      {offen && info ? <p className="mbz-info">{info.definition} <i>Quelle: {info.quelle}</i></p> : null}
+    </div>
+  );
+}
+
+/** Eine Kachel des Rahmens — Maus: title, Handy: Tippen zeigt die Erklärung. */
+function BRahmen({ titel, wert, unter, info, zusatz, klasse }: { titel: string; wert: string; unter: string; info?: BInfo; zusatz?: string; klasse?: string }) {
+  const [offen, setOffen] = useState(false);
+  return (
+    <div
+      className={`${klasse ?? ""}${offen ? " offen" : ""}`.trim() || undefined} title={infoText(info, zusatz)}
+      role={info ? "button" : undefined} tabIndex={info ? 0 : undefined} aria-expanded={info ? offen : undefined}
+      onClick={info ? () => setOffen((o) => !o) : undefined}
+      onKeyDown={info ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOffen((o) => !o); } } : undefined}
+    >
+      <span>{titel}</span><b>{wert}</b><em>{unter}</em>
+      {offen && info ? <p className="mbz-info">{info.definition}{zusatz ? ` ${zusatz}` : ""} <i>Quelle: {info.quelle}</i></p> : null}
+    </div>
+  );
+}
+
+function MarasBilanz() {
+  const d = useDaten<BilanzDaten>("/chef/mara/bilanz");
+  const [wahl, setWahl] = useState<BilanzName>(() => {
+    try { const w = window.localStorage.getItem("mara-bilanz-zeitraum"); return w === "woche" || w === "start" ? w : "heute"; } catch { return "heute"; }
+  });
+  const waehlen = (w: BilanzName) => { setWahl(w); try { window.localStorage.setItem("mara-bilanz-zeitraum", w); } catch { /* nur Bequemlichkeit */ } };
+  const b = d.daten;
+  const z = b?.zeitraeume?.[wahl];
+  const def = (k: string) => b?.definitionen?.[k];
+  // „ab …" nur, wenn der Weg später beginnt als der Zeitraum (Seit Start immer).
+  const ab = (iso: string) => {
+    if (!b || !iso) return null;
+    if (wahl === "start") return `seit ${tagZeit(iso)}`;
+    const nominal = wahl === "heute" ? null : new Date(new Date(b.stand).getTime() - 7 * 86400_000 + 60_000);
+    if (nominal && new Date(iso) > nominal) return `ab ${tagZeit(iso)}`;
+    return null;
+  };
+  const vorher = z?.mail.geldVorherGemeldet;
+
+  return (
+    <section className="mbz" aria-labelledby="mbz-titel">
+      <header className="mbz-kopf">
+        <div>
+          <h2 id="mbz-titel">Maras Bilanz</h2>
+          <p>Was Mara und die neuen Leads gebracht haben. Geld heißt gebucht, nicht gemeldet.{b ? ` Stand ${tagZeit(b.stand)} Uhr.` : ""}</p>
+        </div>
+        <div className="mbz-umschalter" role="group" aria-label="Zeitraum">
+          {BILANZ_REITER.map((r) => (
+            <button key={r.name} type="button" aria-pressed={wahl === r.name} onClick={() => waehlen(r.name)}>{r.text}</button>
+          ))}
+        </div>
+      </header>
+
+      {d.laedt && !b ? <Geruest zeilen={5} /> : null}
+      {d.fehler && !b ? <Fehlermeldung text={d.fehler} erneut={d.neu} /> : null}
+
+      {z && b ? (
+        <>
+          <div className="mbz-spalten">
+            {/* ── Mail-Aktion ─────────────────────────────────────── */}
+            <article className="mbz-spalte" title={b.starts.mail?.beleg}>
+              <h3>Mail-Aktion</h3>
+              {ab(z.mail.ab) ? <span className="mbz-ab">{ab(z.mail.ab)}</span> : null}
+              <BHeld wert={ct(z.mail.geld.cents)} unter={`Geld danach · ${zz(z.mail.geld.zahlungen)} ${z.mail.geld.zahlungen === 1 ? "Zahlung" : "Zahlungen"}`} info={def("mail.geld")} />
+              <dl>
+                {vorher ? (
+                  <>
+                    <BZeile text="davon vorher gemeldet" wert={`${ct(vorher.cents)} · ${zz(vorher.zahlungen)}`} info={def("mail.geldVorherGemeldet")} leise />
+                    <BZeile text="ohne Meldung vorher" wert={ct(z.mail.geld.cents - vorher.cents)} info={def("mail.geldOhneMeldung")} />
+                  </>
+                ) : null}
+                <BZeile text="Mails" wert={zz(z.mail.gesendet)} info={def("mail.gesendet")} />
+                <BZeile text="Menschen" wert={zz(z.mail.menschen)} info={def("mail.menschen")} />
+                <BZeile text="Antworten" wert={zz(z.mail.antworten)} info={def("mail.antworten")} />
+                <BZeile text="Zahlung gemeldet" wert={zz(z.mail.gemeldet)} info={def("mail.gemeldet")} leise />
+              </dl>
+            </article>
+
+            {/* ── WhatsApp ────────────────────────────────────────── */}
+            <article className="mbz-spalte" title={b.starts.whatsapp?.beleg}>
+              <h3>WhatsApp</h3>
+              {ab(z.whatsapp.ab) ? <span className="mbz-ab">{ab(z.whatsapp.ab)}</span> : null}
+              <BHeld wert={ct(z.whatsapp.geld.cents)} unter={`Geld danach · ${zz(z.whatsapp.geld.zahlungen)} ${z.whatsapp.geld.zahlungen === 1 ? "Zahlung" : "Zahlungen"}`} info={def("whatsapp.geld")} />
+              <dl>
+                <BZeile text="Nachrichten rein" wert={`${zz(z.whatsapp.rein)} · ${zz(z.whatsapp.reinNummern)} Nr.`} info={def("whatsapp.rein")} />
+                <BZeile text="Maras Antworten" wert={zz(z.whatsapp.antworten)} info={def("whatsapp.antworten")} />
+                <BZeile text="Gespräche" wert={zz(z.whatsapp.gespraeche)} info={def("whatsapp.gespraeche")} />
+                <BZeile text="Vorlagen ohne Fehler" wert={zz(z.whatsapp.vorlagen)} info={def("whatsapp.vorlagen")} />
+                <BZeile text="Fehler" wert={zz(z.whatsapp.fehler)} info={def("whatsapp.fehler")} leise />
+                <BZeile text="Termine · Übergaben" wert={`${zz(z.whatsapp.termine)} · ${zz(z.whatsapp.uebergaben)}`} info={def("whatsapp.termine")} />
+                <BZeile text="Auskunft angeboten" wert={zz(z.whatsapp.auskunft)} info={def("whatsapp.auskunft")} />
+              </dl>
+            </article>
+
+            {/* ── Postfach ────────────────────────────────────────── */}
+            <article className="mbz-spalte" title={b.starts.postfach?.beleg}>
+              <h3>Postfach</h3>
+              {ab(z.postfach.ab) ? <span className="mbz-ab">{ab(z.postfach.ab)}</span> : null}
+              <BHeld wert={zz(z.postfach.beantwortet)} unter="Mails beantwortet" info={def("postfach.beantwortet")} />
+              <dl>
+                <BZeile text="Entwürfe offen" wert={zz(z.postfach.entwuerfe)} info={def("postfach.entwuerfe")} />
+                <BZeile text="Handgriffe" wert={zz(z.postfach.handgriffe)} info={def("postfach.handgriffe")} />
+                {Object.entries(z.postfach.handgriffeJe).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([k, v]) => (
+                  <BZeile key={k} text={`· ${HANDGRIFF_TEXT[k] ?? k}`} wert={zz(v)} info={def("postfach.handgriffe")} leise />
+                ))}
+              </dl>
+            </article>
+
+            {/* ── Auskunft-Verkauf ────────────────────────────────── */}
+            <article className="mbz-spalte" title={b.starts.auskunft?.beleg}>
+              <h3>Auskunft-Verkauf</h3>
+              {ab(z.auskunft.ab) ? <span className="mbz-ab">{ab(z.auskunft.ab)}</span> : null}
+              <BHeld wert={ct(z.auskunft.bezahltCents)} unter={`bezahlt · ${zz(z.auskunft.bezahlt)} ${z.auskunft.bezahlt === 1 ? "Auskunft" : "Auskünfte"}`} info={def("auskunft.bezahlt")} />
+              <dl>
+                <BZeile text="Angebotsmails" wert={`${zz(z.auskunft.angebote)} · ${zz(z.auskunft.angeboteMenschen)} Menschen`} info={def("auskunft.angebote")} />
+                <BZeile text="Angebote WhatsApp" wert={zz(z.auskunft.whatsapp)} info={def("auskunft.whatsapp")} />
+                <BZeile text="Link geöffnet" wert={`${zz(z.auskunft.klicks)} ${z.auskunft.klicks === 1 ? "Mensch" : "Menschen"}`} info={def("auskunft.klicks")} />
+                <BZeile text="Bestellt" wert={zz(z.auskunft.bestellt)} info={def("auskunft.bestellt")} />
+              </dl>
+            </article>
+
+            {/* ── Neue Leads ──────────────────────────────────────── */}
+            <article className="mbz-spalte" title={b.starts.leads?.beleg}>
+              <h3>Neue Leads</h3>
+              {wahl === "start" ? <span className="mbz-ab">seit {tagNur(z.leads.von)}</span>
+                : wahl === "woche" && z.leads.von > tagNurIso(b.heuteBerlin, -6) ? <span className="mbz-ab">ab {tagNur(z.leads.von)}</span> : null}
+              <BHeld wert={ct(z.leads.umsatzCents)} unter={`gebucht · ${zz(z.leads.zahlende)} ${z.leads.zahlende === 1 ? "Zahlender" : "Zahlende"}`} info={def("leads.umsatz")} />
+              <dl>
+                <BZeile text="Leads (Meta)" wert={zz(z.leads.leads)} info={def("leads.leads")} />
+                <BZeile text="Antrag begonnen · fertig" wert={`${zz(z.leads.begonnen)} · ${zz(z.leads.fertig)}`} info={def("leads.begonnen")} />
+                <BZeile text="Werbekosten" wert={ct(z.leads.werbungCents)} info={def("leads.werbung")} />
+                <BZeile text="je Lead" wert={ct(z.leads.kostenJeLeadCents)} info={def("leads.jeLead")} leise />
+                <BZeile text="je Zahlendem" wert={z.leads.kostenJeZahlendemCents == null ? "noch keiner" : ct(z.leads.kostenJeZahlendemCents)} info={def("leads.jeZahlendem")} leise />
+              </dl>
+            </article>
+          </div>
+
+          {/* ── Rahmen ────────────────────────────────────────────── */}
+          <div className="mbz-rahmen" aria-label="Rahmen">
+            <BRahmen titel="Gesamteinnahmen" wert={ct(z.rahmen.geldCents)}
+              unter={`${zz(z.rahmen.zahlungen)} ${z.rahmen.zahlungen === 1 ? "Zahlung" : "Zahlungen"} gebucht${wahl === "start" ? ` · seit ${tagZeit(z.rahmen.ab)}` : ""}`}
+              info={def("rahmen.geld")} zusatz={`Raten 1: ${ct(z.rahmen.rate1Cents)} · Folgeraten: ${ct(z.rahmen.rate2Cents)} · Auskünfte: ${ct(z.rahmen.auskunftCents)} · Global: ${ct(z.rahmen.globalCents)}`} />
+            <BRahmen klasse="blau" titel="davon nach Mara" wert={ct(z.rahmen.nachMaraCents)}
+              unter={`${zz(z.rahmen.nachMaraZahlungen)} ${z.rahmen.nachMaraZahlungen === 1 ? "Zahlung" : "Zahlungen"}${z.rahmen.nachMaraOhneMeldungCents != null ? ` · ${ct(z.rahmen.nachMaraOhneMeldungCents)} ohne Meldung vorher` : ""}`}
+              info={def("rahmen.nachMara")} zusatz={`Nach Mail: ${ct(z.rahmen.nachMailCents)} · nach WhatsApp: ${ct(z.rahmen.nachWhatsappCents)}`} />
+            <BRahmen titel="KI-Kosten Mara" wert={ct(z.rahmen.kiCents)} unter={wahl === "start" ? `alle Mara-Dienste · ab ${tagZeit(z.rahmen.ab)}` : "alle Mara-Dienste"}
+              info={def("rahmen.ki")} zusatz={Object.entries(z.rahmen.kiJeDienst).map(([k, v]) => `${k}: ${ct(v)}`).join(" · ")} />
+            <BRahmen klasse="gegen" titel="Kündigung bei Mara vorgemerkt" wert={zz(z.rahmen.kuendigungen)}
+              unter={`${z.rahmen.kuendigungen === 1 ? "Mensch" : "Menschen"} · im Postfach`} info={def("rahmen.kuendigungen")} />
+            <BRahmen klasse="gegen" titel="Gekündigt nach Aktions-Mail" wert={zz(z.rahmen.kuendigungNachMail)}
+              unter={`alle Wege · ≤ ${b.nachTagen} Tage danach`} info={def("rahmen.kuendigungNachMail")} />
+          </div>
+
+          <p className="mbz-hinweis">
+            <b>Zahlung nach Maras Kontakt = zeitliche Folge, kein Beweis.</b> Gezählt wird gebuchtes Geld (wie /chef/zahlen) höchstens {b.nachTagen} Tage nach einer Mail oder WhatsApp von Mara, ohne Testpersonen.
+            {" "}Mara schreibt alle Menschen der Stufen A und B an, fast jede neue Rate 1 folgt deshalb auf eine Mara-Mail. „Vorher gemeldet“ heißt: Die Zahlung war schon vor Maras erstem Kontakt gemeldet.
+            {" "}Gezählt wird bei Raten der Eingangstag (ohne Uhrzeit). Zahlungen werden oft Tage später nachgebucht, auch „Heute“ kann sich deshalb noch ändern. Fahre über eine Zahl oder tippe sie an, dann steht dort ihre Quelle.
+            {b.kostenStand ? ` Werbekosten zuletzt abgerufen ${tagZeit(b.kostenStand)} Uhr.` : ""}
+          </p>
+        </>
+      ) : null}
+    </section>
+  );
+}
+/** Berlin-Kalendertag ± Tage als JJJJ-MM-TT. */
+function tagNurIso(tag: string, tage: number): string {
+  const x = new Date(`${tag}T12:00:00Z`);
+  x.setUTCDate(x.getUTCDate() + tage);
+  return x.toISOString().slice(0, 10);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DREI REITER (23.09.2026, E-229 · 26.09.2026, E-243)
 //
 // Justin: „bau mir eine von den Seiten um und neu auf, sodass ich von dort aus
@@ -803,6 +1056,7 @@ export default function ChefMara() {
   const { reiter, ansicht } = stand;
   return (
     <div>
+      <MarasBilanz />
       <div className="mara-reiter" role="tablist" aria-label="Maras Wege">
         <button type="button" role="tab" aria-selected={reiter === "whatsapp"} onClick={() => wechseln("whatsapp")}>WhatsApp-Zentrale</button>
         <button type="button" role="tab" aria-selected={reiter === "mail"} onClick={() => wechseln("mail")}>E-Mail-Aktion</button>

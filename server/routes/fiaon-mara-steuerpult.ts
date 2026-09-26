@@ -20,6 +20,7 @@ import {
 } from "../lib/fiaon-mara-aktion";
 import { gedaechtnisLesen, gedaechtnisLoeschen } from "../lib/fiaon-mara-gedaechtnis";
 import { anweisungLesen, anweisungSetzen, anweisungVerlauf, anweisungZurueck, BEREICHE, BEREICH_TEXT, MAX_ZEICHEN, type Bereich } from "../lib/fiaon-mara-anweisung";
+import { maraBilanz, geldSql, aktionWirkung14, danachSql } from "../lib/fiaon-mara-bilanz";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -33,20 +34,9 @@ router.get("/chef/mara/stand", wache, async (_req: ChefRequest, res: Response) =
     const e = await einstellungenLesen();
     const z = await aktionZaehler(e);
     const schlange = await kandidatenLaden(40, e.stufen.length ? e.stufen : ["A", "B"]);
-    const [zahlen] = (await sqlPool`
-      WITH m AS (SELECT * FROM fiaon_mara_aktion WHERE status = 'gesendet' AND gesendet_am > NOW() - INTERVAL '14 days')
-      SELECT (SELECT COUNT(*)::int FROM m) AS gesendet,
-             (SELECT COUNT(DISTINCT person_id)::int FROM m) AS menschen,
-             (SELECT COUNT(DISTINCT m.person_id)::int FROM m WHERE EXISTS (
-                SELECT 1 FROM fiaon_postmeister pm WHERE pm.person_id = m.person_id AND pm.empfangen_am > m.gesendet_am)) AS antworten,
-             (SELECT COUNT(DISTINCT m.person_id)::int FROM m WHERE EXISTS (
-                SELECT 1 FROM fiaon_applications a WHERE a.person_id = m.person_id AND a.claimed_paid_at > m.gesendet_am)) AS gemeldet,
-             (SELECT COUNT(DISTINCT m.person_id)::int FROM m WHERE EXISTS (
-                SELECT 1 FROM fiaon_applications a WHERE a.person_id = m.person_id AND a.payment_status = 'paid' AND a.paid_at > m.gesendet_am)) AS bezahlt,
-             (SELECT COUNT(*)::int FROM fiaon_mara_aktion WHERE status = 'abgelehnt' AND created_at > NOW() - INTERVAL '14 days') AS abgelehnt,
-             (SELECT COUNT(*)::int FROM fiaon_mara_aktion WHERE status = 'fehler' AND created_at > NOW() - INTERVAL '14 days') AS fehler,
-             (SELECT COUNT(*)::int FROM fiaon_mara_ausschluss) AS ausgeschlossen
-    `) as any[];
+    // E-244 (26.09.2026): „bezahlt" las a.paid_at — das setzt eine bezahlte Rate nie, die Kachel
+    // stand bei 0, obwohl 4 Zahlungen gebucht waren. Jetzt gebuchtes Geld aus Maras Bilanz-Logik.
+    const zahlen = await aktionWirkung14();
     const [post] = (await sqlPool`
       SELECT COUNT(*) FILTER (WHERE empfangen_am > date_trunc('day', NOW()))::int AS heute_rein,
              COUNT(*) FILTER (WHERE gesendet_am > date_trunc('day', NOW()))::int AS heute_beantwortet,
@@ -60,7 +50,7 @@ router.get("/chef/mara/stand", wache, async (_req: ChefRequest, res: Response) =
       ok: true,
       einstellungen: e,
       zaehler: z,
-      zahlen: { ...zahlen, postfach: post },
+      zahlen: { ...zahlen, bezahltEuro: Number(zahlen?.bezahlt_cents || 0) / 100, postfach: post },
       kosten: { heuteEuro: Number(kosten?.heute || 0) / 100, wocheEuro: Number(kosten?.woche || 0) / 100 },
       schlange: schlange.map((k) => ({
         personId: k.personId, ref: k.ref, stufe: k.stufe, schritt: k.schritt,
@@ -75,23 +65,44 @@ router.get("/chef/mara/stand", wache, async (_req: ChefRequest, res: Response) =
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MARAS BILANZ (26.09.2026, E-244)
+// Justin: „Wo finde ich Maras Abschlussbericht? Ich will wissen, was wir durch
+// Mara bislang hatten oder durch die neuen Leads." — heute / 7 Tage / seit
+// Start, fünf Wege plus Rahmen. Die Rechnung steht in fiaon-mara-bilanz.ts,
+// 60 Sekunden zwischengespeichert (?frisch=1 rechnet neu).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/mara/bilanz", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    res.json(await maraBilanz({ frisch: req.query.frisch === "1" }));
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] bilanz:", err);
+    res.status(500).json({ ok: false, error: "Die Bilanz ließ sich nicht rechnen." });
+  }
+});
+
 /** Die Mails der Aktion — neueste zuerst, mit Antwort und Zahlung danach. */
 router.get("/chef/mara/mails", wache, async (req: ChefRequest, res: Response) => {
   try {
     await aktionTabellen();
     const status = ["gesendet", "abgelehnt", "fehler"].includes(String(req.query.status)) ? String(req.query.status) : "gesendet";
     const vor = Number(req.query.vor) || 2_147_483_647;
-    const zeilen = (await sqlPool`
+    // E-244: „bezahlt" = erste GEBUCHTE Zahlung höchstens 14 Tage nach dieser Mail (vorher a.paid_at,
+    // das bei Raten nie gesetzt wird). Dieselbe Geld-Quelle wie Maras Bilanz; Raten nach Eingangstag
+    // (danachSql: Tag nach dem Tag der Mail), weil bezahlt_am keine echte Uhrzeit trägt.
+    const zeilen = (await sqlPool.unsafe(`
+      WITH seite AS (
+        SELECT * FROM fiaon_mara_aktion WHERE status = $1 AND id < $2 ORDER BY id DESC LIMIT 60),
+      geld AS (SELECT * FROM (${geldSql()}) g0 WHERE g0.person_id IN (SELECT person_id FROM seite WHERE person_id IS NOT NULL))
       SELECT m.id, m.person_id, m.ref, m.stufe, m.schritt, m.status, m.grund, m.betreff, m.text, m.empfaenger, m.created_at, m.gesendet_am, m.kosten_cents,
              COALESCE(NULLIF(TRIM(p.first_name || ' ' || p.last_name), ''), m.empfaenger) AS name,
              (SELECT MIN(pm.empfangen_am) FROM fiaon_postmeister pm WHERE pm.person_id = m.person_id AND pm.empfangen_am > m.gesendet_am) AS antwort_am,
              (SELECT MIN(a.claimed_paid_at) FROM fiaon_applications a WHERE a.person_id = m.person_id AND a.claimed_paid_at > m.gesendet_am) AS gemeldet_am,
-             (SELECT MIN(a.paid_at) FROM fiaon_applications a WHERE a.person_id = m.person_id AND a.payment_status = 'paid' AND a.paid_at > m.gesendet_am) AS bezahlt_am,
+             (SELECT MIN(g.am) FROM geld g WHERE g.person_id = m.person_id AND ${danachSql("g", "m.gesendet_am")}) AS bezahlt_am,
              EXISTS (SELECT 1 FROM fiaon_mara_ausschluss x WHERE x.person_id = m.person_id) AS ausgeschlossen
-        FROM fiaon_mara_aktion m LEFT JOIN fiaon_persons p ON p.id = m.person_id
-       WHERE m.status = ${status} AND m.id < ${vor}
-       ORDER BY m.id DESC LIMIT 60
-    `) as any[];
+        FROM seite m LEFT JOIN fiaon_persons p ON p.id = m.person_id
+       ORDER BY m.id DESC
+    `, [status, vor])) as any[];
     res.json({
       ok: true,
       mails: zeilen.map((z) => ({

@@ -49,7 +49,7 @@ interface Lage {
   kette: { an: boolean; pausiert: boolean };
   tagsueber: boolean;
   heute: { gesendet: number; nicht: number; automatik: number; hand: number; vorlagenGesamt: number; maraAntworten: number; rein: number; menschenRein: number; fehler: number };
-  wirkung7: { menschen: number; geantwortet: number; antrag: number; gezahlt: number };
+  wirkung7: { menschen: number; geantwortet: number; antrag: number; gezahlt: number; gezahltCents?: number };
   lauf: Lauf | null;
   letzte: Eintrag[];
 }
@@ -488,7 +488,7 @@ export default function ChefWhatsAppZentrale() {
             <div><span>Vorlagen gesamt heute</span><b>{zahl(d.heute.vorlagenGesamt)}</b><em>mit Begrüßung und Kette</em></div>
             <div><span>Eingegangen heute</span><b>{zahl(d.heute.rein)}</b><em>{d.heute.menschenRein ? `von ${zahl(d.heute.menschenRein)} ${d.heute.menschenRein === 1 ? "Mensch" : "Menschen"}` : "Nachrichten an uns"}</em></div>
             <div><span>Mara hat geantwortet</span><b>{zahl(d.heute.maraAntworten)}</b><em>freie Nachrichten heute</em></div>
-            <div><span>Wirkung 7 Tage</span><b>{zahl(d.wirkung7.geantwortet)}</b><em>Antworten von {zahl(d.wirkung7.menschen)} · {zahl(d.wirkung7.antrag)} Anträge · {zahl(d.wirkung7.gezahlt)} gezahlt</em></div>
+            <div title="Menschen, die in 7 Tagen eine Vorlage aus der Zentrale bekamen. „Geld gebucht“ = gebuchte Zahlung höchstens 14 Tage danach (wie /chef/zahlen), nicht gemeldet — zeitliche Folge, kein Beweis."><span>Wirkung 7 Tage</span><b>{zahl(d.wirkung7.geantwortet)}</b><em>Antworten von {zahl(d.wirkung7.menschen)} · {zahl(d.wirkung7.antrag)} Anträge · {zahl(d.wirkung7.gezahlt)} mit Geld gebucht{d.wirkung7.gezahltCents ? ` (${(d.wirkung7.gezahltCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)` : ""}</em></div>
           </section>
 
           {meldung ? <div className={`wz-meldung ${meldung.art}`} role="status">{meldung.text}</div> : null}

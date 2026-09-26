@@ -271,6 +271,16 @@
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* E-244: Zahlungserinnerung — Stufe, nächste Fälligkeit und der Grund, wenn keine Mail geht. */
+.ak-er-satz { line-height: 1.55; max-width: 96ch; }
+.ak-er-zelle { display: grid; gap: 3px; min-width: 150px; }
+.ak-er-grund { font-size: 11.5px; line-height: 1.4; color: var(--ak-leise); }
+.ak-er-grund.storno { color: var(--ak-gelb); }
+.ak-klein.ak-warn { color: var(--ak-gelb); border-color: rgba(252, 211, 77, .35); }
+.ak-offen-tabelle td.r { white-space: nowrap; }
+.ak-tat-zelle { width: 1%; }
+.ak-tat-zelle .ak-tat { min-width: 220px; }
+
 @media (hover: hover) {
   .ak-tabelle tbody tr:hover { background: var(--ak-flaeche); }
   .ak-knopf:hover:not(:disabled), .ak-klein:hover:not(:disabled), .ak-schalter:hover:not(:disabled), .ak-beschaffung:hover { border-color: rgba(147, 197, 253, .5); }
@@ -309,4 +319,5 @@
   .ak-rf-tabelle th { white-space: normal; letter-spacing: .04em; }
   .ak-scharf-knoepfe, .ak-scharf-knoepfe .ak-knopf { width: 100%; }
   .ak-scharf-knoepfe .ak-knopf { justify-content: center; }
+  .ak-er-zelle { min-width: 120px; }
 }

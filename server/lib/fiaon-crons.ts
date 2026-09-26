@@ -424,6 +424,13 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
       + "nicht verteilt. GENAU DIESER Lauf stand im August 15 Tage still.",
     fenster: 24,
   },
+  // E-244 (26.09.2026): Zahlungserinnerung offener Bonitätsauskünfte. Das Fenster ist 24 h: Der Lauf
+  // arbeitet nur 07:00–20:30, meldet sich aber jede halbe Stunde (auch außerhalb, dann ohne Versand).
+  auskunft_erinnerung: {
+    zweck: "Zahlungserinnerung an offene Bonitätsauskünfte (Tag 1/4/10/18, dann wöchentlich), ab Tag 30 Aufgabe „anrufen oder stornieren“ bzw. „stornieren?“",
+    folge: "Bestellte Auskünfte werden nicht bezahlt, und niemand erinnert — die Paket-Mahnmaschine nimmt sie seit E-244 nicht mehr.",
+    fenster: 24,
+  },
 };
 
 /** Die Ampel eines Laufs — dieselbe Rechnung für Karte, Warnung und Prüfstand. */

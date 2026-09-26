@@ -73,7 +73,21 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Knöpfen: „Zustimmungs-Link per E-Mail senden“ und „Per WhatsApp“. Der Link gilt 30 Tage; der Verlauf sagt "
       + "ehrlich, ob die Mail rausging. Bestätigt der Kunde, stellt das Haus die erste Rechnung von selbst und schickt "
       + "die Zahlungsdaten in deinem Namen — die Zahlungsdaten selbst kannst du immer senden, auch vor der Zustimmung.",
-    tipp: "Am Telefon: WhatsApp drücken, Nachricht abschicken, Kunde klickt zwei Kästchen — fertig.",
+    // E-244 (26.09.2026): Knopf „Zahlungspflichtig annehmen" + Bestellübersicht auch über den Link.
+    tipp: "Am Telefon: WhatsApp drücken, Nachricht abschicken, Kunde klickt die Kästchen. Fehlt die Vertragsannahme und steht "
+      + "das Paket fest, heißt sein Knopf „Zahlungspflichtig annehmen“ – darüber sieht er Paket, Leistung, Monatsrate, zwölf "
+      + "Monate Laufzeit, Gesamtbetrag und Kündigung. Steht kein Paket fest, kann er über den Link nur AGB und Bonitätsprüfung "
+      + "bestätigen – den Vertrag schließt ihr dann über den Antrag.",
+  },
+  {
+    // E-244 (26.09.2026, § 312j BGB): Justin: „ändere den Knopf auf zahlungspflichtig annehmen".
+    titel: "Der Klick, der zahlt.",
+    text: "Im Schritt „Vertrag“ sieht der Kunde seine Angaben (mit „Angaben ändern“ – ohne neue Prüfung zurück), darunter die "
+      + "Bestellübersicht: Paket, Leistung, Rate, zwölf Monate fest, Gesamtbetrag, Überweisung, Kündigung. Erst „Zahlungspflichtig "
+      + "annehmen“ schließt den Vertrag; „Weiter zum Vertrag“ in Schritt 5 bindet noch nicht. Die Haken allein reichen nicht: Bricht "
+      + "der Kunde vor dem Knopf ab, steht in der Akte „Es fehlt: Zustimmung zum Vertrag“ — schick ihm dann den Zustimmungslink. Die "
+      + "Bonitätsauskunft gehört nicht zum Paket: Das Paket wertet sie aus, beschaffen tun wir sie nur als Zusatz.",
+    tipp: "Fragt der Kunde am Telefon, was er annimmt: genau die Zeilen der Übersicht vorlesen – nichts dazu versprechen.",
   },
   {
     // 24.08.2026, mit dem WhatsApp-Knopf zusammen angelegt. Justin: „Sowas muss
@@ -446,7 +460,13 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "Oben steht die neueste mit Kunde und Maras Zusammenfassung, darunter bis zu vier weitere. „Öffnen“ bringt dich "
       + "in die Akte und zählt diese eine Aufgabe als gesehen. „Später“ blendet die Karte aus, ohne etwas als gesehen "
       + "zu zählen. Danach ruht die Karte, bis die nächste neue kommt — alle ungelesenen stehen weiter unter Tasks. "
-      + "Ein roter Rand heißt: dringend.",
+      + "Ein roter Rand heißt: dringend."
+      // E-244 (26.09.2026): „Kunde hat geschrieben" schließt sich, sobald die Antwort draußen ist.
+      + " Hat Mara für einen Kunden einen Mail-Entwurf vorbereitet („Kunde hat geschrieben — bitte antworten“), schließt sich die "
+      + "Aufgabe von selbst, sobald die Antwort auf genau diese Mail draußen ist: wenn du sendest oder „Übernommen“ wählst, wenn die "
+      + "Leitung sie im Postfach freigibt oder wenn Mara sie selbst sendet. Bei Rückrufwunsch, Beschwerde, bestrittener Forderung, "
+      + "Widerruf, rechtlichen Fragen oder Zahlungsunfähigkeit bleibt sie offen („Antwort gesendet — bitte selbst nachfassen“). "
+      + "Schreibt der Kunde danach erneut, öffnet sie sich wieder.",
     // Gegenlesen 24.09.2026: Der Knopf zeigt den ZUSTAND („Ton an"), nicht die Handlung —
     // vorher verwies der Tipp auf einen Knopf „Ton aus", den man bei eingeschaltetem Ton nicht findet.
     tipp: "Trifft eine neue Aufgabe ein, während du arbeitest, klingt ein leiser Doppelton — nie während eines Gesprächs. Ein Tipp auf „Ton an“ unten in der Karte schaltet ihn ab.",
@@ -1206,6 +1226,19 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
 // ── /chef/s/mara (21.09.2026) ─────────────────────────────────────────────────
 export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
+    // E-244 (26.09.2026): Maras Bilanz — Justin: „Wo finde ich Maras Abschlussbericht?"
+    ziel: ".mbz",
+    titel: "Maras Bilanz: was Mara und die neuen Leads gebracht haben.",
+    text: "Oben steht die Bilanz für heute, 7 Tage oder seit Start — fünf Wege nebeneinander: Mail-Aktion, WhatsApp, "
+      + "Postfach, Auskunft-Verkauf und neue Leads aus Meta. Die große Zahl je Weg ist gebuchtes Geld (wie unter "
+      + "Verdienst & Wert), nicht gemeldetes. Bei der Mail-Aktion steht getrennt, was schon vor Maras erstem Kontakt "
+      + "gemeldet war. Darunter der Rahmen: alle Einnahmen im Zeitraum, davon nach Mara, Maras KI-Kosten, die "
+      + "Kündigungen, die Mara vorgemerkt hat, und alle Kündigungen nach einer Aktions-Mail.",
+    tipp: "„Geld danach“ heißt: Eingangstag nach dem Tag einer Mail oder WhatsApp von Mara, höchstens 14 Tage später — "
+      + "eine zeitliche Folge, kein Beweis. Mara schreibt alle Menschen der Stufen A und B an, deshalb folgt fast jede "
+      + "neue Rate 1 auf eine Mara-Mail. Fahr mit der Maus über eine Zahl oder tippe sie an, dann steht dort, woher sie kommt.",
+  },
+  {
     // E-243 (26.09.2026): drei Reiter — der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite.
     ziel: ".mara-reiter",
     titel: "Drei Reiter: WhatsApp, Mail, Bonitätsauskunft.",
@@ -1219,7 +1252,12 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     titel: "Maras Steuerpult: alles, was sie tut, an einer Stelle.",
     text: "Mara beantwortet das Postfach — und schreibt von sich aus jeden an, der noch nichts bezahlt hat: zuerst A (Zahlung "
       + "gemeldet, Geld nicht da), dann B (Antrag fertig, Rechnung offen), rund um die Uhr, die frischesten zuerst. Jede Mail "
-      + "schreibt sie aus der Akte, dem ganzen Weg des Kunden und ihrem Gedächtnis — nie zweimal dieselbe.",
+      + "schreibt sie aus der Akte, dem ganzen Weg des Kunden und ihrem Gedächtnis — nie zweimal dieselbe."
+      // E-244 (26.09.2026): Werbesperre auch bei beendetem Vertrag, Kündigungssatz mit allen offenen Raten.
+      + " Bittet ein Kunde mit beendetem oder storniertem Vertrag, keine Mails mehr zu bekommen, setzt Mara auch dort die "
+      + "Werbesperre. Kündigt jemand per Mail, nennt Mara jede noch offene Rate mit Betrag und die Summe, nie eine Rate ohne "
+      + "Betrag. Ist der Vertrag schon beendet, nennt sie keinen Betrag; steht trotzdem eine Rate offen, landet das als Prüffall "
+      + "bei der Leitung. Eine bezahlte Bonitätsauskunft ist kein Paket: Wer nur sie bezahlt hat, bleibt in der Paket-Erinnerung.",
   },
   {
     ziel: ".mp-schalter",
@@ -1300,6 +1338,18 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
     text: "Meta meldet jeden neuen Lead in Sekunden an die Plattform. Alle fünf Minuten fragt die Plattform zusätzlich jedes "
       + "Formular nach — fällt die Meldung einmal aus, geht trotzdem kein Lead verloren. Ein Lead, der auf beiden Wegen kommt, "
       + "wird einmal angelegt.",
+  },
+  // E-244 (26.09.2026): Kopfzeile sagt, ob der Webhook bewiesen ist und ob Meta überhaupt ausliefert.
+  {
+    ziel: ".lm-kopf",
+    titel: "Die Kopfzeile sagt, ob Meta wirklich liefert.",
+    text: "„Webhook bestätigt“ steht erst da, wenn Meta mindestens eine echte Lead-Meldung geschickt hat — eine grüne Prüfliste "
+      + "oder der Knopf „Test“ im App-Dashboard reichen dafür nicht. Bis dahin steht „bisher nur Nachhol-Lauf“: Die Leads kommen trotzdem, "
+      + "nur bis zu fünf Minuten später. Rot erscheint „Meta liefert seit … nicht aus“, wenn im eigenen Werbekonto gestern und heute "
+      + "kein Geld geflossen ist, davor aber schon — oder „Meta-Leads eingebrochen“, wenn gestern weniger als ein Drittel der üblichen Leads kam.",
+    tipp: "Den Webhook beweisen, ohne Geld auszugeben: developers.facebook.com/tools/lead-ads-testing → Seite FIAON → Formular → "
+      + "„Lead erstellen“. Der Test-Lead wird erkannt: kein Kunde, keine Zuteilung, keine Mail. Liefert Meta nicht aus: zuerst prüfen, "
+      + "ob die Kampagnen noch laufen, dann Werbeanzeigenmanager → Spalte „Auslieferung“ und Abrechnung & Zahlungen.",
   },
   // E-239 (24.09.2026): Werbekosten neben echtem Geld.
   {
@@ -1516,6 +1566,24 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
       + "nur per Mail.",
   },
   {
+    // E-244 (26.09.2026): Justin: „Jeder, der die SCHUFA offen hat, braucht eine E-Mail mit Zahlungserinnerung."
+    ziel: ".ak-erinnerung",
+    titel: "Zahlungserinnerung: Wer bestellt hat, wird erinnert.",
+    text: "Jede bestellte, nicht bezahlte Bonitätsauskunft bekommt eine Erinnerung: Tag 1, 4, 10 und 18 nach der Bestellung, danach "
+      + "alle 7 Tage (einstellbar, 0 = nach Tag 18 Schluss) — Mo–So 07:00–20:30, höchstens 10 je Lauf und 50 am Tag. Wer schon "
+      + "„Zahlung gemeldet“ hat, bekommt nie eine. Die Werbesperre hält sie nicht auf, denn es ist Zahlungspost; ein Mahnstopp an "
+      + "irgendeiner Bestellung der Person schon. Solange zu einer Bestellung keine Belehrung in Textform vorliegt, trägt die Erinnerung "
+      + "Vertragsbestätigung und die nachgeholte Widerrufsbelehrung (Frist ab Erhalt dieser Mail). Ab Tag 30 gibt es einmal eine Aufgabe: "
+      + "im Takt „anrufen oder stornieren“ an den Betreuer, bei Kündigung, eigenem Dokument oder Vertriebssperre „stornieren?“ nur an den "
+      + "Betreiber, ohne Anruf. An/Aus und die Zahlen stehen im Protokoll der Steuerung. Fehlt an einer Bestellung die Erklärung des "
+      + "Kunden (vom Betreuer angelegt oder aus der Zeit vor dem Bestätigungsformular), bekommt er keine Mahnung, sondern die Frage "
+      + "„Möchten Sie die Auskunft noch?“ mit einem Knopf zum Bestätigen — erst danach Vertragsbestätigung, Widerrufsbelehrung und "
+      + "Zahlungsdaten. Legst du eine Auskunft für einen Kunden an, geht ihm genau diese Frage zu; schick ihm vorher keine Zahlungsseite.",
+    tipp: "Eine offene Bestellung bleibt offen, egal wie alt: Kundenbereich, Mara und Kauflink zeigen ihren Zahlungslink zu ihrem Preis "
+      + "statt eines Neukaufs; nur wenn sie teurer ist als der heutige Preis, ersetzt eine neue sie. Die Paket-Mahnung schreibt "
+      + "Auskunft-Bestellern nicht mehr.",
+  },
+  {
     ziel: ".ak-offen",
     titel: "Bestellt, nicht bezahlt: Das Geld liegt schon auf dem Tisch.",
     text: "Jede offene Bestellung mit Betrag, Alter und Betreuer. „Zahlungsseite“ öffnet die Seite mit QR-Code, Betrag und "
@@ -1526,7 +1594,14 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
       + "die Auskunfteien seines Landes und was nach der Zahlung passiert. Wer kein Paket hat, sieht nach „Ich habe überwiesen“ "
       + "einen ruhigen Hinweis auf den Weg zur Karte mit einem FIAON-Paket — nach denselben Sperren wie die Mail „Ihre Auskunft "
       + "ist da“ (nie bei Kündigung, Storno oder Sperre; wartet schon ein Paket-Antrag auf die erste Zahlung, kein zweiter Antrag). "
-      + "Eine stornierte oder ersetzte Auskunft-Bestellung zeigt keine Zahlungsdaten mehr.",
+      + "Eine stornierte oder ersetzte Auskunft-Bestellung zeigt keine Zahlungsdaten mehr."
+      // E-244 (26.09.2026): Zahlungserinnerung je Bestellung, Stornieren und Mahnstopp.
+      + " Je Bestellung steht die Zahlungserinnerung dabei: Stufe und Datum der letzten Mail, die nächste Fälligkeit — oder "
+      + "der Grund, warum keine Mail geht (Zahlung gemeldet, Mahnstopp, Mahnstopp an einer anderen Bestellung, gekündigt, eigenes "
+      + "Dokument, Vertriebssperre). „stornieren?“ ist der Vorschlag, wenn erinnern nicht passt. „Stornieren“ (mit Rückfrage) storniert "
+      + "nur eine offene Auskunft: keine Erinnerung mehr, kein neues Angebot; der Kunde bekommt dazu keine automatische Mail. "
+      + "„Mahnstopp“ beendet nur die Erinnerungen. Storno und Mahnstopp stehen im Protokoll der Steuerung. Archivierte und Tests "
+      + "stehen hier nicht.",
   },
   {
     ziel: ".ak-rueckstand",
@@ -1547,8 +1622,10 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
       + `(Firma ${euroText(auskunftPreisCents("firma", false))}). Auf der öffentlichen Bestellseite fragt die Seite oben „Schon `
       + "FIAON-Kunde?“ — der Kunde gibt nur seine E-Mail-Adresse ein und bekommt den Kundenpreis-Link an die Adresse in seiner "
       + "Akte. Bestellt ein Kunde dort ohne Anmeldung, nimmt die Seite den Einzelpreis nicht an und führt ihn zu diesem Link. Im "
-      + "Antrag lässt sich die Auskunft beim Vertrag annehmen zum Kundenpreis dazubestellen — nie vorangekreuzt, fällig erst nach "
-      + "der ersten Paketzahlung. Hat jemand erst einzeln bestellt und zahlt dann ein Paket, ersetzt die Bestellung zum "
+      // E-244: Schritt „Vertrag", Bestellübersicht über „Zahlungspflichtig annehmen".
+      + `Schritt „Vertrag“ des Antrags lässt sich die Auskunft zum Kundenpreis dazubestellen — nie vorangekreuzt, fällig erst nach `
+      + `der ersten Paketzahlung. Mit Haken steht sie auch in der Bestellübersicht über „Zahlungspflichtig annehmen“ `
+      + `(${euroText(auskunftPreisCents("privat", true))} einmalig, dazu die Summe mit dem Paket). Hat jemand erst einzeln bestellt und zahlt dann ein Paket, ersetzt die Bestellung zum `
       + "Kundenpreis die teurere.",
     tipp: "Ist die Auskunft eines Menschen ohne Paket geliefert, bekommt sein Betreuer die Aufgabe „Auskunft geliefert — "
       + "Auswertung besprechen und Paket anbieten“. Das ist der zweite Verkauf: erst die Auskunft, dann das Paket.",

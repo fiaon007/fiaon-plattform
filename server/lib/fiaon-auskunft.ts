@@ -30,8 +30,10 @@ import {
 
 type Lauf = typeof sqlPool;
 
-/** Wie lange eine offene Bestellung wiederverwendet wird, statt eine neue anzulegen. */
-const OFFEN_WIEDERVERWENDEN_TAGE = 21;
+// Integration 26.09.2026 (E-244): OFFEN_WIEDERVERWENDEN_TAGE (21) ist entfallen. Eine offene Bestellung
+// bleibt offen, solange sie nicht bezahlt, ersetzt, storniert, zusammengeführt oder archiviert ist —
+// unabhängig vom Alter (offenWiederverwendbar). So sagt jeder Kaufweg dasselbe wie die Zahlungserinnerung
+// (fiaon-auskunft-erinnerung.ts, Tag 1/4/10/18, dann wöchentlich) und der Verkaufstakt (OHNE_AUSKUNFT_SQL).
 
 /**
  * Hat dieser Mensch ein bezahltes, laufendes Paket (Abo)? Dann gilt der
@@ -82,7 +84,16 @@ export interface AuskunftStand {
    * privat oder Firma nach ihrem Katalogschlüssel — für offenWiederverwendbar (ihr Betrag gegen den
    * Preis, der HEUTE für genau dieses Produkt gilt).
    */
-  offen: { ref: string; paymentReference: string | null; betragCents: number; status: string; angelegt: string; art?: AuskunftArt } | null;
+  offen: {
+    ref: string; paymentReference: string | null; betragCents: number; status: string; angelegt: string; art?: AuskunftArt;
+    /**
+     * Steht an ihr schon eine Wahl zum Beginn vor Ablauf der Widerrufsfrist (WIDERRUF_WAHL_MARKE)?
+     * Nachbesserung 26.09.2026 (E-244): Seit offene Bestellungen jeden Alters wiederverwendet werden,
+     * landen auch Altbestellungen ohne Erklärungen (Betreuer/System, 16.07.–05.09.) auf den Kaufwegen —
+     * die Türen tragen die Erklärungen dann nach (offenOhneWahl, AuskunftBestellung.wahlFehlt).
+     */
+    wahlDa?: boolean;
+  } | null;
   bezahltRef: string | null;
   /** Liegt ein Auskunft-Dokument in der Akte (gekauft oder selbst hochgeladen)? */
   dokumentDa: boolean;
@@ -107,12 +118,26 @@ export async function auskunftStand(
       (SELECT ref FROM fiaon_applications s WHERE s.person_id = ${personId} AND s.merged_into IS NULL
          AND (COALESCE(s.type, '') = 'schufa' OR s.ref LIKE 'FIAON-SCHUFA-%') AND s.payment_status = 'paid'
        ORDER BY s.created_at DESC LIMIT 1) AS bezahlt_ref`) as any[];
+  // Integration 26.09.2026 (E-244): „offen" = Zahlung gemeldet (immer — nie ersetzen, nie neu anbieten)
+  // oder Zahlung ausstehend, solange sie nicht storniert, archiviert oder gelöscht ist. Dieselbe
+  // Grundmenge wie die Zahlungserinnerung (erinnerungsFaelle, fiaon-auskunft-erinnerung.ts). Eine
+  // archivierte Bestellung (doppelt, Testeintrag, widerrufen) bekommt keinen Zahlungslink mehr; seit
+  // die Wiederverwendung kein Alter mehr kennt, hielte sie ihn sonst für immer.
+  // Nachbesserung 26.09.2026 (E-244, Gesamtdurchsicht): nur die echten Wahl-Sätze (WIDERRUF_WAHL_SQL) — nicht jede
+  // Zeile mit der Marke (Systemnotiz der Lieferung, Aufgabentexte).
   const [o] = (await lauf`
-    SELECT ref, payment_reference, amount_due, payment_status, created_at, pack_key FROM fiaon_applications s
+    SELECT ref, payment_reference, amount_due, payment_status, created_at, pack_key,
+           EXISTS (SELECT 1 FROM fiaon_contact_log c WHERE c.ref = s.ref AND ${lauf.unsafe(WIDERRUF_WAHL_SQL("c"))}) AS wahl_da
+      FROM fiaon_applications s
      WHERE s.person_id = ${personId} AND s.merged_into IS NULL
        AND (COALESCE(s.type, '') = 'schufa' OR s.ref LIKE 'FIAON-SCHUFA-%')
-       AND s.payment_status IN ('pending_payment', 'claimed_paid')
-     ORDER BY s.created_at DESC LIMIT 1`) as any[];
+       AND (s.payment_status = 'claimed_paid'
+            OR (s.payment_status = 'pending_payment' AND s.cancelled_at IS NULL
+                AND s.archived_at IS NULL AND s.gdpr_deleted_at IS NULL))
+     -- Nachbesserung 26.09.2026 (E-244): „Zahlung gemeldet" vor jeder jüngeren ausstehenden — sonst sähe
+     -- offenWiederverwendbar nur die jüngere (teurere), und die neue Bestellung ersetzte über
+     -- supersedeSisterOrders auch die gemeldete (Regel: gemeldet wird nie ersetzt). Heute 0 Fälle.
+     ORDER BY (s.payment_status = 'claimed_paid') DESC, s.created_at DESC LIMIT 1`) as any[];
   const preis = await auskunftPreis(personId, art, lauf);
   const offenKey = String(o?.pack_key ?? "").trim().toLowerCase();
   const offen = o ? {
@@ -120,6 +145,7 @@ export async function auskunftStand(
     betragCents: Math.round(Number(o.amount_due || 0) * 100), status: String(o.payment_status),
     angelegt: new Date(o.created_at).toISOString(),
     art: (offenKey === AUSKUNFT_SCHLUESSEL.firma.einzeln || offenKey === AUSKUNFT_SCHLUESSEL.firma.mitAbo ? "firma" : "privat") as AuskunftArt,
+    wahlDa: !!o.wahl_da,
   } : null;
   const stufe: AuskunftStufe = z?.bezahlt_ref ? "bezahlt" : offen ? "offen" : z?.dokument_da ? "dokument" : "nichts";
   // Integration 25.09.2026 (E-241): Ohne Land im Antrag (Leads) gilt das Land der Grundmenge (landOhneAntrag).
@@ -155,8 +181,12 @@ async function landOhneAntrag(personId: number, lauf: Lauf): Promise<AuskunftLan
  * neuen Bestellung? (Integration 26.09.2026, E-243) Die EINE Regel für auskunftBestellen und die
  * Kaufseite hinter dem Kauflink (GET /auskunft/bestellen):
  *   · „Zahlung gemeldet" immer — er hat überwiesen, nie eine zweite Forderung daneben,
- *   · sonst nur, wenn sie jünger als 21 Tage ist UND nicht teurer als der Preis, der HEUTE für
- *     genau dieses Produkt (privat/Firma, nach ihrem Schlüssel) gilt.
+ *   · sonst, wenn sie nicht teurer ist als der Preis, der HEUTE für genau dieses Produkt
+ *     (privat/Firma, nach ihrem Schlüssel) gilt — UNABHÄNGIG VOM ALTER (Integration 26.09.2026,
+ *     E-244). Vorher galt sie ab Tag 21 als erledigt: Kundenbereich, Mara, Postmeister, Kauflink und
+ *     Akte boten dann einen Neukauf an, der sie ersetzte — teils zu 149 € statt der offenen 74 €,
+ *     während die Zahlungserinnerung „offen, 74 €" schrieb (18 von 26 Bestellungen im ersten Lauf).
+ *     `jetzt` bleibt als Parameter stehen (Aufrufer und Prüfstände übergeben ihn), zählt aber nicht mehr.
  * Justin: „Wie stellen wir sicher, dass FIAON-Kunden den Preis bekommen (privat 74 €, B2B 199 €)?"
  * Vorher führte jeder Kauflink eines Kunden, der VOR seinem Paket zum Einzelpreis bestellt hatte,
  * bis zu 21 Tage lang auf die 149-€-Zahlungsseite (Mail, WhatsApp, Mara, Kundenpreis-Link). Jetzt
@@ -164,19 +194,18 @@ async function landOhneAntrag(personId: number, lauf: Lauf): Promise<AuskunftLan
  * späte Überweisung auf die alte Referenz bleibt auflösbar, die Zahlungsseite sagt „ersetzt").
  * Ohne Betrag (Altlast) wird ebenfalls neu angelegt — wie im Bündel (auskunftBuendelNachZahlung).
  */
-export function offenWiederverwendbar(stand: Pick<AuskunftStand, "offen" | "preis">, jetzt: number = Date.now()): boolean {
+export function offenWiederverwendbar(stand: Pick<AuskunftStand, "offen" | "preis">, _jetzt: number = Date.now()): boolean {
   const o = stand.offen;
   if (!o) return false;
   if (o.status === "claimed_paid") return true;
-  if (jetzt - new Date(o.angelegt).getTime() >= OFFEN_WIEDERVERWENDEN_TAGE * 86_400_000) return false;
   const heute = auskunftPreisCents(o.art ?? stand.preis.art, stand.preis.mitAbo);
   return o.betragCents > 0 && o.betragCents <= heute;
 }
 
 /**
  * Der Stand, wie ihn ein Kaufweg dem Kunden ZEIGT (Integration 26.09.2026, E-243): Eine offene
- * Bestellung, die auskunftBestellen nicht wiederverwenden würde (offenWiederverwendbar: älter als
- * 21 Tage oder teurer als heute), gilt nicht als „offen" — kein Link auf ihre Zahlungsseite, sondern
+ * Bestellung, die auskunftBestellen nicht wiederverwenden würde (offenWiederverwendbar: teurer als
+ * heute oder ohne Betrag — das Alter zählt seit E-244 nicht mehr), gilt nicht als „offen" — kein Link auf ihre Zahlungsseite, sondern
  * der Kauf zum heutigen Preis (der legt die neue an und ersetzt die alte). Für Kundenbereich, Mara
  * (Mail und WhatsApp), Unterlagen-Mail: dieselbe Antwort wie die Kaufseite. auskunftBestellen und das
  * Bündel lesen weiter den rohen Stand (sie brauchen die alte Bestellung zum Ersetzen).
@@ -186,8 +215,79 @@ export function standZumZeigen<T extends Pick<AuskunftStand, "stufe" | "offen" |
   return { ...stand, offen: null, stufe: stand.dokumentDa ? "dokument" : "nichts" };
 }
 
+/**
+ * Der Satzteil, den die Lieferung (auskunftWiderrufStand, fiaon-auskunft-lieferung.ts) im Verlauf
+ * einer Auskunft-Bestellung sucht — jede Tür schreibt ihn mit ihrer Wahl („AUSDRÜCKLICH VERLANGT" /
+ * „NICHT verlangt").
+ */
+export const WIDERRUF_WAHL_MARKE = "Beginn vor Ablauf der Widerrufsfrist";
+
+/**
+ * Nachbesserung 26.09.2026 (E-244, Gesamtdurchsicht): die ECHTEN Wahl-Sätze — Anfang des Satzes, den jede Tür
+ * schreibt (Kauflink, Kaufkarte, Bestellseite, Bündel; wortgleich bis zum Gedankenstrich). Die Marke allein
+ * steht auch in Systemnotizen („Lieferung gestartet … (Beginn vor Ablauf der Widerrufsfrist nicht verlangt)")
+ * — die zählten bisher als Erklärung und verschoben den Fristbeginn auf den Liefertag. LIKE ist in Postgres
+ * groß-/kleinschreibungsgenau: „nicht verlangt)" trifft „NICHT verlangt —" nicht.
+ */
+export const WIDERRUF_WAHL_VERLANGT = `${WIDERRUF_WAHL_MARKE} AUSDRÜCKLICH VERLANGT —`;
+export const WIDERRUF_WAHL_NICHT = `${WIDERRUF_WAHL_MARKE} NICHT verlangt —`;
+/** SQL: Ist diese Verlaufszeile (Alias `c`) eine echte Wahl des Kunden? Ohne zurückgenommene Zeilen. */
+export const WIDERRUF_WAHL_SQL = (c: string) =>
+  `(${c}.voided_at IS NULL AND (${c}.note LIKE '%${WIDERRUF_WAHL_VERLANGT}%' OR ${c}.note LIKE '%${WIDERRUF_WAHL_NICHT}%'))`;
+
+/**
+ * Nachbesserung 26.09.2026 (E-244, Gesamtdurchsicht): Hat der KUNDE SELBST diese Auskunft-Bestellung erklärt?
+ * Die EINE Erkennung für die Zahlungserinnerung (Fassung „Erinnerung" oder „Frage"), die Chefseite und die
+ * Prüfstände. Ja, wenn an der Bestellung (Alias `a`, Spalte ref) eine nicht zurückgenommene Verlaufszeile steht mit
+ *   · einer echten Wahl zum Beginn (WIDERRUF_WAHL_SQL — Kauflink, Kaufkarte, Bestellseite, Bündel),
+ *   · dem Beschaffungsauftrag (AUSKUNFT_BESCHAFFUNG_VERMERK — Bestellseite, Kauflink, Kaufkarte, Bündel,
+ *     Auftragsbestätigung nach der Zahlung),
+ *   · oder dem Klick des Kunden auf „zahlungspflichtig" (Autor „Kunde (…)": Bestellseite „… zahlungspflichtig
+ *     bestellt über …", Kauflink und Kundenbereich „… zahlungspflichtig beauftragt …").
+ * Nein beim Altbestand (gemessen 26.09.2026: alle 38 offenen Bestellungen „Zahlung ausstehend", 16.07.–26.09.,
+ * vom Betreuer „auf Kundenwunsch aus der Akte", von Mara oder über den alten Kaufweg angelegt). Solche
+ * Bestellungen bekommen keine Vertragsbestätigung und keine Zahlungsaufforderung, sondern die Frage, ob der
+ * Kunde sie noch möchte — mit dem Kauflink, der die Erklärungen einholt (offenOhneWahl).
+ */
+export const KUNDENERKLAERUNG_SQL = (a: string) => `EXISTS (
+  SELECT 1 FROM fiaon_contact_log ke
+   WHERE ke.ref = ${a}.ref AND ke.voided_at IS NULL
+     AND (${WIDERRUF_WAHL_SQL("ke")}
+          OR ke.note LIKE '${AUSKUNFT_BESCHAFFUNG_VERMERK}%'
+          OR (ke.agent_name LIKE 'Kunde (%' AND (ke.note LIKE '%zahlungspflichtig bestellt%' OR ke.note LIKE '%zahlungspflichtig beauftragt%'))))`;
+
+/**
+ * Nachbesserung 26.09.2026 (E-244, Befund der Gegenprüfung): Eine wiederverwendbare offene Bestellung
+ * eines Verbrauchers, an der noch KEINE Wahl zum Beginn vor Ablauf der Widerrufsfrist steht —
+ * Altbestand (gemessen 26.09.: alle 25 offenen Bestellungen älter als 21 Tage, angelegt 16.07.–05.09.
+ * von Betreuern und System, ohne Wahl, ohne Beschaffungsauftrag, ohne Eintrag der Bestellseite).
+ * Bis E-244 legte ein Klick nach Tag 21 eine NEUE Bestellung mit allen Erklärungen an; seit sie
+ * wiederverwendet wird, führte der Kauflink direkt auf ihre Zahlungsseite, und die Erklärungen des
+ * Kunden (§ 356 Abs. 4 BGB, Beschaffungsauftrag) entstanden nie. true = die Kaufseite zeigt das
+ * Formular (Haken, Wahl) zu IHREM Betrag, der Klick verwendet sie wieder und trägt die Erklärungen
+ * nach. „Zahlung gemeldet" nie (er hat überwiesen; der Beschaffungsauftrag kommt dann über die
+ * Auftragsbestätigung), Firmen nie (kein Widerrufsrecht).
+ */
+export function offenOhneWahl(stand: Pick<AuskunftStand, "offen" | "preis">): boolean {
+  const o = stand.offen;
+  return !!o && o.status === "pending_payment" && (o.art ?? "privat") === "privat" && o.wahlDa === false
+    && offenWiederverwendbar(stand);
+}
+
 // 26.09.2026 (E-243): „antrag_buendel" — der Zusatz im Antrag, angelegt nach der ersten Paketzahlung (auskunftBuendelNachZahlung).
 export type AuskunftQuelle = "kunde" | "kundenbereich" | "mara_mail" | "mara_wa" | "betreuer" | "assistent" | "verkaufstakt" | "oeffentlich" | "antrag_buendel";
+
+/**
+ * Nachbesserung 26.09.2026 (Gegenprüfung der Gesamtdurchsicht): Quellen, bei denen NICHT der Kunde selbst bestellt —
+ * ohne Klick auf „zahlungspflichtig", ohne Wahl zum Beginn, ohne Beschaffungsauftrag. Gemessen in der Produktion:
+ * am 25.09. (149 €) und 26.09. (74 €, CH) neue Auskünfte „über betreuer", beide mit payment_details („Ihre
+ * Vertragsbestätigung" + Zahlungsdaten) beim Anlegen — und am Tag danach die Frage „Eine Zahlung erwarten wir erst,
+ * wenn Sie die Bestellung selbst bestätigt haben". Für diese Quellen hält auskunftBestellen die Zahlungsdaten
+ * zurück (payment_email_sent_at beim Anlegen gesetzt — bestellungFuerAntrag schickt dann keine), und der Kunde bekommt
+ * sofort die Frage mit dem Kauflink (frageSofort, fiaon-auskunft-erinnerung.ts). Nur Verbraucher: Für eine
+ * Firmen-Auskunft gibt es kein Bestätigungsformular (offenOhneWahl) — dort bleibt es bei den Zahlungsdaten.
+ */
+export const QUELLEN_OHNE_KUNDENERKLAERUNG: readonly AuskunftQuelle[] = ["betreuer", "assistent", "mara_mail", "mara_wa", "verkaufstakt"];
 
 export interface AuskunftBestellung {
   ok: boolean;
@@ -199,13 +299,28 @@ export interface AuskunftBestellung {
   betragText: string;
   mitAbo: boolean;
   zahlungsseite: string | null;
+  /**
+   * Nur bei art „offen": An der wiederverwendeten Bestellung steht noch keine Wahl zum Beginn vor
+   * Ablauf der Widerrufsfrist (Altbestand, Bestellung durch Betreuer/Mara). Die Tür, die die
+   * Erklärungen des Kunden hat (Kauflink, Bestellseite), schreibt sie dann wie bei einer neuen —
+   * einmal (Nachbesserung 26.09.2026, E-244).
+   */
+  wahlFehlt?: boolean;
+  /**
+   * Nachbesserung 26.09.2026: Die NEUE Bestellung trägt keine Erklärung des Kunden (QUELLEN_OHNE_KUNDENERKLAERUNG,
+   * Verbraucher). Es gingen KEINE Zahlungsdaten hinaus, sondern die Frage mit dem Knopf zum Bestätigen
+   * (frageVersandt: ob sie wirklich hinausging). Der Aufrufer sagt dem Betreuer deshalb nicht „Zahlungsdaten gehen
+   * per E-Mail zu" und schickt keine Zahlungsseite.
+   */
+  ohneKundenerklaerung?: boolean;
+  frageVersandt?: boolean;
   fehler?: string;
 }
 
 /**
  * Die Auskunft für einen bekannten Menschen bestellen. Idempotent: Ist eine
- * Bestellung offen (jünger als 21 Tage), kommt ihr Zahlungslink zurück; ist sie
- * bezahlt, wird nichts angelegt.
+ * Bestellung offen (jeden Alters, nicht teurer als heute — offenWiederverwendbar),
+ * kommt ihr Zahlungslink zurück; ist sie bezahlt, wird nichts angelegt.
  *
  * Die Stammdaten kommen aus seiner jüngsten Zeile (Paket vor allem anderen) —
  * die Auskunft hängt an derselben Person, damit Akte, Betreuer und Unterlagen
@@ -225,15 +340,15 @@ export async function auskunftBestellen(ein: {
   if (stand.stufe === "bezahlt") {
     return { ok: true, art: "bezahlt", ref: stand.bezahltRef, paymentReference: null, betragCents: 0, betragText: "", mitAbo: stand.preis.mitAbo, zahlungsseite: null };
   }
-  // Gemeldet („habe überwiesen") gilt immer; eine offene Bestellung bis 21 Tage —
-  // danach wird sie stillgelegt und neu angelegt (der Preis kann sich geändert haben).
-  // Integration 26.09.2026 (E-243): und nur, wenn sie nicht teurer ist als der Preis, der HEUTE
-  // gilt (offenWiederverwendbar) — sonst ersetzt die neue sie (unten, superseded_by).
+  // Gemeldet („habe überwiesen") gilt immer; eine offene Bestellung, solange sie nicht teurer ist
+  // als der Preis, der HEUTE gilt (offenWiederverwendbar, E-243) — sonst ersetzt die neue sie
+  // (unten, superseded_by). Integration 26.09.2026 (E-244): ohne Altersgrenze (vorher 21 Tage).
   if (stand.offen && offenWiederverwendbar(stand)) {
     return {
       ok: true, art: "offen", ref: stand.offen.ref, paymentReference: stand.offen.paymentReference,
       betragCents: stand.offen.betragCents, betragText: euroText(stand.offen.betragCents),
       mitAbo: stand.preis.mitAbo, zahlungsseite: link(stand.offen.paymentReference),
+      wahlFehlt: stand.offen.wahlDa === false,
     };
   }
   let [v] = (await lauf`
@@ -254,20 +369,25 @@ export async function auskunftBestellen(ein: {
 
   const ref = `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   const preis = stand.preis;
+  // Nachbesserung 26.09.2026: ohne Erklärung des Kunden keine Zahlungsdaten beim Anlegen (QUELLEN_OHNE_KUNDENERKLAERUNG).
+  // Nur über den Standard-Pool: frageSofort liest die Zeile über sqlPool (in einer Transaktion wäre sie unsichtbar).
+  const ohneErklaerung = art === "privat" && QUELLEN_OHNE_KUNDENERKLAERUNG.includes(ein.quelle) && lauf === sqlPool;
   const packName = art === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "Bonitätsauskunft inkl. Handlungsplan";
   // payment_reference setzt der Trigger (Migration 037); bestellungFuerAntrag
   // setzt Betrag, Frist, Rechnung und schickt die Zahlungsdaten.
   // Integration 25.09.2026 (E-241): Ohne Land in der Quelle (Lead) trägt die Bestellung das Land
   // aus auskunftStand (landOhneAntrag) — Zahlungsmails und Beschaffung lesen es an genau dieser Zeile.
   // AT und CH sind damit nie mehr „SCHUFA“, nur weil der Lead kein Land angegeben hat.
+  // payment_email_sent_at gesetzt = bestellungFuerAntrag beansprucht den Versand von payment_details nicht (atomarer Claim
+  // „WHERE payment_email_sent_at IS NULL") — Rechnungsnummer und Zahlungsreferenz entstehen trotzdem.
   await lauf`
     INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, first_name, last_name, company_name, email,
                                     street, zip, city, country, birthdate, phone, phone_country_code, person_id, assigned_agent_id,
-                                    created_at, updated_at)
+                                    payment_email_sent_at, created_at, updated_at)
     VALUES (${ref}, 'schufa', 'submitted', ${preis.key}, ${packName},
             ${v.first_name}, ${v.last_name}, ${v.company_name}, ${v.email},
             ${v.street}, ${v.zip}, ${v.city}, ${String(v.country ?? "").trim() || stand.land}, ${v.birthdate}, ${v.phone}, ${v.phone_country_code},
-            ${ein.personId}, ${v.assigned_agent_id ?? null}, NOW(), NOW())`;
+            ${ein.personId}, ${v.assigned_agent_id ?? null}, ${ohneErklaerung ? new Date() : null}, NOW(), NOW())`;
   const { bestellungFuerAntrag } = await import("../routes/fiaon-antrag");
   // ── KEINE VERWAISTE ZEILE (Integration 25.09.2026, E-240) ─────────────────
   // Scheiterte bestellungFuerAntrag (bis Migration 083 z. B. die Katalogpreis-Wand
@@ -295,7 +415,7 @@ export async function auskunftBestellen(ein: {
     };
   }
   const pr = (erg.body as any)?.paymentReference ?? null;
-  // Die alte, zu alte offene Bestellung erst JETZT stilllegen — mit Zeiger auf die
+  // Die alte offene Bestellung (teurer als heute oder ohne Betrag) erst JETZT stilllegen — mit Zeiger auf die
   // neue (die ref ist immer auflösbar). Ohne Zeiger würde eine späte Überweisung
   // auf die alte Referenz zum Phantom in der Verbuchung (fiaon-verbuchung.ts).
   if (stand.offen) {
@@ -310,7 +430,8 @@ export async function auskunftBestellen(ein: {
     // (supersedeSisterOrders, im Hintergrund, Zeiger = Zahlungsreferenz) — wer zuerst kommt, ist gleich.
     const [nachher] = (await lauf`SELECT payment_status FROM fiaon_applications WHERE ref = ${alt.ref} LIMIT 1`) as any[];
     const ersetzt = String(nachher?.payment_status ?? "") === "superseded";
-    if (ersetzt && alt.betragCents > preis.cents && Date.now() - new Date(alt.angelegt).getTime() < OFFEN_WIEDERVERWENDEN_TAGE * 86_400_000) {
+    // E-244: ohne Altersbedingung — jede ersetzte teurere Bestellung bekommt den Satz (vorher nur bis Tag 21).
+    if (ersetzt && alt.betragCents > preis.cents) {
       await lauf`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${alt.ref}, ${ein.personId}, NULL, 'System', 'system',
@@ -323,9 +444,24 @@ export async function auskunftBestellen(ein: {
     VALUES (${ref}, ${ein.personId}, ${ein.agentId ?? null}, ${ein.von ?? "System"}, 'system',
             ${`Bonitätsauskunft bestellt (${preis.text}${preis.mitAbo ? ", Kundenpreis mit Paket" : ", einzeln"}) — über ${ein.quelle}. Verwendungszweck ${pr ?? "folgt"}.`})`
     .catch((e) => console.error("[AUSKUNFT] Verlaufseintrag:", e));
+  let frageVersandt: boolean | undefined;
+  if (ohneErklaerung) {
+    const { VERMERK_ZAHLUNGSDATEN_ZURUECK, frageSofort } = await import("./fiaon-auskunft-erinnerung");
+    await lauf`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${ein.personId}, NULL, 'System', 'system',
+              ${`${VERMERK_ZAHLUNGSDATEN_ZURUECK} — die Bestellung trägt keine Erklärung des Kunden (angelegt über ${ein.quelle}${ein.von ? ` von ${ein.von}` : ""}). `
+                + "Er bekommt stattdessen die Frage mit dem Knopf „Bestellung ansehen und bestätigen“ (Kauflink); erst nach seiner Bestätigung gehen Vertragsbestätigung, Widerrufsbelehrung und Zahlungsdaten hinaus. Bitte keine Zahlungsseite schicken."})`
+      .catch((e) => console.error("[AUSKUNFT] Verlaufseintrag (Zahlungsdaten zurückgehalten):", e));
+    frageVersandt = (await frageSofort(ref).catch((e) => {
+      console.error(`[AUSKUNFT] ${ref}: Frage beim Anlegen:`, e);
+      return { versandt: false, grund: String(e) };
+    })).versandt;
+  }
   return {
     ok: true, art: "neu", ref, paymentReference: pr, betragCents: preis.cents, betragText: preis.text,
     mitAbo: preis.mitAbo, zahlungsseite: link(pr),
+    ...(ohneErklaerung ? { ohneKundenerklaerung: true, frageVersandt } : {}),
   };
 }
 
@@ -342,8 +478,9 @@ export async function auskunftBestellen(ein: {
 // „AUSDRÜCKLICH VERLANGT", den Kauflink und Kaufkarte schreiben —, dazu die
 // vorhandenen Spalten consent_* und legal_form. Keine Migration. Gebaut und
 // geprüft vom Bauer der Bestellseite (.pruef/E-240-bestellseite-server-vorschlag.ts),
-// hier eingebaut. Nur für eine NEUE Bestellung (eine wiederverwendete offene
-// hat ihre Erklärungen schon).
+// hier eingebaut. Für eine NEUE Bestellung — und seit E-244 (Nachbesserung
+// 26.09.2026) auch für eine wiederverwendete offene, an der noch keine Wahl
+// steht (AuskunftBestellung.wahlFehlt: Altbestand ohne Erklärungen).
 // ═══════════════════════════════════════════════════════════════════════════
 
 const kurzText = (v: unknown, n: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -488,6 +625,24 @@ export async function auskunftBestellungBelegen(
       ref, personId: null, art: auftragArt, weg: "bestellseite", von: "Kunde (Bestellseite)",
       wortlaut: auftrag.text, fassung: kurzText(z.fassung, 20) || null, am: auftrag.am,
     }, lauf).catch((e) => console.error(`[AUSKUNFT] ${ref}: Beschaffungsauftrag nicht vermerkt:`, e));
+  }
+  // Nachbesserung 26.09.2026 (Gegenprüfung): Bestätigt der Kunde auf der Bestellseite eine WIEDERVERWENDETE offene
+  // Bestellung ohne Erklärung (AuskunftBestellung.wahlFehlt — die Route in fiaon-antrag.ts ruft uns genau dann), geht
+  // payment_details nicht (nur für eine neue). Dann jetzt die Vertragsbestätigung mit Belehrung — einmal
+  // (bestaetigungNachErklaerung). Erkennung ohne Zutun der Route: Eine eben angelegte Bestellung ist jünger als zwei
+  // Minuten UND hat ihre Zahlungsdaten bekommen; wiederverwendet ist sie, wenn sie älter ist oder ihre Zahlungsdaten
+  // zurückgehalten wurden (Betreuer-Bestellung, VERMERK_ZAHLUNGSDATEN_ZURUECK).
+  if (zeilen.length > 0 && !firma && lauf === sqlPool) {
+    const { VERMERK_ZAHLUNGSDATEN_ZURUECK, bestaetigungNachErklaerung } = await import("./fiaon-auskunft-erinnerung");
+    const [w] = (await lauf`
+      SELECT (a.created_at < NOW() - INTERVAL '2 minutes'
+              OR EXISTS (SELECT 1 FROM fiaon_contact_log c WHERE c.ref = a.ref AND c.voided_at IS NULL
+                           AND c.note LIKE ${`${VERMERK_ZAHLUNGSDATEN_ZURUECK}%`})) AS wieder
+        FROM fiaon_applications a WHERE a.ref = ${ref} AND a.payment_status = 'pending_payment'`) as any[];
+    if (w?.wieder) {
+      void bestaetigungNachErklaerung(ref, "bestellseite")
+        .catch((e) => console.error(`[AUSKUNFT] ${ref}: Vertragsbestätigung nach der Bestellseite:`, e));
+    }
   }
   return zeilen.length > 0;
 }
@@ -903,7 +1058,13 @@ export async function auskunftBuendelNachZahlung(ref: string, lauf: Lauf = sqlPo
         }
         if (o.betragCents > 0 && o.betragCents <= stand.preis.cents) {
           const mitAuftrag = await auftragAn(o.ref);
-          await abschluss(`die offene Auskunft-Bestellung ${o.ref} (${euroText(o.betragCents)}) bleibt — keine zweite angelegt${mitAuftrag ? "; Beschaffungsauftrag aus dem Antrag dort vermerkt" : ""}.`);
+          // Nachbesserung 26.09.2026 (E-244): Steht an der offenen (Altbestand) noch keine Wahl zum
+          // Beginn, gilt die aus dem Antrag — sonst ginge die Erklärung des Kunden verloren.
+          const wahlNachgetragen = wunsch.art === "privat" && o.wahlDa === false;
+          if (wahlNachgetragen) {
+            await vermerk(o.ref, `Bonitätsauskunft aus dem Antrag (Zusatz an ${w.ref}, gewünscht am ${zeitBerlin(new Date(wunsch.am))}) — die offene Bestellung bleibt. ${wunsch.sofort === true ? WIDERRUF_VERLANGT_SATZ : WIDERRUF_NICHT_SATZ}`);
+          }
+          await abschluss(`die offene Auskunft-Bestellung ${o.ref} (${euroText(o.betragCents)}) bleibt — keine zweite angelegt${mitAuftrag ? "; Beschaffungsauftrag aus dem Antrag dort vermerkt" : ""}${wahlNachgetragen ? "; Wahl zum Beginn aus dem Antrag dort vermerkt" : ""}.`);
           return erg("offen_behalten", `${ref}: offene Auskunft ${o.ref} (${euroText(o.betragCents)}) bleibt.`, {
             auskunftRef: o.ref, betragText: euroText(o.betragCents),
             zahlungsseite: o.paymentReference ? absoluteUrl(`/zahlung/${encodeURIComponent(o.paymentReference)}`) : null,

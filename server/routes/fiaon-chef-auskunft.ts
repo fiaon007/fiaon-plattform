@@ -39,13 +39,28 @@
 //                                    dann die fehlenden WhatsApp-Vorlagen bei Meta
 //                                    einreichen (vorlagenEinreichen, nur Fehlende).
 // „Anhalten" ist der bestehende Weg: POST /chef/auskunft/einstellung an = 0.
+//
+// 26.09.2026 (E-244) — Justin: „Jeder, der die SCHUFA offen hat, braucht eine
+// E-Mail mit Zahlungserinnerung." Der Takt steht in fiaon-auskunft-erinnerung.ts;
+// hier sieht und steuert ihn die Leitung:
+//   · Karte „Zahlungserinnerung": An/Aus, je Tag, Dauer-Tage (drei weitere
+//     Schlüssel der EINEN Erlaubnisliste, jede Änderung im Protokoll), heute
+//     versandt, heute fällig.
+//   · Tabelle „Bestellt, nicht bezahlt": aus derselben Abfrage wie der Takt
+//     (offeneBestellungen) — ohne Archivierte und Tests, mit Stufe und Datum der
+//     letzten Erinnerung, nächster Fälligkeit und dem Grund, wenn keine Mail geht.
+//     Gesamtdurchsicht 26.09.2026: `fassung` je Zeile — „frage" = ohne Erklärung des
+//     Kunden (KUNDENERKLAERUNG_SQL); die Seite zeigt dann „bestätigen lassen".
+//   POST /chef/auskunft/stornieren   {ref} — nur eine OFFENE Auskunft (pending_payment),
+//                                    atomar (Status „cancelled", Provisionen zurück,
+//                                    Verlauf), dazu das Protokoll
+//   POST /chef/auskunft/mahnstopp    {ref, an} — Mahnstopp setzen oder aufheben
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { requireChef, chefProtokoll, type ChefRequest } from "./fiaon-chef-zugang";
 import { euroText, auskunftLand, auskunfteienText } from "@shared/fiaon-auskunft";
-import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
 import { angebotSpurenSql, ANGEBOT_VERMERK } from "../lib/fiaon-auskunft";
 import { klicksTabelle, KAUF_LINK_TAGE } from "./fiaon-auskunft-kauf";
 import {
@@ -54,7 +69,13 @@ import {
   SEGMENTE as VERKAUF_SEGMENTE, SCHARF_WERTE, SENDE_AB_MIN, SENDE_BIS_MIN, auskunftVorlageFuer,
   poolZahlen, beruehrungenHeute, whatsappMoeglich, vorschau, istSendezeit, kurzTokenLesen, heuteMoeglich,
   verkaufEinstellungen, einstellungSetzen, scharfStellen, type VerkaufEinstellungen,
+  SCHALTER_ERINNERUNG_AN, SCHALTER_ERINNERUNG_PRO_TAG, SCHALTER_ERINNERUNG_DAUER,
+  HOECHSTENS_ERINNERUNG_PRO_TAG, HOECHSTENS_ERINNERUNG_DAUER_TAGE,
 } from "../lib/fiaon-auskunft-verkauf";
+import {
+  erinnerungEinstellungen, erinnerungUebersicht, ensureErinnerungSpalten, JE_LAUF as ERINNERUNG_JE_LAUF,
+  STUFEN_TAGE as ERINNERUNG_STUFEN_TAGE, AUFGABE_AB_TAGEN as ERINNERUNG_AUFGABE_AB, type ErinnerungEinstellungen,
+} from "../lib/fiaon-auskunft-erinnerung";
 
 const router = Router();
 const wache = requireChef("geschaeftsfuehrung");
@@ -99,12 +120,16 @@ const AB_14 = `(((NOW() AT TIME ZONE 'Europe/Berlin')::date - 13)::timestamp AT 
  * „Standard → 250" — welcher Wert davor galt (500? der alte Schlüssel?), sah
  * niemand. Jetzt „Mails je Tag: 500 (Standard) → 250".
  */
-const STEUERUNG: Record<string, { name: string; wert: (e: VerkaufEinstellungen) => string }> = {
+const STEUERUNG: Record<string, { name: string; wert: (e: VerkaufEinstellungen, r: ErinnerungEinstellungen) => string }> = {
   [SCHALTER_AN]: { name: "Verkaufstakt", wert: (e) => (e.an ? "an" : "aus") },
   [SCHALTER_KREIS]: { name: "Kreis", wert: (e) => e.kreis },
   [SCHALTER_MAILS]: { name: "Mails je Tag", wert: (e) => String(e.mailsProTag) },
   [SCHALTER_WA]: { name: "WhatsApp je Tag", wert: (e) => String(e.waProTag) },
   [SCHALTER_LIEFERMODUS]: { name: "Liefermodus", wert: (e) => e.liefermodus },
+  // E-244: die Zahlungserinnerung an offene Auskünfte (fiaon-auskunft-erinnerung.ts).
+  [SCHALTER_ERINNERUNG_AN]: { name: "Zahlungserinnerung", wert: (_e, r) => (r.an ? "an" : "aus") },
+  [SCHALTER_ERINNERUNG_PRO_TAG]: { name: "Zahlungserinnerungen je Tag", wert: (_e, r) => String(r.proTag) },
+  [SCHALTER_ERINNERUNG_DAUER]: { name: "Dauerstufe alle … Tage", wert: (_e, r) => (r.dauerTage > 0 ? String(r.dauerTage) : "0 (nach Tag 18 Schluss)") },
 };
 
 export interface Einstellungen extends VerkaufEinstellungen {
@@ -112,13 +137,18 @@ export interface Einstellungen extends VerkaufEinstellungen {
   hoechstensWa: number;
   /** Ist die Schnittstelle (AUSKUNFT_API_URL/-KEY) eingerichtet? Ohne sie bleibt „api" im Einkauf. */
   apiAngebunden: boolean;
+  /** E-244: die Zahlungserinnerung — Schalter (Standard an), je Tag, Dauer-Tage, mit ihren Obergrenzen. */
+  erinnerung: ErinnerungEinstellungen & { hoechstensProTag: number; hoechstensDauerTage: number };
 }
 
 export async function einstellungenLesen(): Promise<Einstellungen> {
-  const e = await verkaufEinstellungen();
+  const [e, r] = await Promise.all([verkaufEinstellungen(), erinnerungEinstellungen()]);
   let apiAngebunden = false;
   try { apiAngebunden = (await import("../lib/fiaon-auskunft-quelle")).auskunftApiAngebunden(); } catch { /* ohne Quelle: nicht angebunden */ }
-  return { ...e, hoechstensMails: HOECHSTENS_PRO_TAG, hoechstensWa: HOECHSTENS_WA_PRO_TAG, apiAngebunden };
+  return {
+    ...e, hoechstensMails: HOECHSTENS_PRO_TAG, hoechstensWa: HOECHSTENS_WA_PRO_TAG, apiAngebunden,
+    erinnerung: { ...r, hoechstensProTag: HOECHSTENS_ERINNERUNG_PRO_TAG, hoechstensDauerTage: HOECHSTENS_ERINNERUNG_DAUER_TAGE },
+  };
 }
 
 /** Der Rohwert eines Schlüssels (null = nicht gesetzt, es gilt der Standard des Takts). */
@@ -542,22 +572,12 @@ async function beschaffungZaehler(rueck: { zeilen: Rueckstand[] }): Promise<Besc
 router.get("/chef/auskunft", wache, async (_req: Request, res: Response) => {
   try {
     res.setHeader("Cache-Control", "no-store");
-    const [trichter, offen, pool, einst, heuteBeruehrt, wa, rueck, wirkung, vorlage, protokoll] = await Promise.all([
+    const [trichter, erinnerung, pool, einst, heuteBeruehrt, wa, rueck, wirkung, vorlage, protokoll] = await Promise.all([
       trichterLesen(),
       // Bestellt, nicht bezahlt: mit Zahlungslink — das Geld liegt schon auf dem Tisch.
-      sqlPool.unsafe(`
-        SELECT a.ref, a.person_id, a.payment_reference, a.payment_status, a.amount_due, a.pack_key, a.created_at::timestamptz AS angelegt,
-               a.claimed_paid_at, a.country,
-               COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), a.ref) AS name,
-               COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', ag.first_name, ag.last_name))) AS betreuer,
-               (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre
-          FROM fiaon_applications a
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-          LEFT JOIN fiaon_agents ag ON ag.id = COALESCE(p.assigned_agent_id, a.assigned_agent_id)
-         WHERE ${IST_AUSKUNFT} AND a.merged_into IS NULL AND a.payment_status IN ('pending_payment', 'claimed_paid')
-           AND a.ref NOT LIKE 'FIAON-TEST%' AND p.ist_test_am IS NULL AND a.gdpr_deleted_at IS NULL
-         ORDER BY a.created_at DESC
-         LIMIT 100`) as Promise<any[]>,
+      // E-244: aus DERSELBEN Abfrage wie die Zahlungserinnerung (offeneBestellungen) — ohne Stornierte,
+      // Archivierte und Tests (vorher standen archivierte Doppel hier), dazu Stufe, nächste Fälligkeit, Grund.
+      erinnerungUebersicht(),
       poolZahlen(),
       einstellungenLesen(),
       beruehrungenHeute(),
@@ -600,22 +620,38 @@ router.get("/chef/auskunft", wache, async (_req: Request, res: Response) => {
       einstellungen: e,
       protokoll,
       beschaffung: await beschaffungZaehler(rueck),
-      offen: (offen as any[]).map((o) => ({
-        ref: String(o.ref), personId: o.person_id != null ? Number(o.person_id) : null, name: String(o.name),
-        status: String(o.payment_status), gemeldetAm: o.claimed_paid_at ? new Date(o.claimed_paid_at).toISOString() : null,
-        // E-181: Der Katalogpreis gilt; amount_due nur, wenn keiner bestimmbar ist (Gegenlesen 24.09.2026).
-        // Integration 25.09.2026: über katalogpreisCents (erst die Kategorie, dann der Schlüssel) — sechs
-        // Auskunft-Zeilen tragen vom Dubletten-Merge ein Stufenpaket im pack_key; der Schlüssel allein
-        // hätte dort 99,99 € statt 74 € angezeigt.
-        betrag: katalogpreisCents({ ref: o.ref, type: "schufa", pack_key: o.pack_key })
-          ? euroText(katalogpreisCents({ ref: o.ref, type: "schufa", pack_key: o.pack_key })!)
-          : o.amount_due != null ? euroText(Math.round(Number(o.amount_due) * 100)) : null,
-        angelegt: new Date(o.angelegt).toISOString(),
-        tage: Math.max(0, Math.floor((Date.now() - new Date(o.angelegt).getTime()) / 86_400_000)),
-        land: auskunftLand(o.country), betreuer: o.betreuer ? String(o.betreuer) : null, werbesperre: !!o.werbesperre,
-        zahlungsseite: o.payment_reference ? absoluteUrl(`/zahlung/${encodeURIComponent(String(o.payment_reference))}`) : null,
-        verwendungszweck: o.payment_reference ? String(o.payment_reference) : null,
-      })),
+      offen: erinnerung.bestellungen.filter((o) => erinnerung.zeilen.get(o.ref)?.grundArt !== "archiviert" && erinnerung.zeilen.get(o.ref)?.grundArt !== "test")
+        .slice(0, 150).map((o) => {
+          const z = erinnerung.zeilen.get(o.ref)!;
+          return {
+            ref: o.ref, personId: o.personId, name: o.name,
+            status: o.status, gemeldetAm: o.gemeldetAm ? o.gemeldetAm.toISOString() : null,
+            // E-181: Der Katalogpreis gilt; amount_due nur, wenn keiner bestimmbar ist (offeneBestellungen über katalogpreisCents —
+            // sechs Auskunft-Zeilen tragen vom Dubletten-Merge ein Stufenpaket im pack_key).
+            betrag: o.betragCents != null ? euroText(o.betragCents) : null,
+            angelegt: o.angelegt.toISOString(),
+            // Berliner Kalendertage — dieselbe Zählung wie die Stufen (vorher UTC-Stunden / 24: am Tagesrand verschieden).
+            tage: Math.max(0, z.tage),
+            land: o.land, betreuer: o.betreuer, werbesperre: !!o.werbesperre,
+            zahlungsseite: o.paymentReference ? absoluteUrl(`/zahlung/${encodeURIComponent(o.paymentReference)}`) : null,
+            verwendungszweck: o.paymentReference,
+            // E-244: der Stand der Zahlungserinnerung
+            erinnerung: {
+              stufe: z.stufe, stufeText: z.stufeText, letzteAm: z.letzteAm, naechste: z.naechste,
+              grund: z.grund, stornieren: z.stornieren, hinweis: z.hinweis, aufgabeAm: z.aufgabeAm, mahnstopp: z.mahnstopp,
+              // Gesamtdurchsicht 26.09.2026: „frage" = ohne Erklärung des Kunden → „bestätigen lassen".
+              fassung: z.fassung,
+            },
+          };
+        }),
+      // E-244: die Karte „Zahlungserinnerung"
+      erinnerung: {
+        ...e.erinnerung,
+        heuteVersandt: erinnerung.heuteVersandt, heuteFaellig: erinnerung.heuteFaellig, imTakt: erinnerung.imTakt,
+        ohneErklaerung: erinnerung.ohneErklaerung,
+        jeLauf: ERINNERUNG_JE_LAUF, stufenTage: [...ERINNERUNG_STUFEN_TAGE], aufgabeAbTagen: ERINNERUNG_AUFGABE_AB,
+        fenster: { ab: uhrzeit(SENDE_AB_MIN), bis: uhrzeit(SENDE_BIS_MIN) },
+      },
       rueckstand: rueck,
       takt: {
         an: e.an,
@@ -814,12 +850,14 @@ router.post("/chef/auskunft/scharf", wache, async (req: ChefRequest, res: Respon
   try {
     const alterMailSchluessel = await rohWert(SCHALTER_PRO_TAG);
     const erg = await scharfStellen();
+    // E-244: Die Werte der Zahlungserinnerung ändert der Scharf-Knopf nicht — sie gehen nur fürs Protokoll mit.
+    const erinnerungJetzt = await erinnerungEinstellungen();
     const geaendert: string[] = [];
     for (const w of SCHARF_WERTE) {
       const regel = STEUERUNG[w.key];
       if (!regel || erg.rohVorher[w.key] === w.wert) continue;
       const herkunft = erg.rohVorher[w.key] != null ? "" : w.key === SCHALTER_MAILS && alterMailSchluessel != null ? " (alter Schlüssel)" : " (Standard)";
-      const text = `${regel.name}: ${regel.wert(erg.vorher)}${herkunft} → ${regel.wert(erg.nachher)} (Verkauf scharf gestellt)`;
+      const text = `${regel.name}: ${regel.wert(erg.vorher, erinnerungJetzt)}${herkunft} → ${regel.wert(erg.nachher, erinnerungJetzt)} (Verkauf scharf gestellt)`;
       geaendert.push(text);
       await chefProtokoll(req, `${PROTOKOLL_ZIEL}${w.key}`, text);
     }
@@ -876,7 +914,7 @@ router.post("/chef/auskunft/einstellung", wache, async (req: ChefRequest, res: R
     if (!regel) return res.status(400).json({ ok: false, error: "Diesen Schlüssel darf die Seite nicht schreiben." });
 
     const vorher = await rohWert(key);
-    const vorherWirksam = await verkaufEinstellungen();
+    const [vorherWirksam, vorherErinnerung] = await Promise.all([verkaufEinstellungen(), erinnerungEinstellungen()]);
     // Nicht gesetzt: Galt der Standard oder (nur bei den Mails) der alte Schlüssel aus E-240?
     const herkunft = vorher != null ? "" : key === SCHALTER_MAILS && (await rohWert(SCHALTER_PRO_TAG)) != null ? " (alter Schlüssel)" : " (Standard)";
     // Die Prüfung der Werte steht EINMAL — in einstellungSetzen des Takts.
@@ -886,7 +924,7 @@ router.post("/chef/auskunft/einstellung", wache, async (req: ChefRequest, res: R
     if (vorher !== nachher) {
       // Protokoll: wer (Chef-Sitzung), wann (zeit), was (alt → neu). Ein Fehler hier kippt die Änderung nie (chefProtokoll fängt ihn).
       await chefProtokoll(req, `${PROTOKOLL_ZIEL}${erg.key}`,
-        `${regel.name}: ${regel.wert(vorherWirksam)}${herkunft} → ${regel.wert(erg.einstellungen)}`);
+        `${regel.name}: ${regel.wert(vorherWirksam, vorherErinnerung)}${herkunft} → ${regel.wert(erg.einstellungen, await erinnerungEinstellungen())}`);
     }
     const wer = req.chef?.agentId ? `Chef #${req.chef.agentId}` : "Chefbüro";
     console.log(`[CHEF-AUSKUNFT] ${erg.key}: ${vorher ?? "(Standard)"} → ${nachher} durch ${wer}`);
@@ -894,6 +932,104 @@ router.post("/chef/auskunft/einstellung", wache, async (req: ChefRequest, res: R
     res.json({ ok: true, einstellungen, protokoll, geaendert: vorher !== nachher });
   } catch (err) {
     console.error("[CHEF-AUSKUNFT] Einstellung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// E-244: STORNIEREN und MAHNSTOPP aus der Tabelle „Bestellt, nicht bezahlt"
+//
+// Die Erinnerung sagt dem Kunden: „Sie möchten die Auskunft nicht mehr?
+// Antworten Sie kurz auf diese Mail — wir stornieren, es entstehen keine
+// Kosten." Mara übergibt solche Wünsche als Aufgabe — bis heute fehlte in der
+// Tabelle der Hebel dafür.
+//
+// Stornieren wie bestellungStornieren (fiaon-antrag.ts, der Knopf der
+// Zahlungsübersicht): payment_status „cancelled", cancelled_at, Provisionen
+// zurück (onCustomerRefunded; bei einer unbezahlten Auskunft gibt es keine),
+// Verlaufseintrag — aber als EIN UPDATE mit payment_status = 'pending_payment'
+// in der Bedingung (Gegenprüfung 26.09.2026: bestellungStornieren nimmt auch
+// gemeldete und bezahlte; Prüfen-dann-Ändern ließe ein Fenster offen).
+// Storno und Mahnstopp stehen im Protokoll der Steuerung (Präfix
+// „auskunft-einstellung:storno:…" / „…mahnstopp:…"). Es geht KEINE Mail an den Kunden (er hat selbst um
+// den Storno gebeten; eine Bestätigung schreibt der, der ihm antwortet). Nur eine
+// OFFENE Auskunft (pending_payment) — nie eine bezahlte oder „Zahlung gemeldet"
+// (dort ist vielleicht Geld unterwegs; das klärt die Zahlungsstelle). Folge für
+// den Verkauf: Eine stornierte Auskunft sperrt das Angebot (OHNE_AUSKUNFT_SQL).
+//
+// Mahnstopp setzt mahnstopp_am an der Bestellung (dieselbe Spalte wie Rückholung
+// und Postmeister) — dann endet jede Zahlungserinnerung; „an: false" hebt ihn auf.
+// ───────────────────────────────────────────────────────────────────────────
+
+const REF_MUSTER = /^FIAON-[A-Z0-9-]{3,60}$/i;
+const IST_AUSKUNFT_ZEILE = `(COALESCE(type, '') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%')`;
+
+router.post("/chef/auskunft/stornieren", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const ref = String(req.body?.ref ?? "").trim();
+    if (!REF_MUSTER.test(ref)) return res.status(400).json({ ok: false, error: "Keine gültige Bestellnummer." });
+    const wer = req.chef?.agentId ? `Chefbüro (#${req.chef.agentId})` : "Chefbüro";
+    // In EINEM Schritt: nur, solange sie offen ist (pending_payment). Kein Prüfen-dann-Ändern — meldet der Kunde
+    // dazwischen eine Zahlung (oder wird sie gebucht), bleibt die Bestellung, wie sie ist (Gegenprüfung 26.09.2026).
+    // bestellungStornieren (fiaon-antrag.ts) nimmt auch claimed_paid und paid — deshalb hier ein eigenes UPDATE,
+    // danach dieselben Folgen: Provisionen zurück (onCustomerRefunded; bei einer unbezahlten Auskunft keine), Verlauf.
+    const zeilen = (await sqlPool.unsafe(`
+      UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+       WHERE ref = $1 AND ${IST_AUSKUNFT_ZEILE} AND merged_into IS NULL AND payment_status = 'pending_payment' AND cancelled_at IS NULL
+       RETURNING ref, person_id, payment_reference`, [ref])) as any[];
+    if (!zeilen.length) {
+      // Warum nicht? Erst jetzt nachsehen — nur für die Antwort.
+      const [z] = (await sqlPool.unsafe(`
+        SELECT payment_status, merged_into FROM fiaon_applications WHERE ref = $1 AND ${IST_AUSKUNFT_ZEILE} LIMIT 1`, [ref])) as any[];
+      if (!z) return res.status(404).json({ ok: false, error: "Diese Auskunft-Bestellung gibt es nicht." });
+      if (z.merged_into) return res.status(409).json({ ok: false, error: "Die Bestellung ist zusammengeführt — bitte die führende Bestellung stornieren." });
+      return res.status(409).json({
+        ok: false,
+        error: String(z.payment_status) === "claimed_paid"
+          ? "Der Kunde hat eine Zahlung gemeldet — erst mit der Zahlungsstelle klären, dann stornieren (Zahlungsübersicht)."
+          : `Nur eine offene Bestellung lässt sich hier stornieren (Stand: ${String(z.payment_status)}).`,
+      });
+    }
+    const z = zeilen[0];
+    const { onCustomerRefunded } = await import("./fiaon-agent");
+    const provision = await onCustomerRefunded(String(z.ref)).catch(() => ({ cancelled: 0, clawback: 0 }));
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${String(z.ref)}, ${z.person_id ?? null}, ${req.chef?.agentId ?? null}, ${wer}, 'system',
+              ${`Bestellung storniert (${wer}, Auskunft-Verkauf) — Provisionen: ${provision.cancelled} storniert, ${provision.clawback} verrechnet. Keine Zahlungserinnerung mehr, kein neues Angebot; der Kunde bekommt dazu keine automatische Mail.`})`
+      .catch((e) => console.error("[CHEF-AUSKUNFT] Verlauf Storno:", e));
+    // Im Protokoll der Steuerung (dasselbe Präfix — sonst sähe die Leitung dort nicht, wer storniert hat).
+    await chefProtokoll(req, `${PROTOKOLL_ZIEL}storno:${ref}`, `Offene Bonitätsauskunft storniert (${String(z.payment_reference ?? ref)}) — keine Erinnerung mehr, kein neues Angebot.`);
+    console.log(`[CHEF-AUSKUNFT] ${ref} storniert durch ${wer}`);
+    res.json({ ok: true, ref: String(z.ref) });
+  } catch (err) {
+    console.error("[CHEF-AUSKUNFT] Storno:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/chef/auskunft/mahnstopp", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const ref = String(req.body?.ref ?? "").trim();
+    if (!REF_MUSTER.test(ref)) return res.status(400).json({ ok: false, error: "Keine gültige Bestellnummer." });
+    const an = req.body?.an !== false;
+    await ensureErinnerungSpalten();
+    const zeilen = (await sqlPool.unsafe(`
+      UPDATE fiaon_applications
+         SET mahnstopp_am = ${an ? "COALESCE(mahnstopp_am, NOW())" : "NULL"}, updated_at = NOW()
+       WHERE ref = $1 AND ${IST_AUSKUNFT_ZEILE} AND merged_into IS NULL
+       RETURNING ref, person_id, payment_reference`, [ref])) as any[];
+    if (!zeilen.length) return res.status(404).json({ ok: false, error: "Diese Auskunft-Bestellung gibt es nicht." });
+    const wer = req.chef?.agentId ? `Chefbüro (#${req.chef.agentId})` : "Chefbüro";
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${zeilen[0].person_id ?? null}, ${req.chef?.agentId ?? null}, ${wer}, 'system',
+              ${an ? "Mahnstopp gesetzt (Auskunft-Verkauf) — keine Zahlungserinnerung mehr zu dieser Bestellung." : "Mahnstopp aufgehoben (Auskunft-Verkauf) — die Zahlungserinnerung läuft wieder."})`
+      .catch((e) => console.error("[CHEF-AUSKUNFT] Verlauf Mahnstopp:", e));
+    await chefProtokoll(req, `${PROTOKOLL_ZIEL}mahnstopp:${ref}`, `${an ? "Mahnstopp gesetzt" : "Mahnstopp aufgehoben"} (${String(zeilen[0].payment_reference ?? ref)})`);
+    res.json({ ok: true, ref, mahnstopp: an });
+  } catch (err) {
+    console.error("[CHEF-AUSKUNFT] Mahnstopp:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

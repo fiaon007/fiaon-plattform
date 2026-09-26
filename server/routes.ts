@@ -1017,6 +1017,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', (await import('./routes/fiaon-chef-auskunft-beschaffung')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('auskunft_verkauf', async () => await (await import('./lib/fiaon-auskunft-verkauf')).verkaufsTakt(), 30 * 60 * 1000, { beimStartNach: 420_000 });
+    // 💶 E-244 (26.09.2026): Zahlungserinnerung an jede offene Auskunft-Bestellung — Tag 1/4/10/18, danach wöchentlich,
+    //    Mo–So 07:00–20:30, je Lauf 10, je Tag auskunft_erinnerung_pro_tag (50). STANDARD AN; aus im Mara-Steuerpult.
+    tageslauf('auskunft_erinnerung', async () => await (await import('./lib/fiaon-auskunft-erinnerung')).erinnerungLauf(), 30 * 60 * 1000, { beimStartNach: 480_000 });
   });
 
   // 💶 Die Einladung zum Bankeinzug (Lauf „sepa-werbung", E-072) ist seit 19.09.2026

@@ -13,9 +13,24 @@ import { sqlPool } from "../lib/db-pool";
 import { Router, type Request, type Response } from "express";
 import {
   zustimmungTokenPruefen, zustimmungsLage, zustimmungFesthalten, ZUSTIMMUNG_TAGE,
+  type ZustimmungsLage,
 } from "../lib/fiaon-zustimmung";
 
 const router = Router();
+
+/**
+ * Die Spalten, die /zustimmung wirklich einholt: consent_contract nur mit Vertragsfassung
+ * (= Privatpaket mit Rate, siehe zustimmungsLage) — dieselbe Regel wie `formSpalten` in
+ * client/src/pages/zustimmung.tsx.
+ */
+export function zustimmungEinzuholen(lage: Pick<ZustimmungsLage, "spalten" | "vertragsFassung">): string[] {
+  return lage.spalten.filter((s) => s !== "consent_contract" || !!lage.vertragsFassung);
+}
+
+/** Ist der Vertrag nach dem Festhalten angenommen? Erst dann darf die erste Rechnung folgen. */
+export function vertragJetztAngenommen(lage: Pick<ZustimmungsLage, "fertig" | "spalten"> | null): boolean {
+  return !!lage && lage.fertig && !lage.spalten.includes("consent_contract");
+}
 
 /** Die Adresse des Anfragenden — hinter Render steht ein Proxy davor. */
 function absenderIp(req: Request): string | null {
@@ -113,12 +128,23 @@ router.post("/zustimmung/:token", async (req: Request, res: Response) => {
     if (!lage) return res.status(404).json({ ok: false, error: "Wir finden diesen Vorgang nicht." });
     if (lage.fertig) return res.json({ ok: true, lage, meldung: "Es war schon alles bestätigt." });
 
-    // ── ALLE ODER KEINE ──────────────────────────────────────────────────
+    // ── ALLE ODER KEINE — von dem, was die Seite wirklich einholt ────────
     // Die Antragsstrecke verlangt es genauso („Bitte allen Bedingungen
     // zustimmen"). Ein Vertrag ohne Vertragsannahme wäre keiner.
+    // E-244 (Nachbesserung 26.09.2026): Die Vertragsannahme holt die Seite nur ein, wenn ein
+    // Privatpaket mit Rate dahintersteht (lage.vertragsFassung) — sonst fehlt die Übersicht über dem
+    // Knopf (§ 312j Abs. 2 BGB). Vorher verlangte die Route trotzdem ALLE offenen Spalten: Wer ohne
+    // Paket AGB und Bonitätsprüfung bestätigte, bekam 400 und kam nicht weiter.
+    const benoetigt = zustimmungEinzuholen(lage);
+    if (benoetigt.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "Der Vertrag lässt sich über diesen Link nicht annehmen — bitte melden Sie sich bei support@fiaon.com.",
+      });
+    }
     const gewaehlt: string[] = Array.isArray(req.body?.spalten)
       ? req.body.spalten.map((s: unknown) => String(s)) : [];
-    const fehlt = lage.spalten.filter((s) => !gewaehlt.includes(s));
+    const fehlt = benoetigt.filter((s) => !gewaehlt.includes(s));
     if (fehlt.length > 0) {
       return res.status(400).json({
         ok: false,
@@ -126,16 +152,21 @@ router.post("/zustimmung/:token", async (req: Request, res: Response) => {
       });
     }
 
-    const erg = await zustimmungFesthalten(geprueft.ref, lage.spalten, {
+    const erg = await zustimmungFesthalten(geprueft.ref, benoetigt, {
       ip: absenderIp(req),
       userAgent: req.headers["user-agent"] ? String(req.headers["user-agent"]) : null,
     });
     if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });
-    void nachDerZustimmung(geprueft.ref).catch((e) => console.error("[ZUSTIMMUNG] nach der Zustimmung:", e));
+    const nachher = await zustimmungsLage(geprueft.ref);
+    // Die erste Rechnung geht nur raus, wenn der Vertrag JETZT wirklich angenommen ist — nicht, wenn
+    // nur AGB/Bonitätsprüfung bestätigt wurden und consent_contract weiter fehlt.
+    if (vertragJetztAngenommen(nachher)) {
+      void nachDerZustimmung(geprueft.ref).catch((e) => console.error("[ZUSTIMMUNG] nach der Zustimmung:", e));
+    }
 
     res.json({
       ok: true,
-      lage: await zustimmungsLage(geprueft.ref),
+      lage: nachher,
       meldung: "Danke — Ihre Bestätigung ist gespeichert.",
     });
   } catch (err) {

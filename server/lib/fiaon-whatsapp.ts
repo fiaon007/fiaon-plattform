@@ -22,6 +22,7 @@ import { graph, MetaFehler } from "./fiaon-meta";
 import { WA_VORLAGEN, INKASSO_AUSNAHME, AUSKUNFT_VORLAGEN_ALLE, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
 import { nummerFuerWhatsApp, waKanonisch } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
+import { waFehlerText } from "./fiaon-wa-unzustellbar";
 
 type Lauf = typeof sqlPool;
 
@@ -736,11 +737,13 @@ export async function waSenden(
     return { ok: true, waId };
   } catch (e) {
     const grund = e instanceof MetaFehler ? e.klartext : String(e);
+    // E-244: auch hier mit Meta-Code, damit die Unzustellbar-Regel ihn lesen kann.
+    const gespeichert = e instanceof MetaFehler && e.code ? `(#${e.code}) ${grund}` : grund;
     await lauf`
       INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, lead_id, typ, text, vorlage, status, fehler, von)
       VALUES ('raus', ${nummer}, ${zusatz.personId ?? null}, ${zusatz.leadId ?? null},
               ${inhalt.vorlage ? "vorlage" : "text"}, ${inhalt.text ?? null}, ${inhalt.vorlage ?? null}, 'fehler',
-              ${grund.slice(0, 400)}, ${zusatz.von ?? "Mara"})`.catch(() => {});
+              ${gespeichert.slice(0, 400)}, ${zusatz.von ?? "Mara"})`.catch(() => {});
     return { ok: false, grund };
   }
 }
@@ -985,8 +988,10 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
       ).catch(() => {});
       status++;
     } else if (s?.status === "failed") {
+      // E-244 (26.09.2026): mit Meta-Code — „(#131026) Message undeliverable — …". Der Titel bleibt
+      // drin (Leser prüfen auf „undeliverable"); fiaon-wa-unzustellbar.ts sperrt die Nummer danach.
       await lauf`
-        UPDATE fiaon_whatsapp SET status = 'fehler', fehler = ${String(s?.errors?.[0]?.title ?? "abgelehnt").slice(0, 300)}
+        UPDATE fiaon_whatsapp SET status = 'fehler', fehler = ${waFehlerText(s?.errors?.[0])}
          WHERE wa_id = ${String(s?.id ?? "")}`.catch(() => {});
       status++;
     }

@@ -14,7 +14,7 @@ import { sqlPool } from "../lib/db-pool";
 import { metaKonfig } from "../lib/fiaon-meta";
 import {
   metaTabellen, verbindungPruefen, letztePruefliste, nachholLauf, formulareLaden,
-  META_NACHHOL_BIS, adressen,
+  META_NACHHOL_BIS, adressen, webhookBeweis,
 } from "../lib/fiaon-meta-leads";
 import { willkommenSpalten, willkommenAn, willkommenSenden, willkommenTexte, WILLKOMMEN_SCHALTER } from "../lib/fiaon-lead-willkommen";
 import { kurzlinkTabelle } from "../lib/fiaon-kurzlink";
@@ -72,7 +72,9 @@ router.get("/chef/lead-motor/stand", wache, async (_req: ChefRequest, res: Respo
     for (const w of jeWegZeilen) jeWeg[String(w.weg)] = Number(w.n);
     const [letzter] = (await sqlPool.unsafe(`
       SELECT l.erstellt_am, ${WEG_SQL} AS weg FROM fiaon_leads l ORDER BY l.erstellt_am DESC LIMIT 1`)) as any[];
-    const [webhook] = (await sqlPool`SELECT MAX(empfangen_am) AS am FROM fiaon_meta_ereignisse WHERE objekt = 'page'`) as any[];
+    // E-244 (26.09.2026): Beweis nur mit einer abgerufenen Lead-Meldung — die Beispielmeldung „Test" aus dem
+    // App-Dashboard und jedes andere page-Ereignis zählen nicht (webhookBeweis, fiaon-meta-leads.ts).
+    const beweis = await webhookBeweis();
     const [bis] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${META_NACHHOL_BIS}`) as any[];
     const [test] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'mail_test_adresse'`) as any[];
     const alarme = (await sqlPool`
@@ -101,7 +103,8 @@ router.get("/chef/lead-motor/stand", wache, async (_req: ChefRequest, res: Respo
         klicks: kanal ?? { mail: 0, whatsapp: 0, sms: 0, mitarbeiter: 0 },
       },
       letzterLead: letzter ? { am: letzter.erstellt_am, weg: WEG_TEXT[letzter.weg] ?? letzter.weg } : null,
-      letzteMeldung: webhook?.am ?? null,
+      letzteMeldung: beweis.letzteMeldung,
+      ersteMeldung: beweis.ersteMeldung,
       nachholBis: bis?.value ?? null,
       alarme, formulare,
       messung: await capiZahlen(),

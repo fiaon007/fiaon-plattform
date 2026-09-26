@@ -5,6 +5,57 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 26.09.2026 (2) — „Zahlungspflichtig annehmen", Zahlungserinnerung für offene Auskünfte, Maras Bilanz, Meta-Wächter (E-244)
+
+**Der Anlass (Justin, 26.09. abends):** „Ja, ändere den Knopf auf ‚Zahlungspflichtig annehmen' … nicht auf /business …
+jeder, der die SCHUFA offen hat, braucht eine E-Mail mit Zahlungserinnerung … Meta-App ist live … schau, wie viele wir
+heute geschafft haben — wo finde ich Maras Abschlussbericht?"
+
+**Was jetzt gilt:**
+- **Antrag, Schritt „Vertrag" (§ 312j BGB):** Der Knopf heißt „Zahlungspflichtig annehmen". Direkt darüber steht die
+  Bestellübersicht: Paket, Leistung, Monatsrate, 12 Monate Laufzeit, Gesamtbetrag, Überweisung, Kündigung, mit Haken
+  auch die Auskunft (74 € einmalig, fällig nach der ersten Paketzahlung), dazu AGB/Widerruf/Datenschutz und „Angaben
+  ändern". Schritt 5 heißt „Weiter zum Vertrag". Paketpunkte im Antrag = Leistungsbeschreibung der Preisseite (keine
+  Limit- und Kartenversprechen mehr). „Vertrag herunterladen" ist aus Schritt 8 entfernt (das PDF widerspricht den AGB).
+  /zustimmung nimmt einen Vertrag nur noch mit erkennbarem Privatpaket an, mit Übersicht und demselben Knopf. AGB § 3
+  neu (Fassung 26.09.2026). Als angenommen gilt der Vertrag nur nach dem Klick auf den Knopf — die Zwischenspeicherung
+  schreibt consent_contract nicht mehr, nur weil der Haken gesetzt war. Die Bonitätsauskunft steht in der Übersicht und
+  auf der Preisseite als Auswertung (im Paket) bzw. als Zusatz (Beschaffung), nicht mehr doppelt.
+- **Zahlungserinnerung Bonitätsauskunft:** Jede bestellte, nicht bezahlte Auskunft wird erinnert — Tag 1, 4, 10, 18,
+  danach wöchentlich, Mo–So 07:00–20:30, eigene Auskunft-Fassung (keine Paket-Texte mehr), mit nachgeholter
+  Widerrufsbelehrung, wo keine vorlag. „Zahlung gemeldet" bekommt nie eine Erinnerung. Ab Tag 30 eine Aufgabe („anrufen
+  oder stornieren" bzw. „stornieren?"). Die Paket-Mahnmaschine schreibt Auskunft-Bestellern nicht mehr. Bestellungen ohne
+  Erklärung des Kunden (Betreuer-Anlage, Altbestand) bekommen keine Mahnung, sondern die Frage „Möchten Sie die Auskunft
+  noch?" mit Bestätigungsknopf; erst danach Vertragsbestätigung, Belehrung und Zahlungsdaten. Legt ein Betreuer eine
+  Auskunft an, geht dem Kunden diese Frage statt der Zahlungsdaten zu. Eine offene
+  Bestellung bleibt auf allen Kaufwegen offen, egal wie alt (kein 149-€-Neukauf über eine offene 74-€-Bestellung), und
+  sperrt das Verkaufsangebot. Chef: Mara-Steuerpult → Bonitätsauskunft → Karte „Zahlungserinnerung", Tabelle mit Stufe,
+  nächster Fälligkeit, Grund, „Stornieren" und „Mahnstopp".
+- **Maras Bilanz:** oben im Mara-Steuerpult, Heute / 7 Tage / Seit Start — Mail-Aktion, WhatsApp, Postfach,
+  Auskunft-Verkauf, neue Leads; gebuchtes Geld (Geld-Wahrheit), getrennt „vorher gemeldet"; Rahmen mit Einnahmen,
+  KI-Kosten, Kündigungen. Die Kacheln „Zahlung danach" und „Wirkung 7 Tage" zählen jetzt gebuchtes Geld.
+- **Mara:** Auskunft-Bestellungen raus aus Maras Paket-Erinnerung und der WA-Gruppe „Zahlung offen"; eine bezahlte
+  Auskunft wirft niemanden mehr aus der Paket-Erinnerung. Postfach: Die Aufgabe „Kunde hat geschrieben" schließt sich
+  beim Senden der Antwort auf genau diese Mail (vorher 153 offen) — außer bei Rückruf, Beschwerde, Widerruf, bestrittener
+  Forderung, Rechtlichem, Zahlungsunfähigkeit; Kündigungssatz nennt jede offene Rate mit Betrag, nie „Rate null über 0.00 €";
+  Werbesperre auch bei beendetem Vertrag.
+- **WhatsApp:** Fehlercode wird gespeichert; Nummern, die „undeliverable" (131026) meldeten, werden nicht wieder
+  angeschrieben, bis sie selbst schreiben; Nummern ohne Vorwahl nie mehr als +1.
+- **Lead-Motor:** „Webhook bestätigt" nur mit echter Lead-Meldung; neuer Alarm „Meta liefert nicht aus"; Test-Leads aus
+  dem Lead-Ads-Testing-Tool werden erkannt (kein Kunde, keine Mail).
+
+**Wo:** client/src/pages/antrag.tsx, zustimmung.tsx, agb.tsx, components/antrag/ (neu), shared/fiaon-vertrag-paket.ts
+(neu), server/lib/fiaon-zustimmung.ts, server/routes/fiaon-antrag.ts, server/lib/fiaon-auskunft-erinnerung.ts (neu),
+server/mail/vorlagen/auskunft-erinnerung.ts (neu), server/lib/fiaon-auskunft.ts, fiaon-auskunft-verkauf.ts,
+fiaon-chef-auskunft.ts, ChefAuskunft.tsx, server/lib/fiaon-mara-bilanz.ts (neu), fiaon-mara-steuerpult.ts, ChefMara.tsx,
+fiaon-mara-aktion.ts, fiaon-wa-zentrale.ts, fiaon-whatsapp.ts, fiaon-postmeister-*.ts, fiaon-meta-leads.ts,
+ChefLeadMotor.tsx, rundgaenge.ts. Prüfstände: Erinnerung 284, offene Bestellung jeden Alters 62, Knopf/Übersicht 150 +
+Annahme nur mit Knopf 12 + Fotos 182, /zustimmung 23, Mara-Bilanz 48, Postfach-Befunde 56 + 108, Meta-Wächter 25,
+WhatsApp unzustellbar 73, Lead-Motor 852, Mara-Verkauf 196, Mara-Wissen 21, dazu alle E-243/E-241-Stände grün
+(Takt 93/143, E2E 53/72, Kundenpreis 76, Bündel 69, Mails 6.501/2.428, Sperre alle Wege 60, Postmeister 185/237,
+Global-Seiten 2.402, SEO und Backticks ohne Fehler); Server startet; tsc 183 (Altbestand). Bekannt rot: pruef-mara-aktion
+„Anlauf 200/400/800" (Anlauf seit 22.09. entfernt), e2e-auskunft Fall T (braucht DB ohne Migration 083).
+
 ## 26.09.2026 (1) — Bonitätsauskunft: der richtige Preis auf jedem Weg, eigene Zahlungsseite, Verkauf scharf im Mara-Steuerpult (E-243)
 
 **Der Anlass (Justin):** „Wie stellen wir sicher, dass FIAON-Kunden den Preis bekommen (privat 74 €, B2B 199 €) … wo wird

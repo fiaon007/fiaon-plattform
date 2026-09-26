@@ -113,6 +113,11 @@ const ZAHLUNGSPOST = new Set<string>([
   // E-188 (17.09.2026): die Erinnerung an die Rechnung eines unterschriebenen Firmenauftrags — höchstens
   // zwei je Auftrag (server/lib/fiaon-global-zahlungstakt.ts). Forderung aus einem Vertrag, keine Werbung.
   "global_zahlung_erinnerung",
+  // E-244 (26.09.2026): die Erinnerung an eine bestellte, unbezahlte Bonitätsauskunft
+  // (server/lib/fiaon-auskunft-erinnerung.ts). Forderung aus einem geschlossenen Vertrag, keine
+  // Werbung: Die Werbesperre hält sie nicht auf, hart unzustellbar schon. Wer nicht mehr erinnert
+  // werden will, bekommt einen Mahnstopp an der Bestellung (Chefseite, Knopf „Mahnstopp").
+  "auskunft_zahlung_erinnerung",
 ]);
 
 /** Der Hauptschalter der Bremse: fiaon_settings.frequenzbremse_an (Standard 1). */

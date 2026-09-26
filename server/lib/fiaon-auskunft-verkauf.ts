@@ -46,7 +46,7 @@
 // sie bis zur dritten Mail nachkommen — nie danach. Scheitert ein Versuch,
 // darf frühestens 20 Stunden später ein zweiter folgen (Gegenlesen 25.09.2026:
 // höchstens zwei Versuche, zugestellt höchstens eine). Ende ohne Zählung: Kauf,
-// Bestellung (offen < 21 Tage), Upload, Analyse und jede Sperre — wer eines
+// Bestellung (offen jeden Alters seit E-244, storniert), Upload, Analyse und jede Sperre — wer eines
 // davon hat, fällt aus der Grundmenge und wird nie wieder angeschrieben.
 //
 // ── DIE BREMSEN (Muster fiaon-rueckholung.ts) ─────────────────────────────
@@ -107,6 +107,7 @@ import {
 } from "@shared/fiaon-auskunft";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { WHATSAPP_EINWILLIGUNG_SQL, WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
+import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
 import { AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE } from "@shared/fiaon-lead-texte";
 import { ANGEBOT_ABSTAND_TAGE, ANGEBOT_WEG_TEXT, angebotSpurenSql, buendelWartendeSql, zuletztAngeboten, type AuskunftStand } from "./fiaon-auskunft";
 
@@ -129,6 +130,20 @@ export const SCHALTER_WA = "auskunft_verkauf_wa_pro_tag";
 export const SCHALTER_LIEFERMODUS = "auskunft_liefermodus";
 /** Der Schlüssel aus E-240 (Mails und WhatsApp zusammen) — heute nur noch Rückfall für die Mails am Tag. */
 export const SCHALTER_PRO_TAG = "auskunft_verkauf_pro_tag";
+
+// ── E-244 (26.09.2026): die ZAHLUNGSERINNERUNG an offene Auskunft-Bestellungen ──────────────
+// Der Takt steht in fiaon-auskunft-erinnerung.ts; die Namen stehen HIER, weil einstellungSetzen
+// (die EINE Erlaubnisliste der Chefseite) sie kennen muss — ohne Kreis-Import zwischen beiden Dateien.
+/** '0' | '1' — Standard AN (Justins Auftrag vom 26.09.2026 ist die Freigabe); aus nur über die Chefseite. */
+export const SCHALTER_ERINNERUNG_AN = "auskunft_erinnerung_an";
+/** Mails am Berliner Tag, 0 … HOECHSTENS_ERINNERUNG_PRO_TAG — Standard 50. */
+export const SCHALTER_ERINNERUNG_PRO_TAG = "auskunft_erinnerung_pro_tag";
+/** Abstand der Dauerstufe nach Tag 18 in Tagen, 0 … HOECHSTENS_ERINNERUNG_DAUER_TAGE — Standard 7, 0 = nach Tag 18 Schluss. */
+export const SCHALTER_ERINNERUNG_DAUER = "auskunft_erinnerung_dauer_tage";
+export const STANDARD_ERINNERUNG_PRO_TAG = 50;
+export const HOECHSTENS_ERINNERUNG_PRO_TAG = 200;
+export const STANDARD_ERINNERUNG_DAUER_TAGE = 7;
+export const HOECHSTENS_ERINNERUNG_DAUER_TAGE = 60;
 
 export const STANDARD_MAILS_PRO_TAG = 500;
 /** E-243 (26.09.2026): Justin „jeden Tag 20 WhatsApp" — vorher 30. */
@@ -157,8 +172,9 @@ export const WA_ANGEBOT_ABSTAND_TAGE = 1;
 const TAGE_BIS_MAIL_B = 6;
 const TAGE_BIS_MAIL_C = 14;
 const MINDESTABSTAND_TAGE = 2;
-/** Eine offene Bestellung jünger als das bekommt den Zahlungslink, kein neues Angebot (auskunftBestellen, fiaon-auskunft.ts). */
-const OFFEN_WIEDERVERWENDEN_TAGE = 21;
+// E-244 (26.09.2026): OFFEN_WIEDERVERWENDEN_TAGE (21) steht hier nicht mehr — eine offene Bestellung
+// sperrt das Angebot jetzt unabhängig vom Alter (OHNE_AUSKUNFT_SQL, standVerkaufbar). Die 21 Tage der
+// Kaufwege (auskunftBestellen, offenWiederverwendbar in fiaon-auskunft.ts) bleiben unverändert.
 /**
  * E-243 (26.09.2026): das Sendefenster Mo–So 07:00 bis 20:30 Berlin, beide
  * Grenzen eingeschlossen (20:30 sendet noch, 20:31 nicht) — für Mail UND
@@ -300,6 +316,16 @@ const ERLAUBT: Record<string, { pruefen: (w: string) => boolean; fehler: string;
     fehler: `Bitte eine ganze Zahl von 0 bis ${HOECHSTENS_WA_PRO_TAG}.`,
   },
   [SCHALTER_LIEFERMODUS]: { pruefen: (w) => (LIEFERMODI as readonly string[]).includes(w), fehler: "Erlaubt sind „einkauf“, „vollmacht“ und „api“." },
+  // E-244: die Zahlungserinnerung der Auskunft — Schalter, Tagesdeckel, Abstand der Dauerstufe.
+  [SCHALTER_ERINNERUNG_AN]: { pruefen: (w) => w === "0" || w === "1", fehler: "Erlaubt sind 0 (aus) und 1 (an)." },
+  [SCHALTER_ERINNERUNG_PRO_TAG]: {
+    pruefen: (w) => /^\d{1,4}$/.test(w) && Number(w) <= HOECHSTENS_ERINNERUNG_PRO_TAG,
+    fehler: `Bitte eine ganze Zahl von 0 bis ${HOECHSTENS_ERINNERUNG_PRO_TAG}.`,
+  },
+  [SCHALTER_ERINNERUNG_DAUER]: {
+    pruefen: (w) => /^\d{1,3}$/.test(w) && Number(w) <= HOECHSTENS_ERINNERUNG_DAUER_TAGE,
+    fehler: `Bitte eine ganze Zahl von 0 bis ${HOECHSTENS_ERINNERUNG_DAUER_TAGE} (0 = nach Tag 18 keine weitere Erinnerung).`,
+  },
   // Der alte Deckel (E-240) schreibt heute in den Mail-Deckel — sonst änderte die alte Seite nichts mehr.
   [SCHALTER_PRO_TAG]: {
     pruefen: (w) => /^\d{1,4}$/.test(w) && Number(w) <= HOECHSTENS_PRO_TAG,
@@ -460,9 +486,19 @@ const ECHTER_ANTRAG_SQL = (a: string) => `(
  * auskunftStand „nichts" — und strenger: Auch eine Analyse oder eine archivierte
  * Auskunft (frueher_schufa) heißt „hat eine". Lieber einen Kauf verpassen als
  * jemandem die Auskunft verkaufen, die er uns schon gegeben hat.
- * E-241: Eine OFFENE Bestellung sperrt nur, solange sie jünger als 21 Tage ist
- * (dann gilt ihr Zahlungslink) — danach legt auskunftBestellen ohnehin eine neue
- * an, und der Mensch gehört wieder in den Verkauf. „Zahlung gemeldet" sperrt immer.
+ * E-241: Eine OFFENE Bestellung sperrte nur, solange sie jünger als 21 Tage war.
+ * E-244 (26.09.2026): Eine offene Bestellung (pending_payment oder „Zahlung
+ * gemeldet") sperrt das Angebot UNABHÄNGIG VOM ALTER — solange sie offen ist,
+ * läuft ihre Zahlungserinnerung (fiaon-auskunft-erinnerung.ts), und ein Angebot
+ * daneben wäre eine zweite Forderung mit zweiter Referenz (für drei Altfälle zu
+ * 74 € sogar zu 149 €). Ebenso eine STORNIERTE Auskunft-Bestellung: Wer „ich
+ * möchte die Auskunft nicht mehr" gesagt hat (Storno-Satz der Erinnerung,
+ * Knopf „Stornieren" auf der Chefseite), bekommt sie nicht wieder angeboten.
+ * Ersetzte (superseded), abgelaufene (expired) und zusammengeführte zählen
+ * nicht. BEWUSST ohne archived_at: Auch eine archivierte offene oder stornierte
+ * Auskunft sperrt — archiviert hat sie ein Mensch, und ein Angebot daneben wäre
+ * im Zweifel eine zweite Forderung (lieber ein Angebot verpassen). Die Kaufwege (auskunftBestellen, offenWiederverwendbar) bleiben bei
+ * ihren 21 Tagen — sie legen weiterhin bei Bedarf eine neue Bestellung an.
  * Integration 26.09.2026 (E-243): Auch das BÜNDEL zählt als „bestellt" — wer die
  * Auskunft im Antrag zum Kundenpreis dazubestellt hat und auf die erste
  * Paketzahlung wartet (höchstens BUENDEL_WARTET_TAGE), steht nicht im Kreis. So
@@ -472,9 +508,8 @@ const ECHTER_ANTRAG_SQL = (a: string) => `(
  */
 export const OHNE_AUSKUNFT_SQL = (person: string) => `(
   NOT EXISTS (SELECT 1 FROM fiaon_applications ax_s WHERE ax_s.person_id = ${person} AND ax_s.merged_into IS NULL
-                AND ${IST_AUSKUNFT("ax_s")} AND (ax_s.payment_status IN ('paid', 'claimed_paid')
-                  OR (ax_s.payment_status = 'pending_payment'
-                      AND ax_s.created_at::timestamptz > NOW() - INTERVAL '${OFFEN_WIEDERVERWENDEN_TAGE} days')))
+                AND ${IST_AUSKUNFT("ax_s")}
+                AND (ax_s.payment_status IN ('paid', 'claimed_paid', 'pending_payment', 'cancelled') OR ax_s.cancelled_at IS NOT NULL))
   AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax_d WHERE ax_d.person_id = ${person} AND ax_d.gdpr_deleted_at IS NULL AND ax_d.schufa_pdf IS NOT NULL)
   -- ohne Bezug (NOT IN): fiaon_schufa_analysen hat keinen Index auf person_id — je Mensch ein Seq Scan wäre teuer
   AND ${person} NOT IN (SELECT ax_a.person_id FROM fiaon_schufa_analysen ax_a WHERE ax_a.person_id IS NOT NULL)
@@ -785,7 +820,11 @@ ax_merk AS (
           AND LOWER(TRIM(x.email)) NOT IN (SELECT u.adr FROM ax_kaputt u WHERE u.adr IS NOT NULL)) AS zustellbar,
          -- Einwilligung UND eine Handynummer, die WhatsApp hat (WHATSAPP_MOEGLICH_SQL, wie die BASIS der
          -- WA-Zentrale) — sonst wählte der Takt jeden Lauf wieder jemanden, den die Zentrale nie nimmt.
-         (x.telefon IS NOT NULL AND ${WHATSAPP_MOEGLICH_SQL("wx")} AND ${WA_EINWILLIGUNG_SQL("x.person_id")}) AS wa_einwilligung,
+         -- E-244 (26.09.2026): und eine Nummer, die nicht unzustellbar ist (Meta 131026 ohne Lebenszeichen
+         -- seitdem, oder 131049-Pause, fiaon-wa-unzustellbar.ts) — sonst nur die Mails.
+         (x.telefon IS NOT NULL AND ${WHATSAPP_MOEGLICH_SQL("wx")} AND ${WA_EINWILLIGUNG_SQL("x.person_id")}
+          -- Land wie beim Versand (WA-Zentrale: fiaon_persons.country), damit dieselbe volle Nummer verglichen wird.
+          AND NOT ${WA_NUMMER_UNZUSTELLBAR_SQL("x.telefon", "(SELECT pl.country FROM fiaon_persons pl WHERE pl.id = x.person_id)")}) AS wa_einwilligung,
          GREATEST(x.letzte_mail_am, x.wa_ok_am) AS letzte_beruehrung,
          (x.n_mail + CASE WHEN x.wa_ok THEN 1 ELSE 0 END) AS beruehrungen
     FROM ax_pool x
@@ -944,9 +983,10 @@ const SEGMENT_REIHE_SQL = `CASE f.segment WHEN 'kunde' THEN 0 WHEN 'antrag' THEN
 /**
  * Hat den Kauflink geöffnet und danach nichts bestellt (E-243) — der jüngste
  * solche Klick oder NULL. Ein Klick zählt nicht mehr, sobald danach (5 Minuten
- * Spiel für die Uhr) eine Auskunft-Bestellung entstand; die sperrt ohnehin 21
- * Tage (OHNE_AUSKUNFT_SQL) — danach ist er wieder im Verkauf, und der alte Klick
- * soll ihn nicht nach vorn holen. Braucht fiaon_auskunft_klicks (tabellenBereit).
+ * Spiel für die Uhr) eine Auskunft-Bestellung entstand; die sperrt ohnehin,
+ * solange sie offen ist (seit E-244 ohne Altersgrenze, OHNE_AUSKUNFT_SQL) — wird
+ * sie ersetzt oder läuft ab, ist er wieder im Verkauf, und der alte Klick soll
+ * ihn nicht nach vorn holen. Braucht fiaon_auskunft_klicks (tabellenBereit).
  */
 const KLICK_OHNE_BESTELLUNG_SQL = (person: string) => `(
   SELECT MAX(kx.zeit) FROM fiaon_auskunft_klicks kx
@@ -1076,7 +1116,7 @@ export interface SegmentZahlen {
   /** E-243: im Kreis UND WhatsApp-fähig (Einwilligung, Handy) — wen der Takt per WhatsApp erreichen kann. */
   imKreisMitWhatsApp: number;
   gesperrt: Record<Sperrgrund, number>;
-  /** Im Segment, hat aber schon eine Auskunft (bezahlt, gemeldet, Dokument, Analyse, offene Bestellung < 21 Tage). */
+  /** Im Segment, hat aber schon eine Auskunft (bezahlt, gemeldet, Dokument, Analyse, offene oder stornierte Bestellung — E-244: jeden Alters). */
   hatAuskunft: number;
   jeLand: { land: AuskunftLand; gesamt: number; imKreis: number; heuteFaellig: number; mitWhatsAppEinwilligung: number }[];
 }
@@ -1456,14 +1496,15 @@ export async function angebotSperre(
 }
 
 /**
- * Ist dieser Stand verkaufbar? „nichts" ja; eine offene Bestellung nur, wenn sie
- * älter als 21 Tage und nicht als bezahlt gemeldet ist (dann legt der Kauflink
- * eine neue an). null = ja, sonst der Grund.
+ * Ist dieser Stand verkaufbar? Nur „nichts". null = ja, sonst der Grund.
+ * E-244 (26.09.2026): Eine offene Bestellung ist nie mehr verkaufbar — bis E-243
+ * galt das nur 21 Tage lang (dann legte der Kauflink eine neue an). Jetzt läuft
+ * für sie die Zahlungserinnerung (fiaon-auskunft-erinnerung.ts), und das Angebot
+ * schweigt, bis sie bezahlt, storniert oder ersetzt ist. `_jetzt` bleibt für die
+ * Aufrufer der alten Form.
  */
-export function standVerkaufbar(stand: Pick<AuskunftStand, "stufe" | "offen">, jetzt: number = Date.now()): string | null {
+export function standVerkaufbar(stand: Pick<AuskunftStand, "stufe" | "offen">, _jetzt: number = Date.now()): string | null {
   if (stand.stufe === "nichts") return null;
-  if (stand.stufe === "offen" && stand.offen && stand.offen.status !== "claimed_paid"
-      && jetzt - new Date(stand.offen.angelegt).getTime() >= OFFEN_WIEDERVERWENDEN_TAGE * 86_400_000) return null;
   return `Auskunft inzwischen ${stand.stufe}`;
 }
 

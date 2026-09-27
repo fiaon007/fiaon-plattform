@@ -60,6 +60,7 @@ import { fragtNachAuskunftSelbst, lehntAuskunftAb, bezogenAufAuskunftAngebot } f
 import { personSperre, werbungVerboten } from "./fiaon-mail-frequenz";
 import { absoluteUrl } from "../fiaon-base-url";
 import { zuletztAngeboten } from "./fiaon-auskunft";
+import { kiPausiert, istKiPause, kiPauseLesen } from "./fiaon-ki-pause";
 
 export const DIENST_WA = "mara-whatsapp";
 
@@ -70,6 +71,87 @@ export const HALBSTUNDE_GRENZE = 15;
 export const TAG_GRENZE = 60;
 /** So lange versucht Mara es bei einem KI-Ausfall still weiter, bevor der Rückfallsatz rausgeht. */
 export const KI_GEDULD_MIN = 6;
+
+// ── ZEIT NACH DER KI-PAUSE (E-246, Nachprüfung 27.09.) ─────────────────────
+/** Pause-Nachrichten, die älter sind, beantwortet Mara nicht frei (Sammelaufgabe). */
+export const PAUSE_FREI_MAX_MS = 12 * 3_600_000;
+type PauseStand = { seit: string | null; aufgehobenAm: string | null; an?: boolean };
+/** Kam die Nachricht in der (letzten) KI-Pause? Ab 15 Min. vor „seit" bis zum Aufheben (oder jetzt, solange pausiert). */
+/** Zeitpunkt in ms — Date direkt (String(Date) verlöre die Millisekunden). */
+function zeitMs(am: unknown): number {
+  return am instanceof Date ? am.getTime() : typeof am === "number" ? am : new Date(String(am)).getTime();
+}
+export function kamInDerPause(am: unknown, kp: PauseStand | null): boolean {
+  if (!kp?.seit) return false;
+  const t = zeitMs(am);
+  const seit = new Date(kp.seit).getTime();
+  const bis = kp.aufgehobenAm && !kp.an ? new Date(kp.aufgehobenAm).getTime() : Date.now();
+  if (!Number.isFinite(t) || !Number.isFinite(seit) || !Number.isFinite(bis)) return false;
+  if (kp.aufgehobenAm && !kp.an && bis < seit) return false; // aufgehoben VOR dieser Pause → Pause läuft (an) oder Datensalat
+  return t >= seit - 15 * 60_000 && t <= bis;
+}
+/** Ab wann Maras Geduld (KI_GEDULD_MIN) zählt: Nachrichtenzeit oder Pausenende, das spätere. */
+export function geduldAb(am: unknown, kp: PauseStand | null): number {
+  const t = zeitMs(am);
+  const auf = kp?.aufgehobenAm && !kp.an ? new Date(kp.aufgehobenAm).getTime() : NaN;
+  return Math.max(Number.isFinite(t) ? t : Date.now(), Number.isFinite(auf) ? auf : -Infinity);
+}
+function berlinTeile(d: Date, opt: Intl.DateTimeFormatOptions): Record<string, string> {
+  const aus: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour12: false, ...opt }).formatToParts(d)) aus[p.type] = p.value;
+  return aus;
+}
+/** „YYYY-MM-DD" in Berliner Zeit. */
+export function berlinTag(d: Date): string {
+  return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+}
+/** „So 16:00" — für den Verlauf (nur formatToParts, Zeit-Falle Berlin-Stunde). */
+export function kurzZeit(d: Date): string {
+  if (!Number.isFinite(d.getTime())) return "?";
+  const t = berlinTeile(d, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  return `${String(t.weekday ?? "").replace(/\.$/, "")} ${t.hour}:${t.minute}`;
+}
+/** „gestern (Sonntag, 27.09.) um 16:00 Uhr" — für den Zeithinweis. */
+export function tagUndUhrzeit(d: Date, jetzt = new Date()): string {
+  const t = berlinTeile(d, { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const tag = berlinTag(d);
+  const heute = berlinTag(jetzt);
+  const gestern = berlinTag(new Date(jetzt.getTime() - 86_400_000));
+  const vor = tag === heute ? "heute" : tag === gestern ? "gestern" : "am";
+  return `${vor} (${t.weekday}, ${t.day}.${t.month}.) um ${t.hour}:${t.minute} Uhr`;
+}
+/**
+ * rueckruf_eintragen nach der KI-Pause: Kam die NEUESTE offene Kundennachricht in
+ * der Pause und an einem früheren Tag, legt Mara nichts auf heute (oder in die
+ * Vergangenheit, die das Werkzeug auf heute schöbe) — „heute", „gleich" oder
+ * eine Uhrzeit ohne Tag meinten DEN Tag. Erlaubt bleibt heute, wenn der Kunde
+ * den heutigen Tag ausdrücklich nennt (Wochentag, Datum) oder ein relatives
+ * Wort, das von seinem Tag aus heute ist („morgen" von gestern, „übermorgen"
+ * von vorgestern). ctx.nachrichtTag ist NUR bei Pause-Nachrichten gesetzt
+ * (Nachbesserung 27.09.: vorher sperrte es auch im Normalbetrieb um Mitternacht).
+ * Rein, im Prüfstand.
+ */
+export function rueckrufHeuteSperre(args: any, ctx: { nachrichtTag?: string; kunde?: string }, jetzt: Date): string | null {
+  const heute = berlinTag(jetzt);
+  if (!ctx.nachrichtTag || ctx.nachrichtTag >= heute) return null;
+  const tagVon = (x: unknown) => String(x ?? "").trim().slice(0, 10);
+  // Wohin fiele die Buchung? Genaue Zeit → deren Tag; Fenster → dessen Beginn
+  // (ohne „von" beginnt das Fenster jetzt, also heute).
+  const start = args?.zeit ? tagVon(args.zeit) : args?.von ? tagVon(args.von) : heute;
+  const ende = args?.bis ? tagVon(args.bis) : start;
+  if (start > heute && ende > heute) return null;
+  const k = String(ctx.kunde ?? "").toLowerCase();
+  const t = berlinTeile(jetzt, { weekday: "long", day: "numeric", month: "numeric" });
+  const wochentag = String(t.weekday ?? "").toLowerCase();
+  const datum = new RegExp(`(^|\\D)0?${t.day}\\.\\s?0?${t.month}(\\.|\\D|$)`);
+  if ((wochentag && k.includes(wochentag)) || datum.test(k)) return null;
+  const tage = Math.round((Date.parse(`${heute}T12:00:00Z`) - Date.parse(`${ctx.nachrichtTag}T12:00:00Z`)) / 86_400_000);
+  const ohneGruss = k.replace(/guten\s+morgen/g, " ");
+  if (tage === 2 && /übermorgen/.test(ohneGruss)) return null;
+  if (tage === 1 && /(^|[^a-zäöüß])morgen(?![a-zäöüß])/.test(ohneGruss.replace(/übermorgen/g, " "))) return null;
+  const damals = new Date(`${ctx.nachrichtTag}T12:00:00Z`).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit" });
+  return `Seine Nachricht kam am ${damals} (während einer Pause) — „heute", „gleich" oder eine Zeit ohne Tag meinte DIESEN Tag, der vorbei ist. Trag nichts für heute ein: entschuldige die späte Antwort und frag ihn, wann es ihm jetzt passt (freie_zeiten).`;
+}
 
 /** Was ohne Text ankommt, soll Mara als das sehen, was es ist — nicht als leere Zeile. */
 const MEDIEN: Record<string, string> = {
@@ -721,6 +803,8 @@ function auftrag(ein: {
   gedaechtnis: string; verlauf: string; wissen: string; hausanweisung: string; kiHinweis?: boolean;
   /** Mara darf Termine eintragen und Links schicken (es gibt eine Person). */
   werkzeuge?: boolean; betreuer?: string | null; jetzt?: string;
+  /** E-246: Hinweis, wann seine offene Nachricht kam (älter als 3 h) — steht direkt über dem Verlauf. */
+  zeitHinweis?: string;
   /** E-240: seine Bonitätsauskunft — Angebot, offene Zahlung oder „schon da". E-241: auch B/Lead, dort nur als Antwort. */
   auskunft?: AuskunftTeil | null;
 }): string {
@@ -817,7 +901,7 @@ function auftrag(ein: {
     `· Du mahnst nicht, du treibst keine Forderung ein, du drohst mit nichts. Geht es um eine offene Zahlung: wo er bezahlt — alles Weitere übernimmt ein Mensch. Später zahlen, Ratenpause, Stundung sagst du nie zu: „Das kläre ich mit ${b} — ich gebe Bescheid." (mensch true).`,
     ``,
     `LIES ZUERST, DANN SCHREIB`,
-    `· SEINE LAGE sagt dir, wo er steht. Im VERLAUF steht KUNDE für ihn, DU für deine Nachrichten, TEAM für eine Kollegin oder einen Kollegen und VORLAGE für eine automatische Nachricht von FIAON.`,
+    `· SEINE LAGE sagt dir, wo er steht. Im VERLAUF steht KUNDE für ihn (in Klammern Tag und Uhrzeit seiner Nachricht), DU für deine Nachrichten, TEAM für eine Kollegin oder einen Kollegen und VORLAGE für eine automatische Nachricht von FIAON.`,
     `· Alles, was DU, TEAM oder eine VORLAGE geschrieben haben, hat er gelesen. Du widersprichst dem nie. Passt dort etwas nicht zu seiner Lage, stellst du es freundlich richtig.`,
     `· Hat jemand aus dem Team zuletzt etwas zugesagt (Rückruf, Uhrzeit), knüpfst du daran an.`,
     ``,
@@ -900,7 +984,8 @@ function auftrag(ein: {
     `SEINE LAGE: ${ein.lage}`,
     `WAS DU ÜBER IHN WEISST: ${ein.gedaechtnis || "noch nichts"}`,
     ``,
-    `DIE LETZTEN NACHRICHTEN (oben alt, unten neu):`,
+    `DIE LETZTEN NACHRICHTEN (oben alt, unten neu; bei KUNDE Tag und Uhrzeit seiner Nachricht, Berliner Zeit):`,
+    ...(ein.zeitHinweis ? [ein.zeitHinweis] : []),
     ein.verlauf,
   ].filter((z) => z !== undefined && z !== null).join("\n");
 }
@@ -1197,6 +1282,35 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       return { gesendet: false, grund: "STOPP bestätigt (liegt bereit)." };
     }
 
+    // ── KI-PAUSE (27.09.2026, E-246) ──────────────────────────────────────────
+    // Justin: „Nichts Wirres oder Falsches schicken, sondern einfach Pause." Kein
+    // KI-Aufruf, kein Rückfallsatz, keine Aufgabe je Nachricht — die Nachricht
+    // bleibt offen und der Nachhol-Takt nimmt sie nach dem Aktivieren. (Die
+    // STOPP-Bestätigung darüber ist ein fester Satz ohne KI und geht weiter.)
+    if (await kiPausiert()) return { gesendet: false, grund: "KI pausiert — die Nachricht wartet, bis die KI wieder aktiv ist." };
+    // ── NACH DER KI-PAUSE (E-246, Nachprüfung 27.09.) ─────────────────────────
+    // Kam selbst die NEUESTE offene Nachricht in der Pause und ist sie älter als
+    // 12 Stunden, antwortet Mara nicht frei: „heute", „gleich", „morgen früh"
+    // meinen einen anderen Tag, und eine späte Antwort liest sich wirr. Sie geht
+    // in die Sammelaufgabe der Pause — ein Mensch meldet sich (das WhatsApp-Fenster
+    // ist bis 24 h offen). Schreibt der Kunde danach neu, antwortet Mara normal.
+    const kp = await kiPauseLesen();
+    if (kamInDerPause(neuesteRein.am, kp) && Date.now() - new Date(neuesteRein.am).getTime() > PAUSE_FREI_MAX_MS) {
+      await zuAltFuerMara(kp.seit).catch((e) => console.error("[MARA-WA] Pause-Sammelaufgabe:", e));
+      // Nachbesserung 27.09.: Steht die Nachricht nachweislich in der Sammelaufgabe
+      // (Marke bis zu ihr gerückt)? Sonst eine eigene Aufgabe — nie still liegen lassen.
+      if (!(await inPauseSammlung(kp.seit, Number(neuesteRein.id)))) {
+        const k = `${nummer}:${neuesteRein.id}`;
+        if (!pauseEinzelGemeldet.has(k)) {
+          pauseEinzelGemeldet.add(k);
+          await aufgabeFuerMenschen(nummer, personId ? Number(personId) : null, leadId ? Number(leadId) : null,
+            `Nachricht aus der KI-Pause (${tagUndUhrzeit(new Date(neuesteRein.am))}), älter als 12 Stunden — Mara antwortet nicht selbst. Bitte selbst melden: „${String(neuesteRein.text ?? "").replace(/\s+/g, " ").slice(0, 160)}"`, true);
+        }
+        return { gesendet: false, grund: "Nachricht aus der KI-Pause, älter als 12 Stunden — eigene Aufgabe an einen Menschen, keine freie Antwort." };
+      }
+      return { gesendet: false, grund: "Nachricht aus der KI-Pause, älter als 12 Stunden — Sammelaufgabe an einen Menschen, keine freie Antwort." };
+    }
+
     const lv = verlauf.find((v) => v.richtung === "raus" && v.vorlage);
     const letzteVorlage = lv ? { name: String(lv.vorlage), text: lv.text ?? null } : null;
     const lage = await lageFuer(personId ? Number(personId) : null, leadId ? Number(leadId) : null, letzteVorlage);
@@ -1289,8 +1403,15 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // der nach der Karte fragt, wird geprüft wie vor E-241 (die vier Katalogpreise, kein Land).
     const auskunftImGespraech = !!auskunft && (segment === "kunde" || auskunft.jetzt);
 
+    // E-246: Kam die älteste offene Nachricht vor mehr als drei Stunden (typisch:
+    // aus der KI-Pause), bekommt Mara ihren Zeitpunkt ausdrücklich — sonst legt
+    // sie „heute um 17 Uhr" auf den heutigen Tag.
+    const ersteAm = new Date(ersteOffene.am);
+    const zeitHinweis = Date.now() - ersteAm.getTime() > 3 * 3_600_000
+      ? `ACHTUNG ZEIT: Seine offene Nachricht kam ${tagUndUhrzeit(ersteAm)} — relative Zeitangaben des Kunden („heute", „morgen", „gleich", „nachmittags") beziehen sich auf DIESEN Zeitpunkt, nicht auf jetzt. Ist die genannte Zeit schon vorbei, trag nichts ein: frag ihn nach einer neuen Zeit${personId ? " (freie_zeiten)" : ""}. Entschuldige die späte Antwort in einem kurzen Halbsatz.`
+      : "";
     const text = auftrag({
-      kiHinweis,
+      kiHinweis, zeitHinweis,
       name: namen.voll,
       werkzeuge: !!personId, betreuer: lage.betreuer ? lage.betreuer.split(" ")[0] : null, jetzt: `${jetzt} (heute = ${heuteIso})`,
       wer: lage.wer, lage: lage.lage, ziel: lage.ziel, link: lage.link, verkaufen: lage.verkaufen, auskunft,
@@ -1300,7 +1421,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       verlauf: verlauf.slice().reverse()
         .filter((v) => v.status !== "fehler")
         .map((v) => {
-          const wer = v.richtung === "rein" ? "KUNDE" : v.vorlage ? "VORLAGE" : istMara(v.von) ? "DU" : "TEAM";
+          // E-246: Jede Kundennachricht mit Tag und Uhrzeit (Berlin) — „KUNDE (So 16:00): …".
+          const wer = v.richtung === "rein" ? `KUNDE (${kurzZeit(new Date(v.am))})` : v.vorlage ? "VORLAGE" : istMara(v.von) ? "DU" : "TEAM";
           const inhalt = String(v.text || (v.vorlage ? vorlagenKopf(String(v.vorlage)) : MEDIEN[String(v.typ)] ?? (v.typ && v.typ !== "text" ? `(${v.typ})` : ""))).replace(/\s+/g, " ").slice(0, 600);
           return `${wer}: ${inhalt}`;
         })
@@ -1321,6 +1443,9 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     }, personId ? {
       personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer,
       kunde, letzteDu: letzteDu[0] ?? "", auskunft,
+      // Nachbesserung 27.09. (E-246): nur bei einer Pause-Nachricht, und der Tag
+      // der NEUESTEN offenen Nachricht (schrieb er heute neu, gilt sein Heute).
+      nachrichtTag: kamInDerPause(neuesteRein.am, kp) ? berlinTag(new Date(neuesteRein.am)) : undefined,
     } : null);
     let roh = e.roh;
     let antwort = e.antwort;
@@ -1331,9 +1456,32 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // KI fällt aus (24.09. 07:00: OpenAI-Guthaben leer): erst sechs Minuten still weiterversuchen —
     // ein kurzer Ausfall bleibt so unsichtbar. Danach EIN Rückfallsatz und ein Mensch; steht er schon
     // da, kein zweiter — das Gespräch bleibt offen, und Mara antwortet richtig, sobald die KI zurück ist.
+    // E-246: Traf die Denkrunde auf die KI-Pause (oder löste sie aus), bleibt alles liegen —
+    // kein Rückfallsatz, keine Aufgabe. Den Alarm an Justin schickt fiaon-ki-pause.ts genau einmal.
+    if (istKiPause(e.kiFehler)) {
+      // Nachprüfung 27.09.: Traf die Pause erst die zweite Denkrunde (oder eine
+      // spätere Werkzeugrunde), sind echte Handlungen schon geschehen — z. B. ein
+      // Rückruf im Kalender. Der Kunde bekommt nichts (keine KI-Antwort in der
+      // Pause), aber der Betreuer erfährt es EINMAL, damit er kurz selbst
+      // bestätigen kann. Nach dem Aktivieren beantwortet Mara die Frage regulär;
+      // rueckruf_eintragen erkennt den schon gebuchten Termin.
+      // Nur, was außerhalb des Gesprächs schon wirkt — Zeiten, Links und Angebote sind nur vorbereitet.
+      const echt = e.aktionen.filter((x) => x.ok && (x.werkzeug === "rueckruf_eintragen" || x.werkzeug === "zahlungszusage_merken" || (x.werkzeug === "auskunft_anbieten" && x.art === "bestellt")));
+      const k = `pause-${nummer}-${neuesteRein.id}`;
+      if (echt.length && !kiAufgabeGemeldet.has(k)) {
+        kiAufgabeGemeldet.add(k);
+        const was = echt.map((x) => x.werkzeug === "rueckruf_eintragen" && x.termin ? `Rückruf eingetragen (${x.termin.text})`
+          : x.werkzeug === "zahlungszusage_merken" ? "Zahlungszusage festgehalten"
+          : x.werkzeug === "auskunft_anbieten" ? "eine Bonitätsauskunft bestellt"
+          : x.werkzeug).join(" · ");
+        await aufgabeFuerMenschen(nummer, personId, leadId, `Mara hat ${was}, konnte wegen der KI-Pause aber nicht antworten — der Kunde weiß es noch nicht. Bitte kurz selbst bestätigen. Letzte Nachricht: „${frage.slice(0, 200)}"`);
+      }
+      return { gesendet: false, grund: "KI pausiert — die Nachricht wartet, bis die KI wieder aktiv ist." };
+    }
     if (e.kiFehler) {
-      if (/no credits|insufficient_quota|exceeded your current quota|billing/i.test(e.kiFehler)) await kiGuthabenAlarm(e.kiFehler);
-      const wartetMin = (Date.now() - new Date(ersteOffene.am).getTime()) / 60_000;
+      // E-246: Die Geduld zählt ab dem späteren von Nachricht und Pausenende — eine
+      // kurze Störung direkt nach dem Aktivieren löst keinen sofortigen Rückfallsatz aus.
+      const wartetMin = (Date.now() - geduldAb(ersteOffene.am, kp)) / 60_000;
       if (wartetMin < KI_GEDULD_MIN) return { gesendet: false, grund: `KI nicht erreichbar (${e.kiFehler.slice(0, 80)}) — neuer Versuch.` };
       if (rueckfallSchonDa) {
         // Eine Aufgabe je offener Nachricht — nicht alle fünf Minuten eine neue (Nachhol-Takt).
@@ -1552,6 +1700,12 @@ export interface WerkzeugKontext {
   /** E-240: seine offenen Nachrichten und Maras letzte — für „hat er zugestimmt?" (Server, nicht Modell). */
   kunde?: string; letzteDu?: string;
   auskunft?: AuskunftTeil | null;
+  /**
+   * E-246: Berliner Tag (YYYY-MM-DD) der neuesten offenen Kundennachricht, NUR wenn sie in der KI-Pause kam. Liegt
+   * er vor heute (Nachricht aus der KI-Pause), legt rueckruf_eintragen nichts auf
+   * heute, außer der Kunde nennt den heutigen Tag ausdrücklich.
+   */
+  nachrichtTag?: string;
 }
 
 export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
@@ -1578,6 +1732,8 @@ export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugK
     };
   }
   if (name === "rueckruf_eintragen") {
+    const sperre = rueckrufHeuteSperre(args, ctx, new Date());
+    if (sperre) return { ergebnis: { ok: false, grund: sperre }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
     const r = await mt.rueckrufBuchen(ctx, {
       zeit: args?.zeit || null, von: args?.von || null, bis: args?.bis || null,
       anliegen: String(args?.anliegen ?? ""), verschieben: args?.verschieben === true,
@@ -1858,24 +2014,8 @@ export async function entwerfen(
   return { roh: roh2, antwort: a2, funde: p2.hart, hinweise: [], zweiter: true, kiFehler: roh2 ? null : d2.fehler, aktionen };
 }
 
-/** Das OpenAI-Guthaben ist leer — einmal am Tag eine dringende Aufgabe an die Geschäftsführung. */
-const guthabenGemeldet = new Set<string>();
-async function kiGuthabenAlarm(fehler: string): Promise<void> {
-  const tag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-  if (guthabenGemeldet.has(tag)) return;
-  guthabenGemeldet.add(tag);
-  console.error(`[MARA-WA] KI-Guthaben leer: ${fehler.slice(0, 160)}`);
-  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-  await auftragFuerKunden({
-    personId: null, ref: null, anBetreiber: true,
-    titel: "OpenAI-Guthaben leer — Mara kann nicht antworten",
-    text: "OpenAI meldet: kein Guthaben mehr. Bitte sofort unter platform.openai.com → Settings → Billing aufladen. "
-      + "Bis dahin antworten Mara (WhatsApp und Postfach) und alle anderen KI-Dienste nicht. Kunden auf WhatsApp bekommen "
-      + `nach ${KI_GEDULD_MIN} Minuten einen kurzen Rückfallsatz, und ihr Betreuer eine Aufgabe; sobald das Guthaben da ist, beantwortet Mara die offenen Fragen von selbst (bis 12 Stunden zurück).`,
-    quelle: "mara-whatsapp", dringend: true, link: "/chef/s/mara",
-    schluessel: `ki-guthaben-${tag}`,
-  } as any).catch((e) => console.error("[MARA-WA] Guthaben-Alarm:", e));
-}
+// E-246 (27.09.2026): Der tägliche „Guthaben leer"-Alarm von hier ist weg — die KI-Pause
+// (fiaon-ki-pause.ts) meldet einen Abrechnungsfehler genau einmal, für alle Dienste.
 
 type Nachricht = { role: "assistant" | "user" | "tool"; content: string; tool_calls?: any[]; tool_call_id?: string };
 
@@ -1906,6 +2046,8 @@ async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontex
         void kostenCentsAus(MODELL(), j?.usage);
       } catch (e) {
         fehler = String((e as Error)?.message || e).slice(0, 300);
+        // E-246: In der Pause kein zweiter Versuch — es gäbe ohnehin keinen Netzaufruf.
+        if (istKiPause(e)) return { roh: null, fehler, aktionen, werkzeugVerlauf };
         console.warn(`[MARA-WA] KI-Aufruf ${versuch} gescheitert:`, fehler.slice(0, 160));
       }
     }
@@ -2168,7 +2310,18 @@ export const OFFENE_GESPRAECHE_SQL = `
 
 export async function nachholLauf(): Promise<{ angestossen: number }> {
   let angestossen = 0;
+  // E-246: In der KI-Pause nichts anstoßen — nach dem Aktivieren ruft fiaon-ki-pause.ts diesen Lauf sofort.
+  if (await kiPausiert()) return { angestossen: 0 };
   await gespraechSchema();
+  // E-246 (Nachprüfung 27.09.): Bis 24 h nach dem Aktivieren sammelt jeder Takt
+  // die Pause-Nachrichten ein, die gerade über die 23,5-h-Grenze rutschen — auch
+  // die, die nachts (nur < 30 Min.) oder am Kostendeckel übersprungen wurden.
+  // Einmal beim Aktivieren reichte nicht: Eine Nachricht, die dann erst 15 h alt
+  // war, fiel sonst weder in die Antwort noch in die Sammelaufgabe.
+  const kp = await kiPauseLesen();
+  if (kp.seit && kp.aufgehobenAm && Date.now() - new Date(kp.aufgehobenAm).getTime() < 24 * 3_600_000) {
+    await zuAltFuerMara(kp.seit).catch((e) => console.error("[MARA-WA] Pause-Sammelaufgabe:", e));
+  }
   const stunde = stundeBerlin();
   const nacht = stunde >= 22 || stunde < 7;
   // Kostendeckel erreicht? Dann gar nicht erst anstoßen — die Aufgaben sind schon angelegt.
@@ -2193,6 +2346,83 @@ export async function nachholLauf(): Promise<{ angestossen: number }> {
   }
   return { angestossen };
 }
+/**
+ * Nach der KI-Pause (E-246): Nachrichten, die in der Pause kamen und inzwischen
+ * älter als 12 Stunden sind, beantwortet Mara nicht mehr frei (relative Zeiten
+ * des Kunden stimmen nicht mehr; ab 23,5 h holt sie auch der Nachhol-Takt nicht,
+ * das Fenster schließt). Sie gehen als EINE Sammelaufgabe an Justin — ein
+ * Mensch meldet sich (bis 24 h frei, danach mit einer Vorlage).
+ * Die neueste Nachricht je Nummer entscheidet: Schrieb der Kunde danach neu,
+ * antwortet Mara auf das ganze Gespräch (mit Zeitangaben im Verlauf).
+ *
+ * Läuft beim Aktivieren UND in jedem Nachhol-Takt der ersten 24 h danach.
+ * Eine Marke (fiaon_settings.ki_pause_wa_gesammelt = {seit, bisId}) merkt, bis
+ * zu welcher Nachricht schon gesammelt wurde — jede Nachricht steht genau
+ * einmal in der Aufgabe, spätere hängen sich an dieselbe Aufgabe an.
+ * Zeitfenster ab 15 Min. VOR der Pause: Die Nachricht, deren Denkrunde die
+ * Pause auslöste, kam Sekunden bis Minuten vor „seit".
+ */
+export const KI_PAUSE_WA_MARKE = "ki_pause_wa_gesammelt";
+/** Einzelaufgaben, falls eine Pause-Nachricht nicht in die Sammlung kam (je Nummer:Nachricht einmal). */
+const pauseEinzelGemeldet = new Set<string>();
+/** Ist die Marke der Sammelaufgabe dieser Pause bis zu dieser Nachricht gerückt? */
+export async function inPauseSammlung(seit: string | null, nachrichtId: number): Promise<boolean> {
+  if (!seit) return false;
+  const [m] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${KI_PAUSE_WA_MARKE} LIMIT 1`.catch(() => [])) as any[];
+  try { const j = m?.value ? JSON.parse(m.value) : null; return j?.seit === seit && Number(j.bisId) >= nachrichtId; } catch { return false; }
+}
+export async function zuAltFuerMara(seit: string | null): Promise<{ anzahl: number }> {
+  if (!seit) return { anzahl: 0 };
+  await gespraechSchema();
+  const [m] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${KI_PAUSE_WA_MARKE} LIMIT 1`) as any[];
+  const markeAlt: string | null = m?.value ?? null;
+  let bisId = 0;
+  try { const j = markeAlt ? JSON.parse(markeAlt) : null; if (j?.seit === seit) bisId = Number(j.bisId) || 0; } catch { /* alte Marke unlesbar → neu anfangen */ }
+  const ab = new Date(new Date(seit).getTime() - 15 * 60_000);
+  // E-246 (Nachprüfung): Nur Nachrichten, die IN der Pause kamen (bis zum Aufheben
+  // genau dieser Pause), und schon ab 12 Stunden Alter — älter beantwortet Mara
+  // nicht frei (maraAntwortet, PAUSE_FREI_MAX_MS). Das Fenster ist bis 24 h offen.
+  const kp = await kiPauseLesen().catch(() => null);
+  const bis = kp && kp.seit === seit && kp.aufgehobenAm && !kp.an ? new Date(kp.aufgehobenAm) : new Date();
+  const zeilen = (await sqlPool`
+    SELECT r.nummer, r.id, r.text, r.am, r.person_id,
+           NULLIF(TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')), '') AS name
+      FROM (
+        SELECT DISTINCT ON (nummer) nummer, id, text, person_id, COALESCE(empfangen_am, created_at) AS am, created_at
+          FROM fiaon_whatsapp WHERE richtung = 'rein' AND created_at >= ${ab}
+         ORDER BY nummer, id DESC
+      ) r
+      LEFT JOIN fiaon_persons p ON p.id = r.person_id
+      LEFT JOIN fiaon_whatsapp_gespraech g ON g.nummer = r.nummer
+     WHERE r.am <= NOW() - INTERVAL '12 hours'
+       AND r.am <= ${bis}
+       AND r.id > ${bisId}
+       AND COALESCE(g.mara_aus_grund, '') <> 'schalter'
+       -- Nachbesserung 27.09.: Vorlagen zählen nicht als Antwort (wie OFFENE_GESPRAECHE_SQL).
+       AND NOT EXISTS (SELECT 1 FROM fiaon_whatsapp o WHERE o.nummer = r.nummer AND o.richtung = 'raus' AND o.vorlage IS NULL AND o.status <> 'fehler' AND o.id > r.id)
+     ORDER BY r.id LIMIT 60`.catch((e) => { console.error("[MARA-WA] Pause-Sammelaufgabe:", e); return []; })) as any[];
+  if (!zeilen.length) return { anzahl: 0 };
+  // Marke weiterrücken — nur wer sie von genau dem gelesenen Stand aus rückt,
+  // schreibt die Aufgabe (zwei gleichzeitige Takte listen nichts doppelt).
+  const markeNeu = JSON.stringify({ seit, bisId: Math.max(...zeilen.map((z) => Number(z.id))) });
+  const gerueckt = (markeAlt === null
+    ? await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${KI_PAUSE_WA_MARKE}, ${markeNeu}, NOW()) ON CONFLICT (key) DO NOTHING RETURNING key`
+    : await sqlPool`UPDATE fiaon_settings SET value = ${markeNeu}, updated_at = NOW() WHERE key = ${KI_PAUSE_WA_MARKE} AND value = ${markeAlt} RETURNING key`) as any[];
+  if (!gerueckt.length) return { anzahl: 0 };
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const liste = zeilen.map((z) => {
+    const am = new Date(z.am).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return `· …${String(z.nummer).slice(-4)}${z.name ? ` (${z.name})` : ""}, ${am}: „${String(z.text ?? "").replace(/\s+/g, " ").slice(0, 120)}"`;
+  }).join("\n");
+  await auftragFuerKunden({
+    personId: null, ref: null, anBetreiber: true, dringend: true,
+    titel: "WhatsApp aus der KI-Pause: Nachrichten zu alt für Mara",
+    text: `${zeilen.length} Nachricht${zeilen.length === 1 ? "" : "en"} kam${zeilen.length === 1 ? "" : "en"} während der KI-Pause und ${zeilen.length === 1 ? "ist" : "sind"} älter als 12 Stunden. Mara antwortet darauf nicht selbst — „heute", „gleich" oder „morgen" des Kunden meinen inzwischen einen anderen Tag. Bitte selbst melden (WhatsApp-Raum): bis 24 Stunden nach seiner Nachricht frei, danach nur mit einer Vorlage. Die Uhrzeit steht dabei:\n${liste}`,
+    quelle: "ki-pause", bereich: "postmeister", link: "/chef/s/mara", schluessel: `ki-pause-wa-${seit}`, autorName: "System",
+  } as any).catch((e) => console.error("[MARA-WA] Pause-Sammelaufgabe:", e));
+  return { anzahl: zeilen.length };
+}
+
 /** Für den Prüfstand (scripts/pruef-mara-verkauf.ts): derselbe Auftrag, den Mara im Betrieb bekommt. */
 export { auftrag as maraAuftrag };
 /** Für den Prüfstand (E-240): dieselbe Lage, die Mara im Betrieb bekommt. */

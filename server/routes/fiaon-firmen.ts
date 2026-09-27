@@ -53,6 +53,7 @@ import { verkaufbarePakete } from "@shared/fiaon-pakete";
 import { globalInfoMail, globalVorbereitungSystem } from "@shared/fiaon-global-vertrieb";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
 import { berlinToday, berlinPlusTage } from "../lib/fiaon-time";
+import { openaiFetch, istKiPause } from "../lib/fiaon-ki-pause";
 
 const router = Router();
 
@@ -570,7 +571,7 @@ router.post("/agent/firmen/:id/vorbereitung", requireAgent, async (req: AgentReq
     const system = globalVorbereitungSystem();
     const nutzer = `FIRMA: ${firma.firma}${firma.branche ? ` · Branche: ${firma.branche}` : ""}${firma.ort ? ` · Ort: ${firma.ort}` : ""}${firma.ansprechpartner ? ` · Ansprechpartner: ${firma.ansprechpartner}` : ""}${firma.notiz ? `\nNOTIZEN: ${String(firma.notiz).slice(0, 800)}` : ""}
 ${seite ? `WEBSITE-INHALT (${firma.website}):\n${seite}` : "KEINE Website erreichbar — arbeite mit Branche/Ort und sage das ehrlich."}`;
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await openaiFetch("firmen", "/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -591,6 +592,7 @@ ${seite ? `WEBSITE-INHALT (${firma.website}):\n${seite}` : "KEINE Website erreic
     `;
     res.json({ ok: true, vorbereitung: v, quelle: seite ? "website" : "branche" });
   } catch (err: any) {
+    if (istKiPause(err)) return res.status(503).json({ ok: false, error: String(err.message) }); // E-246
     console.error("[FIRMEN] vorbereitung:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }

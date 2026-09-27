@@ -15,6 +15,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { wissenText, SUPPORT } from "@shared/fiaon-wissen";
+import { openaiFetch, istKiPause } from "../lib/fiaon-ki-pause";
 import { kundeAusCookie } from "../lib/fiaon-kunde-session";
 
 const router = Router();
@@ -37,7 +38,7 @@ router.post("/kontakt/chat", async (req: Request, res: Response) => {
     const nachrichten = roh.slice(-12).map((n: any) => ({ role: n.rolle === "assistent" ? "assistant" : "user", content: String(n.text || "").slice(0, 2000) })).filter((n: any) => n.content.trim());
     if (!nachrichten.length) return res.status(400).json({ ok: false, error: "Keine Frage." });
     const modell = process.env.FIAON_CHAT_MODELL || "gpt-4.1-mini";
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await openaiFetch("kontakt-chat", "/chat/completions", {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       // 02.09.2026: Auf den englischen Seiten (/en/…) antwortet der Assistent auf
       // Englisch — dieselben Fakten, dieselben Wortverbote, nur die Sprache wechselt.
@@ -46,7 +47,11 @@ router.post("/kontakt/chat", async (req: Request, res: Response) => {
     const j: any = await r.json().catch(() => null);
     if (!r.ok) { console.error("[KONTAKT-CHAT] OpenAI", r.status, j?.error?.message); return res.json({ ok: true, antwort: `Gerade klemmt es bei mir. Unser Support hilft sofort: ${SUPPORT.telefon} oder ${SUPPORT.email}.` }); }
     res.json({ ok: true, antwort: String(j?.choices?.[0]?.message?.content || "").trim() || "Dazu kann ich nichts sagen – unser Support hilft gern weiter." });
-  } catch (err) { console.error("[KONTAKT-CHAT]", err); res.status(500).json({ ok: false, error: "Der Assistent ist gerade nicht erreichbar." }); }
+  } catch (err) {
+    // E-246: KI pausiert — derselbe feste Satz wie bei einer Störung (wahr, ohne Zusage), kein KI-Text.
+    if (istKiPause(err)) return res.json({ ok: true, antwort: `Der Assistent ist gerade nicht erreichbar. Unser Support hilft sofort: ${SUPPORT.telefon} oder ${SUPPORT.email}.` });
+    console.error("[KONTAKT-CHAT]", err); res.status(500).json({ ok: false, error: "Der Assistent ist gerade nicht erreichbar." });
+  }
 });
 
 router.post("/kontakt/dringend", async (req: Request, res: Response) => {

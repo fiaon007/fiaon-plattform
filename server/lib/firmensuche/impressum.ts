@@ -41,6 +41,7 @@ import { type Firma, type Land, type Vertreter, alsLand, sauber, ohneLeere } fro
 import { sicherAbrufen, urlPruefen, NetzschutzFehler, type Transport, type Seite } from "./netzschutz";
 import { robotsRegeln, robotsErlaubt, type RobotsRegel } from "./robots";
 import { registerDE, firmenbuchnummer, uidCH, ustIdDE, ustIdAT, plzGueltig, telefonGueltig, emailGueltig } from "./formate";
+import { openaiFetch } from "../fiaon-ki-pause";
 
 export const SEITEN_MAX = 3;
 const TEXT_MAX = 14_000;
@@ -278,7 +279,7 @@ export const kiLesen: KiLeser = async (text, host) => {
   const abbruch = new AbortController();
   const wecker = setTimeout(() => abbruch.abort(), 14_000);
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await openaiFetch("impressum", "/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       signal: abbruch.signal,
@@ -293,6 +294,7 @@ export const kiLesen: KiLeser = async (text, host) => {
     const daten = JSON.parse(String(j?.choices?.[0]?.message?.content || "null"));
     return daten && typeof daten === "object" ? (daten as KiAntwort) : null;
   } catch {
+    // Auch in der KI-Pause (E-246): null — dann gelten nur die Regex-Funde mit ihren Belegen.
     return null;
   } finally {
     clearTimeout(wecker);

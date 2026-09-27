@@ -8,11 +8,12 @@
  */
 
 import OpenAI from "openai";
+import { sdkFetch } from "./fiaon-ki-pause";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize AI clients
 const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: sdkFetch("internal-ai") }) // E-246: durch die KI-Pause
   : null;
 
 const gemini = process.env.GOOGLE_GEMINI_API_KEY

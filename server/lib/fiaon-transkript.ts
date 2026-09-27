@@ -22,8 +22,12 @@
 
 import { sqlPool } from "./db-pool";
 import { entschaerfen } from "./fiaon-mail-ki";
+import { openaiFetch, kiPausiert, kiPauseLesen, kiPauseMeldung, istKiPause } from "./fiaon-ki-pause";
 
 type Lauf = typeof sqlPool;
+
+/** Der Grund, wenn der Kunde der Aufzeichnung widersprochen hat — dann gibt es kein Transkript. */
+export const WIDERSPRUCH_GRUND = "Der Kunde hat der Aufzeichnung widersprochen — kein Transkript, keine Zusammenfassung.";
 
 export function transkriptKonfiguriert(): boolean {
   return !!process.env.OPENAI_API_KEY;
@@ -36,7 +40,7 @@ export function transkriptKonfiguriert(): boolean {
  */
 export async function transkribiere(
   quelle: string,
-): Promise<{ ok: boolean; text?: string; grund?: string }> {
+): Promise<{ ok: boolean; text?: string; grund?: string; pause?: boolean }> {
   if (!transkriptKonfiguriert()) {
     return { ok: false, grund: "Für die Transkription fehlt der Schlüssel OPENAI_API_KEY." };
   }
@@ -61,7 +65,7 @@ export async function transkribiere(
     form.append("file", new Blob([bytes], { type: "audio/mpeg" }), "anruf.mp3");
     form.append("model", "whisper-1");
     form.append("language", "de");
-    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    const res = await openaiFetch("transkript", "/audio/transcriptions", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       body: form,
@@ -76,6 +80,7 @@ export async function transkribiere(
     if (!text) return { ok: false, grund: "Die Transkription war leer — vermutlich eine stumme Aufnahme." };
     return { ok: true, text };
   } catch (err) {
+    if (istKiPause(err)) return { ok: false, grund: String((err as Error).message), pause: true }; // E-246
     return { ok: false, grund: `Transkription fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
@@ -103,13 +108,13 @@ Antworte NUR mit der Zusammenfassung, ohne Vorrede.`;
 
 export async function zusammenfassen(
   transkript: string,
-): Promise<{ ok: boolean; text?: string; grund?: string }> {
+): Promise<{ ok: boolean; text?: string; grund?: string; pause?: boolean }> {
   if (!transkriptKonfiguriert()) return { ok: false, grund: "OPENAI_API_KEY fehlt." };
   if (transkript.trim().length < 40) {
     return { ok: true, text: "Das Gespräch war zu kurz oder zu undeutlich für eine Zusammenfassung." };
   }
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await openaiFetch("transkript", "/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -130,6 +135,7 @@ export async function zusammenfassen(
     // Dieselbe Wand wie in der Mail-Zentrale — ein Prompt ist eine Bitte.
     return { ok: true, text: entschaerfen(roh).text };
   } catch (err) {
+    if (istKiPause(err)) return { ok: false, grund: String((err as Error).message), pause: true }; // E-246
     return { ok: false, grund: `Zusammenfassung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
@@ -141,53 +147,113 @@ export async function zusammenfassen(
  * Wirft nie. Jeder Fehlerpfad hinterlässt einen nachvollziehbaren Zustand am
  * Anruf-Datensatz, aus dem sich der Vorgang wiederholen lässt.
  */
-export async function anrufNachbereiten(callId: number, lauf: Lauf = sqlPool): Promise<{ ok: boolean; grund?: string }> {
+export async function anrufNachbereiten(
+  callId: number, lauf: Lauf = sqlPool,
+  /** nurOffen: nur greifen, wenn der Anruf noch 'offen' ist (oder 'laeuft' seit 15 Min.) — der Takt nimmt nie einen, der inzwischen fertig ist. */
+  opts: { nurOffen?: boolean } = {},
+): Promise<{ ok: boolean; grund?: string }> {
   const [c] = (await lauf`
-    SELECT id, person_id, ref, recording_url, transkript, agent_id FROM fiaon_calls WHERE id = ${callId}
+    SELECT id, person_id, ref, recording_url, transkript, agent_id, transkript_status, ohne_aufzeichnung_am
+      FROM fiaon_calls WHERE id = ${callId}
   `) as any[];
   if (!c) return { ok: false, grund: "Anruf nicht gefunden." };
+  // ── DATENSCHUTZ (Nachprüfung 27.09.2026, E-246) ──────────────────────────
+  // Hat der Kunde der Aufzeichnung widersprochen (ohne_aufzeichnung_am bzw.
+  // transkript_status 'entfaellt'), wird NICHTS abgeschrieben, zusammengefasst
+  // oder in die Akte geschrieben — egal, wer anstößt (Aufnahme-Rückruf von
+  // Twilio, Takt, Knopf). Der Zustand bleibt, wie er ist. Vorher prüfte diese
+  // Funktion das nicht; gemessen: 42 Anrufe mit Widerspruch stehen auf 'fertig'.
+  if (c.ohne_aufzeichnung_am || c.transkript_status === "entfaellt") {
+    return { ok: false, grund: WIDERSPRUCH_GRUND };
+  }
   if (!c.recording_url && !c.transkript) {
     await lauf`
       UPDATE fiaon_calls SET transkript_status = 'fehlgeschlagen',
         transkript_grund = 'Zu diesem Anruf liegt keine Aufnahme vor.', updated_at = NOW()
-      WHERE id = ${callId}
+      WHERE id = ${callId} AND ohne_aufzeichnung_am IS NULL AND transkript_status IS DISTINCT FROM 'entfaellt'
     `;
     return { ok: false, grund: "Keine Aufnahme vorhanden." };
   }
 
-  await lauf`UPDATE fiaon_calls SET transkript_status = 'laeuft', updated_at = NOW() WHERE id = ${callId}`;
+  // ── KI-PAUSE (27.09.2026, E-246): Der Anruf bleibt „offen" — transkriptLauf
+  // (Takt transkript_nachholen, 10 Minuten) nimmt ihn nach dem Aktivieren.
+  // Vorher wurde er „fehlgeschlagen" und nie wieder angefasst.
+  const liegenLassen = async (grund: string) => {
+    // Nie über einen Widerspruch schreiben ('entfaellt' bleibt 'entfaellt').
+    await lauf`
+      UPDATE fiaon_calls SET transkript_status = 'offen', transkript_grund = ${grund.slice(0, 300)}, updated_at = NOW()
+       WHERE id = ${callId} AND transkript_status IS DISTINCT FROM 'entfaellt' AND ohne_aufzeichnung_am IS NULL`;
+    return { ok: false, grund };
+  };
+  if (await kiPausiert()) return liegenLassen(kiPauseMeldung((await kiPauseLesen()).art));
+
+  // Nachprüfung 27.09. (E-246): Anspruch atomar. Aufnahme-Rückruf, Takt und
+  // Knopf können denselben Anruf gleichzeitig greifen — nur einer arbeitet
+  // (sonst zweimal Whisper, zwei Aktenvermerke). Ein „laeuft", das seit 15 Min.
+  // steht (Neustart mitten im Lauf), gilt als liegen geblieben.
+  const [anspruch] = (await lauf`
+    UPDATE fiaon_calls SET transkript_status = 'laeuft', updated_at = NOW()
+     WHERE id = ${callId}
+       AND (transkript_status IS DISTINCT FROM 'laeuft' OR updated_at < NOW() - INTERVAL '15 minutes')
+       AND transkript_status IS DISTINCT FROM 'entfaellt' AND ohne_aufzeichnung_am IS NULL
+       AND (${!opts.nurOffen}::boolean OR transkript_status = 'offen' OR transkript_status = 'laeuft')
+    RETURNING id`) as any[];
+  if (!anspruch) return { ok: false, grund: "Dieser Anruf wird gerade schon nachbereitet." };
 
   let text = c.transkript as string | null;
   if (!text) {
     const t = await transkribiere(String(c.recording_url));
+    if (!t.ok && t.pause) return liegenLassen(t.grund ?? "KI pausiert");
     if (!t.ok) {
       await lauf`
         UPDATE fiaon_calls SET transkript_status = 'fehlgeschlagen', transkript_grund = ${t.grund ?? null},
-          updated_at = NOW() WHERE id = ${callId}
+          updated_at = NOW()
+         WHERE id = ${callId} AND ohne_aufzeichnung_am IS NULL AND transkript_status IS DISTINCT FROM 'entfaellt'
       `;
       return { ok: false, grund: t.grund };
     }
     text = t.text!;
-    await lauf`UPDATE fiaon_calls SET transkript = ${text}, updated_at = NOW() WHERE id = ${callId}`;
+    // Nachbesserung 27.09. (E-246): Der Widerspruch kann WÄHREND Whisper
+    // kommen (Twilio schickt den Aufnahme-Rückruf, sobald die Aufnahme
+    // gestoppt ist). Dann wird der Text NICHT gespeichert und NICHT an die
+    // Zusammenfassung geschickt.
+    const [gespeichert] = (await lauf`
+      UPDATE fiaon_calls SET transkript = ${text}, updated_at = NOW()
+       WHERE id = ${callId} AND ohne_aufzeichnung_am IS NULL AND transkript_status IS DISTINCT FROM 'entfaellt'
+      RETURNING id`) as any[];
+    if (!gespeichert) return { ok: false, grund: WIDERSPRUCH_GRUND };
   }
 
+  // Unmittelbar vor der Zusammenfassung noch einmal: kein Text eines
+  // Anrufs mit Widerspruch geht an OpenAI.
+  const [frisch] = (await lauf`
+    SELECT id FROM fiaon_calls
+     WHERE id = ${callId} AND ohne_aufzeichnung_am IS NULL AND transkript_status IS DISTINCT FROM 'entfaellt'`) as any[];
+  if (!frisch) return { ok: false, grund: WIDERSPRUCH_GRUND };
+
   const z = await zusammenfassen(text);
+  if (!z.ok && z.pause) return liegenLassen(z.grund ?? "KI pausiert"); // das Transkript ist gespeichert, nur die Zusammenfassung wartet
   if (!z.ok) {
     // Das Transkript ist da — nur die Zusammenfassung fehlt. Der Zustand sagt
     // das genau, statt beides als gescheitert zu markieren.
     await lauf`
       UPDATE fiaon_calls SET transkript_status = 'fehlgeschlagen',
         transkript_grund = ${`Transkript liegt vor, Zusammenfassung fehlgeschlagen: ${z.grund}`},
-        updated_at = NOW() WHERE id = ${callId}
+        updated_at = NOW()
+       WHERE id = ${callId} AND ohne_aufzeichnung_am IS NULL AND transkript_status IS DISTINCT FROM 'entfaellt'
     `;
     return { ok: false, grund: z.grund };
   }
 
   const fassung = z.text ?? "";
-  await lauf`
+  const [gesetzt] = (await lauf`
     UPDATE fiaon_calls SET zusammenfassung = ${fassung}, transkript_status = 'fertig',
-      transkript_grund = NULL, updated_at = NOW() WHERE id = ${callId}
-  `;
+      transkript_grund = NULL, updated_at = NOW()
+     WHERE id = ${callId} AND ohne_aufzeichnung_am IS NULL AND transkript_status IS DISTINCT FROM 'entfaellt'
+    RETURNING id
+  `) as any[];
+  // Widerspruch kam während der Nachbereitung: nichts in die Akte.
+  if (!gesetzt) return { ok: false, grund: WIDERSPRUCH_GRUND };
 
   // In die Akte — dort, wo der nächste Kollege ohnehin nachliest.
   if (c.ref) {
@@ -200,20 +266,41 @@ export async function anrufNachbereiten(callId: number, lauf: Lauf = sqlPool): P
   return { ok: true };
 }
 
-/** Der Nachlauf: Anrufe, deren Transkript offen oder gescheitert ist. */
+/** Der Nachlauf: Anrufe, deren Transkript offen ist oder deren Nachbereitung liegen blieb. */
+let laufAktiv = false;
 export async function transkriptLauf(grenze = 5, lauf: Lauf = sqlPool): Promise<number> {
   if (!transkriptKonfiguriert()) return 0;
-  const offen = (await lauf`
-    SELECT id FROM fiaon_calls
-    WHERE transkript_status = 'offen' AND recording_url IS NOT NULL
-      AND beginn > NOW() - INTERVAL '7 days'
-    ORDER BY beginn ASC LIMIT ${grenze}
-  `) as any[];
-  let fertig = 0;
-  for (const c of offen) {
-    const r = await anrufNachbereiten(Number(c.id), lauf);
-    if (r.ok) fertig++;
+  if (await kiPausiert()) return 0; // E-246
+  // Prozessweit nur ein Lauf (Takt und nachDerPause; DB-seitig sperrt die Laufsperre des Takts).
+  if (laufAktiv) return 0;
+  laufAktiv = true;
+  try {
+    const offen = (await lauf`
+      SELECT id FROM fiaon_calls
+      WHERE recording_url IS NOT NULL
+        -- Datenschutz: nie ein Anruf, dessen Aufzeichnung der Kunde widersprochen hat.
+        AND ohne_aufzeichnung_am IS NULL
+        AND (
+          (transkript_status = 'offen'
+            -- Pause-Anrufe auch nach mehr als 7 Tagen; sonst nur die letzten 7 Tage.
+            AND (beginn > NOW() - INTERVAL '7 days' OR transkript_grund LIKE 'KI pausiert%')
+            -- Frisch aufgezeichnete Anrufe gehören dem Aufnahme-Rückruf (telefonie.ts),
+            -- nicht dem Takt — außer sie liegen aus der KI-Pause.
+            AND (transkript_grund LIKE 'KI pausiert%' OR updated_at < NOW() - INTERVAL '10 minutes'))
+          -- Liegen geblieben (Neustart oder Deploy mitten in der Nachbereitung): 'laeuft' seit 15 Min.
+          OR (transkript_status = 'laeuft' AND updated_at < NOW() - INTERVAL '15 minutes'
+              AND beginn > NOW() - INTERVAL '7 days'))
+      ORDER BY beginn ASC LIMIT ${grenze}
+    `) as any[];
+    let fertig = 0;
+    for (const c of offen) {
+      if (await kiPausiert()) break;
+      const r = await anrufNachbereiten(Number(c.id), lauf, { nurOffen: true });
+      if (r.ok) fertig++;
+    }
+    if (fertig) console.log(`[TRANSKRIPT] ${fertig} von ${offen.length} nachbereitet`);
+    return fertig;
+  } finally {
+    laufAktiv = false;
   }
-  if (fertig) console.log(`[TRANSKRIPT] ${fertig} von ${offen.length} nachbereitet`);
-  return fertig;
 }

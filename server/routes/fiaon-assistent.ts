@@ -43,6 +43,7 @@ import {
 } from "./fiaon-agent";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { rolleVon } from "../lib/fiaon-kundenzugriff";
+import { openaiFetch, OPENAI_V1 } from "../lib/fiaon-ki-pause";
 import {
   werkzeugeFuerRolle, werkzeugVonName, type Werkzeug, type WerkzeugKontext,
   type InternerAufruf,
@@ -61,7 +62,7 @@ const VERLAUF_FENSTER = 24;        // Nachrichten, die das Modell als Kontext si
 // ── Modellzugang aus der Umgebung ────────────────────────────────────────────
 function modellZugang(): { basis: string; schluessel: string; modell: string } {
   return {
-    basis: (process.env.ASSISTENT_BASIS_URL || "https://api.openai.com/v1").replace(/\/+$/, ""),
+    basis: (process.env.ASSISTENT_BASIS_URL || OPENAI_V1).replace(/\/+$/, ""),
     schluessel: process.env.ASSISTENT_API_KEY || process.env.OPENAI_API_KEY || "",
     modell: process.env.ASSISTENT_MODELL || process.env.OPENAI_MODEL || "gpt-4o-mini",
   };
@@ -268,7 +269,9 @@ async function modellStrom(
     type: "function",
     function: { name: w.name, description: w.beschreibung, parameters: w.jsonSchema },
   }));
-  const res = await fetch(`${basis}/chat/completions`, {
+  // E-246: über die KI-Pause (nur wenn die Basis OpenAI ist; ein anderer Anbieter bleibt unberührt).
+  // Pausiert → KiPausiertFehler, dessen Satz („KI pausiert — …") der Chat als Fehler zeigt.
+  const res = await openaiFetch("copilot", `${basis}/chat/completions`, {
     method: "POST",
     headers: { authorization: `Bearer ${schluessel}`, "content-type": "application/json" },
     body: JSON.stringify({

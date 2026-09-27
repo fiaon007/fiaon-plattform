@@ -25,6 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createHash } from "node:crypto";
 import { PDFDocument } from "pdf-lib";
+import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 
 export type OcrArt = "kontoauszug" | "schufa" | "ausweis" | "allgemein";
 
@@ -97,7 +98,7 @@ async function aufruf(inhalt: any, text: string): Promise<{ text: string; usage:
   const start = Date.now();
   const modell = MODELL();
   try {
-    const res = await fetch("https://api.openai.com/v1/responses", {
+    const res = await openaiFetch("ocr", "/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${SCHLUESSEL()}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -114,7 +115,7 @@ async function aufruf(inhalt: any, text: string): Promise<{ text: string; usage:
     nutzung(modell, usage, Date.now() - start, true);
     return { text: antwortText(roh), usage };
   } catch (e: any) {
-    nutzung(modell, null, Date.now() - start, false, String(e?.message || e));
+    if (!istKiPause(e)) nutzung(modell, null, Date.now() - start, false, String(e?.message || e));
     throw e;
   } finally {
     clearTimeout(uhr);
@@ -214,6 +215,10 @@ export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein", opt: { se
       return Array.from({ length: p.bis - p.ab + 1 }, () => "");
     }
   });
+  // E-246: Traf ein Päckchen auf die KI-Pause, gilt das ganze Dokument als nicht gelesen —
+  // ein halbes Ergebnis mit leeren Seiten wäre falsch (und würde zwischengespeichert).
+  const pause = fehler.find((f) => istKiPause(f));
+  if (pause) throw pause;
   if (fehler.length === paeckchen.length) throw fehler[0];
   const e = { seiten: teile.flat(), modell: MODELL() };
   merken(schluessel, e);

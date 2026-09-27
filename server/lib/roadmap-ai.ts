@@ -14,8 +14,10 @@
  * ============================================================================
  */
 import OpenAI from "openai";
+import { sdkFetch, kiPausiert } from "./fiaon-ki-pause";
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+// E-246: durch die KI-Pause; in der Pause gilt der Regel-Rückfall wie ohne Schlüssel.
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: sdkFetch("roadmap") }) : null;
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 export function aiConfigured(): boolean {
@@ -158,7 +160,7 @@ export function rulesAnalysis(m: AggregatedMetrics): AnalysisResult {
 /* ── KI-Analyse (nur aggregierte Kennzahlen; Bildungs-Framing) ── */
 export async function analyzeMetrics(m: AggregatedMetrics): Promise<AnalysisResult> {
   const base = rulesAnalysis(m);
-  if (!openai) return base;
+  if (!openai || await kiPausiert()) return base;
 
   const system = [
     "Du bist der Finanzbildungs-Coach von FIAON.",
@@ -241,7 +243,7 @@ export async function generateGreeting(ctx: GreetingContext): Promise<string> {
     return parts.join(" ");
   })();
 
-  if (!openai) return fallback;
+  if (!openai || await kiPausiert()) return fallback;
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,

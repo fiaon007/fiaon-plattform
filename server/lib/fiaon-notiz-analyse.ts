@@ -29,6 +29,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { AGENDA } from "../../shared/fiaon-onboarding-agenda";
+import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 
 export interface NotizAnalyse {
   ok: boolean;
@@ -76,7 +77,7 @@ export async function notizAnalysieren(notiz: string): Promise<NotizAnalyse> {
   if (!process.env.OPENAI_API_KEY) return { ...leer, grund: "Kein KI-Schlüssel hinterlegt — bitte von Hand abhaken." };
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await openaiFetch("notiz-analyse", "/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -132,6 +133,7 @@ export async function notizAnalysieren(notiz: string): Promise<NotizAnalyse> {
       verbesserung,
     };
   } catch (err) {
+    if (istKiPause(err)) return { ...leer, grund: `${(err as Error).message} Bitte bis dahin von Hand abhaken.` }; // E-246
     console.error("[NOTIZ-ANALYSE]", err instanceof Error ? err.message : err);
     return { ...leer, grund: "Die Prüfung ist gerade nicht erreichbar — bitte von Hand abhaken." };
   }

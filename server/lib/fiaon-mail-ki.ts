@@ -16,6 +16,7 @@
 //   2. `entschaerfen()` prüft die ANTWORT und entfernt, was durchgerutscht ist.
 // Ein Prompt ist eine Bitte, kein Zaun. Der Zaun steht in Schritt 2.
 // ═══════════════════════════════════════════════════════════════════════════
+import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 
 const SYSTEM = `Du hilfst dem Team von FIAON beim Schreiben kurzer, persönlicher Kunden-E-Mails auf Deutsch.
 
@@ -116,7 +117,7 @@ export async function kiEntwurf(art: string, eingabe: string): Promise<KiErgebni
   const aufgabe = AUFGABEN[art] ?? AUFGABEN.entwurf;
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await openaiFetch("mail-ki", "/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -158,6 +159,7 @@ export async function kiEntwurf(art: string, eingabe: string): Promise<KiErgebni
     }
     return { ok: true, text: rumpf, betreff, entfernt: sauber.entfernt };
   } catch (err) {
+    if (istKiPause(err)) return { ok: false, text: "", grund: String((err as Error).message) }; // E-246
     return { ok: false, text: "", grund: `KI nicht erreichbar: ${err instanceof Error ? err.message : String(err)}` };
   }
 }

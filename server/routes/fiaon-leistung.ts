@@ -19,6 +19,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, getSettings, setSetting, type AgentRequest } from "./fiaon-agent";
+import { openaiFetch, istKiPause } from "../lib/fiaon-ki-pause";
 
 const router = Router();
 
@@ -255,7 +256,7 @@ export async function aiComplete(prompt: string): Promise<{ text: string; provid
 
   let resp: globalThis.Response;
   try {
-    resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    resp = await openaiFetch("leistung", "/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
       body: JSON.stringify({
@@ -267,6 +268,7 @@ export async function aiComplete(prompt: string): Promise<{ text: string; provid
       signal: AbortSignal.timeout(45_000),
     });
   } catch (e: any) {
+    if (istKiPause(e)) throw e; // E-246: „KI pausiert — …" kommt so beim Knopf an
     const reason = e?.name === "TimeoutError" ? "Zeitüberschreitung (45 s)" : (e?.message || "Netzwerkfehler");
     throw new Error(`OpenAI nicht erreichbar: ${reason}. Bitte später erneut versuchen — die Zahlen unten bleiben davon unberührt.`);
   }

@@ -45,6 +45,7 @@ import { akteLesen } from "./fiaon-postmeister-dossier";
 import { kundenwegLesen } from "./fiaon-kundenweg";
 import { gedaechtnisText } from "./fiaon-mara-gedaechtnis";
 import { kiAufruf, antwortLesen, akteKompakt, MODELL, agentNamen } from "./fiaon-postmeister-agent";
+import { kiPausiert, istKiPause } from "./fiaon-ki-pause";
 import { anredeBestimmen, antwortBauen, grussMitAgent } from "./fiaon-postmeister-antworttext";
 import { postfachGruss } from "./fiaon-postmeister-postfaecher";
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
@@ -437,7 +438,8 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   };
 
   let roh: any;
-  try { roh = await rufen(); } catch (e: any) { return { ...leer, grund: `Modell: ${String(e?.message || e).slice(0, 160)}` }; }
+  // E-246: Die KI-Pause geht nach oben durch — der Lauf bricht ab, ohne „abgelehnt" (keine 24 h Ruhe).
+  try { roh = await rufen(); } catch (e: any) { if (istKiPause(e)) throw e; return { ...leer, grund: `Modell: ${String(e?.message || e).slice(0, 160)}` }; }
   const saeubern = (t: string) => (ein.emojis ? String(t || "") : ohneEmojis(String(t || ""))).trim();
   let betreff = saeubern(roh?.betreff).replace(/[!]+/g, "").slice(0, 90);
   let text = saeubern(roh?.text);
@@ -449,7 +451,7 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
       const t2 = saeubern(neu?.text);
       const m2 = aktionPruefen(b2, t2);
       if (m2.length < maengel.length) { betreff = b2; text = t2; maengel = m2; }
-    } catch { /* bleibt beim ersten Versuch */ }
+    } catch (e) { if (istKiPause(e)) throw e; /* sonst bleibt es beim ersten Versuch */ }
   }
   if (maengel.length) return { ...leer, betreff, kern: text, maengel, auftrag, wissen, grund: `Prüfung: ${maengel.slice(0, 2).join("; ")}` };
 
@@ -495,6 +497,7 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
     await aktionTabellen();
     const e = await einstellungenLesen();
     if (!e.an) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "aus" };
+    if (await kiPausiert()) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "KI pausiert" }; // E-246
     const z = await aktionZaehler(e);
     if (z.kostenHeuteEuro >= e.tagEuro) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: `Kostendeckel (${z.kostenHeuteEuro.toFixed(2)} € von ${e.tagEuro} €)` };
     // Der Durchgang läuft alle 10 Minuten — je Durchgang also ein Sechstel der Stunde.
@@ -505,6 +508,7 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
     const { neueMailSendenMitFaden } = await import("./fiaon-gmail");
     const { vonName } = { vonName: (await agentNamen()).voll };
     let gesendet = 0, abgelehnt = 0, fehler = 0;
+    let pausiert = false;
     for (const k of kandidaten) {
       if (gesendet >= erlaubt) break;
       if ((await kostenHeute(DIENST).catch(() => 0)) >= e.tagEuro) break;
@@ -524,7 +528,15 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
           VALUES (${k.personId}, ${k.ref}, ${k.stufe}, ${k.schritt}, 'abgelehnt', ${`Sperre: ${sperre}`}, ${k.email}, ${e.postfach})`.catch(() => {});
         continue;
       }
-      const m = await mailSchreiben(k, e).catch((err): Entwurf => ({ ok: false, grund: String(err?.message || err).slice(0, 200), betreff: "", text: "", html: "", kern: "", kostenCents: 0, maengel: [] }));
+      let m: Entwurf;
+      try {
+        m = await mailSchreiben(k, e);
+      } catch (err: any) {
+        // E-246: KI pausiert (oder gerade pausiert worden) — Durchgang beenden, KEINE Zeile:
+        // „abgelehnt" hieße 24 h Ruhe für diesen Menschen und eine falsche Zahl im Steuerpult.
+        if (istKiPause(err)) { pausiert = true; break; }
+        m = { ok: false, grund: String(err?.message || err).slice(0, 200), betreff: "", text: "", html: "", kern: "", kostenCents: 0, maengel: [] };
+      }
       if (!m.ok) {
         abgelehnt++;
         await sqlPool`INSERT INTO fiaon_mara_aktion (person_id, ref, stufe, schritt, status, grund, betreff, text, empfaenger, postfach, kosten_cents, pruefung)
@@ -551,6 +563,7 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
       }
     }
     if (gesendet || abgelehnt || fehler) console.log(`[MARA-AKTION] ${gesendet} gesendet, ${abgelehnt} abgelehnt, ${fehler} Fehler (Kandidaten ${kandidaten.length}, erlaubt ${erlaubt})`);
+    if (pausiert) return { gesendet, abgelehnt, fehler, grund: "KI pausiert" };
     return { gesendet, abgelehnt, fehler };
   } finally {
     laeuft = false;

@@ -13,6 +13,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { kiPausiert } from "../lib/fiaon-ki-pause";
 import { akteLesen } from "../lib/fiaon-postmeister-dossier";
 import { postmeisterSchema, kostenHeute } from "../lib/fiaon-postmeister-schema";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
@@ -486,6 +487,8 @@ async function neuLaufStarten(kandidaten: { id: number; postfach: string; gmail_
       try {
         const modus = await postfachModus(k.postfach);
         if (modus === "aus") { neuLauf.uebersprungen++; neuLauf.protokoll.push({ id: k.id, von: kennung, aktion: "uebersprungen", grund: "Postfach aus" }); continue; }
+        // E-246: In der KI-Pause nichts zurücksetzen — sonst wäre der alte Entwurf weg und kein neuer da.
+        if (await kiPausiert()) { neuLauf.uebersprungen++; neuLauf.protokoll.push({ id: k.id, von: kennung, aktion: "uebersprungen", grund: "KI pausiert" }); continue; }
         // Zurücksetzen — nur, wenn nicht gerade ein Mensch sendet ('sendet').
         const [r] = (await sqlPool`
           UPDATE fiaon_postmeister

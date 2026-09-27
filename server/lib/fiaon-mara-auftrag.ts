@@ -41,6 +41,7 @@
 // ihre eigene Anweisung) — dafür gibt es ein eigenes Werkzeug.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { openaiFetch, kiPausiert, istKiPause } from "./fiaon-ki-pause";
 
 export type Klasse = "lesen" | "umkehrbar" | "endgueltig";
 
@@ -224,7 +225,7 @@ async function modell(auftrag: string, eingabe: string, tokens = 2500): Promise<
   const uhr = setTimeout(() => abbruch.abort(), 60_000);
   const start = Date.now();
   try {
-    const res = await fetch("https://api.openai.com/v1/responses", {
+    const res = await openaiFetch("mara-auftrag", "/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${schluessel}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: MODELL(), instructions: auftrag, input: eingabe, max_output_tokens: tokens, reasoning: { effort: "medium" } }),
@@ -249,6 +250,8 @@ async function modell(auftrag: string, eingabe: string, tokens = 2500): Promise<
     text = (text || String(roh?.output_text ?? "")).trim();
     return text ? { ok: true, text } : { ok: false, grund: "Die KI hat nichts geliefert." };
   } catch (e: any) {
+    // E-246: Die KI-Pause geht nach oben durch — es wird KEIN Auftrag mit „Rückfrage" angelegt.
+    if (istKiPause(e)) throw e;
     return { ok: false, grund: e?.name === "AbortError" ? "Die KI hat zu lange gebraucht." : "Die KI ist gerade nicht erreichbar." };
   } finally { clearTimeout(uhr); }
 }
@@ -497,7 +500,16 @@ export async function dauerauftraegeLaufen(): Promise<{ geplant: number; ausgefu
   for (const d of faellig) {
     if (d.takt === "werktags" && Number(jetzt.wochentag) > 5) continue;
     if (d.takt === "woechentlich" && Number(jetzt.wochentag) !== 1) continue;
-    const auftrag = await auftragAnlegen(String(d.befehl), `Dauerauftrag ${d.id}`, Number(d.id));
+    // E-246: In der KI-Pause bleibt der Dauerauftrag fällig (letzter_lauf unverändert) —
+    // er läuft im ersten Takt nach dem Aktivieren, statt für heute „verbraucht" zu sein.
+    if (await kiPausiert()) break;
+    let auftrag: any;
+    try {
+      auftrag = await auftragAnlegen(String(d.befehl), `Dauerauftrag ${d.id}`, Number(d.id));
+    } catch (e) {
+      if (istKiPause(e)) break;
+      throw e;
+    }
     geplant++;
     const schritte = (typeof auftrag.plan === "string" ? JSON.parse(auftrag.plan) : auftrag.plan) ?? [];
     const endgueltig = schritte.some((s: any) => s.klasse === "endgueltig");

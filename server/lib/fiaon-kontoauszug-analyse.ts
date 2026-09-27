@@ -51,6 +51,7 @@ import { ocrLesen, ocrZeilen, ohneFotoVermerk } from "./fiaon-ocr";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { KATEGORIEN, KATEGORIE_SCHLUESSEL, istFest } from "@shared/fiaon-kontoauszug-kategorien";
 import { buchungenBereinigen, nebenkontoAus, EINKOMMEN_KATEGORIEN, type PersonName } from "@shared/fiaon-kontoauszug-bereinigen";
+import { openaiFetch, kiPausiert, istKiPause, kiPauseLesen, kiPauseMeldung } from "./fiaon-ki-pause";
 
 /** So viel Text geht höchstens ans Modell — ein Dreimonatsauszug liegt weit darunter. */
 const TEXT_DECKEL = 400_000;
@@ -172,6 +173,8 @@ export interface Analyse {
   /** E-207: Eingänge überwiegend vom eigenen Konto — das Gehaltskonto fehlt. */
   nebenkonto: boolean;
   inkassoAnzahl: number;
+  /** E-246: nur gesetzt, wenn ein Anstoß in der KI-Pause nichts neu gerechnet hat („KI pausiert — …"). */
+  kiPause?: string;
 }
 
 /** JSONB kommt als Array — oder, aus einem frühen Lauf, als JSON-Text. Beides lesen. */
@@ -324,7 +327,7 @@ async function modellAufruf(name: string, schema: any, system: string, nutzer: s
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY fehlt.");
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await openaiFetch("kontoauszug", "/chat/completions", {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modell, temperature: 0,
@@ -666,7 +669,11 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
         fotoIdx.forEach((seite, j) => { if (z[j]?.length) { seiten[seite] = z[j]; seitenText[seite] = z[j].join("\n"); fotoseiten++; } });
         if (fotoseiten) ocrModell = ocr.modell;
       }
-    } catch (e) { console.warn("[ANALYSE] Texterkennung der Fotoseiten:", (e as Error).message); }
+    } catch (e) {
+      // E-246: KI pausiert — NICHT „unlesbar" speichern und den Kunden nicht um eine neue Datei bitten.
+      if (istKiPause(e)) throw e;
+      console.warn("[ANALYSE] Texterkennung der Fotoseiten:", (e as Error).message);
+    }
   }
   let gesamt = seitenText.join("\n\n");
   // ── FOTO ODER SCAN: DIE TEXTERKENNUNG LIEST (18.09.2026) ───────────────
@@ -682,7 +689,10 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
         const t = z.map((zeilen) => zeilen.join("\n"));
         if (auszugBrauchbar(t.join("\n\n"))) { seiten = z; seitenText = t; gesamt = t.join("\n\n"); ocrModell = ocr.modell; fotoseiten = z.length; }
       }
-    } catch (e) { console.warn("[ANALYSE] Texterkennung:", (e as Error).message); }
+    } catch (e) {
+      if (istKiPause(e)) throw e; // E-246: siehe oben
+      console.warn("[ANALYSE] Texterkennung:", (e as Error).message);
+    }
   }
   if (!auszugBrauchbar(gesamt)) {
     return leer("unlesbar", "Die Datei ist nicht lesbar — auch die Texterkennung findet keine Buchungen (zu unscharf, abgeschnitten oder leer). Bitte laden Sie den Kontoauszug als PDF aus dem Online-Banking hoch oder fotografieren Sie jede Seite gerade und scharf.",
@@ -739,7 +749,7 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
       for (const b of daten.buchungen || []) { const x = buchungAus(b); if (x) aus.push(x); }
       return aus;
     } catch (e) {
-      if (tiefe >= 2 || text.length < 1500) throw e;
+      if (istKiPause(e) || tiefe >= 2 || text.length < 1500) throw e;
       const zeilen = text.split("\n");
       const mitte = Math.floor(zeilen.length / 2);
       return [
@@ -829,7 +839,11 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
       + "Konkret, mit Beträgen, ohne Fachwörter. Sag, wo Spielraum ist und was zuerst dran wäre. Keine Garantie, kein Versprechen, keine Empfehlung im Wortlaut "
       + "(nicht empfehlen, nicht raten, nicht beraten), keine Fristzusage. Keine Namen von Personen.", lage);
     merksaetze = (daten.merksaetze || []).map((m: string) => durchDieWand(String(m), "")).filter(Boolean);
-  } catch (e) { console.warn("[ANALYSE] Merksätze:", (e as Error).message); }
+  } catch (e) {
+    // E-246: In der Pause nicht mit Ersatz-Merksätzen „fertig" melden — die Auswertung wird nachgeholt.
+    if (istKiPause(e)) throw e;
+    console.warn("[ANALYSE] Merksätze:", (e as Error).message);
+  }
   if (!merksaetze.length) {
     merksaetze = [
       `Im Zeitraum kamen ${(z.einnahmen / 100).toFixed(2)} € herein und ${(z.ausgaben / 100).toFixed(2)} € gingen heraus.`,
@@ -935,6 +949,22 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
       FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
      WHERE a.ref = ${ref} AND a.gdpr_deleted_at IS NULL LIMIT 1`) as any[];
   if (!a?.bank_statement_pdf) return null;
+  // E-246 (Nachprüfung 27.09.): In der KI-Pause keine neue Zeile über eine Auswertung
+  // DERSELBEN Datei legen — „Neu auswerten" ließ sonst die fertige Auswertung beim
+  // Kunden verschwinden („wird vorbereitet"). Die bestehende bleibt, der Aufrufer
+  // liest in `kiPause`, warum nichts neu gerechnet wurde. Eine NEUE Datei (Upload
+  // nach der letzten Auswertung) bekommt ihre Pause-Zeile — die holt auszuegeNachholen.
+  if (await kiPausiert()) {
+    // Der Vergleich in SQL: documents_uploaded_at ist „timestamp ohne Zone" — in JS verschiebt er sich je nach Zeitzone.
+    const [p] = (await sqlPool`
+      SELECT k.id, k.status, (x.documents_uploaded_at IS NULL OR k.created_at >= x.documents_uploaded_at) AS dieselbe
+        FROM fiaon_kontoauszug_analysen k JOIN fiaon_applications x ON x.ref = k.ref
+       WHERE k.ref = ${ref} ORDER BY k.created_at DESC LIMIT 1`) as any[];
+    if (p?.dieselbe === true && p.status !== "laeuft") {
+      const bestehend = await analyseFuer(ref);
+      if (bestehend) return { ...bestehend, kiPause: kiPauseMeldung((await kiPauseLesen()).art) };
+    }
+  }
   if (!opts.erzwingen) {
     const [j] = (await sqlPool`SELECT id, status, created_at, fehler, buchungen FROM fiaon_kontoauszug_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1`) as any[];
     const juenger = !!j && (!a.documents_uploaded_at || new Date(j.created_at) >= new Date(a.documents_uploaded_at));
@@ -993,8 +1023,11 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
       + `Der Kunde sieht Kalender und Auswertung unter „Ihre Finanzen“.`);
     return analyseFuer(ref);
   } catch (e: any) {
+    // E-246: Die Pause steht als „fehler" mit „KI pausiert — …" da (kein Aktenvermerk). Der Kunde sieht
+    // „Wir prüfen das und melden uns"; auszuegeNachholen nimmt genau diese Zeilen nach dem Aktivieren sofort.
     await fertig({ status: "fehler", fehler: String(e?.message || e).slice(0, 500) });
-    console.error("[ANALYSE]", ref, e);
+    if (istKiPause(e)) console.warn("[ANALYSE]", ref, "KI pausiert — liegt bis zum Aktivieren.");
+    else console.error("[ANALYSE]", ref, e);
     return analyseFuer(ref);
   }
 }
@@ -1013,7 +1046,24 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
 // einer Datei, die nicht lesbar ist). Ob ein PDF Fotoseiten hat, prüft er
 // ohne Modell über die Textschicht und merkt es sich (`fotoseiten`).
 // ═══════════════════════════════════════════════════════════════════════════
+let nachholenLaeuft = false;
 export async function auszuegeNachholen(grenze = 3): Promise<{ gestartet: number; seitenGeprueft: number; offen: number }> {
+  // E-246: In der KI-Pause nichts anstoßen (die Seitenprüfung ohne Modell darf warten).
+  if (await kiPausiert()) return { gestartet: 0, seitenGeprueft: 0, offen: 0 };
+  // E-246 (Nachprüfung 27.09.): prozessweit nur ein Lauf — Takt und nachDerPause
+  // (dort zusätzlich DB-seitig über die Laufsperre des Takts) nie gleichzeitig.
+  if (nachholenLaeuft) return { gestartet: 0, seitenGeprueft: 0, offen: 0 };
+  nachholenLaeuft = true;
+  try { return await auszuegeNachholenInnen(grenze); } finally { nachholenLaeuft = false; }
+}
+
+/** Der letzte Stand einer ref: id und Status (null = nie ausgewertet). */
+async function letzterStand(ref: string): Promise<{ id: number; status: string; fehler: string | null } | null> {
+  const [l] = (await sqlPool`SELECT id, status, fehler FROM fiaon_kontoauszug_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1`) as any[];
+  return l ? { id: Number(l.id), status: String(l.status), fehler: l.fehler ?? null } : null;
+}
+
+async function auszuegeNachholenInnen(grenze: number): Promise<{ gestartet: number; seitenGeprueft: number; offen: number }> {
   await ensureAnalyseTabelle();
   const kandidaten = (await sqlPool`
     WITH l AS (
@@ -1028,7 +1078,8 @@ export async function auszuegeNachholen(grenze = 3): Promise<{ gestartet: number
              WHEN l.id IS NULL THEN 'nie'
              WHEN l.status = 'laeuft' AND l.created_at < NOW() - INTERVAL '15 minutes' THEN 'haengt'
              WHEN l.status = 'unlesbar' AND l.fehler LIKE '%keinen lesbaren Text%' THEN 'vor_ocr'
-             WHEN l.status = 'fehler' AND l.created_at < NOW() - INTERVAL '1 hour' THEN 'fehler'
+             -- E-246: in der KI-Pause liegen gebliebene sofort, andere Fehler nach einer Stunde
+             WHEN l.status = 'fehler' AND (l.fehler LIKE 'KI pausiert%' OR l.created_at < NOW() - INTERVAL '1 hour') THEN 'fehler'
              -- nur alte Auswertungen ohne Buchungen (vor E-178); eine frische ohne Buchungen ist ein Ergebnis
              WHEN l.status = 'fertig' AND l.n_buchungen = 0 AND l.fassung < 3 THEN 'ohne_buchungen'
              -- Fotoseiten erkannt, aber nicht alle gelesen (ein Päckchen der Texterkennung scheiterte)
@@ -1045,7 +1096,8 @@ export async function auszuegeNachholen(grenze = 3): Promise<{ gestartet: number
                               ORDER BY (y.merged_into IS NULL) DESC, y.documents_uploaded_at DESC NULLS LAST, y.created_at DESC
                               LIMIT 1), a.ref)
        AND (SELECT count(*) FROM fiaon_kontoauszug_analysen k2
-             WHERE k2.ref = a.ref AND k2.created_at > NOW() - INTERVAL '7 days') < 3
+             WHERE k2.ref = a.ref AND k2.created_at > NOW() - INTERVAL '7 days'
+               AND COALESCE(k2.fehler, '') NOT LIKE 'KI pausiert%') < 3
      ORDER BY a.documents_uploaded_at DESC NULLS LAST
   `) as any[];
   const offen = kandidaten.filter((k) => k.grund);
@@ -1073,9 +1125,23 @@ export async function auszuegeNachholen(grenze = 3): Promise<{ gestartet: number
       continue;
     }
     if (gestartet >= grenze) continue;
+    if (await kiPausiert()) break; // mitten im Lauf pausiert — nichts mehr anstoßen
+    // E-246 (Nachprüfung 27.09.): unmittelbar vor dem Aufruf neu prüfen — hat ein
+    // anderer Lauf (Takt, Knopf, Upload) seit der Kandidatenliste etwas angelegt,
+    // ist dieser Fall nicht mehr dran (sonst doppelte Auswertung, doppelter Aktenvermerk).
+    const jetzt = await letzterStand(String(k.ref));
+    if ((jetzt?.id ?? null) !== (k.analyse_id == null ? null : Number(k.analyse_id))) continue;
+    const warPause = jetzt?.status === "fehler" && /^KI pausiert/.test(String(jetzt.fehler ?? ""));
     gestartet++;
     // Ohne `erzwingen`: kontoauszugAnalysieren erkennt hängende, veraltete und leere Läufe selbst.
     await kontoauszugAnalysieren(k.ref, { erzwingen: k.grund === "ohne_buchungen" || k.grund === "fehler" || k.grund === "foto_ungelesen" }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
+    // Die Pause-Zeile ist noch der letzte Stand (kein neuer Lauf unter dieser ref, etwa
+    // weil die Datei inzwischen an einer anderen Bestellung hängt): abhaken, damit sie
+    // nicht bei jedem Takt wieder vorn steht. Danach gilt die normale Fehlerregel (1 h, 3 in 7 Tagen).
+    if (warPause && jetzt && (await letzterStand(String(k.ref)))?.id === jetzt.id) {
+      await sqlPool`UPDATE fiaon_kontoauszug_analysen SET fehler = ${"Nach der KI-Pause abgehakt — unter dieser Bestellung nicht neu ausgewertet."}, updated_at = NOW()
+                     WHERE id = ${jetzt.id} AND fehler LIKE 'KI pausiert%'`.catch(() => {});
+    }
   }
   if (gestartet || seitenGeprueft) console.log(`[ANALYSE] Nachholen: ${gestartet} Auswertungen, ${seitenGeprueft} Seiten geprüft, ${offen.length} Kandidaten`);
   return { gestartet, seitenGeprueft, offen: offen.length };

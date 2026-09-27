@@ -28,6 +28,7 @@
 import { sqlPool } from "./db-pool";
 import { pdfSeiten, pdfTextUndZeilen, pdfTextBrauchbar } from "./fiaon-pdf-lesen";
 import { ocrLesen, ocrZeilen, ohneFotoVermerk } from "./fiaon-ocr";
+import { openaiFetch, kiPausiert, istKiPause } from "./fiaon-ki-pause";
 
 /**
  * Der Text eines Dokuments — aus der Textschicht, sonst aus der Texterkennung
@@ -36,7 +37,7 @@ import { ocrLesen, ocrZeilen, ohneFotoVermerk } from "./fiaon-ocr";
  * Prozess zwischengespeichert: Heuristik und KI-Urteil lesen dieselbe Datei
  * nur einmal.
  */
-async function lesbarerText(pdf: Buffer, art: DokumentArt): Promise<{ seiten: string[]; zeilen: string[][]; ocr: string | null }> {
+async function lesbarerText(pdf: Buffer, art: DokumentArt): Promise<{ seiten: string[]; zeilen: string[][]; ocr: string | null; pause?: boolean }> {
   const { seiten, zeilen } = await pdfTextUndZeilen(pdf);
   const eigen = ohneFotoVermerk(seiten.join("\n"));
   if (eigen.length >= 40 && pdfTextBrauchbar(eigen)) return { seiten, zeilen, ocr: null };
@@ -44,6 +45,8 @@ async function lesbarerText(pdf: Buffer, art: DokumentArt): Promise<{ seiten: st
     const e = await ocrLesen(pdf, art);
     if (e && pdfTextBrauchbar(e.seiten.join("\n"))) return { seiten: e.seiten, zeilen: ocrZeilen(e), ocr: e.modell };
   } catch (err) {
+    // E-246: In der KI-Pause hat niemand gelesen — das Urteil darf nicht „nicht lesbar" lauten.
+    if (istKiPause(err)) return { seiten, zeilen, ocr: null, pause: true };
     console.warn("[DOK-PRUEFUNG] Texterkennung:", String((err as Error)?.message || err).slice(0, 200));
   }
   return { seiten, zeilen, ocr: null };
@@ -68,6 +71,11 @@ export interface DokumentUrteil {
   /** Kurzzeile für die Verwaltung/Mitarbeiter. */
   hinweisIntern: string | null;
   quelle: "heuristik" | "ki";
+  /**
+   * E-246: Das Urteil entstand in der KI-Pause ohne Texterkennung bzw. ohne
+   * KI-Urteil. pausePruefungenNachholen prüft es nach dem Aktivieren neu.
+   */
+  kiPause?: boolean;
 }
 
 let tabelleBereit: Promise<void> | null = null;
@@ -269,8 +277,14 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
     // Ein Lesedurchgang für beides: den Text (Stichwortprofil) und die Zeilen
     // (Zeitraum des Kontoauszugs, E-179). `seitenTexte` ist derselbe Text wie
     // aus pdfTextJeSeite.
-    const { seiten: seitenTexte, zeilen } = await lesbarerText(pdf, art);
+    const { seiten: seitenTexte, zeilen, pause } = await lesbarerText(pdf, art);
     const text = seitenTexte.join("\n");
+    if (!pdfTextBrauchbar(text) && pause) {
+      // Den Kunden NICHT um eine neue Datei bitten — die Prüfung holt sich das nach dem Aktivieren selbst.
+      basis.hinweisIntern = `${profil.label}: Foto oder Scan — die Texterkennung wartet, weil die KI pausiert ist. Wird nach dem Aktivieren automatisch geprüft.`;
+      basis.kiPause = true;
+      return basis;
+    }
     if (!pdfTextBrauchbar(text)) {
       // Foto-PDF, und auch die Texterkennung fand nichts Lesbares.
       basis.hinweisIntern = `${profil.label}: auch mit Texterkennung nicht lesbar (unscharf, abgeschnitten oder leer) — bitte von Hand ansehen.`;
@@ -441,23 +455,17 @@ export async function pruefungAnstossen(
       new Promise<null>((loese) => setTimeout(() => loese(null), timeoutMs)),
     ]);
     if (urteil) {
-      void urteilSpeichern(ref, urteil).catch((e) => console.error("[DOK-PRUEFUNG] speichern:", e?.message));
       // Scheibe 2 — nur wo sie etwas beitragen kann: Der Kontoauszug hat seine
       // eigene, reichere KI-Analyse (fiaon-kontoauszug-analyse); doppelt
       // bezahlen wäre Verschwendung.
-      if (art !== "kontoauszug" && urteil.pruefbar) {
-        void kiVerfeinern(ref, art, pdf, urteil).catch((e) => console.error("[DOK-PRUEFUNG] KI:", e?.message));
-      }
+      void speichernUndVerfeinern(ref, art, pdf, urteil).catch((e) => console.error("[DOK-PRUEFUNG] speichern/KI:", e?.message));
       return urteil;
     }
     // Timeout: die Prüfung läuft im Hintergrund zu Ende und speichert selbst.
     // 18.09.2026: Mit der Texterkennung ist das bei Fotos der Normalfall — das
     // KI-Urteil muss deshalb auch hier folgen, nicht nur im schnellen Weg.
     void dokumentPruefen(art, pdf)
-      .then(async (u) => {
-        await urteilSpeichern(ref, u);
-        if (art !== "kontoauszug" && u.pruefbar) await kiVerfeinern(ref, art, pdf, u);
-      })
+      .then((u) => speichernUndVerfeinern(ref, art, pdf, u))
       .catch((e) => console.error("[DOK-PRUEFUNG] nachlauf:", e?.message));
     return null;
   } catch (e) {
@@ -466,10 +474,82 @@ export async function pruefungAnstossen(
   }
 }
 
+/**
+ * Heuristik-Urteil speichern und — wo es etwas beiträgt — das KI-Urteil folgen
+ * lassen. E-246: In der KI-Pause bleibt das Heuristik-Urteil stehen, markiert
+ * mit kiPause — pausePruefungenNachholen holt das KI-Urteil nach dem Aktivieren.
+ */
+async function speichernUndVerfeinern(ref: string, art: DokumentArt, pdf: Buffer, urteil: DokumentUrteil): Promise<void> {
+  const mitKi = art !== "kontoauszug" && urteil.pruefbar && !!process.env.OPENAI_API_KEY;
+  if (mitKi && await kiPausiert()) urteil = { ...urteil, kiPause: true };
+  await urteilSpeichern(ref, urteil);
+  if (mitKi && !urteil.kiPause) await kiVerfeinern(ref, art, pdf, urteil);
+}
+
+/**
+ * Nach der KI-Pause (Nachprüfung 27.09.2026, E-246): Urteile, die in der Pause
+ * ohne Texterkennung oder ohne KI-Urteil entstanden (kiPause), neu prüfen —
+ * statt den Kunden grundlos um einen neuen Upload zu bitten. Hängt am Takt
+ * schufa_nachholen (20 Min.) und läuft nach dem Aktivieren; in der Pause nichts.
+ * Liegt die Datei nicht mehr an der Bestellung, fällt nur die Markierung weg.
+ */
+const PDF_SPALTE: Record<DokumentArt, string> = { kontoauszug: "bank_statement_pdf", ausweis: "id_card_pdf", schufa: "schufa_pdf" };
+let pauseNachholenLaeuft = false;
+export async function pausePruefungenNachholen(grenze = 10): Promise<{ geprueft: number; offen: number }> {
+  if (await kiPausiert()) return { geprueft: 0, offen: 0 };
+  if (pauseNachholenLaeuft) return { geprueft: 0, offen: 0 };
+  pauseNachholenLaeuft = true;
+  try {
+    await ensureTabelle();
+    const zeilen = (await sqlPool`
+      SELECT id, ref, art FROM fiaon_dokument_pruefungen
+       WHERE jsonb_typeof(urteil) = 'object' AND urteil->>'kiPause' = 'true'
+       ORDER BY updated_at ASC LIMIT ${grenze}`) as any[];
+    let geprueft = 0;
+    for (const z of zeilen) {
+      if (await kiPausiert()) break;
+      const art = String(z.art) as DokumentArt;
+      const spalte = PDF_SPALTE[art];
+      if (!spalte) continue;
+      // Anspruch: Markierung atomar abnehmen — zwei Läufe prüfen dasselbe Urteil nie doppelt.
+      const [anspruch] = (await sqlPool`
+        UPDATE fiaon_dokument_pruefungen SET urteil = urteil - 'kiPause', updated_at = NOW()
+         WHERE id = ${z.id} AND urteil->>'kiPause' = 'true' RETURNING id`) as any[];
+      if (!anspruch) continue;
+      const [d] = (await sqlPool.unsafe(
+        `SELECT ${spalte} AS pdf FROM fiaon_applications WHERE ref = $1 AND gdpr_deleted_at IS NULL LIMIT 1`, [String(z.ref)],
+      )) as any[];
+      if (!d?.pdf) continue; // Datei weg — Markierung ist abgenommen, nichts zu prüfen
+      const pdf: Buffer = Buffer.isBuffer(d.pdf) ? d.pdf : Buffer.from(d.pdf);
+      try {
+        const u = await dokumentPruefen(art, pdf);
+        await speichernUndVerfeinern(String(z.ref), art, pdf, u);
+        geprueft++;
+      } catch (e) {
+        console.error("[DOK-PRUEFUNG] nach der Pause", z.ref, art, String(e).slice(0, 200));
+      }
+    }
+    if (geprueft) console.log(`[DOK-PRUEFUNG] Nach der KI-Pause neu geprüft: ${geprueft}`);
+    return { geprueft, offen: zeilen.length };
+  } finally {
+    pauseNachholenLaeuft = false;
+  }
+}
+
 // ── Scheibe 2: das KI-Urteil (Ausweis + Bonitätsauskunft) ───────────────────
 async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer, vorher: DokumentUrteil): Promise<void> {
+  try {
+    await kiVerfeinernInnen(ref, art, pdf, vorher);
+  } catch (e) {
+    // E-246: Pausiert die KI mitten in der Verfeinerung, bleibt das Heuristik-Urteil — markiert zum Nachholen.
+    if (istKiPause(e)) { await urteilSpeichern(ref, { ...vorher, kiPause: true }); return; }
+    throw e;
+  }
+}
+async function kiVerfeinernInnen(ref: string, art: DokumentArt, pdf: Buffer, vorher: DokumentUrteil): Promise<void> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return;
+  if (await kiPausiert()) { await urteilSpeichern(ref, { ...vorher, kiPause: true }); return; } // E-246: das Urteil der Heuristik bleibt stehen
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
   const { seiten } = await lesbarerText(pdf, art);
   const text = seiten.join("\n").slice(0, 60_000);
@@ -485,7 +565,7 @@ async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer, vorher: 
     // Ob Seiten fehlen, weiss die Heuristik: Sie zaehlt die Seiten der Datei
     // gegen die Seitennummerierung im Bericht selbst („Seite 2 von 7").
     : "Ist das eine Bonitätsauskunft (SCHUFA/KSV1870/CRIF, z. B. Datenkopie nach Art. 15 DSGVO)?";
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await openaiFetch("dokument-pruefung", "/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({

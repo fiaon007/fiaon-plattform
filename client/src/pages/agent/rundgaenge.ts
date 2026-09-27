@@ -1233,6 +1233,20 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
 // ── /chef/s/mara (21.09.2026) ─────────────────────────────────────────────────
 export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
+    // E-246 (27.09.2026): KI-Pause — Justin: „Wenn OpenAI nicht abbuchen kann, soll alles pausieren."
+    ziel: ".kip-karte",
+    titel: "Der KI-Zustand: aktiv oder pausiert.",
+    text: "Kann OpenAI nicht abbuchen (kein Guthaben, Ausgabengrenze) oder meldet den Schlüssel bzw. das Konto als ungültig oder gesperrt, pausiert die KI von selbst: "
+      + "Mara auf WhatsApp und im Postfach, die Mail-Aktion, Maras Aufträge, Kontoauszug- und SCHUFA-Auswertung, Transkripte, "
+      + "Ratgeber, Firmen-Radar und der Copilot warten. An Kunden geht in der Pause nichts — auch kein Ersatzsatz. "
+      + "Du bekommst genau eine dringende Aufgabe, und oben auf jeder Chefbüro-Seite steht ein rotes Band. Was ohne KI läuft "
+      + "(Betreuer, WA-Zentrale, Mailwerk, Rückholung, Auskunft-Verkauf), läuft weiter.",
+    tipp: "Nach dem Aufladen auf platform.openai.com „KI wieder aktivieren“ drücken — hier oder im roten Band. Vorher läuft ein "
+      + "kleiner Probe-Aufruf; bucht OpenAI noch nicht ab, bleibt die Pause. Danach holen die Läufe das Liegengebliebene von "
+      + "selbst nach. WhatsApp-Nachrichten aus der Pause, die älter als 12 Stunden sind, kommen als eine Sammelaufgabe zu dir; jüngere beantwortet Mara mit Tag und Uhrzeit der Nachricht im Blick. "
+      + "„KI jetzt pausieren“ hält alles von Hand an — ohne Aufgabe.",
+  },
+  {
     // E-244 (26.09.2026): Maras Bilanz — Justin: „Wo finde ich Maras Abschlussbericht?"
     ziel: ".mbz",
     titel: "Maras Bilanz: was Mara und die neuen Leads gebracht haben.",

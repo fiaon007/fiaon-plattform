@@ -1091,3 +1091,36 @@
    gegen die Handy-Regel (1fr), weil sie spezifischer ist. Der Inhalt landete
    in der 60-Pixel-Spalte, JEDE Chefbüro-Seite war am iPhone ein Streifen. */
 @media(max-width:960px){.cb.cb-schmal .cb-grund{grid-template-columns:1fr;gap:0}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KI-PAUSE (27.09.2026, E-246) — Band oben auf jeder Chefbüro-Seite und Karte
+   im Mara-Steuerpult. Rot nur, solange die KI pausiert; keine Symbole.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.kip-band{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 18px;padding:14px 18px;border-radius:18px;background:linear-gradient(135deg,rgba(127,29,29,.62),rgba(69,10,10,.5));border:1px solid rgba(248,113,113,.45);box-shadow:0 14px 36px rgba(69,10,10,.35);color:#fee2e2}
+.kip-band.ok{background:rgba(6,78,59,.45);border-color:rgba(52,211,153,.4);color:#d1fae5}
+.kip-band p{margin:3px 0 0;font:300 13px/1.55 'Inter',sans-serif}
+.kip-band-text{flex:1 1 320px;min-width:0}
+.kip-band-text b{font:500 14.5px/1.3 'Inter',sans-serif;color:#fff}
+.kip-leise{color:rgba(254,226,226,.72);font-size:12.5px}
+.kip-fehler{color:#fca5a5;font-weight:400}
+.kip-knopf{padding:9px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:#fff;color:#7f1d1d;font:500 13px/1 'Inter',sans-serif;cursor:pointer;white-space:nowrap}
+.kip-knopf:hover{background:#fee2e2}
+.kip-knopf:disabled{opacity:.6;cursor:wait}
+.kip-knopf.still{background:transparent;color:inherit}
+.kip-knopf.still:hover{background:rgba(255,255,255,.1)}
+.kip-frage{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:300 12.5px/1.4 'Inter',sans-serif}
+.kip-karte{margin:0 0 18px;padding:16px 18px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);color:#e5e7eb}
+.kip-karte.aus{background:linear-gradient(135deg,rgba(127,29,29,.55),rgba(69,10,10,.45));border-color:rgba(248,113,113,.45);color:#fee2e2}
+.kip-karte-kopf{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.kip-karte-kopf>div:nth-child(2){flex:1 1 280px;min-width:0}
+.kip-karte-kopf b{font:500 14px/1.3 'Inter',sans-serif;color:#fff}
+.kip-karte-kopf p{margin:3px 0 0;font:300 12.5px/1.55 'Inter',sans-serif}
+.kip-karte:not(.aus) .kip-leise{color:#94a3b8}
+.kip-karte:not(.aus) .kip-knopf.still{border-color:rgba(255,255,255,.18)}
+.kip-punkt{width:10px;height:10px;margin-top:4px;border-radius:50%;background:#f87171;box-shadow:0 0 0 4px rgba(248,113,113,.2);flex:0 0 10px}
+.kip-punkt.an{background:#34d399;box-shadow:0 0 0 4px rgba(52,211,153,.18)}
+.kip-verlauf{margin-top:10px;font:300 12px/1.55 'Inter',sans-serif;color:inherit}
+.kip-verlauf summary{cursor:pointer;opacity:.8}
+.kip-verlauf ol{margin:6px 0 0;padding-left:18px}
+.kip-verlauf time{font-variant-numeric:tabular-nums;opacity:.8}
+@media(max-width:640px){.kip-band,.kip-karte{padding:12px 14px}.kip-knopf{white-space:normal}}

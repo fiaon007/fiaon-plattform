@@ -27,6 +27,7 @@ import { nachrichtenSuchen, nachrichtLesen } from "./fiaon-gmail";
 import { mailBearbeiten, istFremdpost } from "./fiaon-postmeister-lauf";
 import { postfachAdressen } from "./fiaon-postmeister-postfaecher";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
+import { kiPausiert } from "./fiaon-ki-pause";
 
 /** Serienmails — sie beantworten nie eine Kundenfrage. */
 const KEINE_ANTWORT = [
@@ -86,6 +87,7 @@ export async function phaseOrdnen(ein: {
 }): Promise<AufholStand> {
   await postmeisterSchema();
   const stand: AufholStand = { phase: "ordnen", postfach: ein.postfach, gesehen: 0, neu: 0, beantwortet: 0, uebersprungen: {}, fertig: false };
+  if (await kiPausiert()) { stand.uebersprungen.ki_pausiert = 1; return stand; } // E-246
   const q = `in:anywhere newer_than:${Math.max(1, Math.min(3650, ein.tageZurueck))}d -in:sent -in:draft`;
 
   const alle: string[] = [];
@@ -167,6 +169,7 @@ export async function phaseAntworten(ein: { deckel: number; gruesse: Record<stri
   await postmeisterSchema();
   const stunde = berlinStunde();
   if (stunde < 8 || stunde >= 20) return { bearbeitet: 0, entwuerfe: 0, uebersprungen: { nachtruhe: 1 } };
+  if (await kiPausiert()) return { bearbeitet: 0, entwuerfe: 0, uebersprungen: { ki_pausiert: 1 } }; // E-246
 
   const kandidaten = await offeneUnterhaltungen(ein.deckel * 3);
   const uebersprungen: Record<string, number> = {};

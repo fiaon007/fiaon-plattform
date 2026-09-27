@@ -27,6 +27,7 @@ import {
   Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw,
 } from "lucide-react";
 import { seitenFuerRaum, chefPfad } from "./chef-seiten";
+import { KiPauseBand } from "./ChefKiPause";
 import "@/styles/chefbuero.css";
 import "@/styles/chefbuero-seiten.css";
 
@@ -261,7 +262,11 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }:
             <span>{schmal ? "Ausklappen" : "Einklappen"}</span>
           </button>
         </aside>
-        <main className="cb-inhalt">{children}</main>
+        <main className="cb-inhalt">
+          {/* E-246: Die KI-Pause steht auf JEDER Chefbüro-Seite oben — nur solange sie gilt. */}
+          <KiPauseBand inhaber={stufe === "inhaber"} />
+          {children}
+        </main>
       </div>
 
       <div className={`cb-schublade-hintergrund${menueOffen ? " offen" : ""}`} onClick={() => setMenueOffen(false)} aria-hidden="true" />

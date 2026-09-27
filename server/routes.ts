@@ -507,6 +507,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-207 (21.09.2026): Jeder hochgeladene Auszug wird gelesen — nie ausgewertete, hängende,
     // vor der Texterkennung abgewiesene und gemischte PDFs mit ungelesenen Fotoseiten.
     tageslauf('kontoauszug_nachholen', async () => await (await import('./lib/fiaon-kontoauszug-analyse')).auszuegeNachholen(4), 20 * 60 * 1000, { beimStartNach: 240_000 });
+    // ⏸ KI-Pause (27.09.2026, E-246): Was an der Pause hing, holen diese Takte nach — in der Pause tun sie nichts.
+    //    SCHUFA-Auswertungen mit „KI pausiert" (vorher gab es dort kein Nachholen) und offene Transkripte
+    //    (transkriptLauf war nirgends getaktet; ein gescheitertes Transkript fehlte für immer).
+    tageslauf('schufa_nachholen', async () => await (await import('./lib/fiaon-schufa-analyse')).schufaNachholen(5), 20 * 60 * 1000, { beimStartNach: 270_000 });
+    tageslauf('transkript_nachholen', async () => await (await import('./lib/fiaon-transkript')).transkriptLauf(5), 10 * 60 * 1000, { beimStartNach: 300_000 });
   });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });

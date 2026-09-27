@@ -40,6 +40,7 @@
 import { sqlPool } from "./db-pool";
 import { pdfText, pdfTextBrauchbar, pdfSeiten } from "./fiaon-pdf-lesen";
 import { ocrLesen, ohneFotoVermerk } from "./fiaon-ocr";
+import { openaiFetch, kiPausiert, istKiPause } from "./fiaon-ki-pause";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 
 /** So viel Text geht ans Modell. Eine 38-Seiten-Auskunft liegt weit darunter. */
@@ -369,7 +370,7 @@ async function openaiAuswertung(text: string): Promise<{ modell: string; daten: 
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY fehlt.");
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await openaiFetch("schufa", "/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -628,7 +629,11 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
         const ocr = await ocrLesen(buf, "schufa");
         const erkannt = ocr ? ocr.seiten.join("\n\n") : "";
         if (erkannt.trim().length > text.trim().length) { text = erkannt; ocrModell = ocr!.modell; }
-      } catch (e) { console.warn("[SCHUFA-ANALYSE] Texterkennung:", (e as Error).message); }
+      } catch (e) {
+        // E-246: KI pausiert — NICHT „unlesbar" speichern und den Kunden nicht um eine neue Datei bitten.
+        if (istKiPause(e)) throw e;
+        console.warn("[SCHUFA-ANALYSE] Texterkennung:", (e as Error).message);
+      }
     }
     if (!pdfTextBrauchbar(text)) {
       await fertig({
@@ -757,9 +762,94 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
 
     return schufaAnalyseFuer(ref);
   } catch (e: any) {
+    // E-246: Die Pause steht als „fehler" mit „KI pausiert — …" da; schufaNachholen nimmt sie nach dem Aktivieren.
     await fertig({ status: "fehler", fehler: String(e?.message || e).slice(0, 500) });
-    console.error("[SCHUFA-ANALYSE]", ref, e);
+    if (istKiPause(e)) console.warn("[SCHUFA-ANALYSE]", ref, "KI pausiert — liegt bis zum Aktivieren.");
+    else console.error("[SCHUFA-ANALYSE]", ref, e);
     return schufaAnalyseFuer(ref);
+  }
+}
+
+/**
+ * Nach der KI-Pause (27.09.2026, E-246): Auskünfte, deren letzte Auswertung an
+ * der Pause hing, neu auswerten. Vorher gab es für die SCHUFA-Analyse gar kein
+ * Nachholen. Takt schufa_nachholen (20 Min.) und direkt nach dem Aktivieren;
+ * in der Pause tut es nichts.
+ *
+ * Nachprüfung 27.09.:
+ *   · Nur Auskünfte, die noch da sind (schufa_pdf, nicht gelöscht), älteste zuerst.
+ *   · Je Fall ein atomarer Anspruch auf GENAU die Pause-Zeile, die der letzte
+ *     Stand ist — ein Takt und nachDerPause werten dieselbe Auskunft nie doppelt
+ *     aus (kein zweiter Aktenvermerk, keine doppelten Kosten).
+ *   · Die Pause-Zeile wird dabei abgehakt (Text beginnt nicht mehr mit „KI
+ *     pausiert"). Legt schufaAnalysieren unter dieser ref keine neue Zeile an
+ *     (Auskunft leer/gelöscht, anderer Träger), bleibt es beim Haken — keine
+ *     Endlosschleife mit OpenAI-Kosten alle 20 Minuten.
+ *   · Pause-Zeilen ohne Auskunft werden ohne Auswertung abgehakt.
+ */
+export const SCHUFA_PAUSE_ERLEDIGT = "Nach der KI-Pause abgehakt";
+let schufaNachholenLaeuft = false;
+export async function schufaNachholen(grenze = 10): Promise<{ gestartet: number; abgehakt: number; dokumente?: number }> {
+  if (await kiPausiert()) return { gestartet: 0, abgehakt: 0 };
+  if (schufaNachholenLaeuft) return { gestartet: 0, abgehakt: 0 };
+  schufaNachholenLaeuft = true;
+  try {
+    await ensureSchufaTabelle();
+    // Leichen: Pause-Zeilen, deren Bestellung keine Auskunft mehr trägt (oder gelöscht ist).
+    const leichen = (await sqlPool`
+      UPDATE fiaon_schufa_analysen s
+         SET fehler = ${`${SCHUFA_PAUSE_ERLEDIGT} — an dieser Bestellung liegt keine Auskunft mehr.`}, updated_at = NOW()
+       WHERE s.status = 'fehler' AND s.fehler LIKE 'KI pausiert%'
+         AND NOT EXISTS (SELECT 1 FROM fiaon_applications a
+                          WHERE a.ref = s.ref AND a.schufa_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL)
+      RETURNING s.id`) as any[];
+    let abgehakt = leichen.length;
+    const offen = (await sqlPool`
+      SELECT l.id, l.ref, l.fehler FROM (
+        SELECT DISTINCT ON (ref) id, ref, status, fehler, created_at FROM fiaon_schufa_analysen ORDER BY ref, created_at DESC
+      ) l
+      JOIN fiaon_applications a ON a.ref = l.ref AND a.schufa_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL
+      WHERE l.status = 'fehler' AND l.fehler LIKE 'KI pausiert%'
+      ORDER BY l.created_at ASC
+      LIMIT ${grenze}`) as any[];
+    let gestartet = 0;
+    for (const o of offen) {
+      if (await kiPausiert()) break;
+      const ref = String(o.ref);
+      // Anspruch: nur wenn GENAU diese Pause-Zeile noch der letzte Stand ist.
+      const [anspruch] = (await sqlPool`
+        UPDATE fiaon_schufa_analysen
+           SET fehler = ${`${SCHUFA_PAUSE_ERLEDIGT} — neu angestoßen.`}, updated_at = NOW()
+         WHERE id = ${o.id} AND status = 'fehler' AND fehler LIKE 'KI pausiert%'
+           AND id = (SELECT x.id FROM fiaon_schufa_analysen x WHERE x.ref = ${ref} ORDER BY x.created_at DESC LIMIT 1)
+        RETURNING id`) as any[];
+      if (!anspruch) continue; // ein anderer Lauf war schneller, oder es gibt schon einen neueren Stand
+      gestartet++;
+      try {
+        await schufaAnalysieren(ref, { erzwingen: true });
+      } catch (e) {
+        // Unerwartet (z. B. Datenbank) — die Pause-Zeile wieder freigeben, der nächste Takt versucht es erneut.
+        console.error("[SCHUFA-ANALYSE] Nachholen", ref, e);
+        await sqlPool`UPDATE fiaon_schufa_analysen SET fehler = ${String(o.fehler)} WHERE id = ${o.id}
+                        AND id = (SELECT x.id FROM fiaon_schufa_analysen x WHERE x.ref = ${ref} ORDER BY x.created_at DESC LIMIT 1)`.catch(() => {});
+        continue;
+      }
+      const [neuer] = (await sqlPool`SELECT id FROM fiaon_schufa_analysen WHERE ref = ${ref} AND id <> ${o.id} AND created_at >= (SELECT created_at FROM fiaon_schufa_analysen WHERE id = ${o.id}) LIMIT 1`) as any[];
+      if (!neuer) {
+        abgehakt++;
+        await sqlPool`UPDATE fiaon_schufa_analysen SET fehler = ${`${SCHUFA_PAUSE_ERLEDIGT} — unter dieser Bestellung nicht neu ausgewertet (Auskunft leer, gelöscht oder an einer anderen Bestellung).`}, updated_at = NOW() WHERE id = ${o.id}`;
+      }
+    }
+    // Dokumentprüfungen (Ausweis, Auskunft), deren Urteil in der Pause ohne KI entstand, hängen am selben Takt.
+    let dokumente = 0;
+    try {
+      const { pausePruefungenNachholen } = await import("./fiaon-dokument-pruefung");
+      dokumente = (await pausePruefungenNachholen(grenze)).geprueft;
+    } catch (e) { console.error("[SCHUFA-ANALYSE] Dokumentprüfungen nachholen:", String(e).slice(0, 200)); }
+    if (gestartet || abgehakt || dokumente) console.log(`[SCHUFA-ANALYSE] Nach der KI-Pause: ${gestartet} neu ausgewertet, ${abgehakt} abgehakt, ${dokumente} Dokumentprüfung(en)`);
+    return { gestartet, abgehakt, dokumente };
+  } finally {
+    schufaNachholenLaeuft = false;
   }
 }
 

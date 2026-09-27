@@ -33,6 +33,7 @@ import { LEHRPLAN, UEBUNGS_ARTEN, TEST_SCHWELLE, PRUEFUNG_SCHWELLE, PRUEFUNG_FRA
 import { PRUEFUNGS_POOL, pruefungZiehen, mischen } from "../lib/fiaon-academy-pruefung";
 import { wissenText, SUPPORT } from "@shared/fiaon-wissen";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { openaiFetch, istKiPause } from "../lib/fiaon-ki-pause";
 
 const router = Router();
 
@@ -265,7 +266,7 @@ router.post("/agent/academy/simulator", requireAgent, async (req: AgentRequest, 
         ...verlauf.map((n: any) => ({ role: n.rolle === "kunde" ? "assistant" : "user", content: n.text })),
       ];
       if (!verlauf.length) messages.push({ role: "user", content: "(Das Telefon klingelt. Du nimmst ab und meldest dich mit deinem Namen.)" });
-      const r = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: modell, temperature: 0.8, max_tokens: 220, messages }) });
+      const r = await openaiFetch("academy", "/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: modell, temperature: 0.8, max_tokens: 220, messages }) });
       const j: any = await r.json().catch(() => null);
       if (!r.ok) { console.error("[ACADEMY-SIM] OpenAI", r.status, j?.error?.message); return res.status(502).json({ ok: false, error: "Der KI-Kunde antwortet gerade nicht." }); }
       return res.json({ ok: true, antwort: String(j?.choices?.[0]?.message?.content || "").trim() || "…" });
@@ -277,13 +278,16 @@ router.post("/agent/academy/simulator", requireAgent, async (req: AgentRequest, 
       { role: "system", content: `Du bewertest ein Trainingsgespräch eines FIAON-Bonitätsmanagers mit einem gespielten Kunden. Szenario: ${szenario.titel}. Ziel des Managers: ${szenario.ziel}\n\nRegeln von FIAON, gegen die du prüfst: Kunden werden gesiezt; FIAON berät nicht, garantiert nichts, verbessert keinen Score; Preise nur aus dem Katalog (${PAKETE.filter((p) => p.abo).map((p) => `${p.label} ${(p.preisCents / 100).toFixed(2).replace(".", ",")} €`).join(", ")}; Bonitätsauskunft ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig); keine Rechtsberatung im Einzelfall; Verträge ab dem 03.09.2026 laufen über zwölf Monatsraten und sind erst danach monatlich kündbar — ein blankes „monatlich kündbar" ohne die Laufzeit ist FALSCH und MUSS als Fehler gewertet werden; das Gespräch endet mit einer Verabredung. Fakten: ${wissenText().slice(0, 4000)}\n\nAntworte NUR als JSON: {"note": 1-5 (1 = sehr gut, 5 = ungenügend), "staerken": ["…", "…"], "schwaechen": ["…", "…"], "text": "3–5 Sätze Gesamteindruck mit konkreten Zitaten aus dem Gespräch", "wortregelVerstoesse": ["…"]}. Sei streng, fair und konkret. Duze den Manager.` },
       { role: "user", content: `TRANSKRIPT:\n${transkript || "(kein Gespräch)"}` },
     ];
-    const r = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: modell, temperature: 0.2, max_tokens: 700, response_format: { type: "json_object" }, messages }) });
+    const r = await openaiFetch("academy", "/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: modell, temperature: 0.2, max_tokens: 700, response_format: { type: "json_object" }, messages }) });
     const j: any = await r.json().catch(() => null);
     if (!r.ok) { console.error("[ACADEMY-SIM] Bewertung", r.status, j?.error?.message); return res.status(502).json({ ok: false, error: "Die Bewertung ist gerade nicht möglich." }); }
     let b: any = null; try { b = JSON.parse(String(j?.choices?.[0]?.message?.content || "{}")); } catch { b = null; }
     const note = Math.min(5, Math.max(1, Math.round(Number(b?.note) || 3)));
     res.json({ ok: true, bewertung: { note, staerken: Array.isArray(b?.staerken) ? b.staerken.map(String).slice(0, 5) : [], schwaechen: Array.isArray(b?.schwaechen) ? b.schwaechen.map(String).slice(0, 5) : [], text: String(b?.text || ""), wortregelVerstoesse: Array.isArray(b?.wortregelVerstoesse) ? b.wortregelVerstoesse.map(String).slice(0, 8) : [] } });
-  } catch (err) { console.error("[ACADEMY-SIM]", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+  } catch (err) {
+    if (istKiPause(err)) return res.status(503).json({ ok: false, error: String((err as Error).message) }); // E-246
+    console.error("[ACADEMY-SIM]", err); res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

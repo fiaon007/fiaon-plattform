@@ -124,11 +124,28 @@ async function main(): Promise<void> {
   const ohneKey = await kiEntwurf("entwurf", "kunde hat gezahlt, beleg fehlt");
   ok("Fehlt der Schlüssel, sagt es das",
     !ohneKey.ok && /fehlt der Schlüssel OPENAI_API_KEY/.test(ohneKey.grund ?? ""), ohneKey.grund);
+  // E-246 (Nachprüfung 27.09.): NICHT mehr echt gegen OpenAI mit falschem Schlüssel.
+  // Eine echte 401 invalid_api_key mit dem gerade gesetzten Schlüssel löst die
+  // KI-Pause aus — in der Datenbank, die dotenv hier lädt (im Zweifel die
+  // Produktion): alle KI-Dienste stünden still, Justin bekäme einen Alarm.
+  // Die Attrappe antwortet mit einer 401 ohne Konto-Merkmal — die zeigt den
+  // HTTP-Code, pausiert aber nichts. Kein Netzaufruf an OpenAI.
+  const kiPauseVorher = ((await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'ki_pause'`) as any[])[0]?.value ?? null;
+  const echtesFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: any, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : String(input?.url ?? "");
+    if (new URL(url).hostname !== "api.openai.com") return echtesFetch(input, init);
+    return new Response(JSON.stringify({ error: { message: "Prüfstand: abgelehnt", type: "invalid_request_error", code: "pruefstand_401" } }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
   process.env.OPENAI_API_KEY = "sk-proj-absichtlich-falsch";
-  const falsch = await kiEntwurf("entwurf", "kunde hat gezahlt, beleg fehlt");
-  ok("Ein ungültiger Schlüssel nennt den HTTP-Code",
+  const falsch = await kiEntwurf("entwurf", "kunde hat gezahlt, beleg fehlt").finally(() => {
+    globalThis.fetch = echtesFetch;
+    if (echt === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = echt;
+  });
+  ok("Eine 401 nennt den HTTP-Code",
     !falsch.ok && /HTTP 401/.test(falsch.grund ?? ""), falsch.grund);
-  process.env.OPENAI_API_KEY = echt;
+  const kiPauseNachher = ((await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'ki_pause'`) as any[])[0]?.value ?? null;
+  ok("Der Prüfstand fasst die KI-Pause nicht an (E-246)", kiPauseNachher === kiPauseVorher);
   ok("Die Oberfläche rendert den Grund als Karte",
     /Der Entwurf ist nicht entstanden/.test(mQ) && /\{kiFehler\}/.test(mQ));
   ok("… mit Zusatz bei 401", /Die KI antwortete mit HTTP 401/.test(mQ));

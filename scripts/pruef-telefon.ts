@@ -198,8 +198,9 @@ async function main(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════
   ok("Ohne OPENAI_API_KEY meldet sich der Transkriptweg ab", !transkriptKonfiguriert());
   const transkriptLib = readFileSync("server/lib/fiaon-transkript.ts", "utf8");
+  // E-246: die Adresse steht seit der KI-Pause nur noch in fiaon-ki-pause.ts; der Aufruf bleibt hier.
   ok("Der Anbieter steckt in EINER Datei",
-    /api\.openai\.com\/v1\/audio\/transcriptions/.test(transkriptLib));
+    /openaiFetch\("transkript", "\/audio\/transcriptions"/.test(transkriptLib));
   ok("Andere Dateien rufen die Audio-API nicht",
     !readFileSync("server/routes/fiaon-telefonie.ts", "utf8").includes("audio/transcriptions"));
   ok("Die Zusammenfassung verbietet Bewertungen ausdrücklich",

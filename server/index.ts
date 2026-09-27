@@ -5,8 +5,14 @@ import { setupVite, serveStatic, log } from "./vite";
 import { db, client } from "./db";
 import { subscriptionPlans } from "@shared/schema";
 import { sql } from "drizzle-orm";
+import { kiNetzAbsichern } from "./lib/fiaon-ki-pause";
 
 console.log("[BUILD]", { mailFix: "ae196b1", at: new Date().toISOString() });
+
+// ⏸ KI-Pause (27.09.2026, E-246): Das Netz unter allem — jeder fetch an die OpenAI-Schnittstelle läuft durch
+// dieselbe Wand wie openaiFetch (pausiert = kein Aufruf; Abrechnungsfehler = Pause + einmal Alarm).
+// Vor allen Routen und Takten, damit auch eine vergessene oder künftige Stelle erfasst ist.
+kiNetzAbsichern();
 
 const app = express();
 

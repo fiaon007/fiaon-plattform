@@ -5,6 +5,57 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.09.2026 — KI-Pause bei OpenAI-Abrechnungsfehler (E-246)
+
+**Der Anlass:** Justin (27.09.): „Wenn OpenAI nicht abbuchen kann, dann soll alles, was über OpenAI läuft, pausieren.
+Nichts Wirres oder Falsches schicken, sondern einfach Pause, bis ich es wieder aktiviere." Am 24.09. um 07:00 meldete
+OpenAI „You have no credits remaining" — und jede Stelle reagierte anders: Mara schickte nach sechs Minuten einen
+Ersatzsatz an WhatsApp-Kunden und legte je Nachricht eine Aufgabe an, der Postmeister schrieb je Versuch einen
+Aktenvermerk und gab nach vier Versuchen auf, Kontoauszüge und SCHUFA-Auskünfte wurden als „unlesbar" gespeichert (der
+Kunde wurde gebeten, neu hochzuladen), die Mara-Aktion legte Menschen 24 Stunden in Ruhe, Daueraufträge waren für den Tag
+verbraucht, Transkripte wurden „fehlgeschlagen" und nie nachgeholt.
+
+**Was jetzt gilt:**
+- **Ein Zustand für alle KI-Dienste** (Einstellung ki_pause). Jeder OpenAI-Aufruf geht durch einen Helfer; ist die KI
+  pausiert, findet KEIN Aufruf statt. Ein Netz in server/index.ts fängt zusätzlich jeden vergessenen Aufruf ab.
+- **Automatisch pausiert beim ERSTEN Abrechnungsfehler** (kein Guthaben, Ausgabengrenze, insufficient_quota) und bei
+  abgelehntem Schlüssel/Konto (401/403 nur mit OpenAI-Fehlerobjekt und Schlüssel-/Konto-Merkmal wie invalid_api_key,
+  account_deactivated). Ratenlimit (auch mit Billing-Link im Text), Serverfehler (5xx), HTML-Seiten von Proxy/Cloudflare
+  und fehlende Modell- oder Schlüsselrechte pausieren nie.
+- **Genau eine dringende Aufgabe an Justin** (Betreiber-Brett, Priorität 1): „OpenAI konnte nicht abbuchen — alle
+  KI-Funktionen pausiert. Nach dem Aufladen im Chefbüro ‚KI wieder aktivieren' drücken." Der alte tägliche
+  Guthaben-Alarm aus Mara WhatsApp ist weg.
+- **In der Pause geht nichts an Kunden** — auch kein Ersatzsatz. Die Arbeit bleibt liegen: WhatsApp-Fragen bleiben offen,
+  Mails bleiben ungelesen im Posteingang (eine angefangene Mail wird ohne Fehlversuch und ohne Vermerk zurückgelegt),
+  Kontoauszug/SCHUFA stehen auf „wartet" (der Kunde liest „Ihre Auswertung wird vorbereitet"), Transkripte bleiben offen,
+  Daueraufträge bleiben fällig, die Mara-Aktion legt niemanden in Ruhe. Ratgeber und Firmen-Radar ruhen. Copilot,
+  Mail-KI, Telefonkartei, Academy, Firmen-Vorbereitung, Leistung/Diagnose zeigen „KI pausiert"; der öffentliche
+  Assistent nennt Support-Telefon und -Mail.
+- **Was ohne KI läuft, läuft weiter:** Betreuer, WA-Zentrale, Mailwerk, Rückholung, Auskunft-Verkauf, STOPP-Bestätigung
+  auf WhatsApp, fertige Antworten von vor der Pause.
+- **Wieder aktivieren (nur Stufe Inhaber):** rotes Band oben auf jeder Chefbüro-Seite mit „KI wieder aktivieren" und
+  Rückfrage; Karte im Mara-Steuerpult mit „KI jetzt pausieren" und Verlauf. Vor dem Aktivieren läuft ein winziger
+  Probe-Aufruf — bucht OpenAI noch nicht ab, bleibt die Pause. Danach holen die Läufe sofort nach (WhatsApp, Postfach über
+  die ganze Pausendauer, Kontoauszug, SCHUFA, Transkripte). WhatsApp-Nachrichten aus der Pause, die älter als 12 Stunden
+  sind, beantwortet Mara nicht mehr frei — sie kommen als EINE Sammelaufgabe; jüngere beantwortet sie mit Tag und Uhrzeit
+  der Nachricht im Blick (ein „heute 17 Uhr" vom Sonntag wird nie ein Rückruf am Montag). Jeder Klick steht im Chef-Protokoll.
+- **Nach dem Aktivieren keine Doppelantwort:** Hat ein Mensch im Postfach support@/welcome@ in Gmail schon geantwortet,
+  antwortet Mara nicht noch einmal (die Mail wird „vom Menschen beantwortet" abgeschlossen); schon gelaufene Werkzeuge
+  (Zugangslink, Kündigungsvermerk) laufen nicht doppelt. Das Postfach holt 48 Stunden lang über die ganze Pausendauer nach
+  (auch nach einem Deploy mittendrin). Eine kurze Störung direkt nach dem Aktivieren löst keinen sofortigen Ersatzsatz aus.
+- **Automatisch pausiert nur der Produktionsdienst** — ein lokales Skript mit altem Schlüssel pausiert die Produktion nie.
+  Der Alarm nennt die letzten 6 Zeichen des Schlüssels.
+- **Datenschutz Transkripte:** Hat der Kunde der Aufzeichnung widersprochen, wird nie abgeschrieben oder zusammengefasst —
+  auch nicht, wenn der Widerspruch mitten in der Nachbereitung kommt.
+- **Neu getaktet:** SCHUFA-Nachholen (20 Min.) und Transkript-Nachholen (10 Min.) — beide tun in der Pause nichts.
+
+**Wo zu finden:** server/lib/fiaon-ki-pause.ts (Regel, Zustand, Alarm, Aktivieren), Routen /api/fiaon/chef/ki-pause
+(+ /aktivieren, /pausieren) in server/routes/fiaon-mara-steuerpult.ts, Band und Karte in
+client/src/components/admin/ChefKiPause.tsx. Prüfstände scripts/pruef-ki-pause.ts und scripts/pruef-ki-pause-nachholen.ts
+(lokale Test-DB, OpenAI/Gmail als Attrappe).
+
+---
+
 ## 27.09.2026 — Keine Mahnung mehr an stornierte, erstattete oder archivierte Bestellungen (E-245)
 
 **Der Anlass:** Bei der Bereinigung am 26.09. (E-244) hingen sechs offene Abo-Raten an stornierten Bestellungen und

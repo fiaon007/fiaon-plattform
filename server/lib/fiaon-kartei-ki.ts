@@ -29,6 +29,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 import { absoluteUrl } from "../fiaon-base-url";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import {
@@ -135,7 +136,7 @@ async function modellFragen(eingabeText: string): Promise<{ ok: true; text: stri
   const abbruch = new AbortController();
   const uhr = setTimeout(() => abbruch.abort(), ZEIT_MS);
   try {
-    const res = await fetch("https://api.openai.com/v1/responses", {
+    const res = await openaiFetch("kartei", "/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${schluessel}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -164,6 +165,7 @@ async function modellFragen(eingabeText: string): Promise<{ ok: true; text: stri
     if (!text) return { ok: false, grund: "Die KI hat keinen Text geliefert. Bitte noch einmal versuchen." };
     return { ok: true, text };
   } catch (e: any) {
+    if (istKiPause(e)) return { ok: false, grund: String(e.message) }; // E-246: nichts wird verschickt
     await nutzungMerken({ dienst: "telefonkartei", modell, dauerMs: Date.now() - start, ok: false, fehler: String(e?.message || e).slice(0, 200) });
     return { ok: false, grund: e?.name === "AbortError" ? "Die KI hat zu lange gebraucht — bitte noch einmal versuchen." : "Die KI ist gerade nicht erreichbar." };
   } finally {

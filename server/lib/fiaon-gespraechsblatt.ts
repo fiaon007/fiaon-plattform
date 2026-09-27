@@ -21,6 +21,7 @@
 
 import { sqlPool } from "./db-pool";
 import { entschaerfen } from "./fiaon-mail-ki";
+import { openaiFetch, kiPausiert } from "./fiaon-ki-pause";
 import { einwaendeFuer, type Einwand } from "./fiaon-einwaende";
 import { statusAusTierGrund, stufeAusTier } from "../../shared/fiaon-kundenstatus";
 
@@ -105,8 +106,10 @@ async function historieVerdichten(eintraege: string[]): Promise<{ text: string; 
     // ehrlich gekennzeichnet.
     return { text: eintraege.slice(0, 5).join("\n"), herkunft: "roh" };
   }
+  // E-246: In der KI-Pause ohne Aufruf die Rohzeilen (ehrlich als „roh" gekennzeichnet).
+  if (await kiPausiert()) return { text: eintraege.slice(0, 5).join("\n"), herkunft: "roh" };
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await openaiFetch("gespraechsblatt", "/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -280,7 +283,8 @@ export async function gespraechsblatt(
     ausCache: false,
   };
 
-  cache.set(personId, { blatt, bis: Date.now() + CACHE_MS });
+  // E-246: Eine Rohfassung (KI pausiert oder gestört) nicht zwischenspeichern — der nächste Aufruf versucht es neu.
+  if (historie.herkunft !== "roh") cache.set(personId, { blatt, bis: Date.now() + CACHE_MS });
   return blatt;
 }
 

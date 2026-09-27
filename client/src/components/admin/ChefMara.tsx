@@ -20,6 +20,7 @@ import "@/styles/office-rundgang.css";
 import "@/styles/chef-mara.css";
 import "@/styles/chef-wa-zentrale.css";
 import ChefWhatsAppZentrale from "./ChefWhatsAppZentrale";
+import { KiPauseKarte } from "./ChefKiPause";
 // E-243 (26.09.2026): Der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite — erst beim Öffnen geladen.
 const AuskunftVerkauf = lazy(() => import("./ChefAuskunft"));
 const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
@@ -1056,6 +1057,8 @@ export default function ChefMara() {
   const { reiter, ansicht } = stand;
   return (
     <div>
+      {/* E-246: Der KI-Zustand mit „KI jetzt pausieren" / „KI wieder aktivieren". */}
+      <KiPauseKarte />
       <MarasBilanz />
       <div className="mara-reiter" role="tablist" aria-label="Maras Wege">
         <button type="button" role="tab" aria-selected={reiter === "whatsapp"} onClick={() => wechseln("whatsapp")}>WhatsApp-Zentrale</button>

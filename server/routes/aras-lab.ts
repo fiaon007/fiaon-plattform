@@ -9,6 +9,7 @@
 import { Router, Request, Response } from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
+import { sdkFetch } from '../lib/fiaon-ki-pause';
 import { db } from '../db';
 import { contacts } from '@shared/schema';
 import { eq, ilike, or } from 'drizzle-orm';
@@ -25,7 +26,7 @@ const upload = multer({
 
 // Initialize AI clients
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: sdkFetch("aras-lab") }) // E-246 (nicht eingehängt, trotzdem durch die Wand)
   : null;
 
 const gemini = process.env.GOOGLE_GEMINI_API_KEY

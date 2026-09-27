@@ -16,7 +16,7 @@
 
 import { sqlPool } from "./db-pool";
 import {
-  nachrichtLesen, nachrichtLabeln, labelSicherstellen, entwurfAnlegen, antwortSenden,
+  nachrichtLesen, nachrichtLabeln, labelSicherstellen, entwurfAnlegen, antwortSenden, nachrichtenSuchen,
   type GmailNachricht,
 } from "./fiaon-gmail";
 import { einordnen, antwortErzeugen, maraMailVermerk } from "./fiaon-postmeister-agent";
@@ -25,6 +25,7 @@ import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
 import { wirdBedient, POSTFAECHER } from "./fiaon-postmeister-postfaecher";
 import { AUTOMATEN_DOMAENEN, type Aktion } from "@shared/fiaon-postmeister-typen";
+import { kiPausiert, istKiPause } from "./fiaon-ki-pause";
 
 /**
  * Wiedervorlage nach dem n-ten Fehlversuch (11.09.2026, E-184): 15 Minuten,
@@ -574,6 +575,75 @@ async function verlaufLesen(postfach: string, threadId: string, aktuelleId: stri
   return verlauf;
 }
 
+/**
+ * HAT SCHON EIN MENSCH GEANTWORTET? (27.09.2026, E-246 Nachprüfung)
+ *
+ * Während der KI-Pause beantworten Menschen Mails direkt in Gmail — der Alarm
+ * sagt es ausdrücklich. Unser Verlauf (verlaufLesen) kennt nur fiaon_postmeister,
+ * also sähe Mara diese Antwort nie und schriebe nach dem Aktivieren eine zweite,
+ * womöglich widersprechende (anderer Betrag, andere Frist, „lag bereits vor").
+ *
+ * Gesucht wird im Postfach selbst: Nachrichten mit Label SENT an den Absender
+ * (oder seine Reply-To-Adresse), NACH dem Eingang dieser Mail, im selben Faden.
+ * Maras eigener Versand (aktion 'auto_beantwortet' im selben Faden, ±3 Minuten)
+ * zählt nicht — eine Antwort aus der Zentrale ('gesendet') schon: Die hat ein
+ * Mensch geschrieben.
+ *
+ * Wirft bei einem Gmail-Fehler: Der Aufrufer macht daraus einen Fehlversuch mit
+ * Wiedervorlage — im Zweifel lieber später als doppelt antworten.
+ */
+export async function spaetereAntwortImFaden(postfach: string, mail: GmailNachricht): Promise<{ am: Date; id: string } | null> {
+  const adressen = Array.from(new Set(
+    [mail.vonAdresse, (mail.antwortAn?.match(/<([^>]+)>/)?.[1] ?? mail.antwortAn ?? "")]
+      .map((a) => String(a || "").trim().toLowerCase())
+      .filter((a) => /^[^\s@{}()"]+@[^\s@{}()"]+$/.test(a)),
+  ));
+  if (!adressen.length || !mail.threadId) return null;
+  const nach = Math.floor(mail.datum.getTime() / 1000);
+  const an = adressen.map((a) => `to:${a} cc:${a}`).join(" ");
+  const { ids } = await nachrichtenSuchen(postfach, `in:sent after:${nach} {${an}}`, 25);
+  for (const kandidat of ids.slice(0, 12)) {
+    if (kandidat === mail.id) continue;
+    const m = await nachrichtLesen(postfach, kandidat);
+    if (m.threadId !== mail.threadId) continue;
+    if (!m.labelIds.includes("SENT")) continue;
+    if (m.datum.getTime() <= mail.datum.getTime()) continue;
+    const [mara] = (await sqlPool`
+      SELECT 1 FROM fiaon_postmeister
+       WHERE thread_id = ${mail.threadId} AND aktion = 'auto_beantwortet' AND gesendet_am IS NOT NULL
+         AND gesendet_am BETWEEN ${new Date(m.datum.getTime() - 180_000)} AND ${new Date(m.datum.getTime() + 180_000)}
+       LIMIT 1`) as any[];
+    if (mara) continue;
+    return { am: m.datum, id: m.id };
+  }
+  return null;
+}
+
+/**
+ * fiaon_postmeister.handlungen in jeder Form, die es in der Datenbank gibt
+ * (Produktion 27.09.: 1.054 Zeilen jsonb-TEXT „[…]", 26 Arrays aus solchen
+ * Texten — protokoll() hängt Text an —, eine echte Liste): flach als Objekte.
+ */
+export function handlungenFlach(w: unknown, tiefe = 0): any[] {
+  if (w == null || tiefe > 4) return [];
+  if (typeof w === "string") { try { return handlungenFlach(JSON.parse(w), tiefe + 1); } catch { return []; } }
+  if (Array.isArray(w)) return w.flatMap((x) => handlungenFlach(x, tiefe + 1));
+  if (typeof w === "object") return [w];
+  return [];
+}
+
+/**
+ * Was ein früherer Anlauf zu DIESER Mail schon getan hat (E-246): Jedes Werkzeug
+ * schreibt seine Handlung an die Zeile (protokoll → fiaon_postmeister.handlungen).
+ * Legt die KI-Pause eine Mail mitten im Lauf zurück, stehen sie dort weiter.
+ */
+export async function schonGetan(postmeisterId: number): Promise<{ werkzeug: string; ergebnis: string }[]> {
+  const [z] = (await sqlPool`SELECT handlungen FROM fiaon_postmeister WHERE id = ${postmeisterId}`.catch(() => [])) as any[];
+  return handlungenFlach(z?.handlungen)
+    .filter((h: any) => h && typeof h.werkzeug === "string" && h.ok !== false)
+    .map((h: any) => ({ werkzeug: String(h.werkzeug), ergebnis: String(h.ergebnis ?? "").slice(0, 300) }));
+}
+
 export interface LaufErgebnis { aktion: Aktion; grund: string; id: number | null }
 
 /**
@@ -600,6 +670,11 @@ export async function mailBearbeiten(ein: {
     return { aktion: "geordnet", grund: `Postfach ${postfach} wird nicht bedient`, id: null };
   }
 
+  // ── KI-PAUSE (27.09.2026, E-246) ────────────────────────────────────────
+  // Pausiert: die Mail nicht einmal beanspruchen — sie bleibt, wie sie ist,
+  // und der Takt nimmt sie nach dem Aktivieren (postmeisterNachDerPause).
+  if (await kiPausiert()) return { aktion: "geordnet", grund: "KI pausiert", id: null };
+
   // Anspruch — läuft der Takt doppelt, arbeitet nur einer.
   // 11.09.2026 (E-184): Eine 'fehler'-Zeile wird erst wieder beansprucht, wenn
   // ihre Wiedervorlage (naechster_versuch_am) fällig ist — vorher kam sie in
@@ -608,7 +683,7 @@ export async function mailBearbeiten(ein: {
   let anspruch = (await sqlPool`
     INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, aktion, in_arbeit_seit)
     VALUES (${postfach}, ${gmailId}, '', 'in_arbeit', NOW())
-    ON CONFLICT (gmail_id) DO NOTHING RETURNING id, versuche, gesendet_am
+    ON CONFLICT (gmail_id) DO NOTHING RETURNING id, versuche, gesendet_am, begruendung, created_at
   `) as any[];
   if (!anspruch.length) {
     anspruch = (await sqlPool`
@@ -618,13 +693,18 @@ export async function mailBearbeiten(ein: {
               OR (aktion = 'fehler' AND (naechster_versuch_am IS NULL OR naechster_versuch_am <= NOW()))
               OR (aktion = 'in_arbeit' AND COALESCE(in_arbeit_seit, updated_at) < NOW() - INTERVAL '15 minutes'))
          AND versuche < 3
-       RETURNING id, versuche, gesendet_am
+       RETURNING id, versuche, gesendet_am, begruendung, created_at
     `) as any[];
     if (!anspruch.length) return { aktion: "geordnet", grund: "schon bearbeitet", id: null };
   }
   const id = Number(anspruch[0].id);
+  /** E-246: Beim Zurücklegen in der Pause wird der Zähler auf den Stand vor diesem Anspruch gebracht. */
+  const neuAngelegt = Number(anspruch[0].versuche ?? 0) === 0; // frisch angelegt: 0, erneut beansprucht: alter Wert + 1
   /** Bisherige Anläufe (0 beim ersten) — der laufende ist Nummer versuche + 1. */
   const versuche = Number(anspruch[0].versuche ?? 0);
+  /** E-246 (Nachprüfung 27.09.): Diese Mail lag aus der KI-Pause — ein früherer Anlauf kann den Aktenvermerk schon geschrieben haben. */
+  const ausDerPause = /^KI pausiert/.test(String(anspruch[0].begruendung ?? ""));
+  const zeileSeit: Date = anspruch[0].created_at ? new Date(anspruch[0].created_at) : new Date();
 
   const fertig = async (felder: Record<string, unknown>, grund: string): Promise<LaufErgebnis> => {
     await sqlPool`
@@ -674,6 +754,14 @@ export async function mailBearbeiten(ein: {
       : "";
     const textFuerMara = neuerText + anhangHinweis;
 
+    // 0. E-246: Eine in der KI-Pause zurückgelegte Mail wird unabhängig vom
+    //    Suchfenster wieder beansprucht (postmeisterLauf). Hat ein Mensch sie
+    //    inzwischen aus dem Posteingang genommen, ist sie erledigt — nicht
+    //    beantworten (Alarmtext: „von Hand beantworten UND archivieren").
+    if (ausDerPause && !mail.labelIds.includes("INBOX")) {
+      return fertig({ ...basis, aktion: "geordnet", begruendung: "nach der KI-Pause nicht mehr im Posteingang — von Hand erledigt" }, "von Hand erledigt");
+    }
+
     // 1. Fremdpost — eigener Ordner, nie beantworten.
     // ── UNGELESEN BLEIBT UNGELESEN (09.09.2026, E-171) ──────────────────
     // Justin: „ALLE Emails die hinein kommen und NICHT Support sind, müssen
@@ -707,7 +795,7 @@ export async function mailBearbeiten(ein: {
 
     // 4. Einordnen.
     const einordnung = await einordnen({ betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage })
-      .catch((e) => { throw new Error(`Einordnung: ${String(e?.message || e).slice(0, 160)}`); });
+      .catch((e) => { if (istKiPause(e)) throw e; throw new Error(`Einordnung: ${String(e?.message || e).slice(0, 160)}`); });
 
     const gemeinsam = {
       ...basis,
@@ -742,10 +830,19 @@ export async function mailBearbeiten(ein: {
     // 5. Akte-Vermerk — JEDE Kundenmail wird nachgetragen.
     const akte = await akteLesen(wer.personId, wer.ref);
     if (wer.ref) {
-      await sqlPool`
+      // E-246 (Nachprüfung 27.09.): Lag die Mail aus der KI-Pause und steht der
+      // Vermerk zu dieser Mail schon da (erster Anlauf kam bis hierher, die Pause
+      // traf erst die Antwort), keinen zweiten schreiben.
+      const kopf = `E-Mail an ${postfach}: „${mail.betreff.slice(0, 90)}" — `;
+      const schonDa = ausDerPause && ((await sqlPool`
+        SELECT 1 FROM fiaon_contact_log
+         WHERE ref = ${wer.ref} AND agent_name = 'Postmeister' AND created_at >= ${zeileSeit}
+           AND LEFT(note, ${kopf.length}) = ${kopf}
+         LIMIT 1`.catch(() => [])) as any[]).length > 0;
+      if (!schonDa) await sqlPool`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${wer.ref}, ${wer.personId}, NULL, 'Postmeister', 'system',
-                ${`E-Mail an ${postfach}: „${mail.betreff.slice(0, 90)}" — ${einordnung.zusammenfassung.slice(0, 400)}`})
+                ${`${kopf}${einordnung.zusammenfassung.slice(0, 400)}`})
       `.catch(() => {});
     }
 
@@ -754,8 +851,40 @@ export async function mailBearbeiten(ein: {
       return fertig({ ...gemeinsam, kundenlage, aktion: "vorgeordnet", begruendung: "nur eingeordnet" }, "nur geordnet");
     }
 
+    // 5b. E-246: Hat schon ein Mensch geantwortet? Geprüft bei jeder Mail, die
+    //     nicht frisch ist — aus der KI-Pause, ein weiterer Anlauf oder älter
+    //     als 20 Minuten (nachgeholt). Dann KEINE zweite Antwort: Zeile
+    //     „geordnet", und die Übergabe schließt wie beim Senden.
+    const nachgeholt = ausDerPause || versuche > 0 || Date.now() - mail.datum.getTime() > 20 * 60_000;
+    if (nachgeholt) {
+      const mensch = await spaetereAntwortImFaden(postfach, mail)
+        .catch((e) => { throw new Error(`Gmail-Faden nicht prüfbar: ${String(e?.message || e).slice(0, 160)}`); });
+      if (mensch) {
+        const wann = `${mensch.am.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" })} ${uhrzeitBerlin(mensch.am)}`;
+        const ergebnis = await fertig({
+          ...gemeinsam, kundenlage, aktion: "geordnet",
+          begruendung: `vom Menschen beantwortet (Gmail, ${wann}) — keine zweite Antwort`,
+        }, "vom Menschen beantwortet");
+        await uebergabeSchliessen({ id, personId: wer.personId ?? null, ref: wer.ref ?? null }, "Mensch (Gmail)", `In Gmail von Hand beantwortet (${wann}), Mail #${id}.`);
+        return ergebnis;
+      }
+    }
+
     // 6. Verlauf und Antwort.
     const verlauf = await verlaufLesen(postfach, mail.threadId, gmailId);
+    // E-246: Lag die Mail aus der KI-Pause, kann ein früherer Anlauf schon
+    // gehandelt haben (Kündigung vorgemerkt, Link verschickt, Aufgabe angelegt).
+    // Das Modell erfährt es — nichts doppelt tun, dem Kunden nur als erledigt nennen.
+    if (ausDerPause) {
+      const getan = await schonGetan(id);
+      if (getan.length) {
+        verlauf.push({
+          von: "FIAON intern (nicht an den Kunden zitieren)",
+          am: new Date().toLocaleDateString("de-DE"),
+          text: `SCHON ERLEDIGT zu DIESER Mail (ein früherer Anlauf wurde von der KI-Pause unterbrochen, bevor die Antwort rausging). Nicht wiederholen, dem Kunden als erledigt nennen:\n${getan.map((h) => `· ${h.werkzeug}: ${h.ergebnis}`).join("\n")}`,
+        });
+      }
+    }
     const erg = await antwortErzeugen({
       postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage },
       verlauf, einordnung, personId: wer.personId, ref: wer.ref, postmeisterId: id,
@@ -887,6 +1016,21 @@ export async function mailBearbeiten(ein: {
     return ergebnis;
   } catch (e: any) {
     const grund = String(e?.message || e).slice(0, 300);
+    // ── KI-PAUSE (E-246): kein Fehlversuch, kein Aktenvermerk, keine Aufgabe.
+    // Die Zeile geht zurück auf 'vorgeordnet' (bleibt beanspruchbar) und der
+    // Zähler auf den Stand vor diesem Anspruch — die Pause kostet keinen der
+    // vier Versuche. Werkzeuge, die vor dem Fehler schon liefen, bleiben.
+    if (istKiPause(e)) {
+      await sqlPool`
+        UPDATE fiaon_postmeister
+           SET aktion = 'vorgeordnet', in_arbeit_seit = NULL, naechster_versuch_am = NULL,
+               versuche = GREATEST(versuche - ${neuAngelegt ? 0 : 1}, 0),
+               begruendung = ${"KI pausiert — wartet auf das Aktivieren"}, updated_at = NOW()
+         WHERE id = ${id} AND gesendet_am IS NULL
+      `.catch((x) => console.error("[POSTMEISTER] Pause zurücklegen:", String(x).slice(0, 160)));
+      console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: KI pausiert — zurückgelegt.`);
+      return { aktion: "geordnet", grund: "KI pausiert", id };
+    }
     console.error(`[POSTMEISTER] ${postfach}/${gmailId} (Versuch ${versuche + 1}/4):`, grund);
     return fertig(await fehlerFelder(grund), grund);
   }

@@ -47,6 +47,7 @@ import { sicherAbrufen, NetzschutzFehler } from "./firmensuche/netzschutz";
 import { robotsRegeln, robotsErlaubt, type RobotsRegel } from "./firmensuche/robots";
 import { impressumLesen, htmlZuText, textKarte, woertlich, entitaeten, regexFunde } from "./firmensuche/impressum";
 import { berlinToday } from "./fiaon-time";
+import { openaiFetch, kiPausiert, kiPauseLesen, kiPauseMeldung, istKiPause } from "./fiaon-ki-pause";
 import { gmailBereit, neueMailEntwurf, neueMailSenden, postfachProbe, entwurfLoeschen } from "./fiaon-gmail";
 import {
   RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
@@ -219,6 +220,8 @@ async function radarKi<T>(ein: {
 }): Promise<KiErgebnis<T>> {
   const schluessel = SCHLUESSEL();
   if (!schluessel) throw new RadarFehler("Kein OpenAI-Schlüssel gesetzt (OPENAI_API_KEY).", 503);
+  // E-246: KI pausiert — 503 lässt den Tageslauf abbrechen (radarTageslauf) und zeigt im Chefbüro die Meldung.
+  if (await kiPausiert()) throw new RadarFehler(kiPauseMeldung((await kiPauseLesen()).art), 503);
   const deckel = TAGESDECKEL_EUR();
   const heute = await kostenHeute("radar").catch(() => 0);
   if (heute >= deckel) throw new RadarFehler(`Der Tagesdeckel für den Radar ist erreicht (${deckel.toFixed(0)} € KI-Kosten heute). Morgen geht es weiter — oder RADAR_TAGESDECKEL_EUR anheben.`, 429);
@@ -238,7 +241,7 @@ async function radarKi<T>(ein: {
     const abbruch = new AbortController();
     const uhr = setTimeout(() => abbruch.abort(), KI_ZEIT_MS);
     try {
-      const res = await fetch("https://api.openai.com/v1/responses", {
+      const res = await openaiFetch("radar", "/responses", {
         method: "POST",
         headers: { Authorization: `Bearer ${schluessel}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -281,6 +284,7 @@ async function radarKi<T>(ein: {
     });
     return { daten, quellen: Array.from(quellen) };
   } catch (e: any) {
+    if (istKiPause(e)) throw new RadarFehler(String(e.message), 503);
     await nutzungMerken({ dienst: "radar", modell, dauerMs: Date.now() - start, ok: false, fehler: String(e?.message || e).slice(0, 200) });
     if (e?.name === "AbortError") throw new RadarFehler("Die KI hat zu lange gebraucht — bitte noch einmal versuchen.", 504);
     throw e;
@@ -672,6 +676,7 @@ export async function radarLauf(id: number): Promise<any | null> {
 export async function radarTageslauf(jetzt = new Date()): Promise<{ ruhe: boolean; heute: number; neu: number; suchen: number; fehler: string | null }> {
   const stunde = berlinStunde(jetzt);
   if (stunde < 6 || stunde >= 20) return { ruhe: true, heute: 0, neu: 0, suchen: 0, fehler: null };
+  if (await kiPausiert()) return { ruhe: true, heute: 0, neu: 0, suchen: 0, fehler: "KI pausiert" }; // E-246
   await ensureRadarTabellen();
   const tag = berlinToday(jetzt);
   const zaehlen = async () => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE tag = ${tag} AND quelle = 'tageslauf'`) as any[])[0]?.n ?? 0);

@@ -21,11 +21,85 @@ import {
 import { gedaechtnisLesen, gedaechtnisLoeschen } from "../lib/fiaon-mara-gedaechtnis";
 import { anweisungLesen, anweisungSetzen, anweisungVerlauf, anweisungZurueck, BEREICHE, BEREICH_TEXT, MAX_ZEICHEN, type Bereich } from "../lib/fiaon-mara-anweisung";
 import { maraBilanz, geldSql, aktionWirkung14, danachSql } from "../lib/fiaon-mara-bilanz";
+import { istKiPause, kiPauseLesen, aktivieren as kiAktivieren, pausieren as kiPausieren } from "../lib/fiaon-ki-pause";
 
 const router = Router();
 const wache = requireChef("inhaber");
 const tag = (d: any) => (d ? new Date(d).toISOString() : null);
 const wer = (req: ChefRequest) => (req.chef?.agentId ? `Chef #${req.chef.agentId}` : "Inhaber");
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KI-PAUSE (27.09.2026, E-246)
+//
+// Justin: „Wenn OpenAI nicht abbuchen kann, dann soll alles, was über OpenAI
+// läuft, pausieren … einfach Pause, bis ich es wieder aktiviere."
+//
+// Lesen darf jede Chefbüro-Stufe (das Band steht im Kopf JEDER /chef-Seite);
+// aktivieren und von Hand pausieren nur der Inhaber. Jeder Klick steht im
+// Chef-Protokoll (requireChef schreibt jede Nicht-GET-Anfrage) und im Verlauf
+// des Zustands selbst (fiaon_settings.ki_pause, verlauf).
+// Die Regeln stehen in server/lib/fiaon-ki-pause.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+const chefLesen = requireChef("leitung");
+
+/**
+ * Was an der Pause hängt — nur Zahlen, die sich ehrlich zählen lassen.
+ * Nachprüfung 27.09.: nur Pause-bezogen. WhatsApp zählt offene Gespräche, deren
+ * letzte Nachricht NACH Pausenbeginn (−15 Min., wie zuAltFuerMara) kam — nicht
+ * alles, was aus anderen Gründen offen ist (Kostendeckel, Nachtruhe, Mara aus).
+ * Auswertungen nur, wenn die Datei noch an der Bestellung liegt.
+ */
+export async function liegenGeblieben(seit: string | null): Promise<{ whatsapp: number; mails: number; auswertungen: number; transkripte: number }> {
+  const zahl = async (q: Promise<any[]>) => Number(((await q.catch(() => [{ n: 0 }])) as any[])[0]?.n || 0);
+  const { OFFENE_GESPRAECHE_SQL } = await import("../lib/fiaon-whatsapp-mara");
+  const ab = new Date((seit ? new Date(seit).getTime() : Date.now()) - 15 * 60_000);
+  return {
+    whatsapp: await zahl(sqlPool.unsafe(`SELECT COUNT(*)::int AS n FROM (${OFFENE_GESPRAECHE_SQL}\n) o WHERE o.am >= $1`, [ab]) as any),
+    mails: await zahl(sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_postmeister WHERE aktion = 'vorgeordnet' AND begruendung LIKE 'KI pausiert%'` as any),
+    auswertungen: await zahl(sqlPool`
+      SELECT (SELECT COUNT(*) FROM (SELECT DISTINCT ON (ref) ref, status, fehler FROM fiaon_kontoauszug_analysen ORDER BY ref, created_at DESC) k
+                JOIN fiaon_applications a ON a.ref = k.ref AND a.bank_statement_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL
+               WHERE k.status = 'fehler' AND k.fehler LIKE 'KI pausiert%')
+           + (SELECT COUNT(*) FROM (SELECT DISTINCT ON (ref) ref, status, fehler FROM fiaon_schufa_analysen ORDER BY ref, created_at DESC) s
+                JOIN fiaon_applications a ON a.ref = s.ref AND a.schufa_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL
+               WHERE s.status = 'fehler' AND s.fehler LIKE 'KI pausiert%') AS n` as any),
+    transkripte: await zahl(sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_calls WHERE transkript_status = 'offen' AND transkript_grund LIKE 'KI pausiert%' AND ohne_aufzeichnung_am IS NULL` as any),
+  };
+}
+
+router.get("/chef/ki-pause", chefLesen, async (_req: ChefRequest, res: Response) => {
+  try {
+    const zustand = await kiPauseLesen(true);
+    res.json({ ok: true, zustand, liegen: zustand.an ? await liegenGeblieben(zustand.seit) : null });
+  } catch (err) {
+    console.error("[KI-PAUSE] stand:", err);
+    res.status(500).json({ ok: false, error: "Der KI-Zustand ließ sich nicht lesen." });
+  }
+});
+
+/** „KI wieder aktivieren" — erst ein Probe-Aufruf; bucht OpenAI noch nicht ab, bleibt die Pause. */
+router.post("/chef/ki-pause/aktivieren", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const r = await kiAktivieren(wer(req));
+    if (!r.ok) return res.status(409).json({ ok: false, error: r.fehler, zustand: r.zustand });
+    res.json({ ok: true, zustand: r.zustand, hinweis: r.hinweis ?? null });
+  } catch (err) {
+    console.error("[KI-PAUSE] aktivieren:", err);
+    res.status(500).json({ ok: false, error: "Das Aktivieren ist gescheitert — die Pause bleibt." });
+  }
+});
+
+/** „KI jetzt pausieren" — von Hand, ohne Alarm (Justin weiß es ja). */
+router.post("/chef/ki-pause/pausieren", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const grund = String(req.body?.grund ?? "").trim().slice(0, 200) || "Von Hand im Chefbüro angehalten.";
+    const r = await kiPausieren({ art: "hand", fehler: grund, dienst: "chefbuero", von: wer(req) });
+    res.json({ ok: true, zustand: r.zustand, schonPausiert: !r.neu });
+  } catch (err) {
+    console.error("[KI-PAUSE] pausieren:", err);
+    res.status(500).json({ ok: false, error: "Das Pausieren ist gescheitert." });
+  }
+});
 
 /** Der Stand auf einen Blick. */
 router.get("/chef/mara/stand", wache, async (_req: ChefRequest, res: Response) => {
@@ -169,6 +243,7 @@ router.post("/chef/mara/probe", wache, async (req: ChefRequest, res: Response) =
     const m = await mailSchreiben(k, e);
     res.json({ ok: true, fuer: { personId: k.personId, name: [k.vorname, k.nachname].filter(Boolean).join(" "), stufe: k.stufe, schritt: k.schritt }, probe: m });
   } catch (err: any) {
+    if (istKiPause(err)) return res.status(409).json({ ok: false, error: String(err.message) }); // E-246
     console.error("[MARA-STEUERPULT] probe:", err);
     res.status(500).json({ ok: false, error: "Die Probe ist gescheitert." });
   }
@@ -307,6 +382,7 @@ router.post("/chef/mara/auftrag", wache, async (req: ChefRequest, res: Response)
     const a = await auftragAnlegen(befehl, wer(req));
     res.json({ ok: true, auftrag: a });
   } catch (err) {
+    if (istKiPause(err)) return res.status(409).json({ ok: false, error: String((err as Error).message) }); // E-246
     console.error("[MARA] auftrag:", err);
     res.status(500).json({ ok: false, error: "Der Plan ließ sich nicht bauen." });
   }

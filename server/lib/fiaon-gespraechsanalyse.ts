@@ -24,6 +24,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 
 type Lauf = typeof sqlPool;
 
@@ -150,7 +151,7 @@ export async function gespraecheAuswerten(
   }).join("\n\n");
 
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await openaiFetch("gespraechsanalyse", "/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -199,6 +200,7 @@ export async function gespraecheAuswerten(
       bis: new Date(Math.max(...daten)).toISOString().slice(0, 10),
     };
   } catch (e) {
+    if (istKiPause(e)) return { ok: false, grund: String((e as Error).message), gespraeche: zeilen.length }; // E-246
     return {
       ok: false,
       grund: `Die Auswertung ist gescheitert: ${e instanceof Error ? e.message : String(e)}`,

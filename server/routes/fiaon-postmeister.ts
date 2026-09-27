@@ -35,6 +35,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { openaiFetch, kiPausiert, istKiPause, kiPauseLesen } from "../lib/fiaon-ki-pause";
 import { tageslauf } from "../lib/fiaon-crons";
 import {
   gmailBereit, postfachProbe, nachrichtenSuchen, nachrichtLesen,
@@ -262,7 +263,7 @@ ${wissenText().slice(0, 5000)}
 KUNDENAKTE:
 ${akte}`;
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await openaiFetch("postmeister-alt", "/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -289,6 +290,7 @@ ${akte}`;
       begruendung: String(b?.begruendung || "").slice(0, 300),
     };
   } catch (e) {
+    if (istKiPause(e)) throw e; // E-246: liegen lassen statt Rückfall-Einordnung
     console.error("[POSTMEISTER] einordnen:", String(e).slice(0, 200));
     return fallback;
   }
@@ -528,8 +530,25 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
   const aktionen: Record<string, number> = {};
   let verarbeitet = 0;
   const aktivePostfaecher: string[] = [];
+  // ── KI-PAUSE (27.09.2026, E-246): Einordnen und Antworten brauchen OpenAI.
+  // In der Pause wird keine Mail angefasst (auch kein Ordnen) — sie bleiben
+  // ungelesen im Posteingang. Fertige Antworten von VOR der Pause werden
+  // unten weiter nachgeholt (versandNachholen braucht keine KI).
+  const pausiert = await kiPausiert();
+  if (pausiert) aktionen.ki_pausiert = 1;
+  // ── NACH DER KI-PAUSE DAUERHAFT NACHHOLEN (E-246, Nachprüfung 27.09.) ────
+  // Der einmalige Hintergrundlauf beim Aktivieren (postmeisterNachDerPause)
+  // stirbt mit jedem Deploy oder Neustart. Deshalb sucht der REGULÄRE Takt in
+  // den ersten 48 h nach dem Aktivieren über die ganze Pausendauer (+1 Tag)
+  // und nimmt zusätzlich jede in der Pause zurückgelegte Zeile, egal wie alt
+  // (unten, je Postfach). Beanspruchen bleibt atomar (mailBearbeiten).
+  const standardFenster = opts.q ? null : pauseSuchfenster(await kiPauseLesen().catch(() => null), Date.now());
   for (const pf of POSTFAECHER) {
     if (opts.postfach && pf.adresse !== opts.postfach) continue;
+    if (pausiert) {
+      if ((await wirksamerModus(pf)) !== "aus") aktivePostfaecher.push(pf.adresse);
+      continue;
+    }
     const modus = await wirksamerModus(pf);
     if (modus === "aus") continue;
     aktivePostfaecher.push(pf.adresse);
@@ -542,12 +561,19 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
       const alleIds: string[] = [];
       let seite: string | null | undefined = null;
       for (let s = 0; s < 12; s++) {
-        const r: any = await nachrichtenSuchen(pf.adresse, opts.q || "in:inbox newer_than:2d", 100, seite);
+        const r: any = await nachrichtenSuchen(pf.adresse, opts.q || `in:inbox newer_than:${standardFenster ?? 2}d`, 100, seite);
         alleIds.push(...(r?.ids ?? []));
         seite = r?.nextPageToken ?? null;
         if (!seite || alleIds.length >= 1200) break;
       }
-      if (!alleIds.length) continue;
+      // E-246: In der KI-Pause zurückgelegte Zeilen ('vorgeordnet', „KI pausiert …")
+      // — unabhängig vom Suchfenster, nur im regulären Takt, älteste zuerst.
+      const pauseIds = opts.q ? [] : ((await sqlPool`
+        SELECT gmail_id FROM fiaon_postmeister
+         WHERE postfach = ${pf.adresse} AND aktion = 'vorgeordnet' AND begruendung LIKE 'KI pausiert%' AND versuche < 3
+         ORDER BY created_at ASC LIMIT 100
+      `) as any[]).map((r) => String(r.gmail_id));
+      if (!alleIds.length && !pauseIds.length) continue;
 
       // Schon Abgeschlossenes aussieben — 'fehler' und 'vorgeordnet' bleiben
       // beanspruchbar, sonst verbraucht ein KI-Aussetzer die Mail für immer.
@@ -565,7 +591,7 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
            AND NOT (aktion = 'fehler' AND versuche < 3 AND (naechster_versuch_am IS NULL OR naechster_versuch_am <= NOW()))
            AND NOT (aktion = 'in_arbeit' AND COALESCE(in_arbeit_seit, updated_at) < NOW() - INTERVAL '15 minutes')
       `) as any[]).map((r) => String(r.gmail_id)));
-      const neue = alleIds.filter((id) => !bekannte.has(id)).slice(0, opts.deckel ?? LAUF_DECKEL);
+      const neue = Array.from(new Set([...pauseIds, ...alleIds.filter((id) => !bekannte.has(id))])).slice(0, opts.deckel ?? LAUF_DECKEL);
 
       // ── DER NEUE LAUF (E-094): ganze Gespräche, Werkzeuge, Belegpflicht,
       // Antwort immer erst als Entwurf. Der alte Weg bleibt als Rückfall, bis
@@ -605,6 +631,45 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
   letzterLauf = { wann: new Date().toISOString(), verarbeitet, fehler: aktionen.fehler || 0 };
   if (verarbeitet > 0) console.log(`[POSTMEISTER] Lauf: ${verarbeitet} Mails — ${JSON.stringify(aktionen)}`);
   return { verarbeitet, aktionen };
+}
+
+/**
+ * Das Suchfenster des regulären Takts in Tagen (E-246): in den ersten 48 h nach
+ * dem Aufheben einer KI-Pause die Pausendauer + 1 Tag (mindestens 2), sonst
+ * null (= die üblichen 2 Tage). Rein — der Prüfstand rechnet es nach.
+ */
+export function pauseSuchfenster(
+  z: { an: boolean; seit: string | null; aufgehobenAm: string | null } | null, jetzt: number,
+): number | null {
+  if (!z || z.an || !z.seit || !z.aufgehobenAm) return null;
+  const seit = new Date(z.seit).getTime();
+  const auf = new Date(z.aufgehobenAm).getTime();
+  if (!Number.isFinite(seit) || !Number.isFinite(auf) || auf < seit) return null;
+  if (jetzt - auf > 48 * 3_600_000 || jetzt < auf) return null;
+  // Gezählt ab dem Pausenbeginn bis JETZT (nicht bis zum Aufheben): Eine Mail vom
+  // ersten Pausentag muss auch am zweiten Tag nach dem Aktivieren noch im Fenster sein.
+  const tage = Math.ceil((jetzt - seit - 60_000) / 86_400_000) + 1;
+  return Math.max(2, tage);
+}
+
+/**
+ * Nach der KI-Pause (E-246): Das Sieb liest sonst nur „newer_than:2d". Lag die
+ * Pause länger, blieben ältere Mails für immer ungelesen. Also einmal über die
+ * ganze Pausendauer (+1 Tag), so oft, bis nichts mehr offen ist (höchstens 20
+ * Runden à Deckel je Postfach).
+ */
+export async function postmeisterNachDerPause(seit: string | null): Promise<{ verarbeitet: number }> {
+  // 60 s Spielraum: Genau 3 Tage Pause sind 3 Tage (+1), nicht durch Millisekunden Laufzeit 4 (+1).
+  const tage = Math.max(2, Math.ceil((Date.now() - (seit ? new Date(seit).getTime() : Date.now()) - 60_000) / 86_400_000) + 1);
+  let summe = 0;
+  for (let runde = 0; runde < 20; runde++) {
+    if (await kiPausiert()) break;
+    const { verarbeitet } = await postmeisterLauf({ q: `in:inbox newer_than:${tage}d` });
+    summe += verarbeitet;
+    if (!verarbeitet) break;
+  }
+  if (summe) console.log(`[POSTMEISTER] Nach der KI-Pause nachgeholt: ${summe} Mails (${tage} Tage zurück).`);
+  return { verarbeitet: summe };
 }
 
 // ── Verwaltungs-Endpunkte (hinter dem Admin-Tor) ────────────────────────────

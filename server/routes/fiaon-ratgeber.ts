@@ -27,6 +27,7 @@ import { WERKZEUG_ARTIKEL_1 } from "../lib/fiaon-ratgeber-werkzeuge-1";
 import { WERKZEUG_ARTIKEL_2 } from "../lib/fiaon-ratgeber-werkzeuge-2";
 import { WERKZEUG_ARTIKEL_3 } from "../lib/fiaon-ratgeber-werkzeuge-3";
 import { WERKZEUG_ARTIKEL_4 } from "../lib/fiaon-ratgeber-werkzeuge-4";
+import { openaiFetch, kiPausiert, istKiPause } from "../lib/fiaon-ki-pause";
 
 const router = Router();
 let tabelleDa = false;
@@ -237,7 +238,7 @@ Kategorie: ${thema.kategorie}
 Fokus: ${thema.fokus}
 Autorin (nur für den Ton, nicht nennen): ${AUTORIN.name}, ${AUTORIN.rolle}.
 Liefere JSON nach Schema. Der Artikel-Text („inhalt“) ist Markdown und beginnt direkt mit dem ersten Absatz (keine H1, der Titel steht separat).`;
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await openaiFetch("ratgeber", "/chat/completions", {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modell, temperature: 0.5,
@@ -272,6 +273,8 @@ export async function entwuerfeErzeugen(anzahl: number, themaSlug?: string): Pro
         RETURNING *`) as any[];
       erzeugt.push(zeile(r));
     } catch (e: any) {
+      // E-246: KI pausiert — nicht die übrigen Themen einzeln scheitern lassen.
+      if (istKiPause(e)) { fehler.push(String(e.message)); break; }
       console.error("[RATGEBER] Generator:", thema.slug, e?.message || e);
       fehler.push(`${thema.titel}: ${e?.message || "Fehler"}`);
     }
@@ -299,6 +302,7 @@ export async function ratgeberTageslauf(): Promise<void> {
   const [h] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_ratgeber WHERE quelle = 'ki' AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date`) as any[];
   if (Number(h?.n || 0) > 0) return;
   if (!process.env.OPENAI_API_KEY) return;
+  if (await kiPausiert()) return; // E-246: vorher alle 30 Minuten drei Fehlaufrufe
   const out = await entwuerfeErzeugen(3);
   console.log(`[RATGEBER] Tageslauf: ${out.erzeugt.length} Entwürfe, ${out.fehler.length} Fehler`);
 }

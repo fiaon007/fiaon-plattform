@@ -84,6 +84,23 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-27-ki-pause",
+    date: "2026-09-27",
+    category: "Hintergrund",
+    title: "Wenn die KI pausiert, antwortet Mara nicht — dann bist du dran",
+    summary:
+      "Kann unser KI-Anbieter nicht abbuchen, hält das System alle KI-Funktionen an, bis die Geschäftsführung sie wieder "
+      + "einschaltet. In dieser Zeit schickt Mara nichts an Kunden — auch keinen Ersatzsatz.",
+    changes: [
+      "Mara beantwortet in der Pause keine WhatsApp und keine Mails; die Nachrichten bleiben offen und werden danach nachgeholt.",
+      "Copilot, Entwurfshilfe, Academy-Simulator und die Firmen-Vorbereitung zeigen „KI pausiert“ statt einer Antwort.",
+      "Kontoauszug- und SCHUFA-Auswertungen warten; der Kunde liest „Ihre Auswertung wird vorbereitet“.",
+    ],
+    howto: [
+      "Siehst du „KI pausiert“: Schreib dringenden Kunden im WhatsApp-Raum oder per Mail selbst — alles ohne KI funktioniert wie immer.",
+    ],
+  },
+  {
     id: "2026-09-22-persoenlicher-antragslink",
     date: "2026-09-22",
     category: "Neu",

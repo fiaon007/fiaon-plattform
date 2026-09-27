@@ -143,6 +143,26 @@ async function protokoll(k: WerkzeugKontext, werkzeug: string, text: string, sic
 }
 
 /**
+ * Hat ein früherer Anlauf zu DIESER Mail das Werkzeug schon ausgeführt? (E-246)
+ * protokoll() schreibt jede Handlung an die Postmeister-Zeile; legt die KI-Pause
+ * eine Mail mitten im Lauf zurück (oder scheitert ein Anlauf), bleiben sie dort
+ * stehen. Liefert den Ergebnistext des früheren Laufs oder null.
+ */
+async function frueherInDieserMail(k: WerkzeugKontext, werkzeug: string): Promise<string | null> {
+  if (!k.postmeisterId) return null;
+  const [z] = (await sqlPool`SELECT handlungen FROM fiaon_postmeister WHERE id = ${k.postmeisterId}`.catch(() => [])) as any[];
+  // Jede Form, die es gibt: jsonb-Text „[…]", Array aus solchen Texten (protokoll hängt Text an), echte Liste.
+  const flach = (w: unknown, tiefe = 0): any[] => {
+    if (w == null || tiefe > 4) return [];
+    if (typeof w === "string") { try { return flach(JSON.parse(w), tiefe + 1); } catch { return []; } }
+    if (Array.isArray(w)) return w.flatMap((x) => flach(x, tiefe + 1));
+    return typeof w === "object" ? [w] : [];
+  };
+  const h = flach(z?.handlungen).find((x: any) => x && x.werkzeug === werkzeug && x.ok !== false);
+  return h ? String(h.ergebnis ?? "") : null;
+}
+
+/**
  * DER ZUSTÄNDIGE MENSCH — dieselbe Ableitung wie für Aufträge.
  *
  * ── DER SCHADEN (04.09.2026, E-116) ─────────────────────────────────────
@@ -921,6 +941,23 @@ export const kuendigungVormerken: Werkzeug = {
     }
     const erg = await kuendigungSetzen(k.ref, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null });
     if (!erg.ok) return { ok: false, ergebnis: "", fehler: erg.grund };
+    // ── E-246: „bereits" aus dem ERSTEN Anlauf DIESER Mail ist keine alte Kündigung.
+    // Unterbrach die KI-Pause die Mail nach dem Vormerken, meldet kuendigungSetzen
+    // im zweiten Anlauf weg='bereits' — und der Kunde, der zum ersten Mal kündigt,
+    // läse „Die Kündigung lag bereits vor". Dann gilt der Satz des ersten Anlaufs
+    // (bei „vermerkt" mit den Raten von jetzt), und die Akte bekommt keinen zweiten Vermerk.
+    let weg: string = erg.weg;
+    let fester: string | null = null;
+    let schonVermerkt = false;
+    if (erg.weg === "bereits") {
+      const frueher = await frueherInDieserMail(k, "kuendigung_vormerken");
+      if (frueher != null) {
+        schonVermerkt = true;
+        const t0 = frueher.replace(/^Kündigung per E-Mail entgegengenommen\.\s*/, "").trim();
+        if (/^Die Kündigung ist vermerkt\./.test(t0)) weg = "letzte_rate";
+        else if (t0 && !/^Die Kündigung lag bereits vor/.test(t0)) { fester = t0; weg = "frueher"; }
+      }
+    }
     // 26.09.2026 (E-244): Was offen bleibt, liest das Werkzeug NACH der Buchung
     // aus den Raten — nicht aus dem Ergebnis. Bei „bereits gekündigt" liefert
     // kuendigungSetzen weder Rate noch Betrag; daraus wurde in der Akte und im
@@ -934,13 +971,13 @@ export const kuendigungVormerken: Werkzeug = {
     // offen, obwohl storniert und beendet). Das ist ein Datenfehler, keine
     // Forderung: Er geht als Prüffall an die Leitung, nie in die Kundenmail.
     let beendet = false;
-    if (erg.weg === "bereits") {
+    if (weg === "bereits") {
       const [b] = (await sqlPool`
         SELECT payment_status, (vertrag_ende_am IS NOT NULL AND vertrag_ende_am <= NOW()) AS vorbei
           FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
       beendet = !!b && (["cancelled", "canceled", "storniert", "refunded"].includes(String(b.payment_status)) || b.vorbei === true);
     }
-    const offene = (["letzte_rate", "bereits"].includes(erg.weg)
+    const offene = (["letzte_rate", "bereits"].includes(weg)
       ? await sqlPool`
           SELECT rate_nr, betrag_cents, to_char(faellig_am, 'DD.MM.YYYY') AS faellig
             FROM fiaon_abo_raten
@@ -962,14 +999,16 @@ export const kuendigungVormerken: Werkzeug = {
       }).catch((e) => console.error("[POSTMEISTER] Prüffall Raten:", String(e).slice(0, 160)));
     }
     const raten: OffeneRate[] | null = beendet ? [] : gelesen;
-    const t = kuendigungSatz(erg.weg, raten, { beendet });
+    const t = fester ?? kuendigungSatz(weg, raten, { beendet });
     const echte = raten ? echteOffeneRaten(raten) : [];
     const letzte = echte.length ? echte[echte.length - 1] : null;
-    await protokoll(k, "kuendigung_vormerken", `Kündigung per E-Mail entgegengenommen. ${t}`);
+    await protokoll(k, "kuendigung_vormerken", `Kündigung per E-Mail entgegengenommen. ${t}`, !schonVermerkt);
     return {
       ok: true, ergebnis: t,
       daten: {
-        weg: erg.weg,
+        weg,
+        // E-246: vorgemerkt im ersten, von der KI-Pause unterbrochenen Anlauf DIESER Mail.
+        in_diesem_vorgang_vorgemerkt: schonVermerkt,
         vertrag_beendet: beendet,
         letzte_rate: letzte?.nr ?? null,
         betrag: letzte ? (letzte.cents / 100).toFixed(2) : null,
@@ -1266,6 +1305,11 @@ export const globalZugangSendenWerkzeug: Werkzeug = {
   parameter: { type: "object", additionalProperties: false, properties: {}, required: [] },
   async ausfuehren(_p, k) {
     if (!k.ref) return { ok: false, ergebnis: "", fehler: "Ohne Bestellung nicht möglich." };
+    // E-246: je Mail höchstens EIN Link — auch wenn das Modell zweimal ruft oder
+    // ein Anlauf nach der KI-Pause die Mail noch einmal bearbeitet.
+    if ((await frueherInDieserMail(k, "global_zugang_senden")) != null) {
+      return { ok: true, ergebnis: "Der Link zu „Mein Auftrag“ ist zu dieser Anfrage schon an die E-Mail-Adresse des Auftrags unterwegs.", daten: { verschickt: 0, schon_verschickt: true } };
+    }
     const [g] = (await sqlPool`SELECT email FROM fiaon_global_auftraege WHERE ref = ${k.ref} LIMIT 1`.catch(() => [])) as any[];
     if (!g?.email) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung gibt es keinen unterschriebenen Auftrag — gib das Anliegen mit aufgabe_an_betreuer weiter." };
     const { globalZugangSenden } = await import("./fiaon-global-zugang");

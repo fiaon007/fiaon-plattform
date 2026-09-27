@@ -2541,7 +2541,24 @@ router.post("/telefon/:id/ohne-aufzeichnung", requireAgent, async (req: AgentReq
       return res.status(403).json({ ok: false, error: "Das ist nicht dein Anruf." });
     }
 
-    // Twilio anweisen, die Aufnahme zu beenden. Schlägt das fehl, wird der
+    // Nachbesserung 27.09. (E-246): Der Vermerk steht ZUERST — bevor Twilio
+    // gestoppt wird. Twilio schickt den Aufnahme-Rückruf, sobald die Aufnahme
+    // stoppt; stand der Vermerk erst danach, lief die Nachbereitung schon los
+    // (Produktion: 42 Anrufe mit Widerspruch auf 'fertig', median 51 s nach
+    // dem Widerspruch). Ein schon geschriebenes Transkript oder eine
+    // Zusammenfassung dieses Anrufs wird geleert.
+    await sqlPool`
+      UPDATE fiaon_calls
+      SET ohne_aufzeichnung_am = COALESCE(ohne_aufzeichnung_am, NOW()),
+          transkript_status = 'entfaellt',
+          transkript_grund = 'Der Kunde hat der Aufzeichnung widersprochen.',
+          transkript = NULL,
+          zusammenfassung = NULL,
+          updated_at = NOW()
+      WHERE id = ${id}
+    `;
+
+    // Twilio anweisen, die Aufnahme zu beenden. Schlägt das fehl, bleibt der
     // Vermerk TROTZDEM gesetzt: Der Wille des Kunden ist festgehalten, auch
     // wenn die Technik gerade klemmt — und der Vermerk ist der Nachweis.
     let gestoppt = false;
@@ -2568,14 +2585,6 @@ router.post("/telefon/:id/ohne-aufzeichnung", requireAgent, async (req: AgentReq
       }
     }
 
-    await sqlPool`
-      UPDATE fiaon_calls
-      SET ohne_aufzeichnung_am = NOW(),
-          transkript_status = 'entfaellt',
-          transkript_grund = 'Der Kunde hat der Aufzeichnung widersprochen.',
-          updated_at = NOW()
-      WHERE id = ${id}
-    `;
     console.log(`[TELEFON] Aufnahme auf Kundenwunsch beendet (Anruf ${id}, Twilio ${gestoppt ? "gestoppt" : "nicht erreicht"})`);
     res.json({
       ok: true, gestoppt,

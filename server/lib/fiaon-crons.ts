@@ -426,6 +426,23 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   },
   // E-244 (26.09.2026): Zahlungserinnerung offener Bonitätsauskünfte. Das Fenster ist 24 h: Der Lauf
   // arbeitet nur 07:00–20:30, meldet sich aber jede halbe Stunde (auch außerhalb, dann ohne Versand).
+  // E-246 (27.09.2026, Nachprüfung): Die Nachhol-Takte der KI-Pause. In der Pause kehren sie sofort
+  // zurück und zählen trotzdem als gelaufen — rot heißt also: der Takt selbst steht (z. B. Schemafehler).
+  kontoauszug_nachholen: {
+    zweck: "Kontoauszüge auswerten, die nie, nur halb oder während der KI-Pause ausgewertet wurden (alle 20 Min.)",
+    folge: "Kunden sehen „Ihre Auswertung wird vorbereitet“ ohne Ende; Fotoseiten bleiben ungelesen, Pause-Fälle werden nie nachgeholt.",
+    fenster: 2,
+  },
+  schufa_nachholen: {
+    zweck: "SCHUFA-Auswertungen und Dokumentprüfungen nachholen, die an der KI-Pause hingen (alle 20 Min.)",
+    folge: "Auskünfte aus der Pause bleiben ohne Auswertung, Ausweis-/Auskunft-Prüfungen ohne KI-Urteil — Betreuer arbeiten mit einem halben Bild.",
+    fenster: 2,
+  },
+  transkript_nachholen: {
+    zweck: "Offene und liegen gebliebene Anruf-Transkripte nachbereiten (alle 10 Min.; nie bei Widerspruch gegen die Aufzeichnung)",
+    folge: "Anrufe aus der KI-Pause oder nach einem Neustart bekommen kein Transkript und keinen Aktenvermerk.",
+    fenster: 2,
+  },
   auskunft_erinnerung: {
     zweck: "Zahlungserinnerung an offene Bonitätsauskünfte (Tag 1/4/10/18, dann wöchentlich), ab Tag 30 Aufgabe „anrufen oder stornieren“ bzw. „stornieren?“",
     folge: "Bestellte Auskünfte werden nicht bezahlt, und niemand erinnert — die Paket-Mahnmaschine nimmt sie seit E-244 nicht mehr.",

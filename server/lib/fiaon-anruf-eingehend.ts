@@ -170,15 +170,15 @@ export async function zustaendigFuer(
       (SELECT MIN(r.faellig_am) FROM fiaon_abo_raten r
          JOIN fiaon_applications a ON a.ref = r.ref
         WHERE a.person_id = ${p.id} AND a.merged_into IS NULL
-          AND r.status <> 'bezahlt' AND r.faellig_am < CURRENT_DATE) AS aelteste_offen,
+          AND r.status <> 'bezahlt' AND r.storniert_am IS NULL AND r.faellig_am < CURRENT_DATE) AS aelteste_offen,
       (SELECT COALESCE(SUM(r.betrag_cents), 0)::bigint FROM fiaon_abo_raten r
          JOIN fiaon_applications a ON a.ref = r.ref
         WHERE a.person_id = ${p.id} AND a.merged_into IS NULL
-          AND r.status <> 'bezahlt' AND r.faellig_am < CURRENT_DATE) AS offen_cents,
+          AND r.status <> 'bezahlt' AND r.storniert_am IS NULL AND r.faellig_am < CURRENT_DATE) AS offen_cents,
       (SELECT r.inkasso_agent_id FROM fiaon_abo_raten r
          JOIN fiaon_applications a ON a.ref = r.ref
         WHERE a.person_id = ${p.id} AND a.merged_into IS NULL
-          AND r.status <> 'bezahlt' AND r.faellig_am < CURRENT_DATE
+          AND r.status <> 'bezahlt' AND r.storniert_am IS NULL AND r.faellig_am < CURRENT_DATE
           AND r.inkasso_agent_id IS NOT NULL
         ORDER BY r.faellig_am LIMIT 1) AS inkasso_agent_id,
       (SELECT t.agent_id FROM fiaon_termine t
@@ -229,7 +229,7 @@ export async function zustaendigFuer(
         FROM fiaon_agents a
         WHERE a.active AND a.rolle = 'inkasso' AND NOT COALESCE(a.is_test_account, FALSE)
         ORDER BY (SELECT COUNT(*) FROM fiaon_abo_raten r
-                   WHERE r.inkasso_agent_id = a.id AND r.status <> 'bezahlt')
+                   WHERE r.inkasso_agent_id = a.id AND r.status <> 'bezahlt' AND r.storniert_am IS NULL)
         LIMIT 1
       `.then((r: any[]) => r[0] ?? null));
 

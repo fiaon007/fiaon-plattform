@@ -95,7 +95,7 @@ export async function darfAnKunde(
       JOIN fiaon_applications a ON a.ref = r.ref
       WHERE a.person_id = ${personId}
         AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
-        AND r.status <> 'bezahlt'
+        AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
       LIMIT 1
     `) as any[];
     if (r) return true;

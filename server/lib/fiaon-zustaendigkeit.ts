@@ -134,7 +134,7 @@ function rueckstandSql(p: string, abStufe: number): string {
     SELECT 1 FROM fiaon_abo_raten r
     JOIN fiaon_applications ar ON ar.ref = r.ref
     WHERE ar.person_id = ${p}.id AND ar.merged_into IS NULL
-      AND ar.gdpr_deleted_at IS NULL AND r.status <> 'bezahlt'
+      AND ar.gdpr_deleted_at IS NULL AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
       AND (r.faellig_am < (CURRENT_DATE - ${UEBERFAELLIG_AB_TAGEN - 1}::int)
         OR r.mahnstufe >= ${abStufe}
         OR r.inkasso_agent_id IS NOT NULL))

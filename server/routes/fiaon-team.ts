@@ -21,6 +21,7 @@ import {
 import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
 import { BELEGT_GEFUEHRT_SQL, NUMMER_PASST_SQL } from "../lib/fiaon-anruf-pruefung";
 import { abrechnungZustand } from "./fiaon-abrechnungen";
+import { ratenStornieren } from "../lib/fiaon-raten-storno";
 
 const router = Router();
 
@@ -1444,7 +1445,7 @@ router.get("/admin/team/agents/:id/kunden", async (req, res) => {
         (SELECT COUNT(*)::int FROM fiaon_applications
           WHERE assigned_agent_id = ${id} AND merged_into IS NULL) AS bestellungen,
         (SELECT COUNT(*)::int FROM fiaon_abo_raten r
-          WHERE r.inkasso_agent_id = ${id} AND r.status <> 'bezahlt') AS offene_raten,
+          WHERE r.inkasso_agent_id = ${id} AND r.status <> 'bezahlt' AND r.storniert_am IS NULL) AS offene_raten,
         (SELECT COUNT(*)::int FROM fiaon_termine
           WHERE agent_id = ${id} AND status = 'gebucht' AND beginn > NOW()) AS termine
     `) as any[];
@@ -2365,16 +2366,24 @@ router.post("/admin/payments/:paymentRef/refund", async (req, res) => {
   try {
     await ensureAgentTables();
     const reason = String(req.body?.reason || "").trim();
-    const rows = await sqlPool`
-      UPDATE fiaon_applications SET payment_status = 'refunded', refunded_at = NOW(), updated_at = NOW()
-      WHERE payment_reference = ${req.params.paymentRef} AND payment_status = 'paid'
-      RETURNING ref, payment_reference, amount_due
-    `;
+    // E-245 (27.09.2026): Mit der Erstattung endet der Vertrag — die offenen Raten fallen in
+    // derselben Transaktion weg. Bis heute blieben sie „offen“ und wurden weiter gemahnt.
+    // Bezahlte Raten bleiben unberührt (server/lib/fiaon-raten-storno.ts).
+    const { rows, raten } = await sqlPool.begin(async (tx: any) => {
+      const rows = (await tx`
+        UPDATE fiaon_applications SET payment_status = 'refunded', refunded_at = NOW(), updated_at = NOW()
+        WHERE payment_reference = ${req.params.paymentRef} AND payment_status = 'paid'
+        RETURNING ref, payment_reference, amount_due
+      `) as any[];
+      let raten = 0;
+      for (const r of rows) raten += await ratenStornieren(String(r.ref), "erstattet", tx);
+      return { rows, raten };
+    });
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Keine bezahlte Bestellung mit dieser Referenz gefunden" });
     const commission = await onCustomerRefunded(rows[0].ref);
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
-      VALUES (${rows[0].ref}, NULL, 'Admin', 'system', ${`Zahlung storniert/erstattet${reason ? ` — Grund: ${reason}` : ""}`})
+      VALUES (${rows[0].ref}, NULL, 'Admin', 'system', ${`Zahlung storniert/erstattet${raten ? `, ${raten} offene Rate(n) storniert` : ""}${reason ? ` — Grund: ${reason}` : ""}`})
     `;
     console.log(`[FIAON-PAYMENT] Erstattet: ${req.params.paymentRef} (Provisionen: ${commission.cancelled} storniert, ${commission.clawback} Verrechnung)`);
     res.json({ ok: true, commission });

@@ -376,7 +376,7 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
                -- „Rate 2 von 2" — genau das war der Fehler, den Justin gemeldet hat.
                (SELECT COUNT(*)::int FROM fiaon_abo_raten x WHERE x.ref = a.ref) AS raten_gesamt,
                (SELECT COALESCE(SUM(x.betrag_cents), 0)::bigint FROM fiaon_abo_raten x
-                 WHERE x.ref = a.ref AND x.status <> 'bezahlt'
+                 WHERE x.ref = a.ref AND x.status <> 'bezahlt' AND x.storniert_am IS NULL
                    AND x.faellig_am < CURRENT_DATE) AS offen_gesamt_cents
         FROM fiaon_applications a
         LEFT JOIN fiaon_persons p ON p.id = a.person_id

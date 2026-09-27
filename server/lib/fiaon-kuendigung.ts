@@ -30,6 +30,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { offeneRatenZaehlen, ratenStornieren } from "./fiaon-raten-storno";
 
 export type KuendigungQuelle = "mail" | "formular" | "telefon" | "admin" | "altbestand";
 
@@ -163,10 +164,19 @@ export async function kuendigungSetzen(ref: string, opts: {
   const rueckholBis = new Date(wann.getTime() + 14 * 24 * 60 * 60 * 1000);
 
   // ── Weg 1: nie bezahlt → Storno der Bestellung, keine Forderung ─────────
+  // E-245 (27.09.2026): Die offenen Raten fallen mit weg — in derselben Transaktion.
+  // Dieser Weg greift auch bei einer schon stornierten Bestellung mit bezahlter
+  // Rate 1 (payment_status 'cancelled' ≠ 'paid'); deren Rate 2 blieb bis heute
+  // „offen“ und wurde gemahnt. Die bezahlte Rate bleibt, wie sie ist. Der Grund
+  // 'storno_unbezahlt' ist keiner, den kuendigungZuruecknehmen zurückholt
+  // (server/lib/fiaon-raten-storno.ts).
   if (String(a.payment_status) !== "paid") {
-    if (opts.probe) return { ok: true, ref, weg: "storno_unbezahlt", letzteRateNr: null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: wann.toISOString(), grund: "unbezahlt — Bestellung wird storniert" };
-    await sqlPool.begin(async (tx) => {
+    if (opts.probe) {
+      const n = await offeneRatenZaehlen(ref);
+      return { ok: true, ref, weg: "storno_unbezahlt", letzteRateNr: null, letzteRateBetragCents: null,
+        letzteRateFaellig: null, stornierteRaten: n, vertragEndeAm: wann.toISOString(), grund: `unbezahlt — Bestellung wird storniert${n ? `, ${n} offene Rate(n) entfallen` : ""}` };
+    }
+    const raten = await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_applications
            SET payment_status = 'cancelled', cancelled_at = COALESCE(cancelled_at, ${wann}),
@@ -176,14 +186,16 @@ export async function kuendigungSetzen(ref: string, opts: {
                allow_reminders_despite_paid = FALSE, updated_at = NOW()
          WHERE ref = ${ref}
       `;
+      const n = await ratenStornieren(ref, "storno_unbezahlt", tx as any);
       await tx`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-                ${`Kündigung (${opts.quelle}) — Bestellung war unbezahlt und wurde storniert. Keine Forderung, Erinnerungen beendet.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+                ${`Kündigung (${opts.quelle}) — Bestellung war unbezahlt und wurde storniert${n ? `, ${n} offene Rate(n) storniert` : ""}. Keine Forderung, Erinnerungen beendet.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
       `.catch(() => {});
+      return n;
     });
     return { ok: true, ref, weg: "storno_unbezahlt", letzteRateNr: null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: wann.toISOString(), grund: "Bestellung storniert" };
+      letzteRateFaellig: null, stornierteRaten: raten, vertragEndeAm: wann.toISOString(), grund: "Bestellung storniert" };
   }
 
   // ── Weg 2: bezahlt → letzte Rate bestimmen ──────────────────────────────

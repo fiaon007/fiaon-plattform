@@ -119,11 +119,11 @@ async function datensaetze(nurPerson?: number): Promise<any[]> {
            (SELECT COUNT(*)::int FROM fiaon_abo_raten r
              JOIN fiaon_applications ar ON ar.ref = r.ref
              WHERE ar.person_id = p.id AND ar.merged_into IS NULL
-               AND r.status <> 'bezahlt') AS anzahl_offen,
+               AND r.status <> 'bezahlt' AND r.storniert_am IS NULL) AS anzahl_offen,
            (SELECT COALESCE(SUM(r.betrag_cents), 0)::bigint / 100.0 FROM fiaon_abo_raten r
              JOIN fiaon_applications ar ON ar.ref = r.ref
              WHERE ar.person_id = p.id AND ar.merged_into IS NULL
-               AND r.status <> 'bezahlt') AS summe_offen
+               AND r.status <> 'bezahlt' AND r.storniert_am IS NULL) AS summe_offen
     FROM fiaon_persons p
     LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
     WHERE ${nurPerson ? "p.id = $1" : uebergabeBedingung()}

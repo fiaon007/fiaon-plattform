@@ -64,6 +64,7 @@ import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
 import { tageslauf } from "../lib/fiaon-crons";
+import { ERINNERBARE_BESTELLUNG_SQL, ratenStornieren } from "../lib/fiaon-raten-storno";
 
 
 const router = Router();
@@ -148,6 +149,12 @@ const ABO_BATCH = 40;
 // eine Aufgabe (unzustellbareMelden im Motor, rateErinnern beim Fehlversuch).
 const ZIEL_MAIL_SQL = zielMailSql("a");
 const UNZUSTELLBAR_SQL = unzustellbarSql("a");
+
+// ── NUR EINE BESTELLUNG MIT FORDERUNG WIRD ERINNERT (27.09.2026, E-245) ──────
+// Rate 1259 bekam am 26.09. eine Erinnerung, zwei Tage nach dem anerkannten
+// Widerruf: Die Läufe fragten nur die Rate („offen“?), nie die Bestellung.
+// Jetzt: bezahlt, nicht storniert, nicht archiviert (server/lib/fiaon-raten-storno.ts).
+const ERINNERBAR_SQL = ERINNERBARE_BESTELLUNG_SQL("a");
 
 /** Vorab-Erinnerung: Vorgabe drei Tage vor Fälligkeit, abschaltbar (0). */
 export const VORAB_TAGE_VORGABE = 3;
@@ -740,6 +747,7 @@ export async function offeneRateFuerErinnerung(personId: number): Promise<any | 
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
     WHERE a.person_id = ${personId}
+      AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
       AND r.status = 'offen'
       AND r.storniert_am IS NULL
     ORDER BY r.faellig_am ASC, r.rate_nr ASC
@@ -822,6 +830,8 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
     LEFT JOIN fiaon_persons pt ON pt.id = a.person_id
     WHERE r.status = 'offen'
       AND r.storniert_am IS NULL
+      -- E-245: nur eine bezahlte, nicht stornierte, nicht archivierte Bestellung (ERINNERBAR_SQL oben).
+      AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
       -- E-184: Testkonten mahnt der Motor nicht (7 der 9 gebouncten Adressen waren pruefstand.test).
       AND pt.ist_test_am IS NULL
       -- E-188: Ein Einmalkauf (Bonitätsauskunft, FIAON Global) hat keine Rate.
@@ -1078,6 +1088,7 @@ async function vorabErinnern(heute: string, tage: number): Promise<number> {
     FROM fiaon_abo_raten r
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     WHERE r.status = 'offen' AND r.storniert_am IS NULL
+      AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
       AND r.faellig_am = ${zielTag}::date
       AND r.vorab_am IS NULL
       -- (Bis 19.09.2026 schützte hier der Einzugsschutz Lastschriftkunden — GoCardless ist beendet, E-194.)
@@ -1113,7 +1124,7 @@ async function ueberfaelligStellen(
     SET ueberfaellig_seit = r.faellig_am + 1, updated_at = NOW()
     FROM fiaon_applications a
     WHERE a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
-      AND a.payment_status = 'paid'
+      AND ${lauf.unsafe(ERINNERBAR_SQL)}
       AND r.status = 'offen' AND r.storniert_am IS NULL
       AND r.faellig_am < ${heute}::date
       AND r.ueberfaellig_seit IS NULL
@@ -1821,15 +1832,18 @@ router.post("/admin/abo/:ref/stoppen", async (req: Request, res: Response) => {
     await ensureAboTabellen();
     const ref = String(req.params.ref);
     const grund = String(req.body?.grund || "").slice(0, 500) || null;
-    await sqlPool`
-      UPDATE fiaon_applications SET abo_gestoppt_am = NOW(), abo_stopp_grund = ${grund}, updated_at = NOW()
-      WHERE ref = ${ref}
-    `;
-    await sqlPool`
-      UPDATE fiaon_abo_raten SET status = 'storniert', notiz = COALESCE(notiz,'') || ' · Abo gestoppt', updated_at = NOW()
-      WHERE ref = ${ref} AND status = 'offen'
-    `;
-    res.json({ ok: true });
+    // E-245 (27.09.2026): Bis heute setzte der Stopp nur status = 'storniert' — ohne
+    // storniert_am, ohne Grund, mit Mahnstufe und Inkasso-Zuständigem. Jede Abfrage, die
+    // stornierte Raten an storniert_am erkennt, hielt sie für offen. Jetzt derselbe Weg
+    // wie jeder andere Storno, in einer Transaktion (server/lib/fiaon-raten-storno.ts).
+    const raten = await sqlPool.begin(async (tx: any) => {
+      await tx`
+        UPDATE fiaon_applications SET abo_gestoppt_am = NOW(), abo_stopp_grund = ${grund}, updated_at = NOW()
+        WHERE ref = ${ref}
+      `;
+      return ratenStornieren(ref, "abo_gestoppt", tx);
+    });
+    res.json({ ok: true, ratenStorniert: raten });
   } catch (err) {
     console.error("[FIAON-ABO] stoppen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -2171,6 +2185,8 @@ router.get("/admin/abo/sammelversand/vorschau", async (_req, res) => {
       FROM fiaon_abo_raten r
       JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
       WHERE r.status = 'offen' AND r.faellig_am <= ${heute}::date AND r.faellig_am < ${stichtag}::date
+        -- E-245: dieselbe Grenze wie der Versand — sonst zählt die Vorschau Raten, an die nichts rausgeht.
+        AND r.storniert_am IS NULL AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
         AND r.mahnstufe < ${MAHNSTUFEN.length}
         AND COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) IS NOT NULL
     `;

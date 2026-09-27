@@ -47,7 +47,14 @@ export async function anrufPflichtTage(lauf: Lauf = sqlPool): Promise<number> {
  *   · die Bestellung dahinter BEZAHLT ist (`payment_status = 'paid'`),
  *   · sie nicht archiviert und nicht DSGVO-gelöscht ist,
  *   · sie nicht zusammengeführt wurde,
- *   · die Rate selbst offen ist.
+ *   · die Rate selbst offen ist — nicht bezahlt UND nicht storniert.
+ *
+ * E-245 (27.09.2026): „nicht storniert" fehlte. Eine Rate, die mit Kündigung,
+ * Storno oder Erstattung weggefallen ist, trägt status 'storniert' — das ist
+ * „<> bezahlt", also stand sie weiter in der Arbeitsliste. Geprüft wird an
+ * storniert_am, nicht am Status: So bleibt die Regel unten („<> bezahlt statt
+ * = offen") richtig, und jeder Storno-Weg setzt storniert_am
+ * (server/lib/fiaon-raten-storno.ts, auch der Abo-Stopp).
  *
  * Als Textbaustein, weil er in vier Abfragen gebraucht wird — vier Fassungen
  * wären vier Gelegenheiten, eine zu vergessen.
@@ -109,7 +116,7 @@ export async function anrufPflichtTage(lauf: Lauf = sqlPool): Promise<number> {
 const HEUTE_BERLIN = "(NOW() AT TIME ZONE 'Europe/Berlin')::date";
 
 export const SICHTFELD = `
-  r.status <> 'bezahlt'
+  r.status <> 'bezahlt' AND r.storniert_am IS NULL
   AND r.faellig_am <= ${HEUTE_BERLIN} + 7
   AND EXISTS (
     SELECT 1 FROM fiaon_applications a
@@ -1014,7 +1021,7 @@ export async function inkassoMannschaft(lauf: Lauf = sqlPool): Promise<{
   const r = (await lauf`
     SELECT a.id, a.name,
            (SELECT COUNT(*)::int FROM fiaon_abo_raten r
-             WHERE r.inkasso_agent_id = a.id AND r.status <> 'bezahlt') AS offen,
+             WHERE r.inkasso_agent_id = a.id AND r.status <> 'bezahlt' AND r.storniert_am IS NULL) AS offen,
            (SELECT COUNT(*)::int FROM fiaon_raten_arbeit w
              WHERE w.agent_id = a.id
                AND w.created_at >= ${lauf.unsafe(HEUTE_BERLIN)}::timestamp AT TIME ZONE 'Europe/Berlin') AS heute
@@ -1073,14 +1080,14 @@ export async function inkassoVerteilen(
               JOIN fiaon_applications a2 ON a2.ref = r2.ref
              WHERE a2.person_id = a.person_id
                AND r2.inkasso_agent_id IS NOT NULL
-               AND r2.status <> 'bezahlt'
+               AND r2.status <> 'bezahlt' AND r2.storniert_am IS NULL
              ORDER BY r2.faellig_am ASC, r2.id ASC
              LIMIT 1) AS person_agent_id
     FROM fiaon_abo_raten r
     LEFT JOIN fiaon_applications a ON a.ref = r.ref
     LEFT JOIN fiaon_persons p ON p.id = a.person_id
     WHERE ${lauf.unsafe(SICHTFELD)}
-      AND r.status <> 'bezahlt'
+      AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
       AND r.faellig_am < ${lauf.unsafe(HEUTE_BERLIN)}
       AND r.inkasso_agent_id IS NULL
     ORDER BY r.faellig_am ASC, r.id ASC

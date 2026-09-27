@@ -35,6 +35,7 @@ import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 import { bindePersonAnAntrag } from "../fiaon-person-model";
 import { BANK } from "@shared/fiaon-bank";
 import { zahlungsauftragFinden } from "../lib/fiaon-zahlungsauftrag";
+import { ratenStornieren } from "../lib/fiaon-raten-storno";
 import {
   LOGIN_ACCESS_STATUSES,
   LOGIN_CODES,
@@ -2443,21 +2444,29 @@ export async function bestellungStornieren(
   const paymentRef = String(wo.paymentRef ?? "").trim();
   const ref = String(wo.ref ?? "").trim();
   if (!paymentRef && !ref) return null;
-  const rows = await sqlPool`
-    UPDATE fiaon_applications SET
-      payment_status = 'cancelled',
-      cancelled_at = NOW(),
-      updated_at = NOW()
-    WHERE ((${paymentRef} <> '' AND payment_reference = ${paymentRef}) OR (${ref} <> '' AND ref = ${ref}))
-      AND payment_status IN ('pending_payment', 'claimed_paid', 'expired', 'paid')
-    RETURNING ref, payment_status
-  `;
+  // E-245 (27.09.2026): Die offenen Raten fallen in DERSELBEN Transaktion weg. Bis heute
+  // blieben sie „offen“ stehen und wurden weiter gemahnt — Rate 1259 bekam zwei Tage nach
+  // dem anerkannten Widerruf eine Erinnerung. Regel und Grund: server/lib/fiaon-raten-storno.ts.
+  const { rows, raten } = await sqlPool.begin(async (tx: any) => {
+    const rows = (await tx`
+      UPDATE fiaon_applications SET
+        payment_status = 'cancelled',
+        cancelled_at = NOW(),
+        updated_at = NOW()
+      WHERE ((${paymentRef} <> '' AND payment_reference = ${paymentRef}) OR (${ref} <> '' AND ref = ${ref}))
+        AND payment_status IN ('pending_payment', 'claimed_paid', 'expired', 'paid')
+      RETURNING ref, payment_status
+    `) as any[];
+    let raten = 0;
+    for (const r of rows) raten += await ratenStornieren(String(r.ref), "bestellung_storniert", tx);
+    return { rows, raten };
+  });
   if (rows.length === 0) return null;
   const commissions = await import("./fiaon-agent").then((m) => m.onCustomerRefunded(rows[0].ref)).catch(() => ({ cancelled: 0, clawback: 0 }));
   await sqlPool`
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
     VALUES (${rows[0].ref}, NULL, ${wer}, 'system',
-            ${`Bestellung storniert (${wer}) — Provisionen: ${commissions.cancelled} storniert, ${commissions.clawback} verrechnet`})
+            ${`Bestellung storniert (${wer}) — Provisionen: ${commissions.cancelled} storniert, ${commissions.clawback} verrechnet${raten ? `, ${raten} offene Rate(n) storniert` : ""}`})
   `;
   return { ref: String(rows[0].ref), commissions };
 }
@@ -2847,23 +2856,30 @@ router.post("/admin/duplicates/cancel-open", async (req, res) => {
     if (!req.body?.confirmed || (!email && refs.length === 0)) {
       return res.status(400).json({ ok: false, error: "confirmed + (email ODER refs[]) erforderlich" });
     }
-    const rows = email
-      ? await sqlPool`
-          UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-          WHERE LOWER(TRIM(email)) = ${email} AND merged_into IS NULL
-            AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
-          RETURNING ref
-        `
-      : await sqlPool`
-          UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-          WHERE ref = ANY(${refs}) AND merged_into IS NULL
-            AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
-          RETURNING ref
-        `;
+    // E-245: Bestellungen und ihre offenen Raten in EINER Transaktion (server/lib/fiaon-raten-storno.ts).
+    const { rows, raten } = await sqlPool.begin(async (tx: any) => {
+      const rows = (email
+        ? await tx`
+            UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+            WHERE LOWER(TRIM(email)) = ${email} AND merged_into IS NULL
+              AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+            RETURNING ref
+          `
+        : await tx`
+            UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+            WHERE ref = ANY(${refs}) AND merged_into IS NULL
+              AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+            RETURNING ref
+          `) as any[];
+      const raten = new Map<string, number>();
+      for (const r of rows) raten.set(String(r.ref), await ratenStornieren(String(r.ref), "dublette_storniert", tx));
+      return { rows, raten };
+    });
     for (const r of rows) {
+      const n = raten.get(String(r.ref)) ?? 0;
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
-        VALUES (${r.ref}, NULL, 'Admin', 'system', 'Offene Dubletten-Bestellung storniert (Gruppen-Aktion)')
+        VALUES (${r.ref}, NULL, 'Admin', 'system', ${`Offene Dubletten-Bestellung storniert (Gruppen-Aktion)${n ? `, ${n} offene Rate(n) storniert` : ""}`})
       `;
     }
     console.log(`[FIAON-DUBLETTE] cancel-open: ${rows.length} Bestellungen storniert (${email || `refs=${refs.length}`})`);

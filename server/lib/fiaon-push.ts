@@ -31,6 +31,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import webpush from "web-push";
 import { sqlPool } from "./db-pool";
+import { ERINNERBARE_BESTELLUNG_SQL } from "./fiaon-raten-storno";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 
 // ── Anlässe (nur Zustandswechsel mit Beleg) ─────────────────────────────────
@@ -362,7 +363,9 @@ export async function pushRatenLauf(): Promise<{ geprueft: number; gesendet: num
       FROM fiaon_abo_raten r
       JOIN fiaon_applications a ON a.ref = r.ref
      WHERE r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am = (CURRENT_DATE + INTERVAL '3 days')::date
-       AND a.person_id IS NOT NULL AND a.merged_into IS NULL
+       AND a.person_id IS NOT NULL AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+       -- E-245: dieselbe Grenze wie die Mail-Erinnerung — nur eine Bestellung mit Forderung.
+       AND ${sqlPool.unsafe(ERINNERBARE_BESTELLUNG_SQL("a"))}
        AND EXISTS (SELECT 1 FROM fiaon_push_abos ab WHERE ab.person_id = a.person_id AND ab.geloescht_am IS NULL)
      LIMIT 500`.catch(() => [])) as any[];
   let gesendet = 0;

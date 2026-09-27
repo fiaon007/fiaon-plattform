@@ -196,12 +196,14 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
   },
   {
     // 07.09.2026 (Justin): Kündigung in der Akte.
+    // 27.09.2026 (E-245): Unbezahlte Bestellung — ihre offenen Raten fallen mit weg und kommen nicht zurück.
     titel: "Kündigen und reaktivieren kannst du selbst — im Reiter „Antrag“.",
     text: "Sagt ein Kunde am Telefon, er will raus, drückst du „Kündigung durchsetzen“ und schreibst seinen Satz dazu. "
       + "Ab da kommen keine Zahlungsmails mehr, nur die Bestätigung; die letzte Rate bleibt fällig, spätere entfallen "
-      + "(Kulanz-Haken: sofort Schluss, offene Raten entfallen). Überlegt er es sich im Gespräch anders, drückst du "
-      + "„Kündigung zurücknehmen“ — die Raten kommen zurück, das Konto läuft weiter. Beides steht im Verlauf und "
-      + "der Kunde sieht es in seinem Bereich.",
+      + "(Kulanz-Haken: sofort Schluss, offene Raten entfallen). War die Bestellung nie bezahlt, wird sie storniert — "
+      + "mit allen offenen Raten, es bleibt keine Forderung. Überlegt er es sich im Gespräch anders, drückst du "
+      + "„Kündigung zurücknehmen“ — die Raten kommen zurück, das Konto läuft weiter (Raten einer nie bezahlten "
+      + "Bestellung bleiben storniert). Beides steht im Verlauf und der Kunde sieht es in seinem Bereich.",
     tipp: "Kein Geld anfassen: Rückerstattungen entscheidet weiter nur die Geschäftsführung.",
   },
 ];
@@ -398,9 +400,12 @@ export const RUNDGANG_COLLECTIONS: RundgangSchritt[] = [
   },
   {
     titel: "Geld zurückholen — freundlich, nicht als Inkasso.",
+    // 27.09.2026 (E-245): Stornierte Raten zählen nirgends mehr als offen.
     text: "Hier stehen die offenen Raten deiner eigenen Kunden. Diese Menschen haben schon einmal "
       + "bezahlt und sind in Rückstand geraten — das ist kein Vergehen, sondern meistens ein "
-      + "vergessener Dauerauftrag oder ein enger Monat. Der Ton entscheidet, ob der Kunde bleibt.",
+      + "vergessener Dauerauftrag oder ein enger Monat. Der Ton entscheidet, ob der Kunde bleibt. "
+      + "Raten, die mit einem Storno, einer Kündigung oder einer Erstattung entfallen sind, stehen "
+      + "hier nicht — dort gibt es nichts zurückzuholen.",
     tipp: "Einsteigen mit „ist mir aufgefallen, ich wollte kurz nachfragen“ — nie mit „Sie haben nicht bezahlt“.",
   },
   {
@@ -1218,8 +1223,10 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
   },
   {
     titel: "Storniert ist nicht gelöscht.",
+    // 27.09.2026 (E-245): Offene Raten einer unbezahlten Bestellung kommen beim Zurückholen nicht wieder.
     text: "Unter „Storniert“ steht jeder mit Grund und Datum. „Zurückholen“ nimmt genau das zurück, was der Storno getan hat — "
-      + "Bestellung, Lead, Sperren. Bezahlte Verträge folgen der Kündigungsregel: Die laufende Rate bleibt fällig, außer du setzt „Kulanz“.",
+      + "Bestellung, Lead, Sperren. Bezahlte Verträge folgen der Kündigungsregel: Die laufende Rate bleibt fällig, außer du setzt „Kulanz“. "
+      + "Offene Raten einer nie bezahlten Bestellung fallen mit dem Storno weg und kommen beim Zurückholen nicht wieder.",
   },
 ];
 

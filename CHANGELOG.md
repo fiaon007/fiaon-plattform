@@ -5,6 +5,41 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.09.2026 — Keine Mahnung mehr an stornierte, erstattete oder archivierte Bestellungen (E-245)
+
+**Der Anlass:** Bei der Bereinigung am 26.09. (E-244) hingen sechs offene Abo-Raten an stornierten Bestellungen und
+wurden weiter gemahnt — Rate 1259 bekam am 26.09. um 06:48 eine Zahlungserinnerung, zwei Tage nach dem anerkannten
+Widerruf. Die sechs wurden von Hand storniert; die Ursache im Code bestand weiter (am 21.09. und 24.09. kamen neue Fälle
+dazu). Außerdem wurden archivierte, bezahlte Dubletten gemahnt (MRNUIQYK Stufe 4, MRXAFKI5 Stufe 3).
+
+**Was jetzt gilt:**
+- **Wer die Bestellung beendet, beendet auch ihre Raten — in einem Schritt.** Storno-Knopf der Zahlungsübersicht (auch
+  FIAON Global), Dubletten „Alle offenen stornieren", Kündigung einer nie bezahlten Bestellung (Weg 1, auch aus Postfach,
+  Telefonkartei und Akte), Erstattung und Abo-Stopp stornieren alle noch offenen Raten der Bestellung: mit Datum, festem
+  Grund (bestellung_storniert, dublette_storniert, storno_unbezahlt, erstattet, abo_gestoppt), Mahnstufe 0 und ohne
+  Inkasso-Zuständigen. Bezahlte Raten bleiben unangetastet. Der Verlauf nennt die Zahl („2 offene Rate(n) storniert").
+- **Kündigung zurücknehmen / Telefonkartei „Zurückholen"** holen diese Raten NICHT zurück — nur die Raten, die die
+  Kündigung selbst entfallen ließ (wie bisher).
+- **Erinnerungen** (Mahnlauf, Vorabinfo drei Tage vorher, „Erinnerung senden" in der Akte, Push „Rate in drei Tagen")
+  gehen nur noch an eine bezahlte, nicht stornierte, nicht archivierte Bestellung. „Überfällig" wird nach derselben Regel
+  gestellt.
+- **Stornierte Raten zählen nirgends mehr als offen:** Zuständigkeit Forderungsmanagement, Inkasso-Zugriff, Arbeitsliste
+  und Verteilung im Forderungsmanagement, Last je Inkasso-Mitarbeiter, eingehender Anruf, Forderungs-Übersicht,
+  Inkasso-Akte, Teamkarte.
+
+**Wirkung in Zahlen (Produktion, lesend gemessen am 27.09.):** Die Erinnerungsläufe sehen 550 statt 554 offene Raten
+(die drei archivierten Dubletten fallen raus); Arbeitsliste Forderungsmanagement 417 statt 443 Raten; Forderungsmanagement
+zuständig für 345 statt 373 Menschen; Last Hans-Jürgen 57 statt 60, Diana 58 statt 59, Daniel 45 statt 49, Florentine
+21 statt 22.
+
+**Offen (Buchhaltung, Justin):** Die Rechnungen INV-01588, -01557, -01747, -01561 der am 26.09. stornierten Raten haben
+keine Gutschrift.
+
+**Wo zu finden:** server/lib/fiaon-raten-storno.ts (Regel und Gründe), Prüfstand scripts/pruef-raten-storno.ts (lokale
+Test-DB, 50 Prüfungen; gegen den alten Stand 31 rot).
+
+---
+
 ## 26.09.2026 (2) — „Zahlungspflichtig annehmen", Zahlungserinnerung für offene Auskünfte, Maras Bilanz, Meta-Wächter (E-244)
 
 **Der Anlass (Justin, 26.09. abends):** „Ja, ändere den Knopf auf ‚Zahlungspflichtig annehmen' … nicht auf /business …

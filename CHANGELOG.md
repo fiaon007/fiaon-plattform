@@ -5,6 +5,78 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.09.2026 — Mara-Steuerpult aufgeräumt: Geld zuerst, eine Arbeitsfläche, keine nackten Nullen (E-252)
+
+**Der Anlass:** Justin (28.09.): „Das gesamte Design von /chef/s/mara ist … völlig überladen, mach es cleaner und besser
+(ohne Sachen zu löschen)." Grundlage ist der Entwurf E-250 mit Zuordnung (jedes heutige Element → sein Ort im neuen
+Aufbau). Go am 28.09. mit „1 ja, 2 ja, 3 ja".
+
+**Was sich zeigt:**
+- **Oben, für alle Reiter:** Titel mit drei Chips (KI · Mara anweisen · Rundgang). Darunter die **Verkaufsleiste**: Geld
+  nach Mara (7 Tage) und je Weg (WhatsApp, Mail, Auskunft), ob er läuft. Ein Klick auf eine Zelle springt zu ihrem Schalter.
+  „Maras Bilanz", KI-Zustand und „Mara anweisen" stehen als Aufklapper bereit, höchstens einer ist offen.
+- **Jeder Reiter hat denselben Aufbau:** Statuszeile (Schalter, Zustand, Stand) → Wirkung als Kette bis zum Geld → links
+  „Wen" (Gruppen, Stufen, Segmente, Aufträge) und rechts die **eine helle Glasfläche** „Wie" (Vorlage, Takt, Mengen,
+  Start) → darunter Protokoll und Verlauf.
+- **Keine nackten Nullen:** Wo nichts ist, steht ein Wort mit Grund: „leer", „wieder ab 14:48", „Niemand dran" mit
+  „Stattdessen … wählen →", „keine von Hand", „Prüfung: alles stimmt", „nichts offen".
+- **Ruhige Hülle nur auf /chef/s/mara (Entscheidung 1):** Kopf und Raumleiste des Chefbüros kleben dort nicht und sind
+  matt, der Grund ist ruhig statt Film. Auch der Planeten-Film der ganzen Anwendung, der bisher unsichtbar unter der
+  Bühne weiterlief, wird dort nicht mehr gezeichnet (gemessen: 0 laufende Filme statt 2). Alle anderen Chef-Seiten
+  bleiben, wie sie sind.
+- **„Auskunft fehlt" in der Automatik (Entscheidung 2):** Die sechste Gruppe ist ankreuzbar, die Voreinstellung bleibt aus.
+  Niemand bekommt die Vorlage doppelt.
+- **„Bestellt, nicht bezahlt" (Entscheidung 3):** 5 Zeilen, dann „Alle n zeigen".
+- **Rückmeldungen am Auslöser:** Meldungen stehen im Fluss unter dem Knopf statt fest unten. Die Rückfragen im
+  Auskunft-Verkauf stehen im Fluss statt im Browser-Dialog, ihre Texte sind wortgleich.
+- **Aktuelle Zahlen:** Leiste und Reiter lesen dieselben Daten, nur solange der Tab sichtbar ist. Die Quelle des offenen
+  Reiters lädt jede Minute (WhatsApp-Lage, Mail-Stand bzw. Auskunft), die Aufträge für den Chip alle 2 Minuten, alles
+  andere alle 5 Minuten — nach dem Ausfall vom 28.09. bewusst sparsam (die WhatsApp-Lage braucht ~1,9 s, sechs
+  Gruppenabfragen gleichzeitig). Nach jeder eigenen Aktion lädt der Reiter sofort neu. Vorher wurde die WhatsApp-Lage nie
+  nachgeladen.
+- **Rundgänge:** ein Satz je Schritt, gestartet über den Chip im Kopf, jeder Scheinwerfer auf dem neuen Ziel. Der Schritt
+  „Was Mara im Postfach selbst erledigt" (E-248) bleibt vollständig; die Sätze von E-253 (Vertriebssperre, „Stopp",
+  500 je Versand, Neustart, Tagesplatz, „Entfallen") stehen als Tipp in „Wen anschreiben" und „Vorlage, Anzahl, Vorschau".
+- **Auf E-253 aufgesetzt** (live seit b5bae0a8): Laufkarte mit fünf Zuständen, „Wartet auf Meta" nur bis 60 s, danach
+  „kein Lebenszeichen vom Server", Schnellwahl 25 · 50 · 100 · 250 · 500 · alle, Start-Rückfrage und Startmeldung —
+  alle Texte wortgleich mit E-253, nur gestaltet nach E-252 (matt im Glas, ohne Pulsen und Lichtstreif).
+
+**Was sich im Verhalten ändert:** Den Liefermodus wählt man nur noch in der Beschaffung (gleicher Schlüssel, gleiches
+Protokoll); der Verkauf zeigt ihn als Klartext mit Link. Auf der Auftragskarte der Beschaffung stehen alle Taten immer
+da; was gerade nicht passt, ist gesperrt und sagt im Hinweis, warum. Die Filterliste zählt, was die Liste zeigt;
+„Mail fehlt" ist ein eigener Filter, ein hochgeladener Auftrag steht nur dort und nicht mehr zusätzlich unter „Jetzt
+beschaffen". Einzige Abweichung von der früheren Kachel des Servers: Ein offener Auftrag, dessen Auskunft schon in der
+Akte liegt, bleibt unter „Jetzt beschaffen" sichtbar (die Zeile sagt es). Auf der eigenen Seite /chef/s/auskunft-beschaffung
+ist die Auftragskarte matt — die Hülle trägt dort schon Glas. „Mara anweisen" bleibt nach dem ersten Öffnen stehen
+(nur ausgeblendet): Entwürfe gehen beim Wechsel zu KI, Bilanz oder Rundgang nicht verloren, und „Deine Anweisung an
+Mara" steht auch da, wenn die Aufträge nicht laden.
+
+**Nicht verändert:** Routen, Schreibwege, Schlüssel, Rückfragetexte und Texte mit Rechtsbezug (Maßstab: Live-Stand
+b5bae0a8 mit E-253). Am Server wurde nichts geändert. Die Aufschlüsselung „n Auskunft-Takt" rechnet die Seite als gesendet − Automatik − von Hand.
+
+**Gemessen** an der gebauten Seite mit Attrappen-Daten nach dem Live-Stand vom 28.09. gegen 12 Uhr. „Vorher" ist der
+Stand 2d04d260 (vor E-253; E-253 änderte am WhatsApp-Reiter nur Laufkarte, Schnellwahl und Rückfrage).
+
+| Ansicht | Wörter vorher → nachher | Seitenhöhe 1440 px | Seitenhöhe 390 px |
+|---|---|---|---|
+| WhatsApp | 1.711 → 700 | 6.909 → 2.753 px | 11.779 → 5.536 px |
+| E-Mail-Aktion | 1.439 → 566 | 7.768 → 2.397 px | 10.678 → 3.708 px |
+| Auskunft · Verkauf | 2.265 → 952 | 6.857 → 3.407 px | 12.585 → 7.712 px |
+| Auskunft · Beschaffung | 654 → 307 | 2.782 → 1.492 px | 5.876 → 3.022 px |
+
+Die Rundgänge der vier Ansichten schrumpfen von 3.552 Wörtern (Live-Stand mit E-253) auf 850, davon rund 170 in den
+E-253-Tipps. In allen vier Ansichten, bei 1440 und 390 px: je eine Glasfläche, 0 Querscrollen, kein Rollbereich außer
+der Seite (auch nicht in den Anweisungsfeldern — sie wachsen mit dem Text), nichts Klebendes, keine Dauer-Animation,
+0 Texte unter 11,5 px — auch in der Hülle — und keine nackte 0 (auch nicht in „Zahlen im Detail" je Weg und je Segment
+und in „Maras Bilanz"). Bei 390 px: 0 Tippziele unter 32 px, 0 Knöpfe unter 40 px.
+
+**Wo:** /chef/s/mara (`?reiter=whatsapp|mail|auskunft`, `&ansicht=verkauf|beschaffung`) und /chef/s/auskunft-beschaffung.
+Code: `client/src/components/admin/mara-lage.tsx` (neu: gemeinsame Daten, Sprünge, Meldungen), `ChefMara.tsx`,
+`ChefWhatsAppZentrale.tsx`, `ChefAuskunft.tsx`, `ChefAuskunftBeschaffung.tsx`, `ChefKiPause.tsx`, `ChefShell.tsx`
+(`cb-ruhig`), `chef-seiten.tsx` (`ruhig`), `chef-teile.tsx`, `client/src/components/agent/Rundgang.tsx`
+(`knopf`, `startRef`), `client/src/pages/agent/rundgaenge.ts`, Stile `chef-mara.css`, `chef-wa-zentrale.css`,
+`chef-auskunft.css`, `chef-auskunft-beschaffung.css`, `chefbuero.css`.
+
 ## 28.09.2026 — WhatsApp-Zentrale: keine falsche „Vertriebssperre" mehr, Versand übersteht Neustarts, Du-Form-Fehlalarm weg (E-253)
 
 **Der Anlass:** Justin (28.09., Screenshot /chef/s/mara → WhatsApp): „Das steht seit 5 Minuten. Warum? Warum steht da,

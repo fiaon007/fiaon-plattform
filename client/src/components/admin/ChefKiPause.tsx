@@ -11,6 +11,7 @@
 //     Justin gerade arbeitet.
 //   · KiPauseKarte — im Mara-Steuerpult (/chef/s/mara), immer sichtbar:
 //     Zustand, Verlauf, „KI jetzt pausieren" / „KI wieder aktivieren".
+//     E-252 (28.09.2026): dort als Chip im Kopf, der Inhalt klappt darunter auf.
 // Aktivieren und Pausieren darf nur die Stufe Inhaber (der Server prüft es).
 // Die Regeln stehen in server/lib/fiaon-ki-pause.ts.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -135,12 +136,41 @@ export function KiPauseBand({ inhaber }: { inhaber: boolean }) {
   );
 }
 
-/** Die Karte im Mara-Steuerpult — Zustand, Verlauf, beide Knöpfe. */
-export function KiPauseKarte() {
+/**
+ * Die Karte im Mara-Steuerpult — Zustand, Verlauf, beide Knöpfe.
+ *
+ * E-252 (28.09.2026): Im Normalfall war das eine ganze Karte nur für „KI aktiv"
+ * (Befund 2). Jetzt zwei Varianten für den Kopf des Steuerpults:
+ *   · `alsChip`      — nur der Chip „KI aktiv" / „KI pausiert" mit Punkt;
+ *                      `offen` und `onUmschalten` steuert die Wurzel (höchstens
+ *                      ein Aufklapper offen).
+ *   · `imAufklapper` — der Inhalt der Karte (Satz, Meldung, „KI jetzt
+ *                      pausieren" mit derselben Rückfrage, Verlauf), matt.
+ * Ohne beides bleibt es die Karte von E-246. Jede Variante liest selbst
+ * (jede Minute); ein Klick meldet es über KI_PAUSE_NEU an Band und Chip.
+ * KiPauseBand bleibt unverändert.
+ */
+export function KiPauseKarte({ alsChip = false, imAufklapper = false, offen = false, onUmschalten }: {
+  alsChip?: boolean; imAufklapper?: boolean; offen?: boolean; onUmschalten?: () => void;
+} = {}) {
   const { zustand, laden } = useKiPause();
   const [meldung, setMeldung] = useState<{ text: string; fehler: boolean } | null>(null);
   const [laeuft, setLaeuft] = useState(false);
-  if (!zustand) return null;
+  if (alsChip) {
+    const an = !!zustand?.an;
+    return (
+      <button type="button" className={`mara-chip${an ? " krit" : ""}`} aria-expanded={offen} aria-controls="mara-p-ki"
+        onClick={onUmschalten} title={zustand ? undefined : "Der KI-Zustand lädt …"}>
+        <span className={`mara-punkt${!zustand ? "" : an ? " krit" : " gut"}`} aria-hidden="true" />
+        {!zustand ? "KI" : an ? "KI pausiert" : "KI aktiv"}
+      </button>
+    );
+  }
+  if (!zustand) {
+    return imAufklapper
+      ? <section id="mara-p-ki" className="mara-aufklapper" aria-label="KI-Zustand"><p className="mara-still">Der KI-Zustand lädt …</p></section>
+      : null;
+  }
   const pausieren = async () => {
     if (!window.confirm("Alle KI-Funktionen jetzt anhalten? Mara (WhatsApp, Postfach, Aktion), Auswertungen, Transkripte, Radar und Copilot warten dann, bis du sie wieder aktivierst. Es geht nichts an Kunden.")) return;
     setLaeuft(true);
@@ -149,16 +179,48 @@ export function KiPauseKarte() {
       setMeldung({ text: "KI pausiert. Nichts, was OpenAI braucht, läuft weiter.", fehler: false });
     } catch (e: any) { setMeldung({ text: e.message, fehler: true }); } finally { setLaeuft(false); void laden(); }
   };
+  // Pausiert: Grund, Zahlen und „KI wieder aktivieren" stehen im roten Band darüber — hier nicht noch einmal.
+  const satz = zustand.an
+    ? `Ausgelöst: ${zustand.von ?? "—"}${zustand.dienst && zustand.art !== "hand" ? ` (erster Fehler bei ${zustand.dienst})` : ""}. „KI wieder aktivieren“ steht im roten Band oben.`
+    : "Kann OpenAI nicht abbuchen, pausiert sie von selbst — und du bekommst genau eine Aufgabe.";
+  if (imAufklapper) {
+    return (
+      <section id="mara-p-ki" className={`mara-aufklapper mara-ki${zustand.an ? " aus" : ""}`} aria-label="KI-Zustand">
+        <div className="mara-kopfzeile">
+          <div>
+            <h2>{zustand.an ? `KI pausiert seit ${zeit(zustand.seit)}` : "KI aktiv"}</h2>
+            <p className="mara-leise mara-satz">{satz}</p>
+          </div>
+          {!zustand.an && (
+            <button type="button" className="mara-knopf" disabled={laeuft} onClick={() => void pausieren()}>{laeuft ? "…" : "KI jetzt pausieren"}</button>
+          )}
+        </div>
+        {meldung && (
+          <p className={`mara-meldung${meldung.fehler ? " fehler" : ""}`} role={meldung.fehler ? "alert" : "status"}>
+            <span>{meldung.text}</span>
+            <button type="button" className="mara-knopf text" onClick={() => setMeldung(null)}>Schließen</button>
+          </p>
+        )}
+        {zustand.verlauf.length > 0 && (
+          <details className="mara-klappe" open>
+            <summary>Verlauf ({zustand.verlauf.length})</summary>
+            <ol className="mara-liste mara-klein">
+              {zustand.verlauf.slice(0, 10).map((v, i) => (
+                <li key={`${v.am}-${i}`}><time className="mara-still">{zeit(v.am)}</time> · {WAS[v.was] ?? v.was} · {v.von}{v.grund ? ` — ${v.grund}` : ""}</li>
+              ))}
+            </ol>
+          </details>
+        )}
+      </section>
+    );
+  }
   return (
     <section className={`kip-karte${zustand.an ? " aus" : ""}`} aria-label="KI-Zustand">
       <div className="kip-karte-kopf">
         <span className={`kip-punkt${zustand.an ? "" : " an"}`} aria-hidden="true" />
         <div>
           <b>{zustand.an ? `KI pausiert seit ${zeit(zustand.seit)}` : "KI aktiv"}</b>
-          {/* Pausiert: Grund, Zahlen und der Knopf stehen im roten Band darüber — hier nicht noch einmal. */}
-          <p>{zustand.an
-            ? `Ausgelöst: ${zustand.von ?? "—"}${zustand.dienst && zustand.art !== "hand" ? ` (erster Fehler bei ${zustand.dienst})` : ""}. „KI wieder aktivieren“ steht im roten Band oben.`
-            : "Kann OpenAI nicht abbuchen, pausiert sie von selbst — und du bekommst genau eine Aufgabe."}</p>
+          <p>{satz}</p>
           {meldung && <p className={meldung.fehler ? "kip-fehler" : "kip-leise"}>{meldung.text}</p>}
         </div>
         {!zustand.an && (

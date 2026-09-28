@@ -1,323 +1,238 @@
 /* ═══ Auskunft-Verkauf (24.09.2026, E-240) — Präfix .ak- ═══
-   Dieselbe ruhige Linie wie die eigenen Chefbüro-Seiten (Provisionen, Lead-Motor):
-   dünne Schrift, Haarlinien statt Kästen, das Blau-Paar als einziger Akzent,
-   Zahlen tabellarisch. Die Seite steht mit eigenesDesign in der Hülle (.cbs-eigen) —
-   die Hell→Dunkel-Übersetzung .cbs übermalt hier nichts. Hover nur in
+   Reiter „Bonitätsauskunft" im Mara-Steuerpult (E-243). Hover nur in
    @media (hover: hover): Am iPhone „klebt" er sonst nach dem Tippen.
-   25.09.2026 (E-241): Trichter heute als Stufenleiste, Steuerung mit Wahlschaltern
-   und Protokoll, Trichter-Tabelle je Weg/Segment, 14 Tage als Tabelle mit Ziel-Balken.
-   26.09.2026 (E-243): das Band „Verkauf scharf stellen" — die EINE Stelle mit Navy-Glas
-   auf der Seite — und die Rückfrage darunter. */
 
-.ak {
-  --ak-text: #e7ecf4;
-  --ak-text-2: #b9c4d5;
-  --ak-leise: #8292a8;
-  --ak-still: #5d6c83;
-  --ak-linie: rgba(148, 163, 184, .14);
-  --ak-flaeche: rgba(148, 163, 184, .05);
-  --ak-blau: #288dfa;
-  --ak-blau-hell: #93c5fd;
-  --ak-gruen: #6ee7b7;
-  --ak-gelb: #fcd34d;
-  --ak-rot: #fca5a5;
-  display: grid; gap: 26px; padding-bottom: 90px;
-  color: var(--ak-text-2);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  color-scheme: dark;
-  min-width: 0;
-}
-.ak h1 { margin: 0; font-size: 26px; font-weight: 300; letter-spacing: -.02em; color: var(--ak-text); }
-.ak h2 { margin: 0; font-size: 15px; font-weight: 400; color: var(--ak-text); letter-spacing: -.005em; }
-.ak h3 { margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--ak-still); }
-.ak p { margin: 0; }
-.ak-still { color: var(--ak-still); font-size: 12px; }
-.ak-leise { color: var(--ak-leise); font-size: 12.5px; line-height: 1.55; }
-.ak-leer { padding: 16px 2px; font-size: 13px; color: var(--ak-leise); }
-.ak-fuss { line-height: 1.55; max-width: 110ch; }
+   ═══ E-252 (28.09.2026): Endfassung E-250, von Justin freigegeben ═══
+   Die Seite benutzt die Bausteine des Steuerpults (chef-mara.css: .mara-status,
+   .mara-spalten, .mara-wen, .mara-glas, .mara-karte, .mara-knopf, .mara-pille,
+   .mara-schalter, .mara-klappe, .mara-feld …). Hier steht nur, was der
+   Auskunft-Verkauf dazu braucht. Regeln aus Justins Vorgaben:
+   · KEIN backdrop-filter in dieser Datei — die eine Glasfläche ist .mara-glas
+     (.ak-steuer); das Band .ak-scharf ist ihr Kopf, kein eigenes Glas mehr.
+   · Nichts fest, nichts klebt, keine Dauer-Animation, keine Querrolle: Die
+     Tabellen werden schmal zu Zeilen (data-l) statt quer zu rollen.
+   · Inter dünn (Überschriften 400, große Zahlen 300), Blau-Paar #288DFA /
+     #1D4ED8, Statusfarben getrennt, Geld in Textfarbe.
+   · Tippziele ≥ 32 px (am Handy 36/40), Text ≥ 11,5 px. */
 
-/* ── Kopf ─────────────────────────────────────────────────────────────── */
-.ak-kopf {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
-  padding: 2px 2px 16px; border-bottom: 1px solid var(--ak-linie);
-}
-.ak-kopf p { margin-top: 4px; font-size: 12.5px; color: var(--ak-leise); max-width: 72ch; line-height: 1.5; }
-.ak-kopf-rechts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ak-beschaffung {
-  display: inline-flex; align-items: baseline; gap: 12px; padding: 8px 14px; border-radius: 99px;
-  border: 1px solid var(--ak-linie); color: var(--ak-leise); text-decoration: none; font-size: 12.5px;
-  background: rgba(148, 163, 184, .04);
-}
-.ak-beschaffung-titel { color: var(--ak-text-2); }
-.ak-beschaffung b { color: var(--ak-text); font-weight: 500; font-variant-numeric: tabular-nums; }
-.ak-beschaffung .rot b, .ak-beschaffung .rot { color: var(--ak-rot); }
-.ak-schalter {
-  display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border-radius: 99px;
-  border: 1px solid var(--ak-linie); background: transparent; color: var(--ak-leise);
-  font: inherit; font-size: 13px; cursor: pointer;
-}
-.ak-schalter span { width: 9px; height: 9px; border-radius: 50%; background: var(--ak-gelb); }
-.ak-schalter.an { color: var(--ak-gruen); border-color: rgba(110, 231, 183, .35); }
-.ak-schalter.an span { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, .55); }
-.ak-schalter:disabled { opacity: .55; cursor: default; }
+.ak { display: grid; gap: 0; min-width: 0; padding-bottom: 24px; }
+.ak-nachladen { margin-bottom: 10px; }
+.ak .mara-knopf.text { min-height: 32px; }
+/* Textverweise: Tippfläche 32 px, ohne die Zeile zu verschieben */
+.ak a:not(.mara-knopf) { display: inline-block; padding: 6px 0; margin: -6px 0; }
+.ak-abstand { margin-top: 10px; }
+.ak-zahl-t { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ak-leer { padding: 12px 2px; font-size: 13px; }
+.ak-frage:focus, .ak-frage:focus-visible { outline: none; }
+.ak .mara-rueckfrage { max-width: 86ch; }
+/* Der Text eines (i) steht als Block im Fluss, auch wenn er in einer Zeile sitzt */
+.ak-info { display: block; flex-basis: 100%; }
+
+/* ── Statuszeile ──────────────────────────────────────────────────────── */
+.ak-status .st.voll .mara-pille { margin-left: 2px; }
 
 /* ── Heute: fünf Stufen und das Ziel ──────────────────────────────────── */
-.ak-heute { display: grid; gap: 18px; }
-.ak-stufen {
-  list-style: none; margin: 0; padding: 0;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+.ak-heute { margin-top: 14px; }
+.ak-stufen { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.ak-stufe { display: grid; gap: 2px; align-content: start; min-width: 0; padding: 4px 16px; border-left: 1px solid var(--m-linie); }
+.ak-stufe:first-child { border-left: 0; padding-left: 0; }
+.ak-stufe b { font-weight: 300; font-size: 26px; line-height: 1.1; letter-spacing: -.01em; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.ak-stufe b.null { color: var(--m-text-3); }
+.ak-stufe small { font-size: 12px; line-height: 1.4; color: var(--m-text-3); }
+.ak-ziel {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center;
+  margin-top: 14px; font-size: 12.5px; color: var(--m-text-2);
 }
-.ak-stufe { position: relative; display: grid; gap: 3px; padding: 4px 18px 4px 26px; min-width: 0; }
-.ak-stufe:first-child { padding-left: 2px; }
-/* Ein Winkel statt einer Linie zwischen den Stufen: Sie folgen aufeinander. Ohne Füllung —
-   hinter der Seite liegt das Bühnenbild des Chefbüros. */
-.ak-stufe + .ak-stufe::before {
-  content: ""; position: absolute; left: 2px; top: 50%; width: 9px; height: 9px; margin-top: -5px;
-  border-top: 1px solid rgba(148, 163, 184, .4); border-right: 1px solid rgba(148, 163, 184, .4);
-  transform: rotate(45deg);
-}
-.ak-stufe span { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ak-still); }
-.ak-stufe b { font-size: 40px; font-weight: 200; letter-spacing: -.03em; color: var(--ak-text); font-variant-numeric: tabular-nums; line-height: 1.05; }
-.ak-stufe small { font-size: 11.5px; color: var(--ak-leise); line-height: 1.4; }
-.ak-stufe.bezahlt b { color: var(--ak-gruen); }
-.ak-stufe.geliefert b { color: var(--ak-blau-hell); }
+.ak-ziel-text { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ak-balken { position: relative; height: 6px; border-radius: 6px; overflow: hidden; background: rgba(148, 170, 210, .14); }
+.ak-balken.klein { height: 5px; min-width: 90px; }
+.ak-balken i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; min-width: 2px; }
+.ak-balken i.bestellt { background: var(--m-tiefe); }
+.ak-balken i.bezahlt { background: var(--m-licht); }
 
-.ak-ziel { display: grid; gap: 8px; }
-.ak-ziel-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; }
-.ak-ziel-kopf span { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ak-still); }
-.ak-ziel-kopf b { font-weight: 400; color: var(--ak-text-2); font-variant-numeric: tabular-nums; }
-.ak-balken {
-  position: relative; height: 12px; border-radius: 99px; overflow: hidden;
-  background: var(--ak-flaeche); border: 1px solid var(--ak-linie);
-}
-.ak-balken.klein { height: 7px; min-width: 90px; }
-.ak-balken i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; min-width: 2px; }
-.ak-balken i.bestellt { background: rgba(40, 141, 250, .45); }
-.ak-balken i.bezahlt { background: linear-gradient(90deg, #10b981, #6ee7b7); }
-.ak-balken-legende { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--ak-still); }
-.ak-balken-legende em { font-style: normal; display: inline-flex; align-items: center; gap: 6px; }
-.ak-balken-legende em::before { content: ""; width: 9px; height: 9px; border-radius: 3px; background: rgba(40, 141, 250, .45); }
-.ak-balken-legende em.bezahlt::before { background: #10b981; }
-
-/* ── Karten (Haarlinie oben statt Kasten) ─────────────────────────────── */
-.ak-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 30px; }
-.ak-karte { display: grid; gap: 12px; align-content: start; min-width: 0; padding-top: 14px; border-top: 1px solid var(--ak-linie); }
-.ak-karte-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-
-.ak-zahlen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
-.ak-zahl { display: grid; gap: 3px; padding: 10px 14px; border-left: 1px solid var(--ak-linie); min-width: 0; }
-.ak-zahl:first-child, .ak-zahl:nth-child(3n + 1) { border-left: 0; padding-left: 2px; }
-.ak-zahl span { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ak-still); }
-.ak-zahl b { font-size: 24px; font-weight: 300; letter-spacing: -.02em; color: var(--ak-text); font-variant-numeric: tabular-nums; line-height: 1.1; }
-.ak-zahl b.blau { color: var(--ak-blau-hell); }
-.ak-zahl b.gelb { color: var(--ak-gelb); }
-.ak-zahl small { font-size: 11px; color: var(--ak-still); line-height: 1.4; }
-.ak-zahlen.vier { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.ak-zahlen.vier .ak-zahl:nth-child(3n + 1) { border-left: 1px solid var(--ak-linie); padding-left: 14px; }
-.ak-zahlen.vier .ak-zahl:first-child { border-left: 0; padding-left: 2px; }
-
-/* Sperrgründe als ruhige Reihe — die Zahl vorn, der Grund in den Worten des Takts. */
+/* ── WEN: wer sie noch nicht hat ──────────────────────────────────────── */
+.ak-kopfzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.ak-kopfzeile h2 { flex: 1 1 auto; min-width: 0; }
+.ak-vier { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 4px 0 14px; }
+.ak-vier > div { display: grid; gap: 1px; min-width: 0; }
+.ak-vier b { font-weight: 300; font-size: 24px; line-height: 1.15; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.ak-vier b .wort { font-weight: 400; font-size: 15px; color: var(--m-text-2); }
+.ak-vier b.mara-akz-t { color: var(--m-licht-text); }
+.ak-vier small { font-size: 12px; line-height: 1.4; color: var(--m-text-3); }
+.ak-segmente { list-style: none; margin: 0; padding: 0; }
+.ak-segment { padding: 10px 0 2px; border-top: 1px solid var(--m-linie); }
+.ak-segment-kopf { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; font-size: 13.5px; color: var(--m-text); }
+.ak-segment-kopf b { font-weight: 300; font-size: 18px; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.ak-segment-kopf .r { text-align: right; }
+.ak-segment .mara-klappe { margin-top: 2px; padding-top: 0; border-top: 0; }
+.ak-einzeln dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; margin: 0 0 8px; font-size: 12.5px; }
+.ak-einzeln dl > div { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+.ak-einzeln dt { color: var(--m-text-3); }
+.ak-einzeln dd { margin: 0; color: var(--m-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ak-gruende { display: flex; flex-wrap: wrap; gap: 6px; }
-.ak-grund {
-  font-size: 11.5px; color: var(--ak-leise); padding: 4px 10px; border-radius: 99px;
-  border: 1px solid var(--ak-linie); background: var(--ak-flaeche);
-}
-.ak-grund b { color: var(--ak-text-2); font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 2px; }
-.ak-naechste { display: grid; gap: 8px; align-content: start; min-width: 0; }
-.ak-vorrat-tabelle td.voll { color: var(--ak-blau-hell); }
+.ak-gruende b { font-weight: 400; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.ak-neu-laden { margin-top: 10px; }
+.ak-naechste { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+.ak-naechste > div { min-width: 0; }
+.ak-naechste ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.ak-naechste li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 0; border-top: 1px solid var(--m-linie); font-size: 13px; }
+.ak-naechste li small { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--m-text-3); overflow-wrap: anywhere; }
 
-.ak-hinweis {
-  font-size: 12.5px; line-height: 1.55; color: var(--ak-leise);
-  padding: 10px 12px; border-radius: 12px; background: var(--ak-flaeche); border: 1px solid var(--ak-linie);
-}
-.ak-hinweis b { color: var(--ak-text-2); font-weight: 500; }
-.ak-hinweis.warn { border-color: rgba(252, 211, 77, .3); color: #fde68a; background: rgba(252, 211, 77, .06); }
-.ak-hinweis.warn b { color: #fde68a; }
+/* ── GLAS: wie verkauft wird ──────────────────────────────────────────── */
+.ak-scharf { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 18px; flex-wrap: wrap; }
+.ak-scharf-text { display: grid; gap: 4px; flex: 1 1 320px; min-width: 0; }
+.ak-scharf-text h2 { font-size: 20px; }
+.ak-scharf-text p { max-width: 70ch; }
+.ak-scharf-knopf { flex: none; }
+.ak-marken { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 12px; font-size: 12.5px; }
+.ak-preise { margin-top: 8px; }
+.ak-warnzeile { margin-top: 8px; padding: 4px 0 4px 10px; border-left: 2px solid var(--m-warn); font-size: 12.5px; line-height: 1.5; color: #F7DCA6; }
+.ak-warnzeile b { font-weight: 500; }
+.ak-klartext { font-size: 13px; line-height: 1.55; color: var(--m-text-2); }
+.ak-klartext b { font-weight: 500; color: var(--m-text); }
+.ak-verbrauch { height: 4px; border-radius: 4px; overflow: hidden; background: rgba(148, 170, 210, .16); }
+.ak-verbrauch i { display: block; height: 100%; background: var(--m-licht); }
 
-/* ── Steuerung ────────────────────────────────────────────────────────── */
-.ak-steuer-raster {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0;
-  border: 1px solid var(--ak-linie); border-radius: 16px; background: rgba(148, 163, 184, .025);
-}
-.ak-feld {
-  display: grid; gap: 8px; align-content: start; padding: 14px 16px; min-width: 0;
-  border-left: 1px solid var(--ak-linie);
-}
-.ak-feld:first-child, .ak-feld.breit { border-left: 0; }
-.ak-feld.breit { grid-column: 1 / -1; border-top: 1px solid var(--ak-linie); }
-.ak-feld-name { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ak-still); }
-.ak-feld small { font-size: 11.5px; color: var(--ak-leise); line-height: 1.45; }
-.ak-feld-zeile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ak-feld-zeile input {
-  width: 92px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--ak-linie);
-  background: rgba(2, 6, 23, .35); color: var(--ak-text); font: inherit; font-size: 14px; font-variant-numeric: tabular-nums;
-}
-.ak-feld-zeile input:focus-visible, .ak-wahl button:focus-visible, .ak-knopf:focus-visible, .ak-klein:focus-visible,
-.ak-schalter:focus-visible, .ak-beschaffung:focus-visible { outline: 2px solid rgba(147, 197, 253, .6); outline-offset: 2px; }
+/* Die Rückfrage vor „Verkauf scharf stellen" — im Glas, im Fluss */
+.ak-rueckfrage { margin-top: 16px; padding: 16px; border-radius: 12px; border: 1px solid rgba(242, 182, 76, .35); background: rgba(242, 182, 76, .04); }
+.ak-rueckfrage h3 { font-size: 16px; }
+.ak-rueckfrage .ak-tabelle { margin-top: 10px; }
+.ak-rueckfrage .mara-klappe { margin-top: 8px; }
+.ak-rueckfrage-liste { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 5px; font-size: 12.5px; line-height: 1.55; color: var(--m-text-2); }
+.ak-rueckfrage-liste b { font-weight: 500; color: var(--m-text); }
+.ak-rf-tabelle th { white-space: normal; }
 
+/* Wahlschalter (Kreis, Zahlen im Detail) */
 .ak-wahl {
-  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 12px;
-  border: 1px solid var(--ak-linie); background: rgba(2, 6, 23, .3); justify-self: start; max-width: 100%;
+  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; max-width: 100%; justify-self: start; align-self: flex-start;
+  border: 1px solid var(--m-linie-2); border-radius: 10px; background: rgba(255, 255, 255, .02);
 }
 .ak-wahl button {
-  padding: 7px 13px; border: 0; border-radius: 9px; background: transparent; color: var(--ak-leise);
-  font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+  min-height: 32px; padding: 5px 11px; border: 0; border-radius: 7px; background: none; cursor: pointer;
+  font-size: 13px; color: var(--m-text-2); white-space: nowrap;
 }
-.ak-wahl button.an { background: linear-gradient(135deg, rgba(30, 64, 175, .85), rgba(37, 99, 235, .85)); color: #fff; }
+.ak-wahl button.an { background: rgba(40, 141, 250, .18); color: #fff; }
 .ak-wahl button:disabled { opacity: .55; cursor: default; }
-.ak-wahl.klein button { padding: 5px 10px; font-size: 11.5px; }
-.ak-wahlen { display: flex; gap: 8px; flex-wrap: wrap; }
+.ak-wahl.klein button { padding: 4px 10px; font-size: 12.5px; }
+.ak-wahlen { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-.ak-verbrauch { display: grid; gap: 5px; }
-.ak-verbrauch-balken { height: 5px; border-radius: 99px; background: var(--ak-flaeche); border: 1px solid var(--ak-linie); overflow: hidden; }
-.ak-verbrauch-balken i { display: block; height: 100%; background: rgba(40, 141, 250, .6); border-radius: 99px; }
-.ak-verbrauch span { font-size: 11px; color: var(--ak-still); font-variant-numeric: tabular-nums; }
-
-.ak-protokoll { display: grid; gap: 8px; }
-.ak-protokoll ol { list-style: none; margin: 0; padding: 0; display: grid; }
-.ak-protokoll li {
-  display: grid; grid-template-columns: 118px minmax(0, 160px) minmax(0, 1fr); gap: 12px; align-items: baseline;
-  padding: 8px 2px; border-bottom: 1px solid var(--ak-linie); font-size: 12.5px;
-}
-.ak-protokoll li:last-child { border-bottom: 0; }
-.ak-protokoll time { color: var(--ak-still); font-variant-numeric: tabular-nums; font-size: 11.5px; }
-.ak-protokoll-wer { color: var(--ak-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ak-protokoll-was { color: var(--ak-leise); }
-
-.ak-knopf, .ak-klein {
-  padding: 8px 14px; border-radius: 99px; border: 1px solid var(--ak-linie); background: rgba(148, 163, 184, .09);
-  color: var(--ak-text-2); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
-}
-.ak-knopf.voll { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; border-color: transparent; }
-.ak-klein { padding: 5px 10px; font-size: 11.5px; color: var(--ak-leise); }
-.ak-knopf:disabled, .ak-klein:disabled { opacity: .5; cursor: default; }
-.ak-marke {
-  display: inline-block; font-size: 10.5px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--ak-linie);
-  color: var(--ak-leise); white-space: nowrap;
-}
-.ak-marke.gruen { color: var(--ak-gruen); border-color: rgba(110, 231, 183, .35); }
-.ak-marke.gelb { color: var(--ak-gelb); border-color: rgba(252, 211, 77, .35); }
-.ak-marke.blau { color: var(--ak-blau-hell); border-color: rgba(147, 197, 253, .35); }
-
-/* ── WhatsApp-Vorlage ─────────────────────────────────────────────────── */
-.ak-blase {
-  max-width: 460px; padding: 10px 12px 8px; border-radius: 4px 14px 14px 14px;
-  background: rgba(16, 185, 129, .07); border: 1px solid rgba(110, 231, 183, .18);
-  font-size: 13px; line-height: 1.55; color: var(--ak-text-2); white-space: pre-wrap;
-}
-.ak-blase b { display: block; margin-bottom: 4px; color: var(--ak-text); font-weight: 600; }
-.ak-blase small { display: block; margin-top: 6px; font-size: 11px; color: var(--ak-still); }
-.ak-blase-knoepfe { display: flex; gap: 6px; flex-wrap: wrap; max-width: 460px; }
-.ak-blase-knoepfe span {
-  flex: 1 1 auto; text-align: center; padding: 7px 10px; border-radius: 10px; font-size: 12px;
-  color: var(--ak-blau-hell); background: var(--ak-flaeche); border: 1px solid var(--ak-linie);
-}
-
-/* ── Tabellen ─────────────────────────────────────────────────────────── */
-.ak-tabelle-huelle { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.ak-tabelle { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.ak-tabelle th {
-  text-align: left; font-weight: 500; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--ak-still); padding: 9px 10px; border-bottom: 1px solid var(--ak-linie); white-space: nowrap;
-}
-.ak-tabelle td { padding: 10px; border-bottom: 1px solid var(--ak-linie); vertical-align: top; }
-.ak-tabelle td.r, .ak-tabelle th.r { text-align: right; font-variant-numeric: tabular-nums; }
-.ak-tabelle a { color: var(--ak-blau-hell); text-decoration: none; }
-.ak-tabelle b { color: var(--ak-text); font-weight: 500; }
-.ak-tat { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-.ak-mehr { justify-self: start; }
-
-/* E-243: Verkauf scharf stellen — ein Band, links der Stand, rechts zwei Knöpfe. */
-.ak-scharf {
-  display: flex; align-items: center; justify-content: space-between; gap: 18px 24px; flex-wrap: wrap;
-  padding: 18px 20px; border-radius: 18px; border: 1px solid rgba(147, 197, 253, .18);
-  background: linear-gradient(135deg, rgba(15, 30, 62, .72), rgba(12, 22, 44, .55));
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-}
-.ak-scharf.an { border-color: rgba(110, 231, 183, .3); }
-.ak-scharf-text { display: grid; gap: 6px; min-width: 0; flex: 1 1 420px; }
-.ak-scharf-text h2 { font-size: 17px; font-weight: 300; letter-spacing: -.01em; }
-.ak-scharf.an .ak-scharf-text h2 { color: var(--ak-gruen); }
-.ak-scharf-text p { font-size: 12.5px; color: var(--ak-leise); line-height: 1.55; max-width: 92ch; }
-.ak-scharf-vorlagen { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 2px; }
-.ak-scharf-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
-.ak-scharf-knoepfe .ak-knopf { padding: 10px 16px; font-size: 13px; }
-.ak-rueckfrage { padding: 16px 18px; border: 1px solid rgba(252, 211, 77, .25); border-radius: 16px; background: rgba(148, 163, 184, .04); }
-.ak-rueckfrage tfoot td { border-bottom: 0; border-top: 1px solid rgba(148, 163, 184, .3); color: var(--ak-text); font-variant-numeric: tabular-nums; }
-.ak-rueckfrage-liste { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 12.5px; color: var(--ak-text-2); line-height: 1.5; }
-.ak-rueckfrage-liste b { color: var(--ak-text); font-weight: 500; }
-.ak-rf-kurz { display: none; }
-.ak-marke.rot { color: var(--ak-rot); border-color: rgba(252, 165, 165, .35); }
+/* Vorlagen und Protokoll im Aufklapper */
+.ak-vorlage { padding: 12px 0; border-top: 1px solid var(--m-linie); }
+.ak-vorlage:first-of-type { border-top: 0; padding-top: 0; }
+.ak-vorlage .mara-kopfzeile { font-size: 13.5px; color: var(--m-text); align-items: center; }
 .ak-vorlage-stand { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-/* Trichter und Tage: Zahlen hell, wo etwas ist — die Punkte und Striche treten zurück. */
-.ak-trichter-tabelle td, .ak-tage-tabelle td { vertical-align: middle; }
-.ak-trichter-tabelle td.voll, .ak-tage-tabelle td.voll { color: var(--ak-text); }
-.ak-trichter-tabelle tfoot td {
-  border-bottom: 0; border-top: 1px solid rgba(148, 163, 184, .3); color: var(--ak-text); font-weight: 500;
-  font-variant-numeric: tabular-nums;
+.ak-blase {
+  max-width: 520px; margin-top: 10px; padding: 10px 12px 8px; border-radius: 4px 14px 14px 14px;
+  background: #0E2A22; border: 1px solid rgba(61, 214, 140, .18);
+  font-size: 13px; line-height: 1.5; color: var(--m-text); white-space: pre-wrap;
 }
-.ak-tage-tabelle tr.heute td { color: var(--ak-text); }
-.ak-tage-tabelle tr.heute td:first-child { color: var(--ak-blau-hell); }
-.ak-ziel-spalte { width: 22%; min-width: 110px; }
+.ak-blase b { display: block; margin-bottom: 3px; font-weight: 500; }
+.ak-blase small { display: block; margin-top: 6px; font-size: 12px; color: #7FA79A; }
+.ak-blase-knoepfe { display: flex; gap: 6px; flex-wrap: wrap; max-width: 520px; margin-top: 8px; }
+.ak-blase-knoepfe span { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--m-linie-2); font-size: 12.5px; color: #9CC8FF; }
+.ak-protokoll ol > li { display: grid; grid-template-columns: 118px minmax(0, 160px) minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: 12.5px; }
+.ak-protokoll time { color: var(--m-text-3); font-variant-numeric: tabular-nums; }
+.ak-protokoll-wer { color: var(--m-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ak-protokoll-was { color: var(--m-text-2); }
+.ak-mehr { margin-top: 10px; justify-self: start; }
 
-/* Gegenlesen 26.09.2026 (E-243): Die Meldung hängt per Portal an document.body — AUSSERHALB von .ak,
-   wo --ak-text nicht gilt. Die Schrift erbte die dunkle Seitenfarbe: ein leerer Kasten (Foto nach
-   „Jetzt scharf stellen"). Deshalb die Farbe hier ausgeschrieben. */
-.ak-meldung {
-  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 80;
-  padding: 11px 18px; border-radius: 14px; border: 1px solid rgba(147, 197, 253, .35);
-  background: rgba(15, 26, 45, .96); color: #e7ecf4; font-size: 13px; line-height: 1.5; max-width: min(90vw, 620px);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+/* ── Darunter: offen, Rückstand, Zahlen im Detail ─────────────────────── */
+.ak-erinnerung { margin: 14px 0 6px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--m-linie); background: rgba(6, 12, 24, .18); }
+.ak-erinnerung h3 { font-size: 15px; }
+.ak-erinnerung .mara-kopfzeile { align-items: center; }
+.ak-summen { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline; margin: 14px 0 4px; font-size: 13px; color: var(--m-text-2); }
+.ak-summen b { margin-right: 5px; font-weight: 300; font-size: 18px; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.ak-summen b.mara-warn-t { color: var(--m-warn); }
+.ak-er-felder { margin-top: 4px; }
+.ak-er-satz { max-width: 96ch; }
+
+/* Tabellen: am Rechner Spalten, schmal Zeilen (siehe unten) — nie eine Querrolle */
+.ak-tabelle { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.ak-tabelle th {
+  padding: 8px 10px; border-bottom: 1px solid var(--m-linie); text-align: left; white-space: nowrap;
+  font-weight: 400; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--m-text-3);
 }
-
-/* E-244: Zahlungserinnerung — Stufe, nächste Fälligkeit und der Grund, wenn keine Mail geht. */
-.ak-er-satz { line-height: 1.55; max-width: 96ch; }
+.ak-tabelle td { padding: 10px; border-bottom: 1px solid var(--m-linie); font-size: 13.5px; vertical-align: top; color: var(--m-text-2); }
+.ak-tabelle td.kopf { color: var(--m-text); }
+.ak-tabelle th.r, .ak-tabelle td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.ak-tabelle tfoot td { color: var(--m-text); border-bottom: 0; border-top: 1px solid var(--m-linie-2); font-variant-numeric: tabular-nums; }
+.ak-tabelle b { font-weight: 400; color: var(--m-text); }
+.ak-tabelle td .mara-still, .ak-tabelle td .mara-klein { font-size: 12.5px; }
+.ak-tabelle td.voll-zahl { color: var(--m-text); }
+.ak-nowrap { white-space: nowrap; }
+.ak-pille-neben { margin-left: 6px; }
 .ak-er-zelle { display: grid; gap: 3px; min-width: 150px; }
-.ak-er-grund { font-size: 11.5px; line-height: 1.4; color: var(--ak-leise); }
-.ak-er-grund.storno { color: var(--ak-gelb); }
-.ak-klein.ak-warn { color: var(--ak-gelb); border-color: rgba(252, 211, 77, .35); }
-.ak-offen-tabelle td.r { white-space: nowrap; }
-.ak-tat-zelle { width: 1%; }
-.ak-tat-zelle .ak-tat { min-width: 220px; }
+.ak-er-grund { font-size: 12.5px; line-height: 1.4; color: var(--m-text-2); }
+.ak-er-grund.storno { color: var(--m-warn); }
+.ak-taten { display: grid; grid-template-columns: repeat(2, 132px); gap: 6px; justify-content: end; }
+.ak-taten > * { width: 100%; }
+.ak-taten > .mara-still { grid-column: 1 / -1; text-align: right; }
+.ak-frage-zeile td { padding: 0 10px 12px; border-bottom: 1px solid var(--m-linie); }
+.ak-frage-zeile .mara-rueckfrage { margin-top: 0; }
+.th-kurz { display: none; }
+.ak-tage-tabelle td { vertical-align: middle; }
+.ak-tage-tabelle tr.heute td.kopf { color: var(--m-licht-text); }
+.ak-tage-tabelle tr.leer td { color: var(--m-text-3); }
+.ak-ziel-spalte { width: 20%; min-width: 110px; }
 
 @media (hover: hover) {
-  .ak-tabelle tbody tr:hover { background: var(--ak-flaeche); }
-  .ak-knopf:hover:not(:disabled), .ak-klein:hover:not(:disabled), .ak-schalter:hover:not(:disabled), .ak-beschaffung:hover { border-color: rgba(147, 197, 253, .5); }
-  .ak-wahl button:hover:not(.an):not(:disabled) { color: var(--ak-text-2); background: rgba(148, 163, 184, .08); }
-  .ak-tabelle a:hover { text-decoration: underline; }
+  .ak-tabelle tbody tr:not(.ak-frage-zeile):hover { background: rgba(255, 255, 255, .02); }
+  .ak-wahl button:not(.an):not(:disabled):hover { color: var(--m-text); background: rgba(255, 255, 255, .04); }
 }
-@media (max-width: 1100px) {
-  .ak-steuer-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ak-feld:nth-child(3) { border-left: 0; }
-  .ak-feld:nth-child(n + 3) { border-top: 1px solid var(--ak-linie); }
+
+/* Mittlere Breite: die Tabellen mit Taten werden Zeilen, bevor sie zu breit werden */
+@media (max-width: 1180px) {
+  .ak-offen-tabelle thead, .ak-rueckstand .ak-tabelle thead { display: none; }
+  .ak-offen-tabelle, .ak-offen-tabelle tbody, .ak-rueckstand .ak-tabelle, .ak-rueckstand .ak-tabelle tbody { display: block; }
+  .ak-offen-tabelle tr, .ak-rueckstand .ak-tabelle tr {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--m-linie);
+  }
+  .ak-offen-tabelle td, .ak-rueckstand .ak-tabelle td { display: block; min-width: 0; padding: 0; border: 0; text-align: left !important; }
+  .ak-offen-tabelle td[data-l]::before, .ak-rueckstand .ak-tabelle td[data-l]::before {
+    content: attr(data-l); display: block; margin-bottom: 1px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--m-text-3);
+  }
+  .ak-offen-tabelle td.kopf, .ak-rueckstand .ak-tabelle td.kopf { grid-column: 1 / -1; font-size: 15px; }
+  .ak-offen-tabelle td.voll, .ak-rueckstand .ak-tabelle td.voll { grid-column: 1 / -1; }
+  .ak-offen-tabelle .ak-taten, .ak-rueckstand .ak-taten { justify-content: start; }
+  .ak-offen-tabelle .ak-taten > .mara-still { text-align: left; }
+  .ak-offen-tabelle tr.ak-frage-zeile, .ak-rueckstand tr.ak-frage-zeile { display: block; padding: 0 0 12px; }
+  .ak-offen-tabelle tr.ak-frage-zeile td, .ak-rueckstand tr.ak-frage-zeile td { padding: 0; }
 }
 @media (max-width: 980px) {
-  .ak-raster { grid-template-columns: minmax(0, 1fr); }
-  .ak-stufen { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 16px; }
-  .ak-stufe:nth-child(4) { padding-left: 2px; }
-  .ak-stufe:nth-child(4)::before { display: none; }
+  .ak-stufen { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px; }
+  .ak-stufe:nth-child(4) { border-left: 0; padding-left: 0; }
 }
-@media (max-width: 640px) {
-  .ak-zahlen, .ak-zahlen.vier { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ak-zahl, .ak-zahl:nth-child(3n + 1), .ak-zahlen.vier .ak-zahl:nth-child(3n + 1) { border-left: 0; padding-left: 2px; }
-  .ak-stufen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ak-stufe, .ak-stufe:nth-child(4) { padding-left: 2px; }
-  .ak-stufe:nth-child(even) { padding-left: 16px; border-left: 1px solid var(--ak-linie); }
-  .ak-stufe + .ak-stufe::before { display: none; }
-  .ak-stufe b { font-size: 32px; }
-  .ak-steuer-raster { grid-template-columns: minmax(0, 1fr); }
-  .ak-feld, .ak-feld:nth-child(3) { border-left: 0; }
-  .ak-feld:not(:first-child) { border-top: 1px solid var(--ak-linie); }
-  .ak-protokoll li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
-  .ak-kopf-rechts { width: 100%; }
-  .ak-scharf { padding: 16px; }
-  .ak-rueckfrage { padding: 14px 12px; }
-  .ak-rf-lang, .ak-rf-breit { display: none; }
-  .ak-rf-kurz { display: inline; }
-  .ak-rf-tabelle th, .ak-rf-tabelle td { padding: 8px 6px; }
-  .ak-rf-tabelle th { white-space: normal; letter-spacing: .04em; }
-  .ak-scharf-knoepfe, .ak-scharf-knoepfe .ak-knopf { width: 100%; }
-  .ak-scharf-knoepfe .ak-knopf { justify-content: center; }
-  .ak-er-zelle { min-width: 120px; }
+@media (max-width: 760px) {
+  .ak-ziel { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .ak-ziel > .mara-etikett { grid-column: 1 / -1; }
+  .ak-stufe { padding: 4px 10px; }
+  .ak-stufe b { font-size: 22px; }
+  .ak-naechste, .ak-einzeln dl { grid-template-columns: minmax(0, 1fr); }
+  .ak-scharf-knopf { width: 100%; }
+  .ak-protokoll ol > li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ak-wahl button { min-height: 36px; }
+  .ak .mara-knopf.text { min-height: 36px; }
+  .ak a:not(.mara-knopf) { padding: 8px 0; margin: -8px 0; }
+  .ak-taten { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  /* Rückfrage „scharf stellen": Zeilen statt sechs Spalten */
+  .ak-rf-tabelle thead { display: none; }
+  .ak-rf-tabelle, .ak-rf-tabelle tbody, .ak-rf-tabelle tfoot { display: block; }
+  .ak-rf-tabelle tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; padding: 10px 0; border-bottom: 1px solid var(--m-linie); }
+  .ak-rf-tabelle td, .ak-rf-tabelle tfoot td { display: block; padding: 0; border: 0; text-align: left !important; }
+  .ak-rf-tabelle td[data-l]::before { content: attr(data-l); display: block; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--m-text-3); }
+  .ak-rf-tabelle td.kopf { grid-column: 1 / -1; font-size: 14px; }
+  /* Zahlen im Detail: kompakt — eine Kopfzeile mit Kurzformen, je Zeile fünf Zahlen */
+  .ak-kompakt, .ak-kompakt tbody, .ak-kompakt tfoot, .ak-kompakt thead { display: block; }
+  .ak-kompakt thead tr { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 8px; padding: 0 0 6px; border-bottom: 1px solid var(--m-linie); }
+  .ak-kompakt thead th { padding: 0; border: 0; font-size: 11.5px; letter-spacing: .03em; text-align: left !important; }
+  .ak-kompakt thead th:first-child, .ak-kompakt thead th:nth-child(n + 7) { display: none; }
+  .ak-kompakt tr { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px 8px; padding: 10px 0; border-bottom: 1px solid var(--m-linie); }
+  .ak-kompakt td { display: block; min-width: 0; padding: 0; border: 0; text-align: left !important; }
+  .ak-kompakt tfoot td { border: 0; }
+  .ak-kompakt td.kopf, .ak-kompakt td.voll { grid-column: 1 / -1; font-size: 14px; }
+  .ak-kompakt td.ak-umsatz { grid-column: 1 / 3; color: var(--m-text-2); }
+  .ak-kompakt td.ak-quote, .ak-kompakt td.ak-ziel-spalte { grid-column: 3 / -1; width: auto; min-width: 0; align-self: center; }
+  .ak-kompakt .th-lang { display: none; }
+  .ak-kompakt .th-kurz { display: inline; }
+  .ak-tage-tabelle tr.leer td.voll { font-size: 12.5px; }
 }

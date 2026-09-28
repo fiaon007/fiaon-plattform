@@ -23,8 +23,8 @@
 // Kunden werden gesiezt, Mitarbeiter geduzt — auch hier.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { RundgangSchritt } from "@/components/agent/Rundgang";
-// 26.09.2026 (E-243): die Auskunft-Preise im Rundgang aus der EINEN Quelle (reine Werte, keine Abhängigkeiten).
-import { auskunftPreisCents, euroText } from "@shared/fiaon-auskunft";
+// 26.09.2026 (E-243) · E-252 (28.09.2026): Die Auskunft-Preise stehen nicht mehr im Rundgang — der
+// Auskunft-Rundgang ist auf einen Satz je Schritt gekürzt; die Preise zeigt die Seite selbst.
 
 export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
   {
@@ -1237,54 +1237,33 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
 ];
 
 // ── /chef/s/mara (21.09.2026) ─────────────────────────────────────────────────
+// E-252 (28.09.2026): Das Steuerpult ist aufgeräumt (Justin: „völlig überladen, mach es
+// cleaner und besser"). Ein Satz je Schritt, Wortlaut aus dem freigegebenen Entwurf E-250.
+// Die langen Texte stehen jetzt auf der Seite selbst: KI im Aufklapper „KI", Bilanz im
+// Aufklapper der Verkaufsleiste, „Rücksicht" wortgleich unter „So arbeitet Mara" (.mp-regeln).
+// Ziele: .kip-karte → .mara-kopf, .mbz → .mara-leiste, .mp-schalter → .mp-aktion-schalter
+// (die Dauerauftrag-Schalter im Aufklapper „Mara anweisen" träfen sonst zuerst),
+// .mp-zahlen → .mp-kette, neu .mp-wen. Der E-248-Schritt zum Postfach bleibt, wie er war.
 export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
-    // E-246 (27.09.2026): KI-Pause — Justin: „Wenn OpenAI nicht abbuchen kann, soll alles pausieren."
-    ziel: ".kip-karte",
-    titel: "Der KI-Zustand: aktiv oder pausiert.",
-    text: "Kann OpenAI nicht abbuchen (kein Guthaben, Ausgabengrenze) oder meldet den Schlüssel bzw. das Konto als ungültig oder gesperrt, pausiert die KI von selbst: "
-      + "Mara auf WhatsApp und im Postfach, die Mail-Aktion, Maras Aufträge, Kontoauszug- und SCHUFA-Auswertung, Transkripte, "
-      + "Ratgeber, Firmen-Radar und der Copilot warten. An Kunden geht in der Pause nichts — auch kein Ersatzsatz. "
-      + "Du bekommst genau eine dringende Aufgabe, und oben auf jeder Chefbüro-Seite steht ein rotes Band. Was ohne KI läuft "
-      + "(Betreuer, WA-Zentrale, Mailwerk, Rückholung, Auskunft-Verkauf), läuft weiter.",
-    tipp: "Nach dem Aufladen auf platform.openai.com „KI wieder aktivieren“ drücken — hier oder im roten Band. Vorher läuft ein "
-      + "kleiner Probe-Aufruf; bucht OpenAI noch nicht ab, bleibt die Pause. Danach holen die Läufe das Liegengebliebene von "
-      + "selbst nach. WhatsApp-Nachrichten aus der Pause, die älter als 12 Stunden sind, kommen als eine Sammelaufgabe zu dir; jüngere beantwortet Mara mit Tag und Uhrzeit der Nachricht im Blick. "
-      + "„KI jetzt pausieren“ hält alles von Hand an — ohne Aufgabe.",
+    ziel: ".mara-kopf",
+    titel: "Oben: gilt für alle Reiter.",
+    text: "Oben stehen der KI-Zustand und „Mara anweisen“ (dort auch Maras Ton) — beides gilt für alle drei Reiter.",
   },
   {
-    // E-244 (26.09.2026): Maras Bilanz — Justin: „Wo finde ich Maras Abschlussbericht?"
-    ziel: ".mbz",
-    titel: "Maras Bilanz: was Mara und die neuen Leads gebracht haben.",
-    text: "Oben steht die Bilanz für heute, 7 Tage oder seit Start — fünf Wege nebeneinander: Mail-Aktion, WhatsApp, "
-      + "Postfach, Auskunft-Verkauf und neue Leads aus Meta. Die große Zahl je Weg ist gebuchtes Geld (wie unter "
-      + "Verdienst & Wert), nicht gemeldetes. Bei der Mail-Aktion steht getrennt, was schon vor Maras erstem Kontakt "
-      + "gemeldet war. Darunter der Rahmen: alle Einnahmen im Zeitraum, davon nach Mara, Maras KI-Kosten, die "
-      + "Kündigungen, die Mara vorgemerkt hat, und alle Kündigungen nach einer Aktions-Mail.",
-    tipp: "„Geld danach“ heißt: Eingangstag nach dem Tag einer Mail oder WhatsApp von Mara, höchstens 14 Tage später — "
-      + "eine zeitliche Folge, kein Beweis. Mara schreibt alle Menschen der Stufen A und B an, deshalb folgt fast jede "
-      + "neue Rate 1 auf eine Mara-Mail. Fahr mit der Maus über eine Zahl oder tippe sie an, dann steht dort, woher sie kommt.",
+    ziel: ".mara-leiste",
+    titel: "Die Verkaufsleiste.",
+    text: "Die Verkaufsleiste zeigt Geld nach Mara und je Weg, ob er läuft — ein Klick springt zu seinem Schalter.",
   },
   {
-    // E-243 (26.09.2026): drei Reiter — der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite.
     ziel: ".mara-reiter",
     titel: "Drei Reiter: WhatsApp, Mail, Bonitätsauskunft.",
-    text: "Alles, womit wir Kunden von uns aus ansprechen, steht hier: die WhatsApp-Zentrale (Gruppen anschreiben, von Hand oder "
-      + "im Takt), die E-Mail-Aktion (Mara schreibt A und B an) und die Bonitätsauskunft — mit dem Knopf „Verkauf scharf "
-      + "stellen“, der Steuerung, dem Trichter gegen das Ziel 150 und der Beschaffung.",
-    tipp: "Die Adresse merkt sich den Reiter: /chef/s/mara?reiter=auskunft öffnet direkt den Auskunft-Verkauf, "
-      + "&ansicht=beschaffung die Beschaffung. Die Beschaffung gibt es für das Team zusätzlich im Raum „Kunden“.",
+    text: "Die Adresse merkt sich den Reiter: /chef/s/mara?reiter=auskunft öffnet direkt die Bonitätsauskunft.",
   },
   {
-    titel: "Maras Steuerpult: alles, was sie tut, an einer Stelle.",
-    text: "Mara beantwortet das Postfach — und schreibt von sich aus jeden an, der noch nichts bezahlt hat: zuerst A (Zahlung "
-      + "gemeldet, Geld nicht da), dann B (Antrag fertig, Rechnung offen), rund um die Uhr, die frischesten zuerst. Jede Mail "
-      + "schreibt sie aus der Akte, dem ganzen Weg des Kunden und ihrem Gedächtnis — nie zweimal dieselbe."
-      // E-244 (26.09.2026): Werbesperre auch bei beendetem Vertrag, Kündigungssatz mit allen offenen Raten.
-      + " Bittet ein Kunde mit beendetem oder storniertem Vertrag, keine Mails mehr zu bekommen, setzt Mara auch dort die "
-      + "Werbesperre. Kündigt jemand per Mail, nennt Mara jede noch offene Rate mit Betrag und die Summe, nie eine Rate ohne "
-      + "Betrag. Ist der Vertrag schon beendet, nennt sie keinen Betrag; steht trotzdem eine Rate offen, landet das als Prüffall "
-      + "bei der Leitung. Eine bezahlte Bonitätsauskunft ist kein Paket: Wer nur sie bezahlt hat, bleibt in der Paket-Erinnerung.",
+    ziel: ".mp-aktion-schalter",
+    titel: "Ein Schalter: Aktion läuft oder pausiert.",
+    text: "Der Schalter startet oder pausiert die Aktion; Antworten im Postfach laufen weiter.",
   },
   // E-248 (28.09.2026, Justin: „Geh Mara komplett durch … einiges kann sie doch selbst machen").
   {
@@ -1302,35 +1281,24 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
       + "Entwurf. Schickt jemand dieselbe Mail mehrmals, bekommt er EINE Antwort.",
   },
   {
-    ziel: ".mp-schalter",
-    titel: "Ein Schalter: Aktion läuft oder pausiert.",
-    text: "Pausiert heißt: keine neuen Mails aus der Aktion. Die Antworten im Postfach laufen weiter. Einschalten und die nächsten Mails gehen im Takt raus.",
+    ziel: ".mp-kette",
+    titel: "Die Wirkung in 14 Tagen.",
+    text: "Die Wirkung zeigt: angeschrieben, Antworten, gebuchtes Geld in 14 Tagen.",
   },
   {
-    ziel: ".mp-zahlen",
-    titel: "Oben steht, was wirkt.",
-    text: "Heute gesendet (mit dem Deckel des Tages), die letzte Stunde, wer fällig ist, und was danach geschah: Antworten, "
-      + "Zahlungsmeldungen und Zahlungen innerhalb von 14 Tagen nach einer Mara-Mail. Rechts die Kosten — eine Mail kostet rund einen halben Cent.",
+    ziel: ".mp-wen",
+    titel: "Wen Mara anschreibt.",
+    text: "Links: welche Stufen Mara anschreibt und wer als Nächstes dran ist.",
   },
   {
     ziel: ".mp-steuer",
-    titel: "Steuern: Takt, Deckel, wer, wie.",
-    text: "Bis zu 50 Mails je Stunde, dazu der Deckel des Tages. (Den Anlauf 200/400/800 der ersten Tage gibt es seit dem "
-      + "22.09. nicht mehr.) C-Leads bleiben gesperrt, bis ihre Mail-Einwilligung geprüft ist.",
-    tipp: "„Probe“ zeigt die nächste Mail, ohne sie zu senden — auch für einen bestimmten Menschen aus der Schlange.",
+    titel: "Wie Mara schreibt: Takt, Deckel, Stil.",
+    text: "Rechts: Takt (0 bis 500 Mails je Stunde), Kostendeckel, Stil — die Probe zeigt die nächste Mail, ohne zu senden.",
   },
   {
     ziel: ".mp-reiter",
     titel: "Jede Mail, vollständig.",
-    text: "„Gesendet“: jede Mail mit dem, was danach kam. Aufklappen zeigt den ganzen Text, was Mara sich zu dem Menschen gemerkt hat "
-      + "(einzeln löschbar) und seine Mails an uns. „Aus der Aktion nehmen“ stoppt Mara für genau diesen Menschen. "
-      + "„Zurückgehalten“: Mails, die die Prüfung nicht bestanden haben — sie gingen nicht raus.",
-  },
-  {
-    titel: "Rücksicht ist eingebaut.",
-    text: "Schreibt der Kunde selbst, antwortet Mara im Postfach und die Aktion wartet sieben Tage. Hat ein Mitarbeiter gerade mit "
-      + "ihm gesprochen oder ging eben eine andere Mail raus, wartet sie auch. Werbesperre, Vertriebssperre, „Stopp“, Storno, "
-      + "Kündigung und Zustellprobleme beenden die Aktion für diesen Menschen.",
+    text: "Unten jede Mail, die rausging, hängen blieb oder scheiterte.",
   },
 ];
 
@@ -1478,76 +1446,63 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
 ];
 
 // WhatsApp-Zentrale (23.09.2026, E-229) — Maras Versand an Kundengruppen.
+// E-252 (28.09.2026): ein Satz je Schritt (Entwurf E-250). Meta steht jetzt links in der
+// Statuszeile (.wz-status), die Wirkung als Kette (.wz-kette); Rechnung und Stufe stehen
+// hinter dem (i) „Wie Meta zählt", die Regel je Gruppe hinter „Wer genau" im Glas.
+// „Was Mara getan hat" und der Verlauf bleiben zwei Schritte, damit jeder Scheinwerfer trifft.
 export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
   {
-    titel: "Die WhatsApp-Zentrale: wen Mara anschreibt — von Hand oder im Takt.",
-    text: "Sechs Gruppen, jede mit ihrer passenden Vorlage: neue Leads ohne Nachricht, Anträge mit offener erster Zahlung, "
-      + "abgebrochene Anträge, Leads ohne Antrag, Bestandskunden mit fälliger Monatsrate (eigene, sachliche Raten-Vorlage — "
-      + "höchstens alle 7 Tage, zweimal je Rate) und — seit 24.09. — zahlende Kunden, denen die Bonitätsauskunft fehlt "
-      + "(„Auskunft fehlt“, nur wer nach dem 02.09.2026 12:35 zum ersten Mal beantragt hat, einmal je Kunde). Antworten übernimmt Mara im "
-      + "WhatsApp-Raum; warten Kunden länger als 2 Minuten auf eine Antwort, steht es oben gelb.",
+    ziel: ".mara-leiste",
+    titel: "Oben: gilt für alle Reiter.",
+    text: "Oben: KI, „Mara anweisen“ und die Verkaufsleiste gelten für alle Reiter — Geld nach Mara und je Weg, ob er läuft.",
   },
   {
-    ziel: ".wz-meta",
-    titel: "Oben rechts: was Meta heute noch erlaubt.",
-    text: "Meta lässt nur eine bestimmte Zahl neuer Gespräche in 24 Stunden zu. Die Zentrale rechnet mit 80 % davon "
-      + "und zählt alles mit — Begrüßung, Kette, Hand und Automatik. Steht die Qualität auf Rot, sind Massenversände gesperrt, "
-      + "sonst droht die Sperre der Nummer.",
-    // 28.09.2026 (E-250)
-    tipp: "Die Stufe liest die Seite live bei Meta — seit Meta sie am Geschäftskonto führt, von dort (heute 2.000, also 1.600 für uns).",
+    ziel: ".wz-status",
+    titel: "Die Statuszeile.",
+    text: "Die Statuszeile zeigt, ob die Automatik läuft, was Meta heute frei gibt und ob Kunden warten.",
   },
   {
-    ziel: ".wz-gruppen",
-    titel: "Gruppe wählen — die Zahl sagt, wer heute dran sein darf.",
-    text: "Gezählt wird nur, wer alle Regeln erfüllt: heute noch keine WhatsApp, kein „STOPP“, keine Werbesperre, nichts bezahlt "
-      + "oder gemeldet (außer „Monatsrate fällig“ und „Auskunft fehlt“ — die gelten gerade zahlenden Kunden), genug Abstand zur "
-      + "letzten Vorlage, höchstens acht Vorlagen in 30 Tagen. Steht 0 da, sagt die Karte darunter, warum — etwa "
-      + "„61 schon angeschrieben — wieder dran ab heute 14:48“. Wer hier gezählt wird, besteht auch die Sperrprüfung beim Senden "
-      + "— dieselbe Regel an beiden Stellen. "
-      // 28.09.2026 (E-253)
-      + "Eine Vertriebssperre zählt nur, wenn der Kunde selbst gesperrt ist; die Marke, die jede zusammengeführte Doppel-Akte "
-      + "automatisch trägt, ist keine Sperre des Menschen. Wer „Stopp“ gesagt hat — auf WhatsApp oder als Antwort auf eine Mail, "
-      + "auch unter einer Doppel-Akte —, steht in keiner Gruppe.",
-    // 24.09.2026 (E-240)
-    tipp: "Die Vorlage „Auskunft fehlt“ liegt als Entwurf bereit und zeigt „wartet auf Meta“ — senden geht erst, wenn Meta sie freigegeben hat.",
+    ziel: ".wz-kette",
+    titel: "Die Wirkung bis zum Geld.",
+    text: "Die Wirkung zeigt die Kette bis zum Geld — mit dem nächsten Schritt, wenn Geld fehlt.",
+  },
+  {
+    ziel: ".wz-wen",
+    titel: "Wen anschreiben.",
+    text: "Links wählst du die Gruppe; leere Gruppen stehen unten und sagen, warum.",
+    // 28.09.2026 (E-253) — E-252: hier als Tipp, damit der Schritt ein Satz bleibt
+    tipp: "Wer hier gezählt wird, besteht auch die Sperrprüfung beim Senden — dieselbe Regel an beiden Stellen. Eine "
+      + "Vertriebssperre zählt nur, wenn der Kunde selbst gesperrt ist; die Marke, die jede zusammengeführte Doppel-Akte "
+      + "automatisch trägt, ist keine Sperre des Menschen. Wer „Stopp“ gesagt hat — auf WhatsApp oder als Antwort auf eine "
+      + "Mail, auch unter einer Doppel-Akte —, steht in keiner Gruppe.",
   },
   {
     ziel: ".wz-start",
-    titel: "Vorlage, Anzahl, Vorschau — dann „WhatsApp starten“.",
-    text: "Die Vorschau zeigt die nächsten Empfänger mit genau dem Text, den sie bekommen. Der Versand läuft im Hintergrund, eine "
-      + "Nachricht nach der anderen, und lässt sich jederzeit anhalten. Zwischen 21 und 7 Uhr geht nichts raus. "
-      // 28.09.2026 (E-253)
-      + "Bis zu 500 je Versand (schnell wählen: 25, 50, 100, 250 oder alle), nie mehr, als Meta heute noch erlaubt. "
+    titel: "Vorlage, Anzahl, Vorschau — dann starten.",
+    text: "Rechts in der hellen Fläche: Vorlage, Anzahl, Vorschau, Start — und was die Anzahl begrenzt.",
+    // 28.09.2026 (E-253) — E-252: hier als Tipp, damit der Schritt ein Satz bleibt
+    tipp: "Bis zu 500 je Versand (schnell wählen: 25, 50, 100, 250 oder alle), nie mehr, als Meta heute noch erlaubt. "
       + "Die Karte darunter zeigt den Stand live: gesendet, übersprungen (mit Grund), entfallen, Restzeit. Ein Neustart des "
       + "Servers unterbricht nur kurz („Kurz unterbrochen — geht gleich weiter“): Der Versand steht in der Datenbank und läuft "
       + "von selbst weiter; durch den Neustart bekommt niemand eine zweite Nachricht. Schreiben Verkaufstakt, Automatik oder "
-      + "Begrüßung in derselben Sekunde denselben Menschen an, bekommt nur einer den Platz für heute — der andere lässt ihn aus.",
-    tipp: "„Passende Erinnerung“ wählt je Lead die Stufe nach seinem Alter — so bekommt niemand zweimal dieselbe. „Entfallen“ heißt: "
-      + "Der Mensch hat seit dem Start geantwortet, bezahlt oder schon etwas bekommen — er wird dann nicht angeschrieben.",
+      + "Begrüßung in derselben Sekunde denselben Menschen an, bekommt nur einer den Platz für heute — der andere lässt ihn aus. "
+      + "„Entfallen“ heißt: Der Mensch hat seit dem Start geantwortet, bezahlt oder schon etwas bekommen — er wird dann nicht angeschrieben.",
   },
   {
     ziel: ".wz-automatik",
-    titel: "Die Automatik: z. B. 5 je Stunde von 07:40 bis 20:45.",
-    text: "Gleichmäßig über die Stunde verteilt, Gruppen in der Reihenfolge, die hier steht. Solange sie läuft, pausiert die alte "
-      + "Stundenkette. Die Sofort-Begrüßung neuer Leads läuft immer weiter.",
+    titel: "Die Automatik.",
+    // E-252: „Auskunft fehlt" ist ankreuzbar, aber aus (Justin, 28.09.) — daher „die angekreuzten".
+    text: "Die Automatik schreibt im Takt die angekreuzten Gruppen in deiner Reihenfolge an — alle sechs sind wählbar.",
   },
-  // 24.09.2026 (E-236): Mara handelt selbst — und jede Handlung steht hier mit Nachprüfung.
   {
     ziel: ".wz-mara",
     titel: "Was Mara getan hat — und ob es stimmt.",
-    text: "Jede Handlung, die Mara auf WhatsApp selbst ausführt, steht hier mit Uhrzeit und Kunde: Rückruf beim Betreuer "
-      + "eingetragen oder verschoben, persönlichen Terminlink geschickt, Termin nicht möglich, an einen Menschen übergeben, "
-      + "Ersatzsatz statt eigener Antwort (Rückfall). Oben stehen die Summen der letzten 3 Tage. Jeden eingetragenen Termin "
-      + "prüft ein Takt nach: Steht er, liegt er in der Arbeitszeit, überschneidet er sich mit nichts, ist die Mail an den "
-      + "Mitarbeiter raus und hat der Kunde die Uhrzeit per WhatsApp bekommen? Was nicht stimmt, steht rot da und geht einmal "
-      + "als dringende Aufgabe an die Leitung. Rot steht auch eine Buchung, deren gespeicherte Zeit abweicht („nicht sauber“) — "
-      + "die bitte selbst im Kalender ansehen.",
-    tipp: "„Probleme“ zeigt nur, was Aufmerksamkeit braucht. „Jetzt nachprüfen“ prüft sofort, statt auf den nächsten Takt zu warten.",
+    text: "„Was Mara getan hat“ prüft jeden Termin nach.",
   },
   {
     ziel: ".wz-verlauf",
-    titel: "Jede Nachricht mit dem, was danach kam.",
-    text: "Zugestellt, gelesen, geantwortet — und bei Übersprungenen der Grund. Ein Klick auf den Namen öffnet die Akte.",
+    titel: "Jede Vorlage mit Stand und Weg.",
+    text: "Der Verlauf zeigt jede Vorlage mit Stand und Weg.",
   },
 ];
 
@@ -1556,202 +1511,77 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
 // Protokoll, 14 Tage mit Ziel-Balken und der Zähler der Beschaffung.
 // 26.09.2026 (E-243): das Band „Verkauf scharf stellen" mit Rückfrage, das Segment Abbrecher,
 // das Fenster Mo–So 07:00–20:30, die WhatsApp-Rangfolge und der Stand der Vorlagen bei Meta.
+// E-252 (28.09.2026): ein Satz je Schritt (Entwurf E-250). Das Band ist der Kopf des Glases
+// (.ak-steuer), Trichter und 14 Tage sind eine Karte (.ak-detail), die Beschaffung ist der
+// Umschalter (.mara-ansicht). Die langen Texte stehen hinter den (i) der Seite — die
+// Zahlungserinnerung wortgleich an der Karte „Bestellt, nicht bezahlt".
 export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
   {
-    titel: "Bonitätsauskunft: der ganze Verkauf an einer Stelle.",
-    text: "Der Verkauf der Bonitätsauskunft ist der dritte Reiter im Mara-Steuerpult, neben WhatsApp-Zentrale und Mail-Aktion "
-      + "(die alte Adresse /chef/s/auskunft führt hierher). Oben wählst du „Verkauf“ oder „Beschaffung“. "
-      + "Justins Ziel sind 150 Bonitätsauskünfte am Tag. Oben steht, was HEUTE passiert ist, in fünf Stufen: angeschrieben, "
-      + "geklickt (Kauflink geöffnet), bestellt, bezahlt, geliefert (Auskunft liegt in der Akte). Darunter der Balken gegen das "
-      + "Ziel — blau bestellt, grün bezahlt.",
-    tipp: "Jede Stufe zählt an dem Tag, an dem sie geschah. Wer heute bezahlt, kann letzte Woche bestellt haben — die Zahlen "
-      + "nebeneinander sind nicht dieselben Menschen.",
+    ziel: ".mara-ansicht",
+    titel: "Verkauf oder Beschaffung.",
+    text: "Oben schaltest du zwischen Verkauf und Beschaffung.",
   },
   {
-    ziel: ".ak-scharf",
-    titel: "Verkauf scharf stellen: ein Knopf für alles.",
-    text: "„Verkauf scharf stellen“ stellt auf einmal: Takt an, Kreis „alle“, 500 Mails und 20 WhatsApp am Tag (Mo–So 07:00 bis "
-      + "20:30, gleichmäßig über den Tag), Liefermodus Einkauf — und reicht die fehlenden WhatsApp-Vorlagen bei Meta ein. Vorher "
-      + "fragt die Seite nach und zeigt je Segment, wer im Kreis ist, wem heute ein Schritt ansteht und wer per WhatsApp erreichbar "
-      + "ist. „Anhalten“ stoppt jeden Versand sofort; Kreis und Deckel bleiben stehen.",
-    tipp: "Neben dem Knopf steht der Stand der WhatsApp-Vorlagen bei Meta: noch nicht eingereicht, eingereicht (Meta prüft), "
-      + "freigegeben oder abgelehnt. Bis Meta freigibt, schreibt der Takt nur per Mail. Jede Änderung steht im Protokoll.",
+    ziel: ".ak-status",
+    titel: "Die Statuszeile.",
+    text: "Die Statuszeile hat den einen Schalter für den Verkauf, den Stand der Vorlagen bei Meta und das offene Geld.",
   },
   {
-    ziel: ".ak-beschaffung",
-    titel: "Die Beschaffung: was bezahlt ist und noch geholt werden muss.",
-    text: "Offen sind die Aufträge im Arbeitsplatz Beschaffung, die noch nicht fertig sind. Überfällig heißt: seit mehr als zwei "
-      + "Tagen fällig und noch nicht hochgeladen — ein Kunde hat bezahlt und wartet. „Zum Einlesen“ sind bezahlte Auskünfte ohne "
-      + "Dokument, die noch keinen Auftrag haben; der Arbeitsplatz übernimmt sie beim Öffnen. Ein Klick führt dorthin.",
+    ziel: ".ak-heute",
+    titel: "Heute gegen das Ziel.",
+    text: "Die fünf Zahlen sind heute — Ziel 150 Bestellungen am Tag.",
   },
   {
     ziel: ".ak-steuer",
-    titel: "Die Steuerung: an oder aus, wen, wie viele, wie geliefert.",
-    text: "Verkaufstakt an oder aus. Kreis „Nur § 7 Abs. 3 UWG“ schreibt nur an, wer seit dem Widerspruchs-Hinweis im Antrag "
-      + "zum ersten Mal beantragt hat; Kreis „Alle ohne Auskunft“ nimmt zahlende Kunden, Anträge, Abbrecher und Leads dazu — "
-      + "Justins Entscheidung vom 25./26.09.; nie Stornierte und Gekündigte. Werbesperre, Abmeldung und Vertriebssperre gelten "
-      + "immer. Gesendet wird Mo–So von 07:00 bis 20:30. Mails und WhatsApp haben je einen "
-      + "eigenen Tagesdeckel, der Balken darunter zeigt, wie viel heute schon raus ist. Der Liefermodus sagt, wie eine bezahlte "
-      + "Auskunft zu uns kommt: Einkauf (wir kaufen sie selbst), Vollmacht (Datenkopie bei den Auskunfteien) oder Schnittstelle.",
-    tipp: "Jede Änderung steht im Protokoll darunter — wer, wann, vorher und nachher. WhatsApp geht nur an Menschen mit "
-      + "nachgewiesener Einwilligung und erst, wenn Meta die Vorlage freigegeben hat.",
-  },
-  {
-    ziel: ".ak-trichter",
-    titel: "Der Trichter je Weg oder je Segment.",
-    text: "Dieselben fünf Stufen, aufgeteilt nach dem Weg (E-Mail, WhatsApp, Mara, Kundenbereich, öffentliche Seite) oder nach "
-      + "dem Segment (zahlende Kunden, Anträge, Abbrecher, Leads) — heute oder über 14 Tage. „—“ heißt: Auf diesem Weg wird nicht "
-      + "angeschrieben, dort kommen die Menschen selbst. Die Quote in der 14-Tage-Ansicht ist bezahlt je angeschrieben.",
-    tipp: "Den Weg einer Bestellung hält jede Tür selbst fest. Ältere Bestellungen aus der Akte stehen unter „Betreuer“; "
-      + "was sonst vor dem 25.09. bestellt wurde, unter „Ohne Herkunft“.",
-  },
-  {
-    ziel: ".ak-verlauf",
-    titel: "Die letzten 14 Tage, jeder Tag mit dem Ziel-Balken.",
-    text: "Eine Zeile je Tag, heute oben: angeschrieben, geklickt, bestellt, bezahlt, geliefert, Umsatz — und rechts der Balken "
-      + "gegen 150. Ein Punkt heißt: an diesem Tag nichts.",
+    titel: "Wie verkauft wird.",
+    text: "Rechts in der hellen Fläche: ob der Verkauf scharf ist, der Knopf dafür, Kreis, Mengen, Vorlagen, Protokoll.",
   },
   {
     ziel: ".ak-pool",
-    titel: "Wer sie noch nicht hat — je Segment.",
-    // Gegenlesen 26.09.2026 (E-243): die Preise aus der EINEN Quelle (shared/fiaon-auskunft.ts), nicht fest im Text.
-    text: `A sind Kunden mit laufendem Paket (Preis ${euroText(auskunftPreisCents("privat", true))}, Firma `
-      + `${euroText(auskunftPreisCents("firma", true))}), B fertige Anträge ohne Zahlung, Abbrecher begonnene, nicht abgeschickte `
-      + `Anträge, C Leads ohne Antrag (alle drei ${euroText(auskunftPreisCents("privat", false))}, Firma `
-      + `${euroText(auskunftPreisCents("firma", false))}) — jeweils ohne Auskunft. `
-      + "„Erreichbar“ heißt ohne jeden Sperrgrund, „Im Kreis“ ist die Menge, die der Takt im eingestellten Kreis anschreiben darf, "
-      + "„Heute fällig“ die, bei denen heute ein Schritt ansteht, „WA-fähig im Kreis“ die mit WhatsApp-Einwilligung und Handy. "
-      + "„Mail a · WA · b · c“ zeigt, wie weit sie schon sind. Darunter stehen die Sperrgründe mit ihrer Zahl — auch „storniert“.",
-    // Gegenlesen 24.09.2026: „auch nicht von Hand" gilt nur für die Werbesperre (die Tür im Mail-Motor) —
-    // ein „Stopp" auf WhatsApp oder an Mara nimmt den Kunden aus Takt und WhatsApp, nicht aus dem Knopf in der Akte.
-    tipp: "Die Werbesperre ist endgültig — dann geht kein Angebot mehr raus, auch nicht von Hand. Ein „Stopp“ auf WhatsApp oder in einer Antwort an Mara nimmt den Kunden für immer aus dem Takt.",
-  },
-  {
-    ziel: ".ak-takt",
-    titel: "Wer als Nächstes dran ist.",
-    text: "Dieselbe Auswahl wie der Takt, getrennt nach WhatsApp und E-Mail, mit Segment, Schritt (Mail a, b, c oder WhatsApp) "
-      + "und dem Preis, den dieser Mensch sieht — ohne etwas zu senden, auch wenn der Takt aus ist. Kauf, Upload, Werbesperre, "
-      + "Abmeldung, „Stopp“, Kündigung, Storno oder Vertriebssperre beenden es sofort; wer gerade selbst geschrieben hat oder mit "
-      + "einem Mitarbeiter sprach, wartet. Die WhatsApp geht zuerst an alle, die den Kauflink geöffnet und nicht bestellt haben "
-      + "(Marke „Link geöffnet“), dann an Kunden, Anträge, Abbrecher und Leads — frühestens einen Tag nach der ersten Mail.",
-    tipp: "Ein Klick auf den Namen öffnet die Akte.",
-  },
-  {
-    ziel: ".ak-vorlage",
-    titel: "Die WhatsApp-Vorlagen.",
-    text: "So sehen die Nachrichten aus — mit Beispielwerten, eine für zahlende Kunden (A), eine für Anträge, Abbrecher und Leads. "
-      + "Beide sind Werbung (Kategorie Marketing). Rechts oben steht der Stand bei Meta: noch nicht eingereicht, eingereicht, "
-      + "freigegeben oder abgelehnt. Bis Meta eine freigibt, geht an ihr Segment keine WhatsApp raus; der Takt schreibt dort dann "
-      + "nur per Mail.",
-  },
-  {
-    // E-244 (26.09.2026): Justin: „Jeder, der die SCHUFA offen hat, braucht eine E-Mail mit Zahlungserinnerung."
-    ziel: ".ak-erinnerung",
-    titel: "Zahlungserinnerung: Wer bestellt hat, wird erinnert.",
-    text: "Jede bestellte, nicht bezahlte Bonitätsauskunft bekommt eine Erinnerung: Tag 1, 4, 10 und 18 nach der Bestellung, danach "
-      + "alle 7 Tage (einstellbar, 0 = nach Tag 18 Schluss) — Mo–So 07:00–20:30, höchstens 10 je Lauf und 50 am Tag. Wer schon "
-      + "„Zahlung gemeldet“ hat, bekommt nie eine. Die Werbesperre hält sie nicht auf, denn es ist Zahlungspost; ein Mahnstopp an "
-      + "irgendeiner Bestellung der Person schon. Solange zu einer Bestellung keine Belehrung in Textform vorliegt, trägt die Erinnerung "
-      + "Vertragsbestätigung und die nachgeholte Widerrufsbelehrung (Frist ab Erhalt dieser Mail). Ab Tag 30 gibt es einmal eine Aufgabe: "
-      + "im Takt „anrufen oder stornieren“ an den Betreuer, bei Kündigung, eigenem Dokument oder Vertriebssperre „stornieren?“ nur an den "
-      + "Betreiber, ohne Anruf. An/Aus und die Zahlen stehen im Protokoll der Steuerung. Fehlt an einer Bestellung die Erklärung des "
-      + "Kunden (vom Betreuer angelegt oder aus der Zeit vor dem Bestätigungsformular), bekommt er keine Mahnung, sondern die Frage "
-      + "„Möchten Sie die Auskunft noch?“ mit einem Knopf zum Bestätigen — erst danach Vertragsbestätigung, Widerrufsbelehrung und "
-      + "Zahlungsdaten. Legst du eine Auskunft für einen Kunden an, geht ihm genau diese Frage zu; schick ihm vorher keine Zahlungsseite.",
-    tipp: "Eine offene Bestellung bleibt offen, egal wie alt: Kundenbereich, Mara und Kauflink zeigen ihren Zahlungslink zu ihrem Preis "
-      + "statt eines Neukaufs; nur wenn sie teurer ist als der heutige Preis, ersetzt eine neue sie. Die Paket-Mahnung schreibt "
-      + "Auskunft-Bestellern nicht mehr.",
+    titel: "Wer sie noch nicht hat.",
+    text: "Links: wer die Auskunft noch nicht hat und — aufklappbar — wer als Nächstes dran ist.",
   },
   {
     ziel: ".ak-offen",
-    titel: "Bestellt, nicht bezahlt: Das Geld liegt schon auf dem Tisch.",
-    text: "Jede offene Bestellung mit Betrag, Alter und Betreuer. „Zahlungsseite“ öffnet die Seite mit QR-Code, Betrag und "
-      + "Verwendungszweck, „Link kopieren“ legt sie in die Zwischenablage — für eine Nachricht an den Kunden. Gelb steht, wer die "
-      + "Zahlung schon gemeldet hat: Dort nicht erinnern, sondern das Geld suchen. "
-      // 26.09.2026 (E-243): Die Auskunft hat ihre eigene Zahlungs- und Dankeseite.
-      + "Die Seite spricht nur von der Auskunft — kein „Konto aktivieren“, keine Karte, kein Startgespräch: Einmalpreis, "
-      + "die Auskunfteien seines Landes und was nach der Zahlung passiert. Wer kein Paket hat, sieht nach „Ich habe überwiesen“ "
-      + "einen ruhigen Hinweis auf den Weg zur Karte mit einem FIAON-Paket — nach denselben Sperren wie die Mail „Ihre Auskunft "
-      + "ist da“ (nie bei Kündigung, Storno oder Sperre; wartet schon ein Paket-Antrag auf die erste Zahlung, kein zweiter Antrag). "
-      + "Eine stornierte oder ersetzte Auskunft-Bestellung zeigt keine Zahlungsdaten mehr."
-      // E-244 (26.09.2026): Zahlungserinnerung je Bestellung, Stornieren und Mahnstopp.
-      + " Je Bestellung steht die Zahlungserinnerung dabei: Stufe und Datum der letzten Mail, die nächste Fälligkeit — oder "
-      + "der Grund, warum keine Mail geht (Zahlung gemeldet, Mahnstopp, Mahnstopp an einer anderen Bestellung, gekündigt, eigenes "
-      + "Dokument, Vertriebssperre). „stornieren?“ ist der Vorschlag, wenn erinnern nicht passt. „Stornieren“ (mit Rückfrage) storniert "
-      + "nur eine offene Auskunft: keine Erinnerung mehr, kein neues Angebot; der Kunde bekommt dazu keine automatische Mail. "
-      + "„Mahnstopp“ beendet nur die Erinnerungen. Storno und Mahnstopp stehen im Protokoll der Steuerung. Archivierte und Tests "
-      + "stehen hier nicht.",
+    titel: "Bestellt, nicht bezahlt.",
+    text: "Unten das Geld: bestellt, nicht bezahlt — mit der Zahlungserinnerung.",
   },
   {
     ziel: ".ak-rueckstand",
     titel: "Bezahlt, noch nicht geliefert.",
-    text: "Wer bezahlt hat und noch kein Auskunft-Dokument in der Akte hat, die ältesten zuerst. Gelb heißt: länger als zwei "
-      + "Wochen. Diese Kunden haben geliefert, was wir verlangt haben — jetzt sind wir dran.",
-    // Integration 25.09.2026 (E-240): der Knopf zum Rückstand — neue Zahlungen starten die Lieferung von selbst.
-    tipp: "„Lieferung starten“ legt die Anfragen an die Auskunfteien an, gibt dem Betreuer die Aufgabe und schickt dem Kunden "
-      + "den Link zur Unterschrift. „ohne Mail“ macht dasselbe ohne Mail — dann holt der Betreuer die Unterschrift im Gespräch. "
-      + "Neue Zahlungen brauchen den Knopf nicht: Dort startet die Lieferung von selbst.",
+    text: "Darunter, wer bezahlt hat und die Auskunft noch nicht in der Akte hat — da sind wir dran.",
   },
-  // Integration 26.09.2026 (E-243): Rundgang-Pflicht — Kundenpreis-Link, Zusatz im Antrag, Ersatz der teureren
-  // Bestellung und die neue Aufgabe nach der Lieferung (Justin: „Wie stellen wir sicher, dass Kunden den Preis bekommen?").
   {
-    titel: "Der richtige Preis — auf jedem Weg.",
-    text: `Den Preis entscheidet nur der Server: mit laufendem Paket ${euroText(auskunftPreisCents("privat", true))} `
-      + `(Firma ${euroText(auskunftPreisCents("firma", true))}), sonst ${euroText(auskunftPreisCents("privat", false))} `
-      + `(Firma ${euroText(auskunftPreisCents("firma", false))}). Auf der öffentlichen Bestellseite fragt die Seite oben „Schon `
-      + "FIAON-Kunde?“ — der Kunde gibt nur seine E-Mail-Adresse ein und bekommt den Kundenpreis-Link an die Adresse in seiner "
-      + "Akte. Bestellt ein Kunde dort ohne Anmeldung, nimmt die Seite den Einzelpreis nicht an und führt ihn zu diesem Link. Im "
-      // E-244: Schritt „Vertrag", Bestellübersicht über „Zahlungspflichtig annehmen".
-      + `Schritt „Vertrag“ des Antrags lässt sich die Auskunft zum Kundenpreis dazubestellen — nie vorangekreuzt, fällig erst nach `
-      + `der ersten Paketzahlung. Mit Haken steht sie auch in der Bestellübersicht über „Zahlungspflichtig annehmen“ `
-      + `(${euroText(auskunftPreisCents("privat", true))} einmalig, dazu die Summe mit dem Paket). Hat jemand erst einzeln bestellt und zahlt dann ein Paket, ersetzt die Bestellung zum `
-      + "Kundenpreis die teurere.",
-    tipp: "Ist die Auskunft eines Menschen ohne Paket geliefert, bekommt sein Betreuer die Aufgabe „Auskunft geliefert — "
-      + "Auswertung besprechen und Paket anbieten“. Das ist der zweite Verkauf: erst die Auskunft, dann das Paket.",
+    ziel: ".ak-detail",
+    titel: "Zahlen im Detail.",
+    text: "„Zahlen im Detail“ zeigt dieselben Stufen je Weg, je Segment oder je Tag.",
   },
 ];
 
 // ── /chef/s/auskunft-beschaffung (25.09.2026, E-241) — bis zur API kaufen wir sie selbst ─────
+// E-252 (28.09.2026): ein Satz je Schritt (Entwurf E-250). Das Glas zeigt immer einen Auftrag
+// oder den Leer-Satz — beide tragen .akb-karte, so zeigt der Scheinwerfer nie ins Leere.
+// Ampel, Felder und Hochladen erklärt die Karte selbst; die Regeln stehen im Aufklapper.
 export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
   {
-    titel: "Auskunft-Beschaffung: jede bezahlte Auskunft ist hier ein Auftrag.",
-    text: "Bis die API angebunden ist, beschaffen wir die Bonitätsauskünfte selbst. Nach jeder Zahlung entsteht hier ein Auftrag — "
-      + "und der Rückstand (bezahlt, nie geliefert) steht von selbst dabei, ohne dass die Kunden dafür eine Mail bekommen. "
-      + "Oben stellst du den Lieferweg: Einkauf (von Hand), Vollmacht (Anfragen per Post wie bisher) oder API.",
-    tipp: "Steht der Lieferweg auf API und die Schnittstelle antwortet nicht, bleibt jeder Auftrag hier im Einkauf — es geht nichts verloren.",
+    ziel: ".akb-status",
+    titel: "Der Lieferweg.",
+    text: "Oben der Lieferweg — die eine Stelle dafür, auch für den Verkauf.",
   },
   {
     ziel: ".akb-zahlen",
-    titel: "Was heute zu tun ist.",
-    text: "„Jetzt beschaffen“: Einwilligung da, Frist vorbei — kaufen. „Auftrag fehlt“: erst den Link zur Auftragsbestätigung schicken. "
-      + "„Wartet“: Der Kunde hat den Beginn vor Ablauf der Widerrufsfrist nicht verlangt — vorher nicht anfordern. "
-      + "„Mail fehlt“: hochgeladen, aber der Kunde weiß es noch nicht. Ein Klick auf eine Zahl öffnet die passende Liste.",
+    titel: "Welche Aufträge du siehst.",
+    text: "Links wählst du, welche Aufträge du siehst; die Zahlen sind zugleich die Filter.",
   },
   {
-    ziel: ".akb-ampel",
-    titel: "Drei Fragen vor jedem Kauf.",
-    text: "Liegt der Beschaffungsauftrag vor? Ist der Auftrag fällig? Wer kauft? Der Auftrag liegt vor, wenn der Kunde ihn an der Kauftür "
-      + "(Bestellseite, Kauflink, Kaufkarte) angehakt oder über den Link aus der Mail bestätigt hat — nur er deckt den Kauf einer "
-      + "kostenpflichtigen Auskunft. Fehlt er, schickt „Auftragsbestätigung senden“ den Link; nach der Bestätigung springt der Auftrag "
-      + "von selbst auf „Jetzt beschaffen“. „Nur Datenkopie“ heißt: Es gibt nur eine Vollmacht zur Übermittlung — damit keine Auskunft kaufen.",
-    tipp: "Erst „Übernehmen“, dann kaufen — so kauft niemand dieselbe Auskunft doppelt.",
+    ziel: ".akb-karte",
+    titel: "Der Auftrag.",
+    text: "Rechts steht immer ein Auftrag oder der Satz, dass nichts offen ist: Ampel, Warnungen, Daten zum Bestellen, Hochladen.",
   },
   {
-    ziel: ".akb-felder",
-    titel: "Alles zum Bestellen, mit Kopierknopf.",
-    text: "Name, Geburtsdatum, Anschrift, bei einem Umzug die Voranschrift, E-Mail und Telefon — jedes Feld einzeln oder mit "
-      + "„alles kopieren“ auf einmal. Rechts steht, bei welchen Auskunfteien des Landes beschafft wird, mit Anschrift. "
-      + "Rot heißt: fehlt in der Akte — erst erfragen.",
-  },
-  {
-    ziel: ".akb-hochladen",
-    titel: "Hochladen — der Rest geht von selbst.",
-    text: "PDF wählen (mehrere Dateien werden zu einer gebunden), ankreuzen, von welcher Auskunftei sie stammt, hochladen. Die "
-      + "Auskunft liegt dann in der Akte, die Analyse startet, und der Kunde bekommt „Ihre Auskunft ist da“. Kommt eine Auskunftei "
-      + "später, einfach nachladen — sie wird angehängt, der Auftrag ist fertig, wenn alle da sind. Hakst du auch alle schon "
-      + "gelieferten an, ersetzt die neue Datei die alte (die alte bleibt im Archiv der Akte), und der Kunde bekommt keine zweite Mail.",
-    tipp: "Ging die Mail nicht raus, steht der Auftrag auf „Mail fehlt“ — dann „Mail erneut senden“. „Abschließen“ ohne Upload schickt dem Kunden nichts. "
-      + "Steht die Bestellung nicht mehr auf bezahlt (erstattet, storniert), liegt der Auftrag unter „Problem“ — nicht beschaffen.",
+    ziel: ".akb-regeln",
+    titel: "Die Regeln der Beschaffung.",
+    text: "Die Regeln der Beschaffung stehen links unten zum Aufklappen.",
   },
 ];
 

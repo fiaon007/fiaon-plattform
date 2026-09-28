@@ -36,7 +36,7 @@
 // besonders in einem Raum, in dem echte Kunden stehen.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/pages/agent/shared";
 
@@ -56,12 +56,22 @@ interface Rahmen { top: number; left: number; width: number; height: number }
 const LUFT = 8;        // Abstand zwischen Scheinwerfer und Element
 const KARTE_BREIT = 380;
 
-export function Rundgang({ raum, titel, schritte }: {
+export function Rundgang({ raum, titel, schritte, knopf = "fest", startRef }: {
   /** Kleinbuchstaben, Ziffern, Bindestrich — wird als Merker gespeichert. */
   raum: string;
   /** Der Name des Raums, für die Kopfzeile des Rundgangs. */
   titel: string;
   schritte: RundgangSchritt[];
+  /**
+   * E-252 (28.09.2026): „fest" = der dezente Knopf unten rechts (Vorgabe —
+   * jede andere Seite bleibt, wie sie ist). „keiner" = kein fester Knopf; die
+   * Seite startet den Rundgang selbst über `startRef` (im Mara-Steuerpult der
+   * Chip „Rundgang" im Kopf). Nichts klebt dann mehr über dem Inhalt.
+   * Selbststart nach 900 ms und der Merker bleiben in beiden Fällen.
+   */
+  knopf?: "fest" | "keiner";
+  /** E-252: Hier legt der Rundgang seine Startfunktion ab, solange er auf der Seite steht. */
+  startRef?: MutableRefObject<(() => void) | null>;
 }) {
   const [laeuft, setLaeuft] = useState(false);
   const [i, setI] = useState(0);
@@ -112,6 +122,17 @@ export function Rundgang({ raum, titel, schritte }: {
   }, [raum]);
 
   const schliessen = useCallback(() => { setLaeuft(false); setI(0); merken(); }, [merken]);
+
+  // ── E-252: Starten von außen ─────────────────────────────────────────────
+  // Die Seite hält einen Ref; solange dieser Rundgang steht, liegt darin seine
+  // Startfunktion. Beim Abbauen räumt er nur auf, wenn noch SEINE darin liegt —
+  // wechselt der Reiter, hat der nächste Rundgang sie schon ersetzt.
+  useEffect(() => {
+    if (!startRef) return;
+    const starten = () => { setI(0); setLaeuft(true); };
+    startRef.current = starten;
+    return () => { if (startRef.current === starten) startRef.current = null; };
+  }, [startRef]);
 
   // ── Die Karte AUSMESSEN, bevor sie sitzt ─────────────────────────────────
   // `useLayoutEffect` läuft nach dem Aufbau, aber VOR dem Zeichnen: Der
@@ -215,7 +236,8 @@ export function Rundgang({ raum, titel, schritte }: {
   if (schritte.length === 0) return null;
 
   // ── Der dezente Knopf zum Wiederabspielen ────────────────────────────────
-  const knopf = createPortal(
+  // E-252: nur mit knopf="fest" (Vorgabe); bei „keiner" startet die Seite selbst.
+  const knopfFest = knopf === "fest" ? createPortal(
     <button type="button" className="ru-knopf" onClick={() => { setI(0); setLaeuft(true); }}
             title={`Rundgang: ${titel}`} aria-label={`Rundgang starten: ${titel}`}>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -227,9 +249,9 @@ export function Rundgang({ raum, titel, schritte }: {
       <span>Rundgang</span>
     </button>,
     document.body,
-  );
+  ) : null;
 
-  if (!laeuft || !bereit) return knopf;
+  if (!laeuft || !bereit) return knopfFest;
 
   const s = schritte[i];
   const letzter = i === schritte.length - 1;
@@ -296,7 +318,7 @@ export function Rundgang({ raum, titel, schritte }: {
 
   return (
     <>
-      {knopf}
+      {knopfFest}
       {createPortal(
         <div className="ru" role="dialog" aria-modal="true" aria-label={`Rundgang ${titel}, Schritt ${i + 1} von ${schritte.length}`}>
           {/* Kein Element im Blick (Einstieg, Schluss oder Raum noch leer):

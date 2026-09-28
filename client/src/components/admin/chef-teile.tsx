@@ -135,16 +135,24 @@ export function Fehlermeldung({ text, erneut }: { text: string; erneut?: () => v
   );
 }
 
-/** Holt Daten und hält Ladezustand und Fehler — dasselbe Muster in jedem Raum. */
-export function useDaten<T>(pfad: string, abhaengig: unknown[] = []): {
+/**
+ * Holt Daten und hält Ladezustand und Fehler — dasselbe Muster in jedem Raum.
+ *
+ * E-252 (28.09.2026): `pfad = null` heißt „nicht laden". Das braucht ein Haken,
+ * der seine Daten mal aus einem Kontext bekommt und mal selbst holt
+ * (`useMaraDaten` in mara-lage.tsx) — die Hook-Regel verbietet, `useDaten`
+ * nur manchmal aufzurufen. Für jeden bisherigen Aufrufer ändert sich nichts.
+ */
+export function useDaten<T>(pfad: string | null, abhaengig: unknown[] = []): {
   daten: T | null; laedt: boolean; fehler: string | null; neu: () => void;
 } {
   const [daten, setDaten] = useState<T | null>(null);
-  const [laedt, setLaedt] = useState(true);
+  const [laedt, setLaedt] = useState(pfad !== null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [runde, setRunde] = useState(0);
 
   useEffect(() => {
+    if (pfad === null) { setLaedt(false); return; }
     let weg = false;
     setLaedt(true);
     setFehler(null);

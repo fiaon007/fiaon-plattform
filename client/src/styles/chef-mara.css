@@ -1,366 +1,503 @@
 /* ═══ Maras Steuerpult (21.09.2026) — Präfix .mp- ═══
    Läuft in der dunklen ChefShell (eigenes Design). Dünne Schrift, Glas nur
-   an einer Stelle (Kopf), matte Flächen, Hover nur mit Maus. Am iPhone eine
-   Spalte, am Laptop Kennzahlen im Raster. */
+   an einer Stelle, matte Flächen, Hover nur mit Maus.
 
-.mp {
-  --mp-text: #e7ecf4;
-  --mp-text-2: #b9c4d5;
-  --mp-leise: #8292a8;
-  --mp-still: #5d6c83;
-  --mp-linie: rgba(148, 163, 184, .14);
-  --mp-flaeche: rgba(148, 163, 184, .05);
-  --mp-flaeche-hoch: rgba(148, 163, 184, .09);
-  --mp-blau: #288dfa;
-  --mp-blau-hell: #93c5fd;
-  --mp-gruen: #6ee7b7;
-  --mp-gelb: #fcd34d;
-  --mp-rot: #fda4af;
-  color: var(--mp-text-2);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 400;
-  display: grid;
-  gap: 16px;
-  padding-bottom: 96px;
-  color-scheme: dark;
+   ═══ E-252 (28.09.2026): Endfassung E-250, von Justin freigegeben ═══
+   Die Bausteine des ganzen Steuerpults stehen hier unter dem Präfix .mara-
+   (Kopf, Verkaufsleiste, Aufklapper, Statuszeile, Kette, Wen | Wie, Karten,
+   Pillen, Schalter, Info-Knopf, Meldung). Die Reiter (WhatsApp, Mail,
+   Auskunft, Beschaffung) benutzen dieselben Bausteine.
+   Regeln aus Justins Vorgaben:
+   · Navy-Welt, Glas (backdrop-filter) an genau EINER Fläche je Ansicht:
+     `.mara-glas` ist die EINZIGE Regel dieser Datei mit backdrop-filter.
+     Der Grund darunter steht still (Navy-Verlauf der ruhigen Hülle, chefbuero.css).
+   · Keine Dauer-Animation (mp-atmen ist weg), nichts klebt, keine Querrolle.
+   · Inter dünn: Überschriften 400, große Zahlen 300, Fett (500) nur an
+     Marken; tabellarische Ziffern NUR an Zahlen, nicht am ganzen Block.
+   · Blau-Paar #288DFA / #1D4ED8; Statusfarben getrennt davon
+     (#3DD68C gut · #F2B64C braucht dich · #F07178 kritisch); Geld in Textfarbe.
+   · Handy 390 px ohne Querscrollen, Tippziele ≥ 32 px (Knöpfe 40), Text ≥ 11,5 px. */
+
+/* ── Farben und Schrift (Wurzel .mara; .mp/.mbz behalten ihre Namen) ──── */
+.mara, .mp, .mbz {
+  --m-text: #E6EDF7;
+  --m-text-2: #A7B4CA;
+  --m-text-3: #74839E;
+  --m-linie: rgba(148, 170, 210, .11);
+  --m-linie-2: rgba(148, 170, 210, .2);
+  --m-matt: rgba(255, 255, 255, .022);
+  --m-matt-2: rgba(255, 255, 255, .045);
+  --m-licht: #288DFA;
+  --m-tiefe: #1D4ED8;
+  --m-licht-text: #8CC2FF;
+  --m-gut: #3DD68C;
+  --m-warn: #F2B64C;
+  --m-krit: #F07178;
+  --m-r: 14px;
+  /* die bisherigen Namen der Mail-Aktion und der Bilanz zeigen auf dieselben Werte */
+  --mp-text: var(--m-text);
+  --mp-text-2: var(--m-text-2);
+  --mp-leise: var(--m-text-2);
+  --mp-still: var(--m-text-3);
+  --mp-linie: var(--m-linie);
+  --mp-flaeche: var(--m-matt);
+  --mp-flaeche-hoch: var(--m-matt-2);
+  --mp-blau: var(--m-licht);
+  --mp-blau-hell: var(--m-licht-text);
+  --mp-gruen: var(--m-gut);
+  --mp-gelb: var(--m-warn);
+  --mp-rot: var(--m-krit);
+  --mbz-text: var(--m-text);
+  --mbz-text-2: var(--m-text-2);
+  --mbz-leise: var(--m-text-2);
+  --mbz-still: var(--m-text-3);
+  --mbz-linie: var(--m-linie);
+  --mbz-blau: var(--m-licht);
+  --mbz-blau-hell: var(--m-licht-text);
 }
-.mp h1, .mp h2, .mp h3 { margin: 0; font-weight: 500; color: var(--mp-text); }
-.mp p { margin: 0; }
-.mp-still { color: var(--mp-still); font-size: 12px; }
+.mara, .mara *, .mara *::before, .mara *::after { box-sizing: border-box; }
+.mara {
+  color: var(--m-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400; font-size: 14px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark; min-width: 0;
+}
+.mara h1, .mara h2, .mara h3 { margin: 0; font-weight: 400; color: var(--m-text); letter-spacing: -.005em; }
+.mara h2 { font-size: 17px; line-height: 1.3; }
+.mara h3 { font-size: 14px; }
+.mara p { margin: 0; }
+.mara a { color: var(--m-licht-text); text-decoration: none; }
+.mara a:hover { text-decoration: underline; }
+.mara button, .mara input, .mara select, .mara textarea { font: inherit; }
+.mara button:focus-visible, .mara a:focus-visible, .mara input:focus-visible, .mara select:focus-visible,
+.mara textarea:focus-visible, .mara summary:focus-visible { outline: 2px solid var(--m-licht); outline-offset: 2px; }
+.mara-pult { padding-bottom: 72px; }
+
+/* kleine Hilfen */
+.mara-leise { color: var(--m-text-2); }
+.mara-still { color: var(--m-text-3); }
+.mara-klein { font-size: 12.5px; }
+.mara-satz { margin-top: 4px; font-size: 13px; line-height: 1.55; max-width: 72ch; }
+.mara-etikett { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--m-text-3); font-weight: 400; }
+.mara-gut-t { color: var(--m-gut); } .mara-warn-t { color: var(--m-warn); } .mara-krit-t { color: var(--m-krit); } .mara-akz-t { color: var(--m-licht-text); }
+.mara-zahl { font-weight: 300; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+
+/* ── Knöpfe, Pillen, Punkte, Schalter ────────────────────────────────── */
+.mara-knopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 8px 14px;
+  border: 1px solid var(--m-linie-2); border-radius: 10px; background: rgba(255, 255, 255, .03); color: var(--m-text);
+  font-size: 13.5px; line-height: 1.3; white-space: nowrap; cursor: pointer; text-decoration: none;
+}
+.mara-knopf.haupt { background: var(--m-licht); border-color: var(--m-licht); color: #fff; }
+.mara-knopf.klein { min-height: 32px; padding: 5px 11px; font-size: 12.5px; border-radius: 8px; }
+.mara-knopf.text { min-height: 0; padding: 4px 0; border: 0; background: none; color: var(--m-licht-text); white-space: normal; text-align: left; line-height: 1.45; }
+.mara-knopf.warn { color: var(--m-warn); border-color: rgba(242, 182, 76, .45); }
+.mara-knopf.an { border-color: rgba(40, 141, 250, .55); background: rgba(40, 141, 250, .14); color: #fff; }
+.mara-knopf:disabled { opacity: .5; cursor: not-allowed; }
+a.mara-knopf:hover { text-decoration: none; }
+@media (hover: hover) {
+  .mara-knopf:not(:disabled):not(.text):hover { border-color: rgba(125, 184, 255, .45); }
+  .mara-knopf.haupt:not(:disabled):hover { background: #1f7ee8; }
+  .mara-knopf.text:hover { text-decoration: underline; }
+}
+.mara-pille {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--m-linie-2);
+  font-size: 12px; line-height: 1.35; color: var(--m-text-2); white-space: nowrap; font-weight: 400;
+}
+.mara-pille.gut { color: var(--m-gut); border-color: rgba(61, 214, 140, .35); background: rgba(61, 214, 140, .07); }
+.mara-pille.warn { color: var(--m-warn); border-color: rgba(242, 182, 76, .38); background: rgba(242, 182, 76, .07); }
+.mara-pille.krit { color: var(--m-krit); border-color: rgba(240, 113, 120, .4); background: rgba(240, 113, 120, .07); }
+.mara-pille.akz { color: #9CC8FF; border-color: rgba(40, 141, 250, .45); background: rgba(40, 141, 250, .08); }
+.mara-pille.umbruch { white-space: normal; }
+.mara-punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--m-text-3); display: inline-block; flex: none; }
+.mara-punkt.gut { background: var(--m-gut); box-shadow: 0 0 0 3px rgba(61, 214, 140, .14); }
+.mara-punkt.warn { background: var(--m-warn); box-shadow: 0 0 0 3px rgba(242, 182, 76, .14); }
+.mara-punkt.krit { background: var(--m-krit); box-shadow: 0 0 0 3px rgba(240, 113, 120, .15); }
+/* Schalter: <button class="mara-schalter an" aria-pressed><span class="bahn"/><span>Text</span></button> */
+.mara-schalter {
+  display: inline-flex; align-items: center; gap: 9px; min-height: 32px; padding: 4px 12px 4px 4px; border-radius: 999px;
+  border: 1px solid var(--m-linie-2); background: rgba(255, 255, 255, .03); color: var(--m-text); font-size: 13px; white-space: nowrap; cursor: pointer;
+}
+.mara-schalter .bahn { position: relative; flex: none; width: 34px; height: 20px; border-radius: 999px; background: rgba(148, 170, 210, .25); transition: background .15s; }
+.mara-schalter .bahn::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+.mara-schalter.an .bahn { background: var(--m-gut); }
+.mara-schalter.an .bahn::after { left: 16px; }
+.mara-schalter.klein { font-size: 12.5px; }
+.mara-schalter:disabled { opacity: .5; cursor: not-allowed; }
+/* Sprung aus der Verkaufsleiste: der Schalter leuchtet kurz auf (ohne Animation) */
+.mara .hervor { outline: 3px solid rgba(40, 141, 250, .6); outline-offset: 3px; }
+
+/* Info-Knopf (i): sichtbar 18 px, Tippfläche 32 px; Inter, gerade */
+.mara-i {
+  position: relative; display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; margin: -8px -6px;
+  padding: 0; border: 0; background: none; cursor: pointer; vertical-align: middle;
+  color: var(--m-text-3); font-size: 11.5px; font-weight: 500; font-style: normal; line-height: 1;
+}
+.mara-i::before { content: ""; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 1px solid var(--m-linie-2); }
+.mara-i:hover, .mara-i[aria-expanded="true"] { color: #9CC8FF; }
+.mara-i:hover::before, .mara-i[aria-expanded="true"]::before { border-color: rgba(125, 184, 255, .5); }
+.mara-info {
+  margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--m-linie); background: rgba(255, 255, 255, .03);
+  font-size: 12.5px; line-height: 1.55; color: var(--m-text-2);
+}
+.mara-info b { font-weight: 500; color: var(--m-text); }
+
+/* Meldung am Auslöser (im Fluss, nie fest) */
+.mara-meldung {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(40, 141, 250, .4); background: rgba(40, 141, 250, .08); color: #CFE4FF; font-size: 13px;
+}
+.mara-meldung.fehler { border-color: rgba(240, 113, 120, .4); background: rgba(240, 113, 120, .07); color: #F7C5C9; }
+.mara-meldung .mara-knopf.text { color: inherit; opacity: .85; }
+/* Hinweiszeilen */
+.mara-hinweise { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.mara-hinweis { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--m-linie-2); color: var(--m-text-2); font-size: 13px; }
+.mara-hinweis.warn { border-color: rgba(242, 182, 76, .35); background: rgba(242, 182, 76, .06); color: #F7DCA6; }
+.mara-hinweis.krit { border-color: rgba(240, 113, 120, .4); background: rgba(240, 113, 120, .07); color: #F7C5C9; }
+.mara-hinweis .mara-punkt { transform: translateY(-1px); }
+/* Rückfrage im Fluss (statt window.confirm), Text bleibt wortgleich */
+.mara-rueckfrage { margin-top: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(242, 182, 76, .35); background: rgba(242, 182, 76, .05); color: #F7E3BD; font-size: 13px; white-space: pre-line; }
+.mara-rueckfrage .mara-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; white-space: normal; }
+
+/* Aufklapper (details) */
+.mara-klappe { border-top: 1px solid var(--m-linie); margin-top: 14px; padding-top: 10px; }
+.mara-klappe > summary { display: flex; align-items: center; min-height: 32px; list-style: none; cursor: pointer; color: var(--m-text-2); font-size: 13px; }
+.mara-klappe > summary::-webkit-details-marker { display: none; }
+.mara-klappe > summary::before {
+  content: ""; display: inline-block; flex: none; width: 6px; height: 6px; margin-right: 10px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .15s;
+}
+.mara-klappe[open] > summary { margin-bottom: 10px; }
+.mara-klappe[open] > summary::before { transform: rotate(45deg); }
+@media (hover: hover) { .mara-klappe > summary:hover { color: var(--m-text); } }
+.mara-liste { list-style: none; margin: 0; padding: 0; }
+.mara-liste > li { padding: 8px 0; border-top: 1px solid var(--m-linie); }
+.mara-liste > li:first-child { border-top: 0; }
+
+/* Felder */
+.mara-feldgitter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; margin-top: 16px; }
+.mara-feldgitter .breit { grid-column: 1 / -1; }
+.mara-feld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mara-feld > label, .mara-feld > .mara-feld-titel { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--m-text-3); }
+.mara-feld > label b { font-weight: 400; color: var(--m-text); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.mara-feld small { font-size: 12px; color: var(--m-text-3); line-height: 1.45; }
+.mara-feld input[type="range"] { width: 100%; min-height: 32px; accent-color: var(--m-licht); }
+.mara-reihe { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mara-eingabe {
+  min-height: 40px; min-width: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--m-linie-2);
+  background: rgba(6, 12, 24, .55); color: var(--m-text); font-size: 14px;
+}
+.mara-eingabe-zahl { width: 110px; font-variant-numeric: tabular-nums; }
+select.mara-eingabe { max-width: 100%; }
+.mara-startreihe { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.mara-startreihe .mara-knopf:not(.klein) { min-height: 42px; }
+.mara-startreihe .mara-knopf.haupt:not(.klein) { padding: 10px 20px; font-size: 14.5px; }
+.mara-mehr { margin-top: 10px; }
+.mara-mehr-zeile { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.mara-zwischen { margin: 18px 2px 4px; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--m-text-3); }
+.mara-abschnitt { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--m-linie); }
 
 /* ── Kopf ─────────────────────────────────────────────────────────────── */
-/* 23.09.2026 (Justin: „sieht 100 % nach KI aus"): Der Verlauf-Glaskasten ist
-   weg. Eine Zeile, eine Haarlinie darunter, sonst nichts — der Name trägt die
-   Seite, nicht ein blauer Farbverlauf. */
-.mp-kopf {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
-  padding: 4px 2px 16px; border-bottom: 1px solid var(--mp-linie);
+.mara-kopf { display: flex; justify-content: space-between; align-items: center; gap: 12px 16px; flex-wrap: wrap; }
+.mara-kopf h1 { font-size: 28px; line-height: 1.2; font-weight: 400; }
+.mara-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.mara-chip {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--m-linie-2); background: rgba(255, 255, 255, .025); color: var(--m-text); font-size: 13px; white-space: nowrap; cursor: pointer;
 }
-.mp-wer { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.mp-wer h1 { font-size: 26px; font-weight: 300; letter-spacing: -.02em; }
-.mp-wer p { font-size: 12.5px; color: var(--mp-leise); margin-top: 3px; max-width: 62ch; line-height: 1.5; }
-.mp-punkt { width: 12px; height: 12px; border-radius: 50%; background: var(--mp-still); flex: none; box-shadow: 0 0 0 4px rgba(93, 108, 131, .18); }
-.mp-punkt.an { background: var(--mp-gruen); box-shadow: 0 0 0 4px rgba(110, 231, 183, .16); animation: mp-atmen 2.4s ease-in-out infinite; }
-@keyframes mp-atmen { 50% { box-shadow: 0 0 0 7px rgba(110, 231, 183, .06); } }
+.mara-chip[aria-expanded="true"] { border-color: rgba(125, 184, 255, .55); background: rgba(40, 141, 250, .1); }
+.mara-chip.krit { border-color: rgba(240, 113, 120, .5); color: #F7C5C9; }
+@media (hover: hover) { .mara-chip:hover { border-color: rgba(125, 184, 255, .45); } }
+.mara-zahlmarke {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+  background: rgba(242, 182, 76, .18); color: var(--m-warn); font-size: 11.5px; font-variant-numeric: tabular-nums;
+}
 
-.mp-schalter {
-  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 18px 0 8px; border-radius: 99px;
-  border: 1px solid var(--mp-linie); background: var(--mp-flaeche); color: var(--mp-text); font: inherit; font-size: 14px; cursor: pointer;
+/* ── Verkaufsleiste: Geld und Zustand je Weg, ohne Klick ─────────────── */
+.mara-leiste {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr)); margin-top: 16px;
+  border: 1px solid var(--m-linie); border-radius: var(--m-r); background: var(--m-matt);
 }
-.mp-schalter-knopf { width: 44px; height: 26px; border-radius: 99px; background: rgba(148, 163, 184, .25); position: relative; transition: background .2s; }
-.mp-schalter-knopf::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; }
-.mp-schalter.an .mp-schalter-knopf { background: #10b981; }
-.mp-schalter.an .mp-schalter-knopf::after { transform: translateX(18px); }
-
-/* ── Kennzahlen ───────────────────────────────────────────────────────── */
-/* Keine sechs Kästen mehr, sondern eine Leiste mit Haarlinien dazwischen —
-   die Zahlen stehen nebeneinander wie auf einem Armaturenbrett. */
-.mp-zahlen {
-  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
-  border-top: 1px solid var(--mp-linie); border-bottom: 1px solid var(--mp-linie);
+.mara-leiste > * { min-width: 0; }
+.mara-leiste > * + * { border-left: 1px solid var(--m-linie); }
+.mara-leiste .l-geld { display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; }
+.mara-leiste .l-zahl { margin-top: 2px; font-weight: 300; font-size: 30px; line-height: 1.15; letter-spacing: -.01em; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.mara-leiste .l-zahl .mara-pille { font-size: 13px; }
+.mara-leiste .l-klein { font-size: 12.5px; color: var(--m-text-3); }
+.mara-leiste .l-klein .mara-knopf.text { font-size: 12.5px; padding: 0; }
+.mara-leiste .l-kanal { display: flex; flex-direction: column; min-width: 0; }
+.mara-leiste .l-sprung {
+  display: flex; flex-direction: column; gap: 6px; flex: 1; width: 100%; padding: 14px 18px 8px; border: 0; border-radius: 0;
+  background: none; color: inherit; text-align: left; cursor: pointer;
 }
-.mp-zahl {
-  display: grid; gap: 4px; padding: 16px 18px; min-width: 0;
-  border-left: 1px solid var(--mp-linie);
-}
-.mp-zahl:first-child { border-left: 0; padding-left: 2px; }
-.mp-zahl-titel { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mp-still); }
-.mp-zahl-wert {
-  font-size: 30px; font-weight: 300; letter-spacing: -.02em; color: var(--mp-text);
-  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.05;
-}
-.mp-zahl.gruen .mp-zahl-wert { color: var(--mp-gruen); }
-.mp-zahl.blau .mp-zahl-wert { color: var(--mp-blau-hell); }
-.mp-zahl-unter { font-size: 11.5px; color: var(--mp-still); line-height: 1.4; }
-
-/* ── Steuerung ────────────────────────────────────────────────────────── */
-.mp-steuer {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 32px;
-  padding: 20px 2px 22px; border-bottom: 1px solid var(--mp-linie);
-}
-.mp-feld { display: grid; gap: 7px; min-width: 0; }
-.mp-feld label, .mp-etikett { font-size: 12.5px; color: var(--mp-leise); }
-.mp-feld label b { color: var(--mp-text); font-weight: 500; }
-.mp-feld small { font-size: 11.5px; color: var(--mp-still); }
-.mp-feld input[type="range"] { width: 100%; accent-color: var(--mp-blau); }
-.mp-reihe { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.mp-zahlfeld, .mp-auswahl {
-  min-height: 38px; padding: 0 10px; border-radius: 10px; font: inherit; font-size: 13.5px;
-  border: 1px solid var(--mp-linie); background: rgba(15, 26, 45, .7); color: var(--mp-text);
-}
-.mp-zahlfeld { width: 90px; }
-.mp-pille {
-  min-height: 36px; padding: 0 14px; border-radius: 99px; font: inherit; font-size: 12.5px; cursor: pointer;
-  border: 1px solid var(--mp-linie); background: transparent; color: var(--mp-leise);
-}
-.mp-pille.an { background: rgba(40, 141, 250, .16); border-color: rgba(40, 141, 250, .45); color: var(--mp-blau-hell); }
-.mp-pille.gesperrt { display: inline-flex; align-items: center; cursor: not-allowed; opacity: .6; border-style: dashed; }
-.mp-knoepfe { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; grid-column: 1 / -1; }
-.mp-knopf {
-  display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 18px; border-radius: 12px;
-  font: inherit; font-size: 13.5px; cursor: pointer; text-decoration: none;
-  border: 1px solid var(--mp-linie); background: var(--mp-flaeche-hoch); color: var(--mp-text);
-}
-.mp-knopf.voll { background: var(--mp-blau); border-color: var(--mp-blau); color: #fff; font-weight: 500; }
-.mp-knopf.warn { color: var(--mp-rot); }
-.mp-knopf:disabled { opacity: .55; cursor: progress; }
-.mp-klein {
-  min-height: 30px; padding: 0 10px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer;
-  border: 1px solid var(--mp-linie); background: transparent; color: var(--mp-blau-hell); flex: none;
+.mara-leiste .l-kopf { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mara-leiste .l-name { font-size: 14.5px; color: var(--m-text); }
+.mara-leiste .l-zustand { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--m-text-2); white-space: nowrap; }
+.mara-leiste .lk-kurz { display: none; }
+.mara-leiste .l-wert { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-height: 30px; }
+.mara-leiste .l-wert b { font-weight: 300; font-size: 22px; line-height: 1.1; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.mara-leiste .l-wert small { font-size: 12.5px; color: var(--m-text-3); }
+.mara-leiste .l-weiter {
+  margin: 0 18px 12px; padding: 4px 0; border: 0; background: none; cursor: pointer; text-align: left;
+  font-size: 12.5px; line-height: 1.4; color: var(--m-licht-text);
 }
 @media (hover: hover) {
-  .mp-knopf:not(:disabled):hover, .mp-pille:not(.gesperrt):hover, .mp-klein:hover { border-color: rgba(147, 197, 253, .5); }
-  .mp-zeile-knopf:hover { background: var(--mp-flaeche); }
-}
-.mp button:focus-visible, .mp a:focus-visible, .mp input:focus-visible, .mp select:focus-visible, .mp summary:focus-visible {
-  outline: 2px solid var(--mp-blau); outline-offset: 2px;
+  .mara-leiste .l-sprung:hover { background: rgba(255, 255, 255, .025); }
+  .mara-leiste .l-weiter:hover { text-decoration: underline; }
 }
 
-/* ── Reiter und Listen ────────────────────────────────────────────────── */
-.mp-reiter { display: flex; gap: 6px; flex-wrap: wrap; }
-.mp-reiter-knopf {
-  min-height: 38px; padding: 0 14px; border-radius: 99px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: none;
-  display: inline-flex; align-items: center; border: 1px solid transparent; background: transparent; color: var(--mp-leise);
+/* ── Aufklapper unter der Leiste (KI, Bilanz, Anweisen) — matt ───────── */
+.mara-aufklapper { margin-top: 14px; padding: 20px 22px; border-radius: var(--m-r); border: 1px solid var(--m-linie); background: var(--m-matt); min-width: 0; }
+.mara-kopfzeile { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.mara-kopfzeile > div { min-width: 0; }
+.mara-ki.aus { border-color: rgba(240, 113, 120, .4); background: rgba(240, 113, 120, .05); }
+
+/* ── Reiter (Grundregeln in chef-wa-zentrale.css; hier: keine Querrolle) ─ */
+.mara .mara-reiter { overflow: visible; margin: 22px 0 18px; }
+.mara .mara-reiter .kurz { display: none; }
+.mara-reiter-zeile { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin: -4px 0 16px; }
+.mara .mara-reiter-zeile .mara-ansicht { margin: 0; flex-wrap: wrap; }
+
+/* ── Statuszeile: dünn, eine Zeile, Zustand als Punkt/Pille ──────────── */
+.mara-status { display: flex; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--m-linie); }
+.mara-status > .st { display: flex; align-items: center; gap: 9px; min-height: 52px; padding: 10px 18px; border-right: 1px solid var(--m-linie); }
+.mara-status > .st:first-child { padding-left: 0; }
+.mara-status > .st:last-child { border-right: 0; }
+.mara-status > .st.rechts { margin-left: auto; padding-right: 0; border-right: 0; }
+.mara-status .gross { font-weight: 300; font-size: 22px; line-height: 1; white-space: nowrap; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.mara-status .gross.wort { font-weight: 400; font-size: 15px; color: var(--m-text-2); }
+.mara-status .st-text { min-width: 0; color: var(--m-text); font-size: 13.5px; line-height: 1.35; }
+.mara-status small { display: block; font-size: 12px; color: var(--m-text-3); }
+
+/* ── Wirkung: die Kette bis zum Geld zuerst, Tageszahlen leise darunter ─ */
+.mara-kette { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 0 4px; font-size: 13.5px; color: var(--m-text-2); }
+.mara-kette b { margin-right: 5px; font-weight: 300; font-size: 21px; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.mara-kette b.akz { color: var(--m-licht-text); }
+.mara-kette .pfeil { color: var(--m-text-3); }
+.mara-kette .weiter { margin-left: 6px; }
+.mara-heute { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 22px; padding: 6px 0 0; font-size: 12.5px; color: var(--m-text-3); }
+.mara-heute b { margin-right: 4px; font-weight: 400; font-size: 14px; color: var(--m-text); font-variant-numeric: tabular-nums; }
+
+/* ── Zwei Spalten: links WEN (matt), rechts WIE (die eine Glasfläche) ─── */
+.mara-spalten { display: grid; grid-template-columns: minmax(300px, .82fr) minmax(0, 1.5fr); gap: 22px; margin-top: 18px; align-items: start; }
+.mara-wen { min-width: 0; padding: 20px 20px 16px; border-radius: var(--m-r); border: 1px solid var(--m-linie); background: var(--m-matt); }
+.mara-wen h2, .mara-glas h2 { font-size: 18px; }
+.mara-wen-kopf { margin-bottom: 14px; }
+.mara-wen-kopf p { margin-top: 2px; }
+/* DIE EINE Glasfläche je Ansicht — die einzige backdrop-filter-Regel dieser Datei. */
+.mara-glas {
+  position: relative; min-width: 0; padding: 22px 24px; border-radius: 18px; border: 1px solid rgba(120, 170, 255, .24);
+  background: linear-gradient(180deg, rgba(40, 141, 250, .12) 0%, rgba(29, 78, 216, .06) 55%, rgba(29, 78, 216, .035) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09), 0 24px 60px -28px rgba(0, 0, 0, .75);
+  -webkit-backdrop-filter: blur(18px) saturate(120%); backdrop-filter: blur(18px) saturate(120%);
 }
-.mp-reiter-knopf.an { background: var(--mp-flaeche-hoch); border-color: var(--mp-linie); color: var(--mp-text); }
+/* Der Lichtschein liegt hinter dem Inhalt: backdrop-filter bildet einen eigenen Stapel, z-index -1 bleibt darin. */
+.mara-glas::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(120% 60% at 15% -10%, rgba(255, 255, 255, .07), transparent 55%); }
+/* Darunter: matte Karten */
+.mara-darunter { display: flex; flex-direction: column; gap: 18px; margin-top: 22px; }
+.mara-karte { min-width: 0; padding: 20px 22px; border-radius: var(--m-r); border: 1px solid var(--m-linie); background: var(--m-matt); }
+
+/* ═══ Mail-Reiter (.mp) ═══════════════════════════════════════════════════ */
+.mp { color: var(--mp-text-2); min-width: 0; padding-bottom: 24px; }
+.mp h1, .mp h2, .mp h3 { margin: 0; font-weight: 400; color: var(--mp-text); }
+.mp p { margin: 0; }
+.mp-still { color: var(--mp-still); font-size: 12px; }
 .mp-leer { font-size: 13px; color: var(--mp-leise); padding: 12px 2px; }
-.mp-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.mp-zeile { border: 1px solid var(--mp-linie); border-radius: 14px; background: var(--mp-flaeche); overflow: hidden; }
-.mp-zeile > .mp-zeile-kopf, .mp-zeile > .mp-still { padding: 0 14px; }
-.mp-zeile > .mp-zeile-kopf { padding-top: 12px; }
-.mp-zeile > .mp-still:last-child { padding-bottom: 12px; display: block; }
-.mp-zeile-knopf { all: unset; box-sizing: border-box; display: grid; gap: 4px; width: 100%; padding: 12px 14px; cursor: pointer; }
-.mp-zeile-kopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.mp-name { color: var(--mp-text); font-weight: 500; font-size: 14px; text-decoration: none; }
+
+/* Wen: Stufen als Zeilen */
+.mp-stufen { display: flex; flex-direction: column; gap: 8px; }
+.mp-stufe-zeile {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--m-linie); background: none; color: var(--m-text); text-align: left; cursor: pointer;
+}
+.mp-stufe-zeile.an { background: rgba(40, 141, 250, .06); }
+.mp-stufe-zeile.gesperrt { cursor: not-allowed; color: var(--m-text-3); border-style: dashed; }
+.mp-stufe-zeile .was { flex: 1; min-width: 0; font-size: 14px; }
+.mp-stufe-zeile .was small { display: block; font-size: 12px; color: var(--m-text-3); }
+@media (hover: hover) { button.mp-stufe-zeile:hover { border-color: var(--m-linie-2); } }
+.mp-stufe { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 7px; font-size: 12.5px; font-weight: 500; }
+.mp-stufe.A { background: rgba(242, 182, 76, .14); color: var(--m-warn); }
+.mp-stufe.B { background: rgba(40, 141, 250, .16); color: #9CC8FF; }
+.mp-stufe.C { background: rgba(148, 170, 210, .1); color: var(--m-text-3); }
+.mp-schlange { list-style: none; margin: 0; padding: 0; }
+.mp-schlange > li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--m-linie); }
+.mp-schlange-wer { min-width: 0; font-size: 13.5px; }
+.mp-name { color: var(--mp-text); font-size: 14px; text-decoration: none; }
 a.mp-name:hover { text-decoration: underline; }
-.mp-stufe { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; font-size: 12px; font-weight: 500; flex: none; }
-.mp-stufe.A { background: rgba(252, 211, 77, .16); color: var(--mp-gelb); }
-.mp-stufe.B { background: rgba(40, 141, 250, .16); color: var(--mp-blau-hell); }
+
+/* Wie: Link zum Ton und die Regeln */
+.mp-ton-link { margin-top: 14px; }
+.mp-regeln ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12.5px; line-height: 1.6; color: var(--m-text-2); }
+.mp-regeln b { color: var(--m-text); font-weight: 500; }
+
+/* Was rausging: Unterreiter und Liste */
+.mp-reiter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 12px 0 8px; }
+.mp-reiter-knopf {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 6px 13px; border-radius: 999px; border: 1px solid transparent;
+  background: none; color: var(--mp-leise); font-size: 13.5px; cursor: pointer; text-decoration: none; font-variant-numeric: tabular-nums;
+}
+.mp-reiter-knopf.an { border-color: var(--m-linie-2); background: rgba(255, 255, 255, .04); color: #fff; }
+.mp-reiter-link { margin-left: auto; font-size: 13.5px; }
+.mp-liste { list-style: none; margin: 0; padding: 0; }
+.mp-zeile { border-top: 1px solid var(--m-linie); }
+.mp-zeile-knopf {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; width: 100%; padding: 12px 2px;
+  border: 0; background: none; color: inherit; text-align: left; cursor: pointer;
+}
+.mp-zeile-inhalt { display: grid; gap: 3px; min-width: 0; }
+.mp-zeile-kopf { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .mp-betreff { font-size: 13.5px; color: var(--mp-text-2); }
-.mp-grund { font-size: 12.5px; color: var(--mp-rot); }
-.mp-chip { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--mp-linie); color: var(--mp-leise); }
-.mp-chip.blau { color: var(--mp-blau-hell); border-color: rgba(147, 197, 253, .35); }
-.mp-chip.gelb { color: var(--mp-gelb); border-color: rgba(252, 211, 77, .35); }
-.mp-chip.gruen { color: var(--mp-gruen); border-color: rgba(110, 231, 183, .35); }
+.mp-grund { font-size: 12.5px; color: var(--m-warn); }
+.mp-chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--m-linie-2); color: var(--m-text-2); white-space: nowrap; }
+.mp-chip.blau { color: #9CC8FF; border-color: rgba(40, 141, 250, .45); }
+.mp-chip.gelb { color: var(--m-warn); border-color: rgba(242, 182, 76, .38); }
+.mp-chip.gruen { color: var(--m-gut); border-color: rgba(61, 214, 140, .35); }
+@media (hover: hover) { .mp-zeile-knopf:hover { background: rgba(255, 255, 255, .02); } }
 
-/* ── Aufgeklappte Mail ────────────────────────────────────────────────── */
-.mp-detail { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; padding: 0 14px 14px; }
-.mp-mail { border-radius: 12px; background: rgba(15, 26, 45, .75); border: 1px solid var(--mp-linie); overflow: hidden; }
-.mp-mail-kopf { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; font-size: 11.5px; color: var(--mp-still); border-bottom: 1px solid var(--mp-linie); }
-.mp-mail-text { margin: 0; padding: 12px; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 13px; line-height: 1.55; color: var(--mp-text); max-height: 460px; overflow-y: auto; }
-.mp-seite { display: grid; gap: 10px; align-content: start; }
-.mp-seite h3 { font-size: 13.5px; }
+/* Aufgeklappte Mail — der Text ohne eigene Höhe: kein zweiter Scrollbereich */
+.mp-detail { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 22px; margin: 4px 0 14px 38px; }
+.mp-mail { overflow: hidden; border-radius: 10px; border: 1px solid var(--m-linie); background: rgba(6, 12, 24, .35); }
+.mp-mail-kopf { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--m-linie); font-size: 12px; color: var(--m-text-3); }
+.mp-mail-text { margin: 0; padding: 14px 16px; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 13.5px; line-height: 1.6; color: var(--m-text); }
+.mp-seite { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.mp-seite h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--m-text-3); }
 .mp-gedaechtnis, .mp-post { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 12.5px; }
-.mp-gedaechtnis li { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 7px 10px; border-radius: 10px; background: var(--mp-flaeche); }
+.mp-gedaechtnis li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 10px; background: var(--m-matt); }
 .mp-post li { display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; }
-
-/* ── So arbeitet Mara ─────────────────────────────────────────────────── */
-.mp-regeln { border: 1px solid var(--mp-linie); border-radius: 14px; padding: 12px 16px; background: var(--mp-flaeche); }
-.mp-regeln summary { cursor: pointer; color: var(--mp-text); font-size: 13.5px; }
-.mp-regeln ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.5; }
-.mp-regeln b { color: var(--mp-text); font-weight: 500; }
-
-/* ── Probe-Fenster und Meldung ────────────────────────────────────────── */
-.mp-schleier { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(2, 6, 23, .7); }
-.mp-fenster {
-  width: min(720px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 12px;
-  padding: 18px; border-radius: 18px; border: 1px solid var(--mp-linie); background: #0f1a2d; color: var(--mp-text-2);
-}
-.mp-fenster-kopf { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-.mp-fenster h2 { font-size: 18px; margin-top: 2px; }
-.mp-meldung {
-  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 95; max-width: calc(100vw - 32px);
-  padding: 12px 18px; border-radius: 12px; background: #13213a; border: 1px solid var(--mp-linie); color: var(--mp-text); font-size: 13.5px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
-}
-
-@media (max-width: 1100px) { .mp-zahlen { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 760px) {
-  .mp-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mp-steuer { grid-template-columns: minmax(0, 1fr); }
-  .mp-detail { grid-template-columns: minmax(0, 1fr); }
-  .mp-zahl-wert { font-size: 20px; }
-}
-@media (prefers-reduced-motion: reduce) { .mp-punkt.an { animation: none; } .mp-schalter-knopf, .mp-schalter-knopf::after { transition: none; } }
-
-/* ── Maras Anweisung, Auftrag und Denkprotokoll (22.09.2026, E-210) ────── */
-.mp-karte { display: grid; gap: 16px; padding: 22px 2px; border-bottom: 1px solid var(--mp-linie); }
-.mp-karte-kopf { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.mp-karte-kopf p { max-width: 82ch; line-height: 1.55; margin-top: 4px; }
-.mp-anweisung { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--mp-linie); }
-.mp-anweisung:first-of-type { border-top: 0; padding-top: 0; }
-.mp-feld-gross {
-  width: 100%; resize: vertical; min-height: 84px; padding: 12px 14px; border-radius: 14px;
-  border: 1px solid var(--mp-linie); background: rgba(15, 23, 42, .35); color: var(--mp-text);
-  font: inherit; font-size: 13.5px; line-height: 1.55;
-}
-.mp-feld-gross:focus { outline: none; border-color: rgba(147, 197, 253, .5); }
-.mp-feld-gross::placeholder { color: var(--mp-still); }
-.mp-auftrag { margin-top: 10px; }
-.mp-auftrag > summary { cursor: pointer; font-size: 12.5px; color: var(--mp-leise); list-style: none; }
-.mp-auftrag > summary::-webkit-details-marker { display: none; }
-.mp-auftrag > summary::before { content: "▸ "; color: var(--mp-still); }
-.mp-auftrag[open] > summary::before { content: "▾ "; }
-.mp-auftrag > summary:hover { color: var(--mp-text-2); }
-.mp-wissen { display: grid; gap: 8px; margin-top: 10px; }
+.mp-denk { margin-top: 4px; }
+.mp-wissen { display: grid; gap: 8px; margin-top: 4px; }
 .mp-wissen ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .mp-wissen li { font-size: 12.5px; color: var(--mp-text-2); }
 .mp-wissen li .mp-still { margin-right: 6px; }
+.mp-wissen h3 { font-size: 13px; }
 
-/* ═══ Mara anweisen (23.09.2026, E-219) ═══════════════════════════════════
+/* Probe-Fenster: der einzige Dialog und der einzige zweite Scrollbereich */
+.mp-schleier { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(3, 7, 15, .72); }
+.mp-fenster {
+  display: grid; gap: 12px; width: min(760px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px;
+  border-radius: 16px; border: 1px solid var(--m-linie-2); background: #101A2E; color: var(--m-text-2);
+}
+.mp-fenster-kopf { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.mp-fenster h2 { margin-top: 2px; font-size: 18px; }
+.mp-fenster .mp-mail-text { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--m-linie); background: rgba(6, 12, 24, .35); }
+
+/* ═══ Mara anweisen (23.09.2026, E-219) — seit E-252 ein Aufklapper der Wurzel ═══
    Ein Feld, ein Plan, ein Klick. Endgültige Schritte sind rot umrandet —
    sie sind der einzige Ort, an dem etwas passiert, das man nicht mit einem
    Klick zurückholt. */
-.mp-befehl { display: grid; gap: 16px; }
-.mp-befehl-eingabe { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.mp-befehl-eingabe { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px; }
 .mp-befehl-eingabe textarea, .mp-befehl-eingabe input[type="text"], .mp-befehl-eingabe input:not([type]) {
-  flex: 1 1 320px; min-height: 44px; padding: 11px 13px; border-radius: 12px; resize: vertical;
-  border: 1px solid rgba(148,163,184,.2); background: rgba(148,163,184,.06);
-  color: #e7ecf4; font: 400 13.5px/1.5 'Inter', sans-serif;
+  flex: 1 1 320px; min-width: 0; min-height: 44px; padding: 10px 12px; border-radius: 10px; resize: vertical;
+  border: 1px solid var(--m-linie-2); background: rgba(6, 12, 24, .55); color: var(--m-text); font-size: 14px; line-height: 1.5;
 }
 .mp-befehl-eingabe select, .mp-befehl-eingabe input[type="time"] {
-  min-height: 44px; padding: 0 11px; border-radius: 12px;
-  border: 1px solid rgba(148,163,184,.2); background: rgba(148,163,184,.06);
-  color: #e7ecf4; font: 400 13px/1 'Inter', sans-serif;
+  min-height: 44px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--m-linie-2); background: rgba(6, 12, 24, .55); color: var(--m-text); font-size: 13.5px;
 }
-.mp-befehl-eingabe textarea:focus, .mp-befehl-eingabe input:focus, .mp-befehl-eingabe select:focus {
-  outline: none; border-color: rgba(147,197,253,.5);
+.mp-befehl-eingabe .mara-knopf { min-height: 44px; }
+.mp-befehl-eingabe textarea:focus, .mp-befehl-eingabe input:focus, .mp-befehl-eingabe select:focus { outline: none; border-color: rgba(125, 184, 255, .5); }
+
+.mp-anw-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
+.mp-anw-kopf h3 { font-size: 16px; }
+.mp-tag { color: var(--m-text-3); }
+.mp-anweisungen .mp-anweisung { display: grid; gap: 6px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--m-linie); }
+.mp-anweisungen .mp-anweisung:first-of-type { margin-top: 10px; }
+.mp-feld-gross {
+  width: 100%; min-height: 72px; padding: 10px 12px; border-radius: 10px; resize: vertical;
+  border: 1px solid var(--m-linie-2); background: rgba(6, 12, 24, .55); color: var(--m-text); font-size: 13.5px; line-height: 1.55;
 }
+.mp-feld-gross:focus { outline: none; border-color: rgba(125, 184, 255, .5); }
+.mp-feld-gross::placeholder { color: var(--m-text-3); }
+.mp-anw-fuss { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; }
+.mp-fruehere { margin-top: 6px; }
+.mp-fruehere .mp-post li { align-items: center; }
 
-.mp-tag {
-  display: grid; gap: 3px; padding: 12px 14px; border-radius: 12px;
-  background: rgba(59,130,246,.08); border: 1px solid rgba(147,197,253,.22);
-}
-.mp-tag b { font: 500 12.5px/1 'Inter', sans-serif; color: #dbeafe; }
-.mp-tag span { font: 400 12px/1.55 'Inter', sans-serif; color: #93c5fd; }
-.mp-tag .mp-tag-offen { color: #fdba74; }
-
-.mp-auftraege, .mp-dauer { display: grid; gap: 10px; }
-.mp-auftraege h3, .mp-dauer h3 { margin: 0; font: 500 12px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #64748b; }
-
-.mp-auftrag {
-  display: grid; gap: 8px; padding: 13px 15px; border-radius: 13px;
-  border: 1px solid rgba(148,163,184,.16); background: rgba(148,163,184,.04);
-}
-.mp-auftrag.frage { border-color: rgba(253,186,116,.32); background: rgba(251,146,60,.07); }
-.mp-auftrag.erledigt { background: transparent; }
-.mp-auftrag-befehl { margin: 0; font: 400 13.5px/1.5 'Inter', sans-serif; color: #e7ecf4; }
-.mp-auftrag-frage { margin: 0; font: 400 13px/1.55 'Inter', sans-serif; color: #fdba74; }
-
-.mp-plan { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; counter-reset: p; }
+.mp-auftraege { display: grid; gap: 10px; }
+.mp-auftrag { display: grid; gap: 8px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--m-linie); background: var(--m-matt); }
+.mp-auftrag.frage { border-color: rgba(242, 182, 76, .35); background: rgba(242, 182, 76, .05); }
+.mp-auftrag.erledigt { margin-top: 8px; background: transparent; }
+.mp-auftrag-befehl { font-size: 13.5px; line-height: 1.5; color: var(--m-text); }
+.mp-auftrag-frage { font-size: 13px; line-height: 1.55; color: var(--m-warn); }
+.mp-auftrag-tun { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mp-plan { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: p; }
 .mp-plan li {
-  counter-increment: p; position: relative; padding: 8px 12px 8px 34px; border-radius: 10px;
-  background: rgba(15,23,42,.6); border: 1px solid rgba(148,163,184,.12);
-  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+  counter-increment: p; position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  padding: 8px 12px 8px 38px; border-radius: 10px; border: 1px solid var(--m-linie); background: rgba(6, 12, 24, .35); font-size: 13px;
 }
 .mp-plan li::before {
-  content: counter(p); position: absolute; left: 11px; top: 9px;
-  width: 16px; height: 16px; border-radius: 50%; background: #1e293b; color: #94a3b8;
-  font: 500 10px/16px 'Inter', sans-serif; text-align: center;
+  content: counter(p); position: absolute; left: 11px; top: 8px; width: 20px; height: 20px; border-radius: 50%;
+  border: 1px solid var(--m-linie-2); color: var(--m-text-3); font-size: 11.5px; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
 }
-.mp-plan li.endgueltig { border-color: rgba(253,164,175,.4); background: rgba(244,63,94,.08); }
-.mp-plan li b { font: 500 12.5px/1.3 'Inter', sans-serif; color: #e7ecf4; }
-.mp-wen { font: 400 12px/1.3 'Inter', sans-serif; color: #93c5fd; }
-
-.mp-klasse {
-  font: 400 9.5px/1 'Inter', sans-serif; letter-spacing: .08em; text-transform: uppercase;
-  padding: 3px 7px; border-radius: 99px; border: 1px solid rgba(148,163,184,.2); color: #64748b; white-space: nowrap;
-}
-.mp-klasse.umkehrbar { color: #93c5fd; border-color: rgba(147,197,253,.3); }
-.mp-klasse.endgueltig { color: #fda4af; border-color: rgba(253,164,175,.4); }
-
-.mp-auftrag-tun { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-
+.mp-plan li.endgueltig { border-color: rgba(240, 113, 120, .4); background: rgba(240, 113, 120, .06); }
+.mp-plan li b { font-weight: 500; font-size: 13px; color: var(--m-text); }
+.mp-plan-wen { font-size: 12.5px; color: var(--m-licht-text); }
+.mp-klasse { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--m-linie-2); font-size: 11.5px; line-height: 1.35; color: var(--m-text-3); white-space: nowrap; }
+.mp-klasse.umkehrbar { color: #9CC8FF; border-color: rgba(40, 141, 250, .45); }
+.mp-klasse.endgueltig { color: var(--m-warn); border-color: rgba(242, 182, 76, .38); }
+.mp-dauer p { margin-bottom: 8px; }
 .mp-dauer-zeile {
-  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start;
-  padding: 11px 13px; border-radius: 12px; border: 1px solid rgba(148,163,184,.14);
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 8px;
+  padding: 10px 12px; border-radius: 12px; border: 1px solid var(--m-linie);
 }
 .mp-dauer-zeile > div:first-child { display: grid; gap: 3px; min-width: 0; flex: 1 1 280px; }
-.mp-dauer-zeile b { font: 400 13px/1.45 'Inter', sans-serif; color: #e7ecf4; }
-.mp-dauer-tun { display: flex; gap: 7px; align-items: center; }
-
-.mp-wissen > summary, .mp-verlauf > summary {
-  cursor: pointer; list-style: none; font: 400 12.5px/1 'Inter', sans-serif; color: #8ea0b8; padding: 8px 0;
-}
-.mp-wissen > summary::-webkit-details-marker, .mp-verlauf > summary::-webkit-details-marker { display: none; }
-.mp-wissen > summary::before, .mp-verlauf > summary::before { content: "▸ "; color: #5d6c83; }
-.mp-wissen[open] > summary::before, .mp-verlauf[open] > summary::before { content: "▾ "; }
-
-.mp-werkzeuge { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 7px; }
-.mp-werkzeuge li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid rgba(148,163,184,.1); }
-.mp-werkzeuge li b { font: 500 12.5px/1.3 'Inter', sans-serif; color: #e7ecf4; }
-.mp-werkzeuge li.mp-nicht b { color: #fda4af; }
-
-.mp-ergebnis { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
-.mp-ergebnis li { font: 400 12.5px/1.5 'Inter', sans-serif; color: #b4c0d2; padding-left: 14px; position: relative; }
-.mp-ergebnis li::before { content: "✓"; position: absolute; left: 0; color: #6ee7b7; }
-.mp-ergebnis li.fehler { color: #fda4af; }
-.mp-ergebnis li.fehler::before { content: "✕"; color: #fda4af; }
+.mp-dauer-zeile b { font-weight: 400; font-size: 13px; line-height: 1.45; color: var(--m-text); }
+.mp-dauer-tun { display: flex; gap: 8px; align-items: center; }
+.mp-werkzeuge { list-style: none; margin: 0; padding: 0; display: grid; }
+.mp-werkzeuge li { display: grid; grid-template-columns: 190px 110px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--m-linie); font-size: 13px; }
+.mp-werkzeuge li b { font-weight: 500; color: var(--m-text); }
+.mp-werkzeuge li.mp-nicht b { color: var(--m-krit); }
+.mp-werkzeuge li .mp-klasse { justify-self: start; }
+.mp-ergebnis { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.mp-ergebnis li { position: relative; padding-left: 16px; font-size: 12.5px; line-height: 1.5; color: var(--m-text-2); }
+.mp-ergebnis li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 6px; height: 6px; border-radius: 50%; background: var(--m-gut); }
+.mp-ergebnis li.fehler { color: #F7C5C9; }
+.mp-ergebnis li.fehler::before { background: var(--m-krit); }
 
 /* ═══ Maras Bilanz (26.09.2026, E-244) — Präfix .mbz- (nicht .mb-: das gehört dem Kundenbereich, mein-bereich.css) ═══
-   Die eine Navy-Glas-Stelle der Seite: über den drei Reitern. Fünf Spalten
-   mit Haarlinien, eine große dünne Zahl je Weg, darunter der Rahmen.
+   E-252: kein Glas mehr, ein matter Aufklapper (.mara-aufklapper). Fünf
+   Spalten mit Haarlinien, eine große dünne Zahl je Weg, darunter der Rahmen.
    Am iPhone gestapelt, keine Querrolle. */
-.mbz {
-  --mbz-text: #e7ecf4;
-  --mbz-text-2: #b9c4d5;
-  --mbz-leise: #8292a8;
-  --mbz-still: #6b7b93;
-  --mbz-linie: rgba(148, 163, 184, .14);
-  --mbz-blau: #288dfa;
-  --mbz-blau-hell: #93c5fd;
-  position: relative; display: grid; gap: 18px; margin: 0 0 22px; padding: 22px 24px 18px;
-  border-radius: 18px; border: 1px solid rgba(147, 197, 253, .14);
-  background: linear-gradient(160deg, rgba(26, 39, 68, .92) 0%, rgba(11, 18, 32, .94) 70%);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 18px 50px -24px rgba(29, 78, 216, .45);
-  color: var(--mbz-text-2); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 400;
-  color-scheme: dark; min-width: 0;
-}
-.mbz::before { /* Glanzkante oben */
-  content: ""; position: absolute; left: 24px; right: 24px; top: 0; height: 1px; pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(147, 197, 253, .45), transparent);
-}
-.mbz-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
-.mbz-kopf h2 { margin: 0; font-size: 22px; font-weight: 300; letter-spacing: -.015em; color: var(--mbz-text); }
-.mbz-kopf p { margin: 4px 0 0; font-size: 12.5px; color: var(--mbz-leise); line-height: 1.5; max-width: 70ch; }
-.mbz-umschalter { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid rgba(148, 163, 184, .18); border-radius: 10px; background: rgba(11, 18, 32, .5); }
+.mbz { display: grid; gap: 16px; color: var(--mbz-text-2); }
+.mbz-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
+.mbz-kopf h2 { font-size: 20px; }
+.mbz-kopf p { margin-top: 4px; font-size: 12.5px; line-height: 1.5; color: var(--mbz-leise); max-width: 72ch; }
+.mbz-umschalter { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; border: 1px solid var(--m-linie-2); background: rgba(255, 255, 255, .02); }
 .mbz-umschalter button {
-  min-height: 34px; padding: 0 14px; border: none; border-radius: 7px; background: none; font: inherit; font-size: 13px;
-  color: var(--mbz-leise); cursor: pointer; white-space: nowrap;
+  min-height: 32px; padding: 5px 12px; border: none; border-radius: 7px; background: none; font-size: 13px;
+  color: var(--mbz-leise); cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
-.mbz-umschalter button[aria-pressed="true"] { background: rgba(40, 141, 250, .2); color: var(--mbz-text); }
-.mbz-umschalter button:focus-visible { outline: 2px solid var(--mbz-blau-hell); outline-offset: 1px; }
-@media (hover: hover) { .mbz-umschalter button:not([aria-pressed="true"]):hover { color: var(--mbz-text-2); background: rgba(148, 163, 184, .08); } }
+.mbz-umschalter button[aria-pressed="true"] { background: rgba(40, 141, 250, .18); color: #fff; }
+@media (hover: hover) { .mbz-umschalter button:not([aria-pressed="true"]):hover { color: var(--mbz-text); } }
+.mbz-hinweis { margin: 0; max-width: 120ch; }
 
-.mbz-spalten {
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
-  border-top: 1px solid var(--mbz-linie); border-bottom: 1px solid var(--mbz-linie);
-}
-.mbz-spalte { display: grid; align-content: start; gap: 8px; padding: 16px 16px 14px; min-width: 0; border-left: 1px solid var(--mbz-linie); }
+.mbz-spalten { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--mbz-linie); }
+.mbz-spalte { display: grid; align-content: start; gap: 6px; min-width: 0; padding: 16px 16px 12px; border-left: 1px solid var(--mbz-linie); }
 .mbz-spalte:first-child { border-left: 0; padding-left: 0; }
-.mbz-spalte h3 { margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--mbz-leise); }
-.mbz-ab { font-size: 11px; color: var(--mbz-still); margin-top: -4px; }
+.mbz-spalte h3 { font-size: 11.5px; font-weight: 400; letter-spacing: .09em; text-transform: uppercase; color: var(--mbz-still); }
+.mbz-ab { margin-top: -2px; font-size: 12px; color: var(--mbz-still); }
 .mbz-held { display: grid; gap: 2px; padding: 4px 0 6px; cursor: help; }
 .mbz-held b {
-  font-size: 28px; font-weight: 300; letter-spacing: -.02em; color: var(--mbz-blau-hell); line-height: 1.1;
+  font-weight: 300; font-size: 26px; line-height: 1.1; letter-spacing: -.01em; color: #BFDBFF;
   font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.mbz-held span { font-size: 11.5px; color: var(--mbz-still); }
+.mbz-held b.mbz-held-pille { overflow: visible; white-space: normal; line-height: 1.6; }
+.mbz-held b.mbz-held-pille .mara-pille { font-size: 13px; }
+.mbz-held span { font-size: 12px; color: var(--mbz-still); }
 .mbz-spalte dl { margin: 0; display: grid; gap: 1px; }
-.mbz-zeile { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 10px; padding: 4px 0; font-size: 12.5px; cursor: help; min-width: 0; }
-.mbz-zeile dt { color: var(--mbz-leise); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mbz-zeile { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 10px; min-width: 0; padding: 4px 0; font-size: 13px; cursor: help; }
+.mbz-zeile dt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mbz-leise); }
 .mbz-zeile dd { margin: 0; color: var(--mbz-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mbz-zeile.leise dt, .mbz-zeile.leise dd { color: var(--mbz-still); }
 @media (hover: hover) { .mbz-zeile:hover dt { color: var(--mbz-text-2); } }
 
-.mbz-rahmen { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
-.mbz-rahmen > div { display: grid; gap: 3px; padding: 4px 16px; border-left: 1px solid var(--mbz-linie); min-width: 0; cursor: help; }
+.mbz-rahmen { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--mbz-linie); }
+.mbz-rahmen > div { display: grid; gap: 3px; min-width: 0; padding: 14px 16px 4px; border-left: 1px solid var(--mbz-linie); cursor: help; }
 .mbz-rahmen > div:first-child { border-left: 0; padding-left: 0; }
-.mbz-rahmen span { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mbz-still); }
-.mbz-rahmen b { font-size: 22px; font-weight: 300; color: var(--mbz-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mbz-rahmen .blau b { color: var(--mbz-blau-hell); }
-.mbz-rahmen .gegen b { color: #fda4af; }
-.mbz-rahmen em { font-style: normal; font-size: 11.5px; color: var(--mbz-still); line-height: 1.4; }
+.mbz-rahmen span { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--mbz-still); }
+.mbz-rahmen b { font-weight: 300; font-size: 22px; color: var(--mbz-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mbz-rahmen .blau b { color: #9CC8FF; }
+.mbz-rahmen .gegen b { color: #F4A4AA; }
+.mbz-rahmen em { font-style: normal; font-size: 12px; line-height: 1.4; color: var(--mbz-still); }
 /* Tippen statt Maus: die Quelle klappt unter der Zahl auf (Handy hat kein title). */
 .mbz-held[role="button"], .mbz-zeile[role="button"], .mbz-rahmen > div[role="button"] { outline: none; }
 .mbz-held[role="button"]:focus-visible, .mbz-zeile[role="button"]:focus-visible, .mbz-rahmen > div[role="button"]:focus-visible {
@@ -368,31 +505,91 @@ a.mp-name:hover { text-decoration: underline; }
 }
 .mbz-info {
   flex: 1 0 100%; margin: 4px 0 2px; padding: 6px 8px; border-radius: 6px; background: rgba(40, 141, 250, .08);
-  font-size: 11.5px; line-height: 1.45; color: var(--mbz-text-2); white-space: normal; text-transform: none; letter-spacing: 0;
+  font-size: 12px; line-height: 1.45; color: var(--mbz-text-2); white-space: normal; text-transform: none; letter-spacing: 0;
 }
-.mbz-info i { font-style: normal; color: var(--mbz-still); display: block; margin-top: 2px; }
+.mbz-info i { display: block; margin-top: 2px; font-style: normal; color: var(--mbz-still); }
 .mbz-zeile dd.mbz-info { color: var(--mbz-text-2); white-space: normal; }
-.mbz-hinweis { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--mbz-still); max-width: 120ch; }
-.mbz-hinweis b { font-weight: 500; color: var(--mbz-leise); }
 
+/* ═══ Schmal ═════════════════════════════════════════════════════════════ */
 @media (max-width: 1180px) {
+  .mara-leiste { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mara-leiste .l-geld { grid-column: 1 / -1; border-bottom: 1px solid var(--m-linie); }
+  .mara-leiste > * + * { border-left: 0; }
+  .mara-leiste .l-kanal + .l-kanal { border-left: 1px solid var(--m-linie); }
   .mbz-spalten { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mbz-spalte:nth-child(3) { border-right: 0; }
   .mbz-spalte:nth-child(4) { border-left: 0; padding-left: 0; }
   .mbz-spalte:nth-child(n + 4) { border-top: 1px solid var(--mbz-linie); }
-  .mbz-rahmen { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 14px; }
+  .mbz-rahmen { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 8px; }
   .mbz-rahmen > div:nth-child(4) { border-left: 0; padding-left: 0; }
 }
-@media (max-width: 640px) {
-  .mbz { padding: 18px 16px 16px; border-radius: 14px; }
+@media (max-width: 980px) {
+  .mara-spalten { grid-template-columns: minmax(0, 1fr); }
+  /* Handy: erst WIE (der Knopf), dann WEN. Wer die Liste zuerst braucht
+     (Beschaffung: Antippen springt zum Auftrag), setzt .wen-zuerst. */
+  .mara-spalten > .mara-glas { order: -1; }
+  .mara-spalten.wen-zuerst > .mara-glas { order: 0; }
+  .mp-detail { grid-template-columns: minmax(0, 1fr); margin-left: 0; }
+}
+@media (max-width: 760px) {
+  .mara-kopf h1 { font-size: 24px; }
+  .mara-chips { gap: 6px; }
+  .mara-chip { padding: 6px 11px; }
+  .mara .mara-reiter { gap: 0; }
+  .mara .mara-reiter button { flex: 1; padding: 0 10px; }
+  .mara .mara-reiter .lang { display: none; }
+  .mara .mara-reiter .kurz { display: inline; }
+  /* Leiste als 3er-Raster mit Kurzform */
+  .mara-leiste .l-geld { padding: 12px 14px; }
+  .mara-leiste .l-zahl { font-size: 26px; }
+  .mara-leiste .l-sprung { gap: 3px; padding: 10px 10px 6px; }
+  .mara-leiste .l-kopf { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .mara-leiste .l-name { font-size: 13.5px; }
+  .mara-leiste .l-zustand { font-size: 12px; white-space: normal; }
+  .mara-leiste .lk-lang, .mara-leiste .l-wert small { display: none; }
+  .mara-leiste .lk-kurz { display: inline; }
+  .mara-leiste .l-wert { min-height: 0; }
+  .mara-leiste .l-wert b { font-size: 17px; }
+  .mara-leiste .l-wert .mara-pille { font-size: 11.5px; padding: 1px 7px; }
+  .mara-leiste .l-weiter { display: none; }
+  .mara-aufklapper, .mara-karte, .mara-glas, .mara-wen { padding: 16px; }
+  .mara-feldgitter { grid-template-columns: minmax(0, 1fr); }
+  /* Statuszeile als 2er-Raster */
+  .mara-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }
+  .mara-status > .st { min-height: 0; padding: 10px 0 !important; border-right: 0; border-top: 1px solid var(--m-linie); }
+  .mara-status > .st:first-child, .mara-status > .st:first-child + .st:not(.voll) { border-top: 0; }
+  .mara-status > .st.voll { grid-column: 1 / -1; }
+  .mara-status > .st.rechts { grid-column: 1 / -1; margin-left: 0; }
+  .mara-kette { gap: 6px 10px; }
+  .mara-kette > .mara-etikett { flex-basis: 100%; }
+  .mara-kette .weiter { margin-left: 0; flex-basis: 100%; }
+  .mp-reiter-link { margin-left: 0; flex-basis: 100%; }
+  .mp-werkzeuge li { grid-template-columns: minmax(0, 1fr) auto; }
+  .mp-werkzeuge li > .mp-still { grid-column: 1 / -1; }
+  .mp-dauer-neu > input:not([type]) { flex-basis: 100%; }
   .mbz-umschalter { width: 100%; }
-  .mbz-umschalter button { flex: 1; min-height: 40px; padding: 0 8px; }
+  .mbz-umschalter button { flex: 1; min-height: 36px; padding: 0 8px; }
   .mbz-spalten { grid-template-columns: minmax(0, 1fr); }
   .mbz-spalte, .mbz-spalte:nth-child(4) { border-left: 0; padding: 14px 0 12px; }
   .mbz-spalte + .mbz-spalte { border-top: 1px solid var(--mbz-linie); }
-  .mbz-held b { font-size: 26px; }
-  .mbz-rahmen b { font-size: 19px; }
   .mbz-rahmen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mbz-rahmen > div, .mbz-rahmen > div:nth-child(4) { padding: 2px 12px; border-left: 1px solid var(--mbz-linie); }
-  .mbz-rahmen > div:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .mbz-rahmen > div, .mbz-rahmen > div:nth-child(4) { padding: 12px 12px 4px 0; border-left: 0; }
+  .mbz-rahmen b { font-size: 19px; }
+  /* Tippziele am Handy: Knöpfe 40, Chips 40, Wahl/Filter 36.
+     E-252 (Gegenprüfung): auch kleine Knöpfe 40 — „Speichern", „Link kopieren", „Probe", „Alle n zeigen" sind Knöpfe. */
+  .mara-knopf { min-height: 40px; }
+  .mara-knopf.klein { min-height: 40px; }
+  /* Die Zeilen der Bilanz klappen per Tippen ihre Quelle auf — Tippziel 32 px. */
+  .mbz-zeile { min-height: 32px; padding: 6px 0; align-items: center; }
+  .mara-knopf.text { min-height: 36px; }
+  .mara-chip, .mara-schalter { min-height: 40px; }
+  .mara-klappe > summary { min-height: 36px; }
+  .mp-reiter-knopf { min-height: 36px; }
+  .mara-i { width: 36px; height: 36px; margin: -10px -8px; }
+  .mara-leiste .l-geld .mara-knopf.text { min-height: 32px; }
+  /* Textverweise bekommen eine Tippfläche von 32 px, ohne die Zeile zu verschieben */
+  .mara a:not(.mara-knopf):not(.mp-reiter-knopf) { display: inline-block; padding: 8px 0; margin: -8px 0; }
 }
-@media (pointer: coarse) { .mbz-umschalter button { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+  .mara *, .mara *::before, .mara *::after { transition: none !important; animation: none !important; }
+}

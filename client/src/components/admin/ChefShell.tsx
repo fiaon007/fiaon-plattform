@@ -156,11 +156,20 @@ export function raumErlaubt(raum: ChefRaum, stufe: ChefStufe): boolean {
   return RANG[stufe] >= RANG[raum.mindest];
 }
 
-export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }: {
+export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false }: {
   stufe: ChefStufe; name: string | null; raumKey: string;
   onAbmelden: () => void; children: ReactNode;
   /** Anzeigetitel der Person (admin_titel) — ersetzt im Kopf den Stufennamen. */
   titel?: string | null;
+  /**
+   * E-252 (28.09.2026): Die offene Seite trägt `ruhig` (chef-seiten.tsx) —
+   * Kopf und Raumleiste kleben nicht und sind matt (Klasse `cb-ruhig`,
+   * chefbuero.css), und der Grund ist ein stehender Navy-Verlauf statt des
+   * Films. Justin: „Der Grund hinter dem Glas ist statisch" — eine
+   * Dauer-Animation unter backdrop-filter lässt den Lüfter laufen.
+   * Alle anderen Seiten bleiben, wie sie sind.
+   */
+  ruhigeHuelle?: boolean;
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
@@ -211,7 +220,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }:
   );
 
   return (
-    <div className={`cb${schmal ? " cb-schmal" : ""}`}>
+    <div className={`cb${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}`}>
       {/* ══════════════════════════════════════════════════════════════════
           DIE BÜHNE (26.08.2026)
           Eigener Film statt des Schreibtisch-Platzhalters: ein dunkler Raum
@@ -223,7 +232,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }:
           Standbild. Ein Hintergrund darf niemandem schaden.
           ══════════════════════════════════════════════════════════════════ */}
       <div className="cb-buehne" aria-hidden="true">
-        {ruhig ? (
+        {/* E-252: Auf einer ruhigen Seite gibt es weder Film noch Standbild — der Navy-Verlauf kommt aus chefbuero.css. */}
+        {ruhigeHuelle ? null : ruhig ? (
           <img src="/film/chef-buehne.jpg" alt="" decoding="async" />
         ) : (
           <video src="/film/chef-buehne.mp4" poster="/film/chef-buehne.jpg"

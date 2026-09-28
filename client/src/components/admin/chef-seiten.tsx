@@ -125,6 +125,13 @@ export interface ChefSeite {
    * `!important` — gut für alte Admin-Seiten, falsch für eigene (E-201).
    */
   eigenesDesign?: boolean;
+  /**
+   * E-252 (28.09.2026): Die Hülle bleibt ruhig — Kopf und Raumleiste kleben
+   * nicht und sind matt, der Grund steht still. Justin: Glas nur an EINER
+   * Stelle je Ansicht, nichts klebt, höchstens zwei Scrollbereiche. Gilt nur
+   * für Seiten, die es hier sagen; heute nur das Mara-Steuerpult.
+   */
+  ruhig?: boolean;
 }
 
 export const CHEF_SEITEN: ChefSeite[] = [
@@ -195,7 +202,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "postmeister", label: "Postfach", satz: "Alle Kundenmails an einem Ort: was der Kunde schrieb, seine Akte daneben, die Antwort zum Prüfen", Seite: Postmeister, raum: "kommunikation", mindest: "inhaber", auch: "email agent gmail postfach support ki automatisch" },
   { slug: "whatsapp", label: "WhatsApp", satz: "Der Chat mit den Kunden: alle Gespräche, das 24-Stunden-Fenster, Vorlagen und Maras Schalter je Gespräch.", Seite: WhatsAppRaumSeite, raum: "kommunikation", eigenesDesign: true, auch: "whatsapp chat nachricht wa mara postfach kunde schreiben" },
   { slug: "lead-motor", label: "Lead-Motor", satz: "Die Facebook-Leads direkt von Meta: Verbindung mit einem Knopf einrichten, Rückstand nachholen, Begrüßungsmail schalten — und jeder Lead mit Herkunft, Begrüßung, Klick und Antrag.", Seite: LeadMotor, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
-  { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale, Mail-Aktion und der Verkauf der Bonitätsauskunft: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt —, jede Mail, jeden Takt und die Kosten steuern, den Auskunft-Verkauf scharf stellen.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung" },
+  { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale, Mail-Aktion und der Verkauf der Bonitätsauskunft: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt —, jede Mail, jeden Takt und die Kosten steuern, den Auskunft-Verkauf scharf stellen.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung" },
   { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "kommunikation" },
   { slug: "space", label: "Space", satz: "Der Feed des Teams — mitlesen, anpinnen, moderieren.", Seite: Space, raum: "kommunikation" },
 

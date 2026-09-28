@@ -31,12 +31,13 @@ import {
 } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
 import {
-  auskunftLeistung, auskunftWort, auskunfteienText, euroText, AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_PREISE_CENTS,
+  auskunftLeistung, auskunftWort, auskunfteienText, euroText, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_PREISE_CENTS,
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { auskunftArtFuer } from "./fiaon-postmeister-dossier";
 import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fiaon-auskunft";
 import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN, ANGEBOT_SEGMENTE, ANGEBOT_BETREFF_VARIANTEN } from "../mail/vorlagen/auskunft-verkauf";
+import { zeitFuerKunde } from "@shared/fiaon-mara-ton";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -65,6 +66,55 @@ export interface WerkzeugKontext {
    * (auskunftAntwortArt), nie das Modell.
    */
   auskunftAntwort?: AuskunftAntwort;
+  /**
+   * 28.09.2026 (E-248): Vertrag nach der Fassung vor dem 03.09.2026 (agb_stand leer
+   * oder älter) — laut Hauswissen „monatlich kündbar, formlos". Dann genügt jede
+   * klare Aussage („bitte alles stornieren"), kein fester Wortlaut (#5625).
+   */
+  formlosKuendbar?: boolean;
+  /**
+   * 28.09.2026 (E-248): Diese Antwort ist KEINE Zahlungsaufforderung (Stopp,
+   * Widerruf, Beschwerde, bestrittene Forderung, Anwalt, „kann nicht zahlen",
+   * offener Einwand aus einer früheren Mail). Der Grund steht hier; die
+   * Zahlungsseite gibt es dann nicht, die Rechnung nur auf ausdrücklichen Wunsch.
+   * Rechnet der Server (zahlungsRuhe), nie das Modell.
+   */
+  ruhe?: string | null;
+}
+
+/**
+ * Der künftige, gebuchte Termin eines Menschen (E-248) — für Rückruf und Terminlink
+ * per Mail. Dieselbe Regel wie auf WhatsApp (kuenftigerTermin): Status „gebucht",
+ * Beginn nicht länger als 20 Minuten vorbei. Die Zeit so, wie der Kunde sie liest.
+ */
+export async function bestehenderTermin(personId: number): Promise<{ id: number; beginn: string; vorname: string | null; kundenText: string } | null> {
+  const [t] = (await sqlPool`
+    SELECT t.id, t.beginn, COALESCE(NULLIF(a.first_name, ''), split_part(COALESCE(a.name, ''), ' ', 1)) AS vorname
+      FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
+     WHERE t.person_id = ${personId} AND t.status = 'gebucht' AND t.beginn > NOW() - INTERVAL '20 minutes'
+     ORDER BY t.beginn LIMIT 1`.catch(() => [])) as any[];
+  if (!t) return null;
+  const b = new Date(t.beginn);
+  return { id: Number(t.id), beginn: b.toISOString(), vorname: t.vorname ? String(t.vorname) : null, kundenText: zeitFuerKunde(b) };
+}
+
+/** „YYYY-MM-DD HH:MM" als Berliner Zeit lesen — ohne Number(format()) (Zeit-Falle). Null, wenn unlesbar. */
+export function berlinZeitLesen(roh: string): Date | null {
+  const m = String(roh || "").trim().replace("T", " ").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const [j, mo, t, h, mi] = m.slice(1).map(Number);
+  const utc = Date.UTC(j, mo - 1, t, h, mi);
+  // Versatz Berlins zu diesem Zeitpunkt über formatToParts (Sommer- und Winterzeit).
+  const teile = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(utc));
+  const w = (n: string) => Number(teile.find((x) => x.type === n)?.value ?? "0");
+  const alsBerlin = Date.UTC(w("year"), w("month") - 1, w("day"), w("hour") % 24, w("minute"));
+  const d = new Date(utc - (alsBerlin - utc));
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+/** Verlangt der Kunde ausdrücklich eine Rechnung, einen Beleg oder die Zahlungsdaten? Rein. */
+export function kundeWillRechnung(text: unknown): boolean {
+  return /\b(rechnung\w*|beleg\w*|quittung\w*|invoice|factura|fattura|facture|zahlungsdaten|bankdaten|kontodaten|bankverbindung|iban)\b/i.test(String(text ?? ""));
 }
 
 export interface WerkzeugErgebnis {
@@ -363,21 +413,41 @@ export const aufgabeAnBetreuer: Werkzeug = {
     // „Erkannte Rückrufwünsche automatisch als Termin in den Kalender des
     // zuständigen Mitarbeiters eintragen, verknüpft mit Kunde und Mail."
     let terminSatz = "";
+    let gebuchtText: string | null = null;
     const rueckrufAm = String(p.rueckruf_am || "").trim();
-    if (rueckrufAm && k.personId && erg.agentId) {
+    // ── E-248: KEIN ZWEITER TERMIN, KEINE ZEIT IN DER VERGANGENHEIT ───────
+    // Steht schon ein gebuchter Termin, wird keiner dazugebucht (Fall K. auf
+    // WhatsApp: der Kunde hatte selbst gebucht) — Mara nennt den bestehenden, so
+    // wie ein Mensch es sagt („morgen um 20 Uhr"). Eine Zeit ohne Vorlauf
+    // (weniger als 20 Minuten, wie auf WhatsApp) wird nicht gebucht.
+    const bestehend = rueckrufAm && k.personId ? await bestehenderTermin(k.personId) : null;
+    const wunschZeit = rueckrufAm ? berlinZeitLesen(rueckrufAm) : null;
+    if (bestehend) {
+      terminSatz = ` Es steht schon ein Termin: ${bestehend.vorname ? `${bestehend.vorname} ruft Sie ` : ""}${bestehend.kundenText}${bestehend.vorname ? " an" : ""}. Kein zweiter wurde eingetragen.`;
+    } else if (rueckrufAm && (!wunschZeit || wunschZeit.getTime() < Date.now() + 20 * 60_000)) {
+      terminSatz = ` (Rückruf-Zeit ${rueckrufAm} liegt nicht mindestens 20 Minuten in der Zukunft oder ist unlesbar — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit.)`;
+    } else if (rueckrufAm && k.personId && erg.agentId) {
       try {
         const { terminBuchen } = await import("./fiaon-termine");
         const b = await terminBuchen({ personId: k.personId, agentId: Number(erg.agentId), beginn: rueckrufAm, quelle: "agent_manuell", herkunft: "mara_mail" });
         await sqlPool`UPDATE fiaon_termine SET notiz = ${`Rückrufwunsch aus E-Mail [Mail #${k.postmeisterId ?? "?"}]: ${text.slice(0, 300)}`}, updated_at = NOW() WHERE id = ${b.id}`.catch(() => {});
         const { buchungMelden } = await import("./fiaon-termin-meldung");
         await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
-        terminSatz = ` Der Rückruf steht als Termin am ${b.datumText} um ${b.uhrzeit} Uhr im Kalender.`;
+        // E-248: so, wie der Kunde es liest — „morgen um 20 Uhr", nie ISO.
+        gebuchtText = zeitFuerKunde(new Date(b.beginn));
+        terminSatz = ` Der Rückruf steht im Kalender: ${gebuchtText}.`;
         await protokoll(k, "aufgabe_an_betreuer", `Rückruf-Termin ${b.datumText} ${b.uhrzeit} Uhr für ${wer} eingetragen.`);
       } catch (e: any) {
-        terminSatz = ` (Rückruf-Termin ${rueckrufAm} konnte nicht eingetragen werden: ${String(e?.message || e).slice(0, 100)} — die Aufgabe steht trotzdem.)`;
+        terminSatz = ` (Rückruf-Termin konnte nicht eingetragen werden: ${String(e?.message || e).slice(0, 100)} — die Aufgabe steht trotzdem; nenne dem Kunden keine Uhrzeit.)`;
       }
     }
-    return { ok: true, ergebnis: `${werKunde} hat die Aufgabe „${titel}" bekommen und meldet sich ${wann}.${terminSatz}`, daten: { betreuer: werKunde, betreuer_intern: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id, rueckruf_termin: terminSatz ? rueckrufAm : null } };
+    return {
+      ok: true, ergebnis: `${werKunde} meldet sich ${wann} bei Ihnen.${terminSatz}`,
+      daten: {
+        betreuer: werKunde, betreuer_intern: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id,
+        rueckruf_termin: gebuchtText, bestehender_termin: bestehend ? bestehend.kundenText : null,
+      },
+    };
   },
 };
 
@@ -400,9 +470,16 @@ export const rechnungAnhaengen: Werkzeug = {
     const ref = String(p.referenz || "").trim().toUpperCase();
     // E-230: auch das neue Format ohne Bindestrich (FIAONXXXXXX, FIAONXXXXXX-N).
     if (!/^FIAON-?[A-Z0-9]{6}(-\d{1,2})?$/.test(ref)) return { ok: false, ergebnis: "", fehler: "Das ist keine Zahlungsreferenz." };
+    // E-248: Auf Stopp, Widerruf, Beschwerde, Bestreiten … geht keine Rechnung mit —
+    // außer der Kunde verlangt sie ausdrücklich (#5479: „Stopp" bekam Rechnung und Zahlknopf).
+    if (k.ruhe && !kundeWillRechnung(k.kundeText)) {
+      return { ok: false, ergebnis: "", fehler: `Diese Antwort ist keine Zahlungsaufforderung (${k.ruhe}) — keine Rechnung anhängen, sein Anliegen beantworten.` };
+    }
     const { zahlungsauftragFinden } = await import("./fiaon-zahlungsauftrag");
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keine Rechnung." };
+    // E-248 (#5500): Ohne Betrag gibt es keine Rechnung — sonst „über null €".
+    if (!(Number(z.amountDue) > 0)) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung ist noch kein Betrag hinterlegt — keine Rechnung und keinen Betrag nennen; der Betreuer trägt Paket und Betrag nach (aufgabe_an_betreuer)." };
     if (k.postmeisterId) {
       const [r] = (await sqlPool`SELECT anhaenge FROM fiaon_postmeister WHERE id = ${k.postmeisterId}`) as any[];
       const da: any[] = Array.isArray(r?.anhaenge) ? r.anhaenge : [];
@@ -778,7 +855,7 @@ export const auskunftAnbieten: Werkzeug = {
   parameter: {
     type: "object", additionalProperties: false,
     properties: {
-      anlass: { type: "string", description: "In einem Satz, was der Kunde gesagt hat (z. B. „hat keine SCHUFA-Auskunft“, „fragt nach seinem Limit“) — steht in der Aufgabe für den Betreuer." },
+      anlass: { type: "string", description: "In einem Satz, was der Kunde gesagt hat (z. B. „hat keine SCHUFA-Auskunft“, „fragt nach seinem Kartenrahmen“) — steht in der Aufgabe für den Betreuer." },
     },
     required: ["anlass"],
   },
@@ -842,8 +919,9 @@ export const auskunftAnbieten: Werkzeug = {
         betrag: (cents / 100).toFixed(2),
         verwendungszweck: stand.offen.paymentReference,
         mitAbo: stand.preis.mitAbo, preis_hinweis: preisHinweis(stand.preis.mitAbo),
-        // E-241: „Limit“ nur für Kunden mit laufendem Paket — Antrag und Lead lesen den Satz ohne (VERBOTENE_WORTE).
-        leistung: auskunftLeistung(art, land), nutzen: stand.preis.mitAbo ? AUSKUNFT_NUTZEN_SATZ : AUSKUNFT_NUTZEN_SATZ_KARTE,
+        // E-248: „Rahmen statt Limit" gilt für alle (shared/fiaon-mara-ton.ts, TON_REGELN „limit") —
+        // der Nutzen-Satz ohne „Wunschlimit" auch für Kunden mit Paket (vorher E-241 nur für Antrag und Lead).
+        leistung: auskunftLeistung(art, land), nutzen: AUSKUNFT_NUTZEN_SATZ_KARTE,
       };
     } else {
       // Neu: nur, wenn die Bestätigungsseite ihn auch beauftragen lässt — sonst
@@ -883,8 +961,9 @@ export const auskunftAnbieten: Werkzeug = {
         betrag: (stand.preis.cents / 100).toFixed(2),
         verwendungszweck: null,
         mitAbo: stand.preis.mitAbo, preis_hinweis: preisHinweis(stand.preis.mitAbo),
-        // E-241: „Limit“ nur für Kunden mit laufendem Paket — Antrag und Lead lesen den Satz ohne (VERBOTENE_WORTE).
-        leistung: auskunftLeistung(art, land), nutzen: stand.preis.mitAbo ? AUSKUNFT_NUTZEN_SATZ : AUSKUNFT_NUTZEN_SATZ_KARTE,
+        // E-248: „Rahmen statt Limit" gilt für alle (shared/fiaon-mara-ton.ts, TON_REGELN „limit") —
+        // der Nutzen-Satz ohne „Wunschlimit" auch für Kunden mit Paket (vorher E-241 nur für Antrag und Lead).
+        leistung: auskunftLeistung(art, land), nutzen: AUSKUNFT_NUTZEN_SATZ_KARTE,
         // E-241: Was zu seinem Antrag in dieselbe Mail gehört — ein Satz, nicht mehr.
         ...(alsAntwort ? {
           hinweis: k.kundenlage === "unbezahlt"
@@ -919,7 +998,9 @@ export const auskunftAnbieten: Werkzeug = {
  */
 export const kuendigungVormerken: Werkzeug = {
   name: "kuendigung_vormerken",
-  beschreibung: "Nimmt eine Kündigung entgegen. Nur bei einer eindeutigen Willenserklärung des Kunden ('ich kündige', 'hiermit kündige ich'), niemals bei Fragen oder Überlegungen. Der Vertrag läuft zwölf Monate; wir entlassen kulant vorzeitig, aber die bereits gestellte Rate bleibt zu zahlen — der Vertrag endet erst mit ihrer Zahlung (Storno erst nach Zahlungseingang). Auch wenn der Kunde schreibt, er habe schon früher gekündigt: aufrufen — das System merkt es jetzt vor. Nach dem Aufruf nennst du in der Antwort die offene Rate mit Betrag und Zahlungsseite.",
+  // E-248: Die Beschreibung sagt nicht mehr „zwölf Monate" für alle — Verträge vor dem
+  // 03.09.2026 sind monatlich und formlos kündbar (shared/fiaon-wissen.ts).
+  beschreibung: "Nimmt eine Kündigung oder ein Storno entgegen und bucht es sofort — Urkunde und schriftliche Bestätigung verschickt das Haus selbst (E-213). Rufe es, sobald der Kunde klar sagt, dass er kündigen, stornieren, widerrufen oder nicht mehr weitermachen will — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort“), auch „bitte alles stornieren“. Nie bei Fragen („Wie kann ich kündigen?“) oder Überlegungen („ich überlege …“). Zitat = sein wörtlicher Satz. Eine unbezahlte Bestellung wird storniert (nichts offen). Bei einem laufenden Vertrag bleibt die bereits gestellte Rate zu zahlen; mit ihrer Zahlung endet der Vertrag. Auch wenn er schreibt, er habe schon früher gekündigt: aufrufen. Nie bei Verneinung („ich kündige nicht“), Bedingung („sonst kündige ich“, „bevor ich kündige“), fremden Verträgen (Handy, Bank) oder wenn jemand anderes kündigen will. Ein bloßes „Stopp“ ist KEINE Kündigung (dafür werbesperre_setzen). Lehnt das Werkzeug ab, ist NICHTS gebucht — dann bestätigst du keine Kündigung; nachfragen nur, wenn er selbst kündigen/stornieren geschrieben hat.",
   stufe: "frei",
   // „gesperrt" (05.09.2026): Ein gesperrter Kunde mit unbezahlter Bestellung
   // will meist nur raus — das Storno muss Mara selbst können.
@@ -934,13 +1015,47 @@ export const kuendigungVormerken: Werkzeug = {
   },
   async ausfuehren(p, k) {
     if (!k.ref) return { ok: false, ergebnis: "", fehler: "Ohne Bestellung kann keine Kündigung vorgemerkt werden." };
-    const { istWillenserklaerung, kuendigungSetzen } = await import("./fiaon-kuendigung");
+    const { istWillenserklaerung } = await import("./fiaon-kuendigung");
     const zitat = String(p.zitat || "");
-    if (!istWillenserklaerung(zitat, { unbezahlt: k.kundenlage === "unbezahlt" || k.kundenlage === "interessent" || k.kundenlage === "gesperrt" })) {
-      return { ok: false, ergebnis: "", fehler: "Das ist keine eindeutige Kündigung — frag nach oder informiere nur." };
+    // E-248, Nachbesserung 28.09.: Es zählen NUR seine Worte. Das Zitat muss wörtlich
+    // in SEINEM Teil der Mail stehen (k.kundeText = kundenTeil, ohne zitierten
+    // Verlauf — sonst reichte unser eigener Mahnsatz „… können wir den Vertrag nicht
+    // beenden"), und geprüft wird der ganze Satz, aus dem es stammt. Kein Rückgriff
+    // mehr auf den ganzen Mailtext.
+    const eigen = k.kundeText != null ? String(k.kundeText) : null;
+    const pruefText = eigen == null ? zitat : saetzeZumZitat(zitat, eigen);
+    const unbezahlt = k.kundenlage === "unbezahlt" || k.kundenlage === "interessent" || k.kundenlage === "gesperrt";
+    let wille = !!pruefText && kuendigungsWille(pruefText, { unbezahlt, formlos: !!k.formlosKuendbar, istWillenserklaerung });
+    // Ein kurzes „Ja" auf UNSERE Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt
+    // kündige? Ein kurzes Ja genügt.") ist die Erklärung — sonst Kündigungsschleife.
+    if (!wille && eigen && k.personId && eigen.trim().length <= 90) {
+      const [letzte] = (await sqlPool`
+        SELECT antwort FROM fiaon_postmeister
+         WHERE person_id = ${k.personId} AND antwort IS NOT NULL
+           AND id <> ${k.postmeisterId ?? -1}
+           AND created_at > NOW() - INTERVAL '21 days'
+         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+      wille = jaAufRueckfrage(eigen, letzte?.antwort ?? null);
     }
-    const erg = await kuendigungSetzen(k.ref, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null });
-    if (!erg.ok) return { ok: false, ergebnis: "", fehler: erg.grund };
+    if (!wille) {
+      return { ok: false, ergebnis: "", fehler: "Das ist keine eindeutige Kündigung — NICHTS ist gebucht. Bestätige keine Kündigung. Hat der Kunde selbst „kündigen“, „stornieren“ oder „widerrufen“ geschrieben (ohne „nicht“), frag in EINEM freundlichen Satz nach, ob du es jetzt für ihn erledigen sollst. Hat er das NICHT selbst geschrieben (z. B. nur „Stopp“, eine Frage, eine Beschwerde), sprich Kündigung und Storno überhaupt NICHT an — beantworte nur sein Anliegen." };
+    }
+    // ── E-213: DERSELBE VORGANG WIE IN AKTE, KARTEI UND ZENTRALE (28.09.2026, E-248)
+    // Vorher rief Mara nur kuendigungSetzen: Wirkung ja, aber keine Urkunde, keine
+    // Bestätigung, der Formular-Antrag blieb offen. Jetzt der ganze Vorgang — scheitert
+    // nur Urkunde oder Bestätigungsmail, steht die Kündigung trotzdem.
+    // Steht die Kündigung schon, gibt es nichts durchzuführen — dann nur der Stand
+    // (kuendigungSetzen meldet „bereits"), ohne zweiten Aktenvermerk (E-246).
+    const [schon] = (await sqlPool`SELECT gekuendigt_am FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+    const { kuendigungSetzen } = await import("./fiaon-kuendigung");
+    const { kuendigungDurchfuehren } = await import("../routes/fiaon-kuendigung");
+    const erg = schon?.gekuendigt_am
+      ? await kuendigungSetzen(k.ref, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null })
+      : await kuendigungDurchfuehren(k.ref, {
+        quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null,
+        personId: k.personId ?? null, unterzeichner: { name: "FIAON LTD", rolle: "automatisch erstellt (digitale Assistentin Mara, E-Mail)" },
+      });
+    if (!erg.ok) return { ok: false, ergebnis: "", fehler: `${erg.grund} — NICHTS ist gebucht; bestätige keine Kündigung.` };
     // ── E-246: „bereits" aus dem ERSTEN Anlauf DIESER Mail ist keine alte Kündigung.
     // Unterbrach die KI-Pause die Mail nach dem Vormerken, meldet kuendigungSetzen
     // im zweiten Anlauf weg='bereits' — und der Kunde, der zum ersten Mal kündigt,
@@ -1015,10 +1130,153 @@ export const kuendigungVormerken: Werkzeug = {
         faellig: letzte?.faellig ?? null,
         offene_raten: echte.map((r) => ({ rate: r.nr, betrag: (r.cents / 100).toFixed(2), faellig: r.faellig })),
         offen_summe: echte.length ? (echte.reduce((s, r) => s + r.cents, 0) / 100).toFixed(2) : null,
+        // E-248 (E-213): Was das Haus selbst verschickt hat — nur dann kündigt Mara die Bestätigung an.
+        urkunde: !!(erg as any).urkunde,
+        bestaetigung_gesendet: !!(erg as any).mailGesendet,
       },
     };
   },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER KÜNDIGUNGSWILLE (28.09.2026, E-248) — rein, im Prüfstand geprüft.
+//
+// DIE FÄLLE: #5626 „Ich [Vorname Nachname] kündige per sofort den Vertrag" —
+// zweimal abgelehnt, weil istWillenserklaerung (fiaon-kuendigung.ts) „ich
+// kündige" direkt nebeneinander verlangt; Mara schrieb trotzdem „Ihre Kündigung
+// liegt mir jetzt eindeutig vor". #5625: Vertrag vom 25.08. (formlos kündbar),
+// „alles komplett wieder stornieren" — Mara verlangte den festen Wortlaut. 68
+// von 116 Aufrufen scheiterten in 14 Tagen an dieser Prüfung.
+//
+// Die Regel im Kündigungsmodul bleibt (sie gilt auch für Akte und Kartei);
+// hier kommen die Formen dazu, die echte Kunden schreiben. Eine Frage oder
+// ein Konjunktiv im selben Satz ist weiterhin KEINE Kündigung.
+// ═══════════════════════════════════════════════════════════════════════════
+const WILLE_UNSICHER = /(würde|wuerde|überlege|ueberlege|\bfalls\b|wenn ich|wie kann ich|wie kündige|wie kuendige|kann ich\b|könnte|koennte|(?:ist|wäre|waere|sei)\s+(?:das|es)\s+m(?:ö|oe)glich|vielleicht|eventuell|\bob\b|informier|welche frist|\bwhether\b|\bif\s+i\b|how\s+(?:can|do)\s+i|\?)/i;
+const WILLE_KLAR: RegExp[] = [
+  // „Ich, Max Muster, kündige per sofort" — Name oder Füllwörter zwischen „ich" und „kündige"
+  /\bich\b[^.!?\n]{0,40}?\bk(?:ü|ue)ndige\b/i,
+  // „Ich möchte meinen Vertrag kündigen", „will das bei Ihnen kündigen", „werde kündigen"
+  // (Nachbesserung E-248: „beenden" zählt nur mit Vertrag/Abo — „ich werde das heute
+  // beenden und die Rate zahlen" ist keine Kündigung; das prüft BEENDEN_ALLEIN.)
+  /\b(?:möchte|moechte|möchten|will|wollen|werde)\b[^.!?\n]{0,50}?\b(?:k(?:ü|ue)ndigen|stornieren|beenden|auflösen|aufloesen|widerrufen)\b/i,
+  // „Kündigung per sofort / fristlos / zum nächstmöglichen Zeitpunkt"
+  /\bk(?:ü|ue)ndigung\b[^.!?\n]{0,40}?\b(?:per\s+sofort|ab\s+sofort|fristlos|mit\s+sofortiger\s+wirkung|zum\s+n(?:ä|ae)chst(?:en|m(?:ö|oe)glichen))/i,
+  // „bitte alles komplett stornieren", „den Vertrag bitte beenden" — ein Antrag nur mit
+  // „stornieren/zurückziehen" („meinen Antrag beenden" heißt oft: fertig ausfüllen).
+  /\b(?:alles|vertrag|vertr(?:ä|ae)ge|bestellung|abo|abonnement|paket|mitgliedschaft|auftrag)\b[^.!?\n]{0,30}?\b(?:stornier\w*|k(?:ü|ue)ndigen|beenden|aufheben|aufl(?:ö|oe)sen)\b/i,
+  /\bantrag\b[^.!?\n]{0,30}?\b(?:stornier\w*|zur(?:ü|ue)ckziehen|zur(?:ü|ue)ckgezogen)\b/i,
+  // „Ja, bitte kündigen." / „Bitte stornieren Sie alles" / „Kündigen Sie bitte meinen Vertrag"
+  /\bbitte\s+(?:(?:alles|den\s+vertrag|mein(?:en)?\s+vertrag|das\s+abo|die\s+bestellung|meine\s+bestellung)\s+)?(?:k(?:ü|ue)ndigen|stornieren)\b/i,
+  /\b(?:k(?:ü|ue)ndigen|stornieren)\s+sie\s+(?:bitte\s+)?(?:alles|mein\w*|den|das|die)\b/i,
+  // „Hiermit möchte ich … widerrufen"
+  /\bhiermit\b[^.!?\n]{0,50}?\bwi(?:e)?der(?:r)?uf\w*/i,
+  // Englisch: „I want to cancel", „please cancel my subscription", „I hereby cancel"
+  /\b(?:i\s+(?:want|wish|would\s+like|hereby)\s+to\s+cancel|i\s+hereby\s+cancel|please\s+cancel|cancel\s+(?:my|the)\s+(?:subscription|contract|order|membership|plan))\b/i,
+];
+
+// ── NACHBESSERUNG E-248 (28.09.2026): WAS NIE EINE KÜNDIGUNG IST ──────────
+// Gegenprobe: „Ich kündige nicht, ich will nur wissen …", „Ich will nicht
+// kündigen, sondern die Rate verschieben", „Bevor ich kündige, möchte ich mit
+// jemandem sprechen", „Sonst werde ich kündigen", „Mein Mann will kündigen, ich
+// aber nicht", „Ich möchte meinen Handyvertrag kündigen" — alle galten als
+// Kündigung und wären SOFORT mit Urkunde gebucht worden. In echten Mails der
+// letzten 45 Tage hatten 67 von 187 Treffern eine Verneinung oder Bedingung.
+// Ein Satz mit einer dieser Formen zählt nie — im Zweifel fragt Mara nach, und
+// ein kurzes Ja darauf genügt (jaAufRueckfrage).
+/** Ein Wort zwischen Verneinung und Kündigungswort — nie über ein Komma oder ein „und/aber" hinweg. */
+const W = String.raw`(?:(?!(?:und|aber|sondern|deshalb|daher|darum|also|weil|denn|ich|and|but)\b)[^\s,;:.!?]+)`;
+const KWORT = String.raw`\S*(?:k(?:ü|ue)ndig|stornier|beend|wi(?:e)?der(?:r)?uf|aufl(?:ö|oe)s|aufheb|cancel)`;
+/** „nicht kündigen", „auf keinen Fall kündigen", „nicht vor, den Vertrag zu kündigen" — „nicht mehr"/„kein Interesse" sind KEINE Verneinung des Kündigens. */
+const VERNEINT_VOR = new RegExp(String.raw`\b(?:nicht(?!\s+mehr\b)|kein(?:e[nmrs]?)?(?!\s+(?:interesse|bedarf|lust|geld|mehr)\b)|nie(?:mals)?|keinesfalls|auf\s+keinen\s+fall)\b(?:\s+${W}){0,4}?\s+${KWORT}`, "i");
+/** „ich kündige nicht", „storniere das bitte nicht" */
+const VERNEINT_NACH = /\b(?:k(?:ü|ue)ndige|storniere|beende|widerrufe|l(?:ö|oe)se)\b(?:\s+[^\s,;:.!?]+){0,3}?\s+(?:nicht(?!\s+mehr\b)|keinesfalls|niemals|nie)\b/i;
+const VERNEINT_EN = /\b(?:don'?t|do\s+not|won'?t|will\s+not|not)\s+(?:\w+\s+){0,2}?cancel/i;
+/** Bedingung oder Vorbehalt im selben Satz: „bevor", „sonst", „wenn … nicht klappt". */
+const BEDINGUNG = /\b(?:bevor|sonst|ansonsten|wenn|falls|sofern|solange|au(?:ß|ss)er\s+wenn|es\s+sei\s+denn|unless|before|otherwise)\b/i;
+/** Jemand anderes will kündigen: „Mein Mann will kündigen, ich aber nicht." */
+const DRITTE = /\b(?:mein(?:e|em|en|er)?|unser(?:e|em|en|er)?)\s+(?:mann|ehemann|frau|ehefrau|partner(?:in)?|freund(?:in)?|lebensgef(?:ä|ae)hrt\w*|sohn|tochter|vater|mutter|papa|mama|bruder|schwester|kolleg\w*|chef\w*|anwalt|anw(?:ä|ae)ltin)\b|\ber\s+(?:will|m(?:ö|oe)chte|wollte|k(?:ü|ue)ndigt)\b|\bmy\s+(?:husband|wife|partner)\b/i;
+/** Ein fremder Vertrag: Handy, Strom, das Konto bei seiner Bank (wie heikelAnliegen auf WhatsApp). */
+const FREMDER_VERTRAG = /\b(?:handy|mobilfunk|strom|gas|internet|dsl|fitness\w*|miet|versicherungs?|zeitungs?|netflix|spotify|giro|spar|bank|kredit)\w*(?:vertrag|konto|abo|mitgliedschaft|karte)\b|\b(?:konto|karte|kredit\w*|vertrag|abo)\s+bei\s+(?:meiner|meinem|der|dem|einer|einem)\s+\w+|\b(?:bei\s+der|meine[rn]?)\s+(?:sparkasse|volksbank|raiffeisen\w*|commerzbank|postbank|n26|ing|comdirect|targobank|hausbank|bank)\b/i;
+/** „beenden" allein (ohne Vertrag/Abo) ist keine Kündigung: „Antrag beenden" = fertig machen. */
+function beendenAllein(s: string): boolean {
+  return /beend/i.test(s)
+    && !/(?:k(?:ü|ue)ndig|stornier|wi(?:e)?der(?:r)?uf|aufl(?:ö|oe)s|nicht\s+mehr|kein\s+interesse|abbrech|zur(?:ü|ue)cktret|l(?:ö|oe)sch|verzicht|cancel|nein\s+danke)/i.test(s)
+    && !/\b(?:vertrag\w*|abo|abonnement|mitgliedschaft|zusammenarbeit)\b/i.test(s);
+}
+/** Ein Satz, der nie als Kündigung gelten darf. Rein, im Prüfstand geprüft. */
+export function keinKuendigungsSatz(s: string): string | null {
+  if (VERNEINT_VOR.test(s) || VERNEINT_NACH.test(s) || VERNEINT_EN.test(s)) return "verneint";
+  if (BEDINGUNG.test(s)) return "bedingung";
+  if (DRITTE.test(s)) return "dritte person";
+  if (FREMDER_VERTRAG.test(s)) return "fremder vertrag";
+  if (beendenAllein(s)) return "beenden ohne vertrag";
+  return null;
+}
+
+/** Unsere Rückfrage „Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt." (und die Storno-Fassung). */
+export const RUECKFRAGE_KUENDIGUNG = /\b(?:möchten|moechten|wollen)\s+sie[^?]{0,60}?\b(?:k(?:ü|ue)ndige|storniere|k(?:ü|ue)ndigen|stornieren)\b[^?]{0,20}\?|\bsoll\s+ich\b[^?]{0,60}?\b(?:k(?:ü|ue)ndigen|stornieren)\b[^?]{0,20}\?/i;
+/**
+ * Ein kurzes Ja auf unsere Rückfrage (Nachbesserung E-248): „Ja", „Ja bitte",
+ * „Ja genau", „Ja, bitte kündigen." — vorher eine Schleife: Wir verlangten ein Ja
+ * und nahmen es nicht an. Nur, wenn unsere letzte Mail die Rückfrage enthielt. Rein.
+ */
+export function jaAufRueckfrage(eigenerText: string, unsereLetzte: string | null | undefined): boolean {
+  if (!unsereLetzte || !RUECKFRAGE_KUENDIGUNG.test(String(unsereLetzte))) return false;
+  const t = String(eigenerText || "").replace(/\s+/g, " ").trim();
+  if (!t || t.length > 90 || /\?/.test(t)) return false;
+  if (/\b(?:nicht|nein|kein\w*|doch\s+nicht|no|not)\b/i.test(t)) return false;
+  return /^(?:ja|jawohl|jap|genau|korrekt|richtig|gerne?|bitte|yes|s[ií]|oui|evet|tak|da)\b/i.test(t);
+}
+
+/**
+ * Erklärt der Kunde, dass er kündigen oder stornieren will? Satzweise: Erst fallen
+ * Sätze mit Verneinung, Bedingung, fremder Person oder fremdem Vertrag heraus
+ * (keinKuendigungsSatz), dann gelten die Regel des Kündigungsmoduls
+ * (istWillenserklaerung — bei einem formlos kündbaren Vertrag mit der weiten Liste
+ * wie bei einer unbezahlten Bestellung, #5625) und die Formen oben, nie in einem
+ * Satz mit Frage oder Konjunktiv.
+ */
+export function kuendigungsWille(text: string, opt: {
+  unbezahlt?: boolean; formlos?: boolean;
+  istWillenserklaerung: (t: string, o?: { unbezahlt?: boolean }) => boolean;
+}): boolean {
+  const t = String(text || "").replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  const saetze = t.split(/(?<=[.!;\n])\s+|(?<=\?)\s*/).map((s) => s.trim()).filter(Boolean);
+  for (const s of saetze) {
+    if (keinKuendigungsSatz(s)) continue;
+    if (opt.istWillenserklaerung(s, { unbezahlt: !!opt.unbezahlt })) return true;
+    if (WILLE_UNSICHER.test(s)) continue;
+    if (WILLE_KLAR.some((m) => m.test(s))) return true;
+    // Formlos kündbar (Vertrag vor dem 03.09.2026): die klaren Storno-Sätze des Moduls
+    // („stornieren Sie alles", „ich will nicht mehr weitermachen") auch bei laufendem Vertrag.
+    if (opt.formlos && opt.istWillenserklaerung(s, { unbezahlt: true }) && /(stornier|k(?:ü|ue)ndig|beend|nicht\s+mehr\s+weiter|nicht\s+weiter|aufh(?:ö|oe)ren|wi(?:e)?der(?:r)?uf)/i.test(s)) return true;
+  }
+  return false;
+}
+
+/**
+ * Die Sätze SEINES Textes, aus denen das Zitat des Modells stammt (Nachbesserung
+ * E-248). Geprüft wird der ganze Satz — ein Zitat „kündigen" aus „ich will nicht
+ * kündigen" verliert sonst die Verneinung. Leer, wenn das Zitat nicht in seinem Text steht. Rein.
+ */
+export function saetzeZumZitat(zitat: string, text: string): string {
+  const n = (s: string) => String(s || "").toLowerCase().replace(/[^a-z0-9äöüßàáâãåæçèéêëìíîïñòóôõøùúûýÿąćęłńśźżăîșțşğıœčďěňřšťůž]+/g, " ").trim();
+  const z = n(zitat);
+  if (z.length < 6) return "";
+  const saetze = String(text || "").replace(/\s+/g, " ").split(/(?<=[.!?;])\s+/).map((s) => s.trim()).filter(Boolean);
+  const treffer = saetze.filter((s) => { const ns = n(s); return ns.length >= 3 && (ns.includes(z) || z.includes(ns)); });
+  if (treffer.length) return treffer.join(" ");
+  return n(text).includes(z) ? String(text) : "";
+}
+
+/** Steht das Zitat des Modells wirklich in seiner Mail? (Satzzeichen und Groß/Klein egal.) Rein. */
+export function zitatInText(zitat: string, text: string): boolean {
+  const n = (s: string) => String(s || "").toLowerCase().replace(/[^a-z0-9äöüßàáâãåæçèéêëìíîïñòóôõøùúûýÿąćęłńśźżăîșțşğıœčďěňřšťůž]+/g, " ").trim();
+  const z = n(zitat);
+  return z.length >= 6 && n(text).includes(z);
+}
 
 /** Eine offene Rate, wie der Kündigungssatz sie braucht. */
 export interface OffeneRate { nr: number; cents: number; faellig: string | null }
@@ -1122,14 +1380,29 @@ export const zahlungslinkBauen: Werkzeug = {
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keinen offenen Auftrag." };
     if (z.status === "paid") return { ok: false, ergebnis: "", fehler: "Diese Rechnung ist bereits bezahlt — sag das dem Kunden, statt zu einer Zahlung aufzufordern." };
+    // E-248 (#5500): Eine Zahlungsseite „über null €" hilft niemandem.
+    if (!(Number(z.amountDue) > 0)) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung ist noch kein Betrag hinterlegt — keine Zahlungsaufforderung, keinen Betrag nennen; der Betreuer trägt Paket und Betrag nach (aufgabe_an_betreuer)." };
+    // E-248: In einer Antwort auf Stopp, Widerruf, Beschwerde, Bestreiten … keine Zahlungsseite.
+    if (k.ruhe) return { ok: false, ergebnis: "", fehler: `Diese Antwort ist keine Zahlungsaufforderung (${k.ruhe}) — beantworte sein Anliegen, ohne Zahlungsseite.` };
 
     // (Bis 19.09.2026 stand hier der Einzugsschutz — GoCardless ist beendet, E-194.
     //  Jede offene Rate wird überwiesen; die Zahlungsseite gilt für alle.)
 
+    // Nachbesserung E-248: Eine ABGELAUFENE Bestellung (payment_status 'expired',
+    // 96 in Produktion) zeigt auf der Zahlungsseite das rote Band „abgelaufen …
+    // kontaktieren Sie den Support". Der Kunde HAT sich gemeldet — also schaltet
+    // Mara sie selbst neu frei (derselbe Weg wie der Knopf im Agentenportal), statt
+    // ihm die Sackgasse zu schicken.
+    let neuFrei = false;
+    if (z.status === "expired") {
+      neuFrei = await abgelaufeneBestellungFreischalten(String(z.paymentReference)).catch(() => false);
+      if (!neuFrei) return { ok: false, ergebnis: "", fehler: "Die Bestellung ist abgelaufen und konnte nicht neu freigeschaltet werden — schick keine Zahlungsseite; sein Betreuer schaltet sie frei (aufgabe_an_betreuer)." };
+      await protokoll(k, "zahlungslink_bauen", `Abgelaufene Bestellung ${z.paymentReference} neu freigeschaltet (neue Zahlungsfrist 7 Tage).`);
+    }
     const url = absoluteUrl(`/zahlung/${z.paymentReference}`);
     return {
       ok: true,
-      ergebnis: `Zahlungsseite für ${z.paymentReference} über ${z.amountDue} €.`,
+      ergebnis: `Zahlungsseite für ${z.paymentReference} über ${z.amountDue} €.${neuFrei ? " Die Bestellung war abgelaufen — ich habe sie gerade neu freigeschaltet, die Zahlungsseite gilt wieder (neue Frist 7 Tage)." : ""}`,
       daten: { zahlungsseite: url, betrag: z.amountDue, verwendungszweck: z.paymentReference, faellig: z.dueDate, art: z.art, rate_nr: z.rateNr ?? null },
     };
   },
@@ -1144,9 +1417,15 @@ export const terminlinkBauen: Werkzeug = {
   parameter: { type: "object", additionalProperties: false, properties: {}, required: [] },
   async ausfuehren(_p, k) {
     if (!k.personId) return { ok: false, ergebnis: "", fehler: "Ohne Personendatensatz nicht möglich." };
+    // E-248: Steht schon ein Termin, gibt es keinen zweiten Link — Mara nennt den Termin,
+    // so wie ein Mensch („Florentine ruft Sie morgen um 20 Uhr an"). Dieselbe Regel wie auf WhatsApp.
+    const steht = await bestehenderTermin(k.personId);
+    if (steht) {
+      return { ok: false, ergebnis: "", fehler: `Er hat schon einen Termin: ${steht.vorname ? `${steht.vorname} ruft ihn ` : ""}${steht.kundenText}${steht.vorname ? " an" : ""}. Keinen Link schicken — nenne ihm genau diesen Termin.` };
+    }
     const { terminLink } = await import("./fiaon-termine");
     const url = terminLink(k.personId, "postmeister");
-    return { ok: true, ergebnis: "Terminlink erzeugt.", daten: { terminlink: url } };
+    return { ok: true, ergebnis: "Terminlink erzeugt — sein persönlicher Kalender, er wählt selbst eine Zeit.", daten: { terminlink: url } };
   },
 };
 
@@ -1361,4 +1640,23 @@ export function werkzeugeAlsTools(lage: Kundenlage, opts: { auskunftAntwort?: bo
 
 export function werkzeugVonName(name: string): Werkzeug | undefined {
   return POSTMEISTER_WERKZEUGE.find((w) => w.name === name);
+}
+
+/**
+ * Eine abgelaufene Bestellung neu freischalten (Nachbesserung E-248) — für Mara auf
+ * Mail und WhatsApp. Derselbe Weg wie der Knopf „Reaktivieren" im Agentenportal
+ * (reactivateOrderByRef: neue 7-Tage-Frist, Zahlungsdaten erneut per Mail).
+ * true = die Bestellung ist jetzt offen (pending_payment).
+ */
+export async function abgelaufeneBestellungFreischalten(zahlungsReferenz: string): Promise<boolean> {
+  const [a] = (await sqlPool`
+    SELECT ref, payment_status FROM fiaon_applications
+     WHERE payment_reference = ${zahlungsReferenz} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+  if (!a) return false;
+  if (a.payment_status === "pending_payment") return true;
+  if (a.payment_status !== "expired") return false;
+  const { reactivateOrderByRef } = await import("../routes/fiaon-antrag");
+  const r = await reactivateOrderByRef(String(a.ref));
+  if (r) console.log(`[MARA] Abgelaufene Bestellung ${zahlungsReferenz} neu freigeschaltet.`);
+  return !!r;
 }

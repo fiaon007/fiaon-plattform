@@ -43,6 +43,7 @@ import {
 } from "./fiaon-termine";
 import { berlinDatum, berlinWochentag, zeitZuMinuten, parseBerlinInput } from "./fiaon-time";
 import { berlinWochentagName } from "./fiaon-termin-meldung";
+import { zeitFuerKunde, uhrzeitenIn, type AbweichungsGrund } from "@shared/fiaon-mara-ton";
 
 type Lauf = typeof sqlPool;
 
@@ -53,13 +54,48 @@ const ANGEBOT_TAGE = 3;
 const QUELLE = "agent_manuell";
 export const MARA_HERKUNFT = "mara_whatsapp";
 export const MARA_HERKUNFT_LINK = "mara_whatsapp_link";
+/**
+ * E-248: Termine, die Mara selbst verschieben darf — ihre eigenen Buchungen und
+ * die, die der Kunde über IHREN Terminlink gewählt hat. Alle anderen (vom Team,
+ * über eine Mail gebucht, Startgespräch) fasst sie nicht an: Sie nennt sie und
+ * gibt dem Betreuer Bescheid, wenn der Kunde eine andere Zeit will.
+ */
+export const MARA_EIGENE_HERKUNFT = [MARA_HERKUNFT, MARA_HERKUNFT_LINK];
+
+/**
+ * Nachbesserung E-248 (Probelauf #8, Justin 28.09.: „Einiges kann sie doch selbst
+ * machen"): Hat der KUNDE den Termin selbst gebucht (irgendein Terminlink, auch aus
+ * der Erinnerungsmail), darf Mara ihn auf seinen Wunsch auf einen freien Platz
+ * DESSELBEN Betreuers verschieben. Vom Team eingetragene Termine und das
+ * Startgespräch fasst sie weiter nicht an. Rein.
+ */
+export function kundeHatSelbstGebucht(herkunft: string | null | undefined, quelle?: string | null): boolean {
+  const h = String(herkunft ?? "");
+  if (!h || h === "unbekannt" || h === "agent" || String(quelle ?? "") === "agent_manuell") return false;
+  if (/onboarding/.test(h) || String(quelle ?? "") === "onboarding_call") return false;
+  return true;
+}
+
+/** Woher ein Termin kam — in Worten für Mara (STAND DES GESPRÄCHS). */
+export function terminHerkunftText(herkunft: string | null | undefined, quelle?: string | null): string {
+  const h = String(herkunft ?? "");
+  if (h === MARA_HERKUNFT) return "von dir gebucht";
+  if (h === MARA_HERKUNFT_LINK) return "er hat ihn über deinen Terminlink selbst gewählt";
+  if (String(quelle ?? "") === "agent_manuell" || h === "agent") return "vom Team eingetragen";
+  if (/onboarding/.test(h) || String(quelle ?? "") === "onboarding_call") return "sein Startgespräch";
+  if (h && h !== "unbekannt") return "er hat ihn selbst über einen Terminlink gebucht";
+  return "im Kalender eingetragen";
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DAS PROTOKOLL — was Mara getan hat, für den Geschäftsführer prüfbar
 // ═══════════════════════════════════════════════════════════════════════════
 export type ProtokollArt =
   | "zeiten_angeboten" | "termin_gebucht" | "termin_verschoben" | "termin_nicht_moeglich"
-  | "terminlink" | "uebergabe" | "rueckfall" | "zahlungszusage";
+  | "terminlink" | "uebergabe" | "rueckfall" | "zahlungszusage"
+  // E-248: Mara schweigt bewusst (Autoantwort, „Ok" nach Team oder erledigter Sache, doppelt),
+  // schließt mit einem kurzen Satz ab, oder schickt statt des Rückfallsatzes einen sicheren Satz aus der Lage.
+  | "still" | "abschluss" | "sicherer_satz";
 
 let tabelleBereit: Promise<void> | null = null;
 export function protokollTabelle(lauf: Lauf = sqlPool): Promise<void> {
@@ -237,6 +273,8 @@ export function vorschlaege(slots: Slot[], wunsch?: { von?: Date | null; bis?: D
 export interface TerminInfo {
   id: number; agentId: number; agentName: string; vorname: string;
   beginn: string; wochentag: string; datum: string; uhrzeit: string; text: string; storno: string | null;
+  /** E-248: so, wie der Kunde es liest — „morgen um 20 Uhr" (zeitFuerKunde), nie ISO. */
+  kundenText: string;
 }
 
 async function terminLesen(id: number, lauf: Lauf): Promise<TerminInfo | null> {
@@ -250,18 +288,39 @@ async function terminLesen(id: number, lauf: Lauf): Promise<TerminInfo | null> {
     id: Number(t.id), agentId: Number(t.agent_id), agentName: String(t.name), vorname: String(t.vorname),
     beginn: b.toISOString(), wochentag: berlinWochentagName(b), datum: berlinDatumText(b), uhrzeit: berlinUhrzeit(b),
     text: slotText(b), storno: t.storno_token ? stornoLink(String(t.storno_token)) : null,
+    kundenText: zeitFuerKunde(b),
   };
 }
 
 /** Der künftige, gebuchte Termin eines Menschen — höchstens einer zählt. */
-export async function kuenftigerTermin(personId: number, lauf: Lauf = sqlPool): Promise<(TerminInfo & { herkunft: string | null; stornoToken: string | null }) | null> {
+export async function kuenftigerTermin(personId: number, lauf: Lauf = sqlPool): Promise<(TerminInfo & { herkunft: string | null; quelle: string | null; stornoToken: string | null }) | null> {
   const [t] = (await lauf`
-    SELECT id, herkunft, storno_token FROM fiaon_termine
+    SELECT id, herkunft, quelle, storno_token FROM fiaon_termine
      WHERE person_id = ${personId} AND status = 'gebucht' AND beginn > NOW() - INTERVAL '20 minutes'
      ORDER BY beginn LIMIT 1`) as any[];
   if (!t) return null;
   const info = await terminLesen(Number(t.id), lauf);
-  return info ? { ...info, herkunft: t.herkunft ?? null, stornoToken: t.storno_token ?? null } : null;
+  return info ? { ...info, herkunft: t.herkunft ?? null, quelle: t.quelle ?? null, stornoToken: t.storno_token ?? null } : null;
+}
+
+/**
+ * E-248: Der zuletzt VERPASSTE Termin der letzten drei Tage, wenn Mara ihn
+ * gebucht hat oder der Kunde ihn über ihren Terminlink gewählt hat — und kein
+ * neuer Termin steht. Dann bietet Mara in ihrer nächsten Antwort von sich aus
+ * einen neuen an (Befund: 4 von 7 Mara-Rückrufen verpasst, niemand fasste nach).
+ * Bei „kein Interesse" (Person gesperrt) nie.
+ */
+export async function verpassterTermin(personId: number, lauf: Lauf = sqlPool): Promise<(TerminInfo & { herkunft: string | null }) | null> {
+  const [t] = (await lauf`
+    SELECT t.id, t.herkunft FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
+     WHERE t.person_id = ${personId} AND t.status = 'verpasst' AND t.herkunft = ANY(${MARA_EIGENE_HERKUNFT})
+       AND t.beginn > NOW() - INTERVAL '3 days' AND NOT COALESCE(p.is_blocked, FALSE)
+       AND COALESCE(t.verpasst_grund, '') NOT IN ('kein_interesse', 'nummer_falsch')
+       AND NOT EXISTS (SELECT 1 FROM fiaon_termine n WHERE n.person_id = t.person_id AND n.status = 'gebucht' AND n.beginn > NOW() - INTERVAL '20 minutes')
+     ORDER BY t.beginn DESC LIMIT 1`.catch(() => [])) as any[];
+  if (!t) return null;
+  const info = await terminLesen(Number(t.id), lauf);
+  return info ? { ...info, herkunft: t.herkunft ?? null } : null;
 }
 
 /** Eine Wunschzeit lesen: „2026-09-24 12:25" (Berlin). Alles andere → null. */
@@ -286,6 +345,17 @@ export interface BuchungsWunsch {
 export interface BuchungsErgebnis {
   ok: boolean;
   termin?: TerminInfo;
+  /**
+   * E-248 (Fall K.): Es steht schon ein Termin — Zeit, Name, Herkunft. Die
+   * Wahrheitsprüfung kennt die Uhrzeit damit, und Mara bestätigt ihn statt neu anzubieten.
+   */
+  bestehend?: { id: number; beginn: string; uhrzeit: string; kundenText: string; vorname: string; vonMara: boolean; herkunftText: string };
+  /**
+   * E-248 (Befund #294): Wunsch „15:00", gebucht 15:10 — Mara sagt es ehrlich.
+   * Nachbesserung: mit dem GRUND — „vergeben" nur, wenn der Platz wirklich belegt war
+   * (Probelauf #15: „12:25 Uhr ist schon vergeben", der Grund war die Vorlaufzeit).
+   */
+  abweichung?: { wunsch: string; gebucht: string; grund?: AbweichungsGrund } | null;
   /** Kurzer Grund-Code bei „nicht möglich". */
   grund?: string;
   /** Klartext für Mara. */
@@ -319,10 +389,24 @@ export async function rueckrufBuchen(
     if (!zeit && !von && !bis) return await nichtMoeglich("zeit_unlesbar", "keine Zeit angegeben — erst nach einer Uhrzeit fragen oder freie Zeiten anbieten");
 
     const bestehend = await kuenftigerTermin(ctx.personId, lauf);
-    if (bestehend && !(w.verschieben && bestehend.herkunft === MARA_HERKUNFT)) {
-      return await nichtMoeglich("schon_termin",
-        `es steht schon ein Termin: ${bestehend.text} mit ${bestehend.vorname}${bestehend.herkunft === MARA_HERKUNFT ? " (von dir gebucht — zum Verschieben verschieben: true setzen)" : " (nicht von dir gebucht — nicht anfassen, ein Mensch verschiebt)"}`,
+    const eigener = !!bestehend && MARA_EIGENE_HERKUNFT.includes(String(bestehend.herkunft ?? ""));
+    const kundeSelbst = !!bestehend && !eigener && kundeHatSelbstGebucht(bestehend.herkunft, bestehend.quelle);
+    if (bestehend && !(w.verschieben && (eigener || kundeSelbst))) {
+      // E-248 (Fall K.): Kein Systemsatz („nicht anfassen, ein Mensch verschiebt") — ein
+      // fertiger Satz für den Kunden, und die Uhrzeit geht als bekannte Zeit an die Prüfung.
+      const satz = `Genau, ${bestehend.vorname} ruft Sie ${bestehend.kundenText} an.`;
+      const erg = await nichtMoeglich("schon_termin",
+        `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.vorname} (${terminHerkunftText(bestehend.herkunft, bestehend.quelle)}). Bestätige ihm genau diesen Termin, z. B. „${satz}"${eigener || kundeSelbst
+          ? " Will er ausdrücklich eine andere Zeit: rueckruf_eintragen mit verschieben: true (derselbe Betreuer)."
+          : ` Will er eine andere Zeit: sag ihm, dass du ${bestehend.vorname} Bescheid gibst — den Termin selbst verschiebt ${bestehend.vorname}.`}`,
         [], { termin_id: bestehend.id });
+      return {
+        ...erg,
+        bestehend: {
+          id: bestehend.id, beginn: bestehend.beginn, uhrzeit: bestehend.uhrzeit, kundenText: bestehend.kundenText,
+          vorname: bestehend.vorname, vonMara: eigener, herkunftText: terminHerkunftText(bestehend.herkunft, bestehend.quelle),
+        },
+      };
     }
 
     const angebot = await freieZeiten(ctx.personId, lauf);
@@ -358,6 +442,25 @@ export async function rueckrufBuchen(
       const az = tag && angebot.agent ? await arbeitszeitAm(angebot.agent.id, tag, lauf) : null;
       return await nichtMoeglich("nicht_frei",
         `zu der gewünschten Zeit ist ${wer} nicht frei${az ? ` (Arbeitszeit an dem Tag: ${az})` : angebot.agent && tag ? " (an dem Tag keine Arbeitszeit)" : ""}`, alt);
+    }
+
+    // Nachbesserung E-248: Einen Termin, den der Kunde selbst gebucht hat, verschiebt Mara
+    // nur zu DEMSELBEN Betreuer — sonst übernimmt der Betreuer.
+    if (bestehend && w.verschieben && kundeSelbst && slot.agentId !== bestehend.agentId) {
+      return await nichtMoeglich("anderer_betreuer",
+        `zu der Zeit hat ${bestehend.vorname} keinen freien Platz — sag ihm, dass du ${bestehend.vorname} Bescheid gibst; sein Termin ${bestehend.kundenText} bleibt bis dahin stehen`, [], { termin_id: bestehend.id });
+    }
+
+    // Nachbesserung E-248: Der GRUND einer Abweichung — VOR der Buchung ermittelt
+    // (danach wäre der eigene neue Termin selbst „belegt").
+    let abGrund: AbweichungsGrund | null = null;
+    if (zeit && Math.abs(new Date(slot.beginn).getTime() - zeit.getTime()) >= 60_000) {
+      const t = zeit.getTime();
+      if (t < Date.now() + MARA_VORLAUF_MIN * 60_000) abGrund = "vorlauf";
+      else {
+        const bel = await belegteZeiten([slot.agentId], lauf).catch(() => new Map<number, { von: number; bis: number }[]>());
+        abGrund = (bel.get(slot.agentId) ?? []).some((b) => b.von < t + 20 * 60_000 && b.bis > t) ? "belegt" : "raster";
+      }
     }
 
     // ── Buchen ──────────────────────────────────────────────────────────
@@ -404,6 +507,8 @@ export async function rueckrufBuchen(
     }
 
     const satz = `${verschoben ? `Rückruf verschoben (vorher ${verschoben}): ` : "Rückruf eingetragen: "}${termin.wochentag}, ${termin.datum}, ${termin.uhrzeit} Uhr bei ${termin.agentName}`;
+    // E-248 (Befund #294): Weicht der gebuchte Platz von seiner genauen Wunschzeit ab, erfährt er es.
+    const abweichung = zeit && berlinUhrzeit(zeit) !== termin.uhrzeit ? { wunsch: berlinUhrzeit(zeit), gebucht: termin.uhrzeit, grund: abGrund ?? "raster" } : null;
     await protokollieren({
       art: verschoben ? "termin_verschoben" : "termin_gebucht", ok: true, nummer: ctx.nummer, personId: ctx.personId,
       leadId: ctx.leadId ?? null, terminId: termin.id,
@@ -414,7 +519,7 @@ export async function rueckrufBuchen(
       const { waAktenvermerk } = await import("./fiaon-whatsapp");
       await waAktenvermerk(ctx.personId, `${satz}. ${String(w.anliegen || "").slice(0, 200)}`);
     } catch { /* ohne Bestellung keine Akte — das Protokoll zählt */ }
-    return { ok: true, termin, meldung: `${satz}.` };
+    return { ok: true, termin, meldung: `${satz}.`, abweichung };
   } catch (e) {
     console.error("[MARA-TERMIN] Buchung:", e);
     return await nichtMoeglich("serverfehler", "technischer Fehler — an einen Menschen übergeben");
@@ -428,7 +533,7 @@ export async function terminlinkFuer(
 ): Promise<{ ok: boolean; link?: string; meldung: string; agent?: string | null }> {
   const bestehend = await kuenftigerTermin(ctx.personId, lauf);
   if (bestehend) {
-    return { ok: false, meldung: `er hat schon einen Termin: ${bestehend.text} mit ${bestehend.vorname} — keinen Link schicken, den Termin nennen` };
+    return { ok: false, meldung: `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.vorname} — keinen Link schicken, sondern genau diesen Termin nennen („Genau, ${bestehend.vorname} ruft Sie ${bestehend.kundenText} an.")` };
   }
   const { agent } = await betreuerFuerRueckruf(ctx.personId, lauf);
   const basis = terminLink(ctx.personId, MARA_HERKUNFT_LINK);
@@ -496,9 +601,12 @@ export async function maraTermineNachpruefen(lauf: Lauf = sqlPool): Promise<{ ge
         else if (alt > 5 * 60_000) probleme.push("Mail an den Mitarbeiter nicht raus");
         if (z.nummer) {
           const uhr = berlinUhrzeit(beginn);
-          const [info] = (await lauf`
-            SELECT 1 FROM fiaon_whatsapp WHERE nummer = ${z.nummer} AND richtung = 'raus' AND status <> 'fehler'
-               AND created_at >= ${z.am}::timestamptz - INTERVAL '1 minute' AND text LIKE ${"%" + uhr + "%"} LIMIT 1`) as any[];
+          // E-248: Mara schreibt Zeiten jetzt wie ein Mensch („morgen um 20 Uhr") — gesucht wird
+          // die Uhrzeit in jeder Schreibweise (uhrzeitenIn), nicht mehr nur „20:00".
+          const texte = (await lauf`
+            SELECT text FROM fiaon_whatsapp WHERE nummer = ${z.nummer} AND richtung = 'raus' AND status <> 'fehler'
+               AND created_at >= ${z.am}::timestamptz - INTERVAL '1 minute' ORDER BY id LIMIT 20`) as any[];
+          const info = texte.some((x) => uhrzeitenIn(String(x.text ?? "")).includes(uhr));
           if (info) gut.push(`Kunde hat ${uhr} Uhr bekommen`);
           else if (alt > 10 * 60_000) probleme.push(`Kunde hat die Uhrzeit ${uhr} nicht per WhatsApp bekommen`);
         }

@@ -1286,6 +1286,21 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
       + "Betrag. Ist der Vertrag schon beendet, nennt sie keinen Betrag; steht trotzdem eine Rate offen, landet das als Prüffall "
       + "bei der Leitung. Eine bezahlte Bonitätsauskunft ist kein Paket: Wer nur sie bezahlt hat, bleibt in der Paket-Erinnerung.",
   },
+  // E-248 (28.09.2026, Justin: „Geh Mara komplett durch … einiges kann sie doch selbst machen").
+  {
+    titel: "Was Mara im Postfach selbst erledigt.",
+    text: "Schreibt ein Kunde klar, dass er kündigen, stornieren oder widerrufen will, bucht Mara das sofort — Urkunde und "
+      + "schriftliche Bestätigung verschickt das Haus. Nie bei „ich kündige nicht, ich will nur wissen …“, „sonst kündige ich“, "
+      + "„bevor ich kündige …“, einem fremden Vertrag (Handy, Konto bei seiner Bank) oder wenn jemand anderes kündigen will. "
+      + "Im Zweifel fragt sie einmal nach; ein kurzes „Ja“ darauf genügt. Storno oder Kündigung bietet sie nie von sich aus an — "
+      + "„Stopp“ heißt nur: keine Werbung. Auf Stopp, Widerruf, Beschwerde oder „kann nicht zahlen“ gibt es keinen Zahlknopf; "
+      + "beim Widerruf sagt sie „Ihren Widerruf prüft unsere Geschäftsführung“ und gibt dir eine Aufgabe. Links sind immer "
+      + "seine persönlichen (Zahlungsseite, Antragslink mit Code), nie fiaon.com/antrag. Eine abgelaufene Bestellung schaltet "
+      + "sie selbst neu frei, bevor sie die Zahlungsseite schickt.",
+    tipp: "Ohne dich raus gehen nur: „Stopp“ mit gesetzter Werbesperre, der Storno einer unbezahlten Bestellung und eine "
+      + "gebuchte Kündigung — und nur, wenn die Antwort sauber ist und keine andere Lampe brennt. Alles andere liegt als "
+      + "Entwurf. Schickt jemand dieselbe Mail mehrmals, bekommt er EINE Antwort.",
+  },
   {
     ziel: ".mp-schalter",
     titel: "Ein Schalter: Aktion läuft oder pausiert.",
@@ -1300,9 +1315,8 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
     ziel: ".mp-steuer",
     titel: "Steuern: Takt, Deckel, wer, wie.",
-    text: "Bis zu 50 Mails je Stunde. In den ersten drei Tagen hält Mara sich selbst zurück (200, 400, 800 am Tag) — ein Postfach, "
-      + "das über Nacht auf über tausend Mails springt, landet bei Gmail im Spam, und mit ihm jede Rechnung von fiaon.com. "
-      + "C-Leads bleiben gesperrt, bis ihre Mail-Einwilligung geprüft ist.",
+    text: "Bis zu 50 Mails je Stunde, dazu der Deckel des Tages. (Den Anlauf 200/400/800 der ersten Tage gibt es seit dem "
+      + "22.09. nicht mehr.) C-Leads bleiben gesperrt, bis ihre Mail-Einwilligung geprüft ist.",
     tipp: "„Probe“ zeigt die nächste Mail, ohne sie zu senden — auch für einen bestimmten Menschen aus der Schlange.",
   },
   {
@@ -1327,20 +1341,27 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
     text: "Alles läuft über eine Nummer des Hauses (+49 1511 0761284) — nie über dein privates Telefon. Jede Nachricht, "
       + "hin wie zurück, steht in der Akte des Menschen. Du musst nichts abtippen und nichts weiterleiten.",
   },
+  // 28.09.2026 (E-248): Liste mit Absender in der Vorschau, eine Stufenfarbe, Autoantworten markiert.
   {
     ziel: ".wr-liste",
     titel: "Links stehen die Gespräche.",
-    text: "Der grüne Punkt zeigt ungelesene Nachrichten, „Fenster offen“ heißt: Du darfst gerade frei schreiben. "
-      + "Steht „Mara“ daran, antwortet die digitale Assistentin hier selbst. Mit den Filtern siehst du nur Ungelesenes "
-      + "oder nur die Gespräche, in denen das Fenster noch läuft.",
-    tipp: "Hat jemand aus dem Team ein Gespräch offen, steht das an der Zeile — dann antwortet ihr nicht doppelt.",
+    text: "Der blaue Punkt zählt ungelesene Nachrichten. Die Vorschau sagt, wer zuletzt geschrieben hat: „Mara:“, der Name "
+      + "aus dem Team — oder gelb „Automatische Antwort“, wenn nur ein Anrufbeantworter geantwortet hat. „Fenster offen“ heißt: "
+      + "Du darfst gerade frei schreiben. „Mara aus“ heißt: Hier antwortet die digitale Assistentin gerade nicht selbst.",
+    tipp: "Hat jemand aus dem Team ein Gespräch offen, steht „jemand liest mit“ daran — dann antwortet ihr nicht doppelt.",
   },
   {
     ziel: ".wr-eingabe",
-    titel: "Das 24-Stunden-Fenster entscheidet, was du senden darfst.",
-    text: "WhatsApp erlaubt freien Text nur, solange der Mensch in den letzten 24 Stunden geschrieben hat. Im Kopf steht, "
-      + "wie lange das Fenster noch läuft. Ist es zu, sperrt sich das Feld und du wählst eine von Meta freigegebene "
-      + "Vorlage — antwortet der Mensch darauf, kannst du wieder frei schreiben.",
+    titel: "Schreiben wie im Handy — nur mit Sicherheitsnetz.",
+    text: "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile; am Handy sendet nur der runde Knopf. Ein Doppelklick "
+      + "schickt nichts doppelt, und dein Entwurf bleibt beim Kunden, für den du ihn geschrieben hast — wechselst du das "
+      + "Gespräch, wandert er nicht mit. Über dem Feld steht, wie lange das 24-Stunden-Fenster noch läuft. Ist es zu, "
+      + "geht nur eine von Meta freigegebene Vorlage.",
+    tipp: "Das Plus links öffnet Vorlagen und die PERSÖNLICHEN Links dieses Kunden: Antragslink mit seinem Code, seine "
+      + "Zahlungsseite, sein Terminlink. Der Link, der zu seiner Lage passt, steht vorn. Einen nackten fiaon.com/antrag "
+      + "gibt es hier nicht — nur der persönliche Link führt den Kunden genau an seine Stelle. Vorlagen, die zu seiner Lage "
+      + "passen, stehen oben; die anderen sind grau („passt nicht zu seiner Lage“). Eine Vorlage geht in zwei Schritten raus: "
+      + "„Ansehen“, dann „Diese Vorlage senden“.",
   },
   {
     titel: "Mahnungen gehören NICHT hierher.",
@@ -1350,12 +1371,28 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
   {
     ziel: ".wr-schalter",
     titel: "Mara und du am selben Tisch.",
-    text: "Der Schalter sagt, ob Mara in diesem Gespräch selbst antwortet. Sobald du hier schreibst, schweigt sie "
-      + "automatisch — du hast das letzte Wort. Willst du sie wieder übernehmen lassen, schaltest du sie hier an. "
-      // 24.09.2026 (E-236): Maras Handlungen stehen als Systemzeilen im Verlauf.
-      + "Was Mara selbst erledigt hat — Rückruf beim Betreuer eingetragen, Terminlink geschickt, an einen Menschen "
-      + "übergeben — steht als eigene Zeile zwischen den Nachrichten. So siehst du vor deiner Antwort, was schon vereinbart ist. "
-      + "Bei eingetragenen Terminen zeigt eine Marke, ob die Nachprüfung stimmt („geprüft“) oder was fehlt — ein Klick darauf zeigt jeden Prüfpunkt.",
+    text: "Der Schalter sagt, ob Mara in diesem Gespräch selbst antwortet. Sobald du hier schreibst, pausiert sie "
+      + "automatisch — du hast das letzte Wort. Im Verlauf erkennst du jeden Absender: Kunde links, Mara rechts in "
+      + "Navy mit dem Zeichen „KI“, das Team rechts in Blau mit Namen. "
+      // 24.09.2026 (E-236) · 28.09.2026 (E-248): Maras Handlungen gebündelt statt als Kastenflut.
+      + "Was Mara intern getan hat — Zeiten geholt, Rückruf eingetragen, an einen Menschen übergeben, eine Antwort "
+      + "verworfen — steht als EINE leise Zeile zwischen den Nachrichten („Mara · 3 interne Schritte“). Ein Klick klappt "
+      + "sie auf; ein roter Punkt heißt: Da ist etwas schiefgegangen, schau hin. Im Kopf steht der Termin aus dem Kalender.",
+    tipp: "Das Listen-Zeichen neben dem Schalter klappt alle internen Schritte auf einmal auf. Bei eingetragenen Terminen "
+      + "zeigt eine Marke, ob die Nachprüfung stimmt („geprüft“) oder was fehlt.",
+  },
+  // E-248 (28.09.2026): Was Mara auf WhatsApp selbst tut — und wann sie dir etwas gibt.
+  {
+    titel: "Was Mara selbst tut — und wann du dran bist.",
+    text: "Mara bucht Rückrufe echt in den Kalender und verschiebt Termine, die sie oder der Kunde selbst gebucht hat, auf "
+      + "einen freien Platz desselben Betreuers. Klappt seine Wunschzeit nicht, sagt sie den wahren Grund („schon vergeben“ "
+      + "nur, wenn der Platz belegt war; sonst „so kurzfristig klappt es nicht“). Eine abgelaufene Bestellung schaltet sie "
+      + "neu frei, bevor sie die Zahlungsseite schickt. Auf Absage, Verschieben eines Team-Termins, Kündigung, Widerruf oder "
+      + "„kann nicht zahlen“ schickt sie keinen Zahlungslink und gibt dir eine Aufgabe.",
+    tipp: "Auf eine echte Autoantwort (Firma, Abwesenheit) und ein reines „Ok“ nach erledigter Sache schweigt sie. Hast "
+      + "DU zuletzt eine Frage gestellt und der Kunde antwortet „Ok passt“, schweigt Mara ebenfalls — aber du bekommst "
+      + "eine Aufgabe „Kunde hat zugestimmt“, und das Gespräch bleibt in der Warteliste. Schreibt ein Mensch „bitte "
+      + "anrufen“, „mit jemandem sprechen“ oder nennt eine Uhrzeit, gilt das nie als Autoantwort.",
   },
 ];
 

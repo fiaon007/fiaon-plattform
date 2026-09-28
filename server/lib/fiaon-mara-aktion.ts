@@ -51,6 +51,8 @@ import { postfachGruss } from "./fiaon-postmeister-postfaecher";
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { absoluteUrl } from "../fiaon-base-url";
 import { personSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
+// E-248: Maras Stimme aus EINER Quelle — dieselbe Persona wie im Postfach und auf WhatsApp.
+import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE } from "@shared/fiaon-mara-ton";
 
 export const DIENST = "mara-aktion";
 export const PAKETE_PRIVAT = ["start", "pro", "highend", "ultra"];
@@ -186,6 +188,20 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
     -- „Stopp" per Antwort, egal wann (flags steht teils als JSON-Text in der jsonb-Spalte —
     -- deshalb der Textvergleich, nie ein Cast, der an einer Zeile scheitert)
     stopp AS (SELECT DISTINCT person_id FROM fiaon_postmeister WHERE person_id IS NOT NULL AND flags::text ~ 'stopp\\\\?"\\s*:\\s*true'),
+    -- E-248 (Prüfung 28.09.: 5 Personen, 8 Mails): Wer widerrufen, die Forderung bestritten,
+    -- mit Anwalt gedroht oder „kann nicht zahlen" geschrieben hat, bekommt keine Werbemail
+    -- zur Zahlung — egal wann. Eine Beschwerde hält die Aktion 30 Tage an.
+    einwand AS (SELECT DISTINCT person_id FROM fiaon_postmeister WHERE person_id IS NOT NULL
+                  AND (flags::text ~ '(widerruf|bestreitet|droht_anwalt|zahlungsunfaehig)\\\\?"\\s*:\\s*true'
+                    OR (flags::text ~ 'beschwerde\\\\?"\\s*:\\s*true' AND COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '30 days'))),
+    -- E-248: Werbesperre an der ADRESSE (eine zweite Person, ein Lead oder ein Antrag mit derselben
+    -- Adresse) — dieselbe Regel wie werbesperreAnAdresse. Vorher erst direkt vor dem Senden geprüft:
+    -- dieselben zwei Menschen wurden jeden Tag erneut „zurückgehalten".
+    gesperrte_adresse AS (
+      SELECT LOWER(TRIM(p.primary_email)) AS adresse FROM fiaon_persons p WHERE p.werbung_gesperrt_am IS NOT NULL AND p.primary_email LIKE '%@%'
+      UNION SELECT LOWER(TRIM(x.email)) FROM fiaon_applications x JOIN fiaon_persons p ON p.id = x.person_id WHERE p.werbung_gesperrt_am IS NOT NULL AND x.email LIKE '%@%'
+      UNION SELECT LOWER(TRIM(l.email)) FROM fiaon_leads l JOIN fiaon_persons p ON p.id = l.person_id WHERE p.werbung_gesperrt_am IS NOT NULL AND l.email LIKE '%@%'
+      UNION SELECT LOWER(TRIM(m.primary_email)) FROM fiaon_persons m JOIN fiaon_persons p ON p.id = m.merged_into_person_id WHERE p.werbung_gesperrt_am IS NOT NULL AND m.primary_email LIKE '%@%'),
     -- nach einer zurückgehaltenen Mail oder einem Fehler 24 h Ruhe — kein Dauerversuch
     ruhe AS (SELECT DISTINCT person_id FROM fiaon_mara_aktion WHERE status IN ('abgelehnt', 'fehler') AND created_at > NOW() - INTERVAL '24 hours'),
     -- der Kunde hat selbst geschrieben: Mara antwortet im Postfach, die Aktion wartet 7 Tage
@@ -220,6 +236,8 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
        AND app.person_id NOT IN (SELECT person_id FROM ausgenommen)
        AND app.person_id NOT IN (SELECT person_id FROM storniert)
        AND app.person_id NOT IN (SELECT person_id FROM stopp)
+       AND app.person_id NOT IN (SELECT person_id FROM einwand)
+       AND LOWER(TRIM(COALESCE(NULLIF(TRIM(p.primary_email), ''), app.email))) NOT IN (SELECT adresse FROM gesperrte_adresse WHERE adresse IS NOT NULL)
        AND app.person_id NOT IN (SELECT person_id FROM ruhe)
        AND app.person_id NOT IN (SELECT person_id FROM schrieb)
        AND app.person_id NOT IN (SELECT person_id FROM kontakt)
@@ -281,10 +299,10 @@ function thema(stufe: "A" | "B", schritt: number): string {
     ][Math.min(schritt, 4) - 1];
   }
   return [
-    "Erste Mail: Stell dich kurz vor (so wie in Justins Beispiel). Du würdest seinen Account gern aktivieren — sein Wunschlimit ist dabei das Ziel. Dazu fehlt nur noch die offene Rechnung. Sobald die Zahlung da ist, aktivierst du den Account und sein persönlicher Betreuer begleitet ihn. Du würdest dich freuen.",
+    "Erste Mail: Stell dich kurz vor (so wie in Justins Beispiel). Du würdest seinen Account gern aktivieren — sein gewünschter Kartenrahmen ist dabei das Ziel. Dazu fehlt nur noch die offene Rechnung. Sobald die Zahlung da ist, aktivierst du den Account und sein persönlicher Betreuer begleitet ihn. Mach ihm Mut: Mit seinem Antrag ist er schon einen großen Schritt weiter. Du würdest dich freuen.",
     "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Heute die Karte: Nach der Aktivierung bekommt er direkt den fertigen Link unserer Partnerbank für Konto und Karte; die Karte ist in der Regel nach der Zusage der Bank in 2–5 Werktagen bei ihm, meist vorher schon mit Apple Pay in der App der Bank nutzbar. Der einzige offene Schritt ist die Rechnung.",
     "Dritte Mail: Wie einfach es ist: ein Klick auf den Knopf, dort stehen Betrag, Bankdaten, Verwendungszweck und ein QR-Code für die Banking-App — in zwei Minuten erledigt. Wenn ihn etwas zögern lässt: Er kann dir einfach antworten, du kümmerst dich persönlich.",
-    "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg, was er bei der Bestellung wollte). Erinnere freundlich an sein Ziel (Wunschlimit, Karte) und daran, dass nur die Rechnung fehlt. Kein Druck.",
+    "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg, was er bei der Bestellung wollte). Erinnere freundlich an sein Ziel (seine Karte, sein gewünschter Rahmen) und daran, dass nur die Rechnung fehlt. Kein Druck.",
   ][Math.min(schritt, 4) - 1];
 }
 
@@ -298,10 +316,14 @@ function aktionsPrompt(ein: {
   const fremd = ein.sprache && ein.sprache.slice(0, 2).toLowerCase() !== "de";
   return [
     ein.hausanweisung || ``,
-    `Du bist ${ein.name} und betreust Kunden bei FIAON. Du schreibst diesem Menschen VON DIR AUS eine persönliche E-Mail — er hat dir nicht geschrieben. Du hast seine Akte gelesen, seinen ganzen Weg bei uns und dein Gedächtnis zu ihm.`,
-    `DEIN ZIEL: Er bezahlt jetzt die offene Rechnung, damit du seinen Account aktivieren kannst. Herzlich, motivierend, menschlich — nie drängelnd, nie drohend, nie belehrend.`,
+    // E-248: „die digitale Assistentin" (KI-Offenlegung) — dieselbe Mara wie im Postfach und auf WhatsApp.
+    `Du bist ${ein.name}, die digitale Assistentin von FIAON, und betreust Kunden. Du schreibst diesem Menschen VON DIR AUS eine persönliche E-Mail — er hat dir nicht geschrieben. Du hast seine Akte gelesen, seinen ganzen Weg bei uns und dein Gedächtnis zu ihm.`,
+    `DEIN ZIEL: Er bezahlt jetzt die offene Rechnung, damit du seinen Account aktivieren kannst. Herzlich, mutmachend, menschlich — Aussicht ja („${AUSSICHT_SAETZE[0]}"), Zusage nie; nie drängelnd, nie drohend, nie belehrend.`,
     ``,
-    `SO KLINGT ES (Justins Beispiel — nur der Ton, nie wörtlich übernehmen): „hier ist Mara Lindner von FIAON. Ich schreibe Ihnen, weil ich gern Ihren Account aktivieren würde — mit Ihrem Wunschlimit von 25.000 € als Ziel. Dazu fehlt mir nur noch die offene Rechnung. Sobald Ihre Zahlung da ist, aktiviere ich Ihren Account, und Ihr persönlicher Betreuer ist an Ihrer Seite. Ich würde mich freuen! Ansonsten wünsche ich Ihnen einen schönen Tag und viel Gesundheit."`,
+    // E-248: „Rahmen" statt „Limit" (TON_REGELN) — Justins Beispiel sinngemäß, ohne das Wort.
+    `SO KLINGT ES (Justins Beispiel — nur der Ton, nie wörtlich übernehmen): „hier ist Mara Lindner, die digitale Assistentin von FIAON. Ich schreibe Ihnen, weil ich gern Ihren Account aktivieren würde — mit Ihrem gewünschten Kartenrahmen von 25.000 € als Ziel. Dazu fehlt mir nur noch die offene Rechnung. Sobald Ihre Zahlung da ist, aktiviere ich Ihren Account, und Ihr persönlicher Betreuer ist an Ihrer Seite. Ich würde mich freuen! Ansonsten wünsche ich Ihnen einen schönen Tag und viel Gesundheit."`,
+    ``,
+    personaText("mail", { betreuer: ein.betreuer }),
     ``,
     `LAGE: ${k.stufe === "A" ? `Stufe A — er hat am ${tagDe(k.ereignisAm)} gemeldet, dass er überwiesen hat; das Geld ist bei uns noch nicht zugeordnet.` : `Stufe B — sein Antrag ist seit dem ${tagDe(k.ereignisAm)} fertig, die Rechnung ist offen.`}`,
     `DIESE MAIL ist deine ${k.schritt}. an ihn. ${thema(k.stufe, k.schritt)}`,
@@ -310,7 +332,7 @@ function aktionsPrompt(ein: {
     `· Paket: ${k.paket ?? "unbekannt"}`,
     `· Offene Rechnung: ${eur(k.betragEuro) ?? "Betrag steht auf der Zahlungsseite"}${ein.faelligAm ? `, fällig am ${ein.faelligAm}` : ""}`,
     `· Verwendungszweck: ${k.zahlungsreferenz ?? "steht auf der Zahlungsseite"}`,
-    `· Wunschlimit: ${k.wunschlimit ? eurGanz(k.wunschlimit) : "keins angegeben — dann sprich von seinem Ziel, der Karte"}`,
+    `· Gewünschter Kartenrahmen (im Antrag „Wunschlimit" — du schreibst „Rahmen", nie „Limit"): ${k.wunschlimit ? eurGanz(k.wunschlimit) : "keiner angegeben — dann sprich von seinem Ziel, der Karte"}`,
     `· Persönlicher Betreuer: ${ein.betreuer ?? "wird nach der Aktivierung zugeteilt"}`,
     `· Tageszeit jetzt: ${tageszeit()}`,
     ``,
@@ -319,9 +341,10 @@ function aktionsPrompt(ein: {
     `· 4 bis 7 Sätze in 2 bis 3 kurzen Absätzen (Absätze durch eine Leerzeile). Ein Gedanke pro Satz, höchstens 20 Wörter.`,
     `· KEINE Anrede-Zeile, KEINE Grußformel, KEINE Unterschrift, KEINE Adresse (URL), KEINE Bankdaten — Anrede, Knopf „Rechnung ansehen und bezahlen" und Gruß setzt der Server. Sprich vom „Knopf unten" oder der „Zahlungsseite".`,
     ein.emojis ? `· Höchstens ein freundliches 🙂, sonst keine Emojis.` : `· Keine Emojis.`,
-    `· Nichts garantieren, nicht beraten, nie „ich empfehle", keine feste Frist, keine Zusage außer: Sobald die Zahlung da ist, aktivierst du den Account. Über Konto und Karte entscheidet die Bank. FIAON vergibt und vermittelt keine Kredite.`,
+    // E-248: Kein „FIAON vergibt keine Kredite" mehr als Pflichtsatz — ein Nein, nach dem niemand gefragt hat.
+    `· Nichts garantieren, nicht beraten, nie „ich empfehle", keine feste Frist, keine Zusage außer: Sobald die Zahlung da ist, aktivierst du den Account. Keine Rückzahlung zusagen. Hat er nach einem Kredit gefragt (Gedächtnis, Weg): nie mit einem Nein anfangen — seine eigene Kreditkarte ist das Bessere.`,
     `· Karten-Sätze nur sinngemäß so: „${KARTE_LINK_SATZ}" / „${KARTE_ZEIT_SATZ}" — „in der Regel", „nach der Zusage der Bank" und „meist" bleiben immer drin.`,
-    `· Das Wunschlimit ist ein Ziel („als Ziel", „darauf arbeiten wir hin"), nie eine Zusage.`,
+    `· Der gewünschte Rahmen ist ein Ziel („als Ziel", „darauf arbeiten wir hin"), nie eine Zusage; den Rahmen legt die Bank fest.`,
     `· Keine internen Wörter (Akte, Status, Stufe, Aktion, System, Lead).`,
     `· Nutze, was du über ihn weißt: ein Telefonat, eine Zusage, eine frühere Mail, sein Ziel. Er soll merken, dass hier ein Mensch schreibt, der ihn kennt. Erfinde nichts.`,
     `· Wiederhole NIE Sätze aus deinen bisherigen Mails an ihn (unten) — jede Mail bringt einen neuen Gedanken.`,
@@ -356,9 +379,20 @@ export function absaetzeFassen(text: string, hoechstens = 3): string {
   return aus.join("\n\n");
 }
 
-/** Die Nachprüfung — was hier hängen bleibt, geht nicht raus. */
-export function aktionPruefen(betreff: string, text: string): string[] {
+/**
+ * Die Nachprüfung — was hier hängen bleibt, geht nicht raus.
+ * E-248: dazu Maras Ton (shared/fiaon-mara-ton.ts, nur harte Treffer: „Limit",
+ * ISO-Datum, Rückfallsätze, „SCHUFA" nach Österreich/Schweiz) und jeder nackte
+ * fiaon.com-Link (die URL im Text ist ohnehin verboten; der Knopf trägt seine
+ * Zahlungsseite). `land` = Land des Kunden (AT/CH: kein „SCHUFA").
+ */
+export function aktionPruefen(betreff: string, text: string, opt: { land?: string | null } = {}): string[] {
   const maengel: string[] = [];
+  const land = String(opt.land || "").toUpperCase();
+  for (const b of tonPruefung(`${betreff}\n${text}`, { kanal: "mail", land: land === "AT" || land === "CH" ? land as any : null })) {
+    if (b.schwere === "hart") maengel.push(`Ton: „${b.treffer}" — ${b.hinweis}`);
+  }
+  for (const b of linkPruefung(text)) if (b.schwere === "hart") maengel.push(`Link: ${b.link} — ${b.hinweis}`);
   for (const t of wandPruefen(`${betreff}\n${text}`)) {
     if (t.art === "verboten" || t.art === "zusage") maengel.push(`${t.art === "zusage" ? "Ungedeckte Zusage" : "Verboten"}: „${t.treffer}" — ${t.hinweis}`);
   }
@@ -443,13 +477,16 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   const saeubern = (t: string) => (ein.emojis ? String(t || "") : ohneEmojis(String(t || ""))).trim();
   let betreff = saeubern(roh?.betreff).replace(/[!]+/g, "").slice(0, 90);
   let text = saeubern(roh?.text);
-  let maengel = aktionPruefen(betreff, text);
+  // E-248: Land des Kunden — in Österreich und der Schweiz nie „SCHUFA".
+  const land = (akte as any)?.auskunft?.land ?? (akte as any)?.vertrag?.land ?? null;
+  const landKurz = /^(at|österreich|oesterreich|austria)$/i.test(String(land || "").trim()) ? "AT" : /^(ch|schweiz|switzerland)$/i.test(String(land || "").trim()) ? "CH" : null;
+  let maengel = aktionPruefen(betreff, text, { land: landKurz });
   if (maengel.length) {
     try {
       const neu = await rufen(`Deine Mail hat diese Mängel:\n${maengel.map((m) => `· ${m}`).join("\n")}\n\nSchreib sie neu — derselbe Inhalt, ohne die Mängel. Nichts erfinden.`);
       const b2 = saeubern(neu?.betreff).replace(/[!]+/g, "").slice(0, 90);
       const t2 = saeubern(neu?.text);
-      const m2 = aktionPruefen(b2, t2);
+      const m2 = aktionPruefen(b2, t2, { land: landKurz });
       if (m2.length < maengel.length) { betreff = b2; text = t2; maengel = m2; }
     } catch (e) { if (istKiPause(e)) throw e; /* sonst bleibt es beim ersten Versuch */ }
   }

@@ -9,16 +9,28 @@
 // components/whatsapp/WhatsAppRaum.tsx und wird auch im Chefbüro benutzt. Der
 // Unterschied entsteht auf dem Server — der Mitarbeiter sieht die Gespräche
 // SEINER Menschen, die Leitung alle.
+//
+// 28.09.2026 (E-248): Der Raum bringt seine eigene dunkle Bühne mit. Ohne
+// `dunkel(true)` lag er halbtransparent auf der hellen Office-Glasfläche —
+// grau und verwaschen, die Überschrift unsichtbar. Der feste 1320-px-Rahmen
+// ist weg: Wie der Raum sich aufteilt, entscheidet sein Platz (Container Queries).
+// Die Office-Hülle setzt `dunkel` bei jedem Seitenwechsel selbst zurück.
 // ═══════════════════════════════════════════════════════════════════════════
+import { useEffect } from "react";
 import { AgentShell } from "./shared";
+import { useOffice } from "./OfficeShell";
 import WhatsAppRaum from "@/components/whatsapp/WhatsAppRaum";
+
+function Innen() {
+  const { dunkel } = useOffice();
+  useEffect(() => { dunkel(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return <WhatsAppRaum basis="/agent/whatsapp" telefon="softphone" />;
+}
 
 export default function AgentWhatsAppSeite() {
   return (
     <AgentShell>
-      <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <WhatsAppRaum basis="/agent/whatsapp" />
-      </div>
+      <Innen />
     </AgentShell>
   );
 }

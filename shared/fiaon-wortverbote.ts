@@ -26,6 +26,22 @@ export interface Wortregel {
   hinweis: string;
   /** Nur bei art "zusage": Welches Werkzeug die Zusage decken muss. */
   gedecktDurch?: string[];
+  /**
+   * Nachbesserung E-248: Dieser Treffer ist KEINE Zusage (z. B. eine echte Frage oder
+   * „keinen Rückruf"). Bekommt den Satz des Treffers und den Text direkt davor. Ohne
+   * Lookbehind — der läuft auf Safari unter 16.4 nicht (die Datei ist auch im Browser).
+   */
+  keineZusage?: (satz: string, davor: string) => boolean;
+}
+
+/**
+ * Eine echte Frage BEGINNT als Frage („Soll Florentine Sie morgen anrufen?", „Welche Zeit
+ * passt Ihnen für den Rückruf?") — ein angehängtes „…, passt Ihnen das?" macht aus einer
+ * Zusage keine Frage (Gegenprobe wand.mts). Rein.
+ */
+export function istEchteFrage(satz: string): boolean {
+  const s = String(satz || "").trim();
+  return /\?\s*$/.test(s) && /^(?:[„"»(]\s*)?(?:soll|sollen|sollte|möchten|moechten|möchtest|wollen|willst|welche[rsnm]?|wann|wie|wo|darf|dürfen|duerfen|passt|kann|können|koennen|könnte|koennte|wäre|waere|hätten|haetten|haben|ist|sind|gibt|brauchen)\b/i.test(s);
 }
 
 export const WORTREGELN: Wortregel[] = [
@@ -78,7 +94,14 @@ export const WORTREGELN: Wortregel[] = [
   // 04.09.2026: auch „Zahlungserinnerungen" — das Wort-Ende reichte nicht (\berinnerungen\b greift im Kompositum nicht).
   { muster: /\b\w*(erinnerungen|mahnungen)\b.{0,30}\b(gestoppt|eingestellt|angehalten|beendet|pausiert)\b/i, art: "zusage", hinweis: "Nur sagen, wenn der Mahnstopp gesetzt wurde.", gedecktDurch: ["mahnstopp_setzen"] },
   { muster: /\b(weitergeleitet|weiterleiten\s+werde|an\s+die\s+(zuständige\s+)?(abteilung|kollegin|kollegen))\b/i, art: "zusage", hinweis: "Nur sagen, wenn wirklich jemand informiert wurde.", gedecktDurch: ["notiz_an_betreuer", "aufgabe_an_betreuer", "eskalation_vorbereiten"] },
-  { muster: /\b(ruf(t|e|en)?\s+sie(\s+\w+){0,3}\s+an\b|meldet?\s+sich\s+(telefonisch|bei\s+ihnen)|rückruf)/i, art: "zusage", hinweis: "Nur sagen, wenn ein Rückruf eingeplant wurde.", gedecktDurch: ["notiz_an_betreuer", "aufgabe_an_betreuer"] },
+  // E-248 (28.09.2026, Befunde P5/P7): Eine FRAGE („Welche Zeit soll ich für den Rückruf
+  // eintragen?") und ein „keinen Rückruf" sind keine Zusage — vorher machte jede solche
+  // Nachricht von Mara eine dringende Aufgabe. Zusage bleibt der Satz, der etwas verspricht.
+  // Nachbesserung 28.09.: Die Frage-Ausnahme gilt nur, wenn der Satz als Frage BEGINNT
+  // („Florentine ruft Sie morgen an, passt Ihnen das?" bleibt eine Zusage), bis zu fünf
+  // Wörter zwischen „Sie" und „an" („ruft Sie heute um 20 Uhr an"), ohne Lookbehind.
+  { muster: /\b(ruf(t|e|en)?\s+sie(\s+[^\s.!?]+){0,5}\s+an\b|meldet?\s+sich\s+(telefonisch|bei\s+ihnen)|rückruf)/i, art: "zusage", hinweis: "Nur sagen, wenn ein Rückruf eingeplant wurde.", gedecktDurch: ["notiz_an_betreuer", "aufgabe_an_betreuer"],
+    keineZusage: (satz, davor) => istEchteFrage(satz) || /\bkein(en)?\s+$/i.test(davor) },
   { muster: /\b(kündigung|vertrag)\b.{0,30}\b(vorgemerkt|vermerkt|aufgenommen|bestätigt|storniert)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Kündigung im System steht.", gedecktDurch: ["kuendigung_vormerken"] },
   { muster: /\b(zugang|bereich|konto)\b.{0,25}\b(freigeschaltet|freigegeben|aktiviert)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Freischaltung ausgeführt wurde.", gedecktDurch: ["konto_freischalten"] },
   { muster: /\b(notiert|vermerkt)\b.{0,20}\b(in\s+ihrer\s+akte|im\s+system)\b/i, art: "zusage", hinweis: "Nur sagen, wenn ein Vermerk geschrieben wurde.", gedecktDurch: ["vermerk_schreiben", "notiz_an_betreuer", "aufgabe_an_betreuer"] },
@@ -95,9 +118,21 @@ export function wandPruefen(text: string, ausgefuehrt: string[] = []): Wandtreff
   const t = String(text || "");
   const funde: Wandtreffer[] = [];
   for (const r of WORTREGELN) {
-    const m = t.match(r.muster);
+    let m = t.match(r.muster);
     if (!m) continue;
     if (r.art === "zusage" && r.gedecktDurch?.some((w) => ausgefuehrt.includes(w))) continue;
+    if (r.keineZusage) {
+      // Jeden Treffer einzeln ansehen — zählt nur, wenn mindestens einer eine Zusage ist.
+      const g = new RegExp(r.muster.source, r.muster.flags.includes("g") ? r.muster.flags : `${r.muster.flags}g`);
+      m = null;
+      for (const x of Array.from(t.matchAll(g))) {
+        const i = x.index ?? 0;
+        const anfang = Math.max(t.lastIndexOf(".", i - 1), t.lastIndexOf("!", i - 1), t.lastIndexOf("?", i - 1), t.lastIndexOf("\n", i - 1)) + 1;
+        const ende = (() => { const rest = t.slice(i); const j = rest.search(/[.!?\n]/); return j < 0 ? t.length : i + j + (rest[j] === "\n" ? 0 : 1); })();
+        if (!r.keineZusage(t.slice(anfang, ende), t.slice(Math.max(0, i - 8), i))) { m = x; break; }
+      }
+      if (!m) continue;
+    }
     funde.push({ art: r.art, treffer: m[0].slice(0, 60), hinweis: r.hinweis, gedecktDurch: r.gedecktDurch });
   }
   return funde;

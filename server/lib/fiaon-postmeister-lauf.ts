@@ -19,7 +19,7 @@ import {
   nachrichtLesen, nachrichtLabeln, labelSicherstellen, entwurfAnlegen, antwortSenden, nachrichtenSuchen,
   type GmailNachricht,
 } from "./fiaon-gmail";
-import { einordnen, antwortErzeugen, maraMailVermerk } from "./fiaon-postmeister-agent";
+import { einordnen, antwortErzeugen, maraMailVermerk, antwortSprache, type Vorgeschichte } from "./fiaon-postmeister-agent";
 import { personSuchen, akteLesen } from "./fiaon-postmeister-dossier";
 import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
@@ -178,6 +178,11 @@ export const UEBERGABE_GRUND = {
   ansprechpartner: "Kunde möchte mit seinem Ansprechpartner sprechen",
   entwurf: "Mara hat einen Entwurf vorbereitet, aber nicht gesendet.",
   zentrale: "Kunde wartet auf eine Antwort (Entwurf lag in der Zentrale)",
+  // E-248: Ein Widerruf oder Einwand aus einer früheren Mail ist noch offen (#5633) —
+  // keine Zahlungsaufforderung, ein Mensch entscheidet.
+  vorgeschichte: "Widerruf oder Einwand aus einer früheren Mail offen",
+  // E-248: Kündigung angesprochen, aber nicht gebucht (#5626) — ein Mensch prüft und bucht.
+  kuendigung: "Kündigung angesprochen, aber nicht gebucht",
 } as const;
 
 /**
@@ -462,7 +467,9 @@ export async function uebergabeSchliessen(
            WHERE p.id = ANY(${ids}::int[]) AND NULLIF(p.thread_id, '') IS NOT NULL)
         SELECT p.id, LOWER(p.postfach) AS postfach, p.thread_id,
                COALESCE(p.empfangen_am, p.created_at) AS am, p.begruendung,
-               (p.gesendet_am IS NOT NULL OR COALESCE(p.begruendung, '') LIKE 'Vom Betreuer übernommen%') AS beantwortet
+               (p.gesendet_am IS NOT NULL OR COALESCE(p.begruendung, '') LIKE 'Vom Betreuer übernommen%'
+                -- E-248: ein Doppel wird nie eigens beantwortet — die Antwort auf das Original gilt.
+                OR (p.aktion = 'geordnet' AND COALESCE(p.begruendung, '') LIKE 'Doppel von Mail #%')) AS beantwortet
           FROM fiaon_postmeister p
          WHERE p.id = ANY(${ids}::int[])
             OR (NULLIF(p.thread_id, '') IS NOT NULL AND (LOWER(p.postfach), p.thread_id) IN (SELECT postfach, thread_id FROM basis))
@@ -617,6 +624,235 @@ export async function spaetereAntwortImFaden(postfach: string, mail: GmailNachri
     return { am: m.datum, id: m.id };
   }
   return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EINE MAIL — EINE ANTWORT (28.09.2026, E-248)
+//
+// DIE MESSUNG (Produktion, nur gelesen): Person A schickte am 21.09. dieselbe
+// Mail elfmal (gleicher Text, jede mit eigener Message-ID, zwei Fäden) und bekam
+// zwischen 15:20 und 15:31 Uhr ELF Antworten — fünf automatisch, sechs von Hand
+// freigegeben. Seit 27.09. liegen von ihr 16 gleiche Entwürfe da. Person B
+// bekam am 24.09. drei Antworten mit je einer Rechnung in 76 Sekunden (zweimal
+// derselbe Text, einmal leer mit Anhang); Person C zwei in 38 Sekunden. Die
+// Doppel-Prüfung verglich nur die Message-ID.
+//
+// JETZT, unter einer Sperre je Kunde (pg_advisory_xact_lock — zwei Takte, der
+// Aufhol-Lauf und das Nachholen nach der KI-Pause können gleichzeitig laufen):
+//   · gleicher Text derselben Person (oder Adresse) innerhalb von 24 Stunden —
+//     bei kurzen Texten („Ja", „Danke") nur 30 Minuten — ist ein DOPPEL: nur
+//     eingeordnet, keine zweite Antwort, kein zweiter Entwurf, keine KI-Kosten;
+//   · eine Mail ohne eigenen Text (nur Anhang) bis 30 Minuten nach einer
+//     anderen derselben Person ist ein NACHTRAG zu ihr;
+//   · wer die Sperre zuerst hat, trägt Person und Text sofort in seine Zeile —
+//     die nächste Mail sieht ihn, auch wenn seine Antwort noch entsteht.
+// Das Senden prüft es ein zweites Mal (sendeSperre): im automatischen Versand,
+// im Nachholen und — als Vorschlag — in der Zentrale.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der Text für den Doppel-Vergleich: klein, ohne Satzzeichen und Leerraum-Unterschiede. Rein. */
+export function doppelSchluessel(text: string): string {
+  const roh = String(text || "").toLowerCase().replace(/&nbsp;/g, " ");
+  // Ohne /u (Übersetzerziel älter als ES2015): lateinische Buchstaben mit Akzenten; ein Text
+  // in anderer Schrift (Kyrillisch, Arabisch …) bleibt dann als ganzer Text der Schlüssel —
+  // er darf nie leer werden, sonst gälte er als „Nachtrag ohne Text".
+  const k = roh.replace(/[^a-z0-9äöüßàáâãåæçèéêëìíîïñòóôõøùúûýÿąćęłńśźżăîșțşğıœčďěňřšťůž]+/g, " ").trim();
+  return (k || roh.replace(/\s+/g, " ").trim()).slice(0, 4000);
+}
+
+export interface DoppelKandidat { id: number; text: string | null; am: number; aktion: string }
+
+/** Kurze Texte („Ja", „Danke") gelten nur 30 Minuten als Doppel — ein „Ja" morgen ist ein neues Ja. */
+const DOPPEL_FENSTER_MS = 24 * 3_600_000;
+const KURZ_FENSTER_MS = 30 * 60_000;
+
+/**
+ * Ist diese Mail ein Doppel oder ein Nachtrag? Rein — der Prüfstand rechnet die
+ * echten Fälle nach (Person A, B, C). `andere` = Zeilen derselben Person, die
+ * schon beansprucht sind (nicht 'ignoriert', nicht 'vorgeordnet'). Fenster 24 h — schickt
+ * jemand dieselbe Frage zwei Tage später noch einmal, ist das ein neues Nachfragen.
+ */
+export function doppelUrteil(ein: { text: string; am: number }, andere: DoppelKandidat[]): { id: number; grund: string } | null {
+  const k = doppelSchluessel(ein.text);
+  const sortiert = andere.slice().sort((a, b) => a.am - b.am || a.id - b.id);
+  if (!k) {
+    const nah = sortiert.find((x) => Math.abs(x.am - ein.am) <= KURZ_FENSTER_MS);
+    return nah ? { id: nah.id, grund: "Nachtrag ohne eigenen Text (nur Anhang)" } : null;
+  }
+  const fenster = k.length < 40 ? KURZ_FENSTER_MS : DOPPEL_FENSTER_MS;
+  const gleich = sortiert.find((x) => doppelSchluessel(x.text ?? "") === k && Math.abs(x.am - ein.am) <= fenster);
+  return gleich ? { id: gleich.id, grund: "derselbe Text noch einmal geschickt" } : null;
+}
+
+/** Die Adresse aus „Name <a@b.de>" oder „a@b.de". Rein. */
+function adresseAus(von: string | null | undefined): string {
+  const t = String(von || "").toLowerCase();
+  return (t.match(/<([^>]+)>/)?.[1] ?? t).trim();
+}
+
+/**
+ * Doppel prüfen und — wenn keins — die eigene Zeile sofort mit Person und Text
+ * belegen. Unter einer Sperre je Kunde, damit zwei gleichzeitige Läufe nie beide
+ * „kein Doppel" sehen.
+ */
+async function doppelSperre(ein: {
+  id: number; personId: number | null; von: string; text: string; am: Date; threadId: string; betreff: string;
+}): Promise<{ id: number; grund: string } | null> {
+  const adresse = adresseAus(ein.von);
+  const schluessel = ein.personId != null ? `person:${ein.personId}` : adresse ? `adresse:${adresse}` : null;
+  if (!schluessel) return null;
+  return await sqlPool.begin(async (tx: any) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`postmeister-antwort:${schluessel}`}))`;
+    const zeilen = (await tx`
+      SELECT id, text, COALESCE(empfangen_am, created_at) AS am, aktion
+        FROM fiaon_postmeister
+       WHERE id <> ${ein.id}
+         AND aktion NOT IN ('ignoriert', 'vorgeordnet')
+         AND ${ein.personId != null ? tx`person_id = ${ein.personId}` : tx`LOWER(COALESCE(substring(von from '<([^>]+)>'), von, '')) = ${adresse}`}
+         AND COALESCE(empfangen_am, created_at) BETWEEN ${new Date(ein.am.getTime() - DOPPEL_FENSTER_MS)} AND ${new Date(ein.am.getTime() + DOPPEL_FENSTER_MS)}
+       ORDER BY id ASC LIMIT 200`) as any[];
+    const urteil = doppelUrteil(
+      { text: ein.text, am: ein.am.getTime() },
+      zeilen.map((z) => ({ id: Number(z.id), text: z.text ?? "", am: new Date(z.am).getTime(), aktion: String(z.aktion) })),
+    );
+    if (!urteil) {
+      // Belegen: Die nächste Mail derselben Person sieht diese hier sofort.
+      await tx`
+        UPDATE fiaon_postmeister SET person_id = COALESCE(person_id, ${ein.personId}), von = ${ein.von}, text = ${String(ein.text || "").slice(0, 12_000)},
+               empfangen_am = ${ein.am}, thread_id = ${ein.threadId || ""}, betreff = ${ein.betreff}, updated_at = NOW()
+         WHERE id = ${ein.id}`;
+    }
+    return urteil;
+  });
+}
+
+/**
+ * DARF DIESE ANTWORT NOCH RAUS? (E-248) — die zweite Sperre, direkt vor dem Senden.
+ * Nein, wenn derselbe Kunde auf denselben Text (Doppel-Regel oben) schon eine
+ * Antwort bekommen hat oder eine gerade hinausgeht ('sendet'). Für den
+ * automatischen Versand, das Nachholen und die Zentrale (entwurfSenden,
+ * entwurfBeanspruchen — dort als Vorschlag). Wirft nie; im Zweifel „darf".
+ */
+export async function sendeSperre(id: number): Promise<{ doppelVon: number; grund: string } | null> {
+  try {
+    const [z] = (await sqlPool`
+      SELECT id, person_id, von, text, COALESCE(empfangen_am, created_at) AS am FROM fiaon_postmeister WHERE id = ${id}`) as any[];
+    if (!z) return null;
+    const adresse = adresseAus(z.von);
+    if (z.person_id == null && !adresse) return null;
+    const am = new Date(z.am);
+    const zeilen = (await sqlPool`
+      SELECT id, text, COALESCE(empfangen_am, created_at) AS am, aktion
+        FROM fiaon_postmeister
+       WHERE id <> ${id} AND (gesendet_am IS NOT NULL OR aktion IN ('sendet', 'auto_beantwortet', 'gesendet'))
+         AND ${z.person_id != null ? sqlPool`person_id = ${Number(z.person_id)}` : sqlPool`LOWER(COALESCE(substring(von from '<([^>]+)>'), von, '')) = ${adresse}`}
+         AND COALESCE(empfangen_am, created_at) BETWEEN ${new Date(am.getTime() - DOPPEL_FENSTER_MS)} AND ${new Date(am.getTime() + DOPPEL_FENSTER_MS)}
+       ORDER BY id ASC LIMIT 200`) as any[];
+    const u = doppelUrteil({ text: String(z.text ?? ""), am: am.getTime() },
+      zeilen.map((r) => ({ id: Number(r.id), text: r.text ?? "", am: new Date(r.am).getTime(), aktion: String(r.aktion) })));
+    return u ? { doppelVon: u.id, grund: u.grund } : null;
+  } catch (e) {
+    console.warn("[POSTMEISTER] Sendesperre nicht prüfbar:", String((e as any)?.message || e).slice(0, 160));
+    return null;
+  }
+}
+
+/**
+ * Die Doppel-Entwürfe, die schon liegen (E-248: 16 gleiche von Person A),
+ * einordnen — damit weder die Zentrale noch das Nachholen sie ein zweites Mal
+ * senden. Behalten wird je Kunde und Text der älteste; die anderen werden
+ * 'geordnet' mit „Doppel von Mail #…". Nichts wird gelöscht (der Gmail-Entwurf
+ * bleibt, die Zeile lässt sich zurücksetzen). Läuft am Anfang von
+ * versandNachholen, höchstens alle 15 Minuten.
+ */
+let doppelZuletzt = 0;
+export async function doppelteEntwuerfeOrdnen(opt: { immer?: boolean } = {}): Promise<number> {
+  // Nachbesserung E-248: höchstens alle 15 Minuten (der LATERAL-Join mit regexp_replace über
+  // 30 Tage kostet in Produktion rund 1,3 s) — neue Doppel hält ohnehin die Sperre 5c am Eingang auf.
+  if (!opt.immer && Date.now() - doppelZuletzt < 15 * 60_000) return 0;
+  doppelZuletzt = Date.now();
+  try {
+    const zeilen = (await sqlPool`
+      WITH e AS (
+        SELECT id, person_id, text, COALESCE(empfangen_am, created_at) AS am,
+               regexp_replace(lower(COALESCE(text, '')), '[^[:alnum:]]+', ' ', 'g') AS k
+          FROM fiaon_postmeister
+         WHERE aktion IN ('entwurf', 'versand_wartet', 'fehler') AND gesendet_am IS NULL AND person_id IS NOT NULL
+           AND created_at > NOW() - INTERVAL '30 days')
+      SELECT e.id, e.text, e.am, o.id AS original
+        FROM e
+        JOIN LATERAL (
+          SELECT p.id FROM fiaon_postmeister p
+           WHERE p.person_id = e.person_id AND p.id <> e.id AND p.aktion NOT IN ('ignoriert', 'vorgeordnet')
+             AND regexp_replace(lower(COALESCE(p.text, '')), '[^[:alnum:]]+', ' ', 'g') = e.k
+             AND length(trim(e.k)) >= 40
+             AND COALESCE(p.empfangen_am, p.created_at) BETWEEN e.am - INTERVAL '24 hours' AND e.am + INTERVAL '24 hours'
+             AND (p.gesendet_am IS NOT NULL OR COALESCE(p.empfangen_am, p.created_at) < e.am
+                  OR (COALESCE(p.empfangen_am, p.created_at) = e.am AND p.id < e.id))
+           ORDER BY (p.gesendet_am IS NOT NULL) DESC, COALESCE(p.empfangen_am, p.created_at) ASC, p.id ASC LIMIT 1) o ON TRUE
+       LIMIT 200`) as any[];
+    let n = 0;
+    for (const z of zeilen) {
+      const r = (await sqlPool`
+        UPDATE fiaon_postmeister SET aktion = 'geordnet', naechster_versuch_am = NULL, in_arbeit_seit = NULL,
+               begruendung = ${`Doppel von Mail #${Number(z.original)} — derselbe Text noch einmal geschickt; nur eine Antwort (E-248)`}, updated_at = NOW()
+         WHERE id = ${Number(z.id)} AND aktion IN ('entwurf', 'versand_wartet', 'fehler') AND gesendet_am IS NULL
+         RETURNING id`) as any[];
+      n += r.length;
+    }
+    if (n) console.log(`[POSTMEISTER] ${n} Doppel-Entwürfe eingeordnet (E-248).`);
+    return n;
+  } catch (e) {
+    console.error("[POSTMEISTER] Doppel-Entwürfe:", String((e as any)?.message || e).slice(0, 200));
+    return 0;
+  }
+}
+
+/**
+ * Die anderen Mails desselben Kunden aus den letzten drei Tagen, die NICHT in
+ * diesem Faden stehen (E-248). Schreibt jemand in drei Fäden kurz hintereinander,
+ * sieht Mara alle drei und was sie darauf schon geantwortet hat — eine Antwort,
+ * die an die vorige anknüpft, statt dreimal von vorn.
+ */
+async function nachbarMails(personId: number | null, id: number, threadId: string): Promise<{ von: string; am: string; text: string }[]> {
+  if (personId == null) return [];
+  const zeilen = (await sqlPool`
+    SELECT text, antwort, gesendet_am, aktion, COALESCE(empfangen_am, created_at) AS am
+      FROM fiaon_postmeister
+     WHERE person_id = ${personId} AND id <> ${id} AND COALESCE(thread_id, '') <> ${threadId || "-"}
+       AND aktion NOT IN ('ignoriert') AND COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '3 days'
+     ORDER BY COALESCE(empfangen_am, created_at) ASC LIMIT 8`.catch(() => [])) as any[];
+  const aus: { von: string; am: string; text: string }[] = [];
+  for (const z of zeilen) {
+    const am = new Date(z.am).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    if (z.text) aus.push({ von: "Kunde (andere Mail von ihm, anderer Faden)", am, text: String(z.text).slice(0, 1500) });
+    if (z.antwort && (z.gesendet_am || z.aktion === "auto_beantwortet")) {
+      aus.push({ von: "FIAON (unsere Antwort darauf — er hat sie bekommen)", am, text: String(z.antwort).slice(0, 1500) });
+    }
+  }
+  return aus;
+}
+
+/**
+ * Ein offener Widerruf oder eine bestrittene Forderung aus einer FRÜHEREN Mail
+ * (E-248, #5633): Der Kunde hatte widersprochen, Mara gab den Nachweis zur
+ * Prüfung — und forderte auf seine nächste Mail hin automatisch die Zahlung,
+ * weil in DIESER Mail das Wort „Widerruf" fehlte. Widerruf gilt 30 Tage,
+ * Bestreiten 14 Tage (Produktion 28.09.: 92 Personen, 35 davon mit offener
+ * Bestellung; 7 automatische Antworten in 14 Tagen wären betroffen gewesen).
+ */
+export async function offeneEinwaende(personId: number | null, id: number): Promise<Vorgeschichte | null> {
+  if (personId == null) return null;
+  const [z] = (await sqlPool`
+    SELECT id, (flags::text ~ 'widerruf\\\\?"\\s*:\\s*true') AS widerruf, COALESCE(empfangen_am, created_at) AS am
+      FROM fiaon_postmeister
+     WHERE person_id = ${personId} AND id <> ${id}
+       AND ((flags::text ~ 'widerruf\\\\?"\\s*:\\s*true' AND COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '30 days')
+         OR (flags::text ~ 'bestreitet\\\\?"\\s*:\\s*true' AND COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '14 days'))
+     ORDER BY COALESCE(empfangen_am, created_at) DESC LIMIT 1`.catch(() => [])) as any[];
+  if (!z) return null;
+  const am = new Date(z.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" });
+  return { grund: `${z.widerruf ? "Widerruf" : "bestrittene Forderung"} aus seiner Mail vom ${am} (Mail #${Number(z.id)}) noch offen` };
 }
 
 /**
@@ -847,6 +1083,10 @@ export async function mailBearbeiten(ein: {
     }
 
     const kundenlage = akte.kundenlage;
+    // E-248 (#5591): EINE Sprache je Antwort — eine, die unsere Mail ganz kann, sonst Deutsch.
+    const antwortSpracheCode = antwortSprache(einordnung.sprache, akte.sprache ?? null);
+    // Die Zeile trägt dieselbe Sprache — die Zentrale baut Anrede, Knopf und Gruß beim Freigeben daraus.
+    gemeinsam.sprache = antwortSpracheCode;
     if (ein.nurOrdnen || ein.modus === "aus") {
       return fertig({ ...gemeinsam, kundenlage, aktion: "vorgeordnet", begruendung: "nur eingeordnet" }, "nur geordnet");
     }
@@ -870,8 +1110,28 @@ export async function mailBearbeiten(ein: {
       }
     }
 
+    // 5c. E-248: EINE MAIL — EINE ANTWORT. Derselbe Text noch einmal (Person A:
+    //     elf Antworten in elf Minuten) oder ein leerer Nachtrag mit Anhang (Person
+    //     B: drei Rechnungen in 76 Sekunden) bekommt keine zweite Antwort. Nach der
+    //     Prüfung „hat schon ein Mensch geantwortet“ (5b) und vor jeder Antwort-KI.
+    const doppel = await doppelSperre({
+      id, personId: wer.personId, von: mail.von, text: neuerText, am: mail.datum, threadId: mail.threadId, betreff: mail.betreff,
+    }).catch((e) => { console.warn("[POSTMEISTER] Doppel-Prüfung:", String(e?.message || e).slice(0, 160)); return null; });
+    if (doppel) {
+      await ablegen(postfach, gmailId, "FIAON/Doppelt");
+      return fertig({
+        ...gemeinsam, kundenlage, aktion: "geordnet",
+        begruendung: `Doppel von Mail #${doppel.id} — ${doppel.grund}; nur eine Antwort (E-248)`,
+      }, "Doppel");
+    }
+
     // 6. Verlauf und Antwort.
     const verlauf = await verlaufLesen(postfach, mail.threadId, gmailId);
+    // E-248: Seine anderen Mails der letzten drei Tage (andere Fäden) und unsere Antworten darauf.
+    const nachbarn = await nachbarMails(wer.personId, id, mail.threadId);
+    if (nachbarn.length) verlauf.unshift(...nachbarn);
+    // E-248 (#5633): Ein Widerruf oder eine bestrittene Forderung aus einer früheren Mail ist noch offen.
+    const vorgeschichte = await offeneEinwaende(wer.personId, id).catch(() => null);
     // E-246: Lag die Mail aus der KI-Pause, kann ein früherer Anlauf schon
     // gehandelt haben (Kündigung vorgemerkt, Link verschickt, Aufgabe angelegt).
     // Das Modell erfährt es — nichts doppelt tun, dem Kunden nur als erledigt nennen.
@@ -888,6 +1148,7 @@ export async function mailBearbeiten(ein: {
     const erg = await antwortErzeugen({
       postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage },
       verlauf, einordnung, personId: wer.personId, ref: wer.ref, postmeisterId: id,
+      sprache: antwortSpracheCode, vorgeschichte,
     });
 
     if (!erg.ok || !erg.antwort) {
@@ -906,9 +1167,8 @@ export async function mailBearbeiten(ein: {
     // schreibt ja in dieser Sprache. Der Vermerk greift nur, wenn die Mail
     // nichts hergab (kurze Mail, nur ein Wort) und ein Mensch die Sprache
     // nach einem Telefonat eingetragen hat.
-    const sprache = einordnung.sprache && einordnung.sprache.slice(0, 2) !== "de"
-      ? einordnung.sprache
-      : (akte.sprache || einordnung.sprache);
+    // E-248 (#5591): dieselbe EINE Sprache wie der Text — nie Rahmen deutsch, Text spanisch.
+    const sprache = antwortSpracheCode;
     const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null, sprache);
     // Der Gruß trägt den Namen des Agenten (04.09.2026): „Freundliche Grüße\nMara\nFIAON Welcome-Team".
     const { agentName } = await import("./fiaon-postmeister-agent");
@@ -936,7 +1196,17 @@ export async function mailBearbeiten(ein: {
     // 18.09.2026 (Team-Feedback Priorität 6): „Die KI übergibt bei komplexeren
     // Anliegen an einen Mitarbeiter." Was ein Mensch klären muss, geht nie
     // automatisch raus — es wird ein Entwurf UND eine Aufgabe beim Betreuer.
-    const mensch = menschNoetig(einordnung, neuerText);
+    const kuendigungGebucht = erg.handlungen.some((h) => h.ok && h.werkzeug === "kuendigung_vormerken") || !!akte.kuendigung;
+    const mensch = menschNoetig(einordnung, neuerText)
+      ?? (vorgeschichte ? UEBERGABE_GRUND.vorgeschichte : null)
+      // Kündigung angesprochen, nicht gebucht: ein Mensch prüft — nie still liegen lassen (#5626, #4682).
+      ?? (einordnung.flags?.kuendigung && !kuendigungGebucht && !erg.automatischErlaubt ? UEBERGABE_GRUND.kuendigung : null);
+    // E-248: Sperre direkt vor dem Senden — ist auf denselben Text schon eine Antwort raus, keine zweite.
+    const sperre = ein.modus === "auto" && erg.automatischErlaubt && !mensch ? await sendeSperre(id) : null;
+    if (sperre) {
+      await ablegen(postfach, gmailId, "FIAON/Doppelt");
+      return fertig({ ...gemeinsam, kundenlage, aktion: "geordnet", begruendung: `Doppel von Mail #${sperre.doppelVon} — ${sperre.grund}; nur eine Antwort (E-248)` }, "Doppel");
+    }
     const darfAuto = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch;
     const felder = {
       ...gemeinsam, kundenlage,
@@ -1064,6 +1334,8 @@ export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
   Promise<{ geprueft: number; gesendet: number; verschoben: number; aufgegeben: number }> {
   await postmeisterSchema();
   const erg = { geprueft: 0, gesendet: 0, verschoben: 0, aufgegeben: 0 };
+  // E-248: Erst die Doppel einordnen — sonst holte dieser Lauf eine zweite Antwort auf denselben Text nach.
+  await doppelteEntwuerfeOrdnen();
   const zeilen = (await sqlPool`
     UPDATE fiaon_postmeister SET aktion = 'sendet', in_arbeit_seit = NOW(), updated_at = NOW()
      WHERE id IN (SELECT id FROM fiaon_postmeister
@@ -1103,6 +1375,15 @@ export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
     // Ein nicht bedientes Postfach (E-171) wird nie wieder senden — sofort aufgeben, nicht 26 Stunden warten.
     if (!wirdBedient(String(r.postfach))) {
       await aufgeben(`Postfach ${r.postfach} wird vom Agenten nicht bedient (E-171)`);
+      continue;
+    }
+    // E-248: Hat derselbe Kunde auf denselben Text inzwischen eine Antwort, wird diese nicht nachgeholt.
+    const doppel = await sendeSperre(id);
+    if (doppel) {
+      await sqlPool`
+        UPDATE fiaon_postmeister SET aktion = 'geordnet', naechster_versuch_am = NULL, in_arbeit_seit = NULL,
+               begruendung = ${`Doppel von Mail #${doppel.doppelVon} — ${doppel.grund}; nur eine Antwort (E-248)`}, updated_at = NOW()
+         WHERE id = ${id}`.catch((e) => console.error("[POSTMEISTER] Doppel beim Nachholen:", String(e).slice(0, 160)));
       continue;
     }
 

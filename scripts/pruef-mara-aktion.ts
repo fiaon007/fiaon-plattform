@@ -21,7 +21,7 @@ const { istSensibel } = await import("../server/lib/fiaon-mara-gedaechtnis");
 const quelle = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
 console.log("── Nachprüfung jeder Mail ─────────────────────────────────────────");
-const gut = "Hier ist Mara Lindner von FIAON. Ich würde Ihren Account gern aktivieren, mit Ihrem Wunschlimit als Ziel. Dazu fehlt mir nur noch die offene Rechnung über 59,99 €.\n\nSobald Ihre Zahlung da ist, aktiviere ich Ihren Account. Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
+const gut = "Hier ist Mara Lindner von FIAON. Ich würde Ihren Account gern aktivieren, mit Ihrem gewünschten Kartenrahmen als Ziel. Dazu fehlt mir nur noch die offene Rechnung über 59,99 €.\n\nSobald Ihre Zahlung da ist, aktiviere ich Ihren Account. Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
 ok(aktionPruefen("Ihr Account wartet auf einen Schritt", gut).length === 0, "Eine gute Mail besteht die Prüfung");
 const m = aktionPruefen("Jetzt zugreifen!", "Ich garantiere Ihnen die Karte innerhalb von 3 Tagen. Schau auf www.fiaon.com vorbei, dann kannst du loslegen.");
 ok(m.some((x) => /garant/i.test(x)), "„garantieren“ fällt durch");
@@ -57,7 +57,8 @@ for (const [muster, satz] of [
   [/INTERVAL '6 hours'/, "Andere Mail gerade raus → Pause"],
   [/'gebounct', 'blockiert', 'spam'/, "Zustellproblem stoppt"],
   [/INTERVAL '2 days' WHEN 2 THEN INTERVAL '4 days' WHEN 3 THEN INTERVAL '7 days' ELSE INTERVAL '14 days'/, "Takt 2 / 4 / 7 / 14 Tage"],
-  [/\[200, 400, 800\]/, "Anlauf 200 / 400 / 800"],
+  // Der Anlauf 200/400/800 ist am 22.09.2026 entfallen (fiaon-mara-aktion.ts) — geprüft wird, dass er weg bleibt.
+  [/Kein Anlauf mehr/, "Kein Anlauf mehr (seit 22.09.2026)"],
   [/x === "A" \|\| x === "B"/, "Stufe C lässt sich nicht einschalten"],
   [/gekuendigt_am IS NULL AND a\.cancelled_at IS NULL/, "Gekündigt und storniert bleiben draußen"],
   [/kostenHeute\(DIENST\)/, "Eigener Kostendeckel"],

@@ -128,9 +128,10 @@ export function zielVon(a: { link: string | null; personId: number | null; ref: 
 export function personAusZeile(r: { link?: string | null; schluessel?: string | null }): number | null {
   const l = String(r.link || "").match(/^\/agent\/(?:kunden|pipeline)\?(?:.*&)?person=(\d+)/);
   if (l) return Number(l[1]);
-  // Mara auf WhatsApp: eine Aufgabe je Mensch und Tag, Schlüssel „wa-<person>-<JJJJ-MM-TT>"
-  // (fiaon-whatsapp-mara.ts). Ohne Person heißt er „wa-n<nummer>-…" und trifft hier nicht.
-  const s = String(r.schluessel || "").match(/^wa-(\d+)-\d{4}-\d{2}-\d{2}$/);
+  // Mara auf WhatsApp: eine Aufgabe je Mensch und Grund, Schlüssel „wa-<person>-<Grund>-<JJJJ-MM-TT>"
+  // (E-248; vorher „wa-<person>-<JJJJ-MM-TT>", fiaon-whatsapp-mara.ts). Ohne Person heißt er
+  // „wa-n<nummer>-…" und trifft hier nicht.
+  const s = String(r.schluessel || "").match(/^wa-(\d+)-/);
   return s ? Number(s[1]) : null;
 }
 

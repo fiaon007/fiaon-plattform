@@ -40,7 +40,19 @@ pruef("Monika 3: „läuft es bei FIAON nicht“", V("Nur mit Ausweis und ohne S
 pruef("Monika 4: „passt FIAON … nicht“", V("Verstanden, dann passt FIAON für Ihren Wunsch nach einer Karte nur mit Ausweis im Moment wahrscheinlich nicht.", "Okay dann nicht und danke").some((h) => /passt nicht/.test(h)));
 // Gute Antworten gehen durch:
 pruef("gut: Ja zuerst", V("Ja, da sind Sie bei uns genau richtig! Der Antrag dauert etwa zwei Minuten: https://fiaon.com/a/abc/w", "Ich suche unkompliziert eine Kreditkarte").length === 0);
-pruef("gut: Gehaltsnachweis-Nein", V("Nein, einen Gehaltsnachweis brauchen Sie nicht. Antrag fertig machen, erste Rate überweisen — dann geht der Link unserer Partnerbank direkt an Sie raus.", "Brauche ich Einkommensnachweise?").length === 0);
+// Nachbesserung E-248 (Recht, § 5a UWG): Auf die direkte Frage gehören die Kontoauszüge dazu.
+pruef("gut: Gehaltsabrechnung nein, Kontoauszüge ja", V("Eine Gehaltsabrechnung brauchen Sie nicht — Ihre Kontoauszüge der letzten sechs Monate laden Sie später bequem im Kundenbereich hoch. Antrag fertig machen, erste Rate überweisen, dann geht es los.", "Brauche ich Einkommensnachweise?").length === 0);
+pruef("„kein Gehaltsnachweis“ ohne Kontoauszüge auf direkte Frage → Hinweis", V("Nein, einen Gehaltsnachweis brauchen Sie nicht. Antrag fertig machen, erste Rate überweisen — dann geht es los.", "Brauche ich Einkommensnachweise?").some((h) => /Kontoauszüge/.test(h)));
+// Nachbesserung E-248 (Gegenprobe wand.mts): Rückruf-Zusage mit angehängter Frage bleibt eine Zusage.
+{
+  const { wandPruefen } = await import("../shared/fiaon-wortverbote");
+  const zusage = (t: string) => wandPruefen(t).some((x) => x.art === "zusage");
+  pruef("Wand: „Florentine ruft Sie morgen an, passt Ihnen das?“ ist eine Zusage", zusage("Florentine ruft Sie morgen an, passt Ihnen das?"));
+  pruef("Wand: „Ihr Rückruf ist eingeplant, okay?“ ist eine Zusage", zusage("Ihr Rückruf ist eingeplant, okay?"));
+  pruef("Wand: „ruft Sie heute um 20 Uhr an“ (vier Wörter) wird erkannt", zusage("Florentine ruft Sie heute um 20 Uhr an."));
+  pruef("Wand: echte Frage „Welche Zeit soll ich für den Rückruf eintragen?“ ist keine Zusage", !zusage("Welche Zeit soll ich für den Rückruf eintragen?"));
+  pruef("Wand: „keinen Rückruf“ ist keine Zusage", !zusage("Sie bekommen keinen Rückruf, alles ist erledigt."));
+}
 pruef("gut: Unterlagen auf Nachfrage", V("Für den Start nur den Antrag. Danach laden Sie in Ihrem Bereich Ausweis, Kontoauszüge und Ihre Schufa-Auskunft hoch — ein Handyfoto genügt.", "Welche Unterlagen brauche ich?").length === 0);
 pruef("gut: Bank-Satz auf Limit-Frage", V("Das Limit legt am Ende die Partnerbank fest, und genau darauf bereiten wir Sie vor.", "Bekomme ich 10.000 € Limit?").length === 0);
 pruef("ungefragt: Bank entscheidet", V("Sehr gern! Über Karte und Limit entscheidet die Bank. Hier ist Ihr Antrag.", "Wie geht es los?").some((h) => /Bank entscheidet/.test(h)));
@@ -117,7 +129,8 @@ const pDoris = promptMit(dorisTeil);
 pruef("E240 Doris: Angebot und Werkzeug im Auftrag", /DEIN ANGEBOT FÜR IHN: DIE BONITÄTSAUSKUNFT/.test(pDoris) && /· auskunft_anbieten —/.test(pDoris));
 pruef("E240 Doris: Preis 74 € einmalig, kein Ratensatz", /74 € einmalig/.test(pDoris) && /Keine Monatsrate, keine zwölf Raten/.test(pDoris));
 pruef("E240 Doris: Auskunfteien DE", /SCHUFA, CRIF und Creditreform Boniversum/.test(pDoris));
-pruef("E240 Doris: Karte und Limit ohne Zusage", /Karte und Wunschlimit/.test(pDoris) && /Über Karte und Limit entscheidet die Bank/.test(pDoris));
+// E-248 (28.09.2026): „Rahmen" statt „Limit" — auch im Nutzen-Satz (AUSKUNFT_NUTZEN_SATZ_KARTE) und im Bank-Satz.
+pruef("E240 Doris: Karte und Rahmen ohne Zusage", /Weg zur Karte genau danach aus/.test(pDoris) && /Über Karte und Rahmen entscheidet die Bank/.test(pDoris) && !/Wunschlimit|Über Karte und Limit/.test(pDoris));
 pruef("E240 Doris: kostenlose Datenkopie nur auf Nachfrage", /kostenlos selbst anfordern/.test(pDoris) && /Von dir aus empfiehlst du den kostenlosen Weg nie/.test(pDoris));
 pruef("E240 Doris: „Ich hab keine\" ist kein Auftrag (Kauflink statt Bestellung)", !auskunftZugestimmt(doris, "") && !auskunftZugestimmt("Ich hab keine", ""));
 const kauf = "https://fiaon.com/api/fiaon/auskunft/bestellen?p=4513&art=privat&exp=1&sig=abc";

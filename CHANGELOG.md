@@ -5,6 +5,39 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.09.2026 — Mara spricht wie ein Mensch und verkauft: persönlicher Link, Schweigen bei Autoantworten, neuer WhatsApp-Raum (E-248)
+
+**Der Anlass:** Justin (28.09.): „Mara soll 100 % menschlich und verkaufsfördernd reden. Wenn jemand wegen Krediten
+schreibt, sagt Mara so etwas wie ‚Noch besser, wir bieten Kreditkarten!'" — und: „Merkst du nicht, dass Mara gar nicht
+den persönlichen Link, sondern einfach nur /antrag sendet? … Mara soll Beziehungen aufbauen, Mut machen, Aussichten
+stellen, freundlich und kontextbezogen." Dazu: „Das Eingabefeld bei WhatsApp passt nicht, auch die Darstellung nicht."
+
+**Was falsch war (jeder Chat gelesen, Belege im Scratchpad e248):** In Maras freien WhatsApp-Nachrichten stand 16-mal
+der nackte Link fiaon.com/antrag und nur 7-mal der persönliche; 55 Anträge mit offener Bestellung bekamen „Antrag
+fortsetzen" statt ihrer Zahlungsseite. Mara antwortete auf Abwesenheitsnotizen von Geschäften und auf jedes „Ok",
+sagte „Einen Kredit gibt es bei uns nicht", nannte gebuchte Termine falsch („vergeben", obwohl nur die Vorlaufzeit
+fehlte) und bestätigte Kündigungen, ohne sie zu buchen.
+
+**Was jetzt gilt:**
+- **Eine Stimme:** `shared/fiaon-mara-ton.ts` — Haltung, Verkaufsbausteine („Noch besser: Wir bringen Sie zu Ihrer
+  eigenen Kreditkarte …"), Prüfung jeder Antwort auf Ton, Links und Zeiten, zwölf Musterdialoge aus echten Chats.
+- **Richtiger Link:** Zahlungsseite, wer bestellt hat; persönlicher Link, wer mitten im Antrag steht; nie nackt /antrag
+  (WhatsApp und Mail). Abgelaufene Bestellungen schaltet Mara selbst neu frei, bevor sie die Zahlungsseite schickt.
+- **Schweigen, wo ein Mensch schweigt:** keine Antwort auf Autoantworten; nach einem „Ok" höchstens ein kurzer
+  Abschluss, danach still. „Ok" auf die Frage einer Kollegin geht als Aufgabe an die Kollegin.
+- **Termine:** gebucht wird im Kalender; weicht die Zeit ab, nennt Mara den echten Grund. Termine, die der Kunde selbst
+  gebucht hat, darf sie auf einen freien Platz desselben Betreuers verschieben.
+- **Kündigung (Mail):** gebucht wird nur ein eindeutiger Satz — Verneinung, Bedingung („bevor", „falls"), fremder Vertrag
+  zählen nie. Ein „Ja" auf die Rückfrage bucht. Storno bietet Mara nie ungefragt an; ein Widerruf geht an die
+  Geschäftsführung.
+- **WhatsApp-Raum neu:** Liste, Kopf, Verlauf, interne Schritte, Eingabefeld und Vorlagenblatt als eigene Bausteine;
+  Vorlagen nach Stufe vorn, Senden in zwei Schritten („Ansehen", dann „Diese Vorlage senden").
+
+**Wo:** /agent/whatsapp und /chef/s/mara; Code `shared/fiaon-mara-ton.ts`, `server/lib/fiaon-whatsapp-mara.ts`,
+`server/lib/fiaon-mara-schweigen.ts`, `server/lib/fiaon-postmeister-*.ts`, `server/lib/fiaon-mara-termin.ts`,
+`client/src/components/whatsapp/*`. Prüfstände `scripts/pruef-mara-wiedergabe.ts` (echte Chats, anonymisiert),
+`scripts/pruef-mara-mail.ts`. Migration 084 (still_bis_id, auto_antwort).
+
 ## 28.09.2026 — Banking: Knopf heißt „Überweisung freigeben"
 
 **Der Anlass:** Justin (28.09.): auf /buchhaltung statt „Überweisung eingetragen" den Text „Überweisung freigeben".

@@ -193,6 +193,13 @@ export interface AuftragEin {
    * wäre das falsch.
    */
   anlageText?: string;
+  /**
+   * E-248 (28.09.2026): still anhängen — gibt es die Aufgabe schon, kommt der Text als Beitrag
+   * dazu, OHNE sie wieder auf „ungelesen" zu setzen (keine neue Meldung „Neu von Mara") und
+   * ohne eine erledigte Aufgabe wieder zu öffnen. Für Maras Nachträge zur selben Sache
+   * (Fall K.: jede Nachricht setzte dieselbe Aufgabe neu auf ungelesen).
+   */
+  still?: boolean;
 }
 
 /** Ein bestimmter aktiver Mitarbeiter als Empfänger. */
@@ -328,7 +335,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
                         ELSE COALESCE(fiaon_betreiber_todos.text, '') || E'\n\n' || EXCLUDED.text END,
             prioritaet = LEAST(fiaon_betreiber_todos.prioritaet, EXCLUDED.prioritaet),
             faellig_am = LEAST(COALESCE(fiaon_betreiber_todos.faellig_am, EXCLUDED.faellig_am), EXCLUDED.faellig_am),
-            status = CASE WHEN fiaon_betreiber_todos.status = 'erledigt' THEN 'offen' ELSE fiaon_betreiber_todos.status END,
+            status = CASE WHEN fiaon_betreiber_todos.status = 'erledigt' AND NOT ${!!ein.still} THEN 'offen' ELSE fiaon_betreiber_todos.status END,
             updated_at = NOW()
       RETURNING id, (xmax = 0) AS neu, zustaendig_agent_id
     `) as any[];
@@ -344,7 +351,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
       // kam die zweite Bitte desselben Kunden am selben Tag nur als Kommentar an,
       // und die Karte „Neu von Mara" im Office (fiaon-agent-aufgaben-popup.ts,
       // liest agent_gelesen_am IS NULL) zeigte sie nicht.
-      if (quelle === "postmeister" || quelle === "mara-whatsapp") {
+      if ((quelle === "postmeister" || quelle === "mara-whatsapp") && !ein.still) {
         await sqlPool`
           UPDATE fiaon_betreiber_todos
              SET agent_gelesen_am = NULL, letzte_aktivitaet = NOW(),

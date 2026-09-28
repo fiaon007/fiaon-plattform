@@ -1,367 +1,492 @@
-/* ═══ Der WhatsApp-Raum (23.09.2026, E-210) — Präfix .wr- ═══
-   Läuft in zwei dunklen Häusern (Office und Chefbüro), deshalb bringt er seine
-   eigenen Farben mit. Justins Linie: dünne Schrift, matte Flächen, Glas nur an
-   EINER Stelle (dem Kopf), das Blau-Paar als einziger Akzent. Am iPhone eine
-   Spalte: die Liste tritt zur Seite, sobald ein Gespräch offen ist. */
+/* ═══ Der WhatsApp-Raum (23.09.2026, E-210 · neu 28.09.2026, E-248) — Präfix .wr- ═══
+   Läuft in zwei dunklen Häusern (Office mit dunkel(true) und Chefbüro), deshalb
+   bringt er seine eigenen Farben mit. Justins Linie: dünne Schrift (Inter 300),
+   matte Flächen, Glas nur an EINER Stelle (dem Chat-Kopf), das Blau-Paar
+   #288DFA / #1D4ED8 als einziger Akzent, keine klebenden Leisten über Inhalt.
 
-.wr {
-  --wr-text: #e7ecf4;
-  --wr-text-2: #b9c4d5;
-  --wr-leise: #8292a8;
-  --wr-still: #5d6c83;
-  --wr-linie: rgba(148, 163, 184, .14);
-  --wr-flaeche: rgba(148, 163, 184, .05);
-  --wr-flaeche-hoch: rgba(148, 163, 184, .1);
+   Die Aufteilung richtet sich nach dem PLATZ des Raums, nicht nach dem Fenster
+   (Container Queries, Name „wr"):
+     ab 1100 px   Liste · Chat · Fall
+     ab  760 px   Liste · Chat, der Fall als Schublade im Chat
+     darunter     Liste; ein offener Chat ist eine eigene Vollfläche (.wr-vollflaeche)
+   Der Rahmen (WhatsAppRaum.tsx) nutzt dieselben Schwellen (BREIT_AB/MITTEL_AB).
+
+   Rundgang-Ziele bleiben: .wr-liste, .wr-eingabe, .wr-schalter. */
+
+.wr, .wr-tokens {
   --wr-blau: #288dfa;
-  --wr-blau-hell: #93c5fd;
-  --wr-gruen: #6ee7b7;
-  --wr-gelb: #fcd34d;
+  --wr-blau-tief: #1d4ed8;
+  --wr-blau-hell: #9cc8ff;
+  --wr-buehne: #070d19;
+  --wr-flaeche: #0b1424;
+  --wr-flaeche-2: #111c31;
+  --wr-flaeche-3: #16233b;
+  --wr-linie: rgba(148, 163, 184, .13);
+  --wr-text: #e8eef7;
+  --wr-text-2: #b6c2d4;
+  --wr-leise: #8292a8;
+  --wr-still: #62728a;
+  --wr-kunde: #1a263c;
+  --wr-mara: #122648;
+  --wr-gut: #6ee7b7;
+  --wr-warn: #fcd34d;
   --wr-rot: #fda4af;
-  display: grid;
-  gap: 14px;
   color: var(--wr-text-2);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 400;
+  font-weight: 300;
   color-scheme: dark;
 }
-.wr h1, .wr h2 { margin: 0; font-weight: 500; color: var(--wr-text); }
-.wr h1 { font-size: 22px; letter-spacing: -.01em; }
-.wr h2 { font-size: 15px; }
+.wr {
+  container: wr / inline-size;
+  display: grid; gap: 12px; min-width: 0;
+}
+.wr *, .wr *::before, .wr *::after { box-sizing: border-box; }
+.wr h1, .wr h2 { margin: 0; color: var(--wr-text); }
 .wr p { margin: 0; }
+.wr button, .wr input, .wr textarea { font-family: inherit; }
 .wr-still { color: var(--wr-still); font-size: 12px; }
 .wr-leer { padding: 18px; font-size: 13px; color: var(--wr-leise); }
+.wr-leise { color: var(--wr-leise); }
+.wr-gut { color: var(--wr-gut) !important; }
 
-/* ── Kopf: eine Zeile, eine Linie — kein Glaskasten (23.09.2026) ───────── */
-.wr-kopf {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
-  padding: 2px 2px 14px; border-bottom: 1px solid var(--wr-linie);
-}
+/* ── Kopf der Seite: eine Zeile, kein Kasten ───────────────────────────── */
+.wr-kopf { display: flex; align-items: baseline; gap: 6px 16px; flex-wrap: wrap; padding: 0 2px; }
 .wr-kopf h1 { font-size: 26px; font-weight: 300; letter-spacing: -.02em; }
-.wr-kopf p { margin-top: 4px; font-size: 12.5px; color: var(--wr-leise); }
-.wr-kopf b { color: var(--wr-text-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+.wr-kopf p { font-size: 12.5px; color: var(--wr-leise); }
+.wr-kopf b { color: var(--wr-text-2); font-weight: 400; font-variant-numeric: tabular-nums; }
 
-/* ── Der Raum: Liste · Verlauf · Mensch ────────────────────────────────── */
+/* ── Der Raum ──────────────────────────────────────────────────────────── */
 .wr-raum {
-  display: grid; grid-template-columns: 320px minmax(0, 1fr) 300px; gap: 14px;
-  height: min(74vh, 780px); min-height: 460px;
-  /* E-218: Bezugsrahmen für die Fall-Spalte, die am Handy darüberliegt. */
-  position: relative;
+  display: grid; grid-template-columns: 300px minmax(0, 1fr) 300px; gap: 12px;
+  /* Die Höhe misst der Rahmen: vom Raum bis zum Fensterrand. */
+  height: var(--wr-hoehe, min(74vh, 780px)); min-height: 0;
+}
+@container wr (max-width: 1099.98px) {
+  .wr-raum { grid-template-columns: 280px minmax(0, 1fr); }
+}
+@container wr (max-width: 759.98px) {
+  .wr-raum { grid-template-columns: minmax(0, 1fr); }
+  .wr-kopf h1 { font-size: 22px; }
 }
 
 /* ── Liste ─────────────────────────────────────────────────────────────── */
 .wr-liste {
-  display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0;
-  border-radius: 14px; border: 1px solid var(--wr-linie); background: rgba(13, 20, 34, .5); overflow: hidden;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; min-width: 0;
+  border-radius: 16px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overflow: hidden;
 }
 .wr-suchfeld { padding: 12px 12px 8px; display: flex; gap: 8px; align-items: center; }
-.wr-suchfeld input {
-  width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--wr-linie);
-  background: rgba(15, 23, 42, .45); color: var(--wr-text); font: inherit; font-size: 13px;
+.wr-suchfeld input, .wr-feld, .wr-blatt-kopf input {
+  width: 100%; min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--wr-linie);
+  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: 16px; font-weight: 300;
 }
-.wr-suchfeld input:focus { outline: none; border-color: rgba(147, 197, 253, .5); }
+.wr-suchfeld input:focus, .wr-feld:focus, .wr-blatt-kopf input:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
+.wr-neu {
+  width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1px solid rgba(40, 141, 250, .4);
+  background: rgba(40, 141, 250, .12); color: var(--wr-blau-hell); display: grid; place-items: center; cursor: pointer;
+}
 .wr-filter { display: flex; gap: 6px; padding: 0 12px 10px; }
 .wr-filter button {
-  flex: 1; padding: 7px 8px; border-radius: 10px; border: 1px solid var(--wr-linie);
-  background: transparent; color: var(--wr-leise); font: inherit; font-size: 11.5px; cursor: pointer;
+  flex: 1; padding: 6px 8px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
+  color: var(--wr-leise); font-size: 12px; font-weight: 400; cursor: pointer; white-space: nowrap;
 }
-.wr-filter button.an { background: rgba(40, 141, 250, .16); border-color: rgba(147, 197, 253, .4); color: var(--wr-blau-hell); }
-.wr-zeilen { overflow-y: auto; min-height: 0; }
+.wr-filter button.an { background: rgba(40, 141, 250, .14); border-color: rgba(40, 141, 250, .45); color: #dbeafe; }
+.wr-zeilen { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+@container wr (max-width: 759.98px) {
+  /* Am Handy liegen Telefon- und Rundgangknopf unten rechts — die letzte Zeile muss darüber scrollen können. */
+  .wr-zeilen { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+}
 
 .wr-zeile {
-  display: flex; gap: 10px; width: 100%; padding: 11px 12px; border: 0; border-top: 1px solid var(--wr-linie);
+  display: flex; gap: 11px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--wr-linie);
   background: transparent; text-align: left; cursor: pointer; color: inherit; font: inherit;
 }
-.wr-zeile.an { background: rgba(40, 141, 250, .12); }
-.wr-zeile.neu b { color: #fff; }
+.wr-zeile.an { background: rgba(40, 141, 250, .1); box-shadow: inset 2px 0 0 var(--wr-blau); }
 .wr-avatar {
-  width: 38px; height: 38px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; font-size: 14px; font-weight: 500;
+  width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); color: #fff; font-size: 15px; font-weight: 400;
 }
 .wr-zeile-text { display: grid; gap: 3px; min-width: 0; flex: 1; }
-.wr-zeile-kopf { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-.wr-zeile-kopf b { font-size: 13.5px; font-weight: 500; color: var(--wr-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wr-zeile-unten { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-.wr-vorschau { font-size: 12.5px; color: var(--wr-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-zeile-kopf, .wr-zeile-unten { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; min-width: 0; }
+.wr-zeile-unten { align-items: center; }
+.wr-zeile-kopf b { font-size: 14px; font-weight: 400; color: var(--wr-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-zeile.ungelesen .wr-zeile-kopf b { font-weight: 500; }
+.wr-zeile-zeit { font-size: 11.5px; color: var(--wr-still); white-space: nowrap; flex: none; font-variant-numeric: tabular-nums; }
+.wr-zeile.ungelesen .wr-zeile-zeit { color: var(--wr-blau); }
+.wr-vorschau { font-size: 12.5px; color: var(--wr-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wr-vorschau em { font-style: normal; color: var(--wr-text-2); }
+.wr-vorschau.auto em { color: var(--wr-warn); }
 .wr-punkt {
-  min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px; background: #10b981; color: #04240f;
-  font-size: 11px; font-weight: 600; display: grid; place-items: center; flex: none;
+  min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px; background: var(--wr-blau); color: #fff;
+  font-size: 11px; font-weight: 500; display: grid; place-items: center; flex: none;
 }
 .wr-marken { display: flex; gap: 5px; flex-wrap: wrap; }
 .wr-marke {
-  font-size: 10px; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--wr-linie); color: var(--wr-still);
+  font-size: 10.5px; font-weight: 400; line-height: 1; letter-spacing: .02em; padding: 4px 8px; border-radius: 99px;
+  border: 1px solid rgba(148, 163, 184, .2); color: var(--wr-leise); white-space: nowrap;
 }
-.wr-marke.offen { color: var(--wr-gruen); border-color: rgba(110, 231, 183, .3); }
-.wr-marke.mara { color: var(--wr-blau-hell); border-color: rgba(147, 197, 253, .3); }
-.wr-marke.warn { color: var(--wr-gelb); border-color: rgba(252, 211, 77, .3); }
-.wr-marke.stufe-A { color: var(--wr-gruen); }
-.wr-marke.stufe-B { color: var(--wr-blau-hell); }
+.wr-marke.offen { color: var(--wr-gut); border-color: rgba(110, 231, 183, .3); }
+.wr-marke.warn { color: var(--wr-warn); border-color: rgba(252, 211, 77, .3); }
+/* EINE Stufen-Palette — Liste und Fall gleich (vorher A links grün, rechts rot). */
+.wr-marke.stufe-kunde { color: var(--wr-gut); border-color: rgba(110, 231, 183, .32); }
+.wr-marke.stufe-a { color: #7cc0ff; border-color: rgba(40, 141, 250, .45); }
+.wr-marke.stufe-b { color: var(--wr-warn); border-color: rgba(252, 211, 77, .3); }
+.wr-marke.stufe-c { color: var(--wr-leise); }
 
-/* ── Verlauf ───────────────────────────────────────────────────────────── */
+/* ── Chat ──────────────────────────────────────────────────────────────── */
 .wr-chat {
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; min-height: 0;
-  border-radius: 14px; border: 1px solid var(--wr-linie); background: rgba(13, 20, 34, .5); overflow: hidden;
+  /* Größen-Container: Das Vorlagenblatt richtet seine Höhe nach dem Chat. */
+  container: wrchat / size;
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0; min-width: 0; border-radius: 16px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overflow: hidden;
 }
+.wr-chat > .wr-chat-kopf { grid-row: 1; grid-column: 1; }
+.wr-chat > .wr-verlauf-rahmen { grid-row: 2; grid-column: 1; }
+.wr-chat > .wr-eingabe { grid-row: 3; grid-column: 1; }
+.wr-chat > .wr-person.schublade { grid-row: 2 / 4; grid-column: 1; z-index: 9; }
+.wr-chat.leer { grid-template-rows: minmax(0, 1fr); }
 .wr-nichts { display: grid; place-content: center; gap: 8px; text-align: center; padding: 40px; }
 .wr-nichts p:first-child { font-size: 15px; color: var(--wr-text-2); }
 .wr-nichts .wr-still { max-width: 46ch; line-height: 1.6; }
-.wr-chat-kopf { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--wr-linie); }
-.wr-chat-wer { display: grid; gap: 2px; min-width: 0; flex: 1; }
-.wr-chat-wer b { font-size: 14px; font-weight: 500; color: var(--wr-text); }
-.wr-chat-knoepfe { display: flex; gap: 8px; align-items: center; }
-.wr-zurueck { display: none; border: 0; background: transparent; color: var(--wr-blau-hell); font-size: 24px; line-height: 1; cursor: pointer; }
 
-/* Der Verlauf trägt eine ruhige Bühne — wie bei WhatsApp, nur ohne Gekritzel:
-   ein kaum sichtbares Punktraster auf tiefem Navy. */
+/* Der Chat-Kopf — die EINE Glasstelle des Raums. */
+.wr-chat-kopf {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px 9px 14px; min-width: 0;
+  border-bottom: 1px solid var(--wr-linie);
+  background: rgba(16, 30, 58, .72); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.wr-chat-kopf .wr-avatar { width: 36px; height: 36px; font-size: 14px; }
+.wr-chat-wer { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.wr-chat-wer b { font-size: 15px; font-weight: 400; color: var(--wr-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-chat-wer small { font-size: 12px; color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-termin-kurz { display: none; color: var(--wr-gut); }
+.wr-termin-chip {
+  flex: none; font-size: 11.5px; color: var(--wr-gut); border: 1px solid rgba(110, 231, 183, .3);
+  border-radius: 99px; padding: 4px 10px; white-space: nowrap;
+}
+.wr-chat-knoepfe { display: flex; gap: 6px; align-items: center; flex: none; }
+.wr-zurueck {
+  display: grid; place-items: center; width: 32px; height: 36px; margin-left: -6px; flex: none;
+  border: 0; background: transparent; color: var(--wr-blau-hell); cursor: pointer;
+}
+.wr-ikon {
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--wr-linie); background: transparent;
+  display: grid; place-items: center; color: var(--wr-text-2); cursor: pointer; flex: none;
+}
+.wr-ikon.an { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .14); }
+.wr-schalter {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 10px; border-radius: 99px;
+  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); font-size: 12.5px; font-weight: 400; cursor: pointer; white-space: nowrap;
+}
+.wr-schalter span { width: 7px; height: 7px; border-radius: 50%; background: var(--wr-still); }
+.wr-schalter em { font-style: normal; color: var(--wr-still); }
+.wr-schalter.an { color: var(--wr-blau-hell); border-color: rgba(40, 141, 250, .45); }
+.wr-schalter.an span { background: #10b981; }
+/* Der Chip braucht Platz — ist der CHAT schmal (Office mit drei Spalten, Handy),
+   steht der Termin in der Unterzeile, und der Name bleibt lesbar. */
+@container wrchat (max-width: 619.98px) {
+  .wr-termin-chip { display: none; }
+  .wr-termin-kurz { display: inline; }
+}
+@container wr (max-width: 759.98px) {
+  .wr-chat-kopf { padding: 8px 10px; gap: 8px; }
+  .wr-schalter { padding: 0 10px 0 9px; }
+  .wr-schalter em { display: none; }
+}
+
+/* ── Verlauf ───────────────────────────────────────────────────────────── */
+.wr-verlauf-rahmen { position: relative; display: grid; min-height: 0; min-width: 0; }
 .wr-verlauf {
-  overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 3px; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 10px 16px 12px;
+  display: flex; flex-direction: column;
   background:
-    radial-gradient(circle at 1px 1px, rgba(148, 163, 184, .055) 1px, transparent 0) 0 0 / 22px 22px,
-    linear-gradient(180deg, rgba(10, 17, 32, .55), rgba(9, 14, 26, .7));
+    radial-gradient(circle at 1px 1px, rgba(148, 163, 184, .05) 1px, transparent 0) 0 0 / 22px 22px,
+    #0a1221;
 }
-.wr-reihe { display: grid; gap: 3px; }
-.wr-tag {
-  justify-self: center; font-size: 11px; color: var(--wr-leise); padding: 4px 12px; border-radius: 99px;
-  background: rgba(15, 23, 42, .8); border: 1px solid var(--wr-linie); margin: 10px 0 6px;
+@container wr (max-width: 759.98px) { .wr-verlauf { padding: 8px 10px 10px; } }
+.wr-tag { display: flex; justify-content: center; margin: 14px 0 6px; }
+.wr-tag span {
+  font-size: 11.5px; font-weight: 400; color: var(--wr-leise); padding: 3px 12px; border-radius: 99px; background: var(--wr-flaeche-3);
 }
-.wr-blasenreihe { display: flex; }
-.wr-blasenreihe.rein { justify-content: flex-start; }
-.wr-blasenreihe.raus { justify-content: flex-end; }
+
+.wr-reihe { display: flex; margin-top: 2px; min-width: 0; }
+.wr-reihe.neu { margin-top: 10px; }
+.wr-reihe.rein { justify-content: flex-start; }
+.wr-reihe.raus { justify-content: flex-end; }
 .wr-blase {
-  position: relative; max-width: min(66%, 520px); padding: 8px 12px 6px; border-radius: 12px;
-  display: grid; gap: 2px; box-shadow: 0 1px 2px rgba(2, 6, 23, .35);
+  display: grid; gap: 2px; max-width: min(74%, 560px); min-width: 0; padding: 7px 11px 5px; border-radius: 14px;
+  color: #eef3fb; font-size: 14.5px; line-height: 1.45; font-weight: 400;
 }
-.wr-blase.rein { background: #1f2c3f; border-top-left-radius: 4px; }
-.wr-blase.raus { background: linear-gradient(135deg, #14406f, #1d5fb0); border-top-right-radius: 4px; }
-.wr-blase.fehler { background: rgba(80, 26, 38, .85); }
-.wr-blase p { font-size: 14px; line-height: 1.45; color: #eef3fb; white-space: pre-wrap; word-break: break-word; }
-.wr-blase-fuss { font-size: 10.5px; color: rgba(226, 232, 240, .55); justify-self: end; margin-top: 1px; }
-.wr-haken { color: rgba(226, 232, 240, .6); }
-.wr-haken.gelesen { color: #60d0ff; }
-.wr-vorlagenmarke { font-size: 10px; color: var(--wr-blau-hell); letter-spacing: .04em; }
+@container wr (max-width: 759.98px) { .wr-blase { max-width: 86%; } }
+.wr-reihe.rein.neu .wr-blase { border-top-left-radius: 5px; }
+.wr-reihe.raus.neu .wr-blase { border-top-right-radius: 5px; }
+.wr-blase.kunde { background: var(--wr-kunde); }
+.wr-blase.mara { background: var(--wr-mara); box-shadow: inset 0 0 0 1px rgba(40, 141, 250, .3); }
+.wr-blase.mensch { background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); }
+.wr-blase.fehler { background: #331722; box-shadow: inset 0 0 0 1px rgba(253, 164, 175, .35); }
+.wr-blase.auto { background: #161f2f; color: #c3ccd9; box-shadow: inset 0 0 0 1px rgba(252, 211, 77, .18); }
+.wr-blase p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wr-absender { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--wr-blau-hell); }
+.wr-blase.mensch .wr-absender { color: #e3edff; }
+.wr-ki {
+  font-size: 9.5px; font-weight: 500; letter-spacing: .06em; line-height: 15px; padding: 0 5px; border-radius: 5px;
+  border: 1px solid rgba(156, 200, 255, .45); color: var(--wr-blau-hell);
+}
+.wr-automarke, .wr-knopfmarke { font-size: 11px; font-weight: 400; color: var(--wr-warn); }
+.wr-knopfmarke { color: var(--wr-leise); }
+.wr-medien { font-style: italic; color: var(--wr-text-2); }
+.wr-medien small { display: block; font-style: normal; font-size: 11px; color: var(--wr-leise); margin-top: 2px; }
+.wr-fuss {
+  justify-self: end; display: flex; align-items: center; gap: 4px; margin-top: 1px;
+  font-size: 10.5px; color: rgba(226, 232, 240, .55); font-variant-numeric: tabular-nums;
+}
+.wr-haken { color: rgba(226, 232, 240, .6); flex: none; }
+.wr-haken.gelesen { color: var(--wr-blau); }
+.wr-haken.fehler { color: var(--wr-rot); }
+.wr-blase.mensch .wr-fuss, .wr-blase.mensch .wr-haken { color: rgba(255, 255, 255, .78); }
+.wr-blase.mensch .wr-haken.gelesen { color: #fff; }
 .wr-fehlertext { font-size: 11.5px; color: #ffc9d1; }
 
-/* ── Eingabe ───────────────────────────────────────────────────────────── */
-.wr-eingabe { display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--wr-linie); align-items: flex-end; }
-.wr-eingabe textarea {
-  flex: 1; resize: none; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--wr-linie);
-  background: rgba(15, 23, 42, .45); color: var(--wr-text); font: inherit; font-size: 13.5px; line-height: 1.5;
-}
-.wr-eingabe textarea:focus { outline: none; border-color: rgba(147, 197, 253, .5); }
-.wr-senden, .wr-knopf, .wr-klein {
-  padding: 9px 16px; border-radius: 99px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche-hoch);
-  color: var(--wr-text-2); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
-}
-.wr-senden { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; border-color: transparent; }
-.wr-senden:disabled { opacity: .5; cursor: default; }
-.wr-knopf.voll { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; border-color: transparent; }
-.wr-klein { padding: 6px 12px; font-size: 11.5px; }
-.wr-zu { display: grid; gap: 8px; width: 100%; }
-.wr-zu p { font-size: 12.5px; color: var(--wr-leise); line-height: 1.55; }
-.wr-zu b { color: var(--wr-gelb); font-weight: 500; }
+.wr-vorlagekarte { display: grid; gap: 2px; border-left: 2px solid rgba(156, 200, 255, .5); padding-left: 9px; margin: 1px 0 2px; }
+.wr-vorlagekarte small { font-size: 11px; color: var(--wr-blau-hell); letter-spacing: .02em; }
+.wr-vorlagekarte p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.wr-vorlagekarte.auf p { display: block; }
+.wr-mehr { justify-self: start; border: 0; background: none; color: var(--wr-blau-hell); font-size: 12px; padding: 2px 0; cursor: pointer; }
 
-.wr-schalter {
-  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 8px; border-radius: 99px;
-  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); font: inherit; font-size: 12px; cursor: pointer;
-}
-.wr-schalter span { width: 8px; height: 8px; border-radius: 50%; background: var(--wr-still); }
-.wr-schalter.an { color: var(--wr-blau-hell); border-color: rgba(147, 197, 253, .4); }
-.wr-schalter.an span { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, .6); }
-
-/* ── Vorlagen ──────────────────────────────────────────────────────────── */
-.wr-vorlagen { display: grid; gap: 10px; padding: 12px 16px 16px; border-top: 1px solid var(--wr-linie); max-height: 320px; overflow-y: auto; }
-.wr-vorlage { display: grid; gap: 7px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); }
-.wr-vorlage-kopf { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-.wr-vorlage-kopf b { font-size: 13px; font-weight: 500; color: var(--wr-text); text-transform: capitalize; }
-.wr-vorlage p { font-size: 12.5px; line-height: 1.55; color: var(--wr-text-2); }
-.wr-vorlage .wr-knopf { justify-self: start; }
-
-/* ── Der Mensch ────────────────────────────────────────────────────────── */
-.wr-person {
-  display: grid; gap: 14px; align-content: start; padding: 18px; overflow-y: auto; min-height: 0;
-  border-radius: 14px; border: 1px solid var(--wr-linie); background: rgba(13, 20, 34, .5);
-}
-.wr-person dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; margin: 0; font-size: 12.5px; }
-.wr-person dt { color: var(--wr-still); }
-.wr-person dd { margin: 0; color: var(--wr-text-2); overflow-wrap: anywhere; }
-.wr-person-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
-.wr-hinweis { line-height: 1.55; border-top: 1px solid var(--wr-linie); padding-top: 10px; }
-
-/* ── Meldung ───────────────────────────────────────────────────────────── */
-.wr-meldung {
-  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 60;
-  padding: 11px 18px; border-radius: 14px; border: 1px solid rgba(147, 197, 253, .35);
-  background: rgba(15, 26, 45, .95); color: var(--wr-text); font-size: 13px; max-width: min(90vw, 620px);
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+.wr-neu-pille {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 4;
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 99px;
+  border: 1px solid rgba(40, 141, 250, .5); background: #10203d; color: #dbeafe; font-size: 12.5px; font-weight: 400; cursor: pointer;
+  box-shadow: 0 8px 22px rgba(2, 6, 23, .45);
 }
 
-@media (hover: hover) {
-  .wr-zeile:hover { background: var(--wr-flaeche-hoch); }
-  .wr-knopf:hover, .wr-klein:hover, .wr-schalter:hover { border-color: rgba(147, 197, 253, .5); }
+/* ── Maras interne Schritte: gebündelt, randlos, einklappbar ──────────── */
+.wr-intern { align-self: center; margin: 7px 0; max-width: min(94%, 640px); min-width: 0; text-align: center; }
+.wr-intern-kopf {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border-radius: 8px;
+  border: 0; background: transparent; color: var(--wr-leise); font-size: 11.5px; font-weight: 400; cursor: pointer;
 }
-
-@media (max-width: 1180px) {
-  .wr-raum { grid-template-columns: 290px minmax(0, 1fr); }
-  /* Das Ausblenden steht weiter unten bei E-218 — dort gibt es auch den
-     Knopf, der die Spalte wieder öffnet. Eine Spalte ohne Weg zurück wäre
-     schlimmer als eine schmale. */
+.wr-intern-wer { color: var(--wr-text-2); font-weight: 500; flex: none; }
+.wr-intern-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wr-intern.warn .wr-intern-text { color: #d9c27a; }
+.wr-intern.rot .wr-intern-text { color: #e8a3ae; }
+.wr-intern.gut .wr-intern-text { color: #9fd9c2; }
+.wr-intern-punkt { width: 6px; height: 6px; border-radius: 50%; background: var(--wr-rot); flex: none; }
+.wr-intern-pfeil { flex: none; transition: transform .15s; }
+.wr-intern-kopf[aria-expanded="true"] .wr-intern-pfeil { transform: rotate(180deg); }
+.wr-intern-liste {
+  list-style: none; margin: 4px 0 0; padding: 9px 11px; border-radius: 10px; background: var(--wr-flaeche-2);
+  text-align: left; display: grid; gap: 7px; font-size: 12px; line-height: 1.45;
 }
-@media (max-width: 760px) {
-  .wr-raum { grid-template-columns: 1fr; height: auto; }
-  .wr-liste { height: min(58vh, 520px); }
-  .wr-chat { display: none; }
-  .wr-chat-offen .wr-liste { display: none; }
-  .wr-chat-offen .wr-chat { display: grid; height: min(74vh, 620px); }
-  .wr-zurueck { display: block; }
-}
-
-/* ── Neues Gespräch (23.09.2026) ───────────────────────────────────────── */
-.wr-neu {
-  width: 36px; height: 36px; flex: none; border-radius: 10px; border: 1px solid var(--wr-linie);
-  background: rgba(40, 141, 250, .16); color: var(--wr-blau-hell); font-size: 19px; line-height: 1; cursor: pointer;
-}
-.wr-schleier {
-  position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 20px;
-  background: rgba(3, 7, 18, .72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-}
-.wr-fenster {
-  width: min(560px, 96vw); max-height: 86vh; overflow-y: auto; display: grid; gap: 14px; padding: 20px;
-  border-radius: 16px; border: 1px solid var(--wr-linie); background: #0c1322;
-}
-.wr-fenster-kopf { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-.wr-fenster-kopf p { margin-top: 4px; line-height: 1.5; max-width: 52ch; }
-.wr-feld {
-  width: 100%; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--wr-linie);
-  background: rgba(15, 23, 42, .5); color: var(--wr-text); font: inherit; font-size: 13.5px;
-}
-.wr-feld:focus { outline: none; border-color: rgba(147, 197, 253, .5); }
-.wr-treffer { display: grid; gap: 2px; max-height: 320px; overflow-y: auto; }
-.wr-treffer-zeile {
-  display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-radius: 10px;
-  background: transparent; color: var(--wr-text-2); font: inherit; font-size: 13px; cursor: pointer;
-}
-.wr-treffer-zeile:hover { background: var(--wr-flaeche-hoch); }
-.wr-treffer-zeile b { color: var(--wr-text); font-weight: 500; }
-.wr-ziel { font-size: 13.5px; color: var(--wr-text-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-
-/* ═══ Der Fall und die Verkaufsaktionen (23.09.2026, E-218) ═══════════════
-   Justin: „Ein Mitarbeiter soll auch darüber Vertrieb machen können."
-   Rechts steht der Fall wie in der Akte, darunter die Handlungen. Am Handy
-   liegt die Spalte über dem Chat und wird über „Fall" im Kopf geöffnet. */
-.wr-marken { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
-.wr-marke {
-  font: 400 10.5px/1 'Inter', sans-serif; letter-spacing: .04em;
-  padding: 5px 9px; border-radius: 99px; white-space: nowrap;
-  border: 1px solid rgba(148,163,184,.2); color: #94a3b8;
-}
-.wr-marke.stufe-kunde { color: #6ee7b7; border-color: rgba(110,231,183,.32); }
-.wr-marke.stufe-a { color: #fca5a5; border-color: rgba(252,165,165,.3); }
-.wr-marke.stufe-b { color: #fcd34d; border-color: rgba(252,211,77,.3); }
-.wr-marke.gekuendigt { color: #fdba74; border-color: rgba(253,186,116,.36); }
-.wr-marke.warn { color: #fdba74; border-color: rgba(253,186,116,.28); }
-
-.wr-eingabe-tun { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.wr-links { display: flex; gap: 5px; flex-wrap: wrap; }
-.wr-links button {
-  padding: 7px 11px; border-radius: 99px; cursor: pointer; white-space: nowrap;
-  border: 1px solid rgba(148,163,184,.18); background: transparent;
-  color: #8ea0b8; font: 400 11.5px/1 'Inter', sans-serif;
-}
-.wr-links button:hover { border-color: rgba(147,197,253,.45); color: #cbd5e1; }
-.wr-links button.an { background: rgba(37,99,235,.18); border-color: rgba(147,197,253,.45); color: #dbeafe; }
-
-.wr-ergebnis { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid rgba(148,163,184,.14); }
-.wr-ergebnis-liste { display: grid; gap: 5px; }
-.wr-ergebnis-liste .wr-klein { text-align: left; }
-
-.wr-notiz { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(148,163,184,.14); }
-.wr-notiz label { font: 400 11.5px/1 'Inter', sans-serif; color: #64748b; }
-.wr-notiz textarea {
-  width: 100%; padding: 9px 11px; border-radius: 10px; resize: vertical;
-  border: 1px solid rgba(148,163,184,.2); background: rgba(148,163,184,.06);
-  color: #e7ecf4; font: 400 12.5px/1.5 'Inter', sans-serif;
-}
-.wr-notiz textarea:focus { outline: none; border-color: rgba(147,197,253,.5); }
-
-.wr-fall-knopf { display: none; }
-
-@media (max-width: 1180px) {
-  /* Die Spalte liegt hier über dem Chat und wird über „Fall" geöffnet. */
-  .wr-fall-knopf { display: inline-flex; }
-  .wr-person { display: none; }
-  .wr-person.auf {
-    display: block; position: absolute; inset: 56px 0 0; z-index: 30;
-    overflow-y: auto; background: #0b1220; padding: 16px;
-  }
-}
-
-/* E-220: Die frei getippte Nummer steht über den Treffern — sie ist der
-   schnellste Weg, wenn man den Menschen gar nicht erst sucht. */
-.wr-treffer-zeile.wr-frei {
-  border: 1px dashed rgba(147,197,253,.4); border-radius: 12px; margin-bottom: 8px;
-  background: rgba(37,99,235,.1);
-}
-
-/* ═══ Maras Handlungen im Verlauf (24.09.2026, E-236) ═════════════════════
-   Justin: „Ich muss sehen, was Mara gemacht hat und ob das alles stimmt und
-   passt." Eine schmale Zeile in der Mitte — keine Blase, denn es ist keine
-   Nachricht. Ton je Handlung: grün, wenn ein Termin/Link steht; gelb, wenn
-   kein Termin ging; rot bei Rückfall oder Fehler; neutral bei Übergabe;
-   kaum sichtbar, wenn Mara nur Zeiten angeboten hat. Dahinter die Marke der
-   Nachprüfung — antippen klappt die einzelnen Punkte auf (Handy: kein Tooltip). */
-.wr-system {
-  justify-self: center; max-width: min(92%, 640px); margin: 8px 0;
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px 8px;
-  padding: 6px 12px; border-radius: 10px; text-align: center;
-  border: 1px solid var(--wr-linie); background: rgba(15, 23, 42, .78);
-}
-.wr-system-satz {
-  font-size: 11.5px; line-height: 1.5; font-weight: 400; color: var(--wr-text-2);
-  overflow-wrap: anywhere; min-width: 0;
-}
-.wr-system-satz b { font-weight: 500; color: var(--wr-blau-hell); }
-.wr-system-satz time { color: var(--wr-leise); font-variant-numeric: tabular-nums; }
-
-.wr-system.gut { border-color: rgba(110, 231, 183, .24); background: rgba(6, 38, 31, .6); }
-.wr-system.gut .wr-system-satz b { color: var(--wr-gruen); }
-.wr-system.warn { border-color: rgba(252, 211, 77, .26); background: rgba(44, 35, 8, .6); }
-.wr-system.warn .wr-system-satz b { color: var(--wr-gelb); }
-.wr-system.rot { border-color: rgba(253, 164, 175, .3); background: rgba(52, 15, 24, .62); }
-.wr-system.rot .wr-system-satz b { color: var(--wr-rot); }
-.wr-system.leise { border-color: transparent; background: transparent; padding-block: 2px; margin: 3px 0; }
-.wr-system.leise .wr-system-satz { font-size: 11px; color: var(--wr-leise); }
-.wr-system.leise .wr-system-satz b { color: var(--wr-leise); }
-
+.wr-intern-liste > li { display: grid; grid-template-columns: 40px 14px minmax(0, 1fr); gap: 4px; color: var(--wr-text-2); }
+.wr-intern-liste > li > time { color: var(--wr-still); font-variant-numeric: tabular-nums; }
+.wr-intern-liste > li.ton-rot { color: var(--wr-rot); }
+.wr-intern-liste > li.ton-warn { color: var(--wr-warn); }
+.wr-intern-liste > li.ton-gut .wr-intern-zeichen { color: var(--wr-gut); }
+.wr-intern-satz { min-width: 0; overflow-wrap: anywhere; }
+.wr-intern-satz small { display: block; margin-top: 2px; font-size: 11px; color: var(--wr-still); }
+.wr-intern-satz .wr-pruefmarke { margin-left: 6px; vertical-align: 1px; }
 .wr-pruefmarke {
-  font: 400 10.5px/1.2 'Inter', sans-serif; letter-spacing: .03em;
-  padding: 3px 9px; border-radius: 99px; border: 1px solid var(--wr-linie);
-  background: transparent; color: var(--wr-leise);
-  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 10.5px; font-weight: 400; line-height: 1.2; letter-spacing: .02em; padding: 2px 8px; border-radius: 99px;
+  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); white-space: nowrap;
 }
 button.wr-pruefmarke { cursor: pointer; }
-.wr-pruefmarke.ok { color: var(--wr-gruen); border-color: rgba(110, 231, 183, .34); }
-.wr-pruefmarke.fehler { color: var(--wr-rot); border-color: rgba(253, 164, 175, .5); background: rgba(244, 63, 94, .1); }
+.wr-pruefmarke.ok { color: var(--wr-gut); border-color: rgba(110, 231, 183, .34); }
+.wr-pruefmarke.fehler { color: var(--wr-rot); border-color: rgba(253, 164, 175, .5); }
 .wr-pruefmarke.offen { border-style: dashed; }
-.wr-pruefmarke:focus-visible { outline: 2px solid var(--wr-blau-hell); outline-offset: 2px; }
-
-.wr-pruefliste {
-  flex-basis: 100%; list-style: none; margin: 2px 0 0; padding: 7px 2px 1px;
-  border-top: 1px solid var(--wr-linie); display: grid; gap: 3px;
-  text-align: left; font-size: 11.5px; line-height: 1.45; color: var(--wr-text-2);
-}
+.wr-pruefliste { list-style: none; margin: 5px 0 0; padding: 6px 0 0; border-top: 1px solid var(--wr-linie); display: grid; gap: 3px; }
 .wr-pruefliste li > span[aria-hidden] { display: inline-block; width: 1.3em; }
-.wr-pruefliste li.gut > span[aria-hidden] { color: var(--wr-gruen); }
+.wr-pruefliste li.gut > span[aria-hidden] { color: var(--wr-gut); }
 .wr-pruefliste li.fehler { color: var(--wr-rot); }
-
-/* Nur für Vorleseprogramme. */
 .wr-unsichtbar {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-@media (hover: hover) {
-  button.wr-pruefmarke:hover { border-color: rgba(147, 197, 253, .5); }
-  button.wr-pruefmarke.fehler:hover { border-color: rgba(253, 164, 175, .75); }
+/* ── Eingabe: feste Grid-Zeile, verdeckt nichts ───────────────────────── */
+.wr-eingabe {
+  position: relative; min-width: 0; border-top: 1px solid var(--wr-linie); background: var(--wr-flaeche);
+  padding: 7px 12px calc(8px + env(safe-area-inset-bottom, 0px));
 }
-@media (max-width: 760px) {
-  .wr-system { max-width: 100%; }
+.wr-lage { display: flex; justify-content: space-between; gap: 10px; min-width: 0; padding: 0 4px 6px; font-size: 11.5px; color: var(--wr-still); }
+.wr-lage > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wr-lage-offen { color: var(--wr-gut); }
+.wr-lage-zu { color: var(--wr-warn); }
+.wr-lage-rechts { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.wr-lage-mara { color: var(--wr-blau-hell); }
+.wr-textknopf { border: 0; background: none; padding: 0; color: var(--wr-blau-hell); font-size: inherit; font-weight: 500; cursor: pointer; }
+.wr-zeile-eingabe { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 8px; align-items: end; }
+.wr-plus, .wr-senden {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; flex: none;
+}
+.wr-plus { border: 1px solid var(--wr-linie); background: var(--wr-flaeche-2); color: var(--wr-text-2); }
+.wr-plus.an { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .16); }
+.wr-feld-text {
+  display: block; width: 100%; min-width: 0; min-height: 40px; max-height: 150px; resize: none; overflow-y: hidden;
+  padding: 9px 14px; border-radius: 20px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche-2);
+  color: var(--wr-text); font-size: 16px; line-height: 22px; font-weight: 400;
+}
+.wr-feld-text::placeholder { color: var(--wr-still); }
+.wr-feld-text:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
+.wr-senden { border: 0; background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); color: #fff; }
+.wr-senden:disabled { opacity: .38; cursor: default; }
+.wr-senden-dreht { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: wr-dreh .8s linear infinite; }
+@keyframes wr-dreh { to { transform: rotate(360deg); } }
+.wr-hilfe { display: flex; justify-content: space-between; gap: 8px; padding: 4px 52px 0; font-size: 11px; color: var(--wr-still); min-height: 19px; }
+.wr-zaehler { margin-left: auto; font-variant-numeric: tabular-nums; }
+.wr-zaehler.knapp { color: var(--wr-warn); }
+@media (hover: none) and (pointer: coarse) {
+  /* Touch: Enter ist eine neue Zeile — die Tastenhilfe wäre falsch. */
+  .wr-tasten { display: none; }
+  .wr-hilfe:has(.wr-zaehler:empty) { display: none; }
+}
+.wr-zu-zeile { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 2px 4px 2px; }
+.wr-zu-zeile p { flex: 1 1 240px; font-size: 12.5px; line-height: 1.5; color: var(--wr-leise); }
+.wr-zu-zeile b { color: var(--wr-warn); font-weight: 500; }
+
+/* ── Das „+"-Blatt: liegt ÜBER dem Verlauf, schrumpft ihn nicht ───────── */
+.wr-blatt {
+  position: absolute; left: 10px; right: 10px; bottom: calc(100% + 6px); z-index: 8;
+  display: flex; flex-direction: column; max-height: max(220px, min(470px, calc(100cqh - 190px)));
+  border-radius: 14px; border: 1px solid var(--wr-linie); background: #0f1a2e; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); overflow: hidden;
+}
+.wr-blatt-griff { display: none; width: 36px; height: 4px; border-radius: 2px; background: rgba(148, 163, 184, .35); margin: 8px auto 0; flex: none; }
+.wr-blatt-kopf { display: flex; gap: 8px; padding: 10px; border-bottom: 1px solid var(--wr-linie); flex: none; }
+.wr-blatt-titel { font-size: 11px; color: var(--wr-still); margin: 2px 4px 6px; letter-spacing: .02em; }
+.wr-blatt-links { padding: 8px 10px 10px; border-bottom: 1px solid var(--wr-linie); flex: none; }
+.wr-blatt-links .wr-still { margin: 6px 4px 0; }
+.wr-blatt-linkreihe { display: flex; gap: 6px; flex-wrap: wrap; }
+.wr-blatt-linkreihe button {
+  padding: 6px 12px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
+  color: var(--wr-text-2); font-size: 12.5px; font-weight: 400; cursor: pointer; white-space: nowrap;
+}
+.wr-blatt-linkreihe button span { color: var(--wr-blau-hell); }
+.wr-blatt-linkreihe button.empfohlen { border-color: rgba(40, 141, 250, .55); background: rgba(40, 141, 250, .14); color: #dbeafe; }
+.wr-blatt-liste { overflow-y: auto; min-height: 0; padding: 8px 6px 6px; overscroll-behavior: contain; }
+.wr-karte { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; }
+.wr-karte + .wr-karte { border-top: 1px solid var(--wr-linie); }
+.wr-karte-inhalt { display: grid; gap: 2px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.wr-karte-inhalt b { font-size: 14px; font-weight: 400; color: var(--wr-text); }
+.wr-karte-zweck { font-size: 11.5px; color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-karte-text { font-size: 12.5px; color: var(--wr-still); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-karte.auf .wr-karte-text, .wr-karte-text.lang { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--wr-text-2); line-height: 1.5; }
+.wr-karte.auf .wr-karte-zweck { white-space: normal; }
+.wr-karte-senden {
+  padding: 6px 13px; border-radius: 99px; border: 1px solid rgba(40, 141, 250, .5); background: transparent;
+  color: var(--wr-blau-hell); font-size: 12.5px; font-weight: 400; cursor: pointer; white-space: nowrap;
+}
+.wr-karte-senden:disabled { opacity: .5; cursor: default; }
+/* Nachbesserung E-248: passt nicht zur Lage — grau, aber nutzbar; „Ansehen" vor „Diese Vorlage senden". */
+.wr-karte.passt-nicht .wr-karte-inhalt b { color: var(--wr-leise); }
+.wr-karte-ansehen { color: var(--wr-text-2); border-color: var(--wr-linie); }
+@container wr (max-width: 759.98px) {
+  /* Am Handy ein Blatt von unten, über die volle Breite. */
+  .wr-blatt { left: 0; right: 0; bottom: 100%; border-radius: 18px 18px 0 0; border-bottom: 0; box-shadow: 0 -14px 40px rgba(0, 0, 0, .55); }
+  .wr-blatt-griff { display: block; }
+}
+
+/* ── Der Fall ──────────────────────────────────────────────────────────── */
+.wr-person {
+  display: flex; flex-direction: column; gap: 14px; padding: 16px; overflow-y: auto; min-height: 0; min-width: 0;
+  border-radius: 16px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overscroll-behavior: contain;
+}
+.wr-person.schublade { border-radius: 0; border: 0; background: #0b1424; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.wr-person-kopf { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.wr-person h2 { font-size: 16px; font-weight: 400; }
+.wr-person dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px; margin: 0; font-size: 13px; }
+.wr-person dt { color: var(--wr-still); }
+.wr-person dd { margin: 0; color: var(--wr-text-2); overflow-wrap: anywhere; }
+.wr-person-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
+.wr-hinweis { line-height: 1.55; border-top: 1px solid var(--wr-linie); padding-top: 10px; }
+.wr-ergebnis { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--wr-linie); }
+.wr-ergebnis-liste { display: grid; gap: 5px; }
+.wr-ergebnis-liste .wr-klein { text-align: left; justify-content: flex-start; }
+.wr-notiz { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--wr-linie); }
+.wr-notiz label { font-size: 11.5px; color: var(--wr-still); }
+.wr-notiz textarea {
+  width: 100%; padding: 9px 11px; border-radius: 10px; resize: vertical; border: 1px solid var(--wr-linie);
+  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: 16px; line-height: 1.45; font-weight: 300;
+}
+.wr-notiz textarea:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
+.wr-notiz .wr-klein { justify-self: start; }
+.wr-schrittschalter { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--wr-text-2); }
+.wr-schrittschalter input { width: 18px; height: 18px; accent-color: var(--wr-blau); }
+
+/* ── Knöpfe ────────────────────────────────────────────────────────────── */
+.wr-knopf, .wr-klein {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: 99px;
+  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-text-2);
+  font-size: 13px; font-weight: 400; cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.wr-klein { padding: 6px 12px; font-size: 12px; }
+.wr-knopf.voll { background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); border-color: transparent; color: #fff; }
+.wr-knopf:disabled, .wr-klein:disabled { opacity: .5; cursor: default; }
+
+/* ── Meldung: matt, oben — nie über dem Eingabefeld ───────────────────── */
+.wr-meldung-halter {
+  position: fixed; left: 0; right: 0; top: calc(14px + env(safe-area-inset-top, 0px)); z-index: 320;
+  display: flex; justify-content: center; padding: 0 16px; pointer-events: none;
+}
+.wr-meldung {
+  pointer-events: auto; max-width: 620px; padding: 10px 16px; border-radius: 12px;
+  border: 1px solid rgba(40, 141, 250, .35); background: #11203a; color: var(--wr-text); font-size: 13px; font-weight: 400;
+  box-shadow: 0 12px 30px rgba(2, 6, 23, .5);
+}
+
+/* ── Neues Gespräch (Schleier matt, kein zweites Glas) ────────────────── */
+.wr-schleier { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 16px; background: rgba(3, 7, 18, .82); }
+.wr-fenster {
+  width: min(560px, 100%); max-height: min(86vh, 86dvh); overflow-y: auto; display: grid; gap: 14px; padding: 20px;
+  border-radius: 16px; border: 1px solid var(--wr-linie); background: #0c1322;
+}
+.wr-fenster-kopf { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.wr-fenster-kopf h2 { font-size: 17px; font-weight: 400; }
+.wr-fenster-kopf p { margin-top: 4px; line-height: 1.5; max-width: 52ch; }
+.wr-treffer { display: grid; gap: 2px; max-height: 320px; overflow-y: auto; }
+.wr-treffer-zeile {
+  display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--wr-text-2); font-size: 13px; cursor: pointer;
+}
+.wr-treffer-zeile b { color: var(--wr-text); font-weight: 400; }
+.wr-treffer-zeile.wr-frei { border: 1px dashed rgba(40, 141, 250, .45); border-radius: 12px; background: rgba(40, 141, 250, .08); }
+.wr-ziel { font-size: 13.5px; color: var(--wr-text-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wr-ziel b { font-weight: 400; color: var(--wr-text); }
+.wr-neu-vorlagen { display: grid; gap: 4px; max-height: 50vh; overflow-y: auto; }
+.wr-karte.gross { align-items: start; border: 1px solid var(--wr-linie); border-radius: 12px; }
+.wr-karte.gross + .wr-karte.gross { border-top: 1px solid var(--wr-linie); }
+
+/* ── Handy: der offene Chat als eigene Vollfläche am Dokument ─────────── */
+.wr.wr-vollflaeche {
+  position: fixed; left: 0; right: 0; top: var(--wr-vv-top, 0px); height: var(--wr-vv-h, 100dvh); z-index: 250;
+  display: block; background: var(--wr-buehne);
+}
+.wr-vollflaeche > .wr-chat { height: 100%; border: 0; border-radius: 0; }
+.wr-vollflaeche .wr-chat-kopf { padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+html.wr-vollbild, html.wr-vollbild body { overflow: hidden; overscroll-behavior: none; }
+/* Telefon- und Rundgangknopf lagen am Handy über dem Eingabefeld — im offenen
+   Chat ruht beides; angerufen wird über den Kopf, ein laufendes Gespräch
+   (die Gesprächs-Pille des Telefons) bleibt sichtbar. */
+html.wr-vollbild .fi-telefonknopf,
+html.wr-vollbild .ru-knopf { display: none !important; }
+
+/* Am Rechner: Der Raum endet über den schwebenden Knöpfen; der Rundgang rückt
+   neben den Telefonknopf in denselben Streifen. */
+@media (min-width: 761px) {
+  html.wr-da .ru-knopf { bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
+  html.wr-da.wr-telefon .ru-knopf { right: 88px !important; bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+@media (hover: hover) {
+  .wr-zeile:hover { background: rgba(148, 163, 184, .06); }
+  .wr-zeile.an:hover { background: rgba(40, 141, 250, .12); }
+  .wr-knopf:hover, .wr-klein:hover, .wr-schalter:hover, .wr-ikon:hover, .wr-plus:hover,
+  .wr-blatt-linkreihe button:hover, .wr-karte-senden:hover { border-color: rgba(40, 141, 250, .55); }
+  .wr-karte:hover { background: rgba(40, 141, 250, .07); }
+  .wr-intern-kopf:hover { background: var(--wr-flaeche-2); }
+  .wr-treffer-zeile:hover { background: rgba(148, 163, 184, .08); }
+}
+.wr :focus-visible { outline: 2px solid var(--wr-blau); outline-offset: 2px; }
+.wr .wr-feld-text:focus-visible, .wr input:focus-visible { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wr *, .wr *::before, .wr *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }

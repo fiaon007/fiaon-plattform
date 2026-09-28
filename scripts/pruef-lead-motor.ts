@@ -384,8 +384,12 @@ abschnitt("WhatsApp-Raum — zwei Türen, ein Raum; Mara antwortet im Fenster");
   ok(/darfAnNummer/.test(rt), "Auch beim Senden wird die Zuständigkeit geprüft");
   ok(/mara_an = FALSE/.test(rt), "Schreibt ein Mensch, schweigt Mara in diesem Gespräch");
   ok(/sendePruefung\(text\)/.test(rt), "Jede Zeile läuft vor dem Senden durch die Wand");
-  ok(/24-Stunden-Fenster ist zu/.test(ui), "Die Oberfläche erklärt das geschlossene Fenster");
-  ok(/wr-vorlagen/.test(ui) && /Diese Vorlage senden/.test(ui), "Bei geschlossenem Fenster gibt es Vorlagen statt Freitext");
+  // E-248: Der Raum ist in Bausteine geteilt (client/src/components/whatsapp/*) — die Kopfzeile sagt
+  // „Fenster zu", das „+"-Blatt bietet dann nur Vorlagen an, zweistufig („Diese Vorlage senden").
+  const blatt = lies("client/src/components/whatsapp/VorlagenBlatt.tsx");
+  const eingabe = lies("client/src/components/whatsapp/Eingabe.tsx");
+  ok(/Fenster zu/.test(ui) && /Das Fenster ist zu/.test(blatt), "Die Oberfläche erklärt das geschlossene Fenster");
+  ok(/VorlagenBlatt/.test(eingabe) && /fensterOffen \?/.test(eingabe) && /Diese Vorlage senden/.test(blatt), "Bei geschlossenem Fenster gibt es Vorlagen statt Freitext");
   ok(/maraAntwortet/.test(wa), "Eine eingehende Nachricht ruft Mara");
   ok(/fensterOffen\(nummer\)/.test(mara), "Mara antwortet nur im offenen Fenster");
   // E-230: Statt „vier in Folge": Sie antwortet nur, wenn der Kunde NACH der letzten freien Antwort schrieb — nie gegen eine Wand.

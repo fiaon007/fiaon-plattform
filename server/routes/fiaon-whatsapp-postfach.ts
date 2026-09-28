@@ -27,6 +27,173 @@ import {
   waTabellen, waSenden, waVerlauf, waZahlen, waKonfig, sendePruefung, vorlagenStand, fensterOffen,
 } from "../lib/fiaon-whatsapp";
 import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
+import { istAutoantwort, stufeAusAntrag, persoenlicherLink, type LinkStufe } from "../../shared/fiaon-mara-ton";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS DIE OBERFLÄCHE ZUSÄTZLICH BRAUCHT (28.09.2026, E-248)
+//
+// Justin: „Mara soll … super freundlich … und kontextbezogen" — und im Raum
+// sah man nicht einmal, WER geschrieben hat: „Mara", „Mara Lindner",
+// „Leitung", „Florentine" standen alle in derselben blauen Blase, Vorlagen
+// hießen „kkb anfrage", und die Autoantwort eines Nagelstudios sah aus wie
+// ein Kunde. Die Route liefert deshalb je Nachricht:
+//   · absender  kunde | mara | mensch — aus `von`, nicht aus Namen geraten
+//   · auto      Autoantwort (dieselben Muster wie Maras Schweigeregel,
+//               shared/fiaon-mara-ton.ts; eine spätere Spalte `auto_antwort`
+//               an fiaon_whatsapp gewinnt, sobald es sie gibt)
+//   · vorlageName  Klartextname der Vorlage („Antrag fortsetzen")
+//   · vorlageText  der Vorlagentext, wenn die Zeile keinen trägt (Fehlversand)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Klartextnamen der Vorlagen — Bild- und Textfassung heißen gleich. */
+const VORLAGE_KLARTEXT: Record<string, string> = {
+  anfrage: "Erstkontakt nach der Anfrage",
+  nicht_erreicht: "Nicht erreicht",
+  termin: "Gespräch anbieten",
+  antrag_offen: "Antrag fortsetzen",
+  aktivierung: "Aktivierung",
+  aktiviert: "Konto aktiviert",
+  unterlagen: "Unterlage fehlt",
+  termin_morgen: "Terminerinnerung",
+  rueckfrage: "Gespräch neu öffnen",
+  empfehlung: "Weiterempfehlung",
+  tag1: "Erinnerung am Abend",
+  tag3: "Weg zur Karte",
+  tag7: "Fünf Minuten am Telefon",
+  rechnung: "Offene Rechnung",
+  letzte: "Letzte Nachricht",
+  rate: "Monatsrate",
+  auskunft: "Bonitätsauskunft (Kunden)",
+  auskunft_lead: "Bonitätsauskunft",
+};
+export function vorlageKlartext(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const kern = String(name).replace(/^fiaon_kkb?_/, "").replace(/^fiaon_/, "");
+  if (VORLAGE_KLARTEXT[kern]) return VORLAGE_KLARTEXT[kern];
+  const t = kern.replace(/_/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : null;
+}
+
+/** Der Vorlagentext aus dem Register — für Zeilen ohne Text (Fehlversand). */
+function vorlageRegisterText(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const v = WA_VORLAGEN.find((x) => x.name === name) ?? WA_VORLAGEN.find((x) => x.name === String(name).replace(/^fiaon_kkb_/, "fiaon_kk_"));
+  return v?.text ? v.text.replace(/\{\{\d+\}\}/g, "…") : null;
+}
+
+export type RaumAbsender = "kunde" | "mara" | "mensch";
+/** Wer hat geschrieben? Mara sendet als „Mara" (Vorlage) oder „Mara Lindner" (frei), fehlt `von`, war es Mara. */
+export function absenderVon(richtung: string, von: string | null | undefined): RaumAbsender {
+  if (richtung !== "raus") return "kunde";
+  const v = String(von ?? "").trim();
+  return !v || /^mara\b/i.test(v) ? "mara" : "mensch";
+}
+
+/** Verlauf (chronologisch) → dieselben Zeilen plus absender/auto/vorlageName/vorlageText. */
+export function verlaufFuerRaum(verlauf: any[]): any[] {
+  let letzteRaus: number | null = null;
+  return verlauf.map((v) => {
+    const am = new Date(v.empfangen_am ?? v.gesendet_am ?? v.created_at).getTime();
+    const absender = absenderVon(String(v.richtung), v.von);
+    let auto = false;
+    if (absender === "kunde") {
+      const sek = letzteRaus != null && Number.isFinite(am) ? Math.max(0, (am - letzteRaus) / 1000) : null;
+      auto = v.auto_antwort === true || istAutoantwort(String(v.text ?? ""), { sekundenNachUnserer: sek });
+    } else if (Number.isFinite(am)) {
+      letzteRaus = am;
+    }
+    return {
+      ...v, absender, auto,
+      vorlageName: vorlageKlartext(v.vorlage),
+      vorlageText: v.vorlage && !v.text ? vorlageRegisterText(v.vorlage) : null,
+    };
+  });
+}
+
+/** Meta nimmt höchstens 4.096 Zeichen je Textnachricht. */
+export const WA_TEXT_GRENZE = 4096;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE LINKS IM RAUM — NUR PERSÖNLICHE (28.09.2026, E-248)
+//
+// Justin: „Merkst du nicht, dass Mara gar nicht den persönlichen Link,
+// sondern nur /antrag sendet? Das ist falsch."
+//
+// Hier war es genauso: Die Schnellwahl bot „https://fiaon.com/start" (ohne
+// Code) und „https://fiaon.com/termin" (für jeden gleich) an, und die
+// Zahlungsseite bei JEDEM Antrag — payment_reference ist immer gefüllt, auch
+// wenn der Antrag noch gar nicht abgeschickt ist.
+//
+// Jetzt gilt dieselbe Regel wie für Mara (shared/fiaon-mara-ton.ts):
+// stufeAusAntrag → persoenlicherLink. Fehlt der Code, wird er nachgezogen
+// (kurzlinkFuerLead — einmal, danach steht er am Lead). Ein nackter Link wird
+// nie angeboten: lieber kein Knopf als der falsche.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface RaumLinks {
+  antrag: string | null; zahlung: string | null; termin: string | null; bereich: string | null;
+  /** Der Link, der zur Lage passt — die Oberfläche stellt ihn nach vorn. */
+  empfohlen: "antrag" | "zahlung" | "termin" | "bereich" | null;
+  stufe: LinkStufe;
+  /** Warum kein Terminlink (es steht schon ein Termin). */
+  terminHinweis: string | null;
+}
+
+async function linksFuerLage(lage: any): Promise<RaumLinks> {
+  const leer: RaumLinks = { antrag: null, zahlung: null, termin: null, bereich: null, empfohlen: null, stufe: "lead", terminHinweis: null };
+  if (!lage) return leer;
+  const { SEO_BASIS } = await import("../../shared/fiaon-seo-seiten");
+  const istLead = !!lage.istLead;
+  const stufe: LinkStufe = istLead ? "lead" : stufeAusAntrag(lage.ref ? {
+    status: lage.antrag_status, payment_status: lage.zahlstatus, current_step: lage.antrag_schritt, gekuendigt_am: lage.gekuendigt_am,
+  } : null);
+
+  // Der Code: vorhanden, sonst einmal nachziehen (danach steht er am Lead).
+  let leadCode: string | null = lage.link_code ? String(lage.link_code) : null;
+  const leadId = Number(lage.eigener_lead ?? 0) || null;
+  if (!leadCode && leadId && (stufe === "lead" || stufe === "antrag_offen" || stufe === "zahlung_offen")) {
+    try {
+      const { kurzlinkFuerLead } = await import("../lib/fiaon-kurzlink");
+      leadCode = await kurzlinkFuerLead(leadId);
+    } catch (e) { console.error("[WHATSAPP-RAUM] Code nachziehen:", e); }
+  }
+  let weiter: string | null = null;
+  if (!leadCode && lage.ref && stufe === "antrag_offen") {
+    try { weiter = (await import("../lib/fiaon-antrag-erinnerung")).weiterLink(String(lage.ref)); } catch { /* ohne Link, nie nackt */ }
+  }
+  // Nachbesserung E-248: Eine ABGELAUFENE Bestellung bekommt hier keinen Zahlungslink — die Seite zeigt
+  // „abgelaufen". Erst neu freischalten (Agentenportal „Reaktivieren“; Mara tut es selbst).
+  const abgelaufen = String(lage.zahlstatus ?? "") === "expired";
+  const zahlungsReferenz = stufe === "zahlung_offen" && !abgelaufen && lage.zahlungsreferenz ? String(lage.zahlungsreferenz) : null;
+  const wahl = persoenlicherLink({ stufe, leadCode, weiterLink: weiter, zahlungsReferenz }, "whatsapp");
+
+  // Antrag: der eigene Code (oder der Wiedereinstieg), solange der Antrag nicht abgeschickt ist.
+  const antrag = stufe === "lead" || stufe === "antrag_offen"
+    ? (wahl.zweck === "antrag" ? wahl.url : null)
+    : null;
+  const zahlung = zahlungsReferenz ? `${SEO_BASIS}/zahlung/${zahlungsReferenz}` : null;
+
+  // Termin: der persönliche Link (Zeiten seines Betreuers, Sie-Form) — nur für
+  // Menschen mit Akte und nur, wenn noch kein Termin steht.
+  let termin: string | null = null;
+  let terminHinweis: string | null = null;
+  if (!istLead && lage.id) {
+    if (lage.termin) {
+      terminHinweis = "Es steht schon ein Termin — keinen zweiten Link schicken.";
+    } else {
+      try {
+        const { terminLink } = await import("../lib/fiaon-termine");
+        const basis = terminLink(Number(lage.id), "agent");
+        termin = `${basis}${basis.includes("?") ? "&" : "?"}anrede=sie`;
+      } catch (e) { console.error("[WHATSAPP-RAUM] Terminlink:", e); }
+    }
+  }
+  const bereich = stufe === "kunde" || stufe === "zahlung_gemeldet" || stufe === "beendet" ? `${SEO_BASIS}/login` : null;
+  const empfohlen = wahl.url
+    ? (wahl.zweck === "zahlung" ? "zahlung" : wahl.zweck === "antrag" ? "antrag" : wahl.zweck === "bereich" || wahl.zweck === "rate" ? "bereich" : null)
+    : (termin ? "termin" : null);
+  if (abgelaufen) terminHinweis = [terminHinweis, "Die Bestellung ist abgelaufen — erst im Agentenportal „Reaktivieren“, dann gilt seine Zahlungsseite wieder."].filter(Boolean).join(" ");
+  return { antrag, zahlung, termin, bereich, empfohlen, stufe, terminHinweis };
+}
 
 /**
  * Die Vorlagen, die ein Mensch im Raum wählen kann (E-229): jede Textfassung,
@@ -107,7 +274,7 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
   const suche = String(opts.suche ?? "").trim().toLowerCase();
   const zeilen = (await sqlPool`
     WITH letzte AS (
-      SELECT DISTINCT ON (w.nummer) w.nummer, w.id, w.richtung, w.text, w.vorlage, w.status,
+      SELECT DISTINCT ON (w.nummer) w.nummer, w.id, w.richtung, w.text, w.vorlage, w.status, w.von, w.typ,
              COALESCE(w.empfangen_am, w.gesendet_am, w.created_at) AS am, w.person_id, w.lead_id
         FROM fiaon_whatsapp w ORDER BY w.nummer, w.id DESC
     )
@@ -165,8 +332,16 @@ function zeileAlsGespraech(z: any) {
     stufe: z.p_stufe ?? null,
     betreuer: z.betreuer ?? null,
     letzte: {
-      text: z.vorlage ? `Vorlage: ${z.vorlage}` : String(z.text ?? ""),
+      // E-248: Der Text bleibt der Text; die Vorlage kommt mit Klartextnamen,
+      // die Oberfläche setzt „Mara: " / „Florentine: " / „Vorlage · …" davor.
+      text: String(z.text ?? ""),
+      vorlage: z.vorlage ?? null,
+      vorlageName: vorlageKlartext(z.vorlage),
       richtung: z.richtung, am: z.am, status: z.status,
+      von: z.von ?? null,
+      absender: absenderVon(String(z.richtung), z.von),
+      typ: z.typ ?? null,
+      auto: z.richtung === "rein" && (z.auto_antwort === true || istAutoantwort(String(z.text ?? ""))),
     },
     ungelesen: Number(z.ungelesen || 0),
     maraAn: z.mara_an !== false,
@@ -272,22 +447,33 @@ function routen(hole: (req: any) => Blick) {
                     FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL) AS stufe,
                  a.name AS betreuer, p.assigned_agent_id AS betreuer_id,
                  b.ref, b.pack_name AS paket, b.payment_status AS zahlstatus, b.payment_reference AS zahlungsreferenz,
-                 b.gekuendigt_am,
+                 b.gekuendigt_am, b.status AS antrag_status, b.current_step AS antrag_schritt,
                  r.rate_nr, r.betrag_cents, r.faellig_am,
+                 -- E-248: Der Termin-Chip im Chat-Kopf nennt auch, WER anruft.
+                 tm.id AS termin_id, tm.agent_name AS termin_mitarbeiter,
+                 (SELECT le2.id FROM fiaon_leads le2 WHERE le2.person_id = p.id
+                   ORDER BY le2.erstellt_am DESC LIMIT 1) AS eigener_lead,
                  (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl
                    WHERE cl.person_id = p.id AND cl.type = 'result' AND cl.voided_at IS NULL) AS letzter_kontakt,
                  (SELECT cl2.outcome FROM fiaon_contact_log cl2
                    WHERE cl2.person_id = p.id AND cl2.type = 'result' AND cl2.voided_at IS NULL
                    ORDER BY cl2.created_at DESC LIMIT 1) AS letztes_ergebnis,
-                 (SELECT tm.beginn FROM fiaon_termine tm
-                   WHERE tm.person_id = p.id AND tm.status = 'gebucht' AND tm.abgesagt_am IS NULL AND tm.beginn > NOW()
-                   ORDER BY tm.beginn LIMIT 1) AS termin,
+                 tm.beginn AS termin,
                  (SELECT le.link_code FROM fiaon_leads le WHERE le.person_id = p.id AND le.link_code IS NOT NULL
                    ORDER BY le.erstellt_am DESC LIMIT 1) AS link_code
             FROM fiaon_persons p
             LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+            -- Der nächste Termin — auch einer, der seit einer halben Stunde läuft
+            -- („Termin heute 20:00" soll um 20:10 nicht verschwinden).
             LEFT JOIN LATERAL (
-              SELECT ref, pack_name, payment_status, payment_reference, gekuendigt_am
+              SELECT t.id, t.beginn, ta.name AS agent_name FROM fiaon_termine t
+                LEFT JOIN fiaon_agents ta ON ta.id = t.agent_id
+               WHERE t.person_id = p.id AND t.status = 'gebucht' AND t.abgesagt_am IS NULL
+                 AND t.beginn > NOW() - INTERVAL '30 minutes'
+               ORDER BY t.beginn LIMIT 1
+            ) tm ON TRUE
+            LEFT JOIN LATERAL (
+              SELECT ref, pack_name, payment_status, payment_reference, gekuendigt_am, status, current_step
                 FROM fiaon_applications x
                WHERE x.person_id = p.id AND x.merged_into IS NULL
                  AND (x.archived_at IS NULL OR x.payment_status = 'paid')
@@ -309,24 +495,14 @@ function routen(hole: (req: any) => Blick) {
         if (leadId) {
           const [l] = (await sqlPool`
             SELECT le.id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS name, le.email, le.telefon AS phone,
-                   le.anzeige, le.kampagne, le.converted_order_id AS ref, a.name AS betreuer
+                   le.anzeige, le.kampagne, le.converted_order_id AS ref, a.name AS betreuer, le.link_code, le.id AS eigener_lead
               FROM fiaon_leads le LEFT JOIN fiaon_agents a ON a.id = le.assigned_agent_id WHERE le.id = ${leadId}`) as any[];
           if (l) lage = { ...l, stufe: "C", paket: null, istLead: true };
         }
       }
       const vorlagen = nutzbareVorlagen(await vorlagenStand().catch(() => []));
 
-      // E-218: Die Links, die der Verkäufer gleich schicken will — fertig
-      // gebaut, damit niemand sie von Hand zusammensetzt und sich vertippt.
-      const links = lage
-        ? {
-          antrag: lage.link_code ? `https://fiaon.com/a/${lage.link_code}/w` : "https://fiaon.com/start",
-          zahlung: lage.zahlungsreferenz ? `https://fiaon.com/zahlung/${lage.zahlungsreferenz}` : null,
-          termin: "https://fiaon.com/termin",
-          bereich: "https://fiaon.com/login",
-          firmen: "https://fiaon.com/global",
-        }
-        : { antrag: "https://fiaon.com/start", zahlung: null, termin: "https://fiaon.com/termin", bereich: "https://fiaon.com/login", firmen: "https://fiaon.com/global" };
+      const links = await linksFuerLage(lage);
 
       // E-236: Was Mara in diesem Gespräch GETAN hat (Termin eingetragen, Link geschickt, Übergabe) —
       // als Systemzeilen im Verlauf. Eigene Tabelle, NIE als Zeile in fiaon_whatsapp (sonst gälte das
@@ -337,7 +513,7 @@ function routen(hole: (req: any) => Blick) {
         terminId: p.termin_id ?? null, pruefungOk: p.pruefung_ok ?? null, pruefung: p.pruefung_text ?? null,
       }));
       res.json({
-        ok: true, nummer, verlauf, lage, links, ereignisse,
+        ok: true, nummer, verlauf: verlaufFuerRaum(verlauf), lage, links, ereignisse,
         fensterOffen: await fensterOffen(nummer),
         maraAn: g?.mara_an !== false,
         // E-230: „mensch" = pausiert, weil jemand schreibt (läuft ab); „schalter" = aus.
@@ -345,7 +521,7 @@ function routen(hole: (req: any) => Blick) {
         notiz: g?.notiz ?? null,
         bearbeiter: g?.bearbeiter_id ?? null,
         ich: blick.agentId,
-        vorlagen,
+        vorlagen: vorlagen.map((v: any) => ({ ...v, klartext: vorlageKlartext(v.name) })),
         // E-218: Die Ergebnisse, die aus einem Chat heraus Sinn ergeben.
         ergebnisse: (ERGEBNISSE as readonly string[])
           .filter((e) => e.startsWith("erreicht") || e === "rueckruf_termin")
@@ -369,6 +545,10 @@ function routen(hole: (req: any) => Blick) {
       const text = String(req.body?.text ?? "").trim();
       const vorlage = String(req.body?.vorlage ?? "").trim();
       if (!text && !vorlage) return res.status(400).json({ ok: false, error: "Ohne Text geht nichts raus." });
+      // E-248: Meta nimmt höchstens 4.096 Zeichen — sonst scheitert der Versand erst bei Meta.
+      if (text.length > WA_TEXT_GRENZE) {
+        return res.status(400).json({ ok: false, error: `Die Nachricht ist ${text.length} Zeichen lang — WhatsApp nimmt höchstens ${WA_TEXT_GRENZE}. Bitte kürzen oder teilen.` });
+      }
       if (text) {
         const funde = sendePruefung(text);
         if (funde.length) return res.status(422).json({ ok: false, error: funde.join(" · ") });
@@ -525,7 +705,7 @@ function routen(hole: (req: any) => Blick) {
   /** Die freigegebenen Vorlagen — für das neue Gespräch. */
   r.get("/vorlagen", async (_req: any, res: Response) => {
     try {
-      const v = nutzbareVorlagen(await vorlagenStand().catch(() => []));
+      const v = nutzbareVorlagen(await vorlagenStand().catch(() => [])).map((x: any) => ({ ...x, klartext: vorlageKlartext(x.name) }));
       res.json({ ok: true, vorlagen: v, inPruefung: (await vorlagenStand().catch(() => [])).filter((t) => t.status === "PENDING").length });
     } catch (err) {
       res.status(500).json({ ok: false, error: "Die Vorlagen ließen sich nicht laden." });
@@ -683,3 +863,6 @@ router.use("/chef/whatsapp", requireChef("leitung"), routen((req: ChefRequest) =
 })));
 
 export default router;
+
+// Für den Prüfstand (.pruef/e248-wa-raum-route.mts): dieselben Routen mit einem gestellten Blick.
+export { routen as raumRouten };

@@ -309,6 +309,9 @@ async function mandatsZahlen(agentId: number): Promise<{ anzahl: number; ids: nu
 //      am selben Tag zuerst, wer noch keinen Anruf hatte
 //   Stufe 3 (abgebrochen, ohne Antrag) kommt erst, wenn nichts Heißes da ist.
 // Der Pool gibt in derselben Reihenfolge heraus. Die Zähler je Stufe bleiben.
+// 28.09.2026 (E-251): Vor Punkt 1 stehen jetzt die Sofort-Spur (Antrag oder
+// Zahlungsmeldung ≤ 24 h, seither kein Anruf) und davor nur, was eine feste
+// Uhrzeit JETZT hat — Einzelheiten bei SOFORT_SQL.
 // ═══════════════════════════════════════════════════════════════════════════
 const SLOTS = 6;
 /** Zusage fällig: der Kunde hat ein Zahlungsdatum genannt, das erreicht ist. */
@@ -322,6 +325,20 @@ const RUECKRUF_SQL = `EXISTS (
 const TERMIN_HEUTE_SQL = `EXISTS (
   SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
     AND tz.abgesagt_am IS NULL AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE})`;
+/**
+ * E-251: Was eine feste Uhrzeit JETZT hat, bleibt auch vor der Sofort-Spur —
+ * ein Termin, der in den nächsten 15 Minuten beginnt oder seit höchstens
+ * 30 Minuten läuft, und ein zugesagter Rückruf, dessen Zeit in den letzten
+ * 30 Minuten erreicht wurde. Ein Termin um 16 Uhr oder ein seit Tagen
+ * überfälliger Rückruf steht dagegen hinter den frischen Anträgen.
+ */
+const TERMIN_JETZT_SQL = `EXISTS (
+  SELECT 1 FROM fiaon_termine tj WHERE tj.person_id = p.id AND tj.agent_id = $1 AND tj.status = 'gebucht'
+    AND tj.abgesagt_am IS NULL AND tj.beginn BETWEEN NOW() - INTERVAL '30 minutes' AND NOW() + INTERVAL '15 minutes')`;
+const RUECKRUF_JETZT_SQL = `EXISTS (
+  SELECT 1 FROM fiaon_contact_log cj JOIN fiaon_applications aj ON aj.ref = cj.ref
+  WHERE aj.person_id = p.id AND cj.outcome = 'rueckruf_termin' AND cj.done_at IS NULL
+    AND cj.voided_at IS NULL AND cj.scheduled_at BETWEEN NOW() - INTERVAL '30 minutes' AND NOW())`;
 /**
  * FÄLLIGE RATE — der Grund, aus dem ein bezahlter Kunde wieder in die Liste
  * gehört (08.09.2026, E-165).
@@ -420,8 +437,12 @@ const LETZTER_KONTAKT_SQL = `GREATEST(
   COALESCE((SELECT MAX(cm.created_at) FROM fiaon_contact_log cm JOIN fiaon_applications am ON am.ref = cm.ref
               WHERE am.person_id = p.id AND cm.type = 'result' AND cm.voided_at IS NULL), 'epoch'::timestamptz))`;
 /** Das jüngste eigene Zutun: Antrag abgeschickt oder Zahlung gemeldet. */
+// E-251 (28.09.2026): „abgeschickt" heißt submitted_at, nicht created_at. created_at ist der
+// Moment, in dem der Kunde Schritt 1 öffnet — wer um 9:50 beginnt, um 10:00 als Lead angerufen
+// wird und um 10:20 abschickt, hat SEIT dem Anruf etwas getan und gehört nach links. Ohne
+// submitted_at (Altbestand) gilt weiter created_at.
 const EIGENES_TUN_SQL = `GREATEST(
-  COALESCE((SELECT MAX(a6.created_at) FROM fiaon_applications a6
+  COALESCE((SELECT MAX(COALESCE(a6.submitted_at, a6.created_at)) FROM fiaon_applications a6
               WHERE a6.person_id = p.id AND a6.merged_into IS NULL AND NOT a6.ist_entwurf), 'epoch'::timestamptz),
   COALESCE((SELECT MAX(a7.claimed_paid_at) FROM fiaon_applications a7
               WHERE a7.person_id = p.id AND a7.merged_into IS NULL), 'epoch'::timestamptz))`;
@@ -443,17 +464,57 @@ const ERREICHBAR_ANGABE_SQL = `(SELECT a9.erreichbarkeit FROM fiaon_applications
 const JETZT_ERREICHBAR_SQL = jetztErreichbarSql(ERREICHBAR_ANGABE_SQL, STUNDE_SQL);
 /** Als Reihungs-Kriterium: passendes Fenster (oder keine Angabe) zuerst. */
 const FENSTER_ORDNUNG = `CASE WHEN ${JETZT_ERREICHBAR_SQL} THEN 0 ELSE 1 END`;
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE SOFORT-SPUR (28.09.2026, E-251)
+//
+// Justin, am Tag, an dem die Werbung wieder anläuft: „Die Mitarbeiter müssen
+// die Kunden schneller anrufen – das heißt auch, dass immer die neuesten
+// Kunden ganz oben und vorne angezeigt werden müssen."
+//
+// ── GEMESSEN (Produktion, nur lesend, 28.09.2026) ─────────────────────────
+// 83 fertige Anträge in 14 Tagen: 41 % binnen 4 Stunden angerufen, 47 % erst
+// nach über 24 Stunden oder nie. Und: Wer zahlt, zahlt binnen drei Tagen nach
+// dem Antrag — in jeder Wochen-Kohorte seit Juli kam praktisch keine
+// Erstzahlung später. Der erste Tag entscheidet.
+//
+// ── WARUM DIE HITZE DAS NICHT SCHON KONNTE ───────────────────────────────
+// Rang 0 war „Zusage fällig ODER Termin heute" — ganztägig. Ein Termin um
+// 16 Uhr, eine gestern fällige Zusage und jeder seit Tagen überfällige Rückruf
+// standen vor einem Antrag von vor zehn Minuten. Bei sechs Plätzen heißt das:
+// Der neue Antrag war unsichtbar, bis diese Fälle abgearbeitet waren.
+//
+// ── DIE REGEL ─────────────────────────────────────────────────────────────
+// 0. Feste Uhrzeit JETZT: Termin in den nächsten 15 Minuten oder seit höchstens
+//    30 Minuten, Rückruf gerade fällig (TERMIN_JETZT_SQL, RUECKRUF_JETZT_SQL).
+// 1. SOFORT-SPUR: Antrag abgeschickt oder Zahlung gemeldet in den letzten
+//    24 Stunden, seither kein Anruf — der neueste zuerst.
+// 2. Zusage fällig, Termin später am Tag. 3. Rückruf überfällig. 4. Rest.
+// Die Wunschzeit aus dem Antrag (E-184) gilt weiter: Wer „18–20 Uhr" angab,
+// springt um 18 Uhr in die Spur, nicht um 10. Stufe C (ohne Antrag) kommt nie
+// in die Spur — Leads ohne Antrag zahlten vor dem Antrag nie.
+// ═══════════════════════════════════════════════════════════════════════════
+const SOFORT_SQL = `(p.priority_tier IN (1, 2)
+  AND ${EIGENES_TUN_SQL} > NOW() - INTERVAL '24 hours'
+  AND ${FRISCH_SQL}
+  AND ${JETZT_ERREICHBAR_SQL})`;
 /** Felder für die Karte: warum steht dieser Mensch hier? */
 const HITZE_SQL = `${ZUSAGE_SQL} AS zusage_faellig, ${RUECKRUF_SQL} AS rueckruf_faellig, ${TERMIN_HEUTE_SQL} AS termin_heute,
   ${RATE_FAELLIG_SQL} AS rate_faellig,
   ${EREIGNIS_SQL} AS ereignis_am, ${NIE_SQL} AS nie_gesprochen,
-  ${JETZT_ERREICHBAR_SQL} AS jetzt_erreichbar`;
+  ${JETZT_ERREICHBAR_SQL} AS jetzt_erreichbar,
+  ${SOFORT_SQL} AS sofort, ${EIGENES_TUN_SQL} AS eigenes_am`;
 /** Die Reihenfolge — für „Neu für dich", „Wieder dran" dieselbe (braucht $1 = Mitarbeiter). */
 const HITZE_ORDNUNG = `
   -- E-165 (TFO): KEIN eigener Rang für fällige Raten. Eine gestern fällige Rate zahlt zu ~19 %, ein Antrag
   -- von gestern zu 28 %, eine 60 Tage alte Rate fast nie — die Fälligkeit zählt als Ereignis (unten),
   -- die Frische entscheidet. Ein fester Rang hätte bei Daniel 93 Raten vor jeden neuen Antrag gestellt.
-  CASE WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 0 WHEN ${RUECKRUF_SQL} THEN 1 ELSE 2 END,
+  -- E-251: Uhrzeit JETZT → Sofort-Spur → Zusage/Termin heute → Rückruf → Rest (Regel oben bei SOFORT_SQL).
+  CASE WHEN ${TERMIN_JETZT_SQL} OR ${RUECKRUF_JETZT_SQL} THEN 0
+       WHEN ${SOFORT_SQL} THEN 1
+       WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 2
+       WHEN ${RUECKRUF_SQL} THEN 3 ELSE 4 END,
+  -- E-251: In der Sofort-Spur zählt allein die Frische — der neueste Antrag zuerst.
+  CASE WHEN ${SOFORT_SQL} THEN ${EIGENES_TUN_SQL} END DESC NULLS LAST,
   -- E-184: feste Zeiten (Zusage, Termin, Rückruf) bleiben vorn; danach zählt,
   -- ob der Kunde laut Antrag JETZT erreichbar sein will.
   ${FENSTER_ORDNUNG},
@@ -468,6 +529,8 @@ const HITZE_ORDNUNG = `
  * zweiter Stelle — direkt hinter Zusage, Termin heute und Rückruf. Wer heute um
  * 14:30 seinen Termin hat, steht auch um 14 Uhr vorn, egal welches Fenster er
  * im Antrag nannte. Ein eigener Rang DAVOR hätte genau das gebrochen.
+ * E-251: Seit der Sofort-Spur steht um 14 Uhr ein frischer Antrag vor dem
+ * 14:30-Termin; ab 14:15 ist der Termin „jetzt" und steht wieder ganz vorn.
  */
 const NEU_ORDNUNG = HITZE_ORDNUNG;
 /** Pool-Reihenfolge (ohne Termin-Bezug): Fenster passend zuerst, Stufe 3 zuletzt, jüngstes Ereignis zuerst. */
@@ -479,18 +542,25 @@ const POOL_ORDNUNG = `
 /** Hitze-Felder → Karte („Antrag vor 12 Min · noch ohne Anruf"). */
 function hitzeVon(r: any) {
   const tier = Number(r.priority_tier);
-  const art = r.zusage_faellig === true ? "zusage" : r.termin_heute === true ? "termin" : r.rueckruf_faellig === true ? "rueckruf"
+  // E-251: Steht der Mensch wegen der Sofort-Spur oben, nennt die Karte genau
+  // diesen Grund — den frischen Antrag bzw. die frische Zahlungsmeldung, mit
+  // der Minute des Abschickens —, nicht einen Termin, der erst am Nachmittag ist.
+  const sofort = r.sofort === true;
+  const art = sofort ? (tier === 1 ? "zahlung_gemeldet" : "antrag")
+    : r.zusage_faellig === true ? "zusage" : r.termin_heute === true ? "termin" : r.rueckruf_faellig === true ? "rueckruf"
     // Die fällige Rate steht VOR den Stufen-Arten: Sie ist der Grund, aus dem
     // dieser Mensch hier steht, und der Verkäufer muss ihn im ersten Satz sehen.
     : r.rate_faellig === true ? "rate"
     : tier === 1 ? "zahlung_gemeldet" : tier === 2 ? "antrag" : r.tier_reason === "antrag_abgebrochen" ? "abbruch" : "lead";
-  const am = r.ereignis_am ? new Date(r.ereignis_am).getTime() : NaN;
+  const zeit = sofort && r.eigenes_am ? r.eigenes_am : r.ereignis_am;
+  const am = zeit ? new Date(zeit).getTime() : NaN;
   return {
     art,
     seitMin: Number.isFinite(am) ? Math.max(0, Math.round((Date.now() - am) / 60_000)) : null,
     nieGesprochen: r.nie_gesprochen === true,
     // E-184: false nur, wenn der Kunde ein Fenster nannte und wir gerade außerhalb liegen.
     jetztErreichbar: r.jetzt_erreichbar !== false,
+    sofort,
   };
 }
 /**
@@ -812,7 +882,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // und wer oft nicht erreichbar war, sinkt ab.
     // ═══════════════════════════════════════════════════════════════════
     // 07.09.2026 (E-162): Die Ordnung heißt jetzt Hitze und steht oben in
-    // HITZE_ORDNUNG — Zusage/Termin, Rückruf, jüngstes Ereignis; Stufe 3 zuletzt.
+    // HITZE_ORDNUNG — Uhrzeit jetzt, Sofort-Spur (E-251), Zusage/Termin, Rückruf, jüngstes Ereignis; Stufe 3 zuletzt.
     const ordnung = HITZE_ORDNUNG;
 
     // §16: Vollständigkeit als Spalten direkt an der Karte — dieselbe Regel

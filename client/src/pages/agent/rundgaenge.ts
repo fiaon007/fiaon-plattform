@@ -33,8 +33,12 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "sich gemeldet haben, die einen Antrag offen haben, die eine Zahlung angekündigt haben — "
       + "und seit dem 08.09. auch deine eigenen Kunden, deren nächste Rate fällig geworden ist. "
       + "Du arbeitest sie von oben nach unten ab — die Reihenfolge macht das System, nicht du. "
-      + "Sie heißt Hitze: Zusage und Termin zuerst, dann fällige Rückrufe, dann das frischeste "
-      + "Ereignis — Minuten schlagen Tage. Eine gestern fällige Rate steht deshalb neben einem "
+      + "Sie heißt Hitze. Ganz oben steht nur, was genau JETZT eine Uhrzeit hat: ein Termin in den "
+      + "nächsten 15 Minuten, ein Rückruf, der gerade fällig ist. Direkt danach die Sofort-Spur: jeder "
+      + "Antrag und jede Zahlungsmeldung der letzten 24 Stunden, die seither niemand angerufen hat — der "
+      + "neueste zuerst, die Karte sagt „Neu · Antrag vor 12 Min“. Wer zahlt, zahlt fast immer in den "
+      + "ersten drei Tagen; der erste Tag entscheidet. Danach Zusagen und Termine von heute, fällige "
+      + "Rückrufe und das frischeste Ereignis — Minuten schlagen Tage. Eine gestern fällige Rate steht deshalb neben einem "
       + "gestrigen Antrag, eine drei Wochen alte Rate hinter beiden. Das ist Absicht: Wird eine "
       + "Rate in den ersten Tagen angesprochen, zahlen 18,6 %; nach der fünften Mahnstufe nur "
       + "noch 3,4 %. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist.",
@@ -191,7 +195,9 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "nicht gehalten, Rückruf vereinbart, Termin heute, Rate fällig, Wiedervorlage. Schließt du einen ab, "
       + "rückt der nächste nach. Links steht zuerst, wer laut Antrag JETZT erreichbar sein will (8–12, 12–15, "
       + "15–18, 18–20 Uhr) — „Flexibel“ oder keine Angabe zählt immer. Wer außerhalb seines Fensters liegt, "
-      + "rückt erst nach, wenn niemand Passendes mehr da ist; die Karte zeigt das Fenster unten.",
+      + "rückt erst nach, wenn niemand Passendes mehr da ist; die Karte zeigt das Fenster unten. Neue Anträge "
+      + "erscheinen von selbst: Die Liste lädt jede Minute neu — nur nicht während eines Anrufs und nicht, "
+      + "solange eine Akte offen ist.",
     tipp: "Links: Wen rufe ich heute zum ersten Mal an? Rechts: Welche Fälle brauchen mich noch einmal? Die Karte rechts sagt, warum sie dort liegt — und wann der Mensch angerufen werden will.",
   },
   {

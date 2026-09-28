@@ -5,6 +5,33 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.09.2026 — Sofort-Spur: neue Anträge stehen in der Pipeline ganz oben (E-251)
+
+**Der Anlass:** Justin (28.09., die Werbung läuft wieder an): „Die Mitarbeiter müssen die Kunden schneller anrufen – das
+heißt auch, dass immer die neuesten Kunden ganz oben und vorne angezeigt werden müssen."
+
+**Gemessen (nur lesend):** 83 fertige Anträge in 14 Tagen — 41 % binnen 4 Stunden angerufen, 47 % erst nach über
+24 Stunden oder nie. Erstzahlungen kommen praktisch nur in den ersten drei Tagen nach dem Antrag. Bis hierher standen
+ganztägige Termine, überfällige Zusagen und tagealte Rückrufe vor einem Antrag von vor zehn Minuten, und die Liste lud nur
+alle zehn Minuten nach.
+
+**Was jetzt gilt:**
+- Reihung in „Neu für dich" und „Wieder dran": (0) feste Uhrzeit JETZT — Termin in den nächsten 15 Minuten oder seit
+  höchstens 30 Minuten, Rückruf gerade fällig; (1) **Sofort-Spur** — Antrag abgeschickt oder Zahlung gemeldet in den
+  letzten 24 Stunden, seither kein Anruf, der neueste zuerst; (2) Zusage fällig, Termin später am Tag; (3) Rückruf
+  überfällig; (4) alles Weitere wie bisher. Die Wunschzeit aus dem Antrag (E-184) gilt weiter.
+- „Seit dem letzten Anruf etwas getan" misst jetzt am Abschicken des Antrags (submitted_at), nicht am Öffnen.
+- Die Karte sagt „Neu · Antrag vor 12 Min" bzw. „Neu · Zahlung gemeldet vor 5 Min".
+- Die Pipeline lädt jede Minute nach (vorher alle zehn), nie während eines Anrufs und nie bei offener Akte; beim
+  Zurückkehren in den Tab sofort.
+
+**Geprüft:** alte gegen neue Reihung lesend auf der Produktionsdatenbank für alle Mitarbeiter — Abfrage je 110–230 ms,
+keine Verlangsamung; mit auf 7 Tage geweitetem Fenster stehen die frischen Anträge vorn.
+
+**Wo:** Pipeline im Mitarbeiter-Office. Code: `server/routes/fiaon-office-vertrieb.ts` (SOFORT_SQL, TERMIN_JETZT_SQL,
+RUECKRUF_JETZT_SQL, HITZE_ORDNUNG, hitzeVon), `client/src/pages/agent/pipeline.tsx`, Rundgang `rundgaenge.ts`,
+Update-Protokoll `updates-data.ts`.
+
 ## 28.09.2026 — WhatsApp-Zentrale liest Metas Stufe 2.000 live, leere Gruppen sagen warum (E-249)
 
 **Der Anlass:** Justin (28.09.): „Warum steht da 0? … Wir haben 2.000 bei Meta, warum synchronisiert das nicht live?"

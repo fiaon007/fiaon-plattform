@@ -209,7 +209,7 @@ export interface Kunde {
   mandatSeit?: string | null;
   vollstaendig?: boolean;
   /** E-162: warum dieser Mensch jetzt oben steht — Art, Alter des Ereignisses, noch ohne Anruf. */
-  hitze?: { art: string; seitMin: number | null; nieGesprochen: boolean; jetztErreichbar?: boolean } | null;
+  hitze?: { art: string; seitMin: number | null; nieGesprochen: boolean; jetztErreichbar?: boolean; sofort?: boolean } | null;
 }
 
 type Zaehler = Record<string, number>;
@@ -316,6 +316,9 @@ function hitzeText(k: Kunde): string | null {
     : h.art === "antrag" ? `Antrag${her(h.seitMin)}`
     : h.art === "abbruch" ? `Antrag abgebrochen${her(h.seitMin)}`
     : "Lead ohne Antrag";
+  // E-251: Sofort-Spur — frischer Antrag/frische Zahlungsmeldung ohne Anruf seither. „Neu" vorn,
+  // damit der Grund, aus dem die Karte ganz oben steht, das erste Wort ist.
+  if (h.sofort) return `Neu · ${kern}`;
   const fest = h.art === "zusage" || h.art === "termin" || h.art === "rueckruf" || h.art === "rate";
   return h.nieGesprochen && !fest ? `${kern} · noch ohne Anruf` : kern;
 }
@@ -691,11 +694,27 @@ function PipelineInnen() {
   useEffect(() => { void arbeitslisteLaden(); }, [arbeitslisteLaden]);
   // E-184: Die Reihung kennt das Wunschfenster des Kunden (8–12, 12–15, 15–18,
   // 18–20 Uhr). Damit der Wechsel um 12, 15 und 18 Uhr von selbst sichtbar
-  // wird, lädt die Liste alle zehn Minuten leise nach — nur im sichtbaren Tab.
+  // wird, lädt die Liste leise nach — nur im sichtbaren Tab.
+  // E-251 (28.09.2026, Sofort-Spur): jede Minute statt alle zehn — ein Antrag von
+  // eben soll oben stehen, bevor der Mitarbeiter den nächsten Anruf beginnt; beim
+  // Zurückkehren in den Tab sofort. NIE während eines Anrufs und nie bei offener
+  // Akte: Die Karten dürfen nicht unter der Hand wegrutschen (Florentine 25.08.,
+  // „Kontextverlust"). Nach jedem Gesprächsergebnis lädt die Liste ohnehin neu.
+  const anrufAktiv = useRef(false);
   useEffect(() => {
-    const t = setInterval(() => { if (document.visibilityState === "visible") void arbeitslisteLaden(true); }, 10 * 60_000);
-    return () => clearInterval(t);
-  }, [arbeitslisteLaden]);
+    const h = (e: Event) => { anrufAktiv.current = !!(e as CustomEvent).detail?.aktiv; };
+    window.addEventListener("fiaon-anruf-stand", h);
+    return () => window.removeEventListener("fiaon-anruf-stand", h);
+  }, []);
+  useEffect(() => {
+    const leiseNachladen = () => {
+      if (document.visibilityState !== "visible" || offen !== null || anrufAktiv.current) return;
+      void arbeitslisteLaden(true);
+    };
+    const t = setInterval(leiseNachladen, 60_000);
+    document.addEventListener("visibilitychange", leiseNachladen);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", leiseNachladen); };
+  }, [arbeitslisteLaden, offen]);
 
   const laden = useCallback(async (leise = false, nurZaehler = false) => {
     if (!leise) setLaedt(true);

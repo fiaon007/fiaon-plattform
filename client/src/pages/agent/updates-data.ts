@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-28-sofort-spur",
+    date: "2026-09-28",
+    category: "Geändert",
+    title: "Neue Anträge stehen ab sofort ganz oben — „Neu · Antrag vor 12 Min“",
+    summary:
+      "Wer in den letzten 24 Stunden einen Antrag abgeschickt oder eine Zahlung gemeldet hat und seitdem nicht angerufen wurde, "
+      + "steht in „Neu für dich“ ganz oben — der neueste zuerst. Davor steht nur, was genau jetzt eine Uhrzeit hat: ein Termin "
+      + "in den nächsten 15 Minuten oder ein Rückruf, der gerade fällig ist.",
+    changes: [
+      "Die Karte nennt den Grund im ersten Wort: „Neu · Antrag vor 12 Min“ oder „Neu · Zahlung gemeldet vor 5 Min“.",
+      "Termine später am Tag, überfällige Rückrufe und Zusagen rücken hinter die frischen Anträge.",
+      "Die Liste lädt jede Minute neu (bisher alle zehn) — nie während eines Anrufs und nie, solange eine Akte offen ist.",
+      "Hat der Kunde im Antrag eine Wunschzeit angegeben (z. B. 18–20 Uhr), springt er zu Beginn dieses Fensters nach oben.",
+    ],
+    howto: [
+      "Steht oben „Neu · …“: sofort anrufen, bevor du etwas anderes anfängst — wer zahlt, zahlt fast immer in den ersten drei Tagen.",
+      "Kommst du nicht durch: kurze WhatsApp aus der Akte und in einer Stunde noch einmal versuchen.",
+    ],
+  },
+  {
     id: "2026-09-27-ki-pause",
     date: "2026-09-27",
     category: "Hintergrund",

@@ -1493,7 +1493,7 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
     text: "Meta lässt nur eine bestimmte Zahl neuer Gespräche in 24 Stunden zu. Die Zentrale rechnet mit 80 % davon "
       + "und zählt alles mit — Begrüßung, Kette, Hand und Automatik. Steht die Qualität auf Rot, sind Massenversände gesperrt, "
       + "sonst droht die Sperre der Nummer.",
-    // 28.09.2026 (E-249)
+    // 28.09.2026 (E-250)
     tipp: "Die Stufe liest die Seite live bei Meta — seit Meta sie am Geschäftskonto führt, von dort (heute 2.000, also 1.600 für uns).",
   },
   {
@@ -1502,7 +1502,12 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
     text: "Gezählt wird nur, wer alle Regeln erfüllt: heute noch keine WhatsApp, kein „STOPP“, keine Werbesperre, nichts bezahlt "
       + "oder gemeldet (außer „Monatsrate fällig“ und „Auskunft fehlt“ — die gelten gerade zahlenden Kunden), genug Abstand zur "
       + "letzten Vorlage, höchstens acht Vorlagen in 30 Tagen. Steht 0 da, sagt die Karte darunter, warum — etwa "
-      + "„61 schon angeschrieben — wieder dran ab heute 14:48“.",
+      + "„61 schon angeschrieben — wieder dran ab heute 14:48“. Wer hier gezählt wird, besteht auch die Sperrprüfung beim Senden "
+      + "— dieselbe Regel an beiden Stellen. "
+      // 28.09.2026 (E-253)
+      + "Eine Vertriebssperre zählt nur, wenn der Kunde selbst gesperrt ist; die Marke, die jede zusammengeführte Doppel-Akte "
+      + "automatisch trägt, ist keine Sperre des Menschen. Wer „Stopp“ gesagt hat — auf WhatsApp oder als Antwort auf eine Mail, "
+      + "auch unter einer Doppel-Akte —, steht in keiner Gruppe.",
     // 24.09.2026 (E-240)
     tipp: "Die Vorlage „Auskunft fehlt“ liegt als Entwurf bereit und zeigt „wartet auf Meta“ — senden geht erst, wenn Meta sie freigegeben hat.",
   },
@@ -1510,8 +1515,15 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
     ziel: ".wz-start",
     titel: "Vorlage, Anzahl, Vorschau — dann „WhatsApp starten“.",
     text: "Die Vorschau zeigt die nächsten Empfänger mit genau dem Text, den sie bekommen. Der Versand läuft im Hintergrund, eine "
-      + "Nachricht nach der anderen, und lässt sich jederzeit anhalten. Zwischen 21 und 7 Uhr geht nichts raus.",
-    tipp: "„Passende Erinnerung“ wählt je Lead die Stufe nach seinem Alter — so bekommt niemand zweimal dieselbe.",
+      + "Nachricht nach der anderen, und lässt sich jederzeit anhalten. Zwischen 21 und 7 Uhr geht nichts raus. "
+      // 28.09.2026 (E-253)
+      + "Bis zu 500 je Versand (schnell wählen: 25, 50, 100, 250 oder alle), nie mehr, als Meta heute noch erlaubt. "
+      + "Die Karte darunter zeigt den Stand live: gesendet, übersprungen (mit Grund), entfallen, Restzeit. Ein Neustart des "
+      + "Servers unterbricht nur kurz („Kurz unterbrochen — geht gleich weiter“): Der Versand steht in der Datenbank und läuft "
+      + "von selbst weiter; durch den Neustart bekommt niemand eine zweite Nachricht. Schreiben Verkaufstakt, Automatik oder "
+      + "Begrüßung in derselben Sekunde denselben Menschen an, bekommt nur einer den Platz für heute — der andere lässt ihn aus.",
+    tipp: "„Passende Erinnerung“ wählt je Lead die Stufe nach seinem Alter — so bekommt niemand zweimal dieselbe. „Entfallen“ heißt: "
+      + "Der Mensch hat seit dem Start geantwortet, bezahlt oder schon etwas bekommen — er wird dann nicht angeschrieben.",
   },
   {
     ziel: ".wz-automatik",

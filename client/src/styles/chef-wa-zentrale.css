@@ -1,7 +1,9 @@
 /* ═══ WhatsApp-Zentrale (23.09.2026, E-229) — Präfix .wz- ═══
    Reiter in /chef/s/mara, dunkle ChefShell. Dieselbe Sprache wie das
    Mara-Steuerpult: dünne Schrift, Haarlinien, matte Flächen, ein Blau-Paar.
-   Kein Verlauf, kein Glas — die Zahlen tragen die Seite. */
+   Kein Verlauf, kein Glas — die Zahlen tragen die Seite.
+   E-253 (28.09.2026): eine Ausnahme an EINER Stelle — die Laufkarte, solange
+   gesendet wird (Blauschimmer, Lichtstreif im Balken; aus bei „weniger Bewegung"). */
 
 .wz {
   --wz-text: #e7ecf4;
@@ -95,7 +97,7 @@
 .wz-gruppe-titel { font-size: 14px; color: var(--wz-text); }
 .wz-gruppe-satz { font-size: 12px; color: var(--wz-leise); line-height: 1.45; }
 .wz-gruppe-einw { font-size: 11.5px; color: var(--wz-still); margin-top: 2px; }
-/* E-249: warum eine Gruppe leer ist */
+/* E-250: warum eine Gruppe leer ist */
 .wz-gruppe-leer { font-size: 11.5px; color: var(--wz-blau-hell); line-height: 1.45; margin-top: 4px; }
 .wz-gruppe.aktiv { border-color: var(--wz-blau); background: rgba(40, 141, 250, .08); box-shadow: inset 0 0 0 1px var(--wz-blau); }
 .wz-gruppe:focus-visible, .wz-knopf:focus-visible, .wz-schalter:focus-visible { outline: 2px solid var(--wz-blau-hell); outline-offset: 2px; }
@@ -139,21 +141,111 @@
 .wz-blase p { padding: 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .wz-blase small { padding: 0 6px; font-size: 11.5px; color: #8696a0; }
 
-/* Laufender Versand */
-.wz-lauf { border: 1px solid var(--wz-linie); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
-.wz-lauf.laeuft { border-color: rgba(40, 141, 250, .45); }
-.wz-lauf-kopf { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.wz-lauf-kopf strong { font-weight: 500; color: var(--wz-text); }
+/* Schnell wählen (E-253): 25 · 50 · 100 · 250 · alle — bis 500 je Versand */
+.wz-mengen { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: -4px; }
+.wz-mengen .wz-still { margin-right: 4px; }
+.wz-mengen button {
+  min-height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--wz-linie); background: transparent;
+  color: var(--wz-text-2); font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.wz-mengen button[aria-pressed="true"] { border-color: var(--wz-blau); background: rgba(40, 141, 250, .12); color: var(--wz-text); }
+.wz-mengen button:focus-visible { outline: 2px solid var(--wz-blau-hell); outline-offset: 2px; }
+@media (hover: hover) { .wz-mengen button:not([aria-pressed="true"]):hover { background: var(--wz-flaeche-hoch); } }
+
+/* ── Laufkarte (E-253): fünf Zustände, eine Sprache ───────────────────────
+   Die eine Zahl, die zählt, groß und dünn; der Balken mit Lichtstreif, solange
+   gesendet wird. Die Tiefe (Blauschimmer) nur beim Laufen — sonst matt. */
+.wz-lauf {
+  --wz-akzent: var(--wz-still);
+  position: relative; border: 1px solid var(--wz-linie); border-radius: 14px; padding: 16px 18px 14px;
+  display: grid; gap: 12px; background: rgba(2, 6, 23, .28); overflow: hidden; min-width: 0;
+}
+.wz-lauf::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--wz-akzent); opacity: .85;
+}
+.wz-lauf.z-laeuft {
+  --wz-akzent: var(--wz-blau);
+  border-color: rgba(40, 141, 250, .42);
+  background: radial-gradient(120% 90% at 0% 0%, rgba(40, 141, 250, .10), transparent 60%), rgba(2, 6, 23, .32);
+  box-shadow: 0 0 0 1px rgba(40, 141, 250, .06), 0 14px 34px -22px rgba(40, 141, 250, .65);
+}
+.wz-lauf.z-unterbrochen { --wz-akzent: var(--wz-gelb); border-color: rgba(252, 211, 77, .38); }
+.wz-lauf.z-fertig { --wz-akzent: var(--wz-gruen); border-color: rgba(110, 231, 183, .26); }
+.wz-lauf.z-angehalten, .wz-lauf.z-verfallen { --wz-akzent: var(--wz-leise); }
+
+.wz-lauf-kopf { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; min-width: 0; }
 .wz-lauf-kopf button { margin-left: auto; }
-.wz-balken { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: rgba(148, 163, 184, .12); gap: 2px; }
-.wz-balken i { display: block; height: 100%; transition: width .4s; }
-.wz-balken i.gut { background: var(--wz-blau); border-radius: 99px 0 0 99px; }
-.wz-balken i.still { background: rgba(252, 211, 77, .55); }
-.wz-lauf-zahlen { font-size: 13px; font-variant-numeric: tabular-nums; }
-.wz-lauf-zahlen b { color: var(--wz-text); font-weight: 500; }
-.wz-gruende { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.wz-lauf-marke { display: inline-flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 500; color: var(--wz-text); }
+.wz-lauf-marke i { width: 9px; height: 9px; border-radius: 50%; background: var(--wz-akzent, var(--wz-still)); flex: none; }
+.wz-lauf-marke.z-laeuft i { background: var(--wz-blau); animation: wz-puls 1.8s ease-in-out infinite; }
+.wz-lauf-marke.z-unterbrochen i { background: var(--wz-gelb); animation: wz-puls-gelb 1.8s ease-in-out infinite; }
+.wz-lauf-marke.z-fertig i { background: var(--wz-gruen); }
+.wz-lauf-marke.z-angehalten i, .wz-lauf-marke.z-verfallen i { background: var(--wz-leise); }
+@keyframes wz-puls { 0%, 100% { box-shadow: 0 0 0 0 rgba(40, 141, 250, .45); } 60% { box-shadow: 0 0 0 7px rgba(40, 141, 250, 0); } }
+@keyframes wz-puls-gelb { 0%, 100% { box-shadow: 0 0 0 0 rgba(252, 211, 77, .4); } 60% { box-shadow: 0 0 0 7px rgba(252, 211, 77, 0); } }
+
+.wz-lauf-mitte { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px 28px; flex-wrap: wrap; }
+.wz-lauf-gross { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.wz-lauf-gross b { font-size: 44px; line-height: 1; font-weight: 300; color: var(--wz-text); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.wz-lauf-gross span { font-size: 13.5px; color: var(--wz-leise); }
+.wz-lauf-kennzahlen { display: flex; gap: 10px 26px; margin: 0; flex-wrap: wrap; }
+.wz-lauf-kennzahlen > div { display: grid; gap: 3px; }
+.wz-lauf-kennzahlen dt { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--wz-still); }
+.wz-lauf-kennzahlen dd { margin: 0; font-size: 18px; font-weight: 300; color: var(--wz-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wz-lauf-kennzahlen > div.rot dd { color: var(--wz-rot); }
+
+.wz-balken { position: relative; display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: rgba(148, 163, 184, .12); gap: 2px; }
+.wz-balken.gross { height: 8px; }
+.wz-balken i { display: block; height: 100%; transition: width .5s cubic-bezier(.2, .7, .2, 1); }
+.wz-balken i.gut { background: linear-gradient(90deg, #1d4ed8, var(--wz-blau)); border-radius: 99px 0 0 99px; }
+.wz-balken i.still { background: rgba(252, 211, 77, .6); }
+.wz-balken i.weg { background: rgba(148, 163, 184, .38); }
+.wz-lauf.z-laeuft .wz-balken::after {
+  content: ""; position: absolute; inset: 0; width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .16), transparent);
+  transform: translateX(-100%); animation: wz-lichtstreif 2.4s ease-in-out infinite;
+}
+@keyframes wz-lichtstreif { to { transform: translateX(260%); } }
+.wz-lauf-legende { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; font-size: 12px; color: var(--wz-leise); margin-top: -4px; }
+.wz-lauf-legende span { display: inline-flex; align-items: center; gap: 6px; }
+.wz-lauf-legende i { width: 8px; height: 8px; border-radius: 2px; display: block; }
+.wz-lauf-legende i.gut { background: var(--wz-blau); }
+.wz-lauf-legende i.still { background: rgba(252, 211, 77, .6); }
+.wz-lauf-legende i.weg { background: rgba(148, 163, 184, .38); }
+.wz-lauf-legende .wz-still { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.wz-lauf-satz { font-size: 12.5px; line-height: 1.55; color: var(--wz-leise); padding-left: 10px; border-left: 2px solid var(--wz-linie); }
+.wz-lauf-satz.gelb { color: var(--wz-gelb); border-left-color: rgba(252, 211, 77, .45); }
+.wz-lauf-satz.gut { color: var(--wz-gruen); border-left-color: rgba(110, 231, 183, .4); }
+.wz-lauf-satz.blau { color: var(--wz-blau-hell); border-left-color: rgba(40, 141, 250, .45); }
+.wz-textknopf { border: none; background: none; padding: 0; font: inherit; color: var(--wz-blau-hell); text-decoration: underline; cursor: pointer; }
+.wz-textknopf:focus-visible { outline: 2px solid var(--wz-blau-hell); outline-offset: 2px; }
+
+.wz-gruende-auf { border-top: 1px solid var(--wz-linie); padding-top: 10px; }
+.wz-gruende-auf summary { cursor: pointer; font-size: 12.5px; color: var(--wz-text-2); list-style: none; display: inline-flex; gap: 8px; align-items: center; }
+.wz-gruende-auf summary::-webkit-details-marker { display: none; }
+.wz-gruende-auf summary::before { content: "›"; display: inline-block; transition: transform .15s; color: var(--wz-still); }
+.wz-gruende-auf[open] summary::before { transform: rotate(90deg); }
+.wz-gruende-auf summary em { font-style: normal; color: var(--wz-still); font-variant-numeric: tabular-nums; }
+.wz-gruende { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .wz-gruende li { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--wz-leise); border-bottom: 1px dashed var(--wz-linie); padding: 3px 0; }
 .wz-gruende b { font-weight: 500; color: var(--wz-text-2); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .wz-lauf-marke i { animation: none !important; }
+  .wz-lauf.z-laeuft .wz-balken::after { display: none; }
+  .wz-balken i { transition: none; }
+}
+@media (max-width: 520px) {
+  .wz-lauf { padding: 14px; }
+  /* Handy: Zustand und „Anhalten" in einer Zeile, die Angaben darunter */
+  .wz-lauf-kopf { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .wz-lauf-kopf > .wz-still { grid-column: 1 / -1; grid-row: 2; }
+  .wz-lauf-kopf button { margin-left: 0; }
+  .wz-lauf-gross b { font-size: 36px; }
+  .wz-lauf-kennzahlen { gap: 10px 18px; }
+  .wz-lauf-legende .wz-still { margin-left: 0; width: 100%; }
+}
 
 /* ── Automatik ────────────────────────────────────────────────────────── */
 .wz-schalter {

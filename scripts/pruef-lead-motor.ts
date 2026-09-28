@@ -383,7 +383,8 @@ abschnitt("WhatsApp-Raum — zwei Türen, ein Raum; Mara antwortet im Fenster");
   ok(/blick\.alles \|\| Number\(z\.assigned_agent_id/.test(rt), "Der Mitarbeiter sieht nur seine Menschen");
   ok(/darfAnNummer/.test(rt), "Auch beim Senden wird die Zuständigkeit geprüft");
   ok(/mara_an = FALSE/.test(rt), "Schreibt ein Mensch, schweigt Mara in diesem Gespräch");
-  ok(/sendePruefung\(text\)/.test(rt), "Jede Zeile läuft vor dem Senden durch die Wand");
+  // E-253 (28.09.2026): mit den Namen des Empfängers aus der Akte — sendePruefung(text, { namen }).
+  ok(/sendePruefung\(text[,)]/.test(rt), "Jede Zeile läuft vor dem Senden durch die Wand");
   // E-248: Der Raum ist in Bausteine geteilt (client/src/components/whatsapp/*) — die Kopfzeile sagt
   // „Fenster zu", das „+"-Blatt bietet dann nur Vorlagen an, zweistufig („Diese Vorlage senden").
   const blatt = lies("client/src/components/whatsapp/VorlagenBlatt.tsx");

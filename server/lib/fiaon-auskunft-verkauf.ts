@@ -106,6 +106,7 @@ import {
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { KOPF_SQL, FAMILIE_SQL, POSTFACH_STOPP_ZEILE_SQL } from "./fiaon-mail-frequenz";
 import { WHATSAPP_EINWILLIGUNG_SQL, WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
 import { AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE } from "@shared/fiaon-lead-texte";
@@ -1412,17 +1413,23 @@ export async function personImPool(personId: number, lauf: Lauf = sqlPool): Prom
  * trotzdem jeden Lauf wieder wählte (gemessen lesend in der Produktion; 834 von
  * 889 Zusammengeführten tragen die Marke). Dieselbe Lesart wie personSperre
  * (fiaon-mail-frequenz.ts) und die Grundmenge (ax_basis.vertriebssperre).
+ *
+ * E-253 (28.09.2026): Kopf und Familie kommen aus den gemeinsamen Bausteinen
+ * (KOPF_SQL/FAMILIE_SQL, fiaon-mail-frequenz.ts) — dieselbe Lesart wie die
+ * WhatsApp-Tür und die Lead-Strecke. Neu erfasst: Geschwister-Dubletten (beim
+ * Aufruf mit einer Dubletten-ID fehlten sie), Ketten über zwei Ebenen und das
+ * „STOPP" an jeder Person der Familie (vorher nur an der übergebenen). Nachtrag
+ * nach der Gegenprüfung: auch das Stopp aus dem Postfach (fiaon_postmeister.flags).
  */
 export async function immerSperre(personId: number, lauf: Lauf = sqlPool): Promise<string | null> {
   const [z] = (await lauf.unsafe(`
     WITH kopf AS (
-      SELECT COALESCE((SELECT merged_into_person_id FROM fiaon_persons WHERE id = $1), $1::int) AS id
+      SELECT ${KOPF_SQL("$1::int")} AS id
     ),
     fam AS (
       SELECT q.id, q.werbung_gesperrt_am, (q.id = (SELECT id FROM kopf) AND COALESCE(q.is_blocked, FALSE)) AS blockiert, q.primary_email
         FROM fiaon_persons q
-       WHERE q.id = $1 OR q.merged_into_person_id = $1
-          OR q.id = (SELECT merged_into_person_id FROM fiaon_persons WHERE id = $1)
+       WHERE q.id = $1 OR q.id IN ${FAMILIE_SQL("(SELECT id FROM kopf)")}
     )
     SELECT bool_or(fam.werbung_gesperrt_am IS NOT NULL) AS werbung,
            bool_or(fam.blockiert) AS vertrieb,
@@ -1431,12 +1438,16 @@ export async function immerSperre(personId: number, lauf: Lauf = sqlPool): Promi
                       AND (l.person_id IN (SELECT id FROM fam)
                            OR (NULLIF(TRIM(l.email), '') IS NOT NULL AND LOWER(TRIM(l.email)) IN
                                 (SELECT LOWER(TRIM(primary_email)) FROM fam WHERE NULLIF(TRIM(primary_email), '') IS NOT NULL)))) AS abgemeldet,
-           ${WA_STOPP_SQL("$1::int")} AS stopp
+           EXISTS (SELECT 1 FROM fam e253_s WHERE ${WA_STOPP_SQL("e253_s.id")}) AS stopp,
+           -- E-253 (Nachtrag): das Stopp aus dem Postfach (Postmeister: „will keine Nachrichten mehr"), über die Familie
+           EXISTS (SELECT 1 FROM fiaon_postmeister e253_pm WHERE e253_pm.person_id IN (SELECT id FROM fam)
+                     AND ${POSTFACH_STOPP_ZEILE_SQL("e253_pm")}) AS postfach_stopp
       FROM fam`, [personId])) as any[];
   if (!z) return null;
   if (z.werbung) return "Sperre: Werbesperre — diese Person hat um keine weitere Post gebeten, kein Auskunft-Angebot.";
   if (z.abgemeldet) return "Sperre: vom Werbeverteiler abgemeldet (Lead-Strecke) — kein Auskunft-Angebot.";
   if (z.stopp) return "Sperre: „STOPP“ auf WhatsApp — kein Auskunft-Angebot.";
+  if (z.postfach_stopp) return "Sperre: „Stopp“ als Antwort ans Postfach — kein Auskunft-Angebot.";
   if (z.vertrieb) return "Vertriebssperre (kein Interesse) — kein Auskunft-Angebot, auch nicht von Hand.";
   return null;
 }
@@ -1821,10 +1832,16 @@ export async function verkaufsTakt(opts: {
       if (opts.trocken) { erg.plan!.push({ personId: f.personId, schritt: "whatsapp", segment: f.segment }); waPlatz--; continue; }
       if (!istSendezeit(opts.jetzt)) { zaehle("Nachtruhe begonnen — Rest nicht gesendet"); break; }
       if (!(await nochAn())) { erg.grund = "angehalten — Rest nicht gesendet"; break; }
+      // E-253 (28.09.2026, Nachtrag nach der Gegenprüfung): Läuft ein Versand der WhatsApp-Zentrale, wartet die
+      // WhatsApp-Stufe bis zum nächsten Takt — ohne einen Menschen für heute zu verbrauchen. Vorher wählte der Takt
+      // in derselben Rangfolge wie der Lauf (waRangSql) und traf so meist den nächsten Menschen des laufenden
+      // 25er-Happens. Startet der Lauf erst danach, schützt der Tagesplatz (waTagesplatz, fiaon-whatsapp.ts).
+      const zentrale = await import("./fiaon-wa-zentrale");
+      if (await zentrale.waLaufOffen()) { zaehle("WhatsApp wartet: ein Versand der WhatsApp-Zentrale läuft"); break; }
       try {
         const nein = await vorVersand(f, "whatsapp");
         if (nein) { waHeuteNicht.set(f.personId, tag); zaehle(nein); continue; }
-        const { auskunftWhatsAppSenden } = await import("./fiaon-wa-zentrale");
+        const { auskunftWhatsAppSenden } = zentrale;
         const r = await auskunftWhatsAppSenden(f.personId, { laufId, von: "Verkaufstakt" });
         if (r.ok) { erg.whatsapp++; waPlatz--; continue; }
         // Kein Fehler des Takts: Die Mail-Stufe dieses Menschen läuft unabhängig weiter (Liste unten).

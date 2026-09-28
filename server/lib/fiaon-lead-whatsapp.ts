@@ -36,7 +36,8 @@
 //   · Nachts nichts: 8 bis 20 Uhr Berliner Zeit.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { waSenden, vorlagenStand, waKonfig, waAktenvermerk } from "./fiaon-whatsapp";
+import { waSenden, vorlagenStand, waKonfig, waAktenvermerk, waTagesplatz } from "./fiaon-whatsapp";
+import { STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
 
 /** Der Schalter. Vorgabe: AUS — Justin schaltet ihn im Steuerpult ein. */
@@ -137,10 +138,9 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
           WHERE w.person_id = p.id AND w.richtung = 'raus'
             AND (w.created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)
        -- Wer „STOPP" geschrieben hat, ist raus. Für immer.
-       AND NOT EXISTS (
-         SELECT 1 FROM fiaon_whatsapp s
-          WHERE s.person_id = p.id AND s.richtung = 'rein'
-            AND (s.text ILIKE '%stopp%' OR s.knopf ILIKE '%stopp%' OR s.text ILIKE '%keine nachrichten%'))
+       -- E-253 (28.09.2026): über die ganze Familie (auch an einer Dublette) und auch das Stopp aus dem
+       -- Postfach — dieselbe Regel wie die BASIS der WA-Zentrale und die Tür (fiaon-mail-frequenz.ts).
+       AND p.id NOT IN ${sqlPool.unsafe(STOPP_KOEPFE_SQL)}
        -- E-230: Wer gerade mit uns schreibt (Eingang in 24 h), bekommt keine
        -- Vorlage mitten ins Gespräch — dort antwortet Mara.
        AND NOT EXISTS (
@@ -170,6 +170,10 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
       : [anrede];
     if (vorlage === "fiaon_kk_rechnung" && !c.zahlungsreferenz) { weg("Rechnung ohne Verwendungszweck"); continue; }
 
+    // E-253 (28.09.2026): der Tagesplatz direkt vor Meta — höchstens eine Nachricht je Mensch und Tag,
+    // auch wenn die WA-Zentrale oder die Begrüßung in derselben Sekunde schreibt (fiaon-whatsapp.ts).
+    const platz = await waTagesplatz({ personId: Number(c.person_id), nummer, weg: "lead_kette" });
+    if (!platz.ok) { weg(platz.grund); continue; }
     const r = await waSenden(nummer, { vorlage, werte }, { personId: Number(c.person_id), leadId: c.lead_id ? Number(c.lead_id) : null, von: "Mara" });
     if (r.ok) {
       erg.gesendet++;
@@ -220,6 +224,10 @@ export async function ersteWhatsAppFuerLead(leadId: number): Promise<{ ok: boole
   const freigegeben = new Set((await vorlagenStand().catch(() => [])).filter((t) => t.status === "APPROVED").map((t) => t.name));
   if (!freigegeben.has("fiaon_kk_anfrage") && !freigegeben.has("fiaon_kkb_anfrage")) return { ok: false, grund: "Die erste Vorlage ist bei Meta noch nicht freigegeben." };
 
+  // E-253 (28.09.2026): der Tagesplatz direkt vor Meta. Gemessen am 24.09.: dieselbe Begrüßung kam
+  // zweimal, 66 ms auseinander — die Automatik der Zentrale schrieb den neuen Menschen gleichzeitig an.
+  const platz = await waTagesplatz({ personId: l.person_id ? Number(l.person_id) : null, nummer, weg: "lead_begruessung" });
+  if (!platz.ok) return { ok: false, grund: platz.grund };
   const r = await waSenden(
     nummer,
     { vorlage: "fiaon_kk_anfrage", werte: [String(l.name || "").trim() || "und willkommen"] },

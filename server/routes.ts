@@ -487,6 +487,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonWaZentraleRoutes.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('wa_zentrale_takt', async () => { await (await import('./lib/fiaon-wa-zentrale')).automatikTakt(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });
+    // E-253 (28.09.2026): Ein Versand von Hand übersteht jetzt einen Deploy — der Lauf steht in fiaon_wa_lauf,
+    // der alte Prozess übergibt bei SIGTERM, und dieser Takt setzt ihn fort (atomar, ohne Doppelversand).
+    // Nur im Betrieb (tageslauf): Ein lokaler Server gegen die Produktions-DB übernimmt nie einen Lauf.
+    // Nachtrag (Gegenprüfung): eine Zeile in fiaon_lauf_historie nur, wenn wirklich ein Lauf übernommen wurde
+    // (nurMitErgebnis) — sonst 1.440 Zeilen je Tag und Instanz für „nichts zu übernehmen".
+    tageslauf('wa_zentrale_fortsetzen', async () => !!(await (await import('./lib/fiaon-wa-zentrale')).laufFortsetzen()).id, 60 * 1000, { beimStartNach: 20_000, nurMitErgebnis: true });
   });
   // Einmalig nach dem Ausrollen: fehlende Vorlagen bei Meta zur Prüfung einreichen (Sperre über fiaon_settings).
   // E-229: die 15 Bildvorlagen (erledigt 23.09.). E-230: die Raten-Vorlage fiaon_kk_rate + Bildfassung.

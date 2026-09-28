@@ -8,8 +8,8 @@
 //   GET  /chef/wa-zentrale/lage       alles für die Seite in einem Zug
 //   GET  /chef/wa-zentrale/vorschau   die nächsten Empfänger mit ihrem Text
 //   POST /chef/wa-zentrale/start      „WhatsApp starten (n)" — Gruppe, Vorlage, Anzahl
-//   POST /chef/wa-zentrale/stopp      den laufenden Versand anhalten
-//   GET  /chef/wa-zentrale/lauf       der Stand des laufenden Versands
+//   POST /chef/wa-zentrale/stopp      den laufenden Versand anhalten (wirkt auf jeder Instanz, E-253)
+//   GET  /chef/wa-zentrale/lauf       der Stand eines Versands (?id=…) — aus der Datenbank, E-253
 //   POST /chef/wa-zentrale/automatik  an/aus, Fenster, je Stunde, Gruppen, Vorlagen
 //
 // Der Takt der Automatik: alle 5 Minuten (Crons in server/routes.ts).
@@ -96,13 +96,30 @@ router.post("/chef/wa-zentrale/start", wache, async (req: ChefRequest, res: Resp
   }
 });
 
-router.post("/chef/wa-zentrale/stopp", wache, (_req: ChefRequest, res: Response) => {
-  res.json({ ok: true, angehalten: laufAbbrechen() });
+// E-253 (28.09.2026): Der Stopp-Wunsch steht in der Datenbank — trifft der Klick die neue Instanz,
+// während die alte noch sendet, hält die alte trotzdem an. `angehalten` sagt ehrlich, ob es etwas gab.
+router.post("/chef/wa-zentrale/stopp", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const r = await laufAbbrechen(wer(req));
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    console.error("[WA-ZENTRALE] Stopp:", e);
+    res.status(500).json({ ok: false, error: "Das Anhalten hat nicht geklappt. Bitte noch einmal." });
+  }
 });
 
-router.get("/chef/wa-zentrale/lauf", wache, (_req: ChefRequest, res: Response) => {
+// E-253 (28.09.2026): Bis heute las diese Route nur den Arbeitsspeicher — nach einem Deploy
+// antwortete die neue Instanz „kein Lauf", und die Seite blieb stehen. Jetzt aus der Datenbank:
+// mit ?id= genau dieser Lauf (auch fertig), ohne den offenen oder den jüngsten der letzten 12 Stunden.
+router.get("/chef/wa-zentrale/lauf", wache, async (req: ChefRequest, res: Response) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ ok: true, lauf: laufStand() });
+  try {
+    const id = typeof req.query.id === "string" && /^[A-Za-z0-9]{1,40}$/.test(req.query.id) ? req.query.id : null;
+    res.json({ ok: true, lauf: await laufStand(id) });
+  } catch (e) {
+    console.error("[WA-ZENTRALE] Laufstand:", e);
+    res.status(500).json({ ok: false, error: "Der Stand ließ sich gerade nicht lesen." });
+  }
 });
 
 router.post("/chef/wa-zentrale/automatik", wache, async (req: ChefRequest, res: Response) => {

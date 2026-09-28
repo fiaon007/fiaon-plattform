@@ -96,18 +96,231 @@ export function inkassoVerdacht(text: string): boolean {
   return INKASSO.test(String(text ?? ""));
 }
 
-/** Alles, was gegen eine Regel verstößt — leer heißt: darf raus. */
-export function sendePruefung(text: string): string[] {
+// ── E-253 (28.09.2026): EIN NAME AUS DER AKTE IST KEIN SATZ VON UNS ──────────
+// Gemessen am Lauf Lmul3u5la: „Du-Form — Kunden werden gesiezt." bei einer
+// sauberen Vorlage. Getroffen hatte die Wand den NACHNAMEN des Empfängers — er
+// endet auf „…ğdu", und \b kennt in JavaScript nur ASCII-Buchstaben (auch mit
+// u-Flag): Das „ğ" galt als Wortgrenze, die Endsilbe „du" als Wort. Ein zweiter
+// Mensch trägt die Namenspartikel „du" (wie in „du Toit") — da hilft keine
+// Wortgrenze. Deshalb zwei Dinge:
+//   · Wortgrenzen über Unicode-Buchstaben (\p{L}) statt \b, und die volle
+//     Liste der Du-Formen (deinen/deinem/deiner/deines/euer/eure fehlten —
+//     „deinen Ausweis" kam durch; Postmeister und Mara-Aktion hatten sie schon).
+//   · Die Namen des Empfängers (aus der Akte, nie vom Menschen oder der KI
+//     getippt) werden vor der Prüfung als Ganzes durch „Muster" ersetzt — für
+//     ALLE drei Wände (Inkasso-Wand, Wortwand, Du-Wand) und überall im Text,
+//     also auch in freien Texten von Mara, aus dem Raum oder einem frei
+//     getippten Platzhalter, sobald der Name darin steht. Geprüft wird alles
+//     außer diesen Namen voll. Ein Name, der nur aus Funktionswörtern besteht
+//     („von", „de", „Sie" …) oder kürzer als drei Buchstaben ist, wird nie
+//     maskiert (Nachtrag E-253, siehe namenMaskieren). Die Länge misst die Wand
+//     am echten Text.
+const NICHT_WORT_VOR = "(?<![\\p{L}\\p{N}_])";
+const NICHT_WORT_NACH = "(?![\\p{L}\\p{N}_])";
+const DU_WOERTER = "du|dich|dir|dein|deine|deinen|deinem|deiner|deines|euch|euer|eure";
+export const DU_FORM = new RegExp(`${NICHT_WORT_VOR}(${DU_WOERTER})${NICHT_WORT_NACH}`, "iu");
+const NUR_DU_WORT = new RegExp(`^(${DU_WOERTER})$`, "iu");
+// E-253 (28.09.2026, Nachtrag nach der Gegenprüfung): Funktionswörter sind keine Namen, die die Wand übersehen
+// darf. In der Produktion steht der Vorname exakt „von" (eine Person, zwei Leads) — maskiert, fiel „innerhalb
+// von 24 Stunden" nicht mehr unter die Wortwand (Frist-Regel, shared/fiaon-wortverbote.ts). Namenspartikel,
+// Artikel, Pronomen, Präpositionen und Bindewörter werden deshalb allein nie maskiert; „von Probe" als Ganzes schon.
+const FUNKTIONSWOERTER = new Set([
+  "von", "vom", "van", "der", "den", "dem", "des", "de", "di", "da", "del", "della", "do", "dos", "la", "le", "les", "lo",
+  "zu", "zum", "zur", "ter", "ten", "und", "oder", "im", "in", "am", "an", "auf", "aus", "bei", "mit", "nach", "vor", "für",
+  "ab", "bis", "ob", "als", "wie", "so", "the", "of", "and", "sie", "ihr", "ihre", "ihnen", "ihren", "ihrem", "ihrer",
+  "wir", "uns", "es", "er", "ich", "das", "die", "ein", "eine", "einen", "einem", "einer", "ist", "sind", "hat", "nicht",
+  "kein", "keine", "noch", "nur", "auch",
+]);
+/** Taugt `n` als Name für die Maske? Mindestens drei Buchstaben und nicht nur Funktions- oder Du-Wörter. */
+const KEIN_BUCHSTABE = new RegExp("[^\\p{L}]", "gu");
+function maskierbarerName(n: string): boolean {
+  if (n.length > 200 || n.replace(KEIN_BUCHSTABE, "").length < 3) return false;
+  return !n.toLowerCase().split(" ").every((w) => FUNKTIONSWOERTER.has(w) || NUR_DU_WORT.test(w));
+}
+
+/**
+ * Die bekannten Namen des Empfängers als Ganzes durch „Muster" ersetzen — den
+ * vollen Vornamen, den vollen Nachnamen und beide zusammen, ohne Rücksicht auf
+ * Groß-/Kleinschreibung und Leerzeichen (schoenerName schreibt um). NIE
+ * einzelne Namensteile: Die Partikel „du" aus „du Toit" würde sonst auch ein
+ * echtes „du" im Text verstecken. Aus demselben Grund bleibt ein Name, der nur
+ * aus einer Du-Form oder aus Funktionswörtern besteht („Du", „von", „de la"),
+ * oder der kürzer als drei Buchstaben ist, unmaskiert (maskierbarerName).
+ */
+export function namenMaskieren(text: string, namen: readonly (string | null | undefined)[] = []): string {
+  const teile = Array.from(new Set(namen
+    .map((n) => String(n ?? "").replace(/\s+/g, " ").trim())
+    .filter(maskierbarerName)))
+    .sort((a, b) => b.length - a.length);
+  let aus = String(text ?? "");
+  for (const n of teile) {
+    const muster = n.split(" ").map((w) => w.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("\\s+");
+    aus = aus.replace(new RegExp(`${NICHT_WORT_VOR}${muster}${NICHT_WORT_NACH}`, "giu"), "Muster");
+  }
+  return aus;
+}
+
+/**
+ * Alles, was gegen eine Regel verstößt — leer heißt: darf raus.
+ * `namen`: die Namen des Empfängers aus der Akte (E-253, empfaengerNamen) — sie
+ * zählen für keine der drei Wände als unser Text (Inkasso, Wortwand, Du-Form),
+ * wo immer sie im Text stehen; alles andere prüft die Wand voll.
+ */
+export function sendePruefung(text: string, opts: { namen?: readonly (string | null | undefined)[] } = {}): string[] {
   const funde: string[] = [];
-  if (inkassoVerdacht(text)) funde.push("Klingt nach Mahnung oder Forderung — WhatsApp verbietet das (Mail, Telefon oder Brief nehmen).");
-  for (const w of wandPruefen(text).filter((x) => x.art === "verboten")) funde.push(`Verbotenes Wort: ${w.treffer}`);
+  const t = opts.namen?.length ? namenMaskieren(text, opts.namen) : String(text ?? "");
+  if (inkassoVerdacht(t)) funde.push("Klingt nach Mahnung oder Forderung — WhatsApp verbietet das (Mail, Telefon oder Brief nehmen).");
+  for (const w of wandPruefen(t).filter((x) => x.art === "verboten")) funde.push(`Verbotenes Wort: ${w.treffer}`);
   // E-230: Die Du-Prüfung nur für deutsche Texte — das französische „du"
   // („du soutien") hielt eine korrekte Antwort in der Sprache des Kunden zurück.
-  const fremd = /\b(vous|votre|nous|merci|bonjour|pour|avec|les|une|est|soutien)\b/i.test(text)
-    && !/\b(Sie|Ihr|Ihre|Ihnen|und|nicht|ist|wir|ich|der|das|mit|kannst|bist|hast)\b/.test(text);
-  if (!fremd && /\b(du|dich|dir|dein|deine|euch)\b/i.test(text)) funde.push("Du-Form — Kunden werden gesiezt.");
-  if (text.trim().length > 1024) funde.push("Länger als 1.024 Zeichen.");
+  const fremd = /\b(vous|votre|nous|merci|bonjour|pour|avec|les|une|est|soutien)\b/i.test(t)
+    && !/\b(Sie|Ihr|Ihre|Ihnen|und|nicht|ist|wir|ich|der|das|mit|kannst|bist|hast)\b/.test(t);
+  if (!fremd && DU_FORM.test(t)) funde.push("Du-Form — Kunden werden gesiezt.");
+  // Die Länge am echten Text: Meta misst den gefüllten Text, nicht unsere Maske.
+  if (String(text ?? "").trim().length > 1024) funde.push("Länger als 1.024 Zeichen.");
   return funde;
+}
+
+/**
+ * Die Wand für eine VORLAGE (E-253, aus waSenden herausgezogen, damit der
+ * Prüfstand sie ohne Meta prüfen kann): Platzhalter mit den echten Werten
+ * gefüllt (fehlt einer: „Maria Muster"), dann sendePruefung mit den Namen des
+ * Empfängers; die Inkasso-Wand fällt nur für ausdrücklich erlaubte Vorlagen weg.
+ */
+export function vorlageWandFunde(
+  text: string, werte: readonly string[] | undefined,
+  opts: { namen?: readonly (string | null | undefined)[]; inkassoOk?: boolean } = {},
+): string[] {
+  const gefuellt = String(text ?? "").replace(/\{\{(\d+)\}\}/g, (_m, n) => werte?.[Number(n) - 1] ?? "Maria Muster");
+  return sendePruefung(gefuellt, { namen: opts.namen })
+    .filter((f) => !(opts.inkassoOk && /Mahnung oder Forderung/.test(f)));
+}
+
+/**
+ * Die Namen des Empfängers aus der Akte (E-253): Vor- und Nachname der Person
+ * (und ihres Kopfes) sowie des Leads — getrennt UND zusammen, so wie sie in
+ * einer Anrede stehen können. Nur lesend; bei einer Störung leer (dann prüft
+ * die Wand wie bisher, also eher zu streng als zu lax).
+ */
+export async function empfaengerNamen(
+  zusatz: { personId?: number | null; leadId?: number | null } = {},
+  lauf: Lauf = sqlPool,
+): Promise<string[]> {
+  const personId = zusatz.personId && Number(zusatz.personId) > 0 ? Number(zusatz.personId) : null;
+  const leadId = zusatz.leadId && Number(zusatz.leadId) > 0 ? Number(zusatz.leadId) : null;
+  if (!personId && !leadId) return [];
+  try {
+    const zeilen = (await lauf`
+      SELECT p.first_name AS vorname, p.last_name AS nachname FROM fiaon_persons p
+       WHERE p.id = ${personId} OR p.id = (SELECT merged_into_person_id FROM fiaon_persons WHERE id = ${personId})
+      UNION ALL
+      SELECT l.vorname, l.nachname FROM fiaon_leads l
+       WHERE l.id = ${leadId} OR (${personId}::int IS NOT NULL AND l.person_id = ${personId})
+       LIMIT 20`) as any[];
+    const aus: string[] = [];
+    for (const z of zeilen) {
+      const v = String(z.vorname ?? "").trim();
+      const n = String(z.nachname ?? "").trim();
+      if (v) aus.push(v);
+      if (n) aus.push(n);
+      if (v && n) aus.push(`${v} ${n}`);
+    }
+    return Array.from(new Set(aus));
+  } catch (e) {
+    console.error("[WHATSAPP] Empfängernamen:", String((e as Error)?.message || e).slice(0, 160));
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EIN PLATZ JE MENSCH UND TAG (28.09.2026, E-253 — Nachtrag nach der Gegenprüfung)
+//
+// „Höchstens EINE Nachricht je Person und Tag, egal von wem" prüfte bisher
+// jeder Weg für sich — VOR dem Senden, gegen das, was schon in fiaon_whatsapp
+// stand. Zwei Wege in derselben Sekunde sahen beide nichts: Am 24.09. bekam ein
+// Mensch fiaon_kk_anfrage zweimal, 66 ms auseinander (Automatik der Zentrale
+// und Begrüßung neuer Leads). Genauso konnte der Verkaufstakt den nächsten
+// Menschen eines laufenden 25er-Happens der Zentrale anschreiben — der Lauf
+// hatte ihn Sekunden vorher geprüft und schrieb ihn trotzdem an.
+//
+// Jetzt nimmt jeder Weg, der UNAUFGEFORDERT eine Vorlage schickt (Zentrale:
+// Lauf, Automatik, Verkaufstakt; Lead-Begrüßung; Lead-Kette), direkt vor Meta
+// den Tagesplatz des Menschen: je eine Zeile für die Person und die Nummer mit
+// eindeutigem Schlüssel (Tag in Berlin) — genau ein Weg bekommt sie, wer leer
+// ausgeht, sendet nicht. Dazu der Blick in fiaon_whatsapp: Hat ein anderer Weg
+// (Mara, Raum, Akte) heute schon geschrieben, bleibt es bei dieser einen
+// Nachricht. Antworten im offenen Fenster brauchen keinen Platz. Bei einer
+// Störung: kein Platz — lieber keine Nachricht als zwei.
+// ═══════════════════════════════════════════════════════════════════════════
+let tagesplatzBereit: Promise<void> | null = null;
+let tagesplatzGeraeumt = "";
+function tagesplatzTabelle(lauf: Lauf): Promise<void> {
+  if (!tagesplatzBereit) {
+    tagesplatzBereit = (async () => {
+      await lauf`
+        CREATE TABLE IF NOT EXISTS fiaon_wa_tagesplatz (
+          schluessel TEXT NOT NULL,
+          tag DATE NOT NULL,
+          weg TEXT NOT NULL,
+          person_id INTEGER,
+          am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (schluessel, tag)
+        )`;
+    })().catch((e) => {
+      const code = String((e as any)?.code ?? "");
+      if (code === "23505" || code === "42P07") return;
+      tagesplatzBereit = null;
+      throw e;
+    });
+  }
+  return tagesplatzBereit;
+}
+
+/** Die Grund-Zeile, wenn ein anderer Weg heute schneller war (Prüfstand und Laufkarte erkennen sie). */
+export const TAGESPLATZ_BELEGT = "Heute schon eine WhatsApp auf einem anderen Weg — keine zweite am selben Tag.";
+
+/**
+ * Den Tagesplatz des Menschen nehmen — DIREKT vor dem Senden einer Vorlage, die
+ * er nicht angefordert hat. `ok: false` = heute bekommt er schon etwas (anderer
+ * Weg) oder die Prüfung ist gestört; dann nicht senden. Ein genommener Platz
+ * bleibt für den Tag, auch wenn die Sendung danach an einer Wand scheitert —
+ * wie „höchstens ein Versuch je Person und Tag" in der BASIS der Zentrale.
+ */
+export async function waTagesplatz(
+  ein: { personId?: number | null; nummer?: string | null; weg: string },
+  lauf: Lauf = sqlPool,
+): Promise<{ ok: true } | { ok: false; grund: string }> {
+  const personId = ein.personId && Number(ein.personId) > 0 ? Number(ein.personId) : null;
+  const nummer = waKanonisch(ein.nummer ?? null);
+  const schluessel = [...(personId ? [`p:${personId}`] : []), ...(nummer ? [`n:${nummer}`] : [])];
+  if (!schluessel.length) return { ok: false, grund: "Kein Mensch und keine Nummer für den Tagesplatz." };
+  try {
+    await tagesplatzTabelle(lauf);
+    const genommen = (await lauf`
+      INSERT INTO fiaon_wa_tagesplatz (schluessel, tag, weg, person_id)
+      SELECT s, (NOW() AT TIME ZONE 'Europe/Berlin')::date, ${String(ein.weg).slice(0, 60)}, ${personId}::int
+        FROM unnest(${schluessel}::text[]) AS s
+      ON CONFLICT (schluessel, tag) DO NOTHING
+      RETURNING schluessel`) as any[];
+    if (genommen.length < schluessel.length) return { ok: false, grund: TAGESPLATZ_BELEGT };
+    const [schon] = (await lauf`
+      SELECT 1 AS x FROM fiaon_whatsapp w
+       WHERE w.richtung = 'raus' AND COALESCE(w.status, '') <> 'fehler'
+         AND (w.created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+         AND (w.person_id = ${personId}::int OR w.nummer = ${nummer ?? ""})
+       LIMIT 1`) as any[];
+    if (schon) return { ok: false, grund: TAGESPLATZ_BELEGT };
+    // Alte Plätze einmal am Tag abräumen — nur diese eigene Tabelle, eine Woche Rückblick bleibt.
+    const heute = new Date().toISOString().slice(0, 10);
+    if (tagesplatzGeraeumt !== heute) {
+      tagesplatzGeraeumt = heute;
+      await lauf`DELETE FROM fiaon_wa_tagesplatz WHERE tag < (NOW() AT TIME ZONE 'Europe/Berlin')::date - 7`.catch(() => {});
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("[WHATSAPP] Tagesplatz:", String((e as Error)?.message || e).slice(0, 160));
+    return { ok: false, grund: "Tagesplatz nicht prüfbar — lieber keine Nachricht als zwei." };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -536,6 +749,12 @@ export async function waAktenvermerk(personId: number | null | undefined, text: 
 //   · Der Mensch ist die Person des Aufrufs, sonst die des Leads, sonst die
 //     der Nummer (wemGehoert); mit allen zusammengeführten Personen — die
 //     Werbesperre wandert beim Zusammenführen nicht mit.
+//   · E-253 (28.09.2026): Die Vertriebssperre zählt NUR an der führenden
+//     Person (menschSperre, fiaon-mail-frequenz.ts). Bis heute las diese Tür
+//     is_blocked über die ganze Familie — und jede zusammengeführte Dublette
+//     trägt is_blocked = TRUE als Wegweiser-Marke (fiaon-person-merge.ts). So
+//     wurden 46 Vorlagen an 26 Menschen „wegen Vertriebssperre" übersprungen,
+//     von denen keiner gesperrt war; 376 Menschen standen dahinter.
 //   · Testkonten bleiben erreichbar: An ihnen prüft Justin die Vorlagen.
 // Bei einer Störung der Prüfung geht die Vorlage NICHT raus — Werbung darf
 // warten, ein gebrochenes „Stopp" nicht.
@@ -546,7 +765,7 @@ export async function waVorlagenSperre(
   zusatz: { personId?: number | null; leadId?: number | null } = {},
   lauf: Lauf = sqlPool,
 ): Promise<string | null> {
-  const { waVorlageWerblich, personSperren, werbungVerboten } = await import("./fiaon-mail-frequenz");
+  const { waVorlageWerblich, menschSperre, werbungVerboten } = await import("./fiaon-mail-frequenz");
   if (!waVorlageWerblich(vorlage)) return null;
   try {
     let personId = zusatz.personId && Number(zusatz.personId) > 0 ? Number(zusatz.personId) : null;
@@ -556,17 +775,10 @@ export async function waVorlagenSperre(
     }
     if (!personId) personId = (await wemGehoert(nummer, lauf)).personId;
     if (!personId) return null; // Unbekannter Mensch: Es gibt keine Sperre, die wir kennen könnten.
-    const familie = (await lauf`
-      SELECT q.id FROM fiaon_persons p
-        JOIN fiaon_persons q
-          ON q.id = COALESCE(p.merged_into_person_id, p.id)
-          OR q.merged_into_person_id = COALESCE(p.merged_into_person_id, p.id)
-       WHERE p.id = ${personId}`) as any[];
-    const ids = Array.from(new Set([personId, ...familie.map((f) => Number(f.id))]));
-    for (const s of await personSperren(ids)) {
-      const grund = werbungVerboten({ ...s, test: false });
-      if (grund) return `${grund}: Keine werbliche WhatsApp-Vorlage („${vorlage}“) an diesen Menschen. Schreibt er selbst, geht eine Antwort im offenen 24-Stunden-Fenster.`;
-    }
+    // E-253: EINE Lesart — Kopf über Ketten, Vertriebssperre nur dort, Werbesperre/Kündigung über die Familie.
+    const s = await menschSperre(personId, lauf);
+    const grund = werbungVerboten(s ? { ...s, test: false } : null);
+    if (grund) return `${grund}: Keine werbliche WhatsApp-Vorlage („${vorlage}“) an diesen Menschen. Schreibt er selbst, geht eine Antwort im offenen 24-Stunden-Fenster.`;
     return null;
   } catch (e) {
     console.error("[WHATSAPP] Sperrprüfung:", String((e as Error)?.message || e).slice(0, 200));
@@ -614,8 +826,14 @@ export async function waSenden(
   // Haken, den ein Mensch gesetzt hat. Nie pauschal.
   const inkassoOk = !!inhalt.vorlage
     && ((INKASSO_AUSNAHME as readonly string[]).includes(inhalt.vorlage) || (gewaehlt as any)?.inkassoErlaubt === true);
-  const funde = sendePruefung(probe.replace(/\{\{\d\}\}/g, (m) => inhalt.werte?.[Number(m[2]) - 1] ?? "Maria Muster"))
-    .filter((f) => !(inkassoOk && /Mahnung oder Forderung/.test(f)));
+  // E-253 (28.09.2026): Die Namen des Empfängers aus der Akte zählen für keine der drei Wände
+  // (Inkasso, Wortwand, Du-Form) als unser Text — ein Nachname auf „…ğdu" oder mit der Partikel
+  // „du" ist keine Du-Form. Das gilt überall im gefüllten Text, auch in frei getippten Platzhaltern
+  // und Freitext, wenn der Name darin steht; alles außer diesen Namen prüft die Wand voll.
+  // Funktionswörter („von", „de" …) und Namen unter drei Buchstaben werden nie maskiert.
+  const namenVon = zusatz.personId || zusatz.leadId ? zusatz : await wemGehoert(nummer, lauf).catch(() => ({ personId: null, leadId: null }));
+  const namen = await empfaengerNamen({ personId: namenVon.personId, leadId: namenVon.leadId }, lauf);
+  const funde = vorlageWandFunde(probe, inhalt.werte, { namen, inkassoOk });
   if (funde.length) return { ok: false, grund: funde.join(" · ") };
 
   const offen = await fensterOffen(nummer, lauf);

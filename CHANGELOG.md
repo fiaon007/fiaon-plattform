@@ -5,6 +5,86 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.09.2026 — WhatsApp-Zentrale: keine falsche „Vertriebssperre" mehr, Versand übersteht Neustarts, Du-Form-Fehlalarm weg (E-253)
+
+**Der Anlass:** Justin (28.09., Screenshot /chef/s/mara → WhatsApp): „Das steht seit 5 Minuten. Warum? Warum steht da,
+dass wir nicht schreiben dürfen? JEDER LEAD IM SYSTEM HAT UNS SEINE ZUSTIMMUNG GEGEBEN." Dazu: „Das muss besser aussehen."
+
+**Was falsch war (gemessen, nur lesend):**
+- **„Vertriebssperre" ohne Sperre.** 46 Vorlagen an 26 Menschen wurden seit dem 26.09. „wegen Vertriebssperre"
+  übersprungen — keiner davon war gesperrt. Gesperrt war nur eine zusammengeführte Doppel-Akte: Das Zusammenführen
+  setzt an der Dublette immer „gesperrt" als Wegweiser-Marke und trägt eine echte Sperre in die führende Akte. Die
+  WhatsApp-Tür und die Lead-Strecke lasen die Sperre über die ganze Familie und hielten die Marke für ein „kein
+  Interesse". Betroffen waren 391 Menschen mit Telefon (davon heute in den Gruppen: 84 Abbrecher, 110 „Auskunft fehlt").
+  Mit Einwilligung hat die Sperre nichts zu tun — sie heißt „kein Interesse / nicht mehr anrufen".
+  Sicherheitsprüfung: Keine echte Sperre ist beim Zusammenführen verloren gegangen (Wächter, drei Zähler, alle 0).
+- **Stehende Anzeige.** Der Versand lebte nur im Arbeitsspeicher des Servers. Beim Deploy um 12:29 antwortete der neue
+  Server „kein Versand", und die Seite blieb auf „34 gesendet · 4 übersprungen · von 50" stehen. Gesendet hat der alte
+  Server trotzdem alle 50 (44 gesendet, 6 übersprungen). Ein längerer Versand wäre beim Neustart ohne Spur abgerissen,
+  und „Anhalten" meldete „hält an", ohne etwas anzuhalten.
+- **„Du-Form" bei einer sauberen Vorlage.** Getroffen hatte die Wand den Nachnamen des Empfängers (endet auf „…ğdu";
+  bei einem zweiten Menschen die Namenspartikel „du" wie in „du Toit").
+- **Gefunden in der Gegenprüfung vor dem Deploy:** Wer als Antwort auf eine Mail „Stopp" geschrieben hatte (der
+  Postmeister markiert das), war für die WhatsApp-Zentrale und die WhatsApp-Tür unsichtbar — 9 dieser Menschen schützte
+  bis heute nur zufällig die Marke einer Doppel-Akte, 68 standen ganz ohne Schutz da (drei bekamen danach schon eine
+  werbliche Vorlage). Ein WhatsApp-„STOPP", das an einer Doppel-Akte hängt, sah nur die Auskunft-Tür. Und zwei Wege
+  konnten denselben Menschen in derselben Sekunde anschreiben (gemessen am 24.09.: dieselbe Begrüßung zweimal, 66 ms
+  auseinander).
+
+**Was jetzt gilt:**
+- **Eine Lesart der Sperren für alle Wege** (`menschSperre`): Vertriebssperre nur an der führenden Person (Ketten von
+  Doppel-Akten werden bis zum Ende verfolgt), Werbesperre, Testkonto, Kündigung/Vertragsende und „STOPP" über die ganze
+  Familie. Gilt in der WhatsApp-Tür, der Lead-Strecke, der Auskunft-Tür (`immerSperre`), bei Maras Antworten und in
+  der Mara-Aktion. Die Gruppen der Zentrale zählen nach derselben Regel — wer gezählt wird, wird nicht übersprungen.
+- **„Stopp" gilt überall und für den ganzen Menschen:** „STOPP"/„Keine Nachrichten mehr" auf WhatsApp UND das Stopp aus
+  dem Postfach, an jeder Person der Familie — in den Gruppen der Zentrale, an der WhatsApp-Tür, in der Lead-Kette und
+  in der Auskunft-Tür. Rechnungs- und Ratenvorlagen (Vertragspost) sperrt die Tür dabei nicht.
+- **Höchstens eine WhatsApp je Mensch und Tag — über alle Wege:** Wer unaufgefordert eine Vorlage schickt (Versand von
+  Hand, Automatik, Verkaufstakt, Begrüßung neuer Leads, Lead-Kette), nimmt direkt davor den „Tagesplatz" des Menschen;
+  genau einer bekommt ihn, der andere lässt ihn aus und sagt warum. Der Verkaufstakt wartet, solange ein Versand von
+  Hand läuft, und die Automatik fragt vor jeder Nachricht danach.
+- **Der Versand steht in der Datenbank** (`fiaon_wa_lauf`): Jeder Server zeigt denselben Stand, „Anhalten" wirkt immer
+  (und sagt ehrlich, wenn nichts läuft). Beim Neustart sendet der alte Server die laufende Nachricht zu Ende und übergibt;
+  der neue setzt nach spätestens einer Minute fort — durch den Neustart bekommt niemand eine zweite Nachricht. Stirbt
+  ein Server ohne Abschied, übernimmt der nächste nach drei Minuten ohne Lebenszeichen; einen Versand, den derselbe
+  Server noch trägt, übernimmt er nie (sonst fiel bei einer langen Meta-Störung ein Mensch ohne Spur aus dem Plan).
+  Wer seit dem Start geantwortet, bezahlt oder schon etwas bekommen hat, „entfällt".
+- **Bis zu 500 je Versand** statt 200, nie mehr, als Meta heute noch erlaubt; Schnellwahl 25 · 50 · 100 · 250 · alle.
+- **Neue Laufkarte:** fünf Zustände (läuft · kurz unterbrochen · fertig · angehalten · Tageswechsel), die eine Zahl groß
+  (gesendet von geplant), Restzeit, Balken mit gesendet/übersprungen/entfallen, jeder Grund mit Anzahl. Die Seite friert
+  nie mehr ein. „Wartet auf Meta" steht nur bis etwa eine Minute ohne Lebenszeichen; danach sagt die Karte ehrlich,
+  dass der Server schweigt und wann ein neuer übernimmt.
+- **Namen aus der Akte sind kein Text von uns:** Vor- und Nachname des Empfängers zählen für alle drei Wände nicht
+  (Du-Form, Mahnung/Forderung, verbotene Wörter) — überall, wo der Name im Text steht, auch in freien Texten von Mara
+  oder aus dem WhatsApp-Raum. Alles andere prüfen die Wände voll. Nie ausgenommen werden Namen unter drei Buchstaben
+  und Namen, die nur aus Wörtern wie „von", „de" oder „Sie" bestehen (sonst hätte der Vorname „von" die Regel
+  „keine Frist wie ‚innerhalb von 24 Stunden'" ausgehebelt).
+- **Du-Wand:** Wortgrenzen kennen jetzt ä, ğ, é …; „deinen", „deinem", „deiner", „deines", „euer", „eure" werden neu
+  erkannt.
+- Beim Deploy-Signal (SIGTERM) beendet sich der Server geordnet und schreibt „[HERUNTERFAHREN]" ins Log.
+- Der neue Minutentakt, der unterbrochene Versände fortsetzt, schreibt nur dann eine Zeile in die Lauf-Historie, wenn er
+  wirklich etwas übernommen hat (sonst 1.440 Zeilen am Tag für „nichts zu tun").
+- Berichtigung: Der Eintrag „WhatsApp-Zentrale liest Metas Stufe live …" ist E-250, nicht E-249.
+
+**Geprüft:** neuer Prüfstand `scripts/pruef-wa-sperre-lauf.ts` (128 Prüfungen: Sperre über Dubletten, Ketten,
+Geschwister und einen echten, zurückgerollten Merge; Stopp aus Postfach und WhatsApp an Kopf und Dublette; Lead-Strecke;
+SQL = JavaScript bei Kündigung; Du-Form und Funktionswort-Namen; Gruppe = Tür; Lauf normal, nach „Neustart", Übernahme
+ohne Doppelversand, keine Selbstübernahme, SIGTERM, Anhalten, Tageswechsel, „entfallen"; Tagesplatz gleichzeitig und
+mitten im Happen; stiller Takt; Quelltext-Wand). Dazu pruef-lead-motor, pruef-mara-verkauf, pruef-mara-mail,
+pruef-mara-wiedergabe, pruef-auskunft-erinnerung, Sperre-alle-Wege, E-240/E-241-Prüfstände. Gegen die Produktion nur
+lesend: die 9 Menschen mit Postfach-Stopp stehen in keiner Gruppe mehr (Abbrecher 325 → 323), BASIS und Gruppen gleich
+schnell (≈ 0,1–0,2 s), Du-Fehlalarm 4 → 0. Umgesetzt auf dem Live-Stand mit E-248 (Maras neue Wege lesen den Menschen
+ebenso: menschSperre).
+
+**Wo:** /chef/s/mara → WhatsApp. Code: `server/lib/fiaon-mail-frequenz.ts` (menschSperre, KOPF_SQL, FAMILIE_SQL,
+VERTRIEBSSPERRE_SQL, WERBESPERRE_FAMILIE_SQL, STOPP_KOEPFE_SQL, OHNE_VERTRAG_SQL), `server/lib/fiaon-whatsapp.ts`
+(waVorlagenSperre, sendePruefung, namenMaskieren, vorlageWandFunde, empfaengerNamen, waTagesplatz — Tabelle
+fiaon_wa_tagesplatz), `server/lib/fiaon-wa-zentrale.ts` (BASIS, fiaon_wa_lauf, laufStarten/laufArbeiten/laufFortsetzen/
+laufUebergeben, waLaufOffen), `server/lib/fiaon-lead-strecke.ts`, `server/lib/fiaon-lead-whatsapp.ts` (Begrüßung und
+Kette mit Tagesplatz), `server/lib/fiaon-auskunft-verkauf.ts` (immerSperre, Verkaufstakt wartet), `server/lib/fiaon-crons.ts`
+(stillerLauf), `server/index.ts` (SIGTERM), `server/routes.ts` (Takt wa_zentrale_fortsetzen),
+`client/src/components/admin/ChefWhatsAppZentrale.tsx`, Rundgang `rundgaenge.ts`.
+
 ## 28.09.2026 — Mara spricht wie ein Mensch und verkauft: persönlicher Link, Schweigen bei Autoantworten, neuer WhatsApp-Raum (E-248)
 
 **Der Anlass:** Justin (28.09.): „Mara soll 100 % menschlich und verkaufsfördernd reden. Wenn jemand wegen Krediten
@@ -71,7 +151,7 @@ keine Verlangsamung; mit auf 7 Tage geweitetem Fenster stehen die frischen Antr�
 RUECKRUF_JETZT_SQL, HITZE_ORDNUNG, hitzeVon), `client/src/pages/agent/pipeline.tsx`, Rundgang `rundgaenge.ts`,
 Update-Protokoll `updates-data.ts`.
 
-## 28.09.2026 — WhatsApp-Zentrale liest Metas Stufe 2.000 live, leere Gruppen sagen warum (E-249)
+## 28.09.2026 — WhatsApp-Zentrale liest Metas Stufe 2.000 live, leere Gruppen sagen warum (E-250)
 
 **Der Anlass:** Justin (28.09.): „Warum steht da 0? … Wir haben 2.000 bei Meta, warum synchronisiert das nicht live?"
 

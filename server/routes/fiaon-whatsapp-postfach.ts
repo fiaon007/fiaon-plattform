@@ -24,7 +24,7 @@ import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import {
-  waTabellen, waSenden, waVerlauf, waZahlen, waKonfig, sendePruefung, vorlagenStand, fensterOffen,
+  waTabellen, waSenden, waVerlauf, waZahlen, waKonfig, sendePruefung, vorlagenStand, fensterOffen, empfaengerNamen,
 } from "../lib/fiaon-whatsapp";
 import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
 import { istAutoantwort, stufeAusAntrag, persoenlicherLink, type LinkStufe } from "../../shared/fiaon-mara-ton";
@@ -549,12 +549,17 @@ function routen(hole: (req: any) => Blick) {
       if (text.length > WA_TEXT_GRENZE) {
         return res.status(400).json({ ok: false, error: `Die Nachricht ist ${text.length} Zeichen lang — WhatsApp nimmt höchstens ${WA_TEXT_GRENZE}. Bitte kürzen oder teilen.` });
       }
+
+      const [w] = (await sqlPool`SELECT person_id, lead_id FROM fiaon_whatsapp WHERE nummer = ${nummer} ORDER BY id DESC LIMIT 1`) as any[];
       if (text) {
-        const funde = sendePruefung(text);
+        // E-253 (28.09.2026): Der Name des Kunden aus der Akte zählt für keine der drei Wände (Inkasso,
+        // Wortwand, Du-Form) — Partikel „du", „…ğdu". Alles andere, was der Mensch im Raum schreibt, prüft
+        // die Wand voll; Funktionswörter („von" …) und Namen unter drei Buchstaben werden nie maskiert.
+        const namen = await empfaengerNamen({ personId: w?.person_id ?? null, leadId: w?.lead_id ?? null });
+        const funde = sendePruefung(text, { namen });
         if (funde.length) return res.status(422).json({ ok: false, error: funde.join(" · ") });
       }
 
-      const [w] = (await sqlPool`SELECT person_id, lead_id FROM fiaon_whatsapp WHERE nummer = ${nummer} ORDER BY id DESC LIMIT 1`) as any[];
       const erg = await waSenden(
         nummer,
         vorlage ? { vorlage, werte: Array.isArray(req.body?.werte) ? req.body.werte.map(String) : undefined, knopfWert: req.body?.knopfWert ? String(req.body.knopfWert) : undefined } : { text },

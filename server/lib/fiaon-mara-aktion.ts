@@ -50,7 +50,7 @@ import { anredeBestimmen, antwortBauen, grussMitAgent } from "./fiaon-postmeiste
 import { postfachGruss } from "./fiaon-postmeister-postfaecher";
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { absoluteUrl } from "../fiaon-base-url";
-import { personSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
+import { menschSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
 // E-248: Maras Stimme aus EINER Quelle — dieselbe Persona wie im Postfach und auf WhatsApp.
 import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE } from "@shared/fiaon-mara-ton";
 
@@ -556,7 +556,8 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
       // Vertriebssperre, Test) und die ADRESSE (eine Werbesperre an einer zweiten
       // Person oder im Lead-Formular mit derselben Adresse). Die Kündigung prüft
       // die Schlange (mit Zeitpunkt: wer danach neu beantragt, bleibt drin).
-      const ps = await personSperre(k.personId).catch(() => null);
+      // E-253 (28.09.2026): der MENSCH (menschSperre) — Werbesperre auch an einer Dublette, Vertriebssperre nur am Kopf.
+      const ps = await menschSperre(k.personId).catch(() => null);
       const sperre = (ps ? werbungVerboten({ ...ps, gekuendigt: false, vertragVorbei: false }) : null)
         ?? ((await werbesperreAnAdresse(k.email).catch(() => false)) ? "Werbesperre an dieser Adresse" : null);
       if (sperre) {

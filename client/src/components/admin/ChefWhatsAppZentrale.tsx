@@ -13,6 +13,9 @@
 //     dem Ergebnis der Nachprüfung — „Ich muss sehen, was Mara gemacht hat und
 //     ob das alles stimmt und passt."
 //   · Verlauf: jede Nachricht mit Zustellung und Antwort.
+//   · E-253 (28.09.2026): Die Laufkarte liest den Stand aus der Datenbank und
+//     friert nie mehr ein — fünf Zustände (läuft, kurz unterbrochen durch einen
+//     Neustart, fertig, angehalten, Tageswechsel), bis zu 500 je Versand.
 // Die Regeln stehen in server/lib/fiaon-wa-zentrale.ts und
 // server/lib/fiaon-mara-termin.ts — hier wird nur gezeigt und ausgelöst.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -23,7 +26,7 @@ import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-wa-zentrale.css";
 
-type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen";
+type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
 interface GruppeInfo {
   schluessel: Gruppe; titel: string; satz: string; vorlagen: string[]; standard: string; abstandTage: number; anzahl: number; mitEinwilligung?: number;
   wartend?: number; wiederAb?: string | null; letzterLead?: string | null;
@@ -33,9 +36,13 @@ interface Automatik {
   an: boolean; von: string; bis: string; jeStunde: number; gruppen: Gruppe[]; vorlagen: Partial<Record<Gruppe, string>>;
   geaendertVon?: string | null; geaendertAm?: string | null; dieseStunde: number;
 }
+/** E-253: der Stand eines Versands aus der Datenbank (fiaon_wa_lauf + fiaon_wa_aktion). */
+type LaufZustand = "laeuft" | "unterbrochen" | "fertig" | "angehalten" | "verfallen";
 interface Lauf {
-  id: string; laeuft: boolean; quelle: string; gruppe: Gruppe; vorlage: string; gesamt: number; gesendet: number;
-  uebersprungen: number; fehler: number; gruende: Record<string, number>; seit: string; bis: string | null; abgebrochen: boolean;
+  id: string; laeuft: boolean; zustand?: LaufZustand; quelle: string; gruppe: Gruppe; vorlage: string; gesamt: number; erledigt?: number;
+  gesendet: number; uebersprungen: number; fehler: number; entfallen?: number; gruende: Record<string, number>;
+  seit: string; bis: string | null; abgebrochen: boolean; anhaltenAm?: string | null; fortsetzungen?: number;
+  unterbrochenAm?: string | null; schluss?: string | null; herzschlagS?: number; restS?: number;
 }
 interface Eintrag {
   id: number; personId: number | null; name: string; gruppe: Gruppe; vorlage: string; quelle: string; ok: boolean; grund: string | null;
@@ -54,12 +61,16 @@ interface Lage {
   heute: { gesendet: number; nicht: number; automatik: number; hand: number; vorlagenGesamt: number; maraAntworten: number; rein: number; menschenRein: number; fehler: number };
   wirkung7: { menschen: number; geantwortet: number; antrag: number; gezahlt: number; gezahltCents?: number };
   lauf: Lauf | null;
+  /** E-253: höchstens so viele je Versand (Server, LAUF_HOECHSTENS) */
+  laufHoechstens?: number;
+  laufSekundenJePerson?: number;
   letzte: Eintrag[];
 }
 interface VorschauZeile { personId: number; name: string; tage: number; vorlage: string; letzteVorlageAm: string | null; betrag: string | null; referenz: string | null; faelligAm?: string | null; text: string | null; hinderung: string | null }
 
 const GRUPPEN_KURZ: Record<Gruppe, string> = {
   neu: "Neue Leads", zahlung_offen: "Zahlung offen", abbrecher: "Abgebrochen", ohne_antrag: "Ohne Antrag", rate_offen: "Monatsrate",
+  auskunft_fehlt: "Auskunft fehlt",
 };
 const QUALITAET: Record<string, { text: string; art: "gut" | "warn" | "rot" }> = {
   GREEN: { text: "Qualität grün", art: "gut" }, YELLOW: { text: "Qualität gelb", art: "warn" }, RED: { text: "Qualität rot", art: "rot" },
@@ -67,7 +78,7 @@ const QUALITAET: Record<string, { text: string; art: "gut" | "warn" | "rot" }> =
 const ZUSTELLUNG: Record<string, string> = { gesendet: "gesendet", sent: "gesendet", delivered: "zugestellt", read: "gelesen", failed: "Fehler", fehler: "Fehler", offen: "unterwegs" };
 const zeit = (s: string) => new Date(s).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-/** E-249: „heute 14:48", „morgen 09:10" oder „Mi 30.09., 12:00" — Berliner Zeit. */
+/** E-250: „heute 14:48", „morgen 09:10" oder „Mi 30.09., 12:00" — Berliner Zeit. */
 function wannWieder(iso: string): string {
   const d = new Date(iso);
   const tag = (x: Date) => x.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" });
@@ -78,7 +89,7 @@ function wannWieder(iso: string): string {
   return `${d.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" })}, ${uhr}`;
 }
 
-/** E-249: Warum eine Gruppe gerade leer ist — statt einer nackten Null. */
+/** E-250: Warum eine Gruppe gerade leer ist — statt einer nackten Null. */
 function leerGrund(gr: GruppeInfo): string | null {
   if (gr.anzahl > 0) return null;
   if (gr.schluessel === "neu") {
@@ -356,6 +367,143 @@ function Blase({ v, text }: { v: Vorlage | undefined; text: string }) {
   );
 }
 
+/** „14 Sek.", „3 Min.", „1 Std. 5 Min." — für Restzeit und Dauer eines Versands. */
+function dauerText(sekunden: number): string {
+  const s = Math.max(0, Math.round(sekunden));
+  if (s < 60) return `${Math.max(1, s)} Sek.`;
+  const min = Math.round(s / 60);
+  if (min < 60) return `${min} Min.`;
+  return `${Math.floor(min / 60)} Std.${min % 60 ? ` ${min % 60} Min.` : ""}`;
+}
+
+const uhrzeit = (s: string | number) => new Date(s).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE LAUFKARTE (28.09.2026, E-253)
+//
+// Justin: „Das steht seit 5 Minuten. Warum?" — und: „Das muss ja besser
+// aussehen als sonst." Die Karte liest jetzt den Stand aus der Datenbank und
+// kennt fünf Zustände, jeder mit eigenem Satz statt einer eingefrorenen Zahl:
+//   läuft · kurz unterbrochen (Neustart, geht von selbst weiter) · fertig ·
+//   angehalten · Tageswechsel (Rest verfallen).
+// Oben die eine Zahl, die zählt (gesendet von geplant), daneben der Rest; der
+// Balken zeigt gesendet / übersprungen / entfallen, beim Laufen mit einem
+// Lichtstreif (aus bei „weniger Bewegung").
+// ═══════════════════════════════════════════════════════════════════════════
+const LAUF_TITEL: Record<LaufZustand, string> = {
+  laeuft: "Versand läuft",
+  unterbrochen: "Kurz unterbrochen — geht gleich weiter",
+  fertig: "Versand fertig",
+  angehalten: "Versand angehalten",
+  verfallen: "Versand beendet",
+};
+
+function laufZustand(l: Lauf): LaufZustand {
+  return l.zustand ?? (l.laeuft ? "laeuft" : l.abgebrochen ? "angehalten" : "fertig");
+}
+
+function LaufKarte({ lauf, vorlagen, hinweis, verbindung, onAnhalten, onAktualisieren, anhaltenLaeuft }: {
+  lauf: Lauf; vorlagen: Vorlage[];
+  /** der Stand ist auf dem Server nicht (mehr) zu finden, oder das Abfragen hat aufgehört */
+  hinweis: string | null;
+  /** keine Verbindung seit … (Uhrzeit des letzten Stands) */
+  verbindung: string | null;
+  onAnhalten: () => void; onAktualisieren: () => void; anhaltenLaeuft: boolean;
+}) {
+  const z = laufZustand(lauf);
+  const gesamt = Math.max(0, lauf.gesamt);
+  const entfallen = lauf.entfallen ?? 0;
+  const erledigt = Math.min(gesamt, lauf.erledigt ?? lauf.gesendet + lauf.uebersprungen + lauf.fehler + entfallen);
+  const offen = Math.max(0, gesamt - erledigt);
+  const anteil = (n: number) => `${gesamt ? Math.min(100, (n / gesamt) * 100) : 0}%`;
+  // E-253 (Nachtrag nach der Gegenprüfung): Bis etwa 60 s ohne Lebenszeichen wartet der Server auf Meta.
+  // Darüber kann er auch weg sein (Absturz, Deploy ohne SIGTERM) — dann nie „Wartet auf Meta" behaupten.
+  const herzschlag = lauf.herzschlagS ?? 0;
+  const stillstand = z === "laeuft" && herzschlag > 20;
+  const dauer = lauf.bis ? (new Date(lauf.bis).getTime() - new Date(lauf.seit).getTime()) / 1000 : 0;
+  const saetze: { text: string; art?: "gelb" | "gut" | "blau" }[] = [];
+  if (z === "unterbrochen") {
+    saetze.push({ art: "gelb", text: "Der Server wurde gerade neu gestartet. Der Versand steht in der Datenbank und geht spätestens in einer Minute von selbst weiter — durch den Neustart bekommt niemand eine zweite Nachricht." });
+  }
+  if (z === "laeuft" && lauf.anhaltenAm) saetze.push({ art: "gelb", text: "Hält nach der aktuellen Nachricht an." });
+  else if (stillstand && herzschlag <= 60) saetze.push({ art: "blau", text: `Wartet auf Meta — die letzte Antwort kam vor ${dauerText(herzschlag)}.` });
+  else if (stillstand) {
+    saetze.push({ art: "gelb", text: `Seit ${dauerText(herzschlag)} kein Lebenszeichen vom Server. Hängt nur Meta, geht es danach von selbst weiter; ist der Server weg, übernimmt ein neuer spätestens nach drei Minuten — durch die Übernahme bekommt niemand eine zweite Nachricht.` });
+  }
+  if ((lauf.fortsetzungen ?? 0) > 0 && z !== "unterbrochen") {
+    saetze.push({ art: "gut", text: `Nach ${lauf.fortsetzungen === 1 ? "einem Neustart" : `${lauf.fortsetzungen} Neustarts`} des Servers fortgesetzt — durch den Neustart wurde niemand doppelt angeschrieben.` });
+  }
+  if (entfallen > 0) {
+    saetze.push({ text: `${zahl(entfallen)} ${entfallen === 1 ? "war" : "waren"} inzwischen nicht mehr dran (geantwortet, bezahlt oder heute schon angeschrieben) — nicht angeschrieben.` });
+  }
+  if (lauf.schluss) saetze.push({ art: z === "fertig" || z === "verfallen" ? "gelb" : undefined, text: lauf.schluss });
+  if (z === "angehalten" && offen > 0) saetze.push({ text: `${zahl(offen)} aus dem Plan wurden nicht mehr angeschrieben.` });
+  const gruende = Object.entries(lauf.gruende).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <section className={`wz-lauf z-${z}`} aria-label="Stand des Versands" aria-live="polite">
+      <div className="wz-lauf-kopf">
+        <span className={`wz-lauf-marke z-${z}`}><i aria-hidden="true" />{LAUF_TITEL[z]}</span>
+        <span className="wz-still">
+          {GRUPPEN_KURZ[lauf.gruppe] ?? lauf.gruppe} · {vorlagenName(lauf.vorlage, vorlagen)} · {lauf.quelle === "hand" ? "von Hand" : "Automatik"} · {zeit(lauf.seit)}
+        </span>
+        {lauf.laeuft && !lauf.anhaltenAm ? (
+          <button type="button" className="wz-knopf klein" onClick={onAnhalten} disabled={anhaltenLaeuft}>
+            {anhaltenLaeuft ? "Hält an …" : "Anhalten"}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="wz-lauf-mitte">
+        <div className="wz-lauf-gross">
+          <b>{zahl(lauf.gesendet)}</b>
+          <span>von {zahl(gesamt)} gesendet</span>
+        </div>
+        <dl className="wz-lauf-kennzahlen">
+          <div><dt>Übersprungen</dt><dd>{zahl(lauf.uebersprungen)}</dd></div>
+          {lauf.fehler ? <div className="rot"><dt>Fehler</dt><dd>{zahl(lauf.fehler)}</dd></div> : null}
+          {entfallen ? <div><dt>Entfallen</dt><dd>{zahl(entfallen)}</dd></div> : null}
+          {lauf.laeuft ? <div><dt>Offen</dt><dd>{zahl(offen)}</dd></div> : null}
+          <div>
+            <dt>{lauf.laeuft ? "Noch etwa" : "Dauer"}</dt>
+            <dd>{lauf.laeuft ? (offen ? dauerText(lauf.restS ?? offen * 1.7) : "—") : lauf.bis ? dauerText(dauer) : "—"}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="wz-balken gross" role="progressbar" aria-label="Fortschritt des Versands"
+        aria-valuemin={0} aria-valuemax={gesamt || 1} aria-valuenow={erledigt} aria-valuetext={`${zahl(erledigt)} von ${zahl(gesamt)} erledigt`}>
+        <i className="gut" style={{ width: anteil(lauf.gesendet) }} />
+        <i className="still" style={{ width: anteil(lauf.uebersprungen + lauf.fehler) }} />
+        <i className="weg" style={{ width: anteil(entfallen) }} />
+      </div>
+      <div className="wz-lauf-legende" aria-hidden="true">
+        <span><i className="gut" />gesendet</span>
+        <span><i className="still" />übersprungen</span>
+        {entfallen ? <span><i className="weg" />entfallen</span> : null}
+        <span className="wz-still">{zahl(erledigt)} von {zahl(gesamt)} erledigt</span>
+      </div>
+
+      {saetze.map((x, i) => <p key={i} className={`wz-lauf-satz${x.art ? ` ${x.art}` : ""}`}>{x.text}</p>)}
+      {verbindung ? <p className="wz-lauf-satz gelb" role="status">Keine Verbindung zum Server — zu sehen ist der Stand von {verbindung}. Es wird weiter versucht.</p> : null}
+      {hinweis ? (
+        <p className="wz-lauf-satz gelb" role="status">
+          {hinweis} <button type="button" className="wz-textknopf" onClick={onAktualisieren}>Stand holen</button>
+        </p>
+      ) : null}
+
+      {gruende.length ? (
+        <details className="wz-gruende-auf" open={gruende.length <= 3}>
+          <summary>Warum übersprungen <em>{zahl(gruende.reduce((a, [, n]) => a + n, 0))}</em></summary>
+          <ul className="wz-gruende">
+            {gruende.map(([grund, n]) => <li key={grund}><span>{grund}</span><b>{n}</b></li>)}
+          </ul>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 export default function ChefWhatsAppZentrale() {
   const lage = useDaten<Lage>("/chef/wa-zentrale/lage");
   const d = lage.daten;
@@ -367,17 +515,25 @@ export default function ChefWhatsAppZentrale() {
   const [meldung, setMeldung] = useState<{ text: string; art: "gut" | "fehler" } | null>(null);
   const [beschaeftigt, setBeschaeftigt] = useState<string | null>(null);
   const [auto, setAuto] = useState<Automatik | null>(null);
+  // E-253: was die Laufkarte über die Verbindung weiß — nie wieder eine eingefrorene Zahl ohne Satz.
+  const [laufHinweis, setLaufHinweis] = useState<string | null>(null);
+  const [laufVerbindung, setLaufVerbindung] = useState<string | null>(null);
+  const [abfrageRunde, setAbfrageRunde] = useState(0);
+  const [haeltAn, setHaeltAn] = useState(false);
 
   const melden = (text: string, art: "gut" | "fehler" = "gut") => { setMeldung({ text, art }); window.setTimeout(() => setMeldung(null), 7000); };
 
-  // Beim Laden: laufender Versand und die gespeicherte Automatik übernehmen.
+  // Beim Laden: laufender (oder zuletzt gelaufener) Versand und die gespeicherte Automatik übernehmen.
+  // E-253: Kennt der Server einen Lauf nicht (mehr), bleibt die Karte mit ihrem Hinweis stehen,
+  // statt beim Neuladen der Lage wortlos zu verschwinden.
+  const laufFesthalten = useRef(false);
   useEffect(() => {
     if (!d) return;
-    setLauf(d.lauf);
+    if (d.lauf || !laufFesthalten.current) { setLauf(d.lauf); laufFesthalten.current = false; }
     setAuto((alt) => alt ?? d.automatik);
   }, [d]);
 
-  // E-249 (28.09.2026): Die Seite öffnet mit einer Gruppe, in der wirklich jemand dran ist —
+  // E-250 (28.09.2026): Die Seite öffnet mit einer Gruppe, in der wirklich jemand dran ist —
   // nicht mit „Neue Leads", wenn dort 0 steht. Eine Wahl von Hand bleibt.
   const vonHand = useRef(false);
   useEffect(() => {
@@ -398,21 +554,66 @@ export default function ChefWhatsAppZentrale() {
   }, [gruppe, g?.standard]);
   useEffect(() => { setVorschau(null); }, [vorlage]);
 
-  // Solange ein Versand läuft: alle 2 Sekunden der Stand, am Ende die Lage neu.
+  // Solange ein Versand läuft: alle 2 Sekunden der Stand GENAU DIESES Laufs, am Ende die Lage neu.
+  // E-253 (28.09.2026): Bis heute übernahm die Seite nur „if (r?.lauf)" — antwortete nach einem Deploy der
+  // neue Server „kein Lauf", blieb sie für immer auf dem letzten Stand und fragte endlos weiter. Jetzt:
+  //   · Den Stand liefert jede Instanz aus der Datenbank (…/lauf?id=).
+  //   · Kennt der Server den Lauf nicht (nur Läufe aus der Zeit vor E-253), sagt die Karte das und hört auf.
+  //   · 15 Fehlversuche in Folge (30 s): „Keine Verbindung — Stand von …", es wird weiter versucht.
+  //   · Spätestens nach der doppelten geplanten Dauer (mindestens 20 Minuten) hört das Abfragen auf —
+  //     „Stand holen" fragt von Hand.
   useEffect(() => {
     if (!lauf?.laeuft) return;
+    const id = lauf.id;
+    let fehl = 0;
+    let aus = false;
+    let letzterStand = Date.now();
+    const frist = Date.now() + Math.max(20 * 60_000, (lauf.gesamt || 0) * 1700 * 2 + 5 * 60_000);
     const t = window.setInterval(async () => {
-      const r = await fetch(`${API}/chef/wa-zentrale/lauf`, { credentials: "include" }).then((x) => x.json()).catch(() => null);
-      if (r?.lauf) {
-        setLauf(r.lauf);
-        if (!r.lauf.laeuft) { lage.neu(); window.clearInterval(t); }
+      if (aus) return;
+      if (Date.now() > frist) {
+        aus = true; window.clearInterval(t);
+        setLaufHinweis(`Der Stand wird nicht mehr von selbst abgefragt (zuletzt ${uhrzeit(letzterStand)}).`);
+        return;
+      }
+      try {
+        const r = await fetch(`${API}/chef/wa-zentrale/lauf?id=${encodeURIComponent(id)}`, { credentials: "include" });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j?.ok) throw new Error("Stand nicht lesbar");
+        fehl = 0; letzterStand = Date.now(); setLaufVerbindung(null);
+        if (j.lauf && j.lauf.id === id) {
+          setLauf(j.lauf);
+          if (!j.lauf.laeuft) { aus = true; window.clearInterval(t); lage.neu(); }
+        } else {
+          aus = true; window.clearInterval(t);
+          laufFesthalten.current = true;
+          setLauf((alt) => (alt && alt.id === id ? { ...alt, laeuft: false, zustand: "fertig" } : alt));
+          setLaufHinweis("Der Stand dieses Versands ist auf dem Server nicht mehr abrufbar (er wurde vor dem Umbau gestartet). Was rausging, steht unten im Verlauf.");
+          lage.neu();
+        }
+      } catch {
+        fehl++;
+        if (fehl >= 15) setLaufVerbindung(uhrzeit(letzterStand));
       }
     }, 2000);
-    return () => window.clearInterval(t);
+    return () => { aus = true; window.clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lauf?.laeuft, lauf?.id]);
+  }, [lauf?.laeuft, lauf?.id, abfrageRunde]);
 
-  const hoechstens = d ? Math.max(0, Math.min(200, g?.anzahl ?? 0, d.meta.frei)) : 0;
+  /** „Stand holen": einmal fragen und — läuft er noch — das Abfragen neu beginnen. */
+  const laufAktualisieren = async () => {
+    setLaufHinweis(null);
+    try {
+      const r = await fetch(`${API}/chef/wa-zentrale/lauf${lauf ? `?id=${encodeURIComponent(lauf.id)}` : ""}`, { credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Der Stand ließ sich nicht lesen.");
+      if (j.lauf) { setLauf(j.lauf); setAbfrageRunde((n) => n + 1); } else { lage.neu(); }
+    } catch (e: any) { setLaufHinweis(e?.message || "Der Stand ließ sich nicht lesen."); }
+  };
+
+  // E-253: bis zu 500 je Versand (Server: LAUF_HOECHSTENS) — nie mehr, als Meta heute noch erlaubt.
+  const hoechstens = d ? Math.max(0, Math.min(d.laufHoechstens ?? 500, g?.anzahl ?? 0, d.meta.frei)) : 0;
+  const sekundenJePerson = d?.laufSekundenJePerson ?? 1.7;
   const menge = Math.max(0, Math.min(anzahl, hoechstens));
   const gewaehlt = d?.vorlagen.find((v) => v.name === vorlage);
   const vorlageFrei = vorlage === "stufen" || !!gewaehlt?.frei;
@@ -422,7 +623,7 @@ export default function ChefWhatsAppZentrale() {
     : d.meta.qualitaet === "RED" ? "Meta bewertet die Nummer mit Rot — Massenversand gesperrt."
     : d.meta.frei <= 0 ? "Das Tageslimit von Meta ist ausgeschöpft."
     : !vorlageFrei ? "Diese Vorlage ist bei Meta noch nicht freigegeben."
-    : lauf?.laeuft ? "Es läuft schon ein Versand."
+    : lauf?.laeuft ? (laufZustand(lauf) === "unterbrochen" ? "Ein Versand wurde durch einen Neustart unterbrochen und geht gleich von selbst weiter." : "Es läuft schon ein Versand.")
     : menge <= 0 ? (g && leerGrund(g)) || "In dieser Gruppe ist gerade niemand dran."
     : null;
 
@@ -438,19 +639,33 @@ export default function ChefWhatsAppZentrale() {
 
   const starten = async () => {
     if (!d || sperre) return;
-    const satz = `Mara schreibt jetzt bis zu ${menge} Menschen aus „${g?.titel}“ an — Vorlage „${vorlagenName(vorlage, d.vorlagen)}“. `
-      + "Eine Nachricht nach der anderen, jederzeit anhaltbar. Starten?";
+    const satz = `Mara schreibt jetzt bis zu ${zahl(menge)} Menschen aus „${g?.titel}“ an — Vorlage „${vorlagenName(vorlage, d.vorlagen)}“. `
+      + `Eine Nachricht nach der anderen, Dauer etwa ${dauerText(menge * sekundenJePerson)}, jederzeit anhaltbar. `
+      + "Auch ein Neustart des Servers unterbricht nur kurz. Starten?";
     if (!window.confirm(satz)) return;
     setBeschaeftigt("start");
     try {
       const j = await senden("/chef/wa-zentrale/start", { gruppe, vorlage, anzahl: menge });
+      setLaufHinweis(null); setLaufVerbindung(null);
       setLauf(j.lauf); setVorschau(null);
-      melden(`Versand gestartet: bis zu ${menge} Nachrichten.`);
-    } catch (e: any) { melden(e.message, "fehler"); } finally { setBeschaeftigt(null); }
+      melden(`Versand gestartet: ${zahl(j.lauf?.gesamt ?? menge)} Nachrichten geplant.`);
+    } catch (e: any) { melden(e.message, "fehler"); lage.neu(); } finally { setBeschaeftigt(null); }
   };
 
+  // E-253: Der Server sagt, ob es etwas anzuhalten gab — kein „hält an", wenn nichts läuft.
   const anhalten = async () => {
-    try { await senden("/chef/wa-zentrale/stopp", {}); melden("Der Versand hält nach der aktuellen Nachricht an."); } catch (e: any) { melden(e.message, "fehler"); }
+    setHaeltAn(true);
+    try {
+      const j = await senden("/chef/wa-zentrale/stopp", {});
+      if (j.angehalten) {
+        melden(j.zustand === "angehalten" ? "Der Versand ist angehalten." : "Der Versand hält nach der aktuellen Nachricht an.");
+        setLauf((l) => (l ? { ...l, anhaltenAm: new Date().toISOString() } : l));
+        if (j.zustand === "angehalten") void laufAktualisieren();
+      } else {
+        melden("Es läuft gerade kein Versand — es gab nichts anzuhalten.", "fehler");
+        void laufAktualisieren();
+      }
+    } catch (e: any) { melden(e.message, "fehler"); } finally { setHaeltAn(false); }
   };
 
   const automatikSpeichern = async (neu: Partial<Automatik>, satz: string) => {
@@ -573,7 +788,7 @@ export default function ChefWhatsAppZentrale() {
                 <span>Anzahl</span>
                 <input type="number" min={1} max={Math.max(1, hoechstens)} value={anzahl}
                   onChange={(e) => setAnzahl(Math.max(1, Math.round(Number(e.target.value) || 1)))} />
-                <small>höchstens {zahl(hoechstens)}</small>
+                <small>höchstens {zahl(hoechstens)}{menge > 0 ? ` · ≈ ${dauerText(menge * sekundenJePerson)}` : ""}</small>
               </label>
               <div className="wz-knoepfe">
                 <button type="button" className="wz-knopf still" onClick={() => void vorschauLaden()} disabled={beschaeftigt !== null || !g?.anzahl}>
@@ -584,6 +799,16 @@ export default function ChefWhatsAppZentrale() {
                 </button>
               </div>
             </div>
+            {/* E-253: schnelle Mengen — bis 500, nie mehr, als die Gruppe und Meta heute hergeben */}
+            {hoechstens > 1 && !sperre ? (
+              <div className="wz-mengen" role="group" aria-label="Anzahl schnell wählen">
+                <span className="wz-still">Schnell wählen</span>
+                {[25, 50, 100, 250, 500].filter((n) => n < hoechstens).map((n) => (
+                  <button key={n} type="button" aria-pressed={menge === n} onClick={() => setAnzahl(n)}>{zahl(n)}</button>
+                ))}
+                <button type="button" aria-pressed={menge === hoechstens} onClick={() => setAnzahl(hoechstens)}>alle {zahl(hoechstens)}</button>
+              </div>
+            ) : null}
             {sperre && !lauf?.laeuft ? <p className="wz-sperre">{sperre}</p> : null}
 
             {vorschau ? (
@@ -605,25 +830,8 @@ export default function ChefWhatsAppZentrale() {
             ) : null}
 
             {lauf ? (
-              <div className={`wz-lauf${lauf.laeuft ? " laeuft" : ""}`}>
-                <div className="wz-lauf-kopf">
-                  <strong>{lauf.laeuft ? "Versand läuft" : lauf.abgebrochen ? "Versand angehalten" : "Letzter Versand fertig"}</strong>
-                  <span className="wz-still">{GRUPPEN_KURZ[lauf.gruppe] ?? lauf.gruppe} · {vorlagenName(lauf.vorlage, d.vorlagen)} · {lauf.quelle === "hand" ? "von Hand" : "Automatik"} · {zeit(lauf.seit)}</span>
-                  {lauf.laeuft ? <button type="button" className="wz-knopf klein" onClick={() => void anhalten()}>Anhalten</button> : null}
-                </div>
-                <div className="wz-balken" aria-hidden="true">
-                  <i className="gut" style={{ width: `${lauf.gesamt ? (lauf.gesendet / lauf.gesamt) * 100 : 0}%` }} />
-                  <i className="still" style={{ width: `${lauf.gesamt ? ((lauf.uebersprungen + lauf.fehler) / lauf.gesamt) * 100 : 0}%` }} />
-                </div>
-                <p className="wz-lauf-zahlen">
-                  <b>{zahl(lauf.gesendet)}</b> gesendet · {zahl(lauf.uebersprungen)} übersprungen{lauf.fehler ? ` · ${zahl(lauf.fehler)} Fehler` : ""} · von {zahl(lauf.gesamt)}
-                </p>
-                {Object.keys(lauf.gruende).length ? (
-                  <ul className="wz-gruende">
-                    {Object.entries(lauf.gruende).sort((a, b) => b[1] - a[1]).map(([grund, n]) => <li key={grund}><span>{grund}</span><b>{n}</b></li>)}
-                  </ul>
-                ) : null}
-              </div>
+              <LaufKarte lauf={lauf} vorlagen={d.vorlagen} hinweis={laufHinweis} verbindung={laufVerbindung}
+                onAnhalten={() => void anhalten()} onAktualisieren={() => void laufAktualisieren()} anhaltenLaeuft={haeltAn} />
             ) : null}
           </section>
 

@@ -69,6 +69,17 @@
 // Handversand nimmt dieselbe Reihenfolge wie der Takt (waRangSql: Kauflink
 // geöffnet, Kunde, Antrag, Abbrecher, Lead).
 //
+// ── E-253 (28.09.2026): SPERRE, LAUF, DU-FORM ─────────────────────────────
+// Justin (28.09., Screenshot): „Das steht seit 5 Minuten. Warum? Warum steht da,
+// dass wir nicht schreiben dürfen?" Drei Dinge zugleich:
+//   · Die „Vertriebssperre" war falsch — gesperrt war nur die Wegweiser-Marke
+//     einer zusammengeführten Dublette (fiaon-mail-frequenz.ts, menschSperre).
+//     Die BASIS unten und die Tür in waSenden lesen jetzt dieselbe Regel, und
+//     die Gruppen zählen niemanden mehr, den die Tür danach ablehnen müsste.
+//   · Der Lauf lebte nur im Arbeitsspeicher und verschwand beim Deploy — er
+//     steht jetzt in fiaon_wa_lauf (Abschnitt SENDEN, dort die Deploy-Wache).
+//   · Der Name eines Empfängers löste die Du-Wand aus (fiaon-whatsapp.ts).
+//
 // ── DIE ALTE STUNDENKETTE ──────────────────────────────────────────────────
 // Ist die Automatik hier AN, pausiert whatsappKetteLaufen() — sonst würde
 // zweimal geschrieben und Justins „5 pro Stunde" wäre wertlos. Die
@@ -83,6 +94,8 @@ import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-
 import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
 import { grundmengeIdsSql, waRangSql, tabellenBereit as verkaufTabellenBereit, WA_ANGEBOT_ABSTAND_TAGE } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
+import { OHNE_VERTRAG_SQL, WERBESPERRE_KOEPFE_SQL, STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
+import { hostname } from "node:os";
 
 export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
 
@@ -179,6 +192,33 @@ export function zentraleSchema(): Promise<void> {
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_wa_aktion_zeit_idx ON fiaon_wa_aktion (erstellt_am DESC)`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_wa_aktion_person_idx ON fiaon_wa_aktion (person_id, erstellt_am DESC)`;
+      // E-253 (28.09.2026): der Lauf von Hand in der Datenbank (Abschnitt SENDEN). Bewusst ohne jsonb
+      // (Falle E-238) — die Gründe stehen je Zeile in fiaon_wa_aktion.grund.
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_wa_lauf (
+          id TEXT PRIMARY KEY,
+          quelle TEXT NOT NULL,
+          gruppe TEXT NOT NULL,
+          vorlage TEXT NOT NULL,
+          ausgeloest_von TEXT,
+          plan INTEGER[] NOT NULL,
+          pos INTEGER NOT NULL DEFAULT 0,
+          in_arbeit INTEGER,
+          entfallen INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'laeuft',
+          schluss TEXT,
+          instanz TEXT,
+          herzschlag TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          anhalten_am TIMESTAMPTZ,
+          anhalten_von TEXT,
+          fortsetzungen INTEGER NOT NULL DEFAULT 0,
+          unterbrochen_am TIMESTAMPTZ,
+          seit TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          bis TIMESTAMPTZ
+        )`;
+      // Höchstens EIN Lauf gleichzeitig — über alle Instanzen (23505 = „Es läuft schon ein Versand").
+      await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_wa_lauf_einer ON fiaon_wa_lauf ((TRUE)) WHERE status IN ('laeuft', 'unterbrochen')`;
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_wa_aktion_lauf_idx ON fiaon_wa_aktion (lauf_id) WHERE lauf_id IS NOT NULL`;
     })().catch((e) => {
       const code = String((e as any)?.code ?? "");
       if (code === "23505" || code === "42P07") return;
@@ -242,6 +282,10 @@ export const BASIS = `
       ) wx
      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
        AND p.primary_phone IS NOT NULL AND TRIM(p.primary_phone) <> '' AND p.werbung_gesperrt_am IS NULL
+       -- E-253 (28.09.2026): die Werbesperre des MENSCHEN — auch an einer zusammengeführten Dublette,
+       -- dieselbe Lesart wie die Tür in waSenden (menschSperre, fiaon-mail-frequenz.ts). Die
+       -- Vertriebssperre zählt wie dort nur am Kopf, und p ist hier immer der Kopf.
+       AND p.id NOT IN ${WERBESPERRE_KOEPFE_SQL}
        AND ${WHATSAPP_MOEGLICH_SQL("wx")}
        -- E-244 (26.09.2026): Nummer unzustellbar (Meta 131026, seitdem kein Lebenszeichen) oder in der
        -- 131049-Pause — fiaon-wa-unzustellbar.ts. Bis dahin zählten gescheiterte Vorlagen hier nicht als
@@ -259,9 +303,12 @@ export const BASIS = `
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_whatsapp w WHERE w.person_id = p.id AND w.richtung = 'raus'
             AND (w.created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)
-       AND NOT EXISTS (
-         SELECT 1 FROM fiaon_whatsapp s WHERE s.person_id = p.id AND s.richtung = 'rein'
-            AND (s.text ILIKE '%stopp%' OR s.knopf ILIKE '%stopp%' OR s.text ILIKE '%keine nachrichten%' OR s.knopf ILIKE '%keine nachrichten%'))
+       -- „STOPP" ist endgültig. E-253 (28.09.2026, Nachtrag nach der Gegenprüfung): über die ganze Familie
+       -- (ein „STOPP" an einer Dublette — fiaon_whatsapp wird beim Zusammenführen nicht umgehängt) UND das
+       -- Stopp aus dem Postfach (Postmeister: „will keine Nachrichten mehr"). Vorher las die BASIS nur das
+       -- WhatsApp-„STOPP" am Kopf; 9 Menschen mit Postfach-Stopp schützte allein die Wegweiser-Marke einer
+       -- Dublette. Dieselbe Regel wie die Tür (menschSperre → werbungVerboten, fiaon-mail-frequenz.ts).
+       AND p.id NOT IN ${STOPP_KOEPFE_SQL}
        -- E-230: Wer gerade mit uns schreibt, bekommt keine Vorlage mitten ins Gespräch — dort antwortet Mara.
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_whatsapp e WHERE e.person_id = p.id AND e.richtung = 'rein' AND e.created_at > NOW() - INTERVAL '24 hours')
@@ -327,7 +374,16 @@ const abgeschickt = (t: string) => `(COALESCE(${t}.current_step, 0) >= 8 OR COAL
 const OHNE_ANTRAG = `NOT EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL)`;
 
 export function gruppenBedingung(g: Gruppe, ohneAbstand = false): string {
-  // ohneAbstand (E-249): dieselbe Gruppe, nur ohne die Wartezeit seit der letzten Vorlage — zeigt,
+  const kern = gruppenKern(g, ohneAbstand);
+  // E-253 (28.09.2026): Wer gekündigt hat oder dessen Vertrag vorbei ist (und kein laufendes,
+  // ungekündigtes Paket hat), bekommt keine werbliche Vorlage — die Tür in waSenden lehnt sie ab
+  // (werbungVerboten). Dann zählt er hier gar nicht erst, sonst stünde er als „übersprungen" im Lauf.
+  // Die Monatsrate ist Vertragspost und bleibt ausgenommen (die Tür lässt sie durch).
+  return g === "rate_offen" ? kern : `(${kern}) AND NOT ${OHNE_VERTRAG_SQL("b.person_id")}`;
+}
+
+function gruppenKern(g: Gruppe, ohneAbstand = false): string {
+  // ohneAbstand (E-250): dieselbe Gruppe, nur ohne die Wartezeit seit der letzten Vorlage — zeigt,
   // wie viele gerade nur warten und ab wann sie wieder dran sind.
   const abstand = ohneAbstand ? "TRUE" : `(b.letzte_vorlage IS NULL OR b.letzte_vorlage < NOW() - INTERVAL '${GRUPPEN[g].abstandTage} days')`;
   const deckel = `b.vorlagen_30 < 8`;
@@ -406,7 +462,7 @@ export async function gruppenZahlenMitEinwilligung(): Promise<{
   const wartend = {} as Record<Gruppe, number>;
   const wiederAb = {} as Record<Gruppe, string | null>;
   await Promise.all(GRUPPEN_REIHE.map(async (g) => {
-    // E-249 (28.09.2026): Eine leere Gruppe sagt, warum — wer nur die Wartezeit abwartet und ab wann er
+    // E-250 (28.09.2026): Eine leere Gruppe sagt, warum — wer nur die Wartezeit abwartet und ab wann er
     // wieder dran ist. „Neu" hat keine Wartezeit (dort zählt, ob überhaupt ein Lead kam).
     const mitWarten = g !== "neu" && GRUPPEN[g].abstandTage > 0;
     // Wartend = gehörte zur Gruppe, bekam aber innerhalb der Wartezeit eine Vorlage.
@@ -425,25 +481,44 @@ export async function gruppenZahlenMitEinwilligung(): Promise<{
   return { alle, einwilligung, wartend, wiederAb };
 }
 
-export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = []): Promise<Kandidat[]> {
+/**
+ * Die Zeilen der Gruppe — EINE Abfrage für die Liste, den Plan eines Laufs (nur IDs) und die
+ * Neuprüfung eines Happens (E-253: `nur` = genau diese Personen, sofern sie noch dran sind).
+ */
+async function kandidatenZeilen(g: Gruppe, anzahl: number, ohne: number[] = [], nur?: number[]): Promise<any[]> {
   await zentraleSchema();
-  const n = Math.min(500, Math.max(1, Math.round(anzahl)));
+  const n = Math.min(LAUF_HOECHSTENS, Math.max(1, Math.round(anzahl)));
   const ausschluss = ohne.filter((x) => Number.isInteger(x));
+  const nurListe = nur ? nur.filter((x) => Number.isInteger(x)) : null;
+  if (nurListe && !nurListe.length) return [];
   // E-243 (26.09.2026): „Auskunft fehlt" in der Reihenfolge des Verkaufstakts (waRangSql) — wer den Kauflink
   // geöffnet hat, zuerst; dann Kunde, Antrag, Abbrecher, Lead, je die frischeste Aktivität zuerst.
   const rang = g === "auskunft_fehlt";
   if (rang) await verkaufTabellenBereit();
-  const rows = (await sqlPool.unsafe(`
+  const werte: unknown[] = [];
+  const filter: string[] = [];
+  if (ausschluss.length) { werte.push(ausschluss); filter.push(`AND b.person_id <> ALL($${werte.length}::int[])`); }
+  if (nurListe) { werte.push(nurListe); filter.push(`AND b.person_id = ANY($${werte.length}::int[])`); }
+  return (await sqlPool.unsafe(`
     ${BASIS}
     SELECT b.*, EXTRACT(EPOCH FROM (NOW() - b.created_at)) / 86400 AS tage_roh
       FROM basis b
       ${rang ? `LEFT JOIN (${waRangSql()}) ax_rang ON ax_rang.person_id = b.person_id` : ""}
-     WHERE ${gruppenBedingung(g)} ${ausschluss.length ? `AND b.person_id <> ALL($1::int[])` : ""}
+     WHERE ${gruppenBedingung(g)} ${filter.join(" ")}
      ORDER BY ${rang ? "ax_rang.rang ASC NULLS LAST, ax_rang.klick_am DESC NULLS LAST, ax_rang.aktiv_am DESC NULLS LAST, " : ""}${ORDNUNG[g]}
-     LIMIT ${n}`, ausschluss.length ? [ausschluss] : [])) as any[];
+     LIMIT ${n}`, werte as any[])) as any[];
+}
+
+export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = [], nur?: number[]): Promise<Kandidat[]> {
+  const rows = await kandidatenZeilen(g, anzahl, ohne, nur);
   const aus: Kandidat[] = [];
   for (const r of rows) aus.push(await zeileZuKandidat(g, r));
   return aus;
+}
+
+/** E-253: nur die Personen-IDs in Versandreihenfolge — der Plan eines Laufs, ohne die Werte je Vorlage. */
+export async function kandidatenIds(g: Gruppe, anzahl: number): Promise<number[]> {
+  return (await kandidatenZeilen(g, anzahl)).map((r) => Number(r.person_id)).filter((x) => Number.isInteger(x) && x > 0);
 }
 
 /**
@@ -606,7 +681,7 @@ export function tagsueber(): boolean {
 // (Begrüßung, Kette, Zentrale, Hand) gegen 80 % der Stufe. Unbekannte Stufe:
 // wir rechnen mit 250.
 //
-// E-249 (28.09.2026): Meta führt die Stufe seit der Umstellung auf das
+// E-250 (28.09.2026): Meta führt die Stufe seit der Umstellung auf das
 // Geschäftskonto nicht mehr an der Nummer (messaging_limit_tier fehlt dort),
 // sondern am WhatsApp-Konto als whatsapp_business_manager_messaging_limit
 // (live: TIER_2K). Bis heute las die Seite nur die Nummer, fiel auf 250 zurück
@@ -631,7 +706,7 @@ export async function metaStand(): Promise<{ stufe: string | null; qualitaet: st
       console.warn("[WA-ZENTRALE] Meta-Stand nicht lesbar:", String((e as Error)?.message || e).slice(0, 160));
     }
   }
-  // E-249: Die Stufe steht heute am WhatsApp-Konto, nicht mehr an der Nummer.
+  // E-250: Die Stufe steht heute am WhatsApp-Konto, nicht mehr an der Nummer.
   if (!stufe && k.wabaId) {
     try {
       const { graph } = await import("./fiaon-meta");
@@ -657,31 +732,246 @@ export async function tagesRaum(): Promise<{ grenze: number; verbraucht: number;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SENDEN
+//
+// ── DER LAUF STEHT IN DER DATENBANK (28.09.2026, E-253) ────────────────────
+// Justin (28.09., Screenshot): „Versand läuft … 34 gesendet · 4 übersprungen ·
+// von 50 — das steht seit 5 Minuten. Warum?" Gemessen: Um 12:29:41 schaltete
+// Render beim Deploy den Verkehr auf den neuen Server. Der Lauf lebte nur im
+// Arbeitsspeicher des alten (aktuellerLauf); der neue antwortete auf jede
+// Abfrage „kein Lauf", und die Seite blieb auf dem letzten Stand stehen.
+// Gesendet hatte der alte Server trotzdem alle 50 (44 gesendet, 6
+// übersprungen, bis 12:29:58). Ein Lauf über 200 hätte den Deploy nicht
+// überlebt: Render beendet den alten Prozess 60 s nach dem Umschalten
+// (SIGTERM), 30 s später hart (SIGKILL) — der Rest wäre ohne Spur weggefallen.
+// Und „Anhalten" meldete „hält an", während der alte Server weiter sendete.
+//
+// Jetzt:
+//   · Jeder Lauf von Hand ist eine Zeile in fiaon_wa_lauf: Plan (die Personen
+//     in Versandreihenfolge), Position, wer ihn trägt (instanz), Herzschlag,
+//     Stopp-Wunsch. Die Zahlen kommen aus fiaon_wa_aktion (lauf_id). Jede
+//     Instanz antwortet dasselbe, und „Anhalten" wirkt, egal wo es ankommt.
+//   · Höchstens EIN Lauf gleichzeitig über alle Instanzen (eindeutiger Index).
+//   · SIGTERM (server/index.ts): Der alte Prozess sendet die laufende Nachricht
+//     zu Ende und übergibt („unterbrochen"). Der Takt wa_zentrale_fortsetzen
+//     (jede Minute, server/routes.ts, nur im Betrieb) übernimmt — atomar, nur
+//     einer gewinnt. Ohne SIGTERM (Absturz) übernimmt er, sobald der Herzschlag
+//     älter als drei Minuten ist (HERZSCHLAG_ALT_S). Einen Lauf, den derselbe
+//     Prozess noch trägt, übernimmt er nie (Nachtrag nach der Gegenprüfung).
+//   · Kein Doppelversand durch einen Neustart: Vor JEDER Sendung prüft der
+//     Träger, dass der Lauf noch ihm gehört (sonst hört er auf); die Person
+//     mitten im Senden ist reserviert (in_arbeit) und wird nach einem Neustart
+//     nicht noch einmal angeschrieben; die BASIS lässt ohnehin nur einen Versuch
+//     je Person und Tag.
+//   · Kein Doppelversand mit ANDEREN Wegen (Nachtrag): Direkt vor Meta nimmt
+//     einzelnSenden den Tagesplatz des Menschen (waTagesplatz, fiaon-whatsapp.ts)
+//     — Verkaufstakt, Automatik, Lead-Begrüßung und Lead-Kette nehmen ihn auch;
+//     genau einer bekommt ihn. Der Verkaufstakt setzt während eines Laufs aus,
+//     die Automatik fragt vor jeder Sendung nach einem Lauf von Hand.
+//   · Je Happen (25 Personen) wird neu geprüft: Gruppe und BASIS (wer
+//     inzwischen schrieb oder zahlte, fällt raus — „entfallen"), Ruhezeit,
+//     Metas Tagesraum und Qualität, Freigabe der Vorlage.
+//   · Größe: bis LAUF_HOECHSTENS (500), nie mehr als Metas freier Tagesraum.
+//
+// DEPLOY-WACHE (lesend, vor jedem Push — Datei scratchpad e253/deploy-wache.sql):
+//   SELECT id, status, cardinality(plan) - pos AS rest,
+//          EXTRACT(EPOCH FROM NOW() - herzschlag)::int AS herzschlag_s
+//     FROM fiaon_wa_lauf WHERE status IN ('laeuft', 'unterbrochen');
+// Seit E-253 ist ein Deploy mitten im Lauf nur eine Pause von ein, zwei
+// Minuten. Für den Deploy VON E-253 selbst gilt die Wache noch: Ein Lauf im
+// alten Speicher-Code ist für den neuen unsichtbar (dafür die Zeilen der
+// letzten 90 s in fiaon_wa_aktion zählen), und ein offener Tab behält das alte
+// JavaScript — die Seite danach einmal neu laden.
 // ═══════════════════════════════════════════════════════════════════════════
+export type LaufZustand = "laeuft" | "unterbrochen" | "fertig" | "angehalten" | "verfallen";
+
 export interface Lauf {
   id: string;
+  /** läuft oder ist unterbrochen (geht gleich von selbst weiter) — die Seite fragt weiter nach */
   laeuft: boolean;
+  zustand: LaufZustand;
   quelle: "hand" | "automatik";
   gruppe: Gruppe;
   vorlage: string;
   gesamt: number;
+  /** so viele Plan-Einträge sind erledigt (gesendet, übersprungen, Fehler oder entfallen) */
+  erledigt: number;
   gesendet: number;
   uebersprungen: number;
   fehler: number;
+  /** inzwischen nicht mehr dran (Gruppe/BASIS neu geprüft) — nicht angeschrieben, keine Zeile */
+  entfallen: number;
   gruende: Record<string, number>;
   seit: string;
   bis: string | null;
   ausgeloestVon: string | null;
   abgebrochen: boolean;
+  /** Stopp-Wunsch liegt vor, der Träger hält nach der laufenden Nachricht an */
+  anhaltenAm: string | null;
+  /** wie oft ein anderer Prozess den Lauf nach einem Neustart übernommen hat */
+  fortsetzungen: number;
+  unterbrochenAm: string | null;
+  /** warum er vor dem Plan endete (Ruhezeit, Meta-Limit, Tageswechsel …) */
+  schluss: string | null;
+  /** Sekunden seit dem letzten Lebenszeichen des Trägers */
+  herzschlagS: number;
+  /** geschätzte Restdauer in Sekunden */
+  restS: number;
 }
 
-let aktuellerLauf: Lauf | null = null;
-let abbrechen = false;
-export const laufStand = (): Lauf | null => (aktuellerLauf ? { ...aktuellerLauf, gruende: { ...aktuellerLauf.gruende } } : null);
-export function laufAbbrechen(): boolean {
-  if (!aktuellerLauf?.laeuft) return false;
-  abbrechen = true;
-  return true;
+/** E-253: höchstens so viele je Lauf — und nie mehr, als Meta heute noch zulässt (tagesRaum). */
+export const LAUF_HOECHSTENS = 500;
+/** Je Person ≈ 1,7 s (Sendung + 1,2 s Abstand) — für die Restzeit auf der Seite. */
+export const LAUF_SEKUNDEN_JE_PERSON = 1.7;
+const LAUF_HAPPEN = 25;
+const LAUF_FORTSETZUNGEN = 5;
+/**
+ * Älter als das = der Träger lebt nicht mehr. E-253 (Nachtrag nach der Gegenprüfung): 180 statt 120 s.
+ * Eine Sendung dauert bei einer Meta-Störung bis ≈ 104 s (freigegebeneVorlagen in waSenden 52 s, dazu
+ * der POST 3 × 15 s + 7 s), der Anfang eines Happens bis ≈ 116 s (metaStand 2 × 31 s, Freigabe 52 s).
+ */
+const HERZSCHLAG_ALT_S = 180;
+
+/** Wer diesen Lauf trägt: Render-Instanz (sonst Rechnername), Prozess, Startzeit. */
+let instanz = `${String(process.env.RENDER_INSTANCE_ID || "").trim() || hostname()}:${process.pid}:${Date.now().toString(36)}`;
+let herunterfahren = false;
+let pauseMs = 1200;
+let happenGroesse = LAUF_HAPPEN;
+export type SendeFn = typeof einzelnSenden;
+let senderHuelle: ((echt: SendeFn) => SendeFn) | null = null;
+/** Die Läufe, die DIESER Prozess gerade abarbeitet (für die Übergabe bei SIGTERM). */
+const inArbeit = new Map<string, Promise<void>>();
+
+/**
+ * Nur für den Prüfstand (scripts/pruef-wa-sperre-lauf.ts): eine zweite
+ * „Instanz" im selben Prozess (neuer Name UND leerer Speicher — wie ein neuer
+ * Server), das Herunterfahren zurücksetzen, Pausen und Happen kürzen, den
+ * Versand hüllen (anhalten, zählen). Im Betrieb ruft das niemand.
+ */
+export function laufPruefstand(o: {
+  instanz?: string; herunterfahren?: boolean; pauseMs?: number; happen?: number; huelle?: ((echt: SendeFn) => SendeFn) | null;
+} = {}): { instanz: string } {
+  if (o.instanz) { instanz = o.instanz; inArbeit.clear(); }
+  if (typeof o.herunterfahren === "boolean") herunterfahren = o.herunterfahren;
+  if (typeof o.pauseMs === "number") pauseMs = Math.max(0, o.pauseMs);
+  if (typeof o.happen === "number") happenGroesse = Math.max(1, Math.round(o.happen));
+  if (o.huelle !== undefined) senderHuelle = o.huelle;
+  return { instanz };
+}
+
+const LAUF_ALT_SQL = `(status = 'unterbrochen' OR (status = 'laeuft' AND herzschlag < NOW() - INTERVAL '${HERZSCHLAG_ALT_S} seconds'))`;
+/**
+ * E-253 (Nachtrag nach der Gegenprüfung): Ein Lauf, den DIESER Prozess gerade abarbeitet, ist nie „alt" —
+ * auch wenn eine lange Sendung den Herzschlag älter als HERZSCHLAG_ALT_S werden lässt. Sonst übernahm der
+ * Minutentakt (auf Render dieselbe, einzige Instanz) den eigenen Lauf: „Neustart während des Sendens" für
+ * einen Menschen, dessen Nachricht gleich darauf doch rausging, pos zählte doppelt weiter, und der nächste
+ * Mensch fiel ohne Zeile aus dem Plan. $1 = instanz, $2 = die ids in inArbeit.
+ */
+const NICHT_EIGEN_SQL = `NOT (status = 'laeuft' AND instanz = $1 AND id = ANY($2::text[]))`;
+const eigeneParameter = (): [string, string[]] => [instanz, Array.from(inArbeit.keys())];
+const HEUTE_BERLIN_SQL = (spalte: string) => `(${spalte} AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date`;
+
+/** Der Stand eines Laufs aus der Datenbank — ohne id der offene, sonst der jüngste der letzten 12 Stunden. */
+export async function laufStand(id?: string | null): Promise<Lauf | null> {
+  await zentraleSchema();
+  const [l] = (id
+    ? await sqlPool`
+        SELECT id, quelle, gruppe, vorlage, ausgeloest_von, cardinality(plan) AS gesamt, pos, entfallen, status, schluss,
+               anhalten_am, fortsetzungen, unterbrochen_am, seit, bis, EXTRACT(EPOCH FROM (NOW() - herzschlag))::int AS herzschlag_s
+          FROM fiaon_wa_lauf WHERE id = ${String(id).slice(0, 40)}`
+    : await sqlPool`
+        SELECT id, quelle, gruppe, vorlage, ausgeloest_von, cardinality(plan) AS gesamt, pos, entfallen, status, schluss,
+               anhalten_am, fortsetzungen, unterbrochen_am, seit, bis, EXTRACT(EPOCH FROM (NOW() - herzschlag))::int AS herzschlag_s
+          FROM fiaon_wa_lauf
+         WHERE status IN ('laeuft', 'unterbrochen') OR seit > NOW() - INTERVAL '12 hours'
+         ORDER BY (status IN ('laeuft', 'unterbrochen')) DESC, seit DESC LIMIT 1`) as any[];
+  if (!l) return null;
+  const [z] = (await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE ok)::int AS gesendet,
+           COUNT(*) FILTER (WHERE NOT ok AND COALESCE(grund, '') NOT LIKE 'Fehler: %')::int AS uebersprungen,
+           COUNT(*) FILTER (WHERE NOT ok AND COALESCE(grund, '') LIKE 'Fehler: %')::int AS fehler
+      FROM fiaon_wa_aktion WHERE lauf_id = ${l.id}`) as any[];
+  const gruende: Record<string, number> = {};
+  for (const r of (await sqlPool`
+    SELECT LEFT(COALESCE(grund, 'unbekannt'), 90) AS g, COUNT(*)::int AS n
+      FROM fiaon_wa_aktion WHERE lauf_id = ${l.id} AND NOT ok GROUP BY 1 ORDER BY 2 DESC LIMIT 12`) as any[]) {
+    gruende[String(r.g)] = Number(r.n);
+  }
+  const zustand = (["laeuft", "unterbrochen", "fertig", "angehalten", "verfallen"].includes(String(l.status)) ? String(l.status) : "fertig") as LaufZustand;
+  const gesamt = Number(l.gesamt || 0);
+  const erledigt = Math.min(gesamt, Number(l.pos || 0));
+  const laeuft = zustand === "laeuft" || zustand === "unterbrochen";
+  return {
+    id: String(l.id), laeuft, zustand,
+    quelle: l.quelle === "automatik" ? "automatik" : "hand",
+    gruppe: (istGruppe(l.gruppe) ? l.gruppe : "neu") as Gruppe,
+    vorlage: String(l.vorlage),
+    gesamt, erledigt,
+    gesendet: Number(z?.gesendet || 0), uebersprungen: Number(z?.uebersprungen || 0), fehler: Number(z?.fehler || 0),
+    entfallen: Number(l.entfallen || 0),
+    gruende,
+    seit: new Date(l.seit).toISOString(),
+    bis: l.bis ? new Date(l.bis).toISOString() : null,
+    ausgeloestVon: l.ausgeloest_von ?? null,
+    abgebrochen: zustand === "angehalten",
+    anhaltenAm: l.anhalten_am ? new Date(l.anhalten_am).toISOString() : null,
+    fortsetzungen: Number(l.fortsetzungen || 0),
+    unterbrochenAm: l.unterbrochen_am ? new Date(l.unterbrochen_am).toISOString() : null,
+    schluss: l.schluss ?? null,
+    herzschlagS: Math.max(0, Number(l.herzschlag_s || 0)),
+    restS: laeuft ? Math.round((gesamt - erledigt) * LAUF_SEKUNDEN_JE_PERSON) : 0,
+  };
+}
+
+/**
+ * Aufräumen, was niemand mehr trägt (unterbrochen oder Herzschlag zu alt):
+ * von gestern → verfallen; mit Stopp-Wunsch → angehalten; in der Ruhezeit oder
+ * nach zu vielen Neustarts → fertig mit Grund. Danach gilt der eindeutige Index
+ * wieder nur für echte, lebende Läufe.
+ */
+async function laufAufraeumen(): Promise<void> {
+  const eigen = eigeneParameter();
+  await sqlPool.unsafe(`
+    UPDATE fiaon_wa_lauf SET status = 'verfallen', bis = NOW(), schluss = 'Tageswechsel — der Rest wird nicht mehr gesendet.'
+     WHERE ${LAUF_ALT_SQL} AND ${NICHT_EIGEN_SQL} AND NOT ${HEUTE_BERLIN_SQL("seit")}`, eigen);
+  await sqlPool.unsafe(`
+    UPDATE fiaon_wa_lauf SET status = 'angehalten', bis = NOW()
+     WHERE ${LAUF_ALT_SQL} AND ${NICHT_EIGEN_SQL} AND anhalten_am IS NOT NULL`, eigen);
+  if (!tagsueber()) {
+    await sqlPool.unsafe(`
+      UPDATE fiaon_wa_lauf SET status = 'fertig', bis = NOW(), schluss = 'Ruhezeit begonnen (21 Uhr) — der Rest wurde nicht gesendet.'
+       WHERE ${LAUF_ALT_SQL} AND ${NICHT_EIGEN_SQL}`, eigen);
+  }
+  await sqlPool.unsafe(`
+    UPDATE fiaon_wa_lauf SET status = 'fertig', bis = NOW(),
+           schluss = 'Nach ${LAUF_FORTSETZUNGEN} Neustarts beendet — der Rest wurde nicht gesendet.'
+     WHERE ${LAUF_ALT_SQL} AND ${NICHT_EIGEN_SQL} AND fortsetzungen >= ${LAUF_FORTSETZUNGEN}`, eigen);
+}
+
+/** Läuft (oder wartet nach einem Neustart) gerade ein Lauf — egal auf welcher Instanz? */
+async function offenerLauf(): Promise<{ id: string; status: string } | null> {
+  const [l] = (await sqlPool`SELECT id, status FROM fiaon_wa_lauf WHERE status IN ('laeuft', 'unterbrochen') LIMIT 1`) as any[];
+  return l ? { id: String(l.id), status: String(l.status) } : null;
+}
+
+/**
+ * Läuft gerade ein Versand von Hand (oder wartet er nach einem Neustart)? Für andere Wege, die
+ * so lange aussetzen (Verkaufstakt, E-253). Bei einer Störung: nein — dann schützt der Tagesplatz.
+ */
+export async function waLaufOffen(): Promise<boolean> {
+  try {
+    await zentraleSchema();
+    return !!(await offenerLauf());
+  } catch {
+    return false;
+  }
+}
+
+function laufAnstossen(id: string): void {
+  if (inArbeit.has(id)) return;
+  const p = laufArbeiten(id)
+    .catch((e) => console.error(`[WA-ZENTRALE] Lauf ${id}:`, e))
+    .finally(() => { inArbeit.delete(id); });
+  inArbeit.set(id, p);
 }
 
 async function protokoll(k: Kandidat, g: Gruppe, vorlage: string, quelle: string, laufId: string, von: string | null, ok: boolean, grund: string | null, waId: string | null = null) {
@@ -712,6 +1002,15 @@ async function einzelnSenden(
     await protokoll(k, g, vorlage, quelle, laufId, von, false, "Keine WhatsApp-Nummer");
     return { ok: false, grund: "Keine WhatsApp-Nummer" };
   }
+  // E-253 (28.09.2026, Nachtrag nach der Gegenprüfung): der Tagesplatz DIREKT vor Meta — die Prüfung am
+  // Anfang des Happens ist bis zu 40 s alt. Genau ein Weg bekommt ihn (Lauf, Automatik, Verkaufstakt,
+  // Lead-Begrüßung, Lead-Kette); wer leer ausgeht, sendet nicht (fiaon-whatsapp.ts, waTagesplatz).
+  const { waTagesplatz } = await import("./fiaon-whatsapp");
+  const platz = await waTagesplatz({ personId: k.personId, nummer, weg: `zentrale_${quelle}` });
+  if (!platz.ok) {
+    await protokoll(k, g, vorlage, quelle, laufId, von, false, platz.grund);
+    return { ok: false, grund: platz.grund };
+  }
   const r = await waSenden(nummer, { vorlage, werte: w.werte, knopfWert: w.knopfWert }, { personId: k.personId, leadId: k.leadId, von: "Mara" });
   await protokoll(k, g, vorlage, quelle, laufId, von, r.ok, r.ok ? null : String(r.grund || "Senden fehlgeschlagen"), r.waId ?? null);
   if (r.ok) {
@@ -731,6 +1030,10 @@ async function einzelnSenden(
  */
 export async function auskunftWhatsAppSenden(personId: number, opts: { laufId: string; von: string }): Promise<{ ok: boolean; grund?: string }> {
   if (!tagsueber()) return { ok: false, grund: "Ruhezeit (21–7 Uhr)" };
+  // E-253 (Nachtrag): Solange ein Versand von Hand läuft, wartet der Verkaufstakt (er fragt waLaufOffen
+  // vor jeder WhatsApp und hört dann auf, ohne den Menschen für heute zu verbrauchen). Kommt der Lauf
+  // dazwischen, schützt der Tagesplatz in einzelnSenden.
+  if (await waLaufOffen()) return { ok: false, grund: "Ein Versand der WhatsApp-Zentrale läuft — der Verkaufstakt wartet." };
   const { waKonfig } = await import("./fiaon-whatsapp");
   if (!waKonfig().bereit) return { ok: false, grund: "WhatsApp nicht eingerichtet" };
   const frei = await freigabeSatz();
@@ -748,10 +1051,20 @@ export async function auskunftWhatsAppSenden(personId: number, opts: { laufId: s
 
 /**
  * Ein Lauf von Hand: die nächsten `anzahl` aus der Gruppe, eine Nachricht nach
- * der anderen mit kurzem Abstand. Läuft schon einer, startet kein zweiter.
+ * der anderen mit kurzem Abstand. Läuft schon einer (auf irgendeiner Instanz),
+ * startet kein zweiter. E-253: Der Plan steht VOR der Antwort fest und in der
+ * Datenbank — die erste Antwort nennt schon die richtige Gesamtzahl.
  */
 export async function laufStarten(opts: { gruppe: Gruppe; vorlage: string; anzahl: number; quelle: "hand" | "automatik"; von: string | null }): Promise<{ ok: true; lauf: Lauf } | { ok: false; grund: string }> {
-  if (aktuellerLauf?.laeuft) return { ok: false, grund: "Es läuft schon ein Versand. Bitte warten, bis er fertig ist." };
+  await zentraleSchema();
+  if (herunterfahren) return { ok: false, grund: "Der Server startet gerade neu. Bitte in einer Minute noch einmal." };
+  await laufAufraeumen();
+  const offen = await offenerLauf();
+  if (offen) {
+    return { ok: false, grund: offen.status === "unterbrochen"
+      ? "Ein Versand wurde durch einen Neustart des Servers unterbrochen und geht gleich von selbst weiter. Bitte warten — oder ihn anhalten."
+      : "Es läuft schon ein Versand. Bitte warten, bis er fertig ist." };
+  }
   if (!vorlagePasst(opts.gruppe, opts.vorlage)) return { ok: false, grund: "Diese Vorlage passt nicht zu dieser Gruppe." };
   if (!tagsueber()) return { ok: false, grund: "Zwischen 21:00 und 07:00 schreiben wir niemanden an." };
   const frei = await freigabeSatz();
@@ -759,43 +1072,205 @@ export async function laufStarten(opts: { gruppe: Gruppe; vorlage: string; anzah
   const raum = await tagesRaum();
   if (raum.frei <= 0) return { ok: false, grund: `Das Tageslimit von Meta ist ausgeschöpft (${raum.verbraucht} von ${raum.grenze} in 24 Stunden). Morgen geht es weiter.` };
   if (raum.qualitaet === "RED") return { ok: false, grund: "Meta bewertet die Nummer gerade mit ROT. Bis sich das erholt, keine Massenversände — sonst droht die Sperre." };
-  const anzahl = Math.min(200, raum.frei, Math.max(1, Math.round(Number(opts.anzahl) || 0)));
+  // E-253: bis 500 statt 200 — gekoppelt an Metas freien Tagesraum (E-250: Stufe 2K, also 1.600 in 24 h).
+  const anzahl = Math.min(LAUF_HOECHSTENS, raum.frei, Math.max(1, Math.round(Number(opts.anzahl) || 0)));
+  const plan = await kandidatenIds(opts.gruppe, anzahl);
+  if (!plan.length) return { ok: false, grund: "In dieser Gruppe ist gerade niemand dran." };
   const id = `L${Date.now().toString(36)}`;
-  abbrechen = false;
-  aktuellerLauf = {
-    id, laeuft: true, quelle: opts.quelle, gruppe: opts.gruppe, vorlage: opts.vorlage,
-    gesamt: 0, gesendet: 0, uebersprungen: 0, fehler: 0, gruende: {}, seit: new Date().toISOString(), bis: null,
-    ausgeloestVon: opts.von, abgebrochen: false,
+  try {
+    await sqlPool`
+      INSERT INTO fiaon_wa_lauf (id, quelle, gruppe, vorlage, ausgeloest_von, plan, instanz)
+      VALUES (${id}, ${opts.quelle}, ${opts.gruppe}, ${opts.vorlage}, ${opts.von}, ${plan}::int[], ${instanz})`;
+  } catch (e) {
+    if (String((e as any)?.code ?? "") === "23505") return { ok: false, grund: "Es läuft schon ein Versand. Bitte warten, bis er fertig ist." };
+    throw e;
+  }
+  laufAnstossen(id);
+  const stand = await laufStand(id);
+  return stand ? { ok: true, lauf: stand } : { ok: false, grund: "Der Versand ließ sich nicht anlegen." };
+}
+
+/**
+ * Die Arbeit eines Laufs — EIN Weg für Start und Fortsetzung. Liest den Plan ab
+ * `pos` und hört sofort auf, sobald der Lauf nicht mehr dieser Instanz gehört.
+ */
+async function laufArbeiten(id: string): Promise<void> {
+  const ich = instanz; // festgehalten: Übernimmt ein anderer, findet jedes UPDATE unten 0 Zeilen
+  const [l] = (await sqlPool`
+    SELECT id, quelle, gruppe, vorlage, ausgeloest_von, plan, pos FROM fiaon_wa_lauf
+     WHERE id = ${id} AND instanz = ${ich} AND status = 'laeuft'`) as any[];
+  if (!l || !istGruppe(l.gruppe)) return;
+  const g: Gruppe = l.gruppe;
+  const gewaehlt = String(l.vorlage);
+  const quelle: "hand" | "automatik" = l.quelle === "automatik" ? "automatik" : "hand";
+  const von: string | null = l.ausgeloest_von ?? null;
+  const plan: number[] = (Array.isArray(l.plan) ? l.plan : []).map(Number);
+  let pos = Number(l.pos) || 0;
+  const senden: SendeFn = senderHuelle ? senderHuelle(einzelnSenden) : einzelnSenden;
+  let beendetVonMir = false; // nur wer den Lauf beendet, schreibt die Schlusszeile ins Protokoll
+  const beenden = async (status: LaufZustand, schluss: string | null = null) => {
+    const r = (await sqlPool`
+      UPDATE fiaon_wa_lauf SET status = ${status}, schluss = COALESCE(${schluss}, schluss), bis = NOW(), in_arbeit = NULL, herzschlag = NOW()
+       WHERE id = ${id} AND instanz = ${ich} AND status = 'laeuft' RETURNING id`) as any[];
+    beendetVonMir = r.length > 0;
   };
-  const lauf = aktuellerLauf;
-  const zaehle = (g: string) => { const s = g.slice(0, 90); lauf.gruende[s] = (lauf.gruende[s] ?? 0) + 1; };
-  void (async () => {
-    try {
-      const liste = await kandidaten(opts.gruppe, anzahl);
-      lauf.gesamt = liste.length;
-      for (const k of liste) {
-        if (abbrechen) { lauf.abgebrochen = true; break; }
-        if (!tagsueber()) { zaehle("Ruhezeit begonnen — Rest nicht gesendet"); break; }
-        try {
-          const r = await einzelnSenden(opts.gruppe, opts.vorlage, k, opts.quelle, id, opts.von, frei);
-          if (r.ok) lauf.gesendet++;
-          else { lauf.uebersprungen++; zaehle(String(r.grund || "unbekannt")); }
-        } catch (e) {
-          lauf.fehler++;
-          zaehle(String((e as Error)?.message || e));
+  const uebergeben = async () => {
+    await sqlPool`
+      UPDATE fiaon_wa_lauf SET status = 'unterbrochen', unterbrochen_am = NOW(), in_arbeit = NULL
+       WHERE id = ${id} AND instanz = ${ich} AND status = 'laeuft'`;
+  };
+  try {
+    while (pos < plan.length) {
+      // ── Vor jedem Happen: was sich unterwegs ändern kann ──────────────────
+      if (herunterfahren) return void await uebergeben();
+      if (!tagsueber()) return void await beenden("fertig", "Ruhezeit begonnen (21 Uhr) — der Rest wurde nicht gesendet.");
+      const raum = await tagesRaum();
+      if (raum.qualitaet === "RED") return void await beenden("fertig", "Meta bewertet die Nummer mit ROT — der Rest wurde nicht gesendet.");
+      let freiRest = raum.frei;
+      if (freiRest <= 0) return void await beenden("fertig", "Metas Tageslimit ist erreicht — der Rest wurde nicht gesendet.");
+      const frei = await freigabeSatz();
+      if (gewaehlt !== "stufen" && !istFrei(gewaehlt, frei)) return void await beenden("fertig", "Die Vorlage ist bei Meta nicht mehr freigegeben — der Rest wurde nicht gesendet.");
+      const happen = plan.slice(pos, pos + happenGroesse);
+      // Gruppe und BASIS neu: wer inzwischen schrieb, zahlte, „STOPP" sagte oder heute schon etwas bekam, fällt raus.
+      const gueltig = new Map((await kandidaten(g, happen.length, [], happen)).map((k) => [k.personId, k] as const));
+      for (const personId of happen) {
+        if (herunterfahren) return void await uebergeben();
+        if (!tagsueber()) return void await beenden("fertig", "Ruhezeit begonnen (21 Uhr) — der Rest wurde nicht gesendet.");
+        if (freiRest <= 0) return void await beenden("fertig", "Metas Tageslimit ist erreicht — der Rest wurde nicht gesendet.");
+        // Herzschlag + Reservierung — und die Frage, ob der Lauf noch uns gehört (Fencing).
+        const [h] = (await sqlPool`
+          UPDATE fiaon_wa_lauf SET herzschlag = NOW(), in_arbeit = ${personId}
+           WHERE id = ${id} AND instanz = ${ich} AND status = 'laeuft' AND plan[pos + 1] = ${personId}
+           RETURNING anhalten_am`) as any[];
+        if (!h) return; // Jemand anders trägt den Lauf (oder er ist beendet) — sofort aufhören.
+        if (h.anhalten_am) return void await beenden("angehalten");
+        const k = gueltig.get(personId);
+        if (!k) {
+          const [w] = (await sqlPool`
+            UPDATE fiaon_wa_lauf SET pos = pos + 1, in_arbeit = NULL, entfallen = entfallen + 1
+             WHERE id = ${id} AND instanz = ${ich} AND status = 'laeuft'
+               AND in_arbeit = ${personId} AND plan[pos + 1] = ${personId} RETURNING pos`) as any[];
+          if (!w) return;
+          pos++;
+          continue;
         }
-        await new Promise((res) => setTimeout(res, 1200));
+        try {
+          const r = await senden(g, gewaehlt, k, quelle, id, von, frei);
+          if (r.ok) freiRest--;
+        } catch (e) {
+          // Jede Ausnahme steht als Zeile da — „höchstens ein Versuch je Person und Tag" gilt auch hier.
+          await protokoll(k, g, vorlageFuerKandidat(gewaehlt, k), quelle, id, von, false, `Fehler: ${String((e as Error)?.message || e)}`);
+        }
+        // E-253 (Nachtrag): pos zählt nur weiter, wenn die Reservierung noch genau dieser Mensch ist —
+        // nie doppelt, falls unterwegs jemand anders den Platz schon weitergezählt hat.
+        const [w] = (await sqlPool`
+          UPDATE fiaon_wa_lauf SET pos = pos + 1, in_arbeit = NULL, herzschlag = NOW()
+           WHERE id = ${id} AND instanz = ${ich} AND status = 'laeuft'
+             AND in_arbeit = ${personId} AND plan[pos + 1] = ${personId} RETURNING pos`) as any[];
+        if (!w) return;
+        pos++;
+        if (pos < plan.length) await new Promise((res) => setTimeout(res, pauseMs));
       }
-    } catch (e) {
-      lauf.fehler++;
-      zaehle(String((e as Error)?.message || e));
-    } finally {
-      lauf.laeuft = false;
-      lauf.bis = new Date().toISOString();
-      console.log(`[WA-ZENTRALE] Lauf ${id} (${lauf.quelle}, ${lauf.gruppe}, ${lauf.vorlage}): ${lauf.gesendet} gesendet, ${lauf.uebersprungen} übersprungen, ${lauf.fehler} Fehler${lauf.abgebrochen ? ", abgebrochen" : ""}`);
     }
-  })();
-  return { ok: true, lauf: { ...lauf } };
+    await beenden("fertig");
+  } catch (e) {
+    // Eine Störung (Datenbank, Netz): nicht liegen lassen, sondern übergeben — der Takt setzt fort (höchstens fünfmal).
+    console.error(`[WA-ZENTRALE] Lauf ${id} gestört:`, e);
+    await sqlPool`
+      UPDATE fiaon_wa_lauf SET status = 'unterbrochen', unterbrochen_am = NOW(),
+             schluss = ${`Störung: ${String((e as Error)?.message || e).slice(0, 200)}`}
+       WHERE id = ${id} AND instanz = ${ich} AND status = 'laeuft'`.catch(() => {});
+  } finally {
+    const s = beendetVonMir ? await laufStand(id).catch(() => null) : null;
+    if (s && !s.laeuft) {
+      console.log(`[WA-ZENTRALE] Lauf ${id} (${s.quelle}, ${s.gruppe}, ${s.vorlage}): ${s.gesendet} gesendet, ${s.uebersprungen} übersprungen, `
+        + `${s.entfallen} entfallen, ${s.fehler} Fehler — ${s.zustand}${s.fortsetzungen ? `, ${s.fortsetzungen}× fortgesetzt` : ""}${s.schluss ? ` (${s.schluss})` : ""}`);
+    }
+  }
+}
+
+/**
+ * „Anhalten" — wirkt auf jeder Instanz: Der Wunsch steht in der Datenbank, der
+ * Träger hält nach der laufenden Nachricht an. Ein unterbrochener Lauf (niemand
+ * trägt ihn) ist sofort angehalten. `angehalten` = es gab etwas anzuhalten.
+ */
+export async function laufAbbrechen(von: string | null = null): Promise<{ angehalten: boolean; id: string | null; zustand: LaufZustand | null }> {
+  await zentraleSchema();
+  const [z] = (await sqlPool`
+    UPDATE fiaon_wa_lauf
+       SET anhalten_am = NOW(), anhalten_von = ${von},
+           status = CASE WHEN status = 'unterbrochen' THEN 'angehalten' ELSE status END,
+           bis = CASE WHEN status = 'unterbrochen' THEN NOW() ELSE bis END
+     WHERE status IN ('laeuft', 'unterbrochen') AND anhalten_am IS NULL
+     RETURNING id, status`) as any[];
+  if (z) console.log(`[WA-ZENTRALE] Lauf ${z.id}: Anhalten durch ${von ?? "?"} (${z.status})`);
+  return z ? { angehalten: true, id: String(z.id), zustand: String(z.status) as LaufZustand } : { angehalten: false, id: null, zustand: null };
+}
+
+/**
+ * SIGTERM (server/index.ts): nichts Neues mehr anfangen, die laufende Nachricht
+ * zu Ende senden (höchstens `maxMs`), dann „unterbrochen" — der Takt einer
+ * anderen Instanz übernimmt. Hängt die Sendung länger, bleibt die Person
+ * reserviert (in_arbeit) und wird nicht noch einmal angeschrieben.
+ */
+export async function laufUebergeben(maxMs = 15_000): Promise<{ uebergeben: number }> {
+  herunterfahren = true;
+  // Trägt dieser Prozess keinen Lauf, gibt es nichts zu übergeben (auch keine Datenbank-Frage beim Beenden).
+  if (!inArbeit.size) return { uebergeben: 0 };
+  const bis = Date.now() + maxMs;
+  while (inArbeit.size && Date.now() < bis) {
+    await Promise.race([...Array.from(inArbeit.values()), new Promise((r) => setTimeout(r, 250))]);
+  }
+  const zeilen = (await sqlPool`
+    UPDATE fiaon_wa_lauf SET status = 'unterbrochen', unterbrochen_am = NOW()
+     WHERE instanz = ${instanz} AND status = 'laeuft' RETURNING id`.catch((e) => {
+    console.error("[WA-ZENTRALE] Übergabe:", e);
+    return [];
+  })) as any[];
+  const [u] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_wa_lauf WHERE instanz = ${instanz} AND status = 'unterbrochen'
+       AND unterbrochen_am > NOW() - INTERVAL '1 minute'`.catch(() => [{ n: zeilen.length }])) as any[];
+  return { uebergeben: Number(u?.n ?? zeilen.length) };
+}
+
+/**
+ * Der Takt „wa_zentrale_fortsetzen" (jede Minute, nur im Betrieb): räumt auf und
+ * übernimmt einen unterbrochenen oder verwaisten Lauf von heute — atomar: Bei
+ * zwei Instanzen gewinnt genau eine (READ COMMITTED prüft die Bedingung nach
+ * der Zeilensperre neu). Die reservierte Person wird nicht noch einmal gesendet.
+ */
+export async function laufFortsetzen(): Promise<{ id: string | null; grund?: string }> {
+  if (herunterfahren) return { id: null, grund: "fährt herunter" };
+  await zentraleSchema();
+  await laufAufraeumen();
+  // E-253 (Nachtrag): nie den eigenen, noch lebenden Lauf (NICHT_EIGEN_SQL) — $1 ist zugleich die neue instanz.
+  const [l] = (await sqlPool.unsafe(`
+    UPDATE fiaon_wa_lauf
+       SET status = 'laeuft', instanz = $1, herzschlag = NOW(), fortsetzungen = fortsetzungen + 1,
+           unterbrochen_am = COALESCE(unterbrochen_am, NOW()), schluss = NULL
+     WHERE anhalten_am IS NULL AND fortsetzungen < ${LAUF_FORTSETZUNGEN}
+       AND ${LAUF_ALT_SQL} AND ${NICHT_EIGEN_SQL} AND ${HEUTE_BERLIN_SQL("seit")}
+     RETURNING id, gruppe, vorlage, quelle, ausgeloest_von, pos, in_arbeit, cardinality(plan) AS gesamt`, eigeneParameter())) as any[];
+  if (!l) return { id: null, grund: "nichts zu übernehmen" };
+  const ich = instanz;
+  if (l.in_arbeit != null) {
+    // Die Person mitten im Senden: Hat sie in diesem Lauf schon eine Zeile, ist sie erledigt. Sonst ist offen,
+    // ob die Nachricht bei Meta ankam — lieber keine als zwei: heute nicht noch einmal, mit einer ehrlichen Zeile.
+    const p = Number(l.in_arbeit);
+    const [da] = (await sqlPool`SELECT 1 AS x FROM fiaon_wa_aktion WHERE lauf_id = ${l.id} AND person_id = ${p} LIMIT 1`) as any[];
+    if (!da) {
+      await sqlPool`
+        INSERT INTO fiaon_wa_aktion (person_id, gruppe, vorlage, quelle, lauf_id, ausgeloest_von, ok, grund)
+        VALUES (${p}, ${l.gruppe}, ${l.vorlage}, ${l.quelle}, ${l.id}, ${l.ausgeloest_von ?? null}, FALSE,
+                'Neustart während des Sendens — heute nicht noch einmal (ob sie rausging, steht im Verlauf)')`;
+    }
+    await sqlPool`
+      UPDATE fiaon_wa_lauf SET pos = pos + 1, in_arbeit = NULL
+       WHERE id = ${l.id} AND instanz = ${ich} AND status = 'laeuft' AND in_arbeit = ${p} AND plan[pos + 1] = ${p}`;
+  }
+  console.log(`[WA-ZENTRALE] Lauf ${l.id} nach Neustart übernommen (${Number(l.pos)} von ${Number(l.gesamt)} erledigt${l.in_arbeit != null ? ", eine Person war mitten im Senden" : ""})`);
+  laufAnstossen(String(l.id));
+  return { id: String(l.id) };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -895,7 +1370,8 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
     if (!a.an) return { gesendet: 0, grund: "aus" };
     const m = berlinMinutenJetzt();
     if (m < hhmm(a.von) || m >= hhmm(a.bis) || !tagsueber()) return { gesendet: 0, grund: "außerhalb des Fensters" };
-    if (aktuellerLauf?.laeuft) return { gesendet: 0, grund: "ein Lauf von Hand läuft" };
+    // E-253: ein Lauf von Hand auf IRGENDEINER Instanz (auch einer, der nach einem Neustart gleich weitergeht).
+    if (await offenerLauf()) return { gesendet: 0, grund: "ein Lauf von Hand läuft" };
     const { waKonfig } = await import("./fiaon-whatsapp");
     if (!waKonfig().bereit) return { gesendet: 0, grund: "WhatsApp nicht eingerichtet" };
     const [z] = (await sqlPool`
@@ -913,15 +1389,18 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
     let gesendet = 0;
     const versucht: number[] = [];
     const laufId = `A${Date.now().toString(36)}`;
+    let stoppGrund: string | null = null;
     for (const g of a.gruppen) {
-      if (frei <= 0) break;
+      if (frei <= 0 || herunterfahren || stoppGrund) break;
       const vorlage = a.vorlagen[g] ?? GRUPPEN[g].standard;
       if (!vorlagePasst(g, vorlage)) continue;
       if (vorlage !== "stufen" && !istFrei(vorlage, freigabe)) continue;
       // Etwas mehr holen als nötig — wer an einer Regel scheitert, soll den Platz nicht blockieren.
       const liste = await kandidaten(g, frei + 3, versucht);
       for (const k of liste) {
-        if (frei <= 0) break;
+        if (frei <= 0 || herunterfahren) break; // E-253: bei SIGTERM nichts Neues anfangen
+        // E-253 (Nachtrag): vor JEDER Sendung — ein Lauf von Hand, der während des Takts startet, hat Vorrang.
+        if (await offenerLauf().catch(() => null)) { stoppGrund = "ein Lauf von Hand läuft"; break; }
         versucht.push(k.personId);
         const r = await einzelnSenden(g, vorlage, k, "automatik", laufId, "Automatik", freigabe).catch(() => ({ ok: false }));
         if (r.ok) { gesendet++; frei--; }
@@ -929,7 +1408,7 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
       }
     }
     if (gesendet) console.log(`[WA-ZENTRALE] Automatik: ${gesendet} gesendet (${schon + gesendet}/${a.jeStunde} in dieser Stunde)`);
-    return { gesendet };
+    return stoppGrund ? { gesendet, grund: stoppGrund } : { gesendet };
   } finally {
     taktLaeuft = false;
   }
@@ -943,7 +1422,7 @@ export async function zentraleLage() {
   const [zaehlung, a, frei, raum] = await Promise.all([gruppenZahlenMitEinwilligung(), automatik(), freigabeSatz(), tagesRaum()]);
   const zahlen = zaehlung.alle;
   // E-230: Wer wartet gerade auf eine Antwort? Justin soll Stille sehen, bevor ein Kunde sie spürt.
-  // E-249: Warum „Neue Leads" leer ist — wann kam der letzte Lead?
+  // E-250: Warum „Neue Leads" leer ist — wann kam der letzte Lead?
   const [ll] = (await sqlPool`SELECT MAX(erstellt_am) AS am FROM fiaon_leads`.catch(() => [{ am: null }])) as any[];
   const letzterLead = ll?.am ? new Date(ll.am).toISOString() : null;
   const { OFFENE_GESPRAECHE_SQL } = await import("./fiaon-whatsapp-mara");
@@ -1021,7 +1500,10 @@ export async function zentraleLage() {
       rein: Number(alle?.rein || 0), menschenRein: Number(alle?.menschen_rein || 0), fehler: Number(alle?.fehler || 0),
     },
     wirkung7: { menschen: Number(wirkung?.menschen || 0), geantwortet: Number(wirkung?.geantwortet || 0), antrag: Number(wirkung?.antrag || 0), gezahlt: Number(wirkung?.gezahlt || 0), gezahltCents: Number(wirkung?.gezahlt_cents || 0) },
-    lauf: laufStand(),
+    // E-253: aus der Datenbank — jede Instanz zeigt denselben Stand, auch nach einem Neustart.
+    lauf: await laufStand().catch((e) => { console.error("[WA-ZENTRALE] Laufstand:", e); return null; }),
+    laufHoechstens: LAUF_HOECHSTENS,
+    laufSekundenJePerson: LAUF_SEKUNDEN_JE_PERSON,
     letzte: letzte.map((r) => ({
       id: Number(r.id), personId: r.person_id != null ? Number(r.person_id) : null, name: String(r.name || "").trim() || "Ohne Namen",
       gruppe: String(r.gruppe), vorlage: String(r.vorlage), quelle: String(r.quelle), ok: !!r.ok, grund: r.grund ?? null,

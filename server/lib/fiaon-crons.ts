@@ -85,6 +85,16 @@ export function tageslauf(
      * selbst takten).
      */
     alleXStunden?: number;
+    /**
+     * Nur für Minutentakte, die fast immer nichts zu tun haben (28.09.2026,
+     * E-253: wa_zentrale_fortsetzen). Die Arbeit meldet mit `true`, dass sie
+     * etwas getan hat — nur dann (oder bei einem Fehler) entsteht eine Zeile in
+     * fiaon_lauf_historie. Sonst legte ein Minutentakt je Instanz 1.440 Zeilen
+     * am Tag auf eine Tabelle, die niemand aufräumt (gemessen 28.09.: 105.531
+     * Zeilen, 11.057 in 24 h). Gleichzeitige Läufe verhindert hier der Prozess
+     * selbst; die Arbeit muss über Instanzen hinweg selbst atomar sein.
+     */
+    nurMitErgebnis?: boolean;
   } = {},
 ): void {
   if (!CRONS_AN && !opts.auchWenn) {
@@ -101,16 +111,46 @@ export function tageslauf(
   // nicht gesetzt — sie laufen wie bisher bei jedem Takt, hinterlassen aber
   // eine Spur. Ohne die Spur ist keine Ampel möglich, und ohne Ampel wiederholt
   // sich der 15-Tage-Ausfall vom August.
-  const sicher = () => {
-    void laufMitHistorie(
-      name,
-      async () => { await fn(); },
-      { alleXStunden: opts.alleXStunden },
-    ).catch((err) => console.error(`[CRONS] ${name}:`, err));
-  };
+  const sicher = opts.nurMitErgebnis
+    ? () => { void stillerLauf(name, fn).catch((err) => console.error(`[CRONS] ${name}:`, err)); }
+    : () => {
+      void laufMitHistorie(
+        name,
+        async () => { await fn(); },
+        { alleXStunden: opts.alleXStunden },
+      ).catch((err) => console.error(`[CRONS] ${name}:`, err));
+    };
   if (opts.beimStartNach && opts.beimStartNach > 0) setTimeout(sicher, opts.beimStartNach);
   setInterval(sicher, intervallMs);
   REGISTRIERT.push({ name, intervallMs, laeuft: true });
+}
+
+/**
+ * Ein Minutentakt mit `nurMitErgebnis` (E-253): eine Historienzeile nur, wenn die
+ * Arbeit `true` meldet (etwas getan) oder scheitert — der Fehler wird wie in
+ * laufMitHistorie GESCHRIEBEN, nicht verschluckt. Solange derselbe Prozess noch
+ * daran arbeitet, fängt kein zweiter Durchlauf an.
+ */
+const stillAktiv = new Set<string>();
+export async function stillerLauf(name: string, fn: () => void | Promise<unknown>): Promise<void> {
+  if (stillAktiv.has(name)) return;
+  stillAktiv.add(name);
+  const start = Date.now();
+  const zeile = async (ergebnis: "erfolg" | "fehler", fehler: string | null) => {
+    const { sqlPool } = await import("./db-pool");
+    await sqlPool`
+      INSERT INTO fiaon_lauf_historie (name, ergebnis, begonnen, beendet, dauer_ms, fehler)
+      VALUES (${name}, ${ergebnis}, ${new Date(start)}, NOW(), ${Date.now() - start}, ${fehler})`.catch(() => {});
+  };
+  try {
+    if ((await fn()) === true) await zeile("erfolg", null);
+  } catch (err) {
+    const text = err instanceof Error ? err.message : String(err);
+    console.error(`[CRONS] ${name} FEHLER:`, err);
+    await zeile("fehler", text.slice(0, 2000));
+  } finally {
+    stillAktiv.delete(name);
+  }
 }
 
 /**

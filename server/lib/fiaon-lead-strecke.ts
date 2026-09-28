@@ -39,6 +39,8 @@ import { randomBytes } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { anredeMail } from "../../shared/fiaon-anrede";
+// E-253 (28.09.2026): die eine Lesart der Sperren (Vertriebssperre nur am Kopf, Werbesperre in der Familie)
+import { VERTRIEBSSPERRE_SQL, WERBESPERRE_FAMILIE_SQL } from "./fiaon-mail-frequenz";
 import {
   MINDESTABSTAND_STUNDEN, faelligNachTagen, streckenKnopf, varianteFuer,
 } from "../../shared/fiaon-lead-strecke";
@@ -91,24 +93,18 @@ export async function stoppGrund(leadId: number, lauf: Lauf = sqlPool): Promise<
            -- an der Person, in die sie zusammengeführt wurde, oder an jeder anderen,
            -- die in dieselbe zusammengeführt wurde (die Sperre wandert beim
            -- Zusammenführen nicht mit, fiaon-person-model.ts).
-           EXISTS (
-             SELECT 1 FROM fiaon_persons p
-               JOIN fiaon_persons q
-                 ON q.id = COALESCE(p.merged_into_person_id, p.id)
-                 OR q.merged_into_person_id = COALESCE(p.merged_into_person_id, p.id)
-             WHERE p.id = le.person_id AND q.werbung_gesperrt_am IS NOT NULL
-           ) AS werbesperre,
+           -- E-253 (28.09.2026): über den gemeinsamen Baustein (fiaon-mail-frequenz.ts),
+           -- der auch Ketten (Dublette → Dublette → Kopf) folgt.
+           COALESCE(${sqlPool.unsafe(WERBESPERRE_FAMILIE_SQL("le.person_id"))}, FALSE) AS werbesperre,
            -- 25.09.2026: auch die Vertriebssperre (is_blocked) — dieselbe Bedingung wie
            -- Mara-Aktion, WA-Zentrale und Rückholung. Gemessen: 57 Strecken-Mails an 23
            -- gesperrte Leads in 30 Tagen. Justin: „bekommt der eine Sperre, dass wir dem
            -- nichts weiter schicken?"
-           EXISTS (
-             SELECT 1 FROM fiaon_persons p
-               JOIN fiaon_persons q
-                 ON q.id = COALESCE(p.merged_into_person_id, p.id)
-                 OR q.merged_into_person_id = COALESCE(p.merged_into_person_id, p.id)
-             WHERE p.id = le.person_id AND COALESCE(q.is_blocked, FALSE)
-           ) AS vertriebssperre
+           -- E-253 (28.09.2026): NUR an der führenden Person. Bis heute zählte hier auch die
+           -- Wegweiser-Marke einer zusammengeführten Dublette (is_blocked = TRUE setzt jedes
+           -- Zusammenführen) — und der Stopp „hand" ist dauerhaft. Gemessen: 0 falsche Stopps
+           -- bisher, 8 offene Leads standen davor.
+           ${sqlPool.unsafe(VERTRIEBSSPERRE_SQL("le.person_id"))} AS vertriebssperre
     FROM fiaon_leads le WHERE le.id = ${leadId}
   `) as any[];
   if (!l) return { stopp: "hand", klartext: "Lead nicht gefunden." };

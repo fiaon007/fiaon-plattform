@@ -65,7 +65,7 @@
 import { sqlPool } from "./db-pool";
 import { kiAufruf, antwortLesen, MODELL, agentNamen } from "./fiaon-postmeister-agent";
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
-import { waSenden, sendePruefung, fensterOffen } from "./fiaon-whatsapp";
+import { waSenden, sendePruefung, fensterOffen, empfaengerNamen } from "./fiaon-whatsapp";
 import { anweisungBlock } from "./fiaon-mara-anweisung";
 import { gedaechtnisText, gedaechtnisMerken } from "./fiaon-mara-gedaechtnis";
 import { wissenFakten } from "@shared/fiaon-wissen";
@@ -84,7 +84,9 @@ import {
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { fragtNachAuskunftSelbst, lehntAuskunftAb, bezogenAufAuskunftAngebot } from "@shared/fiaon-postmeister-typen";
-import { personSperre, werbungVerboten } from "./fiaon-mail-frequenz";
+// E-253 (28.09.2026): menschSperre statt personSperre — fiaon_whatsapp.person_id wird beim Zusammenführen
+// nicht umgehängt; zeigte sie auf eine Dublette, läse Mara deren Wegweiser-Marke als „Vertriebssperre".
+import { menschSperre, werbungVerboten } from "./fiaon-mail-frequenz";
 import { absoluteUrl } from "../fiaon-base-url";
 import { zuletztAngeboten } from "./fiaon-auskunft";
 import { kiPausiert, istKiPause, kiPauseLesen } from "./fiaon-ki-pause";
@@ -1281,7 +1283,9 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
       // rote Band „abgelaufen … kontaktieren Sie den Support". Er HAT sich gemeldet:
       // Mara schaltet die Bestellung selbst neu frei (Weg des Agentenportals), außer
       // bei einem heiklen Anliegen oder einer Sperre — dann KEIN Zahlungslink.
-      const sperre = await personSperre(personId).catch(() => null);
+      // E-253 (28.09.2026): der MENSCH (menschSperre) — die Wegweiser-Marke einer Dublette ist keine Sperre,
+      // eine Werbesperre an einer Dublette schon.
+      const sperre = await menschSperre(Number(personId)).catch(() => null);
       const frei = !heikelAnliegen(kundeText) && !sperre?.werbesperre && !sperre?.vertriebssperre
         && await (await import("./fiaon-postmeister-werkzeuge")).abgelaufeneBestellungFreischalten(String(b.payment_reference)).catch(() => false);
       const cents = paketPreisCents(b.pack_key);
@@ -1331,7 +1335,7 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
   // am 24.09.: Mara schrieb einem Menschen mit Werbesperre „starten Sie einfach
   // hier neu" samt Antragslink.
   if (personId) {
-    const s = await personSperre(personId).catch(() => null);
+    const s = await menschSperre(Number(personId)).catch(() => null);
     erg.vertriebssperre = !!s?.vertriebssperre;
     if (s?.werbesperre) {
       erg.werbesperre = true;
@@ -1801,6 +1805,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const e = await entwerfen(text, {
       kunde, kontext, letzteDu: letzteDu.slice(0, 2), verkaufen: lage.verkaufen, verlaufText, zahlungslage, link: lage.link,
       auskunftAngebot: auskunftWerkzeugAn(auskunft), werbesperre: lage.werbesperre,
+      // E-253: seine Namen aus der Akte, getrennt und zusammen — nie als „du" gewertet
+      namen: await empfaengerNamen({ personId: personId ? Number(personId) : null, leadId: leadId ? Number(leadId) : null }).catch(() => []),
       bekannt: {
         links: [lage.link ?? "", ...(auskunft?.offenLink ? [auskunft.offenLink] : [])].filter(Boolean),
         auskunftPreise: auskunft && auskunftImGespraech
@@ -1880,6 +1886,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     let sicher: string | null = null;
     if (funde.length && !e.kiFehler) {
       const kandidat = sichererSatz({ kunde, aktionen: e.aktionen, termin: terminKurz, link: lage.link, stufe: lage.linkLage.stufe });
+      // E-253 (28.09.2026): bewusst OHNE die Namen des Kunden — der sichere Satz nennt nur den Vornamen des
+      // Betreuers und Links, nie den Kunden; ungemaskt prüft die Wand hier strenger.
       if (kandidat && !sendePruefung(kandidat).length && !tonUndLink(kandidat, { land: lage.land, kunde, linkLage: lage.linkLage }).hart.length
         && !handlungsPruefung(kandidat, e.aktionen, kunde, verlaufText, { links: [lage.link ?? ""], termin: terminKurz ? { uhrzeit: terminKurz.uhrzeit ?? "" } : null }).length) {
         sicher = kandidat;
@@ -2297,7 +2305,7 @@ async function auskunftAnbieten(ctx: WerkzeugKontext): Promise<{ ergebnis: any; 
   const kunde = String(ctx.kunde ?? "");
   const du = String(ctx.letzteDu ?? "");
   const zugestimmt = auskunftZugestimmt(kunde, du);
-  const sperre = werbungVerboten(await personSperre(ctx.personId).catch(() => null));
+  const sperre = werbungVerboten(await menschSperre(Number(ctx.personId)).catch(() => null));
   if (sperre && !zugestimmt && !auskunftGefragt(kunde)) return nein(`${sperre} — die Auskunft nur, wenn er sie ausdrücklich haben will. Kein Angebot.`);
 
   let link: string;
@@ -2549,6 +2557,8 @@ export async function entwerfen(
     erlaubt?: ErlaubteWerte;
     /** E-248: sein persönlicher Link (für die Verkaufsprüfung „er will bestellen"). */
     link?: string | null;
+    /** E-253 (28.09.2026): Vor- und Nachname des Kunden aus der Akte (empfaengerNamen) — kein Text von Mara. */
+    namen?: readonly string[];
   },
   werkzeugKontext?: WerkzeugKontext | null,
 ): Promise<{ roh: any; antwort: string; funde: string[]; hinweise: string[]; zweiter: boolean; kiFehler: string | null; aktionen: Aktion[] }> {
@@ -2566,7 +2576,9 @@ export async function entwerfen(
   const pruefe = (a: string) => {
     if (!a) return { hart: ["Kein Text erzeugt."], nurJa: false, nurLimit: false, nurPreis: false, weich: [] as string[] };
     const tl = tonUndLink(a, { land, kunde: pruef.kunde, linkLage });
-    const wand = sendePruefung(a);
+    // E-253 (28.09.2026): Nennt Mara den Kunden beim Namen, ist sein Name aus der Akte kein „du" (Partikel „du"
+    // im Nachnamen, „…ğdu") — sonst verwarf sie einen richtigen Entwurf und sollte „ohne diese Wörter" neu schreiben.
+    const wand = sendePruefung(a, { namen: pruef.namen });
     const wahr = wahrheitsBefunde(a, pruef.kunde);
     const hand = handlungsPruefung(a, aktionen, pruef.kunde, pruef.verlaufText, pruef.bekannt);
     const hart = [...wand, ...wahr.map((f) => f.text), ...hand, ...tl.hart];

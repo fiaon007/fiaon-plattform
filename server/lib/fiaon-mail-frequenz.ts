@@ -46,7 +46,7 @@
 // `darfAnEmpfaenger` ebenfalls davor — Absprache mit fiaon-8e vom 02.09.2026.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { istAboPaket } from "@shared/fiaon-pakete";
+import { istAboPaket, PAKETE } from "@shared/fiaon-pakete";
 
 /**
  * Pflichtmails: Antworten auf eine Handlung des Menschen. Diese laufen IMMER
@@ -462,6 +462,13 @@ export interface PersonSperre {
    * ERSTER_ANTRAG_SQL) — bei einer Rechtsfrage gilt im Zweifel die engere.
    */
   kundeMitHinweis: boolean;
+  /**
+   * E-253 (28.09.2026): „Stopp" des MENSCHEN — „STOPP"/„Keine Nachrichten" auf
+   * WhatsApp oder die Antwort ans Postfach mit dem Merkmal stopp (Postmeister:
+   * „will keine Nachrichten mehr"), an irgendeiner Person der Familie. Nur
+   * menschSperre liest es; personSperren lässt es leer.
+   */
+  stopp?: boolean;
 }
 
 /** Die Personen hinter einer Mailadresse — Hauptadresse, Bestellungen, Lead-Formular, Zusammengeführte. */
@@ -526,36 +533,214 @@ export async function personSperren(ids: number[]): Promise<PersonSperre[]> {
      WHERE p.id = ANY(${liste})
      GROUP BY p.id, p.werbung_gesperrt_am, p.is_blocked, p.ist_test_am
   `) as any[];
+  return zeilen.map(sperreAusZeile);
+}
+
+/**
+ * Eine Zeile (id, werbung_gesperrt_am, is_blocked, test, erster_antrag, antraege)
+ * → PersonSperre. E-253: herausgezogen, damit personSperren (eine Person) und
+ * menschSperre (die Familie) dieselben Regeln rechnen.
+ */
+function sperreAusZeile(z: any): PersonSperre {
   const jetzt = Date.now();
   const hinweisAb = new Date(WIDERSPRUCH_HINWEIS_SEIT).getTime();
-  return zeilen.map((z) => {
-    const antraege: any[] = Array.isArray(z.antraege) ? z.antraege : (() => { try { return JSON.parse(String(z.antraege)); } catch { return []; } })();
-    const endeVorbei = (a: any) => !!a.ende && new Date(a.ende).getTime() <= jetzt;
-    const laufend = (a: any) => !istAuskunftZeile(a) && istAboPaket(a.key) && a.bezahlt === true && !a.storniert && !endeVorbei(a);
-    const laufendesPaket = antraege.some(laufend);
-    // Ein Antrag NACH diesem Zeitpunkt (keine Auskunft-Bestellung) = neues Interesse.
-    const neuerAntragNach = (t: unknown) => !!t && antraege.some((n) => !istAuskunftZeile(n) && new Date(n.angelegt).getTime() > new Date(String(t)).getTime());
-    const gekuendigt = antraege.some((a) => a.gekuendigt === true && !neuerAntragNach(a.gekuendigt_am));
-    const beendet = antraege.filter(endeVorbei);
-    return {
-      personId: Number(z.id),
-      werbesperre: !!z.werbung_gesperrt_am,
-      werbesperreSeit: z.werbung_gesperrt_am ? new Date(z.werbung_gesperrt_am).toISOString() : null,
-      vertriebssperre: !!z.is_blocked,
-      test: !!z.test,
-      gekuendigt,
-      vertragVorbei: beendet.length > 0 && !laufendesPaket && !beendet.some((a) => neuerAntragNach(a.ende)),
-      laufendesPaket,
-      laufendUngekuendigt: antraege.some((a) => laufend(a) && a.gekuendigt !== true),
-      kundeMitHinweis: antraege.some((a) => laufend(a) && a.gekuendigt !== true)
-        && !!z.erster_antrag && new Date(z.erster_antrag).getTime() >= hinweisAb,
-    };
-  });
+  const antraege: any[] = Array.isArray(z.antraege) ? z.antraege : (() => { try { return JSON.parse(String(z.antraege)); } catch { return []; } })();
+  const endeVorbei = (a: any) => !!a.ende && new Date(a.ende).getTime() <= jetzt;
+  const laufend = (a: any) => !istAuskunftZeile(a) && istAboPaket(a.key) && a.bezahlt === true && !a.storniert && !endeVorbei(a);
+  const laufendesPaket = antraege.some(laufend);
+  // Ein Antrag NACH diesem Zeitpunkt (keine Auskunft-Bestellung) = neues Interesse.
+  const neuerAntragNach = (t: unknown) => !!t && antraege.some((n) => !istAuskunftZeile(n) && new Date(n.angelegt).getTime() > new Date(String(t)).getTime());
+  const gekuendigt = antraege.some((a) => a.gekuendigt === true && !neuerAntragNach(a.gekuendigt_am));
+  const beendet = antraege.filter(endeVorbei);
+  return {
+    personId: Number(z.id),
+    werbesperre: !!z.werbung_gesperrt_am,
+    werbesperreSeit: z.werbung_gesperrt_am ? new Date(z.werbung_gesperrt_am).toISOString() : null,
+    vertriebssperre: !!z.is_blocked,
+    test: !!z.test,
+    gekuendigt,
+    vertragVorbei: beendet.length > 0 && !laufendesPaket && !beendet.some((a) => neuerAntragNach(a.ende)),
+    laufendesPaket,
+    laufendUngekuendigt: antraege.some((a) => laufend(a) && a.gekuendigt !== true),
+    kundeMitHinweis: antraege.some((a) => laufend(a) && a.gekuendigt !== true)
+      && !!z.erster_antrag && new Date(z.erster_antrag).getTime() >= hinweisAb,
+    ...(z.stopp != null ? { stopp: z.stopp === true } : {}),
+  };
 }
 
 /** Der Stand eines Menschen — null, wenn es ihn nicht gibt. */
 export async function personSperre(personId: number): Promise<PersonSperre | null> {
   return (await personSperren([personId]))[0] ?? null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER MENSCH HINTER EINER PERSON — EINE LESART FÜR ALLE WEGE (28.09.2026, E-253)
+//
+// Justin (28.09., Screenshot der WA-Zentrale): „Warum steht da, dass wir nicht
+// schreiben dürfen? JEDER LEAD IM SYSTEM HAT UNS SEINE ZUSTIMMUNG GEGEBEN."
+// Gemessen: 46 übersprungene Vorlagen an 26 Menschen seit dem 26.09., alle mit
+// „Vertriebssperre" — und KEINER davon war gesperrt. Gesperrt war jeweils nur
+// eine zusammengeführte Dublette: Das Zusammenführen (fiaon-person-merge.ts)
+// setzt am Verlierer IMMER is_blocked = TRUE — er ist dann Wegweiser, kein
+// „kein Interesse" — und trägt eine echte Sperre des Verlierers per ODER in
+// den Gewinner. Die WhatsApp-Tür und die Lead-Strecke (E-240) lasen is_blocked
+// über die ganze Familie und hielten die Marke für eine Sperre. immerSperre
+// (E-241) hatte dieselbe Falle schon behoben — nur dort.
+//
+// Die Regel, die jetzt überall gilt:
+//   · KOPF = das Ende der Kette merged_into_person_id (Ketten sind bis zu zwei
+//     Ebenen tief, z. B. Dublette → Dublette → Kopf; gelesen bis fünf).
+//   · VERTRIEBSSPERRE = is_blocked NUR am Kopf. Echte Sperren gehen nicht
+//     verloren: Das ODER trägt sie seit dem ersten Merge (08.08.2026) in den
+//     Kopf — gemessen 0 Fälle, in denen das nicht geschah (Wächter im
+//     Prüfstand scripts/pruef-wa-sperre-lauf.ts).
+//   · WERBESPERRE, TESTKONTO, KÜNDIGUNG/VERTRAGSENDE = über die ganze Familie
+//     (die Werbesperre wandert beim Zusammenführen nicht mit; Bestellungen
+//     hängen am Kopf, werden aber für den Fall der Fälle mitgelesen).
+//   · „STOPP" auf WhatsApp liest immerSperre ebenfalls über die Familie.
+//   · Nachtrag nach der Gegenprüfung (E-253): „STOPP" auf WhatsApp UND das
+//     Stopp aus dem Postfach (fiaon_postmeister.flags stopp: true, „will keine
+//     Nachrichten mehr") gelten über die ganze Familie — in der BASIS der
+//     WA-Zentrale (STOPP_KOEPFE_SQL), in menschSperre (Feld stopp) und damit an
+//     der Tür (werbungVerboten). Gemessen lesend: Bis dahin schützte 9 Menschen
+//     mit Postfach-Stopp nur die Wegweiser-Marke einer Dublette; 68 freie
+//     Menschen mit Postfach-Stopp standen ohne jeden Schutz da, und drei von
+//     ihnen bekamen danach schon eine werbliche Vorlage. Ein „STOPP" an einer
+//     Dublette (fiaon_whatsapp wird beim Zusammenführen nicht umgehängt) sah
+//     vorher nur immerSperre.
+// Die Bausteine unten sind SQL für Abfragen über viele Menschen; menschSperre
+// ist dieselbe Regel für einen Menschen in JavaScript (werbungVerboten).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Der Kopf einer Person: die Kette merged_into_person_id bis zum Ende (höchstens
+ * fünf Ebenen). Unauflösbar (Kreis) oder unbekannt: die Person selbst. `p` ist
+ * ein SQL-Ausdruck für die Personen-ID; er wird zweimal eingesetzt.
+ */
+export const KOPF_SQL = (p: string) => `COALESCE((WITH RECURSIVE e253_k(id, nach, t) AS (
+    SELECT kp.id, kp.merged_into_person_id, 0 FROM fiaon_persons kp WHERE kp.id = ${p}
+    UNION ALL
+    SELECT n.id, n.merged_into_person_id, e253_k.t + 1 FROM fiaon_persons n JOIN e253_k ON n.id = e253_k.nach WHERE e253_k.t < 5)
+  SELECT e253_k.id FROM e253_k WHERE e253_k.nach IS NULL LIMIT 1), ${p})`;
+
+/** Alle Personen eines Menschen: der Kopf und jede, deren Kette bei ihm endet. `kopf` muss ein Kopf sein. */
+export const FAMILIE_SQL = (kopf: string) => `(WITH RECURSIVE e253_f(id, t) AS (
+    SELECT (${kopf})::int, 0
+    UNION ALL
+    SELECT n.id, e253_f.t + 1 FROM fiaon_persons n JOIN e253_f ON n.merged_into_person_id = e253_f.id WHERE e253_f.t < 5)
+  SELECT e253_f.id FROM e253_f)`;
+
+/** Vertriebssperre des Menschen: is_blocked NUR an der führenden Person — die Wegweiser-Marke an Dubletten zählt nie. */
+export const VERTRIEBSSPERRE_SQL = (p: string) =>
+  `EXISTS (SELECT 1 FROM fiaon_persons e253_v WHERE e253_v.id = ${KOPF_SQL(p)} AND COALESCE(e253_v.is_blocked, FALSE))`;
+
+/**
+ * Die Köpfe, in deren Familie irgendwo eine Werbesperre steht — OHNE Bezug auf
+ * die äußere Abfrage, also einmal je Abfrage gebildet (heute gut 250 Sperren).
+ * Nie NULL (KOPF_SQL fällt auf die Person zurück), darum sicher mit NOT IN.
+ */
+export const WERBESPERRE_KOEPFE_SQL = `(SELECT DISTINCT ${KOPF_SQL("e253_wk.id")} FROM fiaon_persons e253_wk WHERE e253_wk.werbung_gesperrt_am IS NOT NULL)`;
+
+/** Werbesperre des Menschen: an irgendeiner Person seiner Familie. Für viele Zeilen geeignet (eine Kopf-Suche je Zeile). */
+export const WERBESPERRE_FAMILIE_SQL = (p: string) => `(${KOPF_SQL(p)} IN ${WERBESPERRE_KOEPFE_SQL})`;
+
+// ── „STOPP" DES MENSCHEN (E-253, Nachtrag nach der Gegenprüfung) ─────────────
+// Zwei Wege, auf denen ein Mensch „keine Nachrichten mehr" sagt — beide
+// endgültig, egal wann, egal an welcher Person der Familie:
+//   · WhatsApp: „STOPP" oder „Keine Nachrichten mehr" (Text oder Knopf) —
+//     dieselbe Regel wie bisher in der BASIS und in immerSperre.
+//   · Postfach: der Postmeister hat die Antwort mit stopp: true markiert.
+//     flags steht teils als JSON-Text in der jsonb-Spalte — deshalb der
+//     Textvergleich, nie ein Cast, der an einer Zeile scheitert (wie
+//     fiaon-mara-aktion.ts und ruecksichtSql in fiaon-auskunft-verkauf.ts).
+/** Eine eingehende WhatsApp `w` sagt „STOPP". */
+export const WA_STOPP_ZEILE_SQL = (w: string) => `(${w}.richtung = 'rein'
+  AND (${w}.text ILIKE '%stopp%' OR ${w}.knopf ILIKE '%stopp%' OR ${w}.text ILIKE '%keine nachrichten%' OR ${w}.knopf ILIKE '%keine nachrichten%'))`;
+/** Eine Postfach-Zeile `pm` trägt das Merkmal stopp. */
+export const POSTFACH_STOPP_ZEILE_SQL = (pm: string) => `(${pm}.flags::text ~ 'stopp\\\\?"\\s*:\\s*true')`;
+
+/**
+ * Die Köpfe, in deren Familie irgendwo ein Stopp steht (WhatsApp oder Postfach)
+ * — ohne Bezug auf die äußere Abfrage, einmal je Abfrage gebildet. Nie NULL,
+ * darum sicher mit NOT IN (wie WERBESPERRE_KOEPFE_SQL).
+ */
+export const STOPP_KOEPFE_SQL = `(SELECT DISTINCT ${KOPF_SQL("e253_st.pid")} FROM (
+    SELECT e253_sw.person_id AS pid FROM fiaon_whatsapp e253_sw WHERE e253_sw.person_id IS NOT NULL AND ${WA_STOPP_ZEILE_SQL("e253_sw")}
+    UNION
+    SELECT e253_sp.person_id FROM fiaon_postmeister e253_sp WHERE e253_sp.person_id IS NOT NULL AND ${POSTFACH_STOPP_ZEILE_SQL("e253_sp")}
+  ) e253_st)`;
+
+// „Kündigung oder Vertragsende, und kein laufendes, ungekündigtes Paket" — genau
+// wie personSperren/werbungVerboten, nur in SQL (für die Gruppen der WA-Zentrale:
+// Wer hier gezählt wird, darf danach nicht an der Tür scheitern).
+const ABO_SCHLUESSEL_SQL = (() => {
+  const keys = PAKETE.filter((p) => p.abo).map((p) => p.key);
+  if (!keys.length || keys.some((k) => !/^[a-z0-9_]+$/.test(k))) throw new Error("[MAIL-FREQUENZ] Abo-Schlüssel ungültig");
+  return keys.map((k) => `'${k}'`).join(", ");
+})();
+const OV_AUSKUNFT = (a: string) => `(COALESCE(${a}.type, '') = 'schufa' OR COALESCE(${a}.ref, '') LIKE 'FIAON-SCHUFA-%')`;
+const OV_ENDE_VORBEI = (a: string) => `(${a}.vertrag_ende_am IS NOT NULL AND ${a}.vertrag_ende_am <= NOW())`;
+/** Ein Antrag (kein Auskunft-Kauf) der Person, angelegt NACH dem Zeitpunkt `t` = neues Interesse. */
+const OV_NEUER_ANTRAG_NACH = (person: string, t: string) => `EXISTS (SELECT 1 FROM fiaon_applications ov_n
+  WHERE ov_n.person_id = ${person} AND ov_n.merged_into IS NULL AND ov_n.ref IS NOT NULL AND NOT ${OV_AUSKUNFT("ov_n")}
+    AND ov_n.created_at::timestamptz > (${t})::timestamptz)`;
+const OV_LAUFEND = (a: string) => `(NOT ${OV_AUSKUNFT(a)} AND LOWER(TRIM(COALESCE(${a}.pack_key, ''))) IN (${ABO_SCHLUESSEL_SQL})
+  AND ${a}.payment_status = 'paid' AND ${a}.cancelled_at IS NULL AND NOT ${OV_ENDE_VORBEI(a)})`;
+const OV_GEKUENDIGT = (a: string) => `(${a}.gekuendigt_am IS NOT NULL AND ${a}.kuendigung_zurueckgenommen_am IS NULL)`;
+
+/**
+ * werbungVerboten = „gekündigt oder Vertrag beendet" für die Person `person`
+ * (ein Kopf; die Bestellungen hängen seit dem Zusammenführen am Kopf). Dieselben
+ * Schritte wie personSperren: laufendUngekuendigt schützt; gekündigt zählt nicht,
+ * wenn danach neu beantragt wurde; Vertragsende nur ohne laufendes Paket und ohne
+ * neuen Antrag nach dem Ende. Der Prüfstand vergleicht beide Fassungen.
+ */
+export const OHNE_VERTRAG_SQL = (person: string) => `(
+  NOT EXISTS (SELECT 1 FROM fiaon_applications ov_l WHERE ov_l.person_id = ${person} AND ov_l.merged_into IS NULL AND ov_l.ref IS NOT NULL
+                AND ${OV_LAUFEND("ov_l")} AND NOT ${OV_GEKUENDIGT("ov_l")})
+  AND (
+    EXISTS (SELECT 1 FROM fiaon_applications ov_g WHERE ov_g.person_id = ${person} AND ov_g.merged_into IS NULL AND ov_g.ref IS NOT NULL
+              AND ${OV_GEKUENDIGT("ov_g")} AND NOT ${OV_NEUER_ANTRAG_NACH(person, "ov_g.gekuendigt_am")})
+    OR (
+      EXISTS (SELECT 1 FROM fiaon_applications ov_e WHERE ov_e.person_id = ${person} AND ov_e.merged_into IS NULL AND ov_e.ref IS NOT NULL
+                AND ${OV_ENDE_VORBEI("ov_e")})
+      AND NOT EXISTS (SELECT 1 FROM fiaon_applications ov_p WHERE ov_p.person_id = ${person} AND ov_p.merged_into IS NULL AND ov_p.ref IS NOT NULL
+                        AND ${OV_LAUFEND("ov_p")})
+      AND NOT EXISTS (SELECT 1 FROM fiaon_applications ov_b WHERE ov_b.person_id = ${person} AND ov_b.merged_into IS NULL AND ov_b.ref IS NOT NULL
+                        AND ${OV_ENDE_VORBEI("ov_b")} AND ${OV_NEUER_ANTRAG_NACH(person, "ov_b.vertrag_ende_am")})
+    )
+  ))`;
+
+/**
+ * Der Stand des MENSCHEN hinter einer Person (E-253): Kopf aufgelöst,
+ * Vertriebssperre nur am Kopf, Werbesperre, Testkonto, „Stopp" (WhatsApp und
+ * Postfach) und Bestellungen über die ganze Familie. `personId` darf auch eine Dublette sein — das Ergebnis ist
+ * dasselbe wie für ihren Kopf (personId im Ergebnis = der Kopf). null, wenn es
+ * die Person nicht gibt. `lauf` für Transaktionen (Prüfstand).
+ */
+export async function menschSperre(personId: number, lauf: typeof sqlPool = sqlPool): Promise<PersonSperre | null> {
+  if (!Number.isInteger(personId) || personId <= 0) return null;
+  const [z] = (await lauf.unsafe(`
+    WITH e253_kopf AS (SELECT ${KOPF_SQL("$1::int")} AS id),
+         e253_fam AS ${FAMILIE_SQL("(SELECT id FROM e253_kopf)")}
+    SELECT kp.id,
+           (SELECT MIN(f.werbung_gesperrt_am) FROM fiaon_persons f WHERE f.id IN (SELECT id FROM e253_fam)) AS werbung_gesperrt_am,
+           COALESCE(kp.is_blocked, FALSE) AS is_blocked,
+           EXISTS (SELECT 1 FROM fiaon_persons f WHERE f.id IN (SELECT id FROM e253_fam) AND f.ist_test_am IS NOT NULL) AS test,
+           -- Nachtrag E-253: „STOPP" auf WhatsApp oder im Postfach, an irgendeiner Person der Familie
+           (EXISTS (SELECT 1 FROM fiaon_whatsapp sw WHERE sw.person_id IN (SELECT id FROM e253_fam) AND ${WA_STOPP_ZEILE_SQL("sw")})
+            OR EXISTS (SELECT 1 FROM fiaon_postmeister sp WHERE sp.person_id IN (SELECT id FROM e253_fam) AND ${POSTFACH_STOPP_ZEILE_SQL("sp")})) AS stopp,
+           (SELECT MIN(a.created_at) FROM fiaon_applications a WHERE a.person_id IN (SELECT id FROM e253_fam)) AS erster_antrag,
+           COALESCE((SELECT json_agg(json_build_object(
+             'ref', a.ref, 'typ', a.type, 'key', a.pack_key, 'bezahlt', a.payment_status = 'paid',
+             'storniert', a.cancelled_at IS NOT NULL, 'ende', a.vertrag_ende_am,
+             'gekuendigt', a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL,
+             'gekuendigt_am', a.gekuendigt_am, 'angelegt', a.created_at))
+              FROM fiaon_applications a
+             WHERE a.person_id IN (SELECT id FROM e253_fam) AND a.merged_into IS NULL AND a.ref IS NOT NULL), '[]'::json) AS antraege
+      FROM fiaon_persons kp
+     WHERE kp.id = (SELECT id FROM e253_kopf)`, [personId])) as any[];
+  return z ? sperreAusZeile(z) : null;
 }
 
 /**
@@ -639,10 +824,15 @@ export function waVorlageWerblich(name: string): boolean {
  * Werbesperre, Testkonto und „gekündigt ohne laufendes Paket" sagen nein; die
  * Vertriebssperre (is_blocked) ebenfalls — wer „kein Interesse" gesagt hat,
  * bekommt keinen Verkauf (Mara-Aktion und WhatsApp-Zentrale halten es schon so).
+ * E-253 (28.09.2026): Für den MENSCHEN immer mit menschSperre füttern — dort ist
+ * die Vertriebssperre die des Kopfes, nie die Wegweiser-Marke einer Dublette,
+ * und nur dort steht das „Stopp" aus WhatsApp und Postfach.
  */
 export function werbungVerboten(s: PersonSperre | null): string | null {
   if (!s) return null;
   if (s.werbesperre) return "Werbesperre";
+  // E-253 (Nachtrag): „keine Nachrichten mehr" — auf WhatsApp oder als Antwort ans Postfach (nur menschSperre kennt es).
+  if (s.stopp) return "„Stopp“ (will keine Nachrichten mehr)";
   if (s.test) return "Testkonto";
   if (s.vertriebssperre) return "Vertriebssperre";
   if (!s.laufendUngekuendigt && (s.gekuendigt || s.vertragVorbei)) return "gekündigt oder Vertrag beendet";

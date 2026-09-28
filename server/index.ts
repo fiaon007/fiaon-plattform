@@ -658,4 +658,29 @@ async function seedSubscriptionPlans() {
       .then((m) => m.katalogpreiseEinmalSyncen())
       .catch(() => {});
   });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GEORDNET HERUNTERFAHREN (28.09.2026, E-253)
+  //
+  // Render schickt beim Deploy 60 s NACH dem Umschalten des Verkehrs SIGTERM
+  // an den alten Prozess, 30 s später SIGKILL. Bis heute gab es hier keinen
+  // Handler: Node endete sofort — mitten in einer WhatsApp —, oder (sobald die
+  // PDF-Wache einen Chromium offen hielt, dessen Handler ohne exit) lebte der
+  // Prozess bis zum SIGKILL weiter. Ein Versand der WA-Zentrale brach dabei ohne
+  // Spur ab. Jetzt: Lauf übergeben (fiaon-wa-zentrale.ts, laufUebergeben —
+  // die laufende Nachricht wird zu Ende gesendet, die nächste Instanz setzt
+  // fort), dann selbst beenden. Notaus nach 20 s, sicher unter Renders 30 s.
+  // Die Log-Zeile beweist beim nächsten Deploy, dass das Signal durch
+  // „npm run start → sh → node" ankommt.
+  // ══════════════════════════════════════════════════════════════════════════
+  process.once("SIGTERM", () => {
+    console.log(`[HERUNTERFAHREN] SIGTERM ${new Date().toISOString()} — WhatsApp-Versand wird übergeben`);
+    const notaus = setTimeout(() => process.exit(0), 20_000);
+    notaus.unref();
+    void import("./lib/fiaon-wa-zentrale")
+      .then((m) => m.laufUebergeben(15_000))
+      .then((r) => console.log(`[HERUNTERFAHREN] ${r.uebergeben ? `${r.uebergeben} Versand übergeben` : "kein Versand offen"} — Ende.`))
+      .catch((e) => console.error("[HERUNTERFAHREN]", e))
+      .finally(() => { clearTimeout(notaus); process.exit(0); });
+  });
 })();

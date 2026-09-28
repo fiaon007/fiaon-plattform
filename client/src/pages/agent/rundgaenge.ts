@@ -1447,16 +1447,19 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
   {
     ziel: ".wz-meta",
     titel: "Oben rechts: was Meta heute noch erlaubt.",
-    text: "Meta lässt je Nummer nur eine bestimmte Zahl neuer Gespräche in 24 Stunden zu. Die Zentrale rechnet mit 80 % davon "
+    text: "Meta lässt nur eine bestimmte Zahl neuer Gespräche in 24 Stunden zu. Die Zentrale rechnet mit 80 % davon "
       + "und zählt alles mit — Begrüßung, Kette, Hand und Automatik. Steht die Qualität auf Rot, sind Massenversände gesperrt, "
       + "sonst droht die Sperre der Nummer.",
+    // 28.09.2026 (E-249)
+    tipp: "Die Stufe liest die Seite live bei Meta — seit Meta sie am Geschäftskonto führt, von dort (heute 2.000, also 1.600 für uns).",
   },
   {
     ziel: ".wz-gruppen",
     titel: "Gruppe wählen — die Zahl sagt, wer heute dran sein darf.",
     text: "Gezählt wird nur, wer alle Regeln erfüllt: heute noch keine WhatsApp, kein „STOPP“, keine Werbesperre, nichts bezahlt "
       + "oder gemeldet (außer „Monatsrate fällig“ und „Auskunft fehlt“ — die gelten gerade zahlenden Kunden), genug Abstand zur "
-      + "letzten Vorlage, höchstens acht Vorlagen in 30 Tagen.",
+      + "letzten Vorlage, höchstens acht Vorlagen in 30 Tagen. Steht 0 da, sagt die Karte darunter, warum — etwa "
+      + "„61 schon angeschrieben — wieder dran ab heute 14:48“.",
     // 24.09.2026 (E-240)
     tipp: "Die Vorlage „Auskunft fehlt“ liegt als Entwurf bereit und zeigt „wartet auf Meta“ — senden geht erst, wenn Meta sie freigegeben hat.",
   },

@@ -16,7 +16,7 @@
 // Die Regeln stehen in server/lib/fiaon-wa-zentrale.ts und
 // server/lib/fiaon-mara-termin.ts — hier wird nur gezeigt und ausgelöst.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { API, seit, zahl, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
@@ -24,7 +24,10 @@ import "@/styles/office-rundgang.css";
 import "@/styles/chef-wa-zentrale.css";
 
 type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen";
-interface GruppeInfo { schluessel: Gruppe; titel: string; satz: string; vorlagen: string[]; standard: string; abstandTage: number; anzahl: number; mitEinwilligung?: number }
+interface GruppeInfo {
+  schluessel: Gruppe; titel: string; satz: string; vorlagen: string[]; standard: string; abstandTage: number; anzahl: number; mitEinwilligung?: number;
+  wartend?: number; wiederAb?: string | null; letzterLead?: string | null;
+}
 interface Vorlage { name: string; kopf: string; zweck: string; text: string; frei: boolean; bild: boolean; kopfBild: string | null; fuss: string }
 interface Automatik {
   an: boolean; von: string; bis: string; jeStunde: number; gruppen: Gruppe[]; vorlagen: Partial<Record<Gruppe, string>>;
@@ -63,6 +66,31 @@ const QUALITAET: Record<string, { text: string; art: "gut" | "warn" | "rot" }> =
 };
 const ZUSTELLUNG: Record<string, string> = { gesendet: "gesendet", sent: "gesendet", delivered: "zugestellt", read: "gelesen", failed: "Fehler", fehler: "Fehler", offen: "unterwegs" };
 const zeit = (s: string) => new Date(s).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+/** E-249: „heute 14:48", „morgen 09:10" oder „Mi 30.09., 12:00" — Berliner Zeit. */
+function wannWieder(iso: string): string {
+  const d = new Date(iso);
+  const tag = (x: Date) => x.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" });
+  const uhr = d.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  if (d.getTime() <= Date.now()) return "jetzt";
+  if (tag(d) === tag(new Date())) return `heute ${uhr}`;
+  if (tag(d) === tag(new Date(Date.now() + 86_400_000))) return `morgen ${uhr}`;
+  return `${d.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" })}, ${uhr}`;
+}
+
+/** E-249: Warum eine Gruppe gerade leer ist — statt einer nackten Null. */
+function leerGrund(gr: GruppeInfo): string | null {
+  if (gr.anzahl > 0) return null;
+  if (gr.schluessel === "neu") {
+    return gr.letzterLead
+      ? `Kein Lead wartet auf seine erste Nachricht. Letzter neuer Lead: ${new Date(gr.letzterLead).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" })}.`
+      : "Kein Lead wartet auf seine erste Nachricht.";
+  }
+  if (gr.wartend && gr.wartend > 0) {
+    return `${zahl(gr.wartend)} schon angeschrieben — wieder dran ab ${gr.wiederAb ? wannWieder(gr.wiederAb) : "bald"}.`;
+  }
+  return null;
+}
 const hhmm = (s: string) => { const [h, m] = s.split(":").map(Number); return h * 60 + (m || 0); };
 
 async function senden(pfad: string, body: unknown): Promise<any> {
@@ -349,6 +377,18 @@ export default function ChefWhatsAppZentrale() {
     setAuto((alt) => alt ?? d.automatik);
   }, [d]);
 
+  // E-249 (28.09.2026): Die Seite öffnet mit einer Gruppe, in der wirklich jemand dran ist —
+  // nicht mit „Neue Leads", wenn dort 0 steht. Eine Wahl von Hand bleibt.
+  const vonHand = useRef(false);
+  useEffect(() => {
+    if (!d || vonHand.current) return;
+    const jetzt = d.gruppen.find((x) => x.schluessel === gruppe);
+    if (jetzt && jetzt.anzahl > 0) return;
+    const erste = d.gruppen.find((x) => x.anzahl > 0);
+    if (erste) setGruppe(erste.schluessel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d]);
+
   // Die Vorlage folgt der Gruppe.
   const g = d?.gruppen.find((x) => x.schluessel === gruppe);
   useEffect(() => {
@@ -383,7 +423,7 @@ export default function ChefWhatsAppZentrale() {
     : d.meta.frei <= 0 ? "Das Tageslimit von Meta ist ausgeschöpft."
     : !vorlageFrei ? "Diese Vorlage ist bei Meta noch nicht freigegeben."
     : lauf?.laeuft ? "Es läuft schon ein Versand."
-    : menge <= 0 ? "In dieser Gruppe ist gerade niemand dran."
+    : menge <= 0 ? (g && leerGrund(g)) || "In dieser Gruppe ist gerade niemand dran."
     : null;
 
   const vorschauLaden = async () => {
@@ -503,7 +543,7 @@ export default function ChefWhatsAppZentrale() {
             <div className="wz-gruppen" role="radiogroup" aria-label="Kundengruppe">
               {d.gruppen.map((gr) => (
                 <button key={gr.schluessel} type="button" role="radio" aria-checked={gruppe === gr.schluessel}
-                  className={`wz-gruppe${gruppe === gr.schluessel ? " aktiv" : ""}`} onClick={() => setGruppe(gr.schluessel)}>
+                  className={`wz-gruppe${gruppe === gr.schluessel ? " aktiv" : ""}`} onClick={() => { vonHand.current = true; setGruppe(gr.schluessel); }}>
                   <span className="wz-gruppe-zahl">{zahl(gr.anzahl)}</span>
                   <span className="wz-gruppe-titel">{gr.titel}</span>
                   <span className="wz-gruppe-satz">{gr.satz}</span>
@@ -512,6 +552,7 @@ export default function ChefWhatsAppZentrale() {
                       davon {zahl(gr.mitEinwilligung)} mit Einwilligung
                     </span>
                   ) : null}
+                  {leerGrund(gr) ? <span className="wz-gruppe-leer">{leerGrund(gr)}</span> : null}
                 </button>
               ))}
             </div>

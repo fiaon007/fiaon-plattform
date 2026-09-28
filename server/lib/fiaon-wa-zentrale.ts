@@ -326,8 +326,10 @@ const abgeschickt = (t: string) => `(COALESCE(${t}.current_step, 0) >= 8 OR COAL
 
 const OHNE_ANTRAG = `NOT EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL)`;
 
-export function gruppenBedingung(g: Gruppe): string {
-  const abstand = `(b.letzte_vorlage IS NULL OR b.letzte_vorlage < NOW() - INTERVAL '${GRUPPEN[g].abstandTage} days')`;
+export function gruppenBedingung(g: Gruppe, ohneAbstand = false): string {
+  // ohneAbstand (E-249): dieselbe Gruppe, nur ohne die Wartezeit seit der letzten Vorlage — zeigt,
+  // wie viele gerade nur warten und ab wann sie wieder dran sind.
+  const abstand = ohneAbstand ? "TRUE" : `(b.letzte_vorlage IS NULL OR b.letzte_vorlage < NOW() - INTERVAL '${GRUPPEN[g].abstandTage} days')`;
   const deckel = `b.vorlagen_30 < 8`;
   switch (g) {
     case "neu":
@@ -394,18 +396,33 @@ export async function gruppenZahlen(): Promise<Record<Gruppe, number>> {
 }
 
 /** Je Gruppe: alle — und wie viele davon nachweislich eingewilligt haben (Meta-Formular mit Hinweis oder selbst geschrieben). */
-export async function gruppenZahlenMitEinwilligung(): Promise<{ alle: Record<Gruppe, number>; einwilligung: Record<Gruppe, number> }> {
+export async function gruppenZahlenMitEinwilligung(): Promise<{
+  alle: Record<Gruppe, number>; einwilligung: Record<Gruppe, number>;
+  wartend: Record<Gruppe, number>; wiederAb: Record<Gruppe, string | null>;
+}> {
   await zentraleSchema();
   const alle = {} as Record<Gruppe, number>;
   const einwilligung = {} as Record<Gruppe, number>;
+  const wartend = {} as Record<Gruppe, number>;
+  const wiederAb = {} as Record<Gruppe, string | null>;
   await Promise.all(GRUPPEN_REIHE.map(async (g) => {
+    // E-249 (28.09.2026): Eine leere Gruppe sagt, warum — wer nur die Wartezeit abwartet und ab wann er
+    // wieder dran ist. „Neu" hat keine Wartezeit (dort zählt, ob überhaupt ein Lead kam).
+    const mitWarten = g !== "neu" && GRUPPEN[g].abstandTage > 0;
+    // Wartend = gehörte zur Gruppe, bekam aber innerhalb der Wartezeit eine Vorlage.
+    const warten = `(${gruppenBedingung(g, true)}) AND b.letzte_vorlage >= NOW() - INTERVAL '${GRUPPEN[g].abstandTage} days'`;
     const [r] = (await sqlPool.unsafe(`${BASIS}
-      SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE ${WHATSAPP_EINWILLIGUNG_SQL("b.person_id")})::int AS e
-        FROM basis b WHERE ${gruppenBedingung(g)}`)) as any[];
+      SELECT COUNT(*) FILTER (WHERE ${gruppenBedingung(g)})::int AS n,
+             COUNT(*) FILTER (WHERE (${gruppenBedingung(g)}) AND ${WHATSAPP_EINWILLIGUNG_SQL("b.person_id")})::int AS e
+             ${mitWarten ? `, COUNT(*) FILTER (WHERE ${warten})::int AS w, MIN(b.letzte_vorlage) FILTER (WHERE ${warten}) AS frueheste` : ""}
+        FROM basis b`)) as any[];
     alle[g] = Number(r?.n || 0);
     einwilligung[g] = Number(r?.e || 0);
+    wartend[g] = mitWarten ? Number(r?.w || 0) : 0;
+    wiederAb[g] = mitWarten && wartend[g] > 0 && r?.frueheste
+      ? new Date(new Date(r.frueheste).getTime() + GRUPPEN[g].abstandTage * 86_400_000).toISOString() : null;
   }));
-  return { alle, einwilligung };
+  return { alle, einwilligung, wartend, wiederAb };
 }
 
 export async function kandidaten(g: Gruppe, anzahl: number, ohne: number[] = []): Promise<Kandidat[]> {
@@ -588,6 +605,12 @@ export function tagsueber(): boolean {
 // die Nummer drosselt. Deshalb zählt hier jede Vorlage der letzten 24 Stunden
 // (Begrüßung, Kette, Zentrale, Hand) gegen 80 % der Stufe. Unbekannte Stufe:
 // wir rechnen mit 250.
+//
+// E-249 (28.09.2026): Meta führt die Stufe seit der Umstellung auf das
+// Geschäftskonto nicht mehr an der Nummer (messaging_limit_tier fehlt dort),
+// sondern am WhatsApp-Konto als whatsapp_business_manager_messaging_limit
+// (live: TIER_2K). Bis heute las die Seite nur die Nummer, fiel auf 250 zurück
+// und bremste Mara auf 200 statt 1.600 in 24 Stunden.
 // ═══════════════════════════════════════════════════════════════════════════
 const STUFEN: Record<string, number> = { TIER_50: 50, TIER_250: 250, TIER_1K: 1000, TIER_2K: 2000, TIER_10K: 10000, TIER_100K: 100000, TIER_UNLIMITED: 100000 };
 let metaCache: { am: number; stufe: string | null; qualitaet: string | null; name: string | null } | null = null;
@@ -606,6 +629,16 @@ export async function metaStand(): Promise<{ stufe: string | null; qualitaet: st
       name = j?.verified_name ? String(j.verified_name) : null;
     } catch (e) {
       console.warn("[WA-ZENTRALE] Meta-Stand nicht lesbar:", String((e as Error)?.message || e).slice(0, 160));
+    }
+  }
+  // E-249: Die Stufe steht heute am WhatsApp-Konto, nicht mehr an der Nummer.
+  if (!stufe && k.wabaId) {
+    try {
+      const { graph } = await import("./fiaon-meta");
+      const j = await graph(k.wabaId, { params: { fields: "whatsapp_business_manager_messaging_limit" }, zeitMs: 8000 });
+      stufe = j?.whatsapp_business_manager_messaging_limit ? String(j.whatsapp_business_manager_messaging_limit) : null;
+    } catch (e) {
+      console.warn("[WA-ZENTRALE] Meta-Stufe am Konto nicht lesbar:", String((e as Error)?.message || e).slice(0, 160));
     }
   }
   metaCache = { am: Date.now(), stufe, qualitaet, name };
@@ -910,6 +943,9 @@ export async function zentraleLage() {
   const [zaehlung, a, frei, raum] = await Promise.all([gruppenZahlenMitEinwilligung(), automatik(), freigabeSatz(), tagesRaum()]);
   const zahlen = zaehlung.alle;
   // E-230: Wer wartet gerade auf eine Antwort? Justin soll Stille sehen, bevor ein Kunde sie spürt.
+  // E-249: Warum „Neue Leads" leer ist — wann kam der letzte Lead?
+  const [ll] = (await sqlPool`SELECT MAX(erstellt_am) AS am FROM fiaon_leads`.catch(() => [{ am: null }])) as any[];
+  const letzterLead = ll?.am ? new Date(ll.am).toISOString() : null;
   const { OFFENE_GESPRAECHE_SQL } = await import("./fiaon-whatsapp-mara");
   const [wartend] = (await sqlPool.unsafe(`
     SELECT COUNT(*)::int AS n, COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - o.am)) / 60), 0)::int AS laengste
@@ -967,7 +1003,11 @@ export async function zentraleLage() {
     whatsappBereit: waKonfig().bereit,
     meta: raum,
     wartend: { anzahl: Number(wartend?.n || 0), laengsteMin: Number(wartend?.laengste || 0) },
-    gruppen: GRUPPEN_REIHE.map((g) => ({ schluessel: g, ...GRUPPEN[g], anzahl: zahlen[g], mitEinwilligung: zaehlung.einwilligung[g] })),
+    gruppen: GRUPPEN_REIHE.map((g) => ({
+      schluessel: g, ...GRUPPEN[g], anzahl: zahlen[g], mitEinwilligung: zaehlung.einwilligung[g],
+      wartend: zaehlung.wartend[g], wiederAb: zaehlung.wiederAb[g],
+      letzterLead: g === "neu" ? letzterLead : null,
+    })),
     stufenText: STUFEN_TEXT,
     vorlagen: vorlagenListe,
     automatik: { ...a, dieseStunde: Number(stunde?.n || 0) },

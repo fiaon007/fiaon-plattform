@@ -5,6 +5,26 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.09.2026 — WhatsApp-Zentrale liest Metas Stufe 2.000 live, leere Gruppen sagen warum (E-249)
+
+**Der Anlass:** Justin (28.09.): „Warum steht da 0? … Wir haben 2.000 bei Meta, warum synchronisiert das nicht live?"
+
+**Was falsch war:** Meta führt die Versandstufe seit der Umstellung auf das Geschäftskonto nicht mehr an der Nummer,
+sondern am WhatsApp-Konto (`whatsapp_business_manager_messaging_limit`, heute `TIER_2K`). Die Zentrale las nur die
+Nummer, bekam dort nichts und rechnete mit 250 — also höchstens 200 Vorlagen in 24 Stunden statt 1.600.
+Die Nullen in „Neue Leads" und „Erste Zahlung offen" waren richtig gezählt, aber unerklärt: Seit dem 24.09. kam kein
+neuer Lead (Meta-Anzeigen liefern nicht aus), und alle 61 mit offener erster Zahlung hatten in den letzten zwei Tagen
+schon eine Vorlage bekommen.
+
+**Was jetzt gilt:**
+- Die Stufe kommt zuerst von der Nummer, sonst vom WhatsApp-Konto — oben steht jetzt „… von 1.600 in 24 h · Stufe 2K".
+- Eine leere Gruppe sagt auf ihrer Karte, warum: „61 schon angeschrieben — wieder dran ab heute 14:48" bzw.
+  „Kein Lead wartet auf seine erste Nachricht. Letzter neuer Lead: 24.09."
+- Die Seite öffnet mit der ersten Gruppe, in der jemand dran ist (eine Wahl von Hand bleibt).
+
+**Wo:** /chef/s/mara → WhatsApp. Code: `server/lib/fiaon-wa-zentrale.ts` (metaStand, gruppenZahlenMitEinwilligung),
+`client/src/components/admin/ChefWhatsAppZentrale.tsx`, Rundgang `rundgaenge.ts`.
+
 ## 27.09.2026 — KI-Pause bei OpenAI-Abrechnungsfehler (E-246)
 
 **Der Anlass:** Justin (27.09.): „Wenn OpenAI nicht abbuchen kann, dann soll alles, was über OpenAI läuft, pausieren.

@@ -193,7 +193,7 @@ export default function Ueberweisung({ ich, onFertig }: { ich: Ich; onFertig: ()
               </div>
               <div className="bk-ausfuehren">
                 <p className="bk-leise bk-ausfuehren-hinweis">Überweise den Betrag im Geschäftskonto und trag die Referenz oben dort als Verwendungszweck ein. Danach hier bestätigen — der Rücklauf ordnet sich über die Referenz von selbst zu.</p>
-                <Knopf art="primaer" zeichen="haken" disabled={laeuft} onClick={() => void ausfuehren()}>Überweisung eingetragen</Knopf>
+                <Knopf art="primaer" zeichen="haken" disabled={laeuft} onClick={() => void ausfuehren()}>Überweisung freigeben</Knopf>
               </div>
             </>
           ) : null}

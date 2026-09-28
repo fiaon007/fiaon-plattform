@@ -5,6 +5,12 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.09.2026 — Banking: Knopf heißt „Überweisung freigeben"
+
+**Der Anlass:** Justin (28.09.): auf /buchhaltung statt „Überweisung eingetragen" den Text „Überweisung freigeben".
+**Was:** Nur die Beschriftung des Knopfs unter einem freigegebenen Auftrag (Reiter Überweisung). Was der Knopf tut, bleibt gleich:
+Er vermerkt, dass die Überweisung im Geschäftskonto ausgeführt ist. **Wo:** `client/src/pages/banking/ueberweisung.tsx`.
+
 ## 28.09.2026 — Sofort-Spur: neue Anträge stehen in der Pipeline ganz oben (E-251)
 
 **Der Anlass:** Justin (28.09., die Werbung läuft wieder an): „Die Mitarbeiter müssen die Kunden schneller anrufen – das

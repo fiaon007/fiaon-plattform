@@ -100,12 +100,30 @@ export async function ensureSperrProtokoll(): Promise<void> {
       RETURN NEW;
     END $$;
   `);
-  await sqlPool.unsafe(`DROP TRIGGER IF EXISTS fiaon_sperr_protokoll_aud ON fiaon_persons`);
-  await sqlPool.unsafe(`
-    CREATE TRIGGER fiaon_sperr_protokoll_aud
-      AFTER UPDATE OF is_blocked ON fiaon_persons
-      FOR EACH ROW EXECUTE FUNCTION fiaon_sperr_protokoll_trg()
-  `);
+  // ── NUR ANLEGEN, WENN ER FEHLT (E-254, 28.09.2026) ────────────────────
+  // Vorher lief bei JEDEM Start `DROP TRIGGER … ON fiaon_persons` + `CREATE
+  // TRIGGER`. Weil der Trigger immer schon da war, hieß das bei jedem Deploy
+  // ACCESS EXCLUSIVE auf fiaon_persons — hinter jeder laufenden Lesung, und
+  // jede weitere Abfrage auf die Personen stand dahinter an (derselbe Stau wie
+  // am 28.09. im Agentenportal). Dazu gab es zwischen DROP und CREATE einen
+  // Augenblick ohne Sperr-Protokoll. Jetzt: der Katalog sagt, ob er da ist
+  // (sperrt nichts); nur wenn er fehlt oder anders aussieht, legt ihn CREATE
+  // OR REPLACE TRIGGER in einem Schritt an (Postgres ≥ 14, ohne Lücke).
+  const [trg] = (await sqlPool`
+    SELECT pg_get_triggerdef(oid) AS def, tgenabled
+      FROM pg_trigger
+     WHERE tgrelid = to_regclass('fiaon_persons') AND tgname = 'fiaon_sperr_protokoll_aud' AND NOT tgisinternal
+  `) as any[];
+  const passt = !!trg && trg.tgenabled !== "D"
+    && /AFTER UPDATE OF is_blocked ON (?:public\.)?fiaon_persons FOR EACH ROW EXECUTE FUNCTION fiaon_sperr_protokoll_trg\(\)$/.test(String(trg.def));
+  if (!passt) {
+    await sqlPool.unsafe(`
+      CREATE OR REPLACE TRIGGER fiaon_sperr_protokoll_aud
+        AFTER UPDATE OF is_blocked ON fiaon_persons
+        FOR EACH ROW EXECUTE FUNCTION fiaon_sperr_protokoll_trg()
+    `);
+    if (trg?.tgenabled === "D") await sqlPool.unsafe(`ALTER TABLE fiaon_persons ENABLE TRIGGER fiaon_sperr_protokoll_aud`);
+  }
   protokollGeprueft = true;
-  console.log("[SPERR-PROTOKOLL] Trigger auf fiaon_persons.is_blocked aktiv.");
+  console.log(`[SPERR-PROTOKOLL] Trigger auf fiaon_persons.is_blocked aktiv${passt ? " (war schon da)" : " (neu angelegt)"}.`);
 }

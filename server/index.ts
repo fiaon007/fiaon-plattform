@@ -396,16 +396,27 @@ async function seedSubscriptionPlans() {
     `;
     
     // Update status check constraint
-    await client`
-      ALTER TABLE team_todos 
-        DROP CONSTRAINT IF EXISTS team_todos_status_check
+    // E-254 (28.09.2026): nur neu setzen, wenn er fehlt oder andere Werte hat.
+    // DROP + ADD CONSTRAINT bei JEDEM Start hieß jedes Mal ACCESS EXCLUSIVE auf
+    // team_todos und ein Durchlesen der ganzen Tabelle unter dieser Sperre.
+    const STATUS_SOLL = ['pending', 'in_progress', 'done', 'cancelled', 'open', 'waiting_for_client', 'resolved'];
+    const [statusCheck] = await client`
+      SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+       WHERE conrelid = to_regclass('team_todos') AND conname = 'team_todos_status_check'
     `;
-    
-    await client`
-      ALTER TABLE team_todos 
-        ADD CONSTRAINT team_todos_status_check 
-        CHECK (status IN ('pending', 'in_progress', 'done', 'cancelled', 'open', 'waiting_for_client', 'resolved'))
-    `;
+    const statusIst = new Set(Array.from(String(statusCheck?.def ?? '').matchAll(/'([^']*)'/g), (m) => m[1]));
+    if (!statusCheck || statusIst.size !== STATUS_SOLL.length || !STATUS_SOLL.every((w) => statusIst.has(w))) {
+      await client`
+        ALTER TABLE team_todos 
+          DROP CONSTRAINT IF EXISTS team_todos_status_check
+      `;
+      
+      await client`
+        ALTER TABLE team_todos 
+          ADD CONSTRAINT team_todos_status_check 
+          CHECK (status IN ('pending', 'in_progress', 'done', 'cancelled', 'open', 'waiting_for_client', 'resolved'))
+      `;
+    }
     
     // Add indexes
     await client`CREATE INDEX IF NOT EXISTS team_todos_urgency_idx ON team_todos(urgency_score DESC)`;
@@ -683,4 +694,14 @@ async function seedSubscriptionPlans() {
       .catch((e) => console.error("[HERUNTERFAHREN]", e))
       .finally(() => { clearTimeout(notaus); process.exit(0); });
   });
+
+  // E-254 (28.09.2026): Wer hat uns gestartet? Steht hier „sh"/„bash", endet
+  // SIGTERM in der Shell und erreicht den Handler oben nie. package.json
+  // startet node deshalb per `exec` — diese Zeile belegt es in jedem Render-Log.
+  try {
+    const { readFileSync } = await import("node:fs");
+    let eltern = "?";
+    try { eltern = readFileSync(`/proc/${process.ppid}/comm`, "utf8").trim(); } catch { /* kein Linux */ }
+    console.log(`[START] pid ${process.pid} · Elternprozess ${process.ppid} (${eltern})`);
+  } catch { /* nur eine Log-Zeile */ }
 })();

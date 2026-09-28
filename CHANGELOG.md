@@ -5,6 +5,119 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.09.2026 — Kein Stau mehr beim Update: Tabellen-Prüfungen warten nie länger als 3 Sekunden (E-254)
+
+**Der Anlass:** Am 28.09. stand das Agentenportal von 14:53 bis 15:20. Florentine (14:55): „Gibt es gerade ein Update
+oder so? Bei Nikita und mir geht nichts mehr" — kurz danach auch bei Dani. Alle Seiten des Portals luden ins Leere und
+brachen nach 1½ bis 2½ Minuten mit einem Serverfehler ab. Behoben war es erst, als die hängende Lesung von Hand
+abgebrochen wurde.
+
+**Die Ursache (nachgestellt und gemessen):**
+- Eine Lesung über die Tabellen der WhatsApp-Zentrale lief seit 13:55 ohne Zeitlimit (sehr wahrscheinlich ein lokales
+  Auswerte-Skript).
+- Beim Deploy um 14:52 (E-253) prüfte der neue Server wie bei jedem Start seine Tabellen: `ALTER TABLE … ADD COLUMN IF
+  NOT EXISTS`, `… DROP NOT NULL`. Postgres nimmt dafür die stärkste Sperre — **auch wenn die Spalte längst da ist**, die
+  Sperre kommt vor dem Nachsehen. Die Anweisung stellte sich hinter die Lesung, und hinter sie jede weitere Abfrage auf
+  derselben Tabelle.
+- Das Agentenportal prüft seine Tabellen bei **jeder** Anfrage (`requireAgent` → `ensureAgentTables`, 347 Routen). Bis
+  zum ersten Erfolg schickte jede Anfrage ihre eigene Prüfung los; nach Sekunden waren alle 12 Datenbank-Plätze des
+  Servers belegt, danach stand jede Abfrage.
+- Im Code stehen rund 500 solcher Prüfungen in 96 Dateien. Auf der Produktion waren 762 von 768 längst erfüllt.
+
+**Was jetzt gilt:**
+- **Die DDL-Wache** liegt einmal um den gemeinsamen Datenbank-Pool und den drizzle-Client — keine der 96 Dateien musste
+  umgeschrieben werden. Jede Tabellen-Anweisung wird erst im Katalog nachgesehen (das sperrt nichts). Ist alles da,
+  läuft nichts. Was dieser Server schon einmal geprüft hat, merkt er sich; laufen zwanzig gleiche Prüfungen gleichzeitig
+  an, geht nur eine zur Datenbank.
+- **Nur wenn wirklich etwas fehlt**, wird ausgeführt — mit Sperrfrist: Versuche à 0,5 s, zusammen höchstens 3 s. Wer
+  dahinter wartet, wartet höchstens einen Versuch (gemessen: unter 0,6 s). Ist die Tabelle nach 3 s nicht frei, gibt die
+  Anweisung auf, und im Log steht „[DB] DDL wartete zu lange auf Sperre — später erneut: …" mit dem, der die Tabelle
+  hält (Prozess, Programm, seit wann, Abfrage).
+- **Das Portal läuft dann weiter:** `ensureAgentTables` fängt diesen Sperrfehler je Anweisung ab, prüft die übrigen
+  weiter und kehrt normal zurück (Hinweis im Log höchstens einmal je Minute: „[FIAON-AGENT] … warten auf eine besetzte
+  Tabelle"). Es fällt nur aus, was die neue Spalte wirklich liest. (Erste Fassung: jede Agenten-Route antwortete 500,
+  solange die Sperre hielt — in der Nachprüfung gefunden.)
+- **Abkühlzeit am Halter, nicht an der Uhr:** Nach dem Aufgeben weist die Wache dieselbe Anweisung 3 s lang sofort ab
+  (bei jedem weiteren Aufgeben doppelt so lang). Danach sieht sie höchstens einmal je Sekunde im Katalog nach, ob noch
+  jemand die Tabelle länger als 1 s hält (sperrt nichts). Ist er weg, läuft der nächste Aufruf sofort durch; nur solange
+  er bleibt, weist sie weiter ab, höchstens 60 s. (Erste Fassung: 60 s fest — aus 4 s Sperre wurden 63 s Fehler.) Im
+  Hintergrund holt die Wache „IF NOT EXISTS"-Anweisungen selbst nach (nach 3 s, dann mit wachsendem Abstand), auch dort,
+  wo der Aufrufer den Fehler verschluckt hat. Keine Funktion bleibt bis zum nächsten Neustart ohne ihre Spalte.
+- **Buchungen gehen nie über die Wache:** Ein Text, in dem eine Anweisung Daten ändert oder Zeilen sperrt (INSERT,
+  UPDATE, DELETE, MERGE, WITH, CALL, COPY, SELECT … FOR UPDATE/SHARE, Advisory-Locks), läuft unverändert wie vor E-254 —
+  auch wenn eine Tabellen-Anweisung dabei steht, und egal, was in Kommentaren oder Texten steht. Heute gibt es im Server
+  keinen solchen Mischtext; der Prüfstand wird rot, sobald einer dazukommt.
+- **Rückgabe wie postgres.js:** Die Wache gibt die echte postgres.js-Query zurück und leitet nur deren Ausführung um.
+  `.simple()`, `.values()`, `.raw()`, DDL als Fragment, `count`/`command` im Ergebnis verhalten sich wie am rohen Client;
+  `.cursor()`, `.forEach()`, `.describe()` laufen ungebremst wie vor E-254.
+- Unverändert: alle normalen Abfragen, Transaktionen (Buchung, Raten, Tagesplatz, Auskunft — dort bewusst **kein**
+  poolweites Sperrlimit), Anweisungen innerhalb von Transaktionen (haben ihre eigene Frist).
+- **Not-Aus:** Umgebungsvariable `DDL_WACHE=aus` schaltet die Wache ab (alles wie vorher). Feinsteuerung:
+  `DDL_LOCK_TIMEOUT` (3s), `DDL_LOCK_VERSUCH` (500ms), `DDL_ABKUEHLEN_S` (60 = längste Abkühlzeit, solange der Halter
+  bleibt).
+- **Sperr-Protokoll auf den Personen:** Der Trigger wurde bei jedem Start gelöscht und neu angelegt (jedes Mal die
+  stärkste Sperre auf fiaon_persons und ein Augenblick ohne Protokoll). Jetzt nur noch, wenn er fehlt oder anders
+  aussieht, in einem Schritt. Dasselbe für die Status-Regel von team_todos.
+- **Migrationen beim Deploy** warten höchstens 5 s auf eine Sperre (drei Versuche, zusammen ≈ 19 s) — statt die alte,
+  noch laufende Instanz zu blockieren. Ist die Tabelle dann immer noch besetzt, endet die Migration mit **Exit 1**: node
+  startet nicht, Render meldet den Deploy als fehlgeschlagen, die alte Instanz läuft weiter. Im Log: „[MIGRATE] 🔒 <Datei>:
+  Tabelle besetzt — pid … (Programm, seit …, Abfrage)" und „🛑 ABBRUCH". Neu deployen, wenn die Sitzung fertig ist. So
+  startet nie neuer Code ohne seine Tabellen-Änderung (erste Fassung: Exit 0, der Code lief bis zum nächsten Deploy ohne
+  sie). Andere FAILs bleiben wie bisher Exit 0. Not-Aus: `MIGRATE_SPERRFEHLER=weiter` (dann Exit 0 wie vorher).
+- **Startbefehl:** node wird per `exec` gestartet. Mit dem alten Befehl blieb das Abschaltsignal (SIGTERM) unter bash
+  in der Shell hängen und erreichte node nie (gemessen; ob Render bash oder dash benutzt, ist nicht belegt — mit `exec`
+  ist das egal). Der geordnete Abschied aus E-253 („[HERUNTERFAHREN]") kommt so sicher an. Die Migration läuft
+  unverändert davor; scheitert sie mit Fehlercode, startet node nicht. Neue Startzeile im Log:
+  „[START] pid … · Elternprozess …" — steht dort npm (nicht sh/bash), kommt das Signal an.
+  **Beim Lesen der Render-Logs beachten:** Dass beim E-253-Deploy kein „[HERUNTERFAHREN]" kam, beweist nichts über die
+  Shell — die damals beendete Instanz lief mit E-248-Code, der noch gar keinen SIGTERM-Handler hatte. Beim E-254-Deploy
+  wird die E-253-Instanz beendet, die noch mit dem ALTEN Befehl gestartet wurde: Steht dort „[HERUNTERFAHREN]", kam das
+  Signal auch über den alten Befehl an (Render benutzt dann dash); fehlt es, lag es an der Shell. Der neue Befehl zeigt
+  sich erst beim Deploy danach — und sofort an der „[START]"-Zeile.
+
+**Geprüft:** neuer Prüfstand `scripts/pruef-ddl-ohne-stau.ts` (lokal, gleiche Postgres-Version 18.4 wie Produktion):
+- Ohne Wache nachgestellt: Lesung hält 6 s → normale SELECT/UPDATE auf derselben Tabelle warten 6,0 s; die Anweisung
+  vom 28.09. (`fiaon_agents … DROP NOT NULL`) staut Lesungen 4,0 s.
+- Mit Wache: 20 gleichzeitige Schema-Funktionen in 13 ms, SELECT/UPDATE ≤ 18 ms; echte `ensureAgentTables` (20×) und
+  `ensureSperrProtokoll` unter gehaltener Sperre in 25 / 4 ms, keine wartende Sperre.
+- Wirklich neue Spalte hinter der Lesung: alle 20 Aufrufe nach ≤ 3,0 s zurück (statt zu warten), eine Sperr-Serie statt
+  20, SELECT/UPDATE daneben ≤ 0,5 s, Pool frei (12 Abfragen in 0,1 s), Log nennt den Halter; nach Freigabe läuft der
+  nächste Aufruf durch, eine verschluckte Anweisung holt die Wache selbst nach.
+- Echter Server (Produktions-Bündel) gegen die Prüfstand-Kopie, eine Lesung hält fiaon_agents, fiaon_contact_log,
+  fiaon_applications und fiaon_whatsapp: mit `DDL_WACHE=aus` stellt sich der 28.09. nach (0 von 20 Agenten-Anfragen
+  kommen in 40 s zurück, eine einfache Lesung auf fiaon_agents hängt 15 s bis zum Abbruch, 13 wartende Sperren). Mit
+  Wache: 20 von 20 in ≤ 58 ms, /agent/me ≤ 38 ms, Lesung 5 ms, keine wartende Sperre. Gegenprobe mit wirklich
+  fehlender Spalte und der Vorgabe-Abkühlzeit (60 s): das Portal läuft weiter — /agent/me 34 von 34 mit 200, die
+  20er-Herde 20 von 20 (die ersten Anfragen ≤ 3,0 s, solange die eine Sperr-Serie läuft), kein 500, kein „auth:"-Fehler;
+  /healthz ≤ 21 ms. Die Spalte fehlt, solange der Halter hält, und ist 23 ms nach der Freigabe da.
+- **Nachprüfung (fünf Befunde, alle behoben):**
+  - Abkühlzeit, Vorgabe 60 s, Aufruf 1× je Sekunde: Halter 4 s → 3 Fehlaufrufe, erster Erfolg nach 6,0 s (vorher 60
+    Fehlaufrufe, erster Erfolg nach 63,2 s). Halter 10 s → eine einzige Sperr-Serie, danach nur Nachsehen im Katalog;
+    erster Erfolg 0,9 s nach der Freigabe.
+  - Buchungs-Texte hinter einer Zeilensperre (2,5 s): DO-Block mit „ALTER TABLE" nur im Kommentar und Mischtext „CREATE
+    TABLE …; UPDATE …" warten 2,5 s und laufen durch (vorher: 55P03 nach 3 s, danach 60 s lang derselbe Fehler); die
+    Wache zählt sie nicht einmal. Über alle 483 Tabellen-Texte des Servers: keiner ändert Daten, keiner mischt.
+  - Verträglichkeit roh gegen bewacht, 67 Fälle: 67 gleich (vorher 54 gleich, 13 abweichend — `.simple()` mehrteilig,
+    DDL als Fragment, `.cursor()`, `.forEach()`, `.describe()`, `.cancel()`, `count`/`command` übersprungener DDL).
+  - Migration hinter besetzter Tabelle: Exit 1 nach 19 s, Log nennt Datei und Halter; ohne Halter angewendet; ein
+    Syntaxfehler bleibt FAIL mit Exit 0; `MIGRATE_SPERRFEHLER=weiter` → Exit 0.
+  - `npm run start` (Produktions-Bündel, Prüfstand-Kopie) unter sh und dash: node ist direktes Kind von npm, NODE_ENV und
+    PLAYWRIGHT_BROWSERS_PATH kommen an, SIGTERM an npm → „[HERUNTERFAHREN] … Ende.", beide Prozesse sofort beendet.
+- Verträglichkeit: Tagged Template, Fragmente (auch DDL als Fragment), `sql('x')`, Listen, Insert-Helfer, `.values()`,
+  `.simple()`, `.cursor()`, `.forEach()`, `.cancel()`, `unsafe`, `json`, `begin`, `reserve`, drizzle (`db.execute`,
+  `select`), Not-Aus.
+- Startbefehl mit sh, bash und dash: SIGTERM kommt an; alter Befehl unter bash/sh (macOS): kommt nicht an.
+- Zerleger gegen alle Tabellen-Anweisungen des Servers: 471 von 478 ohne Sperre entscheidbar; der Prüfstand wird rot,
+  sobald eine neue, nicht entscheidbare Anweisung auf einer belebten Tabelle dazukommt.
+
+**Nach dem Deploy ansehen (Render-Log):** „[DDL-WACHE] pool nach 60 s: … ausgeführt ≈ 0 … aufgegeben 0 · Abkühlung 0",
+keine 500er unter /api/fiaon/agent, die Zeile „[START] … Elternprozess … (npm …)", beim Migrieren kein „🛑 ABBRUCH".
+
+**Wo:** `server/lib/ddl-wache.ts` (die Wache), `server/lib/db-pool.ts` (sqlPool), `server/db.ts` (drizzle-client),
+`server/routes/fiaon-agent.ts` (`ensureAgentTables` fängt den Sperrfehler ab), `server/lib/fiaon-kunde-aktiv.ts`
+(Sperr-Protokoll-Trigger), `server/index.ts` (team_todos-Regel, Startzeile), `scripts/run-migrations.mjs` (Sperrfrist,
+Exit 1), `package.json` (`start`), Prüfstand `scripts/pruef-ddl-ohne-stau.ts`.
+
 ## 28.09.2026 — Mara-Steuerpult aufgeräumt: Geld zuerst, eine Arbeitsfläche, keine nackten Nullen (E-252)
 
 **Der Anlass:** Justin (28.09.): „Das gesamte Design von /chef/s/mara ist … völlig überladen, mach es cleaner und besser

@@ -121,8 +121,25 @@ export function hashToken(t: string): string {
 
 // ── Tabellen & Migrationen (idempotent) ──────────────────────────────────────
 let tablesEnsured = false;
+let sperrHinweisAm = 0;
 export async function ensureAgentTables(): Promise<void> {
   if (tablesEnsured) return;
+  // ── EINE BESETZTE TABELLE LEGT NICHT DAS GANZE PORTAL LAHM (E-254, 28.09.2026) ──
+  // requireAgent (jede Portal-Route) und die Team-Routen rufen diese Funktion
+  // bei JEDER Anfrage, bis sie einmal durchlief. Fehlt eine Spalte wirklich und
+  // hält gerade jemand die Tabelle, gibt die DDL-Wache (lib/ddl-wache.ts) nach
+  // 3 s mit 55P03 auf. Vorher flog der Fehler bis requireAgent → 500 für ALLE
+  // Routen, solange die Sperre hielt (nachgestellt: 29 von 29 Anfragen 500).
+  // Jetzt: 55P03 wird hier je Anweisung aufgefangen, die übrigen laufen weiter,
+  // und die Funktion kehrt normal zurück — ohne sich „erledigt" zu merken. Die
+  // Wache holt die Anweisung selbst nach, sobald der Halter weg ist; bis dahin
+  // scheitert nur, was die neue Spalte wirklich liest. Jeder andere Fehler
+  // fliegt weiter wie bisher.
+  let offen = 0;
+  const sperrfest = (e: any) => {
+    if (e?.code !== "55P03") throw e;
+    offen++;
+  };
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_agents (
       id SERIAL PRIMARY KEY,
@@ -134,7 +151,7 @@ export async function ensureAgentTables(): Promise<void> {
     )
   `;
   // F/G/H: Konto-, Provisions- und Onboarding-Felder
-  await sqlPool`ALTER TABLE fiaon_agents ALTER COLUMN password_hash DROP NOT NULL`;
+  await sqlPool`ALTER TABLE fiaon_agents ALTER COLUMN password_hash DROP NOT NULL`.catch(sperrfest);
   // 07.09.2026 (Besprechung 06.09., E-161): Schulung mit Freigabe. Neue Mitarbeiter arbeiten erst
   // eigenständig, wenn die Schulungsleitung (Diana) sie freigibt; bis dahin kein Pool-Nachschub.
   await sqlPool`
@@ -179,7 +196,7 @@ export async function ensureAgentTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS zugang_gesperrt_am TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS zugang_gesperrt_grund TEXT,
       ADD COLUMN IF NOT EXISTS zugang_gesperrt_von TEXT
-  `);
+  `).catch(sperrfest);
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_contact_log (
       id SERIAL PRIMARY KEY,
@@ -200,9 +217,9 @@ export async function ensureAgentTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS voided_by INTEGER
-  `);
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_ref_idx ON fiaon_contact_log(ref)`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_agent_idx ON fiaon_contact_log(agent_id, created_at)`;
+  `).catch(sperrfest);
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_ref_idx ON fiaon_contact_log(ref)`.catch(sperrfest);
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_agent_idx ON fiaon_contact_log(agent_id, created_at)`.catch(sperrfest);
   // G2: Attribution + Soft-Lock am Kunden
   // P2-B: commission_basis dokumentiert TRANSPARENT, warum es Provision gab
   // oder nicht ('betreut' | 'direktzahler' | 'admin') + Klartext-Begründung.
@@ -214,8 +231,8 @@ export async function ensureAgentTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS commission_basis VARCHAR,
       ADD COLUMN IF NOT EXISTS commission_basis_note TEXT
-  `);
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_applications_assigned_idx ON fiaon_applications(assigned_agent_id)`;
+  `).catch(sperrfest);
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_applications_assigned_idx ON fiaon_applications(assigned_agent_id)`.catch(sperrfest);
   // G3: Provisionseinträge — Satz + Basis werden EINGEFROREN (Integer-Cents/Basispunkte)
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_commissions (
@@ -234,8 +251,8 @@ export async function ensureAgentTables(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_commissions_agent_idx ON fiaon_commissions(agent_id, status)`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_commissions_ref_idx ON fiaon_commissions(ref)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_commissions_agent_idx ON fiaon_commissions(agent_id, status)`.catch(sperrfest);
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_commissions_ref_idx ON fiaon_commissions(ref)`.catch(sperrfest);
   // Paket AE2: Provisionstyp 'own' | 'override' (Team-Umsatzbeteiligung, EXAKT eine Ebene)
   await sqlPool.unsafe(`
     ALTER TABLE fiaon_commissions
@@ -243,7 +260,7 @@ export async function ensureAgentTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS source_agent_id INTEGER,
       -- E-166 (08.09.2026): vorgemerkte Buchungen (Gehalt, Zusagen) mit Freigabedatum
       ADD COLUMN IF NOT EXISTS auszahlbar_ab DATE
-  `);
+  `).catch(sperrfest);
   // Paket AE3: Partner-Programm — erreichte Meilensteine + Prämien-Aufgaben für den Admin
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_partner_milestones (
@@ -323,7 +340,16 @@ export async function ensureAgentTables(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_agent_events_agent_idx ON fiaon_agent_events(agent_id, created_at)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_agent_events_agent_idx ON fiaon_agent_events(agent_id, created_at)`.catch(sperrfest);
+  if (offen > 0) {
+    // Höchstens eine Zeile je Minute — die Einzelheiten (wer hält, seit wann)
+    // stehen schon in der Zeile der Wache „[DB] DDL wartete zu lange …".
+    if (Date.now() - sperrHinweisAm > 60_000) {
+      sperrHinweisAm = Date.now();
+      console.warn(`[FIAON-AGENT] ${offen} Tabellen-Anweisung(en) warten auf eine besetzte Tabelle — Portal läuft weiter, die Wache holt sie nach (E-254).`);
+    }
+    return;
+  }
   tablesEnsured = true;
   console.log("[FIAON-AGENT] Agent-/Provisions-Tabellen sichergestellt");
 }

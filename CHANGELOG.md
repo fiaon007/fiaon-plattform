@@ -5,6 +5,130 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 29.09.2026 — Telefonkartei: WhatsApp über das FIAON-Konto, oben die Frischen mit den wenigsten Anrufen (E-259)
+
+**Der Anlass:** Justin zu /chef/s/telefonkartei:
+- „Wenn ich WhatsApp-Nachricht auswähle (weil ich ihn nicht erreicht habe, oder Rechnung schicke oder was auch immer),
+  dann muss das über unser WhatsApp-Meta-Konto laufen, nicht über das private — und schauen, ob alle Vorlagen dafür da
+  sind."
+- „Ich brauche ganz oben immer den frischesten Kunden, einen Kunden, der nicht schon 10× angerufen wurde — also gib mir
+  ganz oben A, dann B und dann C Kunden, die keine oder am wenigsten Anrufe bekommen haben — ich rufe oft 30 Kunden an,
+  ohne dass jemand erreichbar ist."
+
+**Was vorher war (gemessen, Produktion nur lesend):**
+- Jede WhatsApp der Kartei öffnete einen wa.me-Link — Justins **privates** WhatsApp. Nichts davon stand in
+  fiaon_whatsapp: nicht im WhatsApp-Raum, Mara kannte es nicht, die Zentrale schrieb am selben Tag trotzdem. Der Verlauf
+  trug „Zahlungsdaten per WhatsApp geschickt" ein, bevor Justin in WhatsApp auf Senden getippt hatte. Seit 21.09.:
+  43× „Nicht erreicht", 4× „Rechnung".
+- Gereiht wurde nur nach dem jüngsten Ereignis. Im Reiter A hatten von den ersten 30 sechs schon 10 und mehr Anrufe,
+  zwölf waren drei- und mehrmal in Folge nicht erreicht (längste Serie 16).
+
+**Was jetzt gilt — WhatsApp:**
+- Mail **und** WhatsApp schickt der Server. Die WhatsApp geht über das FIAON-Konto bei Meta, über den einen Hausweg
+  (Sperren, Wortwand, 24-Stunden-Fenster, Bildfassung, Protokoll). Sie steht im WhatsApp-Raum als „Mensch"; nach einer
+  Vorlage antwortet Mara, wenn der Kunde schreibt, nach freiem Text führt ein Mensch (Pause läuft von selbst ab).
+- Je Fall, außerhalb des 24-Stunden-Fensters eine freigegebene Vorlage:
+  - „Rechnung schicken", erste Zahlung: „Ihre offene Rechnung" (`fiaon_kk_rechnung`), Knopf zur Zahlungsseite dieser
+    Referenz. Bei „Rate offen": „Ihre Monatsrate" (`fiaon_kk_rate`), Knopf zur Zahlungsseite genau dieser Rate. Immer
+    die Vorlage — der alte Text mit IBAN wäre an der Wand gescheitert.
+  - „Nicht erreicht" (B, C, Abbrecher): „Wir haben Sie nicht erreicht" (`fiaon_kk_nicht_erreicht`) — höchstens alle
+    3 Tage und nur, wenn der Mensch heute noch keine WhatsApp bekam (Tagesplatz). Ihr Knopf führt fest auf
+    fiaon.com/termin, das allgemeine Terminformular, **nicht** Justins Kalender — Blatt, Meldung und Rundgang sagen das.
+    Kam in den letzten 24 Stunden eine Nachricht vom Kunden, geht statt der Vorlage Justins eigener Text mit seinem
+    Kalender (ebenfalls höchstens alle 3 Tage).
+  - „Antrag schicken": Abbrecher `fiaon_kk_antrag_offen` — der Knopf trägt den Code seines Leads und geht nur raus, wenn
+    dieser Code in GENAU seinen begonnenen Antrag führt; sonst keine Vorlage. Leads (C) haben noch keine freigegebene
+    Vorlage mit Antrag-Link — Mail, im offenen Fenster freier Text. Jeder Link ist sein persönlicher (Lead: /a/<code>,
+    Abbrecher: Wiedereinstieg), nie ein nackter /antrag.
+  - A (Zahlung gemeldet) und Bestandskunden (Rate, bezahlt) bei „Nicht erreicht": keine passende Vorlage — nur Mail.
+  - „Später anrufen", „Stornieren": bewusst keine WhatsApp.
+- Persönliche Nachricht (KI): „Über FIAON-WhatsApp senden" als freier Text nur im offenen Fenster. Ist es zu, öffnet die
+  Rückfrage-Vorlage („Eine kurze Rückfrage", `fiaon_kk_rueckfrage`) das Gespräch; der Text bleibt als Entwurf auf dem
+  Gerät und geht NICHT von selbst raus (bis Justin ihn sendet, antwortet Mara). Nach „STOPP" geht keine WhatsApp, auch
+  kein freier Text; bei Werbesperre, Vertriebssperre oder Kündigung nur mit Haken und ohne Verkauf (die KI kennt die
+  Sperre). Der alte Eintrag „WhatsApp geöffnet" entfällt — der Versand schreibt den Verlauf selbst.
+- Vorher sichtbar: Das Blatt „Nachrichten" fragt beim Öffnen, was jeder Fall täte, und schreibt es unter den Knopf
+  („Mail mit PDF + WhatsApp über FIAON" oder „keine WhatsApp: Werbesperre / Festnetz / heute schon eine WhatsApp /
+  keine Vorlage für Leads"). Nach dem Tippen zwei Zeilen: Mail und WhatsApp. Der Verlauf nennt nur, was wirklich rausging.
+- Doppelklick: Jeder Knopf wirkt je Mensch binnen 10 Minuten einmal — atomar, auch von zwei Geräten (Takt in
+  `fiaon_telefonkartei_takt`); der zweite Tipp meldet grün „schon erledigt" und schickt nichts.
+- Unverändert: Werbesperre, „Stopp", Vertriebssperre und Kündigung sperren werbliche Vorlagen — dazu zählen im Haus
+  auch „Rechnung" und „Nicht erreicht" (offene Entscheidung, siehe unten).
+
+**Was jetzt gilt — Reihenfolge (in jedem Reiter dieselbe):**
+1. Ab 10 Anrufversuchen ans Ende (in „Alle" dazu Bezahlte, Abbrecher, Ausgeschlossene).
+2. Frisch zuerst: Antrag, Zahlungsmeldung oder fällige Rate höchstens 3 Tage alt.
+3. A, dann B, dann C, dann Rate offen. In „Alle" also erst die Frischen A → B → C, dann der Bestand in derselben Folge.
+4. Wer in den letzten 20 Stunden versucht wurde, eine laufende Zusage, einen gebuchten Termin oder Justins offenen
+   Rückruf hat, rückt nach hinten.
+5. Wenigste Versuche zuerst (0 | 1–2 | 3–5 | 6–9).
+6. Bei gleich vielen Versuchen zuerst, wessen Wunschzeit aus dem Antrag jetzt passt (wie die Arbeitsliste), dann die
+   kürzeste Serie ohne Erreichen, dann das jüngste Ereignis.
+- Gezählt werden Softphone-Anrufe (fiaon_calls, raus) und jedes festgehaltene Ergebnis (Akte, Privathandy, Kartei,
+  Leads); ein Softphone-Anruf mit Ergebnis zählt einmal. Mehrmals wählen binnen 5 Minuten = ein Versuch; Wählzeilen, die
+  nie rausgingen (ohne Twilio-SID), zählen nicht; Ergebnisse ohne `outcome` (Onboarding) sind keine Versuche. Die Karte
+  zeigt die Zahl neben der Nummer („noch nie angerufen", „3 Versuche" — gelb ab 5, rot ab 10) und „2× in Folge nicht
+  erreicht" (jetzt auch für Leads).
+- „Weitere laden" holt die nächsten, die noch nicht gezeigt wurden (kein Blättern per OFFSET).
+- Der Reiter „Alle" steht vorn und ist beim ersten Öffnen gewählt; danach merkt sich die Seite wieder die Wahl.
+- Gemessen auf der Produktion (nur lesend): „Alle" 260–320 ms, A 200–220 ms, C 230–240 ms (vorher 155–170 ms für
+  „Alle"). Reiter A, erste 30: höchstens 5 Versuche (vorher 6 mit 10 und mehr), längste Serie 5 (vorher 16).
+
+**Offen für Justin:**
+- Justins Anrufe übers iPhone (`tel:`) zählen nur, wenn er danach einen Knopf drückt. Das Tippen auf „Anrufen" als
+  Versuch mitzuschreiben ist nicht gebaut (Entscheidung offen).
+- Zwei Vorlagen fehlen und sind **nicht** eingereicht: `fiaon_kk_kalender` (Nicht erreicht mit Justins Kalender, auch
+  für Bestandskunden; braucht die Route `/justin/:k`) und `fiaon_kk_antrag_link` (Antrag-Link für Leads). Achtung beim
+  Knopf „Vorlagen einreichen": Er reicht auch die vier Auskunft-Vorlagen neu ein (Text im Code ≠ Stand bei Meta).
+- Rechnung trotz Werbesperre (Dienstpost nach dem Anruf)? Heute gesperrt.
+- Nebenbefund: Die Rechnungs-**Mail** der Kartei scheitert an der Wortwand, wenn der Kunde kein Wunschlimit hat
+  („… aktiviere ich Ihr Konto. Sobald Ihr Account aktiviert …"); gemessen 29.09. bei rund 18 % der A/B-Kunden. Unverändert —
+  die Meldung sagt es, die WhatsApp-Vorlage geht trotzdem.
+
+**Nachbesserung nach der Gegenprüfung (29.09.2026, gleicher Tag):**
+- „Weitere laden" übersprang nach eigenen Klicks die nächsten Kunden und zeigte gerade Angerufene doppelt (OFFSET über
+  eine Reihenfolge, die sich durch die Klicks verschiebt; gemessen in A: 25 übersprungen). Jetzt: die schon gezeigten
+  Karten gehen mit (`POST /chef/telefonkartei/weitere`), der Browser entdoppelt zusätzlich.
+- Zählung: 159 Wählzeilen ohne Twilio-SID (nie rausgegangen) und Wählbündel zählten einzeln — Person-IDs 13324 (gezählt
+  16, richtig 1) und 12898 (gezählt 12, richtig 5) standen deshalb am Ende. „Erreicht" an einem Akte-Ergebnis neben einem Softphone-Anruf ging
+  verloren (Person 3686: Serie 9 statt 0); Ratenergebnisse („zahlt am" u. a.) galten als nicht erreicht; Onboarding-
+  Einträge ohne `outcome` als Fehlversuch. Über alle Reiter (nur lesend): 29 Menschen fälschlich hinter der 10er-Grenze
+  (A 2, B 9, Rate 12), bei 273 war die Serie anders, bei 66 um 3 und mehr zu hoch.
+- Wunschzeit erst innerhalb derselben Versuchsstufe (vorher stand „8 Versuche" über „noch nie angerufen").
+- Abbrecher-Vorlage: Der Knopf führte mit „start" in einen NEUEN Antrag (nur 10 von 156 Abbrechern hatten einen Code).
+  Jetzt der Code seines Leads, nur wenn er in genau diesen Antrag führt (107 von 156); ohne Lead keine Vorlage.
+- Kein nackter fiaon.com/antrag mehr (Text, Mail, KI-Platzhalter) — Hausregel E-248.
+- Persönliche Nachricht nach „STOPP" gesperrt, Stopp steht an der Karte; Werbesperre/Vertriebssperre/Kündigung nur mit
+  Haken, KI ohne Verkauf.
+- „Nicht erreicht" im offenen Fenster: 3-Tage-Regel und Doppelklick-Schutz gelten jetzt auch dort; der zweite Klick
+  schickt nichts und steht nicht mehr als „Schon festgehalten" neben einer gesendeten WhatsApp.
+- Zwei gleichzeitige „Rechnung schicken" = eine Vorlage (Takt, atomar).
+- A bekommt keine Nicht-erreicht-Vorlage mehr („es fehlt nur noch Ihr Ja" stimmt nach der Zahlungsmeldung nicht).
+- Texte: „schon erledigt" statt rot „nichts rausgegangen" beim zweiten Tipp; ehrlicher Entwurfs-Satz; Zusatz unter
+  „Persönliche Nachricht" nach dem, was wirklich ginge; Rundgang-Schritt 2 zielt auf die erste Karte; Meldungen neutral
+  („kam eine Nachricht" statt „er hat …").
+- Gemessen (Produktion, nur lesend, Ausführung in der Datenbank): „Alle" 165–180 ms (Bau 145–165 ms), A 80–90 ms,
+  Stopp-Marke 10 ms je Seite. Reiter A, erste 30: höchstens 5 Versuche, längste Serie 3.
+
+**Geprüft:** neuer Prüfstand `scripts/pruef-telefonkartei-meta.ts` gegen eine lokale Datenbankkopie mit Meta-Attrappe
+(83 Prüfungen: Reihung mit angelegten A/B/C/Rate-Kunden, 0–12 Versuche, frisch/alt, Pause, Wunschzeit; Zählung mit
+Entdoppelung, Wählzeilen ohne SID, Wählbündel, erreicht am Akte-Ergebnis, Ratenergebnisse, Ergebnisse ohne outcome;
+„Weitere laden" nach 10 Klicks; jeder WhatsApp-Fall mit Vorlage, Werten, Knopf, Sperre, Stopp, Tagesplatz, drei Tagen,
+Fenster, Doppelklick parallel, persönlichem Link, Protokoll, Gespräch, Verlauf; Meta-Fehler; keine echte Anfrage).
+`scripts/pruef-telefonkartei.ts` nachgezogen (146 Prüfungen, auch die seit E-213 rote Storno-Prüfung). Unverändert
+grün: pruef-lead-motor, pruef-mara-verkauf, pruef-mara-aktion, pruef-boni-ampel, pruef-raten-storno, pruef-mara-mail,
+pruef-mara-wiedergabe; pruef-wa-sperre-lauf 127/128 (die eine rote Prüfung betrifft ChefWhatsAppZentrale.tsx, rot seit
+E-252, nicht berührt).
+
+**Wo:** /chef/s/telefonkartei (Reiter „Alle", Karte „3 Versuche", Knopf „Nachrichten"). Code:
+`server/lib/fiaon-telefonkartei.ts` (KARTEI_ORDNUNG_SQL, karteiWhatsApp, karteiWaLage, karteiNachricht),
+`server/lib/fiaon-anrufversuche.ts` (Zählung), `shared/fiaon-telefonkartei.ts` (KARTEI_WA_VORLAGE, karteiWaVorlage),
+`server/lib/fiaon-kurzlink.ts` (antragDesLeads, nur lesend), `server/lib/fiaon-kartei-ki.ts` (Sperre, persönlicher Link),
+`server/routes/fiaon-telefonkartei.ts` (weitere, whatsapp-lage, whatsapp-frei, whatsapp-rueckfrage),
+`client/src/components/admin/ChefTelefonkartei.tsx`, Rundgang in `client/src/pages/agent/rundgaenge.ts`.
+
+---
+
 ## 28.09.2026 — Kein Stau mehr beim Update: Tabellen-Prüfungen warten nie länger als 3 Sekunden (E-254)
 
 **Der Anlass:** Am 28.09. stand das Agentenportal von 14:53 bis 15:20. Florentine (14:55): „Gibt es gerade ein Update

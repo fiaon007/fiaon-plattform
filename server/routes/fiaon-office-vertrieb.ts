@@ -461,7 +461,8 @@ const STUNDE_SQL = `EXTRACT(HOUR FROM (NOW() AT TIME ZONE 'Europe/Berlin'))::int
 const ERREICHBAR_ANGABE_SQL = `(SELECT a9.erreichbarkeit FROM fiaon_applications a9
    WHERE a9.person_id = p.id AND a9.merged_into IS NULL AND NULLIF(a9.erreichbarkeit, '') IS NOT NULL
    ORDER BY a9.created_at DESC LIMIT 1)`;
-const JETZT_ERREICHBAR_SQL = jetztErreichbarSql(ERREICHBAR_ANGABE_SQL, STUNDE_SQL);
+// Exportiert (29.09.2026, E-259): Die Telefonkartei reiht nach DERSELBEN Wunschzeit wie die Arbeitsliste.
+export const JETZT_ERREICHBAR_SQL = jetztErreichbarSql(ERREICHBAR_ANGABE_SQL, STUNDE_SQL);
 /** Als Reihungs-Kriterium: passendes Fenster (oder keine Angabe) zuerst. */
 const FENSTER_ORDNUNG = `CASE WHEN ${JETZT_ERREICHBAR_SQL} THEN 0 ELSE 1 END`;
 // ═══════════════════════════════════════════════════════════════════════════

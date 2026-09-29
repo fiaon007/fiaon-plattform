@@ -11,7 +11,11 @@
 // Jede Wirkung läuft über den Weg, den das Haus dafür schon hat — sonst sähen
 // die Mitarbeiter etwas anderes als Justin:
 //   · Stufe A/B/C        priority_tier (tier.ts); „Rate offen" = RATE_FAELLIG_SQL
-//   · Reihung            EREIGNIS_SQL — dieselbe Frische wie die Arbeitsliste
+//   · Reihung            EREIGNIS_SQL — dieselbe Frische wie die Arbeitsliste;
+//                        seit E-259 dazu die Anrufversuche (fiaon-anrufversuche.ts)
+//                        und die Wunschzeit (JETZT_ERREICHBAR_SQL), KARTEI_ORDNUNG_SQL
+//   · WhatsApp           waSenden (fiaon-whatsapp.ts) — seit E-259 über das
+//                        FIAON-Konto bei Meta, nie mehr über wa.me
 //   · Nummer             waehlbareNummer (fiaon-telefon.ts)
 //   · Preis              katalogpreisCents — Katalog vor amount_due (E-181)
 //   · Ergebnis           ergebnisNachbereiten (fiaon-kontakt-ergebnis.ts); für
@@ -34,6 +38,7 @@
 // „zahlt am" mit morgen: Kommt das Geld, ist er ohnehin raus.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { createHash } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { waehlbareNummer } from "./fiaon-telefon";
 import { katalogpreisCents } from "./fiaon-massgebliche-bestellung";
@@ -49,16 +54,19 @@ import { kurzFenster } from "@shared/fiaon-erreichbarkeit";
 import { KUNDENSTATUS, ETIKETT_FRIST_ABGELAUFEN } from "@shared/fiaon-kundenstatus";
 import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { terminArtAusQuelle } from "@shared/fiaon-termin-art";
-import { ERGEBNIS_TEXT, istErgebnis } from "@shared/fiaon-kontakt-ergebnis-liste";
+import { ERGEBNIS_TEXT, istErgebnis, type Ergebnis } from "@shared/fiaon-kontakt-ergebnis-liste";
+import { whatsappUrteil } from "@shared/fiaon-whatsapp-erlaubnis";
+import { WA_VORLAGEN, bildName } from "@shared/fiaon-lead-texte";
+import { persoenlicherLink, stufeAusAntrag, type MaraKanal } from "@shared/fiaon-mara-ton";
 import {
-  KARTEI_SEITE, KARTEI_LAGE_TEXT, datumKurz, euro, euroGanz,
+  KARTEI_SEITE, KARTEI_LAGE_TEXT, KARTEI_WA_VORLAGE, NICHT_ERREICHT_HINWEIS, datumKurz, euro, euroGanz,
   mailRechnung, mailNichtErreicht, mailAntrag, hatRechnungsweg, hatAntragsweg,
+  whatsappNichtErreicht, whatsappAntrag, karteiWaVorlage, ohneEmojis,
   type KarteiGruppe, type KarteiKarte, type KarteiLage, type KarteiZahlung,
   type KarteiErgebnis, type KarteiRueckruf, type KarteiTermin,
+  type KarteiWaFall, type KarteiWaFallLage, type KarteiWaLage, type KarteiWaErgebnis,
 } from "@shared/fiaon-telefonkartei";
-
-/** Der Antrag für Leads — dieselbe Adresse wie im Wissen der KI (shared/fiaon-wissen.ts). */
-export const ANTRAG_URL = () => absoluteUrl("/antrag");
+import { anrufversucheCte, ANRUFE_ENDE, FRISCH_TAGE, PAUSE_STUNDEN } from "./fiaon-anrufversuche";
 
 /** Rechnungslinks in WhatsApp halten 30 Tage (die Vorgabe von 72 Stunden ist für Mails an Make). */
 const RECHNUNG_LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -100,6 +108,15 @@ export function karteiTabellen(): Promise<void> {
           erledigt_am TIMESTAMPTZ
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_tk_rueckruf_offen_idx ON fiaon_telefonkartei_rueckruf (am) WHERE erledigt_am IS NULL`;
+      // Nachbesserung E-259 (29.09.2026): der Takt der Knöpfe — eine Zeile je Mensch und Knopf
+      // (Doppelklick auf zwei Geräten, 3-Tage-Marke für „Nicht erreicht" als freier Text). Siehe taktNehmen.
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_telefonkartei_takt (
+          person_id INTEGER NOT NULL,
+          art TEXT NOT NULL,
+          am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (person_id, art)
+        )`;
     })().catch((e) => { tabellenBereit = null; throw e; });
   }
   return tabellenBereit;
@@ -144,11 +161,95 @@ interface Filter {
   suche?: string;
   gesperrte?: boolean;
   personId?: number;
+  /**
+   * Nachbesserung E-259: die schon gezeigten Karten — „Weitere laden" holt die
+   * nächstbesten OHNE sie, statt per OFFSET zu blättern (siehe karteiListe).
+   */
+  ohne?: number[];
 }
 
-async function vertriebSql(): Promise<{ RATE_FAELLIG_SQL: string; EREIGNIS_SQL: string }> {
+async function vertriebSql(): Promise<{ RATE_FAELLIG_SQL: string; EREIGNIS_SQL: string; JETZT_ERREICHBAR_SQL: string }> {
   const m = await import("../routes/fiaon-office-vertrieb");
-  return { RATE_FAELLIG_SQL: m.RATE_FAELLIG_SQL, EREIGNIS_SQL: m.EREIGNIS_SQL };
+  return { RATE_FAELLIG_SQL: m.RATE_FAELLIG_SQL, EREIGNIS_SQL: m.EREIGNIS_SQL, JETZT_ERREICHBAR_SQL: m.JETZT_ERREICHBAR_SQL };
+}
+
+/**
+ * „Stopp" des Menschen für die Karte (Nachbesserung E-259) — dieselbe Lesart wie
+ * menschSperre (fiaon-mail-frequenz.ts, E-253): WhatsApp „STOPP"/„Keine
+ * Nachrichten mehr" oder Postfach-Merkmal stopp, an irgendeiner Person seiner
+ * Familie. `b.id` ist immer ein Kopf (merged_into_person_id IS NULL), also genügt
+ * die Menge der Köpfe mit Stopp (STOPP_KOEPFE_SQL, einmal je Abfrage gebildet).
+ * Gemessen (Produktion, nur lesend): 10 ms für eine Seite; die Familie je Karte
+ * einzeln abzufragen kostete 80 ms.
+ */
+async function stoppSql(): Promise<string> {
+  const m = await import("./fiaon-mail-frequenz");
+  return `(b.id IN ${m.STOPP_KOEPFE_SQL})`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE REIHENFOLGE (29.09.2026, E-259)
+//
+// Justin: „Ich brauche ganz oben immer den frischesten Kunden, einen Kunden,
+// der nicht schon 10× angerufen wurde — also gib mir ganz oben A, dann B und
+// dann C Kunden, die keine oder am wenigsten Anrufe bekommen haben — ich rufe
+// oft 30 Kunden an, ohne dass jemand erreichbar ist."
+//
+// GEMESSEN (Produktion, nur lesend, 29.09.): Bis heute zählte nur das jüngste
+// Ereignis. Im Reiter A hatten von den ersten 30 sechs schon 10 und mehr
+// Anrufe, zwölf waren drei- und mehrmal in Folge nicht erreicht (längste Serie
+// 16). Wer noch nie erreicht wurde, geht beim ersten Anruf zu 24,6 % ran, nach
+// fünf Fehlversuchen in Folge zu ~12 %.
+//
+// DIE REGEL — für jeden Reiter dieselbe Ordnung (im Einzelreiter ist die Stufe
+// fest, dort fällt Schritt 3 weg):
+//   1  ab 10 Versuchen ans Ende (in „Alle" dazu Bezahlte, Abbrecher,
+//      Ausgeschlossene — sie gehören in keinen der Stufen-Reiter)
+//   2  frisch zuerst: Ereignis (Antrag, Zahlungsmeldung, fällige Rate)
+//      höchstens 3 Tage alt — in „Alle" also erst die Frischen quer über die
+//      Stufen, dann der Bestand. Streng „A, dann B, dann C" hätte oben nur alte
+//      A-Kunden gezeigt (Median 39 Tage), der erste frische B-Kunde stünde
+//      hinter ~70 A-Karten.
+//   3  Stufe A → B → C → Rate offen
+//   4  Pause nach hinten: in den letzten 20 Stunden versucht, Zusage läuft,
+//      Termin gebucht oder dein Rückruf offen — wer gerade dran war, steht
+//      nicht gleich wieder oben
+//   5  wenigste Versuche: 0 | 1–2 | 3–5 | 6–9 — „keine oder am wenigsten"
+//   6  innerhalb derselben Versuchsstufe: Wunschzeit aus dem Antrag passt jetzt
+//      (E-184, dieselbe Regel wie die Arbeitsliste)
+//   7  dann die kürzeste Serie ohne Erreichen, dann das jüngste Ereignis
+// Nachbesserung E-259 (29.09.2026): 5 und 6 getauscht. Vorher stand die
+// Wunschzeit VOR der Versuchszahl — gemessen im Reiter „Alle": „8 Versuche" auf
+// Platz 7 über sechs Karten „noch nie angerufen", nur weil deren Wunschzeit
+// gerade nicht passte. Justin: „die keine oder am wenigsten Anrufe bekommen haben".
+// `pause` und `fenster_jetzt` sind nie NULL (COALESCE) — NULL sortierte sonst
+// hinter TRUE, im Test gemessen.
+// ═══════════════════════════════════════════════════════════════════════════
+export const KARTEI_ORDNUNG_SQL = `
+      (b.versuche >= ${ANRUFE_ENDE} OR b.rang = 5),
+      COALESCE(b.ereignis_am < NOW() - INTERVAL '${FRISCH_TAGE} days', TRUE),
+      b.rang,
+      b.pause,
+      CASE WHEN b.versuche = 0 THEN 0 WHEN b.versuche <= 2 THEN 1 WHEN b.versuche <= 5 THEN 2 ELSE 3 END,
+      NOT b.fenster_jetzt,
+      b.fehl_folge,
+      b.ereignis_am DESC NULLS LAST,
+      b.id DESC`;
+
+/** Die Felder der Basis, nach denen gereiht wird — `p` ist die Person, `vz` die Anrufzählung. */
+function reihungSpalten(RATE_FAELLIG_SQL: string, JETZT_ERREICHBAR_SQL: string): string {
+  return `
+      COALESCE(vz.versuche, 0) AS versuche, COALESCE(vz.fehl_folge, 0) AS fehl_folge, vz.letzter AS letzter_versuch,
+      CASE WHEN p.priority_tier = 1 THEN 1
+           WHEN p.priority_tier = 2 THEN 2
+           WHEN p.priority_tier = 3 AND p.tier_reason = 'nur_lead' THEN 3
+           WHEN COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL} THEN 4
+           ELSE 5 END AS rang,
+      (COALESCE(vz.letzter > NOW() - INTERVAL '${PAUSE_STUNDEN} hours', FALSE)
+        OR COALESCE(p.promised_payment_date >= (NOW() AT TIME ZONE 'Europe/Berlin')::date, FALSE)
+        OR EXISTS (SELECT 1 FROM fiaon_termine tp WHERE tp.person_id = p.id AND tp.status = 'gebucht' AND tp.beginn > NOW())
+        OR EXISTS (SELECT 1 FROM fiaon_telefonkartei_rueckruf rp WHERE rp.person_id = p.id AND rp.erledigt_am IS NULL)) AS pause,
+      COALESCE(${JETZT_ERREICHBAR_SQL}, TRUE) AS fenster_jetzt`;
 }
 
 function suchBedingung(suche: string) {
@@ -190,7 +291,8 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
   await karteiTabellen();
   const { boniSpaltenSicher } = await import("./fiaon-boni-ampel");
   await boniSpaltenSicher();
-  const { RATE_FAELLIG_SQL, EREIGNIS_SQL } = await vertriebSql();
+  const { RATE_FAELLIG_SQL, EREIGNIS_SQL, JETZT_ERREICHBAR_SQL } = await vertriebSql();
+  const STOPP_SQL = await stoppSql();
   // SUCHE FINDET JEDEN (21.09.2026, Justin: „Wenn ich ‚Justin Schwarzott' suche,
   // kommt nichts — mich muss man aber finden."). Seine Datensätze sind als
   // Testkonto markiert (Name eines Mitarbeiters), andere sind gesperrt oder
@@ -203,24 +305,32 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
   // Gesperrte blendet die Kartei aus, solange Justin sie nicht ausdrücklich will —
   // eine Vertriebssperre heißt meistens: Der Mensch hat Nein gesagt.
   const sperre = f.personId || sucht || f.gruppe === "storniert" || f.gesperrte ? sqlPool`` : sqlPool`AND NOT COALESCE(p.is_blocked, FALSE)`;
-  const ordnung = f.gruppe === "storniert"
+  // Nachbesserung E-259: „Weitere laden" ohne die schon gezeigten Karten (siehe karteiListe).
+  const ohneIds = (f.ohne ?? []).filter((n) => Number.isInteger(n) && n > 0);
+  const ohne = !f.personId && ohneIds.length ? sqlPool`AND p.id <> ALL(${ohneIds}::int[])` : sqlPool``;
+  // E-259: eine Ordnung für alle Reiter (KARTEI_ORDNUNG_SQL, oben); nur „Storniert" nach Storno-Datum.
+  const ordnung = f.gruppe === "storniert" && !f.personId && !sucht
     ? sqlPool`ORDER BY b.storno_am DESC NULLS LAST, b.id DESC`
-    : sqlPool`ORDER BY b.ereignis_am DESC NULLS LAST, b.id DESC`;
+    : sqlPool`ORDER BY ${sqlPool.unsafe(KARTEI_ORDNUNG_SQL)}`;
   return (await sqlPool`
-    WITH basis AS (
+    WITH ${sqlPool.unsafe(anrufversucheCte({ personId: f.personId ?? null }))},
+    basis AS (
       SELECT p.id, p.first_name, p.last_name, p.contact_name, p.anrede, p.primary_email, p.primary_phone,
              p.street, p.zip, p.city, p.country, p.priority_tier, p.tier_reason, p.is_blocked, p.werbung_gesperrt_am,
              p.unreachable_count, p.promised_payment_date, p.assigned_agent_id, p.created_at,
              (p.ist_test_am IS NOT NULL) AS testfall,
              ${sqlPool.unsafe(EREIGNIS_SQL)} AS ereignis_am,
+             ${sqlPool.unsafe(reihungSpalten(RATE_FAELLIG_SQL, JETZT_ERREICHBAR_SQL))},
              s.am AS storno_am, s.grund AS storno_grund, s.durch AS storno_durch
       FROM fiaon_persons p
       LEFT JOIN fiaon_telefonkartei_storno s ON s.person_id = p.id AND s.zurueck_am IS NULL
+      -- E-259: die Anrufzählung — ein Hash-Join auf die Liste, keine Schleife über das Kontaktprotokoll.
+      LEFT JOIN vz ON vz.person_id = p.id
       WHERE p.merged_into_person_id IS NULL
-        ${test} ${einzeln} ${gruppe} ${sperre} ${suchBedingung(f.suche ?? "")}
+        ${test} ${einzeln} ${gruppe} ${sperre} ${ohne} ${suchBedingung(f.suche ?? "")}
     ),
     -- ERST DIE SEITE, DANN DIE KARTEN (21.09.2026, E-202): Die Reihenfolge
-    -- hängt nur an der Basis (Ereignis bzw. Storno-Datum). Vorher liefen alle
+    -- hängt nur an der Basis (seit E-259: KARTEI_ORDNUNG_SQL bzw. Storno-Datum). Vorher liefen alle
     -- Nachschlagungen unten für JEDEN Menschen der Liste (~5.000 unter „Alle“),
     -- und erst danach wurden 26 ausgewählt — mit den drei Verbindungen der
     -- Boni-Ampel 502 ms statt 278 ms. Jetzt werden nur die Karten der Seite
@@ -249,6 +359,7 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
            k.am AS k_am, k.von AS k_von, k.ergebnis AS k_ergebnis,
            t.beginn AS t_beginn, t.quelle AS t_quelle, tag.name AS t_bei,
            rr.am AS rr_am,
+           ${sqlPool.unsafe(STOPP_SQL)} AS stopp,
            ${sqlPool.unsafe(BONI_SPALTEN_SQL)}
     FROM seite b
     -- Die offene Bestellung: erst eine echte Rechnung, dann ein fertiger Antrag
@@ -424,12 +535,17 @@ async function karteBauen(z: any): Promise<KarteiKarte> {
     kontakt: {
       am: iso(z.k_am), von: text(z.k_von) || null, ergebnis: ergebnisText(z.k_ergebnis),
       nichtErreicht: Number(z.unreachable_count || 0),
+      // E-259: aus der Anrufzählung (fiaon-anrufversuche.ts) — auch für Leads.
+      versuche: Number(z.versuche || 0),
+      fehlInFolge: Number(z.fehl_folge || 0),
+      letzterVersuch: iso(z.letzter_versuch),
     },
     termin: z.t_beginn ? { beginn: iso(z.t_beginn)!, art: terminArtAusQuelle(z.t_quelle).text, bei: text(z.t_bei) || null } : null,
     erreichbarkeit: kurzFenster(z.o_erreichbarkeit),
     zusage: tagText(z.promised_payment_date),
     gesperrt: !!z.is_blocked,
     werbungGesperrt: !!z.werbung_gesperrt_am,
+    stopp: !!z.stopp,
     testfall: !!z.testfall,
     terminLink: absoluteUrl(`/justin?k=${terminTokenErzeugen(Number(z.id))}`),
     akteId: aktenRef ?? (z.l_id != null ? `lead-${Number(z.l_id)}` : null),
@@ -446,9 +562,18 @@ async function karteBauen(z: any): Promise<KarteiKarte> {
 
 // ── Liste, Zähler, eine Karte ───────────────────────────────────────────────
 
+/**
+ * Eine Seite Karten. Nachbesserung E-259 (29.09.2026): „Weitere laden" schickt
+ * die schon gezeigten personIds (`ohne`) und bekommt die nächstbesten OHNE sie —
+ * kein OFFSET mehr. Seit E-259 hängt die Reihenfolge an Justins eigenen Klicks
+ * (Pause, Versuche); nach 25× „Nicht erreicht" rutschten die Angerufenen nach
+ * hinten, und OFFSET 25 zeigte sie ein zweites Mal, während die nächsten 25 nie
+ * erschienen (gemessen: in A 25 übersprungen, 5 doppelt). `seite` bleibt nur für
+ * Seiten ohne `ohne` (alte Fassung im Browser während des Deploys).
+ */
 export async function karteiListe(f: Filter & { seite?: number }): Promise<{ karten: KarteiKarte[]; mehr: boolean }> {
   const seite = Math.max(0, Math.min(400, Math.floor(Number(f.seite) || 0)));
-  const zeilen = await zeilenLaden(f, KARTEI_SEITE + 1, seite * KARTEI_SEITE);
+  const zeilen = await zeilenLaden(f, KARTEI_SEITE + 1, f.ohne?.length ? 0 : seite * KARTEI_SEITE);
   const karten: KarteiKarte[] = [];
   for (const z of zeilen.slice(0, KARTEI_SEITE)) karten.push(await karteBauen(z));
   return { karten, mehr: zeilen.length > KARTEI_SEITE };
@@ -530,6 +655,9 @@ export interface ErgebnisAntwort {
   ok: boolean;
   meldung: string;
   mail: { ok: boolean; text: string } | null;
+  /** E-259: was mit der WhatsApp passiert ist. */
+  wa?: KarteiWaErgebnis | null;
+  /** Derselbe Knopf binnen zehn Minuten — nichts ging ein zweites Mal raus (kein Fehler). */
   doppelt?: boolean;
   rueckruf?: KarteiRueckruf | null;
 }
@@ -549,7 +677,78 @@ async function schonGetan(personId: number, kennung: string, akteur: string, min
   return !!m;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER TAKT — EIN KNOPF ZÄHLT EINMAL, AUCH AUF ZWEI GERÄTEN (Nachbesserung E-259, 29.09.2026)
+//
+// Gemessen im Prüfstand: zweimal „Rechnung schicken" gleichzeitig (zweites
+// Gerät, zweiter Tab) ergab zwei Vorlagen bei Meta — die Prüfung „schon
+// gesendet?" las fiaon_whatsapp, und die Zeile entsteht erst nach Metas
+// Antwort. Und „Nicht erreicht" im offenen Fenster ging zweimal raus: Der Text
+// trägt den Kalenderlink, dessen Token die Uhrzeit enthält — der Vergleich
+// „derselbe Text" traf nie; das zweite Mal stand danach „Schon festgehalten"
+// im Verlauf, obwohl die WhatsApp raus war.
+//
+// JETZT: Vor jeder Wirkung nimmt der Knopf seinen Takt — eine Zeile je Mensch
+// und Knopf in fiaon_telefonkartei_takt, überschrieben nur, wenn sie älter ist
+// als das Fenster (INSERT … ON CONFLICT DO UPDATE … WHERE, atomar: Von zwei
+// gleichzeitigen Klicks bekommt genau einer den Zuschlag). Dieselbe Tabelle
+// merkt sich, wann die Kartei „Nicht erreicht" als FREIEN TEXT geschickt hat —
+// dafür gibt es in fiaon_whatsapp keine Marke, und die 3-Tage-Regel galt
+// vorher nur für die Vorlage.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Den Takt nehmen: true = dieser Klick darf wirken; false = derselbe Knopf lief binnen `minuten`. */
+async function taktNehmen(personId: number, art: string, minuten: number): Promise<boolean> {
+  await karteiTabellen();
+  const r = (await sqlPool`
+    INSERT INTO fiaon_telefonkartei_takt AS t (person_id, art, am) VALUES (${personId}, ${art}, NOW())
+    ON CONFLICT (person_id, art) DO UPDATE SET am = NOW()
+      WHERE t.am < NOW() - make_interval(mins => ${minuten}::int)
+    RETURNING am`) as any[];
+  return r.length > 0;
+}
+
+/** Den Takt zurückgeben — wenn der Klick abbrach, bevor irgendetwas rausging. */
+async function taktFreigeben(personId: number, art: string): Promise<void> {
+  await sqlPool`DELETE FROM fiaon_telefonkartei_takt WHERE person_id = ${personId} AND art = ${art}`.catch(() => {});
+}
+
+/** Eine Marke setzen (ohne Fenster) — z. B. „Nicht erreicht als freier Text gesendet". */
+async function taktMarke(personId: number, art: string): Promise<void> {
+  await sqlPool`
+    INSERT INTO fiaon_telefonkartei_takt (person_id, art, am) VALUES (${personId}, ${art}, NOW())
+    ON CONFLICT (person_id, art) DO UPDATE SET am = NOW()`.catch((e) => console.error("[TELEFONKARTEI] Marke:", String(e?.message || e).slice(0, 160)));
+}
+
+/** Kurzer, fester Schlüssel für einen Text (Doppelklick auf dieselbe persönliche Nachricht). */
+function textSchluessel(t: string): string {
+  return createHash("sha1").update(t).digest("hex").slice(0, 16);
+}
+
+const DOPPELT_MELDUNG = "Schon erledigt — vor weniger als zehn Minuten. Es ging nichts ein zweites Mal raus.";
+
 type Ausgang = "nicht_erreicht" | "zahlt" | "interesse";
+
+const HAUS_ERGEBNIS: Record<Ausgang, Ergebnis> = { nicht_erreicht: "nicht_erreicht", zahlt: "erreicht_zahlt_am", interesse: "erreicht_sonstiges" };
+const LEAD_ERGEBNIS: Record<Ausgang, string> = { nicht_erreicht: "nicht_erreicht", zahlt: "erreicht_interesse", interesse: "erreicht_interesse" };
+
+/**
+ * Hat Justin dasselbe Ergebnis an diesem Menschen gerade schon festgehalten (auch
+ * über die Akte)? Nachbesserung E-259: Diese Prüfung stand in ergebnisBuchen —
+ * also NACH Mail und WhatsApp. Jetzt kommt sie vor jeder Wirkung.
+ */
+async function schonGebucht(k: KarteiKarte, ausgang: Ausgang, akteur: string): Promise<boolean> {
+  const [schon] = (await sqlPool`
+    SELECT 1 AS da FROM fiaon_contact_log cl JOIN fiaon_applications a ON a.ref = cl.ref
+    WHERE a.person_id = ${k.personId} AND cl.agent_id IS NULL AND cl.agent_name = ${akteur}
+      AND cl.outcome = ${HAUS_ERGEBNIS[ausgang]} AND cl.created_at > NOW() - make_interval(mins => ${DOPPELT_MINUTEN}::int)
+    UNION ALL
+    SELECT 1 FROM fiaon_lead_log ll JOIN fiaon_leads l ON l.id = ll.lead_id
+    WHERE l.person_id = ${k.personId} AND ll.agent_id IS NULL AND ll.agent_name = ${akteur}
+      AND ll.outcome = ${LEAD_ERGEBNIS[ausgang]} AND ll.created_at > NOW() - make_interval(mins => ${DOPPELT_MINUTEN}::int)
+    LIMIT 1`.catch(() => [])) as any[];
+  return !!schon;
+}
 
 /**
  * Das Ergebnis über den Hausweg buchen. Für Bestellungen die eine Kette
@@ -557,22 +756,11 @@ type Ausgang = "nicht_erreicht" | "zahlt" | "interesse";
  *   zahlt       → „zahlt am" morgen (siehe Kopf: keine Zusage für heute)
  *   interesse   → „erreicht — sonstiges" (Wiedervorlage in drei Tagen)
  *   nicht_erreicht → Zähler +1, Wiedervorlage morgen, Nicht-erreicht-Automatik
- * Ein zweiter Klick binnen zehn Minuten zählt nicht noch einmal.
+ * Den zweiten Klick fangen vorher Takt und schonGebucht ab (Nachbesserung E-259).
  */
 async function ergebnisBuchen(k: KarteiKarte, ausgang: Ausgang, notiz: string, akteur: string): Promise<string> {
-  const haus = ausgang === "nicht_erreicht" ? "nicht_erreicht" : ausgang === "zahlt" ? "erreicht_zahlt_am" : "erreicht_sonstiges";
-  const lead = ausgang === "nicht_erreicht" ? "nicht_erreicht" : "erreicht_interesse";
-  const [schon] = (await sqlPool`
-    SELECT 1 AS da FROM fiaon_contact_log cl JOIN fiaon_applications a ON a.ref = cl.ref
-    WHERE a.person_id = ${k.personId} AND cl.agent_id IS NULL AND cl.agent_name = ${akteur}
-      AND cl.outcome = ${haus} AND cl.created_at > NOW() - make_interval(mins => ${DOPPELT_MINUTEN}::int)
-    UNION ALL
-    SELECT 1 FROM fiaon_lead_log ll JOIN fiaon_leads l ON l.id = ll.lead_id
-    WHERE l.person_id = ${k.personId} AND ll.agent_id IS NULL AND ll.agent_name = ${akteur}
-      AND ll.outcome = ${lead} AND ll.created_at > NOW() - make_interval(mins => ${DOPPELT_MINUTEN}::int)
-    LIMIT 1`.catch(() => [])) as any[];
-  if (schon) return "Schon festgehalten.";
-
+  const haus = HAUS_ERGEBNIS[ausgang];
+  const lead = LEAD_ERGEBNIS[ausgang];
   if (k.ref) {
     const { ergebnisNachbereiten } = await import("./fiaon-kontakt-ergebnis");
     const r = await ergebnisNachbereiten({
@@ -601,9 +789,21 @@ async function rueckrufeErledigen(personId: number): Promise<void> {
   await sqlPool`UPDATE fiaon_telefonkartei_rueckruf SET erledigt_am = NOW() WHERE person_id = ${personId} AND erledigt_am IS NULL AND am <= NOW() + INTERVAL '30 minutes'`.catch(() => {});
 }
 
+/** „Rechnung per Mail und WhatsApp über FIAON" — was wirklich rausging, für den Verlauf. */
+function wegeText(mail: ErgebnisAntwort["mail"], wa: KarteiWaErgebnis | null, mailWort: string): string {
+  const raus = [mail?.ok ? mailWort : null, wa?.ok ? "WhatsApp über FIAON" : null].filter(Boolean).join(" und ");
+  const nicht = wa && !wa.ok ? ` WhatsApp nicht gesendet (${wa.text.replace(/^(Keine WhatsApp|WhatsApp nicht gesendet): /, "")}).` : "";
+  return `${raus ? `${raus} geschickt.` : "Keine Nachricht rausgegangen."}${nicht}`;
+}
+
 /**
- * Ein Knopf der Karte. Die WhatsApp öffnet die SEITE (sie braucht den Klick
- * des Menschen); hier passiert alles, was ein Server tun muss.
+ * Ein Knopf der Karte. Seit E-259 (29.09.2026) schickt der SERVER auch die
+ * WhatsApp — über das FIAON-Konto bei Meta (karteiWhatsApp, unten), nicht mehr
+ * als wa.me-Link über Justins privates WhatsApp. Der Verlauf nennt nur, was
+ * wirklich rausging.
+ * Nachbesserung E-259: Jeder Fall nimmt zuerst seinen Takt (zehn Minuten,
+ * atomar) und prüft, ob das Ergebnis schon gebucht ist — erst DANN gehen Mail
+ * und WhatsApp raus. Ein zweiter Klick liefert `doppelt` und schickt nichts.
  */
 export async function ergebnisFesthalten(personId: number, art: KarteiErgebnis, akteur: string, opts: { am?: string | null; notiz?: string | null } = {}): Promise<ErgebnisAntwort> {
   await karteiTabellen();
@@ -640,18 +840,23 @@ export async function ergebnisFesthalten(personId: number, art: KarteiErgebnis, 
     };
   }
 
+  const doppelt = (meldung = DOPPELT_MELDUNG): ErgebnisAntwort => ({ ok: true, doppelt: true, meldung, mail: null, wa: null });
+
   if (art === "rechnung") {
     const z = k.zahlung;
     if (!z || !hatRechnungsweg(k)) return { ok: false, meldung: "Keine offene Zahlung — hier gibt es keine Rechnung.", mail: null };
-    if (await schonGetan(personId, "tk_rechnung", akteur, DOPPELT_MINUTEN)) {
-      return { ok: true, doppelt: true, meldung: "Die Rechnung ist schon unterwegs (vor weniger als zehn Minuten).", mail: null };
-    }
+    if (!(await taktNehmen(personId, "rechnung", DOPPELT_MINUTEN))) return doppelt();
+    if (await schonGetan(personId, "tk_rechnung", akteur, DOPPELT_MINUTEN)) return doppelt("Die Rechnung ist schon unterwegs (vor weniger als zehn Minuten). Es ging nichts ein zweites Mal raus.");
+    if (await schonGebucht(k, "zahlt", akteur)) return doppelt("Schon festgehalten (vor weniger als zehn Minuten). Es ging nichts ein zweites Mal raus.");
     // Ein fertiger Antrag ohne Rechnung wird erst gebucht (Betrag, Frist, „Rechnung
     // offen") — ohne die Haus-Mail, denn gleich geht Justins Mail mit der Rechnung raus.
     if (z.art === "bestellung" && z.nochKeineRechnung && k.ref) {
       const { rechnungStellen } = await import("./fiaon-rechnung-stellen");
       const b = await rechnungStellen(k.ref, { akteur, agentId: null, nurBuchen: true, aufAnweisung: true });
-      if (!b.ok) return { ok: false, meldung: `Rechnung konnte nicht gestellt werden: ${b.grund}`, mail: null };
+      if (!b.ok) {
+        await taktFreigeben(personId, "rechnung");
+        return { ok: false, meldung: `Rechnung konnte nicht gestellt werden: ${b.grund}`, mail: null };
+      }
     }
     let mail: ErgebnisAntwort["mail"] = null;
     const m = mailRechnung(k, akteur);
@@ -659,55 +864,498 @@ export async function ergebnisFesthalten(personId: number, art: KarteiErgebnis, 
       const v = await freitextVersenden({ personId, betreff: m.betreff, text: m.text, anhangReferenz: z.referenz, akteur, kennung: "tk_rechnung" });
       mail = v.ok ? { ok: true, text: `Mail mit Rechnung (PDF) an ${v.empfaenger ?? k.email}` } : { ok: false, text: `Mail nicht verschickt: ${v.error}` };
     } else {
-      mail = { ok: false, text: "Keine E-Mail hinterlegt — nur WhatsApp." };
+      mail = { ok: false, text: "Keine E-Mail hinterlegt." };
     }
+    // E-259: die Vorlage „Rechnung" bzw. „Monatsrate" über das FIAON-Konto — Knopf zur Zahlungsseite.
+    const wa = await karteiWhatsApp(k, "rechnung", akteur);
     const meldung = await ergebnisBuchen(k, "zahlt",
-      `${akteur} hat den Kunden erreicht — zahlt sofort (Zusage für morgen gesetzt). Zahlungsdaten per WhatsApp${mail.ok ? " und Rechnung per Mail" : ""} geschickt (Telefonkartei).`,
+      `${akteur} hat den Kunden erreicht — zahlt sofort (Zusage für morgen gesetzt). ${wegeText(mail, wa, "Rechnung per Mail")} (Telefonkartei)`,
       akteur);
     await rueckrufeErledigen(personId);
     const { personTierAktualisieren } = await import("./tier");
     await personTierAktualisieren(sqlPool, { personId }).catch((e) => console.error("[TELEFONKARTEI] Stufe:", e));
-    return { ok: true, meldung, mail };
+    return { ok: true, meldung, mail, wa };
   }
 
   if (art === "antrag") {
     if (!hatAntragsweg(k)) return { ok: false, meldung: "Hier gibt es schon eine Bestellung — nimm „Rechnung schicken\".", mail: null };
-    if (await schonGetan(personId, "tk_antrag", akteur, DOPPELT_MINUTEN)) {
-      return { ok: true, doppelt: true, meldung: "Der Antrags-Link ist schon unterwegs.", mail: null };
-    }
+    if (!(await taktNehmen(personId, "antrag", DOPPELT_MINUTEN))) return doppelt();
+    if (await schonGetan(personId, "tk_antrag", akteur, DOPPELT_MINUTEN)) return doppelt("Der Antrags-Link ist schon unterwegs. Es ging nichts ein zweites Mal raus.");
+    if (await schonGebucht(k, "interesse", akteur)) return doppelt("Schon festgehalten (vor weniger als zehn Minuten). Es ging nichts ein zweites Mal raus.");
     let mail: ErgebnisAntwort["mail"] = null;
     if (k.email) {
-      const m = mailAntrag(k, akteur, ANTRAG_URL());
-      const v = await freitextVersenden({ personId, betreff: m.betreff, text: m.text, akteur, kennung: "tk_antrag" });
-      mail = v.ok ? { ok: true, text: `Mail mit Antrags-Link an ${v.empfaenger ?? k.email}` } : { ok: false, text: `Mail nicht verschickt: ${v.error}` };
+      // Nachbesserung E-259: sein persönlicher Link (Lead: /a/<code>/m, Abbrecher: Wiedereinstieg) — nie ein nackter /antrag.
+      const link = await antragLinkFuer(k, "mail", true);
+      if (link.url) {
+        const m = mailAntrag(k, akteur, link.url);
+        const v = await freitextVersenden({ personId, betreff: m.betreff, text: m.text, akteur, kennung: "tk_antrag" });
+        mail = v.ok ? { ok: true, text: `Mail mit seinem persönlichen Antrags-Link an ${v.empfaenger ?? k.email}` } : { ok: false, text: `Mail nicht verschickt: ${v.error}` };
+      } else {
+        mail = { ok: false, text: `Keine Mail: ${link.grund ?? "kein persönlicher Link"}` };
+      }
     } else {
-      mail = { ok: false, text: "Keine E-Mail hinterlegt — nur WhatsApp." };
+      mail = { ok: false, text: "Keine E-Mail hinterlegt." };
     }
+    const wa = await karteiWhatsApp(k, "antrag", akteur);
     const meldung = await ergebnisBuchen(k, "interesse",
-      `${akteur} hat den Kunden erreicht — Interesse, Antrags-Link per WhatsApp${mail.ok ? " und Mail" : ""} geschickt (Telefonkartei).`,
+      `${akteur} hat den Kunden erreicht — Interesse. Antrags-Link: ${wegeText(mail, wa, "Mail")} (Telefonkartei)`,
       akteur);
     await rueckrufeErledigen(personId);
-    return { ok: true, meldung, mail };
+    return { ok: true, meldung, mail, wa };
   }
 
   // art === "nicht_erreicht"
+  if (!(await taktNehmen(personId, "nicht_erreicht", DOPPELT_MINUTEN))) return doppelt();
+  if (await schonGebucht(k, "nicht_erreicht", akteur)) return doppelt("Schon festgehalten (vor weniger als zehn Minuten). Es ging nichts ein zweites Mal raus.");
   let mail: ErgebnisAntwort["mail"] = null;
   const kurzZuvor = await schonGetan(personId, "tk_nicht_erreicht", akteur, NICHT_ERREICHT_MAIL_ABSTAND_TAGE * 24 * 60);
   if (kurzZuvor) {
     mail = { ok: false, text: `Keine zweite Mail — die letzte ist keine ${NICHT_ERREICHT_MAIL_ABSTAND_TAGE} Tage alt.` };
   } else if (!k.email) {
-    mail = { ok: false, text: "Keine E-Mail hinterlegt — nur WhatsApp." };
+    mail = { ok: false, text: "Keine E-Mail hinterlegt." };
   } else if (k.werbungGesperrt) {
-    mail = { ok: false, text: "Werbesperre — keine Mail, nur WhatsApp." };
+    mail = { ok: false, text: "Werbesperre — keine Mail." };
   } else {
     const m = mailNichtErreicht(k, akteur);
     const v = await freitextVersenden({ personId, betreff: m.betreff, text: m.text, akteur, kennung: "tk_nicht_erreicht" });
     mail = v.ok ? { ok: true, text: `Mail mit deinem Kalender an ${v.empfaenger ?? k.email}` } : { ok: false, text: `Mail nicht verschickt: ${v.error}` };
   }
+  // E-259: Vorlage „Nicht erreicht" (B/C/Abbrecher, Tagesplatz) — im offenen Fenster freier Text mit deinem
+  // Kalender; beides höchstens alle 3 Tage.
+  const wa = await karteiWhatsApp(k, "nicht_erreicht", akteur);
   const meldung = await ergebnisBuchen(k, "nicht_erreicht",
-    `${akteur} hat angerufen — nicht erreicht. WhatsApp${mail.ok ? " und Mail" : ""} mit seinem persönlichen Kalender geschickt (Telefonkartei).`,
+    `${akteur} hat angerufen — nicht erreicht. ${wegeText(mail, wa, "Mail mit dem persönlichen Kalender")} (Telefonkartei)`,
     akteur);
-  return { ok: true, meldung, mail };
+  return { ok: true, meldung, mail, wa };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WHATSAPP ÜBER DAS FIAON-KONTO BEI META (29.09.2026, E-259)
+//
+// Justin: „Wenn ich WhatsApp-Nachricht auswähle (weil ich ihn nicht erreicht
+// habe, oder Rechnung schicke oder was auch immer), dann muss das über unser
+// WhatsApp-Meta-Konto laufen, nicht über das private."
+//
+// GEMESSEN (Produktion, nur lesend, 29.09.): Seit dem 21.09. öffnete jeder Fall
+// einen wa.me-Link — 43× „Nicht erreicht", 4× „Rechnung". Nichts davon stand in
+// fiaon_whatsapp: nicht im WhatsApp-Raum, Mara kannte es nicht, und die
+// Zentrale schrieb am selben Tag trotzdem ihre Vorlage. Der Verlauf trug
+// „Zahlungsdaten per WhatsApp geschickt" ein, bevor Justin überhaupt auf
+// Senden getippt hatte.
+//
+// JETZT: kein zweiter Sendeweg, sondern der eine Hausweg waSenden — Sperre
+// (Werbesperre, „Stopp", Vertriebssperre, Kündigung), Wand, 24-Stunden-
+// Fenster, Bildfassung, Protokoll in fiaon_whatsapp (im Raum als „Mensch").
+// Die Kartei legt nur fest, welcher Fall welche Vorlage nimmt
+// (KARTEI_WA_VORLAGE, shared/fiaon-telefonkartei.ts) und hält eigene Regeln:
+//   · Vorlage nur, wenn Meta sie freigegeben hat — sonst ehrlich der Grund.
+//   · Doppelklick: dieselbe WhatsApp an denselben Menschen binnen 10 Minuten
+//     nur einmal (dazu der Takt der Knöpfe, oben — atomar).
+//   · „Nicht erreicht" höchstens alle 3 Tage (wie die Mail) — Vorlage UND
+//     freier Text (Marke im Takt) — und die Vorlage nur mit dem Tagesplatz
+//     (E-253): Hat der Mensch heute schon eine WhatsApp bekommen, bleibt es bei
+//     der Mail. Ebenso die Rückfrage. Rechnung, Rate und Antrag hat er am
+//     Telefon erbeten — sie nehmen keinen Platz, sperren aber durch ihre Zeile
+//     in fiaon_whatsapp die Automatik für den Tag.
+//   · Freier Text, den die Kartei selbst schreibt (Nicht erreicht, Antrag im
+//     offenen Fenster), achtet dieselbe Sperre wie die Vorlage des Falls.
+//   · Nachbesserung E-259: Auch die persönliche Nachricht (freier Text) achtet
+//     den Menschen — bei „Stopp" nie; bei Werbesperre, Vertriebssperre oder
+//     Kündigung nur nach ausdrücklicher Bestätigung (der Kunde hat uns ja
+//     selbst geschrieben) und ohne Verkauf (der KI-Auftrag kennt die Sperre).
+//   · Jeder Link ist sein persönlicher (antragLinkFuer) — nie ein nackter
+//     fiaon.com/antrag (Hausregel E-248).
+// Nach einer Vorlage bleibt Mara im Gespräch an (E-224: ein Anstupser, kein
+// Gespräch); nach freiem Text führt ein Mensch, bis die Pause abläuft (E-230).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Dieselbe WhatsApp an denselben Menschen binnen dieser Minuten zählt einmal (Doppelklick). */
+const WA_DOPPELT_MINUTEN = 10;
+/** „Nicht erreicht" auf WhatsApp höchstens alle drei Tage je Mensch — wie die Mail. */
+const WA_NICHT_ERREICHT_ABSTAND_TAGE = 3;
+/** Die Marke im Takt: „Nicht erreicht" ging als freier Text raus (fiaon_whatsapp kennt dafür keine Marke). */
+const TAKT_NICHT_ERREICHT_TEXT = "wa_nicht_erreicht_text";
+
+type WaFallServer = KarteiWaFall | "frei";
+
+type WaWahl =
+  | { weg: "vorlage"; vorlage: string; werte: string[]; knopfWert?: string; unaufgefordert: boolean; sperrVorlage: string; hinweis?: string | null }
+  | { weg: "text"; text: string; sperrVorlage: string | null; hinweis?: string | null }
+  | { weg: null; grund: string; kurz: string };
+
+interface WaUmfeld {
+  nummer: string | null;
+  fenster: boolean;
+  frei: Set<string>;
+  /** Warum für diesen Menschen gar keine WhatsApp geht (nicht eingerichtet, keine Nummer, Festnetz). */
+  aus: { grund: string; kurz: string } | null;
+}
+
+/** Freigegeben heißt: Textfassung oder Bildfassung ist bei Meta APPROVED (wie istFrei der Zentrale). */
+function vorlageFrei(vorlage: string, frei: Set<string>): boolean {
+  return frei.has(vorlage) || frei.has(bildName(vorlage));
+}
+
+/** Die Kopfzeile der Vorlage — „Ihre offene Rechnung" —, sonst ihr Name. */
+function vorlageKlartext(vorlage: string): string {
+  return WA_VORLAGEN.find((v) => v.name === vorlage)?.kopf ?? vorlage;
+}
+
+async function waUmfeld(k: KarteiKarte): Promise<WaUmfeld> {
+  const wa = await import("./fiaon-whatsapp");
+  const konfig = wa.waKonfig();
+  if (!konfig.bereit) {
+    return { nummer: null, fenster: false, frei: new Set(), aus: { grund: `WhatsApp ist auf diesem Server nicht eingerichtet (${konfig.fehlt.join(", ")}).`, kurz: "nicht eingerichtet" } };
+  }
+  // Dieselbe Prüfung wie Raum und Zähler: keine Nummer oder Festnetz → kein WhatsApp.
+  const urteil = whatsappUrteil({ telefon: k.telefonWaehlbar });
+  if (!urteil.moeglich || !urteil.nummer) {
+    return { nummer: urteil.nummer, fenster: false, frei: new Set(), aus: { grund: `${urteil.grund}.`, kurz: urteil.art === "festnetz" ? "Festnetz" : "keine Nummer" } };
+  }
+  const [fenster, frei] = await Promise.all([
+    wa.fensterOffen(urteil.nummer).catch(() => false),
+    wa.freigegebeneVorlagen().catch(() => new Set<string>()),
+  ]);
+  return { nummer: urteil.nummer, fenster, frei, aus: null };
+}
+
+// ── Sein persönlicher Antrag-Link (Nachbesserung E-259) ─────────────────────
+
+export interface AntragLink {
+  /** Sein persönlicher Link für freien Text und Mail — null heißt: KEIN Link (nie ein nackter). */
+  url: string | null;
+  /** Der Knopfwert für fiaon_kk_antrag_offen („<code>/w") — nur, wenn der Code wirklich in seinen begonnenen Antrag führt. */
+  knopfWert: string | null;
+  /** Warum es keinen Link gibt. */
+  grund: string | null;
+  /** Warum der Knopf der Abbrecher-Vorlage nicht geht (dann keine Vorlage). */
+  knopfGrund: string | null;
+}
+
+/**
+ * Sein persönlicher Antrag-Link — dieselbe Regel wie Mara (persoenlicherLink,
+ * shared/fiaon-mara-ton.ts, Hausregel E-248):
+ *   · Lead (C)    sein Code: /a/<code>/w bzw. /m. Fehlt der Code, legt
+ *                 kurzlinkFuerLead ihn an (nur mit `anlegen`, also beim Senden;
+ *                 die Vorschau schreibt nichts). Ohne Lead: kein Link.
+ *   · Abbrecher   der Wiedereinstieg in GENAU seinen begonnenen Antrag
+ *                 (weiterLink). Der Knopf der Vorlage fiaon_kk_antrag_offen
+ *                 kann nur /a/<code> — er bekommt den Code seines Leads, aber
+ *                 nur, wenn dieser Code wirklich in denselben Antrag führt
+ *                 (kurzlinkLesen: Anträge der letzten 60 Tage). Gemessen 29.09.:
+ *                 107 von 156 Abbrechern; 44 ohne Lead, 5, deren Code in einen
+ *                 neuen bzw. anderen Antrag führte. Vorher schickte waSenden
+ *                 „start" — /a/start führte in einen NEUEN Antrag, obwohl die
+ *                 Vorlage „genau an die Stelle, an der Sie aufgehört haben"
+ *                 verspricht.
+ */
+export async function antragLinkFuer(k: KarteiKarte, kanal: MaraKanal, anlegen: boolean): Promise<AntragLink> {
+  if (!hatAntragsweg(k)) return { url: null, knopfWert: null, grund: "Hier gibt es schon eine Bestellung.", knopfGrund: null };
+  const kl = await import("./fiaon-kurzlink");
+  if (k.lage === "abbrecher") {
+    const [a] = (await sqlPool`
+      SELECT ref, status, payment_status, current_step FROM fiaon_applications
+       WHERE person_id = ${k.personId} AND merged_into IS NULL AND archived_at IS NULL AND gdpr_deleted_at IS NULL
+         AND cancelled_at IS NULL AND payment_status = 'pending' AND COALESCE(status, '') IN (${sqlPool.unsafe(ABBRECHER_SQL)})
+       ORDER BY created_at DESC LIMIT 1`) as any[];
+    if (!a) return { url: null, knopfWert: null, grund: "Kein begonnener Antrag gefunden — kein persönlicher Link.", knopfGrund: "kein begonnener Antrag" };
+    const ref = String(a.ref);
+    const { weiterLink } = await import("./fiaon-antrag-erinnerung");
+    let code: string | null = null;
+    let knopfGrund: string | null = null;
+    if (!k.leadId) {
+      knopfGrund = "kein Lead — der Knopf „Antrag fortsetzen“ braucht seinen persönlichen Code";
+    } else {
+      const ziel = anlegen
+        ? (await kl.kurzlinkLesen((code = await kl.kurzlinkFuerLead(k.leadId))))?.antrag ?? null
+        : await kl.antragDesLeads(k.leadId);
+      if (!ziel || ziel.bezahlt || ziel.ref !== ref) {
+        knopfGrund = ziel ? "sein persönlicher Code führt in einen anderen Antrag" : "sein persönlicher Code führt in einen neuen Antrag (begonnener Antrag älter als 60 Tage)";
+      }
+    }
+    const wahl = persoenlicherLink({ stufe: stufeAusAntrag(a), weiterLink: weiterLink(ref), leadCode: code }, kanal);
+    return {
+      url: wahl.url, knopfWert: code && !knopfGrund ? `${code}/w` : null,
+      grund: wahl.url ? null : "Kein persönlicher Link für seinen Antrag.", knopfGrund,
+    };
+  }
+  // Lead (C)
+  if (!k.leadId) return { url: null, knopfWert: null, grund: "Kein Lead — kein persönlicher Antrags-Link (nie ein nackter fiaon.com/antrag).", knopfGrund: null };
+  if (!anlegen) return { url: null, knopfWert: null, grund: null, knopfGrund: null };
+  const code = await kl.kurzlinkFuerLead(k.leadId);
+  return { url: persoenlicherLink({ stufe: "lead", leadCode: code }, kanal).url, knopfWert: null, grund: null, knopfGrund: null };
+}
+
+// ── Die Sperre des Menschen für freien Text (Nachbesserung E-259) ──────────
+
+export interface KarteiSperre {
+  /** Geht gar nicht: „Stopp" — oder die Prüfung ist gestört. */
+  hart: string | null;
+  /** Geht nur nach ausdrücklicher Bestätigung und ohne Verkauf: Werbesperre, Vertriebssperre, gekündigt. */
+  weich: string | null;
+}
+
+/**
+ * Dieselbe Lesart wie die Tür für Vorlagen (waVorlagenSperre): menschSperre
+ * (Kopf, Familie, „Stopp" aus WhatsApp und Postfach) und werbungVerboten.
+ * Testkonten bleiben erreichbar — an ihnen prüft Justin.
+ * Gemessen im Prüfstand: Wer eben „STOPP" geschrieben hatte, öffnete damit das
+ * 24-Stunden-Fenster — und die persönliche Nachricht ging trotzdem raus.
+ */
+export async function karteiSperre(personId: number): Promise<KarteiSperre> {
+  try {
+    const { menschSperre, werbungVerboten } = await import("./fiaon-mail-frequenz");
+    const s = await menschSperre(personId);
+    if (!s) return { hart: null, weich: null };
+    if (s.stopp) return { hart: "„Stopp“ — er will keine Nachrichten mehr. Auch kein freier Text.", weich: null };
+    return { hart: null, weich: werbungVerboten({ ...s, test: false }) };
+  } catch (e) {
+    console.error("[TELEFONKARTEI] Sperrprüfung:", String((e as Error)?.message || e).slice(0, 160));
+    return { hart: "Die Sperre dieses Menschen ließ sich gerade nicht prüfen — lieber keine Nachricht. Bitte gleich noch einmal.", weich: null };
+  }
+}
+
+/**
+ * Was ein Fall schicken würde. `anlegen` = beim Senden (legt den Code des Leads
+ * an, wenn er fehlt); ohne `anlegen` nur lesend (Vorschau).
+ */
+async function waPlanen(k: KarteiKarte, fall: WaFallServer, akteur: string, u: WaUmfeld, opts: { text?: string | null; anlegen: boolean }): Promise<WaWahl> {
+  if (u.aus) return { weg: null, ...u.aus };
+  if (fall === "frei") {
+    const t = ohneEmojis(String(opts.text ?? "")).trim();
+    if (!u.fenster) {
+      return { weg: null, kurz: "24-Stunden-Fenster zu", grund: "Das 24-Stunden-Fenster ist zu — freier Text geht über Meta erst, wenn der Kunde uns schreibt. Die Rückfrage-Vorlage öffnet das Gespräch neu." };
+    }
+    if (t.length < 3) return { weg: null, grund: "Kein Text.", kurz: "kein Text" };
+    return { weg: "text", text: t, sperrVorlage: null };
+  }
+  // Im offenen Fenster schreibt Justin in eigenen Worten — mit SEINEM Kalender bzw. dem persönlichen Antrag-Link.
+  // Die Rechnung bleibt immer die Vorlage: Bankdaten im freien Text hält die Wand auf.
+  if (u.fenster && fall === "nicht_erreicht") {
+    return { weg: "text", text: whatsappNichtErreicht(k, akteur), sperrVorlage: KARTEI_WA_VORLAGE.nicht_erreicht };
+  }
+  const antrag = fall === "antrag" && hatAntragsweg(k) ? await antragLinkFuer(k, "whatsapp", opts.anlegen) : null;
+  if (u.fenster && antrag) {
+    if (antrag.grund || (opts.anlegen && !antrag.url)) return { weg: null, grund: `${antrag.grund ?? "Kein persönlicher Link."} Ohne ihn keine WhatsApp.`, kurz: "kein persönlicher Link" };
+    // In der Vorschau steht beim Lead noch kein Code fest (er entsteht erst beim Senden) — der Text wird dort nicht gesendet.
+    return { weg: "text", text: whatsappAntrag(k, akteur, antrag.url ?? "[sein persönlicher Link]"), sperrVorlage: KARTEI_WA_VORLAGE.antrag_abbrecher };
+  }
+  const plan = karteiWaVorlage(k, fall, akteur);
+  if (plan.art === "keine") return { weg: null, grund: plan.grund, kurz: plan.kurz };
+  if (!vorlageFrei(plan.vorlage, u.frei)) {
+    return { weg: null, kurz: "Vorlage nicht freigegeben", grund: `Die Vorlage „${plan.vorlage}“ ist bei Meta nicht freigegeben — es geht keine WhatsApp raus.` };
+  }
+  let knopfWert = plan.knopfWert;
+  if (plan.vorlage === KARTEI_WA_VORLAGE.antrag_abbrecher) {
+    // Der Knopf „Antrag fortsetzen" MUSS in seinen begonnenen Antrag führen — sonst keine Vorlage (siehe antragLinkFuer).
+    if (!antrag || antrag.knopfGrund) {
+      return { weg: null, kurz: "Knopf führt nicht in seinen Antrag", grund: `„${vorlageKlartext(plan.vorlage)}“ verspricht „genau an die Stelle, an der Sie aufgehört haben“ — ${antrag?.knopfGrund ?? "kein persönlicher Link"}. Die Mail trägt den Wiedereinstieg.` };
+    }
+    knopfWert = antrag.knopfWert ?? undefined;
+  }
+  return {
+    weg: "vorlage", vorlage: plan.vorlage, werte: plan.werte, knopfWert, unaufgefordert: plan.unaufgefordert, sperrVorlage: plan.vorlage,
+    hinweis: plan.vorlage === KARTEI_WA_VORLAGE.nicht_erreicht ? NICHT_ERREICHT_HINWEIS : null,
+  };
+}
+
+/** Hat der Mensch heute schon eine WhatsApp (oder hat ein anderer Weg den Tagesplatz)? Nur lesend — für die Vorschau. */
+async function heuteSchonWa(personId: number, nummer: string): Promise<boolean> {
+  const [w] = (await sqlPool`
+    SELECT 1 AS da FROM fiaon_whatsapp w
+     WHERE w.richtung = 'raus' AND COALESCE(w.status, '') <> 'fehler'
+       AND (w.created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+       AND (w.person_id = ${personId} OR w.nummer = ${nummer})
+     LIMIT 1`.catch(() => [])) as any[];
+  if (w) return true;
+  const [t] = (await sqlPool`
+    SELECT 1 AS da FROM fiaon_wa_tagesplatz
+     WHERE schluessel = ANY(${[`p:${personId}`, `n:${nummer}`]}::text[]) AND tag = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+     LIMIT 1`.catch(() => [])) as any[];
+  return !!t;
+}
+
+interface WaHindernis { grund: string; kurz: string; doppelt?: boolean; bestaetigen?: boolean }
+
+/**
+ * Was diesen einen Versand verhindert: Sperre, Doppelklick, drei-Tage-Abstand,
+ * Tagesplatz (in der Vorschau nur lesend). null = darf raus. `bestaetigen` =
+ * darf nur nach ausdrücklicher Bestätigung raus (freier Text trotz Sperre).
+ */
+async function waHindernis(k: KarteiKarte, fall: WaFallServer, wahl: Exclude<WaWahl, { weg: null }>, u: WaUmfeld, opts: { vorschau: boolean; bestaetigt?: boolean }): Promise<WaHindernis | null> {
+  const wa = await import("./fiaon-whatsapp");
+  const nummer = u.nummer!;
+  if (wahl.sperrVorlage) {
+    const sperre = await wa.waVorlagenSperre(wahl.sperrVorlage, nummer, { personId: k.personId, leadId: k.leadId });
+    if (sperre) return { grund: sperre, kurz: sperre.split(":")[0] };
+  }
+  if (fall === "frei") {
+    const sp = await karteiSperre(k.personId);
+    if (sp.hart) return { grund: sp.hart, kurz: /Stopp/.test(sp.hart) ? "Stopp" : "Sperre nicht prüfbar" };
+    if (sp.weich && !opts.bestaetigt) {
+      return {
+        bestaetigen: true, kurz: sp.weich,
+        grund: `${sp.weich}: Freier Text nur, wenn du es ausdrücklich bestätigst — und ohne Verkauf. Der Kunde hat uns selbst geschrieben; antworte nur darauf.`,
+      };
+    }
+  }
+  const vorlagen = wahl.weg === "vorlage" ? [wahl.vorlage, bildName(wahl.vorlage)] : [];
+  const [doppelt] = (await sqlPool`
+    SELECT 1 AS da FROM fiaon_whatsapp
+     WHERE person_id = ${k.personId} AND richtung = 'raus' AND COALESCE(status, '') <> 'fehler'
+       AND created_at > NOW() - make_interval(mins => ${WA_DOPPELT_MINUTEN}::int)
+       AND ${wahl.weg === "vorlage" ? sqlPool`vorlage = ANY(${vorlagen}::text[])` : sqlPool`vorlage IS NULL AND text = ${wahl.text}`}
+     LIMIT 1`.catch(() => [])) as any[];
+  if (doppelt) return { doppelt: true, grund: "Diese WhatsApp ist vor weniger als zehn Minuten schon über FIAON rausgegangen.", kurz: "eben schon gesendet" };
+  if (fall === "nicht_erreicht") {
+    // Nachbesserung E-259: für Vorlage UND freien Text — vorher galt der Abstand nur für die Vorlage.
+    const ne = [KARTEI_WA_VORLAGE.nicht_erreicht, bildName(KARTEI_WA_VORLAGE.nicht_erreicht)];
+    const [kurz] = (await sqlPool`
+      SELECT 1 AS da FROM fiaon_whatsapp
+       WHERE person_id = ${k.personId} AND richtung = 'raus' AND COALESCE(status, '') <> 'fehler'
+         AND vorlage = ANY(${ne}::text[])
+         AND created_at > NOW() - make_interval(days => ${WA_NICHT_ERREICHT_ABSTAND_TAGE}::int)
+      UNION ALL
+      SELECT 1 FROM fiaon_telefonkartei_takt
+       WHERE person_id = ${k.personId} AND art = ${TAKT_NICHT_ERREICHT_TEXT}
+         AND am > NOW() - make_interval(days => ${WA_NICHT_ERREICHT_ABSTAND_TAGE}::int)
+       LIMIT 1`.catch(() => [])) as any[];
+    if (kurz) return { grund: `Die letzte „Nicht erreicht“-WhatsApp ist keine ${WA_NICHT_ERREICHT_ABSTAND_TAGE} Tage alt — keine zweite.`, kurz: `letzte vor < ${WA_NICHT_ERREICHT_ABSTAND_TAGE} Tagen` };
+  }
+  if (opts.vorschau && wahl.weg === "vorlage" && wahl.unaufgefordert && await heuteSchonWa(k.personId, nummer)) {
+    return { grund: wa.TAGESPLATZ_BELEGT, kurz: "heute schon eine WhatsApp" };
+  }
+  return null;
+}
+
+/** Das Gespräch im WhatsApp-Raum: Nach einer Vorlage bleibt Mara an, nach freiem Text führt ein Mensch. */
+async function gespraechMerken(nummer: string, k: KarteiKarte, weg: "vorlage" | "text"): Promise<void> {
+  if (weg === "vorlage") {
+    await sqlPool`
+      INSERT INTO fiaon_whatsapp_gespraech (nummer, person_id, lead_id, mara_an, updated_at)
+      VALUES (${nummer}, ${k.personId}, ${k.leadId}, TRUE, NOW())
+      ON CONFLICT (nummer) DO UPDATE SET person_id = COALESCE(EXCLUDED.person_id, fiaon_whatsapp_gespraech.person_id),
+        lead_id = COALESCE(EXCLUDED.lead_id, fiaon_whatsapp_gespraech.lead_id), updated_at = NOW()`
+      .catch((e) => console.error("[TELEFONKARTEI] WhatsApp-Gespräch:", String(e?.message || e).slice(0, 160)));
+    return;
+  }
+  // Wie im Raum (/senden, E-224/E-230): Von Hand abgeschaltet bleibt abgeschaltet; sonst eine Pause, die von selbst endet.
+  await sqlPool`
+    INSERT INTO fiaon_whatsapp_gespraech (nummer, person_id, lead_id, mara_an, mara_aus_grund, mara_aus_am, updated_at)
+    VALUES (${nummer}, ${k.personId}, ${k.leadId}, FALSE, 'mensch', NOW(), NOW())
+    ON CONFLICT (nummer) DO UPDATE SET mara_an = FALSE,
+      mara_aus_grund = CASE WHEN fiaon_whatsapp_gespraech.mara_an = FALSE AND fiaon_whatsapp_gespraech.mara_aus_grund = 'schalter' THEN 'schalter' ELSE 'mensch' END,
+      mara_aus_am = CASE WHEN fiaon_whatsapp_gespraech.mara_an = FALSE AND fiaon_whatsapp_gespraech.mara_aus_grund = 'schalter' THEN fiaon_whatsapp_gespraech.mara_aus_am ELSE NOW() END,
+      person_id = COALESCE(EXCLUDED.person_id, fiaon_whatsapp_gespraech.person_id),
+      lead_id = COALESCE(EXCLUDED.lead_id, fiaon_whatsapp_gespraech.lead_id), updated_at = NOW()`
+    .catch((e) => console.error("[TELEFONKARTEI] WhatsApp-Gespräch:", String(e?.message || e).slice(0, 160)));
+}
+
+/**
+ * Eine WhatsApp der Kartei — über das FIAON-Konto bei Meta. `fall` = einer der
+ * Fälle oder „frei" (persönliche Nachricht, nur im offenen Fenster).
+ * Schreibt keinen Verlauf: Das tut der Aufrufer (ergebnisBuchen bzw.
+ * karteiNachricht), damit dort steht, was wirklich rausging.
+ */
+export async function karteiWhatsApp(k: KarteiKarte, fall: WaFallServer, akteur: string, opts: { text?: string | null; bestaetigt?: boolean } = {}): Promise<KarteiWaErgebnis> {
+  const u = await waUmfeld(k);
+  const wahl = await waPlanen(k, fall, akteur, u, { text: opts.text, anlegen: true });
+  if (!wahl.weg) return { ok: false, weg: null, vorlage: null, text: `Keine WhatsApp: ${wahl.grund}` };
+  const vorlage = wahl.weg === "vorlage" ? wahl.vorlage : null;
+  const hindernis = await waHindernis(k, fall, wahl, u, { vorschau: false, bestaetigt: opts.bestaetigt });
+  if (hindernis?.doppelt) return { ok: true, doppelt: true, weg: wahl.weg, vorlage, text: hindernis.grund };
+  if (hindernis) return { ok: false, weg: null, vorlage, text: `Keine WhatsApp: ${hindernis.grund}`, ...(hindernis.bestaetigen ? { bestaetigen: true } : {}) };
+  const wa = await import("./fiaon-whatsapp");
+  if (wahl.weg === "vorlage" && wahl.unaufgefordert) {
+    // Unaufgefordert: erst den Tagesplatz nehmen (E-253) — genau ein Weg bekommt ihn.
+    const platz = await wa.waTagesplatz({ personId: k.personId, nummer: u.nummer, weg: "telefonkartei" });
+    if (!platz.ok) return { ok: false, weg: null, vorlage, text: `Keine WhatsApp: ${platz.grund}` };
+  }
+  const erg = await wa.waSenden(
+    u.nummer!,
+    wahl.weg === "vorlage" ? { vorlage: wahl.vorlage, werte: wahl.werte, knopfWert: wahl.knopfWert } : { text: wahl.text },
+    { personId: k.personId, leadId: k.leadId, von: akteur },
+  );
+  if (!erg.ok) return { ok: false, weg: null, vorlage, text: `WhatsApp nicht gesendet: ${erg.grund ?? "unbekannter Fehler"}` };
+  await gespraechMerken(u.nummer!, k, wahl.weg);
+  if (fall === "nicht_erreicht" && wahl.weg === "text") await taktMarke(k.personId, TAKT_NICHT_ERREICHT_TEXT);
+  console.log(`[TELEFONKARTEI] ${akteur}: WhatsApp an Person ${k.personId} über FIAON (${vorlage ?? "freier Text"}).`);
+  return {
+    ok: true, weg: wahl.weg, vorlage,
+    text: wahl.weg === "vorlage"
+      ? `WhatsApp über FIAON gesendet — Vorlage „${vorlageKlartext(wahl.vorlage)}“${wahl.hinweis ? ` (${wahl.hinweis})` : ""}`
+      // Neutral (Nachbesserung E-259): Vorher stand „er hat uns …" — auch bei Kundinnen.
+      : "WhatsApp über FIAON gesendet — freier Text (in den letzten 24 Stunden kam eine Nachricht von dieser Nummer)",
+  };
+}
+
+/** Was ein Fall gerade täte — für die Knopfzeilen im Blatt „Nachrichten". Nur lesend. */
+async function waFallLage(k: KarteiKarte, fall: WaFallServer, akteur: string, u: WaUmfeld): Promise<KarteiWaFallLage> {
+  const wahl = await waPlanen(k, fall, akteur, u, { text: fall === "frei" ? "Vorschau" : null, anlegen: false });
+  if (!wahl.weg) return { weg: null, vorlage: null, klartext: null, grund: wahl.grund, kurz: wahl.kurz };
+  const vorlage = wahl.weg === "vorlage" ? wahl.vorlage : null;
+  const klartext = vorlage ? vorlageKlartext(vorlage) : "freier Text";
+  const hindernis = await waHindernis(k, fall, wahl, u, { vorschau: true });
+  if (hindernis?.bestaetigen) return { weg: wahl.weg, vorlage, klartext, grund: hindernis.grund, kurz: hindernis.kurz, bestaetigen: true };
+  if (hindernis) return { weg: null, vorlage, klartext, grund: hindernis.grund, kurz: hindernis.kurz };
+  return { weg: wahl.weg, vorlage, klartext, grund: null, kurz: null, hinweis: wahl.hinweis ?? null };
+}
+
+/** GET …/whatsapp-lage — was jeder Fall auf WhatsApp täte, bevor Justin tippt. */
+export async function karteiWaLage(personId: number, akteur: string): Promise<KarteiWaLage | null> {
+  const k = await karteEinzeln(personId);
+  if (!k) return null;
+  const u = await waUmfeld(k);
+  const faelle: KarteiWaLage["faelle"] = {};
+  const liste: KarteiWaFall[] = [
+    ...(hatRechnungsweg(k) ? ["rechnung" as const] : []),
+    ...(hatAntragsweg(k) ? ["antrag" as const] : []),
+    "nicht_erreicht", "rueckfrage",
+  ];
+  for (const f of liste) faelle[f] = await waFallLage(k, f, akteur, u);
+  return { ok: true, nummer: u.nummer, fensterOffen: u.fenster, faelle, frei: await waFallLage(k, "frei", akteur, u) };
+}
+
+/** Ein Vermerk im Verlauf — mit Justins Namen, ohne Mitarbeiter-ID (er wird nie Betreuer). */
+async function waVermerk(k: KarteiKarte, akteur: string, notiz: string): Promise<void> {
+  if (k.ref) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${k.ref}, ${k.personId}, NULL, ${akteur}, 'system', ${notiz.slice(0, 2_000)})`.catch((e) => console.error("[TELEFONKARTEI] Vermerk:", e));
+  } else if (k.leadId) {
+    const { logLead } = await import("../routes/fiaon-leads");
+    await logLead(k.leadId, { id: null, name: akteur }, "note", { note: notiz.slice(0, 2_000) }).catch((e: unknown) => console.error("[TELEFONKARTEI] Vermerk:", e));
+  }
+}
+
+/**
+ * Die persönliche Nachricht (E-205) über das FIAON-Konto: `frei` = der Text als
+ * freie Nachricht (nur im offenen Fenster), `rueckfrage` = die Vorlage
+ * fiaon_kk_rueckfrage, die das Gespräch neu öffnet. Vorher wurde nur vermerkt,
+ * dass Justin WhatsApp „geöffnet" hatte (nachrichtVermerken, entfallen).
+ * Nachbesserung E-259: `bestaetigt` = Justin hat die Sperre gesehen und will
+ * trotzdem antworten (nicht bei „Stopp"); derselbe Text binnen zehn Minuten
+ * geht einmal raus, auch bei zwei gleichzeitigen Klicks (Takt).
+ */
+export async function karteiNachricht(personId: number, art: "frei" | "rueckfrage", akteur: string, text?: string | null, opts: { bestaetigt?: boolean } = {}): Promise<{ ok: boolean; meldung: string; wa: KarteiWaErgebnis | null; fensterZu?: boolean; bestaetigen?: boolean; doppelt?: boolean }> {
+  await karteiTabellen();
+  const k = await karteEinzeln(personId);
+  if (!k) return { ok: false, meldung: "Kunde nicht gefunden.", wa: null };
+  if (k.lage === "storniert") return { ok: false, meldung: "Storniert — erst zurückholen.", wa: null };
+  const sauber = ohneEmojis(String(text ?? "")).trim();
+  const takt = art === "frei" ? `frei:${textSchluessel(sauber)}` : "rueckfrage";
+  if (!(await taktNehmen(personId, takt, WA_DOPPELT_MINUTEN))) {
+    return { ok: true, doppelt: true, meldung: "Diese Nachricht ist vor weniger als zehn Minuten schon über FIAON rausgegangen — nichts ein zweites Mal.", wa: null };
+  }
+  const wa = await karteiWhatsApp(k, art, akteur, { text, bestaetigt: opts.bestaetigt === true });
+  if (!wa.ok) await taktFreigeben(personId, takt);
+  if (wa.ok && !wa.doppelt) {
+    await waVermerk(k, akteur, art === "frei"
+      ? `WhatsApp von ${akteur} über FIAON (persönliche Nachricht, Telefonkartei${opts.bestaetigt ? ", trotz Sperre ausdrücklich bestätigt" : ""}):\n${sauber.slice(0, 1_800)}`
+      : `WhatsApp von ${akteur} über FIAON: Rückfrage-Vorlage („${vorlageKlartext(KARTEI_WA_VORLAGE.rueckfrage)}“) — öffnet das Gespräch neu (Telefonkartei).`);
+  }
+  const fensterZu = art === "frei" && !wa.ok && /24-Stunden-Fenster ist zu/.test(wa.text);
+  return { ok: wa.ok, meldung: wa.text, wa, ...(fensterZu ? { fensterZu } : {}), ...(wa.bestaetigen ? { bestaetigen: true } : {}), ...(wa.doppelt ? { doppelt: true } : {}) };
 }
 
 // ── Stornieren und Zurückholen ──────────────────────────────────────────────

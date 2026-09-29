@@ -11,10 +11,18 @@
 //
 // WARUM DIESE DATEI IN shared/ LIEGT
 // Die Gruppen, die Kartendaten und die Texte der vier Fälle (WhatsApp UND Mail)
-// brauchen die Seite, der Server und der Prüfstand (scripts/pruef-telefonkartei.ts). Die
-// Bankdaten kommen aus shared/fiaon-bank.ts, Betrag und Verwendungszweck aus
+// brauchen die Seite, der Server und der Prüfstand (scripts/pruef-telefonkartei.ts,
+// scripts/pruef-telefonkartei-meta.ts). Betrag und Verwendungszweck kommen aus
 // der Serverantwort (server/lib/fiaon-telefonkartei.ts) — im Browser wird
 // nichts erfunden, genau wie beim WhatsApp-Knopf der Akte (E-181).
+//
+// E-259 (29.09.2026): WHATSAPP GEHT ÜBER DAS FIAON-KONTO BEI META. Justin:
+// „Wenn ich WhatsApp-Nachricht auswähle, dann muss das über unser WhatsApp-
+// Meta-Konto laufen, nicht über das private." Bis heute öffnete jeder Fall einen
+// wa.me-Link — Justins privates WhatsApp, nichts in fiaon_whatsapp, nichts im
+// WhatsApp-Raum, Mara wusste von nichts. Jetzt schickt der SERVER über den
+// Hausweg (waSenden): freigegebene Vorlage außerhalb des 24-Stunden-Fensters,
+// freier Text nur im offenen Fenster. Welche Vorlage je Fall: KARTEI_WA_VORLAGE.
 //
 // DIE STUFEN SIND DIE DES HAUSES
 // A/B/C ist `priority_tier` (shared/fiaon-kundenstatus.ts, STUFEN): A = Zahlung
@@ -23,8 +31,8 @@
 // Arbeitsliste der Mitarbeiter sie zieht (RATE_FAELLIG_SQL, E-165).
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { BANK } from "./fiaon-bank";
 import { STUFEN } from "./fiaon-kundenstatus";
+import { vorlagenName } from "./fiaon-lead-texte";
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "./fiaon-karten-weg";
 import type { BoniAmpel } from "./fiaon-boni-ampel";
 
@@ -38,12 +46,28 @@ export interface KarteiGruppeText {
   satz: string;
 }
 
+// E-259 (29.09.2026): Die Sätze sagen die Reihenfolge. Justin: „Ich brauche ganz
+// oben immer den frischesten Kunden, einen Kunden, der nicht schon 10× angerufen
+// wurde — also ganz oben A, dann B und dann C, die keine oder am wenigsten Anrufe
+// bekommen haben." Die Regel selbst steht in server/lib/fiaon-telefonkartei.ts
+// (KARTEI_ORDNUNG_SQL), für jeden Reiter dieselbe.
+// Nachbesserung E-259 (29.09.2026): Die Wunschzeit aus dem Antrag entscheidet erst
+// INNERHALB derselben Versuchsstufe — vorher stand sie davor, und „8 Versuche" stand
+// über sechs Karten „noch nie angerufen", während dieser Satz das Gegenteil sagte.
+const REIHUNG_SATZ = "Oben die Frischen (höchstens 3 Tage), dann wer am wenigsten angerufen wurde — bei gleich vielen Versuchen zuerst, wessen Wunschzeit jetzt passt. Wer eben versucht wurde (20 Std.), eine Zusage, einen Termin oder deinen Rückruf hat, wartet weiter hinten; ab 10 Versuchen ans Ende.";
+
 export const KARTEI_GRUPPEN: KarteiGruppeText[] = [
-  { key: "alle", label: "Alle", satz: "Jeder Mensch im System — ohne Stornierte, die frischesten zuerst." },
-  { key: "A", label: "A · Zahlung gemeldet", satz: STUFEN.A.begruendung },
-  { key: "B", label: "B · Rechnung offen", satz: STUFEN.B.begruendung },
-  { key: "C", label: "C · Lead", satz: "Über Facebook eingetragen, noch kein Antrag." },
-  { key: "rate", label: "Rate offen", satz: "Bezahlt — eine Monatsrate ist fällig und noch offen." },
+  {
+    key: "alle", label: "Alle",
+    satz: "Oben die Frischen (höchstens 3 Tage): A, dann B, dann C, dann Rate offen — danach der Bestand in derselben Folge. "
+      + "Darin zuerst, wer am wenigsten angerufen wurde (bei gleich vielen Versuchen zuerst, wessen Wunschzeit jetzt passt); "
+      + "wer eben versucht wurde oder eine Zusage, einen Termin oder deinen Rückruf hat, wartet hinten. "
+      + "Ab 10 Versuchen ans Ende, ebenso Bezahlte und Abbrecher.",
+  },
+  { key: "A", label: "A · Zahlung gemeldet", satz: `${STUFEN.A.begruendung} ${REIHUNG_SATZ}` },
+  { key: "B", label: "B · Rechnung offen", satz: `${STUFEN.B.begruendung} ${REIHUNG_SATZ}` },
+  { key: "C", label: "C · Lead", satz: `Über Facebook eingetragen, noch kein Antrag. ${REIHUNG_SATZ}` },
+  { key: "rate", label: "Rate offen", satz: `Bezahlt — eine Monatsrate ist fällig und noch offen. ${REIHUNG_SATZ}` },
   { key: "storniert", label: "Storniert", satz: "Von dir storniert: in keiner Liste, keine Anrufe, keine Werbung. Zurückholen geht jederzeit." },
 ];
 
@@ -103,7 +127,7 @@ export interface KarteiKarte {
   /** Das jüngste Ereignis (Antrag, Zahlungsmeldung, Fälligkeit, Anlage) — ISO. */
   ereignisAm: string | null;
   telefonAnzeige: string | null;
-  /** E.164 mit „+" — für tel: und wa.me. */
+  /** E.164 mit „+" — für tel: (und als Nummer für WhatsApp über Meta). */
   telefonWaehlbar: string | null;
   telefonHinweis: string | null;
   email: string | null;
@@ -117,13 +141,30 @@ export interface KarteiKarte {
   leadId: number | null;
   lead: { quelle: string | null; kampagne: string | null; am: string | null } | null;
   betreuer: string | null;
-  kontakt: { am: string | null; von: string | null; ergebnis: string | null; nichtErreicht: number };
+  kontakt: {
+    am: string | null; von: string | null; ergebnis: string | null;
+    /** unreachable_count — bleibt für die Rückwärtsverträglichkeit, die Karte zeigt `fehlInFolge`. */
+    nichtErreicht: number;
+    /** E-259: Anrufversuche gesamt (Softphone + Ergebnisse, entdoppelt — server/lib/fiaon-anrufversuche.ts). */
+    versuche: number;
+    /** E-259: Fehlversuche seit dem letzten Erreichen (auch für Leads). */
+    fehlInFolge: number;
+    /** E-259: der jüngste Versuch — ISO. */
+    letzterVersuch: string | null;
+  };
   termin: { beginn: string; art: string; bei: string | null } | null;
   /** Wunschfenster aus dem Antrag („18–20 Uhr") — leer ohne Angabe. */
   erreichbarkeit: string;
   zusage: string | null;
   gesperrt: boolean;
   werbungGesperrt: boolean;
+  /**
+   * E-259 (Nachbesserung): Der Mensch hat „STOPP" bzw. „Keine Nachrichten mehr"
+   * geschrieben (WhatsApp oder Postfach, an irgendeiner Person seiner Familie —
+   * dieselbe Lesart wie menschSperre). Dann geht keine WhatsApp mehr, auch kein
+   * freier Text.
+   */
+  stopp: boolean;
   /** Als Testkonto markiert (z. B. Name eines Mitarbeiters) — nur über die Suche zu finden. */
   testfall: boolean;
   /** Justins persönlicher Kalender, Name/E-Mail/Telefon schon ausgefüllt. */
@@ -160,15 +201,11 @@ export function datumKurz(wert: string | null | undefined): string {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : "";
 }
 
-/** Nur Ziffern, ohne „+" — so will wa.me die Nummer. */
-export function waNummer(telefonWaehlbar: string | null | undefined): string {
-  return String(telefonWaehlbar ?? "").replace(/\D/g, "");
-}
-
-export function waLink(telefonWaehlbar: string | null | undefined, text: string): string | null {
-  const nr = waNummer(telefonWaehlbar);
-  if (nr.length < 8) return null;
-  return `https://wa.me/${nr}?text=${encodeURIComponent(text)}`;
+/** E-259: „3 Versuche" — die Zahl an der Karte. */
+export function versucheText(n: number | null | undefined): string {
+  const z = Math.max(0, Math.floor(Number(n) || 0));
+  if (z === 0) return "noch nie angerufen";
+  return z === 1 ? "1 Versuch" : `${z} Versuche`;
 }
 
 // ── Die Texte: vier Fälle, je WhatsApp UND Mail ────────────────────────────
@@ -194,8 +231,11 @@ export function waLink(telefonWaehlbar: string | null | undefined, text: string)
 //     Zusage, die ein eingeplanter Rückruf decken muss. Das Startgespräch ist
 //     der Anruf, den der Ablauf wirklich vorsieht.
 // Die MAIL trägt keine IBAN — die Wand verbietet Bankdaten im Mailtext; sie
-// stehen in der angehängten Rechnung und auf der Zahlungsseite. WhatsApp trägt
-// sie, wie der WhatsApp-Knopf der Akte (E-181), aus shared/fiaon-bank.ts.
+// stehen in der angehängten Rechnung und auf der Zahlungsseite.
+// E-259 (29.09.2026): Die WhatsApp „Rechnung" ist seitdem die freigegebene
+// Vorlage fiaon_kk_rechnung bzw. fiaon_kk_rate (Knopf zur Zahlungsseite, dort
+// stehen die Bankdaten). Der alte Text mit IBAN wäre durch die Hauswand nicht
+// gekommen („Keine Bankdaten im Text") und ist entfallen.
 
 type Namensteile = Pick<KarteiKarte, "vorname" | "nachname" | "name"> & { anrede?: string | null };
 
@@ -269,7 +309,6 @@ export function pitchAbsatz(k: KarteiKarte): string {
 }
 
 const VERWENDUNGSZWECK_HINWEIS = "Bitte geben Sie den Verwendungszweck genau so an, dann wird Ihre Zahlung sofort zugeordnet.";
-const VERWENDUNGSZWECK_KURZ = "(bitte genau so angeben, dann ordnen wir Ihre Zahlung sofort zu)";
 
 /** Welche Knöpfe hat diese Karte? Eine Stelle, damit Seite und Server gleich entscheiden. */
 export function hatRechnungsweg(k: Pick<KarteiKarte, "zahlung" | "lage">): boolean {
@@ -280,38 +319,6 @@ export function hatAntragsweg(k: Pick<KarteiKarte, "zahlung" | "lage">): boolean
 }
 
 // ── Fall 1: erreicht, will die Rechnung ─────────────────────────────────────
-
-/** WhatsApp „Rechnung" — null ohne offene Zahlung (dann gibt es den Knopf nicht). */
-export function whatsappRechnung(k: KarteiKarte, absender: string): string | null {
-  const z = k.zahlung;
-  if (!z) return null;
-  const kopf = z.art === "rate"
-    ? [`wie besprochen hier alles für Ihre ${z.rateNr ? `${z.rateNr}. ` : ""}Monatsrate.`]
-    : ["danke für das nette Telefonat gerade.", "", pitchAbsatz(k)];
-  // 21.09.2026 (Justin: „die Emojis weg und menschlicher"): keine Emojis, keine
-  // Sternchen-Überschriften — so, wie man es selbst in WhatsApp tippen würde.
-  return ohneEmojis([
-    anredeWhatsApp(k),
-    "",
-    ...kopf,
-    "",
-    "Am einfachsten zahlen Sie über diesen Link, dort übernehmen Sie alles mit einem Klick in Ihre Banking-App:",
-    z.zahlungsseite,
-    "",
-    "Wenn Sie lieber selbst überweisen:",
-    z.betragCents != null ? `Betrag: ${euro(z.betragCents)}` : null,
-    z.art === "rate" && z.faelligAm ? `Fällig am: ${datumKurz(z.faelligAm)}` : null,
-    `Empfänger: ${BANK.empfaenger}`,
-    `IBAN: ${BANK.ibanDisplay}`,
-    `BIC: ${BANK.bic}`,
-    `Verwendungszweck: ${z.referenz}`,
-    VERWENDUNGSZWECK_KURZ,
-    ...(z.rechnungLink ? ["", `Ihre Rechnung als PDF: ${z.rechnungLink}`] : []),
-    ...(k.email ? ["Ich habe sie Ihnen auch per E-Mail geschickt."] : []),
-    "",
-    ...gruss(absender),
-  ].filter((l): l is string => l !== null).join("\n"));
-}
 
 /** Mail „Rechnung" — die Rechnung hängt als PDF an (rechnungAlsPdf, Referenz der Zahlung). */
 export function mailRechnung(k: KarteiKarte, absender: string): { betreff: string; text: string } | null {
@@ -340,6 +347,10 @@ export function mailRechnung(k: KarteiKarte, absender: string): { betreff: strin
 
 // ── Fall 3: nicht erreicht ──────────────────────────────────────────────────
 
+/**
+ * E-259: Freier Text — geht NUR im offenen 24-Stunden-Fenster über Meta raus
+ * (der Kunde hat uns eben geschrieben). Sonst die Vorlage fiaon_kk_nicht_erreicht.
+ */
 export function whatsappNichtErreicht(k: KarteiKarte, absender: string): string {
   return ohneEmojis([
     anredeWhatsApp(k),
@@ -366,12 +377,19 @@ export function mailNichtErreicht(k: KarteiKarte, absender: string): { betreff: 
 
 // ── Fall 1 für Leads: erreicht, der Weg zum Antrag ─────────────────────────
 
-export function whatsappAntrag(k: KarteiKarte, absender: string, antragUrl: string): string {
+/**
+ * E-259: wie oben — freier Text nur im offenen Fenster. `antragLink` ist IMMER
+ * sein persönlicher Link (Nachbesserung 29.09.2026, Hausregel E-248: nie ein
+ * nackter fiaon.com/antrag): beim Lead sein Code (/a/<code>/w), beim Abbrecher
+ * der Wiedereinstieg in seinen begonnenen Antrag. Gebaut auf dem Server
+ * (antragLinkFuer in server/lib/fiaon-telefonkartei.ts).
+ */
+export function whatsappAntrag(k: KarteiKarte, absender: string, antragLink: string): string {
   return ohneEmojis([
     anredeWhatsApp(k),
     "",
     "danke für das nette Telefonat gerade. Wie besprochen hier der Link zu Ihrem Antrag, das dauert nur etwa zwei Minuten:",
-    antragUrl,
+    antragLink,
     "",
     "Sobald der Antrag da ist, geht es weiter. Wenn unterwegs etwas unklar ist, schreiben Sie mir einfach hier.",
     "",
@@ -379,12 +397,13 @@ export function whatsappAntrag(k: KarteiKarte, absender: string, antragUrl: stri
   ].join("\n"));
 }
 
-export function mailAntrag(k: KarteiKarte, absender: string, antragUrl: string): { betreff: string; text: string } {
+/** Die Mail dazu — mit demselben persönlichen Link (Kanal Mail: /a/<code>/m bzw. Wiedereinstieg). */
+export function mailAntrag(k: KarteiKarte, absender: string, antragLink: string): { betreff: string; text: string } {
   return {
     betreff: "Ihr Link zum Antrag – wie besprochen",
     text: [
       "vielen Dank für das freundliche Telefonat eben!",
-      `Wie besprochen hier der Link zu Ihrem Antrag – das dauert nur etwa zwei Minuten:\n${antragUrl}`,
+      `Wie besprochen hier der Link zu Ihrem Antrag – das dauert nur etwa zwei Minuten:\n${antragLink}`,
       "Wenn unterwegs etwas unklar ist, antworten Sie einfach auf diese Mail.",
       gruss(absender).join("\n"),
     ].join("\n\n"),
@@ -400,8 +419,10 @@ export function mailAntrag(k: KarteiKarte, absender: string, antragUrl: string):
 // Justin: „so was wie ein Freitext, nur besser benannt — wenn er draufklickt,
 // öffnet sich ein Fenster mit der Frage ‚Was möchten Sie dem Kunden schreiben?',
 // und dann schreibt die KI daraus eine 100 % personalisierte und 100 % menschlich
-// klingende WhatsApp-Nachricht." Die KI schlägt vor, Justin liest, ändert und
-// schickt selbst in WhatsApp ab — wie bei der Mail-KI (server/lib/fiaon-mail-ki.ts).
+// klingende WhatsApp-Nachricht." Die KI schlägt vor, Justin liest und ändert —
+// wie bei der Mail-KI (server/lib/fiaon-mail-ki.ts). E-259: Gesendet wird über
+// das FIAON-Konto bei Meta, als freier Text nur im offenen 24-Stunden-Fenster;
+// ist es zu, öffnet die Rückfrage-Vorlage das Gespräch neu.
 
 /** So viele Zeichen darf Justins Stichwort haben. */
 export const KI_WUNSCH_MAX = 600;
@@ -447,4 +468,169 @@ export interface KarteiTermin {
   telefonWaehlbar: string | null;
   telefonAnzeige: string | null;
   notiz: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WHATSAPP ÜBER DAS FIAON-KONTO (29.09.2026, E-259)
+//
+// Eine Tabelle für Seite, Server und Prüfstand: welcher Fall bei welcher Lage
+// welche freigegebene Vorlage nimmt. Genannt wird die Textfassung — waSenden
+// nimmt die Bildfassung (fiaon_kkb_*), sobald sie bei Meta frei ist (E-229).
+//
+//   Rechnung schicken   A/B (erste Zahlung) → fiaon_kk_rechnung, Knopf zur
+//                       Zahlungsseite dieser Referenz; Rate offen → fiaon_kk_rate
+//                       (Knopfwert = Referenz GENAU dieser Rate). Immer die
+//                       Vorlage, auch im offenen Fenster: Bankdaten im freien
+//                       Text hält die Wand auf.
+//   Nicht erreicht      B/C/Abbrecher → fiaon_kk_nicht_erreicht. Ihr Knopf führt
+//                       FEST auf https://fiaon.com/termin — das allgemeine
+//                       Anfrageformular, NICHT Justins Kalender (der Kunde tippt
+//                       seine Daten neu, die Anfrage landet als Aufgabe im Team).
+//                       Das sagt die Seite offen (NICHT_ERREICHT_HINWEIS). Im
+//                       offenen Fenster freier Text mit Justins Kalender.
+//                       A (Zahlung gemeldet) und Bestandskunden (Rate, bezahlt):
+//                       keine Vorlage — „Ihre Anfrage liegt bei mir, und es fehlt
+//                       nur noch Ihr Ja" stimmt dort nicht (Nachbesserung
+//                       29.09.2026); nur Mail mit Kalender (Entwurf
+//                       fiaon_kk_kalender).
+//   Antrag schicken     Abbrecher → fiaon_kk_antrag_offen. Der Knopf braucht den
+//                       persönlichen Code seines Leads (/a/<code>/w → Wieder-
+//                       einstieg); den setzt der SERVER und prüft vorher, dass er
+//                       wirklich in den begonnenen Antrag führt. Ohne Lead oder
+//                       wenn der Code woanders hinführt: keine Vorlage — der
+//                       Rückfall von waSenden („start") führte in einen NEUEN
+//                       Antrag, die Vorlage verspricht „genau an die Stelle".
+//                       Lead C: keine freigegebene Vorlage — Mail, im offenen
+//                       Fenster freier Text (Entwurf fiaon_kk_antrag_link). Jeder
+//                       Link ist sein persönlicher, nie ein nackter /antrag.
+//   Rückfrage           Persönliche Nachricht bei geschlossenem Fenster →
+//                       fiaon_kk_rueckfrage öffnet das Gespräch neu.
+//   Später anrufen, Stornieren: bewusst keine WhatsApp.
+// „Unaufgefordert" (Nicht erreicht, Rückfrage) nimmt den Tagesplatz (E-253);
+// Rechnung, Rate und Antrag hat der Kunde am Telefon erbeten — ohne Tagesplatz.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type KarteiWaFall = "rechnung" | "nicht_erreicht" | "antrag" | "rueckfrage";
+
+export const KARTEI_WA_VORLAGE = {
+  rechnung: "fiaon_kk_rechnung",
+  rate: "fiaon_kk_rate",
+  nicht_erreicht: "fiaon_kk_nicht_erreicht",
+  antrag_abbrecher: "fiaon_kk_antrag_offen",
+  rueckfrage: "fiaon_kk_rueckfrage",
+} as const;
+
+/** Die zwei fehlenden Vorlagen — Entwürfe im Bericht E-259 (3.4), NICHT eingereicht. */
+export const KARTEI_WA_ENTWURF = { kalender: "fiaon_kk_kalender", antrag_link: "fiaon_kk_antrag_link" } as const;
+
+export type KarteiWaPlan =
+  | { art: "vorlage"; vorlage: string; werte: string[]; knopfWert?: string; unaufgefordert: boolean }
+  | { art: "keine"; grund: string; kurz: string };
+
+/** „59,99" — so steht der Betrag in den Vorlagen (das € steht im Vorlagentext). */
+export function vorlagenBetrag(cents: number | null | undefined): string | null {
+  if (cents == null || !Number.isFinite(Number(cents)) || Number(cents) <= 0) return null;
+  return (Number(cents) / 100).toFixed(2).replace(".", ",");
+}
+
+/**
+ * Die Vorlage und ihre Werte für einen Fall — oder ehrlich, warum es keine gibt.
+ * Ob stattdessen freier Text geht (offenes Fenster), entscheidet der Server.
+ */
+export function karteiWaVorlage(k: KarteiKarte, fall: KarteiWaFall, absender: string): KarteiWaPlan {
+  const name = vorlagenName(anredeWhatsApp(k));
+  const vorname = String(absender || "").trim().split(/\s+/)[0] || "Justin";
+  if (fall === "rueckfrage") {
+    return { art: "vorlage", vorlage: KARTEI_WA_VORLAGE.rueckfrage, werte: [name, vorname], unaufgefordert: true };
+  }
+  if (fall === "rechnung") {
+    const z = k.zahlung;
+    if (!z || !hatRechnungsweg(k)) return { art: "keine", grund: "Keine offene Zahlung — keine Rechnung.", kurz: "keine offene Zahlung" };
+    const betrag = vorlagenBetrag(z.betragCents);
+    if (!betrag) return { art: "keine", grund: "Der Betrag ist unbekannt — ohne Betrag geht die Vorlage nicht raus.", kurz: "Betrag unbekannt" };
+    if (z.art === "rate") {
+      // Bestandskunden bekommen kein „Hallo und willkommen" — wie in der Zentrale (werteFuer).
+      const voll = vollerName(k);
+      if (!voll) return { art: "keine", grund: "Kein Name — die Raten-Vorlage braucht den vollen Namen.", kurz: "kein Name" };
+      if (!z.faelligAm) return { art: "keine", grund: "Die Fälligkeit der Rate ist unbekannt.", kurz: "Fälligkeit unbekannt" };
+      return { art: "vorlage", vorlage: KARTEI_WA_VORLAGE.rate, werte: [voll, betrag, datumKurz(z.faelligAm), z.referenz], knopfWert: z.referenz, unaufgefordert: false };
+    }
+    return { art: "vorlage", vorlage: KARTEI_WA_VORLAGE.rechnung, werte: [name, betrag, z.referenz], knopfWert: z.referenz, unaufgefordert: false };
+  }
+  if (fall === "nicht_erreicht") {
+    if (k.lage === "B" || k.lage === "C" || k.lage === "abbrecher") {
+      return { art: "vorlage", vorlage: KARTEI_WA_VORLAGE.nicht_erreicht, werte: [name, vorname], unaufgefordert: true };
+    }
+    if (k.lage === "A") {
+      // Nachbesserung E-259: A hat die Zahlung schon gemeldet — „es fehlt nur noch Ihr Ja" stimmt nicht.
+      return {
+        art: "keine", kurz: "keine Vorlage für A",
+        grund: `Für A (Zahlung gemeldet) passt „${KARTEI_WA_VORLAGE.nicht_erreicht}“ nicht („es fehlt nur noch Ihr Ja“). Der Entwurf „${KARTEI_WA_ENTWURF.kalender}“ ist noch nicht eingereicht; bis dahin geht nur die Mail mit deinem Kalender.`,
+      };
+    }
+    return {
+      art: "keine", kurz: "keine Vorlage für Bestandskunden",
+      grund: `Für Bestandskunden gibt es noch keine passende freigegebene Vorlage — „${KARTEI_WA_VORLAGE.nicht_erreicht}“ spricht von „Ihrer Anfrage“. Der Entwurf „${KARTEI_WA_ENTWURF.kalender}“ ist noch nicht eingereicht; bis dahin geht nur die Mail.`,
+    };
+  }
+  // fall === "antrag"
+  if (!hatAntragsweg(k)) return { art: "keine", grund: "Hier gibt es schon eine Bestellung — „Rechnung schicken“ nehmen.", kurz: "schon eine Bestellung" };
+  if (k.lage === "abbrecher") {
+    // Der Knopfwert (Code seines Leads, /w) kommt vom Server — ohne ihn geht die Vorlage NICHT raus (siehe oben).
+    return { art: "vorlage", vorlage: KARTEI_WA_VORLAGE.antrag_abbrecher, werte: [name], unaufgefordert: false };
+  }
+  return {
+    art: "keine", kurz: "keine Vorlage für Leads",
+    grund: `Für Leads ohne Antrag gibt es noch keine freigegebene Vorlage mit dem Antrag-Link — der Entwurf „${KARTEI_WA_ENTWURF.antrag_link}“ ist noch nicht eingereicht. Die Mail trägt den Link; schreibt der Kunde uns, geht er als freier Text.`,
+  };
+}
+
+/**
+ * Was der Knopf der Vorlage „Wir haben Sie nicht erreicht" wirklich öffnet —
+ * die Seite sagt es offen (Nachbesserung E-259): fest https://fiaon.com/termin,
+ * das allgemeine Anfrageformular, nicht Justins Kalender.
+ */
+export const NICHT_ERREICHT_HINWEIS = "Knopf: allgemeines Terminformular, nicht dein Kalender";
+
+/** Was ein Fall auf WhatsApp gerade täte — für die Knopfzeile im Blatt „Nachrichten". */
+export interface KarteiWaFallLage {
+  weg: "vorlage" | "text" | null;
+  vorlage: string | null;
+  /** Kopfzeile der Vorlage („Ihre offene Rechnung") bzw. „freier Text". */
+  klartext: string | null;
+  /** Warum keine WhatsApp — ganzer Satz. Bei `bestaetigen` der Grund, warum erst bestätigt werden muss. */
+  grund: string | null;
+  /** Dasselbe in wenigen Wörtern. */
+  kurz: string | null;
+  /** Was man vorher wissen muss, obwohl sie rausgeht (z. B. NICHT_ERREICHT_HINWEIS). */
+  hinweis?: string | null;
+  /**
+   * Nachbesserung E-259: Freier Text an einen Menschen mit Werbesperre,
+   * Vertriebssperre oder Kündigung geht nur nach ausdrücklicher Bestätigung —
+   * und ohne Verkauf. Bei „Stopp" geht gar nichts (dann weg = null).
+   */
+  bestaetigen?: boolean;
+}
+
+export interface KarteiWaLage {
+  ok: boolean;
+  /** Die Nummer, an die WhatsApp ginge (kanonisch, ohne „+"). */
+  nummer: string | null;
+  /** Hat uns der Mensch in den letzten 24 Stunden geschrieben? Dann geht freier Text. */
+  fensterOffen: boolean;
+  faelle: Partial<Record<KarteiWaFall, KarteiWaFallLage>>;
+  /** Die persönliche Nachricht als freier Text. */
+  frei: KarteiWaFallLage;
+  meldung?: string;
+}
+
+/** Was mit der WhatsApp passiert ist — die zweite Zeile der Meldung. */
+export interface KarteiWaErgebnis {
+  ok: boolean;
+  text: string;
+  weg: "vorlage" | "text" | null;
+  vorlage: string | null;
+  doppelt?: boolean;
+  /** Nicht gesendet, weil erst bestätigt werden muss (Sperre, siehe KarteiWaFallLage). */
+  bestaetigen?: boolean;
 }

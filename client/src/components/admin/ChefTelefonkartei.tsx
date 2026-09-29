@@ -7,13 +7,17 @@
 // (Mail + WhatsApp), „rufen Sie mich um … an".
 //
 // So ist die Seite gebaut:
-//   · Reiter A · B · C · Rate offen · Alle · Storniert — die Stufen des Hauses.
+//   · Reiter Alle · A · B · C · Rate offen · Storniert — die Stufen des Hauses.
+//     E-259 (29.09.2026): „Alle" zuerst; oben die Frischen A → B → C, dann wer
+//     am wenigsten angerufen wurde, ab 10 Versuchen ans Ende (Regel auf dem
+//     Server, KARTEI_ORDNUNG_SQL). Die Karte zeigt die Zahl: „3 Versuche".
 //   · Jede Karte zeigt alles, ohne sie zu öffnen.
 //   · „Anrufen" speichert am iPhone zuerst den Kontakt (vCard, „Neuen Kontakt
 //     erstellen" — ein Tipp, den Apple verlangt), danach wählt derselbe Knopf.
-//   · Vier Knöpfe nach dem Gespräch. WhatsApp öffnet sich fertig geschrieben;
-//     die Mail (bei „Rechnung" mit der Rechnung als PDF) schickt der Server
-//     über die geprüfte Hauskette — Wortwand, Protokoll, Akte.
+//   · Vier Knöpfe nach dem Gespräch. Mail UND WhatsApp schickt der Server —
+//     seit E-259 die WhatsApp über das FIAON-Konto bei Meta (Vorlage bzw.
+//     freier Text im offenen 24-Stunden-Fenster), nie mehr über wa.me und
+//     Justins privates WhatsApp. Vorher fragt das Blatt, was jeder Fall täte.
 //   · Oben deine Rückrufe, unten alle gebuchten Termine.
 // Die Texte stehen in shared/fiaon-telefonkartei.ts, die Wirkung in
 // server/lib/fiaon-telefonkartei.ts.
@@ -25,9 +29,10 @@ import { Rundgang } from "@/components/agent/Rundgang";
 import { BoniAmpelBlock, BoniAmpelKapsel } from "@/components/BoniAmpel";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
-  KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, KARTEI_SUCHE_SATZ, euro, euroGanz, datumKurz, waLink, KI_WUNSCH_MAX,
-  whatsappRechnung, whatsappNichtErreicht, whatsappAntrag, hatRechnungsweg, hatAntragsweg,
+  KARTEI_GRUPPEN, KARTEI_LAGE_TEXT, KARTEI_SUCHE_SATZ, euro, euroGanz, datumKurz, KI_WUNSCH_MAX,
+  hatRechnungsweg, hatAntragsweg, versucheText,
   type KarteiGruppe, type KarteiKarte, type KarteiErgebnis, type KarteiRueckruf, type KarteiTermin, type KarteiKiAntwort,
+  type KarteiWaLage, type KarteiWaFallLage, type KarteiWaErgebnis,
 } from "@shared/fiaon-telefonkartei";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-telefonkartei.css";
@@ -43,13 +48,21 @@ interface Antwort {
   mehr: boolean;
   zaehler: (Record<KarteiGruppe, number> & { gesperrt: number }) | null;
   absender: string;
-  antragUrl: string;
 }
 
 interface Meldung { art: "gut" | "fehler"; titel: string; punkte?: string[]; link?: { href: string; text: string } }
 
-/** Reihenfolge der Reiter: erst die heißen, „Alle" und „Storniert" hinten. */
-const REITER: KarteiGruppe[] = ["A", "B", "C", "rate", "alle", "storniert"];
+/**
+ * Reihenfolge der Reiter. E-259 (29.09.2026): „Alle" vorn — dort stehen oben die
+ * Frischen A, dann B, dann C (Justin: „gib mir ganz oben A dann B und dann C").
+ */
+const REITER: KarteiGruppe[] = ["alle", "A", "B", "C", "rate", "storniert"];
+/**
+ * Der gemerkte Reiter. Neuer Schlüssel seit E-259: Die alte Wahl („A", Vorgabe bis
+ * 28.09.) hätte die neue Reihung „A → B → C" in „Alle" verdeckt — die Seite öffnet
+ * einmal auf „Alle", danach gilt wieder, was du zuletzt gewählt hast.
+ */
+const REITER_SPEICHER = "tk-reiter";
 
 // ── Kleiner Speicher im Browser — nur Bequemlichkeit, nie Wahrheit ─────────
 function lesen<T>(schluessel: string, vorgabe: T): T {
@@ -58,8 +71,11 @@ function lesen<T>(schluessel: string, vorgabe: T): T {
 function schreiben(schluessel: string, wert: unknown): void {
   try { localStorage.setItem(schluessel, JSON.stringify(wert)); } catch { /* privates Fenster */ }
 }
+function loeschen(schluessel: string): void {
+  try { localStorage.removeItem(schluessel); } catch { /* privates Fenster */ }
+}
 
-/** Telefon in der Hand? Dann speichert „Anrufen" zuerst den Kontakt, und WhatsApp öffnet ohne neuen Tab. */
+/** Telefon in der Hand? Dann speichert „Anrufen" zuerst den Kontakt. */
 function istHandy(): boolean {
   if (typeof window === "undefined") return false;
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || !!window.matchMedia?.("(pointer: coarse)").matches;
@@ -91,7 +107,10 @@ function Ebene({ children }: { children: ReactNode }) {
 }
 
 export default function ChefTelefonkartei() {
-  const [gruppe, setGruppe] = useState<KarteiGruppe>(() => lesen<KarteiGruppe>("tk-gruppe", "A"));
+  const [gruppe, setGruppe] = useState<KarteiGruppe>(() => {
+    const g = lesen<KarteiGruppe>(REITER_SPEICHER, "alle");
+    return REITER.includes(g) ? g : "alle";
+  });
   const [sucheRoh, setSucheRoh] = useState("");
   const [suche, setSuche] = useState("");
   const [gesperrte, setGesperrte] = useState(false);
@@ -110,20 +129,36 @@ export default function ChefTelefonkartei() {
   const handy = useMemo(istHandy, []);
   const termine = useDaten<{ rueckrufe: KarteiRueckruf[]; termine: KarteiTermin[] }>("/chef/telefonkartei/termine");
   const meldungUhr = useRef<number | null>(null);
+  // Die gezeigten Karten für „Weitere laden" — ohne neu gebaute Ladefunktion bei jedem Klick.
+  const kartenRef = useRef<KarteiKarte[]>([]);
+  useEffect(() => { kartenRef.current = karten; }, [karten]);
 
-  useEffect(() => { schreiben("tk-gruppe", gruppe); }, [gruppe]);
+  useEffect(() => { schreiben(REITER_SPEICHER, gruppe); }, [gruppe]);
   useEffect(() => { const t = window.setTimeout(() => setSuche(sucheRoh.trim()), 320); return () => window.clearTimeout(t); }, [sucheRoh]);
 
+  // Nachbesserung E-259 (29.09.2026): „Weitere laden" schickt die schon gezeigten Karten mit und
+  // bekommt die nächstbesten OHNE sie. Vorher blätterte es per OFFSET — seit die Reihenfolge an deinen
+  // Klicks hängt („Nicht erreicht" schiebt nach hinten), standen die eben Angerufenen doppelt da und
+  // die nächsten frischen Kunden fehlten. Beim Anhängen zusätzlich nach personId entdoppelt.
   const laden = useCallback(async (s: number) => {
     setLaedt(true); setFehler(null);
     try {
-      const q = new URLSearchParams({ gruppe, seite: String(s), ...(suche ? { suche } : {}), ...(gesperrte ? { gesperrte: "1" } : {}) });
-      const r = await fetch(`${API}/chef/telefonkartei?${q}`, { credentials: "include" });
+      const ohne = s === 0 ? [] : kartenRef.current.map((k) => k.personId);
+      const r = s === 0
+        ? await fetch(`${API}/chef/telefonkartei?${new URLSearchParams({ gruppe, seite: "0", ...(suche ? { suche } : {}), ...(gesperrte ? { gesperrte: "1" } : {}) })}`, { credentials: "include" })
+        : await fetch(`${API}/chef/telefonkartei/weitere`, {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gruppe, suche, gesperrte, ohne }),
+          });
       const j = await r.json().catch(() => null);
       if (r.status === 401) throw new Error("Die Anmeldung ist abgelaufen. Bitte neu anmelden.");
       if (!j?.ok) throw new Error(j?.error || "Die Kartei ließ sich nicht laden.");
-      setDaten((alt) => ({ ...j, zaehler: j.zaehler ?? alt?.zaehler ?? null }));
-      setKarten((alt) => (s === 0 ? j.karten : [...alt, ...j.karten]));
+      setDaten((alt) => ({ ...(alt ?? {}), ...j, zaehler: j.zaehler ?? alt?.zaehler ?? null, absender: j.absender ?? alt?.absender ?? "" }));
+      setKarten((alt) => {
+        if (s === 0) return j.karten;
+        const da = new Set(alt.map((k) => k.personId));
+        return [...alt, ...(j.karten as KarteiKarte[]).filter((k) => !da.has(k.personId))];
+      });
       setSeite(s);
     } catch (e: any) {
       setFehler(e.message || "Keine Verbindung zum Server.");
@@ -158,23 +193,29 @@ export default function ChefTelefonkartei() {
     });
   };
 
-  // ── Ein Fall-Knopf. WhatsApp öffnet der Link selbst (braucht den Klick);
-  //    hier läuft nur, was der Server tun muss. keepalive: Die Anfrage kommt
-  //    auch an, wenn das iPhone gerade zu WhatsApp wechselt.
+  // ── Ein Fall-Knopf. E-259: Mail UND WhatsApp schickt der Server (WhatsApp
+  //    über das FIAON-Konto bei Meta) — die Seite öffnet keinen Link mehr.
   const ergebnis = async (k: KarteiKarte, art: KarteiErgebnis, extra: Record<string, unknown> = {}) => {
     setArbeit((a) => ({ ...a, [k.personId]: art }));
     try {
       const r = await fetch(`${API}/chef/telefonkartei/${k.personId}/ergebnis`, {
-        method: "POST", credentials: "include", keepalive: true,
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ art, ...extra }),
       });
       const j = await r.json().catch(() => null);
       if (!j?.ok) { melden({ art: "fehler", titel: j?.meldung || "Das hat nicht geklappt." }); return false; }
-      const punkte = [j.mail?.text, j.meldung].filter(Boolean) as string[];
-      if (art === "rueckruf" && j.rueckruf) {
+      const wa: KarteiWaErgebnis | null = j.wa ?? null;
+      const punkte = [j.mail?.text, wa?.text, j.meldung].filter(Boolean) as string[];
+      if (j.doppelt) {
+        // Nachbesserung E-259: Ein zweiter Tipp binnen zehn Minuten ist kein Fehler — es ging nur nichts ein zweites Mal raus.
+        melden({ art: "gut", titel: `${k.name}: schon erledigt`, punkte: [j.meldung] });
+      } else if (art === "rueckruf" && j.rueckruf) {
         melden({ art: "gut", titel: j.meldung, link: { href: `${API}/chef/telefonkartei/rueckruf/${j.rueckruf.id}/kalender.ics`, text: "Erinnerung ins iPhone-Kalender" } });
       } else {
-        melden({ art: j.mail && !j.mail.ok ? "fehler" : "gut", titel: `${k.name}: ${art === "nicht_erreicht" ? "nicht erreicht" : art === "rechnung" ? "Rechnung geschickt" : art === "antrag" ? "Antrag geschickt" : "gespeichert"}`, punkte });
+        // Rot nur, wenn gar nichts beim Kunden ankam — dann soll Justin es sehen.
+        const raus = !!(j.mail?.ok || wa?.ok);
+        const titel = art === "nicht_erreicht" ? "nicht erreicht" : art === "rechnung" ? "Rechnung" : art === "antrag" ? "Antrag-Link" : "gespeichert";
+        melden({ art: raus ? "gut" : "fehler", titel: `${k.name}: ${titel}${raus ? "" : " — nichts rausgegangen"}`, punkte });
       }
       karteErsetzen(j.karte, k.personId);
       termine.neu();
@@ -241,8 +282,6 @@ export default function ChefTelefonkartei() {
   const z = daten?.zaehler;
   const satz = suche ? KARTEI_SUCHE_SATZ : (KARTEI_GRUPPEN.find((g) => g.key === gruppe)?.satz ?? "");
   const eigeneTermine = (termine.daten?.termine ?? []).filter((x) => x.meiner && x.status === "gebucht" && new Date(x.beginn).getTime() > Date.now() - 30 * 60_000);
-  const absender = daten?.absender || "Justin Schwarzott";
-  const antragUrl = daten?.antragUrl || "https://www.fiaon.com/antrag";
 
   return (
     <div className="tk">
@@ -250,7 +289,7 @@ export default function ChefTelefonkartei() {
 
       <p className="tk-soseht">
         <b>So geht&apos;s:</b> „Anrufen“ speichert den Kontakt auf deinem iPhone und wählt. Nach dem Gespräch ein Knopf —
-        die Mail geht automatisch raus, WhatsApp öffnet sich fertig geschrieben.
+        Mail und WhatsApp gehen automatisch raus, die WhatsApp über das FIAON-Konto: Sie steht im WhatsApp-Raum, und Mara weiß Bescheid.
       </p>
 
       <Rueckrufe
@@ -300,7 +339,7 @@ export default function ChefTelefonkartei() {
 
       <div className="tk-raster">
         {karten.map((k) => (
-          <Karte key={k.personId} k={k} absender={absender} antragUrl={antragUrl} handy={handy}
+          <Karte key={k.personId} k={k} handy={handy}
                  gespeichert={gespeichert.has(k.personId)} arbeit={arbeit[k.personId]}
                  onGespeichert={kontaktGespeichert}
                  onNachrichten={() => setNachrichtFuer(k)}
@@ -323,13 +362,13 @@ export default function ChefTelefonkartei() {
                      onStornieren={(grund, kulanz) => void stornoAusfuehren(stornoFuer, grund, kulanz)} />
       </Ebene>)}
       {nachrichtFuer && (<Ebene>
-        <NachrichtenBlatt k={nachrichtFuer} absender={absender} antragUrl={antragUrl} handy={handy}
+        <NachrichtenBlatt k={nachrichtFuer}
                           onZu={() => setNachrichtFuer(null)}
                           onErgebnis={(art) => { const k = nachrichtFuer; setNachrichtFuer(null); void ergebnis(k, art); }}
                           onRueckruf={() => { const k = nachrichtFuer; setNachrichtFuer(null); setRueckrufFuer(k); }}
                           onStorno={() => { const k = nachrichtFuer; setNachrichtFuer(null); setStornoFuer(k); }}
-                          onGeoeffnet={(ok) => { const k = nachrichtFuer; setNachrichtFuer(null);
-                            melden({ art: ok ? "gut" : "fehler", titel: ok ? `${k.name}: WhatsApp geöffnet` : "WhatsApp geöffnet — der Verlauf ließ sich nicht schreiben.", punkte: ok ? ["Steht im Verlauf der Akte."] : undefined }); }} />
+                          onGesendet={(wa) => { const k = nachrichtFuer; setNachrichtFuer(null);
+                            melden({ art: "gut", titel: `${k.name}: ${wa.text}`, punkte: ["Steht im WhatsApp-Raum und im Verlauf der Akte."] }); }} />
       </Ebene>)}
 
       {akteFuer && (<Ebene>
@@ -355,7 +394,7 @@ export default function ChefTelefonkartei() {
 // ── Eine Karte ──────────────────────────────────────────────────────────────
 
 function Karte({ k, handy, gespeichert, arbeit, onGespeichert, onNachrichten, onAkte, onZurueck }: {
-  k: KarteiKarte; absender: string; antragUrl: string; handy: boolean; gespeichert: boolean;
+  k: KarteiKarte; handy: boolean; gespeichert: boolean;
   arbeit: KarteiErgebnis | "storno" | "zurueck" | undefined;
   onGespeichert: (id: number) => void;
   onNachrichten: () => void; onAkte: () => void; onZurueck: () => void;
@@ -378,8 +417,11 @@ function Karte({ k, handy, gespeichert, arbeit, onGespeichert, onNachrichten, on
   const zuletzt = [
     k.kontakt.am ? seit(k.kontakt.am) : null,
     k.kontakt.von && k.kontakt.ergebnis ? `${k.kontakt.von}: ${k.kontakt.ergebnis}` : k.kontakt.ergebnis,
-    k.kontakt.nichtErreicht > 0 ? `${k.kontakt.nichtErreicht}× nicht erreicht` : null,
+    // E-259: die Serie ohne Erreichen aus der Anrufzählung — auch für Leads (unreachable_count kennt sie nicht).
+    k.kontakt.fehlInFolge > 0 ? `${k.kontakt.fehlInFolge}× in Folge nicht erreicht` : null,
   ].filter(Boolean).join(" · ");
+  const versuche = k.kontakt.versuche;
+  const versucheStufe = versuche === 0 ? "nie" : versuche >= 10 ? "viel" : versuche >= 5 ? "oft" : "wenig";
   fakten.push(["Zuletzt", zuletzt || "noch nie angerufen"]);
   if (k.erreichbarkeit) fakten.push(["Erreichbar", k.erreichbarkeit]);
   if (k.zusage) fakten.push(["Zusage", datumKurz(k.zusage)]);
@@ -402,6 +444,12 @@ function Karte({ k, handy, gespeichert, arbeit, onGespeichert, onNachrichten, on
           ? <a className="tk-nummer" href={anrufZiel} onClick={anrufKlick}>{k.telefonAnzeige}</a>
           : <span className="tk-nummer aus">{k.telefonAnzeige || "keine Nummer"}</span>}
         {gespeichert && handy && <span className="tk-gespeichert">im iPhone</span>}
+        {k.lage !== "storniert" && (
+          <span className="tk-versuche" data-stufe={versucheStufe}
+                title={k.kontakt.letzterVersuch ? `Zuletzt versucht ${seit(k.kontakt.letzterVersuch)}` : "Noch kein Anrufversuch"}>
+            {versucheText(versuche)}
+          </span>
+        )}
       </div>
       {k.telefonHinweis && <p className="tk-hinweis">{k.telefonHinweis}</p>}
 
@@ -412,11 +460,13 @@ function Karte({ k, handy, gespeichert, arbeit, onGespeichert, onNachrichten, on
         {fakten.map(([t, w]) => <div key={t}><dt>{t}</dt><dd>{w}</dd></div>)}
       </dl>
 
-      {(k.gesperrt || k.werbungGesperrt || k.testfall) && (
+      {(k.gesperrt || k.werbungGesperrt || k.stopp || k.testfall) && (
         <div className="tk-flaggen">
           {k.testfall && <span className="test">Testkonto</span>}
           {k.gesperrt && <span>Vertriebssperre</span>}
           {k.werbungGesperrt && <span>Werbesperre</span>}
+          {/* Nachbesserung E-259: „STOPP" geschrieben — keine WhatsApp mehr, auch kein freier Text. */}
+          {k.stopp && <span className="stopp" title="Hat „STOPP“ bzw. „Keine Nachrichten mehr“ geschrieben">Stopp: keine WhatsApp</span>}
         </div>
       )}
 
@@ -644,34 +694,63 @@ function AkteFenster({ k, onZu }: { k: KarteiKarte; onZu: () => void }) {
 // ── Nachrichten: vier Fälle und die persönliche Nachricht ──────────────────
 // Justin (21.09.2026): „fasse alle WhatsApp-Nachrichten in einen Button — wenn
 // man draufklickt, ein cooles Layout, wo die Szenarien drinstehen … UND so was
-// wie ein Freitext, nur besser benannt." Die Fälle arbeiten wie vorher: Der
-// WhatsApp-Link öffnet sich durch den Klick selbst (sonst blockt das iPhone),
-// Mail und Verlauf erledigt der Server.
+// wie ein Freitext, nur besser benannt."
+// E-259 (29.09.2026): „Wenn ich WhatsApp-Nachricht auswähle, dann muss das über
+// unser WhatsApp-Meta-Konto laufen, nicht über das private." Die Fälle sind jetzt
+// Knöpfe, die nur den Server fragen; der schickt Mail UND WhatsApp (freigegebene
+// Vorlage, im offenen 24-Stunden-Fenster freier Text). Beim Öffnen fragt das
+// Blatt einmal, was jeder Fall täte (whatsapp-lage) — steht „keine WhatsApp:
+// Werbesperre" darunter, weiß Justin es VOR dem Tippen.
 
-function NachrichtenBlatt({ k, absender, antragUrl, handy, onZu, onErgebnis, onRueckruf, onStorno, onGeoeffnet }: {
-  k: KarteiKarte; absender: string; antragUrl: string; handy: boolean;
+interface WaLageStand { daten: KarteiWaLage | null; laedt: boolean; fehler: string | null; neu: () => void }
+
+function useWaLage(personId: number): WaLageStand {
+  const [daten, setDaten] = useState<KarteiWaLage | null>(null);
+  const [laedt, setLaedt] = useState(true);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [runde, setRunde] = useState(0);
+  useEffect(() => {
+    let aus = false;
+    setLaedt(true); setFehler(null);
+    fetch(`${API}/chef/telefonkartei/${personId}/whatsapp-lage`, { credentials: "include" })
+      .then((r) => r.json().catch(() => null))
+      .then((j) => { if (aus) return; if (j?.ok) setDaten(j); else setFehler(j?.meldung || "Der WhatsApp-Stand ließ sich nicht laden."); })
+      .catch(() => { if (!aus) setFehler("Keine Verbindung — der WhatsApp-Stand fehlt."); })
+      .finally(() => { if (!aus) setLaedt(false); });
+    return () => { aus = true; };
+  }, [personId, runde]);
+  return { daten, laedt, fehler, neu: () => setRunde((n) => n + 1) };
+}
+
+/** „Mail mit PDF + WhatsApp über FIAON" — oder ehrlich, warum keine WhatsApp. */
+function wegeZeile(mail: string | null, wa: KarteiWaFallLage | undefined, lage: WaLageStand): string {
+  const raus: string[] = [];
+  if (mail) raus.push(mail);
+  // Nachbesserung E-259: Was man vorher wissen muss — z. B. dass der Knopf der Vorlage ins allgemeine Terminformular führt.
+  if (wa?.weg) raus.push(`${wa.weg === "text" ? "WhatsApp über FIAON (freier Text)" : "WhatsApp über FIAON"}${wa.hinweis ? ` (${wa.hinweis})` : ""}`);
+  const ohne = wa
+    ? (!wa.weg ? `keine WhatsApp: ${wa.kurz ?? "—"}` : null)
+    : lage.laedt ? "WhatsApp wird geprüft …" : lage.fehler ? "WhatsApp-Stand unbekannt" : null;
+  return [raus.join(" + ") || null, ohne].filter(Boolean).join(" · ") || "nur Verlauf";
+}
+
+function NachrichtenBlatt({ k, onZu, onErgebnis, onRueckruf, onStorno, onGesendet }: {
+  k: KarteiKarte;
   onZu: () => void; onErgebnis: (art: KarteiErgebnis) => void;
-  onRueckruf: () => void; onStorno: () => void; onGeoeffnet: (ok: boolean) => void;
+  onRueckruf: () => void; onStorno: () => void; onGesendet: (wa: KarteiWaErgebnis) => void;
 }) {
   const [ansicht, setAnsicht] = useState<"faelle" | "ki">("faelle");
+  const lage = useWaLage(k.personId);
   useEffect(() => {
     const taste = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); };
     window.addEventListener("keydown", taste);
     return () => window.removeEventListener("keydown", taste);
   }, [onZu]);
 
-  const rechnungText = hatRechnungsweg(k) ? whatsappRechnung(k, absender) : null;
-  const antragText = hatAntragsweg(k) ? whatsappAntrag(k, absender, antragUrl) : null;
-  const waErster = rechnungText ? waLink(k.telefonWaehlbar, rechnungText) : antragText ? waLink(k.telefonWaehlbar, antragText) : null;
-  const waNicht = waLink(k.telefonWaehlbar, whatsappNichtErreicht(k, absender));
-  const ersterFall: KarteiErgebnis | null = rechnungText ? "rechnung" : antragText ? "antrag" : null;
-  const ziel = handy ? undefined : "_blank";
-  const fall = (art: KarteiErgebnis, href: string | null) => (e: React.MouseEvent) => {
-    // Ohne WhatsApp-Ziel (keine Nummer) bleibt es bei Mail und Verlauf.
-    if (!href) e.preventDefault();
-    onErgebnis(art);
-  };
+  const ersterFall: KarteiErgebnis | null = hatRechnungsweg(k) ? "rechnung" : hatAntragsweg(k) ? "antrag" : null;
+  const faelle = lage.daten?.faelle ?? {};
   const vorname = k.vorname || k.name.split(" ")[0];
+  const offen = lage.daten?.fensterOffen === true;
 
   return (
     <div className="tk-schleier" role="dialog" aria-modal="true" aria-label={`Nachrichten an ${k.name}`} onClick={onZu}>
@@ -694,41 +773,44 @@ function NachrichtenBlatt({ k, absender, antragUrl, handy, onZu, onErgebnis, onR
         {ansicht === "faelle" ? (
           <>
             <p className="tk-nb-frage">Wie lief das Gespräch?</p>
+            <p className="tk-nb-wa">
+              WhatsApp geht über das FIAON-Konto — steht im WhatsApp-Raum, Mara weiß Bescheid.
+              {offen && !k.stopp ? ` In den letzten 24 Stunden kam eine Nachricht von ${vorname}: freier Text möglich.` : ""}
+              {k.stopp ? " Achtung: Hat „STOPP“ geschrieben — keine WhatsApp." : ""}
+            </p>
             <div className="tk-nb-liste">
               {ersterFall ? (
-                <a className="tk-nb-fall gruen" href={waErster ?? "#"} target={waErster ? ziel : undefined} rel="noopener noreferrer"
-                   onClick={fall(ersterFall, waErster)}>
+                <button type="button" className="tk-nb-fall gruen" onClick={() => onErgebnis(ersterFall)}>
                   <span className="tk-nb-zeichen" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H7z" /><path d="M14 3.5v4h4M9.5 12.5h6M9.5 15.5h4" /></svg>
                   </span>
                   <span className="tk-nb-text">
                     <b>{ersterFall === "rechnung" ? "Rechnung schicken" : "Antrag schicken"}</b>
-                    <small>{[k.email ? (ersterFall === "rechnung" ? "Mail mit PDF" : "Mail") : null, waErster ? "WhatsApp" : null].filter(Boolean).join(" + ") || "keine Nummer, keine Mail"}</small>
+                    <small>{wegeZeile(k.email ? (ersterFall === "rechnung" ? "Mail mit PDF" : "Mail") : null, faelle[ersterFall], lage)}</small>
                   </span>
                   <Pfeil />
-                </a>
+                </button>
               ) : (
                 <span className="tk-nb-fall aus">
                   <span className="tk-nb-zeichen" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H7z" /></svg></span>
                   <span className="tk-nb-text"><b>Rechnung schicken</b><small>keine offene Zahlung</small></span>
                 </span>
               )}
-              <a className="tk-nb-fall gelb" href={waNicht ?? "#"} target={waNicht ? ziel : undefined} rel="noopener noreferrer"
-                 onClick={fall("nicht_erreicht", waNicht)}>
+              <button type="button" className="tk-nb-fall gelb" onClick={() => onErgebnis("nicht_erreicht")}>
                 <span className="tk-nb-zeichen" aria-hidden="true">
                   <svg viewBox="0 0 24 24"><path d="M7 3.5c.8 0 1.5.6 1.7 1.4l.6 2.4a1.9 1.9 0 0 1-.6 1.9l-1 .9a10.5 10.5 0 0 0 4.7 4.7l.9-1a1.9 1.9 0 0 1 1.9-.6l2.4.6c.8.2 1.4.9 1.4 1.7V18a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4 6.2 2 2 0 0 1 6 4Z" /><path d="M15.5 4.5l4 4M19.5 4.5l-4 4" /></svg>
                 </span>
                 <span className="tk-nb-text">
                   <b>Nicht erreicht</b>
-                  <small>{[k.email && !k.werbungGesperrt ? "Mail" : null, waNicht ? "WhatsApp" : null].filter(Boolean).join(" + ") || "nur Verlauf"} · dein Kalender</small>
+                  <small>{wegeZeile(k.email && !k.werbungGesperrt ? "Mail mit deinem Kalender" : null, faelle.nicht_erreicht, lage)}</small>
                 </span>
                 <Pfeil />
-              </a>
+              </button>
               <button type="button" className="tk-nb-fall blau" onClick={onRueckruf}>
                 <span className="tk-nb-zeichen" aria-hidden="true">
                   <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>
                 </span>
-                <span className="tk-nb-text"><b>Später anrufen</b><small>Uhrzeit wählen</small></span>
+                <span className="tk-nb-text"><b>Später anrufen</b><small>Uhrzeit wählen · keine Nachricht an den Kunden</small></span>
                 <Pfeil />
               </button>
               <button type="button" className="tk-nb-fall rot" onClick={onStorno}>
@@ -746,17 +828,36 @@ function NachrichtenBlatt({ k, absender, antragUrl, handy, onZu, onErgebnis, onR
               </span>
               <span className="tk-nb-text">
                 <b>Persönliche Nachricht</b>
-                <small>Du sagst, worum es geht — die KI schreibt sie für {vorname}</small>
+                <small>
+                  Du sagst, worum es geht — die KI schreibt sie für {vorname}
+                  {kiZusatz(lage)}
+                </small>
               </span>
               <Pfeil />
             </button>
           </>
         ) : (
-          <KiNachricht k={k} handy={handy} onGeoeffnet={onGeoeffnet} />
+          <KiNachricht k={k} lage={lage} onGesendet={onGesendet} />
         )}
       </div>
     </div>
   );
+}
+
+/**
+ * Der Zusatz unter „Persönliche Nachricht" — aus dem, was der Server wirklich
+ * täte (Nachbesserung E-259). Vorher stand „Fenster zu: erst die Rückfrage-Vorlage"
+ * auch beim Festnetz, bei Werbesperre und wenn die Rückfrage heute nicht mehr ging.
+ */
+function kiZusatz(lage: WaLageStand): string {
+  const d = lage.daten;
+  if (!d) return "";
+  const frei = d.frei;
+  if (frei.weg === "text") return frei.bestaetigen ? ` · ${frei.kurz}: nur mit ausdrücklicher Bestätigung, ohne Verkauf` : " · geht als freier Text über FIAON";
+  if (frei.kurz !== "24-Stunden-Fenster zu") return ` · keine WhatsApp: ${frei.kurz ?? "—"}`;
+  const rf = d.faelle.rueckfrage;
+  if (rf?.weg) return " · Fenster zu: erst die Rückfrage-Vorlage";
+  return ` · Fenster zu, Rückfrage heute nicht möglich: ${rf?.kurz ?? "—"}`;
 }
 
 function Pfeil() {
@@ -771,13 +872,26 @@ const KI_BEISPIELE = [
   "Kurz nachfragen, ob noch Fragen offen sind",
 ];
 
-function KiNachricht({ k, handy, onGeoeffnet }: { k: KarteiKarte; handy: boolean; onGeoeffnet: (ok: boolean) => void }) {
+/**
+ * Die persönliche Nachricht. E-259: gesendet über das FIAON-Konto — als freier
+ * Text nur, wenn der Kunde in den letzten 24 Stunden geschrieben hat. Ist das
+ * Fenster zu, öffnet die Rückfrage-Vorlage das Gespräch neu; der Text bleibt
+ * als Entwurf NUR auf diesem Gerät (localStorage). Nachbesserung E-259: Er geht
+ * nicht von selbst raus — kein Server-Weg kennt ihn, und auf die Antwort des
+ * Kunden antwortet zuerst Mara (nach einer Vorlage bleibt sie an). Die Seite
+ * sagt das jetzt so. Bei Werbesperre, Vertriebssperre oder Kündigung verlangt
+ * der Server eine ausdrückliche Bestätigung, bei „Stopp" geht gar nichts.
+ */
+function KiNachricht({ k, lage, onGesendet }: { k: KarteiKarte; lage: WaLageStand; onGesendet: (wa: KarteiWaErgebnis) => void }) {
+  const entwurfSchluessel = `tk-entwurf-${k.personId}`;
   const [wunsch, setWunsch] = useState("");
-  const [text, setText] = useState<string | null>(null);
+  const [text, setText] = useState<string | null>(() => lesen<string | null>(entwurfSchluessel, null));
   const [hinweise, setHinweise] = useState<string[]>([]);
   const [laeuft, setLaeuft] = useState(false);
+  const [sendet, setSendet] = useState<"frei" | "rueckfrage" | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [kopiert, setKopiert] = useState(false);
+  const [bestaetigt, setBestaetigt] = useState(false);
   const textFeld = useRef<HTMLTextAreaElement | null>(null);
   const vorname = k.vorname || k.name.split(" ")[0];
   // Der Entwurf wächst mit — der Link am Ende war sonst im Feld verborgen.
@@ -787,8 +901,10 @@ function KiNachricht({ k, handy, onGeoeffnet }: { k: KarteiKarte; handy: boolean
     f.style.height = "auto";
     f.style.height = `${Math.min(f.scrollHeight + 2, Math.round(window.innerHeight * 0.55))}px`;
   }, [text]);
+  // Nur Bequemlichkeit: Der Entwurf überlebt das Schließen des Blatts auf diesem Gerät.
+  useEffect(() => { if (text) schreiben(entwurfSchluessel, text); }, [text, entwurfSchluessel]);
 
-  const schreiben = async (neuFormulieren: boolean) => {
+  const schreibenLassen = async (neuFormulieren: boolean) => {
     if (wunsch.trim().length < 3 || laeuft) return;
     setLaeuft(true); setFehler(null); setKopiert(false);
     try {
@@ -807,18 +923,36 @@ function KiNachricht({ k, handy, onGeoeffnet }: { k: KarteiKarte; handy: boolean
     }
   };
 
-  const wa = text ? waLink(k.telefonWaehlbar, text) : null;
-  const vermerken = () => {
-    if (!text) return;
-    void fetch(`${API}/chef/telefonkartei/${k.personId}/nachricht-vermerken`, {
-      method: "POST", credentials: "include", keepalive: true,
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
-    }).then((r) => onGeoeffnet(r.ok)).catch(() => onGeoeffnet(false));
+  const senden = async (art: "frei" | "rueckfrage") => {
+    if (sendet || (art === "frei" && !text)) return;
+    setSendet(art); setFehler(null);
+    try {
+      const r = await fetch(`${API}/chef/telefonkartei/${k.personId}/whatsapp-${art}`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(art === "frei" ? { text, bestaetigt } : {}),
+      });
+      const j = await r.json().catch(() => null);
+      if (!j?.ok) {
+        setFehler(j?.meldung || "Die WhatsApp ging nicht raus.");
+        if (j?.fensterZu || j?.bestaetigen) lage.neu();
+        return;
+      }
+      if (art === "frei") loeschen(entwurfSchluessel);
+      onGesendet(j.wa ?? { ok: true, text: j.meldung, weg: art === "frei" ? "text" : "vorlage", vorlage: null });
+    } catch {
+      setFehler("Keine Verbindung — bitte noch einmal.");
+    } finally {
+      setSendet(null);
+    }
   };
   const kopieren = async () => {
     if (!text) return;
     try { await navigator.clipboard.writeText(text); setKopiert(true); } catch { setKopiert(false); }
   };
+  const verwerfen = () => { loeschen(entwurfSchluessel); setText(null); setHinweise([]); setWunsch(""); };
+
+  const frei = lage.daten?.frei;
+  const rueck = lage.daten?.faelle.rueckfrage;
 
   return (
     <div className="tk-ki">
@@ -832,7 +966,7 @@ function KiNachricht({ k, handy, onGeoeffnet }: { k: KarteiKarte; handy: boolean
         </div>
       )}
       {!text && (
-        <button type="button" className="tk-knopf blau tk-ki-los" disabled={laeuft || wunsch.trim().length < 3} onClick={() => void schreiben(false)}>
+        <button type="button" className="tk-knopf blau tk-ki-los" disabled={laeuft || wunsch.trim().length < 3} onClick={() => void schreibenLassen(false)}>
           {laeuft ? <span className="tk-ki-denkt">Die KI schreibt<i /><i /><i /></span> : "Nachricht schreiben"}
         </button>
       )}
@@ -846,17 +980,53 @@ function KiNachricht({ k, handy, onGeoeffnet }: { k: KarteiKarte; handy: boolean
             <ul className="tk-ki-hinweise">{hinweise.map((h, i) => <li key={i}>{h}</li>)}</ul>
           )}
           <div className="tk-ki-tun">
-            {wa ? (
-              <a className="tk-knopf wa" href={wa} target={handy ? undefined : "_blank"} rel="noopener noreferrer" onClick={vermerken}>
-                In WhatsApp öffnen
-              </a>
+            {lage.laedt && !lage.daten ? (
+              <span className="tk-ki-keine">WhatsApp wird geprüft …</span>
+            ) : frei?.weg === "text" && frei.bestaetigen ? (
+              <div className="tk-ki-fenster tk-ki-sperre">
+                <p><b>{frei.kurz}:</b> {String(frei.grund ?? "").replace(/^[^:]+:\s*/, "")}</p>
+                <label className="tk-ki-bestaetigen">
+                  <input type="checkbox" checked={bestaetigt} onChange={(e) => setBestaetigt(e.target.checked)} />
+                  <span>Ich habe die Sperre gesehen — ich antworte nur auf die Nachricht des Kunden, ohne Verkauf.</span>
+                </label>
+                <button type="button" className="tk-knopf wa" disabled={!!sendet || !bestaetigt} onClick={() => void senden("frei")}>
+                  {sendet === "frei" ? "Wird gesendet …" : "Trotz Sperre senden"}
+                </button>
+              </div>
+            ) : frei?.weg === "text" ? (
+              <button type="button" className="tk-knopf wa" disabled={!!sendet} onClick={() => void senden("frei")}>
+                {sendet === "frei" ? "Wird gesendet …" : "Über FIAON-WhatsApp senden"}
+              </button>
+            ) : frei?.kurz === "24-Stunden-Fenster zu" ? (
+              <div className="tk-ki-fenster">
+                <p>
+                  <b>Das 24-Stunden-Fenster ist zu.</b> Freier Text geht über Meta erst, wenn {vorname} uns schreibt.
+                  Die Rückfrage-Vorlage („Eine kurze Rückfrage“) öffnet das Gespräch. Dein Text bleibt auf diesem Gerät
+                  als Entwurf — er geht nicht von selbst raus: Kommt eine Antwort, öffne „Persönliche Nachricht“ wieder und
+                  sende ihn. Bis dahin antwortet Mara.
+                </p>
+                {rueck?.weg ? (
+                  <button type="button" className="tk-knopf wa" disabled={!!sendet} onClick={() => void senden("rueckfrage")}>
+                    {sendet === "rueckfrage" ? "Wird gesendet …" : "Rückfrage-Vorlage senden"}
+                  </button>
+                ) : (
+                  <span className="tk-ki-keine">Rückfrage geht nicht: {rueck?.grund ?? lage.fehler ?? "unbekannt"}</span>
+                )}
+              </div>
             ) : (
-              <span className="tk-ki-keine">Keine Nummer — kopieren und selbst senden</span>
+              <span className="tk-ki-keine">
+                Keine WhatsApp möglich: {frei?.grund ?? lage.fehler ?? "unbekannt"}
+                {/* Bei „Stopp" kein Umweg über einen anderen Kanal vorschlagen. */}
+                {frei?.kurz === "Stopp" ? "" : " — kopieren und anders senden."}
+              </span>
             )}
-            <button type="button" className="tk-knopf still" disabled={laeuft} onClick={() => void schreiben(true)}>
+            <button type="button" className="tk-knopf still" disabled={laeuft || wunsch.trim().length < 3}
+                    title={wunsch.trim().length < 3 ? "Oben kurz sagen, worum es geht" : undefined}
+                    onClick={() => void schreibenLassen(true)}>
               {laeuft ? "Schreibt …" : "Neu formulieren"}
             </button>
             <button type="button" className="tk-knopf still" onClick={() => void kopieren()}>{kopiert ? "Kopiert" : "Kopieren"}</button>
+            <button type="button" className="tk-knopf still" onClick={verwerfen}>Verwerfen</button>
           </div>
         </>
       )}

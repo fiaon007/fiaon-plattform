@@ -10,8 +10,11 @@
 //
 // ── DIE KI SCHLÄGT VOR, JUSTIN SCHICKT ─────────────────────────────────────
 // Dieselbe Bauart wie die Mail-KI (fiaon-mail-ki.ts): Diese Datei kann nicht
-// senden. Der Text geht zurück in die Telefonkartei; Justin liest ihn, ändert
-// ihn und tippt selbst in WhatsApp auf Senden.
+// senden. Der Text geht zurück in die Telefonkartei; Justin liest ihn und
+// ändert ihn. E-259 (29.09.2026): Gesendet wird über das FIAON-Konto bei Meta
+// (karteiNachricht in fiaon-telefonkartei.ts) — als freier Text nur im offenen
+// 24-Stunden-Fenster; der Versand selbst schreibt den Verlauf. Das frühere
+// „nachrichtVermerken" (Eintrag „WhatsApp geöffnet") ist entfallen.
 //
 // ── DATENSPARSAM ───────────────────────────────────────────────────────────
 // Das Modell bekommt Anrede, Vor- und Nachname, den Stand in Worten, Paket und
@@ -19,6 +22,12 @@
 // Bankdaten, keine Links. Links gibt es nur als Platzhalter ([WEBSITE],
 // [KALENDER], [ZAHLUNGSSEITE], [RECHNUNG], [ANTRAG]); eingesetzt werden sie
 // hier. So erfindet die KI keine Adresse und verstümmelt keinen Link.
+// Nachbesserung E-259 (29.09.2026): [ANTRAG] ist sein persönlicher Link (Lead:
+// /a/<code>/w, Abbrecher: Wiedereinstieg) — vorher der nackte fiaon.com/antrag,
+// gegen die Hausregel E-248. Gibt es keinen persönlichen, gibt es den Platzhalter
+// nicht. Und der Auftrag kennt die Sperre des Menschen: Bei Werbesperre,
+// Vertriebssperre oder Kündigung schreibt die KI ohne Verkauf, ohne Antrag- und
+// Zahlungslink („Stopp" hält schon die Route auf).
 //
 // ── ZWEI ZÄUNE ─────────────────────────────────────────────────────────────
 // 1. Der Auftrag an das Modell verbietet Zusagen, Fristen, Beratung, Druck.
@@ -28,7 +37,6 @@
 //    und Justin sieht den Hinweis vor dem Senden.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { sqlPool } from "./db-pool";
 import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 import { absoluteUrl } from "../fiaon-base-url";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
@@ -72,16 +80,26 @@ Antworte nur mit der fertigen Nachricht, ohne Vorrede und ohne Anführungszeiche
 
 type Platzhalter = { zeichen: string; wofuer: string; wert: string };
 
-function platzhalterFuer(k: KarteiKarte, antragUrl: string): Platzhalter[] {
+/** Was die Route mitgibt: sein persönlicher Antrag-Link (oder keiner) und die Sperre des Menschen. */
+export interface KiUmfeld {
+  antragLink: string | null;
+  /** Werbesperre, Vertriebssperre, gekündigt — dann kein Verkauf. null = keine. */
+  sperre: string | null;
+}
+
+function platzhalterFuer(k: KarteiKarte, u: KiUmfeld): Platzhalter[] {
   const liste: Platzhalter[] = [{ zeichen: "[WEBSITE]", wofuer: "die FIAON-Website", wert: absoluteUrl("/") }];
   if (k.terminLink) liste.push({ zeichen: "[KALENDER]", wofuer: "Justins Kalender, der Kunde bucht selbst eine Zeit (Daten schon eingetragen)", wert: k.terminLink });
+  if (u.sperre) return liste; // Sperre: keine Zahlungs- und keine Antrag-Links (kein Verkauf).
   if (k.zahlung?.zahlungsseite) liste.push({ zeichen: "[ZAHLUNGSSEITE]", wofuer: "die Zahlungsseite, Zahlung mit einem Klick in der Banking-App", wert: k.zahlung.zahlungsseite });
   if (k.zahlung?.rechnungLink) liste.push({ zeichen: "[RECHNUNG]", wofuer: "die Rechnung als PDF", wert: k.zahlung.rechnungLink });
-  if (!k.zahlung && (k.lage === "C" || k.lage === "abbrecher")) liste.push({ zeichen: "[ANTRAG]", wofuer: "der Antrag, dauert etwa zwei Minuten", wert: antragUrl });
+  if (!k.zahlung && (k.lage === "C" || k.lage === "abbrecher") && u.antragLink) {
+    liste.push({ zeichen: "[ANTRAG]", wofuer: "sein persönlicher Link zum Antrag, dauert etwa zwei Minuten", wert: u.antragLink });
+  }
   return liste;
 }
 
-function eingabe(k: KarteiKarte, wunsch: string, platz: Platzhalter[], vorher: string | null, nachbessern: string | null): string {
+function eingabe(k: KarteiKarte, wunsch: string, platz: Platzhalter[], vorher: string | null, nachbessern: string | null, sperre: string | null): string {
   const ziel = limitZiel(k);
   const kontakt = k.kontakt.am
     ? `${k.kontakt.von ? `${k.kontakt.von}: ` : ""}${k.kontakt.ergebnis ?? "Kontakt"}`
@@ -93,6 +111,10 @@ function eingabe(k: KarteiKarte, wunsch: string, platz: Platzhalter[], vorher: s
     k.paket ? `Paket: ${k.paket.label}` : null,
     ziel != null ? `Wunschlimit, nur als Ziel nennen: ${euroGanz(ziel)}` : null,
     `Letzter Kontakt im Verlauf: ${kontakt}`,
+    sperre
+      ? `WICHTIG — für diesen Menschen gilt: ${sperre}. Er hat uns selbst geschrieben; geh nur darauf ein. Kein Verkauf, kein Angebot, `
+        + "keine Aufforderung zu Antrag, Zahlung oder Aktivierung — auch wenn die Stichpunkte es nahelegen."
+      : null,
     "",
     "Verfügbare Platzhalter:",
     ...platz.map((p) => `${p.zeichen} = ${p.wofuer}`),
@@ -177,20 +199,21 @@ async function modellFragen(eingabeText: string): Promise<{ ok: true; text: stri
  * Die Nachricht: aus Justins Stichpunkten, für diesen Menschen. `vorher` ist die
  * zuletzt gezeigte Fassung („Neu formulieren").
  */
-export async function kiNachricht(k: KarteiKarte, wunschRoh: string, vorherRoh: string | null, antragUrl: string): Promise<KarteiKiAntwort> {
+export async function kiNachricht(k: KarteiKarte, wunschRoh: string, vorherRoh: string | null, umfeld: KiUmfeld): Promise<KarteiKiAntwort> {
   const wunsch = String(wunschRoh ?? "").replace(/\s+/g, " ").trim().slice(0, KI_WUNSCH_MAX);
   if (wunsch.length < 3) return { ok: false, meldung: "Schreib in ein paar Worten, worum es gehen soll." };
   const vorher = vorherRoh ? String(vorherRoh).slice(0, 2_000) : null;
-  const platz = platzhalterFuer(k, antragUrl);
+  const platz = platzhalterFuer(k, umfeld);
+  const sperre = umfeld.sperre;
 
-  let r = await modellFragen(eingabe(k, wunsch, platz, vorher, null));
+  let r = await modellFragen(eingabe(k, wunsch, platz, vorher, null, sperre));
   if (!r.ok) return { ok: false, meldung: r.grund };
   let text = nachrichtGlaetten(r.text, k, platz);
   let pruef = wand(text);
   if (pruef.hart.length || pruef.floskel.length) {
     // Einmal nachbessern lassen — mit dem Grund. Floskeln zählen mit: Sie sind
     // genau das, woran man den Automaten erkennt.
-    const zweiter = await modellFragen(eingabe(k, wunsch, platz, text, [...pruef.hart, ...pruef.floskel].join("; ")));
+    const zweiter = await modellFragen(eingabe(k, wunsch, platz, text, [...pruef.hart, ...pruef.floskel].join("; "), sperre));
     if (zweiter.ok) {
       const neu = nachrichtGlaetten(zweiter.text, k, platz);
       const neuPruef = wand(neu);
@@ -208,29 +231,6 @@ export async function kiNachricht(k: KarteiKarte, wunschRoh: string, vorherRoh: 
     if (e.entfernt.length) hinweise.push(`Entschärft: ${e.entfernt.join(", ")}`);
   }
   hinweise.push(...pruef.floskel.map((f) => `Floskel: ${f}`));
+  if (sperre) hinweise.unshift(`${sperre}: Die KI schreibt ohne Verkauf. Senden geht nur, wenn du es ausdrücklich bestätigst.`);
   return { ok: true, text, hinweise };
-}
-
-/**
- * Hält fest, dass Justin eine persönliche Nachricht in WhatsApp geöffnet hat —
- * im Verlauf der Bestellung oder des Leads, mit seinem Namen und ohne
- * Mitarbeiter-ID (er wird nie Betreuer). Ob er in WhatsApp wirklich auf Senden
- * tippt, sieht der Server nicht; der Eintrag sagt deshalb „geöffnet".
- */
-export async function nachrichtVermerken(k: KarteiKarte, text: string, akteur: string): Promise<boolean> {
-  const inhalt = ohneEmojis(String(text || "")).slice(0, 1_800);
-  if (inhalt.length < 3) return false;
-  const notiz = `WhatsApp von ${akteur} geöffnet (persönliche Nachricht):\n${inhalt}`;
-  if (k.ref) {
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-      VALUES (${k.ref}, ${k.personId}, NULL, ${akteur}, 'system', ${notiz})`;
-    return true;
-  }
-  if (k.leadId) {
-    const { logLead } = await import("../routes/fiaon-leads");
-    await logLead(k.leadId, { id: null, name: akteur }, "note", { note: notiz });
-    return true;
-  }
-  return false;
 }

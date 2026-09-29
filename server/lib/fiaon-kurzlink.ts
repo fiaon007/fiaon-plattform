@@ -152,6 +152,24 @@ export async function kurzlinkLesen(code: string, lauf: Lauf = sqlPool): Promise
       JOIN fiaon_leads l ON l.id = k.lead_id
      WHERE k.code = ${code} AND k.gueltig_bis > NOW()`) as any[];
   if (!z || z.geloescht) return null;
+  return {
+    code: String(z.code), leadId: Number(z.lead_id), personId: z.person_id ?? null,
+    vorname: z.vorname ?? null, nachname: z.nachname ?? null, email: z.email ?? null, telefon: z.telefon ?? null,
+    antrag: await antragZumLead(z, lauf),
+  };
+}
+
+/**
+ * Der Antrag, an dem ein Lead schon hängt — dahin führt sein Code (bezahlt →
+ * Bereich, sonst Wiedereinstieg). Herausgelöst aus kurzlinkLesen (29.09.2026,
+ * E-259), damit die Telefonkartei VOR dem Senden prüfen kann, ob der Knopf
+ * „Antrag fortsetzen" wirklich in den begonnenen Antrag führt — ohne dafür einen
+ * Code anzulegen. Die Regel selbst ist unverändert.
+ */
+async function antragZumLead(
+  z: { converted_order_id?: string | null; person_id?: number | null },
+  lauf: Lauf,
+): Promise<{ ref: string; bezahlt: boolean } | null> {
   const antraege = (await lauf`
     SELECT ref, payment_status FROM fiaon_applications
      WHERE merged_into IS NULL AND gdpr_deleted_at IS NULL AND cancelled_at IS NULL AND archived_at IS NULL
@@ -161,11 +179,17 @@ export async function kurzlinkLesen(code: string, lauf: Lauf = sqlPool): Promise
      ORDER BY (ref = ${z.converted_order_id ?? ""}) DESC, (payment_status = 'paid') DESC, created_at DESC
      LIMIT 1`) as any[];
   const a = antraege[0];
-  return {
-    code: String(z.code), leadId: Number(z.lead_id), personId: z.person_id ?? null,
-    vorname: z.vorname ?? null, nachname: z.nachname ?? null, email: z.email ?? null, telefon: z.telefon ?? null,
-    antrag: a ? { ref: String(a.ref), bezahlt: a.payment_status === "paid" } : null,
-  };
+  return a ? { ref: String(a.ref), bezahlt: a.payment_status === "paid" } : null;
+}
+
+/** Nur lesend: Wohin führte der Code dieses Leads gerade? Legt keinen Code an (E-259, Vorschau der Telefonkartei). */
+export async function antragDesLeads(leadId: number, lauf: Lauf = sqlPool): Promise<{ ref: string; bezahlt: boolean } | null> {
+  const [l] = (await lauf`
+    SELECT l.converted_order_id, l.person_id,
+           (l.person_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM fiaon_persons p WHERE p.id = l.person_id)) AS geloescht
+      FROM fiaon_leads l WHERE l.id = ${leadId}`) as any[];
+  if (!l || l.geloescht) return null;
+  return antragZumLead(l, lauf);
 }
 
 /**

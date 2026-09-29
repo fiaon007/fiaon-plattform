@@ -4,14 +4,16 @@
 // Nur im Chefbüro und nur für die Stufe „inhaber": Justin wollte die Seite
 // ausdrücklich „für mich" — die Texte tragen seinen Namen, der Terminlink führt
 // in SEINEN Kalender. Die Logik steht in server/lib/fiaon-telefonkartei.ts.
+// E-259 (29.09.2026): WhatsApp geht über das FIAON-Konto bei Meta — die Seite
+// fragt vorher, was jeder Fall täte (whatsapp-lage), und sendet nie selbst.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Response } from "express";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import {
   karteiListe, karteiZaehler, karteEinzeln, vcardText, vcardDateiname,
-  ergebnisFesthalten, stornieren, stornoZuruecknehmen,
-  rueckrufListe, rueckrufErledigt, rueckrufIcs, termineListe, akteurName, ANTRAG_URL,
+  ergebnisFesthalten, stornieren, stornoZuruecknehmen, karteiWaLage, karteiNachricht,
+  rueckrufListe, rueckrufErledigt, rueckrufIcs, termineListe, akteurName, antragLinkFuer, karteiSperre,
 } from "../lib/fiaon-telefonkartei";
 import { istKarteiGruppe, istKarteiErgebnis } from "@shared/fiaon-telefonkartei";
 
@@ -36,9 +38,31 @@ router.get("/chef/telefonkartei", wache, async (req: ChefRequest, res: Response)
       seite === 0 ? karteiZaehler(gesperrte) : Promise.resolve(null),
       akteurName(req.chef?.agentId),
     ]);
-    res.json({ ok: true, gruppe, ...liste, zaehler, absender, antragUrl: ANTRAG_URL() });
+    res.json({ ok: true, gruppe, ...liste, zaehler, absender });
   } catch (e: any) {
     console.error("[TELEFONKARTEI] liste:", e);
+    res.status(500).json({ ok: false, error: "Die Kartei konnte nicht geladen werden." });
+  }
+});
+
+/**
+ * POST /chef/telefonkartei/weitere { gruppe, suche?, gesperrte?, ohne: number[] }
+ * — „Weitere laden" (Nachbesserung E-259, 29.09.2026): die nächstbesten Karten
+ * OHNE die schon gezeigten, statt per OFFSET zu blättern. Die Reihenfolge hängt
+ * seit E-259 an Justins eigenen Klicks; mit OFFSET fehlten danach Kunden, und
+ * schon gezeigte standen doppelt da. POST, weil die Liste lang werden kann.
+ */
+router.post("/chef/telefonkartei/weitere", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const gruppe = istKarteiGruppe(req.body?.gruppe) ? req.body.gruppe : "alle";
+    const ohne = (Array.isArray(req.body?.ohne) ? req.body.ohne : [])
+      .map((n: unknown) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 20_000);
+    const liste = await karteiListe({
+      gruppe, suche: String(req.body?.suche || "").slice(0, 80), gesperrte: req.body?.gesperrte === true, ohne,
+    });
+    res.json({ ok: true, gruppe, ...liste });
+  } catch (e: any) {
+    console.error("[TELEFONKARTEI] weitere:", e);
     res.status(500).json({ ok: false, error: "Die Kartei konnte nicht geladen werden." });
   }
 });
@@ -111,16 +135,23 @@ router.post("/chef/telefonkartei/:personId/ergebnis", wache, async (req: ChefReq
 /**
  * POST /chef/telefonkartei/:personId/ki-nachricht { wunsch, vorher? } — die KI
  * schreibt aus Justins Stichpunkten eine WhatsApp-Nachricht (21.09.2026, E-205).
- * Sie SCHLÄGT VOR: Der Text geht zurück auf die Seite, gesendet wird nur in
- * WhatsApp, von Justin selbst (server/lib/fiaon-kartei-ki.ts kann nicht senden).
+ * Sie SCHLÄGT VOR: Der Text geht zurück auf die Seite (server/lib/fiaon-kartei-ki.ts
+ * kann nicht senden). Gesendet wird erst mit „whatsapp-frei" — von Justin, über FIAON.
  */
 router.post("/chef/telefonkartei/:personId/ki-nachricht", wache, async (req: ChefRequest, res: Response) => {
   const id = personIdAus(req, res); if (!id) return;
   try {
     const karte = await karteEinzeln(id);
     if (!karte) return res.status(404).json({ ok: false, meldung: "Kunde nicht gefunden." });
+    // Nachbesserung E-259: Bei „Stopp" schreibt die KI gar nicht erst; bei Werbesperre, Vertriebssperre
+    // oder Kündigung kennt der Auftrag die Sperre (kein Verkauf). Der Antrag-Platzhalter ist sein
+    // persönlicher Link — nie ein nackter fiaon.com/antrag.
+    const sperre = await karteiSperre(id);
+    if (sperre.hart) return res.status(409).json({ ok: false, meldung: `Keine Nachricht: ${sperre.hart}` });
+    const antrag = await antragLinkFuer(karte, "whatsapp", true).catch(() => null);
     const { kiNachricht } = await import("../lib/fiaon-kartei-ki");
-    const erg = await kiNachricht(karte, String(req.body?.wunsch ?? ""), req.body?.vorher ? String(req.body.vorher) : null, ANTRAG_URL());
+    const erg = await kiNachricht(karte, String(req.body?.wunsch ?? ""), req.body?.vorher ? String(req.body.vorher) : null,
+      { antragLink: antrag?.url ?? null, sperre: sperre.weich });
     res.status(erg.ok ? 200 : 422).json(erg);
   } catch (e: any) {
     console.error("[TELEFONKARTEI] ki-nachricht:", e);
@@ -128,19 +159,51 @@ router.post("/chef/telefonkartei/:personId/ki-nachricht", wache, async (req: Che
   }
 });
 
-/** POST /chef/telefonkartei/:personId/nachricht-vermerken { text } — „WhatsApp geöffnet" in den Verlauf. */
-router.post("/chef/telefonkartei/:personId/nachricht-vermerken", wache, async (req: ChefRequest, res: Response) => {
+/**
+ * GET /chef/telefonkartei/:personId/whatsapp-lage — was jeder Fall auf WhatsApp
+ * täte (E-259): Vorlage, freier Text im offenen Fenster oder der Grund, warum
+ * nicht (Sperre, keine freigegebene Vorlage, Festnetz …). Nur lesend.
+ */
+router.get("/chef/telefonkartei/:personId/whatsapp-lage", wache, async (req: ChefRequest, res: Response) => {
   const id = personIdAus(req, res); if (!id) return;
   try {
-    const karte = await karteEinzeln(id);
-    if (!karte) return res.status(404).json({ ok: false, meldung: "Kunde nicht gefunden." });
-    const { nachrichtVermerken } = await import("../lib/fiaon-kartei-ki");
-    const akteur = await akteurName(req.chef?.agentId);
-    const ok = await nachrichtVermerken(karte, String(req.body?.text ?? ""), akteur);
-    res.status(ok ? 200 : 409).json({ ok, meldung: ok ? "Im Verlauf festgehalten." : "Kein Verlauf möglich — weder Bestellung noch Lead." });
+    const lage = await karteiWaLage(id, await akteurName(req.chef?.agentId));
+    if (!lage) return res.status(404).json({ ok: false, meldung: "Kunde nicht gefunden." });
+    res.json(lage);
   } catch (e: any) {
-    console.error("[TELEFONKARTEI] nachricht-vermerken:", e);
-    res.status(500).json({ ok: false, meldung: "Serverfehler" });
+    console.error("[TELEFONKARTEI] whatsapp-lage:", e);
+    res.status(500).json({ ok: false, meldung: "Der WhatsApp-Stand ließ sich nicht laden." });
+  }
+});
+
+/**
+ * POST /chef/telefonkartei/:personId/whatsapp-frei { text, bestaetigt? } — die
+ * persönliche Nachricht als freier Text über das FIAON-Konto. Nur im offenen
+ * 24-Stunden-Fenster; sonst 409 mit `fensterZu` (dann die Rückfrage-Vorlage).
+ * Nachbesserung E-259: nie bei „Stopp"; bei Werbesperre, Vertriebssperre oder
+ * Kündigung 409 mit `bestaetigen`, bis Justin ausdrücklich bestätigt.
+ */
+router.post("/chef/telefonkartei/:personId/whatsapp-frei", wache, async (req: ChefRequest, res: Response) => {
+  const id = personIdAus(req, res); if (!id) return;
+  try {
+    const erg = await karteiNachricht(id, "frei", await akteurName(req.chef?.agentId), String(req.body?.text ?? "").slice(0, 4_000),
+      { bestaetigt: req.body?.bestaetigt === true });
+    res.status(erg.ok ? 200 : 409).json(erg);
+  } catch (e: any) {
+    console.error("[TELEFONKARTEI] whatsapp-frei:", e);
+    res.status(500).json({ ok: false, meldung: "Serverfehler — bitte noch einmal." });
+  }
+});
+
+/** POST /chef/telefonkartei/:personId/whatsapp-rueckfrage — die Vorlage fiaon_kk_rueckfrage öffnet das Gespräch neu. */
+router.post("/chef/telefonkartei/:personId/whatsapp-rueckfrage", wache, async (req: ChefRequest, res: Response) => {
+  const id = personIdAus(req, res); if (!id) return;
+  try {
+    const erg = await karteiNachricht(id, "rueckfrage", await akteurName(req.chef?.agentId));
+    res.status(erg.ok ? 200 : 409).json(erg);
+  } catch (e: any) {
+    console.error("[TELEFONKARTEI] whatsapp-rueckfrage:", e);
+    res.status(500).json({ ok: false, meldung: "Serverfehler — bitte noch einmal." });
   }
 });
 

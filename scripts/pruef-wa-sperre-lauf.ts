@@ -642,7 +642,7 @@ try {
   pruef("Zentrale: kein Lauf im Arbeitsspeicher mehr", !/let aktuellerLauf/.test(q("server/lib/fiaon-wa-zentrale.ts")));
   pruef("Zentrale: bis 500, an Metas freien Raum gekoppelt", z.LAUF_HOECHSTENS === 500 && /Math\.min\(LAUF_HOECHSTENS, raum\.frei,/.test(q("server/lib/fiaon-wa-zentrale.ts")));
   const seite = q("client/src/components/admin/ChefWhatsAppZentrale.tsx");
-  pruef("Seite: keine 200er-Grenze, Grenze vom Server, Abfrage mit ?id=", !/Math\.min\(200/.test(seite) && /d\.laufHoechstens/.test(seite) && /\/chef\/wa-zentrale\/lauf\?id=/.test(seite));
+  pruef("Seite: keine 200er-Grenze, Grenze vom Server, Abfrage mit ?id=", !/Math\.min\(200/.test(seite) && /d\??\.laufHoechstens/.test(seite) && /\/chef\/wa-zentrale\/lauf\?id=/.test(seite));
   pruef("Seite: „kein Lauf\" friert nicht ein (Hinweis + Ende des Abfragens)", /nicht mehr abrufbar/.test(seite) && /window\.clearInterval\(t\)/.test(seite));
   pruef("Server: SIGTERM übergibt den Lauf", /process\.once\("SIGTERM"/.test(q("server/index.ts")) && /laufUebergeben/.test(q("server/index.ts")));
   pruef("Takt wa_zentrale_fortsetzen ist angemeldet (nur im Betrieb, tageslauf)", /tageslauf\('wa_zentrale_fortsetzen'/.test(q("server/routes.ts")));

@@ -220,6 +220,22 @@
   border: 1px solid rgba(110, 231, 183, .28);
 }
 .tk-hinweis { margin: -6px 0 0; font: 300 12px/1.45 'Inter', sans-serif; color: var(--tk-gelb); }
+/* E-259 (29.09.2026): die Zahl der Anrufversuche neben der Nummer — grün „noch nie",
+   grau 1–4, gelb ab 5, rot ab 10 (ab da steht die Karte am Ende der Liste). */
+.tk-versuche {
+  --v: var(--tk-leise);
+  font: 400 11px/1 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: var(--v);
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--v) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--v) 28%, transparent);
+  white-space: nowrap;
+}
+.tk-versuche[data-stufe="nie"] { --v: var(--tk-gruen); }
+.tk-versuche[data-stufe="oft"] { --v: var(--tk-gelb); }
+.tk-versuche[data-stufe="viel"] { --v: var(--tk-rot); }
 
 .tk-fakten { margin: 0; display: grid; grid-template-columns: 1fr; gap: 6px; }
 .tk-fakten > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; align-items: baseline; }
@@ -309,6 +325,8 @@
 }
 .tk-nb-rund svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tk-nb-frage { margin: 0 0 10px; font: 300 13.5px/1.4 'Inter', sans-serif; color: var(--tk-leise); }
+/* E-259: WhatsApp geht über das FIAON-Konto — ein Satz über den Fällen. */
+.tk-nb-wa { margin: -4px 0 12px; font: 300 12px/1.45 'Inter', sans-serif; color: var(--tk-still); }
 .tk-nb-liste { display: grid; gap: 8px; }
 .tk-nb-fall {
   --f: var(--tk-text);
@@ -382,6 +400,20 @@
   font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
 }
 .tk-ki-keine { flex: 1 1 100%; font: 300 13px/1.4 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-knopf.wa:disabled { opacity: .6; cursor: wait; }
+/* E-259: Fenster zu — der Hinweis und die Rückfrage-Vorlage in einem Kasten. */
+.tk-ki-fenster {
+  flex: 1 1 100%; display: grid; gap: 10px;
+  padding: 12px; border-radius: 14px;
+  background: rgba(252, 211, 77, .06); border: 1px solid rgba(252, 211, 77, .22);
+}
+.tk-ki-fenster p { margin: 0; font: 300 13px/1.5 'Inter', sans-serif; color: var(--tk-leise); }
+.tk-ki-fenster b { font-weight: 500; color: var(--tk-text); }
+/* Nachbesserung E-259: freier Text trotz Sperre — nur mit Haken. */
+.tk-ki-sperre { background: rgba(253, 164, 175, .06); border-color: rgba(253, 164, 175, .26); }
+.tk-ki-bestaetigen { display: flex; gap: 10px; align-items: flex-start; font: 300 13px/1.45 'Inter', sans-serif; color: var(--tk-text); cursor: pointer; }
+.tk-ki-bestaetigen input { margin-top: 2px; width: 18px; height: 18px; flex: 0 0 auto; accent-color: #fda4af; }
+.tk-ki-sperre .tk-knopf.wa:disabled { cursor: not-allowed; opacity: .4; filter: grayscale(.5); box-shadow: none; }
 @media (prefers-reduced-motion: reduce) {
   .tk-ki-denkt i { animation: none; opacity: .7; }
   .tk-anrufen, .tk-nachrichten, .tk-nb-fall { transition: none; }

@@ -1178,7 +1178,24 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
   {
     titel: "Deine Telefonkartei: alle Kunden als Karten.",
     text: "Jede Karte zeigt alles, ohne sie zu öffnen: Stufe, Stand, Paket, Wunschlimit, Verwendungszweck, wer ihn betreut, "
-      + "wann zuletzt telefoniert wurde und wann er erreichbar sein will. Die frischesten stehen oben — wie in der Arbeitsliste des Teams.",
+      + "wann zuletzt telefoniert wurde und wann er erreichbar sein will. Neben der Nummer steht, wie oft er schon angerufen wurde "
+      + "(„noch nie angerufen“, „3 Versuche“ — gelb ab 5, rot ab 10).",
+  },
+  {
+    // 29.09.2026 (E-259): Justin: „ganz oben immer den frischesten Kunden, der nicht schon 10× angerufen wurde —
+    // A, dann B, dann C, die keine oder am wenigsten Anrufe bekommen haben."
+    // Nachbesserung E-259: Ziel ist die erste Karte (Nummer + Versuche) — vorher das ganze Raster, der Rundgang
+    // rollte damit in die Mitte der Liste. Die Wunschzeit sortiert erst innerhalb derselben Versuchsstufe.
+    ziel: ".tk-raster > .tk-karte:first-child .tk-nummer-zeile",
+    titel: "Die Reihenfolge: frisch, A vor B vor C, wenig Versuche.",
+    text: "Ganz oben stehen die Frischen — Antrag, Zahlungsmeldung oder fällige Rate höchstens 3 Tage alt —, in „Alle“ erst A, dann B, "
+      + "dann C, dann Rate offen; danach der Bestand in derselben Folge. Darin zuerst, wer am wenigsten angerufen wurde "
+      + "(noch nie, dann 1–2, 3–5, 6–9 Versuche); bei gleich vielen Versuchen zuerst, wessen Wunschzeit aus dem Antrag jetzt passt. "
+      + "Wer in den letzten 20 Stunden versucht wurde, eine Zusage, einen gebuchten Termin oder deinen Rückruf hat, rückt nach hinten; "
+      + "ab 10 Versuchen ans Ende. „Weitere laden“ zeigt die nächsten, die du noch nicht gesehen hast.",
+    tipp: "Gezählt werden Anrufe übers Softphone und jedes festgehaltene Ergebnis. Mehrmals wählen binnen 5 Minuten ist ein Versuch; "
+      + "ein Wählen, das nie rausging, zählt nicht. Rufst du übers iPhone an, zählt der Versuch, sobald du danach einen Knopf drückst "
+      + "— zum Beispiel „Nicht erreicht“.",
   },
   {
     // 21.09.2026 (E-202)
@@ -1191,9 +1208,10 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
   },
   {
     ziel: ".tk-reiter",
-    titel: "A, B, C, Rate offen — die Stufen des Hauses.",
+    titel: "Alle, A, B, C, Rate offen — die Stufen des Hauses.",
     text: "A = Zahlung gemeldet, B = Antrag fertig, Rechnung offen, C = Lead ohne Antrag, „Rate offen“ = bezahlt, aber eine Monatsrate ist fällig. "
-      + "„Alle“ zeigt jeden, „Storniert“ die, die du storniert hast. Gesperrte (Vertriebssperre) blendest du über den Schalter ein.",
+      + "„Alle“ zeigt jeden (vorn), „Storniert“ die, die du storniert hast. Jeder Reiter reiht nach derselben Regel. "
+      + "Gesperrte (Vertriebssperre) blendest du über den Schalter ein.",
     tipp: "Die Suche findet jeden — auch Gesperrte, Stornierte und Testkonten, jeweils mit Schild auf der Karte.",
   },
   {
@@ -1206,19 +1224,27 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     // 21.09.2026 (E-205): ein Knopf „Nachrichten" statt vier Kacheln.
     ziel: ".tk-nachrichten",
     titel: "Nach dem Gespräch: „Nachrichten“.",
-    text: "Ein Knopf, ein Blatt mit vier Fällen. „Rechnung schicken“: Die Mail mit der Rechnung als PDF geht automatisch raus, "
-      + "WhatsApp öffnet sich mit Zahlungsseite, Bankdaten und Rechnungslink — du tippst nur noch auf Senden. „Nicht erreicht“: "
-      + "freundliche Mail und WhatsApp mit deinem persönlichen Kalender, Name und Nummer sind dort schon eingetragen. „Später "
-      + "anrufen“: Uhrzeit wählen, der Rückruf steht oben auf der Seite und auf Wunsch im iPhone-Kalender. „Stornieren“: raus aus "
-      + "allen Listen, keine Anrufe, keine Werbung. Alle WhatsApp-Texte sind ohne Emojis und klingen wie von dir getippt.",
-    tipp: "Alles landet in der Akte des Kunden — die Mitarbeiter sehen, was du getan hast. Du wirst dabei nie sein Betreuer.",
+    text: "Ein Knopf, ein Blatt mit vier Fällen. Mail UND WhatsApp schickt der Server — die WhatsApp über das FIAON-Konto bei Meta, "
+      + "nicht über dein privates WhatsApp. „Rechnung schicken“: Mail mit der Rechnung als PDF und die WhatsApp-Vorlage „Ihre offene "
+      + "Rechnung“ (bei Raten „Ihre Monatsrate“) mit Knopf zur Zahlungsseite. „Nicht erreicht“: Mail mit deinem Kalender und bei B, C "
+      + "und Abbrechern die Vorlage „Wir haben Sie nicht erreicht“ — ihr Knopf führt ins allgemeine Terminformular, NICHT in deinen "
+      + "Kalender; bei A und Bestandskunden keine WhatsApp-Vorlage. Höchstens alle 3 Tage und nicht, wenn heute schon eine WhatsApp "
+      + "rausging. Kam in den letzten 24 Stunden eine Nachricht vom Kunden, geht statt der Vorlage dein eigener Text mit deinem Kalender. "
+      + "„Antrag schicken“ trägt immer seinen persönlichen Link. „Später anrufen“: Uhrzeit wählen, der Rückruf steht oben und auf "
+      + "Wunsch im iPhone-Kalender. „Stornieren“: raus aus allen Listen.",
+    tipp: "Unter jedem Fall steht vorher, was rausgeht — oder warum keine WhatsApp (Werbesperre, Stopp, Festnetz, keine passende Vorlage). "
+      + "Ein zweiter Tipp binnen 10 Minuten schickt nichts noch einmal, auch nicht von einem zweiten Gerät. "
+      + "Alles steht im WhatsApp-Raum und in der Akte; nach einer Vorlage antwortet Mara, wenn der Kunde schreibt. Du wirst nie sein Betreuer.",
   },
   {
     titel: "Persönliche Nachricht: du sagst, worum es geht.",
     text: "Unten im Blatt steht „Persönliche Nachricht“. Tipp in deinen Worten, was der Kunde lesen soll — zum Beispiel „wie "
       + "besprochen in Ruhe die Website ansehen und sich wieder melden“. Die KI schreibt daraus eine persönliche WhatsApp an "
-      + "genau diesen Menschen, mit seinem Namen und seiner Lage, ohne Emojis und ohne Versprechen. Du kannst alles ändern, "
-      + "„Neu formulieren“ drücken und dann „In WhatsApp öffnen“ — abschicken tust du selbst.",
+      + "genau diesen Menschen, mit seinem Namen und seiner Lage, ohne Emojis und ohne Versprechen. Du kannst alles ändern "
+      + "und „Über FIAON-WhatsApp senden“ drücken. Das geht als freier Text nur, wenn in den letzten 24 Stunden eine Nachricht "
+      + "vom Kunden kam; sonst schickst du erst die Rückfrage-Vorlage. Dein Text bleibt dann auf diesem Gerät als Entwurf und geht "
+      + "nicht von selbst raus: Kommt eine Antwort, öffne die persönliche Nachricht wieder und sende ihn — bis dahin antwortet Mara. "
+      + "Hat der Kunde „STOPP“ geschrieben, geht keine WhatsApp; bei Werbesperre, Vertriebssperre oder Kündigung nur mit Haken und ohne Verkauf.",
     tipp: "Die KI bekommt weder Telefonnummer noch E-Mail noch Bankdaten; Links setzt der Server ein. Was sie schreibt, prüft die Wortwand — Hinweise stehen gelb unter dem Text.",
   },
   {

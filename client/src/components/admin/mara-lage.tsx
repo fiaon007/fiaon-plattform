@@ -380,7 +380,11 @@ export function betragTextCents(text: string | null | undefined): number {
 
 /** Was von der WhatsApp-Lage für Leiste und Kette gebraucht wird. */
 export interface GruppeKern { schluessel: string; titel: string; anzahl: number; wartend?: number; wiederAb?: string | null }
-export interface LageKern { automatik: { an: boolean; jeStunde: number; gruppen: string[] }; gruppen: GruppeKern[] }
+export interface LageKern {
+  automatik: { an: boolean; jeStunde: number; gruppen: string[] }; gruppen: GruppeKern[];
+  /** E-261: die WhatsApp-Bremse (zentraleLage) — in der Pause zeigt die Leiste „Automatik an — pausiert" statt grün. */
+  bremse?: { pause: boolean; code: number | null; qualitaet: string | null; jeStundeGelb: number | null };
+}
 
 /**
  * Der nächste Schritt, solange WhatsApp kein Geld gebracht hat: die erste

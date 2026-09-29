@@ -87,6 +87,8 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const [zumEnde, setZumEnde] = useState(0);
   const [fokus, setFokus] = useState(0);
   const [modus, setModus] = useState<Modus>("breit");
+  // E-261 (29.09.2026): Steht die WhatsApp-Bremse (Pause oder Meta ROT)? Nur Anzeige — aktivieren kann nur der Inhaber im Chefbüro.
+  const [bremse, setBremse] = useState<{ pause: boolean; art?: string | null; allesGestoppt: boolean; werbungGestoppt: boolean; qualitaet: string | null; satz: string | null } | null>(null);
   const wrRef = useRef<HTMLDivElement>(null);
   const raumRef = useRef<HTMLDivElement>(null);
   const gewaehltRef = useRef<string | null>(null);
@@ -124,6 +126,18 @@ export default function WhatsAppRaum({ basis, telefon }: {
   }, [API, melden]);
 
   useEffect(() => { void listeLaden(); }, [listeLaden]);
+  useEffect(() => {
+    const laden = async () => {
+      try {
+        const r = await fetch(`${API}/bremse`, { credentials: "include" });
+        const j = await r.json().catch(() => null);
+        if (j?.ok) setBremse(j.bremse ?? null);
+      } catch { /* stiller Fehlschlag, der nächste Takt holt es */ }
+    };
+    void laden();
+    const id = window.setInterval(() => { if (!document.hidden) void laden(); }, 60_000);
+    return () => window.clearInterval(id);
+  }, [API]);
   useEffect(() => {
     const id = window.setInterval(() => {
       if (document.hidden) return;
@@ -382,6 +396,15 @@ export default function WhatsAppRaum({ basis, telefon }: {
             ? <>Unsere Nummer <b>{kopf?.nummer ?? "—"}</b> · {kopf?.alles ? "alle Gespräche" : "die Gespräche deiner Kunden"}</>
             : kopf ? "Noch nicht eingerichtet — die Zugangswerte fehlen." : " "}
         </p>
+        {bremse && (bremse.pause || bremse.werbungGestoppt) ? (
+          <p className="wr-bremse" role="status">
+            {bremse.allesGestoppt
+              ? `WhatsApp pausiert — ${bremse.art === "zugang" ? "der Meta-Zugang ist abgelaufen" : "Meta hat das Konto gesperrt"}. Gerade geht nichts raus, auch keine Antworten. Bitte anrufen statt schreiben.`
+              : bremse.pause
+                ? "WhatsApp pausiert — Vorlagen gehen gerade nicht raus, Antworten im offenen Fenster schon. Wer keine offene Nachricht hat: anrufen."
+                : "Meta-Qualität ROT — Werbe-Vorlagen gehen gerade nicht raus; Monatsrate, Termin und Antworten im offenen Fenster schon."}
+          </p>
+        ) : null}
       </header>
 
       <div className="wr-raum" ref={raumRef}>

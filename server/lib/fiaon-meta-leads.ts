@@ -348,6 +348,24 @@ export async function meldungSpeichern(nutzlast: any, lauf: Lauf = sqlPool): Pro
           VALUES (${objekt}, ${feld}, NULL, ${String(eintrag?.id ?? "") || null},
                   ${lauf.json({ nachrichten: e.neu, zustellstaende: e.status })}, 'verarbeitet', NOW())`;
         andere++;
+      } else if (objekt === "whatsapp_business_account" && (feld === "phone_number_quality_update" || feld === "account_update")) {
+        // E-261 (29.09.2026): Qualität und Kontostand kommen sofort statt erst im 5-Min.-Takt — sobald Justin die
+        // beiden Felder im Meta-App-Dashboard abonniert (Webhooks → WhatsApp Business Account). Der Stand wird
+        // frisch gelesen (fiaon-wa-bremse.ts). Eine Kontosperre (ban_info DISABLE) pausiert WhatsApp sofort.
+        const bremse = await import("./fiaon-wa-bremse");
+        const bann = String(wert?.ban_info?.waba_ban_state ?? "").toUpperCase();
+        if (feld === "account_update" && bann === "DISABLE") {
+          await bremse.pausieren({
+            art: "gesperrt", code: null, von: "automatisch", quelle: "webhook",
+            fehler: `Meta meldet account_update ${String(wert?.event ?? "")}: WhatsApp-Konto gesperrt (waba_ban_state DISABLE${wert?.ban_info?.waba_ban_date ? `, ${String(wert.ban_info.waba_ban_date)}` : ""}).`,
+          }).catch((e) => console.error("[WA-BREMSE] account_update:", e));
+        }
+        void bremse.metaStandAuffrischen(`webhook_${feld}`).catch((e) => console.error("[WA-BREMSE] Meta-Stand:", e));
+        await lauf`
+          INSERT INTO fiaon_meta_ereignisse (objekt, feld, schluessel, seite_id, nutzlast, status, verarbeitet_am)
+          VALUES (${objekt}, ${feld}, NULL, ${String(eintrag?.id ?? "") || null},
+                  ${lauf.json({ event: wert?.event ?? null, bann: bann || null })}, 'verarbeitet', NOW())`;
+        andere++;
       } else {
         // Alles Übrige (Vorlagen-Freigaben, Kontoänderungen): nur der Umschlag.
         await lauf`

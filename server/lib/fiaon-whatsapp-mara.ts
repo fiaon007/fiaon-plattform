@@ -102,6 +102,7 @@ import { menschSperre, werbungVerboten } from "./fiaon-mail-frequenz";
 import { absoluteUrl } from "../fiaon-base-url";
 import { zuletztAngeboten } from "./fiaon-auskunft";
 import { kiPausiert, istKiPause, kiPauseLesen } from "./fiaon-ki-pause";
+import { waPauseLesen, waAllesZu } from "./fiaon-wa-bremse";
 
 export const DIENST_WA = "mara-whatsapp";
 
@@ -1863,6 +1864,30 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // bleibt offen und der Nachhol-Takt nimmt sie nach dem Aktivieren. (Die
     // STOPP-Bestätigung darüber ist ein fester Satz ohne KI und geht weiter.)
     if (await kiPausiert()) return { gesendet: false, grund: "KI pausiert — die Nachricht wartet, bis die KI wieder aktiv ist." };
+    // ── WHATSAPP-KONTO GESPERRT ODER ZUGANG ABGELAUFEN (29.09.2026, E-261) ────
+    // Hat Meta das Konto gesperrt (oder den Token abgelehnt, #190), geht auch
+    // keine Antwort im Fenster raus. Dann denkt Mara gar nicht erst (keine
+    // KI-Kosten) — die Nachricht bleibt offen, mara_wa_nachholen nimmt sie nach
+    // „WhatsApp wieder aktivieren". Ist sie bis dahin älter als 12 Stunden,
+    // antwortet Mara nicht mehr frei (wie nach der KI-Pause): Sie steht in der
+    // Sammelaufgabe der Sperre (zuAltFuerMara, Quelle „wa"), sonst eine eigene
+    // Aufgabe. Bei den anderen Pausen (Zahlung, Spam, Hand) antwortet Mara
+    // normal — Text im offenen Fenster geht dort raus.
+    const wp = await waPauseLesen();
+    if (wp.an && waAllesZu(wp.art)) return { gesendet: false, grund: "WhatsApp pausiert (Konto gesperrt oder Zugang abgelaufen) — die Nachricht wartet, bis WhatsApp wieder aktiv ist." };
+    if (waAllesZu(wp.art) && kamInDerPause(neuesteRein.am, wp) && Date.now() - new Date(neuesteRein.am).getTime() > PAUSE_FREI_MAX_MS) {
+      await zuAltFuerMara(wp.seit, "wa").catch((e) => console.error("[MARA-WA] WA-Sperre-Sammelaufgabe:", e));
+      if (!(await inPauseSammlung(wp.seit, Number(neuesteRein.id), "wa"))) {
+        const k = `wa:${nummer}:${neuesteRein.id}`;
+        if (!pauseEinzelGemeldet.has(k)) {
+          pauseEinzelGemeldet.add(k);
+          await aufgabeFuerMenschen(nummer, personId ? Number(personId) : null, leadId ? Number(leadId) : null,
+            `Nachricht aus der WhatsApp-Sperre (${tagUndUhrzeit(new Date(neuesteRein.am))}), älter als 12 Stunden — Mara antwortet nicht selbst. Bitte selbst melden: „${String(neuesteRein.text ?? "").replace(/\s+/g, " ").slice(0, 160)}"`, true, "pause");
+        }
+        return { gesendet: false, grund: "Nachricht aus der WhatsApp-Sperre, älter als 12 Stunden — eigene Aufgabe an einen Menschen, keine freie Antwort." };
+      }
+      return { gesendet: false, grund: "Nachricht aus der WhatsApp-Sperre, älter als 12 Stunden — Sammelaufgabe an einen Menschen, keine freie Antwort." };
+    }
     // ── NACH DER KI-PAUSE (E-246, Nachprüfung 27.09.) ─────────────────────────
     // Kam selbst die NEUESTE offene Nachricht in der Pause und ist sie älter als
     // 12 Stunden, antwortet Mara nicht frei: „heute", „gleich", „morgen früh"
@@ -3164,6 +3189,9 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
       const [w] = (await sqlPool`SELECT person_id, lead_id FROM fiaon_whatsapp WHERE nummer = ${nummer} AND (person_id IS NOT NULL OR lead_id IS NOT NULL) ORDER BY id DESC LIMIT 1`) as any[];
       const namen = await agentNamen();
       const erg = await waSenden(nummer, { text: String(g.antwort_text) }, { personId: w?.person_id ?? null, leadId: w?.lead_id ?? null, von: namen.voll });
+      // E-261: Kontosperre (Bremse) — kein Fehlversuch, keine Aufgabe; die Antwort wird verworfen und nach dem
+      // Aktivieren neu gedacht (mara_wa_nachholen), damit nichts Veraltetes rausgeht.
+      if (!erg.ok && erg.pausiert) { await leeren(); verworfen++; continue; }
       if (erg.ok) {
         await leeren();
         await sqlPool`UPDATE fiaon_whatsapp_gespraech SET antwort_versuche = 0 WHERE nummer = ${nummer}`;
@@ -3232,7 +3260,17 @@ export async function nachholLauf(): Promise<{ angestossen: number }> {
   let angestossen = 0;
   // E-246: In der KI-Pause nichts anstoßen — nach dem Aktivieren ruft fiaon-ki-pause.ts diesen Lauf sofort.
   if (await kiPausiert()) return { angestossen: 0 };
+  // E-261: Konto bei Meta gesperrt (oder Zugang abgelaufen) → auch keine Antwort möglich; nach „WhatsApp wieder
+  // aktivieren" stößt die Bremse diesen Lauf an.
+  const wp = await waPauseLesen();
+  if (wp.an && waAllesZu(wp.art)) return { angestossen: 0 };
   await gespraechSchema();
+  // E-261 (Gegenprüfung 29.09.): Wie nach der KI-Pause sammelt jeder Takt der ersten 24 h nach dem Aktivieren
+  // die Nachrichten aus der Sperrzeit ein, die älter als 12 Stunden sind — auch die über 23,5 h, die die Abfrage
+  // unten (OFFENE_GESPRAECHE_SQL) nicht mehr findet, und die, die nachts (nur < 30 Min.) übersprungen würden.
+  if (waAllesZu(wp.art) && wp.seit && wp.aufgehobenAm && Date.now() - new Date(wp.aufgehobenAm).getTime() < 24 * 3_600_000) {
+    await zuAltFuerMara(wp.seit, "wa").catch((e) => console.error("[MARA-WA] WA-Sperre-Sammelaufgabe:", e));
+  }
   // E-246 (Nachprüfung 27.09.): Bis 24 h nach dem Aktivieren sammelt jeder Takt
   // die Pause-Nachrichten ein, die gerade über die 23,5-h-Grenze rutschen — auch
   // die, die nachts (nur < 30 Min.) oder am Kostendeckel übersprungen wurden.
@@ -3283,18 +3321,31 @@ export async function nachholLauf(): Promise<{ angestossen: number }> {
  * Pause auslöste, kam Sekunden bis Minuten vor „seit".
  */
 export const KI_PAUSE_WA_MARKE = "ki_pause_wa_gesammelt";
+/**
+ * E-261 (Gegenprüfung 29.09.): Dieselbe Sammlung für die WhatsApp-Sperre (Pause „gesperrt"
+ * oder „zugang", fiaon-wa-bremse.ts) — eigene Marke, eigener Schlüssel, eigener Titel.
+ * Ohne sie fielen Nachrichten aus einer Sperre über 23,5 Stunden (oder nachts
+ * aktiviert) ohne Aufgabe durch: maraAntwortet und der Nachhol-Takt sehen sie nicht mehr.
+ */
+export const WA_PAUSE_WA_MARKE = "wa_pause_wa_gesammelt";
+type PauseQuelle = "ki" | "wa";
+const SAMMEL: Record<PauseQuelle, { marke: string; titel: string; wann: string; quelle: string; schluessel: (seit: string) => string }> = {
+  ki: { marke: KI_PAUSE_WA_MARKE, titel: "WhatsApp aus der KI-Pause: Nachrichten zu alt für Mara", wann: "während der KI-Pause", quelle: "ki-pause", schluessel: (seit) => `ki-pause-wa-${seit}` },
+  wa: { marke: WA_PAUSE_WA_MARKE, titel: "WhatsApp aus der Kontosperre: Nachrichten zu alt für Mara", wann: "während WhatsApp bei Meta gesperrt war (auch keine Antworten möglich)", quelle: "wa-pause", schluessel: (seit) => `wa-pause-wa-${seit}` },
+};
 /** Einzelaufgaben, falls eine Pause-Nachricht nicht in die Sammlung kam (je Nummer:Nachricht einmal). */
 const pauseEinzelGemeldet = new Set<string>();
 /** Ist die Marke der Sammelaufgabe dieser Pause bis zu dieser Nachricht gerückt? */
-export async function inPauseSammlung(seit: string | null, nachrichtId: number): Promise<boolean> {
+export async function inPauseSammlung(seit: string | null, nachrichtId: number, quelle: PauseQuelle = "ki"): Promise<boolean> {
   if (!seit) return false;
-  const [m] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${KI_PAUSE_WA_MARKE} LIMIT 1`.catch(() => [])) as any[];
+  const [m] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${SAMMEL[quelle].marke} LIMIT 1`.catch(() => [])) as any[];
   try { const j = m?.value ? JSON.parse(m.value) : null; return j?.seit === seit && Number(j.bisId) >= nachrichtId; } catch { return false; }
 }
-export async function zuAltFuerMara(seit: string | null): Promise<{ anzahl: number }> {
+export async function zuAltFuerMara(seit: string | null, quelle: PauseQuelle = "ki"): Promise<{ anzahl: number }> {
   if (!seit) return { anzahl: 0 };
+  const art = SAMMEL[quelle];
   await gespraechSchema();
-  const [m] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${KI_PAUSE_WA_MARKE} LIMIT 1`) as any[];
+  const [m] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${art.marke} LIMIT 1`) as any[];
   const markeAlt: string | null = m?.value ?? null;
   let bisId = 0;
   try { const j = markeAlt ? JSON.parse(markeAlt) : null; if (j?.seit === seit) bisId = Number(j.bisId) || 0; } catch { /* alte Marke unlesbar → neu anfangen */ }
@@ -3302,7 +3353,7 @@ export async function zuAltFuerMara(seit: string | null): Promise<{ anzahl: numb
   // E-246 (Nachprüfung): Nur Nachrichten, die IN der Pause kamen (bis zum Aufheben
   // genau dieser Pause), und schon ab 12 Stunden Alter — älter beantwortet Mara
   // nicht frei (maraAntwortet, PAUSE_FREI_MAX_MS). Das Fenster ist bis 24 h offen.
-  const kp = await kiPauseLesen().catch(() => null);
+  const kp = await (quelle === "wa" ? waPauseLesen(true) : kiPauseLesen()).catch(() => null);
   const bis = kp && kp.seit === seit && kp.aufgehobenAm && !kp.an ? new Date(kp.aufgehobenAm) : new Date();
   const zeilen = (await sqlPool`
     SELECT r.nummer, r.id, r.text, r.am, r.person_id,
@@ -3328,8 +3379,8 @@ export async function zuAltFuerMara(seit: string | null): Promise<{ anzahl: numb
   // schreibt die Aufgabe (zwei gleichzeitige Takte listen nichts doppelt).
   const markeNeu = JSON.stringify({ seit, bisId: Math.max(...zeilen.map((z) => Number(z.id))) });
   const gerueckt = (markeAlt === null
-    ? await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${KI_PAUSE_WA_MARKE}, ${markeNeu}, NOW()) ON CONFLICT (key) DO NOTHING RETURNING key`
-    : await sqlPool`UPDATE fiaon_settings SET value = ${markeNeu}, updated_at = NOW() WHERE key = ${KI_PAUSE_WA_MARKE} AND value = ${markeAlt} RETURNING key`) as any[];
+    ? await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${art.marke}, ${markeNeu}, NOW()) ON CONFLICT (key) DO NOTHING RETURNING key`
+    : await sqlPool`UPDATE fiaon_settings SET value = ${markeNeu}, updated_at = NOW() WHERE key = ${art.marke} AND value = ${markeAlt} RETURNING key`) as any[];
   if (!gerueckt.length) return { anzahl: 0 };
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   const liste = zeilen.map((z) => {
@@ -3338,9 +3389,9 @@ export async function zuAltFuerMara(seit: string | null): Promise<{ anzahl: numb
   }).join("\n");
   await auftragFuerKunden({
     personId: null, ref: null, anBetreiber: true, dringend: true,
-    titel: "WhatsApp aus der KI-Pause: Nachrichten zu alt für Mara",
-    text: `${zeilen.length} Nachricht${zeilen.length === 1 ? "" : "en"} kam${zeilen.length === 1 ? "" : "en"} während der KI-Pause und ${zeilen.length === 1 ? "ist" : "sind"} älter als 12 Stunden. Mara antwortet darauf nicht selbst — „heute", „gleich" oder „morgen" des Kunden meinen inzwischen einen anderen Tag. Bitte selbst melden (WhatsApp-Raum): bis 24 Stunden nach seiner Nachricht frei, danach nur mit einer Vorlage. Die Uhrzeit steht dabei:\n${liste}`,
-    quelle: "ki-pause", bereich: "postmeister", link: "/chef/s/mara", schluessel: `ki-pause-wa-${seit}`, autorName: "System",
+    titel: art.titel,
+    text: `${zeilen.length} Nachricht${zeilen.length === 1 ? "" : "en"} kam${zeilen.length === 1 ? "" : "en"} ${art.wann} und ${zeilen.length === 1 ? "ist" : "sind"} älter als 12 Stunden. Mara antwortet darauf nicht selbst — „heute", „gleich" oder „morgen" des Kunden meinen inzwischen einen anderen Tag. Bitte selbst melden (WhatsApp-Raum): bis 24 Stunden nach seiner Nachricht frei, danach nur mit einer Vorlage. Die Uhrzeit steht dabei:\n${liste}`,
+    quelle: art.quelle, bereich: "postmeister", link: "/chef/s/mara", schluessel: art.schluessel(seit), autorName: "System",
   } as any).catch((e) => console.error("[MARA-WA] Pause-Sammelaufgabe:", e));
   return { anzahl: zeilen.length };
 }

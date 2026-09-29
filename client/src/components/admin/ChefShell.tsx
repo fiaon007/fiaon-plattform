@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { seitenFuerRaum, chefPfad } from "./chef-seiten";
 import { KiPauseBand } from "./ChefKiPause";
+import { WaPauseBand } from "./ChefWaPause";
 import "@/styles/chefbuero.css";
 import "@/styles/chefbuero-seiten.css";
 
@@ -275,6 +276,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
         <main className="cb-inhalt">
           {/* E-246: Die KI-Pause steht auf JEDER Chefbüro-Seite oben — nur solange sie gilt. */}
           <KiPauseBand inhaber={stufe === "inhaber"} />
+          {/* E-261: Die WhatsApp-Pause ebenso (z. B. Meta kann nicht abbuchen, #131042) — nur solange sie gilt. */}
+          <WaPauseBand inhaber={stufe === "inhaber"} />
           {children}
         </main>
       </div>

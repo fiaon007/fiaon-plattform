@@ -40,6 +40,7 @@ import "@/styles/chef-mara.css";
 import "@/styles/chef-wa-zentrale.css";
 import ChefWhatsAppZentrale from "./ChefWhatsAppZentrale";
 import { KiPauseKarte } from "./ChefKiPause";
+import { WaPauseKarte } from "./ChefWaPause";
 // E-243 (26.09.2026): Der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite — erst beim Öffnen geladen.
 const AuskunftVerkauf = lazy(() => import("./ChefAuskunft"));
 const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
@@ -1260,7 +1261,7 @@ interface AuskunftKern {
 }
 interface StandKern { einstellungen: { an: boolean; jeStunde: number } }
 
-function Zustand({ ton, lang, kurz }: { ton: "gut" | "warn" | "" ; lang: string; kurz?: string }) {
+function Zustand({ ton, lang, kurz }: { ton: "gut" | "warn" | "krit" | "" ; lang: string; kurz?: string }) {
   return (
     <span className="l-zustand">
       <span className={`mara-punkt${ton ? ` ${ton}` : ""}`} aria-hidden="true" />
@@ -1308,6 +1309,7 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
 
   // ── WhatsApp ───────────────────────────────────────────────────────────
   const auto = wa.daten?.automatik;
+  const waBremse = wa.daten?.bremse;
   const waGeld = w?.whatsapp.geld.cents ?? 0;
   const waNaechste = waGeld ? null : naechsteGruppe(wa.daten);
   const waWeiter = waNaechste
@@ -1352,7 +1354,12 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
         name="WhatsApp"
         sprungTitel="Zum Schalter der Automatik"
         zustand={!auto ? laedt : auto.an
-          ? <Zustand ton="gut" lang={`Automatik an · ${auto.jeStunde} je Std.`} kurz={`an · ${auto.jeStunde}/Std.`} />
+          // E-261 (Gegenprüfung 29.09.): In der WhatsApp-Pause sendet die Automatik nichts — dann rot, nicht grün.
+          ? waBremse?.pause
+            ? <Zustand ton="krit" lang={`Automatik an — pausiert${waBremse.code ? ` (#${waBremse.code})` : ""}`} kurz="pausiert" />
+            : waBremse?.qualitaet === "RED"
+              ? <Zustand ton="warn" lang="Automatik an — Meta ROT, nur Monatsrate" kurz="ROT" />
+              : <Zustand ton="gut" lang={`Automatik an · ${waBremse?.jeStundeGelb ?? auto.jeStunde} je Std.${waBremse?.jeStundeGelb ? " (GELB)" : ""}`} kurz={`an · ${waBremse?.jeStundeGelb ?? auto.jeStunde}/Std.`} />
           : <Zustand ton="" lang="Automatik aus" kurz="aus" />}
         wert={!w ? laedt : waGeld
           ? <><b>{ct(waGeld)}</b><small>{zahl(w.whatsapp.geld.zahlungen)} {w.whatsapp.geld.zahlungen === 1 ? "Zahlung" : "Zahlungen"}</small></>
@@ -1421,7 +1428,8 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
 // Kunden, die gerade warten (keine Marke bei null). Verkaufsleiste und Chips
 // bleiben, wie E-252 sie freigegeben hat.
 // ═══════════════════════════════════════════════════════════════════════════
-type Aufklapper = "ki" | "bilanz" | "anweisen";
+// E-261 (29.09.2026): der Chip „WhatsApp" neben „KI" — Pause, Meta-Qualität, „WhatsApp wieder aktivieren".
+type Aufklapper = "ki" | "wa" | "bilanz" | "anweisen";
 const REITER: { r: MaraReiter; lang: string; kurz: string }[] = [
   { r: "whatsapp", lang: "WhatsApp-Zentrale", kurz: "WhatsApp" },
   { r: "mail", lang: "E-Mail-Aktion", kurz: "Mail" },
@@ -1459,6 +1467,7 @@ function Steuerpult() {
         <h1>Mara-Steuerpult</h1>
         <div className="mara-chips" role="group" aria-label="Für alle Reiter">
           <KiPauseKarte alsChip offen={offen === "ki"} onUmschalten={() => umschalten("ki")} />
+          <WaPauseKarte alsChip offen={offen === "wa"} onUmschalten={() => umschalten("wa")} />
           <button type="button" className="mara-chip" aria-expanded={offen === "anweisen"} aria-controls="mara-p-anweisen" onClick={() => umschalten("anweisen")}>
             Mara anweisen
             {wartend > 0 && <span className="mara-zahlmarke" title={`${wartend} ${wartend === 1 ? "Auftrag wartet" : "Aufträge warten"} auf dich`}>{wartend}</span>}
@@ -1472,6 +1481,7 @@ function Steuerpult() {
 
       {/* Höchstens ein Aufklapper offen. */}
       {offen === "ki" && <KiPauseKarte imAufklapper />}
+      {offen === "wa" && <WaPauseKarte imAufklapper />}
       {offen === "bilanz" && <MarasBilanz />}
       {(offen === "anweisen" || anweisenDa) && <MaraBefehl verborgen={offen !== "anweisen"}><Anweisungen /></MaraBefehl>}
 

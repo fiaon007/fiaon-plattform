@@ -493,6 +493,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Nachtrag (Gegenprüfung): eine Zeile in fiaon_lauf_historie nur, wenn wirklich ein Lauf übernommen wurde
     // (nurMitErgebnis) — sonst 1.440 Zeilen je Tag und Instanz für „nichts zu übernehmen".
     tageslauf('wa_zentrale_fortsetzen', async () => !!(await (await import('./lib/fiaon-wa-zentrale')).laufFortsetzen()).id, 60 * 1000, { beimStartNach: 20_000, nurMitErgebnis: true });
+    // E-261 (29.09.2026): Metas Qualität, Stufe und Kontostand alle 5 Minuten lesen und für alle Instanzen ablegen
+    // (fiaon_settings.wa_meta_stand) — auch wenn die Automatik aus ist und niemand die Zentrale offen hat.
+    // Nur im Betrieb (tageslauf). Eine Historienzeile nur, wenn sich die Qualität geändert hat (nurMitErgebnis).
+    tageslauf('wa_meta_stand', async () => (await (await import('./lib/fiaon-wa-bremse')).metaStandAuffrischen('takt')).geaendert, 5 * 60 * 1000, { beimStartNach: 60_000, nurMitErgebnis: true });
   });
   // Einmalig nach dem Ausrollen: fehlende Vorlagen bei Meta zur Prüfung einreichen (Sperre über fiaon_settings).
   // E-229: die 15 Bildvorlagen (erledigt 23.09.). E-230: die Raten-Vorlage fiaon_kk_rate + Bildfassung.

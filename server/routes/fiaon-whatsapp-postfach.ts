@@ -373,6 +373,28 @@ async function darfAnNummer(blick: Blick, nummer: string): Promise<boolean> {
 function routen(hole: (req: any) => Blick) {
   const r = Router();
 
+  /**
+   * E-261 (29.09.2026): Steht die WhatsApp-Bremse? Nur der Zustand, kein Knopf — der schmale Hinweis im Kopf des
+   * Raums („WhatsApp pausiert — Vorlagen gehen gerade nicht raus, Antworten im offenen Fenster schon"). Aktivieren
+   * kann nur der Inhaber im Chefbüro (/chef/s/mara).
+   */
+  r.get("/bremse", async (_req: any, res: Response) => {
+    try {
+      const { waBremseLage } = await import("../lib/fiaon-wa-bremse");
+      const l = await waBremseLage();
+      res.json({
+        ok: true,
+        bremse: {
+          pause: l.pause.an, art: l.pause.art, code: l.pause.code, seit: l.pause.seit,
+          qualitaet: l.qualitaet, werbungGestoppt: l.werbungGestoppt, allesGestoppt: l.allesGestoppt, satz: l.satz,
+        },
+      });
+    } catch (err) {
+      console.error("[WHATSAPP-RAUM] bremse:", err);
+      res.status(500).json({ ok: false, error: "Der WhatsApp-Zustand ließ sich nicht lesen." });
+    }
+  });
+
   /** Die Liste links. */
   r.get("/gespraeche", async (req: any, res: Response) => {
     try {

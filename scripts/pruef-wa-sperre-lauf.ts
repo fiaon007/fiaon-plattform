@@ -630,7 +630,8 @@ try {
     /tageslauf\('wa_zentrale_fortsetzen', async \(\) => !!\(await[^;]*laufFortsetzen\(\)\)\.id,[^;]*nurMitErgebnis: true/.test(q("server/routes.ts")));
   const leadWa = q("server/lib/fiaon-lead-whatsapp.ts");
   pruef("Tagesplatz an allen unaufgeforderten Wegen: Zentrale, Lead-Kette, Lead-Begrüßung",
-    /waTagesplatz\(\{ personId: k\.personId, nummer, weg: `zentrale_\$\{quelle\}` \}\)/.test(q("server/lib/fiaon-wa-zentrale.ts"))
+    // E-261 (29.09.2026): Der Aufruf nennt jetzt auch die Vorlage (für die Bremse vor dem Tagesplatz).
+    /waTagesplatz\(\{ personId: k\.personId, nummer, weg: `zentrale_\$\{quelle\}`(, vorlage)? \}\)/.test(q("server/lib/fiaon-wa-zentrale.ts"))
       && /weg: "lead_kette"/.test(leadWa) && /weg: "lead_begruessung"/.test(leadWa));
   pruef("Lead-Kette liest das Stopp über die Familie (STOPP_KOEPFE_SQL)", /NOT IN \$\{sqlPool\.unsafe\(STOPP_KOEPFE_SQL\)\}/.test(leadWa));
   pruef("Verkaufstakt wartet während eines Laufs (waLaufOffen vor jeder WhatsApp)", /zentrale\.waLaufOffen\(\)/.test(q("server/lib/fiaon-auskunft-verkauf.ts")));

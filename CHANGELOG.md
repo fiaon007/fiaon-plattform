@@ -5,6 +5,74 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 29.09.2026 — WhatsApp-Bremse: Kontofehler hält an, GELB halbiert, ROT stoppt nur Werbung (E-261)
+
+**Der Anlass:** 28.09., 13:36–21:46. Meta konnte nicht abbuchen — jede Vorlage scheiterte mit „(#131042) Business
+eligibility payment issue". Es scheiterten **89 Vorlagen an 88 Menschen**, bis zum Abend: 68 aus der Automatik der
+Zentrale, 11 Sofort-Begrüßungen neuer Leads, 10 aus dem Verkaufstakt der Bonitätsauskunft. Niemand hielt an: Meta nimmt
+die Sendung sofort an (das System hielt sie für gesendet), der Fehler kommt Sekunden später über den Status-Webhook —
+und der setzte nur „fehler" an die Nachricht. `fiaon_wa_aktion.ok` blieb TRUE; 115 weitere Zeilen stehen heute noch
+fälschlich auf „gesendet" (131026 ×39, 131049 ×2, 131050 ×2, 72 ohne Code). Metas Qualität las nur, wer die Zentrale
+öffnete; ROT stoppte dort alles (auch die Monatsrate), und Begrüßung, Lead-Kette, Telefonkartei, Akte, Raum und
+Mara-Auftrag prüften ROT gar nicht.
+
+**Was jetzt gilt:**
+- **Notbremse:** Zwei gleiche Kontofehler in 60 Minuten (#131042 Zahlung, #131048 Spam-Grenze), eine Kontosperre
+  (#131031, #368, #131045, #133010, #131005) oder ein abgelaufener Meta-Zugang (#190) → WhatsApp pausiert von selbst.
+  Am 28.09. hätte das ab 13:41:54 gegriffen — mit dem Webhook der 2. Sendung (13:41:45); die Sendung von 13:41:48 lag
+  im Webhook-Verzug und ging noch an Meta. Nachgespielt mit den 118 echten Sendungen: 86 Fehlsendungen weniger.
+  Justin bekommt genau **eine** dringende Aufgabe mit dem Weg zur Abrechnung — auch wenn Meta mehrere Fehler in einem
+  Webhook bündelt oder zwei Wege gleichzeitig scheitern. #190 hat eine eigene Aufgabe („neuen Token in Render als
+  META_SYSTEM_TOKEN eintragen“); aktiviert wird dann nur, wenn Meta den Token wieder annimmt. Ein später Webhook einer
+  Sendung von vor dem letzten Aktivieren zählt nicht mit. Nur der Produktionsdienst pausiert automatisch (ein lokales
+  Skript legt nur sich selbst still). Nichts geht als Ersatz an Kunden.
+- **In der Pause:** keine Vorlage, auf keinem Weg (Zentrale, Automatik, Begrüßung, Lead-Kette, Verkaufstakt,
+  Telefonkartei, Akte, Raum, Mara-Auftrag). Antworten im offenen 24-Stunden-Fenster laufen weiter — außer bei einer
+  Kontosperre oder einem abgelaufenen Zugang; dann denkt Mara gar nicht erst (keine KI-Kosten) und holt nach dem
+  Aktivieren nach. Nachrichten aus der Sperrzeit, die dann älter als 12 Stunden sind (auch über 23,5 Stunden),
+  kommen als **eine** Sammelaufgabe („WhatsApp aus der Kontosperre“). Eine gebremste Sendung hinterlässt keine Zeile —
+  der Mensch verliert seinen Tag nicht und ist danach von selbst wieder dran.
+- **Qualität:** alle 5 Minuten bei Meta gelesen und für alle Server gespeichert. **GELB** halbiert Automatik (25 → 13 je
+  Stunde), Lead-Kette, Verkaufstakt (WhatsApp) und Hand-Lauf (höchstens die Hälfte des freien Tagesraums; die
+  Monatsrate bleibt voll). **ROT** stoppt Werbe-Vorlagen an bestehende Kontakte auf allen Wegen. **Ausnahme (Justin, 29.09.):** Die Begrüßung
+  eines frischen Leads (Formular ≤ 24 h) läuft weiter — er hat eben selbst um Kontakt gebeten (Speed-to-Lead); in der
+  Pause hält auch sie an. Die Zentrale
+  schickt bei ROT nur noch die **Monatsrate** — auch keine Termin-Einladung an Lead-Gruppen (das wäre Werbung an
+  viele). Einzelne Termin-Nachrichten aus Akte und Raum und Antworten im offenen Fenster laufen weiter (bisher stoppte
+  ROT in der Zentrale alles, auch die Monatsrate). Werbung = unsere Regel ODER Metas Kategorie MARKETING. Wechsel auf
+  ROT → eine Aufgabe an Justin.
+- **Beim Ausrollen beachten:** Die Qualität wird bis heute nirgends gespeichert. Steht sie beim ersten Takt nach dem
+  Deploy auf ROT, stoppt sofort die Lead-Kette (Folgetage; die Begrüßung frischer Leads läuft), und Justin bekommt eine ROT-Aufgabe
+  (unbekannt → ROT). Vorher in /chef/s/mara → Chip „WhatsApp“ → „Meta-Stand jetzt prüfen“ nachsehen.
+- **Wieder aktivieren (nur Inhaber):** vorher fragt das System Metas Kontostand ab (health_status, ohne Nachricht).
+  Meldet Meta „gesperrt", bleibt die Pause; „eingeschränkt" oder unlesbar → aktiv mit Hinweis.
+- **Der Webhook zählt mit:** Meldet Meta „failed", steht die Zeile der Zentrale jetzt auf ok = FALSE, mit Metas Code
+  (fehler_code) und Grund „Fehler: … — von Meta nicht zugestellt (Status-Webhook)". Auskunft-Bilanz und Stundenmenge
+  der Automatik zählen damit richtig.
+- **#131050** (Empfänger hat unsere Werbung in WhatsApp abbestellt): Diese Nummer bekommt dauerhaft keine
+  Werbe-Vorlage mehr (Zentrale, Verkaufstakt, jede Tür) — Service schon.
+- Optional (Justin): Webhook-Felder `phone_number_quality_update` und `account_update` abonnieren — dann kommt die
+  Qualität sofort statt im 5-Minuten-Takt, und eine Kontosperre (account_update DISABLE) pausiert sofort.
+
+**Wo zu finden:** Chefbüro → rotes Band oben auf jeder Seite, solange WhatsApp pausiert („WhatsApp wieder aktivieren").
+/chef/s/mara → Chip **WhatsApp** im Kopf (grün/gelb/rot): Zustand, Meta-Qualität, Fehler der letzten 24 Stunden,
+„WhatsApp wieder aktivieren" / „WhatsApp jetzt pausieren" / „Meta-Stand jetzt prüfen" (sagt ehrlich, wenn Meta nicht
+antwortete). WhatsApp-Zentrale: die Bremse in Worten, Start mit Grund gesperrt; Statuszeile und Verkaufsleiste zeigen
+in der Pause „Automatik an — pausiert“ in Rot statt Grün. Office → WhatsApp-Raum: schmaler Hinweis oben; Akte: die
+Meldung beim Senden.
+
+**Technik:** server/lib/fiaon-wa-bremse.ts (neu, die eine Regel), fiaon-whatsapp.ts (Wand in waSenden und
+waTagesplatz, Webhook-Nachzug), fiaon-wa-zentrale.ts, fiaon-lead-whatsapp.ts, fiaon-auskunft-verkauf.ts,
+fiaon-telefonkartei.ts, fiaon-whatsapp-mara.ts, fiaon-wa-unzustellbar.ts (131050), fiaon-meta-leads.ts,
+routes/fiaon-mara-steuerpult.ts (/chef/wa-pause…), routes/fiaon-whatsapp-postfach.ts (/…/whatsapp/bremse), Takt
+`wa_meta_stand` (server/routes.ts). Migration 086 (fiaon_wa_kontofehler mit gesendet_am,
+fiaon_wa_aktion.fehler_code/fehler_am). Nachtrag der Altzeilen: `npx tsx scripts/wa-aktion-nachtrag.ts --extern`
+(Vorschau gegen DATABASE_URL_EXTERN, schreibt nur mit `--schreiben`, Sicherung als JSON; ein interner Render-Host
+bricht sofort mit dem richtigen Aufruf ab).
+Prüfstand: `scripts/pruef-wa-bremse.ts`.
+
+---
+
 ## 29.09.2026 — Mara: „Hab nix beantragt" bekommt eine Entschuldigung statt einer Zahlungsseite (E-264)
 
 **Der Anlass:** 29.09., 11:29–11:32, WhatsApp. Die Automatik schickte einem Menschen richtig die Erinnerung

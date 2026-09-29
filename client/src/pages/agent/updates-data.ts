@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-261 (29.09.2026): die WhatsApp-Bremse — was die neue Meldung im Raum und in der Akte heißt.
+    id: "2026-09-29-wa-bremse",
+    date: "2026-09-29",
+    category: "Neu",
+    title: "„WhatsApp pausiert“ — dann Kunden anrufen statt eine Vorlage schicken",
+    summary:
+      "Kann Meta nicht abbuchen oder sperrt das WhatsApp-Konto, hält das System alle WhatsApp-Vorlagen von selbst an. Der "
+      + "WhatsApp-Raum sagt es oben, die Akte beim Senden. Antworten im offenen Fenster gehen meistens weiter.",
+    changes: [
+      "Oben im WhatsApp-Raum steht dann „WhatsApp pausiert — Vorlagen gehen gerade nicht raus, Antworten im offenen Fenster schon“.",
+      "Schickst du in der Akte oder im Raum eine Vorlage, kommt dieselbe Meldung zurück — es ging nichts raus, und der Kunde gilt nicht als angeschrieben.",
+      "Steht dort „Meta-Qualität ROT“, gehen nur Werbe-Vorlagen nicht raus; Monatsrate und Termin schon.",
+      "Hat Meta das Konto gesperrt (oder ist der Meta-Zugang abgelaufen), geht gar nichts raus, auch keine Antworten — dann steht es genau so im Raum.",
+    ],
+    howto: [
+      "Kunde ohne offene Nachricht: anrufen statt schreiben.",
+      "Kunde hat in den letzten 24 Stunden geschrieben: im Raum ganz normal antworten (außer bei Kontosperre).",
+      "Wieder frei schaltet Justin im Chefbüro — ihr müsst nichts tun, der Hinweis verschwindet von selbst.",
+    ],
+    link: { href: "/agent/whatsapp", label: "WhatsApp-Raum öffnen" },
+  },
+  {
     // E-260 (29.09.2026): Team abwesend — Justin übernimmt Maras Rückrufe.
     id: "2026-09-29-abwesenheit-mara",
     date: "2026-09-29",

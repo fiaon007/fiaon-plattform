@@ -38,6 +38,8 @@ export const WA_CODE_UNZUSTELLBAR = 131026;
 export const WA_CODE_MARKETING_GRENZE = 131049;
 /** Pause je Nummer nach 131049. */
 export const WA_MARKETING_PAUSE_TAGE = 7;
+/** E-261: Meta — der Empfänger hat Werbung von uns in WhatsApp abbestellt („Stop marketing messages"). */
+export const WA_CODE_WERBUNG_ABBESTELLT = 131050;
 
 /** „(#131026) Message undeliverable — Unable to deliver …" aus einem Meta-Fehlerobjekt (Status-Webhook). */
 export function waFehlerText(fehler: any, ersatz = "abgelehnt"): string {
@@ -83,3 +85,28 @@ export const WA_GESPERRTE_NUMMERN_SQL = `(
  */
 export const WA_NUMMER_UNZUSTELLBAR_SQL = (telefon: string, land: string) =>
   `COALESCE(${NUMMER_FUER_VERSAND_SQL(telefon, land)} IN ${WA_GESPERRTE_NUMMERN_SQL}, FALSE)`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WERBUNG ABBESTELLT — 131050 (29.09.2026, E-261)
+//
+// Meta-Code 131050: Der Empfänger hat in WhatsApp „keine Werbung mehr von
+// FIAON" gewählt. Jede weitere Werbe-Vorlage an diese Nummer scheitert und
+// drückt die Qualität der Nummer. Gemessen: Eine Nummer bekam nach ihrer 131050
+// vom 28.09. am 29.09. die nächste Werbe-Vorlage.
+//
+// Die Regel: Die NUMMER bekommt dauerhaft keine Werbe-Vorlage mehr — Service
+// (Monatsrate, Termin) und Antworten im offenen Fenster gehen weiter (131050
+// betrifft bei Meta nur Marketing). Deshalb NICHT in WA_GESPERRTE_NUMMERN_SQL
+// (die gilt für alle Gruppen, auch „Monatsrate fällig"), sondern als eigener
+// Baustein: BASIS-Gruppen der Zentrale außer der Monatsrate, Verkaufstakt, und
+// die Tür in waSenden (waVorlagenSperre, nur werbliche Vorlagen).
+// ═══════════════════════════════════════════════════════════════════════════
+export const WA_WERBUNG_ABBESTELLT_NUMMERN_SQL = `(
+  SELECT wa5.nummer FROM fiaon_whatsapp wa5
+   WHERE wa5.richtung = 'raus' AND wa5.status = 'fehler' AND wa5.nummer IS NOT NULL
+     AND wa5.fehler LIKE '(#${WA_CODE_WERBUNG_ABBESTELLT})%'
+)`;
+
+/** TRUE, wenn die Versandnummer der Person Werbung abbestellt hat (131050). Leere/ungültige Nummer → FALSE. */
+export const WA_WERBUNG_ABBESTELLT_SQL = (telefon: string, land: string) =>
+  `COALESCE(${NUMMER_FUER_VERSAND_SQL(telefon, land)} IN ${WA_WERBUNG_ABBESTELLT_NUMMERN_SQL}, FALSE)`;

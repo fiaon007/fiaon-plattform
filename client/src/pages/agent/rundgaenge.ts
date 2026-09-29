@@ -1275,7 +1275,18 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     ziel: ".mara-kopf",
     titel: "Oben: gilt für alle Reiter.",
     // E-260 (29.09.2026): vier Reiter — dazu „Termine".
-    text: "Oben stehen der KI-Zustand und „Mara anweisen“ (dort auch Maras Ton) — beides gilt für alle vier Reiter.",
+    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand und „Mara anweisen“ (dort auch Maras Ton) — das gilt für alle vier Reiter.",
+  },
+  // E-261 (29.09.2026): die WhatsApp-Bremse — der Chip steht immer da (grün, gelb oder rot).
+  {
+    ziel: "[aria-controls=\"mara-p-wa\"]",
+    titel: "Der Chip „WhatsApp“: die Bremse.",
+    text: "Kann Meta nicht abbuchen (#131042, zweimal in 60 Minuten) oder sperrt Meta das Konto, pausiert WhatsApp von selbst: "
+      + "keine Vorlage mehr, auf keinem Weg — und du bekommst genau eine Aufgabe. Ein Klick auf den Chip zeigt Zustand, "
+      + "Meta-Qualität und die Fehler der letzten 24 Stunden; dort und im roten Band steht „WhatsApp wieder aktivieren“.",
+    tipp: "Vor dem Aktivieren fragt das System Metas Kontostand ab, ohne eine Nachricht zu schicken — meldet Meta „gesperrt“ "
+      + "oder lehnt den Zugang ab (#190), bleibt die Pause. Meta GELB halbiert die Automatik, Meta ROT stoppt die Werbung an bestehende "
+      + "Kontakte: Die Zentrale schickt nur noch die Monatsrate; die Begrüßung frischer Leads (≤ 24 h), einzelne Termin-Nachrichten und Antworten laufen weiter.",
   },
   {
     ziel: ".mara-leiste",
@@ -1384,6 +1395,14 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
     titel: "Hier schreibst du mit deinen Kunden.",
     text: "Alles läuft über eine Nummer des Hauses (+49 1511 0761284) — nie über dein privates Telefon. Jede Nachricht, "
       + "hin wie zurück, steht in der Akte des Menschen. Du musst nichts abtippen und nichts weiterleiten.",
+  },
+  // E-261 (29.09.2026): Der Hinweis erscheint nur, solange die Bremse greift — deshalb ohne Ziel (Rundgang-Regel 2).
+  {
+    titel: "Steht oben „WhatsApp pausiert“?",
+    text: "Dann gehen gerade keine Vorlagen raus — Antworten im offenen Fenster schon (außer Meta hat das Konto gesperrt oder der "
+      + "Meta-Zugang ist abgelaufen, dann gar nichts). Das passiert, wenn Meta nicht abbuchen kann; Justin klärt es und schaltet WhatsApp wieder frei. Steht dort "
+      + "„Meta-Qualität ROT“, gehen nur die Werbe-Vorlagen nicht raus.",
+    tipp: "Wer keine offene Nachricht hat, bekommt in der Zeit einen Anruf statt einer Vorlage. Dasselbe sagt die Akte, wenn du dort eine Vorlage schicken willst.",
   },
   // 28.09.2026 (E-248): Liste mit Absender in der Vorschau, eine Stufenfarbe, Autoantworten markiert.
   {
@@ -1530,7 +1549,19 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
   {
     ziel: ".mara-leiste",
     titel: "Oben: gilt für alle Reiter.",
-    text: "Oben: KI, „Mara anweisen“ und die Verkaufsleiste gelten für alle Reiter — Geld nach Mara und je Weg, ob er läuft.",
+    // E-261 (Gegenprüfung 29.09.): dazu der WhatsApp-Zustand — dieser Rundgang startet beim Öffnen, nicht der Mail-Rundgang.
+    text: "Oben: KI, der WhatsApp-Zustand (Chip „WhatsApp“), „Mara anweisen“ und die Verkaufsleiste gelten für alle Reiter — Geld nach Mara und je Weg, ob er läuft.",
+  },
+  // E-261 (29.09.2026): Der Chip steht immer da (grün, gelb oder rot) — deshalb mit Ziel.
+  {
+    ziel: "[aria-controls=\"mara-p-wa\"]",
+    titel: "Der Chip „WhatsApp“: die Bremse.",
+    text: "Grün heißt: WhatsApp läuft. Kann Meta nicht abbuchen (#131042, zweimal in 60 Minuten), sperrt Meta das Konto oder ist "
+      + "der Meta-Zugang abgelaufen (#190), pausiert WhatsApp von selbst — keine Vorlage mehr, auf keinem Weg, und du bekommst "
+      + "genau eine Aufgabe. Ein Klick zeigt Zustand, Meta-Qualität und die Fehler der letzten 24 Stunden; dort steht auch "
+      + "„WhatsApp wieder aktivieren“.",
+    tipp: "Vor dem Aktivieren fragt das System Metas Kontostand ab, ohne eine Nachricht zu schicken — meldet Meta „gesperrt“ "
+      + "oder lehnt den Zugang ab, bleibt die Pause.",
   },
   {
     ziel: ".wz-status",
@@ -1563,6 +1594,17 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
       + "von selbst weiter; durch den Neustart bekommt niemand eine zweite Nachricht. Schreiben Verkaufstakt, Automatik oder "
       + "Begrüßung in derselben Sekunde denselben Menschen an, bekommt nur einer den Platz für heute — der andere lässt ihn aus. "
       + "„Entfallen“ heißt: Der Mensch hat seit dem Start geantwortet, bezahlt oder schon etwas bekommen — er wird dann nicht angeschrieben.",
+  },
+  // E-261 (29.09.2026): die Bremse — ohne Ziel, der Hinweis steht nur, solange sie greift (Rundgang-Regel 2).
+  {
+    titel: "Die Bremse: GELB halbiert, ROT stoppt Werbung, Kontofehler hält alles an.",
+    text: "Meta bewertet unsere Nummer. Bei GELB schreibt die Automatik nur noch halb so viele an (25 → 13 je Stunde), ein "
+      + "Versand von Hand höchstens die Hälfte dessen, was Meta heute frei gibt (die Monatsrate bleibt voll). Bei ROT geht hier "
+      + "nur noch die Monatsrate raus — auch keine Termin-Einladung an Leads, das wäre Werbung an viele. Kann Meta nicht abbuchen "
+      + "oder sperrt das Konto, pausiert WhatsApp ganz: Dann steht oben ein Hinweis, der Start ist gesperrt, die Automatik "
+      + "steht auf „pausiert“, und „WhatsApp wieder aktivieren“ steht im Chip „WhatsApp“ ganz oben.",
+    tipp: "Wer heute wegen der Pause keine Vorlage bekam, verliert nichts: Gescheiterte oder gebremste Vorlagen zählen nicht als "
+      + "Kontakt — nach dem Aktivieren ist er von selbst wieder dran.",
   },
   {
     ziel: ".wz-automatik",

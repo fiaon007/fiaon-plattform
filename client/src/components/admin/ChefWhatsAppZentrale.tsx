@@ -56,6 +56,11 @@ interface GruppeInfo {
   wartend?: number; wiederAb?: string | null; letzterLead?: string | null;
   /** E-252: Bauplan § 9 — nennt der Server einmal selbst den Grund einer leeren Gruppe, gilt seiner. Bis dahin rechnet leerStand() ihn hier. */
   leerGrund?: string | null;
+  /**
+   * E-261 (Gegenprüfung 29.09.): die Bremse für DIESE Gruppe (Server: gruppenBremse) — bei ROT darf nur die
+   * Monatsrate, GELB halbiert nur Werbe-Gruppen. Fehlt sie (alter Server), rechnet die Seite mit der Gruppe.
+   */
+  bremse?: { erlaubt: boolean; faktor: number; grund: string | null } | null;
 }
 interface Vorlage { name: string; kopf: string; zweck: string; text: string; frei: boolean; bild: boolean; kopfBild: string | null; fuss: string }
 interface Automatik {
@@ -79,6 +84,11 @@ interface Eintrag {
 interface Lage {
   whatsappBereit: boolean;
   meta: { grenze: number; verbraucht: number; frei: number; stufe: string | null; qualitaet: string | null };
+  /** E-261: die Bremse in Worten — Notbremse (Pause) und Meta-Qualität (GELB halbiert, ROT stoppt Werbung). */
+  bremse?: {
+    pause: boolean; art: string | null; code: number | null; seit: string | null; qualitaet: string | null; faktor: number; satz: string | null;
+    werbungGestoppt: boolean; allesGestoppt: boolean; jeStundeGelb: number | null; standAm: string | null;
+  };
   wartend?: { anzahl: number; laengsteMin: number };
   gruppen: GruppeInfo[];
   stufenText: string;
@@ -108,6 +118,12 @@ const GRUPPEN_KURZ: Record<Gruppe, string> = {
 const QUALITAET: Record<string, { text: string; art: "gut" | "warn" | "krit" }> = {
   GREEN: { text: "Qualität grün", art: "gut" }, YELLOW: { text: "Qualität gelb", art: "warn" }, RED: { text: "Qualität rot", art: "krit" },
 };
+/**
+ * E-261 (Gegenprüfung 29.09.): In der Zentrale ist bei ROT und GELB nur die GRUPPE Monatsrate Service — eine
+ * Termin-Vorlage an Lead-Gruppen ist ein Massenversand an kalte Leads (Server: gruppenBremse). Rückfall, falls
+ * der Server die Bremse je Gruppe (noch) nicht liefert.
+ */
+const SERVICE_GRUPPE: Gruppe = "rate_offen";
 const ZUSTELLUNG: Record<string, string> = { gesendet: "gesendet", sent: "gesendet", delivered: "zugestellt", read: "gelesen", failed: "Fehler", fehler: "Fehler", offen: "unterwegs" };
 /** E-253: Die Grenze je Versand, falls lage.laufHoechstens fehlt — wie der Server (LAUF_HOECHSTENS) und der E-253-Client. */
 const LAUF_GRENZE_RUECKFALL = 500;
@@ -762,11 +778,18 @@ export default function ChefWhatsAppZentrale() {
   // E-253: Die Grenze je Versand kommt vom Server (laufHoechstens, 500) — nie mehr, als Meta heute noch erlaubt.
   const grenzeJeVersand = d?.laufHoechstens ?? LAUF_GRENZE_RUECKFALL;
   const leer = g ? leerStand(g) : null;
+  // E-261: der GELB-Faktor dieser Gruppe — vom Server je Gruppe (Monatsrate bleibt voll), sonst mit der Gruppe gerechnet.
+  const gruppeFaktor = !d || !g ? 1
+    : g.bremse ? g.bremse.faktor
+      : g.schluessel === SERVICE_GRUPPE ? 1 : (d.bremse?.faktor ?? 1);
   const knapp = d && g
     ? [
       { n: grenzeJeVersand, warum: "Grenze je Versand" },
       { n: g.anzahl, warum: "so viele sind in der Gruppe dran" },
       { n: d.meta.frei, warum: "so viel gibt Meta heute noch frei" },
+      // E-261: Meta GELB → höchstens der halbe freie Tagesraum (dieselbe Rechnung wie laufStarten am Server) — nicht für die Monatsrate.
+      ...(gruppeFaktor > 0 && gruppeFaktor < 1
+        ? [{ n: Math.max(1, Math.ceil(d.meta.frei * gruppeFaktor)), warum: "Meta GELB: höchstens die Hälfte des freien Tagesraums" }] : []),
     ].reduce((a, b) => (b.n < a.n ? b : a))
     : null;
   const hoechstens = knapp ? Math.max(0, knapp.n) : 0;
@@ -777,7 +800,10 @@ export default function ChefWhatsAppZentrale() {
   const sperre: string | null = !d ? "Lädt …"
     : !d.whatsappBereit ? "WhatsApp ist auf dem Server nicht eingerichtet."
     : !d.tagsueber ? "Zwischen 21:00 und 07:00 schreiben wir niemanden an."
-    : d.meta.qualitaet === "RED" ? "Meta bewertet die Nummer mit Rot — Massenversand gesperrt."
+    // E-261: die Bremse — Pause stoppt jede Vorlage; ROT jede Gruppe außer der Monatsrate (auch mit Termin-Vorlage).
+    : d.bremse?.pause ? (d.bremse.satz ?? "WhatsApp pausiert — keine Vorlage geht raus.")
+    : g?.bremse && !g.bremse.erlaubt ? (g.bremse.grund ?? "Meta-Qualität ROT: In der Zentrale geht gerade nur die Monatsrate raus.")
+    : !g?.bremse && d.meta.qualitaet === "RED" && g?.schluessel !== SERVICE_GRUPPE ? "Meta-Qualität ROT: In der Zentrale geht gerade nur die Monatsrate raus — bis Meta wieder GELB oder GRÜN meldet."
     : d.meta.frei <= 0 ? "Das Tageslimit von Meta ist ausgeschöpft."
     : !vorlageFrei ? "Diese Vorlage ist bei Meta noch nicht freigegeben."
     : lauf?.laeuft ? (laufZustand(lauf) === "unterbrochen" ? "Ein Versand wurde durch einen Neustart unterbrochen und geht gleich von selbst weiter." : "Es läuft schon ein Versand.")
@@ -931,12 +957,23 @@ export default function ChefWhatsAppZentrale() {
             {/* ── Status: eine dünne Zeile ─────────────────────────────────── */}
             <div className="mara-status wz-status" aria-label="Zustand der WhatsApp-Zentrale">
               <div className="st voll">
-                <span className={`mara-punkt${a.an ? " gut" : ""}`} aria-hidden="true" />
+                {/* E-261 (Gegenprüfung 29.09.): In der Pause sendet die Automatik nichts — dann nicht grün „läuft". */}
+                <span className={`mara-punkt${a.an ? (d.bremse?.pause ? " krit" : d.meta.qualitaet === "RED" ? " warn" : " gut") : ""}`} aria-hidden="true" />
                 <div className="st-text">
-                  <div>{a.an ? "Automatik läuft" : "Automatik aus"}</div>
+                  <div>
+                    {!a.an ? "Automatik aus"
+                      : d.bremse?.pause ? `Automatik an — pausiert${d.bremse.code ? ` (#${d.bremse.code})` : ""}`
+                        : d.meta.qualitaet === "RED" ? "Automatik an — Meta ROT: nur die Monatsrate" : "Automatik läuft"}
+                  </div>
                   <small>
-                    {a.an
-                      ? `${a.jeStunde} je Stunde · ${a.von}–${a.bis} · diese Stunde ${a.dieseStunde ? `${a.dieseStunde} von ${a.jeStunde}` : `noch keine von ${a.jeStunde}`}`
+                    {a.an && d.bremse?.pause
+                      ? "WhatsApp pausiert — die Automatik schickt nichts, bis du oben im Chip „WhatsApp“ wieder aktivierst."
+                      : a.an
+                      ? (() => {
+                        // E-261: GELB halbiert die Stundenmenge (Server: automatikTakt, mitFaktor).
+                        const soll = d.bremse?.jeStundeGelb ?? a.jeStunde;
+                        return `${soll} je Stunde${soll !== a.jeStunde ? ` (Meta GELB: halbiert von ${a.jeStunde})` : ""} · ${a.von}–${a.bis} · diese Stunde ${a.dieseStunde ? `${a.dieseStunde} von ${soll}` : `noch keine von ${soll}`}`;
+                      })()
                       : "Versände startest du unten von Hand."}
                   </small>
                 </div>
@@ -980,8 +1017,19 @@ export default function ChefWhatsAppZentrale() {
               </div>
             ) : null}
 
-            {wartend > 0 || !d.whatsappBereit || q?.art === "warn" || d.kette.pausiert ? (
+            {wartend > 0 || !d.whatsappBereit || q?.art === "warn" || d.kette.pausiert || d.bremse?.satz ? (
               <div className="mara-hinweise">
+                {d.bremse?.satz ? (
+                  // E-261: die Bremse in Worten — Pause (rot), ROT (rot), GELB (gelb, ersetzt den alten Gelb-Hinweis).
+                  <p className={`mara-hinweis ${d.bremse.pause || d.bremse.qualitaet === "RED" ? "krit" : "warn"}`} role={d.bremse.pause ? "alert" : undefined}>
+                    <span className={`mara-punkt ${d.bremse.pause || d.bremse.qualitaet === "RED" ? "krit" : "warn"}`} aria-hidden="true" />
+                    <span>
+                      {d.bremse.satz}
+                      {d.bremse.pause ? <> „WhatsApp wieder aktivieren“ steht oben im Chip <b>WhatsApp</b> (nur Inhaber).</> : null}
+                      {!d.bremse.pause && d.bremse.jeStundeGelb && a.an ? <> Automatik: {a.jeStunde} → {d.bremse.jeStundeGelb} je Stunde.</> : null}
+                    </span>
+                  </p>
+                ) : null}
                 {wartend > 0 ? (
                   <p className="mara-hinweis warn">
                     <span className="mara-punkt warn" aria-hidden="true" />
@@ -994,7 +1042,7 @@ export default function ChefWhatsAppZentrale() {
                 {!d.whatsappBereit ? (
                   <p className="mara-hinweis krit"><span className="mara-punkt krit" aria-hidden="true" /><span>WhatsApp ist auf dem Server nicht eingerichtet — es kann nichts gesendet werden.</span></p>
                 ) : null}
-                {q?.art === "warn" ? (
+                {q?.art === "warn" && !d.bremse?.satz ? (
                   <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Meta bewertet die Nummer mit Gelb. Lieber kleinere Mengen senden, bis sie wieder grün ist.</span></p>
                 ) : null}
                 {d.kette.pausiert ? (

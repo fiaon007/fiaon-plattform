@@ -80,6 +80,22 @@
 //     steht jetzt in fiaon_wa_lauf (Abschnitt SENDEN, dort die Deploy-Wache).
 //   · Der Name eines Empfängers löste die Du-Wand aus (fiaon-whatsapp.ts).
 //
+// ── E-261 (29.09.2026): DIE BREMSE ─────────────────────────────────────────
+// Metas Qualität liest hier niemand mehr selbst: Sie steht gespeichert in
+// fiaon_settings.wa_meta_stand (Takt wa_meta_stand, fiaon-wa-bremse.ts), alle
+// Instanzen lesen denselben Stand. Statt „ROT sperrt alles" fragt jeder Weg
+// waBremse(): ROT stoppt WERBE-Vorlagen (die Monatsrate läuft weiter), GELB
+// halbiert Automatik und Hand-Lauf, die Notbremse (wa_pause, z. B. #131042)
+// stoppt jede Vorlage. Automatik, Hand-Lauf und Verkaufstakt steigen in der
+// Pause FRÜH aus — ohne je Mensch eine „übersprungen"-Zeile (sonst verlöre er
+// seinen Tag, BASIS: ein Versuch je Person und Tag).
+// Gegenprüfung 29.09.: Hier zählt bei ROT und GELB die GRUPPE (gruppenBremse),
+// nicht der Vorlagenname — Service ist in der Zentrale nur die Monatsrate.
+// fiaon_kk_termin heißt zwar Service (WA_NICHT_WERBLICH), ist aber eine
+// Verkaufseinladung; an „neu", „ohne_antrag" oder „abbrecher" wäre das bei ROT
+// ein Massenversand an kalte Leads (bis 500 je Lauf) — genau das drückt die
+// Qualität weiter. Einzeln (Akte, Raum) darf sie bei ROT weiter raus.
+//
 // ── DIE ALTE STUNDENKETTE ──────────────────────────────────────────────────
 // Ist die Automatik hier AN, pausiert whatsappKetteLaufen() — sonst würde
 // zweimal geschrieben und Justins „5 pro Stunde" wäre wertlos. Die
@@ -92,7 +108,8 @@ import { paketPreisCents } from "@shared/fiaon-pakete";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
-import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
+import { WA_NUMMER_UNZUSTELLBAR_SQL, WA_WERBUNG_ABBESTELLT_SQL } from "./fiaon-wa-unzustellbar";
+import { waBremse, waBremseLage, metaStandLesen, mitFaktor, type WaBremseErgebnis } from "./fiaon-wa-bremse";
 import { grundmengeIdsSql, waRangSql, tabellenBereit as verkaufTabellenBereit, WA_ANGEBOT_ABSTAND_TAGE } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
 import { OHNE_VERTRAG_SQL, WERBESPERRE_KOEPFE_SQL, STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
@@ -220,6 +237,11 @@ export function zentraleSchema(): Promise<void> {
       // Höchstens EIN Lauf gleichzeitig — über alle Instanzen (23505 = „Es läuft schon ein Versand").
       await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_wa_lauf_einer ON fiaon_wa_lauf ((TRUE)) WHERE status IN ('laeuft', 'unterbrochen')`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_wa_aktion_lauf_idx ON fiaon_wa_aktion (lauf_id) WHERE lauf_id IS NOT NULL`;
+      // E-261 (29.09.2026): Die Zeile folgt dem Status-Webhook (fiaon-whatsapp.ts, waEingang) — Metas Code und
+      // wann der Fehler kam. Dieselben Anweisungen wie Migration 086, für frische Datenbanken.
+      await sqlPool`ALTER TABLE fiaon_wa_aktion ADD COLUMN IF NOT EXISTS fehler_code INTEGER`;
+      await sqlPool`ALTER TABLE fiaon_wa_aktion ADD COLUMN IF NOT EXISTS fehler_am TIMESTAMPTZ`;
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_wa_aktion_wa_idx ON fiaon_wa_aktion (wa_id) WHERE wa_id IS NOT NULL`;
     })().catch((e) => {
       const code = String((e as any)?.code ?? "");
       if (code === "23505" || code === "42P07") return;
@@ -381,7 +403,10 @@ export function gruppenBedingung(g: Gruppe, ohneAbstand = false): string {
   // ungekündigtes Paket hat), bekommt keine werbliche Vorlage — die Tür in waSenden lehnt sie ab
   // (werbungVerboten). Dann zählt er hier gar nicht erst, sonst stünde er als „übersprungen" im Lauf.
   // Die Monatsrate ist Vertragspost und bleibt ausgenommen (die Tür lässt sie durch).
-  return g === "rate_offen" ? kern : `(${kern}) AND NOT ${OHNE_VERTRAG_SQL("b.person_id")}`;
+  // E-261 (29.09.2026): Wer Werbung von uns in WhatsApp abbestellt hat (Meta #131050), bekommt keine
+  // Werbe-Vorlage mehr — nur die Monatsrate (Service) bleibt (fiaon-wa-unzustellbar.ts).
+  return g === "rate_offen" ? kern
+    : `(${kern}) AND NOT ${OHNE_VERTRAG_SQL("b.person_id")} AND NOT ${WA_WERBUNG_ABBESTELLT_SQL("b.telefon", "b.land")}`;
 }
 
 function gruppenKern(g: Gruppe, ohneAbstand = false): string {
@@ -690,36 +715,18 @@ export function tagsueber(): boolean {
 // und bremste Mara auf 200 statt 1.600 in 24 Stunden.
 // ═══════════════════════════════════════════════════════════════════════════
 const STUFEN: Record<string, number> = { TIER_50: 50, TIER_250: 250, TIER_1K: 1000, TIER_2K: 2000, TIER_10K: 10000, TIER_100K: 100000, TIER_UNLIMITED: 100000 };
-let metaCache: { am: number; stufe: string | null; qualitaet: string | null; name: string | null } | null = null;
 
+/**
+ * E-261 (29.09.2026): Stufe, Qualität und Name aus dem GESPEICHERTEN Stand
+ * (fiaon_settings.wa_meta_stand, Takt wa_meta_stand alle 5 Min.). Bis heute las
+ * nur, wer den Tagesraum rief — 10 Minuten im Speicher je Instanz; war die
+ * Automatik aus und niemand auf der Seite, las niemand die Qualität. Älter als
+ * 15 Minuten → metaStandLesen holt einmal frisch (fiaon-wa-bremse.ts).
+ * E-250 bleibt: Stufe am WhatsApp-Konto, Qualität an der Nummer.
+ */
 export async function metaStand(): Promise<{ stufe: string | null; qualitaet: string | null; name: string | null }> {
-  if (metaCache && Date.now() - metaCache.am < 10 * 60_000) return metaCache;
-  const { waKonfig } = await import("./fiaon-whatsapp");
-  const k = waKonfig();
-  let stufe: string | null = null, qualitaet: string | null = null, name: string | null = null;
-  if (k.nummerId) {
-    try {
-      const { graph } = await import("./fiaon-meta");
-      const j = await graph(k.nummerId, { params: { fields: "messaging_limit_tier,quality_rating,verified_name" }, zeitMs: 8000 });
-      stufe = j?.messaging_limit_tier ? String(j.messaging_limit_tier) : null;
-      qualitaet = j?.quality_rating ? String(j.quality_rating) : null;
-      name = j?.verified_name ? String(j.verified_name) : null;
-    } catch (e) {
-      console.warn("[WA-ZENTRALE] Meta-Stand nicht lesbar:", String((e as Error)?.message || e).slice(0, 160));
-    }
-  }
-  // E-250: Die Stufe steht heute am WhatsApp-Konto, nicht mehr an der Nummer.
-  if (!stufe && k.wabaId) {
-    try {
-      const { graph } = await import("./fiaon-meta");
-      const j = await graph(k.wabaId, { params: { fields: "whatsapp_business_manager_messaging_limit" }, zeitMs: 8000 });
-      stufe = j?.whatsapp_business_manager_messaging_limit ? String(j.whatsapp_business_manager_messaging_limit) : null;
-    } catch (e) {
-      console.warn("[WA-ZENTRALE] Meta-Stufe am Konto nicht lesbar:", String((e as Error)?.message || e).slice(0, 160));
-    }
-  }
-  metaCache = { am: Date.now(), stufe, qualitaet, name };
-  return metaCache;
+  const m = await metaStandLesen().catch(() => null);
+  return { stufe: m?.stufe ?? null, qualitaet: m?.qualitaet ?? null, name: m?.name ?? null };
 }
 
 export async function tagesRaum(): Promise<{ grenze: number; verbraucht: number; frei: number; stufe: string | null; qualitaet: string | null }> {
@@ -968,6 +975,38 @@ export async function waLaufOffen(): Promise<boolean> {
   }
 }
 
+/** Für die Bremse zählt die Art der Vorlage: „stufen" sind die Erinnerungen tag1…letzte — alle Werbung. */
+function bremsVorlage(gewaehlt: string): string {
+  return gewaehlt === "stufen" ? "fiaon_kk_tag1" : gewaehlt;
+}
+
+/**
+ * E-261 (Gegenprüfung 29.09.): die Bremse für eine GRUPPE der Zentrale. Bei ROT und GELB
+ * zählt die Gruppe: Service ist nur die Monatsrate (rate_offen) — jede andere Gruppe gilt
+ * als Werbung, auch mit einer Termin-Vorlage. Die Pause gilt für alle Gruppen gleich.
+ * Dieselbe Regel für Hand-Lauf (laufStarten, laufArbeiten), Automatik und die Seite (zentraleLage).
+ */
+export async function gruppenBremse(g: Gruppe, vorlage: string, weg: string): Promise<WaBremseErgebnis> {
+  const b = await waBremse({ vorlage: bremsVorlage(vorlage), werbung: g !== "rate_offen", weg });
+  if (!b.erlaubt && !b.pause && g !== "rate_offen") {
+    return {
+      ...b,
+      grund: "Meta-Qualität ROT — die Zentrale schickt gerade nur die Monatsrate. Diese Gruppe gilt als Werbung an viele "
+        + "(auch mit der Termin-Vorlage) und wartet, bis Meta wieder GELB oder GRÜN meldet.",
+    };
+  }
+  return b;
+}
+
+/** Die Schlusszeile eines Laufs, den die Bremse beendet (E-261). */
+function bremsSchluss(b: { pause: boolean; grund: string | null }): string {
+  if (b.pause) {
+    const code = /\(#(\d+)\)/.exec(String(b.grund ?? ""))?.[1];
+    return `WhatsApp pausiert${code ? ` (#${code})` : ""} — der Rest wurde nicht gesendet.`;
+  }
+  return "Meta bewertet die Nummer mit ROT — Werbe-Vorlagen gestoppt, der Rest wurde nicht gesendet.";
+}
+
 function laufAnstossen(id: string): void {
   if (inArbeit.has(id)) return;
   const p = laufArbeiten(id)
@@ -976,15 +1015,24 @@ function laufAnstossen(id: string): void {
   inArbeit.set(id, p);
 }
 
-async function protokoll(k: Kandidat, g: Gruppe, vorlage: string, quelle: string, laufId: string, von: string | null, ok: boolean, grund: string | null, waId: string | null = null) {
+async function protokoll(k: Kandidat, g: Gruppe, vorlage: string, quelle: string, laufId: string, von: string | null, ok: boolean, grund: string | null, waId: string | null = null, fehlerCode: number | null = null) {
+  // E-261: Metas Code eines synchronen Fehlers steht in fehler_code (der asynchrone kommt über waEingang).
+  // Fehlen die Spalten noch (Migration 086 nicht durch, 42703), steht die Zeile trotzdem da — ohne Code.
+  const zeile = grund ? grund.slice(0, 300) : null;
   await sqlPool`
-    INSERT INTO fiaon_wa_aktion (person_id, gruppe, vorlage, quelle, lauf_id, ausgeloest_von, wa_id, ok, grund)
-    VALUES (${k.personId}, ${g}, ${vorlage}, ${quelle}, ${laufId}, ${von}, ${waId}, ${ok}, ${grund ? grund.slice(0, 300) : null})`.catch((e) => console.error("[WA-ZENTRALE] Protokoll:", e));
+    INSERT INTO fiaon_wa_aktion (person_id, gruppe, vorlage, quelle, lauf_id, ausgeloest_von, wa_id, ok, grund, fehler_code, fehler_am)
+    VALUES (${k.personId}, ${g}, ${vorlage}, ${quelle}, ${laufId}, ${von}, ${waId}, ${ok}, ${zeile},
+            ${fehlerCode}, ${fehlerCode ? new Date() : null})`.catch(async (e) => {
+    if (String((e as any)?.code ?? "") !== "42703") return void console.error("[WA-ZENTRALE] Protokoll:", e);
+    await sqlPool`
+      INSERT INTO fiaon_wa_aktion (person_id, gruppe, vorlage, quelle, lauf_id, ausgeloest_von, wa_id, ok, grund)
+      VALUES (${k.personId}, ${g}, ${vorlage}, ${quelle}, ${laufId}, ${von}, ${waId}, ${ok}, ${zeile})`.catch((e2) => console.error("[WA-ZENTRALE] Protokoll:", e2));
+  });
 }
 
 async function einzelnSenden(
   g: Gruppe, gewaehlt: string, k: Kandidat, quelle: "hand" | "automatik" | "verkaufstakt", laufId: string, von: string | null, frei: Set<string>,
-): Promise<{ ok: boolean; grund?: string }> {
+): Promise<{ ok: boolean; grund?: string; gebremst?: boolean }> {
   const vorlage = vorlageFuerKandidat(gewaehlt, k);
   if (!istFrei(vorlage, frei)) {
     const grund = "Vorlage bei Meta noch nicht freigegeben";
@@ -1008,13 +1056,21 @@ async function einzelnSenden(
   // Anfang des Happens ist bis zu 40 s alt. Genau ein Weg bekommt ihn (Lauf, Automatik, Verkaufstakt,
   // Lead-Begrüßung, Lead-Kette); wer leer ausgeht, sendet nicht (fiaon-whatsapp.ts, waTagesplatz).
   const { waTagesplatz } = await import("./fiaon-whatsapp");
-  const platz = await waTagesplatz({ personId: k.personId, nummer, weg: `zentrale_${quelle}` });
+  const platz = await waTagesplatz({ personId: k.personId, nummer, weg: `zentrale_${quelle}`, vorlage });
+  // E-261: Hält die Bremse (Pause oder ROT) an, steht KEINE Zeile da — der Mensch behält seinen Tag,
+  // der Aufrufer hört auf (Lauf mit Schlusszeile, Automatik und Verkaufstakt bis zum nächsten Takt).
+  if (!platz.ok && platz.gebremst) return { ok: false, grund: platz.grund, gebremst: true };
   if (!platz.ok) {
     await protokoll(k, g, vorlage, quelle, laufId, von, false, platz.grund);
     return { ok: false, grund: platz.grund };
   }
   const r = await waSenden(nummer, { vorlage, werte: w.werte, knopfWert: w.knopfWert }, { personId: k.personId, leadId: k.leadId, von: "Mara" });
-  await protokoll(k, g, vorlage, quelle, laufId, von, r.ok, r.ok ? null : String(r.grund || "Senden fehlgeschlagen"), r.waId ?? null);
+  if (!r.ok && r.gebremst) return { ok: false, grund: r.grund, gebremst: true };
+  // E-261: Lehnt Meta sofort ab (mit Code), ist das ein Fehler, kein „übersprungen" — Präfix wie die Lauf-Zählung.
+  const metaText = String(r.grund || "");
+  const grundZeile = r.ok ? null
+    : r.code ? `Fehler: ${/^\(#\d+\)/.test(metaText) ? metaText : `(#${r.code}) ${metaText}`}` : (metaText || "Senden fehlgeschlagen");
+  await protokoll(k, g, vorlage, quelle, laufId, von, r.ok, grundZeile, r.waId ?? null, r.ok ? null : r.code ?? null);
   if (r.ok) {
     const { waAktenvermerk } = await import("./fiaon-whatsapp");
     await waAktenvermerk(k.personId, `WhatsApp „${vorlage}“ gesendet (${GRUPPEN[g].titel}, ${quelle === "hand" ? `von Hand gestartet${von ? ` durch ${von}` : ""}` : quelle === "verkaufstakt" ? "Verkaufstakt Bonitätsauskunft" : "Automatik"}).`);
@@ -1030,8 +1086,11 @@ async function einzelnSenden(
  * so zehrt sie nicht vom Stundenkontingent der Automatik, wohl aber vom
  * Meta-Tagesraum (der zählt jede Vorlage).
  */
-export async function auskunftWhatsAppSenden(personId: number, opts: { laufId: string; von: string }): Promise<{ ok: boolean; grund?: string }> {
+export async function auskunftWhatsAppSenden(personId: number, opts: { laufId: string; von: string }): Promise<{ ok: boolean; grund?: string; gebremst?: boolean }> {
   if (!tagsueber()) return { ok: false, grund: "Ruhezeit (21–7 Uhr)" };
+  // E-261: die Auskunft-Vorlagen sind Werbung — in der Pause und bei ROT wartet die WhatsApp-Stufe (die Mail läuft weiter).
+  const bremse = await waBremse({ werbung: true, weg: "verkaufstakt" });
+  if (!bremse.erlaubt) return { ok: false, grund: bremse.grund ?? "WhatsApp pausiert", gebremst: true };
   // E-253 (Nachtrag): Solange ein Versand von Hand läuft, wartet der Verkaufstakt (er fragt waLaufOffen
   // vor jeder WhatsApp und hört dann auf, ohne den Menschen für heute zu verbrauchen). Kommt der Lauf
   // dazwischen, schützt der Tagesplatz in einzelnSenden.
@@ -1041,7 +1100,6 @@ export async function auskunftWhatsAppSenden(personId: number, opts: { laufId: s
   const frei = await freigabeSatz();
   if (!istFrei(AUSKUNFT_VORLAGE, frei) && !istFrei(AUSKUNFT_LEAD_VORLAGE, frei)) return { ok: false, grund: "Vorlage bei Meta noch nicht freigegeben" };
   const raum = await tagesRaum();
-  if (raum.qualitaet === "RED") return { ok: false, grund: "Meta-Qualität ROT" };
   if (raum.frei <= 0) return { ok: false, grund: "Meta-Tageslimit erreicht" };
   const k = await auskunftKandidat(personId, { mitEinwilligung: true });
   if (!k) return { ok: false, grund: "Heute nicht in der Gruppe (Regeln der Zentrale, Einwilligung oder Kreis des Verkaufs)" };
@@ -1069,13 +1127,17 @@ export async function laufStarten(opts: { gruppe: Gruppe; vorlage: string; anzah
   }
   if (!vorlagePasst(opts.gruppe, opts.vorlage)) return { ok: false, grund: "Diese Vorlage passt nicht zu dieser Gruppe." };
   if (!tagsueber()) return { ok: false, grund: "Zwischen 21:00 und 07:00 schreiben wir niemanden an." };
+  // E-261: zuerst die Bremse (Pause: keine Vorlage; ROT: nur die Monatsrate; GELB: höchstens halber freier Tagesraum).
+  const bremse = await gruppenBremse(opts.gruppe, opts.vorlage, "zentrale_hand");
+  if (!bremse.erlaubt) return { ok: false, grund: bremse.grund ?? "WhatsApp pausiert." };
   const frei = await freigabeSatz();
   if (opts.vorlage !== "stufen" && !istFrei(opts.vorlage, frei)) return { ok: false, grund: "Diese Vorlage ist bei Meta noch nicht freigegeben." };
   const raum = await tagesRaum();
   if (raum.frei <= 0) return { ok: false, grund: `Das Tageslimit von Meta ist ausgeschöpft (${raum.verbraucht} von ${raum.grenze} in 24 Stunden). Morgen geht es weiter.` };
-  if (raum.qualitaet === "RED") return { ok: false, grund: "Meta bewertet die Nummer gerade mit ROT. Bis sich das erholt, keine Massenversände — sonst droht die Sperre." };
   // E-253: bis 500 statt 200 — gekoppelt an Metas freien Tagesraum (E-250: Stufe 2K, also 1.600 in 24 h).
-  const anzahl = Math.min(LAUF_HOECHSTENS, raum.frei, Math.max(1, Math.round(Number(opts.anzahl) || 0)));
+  // E-261: bei GELB höchstens der halbe freie Tagesraum.
+  const gelbDeckel = Math.max(1, mitFaktor(raum.frei, bremse.faktor));
+  const anzahl = Math.min(LAUF_HOECHSTENS, raum.frei, Math.max(1, Math.round(Number(opts.anzahl) || 0)), gelbDeckel);
   const plan = await kandidatenIds(opts.gruppe, anzahl);
   if (!plan.length) return { ok: false, grund: "In dieser Gruppe ist gerade niemand dran." };
   const id = `L${Date.now().toString(36)}`;
@@ -1126,8 +1188,10 @@ async function laufArbeiten(id: string): Promise<void> {
       // ── Vor jedem Happen: was sich unterwegs ändern kann ──────────────────
       if (herunterfahren) return void await uebergeben();
       if (!tagsueber()) return void await beenden("fertig", "Ruhezeit begonnen (21 Uhr) — der Rest wurde nicht gesendet.");
+      // E-261: die Bremse vor jedem Happen (und unten vor jedem Menschen) — Schlusszeile statt „übersprungen" je Mensch.
+      const bremse = await gruppenBremse(g, gewaehlt, "zentrale_lauf");
+      if (!bremse.erlaubt) return void await beenden("fertig", bremsSchluss(bremse));
       const raum = await tagesRaum();
-      if (raum.qualitaet === "RED") return void await beenden("fertig", "Meta bewertet die Nummer mit ROT — der Rest wurde nicht gesendet.");
       let freiRest = raum.frei;
       if (freiRest <= 0) return void await beenden("fertig", "Metas Tageslimit ist erreicht — der Rest wurde nicht gesendet.");
       const frei = await freigabeSatz();
@@ -1139,6 +1203,8 @@ async function laufArbeiten(id: string): Promise<void> {
         if (herunterfahren) return void await uebergeben();
         if (!tagsueber()) return void await beenden("fertig", "Ruhezeit begonnen (21 Uhr) — der Rest wurde nicht gesendet.");
         if (freiRest <= 0) return void await beenden("fertig", "Metas Tageslimit ist erreicht — der Rest wurde nicht gesendet.");
+        const bremseJetzt = await gruppenBremse(g, gewaehlt, "zentrale_lauf");
+        if (!bremseJetzt.erlaubt) return void await beenden("fertig", bremsSchluss(bremseJetzt));
         // Herzschlag + Reservierung — und die Frage, ob der Lauf noch uns gehört (Fencing).
         const [h] = (await sqlPool`
           UPDATE fiaon_wa_lauf SET herzschlag = NOW(), in_arbeit = ${personId}
@@ -1159,6 +1225,10 @@ async function laufArbeiten(id: string): Promise<void> {
         try {
           const r = await senden(g, gewaehlt, k, quelle, id, von, frei);
           if (r.ok) freiRest--;
+          // E-261: Die Bremse griff zwischen Prüfung und Sendung — keine Zeile für diesen Menschen, der Lauf endet hier.
+          if (!r.ok && r.gebremst) {
+            return void await beenden("fertig", bremsSchluss({ pause: /^WhatsApp pausiert/.test(String(r.grund ?? "")), grund: r.grund ?? null }));
+          }
         } catch (e) {
           // Jede Ausnahme steht als Zeile da — „höchstens ein Versuch je Person und Tag" gilt auch hier.
           await protokoll(k, g, vorlageFuerKandidat(gewaehlt, k), quelle, id, von, false, `Fehler: ${String((e as Error)?.message || e)}`);
@@ -1376,15 +1446,19 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
     if (await offenerLauf()) return { gesendet: 0, grund: "ein Lauf von Hand läuft" };
     const { waKonfig } = await import("./fiaon-whatsapp");
     if (!waKonfig().bereit) return { gesendet: 0, grund: "WhatsApp nicht eingerichtet" };
+    // E-261: In der Pause steigt der Takt sofort aus — keine Kandidaten, keine Zeilen. Bei ROT läuft nur noch
+    // die Gruppe Monatsrate (gruppenBremse), GELB halbiert die Stundenmenge (25 → 13).
+    const pause = await waBremse({ werbung: true, weg: "zentrale_automatik" });
+    if (pause.pause) return { gesendet: 0, grund: pause.grund ?? "WhatsApp pausiert" };
     const [z] = (await sqlPool`
       SELECT COUNT(*)::int AS n FROM fiaon_wa_aktion
        WHERE quelle = 'automatik' AND ok
          AND date_trunc('hour', erstellt_am AT TIME ZONE 'Europe/Berlin') = date_trunc('hour', NOW() AT TIME ZONE 'Europe/Berlin')`) as any[];
     const schon = Number(z?.n || 0);
-    let frei = sollBisMinute(a.jeStunde, m, hhmm(a.von), hhmm(a.bis)) - schon;
+    const jeStunde = mitFaktor(a.jeStunde, pause.faktor || 1);
+    let frei = sollBisMinute(jeStunde, m, hhmm(a.von), hhmm(a.bis)) - schon;
     if (frei <= 0) return { gesendet: 0, grund: "Stundenmenge erreicht" };
     const raum = await tagesRaum();
-    if (raum.qualitaet === "RED") return { gesendet: 0, grund: "Meta-Qualität ROT" };
     frei = Math.min(frei, raum.frei);
     if (frei <= 0) return { gesendet: 0, grund: "Meta-Tageslimit erreicht" };
     const freigabe = await freigabeSatz();
@@ -1392,10 +1466,14 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
     const versucht: number[] = [];
     const laufId = `A${Date.now().toString(36)}`;
     let stoppGrund: string | null = null;
+    let bremsGrund: string | null = null; // E-261: warum Werbe-Gruppen warten (ROT) — für Log und Rückgabe
     for (const g of a.gruppen) {
       if (frei <= 0 || herunterfahren || stoppGrund) break;
       const vorlage = a.vorlagen[g] ?? GRUPPEN[g].standard;
       if (!vorlagePasst(g, vorlage)) continue;
+      // E-261: ROT → nur die Monatsrate (rate_offen); jede andere Gruppe wartet ohne Zeile, auch mit Termin-Vorlage.
+      const gruppeBremse = await gruppenBremse(g, vorlage, "zentrale_automatik");
+      if (!gruppeBremse.erlaubt) { if (gruppeBremse.pause) stoppGrund = gruppeBremse.grund; else bremsGrund = gruppeBremse.grund; continue; }
       if (vorlage !== "stufen" && !istFrei(vorlage, freigabe)) continue;
       // Etwas mehr holen als nötig — wer an einer Regel scheitert, soll den Platz nicht blockieren.
       const liste = await kandidaten(g, frei + 3, versucht);
@@ -1404,13 +1482,16 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
         // E-253 (Nachtrag): vor JEDER Sendung — ein Lauf von Hand, der während des Takts startet, hat Vorrang.
         if (await offenerLauf().catch(() => null)) { stoppGrund = "ein Lauf von Hand läuft"; break; }
         versucht.push(k.personId);
-        const r = await einzelnSenden(g, vorlage, k, "automatik", laufId, "Automatik", freigabe).catch(() => ({ ok: false }));
+        const r: { ok: boolean; grund?: string; gebremst?: boolean } = await einzelnSenden(g, vorlage, k, "automatik", laufId, "Automatik", freigabe).catch(() => ({ ok: false }));
         if (r.ok) { gesendet++; frei--; }
+        // E-261: Die Bremse griff mitten im Takt (z. B. die zweite #131042) — sofort aufhören, ohne Zeile.
+        if (!r.ok && r.gebremst) { stoppGrund = r.grund ?? "WhatsApp pausiert"; break; }
         await new Promise((res) => setTimeout(res, 1200));
       }
     }
-    if (gesendet) console.log(`[WA-ZENTRALE] Automatik: ${gesendet} gesendet (${schon + gesendet}/${a.jeStunde} in dieser Stunde)`);
-    return stoppGrund ? { gesendet, grund: stoppGrund } : { gesendet };
+    if (gesendet) console.log(`[WA-ZENTRALE] Automatik: ${gesendet} gesendet (${schon + gesendet}/${jeStunde} in dieser Stunde${jeStunde !== a.jeStunde ? `, GELB: halbiert von ${a.jeStunde}` : ""})`);
+    if (stoppGrund) return { gesendet, grund: stoppGrund };
+    return !gesendet && bremsGrund ? { gesendet, grund: bremsGrund } : { gesendet };
   } finally {
     taktLaeuft = false;
   }
@@ -1421,7 +1502,11 @@ export async function automatikTakt(): Promise<{ gesendet: number; grund?: strin
 // ═══════════════════════════════════════════════════════════════════════════
 export async function zentraleLage() {
   await zentraleSchema();
-  const [zaehlung, a, frei, raum] = await Promise.all([gruppenZahlenMitEinwilligung(), automatik(), freigabeSatz(), tagesRaum()]);
+  const [zaehlung, a, frei, raum, bremseLage] = await Promise.all([gruppenZahlenMitEinwilligung(), automatik(), freigabeSatz(), tagesRaum(), waBremseLage()]);
+  // E-261 (Gegenprüfung 29.09.): die Bremse JE GRUPPE — dieselbe Regel wie laufStarten; die Seite sperrt den Start
+  // und rechnet die GELB-Grenze damit (nicht mit dem Vorlagennamen).
+  const gruppenBremsen = new Map(await Promise.all(GRUPPEN_REIHE.map(async (g) =>
+    [g, await gruppenBremse(g, GRUPPEN[g].standard, "zentrale_lage").catch(() => null)] as const)));
   const zahlen = zaehlung.alle;
   // E-230: Wer wartet gerade auf eine Antwort? Justin soll Stille sehen, bevor ein Kunde sie spürt.
   // E-250: Warum „Neue Leads" leer ist — wann kam der letzte Lead?
@@ -1483,11 +1568,20 @@ export async function zentraleLage() {
   return {
     whatsappBereit: waKonfig().bereit,
     meta: raum,
+    // E-261: die Bremse in Worten — Pause (Notbremse), Qualität und was davon folgt.
+    bremse: {
+      pause: bremseLage.pause.an, art: bremseLage.pause.art, code: bremseLage.pause.code, seit: bremseLage.pause.seit,
+      qualitaet: bremseLage.qualitaet, faktor: bremseLage.faktor, satz: bremseLage.satz,
+      werbungGestoppt: bremseLage.werbungGestoppt, allesGestoppt: bremseLage.allesGestoppt,
+      jeStundeGelb: bremseLage.faktor > 0 && bremseLage.faktor < 1 ? mitFaktor(a.jeStunde, bremseLage.faktor) : null,
+      standAm: bremseLage.stand.am,
+    },
     wartend: { anzahl: Number(wartend?.n || 0), laengsteMin: Number(wartend?.laengste || 0) },
     gruppen: GRUPPEN_REIHE.map((g) => ({
       schluessel: g, ...GRUPPEN[g], anzahl: zahlen[g], mitEinwilligung: zaehlung.einwilligung[g],
       wartend: zaehlung.wartend[g], wiederAb: zaehlung.wiederAb[g],
       letzterLead: g === "neu" ? letzterLead : null,
+      bremse: (() => { const x = gruppenBremsen.get(g); return x ? { erlaubt: x.erlaubt, faktor: x.faktor, grund: x.grund } : null; })(),
     })),
     stufenText: STUFEN_TEXT,
     vorlagen: vorlagenListe,

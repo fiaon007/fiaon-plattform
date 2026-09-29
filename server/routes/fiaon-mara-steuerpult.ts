@@ -22,6 +22,7 @@ import { gedaechtnisLesen, gedaechtnisLoeschen } from "../lib/fiaon-mara-gedaech
 import { anweisungLesen, anweisungSetzen, anweisungVerlauf, anweisungZurueck, BEREICHE, BEREICH_TEXT, MAX_ZEICHEN, type Bereich } from "../lib/fiaon-mara-anweisung";
 import { maraBilanz, geldSql, aktionWirkung14, danachSql } from "../lib/fiaon-mara-bilanz";
 import { istKiPause, kiPauseLesen, aktivieren as kiAktivieren, pausieren as kiPausieren } from "../lib/fiaon-ki-pause";
+import { waBremseLage, aktivieren as waAktivieren, pausieren as waPausieren, metaStandLesen, WA_FEHLER_ART } from "../lib/fiaon-wa-bremse";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -98,6 +99,81 @@ router.post("/chef/ki-pause/pausieren", wache, async (req: ChefRequest, res: Res
   } catch (err) {
     console.error("[KI-PAUSE] pausieren:", err);
     res.status(500).json({ ok: false, error: "Das Pausieren ist gescheitert." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WHATSAPP-BREMSE (29.09.2026, E-261)
+//
+// Wie die KI-Pause: Lesen darf jede Chefbüro-Stufe (das rote Band steht im Kopf
+// JEDER /chef-Seite), aktivieren und von Hand pausieren nur der Inhaber. Jeder
+// Klick steht im Chef-Protokoll und im Verlauf des Zustands (fiaon_settings.wa_pause).
+// Die Regeln stehen in server/lib/fiaon-wa-bremse.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Die letzten 24 Stunden Kontofehler je Code — was die Bremse gesehen hat (leer vor Migration 086 / ohne Fehler). */
+async function kontofehler24(): Promise<{ code: number; art: string; satz: string; anzahl: number; zuletzt: string | null }[]> {
+  const zeilen = (await sqlPool`
+    SELECT code, COUNT(*)::int AS n, MAX(am) AS zuletzt FROM fiaon_wa_kontofehler
+     WHERE am > NOW() - INTERVAL '24 hours' GROUP BY code ORDER BY n DESC LIMIT 12`.catch(() => [])) as any[];
+  return zeilen.map((z) => ({
+    code: Number(z.code), anzahl: Number(z.n || 0), zuletzt: z.zuletzt ? new Date(z.zuletzt).toISOString() : null,
+    art: WA_FEHLER_ART[Number(z.code)]?.art ?? "sonst", satz: WA_FEHLER_ART[Number(z.code)]?.satz ?? `Meta-Fehler #${z.code}`,
+  }));
+}
+
+router.get("/chef/wa-pause", chefLesen, async (_req: ChefRequest, res: Response) => {
+  try {
+    const lage = await waBremseLage();
+    res.json({
+      ok: true, zustand: lage.pause, stand: lage.stand,
+      bremse: { qualitaet: lage.qualitaet, faktor: lage.faktor, satz: lage.satz, werbungGestoppt: lage.werbungGestoppt, allesGestoppt: lage.allesGestoppt },
+      kontofehler: await kontofehler24(),
+    });
+  } catch (err) {
+    console.error("[WA-BREMSE] stand:", err);
+    res.status(500).json({ ok: false, error: "Der WhatsApp-Zustand ließ sich nicht lesen." });
+  }
+});
+
+/** „WhatsApp wieder aktivieren" — erst Metas Kontostand (health_status, keine Nachricht); meldet Meta „gesperrt", bleibt die Pause. */
+router.post("/chef/wa-pause/aktivieren", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const r = await waAktivieren(wer(req));
+    if (!r.ok) return res.status(409).json({ ok: false, error: r.fehler, zustand: r.zustand });
+    res.json({ ok: true, zustand: r.zustand, hinweis: r.hinweis ?? null });
+  } catch (err) {
+    console.error("[WA-BREMSE] aktivieren:", err);
+    res.status(500).json({ ok: false, error: "Das Aktivieren ist gescheitert — die Pause bleibt." });
+  }
+});
+
+/** „WhatsApp jetzt pausieren" — von Hand, ohne Alarm (Justin weiß es ja). Antworten im offenen Fenster laufen weiter. */
+router.post("/chef/wa-pause/pausieren", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const grund = String(req.body?.grund ?? "").trim().slice(0, 200) || "Von Hand im Chefbüro angehalten.";
+    const r = await waPausieren({ art: "hand", fehler: grund, von: wer(req), quelle: "hand" });
+    res.json({ ok: true, zustand: r.zustand, schonPausiert: !r.neu });
+  } catch (err) {
+    console.error("[WA-BREMSE] pausieren:", err);
+    res.status(500).json({ ok: false, error: "Das Pausieren ist gescheitert." });
+  }
+});
+
+/**
+ * Metas Qualität und Kontostand jetzt frisch lesen (nur GET bei Meta). `frisch` = Meta hat wirklich
+ * geantwortet (der Stand ist jünger als der Klick) — sonst kommt der letzte Stand zurück, und die Karte
+ * sagt „Meta nicht erreichbar — gezeigt wird der Stand von …" (Gegenprüfung 29.09.).
+ */
+router.post("/chef/wa-meta-stand/pruefen", chefLesen, async (_req: ChefRequest, res: Response) => {
+  try {
+    const klick = Date.now();
+    const stand = await metaStandLesen({ frisch: true });
+    const frisch = !!stand.am && Date.parse(stand.am) >= klick;
+    const lage = await waBremseLage();
+    res.json({ ok: true, frisch, stand, bremse: { qualitaet: lage.qualitaet, faktor: lage.faktor, satz: lage.satz, werbungGestoppt: lage.werbungGestoppt, allesGestoppt: lage.allesGestoppt } });
+  } catch (err) {
+    console.error("[WA-BREMSE] Meta-Stand:", err);
+    res.status(500).json({ ok: false, error: "Metas Stand ließ sich nicht lesen." });
   }
 });
 

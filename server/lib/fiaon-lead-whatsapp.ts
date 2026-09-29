@@ -34,9 +34,14 @@
 //   · Nur freigegebene Vorlagen. Was Meta nicht geprüft hat, geht nicht raus.
 //   · Ein Tagesdeckel in Euro, wie überall sonst im Haus.
 //   · Nachts nichts: 8 bis 20 Uhr Berliner Zeit.
+//   · E-261 (29.09.2026): die Bremse (fiaon-wa-bremse.ts) — in der Pause und
+//     bei Meta-Qualität ROT keine Werbe-Vorlage, bei GELB halber Deckel. Die
+//     Begrüßung bleibt bei GELB voll (Speed-to-Lead); bei Pause/ROT wartet der
+//     Mensch in der Gruppe „neu" der Zentrale, bis es wieder geht.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { waSenden, vorlagenStand, waKonfig, waAktenvermerk, waTagesplatz } from "./fiaon-whatsapp";
+import { waBremse, mitFaktor } from "./fiaon-wa-bremse";
 import { STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
@@ -93,6 +98,10 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
   } catch { /* Zentrale nicht lesbar: die Kette läuft wie bisher */ }
   const k = waKonfig();
   if (!k.bereit) { weg("WhatsApp nicht eingerichtet"); return erg; }
+  // E-261: früh fragen — spart die Kandidaten-Abfrage und das Log-Rauschen je Mensch. Alle Vorlagen der Kette werben.
+  const bremse = await waBremse({ werbung: true, weg: "lead_kette" });
+  if (!bremse.erlaubt) { weg(bremse.grund ?? "WhatsApp pausiert"); return erg; }
+  deckel = Math.max(1, mitFaktor(deckel, bremse.faktor));
 
   const [jetzt] = (await sqlPool`
     SELECT EXTRACT(HOUR FROM (NOW() AT TIME ZONE 'Europe/Berlin'))::int AS stunde`) as any[];
@@ -178,7 +187,8 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
 
     // E-253 (28.09.2026): der Tagesplatz direkt vor Meta — höchstens eine Nachricht je Mensch und Tag,
     // auch wenn die WA-Zentrale oder die Begrüßung in derselben Sekunde schreibt (fiaon-whatsapp.ts).
-    const platz = await waTagesplatz({ personId: Number(c.person_id), nummer, weg: "lead_kette" });
+    const platz = await waTagesplatz({ personId: Number(c.person_id), nummer, weg: "lead_kette", vorlage });
+    if (!platz.ok && platz.gebremst) { weg(platz.grund); break; } // E-261: Bremse mitten im Lauf — der Rest wartet
     if (!platz.ok) { weg(platz.grund); continue; }
     const r = await waSenden(nummer, { vorlage, werte }, { personId: Number(c.person_id), leadId: c.lead_id ? Number(c.lead_id) : null, von: "Mara" });
     if (r.ok) {
@@ -186,6 +196,7 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
       await waAktenvermerk(Number(c.person_id), `WhatsApp „${vorlage}“ gesendet (Tag ${tage} nach Eingang).`);
     } else {
       weg(r.grund ?? "Senden fehlgeschlagen");
+      if (r.gebremst) break;
     }
   }
 
@@ -209,7 +220,8 @@ export async function ersteWhatsAppFuerLead(leadId: number): Promise<{ ok: boole
   const [l] = (await sqlPool`
     SELECT le.id, le.person_id, le.telefon, le.link_code,
            TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS name,
-           p.werbung_gesperrt_am, p.is_blocked, le.whatsapp_erlaubt, le.quelle
+           p.werbung_gesperrt_am, p.is_blocked, le.whatsapp_erlaubt, le.quelle,
+           (le.erstellt_am > NOW() - INTERVAL '24 hours') AS frisch
       FROM fiaon_leads le LEFT JOIN fiaon_persons p ON p.id = le.person_id
      WHERE le.id = ${leadId} LIMIT 1`.catch(() => [])) as any[];
   if (!l) return { ok: false, grund: "Lead nicht gefunden." };
@@ -226,18 +238,25 @@ export async function ersteWhatsAppFuerLead(leadId: number): Promise<{ ok: boole
   const [selbst] = (await sqlPool`
     SELECT 1 FROM fiaon_whatsapp WHERE nummer = ${nummer} AND richtung = 'rein' AND created_at > NOW() - INTERVAL '24 hours' LIMIT 1`.catch(() => [])) as any[];
   if (selbst) return { ok: false, grund: "Er hat uns selbst geschrieben — Mara antwortet im Gespräch." };
+  // E-261: In der Pause keine Begrüßung — der Mensch hat dann keinen WhatsApp-Kontakt und steht in der Gruppe „neu"
+  // der Zentrale; sobald es wieder geht, holt ihn die Automatik oder ein Lauf von Hand. GELB: voll. Bei ROT läuft
+  // die Begrüßung eines FRISCHEN Leads (Formular ≤ 24 h) weiter (Justin, 29.09.): er hat eben selbst um Kontakt
+  // gebeten — Speed-to-Lead ist der Hebel; gestoppt wird nur die Werbung an alte Kontakte.
+  const frischerLead = l.frisch === true;
+  const bremse = await waBremse({ vorlage: "fiaon_kk_anfrage", weg: "lead_begruessung", frischerLead });
+  if (!bremse.erlaubt) return { ok: false, grund: bremse.grund ?? "WhatsApp pausiert" };
 
   const freigegeben = new Set((await vorlagenStand().catch(() => [])).filter((t) => t.status === "APPROVED").map((t) => t.name));
   if (!freigegeben.has("fiaon_kk_anfrage") && !freigegeben.has("fiaon_kkb_anfrage")) return { ok: false, grund: "Die erste Vorlage ist bei Meta noch nicht freigegeben." };
 
   // E-253 (28.09.2026): der Tagesplatz direkt vor Meta. Gemessen am 24.09.: dieselbe Begrüßung kam
   // zweimal, 66 ms auseinander — die Automatik der Zentrale schrieb den neuen Menschen gleichzeitig an.
-  const platz = await waTagesplatz({ personId: l.person_id ? Number(l.person_id) : null, nummer, weg: "lead_begruessung" });
+  const platz = await waTagesplatz({ personId: l.person_id ? Number(l.person_id) : null, nummer, weg: "lead_begruessung", vorlage: "fiaon_kk_anfrage", frischerLead });
   if (!platz.ok) return { ok: false, grund: platz.grund };
   const r = await waSenden(
     nummer,
     { vorlage: "fiaon_kk_anfrage", werte: [String(l.name || "").trim() || "und willkommen"] },
-    { personId: l.person_id ? Number(l.person_id) : null, leadId: Number(l.id), von: "Mara" },
+    { personId: l.person_id ? Number(l.person_id) : null, leadId: Number(l.id), von: "Mara", frischerLead },
   );
   if (r.ok) {
     console.log(`[LEAD-WA] Erste WhatsApp an Lead ${leadId} raus.`);

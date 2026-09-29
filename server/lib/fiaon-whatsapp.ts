@@ -22,7 +22,8 @@ import { graph, MetaFehler } from "./fiaon-meta";
 import { WA_VORLAGEN, INKASSO_AUSNAHME, AUSKUNFT_VORLAGEN_ALLE, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
 import { nummerFuerWhatsApp, waKanonisch } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
-import { waFehlerText } from "./fiaon-wa-unzustellbar";
+import { waFehlerText, waFehlerCode, WA_CODE_WERBUNG_ABBESTELLT } from "./fiaon-wa-unzustellbar";
+import { waBremse, kontofehlerMelden } from "./fiaon-wa-bremse";
 
 type Lauf = typeof sqlPool;
 
@@ -287,13 +288,18 @@ export const TAGESPLATZ_BELEGT = "Heute schon eine WhatsApp auf einem anderen We
  * wie „höchstens ein Versuch je Person und Tag" in der BASIS der Zentrale.
  */
 export async function waTagesplatz(
-  ein: { personId?: number | null; nummer?: string | null; weg: string },
+  ein: { personId?: number | null; nummer?: string | null; weg: string; vorlage?: string | null; frischerLead?: boolean },
   lauf: Lauf = sqlPool,
-): Promise<{ ok: true } | { ok: false; grund: string }> {
+): Promise<{ ok: true } | { ok: false; grund: string; gebremst?: boolean }> {
   const personId = ein.personId && Number(ein.personId) > 0 ? Number(ein.personId) : null;
   const nummer = waKanonisch(ein.nummer ?? null);
   const schluessel = [...(personId ? [`p:${personId}`] : []), ...(nummer ? [`n:${nummer}`] : [])];
   if (!schluessel.length) return { ok: false, grund: "Kein Mensch und keine Nummer für den Tagesplatz." };
+  // E-261 (29.09.2026): erst die Bremse — ein genommener Platz bleibt den ganzen Tag (siehe oben). In der
+  // Pause oder bei ROT (Werbe-Vorlage) darf der Mensch seinen Tag nicht verlieren, ohne dass etwas rausging.
+  // Ohne Vorlagennamen gilt die strengste Lesart (Werbe-Vorlage).
+  const bremse = await waBremse({ vorlage: ein.vorlage ?? null, werbung: !ein.vorlage, weg: ein.weg, frischerLead: ein.frischerLead === true });
+  if (!bremse.erlaubt) return { ok: false, grund: bremse.grund ?? "WhatsApp pausiert.", gebremst: true };
   try {
     await tagesplatzTabelle(lauf);
     const genommen = (await lauf`
@@ -429,17 +435,29 @@ async function bildHandlesFuer(vorlagen: WaVorlage[]): Promise<{ handles: Partia
  * waSenden fragt das bei jeder Nachricht, und Meta soll nicht bei jeder
  * Nachricht die ganze Liste schicken müssen.
  */
-let freigabeCache: { bis: number; namen: Set<string> } | null = null;
+let freigabeCache: { bis: number; namen: Set<string>; kategorien: Map<string, string> } | null = null;
 export async function freigegebeneVorlagen(): Promise<Set<string>> {
   if (freigabeCache && freigabeCache.bis > Date.now()) return freigabeCache.namen;
   try {
-    const namen = new Set((await vorlagenStand()).filter((t) => t.status === "APPROVED").map((t) => t.name));
-    freigabeCache = { bis: Date.now() + 5 * 60_000, namen };
+    const stand = await vorlagenStand();
+    const namen = new Set(stand.filter((t) => t.status === "APPROVED").map((t) => t.name));
+    freigabeCache = { bis: Date.now() + 5 * 60_000, namen, kategorien: new Map(stand.map((t) => [t.name, t.kategorie] as const)) };
     return namen;
   } catch {
-    freigabeCache = { bis: Date.now() + 60_000, namen: freigabeCache?.namen ?? new Set() };
+    freigabeCache = { bis: Date.now() + 60_000, namen: freigabeCache?.namen ?? new Set(), kategorien: freigabeCache?.kategorien ?? new Map() };
     return freigabeCache.namen;
   }
+}
+
+/**
+ * E-261 (29.09.2026): Metas Kategorie je Vorlage (MARKETING, UTILITY …) — aus
+ * derselben Abfrage und demselben 5-Minuten-Speicher wie die Freigabe. Die
+ * Bremse (fiaon-wa-bremse.ts) liest sie: Führt Meta eine unserer Service-Vorlagen
+ * inzwischen als MARKETING, gilt sie bei ROT als Werbung.
+ */
+export async function vorlagenKategorien(): Promise<Map<string, string>> {
+  await freigegebeneVorlagen();
+  return freigabeCache?.kategorien ?? new Map();
 }
 
 /** Was Meta über unsere Vorlagen weiß. */
@@ -694,7 +712,15 @@ export async function fensterOffen(nummer: string, lauf: Lauf = sqlPool): Promis
   return !!z;
 }
 
-export interface SendeErgebnis { ok: boolean; waId?: string; grund?: string }
+export interface SendeErgebnis {
+  ok: boolean; waId?: string; grund?: string;
+  /** E-261: Metas Fehlercode, wenn Meta beim Senden ablehnte (synchron). */
+  code?: number | null;
+  /** E-261: die Bremse hielt an („pause" = Notbremse, „rot" = Meta-Qualität) — nichts ging an Meta, keine Zeile. */
+  gebremst?: "pause" | "rot";
+  /** E-261: kurz für gebremst === "pause" (Mara verwirft dann ihre Antwort, statt dreimal zu scheitern). */
+  pausiert?: boolean;
+}
 
 /**
  * Eine Nachricht senden. Ohne offenes Fenster MUSS eine Vorlage genommen
@@ -768,6 +794,16 @@ export async function waVorlagenSperre(
   const { waVorlageWerblich, menschSperre, werbungVerboten } = await import("./fiaon-mail-frequenz");
   if (!waVorlageWerblich(vorlage)) return null;
   try {
+    // E-261 (29.09.2026): Meta-Code 131050 — dieser Empfänger hat Werbung von uns in WhatsApp abbestellt.
+    // Jede weitere Werbe-Vorlage an die Nummer scheitert und drückt die Qualität; gemessen: eine Nummer bekam
+    // nach der 131050 vom 28.09. am 29.09. die nächste. Gilt für die NUMMER, dauerhaft, nur für Werbung
+    // (dieselbe Regel in der BASIS der Zentrale und im Verkaufstakt: WA_WERBUNG_ABBESTELLT_SQL).
+    const [abbestellt] = (await lauf`
+      SELECT 1 AS x FROM fiaon_whatsapp
+       WHERE nummer = ${waKanonisch(nummer) ?? ""} AND richtung = 'raus' AND status = 'fehler'
+         AND fehler LIKE ${`(#${WA_CODE_WERBUNG_ABBESTELLT})%`}
+       LIMIT 1`) as any[];
+    if (abbestellt) return `Werbung abbestellt (Meta #${WA_CODE_WERBUNG_ABBESTELLT}): Diese Nummer hat Werbung von FIAON in WhatsApp abbestellt — keine werbliche Vorlage („${vorlage}“). Schreibt der Mensch selbst, geht eine Antwort im offenen 24-Stunden-Fenster.`;
     let personId = zusatz.personId && Number(zusatz.personId) > 0 ? Number(zusatz.personId) : null;
     if (!personId && zusatz.leadId) {
       const [l] = (await lauf`SELECT person_id FROM fiaon_leads WHERE id = ${Number(zusatz.leadId)} LIMIT 1`) as any[];
@@ -789,11 +825,25 @@ export async function waVorlagenSperre(
 export async function waSenden(
   an: string,
   inhalt: { text?: string; vorlage?: string; werte?: string[]; knopfWert?: string },
-  zusatz: { personId?: number | null; leadId?: number | null; von?: string | null } = {},
+  zusatz: { personId?: number | null; leadId?: number | null; von?: string | null; frischerLead?: boolean } = {},
   lauf: Lauf = sqlPool,
 ): Promise<SendeErgebnis> {
   const k = waKonfig();
   if (!k.bereit) return { ok: false, grund: `WhatsApp ist noch nicht eingerichtet (${k.fehlt.join(", ")}).` };
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE BREMSE — VOR JEDER META-ANFRAGE (29.09.2026, E-261)
+  //
+  // Am 28.09. gingen 89 Vorlagen an Meta, obwohl Meta seit 13:36 nicht
+  // abbuchen konnte (#131042). Hier ist die eine Tür, durch die jede WhatsApp
+  // muss: In der Pause keine Vorlage (bei Kontosperre auch kein Text), bei ROT
+  // keine Werbe-Vorlage — und KEINE Zeile in fiaon_whatsapp (sonst gälte der
+  // Mensch als angeschrieben und fiele aus der Gruppe „neu"). Die Regel steht
+  // in fiaon-wa-bremse.ts.
+  // ══════════════════════════════════════════════════════════════════════
+  const bremse = await waBremse({ vorlage: inhalt.vorlage ?? null, text: !inhalt.vorlage, weg: zusatz.von ?? null, frischerLead: zusatz.frischerLead === true });
+  if (!bremse.erlaubt) {
+    return { ok: false, grund: bremse.grund ?? "WhatsApp pausiert.", gebremst: bremse.pause ? "pause" : "rot", pausiert: bremse.pause };
+  }
   // E-230: Alle Aufrufer übergeben eine fertige Nummer (aus nummerFuerWhatsApp
   // oder fiaon_whatsapp.nummer). Noch einmal umrechnen machte aus jeder
   // ausländischen Nummer eine falsche +49-Nummer.
@@ -956,13 +1006,22 @@ export async function waSenden(
   } catch (e) {
     const grund = e instanceof MetaFehler ? e.klartext : String(e);
     // E-244: auch hier mit Meta-Code, damit die Unzustellbar-Regel ihn lesen kann.
-    const gespeichert = e instanceof MetaFehler && e.code ? `(#${e.code}) ${grund}` : grund;
+    // E-261: Steht der Code schon vorn in Metas Text („(#131042) …"), nicht doppelt.
+    const gespeichert = e instanceof MetaFehler && e.code && !grund.startsWith(`(#${e.code})`) ? `(#${e.code}) ${grund}` : grund;
     await lauf`
       INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, lead_id, typ, text, vorlage, status, fehler, von)
       VALUES ('raus', ${nummer}, ${zusatz.personId ?? null}, ${zusatz.leadId ?? null},
               ${inhalt.vorlage ? "vorlage" : "text"}, ${inhalt.text ?? null}, ${inhalt.vorlage ?? null}, 'fehler',
               ${gespeichert.slice(0, 400)}, ${zusatz.von ?? "Mara"})`.catch(() => {});
-    return { ok: false, grund };
+    // E-261: Meta lehnt SOFORT ab (z. B. #131042 oder eine Kontosperre) — dieselbe Meldung wie aus dem
+    // Status-Webhook; ab der Schwelle pausiert die Bremse. Wirft nie.
+    const code = e instanceof MetaFehler ? e.code : null;
+    if (code) {
+      await kontofehlerMelden({
+        code, quelle: "senden", nummer, personId: zusatz.personId ?? null, vorlage: inhalt.vorlage ?? null, text: gespeichert,
+      }, lauf);
+    }
+    return { ok: false, grund, code: code ?? null };
   }
 }
 
@@ -1208,13 +1267,49 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
     } else if (s?.status === "failed") {
       // E-244 (26.09.2026): mit Meta-Code — „(#131026) Message undeliverable — …". Der Titel bleibt
       // drin (Leser prüfen auf „undeliverable"); fiaon-wa-unzustellbar.ts sperrt die Nummer danach.
-      await lauf`
-        UPDATE fiaon_whatsapp SET status = 'fehler', fehler = ${waFehlerText(s?.errors?.[0])}
-         WHERE wa_id = ${String(s?.id ?? "")}`.catch(() => {});
+      const waId = String(s?.id ?? "");
+      const fehlerText = waFehlerText(s?.errors?.[0]);
+      const [zeile] = (await lauf`
+        UPDATE fiaon_whatsapp SET status = 'fehler', fehler = ${fehlerText}
+         WHERE wa_id = ${waId}
+         RETURNING nummer, person_id, vorlage, COALESCE(gesendet_am, created_at) AS gesendet_am`.catch(() => [])) as any[];
       status++;
+      // ── E-261 (29.09.2026): SYNCHRON OK ≠ ZUGESTELLT ────────────────────
+      // Meta nimmt eine Vorlage an (wa_id → ok = TRUE) und meldet Sekunden später
+      // hier, dass sie scheiterte. Bis heute blieb fiaon_wa_aktion.ok TRUE — die
+      // Auskunft-Bilanz zählte sie als „angeboten", die Automatik als Stundenmenge.
+      // Jetzt folgt die Zeile dem Webhook (Präfix „Fehler: " wie die Lauf-Zählung).
+      const code = waFehlerCode(fehlerText);
+      const grund = `Fehler: ${fehlerText} — von Meta nicht zugestellt (Status-Webhook)`.slice(0, 300);
+      if (waId) {
+        await lauf`
+          UPDATE fiaon_wa_aktion SET ok = FALSE, fehler_code = ${code}, fehler_am = NOW(), grund = ${grund}
+           WHERE wa_id = ${waId} AND ok`.catch(async (e) => {
+          // Vor Migration 086 fehlen fehler_code/fehler_am — dann wenigstens ok und Grund.
+          if (String((e as any)?.code ?? "") !== "42703") return;
+          await lauf`UPDATE fiaon_wa_aktion SET ok = FALSE, grund = ${grund} WHERE wa_id = ${waId} AND ok`.catch(() => {});
+        });
+      }
+      // Die Bremse zählt mit — im Hintergrund, der Webhook antwortet weiter in Millisekunden. Mit der Sendezeit:
+      // ein später Webhook einer Sendung von vor dem letzten Aktivieren zählt nicht (fiaon-wa-bremse.ts).
+      if (code) {
+        const p = kontofehlerMelden({
+          code, quelle: "webhook", waId: waId || null, nummer: zeile?.nummer ?? null,
+          personId: zeile?.person_id != null ? Number(zeile.person_id) : null, vorlage: zeile?.vorlage ?? null, text: fehlerText,
+          gesendetAm: zeile?.gesendet_am ?? null,
+        }).then(() => undefined);
+        eingangNachlauf.add(p);
+        void p.finally(() => eingangNachlauf.delete(p));
+      }
     }
   }
   return { neu, status };
+}
+
+/** E-261: die Kontofehler-Meldungen, die waEingang im Hintergrund angestoßen hat (für Prüfstände). */
+const eingangNachlauf = new Set<Promise<void>>();
+export async function waEingangNachlauf(): Promise<void> {
+  while (eingangNachlauf.size) await Promise.all(Array.from(eingangNachlauf));
 }
 
 /** Der Verlauf einer Nummer oder eines Menschen — für Akte und Steuerpult. */

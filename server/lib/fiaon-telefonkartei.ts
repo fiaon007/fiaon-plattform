@@ -1209,6 +1209,11 @@ interface WaHindernis { grund: string; kurz: string; doppelt?: boolean; bestaeti
 async function waHindernis(k: KarteiKarte, fall: WaFallServer, wahl: Exclude<WaWahl, { weg: null }>, u: WaUmfeld, opts: { vorschau: boolean; bestaetigt?: boolean }): Promise<WaHindernis | null> {
   const wa = await import("./fiaon-whatsapp");
   const nummer = u.nummer!;
+  // E-261 (29.09.2026): die WhatsApp-Bremse zuerst — in der Pause keine Vorlage (bei Kontosperre auch kein Text),
+  // bei Meta-Qualität ROT keine Werbe-Vorlage. So zeigt schon die Knopfzeile, warum es gerade nicht geht.
+  const { waBremse } = await import("./fiaon-wa-bremse");
+  const bremse = await waBremse({ vorlage: wahl.weg === "vorlage" ? wahl.vorlage : null, text: wahl.weg === "text", weg: "telefonkartei" });
+  if (!bremse.erlaubt) return { grund: bremse.grund ?? "WhatsApp pausiert", kurz: bremse.pause ? "WhatsApp pausiert" : "Meta-Qualität ROT" };
   if (wahl.sperrVorlage) {
     const sperre = await wa.waVorlagenSperre(wahl.sperrVorlage, nummer, { personId: k.personId, leadId: k.leadId });
     if (sperre) return { grund: sperre, kurz: sperre.split(":")[0] };
@@ -1292,7 +1297,7 @@ export async function karteiWhatsApp(k: KarteiKarte, fall: WaFallServer, akteur:
   const wa = await import("./fiaon-whatsapp");
   if (wahl.weg === "vorlage" && wahl.unaufgefordert) {
     // Unaufgefordert: erst den Tagesplatz nehmen (E-253) — genau ein Weg bekommt ihn.
-    const platz = await wa.waTagesplatz({ personId: k.personId, nummer: u.nummer, weg: "telefonkartei" });
+    const platz = await wa.waTagesplatz({ personId: k.personId, nummer: u.nummer, weg: "telefonkartei", vorlage: wahl.vorlage });
     if (!platz.ok) return { ok: false, weg: null, vorlage, text: `Keine WhatsApp: ${platz.grund}` };
   }
   const erg = await wa.waSenden(

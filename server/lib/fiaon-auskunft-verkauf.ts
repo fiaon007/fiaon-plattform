@@ -109,7 +109,7 @@ import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { KOPF_SQL, FAMILIE_SQL, POSTFACH_STOPP_ZEILE_SQL } from "./fiaon-mail-frequenz";
 import { WHATSAPP_EINWILLIGUNG_SQL, WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
-import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
+import { WA_NUMMER_UNZUSTELLBAR_SQL, WA_WERBUNG_ABBESTELLT_SQL } from "./fiaon-wa-unzustellbar";
 import { AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE } from "@shared/fiaon-lead-texte";
 import { ANGEBOT_ABSTAND_TAGE, ANGEBOT_WEG_TEXT, angebotSpurenSql, buendelWartendeSql, zuletztAngeboten, type AuskunftStand } from "./fiaon-auskunft";
 
@@ -824,7 +824,9 @@ ax_merk AS (
          -- seitdem, oder 131049-Pause, fiaon-wa-unzustellbar.ts) — sonst nur die Mails.
          (x.telefon IS NOT NULL AND ${WHATSAPP_MOEGLICH_SQL("wx")} AND ${WA_EINWILLIGUNG_SQL("x.person_id")}
           -- Land wie beim Versand (WA-Zentrale: fiaon_persons.country), damit dieselbe volle Nummer verglichen wird.
-          AND NOT ${WA_NUMMER_UNZUSTELLBAR_SQL("x.telefon", "(SELECT pl.country FROM fiaon_persons pl WHERE pl.id = x.person_id)")}) AS wa_einwilligung,
+          AND NOT ${WA_NUMMER_UNZUSTELLBAR_SQL("x.telefon", "(SELECT pl.country FROM fiaon_persons pl WHERE pl.id = x.person_id)")}
+          -- E-261 (29.09.2026): Werbung in WhatsApp abbestellt (Meta #131050) — für diese Nummer nur noch die Mail.
+          AND NOT ${WA_WERBUNG_ABBESTELLT_SQL("x.telefon", "(SELECT pl.country FROM fiaon_persons pl WHERE pl.id = x.person_id)")}) AS wa_einwilligung,
          GREATEST(x.letzte_mail_am, x.wa_ok_am) AS letzte_beruehrung,
          (x.n_mail + CASE WHEN x.wa_ok THEN 1 ELSE 0 END) AS beruehrungen
     FROM ax_pool x
@@ -1716,6 +1718,11 @@ export async function whatsappMoeglich(): Promise<{ moeglich: boolean; grund: st
   try {
     const { waKonfig, freigegebeneVorlagen } = await import("./fiaon-whatsapp");
     if (!waKonfig().bereit) return { moeglich: false, grund: "WhatsApp ist nicht eingerichtet.", segmente: [] };
+    // E-261 (29.09.2026): In der WhatsApp-Pause und bei Meta-Qualität ROT ruht die WhatsApp-Stufe (die Auskunft-
+    // Vorlagen sind Werbung) — die Mail-Stufe läuft weiter und nimmt diese Menschen mit (waMoeglich = false).
+    const { waBremse } = await import("./fiaon-wa-bremse");
+    const bremse = await waBremse({ werbung: true, weg: "verkaufstakt" });
+    if (!bremse.erlaubt) return { moeglich: false, grund: bremse.grund, segmente: [] };
     const { istFrei } = await import("./fiaon-wa-zentrale");
     const frei = await freigegebeneVorlagen().catch(() => new Set<string>());
     const segmente = SEGMENTE.filter((s) => istFrei(auskunftVorlageFuer(s), frei));
@@ -1770,6 +1777,12 @@ export async function verkaufsTakt(opts: {
     // Gleichmäßig über den Tag — die Vorschau zeigt den ganzen Rest.
     let mailPlatz = opts.trocken ? mailRest : laufDeckel(mailRest, opts.jetzt, e.mailsProTag);
     let waPlatz = opts.trocken ? waRest : laufDeckel(waRest, opts.jetzt, e.waProTag);
+    // E-261: Meta-Qualität GELB halbiert den WhatsApp-Platz dieses Laufs (die Mail nicht).
+    if (!opts.trocken && waPlatz > 0) {
+      const { waBremse, mitFaktor } = await import("./fiaon-wa-bremse");
+      const b = await waBremse({ werbung: true, weg: "verkaufstakt" });
+      if (b.erlaubt && b.faktor < 1) waPlatz = mitFaktor(waPlatz, b.faktor);
+    }
 
     const wa = await whatsappMoeglich();
     const tag = berlinTag(opts.jetzt);
@@ -1843,6 +1856,8 @@ export async function verkaufsTakt(opts: {
         const { auskunftWhatsAppSenden } = zentrale;
         const r = await auskunftWhatsAppSenden(f.personId, { laufId, von: "Verkaufstakt" });
         if (r.ok) { erg.whatsapp++; waPlatz--; continue; }
+        // E-261: Die Bremse griff (Pause oder ROT) — die WhatsApp-Stufe hört auf, ohne jemanden für heute zu verbrauchen.
+        if (r.gebremst) { zaehle(`WhatsApp: ${r.grund ?? "pausiert"}`); break; }
         // Kein Fehler des Takts: Die Mail-Stufe dieses Menschen läuft unabhängig weiter (Liste unten).
         waHeuteNicht.set(f.personId, tag);
         zaehle(`WhatsApp: ${r.grund ?? "nicht möglich"}`);

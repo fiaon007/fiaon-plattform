@@ -29,6 +29,12 @@
 //   (für --ki zusätzlich OPENAI_API_KEY=… in dieselbe Zeile)
 // Eigene Datensätze (Nummern 4915900248xxx, Personen PRUEF248-…, Agenten pruef248-…@fiaon.invalid,
 // Referenzen FIAON-P248…) werden am Ende entfernt.
+//
+// E-264 (29.09.2026): dazu die Abstreiten-Fälle (abstreiten_*.json — der echte Fall „Hab nix
+// beantragt" anonymisiert und Varianten): fester Satz ohne Modell (ki_aufrufe 0), Werbesperre,
+// Mahnstopp nur auf die nie abgeschickte Bestellung, eine Aufgabe an die Leitung. Neue Prüfschlüssel:
+// werbesperre, mahnstopp, aufgabe (Klasse im Schlüssel), protokoll (Art), ki_mindestens; im Fall
+// antrag.angelegt (Tag des Antrags — für die ehrliche Herkunft).
 // ═══════════════════════════════════════════════════════════════════════════
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -274,9 +280,12 @@ interface Zug { id: number; richtung: string; text: string | null; typ?: string 
 interface Schritt { id: string; bis: number; soll: "antworten" | "schweigen" | "abschluss"; titel: string; attrappe?: Plan; belegt?: string; pruef?: Record<string, any> }
 interface Fall {
   id: string; titel: string; quelle: string; nummer: string;
-  person: { land: string | null; betreuer: string | null } | null;
+  /** E-264 (Nachbesserung): werbesperre — die Person trägt schon eine Werbesperre (z. B. aus einem früheren Abstreiten). */
+  person: { land: string | null; betreuer: string | null; werbesperre?: boolean } | null;
   lead: { link_code: string | null; quelle: string } | null;
-  antrag: { status: string; payment_status: string; schritt: number; paket: string | null } | null;
+  antrag: { status: string; payment_status: string; schritt: number; paket: string | null; angelegt?: string;
+    /** E-264 (Nachbesserung): false = ohne Browser-Kennung (Betreuer-Anlage) — dann ist der Antrag keine belegte Herkunft. */
+    web?: boolean } | null;
   termine: { beginn: string; status: string; herkunft: string; quelle: string; agent: string; angelegt: string }[];
   verlauf: Zug[]; schritte: Schritt[];
 }
@@ -351,6 +360,7 @@ try {
         VALUES (${`PRUEF248-${fall.id}`}, 'Prüf', ${fall.id}, ${`pruef248-${fall.id}@kunde.invalid`}, ${fall.person.land}, ${betreuerId}) RETURNING id`) as any[];
       personId = Number(p.id);
       PERSONEN.push(personId);
+      if (fall.person.werbesperre) await sql`UPDATE fiaon_persons SET werbung_gesperrt_am = NOW() WHERE id = ${personId}`;
     }
     if (fall.lead) {
       const code = fall.lead.link_code ? `P248${fall.id.replace(/[^a-zA-Z]/g, "").slice(0, 6)}`.padEnd(10, "x").slice(0, 10) : null;
@@ -361,8 +371,11 @@ try {
     if (fall.antrag && personId) {
       REFS.push(ref);
       await sql`DELETE FROM fiaon_applications WHERE ref = ${ref}`.catch(() => {});
-      await sql`INSERT INTO fiaon_applications (ref, payment_reference, person_id, status, payment_status, current_step, pack_key, ist_entwurf, agb_stand)
-        VALUES (${ref}, ${zahlRef}, ${personId}, ${fall.antrag.status}, ${fall.antrag.payment_status}, ${fall.antrag.schritt}, ${fall.antrag.paket}, FALSE, '2026-09-03')`;
+      // E-264 (Nachbesserung): Die Herkunft ist der früheste Antrag AUS DEM WEBFORMULAR (user_agent gesetzt) —
+      // ein Antrag im Fall ist das, außer er ist ausdrücklich eine Betreuer-Anlage (web: false).
+      await sql`INSERT INTO fiaon_applications (ref, payment_reference, person_id, status, payment_status, current_step, pack_key, ist_entwurf, agb_stand, created_at, user_agent)
+        VALUES (${ref}, ${zahlRef}, ${personId}, ${fall.antrag.status}, ${fall.antrag.payment_status}, ${fall.antrag.schritt}, ${fall.antrag.paket}, FALSE, '2026-09-03',
+                ${fall.antrag.angelegt ? new Date(fall.antrag.angelegt) : new Date()}, ${fall.antrag.web === false ? null : "Mozilla/5.0 (Prüfstand E-264)"})`;
     }
     const todosVorher = personId ? Number(((await sql`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`wa-${personId}-%`}`) as any[])[0].n) : 0;
 
@@ -485,6 +498,27 @@ try {
         ok(Number(marken[0].n) === ids.length, `${schritt.id}: ${ids.length} Nachricht(en) als „Automatische Antwort“ markiert`);
       }
       if (pr.ki_aufrufe != null) ok(aufrufe.length === pr.ki_aufrufe, `${schritt.id}: ${pr.ki_aufrufe} KI-Aufruf(e) (${aufrufe.length})`);
+      if (pr.ki_mindestens != null) ok(aufrufe.length >= pr.ki_mindestens, `${schritt.id}: mindestens ${pr.ki_mindestens} KI-Aufruf(e) — kein fester Satz (${aufrufe.length})`);
+      // E-264: Werbe-Stopp, Mahnstopp, Aufgabe an die Leitung, Protokoll
+      if (pr.werbesperre != null && personId) {
+        const [p] = (await sql`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${personId}`) as any[];
+        ok(!!p?.werbung_gesperrt_am === pr.werbesperre, `${schritt.id}: Werbesperre ${pr.werbesperre ? "gesetzt" : "nicht gesetzt"}`);
+      }
+      if (pr.mahnstopp != null && personId) {
+        const [a] = (await sql`SELECT mahnstopp_am FROM fiaon_applications WHERE ref = ${ref}`) as any[];
+        ok(!!a?.mahnstopp_am === pr.mahnstopp, `${schritt.id}: Mahnstopp ${pr.mahnstopp ? "auf der nie abgeschickten Bestellung" : "nicht gesetzt (abgeschickt oder ohne Bestellung)"}`);
+      }
+      if (pr.aufgabe && personId) {
+        const t = (await sql`SELECT schluessel, titel, text FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`wa-${personId}-${pr.aufgabe}-%`}`) as any[];
+        ok(t.length === 1, `${schritt.id}: eine Aufgabe „${pr.aufgabe}“ (${t.map((x: any) => x.titel).join(" | ") || "keine"})`);
+      }
+      if (pr.protokoll) ok(prot.some((p) => p.art === pr.protokoll), `${schritt.id}: im Protokoll als „${pr.protokoll}“`);
+      // E-264 (Nachbesserung): der Auftrag an das Modell trägt einen Hinweis (z. B. die belegte Herkunft bei „Wer sind Sie?").
+      for (const e of pr.auftrag_enthaelt ?? []) ok(aufrufe.some((a) => a.system.includes(e) || a.nutzer.some((t) => t.includes(e))), `${schritt.id}: Auftrag enthält „${String(e).slice(0, 60)}“`);
+      if (pr.aufgabe_enthaelt && personId) {
+        const t = (await sql`SELECT text FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`wa-${personId}-%`}`) as any[];
+        ok(t.some((x: any) => String(x.text ?? "").includes(pr.aufgabe_enthaelt)), `${schritt.id}: eine Aufgabe enthält „${String(pr.aufgabe_enthaelt).slice(0, 60)}“`);
+      }
       if (pr.sicher) ok(prot.some((p) => p.art === "sicherer_satz") && !prot.some((p) => p.art === "rueckfall"), `${schritt.id}: sicherer Satz statt Rückfallsatz`);
       if (pr.kein_rueckfall) ok(!prot.some((p) => p.art === "rueckfall"), `${schritt.id}: kein Rückfallsatz im Protokoll`);
       if (pr.zweiter_hinweis) ok(aufrufe.some((a) => a.zweiter && a.nutzer.some((t) => t.includes(pr.zweiter_hinweis))), `${schritt.id}: zweiter Entwurf bekommt den Hinweis „${pr.zweiter_hinweis}“`);

@@ -5,6 +5,94 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 29.09.2026 — Mara: „Hab nix beantragt" bekommt eine Entschuldigung statt einer Zahlungsseite (E-264)
+
+**Der Anlass:** 29.09., 11:29–11:32, WhatsApp. Die Automatik schickte einem Menschen richtig die Erinnerung
+„Sie waren fast durch". Er antwortete: „Hab nix beantragt 🤢🤮😡😤😠". Mara schrieb 22 Sekunden später:
+„Sehr gern — nach der Zahlung ist Ihr Account aktiv … Ihre Zahlungsseite …". Justin: „les dir mal durch, was MARA
+fürn Kack macht".
+
+**Was dahinter steckte (gemessen, Produktion nur lesend):**
+- Sein Antrag stand bei Schritt 5: Status „approved", Bestellung „pending_payment", nie abgeschickt. Das Formular setzt
+  diese Zufalls-„Genehmigung" schon bei Schritt 3–5 — **vor** dem Vertrag und vor „zahlungspflichtig annehmen".
+  Alle 90 Anträge mit approved + pending_payment sind nie abgeschickt (mit finances/verifying/processing: 99).
+- Mara (E-248) las „pending_payment" als „Antrag fertig, Zahlung offen". Die WA-Zentrale und der Wiedereinstieg
+  kannten die richtige Regel („abgeschickt = Schritt 8 oder Status nach dem Formular") — Mara nicht.
+- „Hab nix beantragt" erkannte niemand; der Notfall-Satz las sogar „beantragt" als Frage nach dem Antrag.
+- Seit E-248 bekamen **36 Menschen** ohne abgeschickten Antrag eine Zahlungsseite: 2 per WhatsApp, 36 per Mail aus der
+  Mara-Aktion (seit 22.09. insgesamt 145 solche Mails an 58 Menschen). Liste und Entschuldigungstexte: Bericht E-264.
+
+**Was jetzt gilt:**
+- **EINE Regel „Antrag abgeschickt"** für alle: Schritt 8 erreicht ODER abgeschickt-Zeitpunkt gesetzt ODER Status nach
+  dem Formular. Die Bestellung (pending_payment) zählt nicht. Nie abgeschickt heißt: Mara schickt den Wiedereinstieg in
+  seinen Antrag — nie eine Zahlungsseite, nie „Nach der Zahlung ist Ihr Account aktiv", keine Reaktivierung einer
+  abgelaufenen Bestellung, kein Zahltag. Gilt auf WhatsApp, im Postfach (so ein Mensch ist dort jetzt „Interessent"),
+  in der Mara-Aktion (Stufe B nur noch mit abgeschicktem Antrag), in der Lead-Kette („Rechnung"-Vorlage) und im
+  WhatsApp-Raum (Stufe B/C im Kopf, Schnell-Links).
+- **Harte Prüfung:** Eine Zahlungsseite oder ein Zahlungssatz an jemanden ohne abgeschickten Antrag geht nie raus
+  (Ausnahme: die Zahlungsseite einer bestellten Bonitätsauskunft).
+- **Abstreiten wird erkannt** — „nix/nichts/nie beantragt", „hab ich nie", „kenn ich nicht", „falsche Nummer",
+  „lassen Sie mich in Ruhe", nur wütende Emojis, auch mit Tippfehlern („Betrug"/„Spam": das Modell, ein Mensch sieht es). Mara antwortet dann mit einem festen
+  Satz, ohne KI: kurze Entschuldigung, ehrlich woher wir die Nummer haben (mit dem Tag aus dem Antrag bzw. dem
+  Anfrageformular — nur, was belegt ist), „Wir schreiben Ihnen ab jetzt nicht mehr", „auf Wunsch löschen wir Ihre
+  Daten". Kein Link, kein Verkauf. Beispiel: „Entschuldigen Sie bitte die Nachricht. Ihre Nummer wurde am 29. Juli bei
+  einem Antrag auf unserer Internetseite eingetragen, deshalb haben wir Ihnen geschrieben. Wenn das nicht von Ihnen
+  kam, tut es mir leid. Wir schreiben Ihnen ab jetzt nicht mehr, und auf Wunsch löschen wir Ihre Daten — schreiben Sie
+  dafür einfach „Löschen"."
+- Abstreiten gilt bei Stufe C als **Werbe-Stopp** (die bestehende Werbesperre). Bei einem abgeschickten Antrag (B)
+  sagt Mara „unsere Leitung sieht sich heute an, wie es zu dem Antrag kam, und meldet sich" und verspricht kein Löschen
+  (Nachbesserung unten: ohne automatische Sperre, ohne Mahnstopp).
+- **Aufgabe an die Leitung** („Kunde bestreitet Antrag", dringend; „Löschwunsch", dringend). „Woher haben Sie meine
+  Nummer?" und „Wer sind Sie?" bekommen die ehrliche Antwort — ohne Sperre (Nachbesserung unten: ohne Löschangebot).
+- Folge-Satz „Löschen" (oder „Löschen Sie meine Daten"): Bestätigung, die Leitung löscht und bestätigt. „Schreiben Sie
+  mir nicht mehr" danach: die bekannte STOPP-Antwort.
+- Per Mail dieselbe Linie; die Antwort bleibt ein Entwurf, den ein Mensch freigibt (Bestreiten war schon immer eine
+  Warnlampe).
+- Bei Kunden mit bezahltem Vertrag schreibt Mara keinen solchen Satz — „Hab nix bestellt" ist dort heikel und geht an
+  einen Menschen.
+
+**Wo:** shared/fiaon-antrag-stand.ts (die Regel), shared/fiaon-mara-ton.ts (Erkennung, Sätze, harte Prüfung),
+server/lib/fiaon-mara-abstreiten.ts, server/lib/fiaon-whatsapp-mara.ts, server/lib/fiaon-postmeister-agent.ts,
+-dossier.ts, -werkzeuge.ts, server/lib/fiaon-mara-aktion.ts, fiaon-lead-whatsapp.ts, fiaon-wa-zentrale.ts,
+server/routes/fiaon-whatsapp-postfach.ts, fiaon-antrag.ts. Mara-Steuerpult: neue Protokoll-Zeilen „Bestreitet —
+Entschuldigung" und „Löschwunsch". Prüfstände: scripts/pruef-mara-abstreiten.ts (neu), pruef-mara-wiedergabe.ts (der
+Fall anonymisiert + Varianten), pruef-mara-mail.ts.
+
+**Nachbesserung nach dem Gegenlesen (29.09.2026, vor dem Push):**
+- **Auch außerhalb von Mara nur noch an abgeschickte Anträge:** die tägliche Zahlungserinnerung (Einzel- und
+  Sammelversand, Zählungen, Meldung „unzustellbar"), die Rückhol-Mails S1–S5 (S4 „vollständig eingegangen" ging an
+  16 Menschen mit Antrag bei Schritt 2–5, S3 an 214), das Angebot der Bonitätsauskunft (47 Mails „Ihr Paket aktivieren
+  Sie mit der ersten Zahlung zu Ihrem Antrag" an nie abgeschickte Anträge — die sind jetzt „Abbrecher") und der
+  Trichterbericht. „Zahlung gemeldet" bleibt, wie es war.
+- **Einstufung:** Eine offene Bestellung zählt nur mit abgeschicktem Antrag als B („Rechnung offen"); 94 + 1 Menschen
+  wechseln auf „Antrag abgebrochen". Nach dem Abschicken wird sofort neu eingestuft. Die Telefonkartei bietet ihnen den
+  Wiedereinstieg statt „Rechnung schicken", die Kartei-KI keine Zahlungsseite. Offen (Entscheidung Justin): 533 Anträge
+  „pending" nach der Konfiguration stehen in der Einstufung weiter auf B (in der Kartei schon als Abbrecher).
+- **Die harte Prüfung sperrt Aufforderungen, keine Erklärungen:** „Nach dem Antrag zahlen Sie die erste Monatsrate" ist
+  wieder erlaubt; gesperrt sind „hier ist Ihre Zahlungsseite", offene Beträge, „überweisen Sie", Verwendungszweck mit
+  Referenz. Gegen die echten Mara-Antworten der Woche: 2 von 134 gesperrt — genau die zwei Fehler (vorher 16).
+  „überweisen Sie" wird jetzt überhaupt erkannt (vorher nie, Umlaut an der Wortgrenze).
+- **Weniger Fehlalarme:** „Ich konnte nichts beantragen, die Seite lädt nicht", „falsche E-Mail angegeben", „ich will
+  Sie nicht belästigen, aber …", „Mail im Spam-Ordner", „Link geht nicht 😡" sind kein Abstreiten mehr. Neu erkannt:
+  „das war nicht ich", „mein Sohn hat das gemacht", „keine Ahnung, was das soll", „bitte keinen Kontakt mehr", und
+  „Für was muss ich zahlen, ich weiß nix" (Rückfrage: keine Zahlungsseite, der Betreuer meldet sich).
+- **Folgen je Art:** kein Mahnstopp mehr (er blieb nach dem Abschicken hängen); keine Sperre bei „falsche Nummer"
+  (das ist der eigentliche Kunde), bei Wut ohne Worte und bei Stufe B (die Leitung entscheidet); per Mail setzt erst die
+  Freigabe die Werbesperre. Nach der Entschuldigung schweigt Mara bei weiterem Ärger (keine zweite Entschuldigung);
+  will der Mensch doch weitermachen, fragt eine Aufgabe „Werbesperre aufheben?".
+- **Herkunft:** die früheste belegte Quelle (Web-Antrag, Meta-Anfrage, erste WhatsApp) — nie eine Betreuer-Anlage.
+- **„Wer sind Sie?" / „Woher meine Nummer?"** bekommen keinen festen Satz mehr: Mara stellt sich vor, nennt die belegte
+  Herkunft und den nächsten Schritt — ohne Löschangebot. Bei Stufe B bietet kein Satz mehr das Löschen an.
+- **Postfach:** „Stopp" setzt der Riegel nur noch bei ausdrücklichem Wunsch (nicht wegen „Betrug" oder „Spam");
+  keine Rechnung als Anhang zu einem nie abgeschickten Antrag; ein Interessent kann seine angefangene Bestellung
+  stornieren lassen. Übersehenes Abstreiten hat im Auftrag an das Modell jetzt eine eigene Regel.
+
+**Offen (Entscheidung Justin):** Betreuer-Anlagen ohne Zustimmung des Kunden (44 Bestellungen) zählen weiter als
+abgeschickt; die 46 nie abgeschickten Bestellungen mit Zahlungserinnerungen brauchen keinen Mahnstopp mehr (die
+Erinnerung geht dort nicht mehr hin). Die Werbesperre nach dem Abstreiten hebt nie etwas von selbst auf.
+
+---
+
 ## 29.09.2026 — Maras Termine im Mara-Steuerpult, und „Team abwesend — Mara bucht bei mir" (E-260)
 
 **Der Anlass:** Justin: „ALLE Termine, die MARA macht, muss ich sehen können als Chef auf einer eigenen übersichtlichen

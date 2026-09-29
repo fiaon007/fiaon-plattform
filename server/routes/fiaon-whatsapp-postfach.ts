@@ -28,6 +28,7 @@ import {
 } from "../lib/fiaon-whatsapp";
 import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
 import { istAutoantwort, stufeAusAntrag, persoenlicherLink, type LinkStufe } from "../../shared/fiaon-mara-ton";
+import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WAS DIE OBERFLÄCHE ZUSÄTZLICH BRAUCHT (28.09.2026, E-248)
@@ -145,6 +146,7 @@ async function linksFuerLage(lage: any): Promise<RaumLinks> {
   const istLead = !!lage.istLead;
   const stufe: LinkStufe = istLead ? "lead" : stufeAusAntrag(lage.ref ? {
     status: lage.antrag_status, payment_status: lage.zahlstatus, current_step: lage.antrag_schritt, gekuendigt_am: lage.gekuendigt_am,
+    submitted_at: lage.antrag_abgeschickt_am,
   } : null);
 
   // Der Code: vorhanden, sonst einmal nachziehen (danach steht er am Lead).
@@ -291,9 +293,11 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
                      WHEN bool_or(a.payment_status = 'paid') THEN 'Kunde'
                      WHEN bool_or(a.claimed_paid_at IS NOT NULL OR a.payment_status = 'claimed_paid') THEN 'A'
                      -- 24.09.2026 (Justin, Niko M.): „abgeschickt" heißt Schritt 8 ODER Status außerhalb des
-                     -- Antragswegs ODER Rechnung offen (E-210). Schritt allein machte 96 offene Rechnungen zu „C".
-                     WHEN bool_or(COALESCE(a.current_step, 0) >= 8 OR a.payment_status = 'pending_payment'
-                                  OR a.status NOT IN ('started','personal_data','finances','config','verifying','approved','contract','processing')) THEN 'B'
+                     -- Antragswegs (E-210). Schritt allein machte 96 offene Rechnungen zu „C".
+                     -- E-264 (29.09.2026): NICHT mehr „ODER Rechnung offen" — approved + pending_payment setzt der
+                     -- Antragsweg schon bei Schritt 3–5, vor dem Vertrag (99 Anträge, alle nie abgeschickt; der Chat
+                     -- vom 29.09. stand deshalb als „Stufe B" da). EINE Regel: shared/fiaon-antrag-stand.ts.
+                     WHEN bool_or(${sqlPool.unsafe(abgeschicktSql("a"))}) THEN 'B'
                      ELSE 'C' END
               FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL) AS p_stufe,
            le.id AS l_id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS l_name, le.assigned_agent_id AS lead_agent,
@@ -441,13 +445,13 @@ function routen(hole: (req: any) => Blick) {
                  (SELECT CASE
                            WHEN bool_or(a.payment_status = 'paid') THEN 'Kunde'
                            WHEN bool_or(a.claimed_paid_at IS NOT NULL OR a.payment_status = 'claimed_paid') THEN 'A'
-                           WHEN bool_or(COALESCE(a.current_step, 0) >= 8 OR a.payment_status = 'pending_payment'
-                                        OR a.status NOT IN ('started','personal_data','finances','config','verifying','approved','contract','processing')) THEN 'B'
+                           -- E-264: dieselbe Regel wie oben (abgeschicktSql) — nie „pending_payment" allein.
+                           WHEN bool_or(${sqlPool.unsafe(abgeschicktSql("a"))}) THEN 'B'
                            ELSE 'C' END
                     FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL) AS stufe,
                  a.name AS betreuer, p.assigned_agent_id AS betreuer_id,
                  b.ref, b.pack_name AS paket, b.payment_status AS zahlstatus, b.payment_reference AS zahlungsreferenz,
-                 b.gekuendigt_am, b.status AS antrag_status, b.current_step AS antrag_schritt,
+                 b.gekuendigt_am, b.status AS antrag_status, b.current_step AS antrag_schritt, b.submitted_at AS antrag_abgeschickt_am,
                  r.rate_nr, r.betrag_cents, r.faellig_am,
                  -- E-248: Der Termin-Chip im Chat-Kopf nennt auch, WER anruft.
                  tm.id AS termin_id, tm.agent_name AS termin_mitarbeiter,
@@ -473,7 +477,7 @@ function routen(hole: (req: any) => Blick) {
                ORDER BY t.beginn LIMIT 1
             ) tm ON TRUE
             LEFT JOIN LATERAL (
-              SELECT ref, pack_name, payment_status, payment_reference, gekuendigt_am, status, current_step
+              SELECT ref, pack_name, payment_status, payment_reference, gekuendigt_am, status, current_step, submitted_at
                 FROM fiaon_applications x
                WHERE x.person_id = p.id AND x.merged_into IS NULL
                  AND (x.archived_at IS NULL OR x.payment_status = 'paid')

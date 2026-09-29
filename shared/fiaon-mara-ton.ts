@@ -12,6 +12,14 @@
 // fiaon_whatsapp, Absender „Mara Lindner", Stand 28.09.): 16 freie
 // Mara-Nachrichten mit nacktem /antrag, 7 mit persönlichem /a/<code>.
 //
+// KORREKTUR E-264 (29.09.2026): „längst fertig" stimmte nicht — approved mit
+// offener Bestellung setzt der Antragsweg schon bei Schritt 3–5, VOR dem
+// Vertrag (alle 90 solchen Anträge in der Produktion stehen vor Schritt 8).
+// Maßgeblich ist seitdem shared/fiaon-antrag-stand.ts (antragAbgeschickt):
+// unfertig heißt Wiedereinstieg in den Antrag, nie Zahlungsseite. Dazu (f)
+// unten: Wer bestreitet, je einen Antrag gestellt zu haben, bekommt eine
+// Entschuldigung und die ehrliche Herkunft seiner Nummer — keinen Verkauf.
+//
 // Justin: „Mara soll 100 % menschlich und verkaufsfördernd reden … Beziehungen
 // aufbauen, super freundlich, NICHT ‚wir sind keine Bank', sondern den Kunden
 // MUT machen, Aussichten stellen, freundlich und kontextbezogen. Wenn jemand
@@ -26,6 +34,8 @@
 //   (d) MUSTERDIALOGE / istAutoantwort() / istReineBestaetigung()
 //       / nachBestaetigung()              — wann antworten, wann schweigen
 //   (e) KANAL_FORM / formText()           — WhatsApp und Mail
+//   (f) abstreitenArt() / bausteinAbstreiten() / istLoeschwunsch()
+//                                         — „Hab nix beantragt" (E-264)
 //   dazu zeitFuerKunde() / uhrzeitenIn()  — Zeiten menschlich, nie ISO
 //
 // ── DIE GRENZEN BLEIBEN ────────────────────────────────────────────────────
@@ -47,6 +57,7 @@
 import { paket, paketPreisCents } from "./fiaon-pakete";
 import { euroText, auskunftWort, type AuskunftLand } from "./fiaon-auskunft";
 import { SEO_BASIS } from "./fiaon-seo-seiten";
+import { antragAbgeschickt } from "./fiaon-antrag-stand";
 
 export type MaraKanal = "whatsapp" | "mail";
 
@@ -117,6 +128,8 @@ export function personaText(kanal: MaraKanal, opt: {
     ...TON_REGELN.filter((r) => !r.nurKanal || r.nurKanal === kanal).map((r) => `· ${r.beispiel} → ${r.hinweis}`),
     ``,
     LINK_REGEL_TEXT,
+    ``,
+    ABSTREITEN_REGEL_TEXT,
     ``,
     formText(kanal),
   ].join("\n");
@@ -417,7 +430,7 @@ export interface LinkLage {
   leadCode?: string | null;
   /** weiterLink(ref), fertig signiert vom Server — für einen Antrag ohne Lead-Code. */
   weiterLink?: string | null;
-  /** payment_reference der offenen Bestellung (nur mit payment_status 'pending_payment' oder abgeschicktem Antrag). */
+  /** payment_reference der offenen Bestellung — NUR bei abgeschicktem Antrag (E-264: antragAbgeschickt, nie wegen pending_payment allein). */
   zahlungsReferenz?: string | null;
   /** Referenz der Monatsrate, an die zuletzt erinnert wurde (offen und fällig). */
   ratenReferenz?: string | null;
@@ -429,36 +442,37 @@ export interface LinkLage {
 
 export type LinkZweck = "antrag" | "zahlung" | "rate" | "bereich" | "termin" | "auskunft";
 
-const UNFERTIG = ["started", "personal_data", "finances", "config", "verifying", "approved", "contract", "processing"];
-
 /**
  * Wo steht er — für den Link? Gleiche Regel für WhatsApp und Mail.
  *
- * DER FEHLER VOM 28.09.: lageFuer (fiaon-whatsapp-mara.ts) zählte „approved"
- * als unfertig und prüfte `payment_reference` — die Spalte ist aber bei JEDEM
- * Antrag gefüllt (NOT NULL). 55 Anträge „approved" mit offener Bestellung
- * (pending_payment) bekamen so „Antrag fortsetzen" + nackten /antrag statt
- * ihrer Zahlungsseite. Maßgeblich ist die Bestellung: payment_status
- * 'pending_payment' heißt, die Zahlungsseite existiert.
+ * E-248 (28.09.) las hier „pending_payment heißt, die Zahlungsseite existiert"
+ * und machte daraus „zahlung_offen" — VOR der Frage, ob der Antrag überhaupt
+ * abgeschickt ist. DER FEHLER VOM 29.09. (E-264): Der Antragsweg setzt approved
+ * + pending_payment schon bei Schritt 3–5; alle 90 solchen Anträge in der
+ * Produktion sind nie abgeschickt (Schritt < 8, submitted_at leer). Ein
+ * Mensch, der „Hab nix beantragt" schrieb, bekam „Nach der Zahlung ist Ihr
+ * Account aktiv" samt Zahlungsseite — eine Zahlungsaufforderung ohne Vertrag.
+ * Jetzt entscheidet EINE Regel: antragAbgeschickt (shared/fiaon-antrag-stand.ts,
+ * Hausregel E-210). Nicht abgeschickt → „antrag_offen" (Wiedereinstieg), egal
+ * welcher payment_status daneben steht.
  *
- * NACHBESSERUNG E-248: 'expired' (96 Altbestellungen) bleibt hier „zahlung_offen" —
- * der Schritt IST die Zahlung. Die Seite zeigt dann aber „abgelaufen"; deshalb
- * schaltet Mara die Bestellung vorher selbst neu frei (abgelaufeneBestellungFreischalten:
- * zahlungslink_bauen im Postfach, lageFuer auf WhatsApp). Geht das nicht (heikles
- * Anliegen, Sperre), bekommt er KEINEN Zahlungslink.
+ * NACHBESSERUNG E-248 (gilt weiter): 'expired' bei ABGESCHICKTEM Antrag bleibt
+ * „zahlung_offen" — der Schritt IST die Zahlung. Die Seite zeigt dann aber
+ * „abgelaufen"; deshalb schaltet Mara die Bestellung vorher selbst neu frei
+ * (abgelaufeneBestellungFreischalten — seit E-264 nur bei abgeschicktem Antrag).
+ * Geht das nicht (heikles Anliegen, Sperre), bekommt er KEINEN Zahlungslink.
  */
 export function stufeAusAntrag(a: {
-  status?: string | null; payment_status?: string | null; current_step?: number | null;
-  gekuendigt_am?: unknown; abo_gestoppt_am?: unknown;
+  status?: string | null; payment_status?: string | null; current_step?: number | string | null;
+  submitted_at?: unknown; gekuendigt_am?: unknown; abo_gestoppt_am?: unknown;
 } | null | undefined): LinkStufe {
   if (!a) return "lead";
   const ps = String(a.payment_status ?? "");
   if (a.gekuendigt_am || a.abo_gestoppt_am || ["cancelled", "refunded", "superseded"].includes(ps)) return "beendet";
   if (ps === "paid") return "kunde";
   if (ps === "claimed_paid") return "zahlung_gemeldet";
-  if (ps === "pending_payment") return "zahlung_offen";
-  const abgeschickt = Number(a.current_step ?? 0) >= 8 || !UNFERTIG.includes(String(a.status ?? ""));
-  return abgeschickt ? "zahlung_offen" : "antrag_offen";
+  // E-264: erst die Frage „abgeschickt?" — pending_payment allein macht keinen fertigen Antrag.
+  return antragAbgeschickt(a) ? "zahlung_offen" : "antrag_offen";
 }
 
 /** Die Seite eines Codes: https://fiaon.com/a/<code>/<kanal>. Gleiche Form wie kurzlinkUrl. */
@@ -504,11 +518,12 @@ export const LINK_REGEL_TEXT = [
   `· Du schickst nur den Link aus SEINE LAGE oder aus einem Werkzeug — Antrag: sein persönlicher Link (fiaon.com/a/…), Zahlung: seine Zahlungsseite (fiaon.com/zahlung/<sein Verwendungszweck>), Termin: sein persönlicher Terminlink.`,
   `· Nie fiaon.com/antrag, fiaon.com/zahlung, fiaon.com/termin oder fiaon.com/start ohne seinen Teil dahinter — damit müsste er alles neu eintippen, und wir sehen nicht, dass er geklickt hat.`,
   `· Ist sein Antrag fertig und die Zahlung offen, ist der Schritt die Zahlungsseite — nie „Antrag fortsetzen“.`,
+  `· Ist sein Antrag NICHT abgeschickt (angefangen oder nur vorbereitet), gibt es keine Rechnung und keine Zahlung: kein Wort von Zahlung, Zahlungsseite oder „Account aktiv“ — der Schritt ist sein Antrag.`,
   `· Hat er bezahlt, gibt es keinen Antragslink mehr, sondern seinen Bereich (fiaon.com/login).`,
   `· Für Unternehmen (GmbH, Gewerbe, Firma): fiaon.com/business.`,
 ].join("\n");
 
-export type LinkArt = "nackt" | "fremd" | "lage" | "unbekannt";
+export type LinkArt = "nackt" | "fremd" | "lage" | "unbekannt" | "ohne_antrag";
 export interface LinkBefund { art: LinkArt; schwere: TonSchwere; link: string; hinweis: string }
 
 /** Seiten, die für jeden gleich sind und so verlinkt werden dürfen. */
@@ -520,6 +535,8 @@ const ALLGEMEIN = /^\/(login|mein-bereich|dashboard|app|business|global|en\/busi
  *   fremd  — /zahlung/<X>, /a/<X>, /termin/<X> passt nicht zu seiner Lage (hart; nur mit Lage prüfbar)
  *   lage   — Link passt nicht zu seiner Stufe (Antrag, obwohl bezahlt …) (weich)
  *   unbekannt — eine andere fiaon.com-Seite (weich)
+ *   ohne_antrag — E-264: Zahlungsseite oder Zahlungssatz an jemanden, dessen Antrag nie
+ *             abgeschickt ist (Stufe lead/antrag_offen) — hart (zahlungOhneAntrag)
  * `lage` ist optional: ohne sie wird nur „nackt" geprüft.
  */
 export function linkPruefung(text: string, lage?: LinkLage | null): LinkBefund[] {
@@ -548,6 +565,12 @@ export function linkPruefung(text: string, lage?: LinkLage | null): LinkBefund[]
     if (/^\/(start|zahlung|termin|a)$/i.test(nurPfad)) { nackt(`Nackter Link ${nurPfad} — schick seinen persönlichen${wahl?.url ? ` (${wahl.url})` : ""}.`); continue; }
     let t: RegExpMatchArray | null;
     if ((t = nurPfad.match(/^\/zahlung\/([^/]+)$/i))) {
+      // E-264: Ohne abgeschickten Antrag gibt es keine Zahlungsseite — außer der einer bestellten Auskunft.
+      if (lage && (lage.stufe === "lead" || lage.stufe === "antrag_offen")
+        && !(auskunftRef && decodeURIComponent(t[1]).toUpperCase() === decodeURIComponent(auskunftRef).toUpperCase())) {
+        funde.push({ art: "ohne_antrag", schwere: "hart", link, hinweis: `Sein Antrag ist nie abgeschickt — keine Zahlungsseite, keine Zahlung.${wahl?.url ? ` Der Schritt ist sein Antrag: ${wahl.url}` : ""}` });
+        continue;
+      }
       if (lage && eigeneZahlung.size && !eigeneZahlung.has(decodeURIComponent(t[1]).toUpperCase())) {
         funde.push({ art: "fremd", schwere: "hart", link, hinweis: "Diese Zahlungsseite ist nicht seine — nimm die aus SEINE LAGE." });
       } else if (lage && (lage.stufe === "zahlung_gemeldet" || lage.stufe === "beendet")) {
@@ -580,7 +603,86 @@ export function linkPruefung(text: string, lage?: LinkLage | null): LinkBefund[]
     }
     funde.push({ art: "unbekannt", schwere: "weich", link, hinweis: "Diese Seite ist nicht sein persönlicher Schritt — prüfen." });
   }
+  const satz = zahlungOhneAntrag(text, lage ?? null);
+  if (satz) funde.push({ art: "ohne_antrag", schwere: "hart", link: satz, hinweis: `Sein Antrag ist nie abgeschickt — es gibt keine Rechnung. Keine Zahlungsaufforderung (keine Zahlungsseite, kein offener Betrag, kein „überweisen Sie“); erklären darfst du den Ablauf: erst der Antrag, danach die erste Monatsrate.${wahl?.url ? ` Der Schritt ist sein Antrag: ${wahl.url}` : ""}` });
   return funde;
+}
+
+// ── E-264: KEINE ZAHLUNGSAUFFORDERUNG OHNE ABGESCHICKTEN ANTRAG ────────────
+// Fall 29.09.: „Sehr gern — nach der Zahlung ist Ihr Account aktiv … Ihre
+// Zahlungsseite … ist hier: …/zahlung/…" an einen Menschen, dessen Antrag bei
+// Schritt 5 stand — eine Zahlungsaufforderung für einen Vertrag, den es nicht gibt.
+//
+// NACHBESSERUNG E-264 (29.09.2026, Gegenlesen): Die erste Fassung sperrte jeden
+// Satz mit „erste Rate", „nach der Zahlung", „Account aktiv", „Zahlungsseite" —
+// gegen die Produktion gemessen hätte sie von 134 Mara-Antworten an Stufe C in
+// sieben Tagen 16 gesperrt, davon 14 RICHTIGE Erklärungen („nach dem Antrag
+// wählen Sie ein Paket und zahlen die erste Monatsrate selbst per Überweisung",
+// „für die erste Zahlung brauchen Sie kein Online-Banking"). Und „\büberweisen"
+// traf nie: Ohne Unicode-Flag ist „ü" für \b kein Wortzeichen.
+// Jetzt hart NUR, was Geld verlangt oder eine bestehende Schuld behauptet:
+//   · seine Zahlungsseite vorlegen („hier", „bleibt offen", „finden Sie unter")
+//     — außer im Satz steht, dass sie erst NACH dem Antrag kommt,
+//   · ein offener/ausstehender Betrag, eine offene Rechnung, „Ihre Rechnung",
+//   · „überweisen Sie", „zahlen Sie", „bitte/jetzt (be)zahlen" als Aufforderung,
+//   · Verwendungszweck mit Referenz, eine IBAN.
+// Der Link /zahlung/<X> ist davon getrennt (linkPruefung, oben) und bleibt hart.
+// Ausgenommen: ein Satz über die Bonitätsauskunft (eigenes Produkt, E-241).
+// Wortgrenzen Unicode-fest (Lookbehind/-ahead auf \p{L}) — als new RegExp, der
+// tsconfig-Zielstand kennt das Flag „u" in Literalen nicht. „\b<" = Wortanfang, „\b>" = Wortende.
+const WORT_ANFANG = "(?<![\\p{L}\\p{N}])";
+const WORT_ENDE = "(?![\\p{L}\\p{N}])";
+function uw(quelle: string): RegExp {
+  return new RegExp(quelle.split("\\b<").join(WORT_ANFANG).split("\\b>").join(WORT_ENDE), "iu");
+}
+const BETRAG = String.raw`\d{1,4}(?:[.,]\d{2})?\s?(?:€|euro\b>|eur\b>)`;
+// Aufforderung: „Überweisen Sie …", „Bitte zahlen Sie …", „Zahlen Sie die 59,99 € …" — das Verb vorn (am
+// Satzanfang, nach „—"/„:" oder nach bitte/jetzt/einfach …). „Jede Rate überweisen Sie selbst" ist eine
+// Erklärung, ebenso jede Aufforderung in einem Satz, der sie hinter den Antrag stellt („Nach dem Antrag
+// überweisen Sie einfach die erste Rate").
+const ZAHLUNG_AUFFORDERUNG: RegExp[] = [
+  uw(String.raw`(?:^|[—–:]\s*|\b<(?:bitte|jetzt|einfach|gleich|heute|also)\s+)(?:über|ueber)weisen\s+sie\b>`),
+  uw(String.raw`(?:^|[—–:]\s*|\b<(?:bitte|jetzt|einfach|gleich|heute|also)\s+)(?:be)?zahlen\s+sie\b>`),
+  uw(String.raw`(?<!nicht\s)(?<!nichts\s)\b<(?:bitte|jetzt|sofort|umgehend)\s+(?:(?:die|den|ihre[nm]?)\s+(?:\S+\s+){0,2}?)?(?:(?:über|ueber)weisen|(?:be)?zahlen|begleichen)\b>`),
+  uw(String.raw`\b<(?:über|ueber)weisen\s+sie\s+(?:bitte|jetzt|gleich|heute|noch)\b>`),
+  // „Ihre Rechnung …" setzt eine Rechnung voraus — „Ihre Rechnung kommt nach dem Antrag" nicht.
+  uw(String.raw`\b<ihre[nr]?\s+(?:erste[nr]?\s+)?(?:rechnung|zahlungsaufforderung|forderung)\b>`),
+];
+// Eine bestehende Schuld — gilt immer: „offene Rechnung", „… ist noch offen", „Zahlung … steht noch aus",
+// ein offener Betrag, Verwendungszweck MIT Referenz, eine IBAN als Nummer.
+const ZAHLUNG_SCHULD: RegExp[] = [
+  uw(String.raw`\b<offene[nrs]?\s+(?:rechnung|zahlung|rate|monatsrate|betrag|forderung|posten)\b>`),
+  uw(String.raw`\b<(?:rechnung|zahlung|rate|monatsrate|betrag|summe)\b>[^.!?]{0,60}\b<(?:ist|sind|steht|stehen|bleibt|bleiben)\s+(?:noch\s+|weiterhin\s+|bereits\s+|jetzt\s+)?(?:offen|aus|ausstehend|überfällig|ueberfaellig)\b>`),
+  uw(String.raw`\b<noch\s+(?:zu\s+)?(?:zahlen|bezahlen|überweisen|ueberweisen|begleichen)\b>`),
+  // Ein Betrag, der „offen" oder „ausstehend" ist (nicht „fällig": „die erste Rate ist mit dem Vertrag fällig"
+  // erklärt; nicht „überweisen": „ab 7,99 € im Monat … jede Rate überweisen Sie selbst" auch).
+  uw(String.raw`${BETRAG}[^.!?]{0,40}\b<(?:offen|ausstehend)\b>`),
+  uw(String.raw`\b<(?:offen|ausstehend)\b>[^.!?]{0,30}${BETRAG}`),
+  uw(String.raw`\b<verwendungszweck\b>[^.!?]{0,30}\b<FIAON-?[A-Z0-9]{4,}`),
+  uw(String.raw`\b<[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,}`),
+];
+// „Ihre Zahlungsseite" wird VORGELEGT (hier, bleibt offen, finden Sie unter …) — außer der Satz sagt, dass sie
+// erst nach dem Antrag kommt („Nach dem Abschluss sehen Sie … auf Ihrer Zahlungsseite").
+const ZAHLUNGSSEITE_VORGELEGT = uw(String.raw`\b<zahlungs(?:seite|link)\b>[^.!?]{0,80}\b<(?:hier|bleibt|offen|finden\s+sie|unter|folgende[nm]?|anbei|geschickt|schicke|sende)\b>|\b<(?:hier|anbei)\b>[^.!?]{0,40}\b<zahlungs(?:seite|link)\b>`);
+const NACH_DEM_ANTRAG = uw(String.raw`\b<(?:nach\s+(?:dem|ihrem)\s+(?:fertigen\s+)?(?:antrag|abschluss|absenden|abschicken|vertrag)|sobald\s+(?:ihr|der)\s+antrag|wenn\s+(?:ihr|der)\s+antrag|nach\s+dem\s+letzten\s+schritt|erst\s+(?:nach|wenn|sobald)|danach)\b>`);
+const AUSKUNFT_SATZ = uw(String.raw`\b<(?:auskunft|bonität|bonitaet|schufa|ksv|crif|datenkopie)`);
+
+/**
+ * Der erste Satz, der Geld verlangt oder eine Schuld behauptet, obwohl sein
+ * Antrag nie abgeschickt ist (Stufe lead oder antrag_offen) — sonst null.
+ * Erklärungen des Ablaufs („nach dem Antrag … die erste Monatsrate") sind
+ * erlaubt. Rein.
+ */
+export function zahlungOhneAntrag(text: string, lage: LinkLage | null | undefined): string | null {
+  if (!lage || (lage.stufe !== "lead" && lage.stufe !== "antrag_offen")) return null;
+  const ohneLinks = String(text ?? "").replace(/https?:\/\/\S+/g, " ");
+  for (const s of saetze(ohneLinks)) {
+    if (AUSKUNFT_SATZ.test(s)) continue;
+    if (ZAHLUNG_SCHULD.some((r) => r.test(s))) return s.slice(0, 90);
+    if (NACH_DEM_ANTRAG.test(s)) continue;
+    if (ZAHLUNG_AUFFORDERUNG.some((r) => r.test(s)) || ZAHLUNGSSEITE_VORGELEGT.test(s)) return s.slice(0, 90);
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -688,6 +790,8 @@ const BESTAETIGUNG_WORTE = new Set([
 export function istReineBestaetigung(text: string): boolean {
   const t = String(text ?? "").trim();
   if (!t || t.length > 40 || t.includes("?")) return false;
+  // E-264: „😡😡" oder „🤮" ist Wut, keine Bestätigung — dann antwortet Mara (abstreitenArt „wut").
+  if (WUT_EMOJI.test(t)) return false;
   const ohneZeichen = t.replace(new RegExp("[\\p{Extended_Pictographic}\\u{1F3FB}-\\u{1F3FF}\\u200D\\uFE0F]", "gu"), " ").replace(/[.,!;:)(\-–—]+/g, " ").trim().toLowerCase();
   if (!ohneZeichen) return true; // nur Emojis (👍, 🙏)
   return ohneZeichen.split(/\s+/).every((w) => BESTAETIGUNG_WORTE.has(w));
@@ -746,6 +850,377 @@ export interface Musterdialog {
   soll: MusterSoll;
   /** So nie wieder — echte Sätze aus den Chats vom 23.–28.09. (ohne Namen). */
   nie?: string[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// (f) „HAB NIX BEANTRAGT" — ABSTREITEN, IRRTUM, DATENFRAGE (29.09.2026, E-264)
+//
+// Der Fall: Abbrecher-Vorlage „Sie waren fast durch" → „Hab nix beantragt
+// 🤢🤮😡😤😠" → Mara: „Sehr gern — nach der Zahlung ist Ihr Account aktiv …
+// Ihre Zahlungsseite …". Niemand hatte erkannt, dass der Mensch bestreitet —
+// und der Rückfall (sichererSatz) las „beantragt" als Frage nach dem Antrag.
+//
+// Die Linie (WhatsApp UND Mail, fester Text, kein Modell):
+//   · kurze, aufrichtige Entschuldigung,
+//   · EHRLICH, woher wir seine Nummer/Adresse haben — nur Belegtes, mit dem
+//     Tag der ersten belegten Quelle (herkunftSatz). „auf unserer
+//     Internetseite" statt „fiaon.com" — die Adresse allein wäre auf WhatsApp ein
+//     klickbarer nackter Link (linkPruefung „nackt"),
+//   · kein Link, kein Verkauf, KI-Hinweis wie gehabt (setzt der Server davor),
+//   · eine Aufgabe an einen Menschen.
+//
+// NACHBESSERUNG E-264 (29.09.2026, Gegenlesen) — was die erste Fassung falsch
+// machte und was jetzt gilt:
+//   · Fehlalarme: „Ich konnte nichts beantragen, die Seite lädt nicht",
+//     „Ich habe eine falsche E-Mail-Adresse angegeben", „Ich will Sie nicht
+//     belästigen, aber …", „Ihre Mail landete im Spam", „Link geht nicht 😡"
+//     galten als Abstreiten — mit Werbesperre, Mahnstopp und „Wir schreiben
+//     Ihnen nicht mehr" statt einer Antwort. Jetzt: TAT nur im Perfekt
+//     („beantragt", nicht „beantragen"), ein Technik-/Fortsetzungs-Gegenmuster
+//     (GEGEN), „falsche Nummer" nur mit Bezug auf UNS, „belästigen" nur als
+//     Vorwurf, „Spam"/„Betrug" nie als fester Satz, Wut nur ohne Worte.
+//   · Übersehen wurden „das war nicht ich", „mein Sohn hat das gemacht", „ich
+//     weiß nicht, wovon Sie reden", „keine Ahnung, was das soll", „keinen Kredit
+//     gemacht", „bitte keinen Kontakt mehr" — jetzt erkannt.
+//   · Neu die Art „rueckfrage" („Für was muss ich zahlen, ich weiß nix") — kein
+//     Stopp, ein Mensch klärt (Fall 27.09., Betreuer-Anlage).
+//   · „Wer sind Sie?" / „Woher haben Sie meine Nummer?" bekommen KEINEN festen
+//     Satz mehr (die erste Fassung bot heißen Leads Stopp und Löschen an):
+//     abstreitenHinweis() gibt dem Modell die ehrliche Herkunft, es stellt sich
+//     vor und nennt seinen nächsten Schritt — ohne Löschangebot.
+//   · Stufe B (abgeschickt): kein Löschangebot, keine Zusage „nie mehr schreiben".
+// Welche Art welche Folge hat (Werbesperre, Aufgabe), entscheidet der Server
+// (fiaon-mara-abstreiten.ts, abstreitenFolgen) — hier nur Erkennung und Sätze.
+// Rein, ohne Datenbank — Server und Prüfstand lesen dieselben Muster.
+// ═══════════════════════════════════════════════════════════════════════════
+export type AbstreitenArt = "bestreitet" | "falsche_nummer" | "betrug" | "in_ruhe" | "wut" | "rueckfrage" | "datenfrage" | "wer";
+/** Die Arten mit festem Satz (bausteinAbstreiten) — die übrigen beantwortet das Modell mit Hinweis. */
+export type AbstreitenFestArt = "bestreitet" | "falsche_nummer" | "in_ruhe" | "wut" | "rueckfrage";
+export const ABSTREITEN_FEST: readonly AbstreitenArt[] = ["bestreitet", "falsche_nummer", "in_ruhe", "wut", "rueckfrage"];
+export interface AbstreitenBefund {
+  art: AbstreitenArt;
+  /** Er will keinen Kontakt (mehr) — bestreitet, falsche Nummer, „in Ruhe lassen". Ob daraus eine Werbesperre wird, entscheidet der Server nach Art und Stufe. */
+  stopp: boolean;
+  /** Mara antwortet mit einem festen Satz (bausteinAbstreiten), ohne Modell. */
+  fest: boolean;
+  /** Das erkannte Stück seiner Nachricht (für Aufgabe und Protokoll). */
+  treffer: string;
+}
+
+/** Wütende Emojis — allein (ohne ein Wort) eine Absage, keine Bestätigung. */
+// Als new RegExp — der tsconfig-Zielstand kennt das Flag „u" in Literalen nicht (wie beim Emoji-Muster oben).
+export const WUT_EMOJI = new RegExp("[\\u{1F621}\\u{1F620}\\u{1F92C}\\u{1F624}\\u{1F92E}\\u{1F922}\\u{1F44E}\\u{1F595}\\u{1F4A9}\\u{1F63E}\\u{1F47F}\\u{1F4A2}]", "u");
+/** Freundliche Emojis — „😤💪" ist Tatendrang, keine Wut. */
+const FREUNDLICH_EMOJI = new RegExp("[\\u{1F44D}\\u{1F4AA}\\u{1F64F}\\u{1F60A}\\u{1F642}\\u{1F600}\\u{1F601}\\u{1F603}\\u{1F604}\\u{2764}\\u{1F44C}\\u{2705}\\u{1F970}\\u{1F60D}\\u{1F91D}\\u{1F44F}\\u{1F389}\\u{1F609}]", "u");
+const EMOJI_ALLE = new RegExp("[\\p{Extended_Pictographic}\\u{1F3FB}-\\u{1F3FF}\\u200D\\uFE0F]", "gu");
+const WORTZEICHEN = new RegExp("[\\p{L}\\p{N}]", "u");
+
+// Was man „beantragt" haben kann — NUR im Perfekt (E-264, Gegenlesen: „Ich konnte nichts beantragen"
+// ist ein Technikproblem), mit den häufigsten Tippfehlern („bentragt", „beantagt", „bestelt").
+// Bewusst NICHT „abgeschlossen" nach „nie": „Ich habe den Antrag nie abgeschlossen" ist ein Stand.
+const TAT = String.raw`(?:bea?n?t?r?a?gt|bestel+t|angemel?det|registriert|unterschrieben|angefragt|eingetragen|gebucht|gekauft|angefordert|beauftragt)`;
+const NIE = String.raw`(?:nie(?:mals)?|nix|nichts|nischt|nüscht|gar\s+nichts|(?:ü|ue)berhaupt\s+nichts|nie\s+(?:etwas|was))`;
+/**
+ * Er will weitermachen — dann ist „noch nichts bestellt" kein Abstreiten. E-264 (Gegenlesen):
+ * „würde aber gerne", „will ich doch weitermachen", „wir machen weiter" — nicht „will das nicht",
+ * nicht „wie kann das sein?".
+ */
+const INTERESSE = uw(String.raw`\b<(?:möchte|moechte|w(?:ü|ue)rde\s+(?:\S+\s+){0,2}?gerne?|will\s+(?:ich\s+|wir\s+)?(?:doch|gerne?|trotzdem|jetzt\s+(?:doch|weiter|starten|los)|weiter\w*|starten)|will\s+(?:eine|die|den)\s+(?:karte|kreditkarte|antrag|konto)(?![^.!?]*\b<nicht\b>)|wie\s+(?:geht\s+(?:es|das)\s+weiter|kann\s+ich(?!\s+(?:\S+\s+){0,3}?(?:stoppen|löschen|loeschen|abmelden|kündigen|kuendigen|widerrufen|beenden))|funktioniert\s+(?:das|es)|lange\s+dauert)|was\s+kostet|wo\s+kann\s+ich|gerne?\s+(?:bestellen|beantragen|starten|weitermachen)|weiter\s?machen|machen\s+(?:wir\s+|ich\s+)?(?:doch\s+)?weiter|fortsetzen)\b>`);
+/**
+ * Technik oder „mache ich noch" — dann ist „nichts eingetragen" kein Abstreiten (E-264, Gegenlesen:
+ * „Ich habe nichts eingetragen, weil die Seite nicht lädt", „Hab ich nicht gemacht, mache ich heute
+ * Abend", „nie einen Kredit beantragt, nur die Karte").
+ */
+const GEGEN = uw(String.raw`\b<(?:link|seite|webseite|website|app|fehler\w*|lädt|laedt|laden|funktioniert\w*|klappt|hängt|haengt|error|konnte|kann\s+(?:ich\s+)?(?:nicht|nichts|mich|es)|weil|mache\s+(?:ich|das)|mach\s+ich|heute\s+abend|morgen|später|spaeter|gleich|nur\s+(?:die|eine|das|den)|sondern)\b>`);
+
+/** Abstreiten mit einer Tat („nie beantragt") — gilt nicht bei Technik/Fortsetzung (GEGEN). */
+const BESTREITET_TAT: RegExp[] = [
+  // „Hab nix beantragt", „nie etwas bestellt", „hab mich nie angemeldet" — nicht „noch nichts bestellt"
+  new RegExp(String.raw`(?<!\bnoch\s)\b${NIE}\s+(?:[\wäöüß]+\s+){0,3}?${TAT}\b`, "i"),
+  // „Hab nix ausgefüllt" (nur mit nix/nichts — „nie ganz ausgefüllt" ist ein Stand)
+  /(?<!\bnoch\s)\b(?:nix|nichts|gar\s+nichts)\s+(?:[\wäöüß]+\s+){0,2}?ausgef(?:ü|ue|u)l+t\b/i,
+  // „Das hab ich nie beantragt", „hab ich nicht bestellt", „hab ich nie gemacht"
+  new RegExp(String.raw`\b(?:hab|habe|hatte)\s+ich\s+(?:nie(?:mals)?|nicht|nix|nichts)\s+(?:[\wäöüß]+\s+){0,2}?(?:${TAT}|gemacht|gestellt)\b`, "i"),
+  // „Ich habe keinen Antrag gestellt", „keine Karte bestellt", „keine Kredit gemacht" (nicht „noch keinen …", nicht „… sondern …")
+  new RegExp(String.raw`(?<!\bnoch\s)\bkeine[nm]?\s+(?:antrag|bestellung|vertrag|anfrage|karte|kreditkarte|kredit)\s+(?:[\wäöüß]+\s+){0,2}?(?:${TAT}|gestellt|gemacht|abgeschlossen)\b`, "i"),
+  // „Das Formular habe ich nie ausgefüllt", „Ich habe den Antrag nicht ausgefüllt"
+  /\b(?:das|den\s+antrag|das\s+formular|diesen\s+antrag)\s+(?:habe?\s+ich\s+)?(?:nie|nicht)\s+(?:von\s+mir\s+)?ausgef(?:ü|ue)llt\b/i,
+  /\bhabe?\s+(?:ich\s+)?(?:das|den\s+antrag|das\s+formular|diesen\s+antrag)\s+(?:nie|nicht)\s+(?:von\s+mir\s+)?ausgef(?:ü|ue)llt\b/i,
+  // „Mein Sohn hat das wohl gemacht" — jemand anderes
+  /\b(?:mein|meine)\s+(?:sohn|tochter|frau|mann|partner(?:in)?|freund(?:in)?|bruder|schwester|mutter|vater|enkel(?:in)?|kind|ex(?:-?frau|-?mann)?)\s+(?:hat|hatte|muss)\s+(?:[\wäöüß]+\s+){0,4}?(?:beantragt|gemacht|eingetragen|angemeldet|ausgef(?:ü|ue)llt|bestellt)\b/i,
+];
+/** Abstreiten ohne Tat — kennt uns nicht, war es nicht, weiß von nichts. */
+const BESTREITET_OHNE_TAT: RegExp[] = [
+  // „Ich kenne Sie nicht", „kenne euch gar nicht", „Fiaon kenne ich nicht", „noch nie von Ihnen gehört"
+  /\bkenn(?:e)?\s+(?:sie|euch|ihnen|fiaon|die\s+firma|ihre\s+firma|diese\s+firma|euren?\s+laden)\s+(?:\w+\s+)?(?:nicht|nich|net)\b/i,
+  /\b(?:sie|euch|fiaon|die\s+firma)\s+kenn(?:e)?\s+ich\s+(?:gar\s+|überhaupt\s+)?(?:nicht|nich|net)\b/i,
+  /\bnoch\s+nie\s+(?:von\s+)?(?:ihnen|euch|fiaon|dieser\s+firma|ihrer\s+firma)\s+gehört\b/i,
+  // „Das war ich nicht", „das war nicht ich"
+  /\b(?:das\s+)?war\s+(?:ich\s+nicht|nicht\s+ich)\b/i,
+  // „Ich weiß nicht, wovon Sie reden", „keine Ahnung, was das soll"
+  uw(String.raw`\b<wei(?:ß|ss)\s+(?:gar\s+|überhaupt\s+|ueberhaupt\s+)?nicht\s*,?\s+(?:wovon|worum|was\s+(?:sie|ihr|das)\s+(?:\S+\s+){0,2}?(?:wollen|wollt|meinen|meint|soll))\b>`),
+  uw(String.raw`\b<keine\s+ahnung\s*,?\s+(?:was|wovon|worum|wer)\s+(?:das|sie|ihr|du)\b>`),
+];
+/** Nur in einer kurzen Nachricht ohne Frage — „Das Wort kenne ich nicht, was heißt es?" ist eine Frage. */
+const BESTREITET_KURZ: RegExp[] = [
+  /\bkenn(?:e)?\s+ich\s+(?:gar\s+|überhaupt\s+)?(?:nicht|nich|net)\b/i,
+  /^(?:das\s+)?(?:hab|habe)\s+ich\s+(?:nie(?:mals)?|nix|nichts)[\s.!]*$/i,
+];
+/**
+ * „Falsche Nummer" — NUR mit Bezug auf uns (E-264, Gegenlesen: „Ich habe eine falsche E-Mail-Adresse
+ * angegeben", „Tag und Monat verwechselt", „Sie haben eine falsche Adresse von mir, ich bin umgezogen"
+ * sind Datenkorrekturen, keine Fremden).
+ */
+const FALSCHE_NUMMER: RegExp[] = [
+  /\bfalsch\s+verbunden\b/i,
+  /\b(?:sie\s+haben|ihr\s+habt|sie\s+schreiben|ihr\s+schreibt|das\s+ist|hier\s+ist|sind\s+(?:hier\s+)?(?:bei\s+)?|an\s+)\s*(?:die|eine|den|einen|der)?\s*falsche[nr]?\s+(?:nummer|handynummer|telefonnummer|person|empfänger|empfaenger|kontakt|adresse|e-?mail(?:-?adresse)?)\b/i,
+  /\b(?:sie\s+)?verwechs(?:el|l)\w*\s+(?:mich|mir|da\s+(?:jemand|was|etwas)|jemand\w*|(?:die|eine)\s+(?:person|nummer))\b/i,
+  /\b(?:mich|person|nummer)\s+(?:\w+\s+)?verwechselt\b/i,
+  /\b(?:diese|die|meine)\s+nummer\s+gehört\s+(?:nicht|jemand|mir\s+nicht|seit)/i,
+  /\b(?:bin|heiße|heisse)\s+(?:gar\s+)?nicht\s+(?:herr|frau)\s+/i,
+];
+/** „Falsche Nummer" allein (kurz) — ohne „ich habe … angegeben". */
+const FALSCHE_NUMMER_KURZ = /^(?:sorry\s*,?\s*|hallo\s*,?\s*)?(?:(?:das\s+ist\s+)?(?:die\s+|eine\s+)?falsche[nr]?\s+(?:nummer|person|empfänger|empfaenger))[\s.!]*$/i;
+const FALSCHE_NUMMER_GEGEN = /\b(?:angegeben|eingetragen|eingegeben|ändern|aendern|korrigier\w*|aktualisier\w*|umgezogen|neue\s+(?:nummer|adresse)|von\s+mir|tag\s+und\s+monat|termin)\b/i;
+/** „Betrug", „Abzocke" — nie ein fester Satz (das Modell antwortet ruhig, ein Mensch sieht es: heikel). „Spam" nur als Vorwurf. */
+const BETRUG = /\b(?:betrug|betrüger\w*|betrueger\w*|abzocke\w*|abzocker\w*|scam\w*|fake|verarsch\w*|kriminell\w*|unseriös\w*|unserioes\w*|phishing)\b|\b(?:das\s+ist|ist\s+doch|reiner|reine|nur|alles)\s+spam\b|^spam\W*$/i;
+/** Zögern statt Vorwurf: „Ich habe Angst, dass das Betrug ist", „schon so viele Betrüger … deshalb frage ich". */
+const BETRUG_GEGEN = /\b(?:angst|sorge|befürcht\w*|befuercht\w*|unsicher|nicht\s+sicher|frage\s+(?:ich|mich|nur|lieber)|nachfrag\w*|ob\s+(?:das|sie|es)|schon\s+so\s+viele|vorsichtig|seriös|serioes)\b/i;
+/** „Lassen Sie mich in Ruhe" — immer mit „mich" oder ausdrücklich „keinen Kontakt mehr". */
+const IN_RUHE: RegExp[] = [
+  /\blass(?:en|t)?\s+(?:sie\s+|ihr\s+|du\s+)?mich\s+(?:bitte\s+|endlich\s+|einfach\s+|doch\s+)?(?:in\s+ruhe|zufrieden)\b/i,
+  /\bh(?:ö|oe)r(?:en|t)\s+(?:sie\s+|ihr\s+)?(?:bitte\s+|endlich\s+|sofort\s+)?auf\s*,?\s+mich\s+(?:\w+\s+)?(?:zu\s+)?(?:nerven|belästigen|belaestigen|anzuschreiben|anzurufen|zu\s+kontaktieren)/i,
+  /\bnerv(?:en|t|st)\s+(?:sie\s+|ihr\s+|du\s+)?mich\s+(?:nicht|nie)\b/i,
+  /\bbel(?:ä|ae)stig(?:en|t)\s+(?:sie\s+|ihr\s+)?mich\b|\bmich\s+(?:\S+\s+){0,2}?(?:zu\s+)?bel(?:ä|ae)stigen\b|\bbel(?:ä|ae)stigung\b/i,
+  /\bwill\s+(?:nichts|nix)\s+(?:mehr\s+)?von\s+(?:ihnen|euch|dir)\b/i,
+  /\bkeinen?\s+kontakt\s+mehr\b|\bnicht\s+mehr\s+kontaktieren\b/i,
+];
+/** „Hören Sie auf!" — nur allein (kurz, ohne Frage). */
+const IN_RUHE_KURZ = /^(?:bitte\s+)?h(?:ö|oe)r(?:en|t)\s+(?:sie\s+|ihr\s+)?(?:bitte\s+|endlich\s+|sofort\s+)?auf[\s.!]*$/i;
+/**
+ * Ein reiner Stopp-Wunsch („keine Nachrichten mehr", „schreiben Sie mir nicht mehr") ist KEIN
+ * Abstreiten — dafür gibt es den bestehenden Stopp-Weg (WhatsApp: STOPP-Antwort; Postfach:
+ * werbesperre_setzen, Mara erledigt selbst). Nur mit „mehr" — „Ich habe keine Nachrichten von
+ * der Bank bekommen" ist kein Stopp (E-230).
+ */
+export const STOPP_WUNSCH: RegExp[] = [
+  /^(?:bitte\s+)?(?:stopp?|stop|abmelden)(?:\s+bitte)?[.!]*$/i,
+  /\bschreib(?:en|t)?\s+(?:sie|ihr|du)\s+mir\s+(?:bitte\s+)?(?:nicht|nie|nichts)\s+mehr\b/i,
+  /\b(?:nicht|nie)\s+mehr\s+(?:an)?(?:schreiben|kontaktieren|anrufen)\b/i,
+  /\bkeine\s+(?:nachrichten|whatsapps?|sms|mails?|e-?mails?|werbung)\s+mehr\b/i,
+  // E-264 (Gegenlesen, Person 11440): „Bitte keinen Kontakt mehr"
+  /\bkeinen?\s+kontakt\s+mehr\b/i,
+];
+export function stoppWunsch(text: string): boolean {
+  const t = String(text ?? "").replace(EMOJI_ALLE, " ").replace(/\s+/g, " ").trim();
+  return !!t && STOPP_WUNSCH.some((r) => r.test(t));
+}
+/**
+ * „Für was muss ich zahlen? Ich weiß nix" (Fall 27.09., Person mit Betreuer-Anlage) — kein Stopp,
+ * aber auch keine Zahlungsseite: Ein Mensch klärt. Nur mit „weiß nix/nichts" oder „keine Ahnung" —
+ * „Wofür zahle ich die 59,99 €?" allein ist eine Preisfrage.
+ */
+const RUECKFRAGE_ZAHLEN = uw(String.raw`\b<(?:für\s+was|fuer\s+was|wofür|wofuer|warum|wieso|weshalb)\b>[^.!?]{0,40}\b<(?:be)?zahl\w*|\b<rechnung\b>`);
+const RUECKFRAGE_WISSEN = uw(String.raw`\b<(?:wei(?:ß|ss)\s+(?:(?:gar|überhaupt|ueberhaupt|von)\s+)?(?:nix|nichts|nicht(?:s)?\s+davon)|keine\s+ahnung)\b>`);
+const DATENFRAGE: RegExp[] = [
+  /\bwoher\s+(?:haben|hast|habt|hat)\s+(?:sie|du|ihr|man|fiaon)\s+(?:[\wäöüß]+\s+){0,2}?(?:nummer|handynummer|telefonnummer|daten|adresse|e-?mail(?:-?adresse)?|kontakt\w*)\b/i,
+  /\bwoher\s+(?:kennen|kennt)\s+(?:sie|ihr)\s+mich\b/i,
+  /\bwie\s+(?:kommen|kommt|sind|seid)\s+(?:sie|ihr)\s+(?:an|zu|auf)\s+meine[nr]?\s+(?:nummer|daten|handynummer|adresse|e-?mail)\b/i,
+  /\bwoher\s+(?:ist\s+|sind\s+|stammt\s+|stammen\s+|kommt\s+|kommen\s+)?meine\s+(?:nummer|handynummer|daten|adresse|e-?mail)\b/i,
+];
+const WER: RegExp[] = [
+  /\bwer\s+(?:sind|seid|bist)\s+(?:sie|ihr|du)\b/i,
+  /\bwer\s+(?:schreibt|ist)\s+(?:da|das|hier|mir)\b/i,
+  /\bwer\s+ist\s+fiaon\b/i,
+  /\bwas\s+(?:wollen|willst|wollt)\s+(?:sie|du|ihr)\s+von\s+mir\b/i,
+];
+
+/**
+ * Bestreitet er, uns zu kennen oder etwas beantragt zu haben — oder fragt er,
+ * woher wir seine Nummer haben? Rangfolge: bestreitet > falsche Nummer >
+ * „in Ruhe lassen" > Rückfrage („wofür zahlen, ich weiß nix") > Betrug >
+ * Datenfrage > „wer sind Sie" > nur Wut-Emojis. null = nichts davon. Rein.
+ */
+export function abstreitenArt(text: string): AbstreitenBefund | null {
+  const roh = String(text ?? "").trim();
+  if (!roh) return null;
+  const t = roh.replace(EMOJI_ALLE, " ").replace(/\s+/g, " ").trim();
+  const kurz = t.length <= 60 && !t.includes("?");
+  const treffer = (r: RegExp) => t.match(r)?.[0] ?? null;
+  const befund = (art: AbstreitenArt, m: string): AbstreitenBefund =>
+    ({ art, stopp: art === "bestreitet" || art === "falsche_nummer" || art === "in_ruhe", fest: ABSTREITEN_FEST.includes(art), treffer: m });
+  const will = INTERESSE.test(t);
+  if (!will) {
+    if (!GEGEN.test(t)) for (const r of BESTREITET_TAT) { const m = treffer(r); if (m) return befund("bestreitet", m); }
+    for (const r of [...BESTREITET_OHNE_TAT, ...(kurz ? BESTREITET_KURZ : [])]) { const m = treffer(r); if (m) return befund("bestreitet", m); }
+  }
+  if (!FALSCHE_NUMMER_GEGEN.test(t)) {
+    for (const r of FALSCHE_NUMMER) { const m = treffer(r); if (m) return befund("falsche_nummer", m); }
+    if (t.length <= 40) { const m = treffer(FALSCHE_NUMMER_KURZ); if (m) return befund("falsche_nummer", m); }
+  }
+  for (const r of IN_RUHE) { const m = treffer(r); if (m) return befund("in_ruhe", m); }
+  if (kurz) { const m = treffer(IN_RUHE_KURZ); if (m) return befund("in_ruhe", m); }
+  if (RUECKFRAGE_ZAHLEN.test(t) && RUECKFRAGE_WISSEN.test(t)) return befund("rueckfrage", treffer(RUECKFRAGE_WISSEN) ?? t.slice(0, 40));
+  const b = t.match(BETRUG);
+  if (b && !will && !t.includes("?") && !BETRUG_GEGEN.test(t)) return befund("betrug", b[0]);
+  for (const r of DATENFRAGE) { const m = treffer(r); if (m) return befund("datenfrage", m); }
+  if (t.length <= 60) for (const r of WER) { const m = treffer(r); if (m) return befund("wer", m); }
+  // Wut NUR ohne ein Wort (E-264, Gegenlesen: „Link geht nicht 😡", „Immer noch nichts 😡" sind Anliegen —
+  // die beantwortet das Modell) und ohne freundliches Emoji („😤💪").
+  if (WUT_EMOJI.test(roh) && !FREUNDLICH_EMOJI.test(roh) && !WORTZEICHEN.test(t)) return befund("wut", roh.slice(0, 40));
+  return null;
+}
+
+export function istAbstreiten(text: string): boolean {
+  return abstreitenArt(text) !== null;
+}
+
+/**
+ * Will er nach Maras Entschuldigung doch weitermachen („Doch, das war meine Frau, wir machen weiter")?
+ * Dann bekommt ein Mensch die Frage „Werbesperre aufheben?" — aufheben tut sie nie von selbst (E-264).
+ */
+const WEITERMACHEN = uw(String.raw`\b<(?:weiter\s?machen|machen\s+(?:wir\s+|ich\s+)?(?:doch\s+)?weiter|fortsetzen|doch\s+(?:starten|beantragen|bestellen|weiter\w*)|will\s+(?:ich\s+|wir\s+)?doch|möchte\s+(?:doch|gerne?)\s+(?:weiter\w*|starten|die\s+karte|den\s+antrag)|doch\s+(?:ich|meine?\s+\S+)\s+(?:war|hat))\b>`);
+export function willWeitermachen(text: string): boolean {
+  const t = String(text ?? "").replace(EMOJI_ALLE, " ").replace(/\s+/g, " ").trim();
+  return !!t && WEITERMACHEN.test(t) && !stoppWunsch(t);
+}
+
+/** Eine Frage nach dem eigenen Tun ist kein Löschwunsch: „Wie kann ich im Antrag falsche Daten löschen?" */
+const LOESCH_GEGEN = /\b(?:wie|wo|wann)\s+(?:kann|könnte|koennte|muss|soll|darf)\s+ich\b|\b(?:kann|soll|muss|darf)\s+ich\s+(?:\S+\s+){0,6}?l(?:ö|oe)sch|\b(?:falsch\w*|korrigier\w*|ändern|aendern|neu\s+eingeben|bearbeiten)\b/i;
+
+/**
+ * Bittet er darum, seine Daten zu löschen? Ausdrücklich („Löschen Sie meine
+ * Daten", „Daten löschen", „DSGVO … löschen", „bitte alles löschen", „die
+ * Anfrage … löschen", „löschen Sie mich") immer; ein bloßes „Löschen" nur, wenn
+ * wir es gerade angeboten haben (`angeboten`). Nie eine Frage nach dem eigenen
+ * Tun (LOESCH_GEGEN). Rein.
+ */
+export function istLoeschwunsch(text: string, opt: { angeboten?: boolean } = {}): boolean {
+  const t = String(text ?? "").replace(EMOJI_ALLE, " ").replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  if (LOESCH_GEGEN.test(t)) return false;
+  if (/\bl(?:ö|oe)sch(?:en|t|e)?\s+(?:sie\s+|ihr\s+)?(?:(?:bitte|sofort|umgehend|endlich|jetzt)\s+)*(?:meine|alle\s+meine|alle|die)\s+(?:[\wäöüß]+\s+)?daten\b/i.test(t)) return true;
+  if (/\bmeine\s+(?:[\wäöüß]+\s+)?daten\s+(?:(?:bitte|sofort|umgehend|endlich|jetzt)\s+)*(?:l(?:ö|oe)schen|entfernen)\b/i.test(t)) return true;
+  if (/\bl(?:ö|oe)schung\s+(?:meiner|aller|der)\s+(?:\w+\s+)?daten\b|\bdaten\s+l(?:ö|oe)schen\b|\bdsgvo\b[^.!?]{0,60}\bl(?:ö|oe)sch\w*/i.test(t)) return true;
+  // E-264 (Gegenlesen, Person 13389): „bitte alles löschen weil …", „Ja bitte die Anfrage an alles dazu Löschen"
+  if (/\balles\s+(?:\S+\s+){0,2}?l(?:ö|oe)schen\b/i.test(t)) return true;
+  if (/\b(?:meine[nm]?|die|den|das)\s+(?:anfrage|angaben|konto|account|antrag|profil|registrierung|kontakt\w*|nummer|e-?mail(?:-?adresse)?)\s+(?:\S+\s+){0,4}?l(?:ö|oe)schen\b/i.test(t)) return true;
+  if (/\bl(?:ö|oe)schen\s+sie\s+(?:bitte\s+)?mich\b|\bmich\s+(?:bitte\s+)?(?:überall\s+|ueberall\s+|komplett\s+|ganz\s+)?(?:aus\s+\S+\s+|von\s+\S+\s+)?l(?:ö|oe)schen\b/i.test(t)) return true;
+  return !!opt.angeboten && /^(?:ja[,!.]?\s*)?(?:bitte\s+)?(?:alles\s+)?l(?:ö|oe)schen(?:\s+bitte)?[.!]*$/i.test(t);
+}
+
+/** Woher wir seine Nummer bzw. Adresse haben — nur, was belegt ist (Server: abstreitenLage). */
+export interface Herkunft {
+  art: "antrag" | "anfrage_meta" | "whatsapp" | "unbekannt";
+  /** Tag der ersten belegten Quelle (Antrag im Webformular, Anfrage, erste WhatsApp). */
+  am?: string | Date | null;
+}
+
+/** „29. Juli" — mit Jahr, wenn es nicht dieses Jahr war (Berliner Kalendertag). */
+function tagUndMonat(d: Date, jetzt: Date): string {
+  const z = berlinTeile(d), n = berlinTeile(jetzt);
+  return `${z.t}. ${MONATE[z.m - 1]}${z.j !== n.j ? ` ${z.j}` : ""}`;
+}
+
+/**
+ * Der ehrliche Satz, woher wir ihn kennen (ohne Schlusspunkt). `belegt` =
+ * false, wenn wir es nicht sicher wissen — dann sagt Mara das auch.
+ */
+export function herkunftSatz(h: Herkunft | null | undefined, kanal: MaraKanal, jetzt: Date = new Date()): { satz: string; belegt: boolean } {
+  const was = kanal === "mail" ? "Ihre E-Mail-Adresse" : "Ihre Nummer";
+  const d = h?.am ? new Date(h.am as any) : null;
+  const tag = d && !Number.isNaN(d.getTime()) ? tagUndMonat(d, jetzt) : null;
+  if (h?.art === "antrag" && tag) return { satz: `${was} wurde am ${tag} bei einem Antrag auf unserer Internetseite eingetragen`, belegt: true };
+  if (h?.art === "anfrage_meta" && tag) return { satz: `${was} wurde am ${tag} in einem Anfrageformular von FIAON bei Facebook oder Instagram eingetragen`, belegt: true };
+  if (h?.art === "whatsapp" && tag) return { satz: `Sie hatten uns am ${tag}${kanal === "whatsapp" ? " hier" : ""} auf WhatsApp geschrieben`, belegt: true };
+  return { satz: `${was} ist bei uns gespeichert`, belegt: false };
+}
+
+/**
+ * Die feste Antwort — kein Modell. Ohne KI-Hinweis (den setzt der Server davor,
+ * wenn Mara sich noch nicht vorgestellt hat).
+ *   · bestreitet, Stufe C: Entschuldigung, Herkunft, „Wir schreiben Ihnen nicht mehr", Löschen auf Wunsch.
+ *   · bestreitet, Stufe B (abgeschickt): Entschuldigung, Herkunft, die Leitung klärt und meldet sich —
+ *     keine Zusage „nie mehr schreiben", kein Löschangebot (Aufbewahrung, ein Mensch entscheidet).
+ *   · in_ruhe: Entschuldigung, Herkunft, „Wir schreiben Ihnen nicht mehr" (B: „keine Werbung mehr").
+ *   · wut (nur Emojis): Entschuldigung, Herkunft, „Stopp" genügt — keine Zusage, kein Löschangebot.
+ *   · falsche_nummer: Entschuldigung, KEINE Herkunft (es sind die Daten eines anderen), „ich gebe es weiter".
+ *   · rueckfrage: „Das kläre ich gern", Herkunft, der Betreuer meldet sich — kein Stopp, keine Zahlung.
+ */
+export function bausteinAbstreiten(opt: { kanal: MaraKanal; art: AbstreitenFestArt; herkunft: Herkunft | null; abgeschickt?: boolean; betreuer?: string | null; jetzt?: Date }): string {
+  const { satz, belegt } = herkunftSatz(opt.herkunft, opt.kanal, opt.jetzt ?? new Date());
+  const mail = opt.kanal === "mail";
+  const absatz = (a: string, b: string) => (mail ? `${a}\n\n${b}` : `${a} ${b}`);
+  const woher = `${satz}, deshalb haben wir Ihnen geschrieben.${belegt ? "" : " Woher genau, prüft unsere Leitung."}`;
+  if (opt.art === "falsche_nummer") {
+    const was = mail ? "Ihre E-Mail-Adresse" : "Ihre Nummer";
+    return absatz(`Entschuldigen Sie bitte ${mail ? "unsere" : "die"} Nachricht — dann ist ${was} bei uns versehentlich hinterlegt.`,
+      "Ich gebe das sofort an unser Team weiter, damit sie bei uns gelöscht wird.");
+  }
+  if (opt.art === "rueckfrage") {
+    const wer = opt.betreuer?.trim() ? opt.betreuer.trim().split(/\s+/)[0] : "Jemand aus unserem Team";
+    return absatz(`Das kläre ich gern für Sie. ${woher}`, `${wer} meldet sich dazu persönlich bei Ihnen und geht alles in Ruhe mit Ihnen durch.`);
+  }
+  if (opt.art === "wut") {
+    return absatz(`Entschuldigen Sie bitte, wenn unsere Nachricht Sie verärgert hat. ${woher}`,
+      mail ? "Möchten Sie keine Nachrichten mehr von uns, genügt eine kurze Antwort mit „Stopp“." : "Möchten Sie keine Nachrichten mehr von uns, genügt ein kurzes „Stopp“.");
+  }
+  const loeschen = mail
+    ? "Wir schreiben Ihnen ab jetzt nicht mehr. Auf Wunsch löschen wir Ihre Daten — eine kurze Antwort mit „Löschen“ genügt."
+    : "Wir schreiben Ihnen ab jetzt nicht mehr, und auf Wunsch löschen wir Ihre Daten — schreiben Sie dafür einfach „Löschen“.";
+  if (opt.art === "in_ruhe") {
+    return absatz(`Entschuldigen Sie bitte die Störung. ${woher}`, opt.abgeschickt ? "Sie bekommen von uns ab jetzt keine Werbung mehr." : loeschen);
+  }
+  // bestreitet
+  const kopf = `Entschuldigen Sie bitte ${mail ? "unsere" : "die"} Nachricht. ${woher} Wenn das nicht von Ihnen kam, tut es mir leid.`;
+  return absatz(kopf, opt.abgeschickt ? "Unsere Leitung sieht sich heute an, wie es zu dem Antrag kam, und meldet sich bei Ihnen." : loeschen);
+}
+
+/**
+ * „Wer sind Sie?" / „Woher haben Sie meine Nummer?" — KEIN fester Satz (E-264, Gegenlesen: Nachricht 810,
+ * ein heißer Lead bei Schritt 6, bekam sonst Stopp- und Löschangebot statt seines Wiedereinstiegs). Das
+ * Modell stellt sich vor, nennt ehrlich die Herkunft (genau dieser Satz) und dann seinen nächsten Schritt.
+ */
+export function abstreitenHinweis(opt: { art: "datenfrage" | "wer"; kanal: MaraKanal; herkunft: Herkunft | null; betreuer?: string | null; jetzt?: Date }): string {
+  const { satz, belegt } = herkunftSatz(opt.herkunft, opt.kanal, opt.jetzt ?? new Date());
+  const b = opt.betreuer?.trim() ? opt.betreuer.trim().split(/\s+/)[0] : null;
+  return [
+    opt.art === "wer" ? `ER FRAGT, WER WIR SIND:` : `ER FRAGT, WOHER WIR SEINE ${opt.kanal === "mail" ? "ADRESSE" : "NUMMER"} HABEN:`,
+    `Stell dich kurz vor (Mara, die digitale Assistentin von FIAON — FIAON begleitet Menschen auf dem Weg zu ihrer eigenen Kreditkarte${b ? `; sein Betreuer ist ${b}` : ""}).`,
+    belegt
+      ? `Sag ehrlich, woher wir ihn kennen, genau so: „${satz}.“`
+      : `Sag ehrlich: „${satz}“ — woher genau, prüft unsere Leitung (mensch: true). Erfinde keine Herkunft.`,
+    `Dann sein nächster Schritt aus SEINE LAGE (DEIN LINK), freundlich, ohne Druck. Kein Löschangebot; „Stopp“ höchstens als halber Satz am Ende.`,
+  ].join(" ");
+}
+
+/**
+ * Für das Modell (WhatsApp UND Mail, über personaText): was es tut, wenn ein Abstreiten dem festen Satz
+ * entgeht (E-264, Gegenlesen: „das war nicht ich", „mein Sohn …", „keine Ahnung, was das soll" gingen
+ * mit dem Ziel „Er macht seinen Antrag fertig" ans Modell — ohne jede Regel dafür).
+ */
+export const ABSTREITEN_REGEL_TEXT = [
+  `═══ WENN ER BESTREITET, SICH BESCHWERT ODER NICHT WEISS, WORUM ES GEHT ═══`,
+  `· Sagt er, er habe nichts beantragt, jemand anderes habe das gemacht, er wisse nicht, worum es geht, oder er wolle keinen Kontakt: kurz und aufrichtig entschuldigen, ehrlich sagen, woher wir ihn kennen — nur, was in SEINE LAGE steht, sonst „Ihre Nummer ist bei uns gespeichert, woher genau, prüft unsere Leitung" —, kein Link, kein Verkauf, kein Wort von Zahlung. Ein Mensch übernimmt (WhatsApp: mensch true; Mail: aufgabe_an_betreuer an die Leitung).`,
+  `· Hält er uns für Betrug oder Spam: ruhig und ehrlich (wer wir sind, woher wir ihn kennen), kein Link, kein Verkauf, kein Druck. Ein Mensch übernimmt.`,
+  `· Weiß er nicht, wofür er zahlen soll: keine Zahlungsseite, kein Betrag — sag ihm, dass sich sein Betreuer persönlich meldet. Ein Mensch übernimmt.`,
+].join("\n");
+
+/** Die Antwort auf „Löschen Sie meine Daten" — fester Text; die Leitung bekommt die Aufgabe. */
+export function loeschAntwort(kanal: MaraKanal): string {
+  return kanal === "mail"
+    ? "Ihre Bitte, Ihre Daten zu löschen, ist bei uns angekommen. Unsere Leitung kümmert sich darum und bestätigt es Ihnen schriftlich.\n\nBis dahin bekommen Sie von uns keine Werbung mehr."
+    : "Verstanden — Ihre Bitte, Ihre Daten zu löschen, ist bei uns angekommen. Unsere Leitung kümmert sich darum und bestätigt es Ihnen; Werbung bekommen Sie von uns keine mehr.";
+}
+
+/** War Maras letzte Nachricht eine feste Abstreiten-Antwort (bausteinAbstreiten, jede Art)? */
+export function nachAbstreiten(maraText: string | null | undefined): boolean {
+  return /Wir schreiben Ihnen ab jetzt nicht mehr|Sie bekommen von uns ab jetzt keine Werbung mehr|Unsere Leitung sieht sich heute an, wie es zu dem Antrag kam|Entschuldigen Sie bitte, wenn unsere Nachricht Sie verärgert hat|bei uns versehentlich hinterlegt|Das kläre ich gern für Sie\./.test(String(maraText ?? ""));
+}
+
+/** Hat Mara ihm gerade das Löschen angeboten (bausteinAbstreiten)? Für istLoeschwunsch({ angeboten }). */
+export function loeschenAngeboten(maraText: string | null | undefined): boolean {
+  return /auf\s+wunsch\s+löschen\s+wir/i.test(String(maraText ?? ""));
 }
 
 // Beispielcodes: die Form echter Codes (10 Zeichen), aber erfunden.
@@ -892,6 +1367,21 @@ export const MUSTERDIALOGE: Musterdialog[] = [
     kunde: "Ich wurde schon zweimal abgelehnt, hat das überhaupt Sinn?",
     soll: { art: "antworten", text: bausteinAblehnung({ land: "AT", link: "{LINK}" }) },
     nie: ["Ihre Schufa muss nicht perfekt sein."],
+  },
+  {
+    // E-264 (29.09.2026): der echte Fall, Namen und Referenz ersetzt.
+    id: "abstreiten_nix_beantragt",
+    titel: "„Hab nix beantragt“ — Entschuldigung, ehrliche Herkunft, kein Link, kein Verkauf",
+    kanal: "whatsapp",
+    lage: "Antrag am 29. Juli angefangen, bei Schritt 5 stehen geblieben (approved, nie abgeschickt — keine Rechnung). Gerade kam die Abbrecher-Vorlage.",
+    linkLage: { stufe: "antrag_offen", leadCode: BSP_CODE },
+    betreuer: "Florentine",
+    verlauf: [{ von: "vorlage", text: "Sie waren fast durch — alles, was Sie eingetragen haben, ist gespeichert." }],
+    kunde: "Hab nix beantragt 🤢🤮😡😤😠",
+    soll: { art: "antworten", text: bausteinAbstreiten({ kanal: "whatsapp", art: "bestreitet", herkunft: { art: "antrag", am: "2026-07-29T10:00:00Z" } }) },
+    nie: [
+      "Sehr gern — nach der Zahlung ist Ihr Account aktiv, und Florentine begleitet Sie Schritt für Schritt weiter. Ihre Zahlungsseite mit Betrag, Verwendungszweck und QR-Code ist hier: https://fiaon.com/zahlung/FIAON-BSP4KX",
+    ],
   },
   {
     id: "mail_kredit",

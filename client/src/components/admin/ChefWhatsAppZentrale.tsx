@@ -197,7 +197,9 @@ function vorlagenName(name: string, vorlagen: Vorlage[]): string {
 // E-252: Die Summen sind eine ruhige Zeile, „Prüfung rot" eine Pille; 5 Zeilen,
 // dann „Alle n zeigen" (reine Anzeige).
 // ═══════════════════════════════════════════════════════════════════════════
-type MaraArt = "zeiten_angeboten" | "termin_gebucht" | "termin_verschoben" | "termin_nicht_moeglich" | "terminlink" | "uebergabe" | "rueckfall";
+type MaraArt = "zeiten_angeboten" | "termin_gebucht" | "termin_verschoben" | "termin_nicht_moeglich" | "terminlink" | "uebergabe" | "rueckfall"
+  // E-264 (29.09.2026): „Hab nix beantragt" — feste Entschuldigung; „Löschen Sie meine Daten" — an die Leitung.
+  | "abstreiten" | "loeschwunsch";
 interface MaraZeile {
   id: number; am: string; art: MaraArt; ok: boolean; text: string; nummer: string | null; personId: number | null; kunde: string | null;
   terminId: number | null; pruefungOk: boolean | null; pruefung: string | null; pruefungAm: string | null;
@@ -220,6 +222,8 @@ const MARA_ART: Record<MaraArt, { text: string; art: "" | "akz" | "warn" }> = {
   terminlink: { text: "Terminlink", art: "" },
   uebergabe: { text: "Übergabe", art: "" },
   rueckfall: { text: "Rückfall", art: "warn" },
+  abstreiten: { text: "Bestreitet — Entschuldigung", art: "warn" },
+  loeschwunsch: { text: "Löschwunsch", art: "warn" },
 };
 const MARA_FILTER: { schluessel: MaraFilter; text: string }[] = [
   { schluessel: "alle", text: "Alle" }, { schluessel: "termine", text: "Termine" },

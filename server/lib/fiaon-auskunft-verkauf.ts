@@ -106,6 +106,7 @@ import {
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { KOPF_SQL, FAMILIE_SQL, POSTFACH_STOPP_ZEILE_SQL } from "./fiaon-mail-frequenz";
 import { WHATSAPP_EINWILLIGUNG_SQL, WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
@@ -427,34 +428,32 @@ export const LAUFENDES_PAKET_SQL = (a: string) => `(
   AND LOWER(TRIM(COALESCE(${a}.pack_key, ''))) IN (${ABO_LISTE}))`;
 
 /**
- * „Unfertig" — dieselbe Liste wie der Wiedereinstieg in fiaon-antrag.ts und die
- * WA-Zentrale (E-210). Die Zahlungsreferenz taugt NICHT als Zeichen: Ein
- * Trigger füllt sie seit dem 08.08.2026 schon beim ersten Speichern.
- */
-const UNFERTIG_SQL = `('started', 'personal_data', 'finances', 'config', 'verifying', 'approved', 'contract', 'processing')`;
-
-/**
  * Segment B (25.09.2026, E-241): ein abgeschickter, unbezahlter Antrag — Stufe B
- * nach der Hausregel (Schritt 8, pending_payment oder ein Status außerhalb des
- * Antragswegs). Nicht storniert, nicht archiviert, nicht gelöscht, kein Entwurf,
- * keine Auskunft-Bestellung. „Zahlung gemeldet" ist Stufe A des Hauses und
- * steht hier bewusst nicht (payment_status claimed_paid).
+ * nach der Hausregel. Nicht storniert, nicht archiviert, nicht gelöscht, kein
+ * Entwurf, keine Auskunft-Bestellung. „Zahlung gemeldet" ist Stufe A des Hauses
+ * und steht hier bewusst nicht (payment_status claimed_paid).
+ * E-264 (29.09.2026): „abgeschickt" ist EINE Regel (shared/fiaon-antrag-stand.ts:
+ * Schritt 8, submitted_at oder ein Status nach dem Formular). Hier stand dazu
+ * „ODER pending_payment" — das setzt der Antragsweg schon bei Schritt 3–5. So
+ * gingen in 14 Tagen 47 Angebote „Ihr Paket aktivieren Sie mit der ersten
+ * Zahlung zu Ihrem Antrag … Ihr Antrag liegt bei uns" an 47 Menschen, deren
+ * Antrag nie abgeschickt war. Sie sind jetzt Abbrecher (ANTRAG_UNFERTIG_SQL).
  */
 export const ANTRAG_OFFEN_SQL = (a: string) => `(
   ${a}.merged_into IS NULL AND NOT COALESCE(${a}.ist_entwurf, FALSE) AND ${a}.archived_at IS NULL
   AND ${a}.gdpr_deleted_at IS NULL AND ${a}.cancelled_at IS NULL
   AND NOT ${IST_AUSKUNFT(a)} AND ${a}.ref NOT LIKE 'FIAON-TEST%'
   AND COALESCE(${a}.payment_status, '') IN ('pending_payment', 'pending', 'expired')
-  AND (COALESCE(${a}.current_step, 0) >= 8 OR COALESCE(${a}.status, '') NOT IN ${UNFERTIG_SQL}
-       OR ${a}.payment_status = 'pending_payment'))`;
+  AND ${abgeschicktSql(a)})`;
 
-/** Abgeschickt — dieselbe Hausregel wie der Wiedereinstieg (E-210): Schritt 8 oder ein Status außerhalb der unfertigen. */
-const ABGESCHICKT_SQL = (a: string) => `(COALESCE(${a}.current_step, 0) >= 8 OR COALESCE(${a}.status, '') NOT IN ${UNFERTIG_SQL})`;
+/** Abgeschickt — EINE Regel (E-264, shared/fiaon-antrag-stand.ts). */
+const ABGESCHICKT_SQL = (a: string) => abgeschicktSql(a);
 
 /**
  * Segment „abbrecher" (26.09.2026, E-243): ein Antrag, begonnen und gespeichert,
- * aber nicht abgeschickt — genau das Gegenstück zu ANTRAG_OFFEN_SQL (dieselbe
- * Liste der unfertigen Status, „pending_payment" zählt dort als abgeschickt).
+ * aber nicht abgeschickt — genau das Gegenstück zu ANTRAG_OFFEN_SQL. Seit E-264
+ * (29.09.2026) auch mit „pending_payment": die Bestellung, die der Antragsweg vor
+ * dem Vertrag anlegt, macht den Antrag nicht fertig.
  * Nicht storniert, nicht archiviert, nicht gelöscht, kein Entwurf ohne Person,
  * nicht gekündigt, keine Auskunft-Bestellung, kein Test — und seit
  * ABBRUCH_RUHE_MINUTEN unberührt (wer gerade ausfüllt, ist kein Abbrecher).
@@ -463,7 +462,7 @@ export const ANTRAG_UNFERTIG_SQL = (a: string) => `(
   ${a}.merged_into IS NULL AND NOT COALESCE(${a}.ist_entwurf, FALSE) AND ${a}.archived_at IS NULL
   AND ${a}.gdpr_deleted_at IS NULL AND ${a}.cancelled_at IS NULL AND ${a}.gekuendigt_am IS NULL
   AND NOT ${IST_AUSKUNFT(a)} AND ${a}.ref NOT LIKE 'FIAON-TEST%'
-  AND COALESCE(${a}.payment_status, 'pending') IN ('pending', 'expired')
+  AND COALESCE(${a}.payment_status, 'pending') IN ('pending', 'pending_payment', 'expired')
   AND NOT ${ABGESCHICKT_SQL(a)}
   AND COALESCE(${a}.updated_at::timestamptz, ${a}.created_at::timestamptz) < NOW() - INTERVAL '${ABBRUCH_RUHE_MINUTEN} minutes')`;
 

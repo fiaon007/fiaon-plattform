@@ -61,6 +61,16 @@
 //     reines „Ok", nie zweimal in zwei Stunden.
 //   · Aufgaben: eine je Mensch und Grundklasse, Aktenvermerk nur beim ersten
 //     Mal, „dringend" nur bei heiklen Anliegen, Geld oder Rückruf ohne Termin.
+//
+// E-264 (29.09.2026): „Hab nix beantragt 🤢🤮😡😤😠" bekam „Sehr gern — nach der
+// Zahlung ist Ihr Account aktiv … Ihre Zahlungsseite". Seitdem:
+//   · Die Stufe kommt aus EINER Regel „abgeschickt" (shared/fiaon-antrag-stand.ts):
+//     approved + pending_payment vor Schritt 8 ist ein ANGEFANGENER Antrag —
+//     Wiedereinstieg, nie Zahlungsseite, nie Reaktivierung, kein Zahltag.
+//   · Abstreiten, Irrtum, Datenfrage (abstreitenArt) und „Löschen Sie meine
+//     Daten" beantwortet ein fester Satz ohne Modell: Entschuldigung, ehrliche
+//     Herkunft, Werbe-Stopp über die Werbesperre, Aufgabe an die Leitung.
+//   · Der sichere Satz liest „beantragt" nie als Frage nach dem Antrag.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { kiAufruf, antwortLesen, MODELL, agentNamen } from "./fiaon-postmeister-agent";
@@ -73,6 +83,8 @@ import { paketPreisCents, PAKETE } from "@shared/fiaon-pakete";
 import {
   personaText, tonPruefung, linkPruefung, persoenlicherLink, stufeAusAntrag, zeitFuerKunde, uhrzeitenIn, datumFuerKunde,
   abweichungsSatz, type AbweichungsGrund, stornoUngefragt,
+  abstreitenArt, istLoeschwunsch, loeschenAngeboten, bausteinAbstreiten, loeschAntwort, nachAbstreiten, stoppWunsch, willWeitermachen,
+  abstreitenHinweis, WUT_EMOJI, type AbstreitenBefund, type AbstreitenFestArt,
   bausteinKreditFrage, bausteinVorabZahlen, bausteinZoegern, bausteinAblehnung, bausteinZuTeuer, bausteinSicher, paketName, paketPreisText,
   type LinkLage, type LinkStufe, type TonBefund, type LinkBefund,
 } from "@shared/fiaon-mara-ton";
@@ -875,8 +887,13 @@ function auftrag(ein: {
   hinweise?: string[];
   /** E-248: sein Land — AT/CH nie „SCHUFA" (auch in den Beispielen). */
   land?: AuskunftLand | null;
+  /** E-264: seine Stufe — ohne abgeschickten Antrag erklären die Muster den Ablauf, sie fordern kein Geld. */
+  stufe?: LinkStufe;
 }): string {
   const vorname = ein.name.split(" ")[0];
+  // E-264 (29.09.2026, Gegenlesen): Die Muster sahen auch Leads — „… auf Ihrer Zahlungsseite" setzt eine
+  // Zahlungsseite voraus, die es ohne abgeschickten Antrag nicht gibt.
+  const ohneAntrag = ein.stufe === "lead" || ein.stufe === "antrag_offen";
   const b = ein.betreuer ?? "[Betreuer]";
   const bName = ein.betreuer ?? "jemand aus unserem Team";
   const LINK = "[sein Link]";
@@ -918,7 +935,12 @@ function auftrag(ein: {
     `KUNDE: Bekomme ich die Karte sicher?`,
     `DU: ${bausteinSicher()}`,
     `KUNDE: Kann ich mit PayPal zahlen?`,
-    `DU: Ganz einfach per Überweisung: Betrag, Verwendungszweck und QR-Code für Ihre Banking-App stehen auf Ihrer Zahlungsseite — nichts wird abgebucht.`,
+    ohneAntrag
+      ? `DU: Ganz einfach per Überweisung: Sobald Ihr Antrag abgeschickt ist, stehen Betrag, Verwendungszweck und QR-Code für Ihre Banking-App auf Ihrer Zahlungsseite — nichts wird abgebucht. Hier machen Sie mit Ihrem Antrag weiter: ${LINK}`
+      : `DU: Ganz einfach per Überweisung: Betrag, Verwendungszweck und QR-Code für Ihre Banking-App stehen auf Ihrer Zahlungsseite — nichts wird abgebucht.`,
+    ...(ohneAntrag ? [
+      `SEIN ANTRAG IST NICHT ABGESCHICKT (E-264): Fragen zu Kosten, Zahlung und Ablauf beantwortest du erklärend — erst den Antrag fertig machen, danach die erste Monatsrate. Nie „hier ist Ihre Zahlungsseite“, nie ein offener Betrag, nie „überweisen Sie“ — es gibt noch keine Rechnung. Der Schritt ist sein Antrag (DEIN LINK).`,
+    ] : []),
     `KUNDE: Ist das seriös?`,
     `DU: Gute Frage! FIAON LTD ist in London eingetragen [Nummer aus den Fakten], Vertrag und Rechnung bekommen Sie schriftlich, jede Zahlung überweisen Sie selbst, und Sie haben 14 Tage Widerrufsrecht. Starten wir?`,
     ``,
@@ -1194,7 +1216,7 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
         FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id WHERE p.id = ${personId}`.catch(() => [])) as any[];
     const [b] = (await sqlPool`
       SELECT ref, status, payment_status, COALESCE(current_step, 0) AS schritt, pack_key, pack_name, payment_reference,
-             gekuendigt_am, abo_gestoppt_am, ist_entwurf, created_at, agb_stand
+             gekuendigt_am, abo_gestoppt_am, ist_entwurf, created_at, agb_stand, submitted_at
         FROM fiaon_applications
        WHERE person_id = ${personId} AND merged_into IS NULL AND NOT COALESCE(ist_entwurf, FALSE)
          -- E-230: Die Bonitätsauskunft (FIAON-SCHUFA-…) und FIAON Global sind kein Paketvertrag.
@@ -1225,9 +1247,10 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       SELECT id, link_code, anzeige, quelle FROM fiaon_leads WHERE person_id = ${personId} ORDER BY erstellt_am DESC LIMIT 1`.catch(() => [])) as any[];
     const codeDa = k?.code ?? lead?.link_code ?? null;
 
-    // E-248: Die Stufe entscheidet die Bestellung (stufeAusAntrag) — „approved" mit offener Bestellung
-    // (pending_payment) ist ZAHLUNG offen, nicht „Antrag fortsetzen" (Nagelstudio, FIAON-BSP4KX: 55 solche Anträge).
-    const stufe: LinkStufe = b ? stufeAusAntrag({ status: b.status, payment_status: b.payment_status, current_step: Number(b.schritt), gekuendigt_am: b.gekuendigt_am, abo_gestoppt_am: b.abo_gestoppt_am }) : "lead";
+    // E-248 las hier „approved mit offener Bestellung ist Zahlung offen". E-264 (29.09.2026): Das stimmte
+    // nicht — approved + pending_payment setzt der Antragsweg schon bei Schritt 3–5, VOR dem Vertrag.
+    // Die Stufe kommt jetzt aus EINER Regel „abgeschickt" (stufeAusAntrag → antragAbgeschickt).
+    const stufe: LinkStufe = b ? stufeAusAntrag({ status: b.status, payment_status: b.payment_status, current_step: Number(b.schritt), submitted_at: b.submitted_at, gekuendigt_am: b.gekuendigt_am, abo_gestoppt_am: b.abo_gestoppt_am }) : "lead";
     const paket = b?.pack_name || b?.pack_key || null;
     const antragLinkLage = async (st: LinkStufe): Promise<LinkLage> => {
       const code = await codeFuerLead(lead?.id, codeDa);
@@ -1305,14 +1328,15 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       erg.ziel = "Kein Wort vom Bezahlen. Danken, der Eingang wird geprüft, mit der Buchung ist sein Account aktiv.";
       erg.linkLage = { stufe: "zahlung_gemeldet" };
       erg.verkaufen = false;
-    } else if (String(b.payment_status) === "expired" && b.payment_reference) {
+    } else if (String(b.payment_status) === "expired" && b.payment_reference && stufe === "zahlung_offen") {
       // ── Nachbesserung E-248: ABGELAUFENE BESTELLUNG ─────────────────────────
       // stufeAusAntrag gibt dafür „zahlung_offen" — die Zahlungsseite zeigt aber das
       // rote Band „abgelaufen … kontaktieren Sie den Support". Er HAT sich gemeldet:
       // Mara schaltet die Bestellung selbst neu frei (Weg des Agentenportals), außer
       // bei einem heiklen Anliegen oder einer Sperre — dann KEIN Zahlungslink.
       // E-253 (28.09.2026): der MENSCH (menschSperre) — die Wegweiser-Marke einer Dublette ist keine Sperre,
-      // eine Werbesperre an einer Dublette schon.
+      // eine Werbesperre an einer Dublette schon. E-264: nur bei ABGESCHICKTEM Antrag (stufe) — eine nie
+      // abgeschickte Bestellung wird nie reaktiviert, sie ist kein Vertrag.
       const sperre = await menschSperre(Number(personId)).catch(() => null);
       const frei = !heikelAnliegen(kundeText) && !sperre?.werbesperre && !sperre?.vertriebssperre
         && await (await import("./fiaon-postmeister-werkzeuge")).abgelaufeneBestellungFreischalten(String(b.payment_reference)).catch(() => false);
@@ -1339,8 +1363,10 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       // E-241: Stufe B — die Auskunft nur als Antwort (auskunftJetzt), nichts an SEINE LAGE anhängen.
       erg.auskunft = await auskunftLage(personId, "antrag");
     } else {
-      erg.lage = `Antrag angefangen, bei Schritt ${b.schritt ?? 0} stehen geblieben${paket ? ` (${paket})` : ""}. Seine Angaben sind gespeichert.`;
-      erg.ziel = "Er macht seinen Antrag fertig — dort, wo er aufgehört hat.";
+      // E-264: Auch mit „approved"/pending_payment — nie abgeschickt heißt: kein Vertrag, keine Rechnung.
+      erg.lage = `Antrag angefangen, bei Schritt ${b.schritt ?? 0} stehen geblieben${paket ? ` (${paket})` : ""}, NIE abgeschickt — es gibt keinen Vertrag, keine Rechnung und keine offene Zahlung. Seine Angaben sind gespeichert.`;
+      // E-264, Nachbesserung: Erklären ja („nach dem Antrag die erste Monatsrate"), fordern nie.
+      erg.ziel = "Er macht seinen Antrag fertig — dort, wo er aufgehört hat. Keine Zahlungsaufforderung: keine Zahlungsseite, kein offener Betrag, keine Rechnung. Fragt er nach Kosten oder Ablauf, erklärst du: erst den Antrag fertig machen, danach die erste Monatsrate.";
       erg.linkLage = await antragLinkLage("antrag_offen");
       // E-241: wie ein Lead — die Auskunft nur als Antwort.
       erg.auskunft = await auskunftLage(personId, "lead");
@@ -1401,6 +1427,11 @@ const HEIKEL = /kündig|widerruf|storn|erstatt|zurücküberweis|geld\s+zurück|a
  */
 export function heikelAnliegen(kundeText: string): boolean {
   const t = String(kundeText ?? "");
+  // E-264: Wer bestreitet, je etwas beantragt zu haben (oder „falsche Nummer", „Betrug", „lassen Sie
+  // mich in Ruhe", „wofür zahlen, ich weiß nix", nur Wut) hat ein heikles Anliegen — keine Reaktivierung,
+  // kein fester Zahlungssatz, ein Mensch. „Wer sind Sie?" / „Woher meine Nummer?" nicht.
+  const ab = abstreitenArt(t);
+  if (ab && ab.art !== "datenfrage" && ab.art !== "wer") return true;
   if (!HEIKEL.test(t)) return false;
   const ohneKuendig = t.replace(/\w*kündig\w*/gi, " ");
   if (HEIKEL.test(ohneKuendig)) return true; // Widerruf, Storno, Betrug … zählen immer
@@ -1409,7 +1440,10 @@ export function heikelAnliegen(kundeText: string): boolean {
   return !fremdesKonto || unserVertrag;
 }
 
-export type AufgabenKlasse = "heikel" | "geld" | "rueckruf" | "anliegen" | "pruefung" | "ki" | "pause" | "deckel" | "versand";
+export type AufgabenKlasse = "heikel" | "geld" | "rueckruf" | "anliegen" | "pruefung" | "ki" | "pause" | "deckel" | "versand"
+  // E-264: „Kunde bestreitet Antrag" und „Löschwunsch" — beide an die Leitung; dazu (Nachbesserung)
+  // „falsche Nummer", „will keinen Kontakt", „weiß nicht, wofür er zahlen soll", „verärgert".
+  | "bestreitet" | "loeschen" | "falsche_nummer" | "in_ruhe" | "rueckfrage" | "wut";
 /** Die Grundklasse einer Übergabe aus WhatsApp — eine offene Aufgabe je Mensch und Klasse. */
 export function aufgabenKlasse(kundeText: string, uebergabe = ""): AufgabenKlasse {
   if (heikelAnliegen(kundeText)) return "heikel";
@@ -1421,7 +1455,8 @@ export function aufgabenKlasse(kundeText: string, uebergabe = ""): AufgabenKlass
 /** „Dringend" nur, wenn der Kunde wirklich wartet: heikel, Geld oder ein Rückruf ohne Termin (E-248). */
 export function aufgabeDringend(klasse: AufgabenKlasse, terminDa: boolean): boolean {
   return klasse === "heikel" || klasse === "geld" || (klasse === "rueckruf" && !terminDa)
-    || klasse === "ki" || klasse === "deckel" || klasse === "versand" || klasse === "pause";
+    || klasse === "ki" || klasse === "deckel" || klasse === "versand" || klasse === "pause"
+    || klasse === "bestreitet" || klasse === "loeschen" || klasse === "falsche_nummer" || klasse === "rueckfrage";
 }
 
 /** Der Befund der Auskunft-Preisprüfung — Gruppe 1 ist der Betrag, wie er im Text steht. */
@@ -1434,7 +1469,14 @@ export function kannNichtZahlen(kundeText: string): boolean {
 /** Absage oder Verschiebung eines Termins. */
 const TERMIN_AENDERN = /\babsag\w*|\bsag\w*\s+(?:\w+\s+){0,3}?ab\b|\bverschieb\w*|\bverleg\w*|\bandere[nrs]?\s+(?:zeit|termin|tag|uhrzeit)|\bkann\s+(?:\w+\s+){0,4}?nicht\b|\bpasst\s+(?:\w+\s+){0,2}?nicht\b|\bschaffe\s+(?:\w+\s+){0,2}?nicht\b/i;
 /** Ein Einwand gegen die Zahlung — dann keine Zahlungsseite als fester Satz. */
-const EINWAND_ZAHLUNG = /\bnicht\b|\bkein\w*\b|\bwarum\b|\bwieso\b|\bvorher\b|\bvorab\b|\bim\s+voraus\b|\bzu\s+teuer\b|\babzocke\b|\bbetrug\b|\bstorn|\bwiderruf|\bk(?:ü|ue)ndig/i;
+// E-264: jede Verneinung („nie", „nix", „nichts") und jede Beschwerde — „Hab nix beantragt" ist nie eine Link-Frage.
+const EINWAND_ZAHLUNG = /\bnicht\b|\bkein\w*\b|\bnie(?:mals)?\b|\bnix\b|\bnichts\b|\bwarum\b|\bwieso\b|\bweshalb\b|\bvorher\b|\bvorab\b|\bim\s+voraus\b|\bzu\s+teuer\b|\babzocke\b|\bbetrug|\bspam\b|\bfake\b|\bfalsch|\bruhe\b|\bstorn|\bwiderruf|\bk(?:ü|ue)ndig|\bl(?:ö|oe)sch/i;
+/**
+ * Eine Frage nach Link, Antrag oder Zahlung (für den sicheren Satz). E-264: Wortgrenzen —
+ * vorher traf /antrag|anmeld/ auch „beantragt" und „angemeldet" (Fall 29.09.: „Hab nix beantragt"
+ * war eine Link-Frage).
+ */
+const LINK_FRAGE = /\blink\b|\bantrag\w*|\bbestell\w*|\bwo\s|\bwie\s+(?:kann|geht|komme|mache)|\bzahl\w*|\bbezahl|überweis|ueberweis|\banmeld\w*|\babschließ|\babschliess|\bweiter\b/i;
 
 export interface TerminKurz { beginn: string; vorname: string; kundenText?: string; herkunftText?: string; uhrzeit?: string }
 
@@ -1453,6 +1495,8 @@ export function sichererSatz(ein: {
   // „bitte alles stornieren" „Hier ist Ihre Zahlungsseite" und auf „bitte absagen" „Genau,
   // Florentine ruft Sie heute um 20 Uhr an" (die Absage ging verloren). Dann greift der
   // Rückfallsatz mit Aufgabe an einen Menschen.
+  // E-264: Abstreiten, Irrtum, Datenfrage bekommen NIE einen festen Satz aus der Lage (dafür gibt es bausteinAbstreiten).
+  if (abstreitenArt(k0)) return null;
   if (heikelAnliegen(k0) || kannNichtZahlen(k0) || TERMIN_AENDERN.test(k0)) {
     // Ausnahme: Mara HAT gerade selbst gebucht/verschoben — dann ist genau das die Antwort.
     const neuGebucht = ein.aktionen.find((x) => x.werkzeug === "rueckruf_eintragen" && x.ok && x.termin)?.termin ?? null;
@@ -1474,7 +1518,7 @@ export function sichererSatz(ein: {
   const tl = ein.aktionen.find((x) => x.werkzeug === "terminlink_schicken" && x.ok && x.link)?.link;
   if (tl) return `Hier suchen Sie sich selbst eine Zeit aus: ${tl}`;
   // Die Zahlungsseite nur bei einer Zahlungs-/Link-Frage OHNE Einwand.
-  if (ein.link && /link|antrag|bestell|wo\s|wie\s+(?:kann|geht|komme|mache)|zahl|überweis|anmeld|abschließ|weiter/i.test(k) && !EINWAND_ZAHLUNG.test(k)) {
+  if (ein.link && LINK_FRAGE.test(k) && !EINWAND_ZAHLUNG.test(k)) {
     if (ein.stufe === "zahlung_offen") return `Hier ist Ihre Zahlungsseite mit Betrag, Verwendungszweck und QR-Code: ${ein.link} — nach der Zahlung ist Ihr Account aktiv.`;
     if (ein.stufe === "lead" || ein.stufe === "antrag_offen") return `Sehr gern — hier geht es direkt zu Ihrem Antrag, in etwa zwei Minuten sind Sie durch: ${ein.link}`;
     if (ein.stufe === "kunde" || ein.stufe === "zahlung_gemeldet") return `In Ihrem Bereich sehen Sie alles auf einen Blick: ${ein.link}`;
@@ -1489,7 +1533,7 @@ function vornameVon(von: unknown): string {
 
 const STUFE_TEXT: Record<LinkStufe, string> = {
   lead: "Noch kein Antrag abgeschickt — sein Antrag ist vorbereitet (DEIN LINK).",
-  antrag_offen: "Antrag angefangen, noch nicht fertig — er macht dort weiter, wo er aufgehört hat (DEIN LINK).",
+  antrag_offen: "Antrag angefangen, NIE abgeschickt — keine Rechnung, keine Zahlungsaufforderung (den Ablauf erklären darfst du: erst der Antrag, dann die erste Monatsrate); er macht dort weiter, wo er aufgehört hat (DEIN LINK).",
   zahlung_offen: "Antrag FERTIG, die erste Zahlung ist offen — der Schritt ist seine Zahlungsseite (DEIN LINK), kein „Antrag fortsetzen“.",
   zahlung_gemeldet: "Er hat seine erste Zahlung gemeldet, die Buchung steht aus — kein Wort vom Bezahlen.",
   kunde: "Zahlender Kunde, Account aktiv.",
@@ -1529,6 +1573,83 @@ export function standZeilen(ein: {
     z.push(`Zuletzt aus dem Team: ${vornameVon(ein.letzteTeam.von)} (${kurzZeit(new Date(msVon(ein.letzteTeam.am)))}): „${String(ein.letzteTeam.text ?? "").replace(/\s+/g, " ").slice(0, 220)}“ — daran knüpfst du an.`);
   }
   return z.filter(Boolean);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-264 (29.09.2026): „HAB NIX BEANTRAGT" — DIE ANTWORT OHNE MODELL
+// Sätze und Erkennung: shared/fiaon-mara-ton.ts (f); welche Art welche Folge
+// hat: abstreitenFolgen (fiaon-mara-abstreiten.ts). Hier:
+//   · nur ohne laufenden Vertrag (Stufe C und B) — bei Kunden, gemeldeter Zahlung
+//     oder beendetem Vertrag antwortet das Modell, das Anliegen ist heikel
+//     (heikelAnliegen) und geht an einen Menschen; „Löschen" und „falsche
+//     Nummer" gelten immer,
+//   · Werbesperre nur, wo abstreitenFolgen sie vorsieht (C bestreitet, „in Ruhe
+//     lassen", Löschwunsch) — NACHBESSERUNG E-264: kein Mahnstopp mehr (er hing
+//     nach dem Abschicken und Zahlen weiter), keine Sperre bei „falsche Nummer"
+//     (das ist der eigentliche Kunde) und keine bei Stufe B (die Leitung entscheidet),
+//   · KI-Hinweis davor, wenn Mara sich noch nicht vorgestellt hat,
+//   · eine Aufgabe: an die Leitung, die Rückfrage („wofür zahlen?") an den Betreuer.
+// null = nicht dieser Weg (das Modell antwortet).
+// ═══════════════════════════════════════════════════════════════════════════
+async function abstreitenBeantworten(ein: {
+  nummer: string; personId: number | null; leadId: number | null; aufId: number; seinText: string;
+  abst: AbstreitenBefund | null; loesch: boolean;
+}): Promise<Ergebnis | null> {
+  const { abstreitenLage, abstreitenFolgen, werbesperreSetzen } = await import("./fiaon-mara-abstreiten");
+  const lage = await abstreitenLage(ein.personId, ein.leadId);
+  const art = ein.loesch ? "loeschen" : ein.abst!.art;
+  if (!ein.loesch && art !== "falsche_nummer" && !["lead", "antrag_offen", "zahlung_offen"].includes(lage.stufe)) return null;
+  const folgen = abstreitenFolgen(art, lage.abgeschickt);
+  const taten: string[] = [];
+  if (folgen.werbesperre && ein.personId) {
+    if (await werbesperreSetzen(ein.personId).catch(() => false)) taten.push("Werbesperre gesetzt");
+  }
+  let satz = ein.loesch ? loeschAntwort("whatsapp")
+    : bausteinAbstreiten({ kanal: "whatsapp", art: ein.abst!.art as AbstreitenFestArt, herkunft: lage.herkunft, abgeschickt: lage.abgeschickt, betreuer: lage.betreuer });
+  // KI-Hinweis (KI-Verordnung Art. 50) wie im Hauptweg — nur, wenn Mara sich hier noch nicht vorgestellt hat.
+  const [vorgestellt] = (await sqlPool`
+    SELECT 1 FROM fiaon_whatsapp WHERE nummer = ${ein.nummer} AND richtung = 'raus' AND status <> 'fehler'
+       AND text ILIKE '%digitale Assistentin%' LIMIT 1`.catch(() => [])) as any[];
+  if (!vorgestellt) satz = `Hier ist ${(await agentNamen()).voll.split(" ")[0]}, die digitale Assistentin von FIAON. ${satz}`;
+  // Auch der feste Satz muss durch die Wand — trifft sie (nie erwartet), schreibt ein Mensch.
+  const wand = sendePruefung(satz);
+  const herkunft = lage.herkunft?.am
+    ? `${lage.herkunft.art === "antrag" ? "erster Antrag im Webformular" : lage.herkunft.art === "anfrage_meta" ? "Anfrage über das Meta-Formular" : "erste WhatsApp"} am ${new Date(lage.herkunft.am as any).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`
+    : "Herkunft der Nummer nicht belegt";
+  const zitat = ein.seinText.replace(/\s+/g, " ").slice(0, 160);
+  const stufeText = lage.stufe === "zahlung_offen" ? "Antrag abgeschickt (B)" : lage.stufe === "antrag_offen" ? "Antrag nie abgeschickt (C)" : lage.stufe === "lead" ? "Lead ohne Antrag (C)" : lage.stufe;
+  const klasse: AufgabenKlasse = art === "loeschen" ? "loeschen" : art === "falsche_nummer" ? "falsche_nummer" : art === "in_ruhe" ? "in_ruhe"
+    : art === "rueckfrage" ? "rueckfrage" : art === "wut" ? "wut" : "bestreitet";
+  const anLeitung = folgen.an === "leitung";
+  if (wand.length) {
+    await aufgabeFuerMenschen(ein.nummer, ein.personId, ein.leadId, `Kunde schrieb „${zitat}" — Maras fester Satz fiel durch die Wand (${wand.join(" · ").slice(0, 160)}). Bitte selbst antworten: Entschuldigung, woher die Nummer stammt (${herkunft}), kein Verkauf.`, true, klasse, { leitung: anLeitung });
+    return { gesendet: false, grund: "Abstreiten — fester Satz fiel durch die Wand, Aufgabe an einen Menschen." };
+  }
+  const handlung = [
+    ein.loesch ? "Löschwunsch bestätigt (die Leitung löscht)"
+      : art === "falsche_nummer" ? "Falsche Nummer: Entschuldigung, keine Daten des Kunden genannt, kein Link"
+      : art === "rueckfrage" ? `Rückfrage „wofür zahlen": keine Zahlungsseite, ${lage.betreuer ?? "das Team"} meldet sich`
+      : `Abstreiten (${art}): Entschuldigung, Herkunft genannt (${herkunft}), kein Link, kein Verkauf`,
+    ...taten,
+  ].join("; ");
+  await vorbereiten(ein.nummer, satz, ein.aufId, ein.seinText, { kunde: ein.seinText, handlung });
+  const gesperrt = taten.includes("Werbesperre gesetzt") ? "Werbesperre gesetzt" : "keine Werbesperre gesetzt";
+  const text = ein.loesch
+    ? `Löschwunsch per WhatsApp: „${zitat}". Mara hat geantwortet, dass die Leitung sich darum kümmert und es bestätigt; ${gesperrt}. Bitte Daten löschen (Art. 17 DSGVO — bei laufendem Vertrag die Aufbewahrung prüfen) und ihm die Löschung bestätigen. ${stufeText}, ${herkunft}.`
+    : art === "falsche_nummer"
+      ? `Auf WhatsApp (+${ein.nummer}) antwortete jemand: „${zitat}" — die Nummer gehört wohl nicht zu diesem Kunden. Er ist NICHT gesperrt (Mails und Anrufe unter der richtigen Nummer laufen weiter). Bitte die Nummer in der Akte korrigieren oder entfernen und ihn per Mail um seine Nummer bitten — sonst gehen weiter WhatsApp-Vorlagen an diesen Fremden.`
+      : art === "rueckfrage"
+        ? `Er weiß nicht, wofür er zahlen soll: „${zitat}". Mara hat KEINE Zahlungsseite geschickt und gesagt, dass du dich persönlich meldest. Bitte anrufen und erklären, wie es zu der Bestellung kam — ${stufeText}, ${herkunft}.`
+        : art === "wut"
+          ? `Er schickte nur wütende Emojis: „${zitat}". Mara hat sich entschuldigt und „Stopp“ angeboten (keine Sperre). ${stufeText}, ${herkunft}. Bitte ansehen.`
+          : `Kunde ${art === "in_ruhe" ? "will keinen Kontakt" : "bestreitet Antrag"}: „${zitat}" (${art}). ${stufeText}, ${herkunft}. Mara hat sich entschuldigt und die Herkunft genannt; ${gesperrt}.${lage.abgeschickt && art === "bestreitet" ? " Der Antrag ist ABGESCHICKT — bitte klären, wer ihn gestellt hat, und entscheiden (Storno, Werbesperre); Mara hat zugesagt, dass sich die Leitung meldet." : " Bitte prüfen, wer den Antrag gestellt bzw. die Nummer eingetragen hat — auf Wunsch Daten löschen."}`;
+  await aufgabeFuerMenschen(ein.nummer, ein.personId, ein.leadId, text, folgen.dringend, klasse, { leitung: anLeitung });
+  await protokolliere({
+    art: ein.loesch ? "loeschwunsch" : "abstreiten", ok: true, nummer: ein.nummer, personId: ein.personId, leadId: ein.leadId,
+    text: `${ein.loesch ? "Löschwunsch" : `Abstreiten (${art})`} auf „${zitat.slice(0, 80)}" — fester Satz ohne Modell: ${satz.slice(0, 160)}`,
+    daten: { art, stufe: lage.stufe, abgeschickt: lage.abgeschickt, herkunft: lage.herkunft, taten, auf_id: ein.aufId },
+  });
+  return { gesendet: false, grund: ein.loesch ? "Löschwunsch — Bestätigung liegt bereit, Aufgabe an die Leitung." : `Abstreiten (${art}) — Antwort liegt bereit${taten.length ? `, ${taten.join(", ")}` : ""}, Aufgabe an ${anLeitung ? "die Leitung" : "den Betreuer"}.` };
 }
 
 /** Maras bewusstes Schweigen merken: kein neuer Anstoß bis zur nächsten echten Nachricht. */
@@ -1598,7 +1719,10 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     }
     // Ein „Ok" von vor über zwei Stunden bekommt keinen Abschluss mehr — dann lieber still. Und nach seinem
     // STOPP bekommt ein „Danke" nichts mehr (er hat um keine Nachrichten gebeten).
-    const nachStopp = verlauf.find((v) => v.richtung === "raus" && !v.vorlage && istMara(v.von))?.text === STOPP_ANTWORT;
+    // E-264 (29.09.2026): ebenso nach Maras Entschuldigung auf ein Abstreiten („Wir schreiben Ihnen ab jetzt nicht
+    // mehr") — ein „Ok danke" darauf bekommt kein „Gern!".
+    const letzteMaraText = verlauf.find((v) => v.richtung === "raus" && !v.vorlage && istMara(v.von))?.text;
+    const nachStopp = letzteMaraText === STOPP_ANTWORT || nachAbstreiten(letzteMaraText);
     const abschlussZuAlt = urteil.art === "abschluss" && (nachStopp || Date.now() - new Date(ersteOffene.am).getTime() > 2 * 3_600_000);
     if (urteil.art === "schweigen" || abschlussZuAlt) {
       await stillSetzen(nummer, Number(neuesteRein.id));
@@ -1650,6 +1774,75 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       if (Date.now() - new Date(neuesteRein.am).getTime() > 60 * 60_000) return { gesendet: false, grund: "STOPP — zu alt für eine Bestätigung." };
       await vorbereiten(nummer, STOPP_ANTWORT, Number(neuesteRein.id), String(neuesteRein.text ?? ""), { kunde: String(neuesteRein.text || neuesteRein.knopf || ""), handlung: "WhatsApp-Stopp bestätigt — keine Vorlagen mehr" });
       return { gesendet: false, grund: "STOPP bestätigt (liegt bereit)." };
+    }
+
+    // ── E-264: ABSTREITEN, IRRTUM, DATENFRAGE, LÖSCHWUNSCH (fester Satz, ohne Modell) ──
+    // Fall 29.09.2026: „Hab nix beantragt 🤢🤮😡😤😠" → „Sehr gern — nach der Zahlung ist Ihr Account
+    // aktiv … Ihre Zahlungsseite". Wie STOPP ein fester Satz — also auch in der KI-Pause.
+    // „Wer sind Sie?" / „Woher meine Nummer?" bekommen KEINEN festen Satz (Nachbesserung): Das Modell
+    // stellt sich vor, nennt die belegte Herkunft (herkunftHinweis) und den nächsten Schritt.
+    let herkunftHinweis: string | null = null;
+    {
+      const autoIds = new Set(urteil.autoIds);
+      const seinText = offeneRein.filter((v) => !autoIds.has(Number(v.id))).slice().reverse()
+        .map((v) => String(v.text || v.knopf || "")).join("\n").trim();
+      const letzteMara = verlauf.find((v) => v.richtung === "raus" && !v.vorlage && istMara(v.von))?.text ?? null;
+      const loesch = !!seinText && istLoeschwunsch(seinText, { angeboten: loeschenAngeboten(letzteMara) });
+      const abst = seinText && !loesch ? abstreitenArt(seinText) : null;
+      if (!loesch && nachAbstreiten(letzteMara)) {
+        // Folge-Satz „nicht mehr schreiben", „keine Nachrichten mehr" nach Maras Entschuldigung: dieselbe
+        // Wirkung wie STOPP heute — die feste STOPP-Antwort und die Werbesperre.
+        if (stoppWunsch(seinText)) {
+          if (personId) await (await import("./fiaon-mara-abstreiten")).werbesperreSetzen(Number(personId)).catch(() => false);
+          await vorbereiten(nummer, STOPP_ANTWORT, Number(neuesteRein.id), seinText, { kunde: seinText, handlung: "Stopp nach Abstreiten bestätigt — Werbesperre gesetzt, keine Vorlagen mehr" });
+          return { gesendet: false, grund: "STOPP nach Abstreiten bestätigt (liegt bereit)." };
+        }
+        // Nachbesserung E-264: Will er doch weitermachen, fragt ein Mensch, ob die Werbesperre fällt —
+        // nie von selbst. Mara antwortet ihm normal (das Modell unten).
+        const weiter = !!personId && willWeitermachen(seinText);
+        if (weiter) {
+          const [p] = (await sqlPool`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${Number(personId)}`.catch(() => [])) as any[];
+          if (p?.werbung_gesperrt_am) {
+            await aufgabeFuerMenschen(nummer, Number(personId), leadId ? Number(leadId) : null,
+              `Nach „Kunde bestreitet" schreibt er jetzt: „${seinText.replace(/\s+/g, " ").slice(0, 160)}" — er will offenbar doch weitermachen. Die Werbesperre steht noch (seit ${new Date(p.werbung_gesperrt_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}). Werbesperre aufheben? Nur auf seinen ausdrücklichen Wunsch — bitte mit ihm klären.`,
+              true, "anliegen");
+          }
+        } else {
+          // Nachbesserung E-264: Ein weiteres „Ich kenne euch nicht!!" oder „😡" nach der Entschuldigung bekommt
+          // nicht dieselbe Entschuldigung noch einmal („Wir schreiben Ihnen ab jetzt nicht mehr" — zweimal).
+          // Und bei einem ABGESCHICKTEN Antrag (die Leitung klärt) oder einem Fremden („versehentlich
+          // hinterlegt") antwortet nach der Entschuldigung kein Modell mehr — es könnte sonst die
+          // Zahlungsseite schicken, während die Leitung den Antrag prüft. Mara schweigt; die offene
+          // Aufgabe bekommt die Nachricht dazu.
+          const al = await (await import("./fiaon-mara-abstreiten")).abstreitenLage(personId ? Number(personId) : null, leadId ? Number(leadId) : null).catch(() => null);
+          const fremd = /versehentlich hinterlegt/.test(String(letzteMara ?? ""));
+          if ((abst && abst.art !== "datenfrage" && abst.art !== "wer") || WUT_EMOJI.test(seinText) || al?.abgeschickt || fremd) {
+            await stillSetzen(nummer, Number(neuesteRein.id));
+            await aufgabeFuerMenschen(nummer, personId ? Number(personId) : null, leadId ? Number(leadId) : null,
+              `Nach Maras Entschuldigung schrieb er noch: „${seinText.replace(/\s+/g, " ").slice(0, 160)}" — Mara antwortet hier nicht mehr; bitte selbst übernehmen.`,
+              false, fremd ? "falsche_nummer" : abst?.art === "rueckfrage" || /Das kläre ich gern für Sie/.test(String(letzteMara ?? "")) ? "rueckfrage" : "bestreitet",
+              { leitung: !/Das kläre ich gern für Sie/.test(String(letzteMara ?? "")), still: true });
+            await protokolliere({ art: "still", ok: true, nummer, personId, leadId,
+              text: `Mara schweigt: nach ihrer Entschuldigung noch „${seinText.replace(/\s+/g, " ").slice(0, 80)}" — keine zweite Entschuldigung, ein Mensch übernimmt.`,
+              daten: { grund: "nach_abstreiten", auf_id: Number(neuesteRein.id) } });
+            return { gesendet: false, grund: "Nach der Entschuldigung: Mara schweigt, die Aufgabe hat die Nachricht." };
+          }
+        }
+      }
+      if (loesch || abst?.fest) {
+        const erg = await abstreitenBeantworten({
+          nummer, personId: personId ? Number(personId) : null, leadId: leadId ? Number(leadId) : null,
+          aufId: Number(neuesteRein.id), seinText, abst, loesch,
+        });
+        if (erg) return erg;
+      }
+      if (abst && (abst.art === "datenfrage" || abst.art === "wer")) {
+        const { abstreitenLage } = await import("./fiaon-mara-abstreiten");
+        const al = await abstreitenLage(personId ? Number(personId) : null, leadId ? Number(leadId) : null).catch(() => null);
+        // Keine eigene Aufgabe (sie käme in der KI-Pause bei jedem Nachhol-Takt wieder) — fragt er nach
+        // seinen Daten im Sinne von Art. 15 DSGVO, übergibt das Modell (mensch true).
+        herkunftHinweis = abstreitenHinweis({ art: abst.art, kanal: "whatsapp", herkunft: al?.herkunft ?? null, betreuer: al?.betreuer ?? null });
+      }
     }
 
     // ── E-248: DER KURZE WARME ABSCHLUSS (ohne Modell) ─────────────────────
@@ -1823,7 +2016,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       gedaechtnis: personId ? await gedaechtnisText(Number(personId)).catch(() => "") : "",
       wissen: wissenFuerWhatsApp(),
       hausanweisung: await anweisungBlock("whatsapp").catch(() => ""),
-      stand, hinweise: urteil.hinweise, land: lage.land,
+      stand, hinweise: [...urteil.hinweise, ...(herkunftHinweis ? [herkunftHinweis] : [])], land: lage.land, stufe: lage.linkLage.stufe,
       verlauf: verlauf.slice().reverse()
         .filter((v) => v.status !== "fehler")
         .map((v) => {
@@ -1839,7 +2032,9 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         .join("\n"),
     });
 
-    const zahlungslage = /Account aktiv|Eingang wird geprüft|Zahlungsseite/.test(lage.ziel);
+    // E-264: Ohne abgeschickten Antrag ist es nie „seine Zahlung" — das Ziel nennt die Zahlungsseite dort nur als Verbot.
+    const zahlungslage = lage.linkLage.stufe !== "lead" && lage.linkLage.stufe !== "antrag_offen"
+      && /Account aktiv|Eingang wird geprüft|Zahlungsseite/.test(lage.ziel);
     const e = await entwerfen(text, {
       kunde, kontext, letzteDu: letzteDu.slice(0, 2), verkaufen: lage.verkaufen, verlaufText, zahlungslage, link: lage.link,
       auskunftAngebot: auskunftWerkzeugAn(auskunft), werbesperre: lage.werbesperre,
@@ -1866,6 +2061,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       // Nachbesserung 27.09. (E-246): nur bei einer Pause-Nachricht, und der Tag
       // der NEUESTEN offenen Nachricht (schrieb er heute neu, gilt sein Heute).
       nachrichtTag: kamInDerPause(neuesteRein.am, kp) ? berlinTag(new Date(neuesteRein.am)) : undefined,
+      stufe: lage.linkLage.stufe,
     } : null);
     let roh = e.roh;
     let antwort = e.antwort;
@@ -2188,6 +2384,8 @@ export interface WerkzeugKontext {
    * heute, außer der Kunde nennt den heutigen Tag ausdrücklich.
    */
   nachrichtTag?: string;
+  /** E-264: seine Stufe (stufeAusAntrag) — ohne abgeschickten Antrag gibt es keinen Zahltag festzuhalten. */
+  stufe?: LinkStufe;
 }
 
 /** „15:00" → „15 Uhr", „15:10" → „15:10 Uhr". */
@@ -2276,6 +2474,11 @@ export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugK
     };
   }
   if (name === "zahlungszusage_merken") {
+    // E-264: Ohne abgeschickten Antrag gibt es keine Rechnung — also auch keinen Zahltag und keine
+    // „Zahlungsseite bleibt offen" (Fall 29.09.: approved/Schritt 5 galt als „Zahlung offen").
+    if (ctx.stufe === "lead" || ctx.stufe === "antrag_offen") {
+      return { ergebnis: { ok: false, grund: "Sein Antrag ist nie abgeschickt — es gibt keine Rechnung und keinen Zahltag. Kein Wort vom Bezahlen: Der Schritt ist, seinen Antrag fertigzumachen (DEIN LINK)." }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
+    }
     const datum = String(args?.datum ?? "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return { ergebnis: { ok: false, grund: "Kein gültiges Datum (YYYY-MM-DD)." }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
     const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
@@ -2843,10 +3046,15 @@ const TITEL: Record<AufgabenKlasse, string> = {
   heikel: "Kündigung, Widerruf oder Beschwerde", geld: "Zahlung oder Geld", rueckruf: "Rückruf-Wunsch",
   anliegen: "Anliegen", pruefung: "Mara war unsicher", ki: "Mara konnte nicht antworten", pause: "Nachricht aus der KI-Pause",
   deckel: "Mara pausiert (Grenze)", versand: "Antwort ging nicht raus",
+  bestreitet: "Kunde bestreitet Antrag", loeschen: "Löschwunsch (Daten löschen)",
+  falsche_nummer: "Falsche Nummer — bitte korrigieren", in_ruhe: "Will keinen Kontakt mehr",
+  rueckfrage: "Weiß nicht, wofür er zahlen soll", wut: "Verärgert — bitte ansehen",
 };
 async function aufgabeFuerMenschen(
   nummer: string, personId: number | null, leadId: number | null, grund: string, dringend = false,
-  klasse: AufgabenKlasse = "anliegen", opt: { still?: boolean } = {},
+  klasse: AufgabenKlasse = "anliegen",
+  /** E-264: leitung — an die Leitung (Vertriebsleiter wie aufgabe_an_betreuer „Leitung", sonst Justin), nicht an den Betreuer. */
+  opt: { still?: boolean; leitung?: boolean } = {},
 ): Promise<void> {
   try {
     const wer = personId ? String(Number(personId)) : `n${String(nummer).replace(/\D/g, "")}`;
@@ -2866,8 +3074,12 @@ async function aufgabeFuerMenschen(
     const abw = await import("./fiaon-abwesenheit");
     const anBetreiber = !!(await (personId ? abw.vertretungFuerPerson(Number(personId)) : abw.abwesenheitJetzt()).catch(() => null));
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const leitung = opt.leitung ? await (await import("./fiaon-mara-abstreiten")).leitungId().catch(() => null) : null;
     const erg: any = await auftragFuerKunden({
-      personId: personId ?? null, ref: null, anBetreiber,
+      // E-264 + E-260: „An die Leitung“ geht an den Vertriebsleiter — AUSSER das Team ist abwesend
+      // (dann liegt jede Übergabe auf dem Board des Betreibers, E-260 B9; leitungId() wäre Agent 8).
+      ...(anBetreiber ? { anBetreiber: true } : opt.leitung ? (leitung ? { agentId: leitung } : { anBetreiber: true }) : { anBetreiber }),
+      personId: personId ?? null, ref: null,
       titel: `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`,
       text: `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`,
       quelle: "mara-whatsapp", dringend,

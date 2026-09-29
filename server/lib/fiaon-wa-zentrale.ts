@@ -89,6 +89,7 @@
 
 import { sqlPool } from "./db-pool";
 import { paketPreisCents } from "@shared/fiaon-pakete";
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 import { WA_NUMMER_UNZUSTELLBAR_SQL } from "./fiaon-wa-unzustellbar";
@@ -366,10 +367,11 @@ const BESTAND = (a: string) => `(${a}.merged_into IS NULL AND NOT COALESCE(${a}.
 // (E-210): Schritt 8 erreicht oder ein Status außerhalb der unfertigen. Die
 // Zahlungsreferenz taugt NICHT als Zeichen — ein Trigger füllt sie seit dem
 // 08.08.2026 schon beim ersten Speichern.
-const UNFERTIG_SQL = `('started', 'personal_data', 'finances', 'config', 'verifying', 'approved', 'contract', 'processing')`;
 // Offen heißt: abgeschickt und weder bezahlt, gemeldet, storniert noch
 // archiviert — auch „pending" (so führt kundenstatus() es als „Rechnung offen").
-const abgeschickt = (t: string) => `(COALESCE(${t}.current_step, 0) >= 8 OR COALESCE(${t}.status, '') NOT IN ${UNFERTIG_SQL})`;
+// E-264 (29.09.2026): die Regel steht jetzt EINMAL in shared/fiaon-antrag-stand.ts (dazu submitted_at) —
+// Mara (stufeAusAntrag) las bis heute pending_payment als „abgeschickt", diese Datei nie.
+const abgeschickt = (t: string) => abgeschicktSql(t);
 
 const OHNE_ANTRAG = `NOT EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL)`;
 
@@ -575,7 +577,7 @@ async function zeileZuKandidat(g: Gruppe, r: any): Promise<Kandidat> {
            AND payment_status IN ('pending_payment', 'expired', 'pending') AND payment_reference IS NOT NULL
            AND mahnstopp_am IS NULL AND gekuendigt_am IS NULL
            AND COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
-           AND (COALESCE(current_step, 0) >= 8 OR COALESCE(status, '') NOT IN ('started', 'personal_data', 'finances', 'config', 'verifying', 'approved', 'contract', 'processing'))
+           AND ${sqlPool.unsafe(abgeschicktSql(""))}
          ORDER BY created_at DESC LIMIT 1`) as any[];
       if (a) {
         // E-181: Der Katalogpreis gilt; amount_due nur, wenn das Paket unbekannt ist.

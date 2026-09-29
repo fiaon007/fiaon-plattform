@@ -273,6 +273,11 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
       if (a.mahnstopp_am) gelaufen.push("mahnstopp_setzen");
     }
   }
+  // E-264 (29.09.2026): „Hab nix beantragt" per Mail — die Werbesperre kommt mit der FREIGABE, nicht
+  // schon mit dem Entwurf (fiaon-mara-abstreiten.ts, werbesperreBeiFreigabe). Danach sieht die Prüfung
+  // unten sie als gesetzt.
+  await (await import("../lib/fiaon-mara-abstreiten")).werbesperreBeiFreigabe({ id, person_id: r.person_id ?? null, handlungen: r.handlungen })
+    .catch((e) => console.error("[POSTMEISTER] Werbesperre bei Freigabe:", String(e).slice(0, 160)));
   if (r.person_id) {
     const [p] = (await sqlPool`
       SELECT werbung_gesperrt_am, account_status FROM fiaon_persons WHERE id = ${r.person_id} LIMIT 1

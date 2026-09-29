@@ -34,6 +34,13 @@ export const STATUS_KLARTEXT: Record<string, string> = {
   started: "Start",
   config: "Konfiguration",
   personal_data: "Persönliche Daten",
+  // E-264 (29.09.2026): Abbrecher ist seit heute auch, wer bis zur Vorab-Einschätzung kam, aber nie
+  // abgeschickt hat (tier.ts) — die Stellen des Antragswegs bis Schritt 7.
+  finances: "Finanzen",
+  verifying: "Prüfung",
+  approved: "Vorab-Einschätzung (vor dem Vertrag)",
+  contract: "Vertrag (nicht angenommen)",
+  processing: "Abschluss (nicht abgeschickt)",
 };
 
 export interface TierHinweis {

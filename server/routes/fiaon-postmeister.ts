@@ -810,6 +810,10 @@ async function entwurfVersenden(zeile: any, text: string): Promise<void> {
   if (!wirdBedient(zeile.postfach)) {
     throw new Error(`${zeile.postfach} wird vom Agenten nicht mehr bedient — hier geht nichts mehr raus.`);
   }
+  // E-264 (29.09.2026): Die Werbesperre einer „Hab nix beantragt"-Antwort kommt mit der Freigabe
+  // (derselbe Merker wie im Sendeweg der Zentrale, werbesperreBeiFreigabe).
+  await (await import("../lib/fiaon-mara-abstreiten")).werbesperreBeiFreigabe({ id: Number(zeile.id), person_id: zeile.person_id ?? null, handlungen: zeile.handlungen })
+    .catch((e) => console.error("[POSTMEISTER] Werbesperre bei Freigabe:", String(e).slice(0, 160)));
   const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);
   await antwortSenden(zeile.postfach, mail, text);
   if (zeile.antwort_draft_id) {

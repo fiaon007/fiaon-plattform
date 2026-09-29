@@ -98,7 +98,10 @@ export type ProtokollArt =
   | "terminlink" | "uebergabe" | "rueckfall" | "zahlungszusage"
   // E-248: Mara schweigt bewusst (Autoantwort, „Ok" nach Team oder erledigter Sache, doppelt),
   // schließt mit einem kurzen Satz ab, oder schickt statt des Rückfallsatzes einen sicheren Satz aus der Lage.
-  | "still" | "abschluss" | "sicherer_satz";
+  | "still" | "abschluss" | "sicherer_satz"
+  // E-264 (29.09.2026): „Hab nix beantragt" — Entschuldigung, ehrliche Herkunft, Werbe-Stopp,
+  // Aufgabe an die Leitung; „Löschen Sie meine Daten" — Aufgabe an die Leitung.
+  | "abstreiten" | "loeschwunsch";
 
 let tabelleBereit: Promise<void> | null = null;
 export function protokollTabelle(lauf: Lauf = sqlPool): Promise<void> {

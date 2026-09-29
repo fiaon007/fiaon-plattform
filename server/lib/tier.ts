@@ -37,12 +37,37 @@
  * existierte. `expired` wird NICHT abgewertet — diese Leute waren vollständig
  * durch den Antrag und sind qualitativ Tier-2-Material.
  *
+ * ══ NUR EIN ABGESCHICKTER ANTRAG IST STUFE B (29.09.2026, E-264) ════════════
+ * Oben steht, `status` diene nur der Abbrecher-Trennung und `approved` bedeute
+ * „bezahlt". Das stimmt für den heutigen Antragsweg nicht mehr: Er setzt die
+ * Zufalls-„Genehmigung" (status approved + payment_status pending_payment)
+ * schon bei Schritt 3–5 — VOR dem Vertrag und vor „zahlungspflichtig
+ * annehmen" (Schritt 8). Gemessen (nur lesend, 29.09.): 94 Personen mit nur
+ * solchen nie abgeschickten Bestellungen standen auf Tier 2 „Rechnung offen";
+ * die Telefonkartei bot ihnen nur „Rechnung schicken" an, die Kartei-KI
+ * [ZAHLUNGSSEITE] und [RECHNUNG]. Und ein Rang 35–50 verdeckt „bezahlt" — ein
+ * zahlender Kunde mit einem liegengebliebenen Zweitantrag bei Schritt 5 wäre
+ * zurück in die Anrufliste gewandert.
+ * Jetzt zählen die Rechnungs-Ränge 40/35 nur mit abgeschicktem Antrag (EINE
+ * Regel, shared/fiaon-antrag-stand.ts: Schritt 8, submitted_at oder ein Status
+ * nach dem Formular); sonst ist er Abbrecher (20, Tier 3) — Stufe C des Hauses.
+ * Gemessen (nur lesend, 29.09.): 94 + 1 Personen wechseln von Tier 2 auf 3.
+ * `paid` und `claimed_paid` bleiben, wie sie sind: Dort ist Geld geflossen bzw.
+ * gemeldet, das bestimmt die Stufe.
+ * OFFEN (Entscheidung Justin): Rang 30 („pending", Status nach der Konfiguration)
+ * zählt weiter als B — nach derselben Regel wären auch das 533 nie abgeschickte
+ * Anträge (finances … processing, Schritt < 8). Sie auf Tier 3 zu setzen, nimmt
+ * sie aus Sofort-Zuteilung und vorderer Anrufliste; das ist eine Vertriebsfrage,
+ * kein Fehler von Mara. Die Telefonkartei behandelt sie schon heute als Abbrecher
+ * (fiaon-telefonkartei.ts, lageVon: keine Rechnung ohne abgeschickten Antrag).
+ *
  * Zur Reihenfolge von `refunded`/`cancelled`: Rang 10 liegt UNTER Tier 3.
  * Dadurch wird eine Person nur dann ausgeschlossen, wenn sie keinen einzigen
  * anderen bewertbaren Antrag hat. Wer nach einer Erstattung neu bestellt,
  * bleibt also im Vertrieb — sonst wäre der Rückkehrer für immer unsichtbar.
  */
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 
 /**
  * Abbruchstellen innerhalb von `payment_status = 'pending'`. Wer hier steht,
@@ -98,15 +123,16 @@ export function antragBasisSql(a = "a"): string {
  * @param a Tabellen-Alias von `fiaon_applications`
  */
 export function rangSql(a = "a"): string {
+  // E-264 (29.09.2026): 40/35/30 nur mit abgeschicktem Antrag — sonst Abbrecher (Kopf der Datei).
+  const ab = abgeschicktSql(a);
   return `CASE
       WHEN ${a}.payment_status = 'paid'            THEN 60
       WHEN ${a}.payment_status = 'claimed_paid'    THEN 50
-      WHEN ${a}.payment_status = 'pending_payment' THEN 40
-      WHEN ${a}.payment_status = 'expired'         THEN 35
+      WHEN ${a}.payment_status = 'pending_payment' AND ${ab} THEN 40
+      WHEN ${a}.payment_status = 'expired'         AND ${ab} THEN 35
       WHEN ${a}.payment_status = 'pending'
            AND COALESCE(${a}.status, '') NOT IN (${ABBRECHER_SQL}) THEN 30
-      WHEN ${a}.payment_status = 'pending'
-           AND COALESCE(${a}.status, '') IN (${ABBRECHER_SQL})     THEN 20
+      WHEN ${a}.payment_status IN ('pending', 'pending_payment', 'expired')  THEN 20
       WHEN ${a}.payment_status IN ('refunded', 'cancelled')        THEN 10
       ELSE 0
     END`;

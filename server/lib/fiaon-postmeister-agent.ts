@@ -48,6 +48,9 @@ import { wissenFakten } from "@shared/fiaon-wissen";
 import {
   personaText, tonPruefung, linkPruefung, stufeAusAntrag, codeLink, bausteinKreditFrage, bausteinSicher, stornoUngefragt,
   AUSSICHT_SAETZE, MARA_PERSONA, type LinkLage,
+  // E-264: „Hab nix beantragt" — Erkennung und die feste Antwort, dieselbe wie auf WhatsApp.
+  abstreitenArt, istLoeschwunsch, loeschenAngeboten, bausteinAbstreiten, loeschAntwort, abstreitenHinweis,
+  type AbstreitenBefund, type AbstreitenFestArt,
 } from "@shared/fiaon-mara-ton";
 import { rahmenFuer } from "./fiaon-postmeister-antworttext";
 
@@ -179,6 +182,22 @@ export function riegelAnwenden(ein: {
   const flags: Flags = { ...LEERE_FLAGS, ...ein.flags };
   const pruefText = `${ein.betreff}\n${ein.text}`;
   for (const r of RIEGEL) if (r.muster.test(pruefText)) flags[r.flag] = true;
+  // E-264 (29.09.2026): „Hab nix beantragt", „falsche Nummer", „lassen Sie mich in Ruhe" — nur SEIN
+  // Text (ohne Zitat). Wer bestreitet, bestreitet die Bestellung (Merkmal bestreitet). Ein Löschwunsch
+  // ist Stopp und rechtlich (ein Mensch löscht).
+  // NACHBESSERUNG E-264 (Gegenlesen): Die erste Fassung setzte stopp für JEDE Abstreiten-Art — gegen 1.489
+  // Postfach-Mails gerechnet bei 17 zahlenden Kunden neu (Mail 1476: „habe längst die erste Rate bezahlt
+  // … Sieht eher wie Betrug aus. Bitte um Info"; Mail 4328: „Spam-Ordner" aus unserer eigenen Mail).
+  // stopp ist dauerhaft (POSTFACH_STOPP_ZEILE_SQL → STOPP_KOEPFE: WA-Zentrale samt Monatsrate, Mara-Aktion,
+  // Telefonkartei). Jetzt: stopp NUR bei ausdrücklichem Wunsch („in Ruhe lassen" mit „mich", „keinen
+  // Kontakt mehr", Löschwunsch) — nie wegen Betrug, Spam oder Wut (die älteren RIEGEL oben bleiben).
+  {
+    const eigen = kundenTeil(kundeTextOhneAnhang(ein.text));
+    const ab = abstreitenArt(eigen);
+    if (ab && (ab.art === "bestreitet" || ab.art === "falsche_nummer")) flags.bestreitet = true;
+    if (ab?.art === "in_ruhe") flags.stopp = true;
+    if (istLoeschwunsch(eigen)) { flags.stopp = true; flags.rechtlich = true; }
+  }
   if (flags.droht_anwalt || flags.widerruf) flags.rechtlich = true;
   // Ohne den Anhang-Hinweis des Laufs — sonst wäre keine Antwort mit Datei mehr „kurz".
   if (auskunftFehltErkennen(ein.betreff, kundeTextOhneAnhang(ein.text), !!ein.auskunftAngefordert)) flags.auskunft_fehlt = true;
@@ -705,6 +724,8 @@ function systemPrompt(ein: {
   formlos?: boolean;
   /** E-248: Sein persönlicher Antragslink steht bereit (Knopf „antrag"). */
   antragLink?: boolean;
+  /** E-264: „Wer sind Sie?" / „Woher haben Sie meine Adresse?" — die belegte Herkunft (abstreitenHinweis). */
+  herkunftHinweis?: string | null;
 }): string {
   const schritte = erlaubteSchritte(ein.lage, !!ein.auskunftAntwort).join(", ");
   const spracheAntwort = String(ein.sprache || ein.einordnung.sprache || "de").slice(0, 2).toLowerCase();
@@ -802,6 +823,12 @@ function systemPrompt(ein: {
     ein.ruhe
       ? `DIESE MAIL IST KEINE ZAHLUNGSAUFFORDERUNG (${ein.ruhe}). Du beantwortest sein Anliegen menschlich, ruhig und ernsthaft — keine Bitte um Zahlung, kein Zahlungsknopf, keine Rechnung (außer er verlangt sie ausdrücklich), kein Verkauf, keine Auskunft. Offene Beträge nennst du höchstens als Tatsache, wenn er danach fragt. Was du selbst erledigen kannst (Werbesperre bei „Stopp", Storno einer unbezahlten Bestellung, eine klare Kündigung), erledigst du mit dem Werkzeug; alles, was entschieden werden muss (Widerruf nach Zahlung, bestrittene Forderung, Anwalt), sagst du ihm freundlich zu klären — wer sich kümmert, mit Namen aus dem Werkzeug. Nächster Schritt: Termin (terminlink_bauen), wenn ein Gespräch hilft, sonst „erledigt".`
       : ``,
+    // E-264 (29.09.2026): Ein nie abgeschickter Antrag ist keine Rechnung — der Block oben gilt dann nicht.
+    // Nachbesserung (Gegenlesen): Erklären ja („nach dem Antrag die erste Monatsrate"), fordern nie.
+    ein.lage === "interessent"
+      ? `ER HAT KEINE OFFENE RECHNUNG (E-264): Er ist Interessent — ohne Antrag oder mit einem Antrag, den er NIE abgeschickt hat (in der Akte „antrag_nicht_abgeschickt"). Es gibt keinen Vertrag und keine Rechnung: keine Zahlungsaufforderung — keine Zahlungsseite, kein offener Betrag, keine Rechnung, kein Verwendungszweck, kein „überweisen Sie". Fragt er nach Kosten oder Ablauf, erklärst du ihn (erst den Antrag fertig machen, danach die erste Monatsrate). Sein nächster Schritt ist sein Antrag (Knopf „antrag") — er macht dort weiter, wo er aufgehört hat. Will er die angefangene Bestellung stornieren, nimmst du es mit kuendigung_vormerken entgegen.`
+      : ``,
+    ein.herkunftHinweis ? `${ein.herkunftHinweis} (Per Mail: den nächsten Schritt als Knopf, keine Adresse im Text.)` : ``,
     `HANDELN: Du hast Werkzeuge (${ein.werkzeuge.join(", ")}). Benutze sie, bevor du schreibst. Du ersetzt einen Mitarbeiter — du bist die Sachbearbeiterin, nicht die Telefonzentrale. Was du erledigen kannst, erledigst du in dieser Antwort selbst und abschließend.`,
     `DAS ERLEDIGST DU IMMER SELBST, ohne jemanden einzuschalten: Zahlungsfragen (Zahlungsseite holen; Betrag, Rate, Fälligkeit, Verwendungszweck nennen; Rechnung anhängen, wenn verlangt). Kündigung, Storno, Widerruf, „ich will nicht mehr" (Werkzeug kuendigung_vormerken — es storniert eine unbezahlte Bestellung oder merkt die Kündigung mit der letzten Rate vor; du erklärst dem Kunden das Ergebnis). Fragen zu Karte, Konto, Leistung, Ablauf, Kosten, Fristen (Haus-Wissen und Akte: FIAON gibt keine Karte aus, die Bank entscheidet; welche Etappe der Kunde gerade hat, steht in der Akte). Zugang und Passwort (konto_freischalten; die Passwort-vergessen-Seite nennen). Terminwunsch (terminlink_bauen — der Kunde wählt selbst eine Zeit, der Betreuer sieht die Buchung sofort). Doppelte oder unpassende Mails erklären und die Werbesperre setzen, wenn der Kunde es will. Stand der Unterlagen nennen.`,
     `NUR DANN gibst du eine Aufgabe (aufgabe_an_betreuer): (1) Der Kunde wünscht ausdrücklich einen Rückruf oder ein Gespräch mit seinem Betreuer — dann Aufgabe mit Uhrzeitwunsch (Parameter rueckruf_am als YYYY-MM-DD HH:MM, heute ist ${ein.akte?.heute ?? "unbekannt"}; nennt er keine Uhrzeit, bleibt es leer), und dem Kunden klar sagen, wer sich meldet (mit Namen, wie unter NAMEN). (2) Der Kunde hat Unterlagen geschickt, die das Haus verarbeiten muss (Ausweis, Kontoauszug, Bescheid) — NICHT eine angebliche frühere Kündigung oder ein „Widerruf“: die prüfst du selbst gegen die Akte (siehe DEIN ERSTER AUFTRAG). (3) Eine Datenänderung, für die du kein Werkzeug hast. (4) Eine Entscheidung über Geld zurück (Widerruf nach Zahlung, Kulanz) — die geht an die Leitung (kollege: "Leitung"), nie an den Betreuer. (5) Ein Zahlungsbeleg oder eine Buchungsfrage („ich habe überwiesen, hier der Beleg") — die geht an die Zahlungsstelle (kollege: "Zahlung"), denn nur sie sieht das Bankbuch; dem Kunden sagst du, dass die Zahlungsstelle den Eingang prüft und verbucht. Nennt der Kunde einen Kollegen mit Namen, geht die Aufgabe an diesen (Parameter kollege).`,
@@ -1421,7 +1448,7 @@ export async function antragLinkFuer(personId: number | null, ref: string | null
   const { sqlPool } = await import("./db-pool");
   if (ref) {
     const [a] = (await sqlPool`
-      SELECT status, payment_status, current_step, gekuendigt_am, abo_gestoppt_am
+      SELECT status, payment_status, current_step, submitted_at, gekuendigt_am, abo_gestoppt_am
         FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
     if (a) {
       const stufe = stufeAusAntrag(a);
@@ -1442,6 +1469,77 @@ export async function antragLinkFuer(personId: number | null, ref: string | null
     }
   }
   return { url: absoluteUrl("/privatkunden"), woher: "allgemein — für ihn gibt es noch keinen persönlichen Antrag", persoenlich: false, leadCode: null };
+}
+
+/**
+ * E-264: Die feste Antwort auf Abstreiten, Irrtum oder „Löschen Sie meine Daten" per Mail.
+ * Nur ohne laufenden Vertrag (Stufe C und B; „Löschen" und „falsche Adresse" immer) — sonst null,
+ * dann schreibt das Modell (Bestreiten bleibt eine Warnlampe). Die Antwort bleibt ein Entwurf
+ * (automatischErlaubt: false): Ein Mensch gibt frei.
+ * NACHBESSERUNG E-264 (Gegenlesen): Werbesperre und Mahnstopp liefen schon beim ERZEUGEN des Entwurfs —
+ * bei einem Fehlalarm („Ihre Mail war im Spam-Ordner …") vor jedem menschlichen Blick. Jetzt: kein
+ * Mahnstopp mehr (die Zahlungspost geht ohnehin nur an abgeschickte Anträge), und die Werbesperre steht
+ * als Merker in den Handlungen (WERBESPERRE_BEI_FREIGABE) — gesetzt wird sie erst mit der Freigabe
+ * (werbesperreBeiFreigabe in beiden Sendewegen der Zentrale). Welche Art sie überhaupt bekommt:
+ * abstreitenFolgen. Die Aufgabe an einen Menschen läuft sofort — sie schadet nie.
+ */
+export async function abstreitenPerMail(ein: {
+  personId: number; abst: AbstreitenBefund | null; loesch: boolean; kontext: WerkzeugKontext;
+}): Promise<AgentErgebnis | null> {
+  const { abstreitenLage, abstreitenFolgen, WERBESPERRE_BEI_FREIGABE } = await import("./fiaon-mara-abstreiten");
+  const lage = await abstreitenLage(ein.personId);
+  const art = ein.loesch ? "loeschen" : ein.abst?.art;
+  if (!art || (!ein.loesch && !ein.abst?.fest)) return null;
+  if (!ein.loesch && art !== "falsche_nummer" && !["lead", "antrag_offen", "zahlung_offen"].includes(lage.stufe)) return null;
+  const folgen = abstreitenFolgen(art, lage.abgeschickt);
+  const handlungen: AgentErgebnis["handlungen"] = [];
+  const werkzeugDaten: Record<string, any> = {};
+  const lauf = async (name: string, p: Record<string, unknown>) => {
+    const w = werkzeugVonName(name);
+    if (!w) return;
+    const erg: WerkzeugErgebnis = await w.ausfuehren(p, ein.kontext).catch((e: any): WerkzeugErgebnis => ({ ok: false, ergebnis: "", fehler: String(e?.message || e).slice(0, 200) }));
+    handlungen.push({ werkzeug: name, ergebnis: erg.ok ? erg.ergebnis : (erg.fehler || "fehlgeschlagen"), ok: erg.ok });
+    if (erg.ok && erg.daten) werkzeugDaten[name] = erg.daten;
+  };
+  const zitat = String(ein.kontext.kundeText ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  if (folgen.werbesperre) {
+    handlungen.push({ werkzeug: WERBESPERRE_BEI_FREIGABE, ergebnis: "Die Werbesperre wird gesetzt, sobald ein Mensch diese Antwort freigibt (E-264).", ok: true });
+  }
+  const herkunft = lage.herkunft?.am
+    ? `${lage.herkunft.art === "antrag" ? "erster Antrag im Webformular" : lage.herkunft.art === "anfrage_meta" ? "Anfrage über das Meta-Formular" : "erste WhatsApp"} am ${new Date(lage.herkunft.am as any).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`
+    : "Herkunft der Adresse nicht belegt";
+  const stufeText = lage.stufe === "zahlung_offen" ? "Antrag abgeschickt (B)" : lage.stufe === "antrag_offen" ? "Antrag nie abgeschickt (C)" : lage.stufe === "lead" ? "Lead ohne Antrag (C)" : lage.stufe;
+  const sperre = folgen.werbesperre ? "Werbesperre wird mit der Freigabe gesetzt" : "keine Werbesperre";
+  const aufgabe = (titel: string, text: string) => lauf("aufgabe_an_betreuer", {
+    titel, text, faellig_in_tagen: folgen.dringend ? 0 : 1, dringend: folgen.dringend,
+    kollege: folgen.an === "leitung" ? "Leitung" : "", rueckruf_am: "",
+  });
+  if (art === "loeschen") {
+    await aufgabe("Löschwunsch — Daten löschen und bestätigen",
+      `Er bittet per Mail um Löschung seiner Daten: „${zitat.slice(0, 160)}". Maras Entwurf: die Leitung kümmert sich und bestätigt es schriftlich; ${sperre}. Bitte löschen (Art. 17 DSGVO — bei laufendem Vertrag die Aufbewahrung prüfen) und bestätigen. ${stufeText}, ${herkunft}.`);
+  } else if (art === "falsche_nummer") {
+    await aufgabe("Falsche Adresse — bitte korrigieren",
+      `Auf unsere Mail antwortete jemand: „${zitat.slice(0, 160)}" — die Adresse gehört wohl nicht zu diesem Kunden. Er ist NICHT gesperrt. Bitte die Adresse in der Akte korrigieren oder entfernen; sonst gehen weiter Mails an diesen Fremden. ${stufeText}.`);
+  } else if (art === "rueckfrage") {
+    await aufgabe("Weiß nicht, wofür er zahlen soll",
+      `Er schreibt: „${zitat.slice(0, 160)}". Maras Entwurf: keine Rechnung, kein Betrag — du meldest dich persönlich. Bitte anrufen und erklären, wie es zu der Bestellung kam. ${stufeText}, ${herkunft}.`);
+  } else {
+    await aufgabe(art === "in_ruhe" ? "Will keinen Kontakt mehr" : art === "wut" ? "Verärgert — bitte ansehen" : "Kunde bestreitet Antrag",
+      `Er schreibt: „${zitat.slice(0, 160)}" (${art}). ${stufeText}, ${herkunft}. Maras Entwurf: Entschuldigung, Herkunft, ${lage.abgeschickt && art === "bestreitet" ? "die Leitung meldet sich" : art === "wut" ? "„Stopp“ angeboten" : "keine Nachrichten mehr"} — ${sperre}.${lage.abgeschickt && art === "bestreitet" ? " Der Antrag ist ABGESCHICKT: bitte klären, wer ihn gestellt hat, und entscheiden (Storno, Werbesperre)." : " Bitte prüfen, wer den Antrag gestellt bzw. die Adresse eingetragen hat, und auf Wunsch löschen."}`);
+  }
+  const text = ein.loesch ? loeschAntwort("mail")
+    : bausteinAbstreiten({ kanal: "mail", art: art as AbstreitenFestArt, herkunft: lage.herkunft, abgeschickt: lage.abgeschickt, betreuer: lage.betreuer });
+  // Die Wand prüft mit der Werbesperre als gelaufen — sie steht, sobald die Antwort rausgeht.
+  const gelaufen = [...handlungen.filter((h) => h.ok).map((h) => h.werkzeug), ...(folgen.werbesperre ? ["werbesperre_setzen"] : [])];
+  return {
+    ok: true, antwort: text, antwortHtml: null, belege: [],
+    naechsterSchritt: { art: "erledigt", url: null, text: "" },
+    handlungen,
+    pruefung: { treffer: wandPruefen(text, gelaufen), fehlend: [], umformuliert: false },
+    automatischErlaubt: false,
+    grund: ein.loesch ? "Löschwunsch — feste Antwort (E-264), ein Mensch gibt frei" : `Abstreiten (${art}) — feste Antwort (E-264), ein Mensch gibt frei${folgen.werbesperre ? "; die Werbesperre folgt mit der Freigabe" : ""}`,
+    kostenCents: 0, werkzeugDaten,
+  };
 }
 
 export async function antwortErzeugen(ein: {
@@ -1494,6 +1592,26 @@ export async function antwortErzeugen(ein: {
   kontext.auskunftAntwort = ein.personId
     ? auskunftAntwortArt({ betreff: ein.mail.betreff, kundeText: kontext.kundeText, flags: ein.einordnung.flags })
     : null;
+  // ── E-264 (29.09.2026): „HAB NIX BEANTRAGT" PER MAIL — FESTER TEXT, KEIN MODELL ──
+  // Dieselbe Linie wie auf WhatsApp (bausteinAbstreiten): Entschuldigung, ehrliche Herkunft,
+  // Aufgabe an einen Menschen — kein Link, kein Verkauf, keine Zahlung. Die Werbesperre setzt
+  // erst die Freigabe (Nachbesserung). „Wer sind Sie?" / „Woher meine Adresse?": das Modell mit Hinweis.
+  const abst = ein.personId ? abstreitenArt(kontext.kundeText ?? "") : null;
+  const loesch = !!ein.personId && istLoeschwunsch(kontext.kundeText ?? "", { angeboten: ein.verlauf.some((v) => loeschenAngeboten(v.text)) });
+  if (ein.personId && (loesch || abst?.fest)) {
+    const fest = await abstreitenPerMail({ personId: ein.personId, abst: loesch ? null : abst, loesch, kontext }).catch((e) => {
+      console.warn("[POSTMEISTER] Abstreiten:", String(e?.message || e).slice(0, 160));
+      return null;
+    });
+    if (fest) return fest;
+  }
+  let herkunftHinweis: string | null = null;
+  if (ein.personId && abst && (abst.art === "datenfrage" || abst.art === "wer")) {
+    const { abstreitenLage } = await import("./fiaon-mara-abstreiten");
+    const al = await abstreitenLage(ein.personId).catch(() => null);
+    herkunftHinweis = abstreitenHinweis({ art: abst.art, kanal: "mail", herkunft: al?.herkunft ?? null, betreuer: al?.betreuer ?? null });
+  }
+
   const werkzeuge = werkzeugeFuerLage(lage, { auskunftAntwort: !!kontext.auskunftAntwort });
   const tools = werkzeugeAlsTools(lage, { auskunftAntwort: !!kontext.auskunftAntwort });
 
@@ -1582,7 +1700,7 @@ export async function antwortErzeugen(ein: {
       kundenweg: weg?.text ?? null,
       gedaechtnis,
       auskunftAntwort: kontext.auskunftAntwort ?? null,
-      sprache, ruhe, formlos, antragLink: !!werkzeugDaten.antrag_link?.persoenlich,
+      sprache, ruhe, formlos, antragLink: !!werkzeugDaten.antrag_link?.persoenlich, herkunftHinweis,
     }), ...vorab].filter(Boolean).join("\n\n") },
   ];
   if (ein.verlauf.length) {
@@ -1658,7 +1776,8 @@ export async function antwortErzeugen(ein: {
 export function linkLageFuer(k: { werkzeugDaten: Record<string, any>; lage: Kundenlage }): LinkLage {
   const wd = k.werkzeugDaten ?? {};
   const stufe: LinkLage["stufe"] = k.lage === "interessent" || k.lage === "unklar" || k.lage === "fremd" ? "lead"
-    : k.lage === "unbezahlt" ? (wd.zahlungslink_bauen?.zahlungsseite ? "zahlung_offen" : "antrag_offen")
+    // E-264: „unbezahlt" heißt seit heute IMMER abgeschickt (kundenlageBerechnen: nie abgeschickt → interessent).
+    : k.lage === "unbezahlt" ? "zahlung_offen"
     : k.lage === "zahlung_gemeldet" ? "zahlung_gemeldet"
     : "kunde";
   const aa = wd.auskunft_anbieten;

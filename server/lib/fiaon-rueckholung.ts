@@ -91,6 +91,7 @@ import { abmeldeLinkPerson } from "../routes/fiaon-abmelden";
 import { BANK } from "@shared/fiaon-bank";
 import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
 
@@ -220,6 +221,13 @@ function grundmenge() {
        AND (a.gekuendigt_am IS NULL OR a.kuendigung_zurueckgenommen_am IS NOT NULL) AND a.refunded_at IS NULL
        AND COALESCE(a.ist_entwurf, FALSE) = FALSE
        AND a.ref NOT LIKE 'FIAON-TEST%' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+       -- E-264 (29.09.2026): „ein FERTIGER Antrag" heißt ABGESCHICKT (EINE Regel, shared/fiaon-antrag-stand.ts).
+       -- Die Grundmenge prüfte das nie: S4 („Er ist vollständig bei uns eingegangen", Preis, GiroCode,
+       -- „Zahlungsseite ansehen") ging in 14 Tagen 22-mal an 16 Menschen, deren Antrag bei Schritt 2–5
+       -- stand, S3 („Sie haben bei uns einen Antrag … gestellt") 288-mal an 214 — der Anlass für „Hab nix
+       -- beantragt". Nie abgeschickte Anträge gehören in den Abbrecher-Weg mit Wiedereinstieg. „Zahlung
+       -- gemeldet" (S1/S2) bleibt: Er hat selbst gesagt, er habe überwiesen.
+       AND (a.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("a"))})
        -- E-188 (17.09.2026): Die Rückhol-Mails sprechen von Auskunft, Einträgen
        -- und Raten — die Sprache der Privatlinie. Eine offene FIAON-Global-
        -- Bestellung (Unternehmen, Einmalpreis) bekommt sie nicht; dort fasst der

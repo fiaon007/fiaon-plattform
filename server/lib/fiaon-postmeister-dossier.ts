@@ -24,6 +24,7 @@ import * as abw from "./fiaon-abwesenheit";
 import { sqlPool } from "./db-pool";
 import type { Kundenlage, AkteKurz, AuskunftDossier } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
+import { antragAbgeschickt } from "@shared/fiaon-antrag-stand";
 import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
 
 /** Berliner Zeitangaben — nie Number(format()), immer formatToParts. */
@@ -170,7 +171,8 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   `) as any[] : [null];
   const [a] = ref ? (await sqlPool`
     SELECT ref, payment_status, claimed_paid_at, gekuendigt_am, kuendigung_zurueckgenommen_am, vertrag_ende_am,
-           account_status, onboarding_stufe, freigeschaltet_am, gdpr_deleted_at, agb_stand
+           account_status, onboarding_stufe, freigeschaltet_am, gdpr_deleted_at, agb_stand,
+           status, current_step, submitted_at, created_at
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
   `) as any[] : [null];
 
@@ -196,7 +198,14 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   }
   if (a.payment_status === "cancelled" || a.vertrag_ende_am) return { lage: "gesperrt", grund: "Vertrag beendet oder storniert" };
   if (a.payment_status === "claimed_paid") return { lage: "zahlung_gemeldet", grund: `hat am ${relativ(a.claimed_paid_at)} eine Zahlung gemeldet, Geld ist nicht angekommen` };
-  if (a.payment_status !== "paid") return { lage: "unbezahlt", grund: "Bestellung liegt vor, erste Zahlung fehlt" };
+  // E-264 (29.09.2026): „unbezahlt" hieß bis heute JEDE nicht bezahlte Bestellung — auch ein Antrag,
+  // der bei Schritt 5 stehen blieb (approved + pending_payment setzt der Antragsweg VOR dem Vertrag).
+  // Mara forderte so Geld ohne Vertrag. Nie abgeschickt (antragAbgeschickt, EINE Regel) heißt:
+  // Interessent mit angefangenem Antrag — Schritt „antrag" (Wiedereinstieg), keine Zahlungsseite.
+  if (a.payment_status !== "paid" && !antragAbgeschickt(a)) {
+    return { lage: "interessent", grund: `Antrag am ${relativ(a.created_at)} angefangen (Schritt ${Number(a.current_step || 0)}), NIE abgeschickt — kein Vertrag, keine Rechnung, keine offene Zahlung` };
+  }
+  if (a.payment_status !== "paid") return { lage: "unbezahlt", grund: "Antrag abgeschickt, erste Zahlung fehlt" };
 
   // 19.09.2026 (E-194): Hier stand die Ausnahme „Rate im Einzug ist nicht
   // überfällig" (02.09.) samt der Anweisung „NICHT zur Zahlung auffordern".
@@ -229,7 +238,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
 
   const bestellungen = personId ? (await sqlPool`
     SELECT ref, pack_key, pack_name, payment_status, amount_due, payment_reference, created_at, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, agb_stand,
-           city, country
+           city, country, status, current_step, submitted_at
       FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
      ORDER BY created_at DESC LIMIT 6
   `) as any[] : [];
@@ -324,11 +333,18 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     })(),
     kundenlage: lage,
     lageGrund: grund,
-    bestellungen: bestellungen.map((b) => ({
-      ref: b.ref, paket: b.pack_name ? String(b.pack_name).split("\n")[0] : null,
-      status: String(b.payment_status), betrag: b.amount_due != null ? String(b.amount_due) : null,
-      referenz: b.payment_reference ?? null, angelegt: b.created_at ? relativ(b.created_at) : null,
-    })),
+    // E-264: Ein nie abgeschickter Antrag ist keine Rechnung — ohne Verwendungszweck in der Akte,
+    // damit das Modell ihn nicht als offene Zahlung liest (Fall 29.09.).
+    bestellungen: bestellungen.map((b) => {
+      const abgeschickt = b.payment_status === "paid" || antragAbgeschickt(b);
+      const offenOhneAntrag = !abgeschickt && ["pending", "pending_payment", "expired"].includes(String(b.payment_status));
+      return {
+        ref: b.ref, paket: b.pack_name ? String(b.pack_name).split("\n")[0] : null,
+        status: offenOhneAntrag ? "antrag_nicht_abgeschickt" : String(b.payment_status), betrag: b.amount_due != null ? String(b.amount_due) : null,
+        referenz: offenOhneAntrag ? null : (b.payment_reference ?? null), angelegt: b.created_at ? relativ(b.created_at) : null,
+        abgeschickt,
+      };
+    }),
     raten: raten.map((r) => ({
       nr: Number(r.rate_nr), betrag: eur(r.betrag_cents), status: String(r.status),
       faellig: r.faellig_am ? `${String(r.faellig_am).slice(0, 10)} (${relativ(r.faellig_am)})` : null,

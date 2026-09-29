@@ -373,7 +373,8 @@ export interface AkteKurz {
   vertretung?: { name: string; bis: string } | null;
   kundenlage: Kundenlage;
   lageGrund: string;
-  bestellungen: { ref: string; paket: string | null; status: string; betrag: string | null; referenz: string | null; angelegt: string | null }[];
+  /** E-264: abgeschickt = antragAbgeschickt (shared/fiaon-antrag-stand.ts); nie abgeschickt und offen → status „antrag_nicht_abgeschickt", ohne Referenz. */
+  bestellungen: { ref: string; paket: string | null; status: string; betrag: string | null; referenz: string | null; angelegt: string | null; abgeschickt?: boolean }[];
   raten: { nr: number; betrag: string; status: string; faellig: string | null; bezahlt: string | null; mahnstufe: number | null; referenz: string | null }[];
   termine: { beginn: string; status: string; betreuer: string | null; art: string | null }[];
   verlauf: { am: string; art: string; wer: string | null; text: string }[];

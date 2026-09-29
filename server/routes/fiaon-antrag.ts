@@ -4,6 +4,7 @@ import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, istGlobalPaket, paketPreisEuro } from "@shared/fiaon-pakete";
 import { istAuskunftSchluessel } from "@shared/fiaon-auskunft";
+import { antragAbgeschickt, abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { AGB_FASSUNG } from "@shared/fiaon-vertrag-paket";
 // E-188 (17.09.2026): FIAON Global ist eine eigene Produktkategorie — siehe GLOBAL_SCHLUESSEL unten.
 import { GLOBAL_PAKETE } from "@shared/fiaon-global";
@@ -1909,6 +1910,20 @@ async function claimReminderBatch(
         -- Mail, die der Kunde nicht versteht.
         AND fa.archived_at IS NULL
         -- ════════════════════════════════════════════════════════════════
+        -- NUR AN ABGESCHICKTE ANTRÄGE (29.09.2026, E-264)
+        --
+        -- pending_payment setzt der Antragsweg schon bei Schritt 3–5, VOR dem
+        -- Vertrag. Diese Maschine schickte deshalb Betrag, IBAN, QR-Code und
+        -- Zahlungsknopf an Menschen, die nie „zahlungspflichtig annehmen"
+        -- geklickt hatten — gemessen (nur lesend, 29.09.): Person 13191,
+        -- finances/Schritt 2, reminder_count 25; 46 nie abgeschickte offene
+        -- Bestellungen ohne Mahnstopp. Jetzt: abgeschickt (EINE Regel,
+        -- shared/fiaon-antrag-stand.ts) — „Zahlung gemeldet" bleibt, wie es war
+        -- (er hat selbst gesagt, er habe überwiesen). Einzel- und Sammelversand
+        -- laufen beide durch diese Abfrage; die Zählungen unten ebenso.
+        -- ════════════════════════════════════════════════════════════════
+        AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
+        -- ════════════════════════════════════════════════════════════════
         -- FIAON GLOBAL BEKOMMT DIESE ERINNERUNG NICHT (17.09.2026, E-188)
         --
         -- Diese Maschine schickt das Ereignis payment_reminder: eine Vorlage
@@ -1997,6 +2012,9 @@ async function unzustellbareErstzahlungenMelden(): Promise<number> {
      WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
        AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
        AND fa.archived_at IS NULL AND fa.mahnstopp_am IS NULL
+       -- E-264 (29.09.2026): Eine Erinnerung geht nur noch an abgeschickte Anträge (claimReminderBatch) —
+       -- dann ist auch nur dort eine unzustellbare Erinnerung eine Aufgabe.
+       AND (fa.payment_status = 'claimed_paid' OR ${abgeschicktSql("fa")})
        AND pt.ist_test_am IS NULL
        AND ${unzustellbarSql("fa")}
        AND ${zielMailSql("fa")} NOT ILIKE '%.test'
@@ -2136,7 +2154,7 @@ router.get("/antrag/weiter/:token", async (req, res) => {
       SELECT ref, type, status, current_step, pack_key, first_name, last_name, birthdate, phone, phone_country_code,
              street, zip, city, country, nationality, employment, employer, employed_since, income, rent, debts, housing,
              wanted_limit, purpose, billing, addon, nfc, email, salary_receipt_day, billing_method, approved_limit,
-             payment_reference, payment_status
+             payment_reference, payment_status, submitted_at
       FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL AND gdpr_deleted_at IS NULL LIMIT 1
     `) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden." });
@@ -2147,8 +2165,9 @@ router.get("/antrag/weiter/:token", async (req, res) => {
     // Damit führte jeder Wiedereinstieg auf die Zahlungsseite, auch aus Schritt 1,
     // vor dem Vertrag. Jetzt entscheidet der Stand des Formulars: Zahlungsseite erst
     // ab Schritt 8 (abgeschickt) oder wenn gezahlt ist; sonst zurück an die Stelle.
-    const UNFERTIG = new Set(["started", "personal_data", "finances", "config", "verifying", "approved", "contract", "processing"]);
-    const fertig = a.payment_status === "paid" || Number(a.current_step || 0) >= 8 || !UNFERTIG.has(String(a.status || ""));
+    // E-264 (29.09.2026): dieselbe Regel steht jetzt EINMAL in shared/fiaon-antrag-stand.ts — für Mara,
+    // WA-Zentrale, Postmeister und Lead-Kette (Mara hatte bis dahin pending_payment als „fertig" gelesen).
+    const fertig = a.payment_status === "paid" || antragAbgeschickt(a);
     if (fertig) {
       return res.json({ ok: true, fertig: true, zahlung: a.payment_status !== "paid" && a.payment_reference ? `/zahlung/${a.payment_reference}` : "/login" });
     }
@@ -2330,6 +2349,8 @@ router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
         -- E-244 (26.09.2026): Die Zählung nennt, was der Versand wirklich nimmt (claimReminderBatch) —
         -- ohne FIAON Global und ohne Bonitätsauskunft (eigener Takt, fiaon-auskunft-erinnerung.ts).
         AND ${sqlPool.unsafe(produktkategorieSql("fa"))} NOT IN ('global', 'auskunft')
+        -- E-264 (29.09.2026): und nur abgeschickte Anträge (wie claimReminderBatch).
+        AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
         AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
@@ -2370,6 +2391,8 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
         -- E-244 (26.09.2026): Die Zählung nennt, was der Versand wirklich nimmt (claimReminderBatch) —
         -- ohne FIAON Global und ohne Bonitätsauskunft (eigener Takt, fiaon-auskunft-erinnerung.ts).
         AND ${sqlPool.unsafe(produktkategorieSql("fa"))} NOT IN ('global', 'auskunft')
+        -- E-264 (29.09.2026): und nur abgeschickte Anträge (wie claimReminderBatch).
+        AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
@@ -3301,6 +3324,16 @@ router.post("/application", async (req, res) => {
       }
     } catch (e) {
       console.error("[META-MESSUNG] Antrag:", e);
+    }
+
+    // ── E-264 (29.09.2026): ABGESCHICKT → STUFE B SOFORT ─────────────────
+    // Die Einstufung (tier.ts) zählt eine offene Bestellung seit E-264 erst mit
+    // abgeschicktem Antrag als B. Damit der Mensch, der gerade „zahlungspflichtig
+    // annehmen" geklickt hat, nicht bis zum Tageslauf als Abbrecher dasteht (und
+    // die Sofort-Zuteilung ihn gleich sieht), wird er hier neu eingestuft.
+    if (Number(currentStep || 0) >= 8 || status === "submitted" || status === "completed") {
+      import("../lib/tier").then((m) => m.personTierAktualisieren(sqlPool, { ref: String(ref) }))
+        .catch((e) => console.error("[FIAON-TIER] nach dem Abschicken:", e));
     }
 
     res.json({ ok: true, ref });

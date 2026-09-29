@@ -58,6 +58,7 @@ import { ERGEBNIS_TEXT, istErgebnis, type Ergebnis } from "@shared/fiaon-kontakt
 import { whatsappUrteil } from "@shared/fiaon-whatsapp-erlaubnis";
 import { WA_VORLAGEN, bildName } from "@shared/fiaon-lead-texte";
 import { persoenlicherLink, stufeAusAntrag, type MaraKanal } from "@shared/fiaon-mara-ton";
+import { antragAbgeschickt, abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import {
   KARTEI_SEITE, KARTEI_LAGE_TEXT, KARTEI_WA_VORLAGE, NICHT_ERREICHT_HINWEIS, datumKurz, euro, euroGanz,
   mailRechnung, mailNichtErreicht, mailAntrag, hatRechnungsweg, hatAntragsweg,
@@ -342,6 +343,7 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
     SELECT b.*,
            o.ref AS o_ref, o.type AS o_type, o.pack_key AS o_pack, o.pack_name AS o_pack_name,
            o.payment_status AS o_status, o.payment_reference AS o_referenz, o.amount_due AS o_betrag,
+           o.status AS o_antrag_status, o.current_step AS o_schritt, o.submitted_at AS o_abgeschickt_am,
            o.wanted_limit AS o_wunsch, o.claimed_paid_at AS o_gemeldet, o.created_at AS o_am,
            o.payment_due_date AS o_frist, o.phone AS o_phone, o.phone_country_code AS o_vorwahl,
            o.contact_phone AS o_contact_phone, o.email AS o_email, o.city AS o_city,
@@ -371,7 +373,10 @@ async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<
         AND (a.payment_status IN ('pending_payment', 'claimed_paid', 'expired')
              OR (a.payment_status = 'pending' AND COALESCE(a.status, '') NOT IN (${sqlPool.unsafe(ABBRECHER_SQL)})))
         AND ${sqlPool.unsafe(KATEGORIE_A)} <> 'global'
+      -- E-264 (29.09.2026): ein ABGESCHICKTER Antrag (oder „Zahlung gemeldet") vor einem nie abgeschickten —
+      -- nur dort gibt es eine Rechnung (karteBauen).
       ORDER BY (${sqlPool.unsafe(KATEGORIE_A)} = 'auskunft') ASC,
+               (a.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("a"))}) DESC,
                (a.payment_status IN ('pending_payment', 'claimed_paid', 'expired')) DESC,
                a.created_at DESC
       LIMIT 1) o ON TRUE
@@ -428,11 +433,26 @@ async function rahmenFuer(packKey: unknown): Promise<number | null> {
   return k && packLimits[k] != null ? Number(packLimits[k]) : null;
 }
 
+/**
+ * E-264 (29.09.2026): Ist die offene Bestellung dieser Karte ein ABGESCHICKTER Antrag (oder „Zahlung
+ * gemeldet")? Nur dann gibt es eine Rechnung. approved + pending_payment setzt der Antragsweg schon bei
+ * Schritt 3–5 — die Kartei bot 94 solchen Menschen nur „Rechnung schicken" (fiaon_kk_rechnung mit
+ * Zahlungsseite) an, die Kartei-KI [ZAHLUNGSSEITE] und [RECHNUNG]. EINE Regel: antragAbgeschickt.
+ */
+function offenAbgeschickt(z: any): boolean {
+  if (!z.o_ref) return false;
+  if (text(z.o_status) === "claimed_paid") return true;
+  return antragAbgeschickt({ status: z.o_antrag_status, current_step: z.o_schritt, submitted_at: z.o_abgeschickt_am });
+}
+
 function lageVon(z: any): KarteiLage {
   if (z.storno_am) return "storniert";
   const tier = z.priority_tier == null ? null : Number(z.priority_tier);
   if (tier === 1) return "A";
-  if (tier === 2) return "B";
+  // E-264: Stufe B heißt abgeschickt. Ein „pending"-Antrag nach der Konfiguration (Rang 30) steht in der
+  // Einstufung noch auf B (Entscheidung offen, tier.ts) — hier ist er, was er ist: ein Abbrecher, mit
+  // Wiedereinstieg statt Rechnung.
+  if (tier === 2) return z.o_ref && !offenAbgeschickt(z) ? "abbrecher" : "B";
   if (tier === 3) return text(z.tier_reason) === "nur_lead" ? "C" : "abbrecher";
   if (tier === 0) return z.r_referenz ? "rate" : "bezahlt";
   if (tier === -1) return "ausgeschlossen";
@@ -502,7 +522,8 @@ async function karteBauen(z: any): Promise<KarteiKarte> {
       zahlungsseite: absoluteUrl(`/zahlung/${encodeURIComponent(referenz)}`),
       rechnungLink: null, nochKeineRechnung: false,
     };
-  } else if (lage !== "storniert" && z.o_ref && text(z.o_referenz)) {
+  } else if (lage !== "storniert" && z.o_ref && text(z.o_referenz) && offenAbgeschickt(z)) {
+    // E-264: eine Rechnung nur zu einem abgeschickten Antrag — sonst greift der Antragsweg (hatAntragsweg).
     const referenz = text(z.o_referenz);
     const betrag = katalogpreisCents({ ref: z.o_ref, type: z.o_type, pack_key: z.o_pack })
       ?? (z.o_betrag != null && Number(z.o_betrag) > 0 ? Math.round(Number(z.o_betrag) * 100) : null);
@@ -1056,7 +1077,10 @@ export async function antragLinkFuer(k: KarteiKarte, kanal: MaraKanal, anlegen: 
     const [a] = (await sqlPool`
       SELECT ref, status, payment_status, current_step FROM fiaon_applications
        WHERE person_id = ${k.personId} AND merged_into IS NULL AND archived_at IS NULL AND gdpr_deleted_at IS NULL
-         AND cancelled_at IS NULL AND payment_status = 'pending' AND COALESCE(status, '') IN (${sqlPool.unsafe(ABBRECHER_SQL)})
+         AND cancelled_at IS NULL
+         -- E-264 (29.09.2026): begonnen heißt NIE abgeschickt (EINE Regel) — auch approved + pending_payment
+         -- bei Schritt 5 (vorher nur started/config/personal_data mit „pending": 94 Menschen ohne Link).
+         AND payment_status IN ('pending', 'pending_payment', 'expired') AND NOT ${sqlPool.unsafe(abgeschicktSql(""))}
        ORDER BY created_at DESC LIMIT 1`) as any[];
     if (!a) return { url: null, knopfWert: null, grund: "Kein begonnener Antrag gefunden — kein persönlicher Link.", knopfGrund: "kein begonnener Antrag" };
     const ref = String(a.ref);

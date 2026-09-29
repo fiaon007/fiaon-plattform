@@ -224,7 +224,8 @@ ok((antrag.match(/leadLink, messung: messungsDaten\(\)/g) ?? []).length >= 2, "A
 ok(/vorbelegung\//.test(antrag), "Antrag: liest die Vorbelegung");
 ok(/leadLink/.test(lies("server/routes/fiaon-antrag.ts")), "Server hängt den Antrag über den Code an den Lead");
 const weiterRoute = lies("server/routes/fiaon-antrag.ts").split('router.get("/antrag/weiter/:token"')[1]?.slice(0, 2500) ?? "";
-ok(!/if \(a\.payment_reference \|\| a\.payment_status === "paid"\)/.test(weiterRoute) && /UNFERTIG/.test(weiterRoute), "Wiedereinstieg: „fertig“ nicht mehr am Verwendungszweck (den hat seit 08.08. jeder Entwurf)");
+// E-264 (29.09.2026): die Regel steht jetzt EINMAL in shared/fiaon-antrag-stand.ts (antragAbgeschickt).
+ok(!/if \(a\.payment_reference \|\| a\.payment_status === "paid"\)/.test(weiterRoute) && /UNFERTIG|antragAbgeschickt\(a\)/.test(weiterRoute), "Wiedereinstieg: „fertig“ nicht mehr am Verwendungszweck (den hat seit 08.08. jeder Entwurf)");
 ok(/eigeneRef=\{ref\}/.test(antrag) && /ohne=/.test(lies("client/src/components/antrag/EmailBekannt.tsx")), "E-Mail-Hinweis schließt den eigenen Antrag aus");
 const strecke = lies("server/lib/fiaon-lead-strecke.ts");
 ok(/anredeMail\(/.test(strecke) && /kurzlinkFuerLead/.test(strecke) && !/dein FIAON-Team/.test(strecke), "Strecke: Anrede, persönlicher Link, „Ihr FIAON-Team“");

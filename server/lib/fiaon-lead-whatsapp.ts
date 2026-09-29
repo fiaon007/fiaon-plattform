@@ -39,6 +39,7 @@ import { sqlPool } from "./db-pool";
 import { waSenden, vorlagenStand, waKonfig, waAktenvermerk, waTagesplatz } from "./fiaon-whatsapp";
 import { STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
+import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
 
 /** Der Schalter. Vorgabe: AUS — Justin schaltet ihn im Steuerpult ein. */
 export const SCHALTER = "lead_whatsapp_an";
@@ -113,14 +114,19 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
            GREATEST(COALESCE(l.erstellt_am, p.created_at), p.created_at) AS eingang,
            EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
                      AND a.payment_status = 'paid') AS bezahlt,
+           -- E-264 (29.09.2026): Eine Rechnung gibt es nur zu einem ABGESCHICKTEN Antrag — approved +
+           -- pending_payment setzt der Antragsweg schon bei Schritt 3–5 (EINE Regel: abgeschicktSql).
            EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = p.id AND a2.merged_into IS NULL
-                     AND a2.payment_status IN ('pending_payment','expired') AND a2.mahnstopp_am IS NULL) AS rechnung_offen,
+                     AND a2.payment_status IN ('pending_payment','expired') AND a2.mahnstopp_am IS NULL
+                     AND ${sqlPool.unsafe(abgeschicktSql("a2"))}) AS rechnung_offen,
            EXISTS (SELECT 1 FROM fiaon_applications a3 WHERE a3.person_id = p.id AND a3.merged_into IS NULL
                      AND NOT a3.ist_entwurf) AS antrag_begonnen,
            (SELECT a4.payment_reference FROM fiaon_applications a4 WHERE a4.person_id = p.id AND a4.merged_into IS NULL
-              AND a4.payment_status IN ('pending_payment','expired') ORDER BY a4.created_at DESC LIMIT 1) AS zahlungsreferenz,
+              AND a4.payment_status IN ('pending_payment','expired') AND ${sqlPool.unsafe(abgeschicktSql("a4"))}
+              ORDER BY a4.created_at DESC LIMIT 1) AS zahlungsreferenz,
            (SELECT ROUND(a5.amount_due, 2) FROM fiaon_applications a5 WHERE a5.person_id = p.id AND a5.merged_into IS NULL
-              AND a5.payment_status IN ('pending_payment','expired') ORDER BY a5.created_at DESC LIMIT 1) AS betrag,
+              AND a5.payment_status IN ('pending_payment','expired') AND ${sqlPool.unsafe(abgeschicktSql("a5"))}
+              ORDER BY a5.created_at DESC LIMIT 1) AS betrag,
            EXISTS (SELECT 1 FROM fiaon_whatsapp w0 WHERE w0.person_id = p.id AND w0.richtung = 'raus'
                      AND w0.vorlage IS NOT NULL AND w0.status <> 'fehler') AS schon_angeschrieben
       FROM fiaon_persons p

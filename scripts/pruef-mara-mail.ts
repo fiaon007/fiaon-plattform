@@ -18,6 +18,11 @@
 //   6. Links       nur persönliche: /a/<code>/m, Zahlungsseite, Terminlink — nie /antrag.
 //   dazu: Mara-Aktion (Rahmen statt Limit, Einwände, Werbesperre an der Adresse),
 //   Termin (kein zweiter), Kosten, Persona im Auftrag.
+//   E-264 (29.09.2026): Abstreiten per Mail („Ich habe nie etwas beantragt") — Riegel
+//   (Bestreiten; Stopp nur bei ausdrücklichem Wunsch), feste Antwort ohne Antwort-KI, Werbesperre
+//   erst mit der FREIGABE, kein Mahnstopp, Aufgabe an die Leitung; ein nie abgeschickter Antrag ist
+//   „interessent" — keine Zahlungsseite, keine Rechnung, keine Reaktivierung, kein Zahlungssatz,
+//   aber Storno möglich (Nachbesserung nach dem Gegenlesen).
 //
 //   Offline (ohne DB, ohne Netz):
 //     env -i PATH="$PATH" HOME="$HOME" DOTENV_CONFIG_PATH=/dev/null npx tsx scripts/pruef-mara-mail.ts
@@ -289,6 +294,36 @@ ok(!/Wunschlimit/.test(qp), "Kein „Wunschlimit“ im Postfach-Auftrag");
 ok(/kostenCentsAus\(MODELL\(\)/.test(qp), "Kosten je Zeile wie in der Nutzungstabelle (vorher Tokens/1000)");
 for (const b of [agent.AUSKUNFT_MUSTER_ANTWORT]) {
   ok(!tonPruefung(b, { kanal: "mail" }).some((x) => x.schwere === "hart"), "Musterantwort Auskunft: kein harter Ton-Treffer (kein „Limit“)");
+}
+
+abschnitt("11 · Abstreiten per Mail (E-264) — Riegel und Link-Lage");
+{
+  const leer = { kategorien: ["frage"] as any[], flags: {} as any };
+  const r1 = agent.riegelAnwenden({ betreff: "Re: Ihr Antrag", text: "Ich habe nie etwas bei Ihnen beantragt!", ...leer });
+  ok(!r1.flags.stopp && r1.flags.bestreitet, "„Ich habe nie etwas bei Ihnen beantragt!“ → Bestreiten (Riegel), kein dauerhafter Stopp");
+  const r2 = agent.riegelAnwenden({ betreff: "Re: Ihr Antrag", text: "Hab nix beantragt 😡", ...leer });
+  ok(!r2.flags.stopp && r2.flags.bestreitet, "„Hab nix beantragt 😡“ → Bestreiten (der alte Riegel kannte nur „nie bestellt“)");
+  // Nachbesserung E-264 (Gegenlesen): Der Riegel setzte „stopp" auch bei zahlenden Kunden, die sich über
+  // „Betrug" beschwerten, und bei „Spam-Ordner" — stopp ist dauerhaft (auch keine Raten-Erinnerung mehr).
+  const r6 = agent.riegelAnwenden({ betreff: "Re: Zahlung", text: "Ich habe längst die erste Rate bezahlt. Sieht eher wie Betrug aus. Bitte um Info", ...leer });
+  ok(!r6.flags.stopp, "Zahlender Kunde „… Sieht eher wie Betrug aus. Bitte um Info“ → KEIN Stopp");
+  const r7 = agent.riegelAnwenden({ betreff: "Re: Ihr Zugang", text: "Ihre Mail war im Spam-Ordner. Wie geht es weiter?", ...leer });
+  ok(!r7.flags.stopp && !r7.flags.bestreitet, "„Ihre Mail war im Spam-Ordner …“ → kein Stopp, kein Bestreiten");
+  const r8 = agent.riegelAnwenden({ betreff: "Karte", text: "Ich will Sie nicht belästigen, aber wann kommt meine Karte?", ...leer });
+  ok(!r8.flags.stopp, "„Ich will Sie nicht belästigen, aber …“ → kein Stopp");
+  const r9 = agent.riegelAnwenden({ betreff: "Re: Ihr Antrag", text: "Lassen Sie mich in Ruhe!", ...leer });
+  ok(r9.flags.stopp, "„Lassen Sie mich in Ruhe!“ → Stopp (ausdrücklich)");
+  const r3 = agent.riegelAnwenden({ betreff: "Re: Ihr Antrag", text: "Löschen Sie bitte sofort meine Daten.", ...leer });
+  ok(r3.flags.stopp && r3.flags.rechtlich && !r3.flags.bestreitet, "„Löschen Sie bitte sofort meine Daten“ → Stopp + rechtlich");
+  const r4 = agent.riegelAnwenden({ betreff: "Frage", text: "Woher haben Sie meine E-Mail-Adresse?", ...leer });
+  ok(!r4.flags.stopp && !r4.flags.bestreitet, "„Woher haben Sie meine E-Mail-Adresse?“ → kein Stopp (ehrlich antworten, Stopp anbieten)");
+  const zitiert = "Ich möchte wissen, wann meine Karte kommt.\n\nAm 28.09.2026 schrieb FIAON <welcome@fiaon.com>:\n> Sie haben nie etwas beantragt? Dann antworten Sie einfach.";
+  const r5 = agent.riegelAnwenden({ betreff: "Re: Karte", text: zitiert, ...leer });
+  ok(!r5.flags.bestreitet, "Unser eigener zitierter Text zählt nie als sein Abstreiten");
+  ok(agent.linkLageFuer({ werkzeugDaten: {}, lage: "unbezahlt" }).stufe === "zahlung_offen", "Lage „unbezahlt“ heißt seit E-264 immer abgeschickt → zahlung_offen");
+  ok(linkPruefung("Offen ist Ihre erste Rechnung über 59,99 €.", agent.linkLageFuer({ werkzeugDaten: {}, lage: "interessent" })).some((b) => b.art === "ohne_antrag" && b.schwere === "hart"), "Zahlungssatz an einen Interessenten (nie abgeschickt) → harter Mangel");
+  const m = ton.bausteinAbstreiten({ kanal: "mail", art: "bestreitet", herkunft: { art: "antrag", am: "2026-07-29T05:24:00Z" } });
+  ok(!tonPruefung(m, { kanal: "mail" }).length && !wandPruefen(m).filter((w) => w.art !== "zusage").length && !linkPruefung(m, { stufe: "antrag_offen" }).length, "Die Mail-Antwort besteht Ton, Wortwand und Link");
 }
 
 // ═══ TEIL B · MIT DER LOKALEN TEST-DB ═════════════════════════════════════
@@ -610,10 +645,86 @@ if (MIT_DB) {
     ok(!ids.has(M.id), "Werbesperre an derselben Adresse (andere Person) → schon in der Schlange raus");
     ok(ids.has(N.id), "Gegenprobe: ein gewöhnlicher offener Antrag bleibt in der Schlange");
 
+    // ── E-264: ABSTREITEN PER MAIL ──────────────────────────────────────────
+    abschnitt("DB 10 · Abstreiten per Mail (E-264): fester Text, Werbe-Stopp, Leitung, keine Zahlung");
+    const S = await person("S");
+    await antrag("FIAON-P248MS", S.id, S.mail, { status: "pending_payment", typ: "approved" });
+    // Nachbesserung E-264: die Herkunft ist der früheste Antrag AUS DEM WEBFORMULAR (Browser-Kennung gesetzt).
+    await sql`UPDATE fiaon_applications SET current_step = 5, created_at = '2026-07-29T05:24:00Z', user_agent = 'Mozilla/5.0 (Prüfstand E-264)' WHERE ref = 'FIAON-P248MS'`;
+    const lageS = await (await import("../server/lib/fiaon-postmeister-dossier")).kundenlageBerechnen(S.id, "FIAON-P248MS");
+    ok(lageS.lage === "interessent" && /NIE abgeschickt/.test(lageS.grund), `approved/Schritt 5/pending_payment → „interessent“, nicht „unbezahlt“ (${lageS.lage}: ${lageS.grund.slice(0, 60)})`);
+    const zlS = await wz.zahlungslinkBauen.ausfuehren({ referenz: "FIAON-P248MS" }, { personId: S.id, ref: "FIAON-P248MS", postfach: PF, postmeisterId: null, kundenlage: "unbezahlt" as any });
+    ok(!zlS.ok && /nie abgeschickt/.test(String(zlS.fehler)), "zahlungslink_bauen auf einen nie abgeschickten Antrag → abgelehnt");
+    // Nachbesserung E-264 (Gegenlesen): derselbe Riegel für rechnung_anhaengen — „Interessent" darf automatisch antworten.
+    const raS = await wz.rechnungAnhaengen.ausfuehren({ referenz: "FIAON-P248MS" }, { personId: S.id, ref: "FIAON-P248MS", postfach: PF, postmeisterId: null, kundenlage: "interessent" as any, kundeText: "Bitte schicken Sie mir die Rechnung." });
+    ok(!raS.ok && /nie abgeschickt/.test(String(raS.fehler)), "rechnung_anhaengen auf einen nie abgeschickten Antrag → abgelehnt (keine Rechnung mit IBAN und Betrag)");
+    ok(wz.werkzeugeFuerLage("interessent").some((w: any) => w.name === "kuendigung_vormerken"), "Interessent mit angefangener Bestellung: kuendigung_vormerken steht bereit (Storno ohne Vertrag, „Ein kurzes Ja genügt“ läuft nicht ins Leere)");
+    const sS = await lauf1(S.mail, "Ich habe nie etwas bei Ihnen beantragt! Woher haben Sie meine Adresse?", {
+      einordnung: { kategorien: ["beschwerde"], dringend: false, sprache: "de", fragen: ["Woher die Adresse?"], zusammenfassung: "Bestreitet den Antrag.", flags: {} },
+      werkzeuge: [{ name: "zahlungslink_bauen", args: { referenz: "FIAON-P248MS" } }],
+      antwort: { antwort: "Sehr gern — nach der Zahlung ist Ihr Account aktiv. Offen ist Ihre erste Rechnung über 59,99 €.", naechster_schritt: { art: "zahlung", url: null, text: "x" }, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    const antwortS = String(sS.z?.antwort ?? "");
+    ok(sS.kiAntwort.length === 0, `Keine Antwort-KI — der Text ist fest (${sS.kiAntwort.length} Aufrufe)`);
+    ok(/Entschuldigen Sie bitte unsere Nachricht/.test(antwortS) && /Ihre E-Mail-Adresse wurde am 29\. Juli bei einem Antrag auf unserer Internetseite eingetragen/.test(antwortS), "Mail: Entschuldigung + ehrliche Herkunft mit dem Tag aus dem Antrag");
+    ok(/Wir schreiben Ihnen ab jetzt nicht mehr/.test(antwortS) && /„Löschen“ genügt/.test(antwortS), "Mail: kein Schreiben mehr, Löschen auf Wunsch");
+    ok(!/\/zahlung\/|Account aktiv|Rechnung/i.test(antwortS) && sS.schritt?.art === "erledigt" && !sS.schritt?.url, `Keine Zahlung, kein Knopf (${JSON.stringify(sS.schritt)})`);
+    ok(sS.z?.aktion === "entwurf" && sS.gesendet === 0, `Bestreiten bleibt beim Menschen: Entwurf (${sS.z?.aktion}; ${String(sS.z?.begruendung).slice(0, 60)})`);
+    // Nachbesserung E-264 (Gegenlesen): Werbesperre erst mit der Freigabe, kein Mahnstopp mehr.
+    const [pS] = (await sql`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${S.id}`) as any[];
+    const [aS] = (await sql`SELECT mahnstopp_am FROM fiaon_applications WHERE ref = 'FIAON-P248MS'`) as any[];
+    ok(!pS?.werbung_gesperrt_am && !aS?.mahnstopp_am, "Beim ENTWURF noch keine Werbesperre und kein Mahnstopp (ein Mensch gibt frei)");
+    ok((sS.handlungen ?? []).some((h: any) => h.werkzeug === "aufgabe_an_betreuer" && h.ok) && (sS.handlungen ?? []).some((h: any) => h.werkzeug === "werbesperre_bei_freigabe"), "Handlungen: aufgabe_an_betreuer (Leitung) + Merker „Werbesperre mit der Freigabe“");
+    const abstr = await import("../server/lib/fiaon-mara-abstreiten");
+    ok(await abstr.werbesperreBeiFreigabe({ id: sS.id, person_id: S.id, handlungen: sS.z?.handlungen }), "Freigabe: der Merker wird gefunden (jsonb, auch als Text)");
+    const [pS2] = (await sql`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${S.id}`) as any[];
+    ok(!!pS2?.werbung_gesperrt_am, "… und die Werbesperre steht jetzt");
+    const [tS] = (await sql`SELECT titel FROM fiaon_betreiber_todos WHERE created_at >= ${START} AND titel ILIKE '%bestreitet Antrag%' LIMIT 1`) as any[];
+    ok(!!tS, `Aufgabe „Kunde bestreitet Antrag“ steht (${tS?.titel ?? "keine"})`);
+    // Folge-Mail: ausdrücklicher Löschwunsch
+    const sL = await lauf1(S.mail, "Bitte löschen Sie meine Daten.", {
+      einordnung: { kategorien: ["sonstiges"], dringend: false, sprache: "de", fragen: [], zusammenfassung: "Will Löschung.", flags: {} },
+      antwort: { antwort: "Gern!", naechster_schritt: { art: "erledigt", url: null, text: "" }, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    ok(/Ihre Bitte, Ihre Daten zu löschen, ist bei uns angekommen/.test(String(sL.z?.antwort)) && sL.kiAntwort.length === 0, `„Bitte löschen Sie meine Daten.“ → feste Löschbestätigung ohne Antwort-KI (${sL.z?.aktion})`);
+    // EIN Auftrag je Kunde (Schlüssel postmeister:<person>:aufgabe) — der Löschwunsch hängt sich an die Aufgabe „bestreitet Antrag" an.
+    const [tL] = (await sql`SELECT titel FROM fiaon_betreiber_todos WHERE created_at >= ${START} AND (titel ILIKE '%Löschwunsch%' OR text ILIKE '%Löschung seiner Daten%') LIMIT 1`) as any[];
+    ok(!!tL, `Löschwunsch steht in der Aufgabe an die Leitung (${tL?.titel ?? "keine"})`);
+    // Ein offener, nie abgeschickter Antrag fragt „Wie kann ich bezahlen?" — der Zahlungssatz des Modells fällt durch.
+    const U = await person("U");
+    await antrag("FIAON-P248MU", U.id, U.mail, { status: "pending_payment", typ: "approved" });
+    await sql`UPDATE fiaon_applications SET current_step = 5 WHERE ref = 'FIAON-P248MU'`;
+    await sql`INSERT INTO fiaon_leads (person_id, vorname, email, quelle, link_code) VALUES (${U.id}, 'Max', ${U.mail}, 'pruef', 'PRF264UCOD')`;
+    const zahlSatz = { antwort: "Gern: Offen ist Ihre erste Rechnung über 59,99 €. Nach der Zahlung ist Ihr Account aktiv.", naechster_schritt: { art: "zahlung", url: null, text: "x" }, belege: [], fragen_beantwortet: [], merken: [] };
+    const sU = await lauf1(U.mail, "Wie kann ich bezahlen?", {
+      einordnung: { kategorien: ["zahlung"], dringend: false, sprache: "de", fragen: ["Wie bezahlen?"], zusammenfassung: "Will zahlen.", flags: {} },
+      antwort: zahlSatz, umformuliert: zahlSatz,
+    });
+    ok(/ER HAT KEINE OFFENE RECHNUNG/.test(sU.kiAntwort[0]?.system ?? ""), "Auftrag: „ER HAT KEINE OFFENE RECHNUNG“ bei nie abgeschicktem Antrag");
+    ok(sU.z?.aktion === "entwurf" && (sU.pruefung?.fehlend ?? []).some((f: string) => /nie abgeschickt/.test(f)), `Zahlungssatz ohne abgeschickten Antrag → harter Mangel, nie automatisch (${(sU.pruefung?.fehlend ?? []).slice(0, 2).join(" | ").slice(0, 120)})`);
+    ok(sU.schritt?.art !== "zahlung" || !sU.schritt?.url, `Kein Zahlungsknopf mit Adresse (${JSON.stringify(sU.schritt)})`);
+    // Reaktivierung: nie abgeschickt + abgelaufen → nie freischalten
+    const V = await person("V");
+    await antrag("FIAON-P248MV", V.id, V.mail, { status: "expired", typ: "approved" });
+    await sql`UPDATE fiaon_applications SET current_step = 5 WHERE ref = 'FIAON-P248MV'`;
+    ok(!(await wz.abgelaufeneBestellungFreischalten("FIAON-P248MV")), "Abgelaufene, nie abgeschickte Bestellung → nie reaktiviert");
+    const [aV] = (await sql`SELECT payment_status FROM fiaon_applications WHERE ref = 'FIAON-P248MV'`) as any[];
+    ok(aV?.payment_status === "expired", `… bleibt abgelaufen (${aV?.payment_status})`);
+    // Mara-Aktion: B heißt abgeschickt (W schrieb nie — sonst hielte ihn schon „schrieb" zurück)
+    const W = await person("W");
+    await antrag("FIAON-P248MW", W.id, W.mail, { status: "pending_payment", typ: "approved" });
+    await sql`UPDATE fiaon_applications SET current_step = 5 WHERE ref = 'FIAON-P248MW'`;
+    const W2 = await person("W2");
+    await antrag("FIAON-P248MY", W2.id, W2.mail, { status: "pending_payment" });
+    const kandsE264 = await aktion.kandidatenLaden(500, ["B"]);
+    ok(!kandsE264.some((k: any) => k.personId === W.id), "Mara-Aktion: ein nie abgeschickter Antrag (approved/Schritt 5) ist keine Stufe B — keine Zahlungsmail");
+    ok(kandsE264.some((k: any) => k.personId === W2.id), "Gegenprobe: ein abgeschickter Antrag mit offener Zahlung bleibt Stufe B");
+
     abschnitt("DB 9 · Nichts ging hinaus");
     ok(FREMD.length === 0, `Kein fremdes Netz (${FREMD.slice(0, 2).join(", ")})`);
   } finally {
-    const refs = ["FIAON-P248MA", "FIAON-P248MB", "FIAON-P248MC", "FIAON-P248MD", "FIAON-P248ME", "FIAON-P248MF", "FIAON-P248MG", "FIAON-P248MH", "FIAON-P248MJ", "FIAON-P248MK", "FIAON-P248ML", "FIAON-P248MM", "FIAON-P248MN", "FIAON-P248MX", "FIAON-P248MP", "FIAON-P248MQ", "FIAON-P248MR"];
+    const refs = ["FIAON-P248MA", "FIAON-P248MB", "FIAON-P248MC", "FIAON-P248MD", "FIAON-P248ME", "FIAON-P248MF", "FIAON-P248MG", "FIAON-P248MH", "FIAON-P248MJ", "FIAON-P248MK", "FIAON-P248ML", "FIAON-P248MM", "FIAON-P248MN", "FIAON-P248MX", "FIAON-P248MP", "FIAON-P248MQ", "FIAON-P248MR",
+      "FIAON-P248MS", "FIAON-P248MU", "FIAON-P248MV", "FIAON-P248MW", "FIAON-P248MY"];
     const pids = Object.values(personen);
     await sql`DELETE FROM fiaon_betreiber_todo_beitraege WHERE todo_id IN (SELECT id FROM fiaon_betreiber_todos WHERE created_at >= ${START})`.catch(() => {});
     await sql`DELETE FROM fiaon_betreiber_todos WHERE created_at >= ${START}`.catch(() => {});

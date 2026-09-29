@@ -271,6 +271,11 @@ export function schrittKlartext(e: MaraEreignis): SchrittKlartext {
       return { titel: vorDoppelpunkt(e.text) || "An das Team übergeben", ton: "", roh };
     case "rueckfall":
       return { titel: `Antwort verworfen${grund ? ` (${grund})` : ""} — Ersatzsatz geschickt`, ton: "rot", roh };
+    // E-264 (29.09.2026): fester Satz ohne Modell — kein Link, kein Verkauf, Werbe-Stopp, Aufgabe an die Leitung.
+    case "abstreiten":
+      return { titel: "Bestreitet den Antrag — Entschuldigung und Herkunft, kein Link, Werbe-Stopp, Leitung informiert", ton: "warn", roh };
+    case "loeschwunsch":
+      return { titel: "Löschwunsch — bestätigt, Leitung löscht", ton: "warn", roh };
     default: {
       // Der erste Satz — ohne Lookbehind (Safari unter 16.4 kennt ihn nicht).
       const voll = ohneWerkzeugnamen(e.text);

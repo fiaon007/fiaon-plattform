@@ -53,6 +53,7 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { menschSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
 // E-248: Maras Stimme aus EINER Quelle — dieselbe Persona wie im Postfach und auf WhatsApp.
 import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE } from "@shared/fiaon-mara-ton";
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 
 export const DIENST = "mara-aktion";
 export const PAKETE_PRIVAT = ["start", "pro", "highend", "ultra"];
@@ -167,6 +168,9 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
         FROM fiaon_applications a
        WHERE a.gdpr_deleted_at IS NULL AND a.merged_into IS NULL AND a.person_id IS NOT NULL
          AND a.payment_status = ANY(${status}) AND a.pack_key = ANY(${PAKETE_PRIVAT})
+         -- E-264 (29.09.2026): Stufe B heißt ABGESCHICKT. approved + pending_payment setzt der Antragsweg
+         -- schon bei Schritt 3–5 — 36 Menschen bekamen seit E-248 von hier eine Zahlungsmail ohne Vertrag.
+         AND (a.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("a"))})
          AND a.gekuendigt_am IS NULL AND a.cancelled_at IS NULL
          -- E-244 (26.09.2026): keine Auskunft-Bestellung. Zwei offene tragen den Paketschlüssel
          -- highend, Maras Mail spricht aber vom Paket. Erkannt wie IST_AUSKUNFT; an die

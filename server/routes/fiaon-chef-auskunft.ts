@@ -57,6 +57,7 @@
 //   POST /chef/auskunft/mahnstopp    {ref, an} — Mahnstopp setzen oder aufheben
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { sqlPool } from "../lib/db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { requireChef, chefProtokoll, type ChefRequest } from "./fiaon-chef-zugang";
@@ -239,10 +240,10 @@ export const SEGMENT_ZUM_ZEITPUNKT_SQL = (person: string, zeit: string) => `CASE
                  AND sg_k.payment_status = 'paid' AND ${KEIN_AUSKUNFT_PAKET("sg_k")}
                  AND COALESCE(sg_k.paid_at, sg_k.completed_at::timestamptz, sg_k.created_at::timestamptz) <= ${zeit}) THEN 'kunde'
   -- E-243: abgeschickt (Hausregel E-210) = Antrag; nur begonnen = Abbrecher. Gelesen wird der Stand des Antrags HEUTE.
+  -- E-264 (29.09.2026): EINE Regel „abgeschickt" — nicht mehr „ODER pending_payment" (setzt der Antragsweg vor dem Vertrag).
   WHEN EXISTS (SELECT 1 FROM fiaon_applications sg_a WHERE sg_a.person_id = ${person} AND ${KEIN_AUSKUNFT_PAKET("sg_a")}
                  AND sg_a.created_at::timestamptz <= ${zeit}
-                 AND (COALESCE(sg_a.current_step, 0) >= 8 OR sg_a.payment_status = 'pending_payment'
-                      OR COALESCE(sg_a.status, '') NOT IN ('started', 'personal_data', 'finances', 'config', 'verifying', 'approved', 'contract', 'processing'))) THEN 'antrag'
+                 AND ${abgeschicktSql("sg_a")}) THEN 'antrag'
   WHEN EXISTS (SELECT 1 FROM fiaon_applications sg_b WHERE sg_b.person_id = ${person} AND ${KEIN_AUSKUNFT_PAKET("sg_b")}
                  AND sg_b.created_at::timestamptz <= ${zeit}) THEN 'abbrecher'
   ELSE 'lead' END`;

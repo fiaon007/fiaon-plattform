@@ -39,6 +39,7 @@ import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fi
 import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN, ANGEBOT_SEGMENTE, ANGEBOT_BETREFF_VARIANTEN } from "../mail/vorlagen/auskunft-verkauf";
 import { zeitFuerKunde } from "@shared/fiaon-mara-ton";
 import { abwesenheitJetzt, vertretungFuerPerson, istAbwesend, anruferFuer, freiePlaetzeVertreter, bisText } from "./fiaon-abwesenheit";
+import { antragAbgeschickt } from "@shared/fiaon-antrag-stand";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -397,8 +398,9 @@ export const aufgabeAnBetreuer: Werkzeug = {
     // gemeldet" markiert, damit der Kontoabgleich sie kennt.
     let zahlungGemeldet = "";
     if (zahlungGewollt && k.ref) {
-      const [o] = (await sqlPool`SELECT payment_status FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
-      if (o?.payment_status === "pending_payment") {
+      const [o] = (await sqlPool`SELECT payment_status, status, current_step, submitted_at FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+      // E-264: nur eine ABGESCHICKTE Bestellung kann „Zahlung gemeldet" werden — auf einen nie abgeschickten Antrag gibt es keine Rechnung.
+      if (o?.payment_status === "pending_payment" && antragAbgeschickt(o)) {
         await sqlPool`UPDATE fiaon_applications SET payment_status = 'claimed_paid', claimed_paid_at = COALESCE(claimed_paid_at, NOW()), updated_at = NOW() WHERE ref = ${k.ref}`.catch(() => {});
         zahlungGemeldet = " Die Bestellung steht jetzt auf „Zahlung gemeldet\".";
       }
@@ -526,6 +528,13 @@ export const rechnungAnhaengen: Werkzeug = {
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keine Rechnung." };
     // E-248 (#5500): Ohne Betrag gibt es keine Rechnung — sonst „über null €".
     if (!(Number(z.amountDue) > 0)) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung ist noch kein Betrag hinterlegt — keine Rechnung und keinen Betrag nennen; der Betreuer trägt Paket und Betrag nach (aufgabe_an_betreuer)." };
+    // E-264 (29.09.2026, Gegenlesen): derselbe Riegel wie in zahlungslink_bauen — ohne abgeschickten Antrag
+    // gibt es keine Rechnung. Die Referenz kennt er trotzdem (Betreff der Zahlungserinnerung, Rückhol-Mail),
+    // und „Interessent" darf automatisch antworten: „AW: … bitte schicken Sie mir die Rechnung" hätte ihm
+    // eine Rechnung mit IBAN und Betrag für einen Vertrag gebracht, den es nicht gibt.
+    if (z.art === "bestellung" && !(await bestellungAbgeschickt(String(z.paymentReference)))) {
+      return { ok: false, ergebnis: "", fehler: "Sein Antrag ist nie abgeschickt — es gibt keine Rechnung. Keine Rechnung anhängen, keinen Betrag nennen; der Schritt ist sein Antrag (Knopf „antrag“)." };
+    }
     if (k.postmeisterId) {
       const [r] = (await sqlPool`SELECT anhaenge FROM fiaon_postmeister WHERE id = ${k.postmeisterId}`) as any[];
       const da: any[] = Array.isArray(r?.anhaenge) ? r.anhaenge : [];
@@ -1050,7 +1059,10 @@ export const kuendigungVormerken: Werkzeug = {
   stufe: "frei",
   // „gesperrt" (05.09.2026): Ein gesperrter Kunde mit unbezahlter Bestellung
   // will meist nur raus — das Storno muss Mara selbst können.
-  lagen: ["unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv", "rate_ueberfaellig", "gekuendigt", "bestreitet", "gesperrt"],
+  // E-264 (29.09.2026, Gegenlesen): auch „interessent" — seit heute steht dort, wer eine angefangene,
+  // NIE abgeschickte Bestellung hat (vorher „unbezahlt"). „Bitte stornieren Sie das" konnte Mara sonst
+  // nicht mehr buchen, und ihr „Ein kurzes Ja genügt" lief ins Leere. Ohne Bestellung lehnt das Werkzeug ab.
+  lagen: ["interessent", "unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv", "rate_ueberfaellig", "gekuendigt", "bestreitet", "gesperrt"],
   parameter: {
     type: "object", additionalProperties: false,
     properties: {
@@ -1430,6 +1442,11 @@ export const zahlungslinkBauen: Werkzeug = {
     if (!(Number(z.amountDue) > 0)) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung ist noch kein Betrag hinterlegt — keine Zahlungsaufforderung, keinen Betrag nennen; der Betreuer trägt Paket und Betrag nach (aufgabe_an_betreuer)." };
     // E-248: In einer Antwort auf Stopp, Widerruf, Beschwerde, Bestreiten … keine Zahlungsseite.
     if (k.ruhe) return { ok: false, ergebnis: "", fehler: `Diese Antwort ist keine Zahlungsaufforderung (${k.ruhe}) — beantworte sein Anliegen, ohne Zahlungsseite.` };
+    // E-264 (29.09.2026): Ohne abgeschickten Antrag gibt es keinen Vertrag und keine Rechnung — die
+    // Bestellung (approved + pending_payment ab Schritt 3–5) ist nur ein Zwischenstand des Formulars.
+    if (z.art === "bestellung" && !(await bestellungAbgeschickt(String(z.paymentReference)))) {
+      return { ok: false, ergebnis: "", fehler: "Sein Antrag ist nie abgeschickt — es gibt keine Rechnung und keine Zahlungsseite. Kein Wort vom Bezahlen; der Schritt ist sein Antrag (Knopf „antrag“)." };
+    }
 
     // (Bis 19.09.2026 stand hier der Einzugsschutz — GoCardless ist beendet, E-194.
     //  Jede offene Rate wird überwiesen; die Zahlungsseite gilt für alle.)
@@ -1689,6 +1706,17 @@ export function werkzeugVonName(name: string): Werkzeug | undefined {
 }
 
 /**
+ * E-264 (29.09.2026): Ist die Bestellung zu dieser Zahlungsreferenz ein abgeschickter Antrag
+ * (antragAbgeschickt, EINE Regel)? Unbekannte Referenz: false.
+ */
+export async function bestellungAbgeschickt(zahlungsReferenz: string): Promise<boolean> {
+  const [a] = (await sqlPool`
+    SELECT status, current_step, submitted_at FROM fiaon_applications
+     WHERE payment_reference = ${zahlungsReferenz} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+  return !!a && antragAbgeschickt(a);
+}
+
+/**
  * Eine abgelaufene Bestellung neu freischalten (Nachbesserung E-248) — für Mara auf
  * Mail und WhatsApp. Derselbe Weg wie der Knopf „Reaktivieren" im Agentenportal
  * (reactivateOrderByRef: neue 7-Tage-Frist, Zahlungsdaten erneut per Mail).
@@ -1696,9 +1724,11 @@ export function werkzeugVonName(name: string): Werkzeug | undefined {
  */
 export async function abgelaufeneBestellungFreischalten(zahlungsReferenz: string): Promise<boolean> {
   const [a] = (await sqlPool`
-    SELECT ref, payment_status FROM fiaon_applications
+    SELECT ref, payment_status, status, current_step, submitted_at FROM fiaon_applications
      WHERE payment_reference = ${zahlungsReferenz} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
   if (!a) return false;
+  // E-264 (29.09.2026): Eine nie abgeschickte Bestellung ist kein Vertrag — nie reaktivieren, nie „offen".
+  if (!antragAbgeschickt(a)) return false;
   if (a.payment_status === "pending_payment") return true;
   if (a.payment_status !== "expired") return false;
   const { reactivateOrderByRef } = await import("../routes/fiaon-antrag");

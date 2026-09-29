@@ -43,6 +43,8 @@ import { KiPauseKarte } from "./ChefKiPause";
 // E-243 (26.09.2026): Der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite — erst beim Öffnen geladen.
 const AuskunftVerkauf = lazy(() => import("./ChefAuskunft"));
 const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
+// E-260 (29.09.2026): Maras Termine — der vierte Reiter, erst beim Öffnen geladen.
+const MaraTermine = lazy(() => import("./ChefMaraTermine"));
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null }
 interface Stand {
@@ -1411,18 +1413,28 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
 //
 // E-252: Reiter und Ansicht hält jetzt die Lage (mara-lage.tsx), damit die
 // Verkaufsleiste dorthin springen kann. Die Reiterleiste rollt nicht mehr quer.
+//
+// E-260 (29.09.2026), Justin: „ALLE Termine, die MARA macht, muss ich sehen
+// können als Chef auf einer eigenen übersichtlichen cleanen Seite." Keine neue
+// Seite — der vierte Reiter „Termine" (?reiter=termine) mit dem Schalter
+// „Team abwesend — Mara bucht bei mir". Die Zahlmarke am Reiter zählt die
+// Kunden, die gerade warten (keine Marke bei null). Verkaufsleiste und Chips
+// bleiben, wie E-252 sie freigegeben hat.
 // ═══════════════════════════════════════════════════════════════════════════
 type Aufklapper = "ki" | "bilanz" | "anweisen";
 const REITER: { r: MaraReiter; lang: string; kurz: string }[] = [
   { r: "whatsapp", lang: "WhatsApp-Zentrale", kurz: "WhatsApp" },
   { r: "mail", lang: "E-Mail-Aktion", kurz: "Mail" },
   { r: "auskunft", lang: "Bonitätsauskunft", kurz: "Auskunft" },
+  { r: "termine", lang: "Termine", kurz: "Termine" },
 ];
+interface TermineKern { zaehler: { wartet: number } }
 
 function Steuerpult() {
   const lage = useMaraLage();
   const auftraege = useMaraDaten<AuftraegeDaten>("auftraege", MARA_QUELLEN.auftraege);
   const auskunft = useMaraDaten<AuskunftKern>("auskunft", MARA_QUELLEN.auskunft);
+  const termine = useMaraDaten<TermineKern>("termine", MARA_QUELLEN.termine);
   const [offen, setOffen] = useState<Aufklapper | null>(null);
   // E-252 (Gegenprüfung): „Mara anweisen" bleibt nach dem ersten Öffnen montiert (nur ausgeblendet) — Entwürfe bleiben.
   const [anweisenDa, setAnweisenDa] = useState(false);
@@ -1439,6 +1451,7 @@ function Steuerpult() {
   const anweisungZeigen = () => { setAnweisenDa(true); setOffen("anweisen"); lage.zeigen("#mara-anweisung", { block: "start" }); };
   const { reiter, ansicht, wechseln } = lage;
   const bs = auskunft.daten?.beschaffung;
+  const wartenTermine = Number(termine.daten?.zaehler?.wartet || 0);
 
   return (
     <div className="mara mara-pult">
@@ -1466,6 +1479,9 @@ function Steuerpult() {
         {REITER.map((x) => (
           <button key={x.r} type="button" role="tab" id={`mara-tab-${x.r}`} aria-selected={reiter === x.r} onClick={() => wechseln(x.r)}>
             <span className="lang">{x.lang}</span><span className="kurz">{x.kurz}</span>
+            {x.r === "termine" && wartenTermine > 0
+              ? <span className="mara-zahlmarke" title={`${wartenTermine} ${wartenTermine === 1 ? "Kunde wartet" : "Kunden warten"} auf deinen Anruf`}>{wartenTermine}</span>
+              : null}
           </button>
         ))}
       </div>
@@ -1491,6 +1507,13 @@ function Steuerpult() {
           </div>
           <Suspense fallback={<Geruest zeilen={8} />}>
             {ansicht === "verkauf" ? <AuskunftVerkauf /> : <AuskunftBeschaffung />}
+          </Suspense>
+        </div>
+      )}
+      {reiter === "termine" && (
+        <div role="tabpanel" aria-labelledby="mara-tab-termine">
+          <Suspense fallback={<Geruest zeilen={8} />}>
+            <MaraTermine />
           </Suspense>
         </div>
       )}

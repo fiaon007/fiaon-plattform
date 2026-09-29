@@ -20,6 +20,7 @@
 // IBAN im Prompt, und ein wartender Entwurf trug am Abend noch die gesperrte.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import * as abw from "./fiaon-abwesenheit";
 import { sqlPool } from "./db-pool";
 import type { Kundenlage, AkteKurz, AuskunftDossier } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
@@ -239,7 +240,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   `) as any[] : [];
 
   const termine = personId ? (await sqlPool`
-    SELECT t.beginn, t.status, t.quelle, a.first_name AS betreuer
+    SELECT t.beginn, t.status, t.quelle, t.agent_id, a.first_name AS betreuer
       FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
      WHERE t.person_id = ${personId} ORDER BY t.beginn DESC LIMIT 6
   `) as any[] : [];
@@ -314,6 +315,13 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     email: person?.primary_email ?? null,
     telefon: person?.primary_phone ?? null,
     betreuer: person?.betreuer_vorname || person?.betreuer_name || null,
+    // E-260 (29.09.2026): Team abwesend — der feste Betreuer bleibt stehen, daneben, wer bis wann
+    // wirklich anruft (fiaon-abwesenheit.ts). Gegenprüfung 29.09.: vorher stand der Vertreter im
+    // Feld „betreuer" — die Persona nannte ihn dann „sein fester Betreuer".
+    vertretung: await (async () => {
+      const vt = personId ? await abw.vertretungFuerPerson(personId).catch(() => null) : null;
+      return vt ? { name: vt.ab.vertreter.anrufName, bis: abw.bisText(vt.ab.bis) } : null;
+    })(),
     kundenlage: lage,
     lageGrund: grund,
     bestellungen: bestellungen.map((b) => ({
@@ -328,10 +336,11 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       mahnstufe: r.mahnstufe != null ? Number(r.mahnstufe) : null,
       referenz: r.zahlungsreferenz ?? null,
     })),
-    termine: termine.map((t) => ({
+    termine: await Promise.all(termine.map(async (t) => ({
       beginn: `${relativ(t.beginn)}`, status: String(t.status),
-      betreuer: t.betreuer ?? null, art: t.quelle ?? null,
-    })),
+      betreuer: t.betreuer && t.status === "gebucht" ? await abw.anruferFuer(Number(t.agent_id), t.beginn, String(t.betreuer)) : t.betreuer ?? null,
+      art: t.quelle ?? null,
+    }))),
     verlauf: verlauf.map((v) => ({
       am: relativ(v.created_at), art: String(v.type), wer: v.agent_name ?? null,
       text: String(v.note ?? v.outcome ?? "").slice(0, 220),

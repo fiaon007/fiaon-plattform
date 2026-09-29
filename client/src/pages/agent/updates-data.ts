@@ -84,6 +84,24 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-260 (29.09.2026): Team abwesend — Justin übernimmt Maras Rückrufe.
+    id: "2026-09-29-abwesenheit-mara",
+    date: "2026-09-29",
+    category: "Hintergrund",
+    title: "Während ihr nicht da seid, bucht Mara Rückrufe bei Justin — eure Kunden bleiben eure",
+    summary:
+      "Ist das Team abwesend, trägt Mara neue Rückrufe in Justins Kalender ein und nennt dem Kunden Justin. Eure Kunden, "
+      + "eure Provisionen und die Verteilung bleiben unverändert.",
+    changes: [
+      "Termine, die schon bei dir standen, bleiben in deinem Kalender. Hat Justin angerufen, steht er als „erledigt“ da — im Verlauf der Akte mit „Justin Schwarzott (Chefbüro, für dich)“.",
+      "Maras Übergaben aus dieser Zeit liegen bei Justin, nicht in deinen Aufträgen.",
+      "Verschiebt Mara einen Termin auf Wunsch des Kunden, bekommst du „Termin verschoben (Mara)“ statt „ABGESAGT“ — und der Kunde keine Absagemail mehr.",
+    ],
+    howto: [
+      "Wenn du zurück bist: Kalender und Verlauf der Akte ansehen — was Justin erledigt hat, steht dort mit Uhrzeit.",
+    ],
+  },
+  {
     id: "2026-09-28-sofort-spur",
     date: "2026-09-28",
     category: "Geändert",

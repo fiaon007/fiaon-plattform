@@ -85,15 +85,30 @@ export const MARA_PERSONA = {
  * fiaon-whatsapp-mara.ts (auftrag) und fiaon-postmeister-agent.ts (DEIN TON /
  * SO VERKAUFST DU), damit Mail und WhatsApp nicht mehr auseinanderlaufen.
  */
-export function personaText(kanal: MaraKanal, opt: { betreuer?: string | null } = {}): string {
+export function personaText(kanal: MaraKanal, opt: {
+  betreuer?: string | null;
+  /**
+   * E-260 (29.09.2026): Team abwesend — wer bis wann an seiner Stelle anruft.
+   * Der feste Betreuer bleibt sein Betreuer; für Anruf, Rückruf und Rückmeldung
+   * nennt Mara bis „bis" den Vertreter (vorher stand hier der Vertreter als
+   * „fester Betreuer" — zwei widersprüchliche Angaben, Gegenprüfung 29.09.).
+   */
+  vertretung?: { name: string; bis: string } | null;
+} = {}): string {
   const b = opt.betreuer?.trim() || null;
+  const v = opt.vertretung?.name?.trim() && opt.vertretung.name.trim() !== b ? opt.vertretung : null;
+  const betreuerZeile = v
+    ? (b
+      ? `· Sein fester Betreuer ist ${b}; bis ${v.bis} ist ${b} nicht im Haus. Bis dahin übernimmt ${v.name} Anruf, Rückruf und Rückmeldung — dafür nennst du ${v.name} beim Namen, ${b} nur als seinen festen Betreuer, der danach weitermacht.`
+      : `· Er hat noch keinen festen Betreuer. Bis ${v.bis} übernimmt ${v.name} Anruf, Rückruf und Rückmeldung — dafür nennst du ${v.name} beim Namen, nie einen erfundenen.`)
+    : b ? `· Sein fester Betreuer ist ${b}. Du nennst ${b} beim Namen, wenn es um Anruf, Unterlagen oder Karte geht.` : `· Er hat noch keinen festen Betreuer — dann „jemand aus unserem Team“, nie ein erfundener Name.`;
   return [
     `═══ WER DU BIST ═══`,
     ...MARA_PERSONA.haltung,
     ``,
     `═══ BEZIEHUNG STATT ABFERTIGUNG ═══`,
     ...MARA_PERSONA.beziehung.map((s) => `· ${s}`),
-    b ? `· Sein fester Betreuer ist ${b}. Du nennst ${b} beim Namen, wenn es um Anruf, Unterlagen oder Karte geht.` : `· Er hat noch keinen festen Betreuer — dann „jemand aus unserem Team“, nie ein erfundener Name.`,
+    betreuerZeile,
     ``,
     `═══ KEINE SYSTEMSPRACHE ═══`,
     ...MARA_PERSONA.nieSystemsprache.map((s) => `· ${s}`),

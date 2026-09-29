@@ -38,6 +38,7 @@ import { auskunftArtFuer } from "./fiaon-postmeister-dossier";
 import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fiaon-auskunft";
 import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN, ANGEBOT_SEGMENTE, ANGEBOT_BETREFF_VARIANTEN } from "../mail/vorlagen/auskunft-verkauf";
 import { zeitFuerKunde } from "@shared/fiaon-mara-ton";
+import { abwesenheitJetzt, vertretungFuerPerson, istAbwesend, anruferFuer, freiePlaetzeVertreter, bisText } from "./fiaon-abwesenheit";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -89,13 +90,15 @@ export interface WerkzeugKontext {
  */
 export async function bestehenderTermin(personId: number): Promise<{ id: number; beginn: string; vorname: string | null; kundenText: string } | null> {
   const [t] = (await sqlPool`
-    SELECT t.id, t.beginn, COALESCE(NULLIF(a.first_name, ''), split_part(COALESCE(a.name, ''), ' ', 1)) AS vorname
+    SELECT t.id, t.agent_id, t.beginn, COALESCE(NULLIF(a.first_name, ''), split_part(COALESCE(a.name, ''), ' ', 1)) AS vorname
       FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
      WHERE t.person_id = ${personId} AND t.status = 'gebucht' AND t.beginn > NOW() - INTERVAL '20 minutes'
      ORDER BY t.beginn LIMIT 1`.catch(() => [])) as any[];
   if (!t) return null;
   const b = new Date(t.beginn);
-  return { id: Number(t.id), beginn: b.toISOString(), vorname: t.vorname ? String(t.vorname) : null, kundenText: zeitFuerKunde(b) };
+  // E-260: Liegt der Termin bei einem Abwesenden, nennt Mara den, der wirklich anruft (B2).
+  const vorname = t.vorname ? await anruferFuer(Number(t.agent_id), b, String(t.vorname)) : null;
+  return { id: Number(t.id), beginn: b.toISOString(), vorname, kundenText: zeitFuerKunde(b) };
 }
 
 /** „YYYY-MM-DD HH:MM" als Berliner Zeit lesen — ohne Number(format()) (Zeit-Falle). Null, wenn unlesbar. */
@@ -238,7 +241,13 @@ async function frueherInDieserMail(k: WerkzeugKontext, werkzeug: string): Promis
  * niemand besitzt einen Kunden vor dem Mandat, und eine Aufgabe ist keine
  * Zuteilung. Rollen-Literale prüft `scripts/pruef-rollen.ts`.
  */
-async function zustaendig(personId: number | null): Promise<{ id: number | null; name: string; kundenName: string }> {
+async function zustaendig(personId: number | null): Promise<{ id: number | null; name: string; kundenName: string; vertretung?: boolean }> {
+  // E-260 (29.09.2026): Team abwesend — Notiz und Eskalation gehen auf das Board
+  // des Betreibers, und der Kunde liest den Namen dessen, der wirklich anruft.
+  const ab = await abwesenheitJetzt().catch(() => null);
+  if (ab && (personId ? await vertretungFuerPerson(personId).catch(() => null) : ab)) {
+    return { id: null, name: `${ab.vertreter.vorname} (Vertretung)`, kundenName: ab.vertreter.name, vertretung: true };
+  }
   const { auftragEmpfaenger } = await import("../routes/fiaon-betreiber-todo");
   const wer = await auftragEmpfaenger(personId);
   // `name` = intern (Vorname, „Postmeister an Nikita: …"); `kundenName` = was
@@ -292,7 +301,7 @@ export const notizAnBetreuer: Werkzeug = {
       text, dringend: !!p.dringend,
       faelligAm: p.dringend ? heute : new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10),
       schluessel: `postmeister:${k.personId ?? k.ref ?? "unbekannt"}:${heute}`,
-      quelle: "postmeister", autorName: "Mara", agentId: wer.id ?? null,
+      quelle: "postmeister", autorName: "Mara", agentId: wer.id ?? null, anBetreiber: !!wer.vertretung,
       link: k.personId ? `/agent/kunden?person=${k.personId}` : k.ref ? `/agent/kunden?ref=${k.ref}` : null,
     }).catch((e) => console.error("[POSTMEISTER] Notiz an Betreuer:", String(e).slice(0, 160)));
     if (p.anrufen && k.personId) {
@@ -394,6 +403,14 @@ export const aufgabeAnBetreuer: Werkzeug = {
         zahlungGemeldet = " Die Bestellung steht jetzt auf „Zahlung gemeldet\".";
       }
     }
+    // ── E-260 (29.09.2026): TEAM ABWESEND ─────────────────────────────────
+    // Ginge die Aufgabe an jemanden, der bis „bis" nicht da ist (Betreuer, die
+    // Vertriebsleitung, ein genannter Kollege), liegt sie auf dem Board des
+    // Betreibers; der Rückruf kommt in den Kalender des Vertreters, und der
+    // Kunde liest dessen Namen. Zahlungsbelege gehen wie immer an die Zahlungsstelle.
+    const abw = zahlungGewollt ? null : await abwesenheitJetzt().catch(() => null);
+    const vtPerson = abw && k.personId ? await vertretungFuerPerson(k.personId).catch(() => null) : null;
+    const zielAbwesend = !!abw && (gewuenscht ? istAbwesend(abw, gewuenscht.id) : (!k.personId || !!vtPerson));
     const erg = await auftragFuerKunden({
       personId: k.personId, ref: k.ref, titel: titelMitName, text: mailKopf + text, faelligAm, dringend: !!p.dringend,
       // Eine Aufgabe je Kunde und Tag — drei gleiche Mails (Frau Weber, 25.08.)
@@ -402,11 +419,11 @@ export const aufgabeAnBetreuer: Werkzeug = {
       // desselben Menschen hängen sich als Beiträge an denselben Auftrag; erledigt → die nächste
       // Mail öffnet ihn wieder (auftragFuerKunden, ON CONFLICT schluessel).
       schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe`,
-      quelle: "postmeister", autorName: "Mara", agentId: zahlungGewollt ? null : (gewuenscht?.id ?? null),
-      anBetreiber: zahlungGewollt,
+      quelle: "postmeister", autorName: "Mara", agentId: zahlungGewollt || zielAbwesend ? null : (gewuenscht?.id ?? null),
+      anBetreiber: zahlungGewollt || zielAbwesend,
     });
-    const wer = erg.agentName ?? "die Leitung";
-    const werKunde = erg.kundenName ?? erg.agentName ?? "unsere Leitung";
+    const wer = zielAbwesend ? `${abw!.vertreter.vorname} (Vertretung bis ${bisText(abw!.bis)})` : erg.agentName ?? "die Leitung";
+    const werKunde = zielAbwesend ? abw!.vertreter.name : erg.kundenName ?? erg.agentName ?? "unsere Leitung";
     await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titelMitName}" (fällig ${faelligAm}).${zahlungGemeldet} ${text.slice(0, 300)}`);
     const wann = tage === 0 ? "heute" : tage === 1 ? "morgen" : `in ${tage} Tagen`;
     // ── RÜCKRUF ALS TERMIN IM KALENDER (Florentine Punkt 3) ───────────────
@@ -426,17 +443,46 @@ export const aufgabeAnBetreuer: Werkzeug = {
       terminSatz = ` Es steht schon ein Termin: ${bestehend.vorname ? `${bestehend.vorname} ruft Sie ` : ""}${bestehend.kundenText}${bestehend.vorname ? " an" : ""}. Kein zweiter wurde eingetragen.`;
     } else if (rueckrufAm && (!wunschZeit || wunschZeit.getTime() < Date.now() + 20 * 60_000)) {
       terminSatz = ` (Rückruf-Zeit ${rueckrufAm} liegt nicht mindestens 20 Minuten in der Zukunft oder ist unlesbar — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit.)`;
-    } else if (rueckrufAm && k.personId && erg.agentId) {
+    } else if (rueckrufAm && k.personId && zielAbwesend && wunschZeit && wunschZeit.getTime() < abw!.bis.getTime()) {
+      // E-260: in den Kalender des Vertreters — auf seinen nächsten freien Platz im Raster (höchstens
+      // 10 Minuten früher, 20 später, wie auf WhatsApp). Kein Platz: keine Uhrzeit zusagen.
+      try {
+        const t = wunschZeit.getTime();
+        const platz = (await freiePlaetzeVertreter(abw!, 20))
+          .map((s) => ({ s, d: new Date(s.beginn).getTime() - t }))
+          .filter((x) => x.d >= -10 * 60_000 && x.d <= 20 * 60_000)
+          .sort((a, b) => Math.abs(a.d) - Math.abs(b.d) || b.d - a.d)[0]?.s ?? null;
+        if (!platz) {
+          terminSatz = ` (Zur Wunschzeit ${rueckrufAm} ist ${abw!.vertreter.vorname} nicht frei — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit, ${abw!.vertreter.name} meldet sich.)`;
+        } else {
+          const { terminBuchen } = await import("./fiaon-termine");
+          const b = await terminBuchen({ personId: k.personId, agentId: abw!.vertreter.id, beginn: platz.beginn, quelle: "agent_manuell", herkunft: "mara_mail" });
+          const fuer = vtPerson?.betreuer?.vorname ?? "das Team";
+          await sqlPool`UPDATE fiaon_termine SET notiz = ${`Rückrufwunsch aus E-Mail [Mail #${k.postmeisterId ?? "?"}] — in Abwesenheit von ${fuer}, bei ${abw!.vertreter.name}: ${text.slice(0, 300)}`}, updated_at = NOW() WHERE id = ${b.id}`.catch(() => {});
+          const { buchungMelden } = await import("./fiaon-termin-meldung");
+          await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
+          gebuchtText = zeitFuerKunde(new Date(b.beginn));
+          terminSatz = ` Der Rückruf steht im Kalender: ${gebuchtText}.`;
+          await protokoll(k, "aufgabe_an_betreuer", `Rückruf-Termin ${b.datumText} ${b.uhrzeit} Uhr für ${abw!.vertreter.name} eingetragen (vertritt ${fuer} bis ${bisText(abw!.bis)}).`);
+        }
+      } catch (e: any) {
+        terminSatz = ` (Rückruf-Termin konnte nicht eingetragen werden: ${String(e?.message || e).slice(0, 100)} — die Aufgabe steht trotzdem; nenne dem Kunden keine Uhrzeit.)`;
+      }
+    } else if (rueckrufAm && k.personId && (erg.agentId || (zielAbwesend && vtPerson?.betreuerBuchbar && vtPerson.betreuer))) {
       try {
         const { terminBuchen } = await import("./fiaon-termine");
-        const b = await terminBuchen({ personId: k.personId, agentId: Number(erg.agentId), beginn: rueckrufAm, quelle: "agent_manuell", herkunft: "mara_mail" });
+        // E-260: Liegt die Wunschzeit nach „bis", ist der Betreuer wieder da — der Termin gehört zu ihm.
+        const zielId = erg.agentId ? Number(erg.agentId) : vtPerson!.betreuer!.id;
+        const b = await terminBuchen({ personId: k.personId, agentId: zielId, beginn: rueckrufAm, quelle: "agent_manuell", herkunft: "mara_mail" });
         await sqlPool`UPDATE fiaon_termine SET notiz = ${`Rückrufwunsch aus E-Mail [Mail #${k.postmeisterId ?? "?"}]: ${text.slice(0, 300)}`}, updated_at = NOW() WHERE id = ${b.id}`.catch(() => {});
         const { buchungMelden } = await import("./fiaon-termin-meldung");
         await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
         // E-248: so, wie der Kunde es liest — „morgen um 20 Uhr", nie ISO.
         gebuchtText = zeitFuerKunde(new Date(b.beginn));
-        terminSatz = ` Der Rückruf steht im Kalender: ${gebuchtText}.`;
-        await protokoll(k, "aufgabe_an_betreuer", `Rückruf-Termin ${b.datumText} ${b.uhrzeit} Uhr für ${wer} eingetragen.`);
+        terminSatz = erg.agentId
+          ? ` Der Rückruf steht im Kalender: ${gebuchtText}.`
+          : ` Der Rückruf steht im Kalender: ${gebuchtText} ruft ${vtPerson!.betreuer!.vorname} an.`;
+        await protokoll(k, "aufgabe_an_betreuer", `Rückruf-Termin ${b.datumText} ${b.uhrzeit} Uhr für ${erg.agentId ? wer : vtPerson!.betreuer!.name} eingetragen.`);
       } catch (e: any) {
         terminSatz = ` (Rückruf-Termin konnte nicht eingetragen werden: ${String(e?.message || e).slice(0, 100)} — die Aufgabe steht trotzdem; nenne dem Kunden keine Uhrzeit.)`;
       }
@@ -1504,7 +1550,7 @@ export const eskalationVorbereiten: Werkzeug = {
       titel: `${kundenName ? `${kundenName}: ` : ""}Zahlung verweigert — Anruf vor Eskalation`.slice(0, 160),
       text, faelligAm: new Date().toISOString().slice(0, 10), dringend: true,
       schluessel: `postmeister:eskalation:${k.ref ?? k.personId ?? k.postmeisterId ?? "x"}`,
-      quelle: "postmeister", autorName: "Mara", agentId: wer.id ?? null,
+      quelle: "postmeister", autorName: "Mara", agentId: wer.id ?? null, anBetreiber: !!wer.vertretung,
     }).catch(() => {});
     return { ok: true, ergebnis: `${wer.kundenName} ruft Sie an, bevor etwas eskaliert.`, daten: { offen_euro: summe, betreuer: wer.kundenName } };
   },

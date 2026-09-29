@@ -367,7 +367,10 @@ export interface AkteKurz {
   spracheNotiz: string | null;
   email: string | null;
   telefon: string | null;
+  /** Sein fester Betreuer (Vorname) — auch während einer Abwesenheit (E-260). */
   betreuer: string | null;
+  /** E-260 (29.09.2026): Team abwesend — wer bis wann an seiner Stelle anruft; sonst null. */
+  vertretung?: { name: string; bis: string } | null;
   kundenlage: Kundenlage;
   lageGrund: string;
   bestellungen: { ref: string; paket: string | null; status: string; betrag: string | null; referenz: string | null; angelegt: string | null }[];

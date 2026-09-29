@@ -129,11 +129,21 @@ async function melden(opts: {
     : absoluteUrl(`/agent/kunden?person=${b.personId}`);
   const quelle = vonMara ? `Rückruf — von Mara per ${kanal} vereinbart` : (QUELLE_TEXT[opts.quelle] ?? opts.quelle);
 
+  // E-260 (29.09.2026, B8): Mara hat den Termin auf Wunsch des Kunden verlegt —
+  // der neue kommt als eigene Buchungsmail. Kein „ABGESAGT", kein „Der Kunde hat
+  // einen Link bekommen" (er bekommt keinen: Er hat die neue Zeit ja schon).
+  const verschoben = opts.art === "absage" && String(opts.wer ?? "").startsWith("verschoben");
   const betreff = opts.art === "buchung"
     ? `Neuer Termin${vonMara ? " (von Mara)" : ""}: ${b.kunde} — ${wann}`
-    : `Termin ABGESAGT: ${b.kunde} — ${wann}`;
+    : verschoben ? `Termin verschoben (Mara): ${b.kunde} — war ${wann}` : `Termin ABGESAGT: ${b.kunde} — ${wann}`;
 
-  const text = opts.art === "buchung"
+  const text = verschoben
+    ? `Hallo ${b.agentVorname},\n\n`
+      + `Mara hat den Termin mit ${b.kunde} auf Wunsch des Kunden verschoben.\n\n`
+      + `Der alte Termin war: ${wann}\n`
+      + `Die neue Zeit kommt als eigene Mail „Neuer Termin (von Mara)“ — dort steht auch, wer anruft.\n`
+      + `\nZur Akte: ${akte}\n`
+    : opts.art === "buchung"
     ? `Hallo ${b.agentVorname},\n\n`
       + `${einleitung}\n\n`
       + `Wann: ${wann}\n`
@@ -160,6 +170,7 @@ async function melden(opts: {
       VALUES (${b.personId}, ${b.ref}, NULL, 'System', 'system',
               ${opts.art === "buchung"
                 ? `Termin gebucht: ${wann} (${quelle}). Der Zuständige wurde benachrichtigt.`
+                : verschoben ? `Termin ${wann} von Mara auf Wunsch des Kunden verschoben. Der Zuständige wurde benachrichtigt.`
                 : `Termin abgesagt (${opts.wer ?? "System"}): ${wann}. Der Zuständige wurde benachrichtigt.`})
     `.catch((e) => console.error(`[TERMIN-MELDUNG] Verlaufseintrag (${opts.art}) fuer Termin ${opts.terminId} nicht geschrieben — die Akte kennt die Meldung nicht:`, e));
   }

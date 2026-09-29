@@ -730,7 +730,7 @@ function systemPrompt(ein: {
     // Die Persona steht in shared/fiaon-mara-ton.ts — dieselbe für WhatsApp und
     // Mail. Die Mail-Regeln unten ergänzen sie, sie widersprechen ihr nicht.
     // ═══════════════════════════════════════════════════════════════════
-    personaText("mail", { betreuer: ein.akte?.betreuer ?? null }),
+    personaText("mail", { betreuer: ein.akte?.betreuer ?? null, vertretung: ein.akte?.vertretung ?? null }),
     ``,
     // Am 02.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
     // Die Sprachregel stand bis dahin als Nebensatz in einer Aufzählung. Jetzt

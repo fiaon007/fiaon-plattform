@@ -288,8 +288,11 @@ async function main(): Promise<void> {
       gleich("… und der Urheber steht dran", nachAbsage.abgesagt_von, "kunde");
       ok("Der Kalender zeigt Absagen SIEBEN Tage",
         /t\.status = 'abgesagt' AND t\.abgesagt_am > NOW\(\) - INTERVAL '7 days'/.test(agentQuelle));
+      // E-260 (29.09.2026): Der Klartext steht jetzt an EINER Stelle (absageSatz in
+      // shared/fiaon-termin-art.ts) — der Kalender ruft ihn, statt den Satz selbst zu bauen.
       ok("… mit Zeit und Urheber im Klartext",
-        /absageText/.test(agentQuelle) && /durch den Kunden/.test(agentQuelle));
+        /absageText/.test(agentQuelle) && (/durch den Kunden/.test(agentQuelle)
+          || (/absageSatz\(/.test(agentQuelle) && /durch den Kunden/.test(datei("shared/fiaon-termin-art.ts")))));
       const meldQuelle = datei("server/lib/fiaon-termin-meldung.ts");
       ok("Buchung UND Absage werden gemeldet",
         /export async function buchungMelden/.test(meldQuelle)

@@ -510,6 +510,98 @@ a.mp-name:hover { text-decoration: underline; }
 .mbz-info i { display: block; margin-top: 2px; font-style: normal; color: var(--mbz-still); }
 .mbz-zeile dd.mbz-info { color: var(--mbz-text-2); white-space: normal; }
 
+/* ═══ Reiter „Termine" (E-260, 29.09.2026) — Präfix .mt- ═══════════════════
+   Justin: „ALLE Termine, die MARA macht … auf einer eigenen übersichtlichen
+   cleanen Seite." Dieselben Bausteine wie die anderen Reiter (Statuszeile,
+   Schalter, Pillen, Kette, Klappen, Meldung). Die EINE Glasfläche ist „Jetzt"
+   (.mara-glas) — hier steht keine zweite backdrop-filter-Regel. Uhrzeiten
+   300 mit tabellarischen Ziffern, Namen 400, Marken über .mara-pille. */
+.mara .mara-reiter button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.mt { min-width: 0; padding-bottom: 24px; }
+.mt-status .st.voll { gap: 4px; flex-wrap: nowrap; min-width: 0; }
+/* Der Schalter trägt einen ganzen Satz — er bricht um, statt den (i)-Knopf aus dem Bild zu schieben. */
+.mt-schalter { white-space: normal; text-align: left; line-height: 1.35; min-width: 0; flex: 0 1 auto; }
+.mt-schalter .bahn { align-self: center; }
+.mt-status .mt-st-text { min-width: 0; }
+.mt-status .st.rechts { gap: 8px; }
+.mt-leise { margin-top: 8px; }
+.mt-wahl {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; margin-top: 12px; padding: 16px 18px;
+  border-radius: var(--m-r); border: 1px solid var(--m-linie); background: var(--m-matt);
+}
+.mt-wahl .breit, .mt-wahl .mara-startreihe { grid-column: 1 / -1; }
+.mt-wahl .mara-startreihe { margin-top: 0; }
+.mt-wahl input[type="datetime-local"] { color-scheme: dark; }
+.mt-team { margin-top: 8px; }
+.mt-kette { padding-top: 16px; }
+.mt-stand { margin-left: auto; }
+.mt-filter { margin: 14px 0 16px; }
+.mt-jetzt > h2 { margin-bottom: 10px; }
+.mara h2.mt-etikett { font-size: 11.5px; line-height: 1.4; color: var(--m-licht-text); }
+.mt-kette { gap: 8px 18px; }
+.mt-leer { font-size: 13px; color: var(--m-text-2); padding: 10px 2px; }
+
+/* Eine Zeile: links die Uhrzeit, rechts Name, Marken, Geld, Maras Satz, Knöpfe */
+.mt-termin { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; padding: 14px 0; border-top: 1px solid var(--m-linie); }
+.mt-termin:focus { outline: none; }
+.mt-termin.gross { grid-template-columns: 104px minmax(0, 1fr); padding: 0; border-top: 0; }
+.mt-zeit { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mt-uhr { font-weight: 300; font-size: 20px; line-height: 1.1; letter-spacing: -.01em; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.mt-termin.gross .mt-uhr { font-size: 36px; }
+.mt-uhr.klein { font-size: 15px; }
+.mt-wann { font-size: 12px; color: var(--m-text-3); }
+.mt-termin.wartet .mt-wann { color: var(--m-krit); }
+.mt-termin.zu .mt-name { color: var(--m-text-2); }
+.mt-inhalt { display: grid; gap: 6px; min-width: 0; }
+.mt-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.mt-name { font-size: 15px; color: var(--m-text); overflow-wrap: anywhere; }
+.mt-termin.gross .mt-name { font-size: 19px; }
+.mt-kopf .mara-pille { white-space: normal; }
+.mt-zeile { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; margin: 0; font-size: 13px; color: var(--m-text-2); min-width: 0; }
+.mt-geld { font-weight: 400; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.mt-punkt { color: var(--m-text-3); }
+.mt-zusage {
+  margin: 0; padding: 4px 0 4px 12px; border-left: 2px solid rgba(40, 141, 250, .45); font-size: 13px; line-height: 1.5; color: #CFE4FF;
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.mt-termin.gross .mt-zusage { -webkit-line-clamp: 4; }
+.mt-anliegen { font-size: 12.5px; line-height: 1.5; color: var(--m-text-2); overflow-wrap: anywhere; }
+.mt-gleich { font-size: 12.5px; }
+.mt-knoepfe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.mt-knoepfe .mara-knopf { min-height: 40px; }
+.mt-nummer { margin-left: 8px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.mt-frage { margin-top: 4px; white-space: normal; }
+
+/* Gruppen */
+.mt-gruppe { margin-top: 24px; }
+.mt-gruppe > h2 { font-size: 15px; margin-bottom: 2px; }
+.mt-gruppe > h2 .mara-still { font-size: 12.5px; }
+.mt-gruppe.wartet { padding: 14px 16px 4px; border-radius: var(--m-r); border: 1px solid rgba(240, 113, 120, .4); background: rgba(240, 113, 120, .035); }
+.mt-klappe { margin-top: 20px; }
+.mt-rr { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.mt-rr-inhalt { display: grid; gap: 2px; min-width: 0; font-size: 13px; }
+.mt-rr-notiz { font-size: 12.5px; color: var(--m-text-3); overflow-wrap: anywhere; }
+.mt-rr-knoepfe { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.mt-uebergaben { margin-top: 18px; }
+@media (max-width: 760px) {
+  .mara .mara-reiter button { padding: 0 6px; }
+  .mt-status > .st.mt-st-text { grid-column: 1 / -1; }
+  .mt-wahl { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  .mt-termin { grid-template-columns: 52px minmax(0, 1fr); gap: 10px; }
+  .mt-termin.gross { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .mt-termin.gross .mt-zeit { flex-direction: row; align-items: baseline; gap: 10px; }
+  .mt-termin.gross .mt-uhr { font-size: 30px; }
+  .mt-knoepfe .mara-knopf { flex: 1 1 auto; }
+  .mt-rr { grid-template-columns: 48px minmax(0, 1fr); }
+  .mt-rr-knoepfe { grid-column: 1 / -1; justify-content: flex-start; }
+  .mt-stand { margin-left: 0; flex-basis: 100%; }
+  .mt-filter .mara-ansicht { width: 100%; }
+  .mt-filter .mara-ansicht button { flex: 1 1 auto; padding: 0 8px; min-height: 40px; }
+  /* E-260 (Gegenprüfung 29.09.): Klappen und (i) im Reiter auf 40 px — nur hier, die anderen Reiter bleiben wie E-252. */
+  .mt .mara-klappe > summary { min-height: 40px; }
+  .mt .mara-i { width: 40px; height: 40px; margin: -12px -10px; }
+}
+
 /* ═══ Schmal ═════════════════════════════════════════════════════════════ */
 @media (max-width: 1180px) {
   .mara-leiste { grid-template-columns: repeat(3, minmax(0, 1fr)); }

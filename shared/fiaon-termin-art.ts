@@ -175,3 +175,34 @@ export const TERMIN_ARTEN: TerminArtMarke[] = [
   { ...MARKEN.rueckruf, grund: "" },
   { ...MARKEN.forderung, grund: "" },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WER HAT ABGESAGT — `fiaon_termine.abgesagt_von` IN WORTEN (E-260, 29.09.2026)
+//
+// Drei Werte: „kunde", „agent" und seit E-260 „verschoben" (Mara hat den
+// Termin auf Wunsch des Kunden auf eine neue Zeit gelegt, terminAbsagen in
+// fiaon-mara-termin.ts). Kalender und Termin-Zentrale bauten den Satz roh
+// zusammen — „Abgesagt am 29.09., 11:03 Uhr durch verschoben" (Gegenprüfung
+// 29.09.). Die Klartexte stehen jetzt hier, an einer Stelle.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** „durch den Kunden", „durch das Team", „von Mara verschoben" — ohne Wert: null. */
+export function absageWerText(abgesagtVon: string | null | undefined): string | null {
+  const v = String(abgesagtVon ?? "").trim();
+  if (!v) return null;
+  if (v === "kunde") return "durch den Kunden";
+  if (v === "agent") return "durch das Team";
+  if (v === "verschoben") return "von Mara auf Wunsch des Kunden verschoben";
+  return `durch ${v}`;
+}
+
+/**
+ * Der ganze Satz für eine Karte: „Abgesagt am 29.09., 11:03 Uhr durch den
+ * Kunden" — bei „verschoben" „Von Mara auf Wunsch des Kunden verschoben am
+ * 29.09., 11:03 Uhr". `am` ist schon formatiert (Berliner Zeit).
+ */
+export function absageSatz(am: string, abgesagtVon: string | null | undefined): string {
+  if (String(abgesagtVon ?? "") === "verschoben") return `Von Mara auf Wunsch des Kunden verschoben am ${am} Uhr`;
+  const wer = absageWerText(abgesagtVon);
+  return `Abgesagt am ${am} Uhr${wer ? ` ${wer}` : ""}`;
+}

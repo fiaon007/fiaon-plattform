@@ -5,6 +5,69 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 29.09.2026 — Maras Termine im Mara-Steuerpult, und „Team abwesend — Mara bucht bei mir" (E-260)
+
+**Der Anlass:** Justin: „ALLE Termine, die MARA macht, muss ich sehen können als Chef auf einer eigenen übersichtlichen
+cleanen Seite — ich arbeite gerade alleine an den Kunden … Die anderen Mitarbeiter arbeiten erst wieder am Freitag. Bis
+dahin schupfe ich das ganze." Gemessen am 29.09.: Bis Donnerstag lagen 10 offene Termine bei abwesenden Mitarbeitern,
+3 davon von Mara; 7 von 10 vergangenen Mara-Terminen waren verpasst. Mara buchte weiter bei Abwesenden (4 von 10 über den
+„Pool"), nannte sie beim Namen („Nikita ruft Sie an") und übergab an Menschen, die bis Freitag nichts sehen. Und der Chef
+konnte einen fremden Termin gar nicht abschließen — nach 12 Stunden wurde er „verpasst", und Mara entschuldigte sich beim
+Kunden für ein Gespräch, das stattgefunden hatte.
+
+**Was jetzt gilt:**
+- **Neuer Reiter „Termine" im Mara-Steuerpult** (`/chef/s/mara?reiter=termine`, keine neue Seite). Oben der Schalter
+  „Team abwesend — Mara bucht bei mir", darunter was ansteht (Kunden, die warten · heute · Geld, das daran hängt), die
+  Filter **Alle | Nur Mara | Bei Abwesenden**, die Glasfläche — wen du jetzt anrufst: ein Termin, der gerade dran ist,
+  sonst der dringendste wartende Kunde, sonst der nächste Termin (Uhrzeit, Kunde, Stufe, offenes Geld aus der
+  Telefonkartei, Maras Zusage an den Kunden, Anliegen) —, dann **Kunde wartet** (rot gerahmt, offene verpasste bis 14 Tage
+  zurück wie im Agentenportal, A vor B vor offener Rate vor C, dann nach Betrag), **Heute · Morgen · Diese Woche**,
+  zugeklappt **Später** und **Erledigt & abgesagt (3 Tage)**. Jede
+  Zeile hat **Anrufen** (am iPhone zuerst Kontakt sichern), **Akte**, **Erledigt**, **Nicht erreicht** (mit Rückfrage).
+  Marken: „von Mara · WhatsApp/E-Mail", „neu", **„Betreuer abwesend — du rufst an"**, „gleichzeitig: 12:40 bei …".
+  Darunter die Rückruf-Notizen des Teams und — bei Abwesenheit — Maras Übergaben, die noch bei Abwesenden liegen.
+  Die Zahl am Reiter „Termine" sind Kunden, die gerade warten. Lädt jede Minute neu, solange der Reiter offen ist.
+- **„Erledigt" und „Nicht erreicht" für jeden Termin, auch fremde** — über dieselbe Regel wie im Agentenportal (jetzt
+  `server/lib/fiaon-termin-ergebnis.ts`, beide Wege rufen sie). Weder der Termin noch der Kunde wechseln den Mitarbeiter;
+  im Verlauf der Akte steht „Justin Schwarzott (Chefbüro, für Nikita)". Startgespräche und FIAON-Global-Gespräche schließt
+  man weiter in der Akte bzw. im Firmen-Cockpit ab.
+- **Team abwesend (Schalter):** bis wann (Vorgabe: der nächste Freitag 09:00, höchstens 14 Tage), wer anruft (Vorgabe
+  Justin, Konto 928 — ausdrücklich zugelassen, obwohl Testkonto), für das ganze Team oder einzelne. Solange er an ist:
+  - Mara bucht **neue Rückrufe (WhatsApp und Mail) vor „bis" nur im Kalender des Vertreters** — in seinem Raster, mit
+    20 Minuten Vorlauf, nie gleichzeitig mit einem Termin, den er für das Team anruft. Termine nach „bis" bucht sie wieder
+    auf dem normalen Weg: beim Betreuer, ohne buchbaren Betreuer im Team-Pool. Sind nur einzelne weg, bleiben Kunden ohne
+    Betreuer im Pool der Anwesenden.
+  - **Die Kunden bleiben bei ihren Betreuern:** keine Zuordnung, keine Provision, keine Verteilung ändert sich; ein Kunde
+    ohne Betreuer wird nicht an den Vertreter gebunden, und der Kunde eines gesperrten Betreuers wandert samt Antrag nicht
+    an Konto 928 (`buchungAnwenden` mit `zuordnen: false` überspringt beide Umhänge-Blöcke).
+  - **Maras Sätze bleiben wahr:** Sie nennt den, der wirklich anruft — bei neuen und bei bestehenden Terminen, im Rückfall-
+    satz, im Postfach und in der Termin-Erinnerungsmail an den Kunden.
+  - Statt eines Terminlinks (der würde nur den Kalender des Abwesenden zeigen) bietet Mara zwei Zeiten an und trägt ein —
+    bei jeder Zeit steht, wer anruft. Nur wenn es gar keine freie Zeit gibt, geht der Link wie sonst raus (keine Sackgasse).
+  - Maras Auftrag trennt den festen Betreuer von dem, der bis „bis" anruft („Sein Betreuer: Nikita. Bis Fr 02.10., 09:00
+    ruft Justin an"), auf WhatsApp wie im Postfach.
+  - Maras Übergaben (WhatsApp und Postfach) landen auf deinem Board „Meine Liste" statt bei Abwesenden.
+  - Nach „bis" ist der Schalter von selbst aus („abgelaufen" im Verlauf). Jedes An, Ändern und Aus steht mit Namen im
+    Chef-Protokoll und im Verlauf der Einstellung (`fiaon_settings.team_abwesenheit`).
+- **Verschieben durch Mara ohne falsche Absagemail:** Legt Mara einen Termin auf Wunsch des Kunden auf eine neue Zeit, bekam
+  der Kunde bisher „abgesagt durch den Mitarbeiter" samt Neubuchungslink, und die alte Zeit war gesperrt. Jetzt: keine
+  Kundenmail, die Zeit ist wieder frei, der Mitarbeiter liest „Termin verschoben (Mara)".
+- Die Links „Termin #…" im Mara-Protokoll der WhatsApp-Zentrale und die Prüf-Aufgaben „Mara-Termin #… stimmt nicht"
+  springen jetzt direkt zur Zeile im Reiter „Termine".
+
+**Wo:** `client/src/components/admin/ChefMaraTermine.tsx` (neu), `ChefMara.tsx`, `mara-lage.tsx`, `chef-mara.css`
+(Abschnitt „Reiter Termine"), Rundgang `RUNDGANG_MARA_TERMINE`; Server `server/lib/fiaon-abwesenheit.ts`,
+`fiaon-termin-uebersicht.ts`, `fiaon-termin-ergebnis.ts` (neu), Routen in `server/routes/fiaon-mara-steuerpult.ts`;
+Eingriffe in `fiaon-mara-termin.ts`, `fiaon-termine.ts` (`buchungAnwenden` mit `zuordnen`, `terminAbsagen` mit
+„verschoben"), `fiaon-termin-meldung.ts`, `fiaon-whatsapp-mara.ts` (Lage mit `anrufer`, Übergabe, `ruft_an`),
+`shared/fiaon-mara-ton.ts` (Persona mit Vertretung), `fiaon-postmeister-werkzeuge.ts`, `fiaon-postmeister-dossier.ts`,
+`fiaon-followup.ts`; „verschoben" in Klartext im Agenten-Kalender und in der Termin-Zentrale (`absageSatz` in
+`shared/fiaon-termin-art.ts`). Prüfstand `scripts/pruef-mara-termine.ts` (lokale Test-DB, mit Rot-Proben).
+
+**Bewusst nicht dabei:** Selbstbuchungen der Kunden über Terminlinks (rund 6 am Tag) bleiben beim Betreuer — Justin sieht
+sie im Reiter und ruft sie an; sie auf den Vertreter zu lenken, greift in den Kern der Terminseite ein und wartet auf
+seine Entscheidung. Bestehende Termine bei Abwesenden werden nicht umgehängt (Hausregel: Übergabe nimmt den Kunden mit).
+
 ## 29.09.2026 — Telefonkartei: WhatsApp über das FIAON-Konto, oben die Frischen mit den wenigsten Anrufen (E-259)
 
 **Der Anlass:** Justin zu /chef/s/telefonkartei:

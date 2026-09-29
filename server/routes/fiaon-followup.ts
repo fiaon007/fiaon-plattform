@@ -534,6 +534,10 @@ export async function runTerminErinnerungen(): Promise<number> {
       WHERE p.id = ${t.person_id}
     `) as any[];
     if (!p) continue;
+    // E-260 (29.09.2026): Liegt der Termin bei einem Abwesenden, nennt die
+    // Erinnerung den, der wirklich anruft (fiaon-abwesenheit.ts, anruferFuer).
+    const { anruferFuer } = await import("../lib/fiaon-abwesenheit");
+    p.agent_vorname = await anruferFuer(Number(t.agent_id), t.beginn, String(p.agent_vorname || ""));
     const ergebnis = await versendenUndProtokollieren(
       "termin_erinnerung",
       {

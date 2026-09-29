@@ -863,6 +863,8 @@ function auftrag(ein: {
   gedaechtnis: string; verlauf: string; wissen: string; hausanweisung: string; kiHinweis?: boolean;
   /** Mara darf Termine eintragen und Links schicken (es gibt eine Person). */
   werkzeuge?: boolean; betreuer?: string | null; jetzt?: string;
+  /** E-260: der FESTE Betreuer (nur für die Persona) und bis wann `betreuer` ihn vertritt. */
+  fester?: string | null; anruferBis?: string | null;
   /** E-246: Hinweis, wann seine offene Nachricht kam (älter als 3 h) — steht direkt über dem Verlauf. */
   zeitHinweis?: string;
   /** E-240: seine Bonitätsauskunft — Angebot, offene Zahlung oder „schon da". E-241: auch B/Lead, dort nur als Antwort. */
@@ -959,7 +961,9 @@ function auftrag(ein: {
     ein.hausanweisung,
     ein.kiHinweis ? `PFLICHT IN DIESER ANTWORT (KI-Verordnung Art. 50): Du hast dich in diesem Gespräch noch nicht vorgestellt. Beginne mit einem kurzen Halbsatz („Hier ist ${vorname}, die digitale Assistentin von FIAON —") und mach im selben Satz mit seiner Antwort weiter.` : ``,
     `Du bist ${ein.name} und schreibst für FIAON auf WhatsApp.`,
-    personaText("whatsapp", { betreuer: ein.betreuer ?? null }),
+    personaText("whatsapp", ein.anruferBis && ein.betreuer
+      ? { betreuer: ein.fester ?? null, vertretung: { name: ein.betreuer, bis: ein.anruferBis } }
+      : { betreuer: ein.betreuer ?? null }),
     ``,
     ...verkaufsTeil,
     ...werkzeugTeil,
@@ -1090,6 +1094,15 @@ interface Lage {
   /** E-248: IMMER sein persönlicher Link (persoenlicherLink) — oder null, nie fiaon.com/antrag. */
   link: string | null;
   betreuer: string | null; verkaufen: boolean;
+  /**
+   * E-260 (29.09.2026): wer für Anruf, Rückruf und Rückmeldung genannt wird — ohne
+   * Abwesenheit der Betreuer, sonst der Vertreter. `betreuer` bleibt der FESTE
+   * Betreuer (Gegenprüfung 29.09.: vorher überschrieb der Vertreter ihn, und die
+   * Stand-Zeile sagte „Sein Betreuer: Justin", während „wer" den festen nannte).
+   */
+  anrufer: string | null;
+  /** E-260: „Fr 02.10., 09:00", solange der Vertreter anruft — sonst null. */
+  anruferBis: string | null;
   /** E-248: woher der Link kommt und was die Linkprüfung als seinen erkennt. */
   linkLage: LinkLage;
   /** E-248: sein Land (fiaon_persons.country) — AT/CH nie „SCHUFA". */
@@ -1133,7 +1146,8 @@ async function auskunftLage(personId: number, segment: AuskunftSegment): Promise
   }
 }
 
-async function lageFuer(personId: number | null, leadId: number | null, letzteVorlage: { name: string; text: string | null } | null, kundeText = ""): Promise<Lage> {
+// E-260: exportiert für scripts/pruef-mara-termine.ts (wer ruft an, wenn das Team abwesend ist).
+export async function lageFuer(personId: number | null, leadId: number | null, letzteVorlage: { name: string; text: string | null } | null, kundeText = ""): Promise<Lage> {
   const erg: Lage = {
     wer: "Ein Interessent, den wir noch nicht kennen.",
     lage: "Noch kein Antrag.",
@@ -1145,6 +1159,8 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
     linkLage: { stufe: "lead" },
     land: null,
     betreuer: null,
+    anrufer: null,
+    anruferBis: null,
     verkaufen: true,
     werbesperre: false,
     vertriebssperre: false,
@@ -1189,7 +1205,19 @@ async function lageFuer(personId: number | null, leadId: number | null, letzteVo
     const [karte] = (await sqlPool`
       SELECT status, gesendet_am FROM fiaon_konto_karte WHERE person_id = ${personId} ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[];
     erg.betreuer = p?.betreuer ? String(p.betreuer) : null;
+    erg.anrufer = erg.betreuer;
     erg.wer = `${String(p?.name || "").trim() || "Ein Kunde"}${erg.betreuer ? `, sein fester Betreuer ist ${erg.betreuer}` : ", noch ohne festen Betreuer"}.`;
+    // E-260 (29.09.2026): Team abwesend — Mara nennt, wer WIRKLICH anruft (fiaon-abwesenheit.ts, B2).
+    // Der feste Betreuer bleibt `betreuer`; der Vertreter steht getrennt in `anrufer`.
+    const ab = await import("./fiaon-abwesenheit");
+    const vt = await ab.vertretungFuerPerson(Number(personId)).catch(() => null);
+    if (vt) {
+      const fest = erg.betreuer && erg.betreuer !== vt.ab.vertreter.name ? `, sein fester Betreuer ist ${erg.betreuer}` : "";
+      erg.wer = `${String(p?.name || "").trim() || "Ein Kunde"}${fest}. Bis ${ab.bisText(vt.ab.bis)} ist das Team nicht im Haus — ${vt.ab.vertreter.name} übernimmt Rückrufe, Termine und Rückmeldungen; nenne für Anrufe ${vt.ab.vertreter.anrufName}.`;
+      if (erg.betreuer === vt.ab.vertreter.name) erg.betreuer = null;
+      erg.anrufer = vt.ab.vertreter.name;
+      erg.anruferBis = ab.bisText(vt.ab.bis);
+    }
     erg.land = ["DE", "AT", "CH"].includes(String(p?.land ?? "")) ? (String(p.land) as AuskunftLand) : null;
     erg.zahltag = p?.zahltag ? new Date(p.zahltag).toISOString().slice(0, 10) : null;
     // E-248: Jede Nummer hat einen Lead (auch whatsapp_eingang) — sein Code ist der persönliche Antragslink.
@@ -1471,6 +1499,8 @@ const STUFE_TEXT: Record<LinkStufe, string> = {
 /** STAND DES GESPRÄCHS — was wahr ist, in Worten (E-248). Rein. */
 export function standZeilen(ein: {
   termin?: TerminKurz | null; verpasst?: TerminKurz | null; stufe: LinkStufe; betreuer?: string | null;
+  /** E-260: wer bis `anruferBis` an Stelle des Betreuers anruft (Team abwesend). */
+  anrufer?: string | null; anruferBis?: string | null;
   zahlung?: { betrag: string | null; referenz: string } | null; zahltag?: string | null;
   letzteTeam?: { von: string; am: unknown; text: string } | null; jetzt?: Date;
 }): string[] {
@@ -1490,7 +1520,11 @@ export function standZeilen(ein: {
   if (ein.zahltag && ein.zahltag >= jetzt.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })) {
     z.push(`Er hat zugesagt, am ${datumFuerKunde(new Date(`${ein.zahltag}T12:00:00Z`))} zu zahlen — das ist festgehalten.`);
   }
-  z.push(ein.betreuer ? `Sein Betreuer: ${ein.betreuer}.` : "Noch kein fester Betreuer — sag „jemand aus unserem Team“, nie einen erfundenen Namen.");
+  // E-260 (29.09.2026): Team abwesend — der feste Betreuer UND wer bis wann anruft, in einer Zeile.
+  const vertritt = ein.anrufer && ein.anruferBis && ein.anrufer !== ein.betreuer ? ein.anrufer : null;
+  z.push(vertritt
+    ? `${ein.betreuer ? `Sein Betreuer: ${ein.betreuer}.` : "Noch kein fester Betreuer."} Bis ${ein.anruferBis} ruft ${vertritt} an — für Anruf, Rückruf und Rückmeldung nennst du ${vertritt}.`
+    : ein.betreuer ? `Sein Betreuer: ${ein.betreuer}.` : "Noch kein fester Betreuer — sag „jemand aus unserem Team“, nie einen erfundenen Namen.");
   if (ein.letzteTeam && jetzt.getTime() - msVon(ein.letzteTeam.am) <= 48 * 3_600_000) {
     z.push(`Zuletzt aus dem Team: ${vornameVon(ein.letzteTeam.von)} (${kurzZeit(new Date(msVon(ein.letzteTeam.am)))}): „${String(ein.letzteTeam.text ?? "").replace(/\s+/g, " ").slice(0, 220)}“ — daran knüpfst du an.`);
   }
@@ -1766,6 +1800,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const stand = standZeilen({
       termin: terminKurz, verpasst: verpasst ? { beginn: verpasst.beginn, vorname: verpasst.vorname } : null,
       stufe: lage.linkLage.stufe, betreuer: lage.betreuer ? lage.betreuer.split(" ")[0] : null,
+      anrufer: lage.anrufer ? lage.anrufer.split(" ")[0] : null, anruferBis: lage.anruferBis,
       zahlung: lage.zahlung ?? null, zahltag: lage.zahltag ?? null,
       letzteTeam: letzteTeamZeile ? { von: String(letzteTeamZeile.von ?? "Team"), am: letzteTeamZeile.am, text: String(letzteTeamZeile.text ?? "") } : null,
     });
@@ -1780,7 +1815,10 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const text = auftrag({
       kiHinweis, zeitHinweis,
       name: namen.voll,
-      werkzeuge: !!personId, betreuer: lage.betreuer ? lage.betreuer.split(" ")[0] : null, jetzt: `${jetzt} (heute = ${heuteIso})`,
+      // E-260: `betreuer` im Auftrag = wer anruft bzw. Bescheid bekommt (bei Abwesenheit der Vertreter);
+      // der feste Betreuer geht getrennt an die Persona.
+      werkzeuge: !!personId, betreuer: lage.anrufer ? lage.anrufer.split(" ")[0] : null, jetzt: `${jetzt} (heute = ${heuteIso})`,
+      fester: lage.betreuer ? lage.betreuer.split(" ")[0] : null, anruferBis: lage.anruferBis,
       wer: lage.wer, lage: lage.lage, ziel: lage.ziel, link: lage.link, verkaufen: lage.verkaufen, auskunft,
       gedaechtnis: personId ? await gedaechtnisText(Number(personId)).catch(() => "") : "",
       wissen: wissenFuerWhatsApp(),
@@ -1909,7 +1947,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         return { gesendet: false, grund: "Kein Rückfallsatz (reine Bestätigung oder schon einer in 2 h) — Mara schweigt, die Aufgabe steht." };
       }
       console.warn(`[MARA-WA] ${nummer.slice(-4)}: Rückfallsatz (${warum}).`);
-      antwort = rueckfallSatz(lage.betreuer ? lage.betreuer.split(" ")[0] : null);
+      antwort = rueckfallSatz(lage.anrufer ? lage.anrufer.split(" ")[0] : null);
       mensch = true;
       uebergabe = `Mara konnte nicht sicher antworten (${warum}). Letzte Nachricht: „${frage.slice(0, 200)}"`;
       // E-248: Maras Prüfproblem ist kein dringendes Anliegen des Kunden — außer sein Anliegen ist es.
@@ -1951,11 +1989,12 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // „Ich gebe Daniel Bescheid" ist genauso eine Zusage — „Geben Sie mir Bescheid" nicht (Prüfung 24.09.).
     // Ein von Mara eingetragener Rückruf IST die Übergabe (Termin + Mail an den Mitarbeiter): keine zweite Aufgabe dafür.
     // E-248: Ein Termin, der schon im Kalender steht, deckt „Florentine ruft Sie … an" genauso — nicht aber „ich gebe … Bescheid".
-    const betreuerVorname = lage.betreuer ? lage.betreuer.split(" ")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : null;
+    // E-260: bei Abwesenheit zählen beide Namen — „Justin ruft Sie an" wie „Nikita meldet sich".
+    const betreuerVorname = Array.from(new Set([lage.anrufer, lage.betreuer].filter(Boolean).map((n) => String(n).split(" ")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).join("|") || null;
     const terminVorname = (terminKurz?.vorname ?? e.aktionen.find((x) => x.bestehend)?.bestehend?.vorname ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const bescheidMuster = /\b(?:ich|wir)\s+(?:gebe|geben|sage|sagen)\b[^.!?]{0,60}\bbescheid\b|\b(?:ich|wir)\s+(?:gebe|geben|leite|leiten)\b[^.!?]{0,60}\bweiter\b/i;
     const meldetMuster = new RegExp(String.raw`\b(?:betreuer|team|kolleg\w*)\b[^.!?]{0,40}\b(?:kümmert|meldet|ruft|übernimmt)`
-      + (betreuerVorname ? String.raw`|\b${betreuerVorname}\s+(?:meldet|ruft|kümmert)` : "")
+      + (betreuerVorname ? String.raw`|\b(?:${betreuerVorname})\s+(?:meldet|ruft|kümmert)` : "")
       + (terminVorname ? String.raw`|\b${terminVorname}\s+(?:meldet|ruft|kümmert)` : ""), "i");
     const bescheid = bescheidMuster.test(antwort) && !/\?\s*$/.test(antwort.replace(/https?:\/\/\S+/g, "").trim());
     const zusageOhneTermin = zusagen.length || bescheid || meldetMuster.test(antwort);
@@ -1993,7 +2032,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         : x.werkzeug === "auskunft_anbieten" ? `Bonitätsauskunft angeboten (${x.betrag ?? "Preis vom Server"}, ${x.art === "bestellt" ? "bestellt" : x.art === "offen" ? "Zahlungsseite der offenen Bestellung" : "Kauflink"})`
         : x.werkzeug),
       ...(sicher ? ["sicherer Satz aus der Lage"] : funde.length || e.kiFehler ? ["Rückfallsatz"] : []),
-      ...(mensch ? [`an ${lage.betreuer ?? "das Team"} übergeben${uebergabe ? `: ${uebergabe.slice(0, 140)}` : ""}`] : []),
+      ...(mensch ? [`an ${lage.anrufer ?? "das Team"} übergeben${uebergabe ? `: ${uebergabe.slice(0, 140)}` : ""}`] : []),
       ...(String(roh?.gemerkt ?? "").trim() ? [`gemerkt: ${String(roh.gemerkt).trim().slice(0, 140)}`] : []),
     ].join("; ") || "keine";
     await vorbereiten(nummer, antwort, Number(neuesteRein.id), frage, { kunde, handlung });
@@ -2200,7 +2239,7 @@ export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugK
       ergebnis: v.length
         ? { ok: true, mitarbeiter: ang.agent?.vorname ?? "jemand aus unserem Team", arbeitszeit_heute: heute ?? "heute nicht im Dienst",
             // E-248: „zeit" ist für Werkzeug-Aufrufe; dem Kunden schreibt Mara so_schreiben („morgen um 10:20 Uhr").
-            zeiten: v.map((s) => ({ zeit: `${s.datum} ${s.uhrzeit}`, so_schreiben: zeitFuerKunde(new Date(s.beginn)) })) }
+            zeiten: v.map((s) => ({ zeit: `${s.datum} ${s.uhrzeit}`, so_schreiben: zeitFuerKunde(new Date(s.beginn)), ...(ang.weg === "abwesenheit" ? { ruft_an: s.agentVorname } : {}) })) }
         : { ok: false, meldung: `In den nächsten Tagen ist keine Zeit frei${ang.grund ? ` (${ang.grund})` : ""}. Schick den Terminlink oder übergib an einen Menschen.` },
       aktion: { werkzeug: name, ok: v.length > 0, zeiten: v.map((s) => s.uhrzeit) },
     };
@@ -2823,9 +2862,12 @@ async function aufgabeFuerMenschen(
       await waAktenvermerk(personId, `WhatsApp (+${nummer}): ${grund}`);
     }
     const still = opt.still ?? (!erstes && klasse !== "heikel" && klasse !== "geld");
+    // E-260: Team abwesend — die Übergabe liegt auf dem Board des Betreibers, nicht bei Abwesenden (B9).
+    const abw = await import("./fiaon-abwesenheit");
+    const anBetreiber = !!(await (personId ? abw.vertretungFuerPerson(Number(personId)) : abw.abwesenheitJetzt()).catch(() => null));
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
     const erg: any = await auftragFuerKunden({
-      personId: personId ?? null, ref: null,
+      personId: personId ?? null, ref: null, anBetreiber,
       titel: `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`,
       text: `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`,
       quelle: "mara-whatsapp", dringend,

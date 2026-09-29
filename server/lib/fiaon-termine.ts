@@ -1397,7 +1397,20 @@ export async function terminBuchen(
  * Bewusst getrennt von `terminBuchen`, damit der Prüfstand die reine
  * Slot-Mechanik ohne Nebenwirkungen prüfen kann.
  */
-export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): Promise<void> {
+export async function buchungAnwenden(
+  buchung: Buchung, lauf: Lauf = sqlPool,
+  // E-260 (29.09.2026): `zuordnen: false` überspringt BEIDE Blöcke, die den
+  // Kunden umhängen — „Betreuer gesperrt oder weg → der Kunde wandert mit"
+  // und „ohne Betreuer → an den Gebuchten binden". Bucht Mara in Justins
+  // Abwesenheits-Vertretung, ruft er an, aber der Kunde bleibt, wo er ist:
+  // Sonst hinge ein Pool-Kunde an einem Testkonto und fiele ab Freitag aus der
+  // Verteilung (B10), und ein Kunde mit gesperrtem Betreuer wanderte samt
+  // Antrag — und damit der Ratenprovision (onRatePaid liest
+  // fiaon_applications.assigned_agent_id) — an Testkonto 928 (Gegenprüfung
+  // 29.09.: vorher hieß die Option `pinnen` und schützte nur den zweiten
+  // Block). Alle anderen Nebenwirkungen laufen wie immer.
+  opts: { zuordnen?: boolean } = {},
+): Promise<void> {
   const [person] = (await lauf`
     SELECT p.id, p.assigned_agent_id, p.betreuung_seit,
            (ag.id IS NOT NULL AND (NOT COALESCE(ag.active, TRUE) OR ag.zugang_gesperrt_am IS NOT NULL)) AS betreuer_weg,
@@ -1411,7 +1424,8 @@ export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): P
   // wüsste ich das gar nicht." Bucht der Terminlink bei einem anderen
   // Mitarbeiter, weil der Betreuer gesperrt ist, gehört der Kunde ab jetzt
   // dem, der ihn wirklich anruft (Regel E-120: Übergabe nimmt den Kunden mit).
-  if (person.betreuer_weg && Number(person.assigned_agent_id) !== Number(buchung.agentId)) {
+  // E-260: nicht bei einer Vertretungsbuchung (opts.zuordnen === false) — siehe oben.
+  if (person.betreuer_weg && opts.zuordnen !== false && Number(person.assigned_agent_id) !== Number(buchung.agentId)) {
     await lauf`
       UPDATE fiaon_persons SET assigned_agent_id = ${buchung.agentId}, assigned_at = NOW(),
              betreuung_seit = NOW(), updated_at = NOW()
@@ -1448,7 +1462,7 @@ export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): P
   // Ohne Betreuer: Die Buchung pinnt. Über denselben `betreuung_seit`, den
   // Nachschub, Erstverteilung und Auto-Assign respektieren — kein zweiter
   // Schutzmechanismus, der irgendwann auseinanderläuft.
-  if (!person.assigned_agent_id) {
+  if (!person.assigned_agent_id && opts.zuordnen !== false) {
     await lauf`
       UPDATE fiaon_persons SET
         assigned_agent_id = ${buchung.agentId},
@@ -1493,9 +1507,18 @@ export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): P
   })().catch((e) => console.error("[TERMINE] Messung nicht gemeldet:", e));
 }
 
-/** Sagt einen Termin ab. Der Slot wird dadurch wieder frei. */
+/**
+ * Sagt einen Termin ab. Der Slot wird dadurch wieder frei.
+ *
+ * E-260 (29.09.2026, B8): `"verschoben"` — Mara hat den Termin auf Wunsch des
+ * Kunden auf eine neue Zeit gelegt (der neue steht schon). Vorher rief sie hier
+ * `"agent"`: Der Kunde bekam die Mail „abgesagt durch den Mitarbeiter" samt
+ * Link zum Neubuchen, der Mitarbeiter „Termin ABGESAGT", und die alte Zeit war
+ * gesperrt (rohSlots zählt nur `agent`). Jetzt: keine Kundenmail, die Zeit ist
+ * frei, der Mitarbeiter liest „verschoben durch Mara".
+ */
 export async function terminAbsagen(
-  stornoToken: string, wer: "kunde" | "agent", lauf: Lauf = sqlPool,
+  stornoToken: string, wer: "kunde" | "agent" | "verschoben", lauf: Lauf = sqlPool,
 ): Promise<{ ok: boolean; termin?: any }> {
   const [termin] = (await lauf`
     UPDATE fiaon_termine
@@ -1519,7 +1542,7 @@ export async function terminAbsagen(
   void import("./fiaon-termin-meldung")
     .then((m) => m.absageMelden(
       Number(termin.id), termin.beginn, String(termin.quelle),
-      wer === "kunde" ? "kunde" : "agent", lauf,
+      wer === "kunde" ? "kunde" : wer === "verschoben" ? "verschoben durch Mara" : "agent", lauf,
     ))
     .catch((e) => console.error("[TERMINE] Absagemeldung:", e));
 
@@ -1530,7 +1553,7 @@ export async function terminAbsagen(
   if (String(termin.quelle) === "global") {
     void import("./fiaon-global-termin")
       .then((m) => m.globalTerminAbgesagt({
-        terminId: Number(termin.id), personId: Number(termin.person_id), beginn: termin.beginn, wer,
+        terminId: Number(termin.id), personId: Number(termin.person_id), beginn: termin.beginn, wer: wer === "agent" ? "agent" : "kunde",
       }))
       .catch((e) => console.error("[TERMINE] Global-Absage nicht im Firmen-Topf vermerkt:", e));
   }

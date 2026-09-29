@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageIntro } from "@/components/admin/PageHelp";
 import { TeamKalenderSchmal } from "@/components/internal/TeamKalenderSchmal";
+import { absageWerText } from "@shared/fiaon-termin-art";
 
 const ACCENT = "#1d4ed8";
 
@@ -500,8 +501,9 @@ function AdminTerminePage() {
                             aus wie ein Fehler. */}
                         {t.abgesagtAm && (
                           <span className="block text-[11px] text-slate-400 mt-0.5">
-                            storniert am {datum.format(new Date(t.abgesagtAm))}
-                            {t.abgesagtVon ? ` durch ${t.abgesagtVon}` : " durch Kunde"}
+                            {/* E-260: Klartext aus shared/fiaon-termin-art.ts — vorher „durch verschoben". */}
+                            {t.abgesagtVon === "verschoben" ? "von Mara verschoben am " : "storniert am "}{datum.format(new Date(t.abgesagtAm))}
+                            {t.abgesagtVon === "verschoben" ? " (auf Wunsch des Kunden)" : ` ${absageWerText(t.abgesagtVon) ?? "durch den Kunden"}`}
                           </span>
                         )}
                         {t.status === "gebucht" && new Date(t.beginn).getTime() > Date.now() && kollegen.length > 0 && (

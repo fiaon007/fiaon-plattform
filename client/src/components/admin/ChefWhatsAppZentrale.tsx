@@ -418,7 +418,8 @@ function MaraProtokoll() {
                             </span>
                             <span className={`mara-pille${art.art ? ` ${art.art}` : ""}`}>{art.text}</span>
                             {!z.ok && istBuchung(z) ? <span className="mara-pille krit">nicht sauber</span> : null}
-                            {z.terminId != null ? <span className="mara-still mara-klein">Termin #{z.terminId}</span> : null}
+                            {/* E-260: springt in den Reiter „Termine" zur Zeile dieses Termins. */}
+                            {z.terminId != null ? <a className="mara-klein" href={`/chef/s/mara?reiter=termine&termin=${z.terminId}`}>Termin #{z.terminId}</a> : null}
                           </div>
                           <p className="wz-mp-text">{z.text}</p>
                           {zeigePruefung ? <MaraPruefung z={z} /> : null}

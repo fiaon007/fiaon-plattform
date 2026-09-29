@@ -1274,7 +1274,8 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
     ziel: ".mara-kopf",
     titel: "Oben: gilt für alle Reiter.",
-    text: "Oben stehen der KI-Zustand und „Mara anweisen“ (dort auch Maras Ton) — beides gilt für alle drei Reiter.",
+    // E-260 (29.09.2026): vier Reiter — dazu „Termine".
+    text: "Oben stehen der KI-Zustand und „Mara anweisen“ (dort auch Maras Ton) — beides gilt für alle vier Reiter.",
   },
   {
     ziel: ".mara-leiste",
@@ -1283,8 +1284,9 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   },
   {
     ziel: ".mara-reiter",
-    titel: "Drei Reiter: WhatsApp, Mail, Bonitätsauskunft.",
-    text: "Die Adresse merkt sich den Reiter: /chef/s/mara?reiter=auskunft öffnet direkt die Bonitätsauskunft.",
+    titel: "Vier Reiter: WhatsApp, Mail, Bonitätsauskunft, Termine.",
+    text: "Die Adresse merkt sich den Reiter: /chef/s/mara?reiter=auskunft öffnet direkt die Bonitätsauskunft, "
+      + "/chef/s/mara?reiter=termine alle Termine — die Zahl am Reiter „Termine“ sind Kunden, die gerade warten.",
   },
   {
     ziel: ".mp-aktion-schalter",
@@ -1325,6 +1327,54 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     ziel: ".mp-reiter",
     titel: "Jede Mail, vollständig.",
     text: "Unten jede Mail, die rausging, hängen blieb oder scheiterte.",
+  },
+];
+
+// ── /chef/s/mara?reiter=termine (29.09.2026, E-260) ─────────────────────────
+// Justin: „ALLE Termine, die MARA macht, muss ich sehen können … Die anderen
+// Mitarbeiter arbeiten erst wieder am Freitag. Bis dahin schupfe ich das ganze."
+// Ein Satz je Schritt wie im Steuerpult (E-252). Ziele: .mt-schalter,
+// .mt-filter, .mt-jetzt, .mt-knoepfe; „Kunde wartet" steht nur, wenn jemand
+// wartet — deshalb ohne Ziel.
+export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
+  {
+    ziel: ".mt-schalter",
+    titel: "Ein Schalter: Team abwesend — Mara bucht bei dir.",
+    text: "Solange er an ist, trägt Mara neue Rückrufe (WhatsApp und Mail) bis „bis“ nur in den Kalender des Vertreters ein — "
+      + "in seinem Raster, mit 20 Minuten Vorlauf, nie gleichzeitig mit einem Termin, den er für das Team anruft. Zeiten danach "
+      + "bucht sie wie sonst beim Betreuer oder im Team. Sie nennt dem Kunden den, der wirklich anruft, und ihre Übergaben "
+      + "landen auf deinem Board. Die Kunden bleiben bei ihren Betreuern — auch die eines gesperrten Betreuers.",
+    tipp: "Beim Einschalten wählst du „bis“ (Vorgabe: der nächste Freitag 09:00), wer anruft und für wen. Nach „bis“ geht "
+      + "er von selbst aus; jedes An und Aus steht mit Namen im Chef-Protokoll.",
+  },
+  {
+    ziel: ".mt-filter",
+    titel: "Alle, nur Mara oder bei Abwesenden.",
+    text: "„Alle“ zeigt jeden Termin des Hauses, „Nur Mara“ die Rückrufe, die Mara per WhatsApp oder Mail vereinbart hat, "
+      + "„Bei Abwesenden“ die, die du anrufst, weil der Betreuer nicht da ist.",
+  },
+  {
+    ziel: ".mt-jetzt",
+    titel: "Oben dein nächster Anruf.",
+    text: "Die Glasfläche zeigt, wen du jetzt anrufst: einen Termin, der gerade dran ist — sonst den Kunden, der am dringendsten "
+      + "wartet (A vor B vor offener Rate vor C) — sonst den nächsten Termin. Dazu wer, welche Stufe, was an Geld offen ist und "
+      + "— bei Mara — ihre Zusage an den Kunden. So weißt du, was sie ihm versprochen hat, bevor du wählst.",
+    tipp: "Hat jemand die Zeit nach Maras Buchung geändert, steht dort „Seit Maras Zusage verschoben“ statt ihres Satzes.",
+  },
+  {
+    titel: "Kunde wartet: zuerst das Geld.",
+    text: "Ist ein Termin verstrichen, ohne dass jemand angerufen hat, steht er rot gerahmt unter „Kunde wartet“ — bis zu 14 "
+      + "Tage lang, A vor B vor offener Rate vor C, dann nach Betrag; der dringendste steht oben im Glas. Darunter Heute, "
+      + "Morgen, Diese Woche; Später und Erledigtes sind zugeklappt.",
+  },
+  {
+    ziel: ".mt-knoepfe",
+    titel: "Anrufen, dann ein Knopf.",
+    text: "„Anrufen“ wählt (am iPhone sichert es zuerst den Kontakt), „Akte“ öffnet die Akte. Danach „Erledigt“ oder "
+      + "„Nicht erreicht“ — sonst setzt das System den Termin nach zwölf Stunden auf „verpasst“, und Mara entschuldigt sich "
+      + "beim Kunden für ein Gespräch, das stattgefunden hat.",
+    tipp: "„Nicht erreicht“ zählt als erfolgloser Versuch; ab dem sechsten bekommt der Kunde die Mail mit seinem Terminlink. "
+      + "Startgespräche schließt du in der Akte ab — dort hängen Freischaltung und Gutschrift.",
   },
 ];
 
@@ -1620,6 +1670,7 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },
+  maraTermine: { titel: "Termine", schritte: RUNDGANG_MARA_TERMINE },
   leadMotor:   { titel: "Lead-Motor", schritte: RUNDGANG_LEAD_MOTOR },
   whatsapp:    { titel: "WhatsApp", schritte: RUNDGANG_WHATSAPP },
   global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },

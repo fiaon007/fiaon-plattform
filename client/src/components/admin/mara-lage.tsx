@@ -12,7 +12,7 @@
 //
 // ── SCHNITTSTELLE (auch in scratchpad/e252/schnittstelle.md) ──────────────
 //
-//   <MaraLage>…</MaraLage>            Wurzel (ChefMara). Hält fünf Quellen,
+//   <MaraLage>…</MaraLage>            Wurzel (ChefMara). Hält sechs Quellen,
 //                                     den Reiter und die Sprünge.
 //
 //   useMaraDaten<T>(schluessel, url)  → { daten, laedt, fehler, neu, geladenAm }
@@ -22,6 +22,7 @@
 //       "auskunft"  "/chef/auskunft"
 //       "bilanz"    "/chef/mara/bilanz"
 //       "auftraege" "/chef/mara/auftraege"
+//       "termine"   "/chef/mara/termine"        (E-260, Reiter „Termine")
 //     Im Steuerpult: die Instanz der Wurzel. Außerhalb (z. B. eine Seite, die
 //     dieselbe Komponente allein zeigt): eine eigene useDaten-Instanz — die
 //     Hook-Regel bleibt gewahrt, weil immer dieselben Haken laufen.
@@ -43,7 +44,7 @@
 //           naechsteGruppe (nächster Schritt WhatsApp), betragTextCents.
 //
 // Sprungziele: Jeder Reiter trägt an seinem Hauptschalter
-//   data-mara-schalter="whatsapp" | "mail" | "auskunft"
+//   data-mara-schalter="whatsapp" | "mail" | "auskunft" | "termine"
 // — die Zellen der Leiste springen dorthin und heben ihn kurz hervor.
 // ═══════════════════════════════════════════════════════════════════════════
 import {
@@ -53,13 +54,15 @@ import {
 import { useDaten, ruhig } from "./chef-teile";
 
 // ── Quellen ────────────────────────────────────────────────────────────────
-export type MaraQuelle = "lage" | "stand" | "auskunft" | "bilanz" | "auftraege";
+export type MaraQuelle = "lage" | "stand" | "auskunft" | "bilanz" | "auftraege" | "termine";
 export const MARA_QUELLEN: Record<MaraQuelle, string> = {
   lage: "/chef/wa-zentrale/lage",
   stand: "/chef/mara/stand",
   auskunft: "/chef/auskunft",
   bilanz: "/chef/mara/bilanz",
   auftraege: "/chef/mara/auftraege",
+  // E-260 (29.09.2026): Reiter „Termine" — die Zahlmarke „n warten" am Reiter liest dieselbe Instanz.
+  termine: "/chef/mara/termine",
 };
 const ALLE_QUELLEN = Object.keys(MARA_QUELLEN) as MaraQuelle[];
 
@@ -71,7 +74,7 @@ export interface MaraGeladen<T> {
 }
 
 // ── Reiter, Wege, Sprünge ──────────────────────────────────────────────────
-export type MaraReiter = "whatsapp" | "mail" | "auskunft";
+export type MaraReiter = "whatsapp" | "mail" | "auskunft" | "termine";
 export type AuskunftAnsicht = "verkauf" | "beschaffung";
 /** Die drei Wege der Leiste — je einer mit Hauptschalter. */
 export type MaraWeg = "whatsapp" | "mail" | "auskunft";
@@ -90,7 +93,7 @@ interface ZeigenOptionen { reiter?: MaraReiter; ansicht?: AuskunftAnsicht; hervo
 
 export interface MaraLageWert {
   quellen: Record<MaraQuelle, MaraGeladen<unknown>>;
-  /** Alle fünf Quellen sofort neu. */
+  /** Alle sechs Quellen sofort neu. */
   alleNeu: () => void;
   reiter: MaraReiter;
   ansicht: AuskunftAnsicht;
@@ -107,38 +110,40 @@ export interface MaraLageWert {
 
 const Kontext = createContext<MaraLageWert | null>(null);
 
-/** Reiter und Ansicht aus der Adresse: ?reiter=mail|auskunft, &ansicht=beschaffung (E-229, E-243). */
+/** Reiter und Ansicht aus der Adresse: ?reiter=mail|auskunft|termine, &ansicht=beschaffung (E-229, E-243, E-260). */
 function ausAdresse(): { reiter: MaraReiter; ansicht: AuskunftAnsicht } {
   try {
     const q = new URLSearchParams(window.location.search);
     const r = q.get("reiter");
     return {
-      reiter: r === "mail" ? "mail" : r === "auskunft" ? "auskunft" : "whatsapp",
+      reiter: r === "mail" ? "mail" : r === "auskunft" ? "auskunft" : r === "termine" ? "termine" : "whatsapp",
       ansicht: q.get("ansicht") === "beschaffung" ? "beschaffung" : "verkauf",
     };
   } catch { return { reiter: "whatsapp", ansicht: "verkauf" }; }
 }
 
 export function MaraLage({ children }: { children: ReactNode }) {
-  // Fünf Quellen, je einmal. Die Reihenfolge der Haken ist fest.
+  // Sechs Quellen, je einmal (E-260: + termine). Die Reihenfolge der Haken ist fest.
   const lage = useDaten<unknown>(MARA_QUELLEN.lage);
   const stand = useDaten<unknown>(MARA_QUELLEN.stand);
   const auskunft = useDaten<unknown>(MARA_QUELLEN.auskunft);
   const bilanz = useDaten<unknown>(MARA_QUELLEN.bilanz);
   const auftraege = useDaten<unknown>(MARA_QUELLEN.auftraege);
-  const roh = { lage, stand, auskunft, bilanz, auftraege };
+  const termine = useDaten<unknown>(MARA_QUELLEN.termine);
+  const roh = { lage, stand, auskunft, bilanz, auftraege, termine };
   const rohRef = useRef(roh);
   rohRef.current = roh;
 
   // Wann jede Quelle zuletzt Daten brachte — useDaten merkt sich das nicht.
   const [geladenAm, setGeladenAm] = useState<Record<MaraQuelle, number | null>>(
-    { lage: null, stand: null, auskunft: null, bilanz: null, auftraege: null });
+    { lage: null, stand: null, auskunft: null, bilanz: null, auftraege: null, termine: null });
   const merke = (q: MaraQuelle) => setGeladenAm((alt) => ({ ...alt, [q]: Date.now() }));
   useEffect(() => { if (lage.daten) merke("lage"); }, [lage.daten]);
   useEffect(() => { if (stand.daten) merke("stand"); }, [stand.daten]);
   useEffect(() => { if (auskunft.daten) merke("auskunft"); }, [auskunft.daten]);
   useEffect(() => { if (bilanz.daten) merke("bilanz"); }, [bilanz.daten]);
   useEffect(() => { if (auftraege.daten) merke("auftraege"); }, [auftraege.daten]);
+  useEffect(() => { if (termine.daten) merke("termine"); }, [termine.daten]);
 
   // Stabile neu()-Funktionen: Wer sie in einen Effekt schreibt, löst keine Schleife aus.
   const neuFuer = useMemo(() => {
@@ -149,7 +154,7 @@ export function MaraLage({ children }: { children: ReactNode }) {
   const zuletzt = useRef(Date.now());
   // Wann jede Quelle zuletzt ANGEFORDERT wurde (nicht: Daten brachte) — für den Takt je Quelle.
   const angefordert = useRef<Record<MaraQuelle, number>>(
-    { lage: Date.now(), stand: Date.now(), auskunft: Date.now(), bilanz: Date.now(), auftraege: Date.now() });
+    { lage: Date.now(), stand: Date.now(), auskunft: Date.now(), bilanz: Date.now(), auftraege: Date.now(), termine: Date.now() });
   const alleNeu = useCallback(() => {
     zuletzt.current = Date.now();
     for (const q of ALLE_QUELLEN) { angefordert.current[q] = Date.now(); rohRef.current[q].neu(); }
@@ -175,6 +180,8 @@ export function MaraLage({ children }: { children: ReactNode }) {
       if (q === "stand") return r === "mail" ? 60_000 : 300_000;
       if (q === "auskunft") return r === "auskunft" ? 60_000 : 300_000;
       if (q === "auftraege") return 120_000;
+      // E-260: offener Reiter jede Minute (Justin telefoniert daneben), sonst alle 5 Minuten für die Zahlmarke.
+      if (q === "termine") return r === "termine" ? 60_000 : 300_000;
       return 300_000; // bilanz — am Server 60 s zwischengespeichert, Geld ändert sich selten
     };
     const faellige = () => {
@@ -199,6 +206,7 @@ export function MaraLage({ children }: { children: ReactNode }) {
       const u = new URL(window.location.href);
       if (reiter === "whatsapp") u.searchParams.delete("reiter"); else u.searchParams.set("reiter", reiter);
       if (reiter === "auskunft" && ansicht === "beschaffung") u.searchParams.set("ansicht", "beschaffung"); else u.searchParams.delete("ansicht");
+      if (reiter !== "termine") u.searchParams.delete("termin"); // E-260: der Sprung zu einer Terminzeile gilt nur im Reiter „Termine"
       window.history.replaceState(null, "", u.toString());
     } catch { /* Adresse bleibt, der Reiter wechselt trotzdem */ }
   }, []);

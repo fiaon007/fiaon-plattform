@@ -930,41 +930,16 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
       return res.json({ ok: true, hinweis: erg.hinweis });
     }
 
-    // COALESCE: Eine fehlende Notiz ist keine Anweisung zum Löschen — dieselbe
-    // Lehre wie im Onboarding-Weg (19.08.2026), hier stand sie noch nicht.
-    await sqlPool`
-      UPDATE fiaon_termine SET status = ${String(ergebnis)}, erledigt_am = NOW(),
-             notiz = COALESCE(${notiz ? String(notiz).slice(0, 4000) : null}, notiz), updated_at = NOW()
-      WHERE id = ${id}
-    `;
-
-    let hinweis = "Termin als erledigt vermerkt.";
-    if (ergebnis === "verpasst") {
-      await sqlPool`
-        UPDATE fiaon_persons SET unreachable_count = unreachable_count + 1, updated_at = NOW()
-        WHERE id = ${termin.person_id}
-      `;
-      const { automatikNachFehlversuch } = await import("../lib/fiaon-nicht-erreicht");
-      const wirkung = await automatikNachFehlversuch(Number(termin.person_id));
-      hinweis = `Nicht erschienen — zählt als erfolgloser Versuch.${wirkung.hinweis ? ` ${wirkung.hinweis}` : ""}`;
-    } else {
-      const { erreichtZuruecksetzen } = await import("../lib/fiaon-nicht-erreicht");
-      await erreichtZuruecksetzen(Number(termin.person_id));
-    }
-
-    const [ref] = (await sqlPool`
-      SELECT ref FROM fiaon_applications
-      WHERE person_id = ${termin.person_id} AND merged_into IS NULL AND archived_at IS NULL
-      ORDER BY created_at DESC LIMIT 1
-    `) as any[];
-    if (ref) {
-      await sqlPool`
-        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
-        VALUES (${ref.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                ${`Termin ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr: ${ergebnis === "erledigt" ? "erledigt" : "Kunde nicht erschienen"}.${notiz ? ` ${String(notiz).slice(0, 500)}` : ""}`},
-                NOW())
-      `.catch((e) => console.error(`[TERMIN] Verlaufseintrag zum Ergebnis von Termin ${id} nicht geschrieben — die Akte zeigt das Gespraech nicht:`, e));
-    }
+    // E-260 (29.09.2026): Der Kern (Status, Zähler, Nicht-erreicht-Automatik,
+    // Verlauf) steht jetzt in server/lib/fiaon-termin-ergebnis.ts — derselbe
+    // Weg für den Reiter „Termine" im Mara-Steuerpult (/chef/mara/termine/:id/ergebnis).
+    const { terminErgebnisSetzen } = await import("../lib/fiaon-termin-ergebnis");
+    const { hinweis } = await terminErgebnisSetzen({
+      terminId: id, personId: Number(termin.person_id), beginn: termin.beginn,
+      ergebnis: String(ergebnis) === "erledigt" ? "erledigt" : "verpasst",
+      notiz: notiz ? String(notiz) : null,
+      akteur: { id: req.agent!.id, name: req.agent!.name },
+    });
     res.json({ ok: true, hinweis });
   } catch (err) {
     console.error("[TERMIN] ergebnis:", err);

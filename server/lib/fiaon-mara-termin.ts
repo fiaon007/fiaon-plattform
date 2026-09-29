@@ -44,6 +44,9 @@ import {
 import { berlinDatum, berlinWochentag, zeitZuMinuten, parseBerlinInput } from "./fiaon-time";
 import { berlinWochentagName } from "./fiaon-termin-meldung";
 import { zeitFuerKunde, uhrzeitenIn, type AbweichungsGrund } from "@shared/fiaon-mara-ton";
+import {
+  vertretungFuerPerson, freiePlaetzeVertreter, belegtFuerVertreter, anruferFuer, abwesenheitJetzt, istAbwesend, bisText,
+} from "./fiaon-abwesenheit";
 
 type Lauf = typeof sqlPool;
 
@@ -191,9 +194,23 @@ export interface Angebot {
   slots: Slot[];
   /** Wer anruft, wenn es einen festen gibt. */
   agent: Zustaendig | null;
-  /** „betreuer" = nur seine Zeiten; „pool" = Terminseite mit Lastverteilung. */
-  weg: "betreuer" | "pool" | "keiner";
+  /**
+   * „betreuer" = nur seine Zeiten; „pool" = Terminseite mit Lastverteilung;
+   * „abwesenheit" (E-260) = Team abwesend: vor „bis" die Zeiten des Vertreters,
+   * danach wieder die des Betreuers.
+   */
+  weg: "betreuer" | "pool" | "abwesenheit" | "keiner";
   grund: string | null;
+  /** E-260: gesetzt, wenn die Abwesenheit für diesen Menschen gilt. */
+  abwesenheit?: {
+    vertreterId: number; vertreterName: string; anrufName: string; bis: string; betreuer: { id: number; vorname: string } | null;
+    /**
+     * Wessen Plätze ab „bis" gelten (Gegenprüfung 29.09.): der Betreuer, der
+     * Vertreter (er ist selbst der Betreuer), der Pool (kein buchbarer Betreuer —
+     * dann ruft, wer den Platz hat) oder niemand. `agent` = wer dann anruft.
+     */
+    nach: { weg: "betreuer" | "vertreter" | "pool" | "keiner"; agent: Zustaendig | null };
+  } | null;
 }
 
 /** Überschneidet sich [beginn, beginn+dauer) mit einem gebuchten Termin des Mitarbeiters? */
@@ -214,6 +231,65 @@ async function belegteZeiten(agentIds: number[], lauf: Lauf): Promise<Map<number
 }
 
 export async function freieZeiten(personId: number, lauf: Lauf = sqlPool): Promise<Angebot> {
+  // ── E-260 (29.09.2026): TEAM ABWESEND — DER VERTRETER RUFT AN ──────────
+  // Justin: „Die anderen Mitarbeiter arbeiten erst wieder am Freitag. Bis dahin
+  // schupfe ich das ganze." Gilt die Abwesenheit für diesen Menschen (sein
+  // Betreuer ist weg, oder er hat keinen, der Rückrufe führen kann), bucht Mara
+  // vor „bis" NUR im Kalender des Vertreters — sein Raster, 20 Minuten Vorlauf,
+  // und belegt ist auch, was er für die Abwesenden anrufen muss (B4). Nach
+  // „bis" wieder beim Betreuer: Er ist dann zurück. Regeln: fiaon-abwesenheit.ts.
+  const vt = await vertretungFuerPerson(personId, lauf).catch((e) => {
+    console.error("[MARA-TERMIN] Abwesenheit nicht lesbar — Mara bucht wie ohne:", String((e as Error)?.message ?? e).slice(0, 160));
+    return null;
+  });
+  if (vt) {
+    const v = vt.ab.vertreter;
+    const bisMs = vt.ab.bis.getTime();
+    const vor = await freiePlaetzeVertreter(vt.ab, MARA_VORLAUF_MIN, lauf);
+    // Ab „bis" der normale Weg — Gegenprüfung 29.09.: vorher gab es nach „bis" nur
+    // Plätze eines buchbaren Betreuers. Kunden ohne einen (40 % von Maras Buchungen
+    // liefen über den Pool) bekamen nur Justins Zeiten vor „bis" — ab Do 18 Uhr gar
+    // keine, und der Terminlink war gesperrt: eine Sackgasse.
+    let nach: Slot[] = [];
+    let nachWeg: NonNullable<Angebot["abwesenheit"]>["nach"] = { weg: "keiner", agent: null };
+    if (vt.betreuer && vt.betreuer.id === v.id) {
+      // Der Vertreter IST sein Betreuer: nach „bis" weiter bei ihm.
+      nach = await freiePlaetzeVertreter(vt.ab, MARA_VORLAUF_MIN, lauf, { nachBis: true });
+      nachWeg = { weg: "vertreter", agent: { id: v.id, vorname: v.anrufName, name: v.name } };
+    } else if (vt.betreuer && vt.betreuerBuchbar) {
+      const roh = (await rohSlots([{ id: vt.betreuer.id, vorname: vt.betreuer.vorname }], 20, lauf, MARA_VORLAUF_MIN * 60_000))
+        .filter((s) => new Date(s.beginn).getTime() >= bisMs);
+      const belegt = (await belegteZeiten([vt.betreuer.id], lauf)).get(vt.betreuer.id) ?? [];
+      nach = roh.filter((s) => {
+        const von = new Date(s.beginn).getTime();
+        return !belegt.some((b) => b.von < von + 20 * 60_000 && b.bis > von);
+      });
+      nachWeg = { weg: "betreuer", agent: { id: vt.betreuer.id, vorname: vt.betreuer.vorname, name: vt.betreuer.name } };
+    } else {
+      // Kein buchbarer Betreuer (keiner, gesperrt, inaktiv, Testkonto, Forderungsmanagement):
+      // wie ohne Abwesenheit der Pool der Terminseite — nur die Plätze ab „bis".
+      const pool = (await freieSlots(personId, lauf, QUELLE)).slots.filter((s) => new Date(s.beginn).getTime() >= bisMs);
+      const belegt = await belegteZeiten(Array.from(new Set(pool.map((s) => s.agentId))), lauf);
+      nach = pool.filter((s) => {
+        const von = new Date(s.beginn).getTime();
+        return !(belegt.get(s.agentId) ?? []).some((b) => b.von < von + 20 * 60_000 && b.bis > von);
+      });
+      nachWeg = { weg: nach.length ? "pool" : "keiner", agent: null };
+    }
+    const slots = [...vor, ...nach].sort((a, b) => a.beginn.localeCompare(b.beginn));
+    return {
+      slots,
+      agent: { id: v.id, vorname: v.anrufName, name: v.name },
+      weg: slots.length ? "abwesenheit" : "keiner",
+      grund: `${vt.betreuer ? `Betreuer ${vt.betreuer.vorname} (#${vt.betreuer.id})` : "kein Betreuer"} — Team bis ${bisText(vt.ab.bis)} abwesend, ${v.name} ruft an`,
+      abwesenheit: {
+        vertreterId: v.id, vertreterName: v.name, anrufName: v.anrufName, bis: vt.ab.bis.toISOString(),
+        betreuer: vt.betreuer ? { id: vt.betreuer.id, vorname: vt.betreuer.vorname } : null,
+        nach: nachWeg,
+      },
+    };
+  }
+
   const { agent, grund } = await betreuerFuerRueckruf(personId, lauf);
   let slots: Slot[];
   let weg: Angebot["weg"];
@@ -224,6 +300,10 @@ export async function freieZeiten(personId: number, lauf: Lauf = sqlPool): Promi
     // Wie die Terminseite: Pool mit Lastverteilung, gesperrte zählen nicht (freieSlots).
     const a = await freieSlots(personId, lauf, QUELLE);
     slots = a.slots;
+    // E-260 (Gegenprüfung 29.09.): Sind nur einzelne abwesend, bleibt ein Kunde ohne
+    // buchbaren Betreuer im Pool — aber vor „bis" zählen dort nur die Anwesenden.
+    const ab = await abwesenheitJetzt(lauf).catch(() => null);
+    if (ab) slots = slots.filter((s) => !istAbwesend(ab, s.agentId, s.beginn));
     weg = slots.length ? "pool" : "keiner";
   }
   // rohSlots kennt nur „gleicher Beginn" — hier zählt jede Überschneidung mit Dauer.
@@ -284,8 +364,12 @@ async function terminLesen(id: number, lauf: Lauf): Promise<TerminInfo | null> {
       FROM fiaon_termine t JOIN fiaon_agents a ON a.id = t.agent_id WHERE t.id = ${id}`) as any[];
   if (!t) return null;
   const b = new Date(t.beginn);
+  // E-260 (B2): Liegt der Termin bei einem Abwesenden (vor „bis"), ruft der
+  // Vertreter an — dann nennt jeder Satz („Genau, … ruft Sie … an") ihn. Alle
+  // Sätze lesen `vorname` von hier, ein Eingriff reicht.
+  const vorname = await anruferFuer(Number(t.agent_id), b, String(t.vorname), lauf);
   return {
-    id: Number(t.id), agentId: Number(t.agent_id), agentName: String(t.name), vorname: String(t.vorname),
+    id: Number(t.id), agentId: Number(t.agent_id), agentName: String(t.name), vorname,
     beginn: b.toISOString(), wochentag: berlinWochentagName(b), datum: berlinDatumText(b), uhrzeit: berlinUhrzeit(b),
     text: slotText(b), storno: t.storno_token ? stornoLink(String(t.storno_token)) : null,
     kundenText: zeitFuerKunde(b),
@@ -437,16 +521,29 @@ export async function rueckrufBuchen(
         ? angebot.slots.slice().sort((a, b) => Math.abs(new Date(a.beginn).getTime() - naeher.getTime()) - Math.abs(new Date(b.beginn).getTime() - naeher.getTime())).slice(0, 3)
           .sort((a, b) => a.beginn.localeCompare(b.beginn))
         : vorschlaege(angebot.slots);
-      const wer = angebot.agent?.vorname ?? "jemand aus dem Team";
+      // E-260 (Gegenprüfung 29.09.): Bei Abwesenheit gelten ab „bis" die Plätze des Betreuers
+      // (bzw. des Pools) — dann nennt die Meldung DESSEN Namen und Arbeitszeit, nicht den Vertreter.
+      const ab = angebot.abwesenheit ?? null;
+      const zustaendig: Zustaendig | null = ab && naeher && naeher.getTime() >= new Date(ab.bis).getTime() ? ab.nach.agent : angebot.agent;
       const tag = naeher ? berlinDatum(naeher) : null;
-      const az = tag && angebot.agent ? await arbeitszeitAm(angebot.agent.id, tag, lauf) : null;
+      const az = tag && zustaendig ? await arbeitszeitAm(zustaendig.id, tag, lauf) : null;
+      // Bei Abwesenheit ruft je nach Zeit ein anderer an — Mara bekommt es je Alternative.
+      const werJe = ab && alt.length
+        ? ` (wer anruft: ${alt.map((s) => `${slotText(s.beginn)} ${s.agentVorname}`).join(", ")})`
+        : "";
       return await nichtMoeglich("nicht_frei",
-        `zu der gewünschten Zeit ist ${wer} nicht frei${az ? ` (Arbeitszeit an dem Tag: ${az})` : angebot.agent && tag ? " (an dem Tag keine Arbeitszeit)" : ""}`, alt);
+        (zustaendig
+          ? `zu der gewünschten Zeit ist ${zustaendig.vorname} nicht frei${az ? ` (Arbeitszeit an dem Tag: ${az})` : tag ? " (an dem Tag keine Arbeitszeit)" : ""}`
+          : "zu der gewünschten Zeit ist niemand aus dem Team frei") + werJe, alt);
     }
 
     // Nachbesserung E-248: Einen Termin, den der Kunde selbst gebucht hat, verschiebt Mara
     // nur zu DEMSELBEN Betreuer — sonst übernimmt der Betreuer.
-    if (bestehend && w.verschieben && kundeSelbst && slot.agentId !== bestehend.agentId) {
+    // E-260: Liegt sein Termin bei einem Abwesenden und der neue Platz beim Vertreter, ist das derselbe
+    // Mensch am Telefon — dann darf Mara verschieben.
+    const zumVertreter = !!angebot.abwesenheit && slot.agentId === angebot.abwesenheit.vertreterId
+      && !!bestehend && istAbwesend(await abwesenheitJetzt(lauf).catch(() => null), bestehend.agentId, bestehend.beginn);
+    if (bestehend && w.verschieben && kundeSelbst && slot.agentId !== bestehend.agentId && !zumVertreter) {
       return await nichtMoeglich("anderer_betreuer",
         `zu der Zeit hat ${bestehend.vorname} keinen freien Platz — sag ihm, dass du ${bestehend.vorname} Bescheid gibst; sein Termin ${bestehend.kundenText} bleibt bis dahin stehen`, [], { termin_id: bestehend.id });
     }
@@ -458,8 +555,12 @@ export async function rueckrufBuchen(
       const t = zeit.getTime();
       if (t < Date.now() + MARA_VORLAUF_MIN * 60_000) abGrund = "vorlauf";
       else {
-        const bel = await belegteZeiten([slot.agentId], lauf).catch(() => new Map<number, { von: number; bis: number }[]>());
-        abGrund = (bel.get(slot.agentId) ?? []).some((b) => b.von < t + 20 * 60_000 && b.bis > t) ? "belegt" : "raster";
+        // E-260: Beim Vertreter ist auch belegt, was er für die Abwesenden anruft.
+        const akt = angebot.abwesenheit && slot.agentId === angebot.abwesenheit.vertreterId ? await abwesenheitJetzt(lauf).catch(() => null) : null;
+        const liste = akt
+          ? await belegtFuerVertreter(akt, lauf).catch(() => [] as { von: number; bis: number }[])
+          : ((await belegteZeiten([slot.agentId], lauf).catch(() => new Map<number, { von: number; bis: number }[]>())).get(slot.agentId) ?? []);
+        abGrund = liste.some((b) => b.von < t + 20 * 60_000 && b.bis > t) ? "belegt" : "raster";
       }
     }
 
@@ -475,10 +576,15 @@ export async function rueckrufBuchen(
     }
     const jetzt = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date());
     const wunschText = zeit ? `Wunsch ${berlinUhrzeit(zeit)} Uhr` : `Wunsch ${von ? berlinUhrzeit(von) : "…"}–${bis ? berlinUhrzeit(bis) : "…"} Uhr`;
-    const notiz = `Rückruf, von Mara per WhatsApp vereinbart (${jetzt}, ${wunschText}). ${String(w.anliegen || "").trim()}`.slice(0, 800);
+    // E-260: beim Vertreter gebucht? Dann steht in der Notiz, für wen er einspringt — und der Kunde
+    // wird NICHT an ihn gebunden (B10: die Zuordnung bleibt, wie sie ist).
+    const ab = angebot.abwesenheit ?? null;
+    const beimVertreter = !!ab && slot.agentId === ab.vertreterId;
+    const inVertretung = beimVertreter ? ` — in Abwesenheit von ${ab!.betreuer?.vorname ?? "dem Team"}, bei ${ab!.vertreterName}` : "";
+    const notiz = `Rückruf, von Mara per WhatsApp vereinbart (${jetzt}, ${wunschText})${inVertretung}. ${String(w.anliegen || "").trim()}`.slice(0, 800);
     await lauf`UPDATE fiaon_termine SET notiz = ${notiz}, updated_at = NOW() WHERE id = ${buchung.id}`;
     // Meldet den Mitarbeiter (eine Mail), Wiedervorlage, Wartezustand — nicht zusätzlich buchungMelden.
-    await buchungAnwenden(buchung, lauf);
+    await buchungAnwenden(buchung, lauf, { zuordnen: !beimVertreter });
     await versuchProtokollieren({ ergebnis: "gebucht", personId: ctx.personId, leadId: ctx.leadId ?? null, slotBeginn: slot.beginn, agentId: slot.agentId, quelle: QUELLE, akteur: "mara" }, lauf);
 
     // Die Wahrheit steht in der gespeicherten Zeile — von dort liest Mara Zeit und Namen.
@@ -493,7 +599,7 @@ export async function rueckrufBuchen(
           personId: ctx.personId, ref: null, anBetreiber: true, dringend: true,
           titel: `Mara-Termin #${buchung.id}: Zeit weicht ab`,
           text: `Mara hat gebucht (Platz ${slot.beginn}), gespeichert ist ${termin?.beginn ?? "nichts"}. Bitte Kalender und WhatsApp (+${ctx.nummer}) prüfen; der Kunde hat noch keine Uhrzeit bekommen.`,
-          quelle: "mara-whatsapp", link: "/chef/s/mara", schluessel: `mara-termin-pruefung-${buchung.id}`,
+          quelle: "mara-whatsapp", link: `/chef/s/mara?reiter=termine&termin=${buchung.id}`, schluessel: `mara-termin-pruefung-${buchung.id}`,
         } as any);
       } catch (e) { console.error("[MARA-TERMIN] Abweichungs-Aufgabe:", e); }
       return { ok: false, grund: "abweichung", meldung: "die Buchung ist nicht sauber gespeichert — ein Mensch prüft das" };
@@ -502,18 +608,23 @@ export async function rueckrufBuchen(
     // Verschieben: erst der neue Termin, dann der alte weg (keine Lücke).
     let verschoben: string | null = null;
     if (bestehend && w.verschieben && bestehend.stornoToken) {
-      await terminAbsagen(bestehend.stornoToken, "agent", lauf).catch((e) => console.error("[MARA-TERMIN] Alter Termin nicht abgesagt:", e));
+      // E-260 (B8): „verschoben" statt „agent" — keine Absagemail an den Kunden (er hat die neue Zeit
+      // eben bekommen), die alte Zeit wird wieder frei, der Mitarbeiter liest „verschoben durch Mara".
+      await terminAbsagen(bestehend.stornoToken, "verschoben", lauf).catch((e) => console.error("[MARA-TERMIN] Alter Termin nicht abgesagt:", e));
       verschoben = bestehend.text;
     }
 
-    const satz = `${verschoben ? `Rückruf verschoben (vorher ${verschoben}): ` : "Rückruf eingetragen: "}${termin.wochentag}, ${termin.datum}, ${termin.uhrzeit} Uhr bei ${termin.agentName}`;
+    const satz = `${verschoben ? `Rückruf verschoben (vorher ${verschoben}): ` : "Rückruf eingetragen: "}${termin.wochentag}, ${termin.datum}, ${termin.uhrzeit} Uhr bei ${termin.agentName}${beimVertreter ? ` (vertritt ${ab!.betreuer?.vorname ?? "das Team"} bis ${bisText(ab!.bis)})` : ""}`;
     // E-248 (Befund #294): Weicht der gebuchte Platz von seiner genauen Wunschzeit ab, erfährt er es.
     const abweichung = zeit && berlinUhrzeit(zeit) !== termin.uhrzeit ? { wunsch: berlinUhrzeit(zeit), gebucht: termin.uhrzeit, grund: abGrund ?? "raster" } : null;
     await protokollieren({
       art: verschoben ? "termin_verschoben" : "termin_gebucht", ok: true, nummer: ctx.nummer, personId: ctx.personId,
       leadId: ctx.leadId ?? null, terminId: termin.id,
       text: `${satz} (${wunschText}).`,
-      daten: { termin_id: termin.id, agent_id: termin.agentId, beginn: termin.beginn, wunsch: w, weg: angebot.weg, betreuer_grund: angebot.grund },
+      daten: {
+        termin_id: termin.id, agent_id: termin.agentId, beginn: termin.beginn, wunsch: w, weg: angebot.weg, betreuer_grund: angebot.grund,
+        ...(beimVertreter ? { abwesend: ab!.betreuer?.id ?? null, vertreter: ab!.vertreterId, bis: ab!.bis } : {}),
+      },
     }, lauf);
     try {
       const { waAktenvermerk } = await import("./fiaon-whatsapp");
@@ -534,6 +645,33 @@ export async function terminlinkFuer(
   const bestehend = await kuenftigerTermin(ctx.personId, lauf);
   if (bestehend) {
     return { ok: false, meldung: `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.vorname} — keinen Link schicken, sondern genau diesen Termin nennen („Genau, ${bestehend.vorname} ruft Sie ${bestehend.kundenText} an.")` };
+  }
+  // E-260 (29.09.2026): Team abwesend — die Terminseite weiß davon nichts: Sie
+  // zeigt den Kalender des Betreuers (bzw. den Pool samt Abwesenden). Statt eines
+  // Links, der ins Leere bucht, bietet Mara zwei Zeiten an und trägt ein —
+  // direkter für den Kunden und wahr. Gegenprüfung 29.09.: gesperrt wird der
+  // Link nur, wenn freie_zeiten auch wirklich Zeiten hat; sonst wäre es eine
+  // Sackgasse (freie_zeiten sagt dann „schick den Terminlink").
+  const ab = await abwesenheitJetzt(lauf).catch(() => null);
+  if (ab) {
+    const vt = await vertretungFuerPerson(ctx.personId, lauf).catch(() => null);
+    const zumPool = !vt && !(await betreuerFuerRueckruf(ctx.personId, lauf)).agent;
+    const angebot = vt || zumPool ? await freieZeiten(ctx.personId, lauf).catch(() => null) : null;
+    if (angebot?.slots.length) {
+      const betreuerWeg = !!vt?.betreuer && vt.betreuer.id !== ab.vertreter.id && vt.betreuerBuchbar;
+      const wer = betreuerWeg ? `Sein Betreuer ${vt!.betreuer!.vorname} ist` : "Das Team ist";
+      await protokollieren({
+        art: "terminlink", ok: false, nummer: ctx.nummer, personId: ctx.personId, leadId: ctx.leadId ?? null,
+        text: `Kein Terminlink: ${wer} bis ${bisText(ab.bis)} nicht (ganz) im Haus — freie Zeiten statt Link.`,
+        daten: { abwesend: vt?.betreuer?.id ?? null, vertreter: ab.vertreter.id, bis: ab.bis.toISOString(), weg: angebot.weg },
+      }, lauf);
+      return {
+        ok: false,
+        meldung: `${wer} bis ${bisText(ab.bis)} nicht ${betreuerWeg ? "im Haus" : "vollständig im Haus"}, die Terminseite weiß davon nichts. Schick keinen Link: `
+          + `Biete ihm zwei freie Zeiten an (freie_zeiten) und trag den Rückruf ein (rueckruf_eintragen)`
+          + (angebot.weg === "abwesenheit" ? " — bei jeder Zeit steht, wer anruft (ruft_an)." : "."),
+      };
+    }
   }
   const { agent } = await betreuerFuerRueckruf(ctx.personId, lauf);
   const basis = terminLink(ctx.personId, MARA_HERKUNFT_LINK);
@@ -573,6 +711,7 @@ export async function maraTermineNachpruefen(lauf: Lauf = sqlPool): Promise<{ ge
        AND (t.beginn > NOW() - INTERVAL '1 day' OR p.pruefung_am IS NULL)
      ORDER BY p.id DESC LIMIT 200`) as any[];
   let fehler = 0;
+  const ab = await abwesenheitJetzt(lauf).catch(() => null);
   for (const z of zeilen) {
     const probleme: string[] = [];
     const gut: string[] = [];
@@ -596,6 +735,10 @@ export async function maraTermineNachpruefen(lauf: Lauf = sqlPool): Promise<{ ge
              AND x.beginn + make_interval(mins => COALESCE(x.dauer_min, 20)) > ${beginn}::timestamptz`) as any[];
         if (Number(ueber?.n || 0) > 0) probleme.push("überschneidet sich mit einem anderen Termin"); else gut.push("keine Überschneidung");
         if (!z.aktiv || z.zugang_gesperrt_am) probleme.push(`${z.agent_name} ist nicht aktiv/gesperrt`);
+        // E-260: kein Fehler, aber ein Hinweis — der Vertreter ruft an (Reiter „Termine").
+        if (z.status === "gebucht" && istAbwesend(ab, Number(z.agent_id), beginn)) {
+          gut.push(`${String(z.agent_name).split(" ")[0]} bis ${bisText(ab!.bis)} abwesend — ${ab!.vertreter.anrufName} ruft an (Reiter „Termine")`);
+        }
         const alt = Date.now() - new Date(z.am).getTime();
         if (z.gemeldet_buchung_am) gut.push(`Mail an ${String(z.agent_name).split(" ")[0]} raus`);
         else if (alt > 5 * 60_000) probleme.push("Mail an den Mitarbeiter nicht raus");
@@ -625,7 +768,7 @@ export async function maraTermineNachpruefen(lauf: Lauf = sqlPool): Promise<{ ge
             personId: z.person_id ?? null, ref: null, anBetreiber: true, dringend: true,
             titel: `Mara-Termin #${z.termin_id} stimmt nicht`,
             text: `Nachprüfung eines von Mara gebuchten Rückrufs: ${probleme.join("; ")}. Bitte im Kalender und im WhatsApp-Verlauf (+${z.nummer ?? "?"}) ansehen.`,
-            quelle: "mara-whatsapp", link: "/chef/s/mara", schluessel: `mara-termin-pruefung-${z.termin_id}`,
+            quelle: "mara-whatsapp", link: `/chef/s/mara?reiter=termine&termin=${z.termin_id}`, schluessel: `mara-termin-pruefung-${z.termin_id}`,
           } as any);
         } catch (e) { console.error("[MARA-TERMIN] Prüf-Aufgabe:", e); }
       }

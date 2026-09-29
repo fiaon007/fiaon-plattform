@@ -27,7 +27,7 @@ import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, formatBerlin, pruefeTerminZukunft } from "../lib/fiaon-time";
 import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis, pruefeNotiz } from "../lib/fiaon-kontakt-ergebnis";
 import { nummerAusZeile } from "../lib/fiaon-telefon";
-import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
+import { terminArtAusQuelle, terminArtRueckruf, absageSatz } from "../../shared/fiaon-termin-art";
 // E-188 (17.09.2026): FIAON Global — Einmalpreis, kein Abo, eigener Provisionssatz (siehe onCustomerPaid).
 import { istGlobalPaket } from "../../shared/fiaon-pakete";
 
@@ -3708,11 +3708,13 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
         terminArtErklaerung: terminArtAusQuelle(t.buchungsquelle).erklaerung,
         abgesagt: t.status === "abgesagt",
         // Der Klartext, der auf der Karte steht — an einer Stelle formuliert.
+        // E-260 (29.09.2026): der Klartext für abgesagt_von aus shared/fiaon-termin-art.ts —
+        // vorher stand bei Maras Verschiebung „… Uhr durch verschoben".
         absageText: t.status === "abgesagt" && t.abgesagt_am
-          ? `Abgesagt am ${new Date(t.abgesagt_am).toLocaleString("de-DE", {
+          ? absageSatz(new Date(t.abgesagt_am).toLocaleString("de-DE", {
               timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit",
               hour: "2-digit", minute: "2-digit",
-            })} Uhr${t.abgesagt_von === "kunde" ? " durch den Kunden" : t.abgesagt_von ? ` durch ${t.abgesagt_von}` : ""}`
+            }), t.abgesagt_von)
           : null,
       })),
     });

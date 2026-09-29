@@ -11,7 +11,7 @@
 // (was es kostet).
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
-import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
+import { requireChef, chefProtokoll, type ChefRequest } from "./fiaon-chef-zugang";
 import { tageslauf } from "../lib/fiaon-crons";
 import { sqlPool } from "../lib/db-pool";
 import {
@@ -449,6 +449,83 @@ router.post("/chef/mara/dauerauftrag/:id", wache, async (req: ChefRequest, res: 
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: "Das ließ sich nicht ändern." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARAS TERMINE — REITER „TERMINE" (29.09.2026, E-260)
+//
+// Justin: „ALLE Termine, die MARA macht, muss ich sehen können als Chef auf
+// einer eigenen übersichtlichen cleanen Seite … Die anderen Mitarbeiter
+// arbeiten erst wieder am Freitag. Bis dahin schupfe ich das ganze."
+//
+//   GET  /chef/mara/termine              die Übersicht (nur lesend)
+//   POST /chef/mara/abwesenheit          { an, bis?, vertreterId?, fuer? }
+//   POST /chef/mara/termine/:id/ergebnis { ergebnis: "erledigt" | "verpasst", notiz? }
+//
+// Stufe „inhaber" wie das ganze Steuerpult. requireChef schreibt jede
+// Nicht-GET-Anfrage ins Chef-Protokoll; die beiden Schreib-Routen setzen dazu
+// eine Zeile mit Ziel und Inhalt (chefProtokoll). Regeln:
+// server/lib/fiaon-abwesenheit.ts, fiaon-termin-uebersicht.ts, fiaon-termin-ergebnis.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/mara/termine", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { terminUebersicht } = await import("../lib/fiaon-termin-uebersicht");
+    res.json(await terminUebersicht({ chefAgentId: req.chef?.agentId ?? null }));
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] termine:", err);
+    res.status(500).json({ ok: false, error: "Die Termine ließen sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/abwesenheit", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const an = req.body?.an === true;
+    const fuer = Array.isArray(req.body?.fuer) ? (req.body.fuer as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n > 0) : null;
+    const vertreterId = Number(req.body?.vertreterId) > 0 ? Number(req.body.vertreterId) : null;
+    const bis = req.body?.bis != null ? String(req.body.bis).slice(0, 40) : null;
+    const { abwesenheitSetzen } = await import("../lib/fiaon-abwesenheit");
+    const r = await abwesenheitSetzen({ an, bis, vertreterId, fuer }, wer(req));
+    if (!r.ok) return res.status(409).json({ ok: false, error: r.fehler });
+    void chefProtokoll(req, "team_abwesenheit", r.was ?? (an ? "an" : "aus"));
+    console.log(`[MARA-STEUERPULT] ${wer(req)}: Team-Abwesenheit ${r.was}`);
+    const { abwesenheitSicht } = await import("../lib/fiaon-termin-uebersicht");
+    res.json({ ok: true, was: r.was ?? null, abwesenheit: await abwesenheitSicht(req.chef?.agentId ?? null) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] abwesenheit:", err);
+    res.status(500).json({ ok: false, error: "Die Abwesenheit ließ sich nicht speichern — Mara bucht weiter wie vorher." });
+  }
+});
+
+router.post("/chef/mara/termine/:id/ergebnis", wache, async (req: ChefRequest, res: Response) => {
+  const id = Number(req.params.id);
+  const ergebnis = String(req.body?.ergebnis ?? "");
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Ungültiger Termin." });
+  if (ergebnis !== "erledigt" && ergebnis !== "verpasst") return res.status(400).json({ ok: false, error: "Ergebnis muss „erledigt“ oder „verpasst“ sein." });
+  try {
+    const [t] = (await sqlPool`
+      SELECT t.id, t.person_id, t.beginn, t.agent_id, t.quelle, t.status,
+             COALESCE(NULLIF(a.first_name, ''), split_part(a.name, ' ', 1)) AS bei
+        FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
+       WHERE t.id = ${id} AND t.status IN ('gebucht', 'verpasst')`) as any[];
+    if (!t) return res.status(404).json({ ok: false, error: "Diesen offenen Termin gibt es nicht mehr — vielleicht hat ihn gerade jemand abgeschlossen. Die Liste lädt neu." });
+    // Startgespräch und FIAON Global haben eigene Wege (Freischaltung und Gutschrift bzw. Firmen-Cockpit).
+    if (String(t.quelle) === "onboarding_call") return res.status(409).json({ ok: false, error: "Ein Startgespräch schließt du in der Akte ab — dort hängen Freischaltung und Gutschrift daran." });
+    if (String(t.quelle) === "global") return res.status(409).json({ ok: false, error: "Ein Erstgespräch zu FIAON Global schließt du im Firmen-Cockpit ab." });
+    const chefId = req.chef?.agentId ?? null;
+    const [ich] = chefId ? (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${chefId}`) as any[] : [null];
+    const fuer = chefId && Number(t.agent_id) !== chefId && t.bei ? `, für ${t.bei}` : "";
+    const { terminErgebnisSetzen } = await import("../lib/fiaon-termin-ergebnis");
+    const erg = await terminErgebnisSetzen({
+      terminId: id, personId: Number(t.person_id), beginn: t.beginn,
+      ergebnis, notiz: req.body?.notiz ? String(req.body.notiz).slice(0, 2000) : null,
+      akteur: { id: chefId, name: `${ich?.name ?? "Inhaber"} (Chefbüro${fuer})` },
+    });
+    void chefProtokoll(req, `termin:${id}`, `${ergebnis} (Agent ${t.agent_id}, Person ${t.person_id})`);
+    res.json({ ok: true, hinweis: erg.hinweis });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] termin-ergebnis:", err);
+    res.status(500).json({ ok: false, error: "Das Ergebnis ließ sich nicht speichern — der Termin steht unverändert." });
   }
 });
 

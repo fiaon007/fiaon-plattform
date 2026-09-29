@@ -152,7 +152,8 @@ async function melden(opts: {
       + (b.ref ? `Bestellung: ${b.ref}\n` : "")
       + (b.notiz ? `\n${vonMara ? "Worum es geht" : "Anliegen"}:\n${b.notiz}\n` : "")
       + `\nZur Akte: ${akte}\n\n`
-      + `Der Termin steht in deinem Kalender und meldet sich 30 Minuten vorher.`
+      // E-263: „in deinem Kalender" stand direkt über den Knöpfen „In Apple-/Outlook-Kalender" — gemeint ist das Portal.
+      + `Der Termin steht im FIAON-Calendar (Portal) und meldet sich dort 30 Minuten vorher.`
     : `Hallo ${b.agentVorname},\n\n`
       + `${b.kunde} hat den Termin ABGESAGT${opts.wer === "kunde" ? "" : ` (${opts.wer ?? "System"})`}.\n\n`
       + `Der Termin war: ${wann}\n`
@@ -177,10 +178,17 @@ async function melden(opts: {
 
   if (!b.agentMail) return { gemeldet: false, grund: "Der Zuständige hat keine E-Mail-Adresse." };
 
+  // E-263 (29.09.2026): die Kalender-Knöpfe. Wirft nie — ohne Links geht die Mail wie vorher raus.
+  const kalender = await kalenderTeile(opts.terminId, b.agentId, opts.art, opts.lauf).catch((e) => {
+    console.error(`[TERMIN-MELDUNG] Kalender-Knöpfe fuer Termin ${opts.terminId} nicht gebaut — die Mail geht ohne sie:`, String(e?.message ?? e).slice(0, 160));
+    return null;
+  });
+
   try {
     const { eigeneMailSenden } = await import("./fiaon-brevo");
     const erg = await eigeneMailSenden({
       an: b.agentMail, name: b.agentVorname, betreff, text,
+      ...(kalender ?? {}),
     });
     if (erg.ok) {
       await opts.lauf`
@@ -196,6 +204,75 @@ async function melden(opts: {
     console.error("[TERMIN-MELDUNG]", err);
     return { gemeldet: false, grund: err instanceof Error ? err.message : String(err) };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE KALENDER-KNÖPFE (29.09.2026, E-263)
+//
+// Justin: „wenn ich so ne Email bekomme von FIAON (Termin-Mail) dann muss ich
+// die auch mit 1 Klick in mein Google oder Apple Kalender hinzufügen können."
+//   Buchung  OHNE laufendes Abo:
+//            · „In Apple-/Outlook-Kalender" (Einzeldatei, UID termin-<id>)
+//            · „In Google Kalender" (Vorlagenlink, ohne Kundennamen)
+//            · „Alle meine Termine automatisch in den Kalender" (Abo-Seite, leise)
+//            MIT laufendem eigenem Abo (Abruf < 48 h): KEINE Einzelknöpfe — der Termin
+//            kommt von selbst, und ein Klick legte ihn in einem zweiten Kalender ein
+//            zweites Mal an (Gegenprüfung 29.09.2026: Apple und Google führen über
+//            Kalendergrenzen nichts zusammen). Nur der Satz und leise die Abo-Seite.
+//   Absage   · „Aus dem Kalender entfernen" — derselbe Einzel-Link liefert für einen
+//            abgesagten Termin METHOD:CANCEL. Google löscht man von Hand. Mit Abo leise
+//            („nur, falls du ihn zusätzlich selbst eingetragen hattest").
+// ═══════════════════════════════════════════════════════════════════════════
+async function kalenderTeile(
+  terminId: number, agentId: number, art: "buchung" | "absage", lauf: Lauf,
+): Promise<{ knoepfe: { text: string; url: string; leise?: boolean }[]; hinweis?: string; knopfFuss?: string } | null> {
+  const k = await import("./fiaon-kalender-abo");
+  const { KALENDER_TEXT } = await import("../../shared/fiaon-kalender-abo");
+  const [t] = (await lauf`
+    SELECT id, agent_id, person_id, quelle, beginn, COALESCE(dauer_min, 20) AS dauer FROM fiaon_termine WHERE id = ${terminId}`) as any[];
+  if (!t) return null;
+  const einzel = k.einzelLink(Number(t.id), Number(t.agent_id));
+  // Das Abo ist Zugabe: Fehlt die Tabelle (vor Migration 085) oder hakt die Abfrage, bleiben die Einzelknöpfe.
+  let aktiv = false;
+  let aboSeite: string | null = null;
+  try {
+    aktiv = await k.aboAktiv(agentId, lauf);
+    const abo = art === "buchung" ? await k.aboHolen(agentId, "eigene", "Termin-Mail", lauf) : null;
+    aboSeite = abo ? k.aboLinks(abo).seite : null;
+  } catch (e) {
+    console.error(`[TERMIN-MELDUNG] Kalender-Abo fuer Agent ${agentId} nicht lesbar:`, String((e as Error)?.message ?? e).slice(0, 160));
+  }
+  if (art === "buchung") {
+    if (aktiv) {
+      return {
+        hinweis: KALENDER_TEXT.mailAktiv,
+        knoepfe: aboSeite ? [{ text: "Mein Kalender-Abo ansehen", url: aboSeite, leise: true }] : [],
+      };
+    }
+    return {
+      knoepfe: [
+        { text: "In Apple-/Outlook-Kalender", url: einzel },
+        { text: "In Google Kalender", url: k.googleTerminLink({ person_id: Number(t.person_id), quelle: String(t.quelle ?? ""), beginn: t.beginn, dauer: Number(t.dauer) }) },
+        ...(aboSeite ? [{ text: "Alle meine Termine automatisch in den Kalender", url: aboSeite, leise: true }] : []),
+      ],
+      // Der Abo-Satz nur, wenn es den Abo-Knopf auch gibt (vor Migration 085 oder bei einem Lesefehler fehlt er).
+      knopfFuss: aboSeite
+        ? `${KALENDER_TEXT.googleEinmal} Richtest du das Abo ein („Alle meine Termine …“), kommen alle Termine von selbst — `
+          + "dann die beiden Knöpfe für diesen Termin nicht mehr nutzen, sonst steht er doppelt."
+        : KALENDER_TEXT.googleEinmal,
+    };
+  }
+  if (aktiv) {
+    return {
+      hinweis: "Dein Kalender-Abo nimmt den Termin von selbst heraus. Nur falls du ihn zusätzlich selbst eingetragen hattest:",
+      knoepfe: [{ text: "Aus dem Kalender entfernen (Apple/Outlook)", url: einzel, leise: true }],
+      knopfFuss: "Über Google eingetragen? Dann dort bitte von Hand löschen.",
+    };
+  }
+  return {
+    knoepfe: [{ text: "Aus dem Kalender entfernen (Apple/Outlook)", url: einzel }],
+    knopfFuss: "Hast du ihn über Google eingetragen, lösch ihn dort bitte von Hand.",
+  };
 }
 
 /** Ein Kunde hat gebucht — der Zuständige erfährt es sofort. */

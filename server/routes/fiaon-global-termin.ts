@@ -171,14 +171,15 @@ router.post("/anfrage", async (req: Request, res: Response) => {
 // ── GET /termine/kalender/<storno-token>.ics ────────────────────────────────
 // Der Link steht in der Bestätigung. Der Storno-Token ist das Geheimnis, das
 // das Unternehmen ohnehin in derselben Mail hält (48 Hex-Zeichen, je Termin).
+// E-263 (Gegenprüfung 29.09.2026): ?sprache=en → englische Datei; abgesagt →
+// METHOD:CANCEL mit derselben UID statt 410 (nimmt das Gespräch aus dem Kalender).
 router.get("/termine/kalender/:datei", async (req: Request, res: Response) => {
   try {
     const token = String(req.params.datei || "").replace(/\.ics$/i, "");
-    const k = await globalKalenderZuToken(token);
+    const k = await globalKalenderZuToken(token, String(req.query.sprache ?? "") === "en" ? "en" : "de");
     if (!k) return res.status(404).type("text/plain").send("Dieser Termin wurde nicht gefunden.");
-    if (k.abgesagt) return res.status(410).type("text/plain").send("Dieser Termin wurde abgesagt.");
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-    res.setHeader("Content-Disposition", "attachment; filename=\"fiaon-global-gespraech.ics\"");
+    res.setHeader("Content-Disposition", `attachment; filename="${k.abgesagt ? "fiaon-global-absage.ics" : "fiaon-global-gespraech.ics"}"`);
     res.setHeader("Cache-Control", "no-store");
     res.send(k.datei);
   } catch (err) {

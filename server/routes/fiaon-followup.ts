@@ -507,7 +507,7 @@ export async function runTerminErinnerungen(): Promise<number> {
       WHERE t.status = 'gebucht' AND t.erinnert_am IS NULL
         AND t.beginn BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
     )
-    RETURNING id, person_id, agent_id, beginn, storno_token, quelle
+    RETURNING id, person_id, agent_id, beginn, storno_token, quelle, dauer_min
   `) as any[];
   if (faellig.length === 0) return 0;
 
@@ -562,7 +562,15 @@ export async function runTerminErinnerungen(): Promise<number> {
         // er noch wichtiger: Sie kommt 24 Stunden vor dem Termin, also genau
         // dann, wenn der Mensch überlegt, was er vorbereiten muss.
         hinweis_anruf: anrufHinweisSie(String(p.agent_vorname || "")),
-        hinweis_absage: ABSAGE_HINWEIS_SIE,
+        // E-263, Gegenprüfung 29.09.2026: Hat Mara den Termin verschoben (Absage + neuer Termin, keine Mail an
+        // den Kunden), steht die alte Zeit womöglich noch in seinem Kalender — der Satz sagt es ihm.
+        hinweis_absage: await import("../lib/fiaon-kalender-abo")
+          .then((k) => k.kalenderAltSatz(Number(t.person_id), Number(t.id)))
+          .then((alt) => (alt ? `${ABSAGE_HINWEIS_SIE} ${alt}` : ABSAGE_HINWEIS_SIE))
+          .catch(() => ABSAGE_HINWEIS_SIE),
+        // E-263 (29.09.2026): „In Ihren Kalender: Apple / Outlook · Google Kalender" — 24 h vorher ist der
+        // Moment, in dem der Termin ins Handy gehört. Ohne Storno-Token entfällt die Zeile (kundenKalenderFelder → {}).
+        ...(await import("../lib/fiaon-kalender-abo").then((k) => k.kundenKalenderFelder({ stornoToken: t.storno_token, beginn: t.beginn, dauerMin: t.dauer_min })).catch(() => ({}))),
       },
       {
         personId: Number(t.person_id),

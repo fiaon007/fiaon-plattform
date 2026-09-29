@@ -317,6 +317,19 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "Richtungen — hat ein Kunde eine Zeit genommen, bekommst du sie nicht mehr angeboten.",
   },
   {
+    // 29.09.2026 (E-263): Justin — „mit 1 Klick in mein Google oder Apple Kalender".
+    ziel: ".ca-abo",
+    titel: "Deine Termine im Handy-Kalender.",
+    text: "„In meinen Kalender“ richtet ein Abo ein: iPhone/Mac mit einem Tipp, Google über „per URL hinzufügen“, "
+      + "Outlook über „Link kopieren“. Danach kommen neue Termine von selbst, verschobene ändern sich, abgesagte "
+      + "verschwinden — nichts steht doppelt. Ein zweiter Klick zeigt, wann dein Kalender zuletzt abgerufen hat.",
+    // Gegenprüfung 29.09.2026: Abo ODER Mail-Knopf — beides zusammen ergibt denselben Termin zweimal.
+    tipp: "Google holt ein Abo nur alle paar Stunden, Apple nach Minuten — was gerade ansteht, zeigt immer dieser Calendar. "
+      + "Mit Abo keinen Termin zusätzlich über den Knopf in der Termin-Mail eintragen, sonst steht er doppelt (die Mail "
+      + "lässt die Knöpfe dann ohnehin weg). Google: beim FIAON-Kalender einmal „Benachrichtigung 10 Minuten vorher“ setzen. "
+      + "Im Kalender steht keine Telefonnummer — angerufen wird über das FIAON-Telefon in der Akte.",
+  },
+  {
     ziel: ".ca-reiter",
     titel: "Tag oder Woche.",
     // 25.08.2026 mitgezogen: Der Kalender öffnet jetzt auf HEUTE (Florentine).
@@ -1344,7 +1357,7 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
 // ── /chef/s/mara?reiter=termine (29.09.2026, E-260) ─────────────────────────
 // Justin: „ALLE Termine, die MARA macht, muss ich sehen können … Die anderen
 // Mitarbeiter arbeiten erst wieder am Freitag. Bis dahin schupfe ich das ganze."
-// Ein Satz je Schritt wie im Steuerpult (E-252). Ziele: .mt-schalter,
+// Ein Satz je Schritt wie im Steuerpult (E-252). Ziele: .mt-schalter, .mt-abo (E-263),
 // .mt-filter, .mt-jetzt, .mt-knoepfe; „Kunde wartet" steht nur, wenn jemand
 // wartet — deshalb ohne Ziel.
 export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
@@ -1357,6 +1370,16 @@ export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
       + "landen auf deinem Board. Die Kunden bleiben bei ihren Betreuern — auch die eines gesperrten Betreuers.",
     tipp: "Beim Einschalten wählst du „bis“ (Vorgabe: der nächste Freitag 09:00), wer anruft und für wen. Nach „bis“ geht "
       + "er von selbst aus; jedes An und Aus steht mit Namen im Chef-Protokoll.",
+  },
+  {
+    // 29.09.2026 (E-263); Gegenprüfung: die zwei Abos überschneiden sich nicht mehr.
+    ziel: ".mt-abo",
+    titel: "Termine in deinem Kalender — zwei Abos.",
+    text: "„Meine Termine“ ist alles, was bei deinem Konto steht (Gründer-Gespräche, Maras Rückrufe in Abwesenheit); "
+      + "„Termine des Teams“ sind die der Mitarbeiter, mit dem Namen vorn — ohne deine. Für alles beide abonnieren "
+      + "(iPhone/Mac, Google oder Link kopieren): Jeder Termin steht genau einmal da, neu kommt dazu, abgesagt verschwindet.",
+    tipp: "„Neuen Link erzeugen“ macht den alten sofort tot — der alte Kalender wird leer; einmal neu abonnieren und den "
+      + "leeren löschen. Google holt nur alle paar Stunden; was gerade ansteht, siehst du hier in der Liste.",
   },
   {
     ziel: ".mt-filter",

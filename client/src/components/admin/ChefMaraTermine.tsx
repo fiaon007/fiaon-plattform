@@ -26,9 +26,11 @@
 // Wurzel des Steuerpults (Quelle „termine", jede Minute bei offenem Reiter).
 // Server: GET /chef/mara/termine, POST /chef/mara/abwesenheit,
 // POST /chef/mara/termine/:id/ergebnis (server/routes/fiaon-mara-steuerpult.ts).
+// E-263 (29.09.2026): darunter die Karte „Termine in deinem Kalender" (.mt-abo) —
+// zwei Kalender-Abos (meine / alle des Teams), GET/POST /chef/mara/kalender-abo.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { API, eur, zahl, Geruest, Fehlermeldung } from "./chef-teile";
+import { API, eur, zahl, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { useMaraDaten, useMaraLage, useMaraRundgang, useMeldung, Meldung, InfoKnopf, MARA_QUELLEN, berlinTag, uhrBerlin, tagNur } from "./mara-lage";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
@@ -36,6 +38,7 @@ import {
   gruppieren, filtern, istOffen, istWartend, fokusArt, TERMIN_GRUPPEN, VERPASST_OFFEN_TAGE,
   type TerminUebersicht, type TerminZeile, type TerminFilter, type TerminGruppe, type AbwesenheitSicht,
 } from "@shared/fiaon-termin-uebersicht";
+import { KALENDER_TEXT, kalenderZustandSatz, type KalenderAboSicht, type KalenderAboUmfang } from "@shared/fiaon-kalender-abo";
 
 async function post(pfad: string, body: unknown): Promise<any> {
   const r = await fetch(`${API}${pfad}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
@@ -328,6 +331,109 @@ function Abwesenheit({ a, neu, melden }: { a: AbwesenheitSicht; neu: () => void;
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TERMINE IN DEINEM KALENDER (29.09.2026, E-263)
+//
+// Justin: „… ‚Alle Termine zu Kalender hinzufügen' … pflegen sich automatisch
+// ein … wenn ich nochmal drauf klicke und 1 neuer Termin ist hinzugekommen dann
+// nur der 1 Termin, nicht alle anderen doppelt."
+// Zwei ABOS (kein Import — nichts doppelt): „Meine Termine" (dein Konto:
+// Gründer + Vertretung) und „Termine des Teams" (die der Mitarbeiter, OHNE
+// deine). Sie überschneiden sich nicht: Wer beide abonniert, hat jeden Termin
+// genau einmal (Gegenprüfung 29.09.2026 — vorher stand jeder Gründer-Termin in
+// beiden). Je iPhone/Mac, Google, Link kopieren, Zustand, neuer Link, beenden.
+// Zugeklappt, damit die Liste unten bleibt; die Zeile sagt den Zustand in Worten.
+// ═══════════════════════════════════════════════════════════════════════════
+type AboAntwort = { ok: true; eingerichtet: boolean; eigene: KalenderAboSicht | null; team: KalenderAboSicht | null };
+const ABO_TITEL: Record<KalenderAboUmfang, { titel: string; satz: string }> = {
+  eigene: { titel: "Meine Termine", satz: "Alles, was bei deinem Konto steht — Gründer-Gespräche und die Rückrufe, die Mara in Abwesenheit bei dir bucht." },
+  team: { titel: "Termine des Teams (ohne deine)", satz: "Jeder Termin der Mitarbeiter, mit dem Namen vorn. Deine eigenen stehen nur unter „Meine Termine“." },
+};
+
+function KalenderAbos() {
+  const d = useDaten<AboAntwort>("/chef/mara/kalender-abo");
+  const [abos, setAbos] = useState<Partial<Record<KalenderAboUmfang, KalenderAboSicht | null>>>({});
+  const [frage, setFrage] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [offen, setOffen] = useState(false);
+  const { meldung, melden, zu } = useMeldung();
+
+  const abo = (u: KalenderAboUmfang): KalenderAboSicht | null => (u in abos ? abos[u] ?? null : d.daten?.[u] ?? null);
+  const kurz = (u: KalenderAboUmfang) => {
+    const a = abo(u);
+    return !a ? "aus" : a.aktiv ? "aktiv" : a.zuletztAbgerufenAm ? "ruht" : "nicht abonniert";
+  };
+  const kopieren = async (a: KalenderAboSicht) => {
+    try { await navigator.clipboard.writeText(a.links.ics); melden("Link kopiert. In Outlook: Kalender hinzufügen → Aus dem Internet → einfügen.", "abo"); }
+    catch { melden(`Kopieren ging nicht — bitte markieren: ${a.links.ics}`, "abo", true); }
+  };
+  const aendern = async (u: KalenderAboUmfang, aktion: "erneuern" | "beenden") => {
+    setBusy(`${u}:${aktion}`);
+    try {
+      const j = await post(`/chef/mara/kalender-abo/${u}/${aktion}`, {});
+      setAbos((x) => ({ ...x, [u]: j.abo ?? null }));
+      melden(aktion === "beenden" ? `${ABO_TITEL[u].titel}: Abo beendet — der Kalender wird beim nächsten Abruf leer; danach kannst du ihn dort löschen.`
+        : `${ABO_TITEL[u].titel}: neuer Link — der alte gilt nicht mehr. Einmal neu abonnieren und das alte, leere Abo im Kalender löschen.`, "abo");
+      setFrage(null);
+    } catch (e: any) { melden(e.message, "abo", true); } finally { setBusy(null); }
+  };
+  const neuEinrichten = (u: KalenderAboUmfang) => { setAbos((x) => { const y = { ...x }; delete y[u]; return y; }); d.neu(); };
+
+  return (
+    <details className="mara-klappe mt-abo" open={offen} onToggle={(e) => setOffen((e.target as HTMLDetailsElement).open)}>
+      <summary>
+        Termine in deinem Kalender
+        <span className="mara-still">&nbsp;· {d.daten ? (d.daten.eingerichtet ? `Meine: ${kurz("eigene")} · Team: ${kurz("team")}` : "noch nicht eingerichtet") : d.fehler ? "nicht geladen" : "…"}</span>
+      </summary>
+      {d.fehler && !d.daten ? <Fehlermeldung text={d.fehler} erneut={d.neu} /> : null}
+      {d.daten && !d.daten.eingerichtet ? <p className="mara-still mara-klein">Die Tabelle für die Abos fehlt noch (Migration 085). Die Knöpfe in den Termin-Mails funktionieren trotzdem.</p> : null}
+      {d.daten?.eingerichtet ? (
+        <div className="mt-abo-liste">
+          <p className="mara-klein mt-abo-beide">{KALENDER_TEXT.chefBeide}</p>
+          {(["eigene", "team"] as KalenderAboUmfang[]).map((u) => {
+            const a = abo(u);
+            return (
+              <section key={u} className="mt-abo-zeile" data-abo={u} aria-label={ABO_TITEL[u].titel}>
+                <div className="mt-abo-kopf">
+                  <h3>{ABO_TITEL[u].titel}</h3>
+                  <p className="mara-still mara-klein">{ABO_TITEL[u].satz}</p>
+                </div>
+                {a ? (
+                  <>
+                    <p className={`mt-abo-zustand${a.aktiv ? " aktiv" : ""}`}>{kalenderZustandSatz(a)}</p>
+                    <div className="mt-knoepfe">
+                      <a className="mara-knopf haupt klein" href={a.links.webcal}>iPhone / Mac</a>
+                      <a className="mara-knopf klein" href={a.links.google} target="_blank" rel="noreferrer noopener">Google</a>
+                      <button type="button" className="mara-knopf klein" onClick={() => void kopieren(a)}>Link kopieren</button>
+                      <button type="button" className="mara-knopf klein" disabled={!!busy} aria-expanded={frage === `${u}:erneuern`} onClick={() => setFrage(frage === `${u}:erneuern` ? null : `${u}:erneuern`)}>Neuen Link erzeugen</button>
+                      <button type="button" className="mara-knopf klein" disabled={!!busy} aria-expanded={frage === `${u}:beenden`} onClick={() => setFrage(frage === `${u}:beenden` ? null : `${u}:beenden`)}>Abo beenden</button>
+                    </div>
+                    {frage === `${u}:erneuern` || frage === `${u}:beenden` ? (
+                      <div className="mara-rueckfrage" role="group" aria-label="Bestätigen">
+                        {frage.endsWith("erneuern") ? KALENDER_TEXT.neuFrage : KALENDER_TEXT.endeFrage}
+                        <div className="mara-knoepfe">
+                          <button type="button" className="mara-knopf warn" disabled={!!busy} onClick={() => void aendern(u, frage.endsWith("erneuern") ? "erneuern" : "beenden")}>
+                            {busy ? "Speichert …" : frage.endsWith("erneuern") ? "Ja, neuen Link erzeugen" : "Ja, Abo beenden"}
+                          </button>
+                          <button type="button" className="mara-knopf" onClick={() => setFrage(null)}>Abbrechen</button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="mt-knoepfe"><span className="mara-still mara-klein">Kein Abo aktiv.</span> <button type="button" className="mara-knopf klein" onClick={() => neuEinrichten(u)}>Neu einrichten</button></div>
+                )}
+              </section>
+            );
+          })}
+          <Meldung m={meldung} ort="abo" onZu={zu} />
+          <p className="mara-still mara-klein mt-abo-text">{KALENDER_TEXT.tempo} {KALENDER_TEXT.nichtDoppelt} {KALENDER_TEXT.apple} {KALENDER_TEXT.googleWecker} {KALENDER_TEXT.ohne}</p>
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
 function tagZeitKurz(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -400,6 +506,8 @@ export default function ChefMaraTermine() {
 
       <Abwesenheit a={daten.abwesenheit} neu={d.neu} melden={(t, f) => melden(t, "abwesenheit", f)} />
       <Meldung m={meldung} ort="abwesenheit" onZu={zu} />
+      {/* E-263: Termine im eigenen Kalender (Abo) — zugeklappt, die Zeile nennt den Zustand. */}
+      <KalenderAbos />
 
       {/* ── Wie viel liegt an ─────────────────────────────────────────── */}
       <div className="mara-kette mt-kette" aria-label="Was ansteht">

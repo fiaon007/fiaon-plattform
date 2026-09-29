@@ -1631,29 +1631,30 @@ export async function rueckrufErledigt(id: number): Promise<boolean> {
   return r.length > 0;
 }
 
-/** Kalendereintrag für den Rückruf — das iPhone erinnert, auch wenn die Seite zu ist. */
+/**
+ * Kalendereintrag für den Rückruf — das iPhone erinnert, auch wenn die Seite zu ist.
+ * 29.09.2026 (E-263): über server/lib/fiaon-ics.ts — vorher ohne Faltung, eine lange
+ * Notiz ergab eine Zeile über 75 Oktette (nach RFC 5545 ungültig).
+ */
 export async function rueckrufIcs(id: number): Promise<{ name: string; ics: string } | null> {
   const [r] = (await rueckrufListe()).filter((x) => x.id === id);
   if (!r) return null;
-  const stempel = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   const beginn = new Date(r.am);
   const ende = new Date(beginn.getTime() + 15 * 60_000);
-  const esc = (v: string) => v.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
   const seite = absoluteUrl("/chef/s/telefonkartei");
-  const ics = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//FIAON//Telefonkartei//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    `UID:tk-rueckruf-${r.id}@fiaon.com`,
-    `DTSTAMP:${stempel(new Date())}`,
-    `DTSTART:${stempel(beginn)}`,
-    `DTEND:${stempel(ende)}`,
-    `SUMMARY:${esc(`Rückruf: ${r.name} (FIAON)`)}`,
-    `DESCRIPTION:${esc([r.telefonAnzeige ? `Telefon: ${r.telefonAnzeige}` : null, r.notiz, `Telefonkartei: ${seite}`].filter(Boolean).join("\n"))}`,
-    `URL:${seite}`,
-    "BEGIN:VALARM", "TRIGGER:-PT5M", "ACTION:DISPLAY", `DESCRIPTION:${esc(`In 5 Minuten: ${r.name} anrufen`)}`, "END:VALARM",
-    "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", `DESCRIPTION:${esc(`Jetzt ${r.name} anrufen`)}`, "END:VALARM",
-    "END:VEVENT", "END:VCALENDAR",
-  ].join("\r\n") + "\r\n";
+  const { icsKalender } = await import("./fiaon-ics");
+  const ics = icsKalender({
+    prodid: "-//FIAON//Telefonkartei//DE",
+    ereignisse: [{
+      uid: `tk-rueckruf-${r.id}@fiaon.com`,
+      stempel: new Date(),
+      beginn, ende,
+      titel: `Rückruf: ${r.name} (FIAON)`,
+      beschreibung: [r.telefonAnzeige ? `Telefon: ${r.telefonAnzeige}` : null, r.notiz, `Telefonkartei: ${seite}`].filter(Boolean).join("\n"),
+      url: seite,
+      alarme: [{ minutenVorher: 5, text: `In 5 Minuten: ${r.name} anrufen` }, { minutenVorher: 0, text: `Jetzt ${r.name} anrufen` }],
+    }],
+  });
   return { name: `Rueckruf-${r.id}.ics`, ics };
 }
 

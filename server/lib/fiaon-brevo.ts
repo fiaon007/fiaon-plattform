@@ -341,6 +341,16 @@ export interface EigeneMail {
   text: string;
   /** Ging diese Mail an mehrere? Dann trägt sie einen Abmelde-Hinweis. */
   gruppe?: boolean;
+  /**
+   * Knöpfe unter dem Text (29.09.2026, E-263 — „In Apple-/Outlook-Kalender",
+   * „In Google Kalender", „Alle meine Termine …"). `leise` = gerahmt statt
+   * blau gefüllt. Ohne Angabe bleibt jede Mail Byte für Byte, wie sie war.
+   */
+  knoepfe?: { text: string; url: string; leise?: boolean }[];
+  /** Kleiner Satz direkt ÜBER den Knöpfen (z. B. „Dein Kalender-Abo ist aktiv …"). */
+  hinweis?: string;
+  /** Kleiner Satz UNTER den Knöpfen (z. B. „Google: bitte nur einmal klicken …"). */
+  knopfFuss?: string;
 }
 
 /**
@@ -363,10 +373,10 @@ export async function eigeneMailSenden(
       replyTo: { name: "FIAON", email: "welcome@fiaon.com" },
       to: [{ email: mail.an, ...(mail.name ? { name: mail.name } : {}) }],
       subject: mail.betreff,
-      htmlContent: rahmen(mail.betreff, mail.text, mail.gruppe === true),
+      htmlContent: rahmen(mail.betreff, mail.text, mail.gruppe === true, mail),
       // Mehrteilig: Wer HTML abgeschaltet hat, sähe sonst eine leere Mail —
       // und jeder Spamfilter bewertet eine Mail ohne Textteil schlechter.
-      textContent: rahmenText(mail.text, mail.gruppe === true),
+      textContent: rahmenText(mail.text, mail.gruppe === true, mail),
     }),
   });
   if (!r.ok) return { ok: false, messageId: null, grund: r.grund };
@@ -399,9 +409,14 @@ export async function eigeneMailSenden(
  * Spamfilter) bewerten eine Mail ohne Textteil schlechter, und wer HTML
  * abgeschaltet hat, sähe sonst eine leere Nachricht.
  */
-export function rahmenText(text: string, gruppe = false): string {
+export function rahmenText(text: string, gruppe = false, zusatz: Pick<EigeneMail, "knoepfe" | "hinweis" | "knopfFuss"> = {}): string {
+  // E-263: Knöpfe als „Text: URL" — wer nur den Textteil liest, hat dieselben Wege.
+  const knoepfe = (zusatz.knoepfe ?? []).filter((k) => k.url);
   return [
     text.trim(),
+    ...(knoepfe.length || zusatz.hinweis
+      ? ["", ...(zusatz.hinweis ? [zusatz.hinweis] : []), ...knoepfe.map((k) => `${k.text}: ${k.url}`), ...(knoepfe.length && zusatz.knopfFuss ? [zusatz.knopfFuss] : [])]
+      : []),
     "",
     "—",
     "FIAON",
@@ -414,12 +429,13 @@ export function rahmenText(text: string, gruppe = false): string {
   ].join("\n");
 }
 
-export function rahmen(betreff: string, text: string, gruppe = false): string {
-  const html = text
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+export function rahmen(betreff: string, text: string, gruppe = false, zusatz: Pick<EigeneMail, "knoepfe" | "hinweis" | "knopfFuss"> = {}): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const html = esc(text)
     .split(/\n{2,}/)
     .map((absatz) => `<p style="margin:0 0 16px;line-height:1.65;">${absatz.replace(/\n/g, "<br>")}</p>`)
-    .join("");
+    .join("")
+    + knopfZeile(zusatz, esc);
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${betreff.replace(/</g, "&lt;")}</title></head>
@@ -444,4 +460,24 @@ export function rahmen(betreff: string, text: string, gruppe = false): string {
     </td></tr>
   </table>
 </td></tr></table></body></html>`;
+}
+
+/**
+ * Die Knopf-Zeile unter dem Text (E-263). Tabellen statt Flexbox (Outlook),
+ * alles inline (Gmail), Adressen HTML-maskiert. Leer ohne Knöpfe und ohne
+ * Hinweis — dann ändert sich an der Mail kein Byte. Ein Hinweis steht auch
+ * allein („Dein Kalender-Abo ist aktiv …"), der Fußsatz nur mit Knöpfen.
+ */
+function knopfZeile(z: Pick<EigeneMail, "knoepfe" | "hinweis" | "knopfFuss">, esc: (s: string) => string): string {
+  const knoepfe = (z.knoepfe ?? []).filter((k) => k.url);
+  if (!knoepfe.length && !z.hinweis) return "";
+  const attr = (s: string) => esc(s).replace(/"/g, "&quot;");
+  const knopf = (k: { text: string; url: string; leise?: boolean }) => k.leise
+    ? `<td style="padding:0 8px 8px 0;"><a href="${attr(k.url)}" style="display:inline-block;padding:11px 16px;border:1px solid #1d4ed8;border-radius:10px;color:#1d4ed8;font-size:14px;font-weight:600;text-decoration:none;">${esc(k.text)}</a></td>`
+    : `<td style="padding:0 8px 8px 0;"><a href="${attr(k.url)}" style="display:inline-block;padding:12px 16px;background:#1d4ed8;border-radius:10px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">${esc(k.text)}</a></td>`;
+  return `<div style="margin:4px 0 12px;">`
+    + (z.hinweis ? `<p style="margin:0 0 10px;font-size:13px;line-height:1.55;color:#334155;">${esc(z.hinweis)}</p>` : "")
+    + knoepfe.map((k) => `<table role="presentation" cellpadding="0" cellspacing="0" style="display:inline-table;"><tr>${knopf(k)}</tr></table>`).join("")
+    + (knoepfe.length && z.knopfFuss ? `<p style="margin:4px 0 0;font-size:12px;line-height:1.55;color:#64748b;">${esc(z.knopfFuss)}</p>` : "")
+    + `</div>`;
 }

@@ -5,6 +5,78 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 29.09.2026 — Termine mit einem Klick in den eigenen Kalender, und ein Abo, das sich selbst pflegt (E-263)
+
+**Der Anlass:** Justin: „wenn ich so ne Email bekomme von FIAON (Termin-Mail) dann muss ich die auch mit 1 Klick in mein
+Google oder Apple Kalender hinzufügen können … ‚Alle Termine zu Kalender hinzufügen' … pflegen sich automatisch ein …
+wenn ich nochmal drauf klicke und 1 neuer Termin ist hinzugekommen dann nur der 1 Termin, nicht alle anderen doppelt."
+
+**Was jetzt gilt:**
+- **Abo ODER Knopf, nie beides.** Ein abonnierter Kalender ist ein eigener Kalender; Apple und Google führen über
+  Kalendergrenzen nichts zusammen. Deshalb: **Ohne laufendes Abo** hat jede Mail „Neuer Termin" (an Mitarbeiter und
+  Justin) „In Apple-/Outlook-Kalender" (eine Datei für genau diesen Termin), „In Google Kalender" (Googles „Termin
+  speichern") und leise „Alle meine Termine automatisch in den Kalender" (die Abo-Seite). **Läuft das eigene Abo**
+  (Abruf < 48 h), fallen die zwei Einzelknöpfe weg; da steht nur: „Dein Kalender-Abo ist aktiv — dieser Termin kommt von
+  selbst … Bitte nicht zusätzlich eintragen, sonst steht er doppelt." Dasselbe gilt für „Rückruf-Erinnerung" und
+  „Termin übernommen". **„Termin ABGESAGT"/„verschoben (Mara)"** hat „Aus dem Kalender entfernen" (Apple/Outlook; Google von Hand).
+- **„Alle Termine" ist ein ABO, kein Import.** Eine Adresse, die Apple, Google oder Outlook selbst abrufen. Jeder Termin
+  hat eine feste Kennung — neu kommt dazu, verschoben wird geändert, abgesagt verschwindet, nichts doppelt. Ein zweiter
+  Klick zeigt: „Aktiv — zuletzt abgerufen vor 12 Min. von Apple Kalender. Du musst nichts tun."
+- **Ehrlich zum Tempo:** Apple (iPhone/Mac) holt nach Minuten ab. Google holt Abos nur alle paar Stunden (typisch 8–24),
+  das lässt sich nicht einstellen — was gerade ansteht, zeigt immer das Portal (Calendar). Google übernimmt die
+  Erinnerung aus einem Abo nicht: einmal beim FIAON-Kalender „Benachrichtigung 10 Minuten vorher" setzen (steht in Blatt,
+  Seite, Karte, Rundgang; am Gerät noch zu bestätigen).
+- **Was im Kalender steht:** Name, Uhrzeit, Art, Weg (z. B. „von Mara per WhatsApp") und der Link zur Akte. **Nie**
+  Telefonnummer, Notiz, Beträge, Bestellnummer — angerufen wird über das FIAON-Telefon in der Akte. **Im Google-Einzellink
+  steht nur Art und Nummer, nie der Name** („FIAON · Onboarding · Kunde #625", Global „Firma #ID"), weil der Link in
+  Googles Protokollen und im Browserverlauf landet.
+- **Kunden:** Bestätigung und Erinnerung (24 h vorher) tragen eine kleine Zeile „In Ihren Kalender: Apple / Outlook ·
+  Google Kalender" (auch /justin und die Übergabe-Mail); FIAON Global bekommt den Google-Verweis zur bestehenden Datei —
+  auf /en/business beides auf Englisch. Im Fenster −14…+60 Tage standen 76 „verpasst" gegen 60 „erledigt" — ein Eintrag
+  im Handy soll das senken. **Sagt der Mitarbeiter ab**, trägt die Absage-Mail „Aus Ihrem Kalender entfernen (Apple /
+  Outlook) · Bei Google bitte von Hand löschen"; dieselbe Zeile steht auf der Absage-Seite, wenn der Kunde selbst absagt.
+  Der Link liefert dann eine Datei mit METHOD:CANCEL und derselben Kennung (vorher „410 abgesagt"). Verschiebt Mara
+  (Absage + neuer Termin, keine Mail), sagt die nächste Bestätigung/Erinnerung: „Ihr früherer Termin am … entfällt —
+  steht er noch in Ihrem Kalender, löschen Sie ihn dort bitte." Der Absage-Link im Kalendereintrag siezt (?anrede=sie).
+- **Ein Link ist persönlich — und gilt nur, solange das Konto es darf.** „Neuen Link erzeugen" macht den alten sofort
+  tot, „Abo beenden" ebenso. Wird ein Mitarbeiter gesperrt, deaktiviert oder gekündigt (oder verliert der Inhaber die
+  Stufe „inhaber" fürs Team-Abo), widerruft ein Trigger sein Abo; zusätzlich prüft JEDER Abruf das Konto (gesperrt →
+  nichts). Entsperren belebt den alten Link nicht. Ein deaktivierter **Inhaber** behält sein Abo — er kommt weiter ins
+  Chefbüro und sieht dort ohnehin alles. Der Link steht nirgends im Klartext (nur sein Hash).
+- **Ein toter Link liefert einen LEEREN Kalender, keine 404.** Kalender-Apps behalten bei einem Abruffehler den letzten
+  Stand eingefroren — bei einem leeren Kalender leeren sie sich wirklich. Für jeden toten Link dieselbe Antwort (verrät
+  nicht, ob es ihn gab), Abruf nur täglich; das alte, leere Abo löscht man in der Kalender-App (steht so in den Texten).
+  Zu viele Abrufe oder Fehlgriffe: 429.
+
+**Wo:** Mitarbeiter: Calendar → „In meinen Kalender" (nur eigene Termine). Chef: Chefbüro → Mara → Reiter „Termine" →
+„Termine in deinem Kalender" (zwei Abos: **Meine Termine** = Justins Konto mit Gründer-Gesprächen und Maras Vertretung;
+**Termine des Teams (ohne deine)** = die Termine der Mitarbeiter, mit dem Namen vorn — nur im Chefbüro, nicht für die
+Leitung). **Die beiden überschneiden sich nicht:** Für alle Termine beide abonnieren, jeder steht genau einmal da.
+Einrichtungsseite /kalender/<link> (ohne Anmeldung, nicht in Suchmaschinen). Kunde: Absage-Seite /termin/absagen/…
+
+**Technik:** server/lib/fiaon-ics.ts (die EINE Kalenderdatei — Global-Datei und Telefonkartei-Rückruf laufen jetzt
+darüber; die Telefonkartei-Datei war bisher ungefaltet und damit ungültig, die Global-Faltung konnte ein Emoji zerteilen;
+METHOD nur noch bei CANCEL — RFC 5546 verlangt bei PUBLISH einen ORGANIZER, und ohne METHOD ist DTSTAMP die Zeilenzeit;
+Steuerzeichen fliegen aus jedem Text), server/lib/fiaon-kalender-abo.ts (kontoDarfAbo = die eine Regel,
+leererKalenderIcs, kundenIcs mit CANCEL, kalenderAltSatz), fiaon-kalender-seite.ts, server/routes/fiaon-kalender.ts
+(kein Last-Modified mehr: es sank bei einer Absage, ein Client mit nur If-Modified-Since bekam 304 und behielt den
+Termin — das Inhalts-ETag entscheidet allein), Chef-Routen /chef/mara/kalender-abo in fiaon-mara-steuerpult.ts,
+shared/fiaon-kalender-abo.ts (die Sätze), Mail-Knöpfe in fiaon-brevo.ts/fiaon-termin-meldung.ts, Kalender-Zeile im
+Mail-Gerüst (server/mail/geruest.ts, motor.ts, vorlagen; Variante „entfernen" für termin_absage). Global:
+fiaon-global-zeiten.ts (GLOBAL_KALENDER_TEXT de/en, CANCEL), fiaon-global-termin.ts (?sprache=en am Datei-Link).
+Migration 085: Tabelle fiaon_kalender_abo; an fiaon_termine kal_sequenz + kal_geaendert_am und ein Trigger, der JEDE
+Änderung an Zeit, Dauer, Status, Mitarbeiter oder Absage zählt (das Verschieben durch Mitarbeiter setzt nicht einmal
+updated_at); an fiaon_agents zwei Trigger (Sperre/Deaktivierung/Stufe bzw. Löschen → Abo widerrufen). Fenster je Abo
+−30…+60 Tage; GEMESSEN 29.09. (nur lesend): Team 448 Termine, deshalb höchstens 800 (vorher geplant 500), bei mehr
+fallen die ältesten heraus. Zeiten in UTC — die Zeitumstellung am 25.10.2026 ist geprüft.
+Nebenbei: Die Mail „Rückruf-Erinnerung" zeigte im Betreff die Rohzeit „2026-09-29T14:31:00.000Z" — jetzt die deutsche
+Zeit (termin_zeit_text); die Mail-Vorschau zeigt ihre Kalender-Zeile. Blätter im Calendar schließen bei einem Doppelklick
+nicht mehr sofort wieder (Hintergrund erst nach 400 ms und nur, wenn Drücken und Loslassen auf ihm lagen).
+Prüfstand: scripts/pruef-kalender.ts (156 Prüfungen mit --browser, davon 14 im Browser — auch Doppelklick und Absage-Seite; Rot-Proben eingebaut; Gegenprüfung 29.09.: Ausnahmen in B/D werden rot gezählt statt
+verschluckt, Termine liegen auf freien Plätzen, fremde Abo-Zeilen werden nie gelöscht, sondern wiederhergestellt).
+
+---
+
 ## 29.09.2026 — WhatsApp-Bremse: Kontofehler hält an, GELB halbiert, ROT stoppt nur Werbung (E-261)
 
 **Der Anlass:** 28.09., 13:36–21:46. Meta konnte nicht abbuchen — jede Vorlage scheiterte mit „(#131042) Business

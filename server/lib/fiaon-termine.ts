@@ -1600,6 +1600,9 @@ export async function terminAbsagen(
             neu_buchen_link: String(termin.quelle) === "global"
               ? absoluteUrl("/business#gespraech")
               : absoluteUrl(`/termin/${terminTokenErzeugen(Number(termin.person_id))}`),
+            // E-263, Gegenprüfung 29.09.2026: „Aus Ihrem Kalender entfernen (Apple / Outlook)" — dieselbe Datei
+            // wie in Bestätigung und Erinnerung; für einen abgesagten Termin liefert sie METHOD:CANCEL.
+            kalender_url: absoluteUrl(`/kalender/k/${stornoToken}.ics`),
           },
           {
             personId: Number(termin.person_id),

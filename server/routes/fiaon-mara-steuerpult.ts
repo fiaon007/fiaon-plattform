@@ -606,6 +606,69 @@ router.post("/chef/mara/termine/:id/ergebnis", wache, async (req: ChefRequest, r
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TERMINE IN DEINEM KALENDER (29.09.2026, E-263) — Karte im Reiter „Termine"
+//
+// Justin: „… ‚Alle Termine zu Kalender hinzufügen' … pflegen sich automatisch
+// ein … wenn ich nochmal drauf klicke und 1 neuer Termin ist hinzugekommen dann
+// nur der 1 Termin, nicht alle anderen doppelt."
+//
+//   GET  /chef/mara/kalender-abo                       { eigene, team } (legt an, was fehlt)
+//   POST /chef/mara/kalender-abo/:umfang/erneuern      neuer Link, der alte hört sofort auf
+//   POST /chef/mara/kalender-abo/:umfang/beenden
+//
+// Zwei Abos am Konto des Chefs (Justin: 928, Gründer + Vertretung): „eigene"
+// und „team" (die Termine der Mitarbeiter OHNE die eigenen — beide zusammen =
+// der Filter „Alle", jeder Termin genau einmal; Gegenprüfung 29.09.2026). Das
+// Team-Abo gibt es NUR hier (Stufe inhaber) — die Mitarbeiter-Route kennt nur
+// „eigene", und kontoDarfAbo verlangt für „team" die Stufe am Konto selbst.
+// Regeln: server/lib/fiaon-kalender-abo.ts; jede Änderung steht im Chef-Protokoll.
+// ═══════════════════════════════════════════════════════════════════════════
+async function chefKalenderKonto(req: ChefRequest): Promise<number | null> {
+  if (req.chef?.agentId) return req.chef.agentId;
+  const { gruenderAgentId } = await import("./fiaon-gruender-termin");
+  return (await gruenderAgentId().catch(() => 0)) || null;
+}
+
+router.get("/chef/mara/kalender-abo", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const k = await import("../lib/fiaon-kalender-abo");
+    if (!(await k.aboTabelleDa())) return res.json({ ok: true, eingerichtet: false, eigene: null, team: null });
+    const agentId = await chefKalenderKonto(req);
+    if (!agentId) return res.status(409).json({ ok: false, error: "Kein Mitarbeiterkonto für den Chef gefunden — das Abo braucht eins." });
+    const eigene = await k.aboHolen(agentId, "eigene", wer(req));
+    const team = await k.aboHolen(agentId, "team", wer(req));
+    res.json({ ok: true, eingerichtet: true, eigene: eigene ? k.aboSicht(eigene) : null, team: team ? k.aboSicht(team) : null });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] kalender-abo:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Die Kalender-Abos ließen sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/kalender-abo/:umfang/:aktion", wache, async (req: ChefRequest, res: Response) => {
+  const umfang = String(req.params.umfang || "");
+  const aktion = String(req.params.aktion || "");
+  if ((umfang !== "eigene" && umfang !== "team") || (aktion !== "erneuern" && aktion !== "beenden")) {
+    return res.status(404).json({ ok: false, error: "Unbekannte Aktion." });
+  }
+  try {
+    const k = await import("../lib/fiaon-kalender-abo");
+    const agentId = await chefKalenderKonto(req);
+    if (!agentId) return res.status(409).json({ ok: false, error: "Kein Mitarbeiterkonto für den Chef gefunden." });
+    if (aktion === "beenden") {
+      await k.aboBeenden(agentId, umfang, wer(req));
+      void chefProtokoll(req, `kalender_abo:${umfang}`, "beendet");
+      return res.json({ ok: true, beendet: true, abo: null });
+    }
+    const abo = await k.aboErneuern(agentId, umfang, wer(req));
+    void chefProtokoll(req, `kalender_abo:${umfang}`, "neuer Link");
+    res.json({ ok: true, abo: abo ? k.aboSicht(abo) : null });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] kalender-abo ändern:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Das hat nicht geklappt — bitte noch einmal." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DER TAKT FÜR DIE DAUERAUFTRÄGE (23.09.2026, E-219)
 //
 // Alle zehn Minuten nachsehen, ob einer dran ist. Die Uhrzeit prüft der Lauf

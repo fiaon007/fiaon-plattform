@@ -583,6 +583,20 @@ a.mp-name:hover { text-decoration: underline; }
 .mt-rr-notiz { font-size: 12.5px; color: var(--m-text-3); overflow-wrap: anywhere; }
 .mt-rr-knoepfe { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .mt-uebergaben { margin-top: 18px; }
+/* E-263 (29.09.2026): „Termine in deinem Kalender" — zwei Abos, zugeklappt unter der Abwesenheit. */
+.mt-abo { margin-top: 14px; }
+.mt-abo > summary .mara-still { font-size: 12.5px; }
+.mt-abo-liste { display: grid; gap: 4px; margin-top: 10px; }
+.mt-abo-zeile { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--m-linie); }
+.mt-abo-zeile:first-child { border-top: 0; padding-top: 4px; }
+.mt-abo-kopf h3 { margin: 0; font-size: 14.5px; font-weight: 400; color: var(--m-text); }
+.mt-abo-kopf p { margin: 2px 0 0; }
+.mt-abo-zustand { margin: 0; font-size: 13px; line-height: 1.5; color: var(--m-text-2); }
+.mt-abo-zustand.aktiv { color: var(--m-text); }
+.mt-abo-zustand.aktiv::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--m-gut); margin-right: 7px; vertical-align: 1px; }
+.mt-abo-text { margin-top: 6px; line-height: 1.55; }
+/* Gegenprüfung 29.09.2026: der Satz „beide abonnieren — jeder Termin genau einmal" über den zwei Abos. */
+.mt-abo-beide { margin: 0 0 4px; line-height: 1.55; color: var(--m-text-2); }
 @media (max-width: 760px) {
   .mara .mara-reiter button { padding: 0 6px; }
   .mt-status > .st.mt-st-text { grid-column: 1 / -1; }

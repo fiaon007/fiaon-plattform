@@ -1739,7 +1739,7 @@ export async function runCallbackReminders(): Promise<number> {
     UPDATE fiaon_termine SET agent_erinnert_am = NOW()
     WHERE beginn BETWEEN NOW() AND NOW() + INTERVAL '60 minutes'
       AND status = 'gebucht' AND abgesagt_am IS NULL AND agent_erinnert_am IS NULL AND agent_id IS NOT NULL
-    RETURNING id, agent_id, person_id, beginn, quelle
+    RETURNING id, agent_id, person_id, beginn, quelle, dauer_min
   `.catch(() => [] as any[]);
   for (const t of termine as any[]) {
     const agents = await sqlPool`SELECT email, first_name, name FROM fiaon_agents WHERE id = ${t.agent_id} AND active = TRUE`;
@@ -1759,6 +1759,12 @@ export async function runCallbackReminders(): Promise<number> {
       referenz: p?.ref || "",
       termin_zeit: new Date(t.beginn).toISOString(),
       termin_zeit_text: `${formatBerlin(t.beginn)} (${terminArtAusQuelle(t.quelle).text})`,
+      // E-263 (29.09.2026): „In deinen Kalender: Apple / Outlook · Google Kalender" — nur für gebuchte Termine,
+      // und nicht, wenn sein Kalender-Abo läuft (dann steht der Termin schon drin; ein Klick legte ihn doppelt an).
+      ...(await import("../lib/fiaon-kalender-abo").then((k) => k.mitarbeiterKalenderFelderFuer({
+        id: Number(t.id), agent_id: Number(t.agent_id), person_id: Number(t.person_id), quelle: String(t.quelle ?? ""),
+        beginn: t.beginn, dauer: t.dauer_min,
+      })).catch(() => ({}))),
     }).catch((e) => console.error("[FIAON-AGENT] Termin-Erinnerung an Mitarbeiter:", e));
     sent++;
   }

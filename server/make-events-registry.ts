@@ -224,6 +224,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       // der Oberflaeche. Betreiber-TODO: als {{params.termin_art}} einsetzen.
       termin_art: "Onboarding",
       storno_link: "https://www.fiaon.com/termin/absagen/9b2c…",
+      // E-263 (29.09.2026): „In Ihren Kalender: Apple / Outlook · Google Kalender".
+      kalender_url: "https://www.fiaon.com/kalender/k/9b2c….ics",
+      google_kalender_url: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Gespr%C3%A4ch+mit+FIAON&dates=20260924T123000Z%2F20260924T125000Z&ctz=Europe%2FBerlin",
       // ── NEU 19.08.2026: der fertige „Wir rufen an"-Satz ──────────────
       // Der Kunde, der einen Videokonferenz-Link erwartet, wartet vor seinem
       // Rechner, während das Telefon klingelt. Der Satz kommt AUSFORMULIERT
@@ -242,6 +245,8 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       vorname: "Max", nachname: "Muster", termin_datum: "Donnerstag, 28. August",
       termin_uhrzeit: "14:20", termin_art: "Startgespräch",
       neu_buchen_link: "https://fiaon.com/termin/abc123",
+      // E-263 (Gegenprüfung 29.09.2026): „Aus Ihrem Kalender entfernen" — dieselbe Datei liefert jetzt CANCEL.
+      kalender_url: "https://www.fiaon.com/kalender/k/9b2c….ics",
     },
   },
   // ══════════════════════════════════════════════════════════════════════════
@@ -394,6 +399,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       // der Oberflaeche. Betreiber-TODO: als {{params.termin_art}} einsetzen.
       termin_art: "Onboarding",
       storno_link: "https://www.fiaon.com/termin/absagen/9b2c…",
+      // E-263 (29.09.2026): „In Ihren Kalender: Apple / Outlook · Google Kalender".
+      kalender_url: "https://www.fiaon.com/kalender/k/9b2c….ics",
+      google_kalender_url: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Gespr%C3%A4ch+mit+FIAON&dates=20260924T123000Z%2F20260924T125000Z&ctz=Europe%2FBerlin",
       // ── NEU 19.08.2026: der fertige „Wir rufen an"-Satz ──────────────
       // Der Kunde, der einen Videokonferenz-Link erwartet, wartet vor seinem
       // Rechner, während das Telefon klingelt. Der Satz kommt AUSFORMULIERT
@@ -530,6 +538,10 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       kunde_name: "Max Mustermann",
       referenz: "FIAON-MB2XK4LQ-7T9A",
       termin_zeit: "2026-07-06T14:30:00.000Z",
+      termin_zeit_text: "06.07.2026, 16:30 Uhr (Rückruf)",
+      // E-263 (Gegenprüfung 29.09.2026): damit die Vorschau die Kalender-Zeile zeigt wie die echte Mail.
+      kalender_ics_url: "https://www.fiaon.com/kalender/t/4711-0123456789abcdef0123456789abcdef.ics",
+      google_kalender_url: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=FIAON+%C2%B7+R%C3%BCckruf+%C2%B7+Kunde+%234711&dates=20260706T143000Z%2F20260706T145000Z&ctz=Europe%2FBerlin",
     },
   },
   {
@@ -800,6 +812,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       termin_dauer: "30",
       storno_link: "https://www.fiaon.com/termin/absagen/9b2c…?anrede=sie",
       kalender_url: "https://www.fiaon.com/api/fiaon/global/termine/kalender/9b2c….ics",
+      google_kalender_url: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=FIAON+Global&dates=20260924T123000Z%2F20260924T130000Z&ctz=Europe%2FBerlin",
     },
   },
   // ── DIE BONITÄTSAUSKUNFT (24.09.2026, E-240) ─────────────────────────────

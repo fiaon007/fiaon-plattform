@@ -57,6 +57,19 @@ export interface MailBaustein {
   knopf?: { text: string; url: string };
   /** Zweiter, leiserer Knopf unter dem ersten. */
   knopf2?: { text: string; url: string };
+  /**
+   * Eine kleine Zeile unter den Knöpfen: „In Ihren Kalender: Apple / Outlook ·
+   * Google Kalender" (29.09.2026, E-263). Keine dritte große Handlung — nur zwei
+   * Textverweise. `ics` = die .ics-Datei, `google` = Googles „Termin speichern".
+   * Der Motor lässt einen Verweis weg, dessen Platzhalter leer bleibt (ohne ihn
+   * als Lücke zu zählen), und die ganze Zeile, wenn beide fehlen. `du` duzt den
+   * Satz (Mails an das Team). Ohne Angabe bleibt jede Mail Byte für Byte, wie sie war.
+   * `entfernen` (Absage, Gegenprüfung 29.09.2026): „Stand der Termin in Ihrem Kalender?
+   * Aus Ihrem Kalender entfernen (Apple / Outlook) · Bei Google bitte von Hand löschen."
+   * — `ics` zeigt dann auf dieselbe Kundendatei, die für einen abgesagten Termin
+   * METHOD:CANCEL liefert.
+   */
+  kalender?: { ics?: string; google?: string; du?: boolean; entfernen?: boolean };
   /** Optionales Bild über dem Knopf — bei Zahlungsmails der GiroCode (02.09.2026). */
   bild?: { url: string; alt: string; breite?: number; unterschrift?: string };
   /** Optionaler Kasten mit Eckdaten (Beträge, Referenzen, Termine). */
@@ -162,6 +175,31 @@ const SCHRIFT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 const BASIS_URL = "https://fiaon.com";
 const BANNER_BILD = `${BASIS_URL}/mail/fiaon-karte-banner.jpg`;
 
+/**
+ * Die Worte der Kalender-Zeile (E-263) je Sprache und Anrede — für HTML und
+ * Text-Teil aus EINER Stelle. null, wenn die Vorlage keine trägt.
+ */
+function kalenderWorte(b: MailBaustein): { satz: string; verweise: { text: string; textLang: string; url: string }[]; nachsatz?: string } | null {
+  const k = b.kalender;
+  if (!k || (!k.ics && !k.google)) return null;
+  const en = b.sprache === "en";
+  const du = k.du || b.du;
+  if (k.entfernen) {
+    if (!k.ics) return null;
+    const t = en ? "Remove from your calendar (Apple / Outlook)" : du ? "Aus deinem Kalender entfernen (Apple / Outlook)" : "Aus Ihrem Kalender entfernen (Apple / Outlook)";
+    return {
+      satz: en ? "Was the appointment in your calendar?" : du ? "Stand der Termin in deinem Kalender?" : "Stand der Termin in Ihrem Kalender?",
+      verweise: [{ text: t, textLang: t, url: k.ics }],
+      nachsatz: en ? "In Google Calendar, please delete it by hand." : "Bei Google bitte von Hand löschen.",
+    };
+  }
+  const satz = en ? "Add to your calendar:" : du ? "In deinen Kalender:" : "In Ihren Kalender:";
+  const verweise: { text: string; textLang: string; url: string }[] = [];
+  if (k.ics) verweise.push({ text: "Apple / Outlook", textLang: en ? "Add to Apple / Outlook" : du ? "In deinen Kalender (Apple / Outlook)" : "In Ihren Kalender (Apple / Outlook)", url: k.ics });
+  if (k.google) verweise.push({ text: en ? "Google Calendar" : "Google Kalender", textLang: en ? "Add to Google Calendar" : "In Google Kalender", url: k.google });
+  return { satz, verweise };
+}
+
 /** Baut das vollständige HTML einer Vorlage (Platzhalter bleiben drin). */
 export function mailHtml(b: MailBaustein): string {
   const r = RAHMEN[b.sprache === "en" ? "en" : "de"];
@@ -205,6 +243,11 @@ export function mailHtml(b: MailBaustein): string {
 
   const fussnote = b.fussnote
     ? `<p style="margin:14px 0 0;font:400 13px/1.6 ${SCHRIFT};color:${LEISE};">${b.fussnote}</p>` : "";
+
+  // E-263: die Kalender-Zeile. Steht direkt hinter knopf2 in derselben Zeile — ohne `kalender` kein Byte anders.
+  const kal = kalenderWorte(b);
+  const kalender = kal
+    ? `<p style="margin:6px 0 10px;font:400 13px/1.6 ${SCHRIFT};color:${LEISE};">${kal.satz} ${kal.verweise.map((v) => `<a href="${v.url}" style="color:${BLAU};font-weight:600;text-decoration:underline;">${v.text}</a>`).join(" · ")}${kal.nachsatz ? ` · ${kal.nachsatz}` : ""}</p>` : "";
 
   // 25.09.2026 (E-240): Pflichttexte nach dem Knopf — kleiner gesetzt, aber in
   // Textfarbe (lesbar, auch im Dunkelmodus: dieselbe <font>-Absicherung wie oben).
@@ -287,7 +330,7 @@ export function mailHtml(b: MailBaustein): string {
             ${daten}
             ${bild}
             ${knopf}
-            ${knopf2}
+            ${knopf2}${kalender}
             ${fussnote}${anhang}
         </td></tr>
         ${ziel}
@@ -356,6 +399,9 @@ export function mailText(b: MailBaustein, titelFuellen: (s: string) => string = 
     ...(b.daten?.length ? ["", ...b.daten.map((d) => `${d.label}: ${ohneTags(d.wert)}`)] : []),
     ...(b.knopf ? ["", `${b.knopf.text}: ${b.knopf.url}`] : []),
     ...(b.knopf2 ? [`${b.knopf2.text}: ${b.knopf2.url}`] : []),
+    // E-263: die Kalender-Verweise, je einer mit Adresse.
+    ...(kalenderWorte(b)?.verweise.map((v) => `${v.textLang}: ${v.url}`) ?? []),
+    ...(kalenderWorte(b)?.nachsatz ? [String(kalenderWorte(b)?.nachsatz)] : []),
     ...(b.fussnote ? ["", ohneTags(b.fussnote)] : []),
     // E-240 (25.09.2026): die Pflichtabschnitte auch im Text-Teil — Überschrift groß, Absätze ohne Tags.
     ...(b.anhang?.length ? b.anhang.flatMap((a) => ["", a.titel.toUpperCase(), ...a.absaetze.map((x) => ohneTags(x))]) : []),

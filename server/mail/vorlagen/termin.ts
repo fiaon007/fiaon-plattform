@@ -27,6 +27,8 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Ihr Gesprächspartner", wert: "{{params.agent_vorname}}" },
     ],
     knopf: { text: "Termin verschieben oder absagen", url: "{{params.storno_link}}" },
+    // E-263 (29.09.2026): „In Ihren Kalender: Apple / Outlook · Google Kalender" — weniger verpasste Termine.
+    kalender: { ics: "{{params.kalender_url}}", google: "{{params.google_kalender_url}}" },
     fussnote: "{{params.hinweis_absage}}",
   },
 
@@ -67,6 +69,8 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
     ],
     knopf: { text: "In den Kalender eintragen", url: "{{params.kalender_url}}" },
     knopf2: { text: "Termin verschieben oder absagen", url: "{{params.storno_link}}" },
+    // E-263: Google dazu — die Datei oben nimmt Apple und Outlook, Google braucht seinen eigenen Link.
+    kalender: { google: "{{params.google_kalender_url}}" },
     fussnote: "Passt es doch nicht? Über „Termin verschieben oder absagen“ sagen Sie jederzeit ab und wählen auf fiaon.com/business eine neue Zeit.",
   },
 
@@ -84,6 +88,8 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Uhrzeit", wert: "{{params.termin_uhrzeit}} Uhr" },
     ],
     knopf: { text: "Termin verschieben oder absagen", url: "{{params.storno_link}}" },
+    // E-263 (29.09.2026): „In Ihren Kalender: Apple / Outlook · Google Kalender" — weniger verpasste Termine.
+    kalender: { ics: "{{params.kalender_url}}", google: "{{params.google_kalender_url}}" },
     fussnote: "{{params.hinweis_absage}}",
   },
 
@@ -96,6 +102,9 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
       "Ihre Akte wartet deshalb nicht: Wählen Sie einfach direkt einen neuen Termin, der Ihnen passt — der Kalender zeigt Ihnen alle freien Zeiten.",
     ],
     knopf: { text: "Neuen Termin wählen", url: "{{params.neu_buchen_link}}" },
+    // E-263, Gegenprüfung 29.09.2026: Wer den Termin aus Bestätigung oder Erinnerung in seinen Kalender
+    // übernommen hat, nimmt ihn hier wieder heraus — dieselbe Datei liefert jetzt METHOD:CANCEL.
+    kalender: { ics: "{{params.kalender_url}}", entfernen: true },
   },
 
   termin_verpasst: {
@@ -165,6 +174,7 @@ export const GLOBAL_TERMIN_EN: Record<string, MailBaustein> = {
     ],
     knopf: { text: "Add to calendar", url: "{{params.kalender_url}}" },
     knopf2: { text: "Reschedule or cancel", url: "{{params.storno_link}}" },
+    kalender: { google: "{{params.google_kalender_url}}" },
     fussnote: "Does the time no longer suit you? Use “Reschedule or cancel” at any time and choose a new slot at fiaon.com/en/business.",
   },
 };

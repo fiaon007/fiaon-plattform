@@ -595,6 +595,17 @@ export function TerminAbsagenPage() {
                 Neuen Termin wählen
               </a>
             )}
+            {/* E-263 (Gegenprüfung 29.09.2026): Wer den Termin aus Bestätigung oder Erinnerung in seinen Kalender
+                übernommen hat, nimmt ihn hier heraus — dieselbe Datei liefert für einen abgesagten Termin METHOD:CANCEL. */}
+            {/^[0-9a-f]{16,96}$/.test(token) && (
+              <p className="mt-6 text-[13px] text-slate-500 leading-relaxed" data-kalender-entfernen>
+                {sie ? "Stand der Termin in Ihrem Kalender? " : "Stand der Termin in deinem Kalender? "}
+                <a href={`/kalender/k/${token}.ics`} className={`font-semibold text-[#1d4ed8] underline ${FOKUS}`}>
+                  {sie ? "Aus Ihrem Kalender entfernen (Apple / Outlook)" : "Aus deinem Kalender entfernen (Apple / Outlook)"}
+                </a>
+                {" · Bei Google bitte von Hand löschen."}
+              </p>
+            )}
           </>
         ) : stand === "fehler" ? (
           <>

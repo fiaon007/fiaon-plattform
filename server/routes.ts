@@ -424,6 +424,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    und die Agentensicht. Regeln stehen in server/lib/fiaon-termine.ts.
   const fiaonTerminRoutes = await import('./routes/fiaon-termin');
   app.use('/api/fiaon', fiaonTerminRoutes.default);
+  // 📆 E-263 (29.09.2026): das eigene Kalender-Abo des Mitarbeiters (Calendar → „In meinen Kalender").
+  //    Die öffentlichen /kalender-Adressen hängen weiter unten neben /llms.txt.
+  app.use('/api/fiaon', (await import('./routes/fiaon-kalender')).agentRouter);
 
   // 🗓️ FIAON Gründer-Termin — Justins eigene Buchungsseite (/justin), ohne
   //    Login und Token, höchstens drei Zeiten je Tag (E-124, 05.09.2026).
@@ -785,6 +788,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(llmsTxt());
     } catch (e) { console.error('[LLMS]', e); res.status(500).end(); }
   });
+  // 29.09.2026 (E-263): Termine im eigenen Kalender — Abo (/kalender/<token>.ics), Einrichtungsseite
+  // (/kalender/<token>), Einzeltermin (/kalender/t/…) und Kundendatei (/kalender/k/…). Ohne Login (der
+  // Token ist die Berechtigung), vor den Seiten-Fangnetzen unten, außerhalb der /api-Gatter und des Anfrage-Logs.
+  app.use((await import('./routes/fiaon-kalender')).default);
   // ══════════════════════════════════════════════════════════════════════════
   // EIN EIGENER KOPF FÜR JEDE ÖFFENTLICHE SEITE (25.08.2026)
   //

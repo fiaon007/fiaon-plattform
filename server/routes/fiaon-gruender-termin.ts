@@ -335,6 +335,8 @@ router.post("/gruender-termin/buchen", async (req: Request, res: Response) => {
         storno_link: stornoLink(buchung.stornoToken),
         hinweis_anruf: anrufHinweisSie(wer),
         hinweis_absage: ABSAGE_HINWEIS_SIE,
+        // E-263 (29.09.2026): „In Ihren Kalender: Apple / Outlook · Google Kalender".
+        ...(await import("../lib/fiaon-kalender-abo").then((k) => k.kundenKalenderFelder({ stornoToken: buchung.stornoToken, beginn: buchung.beginn, dauerMin: DAUER })).catch(() => ({}))),
       },
       {
         personId: zu.personId,

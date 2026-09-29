@@ -344,6 +344,17 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
       vorlage = { ...vorlage, absaetze, fussnote: fussP && ohneWert(fussP) ? undefined : vorlage.fussnote };
     }
   }
+  // ── DIE KALENDER-ZEILE NUR MIT ZIEL (29.09.2026, E-263) ──────────────────
+  // „In Ihren Kalender: Apple / Outlook · Google Kalender" ist eine Zugabe, kein
+  // Knopf der Mail: Fehlt ein Ziel (ältere Nutzlast, Termin ohne Storno-Token),
+  // entfällt der Verweis — und ohne beide die Zeile — OHNE als Lücke zu zählen.
+  if (vorlage.kalender) {
+    const k = { ...vorlage.kalender };
+    const leer = (u?: string) => { const p = platzhalterIn(u); return !u || !!(p && ohneWert(p)); };
+    if (leer(k.ics)) delete k.ics;
+    if (leer(k.google)) delete k.google;
+    vorlage = { ...vorlage, kalender: k.ics || k.google ? k : undefined };
+  }
   if (knopfLeer(vorlage.knopf) || knopfLeer(vorlage.knopf2)) {
     // 18.09.2026: Jeder weggelassene Knopf wird gemeldet — außer der
     // erwarteten Lücke (KNOPF_DARF_FEHLEN). Der Handversand lehnt damit ab,

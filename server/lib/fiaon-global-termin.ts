@@ -46,11 +46,12 @@ import {
   TerminFehler, QUELLEN, berlinDatumText, berlinUhrzeit,
 } from "./fiaon-termine";
 import {
-  globalZeitenRechnen, globalAngebot, globalKalenderDatei,
+  globalZeitenRechnen, globalAngebot, globalKalenderDatei, GLOBAL_KALENDER_TEXT,
   GLOBAL_DAUER_MIN, GLOBAL_HORIZONT_TAGE, GLOBAL_PRO_TAG,
   type GlobalTag, type GlobalZeitenErgebnis,
 } from "./fiaon-global-zeiten";
 import { berlinToday } from "./fiaon-time";
+import { googleKalenderLink } from "./fiaon-ics";
 import { absoluteUrl } from "../fiaon-base-url";
 import { globalPaket, globalPreisText } from "@shared/fiaon-global";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
@@ -251,8 +252,9 @@ export type GlobalBuchungErgebnis =
   | { ok: true; terminId: number; wann: string; datumText: string; uhrzeit: string; ansprechpartner: { vorname: string }; kalenderUrl: string }
   | { ok: false; status: number; grund: string; error: string; feld?: string; angebot?: GlobalAngebotStand };
 
-export function globalKalenderUrl(stornoToken: string): string {
-  return absoluteUrl(`/api/fiaon/global/termine/kalender/${stornoToken}.ics`);
+/** Die Kalenderdatei des Gesprächs. `en` hängt ?sprache=en an — die Datei ist dann englisch (Gegenprüfung E-263). */
+export function globalKalenderUrl(stornoToken: string, sprache?: "de" | "en"): string {
+  return absoluteUrl(`/api/fiaon/global/termine/kalender/${stornoToken}.ics${sprache === "en" ? "?sprache=en" : ""}`);
 }
 
 export async function globalTerminBuchen(ein: {
@@ -437,7 +439,7 @@ export async function globalTerminBuchen(ein: {
   console.log(`[GLOBAL-TERMIN] #${buchung.id}: ${k.firma} (${k.email}) am ${buchung.datumText} ${buchung.uhrzeit} bei ${person.name}${k.paket ? ` — ${k.paket}` : ""}`);
   return {
     ok: true, terminId: buchung.id, wann: buchung.beginn, datumText: buchung.datumText, uhrzeit: buchung.uhrzeit,
-    ansprechpartner: { vorname: person.vorname }, kalenderUrl: globalKalenderUrl(buchung.stornoToken),
+    ansprechpartner: { vorname: person.vorname }, kalenderUrl: globalKalenderUrl(buchung.stornoToken, k.sprache),
   };
 }
 
@@ -469,7 +471,9 @@ export function globalTerminPayload(ein: {
       termin_dauer: String(GLOBAL_DAUER_MIN),
       // ?bereich=business: Die Absage-Seite trägt Kopf und Fuß von FIAON Global, nicht die der Privatkunden (19.09.2026).
       storno_link: `${stornoLink(ein.stornoToken)}?anrede=sie&bereich=business`,
-      kalender_url: globalKalenderUrl(ein.stornoToken),
+      // Gegenprüfung E-263: Datei und Google-Eintrag auf Englisch (vorher deutsch).
+      kalender_url: globalKalenderUrl(ein.stornoToken, "en"),
+      ...globalGoogleFeld(ein.beginn, "en"),
     };
   }
   return {
@@ -486,6 +490,28 @@ export function globalTerminPayload(ein: {
     // ?bereich=business: Die Absage-Seite trägt Kopf und Fuß von FIAON Global, nicht die der Privatkunden (19.09.2026).
     storno_link: `${stornoLink(ein.stornoToken)}?anrede=sie&bereich=business`,
     kalender_url: globalKalenderUrl(ein.stornoToken),
+    ...globalGoogleFeld(ein.beginn),
+  };
+}
+
+/**
+ * E-263 (29.09.2026): Googles „Termin speichern" für das Erstgespräch — die .ics-Datei
+ * im Knopf nimmt Apple und Outlook, Google braucht seinen eigenen Link. Ohne Namen,
+ * Firma oder Telefon (der Link landet in Googles Protokollen). Die Sätze stehen mit denen der
+ * Datei an EINER Stelle (GLOBAL_KALENDER_TEXT) — auf Englisch für /en/business (Gegenprüfung E-263).
+ */
+export function globalGoogleFeld(beginn: string | Date | null | undefined, sprache: "de" | "en" = "de"): Record<string, string> {
+  const b = beginn ? new Date(beginn) : null;
+  if (!b || Number.isNaN(b.getTime())) return {};
+  const T = GLOBAL_KALENDER_TEXT[sprache === "en" ? "en" : "de"];
+  return {
+    google_kalender_url: googleKalenderLink({
+      text: T.titel,
+      beginn: b,
+      ende: new Date(b.getTime() + GLOBAL_DAUER_MIN * 60_000),
+      details: T.google,
+      ort: sprache === "en" ? "Phone" : "Telefon",
+    }),
   };
 }
 
@@ -692,10 +718,17 @@ export async function globalTerminAbgesagt(ein: {
 // Die Kalenderdatei zum Termin
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function globalKalenderZuToken(stornoToken: string): Promise<{ datei: string; abgesagt: boolean } | null> {
+/**
+ * Die Datei zum Storno-Token. Abgesagt → METHOD:CANCEL mit derselben UID (Gegenprüfung E-263,
+ * vorher 410): Das Unternehmen nimmt das Gespräch damit aus seinem Kalender. `sprache` kommt
+ * aus ?sprache=en am Link der englischen Bestätigung.
+ */
+export async function globalKalenderZuToken(stornoToken: string, sprache: "de" | "en" = "de"): Promise<{ datei: string; abgesagt: boolean } | null> {
   if (!/^[0-9a-f]{48}$/.test(stornoToken)) return null;
   const [t] = (await sqlPool`
     SELECT t.id, t.beginn, COALESCE(t.dauer_min, ${GLOBAL_DAUER_MIN}) AS dauer_min, t.status, t.created_at,
+           GREATEST(t.created_at, t.updated_at, COALESCE(t.kal_geaendert_am, t.created_at)) AS stand,
+           COALESCE(t.kal_sequenz, 0) AS kal_sequenz,
            ag.name AS agent_name, p.primary_phone AS telefon
     FROM fiaon_termine t
     LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
@@ -704,14 +737,18 @@ export async function globalKalenderZuToken(stornoToken: string): Promise<{ date
     LIMIT 1
   `) as any[];
   if (!t) return null;
+  const abgesagt = String(t.status) === "abgesagt";
   return {
-    abgesagt: String(t.status) === "abgesagt",
+    abgesagt,
     datei: globalKalenderDatei({
       terminId: Number(t.id), beginn: t.beginn, dauerMin: Number(t.dauer_min),
-      ansprechpartner: String(t.agent_name || "Ihr Ansprechpartner"),
+      ansprechpartner: String(t.agent_name || (sprache === "en" ? "Your contact" : "Ihr Ansprechpartner")),
       telefon: t.telefon ?? null,
       stornoLink: `${stornoLink(stornoToken)}?anrede=sie&bereich=business`,
-      erstelltAm: t.created_at ? new Date(t.created_at) : undefined,
+      // E-263: Stempel = letzte Änderung, SEQUENCE zählt — ein verschobenes Gespräch ersetzt den alten Eintrag.
+      erstelltAm: t.stand ? new Date(t.stand) : t.created_at ? new Date(t.created_at) : undefined,
+      sequenz: Number(t.kal_sequenz) || 0,
+      sprache, abgesagt,
     }),
   };
 }

@@ -33,6 +33,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { berlinZeitpunkt, berlinDatum, berlinWochentag, zeitZuMinuten, minutenZuZeit } from "./fiaon-time";
+import { icsKalender } from "./fiaon-ics";
 
 /** Dauer des Erstgesprächs. `QUELLEN.global.minuten` in fiaon-termine.ts liest diese Zahl. */
 export const GLOBAL_DAUER_MIN = 30;
@@ -219,34 +220,39 @@ export function globalAngebot(erg: GlobalZeitenErgebnis): GlobalTag[] {
 // Die Mail-Schicht des Hauses hängt an Vorlagen-Mails keine Dateien an
 // (mailDirektSenden kennt keinen Anhang; nur die Freitext-Mail kann es, und die
 // trägt keine Vorlage). Die Bestätigung verlinkt die Datei deshalb — ein Klick,
-// und der Termin steht im Kalender des Unternehmens. RFC 5545: Zeilenende CRLF,
-// Zeiten in UTC, Komma/Semikolon/Backslash im Text maskiert, Zeilen über
-// 75 Oktette gefaltet.
+// und der Termin steht im Kalender des Unternehmens.
+//
+// 29.09.2026 (E-263): Zeit, Maskierung und Faltung stehen jetzt in EINER Datei
+// (server/lib/fiaon-ics.ts). Die eigene Faltung hier schnitt an UTF-16-
+// Einheiten und konnte ein 4-Byte-Zeichen zerteilen.
+//
+// Gegenprüfung 29.09.2026: `sprache: "en"` — wer auf /en/business gebucht hat,
+// bekommt Titel und Beschreibung auf Englisch (vorher immer deutsch). `abgesagt`
+// liefert METHOD:CANCEL mit derselben UID und höherer SEQUENCE: So nimmt das
+// Unternehmen das Gespräch aus seinem Kalender (vorher antwortete der Link 410).
 // ───────────────────────────────────────────────────────────────────────────
 
-function icsZeit(d: Date): string {
-  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-}
-
-function icsText(s: string): string {
-  return String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
-}
-
-/** Faltet eine Zeile nach 75 Oktetten (Fortsetzung beginnt mit einem Leerzeichen). */
-function icsFalten(zeile: string): string {
-  const teile: string[] = [];
-  let rest = zeile;
-  let grenze = 75;
-  while (Buffer.byteLength(rest, "utf8") > grenze) {
-    let schnitt = Math.min(rest.length, grenze);
-    while (schnitt > 1 && Buffer.byteLength(rest.slice(0, schnitt), "utf8") > grenze) schnitt--;
-    teile.push(rest.slice(0, schnitt));
-    rest = rest.slice(schnitt);
-    grenze = 74; // das führende Leerzeichen der Fortsetzung zählt mit
-  }
-  teile.push(rest);
-  return teile.join("\r\n ");
-}
+/** Titel und Sätze der Global-Kalenderdatei (und des Google-Links) je Sprache — eine Stelle. */
+export const GLOBAL_KALENDER_TEXT = {
+  de: {
+    titel: "FIAON Global – Erstgespräch",
+    ruftAn: (wer: string, tel: string) => `${wer} ruft Sie zur vereinbarten Zeit an${tel ? ` (${tel})` : ""}.`,
+    nichts: "Sie brauchen nichts vorzubereiten.",
+    storno: "Verschieben oder absagen:",
+    google: "FIAON ruft Sie zur vereinbarten Zeit an. Verschieben oder absagen: über den Link in Ihrer Bestätigungsmail.",
+    abgesagt: "Abgesagt",
+    abgesagtText: "Dieses Gespräch wurde abgesagt. Eine neue Zeit wählen Sie auf fiaon.com/business.",
+  },
+  en: {
+    titel: "FIAON Global – first call",
+    ruftAn: (wer: string, tel: string) => `${wer} will call you at the agreed time${tel ? ` (${tel})` : ""}.`,
+    nichts: "There is nothing you need to prepare.",
+    storno: "Reschedule or cancel:",
+    google: "FIAON will call you at the agreed time. Reschedule or cancel: via the link in your confirmation email.",
+    abgesagt: "Cancelled",
+    abgesagtText: "This call has been cancelled. You can choose a new time at fiaon.com/en/business.",
+  },
+} as const;
 
 export function globalKalenderDatei(ein: {
   terminId: number;
@@ -256,36 +262,41 @@ export function globalKalenderDatei(ein: {
   telefon?: string | null;
   stornoLink?: string | null;
   erstelltAm?: Date;
+  /** SEQUENCE (fiaon_termine.kal_sequenz) — ein verschobenes Gespräch ersetzt den alten Eintrag. */
+  sequenz?: number | null;
+  sprache?: "de" | "en";
+  /** Das Gespräch ist abgesagt: METHOD:CANCEL, SEQUENCE + 1, Veranstalter, ohne Wecker. */
+  abgesagt?: boolean;
 }): string {
+  const T = GLOBAL_KALENDER_TEXT[ein.sprache === "en" ? "en" : "de"];
   const beginn = typeof ein.beginn === "string" ? new Date(ein.beginn) : ein.beginn;
   const ende = new Date(beginn.getTime() + (ein.dauerMin ?? GLOBAL_DAUER_MIN) * 60_000);
   const beschreibung = [
-    `${ein.ansprechpartner} ruft Sie zur vereinbarten Zeit an${ein.telefon ? ` (${ein.telefon})` : ""}.`,
-    "Sie brauchen nichts vorzubereiten.",
-    ein.stornoLink ? `Verschieben oder absagen: ${ein.stornoLink}` : "",
+    T.ruftAn(ein.ansprechpartner, ein.telefon ?? ""),
+    T.nichts,
+    ein.stornoLink ? `${T.storno} ${ein.stornoLink}` : "",
   ].filter(Boolean).join("\n");
-  const zeilen = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//FIAON//Global Erstgespraech//DE",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    `UID:global-termin-${ein.terminId}@fiaon.com`,
-    `DTSTAMP:${icsZeit(ein.erstelltAm ?? new Date())}`,
-    `DTSTART:${icsZeit(beginn)}`,
-    `DTEND:${icsZeit(ende)}`,
-    `SUMMARY:${icsText("FIAON Global – Erstgespräch")}`,
-    `DESCRIPTION:${icsText(beschreibung)}`,
-    `LOCATION:${icsText("Telefon")}`,
-    "STATUS:CONFIRMED",
-    "BEGIN:VALARM",
-    "ACTION:DISPLAY",
-    `DESCRIPTION:${icsText("FIAON Global – Erstgespräch")}`,
-    "TRIGGER:-PT15M",
-    "END:VALARM",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ];
-  return zeilen.map(icsFalten).join("\r\n") + "\r\n";
+  const e = {
+    uid: `global-termin-${ein.terminId}@fiaon.com`,
+    stempel: ein.erstelltAm ?? new Date(),
+    beginn, ende,
+    sequenz: ein.sequenz ?? null,
+    titel: T.titel,
+    beschreibung,
+    ort: ein.sprache === "en" ? "Phone" : "Telefon",
+    status: "CONFIRMED" as const,
+    alarme: [{ minutenVorher: 15, text: T.titel }],
+  };
+  if (ein.abgesagt) {
+    return icsKalender({
+      prodid: "-//FIAON//Global Erstgespraech//DE",
+      methode: "CANCEL",
+      ereignisse: [{
+        ...e, status: "CANCELLED", sequenz: (Number(ein.sequenz) || 0) + 1, alarme: [],
+        titel: `${T.abgesagt} – ${T.titel}`, beschreibung: T.abgesagtText,
+        veranstalter: { name: "FIAON", mail: "welcome@fiaon.com" },
+      }],
+    });
+  }
+  return icsKalender({ prodid: "-//FIAON//Global Erstgespraech//DE", ereignisse: [e] });
 }

@@ -84,6 +84,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-263 (29.09.2026): Termine im eigenen Kalender — Einzelknopf in der Mail + Kalender-Abo.
+    id: "2026-09-29-kalender-abo",
+    date: "2026-09-29",
+    category: "Neu",
+    title: "Deine Termine automatisch im Handy-Kalender — Apple, Google oder Outlook",
+    summary:
+      "Im Calendar gibt es „In meinen Kalender“: einmal abonnieren, dann kommen neue Termine von selbst in deinen Kalender, "
+      + "verschobene ändern sich, abgesagte verschwinden — nichts steht doppelt. Ohne Abo hat jede Mail „Neuer Termin“ zwei Knöpfe "
+      + "für genau diesen einen Termin.",
+    changes: [
+      "Mail „Neuer Termin“ ohne Abo: „In Apple-/Outlook-Kalender“, „In Google Kalender“ und „Alle meine Termine automatisch in den Kalender“.",
+      "Läuft dein Abo, lässt die Mail die zwei Knöpfe weg und sagt: Der Termin kommt von selbst. Bitte dann nichts zusätzlich eintragen — sonst steht er doppelt.",
+      "Mail „Termin ABGESAGT“: „Aus dem Kalender entfernen“ (Apple/Outlook). Bei Google bitte von Hand löschen.",
+      "Im Kalender stehen Name, Uhrzeit, Art und der Link zur Akte — keine Telefonnummer, keine Notiz. Angerufen wird über das FIAON-Telefon in der Akte.",
+      "Apple holt neue Termine nach Minuten ab, Google nur alle paar Stunden. Was gerade ansteht, zeigt immer der Calendar im Portal.",
+      "Deine Kunden bekommen in Bestätigung und Erinnerung ebenfalls eine Zeile „In Ihren Kalender“ — und bei einer Absage „Aus Ihrem Kalender entfernen“.",
+    ],
+    howto: [
+      "Calendar öffnen → „In meinen Kalender“ → am iPhone „iPhone / Mac — abonnieren“ tippen (Hinweise NICHT entfernen, sonst kein Alarm 10 Minuten vorher).",
+      "Google: am Computer „Google Kalender“ klicken und hinzufügen — danach steht es auch in der Google-App am Handy. Beim FIAON-Kalender einmal unter Einstellungen → Benachrichtigungen „10 Minuten vorher“ setzen.",
+      "Outlook: „Link kopieren“ → Kalender hinzufügen → Aus dem Internet → einfügen.",
+      "Ein zweiter Klick auf „In meinen Kalender“ zeigt, wann dein Kalender zuletzt abgerufen hat. Link weitergegeben? „Neuen Link erzeugen“ — der alte hört sofort auf, sein Kalender wird leer; den leeren dann in der Kalender-App löschen.",
+    ],
+    link: { href: "/agent/kalender", label: "Zum Calendar" },
+  },
+  {
     // E-261 (29.09.2026): die WhatsApp-Bremse — was die neue Meldung im Raum und in der Akte heißt.
     id: "2026-09-29-wa-bremse",
     date: "2026-09-29",

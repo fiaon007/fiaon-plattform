@@ -42,6 +42,8 @@ import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
   from "@shared/fiaon-anruf-nachbereitung";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
+import { KALENDER_TEXT, kalenderZustandSatz, type KalenderAboSicht } from "@shared/fiaon-kalender-abo";
+import { ZeichenSchliessen } from "@/lib/fiaon-zeichen";
 import "@/styles/office-rundgang.css";
 
 // ── Zeit in Europe/Berlin (nie über toISOString, AGENTS.md) ─────────────────
@@ -300,6 +302,8 @@ function CalendarInnen() {
   const [vollstaendig, setVollstaendig] = useState(true);
   const [detail, setDetail] = useState<Termin | null>(null);
   const [anlegen, setAnlegen] = useState(false);
+  // E-263 (29.09.2026): das Blatt „In meinen Kalender" (Kalender-Abo).
+  const [aboOffen, setAboOffen] = useState(false);
 
   const flash = (text: string, warn = false) => { setMeldung({ text, warn }); setTimeout(() => setMeldung(null), 4500); };
 
@@ -616,6 +620,8 @@ function CalendarInnen() {
           {(ansicht === "tag" ? tagKey !== heuteKey : wochenVersatz !== 0) && <button type="button" style={{ width: "auto", padding: "0 12px" }} onClick={() => { setTagKey(heuteKey); setWochenVersatz(0); }}>Heute</button>}
         </div>
         <button type="button" className="ca-knopf" onClick={() => setAnlegen(true)}><Plus size={16} strokeWidth={1.75} /> Termin anlegen</button>
+        {/* E-263: nach „Termin anlegen" — der Rundgang-Schritt „.ca-knopf" trifft weiter den ersten. */}
+        <button type="button" className="ca-knopf still ca-abo" onClick={() => setAboOffen(true)}><ZeichenKalenderAbo /> In meinen Kalender</button>
       </section>
 
       {laedt && <p className="ca-lade">Lade …</p>}
@@ -730,6 +736,7 @@ function CalendarInnen() {
                 onUebergeben={(id, g) => uebergeben(detail, id, g)} onAbsagen={() => absagen(detail)} />
       )}
       {anlegen && <Anlegen vorschlag={tagKey === heuteKey ? "" : `${tagKey}T10:00`} onZu={() => setAnlegen(false)} onFertig={(t) => { setAnlegen(false); flash(t); laden(); }} />}
+      {aboOffen && <KalenderAboBlatt onZu={() => setAboOffen(false)} />}
 
       {abschluss && (
         <TerminAbschluss a={abschluss} busy={busy === tKey(abschluss)}
@@ -979,8 +986,9 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
     void api(`/agent/termine/uebernehmer?termin=${a.id}`).then((r) => { if (r.ok) { setKollegen(r.json?.kollegen ?? []); setSoll(r.json?.soll ?? null); } });
   }, [modus, a.id]);
 
+  const hintergrund = useHintergrundZu(onZu); // Doppelklick schließt nicht sofort wieder (Gegenprüfung E-263)
   return (
-    <div className="ca-dialog-hintergrund" onClick={onZu} role="dialog" aria-modal="true">
+    <div className="ca-dialog-hintergrund" {...hintergrund} role="dialog" aria-modal="true">
       <div className="ca-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ca-dialog-kopf">
           <div><h2>{tName(a)}</h2><small>{a.payment_reference || a.ref}</small></div>
@@ -1112,8 +1120,9 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
     if (r.ok) onFertig(`Termin angelegt: ${r.json?.termin?.datumText || ""} ${r.json?.termin?.uhrzeit || ""} Uhr – ${gewaehlt.name} bekommt eine Bestätigung.`);
     else setFehler(r.json?.error || "Der Termin konnte nicht angelegt werden.");
   };
+  const hintergrund = useHintergrundZu(onZu); // Doppelklick schließt nicht sofort wieder (Gegenprüfung E-263)
   return (
-    <div className="ca-dialog-hintergrund" onClick={onZu} role="dialog" aria-modal="true">
+    <div className="ca-dialog-hintergrund" {...hintergrund} role="dialog" aria-modal="true">
       <div className="ca-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ca-dialog-kopf"><div><h2>Termin anlegen</h2><small>Für einen deiner Kunden. Er bekommt eine Bestätigung per E-Mail.</small></div><button type="button" className="ca-zu" onClick={onZu} aria-label="Schließen"><X size={18} /></button></div>
         <div className="ca-form" style={{ marginTop: 0 }}>
@@ -1146,6 +1155,150 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
             <button type="button" className="ca-knopf still" onClick={onZu}>Abbrechen</button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER HINTERGRUND EINES BLATTS SCHLIESST ES — ABER NICHT DER ZWEITE KLICK
+// EINES DOPPELKLICKS (Gegenprüfung E-263, 29.09.2026)
+//
+// Ein Doppelklick auf „In meinen Kalender" (ebenso „Termin anlegen") öffnete
+// das Blatt mit dem ersten Klick — der zweite traf den eben erschienenen
+// Hintergrund und schloss es sofort wieder. Jetzt schließt der Hintergrund nur,
+// wenn Drücken UND Loslassen auf ihm selbst lagen (kein Ziehen aus einem Feld
+// heraus) und das Blatt schon länger als 400 ms offen ist. Für alle Blätter
+// dieser Seite (.ca-dialog-hintergrund).
+// ═══════════════════════════════════════════════════════════════════════════
+function useHintergrundZu(onZu: () => void): { onMouseDown: (e: React.MouseEvent) => void; onClick: (e: React.MouseEvent) => void } {
+  const offenSeit = useRef(Date.now());
+  const druckDrauf = useRef(false);
+  return {
+    onMouseDown: (e) => { druckDrauf.current = e.target === e.currentTarget; },
+    onClick: (e) => {
+      const drauf = e.target === e.currentTarget && druckDrauf.current;
+      druckDrauf.current = false;
+      if (drauf && Date.now() - offenSeit.current >= 400) onZu();
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „IN MEINEN KALENDER" — DAS KALENDER-ABO (29.09.2026, E-263)
+//
+// Justin: „… ‚Alle Termine zu Kalender hinzufügen' … pflegen sich automatisch
+// ein … wenn ich nochmal drauf klicke und 1 neuer Termin ist hinzugekommen dann
+// nur der 1 Termin, nicht alle anderen doppelt."
+//
+// Ein ABO, kein Import: Die Kalender-App holt die Termine selbst ab, jeder mit
+// fester Kennung — neu kommt dazu, verschoben ändert sich, abgesagt fällt
+// heraus. Ein zweiter Klick zeigt „Aktiv — zuletzt abgerufen vor … Du musst
+// nichts tun". Nur die eigenen Termine. Server: GET /agent/kalender-abo,
+// POST …/erneuern, …/beenden (server/routes/fiaon-kalender.ts); Sätze in
+// shared/fiaon-kalender-abo.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Kalender mit Pluszeichen — eigenes SVG nach fiaon-zeichen.tsx (20er-Raster, 1,5 px, currentColor). */
+function ZeichenKalenderAbo({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
+      <path d="M3 8.5h14M7 2.5v3.5M13 2.5v3.5M10 10.5v4M8 12.5h4" />
+    </svg>
+  );
+}
+
+function KalenderAboBlatt({ onZu }: { onZu: () => void }) {
+  const [laedt, setLaedt] = useState(true);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [abo, setAbo] = useState<KalenderAboSicht | null>(null);
+  const [ansicht, setAnsicht] = useState(false);
+  const [eingerichtet, setEingerichtet] = useState(true);
+  const [beendet, setBeendet] = useState(false);
+  const [frage, setFrage] = useState<null | "erneuern" | "beenden">(null);
+  const [busy, setBusy] = useState(false);
+  const [meldung, setMeldung] = useState<string | null>(null);
+
+  const laden = useCallback(() => {
+    setLaedt(true); setFehler(null);
+    api("/agent/kalender-abo").then((r) => {
+      if (r.ok) { setAbo(r.json.abo ?? null); setAnsicht(!!r.json.ansicht); setEingerichtet(r.json.eingerichtet !== false); setBeendet(false); }
+      else setFehler(r.json?.error || "Das Kalender-Abo ließ sich nicht laden.");
+      setLaedt(false);
+    }).catch(() => { setFehler("Keine Verbindung."); setLaedt(false); });
+  }, []);
+  useEffect(() => { laden(); }, [laden]);
+  useEffect(() => { const f = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); }; window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f); }, [onZu]);
+
+  const kopieren = async () => {
+    if (!abo) return;
+    try { await navigator.clipboard.writeText(abo.links.ics); setMeldung("Kopiert. In Outlook: Kalender hinzufügen → Aus dem Internet → Adresse einfügen."); }
+    catch { setMeldung(`Kopieren ging nicht — bitte diese Adresse markieren: ${abo.links.ics}`); }
+  };
+  const aendern = async (aktion: "erneuern" | "beenden") => {
+    setBusy(true); setMeldung(null);
+    const r = await api(`/agent/kalender-abo/${aktion}`, { method: "POST" }).catch(() => ({ ok: false, json: null }));
+    setBusy(false); setFrage(null);
+    if (!r.ok) { setMeldung(r.json?.error || "Das hat nicht geklappt — bitte noch einmal."); return; }
+    // Gegenprüfung E-263: Der tote Link liefert einen LEEREN Kalender — die App leert sich, das Abo selbst bleibt stehen.
+    if (aktion === "beenden") { setAbo(null); setBeendet(true); setMeldung("Abo beendet. Dein FIAON-Kalender wird beim nächsten Abruf leer — danach kannst du ihn in der Kalender-App löschen."); }
+    else { setAbo(r.json.abo ?? null); setMeldung("Neuer Link erzeugt — der alte gilt nicht mehr. Richte das Abo mit einem der Knöpfe oben einmal neu ein und lösch das alte, leere Abo in der Kalender-App."); }
+  };
+
+  const hintergrund = useHintergrundZu(onZu); // Doppelklick schließt nicht sofort wieder (Gegenprüfung E-263)
+  return (
+    <div className="ca-dialog-hintergrund" {...hintergrund} role="dialog" aria-modal="true" aria-labelledby="ca-abo-titel">
+      <div className="ca-dialog ca-abo-blatt" onClick={(e) => e.stopPropagation()}>
+        <div className="ca-dialog-kopf">
+          <div>
+            <h2 id="ca-abo-titel">Deine Termine im Handy-Kalender</h2>
+            <small>Einmal abonnieren — neue Termine kommen von selbst, verschobene ändern sich, abgesagte verschwinden. Nichts doppelt.</small>
+          </div>
+          <button type="button" className="ca-zu" onClick={onZu} aria-label="Schließen"><ZeichenSchliessen size={18} /></button>
+        </div>
+
+        {laedt && <p className="ca-lade">Lade …</p>}
+        {fehler && <p className="ca-fehler">{fehler} <button type="button" className="ca-knopf klein still" onClick={laden}>Nochmal</button></p>}
+        {!laedt && !fehler && ansicht && <p className="ca-abo-satz">In der Ansicht gibt es keinen Link — er ist persönlich, und wer ihn hat, sieht die Termine.</p>}
+        {!laedt && !fehler && !ansicht && !eingerichtet && <p className="ca-abo-satz">Das Kalender-Abo ist auf dem Server noch nicht eingerichtet. Die Knöpfe in den Termin-Mails funktionieren trotzdem.</p>}
+        {!laedt && !fehler && beendet && (
+          <div className="ca-abo-zustand"><span>Kein Abo aktiv.</span> <button type="button" className="ca-knopf klein" onClick={laden}>Neues Abo einrichten</button></div>
+        )}
+
+        {!laedt && !fehler && abo && (
+          <>
+            <p className={`ca-abo-zustand${abo.aktiv ? " aktiv" : ""}`} data-zustand={abo.aktiv ? "aktiv" : abo.zuletztAbgerufenAm ? "still" : "neu"}>{kalenderZustandSatz(abo)}</p>
+            <div className="ca-abo-wege">
+              <a className="ca-knopf" href={abo.links.webcal}>iPhone / Mac — abonnieren</a>
+              <a className="ca-knopf still" href={abo.links.google} target="_blank" rel="noreferrer noopener">Google Kalender</a>
+              <button type="button" className="ca-knopf still" onClick={() => void kopieren()}>Link kopieren</button>
+            </div>
+            <ul className="ca-abo-hinweise">
+              <li>{KALENDER_TEXT.tempo}</li>
+              <li>{KALENDER_TEXT.nichtDoppelt}</li>
+              <li>{KALENDER_TEXT.googleHandy} {KALENDER_TEXT.googleWecker}</li>
+              <li>{KALENDER_TEXT.apple}</li>
+              <li>{KALENDER_TEXT.ohne}</li>
+            </ul>
+            {frage ? (
+              <div className="ca-abo-frage" role="group" aria-label={frage === "erneuern" ? "Neuen Link bestätigen" : "Abo beenden bestätigen"}>
+                <p>{frage === "erneuern" ? KALENDER_TEXT.neuFrage : KALENDER_TEXT.endeFrage}</p>
+                <div className="ca-form-knoepfe">
+                  <button type="button" className="ca-knopf klein rot" disabled={busy} onClick={() => void aendern(frage)}>{busy ? "…" : frage === "erneuern" ? "Ja, neuen Link erzeugen" : "Ja, Abo beenden"}</button>
+                  <button type="button" className="ca-knopf klein still" onClick={() => setFrage(null)}>Abbrechen</button>
+                </div>
+              </div>
+            ) : (
+              <div className="ca-abo-leise">
+                <small>{KALENDER_TEXT.persoenlich}</small>
+                <button type="button" className="ca-knopf klein still" onClick={() => setFrage("erneuern")}>Neuen Link erzeugen</button>
+                <button type="button" className="ca-knopf klein still" onClick={() => setFrage("beenden")}>Abo beenden</button>
+              </div>
+            )}
+          </>
+        )}
+        {meldung && <p className="ca-abo-meldung" role="status">{meldung}</p>}
       </div>
     </div>
   );
@@ -1205,8 +1358,9 @@ function TerminAbschluss({ a, busy, onZu, onBuchen }: {
 
   const wege = lage && urteil ? nachbereitungsWege(lage, urteil) : [];
 
+  const hintergrund = useHintergrundZu(onZu); // Doppelklick schließt nicht sofort wieder (Gegenprüfung E-263)
   return (
-    <div className="ca-dialog-hintergrund" onClick={onZu}>
+    <div className="ca-dialog-hintergrund" {...hintergrund}>
       <div className="ca-dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ergebnis des Termins">
         <div className="ca-dialog-kopf">
           <div>

@@ -62,6 +62,22 @@ async function bestaetigungSenden(
     FROM fiaon_persons p WHERE p.id = ${buchung.personId}
   `) as any[];
   if (!p) return null;
+  // E-263 (29.09.2026): „In Ihren Kalender: Apple / Outlook · Google Kalender". Zeit und Dauer aus der
+  // Zeile selbst (auch nach einem Verschieben die neue). Scheitert es, geht die Bestätigung ohne die Zeile.
+  let kalender: Record<string, string> = {};
+  let altSatz = "";
+  try {
+    const [tk] = buchung.stornoToken
+      ? (await sqlPool`SELECT id, beginn, dauer_min FROM fiaon_termine WHERE storno_token = ${buchung.stornoToken} LIMIT 1`) as any[]
+      : [];
+    if (tk) {
+      const { kundenKalenderFelder, kalenderAltSatz } = await import("../lib/fiaon-kalender-abo");
+      kalender = kundenKalenderFelder({ stornoToken: buchung.stornoToken, beginn: tk.beginn, dauerMin: tk.dauer_min });
+      // Gegenprüfung 29.09.2026: Ersetzt dieser Termin einen abgesagten oder verschobenen, soll der alte
+      // Eintrag im Kalender des Kunden nicht stehen bleiben — der neue Termin hat eine neue Kennung.
+      altSatz = await kalenderAltSatz(buchung.personId, Number(tk.id));
+    }
+  } catch (e) { console.error("[TERMIN] Kalender-Zeile der Bestaetigung:", String((e as Error)?.message ?? e).slice(0, 160)); }
   return versendenUndProtokollieren(
     "termin_bestaetigung",
     {
@@ -92,7 +108,8 @@ async function bestaetigungSenden(
       // würden auseinanderlaufen. Die eine Fassung steht in
       // shared/fiaon-termin-text.ts.
       hinweis_anruf: anrufHinweisSie(buchung.agentVorname),
-      hinweis_absage: ABSAGE_HINWEIS_SIE,
+      hinweis_absage: altSatz ? `${ABSAGE_HINWEIS_SIE} ${altSatz}` : ABSAGE_HINWEIS_SIE,
+      ...kalender,
       ...(opts.zusatz || {}),
     },
     {
@@ -1136,7 +1153,7 @@ export async function terminUebergeben(ein: {
     return { status: 400, body: { ok: false, error: "Bitte in einem Satz sagen, warum du übergibst — der Kollege liest ihn morgen früh." } };
   }
   const [termin] = (await sqlPool`
-    SELECT id, person_id, agent_id, beginn, quelle, status, storno_token
+    SELECT id, person_id, agent_id, beginn, quelle, status, storno_token, dauer_min
     FROM fiaon_termine WHERE id = ${id} AND abgesagt_am IS NULL
   `) as any[];
   if (!termin) return { status: 404, body: { ok: false, error: "Termin nicht gefunden." } };
@@ -1308,6 +1325,8 @@ export async function terminUebergeben(ein: {
         storno_link: stornoLink(String(termin.storno_token)),
         hinweis_anruf: anrufHinweisSie(String(ziel.vorname)),
         hinweis_absage: ABSAGE_HINWEIS_SIE,
+        // E-263: dieselbe Kalender-Zeile wie nach der Buchung — gleiche UID, der Eintrag beim Kunden bleibt einer.
+        ...(await import("../lib/fiaon-kalender-abo").then((k) => k.kundenKalenderFelder({ stornoToken: termin.storno_token, beginn: termin.beginn, dauerMin: termin.dauer_min })).catch(() => ({}))),
       },
       {
         personId: Number(termin.person_id),
@@ -1339,6 +1358,12 @@ export async function terminUebergeben(ein: {
         faellig_am_text: berlinDatumText(termin.beginn),
         dringend: minuten >= 0 && minuten <= 180,
         portal_url: absoluteUrl("/agent/kalender"),
+        // E-263: der Termin für den Kalender des Übernehmers (Einzeldatei mit SEINER Signatur + Google) —
+        // entfällt, wenn sein Abo läuft (der Termin kommt dann von selbst, ein Klick legte ihn doppelt an).
+        ...(await import("../lib/fiaon-kalender-abo").then((k) => k.mitarbeiterKalenderFelderFuer({
+          id: Number(termin.id), agent_id: zielId, person_id: Number(termin.person_id), quelle: String(termin.quelle ?? ""),
+          beginn: termin.beginn, dauer: termin.dauer_min,
+        })).catch(() => ({}))),
       });
     } catch (e) { console.warn("[TERMIN] Mail an Übernehmer:", String(e).slice(0, 120)); }
   }

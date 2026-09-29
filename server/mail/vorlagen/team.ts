@@ -80,7 +80,9 @@ export const TEAM_VORLAGEN: Record<string, MailBaustein> = {
   },
 
   agent_callback_reminder: {
-    betreff: "Erinnerung: Rückruf {{params.kunde_name}} um {{params.termin_zeit}}",
+    // 29.09.2026 (Gegenprüfung E-263): termin_zeit_text statt termin_zeit — Betreff und Datenkasten zeigten die
+    // Rohzeit „2026-09-29T14:31:00.000Z". Beide Aufrufer (runCallbackReminders) liefern den Klartext mit.
+    betreff: "Erinnerung: Rückruf {{params.kunde_name}} um {{params.termin_zeit_text}}",
     preheader: "Dein selbst gesetzter Rückruftermin steht an.",
     titel: "Dein Rückruf steht an",
     absaetze: [
@@ -89,8 +91,10 @@ export const TEAM_VORLAGEN: Record<string, MailBaustein> = {
     daten: [
       { label: "Kunde", wert: "{{params.kunde_name}}" },
       { label: "Referenz", wert: "{{params.referenz}}" },
-      { label: "Zeit", wert: "{{params.termin_zeit}}" },
+      { label: "Zeit", wert: "{{params.termin_zeit_text}}" },
     ],
+    // E-263 (29.09.2026): Bei einem gebuchten Termin (nicht bei einer Wiedervorlage) die Kalender-Zeile.
+    kalender: { ics: "{{params.kalender_ics_url}}", google: "{{params.google_kalender_url}}", du: true },
     fussnote: "Der Kunde erwartet deinen Anruf — du hast den Termin mit ihm vereinbart.",
   },
 
@@ -128,6 +132,8 @@ export const TEAM_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Fällig", wert: "{{params.faellig_am_text}}" },
     ],
     knopf: { text: "Auftrag öffnen", url: "{{params.portal_url}}" },
+    // E-263: Bei einer Termin-Übergabe trägt die Nutzlast den Termin des Übernehmers — sonst entfällt die Zeile.
+    kalender: { ics: "{{params.kalender_ics_url}}", google: "{{params.google_kalender_url}}", du: true },
   },
 
   contract_signed: {

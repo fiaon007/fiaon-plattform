@@ -88,8 +88,13 @@ export const ANGEBOT_MARKE = "Individualangebot (01.10.2026)";
 /** Die Fassung des Wortlauts. Eine neue Fassung = neuer Eintrag hier; alte Angebote behalten ihre. */
 export const ANGEBOT_FASSUNG = "IA-2026-10-01";
 export const ANGEBOT_FASSUNGEN = [ANGEBOT_FASSUNG] as const;
-/** Der Knopf (§ 312j Abs. 3 BGB) — wortgleich auf Seite, im PDF-Vermerk und in der Prüfung. */
-export const ANGEBOT_KNOPF = "Zahlungspflichtig annehmen";
+/**
+ * Der Knopf (§ 312j Abs. 3 BGB) — wortgleich auf Seite, im PDF-Vermerk und in der Prüfung.
+ * Justin (01.10.2026, nachmittags): „Auftrag erteilen" statt „Zahlungspflichtig annehmen". Die Zahlungspflicht muss
+ * im Knopf selbst stehen — sonst kommt mit einer Privatperson kein Vertrag zustande (§ 312j Abs. 4 BGB, EuGH C-249/21).
+ * Deshalb „Auftrag zahlungspflichtig erteilen".
+ */
+export const ANGEBOT_KNOPF = "Auftrag zahlungspflichtig erteilen";
 /** Wie die Bestellzeilen heißen — Rechnung, Zahlungsseite, Liste. */
 export const ANGEBOT_PAKETNAME = "FIAON Global – Individualangebot";
 
@@ -169,7 +174,15 @@ export interface AngebotSchalter {
   sofortBeginn: boolean;
   /** Jahresbetreuung ab dem zweiten Jahr dazugebucht (nie vorangekreuzt, § 312a Abs. 3 BGB). */
   jahresbetreuung: boolean;
+  /**
+   * „Starten ab" (Justin, 01.10.2026): der vom Kunden gewählte Starttag (JJJJ-MM-TT) — FIAON beginnt an diesem Tag,
+   * frühestens mit dem Zahlungseingang. Liegt er vor dem Ende der Widerrufsfrist, ist sofortBeginn zugleich true
+   * (der Server leitet das ab, nie der Browser). null/fehlt = „Sofort starten" bzw. Start nach der Widerrufsfrist.
+   */
+  startAm?: string | null;
 }
+/** „Starten ab": frühestens morgen, spätestens in neunzig Tagen (Berlin). */
+export const ANGEBOT_START_SPAETESTENS_TAGE = 90;
 
 // ── DER PRÜFBERICHT (Anlage 2) — eingefrorene Messwerte, nie getippte Zahlen ──
 export interface PruefberichtZeile { merkmal: string; befund: string; quelle: string }
@@ -418,6 +431,8 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
   const wochen = zahlwort(par.fristWochen);
   const hb = angebotUsd(par.buergschaftUsd);
   const buergin = d.buergin.name;
+  // „Starten ab" (01.10.2026): der vom Kunden gewählte Starttag — „08.10.2026" oder null.
+  const startTag = s.startAm && /^\d{4}-\d{2}-\d{2}$/.test(s.startAm) ? angebotTag(s.startAm) : null;
   return [
     { nr: 1, titel: "Parteien", absaetze: [
       p(`${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}, eingetragen im ${FIAON_FIRMA.register} unter der Company No. ${FIAON_FIRMA.companyNo}, vertreten durch den Director ${FIAON_FIRMA.director}, E-Mail ${FIAON_FIRMA.email} — nachfolgend „FIAON“.`),
@@ -471,9 +486,12 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
 
     { nr: 5, titel: "Vergütung und Fälligkeit", absaetze: [
       liste([`Teil 1 „Gründung“: ${t1}`, `Teil 2 „Kapital-Begleitung“: ${t2}`], `Die Vergütung beträgt insgesamt ${ges}. Sie besteht aus zwei Teilen:`),
-      s.sofortBeginn
-        ? p("Die Vergütung für Teil 1 ist mit Vertragsschluss fällig. FIAON stellt die Rechnung bei Annahme dieses Vertrags; sie ist sofort ohne Abzug per Überweisung auf das in der Rechnung genannte Konto zu zahlen. FIAON beginnt mit dem Zahlungseingang.")
-        : p("Die Vergütung für Teil 1 ist mit Vertragsschluss fällig. FIAON stellt die Rechnung bei Annahme dieses Vertrags; sie ist sofort ohne Abzug per Überweisung auf das in der Rechnung genannte Konto zu zahlen. FIAON beginnt nach Ablauf der Widerrufsfrist (Ziffer 11), frühestens mit dem Zahlungseingang."),
+      p(`Die Vergütung für Teil 1 ist mit Vertragsschluss fällig. FIAON stellt die Rechnung bei Annahme dieses Vertrags; sie ist sofort ohne Abzug per Überweisung auf das in der Rechnung genannte Konto zu zahlen. ${
+        startTag
+          ? `FIAON beginnt an dem vom Auftraggeber gewählten Starttag, dem ${startTag}, frühestens mit dem Zahlungseingang.`
+          : s.sofortBeginn
+            ? "FIAON beginnt mit dem Zahlungseingang."
+            : "FIAON beginnt nach Ablauf der Widerrufsfrist (Ziffer 11), frühestens mit dem Zahlungseingang."}`),
       p(`Die Vergütung für Teil 2 wird erst fällig, wenn die Gesellschaft eingetragen ist und das Kapitalereignis (Ziffer 3 Absatz 4) innerhalb der Frist nach Ziffer 6 eingetreten ist. FIAON teilt den Eintritt in Textform mit und stellt die Rechnung danach; sie ist binnen ${zahlwort(par.teil2ZielTage)} Tagen nach Zugang per Überweisung zu zahlen. Tritt das Kapitalereignis nicht innerhalb der Frist ein, entfällt die Vergütung für Teil 2 vollständig.`),
       p(`Die Vergütung ist ein Festpreis. Sie umfasst alle Gebühren und Honorare für die Leistungen nach Ziffer 2 und 3 einschließlich der Bürgschaft nach Anlage 1; eine gesonderte Vergütung für die Bürgschaft verlangen weder FIAON noch die ${buergin}. Für den Auftraggeber als Privatperson ist die Vergütung ein Endpreis; eine etwa anfallende Umsatzsteuer ist darin enthalten.`),
       liste([
@@ -488,7 +506,9 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
     ] },
 
     { nr: 6, titel: "Frist und vollständige Erstattung", absaetze: [
-      s.sofortBeginn
+      startTag
+        ? p(`Die Frist beträgt ${wochen} Wochen. Sie beginnt mit dem Tag, an dem die Vergütung für Teil 1 bei FIAON eingeht, frühestens jedoch an dem vom Auftraggeber gewählten Starttag, dem ${startTag}. FIAON teilt dem Auftraggeber Beginn und Ende der Frist in Textform mit.`)
+        : s.sofortBeginn
         ? p(`Die Frist beträgt ${wochen} Wochen. Sie beginnt mit dem Tag, an dem die Vergütung für Teil 1 bei FIAON eingeht. FIAON teilt dem Auftraggeber Beginn und Ende der Frist in Textform mit.`)
         : p(`Die Frist beträgt ${wochen} Wochen. Sie beginnt mit dem Tag, an dem die Vergütung für Teil 1 bei FIAON eingeht, frühestens jedoch mit dem Tag, an dem FIAON nach Ablauf der Widerrufsfrist mit der Ausführung beginnt. FIAON teilt dem Auftraggeber Beginn und Ende der Frist in Textform mit.`),
       liste([
@@ -531,8 +551,10 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
     { nr: 11, titel: "Widerrufsrecht", absaetze: [
       p("Handelt der Auftraggeber als Verbraucher (§ 13 BGB), kann er diesen Vertrag binnen vierzehn Tagen nach Maßgabe der Widerrufsbelehrung in Anlage 3 widerrufen; Anlage 3 enthält auch das Muster-Widerrufsformular. Mit dem Widerruf endet auch die Bürgschaftszusage nach Anlage 1."),
       s.sofortBeginn
-        ? p("Der Auftraggeber hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt. Ihm ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt und dass sein Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat.")
-        : p("Der Auftraggeber hat nicht verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. FIAON beginnt deshalb erst nach Ablauf der Widerrufsfrist, frühestens mit dem Zahlungseingang."),
+        ? p(`Der Auftraggeber hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt${startTag ? ` — an dem von ihm gewählten Starttag, dem ${startTag}` : ""}. Ihm ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt und dass sein Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat.`)
+        : startTag
+          ? p(`Der Auftraggeber hat nicht verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. Er hat als Starttag den ${startTag} gewählt, der nach dem Ende der Widerrufsfrist liegt; FIAON beginnt an diesem Tag, frühestens mit dem Zahlungseingang.`)
+          : p("Der Auftraggeber hat nicht verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. FIAON beginnt deshalb erst nach Ablauf der Widerrufsfrist, frühestens mit dem Zahlungseingang."),
     ] },
 
     { nr: 12, titel: "Haftung", absaetze: [
@@ -840,23 +862,30 @@ export function angebotEurKurz(cents: number): string {
 // Gesamtpreis, Fälligkeiten, Laufzeit. Häkchen gibt es nur, wo sie rechtlich etwas
 // bewirken — der Wunsch nach sofortigem Beginn (§ 356 Abs. 4 BGB, Wertersatz) und
 // die zusätzliche Jahresbetreuung (§ 312a Abs. 3 BGB). Keiner ist vorangekreuzt.
-export function angebotBestellUebersicht(d: Pick<AngebotDaten, "parameter" | "buergin">, s: AngebotSchalter): { label: string; wert: string }[] {
+/**
+ * Justin (01.10.2026): „Ihre Bestellung im Überblick soll man ein- und ausklappen können." § 312j Abs. 2 BGB verlangt
+ * Leistung, Gesamtpreis (mit Fälligkeiten) und Laufzeit UNMITTELBAR über dem Knopf — diese Zeilen tragen kern: true
+ * und bleiben immer sichtbar; alles Weitere klappt die Seite unter „Alle Einzelheiten" ein.
+ */
+export function angebotBestellUebersicht(d: Pick<AngebotDaten, "parameter" | "buergin">, s: AngebotSchalter): { label: string; wert: string; kern?: true }[] {
   const par = d.parameter;
   const JB = GLOBAL_JAHRESBETREUUNG.de;
   const wochen = zahlwort(par.fristWochen);
   return [
     { label: "Vertragspartner", wert: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}` },
-    { label: "Leistung", wert: "Gründung Ihrer US-LLC (Teil 1) und Kapital-Begleitung Ihrer Gesellschaft (Teil 2) nach der Individualvereinbarung" },
-    { label: "Teil 1 · Gründung", wert: `${angebotEur(par.teil1Cents)} — fällig mit Vertragsschluss, Rechnung sofort per E-Mail` },
-    { label: "Teil 2 · Kapital-Begleitung", wert: `${angebotEur(par.teil2Cents)} — nur fällig, wenn Ihre LLC eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist (gleich in welcher Höhe); zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen nach Rechnung` },
-    { label: "Gesamtpreis", wert: `${angebotEur(angebotGesamtCents(par))} · Endpreis, eine etwaige Umsatzsteuer ist enthalten` },
+    { label: "Leistung", kern: true, wert: "Gründung Ihrer US-LLC (Teil 1) und Kapital-Begleitung Ihrer Gesellschaft (Teil 2) nach der Individualvereinbarung" },
+    { label: "Teil 1 · Gründung", kern: true, wert: `${angebotEur(par.teil1Cents)} — fällig mit Vertragsschluss, Rechnung sofort per E-Mail` },
+    { label: "Teil 2 · Kapital-Begleitung", kern: true, wert: `${angebotEur(par.teil2Cents)} — nur fällig, wenn Ihre LLC eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist (gleich in welcher Höhe); zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen nach Rechnung` },
+    { label: "Gesamtpreis", kern: true, wert: `${angebotEur(angebotGesamtCents(par))} · Endpreis, eine etwaige Umsatzsteuer ist enthalten` },
     { label: "Ihre Garantie", wert: `Ohne Kapital und ohne Karte nach ${wochen} Wochen: ${angebotEur(par.teil1Cents)} zurück binnen ${zahlwort(par.erstattungTage)} Tagen, Teil 2 entfällt, die LLC bleibt Ihre` },
     { label: "Bürgschaft", wert: `${d.buergin.name}, auf Anforderung eines Instituts, Höchstbetrag ${angebotUsd(par.buergschaftUsd)} (Anlage 1)` },
-    { label: "Laufzeit", wert: `Leistungen des ersten Jahres bis zum ersten Jahrestag der Eintragung; Kapital-Begleitung bis zum Ziel, längstens ${zahlwort(ANGEBOT_FEST.begleitungMonate)} Monate nach dem ersten Kapital — keine automatische Verlängerung` },
+    { label: "Laufzeit", kern: true, wert: `Leistungen des ersten Jahres bis zum ersten Jahrestag der Eintragung; Kapital-Begleitung bis zum Ziel, längstens ${zahlwort(ANGEBOT_FEST.begleitungMonate)} Monate nach dem ersten Kapital — keine automatische Verlängerung` },
     s.jahresbetreuung
-      ? { label: "Ab dem zweiten Jahr", wert: `${JB.gebucht} — jährlich im Voraus, keine automatische Verlängerung, heute nicht fällig` }
+      ? { label: "Ab dem zweiten Jahr", kern: true, wert: `${JB.gebucht} — jährlich im Voraus, keine automatische Verlängerung, heute nicht fällig` }
       : { label: "Ab dem zweiten Jahr", wert: "Jahresbetreuung nicht gebucht (auf Wunsch 699 € im Jahr)" },
-    { label: "Beginn", wert: s.sofortBeginn ? "mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist" : "nach Ablauf der Widerrufsfrist, frühestens mit Ihrem Zahlungseingang" },
+    { label: "Beginn", kern: true, wert: s.startAm && /^\d{4}-\d{2}-\d{2}$/.test(s.startAm)
+      ? `am ${angebotTag(s.startAm)}, frühestens mit Ihrem Zahlungseingang${s.sofortBeginn ? " — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist" : ""}`
+      : s.sofortBeginn ? "sofort mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist" : "nach Ablauf der Widerrufsfrist, frühestens mit Ihrem Zahlungseingang" },
     { label: "Zahlung", wert: "Überweisung auf Rechnung — kein Abo, keine Lastschrift" },
     { label: "Widerruf", wert: "Gesetzliches Widerrufsrecht von vierzehn Tagen — Belehrung und Formular in Anlage 3" },
   ];
@@ -865,6 +894,22 @@ export function angebotBestellUebersicht(d: Pick<AngebotDaten, "parameter" | "bu
 export const ANGEBOT_ANNAHME = {
   titel: "Ihre Bestellung im Überblick",
   beginnTitel: "Wann sollen wir beginnen?",
+  // Justin (01.10.2026): zwei Kästchen — „Sofort starten" (darunter klein und grau die Erklärung zum Widerruf) oder
+  // „Starten ab" mit Datum. Keins ist vorgewählt; ohne Wahl keine Annahme (die Seite sagt, was fehlt).
+  beginnWahl: "Bitte wählen Sie eins von beiden — die Frist für die Erstattung läuft ab unserem Start.",
+  beginnSofort: "Sofort starten",
+  beginnSofortUnter: "mit Ihrem Zahlungseingang",
+  beginnDatum: "Starten ab",
+  beginnDatumUnter: "an Ihrem Wunschtag, frühestens mit Ihrem Zahlungseingang",
+  beginnDatumFeld: "Ihr Starttag",
+  beginnNachWiderruf: (ende: string) => `Ihr Starttag liegt nach dem Ende der Widerrufsfrist (${ende}) — Ihr Widerrufsrecht bleibt bis dahin vollständig erhalten.`,
+  fehltTitel: "Für die Annahme fehlt noch:",
+  fehltBeginn: "Bitte wählen Sie „Sofort starten“ oder „Starten ab“ mit einem Datum.",
+  // In der Übersicht, solange noch nichts gewählt ist — statt eines Beginns, den der Kunde nicht gewählt hat.
+  beginnOffen: "noch nicht gewählt — bitte oben „Sofort starten“ oder „Starten ab“ mit Datum wählen",
+  fehltDatum: (von: string, bis: string) => `Bitte wählen Sie Ihren Starttag — einen Tag zwischen ${von} und ${bis}.`,
+  uebersichtMehr: "Alle Einzelheiten anzeigen",
+  uebersichtWeniger: "Einzelheiten ausblenden",
   beginnText: "Als Verbraucher haben Sie das gesetzliche Widerrufsrecht von vierzehn Tagen. Ohne Ihren ausdrücklichen Wunsch beginnen wir erst nach Ablauf dieser Frist — dann beginnt auch die Frist für die Erstattung erst mit unserem Start. Mit Ihrem Wunsch beginnen wir, sobald Ihre Zahlung eingegangen ist. Der Vertrag folgt Ihrer Wahl.",
   // Wortgleich mit client/src/i18n/global-start.ts (sofortBeginn) — nie vorangekreuzt.
   sofortBeginn: "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt. Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.",
@@ -883,6 +928,7 @@ export const ANGEBOT_ANNAHME = {
   fertigRechnungFolgt: (t1: string) => `Heute fällig ist nur Teil 1 über ${t1}. Ihre Rechnung mit Bankverbindung und Verwendungszweck folgt in Kürze per E-Mail — Sie müssen nichts weiter tun.`,
   fertigFuss: "Über jede Finanzierung und jede Karte entscheidet allein das jeweilige Institut. Fragen? Schreiben Sie uns an support@fiaon.com.",
   fertigSofort: (email: string) => `Vertrag und Rechnung gehen an ${email}. Mit Ihrem Zahlungseingang beginnen wir — und mit ihm die Frist für die Erstattung.`,
+  fertigAb: (email: string, tag: string) => `Vertrag und Rechnung gehen an ${email}. Wie gewünscht beginnen wir am ${tag}, sobald Ihre Zahlung eingegangen ist — mit unserem Start beginnt die Frist für die Erstattung.`,
   fertigWartet: (email: string) => `Vertrag und Rechnung gehen an ${email}. Wie gewünscht beginnen wir nach Ablauf der Widerrufsfrist, sobald Ihre Zahlung eingegangen ist; die Frist für die Erstattung beginnt mit unserem Start.`,
 } as const;
 

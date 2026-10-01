@@ -1052,12 +1052,22 @@ export async function globalZahlungGemeldet(ref: string): Promise<void> {
  * Wartet dieser Auftrag noch auf das Ende der Widerrufsfrist? Nur ein Privatauftrag ohne den
  * ausdrücklichen Wunsch nach sofortigem Beginn — dann Fristende und Starttag (JJJJ-MM-TT), sonst null.
  */
-export function globalStartWartet(akte: any, jetzt: Date = new Date()): { fristEnde: string; startAb: string } | null {
+export function globalStartWartet(akte: any, jetzt: Date = new Date()): { fristEnde: string; startAb: string; wunschtermin?: string } | null {
   if (!akte || !globalIstPrivat(akte.firma)) return null;
-  if (json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true) return null;
+  const best = json<Record<string, unknown>>(akte.bestaetigungen, {});
   const am = akte.unterschrieben_am ? new Date(akte.unterschrieben_am) : null;
-  if (!am || Number.isNaN(am.getTime())) return null;
-  const frist = globalWiderrufsfrist(am);
+  const gueltig = !!am && !Number.isNaN(am.getTime());
+  // „Starten ab" (Individualangebot, 01.10.2026): der vom Kunden gewählte Starttag. Vor diesem Tag startet nichts —
+  // auch wenn früher gezahlt wird; ohne verlangten früheren Beginn außerdem nie vor dem Start nach der Widerrufsfrist.
+  const wunsch = typeof best.startAm === "string" && /^\d{4}-\d{2}-\d{2}$/.test(best.startAm) ? best.startAm : null;
+  if (wunsch) {
+    const frist = gueltig ? globalWiderrufsfrist(am!) : null;
+    const ab = best.sofortBeginn !== true && frist && frist.startAb > wunsch ? frist.startAb : wunsch;
+    return berlinToday(jetzt) < ab ? { fristEnde: frist?.fristEnde ?? ab, startAb: ab, wunschtermin: wunsch } : null;
+  }
+  if (best.sofortBeginn === true) return null;
+  if (!gueltig) return null;
+  const frist = globalWiderrufsfrist(am!);
   return berlinToday(jetzt) < frist.startAb ? frist : null;
 }
 

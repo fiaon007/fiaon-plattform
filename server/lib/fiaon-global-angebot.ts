@@ -51,10 +51,11 @@ import {
   ANGEBOT_FASSUNG, ANGEBOT_FASSUNGEN, ANGEBOT_VORGABEN, ANGEBOT_GUELTIG_TAGE, ANGEBOT_ANNAHME, ANGEBOT_KNOPF, ANGEBOT_FEST, BUERGIN_VORGABE, BUERGIN_FELDER,
   angebotPflichtFehlen, angebotParameterFehler, angebotGesamtCents, angebotEur, angebotSeite, angebotBestellUebersicht,
   angebotKundeName, angebotKundeAnrede, angebotTag, angebotTeilTitel, angebotTeilPaketname, angebotRechnungsText, angebotVertragTitel,
-  angebotVertragUnterzeile, zahlwort, pruefberichtErgebnis, angebotVersandSperre,
+  angebotVertragUnterzeile, zahlwort, pruefberichtErgebnis, angebotVersandSperre, ANGEBOT_START_SPAETESTENS_TAGE,
   type AngebotDaten, type AngebotKunde, type AngebotParameter, type AngebotBuergin, type AngebotSchalter, type Pruefbericht, type AngebotLand,
 } from "@shared/fiaon-global-angebot";
 import { angebotTextHash, angebotVorschauHtml, angebotVertragPdf, angebotPruefberichtPdf, angebotAnlage1Pdf, buergschaftPruefsumme } from "./fiaon-global-angebot-vertrag";
+import { globalWiderrufsfrist as widerrufsfristAb } from "./fiaon-global-vertrag";
 import {
   ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalVerlauf, globalEinstellungen, globalMailSenden,
   globalMeinAuftragUrl, globalStartWartet, globalRechnungPdf, globalVertragPdfLesen, globalJahresbetreuungAus,
@@ -492,10 +493,27 @@ export async function angebotZurueckziehen(id: number, grundRoh: unknown, wer: s
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE KUNDENSEITE
 // ═══════════════════════════════════════════════════════════════════════════
-export function schalterAus(q: any): AngebotSchalter {
+export function schalterAus(q: any, jetzt: Date = new Date()): AngebotSchalter {
   // Nur ein echtes „1"/true zählt — nie vorangekreuzt, nie per Link vorbelegt (der Link trägt keine Schalter).
   const an = (v: unknown) => v === true || v === "1" || v === 1;
-  return { sofortBeginn: an(q?.sofortBeginn), jahresbetreuung: an(q?.jahresbetreuung) };
+  const jb = an(q?.jahresbetreuung);
+  // „Wann sollen wir beginnen?" (Justin, 01.10.2026): „Sofort starten" oder „Starten ab" mit Datum.
+  if (q?.beginn === "sofort") return { sofortBeginn: true, jahresbetreuung: jb };
+  if (q?.beginn === "datum" || q?.startAm) {
+    const r = angebotStartRahmen(jetzt);
+    const tag = String(q?.startAm ?? "");
+    // Ungültiger oder fehlender Tag: kein Start-Wunsch — die Annahme verlangt dann eine Wahl (Code BEGINN).
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || tag < r.morgen || tag > r.spaetestens) return { sofortBeginn: false, jahresbetreuung: jb };
+    // Liegt der Tag vor dem Start nach der Widerrufsfrist, ist es ein Beginn vor Ablauf — mit derselben Erklärung wie „Sofort".
+    return { sofortBeginn: tag < r.widerrufStartAb, jahresbetreuung: jb, startAm: tag };
+  }
+  return { sofortBeginn: an(q?.sofortBeginn), jahresbetreuung: jb };
+}
+/** Die Grenzen für „Starten ab": morgen … +90 Tage; ab widerrufStartAb braucht es keine Erklärung zum früheren Beginn. */
+export function angebotStartRahmen(jetzt: Date = new Date()): { morgen: string; spaetestens: string; widerrufStartAb: string; widerrufEnde: string } {
+  const heute = berlinToday(jetzt);
+  const wf = widerrufsfristAb(jetzt);
+  return { morgen: plusTage(heute, 1), spaetestens: plusTage(heute, ANGEBOT_START_SPAETESTENS_TAGE), widerrufStartAb: wf.startAb, widerrufEnde: wf.fristEnde };
 }
 
 /** Was GET /global/angebot/:token liefert — für genau diese Schalterstellung. */
@@ -526,9 +544,11 @@ export async function angebotKundenSicht(token: string, s: AngebotSchalter, opts
     body: {
       ok: true, status, ref: d.ref, fassung: d.fassung, gueltigBis: d.gueltigBis,
       kundeName: angebotKundeName(d.kunde), kundeAnrede: angebotKundeAnrede(d.kunde), email: d.kunde.email,
-      seite, uebersicht: angebotBestellUebersicht(d, s), annahme: { ...ANGEBOT_ANNAHME, unterKnopf: ANGEBOT_ANNAHME.unterKnopf(angebotEur(d.parameter.teil1Cents)), fertigSofort: undefined, fertigWartet: undefined },
+      seite, uebersicht: angebotBestellUebersicht(d, s), annahme: { ...ANGEBOT_ANNAHME, unterKnopf: ANGEBOT_ANNAHME.unterKnopf(angebotEur(d.parameter.teil1Cents)), fertigSofort: undefined, fertigWartet: undefined, fertigAb: undefined, fehltDatum: undefined },
       teil1Cents: d.parameter.teil1Cents, teil2Cents: d.parameter.teil2Cents, gesamtCents: angebotGesamtCents(d.parameter),
       schalter: s, html: angebotVorschauHtml(d, s), textHash: angebotTextHash(d, s),
+      // „Starten ab": Grenzen des Datumswählers und ab wann es keine Erklärung zum früheren Beginn braucht.
+      beginn: angebotStartRahmen(),
       // Ohne Pflichtfelder keine Annahme — der Kunde sieht nur den ruhigen Satz, die Leitung die Liste.
       annahmeBereit: fehlt.length === 0 && !opts.leitung,
       gesperrtGrund: fehlt.length ? ANGEBOT_ANNAHME.gesperrt : null,
@@ -553,7 +573,8 @@ async function angenommenAntwort(z: AngebotZeile): Promise<Record<string, unknow
     meinAuftrag: ref1 && t ? `/business/auftrag/${encodeURIComponent(ref1)}?t=${encodeURIComponent(t)}` : null,
     vertragUrl: ref1 && t ? `/api/fiaon/global/auftrag/${encodeURIComponent(ref1)}/vertrag.pdf?t=${encodeURIComponent(t)}` : null,
     rechnungUrl: ref1 && t && b?.payment_reference ? `/api/fiaon/global/auftrag/${encodeURIComponent(ref1)}/rechnung.pdf?t=${encodeURIComponent(t)}` : null,
-    fertigText: sch.sofortBeginn ? ANGEBOT_ANNAHME.fertigSofort(kunde.email) : ANGEBOT_ANNAHME.fertigWartet(kunde.email),
+    fertigText: sch.startAm ? ANGEBOT_ANNAHME.fertigAb(kunde.email, angebotTag(sch.startAm))
+      : sch.sofortBeginn ? ANGEBOT_ANNAHME.fertigSofort(kunde.email) : ANGEBOT_ANNAHME.fertigWartet(kunde.email),
     fertigTitel: ANGEBOT_ANNAHME.fertigTitel,
     // Ist Teil 1 schon bezahlt, gibt es keinen Weg zur Zahlung mehr — nur noch „Mein Auftrag".
     // Gibt es noch keine Zahlungsseite (Rechnung hängt), sagt die Seite das ehrlich statt auf sie zu verweisen.
@@ -644,6 +665,16 @@ async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, bo
     return fehler(403, "Diese Annahme können wir nicht entgegennehmen. Bitte öffnen Sie die Seite in Ihrem Browser und nehmen Sie dort an.");
   }
   const s = schalterAus(body);
+  // „Wann sollen wir beginnen?" — die Seite schickt seit 01.10.2026 immer „beginn". Fehlt die Wahl oder ist der Tag
+  // ungültig, nennt die Antwort genau das (die Seite zeigt es am Feld). Eine ältere, noch offene Seite ohne „beginn"
+  // nimmt weiter wie bisher an (Start nach der Widerrufsfrist bzw. sofort) — ihr Vertragstext ist unverändert gültig.
+  if (body && Object.prototype.hasOwnProperty.call(body, "beginn")) {
+    if (body.beginn !== "sofort" && body.beginn !== "datum") return fehler(400, ANGEBOT_ANNAHME.fehltBeginn, { code: "BEGINN" });
+    if (body.beginn === "datum" && !s.startAm) {
+      const r = angebotStartRahmen();
+      return fehler(400, ANGEBOT_ANNAHME.fehltDatum(angebotTag(r.morgen), angebotTag(r.spaetestens)), { code: "STARTDATUM" });
+    }
+  }
   const hash = angebotTextHash(d, s);
   if (String(body?.textHash ?? "") !== hash) return fehler(409, ANGEBOT_ANNAHME.neuLaden, { code: "GEAENDERT" });
 
@@ -674,7 +705,7 @@ async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, bo
     if (neu && String(neu.status) === "offen") return fehler(409, ANGEBOT_ANNAHME.neuLaden, { code: "GEAENDERT" });
     return fehler(409, "Das Angebot lässt sich gerade nicht annehmen. Bitte laden Sie die Seite neu.");
   }
-  await verlaufAngebot(Number(z.id), angebotKundeName(d.kunde), `angenommen (${ANGEBOT_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, sofortiger Beginn ${s.sofortBeginn ? "ja" : "nein"}, Jahresbetreuung ${s.jahresbetreuung ? "ja" : "nein"}`);
+  await verlaufAngebot(Number(z.id), angebotKundeName(d.kunde), `angenommen (${ANGEBOT_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, sofortiger Beginn ${s.sofortBeginn ? "ja" : "nein"}${s.startAm ? `, Starttag ${angebotTag(s.startAm)}` : ""}, Jahresbetreuung ${s.jahresbetreuung ? "ja" : "nein"}`);
   // Angebot-Aufrufe (01.10.2026): „angenommen" in DIESELBE Aufgabe „… hat sein Angebot geöffnet" — hinter der Antwort.
   void import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAnnahmeVermerken(Number(z.id)))
     .catch((e) => console.error(`[FIAON-ANGEBOT] ${t.ref}: Annahme in der Aufruf-Aufgabe:`, e));
@@ -758,7 +789,9 @@ export async function angebotFertigstellen(id: number): Promise<{ ok: boolean; g
       const [pdfZeile] = (await sqlPool`SELECT vertrag_pdf FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
       const firma = { art: "privat", land: d.kunde.land, name: angebotKundeName(d.kunde), rechtsform: "Privatperson", registergericht: null, registernummer: null, strasse: d.kunde.strasse, plz: d.kunde.plz, ort: d.kunde.ort, ustId: null, website: null, quelleRegister: null };
       const ansprechpartner = { anrede: d.kunde.anrede, vorname: d.kunde.vorname, nachname: d.kunde.nachname, funktion: "Privatperson", email: d.kunde.email, telefon: d.kunde.telefon };
-      const bestaetigungen = { annahme: ANGEBOT_KNOPF, sofortBeginn: s.sofortBeginn === true, jahresbetreuung: s.jahresbetreuung === true, am: new Date(z.angenommen_am).toISOString() };
+      const bestaetigungen = { annahme: ANGEBOT_KNOPF, sofortBeginn: s.sofortBeginn === true, jahresbetreuung: s.jahresbetreuung === true, am: new Date(z.angenommen_am).toISOString(),
+        // „Starten ab": globalStartWartet hält den Start bis zu diesem Tag zurück (auch wenn früher gezahlt wird).
+        ...(s.startAm ? { startAm: s.startAm } : {}) };
       // Dieselbe Schreibweise wie globalAuftragAnlegen (JSON-Text auf ::jsonb) — alle Leser der Akte kennen sie.
       await sqlPool`
         INSERT INTO fiaon_global_auftraege
@@ -828,7 +861,9 @@ export async function angebotNacharbeit(id: number): Promise<void> {
         text: [
           `${name} hat das Individualangebot ${d.ref} angenommen (${new Date(z.angenommen_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}).`,
           teilText,
-          s.sofortBeginn
+          s.startAm
+            ? `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. Gewählter Starttag: ${angebotTag(s.startAm)}${s.sofortBeginn ? " (vor Ablauf der Widerrufsfrist — Beginn ausdrücklich verlangt)" : ""} — Start an diesem Tag, frühestens mit dem Zahlungseingang. Vorher nichts beantragen.`
+            : s.sofortBeginn
             ? `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. Sofortiger Beginn verlangt — Start mit dem Zahlungseingang.`
             : `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. KEIN sofortiger Beginn — Start frühestens am ${angebotTag(frist.startAb)}, auch wenn die Zahlung früher kommt. Bis dahin nichts beantragen.`,
           `Die Frist von ${zahlwort(d.parameter.fristWochen)} Wochen beginnt mit dem Start — das Fristende steht danach im Reiter „Individualangebote“ und geht dem Kunden per Mail zu.`,
@@ -915,9 +950,13 @@ export function angebotMailZusatz(z: AngebotZeile, d: AngebotDaten, extra: Recor
 // ═══════════════════════════════════════════════════════════════════════════
 // ZAHLUNG (gerufen aus globalNachZahlung — alle Buchungswege gehen durch onCustomerPaid)
 // ═══════════════════════════════════════════════════════════════════════════
-/** Fristbeginn und -ende: Zahlungseingang, ohne sofortigen Beginn frühestens der Starttag nach der Widerrufsfrist. */
-export function angebotFristBerechnen(z: { bezahltAm: string; sofortBeginn: boolean; startAb: string | null; wochen: number; hemmungTage: number }): { beginn: string; ende: string } {
-  const beginn = !z.sofortBeginn && z.startAb && z.startAb > z.bezahltAm ? z.startAb : z.bezahltAm;
+/**
+ * Fristbeginn und -ende: Zahlungseingang, ohne sofortigen Beginn frühestens der Starttag nach der Widerrufsfrist —
+ * und mit gewähltem Starttag („Starten ab", 01.10.2026) frühestens dieser Tag.
+ */
+export function angebotFristBerechnen(z: { bezahltAm: string; sofortBeginn: boolean; startAb: string | null; startAm?: string | null; wochen: number; hemmungTage: number }): { beginn: string; ende: string } {
+  const kandidaten = [z.bezahltAm, !z.sofortBeginn && z.startAb ? z.startAb : null, z.startAm ?? null].filter((x): x is string => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x));
+  const beginn = kandidaten.reduce((a, b) => (b > a ? b : a), z.bezahltAm);
   return { beginn, ende: plusTage(beginn, z.wochen * 7 + Math.max(0, z.hemmungTage)) };
 }
 
@@ -963,11 +1002,15 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
   if (!akte) return { gestartet: false, grund: "Akte fehlt" };
   const warten = globalStartWartet(akte, opts.jetzt);
   if (warten) {
+    // „Starten ab" (01.10.2026): Der Kunde hat einen Starttag gewählt — der Auftrag wartet bis dahin.
+    const wunsch = warten.wunschtermin ?? null;
     await auftragFuerKunden({
       personId: b.person_id != null ? Number(b.person_id) : null, ref,
-      titel: `FIAON Global: Teil 1 bezahlt, Start nach der Widerrufsfrist — ${name}`,
+      titel: wunsch ? `FIAON Global: Teil 1 bezahlt, Start am gewählten Tag (${angebotTag(warten.startAb)}) — ${name}` : `FIAON Global: Teil 1 bezahlt, Start nach der Widerrufsfrist — ${name}`,
       text: [
-        `Die Zahlung für Teil 1 (${angebotEur(d.parameter.teil1Cents)}) ist eingegangen. ${name} hat NICHT verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen.`,
+        wunsch
+          ? `Die Zahlung für Teil 1 (${angebotEur(d.parameter.teil1Cents)}) ist eingegangen. ${name} hat als Starttag den ${angebotTag(wunsch)} gewählt.`
+          : `Die Zahlung für Teil 1 (${angebotEur(d.parameter.teil1Cents)}) ist eingegangen. ${name} hat NICHT verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen.`,
         `Die Widerrufsfrist endet am ${angebotTag(warten.fristEnde)}. Der Auftrag startet am ${angebotTag(warten.startAb)} von selbst — mit ihm beginnt die Frist von ${zahlwort(d.parameter.fristWochen)} Wochen.`,
         "Bis dahin: nichts beantragen und keine Gebühren auslösen. Widerruft der Kunde, sofort die Leitung informieren: Das Geld geht binnen vierzehn Tagen vollständig zurück.",
       ].join("\n"),
@@ -975,7 +1018,7 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
       link: globalOfficeAuftragPfad(ref), agentId: zustaendig, anlageText: "Zahlungseingang Teil 1 — Start nach der Widerrufsfrist.",
     }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe Widerrufsfrist:`, e));
     await globalVerlauf(ref, `FIAON Global: Teil 1 bezahlt. Start am ${angebotTag(warten.startAb)} (Widerrufsfrist bis ${angebotTag(warten.fristEnde)}).`);
-    return { gestartet: false, grund: `Start am ${angebotTag(warten.startAb)}, nach der Widerrufsfrist` };
+    return { gestartet: false, grund: wunsch ? `Start am ${angebotTag(warten.startAb)}, dem gewählten Starttag` : `Start am ${angebotTag(warten.startAb)}, nach der Widerrufsfrist` };
   }
 
   // Frist setzen — einmal, beim Start.
@@ -983,7 +1026,7 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
   const { globalWiderrufsfrist } = await import("./fiaon-global-vertrag");
   const wf = globalWiderrufsfrist(new Date(z.angenommen_am));
   const bezahltAm = berlinToday(new Date(b.completed_at ?? new Date()));
-  const frist = angebotFristBerechnen({ bezahltAm, sofortBeginn: sch.sofortBeginn === true, startAb: wf.startAb, wochen: d.parameter.fristWochen, hemmungTage: Number(z.frist_hemmung_tage || 0) });
+  const frist = angebotFristBerechnen({ bezahltAm, sofortBeginn: sch.sofortBeginn === true, startAb: wf.startAb, startAm: sch.startAm ?? null, wochen: d.parameter.fristWochen, hemmungTage: Number(z.frist_hemmung_tage || 0) });
   await sqlPool`UPDATE fiaon_global_angebote SET frist_beginn = ${frist.beginn}::date, frist_ende = ${frist.ende}::date, updated_at = NOW() WHERE id = ${z.id} AND frist_beginn IS NULL`;
   const z2 = (await angebotLesen({ id: Number(z.id) }))!;
   const fristEnde = isoTag(z2.frist_ende) ?? frist.ende;

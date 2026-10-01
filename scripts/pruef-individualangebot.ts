@@ -71,7 +71,9 @@ let fehler = 0; let n = 0;
 const ok = (b: unknown, was: string, zusatz?: unknown) => { n++; if (!b) { fehler++; console.log(`  FEHLER  ${was}${zusatz !== undefined ? `  → ${String(typeof zusatz === "string" ? zusatz : JSON.stringify(zusatz)).slice(0, 400)}` : ""}`); } };
 const titel = (t: string) => console.log(`\n── ${t}`);
 const AUS = { sofortBeginn: false, jahresbetreuung: false };
-const ALLE_SCHALTER = [AUS, { sofortBeginn: true, jahresbetreuung: false }, { sofortBeginn: false, jahresbetreuung: true }, { sofortBeginn: true, jahresbetreuung: true }];
+// Seit 01.10.2026 nachmittags auch „Starten ab": ein Starttag vor dem Ende der Widerrufsfrist (mit Erklärung) und einer danach.
+const ALLE_SCHALTER = [AUS, { sofortBeginn: true, jahresbetreuung: false }, { sofortBeginn: false, jahresbetreuung: true }, { sofortBeginn: true, jahresbetreuung: true },
+  { sofortBeginn: true, jahresbetreuung: false, startAm: "2026-10-08" }, { sofortBeginn: false, jahresbetreuung: true, startAm: "2026-10-20" }];
 
 const PB: import("../shared/fiaon-global-angebot").Pruefbericht = {
   erstellt: "01.10.2026", datenstand: "01.10.2026, 09:28 MESZ", pruefer: "Prüfstand", aktenzeichen: "FIAON-P-PRUEF", eigenschaft: "Privatperson (Verbraucher)",
@@ -94,7 +96,9 @@ const BUERGIN_MIT_NUMMER = { ...BUERGIN_VOLL, registernummer: "L26000000000" };
 const KUNDE = { anrede: "Herr" as const, vorname: "William", nachname: "Hildbrand", geburtsdatum: "1971-11-04", strasse: "Am Kirchwald 1b", plz: "69251", ort: "Gaiberg", land: "DE" as const, email: "w@example.de", telefon: "" };
 const D = { ref: "FIAON-IA-PRUEF1", fassung: S.ANGEBOT_FASSUNG, kunde: KUNDE, parameter: S.ANGEBOT_VORGABEN, buergin: BUERGIN_VOLL, pruefbericht: PB, gueltigBis: "2026-10-15" };
 /** Angebot-Aufrufe (01.10.2026): text_hash von D (ohne Häkchen), gemessen mit dem Stand vor dem Nachtrag. */
-const PRUEFSUMME_D_VORHER = "6d18a0f9692db28921b359af905587858403e944625b1f076d711a187b077180";
+// 01.10.2026 nachmittags bewusst geändert: der Knopf heißt „Auftrag zahlungspflichtig erteilen" (steht im Vermerk des
+// Vertrags). Gegenprobe: mit dem alten Knopf ergab derselbe Stand wieder 6d18a0f9… — sonst hat sich am Text nichts geändert.
+const PRUEFSUMME_D_VORHER = "09b00bbde7da74397f3a78465d60b26610fceaff5847267fb83217b0a6af4bd4";
 
 // ═══ TEIL 1 ════════════════════════════════════════════════════════════════
 titel("1. Ziffern und Vertragssprache");
@@ -165,6 +169,47 @@ titel("2b. „Ihre Garantie“ statt „Geld zurück“ und „Ihre Ansprechpart
   for (const s of ALLE_SCHALTER) ok(!V.angebotText(D, s).includes("florentine@fiaon.com") && !V.angebotText(D, s).includes(S.ANGEBOT_ANSPRECHPARTNER_SATZ), `Ansprechpartner stehen nicht im Vertragstext (Prüfsumme unberührt, Schalter ${JSON.stringify(s)})`);
 }
 
+titel("2c. Annahme-Bereich: „Auftrag zahlungspflichtig erteilen“, Startwahl, Übersicht klappbar (Justin, 01.10.2026 nachmittags)");
+{
+  // Knopf: Justins „Auftrag erteilen" — mit der Zahlungspflicht im Knopf selbst (§ 312j Abs. 3 BGB).
+  ok(S.ANGEBOT_KNOPF === "Auftrag zahlungspflichtig erteilen" && /zahlungspflichtig/.test(S.ANGEBOT_KNOPF), "Knopf: „Auftrag zahlungspflichtig erteilen“");
+  ok(V.angebotVorschauHtml(D, AUS).includes("Auftrag zahlungspflichtig erteilen"), "Vermerk im Vertrag nennt den neuen Knopf");
+  // Startwahl — der Server leitet ab, ob ein Starttag vor dem Ende der Widerrufsfrist liegt.
+  const J = new Date("2026-10-01T14:00:00Z");
+  const R = A.angebotStartRahmen(J);
+  ok(R.morgen === "2026-10-02" && R.spaetestens === "2026-12-30" && R.widerrufEnde === "2026-10-15" && R.widerrufStartAb === "2026-10-18", "Rahmen: morgen, +90 Tage, Widerrufsfrist bis 15.10., Start ohne Erklärung ab 18.10.", R);
+  const sw = (q: any) => JSON.stringify(A.schalterAus(q, J));
+  ok(sw({ beginn: "sofort" }) === JSON.stringify({ sofortBeginn: true, jahresbetreuung: false }), "„Sofort starten“ = sofortiger Beginn");
+  ok(sw({ beginn: "datum", startAm: "2026-10-08", jahresbetreuung: "1" }) === JSON.stringify({ sofortBeginn: true, jahresbetreuung: true, startAm: "2026-10-08" }), "Starttag vor dem 18.10. = Beginn vor Ablauf der Widerrufsfrist (mit Erklärung)");
+  ok(sw({ beginn: "datum", startAm: "2026-10-18" }) === JSON.stringify({ sofortBeginn: false, jahresbetreuung: false, startAm: "2026-10-18" }), "Starttag ab dem 18.10. = keine Erklärung nötig");
+  for (const falsch of ["2026-10-01", "2026-12-31", "08.10.2026", "", "2026-13-01x"]) ok(!A.schalterAus({ beginn: "datum", startAm: falsch }, J).startAm, `ungültiger Starttag „${falsch}“ wird nicht übernommen`);
+  ok(A.schalterAus({ sofortBeginn: "1" }, J).sofortBeginn === true && !A.schalterAus({}, J).sofortBeginn, "ältere Seite ohne „beginn“ wie bisher");
+  // Vertragstext mit Starttag
+  const vor = V.angebotText(D, { sofortBeginn: true, jahresbetreuung: false, startAm: "2026-10-08" });
+  const nach = V.angebotText(D, { sofortBeginn: false, jahresbetreuung: false, startAm: "2026-10-20" });
+  ok(vor.includes("FIAON beginnt an dem vom Auftraggeber gewählten Starttag, dem 08.10.2026, frühestens mit dem Zahlungseingang.") && vor.includes("frühestens jedoch an dem vom Auftraggeber gewählten Starttag, dem 08.10.2026") && vor.includes("hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt — an dem von ihm gewählten Starttag, dem 08.10.2026"), "Vertrag: Starttag vor Fristende — Ziffer 5, 6 und 11 mit Erklärung");
+  ok(nach.includes("Er hat als Starttag den 20.10.2026 gewählt, der nach dem Ende der Widerrufsfrist liegt") && !nach.includes("hat ausdrücklich verlangt") && nach.includes("dem 20.10.2026, frühestens mit dem Zahlungseingang"), "Vertrag: Starttag nach Fristende — ohne Erklärung");
+  ok(!V.angebotText(D, { sofortBeginn: true, jahresbetreuung: false }).includes("Starttag"), "„Sofort starten“: kein Starttag im Vertrag");
+  // Übersicht: Kernzeilen immer sichtbar (§ 312j Abs. 2), der Rest klappbar
+  const ue = S.angebotBestellUebersicht(D, { sofortBeginn: true, jahresbetreuung: true, startAm: "2026-10-08" });
+  ok(ue.filter((z) => z.kern).map((z) => z.label).join("|") === "Leistung|Teil 1 · Gründung|Teil 2 · Kapital-Begleitung|Gesamtpreis|Laufzeit|Ab dem zweiten Jahr|Beginn", "Kernzeilen: Leistung, beide Teile, Gesamtpreis, Laufzeit, gebuchte Jahresbetreuung, Beginn", ue.filter((z) => z.kern).map((z) => z.label));
+  ok(!S.angebotBestellUebersicht(D, AUS).find((z) => z.label === "Ab dem zweiten Jahr")?.kern, "nicht gebuchte Jahresbetreuung klappt mit ein");
+  ok(ue.find((z) => z.label === "Beginn")?.wert.startsWith("am 08.10.2026, frühestens mit Ihrem Zahlungseingang"), "Übersicht: Beginn mit Starttag");
+  ok(S.angebotBestellUebersicht(D, AUS).filter((z) => !z.kern).length >= 5, "mindestens fünf Einzelheiten zum Aufklappen");
+  // Frist und Start-Automatik mit Starttag
+  ok(A.angebotFristBerechnen({ bezahltAm: "2026-10-02", sofortBeginn: true, startAb: "2026-10-18", startAm: "2026-10-08", wochen: 12, hemmungTage: 0 }).beginn === "2026-10-08", "Frist: gezahlt vor dem Starttag → ab dem Starttag");
+  ok(A.angebotFristBerechnen({ bezahltAm: "2026-10-12", sofortBeginn: true, startAb: "2026-10-18", startAm: "2026-10-08", wochen: 12, hemmungTage: 0 }).beginn === "2026-10-12", "Frist: gezahlt nach dem Starttag → ab der Zahlung");
+  ok(A.angebotFristBerechnen({ bezahltAm: "2026-10-02", sofortBeginn: false, startAb: "2026-10-18", startAm: "2026-10-20", wochen: 12, hemmungTage: 0 }).beginn === "2026-10-20", "Frist: Starttag nach der Widerrufsfrist");
+  const { globalStartWartet } = await import("../server/lib/fiaon-global-auftrag");
+  const akte = (b: Record<string, unknown>) => ({ firma: JSON.stringify({ art: "privat" }), bestaetigungen: JSON.stringify(b), unterschrieben_am: "2026-10-01T14:00:00Z" });
+  const w1 = globalStartWartet(akte({ sofortBeginn: true, startAm: "2026-10-08" }), new Date("2026-10-05T10:00:00Z"));
+  ok(w1?.startAb === "2026-10-08" && w1?.wunschtermin === "2026-10-08", "Start wartet bis zum gewählten Tag", w1);
+  ok(globalStartWartet(akte({ sofortBeginn: true, startAm: "2026-10-08" }), new Date("2026-10-08T07:00:00Z")) === null, "am Starttag startet der Auftrag");
+  ok(globalStartWartet(akte({ sofortBeginn: false, startAm: "2026-10-20" }), new Date("2026-10-19T10:00:00Z"))?.startAb === "2026-10-20" && globalStartWartet(akte({ sofortBeginn: false, startAm: "2026-10-20" }), new Date("2026-10-20T07:00:00Z")) === null, "Starttag nach der Widerrufsfrist: wartet bis dahin, dann Start");
+  ok(globalStartWartet(akte({ sofortBeginn: false, startAm: "2026-10-10" }), new Date("2026-10-12T10:00:00Z"))?.startAb === "2026-10-18", "ohne Erklärung nie vor dem Start nach der Widerrufsfrist (Schutz, falls je ein solcher Datensatz entsteht)");
+  ok(globalStartWartet(akte({ sofortBeginn: true }), new Date("2026-10-02T10:00:00Z")) === null && globalStartWartet(akte({ sofortBeginn: false }), new Date("2026-10-02T10:00:00Z"))?.startAb === "2026-10-18", "ohne Starttag unverändert (sofort / nach der Widerrufsfrist)");
+}
+
 titel("2. Wortwand und schärfere Global-Regeln");
 {
   const wb = globalWiderrufsbelehrung("de");
@@ -219,7 +264,8 @@ titel("2. Wortwand und schärfere Global-Regeln");
   ok(seite.ablauf[3].text.includes("gleich in welcher Höhe") && seite.investition.tafel.some((z) => z.zusatz.includes("gleich in welcher Höhe")) && seite.investition.tafel.some((z) => /ab unserem Start/.test(z.zusatz)), "„gleich in welcher Höhe“ in Ablauf und Tafel; Geld zurück ab unserem Start");
   ok(seite.schutz.some((x) => /Adressnachweis/.test(x.fein)) && seite.lead.includes("Sie unterschreiben, wir erledigen den Rest"), "Seite: Mitwirkung ehrlich (Reisepass, ggf. Adressnachweis), kein „um nichts kümmern“");
   for (const s of ALLE_SCHALTER) pruefe(`Bestellübersicht ${JSON.stringify(s)}`, JSON.stringify(S.angebotBestellUebersicht(D, s)), 0);
-  pruefe("Annahme-Texte", JSON.stringify({ ...S.ANGEBOT_ANNAHME, unterKnopf: S.ANGEBOT_ANNAHME.unterKnopf("4.650,00 €"), fertigSofort: S.ANGEBOT_ANNAHME.fertigSofort("x@y.de"), fertigWartet: S.ANGEBOT_ANNAHME.fertigWartet("x@y.de") }), 0);
+  pruefe("Annahme-Texte", JSON.stringify({ ...S.ANGEBOT_ANNAHME, unterKnopf: S.ANGEBOT_ANNAHME.unterKnopf("4.650,00 €"), fertigSofort: S.ANGEBOT_ANNAHME.fertigSofort("x@y.de"), fertigWartet: S.ANGEBOT_ANNAHME.fertigWartet("x@y.de"),
+    fertigAb: S.ANGEBOT_ANNAHME.fertigAb("x@y.de", "08.10.2026"), fehltDatum: S.ANGEBOT_ANNAHME.fehltDatum("02.10.2026", "30.12.2026"), beginnNachWiderruf: S.ANGEBOT_ANNAHME.beginnNachWiderruf("15.10.2026") }), 0);
   pruefe("Mein Auftrag", JSON.stringify({ ...S.ANGEBOT_MEIN_AUFTRAG, frist: S.ANGEBOT_MEIN_AUFTRAG.frist("2026-10-01", "2026-12-24") }), 0);
   const pbText = V.pruefberichtHtml(D, PB).replace(/<[^>]+>/g, " ");
   pruefe("Prüfbericht", pbText, 0);
@@ -233,14 +279,14 @@ titel("2. Wortwand und schärfere Global-Regeln");
     ok(/alles inklusive/i.test(t) && /Reisepass/.test(t) && /15\.10\./.test(t), "Mail: alles inklusive, Reisepass, Link gilt bis 15.10.");
     // Endabnahme 01.10.2026: Ausnahmen wortgleich mit der Seite — ohne „nur", mit Umsatzsteuer-Registrierungen.
     ok(!/nicht dazugehört \(|Nicht enthalten sind nur/.test(t) && /Umsatzsteuer-Registrierungen in einzelnen US-Bundesstaaten/.test(t) && /Ziffer 5 Absatz 5/.test(t), "Mail: Ausnahmen ohne „nur“, vier Posten, Ziffer 5 Absatz 5 (Endabnahme)");
-    ok(/1\.\s/.test(t) && /Zahlungspflichtig annehmen/.test(t) && /Verwendungszweck/.test(t) && /Startgespräch/.test(t), "Mail: nummerierte Schritte bis zum Startgespräch");
+    ok(/1\.\s/.test(t) && t.includes(S.ANGEBOT_KNOPF) && /Verwendungszweck/.test(t) && /Startgespräch/.test(t), "Mail: nummerierte Schritte bis zum Startgespräch");
   }
 }
 
 titel("3. Prüfsumme");
 {
   const h = ALLE_SCHALTER.map((s) => V.angebotTextHash(D, s));
-  ok(new Set(h).size === 4, "vier Schalterstellungen, vier Prüfsummen");
+  ok(new Set(h).size === ALLE_SCHALTER.length, `${ALLE_SCHALTER.length} Schalterstellungen (mit Starttag), ebenso viele Prüfsummen`);
   ok(V.angebotTextHash(D, AUS) === V.angebotTextHash({ ...D }, { ...AUS }), "Prüfsumme stabil");
   ok(V.angebotTextHash(D, AUS) !== V.angebotTextHash({ ...D, buergin: { ...BUERGIN_VOLL, registernummer: "L26999999999" } }, AUS), "Änderung an Anlage 1 ändert die Prüfsumme");
   ok(V.angebotTextHash(D, AUS) !== V.angebotTextHash({ ...D, ref: "FIAON-IA-PRUEF2" }, AUS), "andere Referenz, andere Prüfsumme");
@@ -607,7 +653,7 @@ if (LOKAL) {
 
   titel("A4. PDF-Inhalte: Vertrag mit Annahmevermerk, Rechnung Teil 1, Prüfbericht");
   const vt = nurText(await pdfText(Buffer.from(akte.vertrag_pdf)));
-  for (const w of ["Angenommen durch Klick auf", "Zahlungspflichtig annehmen", ipFuer(0), s0.j.textHash.slice(0, 24), "Anlage 1 — Bürgschaftszusage", "Anlage 2 — Prüfbericht", "Anlage 3 — Widerrufsbelehrung", "4.650,00 €", "6.850,00 €", "11.500,00 €", "Der Auftraggeber hat nicht verlangt", "L26000000001", "Muster-Widerrufsformular"]) ok(vt.includes(w), `Vertrags-PDF enthält „${w}“`);
+  for (const w of ["Angenommen durch Klick auf", S.ANGEBOT_KNOPF, ipFuer(0), s0.j.textHash.slice(0, 24), "Anlage 1 — Bürgschaftszusage", "Anlage 2 — Prüfbericht", "Anlage 3 — Widerrufsbelehrung", "4.650,00 €", "6.850,00 €", "11.500,00 €", "Der Auftraggeber hat nicht verlangt", "L26000000001", "Muster-Widerrufsformular"]) ok(vt.includes(w), `Vertrags-PDF enthält „${w}“`);
   ok(!vt.includes("nicht angenommen"), "Ausfertigung ohne Entwurfs-Wasserzeichen");
   fs.writeFileSync(path.join(FOTOS, "vertrag-angenommen.pdf"), Buffer.from(akte.vertrag_pdf));
   const mt = new URL(`http://x${p1.j.vertragUrl}`).searchParams.get("t");
@@ -785,6 +831,36 @@ if (LOKAL) {
   ok(r.status === 409, "Erstattung nur einmal", r.j);
   r = await admin(`/admin/global/angebote/${bA.id}/erstattung-ueberwiesen`, { am: heute, notiz: "Prüfstand-Überweisung 1" });
   ok(r.status === 200 && (await angebotZeile(bA.id)).erstattet_am, "Erstattung überwiesen eingetragen");
+
+  // ── B1: „Wann sollen wir beginnen?" (Justin, 01.10.2026 nachmittags) — Pflichtwahl, „Starten ab" mit Datum ──
+  titel("B1. Startwahl: Pflicht, „Starten ab“ mit Datum, Start wartet bis zum gewählten Tag");
+  {
+    const cA = await anlegen("c", { buergin: BUERGIN_VOLL });
+    const s0c = await kunde(cA.token, "?sofortBeginn=0&jahresbetreuung=0");
+    let rc = await annehmen(cA.token, { beginn: null, textHash: s0c.j.textHash, jahresbetreuung: false }, menschFuer(7));
+    ok(rc.status === 400 && rc.j.code === "BEGINN" && /Sofort starten/.test(rc.j.error), "ohne Wahl: 400 BEGINN mit hilfreichem Satz", rc.j);
+    rc = await annehmen(cA.token, { beginn: "datum", startAm: "2020-01-01", textHash: s0c.j.textHash, jahresbetreuung: false }, menschFuer(7));
+    ok(rc.status === 400 && rc.j.code === "STARTDATUM" && /zwischen/.test(rc.j.error), "Tag außerhalb des Rahmens: 400 STARTDATUM mit den Grenzen", rc.j);
+    const tag = plus(heute, 5);
+    const sC = await kunde(cA.token, `?beginn=datum&startAm=${tag}&jahresbetreuung=0`);
+    ok(sC.j.schalter?.startAm === tag && sC.j.schalter?.sofortBeginn === true && sC.j.beginn?.morgen === plus(heute, 1) && String(sC.j.html).includes(tag.split("-").reverse().join(".")), "Sicht: Starttag im Vertrag, vor Fristende = mit Erklärung, Rahmen dabei", { s: sC.j.schalter, b: sC.j.beginn });
+    rc = await annehmen(cA.token, { beginn: "sofort", textHash: sC.j.textHash, jahresbetreuung: false }, menschFuer(7));
+    ok(rc.status === 409 && rc.j.code === "GEAENDERT", "Prüfsumme gehört zur Wahl: „Sofort“ mit der Prüfsumme des Starttags → neu laden", rc.j);
+    rc = await annehmen(cA.token, { beginn: "datum", startAm: tag, textHash: sC.j.textHash, jahresbetreuung: false }, menschFuer(7));
+    ok(rc.status === 200 && rc.j.ok, "angenommen mit Starttag", rc.j);
+    const refC = String(rc.j.auftragRef);
+    const zC = await angebotZeile(cA.id);
+    const schC = typeof zC.schalter === "string" ? JSON.parse(zC.schalter) : zC.schalter;
+    ok(schC.startAm === tag && schC.sofortBeginn === true, "Angebot: Schalter mit Starttag gespeichert", schC);
+    const akC = ((await sqlPool`SELECT bestaetigungen FROM fiaon_global_auftraege WHERE ref = ${refC}`) as any[])[0];
+    const bestC = typeof akC?.bestaetigungen === "string" ? JSON.parse(akC.bestaetigungen) : akC?.bestaetigungen;
+    ok(bestC?.startAm === tag && bestC?.annahme === S.ANGEBOT_KNOPF, "Akte: Starttag und neuer Knopf in den Bestätigungen", bestC);
+    ok(String(rc.j.fertigText).includes(`am ${tag.split("-").reverse().join(".")}`), "Bestätigung nennt den Starttag", rc.j.fertigText);
+    const bC = await zeile(refC);
+    await markPaid(bC.payment_reference);
+    ok(await bisDa(async () => ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${refC}:widerruf`} AND titel LIKE '%gewählten Tag%'`) as any[])[0].n === 1), "bezahlt vor dem Starttag: Aufgabe „Start am gewählten Tag“");
+    ok(!(await angebotZeile(cA.id)).frist_beginn, "… und noch kein Start, keine Frist");
+  }
 
   // ── B2: Hängender Abschluss heilt sich — beim Lesen des Links und im Stundenlauf (Gegenprüfung 01.10.2026) ──
   titel("B2. Nacharbeit nachholen: Kundenlink und Stundenlauf");
@@ -1087,8 +1163,9 @@ if (LOKAL) {
         const haken = Array.from(document.querySelectorAll(".gia-annahme input[type=checkbox]")).map((x) => (x as HTMLInputElement).checked);
         return { abstand: kn.top - ue.bottom, haken, text: (document.querySelector(".gia-annehmen") as HTMLElement).innerText };
       });
-      ok(lage.abstand >= 0 && lage.abstand < 120 && lage.text.trim() === "Zahlungspflichtig annehmen", "Bestellübersicht unmittelbar über „Zahlungspflichtig annehmen“", lage);
-      ok(lage.haken.length === 2 && lage.haken.every((x) => x === false), "zwei Häkchen, keiner vorangekreuzt", lage.haken);
+      ok(lage.abstand >= 0 && lage.abstand < 120 && lage.text.trim() === S.ANGEBOT_KNOPF, "Bestellübersicht unmittelbar über „Zahlungspflichtig annehmen“", lage);
+      // Seit 01.10.2026 nachmittags: „Sofort starten", „Starten ab" und die Jahresbetreuung — keins vorangekreuzt.
+      ok(lage.haken.length === 3 && lage.haken.every((x) => x === false), "drei Kästchen (Sofort starten, Starten ab, Jahresbetreuung), keins vorangekreuzt", lage.haken);
       await page.locator(".gia-annahme").screenshot({ path: path.join(FOTOS, "annahme-380.png") });
       // Gegenprüfung 01.10.2026: Am Handy stapeln die Tabellen des Prüfberichts — kein Kasten scrollt seitlich.
       const tab = await page.evaluate(() => Array.from(document.querySelectorAll(".gia-vertrag .gia-tab")).map((t) => ({ breit: t.scrollWidth > (t.parentElement?.clientWidth ?? 0) + 1, thead: getComputedStyle(t.querySelector("thead") ?? t).display })));

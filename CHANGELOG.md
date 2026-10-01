@@ -5,6 +5,43 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — Persönliches Angebot: Annahme-Bereich mit Startwahl, klappbarer Übersicht und „Auftrag zahlungspflichtig erteilen" (E-268, Nachtrag)
+
+**Der Anlass:** Justin: „‚Ihre Bestellung im Überblick' soll man ein- und ausklappen können · ‚Zahlungspflichtig annehmen'
+ändern auf ‚Auftrag erteilen' · bei ‚Wann sollen wir beginnen?' zwei Kästchen: ‚sofort starten' (dann klein und grau das mit
+dem Widerruf) oder ‚starten ab' mit Datum · und wenn er irgendwo was vergessen hat, soll ihm richtig und helfend angezeigt
+werden, was fehlt."
+
+**Was jetzt gilt:**
+- **Knopf „Auftrag zahlungspflichtig erteilen"** (`ANGEBOT_KNOPF`). „Auftrag erteilen" allein reicht nicht: Bei einer
+  Privatperson muss die Zahlungspflicht im Knopf selbst stehen, sonst kommt kein Vertrag zustande (§ 312j Abs. 3 und 4 BGB,
+  EuGH C-249/21). Der Vermerk im Vertrag nennt den neuen Knopf — deshalb neue Prüfsumme (Gegenprobe: sonst unverändert).
+- **„Wann sollen wir beginnen?"** — zwei Kästchen, keins vorgewählt: „Sofort starten" (darunter klein und grau die Erklärung
+  zum Widerruf) oder „Starten ab" mit Datumsfeld (morgen bis +90 Tage). Liegt der Starttag vor dem Start nach der
+  Widerrufsfrist, gilt dieselbe Erklärung (grau eingeblendet); danach der Satz „Ihr Widerrufsrecht bleibt bis dahin
+  vollständig erhalten". Ob ein Tag davor liegt, entscheidet der Server (`schalterAus`, `angebotStartRahmen`).
+- **Starttag im Vertrag:** Ziffer 5 („FIAON beginnt an dem vom Auftraggeber gewählten Starttag, dem …, frühestens mit dem
+  Zahlungseingang"), Ziffer 6 (Frist frühestens ab dem Starttag) und Ziffer 11; dazu Bestellübersicht „Beginn", Aufgabe an
+  die Betreuung, Bestätigungsseite. Gespeichert im Schalter des Angebots und in den Bestätigungen der Akte (`startAm`).
+- **Start wartet bis zum Starttag:** `globalStartWartet` hält einen bezahlten Auftrag bis zum gewählten Tag zurück, der
+  Stundenlauf `globalWiderrufsStartLauf` startet ihn dann (derselbe Weg wie nach der Widerrufsfrist); Aufgabe „Teil 1 bezahlt,
+  Start am gewählten Tag". `angebotFristBerechnen`: Fristbeginn = spätester von Zahlung, Starttag (und ohne Erklärung Start
+  nach der Widerrufsfrist).
+- **Was fehlt, sagt die Seite:** Ein Klick ohne Wahl oder mit ungültigem Tag springt zum Feld, rahmt es rot, setzt den Fokus,
+  schreibt den Satz darunter und listet unter dem Knopf „Für die Annahme fehlt noch: …" (jeder Punkt springt hin). Der Server
+  prüft dasselbe (Code `BEGINN` / `STARTDATUM`). Eine noch offene ältere Seite ohne Wahl nimmt wie bisher an.
+- **Bestellübersicht ein- und ausklappbar:** „Alle Einzelheiten anzeigen (n weitere)" neben der Überschrift. Leistung, beide
+  Teile, Gesamtpreis, Laufzeit, gebuchte Jahresbetreuung und Beginn bleiben IMMER sichtbar (§ 312j Abs. 2 BGB verlangt sie
+  unmittelbar über dem Knopf); Vertragspartner, Garantie, Bürgschaft, Zahlung, Widerruf klappen ein. Solange nichts gewählt
+  ist, steht bei „Beginn" „noch nicht gewählt".
+- Prüfstand `scripts/pruef-individualangebot.ts`: Abschnitt 2c (Knopf, Rahmen, Ableitung, Vertragstexte, Kernzeilen, Frist,
+  Start-Wartezeit) und B1 (echte Annahme in der Prüf-DB: 400 BEGINN, 400 STARTDATUM, Prüfsumme gehört zur Wahl, Annahme mit
+  Starttag, Akte, Bestätigung, bezahlt vor dem Starttag → Aufgabe, keine Frist) — 783/783 grün mit `--lokal`.
+
+**Wo zu finden:** der persönliche Link → ganz unten „Wann sollen wir beginnen?", „Ihre Bestellung im Überblick" und der Knopf.
+
+---
+
 ## 01.10.2026 — Persönliches Angebot: „Ihre Ansprechpartner" und „Ihre Garantie" statt „Geld zurück" (E-268, Nachtrag)
 
 **Der Anlass:** Justin, nachdem Herr Hildbrand den Link hatte: „Füge auf dem Angebot ‚Ihre Ansprechpartner' ein — Florentine

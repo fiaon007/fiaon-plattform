@@ -200,3 +200,45 @@ html.gia-auftakt-an{overflow:hidden}
 @media(max-width:860px) and (min-width:561px){.gia-kontakt li{flex-direction:row;align-items:center;gap:24px}.gia-kontakt-kopf{flex:1 1 0}.gia-kontakt-wege{flex:0 0 46%;border-top:0;margin-top:0}}
 @media(max-width:560px){.gia-kontakt-bild{width:60px;height:60px}.gia-kontakt-wer b{font-size:18px}.gia-kontakt-wege a{min-height:48px;font-size:15px}}
 @media(prefers-reduced-motion:reduce){.gia-kontakt-wege a,.gia-kontakt-wege a svg{transition:none}}
+
+/* ── 7a · „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt ──
+   Überschreibt die Gitter-Labels von .gs-beginn/.gia-wahl gezielt (.gia-beginn …). Rechner: nebeneinander, Handy: untereinander. */
+.gia-beginn .gia-fein{margin:4px 0 0}
+.gia-optionen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.gia-beginn .gia-option{border-radius:10px;background:#fff;border:1px solid var(--linie-2);transition:border-color .15s ease,box-shadow .15s ease}
+.gia-beginn .gia-option.an{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
+.gia-beginn label.gia-option,.gia-beginn .gia-option-kopf{display:grid;grid-template-columns:22px 1fr;gap:12px;align-items:start;padding:14px 16px;min-height:48px;cursor:pointer}
+.gia-beginn .gia-option input[type="checkbox"]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--navy)}
+.gia-option-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gia-option-text b{font-size:14.5px;font-weight:500;color:var(--tinte)}
+.gia-option-text span{font-size:12.5px;font-weight:300;line-height:1.5;color:var(--leise)}
+.gia-beginn .gia-datum{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 16px 14px 50px}
+.gia-beginn .gia-datum label{display:block;padding:0;font-size:12.5px;color:var(--leise);cursor:default}
+.gia-beginn .gia-datum input{width:auto;height:auto;margin:0;min-height:44px;padding:8px 12px;border-radius:8px;border:1px solid var(--linie-2);background:#fff;
+  font:inherit;font-size:15px;color:var(--tinte);font-variant-numeric:tabular-nums;accent-color:var(--navy)}
+.gia-beginn .gia-datum input:focus{outline:2px solid var(--blau);outline-offset:1px;border-color:var(--blau)}
+.gia-beginn p.gia-widerruf-grau{margin:12px 0 0;font-size:12px;font-weight:300;line-height:1.6;color:var(--leise)}
+/* Was fehlt: rot nur dort, wo etwas nicht geht (Kopf der Datei) — am Feld, darunter der Satz, unter dem Knopf die Liste. */
+.gia-beginn.gia-feld-fehlt{border-color:#e7a1a1;box-shadow:0 0 0 3px rgba(185,28,28,.08)}
+.gia-beginn .gia-datum.gia-feld-fehlt input{border-color:#b91c1c;box-shadow:0 0 0 3px rgba(185,28,28,.1)}
+.gia-beginn p.gia-feld-hinweis,.gia-feld-hinweis{flex-basis:100%;margin:10px 0 0;font-size:13px;font-weight:400;line-height:1.5;color:#b91c1c}
+.gia-fehlt{margin-top:14px;padding:12px 16px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;font-size:13.5px;line-height:1.55;color:#7f1d1d}
+.gia-fehlt b{font-weight:600}
+.gia-fehlt ul{margin:6px 0 0;padding-left:18px}
+.gia-fehlt a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:620px){
+  .gia-optionen{grid-template-columns:1fr}
+  .gia-beginn .gia-datum{margin:0 14px 14px 48px}
+  .gia-beginn .gia-datum input{width:100%}
+}
+
+/* ── 7 · Bestellübersicht ein- und ausklappbar: der Schalter steht neben der Überschrift, nicht zwischen Übersicht und Knopf ── */
+.gia-uebersicht-kopf{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;margin-top:30px}
+.gia-uebersicht-kopf .gia-uebersicht-titel{margin-top:0}
+.gia-uebersicht-knopf{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0;border:0;background:none;font:inherit;font-size:13.5px;
+  color:var(--navy);text-decoration:underline;text-underline-offset:4px;text-decoration-color:rgba(18,40,74,.3);cursor:pointer}
+.gia-uebersicht-knopf::after{content:"";width:7px;height:7px;margin-left:2px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .15s ease}
+.gia-uebersicht-knopf[aria-expanded="true"]::after{transform:translateY(2px) rotate(-135deg)}
+.gia-uebersicht-knopf:hover{text-decoration-color:var(--navy)}
+@media(prefers-reduced-motion:reduce){.gia-beginn .gia-option,.gia-uebersicht-knopf::after{transition:none}}
+.gia-uebersicht dd.gia-offen{color:var(--leise);font-style:italic}

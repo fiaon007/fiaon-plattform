@@ -16,6 +16,9 @@
 //   5 „Ihre Investition" — hier wandert die dunkle Tafel hin
 //   6 Vertrag + Anlagen (aufklappbar, vollständig lesbar)
 //   4b „Ihre Ansprechpartner" (Justin, 01.10.2026 nachmittags) — auch auf der Bestätigung
+//   7a „Wann sollen wir beginnen?" — „Sofort starten" (darunter grau die Erklärung zum Widerruf) oder
+//      „Starten ab" mit Datum; keins vorgewählt. Fehlt etwas, sagt die Seite beim Klick genau was, am Feld
+//      und unter dem Knopf, und springt hin (Justin, 01.10.2026 nachmittags).
 //   7 Bestellübersicht UNMITTELBAR über „Zahlungspflichtig annehmen" (§ 312j BGB —
 //     Beträge dort vollständig, das bleibt am Ende)
 //   Die Abschnitte bauen sich beim Scrollen dezent auf (Auf aus DunkleBuehne).
@@ -27,6 +30,8 @@
 //          Bestellübersicht, ob angenommen werden kann (Pflichtfelder der Bürgin)
 //   POST /api/fiaon/global/angebot/:token/annehmen  { sofortBeginn, jahresbetreuung, textHash }
 //        → der Server rechnet die Prüfsumme nach; weicht sie ab: „bitte neu laden"
+//   Seit 01.10.2026 nachmittags statt sofortBeginn: beginn=sofort | beginn=datum&startAm=JJJJ-MM-TT —
+//   ob ein Starttag vor dem Ende der Widerrufsfrist liegt (dann gilt die Erklärung), entscheidet der Server.
 //   Angebot-Aufrufe (01.10.2026): Jeden Abruf protokolliert NUR der Server (Zeit, Gerät, Region aus den
 //   Kopfzeilen, IP gekürzt). Die Seite misst nichts, setzt kein Cookie, lädt kein Pixel; sie hängt nur
 //   ?wahl=1 an, wenn sie nach einem Häkchen den Vertrag neu holt — das ist kein neues Öffnen. Der Satz
@@ -47,9 +52,11 @@ import { useRoute } from "wouter";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import "@/styles/global-start.css";
 import "@/styles/global-angebot.css";
-import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ } from "@shared/fiaon-global-angebot";
+import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ, ANGEBOT_ANNAHME as AN } from "@shared/fiaon-global-angebot";
 
-type Zeile = { label: string; wert: string };
+type Zeile = { label: string; wert: string; kern?: boolean };
+// „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
+type Beginn = "" | "sofort" | "datum";
 type Karte = { titel: string; text: string; fein: string };
 type Seite = {
   auftakt: { gruss: string; zeile: string; ueberspringen: string };
@@ -70,6 +77,8 @@ type Sicht = {
   seite: Seite; uebersicht: Zeile[]; annahme: Annahme; teil1Cents: number;
   html: string; textHash: string; annahmeBereit: boolean; gesperrtGrund: string | null;
   vorschauLeitung?: boolean; fehlt?: string[]; vertragPdf: string; pruefberichtPdf: string;
+  schalter: { sofortBeginn: boolean; jahresbetreuung: boolean; startAm?: string | null };
+  beginn: { morgen: string; spaetestens: string; widerrufStartAb: string; widerrufEnde: string };
 };
 type Fertig = {
   ref: string; auftragRef: string | null; email: string; sofortBeginn: boolean; zahlungsseite: string | null; meinAuftrag: string | null;
@@ -77,6 +86,9 @@ type Fertig = {
   teil1Bezahlt?: boolean; fertigZahlung?: string; fertigFuss?: string;
 };
 
+/** Die Wahl als Abfrage: beginn=sofort | beginn=datum&startAm=… | ohne Wahl der Vertrag „nach der Widerrufsfrist". */
+const wahlQuery = (b: Beginn, tag: string, jb: boolean) =>
+  `${b === "sofort" ? "beginn=sofort" : b === "datum" && tag ? `beginn=datum&startAm=${encodeURIComponent(tag)}` : "sofortBeginn=0"}&jahresbetreuung=${jb ? 1 : 0}`;
 const tagDe = (iso?: string | null) => (iso ? String(iso).slice(0, 10).split("-").reverse().join(".") : "");
 const ruhigeBewegung = () => { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
 
@@ -159,7 +171,11 @@ function Ansprechpartner({ angebotRef }: { angebotRef: string }) {
 export default function BusinessAngebot() {
   const [, treffer] = useRoute("/business/angebot/:token");
   const token = String(treffer?.token ?? "");
-  const [sofortBeginn, setSofortBeginn] = useState(false);
+  const [beginn, setBeginn] = useState<Beginn>("");
+  const [startAm, setStartAm] = useState("");
+  // Erst nach dem ersten Klick auf den Knopf zeigt die Seite, was fehlt — dann laufend, bis alles da ist.
+  const [zeigeFehlt, setZeigeFehlt] = useState(false);
+  const [uebersichtOffen, setUebersichtOffen] = useState(false);
   const [jahresbetreuung, setJahresbetreuung] = useState(false);
   const [sicht, setSicht] = useState<Sicht | null>(null);
   const [fertig, setFertig] = useState<Fertig | null>(null);
@@ -178,14 +194,14 @@ export default function BusinessAngebot() {
   const auftaktGeht = useCallback(() => setAuftakt((a) => (a === "offen" ? "geht" : a)), []);
   const auftaktEnde = useCallback(() => setAuftakt("vorbei"), []);
 
-  const laden = useCallback(async (sb: boolean, jb: boolean) => {
+  const laden = useCallback(async (b: Beginn, tag: string, jb: boolean) => {
     if (!token) { setStand("fehler"); setFehler("Dieser Link ist unvollständig. Bitte öffnen Sie den Link aus unserer Nachricht."); return; }
     const nr = ++anfrage.current;
     setLaedtNeu(true);
     const ab = new AbortController();
     const zeit = window.setTimeout(() => ab.abort(), 20_000);
     try {
-      const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}?sofortBeginn=${sb ? 1 : 0}&jahresbetreuung=${jb ? 1 : 0}${geladen.current ? "&wahl=1" : ""}`, { signal: ab.signal, credentials: "include" });
+      const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}?${wahlQuery(b, tag, jb)}${geladen.current ? "&wahl=1" : ""}`, { signal: ab.signal, credentials: "include" });
       const j = await r.json().catch(() => null);
       if (nr !== anfrage.current) return;
       if (!r.ok || !j?.ok) { setStand("fehler"); setFehler(j?.error || "Das Angebot ließ sich nicht laden. Bitte versuchen Sie es gleich noch einmal."); return; }
@@ -201,20 +217,42 @@ export default function BusinessAngebot() {
     }
   }, [token]);
 
-  useEffect(() => { void laden(sofortBeginn, jahresbetreuung); }, [laden, sofortBeginn, jahresbetreuung]);
+  // Der Vertrag folgt der Wahl: ein halb getippter Tag (leer) lädt den Vertrag ohne Starttag.
+  const tagFuerVertrag = beginn === "datum" && /^\d{4}-\d{2}-\d{2}$/.test(startAm) ? startAm : "";
+  useEffect(() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }, [laden, beginn, tagFuerVertrag, jahresbetreuung]);
+
+  // Was für die Annahme fehlt — mit dem Feld, zu dem die Seite springt.
+  const R = sicht?.beginn;
+  const fehltListe: { id: string; text: string }[] = [];
+  if (!beginn) fehltListe.push({ id: "gia-beginn", text: `${AN.beginnTitel} ${AN.fehltBeginn}` });
+  else if (beginn === "datum" && R && !(tagFuerVertrag && tagFuerVertrag >= R.morgen && tagFuerVertrag <= R.spaetestens)) {
+    fehltListe.push({ id: "gia-startdatum", text: AN.fehltDatum(tagDe(R.morgen), tagDe(R.spaetestens)) });
+  }
+  const fehltBeginn = zeigeFehlt && fehltListe.some((f) => f.id === "gia-beginn");
+  const fehltDatum = zeigeFehlt && fehltListe.some((f) => f.id === "gia-startdatum");
+  const hinspringen = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: ruhigeBewegung() ? "auto" : "smooth" });
+    const feld = el.querySelector<HTMLInputElement>("input") ?? el;
+    window.setTimeout(() => feld.focus({ preventScroll: true }), ruhigeBewegung() ? 0 : 350);
+  };
 
   const annehmen = async () => {
     if (!sicht || sendet || laedtNeu) return;
+    if (fehltListe.length) { setZeigeFehlt(true); setAntwortFehler(""); hinspringen(fehltListe[0].id); return; }
     setSendet(true); setAntwortFehler("");
     try {
       const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sofortBeginn, jahresbetreuung, textHash: sicht.textHash, falle }),
+        body: JSON.stringify({ beginn, startAm: beginn === "datum" ? tagFuerVertrag : null, jahresbetreuung, textHash: sicht.textHash, falle }),
       });
       const j = await r.json().catch(() => null);
       if (r.ok && j?.ok) { setFertig(j as Fertig); window.scrollTo({ top: 0 }); return; }
       setAntwortFehler(j?.error || "Die Annahme ließ sich gerade nicht speichern. Bitte versuchen Sie es noch einmal.");
-      if (j?.code === "GEAENDERT") void laden(sofortBeginn, jahresbetreuung);
+      if (j?.code === "BEGINN") { setZeigeFehlt(true); hinspringen("gia-beginn"); }
+      if (j?.code === "STARTDATUM") { setZeigeFehlt(true); hinspringen("gia-startdatum"); }
+      if (j?.code === "GEAENDERT") void laden(beginn, tagFuerVertrag, jahresbetreuung);
     } catch {
       setAntwortFehler("Keine Verbindung — Ihre Annahme ist NICHT angekommen. Bitte versuchen Sie es noch einmal.");
     } finally { setSendet(false); }
@@ -236,7 +274,7 @@ export default function BusinessAngebot() {
         <div className="gs gia"><div className="dk-rahmen">
           <header className="gs-kopf"><span className="gs-auge">FIAON Global · Persönliches Angebot</span><h1 className="gs-h1">Dieses Angebot lässt sich nicht öffnen</h1></header>
           <p className="gs-fehler" role="alert">{fehler}</p>
-          <button type="button" className="gs-link" onClick={() => { setStand("laedt"); void laden(sofortBeginn, jahresbetreuung); }}>Erneut laden</button>
+          <button type="button" className="gs-link" onClick={() => { setStand("laedt"); void laden(beginn, tagFuerVertrag, jahresbetreuung); }}>Erneut laden</button>
         </div></div>
       </Dunkel>
     );
@@ -367,7 +405,7 @@ export default function BusinessAngebot() {
             <h2 className="gia-h2">{S.dokumenteTitel}</h2>
             <ul className="gia-dokumente">{S.dokumente.map((d) => <li key={d.titel}><b>{d.titel}</b><span>{d.text}</span></li>)}</ul>
             <div className="gs-dateien">
-              <a href={`${sicht.vertragPdf}?sofortBeginn=${sofortBeginn ? 1 : 0}&jahresbetreuung=${jahresbetreuung ? 1 : 0}`} target="_blank" rel="noreferrer">Vertrag als PDF ansehen (Entwurf)</a>
+              <a href={`${sicht.vertragPdf}?${wahlQuery(beginn, tagFuerVertrag, jahresbetreuung)}`} target="_blank" rel="noreferrer">Vertrag als PDF ansehen (Entwurf)</a>
               <a href={sicht.pruefberichtPdf} target="_blank" rel="noreferrer">Anlage 2: Prüfbericht (PDF)</a>
             </div>
             {/* Angebot-Aufrufe (01.10.2026): außerhalb des Vertragstextes — die Prüfsumme bleibt, wie sie ist. */}
@@ -381,19 +419,64 @@ export default function BusinessAngebot() {
 
           {/* 7 — Die Annahme: Wahl, Übersicht, Knopf. § 312j Abs. 2 BGB: die Übersicht UNMITTELBAR über dem Knopf. */}
           <section className="gs-blatt gia-annahme" id="annahme" aria-label={A.titel}>
-            <div className="gs-beginn gia-wahl">
-              <h3>{A.beginnTitel}</h3>
-              <p>{A.beginnText}</p>
-              <label><input type="checkbox" checked={sofortBeginn} onChange={(e) => setSofortBeginn(e.target.checked)} /><span>{A.sofortBeginn}</span></label>
+            {/* „Wann sollen wir beginnen?" — zwei Kästchen, keins vorgewählt (Justin, 01.10.2026). Die Erklärung zum
+                Widerruf steht klein und grau darunter, sobald sie gilt: bei „Sofort starten" und bei einem Starttag vor dem
+                Ende der Widerrufsfrist (das entscheidet der Server, sicht.schalter.sofortBeginn). */}
+            <div className={`gs-beginn gia-wahl gia-beginn${fehltBeginn ? " gia-feld-fehlt" : ""}`} id="gia-beginn" role="group" aria-labelledby="gia-beginn-titel" aria-describedby={fehltBeginn ? "gia-beginn-fehlt" : undefined}>
+              <h3 id="gia-beginn-titel">{A.beginnTitel}</h3>
+              <p className="gia-fein">{AN.beginnWahl}</p>
+              <div className="gia-optionen">
+                <label className={`gia-option${beginn === "sofort" ? " an" : ""}`}>
+                  <input type="checkbox" checked={beginn === "sofort"} onChange={(e) => setBeginn(e.target.checked ? "sofort" : "")} />
+                  <span className="gia-option-text"><b>{AN.beginnSofort}</b><span>{AN.beginnSofortUnter}</span></span>
+                </label>
+                <div className={`gia-option gia-option-datum${beginn === "datum" ? " an" : ""}`}>
+                  <label className="gia-option-kopf">
+                    <input type="checkbox" checked={beginn === "datum"} onChange={(e) => { setBeginn(e.target.checked ? "datum" : ""); if (e.target.checked) window.setTimeout(() => document.getElementById("gia-startdatum-feld")?.focus(), 0); }} />
+                    <span className="gia-option-text"><b>{AN.beginnDatum}</b><span>{AN.beginnDatumUnter}</span></span>
+                  </label>
+                  {beginn === "datum" && (
+                    <div className={`gia-datum${fehltDatum ? " gia-feld-fehlt" : ""}`} id="gia-startdatum">
+                      <label htmlFor="gia-startdatum-feld">{AN.beginnDatumFeld}</label>
+                      <input id="gia-startdatum-feld" type="date" value={startAm} min={R?.morgen} max={R?.spaetestens}
+                        onChange={(e) => setStartAm(e.target.value)} aria-invalid={fehltDatum || undefined} aria-describedby={fehltDatum ? "gia-datum-fehlt" : undefined} />
+                      {fehltDatum && R && <p className="gia-feld-hinweis" id="gia-datum-fehlt">{AN.fehltDatum(tagDe(R.morgen), tagDe(R.spaetestens))}</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {fehltBeginn && <p className="gia-feld-hinweis" id="gia-beginn-fehlt">{AN.fehltBeginn}</p>}
+              {(beginn === "sofort" || (beginn === "datum" && !!tagFuerVertrag && sicht.schalter?.startAm === tagFuerVertrag && sicht.schalter.sofortBeginn)) && (
+                <p className="gia-widerruf-grau">{A.sofortBeginn}</p>
+              )}
+              {beginn === "datum" && !!tagFuerVertrag && sicht.schalter?.startAm === tagFuerVertrag && !sicht.schalter.sofortBeginn && R && (
+                <p className="gia-widerruf-grau">{AN.beginnNachWiderruf(tagDe(R.widerrufEnde))}</p>
+              )}
             </div>
             <div className="gia-wahl">
               <label><input type="checkbox" checked={jahresbetreuung} onChange={(e) => setJahresbetreuung(e.target.checked)} /><span>{A.jahresbetreuung}</span></label>
               <p className="gia-fein">{A.jahresbetreuungUnter}</p>
             </div>
 
-            <h2 className="gia-h2 gia-uebersicht-titel">{A.titel}</h2>
-            <dl className="gia-uebersicht" aria-busy={laedtNeu || undefined}>
-              {sicht.uebersicht.map((z) => <div key={z.label}><dt>{z.label}</dt><dd>{z.wert}</dd></div>)}
+            {/* Ein- und ausklappbar (Justin, 01.10.2026) — die Kernzeilen (Leistung, Preise, Laufzeit, Beginn) bleiben
+                immer sichtbar, § 312j Abs. 2 BGB; der Schalter steht oben, damit die Übersicht direkt über dem Knopf bleibt. */}
+            <div className="gia-uebersicht-kopf">
+              <h2 className="gia-h2 gia-uebersicht-titel">{A.titel}</h2>
+              {sicht.uebersicht.some((z) => !z.kern) && (
+                <button type="button" className="gia-uebersicht-knopf" aria-expanded={uebersichtOffen} aria-controls="gia-uebersicht" onClick={() => setUebersichtOffen((o) => !o)}>
+                  {uebersichtOffen ? AN.uebersichtWeniger : `${AN.uebersichtMehr} (${sicht.uebersicht.filter((z) => !z.kern).length} weitere)`}
+                </button>
+              )}
+            </div>
+            <dl className="gia-uebersicht" id="gia-uebersicht" aria-busy={laedtNeu || undefined}>
+              {sicht.uebersicht.filter((z) => uebersichtOffen || z.kern).map((z) => (
+                <div key={z.label}><dt>{z.label}</dt>
+                  {/* Solange nichts gewählt ist, zeigt „Beginn" das ehrlich — nicht den Vertragsstand ohne Wahl. */}
+                  <dd className={z.label === "Beginn" && !(beginn === "sofort" || (beginn === "datum" && tagFuerVertrag)) ? "gia-offen" : undefined}>
+                    {z.label === "Beginn" && !(beginn === "sofort" || (beginn === "datum" && tagFuerVertrag)) ? AN.beginnOffen : z.wert}
+                  </dd>
+                </div>
+              ))}
             </dl>
             <input className="gs-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={falle} onChange={(e) => setFalle(e.target.value)} />
             {antwortFehler && <p className="gs-fehler" role="alert">{antwortFehler}</p>}
@@ -403,6 +486,13 @@ export default function BusinessAngebot() {
                   {sendet ? "Wird gespeichert …" : A.knopf}
                 </button>
                 {laedtNeu && <p className="gia-fein" role="status">Der Vertrag wird an Ihre Wahl angepasst …</p>}
+                {/* Was fehlt — erst nach dem ersten Klick, dann laufend; jeder Punkt springt zum Feld. */}
+                {zeigeFehlt && fehltListe.length > 0 && (
+                  <div className="gia-fehlt" role="alert">
+                    <b>{AN.fehltTitel}</b>
+                    <ul>{fehltListe.map((f) => <li key={f.id}><a href={`#${f.id}`} onClick={(e) => { e.preventDefault(); hinspringen(f.id); }}>{f.text}</a></li>)}</ul>
+                  </div>
+                )}
                 <p className="gia-unterknopf">{A.unterKnopf}</p>
                 <p className="gia-fein">{A.gelesen}</p>
               </div>

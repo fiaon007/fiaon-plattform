@@ -182,12 +182,21 @@ async function verpasstMailSenden(
                FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
                ORDER BY a.created_at DESC LIMIT 1)) AS email,
              -- E-265: Nennform in der Kundenmail, nie der Vorname.
-             ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname
+             ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname,
+             t.agent_id, t.quelle
       FROM fiaon_persons p
       LEFT JOIN fiaon_termine t ON t.id = ${terminId}
       LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
       WHERE p.id = ${personId}
     `) as any[];
+    // Vertretung (01.10.2026, Gegenprüfung): Lag der verpasste Termin bei einem Abwesenden (vor „bis"),
+    // hat der Vertreter angerufen — „… hat versucht, Sie zu erreichen" nennt ihn (anruferFuer).
+    if (k?.agent_vorname && k.agent_id && beginn) {
+      try {
+        const { anruferFuer } = await import("../lib/fiaon-abwesenheit");
+        k.agent_vorname = await anruferFuer(Number(k.agent_id), beginn, String(k.agent_vorname), sqlPool, k.quelle);
+      } catch { /* ohne Abwesenheit: der Gebuchte */ }
+    }
 
     const erg = await versendenUndProtokollieren(
       "termin_verpasst",

@@ -1299,7 +1299,9 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
       + "Meta-Qualität und die Fehler der letzten 24 Stunden; dort und im roten Band steht „WhatsApp wieder aktivieren“.",
     tipp: "Vor dem Aktivieren fragt das System Metas Kontostand ab, ohne eine Nachricht zu schicken — meldet Meta „gesperrt“ "
       + "oder lehnt den Zugang ab (#190), bleibt die Pause. Meta GELB halbiert die Automatik, Meta ROT stoppt die Werbung an bestehende "
-      + "Kontakte: Die Zentrale schickt nur noch die Monatsrate; die Begrüßung frischer Leads (≤ 24 h), einzelne Termin-Nachrichten und Antworten laufen weiter.",
+      + "Kontakte: Die Zentrale schickt nur noch die Monatsrate; die Begrüßung frischer Leads (≤ 24 h), einzelne Termin-Nachrichten und Antworten laufen weiter. "
+      // 01.10.2026: ROT bleibt, bis Meta GELB oder GRÜN meldet.
+      + "Meldet Meta nach einem ROT nur „unbekannt“, gilt weiter ROT — erst GELB oder GRÜN gibt die Werbung wieder frei.",
   },
   {
     ziel: ".mara-leiste",
@@ -1364,12 +1366,16 @@ export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
   {
     ziel: ".mt-schalter",
     titel: "Ein Schalter: Team abwesend — Mara bucht bei dir.",
+    // Vertretung (01.10.2026): Terminseite, Übergaben an den Vertreter, Gründer/Global nie umgeleitet.
     text: "Solange er an ist, trägt Mara neue Rückrufe (WhatsApp und Mail) bis „bis“ nur in den Kalender des Vertreters ein — "
-      + "in seinem Raster, mit 20 Minuten Vorlauf, nie gleichzeitig mit einem Termin, den er für das Team anruft. Zeiten danach "
-      + "bucht sie wie sonst beim Betreuer oder im Team. Sie nennt dem Kunden den, der wirklich anruft, und ihre Übergaben "
-      + "landen auf deinem Board. Die Kunden bleiben bei ihren Betreuern — auch die eines gesperrten Betreuers.",
+      + "in seinem Raster, nie gleichzeitig mit einem Termin, den er für das Team anruft; auch die Terminseite (der Kunden-Link "
+      + "„Termin buchen“) zeigt Kunden der Abwesenden bis dahin nur seine Zeiten. Danach geht es wie sonst zum Betreuer oder ins Team. "
+      + "Ihre Übergaben bekommt der Vertreter — er öffnet dafür Akte und WhatsApp der Vertretenen; Heikles (Kündigung, Beschwerde, "
+      + "Bestreiten, Zahlungsverweigerung, Löschwunsch, Anwalt) liegt zusätzlich auf deinem Board. Bist du selbst der Vertreter, landet alles auf deinem "
+      + "Board. Die Kunden bleiben bei ihren Betreuern — auch die eines gesperrten Betreuers.",
     tipp: "Beim Einschalten wählst du „bis“ (Vorgabe: der nächste Freitag 09:00), wer anruft und für wen. Nach „bis“ geht "
-      + "er von selbst aus; jedes An und Aus steht mit Namen im Chef-Protokoll.",
+      + "er von selbst aus; jedes An und Aus steht mit Namen im Chef-Protokoll. Gründer-Gespräche und FIAON Global bleiben "
+      + "immer bei dem, der gebucht ist.",
   },
   {
     // 29.09.2026 (E-263); Gegenprüfung: die zwei Abos überschneiden sich nicht mehr.

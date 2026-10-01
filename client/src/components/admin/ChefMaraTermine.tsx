@@ -597,7 +597,7 @@ export default function ChefMaraTermine() {
         <p className="mara-hinweis warn mt-uebergaben">
           <span className="mara-punkt warn" aria-hidden="true" />
           <span>
-            {zahl(daten.uebergaben.offen)} Übergaben von Mara liegen noch bei Abwesenden{daten.uebergaben.letzte48h ? ` (${zahl(daten.uebergaben.letzte48h)} seit gestern)` : ""} — Zusagen ohne Uhrzeit. Neue landen jetzt auf deinem Board.
+            {zahl(daten.uebergaben.offen)} Übergaben von Mara liegen noch bei Abwesenden{daten.uebergaben.letzte48h ? ` (${zahl(daten.uebergaben.letzte48h)} seit gestern)` : ""} — Zusagen ohne Uhrzeit. {daten.uebergaben.neueAn?.art === "vertreter" ? `Neue bekommt jetzt ${daten.uebergaben.neueAn.name ?? "der Vertreter"} (Heikles zusätzlich dein Board).` : "Neue landen jetzt auf deinem Board."}
             {" "}<a href="/chef/s/todo">Meine Liste →</a>
           </span>
         </p>

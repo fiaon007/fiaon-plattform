@@ -275,6 +275,29 @@ async function bereit(): Promise<void> {
   await gespraechTabelle();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// VERTRETUNG (01.10.2026) — DER VERTRETER SIEHT DIE GESPRÄCHE DER ABWESENDEN
+//
+// Maras Übergaben gehen während einer Abwesenheit an den Vertreter
+// (fiaon-abwesenheit.ts, uebergabeVertretung) — „bitte selbst antworten" hilft
+// nur, wenn er das Gespräch auch öffnen kann. Er sieht deshalb, solange die
+// Abwesenheit gilt, die Gespräche der abwesenden Betreuer (und ohne Betreuer,
+// wenn das ganze Team weg ist) — dieselbe Regel wie Akte und Termine
+// (vertreterSiehtBetreuer). Nach „bis" wieder nur die eigenen.
+// ═══════════════════════════════════════════════════════════════════════════
+async function sichtFuer(blick: Blick): Promise<(betreuerId: number | null | undefined) => boolean> {
+  const eigen = (b: number | null | undefined) => Number(b ?? 0) === blick.agentId;
+  if (blick.alles) return () => true;
+  try {
+    const m = await import("../lib/fiaon-abwesenheit");
+    const ab = await m.abwesenheitJetzt();
+    if (ab && blick.agentId && ab.vertreter.id === blick.agentId) {
+      return (b) => eigen(b) || m.vertreterSiehtBetreuer(ab, blick.agentId, b ?? null);
+    }
+  } catch { /* ohne Abwesenheit: nur die eigenen */ }
+  return eigen;
+}
+
 /** Die Gespräche, die dieser Mensch sehen darf. */
 async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: string } = {}): Promise<any[]> {
   const suche = String(opts.suche ?? "").trim().toLowerCase();
@@ -314,8 +337,9 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
      ORDER BY l.am DESC NULLS LAST
      LIMIT 300`) as any[];
 
+  const sieht = await sichtFuer(blick);
   return zeilen
-    .filter((z) => blick.alles || Number(z.assigned_agent_id ?? z.lead_agent ?? 0) === blick.agentId)
+    .filter((z) => blick.alles || sieht(z.assigned_agent_id ?? z.lead_agent ?? null))
     .filter((z) => {
       if (opts.filter === "ungelesen") return Number(z.ungelesen || 0) > 0;
       if (opts.filter === "offen") return !!z.letzte_eingehende && Date.now() - new Date(z.letzte_eingehende).getTime() < 24 * 3600_000;
@@ -368,7 +392,8 @@ async function darfAnNummer(blick: Blick, nummer: string): Promise<boolean> {
       LEFT JOIN fiaon_persons p ON p.id = w.person_id
       LEFT JOIN fiaon_leads le ON le.id = w.lead_id
      WHERE w.nummer = ${nummer} ORDER BY w.id DESC LIMIT 1`) as any[];
-  return Number(z?.agent ?? 0) === blick.agentId;
+  // Vertretung (01.10.2026): auch die Gespräche der Abwesenden (sichtFuer).
+  return (await sichtFuer(blick))(z?.agent ?? null);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -666,8 +691,9 @@ function routen(hole: (req: any) => Blick) {
                 OR (${ziffern || null}::text IS NOT NULL AND regexp_replace(le.telefon, '[^0-9]', '', 'g') LIKE ${"%" + ziffern}))
          ORDER BY le.erstellt_am DESC LIMIT 25`.catch(() => [])) as any[];
 
+      const sieht = await sichtFuer(blick);
       const treffer = [...personen.map((p) => ({ ...p, art: "person" })), ...leads.map((l) => ({ ...l, art: "lead" }))]
-        .filter((t) => blick.alles || Number(t.assigned_agent_id ?? 0) === blick.agentId)
+        .filter((t) => blick.alles || sieht(t.assigned_agent_id ?? null))
         .map((t) => ({ ...t, urteil: whatsappUrteil({ telefon: t.phone }) }))
         .filter((t) => t.urteil.moeglich)
         .slice(0, 20)
@@ -718,7 +744,8 @@ function routen(hole: (req: any) => Blick) {
           SELECT COALESCE(
             (SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${personId}),
             (SELECT assigned_agent_id FROM fiaon_leads WHERE id = ${leadId})) AS agent`) as any[];
-        if (Number(z?.agent ?? 0) !== blick.agentId) return res.status(403).json({ ok: false, error: "Dieser Mensch gehört einem anderen Betreuer." });
+        // Vertretung (01.10.2026): auch Kunden der Abwesenden (sichtFuer).
+        if (!(await sichtFuer(blick))(z?.agent ?? null)) return res.status(403).json({ ok: false, error: "Dieser Mensch gehört einem anderen Betreuer." });
       }
       const erg = await waSenden(
         nummer, { vorlage, werte: Array.isArray(req.body?.werte) ? req.body.werte.map(String) : undefined },

@@ -77,6 +77,7 @@
 //   · DIE REGEL — waBremse({ vorlage | text | werbung }) → { erlaubt, grund, faktor }:
 //       Zustand            Werbe-Vorlage     Service-Vorlage   Text im 24-h-Fenster
 //       GRÜN / unbekannt   ja                ja                ja
+//       (01.10.2026: „unbekannt" NACH einem ROT gilt als ROT — nur GELB/GRÜN heben ROT auf, wirksameQualitaet)
 //       GELB               ja (Faktor 0,5)   ja                ja
 //       ROT                nein*             ja                ja
 //       Pause zahlung/spam/hand   nein       nein              ja
@@ -663,8 +664,67 @@ export interface WaMetaStand {
   verlauf: { am: string; von: string | null; zu: string | null }[];
   /** Nur in diesem Prozess gelesen (kein Produktionsdienst) — nie gespeichert. */
   nurLokal?: boolean;
+  /**
+   * ROT bleibt (01.10.2026): Was Meta beim letzten Lesen WIRKLICH gemeldet hat
+   * („UNKNOWN", null = nichts). `qualitaet` ist die WIRKSAME Qualität — nach einem
+   * ROT bleibt sie ROT, bis Meta GELB oder GRÜN meldet. Fehlt bei alten Ständen.
+   */
+  metaMeldet?: string | null;
+  /** Seit wann Meta „unbekannt" meldet, während ROT weiter gilt — null, wenn nicht gehalten. */
+  rotGehaltenSeit?: string | null;
 }
 const STAND_LEER: WaMetaStand = { qualitaet: null, stufe: null, name: null, gesundheit: null, am: null, quelle: null, verlauf: [] };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROT BLEIBT, BIS META GELB ODER GRÜN SAGT (01.10.2026)
+//
+// Gemessen am 29.09.: 14:48 ROT, 15:00 UNKNOWN, 15:04 wieder ROT. In den vier
+// Minuten dazwischen galt „unbekannt → keine Bremse" — Werbe-Vorlagen an alte
+// Kontakte wären rausgegangen, obwohl Meta die Nummer gerade abgewertet hatte.
+// „UNKNOWN" heißt bei Meta „gerade keine Bewertung", nicht „wieder gut".
+//
+// Regel: Nach einem gespeicherten ROT hebt nur GELB oder GRÜN die Sperre auf.
+// UNKNOWN, ein leeres Feld oder ein anderer Wert lassen ROT stehen (gespeichert
+// als `qualitaet: "RED"`, dazu `metaMeldet` und `rotGehaltenSeit`), und die
+// Anzeige sagt es ehrlich: „Meta meldet gerade unbekannt — es gilt weiter ROT".
+// Auch ein alter Stand, der schon „UNKNOWN" gespeichert hat (vor dieser Regel),
+// gilt als ROT, wenn der letzte bekannte Wert im Verlauf ROT war.
+// Ohne jedes ROT davor bleibt es wie bisher: unbekannt → keine Bremse.
+// ═══════════════════════════════════════════════════════════════════════════
+const QUALITAET_BEKANNT = new Set(["GREEN", "YELLOW", "RED"]);
+const gross = (x: unknown): string | null => (x == null || String(x).trim() === "" ? null : String(x).trim().toUpperCase());
+
+/** Der letzte BEKANNTE Wert (GRÜN, GELB, ROT) — aus dem Stand selbst, sonst aus dem Verlauf (neueste zuerst). Rein. */
+export function letzteBekannteQualitaet(stand: Pick<WaMetaStand, "qualitaet" | "verlauf">): string | null {
+  const q = gross(stand.qualitaet);
+  if (q && QUALITAET_BEKANNT.has(q)) return q;
+  for (const v of stand.verlauf ?? []) {
+    const zu = gross(v?.zu);
+    if (zu && QUALITAET_BEKANNT.has(zu)) return zu;
+    const von = gross(v?.von);
+    if (von && QUALITAET_BEKANNT.has(von)) return von;
+  }
+  return null;
+}
+
+/**
+ * Die Qualität, nach der gebremst wird. `gehalten` = Meta meldet gerade nichts
+ * Bekanntes, es gilt weiter ROT; `meta` = was Meta zuletzt gemeldet hat. Rein.
+ */
+export function wirksameQualitaet(stand: Pick<WaMetaStand, "qualitaet" | "verlauf" | "metaMeldet" | "rotGehaltenSeit">): { q: string | null; gehalten: boolean; meta: string | null } {
+  const q = gross(stand.qualitaet);
+  if (q && QUALITAET_BEKANNT.has(q)) {
+    const gehalten = q === "RED" && !!stand.rotGehaltenSeit;
+    return { q, gehalten, meta: gehalten ? gross(stand.metaMeldet) : q };
+  }
+  if (letzteBekannteQualitaet(stand) === "RED") return { q: "RED", gehalten: true, meta: q };
+  return { q, gehalten: false, meta: q };
+}
+
+/** Der ehrliche Satz, solange ROT gehalten wird. */
+export function rotGehaltenSatz(meta: string | null): string {
+  return `Meta meldet gerade ${meta && meta !== "UNKNOWN" ? `„${meta}“` : "unbekannt"} — es gilt weiter ROT, bis Meta GELB oder GRÜN meldet.`;
+}
 
 let standZwischen: { wert: WaMetaStand; bis: number } | null = null;
 let standLokal: WaMetaStand | null = null;
@@ -700,7 +760,8 @@ const neuer = (a: WaMetaStand, b: WaMetaStand | null) => (b?.am && (!a.am || b.a
 /**
  * Der gespeicherte Stand — für alle Instanzen derselbe (10 s zwischengespeichert).
  * Älter als 15 Minuten (oder nie gelesen) → einmal frisch bei Meta (8 s Zeitgrenze);
- * scheitert das, gilt der letzte Stand. Unbekannt → keine Bremse.
+ * scheitert das, gilt der letzte Stand. Unbekannt → keine Bremse — außer nach einem
+ * ROT (01.10.2026): dann gilt ROT weiter, bis Meta GELB oder GRÜN meldet (wirksameQualitaet).
  */
 export async function metaStandLesen(opts: { frisch?: boolean } = {}): Promise<WaMetaStand> {
   const wert = neuer(await standAusDb(), standLokal);
@@ -759,11 +820,30 @@ export async function metaStandAuffrischen(quelle = "takt"): Promise<{ stand: Wa
     if (!qualitaet && !stufe && !gesundheit) { letzterFehlversuch = Date.now(); return { stand: vorher, geaendert: false }; }
     letzterFehlversuch = 0;
     const jetzt = new Date().toISOString();
-    const geaendert = !!qualitaet && qualitaet !== vorher.qualitaet;
+    // ── ROT BLEIBT (01.10.2026) ──────────────────────────────────────────
+    // Meldet Meta nichts Bekanntes (UNKNOWN, leer) und galt zuletzt ROT, bleibt ROT —
+    // nur GELB oder GRÜN heben es auf (wirksameQualitaet). Ohne ROT davor wie bisher.
+    const gemeldet = gross(qualitaet);
+    const vorherWirksam = wirksameQualitaet(vorher);
+    let neu: string | null;
+    let rotGehaltenSeit: string | null = null;
+    if (gemeldet && QUALITAET_BEKANNT.has(gemeldet)) {
+      neu = gemeldet;
+    } else if (vorherWirksam.q === "RED") {
+      neu = "RED";
+      rotGehaltenSeit = vorher.rotGehaltenSeit ?? jetzt;
+      if (!vorher.rotGehaltenSeit) console.log(`[WA-BREMSE] Meta meldet ${gemeldet ?? "keine Qualität"} — es gilt weiter ROT (${quelle}).`);
+    } else {
+      neu = qualitaet ?? vorher.qualitaet;
+    }
+    // Verglichen wird mit der WIRKSAMEN Qualität davor: Ein alter Stand mit „UNKNOWN" nach ROT ist ROT —
+    // dann ist ROT jetzt kein Wechsel (kein zweiter Alarm), der Stand wird nur berichtigt.
+    const geaendert = !!neu && neu !== (vorherWirksam.q ?? vorher.qualitaet);
     const stand: WaMetaStand = {
-      qualitaet: qualitaet ?? vorher.qualitaet, stufe: stufe ?? vorher.stufe, name: name ?? vorher.name,
+      qualitaet: neu, stufe: stufe ?? vorher.stufe, name: name ?? vorher.name,
       gesundheit: gesundheit ?? vorher.gesundheit, am: jetzt, quelle,
-      verlauf: geaendert ? [{ am: jetzt, von: vorher.qualitaet, zu: qualitaet }, ...vorher.verlauf].slice(0, 20) : vorher.verlauf,
+      verlauf: geaendert ? [{ am: jetzt, von: vorherWirksam.q ?? vorher.qualitaet, zu: neu }, ...vorher.verlauf].slice(0, 20) : vorher.verlauf,
+      metaMeldet: gemeldet, rotGehaltenSeit,
     };
     if (!produktion()) {
       standLokal = { ...stand, nurLokal: true };
@@ -780,8 +860,8 @@ export async function metaStandAuffrischen(quelle = "takt"): Promise<{ stand: Wa
       standLokal = stand;
     }
     if (geaendert) {
-      console.log(`[WA-BREMSE] Meta-Qualität ${vorher.qualitaet ?? "unbekannt"} → ${qualitaet} (${quelle}).`);
-      if (qualitaet === "RED") await rotAlarm(stand, vorher.qualitaet).catch((e) => console.error("[WA-BREMSE] ROT-Alarm:", e));
+      console.log(`[WA-BREMSE] Meta-Qualität ${vorherWirksam.q ?? vorher.qualitaet ?? "unbekannt"} → ${neu} (${quelle}).`);
+      if (neu === "RED") await rotAlarm(stand, vorherWirksam.q ?? vorher.qualitaet).catch((e) => console.error("[WA-BREMSE] ROT-Alarm:", e));
     }
     return { stand, geaendert };
   })().finally(() => { frischFlug = null; });
@@ -858,7 +938,8 @@ export async function waBremse(ein: { vorlage?: string | null; text?: boolean; w
   if (istText) return { erlaubt: true, grund: null, faktor: 1, pause: false, art: null, qualitaet: null, werbung: false };
   const werbung = ein.werbung === true || !ein.vorlage ? true : await vorlageIstWerbung(String(ein.vorlage));
   const stand = await metaStandLesen().catch(() => ({ ...STAND_LEER }));
-  const q = stand.qualitaet ? String(stand.qualitaet).toUpperCase() : null;
+  // ROT bleibt (01.10.2026): die WIRKSAME Qualität — UNKNOWN nach ROT ist ROT.
+  const q = wirksameQualitaet(stand).q;
   // Justin (29.09.2026): Die Begrüßung eines FRISCHEN Leads (Formular ≤ 24 h) läuft auch bei ROT — er hat eben
   // selbst um Kontakt gebeten, antwortet am häufigsten und senkt die Qualität nicht; gestoppt wird die Werbung an
   // alte Kontakte (Zentrale, Kette, Verkaufstakt …). Die Pause (oben) hält auch die Begrüßung an.
@@ -877,17 +958,23 @@ export function mitFaktor(wert: number, faktor: number): number {
 export async function waBremseLage(): Promise<{
   pause: WaPauseZustand; stand: WaMetaStand; qualitaet: string | null; faktor: number;
   werbungGestoppt: boolean; allesGestoppt: boolean; satz: string | null;
+  /** ROT bleibt (01.10.2026): Meta meldet gerade nichts Bekanntes, es gilt weiter ROT. */
+  rotGehalten: boolean;
+  /** Was Meta zuletzt gemeldet hat (z. B. „UNKNOWN") — null = nichts. */
+  metaMeldet: string | null;
 }> {
   const [pause, stand] = await Promise.all([waPauseLesen(), metaStandLesen().catch(() => ({ ...STAND_LEER }))]);
-  const q = stand.qualitaet ? String(stand.qualitaet).toUpperCase() : null;
+  // ROT bleibt (01.10.2026): die WIRKSAME Qualität — und die Anzeige sagt, wenn Meta gerade „unbekannt" meldet.
+  const w = wirksameQualitaet(stand);
+  const q = w.q;
   const allesGestoppt = pause.an && waAllesZu(pause.art);
   const werbungGestoppt = pause.an || q === "RED";
   const faktor = pause.an ? 0 : q === "YELLOW" ? WA_FAKTOR_GELB : 1;
   const satz = pause.an ? waPauseMeldung(pause)
-    : q === "RED" ? "Meta-Qualität ROT: Werbe-Vorlagen gestoppt — die Zentrale schickt nur noch die Monatsrate; die Begrüßung frischer Leads, einzelne Termin-Nachrichten (Akte, Raum) und Antworten im offenen Fenster laufen weiter."
+    : q === "RED" ? `${w.gehalten ? `${rotGehaltenSatz(w.meta)} ` : ""}Meta-Qualität ROT: Werbe-Vorlagen gestoppt — die Zentrale schickt nur noch die Monatsrate; die Begrüßung frischer Leads, einzelne Termin-Nachrichten (Akte, Raum) und Antworten im offenen Fenster laufen weiter.`
       : q === "YELLOW" ? "Meta-Qualität GELB: Automatik, Lead-Kette, Verkaufstakt und Hand-Lauf halbiert."
         : null;
-  return { pause, stand, qualitaet: q, faktor, werbungGestoppt, allesGestoppt, satz };
+  return { pause, stand, qualitaet: q, faktor, werbungGestoppt, allesGestoppt, satz, rotGehalten: w.gehalten, metaMeldet: w.meta };
 }
 
 /** Nur für Prüfstände: Zwischenspeicher und Speicherstände vergessen. */

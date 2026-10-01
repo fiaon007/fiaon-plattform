@@ -137,7 +137,14 @@ export interface TerminUebersicht {
   };
   termine: TerminZeile[];
   teamRueckrufe: TeamRueckruf[];
-  uebergaben: { offen: number; letzte48h: number };
+  uebergaben: {
+    offen: number; letzte48h: number;
+    /**
+     * Vertretung (01.10.2026): Wohin NEUE Übergaben von Mara gehen — an den Vertreter (ist er ein
+     * Mitarbeiter; Heikles zusätzlich aufs Board) oder aufs Board des Betreibers. Fehlt = Board (E-260).
+     */
+    neueAn?: { art: "vertreter" | "board"; name: string | null };
+  };
 }
 
 // ── Berliner Kalender ──────────────────────────────────────────────────────

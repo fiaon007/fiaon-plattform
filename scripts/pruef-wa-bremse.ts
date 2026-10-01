@@ -31,6 +31,11 @@
 //       GELB → Stundenmenge halb.
 //    9  Qualität: gespeicherter Stand, älter als 15 Min. → frisch, Meta nicht
 //       erreichbar → letzter Stand, Wechsel auf ROT → eine Aufgabe; Webhook-Felder.
+//   9b  ROT bleibt (01.10.2026): nach ROT heben UNKNOWN und ein leeres Feld die Sperre
+//       nicht auf (gespeichert ROT, metaMeldet, rotGehaltenSeit, kein Alarm), Anzeige
+//       „Meta meldet gerade unbekannt — es gilt weiter ROT"; GELB/GRÜN heben auf; GRÜN →
+//       UNKNOWN bremst weiter nicht; ein alter Stand „UNKNOWN" nach ROT (Verlauf) gilt
+//       sofort als ROT und wird ohne zweiten Alarm berichtigt.
 //   10  Aktivieren: health_status BLOCKED → Pause bleibt, AVAILABLE → aus, fehlt →
 //       aus mit Hinweis, LIMITED → aus mit Warnung; Token abgelehnt (#190) → bleibt,
 //       „zugang" ohne Antwort → bleibt; Routen: nur Inhaber (403 Leitung);
@@ -776,6 +781,73 @@ try {
   await metaLeads.meldungSpeichern({ object: "whatsapp_business_account", entry: [{ id: "pruef-waba", changes: [{ field: "account_update", value: { event: "DISABLED_UPDATE", ban_info: { waba_ban_state: "DISABLE", waba_ban_date: "2026-09-29" } } }] }] });
   const pa = await b.waPauseLesen(true);
   pruef(`Webhook account_update (ban DISABLE) → Pause „${pa.art}“`, pa.an && pa.art === "gesperrt" && pa.quelle === "webhook");
+  await pause(null); await stand("GREEN");
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("9b ROT bleibt, bis Meta GELB oder GRÜN meldet (01.10.2026)");
+  // ═════════════════════════════════════════════════════════════════════════
+  // Gemessen am 29.09.: 14:48 ROT, 15:00 UNKNOWN, 15:04 ROT — in den vier Minuten galt „keine Bremse".
+  {
+    const rotZahl = async () => (await alarme()).filter((a) => String(a.schluessel).startsWith("wa-rot-")).length;
+    const dbStand = async () => JSON.parse(String(((await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'wa_meta_stand'`) as any[])[0]?.value ?? "{}"));
+    await stand("RED", 20); metaQualitaet = "UNKNOWN";
+    const rotVor9b = await rotZahl();
+    const u1 = await b.metaStandAuffrischen("takt");
+    const d1 = await dbStand();
+    pruef(`gespeichert ROT, Meta meldet UNKNOWN → wirksam bleibt ROT (gespeichert ${d1.qualitaet}, Meta ${d1.metaMeldet}, gehalten seit ${d1.rotGehaltenSeit ? "gesetzt" : "—"}), kein Wechsel`,
+      u1.stand.qualitaet === "RED" && !u1.geaendert && d1.qualitaet === "RED" && d1.metaMeldet === "UNKNOWN" && !!d1.rotGehaltenSeit && (d1.verlauf ?? []).length === 0, d1);
+    const w1 = await b.waBremse({ vorlage: "fiaon_kk_anfrage" });
+    const s1 = await b.waBremse({ vorlage: "fiaon_kk_rate" });
+    pruef("… Werbe-Vorlage weiter gesperrt (ROT-Satz), Monatsrate (Service) geht", !w1.erlaubt && w1.qualitaet === "RED" && w1.grund === b.WA_ROT_SATZ && s1.erlaubt, { w1, s1 });
+    const l1 = await b.waBremseLage();
+    pruef(`… Anzeige ehrlich: „${String(l1.satz).slice(0, 72)}…“`,
+      l1.qualitaet === "RED" && l1.rotGehalten && l1.metaMeldet === "UNKNOWN" && l1.werbungGestoppt
+      && /^Meta meldet gerade unbekannt — es gilt weiter ROT, bis Meta GELB oder GRÜN meldet\. Meta-Qualität ROT/.test(String(l1.satz)), l1);
+    const zl = await z.metaStand();
+    pruef(`… Zentrale (metaStand) zeigt ROT (${zl.qualitaet})`, zl.qualitaet === "RED");
+    const u2 = await b.metaStandAuffrischen("takt");
+    const d2 = await dbStand();
+    pruef("… zweiter Takt mit UNKNOWN: „gehalten seit“ bleibt derselbe, kein Alarm", !u2.geaendert && d2.rotGehaltenSeit === d1.rotGehaltenSeit && (await rotZahl()) === rotVor9b, { d1: d1.rotGehaltenSeit, d2: d2.rotGehaltenSeit });
+    metaQualitaet = null; // Meta liefert gar keine Qualität (nur die Stufe)
+    const u3 = await b.metaStandAuffrischen("takt");
+    pruef(`… leeres Feld: weiter ROT (${u3.stand.qualitaet}, Meta ${u3.stand.metaMeldet ?? "nichts"})`, u3.stand.qualitaet === "RED" && u3.stand.metaMeldet == null && !!u3.stand.rotGehaltenSeit && !u3.geaendert);
+    metaQualitaet = "YELLOW";
+    const u4 = await b.metaStandAuffrischen("takt");
+    const d4 = await dbStand();
+    const w4 = await b.waBremse({ vorlage: "fiaon_kk_anfrage" });
+    pruef(`GELB hebt ROT auf: Wechsel gemeldet, Verlauf ROT → GELB, nicht mehr gehalten, Werbung erlaubt mit Faktor ${w4.faktor}`,
+      u4.geaendert && d4.qualitaet === "YELLOW" && !d4.rotGehaltenSeit && d4.verlauf?.[0]?.von === "RED" && d4.verlauf?.[0]?.zu === "YELLOW" && w4.erlaubt && w4.faktor === 0.5, d4);
+    await stand("RED", 20); metaQualitaet = "UNKNOWN";
+    await b.metaStandAuffrischen("takt");
+    metaQualitaet = "GREEN";
+    const u5 = await b.metaStandAuffrischen("takt");
+    pruef("GRÜN hebt ROT auf (auch nach einer Weile „unbekannt“)", u5.geaendert && u5.stand.qualitaet === "GREEN" && !u5.stand.rotGehaltenSeit && (await b.waBremse({ vorlage: "fiaon_kk_anfrage" })).erlaubt);
+    // Ohne ROT davor wie bisher: GRÜN → UNKNOWN bremst nicht.
+    await stand("GREEN", 20); metaQualitaet = "UNKNOWN";
+    const u6 = await b.metaStandAuffrischen("takt");
+    const w6 = await b.waBremse({ vorlage: "fiaon_kk_anfrage" });
+    pruef(`Gegenprobe: GRÜN → UNKNOWN bleibt ohne Bremse (${u6.stand.qualitaet}, erlaubt ${w6.erlaubt})`, u6.stand.qualitaet === "UNKNOWN" && !u6.stand.rotGehaltenSeit && w6.erlaubt && !(await b.waBremseLage()).rotGehalten);
+    // Ein ALTER Stand (vor der Regel gespeichert): „UNKNOWN", der Verlauf sagt ROT → UNKNOWN. Er gilt sofort als ROT …
+    await setzen("wa_meta_stand", JSON.stringify({ qualitaet: "UNKNOWN", stufe: "TIER_2K", name: "FIAON Prüfstand", gesundheit: null, am: vor(60_000).toISOString(), quelle: "pruefstand",
+      verlauf: [{ am: vor(120_000).toISOString(), von: "RED", zu: "UNKNOWN" }, { am: vor(600_000).toISOString(), von: null, zu: "RED" }] }));
+    b.waBremseZwischenspeicherLeeren();
+    const w7 = await b.waBremse({ vorlage: "fiaon_kk_anfrage" });
+    const l7 = await b.waBremseLage();
+    pruef("alter Stand „UNKNOWN“ nach ROT (Verlauf) gilt sofort als ROT — Werbung gesperrt, Anzeige „es gilt weiter ROT“",
+      !w7.erlaubt && w7.qualitaet === "RED" && l7.rotGehalten && /es gilt weiter ROT/.test(String(l7.satz)), { w7, satz: l7.satz });
+    // … und der nächste Takt berichtigt ihn auf ROT — ohne zweiten ROT-Alarm.
+    const rotVor7 = await rotZahl();
+    metaQualitaet = "UNKNOWN";
+    const u7 = await b.metaStandAuffrischen("takt");
+    pruef(`… der nächste Takt speichert ROT (${u7.stand.qualitaet}), kein Wechsel, kein Alarm`, u7.stand.qualitaet === "RED" && !u7.geaendert && (await rotZahl()) === rotVor7);
+    // Rot-Probe der reinen Regel: ohne ROT im Verlauf bleibt UNKNOWN unbekannt.
+    pruef("Rot-Probe: wirksameQualitaet(UNKNOWN, Verlauf GRÜN → UNKNOWN) = UNKNOWN, nicht ROT",
+      b.wirksameQualitaet({ qualitaet: "UNKNOWN", verlauf: [{ am: "x", von: "GREEN", zu: "UNKNOWN" }] } as any).q === "UNKNOWN"
+      && b.letzteBekannteQualitaet({ qualitaet: null, verlauf: [] }) === null);
+    // Die Steuerpult-Routen geben den Merker mit (für die Anzeige im Chip-Aufklapper).
+    const steuer = readFileSync(new URL("../server/routes/fiaon-mara-steuerpult.ts", import.meta.url), "utf8");
+    pruef("Steuerpult-Routen geben rotGehalten und metaMeldet weiter (beide Stellen)", (steuer.match(/rotGehalten: lage\.rotGehalten, metaMeldet: lage\.metaMeldet/g) ?? []).length === 2);
+  }
   await pause(null); await stand("GREEN");
 
   // ═════════════════════════════════════════════════════════════════════════

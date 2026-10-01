@@ -109,7 +109,7 @@ import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 import { WA_NUMMER_UNZUSTELLBAR_SQL, WA_WERBUNG_ABBESTELLT_SQL } from "./fiaon-wa-unzustellbar";
-import { waBremse, waBremseLage, metaStandLesen, mitFaktor, type WaBremseErgebnis } from "./fiaon-wa-bremse";
+import { waBremse, waBremseLage, metaStandLesen, mitFaktor, wirksameQualitaet, type WaBremseErgebnis } from "./fiaon-wa-bremse";
 import { grundmengeIdsSql, waRangSql, tabellenBereit as verkaufTabellenBereit, WA_ANGEBOT_ABSTAND_TAGE } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
 import { OHNE_VERTRAG_SQL, WERBESPERRE_KOEPFE_SQL, STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
@@ -726,7 +726,8 @@ const STUFEN: Record<string, number> = { TIER_50: 50, TIER_250: 250, TIER_1K: 10
  */
 export async function metaStand(): Promise<{ stufe: string | null; qualitaet: string | null; name: string | null }> {
   const m = await metaStandLesen().catch(() => null);
-  return { stufe: m?.stufe ?? null, qualitaet: m?.qualitaet ?? null, name: m?.name ?? null };
+  // ROT bleibt (01.10.2026): die WIRKSAME Qualität — „UNKNOWN" nach ROT zeigt und zählt als ROT.
+  return { stufe: m?.stufe ?? null, qualitaet: m ? wirksameQualitaet(m).q : null, name: m?.name ?? null };
 }
 
 export async function tagesRaum(): Promise<{ grenze: number; verbraucht: number; frei: number; stufe: string | null; qualitaet: string | null }> {

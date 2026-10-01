@@ -25,7 +25,7 @@ import { HERKUENFTE } from "./fiaon-termine";
 import { waehlbareNummer } from "./fiaon-telefon";
 import { berlinZeitpunkt } from "./fiaon-time";
 import {
-  abwesenheitLesen, abwesenheitJetzt, abwesenheitProblem, istAbwesend, vertreterPruefen, vertreterKandidaten,
+  abwesenheitLesen, abwesenheitJetzt, abwesenheitProblem, istAbwesend, quelleUmleitbar, vertreterPruefen, vertreterKandidaten,
   teamFuerAbwesenheit, freiePlaetzeVertreter, bisText, type AktiveAbwesenheit,
 } from "./fiaon-abwesenheit";
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
@@ -266,7 +266,8 @@ export async function terminUebersicht(opts: { chefAgentId?: number | null; jetz
         istVertreter: !!ab && Number(z.agent_id) === ab.vertreter.id,
       },
       betreuer: z.assigned_agent_id ? { id: Number(z.assigned_agent_id), vorname: text(z.betreuer_vorname) || `#${z.assigned_agent_id}` } : null,
-      beiAbwesendem: offen && istAbwesend(ab, Number(z.agent_id), new Date(z.beginn)),
+      // Vertretung (01.10.2026): Gründer- und Global-Gespräche ruft nie der Vertreter an (NIE_UMLEITEN_QUELLEN).
+      beiAbwesendem: offen && quelleUmleitbar(z.quelle) && istAbwesend(ab, Number(z.agent_id), new Date(z.beginn)),
       person: {
         id: personId, name: text(z.name) || "Ohne Namen",
         stufe, stufeText: stufe ? (KARTEI_LAGE_TEXT as Record<string, string>)[stufe] ?? null : null,
@@ -323,7 +324,11 @@ export async function terminUebersicht(opts: { chefAgentId?: number | null; jetz
   }
 
   // ── Maras Übergaben an Abwesende (offen) ────────────────────────────────
-  let uebergaben = { offen: 0, letzte48h: 0 };
+  let uebergaben: TerminUebersicht["uebergaben"] = {
+    offen: 0, letzte48h: 0,
+    // Vertretung (01.10.2026): Ist der Vertreter ein Mitarbeiter, bekommt ER Maras neue Übergaben.
+    neueAn: ab?.vertreter.mitarbeiter ? { art: "vertreter", name: ab.vertreter.name } : { art: "board", name: null },
+  };
   if (ab) {
     try {
       const [u] = (await lauf`
@@ -332,7 +337,7 @@ export async function terminUebersicht(opts: { chefAgentId?: number | null; jetz
          WHERE quelle = 'mara-whatsapp' AND status <> 'erledigt' AND zustaendig_agent_id IS NOT NULL
            AND zustaendig_agent_id <> ${ab.vertreter.id}
            AND (${ab.fuer.length === 0} OR zustaendig_agent_id = ANY(${ab.fuer.length ? ab.fuer : [0]}))`) as any[];
-      uebergaben = { offen: Number(u?.offen || 0), letzte48h: Number(u?.neu || 0) };
+      uebergaben = { ...uebergaben, offen: Number(u?.offen || 0), letzte48h: Number(u?.neu || 0) };
     } catch (e) {
       console.error("[TERMIN-UEBERSICHT] Übergaben:", String((e as Error)?.message ?? e).slice(0, 160));
     }

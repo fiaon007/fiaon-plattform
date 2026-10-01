@@ -75,6 +75,22 @@ export async function darfAnKunde(
 
   if (rolle === "vertriebsleiter" || rolle === "admin") return true;
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // DER VERTRETER SIEHT DIE KUNDEN DER ABWESENDEN (Vertretung, 01.10.2026)
+  //
+  // Seit 01.10. vertritt Nikita das ganze Team. Maras Übergaben gehen an ihn
+  // (fiaon-abwesenheit.ts, uebergabeVertretung) — aber eine Aufgabe zu einem
+  // Kunden, dessen Akte „wird von jemand anderem betreut" sagt, ist eine
+  // verschlossene Tür. Solange die Abwesenheit gilt, darf der Vertreter an
+  // jeden Kunden, für den sie gilt (vertretungFuerPerson — dieselbe Regel,
+  // nach der er die Termine bekommt). Nach „bis" fällt das von selbst weg.
+  // Der Kunde bleibt dabei, wem er gehört — Zugriff ist keine Übergabe.
+  // ═══════════════════════════════════════════════════════════════════════
+  try {
+    const { vertreterDarfAnKunde } = await import("./fiaon-abwesenheit");
+    if (await vertreterDarfAnKunde(agentId, personId, lauf)) return true;
+  } catch { /* ohne Abwesenheits-Modul gilt die Regel unten */ }
+
   if (rolle === "onboarding") {
     const [t] = (await lauf`
       SELECT 1 AS ok FROM fiaon_termine

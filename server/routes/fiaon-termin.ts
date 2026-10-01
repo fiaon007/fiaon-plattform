@@ -146,6 +146,21 @@ function anredeSie(req: Request): boolean {
   return q === "sie" || b === "sie" || weg.startsWith("mara_");
 }
 
+/**
+ * Vertretung (01.10.2026): „Donnerstag, 15.10., 09:00 Uhr" — so liest der Kunde,
+ * bis wann sein Ansprechpartner nicht im Haus ist. Berliner Zeit über
+ * formatToParts (Zeit-Falle 04.09.2026), nie über Number(format()).
+ */
+function bisFuerKunden(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const t: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(d)) t[p.type] = p.value;
+  return `${t.weekday}, ${t.day}.${t.month}., ${t.hour}:${t.minute} Uhr`;
+}
+
 /** Kam der Kunde über Mara (WhatsApp)? Dann ist WhatsApp sein Rückweg, nicht „der Ansprechpartner". */
 function ueberMara(req: Request): boolean {
   const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
@@ -197,13 +212,22 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
 
     // Schon einen Termin? Dann zeigt die Seite ihn statt einer neuen Auswahl.
     const [bestehend] = (await sqlPool`
-      SELECT t.id, t.beginn, t.storno_token,
+      SELECT t.id, t.beginn, t.storno_token, t.agent_id, t.quelle,
              -- E-265 (29.09.2026): die Nennform („Herr Stripling"), dazu „mit Herrn Stripling" für die Seite.
              ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname, ${sqlPool.unsafe(nennformSql("ag", "dat"))} AS agent_dat
       FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
       WHERE t.person_id = ${person.id} AND t.status = 'gebucht' AND t.beginn > NOW()
       ORDER BY t.beginn ASC LIMIT 1
     `) as any[];
+    // Vertretung (01.10.2026): Liegt sein Termin bei einem Abwesenden (vor „bis"), ruft der Vertreter an —
+    // die Seite nennt ihn, wie Bestätigung und Erinnerung (anruferNennform, beide Fälle; Gründer/Global nie).
+    if (bestehend?.agent_id) {
+      const { anruferNennform } = await import("../lib/fiaon-abwesenheit");
+      const an = await anruferNennform(Number(bestehend.agent_id), bestehend.beginn,
+        { nom: String(bestehend.agent_vorname || ""), dat: String(bestehend.agent_dat || bestehend.agent_vorname || "") }, sqlPool, bestehend.quelle);
+      bestehend.agent_vorname = an.nom;
+      bestehend.agent_dat = an.dat;
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // DIE GESPRÄCHSART KOMMT AUS DEM ZUSTAND, NICHT AUS DER ADRESSE
@@ -295,6 +319,16 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
       verworfen: gewuenscht && gewuenscht !== quelle ? gewuenscht : null,
       vorname: person.vorname || null,
       betreuer: auskunft.betreuer,
+      // Vertretung (01.10.2026): Der feste Betreuer ist bis „bis" nicht im Haus — bis dahin ruft der
+      // Vertreter an (die Plätze davor sind seine). Die Seite sagt es in einem Satz; null = keine.
+      // E-265: beide in der Nennform („Herr Stripling ist bis … nicht im Haus — bis dahin ruft Sie Nikita Boychenko an").
+      vertretung: auskunft.abwesenheit && !auskunft.abwesenheit.vertreterIstBetreuer
+        ? {
+            anrufer: auskunft.abwesenheit.vertreterNenn.nom,
+            betreuer: auskunft.abwesenheit.betreuerNenn?.nom ?? null,
+            bis: bisFuerKunden(auskunft.abwesenheit.bis),
+          }
+        : null,
       slotMinuten: dauerFuer(quelle),
       vorlaufStunden: VORLAUF_STUNDEN,
       horizontTage: HORIZONT_TAGE,
@@ -472,7 +506,23 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
       // „unbekannt", statt gespeichert zu werden, wie sie kamen.
       herkunft: herkunft ?? null,
     });
-    await buchungAnwenden(buchung);
+    // ── VERTRETUNG (01.10.2026) ───────────────────────────────────────────
+    // Ein Platz des Vertreters (Abwesenheit): Er ruft an, aber Kunde und
+    // Betreuer bleiben, wo sie sind (zuordnen: false — wie Maras Buchungen,
+    // E-260 B10). Die Notiz sagt dem Vertreter, für wen er einspringt; sie
+    // steht vor buchungAnwenden, weil dessen Meldung an ihn sie mitnimmt.
+    const ab = auskunft.abwesenheit;
+    const beimVertreter = !!ab && !ab.vertreterIstBetreuer && Number(agentId) === ab.vertreterId
+      && new Date(buchung.beginn).getTime() < new Date(ab.bis).getTime();
+    if (beimVertreter) {
+      // E-265: die Notiz nennt beide in der Nennform („in Abwesenheit von Herrn Stripling, bei Nikita Boychenko").
+      await sqlPool`
+        UPDATE fiaon_termine
+           SET notiz = ${`Über die Terminseite gebucht — ${ab!.betreuerNenn ? `in Abwesenheit von ${ab!.betreuerNenn.dat}` : "in Abwesenheit des Teams"}, bei ${ab!.vertreterNenn.dat}.`},
+               updated_at = NOW()
+         WHERE id = ${buchung.id}`.catch((e) => console.error("[TERMIN] Vertretungs-Notiz:", String(e).slice(0, 160)));
+    }
+    await buchungAnwenden(buchung, sqlPool, { zuordnen: !beimVertreter });
     // ── DER ABSAGE-LINK DER MAIL TRÄGT DIE ANREDE (24.09.2026, E-236) ───────
     // Die Bestätigungsmail siezt immer. Ihr Absage-Link führte aber auf die
     // Du-Fassung von /termin/absagen — wer gesiezt gebucht hat (Maras Link),
@@ -826,6 +876,15 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
     } else if (regel.art) {
       const { mailSenden } = await import("../lib/fiaon-mail-senden");
       const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      // Vertretung (01.10.2026, Gegenprüfung): Lag der verpasste Termin bei einem Abwesenden (vor „bis"),
+      // hat der Vertreter angerufen — „… hat versucht, Sie zu erreichen" nennt ihn (anruferFuer).
+      let anrufer: string | null = termin.agent_vorname ? String(termin.agent_vorname) : null;
+      if (anrufer) {
+        try {
+          const { anruferFuer } = await import("../lib/fiaon-abwesenheit");
+          anrufer = await anruferFuer(Number(termin.agent_id), termin.beginn, anrufer, sqlPool, termin.quelle);
+        } catch { /* ohne Abwesenheit: der Gebuchte */ }
+      }
       const erg = await mailSenden({
         event: regel.art,
         personId: Number(termin.person_id),
@@ -835,7 +894,7 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
           ? {
               termin_datum: berlinDatumText(termin.beginn),
               termin_uhrzeit: berlinUhrzeit(termin.beginn),
-              ...(termin.agent_vorname ? { agent_vorname: String(termin.agent_vorname) } : {}),
+              ...(anrufer ? { agent_vorname: anrufer } : {}),
             }
           : undefined,
         akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: (await rolleVon(req.agent!.id)) as any },
@@ -1099,9 +1158,16 @@ router.post("/agent/termine/:id/verschieben", requireAgent, async (req: AgentReq
     // jeden außer der Verwaltung ablehnte, und dem Uhrzeit und Storno-Link fehlten.
     let mailOk = false;
     try {
+      // Vertretung (01.10.2026, Gegenprüfung): Liegt die NEUE Zeit bei einem Abwesenden vor „bis",
+      // ruft der Vertreter an — die Bestätigung nennt ihn, wie nach jeder Buchung (anruferFuer).
+      let anrufer = String(t.agent_vorname || "Ihr Ansprechpartner");
+      try {
+        const { anruferFuer } = await import("../lib/fiaon-abwesenheit");
+        anrufer = await anruferFuer(Number(t.agent_id), neu, anrufer, sqlPool, t.quelle);
+      } catch { /* ohne Abwesenheit: der Gebuchte */ }
       const erg = await bestaetigungSenden({
         personId: Number(t.person_id),
-        agentVorname: String(t.agent_vorname || "Ihr Ansprechpartner"),
+        agentVorname: anrufer,
         datumText: berlinDatumText(neu),
         uhrzeit: berlinUhrzeit(neu),
         quelle: String(t.quelle || ""),

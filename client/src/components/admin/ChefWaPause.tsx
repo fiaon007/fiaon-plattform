@@ -29,8 +29,11 @@ interface MetaStand {
   qualitaet: string | null; stufe: string | null; name: string | null; am: string | null; quelle: string | null;
   gesundheit: { kann: string | null; text: string | null } | null;
   verlauf: { am: string; von: string | null; zu: string | null }[];
+  /** ROT bleibt (01.10.2026): seit wann Meta „unbekannt" meldet, während ROT weiter gilt. */
+  rotGehaltenSeit?: string | null;
 }
-interface Bremse { qualitaet: string | null; faktor: number; satz: string | null; werbungGestoppt: boolean; allesGestoppt: boolean }
+/** `rotGehalten` (01.10.2026): Meta meldet gerade nichts Bekanntes — es gilt weiter ROT, bis GELB oder GRÜN kommt. */
+interface Bremse { qualitaet: string | null; faktor: number; satz: string | null; werbungGestoppt: boolean; allesGestoppt: boolean; rotGehalten?: boolean; metaMeldet?: string | null }
 interface Kontofehler { code: number; art: string; satz: string; anzahl: number; zuletzt: string | null }
 
 const WA_PAUSE_NEU = "fiaon-wa-pause-neu";
@@ -177,7 +180,10 @@ export function WaPauseKarte({ alsChip = false, offen = false, onUmschalten }: {
     setLaeuft(true);
     try {
       const j = await senden("/chef/wa-meta-stand/pruefen");
-      const qText = QUALITAET[String(j.stand?.qualitaet ?? "")] ?? j.stand?.qualitaet ?? "unbekannt";
+      // ROT bleibt (01.10.2026): Meldet Meta gerade „unbekannt", sagt die Meldung, dass weiter ROT gilt.
+      const qText = j.bremse?.rotGehalten
+        ? "ROT — Meta meldet gerade unbekannt, es gilt weiter ROT"
+        : QUALITAET[String(j.stand?.qualitaet ?? "")] ?? j.stand?.qualitaet ?? "unbekannt";
       // Gegenprüfung 29.09.: Nur „frisch gelesen" sagen, wenn Meta wirklich geantwortet hat — sonst den alten Stand beim Namen nennen.
       setMeldung(j.frisch
         ? { text: `Meta-Stand frisch gelesen: Qualität ${qText}.`, fehler: false }
@@ -212,7 +218,7 @@ export function WaPauseKarte({ alsChip = false, offen = false, onUmschalten }: {
         </p>
       )}
       <dl className="mara-wa-zahlen">
-        <div><dt>Meta-Qualität</dt><dd>{QUALITAET[q] ?? (q || "unbekannt")}</dd></div>
+        <div><dt>Meta-Qualität</dt><dd>{QUALITAET[q] ?? (q || "unbekannt")}{bremse?.rotGehalten ? ` (Meta meldet gerade unbekannt${stand?.rotGehaltenSeit ? ` seit ${zeit(stand.rotGehaltenSeit)}` : ""} — es gilt weiter ROT)` : ""}</dd></div>
         <div><dt>Stufe</dt><dd>{stand?.stufe ?? "—"}</dd></div>
         <div><dt>Kontostand bei Meta</dt><dd>{stand?.gesundheit?.kann ?? "nicht gelesen"}</dd></div>
         <div><dt>Gelesen</dt><dd>{zeit(stand?.am ?? null)}</dd></div>

@@ -4180,7 +4180,15 @@ const TITEL: Record<AufgabenKlasse, string> = {
   falsche_nummer: "Falsche Nummer — bitte korrigieren", in_ruhe: "Will keinen Kontakt mehr",
   rueckfrage: "Weiß nicht, wofür er zahlen soll", wut: "Verärgert — bitte ansehen",
 };
-async function aufgabeFuerMenschen(
+/**
+ * Vertretung (01.10.2026): Diese Klassen sind heikel — Kündigung/Widerruf/Beschwerde/Rechtsdrohung
+ * („heikel", heikelAnliegen), Bestreiten, Löschwunsch, „will keinen Kontakt", Wut. Liegt die Übergabe
+ * beim Vertreter, sieht der Betreiber sie zusätzlich auf seinem Board (betreiberKopie).
+ */
+export const HEIKLE_KLASSEN: ReadonlySet<AufgabenKlasse> = new Set<AufgabenKlasse>(["heikel", "bestreitet", "loeschen", "in_ruhe", "wut"]);
+
+/** Vertretung (01.10.2026): exportiert für scripts/pruef-vertretung.ts (wohin Maras Übergaben gehen). */
+export async function aufgabeFuerMenschen(
   nummer: string, personId: number | null, leadId: number | null, grund: string, dringend = false,
   klasse: AufgabenKlasse = "anliegen",
   /** E-264: leitung — an die Leitung (Vertriebsleiter wie aufgabe_an_betreuer „Leitung", sonst Justin), nicht an den Betreuer. */
@@ -4200,27 +4208,42 @@ async function aufgabeFuerMenschen(
       await waAktenvermerk(personId, `WhatsApp (+${nummer}): ${grund}`);
     }
     const still = opt.still ?? (!erstes && klasse !== "heikel" && klasse !== "geld");
-    // E-260: Team abwesend — die Übergabe liegt auf dem Board des Betreibers, nicht bei Abwesenden (B9).
+    // E-260: Team abwesend — die Übergabe geht nicht an Abwesende (B9).
+    // Vertretung (01.10.2026): Ist der Vertreter ein echter Mitarbeiter, bekommt ER sie (statt des
+    // Betreiber-Boards); Heikles liegt zusätzlich auf dem Board. Ist er der Betreiber: Board wie bisher.
     const abw = await import("./fiaon-abwesenheit");
-    const anBetreiber = !!(await (personId ? abw.vertretungFuerPerson(Number(personId)) : abw.abwesenheitJetzt()).catch(() => null));
+    let vt = opt.leitung
+      ? await abw.uebergabeVertretung(personId ? Number(personId) : null)
+      : await abw.uebergabeVertretungAbgeleitet(personId ? Number(personId) : null);
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-    const leitung = opt.leitung ? await (await import("./fiaon-mara-abstreiten")).leitungId().catch(() => null) : null;
+    const leitung = opt.leitung && !vt ? await (await import("./fiaon-mara-abstreiten")).leitungId().catch(() => null) : null;
+    // Gilt die Abwesenheit nicht für den Kunden, aber für die Leitung selbst (nur einzelne abwesend): auch dann der Vertreter.
+    if (!vt && leitung) vt = await abw.uebergabeVertretung(personId ? Number(personId) : null, leitung);
+    const titel = `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`;
+    const text = `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`;
+    // E-248: Der Schlüssel trägt jetzt die Grundklasse (wa-<person>-<klasse>-<tag>) — die Karte „Neu von Mara"
+    // (fiaon-agent-aufgaben-popup.ts, personAusZeile) findet die Person deshalb über den Link.
+    // Vertretung: Ohne Person führt der Link in den WhatsApp-Raum des Mitarbeiters statt ins Chefbüro.
+    const link = personId ? `/agent/kunden?person=${Number(personId)}` : vt?.anVertreter ? "/agent/whatsapp" : "/chef/s/whatsapp";
     const erg: any = await auftragFuerKunden({
       // E-264 + E-260: „An die Leitung“ geht an den Vertriebsleiter — AUSSER das Team ist abwesend
-      // (dann liegt jede Übergabe auf dem Board des Betreibers, E-260 B9; leitungId() wäre Agent 8).
-      ...(anBetreiber ? { anBetreiber: true } : opt.leitung ? (leitung ? { agentId: leitung } : { anBetreiber: true }) : { anBetreiber }),
+      // (dann der Vertreter bzw. das Board des Betreibers; leitungId() wäre Agent 8, abwesend).
+      ...(vt ? abw.uebergabeFelder(vt) : opt.leitung ? (leitung ? { agentId: leitung } : { anBetreiber: true }) : { anBetreiber: false }),
       personId: personId ?? null, ref: null,
-      titel: `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`,
-      text: `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`,
+      titel, text,
       quelle: "mara-whatsapp", dringend,
-      // E-248: Der Schlüssel trägt jetzt die Grundklasse (wa-<person>-<klasse>-<tag>) — die Karte „Neu von Mara"
-      // (fiaon-agent-aufgaben-popup.ts, personAusZeile) findet die Person deshalb über den Link.
-      link: personId ? `/agent/kunden?person=${Number(personId)}` : "/chef/s/whatsapp",
+      link,
       schluessel, still,
     });
+    // Heikel (Kündigung, Beschwerde, Bestreiten, Löschwunsch, Rechtsdrohung) — oder sonst ein Fall für die
+    // Leitung: Der Betreiber sieht ihn zusätzlich auf seinem Board (nur, wenn die Aufgabe beim Vertreter liegt).
+    const kopie = vt?.anVertreter && (HEIKLE_KLASSEN.has(klasse) || opt.leitung)
+      // Gegenprüfung (01.10.2026): `still` wie bei der Aufgabe — sonst öffnete jede weitere Nachricht die Kopie wieder.
+      ? await abw.betreiberKopie({ personId: personId ?? null, ref: null, titel, text, dringend: true, schluessel, quelle: "mara-whatsapp", link, still }, vt)
+      : null;
     await protokolliere({ art: "uebergabe", ok: true, nummer, personId, leadId,
-      text: `Aufgabe an ${erg?.agentName ?? "das Team"}${dringend ? " (dringend)" : ""}${erstes ? "" : still ? " (angehängt, still)" : " (angehängt)"}: ${grund.slice(0, 300)}`,
-      daten: { aufgabe_id: erg?.id ?? null, klasse, erstes, still } });
+      text: `Aufgabe an ${erg?.agentName ?? "das Team"}${vt?.anVertreter ? ` (Vertretung bis ${abw.bisText(vt.ab.bis)})` : ""}${kopie ? " + Kopie aufs Board (heikel)" : ""}${dringend ? " (dringend)" : ""}${erstes ? "" : still ? " (angehängt, still)" : " (angehängt)"}: ${grund.slice(0, 300)}`,
+      daten: { aufgabe_id: erg?.id ?? null, klasse, erstes, still, ...(vt ? { vertretung: vt.ab.vertreter.id, an_vertreter: vt.anVertreter, board_kopie: kopie } : {}) } });
   } catch (e) { console.error("[MARA-WA] Aufgabe:", e); }
 }
 

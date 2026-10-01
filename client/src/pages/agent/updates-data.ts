@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // Vertretung (01.10.2026): Der Vertreter bekommt Maras Übergaben und sieht die Kunden der Abwesenden.
+    id: "2026-10-01-vertretung",
+    date: "2026-10-01",
+    category: "Geändert",
+    title: "Vertretung: Wer vertritt, bekommt Maras Aufgaben und sieht die Kunden der Abwesenden",
+    summary:
+      "Ist das Team abwesend und du bist der Vertreter, landen Maras Aufgaben (WhatsApp und Postfach) bei dir — und du kannst "
+      + "Akte und WhatsApp-Gespräche der vertretenen Kunden öffnen. Kunden buchen auf der Terminseite bis dahin deine Zeiten.",
+    changes: [
+      "Maras Übergaben zu Kunden der Abwesenden kommen als Aufgabe zu dir (mit Mail „Neue Aufgabe“), nicht mehr auf das Board des Chefs.",
+      "Heikles (Kündigung, Beschwerde, Bestreiten, Zahlungsverweigerung, Löschwunsch, Anwalt) sieht der Chef zusätzlich — du bekommst es trotzdem.",
+      "Die Terminseite (Kunden-Link „Termin buchen“) zeigt Kunden der Abwesenden bis zum Ende der Abwesenheit nur deine freien Zeiten; der Termin hat die Notiz „in Abwesenheit von …“.",
+      "Die Kunden bleiben bei ihren Betreuern — du rufst an, übernimmst sie aber nicht. Nach der Abwesenheit siehst du wieder nur deine eigenen.",
+    ],
+    howto: [
+      "Aufgabe öffnen → den Link zum Kunden antippen: Die Akte öffnet sich, auch wenn er einem Kollegen gehört.",
+      "Bei WhatsApp-Aufgaben: WhatsApp-Raum öffnen — die Gespräche der Vertretenen stehen mit in deiner Liste.",
+      "Termin bei einem Kunden eines Kollegen: ganz normal anrufen und das Ergebnis in der Akte eintragen.",
+    ],
+    link: { href: "/agent/aufgaben", label: "Zu den Aufgaben" },
+    important: true,
+  },
+  {
     // E-263 (29.09.2026): Termine im eigenen Kalender — Einzelknopf in der Mail + Kalender-Abo.
     id: "2026-09-29-kalender-abo",
     date: "2026-09-29",

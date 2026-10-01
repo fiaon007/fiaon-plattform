@@ -111,6 +111,17 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
     WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
   `) as any[];
   if (!p) return null;
+  // ── VERTRETUNG (01.10.2026) ────────────────────────────────────────────
+  // Ist der Betreuer abwesend (fiaon-abwesenheit.ts), ruft bis „bis" der
+  // Vertreter an — und die Terminseite hinter jedem „Termin buchen" bietet
+  // seine Zeiten an. Die Mail nennt deshalb ihn („Nikita Boychenko hat
+  // versucht, Sie zu erreichen", „… ist für Sie da"), nicht den, der nicht da ist.
+  // E-265: in der Nennform (anrufName — „Herr Boychenko", ohne Anrede „Nikita Boychenko"), nie der Vorname.
+  try {
+    const { vertretungFuerPerson } = await import("./fiaon-abwesenheit");
+    const vt = await vertretungFuerPerson(personId, lauf);
+    if (vt && vt.betreuer?.id !== vt.ab.vertreter.id) p.agent_vorname = vt.ab.vertreter.anrufName;
+  } catch { /* ohne Abwesenheit: der eingetragene Betreuer */ }
   return {
     email: String(p.email || ""),
     vorname: p.vorname || null,
@@ -285,7 +296,7 @@ async function linkBaustein(
     // Der Kalender gibt sie jetzt selbst mit (vorhanden), hier der Rückfall.
     if (!hat("termin_datum")) {
       const [t] = (await lauf`
-        SELECT t.beginn, ${lauf.unsafe(nennformSql("ag"))} AS agent_vorname
+        SELECT t.beginn, t.agent_id, t.quelle, ${lauf.unsafe(nennformSql("ag"))} AS agent_vorname
         FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
         WHERE t.person_id = ${personId} AND t.status = 'verpasst'
         ORDER BY t.beginn DESC LIMIT 1
@@ -295,7 +306,17 @@ async function linkBaustein(
       }
       links.termin_datum = berlinDatumText(t.beginn);
       links.termin_uhrzeit = berlinUhrzeit(t.beginn);
-      if (t.agent_vorname) setze("agent_vorname", t.agent_vorname);
+      // Vertretung (01.10.2026, Gegenprüfung): „… hat versucht, Sie zu erreichen" nennt den, der zu
+      // diesem Termin angerufen hat — lag er bei einem Abwesenden (vor „bis"), der Vertreter
+      // (anruferFuer, wie Bestätigung und Erinnerung; Gründer/Global nie).
+      if (t.agent_vorname) {
+        let anrufer = String(t.agent_vorname);
+        try {
+          const { anruferFuer } = await import("./fiaon-abwesenheit");
+          anrufer = await anruferFuer(Number(t.agent_id), t.beginn, anrufer, lauf, t.quelle);
+        } catch { /* ohne Abwesenheit: der Gebuchte */ }
+        setze("agent_vorname", anrufer);
+      }
     }
   }
 

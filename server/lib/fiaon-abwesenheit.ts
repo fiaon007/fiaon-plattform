@@ -44,6 +44,27 @@
 //   · Maras Übergaben gehen an das Betreiber-Board statt an Abwesende (B9).
 //   · Bestehende Termine bleiben, wo sie sind — der Reiter „Termine" im
 //     Mara-Steuerpult zeigt sie mit der Marke „Betreuer abwesend".
+//
+// ── VERTRETUNG (01.10.2026) — der Vertreter ist ein Mitarbeiter ─────────────
+// Seit 01.10. 10:28 vertritt Nikita (#13) das ganze Team bis 15.10. Drei Lücken,
+// die E-260 mit Justin als Vertreter nicht hatte:
+//   · DIE TERMINSEITE (Kunden-Link /termin/…, alle Mails „Termin buchen")
+//     buchte weiter beim abwesenden Betreuer bzw. im Pool samt Abwesenden.
+//     Jetzt sieht ein Kunde, für den die Abwesenheit gilt, vor „bis" die
+//     freien Plätze des Vertreters (fiaon-termine.ts, freieSlots — dieselbe
+//     Rechnung für Anzeige und Annahme), danach den normalen Weg. Kunde und
+//     Betreuer bleiben (zuordnen: false, wie B10). Gründer-Termine (/justin)
+//     und FIAON Global laufen über eigene Wege und werden NIE umgeleitet —
+//     auch nicht in Namen, Erinnerungen und der Belegung des Vertreters
+//     (NIE_UMLEITEN_QUELLEN).
+//   · MARAS ÜBERGABEN lagen auf dem Board des Betreibers. Ist der Vertreter ein
+//     echter Mitarbeiter (kein Testkonto, nicht der Gründer), bekommt ER sie
+//     (uebergabeVertretung); Heikles (Kündigung, Beschwerde, Bestreiten,
+//     Löschwunsch, Rechtsdrohung) liegt zusätzlich auf dem Board
+//     (betreiberKopie). Ist der Vertreter der Betreiber, bleibt alles wie in E-260.
+//   · DIE AKTE: Eine Aufgabe ohne Zugriff ist eine verschlossene Tür. Der
+//     Vertreter sieht während der Abwesenheit die Kunden, für die sie gilt —
+//     Akte (fiaon-kundenzugriff.ts) und WhatsApp-Raum (vertreterSiehtBetreuer).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { rohSlots, verfuegbarkeitVon, type Slot } from "./fiaon-termine";
@@ -77,10 +98,32 @@ export interface Abwesenheit {
 }
 
 /**
- * E-265 (29.09.2026): `anrufName` ist die Nennform („Herr Schwarzott" bzw. ohne Anrede
- * „Justin Schwarzott"), `anrufDat` die nach mit/an/für („Herrn Schwarzott") — nie der Vorname.
+ * E-265 (29.09.2026): `anrufName` ist die Nennform („Herr Boychenko" bzw. ohne Anrede
+ * „Nikita Boychenko"), `anrufDat` die nach mit/an/für („Herrn Boychenko") — nie der Vorname.
+ * `vorname` und `name` bleiben für interne Texte (Protokoll, Aufgabe, Chefbüro).
  */
-export interface Vertreter { id: number; vorname: string; name: string; anrufName: string; anrufDat: string; nenn: Nennform }
+export interface Vertreter {
+  id: number; vorname: string; name: string; anrufName: string; anrufDat: string; nenn: Nennform;
+  /**
+   * Vertretung (01.10.2026): ein echter Mitarbeiter — kein Testkonto, nicht der
+   * Gründer/Betreiber (928/929). Dann gehen Maras Übergaben an IHN statt aufs
+   * Board des Betreibers (uebergabeVertretung).
+   */
+  mitarbeiter?: boolean;
+}
+
+/**
+ * Vertretung (01.10.2026): Gespräche dieser Quellen werden NIE umgeleitet — das
+ * Gründer-Gespräch (/justin) und das Erstgespräch zu FIAON Global haben eigene
+ * Wege, eigene Kalender und einen festen Gesprächspartner. Sie zählen weder als
+ * „Termin bei einem Abwesenden" (Namen, Erinnerung, Marke im Reiter) noch als
+ * Belegung des Vertreters.
+ */
+export const NIE_UMLEITEN_QUELLEN: readonly string[] = ["gruender", "global"];
+/** Darf ein Termin dieser Quelle in der Abwesenheit beim Vertreter landen bzw. ihn nennen? Rein. */
+export function quelleUmleitbar(quelle: string | null | undefined): boolean {
+  return !NIE_UMLEITEN_QUELLEN.includes(String(quelle ?? ""));
+}
 export interface AktiveAbwesenheit { vertreter: Vertreter; bis: Date; fuer: number[] }
 
 const LEER: Abwesenheit = {
@@ -118,7 +161,8 @@ export function abwesenheitVergessen(): void { zwischen = null; }
 export async function vertreterPruefen(agentId: number, lauf: Lauf = sqlPool): Promise<{ vertreter: Vertreter | null; problem: string | null }> {
   const [a] = (await lauf`
     SELECT id, name, COALESCE(NULLIF(first_name, ''), split_part(name, ' ', 1)) AS vorname, first_name, last_name, anrede,
-           COALESCE(active, TRUE) AS aktiv, zugang_gesperrt_am, COALESCE(rolle, 'agent') AS rolle
+           COALESCE(active, TRUE) AS aktiv, zugang_gesperrt_am, COALESCE(rolle, 'agent') AS rolle,
+           COALESCE(is_test_account, FALSE) AS test
       FROM fiaon_agents WHERE id = ${agentId}`) as any[];
   if (!a) return { vertreter: null, problem: `Konto #${agentId} gibt es nicht.` };
   if (!a.aktiv) return { vertreter: null, problem: `${a.name} ist nicht aktiv.` };
@@ -127,12 +171,17 @@ export async function vertreterPruefen(agentId: number, lauf: Lauf = sqlPool): P
   const zeiten = (await verfuegbarkeitVon(Number(a.id), lauf)).filter((z) => z.aktiv);
   if (!zeiten.length) return { vertreter: null, problem: `${a.name} hat keine Arbeitszeiten eingetragen — ohne Zeiten kann Mara nichts buchen (Agentenportal → Verfügbarkeit).` };
   const vorname = String(a.vorname || "").trim() || String(a.name);
-  // E-265 (29.09.2026, Justin „zum letzten Mal!!"): anrufName ist die Nennform — „Herr Schwarzott",
-  // ohne gepflegte Anrede „Justin Schwarzott" (heute: Konto 928 hat keine Anrede). Vorher der Vorname
-  // („Justin ruft Sie an"), weil die Sätze in fiaon-whatsapp-mara.ts das erste Wort nahmen — das tun
-  // sie seit E-265 nicht mehr. Damit ist die Frage F3 erledigt.
+  // E-265 (29.09.2026, Justin „zum letzten Mal!!"): anrufName ist die Nennform — „Herr Boychenko",
+  // ohne gepflegte Anrede „Nikita Boychenko" (heute: Konto 13 und 928 haben keine Anrede). Vorher der
+  // Vorname („Nikita ruft Sie an"), weil die Sätze in fiaon-whatsapp-mara.ts das erste Wort nahmen —
+  // das tun sie seit E-265 nicht mehr. Damit ist die Frage F3 erledigt.
   const nenn = nennform(a);
-  return { vertreter: { id: Number(a.id), vorname, name: String(a.name), anrufName: nenn.nom, anrufDat: nenn.dat, nenn }, problem: null };
+  // Vertretung (01.10.2026): Mitarbeiter = kein Testkonto und nicht der Gründer. Kann die
+  // Gründer-Einstellung nicht gelesen werden, entscheidet die Testkonto-Marke allein (928/929 sind beide eine).
+  let gruender = 0;
+  try { gruender = await (await import("../routes/fiaon-gruender-termin")).gruenderAgentId(); } catch { /* ohne Gründer-Einstellung */ }
+  const mitarbeiter = !a.test && Number(a.id) !== Number(gruender);
+  return { vertreter: { id: Number(a.id), vorname, name: String(a.name), anrufName: nenn.nom, anrufDat: nenn.dat, nenn, mitarbeiter }, problem: null };
 }
 
 export async function abwesenheitLesen(frisch = false, lauf: Lauf = sqlPool): Promise<Abwesenheit> {
@@ -208,12 +257,16 @@ export function istAbwesend(ab: AktiveAbwesenheit | null, agentId: number | null
  * sonst der Name des Gebuchten (B2). E-265: `eigen` ist die Nennform des
  * Gebuchten („Herr Stripling"), zurück kommt die Nennform (nie der Vorname).
  */
-export async function anruferFuer(agentId: number, beginn: Date | string, eigen: string, lauf: Lauf = sqlPool): Promise<string> {
-  return (await anruferNennform(agentId, beginn, { nom: eigen, dat: eigen }, lauf)).nom;
+export async function anruferFuer(agentId: number, beginn: Date | string, eigen: string, lauf: Lauf = sqlPool, quelle?: string | null): Promise<string> {
+  return (await anruferNennform(agentId, beginn, { nom: eigen, dat: eigen }, lauf, quelle)).nom;
 }
 
-/** Wie anruferFuer, mit beiden Fällen: { nom: „Herr Stripling", dat: „Herrn Stripling" }. E-265. */
-export async function anruferNennform(agentId: number, beginn: Date | string, eigen: { nom: string; dat: string }, lauf: Lauf = sqlPool): Promise<{ nom: string; dat: string; vertreter: boolean; vertreterVorname: string | null }> {
+/**
+ * Wie anruferFuer, mit beiden Fällen: { nom: „Herr Stripling", dat: „Herrn Stripling" }. E-265.
+ * Vertretung (01.10.2026): `quelle` — Gründer- und Global-Gespräche nennen immer den Gebuchten (NIE_UMLEITEN_QUELLEN).
+ */
+export async function anruferNennform(agentId: number, beginn: Date | string, eigen: { nom: string; dat: string }, lauf: Lauf = sqlPool, quelle?: string | null): Promise<{ nom: string; dat: string; vertreter: boolean; vertreterVorname: string | null }> {
+  if (!quelleUmleitbar(quelle)) return { ...eigen, vertreter: false, vertreterVorname: null };
   try {
     const ab = await abwesenheitJetzt(lauf);
     return istAbwesend(ab, agentId, beginn)
@@ -271,6 +324,8 @@ export async function belegtFuerVertreter(ab: AktiveAbwesenheit, lauf: Lauf = sq
      WHERE status = 'gebucht' AND beginn > NOW() - INTERVAL '2 hours' AND beginn < NOW() + INTERVAL '15 days'
        AND (agent_id = ${ab.vertreter.id}
             OR (beginn < ${ab.bis} AND agent_id <> ${ab.vertreter.id}
+                -- Vertretung (01.10.2026): Gründer- und Global-Gespräche ruft der Vertreter nie an (NIE_UMLEITEN_QUELLEN)
+                AND COALESCE(quelle, '') <> ALL(${[...NIE_UMLEITEN_QUELLEN]})
                 AND (${ab.fuer.length === 0} OR agent_id = ANY(${ab.fuer.length ? ab.fuer : [0]}))))`) as any[];
   const raus: { von: number; bis: number; terminId: number | null }[] = zeilen.map((z) => {
     const von = new Date(z.beginn).getTime();
@@ -297,15 +352,181 @@ export async function belegtFuerVertreter(ab: AktiveAbwesenheit, lauf: Lauf = sq
  * `nachBis: true` (E-260, Gegenprüfung 29.09.): stattdessen die Plätze AB
  * „bis" — für Kunden, deren fester Betreuer der Vertreter selbst ist.
  */
-export async function freiePlaetzeVertreter(ab: AktiveAbwesenheit, vorlaufMin: number, lauf: Lauf = sqlPool, opts: { nachBis?: boolean } = {}): Promise<Slot[]> {
-  const roh = await rohSlots([{ id: ab.vertreter.id, vorname: ab.vertreter.anrufName }], 20, lauf, vorlaufMin * 60_000);
+export async function freiePlaetzeVertreter(
+  ab: AktiveAbwesenheit, vorlaufMin: number, lauf: Lauf = sqlPool,
+  // Vertretung (01.10.2026): `takt` — die Terminseite bucht im Raster der Gesprächsart (Startgespräch 15
+  // Minuten, sonst 20; dauerFuer). Dieselbe Zahl muss die Annahme (terminBuchen, Raster-Wand) sehen.
+  opts: { nachBis?: boolean; takt?: number } = {},
+): Promise<Slot[]> {
+  const takt = opts.takt && opts.takt > 0 ? opts.takt : 20;
+  const roh = await rohSlots([{ id: ab.vertreter.id, vorname: ab.vertreter.anrufName }], takt, lauf, vorlaufMin * 60_000);
   const belegt = await belegtFuerVertreter(ab, lauf);
   return roh.filter((s) => {
     const von = new Date(s.beginn).getTime();
     if (opts.nachBis ? von < ab.bis.getTime() : von >= ab.bis.getTime()) return false;
-    const bis = von + 20 * 60_000;
+    const bis = von + takt * 60_000;
     return !belegt.some((b) => b.von < bis && b.bis > von);
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VERTRETUNG (01.10.2026) — ÜBERGABEN UND ZUGRIFF
+// ═══════════════════════════════════════════════════════════════════════════
+export interface UebergabeVertretung {
+  ab: AktiveAbwesenheit;
+  /**
+   * true = die Übergabe geht an den Vertreter (er ist ein echter Mitarbeiter);
+   * false = aufs Board des Betreibers (der Vertreter IST der Betreiber — wie E-260, B9).
+   */
+  anVertreter: boolean;
+}
+
+/**
+ * Gilt die Abwesenheit für eine Übergabe von Mara? `empfaengerId` = an wen sie
+ * ohne Abwesenheit ginge (ein genannter Kollege, die Leitung, der abgeleitete
+ * Betreuer) — dann zählt, ob GENAU der abwesend ist. Ohne Empfänger zählt die
+ * Person (vertretungFuerPerson), ohne Person das Team (die Abwesenheit selbst).
+ * null = wie ohne Abwesenheit. Wirft nie.
+ */
+export async function uebergabeVertretung(personId: number | null, empfaengerId: number | null = null, lauf: Lauf = sqlPool): Promise<UebergabeVertretung | null> {
+  try {
+    const ab = await abwesenheitJetzt(lauf);
+    if (!ab) return null;
+    const gilt = empfaengerId
+      ? istAbwesend(ab, empfaengerId)
+      : personId ? !!(await vertretungFuerPerson(personId, lauf)) : true;
+    if (!gilt) return null;
+    return { ab, anVertreter: ab.vertreter.mitarbeiter === true };
+  } catch (e) {
+    console.error("[ABWESENHEIT] Übergabe-Ziel nicht lesbar — die Übergabe geht wie ohne Abwesenheit:", String(e).slice(0, 160));
+    return null;
+  }
+}
+
+/**
+ * Wie uebergabeVertretung(personId) — und zusätzlich: Gilt die Abwesenheit nicht für
+ * den Kunden, aber für den, an den die Übergabe ohne Abwesenheit ginge
+ * (auftragEmpfaenger: Betreuer, sonst die Rolle zur Lage), dann ebenfalls.
+ * Für die Wege, die den Empfänger ableiten lassen (Postfach, WhatsApp ohne Leitung).
+ */
+export async function uebergabeVertretungAbgeleitet(personId: number | null, lauf: Lauf = sqlPool): Promise<UebergabeVertretung | null> {
+  const v = await uebergabeVertretung(personId, null, lauf);
+  if (v || !personId) return v;
+  try {
+    if (!(await abwesenheitJetzt(lauf))) return null;
+    const { auftragEmpfaenger } = await import("../routes/fiaon-betreiber-todo");
+    const e = await auftragEmpfaenger(personId);
+    return e?.id ? await uebergabeVertretung(personId, Number(e.id), lauf) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Die Felder für auftragFuerKunden: an den Vertreter — oder aufs Board des Betreibers. Rein. */
+export function uebergabeFelder(v: UebergabeVertretung): { agentId: number; anBetreiber: false } | { anBetreiber: true; agentId: null } {
+  return v.anVertreter ? { agentId: v.ab.vertreter.id, anBetreiber: false } : { anBetreiber: true, agentId: null };
+}
+
+/**
+ * Heikel im Sinne der Vertretung: Kündigung, Widerruf, Storno (des Vertrags), Geld zurück,
+ * Beschwerde, Bestreiten, Zahlungsverweigerung, Löschwunsch (Daten/Konto), Rechtsdrohung
+ * (Anwalt, Verbraucherzentrale, Polizei, Klage, Gericht, Betrug). Solche Übergaben sieht
+ * der Betreiber ZUSÄTZLICH auf seinem Board. Rein.
+ * Auf WhatsApp entscheidet die Aufgabenklasse (fiaon-whatsapp-mara.ts, HEIKLE_KLASSEN);
+ * im Postfach der Text der Aufgabe, den Mara schreibt.
+ *
+ * Gegenprüfung (01.10.2026): Die erste Fassung suchte Wortstücke („storn", „klage",
+ * „gericht", „lösch", „erstatt") und schlug bei „Termin stornieren", „Klagenfurt",
+ * „an Daniel gerichtet", „Nummer gelöscht", „Erstattung der Auslagen" an — jede davon
+ * eine unnötige Karte auf dem Board. „Kunde verweigert die Zahlung" fand sie nicht.
+ * Jetzt: ganze Wörter bzw. das Wort MIT seinem Gegenstand (Storno des Vertrags,
+ * Löschen der Daten/des Kontos, Erstattung von Geld). \b ist in JavaScript nur für
+ * ASCII gedacht — vor Umlauten steht deshalb ein Lookbehind auf Buchstaben.
+ */
+const BUCHSTABE_DAVOR = "(?<![a-zäöüß])";
+const VERTRAGSWORT = "(?:vertrag|bestellung|auftrag|abo|paket|antrag|mitgliedschaft)";
+const BESITZ = "(?:meine|seine|ihre|unsere|alle|sämtliche|saemtliche|persönliche\\w*|persoenliche\\w*|personenbezogene\\w*)";
+/** Ein Lückenwort, das nicht von Auskunfteien handelt — „seine Daten aus der SCHUFA löschen" ist das Geschäft, kein Löschwunsch. */
+const LUECKE = "(?:(?!schufa|crif|boniversum|eintr|negativ)\\S+\\s+)";
+const HEIKEL_MUSTER: readonly RegExp[] = [
+  // Kündigung — nicht „angekündigt"/„Ankündigung".
+  /(?<!an|ange)k(?:ü|ue|u)ndig/i,
+  /widerr(?:uf|ief)/i,
+  // Storno des Vertrags/der Bestellung — nicht „Termin stornieren".
+  new RegExp(`(?<!termin-?)\\bstorno\\b|storn\\w*\\s+${LUECKE}{0,3}?${VERTRAGSWORT}|${VERTRAGSWORT}\\w*\\s+${LUECKE}{0,3}?storn`, "i"),
+  // Geld zurück — nicht „Erstattung der Auslagen".
+  /r(?:ü|ue)ck(?:erstatt|überweis|ueberweis)|zurück\s*(?:zu)?(?:überweis|ueberweis|erstatt)|geld\s+(?:\S+\s+){0,2}?(?:zurück|zurueck|wieder)|erstatt\w*\s+(?:\S+\s+){0,3}?(?:geld|betrag|beitrag|gebühr|gebuehr|zahlung|rate|kosten|\d)|(?:geld|betrag|beitrag|gebühr|gebuehr|zahlung|rate|kosten)\w*\s+(?:\S+\s+){0,3}?(?:erstatt|zurück|zurueck)/i,
+  /beschwer(?!lich)/i,
+  // Rechtsdrohung — „Klage" als Wort (nicht „Klagenfurt"), „Gericht" als Wort (nicht „gerichtet").
+  /anw(?:a|ä|ae)lt|rechtsbeistand|verbraucherzentrale|verbraucherschutz|schlichtungsstelle|bafin|polizei|strafanzeige|anzeige\s+(?:\S+\s+){0,2}?erstatt/i,
+  new RegExp(`${BUCHSTABE_DAVOR}(?:ver)?klag(?:e|en|t|te)\\b|sammelklage|einklag|${BUCHSTABE_DAVOR}gericht(?:e|s|en|lich\\w*)?\\b|(?:amts|land|mahn)gericht|gerichtsvollzieh`, "i"),
+  /betrug|betrüg|betrueg|abzocke|abgezockt/i,
+  // Löschwunsch — Daten oder Konto der Person, nicht „Nummer gelöscht" oder ein Auskunftei-Eintrag.
+  new RegExp(`dsgvo|art\\.?\\s*17\\b|recht\\s+auf\\s+(?:vergessen|löschung|loeschung)|daten\\s*-?\\s*(?:löschung|loeschung)|(?:lösch|loesch)(?:antrag|wunsch)`
+    + `|${BESITZ}\\s+(?:\\S+\\s+)?daten\\s+${LUECKE}{0,3}?(?:lösch|loesch|gelöscht|geloescht|entfern)`
+    + `|(?:lösch|loesch)\\w*\\s+${LUECKE}{0,3}?${BESITZ}\\s+(?:\\S+\\s+)?daten`
+    + `|${BUCHSTABE_DAVOR}(?:konto|account|kundenkonto|profil|zugang)\\s+(?:\\S+\\s+){0,3}?(?:lösch|loesch|gelöscht|geloescht)`
+    + `|(?:lösch|loesch)\\w*\\s+(?:\\S+\\s+){0,3}?(?:kundenkonto|konto|account|profil)\\b`, "i"),
+  // Bestreiten — „nie beantragt", „kenne Sie nicht".
+  /bestreit|(?:nie|niemals|nichts)\s+(?:\S+\s+){0,2}?(?:beantragt|bestellt|unterschrieben|abgeschlossen|beauftragt)|nicht\s+(?:\S+\s+){0,2}?(?:beantragt|beauftragt)\b|(?:kenne|kennt)\s+(?:\S+\s+){0,2}?(?:fiaon|euch|sie|ihre\s+firma)\s+nicht|identitätsdiebstahl|identitaetsdiebstahl/i,
+  // Zahlungsverweigerung (die Eskalation) — „verweigert die Zahlung", „zahlt nichts mehr".
+  /verweiger\w*\s+(?:\S+\s+){0,3}?(?:zahlung|zahlen|rate|beitrag)|(?:zahlung|zahlen|rate|beitrag)\w*\s+(?:\S+\s+){0,3}?verweiger|weiger\w*\s+sich\s+(?:\S+\s+){0,3}?zu\s+zahlen|(?:zahle|zahlt|zahlen)\s+(?:\S+\s+){0,3}?(?:nichts|nicht)\s+mehr|keinen\s+(?:cent|euro)\s+mehr|zahlung(?:en)?\s+(?:\S+\s+){0,2}?eingestellt/i,
+];
+export function heikleUebergabe(text: string | null | undefined): boolean {
+  const t = String(text ?? "");
+  return HEIKEL_MUSTER.some((m) => m.test(t));
+}
+
+/**
+ * Die Kopie fürs Board des Betreibers — nur, wenn die Übergabe beim Vertreter
+ * liegt (sonst liegt sie ohnehin dort). Eigener Schlüssel (`…:betreiber`), damit
+ * weitere Nachrichten desselben Falls sich anhängen statt neue Karten zu machen.
+ * `still` (Gegenprüfung 01.10.2026): wie bei der Aufgabe selbst — eine weitere
+ * Nachricht hängt sich an, ohne die erledigte Karte wieder zu öffnen.
+ */
+export async function betreiberKopie(
+  ein: { personId: number | null; ref: string | null; titel: string; text: string; dringend?: boolean; schluessel?: string | null; quelle: string; link?: string | null; autorName?: string; still?: boolean },
+  v: UebergabeVertretung | null,
+): Promise<number | null> {
+  if (!v?.anVertreter) return null;
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const erg = await auftragFuerKunden({
+      personId: ein.personId, ref: ein.ref, anBetreiber: true, dringend: ein.dringend ?? true,
+      titel: `Zur Kenntnis (heikel): ${ein.titel}`.slice(0, 160),
+      text: `${ein.text}\n\nDie Aufgabe liegt bei ${v.ab.vertreter.name} (Vertretung bis ${bisText(v.ab.bis)}). Heikel — deshalb steht sie zusätzlich hier.`,
+      quelle: ein.quelle, autorName: ein.autorName ?? "Mara",
+      ...(ein.link ? { link: ein.link } : {}),
+      ...(ein.schluessel ? { schluessel: `${ein.schluessel}:betreiber` } : {}),
+      ...(ein.still ? { still: true } : {}),
+    } as any);
+    return erg?.id ?? null;
+  } catch (e) {
+    console.error("[ABWESENHEIT] Board-Kopie nicht angelegt:", String(e).slice(0, 160));
+    return null;
+  }
+}
+
+/**
+ * Sieht der Vertreter einen Kunden dieses Betreuers? Ja, solange die Abwesenheit
+ * gilt und der Betreuer abwesend ist — oder der Kunde keinen hat und das ganze
+ * Team weg ist. Rein; für Listen (WhatsApp-Raum), die je Zeile entscheiden.
+ */
+export function vertreterSiehtBetreuer(ab: AktiveAbwesenheit | null, agentId: number | null | undefined, betreuerId: number | null | undefined): boolean {
+  if (!ab || !agentId || Number(agentId) !== ab.vertreter.id) return false;
+  if (!betreuerId) return ab.fuer.length === 0;
+  return istAbwesend(ab, Number(betreuerId));
+}
+
+/** Darf dieser Mitarbeiter als Vertreter an diesen Kunden (Akte, Telefon, Mail)? Wirft nie. */
+export async function vertreterDarfAnKunde(agentId: number, personId: number, lauf: Lauf = sqlPool): Promise<boolean> {
+  try {
+    const ab = await abwesenheitJetzt(lauf);
+    if (!ab || ab.vertreter.id !== Number(agentId)) return false;
+    return !!(await vertretungFuerPerson(personId, lauf));
+  } catch {
+    return false;
+  }
 }
 
 // ── Schreiben ─────────────────────────────────────────────────────────────

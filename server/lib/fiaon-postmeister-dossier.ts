@@ -400,7 +400,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     })),
     termine: await Promise.all(termine.map(async (t) => ({
       beginn: `${relativ(t.beginn)}`, status: String(t.status),
-      betreuer: t.betreuer && t.status === "gebucht" ? await abw.anruferFuer(Number(t.agent_id), t.beginn, String(t.betreuer)) : t.betreuer ?? null,
+      betreuer: t.betreuer && t.status === "gebucht" ? await abw.anruferFuer(Number(t.agent_id), t.beginn, String(t.betreuer), undefined, t.quelle) : t.betreuer ?? null,
       art: t.quelle ?? null,
     }))),
     verlauf: verlauf.map((v) => ({

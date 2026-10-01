@@ -64,11 +64,16 @@ async function aufgabeNachAufgabe(ein: {
     const text = ein.art === "versand"
       ? `Postfach ${ein.postfach}, Betreff „${betreff}“, Fehler: ${ein.grund}. Die Antwort liegt in der Postmeister-Zentrale (Zu prüfen) und kann von Hand gesendet werden — oder den Kunden anrufen.`
       : `Postfach ${ein.postfach}, Betreff „${betreff}“, Fehler: ${ein.grund}. Mara konnte viermal keine Antwort erzeugen. Die Mail liegt in der Postmeister-Zentrale (Zu prüfen) — bitte von Hand antworten oder den Kunden anrufen.`;
+    // Vertretung (01.10.2026): Ist der Betreuer abwesend, bekommt der Vertreter die Aufgabe (ist er der
+    // Betreiber: dessen Board) — sonst läge sie bis „bis" bei jemandem, der nichts sieht.
+    const { uebergabeVertretungAbgeleitet, uebergabeFelder } = await import("./fiaon-abwesenheit");
+    const vt = ein.personId ? await uebergabeVertretungAbgeleitet(ein.personId) : null;
     const a = await auftragFuerKunden({
       personId: ein.personId, ref: ein.ref,
       titel: ein.art === "versand" ? "Mail-Antwort konnte nicht gesendet werden" : "Mail-Antwort konnte nicht erzeugt werden",
       text, dringend: true, schluessel: `postmeister:${ein.id}:${ein.art}`, quelle: "postmeister", autorName: "Mara",
-      link: "/chef/s/postmeister", anBetreiber: !ein.personId && !ein.ref,
+      link: "/chef/s/postmeister",
+      ...(vt ? uebergabeFelder(vt) : { anBetreiber: !ein.personId && !ein.ref }),
     });
     await wiederOffenBereinigen(a.id);
   } catch (e) {
@@ -240,16 +245,26 @@ export async function anBetreuerUebergeben(ein: {
 }): Promise<void> {
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    // Vertretung (01.10.2026): Ist der Betreuer (bzw. der abgeleitete Empfänger) abwesend, bekommt der
+    // Vertreter die Übergabe — ist er der Betreiber, dessen Board. Heikles zusätzlich aufs Board.
+    const abw = await import("./fiaon-abwesenheit");
+    const vt = ein.personId ? await abw.uebergabeVertretungAbgeleitet(ein.personId) : null;
+    const titel = ein.dringend ? "Kunde hat geschrieben — bitte heute antworten" : "Kunde hat geschrieben — bitte antworten";
+    const text = uebergabeBlock(ein);
+    const link = ein.personId ? `/agent/kunden?person=${ein.personId}` : ein.ref ? `/agent/kunden?ref=${ein.ref}` : "/chef/s/postmeister";
     const a = await auftragFuerKunden({
       personId: ein.personId, ref: ein.ref,
-      titel: ein.dringend ? "Kunde hat geschrieben — bitte heute antworten" : "Kunde hat geschrieben — bitte antworten",
-      text: uebergabeBlock(ein),
+      titel,
+      text,
       dringend: ein.dringend,
       schluessel: uebergabeSchluessel(ein),
       quelle: "postmeister", autorName: "Mara",
-      link: ein.personId ? `/agent/kunden?person=${ein.personId}` : ein.ref ? `/agent/kunden?ref=${ein.ref}` : "/chef/s/postmeister",
-      anBetreiber: !ein.personId && !ein.ref,
+      link,
+      ...(vt ? abw.uebergabeFelder(vt) : { anBetreiber: !ein.personId && !ein.ref }),
     });
+    if (vt?.anVertreter && abw.heikleUebergabe(`${ein.betreff}\n${ein.zusammenfassung}\n${ein.grund}`)) {
+      await abw.betreiberKopie({ personId: ein.personId, ref: ein.ref, titel, text, dringend: true, schluessel: uebergabeSchluessel(ein), quelle: "postmeister", link }, vt);
+    }
     await wiederOffenBereinigen(a.id);
   } catch (e) {
     console.error("[POSTMEISTER] Übergabe an Betreuer:", String(e).slice(0, 160));

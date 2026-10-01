@@ -126,7 +126,7 @@ router.get("/chef/wa-pause", chefLesen, async (_req: ChefRequest, res: Response)
     const lage = await waBremseLage();
     res.json({
       ok: true, zustand: lage.pause, stand: lage.stand,
-      bremse: { qualitaet: lage.qualitaet, faktor: lage.faktor, satz: lage.satz, werbungGestoppt: lage.werbungGestoppt, allesGestoppt: lage.allesGestoppt },
+      bremse: { qualitaet: lage.qualitaet, faktor: lage.faktor, satz: lage.satz, werbungGestoppt: lage.werbungGestoppt, allesGestoppt: lage.allesGestoppt, rotGehalten: lage.rotGehalten, metaMeldet: lage.metaMeldet },
       kontofehler: await kontofehler24(),
     });
   } catch (err) {
@@ -170,7 +170,7 @@ router.post("/chef/wa-meta-stand/pruefen", chefLesen, async (_req: ChefRequest, 
     const stand = await metaStandLesen({ frisch: true });
     const frisch = !!stand.am && Date.parse(stand.am) >= klick;
     const lage = await waBremseLage();
-    res.json({ ok: true, frisch, stand, bremse: { qualitaet: lage.qualitaet, faktor: lage.faktor, satz: lage.satz, werbungGestoppt: lage.werbungGestoppt, allesGestoppt: lage.allesGestoppt } });
+    res.json({ ok: true, frisch, stand, bremse: { qualitaet: lage.qualitaet, faktor: lage.faktor, satz: lage.satz, werbungGestoppt: lage.werbungGestoppt, allesGestoppt: lage.allesGestoppt, rotGehalten: lage.rotGehalten, metaMeldet: lage.metaMeldet } });
   } catch (err) {
     console.error("[WA-BREMSE] Meta-Stand:", err);
     res.status(500).json({ ok: false, error: "Metas Stand ließ sich nicht lesen." });

@@ -617,6 +617,21 @@ export interface SlotAuskunft {
   zustaendig?: string;
   /** Eine mitgeschickte Gesprächsart, die verworfen wurde — nur fürs Protokoll. */
   verworfen?: string | null;
+  /**
+   * Vertretung (01.10.2026): Das Team (bzw. der Betreuer) ist bis `bis` nicht im
+   * Haus — die Plätze davor gehören dem Vertreter. Nicht zu verwechseln mit
+   * `vertretung` oben (Rollen-Rückfall beim Startgespräch, B12). null = keine.
+   */
+  abwesenheit?: {
+    /** `vertreterName` = voller Name für interne Texte; `vertreterNenn` = wie der Kunde ihn liest (E-265: „Nikita Boychenko" / „Herrn Boychenko"). */
+    vertreterId: number; vertreterName: string; vertreterNenn: { nom: string; dat: string };
+    /** ISO — ab hier gilt wieder der normale Weg. */
+    bis: string;
+    /** Der feste Betreuer, den der Vertreter vertritt — null ohne Betreuer. `betreuerNenn` = Nennform („Herr Stripling" / „Herrn Stripling"). */
+    betreuerId: number | null; betreuerNenn: { nom: string; dat: string } | null;
+    /** Der Vertreter IST der Betreuer — dann ändert sich für den Kunden nur die Belegung. */
+    vertreterIstBetreuer: boolean;
+  } | null;
 }
 
 /**
@@ -851,82 +866,139 @@ export async function freieSlots(
             AND COALESCE(rolle, 'agent') IN ('agent', 'onboarding', 'vertriebsleiter')
           ORDER BY id
         `) as any[]).map((a) => ({ id: Number(a.id), vorname: nennform(a).nom }));
-  if (agenten.length === 0) {
+  // ══════════════════════════════════════════════════════════════════════
+  // VERTRETUNG (01.10.2026) — DIE TERMINSEITE KENNT DIE ABWESENHEIT
+  //
+  // Seit 01.10. 10:28 ist das ganze Team bis 15.10. abwesend, Nikita (#13)
+  // vertritt. Mara buchte schon beim Vertreter (E-260) — die Terminseite
+  // (Kunden-Link /termin/…, jede Mail „Termin buchen") wusste davon nichts:
+  // Sie bot weiter den Kalender des abwesenden Betreuers an bzw. den Pool samt
+  // Abwesenden, und niemand hätte angerufen.
+  //
+  // Jetzt: Gilt die Abwesenheit für diesen Menschen (vertretungFuerPerson —
+  // dieselbe Regel wie bei Mara), gehören die Plätze VOR „bis" dem Vertreter
+  // (sein Raster im Takt der Gesprächsart, 2 Stunden Vorlauf wie jede
+  // Kundenbuchung, belegt ist auch, was er für die Abwesenden anruft — B4);
+  // ab „bis" gilt der normale Weg (Betreuer bzw. Pool). Sind nur einzelne
+  // abwesend, zählen im Pool vor „bis" nur die Anwesenden. Diese Funktion ist
+  // Anzeige UND Annahme (POST /termin/:token/buchen prüft gegen sie) — eine
+  // Regel an einer Stelle. Gründer- und Global-Termine laufen nicht hier durch.
+  // ══════════════════════════════════════════════════════════════════════
+  const abwM = await import("./fiaon-abwesenheit");
+  const vt = await abwM.vertretungFuerPerson(personId, lauf).catch((e) => {
+    console.error("[TERMINE] Abwesenheit nicht lesbar — die Terminseite bietet wie ohne an:", String((e as Error)?.message ?? e).slice(0, 160));
+    return null;
+  });
+  const abJetzt = vt?.ab ?? await abwM.abwesenheitJetzt(lauf).catch(() => null);
+
+  if (agenten.length === 0 && !vt) {
     return {
       slots: [], betreuer: null, vertretung: entscheid.rueckfall, quelle: wirkQuelle,
       zustaendig: (entscheid as any).zustaendig,
     };
   }
 
-  // Die Rechnung steht in `rohSlots` — dieselbe, die `rollenFuerBuchung`
-  // benutzt, um „ist beim Onboarding etwas frei?" zu beantworten.
-  const slots = await rohSlots(agenten, takt, lauf);
+  // Unverknappte Kandidaten — je Zeitpunkt höchstens einer.
+  let kandidaten: Slot[] = [];
+  if (agenten.length > 0) {
+    // Die Rechnung steht in `rohSlots` — dieselbe, die `rollenFuerBuchung`
+    // benutzt, um „ist beim Onboarding etwas frei?" zu beantworten.
+    let slots = await rohSlots(agenten, takt, lauf);
+    // Vertretung (01.10.2026): Im Pool (kein fester Betreuer) zählen vor „bis" nur die Anwesenden —
+    // VOR der Lastverteilung, sonst fiele eine Zeit weg, zu der ein Anwesender frei wäre.
+    if (abJetzt && !betreuerAktiv) slots = slots.filter((s) => !abwM.istAbwesend(abJetzt, s.agentId, s.beginn));
 
-  // ── EINE UHRZEIT, EIN KNOPF ────────────────────────────────────────────
-  // Ohne festen Betreuer sind mehrere Agenten gleichzeitig frei. Ungefiltert
-  // stünde „09:00" viermal untereinander — bei vier Agenten, 27 Slots und 14
-  // Tagen sind das rund 1.500 Knöpfe, auf einem Telefon in einer Spalte.
-  // Gesehen im Screenshot vom 08.08.2026; unbenutzbar.
-  //
-  // Ein Kunde wählt eine ZEIT, keine Person — er kennt keinen der Namen. Also
-  // wird je Zeitpunkt genau ein Slot angeboten, und zwar der des Agenten mit
-  // den wenigsten anstehenden Terminen. Das verteilt die Last von selbst und
-  // bleibt trotzdem deterministisch (bei Gleichstand die kleinere Kennung).
-  // E-045: VORHER `(!betreuerAktiv || nurRolle)` — beim Rollen-Pool wurde auch
-  // mit Betreuer verteilt. NACHHER zählt nur noch: Gibt es KEINEN Betreuer?
-  if (!betreuerAktiv && slots.length > 0) {
-    const last = new Map<number, number>();
-    for (const a of agenten) last.set(a.id, 0);
-    for (const t of (await lauf`
-      SELECT agent_id, COUNT(*)::int AS n FROM fiaon_termine
-      WHERE status = 'gebucht' AND beginn > NOW() AND agent_id = ANY(${agenten.map((a) => a.id)})
-      GROUP BY agent_id
-    `) as any[]) last.set(Number(t.agent_id), Number(t.n));
+    // ── EINE UHRZEIT, EIN KNOPF ──────────────────────────────────────────
+    // Ohne festen Betreuer sind mehrere Agenten gleichzeitig frei. Ungefiltert
+    // stünde „09:00" viermal untereinander — bei vier Agenten, 27 Slots und 14
+    // Tagen sind das rund 1.500 Knöpfe, auf einem Telefon in einer Spalte.
+    // Gesehen im Screenshot vom 08.08.2026; unbenutzbar.
+    //
+    // Ein Kunde wählt eine ZEIT, keine Person — er kennt keinen der Namen. Also
+    // wird je Zeitpunkt genau ein Slot angeboten, und zwar der des Agenten mit
+    // den wenigsten anstehenden Terminen. Das verteilt die Last von selbst und
+    // bleibt trotzdem deterministisch (bei Gleichstand die kleinere Kennung).
+    // E-045: VORHER `(!betreuerAktiv || nurRolle)` — beim Rollen-Pool wurde auch
+    // mit Betreuer verteilt. NACHHER zählt nur noch: Gibt es KEINEN Betreuer?
+    if (!betreuerAktiv && slots.length > 0) {
+      const last = new Map<number, number>();
+      for (const a of agenten) last.set(a.id, 0);
+      for (const t of (await lauf`
+        SELECT agent_id, COUNT(*)::int AS n FROM fiaon_termine
+        WHERE status = 'gebucht' AND beginn > NOW() AND agent_id = ANY(${agenten.map((a) => a.id)})
+        GROUP BY agent_id
+      `) as any[]) last.set(Number(t.agent_id), Number(t.n));
 
-    // Die Last MITZÄHLEN, nicht einmal am Anfang messen: Sonst hat zu Beginn
-    // jeder null Termine, der Agent mit der kleinsten Kennung gewinnt jeden
-    // Vergleich — und bekäme alle 378 Slots. Wer einen Slot zugeteilt bekommt,
-    // zählt sofort hoch; dadurch wandern aufeinanderfolgende Zeiten reihum.
-    const jeZeit = new Map<string, Slot>();
-    const zeiten = Array.from(new Set(slots.map((s) => s.beginn))).sort();
-    for (const zeit of zeiten) {
-      const frei = slots.filter((s) => s.beginn === zeit);
-      let beste = frei[0];
-      for (const k of frei) {
-        const a = last.get(k.agentId) ?? 0;
-        const b = last.get(beste.agentId) ?? 0;
-        if (a < b || (a === b && k.agentId < beste.agentId)) beste = k;
+      // Die Last MITZÄHLEN, nicht einmal am Anfang messen: Sonst hat zu Beginn
+      // jeder null Termine, der Agent mit der kleinsten Kennung gewinnt jeden
+      // Vergleich — und bekäme alle 378 Slots. Wer einen Slot zugeteilt bekommt,
+      // zählt sofort hoch; dadurch wandern aufeinanderfolgende Zeiten reihum.
+      const jeZeit = new Map<string, Slot>();
+      const zeiten = Array.from(new Set(slots.map((s) => s.beginn))).sort();
+      for (const zeit of zeiten) {
+        const frei = slots.filter((s) => s.beginn === zeit);
+        let beste = frei[0];
+        for (const k of frei) {
+          const a = last.get(k.agentId) ?? 0;
+          const b = last.get(beste.agentId) ?? 0;
+          if (a < b || (a === b && k.agentId < beste.agentId)) beste = k;
+        }
+        last.set(beste.agentId, (last.get(beste.agentId) ?? 0) + 1);
+        jeZeit.set(zeit, beste);
       }
-      last.set(beste.agentId, (last.get(beste.agentId) ?? 0) + 1);
-      jeZeit.set(zeit, beste);
+      // Verknappen erst NACH der Lastverteilung (unten): Sonst würde die
+      // Auswahl der fünf Zeiten die Verteilung verzerren.
+      kandidaten = Array.from(jeZeit.values()).sort((a, b) => a.beginn.localeCompare(b.beginn));
+    } else {
+      kandidaten = slots;
     }
-    const eindeutig = Array.from(jeZeit.values()).sort((a, b) => a.beginn.localeCompare(b.beginn));
-    // Verknappen erst NACH der Lastverteilung: Sonst würde die Auswahl der
-    // fünf Zeiten die Verteilung verzerren.
-    return {
-      slots: slotsVerknappen(eindeutig, await slotsProTag(lauf)),
-      betreuer: null,
-      vertretung: entscheid.rueckfall,
-      quelle: wirkQuelle,
-      zustaendig: (entscheid as any).zustaendig,
-      verworfen: (entscheid as any).verworfen ?? null,
+  }
+
+  // E-265: dazu die Nennform („Herr Stripling" / „Herrn Stripling") und die Anrede — die Seite schreibt
+  // „Ihr Rückruf mit Herrn Stripling" statt „Ihr Rückruf mit Daniel".
+  let betreuer: SlotAuskunft["betreuer"] = betreuerAktiv
+    ? (() => {
+      const n = nennform({ anrede: person.agent_anrede, first_name: person.agent_vorname, last_name: person.agent_nachname, name: person.agent_name });
+      return { id: Number(person.assigned_agent_id), vorname: String(person.agent_name || person.agent_vorname || ""), nom: n.nom, dat: n.dat, anrede: n.anrede };
+    })()
+    : null;
+  let abwesenheit: SlotAuskunft["abwesenheit"] = null;
+  if (vt) {
+    const v = vt.ab.vertreter;
+    const bisMs = vt.ab.bis.getTime();
+    const vertreterIstBetreuer = vt.betreuer?.id === v.id;
+    const vorlaufMin = VORLAUF_STUNDEN * 60;
+    const vor = await abwM.freiePlaetzeVertreter(vt.ab, vorlaufMin, lauf, { takt });
+    // Ab „bis" der normale Weg — außer der Vertreter ist selbst der Betreuer: Dann bleiben es seine
+    // Plätze, mit derselben Belegungsrechnung (die Termine der Abwesenden zählen nur bis „bis").
+    const nach = vertreterIstBetreuer
+      ? await abwM.freiePlaetzeVertreter(vt.ab, vorlaufMin, lauf, { takt, nachBis: true })
+      : kandidaten.filter((s) => new Date(s.beginn).getTime() >= bisMs);
+    kandidaten = [...vor, ...nach].sort((a, b) => a.beginn.localeCompare(b.beginn) || a.agentId - b.agentId);
+    // Der Kopf der Seite („Ihr Rückruf mit …") nennt den abwesenden Betreuer nicht mehr — bis „bis"
+    // ruft ein anderer an; jeder Platz trägt seinen Namen selbst (agentVorname).
+    if (!vertreterIstBetreuer) betreuer = null;
+    // Gegenprüfung (01.10.2026): „X ist bis … nicht im Haus" nur für einen Betreuer, der danach
+    // wieder da ist (betreuerBuchbar). Ein gesperrter, inaktiver oder Test-Betreuer kommt nicht
+    // zurück — dann kein Name, die Seite schweigt, die Notiz sagt „in Abwesenheit des Teams".
+    const zurueck = vt.betreuerBuchbar && !!vt.betreuer;
+    // E-265: Namen für den Kunden nur in der Nennform (vertreterNenn/betreuerNenn); `vertreterName` ist intern.
+    abwesenheit = {
+      vertreterId: v.id, vertreterName: v.name, vertreterNenn: { nom: v.anrufName, dat: v.anrufDat }, bis: vt.ab.bis.toISOString(),
+      betreuerId: zurueck ? vt.betreuer!.id : null,
+      betreuerNenn: zurueck ? { nom: vt.betreuer!.nenn.nom, dat: vt.betreuer!.nenn.dat } : null,
+      vertreterIstBetreuer,
     };
   }
 
   return {
-    slots: slotsVerknappen(slots, await slotsProTag(lauf)),
-    // E-265: dazu die Nennform („Herr Stripling" / „Herrn Stripling") und die Anrede — die Seite schreibt
-    // „Ihr Rückruf mit Herrn Stripling" statt „Ihr Rückruf mit Daniel".
-    betreuer: betreuerAktiv
-      ? (() => {
-        const n = nennform({ anrede: person.agent_anrede, first_name: person.agent_vorname, last_name: person.agent_nachname, name: person.agent_name });
-        return { id: Number(person.assigned_agent_id), vorname: String(person.agent_name || person.agent_vorname || ""), nom: n.nom, dat: n.dat, anrede: n.anrede };
-      })()
-      : null,
+    slots: slotsVerknappen(kandidaten, await slotsProTag(lauf)),
+    betreuer,
     vertretung: entscheid.rueckfall,
     quelle: wirkQuelle,
     zustaendig: (entscheid as any).zustaendig,
     verworfen: (entscheid as any).verworfen ?? null,
+    abwesenheit,
   };
 }
 
@@ -1255,7 +1327,19 @@ export async function terminBuchen(
         AND merged_into_person_id IS NULL
     `) as any[];
     const istBetreuer = !!besitz;
+    // ── VERTRETUNG (01.10.2026) ─────────────────────────────────────────
+    // Gilt die Abwesenheit für diesen Menschen, bietet freieSlots vor „bis" die
+    // Plätze des Vertreters an — auch beim Zahlungsgespräch (inkasso_call). Die
+    // Annahme lässt ihn deshalb zu wie einen Betreuer: dieselbe Regel an beiden
+    // Stellen, sonst wäre es wieder die Falle vom 19.08. (Anzeige bietet an,
+    // Annahme lehnt ab). Gefragt wird nur, wenn die Rollenwand sonst greifen würde.
+    let vertreterDarf = false;
     if (!istBetreuer && entscheid.rollen && !entscheid.rollen.includes(rolle)) {
+      const abwM = await import("./fiaon-abwesenheit");
+      const vt = await abwM.vertretungFuerPerson(eingabe.personId, lauf).catch(() => null);
+      vertreterDarf = !!vt && vt.ab.vertreter.id === Number(eingabe.agentId) && beginn.getTime() < vt.ab.bis.getTime();
+    }
+    if (!istBetreuer && !vertreterDarf && entscheid.rollen && !entscheid.rollen.includes(rolle)) {
       throw new TerminFehler(
         "falsche_rolle",
         `Diese Person führt keine Gespräche dieser Art (${QUELLEN[wirkQuelle as TerminQuelle]?.text ?? wirkQuelle}). `
@@ -1264,7 +1348,7 @@ export async function terminBuchen(
     }
     // Vertretung ist es nur, wenn der Rückfall greift UND der Gebuchte weder
     // die zuständige Rolle hat noch der Betreuer ist.
-    vertretung = entscheid.rueckfall && rolle !== nurRolle && !istBetreuer;
+    vertretung = entscheid.rueckfall && rolle !== nurRolle && !istBetreuer && !vertreterDarf;
   }
 
   // ══════════════════════════════════════════════════════════════════════════

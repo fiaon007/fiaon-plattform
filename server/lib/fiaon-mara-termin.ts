@@ -379,7 +379,7 @@ export interface TerminInfo {
 
 async function terminLesen(id: number, lauf: Lauf): Promise<TerminInfo | null> {
   const [t] = (await lauf`
-    SELECT t.id, t.agent_id, t.beginn, t.status, t.storno_token, a.name, a.first_name, a.last_name, a.anrede,
+    SELECT t.id, t.agent_id, t.beginn, t.status, t.storno_token, t.quelle, a.name, a.first_name, a.last_name, a.anrede,
            COALESCE(NULLIF(a.first_name, ''), split_part(a.name, ' ', 1)) AS vorname
       FROM fiaon_termine t JOIN fiaon_agents a ON a.id = t.agent_id WHERE t.id = ${id}`) as any[];
   if (!t) return null;
@@ -388,8 +388,9 @@ async function terminLesen(id: number, lauf: Lauf): Promise<TerminInfo | null> {
   // Vertreter an — dann nennt jeder Satz („Genau, … ruft Sie … an") ihn. Alle
   // Sätze lesen den Namen von hier, ein Eingriff reicht.
   // E-265 (29.09.2026): Die Sätze lesen `nenn` (Nennform), nie mehr `vorname`.
+  // Vertretung (01.10.2026): mit der Quelle — Gründer- und Global-Gespräche nennen nie den Vertreter.
   const eigen = nennform(t);
-  const an = await anruferNennform(Number(t.agent_id), b, { nom: eigen.nom, dat: eigen.dat }, lauf);
+  const an = await anruferNennform(Number(t.agent_id), b, { nom: eigen.nom, dat: eigen.dat }, lauf, t.quelle);
   const vorname = an.vertreterVorname ?? String(t.vorname);
   return {
     id: Number(t.id), agentId: Number(t.agent_id), agentName: String(t.name), vorname, nenn: { nom: an.nom, dat: an.dat },
@@ -670,12 +671,14 @@ export async function terminlinkFuer(
   if (bestehend) {
     return { ok: false, meldung: `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.nenn.dat} — keinen Link schicken, sondern genau diesen Termin nennen („Genau, ${bestehend.nenn.nom} ruft Sie ${bestehend.kundenText} an.")` };
   }
-  // E-260 (29.09.2026): Team abwesend — die Terminseite weiß davon nichts: Sie
-  // zeigt den Kalender des Betreuers (bzw. den Pool samt Abwesenden). Statt eines
-  // Links, der ins Leere bucht, bietet Mara zwei Zeiten an und trägt ein —
-  // direkter für den Kunden und wahr. Gegenprüfung 29.09.: gesperrt wird der
-  // Link nur, wenn freie_zeiten auch wirklich Zeiten hat; sonst wäre es eine
-  // Sackgasse (freie_zeiten sagt dann „schick den Terminlink").
+  // E-260 (29.09.2026): Team abwesend — statt eines Links bietet Mara zwei Zeiten
+  // an und trägt ein: direkter für den Kunden, und er weiß sofort, wer anruft.
+  // Gegenprüfung 29.09.: gesperrt wird der Link nur, wenn freie_zeiten auch
+  // wirklich Zeiten hat; sonst wäre es eine Sackgasse (freie_zeiten sagt dann
+  // „schick den Terminlink"). Vertretung (01.10.2026): Seitdem kennt auch die
+  // Terminseite die Abwesenheit (freieSlots bietet vor „bis" die Plätze des
+  // Vertreters an) — ein Link buchte also nicht mehr ins Leere; die Regel
+  // „lieber direkt eintragen" bleibt trotzdem, sie ist der kürzere Weg.
   const ab = await abwesenheitJetzt(lauf).catch(() => null);
   if (ab) {
     const vt = await vertretungFuerPerson(ctx.personId, lauf).catch(() => null);
@@ -691,7 +694,7 @@ export async function terminlinkFuer(
       }, lauf);
       return {
         ok: false,
-        meldung: `${wer} bis ${bisText(ab.bis)} nicht ${betreuerWeg ? "im Haus" : "vollständig im Haus"}, die Terminseite weiß davon nichts. Schick keinen Link: `
+        meldung: `${wer} bis ${bisText(ab.bis)} nicht ${betreuerWeg ? "im Haus" : "vollständig im Haus"}. Schick keinen Link — direkt eintragen ist kürzer: `
           + `Biete ihm zwei freie Zeiten an (freie_zeiten) und trag den Rückruf ein (rueckruf_eintragen)`
           + (angebot.weg === "abwesenheit" ? " — bei jeder Zeit steht, wer anruft (ruft_an)." : "."),
       };

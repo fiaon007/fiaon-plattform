@@ -5,6 +5,85 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — Vertretung (01.10.2026): Terminseite, Maras Übergaben und „ROT bleibt"
+
+**Der Anlass:** Seit 01.10. 10:28 ist das ganze Team bis 15.10. abwesend, **Nikita vertritt** (Mara-Steuerpult →
+Reiter „Termine" → Schalter „Team abwesend"). Mit Justin als Vertreter (E-260) fielen drei Lücken nicht auf:
+
+**Was jetzt gilt:**
+- **Die Terminseite kennt die Abwesenheit.** Der Kunden-Link „Termin buchen" (/termin/…, aus jeder Termin-Mail, aus
+  Mara-Links, aus der Akte) bot weiter den Kalender des abwesenden Betreuers an — oder den Pool samt Abwesenden; niemand
+  hätte angerufen. Jetzt sieht ein Kunde, für den die Abwesenheit gilt, **bis „bis" nur die freien Zeiten des
+  Vertreters** (sein Raster im Takt der Gesprächsart, 2 Stunden Vorlauf, nie gleichzeitig mit einem Termin, den er für
+  das Team anruft), danach wie immer den Betreuer bzw. das Team. Über der Auswahl steht ein Satz in der Nennform
+  (E-265): „Herr Stripling ist bis Donnerstag, 15.10., 09:00 Uhr nicht im Haus — bis dahin ruft Sie Nikita Boychenko
+  an." Gebucht wird beim Vertreter, **Kunde und Betreuer bleiben** (keine Umhängung, keine Provision verschoben); der
+  Termin trägt die Notiz „Über die Terminseite gebucht — in Abwesenheit von Herrn Stripling, bei Nikita Boychenko".
+  Bestätigung, Erinnerung und die Bestätigung nach dem
+  Verschieben nennen den, der anruft — ebenso die Mails mit „Termin buchen" (nicht erreicht, Einladung …): „Nikita
+  Boychenko hat versucht …", und „Termin verpasst" nennt, wer zu diesem Termin angerufen hat. Der Satz „… ist bis …
+  nicht im Haus" steht nur bei einem Betreuer, der danach zurückkommt — nicht bei gesperrten Betreuern oder Testkonten.
+  Dieselbe Regel nimmt die Buchung an (auch beim Zahlungsgespräch). Sind nur einzelne abwesend, zählen im Team-Kalender
+  bis „bis" nur die Anwesenden.
+- **Gründer-Gespräche (/justin) und FIAON Global werden nie umgeleitet** — weder bei der Buchung noch im Namen
+  (Erinnerung, Mara, Postfach, Terminseite) noch in der Belegung des Vertreters. Vorher hätte die Erinnerung eines
+  Global-Gesprächs bei Herrn Stripling „Nikita Boychenko ruft Sie an" gesagt.
+- **Namen nur in der Nennform (E-265).** Jeder Satz, den ein Kunde in der Vertretung liest — Terminseite („bis dahin
+  ruft Sie Nikita Boychenko an"), Termin-Notiz, Bestätigung/Erinnerung/„Termin verpasst", die Mails mit „Termin
+  buchen", Maras Hinweis im Postfach („Nikita Boychenko meldet sich …", „… ruft Herr Stripling an") — nimmt die
+  Nennform aus shared/fiaon-mitarbeiter-name.ts: „Herr Stripling" / „Herrn Stripling", ohne gepflegte Anrede der volle
+  Name („Nikita Boychenko"), nie der Vorname allein. Gründer- und Global-Gespräche behalten dabei den Gebuchten
+  (`anruferNennform` kennt die Quelle).
+- **Maras Übergaben gehen an den Vertreter.** Ist der Vertreter ein echter Mitarbeiter (kein Testkonto, nicht der
+  Gründer), bekommt ER die Aufgaben von Mara — WhatsApp, Postfach (Notiz, Aufgabe, Eskalation, „Kunde hat geschrieben")
+  — statt des Boards des Betreibers. **Heikles** (Kündigung, Widerruf, Storno des Vertrags, Geld zurück, Beschwerde,
+  Bestreiten, Zahlungsverweigerung, Löschwunsch, Anwalt/Verbraucherzentrale/Polizei/Gericht, „will keinen Kontakt", Wut —
+  und was sonst an die Leitung ginge) liegt **zusätzlich** als „Zur Kenntnis (heikel): …" auf dem Board. Ist der
+  Vertreter der Betreiber selbst, bleibt alles wie bisher auf dem Board. Ein Rückruf-Wunsch aus der Mail für eine Zeit
+  NACH „bis" kommt wie in E-260 in den Kalender des Betreuers, nicht des Vertreters. Neu auch: Die Übergaben aus dem
+  Postfach-Lauf gingen vorher an den abwesenden Betreuer.
+- **Der Vertreter kommt an die Kunden — mit vollen Betreuer-Rechten.** Solange die Abwesenheit gilt, darf er bei jedem
+  Kunden, für den sie gilt, alles, was ein Betreuer darf (`darfAnKunde`): Akte, Dokumente, Telefon, Mail und Versand,
+  Kündigung per Telefon, App-Anträge. Im WhatsApp-Raum sieht er die Gespräche der Vertretenen und — ist das ganze Team
+  weg — alle Gespräche ohne Betreuer (auch Leads und unbekannte Nummern) und kann dort schreiben. Bei „alle außer dem
+  Vertreter abwesend" sind das am 01.10. rund 1.950 Kunden mehr als vorher (Daniel 956, Florentine 791, Hans-Jürgen 153,
+  Diana 9, dazu Test- und gesperrte Konten). Ohne das wäre jede Aufgabe eine verschlossene Tür, und er könnte die vor
+  dem 01.10. gebuchten Termine, die er anruft, nicht vorbereiten. Nach „bis" fällt es von selbst weg; die Kunden
+  gehören weiter ihren Betreuern.
+- **ROT bleibt, bis Meta GELB oder GRÜN meldet.** Am 29.09. meldete Meta 14:48 ROT, 15:00 „UNKNOWN", 15:04 wieder ROT —
+  in den Minuten dazwischen galt „unbekannt = keine Bremse". Jetzt hebt nach einem ROT nur GELB oder GRÜN die Sperre der
+  Werbe-Vorlagen auf; „UNKNOWN" oder ein leeres Feld lassen ROT stehen (auch ein alter gespeicherter Stand). Die Anzeige
+  sagt es ehrlich: „Meta meldet gerade unbekannt — es gilt weiter ROT, bis Meta GELB oder GRÜN meldet."
+
+**Wo:** Kunden: /termin/… (Satz über der Zeitwahl). Mitarbeiter (Vertreter): Aufgaben wie gewohnt in /agent/aufgaben,
+Akte und WhatsApp-Raum. Chef: Mara-Steuerpult → Reiter „Termine" (Hinweis „Neue bekommt jetzt Nikita Boychenko") und
+Chip „WhatsApp" (Meta-Qualität mit „Meta meldet gerade unbekannt …").
+
+**Technik:** server/lib/fiaon-abwesenheit.ts (NIE_UMLEITEN_QUELLEN, anruferFuer/anruferNennform mit Quelle,
+uebergabeVertretung(+Abgeleitet), betreiberKopie, heikleUebergabe, vertreterSiehtBetreuer, vertreterDarfAnKunde,
+Vertreter.mitarbeiter), server/lib/fiaon-termine.ts (freieSlots: Abwesenheit mit vertreterNenn/betreuerNenn, Pool ohne
+Abwesende; terminBuchen: Rollenwand lässt den Vertreter durch),
+server/routes/fiaon-termin.ts (vertretung im GET, zuordnen: false + Notiz im POST), client/src/pages/termin.tsx,
+server/lib/fiaon-whatsapp-mara.ts (aufgabeFuerMenschen, HEIKLE_KLASSEN), server/lib/fiaon-postmeister-werkzeuge.ts,
+server/lib/fiaon-postmeister-lauf.ts, server/lib/fiaon-kundenzugriff.ts, server/lib/fiaon-mail-senden.ts (agent_vorname),
+server/routes/fiaon-whatsapp-postfach.ts (sichtFuer), server/lib/fiaon-wa-bremse.ts (wirksameQualitaet, metaMeldet, rotGehaltenSeit), ChefWaPause.tsx,
+ChefMaraTermine.tsx. Prüfstände: scripts/pruef-vertretung.ts (neu), scripts/pruef-wa-bremse.ts (Abschnitt 9b).
+
+**Gegenprüfung (01.10.2026), nachgezogen:**
+- Rückruf aus dem Postfach nach „bis" landete beim Vertreter statt beim Betreuer (`fiaon-postmeister-werkzeuge.ts`,
+  aufgabe_an_betreuer: erg.agentId trug seit der Vertretung den Vertreter) — jetzt der buchbare Betreuer, sonst der
+  Aufgaben-Empfänger.
+- „Termin verpasst" (Kalender-Route, Sende-Menü, Onboarding-Bereich) und die Bestätigung nach dem Verschieben nannten
+  den Abwesenden — jetzt `anruferFuer` (Gründer/Global nie).
+- `heikleUebergabe` suchte Wortstücke und schlug bei „Termin stornieren", „Klagenfurt", „an Daniel gerichtet",
+  „Nummer gelöscht", „Erstattung der Auslagen" an; „Kunde verweigert die Zahlung" (die Eskalation) fand sie nicht.
+  Jetzt ganze Wörter bzw. Wort mit Gegenstand; die Eskalation „Zahlung verweigert" geht immer zusätzlich aufs Board.
+  Die Board-Kopie hält sich an `still` (eine weitere WhatsApp-Nachricht öffnet eine erledigte Kopie nicht wieder,
+  außer bei „heikel", wie die Aufgabe selbst).
+- Der Satz auf der Terminseite gilt nur noch für Betreuer, die zurückkommen (`betreuerBuchbar`).
+
+---
+
 ## 29.09.2026 — Mara schließt ab: Nachnamen, die Kreditkarte vorn, Kündigung mit Kulanz-Satz (E-265)
 
 **Der Anlass:** Justin am 29.09. mit Screenshots aus WhatsApp und Postfach: „nicht ‚Daniel, Florentine, Nikita'

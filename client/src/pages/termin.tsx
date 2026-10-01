@@ -44,6 +44,13 @@ interface Auskunft {
    * „Herr Stripling" / „mit Herrn Stripling"; ohne gepflegte Anrede der volle Name. `vorname` ist Altbestand.
    */
   betreuer: { id: number; vorname: string; nom?: string; dat?: string; anrede?: "Herr" | "Frau" | null } | null;
+  /**
+   * Vertretung (01.10.2026): Der feste Ansprechpartner ist bis `bis` nicht im
+   * Haus — die Zeiten davor sind die des Vertreters (`anrufer`). Die Seite sagt
+   * es in einem Satz über der Auswahl; null = keine Abwesenheit. E-265: beide
+   * Namen kommen fertig in der Nennform („Herr Stripling", „Nikita Boychenko").
+   */
+  vertretung?: { anrufer: string; betreuer: string | null; bis: string } | null;
   slots: Slot[];
   slotMinuten: number;
   horizontTage: number;
@@ -475,6 +482,21 @@ export default function TerminPage() {
                 </svg>
                 <span>{T.anruf(daten.betreuer?.nom || daten.betreuer?.vorname)}</span>
               </p>
+              {/* ── VERTRETUNG (01.10.2026) ──────────────────────────────────
+                  Ist der feste Ansprechpartner nicht im Haus, gehören die Zeiten
+                  davor dem Vertreter. Der Satz nennt beide, damit niemand beim
+                  Anruf von einem fremden Namen überrascht wird. Ohne festen
+                  Ansprechpartner steht nichts da — jede Zeit nennt ihren Namen.
+                  E-265: Die Namen kommen in der Nennform („Herr Stripling ist bis …
+                  nicht im Haus — bis dahin ruft Sie Nikita Boychenko an") — nie
+                  durch rufname(), das wäre wieder der Vorname allein. */}
+              {daten.vertretung?.betreuer && (
+                <p className="mt-2 text-[13px] text-slate-500 leading-relaxed">
+                  {sie
+                    ? `${daten.vertretung.betreuer} ist bis ${daten.vertretung.bis} nicht im Haus — bis dahin ruft Sie ${daten.vertretung.anrufer} an.`
+                    : `${daten.vertretung.betreuer} ist bis ${daten.vertretung.bis} nicht im Haus — bis dahin ruft dich ${daten.vertretung.anrufer} an.`}
+                </p>
+              )}
             </div>
 
             {tage.length === 0 && (

@@ -106,7 +106,8 @@ const ohneGarantie = (t: string) => [...S.ANGEBOT_GARANTIE_ETIKETTEN].reduce((x,
 // 01.10.2026 abends erneut bewusst geändert (E-271): Kreditgarantie im Vertrag (Präambel, Ziffern 3, 5, 6, 7, 8, 9, 10, 12, 15)
 // und die neue Fassung IA-2026-10-01-KG. Davor: 09b00bbd… (Knopf), davor 6d18a0f9….
 // Danach (Gegenprüfung, ebenfalls 01.10.2026 abends): ausschließliche Folge, Definitionen, Ablehnung, Verzug Teil 2, Kündigung, Bürgschaftsfenster.
-const PRUEFSUMME_D_VORHER = "ed8f07e52b5ea07fdcef4b49d8e3b616be1e0da3222e4737b22c0fa9270bb68b";
+// Danach (01.10.2026, 21:30): Anlage 2 ohne „Entscheidung eines Instituts/prüfen nach eigenen Maßstäben/keine Zusage eines Instituts“.
+const PRUEFSUMME_D_VORHER = "049f39d7531287975a73cd0132256f5276b72e2352b07b289941233d32f1b4e3";
 
 // ═══ TEIL 1 ════════════════════════════════════════════════════════════════
 titel("1. Ziffern und Vertragssprache");

@@ -174,7 +174,7 @@ export function pruefberichtHtml(d: AngebotDaten, pb: Pruefbericht | null, alsAn
     <p><b>Einordnung.</b> ${e(pb.eignung.einordnung)}</p>
     <h3>VI. Ergebnis</h3>
     <p><b>${e(erg.satz)}</b></p>
-    <p><b>Umfang und Grenzen.</b> Dieser Bericht hält fest, was am Prüftag mit den genannten Quellen geprüft wurde. Er ist keine Kreditwürdigkeitsprüfung, keine Rechts- oder Steuerberatung und keine Zusage eines Instituts. Er dient der Vorbereitung dieses Auftrags und wird nicht an Dritte weitergegeben.</p>
+    <p><b>Umfang und Grenzen.</b> Dieser Bericht hält fest, was am Prüftag mit den genannten Quellen geprüft wurde. Er ist keine Kreditwürdigkeitsprüfung und keine Rechts- oder Steuerberatung; für Kreditrahmen und Karten gilt die Zusage aus Ziffer 3 Absatz 1 des Vertrags. Er dient der Vorbereitung dieses Auftrags und wird nicht an Dritte weitergegeben.</p>
     <p class="gv-leise">Erstellt am ${e(pb.erstellt)} · ${e(pb.pruefer)}</p>
     ${s ? `
     <h3>Anlage A — Herkunft der Listen</h3>

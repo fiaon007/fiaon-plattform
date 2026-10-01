@@ -117,7 +117,7 @@ const PRUEFBERICHT_HILDBRAND: Pruefbericht = {
   auflagen: [
     "Identifizierung vor Leistungsbeginn. Ein amtliches Ausweisdokument liegt noch nicht vor; die Identität ist bisher nur über übereinstimmende Selbstangaben belegt. Die Identifizierung anhand des Reisepasses erfolgt vor Beginn der Leistung — sie wird für die US-Formulare ohnehin gebraucht.",
     "PEP-Status als Selbstauskunft. FIAON nutzt keine PEP-Datenbank. Die Erklärung gibt Herr Hildbrand mit dem Vertrag ab (Ziffer 7 Absatz 4).",
-    "Bonität nur aus Selbstangaben. Die interne Boni-Ampel steht auf Grün (82 von 100 Punkten). Sie beruht auf Angaben im Antrag und auf Standardannahmen — nicht auf einer Auskunft oder einem Kontoauszug. Sie ist keine Kreditwürdigkeitsprüfung; jedes Institut prüft selbst.",
+    "Bonität nur aus Selbstangaben. Die interne Boni-Ampel steht auf Grün (82 von 100 Punkten). Sie beruht auf Angaben im Antrag und auf Standardannahmen — nicht auf einer Auskunft oder einem Kontoauszug. Sie ist keine Kreditwürdigkeitsprüfung.",
     "Steuerliche Pflichten in Deutschland und den USA bestehen ab der Gründung und werden vor der Gründung mit dem Partner-Steuerberater geklärt (Abschnitt V).",
     "Datenpflege. Im Lead- und Personendatensatz sind Vor- und Nachname vertauscht (aus dem Werbeformular übernommen). Maßgeblich für Vertrag und Rechnung ist die Schreibweise des Antrags: William Hildbrand.",
   ],
@@ -178,7 +178,7 @@ const PRUEFBERICHT_HILDBRAND: Pruefbericht = {
       "In den USA gelten jährliche Meldepflichten auch ohne Umsatz (Form 5472 mit Form 1120); Versäumnisse ziehen hohe Strafzahlungen nach sich. Die laufenden Kosten ab dem zweiten Jahr weist das Angebot offen aus.",
       "Herr Hildbrand ist laut Antrag angestellt. Ob die Stellung als Gesellschafter einer US-LLC eine anzeigepflichtige Nebentätigkeit ist, richtet sich nach seinem Arbeitsvertrag.",
     ],
-    haftung: "US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus. Im Individualangebot ist dafür die Bürgschaftszusage der Schwarzott Global LLC vorgesehen. Ob ein Institut sie anstelle oder zusätzlich zu einer persönlichen Haftung annimmt, entscheidet das Institut; für Kreditrahmen und Karten gilt die Garantie nach Ziffer 3 Absatz 1 des Vertrags.",
+    haftung: "US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus. Im Individualangebot ist dafür die Bürgschaftszusage der Schwarzott Global LLC vorgesehen. Ob sie eine verlangte persönliche Haftung ersetzt, richtet sich nach Ziffer 9 Absatz 2 des Vertrags. Für Kreditrahmen und Karten gilt die Zusage aus Ziffer 3 Absatz 1 des Vertrags.",
     // Endabnahme 01.10.2026: genau die drei Mitwirkungen der Ziffer 7 Absatz 1 — nicht mehr („Nachweise, die ein
     // Institut anfordert", „Erreichbarkeit" standen hier zusätzlich und widersprachen Vertrag, Seite und Mail).
     mitwirkung: "Nach Ziffer 7 Absatz 1 des Vertrags drei Dinge: Unterschriften unter fertig vorbereitete Unterlagen (Gründungsunterlagen, Mandate der Partner, Steuerformulare, Konto-, Karten- und Finanzierungsanträge); ein gültiger Reisepass für die gesetzlich vorgeschriebene Identifizierung — und ein Adressnachweis, wenn ein Institut oder eine Behörde ihn zur Identifizierung verlangt; wahre und vollständige Angaben. Mehr schuldet Herr Hildbrand nicht.",

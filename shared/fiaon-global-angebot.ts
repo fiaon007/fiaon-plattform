@@ -829,7 +829,9 @@ export function pruefberichtBoniText(b: PruefberichtBoni): { kopf: string; zeile
   if (b.deckel) einordnung.push(`Begrenzt durch: ${b.deckel}.`);
   if (b.befunde.length) einordnung.push(`Harte Befunde: ${b.befunde.join("; ")}.`);
   else einordnung.push("Harte Befunde, die die Ampel begrenzen würden: keine.");
-  einordnung.push("Die Ampel ist deshalb keine Kreditwürdigkeitsprüfung, kein Score im Sinne von § 31 BDSG und keine Aussage über die Entscheidung eines Instituts; sie wird nicht an Dritte weitergegeben. Belastbar wird die Einschätzung erst mit Nachweisen, die finanzierende Institute ohnehin selbst anfordern. US-amerikanische Institute prüfen die Gesellschaft und ihre Gesellschafter nach eigenen Maßstäben.");
+  // E-271 (Justin, 01.10.2026 abends: „‚entscheidet das Institut' ÄNDERN!"): Anlage 2 ohne Sätze, die das Ergebnis den
+  // Instituten zuschreiben — Kreditrahmen und Karten sind nach Ziffer 3 Absatz 1 zugesagt. § 31 BDSG bleibt (Datenschutz).
+  einordnung.push("Die Ampel ist deshalb keine Kreditwürdigkeitsprüfung und kein Score im Sinne von § 31 BDSG; sie wird nicht an Dritte weitergegeben. Belastbar wird die Einschätzung mit den Nachweisen, die finanzierende Institute ohnehin anfordern.");
   return {
     kopf: `Boni-Ampel: ${BONI_FARBE_TEXT[b.farbe]}, „${b.label}“ — ${b.punkte} von 100 Punkten.`,
     zeilen: b.teile.map((t) => ({ teil: t.label, punkte: `${t.punkte} / 20`, grundlage: BONI_GRUNDLAGE[t.quelle], inhalt: t.text.replace(/\.$/, "") })),

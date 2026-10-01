@@ -5,6 +5,16 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 (21:30) — Individualangebot: Anlage 2 ohne „entscheidet das Institut" (E-271, Nachtrag)
+
+**Der Anlass:** Justin: „‚entscheidet das Institut' ÄNDERN!" — Anlage 2 (Prüfbericht) schrieb das Ergebnis noch den Instituten zu.
+**Was jetzt gilt:** Die Boni-Einordnung und „Umfang und Grenzen" nennen keine Institutsentscheidung mehr („für Kreditrahmen und Karten
+gilt die Zusage aus Ziffer 3 Absatz 1 des Vertrags"); § 31 BDSG bleibt. Die Saat (`scripts/angebot-hildbrand-anlegen.ts`) hat dieselben
+Sätze wie der gespeicherte Prüfbericht von Herrn Hildbrand (Abschnitt V Haftung, Auflage 3), der über angebotPruefberichtSetzen
+nachgezogen wird. Prüfstand 662/662, --lokal 908/908.
+
+---
+
 ## 01.10.2026 (abends) — Individualangebot: „Kredit garantiert" — FIAON garantiert Kreditrahmen und Karten (E-271)
 
 **Der Anlass:** Justin: „Der Vertrag soll sagen ‚Kredit garantiert' … Dr. Hepp und Dr. Laukermann haben bereits mit den Banken

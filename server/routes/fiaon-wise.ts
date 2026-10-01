@@ -34,6 +34,7 @@ import { createSign } from "crypto";
 import { sqlPool } from "../lib/db-pool";
 import { tageslauf } from "../lib/fiaon-crons";
 import { RATEN_MUSTER, refVergleichsform } from "../lib/fiaon-zahlungsauftrag";
+import { berlinDatum } from "../lib/fiaon-time";
 
 const router = Router();
 const WISE_BASIS = "https://api.wise.com";
@@ -193,8 +194,11 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
 //   · Monatsrate: Referenz nennt die Raten-Nummer (FIAON-XXXXXX-2) und trifft
 //     genau diese offene Rate mit exaktem Betrag → rateBezahltBuchen
 //     (Folge-Rate, Ratenprovision).
-// ALLES ANDERE — Betrag weicht ab, Referenz unklar, Bestellung schon bezahlt,
-// Tippfehler wie „Fiacon" — bleibt Vorschlag im Bankbuch für den Menschen.
+//   · Regel B (01.10.2026): Referenz OHNE Ratennummer, Bestellung schon
+//     bezahlt → die älteste offene fällige Rate, wenn Betrag (±1 €) und
+//     Deckung je Kunde passen (Einzelheiten an regelBPruefen unten).
+// ALLES ANDERE — Betrag weicht ab, Referenz unklar, Tippfehler wie „Fiacon",
+// Kündigung, Deckung unklar — bleibt Vorschlag im Bankbuch für den Menschen.
 // Die Fälle van Beuzekom (Doppelzahlung), Demurtas (Nachzügler) und Harder
 // (Startzahlung ohne Beleg) vom 31.08./01.09. sind GENAU die Sorte, die diese
 // Automatik bewusst NICHT anfasst.
@@ -206,59 +210,105 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
 // Vergleichsform (refVergleichsform), gebucht und vermerkt mit der Schreibweise
 // aus der Datenbank. Mehrdeutig bleibt mehrdeutig: dann bucht nichts.
 //
-// `trocken`: dieselbe Regel, aber kein Vermerk und keine Buchung — die
-// Vorschau „was würde gebucht", bevor ein Mensch einen Nachhol-Lauf freigibt.
+// Optionen:
+//   `trocken` — dieselbe Regel, aber kein Vermerk und keine Buchung: die
+//     Vorschau „was würde gebucht", bevor ein Mensch einen Nachhol-Lauf freigibt.
+//   `ueberzahlungBisCents` — NUR für den von Hand freigegebenen Nachhol-Lauf
+//     (Route unten): eine Erstzahlung darf so viele Cent ÜBER dem Soll liegen
+//     (höchstens 100). Nie darunter. Die Automatik ruft ohne → centgenau wie bisher.
+//   `anlass` — wer bucht; steht in Vermerk und Ratennotiz (Vorgabe: Automatik).
 // ═══════════════════════════════════════════════════════════════════════════
+export interface VerbuchenErgebnis {
+  gebucht: boolean;
+  grund: string;
+  /** Welcher Zweig griff — für Vorschau und Protokoll des Nachhol-Laufs. */
+  regel?: "rate" | "erstzahlung" | "regel_b";
+  /** Raten- bzw. Bestellreferenz in der Schreibweise der Datenbank. */
+  ziel?: string;
+  /** fiaon_applications.ref der Bestellung, zu der das Geld gehört. */
+  bestellung?: string;
+  rateId?: number;
+  rateNr?: number;
+  /** Regel B: die Deckungsrechnung, auf der die Entscheidung beruht. */
+  deckung?: RegelBDeckung;
+}
+
 export async function liveVerbuchen(
   txnId: string, ref: string | null, cents: number, datum: string,
-  opts: { trocken?: boolean } = {},
-): Promise<{ gebucht: boolean; grund: string }> {
-  const vermerk = async (note: string, applied = false) => {
+  opts: { trocken?: boolean; ueberzahlungBisCents?: number; anlass?: string } = {},
+): Promise<VerbuchenErgebnis> {
+  const wer = opts.anlass || "Wise-Automatik";
+  const vermerk = async (note: string, applied = false, zielBestellung: string | null = null) => {
     if (opts.trocken) return;
+    // Beim Verbuchen hält das Bankbuch fest, WELCHER Bestellung das Geld gehört
+    // (matched_ref) — Rückholung, Kundenlage und die Deckungsrechnung von Regel B
+    // lesen genau diese Spalte.
     await sqlPool`
       UPDATE fiaon_bank_txns SET note = ${note}, applied = ${applied},
-             applied_at = ${applied ? new Date() : null}, updated_at = NOW()
+             applied_at = ${applied ? new Date() : null},
+             matched_ref = COALESCE(${zielBestellung}::text, matched_ref),
+             match_status = CASE WHEN ${zielBestellung}::text IS NULL THEN match_status ELSE 'matched' END,
+             updated_at = NOW()
       WHERE txn_id = ${txnId}
     `.catch(() => {});
   };
   try {
     if (!ref || !datum) return { gebucht: false, grund: "keine Referenz" };
 
+    // ── NIE DOPPELT (01.10.2026) ───────────────────────────────────────────
+    // Der UNIQUE-Index fiaon_raten_ein_eingang_eine_rate schützt nur Wise
+    // (TRANSFER-…); für Airwallex (AWX-…) gibt es keinen Datenbankschutz. Ein
+    // Eingang, der schon verbucht ist oder schon in einer bezahlten Rate steht,
+    // wird deshalb hier — vor jedem Zweig — abgewiesen.
+    const [verbraucht] = (await sqlPool`
+      SELECT
+        (SELECT applied FROM fiaon_bank_txns WHERE txn_id = ${txnId} LIMIT 1) AS applied,
+        (SELECT zahlungsreferenz FROM fiaon_abo_raten
+          WHERE status = 'bezahlt' AND POSITION(${`Bankeingang ${txnId}`} IN COALESCE(notiz, '')) > 0
+          LIMIT 1) AS rate
+    `) as any[];
+    if (verbraucht?.applied === true) return { gebucht: false, grund: "Eingang ist schon verbucht" };
+    if (verbraucht?.rate) {
+      await vermerk(`${wer}: Dieser Eingang steht schon in der bezahlten Rate ${verbraucht.rate} — nicht noch einmal gebucht.`);
+      return { gebucht: false, grund: `Eingang schon verbraucht (Rate ${verbraucht.rate})` };
+    }
+
     // ── Monatsrate: FIAON-XXXXXX-N, seit 08.08. auch FIAONXXXXXX-N ─────────
     if (RATEN_MUSTER.test(ref)) {
       const raten = (await sqlPool`
-        SELECT id, zahlungsreferenz, betrag_cents, status FROM fiaon_abo_raten
+        SELECT id, ref, rate_nr, zahlungsreferenz, betrag_cents, status FROM fiaon_abo_raten
         WHERE UPPER(REGEXP_REPLACE(zahlungsreferenz, '[^A-Za-z0-9]', '', 'g')) = ${refVergleichsform(ref)}
           AND storniert_am IS NULL
       `) as any[];
-      if (raten.length !== 1) return { gebucht: false, grund: "Rate nicht eindeutig" };
+      if (raten.length !== 1) return { gebucht: false, grund: "Rate nicht eindeutig", regel: "rate" };
       const rateRef = String(raten[0].zahlungsreferenz);
+      const basis = { regel: "rate" as const, ziel: rateRef, bestellung: String(raten[0].ref), rateId: Number(raten[0].id), rateNr: Number(raten[0].rate_nr) };
       if (String(raten[0].status) === "bezahlt") {
-        await vermerk(`Wise-Automatik: Rate ${rateRef} ist bereits als bezahlt gebucht — Eingang bitte von Hand zuordnen (Doppelzahlung?).`);
-        return { gebucht: false, grund: "Rate schon bezahlt" };
+        await vermerk(`${wer}: Rate ${rateRef} ist bereits als bezahlt gebucht — Eingang bitte von Hand zuordnen (Doppelzahlung?).`);
+        return { gebucht: false, grund: "Rate schon bezahlt", ...basis };
       }
       if (Number(raten[0].betrag_cents) !== cents) {
-        await vermerk(`Wise-Automatik: Rate ${rateRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
-        return { gebucht: false, grund: "Betrag weicht ab" };
+        await vermerk(`${wer}: Rate ${rateRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
+        return { gebucht: false, grund: "Betrag weicht ab", ...basis };
       }
-      if (opts.trocken) return { gebucht: false, grund: `würde buchen: Rate ${rateRef}` };
+      if (opts.trocken) return { gebucht: false, grund: `würde buchen: Rate ${rateRef}`, ...basis };
       const { rateBezahltBuchen } = await import("./fiaon-abo");
       const erg = await rateBezahltBuchen({
         rateId: Number(raten[0].id), zahlungsdatum: datum, quelle: "bank",
-        notiz: `Bankeingang ${txnId} — automatisch gebucht (Wise-Automatik)`,
+        notiz: `Bankeingang ${txnId} — ${opts.anlass ? `gebucht (${opts.anlass})` : "automatisch gebucht (Wise-Automatik)"}`,
       });
       if (erg.ok && !erg.schonBezahlt) {
-        await vermerk(`Wise-Automatik: LIVE verbucht — Rate ${rateRef} bezahlt per ${datum} (inkl. Ratenprovision).`, true);
+        await vermerk(`${wer}: LIVE verbucht — Rate ${rateRef} bezahlt per ${datum} (Ratenprovision nach Schalter: gebucht oder vorgemerkt).`, true, basis.bestellung);
         console.log(`[WISE] LIVE verbucht: Rate ${rateRef} (${(cents / 100).toFixed(2)} €)`);
-        return { gebucht: true, grund: "Rate gebucht" };
+        return { gebucht: true, grund: "Rate gebucht", ...basis };
       }
-      await vermerk(`Wise-Automatik: Rate ${rateRef} NICHT automatisch gebucht (${erg.ok ? "war schon bezahlt" : erg.error || "abgelehnt"}) — bitte prüfen.`);
-      return { gebucht: false, grund: erg.ok ? "schon bezahlt" : String(erg.error || "abgelehnt") };
+      await vermerk(`${wer}: Rate ${rateRef} NICHT automatisch gebucht (${erg.ok ? "war schon bezahlt" : erg.error || "abgelehnt"}) — bitte prüfen.`);
+      return { gebucht: false, grund: erg.ok ? "schon bezahlt" : String(erg.error || "abgelehnt"), ...basis };
     }
 
     // ── Erstzahlung: exakt EINE offene Bestellung, Betrag auf den Cent ────
     const apps = (await sqlPool`
-      SELECT ref, payment_reference, payment_status, ROUND(amount_due * 100)::int AS soll_cents
+      SELECT ref, payment_reference, payment_status, ROUND(amount_due * 100)::int AS soll_cents, gekuendigt_am
       FROM fiaon_applications
       WHERE UPPER(REGEXP_REPLACE(COALESCE(payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${refVergleichsform(ref)}
         AND merged_into IS NULL
@@ -267,29 +317,173 @@ export async function liveVerbuchen(
     const app = apps[0];
     // alsBezahltBuchen sucht exakt — also mit der Schreibweise aus der Datenbank.
     const bestellRef = String(app.payment_reference);
+
+    // ── Regel B: bezahlte Bestellung, Eingang ohne Ratennummer ────────────
+    if (String(app.payment_status) === "paid") {
+      const b = await regelBPruefen({ txnId, bestellung: String(app.ref), bestellRef, cents, datum, gekuendigtAm: app.gekuendigt_am ?? null });
+      const basis = { regel: "regel_b" as const, ziel: b.rate?.zahlungsreferenz ?? bestellRef, bestellung: String(app.ref), rateId: b.rate?.id, rateNr: b.rate?.rateNr, deckung: b.deckung };
+      if (!b.ok || !b.rate) {
+        await vermerk(`${wer}: Bestellung ${bestellRef} ist bezahlt, der Eingang nennt keine Ratennummer — Regel B bucht nicht: ${b.grund}. Bitte von Hand zuordnen.`);
+        return { gebucht: false, grund: `Regel B: ${b.grund}`, ...basis };
+      }
+      const abw = cents - b.rate.betragCents;
+      const abwText = abw === 0 ? "" : ` (Abweichung ${abw > 0 ? "+" : ""}${(abw / 100).toFixed(2)} €)`;
+      if (opts.trocken) return { gebucht: false, grund: `würde buchen: Rate ${b.rate.zahlungsreferenz} (Regel B)${abwText}`, ...basis };
+      const { rateBezahltBuchen } = await import("./fiaon-abo");
+      const erg = await rateBezahltBuchen({
+        rateId: b.rate.id, zahlungsdatum: datum, quelle: "bank",
+        notiz: `Bankeingang ${txnId} — Regel B: Eingang ohne Ratennummer (${bestellRef}), älteste offene Rate${abwText}`
+          + (opts.anlass ? `, gebucht (${opts.anlass})` : ", automatisch gebucht"),
+      });
+      if (erg.ok && !erg.schonBezahlt) {
+        await vermerk(`${wer}: LIVE verbucht (Regel B) — Eingang ohne Ratennummer → Rate ${b.rate.zahlungsreferenz} bezahlt per ${datum}${abwText}. ${b.deckung?.text ?? ""}`.trim(), true, String(app.ref));
+        console.log(`[WISE] LIVE verbucht (Regel B): ${bestellRef} → Rate ${b.rate.zahlungsreferenz} (${(cents / 100).toFixed(2)} €)`);
+        return { gebucht: true, grund: "Rate gebucht (Regel B)", ...basis };
+      }
+      await vermerk(`${wer}: Regel B — Rate ${b.rate.zahlungsreferenz} NICHT gebucht (${erg.ok ? "war schon bezahlt" : erg.error || "abgelehnt"}) — bitte prüfen.`);
+      return { gebucht: false, grund: erg.ok ? "schon bezahlt" : String(erg.error || "abgelehnt"), ...basis };
+    }
+
+    const basis = { regel: "erstzahlung" as const, ziel: bestellRef, bestellung: String(app.ref) };
     if (!["pending_payment", "claimed_paid"].includes(String(app.payment_status))) {
-      await vermerk(`Wise-Automatik: Bestellung ${bestellRef} steht auf '${app.payment_status}' — nichts automatisch gebucht, bitte von Hand zuordnen (Rate? Doppelzahlung?).`);
-      return { gebucht: false, grund: `Status ${app.payment_status}` };
+      await vermerk(`${wer}: Bestellung ${bestellRef} steht auf '${app.payment_status}' — nichts automatisch gebucht, bitte von Hand zuordnen (Rate? Doppelzahlung?).`);
+      return { gebucht: false, grund: `Status ${app.payment_status}`, ...basis };
     }
-    if (Number(app.soll_cents) !== cents) {
-      await vermerk(`Wise-Automatik: Bestellung ${bestellRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(app.soll_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
-      return { gebucht: false, grund: "Betrag weicht ab" };
+    const soll = Number(app.soll_cents);
+    const zuViel = cents - soll;
+    const toleranz = Math.max(0, Math.min(100, Math.floor(Number(opts.ueberzahlungBisCents) || 0)));
+    if (!(zuViel === 0 || (zuViel > 0 && zuViel <= toleranz))) {
+      await vermerk(`${wer}: Bestellung ${bestellRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(soll / 100).toFixed(2)} €) — bitte von Hand buchen.`);
+      return { gebucht: false, grund: "Betrag weicht ab", ...basis };
     }
-    if (opts.trocken) return { gebucht: false, grund: `würde buchen: Erstzahlung ${bestellRef}` };
+    const ueberText = zuViel > 0 ? ` (Überzahlung ${(zuViel / 100).toFixed(2)} €)` : "";
+    if (opts.trocken) return { gebucht: false, grund: `würde buchen: Erstzahlung ${bestellRef}${ueberText}`, ...basis };
     const { alsBezahltBuchen } = await import("./fiaon-antrag");
-    const erg = await alsBezahltBuchen(bestellRef, { zahlungsdatum: datum, quelle: "wise-automatik" });
+    const erg = await alsBezahltBuchen(bestellRef, { zahlungsdatum: datum, quelle: opts.anlass ? `bankeingang:${txnId}` : "wise-automatik" });
     if (erg.ok) {
-      await vermerk(`Wise-Automatik: LIVE verbucht — ${bestellRef} bezahlt per ${datum}, Kunde freigeschaltet (Aktivierungsmail + Provision über den einen Buchungsweg).`, true);
+      await vermerk(`${wer}: LIVE verbucht — ${bestellRef} bezahlt per ${datum}${ueberText}, Kunde freigeschaltet (Aktivierungsmail + Provision nach Schalter über den einen Buchungsweg).`, true, String(app.ref));
       console.log(`[WISE] LIVE verbucht: ${bestellRef} (${(cents / 100).toFixed(2)} €) — Kunde freigeschaltet`);
-      return { gebucht: true, grund: "Erstzahlung gebucht" };
+      return { gebucht: true, grund: "Erstzahlung gebucht", ...basis };
     }
-    await vermerk(`Wise-Automatik: ${bestellRef} NICHT automatisch gebucht (${erg.error}) — bitte prüfen.`);
-    return { gebucht: false, grund: String(erg.error) };
+    await vermerk(`${wer}: ${bestellRef} NICHT automatisch gebucht (${erg.error}) — bitte prüfen.`);
+    return { gebucht: false, grund: String(erg.error), ...basis };
   } catch (e: any) {
     console.error("[WISE] liveVerbuchen:", e?.message || e);
-    await vermerk(`Wise-Automatik: Buchungsversuch fehlgeschlagen (${String(e?.message || e).slice(0, 120)}) — bitte von Hand buchen.`);
+    await vermerk(`${wer}: Buchungsversuch fehlgeschlagen (${String(e?.message || e).slice(0, 120)}) — bitte von Hand buchen.`);
     return { gebucht: false, grund: "Fehler" };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REGEL B — DIE RATE OHNE NUMMER (01.10.2026, Justins Go: „Raten live stellen")
+//
+// Kunden zahlen ihre Monatsrate meist mit der Bestellreferenz ohne „-N"
+// („FIAON 596FE4 2", „FIAON J8UU3U 3", „VZ. FIAONMSYOCC. 2.Rate"). Die
+// Bestellung ist längst bezahlt, also landete jeder dieser Eingänge bisher bei
+// „steht auf 'paid' — bitte von Hand zuordnen". Regel B ordnet ihn der
+// ÄLTESTEN offenen Rate zu — aber nur, wenn ALLES davon stimmt:
+//
+//   1. Die Bestellung ist bezahlt, nicht gekündigt (Kündigungen sind Streit-
+//      und Kulanzfälle — dort entscheidet ein Mensch), und Rate 1 ist bezahlt.
+//   2. Die älteste offene Rate ist fällig — spätestens 7 Tage nach dem Eingang
+//      (wer ein paar Tage zu früh überweist, ist kein Sonderfall).
+//   3. Hinter ihr steht keine bezahlte Rate mit höherer Nummer: Die Kette läuft
+//      vorwärts, nie wird eine Lücke rückwärts gestopft.
+//   4. Der Betrag passt auf ±1 €.
+//   5. DECKUNG JE KUNDE (Lehre aus dem 23.08., fiaon-raten-doppelbuchung): Der
+//      Eingang darf nicht in Wahrheit das Geld für eine schon bezahlte Rate sein
+//      (typisch: Startzahlung ohne Bankbeleg gebucht, das Geld kommt danach).
+//      Die übrigen Eingänge dieses Kunden bis zu diesem Tag müssen die bezahlten
+//      Raten decken (Toleranz 1 € je Rate). Tun sie es nicht, zählt eine
+//      bezahlte Rate ohne Bankbeleg nur dann als anderweitig gedeckt, wenn sie
+//      mehr als 35 Tage vor dem Eingang bezahlt wurde (Stripe-/Wise-Zeit, deren
+//      Geld nie in diesem Bankbuch stand). Sonst: Handarbeit.
+//   6. Der Eingang steht noch in keiner bezahlten Rate (oben in liveVerbuchen).
+//
+// Gebucht wird über rateBezahltBuchen wie jede andere Rate — mit derselben
+// Rückwärtssperre, „Bankeingang <txn>" in der Notiz und den Provisionen nach
+// Schalter. Kein zweiter Buchungsweg.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface RegelBDeckung {
+  eingaengeCents: number;
+  eingaengeAnzahl: number;
+  bezahltCents: number;
+  bezahltAnzahl: number;
+  /** Bezahlte Raten ohne Bankbeleg in der Notiz, die jünger als 35 Tage vor dem Eingang sind. */
+  ungedeckteJunge: number;
+  text: string;
+}
+
+export const REGEL_B = { toleranzCents: 100, vorlaufTage: 7, belegfreiAlterTage: 35 } as const;
+
+export async function regelBPruefen(e: {
+  txnId: string; bestellung: string; bestellRef: string; cents: number; datum: string; gekuendigtAm: string | Date | null;
+}): Promise<{ ok: boolean; grund: string; rate?: { id: number; rateNr: number; zahlungsreferenz: string; betragCents: number; faelligAm: string }; deckung?: RegelBDeckung }> {
+  if (e.gekuendigtAm) return { ok: false, grund: "Vertrag ist gekündigt — Zuordnung entscheidet ein Mensch" };
+
+  const raten = (await sqlPool`
+    SELECT id, rate_nr, zahlungsreferenz, betrag_cents, status, faellig_am, bezahlt_am, notiz
+      FROM fiaon_abo_raten
+     WHERE ref = ${e.bestellung} AND storniert_am IS NULL AND status IN ('offen', 'bezahlt')
+     ORDER BY rate_nr
+  `) as any[];
+  const bezahlt = raten.filter((r) => r.status === "bezahlt");
+  const offen = raten.filter((r) => r.status === "offen");
+  if (!bezahlt.some((r) => Number(r.rate_nr) === 1)) return { ok: false, grund: "Rate 1 ist nicht als bezahlt gebucht" };
+  const kandidat = offen[0];
+  if (!kandidat) return { ok: false, grund: "keine offene Rate (Doppelzahlung oder Vertragsende?)" };
+  const faellig = new Date(kandidat.faellig_am).toISOString().slice(0, 10);
+  const spaetestens = new Date(`${e.datum}T12:00:00Z`);
+  spaetestens.setUTCDate(spaetestens.getUTCDate() + REGEL_B.vorlaufTage);
+  if (faellig > spaetestens.toISOString().slice(0, 10)) {
+    return { ok: false, grund: `älteste offene Rate ${kandidat.zahlungsreferenz} ist erst am ${faellig} fällig (Vorauszahlung?)` };
+  }
+  if (bezahlt.some((r) => Number(r.rate_nr) > Number(kandidat.rate_nr))) {
+    return { ok: false, grund: `nach der offenen Rate ${kandidat.rate_nr} ist schon eine spätere bezahlt (Lücke in der Kette)` };
+  }
+  const abw = Math.abs(e.cents - Number(kandidat.betrag_cents));
+  if (abw > REGEL_B.toleranzCents) {
+    return { ok: false, grund: `Betrag ${(e.cents / 100).toFixed(2)} € passt nicht zur Rate ${kandidat.zahlungsreferenz} (${(Number(kandidat.betrag_cents) / 100).toFixed(2)} €)` };
+  }
+
+  // ── Deckung je Kunde ──────────────────────────────────────────────────
+  const vgl = refVergleichsform(e.bestellRef);
+  const [ein] = (await sqlPool`
+    SELECT COALESCE(SUM(b.amount_cents), 0)::bigint AS cents, COUNT(*)::int AS n
+      FROM fiaon_bank_txns b
+     WHERE b.txn_id <> ${e.txnId} AND b.amount_cents > 0
+       AND COALESCE(b.match_status, '') <> 'ignored'
+       AND b.booked_at::date <= ${e.datum}::date
+       AND (b.matched_ref = ${e.bestellung}
+            OR UPPER(REGEXP_REPLACE(REGEXP_REPLACE(COALESCE(b.extracted_ref, ''), '-[0-9]{1,2}$', ''), '[^A-Za-z0-9]', '', 'g')) = ${vgl})
+  `) as any[];
+  const eingaengeCents = Number(ein?.cents || 0);
+  const bezahltCents = bezahlt.reduce((s, r) => s + Number(r.betrag_cents || 0), 0);
+  const grenze = new Date(`${e.datum}T12:00:00Z`);
+  grenze.setUTCDate(grenze.getUTCDate() - REGEL_B.belegfreiAlterTage);
+  const jungOhneBeleg = bezahlt.filter((r) =>
+    !String(r.notiz || "").includes("Bankeingang ")
+    && r.bezahlt_am && new Date(r.bezahlt_am).getTime() >= grenze.getTime());
+  const gedecktDurchEingaenge = eingaengeCents + REGEL_B.toleranzCents * bezahlt.length >= bezahltCents;
+  const deckung: RegelBDeckung = {
+    eingaengeCents, eingaengeAnzahl: Number(ein?.n || 0), bezahltCents, bezahltAnzahl: bezahlt.length,
+    ungedeckteJunge: jungOhneBeleg.length,
+    text: `Deckung: ${Number(ein?.n || 0)} frühere(r) Eingang/Eingänge ${(eingaengeCents / 100).toFixed(2)} € gegen ${bezahlt.length} bezahlte Rate(n) ${(bezahltCents / 100).toFixed(2)} €`
+      + (gedecktDurchEingaenge ? "." : ` — Rest vor über ${REGEL_B.belegfreiAlterTage} Tagen ohne Bankbeleg bezahlt.`),
+  };
+  if (!gedecktDurchEingaenge && jungOhneBeleg.length > 0) {
+    return {
+      ok: false, deckung,
+      grund: `Deckung unklar — Rate ${jungOhneBeleg.map((r) => r.rate_nr).join(", ")} ohne Bankbeleg in den letzten ${REGEL_B.belegfreiAlterTage} Tagen bezahlt; der Eingang könnte ihr Geld sein`,
+    };
+  }
+  return {
+    ok: true, grund: "passt", deckung,
+    rate: {
+      id: Number(kandidat.id), rateNr: Number(kandidat.rate_nr), zahlungsreferenz: String(kandidat.zahlungsreferenz),
+      betragCents: Number(kandidat.betrag_cents), faelligAm: faellig,
+    },
+  };
 }
 
 // ── Verwaltungs-Endpunkte (hinter dem Admin-Tor, Pfade beginnen mit /admin) ──
@@ -319,6 +513,70 @@ router.post("/admin/wise/einlesen", async (req: Request, res: Response) => {
     res.json({ ok: true, ...erg });
   } catch (e: any) {
     res.status(502).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /admin/zahlungen/bankeingang-nachholen { id, trocken, ueberzahlungBisCents? }
+//
+// DER NACHHOL-LAUF (01.10.2026). Die Einleser (Airwallex, Wise) rufen
+// liveVerbuchen nur für NEUE Zeilen. Was schon im Bankbuch liegt — weil E-235
+// (Referenz ohne Strich) und Regel B (Rate ohne Nummer) erst jetzt greifen —
+// bleibt sonst für immer liegen. Diese Route schickt EINEN bestehenden,
+// unverbuchten Eingang durch genau denselben Weg (liveVerbuchen → alsBezahlt-
+// Buchen / rateBezahltBuchen). Kein zweiter Buchungsweg, keine eigene Regel.
+//
+//   · Ein Eingang je Aufruf. `trocken` (Vorgabe: true!) zeigt, was passieren würde.
+//   · Bucht nur, was nicht schon verbucht ist und kein Geld „unterwegs" ist.
+//   · `ueberzahlungBisCents` (höchstens 100) erlaubt einer ERSTZAHLUNG ein paar
+//     Cent zu viel (Beispiel 01.10.: 100,00 € auf 99,99 €). Nie zu wenig.
+//   · Liegt unter /admin/zahlungen → nur Admin-Code oder Chef-Stufe
+//     Geschäftsführung/Inhaber (NUR_GESCHAEFTSFUEHRUNG in fiaon-admin-zugang.ts).
+// ═══════════════════════════════════════════════════════════════════════════
+const nachholenInArbeit = new Set<string>();
+router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: Response) => {
+  const id = Number(req.body?.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "id fehlt (fiaon_bank_txns.id)." });
+  // Vorsicht als Vorgabe: Nur ein ausdrückliches trocken:false bucht.
+  const trocken = req.body?.trocken !== false;
+  const ueberzahlungBisCents = Math.max(0, Math.min(100, Math.floor(Number(req.body?.ueberzahlungBisCents) || 0)));
+  try {
+    const [z] = (await sqlPool`
+      SELECT id, txn_id, booked_at, amount_cents, reference_raw, extracted_ref, applied, note
+        FROM fiaon_bank_txns WHERE id = ${id} LIMIT 1
+    `) as any[];
+    if (!z) return res.status(404).json({ ok: false, error: "Diesen Bankeingang gibt es nicht." });
+    const kopf = {
+      id: Number(z.id), txnId: String(z.txn_id), betragCents: Number(z.amount_cents),
+      // Buchungstag in Berlin: Airwallex legt Mitternacht UTC ab, ältere Einleser Mitternacht
+      // Berlin — beides ergibt so denselben Kalendertag (toISOString hätte den Vortag geliefert).
+      datum: z.booked_at ? berlinDatum(new Date(z.booked_at)) : "",
+      referenz: refErkennen(String(z.reference_raw || "")) || (z.extracted_ref ? String(z.extracted_ref) : null),
+      trocken,
+    };
+    if (z.applied) return res.status(409).json({ ok: false, ...kopf, error: "Dieser Eingang ist schon verbucht." });
+    if (!(kopf.betragCents > 0)) return res.status(409).json({ ok: false, ...kopf, error: "Kein Geldeingang (Betrag ≤ 0)." });
+    if (String(z.note || "").startsWith("Airwallex: Geld ist UNTERWEGS")) {
+      return res.status(409).json({ ok: false, ...kopf, error: "Das Geld ist noch unterwegs — der Einleser bucht es, sobald es da ist." });
+    }
+    if (!kopf.datum) return res.status(409).json({ ok: false, ...kopf, error: "Eingang ohne Datum — bitte von Hand buchen." });
+    if (nachholenInArbeit.has(kopf.txnId)) return res.status(409).json({ ok: false, ...kopf, error: "Dieser Eingang wird gerade schon gebucht." });
+    nachholenInArbeit.add(kopf.txnId);
+    try {
+      const erg = await liveVerbuchen(kopf.txnId, kopf.referenz, kopf.betragCents, kopf.datum, {
+        trocken, ueberzahlungBisCents, anlass: "Nachhol-Lauf",
+      });
+      const [nach] = (await sqlPool`
+        SELECT applied, matched_ref, match_status, note FROM fiaon_bank_txns WHERE id = ${id} LIMIT 1
+      `) as any[];
+      if (!trocken) console.log(`[BANK-NACHHOLEN] ${kopf.txnId}: ${erg.gebucht ? "GEBUCHT" : "nicht gebucht"} — ${erg.grund}`);
+      res.json({ ok: true, ...kopf, ergebnis: erg, bankbuch: nach ?? null });
+    } finally {
+      nachholenInArbeit.delete(kopf.txnId);
+    }
+  } catch (e: any) {
+    console.error("[BANK-NACHHOLEN]", e?.message || e);
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
   }
 });
 

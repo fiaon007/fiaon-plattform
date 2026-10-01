@@ -1201,6 +1201,18 @@ async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number;
       basisCents: baseCents, satzBp: rateBp, betragCents: amountCents, art: "own", notiz: provNotiz,
       anlass: "Erste Zahlung gebucht",
     });
+    // 01.10.2026: Auch der Override des Werbers wird vorgemerkt. Bis heute endete
+    // die Funktion hier — der Override war weder gebucht noch vorgemerkt, beim
+    // Nachbuchen fehlte er also ersatzlos.
+    const ov = await werberOverride(agents[0] as any, settings, baseCents);
+    if (ov) {
+      await vormerken({
+        agentId: ov.werberId, ref, zahlungsreferenz: app.payment_reference, paket: app.pack_name,
+        basisCents: baseCents, satzBp: ov.bp, betragCents: ov.cents, art: "override",
+        quelleAgentId: Number(app.assigned_agent_id),
+        notiz: `Team-Umsatzbeteiligung: Abschluss von ${agents[0].name}`, anlass: "Erste Zahlung gebucht (Override)",
+      });
+    }
     return;
   }
   await sqlPool`
@@ -1231,22 +1243,17 @@ async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number;
   }
 
   // ── Paket AE2: Override für den direkten Werber — EXAKT EINE EBENE (s. o.) ──
-  if (agents[0].recruited_by) {
-    const recruiter = await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agents[0].recruited_by}`;
-    if (recruiter.length > 0) {
-      // Override-Satz: pro Beziehung am GEWORBENEN Agent hinterlegt (override_rate_bp),
-      // sonst globaler Default. Basis ist der KUNDENumsatz, nicht die Provision.
-      const overrideBp = agents[0].override_rate_bp ?? Number(settings.partner_override_bp) ?? 500;
-      const overrideCents = commissionCents(baseCents, overrideBp);
-      if (overrideCents > 0) {
-        await sqlPool`
-          INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
-          VALUES (${recruiter[0].id}, ${ref}, ${app.payment_reference}, ${app.pack_name}, ${baseCents}, ${overrideBp}, ${overrideCents}, 'bestaetigt', 'override', ${app.assigned_agent_id},
-                  ${`Team-Umsatzbeteiligung: Abschluss von ${agents[0].name}`})
-        `;
-        await logAgentEvent(recruiter[0].id, "override_created", { ref, amount_cents: overrideCents, rate_bp: overrideBp, source_agent_id: app.assigned_agent_id });
-        console.log(`[FIAON-OVERRIDE] ${ref}: Werber ${recruiter[0].id} erhält ${(overrideCents / 100).toFixed(2)} € (${overrideBp / 100} % vom Kundenumsatz, eine Ebene)`);
-      }
+  // Rechnung in werberOverride (unten) — dieselbe für Buchen und Vormerken.
+  {
+    const ov = await werberOverride(agents[0] as any, settings, baseCents);
+    if (ov) {
+      await sqlPool`
+        INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
+        VALUES (${ov.werberId}, ${ref}, ${app.payment_reference}, ${app.pack_name}, ${baseCents}, ${ov.bp}, ${ov.cents}, 'bestaetigt', 'override', ${app.assigned_agent_id},
+                ${`Team-Umsatzbeteiligung: Abschluss von ${agents[0].name}`})
+      `;
+      await logAgentEvent(ov.werberId, "override_created", { ref, amount_cents: ov.cents, rate_bp: ov.bp, source_agent_id: app.assigned_agent_id });
+      console.log(`[FIAON-OVERRIDE] ${ref}: Werber ${ov.werberId} erhält ${(ov.cents / 100).toFixed(2)} € (${ov.bp / 100} % vom Kundenumsatz, eine Ebene)`);
     }
   }
 
@@ -1327,12 +1334,23 @@ export async function onRatePaid(rateId: number): Promise<void> {
 
   const ratenNotiz = `Ratenprovision: Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz})${status.bonusBp > 0 ? ` · inkl. ${status.bonusBp / 100} Prozentpunkte ${status.label}-Zuschlag` : ""}`;
   const { automatikAn: automatikAn2, vormerken: vormerken2 } = await import("../lib/fiaon-provision-automatik");
+  const ov = await werberOverride(agents[0] as any, settings, baseCents);
   if (!(await automatikAn2())) {
     await vormerken2({
       agentId: Number(agents[0].id), ref: rate.ref, zahlungsreferenz: rate.zahlungsreferenz, paket: app.pack_name,
       basisCents: baseCents, satzBp: rateBp, betragCents: amountCents, art: "own", notiz: ratenNotiz,
       anlass: `Rate ${rate.rate_nr} bezahlt`,
     });
+    // 01.10.2026: Override ebenfalls vormerken — vorher ging er bei AUS verloren.
+    if (ov) {
+      await vormerken2({
+        agentId: ov.werberId, ref: rate.ref, zahlungsreferenz: rate.zahlungsreferenz, paket: app.pack_name,
+        basisCents: baseCents, satzBp: ov.bp, betragCents: ov.cents, art: "override",
+        quelleAgentId: Number(agents[0].id),
+        notiz: `Team-Umsatzbeteiligung: Abo-Rate ${rate.rate_nr} von ${agents[0].name}`,
+        anlass: `Rate ${rate.rate_nr} bezahlt (Override)`,
+      });
+    }
     return;
   }
   await sqlPool`
@@ -1343,22 +1361,37 @@ export async function onRatePaid(rateId: number): Promise<void> {
   await logAgentEvent(agents[0].id, "commission_created", { ref: rate.ref, rate: rate.zahlungsreferenz, amount_cents: amountCents, rate_bp: rateBp });
   console.log(`[FIAON-COMMISSION] Ratenprovision: ${rate.zahlungsreferenz} → Agent ${agents[0].id}, ${(amountCents / 100).toFixed(2)} € (${rateBp / 100} %)`);
 
-  if (agents[0].recruited_by) {
-    const recruiter = await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agents[0].recruited_by}`;
-    if (recruiter.length > 0) {
-      const overrideBp = agents[0].override_rate_bp ?? Number(settings.partner_override_bp) ?? 500;
-      const overrideCents = commissionCents(baseCents, overrideBp);
-      if (overrideCents > 0) {
-        await sqlPool`
-          INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
-          VALUES (${recruiter[0].id}, ${rate.ref}, ${rate.zahlungsreferenz}, ${app.pack_name}, ${baseCents}, ${overrideBp}, ${overrideCents}, 'bestaetigt', 'override', ${agents[0].id},
-                  ${`Team-Umsatzbeteiligung: Abo-Rate ${rate.rate_nr} von ${agents[0].name}`})
-        `;
-        await logAgentEvent(recruiter[0].id, "override_created", { ref: rate.ref, rate: rate.zahlungsreferenz, amount_cents: overrideCents, rate_bp: overrideBp, source_agent_id: agents[0].id });
-        console.log(`[FIAON-OVERRIDE] ${rate.zahlungsreferenz}: Werber ${recruiter[0].id} erhält ${(overrideCents / 100).toFixed(2)} € (${overrideBp / 100} %)`);
-      }
-    }
+  if (ov) {
+    await sqlPool`
+      INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
+      VALUES (${ov.werberId}, ${rate.ref}, ${rate.zahlungsreferenz}, ${app.pack_name}, ${baseCents}, ${ov.bp}, ${ov.cents}, 'bestaetigt', 'override', ${agents[0].id},
+              ${`Team-Umsatzbeteiligung: Abo-Rate ${rate.rate_nr} von ${agents[0].name}`})
+    `;
+    await logAgentEvent(ov.werberId, "override_created", { ref: rate.ref, rate: rate.zahlungsreferenz, amount_cents: ov.cents, rate_bp: ov.bp, source_agent_id: agents[0].id });
+    console.log(`[FIAON-OVERRIDE] ${rate.zahlungsreferenz}: Werber ${ov.werberId} erhält ${(ov.cents / 100).toFixed(2)} € (${ov.bp / 100} %)`);
   }
+}
+
+/**
+ * Der Override des direkten Werbers (Paket AE2, EXAKT EINE Ebene) — EINE Rechnung
+ * für Abschluss und Rate, für Buchen und Vormerken (01.10.2026). Satz: pro
+ * Beziehung am GEWORBENEN Agent (override_rate_bp), sonst partner_override_bp.
+ * Basis ist der Kundenumsatz, nicht die Provision. Der Ausdruck ist wortgleich
+ * mit der Fassung vor dem 01.10. (auch die Eigenheit: ein unlesbarer Wert in
+ * partner_override_bp ergibt NaN → kein Override, wie bisher).
+ */
+export async function werberOverride(
+  agent: { recruited_by?: number | null; override_rate_bp?: number | null },
+  settings: Record<string, string>,
+  baseCents: number,
+): Promise<{ werberId: number; werberName: string; bp: number; cents: number } | null> {
+  if (!agent?.recruited_by) return null;
+  const [werber] = (await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agent.recruited_by}`) as any[];
+  if (!werber) return null;
+  const bp = agent.override_rate_bp ?? Number(settings.partner_override_bp) ?? 500;
+  const cents = commissionCents(baseCents, bp);
+  if (!(cents > 0)) return null;
+  return { werberId: Number(werber.id), werberName: String(werber.name ?? ""), bp, cents };
 }
 
 /**

@@ -5,6 +5,36 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — Raten ohne Nummer werden gebucht, Provision bleibt bis 05.10. vorgemerkt (E-235 + Regel B)
+
+**Der Anlass:** Justins Go vom 01.10.: „Raten live stellen, aber NICHT die Mitarbeiter-Provision buchen, die buche ich am
+05.10." Seit dem 24.09. lagen 12 Eingänge ungebucht im Bankbuch — Referenzen im neuen Format ohne Strich (FIAONXXXXXX) und
+Monatsraten, die Kunden mit der Bestellnummer OHNE „-2/-3" überweisen.
+
+**Was jetzt gilt:**
+- **Referenz ohne Strich (E-235):** FIAONXXXXXX und FIAON-XXXXXX sind dieselbe Referenz — Bankabgleich, Airwallex- und
+  Wise-Einleser vergleichen nur noch Buchstaben und Ziffern.
+- **Regel B — Rate ohne Nummer:** Ist die Bestellung schon bezahlt, geht der Eingang an die ÄLTESTE offene Rate — nur wenn
+  sie fällig ist (oder in 7 Tagen), keine spätere Rate schon bezahlt ist, der Betrag auf ±1 € passt, der Vertrag nicht
+  gekündigt ist und die früheren Eingänge des Kunden seine bezahlten Raten decken (sonst könnte das Geld die Startzahlung
+  sein). Alles andere bleibt Handarbeit mit Grund im Bankbuch. Ein Eingang bezahlt nie zwei Raten — jetzt auch bei
+  Airwallex (Prüfung über „Bankeingang <txn>" in der Ratennotiz).
+- **Provision bleibt vorgemerkt:** Der Schalter „Provisionsautomatik" (Chefbüro → Provisionen, steht auf AUS) erfasst jetzt
+  JEDE Gutschrift aus einer Buchung: Abschluss, Ratenprovision, **Override des Werbers** (fiel bisher ersatzlos weg) und
+  **Inkasso-Prämie** (wurde bisher trotz AUS gebucht). „Alle buchen" legt sie als bestätigte, auszahlbare Provision an
+  (vorher landeten Nachbuchungen auf einem Status, den der Auszahlungslauf nie las). Der Kunde merkt nichts:
+  Freischaltung, Bestätigungsmail, Ratenkette und Karten-Einladung laufen normal.
+- **Nachholen:** `POST /api/fiaon/admin/zahlungen/bankeingang-nachholen {id, trocken}` schickt einen liegengebliebenen
+  Eingang durch denselben Buchungsweg (Vorgabe: trocken). `POST /api/fiaon/chef/provisionen/override-nachtragen {trocken}`
+  trägt die seit 24.09. verlorenen Overrides als Vormerkung nach. Skript `scripts/nachholen-bankeingaenge.ts`
+  (Vorschau schreibgeschützt, Ausführen nur mit Freigabe-Datei, Protokoll je Eingang).
+
+**Wo:** server/routes/fiaon-wise.ts (liveVerbuchen, regelBPruefen, Nachhol-Route), server/routes/fiaon-agent.ts
+(werberOverride), server/lib/fiaon-inkasso.ts (praemieBuchen), server/lib/fiaon-provision-automatik.ts,
+server/routes/fiaon-provisionen.ts. Prüfstand: scripts/pruef-bank-regel-b.ts (lokal, 46 Prüfungen grün).
+
+---
+
 ## 29.09.2026 — Termine mit einem Klick in den eigenen Kalender, und ein Abo, das sich selbst pflegt (E-263)
 
 **Der Anlass:** Justin: „wenn ich so ne Email bekomme von FIAON (Termin-Mail) dann muss ich die auch mit 1 Klick in mein

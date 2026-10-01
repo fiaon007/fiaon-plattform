@@ -16,6 +16,21 @@
 // Die Vormerkung ist bewusst eine eigene Tabelle und keine Zeile in
 // fiaon_commissions mit Sonderstatus: Was dort steht, fließt in Abrechnungen,
 // Auszahlungen und Kennzahlen. Eine Vormerkung darf das ausdrücklich NICHT.
+//
+// WAS DER SCHALTER ERFASST (01.10.2026, Justin: „Raten live stellen, aber
+// NICHT die Mitarbeiter-Provision buchen — die buche ich am 05.10."):
+// jeder Weg, auf dem eine gebuchte Zahlung Mitarbeitergeld erzeugt —
+//   · Abschluss-Provision (erste Zahlung, abschlussNachZahlung)  Art own
+//   · Ratenprovision (Rate ≥ 2, onRatePaid)                         Art own
+//   · Override des direkten Werbers (bei beiden)                    Art override
+//   · Inkasso-Prämie (rateBezahltBuchen → praemieBuchen)            Art inkasso
+// Bis 01.10. gingen zwei davon am Schalter vorbei: der Override fiel bei AUS
+// ersatzlos weg (weder gebucht noch vorgemerkt), die Inkasso-Prämie wurde
+// trotz AUS gebucht. Nicht betroffen, weil keine Buchung sie auslöst: die 10 €
+// je Kontoeröffnung (fiaon_konto_karte, erst mit der Bestätigung der
+// Partnerbank auszahlbar), die Onboarding-Vergütung (Startgespräch), Gehalt und
+// Handbuchungen. Der Kunde merkt vom Schalter nichts — Freischaltung,
+// Bestätigungsmail, Ratenkette und Karten-Einladung laufen unverändert.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 
@@ -61,9 +76,12 @@ function tabelle(): Promise<void> {
   return anlegen;
 }
 
-/** Läuft die Automatik? Vorgabe seit 23.09.2026: AUS. */
-export async function automatikAn(): Promise<boolean> {
-  const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${SCHALTER}`.catch(() => [])) as any[];
+/** Wer liest und schreibt — der Pool oder eine laufende Transaktion (praemieBuchen(rateId, tx)). */
+type Lauf = typeof sqlPool;
+
+/** Läuft die Automatik? Vorgabe seit 23.09.2026: AUS. `lauf`: innerhalb einer Transaktion deren Sicht. */
+export async function automatikAn(lauf: Lauf = sqlPool): Promise<boolean> {
+  const [r] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${SCHALTER}`.catch(() => [])) as any[];
   return String(r?.value ?? "aus") === "an";
 }
 
@@ -89,10 +107,14 @@ export interface Vormerkung {
   anlass: string;
 }
 
-/** Statt zu buchen: merken. Gibt zurück, ob eine neue Vormerkung entstand. */
-export async function vormerken(v: Vormerkung): Promise<boolean> {
+/**
+ * Statt zu buchen: merken. Gibt zurück, ob eine neue Vormerkung entstand.
+ * `lauf` (01.10.2026): Wer innerhalb einer Transaktion bucht (praemieBuchen(rateId, tx)),
+ * merkt auch in ihr vor — sonst überlebte die Vormerkung ein Zurückrollen.
+ */
+export async function vormerken(v: Vormerkung, lauf: Lauf = sqlPool): Promise<boolean> {
   await tabelle();
-  const zeilen = (await sqlPool`
+  const zeilen = (await lauf`
     INSERT INTO fiaon_provision_vormerkung
       (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, kind, source_agent_id, note, anlass)
     VALUES (${v.agentId}, ${v.ref ?? null}, ${v.zahlungsreferenz ?? null}, ${v.paket ?? null},
@@ -153,10 +175,14 @@ export async function nachbuchen(id: number, von: string): Promise<{ ok: boolean
     await sqlPool`UPDATE fiaon_provision_vormerkung SET status = 'gebucht', erledigt_am = NOW(), erledigt_von = ${von}, commission_id = ${Number(da.id)} WHERE id = ${id}`;
     return { ok: true, commissionId: Number(da.id), grund: "Es gab sie schon — die Vormerkung ist erledigt." };
   }
+  // 01.10.2026: Status 'bestaetigt' wie bei der Automatik. Vorher stand hier 'offen' — diesen
+  // Status kennt fiaon_commissions nicht (bestaetigt | in_auszahlung | ausgezahlt | storniert |
+  // vorgemerkt), und der Auszahlungslauf liest nur 'bestaetigt': Nachgebuchtes wäre im Wallet
+  // aufgetaucht und am 15. nie ausgezahlt worden. Bis heute wurde keine Vormerkung nachgebucht.
   const [neu] = (await sqlPool`
     INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
     VALUES (${v.agent_id}, ${v.ref}, ${v.payment_reference}, ${v.pack_name}, ${v.base_amount_cents}, ${v.rate_bp}, ${v.amount_cents},
-            'offen', ${v.kind}, ${v.source_agent_id}, ${`${v.note ?? ""} (von Hand gebucht am ${new Date().toLocaleDateString("de-DE")} durch ${von}, ${v.anlass})`.trim()})
+            'bestaetigt', ${v.kind}, ${v.source_agent_id}, ${`${v.note ?? ""} (von Hand gebucht am ${new Date().toLocaleDateString("de-DE")} durch ${von}, ${v.anlass})`.trim()})
     RETURNING id`) as any[];
   await sqlPool`UPDATE fiaon_provision_vormerkung SET status = 'gebucht', erledigt_am = NOW(), erledigt_von = ${von}, commission_id = ${Number(neu.id)} WHERE id = ${id}`;
   console.log(`[PROVISION] Vormerkung ${id} nachgebucht von ${von} (${(Number(v.amount_cents) / 100).toFixed(2)} €).`);

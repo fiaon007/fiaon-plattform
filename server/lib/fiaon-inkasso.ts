@@ -915,13 +915,35 @@ export async function praemieBuchen(
   `) as any[];
   if (schon) return { gebucht: false, grund: "Prämie für diese Rate ist schon gebucht." };
 
+  const notiz = `Eingezogene Rate ${rate.rate_nr} zu ${rate.ref} — zuletzt bearbeitet von `
+    + `${arbeit.agent_name} (${arbeit.ergebnis}).`;
+  // ── DER SCHALTER GILT AUCH HIER (01.10.2026) ─────────────────────────────
+  // Justin: „Raten live stellen, aber NICHT die Mitarbeiter-Provision buchen."
+  // Die Prämie ging bis heute am Schalter der Provisionsautomatik vorbei und
+  // wurde auch bei AUS gebucht (gemessen: 2 × 2 € seit dem 23.09.). Bei AUS wird
+  // sie jetzt vorgemerkt wie jede andere Provision; derselbe Knopf unter
+  // /chef/s/provisionen bucht sie nach (Art inkasso, ref RATE-<id> — so greift
+  // die Sperre „Prämie schon gebucht" oben auch nach dem Nachbuchen).
+  const { automatikAn, vormerken } = await import("./fiaon-provision-automatik");
+  if (!(await automatikAn(lauf))) {
+    const neu = await vormerken({
+      agentId: Number(arbeit.agent_id), ref, zahlungsreferenz: rate.zahlungsreferenz, paket: "Forderungsmanagement",
+      basisCents: Number(rate.betrag_cents), satzBp: art === "prozent" ? wert : 0, betragCents: cents,
+      art: "inkasso", notiz, anlass: `Rate ${rate.rate_nr} eingezogen (Inkasso-Prämie)`,
+    }, lauf);
+    return {
+      gebucht: false,
+      grund: neu ? "Provisionsautomatik AUS — Prämie vorgemerkt, nicht gebucht." : "Provisionsautomatik AUS — Prämie war schon vorgemerkt.",
+      agentId: Number(arbeit.agent_id), cents,
+    };
+  }
+
   await lauf`
     INSERT INTO fiaon_commissions
       (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note)
     VALUES (${arbeit.agent_id}, ${ref}, ${rate.zahlungsreferenz}, 'Forderungsmanagement',
             ${rate.betrag_cents}, ${art === "prozent" ? wert : 0}, ${cents}, 'bestaetigt', 'inkasso',
-            ${`Eingezogene Rate ${rate.rate_nr} zu ${rate.ref} — zuletzt bearbeitet von `
-              + `${arbeit.agent_name} (${arbeit.ergebnis}).`})
+            ${notiz})
   `;
   console.log(`[INKASSO] Prämie ${(cents / 100).toFixed(2)} € an Agent ${arbeit.agent_id} für Rate ${rate.id}`);
   return { gebucht: true, grund: "gebucht", agentId: Number(arbeit.agent_id), cents };

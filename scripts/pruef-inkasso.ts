@@ -390,6 +390,22 @@ async function main(): Promise<void> {
 
       await tx`UPDATE fiaon_agents SET verguetung_bestaetigt_am = NOW() WHERE id = ${agentA.id}`;
 
+      // 01.10.2026: Die Prämie folgt dem Schalter der Provisionsautomatik. Erst AUS
+      // (Vorgabe seit 23.09.): vorgemerkt, NICHT gebucht — alles in dieser Transaktion.
+      await tx`INSERT INTO fiaon_settings (key, value) VALUES ('provision_automatik', 'aus') ON CONFLICT (key) DO UPDATE SET value = 'aus'`;
+      const vorAus = Number(((await tx`SELECT COUNT(*)::int AS n FROM fiaon_commissions`) as any[])[0].n);
+      const beiAus = await praemieBuchen(rateOk, tx as any);
+      ok("Schalter AUS: NICHT gebucht, sondern vorgemerkt", !beiAus.gebucht && /vorgemerkt/.test(beiAus.grund), beiAus.grund);
+      gleich("… keine Gutschrift", Number(((await tx`SELECT COUNT(*)::int AS n FROM fiaon_commissions`) as any[])[0].n) - vorAus, 0);
+      const [vm] = (await tx`
+        SELECT kind, amount_cents, agent_id FROM fiaon_provision_vormerkung WHERE ref = ${`RATE-${rateOk}`} AND status = 'offen'
+      `) as any[];
+      ok("… eine Vormerkung Art inkasso über 2,00 € für den Bearbeiter",
+        vm?.kind === "inkasso" && Number(vm?.amount_cents) === 200 && Number(vm?.agent_id) === Number(agentA.id));
+      // Ab hier Schalter AN — die Prüfungen des Buchens wie bisher.
+      await tx`UPDATE fiaon_settings SET value = 'an' WHERE key = 'provision_automatik'`;
+      await tx`DELETE FROM fiaon_provision_vormerkung WHERE ref = ${`RATE-${rateOk}`}`;
+
       const vorProv = Number(((await tx`SELECT COUNT(*)::int AS n FROM fiaon_commissions`) as any[])[0].n);
       const erste = await praemieBuchen(rateOk, tx as any);
       ok("Mit Arbeit und Freigabe wird gebucht", erste.gebucht, erste.grund);

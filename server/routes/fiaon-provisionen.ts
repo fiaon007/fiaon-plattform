@@ -89,6 +89,65 @@ router.post("/chef/provisionen/alle-buchen", wache, async (req: ChefRequest, res
   }
 });
 
+/**
+ * POST /chef/provisionen/override-nachtragen { trocken }   (01.10.2026)
+ *
+ * Bis zum 01.10. fiel bei Schalter AUS der Override des direkten Werbers ersatzlos
+ * weg — vorgemerkt wurde nur die eigene Provision. Gemessen am 01.10.: 9 der 15
+ * offenen Vormerkungen (24.09.–01.10.) hätten einen Override gehabt. Dieser Weg
+ * trägt sie als Vormerkung nach — mit derselben Rechnung wie Buchen und Vormerken
+ * (werberOverride in fiaon-agent.ts), damit Justin am 05.10. die vollständige
+ * Liste vor sich hat. Bucht NICHTS, legt nur Vormerkungen an. Doppelt geht nicht
+ * (vorhandene Override-Vormerkungen und -Provisionen werden übersprungen, dazu der
+ * eindeutige Index je Zahlung, Mensch und Art). Vorgabe: trocken.
+ */
+router.post("/chef/provisionen/override-nachtragen", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const trocken = req.body?.trocken !== false;
+    const { werberOverride, getSettings } = await import("./fiaon-agent");
+    const { vormerken } = await import("../lib/fiaon-provision-automatik");
+    const settings = await getSettings();
+    const offen = (await vormerkungen("offen", 500)).filter((v) => v.kind === "own" && v.payment_reference);
+    const liste: Array<{
+      vormerkung: number; zahlung: string; betreuer: number; werber: number;
+      betragEuro: number; satz: number; schonDa: boolean; angelegt: boolean;
+    }> = [];
+    for (const v of offen) {
+      const [ag] = (await sqlPool`SELECT id, name, recruited_by, override_rate_bp FROM fiaon_agents WHERE id = ${v.agent_id}`) as any[];
+      if (!ag) continue;
+      const ov = await werberOverride(ag, settings, Number(v.base_amount_cents) || 0);
+      if (!ov) continue;
+      const [da] = (await sqlPool`
+        SELECT 1 AS da FROM fiaon_provision_vormerkung
+         WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override' AND status <> 'verworfen'
+        UNION ALL
+        SELECT 1 FROM fiaon_commissions
+         WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override' AND status <> 'storniert'
+        LIMIT 1`) as any[];
+      const zeile = {
+        vormerkung: Number(v.id), zahlung: String(v.payment_reference), betreuer: Number(v.agent_id), werber: ov.werberId,
+        betragEuro: ov.cents / 100, satz: ov.bp / 100, schonDa: !!da, angelegt: false,
+      };
+      if (!da && !trocken) {
+        zeile.angelegt = await vormerken({
+          agentId: ov.werberId, ref: v.ref, zahlungsreferenz: v.payment_reference, paket: v.pack_name,
+          basisCents: Number(v.base_amount_cents) || 0, satzBp: ov.bp, betragCents: ov.cents, art: "override",
+          quelleAgentId: Number(v.agent_id),
+          notiz: `Team-Umsatzbeteiligung: ${v.anlass} von ${ag.name} (Override nachgetragen am 01.10.2026)`,
+          anlass: `${v.anlass} (Override, nachgetragen)`,
+        });
+      }
+      liste.push(zeile);
+    }
+    if (!trocken) console.log(`[PROVISIONEN] ${wer(req)}: ${liste.filter((z) => z.angelegt).length} Override-Vormerkungen nachgetragen.`);
+    const neu = liste.filter((z) => !z.schonDa);
+    res.json({ ok: true, trocken, anzahl: neu.length, summeEuro: Math.round(neu.reduce((s, z) => s + z.betragEuro, 0) * 100) / 100, liste });
+  } catch (err) {
+    console.error("[PROVISIONEN] override-nachtragen:", err);
+    res.status(500).json({ ok: false, error: "Der Nachtrag ist abgebrochen." });
+  }
+});
+
 /** Eine Vormerkung verwerfen. */
 router.post("/chef/provisionen/verwerfen", wache, async (req: ChefRequest, res: Response) => {
   const id = Number(req.body?.id);

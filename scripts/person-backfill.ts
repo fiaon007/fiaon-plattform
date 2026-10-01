@@ -522,7 +522,6 @@ async function main(): Promise<void> {
       primary_email: normEmail(erste.email),
       primary_phone: erste.telefon ? String(erste.telefon).trim() : null,
       phone_key9: phoneKey9(erste.telefon),
-      password: null,
       kind: "private",
     };
     const aliases = group.flatMap((l: any) => {
@@ -652,7 +651,6 @@ async function main(): Promise<void> {
       city: plan.draft.city,
       country: plan.draft.country,
       nationality: plan.draft.nationality,
-      password: plan.draft.password,
       account_status: plan.accountStatus,
       assigned_agent_id: plan.agents.length > 0 ? plan.agents[0] : null,
       agent_conflict: plan.agentConflict,
@@ -666,7 +664,8 @@ async function main(): Promise<void> {
         "person_ref", "kind", "first_name", "last_name", "company_name", "contact_name",
         "birthdate", "primary_email", "primary_phone", "phone_key9",
         "street", "zip", "city", "country", "nationality",
-        "password", "account_status", "assigned_agent_id", "agent_conflict",
+        // E-242 (01.10.2026): kein "password" — die Person trägt keins (CHECK fiaon_persons_password_gehasht).
+        "account_status", "assigned_agent_id", "agent_conflict",
         "quality_flags", "first_seen_at", "merge_batch_id")}
       RETURNING id, person_ref
     `;

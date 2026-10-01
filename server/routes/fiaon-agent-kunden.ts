@@ -42,6 +42,7 @@ import {
 } from "../lib/fiaon-kontakt-ergebnis";
 import { requireAgent, type AgentRequest, normalizeSearchDigits } from "./fiaon-agent";
 import { sorgeFuerAkte } from "../lib/fiaon-akte-anker";
+import { utmErlaubt } from "../lib/fiaon-utm";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
@@ -660,7 +661,8 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
         schufa: ant.consent_schufa === true,
         vertrag: ant.consent_contract === true,
       },
-      herkunft: ant.utm ?? null,
+      // E-242: utm trug bis zur Bereinigung Kundenpasswörter im Klartext — heraus geht nur die Erlaubnisliste.
+      herkunft: utmErlaubt(ant.utm),
       firma: txt(ant.company_name) ? {
         name: txt(ant.company_name), rechtsform: txt(ant.legal_form),
         steuernummer: txt(ant.tax_id), gegruendet: txt(ant.established_year),

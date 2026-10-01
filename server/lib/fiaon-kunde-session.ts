@@ -20,6 +20,13 @@
 //    Beim nächsten erfolgreichen Login wird ein Klartext-Passwort nachgehasht
 //    (fiaon-antrag.ts, Login). Kein Kunde muss etwas tun; in ein paar Wochen
 //    ist der Klartext verschwunden.
+//    NACHTRAG E-242 (01.10.2026): Die „paar Wochen" wurden Monate — wer sich nicht
+//    anmeldete, blieb Klartext. Der Rest wird mit scripts/passwort-klartext-raus.ts
+//    in EINEM Lauf gehasht (gleiches Format, jeder Hash vorher gegen sein Original
+//    geprüft, kein erzwungener Wechsel), danach verbietet der CHECK
+//    fiaon_applications_password_gehasht jeden Klartext in der Spalte. Der
+//    Klartext-Zweig in passwortPasst bleibt als Rückfall stehen, damit bis zum
+//    Lauf niemand ausgesperrt ist.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { Request, Response, NextFunction } from "express";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";

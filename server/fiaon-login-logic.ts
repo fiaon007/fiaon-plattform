@@ -150,23 +150,19 @@ export const GLOBAL_LOGIN_HINWEIS = {
 } as const;
 
 /**
- * Das hinterlegte Passwort einer Antragszeile. Historisch an zwei Orten:
- * Spalte `password` (heute) und `utm->>'password'` (Altbestand). Leerstrings
- * gelten als „nicht gesetzt". Der Wert selbst wird NICHT verändert (kein trim),
- * damit der Vergleich exakt so bleibt wie bisher.
+ * Das hinterlegte Passwort einer Antragszeile — ausschließlich die Spalte
+ * `password`. Leerstrings gelten als „nicht gesetzt". Der Wert selbst wird
+ * NICHT verändert (kein trim), damit der Vergleich exakt so bleibt wie bisher.
+ *
+ * 25.09.2026 (E-242): Der frühere Rückfall auf `utm->>'password'` ist entfernt.
+ * Er war seit Monaten wirkungslos — alle Aufrufer lesen `utm::text AS utm_string`,
+ * und bei den Altformen (JSON-Text, Array) liefert JSON.parse darauf keinen
+ * Schlüssel (am 25.09. gemessen: in keiner Zeile). utm trägt seither nur noch die
+ * Erlaubnisliste aus lib/fiaon-utm.ts.
  */
 export function storedPasswordOf(row: any): string | null {
   const direct = row?.password;
   if (typeof direct === "string" && direct.trim() !== "") return direct;
-  const rawUtm = row?.utm_string ?? row?.utm;
-  if (!rawUtm) return null;
-  try {
-    const obj = typeof rawUtm === "string" ? JSON.parse(rawUtm) : rawUtm;
-    const fromUtm = obj?.password;
-    if (typeof fromUtm === "string" && fromUtm.trim() !== "") return fromUtm;
-  } catch {
-    /* defektes utm-JSON ist kein Anmeldefehler — die Zeile hat einfach kein Passwort */
-  }
   return null;
 }
 

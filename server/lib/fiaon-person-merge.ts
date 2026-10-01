@@ -351,7 +351,7 @@ async function fuehreAus(
         ELSE account_status END,
       first_seen_at = LEAST(COALESCE(first_seen_at, ${verlierer.first_seen_at}),
                             COALESCE(${verlierer.first_seen_at}, first_seen_at)),
-      password = COALESCE(password, ${verlierer.password}),
+      -- E-242 (01.10.2026): kein password mehr — die Person trägt keins (nur die Bestellzeile).
       gc_customer_ref = COALESCE(gc_customer_ref, ${verlierer.gc_customer_ref}),
       gc_mandate_ref = COALESCE(gc_mandate_ref, ${verlierer.gc_mandate_ref}),
       gc_mandate_status = COALESCE(gc_mandate_status, ${verlierer.gc_mandate_status}),

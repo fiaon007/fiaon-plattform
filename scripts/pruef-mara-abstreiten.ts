@@ -285,8 +285,12 @@ const mail = ton.bausteinAbstreiten({ kanal: "mail", art: "bestreitet", herkunft
 ok(/Ihre E-Mail-Adresse wurde am 29\. Juli/.test(mail) && /\n\n/.test(mail) && /„Löschen“ genügt/.test(mail), "Mail: „Ihre E-Mail-Adresse …“, zwei Absätze, Löschen per kurzer Antwort");
 const fn = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "falsche_nummer", herkunft: H_ANTRAG, jetzt: JETZT });
 ok(/versehentlich hinterlegt/.test(fn) && !/Juli|Antrag|Internetseite/.test(fn), "Falsche Nummer: keine Daten des eigentlichen Kunden (kein Tag, kein Antrag)");
-const rf = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "rueckfrage", herkunft: null, betreuer: "Florentine Prüf", abgeschickt: true, jetzt: JETZT });
-ok(/Das kläre ich gern für Sie/.test(rf) && /Florentine meldet sich/.test(rf) && !/Zahlung|€/.test(rf), `Rückfrage: kein Betrag, keine Zahlung, der Betreuer meldet sich („${rf.slice(0, 80)}…“)`);
+// E-265 (29.09.2026, Justin „zum letzten Mal!!"): Der Betreuer kommt als Nennform („Frau Lombardi") und wird nie
+// auf den Vornamen gekürzt — vorher erwartete dieser Fall „Florentine meldet sich" (split auf das erste Wort).
+const rf = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "rueckfrage", herkunft: null, betreuer: "Frau Lombardi", abgeschickt: true, jetzt: JETZT });
+ok(/Das kläre ich gern für Sie/.test(rf) && /Frau Lombardi meldet sich/.test(rf) && !/Florentine/.test(rf) && !/Zahlung|€/.test(rf), `Rückfrage: kein Betrag, keine Zahlung, der Betreuer meldet sich mit Nennform („${rf.slice(0, 80)}…“)`);
+const rfOhne = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "rueckfrage", herkunft: null, betreuer: "Nikita Boychenko", abgeschickt: true, jetzt: JETZT });
+ok(/Nikita Boychenko meldet sich/.test(rfOhne), "Rückfrage: ohne gepflegte Anrede der volle Name, nie der Vorname allein");
 const wt = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "wut", herkunft: H_META, jetzt: JETZT });
 ok(/„Stopp“/.test(wt) && !/nicht mehr,|löschen wir/.test(wt), "Nur Wut: „Stopp“ genügt — keine Zusage, kein Löschangebot");
 // „Wer sind Sie?" / „Woher meine Nummer?": kein fester Satz, ein Hinweis ans Modell
@@ -294,6 +298,13 @@ const hw = ton.abstreitenHinweis({ art: "wer", kanal: "whatsapp", herkunft: { ar
 ok(/ER FRAGT, WER WIR SIND/.test(hw) && /am 28\. September bei einem Antrag auf unserer Internetseite eingetragen/.test(hw) && /DEIN LINK/.test(hw) && /Kein Löschangebot/.test(hw) && /Florentine/.test(hw), "„Wer bist du“ (Nachricht 810): Vorstellung, Herkunft, nächster Schritt, kein Löschangebot");
 ok(/Erfinde keine Herkunft/.test(ton.abstreitenHinweis({ art: "datenfrage", kanal: "mail", herkunft: null, jetzt: JETZT })), "„Woher meine Adresse?“ ohne Beleg: keine erfundene Herkunft");
 ok(ton.personaText("whatsapp").includes("WENN ER BESTREITET") && ton.personaText("mail").includes("WENN ER BESTREITET"), "Das Modell hat eine Regel für übersehenes Abstreiten (WhatsApp und Mail)");
+// E-265 Nachbesserung (29.09.2026, Regression r6.mts): „Was ist FIAON?" löscht den Herkunftshinweis nur bei „wer" —
+// nie, wenn im selben Satz nach der Nummer oder den Daten gefragt wird (Datenfrage, Art. 15 DSGVO).
+for (const t of ["Was ist FIAON und woher haben Sie meine Nummer?", "Wer ist Fiaon? Woher haben Sie meine Daten"]) {
+  const art = ton.abstreitenArt(t)?.art ?? null;
+  ok(art === "datenfrage" && !wa.herkunftHinweisStreichen(art, ton.fragtWasIstFiaon(t), "kunde"), `„${t}“ (${art}): der belegte Herkunftshinweis bleibt`);
+}
+ok(wa.herkunftHinweisStreichen("wer", true, "kunde") && !wa.herkunftHinweisStreichen("wer", true, "lead"), "„Wer sind Sie?“ + „Was ist FIAON?“ beim Kunden: kein Herkunftshinweis nötig (beim Lead bleibt er)");
 
 // ═══ 4. HARTE PRÜFUNG ═════════════════════════════════════════════════════
 abschnitt("4 · Harte Prüfung: keine Zahlungsaufforderung ohne abgeschickten Antrag — Erklärungen erlaubt");

@@ -1951,7 +1951,7 @@ function MitgliedDetail({
                 </button>
               </div>
               <p className="mb-5 text-[11.5px] text-slate-400 leading-snug">
-                So nennt Mara diesen Menschen in Kundenmails: mit Anrede „{m.anrede || "Herr/Frau"} {m.last_name || "Nachname"}“, ohne Anrede mit vollem Namen. Nie nur der Vorname.
+                So nennt Mara diesen Menschen in Kundenmails, auf WhatsApp, am Telefon und auf der Terminseite: mit Anrede „{m.anrede || "Herr/Frau"} {m.last_name || "Nachname"}“, ohne Anrede mit vollem Namen. Nie nur der Vorname.
               </p>
               {/* ── PORTAL ANSEHEN ─────────────────────────────────────────
                   Der Vorgesetzte: „ich kann mir ja nicht ein Account machen um

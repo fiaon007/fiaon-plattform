@@ -98,8 +98,9 @@ for (const datei of ["client/src/pages/app/Abo.tsx", "client/src/pages/app/Geld.
 }
 const bereich = lies("server/routes/fiaon-kunde-bereich.ts");
 ok(/a\.agb_stand/.test(bereich), "der Endpunkt liest agb_stand");
-ok(/jahresvertrag: !!a\.agb_stand && new Date\(a\.agb_stand\) >= new Date\("2026-09-03"\)/.test(bereich),
-  "der Schnitt liegt auf dem 03.09.2026 — wie in vertragsfassung()");
+// E-265 (29.09.2026): der Endpunkt rechnet über die eine Regel istJahresvertrag (shared/fiaon-antrag-stand.ts, JAHRESVERTRAG_AB = 03.09.2026).
+ok(/jahresvertrag: istJahresvertrag\(a\.agb_stand\)/.test(bereich) && /JAHRESVERTRAG_AB = "2026-09-03"/.test(lies("shared/fiaon-antrag-stand.ts")),
+  "der Schnitt liegt auf dem 03.09.2026 — über istJahresvertrag, wie in vertragsfassung()");
 ok(/jahresvertrag\?: boolean/.test(lies("client/src/pages/app/typen.ts")), "typen.ts kennt das Feld");
 
 // ── 4. Strukturierte Daten = sichtbarer Text ───────────────────────────────
@@ -125,7 +126,8 @@ ok(/Ein Anspruch auf vorzeitige Aufhebung besteht nicht/.test(agb), "§ 6 Abs. 4
 ok(/vor dem 3\. September 2026 geschlossen wurden/.test(agb), "§ 6 Abs. 8: Bestandsverträge bleiben unberührt");
 const wissen = lies("shared/fiaon-wissen.ts");
 ok(/Verträge ab dem 03\.09\.2026 laufen über zwölf Monatsraten \(Jahresvertrag\)/.test(wissen), "fiaon-wissen kennt den Jahresvertrag");
-ok(/Verträge vor dem 03\.09\.2026: monatlich zum Ende des laufenden Monats kündbar/.test(wissen), "fiaon-wissen kennt die Altfassung");
+// E-265 (01.10.2026, Recht): Altvertrag — Frist 24 Stunden zum Ende des Abrechnungsmonats (Fälligkeit zu Fälligkeit), nie Kalendermonat.
+ok(/Verträge vor dem 03\.09\.2026: formlos kündbar mit einer Frist von 24 Stunden zum Ende des laufenden Abrechnungsmonats/.test(wissen), "fiaon-wissen kennt die Altfassung (Abrechnungsmonat)");
 
 // ── 6. Der KI-Prüfer der Academy wertet den falschen Satz als Fehler ───────
 abschnitt("Academy — der KI-Prüfer");

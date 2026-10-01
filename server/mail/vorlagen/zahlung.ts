@@ -198,18 +198,22 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
   // Justins Regel: Wer kündigt, zahlt die laufende Rate noch; damit endet der
   // Vertrag. Der Ton ist sachlich und ohne Vorwurf — und die Tür bleibt offen,
   // ohne zu drängeln (ein Gesprächsangebot, kein zweiter Verkaufsversuch).
+  // E-265 Nachbesserung 2 (01.10.2026): Vertragssatz und offene Raten kommen fertig aus EINER Rechnung
+  // (bestaetigungInhalt, server/routes/fiaon-kuendigung.ts) — Altvertrag „gilt zum Monatsende" (kein „vorzeitig …
+  // auch wenn wir es nicht müssten": § 5 UWG), Jahresvertrag Justins Kulanz; bei mehreren Raten jede mit Datum und
+  // die Summe. Vorher nannte die Mail nur die Rate letzte_rate_nr — beim Altvertrag oft eine NACH dem Vertragsende.
   kuendigung_bestaetigt: {
     betreff: "Ihre Kündigung — und was jetzt noch offen ist",
-    preheader: "Wir entlassen Sie vorzeitig aus dem Vertrag, sobald die offene Rechnung beglichen ist.",
+    preheader: "{{params.preheader_text}}",
     titel: "Wir haben Ihre Kündigung erhalten",
     marke: "Vertragspost",
     absaetze: [
-      "Guten Tag {{params.vorname}}, Ihr Vertrag ist auf zwölf Monatsraten angelegt. Wir entlassen Sie vorzeitig daraus — das machen wir gern, auch wenn wir es nicht müssten.",
-      "Zwei Dinge gehören zusammen: Ab sofort stellen wir keine weiteren Raten und legen keine neuen Rechnungen an. Offen bleibt die bereits gestellte Rechnung — <b>Rate {{params.rate_nr}} über {{params.betrag}} €</b>, fällig am {{params.faellig_am_text}}. Sobald diese Zahlung bei uns verbucht ist, ist der Vertrag beendet und wir bestätigen Ihnen das schriftlich.",
+      "Guten Tag {{params.vorname}}, {{params.vertrag_satz}}",
+      "{{params.offen_satz}}",
       "Am schnellsten geht es über die Zahlungsseite unten: dort finden Sie den QR-Code für Ihre Banking-App, alle Bankdaten und Ihren Verwendungszweck. Ist etwas schiefgelaufen oder passt der Betrag nicht zu Ihrer Erinnerung, antworten Sie einfach auf diese E-Mail — wir sehen uns Ihre Akte an, bevor irgendetwas weiterläuft.",
     ],
     daten: [
-      { label: "Offene Rechnung", wert: "Rate {{params.rate_nr}}" },
+      { label: "Offene Rechnung", wert: "{{params.raten_text}}" },
       { label: "Betrag", wert: "{{params.betrag}} €" },
       { label: "Fällig am", wert: "{{params.faellig_am_text}}" },
       { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },

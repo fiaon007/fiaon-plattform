@@ -36,6 +36,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { escapeHtml, docHash, renderDocumentPdf } from "./fiaon-html-pdf";
+// E-265 Nachbesserung 2 (01.10.2026): Vertragsart und Vertragsende aus denselben Regeln wie WhatsApp und Postfach.
+// E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag ist das Ende des Abrechnungsmonats (vertragsendeLesen).
+import { istJahresvertrag, tagDeutsch } from "@shared/fiaon-antrag-stand";
+import { vertragsendeLesen } from "./fiaon-kuendigung";
 
 export interface Unterzeichner {
   name: string;
@@ -100,11 +104,27 @@ const zeile = (k: string, w: string) =>
  * Den Rumpf der Urkunde bauen. Getrennt vom Rendern, damit die Prüfsumme über
  * GENAU den Text läuft, der gedruckt wird.
  */
-function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: Date): { html: string; titel: string } {
+export function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: Date): { html: string; titel: string } {
   const name = [a.first_name, a.last_name].filter(Boolean).join(" ").trim() || a.email || a.payment_reference || a.ref;
   const paket = a.pack_name ? String(a.pack_name).split("\n")[0] : "—";
-  const offeneRate = a.rate_nr != null;
+  // E-265 Nachbesserung 2 (01.10.2026): ALLE Raten, die er noch zahlen soll (dieselbe Liste wie WhatsApp, Postfach und
+  // Bestätigungsmail — nach kuendigungSetzen ist offen genau, was zu zahlen ist), und beim Vertrag vor dem 03.09.2026
+  // das Vertragsende zum Ende des Abrechnungsmonats statt „mit Zahlung der letzten Rate" (die Kündigung hängt nie an
+  // der Zahlung). E-265 (01.10.2026, Recht): `a.ende_tag` (YYYY-MM-DD) liefert urkundeAusfertigen aus vertragsendeLesen.
+  const altvertrag = a.altvertrag === true;
+  const endeAlt: string | null = altvertrag && a.gekuendigt_am && typeof a.ende_tag === "string" ? a.ende_tag : null;
+  const tagVon = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) : null);
+  const offene: any[] = (Array.isArray(a.offene_raten) ? a.offene_raten : (a.rate_nr != null ? [{ rate_nr: a.rate_nr, betrag_cents: a.betrag_cents, faellig_am: a.faellig_am, zahlungsreferenz: a.zahlungsreferenz }] : []))
+    // Beim Altvertrag nie eine Rate für die Zeit nach dem Vertragsende (Altbestand vor dem 01.10.).
+    .filter((r: any) => !endeAlt || !r.faellig_am || (tagVon(r.faellig_am) ?? "") <= endeAlt);
+  const offeneRate = offene.length > 0;
   const beendet = !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now();
+  const endeAltText = tagDeutsch(endeAlt);
+  // E-265 (01.10.2026, Recht): der eine Kundensatz zum Vertragsende beim Altvertrag.
+  const giltZumAlt = `Ihre Kündigung gilt zum Ende Ihres laufenden Abrechnungsmonats${endeAltText ? `, dem ${escapeHtml(endeAltText)}` : ""}`;
+  const rateText = (r: any) => `Rate ${escapeHtml(String(r.rate_nr))} über ${escapeHtml(euro(r.betrag_cents))}, fällig am ${escapeHtml(datum(r.faellig_am))}`;
+  const summe = offene.reduce((x, r) => x + Number(r.betrag_cents || 0), 0);
+  const zweck = escapeHtml(String(offene[0]?.zahlungsreferenz ?? a.payment_reference ?? ""));
 
   // ── WAS JETZT GILT ──────────────────────────────────────────────────────
   // Justins Regel aus E-092, in der Sprache des Kunden: Die laufende Rate
@@ -114,12 +134,16 @@ function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: Date): {
     ? `<p>Der Vertrag ist <strong>beendet</strong>. Es steht nichts mehr offen. Weitere Raten werden nicht mehr gestellt,
        und Sie erhalten keine Zahlungserinnerungen mehr.</p>`
     : offeneRate
-      ? `<p>Mit dieser Kündigung entfallen alle künftigen Raten. <strong>Offen bleibt die laufende Rate ${escapeHtml(String(a.rate_nr))}</strong>
-         über ${escapeHtml(euro(a.betrag_cents))}, fällig am ${escapeHtml(datum(a.faellig_am))}.
-         Mit dem Eingang dieser Zahlung endet der Vertrag endgültig; Sie erhalten darüber eine gesonderte Bestätigung.</p>
-         <p>Verwendungszweck für die Überweisung: <strong>${escapeHtml(String(a.zahlungsreferenz ?? a.payment_reference ?? ""))}</strong>.
+      ? `<p>${altvertrag
+          ? `${giltZumAlt}; Raten für die Zeit danach entfallen.`
+          : "Mit dieser Kündigung entfallen alle künftigen Raten."}
+         ${offene.length === 1
+           ? `<strong>Offen bleibt ${altvertrag ? "die bis dahin fällige" : "die fällige"} ${rateText(offene[0])}</strong> — danach ist nichts mehr zu zahlen.`
+           : `<strong>Offen bleiben ${offene.map(rateText).join(" und ")}</strong>, zusammen ${escapeHtml(euro(summe))} — danach ist nichts mehr zu zahlen.`}
+         ${altvertrag ? "" : `Mit dem Eingang ${offene.length === 1 ? "dieser Zahlung" : "dieser Zahlungen"} endet der Vertrag endgültig; Sie erhalten darüber eine gesonderte Bestätigung.`}</p>
+         <p>Verwendungszweck für die Überweisung: <strong>${zweck}</strong>.
          Bitte geben Sie ihn genau so an, damit Ihre Zahlung ohne Rückfrage zugeordnet werden kann.</p>`
-      : `<p>Mit dieser Kündigung entfallen alle künftigen Raten. Eine offene Forderung besteht nach unserem Stand nicht.</p>`;
+      : `<p>${altvertrag ? `${giltZumAlt}. ` : ""}Mit dieser Kündigung entfallen alle künftigen Raten. Eine offene Forderung besteht nach unserem Stand nicht.</p>`;
 
   const html = `
     <p>Hiermit bestätigen wir den Eingang und die Durchführung Ihrer Kündigung.</p>
@@ -131,7 +155,7 @@ function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: Date): {
       ${zeile("Leistung", escapeHtml(paket))}
       ${zeile("Kündigung eingegangen", escapeHtml(datum(a.gekuendigt_am)))}
       ${zeile("Kündigungsweg", escapeHtml(wegInWorten(a.kuendigung_quelle)))}
-      ${zeile("Vertragsende", a.vertrag_ende_am ? escapeHtml(datum(a.vertrag_ende_am)) : "mit Zahlung der letzten Rate")}
+      ${zeile("Vertragsende", endeAltText ? `zum Ende des Abrechnungsmonats (${escapeHtml(endeAltText)})` : a.vertrag_ende_am ? escapeHtml(datum(a.vertrag_ende_am)) : "mit Zahlung der letzten Rate")}
     </table>
 
     <h2>Was jetzt gilt</h2>
@@ -164,6 +188,7 @@ function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: Date): {
 function wegInWorten(quelle: unknown): string {
   switch (String(quelle ?? "")) {
     case "mail": return "schriftlich per E-Mail";
+    case "whatsapp": return "schriftlich per WhatsApp";
     case "formular": return "über das Kündigungsformular";
     case "telefon": return "im Telefongespräch";
     case "admin": return "durch die Geschäftsführung";
@@ -189,7 +214,14 @@ export async function urkundeAusfertigen(
            a.kuendigung_zurueckgenommen_am,
            a.kuendigung_pdf_base64, a.kuendigung_doc_hash, a.kuendigung_gezeichnet_von,
            a.kuendigung_gezeichnet_rolle, a.kuendigung_gezeichnet_am,
-           r.rate_nr, r.betrag_cents, r.faellig_am, r.zahlungsreferenz
+           a.agb_stand,
+           r.rate_nr, r.betrag_cents, r.faellig_am, r.zahlungsreferenz,
+           -- E-265 Nachbesserung 2: alle noch zu zahlenden Raten (bis zur letzten), älteste zuerst
+           (SELECT COALESCE(json_agg(json_build_object('rate_nr', y.rate_nr, 'betrag_cents', y.betrag_cents, 'faellig_am', y.faellig_am,
+                     'zahlungsreferenz', y.zahlungsreferenz) ORDER BY y.rate_nr), '[]'::json)
+              FROM fiaon_abo_raten y
+             WHERE y.ref = a.ref AND y.status = 'offen' AND y.storniert_am IS NULL
+               AND (a.letzte_rate_nr IS NULL OR y.rate_nr <= a.letzte_rate_nr)) AS offene_raten
       FROM fiaon_applications a
       LEFT JOIN LATERAL (
         SELECT rate_nr, betrag_cents, faellig_am, zahlungsreferenz FROM fiaon_abo_raten x
@@ -208,6 +240,9 @@ export async function urkundeAusfertigen(
   }
 
   const gezeichnetAm = new Date();
+  a.altvertrag = !istJahresvertrag(a.agb_stand);
+  // E-265 (01.10.2026, Recht): das Vertragsende beim Altvertrag — Ende des Abrechnungsmonats, dieselbe Rechnung wie überall.
+  a.ende_tag = a.altvertrag ? (await vertragsendeLesen(String(a.ref))).ende : null;
   const { html, titel } = rumpfBauen(a, unterzeichner, gezeichnetAm);
   const hash = docHash(html);
   const bodyHtml = `${html}

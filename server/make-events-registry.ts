@@ -88,7 +88,11 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     customerBound: true,
     // 18.09.2026: verwendungszweck (Knopf zur Zahlungsseite) und portal_url fehlten —
     // Galerie und Prüfversand zeigten die Mail ohne ihren Knopf (pruef-mail-knoepfe.ts).
-    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", faellig_am_text: "15.09.2026", verwendungszweck: "FIAON-A1B2C3-3", portal_url: "https://www.fiaon.com/login" },
+    // E-265 Nachbesserung 2 (01.10.2026): Vertragssatz, offene Raten und Vorzeile kommen fertig (bestaetigungInhalt).
+    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", faellig_am_text: "15.09.2026", verwendungszweck: "FIAON-A1B2C3-3", portal_url: "https://www.fiaon.com/login",
+      raten_text: "Rate 3", preheader_text: "Wir entlassen Sie vorzeitig aus dem Vertrag, sobald die offene Rechnung beglichen ist.",
+      vertrag_satz: "Ihr Vertrag ist auf zwölf Monatsraten angelegt. Wir entlassen Sie vorzeitig daraus — das machen wir gern, auch wenn wir es nicht müssten.",
+      offen_satz: "Ab sofort stellen wir keine weiteren Raten und legen keine neuen Rechnungen an. Offen bleibt die bereits gestellte Rechnung — Rate 3 über 59,99 €, fällig am 15.09.2026. Sobald diese Zahlung bei uns verbucht ist, ist der Vertrag beendet und wir bestätigen Ihnen das schriftlich." },
   },
   {
     type: "vertrag_beendet",
@@ -201,7 +205,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       email: "max.mustermann@example.com",
       vorname: "Max",
       nachname: "Mustermann",
-      agent_vorname: "Daniel",
+      agent_vorname: "Herr Stripling", // E-265: Wert = Nennform (nie der Vorname)
       termin_link: "https://www.fiaon.com/termin/7f3a…",
     },
   },
@@ -215,7 +219,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       email: "max.mustermann@example.com",
       vorname: "Max",
       nachname: "Mustermann",
-      agent_vorname: "Daniel",
+      agent_vorname: "Herr Stripling", // E-265: Wert = Nennform (nie der Vorname)
       termin_datum: "12.08.2026",
       termin_uhrzeit: "14:20",
       // ── NEU 30.08.2026: die Terminart ─────────────────────────────────
@@ -294,7 +298,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: {
       email: "max.mustermann@example.com",
       vorname: "Max",
-      agent_vorname: "Daniel",
+      agent_vorname: "Herr Stripling", // E-265: Wert = Nennform (nie der Vorname)
       termin_datum: "24.08.2026",
       termin_uhrzeit: "14:20",
       termin_link: "https://www.fiaon.com/termin/7f3a…",
@@ -354,7 +358,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: {
       email: "max.mustermann@example.com",
       vorname: "Max",
-      agent_vorname: "Daniel",
+      agent_vorname: "Herr Stripling", // E-265: Wert = Nennform (nie der Vorname)
       partner_link: "https://www.awin1.com/cread.php?awinmid=11329&awinaffid=3050049&clickref=FIAON-P12345&clickref2=A928",
       login_url: "https://www.fiaon.com/login",
     },
@@ -390,7 +394,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       email: "max.mustermann@example.com",
       vorname: "Max",
       nachname: "Mustermann",
-      agent_vorname: "Daniel",
+      agent_vorname: "Herr Stripling", // E-265: Wert = Nennform (nie der Vorname)
       termin_datum: "12.08.2026",
       termin_uhrzeit: "14:20",
       // ── NEU 30.08.2026: die Terminart ─────────────────────────────────
@@ -805,7 +809,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       firma: "Beispiel GmbH",
       telefon: "+49 30 1234567",
       paket: "Global Banking (4.999 €)",
-      agent_vorname: "Nikita Boychenko",
+      agent_vorname: "Nikita Boychenko", // E-265: ohne gepflegte Anrede der volle Name
       termin_datum: "22.09.2026",
       termin_uhrzeit: "10:30",
       termin_art: "FIAON Global – Erstgespräch",

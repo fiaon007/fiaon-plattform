@@ -225,7 +225,11 @@ import { nummerFuerWhatsApp, waKanonisch, whatsappUrteil } from "../../shared/fi
 const router = Router();
 
 /** Wer schaut — und auf wessen Gespräche darf er? */
-interface Blick { agentId: number | null; name: string; alles: boolean }
+interface Blick {
+  agentId: number | null; name: string; alles: boolean;
+  /** E-265 Nachbesserung (29.09.2026): der volle Name für „hier ist {{2}} von FIAON" — `name` bleibt die interne Marke (Vorname). */
+  vollName?: string | null;
+}
 
 /** Der Zustand eines Gesprächs: gelesen, wer sitzt dran, hört Mara mit. */
 let gespraechBereit: Promise<void> | null = null;
@@ -589,7 +593,7 @@ function routen(hole: (req: any) => Blick) {
       const erg = await waSenden(
         nummer,
         vorlage ? { vorlage, werte: Array.isArray(req.body?.werte) ? req.body.werte.map(String) : undefined, knopfWert: req.body?.knopfWert ? String(req.body.knopfWert) : undefined } : { text },
-        { personId: w?.person_id ?? null, leadId: w?.lead_id ?? null, von: blick.name },
+        { personId: w?.person_id ?? null, leadId: w?.lead_id ?? null, von: blick.name, absender: blick.vollName ?? null },
       );
       if (!erg.ok) return res.status(422).json({ ok: false, error: erg.grund });
 
@@ -718,7 +722,7 @@ function routen(hole: (req: any) => Blick) {
       }
       const erg = await waSenden(
         nummer, { vorlage, werte: Array.isArray(req.body?.werte) ? req.body.werte.map(String) : undefined },
-        { personId, leadId, von: blick.name },
+        { personId, leadId, von: blick.name, absender: blick.vollName ?? null },
       );
       if (!erg.ok) return res.status(422).json({ ok: false, error: erg.grund });
       await sqlPool`
@@ -883,6 +887,7 @@ function routen(hole: (req: any) => Blick) {
 router.use("/agent/whatsapp", requireAgent, routen((req: AgentRequest) => ({
   agentId: req.agent?.id ?? null,
   name: req.agent?.first_name || req.agent?.name || "Mitarbeiter",
+  vollName: req.agent?.name || null, // fiaon_agents.name = „Vorname Nachname"
   alles: req.agent?.rolle === "vertriebsleiter",
 })));
 

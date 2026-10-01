@@ -37,8 +37,11 @@ import {
 import { auskunftArtFuer } from "./fiaon-postmeister-dossier";
 import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fiaon-auskunft";
 import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN, ANGEBOT_SEGMENTE, ANGEBOT_BETREFF_VARIANTEN } from "../mail/vorlagen/auskunft-verkauf";
-import { zeitFuerKunde } from "@shared/fiaon-mara-ton";
+import { zeitFuerKunde, bausteinKuendigung, kuendigungRatenAufteilen, abstreitenArt } from "@shared/fiaon-mara-ton";
+// E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen).
+import { giltZumSatz, tagDeutsch } from "@shared/fiaon-antrag-stand";
 import { abwesenheitJetzt, vertretungFuerPerson, istAbwesend, anruferFuer, freiePlaetzeVertreter, bisText } from "./fiaon-abwesenheit";
+import { nennform } from "@shared/fiaon-mitarbeiter-name";
 import { antragAbgeschickt } from "@shared/fiaon-antrag-stand";
 
 export type Stufe = "frei" | "bestaetigen";
@@ -90,15 +93,16 @@ export interface WerkzeugKontext {
  * Beginn nicht länger als 20 Minuten vorbei. Die Zeit so, wie der Kunde sie liest.
  */
 export async function bestehenderTermin(personId: number): Promise<{ id: number; beginn: string; vorname: string | null; kundenText: string } | null> {
+  // E-265 (29.09.2026): `vorname` trägt die NENNFORM („Herr Stripling") — der Kunde liest sie so.
   const [t] = (await sqlPool`
-    SELECT t.id, t.agent_id, t.beginn, COALESCE(NULLIF(a.first_name, ''), split_part(COALESCE(a.name, ''), ' ', 1)) AS vorname
+    SELECT t.id, t.agent_id, t.beginn, a.name, a.first_name, a.last_name, a.anrede
       FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
      WHERE t.person_id = ${personId} AND t.status = 'gebucht' AND t.beginn > NOW() - INTERVAL '20 minutes'
      ORDER BY t.beginn LIMIT 1`.catch(() => [])) as any[];
   if (!t) return null;
   const b = new Date(t.beginn);
   // E-260: Liegt der Termin bei einem Abwesenden, nennt Mara den, der wirklich anruft (B2).
-  const vorname = t.vorname ? await anruferFuer(Number(t.agent_id), b, String(t.vorname)) : null;
+  const vorname = t.name || t.first_name ? await anruferFuer(Number(t.agent_id), b, nennform(t).nom) : null;
   return { id: Number(t.id), beginn: b.toISOString(), vorname, kundenText: zeitFuerKunde(b) };
 }
 
@@ -247,7 +251,8 @@ async function zustaendig(personId: number | null): Promise<{ id: number | null;
   // des Betreibers, und der Kunde liest den Namen dessen, der wirklich anruft.
   const ab = await abwesenheitJetzt().catch(() => null);
   if (ab && (personId ? await vertretungFuerPerson(personId).catch(() => null) : ab)) {
-    return { id: null, name: `${ab.vertreter.vorname} (Vertretung)`, kundenName: ab.vertreter.name, vertretung: true };
+    // E-265: der Kunde liest die Nennform des Vertreters („Justin Schwarzott", mit Anrede „Herr Schwarzott").
+    return { id: null, name: `${ab.vertreter.vorname} (Vertretung)`, kundenName: ab.vertreter.anrufName, vertretung: true };
   }
   const { auftragEmpfaenger } = await import("../routes/fiaon-betreiber-todo");
   const wer = await auftragEmpfaenger(personId);
@@ -425,7 +430,8 @@ export const aufgabeAnBetreuer: Werkzeug = {
       anBetreiber: zahlungGewollt || zielAbwesend,
     });
     const wer = zielAbwesend ? `${abw!.vertreter.vorname} (Vertretung bis ${bisText(abw!.bis)})` : erg.agentName ?? "die Leitung";
-    const werKunde = zielAbwesend ? abw!.vertreter.name : erg.kundenName ?? erg.agentName ?? "unsere Leitung";
+    // E-265: Nennform — nie der Vorname (erg.kundenName ist schon „Herr Stripling", E-117).
+    const werKunde = zielAbwesend ? abw!.vertreter.anrufName : erg.kundenName ?? erg.agentName ?? "unsere Leitung";
     await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titelMitName}" (fällig ${faelligAm}).${zahlungGemeldet} ${text.slice(0, 300)}`);
     const wann = tage === 0 ? "heute" : tage === 1 ? "morgen" : `in ${tage} Tagen`;
     // ── RÜCKRUF ALS TERMIN IM KALENDER (Florentine Punkt 3) ───────────────
@@ -455,7 +461,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
           .filter((x) => x.d >= -10 * 60_000 && x.d <= 20 * 60_000)
           .sort((a, b) => Math.abs(a.d) - Math.abs(b.d) || b.d - a.d)[0]?.s ?? null;
         if (!platz) {
-          terminSatz = ` (Zur Wunschzeit ${rueckrufAm} ist ${abw!.vertreter.vorname} nicht frei — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit, ${abw!.vertreter.name} meldet sich.)`;
+          terminSatz = ` (Zur Wunschzeit ${rueckrufAm} ist ${abw!.vertreter.anrufName} nicht frei — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit, ${abw!.vertreter.anrufName} meldet sich.)`;
         } else {
           const { terminBuchen } = await import("./fiaon-termine");
           const b = await terminBuchen({ personId: k.personId, agentId: abw!.vertreter.id, beginn: platz.beginn, quelle: "agent_manuell", herkunft: "mara_mail" });
@@ -483,7 +489,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
         gebuchtText = zeitFuerKunde(new Date(b.beginn));
         terminSatz = erg.agentId
           ? ` Der Rückruf steht im Kalender: ${gebuchtText}.`
-          : ` Der Rückruf steht im Kalender: ${gebuchtText} ruft ${vtPerson!.betreuer!.vorname} an.`;
+          : ` Der Rückruf steht im Kalender: ${gebuchtText} ruft ${vtPerson!.betreuer!.nenn.nom} an.`;
         await protokoll(k, "aufgabe_an_betreuer", `Rückruf-Termin ${b.datumText} ${b.uhrzeit} Uhr für ${erg.agentId ? wer : vtPerson!.betreuer!.name} eingetragen.`);
       } catch (e: any) {
         terminSatz = ` (Rückruf-Termin konnte nicht eingetragen werden: ${String(e?.message || e).slice(0, 100)} — die Aufgabe steht trotzdem; nenne dem Kunden keine Uhrzeit.)`;
@@ -1083,7 +1089,15 @@ export const kuendigungVormerken: Werkzeug = {
     const eigen = k.kundeText != null ? String(k.kundeText) : null;
     const pruefText = eigen == null ? zitat : saetzeZumZitat(zitat, eigen);
     const unbezahlt = k.kundenlage === "unbezahlt" || k.kundenlage === "interessent" || k.kundenlage === "gesperrt";
-    let wille = !!pruefText && kuendigungsWille(pruefText, { unbezahlt, formlos: !!k.formlosKuendbar, istWillenserklaerung });
+    // E-265 Nachbesserung 2 (01.10.2026, E-264): Bestreiten oder falsche Nummer IRGENDWO in seiner Mail — nie eine
+    // Kündigung und nie ein Storno, auch mit Stornobitte daneben; die Leitung übernimmt.
+    const bestritten = bestreitetKuendigung(eigen ?? zitat, abstreitenArt);
+    if (bestritten) {
+      return { ok: false, ergebnis: "", fehler: `Er bestreitet den Vertrag oder schreibt von einer falschen Nummer („${bestritten}") — NICHTS ist gebucht, und es wird nichts gebucht (E-264). Bestätige keine Kündigung und kein Storno; die Leitung übernimmt.` };
+    }
+    let wille = !!pruefText && kuendigungsWille(pruefText, { unbezahlt, formlos: !!k.formlosKuendbar, istWillenserklaerung })
+      // Nachbesserung 2: Eine Rücknahme irgendwo in seiner Mail („… ich nehme das zurück") — nie gebucht.
+      && !(eigen && kuendigungRuecknahme(eigen));
     // Ein kurzes „Ja" auf UNSERE Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt
     // kündige? Ein kurzes Ja genügt.") ist die Erklärung — sonst Kündigungsschleife.
     if (!wille && eigen && k.personId && eigen.trim().length <= 90) {
@@ -1144,21 +1158,46 @@ export const kuendigungVormerken: Werkzeug = {
     // offen, obwohl storniert und beendet). Das ist ein Datenfehler, keine
     // Forderung: Er geht als Prüffall an die Leitung, nie in die Kundenmail.
     let beendet = false;
+    const [stand] = (await sqlPool`
+      SELECT payment_status, (vertrag_ende_am IS NOT NULL AND vertrag_ende_am <= NOW()) AS vorbei, gekuendigt_am
+        FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
     if (weg === "bereits") {
-      const [b] = (await sqlPool`
-        SELECT payment_status, (vertrag_ende_am IS NOT NULL AND vertrag_ende_am <= NOW()) AS vorbei
-          FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
-      beendet = !!b && (["cancelled", "canceled", "storniert", "refunded"].includes(String(b.payment_status)) || b.vorbei === true);
+      beendet = !!stand && (["cancelled", "canceled", "storniert", "refunded"].includes(String(stand.payment_status)) || stand.vorbei === true);
     }
     const offene = (["letzte_rate", "bereits"].includes(weg)
       ? await sqlPool`
-          SELECT rate_nr, betrag_cents, to_char(faellig_am, 'DD.MM.YYYY') AS faellig
+          SELECT rate_nr, betrag_cents, to_char(faellig_am, 'DD.MM.YYYY') AS faellig, to_char(faellig_am, 'YYYY-MM-DD') AS faellig_iso
             FROM fiaon_abo_raten
            WHERE ref = ${k.ref} AND storniert_am IS NULL AND status = 'offen'
            ORDER BY rate_nr ASC`.catch(() => null)
       : []) as any[] | null;
+    // ── E-265 Nachbesserung (29.09.2026, Recht): VERTRAG VOR DEM 03.09.2026 ENDET ZUM ENDE DES ABRECHNUNGSMONATS ──
+    // Die Raten sind monatlich im Voraus fällig (AGB § 5 Abs. 3), der Altvertrag ist mit 24 Stunden Frist zum Ende des
+    // Abrechnungsmonats kündbar (Fassung 04.07.2026 § 6; E-265 (01.10.2026): Fälligkeit zu Fälligkeit, vertragsendeLesen)
+    // — eine Rate, die erst NACH dem Vertragsende fällig wird, ist für die Zeit danach und wird nie verlangt (vorher:
+    // „gilt zum Monatsende. Ihre offene Rate vom 12.10. … zahlen Sie bitte noch"). Sie bleibt im System offen, bis
+    // Justin entscheidet (Geldentscheidung) — Prüffall an den Betreiber, nie in der Kundenmail.
+    // Nachbesserung Recht (01.10.2026, Gegenprüfung M2): immer die EINE Lesestelle — nie die rohe Spalte vertrag_ende_am
+    // (Altdaten mit Zahltag statt Ende des Abrechnungsmonats).
+    const endeTag: string | null = k.formlosKuendbar
+      ? (await (await import("./fiaon-kuendigung")).vertragsendeLesen(k.ref)).ende
+      : null;
+    const { zuZahlen: offenBisEnde, nachEnde } = kuendigungRatenAufteilen(
+      (offene ?? []).map((r) => ({ ...r, faellig: r.faellig_iso ?? null })),
+      { jahresvertrag: !k.formlosKuendbar, vertragsEnde: endeTag },
+    );
+    if (!beendet && nachEnde.length) {
+      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      await auftragFuerKunden({
+        personId: k.personId, ref: k.ref, anBetreiber: true, quelle: "postmeister", autorName: "Mara",
+        titel: `Entscheidung: Rate nach Vertragsende (${k.ref})`.slice(0, 160),
+        text: `Altvertrag (vor dem 03.09.2026), per E-Mail zum Ende des Abrechnungsmonats (${tagDeutsch(endeTag) ?? "?"}) gekündigt. Diese Rate(n) sind erst NACH dem Vertragsende fällig und bleiben im System offen: `
+          + `${nachEnde.map((r: any) => `Rate ${r.rate_nr} über ${rateEuro(Number(r.betrag_cents))}, fällig ${r.faellig_iso ? `${r.faellig_iso.slice(8, 10)}.${r.faellig_iso.slice(5, 7)}.${r.faellig_iso.slice(0, 4)}` : "?"}`).join("; ")}. Mara hat sie dem Kunden NICHT genannt und nicht „danach kommt nichts mehr" geschrieben. Bitte stornieren (Altbestand vor der Nachbesserung 01.10.; neue Kündigungen storniert kuendigungSetzen selbst) — sonst mahnt die Dauermahnung sie ab Fälligkeit.`,
+        schluessel: `postmeister:kuendigung-nach-ende:${k.ref}`,
+      }).catch((e) => console.error("[POSTMEISTER] Prüffall Rate nach Vertragsende:", String(e).slice(0, 160)));
+    }
     const gelesen: OffeneRate[] | null = offene
-      ? offene.map((r) => ({ nr: Number(r.rate_nr), cents: Number(r.betrag_cents), faellig: r.faellig ?? null }))
+      ? offenBisEnde.map((r: any) => ({ nr: Number(r.rate_nr), cents: Number(r.betrag_cents), faellig: r.faellig_iso ? `${r.faellig_iso.slice(8, 10)}.${r.faellig_iso.slice(5, 7)}.${r.faellig_iso.slice(0, 4)}` : null }))
       : null;
     if (beendet && gelesen && echteOffeneRaten(gelesen).length) {
       const wider = echteOffeneRaten(gelesen);
@@ -1172,10 +1211,28 @@ export const kuendigungVormerken: Werkzeug = {
       }).catch((e) => console.error("[POSTMEISTER] Prüffall Raten:", String(e).slice(0, 160)));
     }
     const raten: OffeneRate[] | null = beendet ? [] : gelesen;
-    const t = fester ?? kuendigungSatz(weg, raten, { beendet });
+    const t = fester ?? kuendigungSatz(weg, raten, { beendet, formlos: !!k.formlosKuendbar, endeTag });
     const echte = raten ? echteOffeneRaten(raten) : [];
     const letzte = echte.length ? echte[echte.length - 1] : null;
     await protokoll(k, "kuendigung_vormerken", `Kündigung per E-Mail entgegengenommen. ${t}`, !schonVermerkt);
+    // ── E-265 (29.09.2026, Justin: „NEIN, bezahlen Sie Ihre Rate, dann lasse ich Sie aus Kulanz gerne aus dem
+    // Vertrag!!!") — der Satz für den Kunden, je Vertragsart: Jahresvertrag mit Kulanz, Altvertrag (vor dem
+    // 03.09.2026, monatlich kündbar) OHNE „Kulanz" (§ 5 UWG). Die Kündigung selbst ist gebucht (§ 312k BGB).
+    const heuteText = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" }).format(new Date());
+    // E-265 Nachbesserung (29.09.2026): auch bei mehreren Raten ein fertiger Satz (alle mit Datum und Summe, ohne
+    // „danach kommt nichts mehr"); „bereits" + beendet nie „heute eingegangen" (Regression r9.mts — vorher wurde der
+    // Weg zu „sofort_beendet" umgebogen: „Ihre Kündigung ist heute … eingegangen", für 174 längst beendete Verträge).
+    const soSchreiben = bausteinKuendigung({
+      kanal: "mail", weg, beendet: weg === "bereits" && beendet, jahresvertrag: !k.formlosKuendbar, heute: `${heuteText}.`.replace(/\.\.$/, "."),
+      raten: echte.map((r) => ({ vom: r.faellig ? String(r.faellig).slice(0, 6) : null, betrag: rateEuro(r.cents), cents: r.cents })),
+      bestaetigung: !!(erg as any).mailGesendet,
+      // Stopp, Widerruf, Beschwerde, „kann nicht zahlen" … (zahlungsRuhe): nur der Stand, keine Zahlungsbitte.
+      ohneZahlung: !!k.ruhe,
+      // E-265 Nachbesserung 2 (01.10.2026): „danach kommt nichts mehr" nur, wenn nach diesen Raten nichts mehr offen ist.
+      nichtsMehr: !(!beendet && nachEnde.length), nachEnde: !beendet && nachEnde.length > 0,
+      // E-265 (01.10.2026, Recht): „… gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>".
+      giltZum: endeTag,
+    });
     return {
       ok: true, ergebnis: t,
       daten: {
@@ -1191,6 +1248,10 @@ export const kuendigungVormerken: Werkzeug = {
         // E-248 (E-213): Was das Haus selbst verschickt hat — nur dann kündigt Mara die Bestätigung an.
         urkunde: !!(erg as any).urkunde,
         bestaetigung_gesendet: !!(erg as any).mailGesendet,
+        // E-265: Justins Satz für diese Kündigung (Jahresvertrag: Kulanz; Altvertrag: gilt zum Ende des Abrechnungsmonats) — genau so schreiben.
+        ...(soSchreiben ? { so_schreiben: soSchreiben, vertrag: k.formlosKuendbar ? `vor dem 03.09.2026 (kündbar zum Ende des Abrechnungsmonats${tagDeutsch(endeTag) ? `, dem ${tagDeutsch(endeTag)}` : ""} — KEIN „Kulanz“)` : "Jahresvertrag (Kulanz-Satz)" } : {}),
+        // E-265 (01.10.2026, Recht): das Vertragsende beim Altvertrag (TT.MM.JJJJ) — für die Prüfung und das Modell.
+        ...(endeTag ? { gilt_zum: tagDeutsch(endeTag) } : {}),
       },
     };
   },
@@ -1245,10 +1306,22 @@ const WILLE_KLAR: RegExp[] = [
 /** Ein Wort zwischen Verneinung und Kündigungswort — nie über ein Komma oder ein „und/aber" hinweg. */
 const W = String.raw`(?:(?!(?:und|aber|sondern|deshalb|daher|darum|also|weil|denn|ich|and|but)\b)[^\s,;:.!?]+)`;
 const KWORT = String.raw`\S*(?:k(?:ü|ue)ndig|stornier|beend|wi(?:e)?der(?:r)?uf|aufl(?:ö|oe)s|aufheb|cancel)`;
+/**
+ * E-265 Nachbesserung 2 (01.10.2026, Gegenprobe g2 K19/K20/K45/K49): auch umgangssprachlich und vertippt —
+ * „nich", „net", „ned", „nciht", „nihct", „nicth", „niht". Vorher galt „Ich kündige nich. Ich zahle am Freitag."
+ * als Erklärung und wurde gebucht.
+ */
+const NICHT = String.raw`(?:nicht|nich|net|ned|nciht|nihct|nicth|niht|nichts)`;
+/** Ein Wort zwischen Verb und Verneinung — „Kündige ich halt nicht" ja, über „weil/denn/und/aber/wenn/dass" nie
+ * („Ich kündige weil ich nicht zufrieden bin" ist eine Kündigung). */
+const W_NACH = String.raw`(?:(?!(?:und|aber|sondern|deshalb|daher|darum|also|weil|denn|wenn|dass|da|obwohl|and|but|because)\b)[^\s,;:.!?]+)`;
 /** „nicht kündigen", „auf keinen Fall kündigen", „nicht vor, den Vertrag zu kündigen" — „nicht mehr"/„kein Interesse" sind KEINE Verneinung des Kündigens. */
-const VERNEINT_VOR = new RegExp(String.raw`\b(?:nicht(?!\s+mehr\b)|kein(?:e[nmrs]?)?(?!\s+(?:interesse|bedarf|lust|geld|mehr)\b)|nie(?:mals)?|keinesfalls|auf\s+keinen\s+fall)\b(?:\s+${W}){0,4}?\s+${KWORT}`, "i");
-/** „ich kündige nicht", „storniere das bitte nicht" */
-const VERNEINT_NACH = /\b(?:k(?:ü|ue)ndige|storniere|beende|widerrufe|l(?:ö|oe)se)\b(?:\s+[^\s,;:.!?]+){0,3}?\s+(?:nicht(?!\s+mehr\b)|keinesfalls|niemals|nie)\b/i;
+const VERNEINT_VOR = new RegExp(String.raw`\b(?:${NICHT}(?!\s+mehr\b)|kein(?:e[nmrs]?)?(?!\s+(?:interesse|bedarf|lust|geld|mehr)\b)|nie(?:mals)?|keinesfalls|auf\s+keinen\s+fall)\b(?:\s+${W}){0,4}?\s+${KWORT}`, "i");
+/**
+ * „ich kündige nicht", „storniere das bitte nicht" — und (Nachbesserung 2, Gegenprobe K31/K32) die Sie-Form:
+ * „Bitte kündigen Sie nicht meinen Vertrag", „Bitte stornieren Sie das nicht, ich zahle morgen".
+ */
+const VERNEINT_NACH = new RegExp(String.raw`\b(?:k(?:ü|ue)ndig(?:e|en|t)|stornier(?:e|en|t)|beend(?:e|en|et)|wi(?:e)?der(?:r)?uf(?:e|en|t)|l(?:ö|oe)s(?:e|en|t))\b(?:\s+${W_NACH}){0,3}?\s+(?:${NICHT}(?!\s+mehr\b)|keinesfalls|niemals|nie)\b`, "i");
 const VERNEINT_EN = /\b(?:don'?t|do\s+not|won'?t|will\s+not|not)\s+(?:\w+\s+){0,2}?cancel/i;
 /** Bedingung oder Vorbehalt im selben Satz: „bevor", „sonst", „wenn … nicht klappt". */
 const BEDINGUNG = /\b(?:bevor|sonst|ansonsten|wenn|falls|sofern|solange|au(?:ß|ss)er\s+wenn|es\s+sei\s+denn|unless|before|otherwise)\b/i;
@@ -1262,9 +1335,51 @@ function beendenAllein(s: string): boolean {
     && !/(?:k(?:ü|ue)ndig|stornier|wi(?:e)?der(?:r)?uf|aufl(?:ö|oe)s|nicht\s+mehr|kein\s+interesse|abbrech|zur(?:ü|ue)cktret|l(?:ö|oe)sch|verzicht|cancel|nein\s+danke)/i.test(s)
     && !/\b(?:vertrag\w*|abo|abonnement|mitgliedschaft|zusammenarbeit)\b/i.test(s);
 }
+/**
+ * E-265 Nachbesserung 2 (01.10.2026, Gegenprobe g2 K11/K12/K33–K35, g2b): Er nimmt die Kündigung ZURÜCK —
+ * „Kündigung zurücknehmen", „Ich möchte meine Kündigung widerrufen", „Bitte stornieren Sie meine Kündigung",
+ * „… rückgängig machen", „Nein doch nicht", „Ach nee, lass mal", „War ein Scherz", „Hat sich erledigt",
+ * „Ich nehme das zurück", „Vergessen Sie es". Irgendwo in seinen offenen Nachrichten → nie eine Buchung; vorher
+ * las der Wille nur bis zum ersten klaren Satz („Ich kündige! ⏎ War ein Scherz" wurde gebucht).
+ * „Ich bleibe bei meiner Kündigung" ist KEINE Rücknahme (istWillenserklaerung).
+ */
+const RUECKNAHME = new RegExp([
+  String.raw`\bdoch\s+${NICHT}\b`, String.raw`\blass(?:en\s+sie)?\s+(?:es\s+|das\s+)?mal\b`, String.raw`\bvergessen\s+sie\s+(?:es|das|meine\s+(?:nachricht|kündigung|kuendigung))\b`,
+  String.raw`\bscherz\b`, String.raw`\bhat\s+sich\s+erledigt\b`, String.raw`\b(?:nehme|ziehe)\s+(?:ich\s+)?(?:das|es|die\s+k(?:ü|ue)ndigung|meine\s+k(?:ü|ue)ndigung)?\s*zur(?:ü|ue)ck\b`,
+  String.raw`\bzur(?:ü|ue)ck(?:nehmen|ziehen|genommen|gezogen)\b`, String.raw`\br(?:ü|ue)ckg(?:ä|ae)ngig\b`,
+  String.raw`\bk(?:ü|ue)ndigung\b(?:\s+[^\s,;:.!?]+){0,3}?\s+(?:wi(?:e)?der(?:r)?ruf\w*|wi(?:e)?der(?:r)?uf\w*|stornier\w*|annullier\w*|aufheben|aufgehoben)\b`,
+  String.raw`\b(?:wi(?:e)?der(?:r)?uf\w*|stornier\w*|annullier\w*|aufheben|ignorieren)\s+(?:sie\s+)?(?:bitte\s+)?(?:\S+\s+){0,2}?(?:meine|die|diese)\s+k(?:ü|ue)ndigung\b`,
+  String.raw`\bich\s+bleibe\b(?!\s+(?:bei|auf)\s+(?:meiner|der)\s+k(?:ü|ue)ndigung)`, String.raw`\bbleibe\s+(?:doch\s+)?(?:kunde|bei\s+ihnen|bei\s+euch|dabei)\b`,
+  String.raw`\bdoch\s+(?:weiter|bleiben|behalten)\b`, String.raw`\bk(?:ü|ue)ndigen\s+sie\s+(?:\S+\s+){0,3}?${NICHT}\b`,
+  String.raw`\b(?:never\s+mind|forget\s+it|just\s+kidding|take\s+(?:it|that)\s+back|withdraw\s+my\s+cancellation)\b`,
+].join("|"), "i");
+/** Nimmt er irgendwo in diesem Text eine Kündigung zurück? Rein (WhatsApp und Postfach lesen dieselbe Regel). */
+export function kuendigungRuecknahme(text: string): string | null {
+  return String(text ?? "").match(RUECKNAHME)?.[0] ?? null;
+}
+/**
+ * E-265 Nachbesserung 2 (01.10.2026, Gegenprobe g5b, E-264): Bestreiten oder falsche Nummer IRGENDWO im Text —
+ * dann nie eine Kündigung und nie ein Storno, auch wenn eine Stornobitte dabeisteht („Falsche Nummer, bitte
+ * stornieren", „Ich bin nicht die Person. Bitte kündigen Sie das.", „Das war mein Sohn … Bitte stornieren Sie
+ * alles.", „Ich habe das nicht bestellt."). Die Leitung übernimmt (E-264). Rein; `abstreiten` ist abstreitenArt.
+ */
+const FREMD_ODER_BESTRITTEN = /\bfalsche?n?\s+(?:nummer|person|empf(?:ä|ae)nger)\b|\bnicht\s+(?:die|der|diese|dieser)\s+(?:person|richtige|kunde|kundin)\b|\bbin\s+(?:ich\s+)?nicht\s+(?:\S+\s+){0,2}?(?:kunde|kundin|person)\b|\bhab\w*\s+(?:(?:das|ich|es|hier|da|so|bei\s+ihnen|bei\s+euch)\s+)*(?:nicht|nie|nichts|niemals|nix)\s+(?:\S+\s+){0,2}?(?:bestellt|beantragt|unterschrieben|abgeschlossen)\b|\b(?:nie|nichts|nix)\s+(?:etwas\s+|was\s+)?(?:bestellt|beantragt|abgeschlossen)\b|\bkenne\s+(?:ich|sie|euch)\s+nicht\b|\bwrong\s+number\b/i;
+export function bestreitetKuendigung(text: string, abstreiten?: (t: string) => { art?: string } | null | undefined): string | null {
+  const t = String(text ?? "");
+  // Nur Bestreiten und falsche Nummer — „Wer sind Sie?", eine Datenfrage, Wut oder „in Ruhe lassen" sind kein Bestreiten.
+  const ab = abstreiten ? abstreiten(t) : null;
+  if (ab && (ab.art === "bestreitet" || ab.art === "falsche_nummer")) return ab.art;
+  const m = t.match(FREMD_ODER_BESTRITTEN);
+  if (m) return m[0];
+  // Jemand anderes (Sohn, Mann …) — im GANZEN Text, nicht nur im Kündigungssatz.
+  if (DRITTE.test(t)) return "dritte person";
+  return null;
+}
+
 /** Ein Satz, der nie als Kündigung gelten darf. Rein, im Prüfstand geprüft. */
 export function keinKuendigungsSatz(s: string): string | null {
   if (VERNEINT_VOR.test(s) || VERNEINT_NACH.test(s) || VERNEINT_EN.test(s)) return "verneint";
+  if (RUECKNAHME.test(s)) return "zurückgenommen";
   if (BEDINGUNG.test(s)) return "bedingung";
   if (DRITTE.test(s)) return "dritte person";
   if (FREMDER_VERTRAG.test(s)) return "fremder vertrag";
@@ -1301,6 +1416,9 @@ export function kuendigungsWille(text: string, opt: {
 }): boolean {
   const t = String(text || "").replace(/\s+/g, " ").trim();
   if (!t) return false;
+  // E-265 Nachbesserung 2 (01.10.2026): Eine Rücknahme IRGENDWO im Text („Ich kündige! ⏎ War ein Scherz") — dann
+  // ist der ganze Text keine Erklärung, auch wenn ein früherer Satz klar war (vorher endete die Prüfung dort).
+  if (kuendigungRuecknahme(t)) return false;
   const saetze = t.split(/(?<=[.!;\n])\s+|(?<=\?)\s*/).map((s) => s.trim()).filter(Boolean);
   for (const s of saetze) {
     if (keinKuendigungsSatz(s)) continue;
@@ -1352,9 +1470,14 @@ const echteOffeneRaten = (raten: OffeneRate[]) =>
  * Die Raten konnten nicht gelesen werden — dann steht dort nur der Stand der
  * Kündigung, keine Zahl.
  */
-export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { beendet?: boolean } = {}): string {
+export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { beendet?: boolean; formlos?: boolean; endeTag?: string | null } = {}): string {
   if (weg === "storno_unbezahlt") return "Die Bestellung wurde storniert; es bleibt nichts offen.";
-  if (weg === "sofort_beendet") return "Alle Raten sind bezahlt — der Vertrag ist beendet.";
+  // E-265 (01.10.2026, Recht): Altvertrag — „gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>" (giltZumSatz).
+  const giltZum = giltZumSatz(opt.endeTag);
+  // E-265 Nachbesserung 2 (01.10.2026): Altvertrag — die Kündigung gilt zum Ende des Abrechnungsmonats; Raten danach entfallen mit ihr.
+  if (weg === "sofort_beendet") return opt.formlos
+    ? `Die Kündigung ist vermerkt und ${giltZum}; es ist keine Rate mehr offen (Raten für die Zeit danach entfallen).`
+    : "Alle fälligen Raten sind bezahlt — der Vertrag ist beendet.";
   if (weg === "kulanz_sofort") return "Der Vertrag ist beendet; offene Raten entfallen.";
   // Storniert oder beendet: nie ein Betrag, auch wenn die Daten eine Rate zeigen (E-244).
   if (weg === "bereits" && opt.beendet) return "Die Kündigung lag bereits vor; der Vertrag ist beendet.";
@@ -1364,11 +1487,13 @@ export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { b
   if (!echte.length) return `${kopf} Es ist keine Rate mehr offen.`;
   if (echte.length === 1) {
     const r = echte[0];
-    return `${kopf} Offen bleibt Rate ${r.nr} über ${rateEuro(r.cents)}${r.faellig ? ` (fällig ${r.faellig})` : ""}; mit dieser Zahlung endet der Vertrag.`;
+    // E-265 Nachbesserung (29.09.2026, Recht): Beim Vertrag vor dem 03.09.2026 endet der Vertrag zum Ende des
+    // Abrechnungsmonats — nie „mit dieser Zahlung endet der Vertrag" (die Beendigung hängt nie an der Zahlung, § 312k BGB).
+    return `${kopf} Offen bleibt Rate ${r.nr} über ${rateEuro(r.cents)}${r.faellig ? ` (fällig ${r.faellig})` : ""}; ${opt.formlos ? `sie bleibt zu zahlen, die Kündigung ${giltZum}.` : "mit dieser Zahlung endet der Vertrag."}`;
   }
   const liste = echte.map((r) => `Rate ${r.nr} über ${rateEuro(r.cents)}`);
   const summe = echte.reduce((s, r) => s + r.cents, 0);
-  return `${kopf} Offen bleiben ${liste.slice(0, -1).join(", ")} und ${liste[liste.length - 1]}, zusammen ${rateEuro(summe)}; mit diesen Zahlungen endet der Vertrag.`;
+  return `${kopf} Offen bleiben ${liste.slice(0, -1).join(", ")} und ${liste[liste.length - 1]}, zusammen ${rateEuro(summe)}; ${opt.formlos ? `sie bleiben zu zahlen, die Kündigung ${giltZum}.` : "mit diesen Zahlungen endet der Vertrag."}`;
 }
 
 /** WERBESPERRE — nur auf ausdrücklichen Wunsch, mit Zitat. */
@@ -1438,6 +1563,15 @@ export const zahlungslinkBauen: Werkzeug = {
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keinen offenen Auftrag." };
     if (z.status === "paid") return { ok: false, ergebnis: "", fehler: "Diese Rechnung ist bereits bezahlt — sag das dem Kunden, statt zu einer Zahlung aufzufordern." };
+    // E-265 Schluss-Nachbesserung (01.10.2026): Eine stornierte Rate wird nie verlangt (vorher baute das Werkzeug auch ihre Seite).
+    if (z.status === "cancelled") return { ok: false, ergebnis: "", fehler: "Diese Rate ist storniert — sie wird nicht verlangt. Keine Zahlungsaufforderung, kein Betrag dazu." };
+    // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M3): Altvertrag gekündigt, die Rate ist erst NACH dem Vertragsende
+    // fällig (#5779: gekündigt 06.09., Rate 3 fällig 06.10.) — nie verlangt, also keine Zahlungsseite und nie „letzte Rate".
+    if (z.art === "rate") {
+      const { rateNachVertragsende } = await import("./fiaon-kuendigung");
+      const nach = await rateNachVertragsende(ref).catch(() => null);
+      if (nach) return { ok: false, ergebnis: "", fehler: `Rate ${nach.nr} ist erst am ${nach.faellig} fällig — NACH dem Vertragsende (seine Kündigung gilt zum ${nach.ende}, Vertrag vor dem 03.09.2026). Sie wird nie verlangt: keine Zahlungsseite, kein Betrag, nie „letzte Rate“. Sag ihm, dass seine Kündigung zum ${nach.ende} gilt — unabhängig von jeder Zahlung — und dass für die Zeit danach nichts verlangt wird.` };
+    }
     // E-248 (#5500): Eine Zahlungsseite „über null €" hilft niemandem.
     if (!(Number(z.amountDue) > 0)) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung ist noch kein Betrag hinterlegt — keine Zahlungsaufforderung, keinen Betrag nennen; der Betreuer trägt Paket und Betrag nach (aufgabe_an_betreuer)." };
     // E-248: In einer Antwort auf Stopp, Widerruf, Beschwerde, Bestreiten … keine Zahlungsseite.

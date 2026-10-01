@@ -46,7 +46,10 @@ import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 import { wissenFakten } from "@shared/fiaon-wissen";
 // E-248: EINE Quelle für Maras Stimme, ihre Links und ihre Verkaufssätze — Mail und WhatsApp.
 import {
-  personaText, tonPruefung, linkPruefung, stufeAusAntrag, codeLink, bausteinKreditFrage, bausteinSicher, stornoUngefragt,
+  personaText, tonPruefung, linkPruefung, stufeAusAntrag, codeLink, bausteinKreditFrage, bausteinSicher, stornoUngefragt, vertragPerMail,
+  mailAbschlussPflicht, mailWeichBefunde, kenntUns,
+  // E-265 (29.09.2026): Justins Abschluss
+  bausteinAbschluss, type AbschlussArt,
   AUSSICHT_SAETZE, MARA_PERSONA, type LinkLage,
   // E-264: „Hab nix beantragt" — Erkennung und die feste Antwort, dieselbe wie auf WhatsApp.
   abstreitenArt, istLoeschwunsch, loeschenAngeboten, bausteinAbstreiten, loeschAntwort, abstreitenHinweis,
@@ -819,7 +822,30 @@ function systemPrompt(ein: {
     // der Ausstiegs-Block sagte „erste Aufgabe nicht die Rechnung", und die
     // Nachprüfung VERLANGTE eine Aufgabe bei jeder offenen Frage. Beides weg.
     // ═══════════════════════════════════════════════════
-    `DEIN ERSTER AUFTRAG: DIE OFFENE RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt. Du beantwortest seine Frage UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit), die Zahlungsseite (zahlungslink_bauen) und bittest klar darum, sie jetzt zu begleichen. Der Vertrag läuft, bis sie bezahlt ist. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht).`,
+    // E-265 (29.09.2026, Justin: „VIEL MEHR AUF DIE KREDITKARTEN!"): die Rechnung bleibt der Auftrag — eingerahmt
+    // von der Karte (0 von 18 Mails nannten „Kreditkarte", 0 ein Wunschlimit, 0 einen Termin mit Herrn/Frau Nachname).
+    // E-265 Nachbesserung (29.09.2026, Recht): „wofür er zahlt" ist die Begleitung (AGB § 4 — FIAON schuldet keine
+    // Karte), und „Der Vertrag läuft, bis sie bezahlt ist" band die Beendigung an die Zahlung (§ 312k BGB; 329 bezahlte
+    // Altverträge sind monatlich kündbar) — jetzt „die Rate bleibt zu zahlen". Regression (r3.mts): Hat er seine
+    // Zahlung GEMELDET, bittet Mara nicht mehr um Zahlung (die Knopf-Regel dazu steht in schrittBestimmen).
+    (ein.lage === "zahlung_gemeldet" || ein.einordnung.flags?.zahlung_behauptet)
+      ? `DEIN ERSTER AUFTRAG: DIE KREDITKARTE — ER HAT SEINE ZAHLUNG GEMELDET. Keine Bitte um Zahlung, kein Zahlknopf: Du dankst ihm, die Zahlungsstelle prüft den Eingang (schickt er einen Beleg, geht er an die Zahlungsstelle); sobald die Zahlung gebucht ist, schaltet das System ihn frei, und er bekommt direkt den Link unserer Partnerbank für Konto und Karte — seine eigene Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank") bleibt das Ziel. Dazu bietest du den Termin mit Herrn/Frau Nachname an („antworten Sie mir einfach mit einer Zeit, die Ihnen passt"). Die offene Rate nennst du höchstens als Tatsache, wenn er danach fragt. AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung oder droht mit Anwalt oder Behörde, gilt DIESE MAIL (falls der Block unten steht).`
+      : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: unserer Begleitung auf dem Weg zu seiner eigenen Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank"). Du beantwortest seine Frage UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit), die Zahlungsseite (zahlungslink_bauen) und bittest klar darum, sie jetzt zu begleichen — „sobald sie gebucht ist, schaltet das System Sie frei" — und bietest den Termin mit Herrn/Frau Nachname an („antworten Sie mir einfach mit einer Zeit, die Ihnen passt"). Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht).`,
+    // E-265: Justins Abschluss, eingesetzt für DIESEN Kunden (Ziel, Nennform) — die Zahlen aus den Werkzeugen.
+    (() => {
+      if (ein.ruhe) return ``;
+      const nieAbgeschickt = (ein.akte?.bestellungen ?? []).some((b: any) => b?.status === "antrag_nicht_abgeschickt");
+      const art: AbschlussArt | null = ein.lage === "unbezahlt" ? "b" : ein.lage === "zahlung_gemeldet" ? "a" : ein.lage === "rate_ueberfaellig" ? "rate"
+        : ein.lage === "interessent" ? (nieAbgeschickt ? "abbrecher" : "c") : null;
+      if (!art) return ``;
+      const mit = ein.akte?.vertretung?.name ? { nom: String(ein.akte.vertretung.name), dat: String(ein.akte.vertretung.dat ?? ein.akte.vertretung.name) } : ein.akte?.betreuer ?? null;
+      const satz = bausteinAbschluss({
+        kanal: "mail", art, ziel: ein.akte?.kartenziel ?? null, mit,
+        betrag: art === "b" || art === "rate" || art === "a" ? "[Betrag]" : null,
+        verwendungszweck: art === "b" || art === "rate" ? "[Verwendungszweck]" : null, rateVom: art === "rate" ? "[Fälligkeit]" : null,
+      });
+      return `SO SCHLIESST DU AB (Justin 29.09.2026 — in eigenen Worten, gleiche Fakten; [Betrag], [Verwendungszweck], [Fälligkeit] aus zahlungslink_bauen bzw. der Akte, nie erfunden${ein.akte?.kartenziel ? "" : "; ein Wunschlimit kennst du hier nicht — nenne keine Zahl"}): „${satz}"`;
+    })(),
     ein.ruhe
       ? `DIESE MAIL IST KEINE ZAHLUNGSAUFFORDERUNG (${ein.ruhe}). Du beantwortest sein Anliegen menschlich, ruhig und ernsthaft — keine Bitte um Zahlung, kein Zahlungsknopf, keine Rechnung (außer er verlangt sie ausdrücklich), kein Verkauf, keine Auskunft. Offene Beträge nennst du höchstens als Tatsache, wenn er danach fragt. Was du selbst erledigen kannst (Werbesperre bei „Stopp", Storno einer unbezahlten Bestellung, eine klare Kündigung), erledigst du mit dem Werkzeug; alles, was entschieden werden muss (Widerruf nach Zahlung, bestrittene Forderung, Anwalt), sagst du ihm freundlich zu klären — wer sich kümmert, mit Namen aus dem Werkzeug. Nächster Schritt: Termin (terminlink_bauen), wenn ein Gespräch hilft, sonst „erledigt".`
       : ``,
@@ -954,7 +980,7 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     `  2. Fragen, ob du kurz erklären darfst, worum es eigentlich geht. Dann: Er will danach wieder normal am Kreditsystem teilnehmen — ein Handy finanzieren, einen Vertrag abschließen, ein Konto mit Karte. Genau dafür ist das Programm da: Schritt für Schritt die Bonität aufbauen, bis am Ende die Kreditkarte unserer Kooperationsbank steht. Wer jetzt abbricht, steht in einem Jahr am selben Punkt.`,
     `  3. Die Alternative ehrlich benennen: Angebote mit „Kredit ohne SCHUFA" sind oft unseriös — man zahlt dort Gebühren, und die Bonität bleibt, wie sie ist. (NICHT „Betrug" oder „Fake" schreiben — das ist eine Behauptung über Dritte, die uns Ärger macht.)`,
     `  4. Bitten, es durchzuziehen. Ein echter Satz, kein Verkaufsspruch: „Ziehen Sie es bitte einmal durch — was meinen Sie?"`,
-    `  5. DANN die offene Rate konkret: Nummer, Betrag, Fälligkeit, Zahlungsseite — und die klare Bitte, sie jetzt zu begleichen. Der Vertrag läuft, bis sie bezahlt ist; das sagst du freundlich und ohne Umweg über einen Kollegen.`,
+    `  5. DANN die offene Rate konkret: Nummer, Betrag, Fälligkeit, Zahlungsseite — und die klare Bitte, sie jetzt zu begleichen. Die Rate bleibt zu zahlen (E-265 Nachbesserung: nie „der Vertrag läuft, bis …" — die Kündigung hängt nie an der Zahlung); das sagst du freundlich und ohne Umweg über einen Kollegen.`,
     // ═══════════════════════════════════════════════════
     // KÜNDIGUNG MIT OFFENER RECHNUNG — JUSTINS ABLAUF (05.09.2026, E-135):
     // „Okay, bitte die letzte Rechnung anführen, hier die Zahlungsdetails und
@@ -969,15 +995,22 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     `HAT ER KLAR GEKÜNDIGT, respektierst du das und erledigst es selbst: kuendigung_vormerken (Werkzeug). Kein Rettungsversuch vor der Buchung — höchstens EIN warmer Satz danach („Wenn Sie es sich anders überlegen, schreiben Sie mir einfach."). Danach, je nach Ergebnis des Werkzeugs:`,
     `  · Storniert (nichts bezahlt): „Ihre Bestellung ist storniert, es bleibt nichts offen." Fertig, Schritt erledigt. Bei einer UNBEZAHLTEN Bestellung zählt JEDE klare Absage als Storno-Wunsch („brauche ich nicht mehr", „kein Interesse", „bitte löschen", „nein danke", „möchte das Angebot nicht") — Werkzeug rufen und bestätigen, NICHT den Kunden bitten, es noch einmal anders zu formulieren.`,
     `  · Alle Raten bezahlt: „Ihr Vertrag ist beendet." Fertig.`,
-    `  · OFFENE RATE: „Ihre Kündigung ist vorgemerkt. Offen ist noch Rate N über X € (fällig am D). Die Rechnung hängt an; Bankdaten, QR-Code und Verwendungszweck stehen auf der Zahlungsseite unten. Sobald die Zahlung eingegangen ist, ist der Vertrag beendet." Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung. (Steht zusätzlich eine der Ausnahmen oben — Widerruf, Beschwerde, Bestreiten … —, gibt es keinen Zahlungsknopf: dann nur der Stand der Kündigung.)
-  · Die schriftliche Bestätigung verschickt das Haus selbst: Steht im Ergebnis bestaetigung_gesendet: true, darfst du sagen „Die schriftliche Bestätigung bekommen Sie gleich per E-Mail." — sonst sagst du dazu nichts.`,
+    // E-265 (29.09.2026, Justin: „NEIN, bezahlen Sie Ihre Rate, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag!!!")
+    `  · OFFENE RATE — Justins Satz, je Vertrag (das Werkzeug liefert ihn fertig in so_schreiben): JAHRESVERTRAG (ab 03.09.2026): „Ihre Kündigung ist heute bei uns eingegangen. Bitte begleichen Sie Ihre offene Rate über X €, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag — danach kommt nichts mehr." VERTRAG VOR DEM 03.09.2026 (monatlich kündbar): KEIN „Kulanz" (das Recht hat er ohnehin, § 5 UWG), sondern „Ihre Kündigung ist heute bei uns eingegangen und gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum aus gilt_zum>. Ihre offene Rate vom … über X € zahlen Sie bitte noch, danach kommt nichts mehr." (Der Abrechnungsmonat läuft von Fälligkeit zu Fälligkeit — nie „Monatsende", nie „Ende des Kalendermonats".) Die Kündigung selbst hängt nie an der Zahlung. Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung. (Steht zusätzlich eine der Ausnahmen oben — Widerruf, Beschwerde, Bestreiten … —, gibt es keinen Zahlungsknopf: dann nur der Stand der Kündigung.)
+  · Die schriftliche Bestätigung verschickt das Haus selbst: Steht im Ergebnis bestaetigung_gesendet: true, darfst du sagen „Die schriftliche Bestätigung bekommen Sie gleich per E-Mail." — sonst sagst du dazu nichts.
+  · DIE KÜNDIGUNG UND IHRE BESTÄTIGUNG HÄNGEN NIE AN EINER ZAHLUNG (§ 312k BGB, E-265 Schluss-Nachbesserung): nie „sobald der Eingang gebucht ist, kommt das Kündigungsschreiben / die Bestätigung / ist die Kündigung wirksam". Ist er schon gekündigt, liest du die Akte (Feld kuendigung): giltZum, zuZahlen (nur DIESE Raten verlangst du), nachVertragsende (diese Raten verlangst du NIE, nennst sie nie und nie „letzte Rate"), regel.`,
     `ERSTES NEIN („bezahle ich nicht", „mache ich nicht") — freundlich und motivierend, NICHT hart (21.09.2026, Justin): Du nimmst es ernst, fragst kurz nach dem Grund und zeigst, was er gewinnt, wenn er die Rate jetzt zahlt — Account aktiv, direkt der Link unserer Partnerbank, die Karte meist schon vor dem Versand mit Apple Pay in der App der Bank. Dann der einfache Weg über den Knopf. Die Härte-Stufe unten gilt erst, wenn er im SELBEN Schriftwechsel schon einmal abgelehnt hat.`,
-    `HÄRTE-STUFE — erst beim ZWEITEN ausdrücklichen Nein im Schriftwechsel: wenn der Kunde die offene Rate erneut verweigert („nein, mache ich nicht", „zahle nichts mehr", „wozu") und KEINEN sachlichen Einwand nennt (keine belegte Zahlung, kein Widerruf in der Frist, kein falscher Betrag), dann kein Mahnstopp, keine Aufgabe an den Betreuer. Du schreibst ruhig und bestimmt, in dieser Reihenfolge: (1) „Wir haben einen Vertrag, den Sie am ${ein.vertragGeschlossenAm ?? "[Datum aus der Akte]"} geschlossen haben." (2) „Ohne die offene Rate N über X € können wir den Vertrag nicht beenden — das ist die einzige Bedingung." (3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
+    `HÄRTE-STUFE — erst beim ZWEITEN ausdrücklichen Nein im Schriftwechsel: wenn der Kunde die offene Rate erneut verweigert („nein, mache ich nicht", „zahle nichts mehr", „wozu") und KEINEN sachlichen Einwand nennt (keine belegte Zahlung, kein Widerruf in der Frist, kein falscher Betrag), dann kein Mahnstopp, keine Aufgabe an den Betreuer. Du schreibst ruhig und bestimmt, in dieser Reihenfolge: (1) „Wir haben einen Vertrag, den Sie am ${ein.vertragGeschlossenAm ?? "[Datum aus der Akte]"} geschlossen haben." ${ein.formlos
+      // E-265 Nachbesserung (29.09.2026, Recht): Die Beendigung hängt nie an der Zahlung (§ 312k BGB). Beim Altvertrag
+      // (monatlich kündbar) bleibt nur die fällige Rate; beim Jahresvertrag ist die VORZEITIGE Beendigung Kulanz.
+      ? `(2) „Die Rate N über X € ist fällig und bleibt zu zahlen."`
+      : `(2) „Die vorzeitige Beendigung aus Kulanz setzt die Zahlung der offenen Rate N über X € voraus — die Rate selbst bleibt ohnehin zu zahlen."`} (3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
     `WIDERRUF: Liegt der Vertragsschluss (${ein.vertragGeschlossenAm ?? "Datum in der Akte"}) höchstens 14 Tage zurück, gilt der Widerruf: kuendigung_vormerken (unbezahlt → storniert) und, wenn schon gezahlt wurde, IMMER eine Aufgabe an die Leitung (kollege: "Leitung") — dem Kunden sagst du: „Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht." Du versprichst keine Rückzahlung UND du sagst beim Widerruf NIE, dass nichts erstattet wird (auch wenn im Hauswissen „grundsätzlich nicht erstattet" steht — das gilt für die Kündigung, nicht für den Widerruf). Nach 14 Tagen ist ein „Widerruf" eine Kündigung und wird so behandelt. In einer Antwort auf einen Widerruf forderst du NIE zur Zahlung auf und setzt keinen Zahlungsknopf — auch nicht „falls der Nachweis nicht reicht" (#5633).`,
     `Wortverbote gelten weiter: nichts garantieren, keinen Kredit versprechen oder vermitteln, das Wort „Affiliate" nie.`,
     ``,
     `WENN DER KUNDE EINEN VERPASSTEN TERMIN NENNT, sieh in den Terminen der Akte nach. Stimmt es, entschuldige dich konkret (Datum, wer). Stimmt es nicht, sag ruhig, was du in der Akte siehst.`,
-    `KEINE TELEFONNUMMERN IM TEXT — weder die des Kunden noch die eines Kollegen. „Daniel ruft Sie an" reicht. Die Nummer kennt der Kunde, und die des Kollegen geht ihn nichts an.`,
+    // E-265 (29.09.2026): „Herr Stripling ruft Sie an" — nie der Vorname (auch nicht im Beispiel, das Modell kopiert es).
+    `KEINE TELEFONNUMMERN IM TEXT — weder die des Kunden noch die eines Kollegen. „Herr Stripling ruft Sie an" reicht. Die Nummer kennt der Kunde, und die des Kollegen geht ihn nichts an.`,
     ``,
     `DIE AKTE (Stand, Bestellungen, Raten, Termine):`,
     // 04.09.2026 (E-118): Bis hierher 9.000 Zeichen hart abgeschnitten, mitten
@@ -1010,7 +1043,7 @@ export function gerichtFuer(land?: string | null, ort?: string | null): string {
 export function akteKompakt(a: any): any {
   if (!a || typeof a !== "object") return a;
   const { verlauf: _v, mails: _m, offeneAufgaben: _o, ...rest } = a;
-  return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, vertrag: a.vertrag, karte: a.karte, auskunft: a.auskunft ?? null, ...rest };
+  return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, vertrag: a.vertrag, karte: a.karte, kartenziel: a.kartenziel ?? null, betreuer: a.betreuer ?? null, auskunft: a.auskunft ?? null, ...rest };
 }
 
 /**
@@ -1327,7 +1360,15 @@ export function schrittBestimmen(
   roh: any, lage: Kundenlage, werkzeugDaten: Record<string, any>,
   /** E-241: Antwort auf das Angebot oder eigene Frage — dann darf der Knopf auch bei B/Lead die Auskunft sein. */
   auskunftAntwort = false,
-  opt: { ruhe?: boolean } = {},
+  opt: {
+    ruhe?: boolean;
+    /**
+     * E-265 (29.09.2026, #5773/#5778/#5774/#5775): Er hat seine Zahlung gemeldet oder schickt einen Beleg
+     * (Lage „zahlung_gemeldet" oder Merker zahlung_behauptet) — nie „Rechnung ansehen und bezahlen" als Knopf,
+     * sondern der Termin (terminlink_bauen) oder sein Bereich.
+     */
+    gemeldet?: boolean;
+  } = {},
 ): { schritt: NaechsterSchritt | null; storniert: boolean } {
   const schritt: NaechsterSchritt | null = roh?.naechster_schritt
     ? { art: String(roh.naechster_schritt.art) as any, url: roh.naechster_schritt.url ?? null, text: String(roh.naechster_schritt.text || "") }
@@ -1357,13 +1398,24 @@ export function schrittBestimmen(
   // darunter „Rechnung ansehen und bezahlen". Ist die Bestellung storniert
   // oder der Vertrag beendet, gibt es nichts zu zahlen; der Schritt ist
   // „erledigt", und die Zahlungsseite wird nicht verlangt.
-  const storniert = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"].includes(String(werkzeugDaten.kuendigung_vormerken?.weg || ""));
+  // E-265 Nachbesserung (29.09.2026, Recht): Nach der Kündigung ist bis zum Vertragsende nichts mehr zu zahlen
+  // (Altvertrag: die offene Rate liegt NACH dem Monatsende; beendeter Vertrag) — dann auch kein Zahlknopf.
+  const kv = werkzeugDaten.kuendigung_vormerken;
+  const nichtsZuZahlen = !!kv && ["letzte_rate", "bereits"].includes(String(kv.weg || "")) && Array.isArray(kv.offene_raten) && kv.offene_raten.length === 0;
+  const storniert = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"].includes(String(werkzeugDaten.kuendigung_vormerken?.weg || "")) || nichtsZuZahlen;
   // ── E-248: RUHE — Stopp, Widerruf, Beschwerde … bekommen keinen Zahl- und keinen Verkaufsknopf.
   if (opt.ruhe) {
     const ohneGeld = schritt && schritt.art !== "zahlung" && schritt.art !== "auskunft" && (schritt.url || !["termin", "startgespraech", "antrag", "angebot"].includes(String(schritt.art)))
       ? schritt : null;
     return {
       schritt: ohneGeld ?? (terminSeite ? { art: "termin" as any, url: String(terminSeite), text: "Termin wählen" } : ({ art: "erledigt", url: null, text: "" } as NaechsterSchritt)),
+      storniert,
+    };
+  }
+  if (opt.gemeldet) {
+    const ohneZahlung = schritt && schritt.art !== "zahlung" && (schritt.url || !["termin", "startgespraech", "antrag", "angebot", "auskunft"].includes(String(schritt.art))) ? schritt : null;
+    return {
+      schritt: ohneZahlung ?? (terminSeite ? { art: "termin" as any, url: String(terminSeite), text: "Termin wählen" } : { art: "bereich" as any, url: absoluteUrl("/mein-bereich"), text: "Zu meinem Bereich" }),
       storniert,
     };
   }
@@ -1528,7 +1580,7 @@ export async function abstreitenPerMail(ein: {
       `Er schreibt: „${zitat.slice(0, 160)}" (${art}). ${stufeText}, ${herkunft}. Maras Entwurf: Entschuldigung, Herkunft, ${lage.abgeschickt && art === "bestreitet" ? "die Leitung meldet sich" : art === "wut" ? "„Stopp“ angeboten" : "keine Nachrichten mehr"} — ${sperre}.${lage.abgeschickt && art === "bestreitet" ? " Der Antrag ist ABGESCHICKT: bitte klären, wer ihn gestellt hat, und entscheiden (Storno, Werbesperre)." : " Bitte prüfen, wer den Antrag gestellt bzw. die Adresse eingetragen hat, und auf Wunsch löschen."}`);
   }
   const text = ein.loesch ? loeschAntwort("mail")
-    : bausteinAbstreiten({ kanal: "mail", art: art as AbstreitenFestArt, herkunft: lage.herkunft, abgeschickt: lage.abgeschickt, betreuer: lage.betreuer });
+    : bausteinAbstreiten({ kanal: "mail", art: art as AbstreitenFestArt, herkunft: lage.herkunft, abgeschickt: lage.abgeschickt, betreuer: lage.betreuer, kenntUns: kenntUns(ein.kontext.kundeText ?? "") });
   // Die Wand prüft mit der Werbesperre als gelaufen — sie steht, sobald die Antwort rausgeht.
   const gelaufen = [...handlungen.filter((h) => h.ok).map((h) => h.werkzeug), ...(folgen.werbesperre ? ["werbesperre_setzen"] : [])];
   return {
@@ -1632,7 +1684,8 @@ export async function antwortErzeugen(ein: {
   // E-248: In einer Ruhe-Antwort (Stopp, Widerruf …) wird die Zahlungsseite NICHT vorab geholt —
   // „VORAB GEHOLT: Zahlungsseite" im Auftrag ließ das Modell trotzdem zur Zahlung auffordern (#5633).
   if (zahlLagen.includes(lage) && !ruhe) {
-    const offeneRate = (akte.raten ?? []).filter((r: any) => r.status === "offen" && r.referenz).sort((a: any, b: any) => Number(a.nr) - Number(b.nr))[0];
+    // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M3): nie eine Rate nach dem Vertragsende (gekündigter Altvertrag).
+    const offeneRate = (akte.raten ?? []).filter((r: any) => r.status === "offen" && r.referenz && !r.nachVertragsende).sort((a: any, b: any) => Number(a.nr) - Number(b.nr))[0];
     const bestellung = (akte.bestellungen ?? []).find((b: any) => b.ref === ein.ref) ?? (akte.bestellungen ?? [])[0];
     const referenz = offeneRate?.referenz ?? (bestellung && bestellung.status !== "paid" ? bestellung.referenz : null);
     const w = werkzeuge.find((x) => x.name === "zahlungslink_bauen");
@@ -1805,6 +1858,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   ruhe?: string | null;
 }): Promise<AgentErgebnis> {
   let text = String(roh.antwort || "").trim();
+  // E-265 (29.09.2026): wessen Vorname nie allein in der Kundenmail steht (harte Prüfung unten).
+  const mitarbeiterJetzt = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);
   // 02.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort
   // „erledigt." — das ist der interne Zustand `naechster_schritt.art`, den das
   // Modell aus dem Schema mit in den Text genommen hat. Ein Kunde liest dort
@@ -1819,7 +1874,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
   const auskunftAntwort = k.kontext.auskunftAntwort ?? null;
   // E-248: Ruhe (Stopp, Widerruf …) oder „bitte nicht noch einmal überweisen" im eigenen Text (#5662) → kein Zahlknopf.
   const ruheKnopf = !!k.ruhe || sagtNichtNochmalZahlen(text);
-  const { schritt: schrittFinal, storniert } = schrittBestimmen(roh, k.lage, k.werkzeugDaten, !!auskunftAntwort, { ruhe: ruheKnopf });
+  // E-265: Zahlung gemeldet oder Beleg geschickt → nie der Zahlknopf (#5773).
+  const gemeldet = k.lage === "zahlung_gemeldet" || !!k.einordnung.flags?.zahlung_behauptet;
+  const { schritt: schrittFinal, storniert } = schrittBestimmen(roh, k.lage, k.werkzeugDaten, !!auskunftAntwort, { ruhe: ruheKnopf, gemeldet });
   const zahlLage = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage);
   // ── DIE RECHNUNG DER RATE GEHT MIT (24.09.2026, E-240) ──────────────────
   // Trägt der Knopf die Auskunft, hängt der Lauf die Rechnung der offenen Rate
@@ -1848,7 +1905,13 @@ async function pruefenUndAbschliessen(roh: any, k: {
       if (!werte.includes(nackt) && !belegte.includes(z.toLowerCase())) fehlend.push(`ohne Beleg: ${z}`);
     }
     // Pflichtangaben je Lage
-    if (!storniert && !ruheKnopf && ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage)) {
+    // E-265 Nachbesserung (29.09.2026, Regression r3.mts): Hat er seine Zahlung gemeldet oder einen Beleg geschickt
+    // (gemeldet), trägt der Knopf den Termin oder seinen Bereich (schrittBestimmen) — dann verlangt die Pflicht die
+    // Zahlungsseite NICHT mehr. Vorher wurde so jede Mail in „zahlung_gemeldet" zwingend ein Entwurf (Team bis Fr weg).
+    // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M3): Gekündigt und bis zum Vertragsende nichts mehr zu zahlen
+    // (Akte kuendigung.zuZahlen leer) — dann gibt es keine Zahlungsseite, und keine wird verlangt.
+    const nichtsZuZahlen = k.lage === "gekuendigt" && Array.isArray(k.akte?.kuendigung?.zuZahlen) && k.akte.kuendigung.zuZahlen.length === 0;
+    if (!storniert && !ruheKnopf && !gemeldet && !nichtsZuZahlen && ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage)) {
       const seite = k.werkzeugDaten.zahlungslink_bauen?.zahlungsseite;
       // 04.09.2026: Der Knopf unter dem Text trägt die Adresse (antwortBauen),
       // kernBereinigen nimmt sie aus dem Text sogar heraus. Die Prüfung verlangte
@@ -1880,8 +1943,12 @@ async function pruefenUndAbschliessen(roh: any, k: {
     if (!schrittFinal) fehlend.push("kein nächster Schritt");
     else {
       const ruheErlaubt = ruheKnopf && ["erledigt", "termin", "rueckruf", "wartet_auf_uns", "bereich"].includes(String(schrittFinal.art));
+      // E-265 Nachbesserung: gemeldet → Termin oder Bereich statt Zahlknopf, in JEDER Zahlungslage erlaubt.
+      const gemeldetErlaubt = gemeldet && ["termin", "bereich", "rueckruf", "wartet_auf_uns", "erledigt"].includes(String(schrittFinal.art));
+      // E-265 Nachbesserung: nach Storno, Vertragsende oder „nach der Kündigung nichts mehr zu zahlen" ist „erledigt" richtig.
+      const nachKuendigungErlaubt = storniert && ["erledigt", "termin", "rueckruf", "bereich"].includes(String(schrittFinal.art));
       const zahlungGeholt = schrittFinal.art === "zahlung" && !!schrittFinal.url && schrittFinal.url === k.werkzeugDaten.zahlungslink_bauen?.zahlungsseite && !["gesperrt", "fremd", "bestreitet"].includes(k.lage);
-      if (!ruheErlaubt && !zahlungGeholt && !erlaubteSchritte(k.lage, !!auskunftAntwort).includes(schrittFinal.art)) fehlend.push(`Schritt „${schrittFinal.art}" ist in dieser Lage nicht erlaubt`);
+      if (!ruheErlaubt && !gemeldetErlaubt && !nachKuendigungErlaubt && !zahlungGeholt && !erlaubteSchritte(k.lage, !!auskunftAntwort).includes(schrittFinal.art)) fehlend.push(`Schritt „${schrittFinal.art}" ist in dieser Lage nicht erlaubt`);
       // Die Adresse des Schritts hängt der Server als Knopf an — sie muss nicht
       // im Text stehen. Nur eine leere Adresse bei einem Schritt, der eine braucht, ist ein Mangel.
       if (!schrittFinal.url && ["zahlung", "termin", "startgespraech", "auskunft", "antrag"].includes(String(schrittFinal.art))) fehlend.push(`Schritt „${schrittFinal.art}" ohne Adresse — Werkzeug nicht gerufen`);
@@ -1907,6 +1974,39 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // (3) Ruhe: keine Zahlungsaufforderung (#5633, #5575).
     const bitte = ruheKnopf && k.ruhe ? fordertZahlung(t) : null;
     if (bitte) fehlend.push(`Zahlungsaufforderung („${bitte}") in einer Antwort auf ${k.ruhe} — beantworte sein Anliegen ohne Bitte um Zahlung`);
+    // E-265 Nachbesserung (29.09.2026, Recht): Ist nach der Kündigung bis zum Vertragsende nichts mehr zu zahlen
+    // (Altvertrag, die Rate liegt nach dem Monatsende), verlangt die Mail auch keine Rate.
+    const kvDaten = k.werkzeugDaten.kuendigung_vormerken;
+    // Nachbesserung 2 (01.10.2026): auch „sofort_beendet" — kuendigungSetzen storniert jetzt die Raten nach dem
+    // Vertragsende (Altvertrag) bzw. die noch nicht fälligen (Jahresvertrag); verlangt die Mail sie trotzdem, geht sie nicht raus.
+    if (kvDaten && ["letzte_rate", "bereits", "sofort_beendet", "storno_unbezahlt"].includes(String(kvDaten.weg || "")) && Array.isArray(kvDaten.offene_raten) && kvDaten.offene_raten.length === 0
+      && (fordertZahlung(t) || /(?:offen|zahlen|begleichen)[^.!?\n]{0,40}\brate\b|\brate\b[^.!?\n]{0,40}(?:offen|fällig|faellig)/i.test(t))) {
+      fehlend.push("Nach der Kündigung ist bis zum Vertragsende nichts mehr zu zahlen (kuendigung_vormerken: keine offene Rate) — keine Rate und keine Zahlungsbitte nennen; nimm den Satz aus so_schreiben");
+    }
+    // E-265 Nachbesserung (29.09.2026, Recht): „Kulanz" nur beim Jahresvertrag und nur nach gebuchter Kündigung —
+    // beim Vertrag vor dem 03.09.2026 ist die Kündigung sein Recht (Irreführung über ein bestehendes Recht, § 5 UWG).
+    if (/kulanz/i.test(t) && (k.kontext.formlosKuendbar || !(gelaufen.includes("kuendigung_vormerken") || !!k.akte?.kuendigung))) {
+      fehlend.push(k.kontext.formlosKuendbar
+        ? "„Kulanz“ gibt es bei ihm nicht: Sein Vertrag ist vor dem 03.09.2026 geschlossen und monatlich kündbar — die Kündigung ist sein Recht. Schreib ohne „Kulanz“ (das Werkzeug liefert den Satz)."
+        : "„Kulanz“ nur mit dem Satz aus kuendigung_vormerken (so_schreiben) — nie als eigenes Angebot.");
+    }
+    // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 f11): „Vertrag und Rechnung kamen per E-Mail" — eine Vertragsmail
+    // gibt es nur bei FIAON Global (global_auftrag). Ohne diesen Beleg in der Akte ist der Satz eine falsche Tatsache.
+    const vertragMail = vertragPerMail(t);
+    const vertragMailBelegt = (k.akte?.mails ?? []).some((m: any) => m?.richtung === "aus" && /global_auftrag|vertrag/i.test(String(m?.betreff ?? "")));
+    if (vertragMail && !vertragMailBelegt) fehlend.push(`Die Antwort behauptet, der Vertrag sei per E-Mail gekommen („${vertragMail.slice(0, 70)}") — eine Vertragsmail steht nicht in der Akte. Nenn das Vertragsdatum aus der Akte und biete an, ihm die Vertragsunterlagen zu schicken.`);
+    // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M3): Eine Rate nach dem Vertragsende (Akte kuendigung.nachVertragsende)
+    // wird nie verlangt und nie „letzte Rate" genannt; ist bis zum Vertragsende nichts mehr offen, keine Zahlungsbitte.
+    const nachEnde: any[] = Array.isArray(k.akte?.kuendigung?.nachVertragsende) ? k.akte.kuendigung.nachVertragsende : [];
+    // Genannt heißt: im selben Satz als offen, fällig, „letzte" oder zu zahlen — „Rate 3 verlangen wir nicht" bleibt frei.
+    const nachEndeGenannt = nachEnde.find((r) => t.split(/(?<=[.!?])\s+|\n+/).some((satz) => new RegExp(String.raw`\brate\s+${Number(r.nr)}\b`, "i").test(satz)
+      && /letzte|offen|fällig|faellig|begleich|zahlen\s+sie|überweis|ueberweis|bezahl|gebucht|verbucht/i.test(satz) && !/\b(?:nicht|kein\w*|nie)\b/i.test(satz)));
+    // E-265 (01.10.2026, Recht): Altvertrag — Ende des Abrechnungsmonats (Fälligkeit zu Fälligkeit), nie „Monatsende".
+    const giltZumText = k.akte?.kuendigung?.giltZum ? `Ende seines laufenden Abrechnungsmonats, dem ${k.akte.kuendigung.giltZum}` : "Ende seines laufenden Abrechnungsmonats";
+    if (nachEndeGenannt) fehlend.push(`Rate ${nachEndeGenannt.nr} (fällig ${nachEndeGenannt.faellig}) liegt nach dem Vertragsende — sie wird nie verlangt und ist nie „die letzte Rate". Sag ihm, dass seine Kündigung zum ${giltZumText} gilt, unabhängig von jeder Zahlung.`);
+    if (nichtsZuZahlen && !gemeldet && (fordertZahlung(t) || /(?:offen|zahlen|begleichen)[^.!?\n]{0,40}\brate\b|\brate\b[^.!?\n]{0,40}(?:offen|fällig|faellig)/i.test(t))) {
+      fehlend.push(`Seine Kündigung gilt zum ${giltZumText}, und bis dahin ist nichts mehr zu zahlen — keine Rate und keine Zahlungsbitte nennen.`);
+    }
     // (4) Eine Sprache je Mail (#5591).
     const ziel = String(k.sprache || k.einordnung.sprache || "de").slice(0, 2).toLowerCase();
     if (!spracheStimmt(t, ziel)) fehlend.push(`Die Antwort ist nicht auf ${sprachName(ziel)} — Anrede, Knopf und Gruß sind ${sprachName(ziel)}, der ganze Text muss es auch sein`);
@@ -1916,7 +2016,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
     const land = (k.werkzeugDaten.auskunft_anbieten?.land ?? k.akte?.auskunft?.land ?? k.akte?.vertrag?.land ?? null) as any;
     const landKurz = ["AT", "CH", "DE"].includes(String(land || "").toUpperCase()) ? String(land).toUpperCase() as any
       : /sterreich|austria/i.test(String(land || "")) ? "AT" : /schweiz|switzerland/i.test(String(land || "")) ? "CH" : null;
-    const ton = tonPruefung(t, { kanal: "mail", land: landKurz, kunde: k.kundeText ?? "" }).filter((b) => b.id !== "herr_frau");
+    // E-265 (29.09.2026, Justin „zum letzten Mal!!"): mit der Mitarbeiterliste — ein Vorname allein ist ein harter Mangel.
+    const kundeNamen = [k.akte?.name, ...String(k.akte?.name ?? "").split(/\s+/)].filter(Boolean) as string[];
+    const ton = tonPruefung(t, { kanal: "mail", land: landKurz, kunde: k.kundeText ?? "", mitarbeiter: mitarbeiterJetzt, kundeNamen }).filter((b) => b.id !== "herr_frau");
     for (const b of ton.filter((x) => x.schwere === "hart")) fehlend.push(`Ton: „${b.treffer}" — ${b.hinweis}`);
     // (6) Nur persönliche Links — im Text und im Knopf (linkPruefung).
     const links = linkPruefung(`${t}\n${schrittFinal?.url ?? ""}`, linkLageFuer({ werkzeugDaten: k.werkzeugDaten, lage: k.lage }));
@@ -1926,6 +2028,13 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // Nachbesserung E-248 (Probelauf M2): kein ungefragtes Storno-/Kündigungsangebot.
     const ungefragt = stornoUngefragt(t, k.kundeText ?? "");
     if (ungefragt) weich.push(`Storno/Kündigung ungefragt angeboten („${ungefragt}") — er hat nichts davon geschrieben; Satz streichen, nur sein Anliegen beantworten`);
+    // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M1/M6): Eine B-Mail schließt ab — Betrag, Freischaltung, Terminfrage
+    // (weich: der zweite Entwurf). Nicht bei Ruhe, gemeldeter Zahlung, Storno oder wenn der Knopf der Auskunft gehört.
+    if (k.lage === "unbezahlt" && !ruheKnopf && !gemeldet && !storniert && schrittFinal?.art !== "auskunft") {
+      weich.push(...mailAbschlussPflicht(t, { betrag: k.werkzeugDaten.zahlungslink_bauen?.betrag ?? null }));
+    }
+    // Probe 3 M4: keine Frist/Erklärung, die nicht im Hauswissen steht; Mitgefühl einmal; nicht zu lang.
+    weich.push(...mailWeichBefunde(t, { wissen: wissenFakten(), kunde: k.kundeText ?? "" }));
     // 08.09.2026 (E-167): VORHER verlangte die Nachprüfung bei jeder offenen Frage
     // eine Aufgabe oder Notiz an den Betreuer — und zwang Mara damit genau zu dem
     // Delegieren, das Justin abgeschafft hat. Eine offene Frage beantwortet Mara

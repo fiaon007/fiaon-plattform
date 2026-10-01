@@ -6,6 +6,10 @@
 //   das ist, was der Kunde sucht, wenn er die Mail später wieder öffnet.
 // · Der No-Show-Ton ist verständnisvoll, nie vorwurfsvoll: Wer sich schämt,
 //   bucht nicht neu.
+// · E-265 (29.09.2026, Justin „zum letzten Mal!!"): Der Platzhalter heißt
+//   weiter {{params.agent_vorname}} (Make/Brevo lesen ihn), sein WERT ist die
+//   Nennform — „Herr Stripling", ohne gepflegte Anrede der volle Name. Sätze
+//   stehen deshalb im Nominativ („… ruft Sie an"), nie „mit {{…}}".
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
 import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
@@ -79,7 +83,9 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
     preheader: "Kurze Erinnerung — {{params.agent_vorname}} ruft Sie an.",
     titel: "Ihr Gespräch steht bevor",
     absaetze: [
-      "Guten Tag {{params.vorname}}, nur eine kurze Erinnerung: Ihr Gespräch mit <b>{{params.agent_vorname}}</b> steht an. Wir rufen Sie an — Sie müssen nichts weiter tun.",
+      // E-265 (29.09.2026): {{params.agent_vorname}} trägt jetzt die Nennform („Herr Stripling") — im Nominativ
+      // gebaut, damit kein „mit Herr Stripling" entsteht.
+      "Guten Tag {{params.vorname}}, nur eine kurze Erinnerung: Ihr Gespräch steht an, <b>{{params.agent_vorname}}</b> ruft Sie an — Sie müssen nichts weiter tun.",
       "Passt die Zeit doch nicht mehr? Verschieben ist völlig in Ordnung und dauert einen Klick — das ist uns lieber als ein verpasster Anruf. {{params.hinweis_anruf}}",
     ],
     daten: [

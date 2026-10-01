@@ -134,7 +134,9 @@ console.log("── A. Regeln ohne Datenbank ───────────�
   ok(um === "Das tut mir leid — der Rückruf am Freitag, 25. September, um 18:50 Uhr hat nicht geklappt.", `„um <ISO>“ ohne doppelte Präposition: „${um}“`);
   ok(wa.reparieren("Gern 👍 *jetzt* starten: https://fiaon.com/a/Ab3dEf7hJk/w") === "Gern jetzt starten: https://fiaon.com/a/Ab3dEf7hJk/w", "Emoji und Sternchen raus, Link unverändert");
   ok(wa.reparieren("Transparent: Sie zahlen die erste Rate.") === "Sie zahlen die erste Rate.", "„Transparent:“ fällt weg");
-  ok(wa.reparieren("Das Limit legt die Bank fest, Ihr Wunschlimit ist das Ziel.", { limit: true }) === "Der Rahmen legt die Bank fest, Ihr Wunschrahmen ist das Ziel.", "Limit → Rahmen (nur als letztes Mittel)");
+  // E-265 (29.09.2026): „Wunschlimit" bleibt (erlaubt, mit dem Satz über die Bank) — nur „Limit" wird „Rahmen".
+  ok(wa.reparieren("Das Limit legt die Bank fest, Ihr Wunschlimit ist das Ziel.", { limit: true }) === "Der Rahmen legt die Bank fest, Ihr Wunschlimit ist das Ziel.", "Limit → Rahmen (nur als letztes Mittel), „Wunschlimit“ bleibt");
+  ok(wa.reparieren("Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von 5.000 €. Welche Zeit passt Ihnen?", { limit: true }) === "Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von 5.000 €, über den Rahmen entscheidet unsere Partnerbank. Welche Zeit passt Ihnen?", "Wunschlimit ohne Bank-Satz: die Reparatur ergänzt ihn");
   // A4 Link- und Tonprüfung
   const lage = { stufe: "zahlung_offen" as const, zahlungsReferenz: "FIAON-BSP4KX" };
   ok(wa.tonUndLink("Hier geht es weiter: https://fiaon.com/antrag", { linkLage: lage }).hart.length > 0, "Nackter /antrag ist hart (Nagelstudio)");
@@ -441,6 +443,9 @@ try {
       const todosSchrittVorher = personId ? Number(((await sql`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`wa-${personId}-%`}`) as any[])[0].n) : 0;
       const protVorher = new Date();
 
+      // E-265: Die Mitarbeiterliste (Namensprüfung) ist 10 Minuten zwischengespeichert — die Prüf-Agenten
+      // dieses Falls entstehen eben erst, also frisch lesen.
+      (await import("../server/lib/fiaon-mitarbeiter-namen")).mitarbeiterListeVergessen();
       const erg = await wa.maraAntwortet(fall.nummer);
 
       const [g] = (await sql`SELECT antwort_text, still_bis_id FROM fiaon_whatsapp_gespraech WHERE nummer = ${fall.nummer}`.catch(() => [])) as any[];

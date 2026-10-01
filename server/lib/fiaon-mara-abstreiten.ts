@@ -39,6 +39,7 @@
 import { sqlPool } from "./db-pool";
 import { stufeAusAntrag, type AbstreitenArt, type Herkunft, type LinkStufe } from "@shared/fiaon-mara-ton";
 import { antragAbgeschickt } from "@shared/fiaon-antrag-stand";
+import { nennform } from "@shared/fiaon-mitarbeiter-name";
 
 export interface AbstreitenLage {
   stufe: LinkStufe;
@@ -97,8 +98,9 @@ export async function abstreitenLage(personId: number | null, leadId: number | n
     ? sqlPool`SELECT erstellt_am, quelle FROM fiaon_leads WHERE person_id = ${personId} ORDER BY erstellt_am ASC NULLS LAST LIMIT 20`
     : leadId ? sqlPool`SELECT erstellt_am, quelle FROM fiaon_leads WHERE id = ${leadId} LIMIT 1` : Promise.resolve([])).catch(() => [])) as any[];
   // Der Betreuer nur, wenn er wirklich da ist (wie lageFuer, E-236) — sonst „Jemand aus unserem Team".
+  // E-265 (29.09.2026): als Nennform („Herr Stripling meldet sich …"), vorher der Vorname aus name.
   const [b] = personId ? (await sqlPool`
-    SELECT split_part(TRIM(COALESCE(g.name, '')), ' ', 1) AS vorname
+    SELECT g.name, g.first_name, g.last_name, g.anrede
       FROM fiaon_persons p JOIN fiaon_agents g ON g.id = p.assigned_agent_id
      WHERE p.id = ${personId} AND COALESCE(g.active, TRUE) AND g.zugang_gesperrt_am IS NULL
        AND NOT COALESCE(g.is_test_account, FALSE) LIMIT 1`.catch(() => [])) as any[] : [];
@@ -106,7 +108,7 @@ export async function abstreitenLage(personId: number | null, leadId: number | n
   return {
     stufe, abgeschickt: a ? antragAbgeschickt(a) : false,
     herkunft: fruehesteHerkunft(web?.am ?? null, leads),
-    betreuer: b?.vorname ? String(b.vorname) : null,
+    betreuer: b?.name || b?.first_name ? nennform(b).nom : null,
   };
 }
 

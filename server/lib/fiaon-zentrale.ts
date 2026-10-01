@@ -16,6 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { eigeneMailSenden } from "./fiaon-brevo";
 import { mailProtokoll } from "./fiaon-mail-log";
 import { terminLink } from "./fiaon-termine";
@@ -128,7 +129,7 @@ const AUSWAHL = `
            p.company_name, p.contact_name, ${MAIL_SQL}) AS name,
   COALESCE(NULLIF(p.first_name, ''), p.contact_name, '') AS vorname,
   ${MAIL_SQL} AS email,
-  COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname,
+  ${nennformSql("ag")} AS agent_vorname,
   (SELECT a2.payment_reference FROM fiaon_applications a2
     WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
     ORDER BY a2.created_at DESC LIMIT 1) AS zahlungsreferenz,

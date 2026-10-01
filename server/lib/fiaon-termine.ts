@@ -26,6 +26,7 @@ import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { berlinZeitpunkt, berlinDatum, berlinWochentag, zeitZuMinuten, minutenZuZeit } from "./fiaon-time";
 import { GLOBAL_DAUER_MIN } from "./fiaon-global-zeiten";
+import { nennform } from "@shared/fiaon-mitarbeiter-name";
 
 type Lauf = typeof sqlPool;
 
@@ -380,13 +381,15 @@ export async function rollenMitRueckfall(
 async function agentenMitRolle(
   rollen: string[], lauf: Lauf = sqlPool,
 ): Promise<{ id: number; vorname: string }[]> {
+  // E-265 (29.09.2026): `vorname` trägt die Nennform („Herr Stripling") — die Terminseite und die
+  // Bestätigung lesen sie („Herr Stripling ruft Sie an"), nie den Vornamen allein.
   return ((await lauf`
-    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
+    SELECT id, name, first_name, last_name, anrede
     FROM fiaon_agents
     WHERE active AND NOT COALESCE(is_test_account, FALSE) AND zugang_gesperrt_am IS NULL
       AND COALESCE(rolle, 'agent') = ANY(${rollen})
     ORDER BY id
-  `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
+  `) as any[]).map((a) => ({ id: Number(a.id), vorname: nennform(a).nom }));
 }
 /** Frühestens buchbar: so viele Stunden ab jetzt. */
 export const VORLAUF_STUNDEN = 2;
@@ -592,8 +595,8 @@ export interface Slot {
 
 export interface SlotAuskunft {
   slots: Slot[];
-  /** Der zuständige Agent, falls es einen gibt — dann sind alle Slots seine. */
-  betreuer: { id: number; vorname: string } | null;
+  /** Der zuständige Agent, falls es einen gibt — dann sind alle Slots seine. E-265: dazu die Nennform (nom/dat) und die Anrede. */
+  betreuer: { id: number; vorname: string; nom?: string; dat?: string; anrede?: "Herr" | "Frau" | null } | null;
   /**
    * Führt hier eine VERTRETUNG statt der zuständigen Rolle?
    *
@@ -809,7 +812,7 @@ export async function freieSlots(
   const nurRolle = nurRollen ? nurRollen[0] : null;
   const [person] = (await lauf`
     SELECT p.id, p.assigned_agent_id,
-           a.first_name AS agent_vorname, a.name AS agent_name,
+           a.first_name AS agent_vorname, a.name AS agent_name, a.last_name AS agent_nachname, a.anrede AS agent_anrede,
            -- 05.09.2026 (Florentine, Punkt 6): Ein gesperrter Betreuer zählt
            -- nicht als aktiv — sonst bucht der Terminlink weiter bei ihm, und
            -- niemand ruft an (heute drei Startgespräche bei Angelique/Lucas).
@@ -833,11 +836,11 @@ export async function freieSlots(
   // bzw. Verteilliste.
   const betreuerAktiv = person.assigned_agent_id && person.agent_aktiv;
   const agenten = betreuerAktiv
-    ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_name || person.agent_vorname || "Ihr Ansprechpartner") }]
+    ? [{ id: Number(person.assigned_agent_id), vorname: person.agent_name || person.agent_vorname ? nennform({ anrede: person.agent_anrede, first_name: person.agent_vorname, last_name: person.agent_nachname, name: person.agent_name }).nom : "Ihr Ansprechpartner" }]
     : nurRollen
       ? await agentenMitRolle(nurRollen, lauf)
       : ((await lauf`
-          SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
+          SELECT id, name, first_name, last_name, anrede
           FROM fiaon_agents
           WHERE active AND distribution_active AND NOT is_test_account AND zugang_gesperrt_am IS NULL
             -- Kein Inkasso-Konto: Dass eines in dieser Liste stand, war
@@ -847,7 +850,7 @@ export async function freieSlots(
             -- verteilen. Nur Diana (inkasso) bleibt draußen.
             AND COALESCE(rolle, 'agent') IN ('agent', 'onboarding', 'vertriebsleiter')
           ORDER BY id
-        `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
+        `) as any[]).map((a) => ({ id: Number(a.id), vorname: nennform(a).nom }));
   if (agenten.length === 0) {
     return {
       slots: [], betreuer: null, vertretung: entscheid.rueckfall, quelle: wirkQuelle,
@@ -912,8 +915,13 @@ export async function freieSlots(
 
   return {
     slots: slotsVerknappen(slots, await slotsProTag(lauf)),
+    // E-265: dazu die Nennform („Herr Stripling" / „Herrn Stripling") und die Anrede — die Seite schreibt
+    // „Ihr Rückruf mit Herrn Stripling" statt „Ihr Rückruf mit Daniel".
     betreuer: betreuerAktiv
-      ? { id: Number(person.assigned_agent_id), vorname: String(person.agent_name || person.agent_vorname || "") }
+      ? (() => {
+        const n = nennform({ anrede: person.agent_anrede, first_name: person.agent_vorname, last_name: person.agent_nachname, name: person.agent_name });
+        return { id: Number(person.assigned_agent_id), vorname: String(person.agent_name || person.agent_vorname || ""), nom: n.nom, dat: n.dat, anrede: n.anrede };
+      })()
       : null,
     vertretung: entscheid.rueckfall,
     quelle: wirkQuelle,
@@ -1191,7 +1199,7 @@ export async function terminBuchen(
   const takt = dauerFuer(wirkQuelle);
   const nurRolle = rolleFuerQuelle(wirkQuelle);
   const [agent] = (await lauf`
-    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, active, rolle
+    SELECT id, name, first_name, last_name, anrede, active, rolle
     FROM fiaon_agents WHERE id = ${eingabe.agentId}
   `) as any[];
   if (!agent || !agent.active) throw new TerminFehler("agent_unbekannt", "Dieser Ansprechpartner ist nicht verfügbar.");
@@ -1378,7 +1386,8 @@ export async function terminBuchen(
     herkunft,
     personId: eingabe.personId,
     agentId: eingabe.agentId,
-    agentVorname: String(agent.vorname),
+    // E-265: die Nennform — Bestätigungsmail („{{agent_vorname}} ruft Sie an") und Seite lesen sie.
+    agentVorname: nennform(agent).nom,
     beginn: beginn.toISOString(),
     datumText: berlinDatumText(beginn),
     uhrzeit: berlinUhrzeit(beginn),

@@ -12,6 +12,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
+import { istJahresvertrag } from "@shared/fiaon-antrag-stand";
 import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, istGehasht, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { effectiveLimit } from "./fiaon-antrag";
 import { paket as paketVon } from "@shared/fiaon-pakete";
@@ -526,7 +528,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         faelligAm: tag(a.payment_due_date),
         // 03.09.2026: Verträge ab diesem Tag laufen über zwölf Monatsraten (AGB § 6 Abs. 1).
         // Ältere bleiben monatlich kündbar (§ 6 Abs. 8) — derselbe Schnitt wie in vertragsfassung().
-        jahresvertrag: !!a.agb_stand && new Date(a.agb_stand) >= new Date("2026-09-03"),
+        jahresvertrag: istJahresvertrag(a.agb_stand), // E-265: eine Rechnung (shared/fiaon-antrag-stand.ts)
       },
       stufe: {
         stufe: abgeleitet?.stufe ?? konto?.stufe ?? null, text: konto?.text ?? null,
@@ -790,7 +792,8 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
 
     const termine = (await sqlPool`
       SELECT t.id, t.beginn, t.dauer_min, t.status, t.quelle, t.storno_token,
-             COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname
+             -- E-265: „mit Herrn Stripling" im Kundenbereich (Dativ), nie der Vorname.
+             ${sqlPool.unsafe(nennformSql("ag", "dat"))} AS agent_vorname
         FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
        WHERE t.person_id = ${a.person_id}
        ORDER BY t.beginn DESC LIMIT 20`) as any[];

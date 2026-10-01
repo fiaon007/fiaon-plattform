@@ -31,8 +31,107 @@
 
 import { sqlPool } from "./db-pool";
 import { offeneRatenZaehlen, ratenStornieren } from "./fiaon-raten-storno";
+// E-265 Nachbesserung 2 (01.10.2026): EINE Rechnung für Urkunde, Bestätigungsmail, WhatsApp und Postfach.
+// E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag ist das Ende des ABRECHNUNGSMONATS (Fälligkeit zu
+// Fälligkeit, AGB 04.07.2026 § 6, Frist 24 Stunden) — nicht mehr der Kalendermonat. Die eine Rechnung: abrechnungsmonat.
+import { istJahresvertrag, abrechnungsmonat, tagDeutsch } from "@shared/fiaon-antrag-stand";
+import { kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
 
-export type KuendigungQuelle = "mail" | "formular" | "telefon" | "admin" | "altbestand";
+/** YYYY-MM-DD (Berlin) eines Zeitpunkts. */
+function berlinTag(d: Date | string | number): string {
+  return new Date(d).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+}
+/** Das Ende eines Berliner Tages (23:59:59) als Zeitpunkt — für „gilt zum Ende des Abrechnungsmonats". */
+export function berlinTagesende(tag: string): Date {
+  // Mittag UTC des Tages, dann der Berliner Versatz an diesem Tag (Sommer-/Winterzeit) — ohne Bibliothek.
+  const mittag = new Date(`${tag}T12:00:00Z`);
+  const teile = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hourCycle: "h23" }).formatToParts(mittag);
+  const versatzStd = Number(teile.find((x) => x.type === "hour")?.value ?? "12") - 12;
+  return new Date(Date.UTC(Number(tag.slice(0, 4)), Number(tag.slice(5, 7)) - 1, Number(tag.slice(8, 10)), 23 - versatzStd, 59, 59));
+}
+
+/**
+ * WELCHE RATEN NACH DER KÜNDIGUNG NOCH ZU ZAHLEN SIND — die eine Rechnung (E-265 Nachbesserung 2, 01.10.2026).
+ * Gegenprobe 29.09. (g3-raten): WhatsApp sagte beim Altvertrag „gilt zum Monatsende … danach kommt nichts mehr",
+ * Urkunde und Bestätigungsmail nannten die Rate vom 12.10. (Regel „hoechste") und die Dauermahnung mahnte sie.
+ *   · Vertrag vor dem 03.09.2026 (AGB 04.07.2026 § 6, Frist 24 Stunden zum Ende des Abrechnungsmonats): zu zahlen
+ *     ist, was bis zum Ende des Abrechnungsmonats fällig ist, in dem die Frist abläuft (abrechnungsmonat — Fälligkeit
+ *     zu Fälligkeit, E-265 (01.10.2026)); Raten danach werden NIE verlangt — sie entfallen mit der Kündigung.
+ *   · Jahresvertrag (Justins Kulanz): zu zahlen sind die FÄLLIGEN Raten (bis heute); vorab angelegte, noch nicht
+ *     fällige entfallen mit der Kulanz.
+ * Eine Rate ohne Fälligkeit zählt als fällig (nie still erlassen). `faelligkeiten` sind die Fälligkeitstage der ganzen
+ * Ratenkette (auch bezahlte) — sie bezeugen den Rhythmus; `anker` ist der Rückfall ohne Kette. Rein.
+ */
+export function kuendigungRatenPlan<T extends { faellig_am?: unknown }>(offen: readonly T[], opt: {
+  agbStand: unknown; am: Date; faelligkeiten?: readonly unknown[]; anker?: Date | string | null;
+}): { jahresvertrag: boolean; vertragsEnde: string | null; zuZahlen: T[]; entfallen: T[] } {
+  const jahresvertrag = istJahresvertrag(opt.agbStand);
+  const kette = [...(opt.faelligkeiten ?? []), ...offen.map((r) => r.faellig_am)] as (Date | string | number | null | undefined)[];
+  const vertragsEnde = jahresvertrag ? null : abrechnungsmonat(opt.am, kette, { anker: opt.anker ?? null }).bis;
+  const mitTag = offen.map((r) => ({ r, faellig: r.faellig_am ? berlinTag(r.faellig_am as any) : null }));
+  const { zuZahlen, nachEnde } = kuendigungRatenAufteilen(mitTag, { jahresvertrag, vertragsEnde, heute: berlinTag(opt.am) });
+  return { jahresvertrag, vertragsEnde, zuZahlen: zuZahlen.map((x) => x.r), entfallen: nachEnde.map((x) => x.r) };
+}
+
+/**
+ * DAS VERTRAGSENDE EINER GEKÜNDIGTEN BESTELLUNG aus der Datenbank (E-265 (01.10.2026)) — die eine Lesestelle für
+ * Urkunde, Bestätigungsmail, WhatsApp, Postfach und Akte. Jahresvertrag: kein Ende aus der Kündigung (null); Altvertrag:
+ * vertrag_ende_am, wenn gesetzt (beendet oder „nichts mehr zu zahlen"), sonst das Ende des Abrechnungsmonats aus der
+ * Ratenkette (jede Rate, auch stornierte — sie bezeugen den Rhythmus) bzw. dem Anker (erste Zahlung, sonst Abschluss,
+ * sonst Bestellung). Ohne Kündigung (gekuendigt_am leer): das Ende, das eine Kündigung JETZT hätte (Vorschau).
+ *
+ * Nachbesserung Recht (01.10.2026, Gegenprüfung M2): Ein gesetztes vertrag_ende_am, das beim bezahlten Altvertrag FRÜHER
+ * liegt als das Ende des Abrechnungsmonats, ist ein Altwert (Zahltag aus vertragEndePruefen vor dieser Nachbesserung,
+ * Kalendermonatsende vor dem 01.10.) — dann gilt das Ende des Abrechnungsmonats, nie der frühere Tag. Beim nie bezahlten
+ * Storno (storno_unbezahlt) gab es keinen laufenden Vertrag; dort bleibt der gesetzte Tag.
+ */
+export async function vertragsendeLesen(ref: string, opt: { am?: Date | string | null } = {}): Promise<{
+  jahresvertrag: boolean; ende: string | null; endeDe: string | null; gekuendigtAm: Date | null; quelle: string | null;
+}> {
+  const [a] = (await sqlPool`
+    SELECT a.agb_stand, a.gekuendigt_am, a.vertrag_ende_am, a.kuendigung_zurueckgenommen_am, a.payment_status,
+           COALESCE(a.paid_at, a.completed_at, a.created_at) AS anker,
+           (SELECT COALESCE(json_agg(r.faellig_am ORDER BY r.rate_nr), '[]'::json) FROM fiaon_abo_raten r WHERE r.ref = a.ref) AS faelligkeiten
+      FROM fiaon_applications a WHERE a.ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  if (!a) return { jahresvertrag: false, ende: null, endeDe: null, gekuendigtAm: null, quelle: null };
+  const jahresvertrag = istJahresvertrag(a.agb_stand);
+  const gekuendigtAm: Date | null = a.gekuendigt_am && !a.kuendigung_zurueckgenommen_am ? new Date(a.gekuendigt_am) : null;
+  if (jahresvertrag) return { jahresvertrag, ende: a.vertrag_ende_am ? berlinTag(a.vertrag_ende_am) : null, endeDe: a.vertrag_ende_am ? tagDeutsch(berlinTag(a.vertrag_ende_am)) : null, gekuendigtAm, quelle: a.vertrag_ende_am ? "vertrag_ende_am" : null };
+  const kette: unknown[] = Array.isArray(a.faelligkeiten) ? a.faelligkeiten : (() => { try { return JSON.parse(String(a.faelligkeiten ?? "[]")); } catch { return []; } })();
+  const m = abrechnungsmonat(opt.am ?? gekuendigtAm ?? new Date(), kette as any[], { anker: a.anker ?? null });
+  if (gekuendigtAm && a.vertrag_ende_am) {
+    const gesetzt = berlinTag(a.vertrag_ende_am);
+    if (String(a.payment_status) === "paid" && gesetzt < m.bis) {
+      return { jahresvertrag, ende: m.bis, endeDe: tagDeutsch(m.bis), gekuendigtAm, quelle: m.quelle };
+    }
+    return { jahresvertrag, ende: gesetzt, endeDe: tagDeutsch(gesetzt), gekuendigtAm, quelle: "vertrag_ende_am" };
+  }
+  return { jahresvertrag, ende: m.bis, endeDe: tagDeutsch(m.bis), gekuendigtAm, quelle: m.quelle };
+}
+
+/**
+ * Liegt diese Rate NACH dem Vertragsende eines gekündigten Altvertrags? (E-265 Schluss-Nachbesserung, 01.10.2026,
+ * Probe 3 M3) Dann wird sie nie verlangt — zahlungslink_bauen baut keine Seite dafür. Beim Altvertrag (vor dem
+ * 03.09.2026) endet der Vertrag zum Ende des Abrechnungsmonats der Kündigung (vertragsendeLesen); der Altbestand aus
+ * der Zeit vor der Nachbesserung 2 hat solche Raten noch offen (storno-nach-ende.sql wartet auf Justins Go).
+ * Jahresvertrag: nie. Ergebnis: Nummer, Fälligkeit und Vertragsende (TT.MM.JJJJ) — sonst null.
+ */
+export async function rateNachVertragsende(referenz: string): Promise<{ nr: number; faellig: string; ende: string } | null> {
+  const [r] = (await sqlPool`
+    SELECT r.ref, r.rate_nr, r.faellig_am, a.agb_stand, a.gekuendigt_am, a.kuendigung_zurueckgenommen_am
+      FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+     WHERE UPPER(r.zahlungsreferenz) = ${String(referenz || "").trim().toUpperCase()}
+     ORDER BY r.id DESC LIMIT 1`.catch(() => [])) as any[];
+  if (!r?.gekuendigt_am || r.kuendigung_zurueckgenommen_am || istJahresvertrag(r.agb_stand) || !r.faellig_am) return null;
+  const { ende, endeDe } = await vertragsendeLesen(String(r.ref));
+  if (!ende || !endeDe) return null;
+  const faellig = berlinTag(r.faellig_am);
+  if (faellig <= ende) return null;
+  return { nr: Number(r.rate_nr), faellig: tagDeutsch(faellig)!, ende: endeDe };
+}
+
+// E-265 (29.09.2026): „whatsapp" — Mara nimmt eine klare Kündigung auf WhatsApp selbst auf (kuendigung_aufnehmen).
+export type KuendigungQuelle = "mail" | "formular" | "telefon" | "admin" | "altbestand" | "whatsapp";
 
 export interface KuendigungErgebnis {
   ok: boolean;
@@ -151,7 +250,9 @@ export async function kuendigungSetzen(ref: string, opts: {
 
   const [a] = (await sqlPool`
     SELECT ref, person_id, payment_status, payment_reference, amount_due, pack_name, email,
-           first_name, last_name, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, abo_gestoppt_am
+           first_name, last_name, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, abo_gestoppt_am, agb_stand,
+           -- E-265 (01.10.2026): der Anker für den Abrechnungsmonat, falls keine Ratenkette da ist
+           COALESCE(paid_at, completed_at, created_at) AS anker
     FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
   `) as any[];
   if (!a) return leer("unbekannt", "Bestellung nicht gefunden");
@@ -204,22 +305,32 @@ export async function kuendigungSetzen(ref: string, opts: {
     FROM fiaon_abo_raten WHERE ref = ${ref} AND storniert_am IS NULL ORDER BY rate_nr ASC
   `) as any[];
   const offen = raten.filter((r) => r.status === "offen");
+  // E-265 (01.10.2026): Die Fälligkeitstage der GANZEN Kette (auch stornierte Raten) — sie bezeugen den Rhythmus
+  // des Abrechnungsmonats (Fälligkeit zu Fälligkeit).
+  const kette = (await sqlPool`SELECT faellig_am FROM fiaon_abo_raten WHERE ref = ${ref}`.catch(() => [])) as any[];
 
   if (kettenLuecke(raten)) {
     return leer("prueffall", `Lücke in der Ratenkette (${raten.map((r) => r.rate_nr).join(",")}) — ein Mensch muss entscheiden`);
   }
 
-  // Keine offene Rate → alles bezahlt, Vertrag endet sofort.
+  // E-265 Nachbesserung 2 (01.10.2026): EINE Rechnung — was bleibt, was entfällt (kuendigungRatenPlan).
+  // E-265 (01.10.2026, Recht): Altvertrag — Vertragsende = Ende des Abrechnungsmonats, in dem die 24-Stunden-Frist abläuft.
+  const plan = kuendigungRatenPlan(offen, { agbStand: a.agb_stand, am: wann, faelligkeiten: kette.map((r) => r.faellig_am), anker: a.anker ?? null });
+  const endeText = plan.vertragsEnde ? `zum Ende des Abrechnungsmonats (${tagDeutsch(plan.vertragsEnde)})` : null;
+  // Altvertrag: Die Kündigung gilt zum Ende des Abrechnungsmonats — das ist auch das Vertragsende, wenn nichts mehr zu zahlen ist.
+  const endeOhneRate: Date = plan.vertragsEnde ? berlinTagesende(plan.vertragsEnde) : wann;
+
+  // Keine offene Rate → alles bezahlt, Vertrag endet sofort (Altvertrag: zum Ende des Abrechnungsmonats).
   if (offen.length === 0) {
     const hoechste = raten.length ? Math.max(...raten.map((r) => Number(r.rate_nr))) : 0;
     if (opts.probe) return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechste || null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: wann.toISOString(), grund: "keine offene Rate — Vertrag endet sofort" };
+      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: endeOhneRate.toISOString(), grund: "keine offene Rate — Vertrag endet sofort" };
     await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_applications
            SET gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
                kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechste || null},
-               vertrag_ende_am = ${wann}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
+               vertrag_ende_am = ${endeOhneRate}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
                abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung'), kuendigung_rueckhol_bis = ${rueckholBis},
                mahnstopp_am = COALESCE(mahnstopp_am, ${wann}), updated_at = NOW()
          WHERE ref = ${ref}
@@ -227,11 +338,11 @@ export async function kuendigungSetzen(ref: string, opts: {
       await tx`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-                ${`Kündigung (${opts.quelle}) — alle Raten bezahlt, Vertrag endet sofort.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+                ${`Kündigung (${opts.quelle}) — alle Raten bezahlt, Vertrag endet ${endeText ?? "sofort"}.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
       `.catch(() => {});
     });
     return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechste || null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: wann.toISOString(), grund: "Vertrag beendet" };
+      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: endeOhneRate.toISOString(), grund: "Vertrag beendet" };
   }
 
   // ── Kulanz (nur Mensch): sofort beenden, offene Raten entfallen ────────
@@ -264,12 +375,48 @@ export async function kuendigungSetzen(ref: string, opts: {
       letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: "Vertrag beendet (Kulanz)" };
   }
 
-  // Welche offene Rate ist „die letzte"? Standard: die höchste (der Kunde zahlt
-  // den laufenden Monat zu Ende). Umschaltbar, weil es eine Geldfrage ist.
+  // ── E-265 Nachbesserung 2 (01.10.2026): NICHTS MEHR ZU ZAHLEN ──────────────────────────────────────────────
+  // Altvertrag, dessen offene Raten alle erst NACH dem Ende des Abrechnungsmonats fällig sind (z. B. Kündigung am
+  // 26.09. bei Raten am 28.: die Rate vom 28.09. entfällt); Jahresvertrag ohne fällige Rate (nur vorab angelegte).
+  // Die Raten entfallen (storno_grund 'kuendigung' — kuendigungZuruecknehmen holt sie zurück), der Vertrag endet
+  // (Altvertrag zum Ende des Abrechnungsmonats, Jahresvertrag sofort).
+  if (plan.zuZahlen.length === 0) {
+    const hoechsteBezahlt = raten.filter((r) => r.status === "bezahlt").reduce((m, r) => Math.max(m, Number(r.rate_nr)), 0);
+    if (opts.probe) return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
+      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: endeOhneRate.toISOString(), grund: `nichts mehr fällig — ${offen.length} spätere Rate(n) entfallen` };
+    await sqlPool.begin(async (tx) => {
+      await tx`
+        UPDATE fiaon_applications
+           SET gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+               kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechsteBezahlt || null},
+               vertrag_ende_am = ${endeOhneRate}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
+               abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung'), kuendigung_rueckhol_bis = ${rueckholBis},
+               mahnstopp_am = COALESCE(mahnstopp_am, ${wann}), updated_at = NOW()
+         WHERE ref = ${ref}
+      `;
+      await tx`
+        UPDATE fiaon_abo_raten
+           SET status = 'storniert', storniert_am = NOW(), storno_grund = 'kuendigung', mahnstufe = 0,
+               inkasso_agent_id = NULL, inkasso_wiedervorlage = NULL, inkasso_zusage_am = NULL, updated_at = NOW()
+         WHERE ref = ${ref} AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL
+      `;
+      await tx`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
+                ${`Kündigung (${opts.quelle}) — nichts mehr fällig: ${offen.length} spätere Rate(n) entfallen (${plan.jahresvertrag ? "Jahresvertrag, Kulanz: nur fällige Raten" : `Vertrag vor dem 03.09.2026, Vertragsende ${endeText}`}).${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+      `.catch(() => {});
+    });
+    return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
+      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: endeOhneRate.toISOString(), grund: "Vertrag beendet — nichts mehr fällig" };
+  }
+
+  // Welche offene Rate ist „die letzte"? Standard: die höchste der ZU ZAHLENDEN (kuendigungRatenPlan) — Altvertrag
+  // bis zum Ende des Abrechnungsmonats, Jahresvertrag bis heute fällig. Umschaltbar, weil es eine Geldfrage ist.
   const regel = await einstellung("kuendigung_letzte_rate", "hoechste");
+  const kandidaten = plan.zuZahlen;
   const gewaehlt = regel === "niedrigste"
-    ? offen.reduce((m, r) => (Number(r.rate_nr) < Number(m.rate_nr) ? r : m), offen[0])
-    : offen.reduce((m, r) => (Number(r.rate_nr) > Number(m.rate_nr) ? r : m), offen[0]);
+    ? kandidaten.reduce((m, r) => (Number(r.rate_nr) < Number(m.rate_nr) ? r : m), kandidaten[0])
+    : kandidaten.reduce((m, r) => (Number(r.rate_nr) > Number(m.rate_nr) ? r : m), kandidaten[0]);
   const letzteNr = Number(gewaehlt.rate_nr);
   const danach = raten.filter((r) => Number(r.rate_nr) > letzteNr && r.status === "offen");
 
@@ -297,7 +444,7 @@ export async function kuendigungSetzen(ref: string, opts: {
     await tx`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
       VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-              ${`Kündigung (${opts.quelle}) — letzte Rate ${letzteNr} über ${(Number(gewaehlt.betrag_cents) / 100).toFixed(2)} € bleibt fällig${gewaehlt.faellig_am ? ` (fällig ${String(gewaehlt.faellig_am).slice(0, 10)})` : ""}; ${danach.length} spätere Rate(n) storniert. Mit der Zahlung endet der Vertrag.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+              ${`Kündigung (${opts.quelle}) — letzte Rate ${letzteNr} über ${(Number(gewaehlt.betrag_cents) / 100).toFixed(2)} € bleibt fällig${gewaehlt.faellig_am ? ` (fällig ${String(gewaehlt.faellig_am).slice(0, 10)})` : ""}; ${danach.length} spätere Rate(n) storniert. ${endeText ? `Die Kündigung gilt ${endeText}.` : "Mit der Zahlung endet der Vertrag."}${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
     `.catch(() => {});
   });
 
@@ -333,6 +480,12 @@ export async function kuendigungZuruecknehmen(ref: string, grund?: string | null
 /**
  * Ist diese bezahlte Rate die letzte des gekündigten Vertrags? Wird aus
  * `rateBezahltBuchen` gerufen — dort steht fest, dass Geld angekommen ist.
+ *
+ * Nachbesserung Recht (01.10.2026, Gegenprüfung M2): Beim Altvertrag (vor dem 03.09.2026) ist das Vertragsende NICHT der
+ * Zahltag, sondern das Ende des Abrechnungsmonats (AGB 04.07.2026 § 6) — dieselbe Rechnung wie vertragsendeLesen, als
+ * Berliner Tagesende gespeichert (Kündigung 28.09., Rate vom 28.09. am 02.10. bezahlt → vertrag_ende_am 27.10. 23:59:59,
+ * nicht 02.10.). Vorher stand hier NOW(), und Mara, Dossier und Urkunde meldeten danach „gilt zum … dem 02.10.2026".
+ * Jahresvertrag unverändert: Mit der Zahlung der letzten Rate endet der Vertrag (Justins Kulanz) — der Zahltag.
  */
 export async function vertragEndePruefen(ref: string, rateNr: number): Promise<{ beendet: boolean; person_id?: number | null }> {
   await kuendigungSpalten();
@@ -342,16 +495,19 @@ export async function vertragEndePruefen(ref: string, rateNr: number): Promise<{
   `) as any[];
   if (!a?.gekuendigt_am || a.vertrag_ende_am || a.letzte_rate_nr == null) return { beendet: false };
   if (Number(rateNr) < Number(a.letzte_rate_nr)) return { beendet: false };
+  const lage = await vertragsendeLesen(ref, { am: a.gekuendigt_am });
+  const ende: Date = !lage.jahresvertrag && lage.ende ? berlinTagesende(lage.ende) : new Date();
+  const endeText = !lage.jahresvertrag && lage.endeDe ? ` Er endet zum Ende des Abrechnungsmonats (${lage.endeDe}).` : "";
   await sqlPool`
     UPDATE fiaon_applications
-       SET vertrag_ende_am = NOW(), abo_gestoppt_am = COALESCE(abo_gestoppt_am, NOW()),
+       SET vertrag_ende_am = ${ende}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, NOW()),
            abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung — letzte Rate bezahlt'), updated_at = NOW()
      WHERE ref = ${ref}
   `;
   await sqlPool`
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
     VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-            ${`Letzte Rate ${rateNr} bezahlt — der Vertrag ist damit beendet. Provisionen bleiben bestehen.`})
+            ${`Letzte Rate ${rateNr} bezahlt — der Vertrag ist damit beendet.${endeText} Provisionen bleiben bestehen.`})
   `.catch(() => {});
   return { beendet: true, person_id: a.person_id };
 }

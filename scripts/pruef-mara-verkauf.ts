@@ -130,7 +130,8 @@ pruef("E240 Doris: Angebot und Werkzeug im Auftrag", /DEIN ANGEBOT FÜR IHN: DIE
 pruef("E240 Doris: Preis 74 € einmalig, kein Ratensatz", /74 € einmalig/.test(pDoris) && /Keine Monatsrate, keine zwölf Raten/.test(pDoris));
 pruef("E240 Doris: Auskunfteien DE", /SCHUFA, CRIF und Creditreform Boniversum/.test(pDoris));
 // E-248 (28.09.2026): „Rahmen" statt „Limit" — auch im Nutzen-Satz (AUSKUNFT_NUTZEN_SATZ_KARTE) und im Bank-Satz.
-pruef("E240 Doris: Karte und Rahmen ohne Zusage", /Weg zur Karte genau danach aus/.test(pDoris) && /Über Karte und Rahmen entscheidet die Bank/.test(pDoris) && !/Wunschlimit|Über Karte und Limit/.test(pDoris));
+// E-265 (29.09.2026): „Wunschlimit" steht jetzt im Auftrag — aber nur mit dem Satz über die Bank (Justins Formel).
+pruef("E240 Doris: Karte und Rahmen ohne Zusage", /Weg zur Karte genau danach aus/.test(pDoris) && /Über Karte und Rahmen entscheidet die Bank/.test(pDoris) && !/Über Karte und Limit/.test(pDoris) && /Wunschlimit[^\n]{0,120}entscheidet unsere Partnerbank/.test(pDoris));
 pruef("E240 Doris: kostenlose Datenkopie nur auf Nachfrage", /kostenlos selbst anfordern/.test(pDoris) && /Von dir aus empfiehlst du den kostenlosen Weg nie/.test(pDoris));
 pruef("E240 Doris: „Ich hab keine\" ist kein Auftrag (Kauflink statt Bestellung)", !auskunftZugestimmt(doris, "") && !auskunftZugestimmt("Ich hab keine", ""));
 const kauf = "https://fiaon.com/api/fiaon/auskunft/bestellen?p=4513&art=privat&exp=1&sig=abc";

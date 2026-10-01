@@ -825,7 +825,13 @@ export async function waVorlagenSperre(
 export async function waSenden(
   an: string,
   inhalt: { text?: string; vorlage?: string; werte?: string[]; knopfWert?: string },
-  zusatz: { personId?: number | null; leadId?: number | null; von?: string | null; frischerLead?: boolean } = {},
+  zusatz: {
+    personId?: number | null; leadId?: number | null; von?: string | null;
+    /** E-261: frischer Lead (≤ 24 h) — die Begrüßung darf auch bei roter Bremse raus. */
+    frischerLead?: boolean;
+    /** E-265 Nachbesserung: der volle Name des Absenders für „hier ist {{2}} von FIAON" (von bleibt die interne Marke). */
+    absender?: string | null;
+  } = {},
   lauf: Lauf = sqlPool,
 ): Promise<SendeErgebnis> {
   const k = waKonfig();
@@ -921,8 +927,20 @@ export async function waSenden(
   if (vorlage && inhalt.vorlage) {
     const noetig = Math.max(0, ...Array.from(vorlage.text.matchAll(/\{\{(\d+)\}\}/g)).map((m) => Number(m[1])));
     const werte = [...(inhalt.werte ?? [])];
-    const absender = String(zusatz.von || "").trim();
-    const absenderName = absender && !/^(leitung|system|automatik|mara-automatik)$/i.test(absender) ? absender.split(" ")[0] : "Mara";
+    const absender = String(zusatz.absender || zusatz.von || "").trim();
+    // E-265 (29.09.2026, Justin „zum letzten Mal!!"): „hier ist {{2}} von FIAON" nennt den vollen Namen —
+    // „hier ist Daniel Stripling von FIAON" (in der ersten Person klingt „Herr Stripling" falsch), nie den Vornamen allein.
+    // Nachbesserung (29.09.2026, Regression): Der Mitarbeiter-Raum gab nur den Vornamen (req.agent.first_name) und der
+    // Chef-Auftrag „Mara (<Vorname>)" — jetzt: „Mara …" wird „Mara"; ein einzelner Vorname wird der volle Name aus der
+    // Mitarbeiterliste (nur, wenn er eindeutig ist), sonst „Mara".
+    let absenderName = absender && !/^(leitung|system|automatik|mara-automatik)$/i.test(absender) && !new RegExp(String.raw`^mara(?![\p{L}])`, "iu").test(absender) ? absender : "Mara";
+    if (absenderName !== "Mara" && !/\s/.test(absenderName)) {
+      try {
+        const { mitarbeiterListe } = await import("./fiaon-mitarbeiter-namen");
+        const treffer = (await mitarbeiterListe(lauf)).filter((m) => m.vorname.toLowerCase() === absenderName.toLowerCase() && m.nachname);
+        absenderName = treffer.length === 1 ? `${treffer[0].vorname} ${treffer[0].nachname}` : "Mara";
+      } catch { absenderName = "Mara"; }
+    }
     for (let i = werte.length; i < noetig; i++) {
       if (i === 0) werte.push("und willkommen");
       else if (inhalt.vorlage === "fiaon_kk_rueckfrage" && i === 1) werte.push(absenderName);

@@ -24,6 +24,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { terminLink } from "./fiaon-termine";
 import { versendenUndProtokollieren } from "./fiaon-mail-log";
 import { stufeAusTier } from "@shared/fiaon-kundenstatus";
@@ -66,7 +67,8 @@ export async function wiedereinstiegKandidaten(
              WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1
            )) AS email,
-           COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname,
+           -- E-265: Nennform für die Kundenmail, nie der Vorname.
+           ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname,
            (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl
              JOIN fiaon_applications a2 ON a2.ref = cl.ref
              WHERE a2.person_id = p.id AND cl.voided_at IS NULL

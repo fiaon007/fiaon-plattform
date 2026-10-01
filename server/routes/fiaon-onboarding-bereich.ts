@@ -22,6 +22,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import { ONBOARDING_ZUSAGE_TEXT, ONBOARDING_ZUSAGE_VERSION } from "../lib/fiaon-onboarding-zusage";
@@ -180,7 +181,8 @@ async function verpasstMailSenden(
                SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
                FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
                ORDER BY a.created_at DESC LIMIT 1)) AS email,
-             COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname
+             -- E-265: Nennform in der Kundenmail, nie der Vorname.
+             ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname
       FROM fiaon_persons p
       LEFT JOIN fiaon_termine t ON t.id = ${terminId}
       LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id

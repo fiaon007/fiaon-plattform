@@ -25,6 +25,7 @@ import {
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { anrufHinweisSie, ABSAGE_HINWEIS_SIE } from "../../shared/fiaon-termin-text";
+import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
 
 const router = Router();
 
@@ -197,7 +198,8 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
     // Schon einen Termin? Dann zeigt die Seite ihn statt einer neuen Auswahl.
     const [bestehend] = (await sqlPool`
       SELECT t.id, t.beginn, t.storno_token,
-             COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname
+             -- E-265 (29.09.2026): die Nennform („Herr Stripling"), dazu „mit Herrn Stripling" für die Seite.
+             ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname, ${sqlPool.unsafe(nennformSql("ag", "dat"))} AS agent_dat
       FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
       WHERE t.person_id = ${person.id} AND t.status = 'gebucht' AND t.beginn > NOW()
       ORDER BY t.beginn ASC LIMIT 1
@@ -302,6 +304,7 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
             datumText: berlinDatumText(bestehend.beginn),
             uhrzeit: berlinUhrzeit(bestehend.beginn),
             agentVorname: bestehend.agent_vorname,
+            agentDat: bestehend.agent_dat ?? bestehend.agent_vorname,
             stornoToken: bestehend.storno_token,
           }
         : null,
@@ -722,7 +725,8 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
       SELECT t.id, t.person_id, t.beginn, t.agent_id, t.quelle, t.status,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                       p.company_name, 'Der Kunde') AS name,
-             (SELECT COALESCE(NULLIF(ag.first_name, ''), ag.name) FROM fiaon_agents ag
+             -- E-265: Nennform für die Kundenmail („Herr Stripling hat versucht, Sie zu erreichen").
+             (SELECT ${sqlPool.unsafe(nennformSql("ag"))} FROM fiaon_agents ag
                WHERE ag.id = t.agent_id) AS agent_vorname
       FROM fiaon_termine t LEFT JOIN fiaon_persons p ON p.id = t.person_id
       WHERE t.id = ${id} AND t.status IN ('gebucht', 'verpasst')`) as any[];
@@ -1033,7 +1037,8 @@ router.post("/agent/termine/:id/verschieben", requireAgent, async (req: AgentReq
 
     const [t] = (await sqlPool`
       SELECT t.id, t.person_id, t.agent_id, t.beginn, t.dauer_min, t.quelle, t.status, t.storno_token,
-             (SELECT COALESCE(NULLIF(ag.first_name, ''), ag.name) FROM fiaon_agents ag
+             -- E-265: Nennform für die Kundenmail zur verschobenen Zeit.
+             (SELECT ${sqlPool.unsafe(nennformSql("ag"))} FROM fiaon_agents ag
                WHERE ag.id = t.agent_id) AS agent_vorname
       FROM fiaon_termine t WHERE t.id = ${id}
     `) as any[];
@@ -1194,7 +1199,7 @@ export async function terminUebergeben(ein: {
     return { status: 403, body: { ok: false, error: "Diesen Termin kann nur sein Zuständiger oder die Leitung übergeben." } };
   }
   const [ziel] = (await sqlPool`
-    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, active, email
+    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, active, email, first_name, last_name, anrede
     FROM fiaon_agents
     WHERE id = ${zielId} AND active AND NOT COALESCE(is_test_account, FALSE) AND zugang_gesperrt_am IS NULL
   `) as any[];
@@ -1318,12 +1323,13 @@ export async function terminUebergeben(ein: {
         email: String(p.email),
         vorname: p.vorname || null,
         nachname: p.nachname || null,
-        agent_vorname: String(ziel.vorname),
+        // E-265: die Nennform in der Kundenmail („Herr Stripling ruft Sie an"), nie der Vorname.
+        agent_vorname: nennform(ziel).nom,
         termin_datum: berlinDatumText(termin.beginn),
         termin_uhrzeit: berlinUhrzeit(termin.beginn),
         termin_art: terminArtAusQuelle(termin.quelle).text,
         storno_link: stornoLink(String(termin.storno_token)),
-        hinweis_anruf: anrufHinweisSie(String(ziel.vorname)),
+        hinweis_anruf: anrufHinweisSie(nennform(ziel).nom),
         hinweis_absage: ABSAGE_HINWEIS_SIE,
         // E-263: dieselbe Kalender-Zeile wie nach der Buchung — gleiche UID, der Eintrag beim Kunden bleibt einer.
         ...(await import("../lib/fiaon-kalender-abo").then((k) => k.kundenKalenderFelder({ stornoToken: termin.storno_token, beginn: termin.beginn, dauerMin: termin.dauer_min })).catch(() => ({}))),

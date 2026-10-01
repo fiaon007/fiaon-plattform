@@ -52,7 +52,8 @@ import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { absoluteUrl } from "../fiaon-base-url";
 import { menschSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
 // E-248: Maras Stimme aus EINER Quelle — dieselbe Persona wie im Postfach und auf WhatsApp.
-import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE } from "@shared/fiaon-mara-ton";
+import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE, kartenZiel, kartenzielText, BANK_SATZ, nennAus, type KartenZiel } from "@shared/fiaon-mara-ton";
+import type { MitarbeiterEintrag } from "@shared/fiaon-mitarbeiter-name";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 
 export const DIENST = "mara-aktion";
@@ -144,6 +145,8 @@ export interface Kandidat {
   email: string; vorname: string | null; nachname: string | null;
   paket: string | null; betragEuro: number | null; wunschlimit: number | null;
   zahlungsreferenz: string | null; ereignisAm: string; zuletztAm: string | null;
+  /** E-265: der Paketschlüssel — für den Rahmen des Pakets (Kartenziel). */
+  paketKey?: string | null;
 }
 
 /**
@@ -163,7 +166,7 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
   // NOT IN verlangt Mengen ohne NULL — deshalb steht an jeder „person_id IS NOT NULL“.
   const zeilen = (await sqlPool`
     WITH app AS (
-      SELECT DISTINCT ON (a.person_id) a.person_id, a.ref, a.payment_status, a.claimed_paid_at, a.created_at, a.pack_name,
+      SELECT DISTINCT ON (a.person_id) a.person_id, a.ref, a.payment_status, a.claimed_paid_at, a.created_at, a.pack_name, a.pack_key,
              a.amount_due, a.wanted_limit, a.payment_reference, a.email, a.first_name, a.last_name
         FROM fiaon_applications a
        WHERE a.gdpr_deleted_at IS NULL AND a.merged_into IS NULL AND a.person_id IS NOT NULL
@@ -261,6 +264,7 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
     schritt: Number(z.gesendet || 0) + 1,
     email: String(z.mail).trim(), vorname: z.vor ?? null, nachname: z.nach ?? null,
     paket: z.pack_name ?? null,
+    paketKey: z.pack_key ?? null,
     betragEuro: z.amount_due == null ? null : Number(z.amount_due),
     wunschlimit: z.wanted_limit == null ? null : Number(z.wanted_limit),
     zahlungsreferenz: z.payment_reference ?? null,
@@ -297,27 +301,37 @@ function thema(stufe: "A" | "B", schritt: number): string {
   if (stufe === "A") {
     return [
       "Erste Mail: Stell dich kurz vor. Danke ihm, dass er die Zahlung gemeldet hat. Sag freundlich, dass sie bei dir noch nicht angekommen ist — Überweisungen brauchen manchmal etwas. Bitte ihn, dir den Überweisungsbeleg einfach als Antwort zu schicken, dann ordnest du ihn sofort zu; und wenn die Überweisung doch nicht rausging, geht es über den Knopf unten in zwei Minuten. Dann: Sobald die Zahlung da ist, aktivierst du seinen Account — und was ihn dann erwartet (Link der Partnerbank, Karte).",
-      "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Die Zahlung ist noch nicht zugeordnet — oft fehlt nur der Verwendungszweck. Bitte um den Beleg als Antwort oder den Weg über den Knopf (dort steht der richtige Verwendungszweck). Motivierend: Er ist nur noch einen Schritt von der Aktivierung entfernt.",
+      "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Die Zahlung ist noch nicht zugeordnet — oft fehlt nur der Verwendungszweck. Bitte um den Beleg als Antwort oder den Weg über den Knopf (dort steht der richtige Verwendungszweck). Motivierend: Sobald die Zahlung zugeordnet ist, geht es direkt weiter.",
       "Dritte Mail: Konzentrier dich auf die Karte: Nach der Aktivierung kommt direkt der Link unserer Partnerbank, die Karte ist in der Regel nach der Zusage der Bank in 2–5 Werktagen da, meist vorher schon mit Apple Pay nutzbar. Bitte um den Beleg oder die Zahlung über den Knopf.",
       "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg). Frag, ob etwas unklar ist — eine kurze Antwort genügt, du kümmerst dich. Freundliche Erinnerung an den offenen Schritt.",
     ][Math.min(schritt, 4) - 1];
   }
   return [
-    "Erste Mail: Stell dich kurz vor (so wie in Justins Beispiel). Du würdest seinen Account gern aktivieren — sein gewünschter Kartenrahmen ist dabei das Ziel. Dazu fehlt nur noch die offene Rechnung. Sobald die Zahlung da ist, aktivierst du den Account und sein persönlicher Betreuer begleitet ihn. Mach ihm Mut: Mit seinem Antrag ist er schon einen großen Schritt weiter. Du würdest dich freuen.",
+    // E-265 Nachbesserung (29.09.2026): kein „fehlt nur noch" (Nähe als Druck, fast eine Zusage — naehe_druck).
+    "Erste Mail: Stell dich kurz vor (so wie in Justins Beispiel). Bei uns kommt er zu seiner eigenen Visa-Kreditkarte — sein Wunschlimit ist dabei das Ziel, über den Rahmen entscheidet unsere Partnerbank. Der nächste Schritt ist die offene Rechnung, seine erste Monatsrate. Sobald die Zahlung gebucht ist, aktivierst du den Account und sein persönlicher Betreuer begleitet ihn. Mach ihm Mut: Mit seinem Antrag ist er schon einen großen Schritt weiter. Du würdest dich freuen.",
     "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Heute die Karte: Nach der Aktivierung bekommt er direkt den fertigen Link unserer Partnerbank für Konto und Karte; die Karte ist in der Regel nach der Zusage der Bank in 2–5 Werktagen bei ihm, meist vorher schon mit Apple Pay in der App der Bank nutzbar. Der einzige offene Schritt ist die Rechnung.",
     "Dritte Mail: Wie einfach es ist: ein Klick auf den Knopf, dort stehen Betrag, Bankdaten, Verwendungszweck und ein QR-Code für die Banking-App — in zwei Minuten erledigt. Wenn ihn etwas zögern lässt: Er kann dir einfach antworten, du kümmerst dich persönlich.",
-    "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg, was er bei der Bestellung wollte). Erinnere freundlich an sein Ziel (seine Karte, sein gewünschter Rahmen) und daran, dass nur die Rechnung fehlt. Kein Druck.",
+    "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg, was er bei der Bestellung wollte). Erinnere freundlich an sein Ziel (seine Visa-Kreditkarte, sein Wunschlimit) und daran, dass als nächster Schritt die Rechnung offen ist, und biete den Termin an. Kein Druck.",
   ][Math.min(schritt, 4) - 1];
 }
 
 function aktionsPrompt(ein: {
   name: string; k: Kandidat; akte: any; weg: string; gedaechtnis: string; betreuer: string | null;
+  /**
+   * E-265 Nachbesserung (29.09.2026, Regel 5): Team abwesend (E-260) — wer bis wann an Stelle des festen Betreuers
+   * anruft (Nennform, `dat` nach „mit"). Den Termin bietet Mara dann mit IHM an, nie mit dem Abwesenden.
+   */
+  vertretung?: { name: string; dat: string; bis: string } | null;
   faelligAm: string | null; bisher: { am: string; betreff: string; text: string }[]; emojis: boolean; sprache: string;
+  /** E-265: sein Kartenziel (wanted_limit, gedeckelt auf den Rahmen seines Pakets). */
+  kartenziel?: KartenZiel | null;
   /** Justins eigene Anweisung (Steuerpult) — steht ganz oben und gewinnt im Zweifel. */
   hausanweisung?: string;
 }): string {
   const { k } = ein;
   const fremd = ein.sprache && ein.sprache.slice(0, 2).toLowerCase() !== "de";
+  // E-265 Nachbesserung (Regel 5): mit wem der Termin ist — bis „bis" der Vertreter, sonst der feste Betreuer.
+  const terminMit = ein.vertretung ? { nom: ein.vertretung.name, dat: ein.vertretung.dat } : { nom: ein.betreuer ?? "jemand aus unserem Team", dat: nennAus(ein.betreuer)?.dat ?? "unserem Team" };
   return [
     ein.hausanweisung || ``,
     // E-248: „die digitale Assistentin" (KI-Offenlegung) — dieselbe Mara wie im Postfach und auf WhatsApp.
@@ -325,9 +339,12 @@ function aktionsPrompt(ein: {
     `DEIN ZIEL: Er bezahlt jetzt die offene Rechnung, damit du seinen Account aktivieren kannst. Herzlich, mutmachend, menschlich — Aussicht ja („${AUSSICHT_SAETZE[0]}"), Zusage nie; nie drängelnd, nie drohend, nie belehrend.`,
     ``,
     // E-248: „Rahmen" statt „Limit" (TON_REGELN) — Justins Beispiel sinngemäß, ohne das Wort.
-    `SO KLINGT ES (Justins Beispiel — nur der Ton, nie wörtlich übernehmen): „hier ist Mara Lindner, die digitale Assistentin von FIAON. Ich schreibe Ihnen, weil ich gern Ihren Account aktivieren würde — mit Ihrem gewünschten Kartenrahmen von 25.000 € als Ziel. Dazu fehlt mir nur noch die offene Rechnung. Sobald Ihre Zahlung da ist, aktiviere ich Ihren Account, und Ihr persönlicher Betreuer ist an Ihrer Seite. Ich würde mich freuen! Ansonsten wünsche ich Ihnen einen schönen Tag und viel Gesundheit."`,
+    // E-265 (29.09.2026, Justin: „VIEL MEHR AUF DIE KREDITKARTEN!"): die Karte vorn, das Wunschlimit mit dem Satz über
+    // die Bank, der Termin mit Herrn/Frau Nachname — „Termin" stand in 0 von 368 Mails.
+    // E-265 Nachbesserung: kein „fehlt mir nur noch" (naehe_druck); der Termin mit dem, der WIRKLICH anruft (E-260).
+    `SO KLINGT ES (Justins Beispiel — nur der Ton, nie wörtlich übernehmen): „hier ist Mara Lindner, die digitale Assistentin von FIAON. Ich schreibe Ihnen, weil Sie bei uns zu Ihrer eigenen Visa-Kreditkarte kommen — mit Ihrem Wunschlimit von 25.000 € als Ziel, über den Rahmen entscheidet unsere Partnerbank. Der nächste Schritt ist Ihre erste Monatsrate. Sobald Ihre Zahlung gebucht ist, schaltet das System Sie frei, und ich vereinbare Ihren Termin mit ${terminMit.dat} — antworten Sie mir einfach mit einer Zeit, die Ihnen passt. Ich würde mich freuen! Ansonsten wünsche ich Ihnen einen schönen Tag und viel Gesundheit."`,
     ``,
-    personaText("mail", { betreuer: ein.betreuer }),
+    personaText("mail", { betreuer: ein.betreuer, vertretung: ein.vertretung ?? null }),
     ``,
     `LAGE: ${k.stufe === "A" ? `Stufe A — er hat am ${tagDe(k.ereignisAm)} gemeldet, dass er überwiesen hat; das Geld ist bei uns noch nicht zugeordnet.` : `Stufe B — sein Antrag ist seit dem ${tagDe(k.ereignisAm)} fertig, die Rechnung ist offen.`}`,
     `DIESE MAIL ist deine ${k.schritt}. an ihn. ${thema(k.stufe, k.schritt)}`,
@@ -336,8 +353,10 @@ function aktionsPrompt(ein: {
     `· Paket: ${k.paket ?? "unbekannt"}`,
     `· Offene Rechnung: ${eur(k.betragEuro) ?? "Betrag steht auf der Zahlungsseite"}${ein.faelligAm ? `, fällig am ${ein.faelligAm}` : ""}`,
     `· Verwendungszweck: ${k.zahlungsreferenz ?? "steht auf der Zahlungsseite"}`,
-    `· Gewünschter Kartenrahmen (im Antrag „Wunschlimit" — du schreibst „Rahmen", nie „Limit"): ${k.wunschlimit ? eurGanz(k.wunschlimit) : "keiner angegeben — dann sprich von seinem Ziel, der Karte"}`,
-    `· Persönlicher Betreuer: ${ein.betreuer ?? "wird nach der Aktivierung zugeteilt"}`,
+    // E-265: „Wunschlimit" darf stehen — genannt, nie zugesagt, immer mit dem Satz über die Bank (limit_ohne_bank, hart).
+    `· Sein Wunschlimit (aus dem Antrag, auf den Rahmen seines Pakets begrenzt): ${ein.kartenziel ? `${kartenzielText(ein.kartenziel)} — so darfst du es nennen, immer mit „${BANK_SATZ}" im selben Satz; nie „Sie bekommen …", nie „Limit" allein` : "keins angegeben — dann sprich von seinem Ziel, seiner Visa-Kreditkarte, ohne Zahl"}`,
+    `· Persönlicher Betreuer (so nennst du ihn — mit Herr/Frau, nie mit Vornamen): ${ein.betreuer ?? "wird nach der Aktivierung zugeteilt"}`,
+    ...(ein.vertretung ? [`· Bis ${ein.vertretung.bis} ist das Team nicht im Haus — Anruf und Termin übernimmt ${ein.vertretung.name} (mit: ${ein.vertretung.dat}). Den Termin bietest du mit ${ein.vertretung.dat} an; ${ein.betreuer ?? "sein Betreuer"} macht danach weiter.`] : []),
     `· Tageszeit jetzt: ${tageszeit()}`,
     ``,
     `REGELN:`,
@@ -348,12 +367,14 @@ function aktionsPrompt(ein: {
     // E-248: Kein „FIAON vergibt keine Kredite" mehr als Pflichtsatz — ein Nein, nach dem niemand gefragt hat.
     `· Nichts garantieren, nicht beraten, nie „ich empfehle", keine feste Frist, keine Zusage außer: Sobald die Zahlung da ist, aktivierst du den Account. Keine Rückzahlung zusagen. Hat er nach einem Kredit gefragt (Gedächtnis, Weg): nie mit einem Nein anfangen — seine eigene Kreditkarte ist das Bessere.`,
     `· Karten-Sätze nur sinngemäß so: „${KARTE_LINK_SATZ}" / „${KARTE_ZEIT_SATZ}" — „in der Regel", „nach der Zusage der Bank" und „meist" bleiben immer drin.`,
-    `· Der gewünschte Rahmen ist ein Ziel („als Ziel", „darauf arbeiten wir hin"), nie eine Zusage; den Rahmen legt die Bank fest.`,
+    `· Das Wunschlimit ist ein Ziel („als Ziel", „darauf arbeiten wir hin"), nie eine Zusage; über den Rahmen entscheidet unsere Partnerbank.`,
+    `· Die Visa-Kreditkarte steht vorn (das Wort „Kreditkarte" gehört in jede Mail), und am Ende bietest du den Termin mit ${terminMit.dat} an („antworten Sie mir einfach mit einer Zeit, die Ihnen passt").`,
+    `· Kein Nähe-Versprechen: nie „fehlt nur noch", „nur noch einen Schritt", „greifbar" — sag den nächsten Schritt.`,
     `· Keine internen Wörter (Akte, Status, Stufe, Aktion, System, Lead).`,
     `· Nutze, was du über ihn weißt: ein Telefonat, eine Zusage, eine frühere Mail, sein Ziel. Er soll merken, dass hier ein Mensch schreibt, der ihn kennt. Erfinde nichts.`,
     `· Wiederhole NIE Sätze aus deinen bisherigen Mails an ihn (unten) — jede Mail bringt einen neuen Gedanken.`,
     `· Schließ mit einem warmen, persönlichen Wunsch zur Tageszeit (${tageszeit()}).`,
-    `· Betreff: 3 bis 8 Wörter, persönlich, ruhig — z. B. „Ihr Account wartet nur noch auf einen Schritt", „Kurz zu Ihrer Karte" — ohne Ausrufezeichen, ohne Großbuchstaben-Wörter, ohne Emoji.`,
+    `· Betreff: 3 bis 8 Wörter, persönlich, ruhig — z. B. „Ihr nächster Schritt zur Karte", „Kurz zu Ihrer Karte" — ohne Ausrufezeichen, ohne Großbuchstaben-Wörter, ohne Emoji.`,
     ``,
     `DEIN GEDÄCHTNIS ZU IHM:`,
     ein.gedaechtnis,
@@ -390,12 +411,20 @@ export function absaetzeFassen(text: string, hoechstens = 3): string {
  * fiaon.com-Link (die URL im Text ist ohnehin verboten; der Knopf trägt seine
  * Zahlungsseite). `land` = Land des Kunden (AT/CH: kein „SCHUFA").
  */
-export function aktionPruefen(betreff: string, text: string, opt: { land?: string | null } = {}): string[] {
+export function aktionPruefen(betreff: string, text: string, opt: {
+  land?: string | null;
+  /** E-265 (29.09.2026): die Mitarbeiterliste — ein Vorname allein ist ein Mangel (#1388 „Florentine hat …"). */
+  mitarbeiter?: readonly MitarbeiterEintrag[] | null;
+  /** E-265: seine Namen — sein eigener Vorname ist kein Mitarbeiter. */
+  kundeNamen?: readonly (string | null | undefined)[];
+} = {}): string[] {
   const maengel: string[] = [];
   const land = String(opt.land || "").toUpperCase();
-  for (const b of tonPruefung(`${betreff}\n${text}`, { kanal: "mail", land: land === "AT" || land === "CH" ? land as any : null })) {
+  for (const b of tonPruefung(`${betreff}\n${text}`, { kanal: "mail", land: land === "AT" || land === "CH" ? land as any : null, mitarbeiter: opt.mitarbeiter ?? null, kundeNamen: opt.kundeNamen })) {
     if (b.schwere === "hart") maengel.push(`Ton: „${b.treffer}" — ${b.hinweis}`);
   }
+  // E-265 (29.09.2026, Justin: „VIEL MEHR AUF DIE KREDITKARTEN!"): „Kreditkarte" stand in 1 von 368 Mails.
+  if (!/kreditkarte/i.test(text)) maengel.push("Die Visa-Kreditkarte kommt nicht vor — sie ist das, wofür er zahlt, und steht vorn");
   for (const b of linkPruefung(text)) if (b.schwere === "hart") maengel.push(`Link: ${b.link} — ${b.hinweis}`);
   for (const t of wandPruefen(`${betreff}\n${text}`)) {
     if (t.art === "verboten" || t.art === "zusage") maengel.push(`${t.art === "zusage" ? "Ungedeckte Zusage" : "Verboten"}: „${t.treffer}" — ${t.hinweis}`);
@@ -440,7 +469,22 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   const faelligAm = z?.payment_due_date ? tagDe(new Date(z.payment_due_date).toISOString()) : null;
   const sprache = String((akte as any)?.person?.sprache || (akte as any)?.sprache || "de");
 
+  // E-265: sein Kartenziel — dieselbe Regel wie WhatsApp und Postfach (kartenZiel, PACK_LIMITS).
+  const kartenziel = k.wunschlimit ? kartenZiel({
+    wunschEuro: k.wunschlimit, paketKey: k.paketKey ?? null,
+    rahmenEuro: k.paketKey ? (await import("../routes/fiaon-antrag")).PACK_LIMITS[String(k.paketKey).toLowerCase()] ?? null : null,
+  }) : null;
+  // E-265 Nachbesserung (29.09.2026, Regel 5 / E-260): Ist das Team abwesend, bietet die Aktionsmail den Termin mit
+  // dem Vertreter an (wie Postfach und WhatsApp) — vorher „ich vereinbare Ihren Termin mit Herrn Stripling", während
+  // Herr Stripling bis Fr 02.10. nicht im Haus ist (405 Aktionsmails in 24 Stunden).
+  const vertretung = await (async () => {
+    const abw = await import("./fiaon-abwesenheit");
+    const vt = await abw.vertretungFuerPerson(k.personId).catch(() => null);
+    return vt ? { name: vt.ab.vertreter.anrufName, dat: vt.ab.vertreter.anrufDat, bis: abw.bisText(vt.ab.bis) } : null;
+  })().catch(() => null);
   const auftrag = aktionsPrompt({
+      kartenziel,
+      vertretung,
       hausanweisung,
       name: namen.voll, k, akte, weg: weg?.text ?? "(kein Verlauf)", gedaechtnis,
       betreuer: weg?.zustaendig?.kundenName ?? null, faelligAm,
@@ -484,13 +528,16 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   // E-248: Land des Kunden — in Österreich und der Schweiz nie „SCHUFA".
   const land = (akte as any)?.auskunft?.land ?? (akte as any)?.vertrag?.land ?? null;
   const landKurz = /^(at|österreich|oesterreich|austria)$/i.test(String(land || "").trim()) ? "AT" : /^(ch|schweiz|switzerland)$/i.test(String(land || "").trim()) ? "CH" : null;
-  let maengel = aktionPruefen(betreff, text, { land: landKurz });
+  // E-265: mit der Mitarbeiterliste (Vorname allein = Mangel) und seinen Namen (sein Vorname ist keiner).
+  const mitarbeiter = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);
+  const kundeNamen = [k.vorname, k.nachname, [k.vorname, k.nachname].filter(Boolean).join(" ")].filter(Boolean) as string[];
+  let maengel = aktionPruefen(betreff, text, { land: landKurz, mitarbeiter, kundeNamen });
   if (maengel.length) {
     try {
       const neu = await rufen(`Deine Mail hat diese Mängel:\n${maengel.map((m) => `· ${m}`).join("\n")}\n\nSchreib sie neu — derselbe Inhalt, ohne die Mängel. Nichts erfinden.`);
       const b2 = saeubern(neu?.betreff).replace(/[!]+/g, "").slice(0, 90);
       const t2 = saeubern(neu?.text);
-      const m2 = aktionPruefen(b2, t2, { land: landKurz });
+      const m2 = aktionPruefen(b2, t2, { land: landKurz, mitarbeiter, kundeNamen });
       if (m2.length < maengel.length) { betreff = b2; text = t2; maengel = m2; }
     } catch (e) { if (istKiPause(e)) throw e; /* sonst bleibt es beim ersten Versuch */ }
   }

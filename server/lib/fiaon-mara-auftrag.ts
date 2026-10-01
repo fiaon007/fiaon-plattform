@@ -77,7 +77,8 @@ export const WERKZEUGE: AuftragWerkzeug[] = [
       const nummer = nummerFuerWhatsApp(m?.primary_phone);
       if (!nummer) return { ok: false, text: "Zu diesem Menschen ist keine Nummer hinterlegt, über die WhatsApp läuft." };
       const erg = await waSenden(nummer, p.vorlage ? { vorlage: String(p.vorlage), werte: (p.werte ?? []).map(String) } : { text: String(p.text ?? "") },
-        { personId: Number(p.personId), von: `Mara (${von})` });
+        // E-265 Nachbesserung: „hier ist {{2}} von FIAON" liest „Mara" — nie „Mara (<Vorname der Leitung>)".
+        { personId: Number(p.personId), von: `Mara (${von})`, absender: "Mara" });
       return erg.ok ? { ok: true, text: `WhatsApp an ${name(m)} raus.` } : { ok: false, text: erg.grund ?? "ging nicht raus" };
     },
   },

@@ -48,6 +48,7 @@
 import { sqlPool } from "./db-pool";
 import { rohSlots, verfuegbarkeitVon, type Slot } from "./fiaon-termine";
 import { parseBerlinInput } from "./fiaon-time";
+import { nennform, type Nennform } from "@shared/fiaon-mitarbeiter-name";
 
 type Lauf = typeof sqlPool;
 
@@ -75,7 +76,11 @@ export interface Abwesenheit {
   verlauf: AbwesenheitEreignis[];
 }
 
-export interface Vertreter { id: number; vorname: string; name: string; anrufName: string }
+/**
+ * E-265 (29.09.2026): `anrufName` ist die Nennform („Herr Schwarzott" bzw. ohne Anrede
+ * „Justin Schwarzott"), `anrufDat` die nach mit/an/für („Herrn Schwarzott") — nie der Vorname.
+ */
+export interface Vertreter { id: number; vorname: string; name: string; anrufName: string; anrufDat: string; nenn: Nennform }
 export interface AktiveAbwesenheit { vertreter: Vertreter; bis: Date; fuer: number[] }
 
 const LEER: Abwesenheit = {
@@ -112,7 +117,7 @@ export function abwesenheitVergessen(): void { zwischen = null; }
  */
 export async function vertreterPruefen(agentId: number, lauf: Lauf = sqlPool): Promise<{ vertreter: Vertreter | null; problem: string | null }> {
   const [a] = (await lauf`
-    SELECT id, name, COALESCE(NULLIF(first_name, ''), split_part(name, ' ', 1)) AS vorname,
+    SELECT id, name, COALESCE(NULLIF(first_name, ''), split_part(name, ' ', 1)) AS vorname, first_name, last_name, anrede,
            COALESCE(active, TRUE) AS aktiv, zugang_gesperrt_am, COALESCE(rolle, 'agent') AS rolle
       FROM fiaon_agents WHERE id = ${agentId}`) as any[];
   if (!a) return { vertreter: null, problem: `Konto #${agentId} gibt es nicht.` };
@@ -122,10 +127,12 @@ export async function vertreterPruefen(agentId: number, lauf: Lauf = sqlPool): P
   const zeiten = (await verfuegbarkeitVon(Number(a.id), lauf)).filter((z) => z.aktiv);
   if (!zeiten.length) return { vertreter: null, problem: `${a.name} hat keine Arbeitszeiten eingetragen — ohne Zeiten kann Mara nichts buchen (Agentenportal → Verfügbarkeit).` };
   const vorname = String(a.vorname || "").trim() || String(a.name);
-  // anrufName = der Vorname, wie bei jedem Teammitglied („Nikita ruft Sie an"). Die Sätze in
-  // fiaon-whatsapp-mara.ts nehmen vom Betreuer das erste Wort — ein „Herr Schwarzott" würde dort
-  // zu „Herr". Ein eigener Anrufname (Frage F3) braucht erst die Anrede am Konto.
-  return { vertreter: { id: Number(a.id), vorname, name: String(a.name), anrufName: vorname }, problem: null };
+  // E-265 (29.09.2026, Justin „zum letzten Mal!!"): anrufName ist die Nennform — „Herr Schwarzott",
+  // ohne gepflegte Anrede „Justin Schwarzott" (heute: Konto 928 hat keine Anrede). Vorher der Vorname
+  // („Justin ruft Sie an"), weil die Sätze in fiaon-whatsapp-mara.ts das erste Wort nahmen — das tun
+  // sie seit E-265 nicht mehr. Damit ist die Frage F3 erledigt.
+  const nenn = nennform(a);
+  return { vertreter: { id: Number(a.id), vorname, name: String(a.name), anrufName: nenn.nom, anrufDat: nenn.dat, nenn }, problem: null };
 }
 
 export async function abwesenheitLesen(frisch = false, lauf: Lauf = sqlPool): Promise<Abwesenheit> {
@@ -198,21 +205,29 @@ export function istAbwesend(ab: AktiveAbwesenheit | null, agentId: number | null
 /**
  * Wer ruft an? Für jeden Satz an den Kunden, der einen Termin nennt: Liegt der
  * Termin bei einem Abwesenden und vor „bis", der Anrufname des Vertreters —
- * sonst der Vorname des Gebuchten (B2).
+ * sonst der Name des Gebuchten (B2). E-265: `eigen` ist die Nennform des
+ * Gebuchten („Herr Stripling"), zurück kommt die Nennform (nie der Vorname).
  */
-export async function anruferFuer(agentId: number, beginn: Date | string, vorname: string, lauf: Lauf = sqlPool): Promise<string> {
+export async function anruferFuer(agentId: number, beginn: Date | string, eigen: string, lauf: Lauf = sqlPool): Promise<string> {
+  return (await anruferNennform(agentId, beginn, { nom: eigen, dat: eigen }, lauf)).nom;
+}
+
+/** Wie anruferFuer, mit beiden Fällen: { nom: „Herr Stripling", dat: „Herrn Stripling" }. E-265. */
+export async function anruferNennform(agentId: number, beginn: Date | string, eigen: { nom: string; dat: string }, lauf: Lauf = sqlPool): Promise<{ nom: string; dat: string; vertreter: boolean; vertreterVorname: string | null }> {
   try {
     const ab = await abwesenheitJetzt(lauf);
-    return istAbwesend(ab, agentId, beginn) ? ab!.vertreter.anrufName : vorname;
+    return istAbwesend(ab, agentId, beginn)
+      ? { nom: ab!.vertreter.anrufName, dat: ab!.vertreter.anrufDat, vertreter: true, vertreterVorname: ab!.vertreter.vorname }
+      : { ...eigen, vertreter: false, vertreterVorname: null };
   } catch {
-    return vorname;
+    return { ...eigen, vertreter: false, vertreterVorname: null };
   }
 }
 
 export interface VertretungFuerPerson {
   ab: AktiveAbwesenheit;
-  /** Der eingetragene Betreuer — null, wenn es keinen gibt. */
-  betreuer: { id: number; vorname: string; name: string } | null;
+  /** Der eingetragene Betreuer — null, wenn es keinen gibt. E-265: `nenn` = seine Nennform („Herr Stripling"). */
+  betreuer: { id: number; vorname: string; name: string; nenn: Nennform } | null;
   /** Kann der Betreuer (ohne Abwesenheit) überhaupt Rückrufe führen? Für die Zeit nach „bis". */
   betreuerBuchbar: boolean;
 }
@@ -230,13 +245,13 @@ export async function vertretungFuerPerson(personId: number, lauf: Lauf = sqlPoo
   const ab = await abwesenheitJetzt(lauf);
   if (!ab) return null;
   const [p] = (await lauf`
-    SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), split_part(a.name, ' ', 1)) AS vorname,
+    SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), split_part(a.name, ' ', 1)) AS vorname, a.first_name, a.last_name, a.anrede,
            COALESCE(a.active, TRUE) AS aktiv, a.zugang_gesperrt_am, COALESCE(a.is_test_account, FALSE) AS test,
            COALESCE(a.rolle, 'agent') AS rolle
       FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
      WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL`) as any[];
   if (!p?.id) return ab.fuer.length ? null : { ab, betreuer: null, betreuerBuchbar: false };
-  const betreuer = { id: Number(p.id), vorname: String(p.vorname || p.name), name: String(p.name) };
+  const betreuer = { id: Number(p.id), vorname: String(p.vorname || p.name), name: String(p.name), nenn: nennform(p) };
   const buchbar = !!p.aktiv && !p.zugang_gesperrt_am && !p.test && p.rolle !== "inkasso";
   if (betreuer.id === ab.vertreter.id) return { ab, betreuer, betreuerBuchbar: false };
   if (!buchbar) return ab.fuer.length ? null : { ab, betreuer, betreuerBuchbar: false };

@@ -45,8 +45,9 @@ import { berlinDatum, berlinWochentag, zeitZuMinuten, parseBerlinInput } from ".
 import { berlinWochentagName } from "./fiaon-termin-meldung";
 import { zeitFuerKunde, uhrzeitenIn, type AbweichungsGrund } from "@shared/fiaon-mara-ton";
 import {
-  vertretungFuerPerson, freiePlaetzeVertreter, belegtFuerVertreter, anruferFuer, abwesenheitJetzt, istAbwesend, bisText,
+  vertretungFuerPerson, freiePlaetzeVertreter, belegtFuerVertreter, anruferNennform, abwesenheitJetzt, istAbwesend, bisText,
 } from "./fiaon-abwesenheit";
+import { nennform } from "@shared/fiaon-mitarbeiter-name";
 
 type Lauf = typeof sqlPool;
 
@@ -101,7 +102,9 @@ export type ProtokollArt =
   | "still" | "abschluss" | "sicherer_satz"
   // E-264 (29.09.2026): „Hab nix beantragt" — Entschuldigung, ehrliche Herkunft, Werbe-Stopp,
   // Aufgabe an die Leitung; „Löschen Sie meine Daten" — Aufgabe an die Leitung.
-  | "abstreiten" | "loeschwunsch";
+  | "abstreiten" | "loeschwunsch"
+  // E-265 (29.09.2026): Mara nimmt eine klare Kündigung auf WhatsApp selbst auf (kuendigung_aufnehmen).
+  | "kuendigung";
 
 let tabelleBereit: Promise<void> | null = null;
 export function protokollTabelle(lauf: Lauf = sqlPool): Promise<void> {
@@ -160,7 +163,11 @@ export async function protokollieren(ein: {
 // ═══════════════════════════════════════════════════════════════════════════
 // WER RUFT AN?
 // ═══════════════════════════════════════════════════════════════════════════
-export interface Zustaendig { id: number; vorname: string; name: string }
+/**
+ * E-265 (29.09.2026): `nenn` ist, wie der Kunde ihn liest — „Herr Stripling" / „Herrn Stripling",
+ * ohne gepflegte Anrede der volle Name. `vorname` bleibt für interne Texte (Protokoll, Notiz).
+ */
+export interface Zustaendig { id: number; vorname: string; name: string; nenn: { nom: string; dat: string } }
 
 /**
  * Der Betreuer — aber nur, wenn er wirklich anrufen kann. Sonst null mit Grund;
@@ -168,7 +175,7 @@ export interface Zustaendig { id: number; vorname: string; name: string }
  */
 export async function betreuerFuerRueckruf(personId: number, lauf: Lauf = sqlPool): Promise<{ agent: Zustaendig | null; grund: string | null }> {
   const [a] = (await lauf`
-    SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), split_part(a.name, ' ', 1)) AS vorname,
+    SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), split_part(a.name, ' ', 1)) AS vorname, a.first_name, a.last_name, a.anrede,
            COALESCE(a.active, TRUE) AS aktiv, a.zugang_gesperrt_am, COALESCE(a.is_test_account, FALSE) AS test,
            COALESCE(a.rolle, 'agent') AS rolle
       FROM fiaon_persons p JOIN fiaon_agents a ON a.id = p.assigned_agent_id
@@ -180,7 +187,8 @@ export async function betreuerFuerRueckruf(personId: number, lauf: Lauf = sqlPoo
   if (a.rolle === "inkasso") return { agent: null, grund: `${a.name} ist im Forderungsmanagement (keine Rückruftermine)` };
   const zeiten = (await verfuegbarkeitVon(Number(a.id), lauf)).filter((z) => z.aktiv);
   if (!zeiten.length) return { agent: null, grund: `${a.name} hat keine Arbeitszeiten eingetragen` };
-  return { agent: { id: Number(a.id), vorname: String(a.vorname), name: String(a.name) }, grund: null };
+  const n = nennform(a);
+  return { agent: { id: Number(a.id), vorname: String(a.vorname), name: String(a.name), nenn: { nom: n.nom, dat: n.dat } }, grund: null };
 }
 
 /** Die Arbeitszeit eines Mitarbeiters an einem Tag, „09:30–20:00" — oder null. */
@@ -258,16 +266,17 @@ export async function freieZeiten(personId: number, lauf: Lauf = sqlPool): Promi
     if (vt.betreuer && vt.betreuer.id === v.id) {
       // Der Vertreter IST sein Betreuer: nach „bis" weiter bei ihm.
       nach = await freiePlaetzeVertreter(vt.ab, MARA_VORLAUF_MIN, lauf, { nachBis: true });
-      nachWeg = { weg: "vertreter", agent: { id: v.id, vorname: v.anrufName, name: v.name } };
+      nachWeg = { weg: "vertreter", agent: { id: v.id, vorname: v.vorname, name: v.name, nenn: { nom: v.anrufName, dat: v.anrufDat } } };
     } else if (vt.betreuer && vt.betreuerBuchbar) {
-      const roh = (await rohSlots([{ id: vt.betreuer.id, vorname: vt.betreuer.vorname }], 20, lauf, MARA_VORLAUF_MIN * 60_000))
+      // E-265: Die Plätze tragen die Nennform („ruft_an: Herr Stripling"), nie den Vorname.
+      const roh = (await rohSlots([{ id: vt.betreuer.id, vorname: vt.betreuer.nenn.nom }], 20, lauf, MARA_VORLAUF_MIN * 60_000))
         .filter((s) => new Date(s.beginn).getTime() >= bisMs);
       const belegt = (await belegteZeiten([vt.betreuer.id], lauf)).get(vt.betreuer.id) ?? [];
       nach = roh.filter((s) => {
         const von = new Date(s.beginn).getTime();
         return !belegt.some((b) => b.von < von + 20 * 60_000 && b.bis > von);
       });
-      nachWeg = { weg: "betreuer", agent: { id: vt.betreuer.id, vorname: vt.betreuer.vorname, name: vt.betreuer.name } };
+      nachWeg = { weg: "betreuer", agent: { id: vt.betreuer.id, vorname: vt.betreuer.vorname, name: vt.betreuer.name, nenn: { nom: vt.betreuer.nenn.nom, dat: vt.betreuer.nenn.dat } } };
     } else {
       // Kein buchbarer Betreuer (keiner, gesperrt, inaktiv, Testkonto, Forderungsmanagement):
       // wie ohne Abwesenheit der Pool der Terminseite — nur die Plätze ab „bis".
@@ -282,7 +291,7 @@ export async function freieZeiten(personId: number, lauf: Lauf = sqlPool): Promi
     const slots = [...vor, ...nach].sort((a, b) => a.beginn.localeCompare(b.beginn));
     return {
       slots,
-      agent: { id: v.id, vorname: v.anrufName, name: v.name },
+      agent: { id: v.id, vorname: v.vorname, name: v.name, nenn: { nom: v.anrufName, dat: v.anrufDat } },
       weg: slots.length ? "abwesenheit" : "keiner",
       grund: `${vt.betreuer ? `Betreuer ${vt.betreuer.vorname} (#${vt.betreuer.id})` : "kein Betreuer"} — Team bis ${bisText(vt.ab.bis)} abwesend, ${v.name} ruft an`,
       abwesenheit: {
@@ -297,7 +306,8 @@ export async function freieZeiten(personId: number, lauf: Lauf = sqlPool): Promi
   let slots: Slot[];
   let weg: Angebot["weg"];
   if (agent) {
-    slots = await rohSlots([{ id: agent.id, vorname: agent.vorname }], 20, lauf, MARA_VORLAUF_MIN * 60_000);
+    // E-265: Die Plätze tragen die Nennform (Slot.agentVorname liest der Kunde als „ruft_an").
+    slots = await rohSlots([{ id: agent.id, vorname: agent.nenn.nom }], 20, lauf, MARA_VORLAUF_MIN * 60_000);
     weg = "betreuer";
   } else {
     // Wie die Terminseite: Pool mit Lastverteilung, gesperrte zählen nicht (freieSlots).
@@ -354,7 +364,14 @@ export function vorschlaege(slots: Slot[], wunsch?: { von?: Date | null; bis?: D
 // BUCHEN
 // ═══════════════════════════════════════════════════════════════════════════
 export interface TerminInfo {
-  id: number; agentId: number; agentName: string; vorname: string;
+  id: number; agentId: number; agentName: string;
+  /** Der Vorname dessen, der anruft — NUR für interne Texte (Protokoll, Aufgabe). */
+  vorname: string;
+  /**
+   * E-265 (29.09.2026): So liest ihn der Kunde — „Herr Stripling ruft Sie … an", „Ihr Termin mit
+   * Herrn Stripling"; bei Abwesenheit der Vertreter (anruferNennform). Jeder Kundensatz nimmt DIESES Feld.
+   */
+  nenn: { nom: string; dat: string };
   beginn: string; wochentag: string; datum: string; uhrzeit: string; text: string; storno: string | null;
   /** E-248: so, wie der Kunde es liest — „morgen um 20 Uhr" (zeitFuerKunde), nie ISO. */
   kundenText: string;
@@ -362,17 +379,20 @@ export interface TerminInfo {
 
 async function terminLesen(id: number, lauf: Lauf): Promise<TerminInfo | null> {
   const [t] = (await lauf`
-    SELECT t.id, t.agent_id, t.beginn, t.status, t.storno_token, a.name,
+    SELECT t.id, t.agent_id, t.beginn, t.status, t.storno_token, a.name, a.first_name, a.last_name, a.anrede,
            COALESCE(NULLIF(a.first_name, ''), split_part(a.name, ' ', 1)) AS vorname
       FROM fiaon_termine t JOIN fiaon_agents a ON a.id = t.agent_id WHERE t.id = ${id}`) as any[];
   if (!t) return null;
   const b = new Date(t.beginn);
   // E-260 (B2): Liegt der Termin bei einem Abwesenden (vor „bis"), ruft der
   // Vertreter an — dann nennt jeder Satz („Genau, … ruft Sie … an") ihn. Alle
-  // Sätze lesen `vorname` von hier, ein Eingriff reicht.
-  const vorname = await anruferFuer(Number(t.agent_id), b, String(t.vorname), lauf);
+  // Sätze lesen den Namen von hier, ein Eingriff reicht.
+  // E-265 (29.09.2026): Die Sätze lesen `nenn` (Nennform), nie mehr `vorname`.
+  const eigen = nennform(t);
+  const an = await anruferNennform(Number(t.agent_id), b, { nom: eigen.nom, dat: eigen.dat }, lauf);
+  const vorname = an.vertreterVorname ?? String(t.vorname);
   return {
-    id: Number(t.id), agentId: Number(t.agent_id), agentName: String(t.name), vorname,
+    id: Number(t.id), agentId: Number(t.agent_id), agentName: String(t.name), vorname, nenn: { nom: an.nom, dat: an.dat },
     beginn: b.toISOString(), wochentag: berlinWochentagName(b), datum: berlinDatumText(b), uhrzeit: berlinUhrzeit(b),
     text: slotText(b), storno: t.storno_token ? stornoLink(String(t.storno_token)) : null,
     kundenText: zeitFuerKunde(b),
@@ -436,7 +456,7 @@ export interface BuchungsErgebnis {
    * E-248 (Fall K.): Es steht schon ein Termin — Zeit, Name, Herkunft. Die
    * Wahrheitsprüfung kennt die Uhrzeit damit, und Mara bestätigt ihn statt neu anzubieten.
    */
-  bestehend?: { id: number; beginn: string; uhrzeit: string; kundenText: string; vorname: string; vonMara: boolean; herkunftText: string };
+  bestehend?: { id: number; beginn: string; uhrzeit: string; kundenText: string; vorname: string; nenn: { nom: string; dat: string }; vonMara: boolean; herkunftText: string };
   /**
    * E-248 (Befund #294): Wunsch „15:00", gebucht 15:10 — Mara sagt es ehrlich.
    * Nachbesserung: mit dem GRUND — „vergeben" nur, wenn der Platz wirklich belegt war
@@ -481,17 +501,18 @@ export async function rueckrufBuchen(
     if (bestehend && !(w.verschieben && (eigener || kundeSelbst))) {
       // E-248 (Fall K.): Kein Systemsatz („nicht anfassen, ein Mensch verschiebt") — ein
       // fertiger Satz für den Kunden, und die Uhrzeit geht als bekannte Zeit an die Prüfung.
-      const satz = `Genau, ${bestehend.vorname} ruft Sie ${bestehend.kundenText} an.`;
+      // E-265: Nennform — „Genau, Herr Stripling ruft Sie … an", „mit Herrn Stripling".
+      const satz = `Genau, ${bestehend.nenn.nom} ruft Sie ${bestehend.kundenText} an.`;
       const erg = await nichtMoeglich("schon_termin",
-        `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.vorname} (${terminHerkunftText(bestehend.herkunft, bestehend.quelle)}). Bestätige ihm genau diesen Termin, z. B. „${satz}"${eigener || kundeSelbst
+        `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.nenn.dat} (${terminHerkunftText(bestehend.herkunft, bestehend.quelle)}). Bestätige ihm genau diesen Termin, z. B. „${satz}"${eigener || kundeSelbst
           ? " Will er ausdrücklich eine andere Zeit: rueckruf_eintragen mit verschieben: true (derselbe Betreuer)."
-          : ` Will er eine andere Zeit: sag ihm, dass du ${bestehend.vorname} Bescheid gibst — den Termin selbst verschiebt ${bestehend.vorname}.`}`,
+          : ` Will er eine andere Zeit: sag ihm, dass du ${bestehend.nenn.dat} Bescheid gibst — den Termin selbst verschiebt ${bestehend.nenn.nom}.`}`,
         [], { termin_id: bestehend.id });
       return {
         ...erg,
         bestehend: {
           id: bestehend.id, beginn: bestehend.beginn, uhrzeit: bestehend.uhrzeit, kundenText: bestehend.kundenText,
-          vorname: bestehend.vorname, vonMara: eigener, herkunftText: terminHerkunftText(bestehend.herkunft, bestehend.quelle),
+          vorname: bestehend.vorname, nenn: bestehend.nenn, vonMara: eigener, herkunftText: terminHerkunftText(bestehend.herkunft, bestehend.quelle),
         },
       };
     }
@@ -536,7 +557,7 @@ export async function rueckrufBuchen(
         : "";
       return await nichtMoeglich("nicht_frei",
         (zustaendig
-          ? `zu der gewünschten Zeit ist ${zustaendig.vorname} nicht frei${az ? ` (Arbeitszeit an dem Tag: ${az})` : tag ? " (an dem Tag keine Arbeitszeit)" : ""}`
+          ? `zu der gewünschten Zeit ist ${zustaendig.nenn.nom} nicht frei${az ? ` (Arbeitszeit an dem Tag: ${az})` : tag ? " (an dem Tag keine Arbeitszeit)" : ""}`
           : "zu der gewünschten Zeit ist niemand aus dem Team frei") + werJe, alt);
     }
 
@@ -548,7 +569,7 @@ export async function rueckrufBuchen(
       && !!bestehend && istAbwesend(await abwesenheitJetzt(lauf).catch(() => null), bestehend.agentId, bestehend.beginn);
     if (bestehend && w.verschieben && kundeSelbst && slot.agentId !== bestehend.agentId && !zumVertreter) {
       return await nichtMoeglich("anderer_betreuer",
-        `zu der Zeit hat ${bestehend.vorname} keinen freien Platz — sag ihm, dass du ${bestehend.vorname} Bescheid gibst; sein Termin ${bestehend.kundenText} bleibt bis dahin stehen`, [], { termin_id: bestehend.id });
+        `zu der Zeit hat ${bestehend.nenn.nom} keinen freien Platz — sag ihm, dass du ${bestehend.nenn.dat} Bescheid gibst; sein Termin ${bestehend.kundenText} bleibt bis dahin stehen`, [], { termin_id: bestehend.id });
     }
 
     // Nachbesserung E-248: Der GRUND einer Abweichung — VOR der Buchung ermittelt
@@ -647,7 +668,7 @@ export async function terminlinkFuer(
 ): Promise<{ ok: boolean; link?: string; meldung: string; agent?: string | null }> {
   const bestehend = await kuenftigerTermin(ctx.personId, lauf);
   if (bestehend) {
-    return { ok: false, meldung: `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.vorname} — keinen Link schicken, sondern genau diesen Termin nennen („Genau, ${bestehend.vorname} ruft Sie ${bestehend.kundenText} an.")` };
+    return { ok: false, meldung: `sein Termin steht schon: ${bestehend.kundenText} mit ${bestehend.nenn.dat} — keinen Link schicken, sondern genau diesen Termin nennen („Genau, ${bestehend.nenn.nom} ruft Sie ${bestehend.kundenText} an.")` };
   }
   // E-260 (29.09.2026): Team abwesend — die Terminseite weiß davon nichts: Sie
   // zeigt den Kalender des Betreuers (bzw. den Pool samt Abwesenden). Statt eines
@@ -662,7 +683,7 @@ export async function terminlinkFuer(
     const angebot = vt || zumPool ? await freieZeiten(ctx.personId, lauf).catch(() => null) : null;
     if (angebot?.slots.length) {
       const betreuerWeg = !!vt?.betreuer && vt.betreuer.id !== ab.vertreter.id && vt.betreuerBuchbar;
-      const wer = betreuerWeg ? `Sein Betreuer ${vt!.betreuer!.vorname} ist` : "Das Team ist";
+      const wer = betreuerWeg ? `Sein Betreuer ${vt!.betreuer!.nenn.nom} ist` : "Das Team ist";
       await protokollieren({
         art: "terminlink", ok: false, nummer: ctx.nummer, personId: ctx.personId, leadId: ctx.leadId ?? null,
         text: `Kein Terminlink: ${wer} bis ${bisText(ab.bis)} nicht (ganz) im Haus — freie Zeiten statt Link.`,
@@ -684,7 +705,7 @@ export async function terminlinkFuer(
     text: `Persönlichen Terminlink geschickt${agent ? ` (Zeiten von ${agent.name})` : " (Zeiten aus dem Team)"}.`,
     daten: { link, agent_id: agent?.id ?? null },
   }, lauf);
-  return { ok: true, link, meldung: `Link für ihn: ${link}`, agent: agent?.vorname ?? null };
+  return { ok: true, link, meldung: `Link für ihn: ${link}`, agent: agent?.nenn.nom ?? null };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

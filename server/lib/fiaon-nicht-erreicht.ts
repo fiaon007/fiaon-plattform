@@ -30,6 +30,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { terminLink } from "./fiaon-termine";
 import { versendenUndProtokollieren, type VersandStatus } from "./fiaon-mail-log";
 
@@ -190,7 +191,8 @@ export async function automatikNachFehlversuch(
                WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1
              )) AS email,
-             COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname,
+             -- E-265: Nennform („Herr Stripling hat versucht, Sie zu erreichen"), nie der Vorname.
+             ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname,
              (SELECT a2.ref FROM fiaon_applications a2
                WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
                ORDER BY a2.created_at DESC LIMIT 1) AS ref

@@ -215,7 +215,9 @@ function vorlagenName(name: string, vorlagen: Vorlage[]): string {
 // ═══════════════════════════════════════════════════════════════════════════
 type MaraArt = "zeiten_angeboten" | "termin_gebucht" | "termin_verschoben" | "termin_nicht_moeglich" | "terminlink" | "uebergabe" | "rueckfall"
   // E-264 (29.09.2026): „Hab nix beantragt" — feste Entschuldigung; „Löschen Sie meine Daten" — an die Leitung.
-  | "abstreiten" | "loeschwunsch";
+  | "abstreiten" | "loeschwunsch"
+  // E-265 (29.09.2026): eine klare Kündigung per WhatsApp — Mara bucht sie selbst (derselbe Weg wie das Postfach).
+  | "kuendigung";
 interface MaraZeile {
   id: number; am: string; art: MaraArt; ok: boolean; text: string; nummer: string | null; personId: number | null; kunde: string | null;
   terminId: number | null; pruefungOk: boolean | null; pruefung: string | null; pruefungAm: string | null;
@@ -240,6 +242,7 @@ const MARA_ART: Record<MaraArt, { text: string; art: "" | "akz" | "warn" }> = {
   rueckfall: { text: "Rückfall", art: "warn" },
   abstreiten: { text: "Bestreitet — Entschuldigung", art: "warn" },
   loeschwunsch: { text: "Löschwunsch", art: "warn" },
+  kuendigung: { text: "Kündigung gebucht", art: "warn" },
 };
 const MARA_FILTER: { schluessel: MaraFilter; text: string }[] = [
   { schluessel: "alle", text: "Alle" }, { schluessel: "termine", text: "Termine" },

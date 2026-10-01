@@ -68,10 +68,25 @@ export const WORTREGELN: Wortregel[] = [
   // die Klasse ab: verfügbares Geld, zugesagter Rahmen, zugesagte Karte.
   { muster: /\b(betrag|summe|geld|kredit\w*|darlehen)\b[\s\S]{0,40}?\b(ist|sind|steht|stehen|wird|werden)\b[\s\S]{0,25}?\b(sofort\s+)?(verfügbar|ausgezahlt|bereit|zur\s+verfügung)\b/i,
     art: "verboten", hinweis: "Kein Geld zusagen. FIAON zahlt nichts aus; über Konto, Karte und Rahmen entscheidet die Bank." },
-  { muster: /\b(ihr|das)\s+(wunsch)?(limit|rahmen|kreditrahmen)\b[\s\S]{0,30}?\b(passt|steht|ist\s+(genehmigt|bestätigt|sicher|freigegeben)|bekommen\s+sie)\b/i,
+  // E-265 Nachbesserung 2 (01.10.2026): „Ihr Wunschlimit von 25.000 € steht in Ihrem Antrag" ist eine Tatsache, keine
+  // Zusage (Gegenprobe g1 OK6) — die Zusage-Prüfung für Limit-Sätze macht die weiße Liste (shared/fiaon-mara-ton.ts).
+  { muster: /\b(ihr|das)\s+(wunsch)?(limit|rahmen|kreditrahmen)\b[\s\S]{0,30}?\b(passt|steht(?!\s+(?:so\s+)?in\s+ihrem\s+antrag\b)|ist\s+(genehmigt|bestätigt|sicher|freigegeben)|bekommen\s+sie)\b/i,
     art: "verboten", hinweis: "Über den Rahmen entscheidet die Bank — nie zusagen, dass er passt oder steht." },
-  { muster: /\b(sie\s+(bekommen|erhalten))\b[\s\S]{0,25}?\b(die\s+)?(karte|kreditkarte)\b(?![\s\S]{0,40}\b(zusage|entscheidet|bank)\b)/i,
+  // E-265 Nachbesserung (29.09.2026, Gegenprobe wand.mts): Die Ausnahme galt, sobald danach irgendwo „Zusage",
+  // „entscheidet" oder „Bank" stand — „Sie bekommen Ihre Kreditkarte, über den Rahmen entscheidet die Bank" ging
+  // durch. „Über den Rahmen entscheidet …" nimmt nur das LIMIT zurück; über die KARTE entscheidet laut AGB § 4
+  // ebenfalls allein die Bank. Ausgenommen ist nur der Weg: „nach der Zusage (der Bank)" (davor oder danach im
+  // selben Satz) und „… entscheidet über Konto und Karte".
+  { muster: /(?<!\bnach\s+(?:der\s+)?zusage\b[^.!?]{0,60})\b(sie\s+(bekommen|erhalten))\b[\s\S]{0,25}?\b(die\s+)?(karte|kreditkarte)\b(?![^.!?]{0,60}\bnach\s+(?:der\s+)?zusage\b|[^.!?]{0,60}\bentscheidet\b[^.!?]{0,40}\büber\s+(?:\S+\s+){0,2}?(?:konto\s+und\s+)?(?:visa-?)?(?:kredit)?karte\b)/i,
     art: "verboten", hinweis: "Die Karte ist nicht zugesagt. Formuliere den Weg: nach der Zusage der Bank." },
+  // E-265 (29.09.2026): Justins Satz „Bei uns bekommen Sie Ihre Kreditkarte mit einem Limit …" — die
+  // UMGESTELLTE Form („bekommen Sie Ihre Karte") übersah die Regel darüber. Dieselbe Ausnahme: steht
+  // danach „Zusage"/„entscheidet", ist es der Weg, keine Zusage. „bekommen Sie direkt den Link unserer
+  // Partnerbank für Ihre Karte" trifft nicht (der Link, nicht die Karte, ist das Objekt).
+  // E-265 Nachbesserung: dieselbe enge Ausnahme wie oben — Justins Satz „Bei uns bekommen Sie Ihre Kreditkarte mit
+  // Ihrem Wunschlimit … — über den Rahmen entscheidet unsere Partnerbank" ist eine Kartenzusage und fällt jetzt.
+  { muster: /(?<!\bnach\s+(?:der\s+)?zusage\b[^.!?]{0,60})\b(bekommen|erhalten)\s+sie\s+(?:bei\s+uns\s+)?(?:auch\s+)?(?:ihre|eine|die)\s+(?:eigene\s+)?(?:visa-?)?(?:kredit)?karte\b(?![^.!?]{0,60}\bnach\s+(?:der\s+)?zusage\b|[^.!?]{0,60}\bentscheidet\b[^.!?]{0,40}\büber\s+(?:\S+\s+){0,2}?(?:konto\s+und\s+)?(?:visa-?)?(?:kredit)?karte\b)/i,
+    art: "verboten", hinweis: "Die Karte ist nicht zugesagt. Sag: „Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte — über den Rahmen entscheidet unsere Partnerbank.“" },
   { muster: /\baffiliate\b/i, art: "verboten", hinweis: "Das Wort nie verwenden." },
   { muster: /\bkredit(vermittlung|e?\s+vermitteln)\b/i, art: "verboten", hinweis: "FIAON vermittelt keine Kredite." },
   { muster: /\b(dolmetscher|übersetzungsdienst|live-?chat|telefon-?konferenz)\b/i, art: "verboten", hinweis: "Diese Leistung gibt es bei FIAON nicht — biete stattdessen ein Telefongespräch an." },

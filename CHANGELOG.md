@@ -5,6 +5,177 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 29.09.2026 — Mara schließt ab: Nachnamen, die Kreditkarte vorn, Kündigung mit Kulanz-Satz (E-265)
+
+**Der Anlass:** Justin am 29.09. mit Screenshots aus WhatsApp und Postfach: „nicht ‚Daniel, Florentine, Nikita'
+schreiben, sondern die Nachnamen, zum letzten Mal!!" — „VIEL MEHR AUF DIE KREDITKARTEN!" — auf „Muss ich trotzdem
+zahlen?": „NEIN, bezahlen Sie Ihre Rate, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag!!!" — auf „Ich habe ja
+keine Karte, wozu zahlen?": „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist. PUNKT AUS FERTIG!"
+
+**Was dahinter steckte (gelesen, Produktion nur lesend):** Jeder feste Satz nahm vom Betreuer das erste Wort
+(„Daniel ruft Sie an"), die Regel im Auftrag an das Modell sagte „Kolleginnen und Kollegen beim Vornamen". Mara kannte
+auf WhatsApp das Wunschlimit gar nicht (in 78 Antworten keins), die Kreditkarte stand hinten oder fehlte, und bei
+„zuerst die Zahlung, dann zahle ich gerne weiter" kam „Daniel meldet sich" statt eines Abschlusses. Kündigungen gab
+Mara an Kollegen weiter, die bis Freitag nicht da sind — mit der Zahlungsseite im selben Satz.
+
+**Was jetzt gilt:**
+- **Nachnamen.** Kollegen heißen gegenüber Kunden „Herr Stripling", „Frau Lombardi", nach mit/an/für „Herrn
+  Stripling". Ist keine Anrede gepflegt, nennt Mara den vollen Namen ohne Herr/Frau und ohne er/sie („Nikita
+  Boychenko"). Eine Quelle: shared/fiaon-mitarbeiter-name.ts. Ein Vorname allein ist jetzt ein HARTER Fehler (Liste aus
+  allen echten Konten plus dem Vertreter, Kundennamen ausgenommen); als letztes Mittel ersetzt die Reparatur ihn durch
+  die Nennform. Gilt in WhatsApp, Postfach, Mara-Aktion, Terminseite, Telefonansage („Ich verbinde Sie mit Herrn
+  Stripling"), den Mail-Werten `agent_vorname` (Termin-, Erinnerungs-, Nicht-erreicht-Mails) und der Vertretung (E-260).
+- **Die Kreditkarte vorn, Justins Abschluss.** Bei Kaufsignal oder Einwand steht für diesen Menschen fertig im Auftrag:
+  „Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte mit Ihrem Wunschlimit von 25.000 € — über den Rahmen entscheidet
+  unsere Partnerbank. Bitte begleichen Sie Ihre erste Monatsrate über 99,99 €; sobald sie gebucht ist, schaltet das
+  System Sie frei, und ich vereinbare Ihren Termin mit Herrn Stripling. Passt Ihnen morgen um 10 Uhr?" + sein Link.
+  Das Wunschlimit kommt aus dem Antrag, gedeckelt auf den Rahmen seines Pakets (Wunsch 20.000 € bei Ultra → „15.000 €
+  als Ziel in Ihrem Paket FIAON Ultra"), nie die „Genehmigung" des Formulars. Nie ohne den Satz über die Bank (hart),
+  nie „Sie bekommen Ihre Karte/25.000 €" (Wortwand). Die Zeit ist der nächste freie Platz dessen, der anruft; steht
+  schon ein Termin im Kalender, nennt Mara genau den. „Zahlung gemeldet": danke, keine Zahlungsbitte, nach der Buchung
+  der Link der Partnerbank für Konto und Karte, die Kreditkarte bleibt das Ziel, Termin. Nie abgeschickter Antrag
+  (E-264): kein Satz zur Rate — Karte, „Ihr nächster Schritt ist Ihr Antrag", Termin. Einwand „Vorkasse/unseriös/kein
+  Kreditinstitut" bekommt zuerst die Antwort auf seine Frage, die Karte, „Sie überweisen selbst, abgebucht wird nichts"
+  und den Anruf OHNE Bedingung („…, bevor Sie etwas überweisen?"), nie „Genau" am Anfang. „Zu teuer": das nächstkleinere
+  Paket mit seinem Ziel. „Was ist FIAON?": die Karte zuerst, nie „Bonitätsplattform" als erstes Wort.
+- **„Keine Karte — wozu zahlen?"** → Kern ist die offene Zahlung mit Betrag, Fälligkeit, Zahlungsseite und
+  Termin-Angebot. Bei der ersten Monatsrate: „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist". Beim
+  zahlenden Kunden ist die Folgerate nicht der Grund (die Einladung hängt seit E-206 nur an der ersten Rate): „Bei Ihnen
+  ist noch Ihre Rate vom 12.09. über 59,99 € offen" — ohne „Das liegt daran".
+- **Kündigung.** Eine klare Kündigung bucht Mara jetzt auch auf WhatsApp selbst (Werkzeug `kuendigung_aufnehmen`,
+  derselbe Weg wie das Postfach: Urkunde, Bestätigungsmail) — nie „ich gebe es an … weiter", nie abhängig von einer
+  Zahlung (§ 312k BGB). Klar ist auch „Kann ich bitte kündigen" (genau so, ohne Fragezeichen) und ein klares Ja auf
+  Maras EINE Rückfrage („Soll ich Ihre Kündigung trotzdem jetzt aufnehmen?", höchstens 24 Stunden alt, nie ein
+  Vorlagen-Knopf); eine bloße Frage, Frist/Folgen, Verneinung oder Drohung bucht nie. Bleibt eine Rate offen:
+  Jahresvertrag (ab 03.09.) → „Bitte begleichen Sie Ihre Rate vom … über …, dann lasse ich Sie aus Kulanz gerne aus dem
+  Vertrag — danach kommt nichts mehr" + Zahlungsseite; Vertrag davor → kein „Kulanz", sondern „… zahlen Sie bitte noch,
+  Ihre Kündigung gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>, danach kommt nichts mehr" + Zahlungsseite
+  (AGB 04.07.2026 § 6: Abrechnungsmonat = Fälligkeit zu Fälligkeit — Nachbesserung Recht unten). Ein zweites „kein Interesse" an einer
+  unbezahlten Bestellung storniert sie. Nach Kündigung, Widerruf, Stopp oder Beschwerde (auch eine Nachricht vorher)
+  keine Zahlungsseite außer in dieser Formel; „stoppen wir hier" nur, wenn wirklich gebucht oder gesperrt wurde.
+  Ungefragt nennt Mara kein Kündigungsrecht mehr (auf „Habe ich einen Vertrag?").
+- **Postfach:** Wer seine Zahlung meldet oder einen Beleg schickt, bekommt nie mehr „Rechnung ansehen und bezahlen" als
+  Knopf, sondern den Termin oder seinen Bereich. „Bitte löschen Sie meine Mail Adresse" gilt als Löschwunsch (E-264).
+- **Team-Zentrale:** Der Hinweis unter „Anrede gegenüber Kunden" nennt jetzt alle Wege (Mail, WhatsApp, Telefon,
+  Terminseite).
+
+**Wo:** shared/fiaon-mitarbeiter-name.ts (neu, die Nennform), server/lib/fiaon-mitarbeiter-namen.ts (neu, die Liste),
+shared/fiaon-mara-ton.ts (Regeln, Sätze, Musterdialoge), shared/fiaon-wortverbote.ts, shared/fiaon-wissen.ts,
+server/lib/fiaon-whatsapp-mara.ts, fiaon-postmeister-agent.ts, -dossier.ts, -werkzeuge.ts, fiaon-mara-aktion.ts,
+fiaon-mara-termin.ts, fiaon-abwesenheit.ts, fiaon-termine.ts, fiaon-anruf-eingehend.ts, fiaon-kuendigung*.ts, die
+Mail-Werte in fiaon-mail-senden.ts, fiaon-nicht-erreicht.ts, fiaon-wiedereinstieg.ts, fiaon-zentrale.ts,
+routes/fiaon-termin.ts, -followup.ts, -onboarding-bereich.ts, -kunde-bereich.ts; client/src/pages/termin.tsx,
+admin-team-zentrale.tsx. Mara-Steuerpult und WhatsApp-Raum: neue Protokoll-Zeile „Kündigung gebucht". Prüfstand: scripts/pruef-mara-abschluss.ts (neu: Regeln, 20 echte WhatsApp-Fälle
+anonymisiert, 5 Mail-Fälle), die übrigen Mara-Prüfstände nachgezogen.
+
+**Nachbesserung (29.09.2026, Gegenlesen Recht/Verkauf/Regression):** Eine Zusage am Wunschlimit („Sie bekommen Ihr
+Wunschlimit …", „ist Ihnen sicher", „schalten Sie frei") ist hart — auch mit dem Satz über die Bank; die Reparatur hängt
+den Bank-Satz nie mehr an eine Zusage. Die Wortwand fängt „Sie bekommen Ihre Kreditkarte, über den Rahmen entscheidet …".
+Kündigung: mehrere offene Raten werden mit Summe genannt (nie „danach kommt nichts mehr"); beim Altvertrag wird eine
+Rate, die erst nach dem Ende des Abrechnungsmonats fällig ist, nie verlangt (Prüffall an Justin: stornieren?); die Formel zählt nur mit
+gebuchter Kündigung, nie bei Widerruf oder „kann nicht zahlen"; „Kulanz" nur beim Jahresvertrag (hart, WhatsApp und
+Postfach); „Kündigung eingegangen" ohne Buchung ist hart; „bereits gekündigt, Vertrag beendet" nie „heute
+eingegangen". Genitiv („Daniels Kalender") ist ein Vorname; „Herr Daniel" wird nie „Herr Herr Stripling". Mara-Aktion
+und Startgespräch nennen den, der wirklich anruft (Vertreter bis Fr 02.10.), mit Nennform. Postfach: gemeldete Zahlung
+ohne Zahlungspflicht im Knopf; „Der Vertrag läuft, bis sie bezahlt ist" ist weg. agb_stand als Date richtig gelesen
+(istJahresvertrag). Justins Konto 928 steht immer in der Namensliste.
+
+**Nachbesserung 2 (01.10.2026, nach der Gegenprobe):**
+- **Limit und Betrag nur über die weiße Liste** (shared/fiaon-mara-ton.ts, `limitPruefen`). Jeder Satz an Kunden —
+  WhatsApp und Mail, jede Sprache — mit Limit, Rahmen, Kreditrahmen, Verfügungsrahmen, Wunschlimit, credit line oder
+  einem Betrag ab 1.000 in jeder Schreibweise (25.000 · 25000 · 25 000 · 25'000 · 25,000 · 25k · € 25.000 · EUR · CHF ·
+  „Wunschlimit: …") besteht nur aus freigegebenen Bausteinen („mit Ihrem Wunschlimit von X €", „X € als Ziel",
+  „Ihr Wunschlimit bleibt unser Ziel", „Sie tragen im Antrag Ihr Wunschlimit ein", der Satz über die Bank, „Reicht
+  Ihnen ein kleinerer Rahmen", Raten mit Betrag). Rest mit Limit-Wort/Betrag → hart (`limit_freigabe`), Rest mit
+  Zusage- oder Aussichtswort → hart (`limit_zusage`), auch ein Rückverweis im Folgesatz („Das bekommen Sie sicher").
+  Wunschlimit/„als Ziel" mit irgendeiner Zahl ohne Bank-Satz → hart. Die Reparatur „Limit → Rahmen" und
+  bankSatzErgaenzen gelten nur, wenn das Ergebnis die ganze Prüfung besteht. Gegenprobe: 0 von 54 (vorher 33) Zusagen
+  auf WhatsApp, 0 per Mail; 10 von 10 Zahlenformen ohne Bank-Satz gesperrt; 0 von 38 erlaubten Formeln fallen.
+- **Kündigung in zwei Schritten.** Will er kündigen (oder fragt er), stellt Mara nur: „Soll ich Ihre Kündigung jetzt
+  verbindlich aufnehmen? Dann antworten Sie bitte mit Ja." — als einzige Frage, keine Buchung. Gebucht wird erst auf
+  ein klares Ja darauf (≤ 24 h, keine Vorlage, kein Knopf) und nur, wenn er die Kündigung vorher selbst angesprochen
+  hat. Verneinung oder Rücknahme irgendwo („nich/net/ned", „doch nicht", „lass mal", „kündigen Sie nicht", „Kündigung
+  widerrufen/stornieren", „War ein Scherz") → nie gebucht, ein Mensch bekommt die Aufgabe. Bestreiten oder falsche
+  Nummer (E-264) → nie Kündigung, nie Storno (auch im Postfach). Gegenprobe: 0 falsche Buchungen (vorher 12 von 50),
+  keine klare Kündigung ohne Rückfrage.
+- **EINE Rechnung** (server/lib/fiaon-kuendigung.ts, `kuendigungRatenPlan`): Altvertrag (vor dem 03.09.2026) — zu zahlen
+  ist, was bis zum Ende des Abrechnungsmonats fällig ist (AGB 04.07.2026 § 6: „24 Stunden zum Ende des jeweiligen
+  Abrechnungsmonats", also Fälligkeit zu Fälligkeit; gerechnet von EINER Funktion `abrechnungsmonat()` /
+  `abrechnungsmonatEnde()` in shared/fiaon-antrag-stand.ts, gelesen über `vertragsendeLesen()` in
+  server/lib/fiaon-kuendigung.ts); Raten danach entfallen mit der Kündigung (storno_grund „kuendigung", die Rücknahme
+  holt sie zurück); ist nichts mehr fällig, endet der Vertrag zum Ende des Abrechnungsmonats. Jahresvertrag — unverändert:
+  Justins Kulanz verlangt nur die fälligen Raten, vorab angelegte entfallen. Urkunde, Bestätigungsmail (neu: Altvertrag
+  „Ihre Kündigung gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>" statt „vorzeitig … auch wenn wir es nicht
+  müssten", jede Rate mit Datum und Summe), WhatsApp und Postfach lesen dieselbe Liste; „danach kommt nichts mehr" nur,
+  wenn danach wirklich nichts offen ist.
+- Nennform: Heißt der Kunde wie ein Mitarbeiter, gilt sein Vorname nur in der Anrede als Kunde („Hallo Daniel, Ihr
+  Termin mit Daniel" → „mit Herrn Stripling"); Genitiv des vollen Namens („Nikita Boychenkos"); Reparatur ohne Reste
+  („Daniel S." → „Herr Stripling", „Mit Florentine und Daniel" → „… und Herrn Stripling", „Rufen Sie Herrn Stripling");
+  E-Mail-Adressen sind keine Vornamen. E-264-Netz: „schaltet das System Sie frei" vor dem Antrag ist eine Aufforderung.
+
+**Schluss-Nachbesserung (01.10.2026, nach der Echt-Probe 3):**
+- **Keine erfundene Vertragsmail.** Im Auftrag stand „Wo ist mein Vertrag? → Vertrag und Rechnung kamen per E-Mail" — eine
+  Vertragsmail an Privatkunden gibt es nicht. Jetzt: das Datum aus seiner Lage und „Ihre Vertragsunterlagen lasse ich Ihnen
+  gern schicken". Die Behauptung „Vertrag … kam/kommt per E-Mail" ist auf WhatsApp hart (`vertrag_mail`), im Postfach ohne
+  Beleg in der Akte (nur FIAON Global bekommt Vertrag und Rechnung wirklich per Mail) ein Mangel.
+- **Kündigung nie an die Zahlung gebunden.** „Sobald der Eingang gebucht ist, wird das Kündigungsschreiben … verschickt" ist
+  hart (`kuendigung_an_zahlung`, WhatsApp und Mail, § 312k BGB). Die Akte im Postfach rechnet beim gekündigten Vertrag mit
+  derselben Liste wie Werkzeug, Urkunde und Bestätigungsmail (`kuendigung.zuZahlen`, `nachVertragsende`, `giltZum`) —
+  vorher hieß beim Altbestand eine Rate nach dem Vertragsende „letzte Rate". `zahlungslink_bauen` baut für so eine Rate
+  (und für stornierte) keine Seite mehr; das Postfach holt sie auch nicht vorab.
+- **Justins Formel in einem Satz.** „… über den Rahmen entscheidet unsere Partnerbank; die 99,99 € sind die erste
+  Monatsrate, und sobald sie gebucht ist, schaltet das System Sie frei" fiel als Limit-Zusage (Semikolon). Die
+  Freischaltung der PERSON („schaltet das System Sie frei", mit gebuchter Rate/Zahlung) ist jetzt ein freier Baustein;
+  „schalten Sie Ihr Wunschlimit frei" bleibt hart. Auftrag und Hinweis zeigen die Formel mit Punkt nach dem Bank-Satz.
+- **Storno-Rückfrage.** Für eine unbezahlte Bestellung gibt es eine zweite wörtliche Form: „Soll ich Ihre Bestellung jetzt
+  verbindlich stornieren? Dann antworten Sie bitte mit Ja." — ein Ja darauf bucht das Storno; eine freie Storno-Frage oder
+  „Kündigung" für eine unbezahlte Bestellung fällt. Auf eine reine Frist-Frage gibt es keine Rückfrage.
+- **„Ich will nich kündigen, mach ich heute abend"** ist kein heikles Anliegen: Zahlungsseite, Zahltag, eine Frage.
+  Eine Zahlungsankündigung („mach/erledige ich heute/morgen" bei Rate/Zahlung) ist ein Kaufsignal.
+- **Länge:** Der Vorspann „Hier ist Mara …" zählt nicht mehr mit; der Hinweis kürzt den Einstieg, nie Karte, Ziel,
+  Betrag, Freischaltung oder Link; verliert der zweite Entwurf bei einem reinen Längen-Hinweis Teile der Formel, geht der
+  erste.
+- **Preis-Einwand** („Ich bezahle nicht 99 Euro für eine Karte") ist kein „kann nicht zahlen" mehr → kleineres Paket mit
+  Ziel. **Bestätigt er die angebotene Zeit** („Heute 10:20?", „Ok"), trägt der Server den Rückruf selbst ein.
+  **„Keinen Kontakt mehr"** von jemandem, der von seiner Entscheidung spricht, bekommt keinen Herkunftssatz mehr.
+  **Limit-Fragen** („Wie hoch ist mein Limit?", „Bekomme ich die 25.000 sicher?") bekommen einen festen Baustein: „Für
+  Ihre Visa-Kreditkarte ist Ihr Wunschlimit von X € unser Ziel — über den Rahmen entscheidet unsere Partnerbank." +
+  Betrag/Freischaltung (bei offener erster Rate) + Termin mit Nennform.
+- **Postfach:** Eine B-Mail schließt ab — Betrag, Freischaltung, Terminfrage (weich, deutsch und englisch); Fristen, die
+  nicht im Hauswissen stehen, doppeltes Mitgefühl und über 700 Zeichen lösen den zweiten Entwurf aus.
+- **Bestätigungsmail:** Eine gescheiterte Kündigungsbestätigung galt als gesendet (`erg === false` gegen `{ ok: false }`)
+  — jetzt bleibt `kuendigung_bestaetigt_mail_am` leer, und Mara sagt dem Kunden nichts von einer Mail.
+- Prüfstand: `pruef-mara-abschluss.ts` (A12 + 9 neue Dialoge k01–k06, l01–l03; H auch mit `--ki`; N im Dativ; R nur
+  Zahlungsseiten), `pruef-mara-mail.ts` (Altbestand M3, Vertragsmail im Postfach).
+
+**Offen (Justin, Nachbesserung 2):** 55 schon gekündigte Altverträge haben noch 73 offene Raten NACH dem Vertragsende
+(4.407,27 €, Produktion gelesen 01.10.) — die Dauermahnung mahnt sie. Mara verlangt sie nie, sagt aber auch nicht
+„danach kommt nichts mehr"; stornieren nur mit Go (SQL liegt bereit). Die Bestätigungsmail rendert der Motor
+(`mail_versandweg` = direkt); die neuen Felder `vertrag_satz`, `offen_satz`, `raten_text`, `preheader_text` bringt die
+Nutzlast selbst mit.
+
+**Offen (Justin):** Anrede für Konto 13 und 928 fehlt — bis dahin „Nikita Boychenko"/„Justin Schwarzott" (Team-Zentrale
+→ Mitarbeiter öffnen → „Anrede gegenüber Kunden"). Eigene Texte in Make/Brevo mit `{{agent_vorname}}` von Hand prüfen:
+der Wert ist jetzt „Herr Stripling" (nach „mit" stünde dort „mit Herr Stripling").
+
+**Nachbesserung Recht (01.10.2026, nach der Gegenprüfung):** Der Befund aus dem Paket Recht: Bis zum 01.10. rechnete der
+Bau beim Altvertrag mit dem Kalendermonat („gilt zum Monatsende") — die AGB-Fassung vom 04.07.2026 § 6 sagt aber
+„24 Stunden zum Ende des jeweiligen Abrechnungsmonats", und der Abrechnungsmonat läuft von Fälligkeit zu Fälligkeit
+(§ 5 „monatlich im Voraus"), nicht vom 1. bis zum Letzten. In der Produktion stehen 71 Altverträge mit 106 Raten, die erst
+nach dem Ende ihres Abrechnungsmonats fällig sind — deren Bereinigung ist ein eigener Auftrag (E-270). Was jetzt gilt (die
+Absätze oben sind darauf umgeschrieben): EINE Funktion `abrechnungsmonat()` / `abrechnungsmonatEnde()` in
+shared/fiaon-antrag-stand.ts rechnet das Ende aus der Ratenkette (Rückfall: Anker der ersten Zahlung, zuletzt der
+Kalendermonat); EINE Lesestelle `vertragsendeLesen()` in server/lib/fiaon-kuendigung.ts liefert es an Urkunde,
+Bestätigungsmail, WhatsApp, Postfach und Akte; der Kundensatz lautet „Ihre Kündigung gilt zum Ende Ihres laufenden
+Abrechnungsmonats, dem <Datum>"; Raten nach diesem Ende entfallen. Der Jahresvertrag (ab 03.09.2026) ist unverändert.
+Gegenprüfung M2: Die Zahlung der letzten Rate setzte beim Altvertrag das Vertragsende auf den Zahltag
+(`vertragEndePruefen`, NOW()) — danach meldeten Mara, Dossier und Urkunde „gilt zum … dem 02.10.2026" statt 27.10. Jetzt
+wird das Berliner Tagesende des Abrechnungsmonats gespeichert; die Lesestelle lässt ein zu frühes vertrag_ende_am beim
+bezahlten Altvertrag nie mehr gelten (Altdaten mit Zahltag), und Akte, Postfach-Werkzeug und Urkunde lesen nur noch diese
+Stelle. Prüfstand: scripts/pruef-mara-mail.ts --db (DB 1b, Fälle „M2").
+
+---
+
 ## 01.10.2026 — Bankeingänge im Bankbuch buchen, ohne Admin-Code; Regel B wartet bei beantragter Kündigung (Gegenprüfung zu E-235/Regel B)
 
 **Der Anlass:** Die Gegenprüfung vom 01.10. zu „Raten ohne Nummer": Buchen ging bisher nur über eine Admin-Route mit

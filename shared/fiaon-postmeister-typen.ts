@@ -77,7 +77,8 @@ export type SchrittArt =
 export const ERLAUBTE_SCHRITTE: Record<Kundenlage, SchrittArt[]> = {
   interessent: ["antrag", "termin", "rueckruf"],
   unbezahlt: ["zahlung", "termin", "rueckruf", "erledigt"],
-  zahlung_gemeldet: ["zahlung", "auskunft", "rueckruf", "wartet_auf_uns", "erledigt"],
+  // E-265 Nachbesserung (29.09.2026): Er hat gezahlt gemeldet — der Knopf ist der Termin oder sein Bereich, nie der Zahlknopf.
+  zahlung_gemeldet: ["zahlung", "termin", "bereich", "auskunft", "rueckruf", "wartet_auf_uns", "erledigt"],
   bezahlt_ohne_startgespraech: ["startgespraech", "auskunft", "termin", "bereich", "rueckruf"],
   aktiv: ["bereich", "auskunft", "unterlagen", "termin", "angebot", "rueckruf", "erledigt"],
   rate_ueberfaellig: ["zahlung", "auskunft", "termin", "rueckruf"],
@@ -367,15 +368,18 @@ export interface AkteKurz {
   spracheNotiz: string | null;
   email: string | null;
   telefon: string | null;
-  /** Sein fester Betreuer (Vorname) — auch während einer Abwesenheit (E-260). */
+  /** Sein fester Betreuer — E-265 (29.09.2026): als Nennform („Herr Stripling"), nie der Vorname; auch während einer Abwesenheit (E-260). */
   betreuer: string | null;
-  /** E-260 (29.09.2026): Team abwesend — wer bis wann an seiner Stelle anruft; sonst null. */
-  vertretung?: { name: string; bis: string } | null;
+  /** E-260 (29.09.2026): Team abwesend — wer bis wann an seiner Stelle anruft; sonst null. E-265: Nennform, `dat` nach mit/an. */
+  vertretung?: { name: string; dat?: string; bis: string } | null;
+  /** E-265: sein Kartenziel (wanted_limit, gedeckelt auf den Rahmen seines Pakets) — „mit Ihrem Wunschlimit von 25.000 €". */
+  kartenziel?: { euro: number; art: "wunsch" | "paket"; paketName: string | null; text: string } | null;
   kundenlage: Kundenlage;
   lageGrund: string;
   /** E-264: abgeschickt = antragAbgeschickt (shared/fiaon-antrag-stand.ts); nie abgeschickt und offen → status „antrag_nicht_abgeschickt", ohne Referenz. */
   bestellungen: { ref: string; paket: string | null; status: string; betrag: string | null; referenz: string | null; angelegt: string | null; abgeschickt?: boolean }[];
-  raten: { nr: number; betrag: string; status: string; faellig: string | null; bezahlt: string | null; mahnstufe: number | null; referenz: string | null }[];
+  /** E-265 Schluss-Nachbesserung: nachVertragsende = Altvertrag gekündigt, die Rate ist erst nach dem Vertragsende fällig — nie verlangen. */
+  raten: { nr: number; betrag: string; status: string; faellig: string | null; bezahlt: string | null; mahnstufe: number | null; referenz: string | null; nachVertragsende?: boolean }[];
   termine: { beginn: string; status: string; betreuer: string | null; art: string | null }[];
   verlauf: { am: string; art: string; wer: string | null; text: string }[];
   mails: { am: string; richtung: "ein" | "aus"; betreff: string; kurz: string | null }[];
@@ -383,7 +387,19 @@ export interface AkteKurz {
   vertrag?: { geschlossenAm: string | null; ort: string | null; land: string | null; agbStand: string | null } | null;
   /** Karte: Reihenfolge, drei Bedingungen mit Stand, Einladung, Bankentscheidung (E-135). */
   karte?: any;
-  kuendigung: { am: string | null; letzteRate: number | null; vertragEnde: string | null } | null;
+  /**
+   * E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M3): letzteRate ist die letzte WIRKLICH zu zahlende Rate
+   * (kuendigungRatenAufteilen), nicht mehr letzte_rate_nr ungeprüft. giltZum (Altvertrag: Ende des Abrechnungsmonats
+   * der Kündigung — Fälligkeit zu Fälligkeit, E-265 (01.10.2026), nicht Kalendermonat),
+   * zuZahlen und nachVertragsende (nie verlangen) kommen aus derselben Rechnung wie Werkzeug, Urkunde und Bestätigungsmail.
+   */
+  kuendigung: {
+    am: string | null; letzteRate: number | null; vertragEnde: string | null;
+    giltZum?: string | null;
+    zuZahlen?: { nr: number; betrag: string; faellig: string | null; referenz: string | null }[];
+    nachVertragsende?: { nr: number; betrag: string; faellig: string | null }[];
+    regel?: string;
+  } | null;
   sperren: { werbung: string | null; anrufe: boolean; konto: string | null };
   offeneAufgaben: number;
   /** Stand der Bonitätsauskunft (24.09.2026, E-240) — null ohne Person oder bei FIAON Global. */

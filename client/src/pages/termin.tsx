@@ -39,13 +39,19 @@ interface Auskunft {
    * sie gibt ihn beim Buchen zurück.
    */
   herkunft?: string;
-  betreuer: { id: number; vorname: string } | null;
+  /**
+   * E-265 (29.09.2026, Justin „zum letzten Mal!!"): `nom`/`dat` = wie der Kunde ihn liest —
+   * „Herr Stripling" / „mit Herrn Stripling"; ohne gepflegte Anrede der volle Name. `vorname` ist Altbestand.
+   */
+  betreuer: { id: number; vorname: string; nom?: string; dat?: string; anrede?: "Herr" | "Frau" | null } | null;
   slots: Slot[];
   slotMinuten: number;
   horizontTage: number;
   termin: {
     beginn: string; datumText: string; uhrzeit: string;
     agentVorname: string; stornoToken: string;
+    /** E-265: „mit Herrn Stripling" (Dativ). */
+    agentDat?: string;
   } | null;
 }
 
@@ -385,7 +391,7 @@ export default function TerminPage() {
             <div className="text-center mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">{T.bestehendTitel}</h1>
               <p className="text-[15px] text-slate-600 leading-relaxed">
-                <b className="text-slate-900">{daten.termin.datumText} um {daten.termin.uhrzeit} Uhr</b> mit {daten.termin.agentVorname}.
+                <b className="text-slate-900">{daten.termin.datumText} um {daten.termin.uhrzeit} Uhr</b> mit {daten.termin.agentDat || daten.termin.agentVorname}.
               </p>
             </div>
             <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 text-center">
@@ -433,8 +439,8 @@ export default function TerminPage() {
                   Team), bleibt die Frage ohne Namen. */}
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3 leading-tight">
                 {sie
-                  ? (daten.betreuer && rufname(daten.betreuer.vorname)
-                      ? `Ihr Rückruf mit ${rufname(daten.betreuer.vorname)}`
+                  ? (daten.betreuer && (daten.betreuer.dat || rufname(daten.betreuer.vorname))
+                      ? `Ihr Rückruf mit ${daten.betreuer.dat || rufname(daten.betreuer.vorname)}`
                       : "Wann passt es Ihnen?")
                   : (daten.vorname ? `${daten.vorname}, wann passt es dir?` : "Wann passt es dir?")}
               </h1>
@@ -442,14 +448,14 @@ export default function TerminPage() {
                 <p className="text-[14px] text-slate-500 leading-relaxed">
                   Wählen Sie eine Zeit für ein {daten.slotMinuten}-minütiges Gespräch mit
                   {" "}{daten.betreuer
-                    ? <b className="text-slate-900">{daten.betreuer.vorname}, Ihrem persönlichen Ansprechpartner</b>
+                    ? <b className="text-slate-900">{daten.betreuer.dat || daten.betreuer.vorname}, {daten.betreuer.anrede === "Frau" ? "Ihrer persönlichen Ansprechpartnerin" : "Ihrem persönlichen Ansprechpartner"}</b>
                     : <b className="text-slate-900">Ihrem persönlichen Ansprechpartner</b>}.
                 </p>
               ) : (
                 <p className="text-[14px] text-slate-500 leading-relaxed">
                   Wähl eine Zeit für ein {daten.slotMinuten}-minütiges Gespräch mit
                   {" "}{daten.betreuer
-                    ? <b className="text-slate-900">{daten.betreuer.vorname}, deinem persönlichen Ansprechpartner</b>
+                    ? <b className="text-slate-900">{daten.betreuer.dat || daten.betreuer.vorname}, {daten.betreuer.anrede === "Frau" ? "deiner persönlichen Ansprechpartnerin" : "deinem persönlichen Ansprechpartner"}</b>
                     : <b className="text-slate-900">deinem persönlichen Ansprechpartner</b>}.
                 </p>
               )}
@@ -467,7 +473,7 @@ export default function TerminPage() {
                      style={{ flexShrink: 0, marginTop: 2 }}>
                   <path d="M6.2 3.6c.7 0 1.3.5 1.5 1.2l.5 2a1.6 1.6 0 0 1-.5 1.6l-.9.8a9 9 0 0 0 4 4l.8-.9a1.6 1.6 0 0 1 1.6-.5l2 .5c.7.2 1.2.8 1.2 1.5v1.7c0 .9-.8 1.6-1.7 1.5C8.3 16.7 3.3 11.7 2.7 5.3c-.1-.9.6-1.7 1.5-1.7h2Z" />
                 </svg>
-                <span>{T.anruf(daten.betreuer?.vorname)}</span>
+                <span>{T.anruf(daten.betreuer?.nom || daten.betreuer?.vorname)}</span>
               </p>
             </div>
 

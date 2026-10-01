@@ -276,6 +276,9 @@ export function schrittKlartext(e: MaraEreignis): SchrittKlartext {
       return { titel: "Bestreitet den Antrag — Entschuldigung und Herkunft, kein Link, Werbe-Stopp, Leitung informiert", ton: "warn", roh };
     case "loeschwunsch":
       return { titel: "Löschwunsch — bestätigt, Leitung löscht", ton: "warn", roh };
+    // E-265 (29.09.2026): Mara hat eine klare Kündigung selbst gebucht (Urkunde, Bestätigungsmail).
+    case "kuendigung":
+      return { titel: vorDoppelpunkt(e.text) || "Kündigung per WhatsApp aufgenommen", ton: "warn", roh };
     default: {
       // Der erste Satz — ohne Lookbehind (Safari unter 16.4 kennt ihn nicht).
       const voll = ohneWerkzeugnamen(e.text);

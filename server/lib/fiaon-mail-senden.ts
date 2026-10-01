@@ -21,6 +21,7 @@
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { BANK } from "@shared/fiaon-bank";
 import { sqlPool } from "./db-pool";
+import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { mailEvent, type MailEvent, type Rolle } from "./fiaon-mail-events";
 import { versendenUndProtokollieren, type VersandStatus } from "./fiaon-mail-log";
 import { istVersandArt, versandErlaubt } from "./fiaon-versand";
@@ -88,7 +89,9 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
              SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
              FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
              ORDER BY a.created_at DESC LIMIT 1)) AS email,
-           COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname,
+           -- E-265 (29.09.2026): Der Wert von {{agent_vorname}} ist die Nennform („Herr Stripling") — der Name
+           -- des Platzhalters bleibt (Make/Brevo lesen ihn), der Kunde liest nie mehr den Vornamen allein.
+           ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname,
            (SELECT a2.ref FROM fiaon_applications a2
              WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
              ORDER BY a2.created_at DESC LIMIT 1) AS ref,
@@ -282,7 +285,7 @@ async function linkBaustein(
     // Der Kalender gibt sie jetzt selbst mit (vorhanden), hier der Rückfall.
     if (!hat("termin_datum")) {
       const [t] = (await lauf`
-        SELECT t.beginn, COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+        SELECT t.beginn, ${lauf.unsafe(nennformSql("ag"))} AS agent_vorname
         FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
         WHERE t.person_id = ${personId} AND t.status = 'verpasst'
         ORDER BY t.beginn DESC LIMIT 1

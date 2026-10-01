@@ -24,8 +24,10 @@ import * as abw from "./fiaon-abwesenheit";
 import { sqlPool } from "./db-pool";
 import type { Kundenlage, AkteKurz, AuskunftDossier } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
-import { antragAbgeschickt } from "@shared/fiaon-antrag-stand";
+import { antragAbgeschickt, istJahresvertrag, abrechnungsmonatEnde } from "@shared/fiaon-antrag-stand";
 import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
+import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
+import { kartenZiel, kartenzielText, kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
 
 /** Berliner Zeitangaben — nie Number(format()), immer formatToParts. */
 function berlinJetzt(): { text: string; iso: string } {
@@ -231,14 +233,18 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     SELECT p.id, p.first_name, p.last_name, p.company_name, p.primary_email, p.primary_phone, p.anrede,
            p.sprache, p.sprache_notiz, p.city, p.country,
            p.werbung_gesperrt_am, p.is_blocked, p.account_status,
-           a.first_name AS betreuer_vorname, a.name AS betreuer_name
+           a.first_name AS betreuer_vorname, a.name AS betreuer_name,
+           -- E-265 (29.09.2026): Anrede und Nachname — Mara nennt den Betreuer „Herr Stripling", nie „Daniel".
+           a.anrede AS betreuer_anrede, a.last_name AS betreuer_nachname
       FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
      WHERE p.id = ${personId} LIMIT 1
   `) as any[] : [null];
 
   const bestellungen = personId ? (await sqlPool`
     SELECT ref, pack_key, pack_name, payment_status, amount_due, payment_reference, created_at, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, agb_stand,
-           city, country, status, current_step, submitted_at
+           city, country, status, current_step, submitted_at, wanted_limit, kuendigung_zurueckgenommen_am,
+           -- E-265 (01.10.2026): der Anker für den Abrechnungsmonat (Rückfall ohne Ratenkette)
+           COALESCE(paid_at, completed_at, created_at) AS anker
       FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
      ORDER BY created_at DESC LIMIT 6
   `) as any[] : [];
@@ -249,7 +255,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   `) as any[] : [];
 
   const termine = personId ? (await sqlPool`
-    SELECT t.beginn, t.status, t.quelle, t.agent_id, a.first_name AS betreuer
+    SELECT t.beginn, t.status, t.quelle, t.agent_id, ${sqlPool.unsafe(nennformSql("a"))} AS betreuer
       FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
      WHERE t.person_id = ${personId} ORDER BY t.beginn DESC LIMIT 6
   `) as any[] : [];
@@ -278,6 +284,33 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   `) as any[] : [{ n: 0 }];
 
   const aktuelle = bestellungen.find((b) => b.ref === ref) ?? bestellungen[0] ?? null;
+
+  // ── WAS NACH DER KÜNDIGUNG WIRKLICH ZU ZAHLEN IST (E-265 Schluss-Nachbesserung, 01.10.2026, Probe 3 M3) ──────
+  // Vorher stand hier `letzteRate: letzte_rate_nr` ungeprüft. M3 (#5779): Altvertrag, gekündigt am 06.09. → Vertragsende
+  // 30.09.; Rate 3 war erst am 06.10. fällig und hieß trotzdem „die letzte Rate", zahlungslink_bauen baute ihre Seite, und
+  // Mara band das Kündigungsschreiben an ihre Buchung. Jetzt dieselbe Rechnung wie Werkzeug, Urkunde und Bestätigungsmail
+  // (kuendigungRatenAufteilen): Altvertrag — zu zahlen ist nur, was bis zum Vertragsende fällig ist; Jahresvertrag — was
+  // offen steht (bis zur letzten Rate). Raten nach dem Vertragsende stehen getrennt und werden nie verlangt.
+  // E-265 (01.10.2026, Recht): Das Vertragsende beim Altvertrag ist das Ende des Abrechnungsmonats (Fälligkeit zu
+  // Fälligkeit, aus der ganzen Ratenkette) — dieselbe Rechnung wie kuendigungSetzen (abrechnungsmonatEnde).
+  const tagBerlin = (v: unknown): string | null => (v ? new Date(v as any).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) : null);
+  // Nachbesserung Recht (01.10.2026, Gegenprüfung M2): das Vertragsende beim Altvertrag über die EINE Lesestelle
+  // (vertragsendeLesen) — ein zu früh gesetztes vertrag_ende_am (Zahltag aus Altdaten) zählt dort nicht; vorher las die
+  // Akte die Spalte roh und nannte nach der Zahlung den Zahltag statt des Endes des Abrechnungsmonats.
+  const endeAltLese: string | null = aktuelle?.gekuendigt_am && !aktuelle?.kuendigung_zurueckgenommen_am && !istJahresvertrag(aktuelle.agb_stand)
+    ? (await (await import("./fiaon-kuendigung")).vertragsendeLesen(String(aktuelle.ref)).catch(() => ({ ende: null as string | null }))).ende
+    : null;
+  const kPlan = aktuelle?.gekuendigt_am && !aktuelle?.kuendigung_zurueckgenommen_am ? (() => {
+    const jahresvertrag = istJahresvertrag(aktuelle.agb_stand);
+    const ende = jahresvertrag ? null
+      : (endeAltLese ?? abrechnungsmonatEnde(aktuelle.gekuendigt_am, raten.map((r) => r.faellig_am), { anker: aktuelle.anker ?? null }));
+    const offen = raten
+      .filter((r) => r.status === "offen" && (aktuelle.letzte_rate_nr == null || Number(r.rate_nr) <= Number(aktuelle.letzte_rate_nr)))
+      .map((r) => ({ nr: Number(r.rate_nr), cents: Number(r.betrag_cents) || 0, faellig: tagBerlin(r.faellig_am), referenz: r.zahlungsreferenz ?? null }));
+    const { zuZahlen, nachEnde } = kuendigungRatenAufteilen(offen, { jahresvertrag, vertragsEnde: ende });
+    return { jahresvertrag, ende, zuZahlen, nachEnde, letzte: zuZahlen.length ? Math.max(...zuZahlen.map((r) => r.nr)) : null };
+  })() : null;
+  const deTag = (iso: string | null) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : null);
 
   let karte: any = null;
   if (personId) {
@@ -323,13 +356,24 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     spracheNotiz: person?.sprache_notiz ?? null,
     email: person?.primary_email ?? null,
     telefon: person?.primary_phone ?? null,
-    betreuer: person?.betreuer_vorname || person?.betreuer_name || null,
+    // E-265 (29.09.2026, Justin „zum letzten Mal!!"): die Nennform („Herr Stripling"), vorher der Vorname.
+    betreuer: person?.betreuer_name || person?.betreuer_vorname
+      ? nennform({ anrede: person.betreuer_anrede, first_name: person.betreuer_vorname, last_name: person.betreuer_nachname, name: person.betreuer_name }).nom
+      : null,
+    // E-265: sein Kartenziel — wanted_limit, gedeckelt auf den Rahmen seines Pakets (wie WhatsApp und Telefonkartei).
+    kartenziel: await (async () => {
+      const b = bestellungen.find((x) => x.wanted_limit != null && Number(x.wanted_limit) > 0 && !istGlobalPaket(x.pack_key));
+      if (!b) return null;
+      const { PACK_LIMITS } = await import("../routes/fiaon-antrag");
+      const z = kartenZiel({ wunschEuro: Number(b.wanted_limit), rahmenEuro: PACK_LIMITS[String(b.pack_key ?? "").toLowerCase()] ?? null, paketKey: b.pack_key ?? null });
+      return z ? { ...z, text: kartenzielText(z) } : null;
+    })(),
     // E-260 (29.09.2026): Team abwesend — der feste Betreuer bleibt stehen, daneben, wer bis wann
     // wirklich anruft (fiaon-abwesenheit.ts). Gegenprüfung 29.09.: vorher stand der Vertreter im
     // Feld „betreuer" — die Persona nannte ihn dann „sein fester Betreuer".
     vertretung: await (async () => {
       const vt = personId ? await abw.vertretungFuerPerson(personId).catch(() => null) : null;
-      return vt ? { name: vt.ab.vertreter.anrufName, bis: abw.bisText(vt.ab.bis) } : null;
+      return vt ? { name: vt.ab.vertreter.anrufName, dat: vt.ab.vertreter.anrufDat, bis: abw.bisText(vt.ab.bis) } : null;
     })(),
     kundenlage: lage,
     lageGrund: grund,
@@ -351,6 +395,8 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       bezahlt: r.bezahlt_am ? relativ(r.bezahlt_am) : null,
       mahnstufe: r.mahnstufe != null ? Number(r.mahnstufe) : null,
       referenz: r.zahlungsreferenz ?? null,
+      // E-265 Schluss-Nachbesserung: eine Rate nach dem Vertragsende (Altvertrag, gekündigt) — nie verlangen.
+      ...(kPlan?.nachEnde.some((x) => x.nr === Number(r.rate_nr)) ? { nachVertragsende: true } : {}),
     })),
     termine: await Promise.all(termine.map(async (t) => ({
       beginn: `${relativ(t.beginn)}`, status: String(t.status),
@@ -382,8 +428,18 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       agbStand: aktuelle.agb_stand ?? null,
     } : null,
     kuendigung: aktuelle?.gekuendigt_am ? {
-      am: relativ(aktuelle.gekuendigt_am), letzteRate: aktuelle.letzte_rate_nr ?? null,
+      am: relativ(aktuelle.gekuendigt_am),
+      // E-265 Schluss-Nachbesserung: die letzte Rate, die WIRKLICH zu zahlen ist (kuendigungRatenAufteilen) — nie eine nach dem Vertragsende.
+      letzteRate: kPlan ? kPlan.letzte : aktuelle.letzte_rate_nr ?? null,
       vertragEnde: aktuelle.vertrag_ende_am ? relativ(aktuelle.vertrag_ende_am) : null,
+      ...(kPlan ? {
+        giltZum: deTag(kPlan.ende),
+        zuZahlen: kPlan.zuZahlen.map((r) => ({ nr: r.nr, betrag: eur(r.cents), faellig: deTag(r.faellig), referenz: r.referenz })),
+        nachVertragsende: kPlan.nachEnde.map((r) => ({ nr: r.nr, betrag: eur(r.cents), faellig: deTag(r.faellig) })),
+        regel: kPlan.jahresvertrag
+          ? "Jahresvertrag: zu zahlen sind die Raten in zuZahlen; die vorzeitige Beendigung aus Kulanz setzt ihre Zahlung voraus (Justins Satz). Die Kündigung selbst und ihre Bestätigung hängen nie an einer Zahlung."
+          : `Vertrag vor dem 03.09.2026: Die Kündigung gilt zum Ende seines laufenden Abrechnungsmonats, dem ${deTag(kPlan.ende)} (Fälligkeit zu Fälligkeit, AGB § 6 — nie „Monatsende") — unabhängig von jeder Zahlung. Zu zahlen sind nur die Raten in zuZahlen${kPlan.zuZahlen.length ? "" : " (keine — nichts mehr zu zahlen)"}. Raten in nachVertragsende verlangst du NIE (nicht nennen, keine Zahlungsseite, nie „letzte Rate"). Kündigungsschreiben und Bestätigung hängen nie an einer Buchung.`,
+      } : {}),
     } : null,
     sperren: {
       werbung: person?.werbung_gesperrt_am ? relativ(person.werbung_gesperrt_am) : null,
@@ -481,11 +537,12 @@ export async function vertragsfassung(ref: string | null): Promise<{ jahresvertr
         + "entscheidet allein das jeweilige Institut; Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat, FIAON koordiniert.",
     };
   }
-  const neu = !!a?.agb_stand && new Date(a.agb_stand) >= new Date("2026-09-03");
+  // E-265 Nachbesserung: dieselbe Rechnung wie WhatsApp und Kundenbereich (shared/fiaon-antrag-stand.ts).
+  const neu = istJahresvertrag(a?.agb_stand);
   return {
     jahresvertrag: neu,
     text: neu
       ? "Zwölf Monate Erstlaufzeit, in zwölf Monatsraten gestellt. Vorzeitige Beendigung ist Kulanz und wird wirksam, sobald die bereits gestellte Rate bezahlt ist."
-      : "Vertrag nach der bis 02.09.2026 gültigen Fassung: monatlich kündbar zum Monatsende. Die bereits gestellte Rate bleibt zu zahlen.",
+      : "Vertrag nach der bis 02.09.2026 gültigen Fassung: kündbar mit einer Frist von 24 Stunden zum Ende des jeweiligen Abrechnungsmonats (von Fälligkeit zu Fälligkeit — nie „Monatsende“). Die bis dahin gestellte Rate bleibt zu zahlen.",
   };
 }

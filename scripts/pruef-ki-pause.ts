@@ -700,7 +700,7 @@ try {
   ok(index.indexOf("kiNetzAbsichern();") > 0 && index.indexOf("kiNetzAbsichern();") < index.indexOf("const app = express();"), "Das Netz unter allem steht in server/index.ts vor den Routen");
   const wa2 = readFileSync(join(wurzel, "server/lib/fiaon-whatsapp-mara.ts"), "utf8");
   ok(!/kiGuthabenAlarm\(/.test(wa2), "Der alte tägliche Guthaben-Alarm aus Mara WhatsApp ist weg (ein Alarm, eine Stelle)");
-  ok(/if \(istKiPause\(e\.kiFehler\)\) \{[\s\S]{0,2400}?return \{ gesendet: false, grund: "KI pausiert/.test(wa2) && wa2.indexOf("istKiPause(e.kiFehler)") < wa2.indexOf("rueckfallSatz(lage.betreuer"), "Mara WhatsApp: Pause VOR dem Rückfallsatz");
+  ok(/if \(istKiPause\(e\.kiFehler\)\) \{[\s\S]{0,2400}?return \{ gesendet: false, grund: "KI pausiert/.test(wa2) && wa2.indexOf("istKiPause(e.kiFehler)") < wa2.indexOf("rueckfallSatz(lage."), "Mara WhatsApp: Pause VOR dem Rückfallsatz"); // E-265: rueckfallSatz(lage.anruferN) — Nennform
   const steuer = readFileSync(join(wurzel, "server/routes/fiaon-mara-steuerpult.ts"), "utf8");
   ok(/router\.post\("\/chef\/ki-pause\/aktivieren", wache/.test(steuer) && /router\.post\("\/chef\/ki-pause\/pausieren", wache/.test(steuer), "Aktivieren und Pausieren nur für Stufe Inhaber (wache)");
   const takte = readFileSync(join(wurzel, "server/routes.ts"), "utf8");

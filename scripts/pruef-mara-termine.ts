@@ -238,7 +238,13 @@ try {
   // ═══ Aufbau ═════════════════════════════════════════════════════════════════
   await aufraeumen();
   await mt.protokollTabelle();
-  const [v] = (await sqlPool`SELECT id, first_name, COALESCE(active, TRUE) AS aktiv FROM fiaon_agents WHERE id = ${VERTRETER}`) as any[];
+  const [v] = (await sqlPool`SELECT id, name, first_name, last_name, anrede, COALESCE(active, TRUE) AS aktiv FROM fiaon_agents WHERE id = ${VERTRETER}`) as any[];
+  // E-265 (29.09.2026, Justin „zum letzten Mal!!"): Kundensätze nennen die NENNFORM — 928 und 13 haben keine
+  // gepflegte Anrede, also der volle Name („Justin Schwarzott", „Nikita Boychenko"), nie der Vorname allein.
+  const { nennform } = await import("../shared/fiaon-mitarbeiter-name");
+  const NENN_V = nennform(v).nom;
+  const [b13] = (await sqlPool`SELECT name, first_name, last_name, anrede FROM fiaon_agents WHERE id = ${BETREUER}`) as any[];
+  const NENN_B = nennform(b13).nom;
   const zeiten928 = (await termine.verfuegbarkeitVon(VERTRETER)).filter((x) => x.aktiv).length;
   ok("Aufbau: Konto 928 da, aktiv, mit Zeiten; Betreuer 13 hat Zeiten", !!v?.aktiv && zeiten928 > 0 && (await termine.verfuegbarkeitVon(BETREUER)).length > 0, { v, zeiten928 });
 
@@ -272,7 +278,7 @@ try {
     ok("an (Berliner Wandzeit „YYYY-MM-DD HH:MM“): gesetzt, Verlauf „an: …“, Testkonto 928 ausdrücklich zugelassen",
       an.ok && an.zustand.an && an.zustand.vertreterId === VERTRETER && /^an: bis /.test(an.zustand.verlauf[0]?.was ?? ""), an);
     const jetzt = await abw.abwesenheitJetzt();
-    ok("abwesenheitJetzt: Vertreter 928, anrufName = Vorname", jetzt?.vertreter.id === VERTRETER && jetzt?.vertreter.anrufName === String(v.first_name), jetzt?.vertreter);
+    ok("abwesenheitJetzt: Vertreter 928, anrufName = Nennform (E-265, nie der Vorname)", jetzt?.vertreter.id === VERTRETER && jetzt?.vertreter.anrufName === NENN_V && NENN_V !== String(v.first_name), jetzt?.vertreter);
     ok("istAbwesend: 13 ja, 928 (Vertreter) nein, 13 nach „bis“ nein",
       abw.istAbwesend(jetzt, BETREUER) && !abw.istAbwesend(jetzt, VERTRETER) && !abw.istAbwesend(jetzt, BETREUER, new Date(bis.getTime() + 3_600_000)));
   }
@@ -365,13 +371,13 @@ try {
     const wa = await import("../server/lib/fiaon-whatsapp-mara");
     const P3 = await person({ betreuer: BETREUER, tier: 2, nummer: "+4915126000003" });
     const fz = await wa.werkzeugAusfuehren("freie_zeiten", {}, { personId: P3, leadId: null, nummer: "4915126000003" });
-    ok("Werkzeug freie_zeiten: Mitarbeiter = Vertreter, jede Zeit mit „ruft_an“", fz.ergebnis?.ok && fz.ergebnis.mitarbeiter === String(v.first_name)
+    ok("Werkzeug freie_zeiten: Mitarbeiter = Vertreter (Nennform), jede Zeit mit „ruft_an“", fz.ergebnis?.ok && fz.ergebnis.mitarbeiter === NENN_V
       && Array.isArray(fz.ergebnis.zeiten) && fz.ergebnis.zeiten.every((x: any) => typeof x.ruft_an === "string"), fz.ergebnis);
-    const zeit = fz.ergebnis.zeiten.find((x: any) => x.ruft_an === String(v.first_name))?.zeit;
+    const zeit = fz.ergebnis.zeiten.find((x: any) => x.ruft_an === NENN_V)?.zeit;
     const rr = await wa.werkzeugAusfuehren("rueckruf_eintragen", { zeit, anliegen: "Rückruf" }, { personId: P3, leadId: null, nummer: "4915126000003" });
     const idP3 = (rr.aktion as any)?.termin?.id;
     if (idP3) termineIds.push(idP3);
-    ok("Werkzeug rueckruf_eintragen: „Gern, Justin ruft Sie … an.“", rr.ergebnis?.ok && new RegExp(`^Gern, ${v.first_name} ruft Sie `).test(String(rr.ergebnis.so_schreiben)), rr.ergebnis);
+    ok("Werkzeug rueckruf_eintragen: „Gern, Justin Schwarzott ruft Sie … an.“ (Nennform)", rr.ergebnis?.ok && new RegExp(`^Gern, ${NENN_V} ruft Sie `).test(String(rr.ergebnis.so_schreiben)), rr.ergebnis);
   }
 
   // ═══ 6. Namen ═══════════════════════════════════════════════════════════════
@@ -384,13 +390,13 @@ try {
       ?? { beginn: new Date(bis.getTime() + 86_400_000).toISOString() };
     await terminDirekt({ personId: P4, agentId: BETREUER, beginn: nachBis.beginn, herkunft: "agent" });
     const k4 = await mt.kuenftigerTermin(P4);
-    ok("Termin bei 13 NACH „bis“: Mara nennt Nikita", k4?.vorname === "Nikita", k4);
+    ok("Termin bei 13 NACH „bis“: Mara nennt Nikita (Nennform „Nikita Boychenko“)", k4?.vorname === "Nikita" && k4?.nenn.nom === NENN_B, k4);
     const schon = await mt.rueckrufBuchen({ personId: P7, nummer: "4915126000007" }, { zeit: wand(S3), anliegen: "noch einmal" });
-    ok("„Termin steht schon“: fertiger Satz mit dem Vertreter", !schon.ok && schon.grund === "schon_termin" && schon.bestehend?.vorname === String(v.first_name)
-      && schon.meldung.includes(`Genau, ${v.first_name} ruft Sie`), schon.meldung);
+    ok("„Termin steht schon“: fertiger Satz mit dem Vertreter (Nennform)", !schon.ok && schon.grund === "schon_termin" && schon.bestehend?.vorname === String(v.first_name)
+      && schon.meldung.includes(`Genau, ${NENN_V} ruft Sie`), schon.meldung);
     const pw = await import("../server/lib/fiaon-postmeister-werkzeuge");
     const bt = await pw.bestehenderTermin(P7);
-    ok("Postmeister (bestehenderTermin): nennt den Vertreter", bt?.vorname === String(v.first_name), bt);
+    ok("Postmeister (bestehenderTermin): nennt den Vertreter (Nennform)", bt?.vorname === NENN_V, bt);
     const wa = await import("../server/lib/fiaon-whatsapp-mara");
     const lage = await wa.lageFuer(P9, null, null, "");
     // Gegenprüfung 29.09.: vorher überschrieb der Vertreter den festen Betreuer — „Sein Betreuer: Justin".
@@ -401,13 +407,15 @@ try {
     ok("Stand-Zeile: „Sein Betreuer: Nikita. Bis … ruft Justin an“ — eine Aussage, kein Widerspruch",
       stand.some((z) => z.startsWith("Sein Betreuer: Nikita.") && z.includes(`ruft ${v.first_name} an`)), stand);
     const ton = await import("../shared/fiaon-mara-ton");
-    const persona = ton.personaText("whatsapp", { betreuer: "Nikita", vertretung: { name: String(v.first_name), bis: String(lage.anruferBis) } });
-    ok("Persona: fester Betreuer Nikita, bis „bis“ nennt sie den Vertreter", /fester Betreuer ist Nikita; bis /.test(persona) && persona.includes(`übernimmt ${v.first_name} Anruf`), persona.split("\n").find((z) => /Betreuer/.test(z)));
-    ok("Rückfallsatz nennt den, der anruft (Vertreter)", wa.rueckfallSatz(String(lage.anrufer).split(" ")[0]).includes(`Sie hören direkt von ${v.first_name}`));
+    // E-265: Persona mit Nennformen — ohne gepflegte Anrede der volle Name und „nie er/sie".
+    const persona = ton.personaText("whatsapp", { betreuer: lage.betreuerN, vertretung: { name: NENN_V, dat: NENN_V, bis: String(lage.anruferBis) } });
+    ok("Persona: fester Betreuer Nikita Boychenko, bis „bis“ nennt sie den Vertreter (Nennform)", new RegExp(`fester Betreuer ist ${NENN_B}[^;]*; bis `).test(persona) && persona.includes(`übernimmt ${NENN_V} Anruf`) && /nie er\/sie/.test(persona), persona.split("\n").find((z) => /Betreuer/.test(z)));
+    // E-265 Nachbesserung (29.09.2026, f18): die Nennform EINMAL — danach „Sie hören direkt von uns".
+    ok("Rückfallsatz nennt den, der anruft (Vertreter, Nennform) — einmal", wa.rueckfallSatz(lage.anruferN).includes(`schaut sich ${NENN_V} das persönlich an`) && wa.rueckfallSatz(lage.anruferN).split(NENN_V).length === 2);
     const dossier = await import("../server/lib/fiaon-postmeister-dossier");
     const akte = await dossier.akteLesen(P9, null).catch((e: any) => ({ fehler: String(e?.message ?? e) })) as any;
-    ok("Postmeister-Akte: betreuer bleibt Nikita, vertretung = Vertreter mit „bis“",
-      akte?.betreuer === "Nikita" && akte?.vertretung?.name === String(v.first_name) && !!akte?.vertretung?.bis, { betreuer: akte?.betreuer, vertretung: akte?.vertretung, fehler: akte?.fehler });
+    ok("Postmeister-Akte: betreuer bleibt Nikita (Nennform), vertretung = Vertreter (Nennform) mit „bis“",
+      akte?.betreuer === NENN_B && akte?.vertretung?.name === NENN_V && !!akte?.vertretung?.bis, { betreuer: akte?.betreuer, vertretung: akte?.vertretung, fehler: akte?.fehler });
   }
 
   // ═══ 7. Terminlink ══════════════════════════════════════════════════════════
@@ -439,7 +447,7 @@ try {
     const nachts = `${wand(tagNach).slice(0, 10)} 03:10`;
     const rn = await mt.rueckrufBuchen({ personId: PN, nummer: "4915126000022" }, { zeit: nachts, anliegen: "nachts" });
     ok("„nicht frei“ nach „bis“: nennt Nikita und ihre Arbeitszeit, nicht den Vertreter; sagt je Alternative, wer anruft",
-      !rn.ok && rn.grund === "nicht_frei" && /ist Nikita nicht frei/.test(rn.meldung) && !new RegExp(`ist ${v.first_name} nicht frei`).test(rn.meldung) && /wer anruft: /.test(rn.meldung), rn.meldung);
+      !rn.ok && rn.grund === "nicht_frei" && new RegExp(`ist ${NENN_B} nicht frei`).test(rn.meldung) && !new RegExp(`ist ${NENN_V} nicht frei`).test(rn.meldung) && /wer anruft: /.test(rn.meldung), rn.meldung);
 
     // „bis“ in 15 Minuten: vorher weg „keiner“, 0 Plätze, Link gesperrt.
     const alt = await abw.abwesenheitLesen(true);

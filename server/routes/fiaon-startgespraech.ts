@@ -22,6 +22,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { berlinDatumText, berlinUhrzeit, terminTokenErzeugen } from "../lib/fiaon-termine";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { terminLink } from "../lib/fiaon-termine";
@@ -85,8 +86,11 @@ async function lageZu(ref: string): Promise<Lage | null> {
   `) as any[];
   if (!row) return null;
 
+  // E-265 Nachbesserung (29.09.2026, Regel 1): die Nennform („Herr Stripling") wie terminBuchen direkt nach dem
+  // Buchen — vorher stand nach dem Neuladen wieder der Vorname im Gate und in der Portalsperre. Der Platzhalter
+  // heißt weiter agent_vorname (Oberfläche); die Du-Form der Gate-Texte klärt Justin gesondert.
   const [termin] = (await sqlPool`
-    SELECT t.beginn, COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+    SELECT t.beginn, ${sqlPool.unsafe(nennformSql("ag"))} AS agent_vorname
     FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
     WHERE t.person_id = ${row.id} AND t.quelle = 'onboarding_call' AND t.status = 'gebucht'
       AND t.beginn > NOW()

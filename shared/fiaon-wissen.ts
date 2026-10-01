@@ -152,6 +152,8 @@ export function wissenFakten(): string {
   const agenda = AGENDA.map((a, i) => `${i + 1}. ${a.titel}: ${a.zweck}`).join("\n");
   return `FIAON — DAS HAUS IN FAKTEN (Stand: laufend gepflegt in shared/fiaon-wissen.ts)
 
+KURZANTWORT FÜR KUNDEN („Was ist FIAON?“ — die Karte vorn, Justin 29.09.2026, E-265): FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte — mit Ihrem Wunschlimit aus dem Antrag als Ziel; über den Rahmen entscheidet die Bank. Dafür bereiten wir Konto und Karte bei unserer Partnerbank mit Ihnen vor (zuerst das Girokonto mit Karte, daraus die Kreditkarte). Dazu erklären wir jeden Eintrag Ihrer Auskunft und übernehmen die Schreiben an die Auskunfteien, und eine feste Ansprechpartnerin bzw. ein fester Ansprechpartner begleitet Sie. (Das Wort „Bonitätsplattform“ ist der Hintergrund unten — nie der erste Satz an einen Kunden.)
+
 WAS FIAON IST
 FIAON ist eine Bonitätsplattform für Deutschland, Österreich und die Schweiz („das Betriebssystem für Bonität“). Drei Schichten:
 1. Einsicht: Die Bonitätsauskunft des Kunden — die FIAON-Bonitätsauskunft (Zusatzprodukt, siehe DIE BONITÄTSAUSKUNFT) oder eine selbst angeforderte Datenkopie, die er hochlädt. FIAON erklärt jeden Eintrag in Menschensprache; dazu eine Analyse des Kontoauszugs (Einnahmen, Fixkosten, Spielraum).
@@ -219,7 +221,7 @@ ${SUPPORT.firma}, ${SUPPORT.adresse} (${SUPPORT.register}). Kunden in Deutschlan
 
 VERTRAG UND KÜNDIGUNG
 - Verträge ab dem 03.09.2026 laufen über zwölf Monatsraten (Jahresvertrag). FIAON entlässt Kunden auf Kulanz vorzeitig: Ab der Kündigung werden keine weiteren Raten gestellt; die bereits gestellte, offene Rate bleibt zu zahlen. Sobald diese letzte Rate eingegangen ist, geht das Kündigungsschreiben („Ihr Vertrag ist beendet") automatisch raus, und es steht nichts mehr offen.
-- Verträge vor dem 03.09.2026: monatlich zum Ende des laufenden Monats kündbar, formlos; die bereits gestellte Rate bleibt zu zahlen.
+- Verträge vor dem 03.09.2026: formlos kündbar mit einer Frist von 24 Stunden zum Ende des laufenden Abrechnungsmonats (der läuft von einer Fälligkeit bis zum Tag vor der nächsten — nicht bis zum Monatsletzten); die bis dahin gestellte Rate bleibt zu zahlen, spätere Raten entfallen.
 - Eine unbezahlte Bestellung (noch keine Rate eingegangen) wird auf Wunsch einfach storniert — es bleibt nichts offen.
 - Widerruf: 14 Tage ab Vertragsschluss. Bereits gezahlte Raten werden grundsätzlich nicht erstattet; über Ausnahmen entscheidet allein die Geschäftsführung.
 - Bleibt eine offene Rate trotz Aufforderung unbezahlt, übergibt FIAON die Forderung an das für den Wohnort zuständige Gericht (Deutschland: Amtsgericht, gerichtliches Mahnverfahren; Österreich: Bezirksgericht; Schweiz: Betreibungsamt). Die Kosten trägt dann der Kunde.

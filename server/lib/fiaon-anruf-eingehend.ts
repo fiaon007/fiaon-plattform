@@ -46,6 +46,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { nennform } from "@shared/fiaon-mitarbeiter-name";
 
 type Lauf = typeof sqlPool;
 
@@ -63,6 +64,8 @@ export interface Zustaendigkeit {
   agentId: number | null;
   agentName: string | null;
   agentVorname: string | null;
+  /** E-265: wie die Ansage ihn nennt — „Herrn Stripling" (nach „mit"), ohne Anrede der volle Name. */
+  agentAnsage?: string | null;
   /** Seine Rolle — sie entscheidet, wer als Nächstes dran ist. */
   rolle: string | null;
   /** Warum dieser Mensch? In Worten, für die Anzeige. */
@@ -213,7 +216,7 @@ export async function zustaendigFuer(
   const agentLaden = async (id: unknown) => {
     if (id == null) return null;
     const [a] = (await lauf`
-      SELECT id, name, COALESCE(NULLIF(first_name, ''), name) AS vorname, rolle
+      SELECT id, name, COALESCE(NULLIF(first_name, ''), name) AS vorname, rolle, first_name, last_name, anrede
       FROM fiaon_agents
       WHERE id = ${Number(id)} AND active AND NOT COALESCE(is_test_account, FALSE)
     `) as any[];
@@ -225,7 +228,7 @@ export async function zustaendigFuer(
     // Der zugeteilte Inkasso-Mensch, sonst der mit der kleinsten Last.
     const inkasso = await agentLaden(lage.inkasso_agent_id)
       ?? (await lauf`
-        SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), a.name) AS vorname, a.rolle
+        SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), a.name) AS vorname, a.rolle, a.first_name, a.last_name, a.anrede
         FROM fiaon_agents a
         WHERE a.active AND a.rolle = 'inkasso' AND NOT COALESCE(a.is_test_account, FALSE)
         ORDER BY (SELECT COUNT(*) FROM fiaon_abo_raten r
@@ -245,7 +248,7 @@ export async function zustaendigFuer(
       `) as any[];
       return {
         agentId: Number(inkasso.id), agentName: String(inkasso.name),
-        agentVorname: String(inkasso.vorname), rolle: String(inkasso.rolle),
+        agentVorname: String(inkasso.vorname), agentAnsage: nennform(inkasso).dat, rolle: String(inkasso.rolle),
         grund: `Rate seit ${tageOffen} ${tageOffen === 1 ? "Tag" : "Tagen"} offen`
           + ` (${(person.offenCents / 100).toFixed(2).replace(".", ",")} €)`,
         grundKennung: "offene_rate",
@@ -266,7 +269,7 @@ export async function zustaendigFuer(
     `) as any[];
     return {
       agentId: Number(onb.id), agentName: String(onb.name),
-      agentVorname: String(onb.vorname), rolle: String(onb.rolle),
+      agentVorname: String(onb.vorname), agentAnsage: nennform(onb).dat, rolle: String(onb.rolle),
       grund: "Startgespräch steht in den nächsten 24 Stunden an",
       grundKennung: "startgespraech",
       weiterAn: kollegen.map((k) => ({ agentId: Number(k.id), name: String(k.name) })),
@@ -299,7 +302,7 @@ export async function zustaendigFuer(
     `) as any[];
     return {
       agentId: Number(betreuer.id), agentName: String(betreuer.name),
-      agentVorname: String(betreuer.vorname), rolle: String(betreuer.rolle),
+      agentVorname: String(betreuer.vorname), agentAnsage: nennform(betreuer).dat, rolle: String(betreuer.rolle),
       grund: "Betreuender Ansprechpartner",
       grundKennung: "betreuer",
       weiterAn: leitung.map((k) => ({ agentId: Number(k.id), name: String(k.name) })),
@@ -312,7 +315,7 @@ export async function zustaendigFuer(
   if (letzter) {
     return {
       agentId: Number(letzter.id), agentName: String(letzter.name),
-      agentVorname: String(letzter.vorname), rolle: String(letzter.rolle),
+      agentVorname: String(letzter.vorname), agentAnsage: nennform(letzter).dat, rolle: String(letzter.rolle),
       grund: `Hat innerhalb der letzten ${LETZTER_KONTAKT_TAGE} Tage mit ihm gesprochen`,
       grundKennung: "letzter_kontakt",
       weiterAn: [],
@@ -451,7 +454,9 @@ export function twimlEingehend(opts: {
 </Response>`;
   }
 
-  const vorname = esc(z.agentVorname || "einem Kollegen");
+  // E-265 (29.09.2026, Justin „zum letzten Mal!!"): Der Anrufer hört „Ich verbinde Sie mit Herrn Stripling" —
+  // nie den Vornamen (vorher „… mit Daniel"). Ohne gepflegte Anrede der volle Name.
+  const vorname = esc(z.agentAnsage || z.agentVorname || "einem Kollegen");
   const ziele = [
     `<Client statusCallbackEvent="ringing answered">agent-${z.agentId}</Client>`,
   ];

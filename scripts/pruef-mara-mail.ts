@@ -273,10 +273,14 @@ ok(lauf.doppelUrteil({ text: "Ja", am: T + 2 * 3_600_000 }, [{ id: 1, text: "Ja"
 ok(lauf.doppelUrteil({ text: "Wann kommt meine Karte?", am: T }, kand) === null, "Anderer Text → kein Doppel");
 ok(lauf.doppelSchluessel("Здравствуйте, когда будет карта?") !== "", "Kyrillischer Text wird nie ein leerer Schlüssel (sonst „Nachtrag“)");
 
-abschnitt("9 · Mara-Aktion: Rahmen statt Limit, Einwände, Adresse");
-const gut = "Hier ist Mara Lindner, die digitale Assistentin von FIAON. Ich würde Ihren Account gern aktivieren, mit Ihrem gewünschten Kartenrahmen als Ziel. Dazu fehlt mir nur noch die offene Rechnung über 59,99 €.\n\nSobald Ihre Zahlung da ist, aktiviere ich Ihren Account. Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
-ok(aktion.aktionPruefen("Ihr Account wartet auf einen Schritt", gut).length === 0, "Gute Mail (mit „Rahmen“) besteht");
-ok(aktion.aktionPruefen("Kurz zu Ihrer Karte", gut.replace("gewünschten Kartenrahmen", "Wunschlimit")).some((m) => /Limit|limit/.test(m)), "„Wunschlimit“ fällt durch (Rahmen statt Limit)");
+abschnitt("9 · Mara-Aktion: Kreditkarte vorn, Wunschlimit nur mit der Bank, Einwände, Adresse");
+// E-265 (29.09.2026, Justin: „VIEL MEHR AUF DIE KREDITKARTEN!"): Die Kreditkarte gehört in jede Mail; das
+// Wunschlimit darf stehen — genannt, nie zugesagt, immer mit dem Satz über die Bank (limit_ohne_bank).
+const gut = "Hier ist Mara Lindner, die digitale Assistentin von FIAON. Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte, mit Ihrem Wunschlimit von 5.000 € als Ziel — über den Rahmen entscheidet unsere Partnerbank. Dazu fehlt mir nur noch die offene Rechnung über 59,99 €.\n\nSobald Ihre Zahlung gebucht ist, schaltet das System Sie frei. Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
+ok(aktion.aktionPruefen("Ihr Account wartet auf einen Schritt", gut).length === 0, "Gute Mail (Kreditkarte, Wunschlimit mit Bank-Satz) besteht");
+ok(aktion.aktionPruefen("Kurz zu Ihrer Karte", gut.replace(" — über den Rahmen entscheidet unsere Partnerbank", "")).some((m) => /Bank|bank/.test(m)), "„Wunschlimit“ ohne den Satz über die Bank fällt durch");
+ok(aktion.aktionPruefen("Kurz zu Ihrer Karte", gut.replace("Wunschlimit", "Limit")).some((m) => /Limit|limit/.test(m)), "„Limit“ allein fällt weiter durch (Rahmen statt Limit)");
+ok(aktion.aktionPruefen("Kurz zu Ihrer Karte", gut.replace("eigenen Visa-Kreditkarte", "eigenen Karte")).some((m) => /Kreditkarte/.test(m)), "Mail ohne „Kreditkarte“ fällt durch");
 ok(aktion.aktionPruefen("Kurz zu Ihrer Karte", gut.replace("offene Rechnung", "offene Rechnung und Ihre SCHUFA-Prüfung"), { land: "AT" }).some((m) => /SCHUFA/.test(m)), "„SCHUFA“ an einen Kunden in Österreich fällt durch");
 const qa = readFileSync(new URL("../server/lib/fiaon-mara-aktion.ts", import.meta.url), "utf8");
 ok(/einwand AS/.test(qa) && /NOT IN \(SELECT person_id FROM einwand\)/.test(qa), "Kandidaten: Widerruf/Bestreiten/Anwalt/„kann nicht zahlen“ ausgeschlossen");
@@ -290,7 +294,8 @@ ok(!/Du bist ein Mensch am Schreibtisch, kein Automat/.test(qp), "Nie mehr „Du
 ok(!/Verwendungszweck und die IBAN — zum Ablesen/.test(qp), "Keine IBAN aus dem Kopf (Widerspruch zur Wortwand aufgelöst)");
 ok(!/FIAON vergibt keine Kredite und vermittelt keine\. Erkläre/.test(qp), "Kredit: kein Nein am Anfang mehr");
 ok(!/antrag: "\/antrag"/.test(qp), "Keine Knopf-Vorgabe „/antrag“ mehr");
-ok(!/Wunschlimit/.test(qp), "Kein „Wunschlimit“ im Postfach-Auftrag");
+// E-265: „Wunschlimit" steht jetzt im Postfach-Auftrag — nur mit dem Satz über die Bank.
+ok(/Wunschlimit[^\n]{0,160}entscheidet unsere Partnerbank/.test(qp) || /kartenziel[^\n]{0,200}entscheidet unsere Partnerbank/.test(qp), "„Wunschlimit“ im Postfach-Auftrag nur mit „über den Rahmen entscheidet unsere Partnerbank“");
 ok(/kostenCentsAus\(MODELL\(\)/.test(qp), "Kosten je Zeile wie in der Nutzungstabelle (vorher Tokens/1000)");
 for (const b of [agent.AUSKUNFT_MUSTER_ANTWORT]) {
   ok(!tonPruefung(b, { kanal: "mail" }).some((x) => x.schwere === "hart"), "Musterantwort Auskunft: kein harter Ton-Treffer (kein „Limit“)");
@@ -383,7 +388,10 @@ if (MIT_DB) {
     const A = await person("A");
     await antrag("FIAON-P248MA", A.id, A.mail, { status: "paid", agb: null });
     await rate("FIAON-P248MA", 1, "bezahlt", "2026-09-01");
-    await rate("FIAON-P248MA", 2, "offen", "2026-10-15");
+    // E-265 Nachbesserung (29.09.2026): Altvertrag — die Rate muss VOR dem Vertragsende (E-265 Recht: Ende des
+    // Abrechnungsmonats, Fälligkeit zu Fälligkeit) fällig sein, sonst verlangt Mara sie nie (Fall „Rate nach
+    // Vertragsende" unten). Vorher 15.10.: eine Rate für die Zeit nach dem Ende.
+    await rate("FIAON-P248MA", 2, "offen", "2026-09-15");
     const s1 = await lauf1(A.mail, "Hallo, ich Max Prüfer kündige per sofort den Vertrag. Grüße", {
       einordnung: { kategorien: ["kuendigung"], dringend: false, sprache: "de", fragen: [], zusammenfassung: "Kündigt per sofort.", flags: { kuendigung: true } },
       werkzeuge: [
@@ -391,7 +399,7 @@ if (MIT_DB) {
         { name: "zahlungslink_bauen", args: { referenz: "FIAON-P248MA-2" } },
       ],
       antwort: {
-        antwort: "Ihre Kündigung ist vorgemerkt. Offen ist noch Rate 2 über 59,99 € (fällig am 15.10.2026) mit dem Verwendungszweck FIAON-P248MA-2. Sobald die Zahlung eingegangen ist, ist der Vertrag beendet.\n\nWenn Sie es sich anders überlegen, schreiben Sie mir einfach.",
+        antwort: "Ihre Kündigung ist vorgemerkt und gilt zum Ende Ihres laufenden Abrechnungsmonats. Offen ist noch Rate 2 über 59,99 € (fällig am 15.09.2026) mit dem Verwendungszweck FIAON-P248MA-2 — die zahlen Sie bitte noch, danach kommt nichts mehr.\n\nWenn Sie es sich anders überlegen, schreiben Sie mir einfach.",
         naechster_schritt: { art: "zahlung", url: null, text: "Rechnung ansehen und bezahlen" },
         belege: [{ satz: "Offen ist noch Rate 2 über 59,99 €", werkzeug: "kuendigung_vormerken", feld: "letzte_rate" }], fragen_beantwortet: [], merken: [],
       },
@@ -458,6 +466,192 @@ if (MIT_DB) {
     });
     const [aEX] = (await sql`SELECT payment_status, payment_due_date FROM fiaon_applications WHERE ref = 'FIAON-P248MR'`) as any[];
     ok(aEX?.payment_status === "pending_payment" && !!aEX?.payment_due_date, `Abgelaufene Bestellung neu freigeschaltet (${aEX?.payment_status}) — nie die „abgelaufen“-Seite`);
+
+    // ── E-265 Nachbesserung (29.09.2026, Recht): Altvertrag, die einzige offene Rate liegt NACH dem Vertragsende ──
+    // Die Kündigung gilt zum Ende des Abrechnungsmonats (E-265 Recht 01.10.: Fälligkeit zu Fälligkeit — hier 01.09. bis
+    // zum Tag vor der Rate in 40 Tagen); eine Rate für die Zeit danach verlangt Mara nie (kein Zahlknopf, keine
+    // Zahlungsbitte). Nachbesserung 2 (01.10.2026, EINE Rechnung): kuendigungSetzen storniert sie selbst (storno_grund
+    // „kuendigung“) — kein Prüffall mehr; Urkunde, Bestätigungsmail und Mail lesen dieselbe Liste.
+    const NE = await person("NE");
+    await antrag("FIAON-P248M5N", NE.id, NE.mail, { status: "paid", agb: null });
+    await rate("FIAON-P248M5N", 1, "bezahlt", "2026-09-01");
+    const spaet = new Date(Date.now() + 40 * 86_400_000).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    await rate("FIAON-P248M5N", 2, "offen", spaet);
+    const sNE = await lauf1(NE.mail, "Hiermit kündige ich meinen Vertrag.", {
+      einordnung: { kategorien: ["kuendigung"], dringend: false, sprache: "de", fragen: [], zusammenfassung: "Kündigt.", flags: { kuendigung: true } },
+      werkzeuge: [{ name: "kuendigung_vormerken", args: { zitat: "Hiermit kündige ich meinen Vertrag.", grund: "" } }],
+      antwort: { antwort: "Ihre Kündigung ist heute bei uns eingegangen und gilt zum Ende Ihres laufenden Abrechnungsmonats, danach kommt nichts mehr.\n\nWenn Sie es sich anders überlegen, schreiben Sie mir einfach.", naechster_schritt: { art: "erledigt", url: null, text: "" }, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    const [aNE] = (await sql`SELECT gekuendigt_am FROM fiaon_applications WHERE ref = 'FIAON-P248M5N'`) as any[];
+    const kvNE = (sNE.handlungen ?? []).find((h: any) => h.werkzeug === "kuendigung_vormerken") as any;
+    ok(!!aNE?.gekuendigt_am && kvNE?.ok && /keine Rate mehr offen/.test(String(kvNE?.ergebnis ?? "")), `Altvertrag: gebucht, die Rate nach dem Vertragsende ist nicht „offen zu zahlen“ („${String(kvNE?.ergebnis ?? "").slice(0, 80)}“)`);
+    ok(sNE.z?.aktion === "auto_beantwortet" || /Entwurf \(Lage oder Flag\)|sauber/.test(String(sNE.z?.begruendung ?? "")), `die Antwort ohne Zahlungsbitte ist sauber (${sNE.z?.aktion}, ${String(sNE.z?.begruendung ?? "").slice(0, 70)})`);
+    ok(sNE.schritt?.art !== "zahlung", `kein Zahlknopf (${sNE.schritt?.art})`);
+    const pfNE = (await sql`SELECT 1 FROM fiaon_betreiber_todos WHERE schluessel = 'postmeister:kuendigung-nach-ende:FIAON-P248M5N'`) as any[];
+    const [r2NE] = (await sql`SELECT status, storno_grund FROM fiaon_abo_raten WHERE ref = 'FIAON-P248M5N' AND rate_nr = 2`) as any[];
+    ok(pfNE.length === 0 && r2NE?.status === "storniert" && r2NE?.storno_grund === "kuendigung", `die Rate nach dem Vertragsende entfällt mit der Kündigung (${r2NE?.status}/${r2NE?.storno_grund ?? "-"}), kein Prüffall (${pfNE.length})`);
+    const NF = await person("NF");
+    await antrag("FIAON-P248M5F", NF.id, NF.mail, { status: "paid", agb: null });
+    await rate("FIAON-P248M5F", 1, "bezahlt", "2026-09-01");
+    await rate("FIAON-P248M5F", 2, "offen", spaet);
+    const sNE2 = await lauf1(NF.mail, "Ich kündige den Vertrag zum Monatsende.", {
+      einordnung: { kategorien: ["kuendigung"], dringend: false, sprache: "de", fragen: [], zusammenfassung: "Kündigt.", flags: { kuendigung: true } },
+      werkzeuge: [{ name: "kuendigung_vormerken", args: { zitat: "Ich kündige den Vertrag zum Monatsende.", grund: "" } }],
+      antwort: { antwort: "Ihre Kündigung liegt uns vor. Offen ist noch Rate 2 über 59,99 € — die zahlen Sie bitte noch.", naechster_schritt: { art: "erledigt", url: null, text: "" }, belege: [], fragen_beantwortet: [], merken: [] },
+      umformuliert: { antwort: "Ihre Kündigung liegt uns vor. Offen ist noch Rate 2 über 59,99 € — die zahlen Sie bitte noch.", naechster_schritt: { art: "erledigt", url: null, text: "" }, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    ok(sNE2.gesendet === 0 && (sNE2.pruefung?.fehlend ?? []).some((f: string) => /bis zum Vertragsende nichts mehr zu zahlen/.test(f)), `… verlangt die Mail die Rate trotzdem, geht sie nicht raus (${sNE2.z?.aktion}: ${(sNE2.pruefung?.fehlend ?? []).join(" · ").slice(0, 160)})`);
+
+    // ── E-265 (01.10.2026, Paket Recht): ABRECHNUNGSMONAT STATT KALENDERMONAT — direkt an kuendigungSetzen, mit festen
+    // Daten (Erklärung über `am`), AGB 04.07.2026 § 6: Frist 24 Stunden zum Ende des Abrechnungsmonats (Fälligkeit zu
+    // Fälligkeit). Raten jeweils am 28.
+    abschnitt("DB 1b · Abrechnungsmonat (E-265, Recht 01.10.2026) — Beispiele, 12665, Jahresvertrag, ohne Kette");
+    {
+      const { kuendigungSetzen, vertragsendeLesen, rateNachVertragsende } = await import("../server/lib/fiaon-kuendigung");
+      const { bestaetigungInhalt } = await import("../server/routes/fiaon-kuendigung");
+      const bTag = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) : null);
+      const rateStand = async (ref: string) => Object.fromEntries(((await sql`SELECT rate_nr, status, storno_grund FROM fiaon_abo_raten WHERE ref = ${ref} ORDER BY rate_nr`) as any[]).map((r) => [Number(r.rate_nr), `${r.status}/${r.storno_grund ?? "-"}`]));
+      // Beispiel 1 (= 12665, Kündigung am Fälligkeitstag): Kündigung 28.09. → Rate vom 28.09. geschuldet, Ende 27.10., Rate 28.10. entfällt.
+      const AM1 = await person("AM1");
+      await antrag("FIAON-P248MA1", AM1.id, AM1.mail, { status: "paid", agb: null });
+      await rate("FIAON-P248MA1", 1, "bezahlt", "2026-07-28"); await rate("FIAON-P248MA1", 2, "bezahlt", "2026-08-28");
+      await rate("FIAON-P248MA1", 3, "offen", "2026-09-28"); await rate("FIAON-P248MA1", 4, "offen", "2026-10-28");
+      const e1 = await kuendigungSetzen("FIAON-P248MA1", { quelle: "mail", am: "2026-09-28T10:00:00+02:00" });
+      const st1 = await rateStand("FIAON-P248MA1");
+      ok(e1.ok && e1.weg === "letzte_rate" && e1.letzteRateNr === 3 && e1.stornierteRaten === 1 && st1[3] === "offen/-" && st1[4] === "storniert/kuendigung", `Beispiel 1: Kündigung 28.09. → Rate 3 (28.09.) geschuldet, Rate 4 (28.10.) entfällt (${e1.weg}, letzte ${e1.letzteRateNr}, ${JSON.stringify(st1)})`);
+      const v1 = await vertragsendeLesen("FIAON-P248MA1");
+      ok(!v1.jahresvertrag && v1.ende === "2026-10-27" && v1.endeDe === "27.10.2026" && v1.quelle === "raten", `… Vertragsende 27.10.2026 aus der Ratenkette (${v1.ende}, ${v1.quelle})`);
+      ok((await rateNachVertragsende("FIAON-P248MA1-3")) === null && (await rateNachVertragsende("FIAON-P248MA1-4"))?.ende === "27.10.2026", "… Rate 3 liegt im Vertrag, Rate 4 danach (rateNachVertragsende)");
+      const [aAM1] = (await sql`SELECT agb_stand, gekuendigt_am, (SELECT json_agg(json_build_object('rate_nr', rate_nr, 'betrag_cents', betrag_cents, 'faellig_am', faellig_am, 'zahlungsreferenz', zahlungsreferenz)) FROM fiaon_abo_raten WHERE ref = 'FIAON-P248MA1' AND status = 'offen' AND storniert_am IS NULL) AS offene_raten FROM fiaon_applications WHERE ref = 'FIAON-P248MA1'`) as any[];
+      const inh1 = bestaetigungInhalt({ ...aAM1, ende_tag: v1.ende });
+      ok(!!inh1 && /gilt zum Ende Ihres laufenden Abrechnungsmonats, dem 27\.10\.2026/.test(inh1.vertrag_satz) && /Rate 3 über 59,99 €/.test(inh1.offen_satz) && !/Monatsende/.test(`${inh1.vertrag_satz} ${inh1.offen_satz} ${inh1.preheader_text}`), `… Bestätigungsmail: „${String(inh1?.vertrag_satz ?? "").slice(0, 150)}“`);
+      const prot1 = (await sql`SELECT note FROM fiaon_contact_log WHERE ref = 'FIAON-P248MA1' ORDER BY id DESC LIMIT 1`) as any[];
+      ok(/zum Ende des Abrechnungsmonats \(27\.10\.2026\)/.test(String(prot1[0]?.note ?? "")), `… Verlauf nennt das Vertragsende („${String(prot1[0]?.note ?? "").slice(0, 120)}“)`);
+      // Nachbesserung Recht (01.10.2026, Gegenprüfung M2): Die Zahlung der letzten Rate (02.10.) setzt beim Altvertrag das
+      // Vertragsende auf das Ende des Abrechnungsmonats (27.10., Berliner Tagesende) — nicht auf den Zahltag; die Lesestelle
+      // liefert 27.10. Vorher stand NOW(), und Mara, Dossier und Urkunde sagten „gilt zum … dem 02.10.2026".
+      {
+        const { vertragEndePruefen } = await import("../server/lib/fiaon-kuendigung");
+        await sql`UPDATE fiaon_abo_raten SET status = 'bezahlt', bezahlt_am = '2026-10-02T12:00:00Z' WHERE ref = 'FIAON-P248MA1' AND rate_nr = 3`;
+        const z1 = await vertragEndePruefen("FIAON-P248MA1", 3);
+        const [aZ1] = (await sql`SELECT vertrag_ende_am, to_char(vertrag_ende_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD HH24:MI:SS') AS ende_berlin FROM fiaon_applications WHERE ref = 'FIAON-P248MA1'`) as any[];
+        const vZ1 = await vertragsendeLesen("FIAON-P248MA1");
+        ok(z1.beendet && aZ1?.ende_berlin === "2026-10-27 23:59:59", `M2: letzte Rate 3 am 02.10. bezahlt → vertrag_ende_am = Ende des Abrechnungsmonats 27.10. 23:59:59 Berlin, nicht der Zahltag (${aZ1?.ende_berlin})`);
+        ok(vZ1.ende === "2026-10-27" && vZ1.endeDe === "27.10.2026" && vZ1.quelle === "vertrag_ende_am", `M2: … und die Lesestelle liefert 27.10.2026 (${vZ1.ende}, ${vZ1.quelle})`);
+        const protZ1 = (await sql`SELECT note FROM fiaon_contact_log WHERE ref = 'FIAON-P248MA1' ORDER BY id DESC LIMIT 1`) as any[];
+        ok(/Letzte Rate 3 bezahlt/.test(String(protZ1[0]?.note ?? "")) && /Abrechnungsmonats \(27\.10\.2026\)/.test(String(protZ1[0]?.note ?? "")), `M2: … Verlauf nennt das Ende („${String(protZ1[0]?.note ?? "").slice(0, 110)}“)`);
+        // Altdaten: ein zu frühes vertrag_ende_am (Zahltag 02.10., gesetzt vor dieser Nachbesserung) → die Lesestelle liefert
+        // trotzdem das Ende des Abrechnungsmonats; die Akte (Dossier) liest dieselbe Stelle.
+        await sql`UPDATE fiaon_applications SET vertrag_ende_am = '2026-10-02T10:00:00Z' WHERE ref = 'FIAON-P248MA1'`;
+        const vAlt = await vertragsendeLesen("FIAON-P248MA1");
+        ok(vAlt.ende === "2026-10-27" && vAlt.quelle === "raten", `M2: Altdaten — vertrag_ende_am 02.10. (Zahltag) → Lesestelle liefert trotzdem 27.10. (${vAlt.ende}, ${vAlt.quelle})`);
+        const akteAlt = await (await import("../server/lib/fiaon-postmeister-dossier")).akteLesen(AM1.id, "FIAON-P248MA1");
+        ok(akteAlt.kuendigung?.giltZum === "27.10.2026", `M2: … die Akte nennt 27.10.2026 (giltZum ${akteAlt.kuendigung?.giltZum})`);
+        ok((await rateNachVertragsende("FIAON-P248MA1-4"))?.ende === "27.10.2026", "M2: … Rate 4 (28.10.) liegt weiter nach dem Vertragsende 27.10.");
+        // Ein späteres vertrag_ende_am (z. B. Kulanz-Ende nach dem Abrechnungsmonat) bleibt, wie es ist.
+        await sql`UPDATE fiaon_applications SET vertrag_ende_am = '2026-11-15T10:00:00Z' WHERE ref = 'FIAON-P248MA1'`;
+        const vSpaet = await vertragsendeLesen("FIAON-P248MA1");
+        ok(vSpaet.ende === "2026-11-15" && vSpaet.quelle === "vertrag_ende_am", `M2: ein späteres vertrag_ende_am bleibt (${vSpaet.ende}, ${vSpaet.quelle})`);
+      }
+      // Beispiel 2: Kündigung 26.09. (Frist läuft 27.09. ab) → Abrechnungsmonat 28.08.–27.09. → Rate 28.09. entfällt, Ende 27.09.
+      const AM2 = await person("AM2");
+      await antrag("FIAON-P248MA2", AM2.id, AM2.mail, { status: "paid", agb: null });
+      await rate("FIAON-P248MA2", 1, "bezahlt", "2026-07-28"); await rate("FIAON-P248MA2", 2, "bezahlt", "2026-08-28"); await rate("FIAON-P248MA2", 3, "offen", "2026-09-28");
+      const e2 = await kuendigungSetzen("FIAON-P248MA2", { quelle: "mail", am: "2026-09-26T10:00:00+02:00" });
+      const st2 = await rateStand("FIAON-P248MA2");
+      ok(e2.ok && e2.weg === "sofort_beendet" && e2.stornierteRaten === 1 && st2[3] === "storniert/kuendigung" && bTag(e2.vertragEndeAm) === "2026-09-27", `Beispiel 2: Kündigung 26.09. → Rate 3 (28.09.) entfällt, Vertragsende 27.09. (${e2.weg}, Ende ${bTag(e2.vertragEndeAm)}, ${JSON.stringify(st2)})`);
+      const v2 = await vertragsendeLesen("FIAON-P248MA2");
+      ok(v2.ende === "2026-09-27" && v2.quelle === "vertrag_ende_am", `… vertragsendeLesen liest das gesetzte Ende (${v2.ende}, ${v2.quelle})`);
+      // 24-Stunden-Frist: Kündigung 27.09. 23:30 → Frist endet 28.09. 23:30 → Abrechnungsmonat 28.09.–27.10. → Rate 28.09. geschuldet.
+      const AM3 = await person("AM3");
+      await antrag("FIAON-P248MA3", AM3.id, AM3.mail, { status: "paid", agb: null });
+      await rate("FIAON-P248MA3", 1, "bezahlt", "2026-07-28"); await rate("FIAON-P248MA3", 2, "bezahlt", "2026-08-28"); await rate("FIAON-P248MA3", 3, "offen", "2026-09-28");
+      const e3 = await kuendigungSetzen("FIAON-P248MA3", { quelle: "mail", am: "2026-09-27T23:30:00+02:00" });
+      ok(e3.ok && e3.weg === "letzte_rate" && e3.letzteRateNr === 3 && (await vertragsendeLesen("FIAON-P248MA3")).ende === "2026-10-27", `Frist: Kündigung 27.09. 23:30 → Rate 3 (28.09.) geschuldet, Ende 27.10. (${e3.weg}, letzte ${e3.letzteRateNr})`);
+      // Jahresvertrag unverändert: nur fällige Raten (Kulanz), kein Abrechnungsmonat.
+      const AJ = await person("AJ");
+      await antrag("FIAON-P248MAJ", AJ.id, AJ.mail, { status: "paid", agb: "2026-09-10" });
+      await rate("FIAON-P248MAJ", 1, "bezahlt", "2026-09-10"); await rate("FIAON-P248MAJ", 2, "offen", "2026-10-10"); await rate("FIAON-P248MAJ", 3, "offen", "2026-11-10");
+      const eJ = await kuendigungSetzen("FIAON-P248MAJ", { quelle: "mail", am: "2026-10-15T10:00:00+02:00" });
+      const stJ = await rateStand("FIAON-P248MAJ");
+      const vJ = await vertragsendeLesen("FIAON-P248MAJ");
+      ok(eJ.ok && eJ.weg === "letzte_rate" && eJ.letzteRateNr === 2 && stJ[3] === "storniert/kuendigung" && eJ.vertragEndeAm === null && vJ.jahresvertrag && vJ.ende === null, `Jahresvertrag unverändert: fällige Rate 2 bleibt (Kulanz), Rate 3 entfällt, kein Abrechnungsmonat (${eJ.weg}, letzte ${eJ.letzteRateNr}, Ende ${vJ.ende})`);
+      const inhJ = bestaetigungInhalt({ agb_stand: "2026-09-10", gekuendigt_am: "2026-10-15T08:00:00Z", offene_raten: [{ rate_nr: 2, betrag_cents: 5999, faellig_am: "2026-10-10", zahlungsreferenz: "FIAON-P248MAJ-2" }] });
+      ok(!!inhJ && /zwölf Monatsraten/.test(inhJ.vertrag_satz) && !/Abrechnungsmonat/.test(`${inhJ.vertrag_satz} ${inhJ.offen_satz}`), "… Bestätigungsmail Jahresvertrag ohne Abrechnungsmonat");
+      // Nachbesserung Recht (M2): beim Jahresvertrag bleibt der Zahltag das Vertragsende (Justins Kulanz) — unverändert.
+      {
+        const { vertragEndePruefen } = await import("../server/lib/fiaon-kuendigung");
+        await sql`UPDATE fiaon_abo_raten SET status = 'bezahlt', bezahlt_am = NOW() WHERE ref = 'FIAON-P248MAJ' AND rate_nr = 2`;
+        const zJ = await vertragEndePruefen("FIAON-P248MAJ", 2);
+        const heuteJ = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+        const vJ2 = await vertragsendeLesen("FIAON-P248MAJ");
+        ok(zJ.beendet && vJ2.jahresvertrag && vJ2.ende === heuteJ && vJ2.quelle === "vertrag_ende_am", `M2: Jahresvertrag — letzte Rate bezahlt → Vertragsende ist der Zahltag (${vJ2.ende}, ${vJ2.quelle})`);
+      }
+      // Ohne Ratenkette: der Anker (erste Zahlung 05.07.) in Monatsschritten → Abrechnungsmonat 05.09.–04.10.
+      const AK = await person("AK");
+      await antrag("FIAON-P248MAK", AK.id, AK.mail, { status: "paid", agb: null });
+      await sql`UPDATE fiaon_applications SET paid_at = '2026-07-05T10:00:00Z' WHERE ref = 'FIAON-P248MAK'`;
+      const eK = await kuendigungSetzen("FIAON-P248MAK", { quelle: "mail", am: "2026-09-20T10:00:00+02:00" });
+      const vK = await vertragsendeLesen("FIAON-P248MAK");
+      ok(eK.ok && eK.weg === "sofort_beendet" && bTag(eK.vertragEndeAm) === "2026-10-04" && vK.ende === "2026-10-04", `ohne Ratenkette: Anker 05.07. → Ende 04.10. (${eK.weg}, ${bTag(eK.vertragEndeAm)})`);
+    }
+
+    // ── E-265 Schluss-Nachbesserung (01.10.2026, Echt-Probe 3 M3 #5779): ALTBESTAND — vor der Nachbesserung 2 gekündigt,
+    // letzte_rate_nr = 3, Rate 3 ist erst NACH dem Vertragsende fällig und steht noch offen. Die Akte rechnet die letzte zu
+    // zahlende Rate neu (keine), zahlungslink_bauen verweigert Rate 3, und „Rate 3 ist die letzte Rate. Sobald der Eingang
+    // gebucht ist, wird das Kündigungsschreiben … verschickt" geht nie raus.
+    const M3 = await person("M3");
+    await antrag("FIAON-P248M3", M3.id, M3.mail, { status: "paid", agb: null });
+    const heuteB = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const ersterM = new Date(`${heuteB.slice(0, 8)}01T10:00:00Z`);
+    const gekM3 = new Date(ersterM.getTime() - 24 * 86_400_000); // im Vormonat → Vertragsende = Ende des Vormonats
+    const nachM3 = `${heuteB.slice(0, 8)}06`;                     // fällig am 6. dieses Monats → nach dem Vertragsende
+    await rate("FIAON-P248M3", 1, "bezahlt", "2026-08-06");
+    await rate("FIAON-P248M3", 2, "bezahlt", "2026-09-06");
+    await rate("FIAON-P248M3", 3, "offen", nachM3);
+    await sql`UPDATE fiaon_applications SET gekuendigt_am = ${gekM3}, letzte_rate_nr = 3, kuendigung_quelle = 'mail', payment_status = 'paid' WHERE ref = 'FIAON-P248M3'`;
+    const akteM3 = await (await import("../server/lib/fiaon-postmeister-dossier")).akteLesen(M3.id, "FIAON-P248M3");
+    ok(akteM3.kuendigung?.letzteRate === null && (akteM3.kuendigung?.zuZahlen ?? []).length === 0 && (akteM3.kuendigung?.nachVertragsende ?? []).map((r) => r.nr).join(",") === "3" && /gilt zum/.test(String(akteM3.kuendigung?.regel ?? "")),
+      `M3: Akte — keine „letzte Rate“, Rate 3 steht unter nachVertragsende (letzteRate ${akteM3.kuendigung?.letzteRate}, giltZum ${akteM3.kuendigung?.giltZum})`);
+    ok(akteM3.raten.find((r) => r.nr === 3)?.nachVertragsende === true, "M3: die Rate selbst trägt die Marke nachVertragsende");
+    const zlM3 = await wz.zahlungslinkBauen.ausfuehren({ referenz: "FIAON-P248M3-3" }, { personId: M3.id, ref: "FIAON-P248M3", postfach: PF, postmeisterId: null, kundenlage: "gekuendigt" as any });
+    ok(!zlM3.ok && /NACH dem Vertragsende/.test(String(zlM3.fehler)), `M3: zahlungslink_bauen verweigert Rate 3 („${String(zlM3.fehler ?? "").slice(0, 90)}“)`);
+    const P3_M3 = "Danke, die Überweisungsquittung über 59,99 € ist bei der Zahlungsstelle zur Prüfung. Ihre Kündigung vom 6. September liegt vor, und Rate 3 ist die letzte Rate. Sobald der Eingang gebucht ist, wird das Kündigungsschreiben der FIAON LTD automatisch verschickt.";
+    const sM3 = await lauf1(M3.mail, "Anbei die Quittung über 59,99 €. Wann kommt mein Kündigungsschreiben?", {
+      einordnung: { kategorien: ["zahlung", "kuendigung"], dringend: false, sprache: "de", fragen: ["Wann kommt das Kündigungsschreiben?"], zusammenfassung: "Schickt eine Quittung, fragt nach dem Kündigungsschreiben.", flags: { zahlung_behauptet: true } },
+      werkzeuge: [],
+      antwort: { antwort: P3_M3, naechster_schritt: { art: "erledigt", url: null, text: "" }, belege: [], fragen_beantwortet: [], merken: [] },
+      umformuliert: { antwort: P3_M3, naechster_schritt: { art: "erledigt", url: null, text: "" }, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    const fM3 = (sM3.pruefung?.fehlend ?? []).join(" · ");
+    ok(sM3.gesendet === 0 && /kuendigung_an_zahlung|Kündigung und ihre Bestätigung hängen nie/.test(fM3) && /Rate 3 .*nach dem Vertragsende/.test(fM3), `M3: die Probe-3-Antwort geht nicht raus — Kündigung an Zahlung gebunden, Rate 3 nach dem Vertragsende (${fM3.slice(0, 200)})`);
+    ok(!(sM3.handlungen ?? []).some((h: any) => h.werkzeug === "zahlungslink_bauen" && h.ok), "M3: keine Zahlungsseite vorab geholt (die Rate nach dem Vertragsende zählt nicht)");
+    const sysM3 = String(sM3.kiAntwort[0]?.system ?? "") + JSON.stringify(sM3.kiAntwort[0] ?? {});
+    ok(/HÄNGEN NIE AN EINER ZAHLUNG/.test(sysM3), "M3: der Auftrag sagt: Kündigung und Bestätigung hängen nie an einer Zahlung");
+
+    // ── E-265 Schluss-Nachbesserung (Probe 3 f11): „Vertrag kam per E-Mail" ohne Beleg geht im Postfach nicht raus ──
+    const VM = await person("VM");
+    await antrag("FIAON-P248MVM", VM.id, VM.mail, { status: "paid", agb: "2026-09-10" });
+    await rate("FIAON-P248MVM", 1, "bezahlt", "2026-09-10");
+    const sVM = await lauf1(VM.mail, "Wo ist eigentlich mein Vertrag?", {
+      einordnung: { kategorien: ["frage"], dringend: false, sprache: "de", fragen: ["Wo ist der Vertrag?"], zusammenfassung: "Fragt nach dem Vertrag.", flags: {} },
+      werkzeuge: [],
+      antwort: { antwort: "Ihr Vertrag vom 10. September kam damals per E-Mail zu Ihnen. Ihre Visa-Kreditkarte bleibt das Ziel.", naechster_schritt: { art: "bereich", url: null, text: "Zu meinem Bereich" }, belege: [], fragen_beantwortet: [], merken: [] },
+      umformuliert: { antwort: "Ihr Vertrag vom 10. September kam damals per E-Mail zu Ihnen. Ihre Visa-Kreditkarte bleibt das Ziel.", naechster_schritt: { art: "bereich", url: null, text: "Zu meinem Bereich" }, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    ok(sVM.gesendet === 0 && (sVM.pruefung?.fehlend ?? []).some((f: string) => /Vertrag sei per E-Mail gekommen/.test(f)), `f11 im Postfach: „Vertrag kam per E-Mail“ ohne Beleg → Entwurf (${(sVM.pruefung?.fehlend ?? []).join(" · ").slice(0, 120)})`);
+
+    // ── E-265 Nachbesserung (Regression r3.mts): Zahlung gemeldet → Termin/Bereich statt Zahlknopf, sauber ist sauber ──
+    const ZG = await person("ZG");
+    await antrag("FIAON-P248M5Z", ZG.id, ZG.mail, { status: "claimed_paid", agb: "2026-09-20" });
+    // Ohne Beleg-Lampe (zahlung_behauptet ist eine Warnlampe und bleibt immer Entwurf — ein Mensch prüft den Beleg).
+    const sZG = await lauf1(ZG.mail, "Ich habe gestern überwiesen. Wie geht es jetzt weiter?", {
+      einordnung: { kategorien: ["zahlung"], dringend: false, sprache: "de", fragen: ["Wie geht es weiter?"], zusammenfassung: "Hat überwiesen, fragt nach dem Ablauf.", flags: {} },
+      werkzeuge: [],
+      antwort: { antwort: "Danke Ihnen! Sobald Ihre Zahlung bei uns gebucht ist, schaltet das System Sie frei, und Sie bekommen direkt den Link unserer Partnerbank für Konto und Karte. Ziel bleibt Ihre eigene Visa-Kreditkarte.\n\nIch freue mich, wenn es für Sie jetzt losgeht.", naechster_schritt: { art: "bereich", url: null, text: "Zu meinem Bereich" }, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    ok(sZG.schritt?.art === "bereich" && !(sZG.pruefung?.fehlend ?? []).some((f: string) => /Zahlungsseite|nicht erlaubt/.test(f)), `zahlung_gemeldet: Knopf „bereich“ ist erlaubt, keine Pflicht zur Zahlungsseite (${(sZG.pruefung?.fehlend ?? []).join(" · ").slice(0, 120) || "sauber"})`);
+    ok(sZG.z?.aktion === "auto_beantwortet" && sZG.gesendet === 1, `… und sauber heißt: Mara sendet selbst (${sZG.z?.aktion}, ${String(sZG.z?.begruendung ?? "").slice(0, 80)})`);
 
     // ── 2. MEHRFACHVERSAND ─────────────────────────────────────────────────
     abschnitt("DB 2 · Eine Mail — eine Antwort (Person A, B)");
@@ -724,7 +918,13 @@ if (MIT_DB) {
     ok(FREMD.length === 0, `Kein fremdes Netz (${FREMD.slice(0, 2).join(", ")})`);
   } finally {
     const refs = ["FIAON-P248MA", "FIAON-P248MB", "FIAON-P248MC", "FIAON-P248MD", "FIAON-P248ME", "FIAON-P248MF", "FIAON-P248MG", "FIAON-P248MH", "FIAON-P248MJ", "FIAON-P248MK", "FIAON-P248ML", "FIAON-P248MM", "FIAON-P248MN", "FIAON-P248MX", "FIAON-P248MP", "FIAON-P248MQ", "FIAON-P248MR",
-      "FIAON-P248MS", "FIAON-P248MU", "FIAON-P248MV", "FIAON-P248MW", "FIAON-P248MY"];
+      "FIAON-P248MS", "FIAON-P248MU", "FIAON-P248MV", "FIAON-P248MW", "FIAON-P248MY",
+      // E-265 Nachbesserung: Rate nach Vertragsende (5N, 5F), Zahlung gemeldet (5Z)
+      "FIAON-P248M5N", "FIAON-P248M5F", "FIAON-P248M5Z",
+      // E-265 (01.10.2026, Recht): Abrechnungsmonat (DB 1b)
+      "FIAON-P248MA1", "FIAON-P248MA2", "FIAON-P248MA3", "FIAON-P248MAJ", "FIAON-P248MAK",
+      // E-265 Schluss-Nachbesserung: Altbestand M3, Vertragsmail (VM); M3A = Rest eines Zwischenlaufs
+      "FIAON-P248M3", "FIAON-P248MVM", "FIAON-P248M3A"];
     const pids = Object.values(personen);
     await sql`DELETE FROM fiaon_betreiber_todo_beitraege WHERE todo_id IN (SELECT id FROM fiaon_betreiber_todos WHERE created_at >= ${START})`.catch(() => {});
     await sql`DELETE FROM fiaon_betreiber_todos WHERE created_at >= ${START}`.catch(() => {});

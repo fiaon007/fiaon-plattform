@@ -13,8 +13,11 @@
 import { Router, type Request, type Response } from "express";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { sqlPool } from "../lib/db-pool";
-import { kuendigungSetzen, kuendigungZuruecknehmen, kuendigungSpalten, type KuendigungQuelle } from "../lib/fiaon-kuendigung";
+import { kuendigungSetzen, kuendigungZuruecknehmen, kuendigungSpalten, vertragsendeLesen, type KuendigungQuelle } from "../lib/fiaon-kuendigung";
 import { absoluteUrl } from "../fiaon-base-url";
+// E-265 Nachbesserung 2 (01.10.2026): Vertragsart und Vertragsende aus denselben Regeln wie WhatsApp und Postfach.
+// E-265 (01.10.2026, Paket Recht): Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen), nicht Kalendermonat.
+import { istJahresvertrag, abrechnungsmonatEnde, tagDeutsch, giltZumSatz } from "@shared/fiaon-antrag-stand";
 // E-213: Die Urkunde zur Kündigung — Papier, Unterschrift, Prüfsumme.
 import { urkundeAusfertigen, urkundeVerwerfen, urkundeStand, rolleInWorten } from "../lib/fiaon-kuendigung-urkunde";
 
@@ -28,33 +31,82 @@ const QUELLEN: KuendigungQuelle[] = ["mail", "formular", "telefon", "admin", "al
 export async function bestaetigungSenden(ref: string): Promise<boolean> {
   const [a] = (await sqlPool`
     SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.pack_name,
-           a.letzte_rate_nr, a.kuendigung_bestaetigt_mail_am, a.payment_status,
-           r.zahlungsreferenz, r.betrag_cents, r.faellig_am
+           a.letzte_rate_nr, a.kuendigung_bestaetigt_mail_am, a.payment_status, a.agb_stand, a.gekuendigt_am,
+           -- E-265 Nachbesserung 2 (01.10.2026): ALLE noch zu zahlenden Raten (bis zur letzten), älteste zuerst — dieselbe
+           -- Liste wie Urkunde, WhatsApp und Postfach (vorher nur die Rate letzte_rate_nr).
+           (SELECT COALESCE(json_agg(json_build_object('rate_nr', y.rate_nr, 'betrag_cents', y.betrag_cents, 'faellig_am', y.faellig_am,
+                     'zahlungsreferenz', y.zahlungsreferenz) ORDER BY y.rate_nr), '[]'::json)
+              FROM fiaon_abo_raten y
+             WHERE y.ref = a.ref AND y.status = 'offen' AND y.storniert_am IS NULL AND y.zahlungsreferenz IS NOT NULL
+               AND (a.letzte_rate_nr IS NULL OR y.rate_nr <= a.letzte_rate_nr)) AS offene_raten
     FROM fiaon_applications a
-    LEFT JOIN LATERAL (
-      SELECT zahlungsreferenz, betrag_cents, faellig_am FROM fiaon_abo_raten x
-      WHERE x.ref = a.ref AND x.rate_nr = a.letzte_rate_nr AND x.status = 'offen' LIMIT 1
-    ) r ON TRUE
     WHERE a.ref = ${ref} LIMIT 1
   `) as any[];
   if (!a || a.kuendigung_bestaetigt_mail_am) return false;
-  // Ohne offene Rate gibt es nichts zu bezahlen — dann ist der Vertrag schon
-  // beendet und die Abschlussmail hat der Buchungsweg geschickt.
-  if (!a.zahlungsreferenz) return false;
+  // E-265 (01.10.2026, Recht): das Vertragsende beim Altvertrag aus der einen Rechnung (Abrechnungsmonat).
+  a.ende_tag = istJahresvertrag(a.agb_stand) ? null : (await vertragsendeLesen(ref)).ende;
+  const inhalt = bestaetigungInhalt(a);
+  // Ohne offene Rate gibt es nichts zu bezahlen — dann ist der Vertrag schon beendet und die Abschlussmail hat der
+  // Buchungsweg geschickt (bzw. beim Altvertrag endet er zum Ende des Abrechnungsmonats, ohne Forderung).
+  if (!inhalt) return false;
   const { sendMakeWebhookMitGrund, makePayloadFromRow } = await import("../make-webhook");
-  const faellig = a.faellig_am ? new Date(`${String(a.faellig_am).slice(0, 10)}T12:00:00Z`) : null;
   const erg: any = await sendMakeWebhookMitGrund("kuendigung_bestaetigt", {
     ...makePayloadFromRow(a),
     paket: a.pack_name ? String(a.pack_name).split("\n")[0] : null,
-    rate_nr: String(a.letzte_rate_nr ?? ""),
-    betrag: (Number(a.betrag_cents) / 100).toFixed(2),
-    verwendungszweck: a.zahlungsreferenz,
-    faellig_am_text: faellig ? faellig.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : "",
+    ...inhalt,
+    // Der Knopf zur Zahlungsseite (pruef-mail-knoepfe liest die Schlüssel am Aufruf): die erste noch zu zahlende Rate.
+    verwendungszweck: inhalt.verwendungszweck,
     portal_url: absoluteUrl("/login"),
   } as any);
-  if (erg === false) return false;
+  // E-265 Schluss-Nachbesserung (01.10.2026, Probe-3-Befund K): sendMakeWebhookMitGrund liefert { ok: false, grund } —
+  // nie `false`. Die alte Prüfung `erg === false` griff deshalb nie: Eine gescheiterte Bestätigung galt als gesendet
+  // (Protokoll „Bestätigung per E-Mail raus", Antwort „bekommen Sie per E-Mail", kuendigung_bestaetigt_mail_am gesetzt
+  // — und damit nie ein Nachholen). Jetzt bleibt die Spalte leer, und Mara sagt dem Kunden nichts von einer Mail.
+  if (!erg?.ok) return false;
   await sqlPool`UPDATE fiaon_applications SET kuendigung_bestaetigt_mail_am = NOW() WHERE ref = ${ref}`.catch(() => {});
   return true;
+}
+
+/**
+ * Der Inhalt der Bestätigungsmail aus EINER Ratenliste (E-265 Nachbesserung 2, 01.10.2026) — rein, im Prüfstand geprüft.
+ * Gegenprobe 29.09. (g3-raten): Die Mail nannte nur die Rate letzte_rate_nr und sagte allen „Ihr Vertrag ist auf zwölf
+ * Monatsraten angelegt. Wir entlassen Sie vorzeitig daraus … auch wenn wir es nicht müssten" — beim Vertrag vor dem
+ * 03.09.2026 (monatlich kündbar) eine Irreführung über ein bestehendes Recht (§ 5 UWG), und bei zwei offenen Raten
+ * fehlte die ältere. Jetzt: Altvertrag „gilt zum Ende Ihres laufenden Abrechnungsmonats, dem …", nur Raten bis dahin;
+ * Jahresvertrag Justins Kulanz; jede Rate mit Datum, die Summe. Die alten Felder (rate_nr, betrag, faellig_am_text,
+ * verwendungszweck) bleiben für Make. null = nichts zu zahlen (dann keine Mail).
+ * E-265 (01.10.2026, Recht): `ende_tag` (YYYY-MM-DD) ist das Vertragsende aus vertragsendeLesen (Abrechnungsmonat);
+ * fehlt es, rechnet die Funktion es rein aus gekuendigt_am und den Fälligkeiten der übergebenen Raten.
+ */
+export function bestaetigungInhalt(a: { agb_stand?: unknown; gekuendigt_am?: unknown; offene_raten?: any; ende_tag?: string | null }): Record<string, string> | null {
+  const alt = !istJahresvertrag(a.agb_stand);
+  const tag = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) : null);
+  const de = (iso: string | null) => tagDeutsch(iso) ?? "";
+  const eur = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
+  const roh: any[] = Array.isArray(a.offene_raten) ? a.offene_raten : typeof a.offene_raten === "string" ? JSON.parse(a.offene_raten) : [];
+  const ende = alt ? (a.ende_tag ?? abrechnungsmonatEnde((a.gekuendigt_am as any) ?? new Date(), roh.map((r) => r.faellig_am))) : null;
+  const raten = roh.map((r) => ({ nr: Number(r.rate_nr), cents: Number(r.betrag_cents) || 0, faellig: tag(r.faellig_am), ref: String(r.zahlungsreferenz ?? "") }))
+    .filter((r) => r.cents > 0 && r.ref && (!ende || !r.faellig || r.faellig <= ende));
+  if (!raten.length) return null;
+  const summe = raten.reduce((x, r) => x + r.cents, 0);
+  const eine = raten.length === 1;
+  const liste = raten.map((r) => `Rate ${r.nr} über ${eur(r.cents)}${eine ? "" : ` (fällig ${de(r.faellig)})`}`).join(" und ");
+  const vertragSatz = alt
+    ? `Ihre Kündigung ist bei uns eingegangen. Ihr Vertrag ist mit einer Frist von 24 Stunden zum Ende des jeweiligen Abrechnungsmonats kündbar — Ihre Kündigung ${giltZumSatz(ende)}.`
+    : "Ihr Vertrag ist auf zwölf Monatsraten angelegt. Wir entlassen Sie vorzeitig daraus — das machen wir gern, auch wenn wir es nicht müssten.";
+  const offenSatz = alt
+    ? `Raten für die Zeit nach dem Ende Ihres Abrechnungsmonats stellen wir nicht. Offen ${eine ? "bleibt die bis dahin fällige Rechnung" : "bleiben die bis dahin fälligen Rechnungen"} — ${liste}${eine ? `, fällig am ${de(raten[0].faellig)}` : `, zusammen ${eur(summe)}`}. Danach kommt nichts mehr.`
+    : `Ab sofort stellen wir keine weiteren Raten und legen keine neuen Rechnungen an. Offen ${eine ? "bleibt die bereits gestellte Rechnung" : "bleiben die bereits gestellten Rechnungen"} — ${liste}${eine ? `, fällig am ${de(raten[0].faellig)}` : `, zusammen ${eur(summe)}`}. Sobald ${eine ? "diese Zahlung" : "diese Zahlungen"} bei uns verbucht ${eine ? "ist" : "sind"}, ist der Vertrag beendet und wir bestätigen Ihnen das schriftlich.`;
+  return {
+    vertrag_satz: vertragSatz,
+    offen_satz: offenSatz,
+    preheader_text: alt ? `Ihre Kündigung gilt zum Ende Ihres Abrechnungsmonats${ende ? ` (${de(ende)})` : ""} — offen ${eine ? "ist" : "sind"} nur noch ${liste.replace(/ \(fällig [^)]*\)/g, "")}.` : "Wir entlassen Sie vorzeitig aus dem Vertrag, sobald die offene Rechnung beglichen ist.",
+    raten_text: eine ? `Rate ${raten[0].nr}` : `Raten ${raten.map((r) => r.nr).join(" und ")}`,
+    rate_nr: raten.map((r) => r.nr).join(" und "),
+    betrag: (summe / 100).toFixed(2),
+    faellig_am_text: de(raten[raten.length - 1].faellig),
+    verwendungszweck: raten[0].ref,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

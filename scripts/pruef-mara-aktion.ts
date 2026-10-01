@@ -21,8 +21,14 @@ const { istSensibel } = await import("../server/lib/fiaon-mara-gedaechtnis");
 const quelle = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
 console.log("── Nachprüfung jeder Mail ─────────────────────────────────────────");
-const gut = "Hier ist Mara Lindner von FIAON. Ich würde Ihren Account gern aktivieren, mit Ihrem gewünschten Kartenrahmen als Ziel. Dazu fehlt mir nur noch die offene Rechnung über 59,99 €.\n\nSobald Ihre Zahlung da ist, aktiviere ich Ihren Account. Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
+// E-265 (29.09.2026): Die gute Mail stellt die Visa-Kreditkarte vorn (Justin: „VIEL MEHR AUF DIE KREDITKARTEN!").
+const gut = "Hier ist Mara Lindner von FIAON. Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte, mit Ihrem Wunschlimit von 5.000 € als Ziel — über den Rahmen entscheidet unsere Partnerbank. Dazu fehlt mir nur noch die offene Rechnung über 59,99 €.\n\nSobald Ihre Zahlung gebucht ist, schaltet das System Sie frei, und ich vereinbare Ihren Termin mit Herrn Stripling. Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
 ok(aktionPruefen("Ihr Account wartet auf einen Schritt", gut).length === 0, "Eine gute Mail besteht die Prüfung");
+// E-265 (#1388 „Florentine hat Ihnen heute …"): mit der Mitarbeiterliste ist der Vorname allein ein Mangel.
+const TEAM = [{ vorname: "Florentine", nachname: "Lombardi", anrede: "Frau" as const }, { vorname: "Daniel", nachname: "Stripling", anrede: "Herr" as const }];
+ok(aktionPruefen("Kurz zu Ihrer Karte", gut.replace("Herrn Stripling", "Daniel"), { mitarbeiter: TEAM }).some((x) => /Herr\/Frau Nachname/.test(x)), "Vorname eines Mitarbeiters allein fällt durch (#1388)");
+ok(aktionPruefen("Kurz zu Ihrer Karte", gut, { mitarbeiter: TEAM }).length === 0, "„Herrn Stripling“ besteht mit der Mitarbeiterliste");
+ok(aktionPruefen("Kurz zu Ihrer Karte", gut.replace("Visa-Kreditkarte", "Karte")).some((x) => /Kreditkarte/.test(x)), "Ohne „Kreditkarte“ fällt die Mail durch (1 von 368 am 29.09.)");
 const m = aktionPruefen("Jetzt zugreifen!", "Ich garantiere Ihnen die Karte innerhalb von 3 Tagen. Schau auf www.fiaon.com vorbei, dann kannst du loslegen.");
 ok(m.some((x) => /garant/i.test(x)), "„garantieren“ fällt durch");
 ok(m.some((x) => /innerhalb von/.test(x)), "Feste Frist fällt durch");

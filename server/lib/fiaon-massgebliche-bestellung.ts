@@ -101,6 +101,9 @@ export function katalogpreisCents(
     // (db/migrations/083_auskunft_katalogpreis.sql).
     return istAuskunftSchluessel(zeile.pack_key) ? paketPreisCents(zeile.pack_key) : paketPreisCents("schufa");
   }
+  // Individualangebot (01.10.2026, E-268): kein Katalogpreis — der Betrag steht im
+  // angenommenen Angebotsteil. `null` heißt hier wie oben: niemand leitet einen ab.
+  if (paket(zeile.pack_key)?.preisJeAngebot) return null;
   return paket(zeile.pack_key) ? paketPreisCents(zeile.pack_key) : null;
 }
 

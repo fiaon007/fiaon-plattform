@@ -144,7 +144,10 @@ export const PFLICHTFELDER_FIRMA: readonly Pflichtfeld[] = [
   { spalte: "contact_name", name: "Ansprechpartner", art: "text" },
   { spalte: "contact_email", name: "E-Mail-Adresse", art: "text" },
   { spalte: "contact_phone", name: "Telefonnummer", art: "text" },
-  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja", nurKunde: true },
+  // Individualangebot (01.10.2026), Gegenprüfung: Die Individualvereinbarung schließt die AGB aus (Ziffer 15) —
+  // bei diesem Paket gibt es keine AGB-Zustimmung, die fehlen könnte. Schlüssel wie ANGEBOT_PAKET_KEY.
+  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja", nurKunde: true,
+    nurWenn: (z) => String(z.pack_key ?? "") !== "global_individuell", nurWennSql: (a) => `COALESCE(${a}.pack_key, '') <> 'global_individuell'` },
   { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja", nurKunde: true },
 ] as const;
 
@@ -197,7 +200,7 @@ export function antragVollstaendig(zeile: Record<string, any>): boolean {
  */
 export function fehlendeZustimmungen(zeile: Record<string, any>): string[] {
   return pflichtfelderFuer(zeile.type)
-    .filter((f) => f.nurKunde && !traegt(zeile, f))
+    .filter((f) => f.nurKunde && (!f.nurWenn || f.nurWenn(zeile)) && !traegt(zeile, f))
     .map((f) => f.name);
 }
 
@@ -235,7 +238,7 @@ export function fehlendeZustimmungenAusdruckSql(a = "a"): string {
   const bau = (liste: readonly Pflichtfeld[]) => {
     const nur = liste.filter((f) => f.nurKunde);
     return `NULLIF(CONCAT_WS(', ', ${nur
-      .map((f) => `CASE WHEN NOT (${a}.${f.spalte} IS TRUE) THEN '${f.name}' END`)
+      .map((f) => `CASE WHEN ${f.nurWennSql ? `(${f.nurWennSql(a)}) AND ` : ""}NOT (${a}.${f.spalte} IS TRUE) THEN '${f.name}' END`)
       .join(", ")}), '')`;
   };
   return `(CASE WHEN ${a}.type = 'business'

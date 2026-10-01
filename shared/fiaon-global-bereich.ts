@@ -110,8 +110,18 @@ export const GLOBAL_ETAPPEN: { nr: GlobalEtappeNr; de: GlobalEtappeText; en: Glo
   },
 ];
 
-export function globalEtappeText(nr: number, sprache: BereichSprache = "de"): GlobalEtappeText {
+/**
+ * Individualangebot (01.10.2026), Nachtrag (h) + Gegenprüfung: Beim Individualangebot bereitet FIAON alles vor —
+ * Etappe 1 verlangt vom Kunden keine Unterlagen, nur Unterschriften und den Reisepass. (Nur deutsch: die Fassung
+ * IA-2026-10-01 gibt es nur auf Deutsch.)
+ */
+export const GLOBAL_ETAPPE_1_INDIVIDUELL: GlobalEtappeText = {
+  titel: "Gründung und Dokumente",
+  text: "Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse und Telefonnummer, Operating Agreement. Unser Team vor Ort bereitet alles vor, reicht ein und holt ab; Sie unterschreiben, was wir Ihnen fertig zuschicken, und laden hier nur Ihren Reisepass hoch. Die ITIN vergibt die US-Steuerbehörde in eigener Frist.",
+};
+export function globalEtappeText(nr: number, sprache: BereichSprache = "de", individuell = false): GlobalEtappeText {
   const e = GLOBAL_ETAPPEN.find((x) => x.nr === nr) ?? GLOBAL_ETAPPEN[0];
+  if (individuell && nr === 1 && sprache !== "en") return GLOBAL_ETAPPE_1_INDIVIDUELL;
   return sprache === "en" ? e.en : e.de;
 }
 
@@ -130,6 +140,8 @@ export function globalPaketEtappeBis(paketKey: unknown): GlobalEtappeNr {
 
 /** Pakete mit dem zugesagten „monatlichen Durchgang" (Leistungstext ab Global Banking). */
 export function globalHatMonatsdurchgang(paketKey: unknown): boolean {
+  // 01.10.2026 (E-268): Das Individualangebot sagt den monatlichen Durchgang in Teil 2 zu (Ziffer 3 Absatz 2).
+  if (String(paketKey ?? "").trim().toLowerCase() === "global_individuell") return true;
   const key = globalPaket(paketKey)?.key;
   return key === "global_banking" || key === "global_kapital" || key === "global_vip";
 }
@@ -244,18 +256,20 @@ export const GLOBAL_UNTERLAGEN_EN: string[] = GLOBAL_UNTERLAGEN_LISTE.map((u) =>
  * Die Liste je Auftraggeber (19.09.2026, E-191): Beauftragt eine Privatperson, gibt es kein Unternehmen
  * zu Hause — also keinen Registerauszug und keine Gesellschafterliste. Alles andere gilt für beide.
  */
-export function globalUnterlagenListe(privat = false): GlobalUnterlage[] {
+export function globalUnterlagenListe(privat = false, nurReisepass = false): GlobalUnterlage[] {
+  // Individualangebot (01.10.2026), Nachtrag (h): FIAON bereitet alles vor — vom Kunden braucht es nur den Reisepass.
+  if (nurReisepass) return GLOBAL_UNTERLAGEN_LISTE.filter((u) => u.art === "reisepass");
   return privat ? GLOBAL_UNTERLAGEN_LISTE.filter((u) => u.art !== "registerauszug") : GLOBAL_UNTERLAGEN_LISTE;
 }
 /** Die Sätze der Liste — für Startmail und Aufgabe, in der Sprache des Auftrags. */
-export function globalUnterlagenZeilen(sprache: BereichSprache = "de", privat = false): string[] {
-  return globalUnterlagenListe(privat).map((u) => u[sprache].zeile);
+export function globalUnterlagenZeilen(sprache: BereichSprache = "de", privat = false, nurReisepass = false): string[] {
+  return globalUnterlagenListe(privat, nurReisepass).map((u) => u[sprache].zeile);
 }
 
 /** Welche Unterlagen liegen vor? `arten` = die Arten aller nicht gelöschten Dokumente des Auftrags. */
-export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de", privat = false): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean; alsText?: true; textHinweis?: string }[] {
+export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de", privat = false, nurReisepass = false): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean; alsText?: true; textHinweis?: string }[] {
   const da = new Set(Array.from(arten, (a) => String(a)));
-  return globalUnterlagenListe(privat).map((u) => {
+  return globalUnterlagenListe(privat, nurReisepass).map((u) => {
     const t = sprache === "en" ? u.en : u.de;
     return {
       art: u.art, titel: t.titel, hinweis: t.hinweis, vorhanden: u.erfuelltDurch.some((a) => da.has(a)),
@@ -263,8 +277,8 @@ export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichS
     };
   });
 }
-export function globalUnterlagenOffen(arten: Iterable<string>, privat = false): number {
-  return globalUnterlagenStand(arten, "de", privat).filter((u) => !u.vorhanden).length;
+export function globalUnterlagenOffen(arten: Iterable<string>, privat = false, nurReisepass = false): number {
+  return globalUnterlagenStand(arten, "de", privat, nurReisepass).filter((u) => !u.vorhanden).length;
 }
 
 // ── DIE US-GESELLSCHAFT ──────────────────────────────────────────────────────

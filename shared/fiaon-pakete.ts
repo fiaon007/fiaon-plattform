@@ -56,6 +56,15 @@ export interface Paket {
    * ihren vier Preisen. Auswahllisten für Pakete lassen solche Einträge weg.
    */
   zusatz?: "auskunft";
+  /**
+   * Individualangebot (01.10.2026, E-268): Der Preis steht NICHT im Katalog,
+   * sondern im angenommenen Angebotsteil (fiaon_global_angebot_teile.betrag_cents).
+   * `preisCents` ist dann 0 und darf nirgends als Preis gelesen werden — wer einen
+   * Betrag braucht, nimmt `amount_due` der Bestellzeile (geschrieben aus dem Teil).
+   * Solche Einträge stehen in keiner Preisliste, keiner Auswahl und keiner Abschrift
+   * (fiaon_paketpreise verlangt preis_cents > 0).
+   */
+  preisJeAngebot?: true;
 }
 
 export const PAKETE: Paket[] = [
@@ -94,6 +103,15 @@ export const PAKETE: Paket[] = [
   { key: "global_banking",      label: "FIAON Global Banking",      preisCents:  499900, art: "global", abo: false },
   { key: "global_kapital",      label: "FIAON Global Kapital",      preisCents:  699900, art: "global", abo: false },
   { key: "global_vip",          label: "FIAON Global VIP",          preisCents: 3599900, art: "global", abo: false },
+  // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
+  // Justin: „Ja ich erlaube dir alles, umsetzen bitte" — ein Angebot in Teilen
+  // (erster Anwendungsfall: Gründung 4.650 € sofort, Kapital-Begleitung 6.850 €
+  // erst beim Meilenstein). Jeder Teil ist eine ganz normale Bestellzeile mit
+  // diesem Schlüssel — so laufen Zahlungsseite, Buchung, Rechnung, Provision und
+  // alle Global-Ausschlüsse (kein Abo, keine Privatkunden-Mail, Mara über
+  // LIKE 'global%') unverändert mit. `eingestellt`: nie in einer Auswahl;
+  // `preisJeAngebot`: der Betrag kommt aus dem Angebotsteil (server/lib/fiaon-global-angebot.ts).
+  { key: "global_individuell",  label: "FIAON Global – Individualangebot", preisCents: 0, art: "global", abo: false, eingestellt: true, preisJeAngebot: true },
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));
@@ -122,6 +140,14 @@ export function istGlobalPaket(key: unknown): boolean {
   return paket(key)?.art === "global";
 }
 
+/**
+ * Kommt der Betrag aus einem Individualangebot statt aus dem Katalog (E-268)? Dann
+ * gilt `amount_due` der Bestellzeile — geschrieben aus dem angenommenen Angebotsteil.
+ */
+export function istAngebotsPaket(key: unknown): boolean {
+  return paket(key)?.preisJeAngebot === true;
+}
+
 /** Was heute verkauft wird — eingestellte Pakete fehlen. */
 export function verkaufbarePakete(art?: Paket["art"]): Paket[] {
   // E-240: Von der Auskunft steht nur „schufa" in Auswahllisten — EIN Eintrag
@@ -137,12 +163,13 @@ export const NICHT_ABO_SCHLUESSEL: string[] = PAKETE.filter((p) => !p.abo).map((
 
 /** Die Preisliste in Euro — für Stellen, die historisch mit Euro rechnen. */
 export const PAKET_PREISE_EURO: Record<string, number> = Object.fromEntries(
-  PAKETE.filter((p) => !p.zusatz).map((p) => [p.key, p.preisCents / 100]),
+  // E-268: Ein Individualangebot hat keinen Katalogpreis — es steht in keiner Preisliste.
+  PAKETE.filter((p) => !p.zusatz && !p.preisJeAngebot).map((p) => [p.key, p.preisCents / 100]),
 );
 
 /** Die Preisliste in Cent — für alles, was Geld ausrechnet. */
 export const PAKET_PREISE_CENTS: Record<string, number> = Object.fromEntries(
-  PAKETE.map((p) => [p.key, p.preisCents]),
+  PAKETE.filter((p) => !p.preisJeAngebot).map((p) => [p.key, p.preisCents]),
 );
 
 export const SCHUFA_PREIS_EURO = paketPreisEuro("schufa");

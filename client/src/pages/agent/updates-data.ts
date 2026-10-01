@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-268 (01.10.2026): Individualangebot FIAON Global — was die zuständige Person in der Global-Akte sieht.
+    id: "2026-10-01-individualangebot",
+    date: "2026-10-01",
+    category: "Neu",
+    title: "FIAON Global: Aufträge aus einem persönlichen Angebot — Teile und Frist statt Stichtag",
+    summary:
+      "Die Leitung kann einem Kunden ein persönliches Angebot machen: Teil 1 „Gründung“ sofort, Teil 2 „Kapital-Begleitung“ erst, "
+      + "wenn die Gesellschaft eingetragen ist und das erste Kapital oder die erste Karte da ist. Nimmt der Kunde an, liegt der Auftrag "
+      + "bei dir wie jeder Global-Auftrag — nur mit einem eigenen Block statt des Stichtags.",
+    changes: [
+      "In der Global-Akte (Reiter „Stand“) steht dann „Individualangebot“: beide Teile mit Betrag und Stand und das Fristende.",
+      "Einen Stichtag gibt es bei diesen Aufträgen nicht. Es gilt eine Frist: Kommt bis zum Fristende weder Kapital noch Karte, bekommt der Kunde Teil 1 vollständig zurück.",
+      "Deine Aufgabe zum Start heißt „Individualangebot starten“ und nennt das Fristende.",
+    ],
+    howto: [
+      "Ist das erste Kapital ausgezahlt oder die erste Karte für die Gesellschaft freigeschaltet: der Leitung Bescheid geben — sie trägt den Meilenstein ein, dann geht die Rechnung über Teil 2 an den Kunden.",
+      "Fehlt eine Unterlage, eine Unterschrift oder die Identifikation des Kunden: schriftlich anfordern (mindestens sieben Tage Frist) und der Leitung sagen. Nur dann darf die Frist ruhen.",
+      "Gegenüber dem Kunden nie einen Banknamen nennen und nie zusagen, dass ein Institut finanziert — das entscheidet allein das Institut.",
+    ],
+    link: { href: "/agent/global", label: "Zu den Global-Aufträgen" },
+  },
+  {
     // Vertretung (01.10.2026): Der Vertreter bekommt Maras Übergaben und sieht die Kunden der Abwesenden.
     id: "2026-10-01-vertretung",
     date: "2026-10-01",

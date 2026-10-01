@@ -209,7 +209,9 @@ function AkteInnen() {
             ))}
           </div>
           <div className="gl-panel" role="tabpanel" id="gl-panel-stand" aria-labelledby="gl-reiter-stand" hidden={reiter !== "stand"}>
-            <EtappenAbschnitt {...werk} /><SchrittAbschnitt {...werk} /><StichtagAbschnitt {...werk} />
+            <EtappenAbschnitt {...werk} /><SchrittAbschnitt {...werk} />
+            {/* E-268: Ein Individualangebot hat keinen Stichtag, sondern Teile und eine Frist mit Erstattungszusage. */}
+            {akte.angebot ? <AngebotAbschnitt {...werk} /> : <StichtagAbschnitt {...werk} />}
           </div>
           <div className="gl-panel" role="tabpanel" id="gl-panel-gesellschaft" aria-labelledby="gl-reiter-gesellschaft" hidden={reiter !== "gesellschaft"}>
             <GesellschaftAbschnitt {...werk} /><FristenAbschnitt {...werk} />
@@ -434,6 +436,27 @@ function StichtagAbschnitt({ akte, tun, laeuft, heute }: Werk) {
 }
 
 // ═══ (e) DIE GESELLSCHAFT ════════════════════════════════════════════════════
+// ── Individualangebot (01.10.2026, E-268) — nur lesen; Meilenstein, Hemmung und Erstattung führt die Leitung ──
+function AngebotAbschnitt({ akte }: Werk) {
+  const a = akte.angebot;
+  if (!a) return null;
+  const eur = (c: number) => (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  return (
+    <div className="gl-ab gl-ab-angebot">
+      <div className="gl-ab-kopf"><h2>Individualangebot {a.ref}</h2></div>
+      <ul className="gl-leise">
+        {a.teile.map((t) => <li key={t.nr}><b>{t.titel}</b> · {eur(t.betragCents)} · {t.stand}{t.rechnungsnummer ? ` · ${t.rechnungsnummer}` : ""}</li>)}
+      </ul>
+      <p className="gl-leise">
+        {a.erstattungAusgeloest ? "Frist abgelaufen — die Erstattung von Teil 1 ist vorgemerkt; Teil 2 entfällt."
+          : a.fristEnde ? `Frist bis ${tagText(a.fristEnde)}: Kommt bis dahin weder Kapital noch Karte für die Gesellschaft, erstattet FIAON Teil 1 vollständig.`
+          : "Die Frist beginnt mit dem Start (Zahlung Teil 1; ohne sofortigen Beginn nach der Widerrufsfrist)."}
+      </p>
+      <p className="gl-leise">Bürgin: {a.buergin}. Ist das erste Kapital ausgezahlt oder die erste Karte freigeschaltet, sag es der Leitung — sie trägt den Meilenstein ein, dann geht die Rechnung über Teil 2 raus. Fehlt eine Mitwirkung des Kunden, fordere sie schriftlich an (mindestens sieben Tage Frist) und gib der Leitung Bescheid.</p>
+    </div>
+  );
+}
+
 function GesellschaftAbschnitt({ akte, tun, laeuft, heute }: Werk) {
   const g = akte.gesellschaft;
   const [f, setF] = useState(g);

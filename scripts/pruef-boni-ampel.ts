@@ -298,5 +298,25 @@ abschnitt("Türen und Einsatzorte");
   ok(/\.ba-schleier[^{]*\{[^}]*z-index:\s*2147483000/.test(css), "Fenster liegt über dem Rundgang-Knopf");
 }
 
+// ── EINSATZORT PRÜFBERICHT (E-268, Justin 01.10.2026: „Echter Prüfbericht") ──────────────────
+// Ausdrückliche Ausnahme von „nie für Kunden": Das Individualangebot zeigt dem Kunden SEINE eigene
+// Ampel als Anlage 2 (Prüfbericht) — mit Grundlage je Teil (Angabe/Annahme) und dem Satz, dass sie keine
+// Kreditwürdigkeitsprüfung ist. Erlaubt ist das nur so: gerechnet und eingefroren auf dem Server
+// (boniAmpelFuerPerson, angebotPruefberichtBoniNeu), als Text aus shared/fiaon-global-angebot.ts
+// (pruefberichtBoniText), gerendert in server/lib/fiaon-global-angebot-vertrag.ts — kein Ampel-Bauteil
+// im Kundenbereich (die Prüfung oben bleibt), keine Weitergabe an Dritte (Ziffer 13 des Vertrags).
+abschnitt("Einsatzort Prüfbericht (E-268)");
+{
+  const textQuelle = lies("shared/fiaon-global-angebot.ts");
+  ok(textQuelle.includes("export function pruefberichtBoniText(") && /Annahme/.test(textQuelle), "Prüfbericht-Text an EINER Stelle, mit Kennzeichnung „Annahme“");
+  ok(/keine Kreditwürdigkeitsprüfung, kein Score im Sinne von § 31 BDSG/.test(textQuelle), "Prüfbericht sagt, was die Ampel NICHT ist");
+  ok(!/Die Angaben sprechen für den Antrag/.test(textQuelle), "der Satz zur Privatkarte steht nicht im Prüfbericht");
+  ok(/boniAmpelFuerPerson\(/.test(lies("server/lib/fiaon-global-angebot.ts")), "Teil IV wird aus der einen Rechnung gerechnet, nicht getippt");
+  ok(/pruefbericht: _nieAusDemFormular/.test(lies("server/routes/fiaon-global-angebot.ts")), "das Formular der Leitung kann keinen Prüfbericht setzen");
+  const seite = lies("client/src/pages/business-angebot.tsx");
+  ok(!/fiaon-boni-ampel|BoniAmpel/.test(seite), "die Kundenseite rechnet und zeigt keine Ampel selbst (nur den Vertragstext vom Server)");
+  ok(/Anlage 2 gibt FIAON nicht an Dritte weiter/.test(textQuelle), "Vertrag: Anlage 2 geht nicht an Dritte");
+}
+
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler === 0 ? 0 : 1);

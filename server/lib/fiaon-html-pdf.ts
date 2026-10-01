@@ -199,10 +199,19 @@ export async function htmlZuPdfMitFusszeile(opts: {
    * bleibt jeder Beleg des Hauses, wie er ist.
    */
   sprache?: "de" | "en";
+  /**
+   * Individualangebot (01.10.2026), Gegenprüfung: Eine Vertragsausfertigung, die der Kunde
+   * gerade annimmt, darf NIE als Ersatzdruck in der Akte landen (ohne Fußzeile, Fassung und
+   * Seitenzahlen wäre die Urkunde eine andere als die geprüfte). Wer das setzt, bekommt den
+   * Chromium-Fehler durchgereicht und entscheidet selbst — die Annahme antwortet dann mit
+   * „bitte in einer Minute noch einmal", gespeichert wird nichts.
+   */
+  keinNotbehelf?: boolean;
 }): Promise<Buffer> {
   try {
     return await chromiumMitFusszeile(opts);
   } catch (e) {
+    if (opts.keinNotbehelf) throw e;
     pdfNotbehelf = true;
     console.error("[FIAON-PDF] Chromium druckt nicht — pdfkit-Notbehelf für dieses "
       + "Dokument. Der Beleg entsteht, aber ohne laufende Fußzeile und Seitenzahl. "

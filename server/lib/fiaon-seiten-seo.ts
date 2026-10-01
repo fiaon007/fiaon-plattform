@@ -389,6 +389,7 @@ const BUSINESS_APP_WEGE = [
   /^\/(en\/)?business$/,                    // Übersicht
   /^\/(en\/)?business\/start$/,             // Auftrag erteilen
   /^\/(en\/)?business\/auftrag(\/[^/]+)?$/, // Mein Auftrag, auch mit Referenz
+  /^\/business\/angebot\/[^/]+$/,            // Individualangebot mit Token (01.10.2026, E-268)
 ];
 
 /** true = die Adresse liegt unter /business (auch /en/business) und ist dort keine Seite → 404. */

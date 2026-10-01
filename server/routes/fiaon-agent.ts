@@ -29,7 +29,8 @@ import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis, pruefeNotiz } from "../lib
 import { nummerAusZeile } from "../lib/fiaon-telefon";
 import { terminArtAusQuelle, terminArtRueckruf, absageSatz } from "../../shared/fiaon-termin-art";
 // E-188 (17.09.2026): FIAON Global — Einmalpreis, kein Abo, eigener Provisionssatz (siehe onCustomerPaid).
-import { istGlobalPaket } from "../../shared/fiaon-pakete";
+// Individualangebot (01.10.2026): Teile eines Angebots melden nichts an Meta (istAngebotsPaket, onCustomerPaid).
+import { istGlobalPaket, istAngebotsPaket } from "../../shared/fiaon-pakete";
 
 const router = Router();
 
@@ -949,11 +950,18 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
     const wertCents = a?.rate1_cents != null ? Number(a.rate1_cents)
       : a?.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null;
     const zeit = a?.rate1_am ?? a?.paid_at ?? null;
-    const produkt = produktFuer(ref, a?.pack_key, a?.type);
-    meldenUndSenden(async () => {
-      await webEreignis(META_EREIGNIS.zahlung, ref, { wertCents, produkt, zeit });
-      await crmEreignis(CRM_EREIGNIS.zahlung, { ref, personId: a?.person_id ?? null, wertCents, zeit });
-    });
+    // Individualangebot (01.10.2026), Endabnahme: Teil 1 und Teil 2 eines Individualangebots melden
+    // nichts an Meta — kein Kauf, keine Lead-Stufe „converted_lead" (Nachtrag d: keine Messung auf
+    // diesem Weg; Ziffer 14 des Vertrags nennt Meta nicht). Dieselbe Sperre wie beim Anlegen der Zeile.
+    if (istAngebotsPaket(a?.pack_key)) {
+      console.log(`[META-MESSUNG] ${ref}: Individualangebot — keine Meldung an Meta.`);
+    } else {
+      const produkt = produktFuer(ref, a?.pack_key, a?.type);
+      meldenUndSenden(async () => {
+        await webEreignis(META_EREIGNIS.zahlung, ref, { wertCents, produkt, zeit });
+        await crmEreignis(CRM_EREIGNIS.zahlung, { ref, personId: a?.person_id ?? null, wertCents, zeit });
+      });
+    }
   } catch (e) {
     console.error("[META-MESSUNG] Zahlung:", e);
   }

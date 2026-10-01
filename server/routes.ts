@@ -463,6 +463,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    die Liste der Leitung liegt unter /admin/global und damit hinter dem Gate oben.
   const fiaonGlobalRoutes = await import('./routes/fiaon-global');
   app.use('/api/fiaon', fiaonGlobalRoutes.default);
+  // 🌐 FIAON Global — Individualangebot (01.10.2026, E-268): Kunde liest und nimmt über einen signierten
+  //    Link an (/business/angebot/:token), die Leitung legt an und führt Meilenstein, Frist und Erstattung
+  //    im Raum /chef/s/global-auftraege (Reiter „Individualangebote"). Logik: server/lib/fiaon-global-angebot.ts.
+  const fiaonGlobalAngebotRoutes = await import('./routes/fiaon-global-angebot');
+  app.use('/api/fiaon', fiaonGlobalAngebotRoutes.default);
   // 🌐 FIAON Global — „Mein Auftrag" (17.09.2026, E-188): der Bereich des Firmenkunden nach dem Kauf
   //    (Etappen, Dokumentenraum, Pflichtenkalender, Nachricht; ohne Login, dasselbe Token wie der Auftrag)
   //    und die Office-Routen dazu unter /agent/global (zuständige Person, Vertriebsleitung, Chef).
@@ -544,6 +549,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Widerrufsfrist (E-191). Stündlich; der Lauf hält sich ans Sendefenster (die Startmail geht mit).
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_widerruf_start', async () => await (await import('./lib/fiaon-global-auftrag')).globalWiderrufsStartLauf(), 60 * 60 * 1000, { beimStartNach: 600_000 });
+  });
+  // 🌐 FIAON Global — Individualangebot (E-268): abgelaufene Angebote schließen, Fristwarnungen (14 und 3 Tage),
+  //    Fristende → dringende Aufgabe an Justin („Erstattung auslösen"), ruhige Nachfrage zu Teil 2. Nur Aufgaben,
+  //    keine Kundenmail, kein Geld. Stündlich, wiederholbar über Marken-Spalten.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_angebot_lauf', async () => await (await import('./lib/fiaon-global-angebot')).globalAngebotLauf(), 60 * 60 * 1000, { beimStartNach: 660_000 });
   });
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
@@ -819,7 +830,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Die Abfrage (z. B. ?paket=…) reist mit.
   // „Mein Auftrag" trägt sein Token in der Adresse (?t=…). Die Seite darf in keinen Index,
   // und die Adresse darf nicht als Referer an fremde Hosts (Schriften, Bilder) mitreisen.
-  app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*'], (_req, res, next) => {
+  // 01.10.2026 (E-268): Das Individualangebot trägt sein Token im Pfad — derselbe Schutz.
+  app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*', '/business/angebot/*'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'private, no-store');

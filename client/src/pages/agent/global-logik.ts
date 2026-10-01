@@ -85,6 +85,12 @@ export interface GlobalAkte {
   ustId: string;
   notizen: GlobalNotiz[]; verlaufAlles: GlobalVerlaufZeile[];
   kundenLink: string | null;
+  /** 01.10.2026 (E-268): Auftrag aus einem Individualangebot — Teile, Frist, Bürgin (nur lesen; die Knöpfe hat die Leitung). */
+  angebot: GlobalAngebotBlock | null;
+}
+export interface GlobalAngebotBlock {
+  ref: string; fristBeginn: string | null; fristEnde: string | null; buergin: string; erstattungAusgeloest: boolean;
+  teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null }[];
 }
 
 // ── Kleine Leser: aus „irgendwas" wird ein sicherer Wert ────────────────────
@@ -187,6 +193,15 @@ export function zeilenLesen(json: unknown): GlobalZeile[] {
   return liste(ding(json).zeilen).map(zeileLesen).filter((z): z is GlobalZeile => !!z);
 }
 
+function angebotLesen(w: unknown): GlobalAngebotBlock | null {
+  const o = ding(w); const ref = txt(o.ref);
+  if (!ref) return null;
+  return {
+    ref, fristBeginn: isoTagAus(o.fristBeginn), fristEnde: isoTagAus(o.fristEnde), buergin: txt(o.buergin), erstattungAusgeloest: o.erstattungAusgeloest === true,
+    teile: liste(o.teile).map((t) => { const x = ding(t); return { nr: zahl(x.nr, 0), titel: txt(x.titel), betragCents: zahl(x.betragCents, 0), stand: txt(x.stand), rechnungsnummer: txt(x.rechnungsnummer) || null }; }).filter((t) => t.nr > 0),
+  };
+}
+
 /** Die sechs Etappen, falls die Antwort sie nicht mitbringt. Die TITEL sind die aus der
  *  Schnittstelle; Wahrheit für Titel UND Kundentexte ist shared/fiaon-global-bereich.ts im Server. */
 export const ETAPPEN_TITEL: string[] = ["Auftrag angelegt", "Gründung und Dokumente", "Die erste Firmenkarte", "Die Kartenleiter", "Das Bankdarlehen", "Abgeschlossen"];
@@ -272,6 +287,7 @@ export function akteLesen(json: unknown): GlobalAkte | null {
     notizen: liste(intern.notizen).map((n) => { const o = ding(n); return { id: txt(o.id), am: txt(o.am) || null, von: txt(o.von), text: txt(o.text), sichtbar: o.sichtbar === true }; }).filter((n) => n.text),
     verlaufAlles: liste(intern.verlaufAlles).map((v) => { const o = ding(v); return { am: txt(o.am) || null, art: txt(o.art), text: txt(o.text), sichtbar: o.sichtbar === true, von: txt(o.von) }; }).filter((v) => v.text),
     kundenLink: txt(a.kundenLink) || null,
+    angebot: angebotLesen(a.angebot),
   };
 }
 

@@ -56,6 +56,8 @@ async function main(): Promise<void> {
   const migration = readFileSync("db/migrations/065_katalogpreis_wand.sql", "utf8");
   // 25.09.2026 (E-240): 083 ersetzt die Funktion — die Auskunft hat vier Preise.
   const migration083 = readFileSync("db/migrations/083_auskunft_katalogpreis.sql", "utf8");
+  // 01.10.2026 (E-268): 087 ersetzt die Funktion noch einmal — das Individualangebot misst sich am angenommenen Teil.
+  const migration087 = readFileSync("db/migrations/087_global_individualangebot.sql", "utf8");
 
   await sqlPool.begin(async (tx: any) => {
     // ═══════════════════════════════════════════════════════════════════════
@@ -63,6 +65,7 @@ async function main(): Promise<void> {
     // ═══════════════════════════════════════════════════════════════════════
     await tx.unsafe(migration);
     await tx.unsafe(migration083);
+    await tx.unsafe(migration087);
     const [{ da }] = (await tx`
       SELECT COUNT(*)::int AS da FROM pg_trigger
       WHERE tgname = 'trg_fiaon_katalogpreis_wand'
@@ -86,14 +89,16 @@ async function main(): Promise<void> {
     `) as any[]).map((r) => [String(r.pack_key), Number(r.preis_cents)]));
     let alleGleich = true;
     const abweichungen: string[] = [];
-    for (const p of PAKETE) {
+    // E-268: Ein Schlüssel mit Preis je Angebot steht absichtlich NICHT in der Abschrift (CHECK > 0) — Gegenprobe unten.
+    for (const p of PAKETE.filter((x) => !x.preisJeAngebot)) {
       if (tabelle.get(p.key) !== p.preisCents) {
         alleGleich = false;
         abweichungen.push(`${p.key}: Tabelle ${tabelle.get(p.key)} ≠ Katalog ${p.preisCents}`);
       }
     }
-    ok(`Alle ${PAKETE.length} Katalogpreise stehen gleich in der Tabelle`,
+    ok(`Alle ${PAKETE.filter((x) => !x.preisJeAngebot).length} Katalogpreise stehen gleich in der Tabelle`,
       alleGleich, abweichungen.join("; "));
+    ok("Das Individualangebot steht NICHT in der Abschrift (Preis je Angebot)", !tabelle.has("global_individuell"));
 
     // ═══════════════════════════════════════════════════════════════════════
     titel("3. DER TRIGGER LEHNT AB, WAS ER ABLEHNEN MUSS");
@@ -183,6 +188,26 @@ async function main(): Promise<void> {
     const falschFirma = await versuch(tx, () => anlegen(`FIAON-SCHUFA-${marke}-P6`, "auskunft_firma_abo", "149.00", "schufa"));
     ok("Firmen-Auskunft mit Paket zu 149,00 € wird ABGELEHNT (199 €)",
       falschFirma !== null, falschFirma ?? "durchgelassen");
+
+    // ═══════════════════════════════════════════════════════════════════════
+    titel("4b. DAS INDIVIDUALANGEBOT WIRD AM ANGENOMMENEN TEIL GEMESSEN (E-268)");
+    // ═══════════════════════════════════════════════════════════════════════
+    const iaOhne = await versuch(tx, () => anlegen(ref("IA1"), "global_individuell", "4650.00", "business"));
+    ok("Individualangebot OHNE gebundenen Teil wird ABGELEHNT", iaOhne !== null && /Angebotsteil|angenommenen Teil/.test(iaOhne), iaOhne ?? "durchgelassen");
+    const [ang] = (await tx`
+      INSERT INTO fiaon_global_angebote (angebot_ref, fassung, kunde, parameter, buergin, status, gueltig_bis)
+      VALUES (${`FIAON-IA-${marke.slice(-6)}`}, 'IA-2026-10-01', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, 'angenommen', CURRENT_DATE)
+      RETURNING id`) as any[];
+    await tx`INSERT INTO fiaon_global_angebot_teile (angebot_id, nr, titel, betrag_cents, faelligkeit, bestell_ref)
+             VALUES (${ang.id}, 1, 'Teil 1: Gründung', 465000, 'sofort', ${ref("IA2")})`;
+    const iaEntwurf = await versuch(tx, () => anlegen(ref("IA2"), "global_individuell", null, "business"));
+    ok("Individualangebot: Zeile ohne Betrag geht durch (Teil wird vor dem Betrag gebunden)", iaEntwurf === null, iaEntwurf ?? "");
+    const iaGut = await versuch(tx, () => tx`UPDATE fiaon_applications SET amount_due = 4650.00 WHERE ref = ${ref("IA2")}`);
+    ok("Individualangebot: Betrag = angenommener Teil geht durch", iaGut === null, iaGut ?? "");
+    const iaFalsch = await versuch(tx, () => tx`UPDATE fiaon_applications SET amount_due = 1.00 WHERE ref = ${ref("IA2")}`);
+    ok("Individualangebot: anderer Betrag wird ABGELEHNT", iaFalsch !== null && /Angebotsteil/.test(iaFalsch), iaFalsch ?? "durchgelassen");
+    ok("katalogpreisCents leitet für das Individualangebot nichts ab",
+      katalogpreisCents({ ref: "FIAON-IA", type: "business", pack_key: "global_individuell" }) === null);
 
     // ═══════════════════════════════════════════════════════════════════════
     titel("5. DAS PAKET WECHSELN NIMMT DEN BETRAG MIT");

@@ -936,7 +936,8 @@ router.post("/admin/kunden/:ref/stammdaten", async (req: Request, res: Response)
 // Stufenpaket ist und in der Akte nicht umgestellt wird.
 // ═══════════════════════════════════════════════════════════════════════════
 const PACKS_ALLOWED: Record<string, string> = Object.fromEntries(
-  PAKETE.filter((p) => !p.zusatz).map((p) => [p.key, p.label]),
+  // E-268 (01.10.2026): Ein Individualangebot ist kein Paket zum Umstellen — sein Betrag steht im Angebot.
+  PAKETE.filter((p) => !p.zusatz && !p.preisJeAngebot).map((p) => [p.key, p.label]),
 );
 router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response) => {
   try {
@@ -1097,6 +1098,9 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
     if (body.packKey !== undefined) {
       const key = String(body.packKey || "").trim();
       if (!PACKS_ALLOWED[key]) return res.status(400).json({ ok: false, error: "Unbekanntes Paket" });
+      if (key !== cur.pack_key && PAKETE.some((p) => p.key === cur.pack_key && p.preisJeAngebot)) {
+        return res.status(409).json({ ok: false, error: "Diese Bestellung ist ein Teil eines angenommenen Individualangebots (FIAON Global). Betrag und Leistung stehen im Vertrag — das Paket wird hier nicht umgestellt." });
+      }
       const from = cur.pack_name || cur.pack_key || "—";
       if (key !== cur.pack_key) {
         // ── NACHTRAG STATT WECHSEL (07.09.2026, Antonio Mičuda) ─────────────

@@ -230,6 +230,8 @@ const GlobalLandingPage = lazy(() => import("@/pages/site/global-lp"));
 const GlobalWiderrufPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalWiderrufsbelehrungSeite })));
 const GlobalMustervertragPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalMustervertragSeite })));
 const BusinessAuftragPage = lazy(() => import("@/pages/business-auftrag"));
+// 01.10.2026 (E-268): das persönliche Individualangebot — signierter Link, Annahme per Knopf.
+const BusinessAngebotPage = lazy(() => import("@/pages/business-angebot"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
 const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
@@ -485,6 +487,7 @@ function Router() {
       <Route path="/business" component={BusinessPage} />
       <Route path="/business/start" component={BusinessStartPage} />
       <Route path="/business/auftrag/:ref?" component={BusinessAuftragPage} />
+      <Route path="/business/angebot/:token" component={BusinessAngebotPage} />
       <Route path="/business/lp/:slug" component={GlobalLandingPage} />
       <Route path="/business/widerrufsbelehrung" component={GlobalWiderrufPage} />
       <Route path="/business/mustervertrag" component={GlobalMustervertragPage} />

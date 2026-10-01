@@ -56,7 +56,7 @@ import { sqlPool } from "./db-pool";
 import { berlinToday, berlinDatum, berlinOffsetMinutes } from "./fiaon-time";
 import { isoTag } from "./fiaon-kuendigung-mitarbeiter";
 import { escapeHtml } from "./fiaon-html-pdf";
-import { paket as katalogPaket } from "@shared/fiaon-pakete";
+import { paket as katalogPaket, istAngebotsPaket } from "@shared/fiaon-pakete";
 import { globalPaket } from "@shared/fiaon-global";
 import { wandPruefen, wandUrteil } from "@shared/fiaon-wortverbote";
 import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
@@ -297,10 +297,12 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     ansprechpartnerFuer(akte.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null),
   ]);
   const bis = globalPaketEtappeBis(akte.paket_key);
+  // Individualangebot (01.10.2026), Nachtrag (h): Etappe 1 und die Unterlagenliste verlangen dort nur den Reisepass.
+  const individuell = istAngebotsPaket(akte.paket_key);
   const etappen = GLOBAL_ETAPPEN.map((e) => {
     const seit = e.nr === 0 ? iso(akte.unterschrieben_am ?? akte.created_at) : (l.etappenSeit[String(e.nr)] ? iso(l.etappenSeit[String(e.nr)]) : null);
     const stand = globalEtappeStand(e.nr, l.etappe);
-    return { nr: e.nr, ...globalEtappeText(e.nr, sprache), stand, ...(seit && stand !== "offen" ? { seit } : {}), imPaket: e.nr <= bis || e.nr === GLOBAL_ETAPPE_MAX };
+    return { nr: e.nr, ...globalEtappeText(e.nr, sprache, individuell), stand, ...(seit && stand !== "offen" ? { seit } : {}), imPaket: e.nr <= bis || e.nr === GLOBAL_ETAPPE_MAX };
   });
   const g = l.gesellschaft;
   const gesellschaft = g && (g.name || g.form || g.bundesstaat || g.gegruendetAm || g.einVorhanden != null || g.itinStand)
@@ -341,7 +343,7 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     ...(ansprechpartner ? { ansprechpartner } : {}),
     ...(gesellschaft ? { gesellschaft } : {}),
     // Vorhanden ist eine Unterlage, sobald ein Dokument ihrer Art im Raum liegt — gleich, wer es abgelegt hat.
-    unterlagen: globalUnterlagenStand(dokumente.map((d) => String(d.art)), sprache, firma.art === "privat"),
+    unterlagen: globalUnterlagenStand(dokumente.map((d) => String(d.art)), sprache, firma.art === "privat", individuell),
     dokumente: sichtbareDokumente.map((d) => ({
       id: Number(d.id), art: String(d.art), artText: globalDokumentArtText(d.art, sprache), name: String(d.dateiname),
       groesse: Number(d.groesse || 0), von: d.von === "kunde" ? "kunde" : "fiaon", am: iso(d.created_at),
@@ -357,8 +359,30 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     uploadOffen: fuer === "office" ? BEZAHLT.includes(l.status) : LAEUFT.includes(l.status),
     // Die Auswahl beim Hochladen — der Kunde nur, was er liefern darf; das Office jede Art (in seiner Sprache: deutsch).
     dokumentArten: globalDokumentArtenFuer(fuer, fuer === "office" ? "de" : sprache),
+    // 01.10.2026 (E-268): Akte aus einem Individualangebot — Teile, Frist, Bürgin (nur lesen). Darf scheitern:
+    // „Mein Auftrag" steht dann wie bei jedem Global-Auftrag, nur ohne diesen Block.
+    ...(katalogPaket(akte.paket_key)?.preisJeAngebot ? await angebotBlock(ref, fuer) : {}),
     _verlaufAlles: verlaufAlles,
   };
+}
+
+async function angebotBlock(ref: string, fuer: "kunde" | "office"): Promise<{ angebot?: Record<string, unknown> }> {
+  try {
+    const { angebotSichtZurAkte } = await import("./fiaon-global-angebot");
+    const a = await angebotSichtZurAkte(ref);
+    if (!a) return {};
+    if (fuer === "kunde") {
+      // Die Rechnung von Teil 2 hängt an einer eigenen Bestellzeile — ein eigener, frischer Zugang dazu.
+      const { globalTokenErzeugen } = await import("./fiaon-global-auftrag");
+      a.teile = (a.teile as any[]).map((t) => t.bestellRef && t.rechnungsnummer
+        ? { ...t, rechnungUrl: `/api/fiaon/global/auftrag/${encodeURIComponent(String(t.bestellRef))}/rechnung.pdf?t=${encodeURIComponent(globalTokenErzeugen(String(t.bestellRef)))}`, bestellRef: undefined }
+        : { ...t, bestellRef: undefined });
+    }
+    return { angebot: a };
+  } catch (e) {
+    console.error(`[FIAON-GLOBAL] ${ref}: Angebotsblock nicht gelesen:`, e);
+    return {};
+  }
 }
 
 /** GET /global/mein-auftrag/:ref — was der Kunde sieht. `token` ist das bereits geprüfte aus `?t=`. */
@@ -1148,8 +1172,8 @@ export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalT
         const schluessel = `global:${ref}:unterlagen`;
         if (!(await aufgabeDa(schluessel))) {
           const arten = (await sqlPool`SELECT DISTINCT art FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL`) as any[];
-          const [fa] = (await sqlPool`SELECT firma FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
-          const stand = globalUnterlagenStand(arten.map((a) => String(a.art)), "de", json<Record<string, any>>(fa?.firma, {}).art === "privat");
+          const [fa] = (await sqlPool`SELECT firma, paket_key FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
+          const stand = globalUnterlagenStand(arten.map((a) => String(a.art)), "de", json<Record<string, any>>(fa?.firma, {}).art === "privat", istAngebotsPaket(fa?.paket_key));
           const fehlt = stand.filter((u) => !u.vorhanden);
           if (fehlt.length) {
             await aufgabe(schluessel, `FIAON Global: Unterlagen fehlen — ${firma}`,

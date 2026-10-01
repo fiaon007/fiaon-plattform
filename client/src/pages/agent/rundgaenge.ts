@@ -1017,6 +1017,34 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "sich nicht von selbst: Rund einen Monat vor dem ersten Jahrestag bekommt die zuständige Person die Aufgabe, die Rechnung fürs "
       + "zweite Jahr zu stellen — mit deren Zahlung beginnt das Betreuungsjahr.",
   },
+  // ── Individualangebot (01.10.2026, E-268) — drei Schritte, nur der erste mit `ziel` ──
+  // Der Reiter steht immer da; Formular und Knöpfe erscheinen nur am jeweiligen Angebot.
+  {
+    ziel: ".cg-reiter",
+    titel: "Zweiter Reiter: Individualangebote.",
+    text: "Ein persönliches Angebot für eine Person — Teil 1 „Gründung“ sofort fällig, Teil 2 „Kapital-Begleitung“ erst, wenn die "
+      + "Gesellschaft eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist. Dazu die "
+      + "Bürgschaftszusage der Schwarzott Global LLC und eine Frist: Kommt bis dahin weder Kapital noch Karte, erstattet FIAON Teil 1 "
+      + "vollständig. „Neues Individualangebot“ holt Name, Anschrift und Geburtsdatum aus dem jüngsten Antrag der Person.",
+    tipp: "Angenommen wird nur vom Kunden über seinen Link. Öffnest du den Link aus dem Chefbüro, siehst du die Seite ohne Annahmeknopf.",
+  },
+  {
+    titel: "Rot heißt: Der Kunde kann noch nicht annehmen.",
+    text: "Solange ein Pflichtfeld der Bürgin fehlt (Registernummer, Vertretung, Funktion, Datum der eigenhändigen Unterschrift, "
+      + "Abgleich mit dem Registerauszug) oder der Prüfbericht fehlt, liest der Kunde das Angebot, sieht aber statt des Knopfs einen "
+      + "ruhigen Satz. „Pflichtfelder der Bürgin eintragen“ öffnet die Felder. Jede Änderung steht mit der alten Prüfsumme im Verlauf. "
+      + "Davon getrennt ist der Versand: Steht statt „Link kopieren“ ein rotes „Versand gesperrt“, fehlt der Registernachweis der "
+      + "Bürgin — Registerauszug (Status „Active“) in die Akte, die Document Number eintragen, als Grundlage „Registerauszug vom …“.",
+    tipp: "Anlage 1 wird von Hand unterschrieben (§ 766 BGB) — das Original per Post an den Kunden, erst dann das Datum eintragen. Den Link immer aus dem Reiter kopieren, nie aus Notizen — alte Links laufen nicht länger als der heutige Nachlauf.",
+  },
+  {
+    titel: "Nach der Annahme: Meilenstein, Frist, Erstattung.",
+    text: "Mit dem Zahlungseingang von Teil 1 startet der Auftrag und die Frist läuft — Beginn und Ende stehen am Angebot, der Kunde "
+      + "bekommt beides per Mail. „Meilenstein erreicht“ stellt die Rechnung über Teil 2 (Beleg in einem Satz, intern). „Frist hemmen“ "
+      + "nur nach schriftlicher Aufforderung. Ist die Frist ohne Meilenstein abgelaufen, wird „Erstattung vormerken“ frei: Teil 2 "
+      + "entfällt, Justin bekommt die dringende Aufgabe und überweist von Hand, der Kunde bekommt eine Mail.",
+    tipp: "Ein gesperrter Knopf nennt seinen Grund direkt daneben — zum Beispiel „Die Frist läuft bis …“.",
+  },
 ];
 
 // ── /agent/global (17.09.2026, E-188) — die Liste der Global-Aufträge ───────
@@ -1144,6 +1172,15 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     titel: "Abschließen, wenn alles aus dem Paket geliefert ist.",
     text: "„Auftrag abschließen“ setzt den Stand auf abgeschlossen und die Etappe auf 5. Der Kunde liest deinen Abschlusstext in "
       + "seinem Verlauf; Dokumente und Pflichtenkalender bleiben für ihn sichtbar.",
+  },
+  {
+    // 01.10.2026 (E-268) — ohne `ziel`: Der Block steht nur bei Aufträgen aus einem Individualangebot.
+    titel: "Auftrag aus einem Individualangebot: Teile und Frist statt Stichtag.",
+    text: "Kommt der Auftrag aus einem persönlichen Angebot, steht im Reiter „Stand“ statt des Stichtags der Block „Individualangebot“: "
+      + "Teil 1 „Gründung“ (sofort fällig), Teil 2 „Kapital-Begleitung“ (erst beim Meilenstein) und das Fristende. Kommt bis dahin weder "
+      + "Kapital noch Karte für die Gesellschaft, erstattet FIAON Teil 1 vollständig. Ist das erste Kapital ausgezahlt oder die erste Karte "
+      + "freigeschaltet, sag es der Leitung — sie trägt den Meilenstein ein, dann geht die Rechnung über Teil 2 raus.",
+    tipp: "Fehlt eine Unterlage oder Unterschrift des Kunden, fordere sie schriftlich mit mindestens sieben Tagen Frist an und gib der Leitung Bescheid — nur dann darf die Frist ruhen.",
   },
 ];
 

@@ -173,7 +173,10 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
     currency: a.currency || "EUR",
     // Beim Firmenauftrag steht oben die Firma, nicht ein Vorname.
     firstName: firmenauftrag ? "" : (a.first_name || ""),
-    packName: firmenauftrag ? (enName ? `FIAON ${enName}` : (katalogPaket(a.pack_key)?.label ?? a.pack_name ?? "")) : (a.pack_name || ""),
+    // E-268: Ein Teil eines Individualangebots heißt wie der Teil („FIAON Global – Individualangebot, Teil 1: Gründung").
+    packName: firmenauftrag
+      ? (enName ? `FIAON ${enName}` : ((katalogPaket(a.pack_key)?.preisJeAngebot ? String(a.pack_name || "") : "") || katalogPaket(a.pack_key)?.label || a.pack_name || ""))
+      : (a.pack_name || ""),
     ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || ""), sprache } : {}),
   };
 }

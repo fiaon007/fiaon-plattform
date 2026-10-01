@@ -48,6 +48,8 @@ import { APP_VORLAGEN } from "./vorlagen/app";
 import { BEWERBUNG_VORLAGEN } from "./vorlagen/bewerbung";
 import { GLOBAL_VORLAGEN, GLOBAL_VORLAGEN_EN } from "./vorlagen/global";
 import { GLOBAL_BEREICH_VORLAGEN, GLOBAL_BEREICH_VORLAGEN_EN } from "./vorlagen/global-bereich";
+// 01.10.2026 (E-268): das Individualangebot von FIAON Global (Bestätigung, Start, Teil 2, Erstattung).
+import { GLOBAL_ANGEBOT_VORLAGEN, GLOBAL_ANGEBOT_ABSENDER } from "./vorlagen/global-angebot";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -65,6 +67,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...BEWERBUNG_VORLAGEN,
   ...GLOBAL_VORLAGEN,
   ...GLOBAL_BEREICH_VORLAGEN,
+  ...GLOBAL_ANGEBOT_VORLAGEN,
 };
 
 /**
@@ -120,6 +123,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   global_zahlung_erinnerung: "accounting",
   // E-244 (26.09.2026): die Erinnerung an eine offene Bonitätsauskunft — Zahlungspost aus der Buchhaltung.
   auskunft_zahlung_erinnerung: "accounting",
+  // E-268 (01.10.2026): Vertrag + Rechnung, Rechnung Teil 2 und die Erstattung eines Individualangebots.
+  ...GLOBAL_ANGEBOT_ABSENDER,
   // 18.09.2026: Diese drei kamen als „FIAON Welcome" — die Stimme der
   // Begrüßung. Der Kontowechsel ist Buchhaltung; Kündigung und Vertragsende
   // sind Vertragspost und kommen wie die Kündigung eines Mitarbeiters (E-185)

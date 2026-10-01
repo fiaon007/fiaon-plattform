@@ -5,6 +5,93 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — FIAON Global: das Individualangebot — persönlicher Link, Annahme per Knopf, Teil 2 erst beim Erfolg (E-268)
+
+**Der Anlass:** Justin: „Ja ich erlaube dir alles, umsetzen bitte" — ein persönliches Angebot für Herrn William Hildbrand:
+11.500 € gesamt, davon 4.650 € für die Gründung der US-LLC sofort und 6.850 € für die Kapital-Begleitung erst, wenn die
+LLC eingetragen ist UND das erste Kapital ausgezahlt bzw. die erste Kreditkarte freigeschaltet ist. Bürgin: die
+Schwarzott Global LLC mit Höchstbetrag 800.000 US-Dollar, keine Sicherheiten. Kommt in zwölf Wochen weder Kapital noch Karte,
+gibt es die 4.650 € vollständig zurück. Dazu ein echter Prüfbericht — nie „knapp bestanden", nie Erfundenes.
+
+**Nachtrag (10:50–10:58) und Gegenprüfung (Mittag), eingearbeitet:** Die Seite begrüßt den Kunden persönlich mit einem
+ruhigen Auftakt (überspringbar, ohne Bewegung bei reduzierter Bewegung), der Hero nennt nur den Nutzen — Kapitalrahmen
+und Karten als feste Zahl, aber als ZIEL gekennzeichnet; Beträge stehen erst unter „Ihre Investition" und in der
+Bestellübersicht. Kein Cookie-Hinweis und keine Messung auf der Vertragsseite. „Alles inklusive" meint alle Gebühren und
+Honorare für die vereinbarten Leistungen (Ziffer 5 Absatz 5 nennt den Rest); Mitwirkung bleibt bei Unterschriften (auch
+die Mandate der Partner und die Meldung nach § 138 AO), Reisepass (mit Adressnachweis, wenn ein Institut ihn zur
+Identifizierung verlangt) und wahren Angaben. Fristen auf der Seite laufen „ab unserem Start (mit sofortigem Beginn:
+ab Zahlungseingang)". Ziffer 4 behauptet keine Partnervergütung mehr, sondern verpflichtet zur Offenlegung. Anlage 1
+ohne Document Number nennt keine Registerzeile (nie „unter der Nummer nicht erforderlich"); ein eigenes Blatt
+**„Anlage 1 zum Unterschreiben (PDF)"** trägt die Prüfsumme der Fassung. Der Prüfbericht nennt beim „bestanden" die
+Auflagen (Identifizierung, PEP) im selben Satz; Tabellen stapeln am Handy. Technik: Vorbelegung liest
+`primary_email/primary_phone` (vorher immer 404); optimistische Sperre bei der Annahme (`updated_at`); eine
+Ausfertigung wird nie als pdfkit-Ersatzdruck gespeichert; hängende Nacharbeit heilt sich beim nächsten Aufruf des
+Links und im Stundenlauf und bekommt eine dringende Aufgabe; „Frist hemmen" rechnet die Ruhezeit (Aufforderung + sieben
+Tage bis zur Mitwirkung, nie doppelt) und teilt sie dem Kunden per Mail mit (`global_angebot_hemmung`); die
+Bestellzeile behauptet keine AGB-Zustimmung (Ziffer 15); Startmail, „Mein Auftrag" und Nachfass verlangen nur den
+Reisepass; der Kundenlink läuft sieben statt dreißig Tage nach.
+
+**Endabnahme (Nachmittag), eingearbeitet:** (1) Die Existenz der Bürgin ist im Haus nur über den EIN-Antrag SS-4 belegt —
+kein Registernachweis; ein öffentlicher Registerspiegel (OpenCorporates) führt die Schwarzott Global LLC unter der Florida
+Document Number L24000309016 als **„Inactive"**, Sunbiz selbst war nicht abrufbar. Annahme und Versand sind deshalb jetzt
+getrennt: Die Annahme bleibt nach Justins Entscheidung möglich, aber der Reiter zeigt statt „Link kopieren" ein rotes
+**„Versand gesperrt"** mit Grund (`angebotVersandSperre`), bis die Document Number aus dem Register eingetragen ist und die
+Bestätigung sich auf den Registerauszug stützt. Die Saat sagt dasselbe. (2) „Was Sie bekommen": auch die Überschriften
+heißen „Ihr Ziel: Kapitalrahmen von 800.000 US-Dollar" und „Ihr Ziel: drei Business-Kreditkarten". (3) „Nicht enthalten
+sind …" ohne „nur", mit allen vier Posten aus Ziffer 5 Absatz 5 — Seite und Mail wortgleich. (4) Anlage 2 Abschnitt V
+nennt genau die drei Mitwirkungen der Ziffer 7 Absatz 1 (Saat setzt den Prüfbericht nach, `angebotPruefberichtSetzen`;
+Ergebnis unverändert). (5) Keine Meta-Meldung auf diesem Weg: Die Bestellzeile kommt mit `messungAus`, das Paket
+`global_individuell` sperrt Web- UND CRM-Ereignis beim Anlegen und die Kauf-/Lead-Meldung in `onCustomerPaid`. (6) Alte
+Links leben nicht länger als „gültig bis + sieben Tage" von heute (`angebotLinkAbgelaufen`) — der Vorschau-Link mit
+dreißig Tagen Nachlauf ist damit nach dem 22.10.2026 tot; der Link für den Versand kommt nur aus dem Reiter.
+
+**Was jetzt gilt:**
+- **Kundenseite `/business/angebot/<persönlicher Link>`** im hellen Kanzlei-Design der Business-Welt (auch am Handy,
+  380 px): Überblickstafel, fünf Vorteile, Ablauf, Pflichthinweise, der Vertrag mit drei Anlagen (Anlage 1
+  Bürgschaftszusage, Anlage 2 Prüfbericht, Anlage 3 Widerrufsbelehrung) — als PDF-Entwurf und Prüfbericht-PDF zum Ansehen.
+  Unmittelbar über dem Knopf **„Zahlungspflichtig annehmen"** steht die Bestellübersicht. Häkchen gibt es nur zwei, beide
+  freiwillig und nie vorangekreuzt: sofortiger Beginn (mit Wertersatz-Satz) und Jahresbetreuung ab dem zweiten Jahr.
+- **Annahme:** Der Server rechnet die Prüfsumme (SHA-256) des gezeigten Textes nach — wer eine geänderte Fassung vor
+  sich hat, wird gebeten, neu zu laden. Gespeichert werden Zeitpunkt, IP-Adresse, Browser und Prüfsumme; der Vertrag
+  entsteht sofort als PDF mit Annahmevermerk. Ein Doppelklick legt nichts doppelt an. Annehmen kann nur der Kunde —
+  mit Chef- oder Admin-Zugang zeigt die Seite eine Vorschau ohne Knopf.
+- **Gleich danach:** Bestellung Teil 1 über 4.650,00 €, Zahlungsziel sofort, Rechnungsnummer aus dem bestehenden
+  Nummernkreis, Bankdaten aus der einen Quelle; Zahlungsseite; „Mein Auftrag"; Bestätigungsmail mit Vertrag und
+  Rechnung; Aufgabe an die zuständige Person und an Justin.
+- **Gesperrt, solange etwas fehlt:** Solange Registernummer, Funktion des Vertreters, Datum der eigenhändigen
+  Unterschrift (§ 766 BGB) oder der Abgleich mit dem Registerauszug der Schwarzott Global LLC fehlen, sieht der Kunde nur
+  „Dieses Angebot wird gerade vervollständigt" — die Leitung trägt die Felder im Chefbüro ein.
+- **Chefbüro, Raum Global-Aufträge, neuer Reiter „Individualangebote"** (`/chef/s/global-auftraege?reiter=angebote`, keine
+  neue Seite): anlegen (Daten aus dem jüngsten Antrag der Person), Pflichtfelder der Bürgin, Bonitätsteil des Prüfberichts
+  neu rechnen, Link kopieren, zurückziehen — und nach der Annahme **„Meilenstein erreicht → Rechnung Teil 2"** (6.850,00 €,
+  zahlbar binnen sieben Tagen), **„Frist hemmen"** (nur nach Aufforderung in Textform) und **„Frist abgelaufen →
+  Erstattung 4.650 € vormerken"** (Teil 2 entfällt, Storno-Weg mit Erstattung, dringende Aufgabe an Justin — Geld bewegt
+  nur Justin, von Hand —, Mail an den Kunden). Jeder gesperrte Knopf nennt seinen Grund.
+- **Nach der Zahlung von Teil 1** startet der Auftrag (ohne sofortigen Beginn erst nach der Widerrufsfrist), die Frist
+  wird gesetzt und dem Kunden mit Datum mitgeteilt. Ein stündlicher Lauf erinnert 14 und 3 Tage vor Fristende, meldet
+  das Fristende an Justin und fragt nach einer offenen Rechnung Teil 2 ruhig nach — nur Aufgaben, keine Kundenmail.
+- **Im Office** (Global-Akte, Reiter „Stand") steht statt des Stichtags der Block „Individualangebot"; „Mein Auftrag"
+  zeigt dem Kunden beide Teile, die Rechnungen und das Fristende.
+- **Technisch:** Jeder Teil ist eine normale Bestellzeile mit dem Katalogschlüssel `global_individuell` (kein Abo, nie in
+  einer Auswahl, kein Katalogpreis — der Betrag kommt aus dem angenommenen Teil). Neue Tabellen
+  `fiaon_global_angebote` und `fiaon_global_angebot_teile`; Migration 087 lässt die Katalogpreis-Wand den Betrag am
+  angenommenen Teil prüfen. Die Global-Liste und der Global-Filter im Antrag lesen ihre Schlüssel jetzt aus dem Katalog
+  (vorher nur die vier Pakete, entgegen dem Kommentar). Teile eines Angebots legen sich gegenseitig nie still.
+- **Saat:** `scripts/angebot-hildbrand-anlegen.ts` (Vorschau; `--schreiben` legt an, gegen die Produktion nur mit
+  `--produktion` und Justins Go). Prüfstand: `scripts/pruef-individualangebot.ts` (ohne Datenbank; `--lokal` spielt den
+  ganzen Ablauf gegen die lokale Prüf-Datenbank und macht Fotos). Rundgänge „Global-Aufträge" und „Global-Akte" ergänzt.
+
+**Wo:** `shared/fiaon-global-angebot.ts` (alle Sätze), `server/lib/fiaon-global-angebot.ts`,
+`server/lib/fiaon-global-angebot-vertrag.ts`, `server/routes/fiaon-global-angebot.ts`,
+`server/mail/vorlagen/global-angebot.ts`, `client/src/pages/business-angebot.tsx`,
+`client/src/components/admin/ChefGlobalAngebote.tsx`, `db/migrations/087_global_individualangebot.sql`.
+
+**Vor dem Versand an Herrn Hildbrand offen:** Daten der Schwarzott Global LLC eintragen; Anlage 1 von Hand
+unterschreiben; Anwalt zu § 34c GewO (erfolgsabhängiger Teil 2), § 1 KWG (Garantiegeschäft) und § 7 UWG (Lead aus der
+Kartenkampagne).
+
+---
+
 ## 01.10.2026 — Vertretung (01.10.2026): Terminseite, Maras Übergaben und „ROT bleibt"
 
 **Der Anlass:** Seit 01.10. 10:28 ist das ganze Team bis 15.10. abwesend, **Nikita vertritt** (Mara-Steuerpult →

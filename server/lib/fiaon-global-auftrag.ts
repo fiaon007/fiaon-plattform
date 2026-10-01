@@ -73,8 +73,8 @@ import { signaturPruefen, isoTag } from "./fiaon-kuendigung-mitarbeiter";
 import { absoluteUrl } from "../fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
 import { epcQrNutzlast } from "@shared/fiaon-epc-qr";
-import { paket as katalogPaket, verkaufbarePakete, istGlobalPaket } from "@shared/fiaon-pakete";
-import { GLOBAL_PAKETE, GLOBAL_VERTRAG_VERSION, GLOBAL_JAHRESBETREUUNG, globalPaket, istFiaonSelbst, type GlobalSchluessel } from "@shared/fiaon-global";
+import { paket as katalogPaket, verkaufbarePakete, istGlobalPaket, istAngebotsPaket, PAKETE } from "@shared/fiaon-pakete";
+import { GLOBAL_VERTRAG_VERSION, GLOBAL_JAHRESBETREUUNG, globalPaket, istFiaonSelbst, type GlobalSchluessel } from "@shared/fiaon-global";
 import { globalMeinAuftragPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { dachNummer, type DachLand } from "@shared/fiaon-dach-telefon";
 import {
@@ -83,7 +83,22 @@ import {
 import { globalUnterlagenZeilen } from "@shared/fiaon-global-bereich";
 
 export const GLOBAL_TOKEN_TAGE = 30;
-export const GLOBAL_SCHLUESSEL: string[] = GLOBAL_PAKETE.map((p) => p.key);
+// Individualangebot (01.10.2026, E-268): aus dem KATALOG (art „global"), nicht aus den vier Paketseiten —
+// sonst fehlte jeder Auftrag aus einem Individualangebot in der Liste der Leitung.
+export const GLOBAL_SCHLUESSEL: string[] = PAKETE.filter((p) => p.art === "global").map((p) => p.key);
+
+/**
+ * Der Betrag eines Global-Auftrags in Cent. Für die vier Pakete der Katalogpreis (wie bisher),
+ * für ein Individualangebot (E-268) der Betrag der Bestellzeile — geschrieben aus dem angenommenen
+ * Angebotsteil. Vorher stand an fünf Stellen „kat?.preisCents ?? amount_due": Bei Katalogpreis 0
+ * wäre dort 0 € herausgekommen, weil 0 kein „fehlt" ist.
+ */
+export function globalBetragCents(packKey: unknown, amountDue: unknown): number {
+  const kat = katalogPaket(packKey);
+  const ausZeile = Math.round(Number(amountDue || 0) * 100);
+  if (!kat || kat.preisJeAngebot) return ausZeile;
+  return kat.preisCents;
+}
 const LAENDER: DachLand[] = ["DE", "AT", "CH"];
 const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" };
 
@@ -135,7 +150,9 @@ export function ensureGlobalTabelle(): Promise<void> {
           ADD COLUMN IF NOT EXISTS stichtag_mail_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           ADD COLUMN IF NOT EXISTS jahresbetreuung BOOLEAN NOT NULL DEFAULT FALSE,
-          ADD COLUMN IF NOT EXISTS jahresbetreuung_preis_cents INTEGER`);
+          ADD COLUMN IF NOT EXISTS jahresbetreuung_preis_cents INTEGER,
+          ADD COLUMN IF NOT EXISTS angebot_id INTEGER`);
+      // 01.10.2026 (E-268): angebot_id = die Akte gehört zu einem Individualangebot (fiaon_global_angebote.id).
       // 19.09.2026 (E-196): jahresbetreuung = im Auftrag angekreuzt; der Preis vom Tag der Bestellung
       // (GLOBAL_JAHRESBETREUUNG.preisCents), NULL wenn nicht gebucht. Alte Aufträge: nicht gebucht.
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_auftraege_status_idx ON fiaon_global_auftraege (status, created_at DESC)`;
@@ -510,7 +527,7 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
   if (!akte || !b) return null;
   const status = statusAus(akte, b);
   const kat = katalogPaket(akte.paket_key);
-  const betragCents = kat?.preisCents ?? Math.round(Number(b.amount_due || 0) * 100);
+  const betragCents = globalBetragCents(akte.paket_key, b.amount_due);
   const firma = json<Partial<GlobalFirma>>(akte.firma, {});
   let qrDatenUrl: string | null = null;
   if (status === "offen" && b.payment_reference && betragCents > 0) {
@@ -527,7 +544,7 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
     auftraggeber: privat ? "privat" : "unternehmen",
     // Privatauftrag: bis wann widerrufen werden kann und ob die Arbeit erst danach beginnt.
     ...(frist ? { widerruf: { fristEnde: frist.fristEnde, startAb: frist.startAb, sofortBeginn: json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true } } : {}),
-    paket: akte.paket_key, paketName: kat?.label ?? String(b.pack_name || akte.paket_key), betragCents,
+    paket: akte.paket_key, paketName: (kat?.preisJeAngebot ? String(b.pack_name || "") : "") || kat?.label || String(b.pack_name || akte.paket_key), betragCents,
     // E-196: angekreuzt ja/nein und der Preis je Betreuungsjahr — heute berechnet wird nur betragCents.
     ...globalJahresbetreuungAus(akte),
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || "") },
@@ -551,7 +568,10 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
 // Die vier unteren gehören zum Bereich „Mein Auftrag" (server/mail/vorlagen/global-bereich.ts).
 export type GlobalMail =
   | "global_auftrag" | "global_start" | "global_stichtag" | "global_zahlung_erinnerung"
-  | "global_zugang" | "global_etappe" | "global_frist" | "global_dokument";
+  | "global_zugang" | "global_etappe" | "global_frist" | "global_dokument"
+  // Individualangebot (01.10.2026, E-268) — server/mail/vorlagen/global-angebot.ts.
+  | "global_angebot_angenommen" | "global_angebot_start" | "global_angebot_teil2"
+  | "global_angebot_teil2_bezahlt" | "global_angebot_erstattung" | "global_angebot_hemmung";
 export type GlobalMailSprache = "de" | "en";
 
 /** In welcher Sprache der Kunde seinen Auftrag geführt hat — sie steht in der Akte (vertrag_sprache). */
@@ -618,7 +638,7 @@ export function globalMailNutzlast(
   const paketKey = akte?.paket_key ?? b?.pack_key;
   const kat = katalogPaket(paketKey);
   const gp = globalPaket(paketKey);
-  const betragCents = kat?.preisCents ?? Math.round(Number(b?.amount_due || 0) * 100);
+  const betragCents = globalBetragCents(paketKey, b?.amount_due);
   const ref = String(b?.ref || akte?.ref || "");
   const anrede = ap.nachname || ap.vorname
     ? (en ? anredeZeileEn(ap) : anredeZeile(ap))
@@ -629,7 +649,8 @@ export function globalMailNutzlast(
     anrede_zeile: escapeHtml(anrede),
     firma: escapeHtml(String(firma.name || akte?.firma_name || b?.company_name || (en ? "your company" : "Ihr Unternehmen"))),
     // Englisch heißt das Paket, wie es im englischen Auftrag heißt („FIAON Global Capital").
-    paket: escapeHtml(en && gp ? `FIAON ${gp.en.name}` : (kat?.label ?? String(b?.pack_name || "FIAON Global"))),
+    // E-268: Beim Individualangebot heißt die Zeile wie der Teil („… Teil 1: Gründung"), nicht wie der Katalogschlüssel.
+    paket: escapeHtml(en && gp ? `FIAON ${gp.en.name}` : ((kat?.preisJeAngebot ? String(b?.pack_name || "") : "") || kat?.label || String(b?.pack_name || "FIAON Global"))),
     betrag_text: en ? eurEn(betragCents) : eur(betragCents),
     antrag_id: escapeHtml(ref),
     payment_reference: escapeHtml(String(b?.payment_reference || "")),
@@ -637,8 +658,9 @@ export function globalMailNutzlast(
     zahlungsseite_url: b?.payment_reference ? absoluteUrl(`/zahlung/${encodeURIComponent(String(b.payment_reference))}?bereich=business`) : "",
     mein_auftrag_url: ref && opts.token ? absoluteUrl(globalMeinAuftragPfad(ref, opts.token, sprache)) : "",
     ansprechpartner: escapeHtml(opts.ansprechpartner),
-    // Die Unterlagen für den Start — je Auftraggeber (die Privatperson braucht keinen Registerauszug).
-    unterlagen_liste: globalUnterlagenZeilen(sprache, firma.art === "privat").map((u) => `· ${escapeHtml(u)}`).join("<br />"),
+    // Die Unterlagen für den Start — je Auftraggeber (die Privatperson braucht keinen Registerauszug;
+    // das Individualangebot nur den Reisepass, Nachtrag h 01.10.2026).
+    unterlagen_liste: globalUnterlagenZeilen(sprache, firma.art === "privat", istAngebotsPaket(paketKey)).map((u) => `· ${escapeHtml(u)}`).join("<br />"),
     ...(opts.zusatz ?? {}),
   };
 }
@@ -756,7 +778,7 @@ function antwortFuer(ref: string, paymentRef: string, paketKey: string, email: s
   const kat = katalogPaket(paketKey);
   const r = encodeURIComponent(ref); const t = encodeURIComponent(token);
   return {
-    ok: true, ref, token, betragCents: kat?.preisCents ?? 0, paketName: kat?.label ?? paketKey,
+    ok: true, ref, token, betragCents: kat && !kat.preisJeAngebot ? kat.preisCents : 0, paketName: kat?.label ?? paketKey,
     zahlungsseite: `/zahlung/${paymentRef}?bereich=business`,
     vertragUrl: `/api/fiaon/global/auftrag/${r}/vertrag.pdf?t=${t}`,
     rechnungUrl: `/api/fiaon/global/auftrag/${r}/rechnung.pdf?t=${t}`,
@@ -925,7 +947,7 @@ async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, a
   // Der Betrag kommt aus dem Katalog — weicht die Bestellzeile ab, ist das ein Fall für einen Menschen.
   const b = await bestellungLesen(ref);
   const kat = katalogPaket(ein.paket);
-  const sollCents = kat?.preisCents ?? 0;
+  const sollCents = globalBetragCents(ein.paket, b?.amount_due);
   const istCents = Math.round(Number(b?.amount_due || 0) * 100);
   const betragWarnung = sollCents > 0 && istCents !== sollCents
     ? `ACHTUNG: Die Bestellung steht auf ${eur(istCents)}, der Katalog sagt ${eur(sollCents)} — bitte vor jeder Zahlung klären.` : null;
@@ -992,6 +1014,8 @@ export async function globalOhneAuftragMelden(ref: string): Promise<void> {
   if (await globalAkteLesen(ref)) return;
   const b = await bestellungLesen(ref);
   if (!b || !istGlobalPaket(b.pack_key)) return;
+  // E-268: Ein Teil eines Individualangebots hat seinen Vertrag im Angebot (Teil 2 bewusst ohne eigene Akte).
+  if (istAngebotsPaket(b.pack_key)) return;
   const einstellungen = await globalEinstellungen();
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   await auftragFuerKunden({
@@ -1081,6 +1105,15 @@ export async function globalNachZahlung(ref: string, opts: { jetzt?: Date } = {}
   const b = await bestellungLesen(ref);
   if (!b || !istGlobalPaket(b.pack_key)) return { gestartet: false, grund: "kein Global-Auftrag" };
   if (String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
+  // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
+  // Eigener Weg: Teil 1 startet mit Frist (zwölf Wochen, Erstattungszusage) statt Stichtag,
+  // Teil 2 (Kapital-Begleitung) startet nichts — er wird nur als bezahlt vermerkt.
+  // Dieselben Bausteine (Widerrufswartezeit, Aufgabe, Etappe, Betreuer, Marke der Startmail),
+  // nur in server/lib/fiaon-global-angebot.ts, damit dieser Weg für die vier Pakete unverändert bleibt.
+  if (istAngebotsPaket(b.pack_key)) {
+    const { angebotNachZahlung } = await import("./fiaon-global-angebot");
+    return angebotNachZahlung(ref, opts);
+  }
   await sqlPool`
     UPDATE fiaon_global_auftraege SET status = 'bezahlt', bezahlt_am = COALESCE(bezahlt_am, ${b.completed_at ?? new Date()}), updated_at = NOW()
      WHERE ref = ${ref} AND status = 'offen'`;
@@ -1214,7 +1247,7 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
            g.stichtag_mail_am, g.vertrag_sprache, g.quelle, (g.vertrag_pdf IS NOT NULL) AS hat_vertrag,
            g.zahlung_erinnerung_1_am, g.zahlung_erinnerung_2_am, g.zahlung_aufgabe_am, g.zahlung_takt_hinweis,
            g.storniert_am, g.storniert_von, g.storno_grund, g.storno_erstattung,
-           g.jahresbetreuung, g.jahresbetreuung_preis_cents,
+           g.jahresbetreuung, g.jahresbetreuung_preis_cents, g.angebot_id,
            z.name AS zustaendig_name, bt.name AS betreuer_name,
            (SELECT t.id FROM fiaon_betreiber_todos t WHERE t.schluessel = 'global:' || a.ref || ':start' LIMIT 1) AS start_aufgabe_id
       FROM fiaon_applications a
@@ -1223,8 +1256,11 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
       LEFT JOIN fiaon_agents bt ON bt.id = p.assigned_agent_id
      WHERE a.pack_key = ANY(${GLOBAL_SCHLUESSEL}) AND a.merged_into IS NULL
+       AND NOT (a.pack_key = 'global_individuell' AND g.id IS NULL)
      ORDER BY a.created_at DESC
      LIMIT 300`) as any[];
+  // E-268: Teil 2 eines Individualangebots hat bewusst keine eigene Akte — er steht im Reiter
+  // „Individualangebote" unter seinem Angebot, nicht hier als „Bestellung ohne Auftrag".
   // Etappe und Abschluss aus „Mein Auftrag" — eigene, fehlertolerante Abfrage: Klappt das Anlegen der
   // Spalten einmal nicht (lock_timeout), bleibt die Liste der Leitung trotzdem vollständig lesbar.
   const bereich = new Map<string, { etappe: number; abgeschlossenAm: string | null }>();
@@ -1247,8 +1283,10 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       firma: String(firma.name || r.company_name || "—"), ort: String(firma.ort || r.city || ""), land: firma.land ?? null,
       ansprechpartner: [ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ") || String(r.contact_name || ""),
       funktion: ap.funktion ?? null, email: r.email ?? null, telefon: ap.telefon ?? null,
-      paket: String(r.pack_key), paketName: kat?.label ?? String(r.pack_name || r.pack_key),
-      betragCents: Math.round(Number(r.amount_due || 0) * 100), katalogCents: kat?.preisCents ?? null,
+      paket: String(r.pack_key), paketName: (kat?.preisJeAngebot ? String(r.pack_name || "") : "") || kat?.label || String(r.pack_name || r.pack_key),
+      betragCents: Math.round(Number(r.amount_due || 0) * 100), katalogCents: kat && !kat.preisJeAngebot ? kat.preisCents : null,
+      // E-268: Diese Akte gehört zu einem Individualangebot (Teil 1) — Stichtag gibt es dort nicht, sondern eine Frist.
+      angebotId: r.angebot_id != null ? Number(r.angebot_id) : null,
       erstelltAm: erstellt.toISOString(), alterTage: Math.max(0, Math.floor((Date.now() - erstellt.getTime()) / 86_400_000)),
       unterschriebenAm: r.unterschrieben_am ? new Date(r.unterschrieben_am).toISOString() : null,
       zahlungGemeldetAm: r.claimed_paid_at ? new Date(r.claimed_paid_at).toISOString() : null,
@@ -1302,6 +1340,8 @@ export async function globalStichtagSetzen(ref: string, stichtagRoh: unknown, we
   await ensureGlobalTabelle();
   const akte = await globalAkteLesen(ref);
   if (!akte) return { ok: false, error: "Zu dieser Bestellung gibt es keinen unterschriebenen Auftrag — ein Stichtag braucht einen Vertrag, auf den er sich bezieht." };
+  // E-268: Das Individualangebot kennt keinen Stichtag — dort gilt die Frist mit Erstattungszusage (Ziffer 6).
+  if (istAngebotsPaket(akte.paket_key)) return { ok: false, error: "Dieser Auftrag stammt aus einem Individualangebot. Dort gibt es keinen Stichtag, sondern die Frist mit Erstattungszusage — sie steht im Reiter „Individualangebote“." };
   const tag = String(stichtagRoh ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || Number.isNaN(new Date(`${tag}T12:00:00Z`).getTime())) return { ok: false, error: "Bitte ein Datum wählen." };
   if (tag <= berlinToday()) return { ok: false, error: "Der Stichtag liegt in der Zukunft — er ist der Tag, bis zu dem Gesellschaft und EIN stehen sollen." };

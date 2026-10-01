@@ -2,12 +2,11 @@ import { Router } from "express";
 import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
-import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, istGlobalPaket, paketPreisEuro } from "@shared/fiaon-pakete";
+import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, PAKETE, istGlobalPaket, istAngebotsPaket, paketPreisEuro } from "@shared/fiaon-pakete";
 import { istAuskunftSchluessel } from "@shared/fiaon-auskunft";
 import { antragAbgeschickt, abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { AGB_FASSUNG } from "@shared/fiaon-vertrag-paket";
 // E-188 (17.09.2026): FIAON Global ist eine eigene Produktkategorie — siehe GLOBAL_SCHLUESSEL unten.
-import { GLOBAL_PAKETE } from "@shared/fiaon-global";
 import { istAuslandsnummer, NUR_DACH_MELDUNG } from "@shared/fiaon-dach-telefon";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
@@ -136,8 +135,12 @@ const PAYMENT_DUE_DAYS = 7;
 //     Karte. Ein Firmenkunde bekommt stattdessen die Global-Mails aus
 //     server/lib/fiaon-global-auftrag.ts — nie beides.
 // Der Schlüssel kommt aus dem Katalog (art "global"), nicht aus einem Namen.
+// Individualangebot (01.10.2026, E-268): Bis heute stand hier die Liste der vier
+// öffentlichen Pakete (GLOBAL_PAKETE) — der Satz darüber stimmte nicht. Mit
+// „global_individuell" gibt es einen fünften Global-Schlüssel ohne Paketseite;
+// jetzt kommt die Liste wirklich aus dem Katalog.
 // ═══════════════════════════════════════════════════════════════════════════
-const GLOBAL_SCHLUESSEL: string[] = GLOBAL_PAKETE.map((p) => p.key);
+const GLOBAL_SCHLUESSEL: string[] = PAKETE.filter((p) => p.art === "global").map((p) => p.key);
 
 // ── #20: Kanonische Paket-Kreditlimits (Headline „bis zu X €", identisch zu den
 // PACKS/BUSINESS_PACKS im Frontend). Quelle der Wahrheit fürs Portal, falls das
@@ -403,6 +406,12 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
   // das andere. Ohne diese Grenze hätte eine Privatbestellung über 7,99 € die
   // offene Global-Bestellung stillgelegt: derselbe Fehler wie am 03.08., nur
   // mit drei Nullen mehr. Die Regel steht in server/lib/fiaon-produktkategorie.ts.
+  // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
+  // Die Teile eines Individualangebots sind VEREINBARTE Rechnungen, keine Dubletten:
+  // Teil 2 legt Teil 1 nicht still und umgekehrt — und eine Paketbestellung legt
+  // keinen Angebotsteil still. Ein Angebotsteil löst deshalb keinen Stilllegungslauf
+  // aus, und unten wird keiner stillgelegt (pack_key-Bedingung).
+  if (istAngebotsPaket(paid[0].pack_key)) return { count: 0, refs: [] };
   const kategorieSchluessel = produktkategorie(paid[0]);
   const kategorie = KATEGORIE_TEXT[kategorieSchluessel];
   // Der Auslöser steht im Protokoll, wie er ist: Beim Aufruf aus /payment-order
@@ -451,6 +460,7 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
       -- Stufenpakete (Upgrade), lässt die Bonitätsauskunft aber unberührt —
       -- und umgekehrt. Seit E-188 gilt das genauso für FIAON Global.
       AND ${sqlPool.unsafe(produktkategorieSql())} = ${kategorieSchluessel}::text
+      AND COALESCE(pack_key, '') <> 'global_individuell'
     RETURNING ref, assigned_agent_id, pack_name
   `;
   for (const r of rows) {
@@ -1014,13 +1024,27 @@ export async function bestellungFuerAntrag(
   // Integration 25.09.2026: nur ein AUSKUNFT-Schlüssel zählt — sechs Auskunft-Zeilen tragen im
   // pack_key das Stufenpaket ihres Kunden (Dubletten-Merge); dort wären sonst 99,99 € entstanden.
   // Dieselbe Regel wie katalogpreisCents (fiaon-massgebliche-bestellung.ts) und der Trigger (Migration 083).
-  const amount = app.type === "schufa"
-    ? (istAuskunftSchluessel(app.pack_key) ? paketPreisEuro(app.pack_key) : SCHUFA_PRICE)
-    : PACK_PRICES[app.pack_key];
+  // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
+  // Betrag und Zahlungsziel kommen aus dem ANGENOMMENEN Angebotsteil, der VOR
+  // diesem Aufruf an die Bestellzeile gebunden wurde (bestell_ref) — nie aus einer
+  // Eingabe und nie aus dem Katalog (dort steht 0). Ohne gebundenen Teil gibt es
+  // keine Bestellung: lieber keine Rechnung als eine über einen geratenen Betrag.
+  let angebotsTeil: { betragCents: number; zahlungszielTage: number } | null = null;
+  if (istAngebotsPaket(app.pack_key)) {
+    const { angebotTeilZurBestellung } = await import("../lib/fiaon-global-angebot");
+    angebotsTeil = await angebotTeilZurBestellung(ref);
+    if (!angebotsTeil) return { status: 409, body: { ok: false, error: "Zu dieser Bestellzeile gibt es keinen angenommenen Angebotsteil — ohne ihn keinen Betrag." } };
+  }
+  const amount = angebotsTeil
+    ? angebotsTeil.betragCents / 100
+    : app.type === "schufa"
+      ? (istAuskunftSchluessel(app.pack_key) ? paketPreisEuro(app.pack_key) : SCHUFA_PRICE)
+      : PACK_PRICES[app.pack_key];
   if (!amount) return { status: 400, body: { ok: false, error: `Unbekanntes Paket: ${app.pack_key}` } };
 
   const paymentReference = app.payment_reference || (await generateUniquePaymentReference());
-  const dueDate = new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
+  // Teil 1 eines Individualangebots: Zahlungsziel sofort (0 Tage), Teil 2: sieben Tage — aus dem Teil.
+  const dueDate = new Date(Date.now() + (angebotsTeil ? angebotsTeil.zahlungszielTage : PAYMENT_DUE_DAYS) * 24 * 60 * 60 * 1000);
 
   await sqlPool`
     UPDATE fiaon_applications SET
@@ -3325,11 +3349,16 @@ router.post("/application", async (req, res) => {
         });
       }
       const schritt = Number(currentStep || 0);
+      // Individualangebot (01.10.2026), Endabnahme: Auf diesem Weg gibt es GAR KEINE Messung — weder
+      // Pixel/Web noch die Lead-Stufe an Meta. Die Vertragsseite misst nichts (Nachtrag d) und Ziffer 14
+      // des Vertrags nennt Meta nicht; `webMessungAus` allein ließ „qualified_lead" durch, sobald die Person
+      // an einem Meta-Lead hing. Die Bestellzeile kommt mit `messungAus`, das Paket selbst sperrt zusätzlich.
+      const messungAus = req.body?.messungAus === true || istAngebotsPaket(packKey);
       // E-231: Der Firmenauftrag (FIAON Global) legt seinen Antrag über diese Route an und meldet
       // sich selbst als „Auftrag erteilt" — hier zählt er nicht als Privatantrag.
-      const webMessung = req.body?.webMessungAus !== true;
+      const webMessung = !messungAus && req.body?.webMessungAus !== true;
       if (webMessung && schritt >= 1 && schritt < 8) meldenUndSenden(() => webEreignis(META_EREIGNIS.antragBegonnen, String(ref)));
-      if (schritt >= 8 || status === "submitted" || status === "completed") {
+      if (!messungAus && (schritt >= 8 || status === "submitted" || status === "completed")) {
         meldenUndSenden(async () => {
           if (webMessung) await webEreignis(META_EREIGNIS.antragFertig, String(ref));
           await crmEreignis(CRM_EREIGNIS.antragFertig, { ref: String(ref) });

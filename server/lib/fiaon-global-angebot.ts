@@ -1,0 +1,1434 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — DAS INDIVIDUALANGEBOT (Ablauf, Datenbank, Fristen)
+// Individualangebot (01.10.2026), Register E-268
+//
+// Justin (01.10.2026): „Ja ich erlaube dir alles, umsetzen bitte." Ein Angebot
+// für eine Person, in zwei Teilen, mit Bürgschaftszusage, Frist und vollständiger
+// Erstattung. Die Texte stehen in shared/fiaon-global-angebot.ts, das Rendern in
+// fiaon-global-angebot-vertrag.ts — hier nur der Ablauf.
+//
+// ── DER KERN: JEDER TEIL IST EINE GANZ NORMALE BESTELLZEILE ───────────────
+// Katalogschlüssel „global_individuell" (shared/fiaon-pakete.ts, preisJeAngebot).
+// Damit laufen Zahlungsseite, Buchung (mark-paid → onCustomerPaid), Rechnung aus
+// dem einen Renderer und Nummernkreis, Provision, Meta-Kauf und alle Global-
+// Ausschlüsse (kein Abo, keine Privatkunden-Mail, Rückholung, Mara) unverändert
+// mit. Der Betrag kommt aus dem angenommenen Teil (fiaon_global_angebot_teile),
+// der VOR dem Betrag an die Zeile gebunden wird (bestell_ref) — die Wand in
+// Migration 087 prüft genau das.
+//
+// ── DER WEG ───────────────────────────────────────────────────────────────
+//   Anlegen (Chefbüro, Reiter „Individualangebote") → signierter Link →
+//   Kunde liest /business/angebot/:token → „Zahlungspflichtig annehmen":
+//     1. Token, Status, Gültigkeit, Pflichtfelder der Bürgin, Roboter-Wand,
+//     2. Prüfsumme des gezeigten Textes NACHRECHNEN (Schalter wie gezeigt),
+//     3. Vertrags-PDF mit Annahmevermerk — ohne PDF keine Annahme,
+//     4. Anspruch sichern (UPDATE … WHERE status = 'offen'): ein Doppelklick
+//        findet nichts mehr und bekommt die Antwort des ersten,
+//     5. Bestellzeile Teil 1 (Loopback wie /business/start), Teil binden,
+//        Akte (fiaon_global_auftraege, „Mein Auftrag", Office, Zahlungstakt),
+//        Bestellung über bestellungFuerAntrag: Zahlungsziel sofort, Rechnungsnummer,
+//     6. hinter der Antwort: Aufgabe an die zuständige Person, Aufgabe an Justin,
+//        Bestätigungsmail mit Vertrag und Rechnung Teil 1.
+//   Zahlung Teil 1 → angebotNachZahlung: Start (bzw. nach der Widerrufsfrist),
+//     Frist setzen (Beginn, Ende), Startmail mit Fristende als Datum.
+//   Chef „Meilenstein erreicht" → Bestellzeile Teil 2, Rechnung, Zahlungsziel
+//     sieben Tage, Mail mit Rechnung.
+//   Frist abgelaufen ohne Meilenstein → Chef „Erstattung vormerken": Teil 2
+//     entfällt, der bestehende Storno-Weg mit Erstattung (Aufgabe an Justin —
+//     Geld bewegt nur Justin, von Hand), Mail an den Kunden.
+//
+// ── WAS BEWUSST NICHT PASSIERT ────────────────────────────────────────────
+//   · Kein Geld per SQL. Gebucht wird über den einen Weg, erstattet von Hand.
+//   · Die Leitung kann nicht für den Kunden annehmen: Ein Klick mit Chef- oder
+//     Admin-Cookie wird abgelehnt (die Zustimmung gibt nur der Kunde).
+//   · Nichts wird gelöscht. Zurückziehen, Ablauf und Erstattung sind Status.
+// ═══════════════════════════════════════════════════════════════════════════
+import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
+import { sqlPool } from "./db-pool";
+import { berlinToday } from "./fiaon-time";
+import { absoluteUrl } from "../fiaon-base-url";
+import {
+  ANGEBOT_FASSUNG, ANGEBOT_FASSUNGEN, ANGEBOT_VORGABEN, ANGEBOT_GUELTIG_TAGE, ANGEBOT_ANNAHME, ANGEBOT_KNOPF, ANGEBOT_FEST, BUERGIN_VORGABE, BUERGIN_FELDER,
+  angebotPflichtFehlen, angebotParameterFehler, angebotGesamtCents, angebotEur, angebotSeite, angebotBestellUebersicht,
+  angebotKundeName, angebotKundeAnrede, angebotTag, angebotTeilTitel, angebotTeilPaketname, angebotRechnungsText, angebotVertragTitel,
+  angebotVertragUnterzeile, zahlwort, pruefberichtErgebnis, angebotVersandSperre,
+  type AngebotDaten, type AngebotKunde, type AngebotParameter, type AngebotBuergin, type AngebotSchalter, type Pruefbericht, type AngebotLand,
+} from "@shared/fiaon-global-angebot";
+import { angebotTextHash, angebotVorschauHtml, angebotVertragPdf, angebotPruefberichtPdf, angebotAnlage1Pdf, buergschaftPruefsumme } from "./fiaon-global-angebot-vertrag";
+import {
+  ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalVerlauf, globalEinstellungen, globalMailSenden,
+  globalMeinAuftragUrl, globalStartWartet, globalRechnungPdf, globalVertragPdfLesen, globalJahresbetreuungAus,
+} from "./fiaon-global-auftrag";
+import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
+import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
+import { dachNummer } from "@shared/fiaon-dach-telefon";
+
+export type AngebotStatus = "offen" | "angenommen" | "zurueckgezogen" | "abgelaufen";
+export const ANGEBOT_PAKET_KEY = "global_individuell";
+
+// ── Schema (ensure-on-use wie ensureGlobalTabelle; DDL zusätzlich in Migration 087) ──
+let bereit: Promise<void> | null = null;
+export function ensureAngebotTabellen(): Promise<void> {
+  if (!bereit) {
+    bereit = (async () => {
+      await ensureGlobalTabelle();
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_global_angebote (
+          id SERIAL PRIMARY KEY,
+          angebot_ref VARCHAR NOT NULL UNIQUE,
+          person_id INTEGER,
+          fassung VARCHAR NOT NULL,
+          sprache VARCHAR NOT NULL DEFAULT 'de',
+          kunde JSONB NOT NULL,
+          parameter JSONB NOT NULL,
+          buergin JSONB NOT NULL,
+          pruefbericht JSONB,
+          status VARCHAR NOT NULL DEFAULT 'offen',
+          gueltig_bis DATE NOT NULL,
+          erstellt_von TEXT,
+          zurueckgezogen_am TIMESTAMPTZ,
+          zurueckgezogen_von TEXT,
+          zurueckgezogen_grund TEXT,
+          angenommen_am TIMESTAMPTZ,
+          ip VARCHAR,
+          user_agent TEXT,
+          text_hash VARCHAR,
+          schalter JSONB,
+          vertrag_pdf BYTEA,
+          auftrag_ref VARCHAR UNIQUE,
+          frist_beginn DATE,
+          frist_ende DATE,
+          frist_hemmung_tage INTEGER NOT NULL DEFAULT 0,
+          frist_warnung_14_am TIMESTAMPTZ,
+          frist_warnung_3_am TIMESTAMPTZ,
+          frist_abgelaufen_am TIMESTAMPTZ,
+          erstattung_ausgeloest_am TIMESTAMPTZ,
+          erstattung_ausgeloest_von TEXT,
+          erstattet_am DATE,
+          erstattung_notiz TEXT,
+          bestaetigung_mail_am TIMESTAMPTZ,
+          bestaetigung_mail_fehler TEXT,
+          start_mail_am TIMESTAMPTZ,
+          nacharbeit_fehler TEXT,
+          verlauf JSONB NOT NULL DEFAULT '[]'::jsonb,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`;
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_global_angebot_teile (
+          id SERIAL PRIMARY KEY,
+          angebot_id INTEGER NOT NULL REFERENCES fiaon_global_angebote(id),
+          nr INTEGER NOT NULL CHECK (nr BETWEEN 1 AND 2),
+          titel TEXT NOT NULL,
+          betrag_cents BIGINT NOT NULL CHECK (betrag_cents > 0),
+          faelligkeit VARCHAR NOT NULL CHECK (faelligkeit IN ('sofort', 'meilenstein')),
+          zahlungsziel_tage INTEGER NOT NULL DEFAULT 0,
+          bestell_ref VARCHAR UNIQUE,
+          meilenstein_am DATE,
+          meilenstein_art VARCHAR,
+          meilenstein_beleg TEXT,
+          meilenstein_von TEXT,
+          eingetragen_am DATE,
+          rechnung_am TIMESTAMPTZ,
+          rechnung_mail_am TIMESTAMPTZ,
+          bezahlt_am TIMESTAMPTZ,
+          bezahlt_mail_am TIMESTAMPTZ,
+          anruf_aufgabe_am TIMESTAMPTZ,
+          entfallen_am TIMESTAMPTZ,
+          entfallen_grund TEXT,
+          UNIQUE (angebot_id, nr)
+        )`;
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_angebote_status_idx ON fiaon_global_angebote (status, created_at DESC)`;
+    })().catch((e) => { bereit = null; throw e; });
+  }
+  return bereit;
+}
+
+// ── JSONB lesen und schreiben ─────────────────────────────────────────────────
+// Schreiben IMMER über sqlPool.json() (Falle aus fiaon-global-bereich.ts: ein mit JSON.stringify gebauter
+// Text auf ::jsonb landet als JSON-Text in der Spalte). Lesen verträgt beides.
+function json<T>(v: unknown, leer: T): T {
+  if (v && typeof v === "object" && !Buffer.isBuffer(v)) return v as T;
+  try { const x = JSON.parse(String(v ?? "")); return (typeof x === "string" ? JSON.parse(x) : x) as T; } catch { return leer; }
+}
+const jsonb = (v: unknown) => sqlPool.json(v as any);
+
+// ── Token: Referenz + Ablauf + Signatur (HMAC wie der Global-Auftrag) ─────────
+function geheimnis(): string {
+  return process.env.SESSION_SECRET || process.env.MAKE_WEBHOOK_URL || "fiaon-dev-invoice-secret";
+}
+function signatur(ref: string, exp: number): string {
+  return createHmac("sha256", geheimnis()).update(`global-angebot.${ref}.${exp}`).digest("hex").slice(0, 32);
+}
+/**
+ * Der Link gilt bis zum Ende der Gültigkeit plus sieben Tage — danach ist auch die Bestätigungsseite zu.
+ * Gegenprüfung 01.10.2026 (Datensparsamkeit): Über den Link ist Anlage 2 (Einkommen, Wohneigentum,
+ * Geburtsdatum) ohne Anmeldung abrufbar; ein Nachlauf von dreißig Tagen war zu lang. Nach der Annahme
+ * hat der Kunde „Mein Auftrag" mit eigenem Zugang für Vertrag und Rechnung.
+ */
+export const ANGEBOT_LINK_NACHLAUF_TAGE = 7;
+/** Der späteste Zeitpunkt, zu dem ein Link dieses Angebots gilt: Ende der Gültigkeit plus Nachlauf. */
+export function angebotLinkSpaetestens(gueltigBis: string): number {
+  const ende = new Date(`${gueltigBis}T23:59:59+02:00`).getTime();
+  return (Number.isFinite(ende) ? ende : Date.now()) + ANGEBOT_LINK_NACHLAUF_TAGE * 24 * 3600_000;
+}
+/**
+ * Endabnahme 01.10.2026: Die Signatur hängt nur an ref+exp — ein Link, der vor der Verkürzung des
+ * Nachlaufs (dreißig → sieben Tage) erzeugt wurde, bliebe sonst bis zu seinem alten exp gültig und
+ * gäbe Anlage 2 (Einkommen, Geburtsdatum, Wohneigentum) länger ohne Anmeldung frei als gewollt.
+ * Deshalb gilt zusätzlich zur Signatur: Kein Link lebt länger als „gültig bis + Nachlauf" — gerechnet
+ * mit dem heutigen Nachlauf, nicht mit dem, der im Token steht.
+ */
+export function angebotLinkAbgelaufen(z: { gueltig_bis?: unknown }, jetzt = Date.now()): boolean {
+  const g = isoTag(z.gueltig_bis);
+  return !!g && jetzt > angebotLinkSpaetestens(g);
+}
+export function angebotTokenErzeugen(ref: string, gueltigBis: string, jetzt = Date.now()): string {
+  const exp = Math.max(jetzt + 24 * 3600_000, angebotLinkSpaetestens(gueltigBis));
+  return `${ref}.${exp}.${signatur(ref, exp)}`;
+}
+/** Nur für den Prüfstand und Sonderfälle: ein Token mit fester Ablaufzeit. */
+export function angebotTokenMitAblauf(ref: string, exp: number): string {
+  return `${ref}.${exp}.${signatur(ref, exp)}`;
+}
+export function angebotTokenPruefen(token: unknown): { ref: string; urteil: "gueltig" | "abgelaufen" } | null {
+  const teile = String(token ?? "").split(".");
+  if (teile.length !== 3) return null;
+  const [ref, expRoh, sig] = teile;
+  if (!/^FIAON-IA-[A-Z0-9]{6,10}$/.test(ref)) return null;
+  const exp = Number(expRoh);
+  if (!Number.isFinite(exp) || exp <= 0) return null;
+  const a = Buffer.from(signatur(ref, exp)); const b = Buffer.from(String(sig));
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  return { ref, urteil: exp < Date.now() ? "abgelaufen" : "gueltig" };
+}
+export function angebotKundenPfad(token: string): string {
+  return `/business/angebot/${encodeURIComponent(token)}`;
+}
+
+// ── Lesen ─────────────────────────────────────────────────────────────────────
+const OHNE_PDF = `id, angebot_ref, person_id, fassung, sprache, kunde, parameter, buergin, pruefbericht, status, gueltig_bis, erstellt_von,
+  zurueckgezogen_am, zurueckgezogen_von, zurueckgezogen_grund, angenommen_am, ip, user_agent, text_hash, schalter, auftrag_ref,
+  frist_beginn, frist_ende, frist_hemmung_tage, frist_warnung_14_am, frist_warnung_3_am, frist_abgelaufen_am,
+  erstattung_ausgeloest_am, erstattung_ausgeloest_von, erstattet_am, erstattung_notiz, bestaetigung_mail_am, bestaetigung_mail_fehler,
+  start_mail_am, nacharbeit_fehler, verlauf, created_at, updated_at, updated_at::text AS updated_at_txt, (vertrag_pdf IS NOT NULL) AS hat_vertrag`;
+
+export interface AngebotZeile { [k: string]: any }
+export async function angebotLesen(wo: { id?: number; ref?: string }): Promise<AngebotZeile | null> {
+  await ensureAngebotTabellen();
+  const [a] = (wo.id != null
+    ? await sqlPool.unsafe(`SELECT ${OHNE_PDF} FROM fiaon_global_angebote WHERE id = $1 LIMIT 1`, [wo.id])
+    : await sqlPool.unsafe(`SELECT ${OHNE_PDF} FROM fiaon_global_angebote WHERE angebot_ref = $1 LIMIT 1`, [String(wo.ref ?? "")])) as any[];
+  if (!a) return null;
+  const teile = (await sqlPool`SELECT * FROM fiaon_global_angebot_teile WHERE angebot_id = ${a.id} ORDER BY nr`) as any[];
+  return { ...a, teile };
+}
+const isoTag = (v: unknown): string | null => {
+  if (!v) return null;
+  if (v instanceof Date) return berlinToday(v);
+  const s = String(v);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+};
+export function angebotDatenAus(z: AngebotZeile): AngebotDaten {
+  return {
+    ref: String(z.angebot_ref),
+    fassung: String(z.fassung),
+    kunde: json<AngebotKunde>(z.kunde, {} as AngebotKunde),
+    parameter: { ...ANGEBOT_VORGABEN, ...json<Partial<AngebotParameter>>(z.parameter, {}) },
+    buergin: { ...BUERGIN_VORGABE, ...json<Partial<AngebotBuergin>>(z.buergin, {}) },
+    pruefbericht: z.pruefbericht ? json<Pruefbericht | null>(z.pruefbericht, null) : null,
+    gueltigBis: isoTag(z.gueltig_bis) ?? berlinToday(),
+  };
+}
+/** Der Status, wie ihn Kunde und Liste sehen — „abgelaufen" auch, bevor der Tageslauf ihn schreibt. */
+export function angebotStatusAus(z: AngebotZeile, heute = berlinToday()): AngebotStatus {
+  const s = String(z.status) as AngebotStatus;
+  if (s === "offen" && (isoTag(z.gueltig_bis) ?? "9999-12-31") < heute) return "abgelaufen";
+  return s;
+}
+async function verlaufAngebot(id: number, wer: string, was: string, extra: Record<string, unknown> = {}): Promise<void> {
+  await sqlPool`
+    UPDATE fiaon_global_angebote
+       SET verlauf = COALESCE(verlauf, '[]'::jsonb) || ${jsonb([{ am: new Date().toISOString(), wer, was, ...extra }])}, updated_at = NOW()
+     WHERE id = ${id}`.catch((e) => console.error(`[FIAON-ANGEBOT] ${id}: Verlauf nicht geschrieben:`, e));
+}
+
+// ── Für die Bestellung (fiaon-antrag.ts) und die Rechnung (fiaon-invoice.ts) ──
+/** Der Angebotsteil, der an dieser Bestellzeile hängt — Betrag und Zahlungsziel; null = keiner. */
+export async function angebotTeilZurBestellung(ref: string): Promise<{ betragCents: number; zahlungszielTage: number; nr: number; angebotId: number } | null> {
+  await ensureAngebotTabellen();
+  const [t] = (await sqlPool`
+    SELECT t.betrag_cents, t.zahlungsziel_tage, t.nr, t.angebot_id
+      FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
+     WHERE t.bestell_ref = ${ref} AND a.status = 'angenommen' AND t.entfallen_am IS NULL LIMIT 1`) as any[];
+  return t ? { betragCents: Number(t.betrag_cents), zahlungszielTage: Number(t.zahlungsziel_tage), nr: Number(t.nr), angebotId: Number(t.angebot_id) } : null;
+}
+/** Beschreibung und Zeitraum der Rechnungszeile eines Teils (shared: angebotRechnungsText). */
+export async function angebotRechnungsZeile(ref: string): Promise<{ beschreibung: string; zeitraum: string } | null> {
+  const [t] = (await sqlPool`
+    SELECT t.nr, t.meilenstein_art, t.meilenstein_am, a.angebot_ref, a.auftrag_ref
+      FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
+     WHERE t.bestell_ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  if (!t) return null;
+  return angebotRechnungsText({ angebotRef: String(t.angebot_ref), nr: Number(t.nr) === 2 ? 2 : 1, auftragRef: String(t.auftrag_ref || ref), meilensteinArt: t.meilenstein_art, meilensteinAm: isoTag(t.meilenstein_am) });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANLEGEN UND ÄNDERN (Chefbüro)
+// ═══════════════════════════════════════════════════════════════════════════
+const text = (v: unknown, max: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+type Ergebnis<T = Record<string, unknown>> = { ok: true } & T | { ok: false; status: number; error: string };
+const nein = (error: string, status = 400) => ({ ok: false as const, status, error });
+
+export function angebotKundePruefen(k: any): { ok: true; kunde: AngebotKunde } | { ok: false; error: string } {
+  const land = String(k?.land ?? "DE").toUpperCase() as AngebotLand;
+  if (!["DE", "AT", "CH"].includes(land)) return { ok: false, error: "Land: Deutschland, Österreich oder Schweiz." };
+  const kunde: AngebotKunde = {
+    anrede: ["Herr", "Frau"].includes(String(k?.anrede)) ? (String(k.anrede) as "Herr" | "Frau") : "",
+    vorname: text(k?.vorname, 80), nachname: text(k?.nachname, 80),
+    geburtsdatum: text(k?.geburtsdatum, 10), strasse: text(k?.strasse, 160), plz: text(k?.plz, 10), ort: text(k?.ort, 120), land,
+    email: text(k?.email, 160).toLowerCase(), telefon: text(k?.telefon, 40),
+  };
+  if (!kunde.vorname || !kunde.nachname) return { ok: false, error: "Vor- und Nachname fehlen." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(kunde.geburtsdatum)) return { ok: false, error: "Geburtsdatum als JJJJ-MM-TT." };
+  if (kunde.strasse.length < 3 || !kunde.ort) return { ok: false, error: "Anschrift unvollständig." };
+  if (!(land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(kunde.plz)) return { ok: false, error: "Postleitzahl passt nicht zum Land." };
+  if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(kunde.email)) return { ok: false, error: "E-Mail-Adresse ungültig." };
+  if (kunde.telefon) {
+    const t = dachNummer(kunde.telefon, land);
+    if (!t) return { ok: false, error: "Telefonnummer: bitte eine Nummer aus Deutschland, Österreich oder der Schweiz." };
+    kunde.telefon = t;
+  }
+  return { ok: true, kunde };
+}
+function parameterAus(roh: any, basis: AngebotParameter = ANGEBOT_VORGABEN): AngebotParameter {
+  const zahl = (v: unknown, alt: number) => (v === undefined || v === null || v === "" ? alt : Math.round(Number(v)));
+  return {
+    teil1Cents: zahl(roh?.teil1Cents, basis.teil1Cents), teil2Cents: zahl(roh?.teil2Cents, basis.teil2Cents),
+    fristWochen: zahl(roh?.fristWochen, basis.fristWochen), erstattungTage: zahl(roh?.erstattungTage, basis.erstattungTage),
+    teil2ZielTage: zahl(roh?.teil2ZielTage, basis.teil2ZielTage), kapitalZielUsd: zahl(roh?.kapitalZielUsd, basis.kapitalZielUsd),
+    kartenZiel: zahl(roh?.kartenZiel, basis.kartenZiel), buergschaftUsd: zahl(roh?.buergschaftUsd, basis.buergschaftUsd),
+  };
+}
+function buerginAus(roh: any, basis: AngebotBuergin = BUERGIN_VORGABE): AngebotBuergin {
+  const feld = (k: keyof AngebotBuergin, max: number): string | null => {
+    if (!roh || !(k in roh)) return (basis[k] as string | null) ?? null;
+    const v = text(roh[k], max);
+    return v || null;
+  };
+  const datum = feld("unterzeichnetAm", 10);
+  return {
+    name: basis.name,
+    bundesstaat: feld("bundesstaat", 60), anschrift: feld("anschrift", 200), registerstelle: feld("registerstelle", 160),
+    registernummer: feld("registernummer", 40), vertreter: feld("vertreter", 120), funktion: feld("funktion", 80),
+    unterzeichnetAm: datum && /^\d{4}-\d{2}-\d{2}$/.test(datum) ? datum : null,
+    bestaetigt: roh && "bestaetigt" in roh ? roh.bestaetigt === true : basis.bestaetigt,
+    // Nachtrag (a), 01.10.2026: Die Bestätigung trägt ihre Grundlage („EIN-Antrag SS-4, vorgelegt 01.10.2026").
+    bestaetigtGrundlage: feld("bestaetigtGrundlage", 200),
+  };
+}
+function gueltigBisAus(roh: unknown): string | null {
+  const s = String(roh ?? "").trim();
+  if (!s) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(`${s}T12:00:00Z`).getTime()) ? s : null;
+}
+const plusTage = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+/**
+ * Vorbelegung aus dem JÜNGSTEN Antrag der Person (dort stehen die Namen richtig herum — Fall 13411).
+ * Gegenprüfung 01.10.2026: fiaon_persons hat primary_email/primary_phone (nicht email/phone) — die alte
+ * Abfrage warf, der `.catch(() => [])` machte daraus „Person gibt es nicht". Kein Schlucken mehr:
+ * Ein SQL-Fehler kommt als 500 beim Chef an, nicht als falsche Auskunft.
+ */
+export async function angebotVorbelegung(personId: number): Promise<{ ok: true; kunde: Partial<AngebotKunde>; hinweise: string[]; personRef: string | null } | { ok: false; status: number; error: string }> {
+  const [p] = (await sqlPool`SELECT id, person_ref, first_name, last_name, primary_email AS email, primary_phone AS phone, street, zip, city, country, birthdate FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL LIMIT 1`) as any[];
+  if (!p) return nein("Diese Person gibt es nicht (oder sie ist zusammengeführt).", 404);
+  const [a] = (await sqlPool`
+    SELECT ref, first_name, last_name, birthdate, street, zip, city, country, email, contact_email, phone, phone_country_code, contact_phone,
+           pack_key, payment_reference, payment_status
+      FROM fiaon_applications
+     WHERE person_id = ${personId} AND merged_into IS NULL AND COALESCE(type, '') <> 'schufa'
+     ORDER BY created_at DESC LIMIT 1`) as any[];
+  const hinweise: string[] = [];
+  const offen = (await sqlPool`
+    SELECT ref, pack_key, payment_reference FROM fiaon_applications
+     WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL AND cancelled_at IS NULL
+       AND payment_status IN ('pending_payment', 'claimed_paid') AND COALESCE(pack_key, '') <> 'global_individuell'`) as any[];
+  for (const o of offen) hinweise.push(`Offene Bestellung ${o.payment_reference || o.ref} (${o.pack_key || "ohne Paket"}, nicht bezahlt) — nach der Annahme über den Archiv-Weg stilllegen, sonst laufen Erinnerungen weiter.`);
+  if (a && p.first_name && a.first_name && String(p.first_name).trim().toLowerCase() === String(a.last_name ?? "").trim().toLowerCase()) {
+    hinweise.push(`In der Personenakte stehen Vor- und Nachname vertauscht („${p.first_name} ${p.last_name}“); vorbelegt ist die Schreibweise des Antrags. Die Akte bitte über den Admin-Weg korrigieren.`);
+  }
+  const quelle = a ?? p;
+  const telefon = a ? (a.contact_phone || (a.phone ? `${a.phone_country_code || ""}${a.phone}` : "")) : p.phone;
+  return {
+    ok: true, personRef: p.person_ref ?? null, hinweise,
+    kunde: {
+      vorname: String(quelle.first_name ?? "").trim(), nachname: String(quelle.last_name ?? "").trim(),
+      geburtsdatum: isoTag(quelle.birthdate) ?? "", strasse: String(quelle.street ?? "").trim(), plz: String(quelle.zip ?? "").trim(),
+      ort: String(quelle.city ?? "").trim(), land: (["DE", "AT", "CH"].includes(String(quelle.country).toUpperCase()) ? String(quelle.country).toUpperCase() : "DE") as AngebotLand,
+      email: String(a?.email || a?.contact_email || p.email || "").trim().toLowerCase(), telefon: String(telefon || "").trim(),
+    },
+  };
+}
+
+export async function angebotAnlegen(ein: any, wer: string): Promise<Ergebnis<{ id: number; ref: string; link: string }>> {
+  await ensureAngebotTabellen();
+  const fassung = String(ein?.fassung || ANGEBOT_FASSUNG);
+  if (!(ANGEBOT_FASSUNGEN as readonly string[]).includes(fassung)) return nein("Diese Fassung gibt es nicht.");
+  const k = angebotKundePruefen(ein?.kunde);
+  if (!k.ok) return nein(k.error);
+  const parameter = parameterAus(ein?.parameter);
+  const pf = angebotParameterFehler(parameter);
+  if (pf) return nein(pf);
+  const buergin = buerginAus(ein?.buergin);
+  const gueltigBis = gueltigBisAus(ein?.gueltigBis) ?? plusTage(berlinToday(), ANGEBOT_GUELTIG_TAGE);
+  if (gueltigBis < berlinToday()) return nein("Das Datum „gültig bis“ liegt in der Vergangenheit.");
+  const personId = Number(ein?.personId);
+  const pb = ein?.pruefbericht && typeof ein.pruefbericht === "object" ? (ein.pruefbericht as Pruefbericht) : null;
+  const ref = `FIAON-IA-${randomBytes(4).toString("hex").toUpperCase().slice(0, 6)}`;
+  const [neu] = (await sqlPool`
+    INSERT INTO fiaon_global_angebote (angebot_ref, person_id, fassung, kunde, parameter, buergin, pruefbericht, status, gueltig_bis, erstellt_von, verlauf)
+    VALUES (${ref}, ${Number.isInteger(personId) && personId > 0 ? personId : null}, ${fassung}, ${jsonb(k.kunde)}, ${jsonb(parameter)}, ${jsonb(buergin)},
+            ${pb ? jsonb(pb) : null}, 'offen', ${gueltigBis}::date, ${wer},
+            ${jsonb([{ am: new Date().toISOString(), wer, was: "Angebot angelegt" }])})
+    RETURNING id`) as any[];
+  const id = Number(neu.id);
+  await teileSchreiben(id, parameter);
+  return { ok: true, id, ref, link: absoluteUrl(angebotKundenPfad(angebotTokenErzeugen(ref, gueltigBis))) };
+}
+async function teileSchreiben(id: number, par: AngebotParameter): Promise<void> {
+  await sqlPool`
+    INSERT INTO fiaon_global_angebot_teile (angebot_id, nr, titel, betrag_cents, faelligkeit, zahlungsziel_tage)
+    VALUES (${id}, 1, ${angebotTeilTitel(1)}, ${par.teil1Cents}, 'sofort', 0),
+           (${id}, 2, ${angebotTeilTitel(2)}, ${par.teil2Cents}, 'meilenstein', ${par.teil2ZielTage})
+    ON CONFLICT (angebot_id, nr) DO UPDATE SET betrag_cents = EXCLUDED.betrag_cents, zahlungsziel_tage = EXCLUDED.zahlungsziel_tage
+     WHERE fiaon_global_angebot_teile.bestell_ref IS NULL`;
+}
+
+/** Ändern, solange niemand angenommen hat. Jede Änderung steht mit der alten Prüfsumme im Verlauf. */
+export async function angebotAendern(id: number, ein: any, wer: string): Promise<Ergebnis<{ fehlt: string[] }>> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
+  const alt = angebotDatenAus(z);
+  const altHash = angebotTextHash(alt, { sofortBeginn: false, jahresbetreuung: false });
+  const neu: AngebotDaten = { ...alt };
+  const geaendert: string[] = [];
+  if (ein?.kunde) { const k = angebotKundePruefen({ ...alt.kunde, ...ein.kunde }); if (!k.ok) return nein(k.error); neu.kunde = k.kunde; geaendert.push("Kunde"); }
+  if (ein?.parameter) { const par = parameterAus(ein.parameter, alt.parameter); const f = angebotParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Teile und Fristen"); }
+  if (ein?.buergin) { neu.buergin = buerginAus(ein.buergin, alt.buergin); geaendert.push("Bürgin"); }
+  if (ein?.gueltigBis !== undefined) { const g = gueltigBisAus(ein.gueltigBis); if (!g || g < berlinToday()) return nein("„Gültig bis“: ein Datum ab heute."); neu.gueltigBis = g; geaendert.push("Gültigkeit"); }
+  if (!geaendert.length) return nein("Es wurde nichts geändert.");
+  await sqlPool`
+    UPDATE fiaon_global_angebote
+       SET kunde = ${jsonb(neu.kunde)}, parameter = ${jsonb(neu.parameter)}, buergin = ${jsonb(neu.buergin)}, gueltig_bis = ${neu.gueltigBis}::date, updated_at = NOW()
+     WHERE id = ${id} AND status = 'offen'`;
+  await teileSchreiben(id, neu.parameter);
+  await verlaufAngebot(id, wer, `geändert: ${geaendert.join(", ")}`, { alterHash: altHash });
+  return { ok: true, fehlt: angebotPflichtFehlen(neu) };
+}
+
+/** Anlage 2, Teil IV neu aus den Daten der Person rechnen (Boni-Ampel E-202) — Teil A bleibt, wie er gemessen ist. */
+export async function angebotPruefberichtBoniNeu(id: number, wer: string): Promise<Ergebnis<{ punkte: number | null }>> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (String(z.status) !== "offen") return nein("Der Prüfbericht eines angenommenen Angebots bleibt, wie er angenommen wurde.", 409);
+  if (!z.person_id) return nein("Ohne Person keine Auswertung.");
+  const { boniAmpelFuerPerson } = await import("./fiaon-boni-ampel");
+  const ampel = await boniAmpelFuerPerson(Number(z.person_id));
+  if (!ampel) return nein("Für diese Person liegt keine Auswertung vor (kein Antrag).", 409);
+  const pb = json<Pruefbericht | null>(z.pruefbericht, null) ?? leererPruefbericht(angebotDatenAus(z), wer);
+  const jetzt = new Date();
+  pb.boni = {
+    farbe: ampel.farbe, punkte: ampel.punkte, label: ampel.label,
+    teile: ampel.teile.map((t) => ({ key: String(t.key), label: String(t.label), punkte: Number(t.punkte), quelle: t.quelle, text: String(t.text) })),
+    belegt: Number(ampel.belegt ?? 0), deckel: ampel.deckel ?? null, befunde: (ampel.befunde ?? []).map((b) => String(b)),
+    geschaetzt: ampel.geschaetzt === true,
+    quelle: `boniAmpelFuerPerson(${z.person_id}) — eine Rechnung für alle Kunden (shared/fiaon-boni-ampel.ts)`,
+    stand: jetzt.toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+  };
+  await sqlPool`UPDATE fiaon_global_angebote SET pruefbericht = ${jsonb(pb)}, updated_at = NOW() WHERE id = ${id} AND status = 'offen'`;
+  await verlaufAngebot(id, wer, `Prüfbericht Teil IV neu gerechnet: ${pb.boni.punkte} Punkte`);
+  return { ok: true, punkte: pb.boni.punkte };
+}
+/**
+ * Anlage 2 aus der Saat setzen (Endabnahme 01.10.2026) — NICHT aus einem Formular (die Route nimmt
+ * keinen Prüfbericht an). Nur solange das Angebot offen ist; die alte Prüfsumme steht im Verlauf,
+ * damit der Kunde eine geänderte Fassung als „bitte neu laden" sieht (409 GEAENDERT).
+ */
+export async function angebotPruefberichtSetzen(id: number, pb: Pruefbericht, wer: string): Promise<Ergebnis> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (String(z.status) !== "offen") return nein("Der Prüfbericht eines angenommenen Angebots bleibt, wie er angenommen wurde.", 409);
+  const altHash = angebotTextHash(angebotDatenAus(z), { sofortBeginn: false, jahresbetreuung: false });
+  await sqlPool`UPDATE fiaon_global_angebote SET pruefbericht = ${jsonb(pb)}, updated_at = NOW() WHERE id = ${id} AND status = 'offen'`;
+  await verlaufAngebot(id, wer, `Prüfbericht (Anlage 2) aus der Saat gesetzt — ${pruefberichtErgebnis(pb).satz}`, { alterHash: altHash });
+  return { ok: true };
+}
+function leererPruefbericht(d: AngebotDaten, wer: string): Pruefbericht {
+  const heute = angebotTag(berlinToday());
+  return {
+    erstellt: heute, datenstand: heute, pruefer: wer, aktenzeichen: d.ref, eigenschaft: "Privatperson (Verbraucher)",
+    vorhaben: "Gründung einer US-LLC (Teil 1) und Begleitung der Gesellschaft bei Kapital- und Kartenanträgen (Teil 2)",
+    stammdaten: [], sanktionen: null,
+    pep: { status: "offen", text: "FIAON nutzt keine PEP-Datenbank. Der Status wird durch Selbstauskunft im Vertrag festgestellt (Ziffer 7 Absatz 4)." },
+    boni: null,
+    eignung: { voraussetzungen: "Die persönlichen Voraussetzungen werden vor Beginn der Leistungen geprüft.", steuer: [], haftung: "US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus.", mitwirkung: "Ein gültiger Reisepass, Unterschriften und wahre Angaben.", einordnung: "Vorläufig." },
+    auflagen: ["Identifizierung anhand des Reisepasses vor Beginn der Leistungen."],
+  };
+}
+
+export async function angebotZurueckziehen(id: number, grundRoh: unknown, wer: string): Promise<Ergebnis> {
+  const grund = text(grundRoh, 500);
+  if (grund.length < 5) return nein("Bitte einen Grund angeben.");
+  const r = (await sqlPool`
+    UPDATE fiaon_global_angebote SET status = 'zurueckgezogen', zurueckgezogen_am = NOW(), zurueckgezogen_von = ${wer}, zurueckgezogen_grund = ${grund}, updated_at = NOW()
+     WHERE id = ${id} AND status = 'offen' RETURNING id`) as any[];
+  if (!r.length) return nein("Nur ein offenes Angebot lässt sich zurückziehen.", 409);
+  await verlaufAngebot(id, wer, `zurückgezogen: ${grund}`);
+  return { ok: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE KUNDENSEITE
+// ═══════════════════════════════════════════════════════════════════════════
+export function schalterAus(q: any): AngebotSchalter {
+  // Nur ein echtes „1"/true zählt — nie vorangekreuzt, nie per Link vorbelegt (der Link trägt keine Schalter).
+  const an = (v: unknown) => v === true || v === "1" || v === 1;
+  return { sofortBeginn: an(q?.sofortBeginn), jahresbetreuung: an(q?.jahresbetreuung) };
+}
+
+/** Was GET /global/angebot/:token liefert — für genau diese Schalterstellung. */
+export async function angebotKundenSicht(token: string, s: AngebotSchalter, opts: { leitung?: boolean } = {}): Promise<{ status: number; body: Record<string, unknown> }> {
+  const t = angebotTokenPruefen(token);
+  if (!t) return { status: 403, body: { ok: false, error: "Dieser Link ist ungültig. Bitte öffnen Sie den Link aus unserer Nachricht." } };
+  if (t.urteil === "abgelaufen") return { status: 410, body: { ok: false, error: "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com — wir melden uns bei Ihnen." } };
+  const z = await angebotLesen({ ref: t.ref });
+  if (!z) return { status: 404, body: { ok: false, error: "Zu diesem Link finden wir kein Angebot." } };
+  if (angebotLinkAbgelaufen(z)) return { status: 410, body: { ok: false, error: "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com — wir melden uns bei Ihnen." } };
+  const status = angebotStatusAus(z);
+  if (status === "zurueckgezogen") return { status: 410, body: { ok: false, error: "Dieses Angebot gilt nicht mehr. Bei Fragen erreichen Sie uns unter support@fiaon.com." } };
+  if (status === "abgelaufen") return { status: 410, body: { ok: false, error: `Dieses Angebot galt bis zum ${angebotTag(z.gueltig_bis instanceof Date ? berlinToday(z.gueltig_bis) : String(z.gueltig_bis))}. Möchten Sie es weiter annehmen, schreiben Sie uns an support@fiaon.com.` } };
+  const d = angebotDatenAus(z);
+  if (status === "angenommen") {
+    // Gegenprüfung 01.10.2026: Hing nach der Annahme die Bestellung oder Rechnung (Antwort 202), heilt sich das
+    // hier beim nächsten Aufruf des Links — beide Schritte sind wiederholbar, nichts entsteht doppelt.
+    if (!z.auftrag_ref || z.nacharbeit_fehler || !(await globalBestellungLesen(String(z.auftrag_ref)))?.payment_reference) {
+      const fertig = await angebotFertigstellen(Number(z.id)).catch((e) => { console.error(`[FIAON-ANGEBOT] ${d.ref}: Nachholen beim Lesen:`, e); return { ok: false }; });
+      if (fertig.ok) void angebotNacharbeit(Number(z.id)).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Nacharbeit beim Lesen:`, e));
+    }
+    return { status: 200, body: { ok: true, status, ...(await angenommenAntwort((await angebotLesen({ id: Number(z.id) }))!)) } };
+  }
+  const fehlt = angebotPflichtFehlen(d);
+  const seite = angebotSeite(d);
+  return {
+    status: 200,
+    body: {
+      ok: true, status, ref: d.ref, fassung: d.fassung, gueltigBis: d.gueltigBis,
+      kundeName: angebotKundeName(d.kunde), kundeAnrede: angebotKundeAnrede(d.kunde), email: d.kunde.email,
+      seite, uebersicht: angebotBestellUebersicht(d, s), annahme: { ...ANGEBOT_ANNAHME, unterKnopf: ANGEBOT_ANNAHME.unterKnopf(angebotEur(d.parameter.teil1Cents)), fertigSofort: undefined, fertigWartet: undefined },
+      teil1Cents: d.parameter.teil1Cents, teil2Cents: d.parameter.teil2Cents, gesamtCents: angebotGesamtCents(d.parameter),
+      schalter: s, html: angebotVorschauHtml(d, s), textHash: angebotTextHash(d, s),
+      // Ohne Pflichtfelder keine Annahme — der Kunde sieht nur den ruhigen Satz, die Leitung die Liste.
+      annahmeBereit: fehlt.length === 0 && !opts.leitung,
+      gesperrtGrund: fehlt.length ? ANGEBOT_ANNAHME.gesperrt : null,
+      ...(opts.leitung ? { vorschauLeitung: true, fehlt } : {}),
+      vertragPdf: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf`,
+      pruefberichtPdf: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/pruefbericht.pdf`,
+    },
+  };
+}
+async function angenommenAntwort(z: AngebotZeile): Promise<Record<string, unknown>> {
+  const ref1 = z.auftrag_ref ? String(z.auftrag_ref) : null;
+  const b = ref1 ? await globalBestellungLesen(ref1) : null;
+  const sch = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
+  const kunde = json<AngebotKunde>(z.kunde, {} as AngebotKunde);
+  const meinAuftrag = ref1 ? globalMeinAuftragUrl(ref1) : null;
+  const t = meinAuftrag ? new URL(meinAuftrag).searchParams.get("t") : null;
+  return {
+    ref: String(z.angebot_ref), auftragRef: ref1, email: kunde.email, sofortBeginn: sch.sofortBeginn === true,
+    angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null,
+    betragCents: Number(json<AngebotParameter>(z.parameter, ANGEBOT_VORGABEN).teil1Cents),
+    zahlungsseite: b?.payment_reference ? `/zahlung/${b.payment_reference}?bereich=business` : null,
+    meinAuftrag: ref1 && t ? `/business/auftrag/${encodeURIComponent(ref1)}?t=${encodeURIComponent(t)}` : null,
+    vertragUrl: ref1 && t ? `/api/fiaon/global/auftrag/${encodeURIComponent(ref1)}/vertrag.pdf?t=${encodeURIComponent(t)}` : null,
+    rechnungUrl: ref1 && t && b?.payment_reference ? `/api/fiaon/global/auftrag/${encodeURIComponent(ref1)}/rechnung.pdf?t=${encodeURIComponent(t)}` : null,
+    fertigText: sch.sofortBeginn ? ANGEBOT_ANNAHME.fertigSofort(kunde.email) : ANGEBOT_ANNAHME.fertigWartet(kunde.email),
+    fertigTitel: ANGEBOT_ANNAHME.fertigTitel,
+    // Ist Teil 1 schon bezahlt, gibt es keinen Weg zur Zahlung mehr — nur noch „Mein Auftrag".
+    // Gibt es noch keine Zahlungsseite (Rechnung hängt), sagt die Seite das ehrlich statt auf sie zu verweisen.
+    teil1Bezahlt: String(b?.payment_status) === "paid",
+    fertigZahlung: String(b?.payment_status) === "paid"
+      ? ANGEBOT_ANNAHME.fertigBezahlt
+      : b?.payment_reference
+        ? ANGEBOT_ANNAHME.fertigFaellig(angebotEur(Number(json<AngebotParameter>(z.parameter, ANGEBOT_VORGABEN).teil1Cents)))
+        : ANGEBOT_ANNAHME.fertigRechnungFolgt(angebotEur(Number(json<AngebotParameter>(z.parameter, ANGEBOT_VORGABEN).teil1Cents))),
+    fertigFuss: ANGEBOT_ANNAHME.fertigFuss,
+  };
+}
+
+/** Der Entwurf als PDF (Wasserzeichen) — nach der Annahme die Ausfertigung aus der Akte. */
+export async function angebotPdfFuerToken(token: string, art: "vertrag" | "pruefbericht", s: AngebotSchalter): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
+  const t = angebotTokenPruefen(token);
+  if (!t) return { status: 403, error: "Dieser Link ist ungültig." };
+  if (t.urteil === "abgelaufen") return { status: 410, error: "Dieser Link ist abgelaufen." };
+  const z = await angebotLesen({ ref: t.ref });
+  if (!z) return { status: 404, error: "Kein Angebot zu diesem Link." };
+  if (angebotLinkAbgelaufen(z)) return { status: 410, error: "Dieser Link ist abgelaufen." };
+  const st = angebotStatusAus(z);
+  if (st === "zurueckgezogen") return { status: 410, error: "Dieses Angebot gilt nicht mehr." };
+  return angebotPdfErzeugen(z, art, s);
+}
+export async function angebotPdfErzeugen(z: AngebotZeile, art: "vertrag" | "pruefbericht" | "anlage1", s: AngebotSchalter): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
+  const d = angebotDatenAus(z);
+  if (art === "pruefbericht") {
+    if (!d.pruefbericht) return { status: 404, error: "Zu diesem Angebot liegt noch kein Prüfbericht vor." };
+    return { status: 200, pdf: await angebotPruefberichtPdf(d), dateiname: `FIAON_Pruefbericht_${d.ref}.pdf` };
+  }
+  // Anlage 1 allein — das Blatt zum eigenhändigen Unterschreiben (nur für die Leitung, Gegenprüfung 01.10.2026).
+  if (art === "anlage1") return { status: 200, pdf: await angebotAnlage1Pdf(d), dateiname: `FIAON_Anlage1_Buergschaftszusage_${d.ref}.pdf` };
+  if (String(z.status) === "angenommen") {
+    const [r] = (await sqlPool`SELECT vertrag_pdf FROM fiaon_global_angebote WHERE id = ${z.id} LIMIT 1`) as any[];
+    if (r?.vertrag_pdf) return { status: 200, pdf: Buffer.from(r.vertrag_pdf), dateiname: `FIAON_Global_Individualvereinbarung_${d.ref}.pdf` };
+  }
+  return { status: 200, pdf: await angebotVertragPdf(d, s, null), dateiname: `FIAON_Global_Angebot_${d.ref}_Entwurf.pdf` };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ANNAHME
+// ═══════════════════════════════════════════════════════════════════════════
+const jeIp = new Map<string, number[]>();
+function zuViel(ip: string): boolean {
+  const jetzt = Date.now();
+  const liste = (jeIp.get(ip) ?? []).filter((t) => jetzt - t < 15 * 60_000);
+  if (liste.length >= 8) { jeIp.set(ip, liste); return true; }
+  liste.push(jetzt); jeIp.set(ip, liste);
+  return false;
+}
+/** Zwei gleichzeitige Klicks warten aufeinander — der zweite bekommt die Antwort des ersten. */
+const laufend = new Map<string, Promise<{ status: number; body: Record<string, unknown> }>>();
+
+export interface AnnahmeKontext { ip: string; userAgent: string; leitung: boolean }
+export async function angebotAnnehmen(token: string, body: any, kontext: AnnahmeKontext): Promise<{ status: number; body: Record<string, unknown> }> {
+  const t = angebotTokenPruefen(token);
+  if (!t) return { status: 403, body: { ok: false, error: "Dieser Link ist ungültig. Bitte öffnen Sie den Link aus unserer Nachricht." } };
+  const schon = laufend.get(t.ref);
+  if (schon) return schon;
+  const lauf = annehmen(t, body, kontext).finally(() => laufend.delete(t.ref));
+  laufend.set(t.ref, lauf);
+  return lauf;
+}
+
+async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, body: any, kontext: AnnahmeKontext): Promise<{ status: number; body: Record<string, unknown> }> {
+  const fehler = (status: number, error: string, extra: Record<string, unknown> = {}) => ({ status, body: { ok: false, error, ...extra } });
+  if (t.urteil === "abgelaufen") return fehler(410, "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com.");
+  const z = await angebotLesen({ ref: t.ref });
+  if (!z) return fehler(404, "Zu diesem Link finden wir kein Angebot.");
+  if (angebotLinkAbgelaufen(z)) return fehler(410, "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com.");
+  const status = angebotStatusAus(z);
+  // Doppelklick oder zweiter Tab: Die Annahme steht schon — dieselbe Antwort, nichts doppelt.
+  if (status === "angenommen") {
+    await angebotFertigstellen(Number(z.id)).catch((e) => console.error(`[FIAON-ANGEBOT] ${t.ref}: Nachholen:`, e));
+    return { status: 200, body: { ok: true, schon: true, ...(await angenommenAntwort((await angebotLesen({ id: Number(z.id) }))!)) } };
+  }
+  if (status === "zurueckgezogen") return fehler(410, "Dieses Angebot gilt nicht mehr.");
+  if (status === "abgelaufen") return fehler(410, "Dieses Angebot ist abgelaufen. Schreiben Sie uns an support@fiaon.com.");
+  if (kontext.leitung) return fehler(403, "Aus dem Chefbüro heraus lässt sich ein Angebot nicht annehmen — die Zustimmung gibt nur der Kunde.");
+  if (String(body?.falle ?? "").trim()) return fehler(400, "Ihre Angaben konnten nicht verarbeitet werden. Bitte laden Sie die Seite neu.");
+  const d = angebotDatenAus(z);
+  const fehlt = angebotPflichtFehlen(d);
+  if (fehlt.length) return fehler(409, ANGEBOT_ANNAHME.gesperrt, { code: "PFLICHTFELDER" });
+  if (zuViel(kontext.ip)) return fehler(429, "Von Ihrem Anschluss kamen gerade mehrere Versuche. Bitte versuchen Sie es in einigen Minuten noch einmal.");
+  const { istRoboterUnterschrift } = await import("./fiaon-vertrieb-zusage");
+  if (istRoboterUnterschrift(kontext.ip, kontext.userAgent).roboter) {
+    return fehler(403, "Diese Annahme können wir nicht entgegennehmen. Bitte öffnen Sie die Seite in Ihrem Browser und nehmen Sie dort an.");
+  }
+  const s = schalterAus(body);
+  const hash = angebotTextHash(d, s);
+  if (String(body?.textHash ?? "") !== hash) return fehler(409, ANGEBOT_ANNAHME.neuLaden, { code: "GEAENDERT" });
+
+  // ── Ohne PDF keine Annahme ────────────────────────────────────────────────
+  const jetzt = new Date();
+  let pdf: Buffer;
+  try {
+    pdf = await angebotVertragPdf(d, s, { am: jetzt, ip: kontext.ip, userAgent: kontext.userAgent, hash });
+    if (!pdf || pdf.length < 1000) throw new Error("PDF leer");
+  } catch (e) {
+    console.error(`[FIAON-ANGEBOT] ${t.ref}: Vertrags-PDF:`, e);
+    return fehler(500, "Ihr Vertrag konnte gerade nicht ausgefertigt werden — bitte versuchen Sie es in einer Minute noch einmal. Es wurde nichts gespeichert.");
+  }
+  // ── Anspruch sichern: genau eine Annahme ──────────────────────────────────
+  // Gegenprüfung 01.10.2026: `updated_at` als optimistische Sperre — hat die Leitung zwischen dem Lesen
+  // (oben) und diesem Schreiben etwas geändert (Kunde, Teile, Bürgin), gewinnt NICHT die Annahme mit dem
+  // alten Text, sondern der Kunde bekommt „bitte neu laden" (409 GEAENDERT). Vergleich als Text, weil
+  // JavaScript die Mikrosekunden der Spalte verliert.
+  const [frei] = (await sqlPool`
+    UPDATE fiaon_global_angebote
+       SET status = 'angenommen', angenommen_am = ${jetzt}, ip = ${kontext.ip}, user_agent = ${String(kontext.userAgent || "").slice(0, 500)},
+           text_hash = ${hash}, schalter = ${jsonb(s)}, vertrag_pdf = ${pdf}, updated_at = NOW()
+     WHERE id = ${z.id} AND status = 'offen' AND gueltig_bis >= ${berlinToday()}::date AND updated_at::text = ${String(z.updated_at_txt)}
+     RETURNING id`) as any[];
+  if (!frei) {
+    const neu = await angebotLesen({ id: Number(z.id) });
+    if (neu && String(neu.status) === "angenommen") return { status: 200, body: { ok: true, schon: true, ...(await angenommenAntwort(neu)) } };
+    if (neu && String(neu.status) === "offen") return fehler(409, ANGEBOT_ANNAHME.neuLaden, { code: "GEAENDERT" });
+    return fehler(409, "Das Angebot lässt sich gerade nicht annehmen. Bitte laden Sie die Seite neu.");
+  }
+  await verlaufAngebot(Number(z.id), angebotKundeName(d.kunde), `angenommen (${ANGEBOT_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, sofortiger Beginn ${s.sofortBeginn ? "ja" : "nein"}, Jahresbetreuung ${s.jahresbetreuung ? "ja" : "nein"}`);
+
+  const fertig = await angebotFertigstellen(Number(z.id));
+  const neu = (await angebotLesen({ id: Number(z.id) }))!;
+  if (!fertig.ok) {
+    // Die Annahme steht (Vertrag mit Prüfsumme liegt fest) — Bestellung oder Rechnung hängen. Ein zweiter
+    // Klick holt nach; die Leitung sieht den Fehler im Reiter „Individualangebote".
+    return { status: 202, body: { ok: true, teilweise: true, hinweis: "Ihre Annahme ist gespeichert. Die Rechnung wird gerade erstellt — Sie erhalten sie per E-Mail.", ...(await angenommenAntwort(neu)) } };
+  }
+  void angebotNacharbeit(Number(z.id)).catch((e) => console.error(`[FIAON-ANGEBOT] ${t.ref}: Nacharbeit abgebrochen — bitte im Reiter „Individualangebote" nachsehen:`, e));
+  return { status: 200, body: { ok: true, ...(await angenommenAntwort(neu)) } };
+}
+
+/** Bestellzeile anlegen — derselbe Weg wie /business/start (Loopback auf POST /api/fiaon/application). */
+async function bestellzeileAnlegen(ref: string, d: AngebotDaten, nr: 1 | 2, kontext: { ip: string; userAgent: string }): Promise<boolean> {
+  const k = d.kunde;
+  const port = process.env.PORT || 5000;
+  const [jahr, monat, tag] = k.geburtsdatum.split("-");
+  const antwort = await fetch(`http://127.0.0.1:${port}/api/fiaon/application`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-forwarded-for": kontext.ip || "", "user-agent": kontext.userAgent || "fiaon-global-angebot" },
+    body: JSON.stringify({
+      ref, type: "business", status: "submitted", currentStep: 6,
+      packKey: ANGEBOT_PAKET_KEY, packName: angebotTeilPaketname(nr),
+      // Privatperson: KEIN Firmenname — die Rechnung nennt die Person (wie der Privatauftrag E-191).
+      companyName: null, legalForm: null, taxId: null,
+      firstName: k.vorname, lastName: k.nachname, birthDay: tag, birthMonth: monat, birthYear: jahr,
+      contactFirstName: k.vorname, contactLastName: k.nachname,
+      contactEmail: k.email, email: k.email, billingEmail: k.email, contactPhone: k.telefon || null,
+      street: k.strasse, zip: k.plz, city: k.ort, country: k.land,
+      // Gegenprüfung 01.10.2026: Ziffer 15 schließt die AGB aus — die Akte darf keine AGB-Zustimmung behaupten (consent_agb bleibt leer).
+      // Der Vertrag selbst ist angenommen (ag3 → consent_contract); eine Bonitätsabfrage gibt es nicht (ag2).
+      ag1: false, ag2: false, ag3: true,
+      // Endabnahme 01.10.2026: Auf diesem Weg gibt es KEINE Messung — weder Pixel/Web noch die Lead-Stufe an Meta
+      // (Nachtrag d; Ziffer 14 des Vertrags nennt Meta nicht). `webMessungAus` allein ließ die CRM-Meldung durch.
+      webMessungAus: true, messungAus: true,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!antwort.ok) {
+    console.error(`[FIAON-ANGEBOT] ${ref}: application ${antwort.status}:`, (await antwort.text().catch(() => "")).slice(0, 200));
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Alles nach der Annahme, was eine Antwort braucht — WIEDERHOLBAR: Bestellzeile Teil 1, Teil binden,
+ * Akte, Bestellung mit Rechnungsnummer. Jeder Schritt prüft, ob er schon getan ist.
+ */
+export async function angebotFertigstellen(id: number): Promise<{ ok: boolean; grund?: string }> {
+  const z = await angebotLesen({ id });
+  if (!z || String(z.status) !== "angenommen") return { ok: false, grund: "nicht angenommen" };
+  const d = angebotDatenAus(z);
+  const s = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
+  const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
+  if (!teil1) return { ok: false, grund: "Teil 1 fehlt" };
+  try {
+    let ref1 = teil1.bestell_ref ? String(teil1.bestell_ref) : (z.auftrag_ref ? String(z.auftrag_ref) : null);
+    if (!ref1) {
+      ref1 = `FIAON-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").slice(0, 4).toUpperCase()}`;
+      // Erst die Nummer am Angebot festhalten — ein Abbruch danach legt beim nächsten Versuch keine zweite Zeile an.
+      await sqlPool`UPDATE fiaon_global_angebote SET auftrag_ref = ${ref1}, updated_at = NOW() WHERE id = ${id} AND auftrag_ref IS NULL`;
+      const [w] = (await sqlPool`SELECT auftrag_ref FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
+      ref1 = String(w.auftrag_ref);
+    }
+    const [da] = (await sqlPool`SELECT ref, person_id FROM fiaon_applications WHERE ref = ${ref1} LIMIT 1`) as any[];
+    if (!da) {
+      const ok = await bestellzeileAnlegen(ref1, d, 1, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
+      if (!ok) throw new Error("Bestellzeile Teil 1 ließ sich nicht anlegen");
+    }
+    // Den Teil binden, BEVOR ein Betrag an der Zeile steht (Wand, Migration 087).
+    await sqlPool`UPDATE fiaon_global_angebot_teile SET bestell_ref = ${ref1} WHERE angebot_id = ${id} AND nr = 1 AND bestell_ref IS NULL`;
+    const [person] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref1}`) as any[];
+    if (person?.person_id) await sqlPool`UPDATE fiaon_global_angebote SET person_id = COALESCE(person_id, ${Number(person.person_id)}) WHERE id = ${id}`;
+
+    // ── Die Akte (fiaon_global_auftraege) — „Mein Auftrag", Office, Zahlungstakt, Widerrufsstart, Storno ──
+    if (!(await globalAkteLesen(ref1))) {
+      const [pdfZeile] = (await sqlPool`SELECT vertrag_pdf FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
+      const firma = { art: "privat", land: d.kunde.land, name: angebotKundeName(d.kunde), rechtsform: "Privatperson", registergericht: null, registernummer: null, strasse: d.kunde.strasse, plz: d.kunde.plz, ort: d.kunde.ort, ustId: null, website: null, quelleRegister: null };
+      const ansprechpartner = { anrede: d.kunde.anrede, vorname: d.kunde.vorname, nachname: d.kunde.nachname, funktion: "Privatperson", email: d.kunde.email, telefon: d.kunde.telefon };
+      const bestaetigungen = { annahme: ANGEBOT_KNOPF, sofortBeginn: s.sofortBeginn === true, jahresbetreuung: s.jahresbetreuung === true, am: new Date(z.angenommen_am).toISOString() };
+      // Dieselbe Schreibweise wie globalAuftragAnlegen (JSON-Text auf ::jsonb) — alle Leser der Akte kennen sie.
+      await sqlPool`
+        INSERT INTO fiaon_global_auftraege
+          (ref, paket_key, land, firma, ansprechpartner, ust_id, bestaetigungen, unterschrift_png, vertrag_pdf, vertrag_version, vertrag_sprache,
+           unterschrieben_am, ip, user_agent, quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, ust_hinweis,
+           jahresbetreuung, jahresbetreuung_preis_cents, angebot_id)
+        VALUES
+          (${ref1}, ${ANGEBOT_PAKET_KEY}, ${d.kunde.land}, ${JSON.stringify(firma)}::jsonb, ${JSON.stringify(ansprechpartner)}::jsonb, ${null},
+           ${JSON.stringify(bestaetigungen)}::jsonb, ${null}, ${pdfZeile?.vertrag_pdf ?? null}, ${d.fassung}, 'de',
+           ${new Date(z.angenommen_am)}, ${z.ip}, ${z.user_agent}, 'individualangebot', 'offen', ${z.text_hash}, ${firma.name}, ${d.kunde.email}, 'none', ${null},
+           ${s.jahresbetreuung === true}, ${s.jahresbetreuung ? GLOBAL_JAHRESBETREUUNG.preisCents : null}, ${id})
+        ON CONFLICT (ref) DO NOTHING`;
+    }
+    // ── Die Bestellung: Betrag aus dem Teil, Zahlungsziel sofort, Rechnungsnummer aus dem einen Kreis ──
+    const b = await globalBestellungLesen(ref1);
+    if (!b?.payment_reference || !["pending_payment", "claimed_paid", "paid"].includes(String(b.payment_status))) {
+      const { bestellungFuerAntrag } = await import("../routes/fiaon-antrag");
+      const erg = await bestellungFuerAntrag(ref1, { globalMailFolgt: true });
+      if (erg.status !== 200) throw new Error(`Bestellung: ${erg.status} ${JSON.stringify(erg.body).slice(0, 160)}`);
+      await sqlPool`UPDATE fiaon_applications SET rechnung_ust_modus = 'none' WHERE ref = ${ref1}`.catch(() => {});
+    }
+    await sqlPool`UPDATE fiaon_global_angebot_teile SET rechnung_am = COALESCE(rechnung_am, NOW()) WHERE angebot_id = ${id} AND nr = 1`;
+    await sqlPool`UPDATE fiaon_global_angebote SET nacharbeit_fehler = NULL, updated_at = NOW() WHERE id = ${id} AND nacharbeit_fehler IS NOT NULL`;
+    return { ok: true };
+  } catch (e) {
+    const grund = e instanceof Error ? e.message : String(e);
+    console.error(`[FIAON-ANGEBOT] ${z.angebot_ref}: Fertigstellen:`, e);
+    await sqlPool`UPDATE fiaon_global_angebote SET nacharbeit_fehler = ${grund.slice(0, 500)}, updated_at = NOW() WHERE id = ${id}`.catch(() => {});
+    // Gegenprüfung 01.10.2026: Ein hängender Abschluss bekommt eine dringende Aufgabe an Justin — nicht nur roten
+    // Text im Reiter. Derselbe Schlüssel je Angebot: beim zweiten Fehlschlag wird der Text angehängt, nicht verdoppelt.
+    try {
+      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      await auftragFuerKunden({
+        personId: z.person_id != null ? Number(z.person_id) : null, ref: z.auftrag_ref ? String(z.auftrag_ref) : null,
+        titel: `Individualangebot ${z.angebot_ref}: Annahme gespeichert, Bestellung/Rechnung hängt — ${angebotKundeName(d.kunde)}`,
+        text: `Die Annahme steht (Prüfsumme in der Akte), aber Bestellzeile, Akte oder Rechnung ließen sich nicht anlegen: ${grund.slice(0, 300)}. Der Kunde hat noch keine Zahlungsseite. Nachholen: Reiter „Individualangebote“ → „Nachholen“ (oder der Kunde öffnet seinen Link erneut — der Stundenlauf versucht es ebenfalls).`,
+        dringend: true, anBetreiber: true, schluessel: `global:${z.angebot_ref}:nacharbeit`, bereich: "technik", quelle: "global", autorName: "FIAON Global",
+        link: "/chef/s/global-auftraege?reiter=angebote",
+      });
+    } catch (e2) { console.error(`[FIAON-ANGEBOT] ${z.angebot_ref}: Aufgabe „Nacharbeit hängt":`, e2); }
+    return { ok: false, grund };
+  }
+}
+
+/** Hinter der Antwort: Aufgaben (zuständige Person + Justin) und die Bestätigungsmail mit Vertrag und Rechnung. */
+export async function angebotNacharbeit(id: number): Promise<void> {
+  const z = await angebotLesen({ id });
+  if (!z || String(z.status) !== "angenommen" || !z.auftrag_ref) return;
+  const ref1 = String(z.auftrag_ref);
+  const d = angebotDatenAus(z);
+  const s = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
+  const b = await globalBestellungLesen(ref1);
+  const akte = await globalAkteLesen(ref1);
+  const name = angebotKundeName(d.kunde);
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const einstellungen = await globalEinstellungen();
+  const { globalWiderrufsfrist } = await import("./fiaon-global-vertrag");
+  const frist = globalWiderrufsfrist(new Date(z.angenommen_am));
+  const teilText = `Teil 1 „Gründung“ ${angebotEur(d.parameter.teil1Cents)} (Rechnung ${b?.invoice_number ?? "—"}, Verwendungszweck ${b?.payment_reference ?? "—"}, sofort fällig) · Teil 2 „Kapital-Begleitung“ ${angebotEur(d.parameter.teil2Cents)} erst beim Meilenstein`;
+  // ── Aufgabe an die zuständige Person ──
+  try {
+    let zustaendig: number | null = akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null;
+    if (!zustaendig) {
+      const erg = await auftragFuerKunden({
+        personId: b?.person_id != null ? Number(b.person_id) : null, ref: ref1,
+        titel: `FIAON Global: Individualangebot angenommen — ${name}`,
+        text: [
+          `${name} hat das Individualangebot ${d.ref} angenommen (${new Date(z.angenommen_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}).`,
+          teilText,
+          s.sofortBeginn
+            ? `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. Sofortiger Beginn verlangt — Start mit dem Zahlungseingang.`
+            : `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. KEIN sofortiger Beginn — Start frühestens am ${angebotTag(frist.startAb)}, auch wenn die Zahlung früher kommt. Bis dahin nichts beantragen.`,
+          `Die Frist von ${zahlwort(d.parameter.fristWochen)} Wochen beginnt mit dem Start — das Fristende steht danach im Reiter „Individualangebote“ und geht dem Kunden per Mail zu.`,
+          "Bitte kurz anrufen, die Annahme bestätigen und Fragen zur Überweisung klären. Vor Leistungsbeginn: Reisepass prüfen und die Sanktionslisten erneut abgleichen (Ziffer 7 des Vertrags).",
+          `Office: ${globalOfficeAuftragPfad(ref1)} · Leitung: /chef/s/global-auftraege?reiter=angebote`,
+        ].join("\n"),
+        schluessel: `global:${ref1}:auftrag`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+        link: globalOfficeAuftragPfad(ref1), agentId: einstellungen.zustaendigAgentId,
+        anlageText: `Individualangebot ${d.ref} auf /business/angebot angenommen.`,
+      });
+      if (erg.agentId) {
+        zustaendig = erg.agentId;
+        await sqlPool`UPDATE fiaon_global_auftraege SET zustaendig_agent_id = ${erg.agentId}, updated_at = NOW() WHERE ref = ${ref1} AND zustaendig_agent_id IS NULL`;
+      }
+    }
+  } catch (e) { console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe an die zuständige Person:`, e); }
+  // ── Aufgabe an Justin (die Zahlungsstelle) ──
+  await auftragFuerKunden({
+    personId: b?.person_id != null ? Number(b.person_id) : null, ref: ref1,
+    titel: `Individualangebot angenommen: ${name} — ${angebotEur(d.parameter.teil1Cents)} erwartet`,
+    text: [
+      `${name} hat das Individualangebot ${d.ref} angenommen. ${teilText}.`,
+      "Bitte den Zahlungseingang von Teil 1 wie immer über den einen Weg buchen (Zahlungen verbuchen). Mit der Buchung startet der Auftrag bzw. wartet auf das Ende der Widerrufsfrist.",
+      `Bürgschaftszusage: das eigenhändig unterschriebene Original (${angebotTag(d.buergin.unterzeichnetAm)}) per Post an ${d.kunde.strasse}, ${d.kunde.plz} ${d.kunde.ort} schicken, falls noch nicht geschehen. Das Original muss GENAU die angenommene Fassung der Anlage 1 tragen — Prüfsumme ${buergschaftPruefsumme(d).slice(0, 16)}… (steht auf dem Blatt „Anlage 1 zum Unterschreiben“ und im Vertrag).`,
+      "Offen vor Leistungsbeginn: Reisepass prüfen, Sanktionslisten erneut abgleichen, PEP-Erklärung (Ziffer 7 Absatz 4).",
+    ].join("\n"),
+    anBetreiber: true, schluessel: `global:${ref1}:angebot-justin`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+    link: "/chef/s/global-auftraege?reiter=angebote", anlageText: `Individualangebot ${d.ref} angenommen.`,
+  }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe an Justin:`, e));
+  // ── Die Bestätigungsmail — höchstens einmal, nachholbar ──
+  await bestaetigungSenden(id).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Bestätigungsmail:`, e));
+  await globalVerlauf(ref1, `FIAON Global: Individualangebot ${d.ref} angenommen (${ANGEBOT_KNOPF}). Vertrag mit Prüfsumme in der Akte; Rechnung Teil 1 ${b?.invoice_number ?? ""} über ${angebotEur(d.parameter.teil1Cents)}, sofort fällig.`);
+}
+
+export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; grund: string | null }> {
+  const [frei] = (await sqlPool`
+    UPDATE fiaon_global_angebote SET bestaetigung_mail_am = NOW(), bestaetigung_mail_fehler = NULL, updated_at = NOW()
+     WHERE id = ${id} AND status = 'angenommen' AND bestaetigung_mail_am IS NULL AND auftrag_ref IS NOT NULL RETURNING auftrag_ref`) as any[];
+  if (!frei) return { ok: true, grund: null };
+  const ref1 = String(frei.auftrag_ref);
+  const z = (await angebotLesen({ id }))!;
+  const d = angebotDatenAus(z);
+  const akte = await globalAkteLesen(ref1); const b = await globalBestellungLesen(ref1);
+  let mail: { ok: boolean; grund: string | null };
+  try {
+    const vertrag = await globalVertragPdfLesen(ref1);
+    if (!vertrag) throw new Error("der angenommene Vertrag liegt nicht als PDF in der Akte");
+    const rechnung = await globalRechnungPdf(ref1);
+    if (!rechnung) throw new Error("die Rechnung ließ sich nicht erzeugen");
+    mail = await globalMailSenden("global_angebot_angenommen", akte, b, {
+      anhaenge: [{ name: `FIAON_Global_Individualvereinbarung_${d.ref}.pdf`, inhalt: vertrag }, { name: rechnung.dateiname, inhalt: rechnung.pdf }],
+      zusatz: angebotMailZusatz(z, d),
+    });
+  } catch (e) { mail = { ok: false, grund: e instanceof Error ? e.message : String(e) }; }
+  if (mail.ok) {
+    await sqlPool`UPDATE fiaon_global_auftraege SET auftrag_mail_am = COALESCE(auftrag_mail_am, NOW()), updated_at = NOW() WHERE ref = ${ref1}`.catch(() => {});
+    await sqlPool`UPDATE fiaon_applications SET payment_email_sent_at = COALESCE(payment_email_sent_at, NOW()), welcome_sent_at = COALESCE(welcome_sent_at, NOW()) WHERE ref = ${ref1}`.catch(() => {});
+  } else {
+    await sqlPool`UPDATE fiaon_global_angebote SET bestaetigung_mail_am = NULL, bestaetigung_mail_fehler = ${mail.grund}, updated_at = NOW() WHERE id = ${id}`.catch(() => {});
+    await sqlPool`UPDATE fiaon_global_auftraege SET auftrag_mail_fehler = ${mail.grund}, updated_at = NOW() WHERE ref = ${ref1}`.catch(() => {});
+  }
+  return mail;
+}
+
+/** Die Zusatzfelder der Angebots-Mails — Teile, Frist, Angebot (Werte entschärft). */
+export function angebotMailZusatz(z: AngebotZeile, d: AngebotDaten, extra: Record<string, string> = {}): Record<string, string> {
+  const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const fristEnde = isoTag(z.frist_ende);
+  return {
+    angebot_ref: esc(d.ref),
+    teil1_text: angebotEur(d.parameter.teil1Cents),
+    teil2_text: angebotEur(d.parameter.teil2Cents),
+    gesamt_text: angebotEur(angebotGesamtCents(d.parameter)),
+    frist_wochen_text: zahlwort(d.parameter.fristWochen),
+    erstattung_tage_text: zahlwort(d.parameter.erstattungTage),
+    teil2_ziel_text: zahlwort(d.parameter.teil2ZielTage),
+    frist_ende_text: fristEnde ? angebotTag(fristEnde) : "",
+    frist_beginn_text: isoTag(z.frist_beginn) ? angebotTag(isoTag(z.frist_beginn)) : "",
+    buergin: esc(d.buergin.name),
+    ...extra,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZAHLUNG (gerufen aus globalNachZahlung — alle Buchungswege gehen durch onCustomerPaid)
+// ═══════════════════════════════════════════════════════════════════════════
+/** Fristbeginn und -ende: Zahlungseingang, ohne sofortigen Beginn frühestens der Starttag nach der Widerrufsfrist. */
+export function angebotFristBerechnen(z: { bezahltAm: string; sofortBeginn: boolean; startAb: string | null; wochen: number; hemmungTage: number }): { beginn: string; ende: string } {
+  const beginn = !z.sofortBeginn && z.startAb && z.startAb > z.bezahltAm ? z.startAb : z.bezahltAm;
+  return { beginn, ende: plusTage(beginn, z.wochen * 7 + Math.max(0, z.hemmungTage)) };
+}
+
+export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {}): Promise<{ gestartet: boolean; grund?: string }> {
+  await ensureAngebotTabellen();
+  const [t] = (await sqlPool`
+    SELECT t.*, a.id AS a_id FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
+     WHERE t.bestell_ref = ${ref} LIMIT 1`) as any[];
+  if (!t) return { gestartet: false, grund: "kein Angebotsteil an dieser Bestellung" };
+  const z = (await angebotLesen({ id: Number(t.a_id) }))!;
+  const d = angebotDatenAus(z);
+  const b = await globalBestellungLesen(ref);
+  if (!b || String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
+  await sqlPool`UPDATE fiaon_global_angebot_teile SET bezahlt_am = COALESCE(bezahlt_am, ${b.completed_at ?? new Date()}) WHERE id = ${t.id}`;
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const ref1 = String(z.auftrag_ref || ref);
+  const akte1 = await globalAkteLesen(ref1);
+  const zustaendig = (akte1?.zustaendig_agent_id ? Number(akte1.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId;
+  const name = angebotKundeName(d.kunde);
+
+  // ── Teil 2 bezahlt: nichts starten, vermerken und Bescheid geben ──
+  if (Number(t.nr) === 2) {
+    await verlaufAngebot(Number(z.id), "System", `Teil 2 bezahlt (${angebotEur(Number(t.betrag_cents))})`);
+    await globalVerlauf(ref1, `FIAON Global: Teil 2 „Kapital-Begleitung“ des Individualangebots ${d.ref} bezahlt (${b.payment_reference}).`);
+    await auftragFuerKunden({
+      personId: b.person_id != null ? Number(b.person_id) : null, ref: ref1,
+      titel: `FIAON Global: Teil 2 bezahlt — ${name}`,
+      text: `Die Rechnung über Teil 2 „Kapital-Begleitung“ (${angebotEur(Number(t.betrag_cents))}, Verwendungszweck ${b.payment_reference}) ist bezahlt. Die Kapital-Begleitung läuft weiter bis zum Ziel, längstens zwölf Monate nach dem Kapitalereignis (Ziffer 3 Absatz 5).`,
+      schluessel: `global:${ref1}:teil2-bezahlt`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      link: globalOfficeAuftragPfad(ref1), agentId: zustaendig, anlageText: "Zahlung Teil 2 gebucht.",
+    }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe Teil 2 bezahlt:`, e));
+    const [frei] = (await sqlPool`UPDATE fiaon_global_angebot_teile SET bezahlt_mail_am = NOW() WHERE id = ${t.id} AND bezahlt_mail_am IS NULL RETURNING id`) as any[];
+    if (frei && akte1) {
+      const mail = await globalMailSenden("global_angebot_teil2_bezahlt", akte1, b, { zusatz: angebotMailZusatz(z, d) });
+      if (!mail.ok) await sqlPool`UPDATE fiaon_global_angebot_teile SET bezahlt_mail_am = NULL WHERE id = ${t.id}`.catch(() => {});
+    }
+    return { gestartet: false, grund: "Teil 2 bezahlt — kein Start" };
+  }
+
+  // ── Teil 1: bezahlt vermerken, ggf. auf die Widerrufsfrist warten, dann starten ──
+  await sqlPool`UPDATE fiaon_global_auftraege SET status = 'bezahlt', bezahlt_am = COALESCE(bezahlt_am, ${b.completed_at ?? new Date()}), updated_at = NOW() WHERE ref = ${ref} AND status = 'offen'`;
+  const akte = await globalAkteLesen(ref);
+  if (!akte) return { gestartet: false, grund: "Akte fehlt" };
+  const warten = globalStartWartet(akte, opts.jetzt);
+  if (warten) {
+    await auftragFuerKunden({
+      personId: b.person_id != null ? Number(b.person_id) : null, ref,
+      titel: `FIAON Global: Teil 1 bezahlt, Start nach der Widerrufsfrist — ${name}`,
+      text: [
+        `Die Zahlung für Teil 1 (${angebotEur(d.parameter.teil1Cents)}) ist eingegangen. ${name} hat NICHT verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen.`,
+        `Die Widerrufsfrist endet am ${angebotTag(warten.fristEnde)}. Der Auftrag startet am ${angebotTag(warten.startAb)} von selbst — mit ihm beginnt die Frist von ${zahlwort(d.parameter.fristWochen)} Wochen.`,
+        "Bis dahin: nichts beantragen und keine Gebühren auslösen. Widerruft der Kunde, sofort die Leitung informieren: Das Geld geht binnen vierzehn Tagen vollständig zurück.",
+      ].join("\n"),
+      schluessel: `global:${ref}:widerruf`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      link: globalOfficeAuftragPfad(ref), agentId: zustaendig, anlageText: "Zahlungseingang Teil 1 — Start nach der Widerrufsfrist.",
+    }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe Widerrufsfrist:`, e));
+    await globalVerlauf(ref, `FIAON Global: Teil 1 bezahlt. Start am ${angebotTag(warten.startAb)} (Widerrufsfrist bis ${angebotTag(warten.fristEnde)}).`);
+    return { gestartet: false, grund: `Start am ${angebotTag(warten.startAb)}, nach der Widerrufsfrist` };
+  }
+
+  // Frist setzen — einmal, beim Start.
+  const sch = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
+  const { globalWiderrufsfrist } = await import("./fiaon-global-vertrag");
+  const wf = globalWiderrufsfrist(new Date(z.angenommen_am));
+  const bezahltAm = berlinToday(new Date(b.completed_at ?? new Date()));
+  const frist = angebotFristBerechnen({ bezahltAm, sofortBeginn: sch.sofortBeginn === true, startAb: wf.startAb, wochen: d.parameter.fristWochen, hemmungTage: Number(z.frist_hemmung_tage || 0) });
+  await sqlPool`UPDATE fiaon_global_angebote SET frist_beginn = ${frist.beginn}::date, frist_ende = ${frist.ende}::date, updated_at = NOW() WHERE id = ${z.id} AND frist_beginn IS NULL`;
+  const z2 = (await angebotLesen({ id: Number(z.id) }))!;
+  const fristEnde = isoTag(z2.frist_ende) ?? frist.ende;
+
+  let aufgabeId: number | null = null; let agentId: number | null = null;
+  try {
+    const erg = await auftragFuerKunden({
+      personId: b.person_id != null ? Number(b.person_id) : null, ref,
+      titel: `FIAON Global: Individualangebot starten — ${name}`,
+      text: [
+        `Die Zahlung für Teil 1 (${angebotEur(d.parameter.teil1Cents)}) liegt vor — der Auftrag startet JETZT. Der Kunde bekommt die Startmail mit deinem Namen und dem Fristende.`,
+        `FRIST: ${zahlwort(d.parameter.fristWochen)} Wochen, vom ${angebotTag(isoTag(z2.frist_beginn))} bis ${angebotTag(fristEnde)}. Kommt bis dahin weder Kapital noch Karte für die Gesellschaft, erstattet FIAON Teil 1 vollständig (Ziffer 6). Ruhen darf die Frist nur nach schriftlicher Aufforderung mit mindestens sieben Tagen Frist (Leitung: „Frist hemmen“).`,
+        "1. Startgespräch führen. 2. Reisepass prüfen, Sanktionslisten erneut abgleichen, PEP-Erklärung festhalten. 3. Bundesstaat mit Partner-Steuerberater, Gründung, EIN, Geschäftskonto. 4. Kapital-Begleitung: Kartenleiter und Anträge vorbereiten — kein Bankname gegenüber dem Kunden.",
+        "Sobald das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist: der Leitung sagen — sie drückt „Meilenstein erreicht“, dann geht die Rechnung über Teil 2 raus.",
+        `Bürgin: ${d.buergin.name} (Anlage 1). Fordert ein Institut eine Bürgschaft an, über die Leitung abstimmen.`,
+      ].join("\n"),
+      dringend: true, schluessel: `global:${ref}:start`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      link: globalOfficeAuftragPfad(ref), agentId: zustaendig, anlageText: "Zahlungseingang Teil 1 — Individualangebot startet.",
+    });
+    aufgabeId = erg.id; agentId = erg.agentId;
+  } catch (e) { console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe „Individualangebot starten":`, e); }
+  if (!aufgabeId) return { gestartet: false, grund: "Aufgabe nicht angelegt" };
+  await sqlPool`
+    UPDATE fiaon_global_auftraege SET status = 'gestartet', gestartet_am = COALESCE(gestartet_am, NOW()), zustaendig_agent_id = COALESCE(${agentId}, zustaendig_agent_id), updated_at = NOW()
+     WHERE ref = ${ref} AND status IN ('offen', 'bezahlt')`;
+  await import("./fiaon-global-bereich").then((m) => m.globalStartVermerken(ref)).catch((e) => console.error(`[FIAON-ANGEBOT] ${ref}: Etappe 1:`, e));
+  await verlaufAngebot(Number(z.id), "System", `gestartet — Frist bis ${angebotTag(fristEnde)}`);
+  // Die Startmail — genau einmal (dieselbe Marke wie der Global-Start).
+  const [frei] = (await sqlPool`UPDATE fiaon_applications SET confirmed_email_sent_at = NOW() WHERE ref = ${ref} AND confirmed_email_sent_at IS NULL RETURNING ref`) as any[];
+  if (frei) {
+    const frisch = (await globalAkteLesen(ref)) ?? akte;
+    const mail = await globalMailSenden("global_angebot_start", frisch, b, { zusatz: angebotMailZusatz(z2, d) });
+    if (mail.ok) {
+      await sqlPool`UPDATE fiaon_global_auftraege SET start_mail_am = NOW(), start_mail_fehler = NULL, updated_at = NOW() WHERE ref = ${ref}`.catch(() => {});
+      await sqlPool`UPDATE fiaon_global_angebote SET start_mail_am = NOW() WHERE id = ${z.id}`.catch(() => {});
+      await globalVerlauf(ref, `FIAON Global: Teil 1 bezahlt, Auftrag gestartet, Frist bis ${angebotTag(fristEnde)} — Startmail verschickt.`);
+    } else {
+      await sqlPool`UPDATE fiaon_applications SET confirmed_email_sent_at = NULL WHERE ref = ${ref}`.catch(() => {});
+      await sqlPool`UPDATE fiaon_global_auftraege SET start_mail_fehler = ${mail.grund}, updated_at = NOW() WHERE ref = ${ref}`.catch(() => {});
+      await globalVerlauf(ref, `FIAON Global: Auftrag gestartet, Frist bis ${angebotTag(fristEnde)} — die Startmail ging NICHT raus (${mail.grund}). Bitte dem Kunden das Fristende in Textform mitteilen.`);
+    }
+  }
+  return { gestartet: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MEILENSTEIN → TEIL 2
+// ═══════════════════════════════════════════════════════════════════════════
+export function meilensteinPruefen(lage: { status: string; teil1Bezahlt: boolean; teil2: any; fristEnde: string | null; heute: string }, ein: any):
+  { ok: true; daten: { art: "kapital" | "karte"; datum: string; eingetragenAm: string; beleg: string } } | { ok: false; error: string } {
+  if (lage.status !== "angenommen") return { ok: false, error: "Das Angebot ist nicht angenommen." };
+  if (!lage.teil1Bezahlt) return { ok: false, error: "Teil 1 ist noch nicht bezahlt — der Meilenstein kommt nach dem Start." };
+  if (!lage.teil2 || lage.teil2.bestell_ref) return { ok: false, error: "Teil 2 ist bereits berechnet." };
+  if (lage.teil2.entfallen_am) return { ok: false, error: "Teil 2 ist entfallen (Frist abgelaufen)." };
+  const art = ein?.art === "karte" ? "karte" : ein?.art === "kapital" ? "kapital" : null;
+  if (!art) return { ok: false, error: "Bitte wählen: Kapital ausgezahlt oder Karte freigeschaltet." };
+  const datum = String(ein?.datum ?? "").trim(); const eingetragenAm = String(ein?.eingetragenAm ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return { ok: false, error: "Datum der Auszahlung bzw. Freischaltung fehlt." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eingetragenAm)) return { ok: false, error: "Datum der Eintragung der Gesellschaft fehlt." };
+  if (datum > lage.heute) return { ok: false, error: "Das Datum liegt in der Zukunft." };
+  if (eingetragenAm > datum) return { ok: false, error: "Die Gesellschaft muss vor der Auszahlung bzw. Freischaltung eingetragen sein." };
+  if (lage.fristEnde && datum > lage.fristEnde) return { ok: false, error: `Das Ereignis liegt nach dem Fristende (${angebotTag(lage.fristEnde)}) — Teil 2 ist dann entfallen (Ziffer 6).` };
+  const beleg = text(ein?.beleg, 600);
+  if (beleg.length < 20) return { ok: false, error: "Bitte den Beleg in einem Satz festhalten (mindestens 20 Zeichen) — er bleibt intern, der Kunde sieht keinen Banknamen." };
+  return { ok: true, daten: { art, datum, eingetragenAm, beleg } };
+}
+
+export async function angebotMeilenstein(id: number, ein: any, wer: string): Promise<Ergebnis<{ ref2: string; meldung: string }>> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
+  const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
+  const b1 = teil1?.bestell_ref ? await globalBestellungLesen(String(teil1.bestell_ref)) : null;
+  const p = meilensteinPruefen({ status: String(z.status), teil1Bezahlt: String(b1?.payment_status) === "paid", teil2, fristEnde: isoTag(z.frist_ende), heute: berlinToday() }, ein);
+  if (!p.ok) return nein(p.error, 409);
+  const d = angebotDatenAus(z);
+  const ref1 = String(z.auftrag_ref);
+  // Erst die Angaben am Teil festhalten (Beschreibung der Rechnung liest sie), dann die Zeile, dann binden.
+  const ref2 = `FIAON-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").slice(0, 4).toUpperCase()}`;
+  const [gesichert] = (await sqlPool`
+    UPDATE fiaon_global_angebot_teile
+       SET meilenstein_am = ${p.daten.datum}::date, meilenstein_art = ${p.daten.art}, meilenstein_beleg = ${p.daten.beleg}, meilenstein_von = ${wer},
+           eingetragen_am = ${p.daten.eingetragenAm}::date
+     WHERE id = ${teil2.id} AND bestell_ref IS NULL AND entfallen_am IS NULL RETURNING id`) as any[];
+  if (!gesichert) return nein("Teil 2 wurde gerade schon berechnet.", 409);
+  const ok = await bestellzeileAnlegen(ref2, d, 2, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
+  if (!ok) return nein("Die Bestellzeile für Teil 2 ließ sich nicht anlegen — bitte noch einmal versuchen.", 502);
+  await sqlPool`UPDATE fiaon_global_angebot_teile SET bestell_ref = ${ref2} WHERE id = ${teil2.id} AND bestell_ref IS NULL`;
+  const { bestellungFuerAntrag } = await import("../routes/fiaon-antrag");
+  const erg = await bestellungFuerAntrag(ref2, { globalMailFolgt: true });
+  if (erg.status !== 200) return nein(`Die Rechnung für Teil 2 ließ sich nicht anlegen: ${String((erg.body as any)?.error || erg.status)}`, 502);
+  await sqlPool`UPDATE fiaon_applications SET rechnung_ust_modus = 'none' WHERE ref = ${ref2}`.catch(() => {});
+  await sqlPool`UPDATE fiaon_global_angebot_teile SET rechnung_am = NOW() WHERE id = ${teil2.id}`;
+  const ereignis = p.daten.art === "karte" ? "erste Business-Kreditkarte freigeschaltet" : "erstes Kapital ausgezahlt";
+  await verlaufAngebot(id, wer, `Meilenstein: ${ereignis} am ${angebotTag(p.daten.datum)}, Gesellschaft eingetragen am ${angebotTag(p.daten.eingetragenAm)} — Rechnung Teil 2 (${ref2})`, { beleg: p.daten.beleg });
+  await globalVerlauf(ref1, `FIAON Global: Meilenstein des Individualangebots ${d.ref} erreicht (${ereignis} am ${angebotTag(p.daten.datum)}). Rechnung über Teil 2 „Kapital-Begleitung“ angelegt (${ref2}).`);
+  // Mail mit Rechnung Teil 2 — an die Akte von Teil 1 (Anschrift, Ansprechpartner), Bestellung = Teil 2.
+  const akte1 = await globalAkteLesen(ref1); const b2 = await globalBestellungLesen(ref2);
+  let meldung = `Rechnung über Teil 2 (${angebotEur(d.parameter.teil2Cents)}) angelegt, zahlbar binnen ${zahlwort(d.parameter.teil2ZielTage)} Tagen.`;
+  try {
+    const r = await globalRechnungPdf(ref2);
+    if (!r) throw new Error("Rechnung Teil 2 nicht erzeugt");
+    const z2 = (await angebotLesen({ id }))!;
+    const mail = await globalMailSenden("global_angebot_teil2", akte1, b2, {
+      anhaenge: [{ name: r.dateiname, inhalt: r.pdf }],
+      zusatz: angebotMailZusatz(z2, d, { ereignis_text: p.daten.art === "karte" ? "die erste Business-Kreditkarte für Ihre Gesellschaft freigeschaltet" : "das erste Kapital an Ihre Gesellschaft ausgezahlt", ereignis_am_text: angebotTag(p.daten.datum) }),
+      ausgeloestVon: wer,
+    });
+    if (mail.ok) await sqlPool`UPDATE fiaon_global_angebot_teile SET rechnung_mail_am = NOW() WHERE id = ${teil2.id}`;
+    meldung += mail.ok ? " Die Mail mit der Rechnung ist beim Kunden." : ` Die Mail ging NICHT raus (${mail.grund}) — bitte die Rechnung von Hand schicken.`;
+  } catch (e) { meldung += ` Die Mail ging NICHT raus (${e instanceof Error ? e.message : String(e)}).`; }
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  await auftragFuerKunden({
+    personId: b2?.person_id != null ? Number(b2.person_id) : null, ref: ref1,
+    titel: `FIAON Global: Meilenstein erreicht — Rechnung Teil 2 an ${angebotKundeName(d.kunde)}`,
+    text: `${wer} hat den Meilenstein eingetragen (${ereignis} am ${angebotTag(p.daten.datum)}). Rechnung über Teil 2 (${angebotEur(d.parameter.teil2Cents)}, Verwendungszweck ${b2?.payment_reference ?? "—"}) ist raus, zahlbar binnen ${zahlwort(d.parameter.teil2ZielTage)} Tagen. Die Kapital-Begleitung läuft weiter bis zum Ziel.`,
+    schluessel: `global:${ref1}:teil2`, bereich: "konten", quelle: "global", autorName: wer,
+    link: globalOfficeAuftragPfad(ref1), agentId: akte1?.zustaendig_agent_id ? Number(akte1.zustaendig_agent_id) : null,
+    anlageText: "Meilenstein im Reiter „Individualangebote“ eingetragen.",
+  }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe Meilenstein:`, e));
+  return { ok: true, ref2, meldung };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FRIST HEMMEN · ERSTATTUNG VORMERKEN · ERSTATTUNG ÜBERWIESEN
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Die Ruhezeit nach Ziffer 6 Absatz 3 — gerechnet, nicht getippt (Gegenprüfung 01.10.2026):
+ * Die Frist ruht ab dem Ablauf der Aufforderungsfrist (Aufforderung in Textform + sieben Tage) bis zu dem
+ * Tag, an dem die Mitwirkung erbracht ist (offen: bis heute). Was eine frühere Hemmung schon gezählt hat
+ * (`bisher` = letzter gezählter Tag), zählt nicht noch einmal. Rein — der Prüfstand rechnet sie nach.
+ */
+export function hemmungRechnen(ein: { aufgefordertAm: string; erbrachtAm: string | null; heute: string; bisher: string | null }):
+  { ok: true; von: string; bis: string; tage: number } | { ok: false; error: string } {
+  const tag = /^\d{4}-\d{2}-\d{2}$/;
+  if (!tag.test(ein.aufgefordertAm) || ein.aufgefordertAm > ein.heute) return { ok: false, error: "Datum der Aufforderung in Textform (nicht in der Zukunft)." };
+  const ruhtAb = plusTage(ein.aufgefordertAm, ANGEBOT_FEST.hemmungAufforderungTage);
+  if (ruhtAb > ein.heute) return { ok: false, error: `Die Aufforderungsfrist von ${zahlwort(ANGEBOT_FEST.hemmungAufforderungTage)} Tagen läuft noch bis ${angebotTag(ruhtAb)} — vorher ruht die Frist nicht (Ziffer 6 Absatz 3).` };
+  if (ein.erbrachtAm !== null && (!tag.test(ein.erbrachtAm) || ein.erbrachtAm > ein.heute)) return { ok: false, error: "Datum, an dem die Mitwirkung erbracht wurde (nicht in der Zukunft) — oder leer, wenn sie noch fehlt." };
+  if (ein.erbrachtAm !== null && ein.erbrachtAm < ruhtAb) return { ok: false, error: `Die Mitwirkung kam am ${angebotTag(ein.erbrachtAm)}, vor Ablauf der Aufforderungsfrist (${angebotTag(ruhtAb)}) — die Frist hat nicht geruht.` };
+  // Der Tag der Mitwirkung zählt nicht mehr (kundenfreundlich); fehlt sie noch, zählt bis heute einschließlich.
+  const bis = ein.erbrachtAm !== null ? plusTage(ein.erbrachtAm, -1) : ein.heute;
+  // Ab dem Tag nach der letzten gezählten Hemmung — derselbe Tag wird nie zweimal gezählt.
+  const von = ein.bisher && plusTage(ein.bisher, 1) > ruhtAb ? plusTage(ein.bisher, 1) : ruhtAb;
+  const tage = Math.round((new Date(`${bis}T12:00:00Z`).getTime() - new Date(`${von}T12:00:00Z`).getTime()) / 864e5) + 1;
+  if (tage < 1) return { ok: false, error: ein.bisher && ein.bisher >= ruhtAb ? `Bis ${angebotTag(ein.bisher)} ist die Ruhezeit schon gezählt — es kommt kein Tag dazu.` : "Es ergibt sich keine Ruhezeit — die Mitwirkung kam am Tag nach Ablauf der Aufforderungsfrist." };
+  if (tage > 180) return { ok: false, error: "Mehr als ein halbes Jahr Ruhen — bitte den Fall mit Justin klären, bevor die Frist weiter ruht." };
+  return { ok: true, von, bis, tage };
+}
+
+export async function angebotFristHemmen(id: number, ein: any, wer: string): Promise<Ergebnis<{ fristEnde: string; tage: number; von: string; bis: string }>> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (!z.frist_ende) return nein("Die Frist läuft noch nicht — sie beginnt mit dem Start.", 409);
+  const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
+  if (teil2?.bestell_ref || teil2?.entfallen_am) return nein("Nach Meilenstein oder Erstattung gibt es keine Frist mehr zu hemmen.", 409);
+  const grund = text(ein?.grund, 500);
+  if (grund.length < 20) return nein("Welche Mitwirkung fehlt? Bitte in einem Satz (mindestens 20 Zeichen) — die Frist ruht nur bei schuldhaft fehlender Mitwirkung nach Aufforderung (Ziffer 6 Absatz 3).");
+  const erbrachtRoh = String(ein?.erbrachtAm ?? "").trim();
+  // Der letzte schon gezählte Tag steht im Verlauf (hemmungBis) — so zählt keine Ruhezeit doppelt.
+  const bisher = json<any[]>(z.verlauf, []).map((v) => (typeof v?.hemmungBis === "string" ? v.hemmungBis : null)).filter((x): x is string => !!x).sort().pop() ?? null;
+  const h = hemmungRechnen({ aufgefordertAm: String(ein?.aufgefordertAm ?? "").trim(), erbrachtAm: erbrachtRoh || null, heute: berlinToday(), bisher });
+  if (!h.ok) return nein(h.error);
+  const [r] = (await sqlPool`
+    UPDATE fiaon_global_angebote SET frist_hemmung_tage = frist_hemmung_tage + ${h.tage}, frist_ende = frist_ende + ${h.tage}::int, updated_at = NOW()
+     WHERE id = ${id} RETURNING frist_ende`) as any[];
+  const ende = isoTag(r.frist_ende)!;
+  const d = angebotDatenAus(z);
+  await verlaufAngebot(id, wer, `Frist ruhte vom ${angebotTag(h.von)} bis ${angebotTag(h.bis)} (${h.tage} Tage; Aufforderung vom ${angebotTag(String(ein.aufgefordertAm))}${erbrachtRoh ? `, Mitwirkung erbracht am ${angebotTag(erbrachtRoh)}` : ", Mitwirkung noch offen"}): ${grund} — neues Fristende ${angebotTag(ende)}`, { hemmungVon: h.von, hemmungBis: h.bis, hemmungTage: h.tage });
+  const ref1 = String(z.auftrag_ref);
+  await globalVerlauf(ref1, `FIAON Global: Frist des Individualangebots ruhte vom ${angebotTag(h.von)} bis ${angebotTag(h.bis)} (${wer}). Neues Fristende ${angebotTag(ende)}.`);
+  // Ziffer 6 Absatz 1 verlangt die Mitteilung in Textform — die Mail geht im selben Schritt (Protokoll in fiaon_mail_log).
+  const akte1 = await globalAkteLesen(ref1); const b1 = await globalBestellungLesen(ref1);
+  let mitgeteilt = false; let mailGrund: string | null = null;
+  if (akte1) {
+    const z2 = (await angebotLesen({ id }))!;
+    const mail = await globalMailSenden("global_angebot_hemmung", akte1, b1, {
+      zusatz: angebotMailZusatz(z2, d, { hemmung_von_text: angebotTag(h.von), hemmung_bis_text: angebotTag(h.bis), hemmung_grund_text: grund.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }),
+      ausgeloestVon: wer,
+    });
+    mitgeteilt = mail.ok; mailGrund = mail.grund;
+  }
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  await auftragFuerKunden({
+    personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
+    titel: `FIAON Global: Frist ruhte, neues Fristende ${angebotTag(ende)} — ${angebotKundeName(d.kunde)}`,
+    text: mitgeteilt
+      ? `${wer} hat die Ruhezeit eingetragen (vom ${angebotTag(h.von)} bis ${angebotTag(h.bis)}: ${grund}). Der Kunde hat das neue Fristende ${angebotTag(ende)} per Mail bekommen. Bitte beim nächsten Gespräch kurz ansprechen.`
+      : `${wer} hat die Ruhezeit eingetragen (vom ${angebotTag(h.von)} bis ${angebotTag(h.bis)}: ${grund}). Die Mail an den Kunden ging NICHT raus (${mailGrund ?? "kein Grund"}) — der Vertrag verlangt die Mitteilung in Textform: bitte das neue Fristende ${angebotTag(ende)} schriftlich mitteilen.`,
+    dringend: !mitgeteilt, schluessel: `global:${ref1}:hemmung:${ende}`, bereich: "konten", quelle: "global", autorName: wer, link: globalOfficeAuftragPfad(ref1),
+    agentId: akte1?.zustaendig_agent_id ? Number(akte1.zustaendig_agent_id) : null,
+  }).catch((e) => console.error(`[FIAON-ANGEBOT] ${z.angebot_ref}: Aufgabe Hemmung:`, e));
+  return { ok: true, fristEnde: ende, tage: h.tage, von: h.von, bis: h.bis };
+}
+
+export function erstattungPruefen(lage: { status: string; teil1Bezahlt: boolean; teil2: any; fristEnde: string | null; heute: string; schon: boolean }):
+  { ok: true } | { ok: false; error: string } {
+  if (lage.status !== "angenommen") return { ok: false, error: "Das Angebot ist nicht angenommen." };
+  if (lage.schon) return { ok: false, error: "Die Erstattung ist bereits vorgemerkt." };
+  if (!lage.teil1Bezahlt) return { ok: false, error: "Teil 1 ist nicht bezahlt — es gibt nichts zu erstatten." };
+  if (!lage.fristEnde) return { ok: false, error: "Die Frist läuft noch nicht." };
+  if (lage.teil2?.bestell_ref) return { ok: false, error: "Der Meilenstein ist erreicht — die Erstattungszusage gilt nicht mehr." };
+  if (lage.heute <= lage.fristEnde) return { ok: false, error: `Die Frist läuft bis ${angebotTag(lage.fristEnde)} — erst danach.` };
+  return { ok: true };
+}
+
+export async function angebotErstattungVormerken(id: number, wer: string): Promise<Ergebnis<{ meldung: string }>> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
+  const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
+  const ref1 = String(z.auftrag_ref || "");
+  const b1 = ref1 ? await globalBestellungLesen(ref1) : null;
+  const fristEnde = isoTag(z.frist_ende);
+  const p = erstattungPruefen({ status: String(z.status), teil1Bezahlt: String(b1?.payment_status) === "paid", teil2, fristEnde, heute: berlinToday(), schon: !!z.erstattung_ausgeloest_am });
+  if (!p.ok) return nein(p.error, 409);
+  const d = angebotDatenAus(z);
+  const [frei] = (await sqlPool`
+    UPDATE fiaon_global_angebote SET erstattung_ausgeloest_am = NOW(), erstattung_ausgeloest_von = ${wer}, updated_at = NOW()
+     WHERE id = ${id} AND erstattung_ausgeloest_am IS NULL RETURNING id`) as any[];
+  if (!frei) return nein("Die Erstattung ist bereits vorgemerkt.", 409);
+  await sqlPool`UPDATE fiaon_global_angebot_teile SET entfallen_am = NOW(), entfallen_grund = ${`Frist am ${angebotTag(fristEnde)} abgelaufen — weder Kapital noch Karte`} WHERE id = ${teil2.id} AND bestell_ref IS NULL AND entfallen_am IS NULL`;
+  const bis = plusTage(fristEnde!, d.parameter.erstattungTage);
+  const { globalAuftragStornieren } = await import("./fiaon-global-storno");
+  const storno = await globalAuftragStornieren(ref1, {
+    grund: `Frist von ${zahlwort(d.parameter.fristWochen)} Wochen am ${angebotTag(fristEnde)} abgelaufen — weder Kapital noch Karte. Erstattungszusage Ziffer 6 des Individualangebots ${d.ref}; Teil 2 entfällt, die Gesellschaft bleibt beim Kunden.`,
+    erstattung: true,
+  }, wer);
+  if (!storno.ok) {
+    // Zurück auf den alten Stand — ein halber Storno wäre schlimmer als keiner.
+    await sqlPool`UPDATE fiaon_global_angebote SET erstattung_ausgeloest_am = NULL, erstattung_ausgeloest_von = NULL WHERE id = ${id}`;
+    await sqlPool`UPDATE fiaon_global_angebot_teile SET entfallen_am = NULL, entfallen_grund = NULL WHERE id = ${teil2.id} AND bestell_ref IS NULL`;
+    return nein(`Der Storno-Weg lehnte ab: ${storno.error}`, storno.status ?? 409);
+  }
+  // Justins Aufgabe „Erstattung veranlassen" trägt die Zusage mit Datum (derselbe Schlüssel — der Text wird angehängt).
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  await auftragFuerKunden({
+    personId: b1?.person_id != null ? Number(b1.person_id) : null, ref: ref1,
+    titel: `Erstattung veranlassen: ${angebotEur(d.parameter.teil1Cents)} an ${angebotKundeName(d.kunde)}`,
+    text: `ZUSAGE (Ziffer 6 des Individualangebots ${d.ref}): vollständig und ohne Abzug binnen ${zahlwort(d.parameter.erstattungTage)} Tagen nach Fristende — also bis spätestens ${angebotTag(bis)} — auf das Konto, von dem gezahlt wurde. Danach im Reiter „Individualangebote“ „Erstattung überwiesen“ eintragen.`,
+    dringend: true, anBetreiber: true, faelligAm: bis, schluessel: `global:${ref1}:erstattung`, bereich: "konten", quelle: "global", autorName: wer,
+    link: "/chef/s/global-auftraege?reiter=angebote",
+  }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Zusatz zur Erstattungsaufgabe:`, e));
+  await verlaufAngebot(id, wer, `Erstattung vorgemerkt — bis ${angebotTag(bis)}; Teil 2 entfallen`);
+  // Der Kunde erfährt es in Textform — die Zusage ist ein Vertragsversprechen, kein Storno aus Kulanz.
+  let meldung = `Erstattung von ${angebotEur(d.parameter.teil1Cents)} vorgemerkt (bis ${angebotTag(bis)}). Teil 2 entfällt. Justin hat die dringende Aufgabe „Erstattung veranlassen“ — überwiesen wird von Hand.`;
+  const akte1 = await globalAkteLesen(ref1);
+  if (akte1) {
+    const z2 = (await angebotLesen({ id }))!;
+    const mail = await globalMailSenden("global_angebot_erstattung", akte1, b1, { zusatz: angebotMailZusatz(z2, d, { erstattung_bis_text: angebotTag(bis) }), ausgeloestVon: wer });
+    meldung += mail.ok ? " Der Kunde ist per Mail informiert." : ` Die Mail an den Kunden ging NICHT raus (${mail.grund}) — bitte schriftlich mitteilen.`;
+  }
+  return { ok: true, meldung };
+}
+
+export async function angebotErstattungUeberwiesen(id: number, ein: any, wer: string): Promise<Ergebnis> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (!z.erstattung_ausgeloest_am) return nein("Zuerst die Erstattung vormerken.", 409);
+  if (z.erstattet_am) return nein("Die Überweisung ist bereits eingetragen.", 409);
+  const am = String(ein?.am ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(am) || am > berlinToday()) return nein("Datum der Überweisung (nicht in der Zukunft).");
+  const notiz = text(ein?.notiz, 300);
+  if (notiz.length < 5) return nein("Bitte die Bankreferenz oder eine kurze Notiz eintragen.");
+  await sqlPool`UPDATE fiaon_global_angebote SET erstattet_am = ${am}::date, erstattung_notiz = ${notiz}, updated_at = NOW() WHERE id = ${id}`;
+  await verlaufAngebot(id, wer, `Erstattung überwiesen am ${angebotTag(am)} (${notiz})`);
+  if (z.auftrag_ref) await globalVerlauf(String(z.auftrag_ref), `FIAON Global: Erstattung von Teil 1 am ${angebotTag(am)} überwiesen (${wer}).`);
+  return { ok: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE LISTE DER LEITUNG
+// ═══════════════════════════════════════════════════════════════════════════
+export async function angebotListe(): Promise<Record<string, unknown>[]> {
+  await ensureAngebotTabellen();
+  const zeilen = (await sqlPool.unsafe(`SELECT ${OHNE_PDF} FROM fiaon_global_angebote ORDER BY created_at DESC LIMIT 200`)) as any[];
+  const alleTeile = (await sqlPool`
+    SELECT t.*, a.payment_status, a.payment_reference, a.invoice_number, a.payment_due_date, a.completed_at
+      FROM fiaon_global_angebot_teile t LEFT JOIN fiaon_applications a ON a.ref = t.bestell_ref`) as any[];
+  const heute = berlinToday();
+  return zeilen.map((z) => {
+    const d = angebotDatenAus(z);
+    const teile = alleTeile.filter((t) => Number(t.angebot_id) === Number(z.id)).sort((a, b) => Number(a.nr) - Number(b.nr));
+    const t1 = teile.find((t) => Number(t.nr) === 1); const t2 = teile.find((t) => Number(t.nr) === 2);
+    const status = angebotStatusAus(z, heute);
+    const fehlt = angebotPflichtFehlen(d);
+    const fristEnde = isoTag(z.frist_ende);
+    const teil1Bezahlt = String(t1?.payment_status) === "paid";
+    // Knopf-Zustand: dieselbe Prüfung wie beim Klick, mit einem Probedatum am oder vor dem Fristende
+    // (ein Meilenstein VOR dem Fristende darf auch danach noch eingetragen werden).
+    const probe = fristEnde && fristEnde < heute ? fristEnde : heute;
+    const meil = meilensteinPruefen({ status: String(z.status), teil1Bezahlt, teil2: t2, fristEnde, heute }, { art: "kapital", datum: probe, eingetragenAm: probe, beleg: "x".repeat(20) });
+    const erst = erstattungPruefen({ status: String(z.status), teil1Bezahlt, teil2: t2, fristEnde, heute, schon: !!z.erstattung_ausgeloest_am });
+    const pb = d.pruefbericht;
+    const teilAus = (t: any) => t ? ({
+      nr: Number(t.nr), titel: String(t.titel), betragCents: Number(t.betrag_cents), faelligkeit: String(t.faelligkeit), zahlungszielTage: Number(t.zahlungsziel_tage),
+      bestellRef: t.bestell_ref ?? null, verwendungszweck: t.payment_reference ?? null, rechnungsnummer: t.invoice_number ?? null,
+      zahlungsstatus: t.payment_status ?? null, faelligAm: t.payment_due_date ? berlinToday(new Date(t.payment_due_date)) : null,
+      bezahltAm: t.bezahlt_am ? new Date(t.bezahlt_am).toISOString() : (String(t.payment_status) === "paid" && t.completed_at ? new Date(t.completed_at).toISOString() : null),
+      meilensteinAm: isoTag(t.meilenstein_am), meilensteinArt: t.meilenstein_art ?? null, eingetragenAm: isoTag(t.eingetragen_am),
+      entfallenAm: t.entfallen_am ? new Date(t.entfallen_am).toISOString() : null, entfallenGrund: t.entfallen_grund ?? null,
+      rechnungUrl: t.bestell_ref && t.payment_reference ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(t.bestell_ref))}/rechnung.pdf` : null,
+      zahlungsseite: t.payment_reference ? `/zahlung/${t.payment_reference}?bereich=business` : null,
+    }) : null;
+    return {
+      id: Number(z.id), ref: d.ref, status, fassung: d.fassung, personId: z.person_id ?? null,
+      kunde: d.kunde, kundeName: angebotKundeName(d.kunde), parameter: d.parameter, gesamtCents: angebotGesamtCents(d.parameter),
+      buergin: d.buergin, fehlt, annahmeBereit: fehlt.length === 0 && status === "offen",
+      // Endabnahme 01.10.2026: Versand des Links nur mit Registernachweis der Bürgin — der Grund steht am Link.
+      versandSperre: angebotVersandSperre(d.buergin),
+      gueltigBis: d.gueltigBis, erstelltAm: new Date(z.created_at).toISOString(), erstelltVon: z.erstellt_von ?? null,
+      link: status === "offen" || status === "angenommen" ? absoluteUrl(angebotKundenPfad(angebotTokenErzeugen(d.ref, d.gueltigBis))) : null,
+      vertragUrl: `/api/fiaon/admin/global/angebote/${z.id}/vertrag.pdf`,
+      pruefberichtUrl: pb ? `/api/fiaon/admin/global/angebote/${z.id}/pruefbericht.pdf` : null,
+      anlage1Url: `/api/fiaon/admin/global/angebote/${z.id}/anlage1.pdf`,
+      anlage1Pruefsumme: buergschaftPruefsumme(d),
+      pruefbericht: pb ? { ergebnis: pruefberichtErgebnis(pb).satz, boniPunkte: pb.boni?.punkte ?? null, boniLabel: pb.boni?.label ?? null, sanktionen: !!pb.sanktionen } : null,
+      angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
+      schalter: z.schalter ? json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false }) : null,
+      auftragRef: z.auftrag_ref ?? null, officeLink: z.auftrag_ref ? globalOfficeAuftragPfad(String(z.auftrag_ref)) : null,
+      fristBeginn: isoTag(z.frist_beginn), fristEnde, fristHemmungTage: Number(z.frist_hemmung_tage || 0),
+      erstattungAusgeloestAm: z.erstattung_ausgeloest_am ? new Date(z.erstattung_ausgeloest_am).toISOString() : null,
+      erstattetAm: isoTag(z.erstattet_am), erstattungNotiz: z.erstattung_notiz ?? null,
+      bestaetigungMailAm: z.bestaetigung_mail_am ? new Date(z.bestaetigung_mail_am).toISOString() : null,
+      bestaetigungMailFehler: z.bestaetigung_mail_fehler ?? null, nacharbeitFehler: z.nacharbeit_fehler ?? null,
+      zurueckgezogenAm: z.zurueckgezogen_am ? new Date(z.zurueckgezogen_am).toISOString() : null, zurueckgezogenGrund: z.zurueckgezogen_grund ?? null,
+      teile: [teilAus(t1), teilAus(t2)].filter(Boolean),
+      // Knopf-Zustand vom Server (AGENTS.md): frei oder der Grund, warum nicht.
+      knoepfe: {
+        meilenstein: meil.ok ? null : meil.error,
+        erstattung: erst.ok ? null : erst.error,
+        hemmung: fristEnde && !t2?.bestell_ref && !t2?.entfallen_am ? null : "Nur während die Frist läuft.",
+        aendern: String(z.status) === "offen" ? null : "Nur solange das Angebot offen ist.",
+      },
+      verlauf: json<any[]>(z.verlauf, []).slice(-12),
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER TAGESLAUF — Ablauf, Fristwarnungen, Fristende, Nachfrage Teil 2
+// Schreibt Aufgaben, KEINE Kundenmail, bewegt KEIN Geld. Wiederholbar über Marken.
+// Registriert in routes.ts als tageslauf("global_angebot_lauf", …, 60 Minuten).
+// ═══════════════════════════════════════════════════════════════════════════
+export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abgelaufen: number; warnungen: number; fristende: number; nachfrage: number; nachgeholt: number }> {
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS tabelle`) as any[];
+  if (!t?.tabelle) return { abgelaufen: 0, warnungen: 0, fristende: 0, nachfrage: 0, nachgeholt: 0 };
+  const heute = berlinToday(jetzt);
+  const abgelaufen = (await sqlPool`UPDATE fiaon_global_angebote SET status = 'abgelaufen', updated_at = NOW() WHERE status = 'offen' AND gueltig_bis < ${heute}::date RETURNING id`) as any[];
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  // Gegenprüfung 01.10.2026: Hängt nach einer Annahme die Bestellung oder Rechnung, holt der Stundenlauf nach —
+  // derselbe wiederholbare Weg wie der Chef-Knopf „Nachholen" und der erneute Aufruf des Kundenlinks.
+  let nachgeholt = 0;
+  const haengend = (await sqlPool`
+    SELECT id, angebot_ref FROM fiaon_global_angebote
+     WHERE status = 'angenommen' AND (nacharbeit_fehler IS NOT NULL OR auftrag_ref IS NULL) LIMIT 20`) as any[];
+  for (const h of haengend) {
+    const erg = await angebotFertigstellen(Number(h.id)).catch((e) => ({ ok: false, grund: String(e) }));
+    if (!erg.ok) continue;
+    await angebotNacharbeit(Number(h.id)).catch((e) => console.error(`[FIAON-ANGEBOT] ${h.angebot_ref}: Nacharbeit im Stundenlauf:`, e));
+    nachgeholt++;
+  }
+  const laufend = (await sqlPool`
+    SELECT a.*, t2.id AS t2_id FROM fiaon_global_angebote a
+      JOIN fiaon_global_angebot_teile t2 ON t2.angebot_id = a.id AND t2.nr = 2
+     WHERE a.status = 'angenommen' AND a.frist_ende IS NOT NULL AND a.erstattung_ausgeloest_am IS NULL
+       AND t2.bestell_ref IS NULL AND t2.entfallen_am IS NULL
+     LIMIT 100`) as any[];
+  let warnungen = 0; let fristende = 0;
+  for (const z of laufend) {
+    const ende = isoTag(z.frist_ende)!; const d = angebotDatenAus(z); const ref1 = String(z.auftrag_ref);
+    const tageBis = Math.round((new Date(`${ende}T12:00:00Z`).getTime() - new Date(`${heute}T12:00:00Z`).getTime()) / 864e5);
+    const akte = await globalAkteLesen(ref1);
+    const zustaendig = akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null;
+    for (const [grenze, spalte] of [[14, "frist_warnung_14_am"], [3, "frist_warnung_3_am"]] as const) {
+      if (tageBis > grenze || tageBis < 0 || z[spalte]) continue;
+      const [frei] = (await sqlPool.unsafe(`UPDATE fiaon_global_angebote SET ${spalte} = NOW() WHERE id = $1 AND ${spalte} IS NULL RETURNING id`, [z.id])) as any[];
+      if (!frei) continue;
+      const satz = `Die Frist des Individualangebots ${d.ref} endet am ${angebotTag(ende)} (noch ${tageBis} Tage). Ohne Kapital oder Karte für die Gesellschaft bis dahin erstattet FIAON Teil 1 (${angebotEur(d.parameter.teil1Cents)}) vollständig. Stand der Anträge prüfen; ist ein Kapitalereignis da, der Leitung sagen („Meilenstein erreicht“).`;
+      for (const anBetreiber of [false, true]) {
+        await auftragFuerKunden({
+          personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
+          titel: `Frist läuft ab am ${angebotTag(ende)} — ${angebotKundeName(d.kunde)} (Individualangebot)`,
+          text: satz, dringend: grenze === 3, anBetreiber, agentId: anBetreiber ? null : zustaendig,
+          schluessel: `global:${ref1}:frist-${grenze}${anBetreiber ? "-justin" : ""}`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+          link: anBetreiber ? "/chef/s/global-auftraege?reiter=angebote" : globalOfficeAuftragPfad(ref1),
+        }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Fristwarnung:`, e));
+      }
+      warnungen++;
+    }
+    if (tageBis < 0 && !z.frist_abgelaufen_am) {
+      const [frei] = (await sqlPool`UPDATE fiaon_global_angebote SET frist_abgelaufen_am = NOW() WHERE id = ${z.id} AND frist_abgelaufen_am IS NULL RETURNING id`) as any[];
+      if (!frei) continue;
+      const bis = plusTage(ende, d.parameter.erstattungTage);
+      await auftragFuerKunden({
+        personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
+        titel: `Frist abgelaufen — Erstattung ${angebotEur(d.parameter.teil1Cents)} bis ${angebotTag(bis)} auslösen (${angebotKundeName(d.kunde)})`,
+        text: `Die Frist des Individualangebots ${d.ref} endete am ${angebotTag(ende)}, ohne dass ein Meilenstein eingetragen ist. Ist wirklich weder Kapital noch Karte gekommen: im Reiter „Individualangebote“ „Erstattung vormerken“ drücken (Teil 2 entfällt, Storno mit Erstattung, Mail an den Kunden) und bis ${angebotTag(bis)} überweisen. Kam doch etwas vor dem Fristende: „Meilenstein erreicht“ mit dem Datum eintragen.`,
+        dringend: true, anBetreiber: true, faelligAm: heute, schluessel: `global:${ref1}:fristende`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+        link: "/chef/s/global-auftraege?reiter=angebote",
+      }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Fristende:`, e));
+      fristende++;
+    }
+  }
+  // Ruhige Nachfrage zu Teil 2: drei Tage nach Fälligkeit eine Aufgabe „anrufen" — keine Mahnmail.
+  const offen2 = (await sqlPool`
+    SELECT t.id, t.bestell_ref, a.angebot_ref, a.person_id, a.auftrag_ref, a.kunde, b.payment_due_date, b.payment_reference
+      FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
+      JOIN fiaon_applications b ON b.ref = t.bestell_ref
+     WHERE t.nr = 2 AND t.anruf_aufgabe_am IS NULL AND b.payment_status IN ('pending_payment', 'claimed_paid')
+       AND b.payment_due_date IS NOT NULL AND b.payment_due_date < ${new Date(jetzt.getTime() - 3 * 864e5)}
+     LIMIT 50`) as any[];
+  let nachfrage = 0;
+  for (const z of offen2) {
+    const [frei] = (await sqlPool`UPDATE fiaon_global_angebot_teile SET anruf_aufgabe_am = NOW() WHERE id = ${z.id} AND anruf_aufgabe_am IS NULL RETURNING id`) as any[];
+    if (!frei) continue;
+    const ref1 = String(z.auftrag_ref);
+    const akte = await globalAkteLesen(ref1);
+    await auftragFuerKunden({
+      personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
+      titel: `Teil 2 offen — bitte anrufen (${angebotKundeName(json<AngebotKunde>(z.kunde, {} as AngebotKunde))})`,
+      text: `Die Rechnung über Teil 2 (Verwendungszweck ${z.payment_reference}) war am ${angebotTag(berlinToday(new Date(z.payment_due_date)))} fällig und ist nicht gebucht. Bitte ruhig nachfragen — keine Mahnung, kein Druck.`,
+      schluessel: `global:${ref1}:teil2-anruf`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      agentId: akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null, link: globalOfficeAuftragPfad(ref1),
+    }).catch((e) => console.error(`[FIAON-ANGEBOT] ${z.angebot_ref}: Nachfrage Teil 2:`, e));
+    nachfrage++;
+  }
+  return { abgelaufen: abgelaufen.length, warnungen, fristende, nachfrage, nachgeholt };
+}
+
+/** Die Sicht für „Mein Auftrag" und das Office: Teile, Frist, Bürgin — nur lesen. */
+export async function angebotSichtZurAkte(ref1: string): Promise<Record<string, unknown> | null> {
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS tabelle`.catch(() => [])) as any[];
+  if (!t?.tabelle) return null;
+  const [a] = (await sqlPool`SELECT id FROM fiaon_global_angebote WHERE auftrag_ref = ${ref1} LIMIT 1`) as any[];
+  if (!a) return null;
+  const z = (await angebotLesen({ id: Number(a.id) }))!;
+  const d = angebotDatenAus(z);
+  const teile = await Promise.all((z.teile as any[]).map(async (x) => {
+    const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;
+    const stand = x.entfallen_am ? "entfallen" : b ? (String(b.payment_status) === "paid" ? "bezahlt" : ["cancelled", "superseded"].includes(String(b.payment_status)) ? "storniert" : "offen") : "noch nicht fällig";
+    return { nr: Number(x.nr), titel: String(x.titel), betragCents: Number(x.betrag_cents), stand, rechnungsnummer: b?.invoice_number ?? null, bestellRef: x.bestell_ref ?? null };
+  }));
+  return {
+    ref: d.ref, teile, fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende), buergin: d.buergin.name,
+    erstattungAusgeloest: !!z.erstattung_ausgeloest_am, teil2Bedingung: "erst nach Eintragung der Gesellschaft und dem ersten Kapital oder der ersten Karte",
+  };
+}
+
+/** Für den Prüfstand: die Vertragsdaten eines Angebots (ohne Datenbankzugriff von außen nötig). */
+export { angebotVertragTitel, angebotVertragUnterzeile, BUERGIN_FELDER };

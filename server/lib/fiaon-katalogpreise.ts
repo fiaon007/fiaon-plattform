@@ -51,7 +51,10 @@ export interface KatalogAbgleich {
  */
 export async function katalogpreiseSyncen(lauf: Lauf = sqlPool): Promise<KatalogAbgleich> {
   let geschrieben = 0;
-  for (const p of PAKETE) {
+  // Individualangebot (01.10.2026, E-268): Ein Schlüssel ohne Katalogpreis gehört
+  // NICHT in die Abschrift — preis_cents verlangt > 0, und der Preis steht im
+  // angenommenen Angebotsteil. Die Wand prüft ihn dort (Migration 087).
+  for (const p of PAKETE.filter((x) => !x.preisJeAngebot)) {
     const rows = await lauf`
       INSERT INTO fiaon_paketpreise (pack_key, preis_cents, bezeichnung, abo, aktualisiert_am)
       VALUES (${p.key}, ${p.preisCents}, ${p.label}, ${p.abo}, NOW())
@@ -67,7 +70,7 @@ export async function katalogpreiseSyncen(lauf: Lauf = sqlPool): Promise<Katalog
     `;
     geschrieben += rows.length;
   }
-  const bekannt = PAKETE.map((p) => p.key);
+  const bekannt = PAKETE.filter((p) => !p.preisJeAngebot).map((p) => p.key);
   const verwaist = ((await lauf`
     SELECT pack_key FROM fiaon_paketpreise WHERE pack_key <> ALL(${bekannt}::text[])
   `) as any[]).map((r) => String(r.pack_key));

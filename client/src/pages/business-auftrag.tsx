@@ -31,6 +31,7 @@ import { Dunkel } from "@/components/site/DunkleBuehne";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_AUFTRAG_WOERTER } from "@/i18n/global-auftrag";
 import { GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
+import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import "@/styles/global-start.css";
 import "@/styles/global-auftrag.css";
 
@@ -54,6 +55,11 @@ type Auftrag = {
   fristen: { id: number | string; titel: string; faelligAm: string; erledigt: boolean; hinweis?: string }[];
   verlauf: { am: string; text: string }[];
   vertragUrl?: string; rechnungUrl?: string;
+  /** 01.10.2026 (E-268): Auftrag aus einem Individualangebot — Teile, Frist, Bürgin. */
+  angebot?: {
+    ref: string; fristBeginn: string | null; fristEnde: string | null; buergin: string; erstattungAusgeloest: boolean;
+    teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null; rechnungUrl?: string }[];
+  } | null;
 };
 
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -207,6 +213,24 @@ export default function BusinessAuftrag() {
                   )}
                 </section>
 
+                {a.angebot && (
+                  <section className="ga-abschnitt" data-fiaon="mein-auftrag-angebot">
+                    <h2>{ANGEBOT_MEIN_AUFTRAG.titel} {a.angebot.ref}</h2>
+                    <ul className="ga-liste">
+                      {a.angebot.teile.map((x) => (
+                        <li key={x.nr}>
+                          <div><b>{x.titel}</b><span>{(x.betragCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €{x.nr === 2 && x.stand === "noch nicht fällig" ? ` — ${ANGEBOT_MEIN_AUFTRAG.teil2Hinweis}` : ""}</span></div>
+                          <div className="ga-rechts">
+                            <span className={`ga-marke ${x.stand === "bezahlt" ? "gut" : "offen"}`}>{ANGEBOT_MEIN_AUFTRAG.stand[x.stand] ?? x.stand}</span>
+                            {x.rechnungUrl && <a className="ga-knopf" href={x.rechnungUrl} target="_blank" rel="noopener">{ANGEBOT_MEIN_AUFTRAG.rechnung}</a>}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="ga-stichtag">{a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
+                  </section>
+                )}
+
                 <section className="ga-abschnitt">
                   <h2>{t.unterlagenTitel}</h2>
                   <p className="lead">{darfHochladen ? t.unterlagenLead : t.uploadGesperrt}</p>
@@ -287,7 +311,10 @@ export default function BusinessAuftrag() {
 
                 <h2 style={{ marginTop: 26 }}>{t.seiteAuftrag}</h2>
                 <p className="name">{a.paketName}</p>
-                <p className="preis" style={{ fontSize: 24 }}>{globalPreisText(a.paket, s)}</p>
+                {/* E-268: Das Individualangebot hat keinen Katalogpreis — es zeigt die Summe seiner Teile (Stand oben im Block „Ihr Angebot"). */}
+                <p className="preis" style={{ fontSize: 24 }}>{a.angebot
+                  ? `${(a.angebot.teile.reduce((summe, x) => summe + x.betragCents, 0) / 100).toLocaleString("de-DE")} €`
+                  : globalPreisText(a.paket, s)}</p>
                 <div className="ga-zeilen">
                   <div><span>{t.seiteReferenz}</span><b>{a.ref}</b></div>
                 </div>

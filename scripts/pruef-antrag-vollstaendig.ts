@@ -79,7 +79,8 @@ async function main(): Promise<void> {
     [...PFLICHTFELDER, ...PFLICHTFELDER_FIRMA].map((f) => f.spalte),
   ));
   const zeilen = (await sqlPool.unsafe(`
-    SELECT a.ref, a.type, a.status, a.billing_method,
+    -- pack_key: Individualangebot (01.10.2026) — die AGB-Zustimmung hängt am Paket (nurWenn), die TS-Seite braucht die Spalte.
+    SELECT a.ref, a.type, a.status, a.billing_method, a.pack_key,
            ${spalten.map((s) => `a.${s}`).join(", ")},
            ${antragVollstaendigSql("a")} AS sql_voll,
            ${fehlendeFelderAusdruckSql("a")} AS sql_fehlt

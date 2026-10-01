@@ -69,7 +69,7 @@ app.use((req, res, next) => {
         // 25.09.2026 (E-241): die Auftragsbestätigung der Bonitätsauskunft (Token im Pfad, fiaon-auskunft-kauf.ts).
         .replace(/\/auskunft\/auftrag\/[^/?]+/, "/auskunft/auftrag/…")
         // „Mein Auftrag" (Kunde) und die Office-/Leitungsrouten dazu: dieselbe Nummer, derselbe Schutz.
-        .replace(/\/global\/(auftrag|mein-auftrag|auftraege)\/[^/?]+/, "/global/$1/…");
+        .replace(/\/global\/(auftrag|mein-auftrag|auftraege|angebot)\/[^/?]+/, "/global/$1/…");
       // Die Antworten der Office- und Leitungsrouten tragen den Kundenlink mit frischem Token — auch sie bleiben draußen.
       const ohneAntwort = /\/api\/fiaon\/((agent|admin)\/)?global\//.test(path);
       let logLine = `${req.method} ${pfadOhneToken} ${res.statusCode} in ${duration}ms`;

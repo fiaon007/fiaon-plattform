@@ -98,8 +98,17 @@ for (const [key, cents] of Object.entries(BUSINESS_ALT)) {
   gleich(`${key} behält seinen Preis ${cents}`, p?.preisCents, cents);
   ok(`istGlobalPaket(${key}) ist false`, !istGlobalPaket(key));
 }
-gleich("NICHT_ABO_SCHLUESSEL = schufa + die vier Global-Schlüssel",
-  [...NICHT_ABO_SCHLUESSEL].sort(), ["schufa", ...Object.keys(GLOBAL_SOLL)].sort());
+// 01.10.2026 (E-268): dazu „global_individuell" (Individualangebot, kein Abo). Die drei Auskunft-Preise
+// (E-240, abo: false) fehlten hier seit dem 24.09. — die Erwartung kommt jetzt für sie aus dem Katalog.
+gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot)",
+  [...NICHT_ABO_SCHLUESSEL].sort(),
+  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell"].sort());
+// E-268: Das Individualangebot ist Global, aber kein Paket — nie verkaufbar, kein Katalogpreis, keine Preisliste.
+{
+  const ia = paket("global_individuell");
+  ok("global_individuell: art global, kein Abo, eingestellt, Preis je Angebot", ia?.art === "global" && ia.abo === false && ia.eingestellt === true && ia.preisJeAngebot === true && ia.preisCents === 0);
+  ok("global_individuell: in keiner Preisliste", PAKET_PREISE_EURO.global_individuell === undefined && PAKET_PREISE_CENTS.global_individuell === undefined);
+}
 gleich("verkaufbarePakete(\"business\") ist leer", verkaufbarePakete("business").map((p) => p.key), []);
 gleich("verkaufbarePakete(\"global\") sind genau die vier",
   verkaufbarePakete("global").map((p) => p.key).sort(), Object.keys(GLOBAL_SOLL).sort());
@@ -117,7 +126,8 @@ ok("Kein Schlüssel steht zweimal im Katalog", new Set(PAKETE.map((p) => p.key))
 
 // ═══════════════════════════════════════════════════════════════════════════
 titel("2. KATALOG ↔ LEISTUNGSTEXTE (shared/fiaon-global.ts)");
-const katalogGlobal = PAKETE.filter((p) => p.art === "global").map((p) => p.key).sort();
+// E-268: Das Individualangebot hat keine Paketseite und keine Leistungstexte hier — seine Texte stehen in shared/fiaon-global-angebot.ts.
+const katalogGlobal = PAKETE.filter((p) => p.art === "global" && !p.preisJeAngebot).map((p) => p.key).sort();
 gleich("Jedes Global-Paket des Katalogs hat Texte — und umgekehrt", GLOBAL_PAKETE.map((g) => g.key).sort(), katalogGlobal);
 for (const g of GLOBAL_PAKETE) {
   ok(`${g.key}: globalKatalog() findet den Katalogeintrag`, globalKatalog(g.key)?.key === g.key);

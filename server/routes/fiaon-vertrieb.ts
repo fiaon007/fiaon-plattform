@@ -994,6 +994,8 @@ router.patch("/agent/vertrieb/person/:id/paket", requireAgent, nurLeitung, nurMi
       ORDER BY created_at DESC LIMIT 1`) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Keine Paketbestellung zu diesem Kunden." });
     if (String(a.payment_status) === "paid") return res.status(409).json({ ok: false, error: "Diese Bestellung ist bezahlt. Ein Paketwechsel danach ist eine Rückerstattung oder Nachbuchung — bitte den Vorgesetzten." });
+    // E-268 (01.10.2026): Ein Teil eines Individualangebots hat seinen Betrag aus dem angenommenen Angebot — kein Paketwechsel.
+    if (paket(a.pack_key)?.preisJeAngebot) return res.status(409).json({ ok: false, error: "Diese Bestellung ist ein Teil eines angenommenen Individualangebots (FIAON Global). Betrag und Leistung stehen im Vertrag — ein Paketwechsel ist hier nicht möglich." });
     if ((paket(a.pack_key)?.art === "global") !== (pk.art === "global")) {
       return res.status(409).json({ ok: false, error: "FIAON Global und die Privatpakete sind zwei verschiedene Produkte. Bitte die passende Bestellung neu anlegen, statt diese umzustellen." });
     }

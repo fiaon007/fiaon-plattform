@@ -48,7 +48,7 @@
 import { createHmac } from "crypto";
 import { absoluteUrl } from "./fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
-import { istGlobalPaket } from "@shared/fiaon-pakete";
+import { istGlobalPaket, istAngebotsPaket } from "@shared/fiaon-pakete";
 import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
 import type PDFKit from "pdfkit";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
@@ -180,6 +180,17 @@ const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich"
  */
 export async function rechnungsSpracheSetzen(sqlPool: any, a: any): Promise<void> {
   if (!a || !istGlobalPaket(a.pack_key) || !a.ref) return;
+  // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
+  // Jeder Teil hat seine eigene Rechnung (eigene Bestellzeile). Beschreibung und Zeitraum
+  // kommen aus dem Angebotsteil — über DIESEN Haken, also an allen fünf Zeichenstellen gleich.
+  // Fehlt die Tabelle oder der Teil, bleibt die Firmenrechnung, wie sie ist.
+  if (istAngebotsPaket(a.pack_key) && !a.beschreibung) {
+    try {
+      const { angebotRechnungsZeile } = await import("./lib/fiaon-global-angebot");
+      const z = await angebotRechnungsZeile(String(a.ref));
+      if (z) { a.beschreibung = z.beschreibung; a.zeitraum = z.zeitraum; }
+    } catch (e) { console.error(`[FIAON-INVOICE] ${a.ref}: Beschreibung des Angebotsteils nicht gelesen:`, e); }
+  }
   if (!a.rechnung_sprache) {
     try {
       const [g] = await sqlPool`SELECT vertrag_sprache FROM fiaon_global_auftraege WHERE ref = ${a.ref} LIMIT 1`;

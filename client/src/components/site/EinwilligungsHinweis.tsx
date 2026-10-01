@@ -21,6 +21,10 @@ import { einwilligungLesen, einwilligungNoetig, einwilligungSetzen, messungStart
 import { istBusinessBereich, mitBereich } from "@/lib/bereich";
 
 const INTERN = /^\/(agent|admin|chef|Admindashboard|admindashboard|onboarding|inkasso|team-intern|buchhaltung|banking)(\/|$)/;
+// Individualangebot (01.10.2026), Nachtrag d: Auf der persönlichen Vertragsseite gibt es KEINE Messung —
+// kein Pixel, kein Clarity, keine Analytics, und der Hinweis wird dort nicht gezeigt. Auch eine früher auf
+// anderen Seiten gegebene Einwilligung wird dort nicht angewendet (messungStarten bleibt aus).
+const OHNE_MESSUNG = /^\/business\/angebot(\/|$)/;
 
 export default function EinwilligungsHinweis() {
   // Auf Business-Seiten öffnen die Rechtsseiten im Rahmen von FIAON Global (lib/bereich.ts).
@@ -32,12 +36,13 @@ export default function EinwilligungsHinweis() {
   const [pfadJetzt] = useLocation();
 
   // Ein Einseiter lädt nie neu — ohne diese Meldung sähe Meta nur die erste Seite.
-  useEffect(() => { if (!INTERN.test(pfadJetzt)) metaSeitenwechsel(pfadJetzt); }, [pfadJetzt]);
+  useEffect(() => { if (!INTERN.test(pfadJetzt) && !OHNE_MESSUNG.test(pfadJetzt)) metaSeitenwechsel(pfadJetzt); }, [pfadJetzt]);
 
   useEffect(() => {
+    const pfad = window.location.pathname;
+    if (OHNE_MESSUNG.test(pfad)) return;
     messungStarten();
     let weg = false;
-    const pfad = window.location.pathname;
     if (!INTERN.test(pfad) && !einwilligungLesen()) {
       einwilligungNoetig().then((noetig) => { if (!weg && noetig) setOffen(true); });
     }
@@ -49,7 +54,7 @@ export default function EinwilligungsHinweis() {
     return () => { weg = true; window.removeEventListener("fiaon-einwilligung-oeffnen", oeffnen); };
   }, []);
 
-  if (!offen) return null;
+  if (!offen || OHNE_MESSUNG.test(pfadJetzt)) return null;
   const fertig = (w: { statistik: boolean; marketing: boolean }) => { einwilligungSetzen(w); setOffen(false); };
 
   return (

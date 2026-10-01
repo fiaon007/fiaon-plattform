@@ -27,8 +27,15 @@
 //
 // Die drei Einstellungen dazu (zuständige Person, Provisionssatz, USt-Modus)
 // stehen bei den Schaltern im Raum Rückholung. Server: routes/fiaon-global.ts.
+//
+// ── REITER „INDIVIDUALANGEBOTE" (01.10.2026, E-268) ────────────────────────
+// Keine neue Chef-Seite: Das persönliche Angebot (Teil 1 sofort, Teil 2 beim
+// Meilenstein, Bürgschaft, Frist mit Erstattung) lebt als zweiter Reiter in
+// diesem Raum (?reiter=angebote, ChefGlobalAngebote.tsx). Ein angenommenes
+// Angebot erscheint im Reiter „Aufträge" wie jeder Global-Auftrag — mit der
+// Marke „Individualangebot" und ohne Stichtag (dort gilt die Frist).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { eur, datum, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
@@ -37,6 +44,12 @@ import "@/styles/office-rundgang.css";
 import "@/styles/chef-zahlen.css";
 import "@/styles/chef-mailwerk.css";
 import "@/styles/chef-global.css";
+
+const ChefGlobalAngebote = lazy(() => import("./ChefGlobalAngebote"));
+type Reiter = "auftraege" | "angebote";
+const reiterAusAdresse = (): Reiter => {
+  try { return new URLSearchParams(window.location.search).get("reiter") === "angebote" ? "angebote" : "auftraege"; } catch { return "auftraege"; }
+};
 
 type Status = "offen" | "bezahlt" | "gestartet" | "storniert";
 type Filter = "laufend" | "offen" | "bezahlt" | "gestartet" | "alle";
@@ -58,6 +71,8 @@ interface Zeile {
   vertragUrl: string | null; rechnungUrl: string | null; zahlungsseite: string | null;
   /** E-196: im Auftrag angekreuzt; Preis je Betreuungsjahr vom Tag der Bestellung. Fehlt bei alten Antworten. */
   jahresbetreuung?: boolean; jahresbetreuungPreisCents?: number | null;
+  /** E-268: Die Akte gehört zu einem Individualangebot — Frist statt Stichtag (Reiter „Individualangebote"). */
+  angebotId?: number | null;
 }
 interface Antwort {
   ok: boolean; zeilen: Zeile[];
@@ -68,6 +83,30 @@ interface Antwort {
 const STATUS_TEXT: Record<Status, string> = { offen: "Offen — wartet auf Zahlung", bezahlt: "Bezahlt — nicht gestartet", gestartet: "Gestartet", storniert: "Storniert" };
 
 export default function ChefGlobalAuftraege() {
+  const [reiter, setReiter] = useState<Reiter>(reiterAusAdresse);
+  const wechseln = (r: Reiter) => {
+    setReiter(r);
+    try {
+      const u = new URL(window.location.href);
+      if (r === "angebote") u.searchParams.set("reiter", "angebote"); else u.searchParams.delete("reiter");
+      window.history.replaceState(null, "", u.pathname + u.search);
+    } catch { /* Adresse bleibt, der Reiter wechselt trotzdem */ }
+  };
+  return (
+    <div className="cg" data-fiaon="global-auftraege">
+      <Rundgang raum="global-auftraege" titel="Global-Aufträge" schritte={RUNDGAENGE.globalAuftraege.schritte} />
+      <div className="cg-filter cg-reiter" role="tablist" aria-label="Global-Aufträge">
+        <button type="button" role="tab" aria-selected={reiter === "auftraege"} className={reiter === "auftraege" ? "aktiv" : ""} onClick={() => wechseln("auftraege")}>Aufträge</button>
+        <button type="button" role="tab" aria-selected={reiter === "angebote"} className={reiter === "angebote" ? "aktiv" : ""} onClick={() => wechseln("angebote")}>Individualangebote</button>
+      </div>
+      {reiter === "angebote"
+        ? <Suspense fallback={<Geruest zeilen={4} />}><ChefGlobalAngebote /></Suspense>
+        : <AuftraegeListe />}
+    </div>
+  );
+}
+
+function AuftraegeListe() {
   const { daten, fehler, neu } = useDaten<Antwort>("/admin/global/auftraege");
   const [filter, setFilter] = useState<Filter>("laufend");
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -95,7 +134,8 @@ export default function ChefGlobalAuftraege() {
     offen: alle.filter((z) => z.status === "offen").length,
     bezahlt: alle.filter((z) => z.status === "bezahlt").length,
     gestartet: alle.filter((z) => z.status === "gestartet").length,
-    ohneStichtag: alle.filter((z) => z.status === "gestartet" && !z.stichtag).length,
+    // E-268: Ein Individualangebot hat keinen Stichtag — es zählt hier nicht als Alarm.
+    ohneStichtag: alle.filter((z) => z.status === "gestartet" && !z.stichtag && z.angebotId == null).length,
   };
   const offenerWert = alle.filter((z) => z.status === "offen").reduce((s, z) => s + z.betragCents, 0);
   const sichtbar = alle.filter((z) =>
@@ -103,8 +143,7 @@ export default function ChefGlobalAuftraege() {
   const zustaendigName = daten.mitarbeiter.find((m) => m.id === daten.einstellungen.zustaendigAgentId)?.name;
 
   return (
-    <div className="cg" data-fiaon="global-auftraege">
-      <Rundgang raum="global-auftraege" titel="Global-Aufträge" schritte={RUNDGAENGE.globalAuftraege.schritte} />
+    <>
       {meldung && <div className="cm-meldung" role="status">{meldung}</div>}
 
       <section className="cz-block cg-kopf">
@@ -150,6 +189,7 @@ export default function ChefGlobalAuftraege() {
                     {z.katalogCents != null && z.katalogCents !== z.betragCents && <span className="cm-klartext cg-rot">Katalog sagt {eur(z.katalogCents)} — vor der Buchung klären.</span>}
                     {z.ustHinweis && <span className="cm-klartext cg-rot">USt-IdNr. fehlt — Rechnung ohne Steuerausweis.</span>}
                     {z.jahresbetreuung === true && <span className="cm-klartext cg-jahr">{JAHRESBETREUUNG_MARKE}{z.jahresbetreuungPreisCents ? ` · ${eur(z.jahresbetreuungPreisCents)} je Betreuungsjahr` : ""}</span>}
+                    {z.angebotId != null && <span className="cm-klartext cg-jahr">Individualangebot — Teil 2, Frist und Erstattung im Reiter „Individualangebote“</span>}
                   </td>
                   <td>
                     <span className={`cg-marke cg-marke-${z.status}`}>{STATUS_TEXT[z.status]}</span>
@@ -188,8 +228,9 @@ export default function ChefGlobalAuftraege() {
                   <td>
                     <div className="cg-knoepfe">
                       {/* Der Grund steht als TEXT da, nicht im Tooltip (AGENTS.md: ein gesperrter Knopf ohne sichtbaren Grund ist ein Rätsel). */}
-                      {!z.ohneAuftrag && z.status === "offen" && <span className="cm-klartext">Stichtag: erst nach dem Zahlungseingang — er wird im Startgespräch festgelegt.</span>}
-                      {!z.ohneAuftrag && (z.status === "bezahlt" || z.status === "gestartet") && (
+                      {!z.ohneAuftrag && z.status === "offen" && z.angebotId == null && <span className="cm-klartext">Stichtag: erst nach dem Zahlungseingang — er wird im Startgespräch festgelegt.</span>}
+                      {z.angebotId != null && <span className="cm-klartext">Kein Stichtag: Das Individualangebot hat eine Frist mit Erstattungszusage.</span>}
+                      {!z.ohneAuftrag && z.angebotId == null && (z.status === "bezahlt" || z.status === "gestartet") && (
                         <button type="button" className="cg-knopf cg-knopf-stichtag"
                           onClick={() => { setOffen({ ref: z.ref, art: "stichtag" }); setWert(z.stichtag ?? ""); setMitteilen(true); }}>
                           {z.stichtag ? "Stichtag ändern" : "Stichtag setzen"}
@@ -278,6 +319,6 @@ export default function ChefGlobalAuftraege() {
           </table></div>
         )}
       </section>
-    </div>
+    </>
   );
 }

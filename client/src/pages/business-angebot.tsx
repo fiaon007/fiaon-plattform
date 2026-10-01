@@ -15,6 +15,7 @@
 //   2 „Was Sie bekommen" · 3 „So läuft es" · 4 „Ihr Schutz"
 //   5 „Ihre Investition" — hier wandert die dunkle Tafel hin
 //   6 Vertrag + Anlagen (aufklappbar, vollständig lesbar)
+//   4b „Ihre Ansprechpartner" (Justin, 01.10.2026 nachmittags) — auch auf der Bestätigung
 //   7 Bestellübersicht UNMITTELBAR über „Zahlungspflichtig annehmen" (§ 312j BGB —
 //     Beträge dort vollständig, das bleibt am Ende)
 //   Die Abschnitte bauen sich beim Scrollen dezent auf (Auf aus DunkleBuehne).
@@ -46,13 +47,13 @@ import { useRoute } from "wouter";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import "@/styles/global-start.css";
 import "@/styles/global-angebot.css";
-import { ANGEBOT_AUFRUF_HINWEIS } from "@shared/fiaon-global-angebot";
+import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ } from "@shared/fiaon-global-angebot";
 
 type Zeile = { label: string; wert: string };
 type Karte = { titel: string; text: string; fein: string };
 type Seite = {
   auftakt: { gruss: string; zeile: string; ueberspringen: string };
-  auge: string; fuer: string; titel: string; lead: string; nutzen: string[];
+  auge: string; fuer: string; titel: string; lead: string; nutzen: string[]; erstattungZeile: string;
   bekommenTitel: string; bekommen: Karte[];
   ablaufTitel: string; ablaufZeitplan: string; ablauf: { wann: string; titel: string; text: string }[];
   schutzTitel: string; schutz: Karte[];
@@ -118,6 +119,41 @@ function Auftakt({ auge, gruss, zeile, ueberspringen, onWeg, onEnde }: { auge: s
 /** Ein Abschnitt, der sich beim Scrollen aufbaut. */
 function Abschnitt({ id, label, className = "", children }: { id?: string; label?: string; className?: string; children: ReactNode }) {
   return <section id={id} className={`gia-abschnitt ${className}`} aria-label={label}><Auf>{children}</Auf></section>;
+}
+
+// ── Ihre Ansprechpartner ─────────────────────────────────────────────────────
+// Drei Karten mit Foto, Rolle, E-Mail und Telefon (Justin, 01.10.2026). Am Rechner drei
+// nebeneinander, am Handy untereinander mit dem Foto links — E-Mail und Telefon sind
+// große Tippflächen (mailto:/tel:). Fehlt ein Foto, steht das Monogramm.
+function Ansprechpartner({ angebotRef }: { angebotRef: string }) {
+  const [ohneBild, setOhneBild] = useState<Record<string, boolean>>({});
+  const betreff = encodeURIComponent(`Mein Angebot ${angebotRef}`);
+  return (
+    <ul className="gia-kontakt">
+      {ANGEBOT_ANSPRECHPARTNER.map((p) => (
+        <li key={p.kuerzel}>
+          <div className="gia-kontakt-kopf">
+            <span className="gia-kontakt-bild" aria-hidden="true">
+              {ohneBild[p.kuerzel]
+                ? <span className="gia-kontakt-mono">{p.name.split(/\s+/).map((t) => t[0]).join("").slice(0, 2)}</span>
+                : <img src={`/portraits/${p.kuerzel}.jpg`} alt="" width={72} height={72} loading="lazy" decoding="async" onError={() => setOhneBild((o) => ({ ...o, [p.kuerzel]: true }))} />}
+            </span>
+            <span className="gia-kontakt-wer"><b>{p.name}</b><span>{p.rolle}</span></span>
+          </div>
+          <div className="gia-kontakt-wege">
+            <a href={`mailto:${p.email}?subject=${betreff}`}>
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 5.5h14v9H3z M3.4 5.9 10 11l6.6-5.1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
+              <span>{p.email}</span>
+            </a>
+            <a href={`tel:${p.telefon.replace(/\s/g, "")}`}>
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M6.2 3.2 8 3l1.3 3.3-1.6 1.1a8.6 8.6 0 0 0 4.9 4.9l1.1-1.6L17 12l-.2 1.8c-.1.7-.7 1.2-1.4 1.2A12.4 12.4 0 0 1 5 4.6c0-.7.5-1.3 1.2-1.4z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
+              <span>{p.telefon}</span>
+            </a>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function BusinessAngebot() {
@@ -229,6 +265,10 @@ export default function BusinessAngebot() {
             <p className="gia-klein">{fertig.fertigFuss}</p>
             <p className="gia-klein gia-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
           </div>
+          <section className="gia-abschnitt" aria-label={ANGEBOT_ANSPRECHPARTNER_TITEL}>
+            <h2 className="gia-h2">{ANGEBOT_ANSPRECHPARTNER_TITEL}</h2>
+            <Ansprechpartner angebotRef={fertig.ref} />
+          </section>
         </div></div>
       </Dunkel>
     );
@@ -255,8 +295,12 @@ export default function BusinessAngebot() {
             <h1 className="gs-h1">{S.titel}</h1>
             <p className="gs-lead">{S.lead}</p>
             <ul className="gia-nutzen" aria-label="Ihr Nutzen">{S.nutzen.map((n) => <li key={n}>{n}</li>)}</ul>
+            {S.erstattungZeile && (() => { const z = S.erstattungZeile; const i = z.indexOf(": "); return (
+              <p className="gia-garantie"><b>{i > 0 ? z.slice(0, i) : z}</b>{i > 0 ? <span>{z.slice(i + 2)}</span> : null}</p>
+            ); })()}
             <div className="gia-hero-weiter">
               <a href="#bekommen">{S.bekommenTitel}</a>
+              <a href="#ansprechpartner">{ANGEBOT_ANSPRECHPARTNER_TITEL}</a>
               <a href="#vertrag">Zum Vertrag</a>
               <a href="#annahme">Zur Annahme</a>
             </div>
@@ -286,6 +330,13 @@ export default function BusinessAngebot() {
             <ul className="gia-schutz">
               {S.schutz.map((k) => <li key={k.titel}><h3>{k.titel}</h3><p>{k.text}</p><p className="gia-fein">{k.fein}</p></li>)}
             </ul>
+          </Abschnitt>
+
+          {/* 4b — Ihre Ansprechpartner: drei Menschen mit Foto, E-Mail und Telefon (außerhalb des Vertragstextes). */}
+          <Abschnitt id="ansprechpartner">
+            <h2 className="gia-h2">{ANGEBOT_ANSPRECHPARTNER_TITEL}</h2>
+            <p className="gia-sub">{ANGEBOT_ANSPRECHPARTNER_SATZ}</p>
+            <Ansprechpartner angebotRef={sicht.ref} />
           </Abschnitt>
 
           {/* 5 — Ihre Investition: Navy-Glas genau einmal, Beträge ruhig und als Vorteil. */}

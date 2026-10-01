@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — Persönliches Angebot: „Ihre Ansprechpartner" und „Ihre Garantie" statt „Geld zurück" (E-268, Nachtrag)
+
+**Der Anlass:** Justin, nachdem Herr Hildbrand den Link hatte: „Füge auf dem Angebot ‚Ihre Ansprechpartner' ein — Florentine
+Lombardi, Daniel Stripling, Justin Schwarzott, mit E-Mail und Telefonnummer, gut präsentiert für PC und Handy" und „statt
+‚Geld zurück' ‚Ihre Garantie' — überall, er hat kein Risiko wegen der Garantie".
+
+**Was jetzt gilt:**
+- **„Ihre Ansprechpartner"** auf der Angebotsseite (`/business/angebot/:token`, Abschnitt nach „Ihr Schutz", Link im Hero)
+  und auf der Bestätigung nach der Annahme: drei Karten mit Foto, Rolle, E-Mail (öffnet die Mail mit Betreff „Mein Angebot
+  FIAON-IA-…") und Telefon (wählt direkt). Rechner: drei nebeneinander; Handy: untereinander, Tippflächen 48 px. Daten
+  wortgleich mit /team (`Team.tsx`), Quelle `ANGEBOT_ANSPRECHPARTNER` in `shared/fiaon-global-angebot.ts`. Steht NICHT im
+  Vertragstext — Prüfsumme und PDF bleiben unberührt.
+- **„Ihre Garantie"** ersetzt „Geld zurück" überall auf der Seite: eigene Zeile im Hero („Ihre Garantie: Kommt in zwölf
+  Wochen ab unserem Start weder Kapital noch Karte, erhalten Sie die Gründungskosten vollständig zurück."), Karte unter „Ihr
+  Schutz" („Ihre Garantie: volle Erstattung nach zwölf Wochen"), Zeile in der dunklen Tafel („4.650,00 € zurück") und in
+  der Bestellübersicht.
+- **Grenze:** Garantiert wird nur die Erstattung — das, was FIAON selbst in der Hand hat —, nie eine Bankentscheidung
+  (OLG Hamm 4 U 171/12). Deshalb steht hinter „Ihre Garantie" immer im selben Satz, WAS garantiert ist. Kein „0 % Risiko"
+  (Global-Wortregel E-188, und es stimmte nicht wörtlich: Mitwirkung, Jahresbetreuung). Im Vertrag heißt es weiter
+  „Erstattung".
+- Prüfstand `scripts/pruef-individualangebot.ts` Abschnitt 2b: kein „Geld zurück" mehr, jede Garantie heißt „Ihre
+  Garantie" und nennt Kapital, Karte und Erstattung, nichts davon im Vertragstext, Ansprechpartner wie /team, Fotos da.
+
+**Wo zu finden:** fiaon.com/business/angebot/… (der persönliche Link) — Abschnitt „Ihre Ansprechpartner" und das Siegel
+„Ihre Garantie" unter der Nutzenliste.
+
 ## 01.10.2026 — Angebot-Aufrufe: wann, wie oft und wo der Kunde sein Angebot geöffnet hat — mit Meldung an Justin (E-268, Nachtrag)
 
 **Der Anlass:** Justin, nachdem der Link an Herrn Hildbrand (Angebot FIAON-IA-9E10FD) raus war: „Ich will sehen, wann er es

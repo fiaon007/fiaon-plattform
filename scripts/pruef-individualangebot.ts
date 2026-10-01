@@ -137,13 +137,43 @@ titel("1. Ziffern und Vertragssprache");
   for (const zeile of wb.formular.zeilen) ok(ohne.includes(zeile), `Muster-Formular wörtlich: ${zeile.slice(0, 30)}`);
 }
 
+titel("2b. „Ihre Garantie“ statt „Geld zurück“ und „Ihre Ansprechpartner“ (Justin, 01.10.2026 nachmittags)");
+{
+  const seite = S.angebotSeite(D);
+  const texte = [JSON.stringify(seite), ...ALLE_SCHALTER.map((s) => JSON.stringify(S.angebotBestellUebersicht(D, s)))];
+  ok(texte.every((t) => !/Geld zurück/i.test(t)), "nirgends mehr „Geld zurück“ (Seite, Bestellübersicht)");
+  // Jede Garantie heißt genau „Ihre Garantie" und sagt im selben Eintrag, WAS garantiert ist: die Gründungskosten zurück.
+  const eintraege: string[] = [seite.erstattungZeile, ...seite.schutz.map((k) => `${k.titel} ${k.text}`), ...seite.investition.tafel.map((z) => `${z.label} ${z.wert} ${z.zusatz}`),
+    ...ALLE_SCHALTER.flatMap((s) => S.angebotBestellUebersicht(D, s).map((z) => `${z.label} ${z.wert}`))];
+  const mitGarantie = eintraege.filter((e) => /garanti/i.test(e));
+  ok(mitGarantie.length === 3 + ALLE_SCHALTER.length, "„Ihre Garantie“ im Hero, unter „Ihr Schutz“, in der Tafel und in jeder Bestellübersicht", mitGarantie.length);
+  ok(mitGarantie.every((e) => (e.match(/garanti\w*/gi) ?? []).every((x) => x === "Garantie") && (e.match(/Garantie/g) ?? []).length === (e.match(/Ihre Garantie/g) ?? []).length), "nur „Ihre Garantie“ — kein „garantiert“, keine andere Garantie", mitGarantie);
+  ok(mitGarantie.every((e) => /zurück|Erstattung/.test(e) && /Kapital/.test(e) && /Karte/.test(e)), "jede Garantie sagt im selben Eintrag: ohne Kapital und Karte die Gründungskosten zurück", mitGarantie);
+  ok(JSON.stringify(seite).split("Garantie").length - 1 === (JSON.stringify(seite).match(/Ihre Garantie/g) ?? []).length, "Seite: „Garantie“ nur als „Ihre Garantie“");
+  ok(seite.erstattungZeile === "Ihre Garantie: Kommt in zwölf Wochen ab unserem Start weder Kapital noch Karte, erhalten Sie die Gründungskosten vollständig zurück.", "Hero: Garantie-Zeile wörtlich, ohne Betrag", seite.erstattungZeile);
+  ok(!/\b0\s*%|null Risiko|risikofrei|ohne Risiko/i.test(texte.join(" ")), "kein „0 %“, kein „risikofrei“ (Global-Wortregel E-188)");
+  for (const s of ALLE_SCHALTER) ok(!/Garantie|garantier/i.test(V.angebotText(D, s)), `Vertragstext ohne „Garantie“ — dort heißt es Erstattung (Schalter ${JSON.stringify(s)})`);
+  // Ansprechpartner: drei, in Justins Reihenfolge, Daten wortgleich mit /team (Team.tsx).
+  const AP = S.ANGEBOT_ANSPRECHPARTNER;
+  ok(AP.map((p) => p.name).join("|") === "Florentine Lombardi|Daniel Stripling|Justin Schwarzott", "Ansprechpartner: Lombardi, Stripling, Schwarzott — in dieser Reihenfolge");
+  const team = fs.readFileSync(new URL("../client/src/components/site/Team.tsx", import.meta.url), "utf8");
+  for (const p of AP) {
+    ok(team.includes(`name: "${p.name}", rolle: "${p.rolle}"`) && team.includes(`email: "${p.email}", telefon: "${p.telefon}"`), `${p.name}: Rolle, E-Mail und Telefon wie auf /team`);
+    ok(fs.existsSync(new URL(`../client/public/portraits/${p.kuerzel}.jpg`, import.meta.url)), `${p.name}: Foto /portraits/${p.kuerzel}.jpg vorhanden`);
+    ok(/^\+41 \d{2} \d{3} ?\d{2} ?\d{2}$/.test(p.telefon) && /^[a-z]+@fiaon\.com$/.test(p.email), `${p.name}: Nummer und Adresse wohlgeformt`, p);
+  }
+  for (const s of ALLE_SCHALTER) ok(!V.angebotText(D, s).includes("florentine@fiaon.com") && !V.angebotText(D, s).includes(S.ANGEBOT_ANSPRECHPARTNER_SATZ), `Ansprechpartner stehen nicht im Vertragstext (Prüfsumme unberührt, Schalter ${JSON.stringify(s)})`);
+}
+
 titel("2. Wortwand und schärfere Global-Regeln");
 {
   const wb = globalWiderrufsbelehrung("de");
   // Das gesetzliche Muster bleibt wörtlich („bis zu dem Zeitpunkt") — es wird vor den Global-Regeln herausgenommen.
   const ohneMuster = (t: string) => wb.abschnitte.flatMap((a) => a.absaetze).reduce((s, x) => s.split(x).join(""), t);
   const pruefe = (name: string, text: string, erlaubteBisZu: number, gedeckt: string[] = []) => {
-    const w = wandPruefen(text, gedeckt);
+    // „Ihre Garantie" (Justin, 01.10.2026) ist die EINE erlaubte Garantie — für die Erstattung der Gründungskosten, die FIAON
+    // selbst in der Hand hat. Sie wird vor der Wortwand herausgenommen; dass sie nur dort steht, prüft Abschnitt 2b.
+    const w = wandPruefen(text.split("Ihre Garantie").join("Ihre Erstattung"), gedeckt);
     ok(w.length === 0, `${name}: Wortwand`, w.map((x) => `${x.treffer} (${x.hinweis.slice(0, 40)})`));
     const rest = ohneMuster(text);
     for (const r of GLOBAL_SCHAERFER) {
@@ -162,6 +192,7 @@ titel("2. Wortwand und schärfere Global-Regeln");
   const seite = S.angebotSeite(D);
   const seitenText = JSON.stringify(seite);
   pruefe("Seite", seitenText, 0);
+  pruefe("Ansprechpartner", JSON.stringify([S.ANGEBOT_ANSPRECHPARTNER_TITEL, S.ANGEBOT_ANSPRECHPARTNER_SATZ, S.ANGEBOT_ANSPRECHPARTNER]), 0);
   // Nachtrag (b)+(c): Hero und Nutzenliste ohne Beträge und ohne den Institut-Satz; Kapitalrahmen als feste Zahl.
   const hero = [seite.titel, seite.lead, ...seite.nutzen].join("\n");
   ok(!/\d\.\d{3},\d{2} €|\d\.\d{3} €/.test(hero), "Hero/Nutzen: keine Beträge", hero);

@@ -737,6 +737,10 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
       `Eine Bürgin an Ihrer Seite: die ${buergin}`,
       "Keine Sicherheiten von Ihnen",
     ],
+    // „Ihre Garantie" (Justin, 01.10.2026: statt „Geld zurück" überall „Ihre Garantie"). Garantiert wird NUR, was FIAON
+    // selbst in der Hand hat — die Erstattung der Gründungskosten —, nie eine Bankentscheidung (OLG Hamm 4 U 171/12).
+    // Deshalb steht hinter „Ihre Garantie" immer im selben Satz, WAS garantiert ist. Kein „0 %" (Global-Wortregel E-188).
+    erstattungZeile: `Ihre Garantie: Kommt in ${wochen} Wochen ab unserem Start weder Kapital noch Karte, erhalten Sie die Gründungskosten vollständig zurück.`,
 
     // 2 — Was Sie bekommen. Ohne Beträge; der Satz zur persönlichen Haftung steht bei den Karten.
     bekommenTitel: "Was Sie bekommen",
@@ -787,7 +791,7 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
       { titel: "Erfolgsbasis",
         text: "Unsere eigentliche Vergütung wird erst fällig, wenn Ihre LLC eingetragen ist und das erste Kapital an sie ausgezahlt oder die erste Business-Kreditkarte freigeschaltet ist — gleich in welcher Höhe. Bis dahin tragen Sie nur die Gründungskosten Ihrer Gesellschaft.",
         fein: "Über jede Finanzierung und jede Karte entscheidet das jeweilige Institut — deshalb hängt unsere Vergütung an Ihrem Erfolg und nicht an unserem Aufwand." },
-      { titel: `Volle Erstattung nach ${wochen} Wochen`,
+      { titel: `Ihre Garantie: volle Erstattung nach ${wochen} Wochen`,
         text: `Erhält Ihre Gesellschaft in ${wochen} Wochen ab unserem Start (mit sofortigem Beginn: ab Ihrem Zahlungseingang) weder Kapital noch Karte — auch nicht auf einen eigenen Antrag —, erstatten wir Ihnen die Gründungskosten vollständig binnen ${zahlwort(par.erstattungTage)} Tagen — ohne Aufforderung, ohne Abzug. Ihre LLC und alle Unterlagen bleiben Ihre.`,
         fein: "Die Frist ruht nur, wenn Sie trotz schriftlicher Aufforderung eine Unterschrift, Ihren Reisepass (oder einen von einem Institut für die Identifizierung verlangten Adressnachweis) oder wahre Angaben schuldig bleiben — nie wegen Behörden, Instituten oder uns." },
       { titel: "Widerrufsrecht",
@@ -803,7 +807,7 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
       tafel: [
         { label: "Gründung Ihrer Gesellschaft", wert: t1, zusatz: "heute fällig — im ersten Jahr alles inklusive, keine Zusatzkosten" },
         { label: "Kapital-Begleitung", wert: t2, zusatz: `erst mit Ihrem Erfolg: nach Eintragung und erstem Kapital oder erster Karte, gleich in welcher Höhe — über beides entscheidet das jeweilige Institut; zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen` },
-        { label: "Geld zurück", wert: `nach ${wochen} Wochen`, zusatz: `ab unserem Start (mit sofortigem Beginn: ab Ihrem Zahlungseingang) ohne Kapital und ohne Karte: ${t1} vollständig zurück, die Kapital-Begleitung entfällt, Ihre LLC bleibt Ihnen` },
+        { label: "Ihre Garantie", wert: `${t1} zurück`, zusatz: `vollständig, wenn in den ${wochen} Wochen ab unserem Start (mit sofortigem Beginn: ab Ihrem Zahlungseingang) weder Kapital noch Karte kommt — die Kapital-Begleitung entfällt, Ihre LLC bleibt Ihnen` },
         { label: "Bürgin", wert: buergin, zusatz: `Höchstbetrag ${angebotUsd(par.buergschaftUsd)} — Sicherheiten verlangen wir keine` },
       ],
       gesamt: `Insgesamt ${ges} als Festpreis, Endpreis für Sie als Privatperson — davon heute nur ${t1}. Überweisung auf Rechnung, kein Abo.`,
@@ -846,7 +850,7 @@ export function angebotBestellUebersicht(d: Pick<AngebotDaten, "parameter" | "bu
     { label: "Teil 1 · Gründung", wert: `${angebotEur(par.teil1Cents)} — fällig mit Vertragsschluss, Rechnung sofort per E-Mail` },
     { label: "Teil 2 · Kapital-Begleitung", wert: `${angebotEur(par.teil2Cents)} — nur fällig, wenn Ihre LLC eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist (gleich in welcher Höhe); zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen nach Rechnung` },
     { label: "Gesamtpreis", wert: `${angebotEur(angebotGesamtCents(par))} · Endpreis, eine etwaige Umsatzsteuer ist enthalten` },
-    { label: "Geld zurück", wert: `Ohne Kapital und ohne Karte nach ${wochen} Wochen: ${angebotEur(par.teil1Cents)} zurück binnen ${zahlwort(par.erstattungTage)} Tagen, Teil 2 entfällt, die LLC bleibt Ihre` },
+    { label: "Ihre Garantie", wert: `Ohne Kapital und ohne Karte nach ${wochen} Wochen: ${angebotEur(par.teil1Cents)} zurück binnen ${zahlwort(par.erstattungTage)} Tagen, Teil 2 entfällt, die LLC bleibt Ihre` },
     { label: "Bürgschaft", wert: `${d.buergin.name}, auf Anforderung eines Instituts, Höchstbetrag ${angebotUsd(par.buergschaftUsd)} (Anlage 1)` },
     { label: "Laufzeit", wert: `Leistungen des ersten Jahres bis zum ersten Jahrestag der Eintragung; Kapital-Begleitung bis zum Ziel, längstens ${zahlwort(ANGEBOT_FEST.begleitungMonate)} Monate nach dem ersten Kapital — keine automatische Verlängerung` },
     s.jahresbetreuung
@@ -890,6 +894,22 @@ export const ANGEBOT_ANNAHME = {
  */
 export const ANGEBOT_AUFRUF_HINWEIS =
   "Aufrufe dieses persönlichen Links werden protokolliert (Zeitpunkt, Gerät, ungefähre Region; IP-Adresse gekürzt) — zur Dokumentation des Vertragswegs und damit Ihr Ansprechpartner sieht, wann er Sie beim nächsten Schritt begleiten kann. Löschung 90 Tage nach Abschluss.";
+
+/**
+ * „Ihre Ansprechpartner" (Justin, 01.10.2026, nachmittags): Florentine Lombardi, Daniel Stripling, Justin Schwarzott —
+ * in dieser Reihenfolge, je mit E-Mail und Telefon, auf der Angebotsseite und auf der Bestätigung nach der Annahme.
+ * Wie ANGEBOT_AUFRUF_HINWEIS AUSSERHALB des Vertragstextes (nicht im Rumpf, nicht in text_hash, nicht im PDF).
+ * Namen, Rollen, Adressen und Nummern genau wie öffentlich auf /team (client/src/components/site/Team.tsx, PERSONEN);
+ * Fotos unter /portraits/<kuerzel>.jpg — fehlt eins, steht das Monogramm.
+ */
+export const ANGEBOT_ANSPRECHPARTNER_TITEL = "Ihre Ansprechpartner";
+export const ANGEBOT_ANSPRECHPARTNER_SATZ =
+  "Drei Menschen kennen Ihren Auftrag persönlich — vor der Annahme bei jeder Frage zum Vertrag und danach bei jedem Schritt. Sie erreichen jeden von ihnen direkt per E-Mail oder Telefon.";
+export const ANGEBOT_ANSPRECHPARTNER: readonly { kuerzel: string; name: string; rolle: string; email: string; telefon: string }[] = [
+  { kuerzel: "florentine", name: "Florentine Lombardi", rolle: "Gesellschafterin · Menschen & Onboarding", email: "florentine@fiaon.com", telefon: "+41 77 202 84 49" },
+  { kuerzel: "daniel", name: "Daniel Stripling", rolle: "Gesellschafter · Leitung Vertrieb", email: "daniel@fiaon.com", telefon: "+41 77 281 18 34" },
+  { kuerzel: "justin", name: "Justin Schwarzott", rolle: "Gründer · Geschäftsführer · Director", email: "js@fiaon.com", telefon: "+41 77 288 4902" },
+];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RECHNUNGSZEILE JE TEIL (server/fiaon-invoice.ts → rechnungsSpracheSetzen)

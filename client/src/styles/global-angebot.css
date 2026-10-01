@@ -48,7 +48,7 @@ html.gia-auftakt-an{overflow:hidden}
 .gia-hero>*{transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1)}
 .gia-start .gia-hero>*{opacity:0;transform:translateY(16px)}
 .gia-hero>:nth-child(2){transition-delay:.06s}.gia-hero>:nth-child(3){transition-delay:.12s}.gia-hero>:nth-child(4){transition-delay:.18s}
-.gia-hero>:nth-child(5){transition-delay:.26s}.gia-hero>:nth-child(6){transition-delay:.34s}.gia-hero>:nth-child(7){transition-delay:.4s}
+.gia-hero>:nth-child(5){transition-delay:.26s}.gia-hero>:nth-child(6){transition-delay:.34s}.gia-hero>:nth-child(7){transition-delay:.4s}.gia-hero>:nth-child(8){transition-delay:.46s}
 .gia-nutzen{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;max-width:780px}
 .gia-nutzen li{position:relative;padding-left:26px;font-size:14.5px;line-height:1.55;color:var(--tinte)}
 .gia-nutzen li::before{content:"";position:absolute;left:0;top:.6em;width:14px;height:1px;background:var(--navy)}
@@ -169,3 +169,34 @@ html.gia-auftakt-an{overflow:hidden}
   .gia{padding-bottom:110px}
 }
 @media(prefers-reduced-motion:reduce){.gia-tafel-anker,.gia-knopf-leise,.gia-vertrag-knopf{transition:none}}
+
+/* ── 1 · Ihre Garantie im Hero (Justin, 01.10.2026: „Ihre Garantie" statt „Geld zurück") ──
+   Ein ruhiges Siegel unter der Nutzenliste — hell, kein zweites Navy-Glas. */
+.gia-garantie{position:relative;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;max-width:780px;margin-top:24px;padding:14px 18px 14px 50px;
+  border-radius:10px;background:var(--blau-hell);border:1px solid #d6e1fb;font-size:14.5px;line-height:1.55;color:var(--tinte)}
+.gia-garantie::before{content:"";position:absolute;left:16px;top:50%;width:22px;height:22px;margin-top:-11px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Ccircle cx='11' cy='11' r='11' fill='%2312284a'/%3E%3Cpath d='M6.5 11.2l3 3 6-6.2' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
+.gia-garantie b{font-weight:600;color:var(--navy)}
+@media(max-width:560px){.gia-garantie{padding:13px 14px 13px 46px;font-size:14px}.gia-garantie::before{left:13px}}
+
+/* ── 4b · Ihre Ansprechpartner (Justin, 01.10.2026): drei Karten mit Foto, E-Mail und Telefon ──
+   Rechner: drei nebeneinander. Handy: untereinander, Foto links, E-Mail und Telefon als große Tippflächen. */
+.gia-kontakt{list-style:none;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.gia-kontakt li{display:flex;flex-direction:column;gap:18px;padding:22px 22px 14px;border-radius:12px;background:#fff;border:1px solid var(--linie)}
+.gia-kontakt-kopf{display:flex;align-items:center;gap:16px;min-width:0}
+.gia-kontakt-bild{flex:0 0 auto;width:72px;height:72px;border-radius:50%;overflow:hidden;background:var(--stein);box-shadow:0 0 0 1px var(--linie),0 0 0 4px #fff,0 0 0 5px var(--linie)}
+.gia-kontakt-bild img{display:block;width:100%;height:100%;object-fit:cover}
+.gia-kontakt-mono{display:grid;place-items:center;width:100%;height:100%;font-family:var(--serif);font-size:24px;color:var(--navy);background:var(--blau-hell)}
+.gia-kontakt-wer{display:flex;flex-direction:column;gap:4px;min-width:0}
+.gia-kontakt-wer b{font-family:var(--serif);font-weight:400;font-size:20px;letter-spacing:-.01em;line-height:1.2;color:var(--tinte)}
+.gia-kontakt-wer span{font-size:12px;line-height:1.45;letter-spacing:.02em;color:var(--leise)}
+.gia-kontakt-wege{display:flex;flex-direction:column;margin-top:auto;border-top:1px solid var(--linie)}
+.gia-kontakt-wege a{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 0;font-size:14px;color:var(--navy);text-decoration:none;
+  font-variant-numeric:tabular-nums;overflow-wrap:anywhere;transition:color .15s ease}
+.gia-kontakt-wege a+a{border-top:1px solid var(--linie)}
+.gia-kontakt-wege a svg{flex:0 0 auto;color:var(--leise);transition:color .15s ease}
+.gia-kontakt-wege a:hover,.gia-kontakt-wege a:hover svg{color:var(--blau)}
+@media(max-width:860px){.gia-kontakt{grid-template-columns:1fr}.gia-kontakt li{padding:18px 18px 8px}}
+@media(max-width:860px) and (min-width:561px){.gia-kontakt li{flex-direction:row;align-items:center;gap:24px}.gia-kontakt-kopf{flex:1 1 0}.gia-kontakt-wege{flex:0 0 46%;border-top:0;margin-top:0}}
+@media(max-width:560px){.gia-kontakt-bild{width:60px;height:60px}.gia-kontakt-wer b{font-size:18px}.gia-kontakt-wege a{min-height:48px;font-size:15px}}
+@media(prefers-reduced-motion:reduce){.gia-kontakt-wege a,.gia-kontakt-wege a svg{transition:none}}

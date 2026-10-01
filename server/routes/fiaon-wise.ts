@@ -34,7 +34,7 @@ import { createSign } from "crypto";
 import { sqlPool } from "../lib/db-pool";
 import { tageslauf } from "../lib/fiaon-crons";
 import { RATEN_MUSTER, refVergleichsform } from "../lib/fiaon-zahlungsauftrag";
-import { berlinDatum } from "../lib/fiaon-time";
+import { readChef } from "./fiaon-chef-zugang";
 
 const router = Router();
 const WISE_BASIS = "https://api.wise.com";
@@ -308,7 +308,7 @@ export async function liveVerbuchen(
 
     // ── Erstzahlung: exakt EINE offene Bestellung, Betrag auf den Cent ────
     const apps = (await sqlPool`
-      SELECT ref, payment_reference, payment_status, ROUND(amount_due * 100)::int AS soll_cents, gekuendigt_am
+      SELECT ref, payment_reference, payment_status, ROUND(amount_due * 100)::int AS soll_cents, gekuendigt_am, person_id
       FROM fiaon_applications
       WHERE UPPER(REGEXP_REPLACE(COALESCE(payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${refVergleichsform(ref)}
         AND merged_into IS NULL
@@ -320,7 +320,10 @@ export async function liveVerbuchen(
 
     // ── Regel B: bezahlte Bestellung, Eingang ohne Ratennummer ────────────
     if (String(app.payment_status) === "paid") {
-      const b = await regelBPruefen({ txnId, bestellung: String(app.ref), bestellRef, cents, datum, gekuendigtAm: app.gekuendigt_am ?? null });
+      const b = await regelBPruefen({
+        txnId, bestellung: String(app.ref), bestellRef, cents, datum, gekuendigtAm: app.gekuendigt_am ?? null,
+        personId: app.person_id != null ? Number(app.person_id) : null,
+      });
       const basis = { regel: "regel_b" as const, ziel: b.rate?.zahlungsreferenz ?? bestellRef, bestellung: String(app.ref), rateId: b.rate?.id, rateNr: b.rate?.rateNr, deckung: b.deckung };
       if (!b.ok || !b.rate) {
         await vermerk(`${wer}: Bestellung ${bestellRef} ist bezahlt, der Eingang nennt keine Ratennummer — Regel B bucht nicht: ${b.grund}. Bitte von Hand zuordnen.`);
@@ -385,6 +388,12 @@ export async function liveVerbuchen(
 //
 //   1. Die Bestellung ist bezahlt, nicht gekündigt (Kündigungen sind Streit-
 //      und Kulanzfälle — dort entscheidet ein Mensch), und Rate 1 ist bezahlt.
+//      Gegenprüfung 01.10.2026: Auch eine BEANTRAGTE, noch unbearbeitete
+//      Kündigung sperrt — Formular (cancellation_requests 'pending'), offene
+//      Kündigungs-Aufgabe (fiaon_betreiber_todos) oder unbeantwortete
+//      Kündigungsmail im Postfach (fiaon_postmeister, Kategorie kuendigung).
+//      Grund „Kündigung beantragt – Mensch entscheidet": Der Eingang bleibt
+//      vorgemerkt, nichts wird gebucht (kuendigungOffen unten).
 //   2. Die älteste offene Rate ist fällig — spätestens 7 Tage nach dem Eingang
 //      (wer ein paar Tage zu früh überweist, ist kein Sonderfall).
 //   3. Hinter ihr steht keine bezahlte Rate mit höherer Nummer: Die Kette läuft
@@ -416,10 +425,55 @@ export interface RegelBDeckung {
 
 export const REGEL_B = { toleranzCents: 100, vorlaufTage: 7, belegfreiAlterTage: 35 } as const;
 
+/**
+ * Liegt zu dieser Bestellung (oder dieser Person) eine BEANTRAGTE, noch unbearbeitete
+ * Kündigung vor? Drei Türen, durch die eine Kündigung ins Haus kommt, bevor
+ * gekuendigt_am gesetzt ist:
+ *   · Formular /kuendigung → cancellation_requests mit status 'pending'
+ *   · Aufgabe an Betreuer/Betreiber (fiaon_betreiber_todos) mit Kündigungs-Schlüssel
+ *     oder -Quelle, nicht erledigt, die diese Bestellung oder Person nennt
+ *   · Postfach (fiaon_postmeister): Mail der Kategorie kuendigung, noch nicht beantwortet
+ * Liefert den ersten Fund als Wort — oder null. Scheitert die Abfrage selbst, gilt das
+ * als Fund („Prüfung nicht möglich"): lieber Handarbeit als eine Rate gegen einen Kunden
+ * buchen, der gerade kündigt.
+ */
+export async function kuendigungOffen(bestellung: string, personId: number | null): Promise<string | null> {
+  try {
+    const pid = personId != null && Number.isFinite(personId) ? Number(personId) : null;
+    const [r] = (await sqlPool`
+      SELECT
+        (SELECT COUNT(*) FROM cancellation_requests c
+          WHERE c.ref = ${bestellung} AND c.status = 'pending')::int AS formular,
+        (SELECT COUNT(*) FROM fiaon_betreiber_todos t
+          WHERE t.status <> 'erledigt'
+            AND (t.quelle = 'kuendigung' OR t.schluessel LIKE 'kuendigung:%' OR t.schluessel LIKE 'postmeister:kuendigung%'
+                 OR t.titel ILIKE '%kündig%' OR t.titel ILIKE '%kuendig%')
+            AND (COALESCE(t.link, '') LIKE ${`%${bestellung}%`} OR COALESCE(t.schluessel, '') LIKE ${`%${bestellung}%`}
+                 OR COALESCE(t.text, '') LIKE ${`%${bestellung}%`}
+                 OR (${pid}::int IS NOT NULL AND COALESCE(t.link, '') ~ ${`/kunden?/${pid ?? 0}(/|$)`})))::int AS aufgabe,
+        (SELECT COUNT(*) FROM fiaon_postmeister pm
+          WHERE (pm.ref = ${bestellung} OR (${pid}::int IS NOT NULL AND pm.person_id = ${pid}))
+            AND (pm.kategorie = 'kuendigung' OR 'kuendigung' = ANY(COALESCE(pm.kategorien, ARRAY[]::text[])))
+            AND pm.gesendet_am IS NULL AND pm.aktion <> 'auto_beantwortet')::int AS postfach
+    `) as any[];
+    if (Number(r?.formular) > 0) return "Kündigungsformular offen";
+    if (Number(r?.aufgabe) > 0) return "Kündigungs-Aufgabe offen";
+    if (Number(r?.postfach) > 0) return "Kündigungsmail im Postfach unbeantwortet";
+    return null;
+  } catch (e: any) {
+    console.error("[WISE] kuendigungOffen:", String(e?.message || e).slice(0, 160));
+    return "Kündigungsprüfung nicht möglich";
+  }
+}
+
 export async function regelBPruefen(e: {
   txnId: string; bestellung: string; bestellRef: string; cents: number; datum: string; gekuendigtAm: string | Date | null;
+  /** Person zur Bestellung — für die Suche nach beantragten Kündigungen (Aufgaben, Postfach). */
+  personId?: number | null;
 }): Promise<{ ok: boolean; grund: string; rate?: { id: number; rateNr: number; zahlungsreferenz: string; betragCents: number; faelligAm: string }; deckung?: RegelBDeckung }> {
   if (e.gekuendigtAm) return { ok: false, grund: "Vertrag ist gekündigt — Zuordnung entscheidet ein Mensch" };
+  const beantragt = await kuendigungOffen(e.bestellung, e.personId ?? null);
+  if (beantragt) return { ok: false, grund: `Kündigung beantragt – Mensch entscheidet (${beantragt})` };
 
   const raten = (await sqlPool`
     SELECT id, rate_nr, zahlungsreferenz, betrag_cents, status, faellig_am, bezahlt_am, notiz
@@ -531,9 +585,11 @@ router.post("/admin/wise/einlesen", async (req: Request, res: Response) => {
 //   · `ueberzahlungBisCents` (höchstens 100) erlaubt einer ERSTZAHLUNG ein paar
 //     Cent zu viel (Beispiel 01.10.: 100,00 € auf 99,99 €). Nie zu wenig.
 //   · Liegt unter /admin/zahlungen → nur Admin-Code oder Chef-Stufe
-//     Geschäftsführung/Inhaber (NUR_GESCHAEFTSFUEHRUNG in fiaon-admin-zugang.ts).
+//     Geschäftsführung/Inhaber (NUR_GESCHAEFTSFUEHRUNG in fiaon-admin-zugang.ts:
+//     die Chef-Sitzung passiert adminCodeGate ohne Code). Justin selbst klickt
+//     im Bankbuch (FIAON Banking → Umsätze, fiaon-buchhaltung.ts) — dieselbe
+//     Rechnung aus server/lib/fiaon-bank-nachholen.ts, ohne Admin-Code.
 // ═══════════════════════════════════════════════════════════════════════════
-const nachholenInArbeit = new Set<string>();
 router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: Response) => {
   const id = Number(req.body?.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "id fehlt (fiaon_bank_txns.id)." });
@@ -541,39 +597,20 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
   const trocken = req.body?.trocken !== false;
   const ueberzahlungBisCents = Math.max(0, Math.min(100, Math.floor(Number(req.body?.ueberzahlungBisCents) || 0)));
   try {
-    const [z] = (await sqlPool`
-      SELECT id, txn_id, booked_at, amount_cents, reference_raw, extracted_ref, applied, note
-        FROM fiaon_bank_txns WHERE id = ${id} LIMIT 1
-    `) as any[];
-    if (!z) return res.status(404).json({ ok: false, error: "Diesen Bankeingang gibt es nicht." });
-    const kopf = {
-      id: Number(z.id), txnId: String(z.txn_id), betragCents: Number(z.amount_cents),
-      // Buchungstag in Berlin: Airwallex legt Mitternacht UTC ab, ältere Einleser Mitternacht
-      // Berlin — beides ergibt so denselben Kalendertag (toISOString hätte den Vortag geliefert).
-      datum: z.booked_at ? berlinDatum(new Date(z.booked_at)) : "",
-      referenz: refErkennen(String(z.reference_raw || "")) || (z.extracted_ref ? String(z.extracted_ref) : null),
-      trocken,
-    };
-    if (z.applied) return res.status(409).json({ ok: false, ...kopf, error: "Dieser Eingang ist schon verbucht." });
-    if (!(kopf.betragCents > 0)) return res.status(409).json({ ok: false, ...kopf, error: "Kein Geldeingang (Betrag ≤ 0)." });
-    if (String(z.note || "").startsWith("Airwallex: Geld ist UNTERWEGS")) {
-      return res.status(409).json({ ok: false, ...kopf, error: "Das Geld ist noch unterwegs — der Einleser bucht es, sobald es da ist." });
-    }
-    if (!kopf.datum) return res.status(409).json({ ok: false, ...kopf, error: "Eingang ohne Datum — bitte von Hand buchen." });
-    if (nachholenInArbeit.has(kopf.txnId)) return res.status(409).json({ ok: false, ...kopf, error: "Dieser Eingang wird gerade schon gebucht." });
-    nachholenInArbeit.add(kopf.txnId);
-    try {
-      const erg = await liveVerbuchen(kopf.txnId, kopf.referenz, kopf.betragCents, kopf.datum, {
-        trocken, ueberzahlungBisCents, anlass: "Nachhol-Lauf",
-      });
-      const [nach] = (await sqlPool`
-        SELECT applied, matched_ref, match_status, note FROM fiaon_bank_txns WHERE id = ${id} LIMIT 1
-      `) as any[];
-      if (!trocken) console.log(`[BANK-NACHHOLEN] ${kopf.txnId}: ${erg.gebucht ? "GEBUCHT" : "nicht gebucht"} — ${erg.grund}`);
-      res.json({ ok: true, ...kopf, ergebnis: erg, bankbuch: nach ?? null });
-    } finally {
-      nachholenInArbeit.delete(kopf.txnId);
-    }
+    const { bankeingangTrockenprobe, bankeingangBuchen } = await import("../lib/fiaon-bank-nachholen");
+    const chef = readChef(req);
+    const wer = chef ? `Chef #${chef.agentId}` : "Admin-Code";
+    const a = trocken
+      ? await bankeingangTrockenprobe(id, { ueberzahlungBisCents })
+      : await bankeingangBuchen(id, { ueberzahlungBisCents, wer, erwartet: req.body?.erwartet ?? null });
+    const z = a.zeile;
+    // Kopf wie bisher (das Skript liest ihn), dazu die ganze Zeile der Trockenprobe.
+    const kopf = z ? { id: z.id, txnId: z.txnId, betragCents: z.betragCents, datum: z.datum, referenz: z.zweckRef, trocken } : { id, trocken };
+    if (!a.ok) return res.status(a.status).json({ ok: false, ...kopf, error: a.error, zeile: z ?? null });
+    const ergebnis = trocken
+      ? { gebucht: false, grund: z!.ergebnis, regel: z!.regel ?? undefined, ziel: z!.ziel ?? undefined, bestellung: z!.bestellung ?? undefined, rateId: z!.rateId ?? undefined, rateNr: z!.rateNr ?? undefined }
+      : (a as any).ergebnis;
+    res.json({ ok: true, ...kopf, ergebnis, bankbuch: (a as any).bankbuch ?? null, zeile: z ?? null, aufgabe: (a as any).aufgabe ?? null });
   } catch (e: any) {
     console.error("[BANK-NACHHOLEN]", e?.message || e);
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });

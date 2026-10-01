@@ -24,11 +24,80 @@ interface Stand {
 
 const euro = (n: number) => `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
+interface OverrideZeile { vormerkung: number; zahlung: string; betreuer: number; werber: number; betragEuro: number; satz: number; schonDa: boolean; angelegt: boolean }
+interface OverrideStand { trocken: boolean; anzahl: number; summeEuro: number; liste: OverrideZeile[] }
+
 async function senden(pfad: string, body: unknown): Promise<any> {
   const r = await fetch(`${API}${pfad}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
   const j = await r.json().catch(() => null);
   if (!r.ok || !j?.ok) throw new Error(j?.error || "Das hat nicht geklappt.");
   return j;
+}
+
+/**
+ * Verlorene Werber-Overrides nachtragen (01.10.2026). Bis zum 01.10. fiel bei
+ * Schalter AUS der Override des Werbers ersatzlos weg — nur die eigene Provision
+ * wurde vorgemerkt. Erst trocken zeigen (wer, wie viel), dann als Vormerkung
+ * anlegen. Bucht nichts; die Vormerkungen landen in der Liste oben.
+ */
+function OverrideNachtrag({ onFertig, melden }: { onFertig: () => void; melden: (t: string) => void }) {
+  const [stand, setStand] = useState<OverrideStand | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const trocken = async () => {
+    setLaeuft(true);
+    try { setStand(await senden("/chef/provisionen/override-nachtragen", { trocken: true })); }
+    catch (err: any) { melden(err.message); } finally { setLaeuft(false); }
+  };
+  const anlegen = async () => {
+    if (!stand || !window.confirm(`${stand.anzahl} Override-Vormerkungen über ${euro(stand.summeEuro)} anlegen?\n\nEs wird nichts gebucht — die Vormerkungen erscheinen oben in der Liste und warten auf dein „Buchen“.`)) return;
+    setLaeuft(true);
+    try {
+      const j: OverrideStand = await senden("/chef/provisionen/override-nachtragen", { trocken: false });
+      melden(`${j.liste.filter((z) => z.angelegt).length} Override-Vormerkungen nachgetragen.`);
+      setStand(null); onFertig();
+    } catch (err: any) { melden(err.message); } finally { setLaeuft(false); }
+  };
+  const neu = stand ? stand.liste.filter((z) => !z.schonDa) : [];
+  return (
+    <section className="pv-override" aria-label="Werber-Overrides nachtragen">
+      <div className="pv-override-kopf">
+        <div>
+          <h2>Verlorene Werber-Overrides nachtragen</h2>
+          <p>Zwischen dem 24.09. und dem 01.10. wurde bei Schalter AUS nur die eigene Provision vorgemerkt — der Anteil des Werbers (Override) fiel weg. Hier wird er für jede offene Vormerkung nachgerechnet und als eigene Vormerkung angelegt. Erst trocken ansehen, dann anlegen. Gebucht wird dabei nichts.</p>
+        </div>
+        <div className="pv-override-tat">
+          <button type="button" className="pv-knopf" onClick={() => void trocken()} disabled={laeuft}>{laeuft && !stand ? "Rechnet …" : stand ? "Erneut prüfen" : "Trocken prüfen"}</button>
+          {stand && neu.length > 0 && (
+            <button type="button" className="pv-knopf voll" onClick={() => void anlegen()} disabled={laeuft}>{laeuft ? "Legt an …" : `${neu.length} Vormerkungen anlegen (${euro(stand.summeEuro)})`}</button>
+          )}
+        </div>
+      </div>
+      {stand && (
+        neu.length === 0 ? <p className="pv-leer">Nichts nachzutragen — jeder Override ist schon vorgemerkt oder gebucht.</p> : (
+          <>
+            <p className="pv-override-summe">{neu.length} fehlende Overrides · <b>{euro(stand.summeEuro)}</b> · {stand.liste.length - neu.length} schon vorhanden</p>
+            <div className="pv-tabelle-huelle">
+              <table className="pv-tabelle">
+                <thead><tr><th>Zahlung</th><th>Betreuer</th><th>Werber</th><th className="r">Satz</th><th className="r">Override</th><th>Stand</th></tr></thead>
+                <tbody>
+                  {stand.liste.map((z) => (
+                    <tr key={z.vormerkung}>
+                      <td className="pv-still">{z.zahlung}</td>
+                      <td>#{z.betreuer}</td>
+                      <td>#{z.werber}</td>
+                      <td className="r">{z.satz.toLocaleString("de-DE")} %</td>
+                      <td className="r"><b>{euro(z.betragEuro)}</b></td>
+                      <td className="pv-still">{z.schonDa ? "schon vorgemerkt/gebucht" : z.angelegt ? "angelegt" : "fehlt"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )
+      )}
+    </section>
+  );
 }
 
 export default function ChefProvisionen() {
@@ -145,6 +214,8 @@ export default function ChefProvisionen() {
               </table>
             </div>
           )}
+
+          {!s.an && <OverrideNachtrag onFertig={stand.neu} melden={melden} />}
 
           <details className="pv-letzte">
             <summary>Die letzten echten Buchungen ({s.letzteBuchungen.length})</summary>

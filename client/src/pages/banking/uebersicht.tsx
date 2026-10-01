@@ -187,6 +187,7 @@ function ZuTun({ lage, onGehe }: { lage: Lage; onGehe: (r: Reiter) => void }) {
   if (ueberweisen.length) punkte.push({ z: "senden", t: inhaber ? `${ueberweisen.length} freigegeben — überweisen und Bankreferenz eintragen` : `${ueberweisen.length} freigegeben — Überweisung durch den Inhaber`, x: geld(ueberweisen.reduce((s, a) => s + a.betragCents, 0)), r: "auftraege", art: inhaber ? "warn" : "info" });
   if (entwuerfe.length) punkte.push({ z: "dokument", t: `${entwuerfe.length} eigene Entwürfe noch nicht eingereicht`, x: "", r: "auftraege", art: "still" });
   if (lage.auszahlungOffen.ohneAuftrag) punkte.push({ z: "team", t: `${lage.auszahlungOffen.ohneAuftrag} Mitarbeiter-Auszahlungen angefordert, noch nicht angewiesen`, x: geld(lage.auszahlungOffen.cents), r: "auszahlungen", art: "warn" });
+  if (lage.nachholen?.anzahl) punkte.push({ z: "rein", t: `${lage.nachholen.anzahl} Eingänge warten auf Buchung — unter Umsätze prüfen und buchen`, x: geld(lage.nachholen.cents), r: "umsaetze", art: "warn" });
   if (lage.offen.offenAnzahl) punkte.push({ z: "rein", t: `${lage.offen.offenAnzahl} Eingänge ohne Zuordnung`, x: geld(lage.offen.offenCents), r: "umsaetze", art: "info" });
   if (inhaber && !lage.kasse.anfang) punkte.push({ z: "waage", t: "Anfangsbestand fehlt — ohne ihn kein Saldo", x: "", r: "kontostand", art: "warn" });
   const naechster = lage.dauerauftraege.filter((d) => !d.beendetAm).sort((a, b) => a.naechsteAm.localeCompare(b.naechsteAm))[0];

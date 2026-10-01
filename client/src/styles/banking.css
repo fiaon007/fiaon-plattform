@@ -639,3 +639,27 @@
 @media (prefers-reduced-motion: reduce) {
   [data-fiaon-banking] *, [data-fiaon-banking] *::after { animation: none !important; transition: none !important; }
 }
+
+/* ── Liegengebliebene Eingänge buchen (01.10.2026) ─────────────────────────
+   Ein Kasten über der Umsatzliste und ein Block in der Schublade: Trockenprobe
+   zuerst, dann der Klick. Dieselbe Haarlinie wie der Rest der Seite. */
+[data-fiaon-banking] .bk-nachholen { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--warn-l); background: var(--warn-f); border-radius: var(--r-m); margin-bottom: 14px; }
+[data-fiaon-banking] .bk-nachholen-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+[data-fiaon-banking] .bk-nachholen-kopf p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; max-width: 72ch; }
+[data-fiaon-banking] .bk-nachholen-liste { display: grid; gap: 10px; }
+[data-fiaon-banking] .bk-nachholen-zeile { display: grid; gap: 8px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--linie); background: var(--flaeche); }
+[data-fiaon-banking] .bk-nachholen-zeile.buchbar { border-color: var(--gut-l); }
+[data-fiaon-banking] .bk-nz-kopf { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 12px; align-items: baseline; font-size: 13px; }
+[data-fiaon-banking] .bk-nz-datum { color: var(--leise); font-variant-numeric: tabular-nums; }
+[data-fiaon-banking] .bk-nz-betrag { font-weight: 600; font-variant-numeric: tabular-nums; }
+[data-fiaon-banking] .bk-nz-zweck { min-width: 0; overflow-wrap: anywhere; }
+[data-fiaon-banking] .bk-nz-zweck strong { font-weight: 600; margin-right: 6px; }
+[data-fiaon-banking] .bk-probe dt { padding-top: 7px; padding-bottom: 7px; }
+[data-fiaon-banking] .bk-probe dd { padding-top: 7px; padding-bottom: 7px; font-size: 13px; }
+[data-fiaon-banking] .bk-probe-hinweis { color: var(--warn); font-weight: 500; }
+[data-fiaon-banking] .bk-probe-dialog { display: grid; gap: 12px; }
+[data-fiaon-banking] .bk-probe-dialog > p { margin: 0; font-size: 12.5px; line-height: 1.5; }
+@media (max-width: 640px) {
+  [data-fiaon-banking] .bk-nz-kopf { grid-template-columns: auto auto; }
+  [data-fiaon-banking] .bk-nz-zweck { grid-column: 1 / -1; }
+}

@@ -218,7 +218,7 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
           {!lage ? <Laden zeilen={9} /> : (
             <>
               {reiter === "start" ? <Uebersicht lage={lage} onGehe={gehe} onNeu={() => void laden()} /> : null}
-              {reiter === "umsaetze" ? <Umsaetze /> : null}
+              {reiter === "umsaetze" ? <Umsaetze ich={ich} nachholen={lage.nachholen} onGebucht={() => void laden()} /> : null}
               {reiter === "ueberweisung" ? <Ueberweisung ich={ich} onFertig={() => void laden()} /> : null}
               {reiter === "auftraege" ? <Auftraege auftraege={lage.auftraege} ich={ich} onNeu={() => void laden()} onNeueUeberweisung={() => gehe("ueberweisung")} /> : null}
               {reiter === "auszahlungen" ? <Auszahlungen ich={ich} onZuAuftraegen={() => { void laden(); gehe("auftraege"); }} /> : null}

@@ -12,6 +12,11 @@
 // onCustomerPaid / onRatePaid / praemieBuchen, nachbuchen) mit erfundenen
 // Datensätzen (Marke G0110) und prüft, was in Bankbuch, Raten, Bestellungen,
 // Vormerkungen und Provisionen ankommt. Räumt vorher und nachher auf.
+//
+// Gegenprüfung 01.10.2026 (Fälle P–S): Kündigung BEANTRAGT (Formular, Aufgabe,
+// Postfach) sperrt Regel B; Zugangsmail fällt auf die Adresse der Person zurück;
+// Trockenprobe und Buchen über server/lib/fiaon-bank-nachholen.ts (der Weg des
+// Bankbuchs) samt Hinweis „Kunde nennt Rate 3" und Aufgabe an den Betreuer.
 // ═══════════════════════════════════════════════════════════════════════════
 import postgres from "postgres";
 
@@ -62,6 +67,14 @@ async function aufraeumen() {
     await sql`DELETE FROM fiaon_contact_log WHERE ref = ANY(${refs})`;
   }
   await sql`DELETE FROM fiaon_bank_txns WHERE txn_id LIKE ${`%-${M.toLowerCase()}-%`}`;
+  // Fälle P und R: beantragte Kündigungen und Aufgaben
+  await sql`DELETE FROM cancellation_requests WHERE ref LIKE ${`FIAON-${M}%`}`.catch(() => {});
+  await sql`DELETE FROM fiaon_postmeister WHERE ref LIKE ${`FIAON-${M}%`} OR gmail_id LIKE ${`pruef-${M.toLowerCase()}-%`}`.catch(() => {});
+  const todos = (await sql`SELECT id FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`%${M}%`} OR link LIKE ${`%${M}%`} OR schluessel LIKE ${`bank-nachholen:%-${M.toLowerCase()}-%`}`.catch(() => [])).map((r: any) => Number(r.id));
+  if (todos.length) {
+    await sql`DELETE FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ANY(${todos})`.catch(() => {});
+    await sql`DELETE FROM fiaon_betreiber_todos WHERE id = ANY(${todos})`.catch(() => {});
+  }
   const personen = (await sql`SELECT id FROM fiaon_persons WHERE person_ref LIKE ${`PRUEF-${M}-%`}`).map((r: any) => Number(r.id));
   if (personen.length) {
     await sql`DELETE FROM fiaon_mail_log WHERE person_id = ANY(${personen})`;
@@ -84,6 +97,8 @@ async function agenten() {
 /** Ein Kunde mit Bestellung; `bezahlt` legt Rate 1 (bezahlt am `rate1Am`) an. */
 async function kunde(x: string, o: {
   pr: string; cents: number; bezahlt: boolean; rate1Am?: string; gekuendigt?: boolean; mitKontakt?: boolean;
+  /** Bestellung ohne E-Mail (Fall 7914: Adresse steht nur an der Person). */
+  ohneMail?: boolean;
 }) {
   const ref = `FIAON-${M}${x}-TEST`;
   const [p] = await sql`
@@ -94,7 +109,7 @@ async function kunde(x: string, o: {
                                     email, first_name, last_name, person_id, assigned_agent_id, created_at, completed_at, gekuendigt_am)
     VALUES (${ref}, ${o.pr}, ${o.bezahlt ? "paid" : "pending_payment"}, ${o.bezahlt ? "payment_completed" : "payment_pending"}, 'private',
             ${o.cents === 799 ? "start" : o.cents === 5999 ? "pro" : "highend"}, ${`Prüf ${x}`}, ${o.cents / 100},
-            ${`kunde-${x.toLowerCase()}@g0110.invalid`}, 'Prüf', ${`Kunde ${x}`}, ${p.id}, ${AG.betreuer},
+            ${o.ohneMail ? null : `kunde-${x.toLowerCase()}@g0110.invalid`}, 'Prüf', ${`Kunde ${x}`}, ${p.id}, ${AG.betreuer},
             NOW() - INTERVAL '90 days', ${o.bezahlt ? `${o.rate1Am}T12:00:00Z` : null}, ${o.gekuendigt ? new Date() : null})`;
   if (o.mitKontakt !== false) {
     await sql`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, outcome, note, created_at)
@@ -273,6 +288,99 @@ async function main() {
   const eK2 = await liveVerbuchen(tK2, refErkennen(`${prK}-2`), 9999, heute);
   ok("K zweite Zahlung derselben Rate: „Doppelzahlung?“, nicht gebucht", !eK2.gebucht && eK2.grund === "Rate schon bezahlt", eK2.grund);
 
+  // ── P: Kündigung BEANTRAGT, noch nicht gesetzt (Gegenprüfung 01.10.) ─────
+  console.log("\nP  Regel B: Kündigung beantragt — Formular, Aufgabe, Postfach — Mensch entscheidet");
+  const { kuendigungOffen } = await import("../server/routes/fiaon-wise");
+  const prP = `FIAON${M}P`.slice(0, 11);
+  const P = await kunde("P", { pr: prP, cents: 799, bezahlt: true, rate1Am: tag(-40) });
+  await eingang("p0", tag(-40), 799, prP, refErkennen, { applied: true, matchedRef: P.ref });
+  await rate(P.ref, 2, `${prP}-2`, 799, tag(-10));
+  const tP = await eingang("p", heute, 799, prP, refErkennen);
+  ok("P ohne Kündigung: nichts offen", (await kuendigungOffen(P.ref, P.personId)) === null);
+  // 1) Formular
+  await sql`INSERT INTO cancellation_requests (ref, first_name, last_name, email, reason, status) VALUES (${P.ref}, 'Prüf', 'Kunde P', 'kunde-p@g0110.invalid', 'Prüfstand', 'pending')`;
+  const eP1 = await liveVerbuchen(tP, refErkennen(prP), 799, heute);
+  ok("P Formular offen → NICHT gebucht, „Kündigung beantragt – Mensch entscheidet“", !eP1.gebucht && /Kündigung beantragt – Mensch entscheidet/.test(eP1.grund), eP1.grund);
+  ok("P Bankbuch-Vermerk nennt den Grund", /Kündigung beantragt/.test(String((await sql`SELECT note FROM fiaon_bank_txns WHERE txn_id = ${tP}`)[0].note)));
+  await sql`UPDATE cancellation_requests SET status = 'processed' WHERE ref = ${P.ref}`;
+  ok("P Formular erledigt → nichts mehr offen", (await kuendigungOffen(P.ref, P.personId)) === null);
+  // 2) Aufgabe mit Kündigungs-Schlüssel
+  await sql`INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, link, quelle, status)
+            VALUES (${`postmeister:kuendigung:${P.ref}`}, 'Kündigung prüfen', 'Prüfstand', 'konten', 1, ${`/admin/kunde/${P.ref}`}, 'postmeister', 'offen')`;
+  ok("P offene Kündigungs-Aufgabe → gesperrt", (await kuendigungOffen(P.ref, P.personId)) === "Kündigungs-Aufgabe offen", await kuendigungOffen(P.ref, P.personId));
+  const eP2 = await liveVerbuchen(tP, refErkennen(prP), 799, heute);
+  ok("P Aufgabe offen → NICHT gebucht", !eP2.gebucht && /Kündigung beantragt/.test(eP2.grund), eP2.grund);
+  await sql`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW() WHERE schluessel = ${`postmeister:kuendigung:${P.ref}`}`;
+  ok("P Aufgabe erledigt → frei", (await kuendigungOffen(P.ref, P.personId)) === null);
+  // 3) Postfach: unbeantwortete Kündigungsmail
+  await sql`INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, von, betreff, empfangen_am, kategorie, person_id, ref, aktion)
+            VALUES ('info@fiaon.com', ${`pruef-${M.toLowerCase()}-p`}, ${`pruef-${M.toLowerCase()}-p`}, 'kunde-p@g0110.invalid', 'Kündigung', NOW(), 'kuendigung', ${P.personId}, ${P.ref}, 'in_arbeit')`;
+  ok("P Kündigungsmail unbeantwortet → gesperrt", (await kuendigungOffen(P.ref, P.personId)) === "Kündigungsmail im Postfach unbeantwortet");
+  const eP3 = await liveVerbuchen(tP, refErkennen(prP), 799, heute);
+  ok("P Postfach offen → NICHT gebucht", !eP3.gebucht && /Kündigung beantragt/.test(eP3.grund), eP3.grund);
+  await sql`UPDATE fiaon_postmeister SET aktion = 'gesendet', gesendet_am = NOW() WHERE gmail_id = ${`pruef-${M.toLowerCase()}-p`}`;
+  ok("P Mail beantwortet → frei", (await kuendigungOffen(P.ref, P.personId)) === null);
+  const eP4 = await liveVerbuchen(tP, refErkennen(prP), 799, heute);
+  ok("P ohne offene Kündigung: Regel B bucht wie gehabt", eP4.gebucht && eP4.regel === "regel_b", eP4.grund);
+
+  // ── Q: Zugangsmail fällt auf die Adresse der Person zurück (Fall 7914/2811) ──
+  console.log("\nQ  Erstzahlung, Bestellung OHNE E-Mail, Person hat eine → Zugangsmail geht an die Person");
+  const prQ = `FIAON${M}Q`.slice(0, 11);
+  const Q = await kunde("Q", { pr: prQ, cents: 799, bezahlt: false, ohneMail: true });
+  const tQ = await eingang("q", heute, 799, prQ, refErkennen);
+  const eQ = await liveVerbuchen(tQ, refErkennen(prQ), 799, heute);
+  ok("Q gebucht (Erstzahlung)", eQ.gebucht, eQ.grund);
+  const [aQ] = await sql`SELECT email, confirmed_email_sent_at FROM fiaon_applications WHERE ref = ${Q.ref}`;
+  ok("Q Bestellung hat keine Adresse, Anspruch trotzdem beansprucht", aQ.email == null && !!aQ.confirmed_email_sent_at, aQ);
+  const mQ = await bis(() => sql`SELECT event, empfaenger FROM fiaon_mail_log WHERE person_id = ${Q.personId} AND event = 'payment_confirmed'` as Promise<any[]>, (m) => m.length >= 1, 8000);
+  ok("Q payment_confirmed an die Adresse der Person", mQ.length >= 1 && String(mQ[0].empfaenger || "").includes("kunde-q@g0110.invalid"), mQ);
+
+  // ── R: Der Weg des Bankbuchs — Trockenprobe, Hinweis „Kunde nennt Rate 3“, Buchen, Aufgabe ──
+  console.log("\nR  Bankbuch: Trockenprobe + Buchen über fiaon-bank-nachholen, Zweck „FIAON G0110R 3“ bucht Rate 2");
+  const nach = await import("../server/lib/fiaon-bank-nachholen");
+  ok("R genannteRate liest die Ratennummer des Kunden",
+    nach.genannteRate("FIAON J8UU3U 3") === 3 && nach.genannteRate("VZ. FIAONMSYOCC. 2.Rate") === 2
+    && nach.genannteRate("Rate 3 FIAON-596FE4") === 3 && nach.genannteRate("FIAON-596FE4") === null
+    && nach.genannteRate("FIAON-596FE4 59,99 EUR") === null && nach.genannteRate("FIAONMT0AF9B9") === null,
+    [nach.genannteRate("FIAON J8UU3U 3"), nach.genannteRate("VZ. FIAONMSYOCC. 2.Rate"), nach.genannteRate("FIAON-596FE4 59,99 EUR")]);
+  const prR = `FIAON-${M}R`.slice(0, 12);
+  const R = await kunde("R", { pr: prR, cents: 5999, bezahlt: true, rate1Am: tag(-40) });
+  await eingang("r0", tag(-40), 5999, prR, refErkennen, { applied: true, matchedRef: R.ref });
+  const r2R = await rate(R.ref, 2, `${prR}-2`, 5999, tag(-10));
+  const zweckR = `${prR.replace("-", " ")} 3`;
+  const tR = await eingang("r", heute, 5999, zweckR, refErkennen);
+  const [idR] = await sql`SELECT id FROM fiaon_bank_txns WHERE txn_id = ${tR}`;
+  const probeR = await nach.bankeingangTrockenprobe(Number(idR.id), {});
+  ok("R Trockenprobe: buchbar, Regel B, Rate 2", probeR.ok && probeR.zeile?.buchen === true && probeR.zeile.regel === "regel_b" && probeR.zeile.rateId === r2R, probeR.zeile?.ergebnis);
+  ok("R Trockenprobe nennt Provision (own + override, vorgemerkt)", (probeR.zeile?.provision || []).some((p) => /own/.test(p) && /vorgemerkt/.test(p)) && (probeR.zeile?.provision || []).some((p) => /override/.test(p)), probeR.zeile?.provision);
+  ok("R Hinweis: Kunde nennt Rate 3, gebucht wird Rate 2, Rate 3 bleibt offen", probeR.zeile?.genannteRate === 3 && (probeR.zeile?.hinweise || []).some((h) => /Kunde nennt Rate 3, gebucht wird die älteste offene Rate 2; Rate 3 bleibt offen/.test(h)), probeR.zeile?.hinweise);
+  ok("R Trockenprobe schreibt nichts", (await sql`SELECT applied, note FROM fiaon_bank_txns WHERE txn_id = ${tR}`)[0].note === "Prüfstand");
+  const falsch = await nach.bankeingangBuchen(Number(idR.id), { wer: "Prüfstand", erwartet: { regel: "regel_b", ziel: `${prR}-3`, rateId: 999 } });
+  ok("R Buchen mit abweichender Erwartung → 409, nichts gebucht", !falsch.ok && falsch.status === 409 && (await sql`SELECT status FROM fiaon_abo_raten WHERE id = ${r2R}`)[0].status === "offen", falsch.error);
+  const buchR = await nach.bankeingangBuchen(Number(idR.id), { wer: "Prüfstand js@fiaon.com", erwartet: { regel: "regel_b", ziel: `${prR}-2`, rateId: r2R } });
+  ok("R Buchen über den Bankbuch-Weg: gebucht", buchR.ok && buchR.ergebnis?.gebucht === true, buchR.error ?? buchR.ergebnis?.grund);
+  const rR = await sql`SELECT rate_nr, status, notiz FROM fiaon_abo_raten WHERE ref = ${R.ref} ORDER BY rate_nr`;
+  ok("R Rate 2 bezahlt (Notiz nennt Bankeingang + Nachhol-Lauf), Rate 3 offen", rR.some((r: any) => r.rate_nr === 2 && r.status === "bezahlt" && /Nachhol-Lauf \(Prüfstand js@fiaon.com\)/.test(String(r.notiz))) && rR.some((r: any) => r.rate_nr === 3 && r.status === "offen"), rR.map((r: any) => `${r.rate_nr}:${r.status}`));
+  const [todoR] = await sql`SELECT id, titel, zustaendig_agent_id, status, link FROM fiaon_betreiber_todos WHERE schluessel = ${`bank-nachholen:andere-rate:${tR}`}`;
+  ok("R Aufgabe an den Betreuer: „Kunde nennt Rate 3, gebucht ist Rate 2“", !!todoR && /Kunde nennt Rate 3, gebucht ist Rate 2/.test(String(todoR.titel)) && Number(todoR.zustaendig_agent_id) === AG.betreuer && todoR.status !== "erledigt", todoR ? { titel: todoR.titel, an: todoR.zustaendig_agent_id, meldung: buchR.aufgabe } : "keine Aufgabe");
+  const nochmal = await nach.bankeingangBuchen(Number(idR.id), { wer: "Prüfstand" });
+  ok("R zweiter Klick: 409 schon verbucht", !nochmal.ok && nochmal.status === 409 && /schon verbucht/.test(String(nochmal.error)), nochmal.error);
+  ok("R Vormerkung own 15,00 € für die Rate", (await vorm(R.ref)).some((v) => v.kind === "own" && Number(v.amount_cents) === 1500));
+
+  // ── S: Die Liste des Bankbuchs ───────────────────────────────────────────
+  console.log("\nS  nachholListe: nur unverbuchte, nicht unterwegs; Handarbeit bleibt mit Grund");
+  const prS = `FIAON${M}S`.slice(0, 11);
+  const S = await kunde("S", { pr: prS, cents: 799, bezahlt: false });
+  const tS = await eingang("s", heute, 9303, prS, refErkennen);
+  const tS2 = await eingang("s2", heute, 799, prS, refErkennen);
+  await sql`UPDATE fiaon_bank_txns SET note = 'Airwallex: Geld ist UNTERWEGS' WHERE txn_id = ${tS2}`;
+  const listeS = await nach.nachholListe({ seit: heute });
+  const zS = listeS.find((z) => z.txnId === tS);
+  ok("S Fehlbetrag in der Liste, nicht buchbar, mit Grund", !!zS && zS.buchen === false && zS.unklar === "Betrag weicht ab", zS?.ergebnis);
+  ok("S Eingang „unterwegs“ nicht in der Liste", !listeS.some((z) => z.txnId === tS2));
+  ok("S gebuchte Eingänge nicht in der Liste", !listeS.some((z) => z.txnId === tR));
+  void S;
+
   // ── N: Nachbuchen am 05.10. ──────────────────────────────────────────────
   console.log("\nN  Nachbuchen aller Prüf-Vormerkungen (der Knopf „Alle buchen“)");
   const offen = await sql`SELECT id, kind FROM fiaon_provision_vormerkung WHERE status = 'offen' AND agent_id IN (${AG.betreuer}, ${AG.werber}, ${AG.inkasso}) ORDER BY id`;
@@ -311,7 +419,7 @@ async function main() {
      WHERE p.person_ref LIKE ${`PRUEF-${M}-%`} ORDER BY m.id`;
   console.log("\nMail-Log (Versand abgeklemmt — zeigt, WAS rausgegangen wäre):");
   for (const m of mails) console.log(`   ${m.person_ref.slice(-1)}: ${m.event} [${m.status}] ${m.grund}`);
-  ok("Mails nur an die zwei Erstzahler (A, B) — Ratenbuchungen schicken keine", mails.every((m: any) => ["A", "B"].includes(m.person_ref.slice(-1))), mails.map((m: any) => `${m.person_ref.slice(-1)}:${m.event}`));
+  ok("Mails nur an die Erstzahler (A, B, Q) — Ratenbuchungen schicken keine", mails.every((m: any) => ["A", "B", "Q"].includes(m.person_ref.slice(-1))), mails.map((m: any) => `${m.person_ref.slice(-1)}:${m.event}`));
   ok("Kein Netzaufruf ist durchgekommen (alle abgeklemmt)", true, `${blockiert} blockiert`);
 
   await aufraeumen();

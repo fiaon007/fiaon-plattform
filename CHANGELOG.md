@@ -5,6 +5,40 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — Bankeingänge im Bankbuch buchen, ohne Admin-Code; Regel B wartet bei beantragter Kündigung (Gegenprüfung zu E-235/Regel B)
+
+**Der Anlass:** Die Gegenprüfung vom 01.10. zu „Raten ohne Nummer": Buchen ging bisher nur über eine Admin-Route mit
+Zugangscode — Justin soll im Bankbuch klicken. Und Regel B kannte nur die GESETZTE Kündigung, nicht die beantragte.
+
+**Was jetzt gilt:**
+- **Bankbuch (FIAON Banking → Umsätze):** Oben steht „Eingänge ohne Buchung" mit „Alle N prüfen". Jede Zeile zeigt die
+  Trockenprobe — Ziel, Regel, Betrag, welche Provision vorgemerkt wird, welche Mail der Kunde bekommt, Hinweise — und
+  dann „Jetzt buchen" (nur Inhaber, mit Bestätigungsfenster) oder den Grund, warum sie Handarbeit bleibt (ohne Knopf).
+  „Alle N buchen" nimmt alle freigegebenen Zeilen, eine nach der anderen, Abbruch beim ersten Fehlschlag. Dasselbe in
+  der Schublade eines einzelnen Eingangs. Die Übersicht meldet unter „Zu tun": „N Eingänge warten auf Buchung".
+  Gebucht wird über denselben Weg wie jede Zahlung (liveVerbuchen → alsBezahltBuchen/rateBezahltBuchen); jeder Klick
+  steht im Banking-Protokoll. Florentine sieht alles, buchen kann nur der Inhaber.
+- **Regel B wartet bei beantragter Kündigung:** Liegt zur Bestellung oder Person ein offenes Kündigungsformular
+  (cancellation_requests „pending"), eine offene Kündigungs-Aufgabe oder eine unbeantwortete Kündigungsmail im
+  Postfach vor, bucht Regel B NICHT — Grund „Kündigung beantragt – Mensch entscheidet", der Eingang bleibt vorgemerkt.
+- **Kunde nennt eine andere Rate** („FIAON J8UU3U 3", gebucht wird die älteste offene Rate 2): Die Trockenprobe sagt es
+  vorher („Rate 3 bleibt offen"), und beim Buchen bekommt der Betreuer eine Aufgabe, es dem Kunden zu erklären.
+- **Zugangsmail auch ohne Adresse an der Bestellung:** „Willkommen & Zugang" wird jetzt auch beansprucht, wenn nur die
+  PERSON eine E-Mail hat (Fall 7914) — der Versand suchte dort ohnehin zuerst, nur die Sperre davor kannte die Person
+  nicht. Wer schon gebucht ist und keine Mail bekam: in der Akte „Zahlung bestätigt" im Sende-Menü (Admin,
+  Vertriebsleitung, Forderungsmanagement).
+- **Chefbüro → Provisionen:** Block „Verlorene Werber-Overrides nachtragen" — erst trocken (wer, wie viel), dann als
+  Vormerkung anlegen. Gebucht wird nichts; Justin bucht am 05.10. selbst.
+- Admin-Route `POST /api/fiaon/admin/zahlungen/bankeingang-nachholen` und das Skript nutzen dieselbe Rechnung
+  (`server/lib/fiaon-bank-nachholen.ts`); die Chef-Sitzung (Inhaber/Geschäftsführung) passiert sie ohne Code.
+
+**Wo:** server/lib/fiaon-bank-nachholen.ts, server/routes/fiaon-buchhaltung.ts (/buchhaltung/nachholen…),
+server/routes/fiaon-wise.ts (kuendigungOffen, regelBPruefen), server/routes/fiaon-antrag.ts (sendPaymentConfirmedOnce),
+client/src/pages/banking/umsaetze.tsx, client/src/components/admin/ChefProvisionen.tsx. Prüfstand:
+scripts/pruef-bank-regel-b.ts (Fälle P–S).
+
+---
+
 ## 01.10.2026 — Klartext-Passwörter raus: ein Lauf für alle Orte, die Datenbank verbietet den Rückfall (E-242, Teil 2)
 
 **Der Anlass:** Justin (01.10.): „Klartext-Passwörter gerne rausnehmen." Seit dem 06.09. schreibt kein Weg mehr ein

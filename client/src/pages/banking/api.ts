@@ -59,9 +59,20 @@ export interface Empfaenger {
 export interface MonatsFluss { monat: string; konto: KontoSchluessel; einCents: number; ausCents: number; anzahl: number }
 export interface Uebergabe { bisher: string; stichtag: string; bestaetigtVon?: string; bestaetigtAm?: string }
 
+/** Ein liegengebliebener Eingang mit seiner Trockenprobe (server/lib/fiaon-bank-nachholen.ts). */
+export type NachholRegel = "rate" | "erstzahlung" | "regel_b";
+export interface NachholZeile {
+  id: number; txnId: string; datum: string; betragCents: number; zweck: string | null; absender: string | null;
+  zweckRef: string | null; regel: NachholRegel | null; ziel: string | null; bestellung: string | null; kunde: string | null;
+  personId: number | null; rateId: number | null; rateNr: number | null; ergebnis: string; buchen: boolean;
+  deckung: string | null; provision: string[]; mails: string[]; hinweise: string[]; genannteRate: number | null;
+  unklar: string | null; schonVerbucht: boolean;
+}
+
 export interface Lage {
   ich: Ich; konten: Konto[]; kasse: Kasse;
   offen: { offenAnzahl: number; offenCents: number; schwebendAnzahl: number; schwebendCents: number };
+  nachholen: { anzahl: number; cents: number };
   fluss: MonatsFluss[]; letzte: Umsatz[]; auftraege: Auftrag[]; uebergabe: Uebergabe | null;
   dauerauftraege: Dauerauftrag[]; leute: Ich[];
   auszahlungOffen: { anzahl: number; cents: number; ohneAuftrag: number };

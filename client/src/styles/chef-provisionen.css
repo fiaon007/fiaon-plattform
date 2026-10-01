@@ -93,3 +93,12 @@
   .pv-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pv-zahl { border-left: 0; padding-left: 2px; }
 }
+
+/* ── Verlorene Werber-Overrides nachtragen (01.10.2026) ── */
+.pv-override { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--pv-linie); border-radius: 14px; background: var(--pv-flaeche); }
+.pv-override-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.pv-override-kopf h2 { margin: 0; font-size: 15px; font-weight: 400; color: var(--pv-text); }
+.pv-override-kopf p { margin-top: 4px; font-size: 12.5px; color: var(--pv-leise); max-width: 72ch; line-height: 1.5; }
+.pv-override-tat { display: flex; gap: 8px; flex-wrap: wrap; }
+.pv-override-summe { font-size: 12.5px; color: var(--pv-text-2); }
+.pv-override-summe b { color: var(--pv-gelb); font-weight: 500; }

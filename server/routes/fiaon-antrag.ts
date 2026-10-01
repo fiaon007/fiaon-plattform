@@ -926,11 +926,20 @@ export async function sendPaymentConfirmedOnce(ref: string): Promise<boolean> {
     // Die Wand steht HIER, weil beide Buchungswege (mark-paid, Kontoabgleich) diese Funktion rufen.
     const [paket] = (await sqlPool`SELECT pack_key FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
     if (istGlobalPaket(paket?.pack_key)) return false;
+    // ── DIE ADRESSE DER PERSON ZÄHLT MIT (01.10.2026, Fall 7914 / Eingang 2811) ────
+    // Bis heute wurde der Anspruch nur beansprucht, wenn die BESTELLUNG eine Adresse
+    // trug. Steht sie nur an der Person (fiaon_persons.primary_email — dort pflegt der
+    // Betreuer sie), ging die Zugangsmail nicht raus, und niemand merkte es: kein Fehler,
+    // kein Protokoll. Der Versand (sendMakeWebhook → adresseBestimmen → empfaengerAufloesen)
+    // sucht ohnehin zuerst an der Person; die Wand hier war die einzige Stelle, die sie
+    // nicht kannte. Jetzt beansprucht der Lauf, sobald Bestellung ODER Person eine
+    // Adresse hat, und gibt person_id mit, damit die Auflösung den Menschen findet.
     const confirmed = await sqlPool`
-      UPDATE fiaon_applications SET confirmed_email_sent_at = NOW()
-      WHERE ref = ${ref} AND confirmed_email_sent_at IS NULL
-        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
-      RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name
+      UPDATE fiaon_applications a SET confirmed_email_sent_at = NOW()
+      WHERE a.ref = ${ref} AND a.confirmed_email_sent_at IS NULL
+        AND (COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(a.contact_email), ''), NULLIF(TRIM(a.billing_email), '')) IS NOT NULL
+             OR EXISTS (SELECT 1 FROM fiaon_persons p WHERE p.id = a.person_id AND NULLIF(TRIM(p.primary_email), '') IS NOT NULL))
+      RETURNING a.ref, a.payment_reference, a.amount_due, a.first_name, a.last_name, a.contact_name, a.email, a.contact_email, a.billing_email, a.pack_name, a.person_id
     `;
     if (confirmed.length === 0) return false;
     sendMakeWebhook("payment_confirmed", {

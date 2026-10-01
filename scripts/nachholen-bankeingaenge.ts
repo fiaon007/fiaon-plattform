@@ -98,127 +98,22 @@ async function vorschau(): Promise<void> {
   if (!gesperrt) throw new Error("Schreibprobe ging durch — Abbruch.");
   console.log("Verbindung: schreibgeschützt (SHOW + Schreibprobe abgewiesen).");
 
-  const { liveVerbuchen, refErkennen } = await import("../server/routes/fiaon-wise");
-  const { berlinDatum } = await import("../server/lib/fiaon-time");
-  const agent = await import("../server/routes/fiaon-agent");
-  const { istGlobalPaket } = await import("../shared/fiaon-pakete");
-  const { BUENDEL_WUNSCH_VERMERK } = await import("../shared/fiaon-auskunft-buendel");
-
+  // Dieselbe Rechnung wie Bankbuch (/buchhaltung → Umsätze) und Admin-Route:
+  // server/lib/fiaon-bank-nachholen.ts — Trockenprobe mit Provision, Mails, Hinweisen.
+  const { nachholListe } = await import("../server/lib/fiaon-bank-nachholen");
   const [sch] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'provision_automatik'`) as any[];
   const automatikAn = String(sch?.value ?? "aus") === "an";
-  const wort = automatikAn ? "GEBUCHT" : "vorgemerkt";
   console.log(`Provisionsautomatik: ${automatikAn ? "AN — Provision würde GEBUCHT" : "AUS — Provision wird nur vorgemerkt"}.`);
-  const [vw] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'mail_versandweg'`) as any[];
-  const versandweg = String(vw?.value ?? "make");
 
   const ids = String(args.get("ids") || "").split(",").map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0);
   const seit = String(args.get("seit") || "2026-09-24");
-  const zeilen = (ids.length
-    ? await sqlPool`SELECT id, txn_id, booked_at, amount_cents, reference_raw, extracted_ref, note, applied FROM fiaon_bank_txns WHERE id = ANY(${ids}) ORDER BY booked_at, id`
-    : await sqlPool`SELECT id, txn_id, booked_at, amount_cents, reference_raw, extracted_ref, note, applied FROM fiaon_bank_txns
-                     WHERE NOT applied AND amount_cents > 0 AND booked_at >= ${seit}::date ORDER BY booked_at, id`) as any[];
-
-  const settings = await agent.getSettings();
-  const aus: Zeile[] = [];
-  for (const z of zeilen) {
-    const datum = z.booked_at ? berlinDatum(new Date(z.booked_at)) : "";
-    const ref = refErkennen(String(z.reference_raw || "")) || (z.extracted_ref ? String(z.extracted_ref) : null);
-    const cents = Number(z.amount_cents);
-    const zeile: Zeile = {
-      id: Number(z.id), txnId: String(z.txn_id), datum, betragCents: cents, zweckRef: ref,
-      regel: null, ziel: null, bestellung: null, rateId: null, rateNr: null, ergebnis: "", buchen: false,
-      deckung: null, provision: [], mails: [], unklar: null,
-    };
-    if (z.applied) { zeile.ergebnis = "schon verbucht"; aus.push(zeile); continue; }
-    if (String(z.note || "").startsWith("Airwallex: Geld ist UNTERWEGS")) { zeile.ergebnis = "Geld noch unterwegs"; aus.push(zeile); continue; }
-    const erg = await liveVerbuchen(String(z.txn_id), ref, cents, datum, { trocken: true, ueberzahlungBisCents, anlass: "Nachhol-Lauf" });
-    zeile.regel = erg.regel ?? null;
-    zeile.ziel = erg.ziel ?? null;
-    zeile.bestellung = erg.bestellung ?? null;
-    zeile.rateId = erg.rateId ?? null;
-    zeile.rateNr = erg.rateNr ?? null;
-    zeile.ergebnis = erg.grund;
-    zeile.deckung = erg.deckung?.text ?? null;
-    zeile.buchen = erg.grund.startsWith("würde buchen");
-    if (!zeile.buchen) zeile.unklar = erg.grund;
-
-    if (zeile.buchen && zeile.bestellung) {
-      try {
-        const [app] = (await sqlPool`
-          SELECT ref, person_id, email, contact_email, billing_email, created_at, assigned_agent_id, pack_key, pack_name,
-                 payment_reference, amount_due, confirmed_email_sent_at
-            FROM fiaon_applications WHERE ref = ${zeile.bestellung} LIMIT 1`) as any[];
-        // ── Provision: dieselben Bausteine wie abschlussNachZahlung / onRatePaid / praemieBuchen ──
-        const provisionFuer = async (agentId: number, baseCents: number, art: "Abschluss" | "Rate", zahlRef: string) => {
-          const [ag] = (await sqlPool`SELECT id, name, commission_rate_bp, recruited_by, override_rate_bp FROM fiaon_agents WHERE id = ${agentId}`) as any[];
-          if (!ag) return [`keine (Agent ${agentId} fehlt)`];
-          const [schon] = (await sqlPool`
-            SELECT id FROM fiaon_commissions WHERE kind IN ('own','override') AND amount_cents > 0 AND status <> 'storniert'
-               AND ${art === "Rate" ? sqlPool`payment_reference = ${zahlRef}` : sqlPool`ref = ${app.ref} AND (payment_reference IS NULL OR payment_reference = ${app.payment_reference})`}`) as any[];
-          if (schon) return ["keine (schon gebucht)"];
-          const global = art === "Abschluss" && istGlobalPaket(app.pack_key);
-          const status = agent.partnerStatusFor(await agent.ownRevenueCents(Number(ag.id)), agent.partnerThresholds(settings));
-          const bp = global ? Math.round((Number(settings.global_provision_prozent ?? 25) || 25) * 100) : agent.agentRateBp(ag, settings) + status.bonusBp;
-          const own = agent.commissionCents(baseCents, bp);
-          const zeilenP = [`Agent ${ag.id}: ${eur(own)} (${bp / 100} % von ${eur(baseCents)}, own) — ${wort}`];
-          if (ag.recruited_by) {
-            const obp = ag.override_rate_bp ?? Number(settings.partner_override_bp) ?? 500;
-            const oc = agent.commissionCents(baseCents, obp);
-            if (oc > 0) zeilenP.push(`Werber Agent ${ag.recruited_by}: ${eur(oc)} (${obp / 100} %, override) — ${wort}`);
-          }
-          return zeilenP;
-        };
-        if (zeile.regel === "erstzahlung") {
-          const anspruch = await agent.ermittleProvisionsAnspruch(app);
-          zeile.provision = anspruch.agentId
-            ? await provisionFuer(Number(anspruch.agentId), agent.eurToCents(app.amount_due), "Abschluss", String(app.payment_reference))
-            : ["keine (Direktzahler — kein dokumentierter Kontakt vor der Zahlung)"];
-          const mailDa = !!(app.email || app.contact_email || app.billing_email);
-          if (istGlobalPaket(app.pack_key)) zeile.mails.push("global_start (Firmenauftrag, nach der Start-Aufgabe)");
-          else if (!app.confirmed_email_sent_at && mailDa) zeile.mails.push(`payment_confirmed „Willkommen & Zugang“ mit Login-Link (Versandweg ${versandweg})`);
-          else if (app.confirmed_email_sent_at) zeile.mails.push("keine Zugangsmail (schon verschickt)");
-          else {
-            // sendPaymentConfirmedOnce liest nur die Adressen an der BESTELLUNG. Steht die Adresse nur an
-            // der Person, geht automatisch nichts raus — dann den Nachversand aus der Akte nennen.
-            const [pm] = (await sqlPool`SELECT (COALESCE(primary_email, '') <> '') AS da FROM fiaon_persons WHERE id = ${app.person_id}`.catch(() => [])) as any[];
-            zeile.mails.push(pm?.da
-              ? `KEINE Zugangsmail automatisch (Bestellung ohne Adresse, Person hat eine) → nach der Buchung von Hand: GET /api/fiaon/admin/mail/${app.person_id}/payment_confirmed/vorschau, dann POST /api/fiaon/admin/mail/${app.person_id}/payment_confirmed`
-              : "keine Zugangsmail (weder Bestellung noch Person haben eine Adresse)");
-            if (pm?.da) zeile.unklar = "Zugangsmail nur per Nachversand (Adresse fehlt an der Bestellung)";
-          }
-          const [karte] = (await sqlPool`SELECT 1 AS da FROM fiaon_konto_karte WHERE person_id = ${app.person_id} AND kanal <> 'gemeldet' LIMIT 1`.catch(() => [])) as any[];
-          if (!istGlobalPaket(app.pack_key)) {
-            zeile.mails.push(karte ? "keine Karten-Einladung (schon eingeladen)"
-              : "konto_karte_einladung „Ihr Link zur Karte ist da“ — Takt karten_einladungen (≤ 5 Min.), falls Antrag vollständig und keine Sperre");
-          }
-          const [bund] = (await sqlPool`SELECT 1 AS da FROM fiaon_contact_log WHERE ref = ${app.ref} AND voided_at IS NULL AND note LIKE ${`${BUENDEL_WUNSCH_VERMERK}%`} LIMIT 1`) as any[];
-          if (bund) zeile.mails.push("Bündel: Auskunft-Bestellung zum Kundenpreis + deren Zahlungsdaten-Mail");
-        } else if (zeile.rateId) {
-          const [r] = (await sqlPool`SELECT id, rate_nr, zahlungsreferenz, betrag_cents FROM fiaon_abo_raten WHERE id = ${zeile.rateId}`) as any[];
-          zeile.provision = Number(r.rate_nr) >= 2 && app.assigned_agent_id
-            ? await provisionFuer(Number(app.assigned_agent_id), Number(r.betrag_cents), "Rate", String(r.zahlungsreferenz))
-            : [Number(r.rate_nr) >= 2 ? "keine (kein zuständiger Betreuer)" : "keine (Rate 1 = Abschluss)"];
-          // Inkasso-Prämie — dieselben Tore wie praemieBuchen (fiaon-inkasso.ts)
-          const [arb] = (await sqlPool`
-            SELECT w.agent_id, a.inkasso_praemie_art, a.inkasso_praemie_wert, a.verguetung_bestaetigt_am, a.active
-              FROM fiaon_raten_arbeit w LEFT JOIN fiaon_agents a ON a.id = w.agent_id
-             WHERE w.rate_id = ${r.id} AND w.ergebnis IN ('zahlt_am', 'ueberwiesen_beleg', 'nicht_erreicht')
-             ORDER BY w.created_at DESC LIMIT 1`.catch(() => [])) as any[];
-          if (arb && arb.active && arb.verguetung_bestaetigt_am) {
-            const { VERGUETUNG_VORGABE } = await import("../server/lib/fiaon-inkasso");
-            const art = String(arb.inkasso_praemie_art || VERGUETUNG_VORGABE.praemieArt);
-            const wert = Number(arb.inkasso_praemie_wert ?? VERGUETUNG_VORGABE.praemieWert);
-            const c = art === "prozent" ? Math.round((Number(r.betrag_cents) * wert) / 10_000) : wert;
-            if (c > 0) zeile.provision.push(`Inkasso-Prämie Agent ${arb.agent_id}: ${eur(c)} — ${wort}`);
-          }
-          zeile.mails.push(Number(r.rate_nr) % 12 === 0 ? "abo_verlaengerung_frage (Rate 12)" : "keine (Ratenbuchung schickt keine Mail; Mahnungen zu dieser Rate enden)");
-        }
-      } catch (e: any) {
-        zeile.provision.push(`nicht berechenbar: ${String(e?.message || e).slice(0, 120)}`);
-      }
-    }
-    aus.push(zeile);
-  }
+  const liste = await nachholListe({ ids, seit, ueberzahlungBisCents });
+  const aus: Zeile[] = liste.map((z) => ({
+    id: z.id, txnId: z.txnId, datum: z.datum, betragCents: z.betragCents, zweckRef: z.zweckRef,
+    regel: z.regel, ziel: z.ziel, bestellung: z.bestellung, rateId: z.rateId, rateNr: z.rateNr,
+    ergebnis: z.ergebnis, buchen: z.buchen, deckung: z.deckung, provision: z.provision,
+    mails: [...z.mails, ...z.hinweise.map((h) => `HINWEIS: ${h}`)], unklar: z.unklar,
+  }));
 
   // ── Ausgabe ────────────────────────────────────────────────────────────
   console.log("");

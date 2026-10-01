@@ -3,18 +3,22 @@
  *
  * Läuft NUR gegen eine lokale Struktur-Kopie (127.0.0.1) — nie gegen Produktion. Aufbau siehe
  * Gedächtnis „fiaon-lokaler-pruefstand" (pg_dump --schema-only, eigene Instanz, ssl = on), dann:
- *   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL='postgresql://fiaon@127.0.0.1:54361/pruef_utm?sslmode=require' \
- *     PSQL=/opt/homebrew/opt/postgresql@18/bin/psql node --import tsx scripts/pruef-utm-erlaubnisliste.ts
+ *   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/<kopie>?sslmode=require' \
+ *     node --import tsx scripts/pruef-utm-erlaubnisliste.ts
  * Rotprobe (alter Leser + alter Schreibausdruck, muss rot werden): PRUEF_ROT=1 … dieselbe Zeile.
  *
  * Geprüft wird:
  *  A. utmErlaubt() auf jeder Form, die utm in der Produktion hat (Objekt, JSON-Text, Array aus Texten
  *     und Objekten, doppelt verpackt, Zahl, kaputter Text) — nie ein Passwort, erlaubte Schlüssel bleiben.
  *  B. Quelltext: Leser „herkunft" gefiltert, kein Klartext-Passwort-Schreibweg, derselbe Schreibausdruck an
- *     allen drei Passwort-Setz-Stellen, storedPasswordOf liest kein utm, Erlaubnisliste = CHECK im SQL.
+ *     allen drei Passwort-Setz-Stellen, storedPasswordOf liest kein utm, der Ausführer nimmt die Erlaubnisliste
+ *     aus UTM_SCHLUESSEL (eine Quelle), das alte SQL ist weg (ein Weg).
  *  C. Datenbank: die historischen Schreibfehler WÖRTLICH nachgestellt (8518e421, 00fb0137), dann die echten
- *     Funktionen passwortSetzen/einmalPasswortSetzen, dann scripts/sql/utm-bereinigung.sql als Probelauf
+ *     Funktionen passwortSetzen/einmalPasswortSetzen, dann scripts/passwort-klartext-raus.ts als Probelauf
  *     (ROLLBACK) und als Ausführung, danach der CHECK gegen verbotene Schreibversuche.
+ *
+ * 01.10.2026 (E-242, Teil 2): scripts/sql/utm-bereinigung.sql ist in scripts/passwort-klartext-raus.ts
+ * aufgegangen (dieselbe Rechnung, wörtlich, jetzt in EINER Transaktion mit Spalte und Personen-Kopie).
  */
 import postgres from "postgres";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -27,7 +31,6 @@ if (!/@127\.0\.0\.1:\d+\//.test(url)) {
   process.exit(2);
 }
 const ROT = process.env.PRUEF_ROT === "1";
-const PSQL = process.env.PSQL || "psql";
 
 let fehler = 0;
 const pruefe = (ok: boolean, text: string) => { console.log(`${ok ? "OK  " : "ROT "} ${text}`); if (!ok) fehler++; };
@@ -84,24 +87,29 @@ for (const [datei, soll] of [["server/routes/fiaon-antrag.ts", 1], ["server/lib/
 const login = lies("server/fiaon-login-logic.ts");
 const spo = login.slice(login.indexOf("export function storedPasswordOf"), login.indexOf("}", login.indexOf("export function storedPasswordOf")) + 1);
 pruefe(!/utm/.test(spo), "storedPasswordOf liest nur noch die Spalte password");
-const sqlDatei = lies("scripts/sql/utm-bereinigung.sql");
-const sqlListe = (sqlDatei.match(/\\set erlaubt '\{([^}]*)\}'/)?.[1] ?? "").split(",");
-pruefe(JSON.stringify(sqlListe) === JSON.stringify([...UTM_SCHLUESSEL]), `Erlaubnisliste im SQL = UTM_SCHLUESSEL (${sqlListe.length} Schlüssel)`);
-const bloecke = sqlDatei.split("-- >>> BERECHNUNG").slice(1).map((b) => b.split("-- <<< BERECHNUNG")[0].split("\n").slice(1).join("\n"));
-pruefe(bloecke.length === 2 && bloecke[0] === bloecke[1], "Vorschau und Ausführung rechnen mit derselben Berechnung");
+const ausfuehrer = lies("scripts/passwort-klartext-raus.ts");
+pruefe(/const ERLAUBT: string\[\] = \[\.\.\.UTM_SCHLUESSEL\]/.test(ausfuehrer) && !/'utm_source'|"utm_source"/.test(ausfuehrer),
+  `Ausführer nimmt die Erlaubnisliste aus UTM_SCHLUESSEL (${UTM_SCHLUESSEL.length} Schlüssel), keine eigene Liste`);
+let altesSql = true; try { lies("scripts/sql/utm-bereinigung.sql"); } catch { altesSql = false; }
+pruefe(!altesSql, "scripts/sql/utm-bereinigung.sql ist weg — es gibt EINEN Weg für die Bereinigung");
 
 // ── C. Datenbank ─────────────────────────────────────────────────────────────
 console.log("\nC. Datenbank (lokale Struktur-Kopie)");
 const sql = postgres(url, { max: 1, onnotice: () => {} });
 const P = "pruef-utm-";
 const MAIL = "pruef-utm@fiaon-pruefstand.invalid";
-const psql = (...args: string[]) => {
-  const r = spawnSync(PSQL, [url, "-X", "-f", "scripts/sql/utm-bereinigung.sql", ...args], { encoding: "utf8" });
+// Der Ausführer läuft wie im Ernstfall als eigener Prozess — ohne .env, nur mit dieser lokalen DATABASE_URL.
+const ausfuehren = (...args: string[]) => {
+  const r = spawnSync(process.execPath, ["--import", "tsx", "scripts/passwort-klartext-raus.ts", ...args],
+    { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", DATABASE_URL: url } });
   return { code: r.status, text: `${r.stdout}\n${r.stderr}` };
 };
 try {
   await sql`ALTER TABLE fiaon_applications DROP CONSTRAINT IF EXISTS fiaon_applications_utm_erlaubt`;
+  await sql`ALTER TABLE fiaon_applications DROP CONSTRAINT IF EXISTS fiaon_applications_password_gehasht`;
+  await sql`ALTER TABLE fiaon_persons DROP CONSTRAINT IF EXISTS fiaon_persons_password_gehasht`;
   await sql`DROP TABLE IF EXISTS fiaon_utm_bereinigung_protokoll`;
+  await sql`DROP TABLE IF EXISTS fiaon_passwort_klartext_protokoll`;
   await sql`DELETE FROM fiaon_applications WHERE ref LIKE ${P + "%"}`;
   const neu = async (ref: string, email: string | null = null) =>
     sql`INSERT INTO fiaon_applications (ref, payment_reference, email, updated_at) VALUES (${P + ref}, ${"FIAON-" + ref.toUpperCase()}, ${email}, '2026-08-01T10:00:00Z')`;
@@ -153,17 +161,17 @@ try {
   pruefe(JSON.stringify(fam["fam-b"]?.utm) === JSON.stringify({ utm_campaign: "herbst" }), `fam-b (Objekt, gleiche Familie): utm ${JSON.stringify(fam["fam-b"]?.utm)}`);
   pruefe(JSON.stringify(fam["einmal"]?.utm) === "{}", `einmal nach Einmalpasswort: utm ${JSON.stringify(fam["einmal"]?.utm)}`);
 
-  // Reparatur-SQL: erst Probelauf, dann Ausführung
+  // Bereinigung: erst Probelauf, dann Ausführung (scripts/passwort-klartext-raus.ts)
   const vorher = await sql`SELECT ref, utm::text AS t, updated_at FROM fiaon_applications WHERE ref LIKE ${P + "%"} ORDER BY ref`;
-  const probe = psql();
+  const probe = ausfuehren("--probelauf");
   const nachProbe = await sql`SELECT ref, utm::text AS t, updated_at FROM fiaon_applications WHERE ref LIKE ${P + "%"} ORDER BY ref`;
   const [prot0] = await sql`SELECT to_regclass('fiaon_utm_bereinigung_protokoll') AS t`;
-  pruefe(probe.code === 0 && /Probelauf beendet/.test(probe.text) && JSON.stringify(vorher) === JSON.stringify(nachProbe) && prot0.t === null,
+  pruefe(probe.code === 0 && /ROLLBACK, nichts geändert/.test(probe.text) && JSON.stringify(vorher) === JSON.stringify(nachProbe) && prot0.t === null,
     `Probelauf endet mit ROLLBACK, nichts geändert (Exit ${probe.code})`);
   if (probe.code !== 0) console.log(probe.text.slice(-1500));
 
-  const lauf = psql("-v", "go=1");
-  pruefe(lauf.code === 0 && /COMMIT/.test(lauf.text), `Ausführung mit go=1 (Exit ${lauf.code})`);
+  const lauf = ausfuehren("--ausfuehren");
+  pruefe(lauf.code === 0 && /== COMMIT/.test(lauf.text), `Ausführung mit --ausfuehren (Exit ${lauf.code})`);
   if (lauf.code !== 0) console.log(lauf.text.slice(-1500));
   const nach = Object.fromEntries((await sql`SELECT ref, utm, updated_at FROM fiaon_applications WHERE ref LIKE ${P + "%"}`).map((r) => [r.ref.slice(P.length), r]));
   const soll: Record<string, unknown> = {
@@ -203,12 +211,15 @@ try {
     pruefe(r.ok === true, `passwortSetzen mit CHECK aktiv: ${r.ok ? "ok" : r.grund}`);
   }
 
-  const zweit = psql("-v", "go=1");
+  const zweit = ausfuehren("--ausfuehren");
   pruefe(zweit.code === 0 && !/ABBRUCH/.test(zweit.text), `zweiter Lauf läuft sauber durch (Exit ${zweit.code})`);
   const [prot2] = await sql`SELECT COUNT(*)::int AS n FROM fiaon_utm_bereinigung_protokoll WHERE ref LIKE ${P + "%"}`;
   pruefe(prot2.n === 9, `zweiter Lauf ändert nichts mehr (Protokoll weiter ${prot2.n})`);
 } finally {
   await sql`ALTER TABLE fiaon_applications DROP CONSTRAINT IF EXISTS fiaon_applications_utm_erlaubt`.catch(() => {});
+  await sql`ALTER TABLE fiaon_applications DROP CONSTRAINT IF EXISTS fiaon_applications_password_gehasht`.catch(() => {});
+  await sql`ALTER TABLE fiaon_persons DROP CONSTRAINT IF EXISTS fiaon_persons_password_gehasht`.catch(() => {});
+  await sql`DROP TABLE IF EXISTS fiaon_passwort_klartext_protokoll`.catch(() => {});
   await sql`DELETE FROM fiaon_applications WHERE ref LIKE ${P + "%"}`.catch(() => {});
   await sql`DELETE FROM fiaon_contact_log WHERE ref LIKE ${P + "%"}`.catch(() => {});
   await sql`DELETE FROM fiaon_agent_events WHERE actor = 'pruefstand'`.catch(() => {});

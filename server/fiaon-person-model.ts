@@ -135,7 +135,9 @@ export interface PersonDraft {
   primary_email: string | null;
   primary_phone: string | null;
   phone_key9: string | null;
-  password: string | null;
+  // E-242 (01.10.2026): kein `password` mehr — die Person trägt kein Passwort. Die Anmeldung liest
+  // ausschließlich fiaon_applications.password (storedPasswordOf); die Kopie in fiaon_persons war
+  // Altbestand ohne Leser und wird vom Lauf scripts/passwort-klartext-raus.ts geleert.
   kind: string;
 }
 
@@ -185,13 +187,9 @@ export function fillFromRow(draft: PersonDraft, row: any): PersonDraft {
       draft.phone_key9 = d.slice(-9);
     }
   }
-  // Das Passwort kommt ausschliesslich von der Konto-Zeile — eine
-  // Bonitäts-Bestellung hat keines, und ein leerer Wert darf ein
-  // vorhandenes Passwort niemals verdrängen (Ursache des Login-Ausfalls).
-  if (leer(draft.password)) {
-    const pw = storedPasswordOf(row);
-    if (pw) draft.password = pw;
-  }
+  // E-242 (01.10.2026): Das Passwort wandert NICHT mehr an die Person. Es bleibt an der Bestellzeile
+  // (fiaon_applications.password, gehasht) — nur dort liest die Anmeldung. Die frühere Kopie war ein
+  // zweiter Klartext-Speicher ohne Leser.
   if (draft.kind !== "business" && String(row?.type ?? "").toLowerCase() === "business") {
     draft.kind = "business";
   }
@@ -203,7 +201,7 @@ export function emptyDraft(): PersonDraft {
   return {
     first_name: null, last_name: null, company_name: null, contact_name: null,
     birthdate: null, street: null, zip: null, city: null, country: null, nationality: null,
-    primary_email: null, primary_phone: null, phone_key9: null, password: null,
+    primary_email: null, primary_phone: null, phone_key9: null,
     kind: "private",
   };
 }
@@ -310,7 +308,7 @@ export async function ensurePersonTables(): Promise<void> {
       country VARCHAR,
       nationality VARCHAR,
 
-      password VARCHAR,                              -- von der Konto-Zeile
+      password VARCHAR,                              -- E-242: bleibt leer (CHECK fiaon_persons_password_gehasht); Passwort nur an der Bestellzeile
       account_status VARCHAR NOT NULL DEFAULT 'pending', -- pending | active | suspended
 
       assigned_agent_id INTEGER,
@@ -676,7 +674,7 @@ async function neuePersonAnlegen(ein: PersonEingabe, emails: string[], phones: s
       person_ref, kind, first_name, last_name, company_name, contact_name, birthdate,
       primary_email, primary_phone, phone_key9,
       street, zip, city, country, nationality,
-      password, account_status, assigned_agent_id, first_seen_at
+      account_status, assigned_agent_id, first_seen_at
     ) VALUES (
       ${personRef}, ${s.kind ?? "private"},
       ${s.first_name ?? null}, ${s.last_name ?? null}, ${s.company_name ?? null},
@@ -684,7 +682,7 @@ async function neuePersonAnlegen(ein: PersonEingabe, emails: string[], phones: s
       ${emails[0] ?? null}, ${s.primary_phone ?? null}, ${phones[0] ?? null},
       ${s.street ?? null}, ${s.zip ?? null}, ${s.city ?? null},
       ${s.country ?? null}, ${s.nationality ?? null},
-      ${s.password ?? null}, 'pending', ${ein.agentId ?? null},
+      'pending', ${ein.agentId ?? null},
       ${ein.firstSeenAt ?? new Date()}
     )
     RETURNING id, person_ref
@@ -748,7 +746,6 @@ async function stammdatenErgaenzen(personId: number, ein: PersonEingabe): Promis
       country      = COALESCE(country,      ${wert(s.country)}),
       nationality  = COALESCE(nationality,  ${wert(s.nationality)}),
       primary_phone = COALESCE(primary_phone, ${wert(s.primary_phone)}),
-      password     = COALESCE(password,     ${wert(s.password)}),
       kind         = CASE WHEN ${s.kind ?? null} = 'business' THEN 'business' ELSE kind END,
       first_seen_at = LEAST(COALESCE(first_seen_at, ${ein.firstSeenAt ?? null}), COALESCE(${ein.firstSeenAt ?? null}, first_seen_at)),
       updated_at   = NOW()
@@ -823,7 +820,7 @@ export async function bindePersonAnAntrag(ref: string): Promise<PersonZuordnung 
            email, contact_email, billing_email,
            phone, phone_country_code, contact_phone,
            first_name, last_name, company_name, contact_name, birthdate,
-           street, zip, city, country, nationality, password, utm::text AS utm_string
+           street, zip, city, country, nationality
     FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
   `;
   if (!row) return null;
@@ -836,9 +833,7 @@ export async function bindePersonAnAntrag(ref: string): Promise<PersonZuordnung 
     birthdate: row.birthdate, street: row.street, zip: row.zip, city: row.city,
     country: row.country, nationality: row.nationality,
     primary_phone: row.phone ?? row.contact_phone ?? null,
-    // Nur die Konto-Zeile bringt ein Passwort mit. Eine Bonitäts-Bestellung
-    // hat keines — und darf das vorhandene niemals verdrängen.
-    password: storedPasswordOf(row),
+    // E-242: kein Passwort an die Person (es bleibt an der Bestellzeile, nur dort liest die Anmeldung).
     kind: String(row.type ?? "").toLowerCase() === "business" ? "business" : "private",
   };
 
@@ -986,7 +981,6 @@ async function personenZusammenfuehren(zielId: number, verliererId: number, quel
       primary_email = COALESCE(primary_email, ${verlierer.primary_email}),
       primary_phone = COALESCE(primary_phone, ${verlierer.primary_phone}),
       phone_key9   = COALESCE(phone_key9,   ${verlierer.phone_key9}),
-      password     = COALESCE(password,     ${verlierer.password}),
       first_seen_at = LEAST(COALESCE(first_seen_at, ${verlierer.first_seen_at}), COALESCE(${verlierer.first_seen_at}, first_seen_at)),
       account_status = CASE
         WHEN account_status = 'suspended' OR ${verlierer.account_status} = 'suspended' THEN 'suspended'

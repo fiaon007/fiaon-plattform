@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — Klartext-Passwörter raus: ein Lauf für alle Orte, die Datenbank verbietet den Rückfall (E-242, Teil 2)
+
+**Der Anlass:** Justin (01.10.): „Klartext-Passwörter gerne rausnehmen." Seit dem 06.09. schreibt kein Weg mehr ein
+Passwort im Klartext — aber der Altbestand blieb liegen: in der Spalte `fiaon_applications.password` (nachgehasht
+wurde nur, wer sich anmeldete), als Kopie in `utm` (E-242, 25.09.) und als tote Kopie in `fiaon_persons.password`.
+
+**Was jetzt gilt:**
+- **Ein Lauf, eine Transaktion:** `scripts/passwort-klartext-raus.ts` hasht den Spalten-Altbestand mit genau dem
+  Verfahren, das die Anmeldung versteht (scrypt), bereinigt `utm` auf die Erlaubnisliste und leert die Kopie an der
+  Person. **Niemand wird ausgesperrt und niemand muss ein neues Passwort setzen:** Jeder neue Hash wird vor dem
+  Schreiben gegen sein Original geprüft, nebenläufige Änderungen (ein Kunde setzt gerade sein Passwort neu) werden
+  erkannt und nicht überschrieben. Bereits gelöschte Konten (DSGVO) verlieren ihr Passwort ganz.
+- **Protokoll ohne Werte:** `fiaon_passwort_klartext_protokoll` hält fest, WELCHE Datensätze betroffen waren
+  (Kennungen und Maßnahme) — die Grundlage für einen späteren Zwangs-Reset oder eine Benachrichtigung.
+- **Nie wieder:** Danach verweigert die Datenbank Klartext — `fiaon_applications_password_gehasht`,
+  `fiaon_applications_utm_erlaubt`, `fiaon_persons_password_gehasht`.
+- **Die Person trägt kein Passwort mehr:** Anlegen, Ergänzen und Zusammenführen von Personen kopieren keins mehr
+  (`server/fiaon-person-model.ts`, `server/lib/fiaon-person-merge.ts`). Die Anmeldung las diese Kopie nie.
+- **Login-Nachhashen korrigiert:** Passte die Eingabe zu einer ANDEREN Bestellung der Familie, wurde bisher die
+  Konto-Zeile mit dieser Eingabe überschrieben — das eigentliche Konto-Passwort ging danach nicht mehr. Jetzt wird
+  nur die Zeile nachgehasht, zu der die Eingabe passt, und kein Klartext mehr als SQL-Parameter gesendet.
+- `scripts/sql/utm-bereinigung.sql` ist in den neuen Lauf aufgegangen (dieselbe Rechnung, wörtlich).
+
+**Prüfstand:** `scripts/pruef-passwort-klartext.ts` (lokale Kopie, optional echter Server über `PRUEF_URL`): Anmeldung
+vorher/nachher mit identischem Urteil (Funktion und HTTP), „Passwort vergessen" nach dem Lauf, Protokoll, CHECKs,
+Daten-Dump ohne ein einziges Prüf-Passwort; Rotprobe `PRUEF_ROT=1`. `scripts/pruef-utm-erlaubnisliste.ts` auf den
+neuen Lauf umgestellt.
+
 ## 29.09.2026 — Termine mit einem Klick in den eigenen Kalender, und ein Abo, das sich selbst pflegt (E-263)
 
 **Der Anlass:** Justin: „wenn ich so ne Email bekomme von FIAON (Termin-Mail) dann muss ich die auch mit 1 Klick in mein

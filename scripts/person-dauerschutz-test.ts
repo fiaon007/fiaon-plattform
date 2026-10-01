@@ -25,6 +25,7 @@ import {
   bindePersonAnLead,
   ensurePersonTables,
 } from "../server/fiaon-person-model";
+import { passwortHashen, passwortPasst } from "../server/lib/fiaon-kunde-session";
 
 const MARKE = "p1c-test.invalid";
 const REF_PRAEFIX = "FIAON-TEST-P1C-";
@@ -42,6 +43,14 @@ function gruppe(t: string): void { log(`\n── ${t} ${"─".repeat(Math.max(0,
 
 const stempel = Date.now().toString(36).toUpperCase();
 const ref = (s: string) => `${REF_PRAEFIX}${stempel}-${s}`;
+
+// E-242 (01.10.2026): Das Passwort liegt NUR an der Bestellzeile (gehasht, CHECK fiaon_applications_password_gehasht),
+// die Person trägt keins. „Unversehrt" heißt deshalb: die Konto-Zeile versteht das Passwort weiter, die Person bleibt leer.
+async function passwortLage(r: string, personId: number | null): Promise<string> {
+  const [a] = await sqlPool`SELECT password FROM fiaon_applications WHERE ref = ${r}`;
+  const [p] = personId != null ? await sqlPool`SELECT password FROM fiaon_persons WHERE id = ${personId}` : [null];
+  return `${passwortPasst(a?.password, "geheim-echt") ? "konto-ok" : "konto-FALSCH"}/${p?.password == null ? "person-leer" : "person-TRAEGT-PASSWORT"}`;
+}
 
 async function antragAnlegen(r: string, felder: Record<string, unknown>): Promise<void> {
   await sqlPool`
@@ -113,7 +122,7 @@ async function main(): Promise<void> {
     const r1 = ref("A1");
     await antragAnlegen(r1, {
       type: "private", first_name: "Anna", last_name: "Test", email: mail,
-      phone: "015777123456", phone_country_code: "+49", password: "geheim-echt",
+      phone: "015777123456", phone_country_code: "+49", password: passwortHashen("geheim-echt"),
     });
     const z1 = await bindePersonAnAntrag(r1);
     merken(z1);
@@ -129,8 +138,7 @@ async function main(): Promise<void> {
     gleich("keine zweite Person angelegt", z2?.angelegt, false);
     gleich("dieselbe Person", await personVon(r2), p1);
 
-    const [pw] = await sqlPool`SELECT password FROM fiaon_persons WHERE id = ${p1}`;
-    gleich("Passwort unversehrt", pw?.password, "geheim-echt");
+    gleich("Passwort unversehrt (an der Konto-Zeile, nicht an der Person)", await passwortLage(r1, p1), "konto-ok/person-leer");
 
     // ── 2. Bonitäts-Kauf ────────────────────────────────────────────────────
     gruppe("Bonitäts-Kauf legt keine zweite Person an");
@@ -143,8 +151,7 @@ async function main(): Promise<void> {
     merken(zS);
     gleich("keine neue Person", zS?.angelegt, false);
     gleich("dieselbe Person wie das Konto", await personVon(rS), p1);
-    const [pw2] = await sqlPool`SELECT password FROM fiaon_persons WHERE id = ${p1}`;
-    gleich("Passwort weiterhin unversehrt (Kunde bleibt eingeloggt)", pw2?.password, "geheim-echt");
+    gleich("Passwort weiterhin unversehrt (Kunde bleibt eingeloggt)", await passwortLage(r1, p1), "konto-ok/person-leer");
 
     const [zeilen] = await sqlPool`
       SELECT COUNT(*)::int AS n FROM fiaon_applications WHERE person_id = ${p1}
@@ -223,8 +230,7 @@ async function main(): Promise<void> {
     const nachWiederholung = await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_persons`;
     gleich("viermal gespeichert, keine neue Person", nachWiederholung[0].n, vorWiederholung[0].n);
     gleich("person_id unverändert", await personVon(r1), p1);
-    const [pw3] = await sqlPool`SELECT password FROM fiaon_persons WHERE id = ${p1}`;
-    gleich("Passwort auch nach vier Speichervorgängen da", pw3?.password, "geheim-echt");
+    gleich("Passwort auch nach vier Speichervorgängen da", await passwortLage(r1, p1), "konto-ok/person-leer");
 
   } finally {
     // ── Aufräumen ─────────────────────────────────────────────────────────

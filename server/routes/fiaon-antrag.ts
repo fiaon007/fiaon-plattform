@@ -3193,6 +3193,9 @@ router.post("/application", async (req, res) => {
       // 06.09.2026: Antrags-Cookie gleitend verlängern — oder erstmals setzen, wenn der Antrag vor dem
       // Cookie begonnen wurde und die Angaben im Formular zu den gespeicherten passen (das weiß nur,
       // wer sie selbst eingetippt hat). Siehe lib/fiaon-antrag-sitzung.ts.
+      // E-242 (01.10.2026): Seit dem Massenlauf ist kein Passwort mehr Klartext. Ein Antrag mit Passwort
+      // (auch einer von vor dem 06.09.) bekommt das Cookie deshalb nur noch über die Anmeldung — der Kunde
+      // kennt sein Passwort, requireKundeOderAntrag nimmt die Kundensitzung. Ohne Passwort bleibt alles gleich.
       const alt: any = existing[0];
       if (antragPasst(req, ref) || (!istGehasht(alt?.password) && angabenPassen(alt, req.body))) antragCookieSetzen(res, ref);
     } else {
@@ -3528,9 +3531,14 @@ router.post("/login", async (req, res) => {
     try {
       const { kundenSitzungSetzen, istGehasht, passwortHashen } = await import("../lib/fiaon-kunde-session");
       kundenSitzungSetzen(res, account.ref, { bleiben: req.body?.bleiben !== false });
-      if (!istGehasht(account.password) && typeof account.password === "string" && account.password) {
+      // E-242 (01.10.2026): Nur nachhashen, wenn die Eingabe genau DIESE Zeile trifft. Vorher wurde die Konto-Zeile
+      // auch dann mit der Eingabe überschrieben, wenn die Eingabe zu einer ANDEREN Zeile der Familie passte — das
+      // Konto-Passwort hätte sich still geändert. Und kein Klartext mehr als SQL-Parameter: Postgres protokolliert
+      // Anweisungen über 2 s samt Parametern (log_min_duration_statement). Nach dem Massenlauf
+      // (scripts/passwort-klartext-raus.ts) und mit dem CHECK fiaon_applications_password_gehasht läuft dieser Zweig nie.
+      if (!istGehasht(account.password) && typeof account.password === "string" && account.password && account.password === password) {
         await sqlPool`UPDATE fiaon_applications SET password = ${passwortHashen(password)}, updated_at = NOW()
-                      WHERE ref = ${account.ref} AND password = ${account.password}`;
+                      WHERE ref = ${account.ref} AND password IS NOT NULL AND password NOT LIKE 'scrypt$%'`;
       }
     } catch (e) {
       console.error("[FIAON-LOGIN] Sitzung/Nachhashen:", e);

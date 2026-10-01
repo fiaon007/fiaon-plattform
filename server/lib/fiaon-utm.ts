@@ -11,9 +11,10 @@
 // internen Entscheidungsregister (E-242), nicht im Quelltext.
 //
 // Seither gilt: In utm stehen NUR diese Schlüssel, immer als Objekt. Die
-// Datenbank erzwingt dasselbe mit dem CHECK fiaon_applications_utm_erlaubt
-// (scripts/sql/utm-bereinigung.sql) — beide Listen müssen gleich bleiben,
-// der Prüfstand scripts/pruef-utm-erlaubnisliste.ts vergleicht sie.
+// Datenbank erzwingt dasselbe mit dem CHECK fiaon_applications_utm_erlaubt, den
+// scripts/passwort-klartext-raus.ts aus GENAU dieser Liste baut (eine Quelle;
+// Prüfstand scripts/pruef-utm-erlaubnisliste.ts). Kommt ein Schlüssel hinzu,
+// muss der CHECK in der Datenbank neu angelegt werden — sonst lehnt sie ihn ab.
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const UTM_SCHLUESSEL = [

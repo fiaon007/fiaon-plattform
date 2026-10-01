@@ -86,7 +86,7 @@ export async function ensureStornoSpalten(): Promise<void> {
 }
 
 export async function globalAuftragStornieren(
-  ref: string, ein: { grund?: unknown; erstattung?: unknown }, wer: string,
+  ref: string, ein: { grund?: unknown; erstattung?: unknown; ohneErstattungsAufgabe?: boolean; auchAbgeschlossen?: boolean }, wer: string,
 ): Promise<{ ok: boolean; status?: number; error?: string; meldung?: string }> {
   const { sqlPool } = await import("./db-pool");
   const { ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalVerlauf, globalEur, globalEinstellungen } = await import("./fiaon-global-auftrag");
@@ -100,7 +100,10 @@ export async function globalAuftragStornieren(
   const bezahlt = String(b.payment_status) === "paid";
   const schonStorniert = String(akte?.status) === "storniert" || !!b.cancelled_at || !!b.archived_at
     || ["cancelled", "superseded"].includes(String(b.payment_status));
-  const p = globalStornoPruefen({ status: schonStorniert ? "storniert" : String(akte?.status || "offen"), bezahlt, ohneAuftrag: !akte }, ein);
+  // E-271 (Garantiefall im Individualangebot): Auch ein vom Office abgeschlossener Auftrag wird storniert — die
+  // Erstattung ist vertraglich geschuldet, der Abschluss der Begleitung ändert daran nichts.
+  const statusFuerPruefung = schonStorniert ? "storniert" : String(akte?.status || "offen");
+  const p = globalStornoPruefen({ status: ein.auchAbgeschlossen && statusFuerPruefung === "abgeschlossen" ? "gestartet" : statusFuerPruefung, bezahlt, ohneAuftrag: !akte }, ein);
   if (!p.ok) return { ok: false, status: schonStorniert ? 409 : 400, error: p.error };
   const { grund, erstattung } = p.daten;
 
@@ -151,7 +154,11 @@ export async function globalAuftragStornieren(
 
   // ── 5. Erstattung: NUR eine Aufgabe für Justin — Geld bewegt nur er, von Hand ──
   let erstattungSatz = "";
-  if (erstattung) {
+  // E-271 (Garantiefall im Individualangebot): Der Aufrufer legt EINE Erstattungsaufgabe mit dem Gesamtbetrag an
+  // (Teil 1 + ggf. Teil 2) — sonst gewänne hier der Titel mit dem Betrag nur dieser Bestellung (gleicher Schlüssel).
+  if (erstattung && ein.ohneErstattungsAufgabe) {
+    erstattungSatz = "";
+  } else if (erstattung) {
     const erg = await auftragFuerKunden({
       personId: b.person_id != null ? Number(b.person_id) : null, ref,
       titel: `Erstattung veranlassen: ${globalEur(betragCents)} an ${firma}`,

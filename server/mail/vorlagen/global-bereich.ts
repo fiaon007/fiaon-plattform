@@ -48,10 +48,8 @@ import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
 export type GlobalBereichSprache = "de" | "en";
 
 const KOPF = "FIAON Global";
-const INSTITUT = {
-  de: "Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut.",
-  en: "The institution alone decides on the account, the card, the limit and the loan.",
-} as const;
+// Die Fußnote der Etappen-Mail (Institut-Satz bei den Paketen, Garantie beim Individualangebot) setzt der Server:
+// GLOBAL_ETAPPE_FUSSNOTE in shared/fiaon-global-bereich.ts → etappenMail (E-271).
 
 /** Der englische Rahmen des Gerüsts (Feld `sprache`, Querschnitt-Teil von E-188) — siehe Kopf. */
 const RAHMEN_EN = { sprache: "en" } as unknown as Partial<MailBaustein>;
@@ -122,7 +120,9 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
         { label: "Ihr Ansprechpartner", wert: "{{params.ansprechpartner}}" },
       ],
       knopf: { text: "Mein Auftrag öffnen", url: "{{params.mein_auftrag_url}}" },
-      fussnote: INSTITUT.de,
+      // E-271: Die Fußnote setzt der Server (etappenMail) — Institut-Satz bei den Paketen, Garantie beim Individualangebot.
+      // Fehlt der Wert, entfällt die Fußnote (Motor: Fußnote aus einem einzigen Platzhalter).
+      fussnote: "{{params.fussnote_text}}",
     },
     en: {
       ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
@@ -141,7 +141,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
         { label: "Your contact", wert: "{{params.ansprechpartner}}" },
       ],
       knopf: { text: "Open My order", url: "{{params.mein_auftrag_url}}" },
-      fussnote: INSTITUT.en,
+      fussnote: "{{params.fussnote_text}}",
     },
   },
 

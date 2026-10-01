@@ -2,6 +2,8 @@
 // /business/angebot/:token — DAS PERSÖNLICHE ANGEBOT (FIAON Global)
 // Individualangebot (01.10.2026), Register E-268
 //
+// E-271 (Justin, 01.10.2026 abends): „Kredit garantiert" — Kreditrahmen und Karten sind vertraglich garantiert, sonst
+// alles Gezahlte zurück; alle Garantie-Sätze kommen aus angebotGarantie() (shared). Der Absatz darunter ist insoweit überholt.
 // Justin (01.10.2026): „Vertrag so gut, dass er nicht widerstehen kann" — durch
 // Klarheit und echte Vorteile (der größere Teil erst bei Erfolg, Geld zurück,
 // Bürge, keine Sicherheiten, alles inklusive), NIE durch Falschaussagen, Druck
@@ -52,7 +54,7 @@ import { useRoute } from "wouter";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import "@/styles/global-start.css";
 import "@/styles/global-angebot.css";
-import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ, ANGEBOT_ANNAHME as AN } from "@shared/fiaon-global-angebot";
+import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ, ANGEBOT_ANNAHME as AN, ANGEBOT_GARANTIE_FEST } from "@shared/fiaon-global-angebot";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -259,7 +261,7 @@ export default function BusinessAngebot() {
   };
 
   const titel = "Ihr persönliches Angebot · FIAON Global";
-  const beschreibung = "Persönliches Angebot von FIAON Global: Gründung Ihrer US-Gesellschaft und Begleitung auf dem Weg zum Kapital.";
+  const beschreibung = ANGEBOT_GARANTIE_FEST.metaBeschreibung;
 
   if (stand === "laedt") {
     return (

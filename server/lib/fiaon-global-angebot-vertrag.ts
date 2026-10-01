@@ -27,7 +27,7 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import {
   angebotZiffern, angebotPraeambel, angebotVertragTitel, angebotVertragUnterzeile, buergschaftTitel, buergschaftParteien,
   buergschaftZiffern, buergschaftUnterschrift, pruefberichtErgebnis, pruefberichtBoniText, angebotKundeName, angebotTag,
-  PRUEFBERICHT_TITEL, ANGEBOT_KNOPF, ANGEBOT_LAND_NAME,
+  PRUEFBERICHT_TITEL, ANGEBOT_KNOPF, ANGEBOT_LAND_NAME, ANLAGE1_FASSUNG,
   type AngebotDaten, type AngebotSchalter, type AngebotZiffer, type Pruefbericht,
 } from "@shared/fiaon-global-angebot";
 
@@ -94,7 +94,9 @@ function anlage1Wortlaut(d: AngebotDaten): string {
  * Original GENAU diese Fassung trägt (§ 766 BGB; Gegenprüfung 01.10.2026).
  */
 export function buergschaftPruefsumme(d: AngebotDaten): string {
-  return docHash(`global-angebot-anlage1|${d.ref}|${d.fassung}|${anlage1Wortlaut(d)}`);
+  // E-271: Anlage 1 hat ihren eigenen Fassungsstand (ANLAGE1_FASSUNG) — der Vertrag bekam die Kreditgarantie, der Wortlaut
+  // der Bürgschaftszusage blieb gleich; so bleibt die Prüfsumme auf dem eigenhändig unterschriebenen Original gültig.
+  return docHash(`global-angebot-anlage1|${d.ref}|${ANLAGE1_FASSUNG}|${anlage1Wortlaut(d)}`);
 }
 function anlage1Html(d: AngebotDaten): string {
   const u = buergschaftUnterschrift(d);
@@ -314,7 +316,7 @@ export async function angebotAnlage1Pdf(d: AngebotDaten): Promise<Buffer> {
   const titel = `Bürgschaftszusage der ${d.buergin.name} — zum Unterschreiben`;
   const html = wrapFiaonDocument({
     documentTitle: titel,
-    subtitle: `Anlage 1 zum Angebot ${d.ref} · Fassung ${d.fassung} · ${angebotKundeName(d.kunde)}`,
+    subtitle: `Anlage 1 zum Angebot ${d.ref} · Fassung ${ANLAGE1_FASSUNG} · ${angebotKundeName(d.kunde)}`,
     bodyHtml: `<div class="gv" lang="de">${anlage1Html(d)}
     <p class="gv-leise">Dieses Blatt ist zum eigenhändigen Unterschreiben bestimmt. Das unterschriebene Original geht per Post an den Auftraggeber, ein Scan in die Akte. Die Prüfsumme oben weist nach, dass das Original genau diese Fassung der Anlage 1 trägt.</p></div>`,
     markenzeile: `${FIAON_FIRMA.name} · Company No. ${FIAON_FIRMA.companyNo} · ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}`,
@@ -322,7 +324,7 @@ export async function angebotAnlage1Pdf(d: AngebotDaten): Promise<Buffer> {
   });
   return htmlZuPdfMitFusszeile({
     html, titel,
-    fusszeile: `${d.buergin.name} · Anlage 1 zum Angebot ${d.ref} · Fassung ${d.fassung}`,
+    fusszeile: `${d.buergin.name} · Anlage 1 zum Angebot ${d.ref} · Fassung ${ANLAGE1_FASSUNG}`,
     rand: { oben: "18mm", unten: "20mm", links: "16mm", rechts: "16mm" },
   });
 }

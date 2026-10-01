@@ -58,6 +58,8 @@ type Auftrag = {
   /** 01.10.2026 (E-268): Auftrag aus einem Individualangebot — Teile, Frist, Bürgin. */
   angebot?: {
     ref: string; fristBeginn: string | null; fristEnde: string | null; buergin: string; erstattungAusgeloest: boolean;
+    /** E-271 (Kreditgarantie): erfüllt am — dann kein Garantiefall mehr. */
+    garantieErfuelltAm?: string | null;
     teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null; rechnungUrl?: string }[];
   } | null;
 };
@@ -227,7 +229,7 @@ export default function BusinessAuftrag() {
                         </li>
                       ))}
                     </ul>
-                    <p className="ga-stichtag">{a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
+                    <p className="ga-stichtag">{a.angebot.garantieErfuelltAm ? ANGEBOT_MEIN_AUFTRAG.garantieErfuellt(a.angebot.garantieErfuelltAm) : a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
                   </section>
                 )}
 
@@ -336,7 +338,8 @@ export default function BusinessAuftrag() {
                     </div>
                   </>
                 )}
-                <p className="klein">{t.seiteHinweis}</p>
+                {/* E-271: Beim Individualangebot gilt die Kreditgarantie — dort nicht der allgemeine Institut-Satz der Pakete. */}
+                <p className="klein">{a.angebot ? ANGEBOT_MEIN_AUFTRAG.seiteHinweis : t.seiteHinweis}</p>
               </aside>
             </div>
           )}

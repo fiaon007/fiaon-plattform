@@ -1024,8 +1024,8 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     titel: "Zweiter Reiter: Individualangebote.",
     text: "Ein persönliches Angebot für eine Person — Teil 1 „Gründung“ sofort fällig, Teil 2 „Kapital-Begleitung“ erst, wenn die "
       + "Gesellschaft eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist. Dazu die "
-      + "Bürgschaftszusage der Schwarzott Global LLC und eine Frist: Kommt bis dahin weder Kapital noch Karte, erstattet FIAON Teil 1 "
-      + "vollständig. „Neues Individualangebot“ holt Name, Anschrift und Geburtsdatum aus dem jüngsten Antrag der Person.",
+      + "Bürgschaftszusage der Schwarzott Global LLC und die Kreditgarantie (E-271): Erhält die Gesellschaft in der Frist nicht den "
+      + "Kreditrahmen und die Karten aus dem Angebot, erstattet FIAON alles, was der Kunde gezahlt hat. „Neues Individualangebot“ holt Name, Anschrift und Geburtsdatum aus dem jüngsten Antrag der Person.",
     tipp: "Angenommen wird nur vom Kunden über seinen Link. Öffnest du den Link aus dem Chefbüro, siehst du die Seite ohne Annahmeknopf.",
   },
   {
@@ -1038,11 +1038,13 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     tipp: "Anlage 1 wird von Hand unterschrieben (§ 766 BGB) — das Original per Post an den Kunden, erst dann das Datum eintragen. Den Link immer aus dem Reiter kopieren, nie aus Notizen — alte Links laufen nicht länger als der heutige Nachlauf.",
   },
   {
-    titel: "Nach der Annahme: Meilenstein, Frist, Erstattung.",
+    titel: "Nach der Annahme: Meilenstein, Garantie, Frist, Garantiefall.",
     text: "Mit dem Zahlungseingang von Teil 1 startet der Auftrag und die Frist läuft — Beginn und Ende stehen am Angebot, der Kunde "
       + "bekommt beides per Mail. „Meilenstein erreicht“ stellt die Rechnung über Teil 2 (Beleg in einem Satz, intern). „Frist hemmen“ "
-      + "nur nach schriftlicher Aufforderung. Ist die Frist ohne Meilenstein abgelaufen, wird „Erstattung vormerken“ frei: Teil 2 "
-      + "entfällt, Justin bekommt die dringende Aufgabe und überweist von Hand, der Kunde bekommt eine Mail.",
+      + "nur nach schriftlicher Aufforderung. Die Garantie läuft nach dem Meilenstein weiter: „Garantie erfüllt“ trägt ein, dass "
+      + "Kreditrahmen und Karten vollständig da sind (Belege intern). Ist die Frist ohne „Garantie erfüllt“ abgelaufen, wird "
+      + "„Garantiefall“ frei: alles Gezahlte zurück (Teil 1 und ein bezahlter Teil 2, eine offene Teil-2-Rechnung wird storniert), "
+      + "Justin bekommt EINE dringende Aufgabe mit dem Gesamtbetrag und überweist von Hand, der Kunde bekommt eine Mail.",
     tipp: "Ein gesperrter Knopf nennt seinen Grund direkt daneben — zum Beispiel „Die Frist läuft bis …“.",
   },
   // Angebot-Aufrufe (01.10.2026, E-268) — ohne `ziel`: Der Kasten steht nur, wenn es ein Angebot gibt.
@@ -1189,9 +1191,10 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     // 01.10.2026 (E-268) — ohne `ziel`: Der Block steht nur bei Aufträgen aus einem Individualangebot.
     titel: "Auftrag aus einem Individualangebot: Teile und Frist statt Stichtag.",
     text: "Kommt der Auftrag aus einem persönlichen Angebot, steht im Reiter „Stand“ statt des Stichtags der Block „Individualangebot“: "
-      + "Teil 1 „Gründung“ (sofort fällig), Teil 2 „Kapital-Begleitung“ (erst beim Meilenstein) und das Fristende. Kommt bis dahin weder "
-      + "Kapital noch Karte für die Gesellschaft, erstattet FIAON Teil 1 vollständig. Ist das erste Kapital ausgezahlt oder die erste Karte "
-      + "freigeschaltet, sag es der Leitung — sie trägt den Meilenstein ein, dann geht die Rechnung über Teil 2 raus.",
+      + "Teil 1 „Gründung“ (sofort fällig), Teil 2 „Kapital-Begleitung“ (erst beim Meilenstein) und das Fristende. Bis dahin "
+      + "garantiert FIAON der Gesellschaft den Kreditrahmen und die Karten aus dem Angebot; sonst erstattet FIAON alles, was der Kunde "
+      + "gezahlt hat. Ist das erste Kapital ausgezahlt oder die erste Karte freigeschaltet, sag es der Leitung — sie trägt den Meilenstein "
+      + "ein, dann geht die Rechnung über Teil 2 raus. Sind Kreditrahmen und Karten vollständig da, ebenfalls der Leitung Bescheid geben.",
     tipp: "Fehlt eine Unterlage oder Unterschrift des Kunden, fordere sie schriftlich mit mindestens sieben Tagen Frist an und gib der Leitung Bescheid — nur dann darf die Frist ruhen.",
   },
 ];

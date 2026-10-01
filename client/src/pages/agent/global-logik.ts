@@ -29,6 +29,7 @@
 import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalKatalog, globalPaket } from "@shared/fiaon-global";
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { globalWortPruefen, type GlobalWorthinweis } from "@shared/fiaon-global-wortregeln";
+import { ANGEBOT_GARANTIE_FEST, ANGEBOT_PFLICHTHINWEIS } from "@shared/fiaon-global-angebot";
 
 // ── Typen ───────────────────────────────────────────────────────────────────
 export type GlobalStatus = "offen" | "bezahlt" | "gestartet" | "abgeschlossen" | "storniert";
@@ -91,6 +92,8 @@ export interface GlobalAkte {
 export interface GlobalAngebotBlock {
   ref: string; fristBeginn: string | null; fristEnde: string | null; buergin: string; erstattungAusgeloest: boolean;
   teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null }[];
+  /** E-271 (Kreditgarantie): „Kreditrahmen von … und drei Business-Kreditkarten“ und wann sie erfüllt war. */
+  garantieZiel: string | null; garantieErfuelltAm: string | null;
 }
 
 // ── Kleine Leser: aus „irgendwas" wird ein sicherer Wert ────────────────────
@@ -199,6 +202,7 @@ function angebotLesen(w: unknown): GlobalAngebotBlock | null {
   return {
     ref, fristBeginn: isoTagAus(o.fristBeginn), fristEnde: isoTagAus(o.fristEnde), buergin: txt(o.buergin), erstattungAusgeloest: o.erstattungAusgeloest === true,
     teile: liste(o.teile).map((t) => { const x = ding(t); return { nr: zahl(x.nr, 0), titel: txt(x.titel), betragCents: zahl(x.betragCents, 0), stand: txt(x.stand), rechnungsnummer: txt(x.rechnungsnummer) || null }; }).filter((t) => t.nr > 0),
+    garantieZiel: txt(o.garantieZiel) || null, garantieErfuelltAm: isoTagAus(o.garantieErfuelltAm),
   };
 }
 
@@ -391,8 +395,19 @@ export const KUNDEN_PLATZHALTER_EN = {
   fristTitel: "e.g. Monthly review with your dedicated contact",
   fristHinweis: "e.g. Please have the documents from your tax adviser ready.",
 };
-export const etappeKundentext = (nr: number, sprache: "de" | "en"): string =>
-  (sprache === "en" ? ETAPPE_KUNDENTEXT_EN : ETAPPE_KUNDENTEXT)[Math.min(5, Math.max(0, Math.round(nr)))] ?? "";
+/**
+ * E-271 (Kreditgarantie): Beim Individualangebot ohne Institut-Satz und ohne „späteres Bankdarlehen“ — der Vertrag
+ * garantiert Kreditrahmen und Karten in der Frist. Nur deutsch (die Fassung des Angebots ist deutsch).
+ */
+export const ETAPPE_KUNDENTEXT_INDIVIDUELL: string[] = [
+  ETAPPE_KUNDENTEXT[0], ETAPPE_KUNDENTEXT[1],
+  "Ihre Gesellschaft steht. Wir bereiten jetzt den ersten Konto- und Kartenantrag vollständig vor; Sie unterschreiben, was wir Ihnen fertig zuschicken.",
+  "Die erste Karte ist da. Wir stellen die weiteren Kartenanträge in der abgestimmten Reihenfolge und bereiten jeden Antrag vollständig vor.",
+  "Wir bereiten die Anträge für den vereinbarten Kreditrahmen vor und begleiten sie bis zur Zusage — mit der Bürgin an Ihrer Seite, wo ein Institut sie verlangt.",
+  ETAPPE_KUNDENTEXT[5],
+];
+export const etappeKundentext = (nr: number, sprache: "de" | "en", individuell = false): string =>
+  (sprache === "en" ? ETAPPE_KUNDENTEXT_EN : individuell ? ETAPPE_KUNDENTEXT_INDIVIDUELL : ETAPPE_KUNDENTEXT)[Math.min(5, Math.max(0, Math.round(nr)))] ?? "";
 export const kundenPlatzhalter = (sprache: "de" | "en") => (sprache === "en" ? KUNDEN_PLATZHALTER_EN : KUNDEN_PLATZHALTER);
 
 /** Hinweise zu einem Satz, der an den Kunden geht — Hausregeln und Global-Regeln. */
@@ -404,8 +419,18 @@ export function kundentextHinweise(text: string): GlobalWorthinweis[] {
 
 // ── Der Kasten „Was ich dem Kunden NICHT zusage" ────────────────────────────
 export interface NichtZusagen { verbote: string[]; saetze: string[]; pflicht: string[]; rollen: string[] }
-export function nichtZusagen(): NichtZusagen {
+export function nichtZusagen(opts: { angebot?: boolean } = {}): NichtZusagen {
   const alle = globalLeitfaden().flatMap((b) => b.s);
+  // E-271 (Gegenprüfung, oberflaeche-1): Beim Individualangebot garantiert der Vertrag Kreditrahmen und Karten — der
+  // Kasten sagt dem Mitarbeiter genau das (statt „NIE zusagen … einen Rahmen“ und dem Institut-Satz der Pakete).
+  if (opts.angebot) {
+    return {
+      verbote: [ANGEBOT_GARANTIE_FEST.officeVerbot, ...alle.filter((s) => !s.kunde && /^Steuer und Recht/.test(s.text)).map((s) => s.text)],
+      saetze: [ANGEBOT_GARANTIE_FEST.officeSatz, ...alle.filter((s) => s.kunde && /^„Spare ich damit Steuern/.test(s.text)).map((s) => s.text)],
+      pflicht: [...ANGEBOT_PFLICHTHINWEIS],
+      rollen: [GLOBAL_ROLLEN.de.fiaon, GLOBAL_ROLLEN.de.partner, GLOBAL_ROLLEN.de.kosten],
+    };
+  }
   return {
     // Die Anweisungen an den Mitarbeiter (Du-Form) — wörtlich aus dem Leitfaden.
     verbote: alle.filter((s) => !s.kunde && /^(NIE zusagen|Steuer und Recht)/.test(s.text)).map((s) => s.text),

@@ -229,7 +229,7 @@ function AuftraegeListe() {
                     <div className="cg-knoepfe">
                       {/* Der Grund steht als TEXT da, nicht im Tooltip (AGENTS.md: ein gesperrter Knopf ohne sichtbaren Grund ist ein Rätsel). */}
                       {!z.ohneAuftrag && z.status === "offen" && z.angebotId == null && <span className="cm-klartext">Stichtag: erst nach dem Zahlungseingang — er wird im Startgespräch festgelegt.</span>}
-                      {z.angebotId != null && <span className="cm-klartext">Kein Stichtag: Das Individualangebot hat eine Frist mit Erstattungszusage.</span>}
+                      {z.angebotId != null && <span className="cm-klartext">Kein Stichtag: Das Individualangebot hat eine Frist mit Kreditgarantie (sonst alles zurück).</span>}
                       {!z.ohneAuftrag && z.angebotId == null && (z.status === "bezahlt" || z.status === "gestartet") && (
                         <button type="button" className="cg-knopf cg-knopf-stichtag"
                           onClick={() => { setOffen({ ref: z.ref, art: "stichtag" }); setWert(z.stichtag ?? ""); setMitteilen(true); }}>

@@ -24,7 +24,7 @@ import { hasAdminCode } from "./fiaon-admin-zugang";
 import {
   angebotKundenSicht, angebotAnnehmen, angebotPdfFuerToken, angebotPdfErzeugen, schalterAus, angebotListe, angebotAnlegen, angebotAendern,
   angebotZurueckziehen, angebotMeilenstein, angebotFristHemmen, angebotErstattungVormerken, angebotErstattungUeberwiesen, angebotLesen,
-  angebotPruefberichtBoniNeu, angebotVorbelegung, angebotFertigstellen, angebotNacharbeit, bestaetigungSenden,
+  angebotPruefberichtBoniNeu, angebotVorbelegung, angebotFertigstellen, angebotNacharbeit, bestaetigungSenden, angebotGarantieErfuellt,
 } from "../lib/fiaon-global-angebot";
 import { globalMitarbeiter } from "../lib/fiaon-global-auftrag";
 import { aufrufProtokollieren, aufrufClientIp, type AufrufArt, type AufrufKontext } from "../lib/fiaon-global-angebot-aufrufe";
@@ -205,6 +205,19 @@ router.post("/admin/global/angebote/:id/meilenstein", requireChef("leitung"), as
     res.json(erg);
   } catch (err) {
     console.error("[FIAON-ANGEBOT] meilenstein:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// E-271 (Kreditgarantie): „Garantie erfüllt“ — Kreditrahmen ≥ Ziel und Karten ≥ Ziel bis zum Fristende, mit Belegen.
+// Body: { erfuelltAm: "JJJJ-MM-TT", rahmenUsd: number, karten: number, beleg: string }.
+router.post("/admin/global/angebote/:id/garantie", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const erg = await angebotGarantieErfuellt(idAus(req), req.body ?? {}, await chefName(req));
+    if (!erg.ok) return res.status(erg.status).json(erg);
+    res.json(erg);
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] garantie:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

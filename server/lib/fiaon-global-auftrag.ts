@@ -1351,7 +1351,7 @@ export async function globalStichtagSetzen(ref: string, stichtagRoh: unknown, we
   const akte = await globalAkteLesen(ref);
   if (!akte) return { ok: false, error: "Zu dieser Bestellung gibt es keinen unterschriebenen Auftrag — ein Stichtag braucht einen Vertrag, auf den er sich bezieht." };
   // E-268: Das Individualangebot kennt keinen Stichtag — dort gilt die Frist mit Erstattungszusage (Ziffer 6).
-  if (istAngebotsPaket(akte.paket_key)) return { ok: false, error: "Dieser Auftrag stammt aus einem Individualangebot. Dort gibt es keinen Stichtag, sondern die Frist mit Erstattungszusage — sie steht im Reiter „Individualangebote“." };
+  if (istAngebotsPaket(akte.paket_key)) return { ok: false, error: "Dieser Auftrag stammt aus einem Individualangebot. Dort gibt es keinen Stichtag, sondern die Frist mit Kreditgarantie — sie steht im Reiter „Individualangebote“." };
   const tag = String(stichtagRoh ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || Number.isNaN(new Date(`${tag}T12:00:00Z`).getTime())) return { ok: false, error: "Bitte ein Datum wählen." };
   if (tag <= berlinToday()) return { ok: false, error: "Der Stichtag liegt in der Zukunft — er ist der Tag, bis zu dem Gesellschaft und EIN stehen sollen." };

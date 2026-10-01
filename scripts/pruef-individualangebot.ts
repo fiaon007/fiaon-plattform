@@ -59,7 +59,7 @@ const V = await import("../server/lib/fiaon-global-angebot-vertrag");
 const A = await import("../server/lib/fiaon-global-angebot");
 const { wandPruefen } = await import("../shared/fiaon-wortverbote");
 const { GLOBAL_SCHAERFER } = await import("../shared/fiaon-global-wortregeln");
-const { GLOBAL_PFLICHTHINWEIS } = await import("../shared/fiaon-global");
+const { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK } = await import("../shared/fiaon-global");
 const { globalWiderrufsbelehrung } = await import("../shared/fiaon-global-widerruf");
 const { mailRendern } = await import("../server/mail/motor");
 const { GLOBAL_ANGEBOT_VORLAGEN } = await import("../server/mail/vorlagen/global-angebot");
@@ -95,10 +95,18 @@ const BUERGIN_VOLL = { ...S.BUERGIN_VORGABE, registernummer: S.BUERGIN_NUMMER_NI
 const BUERGIN_MIT_NUMMER = { ...BUERGIN_VOLL, registernummer: "L26000000000" };
 const KUNDE = { anrede: "Herr" as const, vorname: "William", nachname: "Hildbrand", geburtsdatum: "1971-11-04", strasse: "Am Kirchwald 1b", plz: "69251", ort: "Gaiberg", land: "DE" as const, email: "w@example.de", telefon: "" };
 const D = { ref: "FIAON-IA-PRUEF1", fassung: S.ANGEBOT_FASSUNG, kunde: KUNDE, parameter: S.ANGEBOT_VORGABEN, buergin: BUERGIN_VOLL, pruefbericht: PB, gueltigBis: "2026-10-15" };
+// E-271 (Kreditgarantie): Nur diese Sätze und Etiketten dürfen „garant…“ tragen (EINE Quelle: angebotGarantie /
+// ANGEBOT_GARANTIE_FEST). Sie werden vor der Wortwand herausgenommen — jedes andere „garant…“ bleibt rot, und die
+// Hauswortwand selbst bleibt unverändert (sie schützt Mara, Office und die vier Pakete).
+const G_SAETZE = [...Object.values(S.angebotGarantie(S.ANGEBOT_VORGABEN)), ...Object.values(S.ANGEBOT_GARANTIE_FEST)].sort((a, b) => b.length - a.length);
+const ohneGarantie = (t: string) => [...S.ANGEBOT_GARANTIE_ETIKETTEN].reduce((x, e) => x.split(e).join(""), G_SAETZE.reduce((x, g) => x.split(g).join(""), t));
 /** Angebot-Aufrufe (01.10.2026): text_hash von D (ohne Häkchen), gemessen mit dem Stand vor dem Nachtrag. */
 // 01.10.2026 nachmittags bewusst geändert: der Knopf heißt „Auftrag zahlungspflichtig erteilen" (steht im Vermerk des
 // Vertrags). Gegenprobe: mit dem alten Knopf ergab derselbe Stand wieder 6d18a0f9… — sonst hat sich am Text nichts geändert.
-const PRUEFSUMME_D_VORHER = "09b00bbde7da74397f3a78465d60b26610fceaff5847267fb83217b0a6af4bd4";
+// 01.10.2026 abends erneut bewusst geändert (E-271): Kreditgarantie im Vertrag (Präambel, Ziffern 3, 5, 6, 7, 8, 9, 10, 12, 15)
+// und die neue Fassung IA-2026-10-01-KG. Davor: 09b00bbd… (Knopf), davor 6d18a0f9….
+// Danach (Gegenprüfung, ebenfalls 01.10.2026 abends): ausschließliche Folge, Definitionen, Ablehnung, Verzug Teil 2, Kündigung, Bürgschaftsfenster.
+const PRUEFSUMME_D_VORHER = "ed8f07e52b5ea07fdcef4b49d8e3b616be1e0da3222e4737b22c0fa9270bb68b";
 
 // ═══ TEIL 1 ════════════════════════════════════════════════════════════════
 titel("1. Ziffern und Vertragssprache");
@@ -117,8 +125,10 @@ titel("1. Ziffern und Vertragssprache");
   ok(mit.includes("hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt") && mit.includes("angemessenen Betrag"), "mit sofortigem Beginn: Wertersatz-Satz");
   ok(ohne.includes("frühestens jedoch mit dem Tag, an dem FIAON nach Ablauf der Widerrufsfrist") && mit.includes("Sie beginnt mit dem Tag, an dem die Vergütung für Teil 1 bei FIAON eingeht. FIAON teilt"), "Fristbeginn je Schalter (Ziffer 6 Absatz 1)");
   ok(mit.includes("699 € je Betreuungsjahr") && mit.includes("verlängert sich nicht von selbst") && ohne.includes("ist nicht Teil dieses Vertrags"), "Jahresbetreuung nur gebucht im Vertrag, sonst „nicht Teil“");
-  for (const h of GLOBAL_PFLICHTHINWEIS.de) ok(ohne.includes(h), `Pflichthinweis wörtlich: ${h.slice(0, 40)}`);
-  for (const b of ["4.650,00 €", "6.850,00 €", "11.500,00 €", "Kapitalrahmen von 800.000 US-Dollar", "Höchstbetrag von insgesamt 800.000 US-Dollar", "zwölf Wochen", "binnen vierzehn Tagen nach Fristende", "binnen sieben Tagen nach Zugang", "Eine Mindesthöhe gilt nicht"]) ok(ohne.includes(b), `Vertrag enthält „${b}“`);
+  // E-271: die Hauspflichthinweise ohne den Institut-Satz (ANGEBOT_PFLICHTHINWEIS) — sonst wörtlich.
+  for (const h of S.ANGEBOT_PFLICHTHINWEIS) ok(ohne.includes(h), `Pflichthinweis wörtlich: ${h.slice(0, 40)}`);
+  ok(S.ANGEBOT_PFLICHTHINWEIS[0] === GLOBAL_PFLICHTHINWEIS.de[0] && S.ANGEBOT_PFLICHTHINWEIS[1] === GLOBAL_PFLICHTHINWEIS.de[1] && GLOBAL_PFLICHTHINWEIS.de[2].startsWith(S.ANGEBOT_PFLICHTHINWEIS[2]) && /persönliche Haftung/.test(S.ANGEBOT_PFLICHTHINWEIS[2]) && !/Institut/.test(S.ANGEBOT_PFLICHTHINWEIS[2]), "Individual-Hinweise aus der Hausquelle — nur der Institut-Satz fehlt", S.ANGEBOT_PFLICHTHINWEIS);
+  for (const b of ["4.650,00 €", "6.850,00 €", "11.500,00 €", "Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten", "Höchstbetrag von insgesamt 800.000 US-Dollar", "zwölf Wochen", "binnen vierzehn Tagen nach Fristende", "binnen sieben Tagen nach Zugang", "Eine Mindesthöhe gilt nicht"]) ok(ohne.includes(b), `Vertrag enthält „${b}“`);
   // Nachtrag (h): erstes Jahr alles inklusive, Mitwirkung nur Unterschriften, Reisepass, wahre Angaben.
   for (const b of ["Versteckte Gebühren gibt es nicht", "im ersten Jahr nichts selbst zu veranlassen", "beschränkt sich auf drei Dinge", "Alles Weitere erledigt FIAON", "eine der drei Mitwirkungen nach Ziffer 7 Absatz 1"]) ok(ohne.includes(b), `Vertrag (Nachtrag h) enthält „${b}“`);
   ok(!ohne.includes("vollständige Unterlagen"), "Fristhemmung verlangt keine „vollständigen Unterlagen“ mehr");
@@ -141,22 +151,66 @@ titel("1. Ziffern und Vertragssprache");
   for (const zeile of wb.formular.zeilen) ok(ohne.includes(zeile), `Muster-Formular wörtlich: ${zeile.slice(0, 30)}`);
 }
 
-titel("2b. „Ihre Garantie“ statt „Geld zurück“ und „Ihre Ansprechpartner“ (Justin, 01.10.2026 nachmittags)");
+titel("2b. „Kredit garantiert“ (E-271, Justin 01.10.2026 abends) und „Ihre Ansprechpartner“");
 {
   const seite = S.angebotSeite(D);
-  const texte = [JSON.stringify(seite), ...ALLE_SCHALTER.map((s) => JSON.stringify(S.angebotBestellUebersicht(D, s)))];
+  const G = S.angebotGarantie(D.parameter);
+  const uebersichten = ALLE_SCHALTER.map((s) => S.angebotBestellUebersicht(D, s));
+  const texte = [JSON.stringify(seite), ...uebersichten.map((u) => JSON.stringify(u))];
+  // Nur die WERTE (Schlüssel wie „garantieErfuellt" sind Code, kein Kundentext).
+  const kundentexte = [...texte, JSON.stringify(Object.values({ ...S.ANGEBOT_ANNAHME, unterKnopf: S.ANGEBOT_ANNAHME.unterKnopf("4.650,00 €"), fertigSofort: S.ANGEBOT_ANNAHME.fertigSofort("x@y.de"), fertigWartet: S.ANGEBOT_ANNAHME.fertigWartet("x@y.de"), fertigAb: S.ANGEBOT_ANNAHME.fertigAb("x@y.de", "08.10.2026") })),
+    JSON.stringify(Object.values({ ...S.ANGEBOT_MEIN_AUFTRAG, frist: S.ANGEBOT_MEIN_AUFTRAG.frist("2026-10-02", "2026-12-25"), garantieErfuellt: S.ANGEBOT_MEIN_AUFTRAG.garantieErfuellt("2026-12-01") }))];
   ok(texte.every((t) => !/Geld zurück/i.test(t)), "nirgends mehr „Geld zurück“ (Seite, Bestellübersicht)");
-  // Jede Garantie heißt genau „Ihre Garantie" und sagt im selben Eintrag, WAS garantiert ist: die Gründungskosten zurück.
-  const eintraege: string[] = [seite.erstattungZeile, ...seite.schutz.map((k) => `${k.titel} ${k.text}`), ...seite.investition.tafel.map((z) => `${z.label} ${z.wert} ${z.zusatz}`),
-    ...ALLE_SCHALTER.flatMap((s) => S.angebotBestellUebersicht(D, s).map((z) => `${z.label} ${z.wert}`))];
-  const mitGarantie = eintraege.filter((e) => /garanti/i.test(e));
-  ok(mitGarantie.length === 3 + ALLE_SCHALTER.length, "„Ihre Garantie“ im Hero, unter „Ihr Schutz“, in der Tafel und in jeder Bestellübersicht", mitGarantie.length);
-  ok(mitGarantie.every((e) => (e.match(/garanti\w*/gi) ?? []).every((x) => x === "Garantie") && (e.match(/Garantie/g) ?? []).length === (e.match(/Ihre Garantie/g) ?? []).length), "nur „Ihre Garantie“ — kein „garantiert“, keine andere Garantie", mitGarantie);
-  ok(mitGarantie.every((e) => /zurück|Erstattung/.test(e) && /Kapital/.test(e) && /Karte/.test(e)), "jede Garantie sagt im selben Eintrag: ohne Kapital und Karte die Gründungskosten zurück", mitGarantie);
-  ok(JSON.stringify(seite).split("Garantie").length - 1 === (JSON.stringify(seite).match(/Ihre Garantie/g) ?? []).length, "Seite: „Garantie“ nur als „Ihre Garantie“");
-  ok(seite.erstattungZeile === "Ihre Garantie: Kommt in zwölf Wochen ab unserem Start weder Kapital noch Karte, erhalten Sie die Gründungskosten vollständig zurück.", "Hero: Garantie-Zeile wörtlich, ohne Betrag", seite.erstattungZeile);
-  ok(!/\b0\s*%|null Risiko|risikofrei|ohne Risiko/i.test(texte.join(" ")), "kein „0 %“, kein „risikofrei“ (Global-Wortregel E-188)");
-  for (const s of ALLE_SCHALTER) ok(!/Garantie|garantier/i.test(V.angebotText(D, s)), `Vertragstext ohne „Garantie“ — dort heißt es Erstattung (Schalter ${JSON.stringify(s)})`);
+  // Das Garantieziel steht überall mit denselben Zahlen aus den Parametern.
+  ok(S.angebotGarantieziel(D.parameter) === "Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten", "Garantieziel: Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten", S.angebotGarantieziel(D.parameter));
+  ok([G.vertragPraeambel, G.vertragZiel, G.seiteLead, G.siegel, G.mail].every((x) => x.includes("Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten")), "jeder Garantie-Hauptsatz nennt Kreditrahmen UND Karten");
+  ok([G.vertragPraeambel, G.seiteLead, G.siegel].every((x) => x.includes("zwölf Wochen")), "… und die Frist als Wort");
+  ok([G.vertragPraeambel, G.siegel, G.mail].every((x) => /alles, was (er an FIAON gezahlt hat|Sie uns gezahlt haben)|alles zurück/.test(x)), "… und die Folge: alles Gezahlte zurück");
+  ok(seite.erstattungZeile === G.siegel && G.siegel.startsWith("Kredit garantiert: "), "Hero-Siegel: „Kredit garantiert: …“ aus der einen Quelle", seite.erstattungZeile);
+  ok(G.vertragZiel.startsWith("FIAON garantiert dem Auftraggeber, dass die Gesellschaft") && /Kartenlimits zählen nicht zum Kreditrahmen/.test(G.vertragZiel) && /gleich auf wessen Antrag/.test(G.vertragZiel), "Ziffer 3 Abs. 1: Garantie mit Definition (Summe der Rahmen, ohne Kartenlimits, gleich auf wessen Antrag)");
+  ok(/Folge eines nicht vollständig erreichten Garantieziels ist die vollständige Erstattung nach Absatz 2/.test(G.vertragEigeneZusage), "Ziffer 6 Abs. 5: Folge begrenzt auf die vollständige Erstattung (Justins Wahl „Alles Geld zurück“)");
+  ok(!/Gründungskosten (vollständig )?zurück|weder (Kapital|die Auszahlung einer Finanzierung) noch|\bIhr Ziel\b|Ziel der Kapital-Begleitung|auf dem Weg zu einem/.test(kundentexte.join(" ")), "kein alter Auslöser, keine Ziel-Sprache mehr in Seite, Übersicht, Annahme, Mein Auftrag");
+  ok(!/entscheidet\s+(allein\s+)?(das|jedes)\s+(jeweilige\s+)?Institut/.test(kundentexte.join(" ")), "kein Institut-Satz in Seite, Übersicht, Annahme, Mein Auftrag (E-271)");
+  ok(kundentexte.every((t) => !/garant/i.test(ohneGarantie(t))), "„garant…“ nur in den freigegebenen Sätzen (Seite, Übersicht, Annahme, Mein Auftrag)", kundentexte.map((t) => ohneGarantie(t).match(/.{30}garant.{30}/i)?.[0]).filter(Boolean));
+  ok(!/\b0\s*%|null Risiko|risikofrei|ohne Risiko/i.test(kundentexte.join(" ")), "kein „0 %“, kein „risikofrei“ (Global-Wortregel E-188)");
+  for (const [i, s] of ALLE_SCHALTER.entries()) {
+    const v = V.angebotText(D, s);
+    ok(v.includes(G.vertragZiel) && v.includes(G.vertragFall) && v.includes(G.vertragEigeneZusage) && v.includes(G.vertragHaftung) && v.includes(G.vertragTeil2) && v.includes("FIAON erstattet dem Auftraggeber alles, was er an FIAON gezahlt hat — die Vergütung für Teil 1 (4.650,00 €) und, soweit gezahlt, die Vergütung für Teil 2 (6.850,00 €)"), `Vertrag: Garantie wörtlich aus der Quelle, Erstattung beider Teile (Schalter ${JSON.stringify(s)})`);
+    ok(!/garant/i.test(ohneGarantie(v)), `Vertrag: keine weitere Garantie-Formulierung (Schalter ${JSON.stringify(s)})`, ohneGarantie(v).match(/.{40}garant.{40}/i)?.[0]);
+    ok(!/ein bestimmtes Ergebnis ist nicht geschuldet|nicht die Entscheidung eines Instituts|Für Entscheidungen Dritter|längstens zwölf Monate nach dem Kapitalereignis/.test(v), `Vertrag: keine alte Ziel-/Haftungsklausel (Schalter ${JSON.stringify(s)})`);
+    // Der Institut-Satz bleibt NUR in Anlage 1 — als Pflicht der Bürgin (ihr Wortlaut trägt die eigenhändige Unterschrift).
+    const inst = v.match(/entscheidet allein das (jeweilige )?Institut/g) ?? [];
+    ok(inst.length === 1 && v.includes("Die Bürgin schuldet die Abgabe der Bürgschaftserklärung, nicht die Finanzierung."), `Institut-Satz nur noch in Anlage 1 (Pflicht der Bürgin) (Schalter ${JSON.stringify(s)})`, inst.length);
+    const u = uebersichten[i].find((z) => z.label === "Ihre Garantie");
+    ok(!!u?.kern && /800\.000 US-Dollar/.test(u.wert) && /drei Business-Kreditkarten/.test(u.wert) && /alles Gezahlte zurück/.test(u.wert) && /6\.850,00 €/.test(u.wert) && /offene Rechnung über Teil 2 entfällt/.test(u.wert), `Übersicht: „Ihre Garantie“ als Kernzeile mit Ziel und Folge (Schalter ${JSON.stringify(s)})`, u);
+    ok(uebersichten[i].find((z) => z.label === "Leistung")!.wert.includes(G.uebersichtLeistung), `Übersicht: Garantie in der Leistung (§ 312j Abs. 2) (Schalter ${JSON.stringify(s)})`);
+  }
+  ok(S.ANGEBOT_ZIFFER_TITEL[2] === G.vertragTitel3 && S.ANGEBOT_ZIFFER_TITEL[5] === G.vertragTitel6 && /Kreditgarantie/.test(G.vertragTitel3) && /Garantie/.test(G.vertragTitel6), "Ziffer 3 und 6 tragen die Garantie im Titel");
+  ok(S.angebotVertragUnterzeile(D).includes("Kredit garantiert"), "Unterzeile: „Kredit garantiert“ (der Titel bleibt — er ist Teil der Anlage 1)");
+  // Anlage 1 bleibt: ihr eigener Fassungsstand, Prüfsumme unabhängig von der Vertragsfassung.
+  ok(S.ANGEBOT_FASSUNG === "IA-2026-10-01-KG" && (S.ANGEBOT_FASSUNGEN as readonly string[]).includes("IA-2026-10-01") && S.ANLAGE1_FASSUNG === "IA-2026-10-01", "Fassung IA-2026-10-01-KG; Anlage 1 bleibt IA-2026-10-01");
+  ok(V.buergschaftPruefsumme(D) === V.buergschaftPruefsumme({ ...D, fassung: "IA-2026-10-01" }), "Anlage 1: Prüfsumme hängt nicht an der Vertragsfassung — ein unterschriebenes Original bleibt gültig");
+  // Gegenproben: die Hausregel bleibt scharf, die übrigen Global-Texte bleiben ohne Garantie.
+  ok(wandPruefen("Ihr Kredit ist garantiert.").length >= 1 && wandPruefen("Wir garantieren Ihnen die Karte.").length >= 1, "Hauswortwand unverändert: „garantiert/garantieren“ bleibt verboten");
+  ok(/garant/i.test(ohneGarantie("Ihr Kredit ist garantiert.")), "ein nicht freigegebener Garantie-Satz bleibt rot");
+  ok(!/garant/i.test(JSON.stringify([GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK])), "Haus-Pflichthinweise, Kapital-frei- und Geld-zurück-Bausteine ohne Garantie (die vier Pakete bleiben ohne)");
+  // Gegenprüfung (vertrag-1/2/4/5/6): ausschließliche Folge, Ablehnung durch den Kunden, Bürgschaftsfenster, Definitionen, Kündigung.
+  ok(/ausschließlich die Rechte nach Absatz 2/.test(G.vertragEigeneZusage) && /Schadensersatz statt der Leistung/.test(G.vertragEigeneZusage) && /vorbehaltlich Absatz 4/.test(G.vertragEigeneZusage), "Ziffer 6 Abs. 5: ausschließlich Erstattung, weitergehende Ansprüche ausgeschlossen, vorbehaltlich Abs. 4");
+  ok(!/steht FIAON nach der Garantie|steht für das Garantieziel/.test(V.angebotText(D, AUS)) && V.angebotText(D, AUS).includes("Die Erstattung nach Ziffer 6 Absatz 2 bleibt von dieser Ziffer unberührt."), "Haftung: kein offenes „steht ein“; Ziffer 12 nimmt nur die Erstattung aus");
+  ok(/Lehnt der Auftraggeber eine von einem Institut verlangte Erklärung/.test(G.vertragZiel) && /als erhalten/.test(G.vertragZiel) && /Charge-Karten zählen/.test(G.vertragZiel) && /Referenzkurs der Europäischen Zentralbank/.test(G.vertragZiel) && /nicht mit FIAON oder der Bürgin verbunden/.test(G.vertragZiel), "Ziffer 3 Abs. 1: Definitionen (Zusage in Textform, Kurs, Kartenart, Institute) und Ablehnung durch den Kunden");
+  ok(V.angebotText(D, AUS).includes(G.vertragTeil2Verzug) && /fällig gewordene Vergütung für Teil 2 bleibt geschuldet/.test(G.vertragKuendigung), "Ziffer 6 Abs. 3: Frist ruht bei Verzug Teil 2; Ziffer 10 Abs. 2: fälliger Teil 2 bleibt bei Kündigung geschuldet");
+  ok(/Für Anforderungen nach Anlage 1 Ziffer 7 endet die Kapital-Begleitung jedoch erst/.test(G.vertragLaufzeit) && /zwölf Monate nach dem Kapitalereignis/.test(G.vertragLaufzeit), "Ziffer 10 Abs. 1: Bürgschaftsfenster wie unterschrieben (Anlage 1 Ziffer 7)");
+  ok(!/Sicherheiten/.test(G.seiteLead), "Garantie-Lead ohne „ohne Sicherheiten“ (persönliche Haftung bei Karten bleibt möglich)");
+  // Etappen und Etappen-Mail beim Individualangebot (vertrag-7, oberflaeche-2) — ohne Wartezeit-, Historie- und Institut-Sätze.
+  const { globalEtappeText, GLOBAL_ETAPPE_FUSSNOTE } = await import("../shared/fiaon-global-bereich");
+  ok([2, 3, 4].every((n) => !/einige Monate|gewachsener Historie|entscheidet|in Frage kommen/.test(globalEtappeText(n, "de", true).text)) && [2, 3, 4].every((n) => globalEtappeText(n, "de", true).titel === globalEtappeText(n, "de", false).titel), "Etappen 2–4 beim Individualangebot ohne „einige Monate/Historie/entscheidet“, Titel wie bei den Paketen");
+  ok(/einige Monate/.test(globalEtappeText(3, "de", false).text) && GLOBAL_ETAPPE_FUSSNOTE.de.includes("entscheidet allein das jeweilige Institut") && GLOBAL_ETAPPE_FUSSNOTE.individuell === S.ANGEBOT_GARANTIE_FEST.fussnote, "Pakete unverändert; Fußnote der Etappen-Mail: Pakete Institut-Satz, Angebot Garantie");
+  ok(fs.readFileSync(new URL("../server/mail/vorlagen/global-bereich.ts", import.meta.url), "utf8").includes('fussnote: "{{params.fussnote_text}}"') && fs.readFileSync(new URL("../server/lib/fiaon-global-bereich.ts", import.meta.url), "utf8").includes("GLOBAL_ETAPPE_FUSSNOTE.individuell"), "Etappen-Mail: Fußnote vom Server (Paket oder Garantie)");
+  // Office-Kasten und Seite: die Garantie-Sätze kommen aus der Quelle (oberflaeche-1, oberflaeche-5).
+  const seiteQuelle = fs.readFileSync(new URL("../client/src/pages/business-angebot.tsx", import.meta.url), "utf8");
+  ok(!/garant/i.test(ohneGarantie(seiteQuelle.replace(/\/\/[^\n]*/g, "").replace(/ANGEBOT_GARANTIE_FEST/g, "").replace(/gia-garantie/g, ""))), "business-angebot.tsx: kein getipptes „garant…“ (Meta-Beschreibung aus der Quelle)");
+  const logikQuelle = fs.readFileSync(new URL("../client/src/pages/agent/global-logik.ts", import.meta.url), "utf8");
+  ok(/nichtZusagen\(opts: \{ angebot\?: boolean \}/.test(logikQuelle) && /ANGEBOT_GARANTIE_FEST\.officeVerbot/.test(logikQuelle) && /pflicht: \[\.\.\.ANGEBOT_PFLICHTHINWEIS\]/.test(logikQuelle), "Office: Kasten „NICHT zusagen“ beim Individualangebot mit der Garantie und den Angebots-Pflichthinweisen");
   // Ansprechpartner: drei, in Justins Reihenfolge, Daten wortgleich mit /team (Team.tsx).
   const AP = S.ANGEBOT_ANSPRECHPARTNER;
   ok(AP.map((p) => p.name).join("|") === "Florentine Lombardi|Daniel Stripling|Justin Schwarzott", "Ansprechpartner: Lombardi, Stripling, Schwarzott — in dieser Reihenfolge");
@@ -192,7 +246,7 @@ titel("2c. Annahme-Bereich: „Auftrag zahlungspflichtig erteilen“, Startwahl,
   ok(!V.angebotText(D, { sofortBeginn: true, jahresbetreuung: false }).includes("Starttag"), "„Sofort starten“: kein Starttag im Vertrag");
   // Übersicht: Kernzeilen immer sichtbar (§ 312j Abs. 2), der Rest klappbar
   const ue = S.angebotBestellUebersicht(D, { sofortBeginn: true, jahresbetreuung: true, startAm: "2026-10-08" });
-  ok(ue.filter((z) => z.kern).map((z) => z.label).join("|") === "Leistung|Teil 1 · Gründung|Teil 2 · Kapital-Begleitung|Gesamtpreis|Laufzeit|Ab dem zweiten Jahr|Beginn", "Kernzeilen: Leistung, beide Teile, Gesamtpreis, Laufzeit, gebuchte Jahresbetreuung, Beginn", ue.filter((z) => z.kern).map((z) => z.label));
+  ok(ue.filter((z) => z.kern).map((z) => z.label).join("|") === "Leistung|Teil 1 · Gründung|Teil 2 · Kapital-Begleitung|Gesamtpreis|Ihre Garantie|Laufzeit|Ab dem zweiten Jahr|Beginn", "Kernzeilen: Leistung, beide Teile, Gesamtpreis, Garantie (E-271), Laufzeit, gebuchte Jahresbetreuung, Beginn", ue.filter((z) => z.kern).map((z) => z.label));
   ok(!S.angebotBestellUebersicht(D, AUS).find((z) => z.label === "Ab dem zweiten Jahr")?.kern, "nicht gebuchte Jahresbetreuung klappt mit ein");
   ok(ue.find((z) => z.label === "Beginn")?.wert.startsWith("am 08.10.2026, frühestens mit Ihrem Zahlungseingang"), "Übersicht: Beginn mit Starttag");
   ok(S.angebotBestellUebersicht(D, AUS).filter((z) => !z.kern).length >= 5, "mindestens fünf Einzelheiten zum Aufklappen");
@@ -216,9 +270,9 @@ titel("2. Wortwand und schärfere Global-Regeln");
   // Das gesetzliche Muster bleibt wörtlich („bis zu dem Zeitpunkt") — es wird vor den Global-Regeln herausgenommen.
   const ohneMuster = (t: string) => wb.abschnitte.flatMap((a) => a.absaetze).reduce((s, x) => s.split(x).join(""), t);
   const pruefe = (name: string, text: string, erlaubteBisZu: number, gedeckt: string[] = []) => {
-    // „Ihre Garantie" (Justin, 01.10.2026) ist die EINE erlaubte Garantie — für die Erstattung der Gründungskosten, die FIAON
-    // selbst in der Hand hat. Sie wird vor der Wortwand herausgenommen; dass sie nur dort steht, prüft Abschnitt 2b.
-    const w = wandPruefen(text.split("Ihre Garantie").join("Ihre Erstattung"), gedeckt);
+    // E-271: Die freigegebenen Garantie-Sätze (angebotGarantie / ANGEBOT_GARANTIE_FEST) und Etiketten werden vor der
+    // Wortwand herausgenommen; dass „garant…“ nur dort steht, prüft Abschnitt 2b.
+    const w = wandPruefen(ohneGarantie(text), gedeckt);
     ok(w.length === 0, `${name}: Wortwand`, w.map((x) => `${x.treffer} (${x.hinweis.slice(0, 40)})`));
     const rest = ohneMuster(text);
     for (const r of GLOBAL_SCHAERFER) {
@@ -228,7 +282,7 @@ titel("2. Wortwand und schärfere Global-Regeln");
     }
     const ziffer = rest.match(/\b\d+\s*(Wochen|Tage|Tagen|Werktage|Werktagen|Monate|Monaten)\b/g) ?? [];
     ok(ziffer.length === 0, `${name}: keine Frist mit Ziffer`, ziffer);
-    const heikel = rest.match(/\b(vermittel\w*|beschaff\w*|Zusicherung|garantiert?)\b/gi) ?? [];
+    const heikel = ohneGarantie(rest).match(/\b(vermittel\w*|beschaff\w*|Zusicherung|garantiert?)\b/gi) ?? [];
     ok(heikel.length === 0, `${name}: kein „vermitteln/beschaffen/garantiert“`, heikel);
     ok(!/\bbis zu\b/i.test(rest), `${name}: kein „bis zu“ (Nachtrag b)`);
   };
@@ -242,7 +296,8 @@ titel("2. Wortwand und schärfere Global-Regeln");
   const hero = [seite.titel, seite.lead, ...seite.nutzen].join("\n");
   ok(!/\d\.\d{3},\d{2} €|\d\.\d{3} €/.test(hero), "Hero/Nutzen: keine Beträge", hero);
   ok(!/Institut/.test(hero), "Hero/Nutzen: kein Institut-Satz", hero);
-  ok(seite.nutzen.some((n) => /^Ihr Ziel: /.test(n) && n.includes("Kapitalrahmen von 800.000 $")) && seite.nutzen.some((n) => /^Ihr Ziel: drei Business-Kreditkarten/.test(n)) && seite.lead.includes("auf dem Weg zu einem Kapitalrahmen von 800.000 US-Dollar"), "Hero: Kapitalrahmen und Karten als feste Zahl, als ZIEL gekennzeichnet (Gegenprüfung)");
+  // E-271: Kreditrahmen und Karten sind GARANTIERT — die Nutzenliste und der Lead sagen das aus der einen Quelle.
+  ok(seite.nutzen.includes(S.angebotGarantie(D.parameter).nutzenKredit) && seite.nutzen.includes(S.angebotGarantie(D.parameter).nutzenKarten) && seite.lead.includes(S.angebotGarantie(D.parameter).seiteLead) && !seite.nutzen.some((n) => /^Ihr Ziel/.test(n)), "Hero: „Garantiert: …“ für Kreditrahmen und Karten (E-271)", seite.nutzen);
   ok(!/kümmern sich um (gar )?nichts/.test(JSON.stringify(seite)) && !/alle Kosten Ihrer Gesellschaft/.test(JSON.stringify(seite)), "Seite: kein „um nichts kümmern“, kein „alle Kosten Ihrer Gesellschaft“ (Gegenprüfung)");
   ok(seite.nutzen.some((n) => /Bürgin/.test(n)) && seite.nutzen.some((n) => /Keine Sicherheiten/.test(n)) && seite.nutzen.some((n) => /Team vor Ort/.test(n)), "Nutzenliste: Team, Bürgin, keine Sicherheiten");
   // Nachtrag (i): Begrüßung aus dem Angebot, nie hart codiert.
@@ -254,13 +309,13 @@ titel("2. Wortwand und schärfere Global-Regeln");
   // Endabnahme 01.10.2026: kein „nur" (abschließende Zusage), alle vier Posten aus Ziffer 5 Absatz 5 — und die Überschriften als Ziel.
   const ausnahmen = seite.bekommen[0].fein;
   ok(!/Nicht enthalten sind nur/.test(ausnahmen) && /Umsatzsteuer-Registrierungen in einzelnen US-Bundesstaaten/.test(ausnahmen) && /Steuererklärungen zu Hause/.test(ausnahmen) && /Gebühren, die ein Institut selbst verlangt/.test(ausnahmen) && /Ziffer 5 Absatz 5/.test(ausnahmen), "„Was Sie bekommen“: Ausnahmen ohne „nur“, vier Posten, Verweis auf Ziffer 5 Absatz 5 (Endabnahme)", ausnahmen);
-  ok(seite.bekommen.some((b) => b.titel === "Ihr Ziel: Kapitalrahmen von 800.000 US-Dollar") && seite.bekommen.some((b) => b.titel === "Ihr Ziel: drei Business-Kreditkarten") && !seite.bekommen.some((b) => /^(Kapitalrahmen|Drei Business)/.test(b.titel)), "„Was Sie bekommen“: Kapitalrahmen und Karten auch in der Überschrift als Ziel (Endabnahme)", seite.bekommen.map((b) => b.titel));
+  ok(seite.bekommen.some((b) => b.titel === "Garantiert: Kreditrahmen von 800.000 US-Dollar") && seite.bekommen.some((b) => b.titel === "Garantiert: drei Business-Kreditkarten") && !/Ihr Ziel|Ziel der Kapital-Begleitung|Ziel sind/.test(JSON.stringify(seite.bekommen)), "„Was Sie bekommen“: Kreditrahmen und Karten als „Garantiert: …“ (E-271)", seite.bekommen.map((b) => b.titel));
   ok(!/\d\.\d{3},\d{2} €/.test(JSON.stringify([seite.bekommen, seite.ablauf, seite.schutz])), "Abschnitte 2–4 ohne Beträge");
-  ok(seite.schutz.some((x) => /entscheidet das jeweilige Institut/.test(x.fein)) && seite.hinweise.some((h) => /entscheidet allein das jeweilige Institut/.test(h)), "Institut-Satz unter „Ihr Schutz“ und in den Pflichthinweisen");
-  ok(seite.ablauf.some((x) => /entscheidet das jeweilige Institut/.test(x.text)) && seite.investition.tafel.some((z) => /entscheidet das jeweilige Institut/.test(z.zusatz)), "Institut-Satz auch in „So läuft es“ und „Ihre Investition“ (Gegenprüfung)");
+  ok(!/entscheidet\s+(allein\s+)?(das|jedes)\s+(jeweilige\s+)?Institut/.test(JSON.stringify([seite.schutz, seite.ablauf, seite.investition, seite.hinweise])), "kein Institut-Satz unter „Ihr Schutz“, „So läuft es“, „Ihre Investition“ und in den Hinweisen (E-271)");
+  ok(seite.schutz.some((x) => x.titel === S.angebotGarantie(D.parameter).schutzTitel) && seite.ablauf.some((x) => x.titel === S.angebotGarantie(D.parameter).ablaufTitel), "„Ihr Schutz“ und „So läuft es“ tragen die Garantie");
   ok(seite.ablauf.length === 4 && seite.ablauf.every((x) => x.wann && x.titel && x.text) && /zwölf Wochen ab unserem Start/.test(seite.ablaufZeitplan), "„So läuft es“: vier Schritte mit Zeitplan ab unserem Start");
   // Gegenprüfung: Frist ab unserem Start (nicht „ab Ihrer Zahlung"), „gleich in welcher Höhe" auch in 3 und 5, Erstattung entfällt auch bei eigenem Antrag.
-  ok(!/Wochen ab Ihrer Zahlung/.test(JSON.stringify(seite)) && seite.schutz.some((x) => /ab unserem Start \(mit sofortigem Beginn: ab Ihrem Zahlungseingang\)/.test(x.text) && /auch nicht auf einen eigenen Antrag/.test(x.text)), "Seite: Frist ab unserem Start, Erstattung entfällt auch bei eigenem Antrag");
+  ok(!/Wochen ab Ihrer Zahlung/.test(JSON.stringify(seite)) && seite.schutz.some((x) => /ab unserem Start \(mit sofortigem Beginn: ab Ihrem Zahlungseingang\)/.test(x.text) && /gleich, ob auf unseren oder einen eigenen Antrag/.test(x.text) && /alles, was Sie uns gezahlt haben/.test(x.text) && /offene Rechnung über die Kapital-Begleitung entfällt/.test(x.text)), "Seite: Frist ab unserem Start; Garantie zählt auch eigene Anträge; Folge alles Gezahlte zurück (E-271)");
   ok(seite.ablauf[3].text.includes("gleich in welcher Höhe") && seite.investition.tafel.some((z) => z.zusatz.includes("gleich in welcher Höhe")) && seite.investition.tafel.some((z) => /ab unserem Start/.test(z.zusatz)), "„gleich in welcher Höhe“ in Ablauf und Tafel; Geld zurück ab unserem Start");
   ok(seite.schutz.some((x) => /Adressnachweis/.test(x.fein)) && seite.lead.includes("Sie unterschreiben, wir erledigen den Rest"), "Seite: Mitwirkung ehrlich (Reisepass, ggf. Adressnachweis), kein „um nichts kümmern“");
   for (const s of ALLE_SCHALTER) pruefe(`Bestellübersicht ${JSON.stringify(s)}`, JSON.stringify(S.angebotBestellUebersicht(D, s)), 0);
@@ -349,14 +404,43 @@ titel("6. Frist, Meilenstein, Erstattung — Regeln");
   ok(!A.meilensteinPruefen({ ...lage, teil1Bezahlt: false }, gut).ok, "Meilenstein: nicht vor Zahlung Teil 1");
   ok(!A.meilensteinPruefen(lage, { ...gut, datum: "2026-11-05" }).ok, "Meilenstein: nicht in der Zukunft");
   ok(!A.meilensteinPruefen({ ...lage, heute: "2027-01-05" }, { ...gut, datum: "2026-12-30" }).ok, "Meilenstein: nicht nach Fristende");
-  ok(A.meilensteinPruefen({ ...lage, heute: "2027-01-05" }, gut).ok, "Meilenstein vor Fristende darf auch danach eingetragen werden");
+  // E-271 (Gegenprüfung, logik-4): Nach dem Fristende nur mit erfüllter Garantie — sonst gilt der Garantiefall.
+  ok(!A.meilensteinPruefen({ ...lage, heute: "2027-01-05" }, gut).ok && /Garantie erfüllt/.test((A.meilensteinPruefen({ ...lage, heute: "2027-01-05" }, gut) as any).error), "Meilenstein nach Fristende ohne erfüllte Garantie: abgelehnt (Garantiefall)");
+  ok(A.meilensteinPruefen({ ...lage, heute: "2027-01-05", garantieErfuelltAm: "2026-12-20" }, gut).ok, "Meilenstein vor Fristende darf nach Fristende eingetragen werden, wenn die Garantie erfüllt ist");
   ok(!A.meilensteinPruefen(lage, { ...gut, eingetragenAm: "2026-10-31" }).ok, "Meilenstein: Gesellschaft muss vorher eingetragen sein");
   ok(!A.meilensteinPruefen(lage, { ...gut, beleg: "kurz" }).ok, "Meilenstein: Beleg Pflicht");
   ok(!A.meilensteinPruefen({ ...lage, teil2: { bestell_ref: "X" } }, gut).ok, "Meilenstein: nur einmal");
   const el = { status: "angenommen", teil1Bezahlt: true, teil2: { bestell_ref: null }, fristEnde: "2026-12-25", heute: "2026-12-25", schon: false };
   ok(!A.erstattungPruefen(el).ok, "Erstattung: nicht am letzten Tag der Frist");
   ok(A.erstattungPruefen({ ...el, heute: "2026-12-26" }).ok, "Erstattung: ab dem Tag nach Fristende");
-  ok(!A.erstattungPruefen({ ...el, heute: "2026-12-26", teil2: { bestell_ref: "X" } }).ok, "Erstattung: nicht nach Meilenstein");
+  // E-271: Die Garantie gilt auch nach dem Meilenstein — erst „Garantie erfüllt“ schließt den Garantiefall aus.
+  ok(A.erstattungPruefen({ ...el, heute: "2026-12-26", teil2: { bestell_ref: "X" } }).ok, "Garantiefall: auch nach dem Meilenstein (Kreditrahmen + Karten nicht vollständig)");
+  ok(!A.erstattungPruefen({ ...el, heute: "2026-12-26", teil2: { bestell_ref: "X" }, garantieErfuelltAm: "2026-12-20" }).ok, "kein Garantiefall, wenn die Garantie erfüllt ist");
+  const gf = (z: string | null, ref: string | null = "R2") => A.garantiefallRechnen({ teil1Cents: 465000, teil2Cents: 685000, teil2BestellRef: ref, teil2Zahlung: z });
+  ok(JSON.stringify(gf(null, null)) === JSON.stringify({ teil2Fall: "nicht berechnet", summeCents: 465000 }) && JSON.stringify(gf("pending_payment")) === JSON.stringify({ teil2Fall: "offen → storniert", summeCents: 465000 })
+    && JSON.stringify(gf("paid")) === JSON.stringify({ teil2Fall: "bezahlt → erstattet", summeCents: 1150000 }) && gf("cancelled").teil2Fall === "schon storniert", "Garantiefall: Betrag = Teil 1 + bezahlter Teil 2; offene Teil-2-Rechnung wird storniert");
+  const gl = { status: "angenommen", teil1Bezahlt: true, teil2: { bestell_ref: "R2", meilenstein_am: "2026-11-02" }, fristEnde: "2026-12-25", heute: "2026-12-01", erstattungAusgeloest: false, erfuelltAm: null, ziel: { rahmenUsd: 800000, karten: 3 } };
+  const gg = { erfuelltAm: "2026-11-30", rahmenUsd: 800000, karten: 3, beleg: "Kreditzusagen und drei Kartenbestätigungen liegen im Dokumentenraum." };
+  ok(A.garantiePruefen(gl, gg).ok, "Garantie erfüllt: Rahmen und Karten erreicht, vor dem Fristende, mit Beleg");
+  ok(!A.garantiePruefen(gl, { ...gg, rahmenUsd: 799999 }).ok && /800\.000 US-Dollar/.test((A.garantiePruefen(gl, { ...gg, rahmenUsd: 799999 }) as any).error), "Garantie erfüllt: Kreditrahmen unter dem Ziel → abgelehnt");
+  ok(!A.garantiePruefen(gl, { ...gg, karten: 2 }).ok, "Garantie erfüllt: zu wenig Karten → abgelehnt");
+  ok(!A.garantiePruefen({ ...gl, heute: "2027-01-05" }, { ...gg, erfuelltAm: "2026-12-30" }).ok, "Garantie erfüllt: nach dem Fristende → Garantiefall");
+  // Gegenprüfung (vertrag-8): Das Ziel kann über eigene Anträge erreicht sein, ohne dass Teil 2 fällig wurde.
+  ok(A.garantiePruefen({ ...gl, teil2: { bestell_ref: null } }, gg).ok, "Garantie erfüllt: auch ohne Meilenstein (Ziel über eigene Anträge)");
+  ok(!A.garantiePruefen(gl, { ...gg, erfuelltAm: "2026-11-01" }).ok, "Garantie erfüllt: nicht vor einem eingetragenen Meilenstein");
+  // Gegenprüfung (logik-2): streng — keine Nachkommastellen, keine halben Karten.
+  for (const falsch of ["750.000,00", "799999.99", "800.000,50", "8e5", "", "abc"]) ok(!A.garantiePruefen(gl, { ...gg, rahmenUsd: falsch }).ok, `Kreditrahmen „${falsch}“ abgelehnt`);
+  ok(!A.garantiePruefen(gl, { ...gg, rahmenUsd: 799999.99 }).ok, "Kreditrahmen 799999.99 (Zahl) abgelehnt");
+  ok(A.garantiePruefen(gl, { ...gg, rahmenUsd: "800.000" }).ok && A.garantiePruefen(gl, { ...gg, rahmenUsd: "1 200 000" }).ok && A.garantiePruefen(gl, { ...gg, rahmenUsd: 800000 }).ok, "Kreditrahmen „800.000“, „1 200 000“ und 800000 angenommen");
+  ok(!A.garantiePruefen(gl, { ...gg, karten: "2.5" }).ok && !A.garantiePruefen(gl, { ...gg, karten: 2.5 }).ok, "halbe Karten abgelehnt");
+  // Gegenprüfung (logik-3, vertrag-3): stornierte Akte und offene, fällige Teil-2-Rechnung sperren den Garantiefall.
+  ok(!A.erstattungPruefen({ ...el, heute: "2026-12-26", akteStatus: "storniert" }).ok, "kein Garantiefall nach Kündigung/Widerruf (Akte storniert)");
+  ok(!A.erstattungPruefen({ ...el, heute: "2026-12-26", teil2OffenSeit: "2026-12-10" }).ok, "kein Garantiefall, solange Teil 2 fällig und offen ist (Frist ruht)");
+  ok(A.teil2OffenSeit({ payment_status: "pending_payment", payment_due_date: "2026-12-10" }, "2026-12-26") === "2026-12-10" && A.teil2OffenSeit({ payment_status: "paid", payment_due_date: "2026-12-10" }, "2026-12-26") === null
+    && A.teil2OffenSeit({ payment_status: "pending_payment", payment_due_date: "2026-12-30" }, "2026-12-26") === null && A.teil2OffenSeit(null, "2026-12-26") === null, "Verzug Teil 2: nur fällig UND offen");
+  ok(A.garantiefallRechnen({ teil1Cents: 465000, teil2Cents: 685000, teil2BestellRef: "R2", teil2Zahlung: "pending" }).teil2Fall === "nicht berechnet", "gebundene, nie berechnete Teil-2-Zeile (pending) gilt als nicht berechnet");
+  ok(!A.garantiePruefen({ ...gl, erstattungAusgeloest: true }, gg).ok && !A.garantiePruefen({ ...gl, erfuelltAm: "2026-11-30" }, gg).ok, "Garantie erfüllt: nicht nach dem Garantiefall, nicht zweimal");
+  ok(!A.garantiePruefen(gl, { ...gg, beleg: "kurz" }).ok, "Garantie erfüllt: Beleg Pflicht");
   ok(!A.erstattungPruefen({ ...el, heute: "2026-12-26", teil1Bezahlt: false }).ok, "Erstattung: nur wenn Teil 1 bezahlt");
   ok(!A.erstattungPruefen({ ...el, heute: "2026-12-26", schon: true }).ok, "Erstattung: nur einmal");
   // Gegenprüfung 01.10.2026: Die Ruhezeit wird gerechnet (Ziffer 6 Absatz 3) — Aufforderung + sieben Tage bis zur Mitwirkung.
@@ -389,7 +473,7 @@ titel("7. Token, Parameter, Katalog");
   ok(S.angebotRechnungsText({ angebotRef: "FIAON-IA-X", nr: 1, auftragRef: "R1" }).beschreibung.includes("Teil 1 von 2") && S.angebotRechnungsText({ angebotRef: "FIAON-IA-X", nr: 2, auftragRef: "R1", meilensteinArt: "karte", meilensteinAm: "2026-11-02" }).beschreibung.includes("Teil 2 von 2"), "Rechnungstext je Teil");
 }
 
-titel("8. Die fünf Mails");
+titel("8. Die sechs Mails");
 {
   const nutzlast: Record<string, string> = {
     email: "w@example.de", sprache: "de", anrede_zeile: "Guten Tag Herr Hildbrand", firma: "William Hildbrand", paket: "FIAON Global – Individualangebot, Teil 1: Gründung",
@@ -400,19 +484,38 @@ titel("8. Die fünf Mails");
     frist_ende_text: "25.12.2026", buergin: "Schwarzott Global LLC", ereignis_text: "die erste Business-Kreditkarte für Ihre Gesellschaft freigeschaltet",
     ereignis_am_text: "02.11.2026", erstattung_bis_text: "08.01.2027",
     hemmung_von_text: "08.11.2026", hemmung_bis_text: "11.11.2026", hemmung_grund_text: "der Reisepass für die Identifizierung lag trotz Aufforderung nicht vor",
+    // E-271: Kreditgarantie — dieselben Felder wie angebotMailZusatz.
+    kreditrahmen_text: "800.000 US-Dollar", karten_text: "drei Business-Kreditkarten", garantie_text: S.angebotGarantie(D.parameter).mail,
+    erstattung_betrag_text: "11.500,00 €", teil2_satz_text: "Auch Ihre Zahlung für Teil 2 über 6.850,00 € erstatten wir.",
+    teil2_folge_text: "Wir begleiten Ihre Gesellschaft weiter, bis der Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten vollständig da sind (Ziffer 3 Absatz 1). Erreicht sie das bis zum 25.12.2026 nicht, erhalten Sie auch diese Zahlung zurück (Ziffer 6).",
   };
+  {
+    const z = A.angebotMailZusatz({ frist_ende: "2026-12-25", frist_beginn: "2026-10-02" }, D as any);
+    ok(z.kreditrahmen_text === nutzlast.kreditrahmen_text && z.karten_text === nutzlast.karten_text && z.garantie_text === nutzlast.garantie_text && z.teil2_folge_text === nutzlast.teil2_folge_text, "Mail-Felder der Garantie kommen vom Server wie im Prüfstand", z);
+    const ze = A.angebotMailZusatz({ frist_ende: "2026-12-25", garantie_erfuellt_am: "2026-12-01" }, D as any);
+    ok(ze.teil2_folge_text === S.ANGEBOT_GARANTIE_FEST.mailErfuellt, "nach erfüllter Garantie: Teil-2-Mails ohne Erstattungs-Satz (logik-5)", ze.teil2_folge_text);
+    for (const ev of ["global_angebot_teil2", "global_angebot_teil2_bezahlt"]) ok(mailRendern(ev, { ...nutzlast, teil2_folge_text: ze.teil2_folge_text })!.text.includes(S.ANGEBOT_GARANTIE_FEST.mailErfuellt), `${ev}: nach erfüllter Garantie der Erfüllt-Satz`);
+  }
   ok(Object.keys(GLOBAL_ANGEBOT_VORLAGEN).length === 6 && "global_angebot_hemmung" in GLOBAL_ANGEBOT_VORLAGEN, "sechs Vorlagen — mit der Mitteilung der Ruhezeit (Textform, Ziffer 6)");
   for (const ev of Object.keys(GLOBAL_ANGEBOT_VORLAGEN)) {
     const m = mailRendern(ev, nutzlast);
     ok(m && m.fehlend.length === 0, `${ev}: kein Platzhalter ohne Wert`, m?.fehlend);
     const text = (m?.text ?? "");
-    const w = wandPruefen(text, ["aufgabe_an_betreuer", "rechnung_anhaengen"]);
+    const w = wandPruefen(ohneGarantie(text), ["aufgabe_an_betreuer", "rechnung_anhaengen"]);
     ok(w.length === 0, `${ev}: Wortwand`, w.map((x) => x.treffer));
+    // E-271: „garant…“ nur im freigegebenen Satz; kein Institut-Satz; kein alter Auslöser.
+    ok(!/garant/i.test(ohneGarantie(text)) && !/entscheidet\s+(allein\s+)?(das|jedes)\s+(jeweilige\s+)?Institut/.test(text) && !/weder (Kapital|die Auszahlung einer Finanzierung) noch|erstatten wir Ihnen Teil 1/.test(text), `${ev}: Garantie nur aus der Quelle, kein Institut-Satz, kein alter Auslöser`);
     for (const r of GLOBAL_SCHAERFER) ok(!r.muster.test(text), `${ev}: ${r.grund.slice(0, 40)}`);
     ok(!text.includes(BANK.ibanDisplay) && !text.includes(BANK.iban), `${ev}: keine Bankdaten im Text`);
     ok(!/\b\d+\s*(Wochen|Tagen)\b/.test(text), `${ev}: keine Frist mit Ziffer`);
   }
   ok(mailRendern("global_angebot_start", nutzlast)!.text.includes("25.12.2026"), "Startmail nennt das Fristende als Datum (Textform, Ziffer 6)");
+  // E-271: Annahme-, Start- und Hemmungsmail tragen den Garantie-Satz; die Erstattungsmail nennt den Gesamtbetrag.
+  for (const ev of ["global_angebot_angenommen", "global_angebot_start", "global_angebot_hemmung"]) ok(mailRendern(ev, nutzlast)!.text.includes(nutzlast.garantie_text), `${ev}: Garantie-Satz aus der Quelle`);
+  const erstText = mailRendern("global_angebot_erstattung", nutzlast)!.text;
+  ok(/11\.500,00 €/.test(erstText) && /Auch Ihre Zahlung für Teil 2/.test(erstText) && /800\.000 US-Dollar/.test(erstText) && /drei Business-Kreditkarten/.test(erstText) && /alles, was Sie uns gezahlt haben/.test(erstText), "Erstattungsmail: Garantieziel, alles Gezahlte (11.500,00 €), Satz zu Teil 2");
+  const erstOffen = mailRendern("global_angebot_erstattung", { ...nutzlast, erstattung_betrag_text: "4.650,00 €", teil2_satz_text: "Die offene Rechnung über Teil 2 ist storniert — Sie müssen sie nicht bezahlen." })!.text;
+  ok(/4\.650,00 €/.test(erstOffen) && /Rechnung über Teil 2 ist storniert/.test(erstOffen), "Erstattungsmail mit offener Teil-2-Rechnung: 4.650,00 € und Storno");
   // Nachtrag (h) + Gegenprüfung: Die Startmail verlangt keine Unterlagen — nur den Reisepass.
   const startText = mailRendern("global_angebot_start", { ...nutzlast, unterlagen_liste: "· Adressnachweis, nicht älter als drei Monate<br />· der gewünschte Name der US-Gesellschaft in drei Varianten" })!.text;
   ok(!/Adressnachweis|drei Varianten|halten Sie .* bereit/.test(startText) && /nichts vorbereiten/.test(startText) && /Reisepass/.test(startText), "Startmail des Individualangebots: nichts vorbereiten, nur Reisepass");
@@ -524,6 +627,7 @@ if (LOKAL) {
   const warte = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const heute = berlinToday();
   const plus = (iso: string, t: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + t); return d.toISOString().slice(0, 10); };
+  const isoTagT = (v: unknown) => (v instanceof Date ? berlinToday(v) : String(v ?? "").slice(0, 10));
 
   // Leitung: Admin-Tor wie im Haus (Code aus dem Code-Fallback; lokal ohne ADMIN_ACCESS_CODE).
   const tor = await fetch(`${BASIS}/api/fiaon/zugang/oeffnen`, { method: "POST", headers: { "Content-Type": "application/json", ...MENSCH }, body: JSON.stringify({ code: process.env.PRUEF_ADMIN_CODE || "20032017" }) });
@@ -726,7 +830,8 @@ if (LOKAL) {
   const m2 = (await sqlPool`SELECT status FROM fiaon_mail_log WHERE event = 'global_angebot_teil2' AND empfaenger = ${`pruef-angebot-a-${stempel}@fiaon.test`}`) as any[];
   ok(m2.length === 1, "Mail mit Rechnung Teil 2 im Protokoll", m2);
   r = await admin(`/admin/global/angebote/${a.id}/erstattung`, {});
-  ok(r.status === 409 && /Meilenstein/.test(r.j.error), "nach dem Meilenstein keine Erstattung", r.j);
+  // E-271: Nach dem Meilenstein gilt die Garantie weiter — vor dem Fristende sperrt nur die laufende Frist.
+  ok(r.status === 409 && /Frist läuft bis/.test(r.j.error), "nach dem Meilenstein: Garantiefall erst nach dem Fristende", r.j);
 
   titel("A8. Datenbank-Wand (Migration 087) — in einer Transaktion, zurückgerollt");
   for (const [was, sql] of [
@@ -825,7 +930,7 @@ if (LOKAL) {
   ok(akB.status === "storniert" && akB.storno_erstattung === true, "Akte: storniert mit Erstattung");
   ok((await teile(bA.id))[1].entfallen_am, "Teil 2 entfallen");
   const eT = ((await sqlPool`SELECT text, zustaendig_art, faellig_am FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${refB}:erstattung`}`) as any[])[0];
-  ok(eT && eT.zustaendig_art === "betreiber" && /bis spätestens/.test(eT.text) && /KEIN Geld/.test(eT.text), "Justin: „Erstattung veranlassen“ mit spätestem Datum, kein Geld bewegt", eT?.text?.slice(0, 300));
+  ok(eT && eT.zustaendig_art === "betreiber" && /bis spätestens/.test(eT.text) && /KEIN Geld/.test(eT.text) && /4\.650,00 €/.test(eT.text) && /GARANTIE/.test(eT.text), "Justin: „Erstattung veranlassen“ mit spätestem Datum, kein Geld bewegt", eT?.text?.slice(0, 300));
   ok(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE event = 'global_angebot_erstattung' AND empfaenger = ${`pruef-angebot-b-${stempel}@fiaon.test`}`) as any[])[0].n === 1, "Mail an den Kunden (Protokoll)");
   r = await admin(`/admin/global/angebote/${bA.id}/erstattung`, {});
   ok(r.status === 409, "Erstattung nur einmal", r.j);
@@ -860,6 +965,98 @@ if (LOKAL) {
     await markPaid(bC.payment_reference);
     ok(await bisDa(async () => ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${refC}:widerruf`} AND titel LIKE '%gewählten Tag%'`) as any[])[0].n === 1), "bezahlt vor dem Starttag: Aufgabe „Start am gewählten Tag“");
     ok(!(await angebotZeile(cA.id)).frist_beginn, "… und noch kein Start, keine Frist");
+  }
+
+  // ── B4/B5: Kreditgarantie (E-271) — Garantiefall NACH dem Meilenstein mit bezahltem Teil 2, und „Garantie erfüllt" ──
+  titel("B4. Garantiefall nach dem Meilenstein: Teil 1 UND bezahlter Teil 2 werden erstattet, EINE Aufgabe mit der Summe");
+  {
+    const gA = await anlegen("g", { buergin: BUERGIN_VOLL });
+    const sG = await kunde(gA.token, "?beginn=sofort&jahresbetreuung=0");
+    let rg = await annehmen(gA.token, { beginn: "sofort", textHash: sG.j.textHash, jahresbetreuung: false }, menschFuer(9));
+    ok(rg.status === 200 && rg.j.ok, "angenommen (sofort)", rg.j);
+    const refG = String(rg.j.auftragRef);
+    await markPaid((await zeile(refG)).payment_reference);
+    ok(await bisDa(async () => !!(await angebotZeile(gA.id)).frist_ende), "Teil 1 bezahlt → gestartet, Frist gesetzt");
+    rg = await admin(`/admin/global/angebote/${gA.id}/meilenstein`, { art: "karte", datum: heute, eingetragenAm: heute, beleg: "Erste Kartenbestätigung liegt im Dokumentenraum (Prüfstand)." });
+    ok(rg.status === 200, "Meilenstein (erste Karte) → Rechnung Teil 2", rg.j);
+    const t2g = (await teile(gA.id))[1];
+    await markPaid((await zeile(String(t2g.bestell_ref))).payment_reference);
+    ok(await bisDa(async () => String((await zeile(String(t2g.bestell_ref))).payment_status) === "paid"), "Teil 2 bezahlt");
+    let lg = await admin("/admin/global/angebote");
+    let ag = (lg.j.angebote as any[]).find((x) => x.id === gA.id);
+    ok(ag?.knoepfe.garantie === null && /Frist läuft bis/.test(String(ag?.knoepfe.erstattung)) && ag?.erstattungVorschau?.summeCents === 1150000 && ag?.erstattungVorschau?.teil2Fall === "bezahlt → erstattet", "Liste: „Garantie erfüllt“ frei, Garantiefall erst nach Fristende, Vorschau 11.500,00 €", { k: ag?.knoepfe, v: ag?.erstattungVorschau });
+    await sqlPool`UPDATE fiaon_global_angebote SET frist_ende = ${plus(heute, -1)}::date WHERE id = ${gA.id}`;
+    const laufG = await A.globalAngebotLauf();
+    ok(laufG.fristende >= 1 && ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${refG}:fristende`} AND titel LIKE '%Garantie prüfen%'`) as any[])[0].n === 1, "Stundenlauf: Fristende auch NACH dem Meilenstein gemeldet („Garantie prüfen“)", laufG);
+    rg = await admin(`/admin/global/angebote/${gA.id}/erstattung`, {});
+    ok(rg.status === 200 && /11\.500,00 €/.test(rg.j.meldung) && /bezahlt → erstattet/.test(rg.j.meldung), "Garantiefall vorgemerkt: 11.500,00 €, Teil 2 bezahlt → erstattet", rg.j);
+    const zg = await angebotZeile(gA.id);
+    ok(Number(zg.erstattung_cents) === 1150000 && zg.erstattung_ausgeloest_am, "Angebot: erstattung_cents = 1.150.000 (Teil 1 + Teil 2)", zg.erstattung_cents);
+    ok(String((await zeile(String(t2g.bestell_ref))).payment_status) === "cancelled" && (await teile(gA.id))[1].entfallen_am && String((await zeile(refG)).payment_status) === "cancelled", "Teil 2 und Teil 1 über den Storno-Weg storniert, Teil 2 entfallen");
+    const aufgG = (await sqlPool`SELECT titel, text FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`global:${refG}:erstattung`} OR schluessel LIKE ${`global:${String(t2g.bestell_ref)}:erstattung`}`) as any[];
+    ok(aufgG.length === 1 && /11\.500,00 €/.test(aufgG[0].titel) && /Teil 2 6\.850,00 €/.test(aufgG[0].text), "EINE Erstattungsaufgabe mit der Summe im Titel (keine zweite nur über Teil 1 oder Teil 2)", aufgG.map((x) => x.titel));
+    ok(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE event = 'global_angebot_erstattung' AND empfaenger = ${`pruef-angebot-g-${stempel}@fiaon.test`}`) as any[])[0].n === 1, "Mail an den Kunden (Protokoll)");
+    rg = await admin(`/admin/global/angebote/${gA.id}/garantie`, { erfuelltAm: heute, rahmenUsd: 800000, karten: 3, beleg: "Nach dem Garantiefall — muss abgelehnt werden (Prüfstand)." });
+    ok(rg.status === 409, "„Garantie erfüllt“ nach dem Garantiefall abgelehnt", rg.j);
+    // Gegenprüfung (logik-1): Dieselbe Teil-2-Zahlung noch einmal gebucht → der Betrag zählt NICHT doppelt.
+    await markPaid((await zeile(String(t2g.bestell_ref))).payment_reference);
+    await warte(1500);
+    ok(Number((await angebotZeile(gA.id)).erstattung_cents) === 1150000 && ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${refG}:teil2-nach-garantiefall`}`) as any[])[0].n === 0, "erneute Buchung von Teil 2: erstattung_cents bleibt 1.150.000, keine zweite Aufgabe");
+    const sichtG = await A.angebotSichtZurAkte(refG);
+    ok((sichtG?.teile as any[])?.every((x) => x.stand === "erstattet"), "Mein Auftrag: beide bezahlten Teile „wird erstattet“ (logik-9)", sichtG?.teile);
+  }
+  titel("B5. „Garantie erfüllt“: Kreditrahmen + Karten eingetragen → kein Garantiefall, keine Fristwarnung mehr");
+  {
+    const hA2 = await anlegen("h", { buergin: BUERGIN_VOLL });
+    const sH2 = await kunde(hA2.token, "?beginn=sofort&jahresbetreuung=0");
+    let rh = await annehmen(hA2.token, { beginn: "sofort", textHash: sH2.j.textHash, jahresbetreuung: false }, menschFuer(10));
+    ok(rh.status === 200, "angenommen (sofort)", rh.j);
+    const refH2 = String(rh.j.auftragRef);
+    await markPaid((await zeile(refH2)).payment_reference);
+    ok(await bisDa(async () => !!(await angebotZeile(hA2.id)).frist_ende), "gestartet");
+    rh = await admin(`/admin/global/angebote/${hA2.id}/garantie`, { erfuelltAm: heute, rahmenUsd: "750.000,00", karten: 3, beleg: "Mit Cent — muss abgelehnt werden (Prüfstand, logik-2)." });
+    ok(rh.status === 409 && /ganzen US-Dollar/.test(rh.j.error), "„750.000,00“ abgelehnt (nicht als 75.000.000 gelesen)", rh.j);
+    rh = await admin(`/admin/global/angebote/${hA2.id}/garantie`, { erfuelltAm: heute, rahmenUsd: 500000, karten: 3, beleg: "Nur ein Teil des Rahmens — muss abgelehnt werden (Prüfstand)." });
+    ok(rh.status === 409 && /800\.000 US-Dollar/.test(rh.j.error), "Kreditrahmen unter dem Ziel abgelehnt", rh.j);
+    rh = await admin(`/admin/global/angebote/${hA2.id}/garantie`, { erfuelltAm: heute, rahmenUsd: "850.000", karten: 3, beleg: "Kreditzusagen und drei Kartenbestätigungen liegen im Dokumentenraum (Prüfstand)." });
+    ok(rh.status === 200 && /Garantie erfüllt/.test(rh.j.meldung), "„Garantie erfüllt“ eingetragen — auch ohne Meilenstein (vertrag-8)", rh.j);
+    rh = await admin(`/admin/global/angebote/${hA2.id}/meilenstein`, { art: "kapital", datum: heute, eingetragenAm: heute, beleg: "Erste Auszahlung liegt im Dokumentenraum (Prüfstand)." });
+    ok(rh.status === 200, "Meilenstein nach erfüllter Garantie → Rechnung Teil 2", rh.j);
+    const zh = await angebotZeile(hA2.id);
+    ok(isoTagT(zh.garantie_erfuellt_am) === heute && Number(zh.garantie_rahmen_usd) === 850000 && Number(zh.garantie_karten) === 3, "Spalten: Datum, Rahmen, Karten", { a: zh.garantie_erfuellt_am, r: zh.garantie_rahmen_usd, k: zh.garantie_karten });
+    await sqlPool`UPDATE fiaon_global_angebote SET frist_ende = ${plus(heute, -1)}::date WHERE id = ${hA2.id}`;
+    await A.globalAngebotLauf();
+    ok(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${refH2}:fristende`}`) as any[])[0].n === 0, "Stundenlauf: nach erfüllter Garantie keine Fristende-Aufgabe");
+    rh = await admin(`/admin/global/angebote/${hA2.id}/erstattung`, {});
+    ok(rh.status === 409 && /Garantie ist erfüllt/.test(rh.j.error), "Garantiefall nach erfüllter Garantie abgelehnt", rh.j);
+    const sicht = await A.angebotSichtZurAkte(refH2);
+    ok(sicht?.garantieErfuelltAm === heute && sicht?.garantieZiel === "Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten", "Sicht „Mein Auftrag“/Office: Garantie erfüllt und Ziel", sicht);
+  }
+
+  titel("B6. Teil 2 fällig und offen: Frist ruht, kein Garantiefall; Zahlung verlängert die Frist um die Verzugstage");
+  {
+    const vA = await anlegen("v", { buergin: BUERGIN_VOLL });
+    const sV = await kunde(vA.token, "?beginn=sofort&jahresbetreuung=0");
+    let rv = await annehmen(vA.token, { beginn: "sofort", textHash: sV.j.textHash, jahresbetreuung: false }, menschFuer(11));
+    ok(rv.status === 200, "angenommen (sofort)", rv.j);
+    const refV = String(rv.j.auftragRef);
+    await markPaid((await zeile(refV)).payment_reference);
+    ok(await bisDa(async () => !!(await angebotZeile(vA.id)).frist_ende), "gestartet");
+    rv = await admin(`/admin/global/angebote/${vA.id}/meilenstein`, { art: "karte", datum: heute, eingetragenAm: heute, beleg: "Erste Kartenbestätigung liegt im Dokumentenraum (Prüfstand)." });
+    ok(rv.status === 200, "Meilenstein → Rechnung Teil 2", rv.j);
+    const ref2V = String((await teile(vA.id))[1].bestell_ref);
+    await sqlPool`UPDATE fiaon_applications SET payment_due_date = ${new Date(Date.now() - 5 * 864e5)} WHERE ref = ${ref2V}`;
+    const fristAlt = plus(heute, -1);
+    await sqlPool`UPDATE fiaon_global_angebote SET frist_ende = ${fristAlt}::date WHERE id = ${vA.id}`;
+    await A.globalAngebotLauf();
+    ok(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${refV}:fristende`}`) as any[])[0].n === 0, "Stundenlauf: kein Fristende, solange Teil 2 fällig und offen ist");
+    rv = await admin(`/admin/global/angebote/${vA.id}/erstattung`, {});
+    ok(rv.status === 409 && /fällig und offen/.test(rv.j.error), "Garantiefall gesperrt: Teil 2 fällig und offen (Frist ruht)", rv.j);
+    await markPaid((await zeile(ref2V)).payment_reference);
+    ok(await bisDa(async () => isoTagT((await angebotZeile(vA.id)).frist_ende) > fristAlt), "Zahlung von Teil 2 verlängert die Frist um die Verzugstage", (await angebotZeile(vA.id)).frist_ende);
+    const zv = await angebotZeile(vA.id);
+    ok(Number(zv.frist_hemmung_tage) >= 4 && Number(zv.frist_hemmung_tage) <= 6, "Ruhezeit ≈ fünf Verzugstage gezählt", zv.frist_hemmung_tage);
+    ok(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE event = 'global_angebot_hemmung' AND empfaenger = ${`pruef-angebot-v-${stempel}@fiaon.test`}`) as any[])[0].n === 1, "neues Fristende in Textform (Mail „Ihre Frist läuft jetzt bis …“)");
   }
 
   // ── B2: Hängender Abschluss heilt sich — beim Lesen des Links und im Stundenlauf (Gegenprüfung 01.10.2026) ──
@@ -943,7 +1140,7 @@ if (LOKAL) {
     const G = await import("../server/lib/fiaon-global-auftrag");
     const akte1 = await G.globalAkteLesen(ref1); const bb1 = await G.globalBestellungLesen(ref1); const bb2 = await G.globalBestellungLesen(ref2);
     const zA = (await A.angebotLesen({ id: a.id }))!; const dA2 = A.angebotDatenAus(zA);
-    const zus = A.angebotMailZusatz(zA, dA2, { ereignis_text: "die erste Business-Kreditkarte für Ihre Gesellschaft freigeschaltet", ereignis_am_text: heute.split("-").reverse().join("."), erstattung_bis_text: "08.01.2027" });
+    const zus = A.angebotMailZusatz(zA, dA2, { ereignis_text: "die erste Business-Kreditkarte für Ihre Gesellschaft freigeschaltet", ereignis_am_text: heute.split("-").reverse().join("."), erstattung_bis_text: "08.01.2027", erstattung_betrag_text: "4.650,00 €", teil2_satz_text: "Teil 2 entfällt." });
     for (const [ev, b] of [["global_angebot_angenommen", bb1], ["global_angebot_start", bb1], ["global_angebot_teil2", bb2], ["global_angebot_teil2_bezahlt", bb2], ["global_angebot_erstattung", bb1]] as const) {
       const nl = G.globalMailNutzlast(akte1, b, { ansprechpartner: "Daniel Stripling", token: G.globalTokenErzeugen(ref1), zusatz: zus });
       const m = mailRendern(ev, nl)!;

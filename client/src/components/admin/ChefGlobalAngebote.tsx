@@ -7,6 +7,9 @@
 // persönliches Angebot an (Person → Daten aus dem jüngsten Antrag), trägt die
 // Pflichtfelder der Bürgin ein, kopiert den signierten Link — und führt nach der
 // Annahme die drei Dinge, die nur ein Mensch entscheiden kann:
+//   · E-271 (Kreditgarantie, 01.10.2026 abends): „Garantie erfüllt" → Kreditrahmen ≥ Ziel und Karten ≥ Ziel
+//     bis zum Fristende eingetragen (Belege intern) — danach kein Garantiefall, keine Fristwarnungen mehr;
+//     „Erstattung vormerken" heißt jetzt „Garantiefall" und erstattet ALLES Gezahlte (auch nach dem Meilenstein).
 //   · „Meilenstein erreicht" → Rechnung Teil 2 (Zahlungsziel sieben Tage),
 //   · „Frist hemmen" → nur mit Aufforderung in Textform und Grund,
 //   · „Erstattung vormerken" → erst nach Fristende ohne Meilenstein: Teil 2
@@ -22,6 +25,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { eur, datum, datumZeit, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
+
+/** „800.000 $" — Kreditrahmen der Garantie (E-271). */
+const usd = (n: number) => `${Math.round(n).toLocaleString("de-DE")} $`;
 
 type Teil = {
   nr: number; titel: string; betragCents: number; faelligkeit: string; zahlungszielTage: number; bestellRef: string | null; verwendungszweck: string | null;
@@ -48,9 +54,12 @@ type Angebot = {
   angenommenAm: string | null; ip: string | null; textHash: string | null; schalter: { sofortBeginn: boolean; jahresbetreuung: boolean } | null;
   auftragRef: string | null; officeLink: string | null; fristBeginn: string | null; fristEnde: string | null; fristHemmungTage: number;
   erstattungAusgeloestAm: string | null; erstattetAm: string | null; erstattungNotiz: string | null;
+  /** E-271 (Kreditgarantie): erfüllt am/mit, Erstattungsbetrag, und was der Garantiefall heute erstatten würde (rechnet der Server). */
+  garantieErfuelltAm: string | null; garantieRahmenUsd: number | null; garantieKarten: number | null; garantieVon: string | null;
+  erstattungCents: number | null; erstattungVorschau: { teil2Fall: string; summeCents: number };
   bestaetigungMailAm: string | null; bestaetigungMailFehler: string | null; nacharbeitFehler: string | null;
   zurueckgezogenAm: string | null; zurueckgezogenGrund: string | null; teile: Teil[];
-  knoepfe: { meilenstein: string | null; erstattung: string | null; hemmung: string | null; aendern: string | null };
+  knoepfe: { meilenstein: string | null; erstattung: string | null; garantie: string | null; hemmung: string | null; aendern: string | null };
   verlauf: { am: string; wer: string; was: string }[];
   /** Angebot-Aufrufe (01.10.2026) — null, wenn die Liste der Aufrufe gerade nicht ladbar ist. */
   aufrufe: Aufrufe | null;
@@ -62,7 +71,7 @@ type Antwort = {
 
 const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Offen — wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
 const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["geburtsdatum", "Geburtsdatum (JJJJ-MM-TT)"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
-const PARAM_FELDER: [string, string, "euro" | "zahl"][] = [["teil1Cents", "Teil 1 „Gründung“ (€)", "euro"], ["teil2Cents", "Teil 2 „Kapital-Begleitung“ (€)", "euro"], ["fristWochen", "Frist in Wochen", "zahl"], ["erstattungTage", "Erstattung binnen Tagen", "zahl"], ["teil2ZielTage", "Zahlungsziel Teil 2 (Tage)", "zahl"], ["kapitalZielUsd", "Kapitalrahmen-Ziel (US-Dollar)", "zahl"], ["kartenZiel", "Kartenziel (Anzahl)", "zahl"], ["buergschaftUsd", "Höchstbetrag Bürgschaft (US-Dollar)", "zahl"]];
+const PARAM_FELDER: [string, string, "euro" | "zahl"][] = [["teil1Cents", "Teil 1 „Gründung“ (€)", "euro"], ["teil2Cents", "Teil 2 „Kapital-Begleitung“ (€)", "euro"], ["fristWochen", "Frist in Wochen", "zahl"], ["erstattungTage", "Erstattung binnen Tagen", "zahl"], ["teil2ZielTage", "Zahlungsziel Teil 2 (Tage)", "zahl"], ["kapitalZielUsd", "Garantierter Kreditrahmen (US-Dollar)", "zahl"], ["kartenZiel", "Garantierte Business-Kreditkarten (Anzahl)", "zahl"], ["buergschaftUsd", "Höchstbetrag Bürgschaft (US-Dollar)", "zahl"]];
 
 /** Wer hat den persönlichen Link wann, wie oft und wo geöffnet — und wurde Justin benachrichtigt? */
 function AufrufBlock({ x }: { x: Aufrufe | null }) {
@@ -119,7 +128,7 @@ export default function ChefGlobalAngebote() {
   const { daten, fehler, neu } = useDaten<Antwort>("/admin/global/angebote");
   const [meldung, setMeldung] = useState<{ gut: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [offen, setOffen] = useState<{ id: number; art: "buergin" | "meilenstein" | "hemmung" | "erstattung" | "ueberwiesen" | "zurueck" } | null>(null);
+  const [offen, setOffen] = useState<{ id: number; art: "buergin" | "meilenstein" | "garantie" | "hemmung" | "erstattung" | "ueberwiesen" | "zurueck" } | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
   const [neuOffen, setNeuOffen] = useState(false);
   const [neuForm, setNeuForm] = useState<{ personId: string; kunde: Record<string, string>; parameter: Record<string, string>; gueltigBis: string; hinweise: string[] }>({ personId: "", kunde: {}, parameter: {}, gueltigBis: "", hinweise: [] });
@@ -166,7 +175,7 @@ export default function ChefGlobalAngebote() {
       <section className="cz-block">
         <header>
           <h2>Individualangebote</h2>
-          <p>Ein persönliches Angebot für eine Person — Teil 1 sofort, Teil 2 erst beim Meilenstein, Bürgschaftszusage, Frist mit vollständiger Erstattung. Der Kunde liest und nimmt über einen signierten Link an; danach laufen Rechnung, Zahlungsseite und „Mein Auftrag“ wie bei jedem Global-Auftrag. Fassung {V.fassung}.</p>
+          <p>Ein persönliches Angebot für eine Person — Teil 1 sofort, Teil 2 erst beim Meilenstein, Bürgschaftszusage und Kreditgarantie: Kreditrahmen und Karten in der Frist, sonst alles Gezahlte zurück. Der Kunde liest und nimmt über einen signierten Link an; danach laufen Rechnung, Zahlungsseite und „Mein Auftrag“ wie bei jedem Global-Auftrag. Fassung {V.fassung}.</p>
         </header>
         {!neuOffen ? (
           <button type="button" className="cg-knopf cg-knopf-haupt cg-neu-angebot" onClick={() => setNeuOffen(true)}>Neues Individualangebot</button>
@@ -275,11 +284,12 @@ export default function ChefGlobalAngebote() {
                     ))}
                   </tbody>
                 </table></div>
-                <p className="cm-klartext">Frist: {a.fristEnde ? <>vom {datum(a.fristBeginn)} bis <b>{datum(a.fristEnde)}</b>{a.fristHemmungTage ? ` (davon ${a.fristHemmungTage} Tage gehemmt)` : ""}</> : "beginnt mit dem Start (Zahlung Teil 1, ohne sofortigen Beginn nach der Widerrufsfrist)"}{a.erstattungAusgeloestAm ? ` · Erstattung vorgemerkt am ${datum(a.erstattungAusgeloestAm)}` : ""}{a.erstattetAm ? ` · überwiesen am ${datum(a.erstattetAm)} (${a.erstattungNotiz})` : ""}</p>
+                <p className="cm-klartext">Frist: {a.fristEnde ? <>vom {datum(a.fristBeginn)} bis <b>{datum(a.fristEnde)}</b>{a.fristHemmungTage ? ` (davon ${a.fristHemmungTage} Tage gehemmt)` : ""}</> : "beginnt mit dem Start (Zahlung Teil 1, ohne sofortigen Beginn nach der Widerrufsfrist)"}{a.garantieErfuelltAm ? ` · Garantie erfüllt am ${datum(a.garantieErfuelltAm)} (Kreditrahmen ${usd(a.garantieRahmenUsd ?? 0)}, ${a.garantieKarten} Karten)` : ""}{a.erstattungAusgeloestAm ? ` · Garantiefall vorgemerkt am ${datum(a.erstattungAusgeloestAm)}${a.erstattungCents != null ? ` (${eur(a.erstattungCents)} zu erstatten)` : ""}` : ""}{a.erstattetAm ? ` · überwiesen am ${datum(a.erstattetAm)} (${a.erstattungNotiz})` : ""}</p>
                 <div className="cg-knoepfe cg-knoepfe-reihe">
                   <span><button type="button" className="cg-knopf cg-knopf-haupt cg-knopf-meilenstein" disabled={!!a.knoepfe.meilenstein} onClick={() => { setOffen({ id: a.id, art: "meilenstein" }); setForm({ art: "", datum: "", eingetragenAm: "", beleg: "" }); }}>Meilenstein erreicht → Rechnung Teil 2</button>{a.knoepfe.meilenstein && <span className="cm-fein">{a.knoepfe.meilenstein}</span>}</span>
+                  <span><button type="button" className="cg-knopf cg-knopf-haupt" disabled={!!a.knoepfe.garantie} onClick={() => { setOffen({ id: a.id, art: "garantie" }); setForm({ erfuelltAm: "", rahmenUsd: "", karten: "", beleg: "" }); }}>Garantie erfüllt (Kreditrahmen ≥ {usd(a.parameter.kapitalZielUsd)} + {a.parameter.kartenZiel} Karten)</button>{a.knoepfe.garantie && <span className="cm-fein">{a.knoepfe.garantie}</span>}</span>
                   <span><button type="button" className="cg-knopf" disabled={!!a.knoepfe.hemmung} onClick={() => { setOffen({ id: a.id, art: "hemmung" }); setForm({ aufgefordertAm: "", erbrachtAm: "", grund: "" }); }}>Frist hemmen</button>{a.knoepfe.hemmung && <span className="cm-fein">{a.knoepfe.hemmung}</span>}</span>
-                  <span><button type="button" className="cg-knopf cg-knopf-storno cg-knopf-erstattung" disabled={!!a.knoepfe.erstattung} onClick={() => { setOffen({ id: a.id, art: "erstattung" }); setForm({}); }}>Frist abgelaufen → Erstattung {eur(a.parameter.teil1Cents)} vormerken</button>{a.knoepfe.erstattung && <span className="cm-fein">{a.knoepfe.erstattung}</span>}</span>
+                  <span><button type="button" className="cg-knopf cg-knopf-storno cg-knopf-erstattung" disabled={!!a.knoepfe.erstattung} onClick={() => { setOffen({ id: a.id, art: "erstattung" }); setForm({}); }}>Garantiefall → Erstattung {eur(a.erstattungCents ?? a.erstattungVorschau.summeCents)} vormerken</button>{a.knoepfe.erstattung && <span className="cm-fein">{a.knoepfe.erstattung}</span>}</span>
                   {a.erstattungAusgeloestAm && !a.erstattetAm && <span><button type="button" className="cg-knopf" onClick={() => { setOffen({ id: a.id, art: "ueberwiesen" }); setForm({ am: "", notiz: "" }); }}>Erstattung überwiesen</button></span>}
                 </div>
               </div>
@@ -328,6 +338,23 @@ export default function ChefGlobalAngebote() {
                 {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen bis zum Beleg.</p>}
               </div>
             )}
+            {offen?.id === a.id && offen.art === "garantie" && (
+              <div className="cg-form cg-form-breit" role="dialog" aria-label="Garantie erfüllt eintragen">
+                {/* E-271: Garantieziel = Kreditrahmen (Kreditlinien/Darlehen zusammen, ohne Kartenlimits) UND Karten, bis zum Fristende. */}
+                <div className="cg-raster">
+                  <label>Vollständig erreicht am<input type="date" value={form.erfuelltAm} onChange={(e) => setForm({ ...form, erfuelltAm: e.target.value })} /></label>
+                  <label>Kreditrahmen zusammen (US-Dollar, ohne Kartenlimits)<input inputMode="numeric" value={form.rahmenUsd} onChange={(e) => setForm({ ...form, rahmenUsd: e.target.value })} placeholder={String(a.parameter.kapitalZielUsd)} /></label>
+                  <label>Freigeschaltete Business-Kreditkarten<input inputMode="numeric" value={form.karten} onChange={(e) => setForm({ ...form, karten: e.target.value })} placeholder={String(a.parameter.kartenZiel)} /></label>
+                </div>
+                <label>Belege in einem Satz (intern — der Kunde sieht keinen Banknamen)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} placeholder="Zum Beispiel: Kreditzusagen und drei Kartenbestätigungen liegen im Dokumentenraum." /></label>
+                <p className="cm-fein">Damit ist die Garantie aus Ziffer 3 Absatz 1 erfüllt: Fristwarnungen und Garantiefall entfallen, die Kapital-Begleitung ist am Ziel. Das Datum muss am oder vor dem Fristende ({datum(a.fristEnde)}) liegen.</p>
+                <div className="cg-form-knoepfe">
+                  <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `g${a.id}` || !form.erfuelltAm || !form.rahmenUsd || !form.karten || String(form.beleg || "").trim().length < 20} onClick={() => aktion(`g${a.id}`, `/admin/global/angebote/${a.id}/garantie`, form)}>Garantie erfüllt eintragen</button>
+                  <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
+                </div>
+                {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen bis zum Beleg.</p>}
+              </div>
+            )}
             {offen?.id === a.id && offen.art === "hemmung" && (
               <div className="cg-form cg-form-breit">
                 {/* Gegenprüfung 01.10.2026: Die Ruhezeit wird gerechnet, nicht getippt — Aufforderung + sieben Tage bis zur erbrachten Mitwirkung (oder bis heute). */}
@@ -344,10 +371,10 @@ export default function ChefGlobalAngebote() {
               </div>
             )}
             {offen?.id === a.id && offen.art === "erstattung" && (
-              <div className="cg-form cg-form-breit" role="dialog" aria-label="Erstattung vormerken">
-                <p className="cm-fein"><b>Frist am {datum(a.fristEnde)} abgelaufen, ohne Meilenstein.</b> Teil 2 entfällt. Die Bestellung Teil 1 geht über den Storno-Weg mit Erstattung (Provisionen zurück), Justin bekommt die dringende Aufgabe „Erstattung veranlassen“ mit dem spätesten Datum, und der Kunde bekommt eine Mail. Es wird KEIN Geld bewegt — überwiesen wird von Hand.</p>
+              <div className="cg-form cg-form-breit" role="dialog" aria-label="Garantiefall vormerken">
+                <p className="cm-fein"><b>Frist am {datum(a.fristEnde)} abgelaufen, ohne dass Kreditrahmen und Karten aus der Garantie vollständig erreicht sind.</b> Zu erstatten: <b>{eur(a.erstattungVorschau.summeCents)}</b> (alles Gezahlte). Teil 2: {a.erstattungVorschau.teil2Fall === "bezahlt → erstattet" ? "bezahlt — wird storniert und mit erstattet" : a.erstattungVorschau.teil2Fall === "offen → storniert" ? "Rechnung offen — wird storniert, der Kunde muss sie nicht zahlen" : a.erstattungVorschau.teil2Fall === "schon storniert" ? "schon storniert" : "noch nicht berechnet — entfällt"}. Teil 1 geht über den Storno-Weg mit Erstattung (Provisionen zurück), Justin bekommt EINE dringende Aufgabe „Erstattung veranlassen“ mit dem Gesamtbetrag und dem spätesten Datum, der Kunde eine Mail. Es wird KEIN Geld bewegt — überwiesen wird von Hand.</p>
                 <div className="cg-form-knoepfe">
-                  <button type="button" className="cg-knopf cg-knopf-storno" disabled={busy === `e${a.id}`} onClick={() => aktion(`e${a.id}`, `/admin/global/angebote/${a.id}/erstattung`, {})}>Erstattung jetzt vormerken</button>
+                  <button type="button" className="cg-knopf cg-knopf-storno" disabled={busy === `e${a.id}`} onClick={() => aktion(`e${a.id}`, `/admin/global/angebote/${a.id}/erstattung`, {})}>Garantiefall jetzt vormerken</button>
                   <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
                 </div>
               </div>

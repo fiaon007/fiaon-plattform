@@ -33,7 +33,9 @@
 //     Frist setzen (Beginn, Ende), Startmail mit Fristende als Datum.
 //   Chef „Meilenstein erreicht" → Bestellzeile Teil 2, Rechnung, Zahlungsziel
 //     sieben Tage, Mail mit Rechnung.
-//   Frist abgelaufen ohne Meilenstein → Chef „Erstattung vormerken": Teil 2
+//   E-271 (Kreditgarantie): „Garantie erfüllt" (Kreditrahmen + Karten, Belege) beendet die Überwachung;
+//   Frist abgelaufen ohne „Garantie erfüllt" → Chef „Garantiefall: Erstattung vormerken" — alles Gezahlte zurück
+//   (Teil 1 + bezahlter Teil 2, offene Teil-2-Rechnung storniert). Bis E-271 galt: ohne Meilenstein → „Erstattung vormerken": Teil 2
 //     entfällt, der bestehende Storno-Weg mit Erstattung (Aufgabe an Justin —
 //     Geld bewegt nur Justin, von Hand), Mail an den Kunden.
 //
@@ -52,6 +54,7 @@ import {
   angebotPflichtFehlen, angebotParameterFehler, angebotGesamtCents, angebotEur, angebotSeite, angebotBestellUebersicht,
   angebotKundeName, angebotKundeAnrede, angebotTag, angebotTeilTitel, angebotTeilPaketname, angebotRechnungsText, angebotVertragTitel,
   angebotVertragUnterzeile, zahlwort, pruefberichtErgebnis, angebotVersandSperre, ANGEBOT_START_SPAETESTENS_TAGE,
+  angebotUsd, angebotKarten, angebotGarantie, angebotGarantieziel, ANGEBOT_GARANTIE_FEST,
   type AngebotDaten, type AngebotKunde, type AngebotParameter, type AngebotBuergin, type AngebotSchalter, type Pruefbericht, type AngebotLand,
 } from "@shared/fiaon-global-angebot";
 import { angebotTextHash, angebotVorschauHtml, angebotVertragPdf, angebotPruefberichtPdf, angebotAnlage1Pdf, buergschaftPruefsumme } from "./fiaon-global-angebot-vertrag";
@@ -140,6 +143,17 @@ export function ensureAngebotTabellen(): Promise<void> {
           UNIQUE (angebot_id, nr)
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_angebote_status_idx ON fiaon_global_angebote (status, created_at DESC)`;
+      // E-271 (Kreditgarantie, Migration 089): „Garantie erfüllt“ und der Erstattungsbetrag im Garantiefall. Über die
+      // DDL-Wache (Katalog-Vorabprüfung, kurzer lock_timeout) — nur ADD COLUMN IF NOT EXISTS ohne Vorgabewert.
+      await sqlPool`
+        ALTER TABLE fiaon_global_angebote
+          ADD COLUMN IF NOT EXISTS garantie_erfuellt_am DATE,
+          ADD COLUMN IF NOT EXISTS garantie_rahmen_usd BIGINT,
+          ADD COLUMN IF NOT EXISTS garantie_karten INTEGER,
+          ADD COLUMN IF NOT EXISTS garantie_beleg TEXT,
+          ADD COLUMN IF NOT EXISTS garantie_von TEXT,
+          ADD COLUMN IF NOT EXISTS garantie_eingetragen_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS erstattung_cents BIGINT`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -212,7 +226,8 @@ const OHNE_PDF = `id, angebot_ref, person_id, fassung, sprache, kunde, parameter
   zurueckgezogen_am, zurueckgezogen_von, zurueckgezogen_grund, angenommen_am, ip, user_agent, text_hash, schalter, auftrag_ref,
   frist_beginn, frist_ende, frist_hemmung_tage, frist_warnung_14_am, frist_warnung_3_am, frist_abgelaufen_am,
   erstattung_ausgeloest_am, erstattung_ausgeloest_von, erstattet_am, erstattung_notiz, bestaetigung_mail_am, bestaetigung_mail_fehler,
-  start_mail_am, nacharbeit_fehler, verlauf, created_at, updated_at, updated_at::text AS updated_at_txt, (vertrag_pdf IS NOT NULL) AS hat_vertrag`;
+  start_mail_am, nacharbeit_fehler, verlauf, created_at, updated_at, updated_at::text AS updated_at_txt, (vertrag_pdf IS NOT NULL) AS hat_vertrag,
+  garantie_erfuellt_am, garantie_rahmen_usd, garantie_karten, garantie_beleg, garantie_von, garantie_eingetragen_am, erstattung_cents`;
 
 export interface AngebotZeile { [k: string]: any }
 export async function angebotLesen(wo: { id?: number; ref?: string }): Promise<AngebotZeile | null> {
@@ -233,7 +248,9 @@ const isoTag = (v: unknown): string | null => {
 export function angebotDatenAus(z: AngebotZeile): AngebotDaten {
   return {
     ref: String(z.angebot_ref),
-    fassung: String(z.fassung),
+    // Ein OFFENES Angebot zeigt immer den aktuellen Wortlaut — also auch die aktuelle Fassung (E-271). Angenommene
+    // Angebote behalten die Fassung, mit der sie angenommen wurden (die Annahme schreibt sie fest).
+    fassung: String(z.status) === "offen" ? ANGEBOT_FASSUNG : String(z.fassung),
     kunde: json<AngebotKunde>(z.kunde, {} as AngebotKunde),
     parameter: { ...ANGEBOT_VORGABEN, ...json<Partial<AngebotParameter>>(z.parameter, {}) },
     buergin: { ...BUERGIN_VORGABE, ...json<Partial<AngebotBuergin>>(z.buergin, {}) },
@@ -696,7 +713,7 @@ async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, bo
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote
        SET status = 'angenommen', angenommen_am = ${jetzt}, ip = ${kontext.ip}, user_agent = ${String(kontext.userAgent || "").slice(0, 500)},
-           text_hash = ${hash}, schalter = ${jsonb(s)}, vertrag_pdf = ${pdf}, updated_at = NOW()
+           text_hash = ${hash}, schalter = ${jsonb(s)}, vertrag_pdf = ${pdf}, fassung = ${d.fassung}, updated_at = NOW()
      WHERE id = ${z.id} AND status = 'offen' AND gueltig_bis >= ${berlinToday()}::date AND updated_at::text = ${String(z.updated_at_txt)}
      RETURNING id`) as any[];
   if (!frei) {
@@ -861,6 +878,7 @@ export async function angebotNacharbeit(id: number): Promise<void> {
         text: [
           `${name} hat das Individualangebot ${d.ref} angenommen (${new Date(z.angenommen_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}).`,
           teilText,
+          `GARANTIE (Ziffer 3 Absatz 1, Ziffer 6): bis zum Fristende ${angebotGarantieziel(d.parameter)} für die Gesellschaft — sonst erstattet FIAON alles Gezahlte, eine offene Teil-2-Rechnung entfällt.`,
           s.startAm
             ? `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. Gewählter Starttag: ${angebotTag(s.startAm)}${s.sofortBeginn ? " (vor Ablauf der Widerrufsfrist — Beginn ausdrücklich verlangt)" : ""} — Start an diesem Tag, frühestens mit dem Zahlungseingang. Vorher nichts beantragen.`
             : s.sofortBeginn
@@ -943,6 +961,14 @@ export function angebotMailZusatz(z: AngebotZeile, d: AngebotDaten, extra: Recor
     frist_ende_text: fristEnde ? angebotTag(fristEnde) : "",
     frist_beginn_text: isoTag(z.frist_beginn) ? angebotTag(isoTag(z.frist_beginn)) : "",
     buergin: esc(d.buergin.name),
+    // E-271: Kreditgarantie — Ziel und der EINE Garantie-Satz aus angebotGarantie() (die Vorlagen tippen ihn nicht ab).
+    kreditrahmen_text: angebotUsd(d.parameter.kapitalZielUsd),
+    karten_text: angebotKarten(d.parameter.kartenZiel),
+    garantie_text: esc(angebotGarantie(d.parameter).mail),
+    // Gegenprüfung (logik-5): Nach erfüllter Garantie gibt es keine Erstattung mehr — die Teil-2-Mails sagen das.
+    teil2_folge_text: z.garantie_erfuellt_am
+      ? esc(ANGEBOT_GARANTIE_FEST.mailErfuellt)
+      : `Wir begleiten Ihre Gesellschaft weiter, bis der Kreditrahmen von ${angebotUsd(d.parameter.kapitalZielUsd)} und ${angebotKarten(d.parameter.kartenZiel)} vollständig da sind (Ziffer 3 Absatz 1). Erreicht sie das bis zum ${fristEnde ? angebotTag(fristEnde) : "Ende Ihrer Frist"} nicht, erhalten Sie auch diese Zahlung zurück (Ziffer 6).`,
     ...extra,
   };
 }
@@ -970,7 +996,8 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
   const d = angebotDatenAus(z);
   const b = await globalBestellungLesen(ref);
   if (!b || String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
-  await sqlPool`UPDATE fiaon_global_angebot_teile SET bezahlt_am = COALESCE(bezahlt_am, ${b.completed_at ?? new Date()}) WHERE id = ${t.id}`;
+  // Gegenprüfung (logik-1): Erst-Buchung atomar erkennen — angebotNachZahlung ist wiederholbar (mark-paid, Abgleich, Nachbuchung).
+  const [erstmals] = (await sqlPool`UPDATE fiaon_global_angebot_teile SET bezahlt_am = ${b.completed_at ?? new Date()} WHERE id = ${t.id} AND bezahlt_am IS NULL RETURNING id`) as any[];
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   const ref1 = String(z.auftrag_ref || ref);
   const akte1 = await globalAkteLesen(ref1);
@@ -978,13 +1005,54 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
   const name = angebotKundeName(d.kunde);
 
   // ── Teil 2 bezahlt: nichts starten, vermerken und Bescheid geben ──
+  if (Number(t.nr) === 2 && (z.erstattung_ausgeloest_am || t.entfallen_am)) {
+    // E-271: Eine Zahlung für Teil 2 NACH dem Garantiefall (die Zeile war storniert; alsBezahltBuchen bucht ohne
+    // Statusfilter) — keine Danke-Mail, sondern Justin: auch diesen Betrag erstatten. Nur bei der ERSTEN Buchung
+    // (war Teil 2 schon vorher bezahlt, steckt er bereits im Erstattungsbetrag).
+    if (!erstmals) return { gestartet: false, grund: "Teil 2 nach dem Garantiefall — schon vermerkt" };
+    const plus = Number(t.betrag_cents);
+    await sqlPool`UPDATE fiaon_global_angebote SET erstattung_cents = COALESCE(erstattung_cents, 0) + ${plus}, updated_at = NOW() WHERE id = ${z.id}`;
+    await verlaufAngebot(Number(z.id), "System", `Zahlung Teil 2 NACH dem Garantiefall eingegangen (${angebotEur(plus)}, ${b.payment_reference}) — ebenfalls zu erstatten`);
+    await auftragFuerKunden({
+      personId: b.person_id != null ? Number(b.person_id) : null, ref: ref1,
+      titel: `Garantiefall: Zahlung Teil 2 nach dem Fristende eingegangen — ${angebotEur(plus)} ebenfalls erstatten (${name})`,
+      text: `Für das Individualangebot ${d.ref} ist der Garantiefall vorgemerkt; trotzdem ging eine Zahlung für Teil 2 ein (${angebotEur(plus)}, Verwendungszweck ${b.payment_reference}). Nach Ziffer 6 Absatz 2 erstattet FIAON alles Gezahlte — bitte diesen Betrag zusätzlich zurücküberweisen und die Bestellung wieder auf „storniert“ setzen. Das System hat KEIN Geld bewegt.`,
+      dringend: true, anBetreiber: true, schluessel: `global:${ref1}:teil2-nach-garantiefall`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      link: "/chef/s/global-auftraege?reiter=angebote",
+    }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe Teil 2 nach Garantiefall:`, e));
+    return { gestartet: false, grund: "Teil 2 nach dem Garantiefall bezahlt — Erstattung an Justin" };
+  }
   if (Number(t.nr) === 2) {
     await verlaufAngebot(Number(z.id), "System", `Teil 2 bezahlt (${angebotEur(Number(t.betrag_cents))})`);
+    // E-271 / Ziffer 6 Abs. 3 (Gegenprüfung, vertrag-3): Die Frist ruhte, solange die fällige Teil-2-Rechnung offen war —
+    // vom Tag nach der Fälligkeit bis zum Eingang. Einmal je Zahlung (erstmals), nur solange die Garantie läuft.
+    const faellig = b.payment_due_date ? berlinToday(new Date(b.payment_due_date)) : null;
+    const eingang = berlinToday(new Date(b.completed_at ?? new Date()));
+    if (erstmals && faellig && eingang > faellig && z.frist_ende && !z.garantie_erfuellt_am && !z.erstattung_ausgeloest_am) {
+      const tage = Math.round((new Date(`${eingang}T12:00:00Z`).getTime() - new Date(`${faellig}T12:00:00Z`).getTime()) / 864e5);
+      if (tage > 0) {
+        const [r] = (await sqlPool`
+          UPDATE fiaon_global_angebote SET frist_hemmung_tage = frist_hemmung_tage + ${tage}, frist_ende = frist_ende + ${tage}::int, updated_at = NOW()
+           WHERE id = ${z.id} AND garantie_erfuellt_am IS NULL AND erstattung_ausgeloest_am IS NULL RETURNING frist_ende`) as any[];
+        if (r) {
+          const von = plusTage(faellig, 1);
+          const ende = isoTag(r.frist_ende)!;
+          await verlaufAngebot(Number(z.id), "System", `Frist ruhte vom ${angebotTag(von)} bis ${angebotTag(eingang)} (${tage} Tage, Teil-2-Rechnung nach Fälligkeit offen, Ziffer 6 Absatz 3) — neues Fristende ${angebotTag(ende)}`, { hemmungVon: von, hemmungBis: eingang, hemmungTage: tage });
+          await globalVerlauf(ref1, `FIAON Global: Frist des Individualangebots ruhte vom ${angebotTag(von)} bis ${angebotTag(eingang)} (Teil 2 nach Fälligkeit offen). Neues Fristende ${angebotTag(ende)}.`);
+          if (akte1) {
+            const z3 = (await angebotLesen({ id: Number(z.id) }))!;
+            await globalMailSenden("global_angebot_hemmung", akte1, b, {
+              zusatz: angebotMailZusatz(z3, d, { hemmung_von_text: angebotTag(von), hemmung_bis_text: angebotTag(eingang), hemmung_grund_text: "die Rechnung über Teil 2 war nach ihrer Fälligkeit noch offen" }),
+            }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Mail Ruhezeit Teil 2:`, e));
+          }
+        }
+      }
+    }
     await globalVerlauf(ref1, `FIAON Global: Teil 2 „Kapital-Begleitung“ des Individualangebots ${d.ref} bezahlt (${b.payment_reference}).`);
     await auftragFuerKunden({
       personId: b.person_id != null ? Number(b.person_id) : null, ref: ref1,
       titel: `FIAON Global: Teil 2 bezahlt — ${name}`,
-      text: `Die Rechnung über Teil 2 „Kapital-Begleitung“ (${angebotEur(Number(t.betrag_cents))}, Verwendungszweck ${b.payment_reference}) ist bezahlt. Die Kapital-Begleitung läuft weiter bis zum Ziel, längstens zwölf Monate nach dem Kapitalereignis (Ziffer 3 Absatz 5).`,
+      text: `Die Rechnung über Teil 2 „Kapital-Begleitung“ (${angebotEur(Number(t.betrag_cents))}, Verwendungszweck ${b.payment_reference}) ist bezahlt. ${z.garantie_erfuellt_am ? "Die Garantie ist erfüllt — die Kapital-Begleitung ist am Ziel." : `Die Kapital-Begleitung läuft weiter bis zum garantierten Ziel (${angebotGarantieziel(d.parameter)}, Ziffer 3 Absatz 1), längstens bis zum Fristende — wird es nicht erreicht, wird auch Teil 2 erstattet (Ziffer 6).`}`,
       schluessel: `global:${ref1}:teil2-bezahlt`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       link: globalOfficeAuftragPfad(ref1), agentId: zustaendig, anlageText: "Zahlung Teil 2 gebucht.",
     }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe Teil 2 bezahlt:`, e));
@@ -1038,9 +1106,9 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
       titel: `FIAON Global: Individualangebot starten — ${name}`,
       text: [
         `Die Zahlung für Teil 1 (${angebotEur(d.parameter.teil1Cents)}) liegt vor — der Auftrag startet JETZT. Der Kunde bekommt die Startmail mit deinem Namen und dem Fristende.`,
-        `FRIST: ${zahlwort(d.parameter.fristWochen)} Wochen, vom ${angebotTag(isoTag(z2.frist_beginn))} bis ${angebotTag(fristEnde)}. Kommt bis dahin weder Kapital noch Karte für die Gesellschaft, erstattet FIAON Teil 1 vollständig (Ziffer 6). Ruhen darf die Frist nur nach schriftlicher Aufforderung mit mindestens sieben Tagen Frist (Leitung: „Frist hemmen“).`,
+        `FRIST: ${zahlwort(d.parameter.fristWochen)} Wochen, vom ${angebotTag(isoTag(z2.frist_beginn))} bis ${angebotTag(fristEnde)}. FIAON GARANTIERT bis dahin ${angebotGarantieziel(d.parameter)} für die Gesellschaft (Ziffer 3 Absatz 1); wird das nicht vollständig erreicht, erstattet FIAON alles Gezahlte (Teil 1 und ggf. Teil 2, Ziffer 6). Ruhen darf die Frist nur nach schriftlicher Aufforderung mit mindestens sieben Tagen Frist (Leitung: „Frist hemmen“).`,
         "1. Startgespräch führen. 2. Reisepass prüfen, Sanktionslisten erneut abgleichen, PEP-Erklärung festhalten. 3. Bundesstaat mit Partner-Steuerberater, Gründung, EIN, Geschäftskonto. 4. Kapital-Begleitung: Kartenleiter und Anträge vorbereiten — kein Bankname gegenüber dem Kunden.",
-        "Sobald das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist: der Leitung sagen — sie drückt „Meilenstein erreicht“, dann geht die Rechnung über Teil 2 raus.",
+        "Sobald das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist: der Leitung sagen — sie drückt „Meilenstein erreicht“, dann geht die Rechnung über Teil 2 raus. Die Garantie läuft danach weiter: Sind Kreditrahmen und Karten vollständig da, ebenfalls der Leitung sagen („Garantie erfüllt“).",
         `Bürgin: ${d.buergin.name} (Anlage 1). Fordert ein Institut eine Bürgschaft an, über die Leitung abstimmen.`,
       ].join("\n"),
       dringend: true, schluessel: `global:${ref}:start`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
@@ -1075,12 +1143,15 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
 // ═══════════════════════════════════════════════════════════════════════════
 // MEILENSTEIN → TEIL 2
 // ═══════════════════════════════════════════════════════════════════════════
-export function meilensteinPruefen(lage: { status: string; teil1Bezahlt: boolean; teil2: any; fristEnde: string | null; heute: string }, ein: any):
+export function meilensteinPruefen(lage: { status: string; teil1Bezahlt: boolean; teil2: any; fristEnde: string | null; heute: string; garantieErfuelltAm?: string | null }, ein: any):
   { ok: true; daten: { art: "kapital" | "karte"; datum: string; eingetragenAm: string; beleg: string } } | { ok: false; error: string } {
   if (lage.status !== "angenommen") return { ok: false, error: "Das Angebot ist nicht angenommen." };
   if (!lage.teil1Bezahlt) return { ok: false, error: "Teil 1 ist noch nicht bezahlt — der Meilenstein kommt nach dem Start." };
   if (!lage.teil2 || lage.teil2.bestell_ref) return { ok: false, error: "Teil 2 ist bereits berechnet." };
-  if (lage.teil2.entfallen_am) return { ok: false, error: "Teil 2 ist entfallen (Frist abgelaufen)." };
+  if (lage.teil2.entfallen_am) return { ok: false, error: "Teil 2 ist entfallen (Garantiefall)." };
+  // E-271 (Gegenprüfung, logik-4): Nach dem Fristende entfällt eine noch nicht berechnete Teil-2-Vergütung, wenn das
+  // Garantieziel nicht erreicht war (Ziffer 6 Abs. 2) — dann zuerst „Garantie erfüllt“ eintragen, sonst Garantiefall.
+  if (lage.fristEnde && lage.heute > lage.fristEnde && !lage.garantieErfuelltAm) return { ok: false, error: `Die Frist endete am ${angebotTag(lage.fristEnde)} — zuerst „Garantie erfüllt“ eintragen; sonst gilt der Garantiefall.` };
   const art = ein?.art === "karte" ? "karte" : ein?.art === "kapital" ? "kapital" : null;
   if (!art) return { ok: false, error: "Bitte wählen: Kapital ausgezahlt oder Karte freigeschaltet." };
   const datum = String(ein?.datum ?? "").trim(); const eingetragenAm = String(ein?.eingetragenAm ?? "").trim();
@@ -1088,7 +1159,7 @@ export function meilensteinPruefen(lage: { status: string; teil1Bezahlt: boolean
   if (!/^\d{4}-\d{2}-\d{2}$/.test(eingetragenAm)) return { ok: false, error: "Datum der Eintragung der Gesellschaft fehlt." };
   if (datum > lage.heute) return { ok: false, error: "Das Datum liegt in der Zukunft." };
   if (eingetragenAm > datum) return { ok: false, error: "Die Gesellschaft muss vor der Auszahlung bzw. Freischaltung eingetragen sein." };
-  if (lage.fristEnde && datum > lage.fristEnde) return { ok: false, error: `Das Ereignis liegt nach dem Fristende (${angebotTag(lage.fristEnde)}) — Teil 2 ist dann entfallen (Ziffer 6).` };
+  if (lage.fristEnde && datum > lage.fristEnde) return { ok: false, error: `Das Ereignis liegt nach dem Fristende (${angebotTag(lage.fristEnde)}) — dann gilt der Garantiefall (Ziffer 6).` };
   const beleg = text(ein?.beleg, 600);
   if (beleg.length < 20) return { ok: false, error: "Bitte den Beleg in einem Satz festhalten (mindestens 20 Zeichen) — er bleibt intern, der Kunde sieht keinen Banknamen." };
   return { ok: true, daten: { art, datum, eingetragenAm, beleg } };
@@ -1100,8 +1171,9 @@ export async function angebotMeilenstein(id: number, ein: any, wer: string): Pro
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
   const b1 = teil1?.bestell_ref ? await globalBestellungLesen(String(teil1.bestell_ref)) : null;
-  const p = meilensteinPruefen({ status: String(z.status), teil1Bezahlt: String(b1?.payment_status) === "paid", teil2, fristEnde: isoTag(z.frist_ende), heute: berlinToday() }, ein);
+  const p = meilensteinPruefen({ status: String(z.status), teil1Bezahlt: String(b1?.payment_status) === "paid", teil2, fristEnde: isoTag(z.frist_ende), heute: berlinToday(), garantieErfuelltAm: isoTag(z.garantie_erfuellt_am) }, ein);
   if (!p.ok) return nein(p.error, 409);
+  if (z.erstattung_ausgeloest_am) return nein("Der Garantiefall ist vorgemerkt — es gibt keine Rechnung über Teil 2 mehr.", 409);
   const d = angebotDatenAus(z);
   const ref1 = String(z.auftrag_ref);
   // Erst die Angaben am Teil festhalten (Beschreibung der Rechnung liest sie), dann die Zeile, dann binden.
@@ -1114,7 +1186,12 @@ export async function angebotMeilenstein(id: number, ein: any, wer: string): Pro
   if (!gesichert) return nein("Teil 2 wurde gerade schon berechnet.", 409);
   const ok = await bestellzeileAnlegen(ref2, d, 2, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
   if (!ok) return nein("Die Bestellzeile für Teil 2 ließ sich nicht anlegen — bitte noch einmal versuchen.", 502);
-  await sqlPool`UPDATE fiaon_global_angebot_teile SET bestell_ref = ${ref2} WHERE id = ${teil2.id} AND bestell_ref IS NULL`;
+  // Gegenprüfung (logik-4): Nicht an einen Teil binden, der inzwischen (Garantiefall) entfallen ist.
+  const [gebunden] = (await sqlPool`UPDATE fiaon_global_angebot_teile SET bestell_ref = ${ref2} WHERE id = ${teil2.id} AND bestell_ref IS NULL AND entfallen_am IS NULL RETURNING id`) as any[];
+  if (!gebunden) {
+    await sqlPool`UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW() WHERE ref = ${ref2} AND payment_status IN ('pending', 'pending_payment')`.catch(() => {});
+    return nein("Teil 2 ist inzwischen entfallen (Garantiefall) — keine Rechnung.", 409);
+  }
   const { bestellungFuerAntrag } = await import("../routes/fiaon-antrag");
   const erg = await bestellungFuerAntrag(ref2, { globalMailFolgt: true });
   if (erg.status !== 200) return nein(`Die Rechnung für Teil 2 ließ sich nicht anlegen: ${String((erg.body as any)?.error || erg.status)}`, 502);
@@ -1142,7 +1219,7 @@ export async function angebotMeilenstein(id: number, ein: any, wer: string): Pro
   await auftragFuerKunden({
     personId: b2?.person_id != null ? Number(b2.person_id) : null, ref: ref1,
     titel: `FIAON Global: Meilenstein erreicht — Rechnung Teil 2 an ${angebotKundeName(d.kunde)}`,
-    text: `${wer} hat den Meilenstein eingetragen (${ereignis} am ${angebotTag(p.daten.datum)}). Rechnung über Teil 2 (${angebotEur(d.parameter.teil2Cents)}, Verwendungszweck ${b2?.payment_reference ?? "—"}) ist raus, zahlbar binnen ${zahlwort(d.parameter.teil2ZielTage)} Tagen. Die Kapital-Begleitung läuft weiter bis zum Ziel.`,
+    text: `${wer} hat den Meilenstein eingetragen (${ereignis} am ${angebotTag(p.daten.datum)}). Rechnung über Teil 2 (${angebotEur(d.parameter.teil2Cents)}, Verwendungszweck ${b2?.payment_reference ?? "—"}) ist raus, zahlbar binnen ${zahlwort(d.parameter.teil2ZielTage)} Tagen. Die Garantie läuft weiter: bis zum Fristende ${angebotGarantieziel(d.parameter)} — sind beide vollständig da, der Leitung sagen („Garantie erfüllt“).`,
     schluessel: `global:${ref1}:teil2`, bereich: "konten", quelle: "global", autorName: wer,
     link: globalOfficeAuftragPfad(ref1), agentId: akte1?.zustaendig_agent_id ? Number(akte1.zustaendig_agent_id) : null,
     anlageText: "Meilenstein im Reiter „Individualangebote“ eingetragen.",
@@ -1181,8 +1258,9 @@ export async function angebotFristHemmen(id: number, ein: any, wer: string): Pro
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (!z.frist_ende) return nein("Die Frist läuft noch nicht — sie beginnt mit dem Start.", 409);
-  const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
-  if (teil2?.bestell_ref || teil2?.entfallen_am) return nein("Nach Meilenstein oder Erstattung gibt es keine Frist mehr zu hemmen.", 409);
+  // E-271: Die Frist läuft auch nach dem Meilenstein weiter (Garantie bis zum Fristende) — Hemmen geht bis zur
+  // erfüllten Garantie oder zum Garantiefall.
+  if (z.garantie_erfuellt_am || z.erstattung_ausgeloest_am) return nein("Nach erfüllter Garantie oder vorgemerktem Garantiefall gibt es keine Frist mehr zu hemmen.", 409);
   const grund = text(ein?.grund, 500);
   if (grund.length < 20) return nein("Welche Mitwirkung fehlt? Bitte in einem Satz (mindestens 20 Zeichen) — die Frist ruht nur bei schuldhaft fehlender Mitwirkung nach Aufforderung (Ziffer 6 Absatz 3).");
   const erbrachtRoh = String(ein?.erbrachtAm ?? "").trim();
@@ -1222,17 +1300,122 @@ export async function angebotFristHemmen(id: number, ein: any, wer: string): Pro
   return { ok: true, fristEnde: ende, tage: h.tage, von: h.von, bis: h.bis };
 }
 
-export function erstattungPruefen(lage: { status: string; teil1Bezahlt: boolean; teil2: any; fristEnde: string | null; heute: string; schon: boolean }):
+/** Seit wann eine berechnete Teil-2-Rechnung fällig und offen ist (Ziffer 6 Abs. 3: die Frist ruht) — sonst null. */
+export function teil2OffenSeit(b2: { payment_status?: unknown; payment_due_date?: unknown } | null | undefined, heute: string): string | null {
+  if (!b2 || !["pending_payment", "claimed_paid", "expired"].includes(String(b2.payment_status))) return null;
+  const f = b2.payment_due_date ? (b2.payment_due_date instanceof Date ? berlinToday(b2.payment_due_date) : String(b2.payment_due_date).slice(0, 10)) : null;
+  return f && /^\d{4}-\d{2}-\d{2}$/.test(f) && f < heute ? f : null;
+}
+
+/**
+ * Wann der Garantiefall vorgemerkt werden darf (E-271): angenommen, Teil 1 bezahlt, Frist abgelaufen, Garantie NICHT als
+ * erfüllt eingetragen, noch nicht vorgemerkt. Der Meilenstein (erstes Kapital/erste Karte) sperrt NICHT mehr — die Garantie
+ * gilt bis zum Fristende für Kreditrahmen UND Karten.
+ */
+export function erstattungPruefen(lage: { status: string; teil1Bezahlt: boolean; teil2: any; fristEnde: string | null; heute: string; schon: boolean; garantieErfuelltAm?: string | null; akteStatus?: string | null; teil2OffenSeit?: string | null }):
   { ok: true } | { ok: false; error: string } {
   if (lage.status !== "angenommen") return { ok: false, error: "Das Angebot ist nicht angenommen." };
-  if (lage.schon) return { ok: false, error: "Die Erstattung ist bereits vorgemerkt." };
+  if (lage.schon) return { ok: false, error: "Der Garantiefall ist bereits vorgemerkt." };
+  if (lage.garantieErfuelltAm) return { ok: false, error: `Die Garantie ist erfüllt (am ${angebotTag(lage.garantieErfuelltAm)}) — kein Garantiefall.` };
+  // Gegenprüfung (logik-3): Nach Kündigung oder Widerruf (Akte storniert) entfallen Garantie und Erstattung (Ziffer 10 Abs. 2, Ziffer 11).
+  if (lage.akteStatus === "storniert") return { ok: false, error: "Der Auftrag ist storniert (Kündigung oder Widerruf) — es gibt keinen Garantiefall." };
+  // Gegenprüfung (vertrag-3): Solange eine fällige Teil-2-Rechnung offen ist, ruht die Frist (Ziffer 6 Abs. 3).
+  if (lage.teil2OffenSeit) return { ok: false, error: `Die Rechnung über Teil 2 ist seit ${angebotTag(lage.teil2OffenSeit)} fällig und offen — die Frist ruht (Ziffer 6 Absatz 3), kein Garantiefall.` };
   if (!lage.teil1Bezahlt) return { ok: false, error: "Teil 1 ist nicht bezahlt — es gibt nichts zu erstatten." };
   if (!lage.fristEnde) return { ok: false, error: "Die Frist läuft noch nicht." };
-  if (lage.teil2?.bestell_ref) return { ok: false, error: "Der Meilenstein ist erreicht — die Erstattungszusage gilt nicht mehr." };
   if (lage.heute <= lage.fristEnde) return { ok: false, error: `Die Frist läuft bis ${angebotTag(lage.fristEnde)} — erst danach.` };
   return { ok: true };
 }
 
+/** Was im Garantiefall mit Teil 2 geschieht — aus dem Stand der Bestellung (rein, der Prüfstand rechnet nach). */
+export type Teil2Fall = "nicht berechnet" | "offen → storniert" | "bezahlt → erstattet" | "schon storniert";
+export function garantiefallRechnen(lage: { teil1Cents: number; teil2Cents: number; teil2BestellRef: string | null; teil2Zahlung: string | null }):
+  { teil2Fall: Teil2Fall; summeCents: number } {
+  const z = String(lage.teil2Zahlung ?? "");
+  const teil2Fall: Teil2Fall = !lage.teil2BestellRef || z === "" || z === "pending" ? "nicht berechnet"
+    : z === "paid" ? "bezahlt → erstattet"
+    : ["cancelled", "superseded", "refunded"].includes(z) ? "schon storniert"
+    : "offen → storniert";
+  return { teil2Fall, summeCents: lage.teil1Cents + (teil2Fall === "bezahlt → erstattet" ? lage.teil2Cents : 0) };
+}
+
+/**
+ * „Garantie erfüllt“ (E-271): Kreditrahmen ≥ Ziel UND Karten ≥ Ziel, bis zum Fristende, mit internem Beleg. Erst nach dem
+ * Meilenstein (Teil 2 berechnet) — der Meilenstein ist das erste Kapital bzw. die erste Karte. Rein — Prüfstand und Knöpfe.
+ */
+export function garantiePruefen(
+  lage: { status: string; teil1Bezahlt: boolean; teil2: any; fristEnde: string | null; heute: string; erstattungAusgeloest: boolean; erfuelltAm: string | null; ziel: { rahmenUsd: number; karten: number } },
+  ein: any,
+): { ok: true; daten: { erfuelltAm: string; rahmenUsd: number; karten: number; beleg: string } } | { ok: false; error: string } {
+  if (lage.status !== "angenommen") return { ok: false, error: "Das Angebot ist nicht angenommen." };
+  if (lage.erfuelltAm) return { ok: false, error: `Die Garantie ist schon als erfüllt eingetragen (${angebotTag(lage.erfuelltAm)}).` };
+  if (lage.erstattungAusgeloest) return { ok: false, error: "Der Garantiefall ist vorgemerkt — die Garantie lässt sich nicht mehr als erfüllt eintragen." };
+  if (!lage.teil1Bezahlt) return { ok: false, error: "Teil 1 ist noch nicht bezahlt." };
+  if (!lage.fristEnde) return { ok: false, error: "Die Frist läuft noch nicht." };
+  const erfuelltAm = String(ein?.erfuelltAm ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(erfuelltAm)) return { ok: false, error: "Datum, an dem Kreditrahmen und Karten vollständig vorlagen (JJJJ-MM-TT)." };
+  if (erfuelltAm > lage.heute) return { ok: false, error: "Das Datum liegt in der Zukunft." };
+  if (erfuelltAm > lage.fristEnde) return { ok: false, error: `Das Datum liegt nach dem Fristende (${angebotTag(lage.fristEnde)}) — dann gilt der Garantiefall.` };
+  const ms = lage.teil2?.meilenstein_am ? (lage.teil2.meilenstein_am instanceof Date ? berlinToday(lage.teil2.meilenstein_am) : String(lage.teil2.meilenstein_am).slice(0, 10)) : null;
+  if (ms && erfuelltAm < ms) return { ok: false, error: `Das Datum liegt vor dem Meilenstein (${angebotTag(ms)}).` };
+  // Gegenprüfung (logik-2): streng — ganze US-Dollar, Tausenderpunkte erlaubt, KEINE Nachkommastellen („750.000,00“ ist nicht 75.000.000).
+  const rohRahmen = String(ein?.rahmenUsd ?? "").trim();
+  if (!/^\d+$|^\d{1,3}([.\s]\d{3})+$/.test(rohRahmen)) return { ok: false, error: "Kreditrahmen in ganzen US-Dollar ohne Cent eintragen (z. B. 800.000)." };
+  const rahmenUsd = Number(rohRahmen.replace(/[.\s]/g, ""));
+  const rohKarten = String(ein?.karten ?? "").trim();
+  if (!/^\d+$/.test(rohKarten)) return { ok: false, error: "Zahl der freigeschalteten Karten als ganze Zahl eintragen." };
+  const karten = Number(rohKarten);
+  if (!Number.isFinite(rahmenUsd) || rahmenUsd < lage.ziel.rahmenUsd) return { ok: false, error: `Der eingeräumte Kreditrahmen muss zusammen mindestens ${angebotUsd(lage.ziel.rahmenUsd)} betragen (Kartenlimits zählen nicht).` };
+  if (!Number.isFinite(karten) || karten < lage.ziel.karten) return { ok: false, error: `Es müssen mindestens ${angebotKarten(lage.ziel.karten)} freigeschaltet sein.` };
+  const beleg = text(ein?.beleg, 800);
+  if (beleg.length < 20) return { ok: false, error: "Bitte die Belege in einem Satz festhalten (mindestens 20 Zeichen) — intern, der Kunde sieht keinen Banknamen." };
+  return { ok: true, daten: { erfuelltAm, rahmenUsd, karten, beleg } };
+}
+
+export async function angebotGarantieErfuellt(id: number, ein: any, wer: string): Promise<Ergebnis<{ meldung: string }>> {
+  const z = await angebotLesen({ id });
+  if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
+  const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
+  const b1 = teil1?.bestell_ref ? await globalBestellungLesen(String(teil1.bestell_ref)) : null;
+  const d = angebotDatenAus(z);
+  const p = garantiePruefen({
+    status: String(z.status), teil1Bezahlt: String(b1?.payment_status) === "paid", teil2, fristEnde: isoTag(z.frist_ende), heute: berlinToday(),
+    erstattungAusgeloest: !!z.erstattung_ausgeloest_am, erfuelltAm: isoTag(z.garantie_erfuellt_am),
+    ziel: { rahmenUsd: d.parameter.kapitalZielUsd, karten: d.parameter.kartenZiel },
+  }, ein);
+  if (!p.ok) return nein(p.error, 409);
+  const [frei] = (await sqlPool`
+    UPDATE fiaon_global_angebote
+       SET garantie_erfuellt_am = ${p.daten.erfuelltAm}::date, garantie_rahmen_usd = ${p.daten.rahmenUsd}, garantie_karten = ${p.daten.karten},
+           garantie_beleg = ${p.daten.beleg}, garantie_von = ${wer}, garantie_eingetragen_am = NOW(), updated_at = NOW()
+     WHERE id = ${id} AND garantie_erfuellt_am IS NULL AND erstattung_ausgeloest_am IS NULL RETURNING id`) as any[];
+  if (!frei) return nein("Die Garantie wurde gerade schon eingetragen — oder der Garantiefall ist vorgemerkt.", 409);
+  const satz = `Garantie erfüllt am ${angebotTag(p.daten.erfuelltAm)}: Kreditrahmen ${angebotUsd(p.daten.rahmenUsd)}, ${angebotKarten(p.daten.karten)}`;
+  await verlaufAngebot(id, wer, satz, { beleg: p.daten.beleg });
+  const ref1 = String(z.auftrag_ref || "");
+  if (ref1) {
+    await globalVerlauf(ref1, `FIAON Global: ${satz} (Individualangebot ${d.ref}, eingetragen von ${wer}). Kein Garantiefall mehr; die Kapital-Begleitung ist am Ziel (Ziffer 3 Absatz 5).`);
+    const akte1 = await globalAkteLesen(ref1);
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    await auftragFuerKunden({
+      personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
+      titel: `FIAON Global: Garantie erfüllt — ${angebotKundeName(d.kunde)}`,
+      text: `${wer} hat eingetragen: ${satz}. Bitte dem Kunden gratulieren und die Unterlagen (Kreditverträge, Kartenbestätigungen) im Dokumentenraum ablegen.`,
+      schluessel: `global:${ref1}:garantie`, bereich: "konten", quelle: "global", autorName: wer,
+      link: globalOfficeAuftragPfad(ref1), agentId: akte1?.zustaendig_agent_id ? Number(akte1.zustaendig_agent_id) : null,
+      anlageText: "Garantie erfüllt im Reiter „Individualangebote“ eingetragen.",
+    }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe Garantie erfüllt:`, e));
+  }
+  return { ok: true, meldung: `${satz}. Kein Garantiefall mehr; die Fristwarnungen enden.` };
+}
+
+/**
+ * DER GARANTIEFALL (E-271, Ziffer 6 Abs. 2): Frist abgelaufen, Garantie nicht als erfüllt eingetragen.
+ * Reihenfolge: Anspruch sichern → Teil 2 (nicht berechnet: entfällt; offen: Storno; bezahlt: Storno, wird erstattet) →
+ * Teil 1 über den Storno-Weg mit Erstattung (ohne eigene Erstattungsaufgabe) → EINE Aufgabe an Justin mit der Summe →
+ * Mail an den Kunden. Geld bewegt das System nicht — überwiesen wird von Hand.
+ */
 export async function angebotErstattungVormerken(id: number, wer: string): Promise<Ergebnis<{ meldung: string }>> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
@@ -1240,52 +1423,109 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
   const ref1 = String(z.auftrag_ref || "");
   const b1 = ref1 ? await globalBestellungLesen(ref1) : null;
+  const ref2 = teil2?.bestell_ref ? String(teil2.bestell_ref) : null;
+  const b2 = ref2 ? await globalBestellungLesen(ref2) : null;
   const fristEnde = isoTag(z.frist_ende);
-  const p = erstattungPruefen({ status: String(z.status), teil1Bezahlt: String(b1?.payment_status) === "paid", teil2, fristEnde, heute: berlinToday(), schon: !!z.erstattung_ausgeloest_am });
+  const akteG = ref1 ? await globalAkteLesen(ref1) : null;
+  const heute = berlinToday();
+  const p = erstattungPruefen({
+    status: String(z.status), teil1Bezahlt: String(b1?.payment_status) === "paid", teil2, fristEnde, heute, schon: !!z.erstattung_ausgeloest_am,
+    garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), akteStatus: akteG ? String(akteG.status) : null, teil2OffenSeit: teil2OffenSeit(b2, heute),
+  });
   if (!p.ok) return nein(p.error, 409);
   const d = angebotDatenAus(z);
+  const teil1Cents = Number(teil1?.betrag_cents ?? d.parameter.teil1Cents);
+  const teil2Cents = Number(teil2?.betrag_cents ?? d.parameter.teil2Cents);
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote SET erstattung_ausgeloest_am = NOW(), erstattung_ausgeloest_von = ${wer}, updated_at = NOW()
-     WHERE id = ${id} AND erstattung_ausgeloest_am IS NULL RETURNING id`) as any[];
-  if (!frei) return nein("Die Erstattung ist bereits vorgemerkt.", 409);
-  await sqlPool`UPDATE fiaon_global_angebot_teile SET entfallen_am = NOW(), entfallen_grund = ${`Frist am ${angebotTag(fristEnde)} abgelaufen — weder Kapital noch Karte`} WHERE id = ${teil2.id} AND bestell_ref IS NULL AND entfallen_am IS NULL`;
+     WHERE id = ${id} AND erstattung_ausgeloest_am IS NULL AND garantie_erfuellt_am IS NULL RETURNING id`) as any[];
+  if (!frei) return nein("Der Garantiefall ist bereits vorgemerkt — oder die Garantie wurde gerade als erfüllt eingetragen.", 409);
+  // Gegenprüfung (logik-7): den Stand von Teil 2 NACH dem Anspruch lesen — eine Zahlung dazwischen zählt mit.
+  const b2jetzt = ref2 ? await globalBestellungLesen(ref2) : null;
+  const fall = garantiefallRechnen({ teil1Cents, teil2Cents, teil2BestellRef: ref2, teil2Zahlung: b2jetzt ? String(b2jetzt.payment_status ?? "") : null });
+  await sqlPool`UPDATE fiaon_global_angebote SET erstattung_cents = ${fall.summeCents} WHERE id = ${id}`;
+  const zuruecksetzen = async () => {
+    await sqlPool`UPDATE fiaon_global_angebote SET erstattung_ausgeloest_am = NULL, erstattung_ausgeloest_von = NULL, erstattung_cents = NULL WHERE id = ${id}`;
+  };
+  const grundTeil2 = `Garantiefall: Frist am ${angebotTag(fristEnde)} abgelaufen, Garantieziel (${angebotGarantieziel(d.parameter)}) nicht vollständig erreicht`;
+  // ── Teil 2 ──
+  if (fall.teil2Fall === "offen → storniert" || fall.teil2Fall === "bezahlt → erstattet") {
+    const { bestellungStornieren } = await import("../routes/fiaon-antrag");
+    const st = await bestellungStornieren({ ref: ref2 }, wer).catch((e) => { console.error(`[FIAON-ANGEBOT] ${d.ref}: Storno Teil 2:`, e); return null; });
+    if (!st) {
+      const neu2 = await globalBestellungLesen(ref2!);
+      if (!["cancelled", "superseded"].includes(String(neu2?.payment_status))) {
+        await zuruecksetzen();
+        return nein("Die Rechnung über Teil 2 ließ sich nicht stornieren — es wurde nichts geändert. Bitte noch einmal versuchen.", 409);
+      }
+    }
+  }
+  // Gegenprüfung (logik-8): Eine gebundene, aber nie berechnete Teil-2-Zeile (Status 'pending') direkt stornieren.
+  if (fall.teil2Fall === "nicht berechnet" && ref2) {
+    await sqlPool`UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW() WHERE ref = ${ref2} AND payment_status = 'pending'`.catch(() => {});
+  }
+  if (teil2) {
+    await sqlPool`UPDATE fiaon_global_angebot_teile SET entfallen_am = NOW(), entfallen_grund = ${`${grundTeil2} — ${fall.teil2Fall}`} WHERE id = ${teil2.id} AND entfallen_am IS NULL`;
+  }
+  // ── Teil 1 ──
   const bis = plusTage(fristEnde!, d.parameter.erstattungTage);
   const { globalAuftragStornieren } = await import("./fiaon-global-storno");
+  // Gegenprüfung (logik-6): Eine Ausnahme im Storno-Weg darf den Garantiefall nicht halb stehen lassen.
   const storno = await globalAuftragStornieren(ref1, {
-    grund: `Frist von ${zahlwort(d.parameter.fristWochen)} Wochen am ${angebotTag(fristEnde)} abgelaufen — weder Kapital noch Karte. Erstattungszusage Ziffer 6 des Individualangebots ${d.ref}; Teil 2 entfällt, die Gesellschaft bleibt beim Kunden.`,
-    erstattung: true,
-  }, wer);
-  if (!storno.ok) {
-    // Zurück auf den alten Stand — ein halber Storno wäre schlimmer als keiner.
-    await sqlPool`UPDATE fiaon_global_angebote SET erstattung_ausgeloest_am = NULL, erstattung_ausgeloest_von = NULL WHERE id = ${id}`;
-    await sqlPool`UPDATE fiaon_global_angebot_teile SET entfallen_am = NULL, entfallen_grund = NULL WHERE id = ${teil2.id} AND bestell_ref IS NULL`;
-    return nein(`Der Storno-Weg lehnte ab: ${storno.error}`, storno.status ?? 409);
-  }
-  // Justins Aufgabe „Erstattung veranlassen" trägt die Zusage mit Datum (derselbe Schlüssel — der Text wird angehängt).
+    grund: `${grundTeil2}. Garantie Ziffer 3 Absatz 1 und Ziffer 6 des Individualangebots ${d.ref}: alles Gezahlte zurück (${angebotEur(fall.summeCents)}); Teil 2 ${fall.teil2Fall}; die Gesellschaft bleibt beim Kunden.`,
+    erstattung: true, ohneErstattungsAufgabe: true, auchAbgeschlossen: true,
+  }, wer).catch((e) => ({ ok: false as const, status: 500, error: e instanceof Error ? e.message : String(e) }));
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  if (!storno.ok) {
+    if (fall.teil2Fall === "nicht berechnet" || fall.teil2Fall === "schon storniert") {
+      // Nichts Unumkehrbares geschehen — zurück auf den alten Stand.
+      await zuruecksetzen();
+      if (teil2) await sqlPool`UPDATE fiaon_global_angebot_teile SET entfallen_am = NULL, entfallen_grund = NULL WHERE id = ${teil2.id}`;
+      return nein(`Der Storno-Weg lehnte ab: ${storno.error}`, storno.status ?? 409);
+    }
+    // Teil 2 ist schon storniert — kein Zurücksetzen, sondern Justin Bescheid geben.
+    await auftragFuerKunden({
+      personId: b1?.person_id != null ? Number(b1.person_id) : null, ref: ref1,
+      titel: `Garantiefall halb ausgeführt — Teil 1 bitte von Hand stornieren (${angebotKundeName(d.kunde)})`,
+      text: `Teil 2 (${ref2}) ist storniert, der Storno von Teil 1 (${ref1}) lehnte ab: ${storno.error}. Bitte Teil 1 im Reiter „Global-Aufträge“ mit Erstattung stornieren; zu erstatten sind insgesamt ${angebotEur(fall.summeCents)} bis ${angebotTag(bis)}.`,
+      dringend: true, anBetreiber: true, schluessel: `global:${ref1}:garantiefall-halb`, bereich: "konten", quelle: "global", autorName: wer,
+      link: "/chef/s/global-auftraege?reiter=angebote",
+    }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe halber Garantiefall:`, e));
+  }
+  // ── EINE Aufgabe an Justin mit der Summe ──
+  const posten = [`Teil 1 ${angebotEur(teil1Cents)} (Zweck ${b1?.payment_reference ?? "—"}${b1?.invoice_number ? `, Rechnung ${b1.invoice_number}` : ""})`];
+  if (fall.teil2Fall === "bezahlt → erstattet") posten.push(`Teil 2 ${angebotEur(teil2Cents)} (Zweck ${b2?.payment_reference ?? "—"}${b2?.invoice_number ? `, Rechnung ${b2.invoice_number}` : ""})`);
   await auftragFuerKunden({
     personId: b1?.person_id != null ? Number(b1.person_id) : null, ref: ref1,
-    titel: `Erstattung veranlassen: ${angebotEur(d.parameter.teil1Cents)} an ${angebotKundeName(d.kunde)}`,
-    text: `ZUSAGE (Ziffer 6 des Individualangebots ${d.ref}): vollständig und ohne Abzug binnen ${zahlwort(d.parameter.erstattungTage)} Tagen nach Fristende — also bis spätestens ${angebotTag(bis)} — auf das Konto, von dem gezahlt wurde. Danach im Reiter „Individualangebote“ „Erstattung überwiesen“ eintragen.`,
+    titel: `Erstattung veranlassen (Garantie): ${angebotEur(fall.summeCents)} an ${angebotKundeName(d.kunde)}`,
+    text: [
+      `GARANTIE (Ziffer 3 Absatz 1 und Ziffer 6 des Individualangebots ${d.ref}): Das Garantieziel (${angebotGarantieziel(d.parameter)}) ist bis zum Fristende ${angebotTag(fristEnde)} nicht vollständig erreicht.`,
+      `Zu erstatten: alles Gezahlte, ${angebotEur(fall.summeCents)} — ${posten.join(" + ")} — vollständig und ohne Abzug binnen ${zahlwort(d.parameter.erstattungTage)} Tagen nach Fristende, also bis spätestens ${angebotTag(bis)}, auf das Konto, von dem gezahlt wurde.`,
+      fall.teil2Fall === "offen → storniert" ? `Die offene Rechnung über Teil 2 (${ref2}) ist storniert — der Kunde muss sie nicht zahlen.` : fall.teil2Fall === "nicht berechnet" ? "Teil 2 war noch nicht berechnet und entfällt." : "",
+      "Das System hat KEIN Geld bewegt. Gutschriften zu den Rechnungen bitte mit der Buchhaltung klären. Danach im Reiter „Individualangebote“ „Erstattung überwiesen“ eintragen.",
+    ].filter(Boolean).join("\n"),
     dringend: true, anBetreiber: true, faelligAm: bis, schluessel: `global:${ref1}:erstattung`, bereich: "konten", quelle: "global", autorName: wer,
     link: "/chef/s/global-auftraege?reiter=angebote",
-  }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Zusatz zur Erstattungsaufgabe:`, e));
-  await verlaufAngebot(id, wer, `Erstattung vorgemerkt — bis ${angebotTag(bis)}; Teil 2 entfallen`);
-  // Der Kunde erfährt es in Textform — die Zusage ist ein Vertragsversprechen, kein Storno aus Kulanz.
-  let meldung = `Erstattung von ${angebotEur(d.parameter.teil1Cents)} vorgemerkt (bis ${angebotTag(bis)}). Teil 2 entfällt. Justin hat die dringende Aufgabe „Erstattung veranlassen“ — überwiesen wird von Hand.`;
+  }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Erstattungsaufgabe:`, e));
+  await verlaufAngebot(id, wer, `Garantiefall vorgemerkt — ${angebotEur(fall.summeCents)} bis ${angebotTag(bis)} zu erstatten; Teil 2 ${fall.teil2Fall}`);
+  let meldung = `Garantiefall vorgemerkt: ${angebotEur(fall.summeCents)} bis ${angebotTag(bis)} zu erstatten (Teil 2: ${fall.teil2Fall}). Justin hat die dringende Aufgabe „Erstattung veranlassen“ — überwiesen wird von Hand.`;
   const akte1 = await globalAkteLesen(ref1);
   if (akte1) {
     const z2 = (await angebotLesen({ id }))!;
-    const mail = await globalMailSenden("global_angebot_erstattung", akte1, b1, { zusatz: angebotMailZusatz(z2, d, { erstattung_bis_text: angebotTag(bis) }), ausgeloestVon: wer });
+    const teil2Satz = fall.teil2Fall === "bezahlt → erstattet" ? `Auch Ihre Zahlung für Teil 2 über ${angebotEur(teil2Cents)} erstatten wir.`
+      : fall.teil2Fall === "offen → storniert" ? "Die offene Rechnung über Teil 2 ist storniert — Sie müssen sie nicht bezahlen."
+      : "Teil 2 entfällt.";
+    const mail = await globalMailSenden("global_angebot_erstattung", akte1, b1, { zusatz: angebotMailZusatz(z2, d, { erstattung_bis_text: angebotTag(bis), erstattung_betrag_text: angebotEur(fall.summeCents), teil2_satz_text: teil2Satz }), ausgeloestVon: wer });
     meldung += mail.ok ? " Der Kunde ist per Mail informiert." : ` Die Mail an den Kunden ging NICHT raus (${mail.grund}) — bitte schriftlich mitteilen.`;
   }
+  if (!storno.ok) meldung += ` ACHTUNG: Teil 1 ließ sich nicht stornieren (${storno.error}) — Justin hat die Aufgabe „Garantiefall halb ausgeführt“.`;
   return { ok: true, meldung };
 }
 
 export async function angebotErstattungUeberwiesen(id: number, ein: any, wer: string): Promise<Ergebnis> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
-  if (!z.erstattung_ausgeloest_am) return nein("Zuerst die Erstattung vormerken.", 409);
+  if (!z.erstattung_ausgeloest_am) return nein("Zuerst den Garantiefall vormerken.", 409);
   if (z.erstattet_am) return nein("Die Überweisung ist bereits eingetragen.", 409);
   const am = String(ein?.am ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(am) || am > berlinToday()) return nein("Datum der Überweisung (nicht in der Zukunft).");
@@ -1293,7 +1533,7 @@ export async function angebotErstattungUeberwiesen(id: number, ein: any, wer: st
   if (notiz.length < 5) return nein("Bitte die Bankreferenz oder eine kurze Notiz eintragen.");
   await sqlPool`UPDATE fiaon_global_angebote SET erstattet_am = ${am}::date, erstattung_notiz = ${notiz}, updated_at = NOW() WHERE id = ${id}`;
   await verlaufAngebot(id, wer, `Erstattung überwiesen am ${angebotTag(am)} (${notiz})`);
-  if (z.auftrag_ref) await globalVerlauf(String(z.auftrag_ref), `FIAON Global: Erstattung von Teil 1 am ${angebotTag(am)} überwiesen (${wer}).`);
+  if (z.auftrag_ref) await globalVerlauf(String(z.auftrag_ref), `FIAON Global: Erstattung (Garantie) ${z.erstattung_cents != null ? `von ${angebotEur(Number(z.erstattung_cents))} ` : ""}am ${angebotTag(am)} überwiesen (${wer}).`);
   return { ok: true };
 }
 
@@ -1311,6 +1551,11 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
   const alleTeile = (await sqlPool`
     SELECT t.*, a.payment_status, a.payment_reference, a.invoice_number, a.payment_due_date, a.completed_at
       FROM fiaon_global_angebot_teile t LEFT JOIN fiaon_applications a ON a.ref = t.bestell_ref`) as any[];
+  // Gegenprüfung (logik-3): Stand der Akten — nach Kündigung/Widerruf (storniert) gibt es keinen Garantiefall.
+  const aktenRefs = zeilen.map((z) => z.auftrag_ref).filter(Boolean).map(String);
+  const aktenStand = new Map<string, string>(aktenRefs.length
+    ? ((await sqlPool`SELECT ref, status FROM fiaon_global_auftraege WHERE ref = ANY(${aktenRefs})`) as any[]).map((r) => [String(r.ref), String(r.status)])
+    : []);
   const heute = berlinToday();
   return zeilen.map((z) => {
     const d = angebotDatenAus(z);
@@ -1323,8 +1568,17 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
     // Knopf-Zustand: dieselbe Prüfung wie beim Klick, mit einem Probedatum am oder vor dem Fristende
     // (ein Meilenstein VOR dem Fristende darf auch danach noch eingetragen werden).
     const probe = fristEnde && fristEnde < heute ? fristEnde : heute;
-    const meil = meilensteinPruefen({ status: String(z.status), teil1Bezahlt, teil2: t2, fristEnde, heute }, { art: "kapital", datum: probe, eingetragenAm: probe, beleg: "x".repeat(20) });
-    const erst = erstattungPruefen({ status: String(z.status), teil1Bezahlt, teil2: t2, fristEnde, heute, schon: !!z.erstattung_ausgeloest_am });
+    const meil = meilensteinPruefen({ status: String(z.status), teil1Bezahlt, teil2: t2, fristEnde, heute, garantieErfuelltAm: isoTag(z.garantie_erfuellt_am) }, { art: "kapital", datum: probe, eingetragenAm: probe, beleg: "x".repeat(20) });
+    const erst = erstattungPruefen({
+      status: String(z.status), teil1Bezahlt, teil2: t2, fristEnde, heute, schon: !!z.erstattung_ausgeloest_am, garantieErfuelltAm: isoTag(z.garantie_erfuellt_am),
+      akteStatus: z.auftrag_ref ? aktenStand.get(String(z.auftrag_ref)) ?? null : null, teil2OffenSeit: teil2OffenSeit(t2, heute),
+    });
+    // E-271: „Garantie erfüllt“ — dieselbe Prüfung wie beim Klick, mit dem Ziel als Probewert.
+    const gar = garantiePruefen({
+      status: String(z.status), teil1Bezahlt, teil2: t2, fristEnde, heute, erstattungAusgeloest: !!z.erstattung_ausgeloest_am,
+      erfuelltAm: isoTag(z.garantie_erfuellt_am), ziel: { rahmenUsd: d.parameter.kapitalZielUsd, karten: d.parameter.kartenZiel },
+    }, { erfuelltAm: probe < (isoTag(t2?.meilenstein_am) ?? probe) ? (isoTag(t2?.meilenstein_am) ?? probe) : probe, rahmenUsd: String(d.parameter.kapitalZielUsd), karten: String(d.parameter.kartenZiel), beleg: "x".repeat(20) });
+    const fall = garantiefallRechnen({ teil1Cents: Number(t1?.betrag_cents ?? d.parameter.teil1Cents), teil2Cents: Number(t2?.betrag_cents ?? d.parameter.teil2Cents), teil2BestellRef: t2?.bestell_ref ?? null, teil2Zahlung: t2?.payment_status ?? null });
     const pb = d.pruefbericht;
     const teilAus = (t: any) => t ? ({
       nr: Number(t.nr), titel: String(t.titel), betragCents: Number(t.betrag_cents), faelligkeit: String(t.faelligkeit), zahlungszielTage: Number(t.zahlungsziel_tage),
@@ -1355,6 +1609,11 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
       fristBeginn: isoTag(z.frist_beginn), fristEnde, fristHemmungTage: Number(z.frist_hemmung_tage || 0),
       erstattungAusgeloestAm: z.erstattung_ausgeloest_am ? new Date(z.erstattung_ausgeloest_am).toISOString() : null,
       erstattetAm: isoTag(z.erstattet_am), erstattungNotiz: z.erstattung_notiz ?? null,
+      // E-271: Garantie — erfüllt (mit Werten) bzw. was der Garantiefall heute erstatten würde.
+      garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), garantieRahmenUsd: z.garantie_rahmen_usd != null ? Number(z.garantie_rahmen_usd) : null,
+      garantieKarten: z.garantie_karten != null ? Number(z.garantie_karten) : null, garantieVon: z.garantie_von ?? null,
+      erstattungCents: z.erstattung_cents != null ? Number(z.erstattung_cents) : null,
+      erstattungVorschau: { teil2Fall: fall.teil2Fall, summeCents: fall.summeCents },
       bestaetigungMailAm: z.bestaetigung_mail_am ? new Date(z.bestaetigung_mail_am).toISOString() : null,
       bestaetigungMailFehler: z.bestaetigung_mail_fehler ?? null, nacharbeitFehler: z.nacharbeit_fehler ?? null,
       zurueckgezogenAm: z.zurueckgezogen_am ? new Date(z.zurueckgezogen_am).toISOString() : null, zurueckgezogenGrund: z.zurueckgezogen_grund ?? null,
@@ -1363,7 +1622,8 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
       knoepfe: {
         meilenstein: meil.ok ? null : meil.error,
         erstattung: erst.ok ? null : erst.error,
-        hemmung: fristEnde && !t2?.bestell_ref && !t2?.entfallen_am ? null : "Nur während die Frist läuft.",
+        garantie: gar.ok ? null : gar.error,
+        hemmung: fristEnde && !z.garantie_erfuellt_am && !z.erstattung_ausgeloest_am ? null : "Nur während die Frist läuft.",
         aendern: String(z.status) === "offen" ? null : "Nur solange das Angebot offen ist.",
       },
       verlauf: json<any[]>(z.verlauf, []).slice(-12),
@@ -1396,11 +1656,14 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
     nachgeholt++;
   }
   const laufend = (await sqlPool`
-    SELECT a.*, t2.id AS t2_id FROM fiaon_global_angebote a
+    SELECT a.*, t2.id AS t2_id, b2.payment_status AS t2_zahlung, b2.payment_due_date AS t2_faellig FROM fiaon_global_angebote a
       JOIN fiaon_global_angebot_teile t2 ON t2.angebot_id = a.id AND t2.nr = 2
+      LEFT JOIN fiaon_applications b2 ON b2.ref = t2.bestell_ref
+      LEFT JOIN fiaon_global_auftraege g ON g.ref = a.auftrag_ref
      WHERE a.status = 'angenommen' AND a.frist_ende IS NOT NULL AND a.erstattung_ausgeloest_am IS NULL
-       AND t2.bestell_ref IS NULL AND t2.entfallen_am IS NULL
+       AND a.garantie_erfuellt_am IS NULL AND (g.status IS NULL OR g.status <> 'storniert')
      LIMIT 100`) as any[];
+  // E-271: Die Frist wird bis zur erfüllten Garantie überwacht — auch nach dem Meilenstein (erstes Kapital/erste Karte).
   let warnungen = 0; let fristende = 0;
   for (const z of laufend) {
     const ende = isoTag(z.frist_ende)!; const d = angebotDatenAus(z); const ref1 = String(z.auftrag_ref);
@@ -1411,7 +1674,7 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
       if (tageBis > grenze || tageBis < 0 || z[spalte]) continue;
       const [frei] = (await sqlPool.unsafe(`UPDATE fiaon_global_angebote SET ${spalte} = NOW() WHERE id = $1 AND ${spalte} IS NULL RETURNING id`, [z.id])) as any[];
       if (!frei) continue;
-      const satz = `Die Frist des Individualangebots ${d.ref} endet am ${angebotTag(ende)} (noch ${tageBis} Tage). Ohne Kapital oder Karte für die Gesellschaft bis dahin erstattet FIAON Teil 1 (${angebotEur(d.parameter.teil1Cents)}) vollständig. Stand der Anträge prüfen; ist ein Kapitalereignis da, der Leitung sagen („Meilenstein erreicht“).`;
+      const satz = `Die Frist des Individualangebots ${d.ref} endet am ${angebotTag(ende)} (noch ${tageBis} Tage). FIAON garantiert bis dahin ${angebotGarantieziel(d.parameter)} für die Gesellschaft; sonst erstattet FIAON alles Gezahlte (Teil 1 und ggf. Teil 2). Stand der Anträge prüfen: Sind Kreditrahmen und Karten vollständig da, der Leitung sagen („Garantie erfüllt“); ist erst das erste Kapital oder die erste Karte da: „Meilenstein erreicht“.`;
       for (const anBetreiber of [false, true]) {
         await auftragFuerKunden({
           personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
@@ -1423,14 +1686,16 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
       }
       warnungen++;
     }
-    if (tageBis < 0 && !z.frist_abgelaufen_am) {
+    // Gegenprüfung (vertrag-3): Ist eine fällige Teil-2-Rechnung offen, ruht die Frist — noch kein Fristende melden.
+    const verzug = teil2OffenSeit({ payment_status: z.t2_zahlung, payment_due_date: z.t2_faellig }, heute);
+    if (tageBis < 0 && !z.frist_abgelaufen_am && !verzug) {
       const [frei] = (await sqlPool`UPDATE fiaon_global_angebote SET frist_abgelaufen_am = NOW() WHERE id = ${z.id} AND frist_abgelaufen_am IS NULL RETURNING id`) as any[];
       if (!frei) continue;
       const bis = plusTage(ende, d.parameter.erstattungTage);
       await auftragFuerKunden({
         personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
-        titel: `Frist abgelaufen — Erstattung ${angebotEur(d.parameter.teil1Cents)} bis ${angebotTag(bis)} auslösen (${angebotKundeName(d.kunde)})`,
-        text: `Die Frist des Individualangebots ${d.ref} endete am ${angebotTag(ende)}, ohne dass ein Meilenstein eingetragen ist. Ist wirklich weder Kapital noch Karte gekommen: im Reiter „Individualangebote“ „Erstattung vormerken“ drücken (Teil 2 entfällt, Storno mit Erstattung, Mail an den Kunden) und bis ${angebotTag(bis)} überweisen. Kam doch etwas vor dem Fristende: „Meilenstein erreicht“ mit dem Datum eintragen.`,
+        titel: `Frist abgelaufen — Garantie prüfen, Erstattung bis ${angebotTag(bis)} auslösen (${angebotKundeName(d.kunde)})`,
+        text: `Die Frist des Individualangebots ${d.ref} endete am ${angebotTag(ende)}, ohne dass „Garantie erfüllt“ eingetragen ist. Lagen ${angebotGarantieziel(d.parameter)} vor dem Fristende vollständig vor: „Garantie erfüllt“ mit Datum und Belegen eintragen. Sonst: „Garantiefall: Erstattung vormerken“ (alles Gezahlte zurück — Teil 1 und ein bezahlter Teil 2; eine offene Teil-2-Rechnung wird storniert; Mail an den Kunden) und bis ${angebotTag(bis)} überweisen.`,
         dringend: true, anBetreiber: true, faelligAm: heute, schluessel: `global:${ref1}:fristende`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
         link: "/chef/s/global-auftraege?reiter=angebote",
       }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Fristende:`, e));
@@ -1443,6 +1708,9 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
       FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
       JOIN fiaon_applications b ON b.ref = t.bestell_ref
      WHERE t.nr = 2 AND t.anruf_aufgabe_am IS NULL AND b.payment_status IN ('pending_payment', 'claimed_paid')
+       -- E-271: Nach vorgemerktem Garantiefall nicht mehr nachfragen (die Rechnung ist dann storniert). Solange sie offen ist,
+       -- ruht die Frist (Ziffer 6 Abs. 3) — die ruhige Nachfrage bleibt richtig.
+       AND a.erstattung_ausgeloest_am IS NULL
        AND b.payment_due_date IS NOT NULL AND b.payment_due_date < ${new Date(jetzt.getTime() - 3 * 864e5)}
      LIMIT 50`) as any[];
   let nachfrage = 0;
@@ -1481,12 +1749,15 @@ export async function angebotSichtZurAkte(ref1: string): Promise<Record<string, 
   const d = angebotDatenAus(z);
   const teile = await Promise.all((z.teile as any[]).map(async (x) => {
     const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;
-    const stand = x.entfallen_am ? "entfallen" : b ? (String(b.payment_status) === "paid" ? "bezahlt" : ["cancelled", "superseded"].includes(String(b.payment_status)) ? "storniert" : "offen") : "noch nicht fällig";
+    const stand = z.erstattung_ausgeloest_am && x.bezahlt_am ? "erstattet" : x.entfallen_am ? "entfallen" : b ? (String(b.payment_status) === "paid" ? "bezahlt" : ["cancelled", "superseded", "refunded"].includes(String(b.payment_status)) ? "storniert" : "offen") : "noch nicht fällig";
     return { nr: Number(x.nr), titel: String(x.titel), betragCents: Number(x.betrag_cents), stand, rechnungsnummer: b?.invoice_number ?? null, bestellRef: x.bestell_ref ?? null };
   }));
   return {
     ref: d.ref, teile, fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende), buergin: d.buergin.name,
     erstattungAusgeloest: !!z.erstattung_ausgeloest_am, teil2Bedingung: "erst nach Eintragung der Gesellschaft und dem ersten Kapital oder der ersten Karte",
+    // E-271: Garantie — Ziel, erfüllt am, Erstattungsbetrag im Garantiefall.
+    garantieZiel: angebotGarantieziel(d.parameter), garantieErfuelltAm: isoTag(z.garantie_erfuellt_am),
+    erstattungCents: z.erstattung_cents != null ? Number(z.erstattung_cents) : null,
   };
 }
 

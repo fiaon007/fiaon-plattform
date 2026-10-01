@@ -5,6 +5,37 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 (abends) — Individualangebot: „Kredit garantiert" — FIAON garantiert Kreditrahmen und Karten (E-271)
+
+**Der Anlass:** Justin: „Der Vertrag soll sagen ‚Kredit garantiert' … Dr. Hepp und Dr. Laukermann haben bereits mit den Banken
+gesprochen … WIR GARANTIEREN ES IHM." Entscheidung (19:58): garantiert sind ein Kreditrahmen von 800.000 US-Dollar UND drei
+Business-Kreditkarten binnen der Frist (zwölf Wochen ab Start); sonst alles Gezahlte zurück — Folge begrenzt auf diese Erstattung.
+
+**Was jetzt gilt:**
+- **Vertrag (Fassung IA-2026-10-01-KG):** Präambel und Ziffer 3 Abs. 1 „FIAON garantiert …" mit Definition (Zusage in Textform,
+  EZB-Kurs, eigene Kartenkonten inkl. Charge-Karten, keine verbundenen Geldgeber, eigene Anträge zählen, abgelehnte Angebote zählen
+  als erhalten). Ziffer 6 „Frist, Garantie und vollständige Erstattung": Garantiefall → alles Gezahlte zurück (Teil 1 + bezahlter
+  Teil 2), offene Teil-2-Rechnung storniert; ausschließliche Folge (keine weitergehenden Ansprüche, Ziffer 12 Abs. 1 Satz 1 und
+  Widerruf bleiben); Frist ruht auch bei Verzug mit Teil 2. Ziffer 10: fälliger Teil 2 bleibt bei Kündigung geschuldet; das
+  Bürgschaftsfenster der Anlage 1 bleibt wie unterschrieben. Ziffer 12: Bankentscheidungen nur über die Garantie.
+- **Anlage 1 unverändert** (eigener Fassungsstand ANLAGE1_FASSUNG — Prüfsumme auf dem unterschriebenen Original bleibt gültig).
+- **Seite, Übersicht, Annahme, Mein Auftrag, sechs Mails:** „Garantiert: …", Siegel „Kredit garantiert: …", Kernzeile „Ihre
+  Garantie"; kein Institut-Satz mehr in diesem Angebot (eigene Pflichthinweise ANGEBOT_PFLICHTHINWEIS). Alle Sätze mit „garant…"
+  aus EINER Quelle (angebotGarantie / ANGEBOT_GARANTIE_FEST); der Prüfstand nimmt nur diese vor der Wortwand heraus.
+- **Chefbüro:** neuer Knopf „Garantie erfüllt" (Kreditrahmen ≥ Ziel + Karten, Belege, strenge Zahleneingabe); „Garantiefall"
+  erstattet alles Gezahlte, storniert Teil 2, EINE Aufgabe an Justin mit der Summe. Stundenlauf überwacht bis zur erfüllten
+  Garantie (auch nach dem Meilenstein), ohne stornierte Akten, ohne Fristende bei offenem Teil 2. Teil-2-Zahlung nach Verzug
+  verlängert die Frist (Mail mit neuem Fristende); nach dem Garantiefall → Aufgabe an Justin, idempotent.
+- **Office:** Akte, Kasten „NICHT zusagen", Etappen 2–4 und Etappen-Mail-Fußnote beim Individualangebot ohne Institut-Satz.
+- **Datenbank:** Migration 089 (sieben Spalten, nur ADD COLUMN), dieselbe DDL zur Laufzeit über die DDL-Wache.
+- **Wache, dass es NUR hier gilt:** Hauswortwand, GLOBAL_PFLICHTHINWEIS, die vier Pakete unverändert (pruef-wortwand-de,
+  pruef-global-vertrag, pruef-pakete, pruef-global-office, pruef-global-bereich grün). Prüfstand Individualangebot 662/662,
+  mit --lokal 908/908 (B4 Garantiefall nach Meilenstein, B5 Garantie erfüllt, B6 Verzug Teil 2).
+
+**Wo zu finden:** fiaon.com/chef/s/global-auftraege?reiter=angebote · der persönliche Link des Kunden.
+
+---
+
 ## 01.10.2026 — Persönliches Angebot: Annahme-Bereich mit Startwahl, klappbarer Übersicht und „Auftrag zahlungspflichtig erteilen" (E-268, Nachtrag)
 
 **Der Anlass:** Justin: „‚Ihre Bestellung im Überblick' soll man ein- und ausklappen können · ‚Zahlungspflichtig annehmen'

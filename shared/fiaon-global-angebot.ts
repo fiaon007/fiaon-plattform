@@ -79,15 +79,41 @@
 //     wortgleich in der Mail.
 //   · Anlage 2 Abschnitt V nennt genau die drei Mitwirkungen der Ziffer 7 Abs. 1 (Saat).
 //
+// ── NACHTRAG JUSTIN 01.10.2026 ABENDS: „KREDIT GARANTIERT“ (Register E-271) ──────
+// Justin: „Der Vertrag soll sagen ‚Kredit garantiert‘ … Dr. Hepp und Dr. Laukermann haben bereits mit den
+// Banken gesprochen … WIR GARANTIEREN ES IHM.“ Entscheidung (19:58): FIAON GARANTIERT, dass die Gesellschaft
+// binnen der Frist einen Kreditrahmen von 800.000 US-Dollar UND drei Business-Kreditkarten erhält
+// (Garantieziel, Ziffer 3 Abs. 1). Wird es nicht vollständig erreicht: alles Gezahlte zurück (Teil 1 und ein
+// bezahlter Teil 2), eine offene Teil-2-Rechnung entfällt, die LLC bleibt (Ziffer 6 Abs. 2) — die Folge ist auf
+// diese Erstattung begrenzt (Ziffer 6 Abs. 5, Justins Wahl „Alles Geld zurück“ statt „volle Haftung“).
+// DAMIT ÜBERHOLT (bitte nicht zurückbauen): „Ihr Ziel“, „ein bestimmtes Ergebnis ist nicht geschuldet“, der
+// Institut-Satz in Vertrag, Seite, Pflichthinweisen und Mails DIESES Angebots, „Erstattung nur von Teil 1, nur
+// wenn gar nichts kommt“. Alle Sätze mit „garant…“ kommen aus EINER Quelle: angebotGarantie(par) und
+// ANGEBOT_GARANTIE_FEST — der Prüfstand nimmt genau diese vor der Wortwand heraus; jedes andere „garant…“ bleibt rot.
+// Die Hauswortwand, GLOBAL_PFLICHTHINWEIS und die vier Pakete bleiben OHNE Garantie (eigene Variante hier:
+// ANGEBOT_PFLICHTHINWEIS). Anlage 1 (Bürgin) bleibt wörtlich, damit ihre Prüfsumme und Unterschrift gelten
+// (ANLAGE1_FASSUNG); ihr Satz „ob es finanziert, entscheidet allein das Institut“ betrifft die Pflicht der Bürgin.
+// Kartenlimits zählen NICHT zum Kreditrahmen (Justins Auftrag: „800.000 US-Dollar sowie 3 Kreditkarten“).
+//
 // Diese Datei fasst keine Datenbank an — Server, Oberfläche und Prüfstand lesen sie.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI } from "./fiaon-global";
 import { FIAON_FIRMA } from "./fiaon-firma";
 
 export const ANGEBOT_MARKE = "Individualangebot (01.10.2026)";
-/** Die Fassung des Wortlauts. Eine neue Fassung = neuer Eintrag hier; alte Angebote behalten ihre. */
-export const ANGEBOT_FASSUNG = "IA-2026-10-01";
-export const ANGEBOT_FASSUNGEN = [ANGEBOT_FASSUNG] as const;
+/**
+ * Die Fassung des Wortlauts. Eine neue Fassung = neuer Eintrag hier; ANGENOMMENE Angebote behalten ihre.
+ * Ein OFFENES Angebot zeigt immer den aktuellen Wortlaut und damit die aktuelle Fassung (angebotDatenAus).
+ * IA-2026-10-01-KG (01.10.2026 abends, E-271): Kreditgarantie. Am 01.10.2026 war kein Angebot angenommen.
+ */
+export const ANGEBOT_FASSUNG = "IA-2026-10-01-KG";
+export const ANGEBOT_FASSUNGEN = ["IA-2026-10-01", ANGEBOT_FASSUNG] as const;
+/**
+ * Anlage 1 (Bürgschaftszusage) hat ihren EIGENEN Fassungsstand: Ihr Wortlaut ist seit IA-2026-10-01 unverändert,
+ * und ihre Prüfsumme steht auf dem eigenhändig unterschriebenen Original (§ 766 BGB). Ändert sich der Wortlaut
+ * der Anlage 1, hier eine neue Kennung setzen — dann muss sie neu unterschrieben werden.
+ */
+export const ANLAGE1_FASSUNG = "IA-2026-10-01";
 /**
  * Der Knopf (§ 312j Abs. 3 BGB) — wortgleich auf Seite, im PDF-Vermerk und in der Prüfung.
  * Justin (01.10.2026, nachmittags): „Auftrag erteilen" statt „Zahlungspflichtig annehmen". Die Zahlungspflicht muss
@@ -104,7 +130,8 @@ export const ANGEBOT_FEST = {
   hemmungAufforderungTage: 7,
   /** Die Bürgin gibt die Erklärung binnen zehn Werktagen ab (Anlage 1 Ziffer 3). */
   buergschaftAbgabeWerktage: 10,
-  /** Kapital-Begleitung nach dem Kapitalereignis höchstens zwölf Monate (Ziffer 3 Abs. 5). */
+  /** Bis E-271: Kapital-Begleitung nach dem Kapitalereignis höchstens zwölf Monate. Seit der Kreditgarantie
+   *  endet sie mit dem Garantieziel, spätestens am Fristende (Ziffer 3 Abs. 5) — bleibt nur für Altbezüge stehen. */
   begleitungMonate: 12,
 } as const;
 
@@ -337,6 +364,96 @@ export function angebotKarten(n: number): string {
 export function angebotKapitalrahmen(p: AngebotParameter): string {
   return `Kapitalrahmen von ${angebotUsd(p.kapitalZielUsd)}`;
 }
+/** „Kreditrahmen von 800.000 US-Dollar" — garantiert (E-271, Justin 01.10.2026 abends). */
+export function angebotKreditrahmen(p: Pick<AngebotParameter, "kapitalZielUsd">): string {
+  return `Kreditrahmen von ${angebotUsd(p.kapitalZielUsd)}`;
+}
+/** „Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten" — das Garantieziel (Ziffer 3 Abs. 1). */
+export function angebotGarantieziel(p: Pick<AngebotParameter, "kapitalZielUsd" | "kartenZiel">): string {
+  return `${angebotKreditrahmen(p)} und ${angebotKarten(p.kartenZiel)}`;
+}
+
+/**
+ * ALLE Sätze dieses Angebots, die „garant…“ enthalten — EINE Quelle (E-271). Vertrag (dritte Person), Seite,
+ * Übersicht und Mails setzen sie ein und tippen sie nicht ab. Der Prüfstand (pruef-individualangebot.ts, ohneGarantie)
+ * nimmt genau diese Sätze und die Etiketten in ANGEBOT_GARANTIE_ETIKETTEN vor der Wortwand heraus; jedes andere
+ * „garant…“ bleibt rot. Jeder Satz nennt Kreditrahmen und Karten oder verweist auf die Ziffer, die es tut.
+ */
+export function angebotGarantie(p: Pick<AngebotParameter, "kapitalZielUsd" | "kartenZiel" | "fristWochen">) {
+  const w = zahlwort(p.fristWochen);
+  const ziel = angebotGarantieziel(p);
+  const rahmen = angebotKreditrahmen(p);
+  const karten = angebotKarten(p.kartenZiel);
+  return {
+    // ── Vertrag (Vertragssprache, dritte Person) ──
+    vertragTitel3: "Teil 2 — Kapital-Begleitung mit Kreditgarantie",
+    vertragTitel6: "Frist, Garantie und vollständige Erstattung",
+    vertragPraeambel: `FIAON garantiert dem Auftraggeber, dass die Gesellschaft innerhalb der vereinbarten Frist von ${w} Wochen einen ${ziel} erhält; erreicht sie das nicht vollständig, erstattet FIAON dem Auftraggeber alles, was er an FIAON gezahlt hat, und die Gesellschaft verbleibt beim Auftraggeber.`,
+    vertragPraeambelInstitut: "Die Verträge über Kreditrahmen und Karten schließt die Gesellschaft selbst mit den Instituten; FIAON ist keine Bank und kein Kreditgeber und leistet bei nicht erreichtem Garantieziel die Erstattung nach Ziffer 6 Absatz 2.",
+    vertragZiel: `FIAON garantiert dem Auftraggeber, dass die Gesellschaft bis zum Ende der Frist nach Ziffer 6 einen ${ziel} erhält (Garantieziel); die Garantie ist auf die Erstattung nach Ziffer 6 Absatz 2 gerichtet. Das Garantieziel ist erreicht, wenn Institute der Gesellschaft bis zum Ende der Frist Kreditrahmen, Kreditlinien oder Darlehen von insgesamt mindestens ${angebotUsd(p.kapitalZielUsd)} eingeräumt und ${karten} für sie freigeschaltet haben — gleich auf wessen Antrag; Kartenlimits zählen nicht zum Kreditrahmen. Eingeräumt ist ein Rahmen, wenn ein Institut ihn der Gesellschaft in Textform verbindlich zugesagt hat, auch wenn die Gesellschaft ihn nicht in Anspruch nimmt; Beträge in anderer Währung werden zum Referenzkurs der Europäischen Zentralbank am Tag der Zusage umgerechnet. Freigeschaltet ist eine Business-Kreditkarte, wenn der Herausgeber für die Gesellschaft ein eigenes Kartenkonto eröffnet und die Karte ausgegeben hat, unabhängig von ihrer Aktivierung; Charge-Karten zählen, Zusatz-, Debit- und Prepaid-Karten nicht. Institute sind Banken, Kartenherausgeber und gewerbliche Kreditgeber, die nicht mit FIAON oder der Bürgin verbunden sind. Was bis zum Ende der Frist eingeräumt oder freigeschaltet war, zählt auch bei späterer Kündigung oder Herabsetzung. Lehnt der Auftraggeber eine von einem Institut verlangte Erklärung nach Ziffer 8 Absatz 5 ab oder unterschreibt er einen ihm vollständig vorbereitet vorgelegten Kartenantrag oder Finanzierungsvertrag nicht, zählen die Karte oder der Rahmen, die das Institut der Gesellschaft dazu angeboten oder in Aussicht gestellt hat, für das Garantieziel als erhalten. Die Leistungen nach Absatz 2 dienen diesem Ziel.`,
+    vertragKapitalereignis: "Das Kapitalereignis macht nur die Vergütung für Teil 2 fällig (Ziffer 5 Absatz 3); die Garantie nach Absatz 1 gilt bis zum Ende der Frist fort.",
+    vertragBegleitung: "Die Kapital-Begleitung beginnt mit der Eintragung der Gesellschaft. FIAON setzt sie fort, bis das Garantieziel nach Absatz 1 erreicht ist; erreicht die Gesellschaft es bis zum Ende der Frist nach Ziffer 6 nicht vollständig, endet die Kapital-Begleitung mit dem Fristende, und es gilt Ziffer 6 Absatz 2.",
+    vertragTeil2: "Erreicht die Gesellschaft das Garantieziel (Ziffer 3 Absatz 1) bis zum Ende der Frist nicht vollständig, entfällt eine noch nicht gezahlte Vergütung für Teil 2, und eine bereits gezahlte erstattet FIAON nach Ziffer 6 Absatz 2.",
+    vertragFall: "Erreicht die Gesellschaft das Garantieziel nach Ziffer 3 Absatz 1 bis zum Ende der Frist nicht vollständig, gilt:",
+    vertragEigeneZusage: "Die Garantie nach Ziffer 3 Absatz 1 und die Erstattung nach Absatz 2 sind eine eigene Zusage von FIAON; sie gelten, vorbehaltlich Absatz 4, unabhängig davon, aus welchem Grund ein Institut einen Antrag ablehnt oder einen geringeren Rahmen einräumt. Folge eines nicht vollständig erreichten Garantieziels ist die vollständige Erstattung nach Absatz 2: Erreicht die Gesellschaft das Garantieziel nicht vollständig, hat der Auftraggeber deswegen ausschließlich die Rechte nach Absatz 2; weitergehende Ansprüche wegen des Nichterreichens des Garantieziels, insbesondere auf Schadensersatz statt der Leistung, entgangenen Gewinn oder Kosten einer anderen Finanzierung, sind ausgeschlossen. Unberührt bleiben die Haftung nach Ziffer 12 Absatz 1 Satz 1 und das Widerrufsrecht nach Ziffer 11.",
+    vertragKundenentscheidung: "(deren Folge für das Garantieziel regelt Ziffer 3 Absatz 1).",
+    vertragTeil2Verzug: "Die Frist ruht ferner, solange die nach Ziffer 5 Absatz 3 fällige Vergütung für Teil 2 nicht gezahlt ist, und zwar vom Tag nach ihrer Fälligkeit bis zum Tag ihres Eingangs; FIAON teilt das neue Fristende in Textform mit.",
+    vertragEigenerAntrag: "Stellt die Gesellschaft ohne FIAON einen Antrag bei einem Institut, teilt der Auftraggeber das FIAON mit, ebenso die Entscheidung des Instituts; was die Gesellschaft daraus erhält, zählt für das Garantieziel (Ziffer 3 Absatz 1). Vor der Erstattung nach Ziffer 6 Absatz 2 teilt der Auftraggeber FIAON auf Anforderung in Textform mit, was die Gesellschaft auf eigene Anträge erhalten hat.",
+    vertragBuergschaft: "Ob ein Institut eine Bürgschaft verlangt oder annimmt und zu welchen Bedingungen es finanziert, legt das Institut fest; die Garantie nach Ziffer 3 Absatz 1 und Ziffer 6 bleibt davon unberührt.",
+    vertragLaufzeit: "Die Kapital-Begleitung endet, sobald die Gesellschaft das Garantieziel nach Ziffer 3 Absatz 1 erreicht hat, spätestens mit dem Ende der Frist nach Ziffer 6 (Ziffer 3 Absatz 5). Für Anforderungen nach Anlage 1 Ziffer 7 endet die Kapital-Begleitung jedoch erst mit dem Ende der Frist nach Ziffer 6, wenn bis dahin kein Kapitalereignis eingetreten ist, sonst zwölf Monate nach dem Kapitalereignis.",
+    vertragKuendigung: "Beendet er ihn vor dem Ende der Frist nach Ziffer 6, ohne dass FIAON ihm dafür einen wichtigen Grund gegeben hat, entfallen die Garantie und die Erstattung nach Ziffer 6 sowie eine Vergütung für Teil 2, die bis dahin noch nicht nach Ziffer 5 Absatz 3 fällig geworden ist; eine bereits fällig gewordene Vergütung für Teil 2 bleibt geschuldet.",
+    vertragHaftung: "Für Entscheidungen von Behörden, Steuerberatern und Anwälten haftet FIAON nicht; für Entscheidungen von Banken und Kartenherausgebern gilt allein die Garantie nach Ziffer 3 Absatz 1 mit der Erstattung nach Ziffer 6 Absatz 2 und 5.",
+    vertragHaftungUnberuehrt: "Die Erstattung nach Ziffer 6 Absatz 2 bleibt von dieser Ziffer unberührt.",
+    vertragAnlage2: "Anlage 2 gibt den Stand der Prüfung vor Vertragsschluss wieder; sie ist keine Entscheidung eines Instituts und schränkt die Garantie nach Ziffer 3 Absatz 1 nicht ein.",
+    // ── Seite und Übersicht (Ansprache des Kunden) ──
+    seiteTitel: "Ihre US-Gesellschaft. Komplett gegründet, mit Ihrem Team vor Ort — Kreditrahmen und Karten garantiert.",
+    seiteLead: `Und wir garantieren Ihnen: In ${w} Wochen ab unserem Start erhält Ihre Gesellschaft einen ${ziel} — mit einer Bürgin an Ihrer Seite.`,
+    nutzenKredit: `Garantiert: ein Kreditrahmen von ${angebotUsdKurz(p.kapitalZielUsd)} für Ihre Gesellschaft`,
+    nutzenKarten: `Garantiert: ${karten} für Ihre Gesellschaft`,
+    siegel: `Kredit garantiert: Ihre Gesellschaft erhält in ${w} Wochen ab unserem Start einen ${ziel} — oder Sie erhalten alles zurück, was Sie uns gezahlt haben.`,
+    bekommenKreditTitel: `Garantiert: ${rahmen}`,
+    bekommenKreditText: `Wir garantieren Ihrer Gesellschaft einen ${rahmen} in ${w} Wochen ab unserem Start. Wir bereiten jeden Antrag vollständig vor und begleiten ihn, bis der Rahmen eingeräumt ist.`,
+    bekommenKartenTitel: `Garantiert: ${karten}`,
+    bekommenKartenText: `Dazu garantieren wir Ihrer Gesellschaft ${karten} in derselben Frist — nach einem Plan, der die Reihenfolge der Anträge auf Ihre Gesellschaft abstimmt (Kartenleiter).`,
+    ablaufTitel: "Kreditrahmen und Karten — garantiert",
+    ablaufGarantie: `Bis zum Ende der Frist erhält Ihre Gesellschaft den ${rahmen} und ${karten} — das garantieren wir.`,
+    schutzErfolgFein: "Unsere Vergütung hängt an Ihrem Erfolg und nicht an unserem Aufwand — und erreicht Ihre Gesellschaft das garantierte Ziel nicht, erhalten Sie auch sie zurück.",
+    schutzTitel: "Ihre Garantie: Kreditrahmen und Karten — oder alles zurück",
+    tafelTeil2: "erreicht Ihre Gesellschaft das garantierte Ziel nicht, erhalten Sie auch diesen Betrag zurück",
+    investitionGarantie: "Erreicht Ihre Gesellschaft das garantierte Ziel nicht, erhalten Sie beides zurück.",
+    uebersichtLeistung: `mit Garantie: ${ziel} binnen ${w} Wochen ab unserem Start`,
+    uebersichtLaufzeit: `Kapital-Begleitung, bis das Garantieziel erreicht ist, längstens bis zum Ende der Frist von ${w} Wochen`,
+    // ── Mails (vom Server als fertiger Satz in {{params.garantie_text}}) ──
+    mail: `Bis zum Ende Ihrer Frist erhält Ihre Gesellschaft einen ${ziel} — das garantieren wir Ihnen. Erreicht sie das nicht vollständig, erstatten wir Ihnen alles, was Sie uns gezahlt haben, und eine offene Rechnung über Teil 2 entfällt.`,
+  };
+}
+/** Garantie-Sätze ohne Parameter (Annahme-Kasten, Mein Auftrag) — dieselbe Regel wie angebotGarantie. */
+export const ANGEBOT_GARANTIE_FEST = {
+  annahmeUnterKnopf: "Kreditrahmen und Karten garantieren wir — sonst erhalten Sie alles zurück.",
+  meinAuftragFrist: "Erhält Ihre Gesellschaft bis dahin nicht den garantierten Kreditrahmen und die garantierten Karten, erstatten wir Ihnen alles, was Sie uns gezahlt haben; eine offene Rechnung über Teil 2 entfällt.",
+  meinAuftragErstattung: "Die Frist ist abgelaufen, ohne dass das garantierte Ziel erreicht ist. Wir erstatten Ihnen alles, was Sie uns gezahlt haben; eine offene Rechnung über Teil 2 entfällt.",
+  meinAuftragHinweis: "Für Kreditrahmen und Karten gilt Ihre Garantie aus Ziffer 3 und 6 Ihres Vertrags. Steuerliche und rechtliche Fragen beantworten Steuerberater und Anwälte auf eigenes Mandat.",
+  fussnote: "Für Kreditrahmen und Karten gilt Ihre Garantie aus Ziffer 3 und 6 Ihres Vertrags.",
+  // Meta-Beschreibung der Angebotsseite (Linkvorschau) — auch sie kommt aus der einen Quelle (Gegenprüfung, oberflaeche-5).
+  metaBeschreibung: "Persönliches Angebot von FIAON Global: Gründung Ihrer US-Gesellschaft mit garantiertem Kreditrahmen und Business-Kreditkarten.",
+  // Office (Global-Akte, Kasten „Was ich dem Kunden NICHT zusage“) bei Aufträgen aus dem Individualangebot.
+  officeVerbot: "NIE einen Banknamen, Zinssatz oder Termin zusagen. Kreditrahmen und Karten sagst du nur so zu, wie der Vertrag es tut (Ziffer 3 Absatz 1, Ziffer 6): garantiert bis zum Fristende — sonst bekommt der Kunde alles zurück, was er gezahlt hat.",
+  officeSatz: "„Ihr Vertrag garantiert Ihrer Gesellschaft bis zum Fristende den vereinbarten Kreditrahmen und die vereinbarten Karten — sonst erhalten Sie alles zurück, was Sie uns gezahlt haben.“",
+  // Teil-2-Mails nach erfüllter Garantie (Gegenprüfung, logik-5) — dann gibt es keine Erstattung mehr.
+  mailErfuellt: "Ihre Gesellschaft hat den Kreditrahmen und die Karten aus Ihrem Vertrag erhalten — Ihre Garantie ist erfüllt.",
+} as const;
+/** Kurze Etiketten, die als Ganzes „Garantie“ tragen — der Prüfstand nimmt sie mit heraus. */
+export const ANGEBOT_GARANTIE_ETIKETTEN = ["Ihre Garantie", "Ihrer Garantie", "Kredit garantiert", "Garantie erfüllt"] as const;
+/**
+ * Pflichthinweise DIESES Angebots: wörtlich GLOBAL_PFLICHTHINWEIS.de, nur ohne den Institut-Satz (E-271) — der
+ * Vertrag garantiert Kreditrahmen und Karten. GLOBAL_PFLICHTHINWEIS selbst bleibt unverändert (vier Pakete, ~40 Seiten).
+ */
+export const ANGEBOT_PFLICHTHINWEIS: readonly string[] = [
+  GLOBAL_PFLICHTHINWEIS.de[0],
+  GLOBAL_PFLICHTHINWEIS.de[1],
+  GLOBAL_PFLICHTHINWEIS.de[2].replace(/\s*Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut\.\s*$/, ""),
+];
+
 /** „Herr Hildbrand" / „Frau …" / voller Name — für Begrüßung und Anrede auf der Seite. */
 export function angebotKundeGruss(k: Pick<AngebotKunde, "anrede" | "vorname" | "nachname">): string {
   const nach = String(k.nachname || "").trim();
@@ -372,8 +489,8 @@ export function angebotParameterFehler(p: AngebotParameter): string | null {
   if (!ganz(p.fristWochen) || p.fristWochen < 4 || p.fristWochen > 26) return "Frist: vier bis sechsundzwanzig Wochen.";
   if (!ganz(p.erstattungTage) || p.erstattungTage < 7 || p.erstattungTage > 30) return "Erstattung: sieben bis dreißig Tage.";
   if (!ganz(p.teil2ZielTage) || p.teil2ZielTage < 3 || p.teil2ZielTage > 30) return "Zahlungsziel Teil 2: drei bis dreißig Tage.";
-  if (!ganz(p.kartenZiel) || p.kartenZiel < 1 || p.kartenZiel > 5) return "Kartenziel: eine bis fünf Karten.";
-  if (!ganz(p.kapitalZielUsd) || p.kapitalZielUsd < 10000 || p.kapitalZielUsd > 5_000_000) return "Kapitalrahmen-Ziel: 10.000 bis 5.000.000 US-Dollar.";
+  if (!ganz(p.kartenZiel) || p.kartenZiel < 1 || p.kartenZiel > 5) return "Garantierte Karten: eine bis fünf.";
+  if (!ganz(p.kapitalZielUsd) || p.kapitalZielUsd < 10000 || p.kapitalZielUsd > 5_000_000) return "Garantierter Kreditrahmen: 10.000 bis 5.000.000 US-Dollar.";
   if (!ganz(p.buergschaftUsd) || p.buergschaftUsd < 0 || p.buergschaftUsd > 5_000_000) return "Höchstbetrag der Bürgschaft: 0 bis 5.000.000 US-Dollar.";
   return null;
 }
@@ -410,23 +527,25 @@ export function angebotVertragTitel(): string {
   return "FIAON Global — Individualvereinbarung Gründung & Kapital-Begleitung";
 }
 export function angebotVertragUnterzeile(d: Pick<AngebotDaten, "ref" | "fassung" | "gueltigBis">): string {
-  return `${ANGEBOT_MARKE} · Vertragsfassung ${d.fassung} · Angebot ${d.ref} · gültig bis ${angebotTag(d.gueltigBis)}`;
+  // E-271: „Kredit garantiert“ steht in der Unterzeile (nicht im Titel — der Titel ist Teil des Wortlauts der Anlage 1).
+  return `${ANGEBOT_MARKE} · Kredit garantiert · Vertragsfassung ${d.fassung} · Angebot ${d.ref} · gültig bis ${angebotTag(d.gueltigBis)}`;
 }
 
 export function angebotPraeambel(d: AngebotDaten): string[] {
-  const w = zahlwort(d.parameter.fristWochen);
+  const G = angebotGarantie(d.parameter);
   return [
     "Der Auftraggeber möchte eine Gesellschaft in den USA in der Rechtsform einer Limited Liability Company (LLC) gründen und für diese Gesellschaft Kapital und Business-Kreditkarten bei US-Instituten beantragen.",
-    `FIAON übernimmt die Gründung vollständig und begleitet anschließend die Anträge der Gesellschaft. Die Vereinbarung ist so aufgebaut, dass der größere Teil der Vergütung erst fällig wird, wenn das erste Kapital an die Gesellschaft ausgezahlt oder die erste Business-Kreditkarte für die Gesellschaft freigeschaltet ist. Tritt beides nicht innerhalb der vereinbarten Frist von ${w} Wochen ein, erstattet FIAON die Vergütung für die Gründung vollständig; die Gesellschaft verbleibt beim Auftraggeber.`,
-    "Über jede Finanzierung und jede Karte entscheidet allein das jeweilige Institut. FIAON schuldet die vereinbarte Vorbereitung und Begleitung, nicht die Entscheidung eines Instituts.",
+    `FIAON übernimmt die Gründung vollständig und begleitet anschließend die Anträge der Gesellschaft. Die Vereinbarung ist so aufgebaut, dass der größere Teil der Vergütung erst fällig wird, wenn das erste Kapital an die Gesellschaft ausgezahlt oder die erste Business-Kreditkarte für die Gesellschaft freigeschaltet ist. ${G.vertragPraeambel}`,
+    G.vertragPraeambelInstitut,
   ];
 }
 
 /** Die fünfzehn Ziffern — Varianten nach den Haken des Kunden schon aufgelöst. */
 export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiffer[] {
   const k = d.kunde; const par = d.parameter;
-  const PH = GLOBAL_PFLICHTHINWEIS.de;
+  const PH = ANGEBOT_PFLICHTHINWEIS;
   const JB = GLOBAL_JAHRESBETREUUNG.de;
+  const G = angebotGarantie(par);
   const t1 = angebotEur(par.teil1Cents); const t2 = angebotEur(par.teil2Cents); const ges = angebotEur(angebotGesamtCents(par));
   const wochen = zahlwort(par.fristWochen);
   const hb = angebotUsd(par.buergschaftUsd);
@@ -465,8 +584,8 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
       p(GLOBAL_ROLLEN.de.fiaon),
     ] },
 
-    { nr: 3, titel: "Teil 2 — Kapital-Begleitung", absaetze: [
-      p(`Ziel der Kapital-Begleitung ist, dass die Gesellschaft einen ${angebotKapitalrahmen(par)} und ${angebotKarten(par.kartenZiel)} großer US-Kartenherausgeber erhält. Das Ziel bestimmt Richtung und Umfang der Begleitung; ein bestimmtes Ergebnis ist nicht geschuldet. Über jedes Konto, jede Karte, jeden Rahmen und jede Finanzierung entscheidet allein das jeweilige Institut.`),
+    { nr: 3, titel: G.vertragTitel3, absaetze: [
+      p(G.vertragZiel),
       liste([
         "Plan für die Reihenfolge der Anträge bei Instituten und Kartenherausgebern, abgestimmt auf die Gesellschaft (Kartenleiter)",
         "Vollständige Vorbereitung jedes Antrags der Gesellschaft auf eine Finanzierung oder eine Business-Kreditkarte, einschließlich Unterlagen, Kennzahlen und Geschäftsplan",
@@ -476,8 +595,8 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
         "Laufende Abstimmung mit Partner-Anwalt und Partner-Steuerberater zu Fragen der Kapital-Etappe, Honorare inklusive",
       ], "Teil 2 umfasst:"),
       p("Anträge bei Instituten stellt die Gesellschaft im eigenen Namen; FIAON bereitet sie vor und begleitet sie. FIAON ist keine Bank und kein Kreditgeber, nimmt keine Kundengelder entgegen und verfügt nicht über Konten des Auftraggebers oder der Gesellschaft. Verträge mit Instituten schließt die Gesellschaft selbst."),
-      p("Kapitalereignis im Sinne dieses Vertrags ist, was zuerst eintritt: (a) die erste Auszahlung einer Finanzierung eines Instituts auf ein Konto der Gesellschaft oder (b) die Freischaltung der ersten Business-Kreditkarte, die ein Institut für die Gesellschaft ausgibt — jeweils auf einen Antrag, den FIAON vorbereitet oder begleitet hat. Maßgeblich ist der Tag der Auszahlung oder der Freischaltung. Eine Mindesthöhe gilt nicht: Jede erste Auszahlung und jede erste Karte zählt unabhängig von ihrer Höhe."),
-      p(`Die Kapital-Begleitung beginnt mit der Eintragung der Gesellschaft. Tritt das Kapitalereignis innerhalb der Frist nach Ziffer 6 ein, setzt FIAON die Begleitung fort, bis das Ziel nach Absatz 1 erreicht ist, längstens ${zahlwort(ANGEBOT_FEST.begleitungMonate)} Monate nach dem Kapitalereignis.`),
+      p("Kapitalereignis im Sinne dieses Vertrags ist, was zuerst eintritt: (a) die erste Auszahlung einer Finanzierung eines Instituts auf ein Konto der Gesellschaft oder (b) die Freischaltung der ersten Business-Kreditkarte, die ein Institut für die Gesellschaft ausgibt — jeweils auf einen Antrag, den FIAON vorbereitet oder begleitet hat. Maßgeblich ist der Tag der Auszahlung oder der Freischaltung. Eine Mindesthöhe gilt nicht: Jede erste Auszahlung und jede erste Karte zählt unabhängig von ihrer Höhe. " + G.vertragKapitalereignis),
+      p(G.vertragBegleitung),
     ] },
 
     { nr: 4, titel: "Partner und Abgrenzung", absaetze: [
@@ -492,7 +611,7 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
           : s.sofortBeginn
             ? "FIAON beginnt mit dem Zahlungseingang."
             : "FIAON beginnt nach Ablauf der Widerrufsfrist (Ziffer 11), frühestens mit dem Zahlungseingang."}`),
-      p(`Die Vergütung für Teil 2 wird erst fällig, wenn die Gesellschaft eingetragen ist und das Kapitalereignis (Ziffer 3 Absatz 4) innerhalb der Frist nach Ziffer 6 eingetreten ist. FIAON teilt den Eintritt in Textform mit und stellt die Rechnung danach; sie ist binnen ${zahlwort(par.teil2ZielTage)} Tagen nach Zugang per Überweisung zu zahlen. Tritt das Kapitalereignis nicht innerhalb der Frist ein, entfällt die Vergütung für Teil 2 vollständig.`),
+      p(`Die Vergütung für Teil 2 wird erst fällig, wenn die Gesellschaft eingetragen ist und das Kapitalereignis (Ziffer 3 Absatz 4) innerhalb der Frist nach Ziffer 6 eingetreten ist. FIAON teilt den Eintritt in Textform mit und stellt die Rechnung danach; sie ist binnen ${zahlwort(par.teil2ZielTage)} Tagen nach Zugang per Überweisung zu zahlen. ${G.vertragTeil2}`),
       p(`Die Vergütung ist ein Festpreis. Sie umfasst alle Gebühren und Honorare für die Leistungen nach Ziffer 2 und 3 einschließlich der Bürgschaft nach Anlage 1; eine gesonderte Vergütung für die Bürgschaft verlangen weder FIAON noch die ${buergin}. Für den Auftraggeber als Privatperson ist die Vergütung ein Endpreis; eine etwa anfallende Umsatzsteuer ist darin enthalten.`),
       liste([
         "laufende Kosten der Gesellschaft ab dem zweiten Jahr nach der Eintragung (Staatsgebühr, Registered Agent und jährliche US-Meldung), soweit nicht die Jahresbetreuung nach Absatz 6 sie umfasst; FIAON nennt sie dem Auftraggeber rechtzeitig vorab",
@@ -505,32 +624,32 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
         : p("Die Jahresbetreuung ab dem zweiten Jahr (699 € je Betreuungsjahr, alle Gebühren inklusive) ist nicht Teil dieses Vertrags; der Auftraggeber kann sie später gesondert dazubuchen."),
     ] },
 
-    { nr: 6, titel: "Frist und vollständige Erstattung", absaetze: [
+    { nr: 6, titel: G.vertragTitel6, absaetze: [
       startTag
         ? p(`Die Frist beträgt ${wochen} Wochen. Sie beginnt mit dem Tag, an dem die Vergütung für Teil 1 bei FIAON eingeht, frühestens jedoch an dem vom Auftraggeber gewählten Starttag, dem ${startTag}. FIAON teilt dem Auftraggeber Beginn und Ende der Frist in Textform mit.`)
         : s.sofortBeginn
         ? p(`Die Frist beträgt ${wochen} Wochen. Sie beginnt mit dem Tag, an dem die Vergütung für Teil 1 bei FIAON eingeht. FIAON teilt dem Auftraggeber Beginn und Ende der Frist in Textform mit.`)
         : p(`Die Frist beträgt ${wochen} Wochen. Sie beginnt mit dem Tag, an dem die Vergütung für Teil 1 bei FIAON eingeht, frühestens jedoch mit dem Tag, an dem FIAON nach Ablauf der Widerrufsfrist mit der Ausführung beginnt. FIAON teilt dem Auftraggeber Beginn und Ende der Frist in Textform mit.`),
       liste([
-        "Die Vergütung für Teil 2 entfällt.",
-        `FIAON erstattet die Vergütung für Teil 1 vollständig (${t1}), ohne Abzug für bereits erbrachte Leistungen und ohne dass es einer Aufforderung bedarf, binnen ${zahlwort(par.erstattungTage)} Tagen nach Fristende auf das Konto, von dem sie gezahlt wurde.`,
+        "Eine noch nicht gezahlte Vergütung für Teil 2 entfällt; eine bereits gestellte, noch offene Rechnung über Teil 2 storniert FIAON.",
+        `FIAON erstattet dem Auftraggeber alles, was er an FIAON gezahlt hat — die Vergütung für Teil 1 (${t1}) und, soweit gezahlt, die Vergütung für Teil 2 (${t2}) —, vollständig, ohne Abzug für bereits erbrachte Leistungen und ohne dass es einer Aufforderung bedarf, binnen ${zahlwort(par.erstattungTage)} Tagen nach Fristende auf das Konto, von dem gezahlt wurde.`,
         "Die Gesellschaft und alle nach Ziffer 2 erbrachten Leistungen verbleiben beim Auftraggeber.",
-      ], "Erhält die Gesellschaft bis zum Ende der Frist weder die Auszahlung einer Finanzierung noch eine freigeschaltete Business-Kreditkarte — gleich auf wessen Antrag —, gilt:"),
-      p(`Die Frist ruht nur, solange der Auftraggeber eine der drei Mitwirkungen nach Ziffer 7 Absatz 1 schuldhaft nicht erbringt: eine Unterschrift unter eine von FIAON vollständig vorbereitete Unterlage, die Vorlage seines gültigen Reisepasses zur gesetzlich vorgeschriebenen Identifizierung (und, soweit ein Institut oder eine Behörde ihn dafür verlangt, eines Adressnachweises) oder wahre Angaben. Das setzt voraus, dass FIAON die konkret benötigte Mitwirkung in Textform angefordert und dafür eine Frist von mindestens ${zahlwort(ANGEBOT_FEST.hemmungAufforderungTage)} Tagen gesetzt hat; die Frist ruht ab dem Ablauf dieser Aufforderungsfrist, bis die Mitwirkung erbracht ist. Verzögerungen bei Behörden, beim IRS, bei Instituten, bei der Bürgin oder bei Partnern von FIAON lassen die Frist weiterlaufen; ebenso die Ablehnung eines Antrags durch ein Institut und die Entscheidung des Auftraggebers nach Ziffer 8 Absatz 5.`),
+      ], G.vertragFall),
+      p(`Die Frist ruht nur, solange der Auftraggeber eine der drei Mitwirkungen nach Ziffer 7 Absatz 1 schuldhaft nicht erbringt: eine Unterschrift unter eine von FIAON vollständig vorbereitete Unterlage, die Vorlage seines gültigen Reisepasses zur gesetzlich vorgeschriebenen Identifizierung (und, soweit ein Institut oder eine Behörde ihn dafür verlangt, eines Adressnachweises) oder wahre Angaben. Das setzt voraus, dass FIAON die konkret benötigte Mitwirkung in Textform angefordert und dafür eine Frist von mindestens ${zahlwort(ANGEBOT_FEST.hemmungAufforderungTage)} Tagen gesetzt hat; die Frist ruht ab dem Ablauf dieser Aufforderungsfrist, bis die Mitwirkung erbracht ist. Verzögerungen bei Behörden, beim IRS, bei Instituten, bei der Bürgin oder bei Partnern von FIAON lassen die Frist weiterlaufen; ebenso die Ablehnung eines Antrags durch ein Institut und die Entscheidung des Auftraggebers nach Ziffer 8 Absatz 5 ${G.vertragKundenentscheidung} ${G.vertragTeil2Verzug}`),
       p("Beruht die Ablehnung eines Antrags auf vorsätzlich falschen Angaben des Auftraggebers, besteht kein Anspruch auf die Erstattung nach Absatz 2."),
-      p("Die Erstattung nach Absatz 2 ist eine eigene Zusage von FIAON; sie hängt nicht davon ab, aus welchem Grund ein Institut nicht finanziert. Gesetzliche Rechte des Auftraggebers bleiben unberührt."),
+      p(G.vertragEigeneZusage),
     ] },
 
     { nr: 7, titel: "Mitwirkung des Auftraggebers", absaetze: [
       p("Die Mitwirkung des Auftraggebers beschränkt sich auf drei Dinge: Er unterschreibt, was FIAON ihm fertig vorbereitet vorlegt (Gründungsunterlagen, die Mandate für Partner-Steuerberater, Partner-Anwalt und US-CPA, Steuerformulare einschließlich der Meldung der Gründung an das Finanzamt nach § 138 AO, Kontoanträge, Kartenanträge und Finanzierungsverträge); er stellt seinen gültigen Reisepass für die gesetzlich vorgeschriebene Identifizierung bereit — bei FIAON und, soweit ein Institut oder eine Behörde es verlangt, auch dort, dann zusammen mit einem Adressnachweis, wenn das Institut oder die Behörde ihn für die Identifizierung verlangt; und er macht wahre und vollständige Angaben. Alles Weitere erledigt FIAON. Jede Unterschrift leistet der Auftraggeber nach Prüfung der Unterlage und frei; verlangt ein Institut eine persönliche Haftung, gilt Ziffer 8 Absatz 5. Anträge bei Behörden und Instituten stellen der Auftraggeber bzw. die Gesellschaft im eigenen Namen; FIAON bereitet sie vor. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben."),
-      p("Stellt die Gesellschaft ohne FIAON einen Antrag bei einem Institut, teilt der Auftraggeber das FIAON mit, ebenso die Entscheidung des Instituts."),
+      p(G.vertragEigenerAntrag),
       p("Verzögert sich die Mitwirkung, verschieben sich vereinbarte Termine entsprechend; für die Frist nach Ziffer 6 gilt allein Ziffer 6 Absatz 3."),
       p("Vor Beginn der Leistungen identifiziert FIAON den Auftraggeber anhand eines gültigen Reisepasses und gleicht Name und Geburtsdatum erneut mit den Sanktionslisten ab. Der Auftraggeber erklärt, dass weder er selbst noch ein Familienmitglied oder eine ihm bekanntermaßen nahestehende Person ein wichtiges öffentliches Amt ausübt oder in den letzten zwölf Monaten ausgeübt hat (§ 1 Abs. 12 bis 14 GwG); trifft das nicht zu, teilt er es FIAON vor der Annahme in Textform mit."),
     ] },
 
     { nr: 8, titel: "Bürgschaft und keine Sicherheiten", absaetze: [
       p(`Die ${buergin} sagt in Anlage 1 zu, auf Anforderung eines finanzierenden Instituts eine Bürgschaft für Finanzierungen der Gesellschaft bis zum Höchstbetrag von insgesamt ${hb} zu übernehmen. Die Zusage ist von der ${buergin} eigenhändig unterzeichnet; der Auftraggeber erhält sie im Original, eine Abschrift ist diesem Vertrag als Anlage 1 beigefügt.`),
-      p("Ob ein Institut eine Bürgschaft verlangt oder annimmt und zu welchen Bedingungen es finanziert, entscheidet allein das Institut."),
+      p(G.vertragBuergschaft),
       p(`Zahlt die ${buergin} als Bürgin an ein Institut, kann sie von der Gesellschaft als Hauptschuldnerin Ersatz des gezahlten Betrags verlangen (Anlage 1 Ziffer 6). Das ist die gesetzliche Folge jeder Bürgschaft. Eine persönliche Haftung des Auftraggebers für diesen Ersatz wird nicht vereinbart.`),
       p(`Weder FIAON noch die ${buergin} verlangen vom Auftraggeber oder von der Gesellschaft Sicherheiten — keine Rückbürgschaft, keine Bareinlage, keine Verpfändung und keine Grundschuld.`),
       p("Verlangt ein Institut für eine Karte oder Finanzierung selbst eine Erklärung des Auftraggebers — etwa die bei US-Firmenkarten übliche persönliche Haftung des Inhabers (Ziffer 9) —, nennt FIAON das dem Auftraggeber vor dem Antrag. Ob er den Antrag dann unterschreibt, entscheidet der Auftraggeber frei; für die Frist gilt Ziffer 6 Absatz 3."),
@@ -542,9 +661,9 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
     ] },
 
     { nr: 10, titel: "Laufzeit und Ende", absaetze: [
-      p("Der Vertrag beginnt mit der Annahme durch den Auftraggeber. Die Leistungen für das erste Jahr nach Ziffer 2 (Registered Agent, Geschäftsadresse, Telefonnummer, Meldungen und Gebühren) laufen bis zum ersten Jahrestag der Eintragung; die erste jährliche US-Meldung ist in jedem Fall umfasst. Die Kapital-Begleitung endet mit dem Ende der Frist nach Ziffer 6, wenn bis dahin kein Kapitalereignis eingetreten ist, sonst nach Ziffer 3 Absatz 5. Der Vertrag verlängert sich nicht von selbst."),
-      p("Der Auftraggeber kann den Vertrag jederzeit in Textform beenden. Beendet er ihn vor dem Ende der Frist nach Ziffer 6, ohne dass FIAON ihm dafür einen wichtigen Grund gegeben hat, entfallen die Vergütung für Teil 2 und die Erstattung nach Ziffer 6; FIAON steht die Vergütung für Teil 1 dann nur für die bis dahin erbrachten Leistungen zu (§ 628 BGB), ein darüber hinaus gezahlter Betrag wird erstattet."),
-      p("FIAON kann den Vertrag nur aus wichtigem Grund beenden. Ein wichtiger Grund liegt insbesondere vor, wenn der Auftraggeber vorsätzlich falsche Angaben macht oder wenn der Auftraggeber oder die Gesellschaft auf einer Sanktionsliste der Europäischen Union, der Vereinten Nationen, des Vereinigten Königreichs oder der USA geführt wird. Beendet FIAON den Vertrag vor dem Ende der Frist nach Ziffer 6 aus einem Grund, den der Auftraggeber nicht zu vertreten hat, erstattet FIAON die Vergütung für Teil 1 vollständig."),
+      p("Der Vertrag beginnt mit der Annahme durch den Auftraggeber. Die Leistungen für das erste Jahr nach Ziffer 2 (Registered Agent, Geschäftsadresse, Telefonnummer, Meldungen und Gebühren) laufen bis zum ersten Jahrestag der Eintragung; die erste jährliche US-Meldung ist in jedem Fall umfasst. " + G.vertragLaufzeit + " Der Vertrag verlängert sich nicht von selbst."),
+      p("Der Auftraggeber kann den Vertrag jederzeit in Textform beenden. " + G.vertragKuendigung + " Für Teil 1 steht FIAON die Vergütung dann nur für die bis dahin erbrachten Leistungen zu (§ 628 BGB); ein darüber hinaus gezahlter Betrag wird erstattet."),
+      p("FIAON kann den Vertrag nur aus wichtigem Grund beenden. Ein wichtiger Grund liegt insbesondere vor, wenn der Auftraggeber vorsätzlich falsche Angaben macht oder wenn der Auftraggeber oder die Gesellschaft auf einer Sanktionsliste der Europäischen Union, der Vereinten Nationen, des Vereinigten Königreichs oder der USA geführt wird. Beendet FIAON den Vertrag vor dem Ende der Frist nach Ziffer 6 aus einem Grund, den der Auftraggeber nicht zu vertreten hat, erstattet FIAON dem Auftraggeber alles, was er an FIAON gezahlt hat, vollständig."),
       p("Das Recht beider Parteien zur Beendigung aus wichtigem Grund und das Widerrufsrecht nach Ziffer 11 bleiben unberührt."),
     ] },
 
@@ -558,8 +677,8 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
     ] },
 
     { nr: 12, titel: "Haftung", absaetze: [
-      p(`FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.`),
-      p("Die Erstattung nach Ziffer 6 bleibt von dieser Ziffer unberührt."),
+      p(`FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. ${G.vertragHaftung}`),
+      p(G.vertragHaftungUnberuehrt),
     ] },
 
     { nr: 13, titel: "Vertraulichkeit", absaetze: [
@@ -573,7 +692,7 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
     ] },
 
     { nr: 15, titel: "Schlussbestimmungen", absaetze: [
-      p(`Dieser Vertrag ist eine Individualvereinbarung; Allgemeine Geschäftsbedingungen von FIAON gelten für ihn nicht. Beigefügt sind Anlage 1 (Bürgschaftszusage der ${buergin}), Anlage 2 (Prüfbericht von FIAON) und Anlage 3 (Widerrufsbelehrung und Muster-Widerrufsformular). Anlage 2 gibt den Stand der Prüfung vor Vertragsschluss wieder; sie ist weder eine Zusage noch die Entscheidung eines Instituts.`),
+      p(`Dieser Vertrag ist eine Individualvereinbarung; Allgemeine Geschäftsbedingungen von FIAON gelten für ihn nicht. Beigefügt sind Anlage 1 (Bürgschaftszusage der ${buergin}), Anlage 2 (Prüfbericht von FIAON) und Anlage 3 (Widerrufsbelehrung und Muster-Widerrufsformular). ${G.vertragAnlage2}`),
       p("Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts. Ist der Auftraggeber Verbraucher, gilt diese Rechtswahl nur, soweit ihm dadurch nicht der Schutz entzogen wird, den ihm die zwingenden Bestimmungen des Rechts des Staates seines gewöhnlichen Aufenthalts gewähren. Ist der Auftraggeber Kaufmann, eine juristische Person des öffentlichen Rechts oder ein öffentlich-rechtliches Sondervermögen, ist ausschließlicher Gerichtsstand für alle Streitigkeiten aus diesem Auftrag München. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften."),
     ] },
   ];
@@ -581,8 +700,8 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
 
 /** Die Ziffern, die kein Angebot verlieren darf — der Prüfstand zählt sie nach. */
 export const ANGEBOT_ZIFFER_TITEL = [
-  "Parteien", "Teil 1 — Gründung", "Teil 2 — Kapital-Begleitung", "Partner und Abgrenzung", "Vergütung und Fälligkeit",
-  "Frist und vollständige Erstattung", "Mitwirkung des Auftraggebers", "Bürgschaft und keine Sicherheiten", "Pflichthinweise",
+  "Parteien", "Teil 1 — Gründung", "Teil 2 — Kapital-Begleitung mit Kreditgarantie", "Partner und Abgrenzung", "Vergütung und Fälligkeit",
+  "Frist, Garantie und vollständige Erstattung", "Mitwirkung des Auftraggebers", "Bürgschaft und keine Sicherheiten", "Pflichthinweise",
   "Laufzeit und Ende", "Widerrufsrecht", "Haftung", "Vertraulichkeit", "Datenschutz", "Schlussbestimmungen",
 ] as const;
 
@@ -740,6 +859,7 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
   const wochen = zahlwort(par.fristWochen);
   const buergin = d.buergin.name;
   const karten = angebotKarten(par.kartenZiel);
+  const G = angebotGarantie(par);
   return {
     // 0 — Der Auftakt: baut sich auf, danach gleitet die Seite in den Hero (Nachtrag i).
     auftakt: { gruss: `Herzlich willkommen, ${angebotKundeGruss(d.kunde)}`, zeile: "Ihr Vertrag steht bereit.", ueberspringen: "Überspringen" },
@@ -747,22 +867,21 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
     // 1 — Hero: nur Nutzen. Kein Betrag, kein Institut-Satz (Nachtrag b und c).
     auge: `FIAON Global · Persönliches Angebot`,
     fuer: `für ${angebotKundeAnrede(d.kunde)}`,
-    titel: "Ihre US-Gesellschaft. Komplett gegründet, mit Ihrem Team vor Ort — und dem Weg zum Kapital.",
-    // Gegenprüfung 01.10.2026: Die Zahl bleibt fest (Nachtrag b), aber als ZIEL gekennzeichnet — die Seite verspricht
-    // nicht mehr als Ziffer 3 Absatz 1 des Vertrags. Der Institut-Satz bleibt aus dem Hero (Nachtrag b).
-    lead: `Wir gründen Ihre Gesellschaft bis ins kleinste Detail; im ersten Jahr ist alles inklusive — Sie unterschreiben, wir erledigen den Rest. Danach begleiten wir Ihre Gesellschaft auf dem Weg zu einem ${angebotKapitalrahmen(par)} und ${karten} großer US-Kartenherausgeber — mit einer Bürgin an Ihrer Seite und ohne dass Sie Sicherheiten stellen.`,
+    // E-271 (Justin, 01.10.2026 abends): „Kredit garantiert“ — Kreditrahmen und Karten sind GARANTIERT (Ziffer 3 Abs. 1),
+    // nicht mehr „Ihr Ziel“. Kein Betrag und kein Institut-Satz im Hero (Nachtrag b und c bleiben).
+    titel: G.seiteTitel,
+    lead: `Wir gründen Ihre Gesellschaft bis ins kleinste Detail; im ersten Jahr ist alles inklusive — Sie unterschreiben, wir erledigen den Rest. ${G.seiteLead}`,
     nutzen: [
       "Ihre US-Gesellschaft komplett — bis ins kleinste Detail",
       "Ihr Team vor Ort: persönlicher Assistent, Anwalt, Steuerberater, betriebswirtschaftliche Begleitung",
-      `Ihr Ziel: ein Kapitalrahmen von ${angebotUsdKurz(par.kapitalZielUsd)} für Ihre Gesellschaft`,
-      `Ihr Ziel: ${karten} großer US-Kartenherausgeber`,
+      G.nutzenKredit,
+      G.nutzenKarten,
       `Eine Bürgin an Ihrer Seite: die ${buergin}`,
       "Keine Sicherheiten von Ihnen",
     ],
-    // „Ihre Garantie" (Justin, 01.10.2026: statt „Geld zurück" überall „Ihre Garantie"). Garantiert wird NUR, was FIAON
-    // selbst in der Hand hat — die Erstattung der Gründungskosten —, nie eine Bankentscheidung (OLG Hamm 4 U 171/12).
-    // Deshalb steht hinter „Ihre Garantie" immer im selben Satz, WAS garantiert ist. Kein „0 %" (Global-Wortregel E-188).
-    erstattungZeile: `Ihre Garantie: Kommt in ${wochen} Wochen ab unserem Start weder Kapital noch Karte, erhalten Sie die Gründungskosten vollständig zurück.`,
+    // Das Siegel unter der Nutzenliste (Feldname historisch): „Kredit garantiert: …“ — immer mit dem, was garantiert
+    // ist, und der Folge (alles zurück). Die Seite setzt den Teil vor dem ersten „: “ fett. Kein „0 %“ (Wortregel E-188).
+    erstattungZeile: G.siegel,
 
     // 2 — Was Sie bekommen. Ohne Beträge; der Satz zur persönlichen Haftung steht bei den Karten.
     bekommenTitel: "Was Sie bekommen",
@@ -775,13 +894,12 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
       { titel: "Ihr Team vor Ort",
         text: "Ein persönlicher Assistent als fester Ansprechpartner, ein Partner-Anwalt, ein Partner-Steuerberater, ein US-CPA und ein Partner für die betriebswirtschaftliche Begleitung Ihrer Gesellschaft — alle Honorare tragen wir.",
         fein: "Steuerberater, US-CPA und Anwalt arbeiten auf Ihr Mandat; ihre Honorare für diesen Auftrag trägt FIAON." },
-      // Endabnahme 01.10.2026: Auch die Überschriften sagen „Ihr Ziel" — unter „Was Sie bekommen" stünde die Zahl
-      // sonst als Leistung, obwohl Ziffer 3 Absatz 1 kein Ergebnis schuldet. Zahl fest, kein „bis zu" (Nachtrag b).
-      { titel: `Ihr Ziel: ${angebotKapitalrahmen(par)}`,
-        text: `Ziel der Kapital-Begleitung ist ein ${angebotKapitalrahmen(par)} für Ihre Gesellschaft. Wir bereiten jeden Antrag vollständig vor und begleiten ihn bis zur Entscheidung.`,
+      // E-271: Die Überschriften sagen „Garantiert: …“ — Ziffer 3 Absatz 1 garantiert Kreditrahmen und Karten.
+      { titel: G.bekommenKreditTitel,
+        text: G.bekommenKreditText,
         fein: "Die Anträge stellt Ihre Gesellschaft im eigenen Namen — vorbereitet und begleitet von uns. Das Kapital ist nicht an die USA gebunden." },
-      { titel: `Ihr Ziel: ${karten}`,
-        text: `Ziel sind dazu ${karten} großer US-Kartenherausgeber für Ihre Gesellschaft — nach einem Plan, der die Reihenfolge der Anträge auf Ihre Gesellschaft abstimmt (Kartenleiter).`,
+      { titel: G.bekommenKartenTitel,
+        text: G.bekommenKartenText,
         fein: "Bei US-Firmenkarten verlangen Kartenherausgeber in der Regel die persönliche Haftung des Inhabers. Ist das bei einem Antrag so, sagen wir es Ihnen vorher — und Sie entscheiden frei." },
       { titel: "Eine Bürgin an Ihrer Seite",
         text: `Verlangt ein Institut eine Bürgschaft, übernimmt sie die ${buergin} für Finanzierungen Ihrer Gesellschaft — Höchstbetrag ${angebotUsd(par.buergschaftUsd)}, ohne Avalprovision. Die Zusage ist eigenhändig unterzeichnet und liegt diesem Angebot als Anlage 1 bei.`,
@@ -794,28 +912,28 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
     // 3 — So läuft es: vier Schritte mit Zeitplan.
     ablaufTitel: "So läuft es",
     // Gegenprüfung 01.10.2026: Die Frist läuft ab unserem Start — mit sofortigem Beginn ist das der Zahlungseingang,
-    // sonst der Tag nach der Widerrufsfrist (Ziffer 6 Absatz 1). Der Institut-Satz steht hier als Grund für die Erfolgsbasis.
+    // sonst der Tag nach der Widerrufsfrist (Ziffer 6 Absatz 1). E-271: kein Institut-Satz mehr — Kreditrahmen und Karten sind garantiert.
     ablaufZeitplan: `Ihr Zeitplan: ${wochen} Wochen ab unserem Start — mit sofortigem Beginn ab Ihrem Zahlungseingang`,
     ablauf: [
       { wann: "Heute", titel: "Annehmen",
         text: "Sie lesen Vertrag, Bürgschaftszusage, Prüfbericht und Widerrufsbelehrung in Ruhe und nehmen mit einem Klick an. Vertrag und Rechnung für die Gründung kommen sofort per E-Mail." },
       { wann: "Mit Ihrer Zahlung", titel: "Startgespräch und Gründung",
-        text: `Mit Ihrer Zahlung beginnen wir — sofort, wenn Sie das unten so wünschen, sonst nach Ablauf der Widerrufsfrist. Mit unserem Start läuft Ihre Frist von ${wochen} Wochen. Im Startgespräch mit ${FIAON_FIRMA.director} legen wir den Bundesstaat fest; danach erledigen wir Eintragung, Operating Agreement, EIN und Geschäftskonto. Sie unterschreiben nur, was wir vorbereiten.` },
+        text: `Mit Ihrer Zahlung beginnen wir — sofort oder ab dem Tag, den Sie unten wählen. Mit unserem Start läuft Ihre Frist von ${wochen} Wochen. Im Startgespräch mit ${FIAON_FIRMA.director} legen wir den Bundesstaat fest; danach erledigen wir Eintragung, Operating Agreement, EIN und Geschäftskonto. Sie unterschreiben nur, was wir vorbereiten.` },
       { wann: "Sobald Ihre LLC eingetragen ist", titel: "Kapital-Begleitung",
-        text: `Wir bereiten jeden Antrag Ihrer Gesellschaft vor — Konto, Karten, Finanzierung — und begleiten ihn bis zur Entscheidung. Verlangt ein Institut eine Bürgin, steht die ${buergin} bereit. Über jeden Antrag entscheidet das jeweilige Institut — deshalb zahlen Sie für diese Begleitung erst, wenn das erste Kapital oder die erste Karte da ist.` },
-      { wann: `Innerhalb der ${wochen} Wochen`, titel: "Erstes Kapital oder erste Karte",
-        text: `Erst dann — gleich in welcher Höhe — wird unsere Vergütung für die Kapital-Begleitung fällig, zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen. Kommt in der Frist weder Kapital noch Karte, erstatten wir Ihnen die Gründungskosten vollständig — Ihre LLC behalten Sie.` },
+        text: `Wir bereiten jeden Antrag Ihrer Gesellschaft vor — Konto, Karten, Finanzierung — und begleiten ihn bis zur Entscheidung. Verlangt ein Institut eine Bürgin, steht die ${buergin} bereit. Für diese Begleitung zahlen Sie erst, wenn das erste Kapital oder die erste Karte da ist.` },
+      { wann: `Innerhalb der ${wochen} Wochen`, titel: G.ablaufTitel,
+        text: `Mit dem ersten Kapital oder der ersten Karte — gleich in welcher Höhe — wird unsere Vergütung für die Kapital-Begleitung fällig, zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen. ${G.ablaufGarantie} Sonst erstatten wir Ihnen alles, was Sie uns gezahlt haben; Ihre LLC behalten Sie.` },
     ],
 
-    // 4 — Ihr Schutz. Hier steht auch der ehrliche Satz zum Institut — ruhig, als Grund für die Erfolgsbasis.
+    // 4 — Ihr Schutz. E-271: Erfolgsbasis + Garantie (Kreditrahmen und Karten — oder alles zurück) + Widerruf.
     schutzTitel: "Ihr Schutz",
     schutz: [
       { titel: "Erfolgsbasis",
         text: "Unsere eigentliche Vergütung wird erst fällig, wenn Ihre LLC eingetragen ist und das erste Kapital an sie ausgezahlt oder die erste Business-Kreditkarte freigeschaltet ist — gleich in welcher Höhe. Bis dahin tragen Sie nur die Gründungskosten Ihrer Gesellschaft.",
-        fein: "Über jede Finanzierung und jede Karte entscheidet das jeweilige Institut — deshalb hängt unsere Vergütung an Ihrem Erfolg und nicht an unserem Aufwand." },
-      { titel: `Ihre Garantie: volle Erstattung nach ${wochen} Wochen`,
-        text: `Erhält Ihre Gesellschaft in ${wochen} Wochen ab unserem Start (mit sofortigem Beginn: ab Ihrem Zahlungseingang) weder Kapital noch Karte — auch nicht auf einen eigenen Antrag —, erstatten wir Ihnen die Gründungskosten vollständig binnen ${zahlwort(par.erstattungTage)} Tagen — ohne Aufforderung, ohne Abzug. Ihre LLC und alle Unterlagen bleiben Ihre.`,
-        fein: "Die Frist ruht nur, wenn Sie trotz schriftlicher Aufforderung eine Unterschrift, Ihren Reisepass (oder einen von einem Institut für die Identifizierung verlangten Adressnachweis) oder wahre Angaben schuldig bleiben — nie wegen Behörden, Instituten oder uns." },
+        fein: G.schutzErfolgFein },
+      { titel: G.schutzTitel,
+        text: `Erhält Ihre Gesellschaft in ${wochen} Wochen ab unserem Start (mit sofortigem Beginn: ab Ihrem Zahlungseingang) nicht den ${angebotKreditrahmen(par)} und ${karten} — gleich, ob auf unseren oder einen eigenen Antrag —, erstatten wir Ihnen alles, was Sie uns gezahlt haben: die Gründungskosten und, falls schon gezahlt, unsere Vergütung für die Kapital-Begleitung — binnen ${zahlwort(par.erstattungTage)} Tagen, ohne Aufforderung, ohne Abzug. Eine offene Rechnung über die Kapital-Begleitung entfällt. Ihre LLC und alle Unterlagen bleiben Ihre.`,
+        fein: "Die Frist ruht nur, wenn Sie trotz schriftlicher Aufforderung eine Unterschrift, Ihren Reisepass (oder einen von einem Institut für die Identifizierung verlangten Adressnachweis) oder wahre Angaben schuldig bleiben, und solange eine fällige Rechnung über die Kapital-Begleitung offen ist — nie wegen Behörden, Instituten oder uns. Lehnen Sie eine Karte oder einen Rahmen ab, den ein Institut Ihrer Gesellschaft anbietet, zählt er für das Ziel (Ziffer 3 Ihres Vertrags)." },
       { titel: "Widerrufsrecht",
         text: "Als Verbraucher können Sie den Vertrag binnen vierzehn Tagen widerrufen — Belehrung und Muster-Formular stehen in Anlage 3. Ob wir schon vor Ablauf dieser Frist beginnen, entscheiden Sie unten selbst.",
         fein: "Vor Ablauf der Widerrufsfrist beginnen wir nur auf Ihren ausdrücklichen Wunsch." },
@@ -825,11 +943,11 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
     investitionTitel: "Ihre Investition",
     investition: {
       // Justins Satz (Nachtrag c) — wörtlich.
-      satz: `${t1k} sind ausschließlich die Gründungskosten Ihrer Gesellschaft. Unsere eigentliche Vergütung von ${t2k} verdienen wir erst mit Ihrem Erfolg — wenn das erste Kapital oder die erste Karte da ist. Wir arbeiten also auf Erfolgsbasis.`,
+      satz: `${t1k} sind ausschließlich die Gründungskosten Ihrer Gesellschaft. Unsere eigentliche Vergütung von ${t2k} verdienen wir erst mit Ihrem Erfolg — wenn das erste Kapital oder die erste Karte da ist. Wir arbeiten also auf Erfolgsbasis. ${G.investitionGarantie}`,
       tafel: [
         { label: "Gründung Ihrer Gesellschaft", wert: t1, zusatz: "heute fällig — im ersten Jahr alles inklusive, keine Zusatzkosten" },
-        { label: "Kapital-Begleitung", wert: t2, zusatz: `erst mit Ihrem Erfolg: nach Eintragung und erstem Kapital oder erster Karte, gleich in welcher Höhe — über beides entscheidet das jeweilige Institut; zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen` },
-        { label: "Ihre Garantie", wert: `${t1} zurück`, zusatz: `vollständig, wenn in den ${wochen} Wochen ab unserem Start (mit sofortigem Beginn: ab Ihrem Zahlungseingang) weder Kapital noch Karte kommt — die Kapital-Begleitung entfällt, Ihre LLC bleibt Ihnen` },
+        { label: "Kapital-Begleitung", wert: t2, zusatz: `erst mit Ihrem Erfolg: nach Eintragung und erstem Kapital oder erster Karte, gleich in welcher Höhe; zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen — ${G.tafelTeil2}` },
+        { label: "Ihre Garantie", wert: "alles zurück", zusatz: `wenn Ihre Gesellschaft in den ${wochen} Wochen ab unserem Start (mit sofortigem Beginn: ab Ihrem Zahlungseingang) nicht den ${angebotKreditrahmen(par)} und ${karten} erhält: ${t1} für die Gründung und, falls schon gezahlt, ${t2} für die Kapital-Begleitung — eine offene Rechnung entfällt, Ihre LLC bleibt Ihnen` },
         { label: "Bürgin", wert: buergin, zusatz: `Höchstbetrag ${angebotUsd(par.buergschaftUsd)} — Sicherheiten verlangen wir keine` },
       ],
       gesamt: `Insgesamt ${ges} als Festpreis, Endpreis für Sie als Privatperson — davon heute nur ${t1}. Überweisung auf Rechnung, kein Abo.`,
@@ -838,7 +956,8 @@ export function angebotSeite(d: Pick<AngebotDaten, "kunde" | "parameter" | "buer
 
     // 6 — Vor dem Vertrag: die Pflichthinweise (wörtlich aus dem Haus) und die Dokumente.
     hinweiseTitel: "Was Sie vorher wissen sollten",
-    hinweise: [...GLOBAL_PFLICHTHINWEIS.de],
+    // E-271: die Hauspflichthinweise ohne den Institut-Satz (ANGEBOT_PFLICHTHINWEIS) — dieses Angebot garantiert.
+    hinweise: [...ANGEBOT_PFLICHTHINWEIS],
     kapitalFrei: `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`,
     verbunden: `Die ${buergin} ist mit FIAON über unseren Gründer ${FIAON_FIRMA.director} verbunden. Ihr Vertragspartner ist in jedem Fall die ${FIAON_FIRMA.name}.`,
     dokumenteTitel: "Ihr Vertrag mit drei Anlagen",
@@ -871,15 +990,17 @@ export function angebotBestellUebersicht(d: Pick<AngebotDaten, "parameter" | "bu
   const par = d.parameter;
   const JB = GLOBAL_JAHRESBETREUUNG.de;
   const wochen = zahlwort(par.fristWochen);
+  const G = angebotGarantie(par);
   return [
     { label: "Vertragspartner", wert: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}` },
-    { label: "Leistung", kern: true, wert: "Gründung Ihrer US-LLC (Teil 1) und Kapital-Begleitung Ihrer Gesellschaft (Teil 2) nach der Individualvereinbarung" },
+    // E-271: Die Garantie ist eine wesentliche Eigenschaft (§ 312j Abs. 2 BGB) — sie steht in der Kernzeile „Leistung“.
+    { label: "Leistung", kern: true, wert: `Gründung Ihrer US-LLC (Teil 1) und Kapital-Begleitung Ihrer Gesellschaft (Teil 2) nach der Individualvereinbarung — ${G.uebersichtLeistung}` },
     { label: "Teil 1 · Gründung", kern: true, wert: `${angebotEur(par.teil1Cents)} — fällig mit Vertragsschluss, Rechnung sofort per E-Mail` },
     { label: "Teil 2 · Kapital-Begleitung", kern: true, wert: `${angebotEur(par.teil2Cents)} — nur fällig, wenn Ihre LLC eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist (gleich in welcher Höhe); zahlbar binnen ${zahlwort(par.teil2ZielTage)} Tagen nach Rechnung` },
     { label: "Gesamtpreis", kern: true, wert: `${angebotEur(angebotGesamtCents(par))} · Endpreis, eine etwaige Umsatzsteuer ist enthalten` },
-    { label: "Ihre Garantie", wert: `Ohne Kapital und ohne Karte nach ${wochen} Wochen: ${angebotEur(par.teil1Cents)} zurück binnen ${zahlwort(par.erstattungTage)} Tagen, Teil 2 entfällt, die LLC bleibt Ihre` },
+    { label: "Ihre Garantie", kern: true, wert: `Erhält Ihre Gesellschaft binnen ${wochen} Wochen ab unserem Start nicht den ${angebotKreditrahmen(par)} und ${angebotKarten(par.kartenZiel)}: alles Gezahlte zurück binnen ${zahlwort(par.erstattungTage)} Tagen nach Fristende — ${angebotEur(par.teil1Cents)} und, falls gezahlt, ${angebotEur(par.teil2Cents)}; eine offene Rechnung über Teil 2 entfällt, die LLC bleibt Ihre` },
     { label: "Bürgschaft", wert: `${d.buergin.name}, auf Anforderung eines Instituts, Höchstbetrag ${angebotUsd(par.buergschaftUsd)} (Anlage 1)` },
-    { label: "Laufzeit", kern: true, wert: `Leistungen des ersten Jahres bis zum ersten Jahrestag der Eintragung; Kapital-Begleitung bis zum Ziel, längstens ${zahlwort(ANGEBOT_FEST.begleitungMonate)} Monate nach dem ersten Kapital — keine automatische Verlängerung` },
+    { label: "Laufzeit", kern: true, wert: `Leistungen des ersten Jahres bis zum ersten Jahrestag der Eintragung; ${G.uebersichtLaufzeit} — keine automatische Verlängerung` },
     s.jahresbetreuung
       ? { label: "Ab dem zweiten Jahr", kern: true, wert: `${JB.gebucht} — jährlich im Voraus, keine automatische Verlängerung, heute nicht fällig` }
       : { label: "Ab dem zweiten Jahr", wert: "Jahresbetreuung nicht gebucht (auf Wunsch 699 € im Jahr)" },
@@ -896,7 +1017,7 @@ export const ANGEBOT_ANNAHME = {
   beginnTitel: "Wann sollen wir beginnen?",
   // Justin (01.10.2026): zwei Kästchen — „Sofort starten" (darunter klein und grau die Erklärung zum Widerruf) oder
   // „Starten ab" mit Datum. Keins ist vorgewählt; ohne Wahl keine Annahme (die Seite sagt, was fehlt).
-  beginnWahl: "Bitte wählen Sie eins von beiden — die Frist für die Erstattung läuft ab unserem Start.",
+  beginnWahl: "Bitte wählen Sie eins von beiden — die Frist Ihrer Garantie läuft ab unserem Start.",
   beginnSofort: "Sofort starten",
   beginnSofortUnter: "mit Ihrem Zahlungseingang",
   beginnDatum: "Starten ab",
@@ -910,14 +1031,14 @@ export const ANGEBOT_ANNAHME = {
   fehltDatum: (von: string, bis: string) => `Bitte wählen Sie Ihren Starttag — einen Tag zwischen ${von} und ${bis}.`,
   uebersichtMehr: "Alle Einzelheiten anzeigen",
   uebersichtWeniger: "Einzelheiten ausblenden",
-  beginnText: "Als Verbraucher haben Sie das gesetzliche Widerrufsrecht von vierzehn Tagen. Ohne Ihren ausdrücklichen Wunsch beginnen wir erst nach Ablauf dieser Frist — dann beginnt auch die Frist für die Erstattung erst mit unserem Start. Mit Ihrem Wunsch beginnen wir, sobald Ihre Zahlung eingegangen ist. Der Vertrag folgt Ihrer Wahl.",
+  beginnText: "Als Verbraucher haben Sie das gesetzliche Widerrufsrecht von vierzehn Tagen. Ohne Ihren ausdrücklichen Wunsch beginnen wir erst nach Ablauf dieser Frist — dann beginnt auch die Frist Ihrer Garantie erst mit unserem Start. Mit Ihrem Wunsch beginnen wir, sobald Ihre Zahlung eingegangen ist. Der Vertrag folgt Ihrer Wahl.",
   // Wortgleich mit client/src/i18n/global-start.ts (sofortBeginn) — nie vorangekreuzt.
   sofortBeginn: "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt. Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.",
   // Wortgleich mit GLOBAL_JAHRESBETREUUNG.de.buchen — nie vorangekreuzt, nie per Link vorbelegt.
   jahresbetreuung: GLOBAL_JAHRESBETREUUNG.de.buchen,
   jahresbetreuungUnter: "Heute wird nur Teil 1 fällig; die Jahresbetreuung berechnen wir erst zum zweiten Jahr.",
   knopf: ANGEBOT_KNOPF,
-  unterKnopf: (t1: string) => `Mit dem Klick nehmen Sie das Angebot an. Fällig wird heute nur Teil 1 (${t1}); Teil 2 erst nach dem ersten Kapital oder der ersten Karte.`,
+  unterKnopf: (t1: string) => `Mit dem Klick nehmen Sie das Angebot an. Fällig wird heute nur Teil 1 (${t1}); Teil 2 erst nach dem ersten Kapital oder der ersten Karte. ${ANGEBOT_GARANTIE_FEST.annahmeUnterKnopf}`,
   gelesen: "Mit dem Klick bestätigen Sie, dass Sie Vertrag, Anlagen und die Hinweise oben gelesen haben.",
   gesperrt: "Dieses Angebot wird gerade vervollständigt. Sie erhalten eine Nachricht, sobald Sie es annehmen können.",
   neuLaden: "Das Angebot wurde inzwischen geändert — bitte laden Sie die Seite neu und lesen Sie die aktuelle Fassung.",
@@ -926,10 +1047,11 @@ export const ANGEBOT_ANNAHME = {
   fertigBezahlt: "Ihre Zahlung für Teil 1 ist eingegangen — vielen Dank. Den Stand Ihres Auftrags sehen Sie jederzeit unter „Mein Auftrag“.",
   // Gegenprüfung 01.10.2026: Hängt die Rechnung nach der Annahme, sagt die Seite das ehrlich — statt auf eine Zahlungsseite zu verweisen, die es noch nicht gibt.
   fertigRechnungFolgt: (t1: string) => `Heute fällig ist nur Teil 1 über ${t1}. Ihre Rechnung mit Bankverbindung und Verwendungszweck folgt in Kürze per E-Mail — Sie müssen nichts weiter tun.`,
-  fertigFuss: "Über jede Finanzierung und jede Karte entscheidet allein das jeweilige Institut. Fragen? Schreiben Sie uns an support@fiaon.com.",
-  fertigSofort: (email: string) => `Vertrag und Rechnung gehen an ${email}. Mit Ihrem Zahlungseingang beginnen wir — und mit ihm die Frist für die Erstattung.`,
-  fertigAb: (email: string, tag: string) => `Vertrag und Rechnung gehen an ${email}. Wie gewünscht beginnen wir am ${tag}, sobald Ihre Zahlung eingegangen ist — mit unserem Start beginnt die Frist für die Erstattung.`,
-  fertigWartet: (email: string) => `Vertrag und Rechnung gehen an ${email}. Wie gewünscht beginnen wir nach Ablauf der Widerrufsfrist, sobald Ihre Zahlung eingegangen ist; die Frist für die Erstattung beginnt mit unserem Start.`,
+  // E-271: statt des Institut-Satzes die Garantie.
+  fertigFuss: "Ihre Garantie gilt: Erhält Ihre Gesellschaft in der Frist nicht den vereinbarten Kreditrahmen und die vereinbarten Karten, erhalten Sie alles zurück, was Sie uns gezahlt haben. Fragen? Schreiben Sie uns an support@fiaon.com.",
+  fertigSofort: (email: string) => `Vertrag und Rechnung gehen an ${email}. Mit Ihrem Zahlungseingang beginnen wir — und mit ihm die Frist Ihrer Garantie.`,
+  fertigAb: (email: string, tag: string) => `Vertrag und Rechnung gehen an ${email}. Wie gewünscht beginnen wir am ${tag}, sobald Ihre Zahlung eingegangen ist — mit unserem Start beginnt die Frist Ihrer Garantie.`,
+  fertigWartet: (email: string) => `Vertrag und Rechnung gehen an ${email}. Wie gewünscht beginnen wir nach Ablauf der Widerrufsfrist, sobald Ihre Zahlung eingegangen ist; die Frist Ihrer Garantie beginnt mit unserem Start.`,
 } as const;
 
 /**
@@ -982,10 +1104,13 @@ export function angebotRechnungsText(z: { angebotRef: string; nr: 1 | 2; auftrag
 // ═══════════════════════════════════════════════════════════════════════════
 export const ANGEBOT_MEIN_AUFTRAG = {
   titel: "Ihr Angebot",
-  stand: { bezahlt: "bezahlt", offen: "Rechnung offen", "noch nicht fällig": "noch nicht fällig", entfallen: "entfällt", storniert: "storniert" } as Record<string, string>,
+  stand: { bezahlt: "bezahlt", offen: "Rechnung offen", "noch nicht fällig": "noch nicht fällig", entfallen: "entfällt", storniert: "storniert", erstattet: "wird erstattet" } as Record<string, string>,
   teil2Hinweis: "Teil 2 wird erst fällig, wenn Ihre Gesellschaft eingetragen ist und das erste Kapital ausgezahlt oder die erste Business-Kreditkarte freigeschaltet ist.",
-  frist: (beginn: string, ende: string) => `Ihre Frist läuft vom ${angebotTag(beginn)} bis zum ${angebotTag(ende)}. Kommt bis dahin weder Kapital noch Karte, erstatten wir Ihnen Teil 1 vollständig.`,
+  // E-271: Garantie — Kreditrahmen und Karten, sonst alles zurück.
+  frist: (beginn: string, ende: string) => `Ihre Frist läuft vom ${angebotTag(beginn)} bis zum ${angebotTag(ende)}. ${ANGEBOT_GARANTIE_FEST.meinAuftragFrist}`,
   fristNochNicht: "Die Frist beginnt mit unserem Start — Beginn und Ende teilen wir Ihnen dann schriftlich mit.",
-  erstattung: "Die Frist ist abgelaufen. Wir erstatten Ihnen Teil 1 vollständig; Teil 2 entfällt.",
+  erstattung: ANGEBOT_GARANTIE_FEST.meinAuftragErstattung,
+  garantieErfuellt: (tag: string) => `Garantie erfüllt am ${angebotTag(tag)}: Kreditrahmen und Karten liegen vor.`,
+  seiteHinweis: ANGEBOT_GARANTIE_FEST.meinAuftragHinweis,
   rechnung: "Rechnung",
 } as const;

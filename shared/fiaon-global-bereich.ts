@@ -119,9 +119,27 @@ export const GLOBAL_ETAPPE_1_INDIVIDUELL: GlobalEtappeText = {
   titel: "Gründung und Dokumente",
   text: "Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse und Telefonnummer, Operating Agreement. Unser Team vor Ort bereitet alles vor, reicht ein und holt ab; Sie unterschreiben, was wir Ihnen fertig zuschicken, und laden hier nur Ihren Reisepass hoch. Die ITIN vergibt die US-Steuerbehörde in eigener Frist.",
 };
+/**
+ * E-271 (Kreditgarantie, 01.10.2026 abends): Etappen 2–4 beim Individualangebot — ohne „über einige Monate“,
+ * „gewachsene Historie“ oder den Institut-Satz, denn der Vertrag garantiert Kreditrahmen und Karten in der Frist.
+ * Titel wie bei den Paketen (Office und Prüfstände kennen sie); nur deutsch, wie die Fassung des Angebots.
+ */
+export const GLOBAL_ETAPPEN_INDIVIDUELL: Record<2 | 3 | 4, GlobalEtappeText> = {
+  2: { titel: "Die erste Firmenkarte", text: "Wir bereiten den ersten Kartenantrag Ihrer Gesellschaft vollständig vor; Sie unterschreiben ihn. Verlangt der Herausgeber die persönliche Haftung des Inhabers, sagen wir Ihnen das vor dem Antrag." },
+  3: { titel: "Die Kartenleiter", text: "Wir stellen die weiteren Kartenanträge in einer abgestimmten Reihenfolge, damit Ihre Gesellschaft in der Frist die vereinbarten Karten erhält (Ziffer 3 Ihres Vertrags)." },
+  4: { titel: "Das Bankdarlehen", text: "Wir bereiten die Anträge für den vereinbarten Kreditrahmen vor und begleiten sie bis zur Zusage — mit der Bürgin an Ihrer Seite, wo ein Institut sie verlangt (Ziffer 3 Ihres Vertrags)." },
+};
+/** Fußnote der Etappen-Mail: bei den Paketen der Institut-Satz, beim Individualangebot die Garantie (E-271). */
+export const GLOBAL_ETAPPE_FUSSNOTE = {
+  de: "Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut.",
+  en: "The institution alone decides on the account, the card, the limit and the loan.",
+  individuell: "Für Kreditrahmen und Karten gilt Ihre Garantie aus Ziffer 3 und 6 Ihres Vertrags.",
+} as const;
+
 export function globalEtappeText(nr: number, sprache: BereichSprache = "de", individuell = false): GlobalEtappeText {
   const e = GLOBAL_ETAPPEN.find((x) => x.nr === nr) ?? GLOBAL_ETAPPEN[0];
   if (individuell && nr === 1 && sprache !== "en") return GLOBAL_ETAPPE_1_INDIVIDUELL;
+  if (individuell && (nr === 2 || nr === 3 || nr === 4) && sprache !== "en") return GLOBAL_ETAPPEN_INDIVIDUELL[nr];
   return sprache === "en" ? e.en : e.de;
 }
 

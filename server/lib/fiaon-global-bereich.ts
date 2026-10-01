@@ -65,6 +65,7 @@ import {
   globalDokumentArt, globalDokumentArtText, globalDokumentArtenFuer, globalDurchgangMonat, globalEtappeStand, globalEtappeText, globalFristAbstandText,
   globalFristMarke, globalTageslaufFenster, globalHatMonatsdurchgang, globalHeimatMeldungSchritt, globalKundeDarfArt, globalPaketEtappeBis, globalPflichtFristen, globalTagAlsText,
   globalUnterlagenOffen, globalUnterlagenStand, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName, globalJahresbetreuungRechnungAb,
+  GLOBAL_ETAPPE_FUSSNOTE,
   type BereichSprache, type GlobalGesellschaft,
 } from "@shared/fiaon-global-bereich";
 import {
@@ -552,7 +553,7 @@ export async function globalEtappeSetzen(ref: string, ein: { etappe: unknown; te
            abgeschlossen_am = NULL, updated_at = NOW()
      WHERE ref = ${ref}`;
   const T = GLOBAL_VERLAUF_TEXT[l.sprache];
-  const titel = globalEtappeText(nr, l.sprache).titel;
+  const titel = globalEtappeText(nr, l.sprache, istAngebotsPaket(l.akte.paket_key)).titel;
   await verlaufSchreiben(ref, { art: "etappe", text: [warZu ? T.wiederOffen : null, nr === 0 ? titel + "." : T.etappe(nr, titel), text || null].filter(Boolean).join(" "), sichtbar: true, agentId: agent.id });
   if (ein.mitteilen !== true) return { ok: true, meldung: `Etappe ${nr} („${globalEtappeText(nr, "de").titel}“) gesetzt. Der Kunde sieht sie in „Mein Auftrag“; eine Mail ging nicht raus.` };
   const frisch = (await lageLesen(ref)) ?? l;
@@ -561,7 +562,9 @@ export async function globalEtappeSetzen(ref: string, ein: { etappe: unknown; te
 }
 
 async function etappenMail(l: Lage, nr: number, persoenlich: string, wer: string): Promise<{ ok: boolean; grund: string | null }> {
-  const e = globalEtappeText(nr, l.sprache);
+  // E-271: Beim Individualangebot die Etappen-Texte und die Fußnote mit der Garantie (kein Institut-Satz).
+  const individuell = istAngebotsPaket(l.akte.paket_key);
+  const e = globalEtappeText(nr, l.sprache, individuell);
   const schritt = l.akte.naechster_schritt
     ? `${t(l.sprache, "Ihr nächster Schritt:", "Your next step:")} ${escapeHtml(String(l.akte.naechster_schritt))}${l.akte.naechster_schritt_bis ? ` (${t(l.sprache, "bis zum", "by")} ${globalTagAlsText(isoTag(l.akte.naechster_schritt_bis), l.sprache)})` : ""}`
     : t(l.sprache, "Den Stand, Ihre Dokumente und Ihre Termine finden Sie jederzeit unter „Mein Auftrag“.", "You can find the status, your documents and your dates at any time under “My order”.");
@@ -569,6 +572,7 @@ async function etappenMail(l: Lage, nr: number, persoenlich: string, wer: string
     etappe_marke: nr >= GLOBAL_ETAPPE_MAX ? t(l.sprache, "Abschluss", "Completion") : `${t(l.sprache, "Etappe", "Stage")} ${nr}`,
     etappe_titel: escapeHtml(e.titel), etappe_text: escapeHtml(e.text),
     etappe_weiter: [persoenlich ? escapeHtml(persoenlich).replace(/\n/g, "<br />") : null, schritt].filter(Boolean).join("<br /><br />"),
+    fussnote_text: individuell && l.sprache !== "en" ? GLOBAL_ETAPPE_FUSSNOTE.individuell : l.sprache === "en" ? GLOBAL_ETAPPE_FUSSNOTE.en : GLOBAL_ETAPPE_FUSSNOTE.de,
   }, wer);
 }
 

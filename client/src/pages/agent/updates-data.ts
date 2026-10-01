@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-271 (01.10.2026 abends): Justin — „Kredit garantiert“. Neuer Eintrag statt den alten umzuschreiben.
+    id: "2026-10-01-individualangebot-garantie",
+    date: "2026-10-01",
+    category: "Neu",
+    title: "Individualangebot: Kredit garantiert — Kreditrahmen und Karten, sonst alles zurück",
+    summary:
+      "Beim persönlichen Angebot garantiert FIAON vertraglich: Die Gesellschaft des Kunden erhält bis zum Fristende den Kreditrahmen "
+      + "und die Business-Kreditkarten aus dem Angebot. Wird das nicht vollständig erreicht, bekommt der Kunde alles zurück, was er gezahlt hat.",
+    changes: [
+      "Die Garantie gilt auch nach dem Meilenstein weiter — erst wenn Kreditrahmen UND Karten vollständig da sind, ist sie erfüllt.",
+      "Im Garantiefall wird alles Gezahlte erstattet (Teil 1 und ein bezahlter Teil 2); eine offene Rechnung über Teil 2 wird storniert.",
+    ],
+    howto: [
+      "Sind Kreditrahmen und Karten vollständig da: der Leitung Bescheid geben — sie trägt „Garantie erfüllt“ mit den Belegen ein.",
+      "Gegenüber dem Kunden nie einen Banknamen, Zinssatz oder Termin zusagen. Sag genau das, was im Vertrag steht: Kreditrahmen und Karten sind garantiert, sonst bekommt er alles zurück.",
+    ],
+    link: { href: "/agent/global", label: "Zu den Global-Aufträgen" },
+  },
+  {
     // E-268 (01.10.2026): Individualangebot FIAON Global — was die zuständige Person in der Global-Akte sieht.
     id: "2026-10-01-individualangebot",
     date: "2026-10-01",
@@ -95,13 +114,13 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       + "bei dir wie jeder Global-Auftrag — nur mit einem eigenen Block statt des Stichtags.",
     changes: [
       "In der Global-Akte (Reiter „Stand“) steht dann „Individualangebot“: beide Teile mit Betrag und Stand und das Fristende.",
-      "Einen Stichtag gibt es bei diesen Aufträgen nicht. Es gilt eine Frist: Kommt bis zum Fristende weder Kapital noch Karte, bekommt der Kunde Teil 1 vollständig zurück.",
+      "Einen Stichtag gibt es bei diesen Aufträgen nicht. Es gilt eine Frist mit Kreditgarantie (seit dem Abend des 01.10.2026, siehe den Eintrag darüber).",
       "Deine Aufgabe zum Start heißt „Individualangebot starten“ und nennt das Fristende.",
     ],
     howto: [
       "Ist das erste Kapital ausgezahlt oder die erste Karte für die Gesellschaft freigeschaltet: der Leitung Bescheid geben — sie trägt den Meilenstein ein, dann geht die Rechnung über Teil 2 an den Kunden.",
       "Fehlt eine Unterlage, eine Unterschrift oder die Identifikation des Kunden: schriftlich anfordern (mindestens sieben Tage Frist) und der Leitung sagen. Nur dann darf die Frist ruhen.",
-      "Gegenüber dem Kunden nie einen Banknamen nennen und nie zusagen, dass ein Institut finanziert — das entscheidet allein das Institut.",
+      "Gegenüber dem Kunden nie einen Banknamen nennen. Was FIAON garantiert, steht im Eintrag „Kredit garantiert“ darüber.",
     ],
     link: { href: "/agent/global", label: "Zu den Global-Aufträgen" },
   },

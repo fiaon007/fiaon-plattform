@@ -291,7 +291,7 @@ function EtappenAbschnitt({ akte, tun, laeuft }: Werk) {
   const zu = useCallback(() => setDialog(null), []);
   const reicht = etappenImPaket(akte.paket);
   const zuEnde = akte.status === "abgeschlossen" || akte.status === "storniert";
-  const oeffnen = (nr: number) => setDialog({ etappe: nr, text: etappeKundentext(nr, akte.sprache), mitteilen: true, angefasst: false });
+  const oeffnen = (nr: number) => setDialog({ etappe: nr, text: etappeKundentext(nr, akte.sprache, !!akte.angebot), mitteilen: true, angefasst: false });
   const setzen = async () => {
     if (!dialog) return;
     const { etappe, text, mitteilen } = dialog;
@@ -331,7 +331,7 @@ function EtappenAbschnitt({ akte, tun, laeuft }: Werk) {
           <div className="gl-dialog">
             <label>Etappe
               <select className={inputCls} value={dialog.etappe}
-                      onChange={(e) => { const nr = Number(e.target.value); setDialog((d) => (d ? { ...d, etappe: nr, text: d.angefasst ? d.text : etappeKundentext(nr, akte.sprache) } : d)); }}>
+                      onChange={(e) => { const nr = Number(e.target.value); setDialog((d) => (d ? { ...d, etappe: nr, text: d.angefasst ? d.text : etappeKundentext(nr, akte.sprache, !!akte.angebot) } : d)); }}>
                 {akte.etappen.filter((e) => e.nr <= 4).map((e) => <option key={e.nr} value={e.nr}>{e.nr === 0 ? "0 · " : `${e.nr} · `}{e.titel}{e.nr > reicht ? " (nicht im Paket)" : ""}</option>)}
               </select>
             </label>
@@ -448,11 +448,13 @@ function AngebotAbschnitt({ akte }: Werk) {
         {a.teile.map((t) => <li key={t.nr}><b>{t.titel}</b> · {eur(t.betragCents)} · {t.stand}{t.rechnungsnummer ? ` · ${t.rechnungsnummer}` : ""}</li>)}
       </ul>
       <p className="gl-leise">
-        {a.erstattungAusgeloest ? "Frist abgelaufen — die Erstattung von Teil 1 ist vorgemerkt; Teil 2 entfällt."
-          : a.fristEnde ? `Frist bis ${tagText(a.fristEnde)}: Kommt bis dahin weder Kapital noch Karte für die Gesellschaft, erstattet FIAON Teil 1 vollständig.`
+        {/* E-271 (Kreditgarantie): FIAON garantiert Kreditrahmen + Karten bis zum Fristende, sonst alles Gezahlte zurück. */}
+        {a.garantieErfuelltAm ? `Garantie erfüllt am ${tagText(a.garantieErfuelltAm)} — Kreditrahmen und Karten liegen vor.`
+          : a.erstattungAusgeloest ? "Frist abgelaufen, Garantieziel nicht erreicht — die Erstattung (alles Gezahlte) ist vorgemerkt; eine offene Teil-2-Rechnung entfällt."
+          : a.fristEnde ? `Frist bis ${tagText(a.fristEnde)}: FIAON garantiert bis dahin ${a.garantieZiel ?? "den Kreditrahmen und die Karten aus dem Angebot"} für die Gesellschaft — sonst erstattet FIAON alles Gezahlte.`
           : "Die Frist beginnt mit dem Start (Zahlung Teil 1; ohne sofortigen Beginn nach der Widerrufsfrist)."}
       </p>
-      <p className="gl-leise">Bürgin: {a.buergin}. Ist das erste Kapital ausgezahlt oder die erste Karte freigeschaltet, sag es der Leitung — sie trägt den Meilenstein ein, dann geht die Rechnung über Teil 2 raus. Fehlt eine Mitwirkung des Kunden, fordere sie schriftlich an (mindestens sieben Tage Frist) und gib der Leitung Bescheid.</p>
+      <p className="gl-leise">Bürgin: {a.buergin}. Ist das erste Kapital ausgezahlt oder die erste Karte freigeschaltet, sag es der Leitung — sie trägt den Meilenstein ein, dann geht die Rechnung über Teil 2 raus. Sind Kreditrahmen und Karten vollständig da, ebenfalls der Leitung sagen („Garantie erfüllt“). Fehlt eine Mitwirkung des Kunden, fordere sie schriftlich an (mindestens sieben Tage Frist) und gib der Leitung Bescheid.</p>
     </div>
   );
 }
@@ -764,7 +766,8 @@ function VerlaufAbschnitt({ akte, tun, laeuft }: Werk) {
 // ═══ (i) RECHTS: DER ZUSAMMENHANG ════════════════════════════════════════════
 function Kontext({ akte, tun, laeuft }: Werk) {
   const k = akte.kontakt;
-  const nicht = useMemo(() => nichtZusagen(), []);
+  // E-271: Beim Individualangebot der Kasten mit der Kreditgarantie statt der Paket-Regeln.
+  const nicht = useMemo(() => nichtZusagen({ angebot: !!akte.angebot }), [akte.angebot]);
   const [abschluss, setAbschluss] = useState<{ text: string } | null>(null);
   const zu = useCallback(() => setAbschluss(null), []);
   const bekannt = new Set(FIRMA_FELDER.map(([s]) => s));

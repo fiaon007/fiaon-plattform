@@ -25,6 +25,18 @@
 //   → Browser-Durchlauf mit Fotos (1280 px und 380 px, Chef-Reiter, „Mein Auftrag",
 //   Bestätigung). Der Browser nimmt NIE an (Roboter-Wand, AGENTS.md).
 //
+// ── ANGEBOT-AUFRUFE (01.10.2026) ──────────────────────────────────────────
+//   Ohne DB (9.): IP kürzen, Gerät, Ort nur aus Kopfzeilen, Besuch/Meldung nach 30 Min.,
+//   Zusammenfassung, Titel und Mail, Hinweis außerhalb des Vertrags, Prüfsumme unverändert.
+//   Mit --lokal (H.): intern (Chefbüro, Chef-Anschluss, Mitarbeiter) → Zeile ohne Alarm;
+//   Kunde extern → Zeile + EINE Aufgabe + Mail-Versuch (Vorschau-HTML); < 30 Min. → kein zweiter
+//   Alarm, Zähler +1; > 30 Min. → dieselbe Aufgabe aktualisiert und wieder offen; automatisch →
+//   kein Alarm; IP gekürzt; Prüfsumme unverändert; Annahme → „angenommen" in derselben Aufgabe;
+//   Speicherdauer (Stundenlauf löscht nach 90 Tagen); Chef-Reiter zeigt Zähler und Liste (G.).
+//   Gegenprüfung 01.10.2026: Aufgabe/Zeitleiste/Mail ohne IP; nach der Frist neutrale Aufgabe, Systembeiträge weg,
+//   Justins Notiz bleibt, kein neues Protokoll, Reiter „gelöscht" (F1); cf-connecting-ip vor X-Forwarded-For (F2);
+//   Chef-Anschluss IPv6 als /64 (F3); Strecke ohne Zahlungsschritte (F4).
+//
 //   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL=postgresql://…@127.0.0.1:…/… SESSION_SECRET=<wie Server> \
 //     PRUEF_BASIS=http://127.0.0.1:5287 PRUEF_FOTOS=<Ordner> PLAYWRIGHT_BROWSERS_PATH=<.playwright> \
 //     npx tsx scripts/pruef-individualangebot.ts --lokal
@@ -81,6 +93,8 @@ const BUERGIN_VOLL = { ...S.BUERGIN_VORGABE, registernummer: S.BUERGIN_NUMMER_NI
 const BUERGIN_MIT_NUMMER = { ...BUERGIN_VOLL, registernummer: "L26000000000" };
 const KUNDE = { anrede: "Herr" as const, vorname: "William", nachname: "Hildbrand", geburtsdatum: "1971-11-04", strasse: "Am Kirchwald 1b", plz: "69251", ort: "Gaiberg", land: "DE" as const, email: "w@example.de", telefon: "" };
 const D = { ref: "FIAON-IA-PRUEF1", fassung: S.ANGEBOT_FASSUNG, kunde: KUNDE, parameter: S.ANGEBOT_VORGABEN, buergin: BUERGIN_VOLL, pruefbericht: PB, gueltigBis: "2026-10-15" };
+/** Angebot-Aufrufe (01.10.2026): text_hash von D (ohne Häkchen), gemessen mit dem Stand vor dem Nachtrag. */
+const PRUEFSUMME_D_VORHER = "6d18a0f9692db28921b359af905587858403e944625b1f076d711a187b077180";
 
 // ═══ TEIL 1 ════════════════════════════════════════════════════════════════
 titel("1. Ziffern und Vertragssprache");
@@ -331,6 +345,85 @@ titel("8. Die fünf Mails");
   const { globalUnterlagenListe, globalEtappeText } = await import("../shared/fiaon-global-bereich");
   ok(globalUnterlagenListe(true, true).length === 1 && globalUnterlagenListe(true, true)[0].art === "reisepass" && globalUnterlagenListe(true).length === 4, "Unterlagenliste: Individualangebot nur Reisepass, Privatauftrag wie bisher");
   ok(/laden hier nur Ihren Reisepass hoch/.test(globalEtappeText(1, "de", true).text) && /laden Sie auf dieser Seite hoch/.test(globalEtappeText(1, "de").text), "Etappe 1 beim Individualangebot: nur der Reisepass");
+}
+
+titel("9. Angebot-Aufrufe — reine Regeln (01.10.2026)");
+{
+  const AU = await import("../server/lib/fiaon-global-angebot-aufrufe");
+  // IP gekürzt: IPv4 letztes Oktett 0, IPv6 /48 — nie die volle Adresse.
+  ok(AU.ipKuerzen("46.124.196.101") === "46.124.196.0" && AU.ipKuerzen("::ffff:203.0.113.77") === "203.0.113.0", "IPv4 gekürzt (auch ::ffff:-Form)");
+  ok(AU.ipKuerzen("2001:0db8:abcd:0012:0000:0000:0000:0001") === "2001:db8:abcd::/48" && AU.ipKuerzen("2001:db8::1") === "2001:db8:0::/48", "IPv6 auf /48 gekürzt");
+  ok([AU.ipKuerzen(""), AU.ipKuerzen("300.1.1.1"), AU.ipKuerzen("abc"), AU.ipKuerzen("1:2:3:4:5:6:7:8:9"), AU.ipKuerzen("1::2::3")].every((x) => x === null), "Unlesbares ergibt keine IP");
+  // Gerät aus der Browserkennung.
+  const UA_IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1";
+  const UA_ANDROID_WA = "Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.0.0 Mobile Safari/537.36 WhatsApp/2.24.1";
+  const geraete: [string, string][] = [
+    [UA_IPHONE, "iPhone · Safari"],
+    ["Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148", "iPhone · In-App (Mail/WhatsApp o. ä.)"],
+    [UA_ANDROID_WA, "Android · In-App (WhatsApp)"],
+    ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36", "Mac · Chrome"],
+    ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0", "Windows · Edge"],
+    ["Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1", "iPad · Safari"],
+    ["", "Unbekanntes Gerät (keine Browserkennung)"],
+  ];
+  for (const [ua, soll] of geraete) ok(AU.geraetAus(ua) === soll, `Gerät „${soll}“`, AU.geraetAus(ua));
+  // Ort NUR aus den Kopfzeilen des Netzbetreibers — sonst ehrlich „Ort unbekannt".
+  const o = AU.ortAus({ "cf-ipcountry": "DE", "cf-ipcity": "Heidelberg", "cf-region": "Baden-Württemberg" });
+  ok(o.land === "DE" && o.stadt === "Heidelberg" && AU.ortText(o) === "Heidelberg (Baden-Württemberg, Deutschland)" && AU.ortKurz(o) === "Heidelberg" && /cf-ipcountry/.test(String(o.quelle)), "Ort aus cf-ipcountry/cf-region/cf-ipcity", o);
+  ok(AU.ortText(AU.ortAus({ "cf-ipcountry": "AT" })) === "Österreich" && AU.ortText(AU.ortAus({ "cf-ipcountry": "XX" })) === "Ort unbekannt" && AU.ortText(AU.ortAus({ "cf-ipcountry": "T1" })) === "Ort unbekannt", "nur Land → Land; XX/T1 → „Ort unbekannt“");
+  const nix = AU.ortAus({ "x-forwarded-for": "46.124.196.101", "user-agent": UA_IPHONE });
+  ok(!nix.land && !nix.region && !nix.stadt && nix.quelle === null && AU.ortText(nix) === "Ort unbekannt", "keine Geo-Kopfzeile → kein Ort (kein Nachschlagen der IP)");
+  ok(AU.ortAus({ "x-vercel-ip-city": "M%C3%BCnchen" }).stadt === "München" && !/[<>]/.test(String(AU.ortAus({ "cf-ipcity": "<b>X</b>" }).stadt)), "Kopfzeilen entschlüsselt und entschärft");
+  // Besuch und Meldung: erster Aufruf meldet; < 30 Min. nicht; ≥ 30 Min. Pause wieder; intern/automatisch nie; nie zwei Meldungen in 30 Min.
+  const t0 = new Date("2026-10-01T13:00:00Z"); const plusMin = (m: number) => new Date(t0.getTime() + m * 60_000);
+  const b = AU.besuchEntscheidung;
+  ok(b({ jetzt: t0, extern: true, letzterExtern: null, letzteMeldung: null }).melden, "erster externer Aufruf → Meldung");
+  ok(!b({ jetzt: plusMin(10), extern: true, letzterExtern: t0, letzteMeldung: t0 }).melden, "zweiter Aufruf nach 10 Min. → keine Meldung");
+  ok(b({ jetzt: plusMin(30), extern: true, letzterExtern: t0, letzteMeldung: t0 }).melden, "nach 30 Min. Pause → neue Meldung");
+  ok(!b({ jetzt: plusMin(45), extern: true, letzterExtern: plusMin(5), letzteMeldung: plusMin(20) }).melden && b({ jetzt: plusMin(45), extern: true, letzterExtern: plusMin(5), letzteMeldung: plusMin(20) }).neuerBesuch, "neuer Besuch, aber letzte Meldung < 30 Min. → keine Meldung");
+  ok(!b({ jetzt: t0, extern: false, letzterExtern: null, letzteMeldung: null }).melden, "intern/automatisch → nie eine Meldung");
+  // Zusammenfassung, Titel, Mail.
+  const zeile = (id: number, min: number, art: "seite" | "auswahl" | "vertrag_pdf" | "pruefbericht_pdf", extra: Partial<import("../server/lib/fiaon-global-angebot-aufrufe").AufrufZeile> = {}) => ({
+    id, am: plusMin(min), art, antwort: 200, ip_gekuerzt: "46.124.196.0", geraet: "iPhone · Safari", land: "DE", region: "Baden-Württemberg", stadt: "Heidelberg",
+    intern: false, intern_grund: null, intern_agent_id: null, roboter: false, gemeldet: false, ...extra,
+  });
+  const zeilen = [zeile(1, 0, "seite"), zeile(2, 3, "auswahl"), zeile(3, 5, "vertrag_pdf"), zeile(4, 42, "seite"), zeile(5, 6, "seite", { intern: true, intern_grund: "chefbuero" }), zeile(6, 7, "seite", { roboter: true })];
+  const zs = AU.aufrufZusammenfassung(zeilen);
+  ok(zs.geoeffnet === 2 && zs.vertragPdf === 1 && zs.kundeAufrufe === 4 && zs.besuche === 2 && zs.intern === 1 && zs.automatisch === 1 && zs.gesamt === 6 && zs.zuletzt?.id === 4 && zs.erster?.id === 1, "Zusammenfassung: Seite 2×, PDF 1×, zwei Besuche, du/automatisch getrennt", zs);
+  const lage = { ref: "FIAON-IA-PRUEF1", kunde: { anrede: "Herr" as const, vorname: "William", nachname: "Hildbrand" }, status: "offen", gueltigBis: "2026-10-15", angenommenAm: null, s: zs, letzte: zeilen.filter((z) => !z.intern && !z.roboter).reverse() };
+  const jetztT = new Date("2026-10-01T16:00:00Z");
+  ok(AU.meldungTitel(lage, jetztT) === "Herr Hildbrand hat sein Angebot geöffnet (2×, zuletzt 15:42, iPhone, Heidelberg)", "Titel wie bestellt", AU.meldungTitel(lage, jetztT));
+  ok(AU.meldungTitel({ ...lage, kunde: { anrede: "Frau", vorname: "Eva", nachname: "Muster" } }, jetztT).startsWith("Frau Muster hat ihr Angebot geöffnet") && AU.meldungTitel({ ...lage, kunde: { anrede: "", vorname: "Kim", nachname: "Muster" } }, jetztT).startsWith("Kim Muster hat das Angebot geöffnet"), "Titel: Frau/ohne Anrede");
+  ok(AU.meldungTitel({ ...lage, angenommenAm: new Date("2026-10-01T14:05:00Z") }, jetztT).endsWith("— angenommen am 16:05"), "Titel nach der Annahme");
+  const mail = AU.meldungMail(lage, jetztT);
+  ok(mail.betreff === AU.meldungTitel(lage, jetztT) && /Heidelberg \(Baden-Württemberg, Deutschland\)/.test(mail.text) && /30 Minuten Pause/.test(mail.text) && /Seite geöffnet: 2×/.test(mail.text), "Mail: Betreff = Titel, Ort, Regel genannt", mail.text);
+  ok(/Vertrag-PDF/.test(AU.aufgabeText(lage)) && AU.aufgabeText(lage).length < 4000 && AU.aufgabeText(lage).includes(AU.AUFRUF_CHEF_PFAD), "Aufgabentext mit Liste und Weg in den Reiter");
+  // Gegenprüfung 01.10.2026 (F1): Aufgabe und Mail tragen KEINE IP — auch keine gekürzte (die steht nur im Reiter).
+  ok([mail.betreff, mail.text, AU.aufgabeText(lage), AU.meldungTitel(lage, jetztT)].every((x) => !/46\.124\.196/.test(x) && !/\bIP\b/.test(x)), "Aufgabe und Mail ohne IP (auch nicht gekürzt)", mail.text);
+  // … und nach der Löschfrist: neutraler Titel und Text — ohne Zeit, Gerät, Ort, IP.
+  const leer = AU.aufgabeNachLoeschung("FIAON-IA-PRUEF1", lage.kunde);
+  ok(leer.text.startsWith(AU.AUFGABE_GELOESCHT_ANFANG) && leer.titel === "Herr Hildbrand — Angebot FIAON-IA-PRUEF1: Aufrufprotokoll nach 90 Tagen gelöscht"
+    && [leer.titel, leer.text].every((x) => !/\d{1,2}:\d{2}|iPhone|Heidelberg|Deutschland|\bIP\b/.test(x)), "Aufgabe nach der Löschfrist: neutral", leer);
+  // F2: Die IP kommt zuerst aus cf-connecting-ip (setzt Cloudflare selbst), dann aus dem ersten X-Forwarded-For-Eintrag.
+  ok(AU.aufrufClientIp({ headers: { "cf-connecting-ip": "203.0.113.9", "x-forwarded-for": "192.0.2.1, 203.0.113.9" } }) === "203.0.113.9"
+    && AU.aufrufClientIp({ headers: { "x-forwarded-for": "198.51.100.4, 141.101.0.1" } }) === "198.51.100.4"
+    && AU.aufrufClientIp({ headers: {}, socket: { remoteAddress: "127.0.0.1" } }) === "127.0.0.1", "Aufrufer-IP: cf-connecting-ip vor X-Forwarded-For vor Verbindung");
+  // F3: Chef-Anschluss bei IPv6 als /64 — Datenschutz-Adressen wechseln den hinteren Teil.
+  ok(AU.anschlussSchluessel("2001:db8:aa:bb:1111:2222:3333:4444") === "2001:db8:aa:bb::/64" && AU.anschlussSchluessel("::ffff:46.124.196.101") === "46.124.196.101", "Anschluss-Schlüssel: IPv6 /64, IPv4 voll");
+  ok(AU.anschlussHash("2001:db8:aa:bb:1111:2222:3333:4444") === AU.anschlussHash("2001:0db8:00aa:00bb:9::1")
+    && AU.anschlussHash("2001:db8:aa:bb::1") !== AU.anschlussHash("2001:db8:aa:bc::1")
+    && AU.anschlussHash("46.124.196.101") !== AU.anschlussHash("46.124.196.102") && AU.anschlussHash("::ffff:46.124.196.101") === AU.anschlussHash("46.124.196.101"),
+    "Anschluss-HMAC: gleicher IPv6-/64 = derselbe Anschluss, IPv4 genau");
+  // F4: Die Aufgabe „… hat sein Angebot geöffnet" zeigt keine Zahlungsschritte (Bereich „konten").
+  const { streckeFuer } = await import("../server/routes/fiaon-betreiber-todo");
+  const st = streckeFuer({ schluessel: AU.aufrufAufgabeSchluessel("FIAON-IA-PRUEF1"), bereich: "konten", link: AU.AUFRUF_CHEF_PFAD, titel: AU.meldungTitel(lage, jetztT) });
+  ok(!st.some((x) => /Zahlung|Bankbuch/.test(x)) && st.some((x) => /Reiter „Angebote“/.test(x)), "Strecke der Aufgabe: Reiter und Nachfassen, keine Zahlungsschritte", st);
+  // Datenschutz: der Satz auf der Kundenseite — wörtlich, außerhalb des Vertrags, Prüfsumme unverändert.
+  ok(S.ANGEBOT_AUFRUF_HINWEIS === "Aufrufe dieses persönlichen Links werden protokolliert (Zeitpunkt, Gerät, ungefähre Region; IP-Adresse gekürzt) — zur Dokumentation des Vertragswegs und damit Ihr Ansprechpartner sieht, wann er Sie beim nächsten Schritt begleiten kann. Löschung 90 Tage nach Abschluss.", "Hinweis wörtlich wie bestellt");
+  for (const sch of ALLE_SCHALTER) ok(!V.angebotText(D, sch).includes("protokolliert") && !V.angebotVorschauHtml(D, sch).includes(S.ANGEBOT_AUFRUF_HINWEIS), `Hinweis steht nicht im Vertragstext (Schalter ${JSON.stringify(sch)})`);
+  // Prüfsumme des Prüf-Angebots, gemessen mit dem Stand vor dem Nachtrag (Commit b9a79d2d) — der Nachtrag ändert sie nicht.
+  // Ändert jemand später bewusst den Vertragstext, ist dieser Wert mit zu ändern.
+  ok(V.angebotTextHash(D, AUS) === PRUEFSUMME_D_VORHER, "Prüfsumme (text_hash) unverändert", V.angebotTextHash(D, AUS));
 }
 
 console.log(`\nTeil 1: ${n - fehler} von ${n} Prüfungen grün.`);
@@ -752,6 +845,173 @@ if (LOKAL) {
     }
   }
 
+  // ── Angebot-Aufrufe (01.10.2026): Protokoll, Meldung an Justin, Speicherdauer ──
+  titel("H. Angebot-Aufrufe: intern ohne Alarm, Kunde mit EINER Aufgabe, 30-Minuten-Regel, Annahme, Löschen");
+  const AU = await import("../server/lib/fiaon-global-angebot-aufrufe");
+  const hA = await anlegen("aufrufe", { buergin: BUERGIN_VOLL });
+  {
+    const { createHmac } = await import("node:crypto");
+    const UA_IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1";
+    const UA_ANDROID_WA = "Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.0.0 Mobile Safari/537.36 WhatsApp/2.24.1";
+    // Eigene Dokumentations-Adressen (RFC 5737, TEST-NET-3) — nie die des Admin-Tors oben.
+    const kundeIp = `203.0.113.${(LAUF % 200) + 20}`;
+    const ORT = { "cf-ipcountry": "DE", "cf-ipcity": "Heidelberg", "cf-region": "Baden-Württemberg" };
+    const kunde1 = { "x-forwarded-for": kundeIp, "user-agent": UA_IPHONE, ...ORT };
+    const schluessel = AU.aufrufAufgabeSchluessel(hA.ref);
+    const aufrufe = async () => (await sqlPool`SELECT * FROM fiaon_global_angebot_aufrufe WHERE angebot_id = ${hA.id} ORDER BY id`) as any[];
+    const aufgabe = async () => (await sqlPool`SELECT * FROM fiaon_betreiber_todos WHERE schluessel = ${schluessel}`) as any[];
+    const holen = async (q: string, kopf: Record<string, string>, pfad = "") => fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(hA.token)}${pfad}${q}`, { headers: kopf });
+    const bisZeilen = (anzahl: number) => bisDa(async () => (await aufrufe()).length >= anzahl, 10000);
+
+    // 1. Intern: Admin-Cookie von einem fremden Anschluss; der Anschluss des Admin-Tors (ipFuer(0)) ohne Cookie;
+    //    eine Mitarbeiter-Sitzung. Jeder Aufruf steht als Zeile da — keiner löst etwas aus.
+    await holen("?sofortBeginn=0&jahresbetreuung=0", { cookie, "x-forwarded-for": "192.0.2.77", "user-agent": UA });
+    ok(await bisZeilen(1), "intern (Chefbüro-Cookie): Zeile geschrieben");
+    await holen("", { "x-forwarded-for": ipFuer(0), "user-agent": UA });
+    ok(await bisZeilen(2), "intern (Anschluss aus einer Chefbüro-Sitzung, ohne Cookie): Zeile geschrieben");
+    const [ma] = (await sqlPool`SELECT id FROM fiaon_agents ORDER BY id LIMIT 1`.catch(() => [])) as any[];
+    const maId = ma?.id ? Number(ma.id) : 999_999; const exp = Date.now() + 3600_000;
+    const maSig = createHmac("sha256", process.env.SESSION_SECRET || "fiaon-dev-agent-secret").update(`agent2:${maId}.0.${exp}`).digest("hex").slice(0, 40);
+    await holen("", { cookie: `fiaon_agent_token=${maId}.0.${exp}.${maSig}`, "x-forwarded-for": "192.0.2.78", "user-agent": UA });
+    ok(await bisZeilen(3), "intern (Mitarbeiter-Sitzung): Zeile geschrieben");
+    let zl = await aufrufe();
+    ok(zl[0].intern && zl[0].intern_grund === "chefbuero" && zl[1].intern && zl[1].intern_grund === "chef-anschluss" && zl[2].intern && zl[2].intern_grund === "mitarbeiter" && Number(zl[2].intern_agent_id) === maId,
+      "intern erkannt: Chefbüro, Chef-Anschluss (30 Tage), Mitarbeiter", zl.map((x) => [x.intern, x.intern_grund]));
+    ok(zl.every((x) => !x.gemeldet) && (await aufgabe()).length === 0, "interne Aufrufe: keine Meldung, keine Aufgabe");
+    const anschluss = (await sqlPool`SELECT ip_hash FROM fiaon_chef_anschluesse WHERE ip_hash = ${AU.anschlussHash(ipFuer(0))}`) as any[];
+    ok(anschluss.length === 1 && !JSON.stringify(await sqlPool`SELECT * FROM fiaon_chef_anschluesse`).includes(ipFuer(0)), "Chef-Anschluss nur als HMAC gemerkt — die IP steht nicht im Klartext da");
+
+    // 2. Der Kunde öffnet zum ersten Mal: Zeile, EINE Aufgabe, Mail-Versuch über den Hausweg.
+    const r1 = await holen("?sofortBeginn=0&jahresbetreuung=0", kunde1);
+    const j1 = await r1.json() as any;
+    ok(await bisDa(async () => (await aufrufe()).some((x) => x.gemeldet && x.meldung_ergebnis), 10000), "erster Aufruf des Kunden: Meldung ausgelöst");
+    zl = await aufrufe();
+    const e1 = zl.find((x) => x.gemeldet);
+    ok(e1 && !e1.intern && !e1.roboter && e1.art === "seite" && Number(e1.antwort) === 200, "Kundenzeile: Seite, Antwort 200, extern", e1);
+    ok(e1 && e1.ip_gekuerzt === kundeIp.replace(/\.\d+$/, ".0") && !JSON.stringify(zl).includes(kundeIp), "IP gekürzt — die volle IP steht nirgends in der Tabelle", e1?.ip_gekuerzt);
+    ok(e1 && e1.geraet === "iPhone · Safari" && e1.land === "DE" && e1.stadt === "Heidelberg" && e1.region === "Baden-Württemberg" && /cf-ipcountry/.test(String(e1.geo_quelle)), "Gerät und Ort aus Browserkennung und Kopfzeilen", e1);
+    ok(e1 && /^Aufgabe #\d+ angelegt · Mail an js@fiaon\.com nicht gesendet \(Zustellprüfung braucht den Brevo-API-Schlüssel/.test(String(e1.meldung_ergebnis)),
+      "Meldung: Aufgabe angelegt; Mail über eigeneMailSenden versucht (lokal ohne Schlüssel = wäre rausgegangen)", e1?.meldung_ergebnis);
+    let tg = await aufgabe();
+    ok(tg.length === 1 && tg[0].status === "offen" && tg[0].quelle === "global" && tg[0].link === AU.AUFRUF_CHEF_PFAD && /^Herr Angebot aufrufe hat sein Angebot geöffnet \(1×, zuletzt \d{2}:\d{2}, iPhone, Heidelberg\)$/.test(tg[0].titel),
+      "EINE Aufgabe auf Justins Board, Titel wie bestellt", tg.map((x) => [x.titel, x.status]));
+    const vorschau = await AU.aufrufMeldungVorschau(hA.id);
+    ok(vorschau && vorschau.betreff === tg[0].titel && /Heidelberg \(Baden-Württemberg, Deutschland\)/.test(vorschau.text) && vorschau.html.includes("Alle Aufrufe ansehen") && !vorschau.text.includes(kundeIp), "Mail-Vorschau: Betreff = Aufgabe, Ort, Knopf in den Reiter, keine volle IP", vorschau?.text);
+    if (vorschau) fs.writeFileSync(path.join(VORSCHAU, "angebot-aufruf-meldung.html"), vorschau.html);
+    // Gegenprüfung 01.10.2026 (F1): Die gekürzte IP steht in der Tabelle — aber nicht in Aufgabe, Zeitleiste und Mail.
+    const ipKurz = kundeIp.replace(/\.\d+$/, ".0");
+    const beitraege1 = (await sqlPool`SELECT text FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${tg[0].id}`) as any[];
+    ok([tg[0].titel, tg[0].text, vorschau?.text ?? "", vorschau?.html ?? "", ...beitraege1.map((x) => String(x.text))].every((x) => !x.includes(ipKurz) && !/\bIP\b/.test(x)),
+      "Aufgabe, Zeitleiste und Mail ohne IP (die gekürzte steht nur in Tabelle und Reiter)");
+    // Prüfsumme: die Seite liefert denselben Hash wie vor dem Nachtrag, der Hinweis steht nicht im Vertrag.
+    const zH = (await A.angebotLesen({ id: hA.id }))!;
+    ok(j1.textHash === V.angebotTextHash(A.angebotDatenAus(zH), AUS) && !String(j1.html).includes(S.ANGEBOT_AUFRUF_HINWEIS) && !String(j1.html).includes("protokolliert"), "Prüfsumme unverändert, Hinweis außerhalb des Vertragstextes");
+
+    // 3. Zweiter Aufruf < 30 Min. (Seite, Vertrag-PDF, Nachladen nach einem Häkchen): kein zweiter Alarm, Zähler +1.
+    await holen("", kunde1);
+    const pdfR = await holen("?sofortBeginn=0&jahresbetreuung=0", kunde1, "/vertrag.pdf");
+    ok(pdfR.status === 200, "Vertrag-PDF für den Kunden", pdfR.status);
+    await holen("?sofortBeginn=1&jahresbetreuung=0&wahl=1", kunde1);
+    ok(await bisZeilen(7), "drei weitere Zeilen");
+    ok(await bisDa(async () => /\(2×, zuletzt/.test((await aufgabe())[0]?.titel ?? ""), 8000), "Zähler +1: Aufgabe still nachgeführt (2×)", (await aufgabe())[0]?.titel);
+    zl = await aufrufe();
+    ok(zl.filter((x) => x.gemeldet).length === 1, "< 30 Min.: kein zweiter Alarm", zl.filter((x) => x.gemeldet).length);
+    ok(zl.some((x) => x.art === "vertrag_pdf" && !x.intern) && zl.some((x) => x.art === "auswahl" && !x.intern), "Vertrag-PDF und „nachgeladen“ als eigene Art (zählen nicht als „geöffnet“)");
+
+    // 4. Justin hakt die Aufgabe ab; > 30 Min. später ein neuer Besuch (Android, WhatsApp, Mannheim) → DIESELBE Aufgabe aktualisiert und wieder offen.
+    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = 'Prüfstand' WHERE schluessel = ${schluessel}`;
+    await sqlPool`UPDATE fiaon_global_angebot_aufrufe SET am = am - interval '31 minutes' WHERE angebot_id = ${hA.id}`;
+    await holen("", { ...kunde1, "user-agent": UA_ANDROID_WA, "cf-ipcity": "Mannheim" });
+    ok(await bisDa(async () => (await aufrufe()).filter((x) => x.gemeldet && x.meldung_ergebnis).length === 2, 10000), "> 30 Min. Pause: zweite Meldung");
+    tg = await aufgabe();
+    ok(tg.length === 1 && tg[0].status === "offen" && tg[0].erledigt_am === null && /\(3×, zuletzt \d{2}:\d{2}, Android, Mannheim\)$/.test(tg[0].titel), "dieselbe Aufgabe: aktualisiert (3×, Android, Mannheim) und wieder offen", tg.map((x) => [x.titel, x.status, x.erledigt_am]));
+    const beitraege = (await sqlPool`SELECT text FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${tg[0].id} ORDER BY id`) as any[];
+    ok(beitraege.length === 2 && /^Erster Aufruf: /.test(beitraege[0].text) && /^Neuer Besuch: .*Android · In-App \(WhatsApp\).*Mannheim/.test(beitraege[1].text), "Zeitleiste der Aufgabe: ein Eintrag je Meldung", beitraege.map((b2) => b2.text));
+    ok(/^Aufgabe #\d+ aktualisiert · /.test(String((await aufrufe()).filter((x) => x.gemeldet).pop()?.meldung_ergebnis)), "zweite Meldung: „aktualisiert“, keine zweite Aufgabe");
+
+    // 5. Automatischer Abruf (Bot-Kennung) → Zeile, kein Alarm.
+    const vorBot = (await aufrufe()).length;
+    await holen("", { "x-forwarded-for": "203.0.113.251", "user-agent": "Mozilla/5.0 HeadlessChrome/140.0" });
+    ok(await bisZeilen(vorBot + 1), "automatischer Abruf: Zeile geschrieben");
+    const bot = (await aufrufe()).pop();
+    ok(bot.roboter && !bot.intern && !bot.gemeldet, "automatisch: kein Alarm", bot);
+
+    // 6. Annahme → „angenommen" in DERSELBEN Aufgabe (keine zweite, keine Mail).
+    const sH = await (await holen("", kunde1)).json() as any;
+    r = await annehmen(hA.token, { textHash: sH.textHash, sofortBeginn: false, jahresbetreuung: false }, { "x-forwarded-for": kundeIp, "user-agent": UA_IPHONE });
+    ok(r.status === 200 && r.j.auftragRef, "Kunde nimmt an", r);
+    ok(await bisDa(async () => / — angenommen am \d{2}:\d{2}$/.test((await aufgabe())[0]?.titel ?? ""), 10000), "Annahme: „angenommen“ in derselben Aufgabe", (await aufgabe())[0]?.titel);
+    tg = await aufgabe();
+    ok(tg.length === 1 && /\(4×, zuletzt \d{2}:\d{2}, iPhone, Heidelberg\) — angenommen am/.test(tg[0].titel) && (await aufrufe()).filter((x) => x.gemeldet).length === 2, "eine Aufgabe, Zähler 4×, keine weitere Meldung", tg[0]?.titel);
+
+    // 7. Chef-Reiter: Zähler, „Kunde zuletzt", Liste mit du/Kunde/automatisch, Zeit in Berlin, „Ort unbekannt".
+    const lh = await admin("/admin/global/angebote");
+    const ah = (lh.j.angebote as any[]).find((x) => x.id === hA.id)?.aufrufe;
+    const anzahl = (await aufrufe()).length;
+    ok(ah && ah.geoeffnet === 4 && ah.vertragPdf === 1 && ah.besuche === 2 && ah.intern === 3 && ah.automatisch === 1 && ah.gesamt === anzahl && ah.liste.length === anzahl, "Reiter: Seite 4×, PDF 1×, zwei Besuche, 3× du/Team, 1× automatisch", ah && { g: ah.geoeffnet, p: ah.vertragPdf, b: ah.besuche, i: ah.intern, a: ah.automatisch, n: ah.gesamt });
+    ok(ah && ah.kundeZuletzt && /^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/.test(ah.kundeZuletzt.amText) && ah.kundeZuletzt.ort === "Heidelberg (Baden-Württemberg, Deutschland)" && ah.kundeZuletzt.geraet === "iPhone · Safari", "„Kunde zuletzt“ mit Zeit (Berlin), Gerät, Ort", ah?.kundeZuletzt);
+    const wer = new Set((ah?.liste ?? []).map((x: any) => x.wer));
+    ok(wer.has("du") && wer.has("Kunde") && wer.has("automatisch") && (ah?.liste ?? []).some((x: any) => x.ort === "Ort unbekannt") && (ah?.liste ?? []).some((x: any) => x.art === "Vertrag-PDF"), "Liste: du/Kunde/automatisch, „Ort unbekannt“ ehrlich, Art je Zeile", Array.from(wer));
+    ok((ah?.liste ?? []).every((x: any, i: number, l: any[]) => i === 0 || l[i - 1].am >= x.am), "Liste: neueste zuerst");
+  }
+
+  // 8. Speicherdauer: 90 Tage nach Abschluss löscht der Stundenlauf — offene Angebote bleiben; Chef-Anschlüsse nach 30 Tagen.
+  //    Gegenprüfung 01.10.2026: die Frist gilt auch für die Kopien in der Aufgabe (F1); IP aus cf-connecting-ip (F2);
+  //    Chef-Anschluss bei IPv6 als /64 (F3).
+  {
+    const altA = await anlegen("aufrufe-alt", { buergin: BUERGIN_VOLL });
+    const altAufrufe = async () => (await sqlPool`SELECT * FROM fiaon_global_angebot_aufrufe WHERE angebot_id = ${altA.id} ORDER BY id`) as any[];
+    // F2: Ein gefälschter X-Forwarded-For-Eintrag zählt nicht, wenn Cloudflare cf-connecting-ip setzt.
+    await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(altA.token)}`, { headers: { "cf-connecting-ip": "203.0.113.252", "x-forwarded-for": "192.0.2.250, 203.0.113.252", "user-agent": UA } });
+    ok(await bisDa(async () => (await altAufrufe()).length === 1, 8000), "Aufruf des alten Angebots protokolliert");
+    const alt1 = (await altAufrufe())[0];
+    ok(alt1?.ip_gekuerzt === "203.0.113.0" && !alt1?.intern, "IP aus cf-connecting-ip, nicht aus dem (fälschbaren) ersten X-Forwarded-For-Eintrag", alt1?.ip_gekuerzt);
+    ok(await bisDa(async () => !!(await altAufrufe())[0]?.meldung_ergebnis, 10000), "altes Angebot: Meldung (Aufgabe) geschrieben");
+    // F3: Chefbüro-Anfrage von einer IPv6-Datenschutz-Adresse, danach der Kundenlink von einer ANDEREN Adresse im selben /64 → „du".
+    const v6 = `2001:db8:${(LAUF + 16).toString(16)}:${stempel.slice(-4).replace(/[^0-9a-f]/g, "a")}`;
+    await fetch(`${BASIS}/api/fiaon/admin/global/angebote`, { headers: { cookie, "x-forwarded-for": `${v6}:1111:2222:3333:4444`, "user-agent": UA } });
+    ok(await bisDa(async () => ((await sqlPool`SELECT 1 FROM fiaon_chef_anschluesse WHERE ip_hash = ${AU.anschlussHash(`${v6}::1`)}`) as any[]).length === 1, 8000), "Chef-Anschluss (IPv6) als /64 gemerkt");
+    await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(altA.token)}`, { headers: { "x-forwarded-for": `${v6}:aaaa:bbbb:cccc:dddd`, "user-agent": UA } });
+    ok(await bisDa(async () => (await altAufrufe()).length === 2, 8000), "Aufruf von der gewechselten IPv6-Adresse protokolliert");
+    const alt2 = (await altAufrufe())[1];
+    ok(alt2?.intern && alt2?.intern_grund === "chef-anschluss" && !alt2?.gemeldet && alt2?.ip_gekuerzt === `${v6.split(":").slice(0, 3).join(":")}::/48`, "gewechselte IPv6 im selben /64 → „du“, kein Alarm, IP auf /48 gekürzt", alt2 && [alt2.intern, alt2.intern_grund, alt2.ip_gekuerzt]);
+    const altSchluessel = AU.aufrufAufgabeSchluessel(altA.ref);
+    const [altTodo] = (await sqlPool`SELECT * FROM fiaon_betreiber_todos WHERE schluessel = ${altSchluessel}`) as any[];
+    ok(altTodo && /hat sein Angebot geöffnet \(1×/.test(altTodo.titel), "altes Angebot: Aufgabe mit Zeit/Gerät/Ort steht", altTodo?.titel);
+    // Justin schreibt selbst etwas in die Aufgabe — das bleibt nach der Frist stehen.
+    if (altTodo) await sqlPool`INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, art, text) VALUES (${altTodo.id}, 'betreiber', 'Justin', 'kommentar', 'Prüfstand: eigene Notiz')`;
+    await admin(`/admin/global/angebote/${altA.id}/zurueckziehen`, { grund: "Prüfstand: Speicherdauer der Aufrufe" });
+    await sqlPool`UPDATE fiaon_global_angebote SET zurueckgezogen_am = NOW() - interval '91 days' WHERE id = ${altA.id}`;
+    await sqlPool`INSERT INTO fiaon_chef_anschluesse (ip_hash, agent_id, zuletzt) VALUES (${`pruef-alt-${stempel}`}, NULL, NOW() - interval '31 days') ON CONFLICT DO NOTHING`;
+    const vorher = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_aufrufe WHERE angebot_id = ${hA.id}`) as any[])[0].n;
+    const lauf = await A.globalAngebotLauf();
+    const nachAlt = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_aufrufe WHERE angebot_id = ${altA.id}`) as any[])[0].n;
+    const nachH = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_aufrufe WHERE angebot_id = ${hA.id}`) as any[])[0].n;
+    const altHash = (await sqlPool`SELECT 1 FROM fiaon_chef_anschluesse WHERE ip_hash = ${`pruef-alt-${stempel}`}`) as any[];
+    const frisch = (await sqlPool`SELECT 1 FROM fiaon_chef_anschluesse WHERE ip_hash = ${AU.anschlussHash(ipFuer(0))}`) as any[];
+    ok(lauf.aufrufeGeloescht >= 1 && nachAlt === 0 && nachH === vorher && vorher > 0, "Stundenlauf: 91 Tage nach dem Rückzug gelöscht, frisches Angebot unberührt", { lauf: lauf.aufrufeGeloescht, nachAlt, nachH, vorher });
+    ok(altHash.length === 0 && frisch.length === 1, "Chef-Anschluss: nach 31 Tagen gelöscht, frischer bleibt");
+    // F1: Die Kopien in der Aufgabe — neutraler Titel und Text, Systembeiträge weg, Justins eigene Notiz bleibt.
+    const [altNach] = (await sqlPool`SELECT * FROM fiaon_betreiber_todos WHERE schluessel = ${altSchluessel}`) as any[];
+    const altBeitraege = altNach ? (await sqlPool`SELECT autor_art, text FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${altNach.id} ORDER BY id`) as any[] : [];
+    ok(lauf.aufrufAufgabenGeleert >= 1 && altNach && String(altNach.text).startsWith(AU.AUFGABE_GELOESCHT_ANFANG) && / — Angebot FIAON-IA-[A-Z0-9]+: Aufrufprotokoll nach 90 Tagen gelöscht$/.test(altNach.titel)
+      && ![altNach.titel, altNach.text].some((x) => /\d{1,2}:\d{2}|iPhone|Mac|Heidelberg|203\.0\.113|\bIP\b/.test(String(x))), "Löschfrist gilt auch für die Aufgabe: neutraler Titel und Text", altNach && { titel: altNach.titel, text: altNach.text, n: lauf.aufrufAufgabenGeleert });
+    ok(altBeitraege.length === 1 && altBeitraege[0].autor_art === "betreiber" && lauf.aufrufBeitraegeGeloescht >= 1, "Zeitleiste: Systembeiträge gelöscht, Justins Notiz bleibt", altBeitraege);
+    const [hTodo] = (await sqlPool`SELECT text FROM fiaon_betreiber_todos WHERE schluessel = ${AU.aufrufAufgabeSchluessel(hA.ref)}`) as any[];
+    ok(hTodo && !String(hTodo.text).startsWith(AU.AUFGABE_GELOESCHT_ANFANG), "Aufgabe des frischen Angebots unberührt");
+    const nochmal = await AU.aufrufeAufraeumen();
+    ok(nochmal.aufgaben === 0 && nochmal.beitraege === 0, "zweiter Lauf: nichts mehr zu leeren (die Aufgabe wird nicht jede Stunde neu geschrieben)", nochmal);
+    // Nach der Frist wird nichts mehr protokolliert — keine neue Zeile, keine neue Aufgabe, keine Mail.
+    await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(altA.token)}`, { headers: { "x-forwarded-for": "203.0.113.253", "user-agent": UA } });
+    await warte(2500);
+    const [altSpaeter] = (await sqlPool`SELECT text FROM fiaon_betreiber_todos WHERE schluessel = ${altSchluessel}`) as any[];
+    ok((await altAufrufe()).length === 0 && String(altSpaeter?.text).startsWith(AU.AUFGABE_GELOESCHT_ANFANG), "nach der Frist: Aufruf wird nicht mehr protokolliert, Aufgabe bleibt neutral");
+    // Der Reiter sagt „gelöscht" statt „Noch nicht geöffnet".
+    const lAlt = await admin("/admin/global/angebote");
+    const aAlt = (lAlt.j.angebote as any[]).find((x) => x.id === altA.id)?.aufrufe;
+    ok(aAlt && aAlt.geloescht === true && aAlt.gesamt === 0 && (lAlt.j.angebote as any[]).find((x) => x.id === hA.id)?.aufrufe?.geloescht === false, "Reiter: altes Angebot „gelöscht“, frisches nicht", aAlt && { g: aAlt.geloescht, n: aAlt.gesamt });
+  }
+
   // ── Browser-Durchlauf mit Fotos — ohne Annahme-Klick ──
   titel("G. Browser-Durchlauf mit Fotos nach " + FOTOS);
   try {
@@ -826,6 +1086,22 @@ if (LOKAL) {
     // Das Chefbüro scrollt in einem inneren Kasten — ein hohes Fenster zeigt den ganzen Reiter.
     const f6 = await fotoSeite("/chef/s/global-auftraege?reiter=angebote", "chef-reiter-1440", 1440, { cookie: true, warteAuf: "[data-fiaon=global-angebote]", hoehe: 3400 });
     ok(f6.fehlerListe.length === 0, "Chef-Reiter „Individualangebote“", f6);
+    // Angebot-Aufrufe (01.10.2026): Am Angebot aus H stehen Zähler, „Kunde zuletzt" und die aufklappbare Liste.
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1800 }, deviceScaleFactor: 2, locale: "de-DE" });
+      await ctx.addInitScript(() => { try { for (const r of ["global-auftraege", "global-akte"]) localStorage.setItem(`fiaon_rundgang_${r}`, "ja"); } catch { /* ohne Speicher */ } });
+      await ctx.addCookies([{ name: "fiaon_admin", value: decodeURIComponent(cookie.split("=").slice(1).join("=")), url: BASIS }]);
+      const page = await ctx.newPage();
+      await page.goto(`${BASIS}/chef/s/global-auftraege?reiter=angebote`, { waitUntil: "networkidle", timeout: 60000 });
+      const block = page.locator(`[data-angebot="${hA.ref}"] .cg-aufrufe`);
+      await block.waitFor({ timeout: 30000 }).catch(() => {});
+      await block.locator("summary").click().catch(() => {});
+      const text = await block.innerText().catch(() => "");
+      ok(/Geöffnet: 4× \(zuletzt \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}\)/.test(text) && /Kunde zuletzt: .*iPhone · Safari · Heidelberg/.test(text) && /\bdu\b/.test(text) && /Kunde/.test(text) && /Ort unbekannt/.test(text),
+        "Chef-Reiter zeigt Zähler, „Kunde zuletzt“ und die Liste (du/Kunde, Ort unbekannt)", text.slice(0, 600));
+      await page.locator(`[data-angebot="${hA.ref}"]`).screenshot({ path: path.join(FOTOS, "chef-reiter-aufrufe-1440.png") }).catch(() => {});
+      await ctx.close();
+    }
     const f7 = await fotoSeite(`/business/angebot/${encodeURIComponent(vollA.token)}`, "kundenseite-leitungsvorschau-1280", 1280, { cookie: true, warteAuf: "[data-fiaon=angebot]" });
     ok(f7.fehlerListe.length === 0, "Leitungsvorschau ohne Annahmeknopf", f7);
     await browser.close();

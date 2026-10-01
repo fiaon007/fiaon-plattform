@@ -882,6 +882,15 @@ export const ANGEBOT_ANNAHME = {
   fertigWartet: (email: string) => `Vertrag und Rechnung gehen an ${email}. Wie gewünscht beginnen wir nach Ablauf der Widerrufsfrist, sobald Ihre Zahlung eingegangen ist; die Frist für die Erstattung beginnt mit unserem Start.`,
 } as const;
 
+/**
+ * Angebot-Aufrufe (01.10.2026): der Transparenz-Satz auf der Kundenseite — unter den Dokumenten und auf der
+ * Bestätigung, AUSSERHALB des Vertragstextes (geht nicht in den Rumpf und damit nicht in text_hash).
+ * Was er verspricht, hält server/lib/fiaon-global-angebot-aufrufe.ts: nur der Server protokolliert, keine
+ * Cookies, keine Messung im Browser, IP gekürzt, Löschung 90 Tage nach Abschluss.
+ */
+export const ANGEBOT_AUFRUF_HINWEIS =
+  "Aufrufe dieses persönlichen Links werden protokolliert (Zeitpunkt, Gerät, ungefähre Region; IP-Adresse gekürzt) — zur Dokumentation des Vertragswegs und damit Ihr Ansprechpartner sieht, wann er Sie beim nächsten Schritt begleiten kann. Löschung 90 Tage nach Abschluss.";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RECHNUNGSZEILE JE TEIL (server/fiaon-invoice.ts → rechnungsSpracheSetzen)
 // ═══════════════════════════════════════════════════════════════════════════

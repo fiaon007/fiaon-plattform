@@ -250,6 +250,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   app.use('/api/fiaon/zugang', fiaonZugangRoutes.default);
   app.use('/api/fiaon', fiaonZugangRoutes.adminCodeGate);
+  // 👁 Angebot-Aufrufe (01.10.2026, E-268): Anschluss einer Chefbüro-Sitzung merken (nur HMAC der IP,
+  //    höchstens alle 10 Min., 30 Tage) — damit Justins eigene Aufrufe des Kundenlinks auch ohne Cookie als
+  //    „du" zählen und keine Meldung auslösen. Ruft immer next(); Logik: lib/fiaon-global-angebot-aufrufe.ts.
+  app.use('/api/fiaon', (await import('./lib/fiaon-global-angebot-aufrufe')).chefAnschlussMerken);
 
   // 🔒 Onboarding-Gate (Prompt 1): kein Kundendatenzugriff, solange Zustimmung
   // + Vertragsunterzeichnung nicht abgeschlossen sind. Muss VOR allen Agent-

@@ -5,6 +5,62 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 01.10.2026 — Angebot-Aufrufe: wann, wie oft und wo der Kunde sein Angebot geöffnet hat — mit Meldung an Justin (E-268, Nachtrag)
+
+**Der Anlass:** Justin, nachdem der Link an Herrn Hildbrand (Angebot FIAON-IA-9E10FD) raus war: „Ich will sehen, wann er es
+wie oft und wo geöffnet hat — und benachrichtigt werden!"
+
+**Was jetzt gilt:**
+- **Protokoll je Aufruf des persönlichen Links** (Tabelle `fiaon_global_angebot_aufrufe`, Migration 088, dazu dieselbe DDL
+  zur Laufzeit über die DDL-Wache): „Seite", „Seite · nachgeladen" (die Seite rechnet nach einem Häkchen neu — zählt nicht
+  als Öffnen), „Vertrag-PDF", „Anlage 2: Prüfbericht (PDF)". Je Zeile: Zeit, Antwort, **IP gekürzt** (IPv4 letztes Oktett 0,
+  IPv6 /48), Gerät aus der Browserkennung (z. B. „iPhone · Safari", „Android · In-App (WhatsApp)"), Ort **nur** aus den
+  Kopfzeilen, die vor Render ohnehin ankommen (Cloudflare: `cf-ipcountry` belegt; `cf-ipcity`/`cf-region` werden gelesen,
+  falls sie kommen — welche es waren, steht je Zeile in `geo_quelle`). Kein Geo-Dienst, keine IP an Dritte.
+- **„du" statt Kunde:** Aufrufe mit Chefbüro-, Admin- oder Mitarbeiter-Sitzung und Aufrufe von einem Anschluss, der in den
+  letzten 30 Tagen in einer Chefbüro-Sitzung war (`fiaon_chef_anschluesse`, nur als HMAC der IP), zählen als „du"/Team;
+  Bot-Kennungen als „automatisch". Beides löst nie eine Meldung aus.
+- **Meldung an Justin:** beim ersten Öffnen durch den Kunden und bei jedem neuen Besuch nach mindestens 30 Minuten Pause
+  (nie öfter als einmal je 30 Minuten je Angebot): **eine** Aufgabe je Angebot auf Justins Board („Herr Hildbrand hat sein
+  Angebot geöffnet (2×, zuletzt 15:42, iPhone, Heidelberg)") — aktualisiert statt vermehrt, bei neuem Besuch wieder offen,
+  je Meldung ein Eintrag in der Zeitleiste — und eine Mail an js@fiaon.com über den Hausweg `eigeneMailSenden` (wie die
+  Termin-Meldungen). Einen Push- oder Klingel-Weg für die Leitung gibt es im Haus nicht; die Aufgabe zählt in der Marke
+  „offene Aufgaben" des Chefbüros mit. Bei der Annahme steht „angenommen am …" in derselben Aufgabe.
+- **Anzeige** im Reiter „Individualangebote" (`/chef/s/global-auftraege?reiter=angebote`): je Angebot „Geöffnet: n× (zuletzt
+  …)" bzw. „Noch nicht geöffnet", „Kunde zuletzt: …", PDFs und Besuche, die letzte Meldung mit Ergebnis (auch „Mail nicht
+  gesendet (Grund)") und die aufklappbare Liste (Zeit Berlin, Art, Gerät, Ort — sonst „Ort unbekannt" —, du/Kunde/automatisch).
+- **Transparenz auf der Kundenseite** unter den Dokumenten und auf der Bestätigung, außerhalb des Vertragstextes: „Aufrufe
+  dieses persönlichen Links werden zur Dokumentation des Vertragswegs protokolliert (Zeitpunkt, Gerät, ungefähre Region;
+  IP-Adresse gekürzt). Löschung 90 Tage nach Abschluss." Keine Cookies, keine Messung im Browser, kein Pixel — die Seite bleibt
+  ohne Cookie-Hinweis. Die Prüfsumme des Vertrags (`text_hash`) ist unverändert.
+- **Speicherdauer:** Der Stundenlauf `globalAngebotLauf` löscht die Aufrufe 90 Tage nach Annahme, Rückzug bzw. Ende der
+  Gültigkeit, die Chef-Anschlüsse nach 30 Tagen.
+- **Nicht nachgetragen:** die Aufrufe von heute vor dem Einbau (laut Render-Protokoll alle von Justins Anschluss).
+- **Nach der Gegenprüfung (01.10.2026):**
+  - **Löschfrist auch für die Kopien (F1):** Aufgabe, Zeitleiste und Mail nennen Zeit, Gerät und Ort, aber **keine IP**, auch
+    keine gekürzte. Die gekürzte IP steht nur in der Tabelle und im Reiter. Nach der Frist leert derselbe Stundenlauf die Aufgabe:
+    neutraler Titel und Text („Aufrufprotokoll gelöscht: …"), die Systembeiträge der Zeitleiste gehen weg, Justins eigene Notizen
+    bleiben. Nach der Frist wird nichts mehr protokolliert, also entsteht auch keine neue Aufgabe und keine neue Mail. Der Reiter
+    zeigt dann „Aufrufe gelöscht — 90 Tage nach Abschluss" statt „Noch nicht geöffnet". Eine Regel für alle drei Stellen:
+    `loeschfaelligeAngebote`. Eine schon verschickte Mail erreicht kein Lauf, deshalb trägt sie keine IP.
+  - **Aufrufer-IP (F2):** zuerst `cf-connecting-ip` (setzt Cloudflare selbst), dann der erste X-Forwarded-For-Eintrag (den kann
+    der Browser fälschen), sonst die Verbindung (`aufrufClientIp`, auch für die Annahme). Nicht `req.ip`: Hinter Cloudflare ist
+    das der Rand von Cloudflare.
+  - **Chef-Anschluss bei IPv6 als /64 (F3):** Datenschutz-Adressen wechseln den hinteren Teil, der Anschluss bleibt „du".
+  - **Strecke der Aufgabe (F4):** eigene Schritte für `global-angebot:`-Aufgaben (Reiter öffnen, nachfassen) statt der
+    Zahlungsschritte des Bereichs „konten".
+  - **Offen bei Justin:** Der Ort reicht nach heutigem Stand wohl nur bis zum Land (`cf-ipcountry`); `cf-ipcity`/`cf-region`
+    sind bei fiaon.com bisher nicht belegt (F5). Der Hinweis auf der Kundenseite nennt als Zweck „Dokumentation des Vertragswegs" — das
+    Protokoll dient auch der Meldung zum Nachfassen, und die Datenschutzerklärung erwähnt es noch nicht (F6).
+
+**Wo:** `server/lib/fiaon-global-angebot-aufrufe.ts` (neu), `server/routes/fiaon-global-angebot.ts`, `server/routes.ts`
+(Anschluss-Merker hinter dem Admin-Tor), `server/lib/fiaon-global-angebot.ts` (Liste, Annahme, Stundenlauf),
+`client/src/components/admin/ChefGlobalAngebote.tsx`, `client/src/pages/business-angebot.tsx`,
+`shared/fiaon-global-angebot.ts` (`ANGEBOT_AUFRUF_HINWEIS`), `db/migrations/088_global_angebot_aufrufe.sql`, Rundgang
+„Individualangebote", Prüfstand `scripts/pruef-individualangebot.ts` (Abschnitte 9 und H).
+
+---
+
 ## 01.10.2026 — FIAON Global: das Individualangebot — persönlicher Link, Annahme per Knopf, Teil 2 erst beim Erfolg (E-268)
 
 **Der Anlass:** Justin: „Ja ich erlaube dir alles, umsetzen bitte" — ein persönliches Angebot für Herrn William Hildbrand:

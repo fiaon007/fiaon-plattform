@@ -26,6 +26,10 @@
 //          Bestellübersicht, ob angenommen werden kann (Pflichtfelder der Bürgin)
 //   POST /api/fiaon/global/angebot/:token/annehmen  { sofortBeginn, jahresbetreuung, textHash }
 //        → der Server rechnet die Prüfsumme nach; weicht sie ab: „bitte neu laden"
+//   Angebot-Aufrufe (01.10.2026): Jeden Abruf protokolliert NUR der Server (Zeit, Gerät, Region aus den
+//   Kopfzeilen, IP gekürzt). Die Seite misst nichts, setzt kein Cookie, lädt kein Pixel; sie hängt nur
+//   ?wahl=1 an, wenn sie nach einem Häkchen den Vertrag neu holt — das ist kein neues Öffnen. Der Satz
+//   dazu (ANGEBOT_AUFRUF_HINWEIS) steht unter den Dokumenten, außerhalb des Vertragstextes.
 // Alle Sätze kommen aus shared/fiaon-global-angebot.ts — über den Server, damit
 // Bildschirm und PDF denselben Wortlaut haben (die Seite tippt keinen Vertragssatz,
 // auch den Namen in der Begrüßung nicht).
@@ -42,6 +46,7 @@ import { useRoute } from "wouter";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import "@/styles/global-start.css";
 import "@/styles/global-angebot.css";
+import { ANGEBOT_AUFRUF_HINWEIS } from "@shared/fiaon-global-angebot";
 
 type Zeile = { label: string; wert: string };
 type Karte = { titel: string; text: string; fein: string };
@@ -132,6 +137,8 @@ export default function BusinessAngebot() {
   const [auftakt, setAuftakt] = useState<"offen" | "geht" | "vorbei">("offen");
   const [vertragOffen, setVertragOffen] = useState(false);
   const anfrage = useRef(0);
+  // Angebot-Aufrufe: Nach dem ersten erfolgreichen Laden ist jedes weitere Laden ein Nachladen (?wahl=1), kein neues Öffnen.
+  const geladen = useRef(false);
   const auftaktGeht = useCallback(() => setAuftakt((a) => (a === "offen" ? "geht" : a)), []);
   const auftaktEnde = useCallback(() => setAuftakt("vorbei"), []);
 
@@ -142,10 +149,11 @@ export default function BusinessAngebot() {
     const ab = new AbortController();
     const zeit = window.setTimeout(() => ab.abort(), 20_000);
     try {
-      const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}?sofortBeginn=${sb ? 1 : 0}&jahresbetreuung=${jb ? 1 : 0}`, { signal: ab.signal, credentials: "include" });
+      const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}?sofortBeginn=${sb ? 1 : 0}&jahresbetreuung=${jb ? 1 : 0}${geladen.current ? "&wahl=1" : ""}`, { signal: ab.signal, credentials: "include" });
       const j = await r.json().catch(() => null);
       if (nr !== anfrage.current) return;
       if (!r.ok || !j?.ok) { setStand("fehler"); setFehler(j?.error || "Das Angebot ließ sich nicht laden. Bitte versuchen Sie es gleich noch einmal."); return; }
+      geladen.current = true;
       if (j.status === "angenommen") { setFertig(j as Fertig); setStand("da"); return; }
       setSicht(j as Sicht); setStand("da");
     } catch {
@@ -219,6 +227,7 @@ export default function BusinessAngebot() {
               {fertig.rechnungUrl && <a href={fertig.rechnungUrl} target="_blank" rel="noreferrer">Rechnung Teil 1 (PDF)</a>}
             </div>
             <p className="gia-klein">{fertig.fertigFuss}</p>
+            <p className="gia-klein gia-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
           </div>
         </div></div>
       </Dunkel>
@@ -310,6 +319,8 @@ export default function BusinessAngebot() {
               <a href={`${sicht.vertragPdf}?sofortBeginn=${sofortBeginn ? 1 : 0}&jahresbetreuung=${jahresbetreuung ? 1 : 0}`} target="_blank" rel="noreferrer">Vertrag als PDF ansehen (Entwurf)</a>
               <a href={sicht.pruefberichtPdf} target="_blank" rel="noreferrer">Anlage 2: Prüfbericht (PDF)</a>
             </div>
+            {/* Angebot-Aufrufe (01.10.2026): außerhalb des Vertragstextes — die Prüfsumme bleibt, wie sie ist. */}
+            <p className="gia-fein gia-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
             {/* Der Text kommt von unserem eigenen Server aus derselben Quelle wie das PDF; Kundenangaben sind dort maskiert. */}
             <div id="vertragstext" className={`gs-vertrag gia-vertrag${vertragOffen ? " offen" : ""}`} tabIndex={0} aria-busy={laedtNeu || undefined} data-veraltet={laedtNeu ? "1" : undefined} dangerouslySetInnerHTML={{ __html: sicht.html }} />
             <button type="button" className="gia-vertrag-knopf" aria-expanded={vertragOffen} aria-controls="vertragstext" onClick={() => setVertragOffen((v) => !v)}>

@@ -114,3 +114,10 @@
 .cm-meldung.cg-rot { color: #fecaca; border-color: rgba(248, 113, 113, .4); }
 .cg-annahme > .cg-knopf, .cg-zwei .cg-knopf, .cg-angebot > .cg-knopf { justify-self: start; width: auto; }
 .cg-reiter button.aktiv { box-shadow: inset 0 -2px 0 #60a5fa; }
+/* Angebot-Aufrufe (01.10.2026): wer hat den Link wann, wie oft und wo geöffnet */
+.cg-aufrufe { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; display: grid; gap: 4px; background: rgba(15, 23, 42, .35); border: 1px solid rgba(148, 163, 184, .15); }
+.cg-aufrufe p { margin: 0; }
+.cg-aufruf-kopf { font-size: 13.5px; color: #e2e8f0; }
+.cg-aufruf-liste { margin-top: 4px; }
+.cg-aufruf-tab { min-width: 640px; }
+.cg-aufruf-tab tr:not(.cg-aufruf-kunde) td { color: rgba(148, 163, 184, .85); }

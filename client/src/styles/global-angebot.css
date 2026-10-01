@@ -65,6 +65,9 @@ html.gia-auftakt-an{overflow:hidden}
 .gia-sub{margin-top:10px;font-size:14.5px;font-weight:300;line-height:1.7;color:var(--leise);max-width:64ch}
 .gia-fein{margin-top:8px;font-size:12.5px;font-weight:300;line-height:1.6;color:var(--leise)}
 .gia-klein{margin-top:22px;font-size:12.5px;line-height:1.6;color:var(--leise)}
+/* Angebot-Aufrufe (01.10.2026): der Protokoll-Satz unter den Dokumenten — leise, außerhalb des Vertrags */
+.gia-aufruf-hinweis{max-width:72ch}
+.gia-klein.gia-aufruf-hinweis{margin-top:8px}
 
 /* 2 · Was Sie bekommen und 4 · Ihr Schutz: ruhige Karten */
 .gia-karten,.gia-schutz{list-style:none;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}

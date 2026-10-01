@@ -675,6 +675,9 @@ async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, bo
     return fehler(409, "Das Angebot lässt sich gerade nicht annehmen. Bitte laden Sie die Seite neu.");
   }
   await verlaufAngebot(Number(z.id), angebotKundeName(d.kunde), `angenommen (${ANGEBOT_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, sofortiger Beginn ${s.sofortBeginn ? "ja" : "nein"}, Jahresbetreuung ${s.jahresbetreuung ? "ja" : "nein"}`);
+  // Angebot-Aufrufe (01.10.2026): „angenommen" in DIESELBE Aufgabe „… hat sein Angebot geöffnet" — hinter der Antwort.
+  void import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAnnahmeVermerken(Number(z.id)))
+    .catch((e) => console.error(`[FIAON-ANGEBOT] ${t.ref}: Annahme in der Aufruf-Aufgabe:`, e));
 
   const fertig = await angebotFertigstellen(Number(z.id));
   const neu = (await angebotLesen({ id: Number(z.id) }))!;
@@ -1254,9 +1257,14 @@ export async function angebotErstattungUeberwiesen(id: number, ein: any, wer: st
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE LISTE DER LEITUNG
 // ═══════════════════════════════════════════════════════════════════════════
-export async function angebotListe(): Promise<Record<string, unknown>[]> {
+export async function angebotListe(opts: { betrachterAgentId?: number | null } = {}): Promise<Record<string, unknown>[]> {
   await ensureAngebotTabellen();
   const zeilen = (await sqlPool.unsafe(`SELECT ${OHNE_PDF} FROM fiaon_global_angebote ORDER BY created_at DESC LIMIT 200`)) as any[];
+  // Angebot-Aufrufe (01.10.2026): Wer hat wann, wie oft und wo geöffnet — fehlt die Tabelle oder hakt es,
+  // bleibt die Liste trotzdem lesbar (aufrufe: null, der Reiter sagt das ehrlich).
+  const aufrufe = await import("./fiaon-global-angebot-aufrufe")
+    .then((m) => m.aufrufeFuerListe(zeilen.map((z) => ({ id: Number(z.id), ref: String(z.angebot_ref) })), opts.betrachterAgentId ?? null))
+    .catch((e) => { console.error("[FIAON-ANGEBOT] Aufrufe für die Liste:", e); return null; });
   const alleTeile = (await sqlPool`
     SELECT t.*, a.payment_status, a.payment_reference, a.invoice_number, a.payment_due_date, a.completed_at
       FROM fiaon_global_angebot_teile t LEFT JOIN fiaon_applications a ON a.ref = t.bestell_ref`) as any[];
@@ -1316,6 +1324,7 @@ export async function angebotListe(): Promise<Record<string, unknown>[]> {
         aendern: String(z.status) === "offen" ? null : "Nur solange das Angebot offen ist.",
       },
       verlauf: json<any[]>(z.verlauf, []).slice(-12),
+      aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null,
     };
   });
 }
@@ -1325,9 +1334,9 @@ export async function angebotListe(): Promise<Record<string, unknown>[]> {
 // Schreibt Aufgaben, KEINE Kundenmail, bewegt KEIN Geld. Wiederholbar über Marken.
 // Registriert in routes.ts als tageslauf("global_angebot_lauf", …, 60 Minuten).
 // ═══════════════════════════════════════════════════════════════════════════
-export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abgelaufen: number; warnungen: number; fristende: number; nachfrage: number; nachgeholt: number }> {
+export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abgelaufen: number; warnungen: number; fristende: number; nachfrage: number; nachgeholt: number; aufrufeGeloescht: number; aufrufAufgabenGeleert: number; aufrufBeitraegeGeloescht: number }> {
   const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS tabelle`) as any[];
-  if (!t?.tabelle) return { abgelaufen: 0, warnungen: 0, fristende: 0, nachfrage: 0, nachgeholt: 0 };
+  if (!t?.tabelle) return { abgelaufen: 0, warnungen: 0, fristende: 0, nachfrage: 0, nachgeholt: 0, aufrufeGeloescht: 0, aufrufAufgabenGeleert: 0, aufrufBeitraegeGeloescht: 0 };
   const heute = berlinToday(jetzt);
   const abgelaufen = (await sqlPool`UPDATE fiaon_global_angebote SET status = 'abgelaufen', updated_at = NOW() WHERE status = 'offen' AND gueltig_bis < ${heute}::date RETURNING id`) as any[];
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
@@ -1408,7 +1417,15 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
     }).catch((e) => console.error(`[FIAON-ANGEBOT] ${z.angebot_ref}: Nachfrage Teil 2:`, e));
     nachfrage++;
   }
-  return { abgelaufen: abgelaufen.length, warnungen, fristende, nachfrage, nachgeholt };
+  // Angebot-Aufrufe (01.10.2026): Speicherdauer — 90 Tage nach Annahme, Rückzug bzw. Ende der Gültigkeit;
+  // Chef-Anschlüsse nach 30 Tagen. Gegenprüfung (F1): dieselbe Frist leert die Kopien in Justins Aufgabe.
+  // Ein Fehler hier hält den Lauf nicht an.
+  const aufraeumen = await import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAufraeumen())
+    .catch((e) => { console.error("[FIAON-ANGEBOT] Aufrufe aufräumen:", e); return { aufrufe: 0, anschluesse: 0, aufgaben: 0, beitraege: 0 }; });
+  return {
+    abgelaufen: abgelaufen.length, warnungen, fristende, nachfrage, nachgeholt,
+    aufrufeGeloescht: aufraeumen.aufrufe, aufrufAufgabenGeleert: aufraeumen.aufgaben, aufrufBeitraegeGeloescht: aufraeumen.beitraege,
+  };
 }
 
 /** Die Sicht für „Mein Auftrag" und das Office: Teile, Frist, Bürgin — nur lesen. */

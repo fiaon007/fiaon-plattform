@@ -10,6 +10,12 @@
 //   · /admin/global/angebote… — die Leitung, hinter dem /admin-Gate aus routes.ts;
 //     requireChef("leitung") liefert dazu, WER geklickt hat. Die Seite dazu:
 //     /chef/s/global-auftraege?reiter=angebote (keine neue Chef-Seite).
+//
+// Angebot-Aufrufe (01.10.2026): Jeder Abruf des Kundenlinks (Seite, Vertrag-PDF,
+// Prüfbericht-PDF) wird NACH der Antwort protokolliert — feuern und vergessen,
+// ein Fehler dort erreicht den Kunden nie. Die Route liest nur, ob eine Sitzung
+// (Chefbüro/Admin/Mitarbeiter) im Aufruf steckt; alles Weitere (IP gekürzt, Gerät,
+// Ort aus Kopfzeilen, Meldung an Justin): server/lib/fiaon-global-angebot-aufrufe.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
@@ -21,12 +27,15 @@ import {
   angebotPruefberichtBoniNeu, angebotVorbelegung, angebotFertigstellen, angebotNacharbeit, bestaetigungSenden,
 } from "../lib/fiaon-global-angebot";
 import { globalMitarbeiter } from "../lib/fiaon-global-auftrag";
+import { aufrufProtokollieren, aufrufClientIp, type AufrufArt, type AufrufKontext } from "../lib/fiaon-global-angebot-aufrufe";
 import { ANGEBOT_VORGABEN, BUERGIN_VORGABE, BUERGIN_FELDER, ANGEBOT_FASSUNG, ANGEBOT_GUELTIG_TAGE } from "@shared/fiaon-global-angebot";
 
 const router = Router();
 
+/** Gegenprüfung 01.10.2026 (F2): zuerst cf-connecting-ip (setzt Cloudflare selbst), dann der erste X-Forwarded-For-Eintrag —
+ *  eine Regel für Protokoll und Annahme (aufrufClientIp). Nicht req.ip: hinter Cloudflare ist das der Rand von Cloudflare. */
 function clientIp(req: Request): string {
-  return ((req.headers["x-forwarded-for"] as string) || "").split(",")[0].trim() || req.socket?.remoteAddress || "";
+  return aufrufClientIp(req);
 }
 function pdfSenden(res: Response, pdf: Buffer, dateiname: string) {
   res.setHeader("Content-Type", "application/pdf");
@@ -40,15 +49,41 @@ function istLeitung(req: Request): boolean {
   try { return !!readChef(req) || hasAdminCode(req); } catch { return false; }
 }
 
+// ── Angebot-Aufrufe (01.10.2026): wer ruft auf? ─────────────────────────────
+/** Steckt eine Sitzung im Aufruf? Chefbüro (neu oder altes Admin-Cookie) oder Mitarbeiter — sonst null. */
+async function sitzungAus(req: Request): Promise<AufrufKontext["sitzung"]> {
+  try {
+    const chef = readChef(req);
+    if (chef) return { grund: "chefbuero", agentId: chef.agentId };
+    if (hasAdminCode(req)) return { grund: "chefbuero", agentId: null };
+    const { verifyAgentToken, AGENT_COOKIE_NAME } = await import("./fiaon-agent");
+    const ma = verifyAgentToken((req as any).cookies?.[AGENT_COOKIE_NAME]);
+    if (ma) return { grund: "mitarbeiter", agentId: ma.id };
+  } catch { /* ohne Sitzung */ }
+  return null;
+}
+/** Nach der Antwort protokollieren — wirft nie, wartet nie. */
+function aufrufMerken(req: Request, art: AufrufArt, antwort: number): void {
+  void (async () => {
+    await aufrufProtokollieren(String(req.params.token), art, antwort, {
+      ip: clientIp(req), userAgent: String(req.headers["user-agent"] || ""), kopf: req.headers as AufrufKontext["kopf"], sitzung: await sitzungAus(req),
+    });
+  })().catch((e) => console.error(`[FIAON-ANGEBOT] Aufruf (${art}) nicht protokolliert:`, e instanceof Error ? e.message : e));
+}
+
 // ── Der Kunde ────────────────────────────────────────────────────────────────
 router.get("/global/angebot/:token", async (req: Request, res: Response) => {
+  // ?wahl=1: Die Seite rechnet nach einem Häkchen nur neu — kein neues Öffnen („Seite · nachgeladen").
+  const art: AufrufArt = req.query.wahl === "1" ? "auswahl" : "seite";
   try {
     const erg = await angebotKundenSicht(String(req.params.token), schalterAus(req.query), { leitung: istLeitung(req) });
     res.setHeader("Cache-Control", "private, no-store");
     res.status(erg.status).json(erg.body);
+    aufrufMerken(req, art, erg.status);
   } catch (err) {
     console.error("[FIAON-ANGEBOT] lesen:", err);
     res.status(500).json({ ok: false, error: "Das Angebot lässt sich gerade nicht laden — bitte versuchen Sie es gleich noch einmal." });
+    aufrufMerken(req, art, 500);
   }
 });
 
@@ -64,13 +99,16 @@ router.post("/global/angebot/:token/annehmen", async (req: Request, res: Respons
 });
 
 for (const art of ["vertrag", "pruefbericht"] as const) {
+  const aufrufArt: AufrufArt = art === "vertrag" ? "vertrag_pdf" : "pruefbericht_pdf";
   router.get(`/global/angebot/:token/${art}.pdf`, async (req: Request, res: Response) => {
     try {
       const erg = await angebotPdfFuerToken(String(req.params.token), art, schalterAus(req.query));
+      aufrufMerken(req, aufrufArt, erg.pdf ? 200 : erg.status);
       if (!erg.pdf) return res.status(erg.status).json({ ok: false, error: erg.error });
       pdfSenden(res, erg.pdf, erg.dateiname!);
     } catch (err) {
       console.error(`[FIAON-ANGEBOT] ${art}.pdf:`, err);
+      aufrufMerken(req, aufrufArt, 500);
       if (!res.headersSent) res.status(500).json({ ok: false, error: "Das Dokument lässt sich gerade nicht erzeugen." });
     }
   });
@@ -87,10 +125,11 @@ async function chefName(req: ChefRequest): Promise<string> {
 }
 const idAus = (req: Request) => Number(req.params.id);
 
-router.get("/admin/global/angebote", requireChef("leitung"), async (_req: ChefRequest, res: Response) => {
+router.get("/admin/global/angebote", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {
     res.json({
-      ok: true, angebote: await angebotListe(), mitarbeiter: await globalMitarbeiter(),
+      // Angebot-Aufrufe (01.10.2026): „du" in der Liste = wer gerade schaut.
+      ok: true, angebote: await angebotListe({ betrachterAgentId: req.chef?.agentId ?? null }), mitarbeiter: await globalMitarbeiter(),
       vorgaben: { parameter: ANGEBOT_VORGABEN, buergin: BUERGIN_VORGABE, buerginFelder: BUERGIN_FELDER, fassung: ANGEBOT_FASSUNG, gueltigTage: ANGEBOT_GUELTIG_TAGE },
     });
   } catch (err) {

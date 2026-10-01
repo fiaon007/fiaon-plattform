@@ -14,6 +14,11 @@
 //     nur er, von Hand), Mail an den Kunden.
 // Ob ein Knopf frei ist, sagt der Server (knoepfe) — der Grund steht als Text da.
 // Server: server/routes/fiaon-global-angebot.ts.
+//
+// Angebot-Aufrufe (01.10.2026, Justin: „wann er es wie oft und wo geöffnet hat"): je Angebot
+// „Geöffnet: n× (zuletzt …)" bzw. „Noch nicht geöffnet", „Kunde zuletzt: …" und die aufklappbare
+// Liste (Zeit Berlin, Art, Gerät, Ort, du/Kunde). Alles kommt fertig vom Server (aufrufe) —
+// Zeiten schon in Berlin, Ort ehrlich („Ort unbekannt"). Quelle: server/lib/fiaon-global-angebot-aufrufe.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { eur, datum, datumZeit, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
@@ -22,6 +27,14 @@ type Teil = {
   nr: number; titel: string; betragCents: number; faelligkeit: string; zahlungszielTage: number; bestellRef: string | null; verwendungszweck: string | null;
   rechnungsnummer: string | null; zahlungsstatus: string | null; faelligAm: string | null; bezahltAm: string | null; meilensteinAm: string | null; meilensteinArt: string | null;
   eingetragenAm: string | null; entfallenAm: string | null; entfallenGrund: string | null; rechnungUrl: string | null; zahlungsseite: string | null;
+};
+type AufrufZeile = { id: number; am: string; amText: string; art: string; geraet: string; ort: string; ip: string | null; wer: string; kunde: boolean; gemeldet: boolean; meldung: string | null; antwort: number | null };
+type Aufrufe = {
+  geoeffnet: number; vertragPdf: number; pruefberichtPdf: number; kundeAufrufe: number; besuche: number; intern: number; automatisch: number; gesamt: number;
+  kundeZuletzt: { am: string; amText: string; art: string; geraet: string; ort: string } | null; kundeErster: { am: string; amText: string } | null;
+  aufgabeSchluessel: string; liste: AufrufZeile[];
+  /** Gegenprüfung 01.10.2026 (F1): Löschfrist erreicht (90 Tage nach Abschluss) — dann nicht „Noch nicht geöffnet". */
+  geloescht?: boolean;
 };
 type Buergin = { name: string; bundesstaat: string | null; anschrift: string | null; registerstelle: string | null; registernummer: string | null; vertreter: string | null; funktion: string | null; unterzeichnetAm: string | null; bestaetigt: boolean; bestaetigtGrundlage: string | null };
 type Angebot = {
@@ -39,6 +52,8 @@ type Angebot = {
   zurueckgezogenAm: string | null; zurueckgezogenGrund: string | null; teile: Teil[];
   knoepfe: { meilenstein: string | null; erstattung: string | null; hemmung: string | null; aendern: string | null };
   verlauf: { am: string; wer: string; was: string }[];
+  /** Angebot-Aufrufe (01.10.2026) — null, wenn die Liste der Aufrufe gerade nicht ladbar ist. */
+  aufrufe: Aufrufe | null;
 };
 type Antwort = {
   ok: boolean; angebote: Angebot[];
@@ -48,6 +63,51 @@ type Antwort = {
 const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Offen — wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
 const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["geburtsdatum", "Geburtsdatum (JJJJ-MM-TT)"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
 const PARAM_FELDER: [string, string, "euro" | "zahl"][] = [["teil1Cents", "Teil 1 „Gründung“ (€)", "euro"], ["teil2Cents", "Teil 2 „Kapital-Begleitung“ (€)", "euro"], ["fristWochen", "Frist in Wochen", "zahl"], ["erstattungTage", "Erstattung binnen Tagen", "zahl"], ["teil2ZielTage", "Zahlungsziel Teil 2 (Tage)", "zahl"], ["kapitalZielUsd", "Kapitalrahmen-Ziel (US-Dollar)", "zahl"], ["kartenZiel", "Kartenziel (Anzahl)", "zahl"], ["buergschaftUsd", "Höchstbetrag Bürgschaft (US-Dollar)", "zahl"]];
+
+/** Wer hat den persönlichen Link wann, wie oft und wo geöffnet — und wurde Justin benachrichtigt? */
+function AufrufBlock({ x }: { x: Aufrufe | null }) {
+  if (!x) return <div className="cg-aufrufe" data-aufrufe="fehlt"><p className="cm-fein">Die Aufrufe des Links lassen sich gerade nicht laden — bitte die Seite gleich neu laden.</p></div>;
+  const kopf = x.geloescht && x.gesamt === 0
+    ? "Aufrufe gelöscht — 90 Tage nach Abschluss"
+    : x.geoeffnet > 0
+      ? `Geöffnet: ${x.geoeffnet}×${x.kundeZuletzt ? ` (zuletzt ${x.kundeZuletzt.amText})` : ""}`
+      : x.kundeAufrufe > 0 ? "Seite noch nicht geöffnet" : "Noch nicht geöffnet";
+  const neben = [
+    x.vertragPdf ? `Vertrag-PDF ${x.vertragPdf}×` : null,
+    x.pruefberichtPdf ? `Prüfbericht-PDF ${x.pruefberichtPdf}×` : null,
+    x.besuche > 1 ? `${x.besuche} Besuche` : null,
+    x.intern ? `dazu ${x.intern}× du/Team` : null,
+    x.automatisch ? `${x.automatisch}× automatisch` : null,
+  ].filter(Boolean);
+  const letzteMeldung = x.liste.find((z) => z.gemeldet) ?? null;
+  return (
+    <div className="cg-aufrufe" data-aufrufe-geoeffnet={x.geoeffnet} data-aufrufe-geloescht={x.geloescht ? "ja" : undefined}>
+      <p className="cg-aufruf-kopf"><b className={x.kundeAufrufe > 0 ? "cg-gut" : undefined}>{kopf}</b>{neben.length > 0 && <span className="cm-fein"> · {neben.join(" · ")}</span>}</p>
+      {x.kundeZuletzt && <p className="cm-klartext">Kunde zuletzt: {x.kundeZuletzt.amText} · {x.kundeZuletzt.art} · {x.kundeZuletzt.geraet} · {x.kundeZuletzt.ort}</p>}
+      {letzteMeldung && <p className="cm-fein">Letzte Meldung an dich: {letzteMeldung.amText} — {letzteMeldung.meldung ?? "läuft gerade"}</p>}
+      {x.liste.length > 0 && (
+        <details className="cg-verlauf cg-aufruf-liste">
+          <summary>Alle Aufrufe ({x.gesamt}{x.gesamt > x.liste.length ? `, hier die letzten ${x.liste.length}` : ""})</summary>
+          <div className="cm-tab-halter"><table className="cm-tab cg-aufruf-tab">
+            <thead><tr><th>Zeit (Berlin)</th><th>Art</th><th>Gerät</th><th>Ort</th><th>Wer</th></tr></thead>
+            <tbody>
+              {x.liste.map((z) => (
+                <tr key={z.id} className={z.kunde ? "cg-aufruf-kunde" : undefined}>
+                  <td>{z.amText}{z.gemeldet && <span className="cm-fein" title={z.meldung ?? undefined}> · gemeldet</span>}</td>
+                  <td>{z.art}{z.antwort != null && z.antwort >= 400 && <span className="cg-rot"> (Antwort {z.antwort})</span>}</td>
+                  <td>{z.geraet}</td>
+                  <td>{z.ort}{z.ip && <span className="cm-fein"> · IP {z.ip}</span>}</td>
+                  <td>{z.wer}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        </details>
+      )}
+      <p className="cm-fein">Beim ersten Öffnen durch den Kunden und bei jedem neuen Besuch nach 30 Minuten Pause bekommst du eine Aufgabe auf deinem Board und eine Mail an js@fiaon.com. Deine eigenen Aufrufe zählen als „du“ und lösen nichts aus. Der Ort kommt nur aus den Angaben des Netzbetreibers. Die gekürzte IP steht nur hier, nicht in Aufgabe und Mail.</p>
+    </div>
+  );
+}
 
 async function post(pfad: string, body: unknown, methode = "POST"): Promise<any> {
   return fetch(`${API}${pfad}`, { method: methode, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) })
@@ -165,6 +225,8 @@ export default function ChefGlobalAngebote() {
               <a href={a.anlage1Url} target="_blank" rel="noreferrer">Anlage 1 zum Unterschreiben (PDF) · Prüfsumme {a.anlage1Pruefsumme.slice(0, 12)}…</a>
               {a.officeLink && <a href={a.officeLink}>Auftrag im Office ({a.auftragRef})</a>}
             </div>
+
+            <AufrufBlock x={a.aufrufe ?? null} />
 
             {a.status === "offen" && (
               a.fehlt.length > 0

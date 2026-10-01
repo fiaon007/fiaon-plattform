@@ -596,6 +596,9 @@ export function streckeFuer(r: { schluessel?: string | null; bereich?: string | 
   if (k.startsWith("dringend:") || k.startsWith("dringend-ref:")) return ["Kunde öffnen → Anliegen lesen (Frist, Gericht, Inkasso?)", "Heute anrufen — der Kunde hat es als dringend markiert", "Antwort im Anliegen oder hier als Ergebnis eintragen", ende];
   if (k.startsWith("postmeister:eskalation:")) return ["Kunde öffnen → Verlauf und die Mail von Mara lesen", "Kunden anrufen und klären, was Mara nicht klären konnte", "Ergebnis hier in einem Satz eintragen — Mara antwortet dem Kunden danach nicht mehr von selbst", ende];
   if (k.startsWith("postmeister:") || r.bereich === "postmeister") return ["Kunde öffnen → Verlauf lesen (Mara hat die Lage zusammengefasst)", "Das Nötige tun: Rückruf, Datei prüfen, Datenänderung — steht im Auftragstext", "Ergebnis hier in einem Satz eintragen", ende];
+  // Angebot-Aufrufe (01.10.2026, Gegenprüfung F4): Die Meldung „… hat sein Angebot geöffnet" steht im Bereich „konten",
+  // ist aber kein Zahlungsfall — eigene Strecke vor der Zahlungs-Regel. Die Aufgabe gehört Justin selbst.
+  if (k.startsWith("global-angebot:")) return ["„Öffnen“ drücken: Reiter „Angebote“ — dort jeder Aufruf mit Zeit, Gerät und Ort", "Nachfassen, solange es frisch ist: anrufen oder kurz schreiben, offene Fragen zum Angebot klären — ohne Druck", "Angenommen: Aufgabe abschließen. Sonst das Ergebnis in einem Satz hier eintragen"];
   if (r.bereich === "konten" || /zahlung/i.test(String(r.titel || ""))) return ["Kunde öffnen → Zahlungen: Steht die Zahlung im Bankbuch?", "Nein: Kunden nach Datum, Betrag und Verwendungszweck fragen und hier eintragen — die Verwaltung bucht", "Ja: Kunden informieren, Auftrag abschließen", ende];
   return ["Kunde öffnen und den Verlauf lesen", "Das tun, was im Auftrag steht (Anruf, Mail, Notiz)", "Ergebnis hier in einem Satz eintragen", ende];
 }

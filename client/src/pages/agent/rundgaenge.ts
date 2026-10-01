@@ -1045,6 +1045,18 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "entfällt, Justin bekommt die dringende Aufgabe und überweist von Hand, der Kunde bekommt eine Mail.",
     tipp: "Ein gesperrter Knopf nennt seinen Grund direkt daneben — zum Beispiel „Die Frist läuft bis …“.",
   },
+  // Angebot-Aufrufe (01.10.2026, E-268) — ohne `ziel`: Der Kasten steht nur, wenn es ein Angebot gibt.
+  {
+    titel: "Wann, wie oft und wo hat der Kunde geöffnet?",
+    text: "Unter den Links jedes Angebots steht „Geöffnet: n× (zuletzt …)“ bzw. „Noch nicht geöffnet“, darunter „Kunde zuletzt“ mit "
+      + "Zeit, Gerät und Ort. „Alle Aufrufe“ klappt die Liste auf: Zeit (Berlin), Seite oder PDF, Gerät, Ort und wer es war — „Kunde“, "
+      + "„du“ oder „automatisch“. Den Ort schickt nur der Netzbetreiber mit; fehlt er, steht ehrlich „Ort unbekannt“. Die IP-Adresse "
+      + "ist gekürzt gespeichert und steht nur hier, nicht in Aufgabe und Mail. 90 Tage nach Abschluss wird gelöscht — auch Zeiten, "
+      + "Geräte und Orte in deiner Aufgabe; danach steht „Aufrufe gelöscht“.",
+    tipp: "Öffnet der Kunde zum ersten Mal — und danach bei jedem neuen Besuch nach 30 Minuten Pause —, bekommst du eine Aufgabe auf "
+      + "deinem Board (eine je Angebot, sie wird aktualisiert) und eine Mail an js@fiaon.com. Deine eigenen Aufrufe (Chefbüro, "
+      + "Mitarbeiter-Sitzung, dein Anschluss der letzten 30 Tage) zählen als „du“ und lösen nichts aus.",
+  },
 ];
 
 // ── /agent/global (17.09.2026, E-188) — die Liste der Global-Aufträge ───────

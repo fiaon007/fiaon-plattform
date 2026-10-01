@@ -85,11 +85,12 @@ const HILDBRAND = {
   // Vertreter und Funktion kommen aus BUERGIN_VORGABE (dieselbe Quelle für jedes Angebot).
   buergin: {
     ...S.BUERGIN_VORGABE,
-    registernummer: S.BUERGIN_NUMMER_NICHT_ERFORDERLICH,
+    // Justin (01.10.2026, nachmittags): Document Number L24000309016, Reinstatement — aktiv ab 02.10.2026.
+    registernummer: "L24000309016",
     funktion: "Manager (geschäftsführendes Mitglied)",
     unterzeichnetAm: "2026-10-01",
     bestaetigt: true,
-    bestaetigtGrundlage: "EIN-Antrag SS-4, vorgelegt 01.10.2026",
+    bestaetigtGrundlage: "Sunbiz (Florida Division of Corporations), Document Number L24000309016 — Reinstatement, aktiv ab 02.10.2026 (Angabe Justin Schwarzott, 01.10.2026)",
   },
 };
 

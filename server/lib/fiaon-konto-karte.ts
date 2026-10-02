@@ -36,6 +36,7 @@
 import { sqlPool } from "./db-pool";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
+import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
 
 type Lauf = typeof sqlPool;
 
@@ -655,6 +656,194 @@ export async function bereiteKunden(
   }));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE EINLADUNG IST VERTRAGSLEISTUNG, KEINE WERBUNG (02.10.2026, E-275)
+//
+// Justin: „Mara soll selbst verkaufen … Hi, zahl die Aktivierung, die Karte
+// geht zeitnah in Produktion — also: Jetzt zahlen! … nicht immer sagen ‚Ich
+// mache einen Termin mit XY‘ oder ‚Wir sind keine Bank und können nichts
+// wissen‘. Mara soll positiv, verkäuferisch und selbstständig agieren.“
+//
+// ── DER ANLASS (Postmeister-Fall 6120, 02.10.2026) ─────────────────────────
+// Satpal Jhim (Person 4816) hat am 02.08. FIAON Ultra bezahlt und fragt seit dem
+// 03.09. nach seiner Karte („I have not your kaditkarte“). Den Link der
+// Partnerbank hat er NIE bekommen: Am 09.09. setzte der Postmeister eine
+// Werbesperre (Mail 3644: Text nur „Sent from Yahoo Mail for iPhone“ und ein
+// Bild, aber im eigenen Betreff „… bitte not again send me e mail for rattan
+// ok“ — ein echter Wunsch, die Sperre war richtig; E-275 Gegenprüfung) — und
+// die Automatik unten schloss jede Werbesperre aus, auch für die Leistung. Maras
+// Antwort konnte deshalb nur lauten „die Karte verschickt die Bank … ich habe
+// Herrn Boychenko gebeten“. Ein Werkzeug, den Link selbst zu schicken, gab es
+// nicht.
+//
+// ── DIE REGEL AB HEUTE ─────────────────────────────────────────────────────
+// Der Link der Partnerbank ist das, wofür ein Stufenpaket-Kunde bezahlt hat —
+// Vertragsleistung, keine Werbung. Die Werbesperre („Stopp“, „aus allen
+// Verteilern“) gilt für Verkauf und Rückholung, nicht für die Leistung aus
+// seinem Vertrag (dieselbe Lesart wie ZAHLUNGSPOST in fiaon-mail-frequenz.ts).
+// Sie schließt deshalb NICHT mehr aus. Ausschluss bleiben: Testkonto,
+// Vertriebssperre (is_blocked), Einstufung −1, Kunde von FIAON Global (E-272),
+// Kündigung des Stufenpakets (nicht die einer Bonitätsauskunft — E-275 Nachtrag)
+// oder DSGVO-Löschung (Kündigung ist eine Übergabe an einen Menschen —
+// Regel „offene Rechnung vor Kündigung“), Storno aus der Telefonkartei, keine
+// E-Mail-Adresse. EINE Liste für die Automatik UND für Mara
+// (einladungPruefen) — zwei Fassungen würden beim nächsten Umbau auseinanderlaufen.
+//
+// ── DIE MAIL-TÜR LÄSST SIE DURCH (geprüft 02.10.2026) ──────────────────────
+// mailSenden gibt immer einen Auslöser mit (akteur.name → ausgeloestVon), und
+// versendenUndProtokollieren macht daraus „manuell“ (fiaon-mail-log.ts, E-168).
+// An der Tür (darfAnEmpfaenger, fiaon-mail-frequenz.ts) gilt für manuell keine
+// Werbesperre; es bleiben sperrUrteil (NUR_BIS_VERTRAGSENDE: Testkonto,
+// Vertrag beendet), die Wand der Privatlinie für Global-Kunden (make-webhook.ts)
+// und die Zustandsregel (fiaon-versand.ts: is_blocked, DSGVO, ohne Adresse,
+// unbezahlt). Gemessen in der Produktion: 0 Einladungen je an der Werbesperre
+// gescheitert, zwei Handversände an Menschen mit Werbesperre gingen durch. An
+// der Tür war deshalb nichts zu ändern — die Sperre saß nur hier.
+//
+// ── WAS ES BEWIRKT (Produktion lesend, 02.10.2026) ─────────────────────────
+// 115 Menschen sind bereit (Antrag vollständig, Paket bezahlt) und haben noch
+// keine Einladung; 27 davon mit Werbesperre. 22 dieser 27 haben wirksam
+// gekündigt (bleibt Ausschluss), fünf bekommen die Einladung jetzt beim
+// nächsten Takt: 3289, 4816 (Satpal Jhim), 4820, 6944, 12320.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ein Mensch aus Sicht der Einladung: wer betreut, und ob etwas den Versand ausschließt. */
+interface EinladungPruefung {
+  personId: number;
+  betreuerId: number | null;
+  betreuerName: string | null;
+  /** Warum keine Einladung — null, wenn sie gehen darf. Für Akte und Mara (intern). */
+  sperre: string | null;
+  /** In den letzten 24 Stunden gescheitert — nur die Automatik wartet dann. */
+  fehlschlag24h: boolean;
+  /** Nur zur Auskunft: Werbesperre gesetzt (seit E-275 kein Ausschluss mehr). */
+  werbesperre: boolean;
+}
+
+/**
+ * Die Ausschlüsse der Einladung — EINE Abfrage für die Automatik und für Mara.
+ * Nur Köpfe (merged_into_person_id IS NULL); wer kein Kopf ist, fehlt im Ergebnis.
+ */
+async function einladungPruefen(ids: number[]): Promise<EinladungPruefung[]> {
+  const liste = Array.from(new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)));
+  if (!liste.length) return [];
+  await globalKundeBereit(); // E-272: die Abfrage liest fiaon_global_angebote
+  const zeilen = (await sqlPool`
+    SELECT p.id, p.assigned_agent_id, ag.name AS agent_name,
+           (p.ist_test_am IS NOT NULL) AS test,
+           COALESCE(p.is_blocked, FALSE) AS vertriebssperre,
+           (COALESCE(p.priority_tier, 0) = -1) AS ausgeschlossen,
+           -- E-272 (02.10.2026): nie an einen Kunden von FIAON Global (Angebot oder Global-Auftrag,
+           -- kein bezahltes Stufenpaket). Justin: „nehme ihn bitte komplett aus den Workflows … Er soll
+           -- Global bleiben, also keine unnötigen Mails“. Seit paket_bezahlt oben nur Privatpakete zählt,
+           -- ist er dort praktisch nie bereit — diese Spalte hält es fest, auch wenn sich dort etwas ändert.
+           ${sqlPool.unsafe(globalKundeSql("p.id"))} AS global,
+           (COALESCE(p.primary_email, '') <> '' OR EXISTS (
+              SELECT 1 FROM fiaon_applications ae WHERE ae.person_id = p.id AND COALESCE(ae.email, '') <> '')) AS hat_email,
+           -- E-275 (02.10.2026): Gekündigt zählt nur das STUFENPAKET (Kategorie konto). Eine gekündigte Bonitätsauskunft
+           -- (FIAON-SCHUFA-…, Kategorie auskunft) ist ein eigenes Zusatzprodukt und schloss bis heute einen zahlenden
+           -- Stufenpaket-Kunden aus — gemessen (Produktion, nur lesend): Personen 4919 und 11498, beide mit bezahltem
+           -- Paket, beide schon eingeladen; Mara konnte ihnen den Link nicht noch einmal schicken. DSGVO-Löschung gilt
+           -- weiter an jeder Bestellung.
+           EXISTS (SELECT 1 FROM fiaon_applications ak
+                    WHERE ak.person_id = p.id AND ak.merged_into IS NULL
+                      AND (ak.gdpr_deleted_at IS NOT NULL
+                           OR (ak.gekuendigt_am IS NOT NULL AND ${sqlPool.unsafe(produktkategorieSql("ak"))} = 'konto'))) AS gekuendigt,
+           EXISTS (SELECT 1 FROM fiaon_telefonkartei_storno st WHERE st.person_id = p.id AND st.zurueck_am IS NULL) AS storniert,
+           -- Gescheitert (kaputte Adresse, Ablehnung)? 24 Stunden Ruhe statt alle fünf Minuten ein neuer Versuch.
+           EXISTS (SELECT 1 FROM fiaon_mail_log ml WHERE ml.person_id = p.id AND ml.event = 'konto_karte_einladung'
+                    AND ml.status <> 'versandt' AND ml.created_at > NOW() - INTERVAL '24 hours') AS fehlschlag,
+           -- E-275: nur noch zur Auskunft im Protokoll — die Werbesperre schließt die Einladung nicht mehr aus.
+           (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre
+      FROM fiaon_persons p
+      LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+     WHERE p.id = ANY(${liste}) AND p.merged_into_person_id IS NULL
+     ORDER BY p.id`) as any[];
+  return zeilen.map((z) => ({
+    personId: Number(z.id),
+    betreuerId: z.assigned_agent_id ? Number(z.assigned_agent_id) : null,
+    betreuerName: z.agent_name ?? null,
+    sperre: z.test ? "Testkonto"
+      : z.vertriebssperre ? "Vertriebssperre (is_blocked) — der Kunde wollte keinen Kontakt"
+      : z.ausgeschlossen ? "Vom Vertrieb ausgeschlossen (Einstufung −1)"
+      : z.global ? "Kunde von FIAON Global (E-272) — bleibt bei Justin, keine Post der Privatlinie"
+      : z.gekuendigt ? "Stufenpaket gekündigt oder Daten gelöscht (DSGVO) — Kündigung gehört zu einem Menschen"
+      : z.storniert ? "Storniert (Telefonkartei)"
+      : !z.hat_email ? "Keine E-Mail-Adresse hinterlegt"
+      : null,
+    fehlschlag24h: !!z.fehlschlag,
+    werbesperre: !!z.werbesperre,
+  }));
+}
+
+/**
+ * Menschen, deren Einladung gerade unterwegs ist — Automatik und Mara laufen im
+ * selben Prozess. Ohne diese Marke schickten ein Takt und eine Mara-Antwort im
+ * selben Augenblick zwei Mails (der „zweite Blick“ in die Tabelle kommt für den
+ * Parallelfall zu spät: Die Zeile entsteht erst NACH dem Versand).
+ */
+const imVersand = new Set<number>();
+
+/**
+ * Schickt die Einladung (Mail „Ihr Link zur Karte ist da“) und hält sie fest:
+ * neue Zeile in fiaon_konto_karte (10 € für den Betreuer, E-067) — oder, wenn
+ * es schon einen Weg gibt, DIESELBE Zeile fortgeschrieben. Ein erneuter
+ * Versand ist kein neuer Weg: Eine zweite Zeile wären zweimal 10 € vorgemerkt
+ * für ein Konto (gemessen 02.10.: 347 Zeilen, keine Person doppelt).
+ * Fortgeschrieben heißt: gesendet_am rückt auf JETZT (kartenStand().versand.am
+ * ist überall „zuletzt geschickt“ — so liest es die Akte, und so las es der
+ * erneute Versand des Knopfs, der dafür eine neue Zeile anlegt), der frühere
+ * Tag steht in der Notiz und im Mail-Protokoll (karteEinladungStand liest
+ * „eingeladen am“ von dort).
+ */
+async function einladungSchicken(ein: {
+  personId: number; betreuerId: number | null; betreuerName: string | null;
+  akteurName: string; erneut: boolean; notiz: string; verlauf: string;
+  /** Name im Kundenverlauf (fiaon_contact_log.agent_name) — die Automatik heißt dort seit E-206 „Automatik“. */
+  verlaufVon?: string;
+}): Promise<{ ok: boolean; grund: string | null }> {
+  if (imVersand.has(ein.personId)) return { ok: false, grund: "Die Einladung ist in diesem Augenblick schon unterwegs." };
+  imVersand.add(ein.personId);
+  try {
+    const { mailSenden } = await import("./fiaon-mail-senden");
+    // akteur.name wird zu ausgeloestVon — die Tür behandelt die Leistungsmail damit wie einen
+    // Handversand (keine Werbesperre, siehe Kopf E-275). rolle „admin“: wie bisher die Automatik.
+    const erg = await mailSenden({
+      event: "konto_karte_einladung",
+      personId: ein.personId,
+      zusatz: { partner_link: partnerLink(ein.personId, ein.betreuerId) },
+      akteur: { name: ein.akteurName, agentId: null, rolle: "admin" as any },
+    });
+    if (!erg?.ok) return { ok: false, grund: String((erg as any)?.grund || (erg as any)?.meldung || "nicht gesendet") };
+    if (ein.erneut) {
+      // Die Notiz nennt den vorigen Versandtag, bevor gesendet_am ihn überschreibt (Berlin, wie tagBerlin).
+      await sqlPool`
+        UPDATE fiaon_konto_karte
+           SET notiz = TRIM(BOTH E'\n' FROM COALESCE(notiz || E'\n', '') || ${ein.notiz}
+                       || ' — zuvor geschickt am ' || TO_CHAR(gesendet_am AT TIME ZONE 'Europe/Berlin', 'DD.MM.YYYY')),
+               gesendet_am = NOW()
+         WHERE id = (SELECT id FROM fiaon_konto_karte WHERE person_id = ${ein.personId} AND kanal <> 'gemeldet'
+                      ORDER BY gesendet_am DESC LIMIT 1)`;
+    } else {
+      await sqlPool`
+        INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents, notiz)
+        VALUES (${ein.personId}, ${ein.betreuerId}, ${ein.betreuerName ?? "Automatik"}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS},
+                ${ein.notiz})`;
+    }
+    const [ap] = (await sqlPool`
+      SELECT ref FROM fiaon_applications WHERE person_id = ${ein.personId} AND merged_into IS NULL
+       ORDER BY created_at DESC LIMIT 1`) as any[];
+    if (ap) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
+        VALUES (${ein.personId}, NULL, ${ein.verlaufVon ?? ein.akteurName}, 'system', ${ein.verlauf}, ${ap.ref}, NOW())`.catch(() => {});
+    }
+    return { ok: true, grund: null };
+  } finally {
+    imVersand.delete(ein.personId);
+  }
+}
+
 /**
  * DIE EINLADUNG GEHT VON SELBST RAUS (21.09.2026, E-206)
  *
@@ -664,9 +853,11 @@ export async function bereiteKunden(
  * Eintrag wie über den Knopf „Karte bestellen". Die 10 € je bestätigter
  * Eröffnung gehören seinem Betreuer (agent_id = Betreuer), nicht der Automatik.
  *
- * Nicht angeschrieben wird, wer das Haus nicht anschreiben soll: Vertriebs-
- * oder Werbesperre, gekündigt, storniert, ausgeschlossen, Testkonto, keine
- * E-Mail. Die Verwaltung kann solche Fälle weiter von Hand über die Akte senden.
+ * Nicht angeschrieben wird, wen einladungPruefen ausschließt (Testkonto,
+ * Vertriebssperre, Einstufung −1, Global, Kündigung/DSGVO, Storno, keine
+ * E-Mail). E-275 (02.10.2026): Die Werbesperre gehört nicht mehr dazu — der
+ * Link ist Vertragsleistung (Kopf oben). Die Verwaltung kann Ausgeschlossene
+ * weiter von Hand über die Akte senden.
  *
  * Gedrosselt: höchstens `grenze` Mails je Lauf, der Takt ruft alle fünf Minuten.
  */
@@ -674,68 +865,355 @@ export async function einladungenAutomatisch(grenze = 40): Promise<{ bereit: num
   await ensureKartenTabelle();
   const kandidaten = await bereiteKunden({ ohneVersand: true, grenze: 500 });
   if (!kandidaten.length) return { bereit: 0, gesendet: 0, fehler: [] };
-  const ids = kandidaten.map((k) => k.personId);
-  await globalKundeBereit(); // E-272: die Auswahl unten liest fiaon_global_angebote
-  const erlaubt = (await sqlPool`
-    SELECT p.id, p.assigned_agent_id, ag.name AS agent_name
-      FROM fiaon_persons p
-      LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
-     WHERE p.id = ANY(${ids}) AND p.merged_into_person_id IS NULL
-       AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
-       AND p.werbung_gesperrt_am IS NULL AND COALESCE(p.priority_tier, 0) <> -1
-       -- E-272 (02.10.2026): nie an einen Kunden von FIAON Global (Angebot oder Global-Auftrag,
-       -- kein bezahltes Stufenpaket). Justin: „nehme ihn bitte komplett aus den Workflows … Er soll
-       -- Global bleiben, also keine unnötigen Mails“. Seit paket_bezahlt oben nur Privatpakete zählt,
-       -- ist er dort praktisch nie bereit — diese Zeile hält es fest, auch wenn sich dort etwas ändert.
-       AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
-       AND (COALESCE(p.primary_email, '') <> '' OR EXISTS (
-             SELECT 1 FROM fiaon_applications ae WHERE ae.person_id = p.id AND COALESCE(ae.email, '') <> ''))
-       AND NOT EXISTS (SELECT 1 FROM fiaon_applications ak
-                        WHERE ak.person_id = p.id AND ak.merged_into IS NULL
-                          AND (ak.gekuendigt_am IS NOT NULL OR ak.gdpr_deleted_at IS NOT NULL))
-       AND NOT EXISTS (SELECT 1 FROM fiaon_telefonkartei_storno st WHERE st.person_id = p.id AND st.zurueck_am IS NULL)
-       -- Gescheitert (kaputte Adresse, Ablehnung)? 24 Stunden Ruhe statt alle fünf Minuten ein neuer Versuch.
-       AND NOT EXISTS (SELECT 1 FROM fiaon_mail_log ml WHERE ml.person_id = p.id AND ml.event = 'konto_karte_einladung'
-                        AND ml.status <> 'versandt' AND ml.created_at > NOW() - INTERVAL '24 hours')
-     ORDER BY p.id`.catch(() => [])) as any[];
+  const geprueft = await einladungPruefen(kandidaten.map((k) => k.personId)).catch(() => [] as EinladungPruefung[]);
+  const erlaubt = geprueft.filter((z) => !z.sperre && !z.fehlschlag24h);
 
-  const { mailSenden } = await import("./fiaon-mail-senden");
   let gesendet = 0;
+  let mitWerbesperre = 0;
   const fehler: string[] = [];
   for (const z of erlaubt.slice(0, Math.max(0, grenze))) {
-    const personId = Number(z.id);
-    const betreuerId = z.assigned_agent_id ? Number(z.assigned_agent_id) : null;
     // Zweiter Blick direkt vor dem Senden — ein paralleler Knopfdruck darf keine zweite Mail auslösen.
-    const [schon] = (await sqlPool`SELECT 1 AS da FROM fiaon_konto_karte WHERE person_id = ${personId} AND kanal <> 'gemeldet' LIMIT 1`) as any[];
+    const [schon] = (await sqlPool`SELECT 1 AS da FROM fiaon_konto_karte WHERE person_id = ${z.personId} AND kanal <> 'gemeldet' LIMIT 1`) as any[];
     if (schon) continue;
     try {
-      const erg = await mailSenden({
-        event: "konto_karte_einladung",
-        personId,
-        zusatz: { partner_link: partnerLink(personId, betreuerId) },
-        akteur: { name: "Automatik (erste Rate)", agentId: null, rolle: "admin" as any },
+      const erg = await einladungSchicken({
+        personId: z.personId, betreuerId: z.betreuerId, betreuerName: z.betreuerName,
+        akteurName: "Automatik (erste Rate)", verlaufVon: "Automatik", erneut: false,
+        notiz: "Automatisch nach der ersten Zahlung (E-206)",
+        verlauf: "Konto & Karte: Einladung der Partnerbank nach der ersten Zahlung automatisch geschickt.",
       });
-      if (!erg?.ok) { fehler.push(`${personId}: ${(erg as any)?.grund || (erg as any)?.meldung || "nicht gesendet"}`); continue; }
-      await sqlPool`
-        INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents, notiz)
-        VALUES (${personId}, ${betreuerId}, ${z.agent_name ?? "Automatik"}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS},
-                'Automatisch nach der ersten Zahlung (E-206)')`;
-      const [ap] = (await sqlPool`
-        SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
-         ORDER BY created_at DESC LIMIT 1`) as any[];
-      if (ap) {
-        await sqlPool`
-          INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
-          VALUES (${personId}, NULL, 'Automatik', 'system',
-                  'Konto & Karte: Einladung der Partnerbank nach der ersten Zahlung automatisch geschickt.', ${ap.ref}, NOW())`.catch(() => {});
-      }
+      if (!erg.ok) { fehler.push(`${z.personId}: ${erg.grund}`); continue; }
       gesendet++;
+      if (z.werbesperre) mitWerbesperre++;
     } catch (e: any) {
-      fehler.push(`${personId}: ${String(e?.message || e).slice(0, 120)}`);
+      fehler.push(`${z.personId}: ${String(e?.message || e).slice(0, 120)}`);
     }
   }
-  if (gesendet || fehler.length) console.log(`[KARTE] Einladungen automatisch: ${gesendet} gesendet, ${fehler.length} Fehler, ${erlaubt.length} bereit`);
+  if (gesendet || fehler.length) {
+    console.log(`[KARTE] Einladungen automatisch: ${gesendet} gesendet (${mitWerbesperre} davon mit Werbesperre, E-275), ${fehler.length} Fehler, ${erlaubt.length} bereit`);
+  }
   return { bereit: erlaubt.length, gesendet, fehler };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARA SCHICKT DEN LINK SELBST (02.10.2026, E-275)
+//
+// Bisher konnte Mara auf „Wo bleibt meine Karte?“ nur übergeben („Herr
+// Boychenko prüft das“) oder einen Termin anbieten — gemessen: 62 % der
+// Kartenfragen auf WhatsApp endeten so. karteEinladungFuerPerson ist ihr
+// Werkzeug dafür, für Mail UND WhatsApp: Sie schickt die Einladung (oder den
+// Link erneut, wenn er schon draußen ist), und sie bekommt den Satz für den
+// Kunden — Justins eigene, wahre Formel aus shared/fiaon-karten-weg.ts:
+// „Sobald Ihr Account aktiviert ist, bekommen Sie direkt den fertigen Link
+// unserer Partnerbank … Nach der Zusage der Bank ist die Karte in der Regel in
+// 2–5 Werktagen bei Ihnen, und meist können Sie sie schon vorher in der App der
+// Bank mit Apple Pay nutzen.“ Keine Limit-Zusage, keine Karten-Zusage (die
+// Wortwand verbietet beides), kein Termin, kein „wir sind keine Bank“.
+//
+// Wer ausgeschlossen ist (einladungPruefen), bekommt nichts — dann ist
+// `satz` null und Mara übergibt mit `intern` als Grund. Noch nicht bezahlt:
+// der Verkaufssatz („Sobald Ihre erste Zahlung … aktiviert“); den Zahlungslink
+// legt Mara mit ihrem eigenen Werkzeug dazu.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Wer den Link auslöst — steht im Verlauf und im Mail-Protokoll („Mara (Postmeister)“, „Mara (WhatsApp)“).
+ * Zwei Schreibweisen, weil zwei Bereiche parallel gebaut haben: `name` (WhatsApp) oder `akteurName`
+ * mit `quelle`, `erneut`, `postmeisterId` (Postmeister-Werkzeug karte_senden). Beide gelten.
+ */
+export interface KarteEinladungAkteur {
+  name?: string;
+  akteurName?: string;
+  /** Woher der Auftrag kommt („postmeister“, „whatsapp“) — nur für die Notiz. */
+  quelle?: string;
+  /** false: einen schon verschickten Link NICHT erneut schicken. Standard: erneut, wenn der Kunde fragt. */
+  erneut?: boolean;
+  /** Der Postmeister-Fall, aus dem der Auftrag kommt — steht in der Notiz. */
+  postmeisterId?: number | null;
+}
+
+/**
+ * gesendet — erste Einladung raus · erneut_gesendet — Link noch einmal geschickt ·
+ * schon_unterwegs — vor weniger als einer Stunde geschickt, nicht noch einmal ·
+ * konto_steht — Girokonto schon eröffnet, keine Mail nötig · nicht_bereit — Zahlung oder
+ * Angaben fehlen (Verkaufssatz) · gesperrt — Ausschluss, Übergabe · fehler — Versand gescheitert.
+ */
+export type KarteEinladungAktion =
+  | "gesendet" | "erneut_gesendet" | "schon_unterwegs" | "konto_steht" | "nicht_bereit" | "gesperrt" | "fehler";
+
+export interface KarteEinladungStand {
+  /** Der Kopf (zusammengeführte Personen laufen auf ihn). */
+  personId: number;
+  /** Antrag vollständig und Paket bezahlt. */
+  bereit: boolean;
+  esFehlt: string | null;
+  /** Ist das Paket bezahlt? false = Mara verkauft die erste Zahlung. */
+  paketBezahlt: boolean;
+  /** Fehlende Angaben im Antrag, in Worten („Geburtsdatum“, „Straße“ …). Leer, wenn vollständig. */
+  fehlendeAngaben: string[];
+  /** Gibt es einen verschickten Weg (Zeile in fiaon_konto_karte, kein „gemeldet“)? Wie kartenStand().versand. */
+  eingeladen: boolean;
+  /** Erste echte Einladung, „dd.mm.yyyy“ (Berlin). */
+  eingeladenAm: string | null;
+  /** Letzte versandte Einladungsmail, „dd.mm.yyyy, HH:MM Uhr“ (Berlin). */
+  zuletztGeschicktAm: string | null;
+  /** Dasselbe als ISO-Zeitpunkt — für Rechnungen („keine zweite binnen …“). */
+  zuletztGeschicktIso: string | null;
+  /** Zustellung der letzten Einladungsmail (Brevo): zugestellt · geoeffnet · geklickt · blockiert · gebounct. */
+  zustellung: string | null;
+  kontoEroeffnet: boolean;
+  kontoEroeffnetAm: string | null;
+  naechsteRateAm: string | null;
+  /** Die Adresse, an die die Einladung geht — gekürzt („gy…@yahoo.com“). */
+  adresse: string | null;
+  /** Werbesperre gesetzt? Nur zur Auskunft — sie hält die Einladung nicht auf (E-275). */
+  werbesperre: boolean;
+}
+
+export interface KarteEinladungErgebnis {
+  /** Der Kunde hat jetzt seinen Link (oder sein Konto steht schon). */
+  ok: boolean;
+  aktion: KarteEinladungAktion;
+  /** Der Satz für den Kunden (Sie-Form, Deutsch — Mara übersetzt in seine Sprache). null = übergeben. */
+  satz: string | null;
+  /** Für Akte, Protokoll und Übergabe — nie an den Kunden. */
+  intern: string;
+  stand: KarteEinladungStand | null;
+  /** Ging JETZT eine Mail raus (gesendet / erneut_gesendet)? */
+  gesendet: boolean;
+  /** Warum nicht — gleich `intern`, wenn ok false ist; sonst null. */
+  grund: string | null;
+  /** Zuletzt geschickt VOR diesem Aufruf (ISO) — null, wenn es der erste Link ist. */
+  schonAm: string | null;
+  /** Betreff der Einladung, wie sie rausging („Ihr Link zur Karte ist da, Satpal“) — nur wenn gesendet. */
+  betreff: string | null;
+}
+
+/** „dd.mm.yyyy, HH:MM Uhr“ in Berliner Zeit. Nur formatToParts — Number(format()) ergibt NaN. */
+function zeitpunktBerlin(d: any): string | null {
+  if (!d) return null;
+  const x = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(x.getTime())) return null;
+  const teile = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(x);
+  const w = (art: string) => teile.find((p) => p.type === art)?.value ?? "";
+  return `${w("day")}.${w("month")}.${w("year")}, ${w("hour")}:${w("minute")} Uhr`;
+}
+
+/** „gyogesh26@yahoo.com“ → „gy…@yahoo.com“. */
+function adresseKurz(adresse: unknown): string | null {
+  const a = String(adresse ?? "").trim();
+  const at = a.lastIndexOf("@");
+  if (at < 1) return null;
+  const lokal = a.slice(0, at);
+  return `${lokal.slice(0, lokal.length > 3 ? 2 : 1)}…${a.slice(at)}`;
+}
+
+/** Wie lange ein eben geschickter Link nicht noch einmal geht — drei Mails in einer Minute wären drei Links. */
+const ERNEUT_FRUEHESTENS_MIN = 60;
+
+/** Der Stand der Einladung eines Menschen — nur lesend. null, wenn es ihn nicht gibt. */
+export async function karteEinladungStand(personId: number): Promise<KarteEinladungStand | null> {
+  if (!Number.isInteger(Number(personId)) || Number(personId) <= 0) return null;
+  await ensureKartenTabelle();
+  const { KOPF_SQL } = await import("./fiaon-mail-frequenz");
+  const [k] = (await sqlPool.unsafe(`SELECT ${KOPF_SQL("$1::int")} AS kopf`, [Number(personId)])) as any[];
+  const kopf = Number(k?.kopf || personId);
+  const stand = await kartenStand(kopf);
+  if (!stand) return null;
+  const [kontakt] = (await sqlPool`
+    SELECT COALESCE(NULLIF(TRIM(p.primary_email), ''), (
+             SELECT NULLIF(TRIM(COALESCE(a.email, a.contact_email, a.billing_email)), '')
+               FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+              ORDER BY a.created_at DESC LIMIT 1)) AS email,
+           (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre
+      FROM fiaon_persons p WHERE p.id = ${kopf}`) as any[];
+  // „Eingeladen am“ = die erste versandte Einladungsmail. Die Zeile taugt dafür nur als Rückfall: Ein
+  // erneuter Versand rückt ihr gesendet_am auf jetzt (einladungSchicken).
+  const [erst] = (await sqlPool`
+    SELECT LEAST(
+             (SELECT MIN(gesendet_am) FROM fiaon_konto_karte WHERE person_id = ${kopf} AND kanal <> 'gemeldet'),
+             (SELECT MIN(created_at) FROM fiaon_mail_log WHERE person_id = ${kopf} AND event = 'konto_karte_einladung'
+                 AND status = 'versandt' AND COALESCE(art, 'echt') = 'echt')) AS am,
+           EXISTS (SELECT 1 FROM fiaon_konto_karte WHERE person_id = ${kopf} AND kanal <> 'gemeldet') AS weg_da`) as any[];
+  const [mail] = (await sqlPool`
+    SELECT created_at, zustellung FROM fiaon_mail_log
+     WHERE person_id = ${kopf} AND event = 'konto_karte_einladung' AND status = 'versandt'
+       AND COALESCE(art, 'echt') = 'echt'
+     ORDER BY created_at DESC LIMIT 1`.catch(() => [] as any[])) as any[];
+  // Welche Angaben fehlen — an der Bestellung, die am wenigsten offen hat (dieselbe Regel wie antrag_voll:
+  // ein Feld gilt als da, wenn es am Antrag ODER an der Person steht).
+  let fehlendeAngaben: string[] = [];
+  if (!stand.tore.find((t) => t.schluessel === "antrag")?.erfuellt) {
+    const [f] = (await sqlPool`
+      SELECT x.fehlt FROM (
+      SELECT ARRAY_REMOVE(ARRAY[
+               CASE WHEN COALESCE(NULLIF(TRIM(a.first_name), ''), NULLIF(TRIM(p.first_name), '')) IS NULL THEN 'Vorname' END,
+               CASE WHEN COALESCE(NULLIF(TRIM(a.last_name), ''), NULLIF(TRIM(p.last_name), '')) IS NULL THEN 'Nachname' END,
+               CASE WHEN COALESCE(NULLIF(TRIM(a.birthdate), ''), NULLIF(TRIM(p.birthdate::text), '')) IS NULL THEN 'Geburtsdatum' END,
+               CASE WHEN COALESCE(NULLIF(TRIM(a.street), ''), NULLIF(TRIM(p.street), '')) IS NULL THEN 'Straße und Hausnummer' END,
+               CASE WHEN COALESCE(NULLIF(TRIM(a.zip), ''), NULLIF(TRIM(p.zip), '')) IS NULL THEN 'Postleitzahl' END,
+               CASE WHEN COALESCE(NULLIF(TRIM(a.city), ''), NULLIF(TRIM(p.city), '')) IS NULL THEN 'Wohnort' END,
+               CASE WHEN COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(p.primary_email), '')) IS NULL THEN 'E-Mail-Adresse' END
+             ], NULL) AS fehlt
+        FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
+       WHERE a.person_id = ${kopf} AND a.merged_into IS NULL AND a.archived_at IS NULL) x
+       ORDER BY cardinality(x.fehlt) ASC LIMIT 1`.catch(() => [] as any[])) as any[];
+    fehlendeAngaben = Array.isArray(f?.fehlt) && f.fehlt.length ? f.fehlt.map(String) : ["die Angaben im Antrag (Name, Geburtsdatum, Anschrift)"];
+  }
+  const konto = await kontoEroeffnung(kopf);
+  return {
+    personId: kopf,
+    bereit: stand.bereit,
+    esFehlt: stand.esFehlt,
+    paketBezahlt: stand.zahlen.paketBezahlt,
+    fehlendeAngaben,
+    eingeladen: erst?.weg_da === true,
+    eingeladenAm: tagBerlin(erst?.am),
+    zuletztGeschicktAm: zeitpunktBerlin(mail?.created_at),
+    zuletztGeschicktIso: mail?.created_at ? new Date(mail.created_at).toISOString() : null,
+    zustellung: mail?.zustellung ? String(mail.zustellung) : null,
+    kontoEroeffnet: konto.eroeffnet,
+    kontoEroeffnetAm: konto.am,
+    naechsteRateAm: stand.zahlen.naechsteRateAm,
+    adresse: adresseKurz(kontakt?.email),
+    werbesperre: !!kontakt?.werbesperre,
+  };
+}
+
+/** Der Satz für den Kunden — nur aus Bausteinen, die die Wortwand kennt (shared/fiaon-karten-weg.ts). */
+function einladungSatz(aktion: KarteEinladungAktion, s: KarteEinladungStand): string | null {
+  const an = s.adresse ? ` an ${s.adresse}` : "";
+  const weg = "Darüber beantragen Sie in wenigen Minuten online Ihr Girokonto mit Visa-Karte — Sie brauchen nur Ihren Ausweis.";
+  switch (aktion) {
+    case "gesendet":
+      return `Ich habe Ihnen soeben den fertigen Link unserer Partnerbank, der DKB, für Ihren Kartenantrag per E-Mail${an} geschickt. ${weg} ${KARTE_ZEIT_SATZ}`;
+    case "erneut_gesendet":
+      return `Ihr Link unserer Partnerbank für den Kartenantrag ging${s.eingeladenAm ? ` am ${s.eingeladenAm}` : ""} an Sie raus — ich habe ihn Ihnen soeben noch einmal per E-Mail${an} geschickt; schauen Sie bitte auch im Spam-Ordner nach. ${weg} ${KARTE_ZEIT_SATZ}`;
+    case "schon_unterwegs":
+      return `Den Link unserer Partnerbank für Ihren Kartenantrag habe ich Ihnen gerade erst per E-Mail${an} geschickt — schauen Sie bitte auch im Spam-Ordner nach. ${weg} ${KARTE_ZEIT_SATZ}`;
+    case "konto_steht":
+      return `Ihr Girokonto bei unserer Partnerbank, der DKB, ist bereits eröffnet${s.kontoEroeffnetAm ? ` (seit ${s.kontoEroeffnetAm})` : ""}. Die Visa-Kreditkarte buchen Sie direkt in Ihrem DKB-Banking dazu. ${KARTE_ZEIT_SATZ}`;
+    case "nicht_bereit": {
+      if (!s.paketBezahlt) {
+        // Justins „zahl die Aktivierung … also: Jetzt zahlen!“ in seiner eigenen, wahren Fassung (Mail vom
+        // 02.10.): Zahlung → Account aktiviert → direkt der Link. KARTE_LINK_SATZ bleibt die eine Quelle; nur
+        // sein Anfang wird zu „Dann …“, damit nicht zweimal „Sobald“ hintereinander steht.
+        // E-275 Endkontrolle (02.10.2026, Wahrheit): Fehlen zusätzlich Angaben im Antrag, kommt der Link NICHT „direkt“
+        // nach der Zahlung (die Einladung verlangt den vollständigen Antrag) — dieselbe Lücken-Fassung wie im Abschluss.
+        const eine = s.fehlendeAngaben.length === 1;
+        const link = s.fehlendeAngaben.length
+          ? `Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${s.fehlendeAngaben.join(", ")}), geht der fertige Link unserer Partnerbank für Ihren Kartenantrag an Sie raus — schreiben Sie mir ${eine ? "diese Angabe" : "diese Angaben"} einfach zurück.`
+          : KARTE_LINK_SATZ.replace(/^Sobald Ihr Account aktiviert ist, bekommen Sie/, "Dann bekommen Sie");
+        return `Sobald Ihre erste Zahlung bei uns eingegangen ist, ist Ihr Account aktiviert. ${link} `
+          + `Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen. ${KARTE_ZEIT_SATZ}`;
+      }
+      const eine = s.fehlendeAngaben.length === 1;
+      return `Damit Ihre Kontoeröffnung bei der Bank in einem Zug durchläuft, ${eine ? "fehlt" : "fehlen"} in Ihrem Antrag noch: ${s.fehlendeAngaben.join(", ")}. `
+        + `Schreiben Sie mir ${eine ? "diese Angabe" : "diese Angaben"} einfach zurück — sobald ${eine ? "sie in Ihrem Antrag steht" : "sie alle in Ihrem Antrag stehen"}, geht Ihr Link unserer Partnerbank automatisch an Sie raus.`;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Mara (Mail oder WhatsApp) schickt dem Kunden den Link der Partnerbank — oder
+ * noch einmal, wenn er schon draußen ist — und bekommt den Satz für ihn.
+ *
+ * Wirft nie. Schickt nichts, wenn einladungPruefen ausschließt (dann
+ * `aktion: "gesperrt"`, `satz: null`), wenn das Girokonto schon steht, wenn
+ * Zahlung oder Angaben fehlen, wenn die letzte Einladung keine Stunde alt ist
+ * oder wenn der Aufrufer `erneut: false` sagt und der Link schon draußen ist.
+ * Die 10 € gehören wie immer dem Betreuer — beim erneuten Versand entsteht
+ * keine zweite Vormerkung.
+ */
+export async function karteEinladungFuerPerson(personId: number, akteur: KarteEinladungAkteur = {}): Promise<KarteEinladungErgebnis> {
+  const wer = String(akteur?.name || akteur?.akteurName || "").trim() || "Mara";
+  const herkunft = [akteur?.quelle ? String(akteur.quelle).trim() : "", akteur?.postmeisterId ? `Postmeister-Fall ${akteur.postmeisterId}` : ""]
+    .filter(Boolean).join(", ");
+  const antwort = (e: Omit<KarteEinladungErgebnis, "gesendet" | "grund" | "schonAm" | "betreff"> & Partial<KarteEinladungErgebnis>): KarteEinladungErgebnis => ({
+    gesendet: false, schonAm: null, betreff: null, ...e, grund: e.ok ? null : (e.grund ?? e.intern),
+  });
+  const nichts = (aktion: KarteEinladungAktion, intern: string, stand: KarteEinladungStand | null): KarteEinladungErgebnis =>
+    antwort({ ok: false, aktion, satz: null, intern, stand, schonAm: stand?.zuletztGeschicktIso ?? null });
+  try {
+    const stand = await karteEinladungStand(personId);
+    if (!stand) return nichts("fehler", `Person ${personId} nicht gefunden.`, null);
+    const [pruefung] = await einladungPruefen([stand.personId]);
+    if (!pruefung) return nichts("fehler", `Person ${stand.personId} nicht gefunden.`, stand);
+    if (pruefung.sperre) return nichts("gesperrt", `Kein Kartenlink: ${pruefung.sperre}.`, stand);
+    const schonAm = stand.zuletztGeschicktIso;
+
+    if (stand.kontoEroeffnet) {
+      return antwort({
+        ok: true, aktion: "konto_steht", satz: einladungSatz("konto_steht", stand), stand, schonAm,
+        intern: `Girokonto steht schon${stand.kontoEroeffnetAm ? ` (${stand.kontoEroeffnetAm})` : ""} — kein neuer Link; die Karte bucht der Kunde im Banking dazu.`,
+      });
+    }
+    if (!stand.bereit) {
+      return antwort({
+        ok: false, aktion: "nicht_bereit", satz: einladungSatz("nicht_bereit", stand), stand, schonAm,
+        intern: !stand.paketBezahlt
+          ? "Paket noch nicht bezahlt — Zahlungslink dazugeben; nach der Buchung geht die Einladung automatisch raus (Takt karten_einladungen, ≤ 5 Min.)."
+            + (stand.fehlendeAngaben.length ? ` Außerdem fehlt im Antrag: ${stand.fehlendeAngaben.join(", ")}.` : "")
+          : `Antrag unvollständig (${stand.fehlendeAngaben.join(", ")}) — Angaben vom Kunden erfragen und in der Akte unter „Daten“ eintragen; danach geht die Einladung automatisch raus.`,
+      });
+    }
+
+    const schonDraussen = stand.eingeladen;
+    const unterwegs = (intern: string) =>
+      antwort({ ok: true, aktion: "schon_unterwegs", satz: einladungSatz("schon_unterwegs", stand), stand, schonAm, intern });
+    if (schonDraussen && akteur?.erneut === false) {
+      return unterwegs(`Link ist schon draußen (zuletzt ${stand.zuletztGeschicktAm ?? stand.eingeladenAm ?? "früher"}) — erneut: false, nichts geschickt.`);
+    }
+    if (schonDraussen) {
+      const [frisch] = (await sqlPool`
+        SELECT 1 AS da FROM fiaon_mail_log
+         WHERE person_id = ${stand.personId} AND event = 'konto_karte_einladung' AND status = 'versandt'
+           AND created_at > NOW() - (${ERNEUT_FRUEHESTENS_MIN} * INTERVAL '1 minute')
+         LIMIT 1`.catch(() => [] as any[])) as any[];
+      if (frisch) {
+        return unterwegs(`Link ging zuletzt ${stand.zuletztGeschicktAm ?? "eben"} raus — nicht noch einmal (frühestens nach ${ERNEUT_FRUEHESTENS_MIN} Minuten).`);
+      }
+    }
+    if (imVersand.has(stand.personId)) {
+      return unterwegs("Die Einladung ist in diesem Augenblick schon unterwegs (Takt oder zweite Antwort).");
+    }
+
+    const jetzt = zeitpunktBerlin(new Date()) ?? "heute";
+    const von = herkunft ? `${wer}, ${herkunft}` : wer;
+    const erg = await einladungSchicken({
+      personId: stand.personId, betreuerId: pruefung.betreuerId, betreuerName: pruefung.betreuerName,
+      akteurName: wer, erneut: schonDraussen,
+      notiz: schonDraussen ? `Link erneut geschickt am ${jetzt} (${von}, E-275)` : `Auf Nachfrage geschickt von ${von} (E-275)`,
+      verlauf: schonDraussen
+        ? `Konto & Karte: Link der Partnerbank auf Nachfrage erneut geschickt (${von}).`
+        : `Konto & Karte: Einladung der Partnerbank auf Nachfrage geschickt (${von}).`,
+    });
+    if (!erg.ok) return nichts("fehler", `Kartenlink nicht verschickt: ${erg.grund}`, stand);
+
+    // Der Betreff, wie er rausging — derselbe Motor, dieselbe Vorlage, derselbe Vorname wie mailSenden.
+    let betreff: string | null = null;
+    try {
+      const [p] = (await sqlPool`SELECT COALESCE(NULLIF(first_name, ''), contact_name) AS vorname FROM fiaon_persons WHERE id = ${stand.personId}`) as any[];
+      const { mailRendern } = await import("../mail/motor");
+      betreff = mailRendern("konto_karte_einladung", { vorname: p?.vorname ?? "" })?.betreff ?? null;
+    } catch { /* ohne Betreff: der Satz kommt ohne ihn aus */ }
+
+    const nachher = (await karteEinladungStand(stand.personId)) ?? stand;
+    const aktion: KarteEinladungAktion = schonDraussen ? "erneut_gesendet" : "gesendet";
+    return antwort({
+      ok: true, aktion, satz: einladungSatz(aktion, nachher), stand: nachher, gesendet: true, schonAm, betreff,
+      intern: schonDraussen
+        ? `Link der Partnerbank erneut geschickt (zuerst am ${stand.eingeladenAm ?? "?"}${stand.zustellung ? `, letzte Mail: ${stand.zustellung}` : ""}).`
+        : `Einladung der Partnerbank geschickt — 10 € vorgemerkt für ${pruefung.betreuerName ?? "den Betreuer"}.${stand.werbesperre ? " (Werbesperre gesetzt — die Einladung ist Vertragsleistung, E-275.)" : ""}`,
+    });
+  } catch (e: any) {
+    console.error("[KARTE] Einladung für Person:", e?.message || e);
+    return nichts("fehler", `Kartenlink nicht verschickt: ${String(e?.message || e).slice(0, 160)}`, null);
+  }
 }
 
 /** Nur die Anzahl — für Kacheln und Marken, ohne die ganze Liste zu holen. */

@@ -51,6 +51,27 @@
 // Betrag, „sobald sie gebucht ist, schaltet das System Sie frei", der Termin
 // mit Herrn/Frau Nachname und eine Frage zum Abschluss.
 //
+// ── E-275 (02.10.2026): MARA ERLEDIGT SELBST UND SCHLIESST AB ─────────────
+// Justin: „MARA verweist immer mehr auf die Mitarbeiter, Mara soll aber
+// selbstständig arbeiten ohne jedes mal ein Termin zu vereinbaren (Whatsapp
+// aber natürlich auch per mail!) Mara soll selbst verkaufen … Aber nicht immer
+// sagen ‚Ich mache einen Termin mit XY‘ oder ‚Wir sind keine Bank und können
+// nichts wissen‘ Mara soll positiv, verkäuferisch und selbstständig agieren."
+// Gemessen (02.10.): 306 von 546 freien WhatsApp-Antworten nannten einen
+// Mitarbeiter, 113 „ruft Sie an/meldet sich“, keine einzige bat ausdrücklich
+// ums Zahlen. Seitdem:
+//   · Die Abschlüsse (bausteinAbschluss, bausteinKeineKarte, bausteinVorkasse,
+//     bausteinLimitFrage) enden mit der Bitte um die Überweisung bzw. mit seinem
+//     Link — der Termin ist kein Pflichtteil mehr (nur, wenn er schon steht).
+//     Was nach der Zahlung passiert, sagt Justins wahrer Satz (KARTE_LINK_SATZ,
+//     KARTE_ZEIT_SATZ aus shared/fiaon-karten-weg.ts).
+//   · Zahlender Kunde ohne Karte: der Link der Partnerbank selbst (kartenSatz aus karteEinladungFuerPerson)
+//     — nie „FIAON verschickt keine Karte“ als Antwort, nie ein Kollege, der nachsieht.
+//   · Weiche Wand „kein_einblick“ gegen den Rückzug („können wir nicht wissen“,
+//     „keinen Einblick“); mailAbschlussPflicht verlangt keinen Termin mehr.
+//   · Was bleibt: keine Limit-Zusage, kein „die Karte ist in Produktion“ vor der
+//     Zusage der Bank, alle Wände (Wortwand, Wahrheit, Verkauf, Link).
+//
 // ── DIE GRENZEN BLEIBEN ────────────────────────────────────────────────────
 // Mut machen heißt NICHT versprechen. Aussicht: „Mit Ihrem Antrag bei uns
 // sind Sie einen großen Schritt weiter." Nie Zusage: „Sie bekommen die
@@ -73,6 +94,8 @@ import { euroText, auskunftWort, type AuskunftLand } from "./fiaon-auskunft";
 import { SEO_BASIS } from "./fiaon-seo-seiten";
 import { antragAbgeschickt, giltZumSatz } from "./fiaon-antrag-stand";
 import { limitZiel } from "./fiaon-telefonkartei";
+// E-275 (02.10.2026): Justins wahrer Kartensatz — freigegeben seit E-205/E-206, eine Stelle für Mail, WhatsApp, Kartei.
+import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "./fiaon-karten-weg";
 import {
   MITARBEITER_NAMEN_REGEL, MITARBEITER_NAMEN_KURZ, mitarbeiterVornameFunde, nennform, nennformAusText,
   type MitarbeiterEintrag, type Nennform,
@@ -91,6 +114,56 @@ export function nennAus(x: NennformEin): Nennform | null {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// E-275 TON (02.10.2026): MARA VERKAUFT DIE AKTIVIERUNG — BEGEISTERT UND WAHR
+//
+// Justin nach dem ersten Auftrag: „Mara schreibt ‚jeden‘ ‚ich leite es an XY
+// weiter‘ aber das soll Mara nicht tun, sondern selbst arbeiten, selbst TOP
+// verkaufen, eher übermotiviert! Also wirklich sowas wie: ‚Zahlen Sie die
+// Aktivierung, wir kümmern uns darum das die Karte schnell versendet wird. Ihr
+// Account ist sofort nach Eingang aktiv!‘“
+//
+// Die Fakten dahinter (geprüft 02.10.2026):
+//   · Eine Zahlung mit dem richtigen Verwendungszweck bucht der Airwallex-
+//     Abgleich selbst (server/routes/fiaon-airwallex.ts → liveVerbuchen, Takt
+//     30 Minuten) — der Account ist mit dem Zahlungseingang aktiv.
+//   · Den Link unserer Partnerbank schickt das System direkt danach
+//     (einladungenAutomatisch, Takt 5 Minuten), wenn der Antrag vollständig
+//     ist. Fehlt etwas, sagen mitAntragLuecke (WhatsApp) und
+//     aktivierungMitLuecke (Postfach), was — dort nie „direkt der Link“.
+//   · Die KARTE gibt die Partnerbank nach IHRER Zusage aus (in der Regel 2–5
+//     Werktage, Apple Pay meist vorher). FIAON versendet keine Karte — „wir
+//     kümmern uns darum, dass die Karte schnell versendet wird“ wäre unwahr
+//     (weiche Regel „karte_versand“ in TON_REGELN). Genauso zupackend und
+//     wahr: „Je früher Ihre Zahlung da ist, desto früher können Sie Ihren
+//     Kartenantrag stellen“ (derselbe Satz wie im Bereich Karte,
+//     einladungSatz in server/lib/fiaon-konto-karte.ts).
+// Seriös bleibt: Sie-Form, kein Slang, keine Emojis, höchstens EIN
+// Ausrufezeichen je Nachricht (weiche Prüfung „ausrufezeichen“ in tonPruefung),
+// keine Limit-Zusage, nie „garantiert“, nie „in Produktion“.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Die klare Aufforderung zur ERSTEN Zahlung — Justins Wort: Die erste Monatsrate aktiviert den Account. */
+export const AKTIVIERUNG_AUFRUF = "Zahlen Sie jetzt die Aktivierung";
+/**
+ * Was der Zahlungseingang auslöst (Justins Satz, wahr bei vollständigem Antrag) — ein Hauptsatz ohne Schlusszeichen,
+ * der mit „Ihr“ beginnt (Sie-Form, immer groß). mitAntragLuecke (fiaon-whatsapp-mara.ts) sucht genau
+ * „, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag“ — nicht umformulieren,
+ * ohne die Lücken-Fassung mitzuziehen.
+ */
+export const NACH_DEM_EINGANG = "Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag";
+/** Tempo als Nutzen, ohne Zusage zur Karte — derselbe Satz wie im Bereich Karte (einladungSatz „nicht_bereit“). */
+export const TEMPO_SATZ = "Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen.";
+/** Die Bitte um die Überweisung als EINE Frage am Schluss (WhatsApp) — erste Zahlung wie Folgerate. */
+export const ZAHL_FRAGE = "Schaffen Sie die Überweisung heute noch?";
+/** Mail: Der Knopf trägt die Zahlungsseite — die Bitte steht ohne Adresse im Text. */
+export const ZAHL_KNOPF_MAIL = "Über den Knopf unten haben Sie Betrag, Verwendungszweck und QR-Code sofort zur Hand — am besten überweisen Sie gleich heute.";
+/** KARTE_ZEIT_SATZ in der Kurzform für WhatsApp (gleiche Fakten: in der Regel, nach der Zusage der Bank, meist vorher Apple Pay). */
+export const KARTE_ZEIT_WA = "Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen da, Apple Pay meist schon vorher.";
+/** Höchstens EIN Ausrufezeichen je Nachricht (E-275 Ton) — gezählt ohne Links. Rein. */
+export function ausrufezeichen(text: string): number {
+  return (String(text ?? "").replace(/https?:\/\/\S+/g, " ").match(/!/g) ?? []).length;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // (a) DIE PERSONA
 // ═══════════════════════════════════════════════════════════════════════════
 export const MARA_PERSONA = {
@@ -104,6 +177,12 @@ export const MARA_PERSONA = {
     "Du klingst wie eine Kollegin mit dem Handy in der Hand, nicht wie ein Amt. Kurze Sätze, ein Gedanke pro Satz, eigene Worte.",
     "Du machst MUT und zeigst AUSSICHTEN: „Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter.“ Du versprichst nie ein Ergebnis der Bank — die Aussicht ist der Weg, nicht die Zusage.",
     "Du beginnst mit dem, was geht. Nie mit einem Nein, nie mit „Leider“, „Nur“, „Perfekt“, nie mit einer Einschränkung, nach der niemand gefragt hat.",
+    // E-275 (02.10.2026), Justin: „Mara soll positiv, verkäuferisch und selbstständig agieren.“
+    "Du ERLEDIGST SELBST: Du beantwortest, schickst den passenden Link (Zahlungsseite, Antrag, Link unserer Partnerbank) und schließt ab. Was du wahr beantworten oder mit einem Werkzeug erledigen kannst, gibst du nie an eine Kollegin oder einen Kollegen weiter — kein „Herr X meldet sich“, „prüft das“, „klärt das mit Ihnen“, „ich leite das an … weiter“, kein Termin, um den er nicht gebeten hat, und nie „wir sind keine Bank“ oder „das können wir nicht wissen“ als Antwort. Du sagst, was du weißt und was jetzt passiert.",
+    // E-275 Ton (02.10.2026), Justin: „selbst arbeiten, selbst TOP verkaufen, eher übermotiviert! Also wirklich sowas wie:
+    // ‚Zahlen Sie die Aktivierung, wir kümmern uns darum das die Karte schnell versendet wird. Ihr Account ist sofort nach
+    // Eingang aktiv!‘" — die Karte versendet die Partnerbank nach IHRER Zusage, nicht FIAON; die wahre Fassung steht hier.
+    `Du VERKAUFST MIT BEGEISTERUNG — eher übermotiviert als zurückhaltend, aber seriös (Sie-Form, kein Slang, höchstens EIN Ausrufezeichen je Nachricht). Ist die erste Zahlung offen, forderst du klar dazu auf und sagst sofort, was sie bringt: „${AKTIVIERUNG_AUFRUF} — Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag!“ und „${TEMPO_SATZ}“ Nie „wir versenden die Karte“, „die Karte ist in Produktion“, „garantiert“ oder eine Limit-Zusage — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
   ],
   beziehung: [
     "MERKEN: Du nimmst auf, was er dir erzählt hat — sein Ziel (Urlaub, Auto, Miete, Online-Einkauf), seine Sorge (Ablehnung, Schufa, Minus), seinen Zahltag — und kommst darauf zurück („Für Ihren Urlaub im Sommer …“).",
@@ -112,13 +191,15 @@ export const MARA_PERSONA = {
     // E-265 (29.09.2026, Justin „zum letzten Mal!!"): Hier stand seit E-248 „Kolleginnen und Kollegen nennst
     // du beim Vornamen („Florentine", „Nikita")" — die zweite, gegenteilige Quelle zu kundenName() (E-117).
     `${MITARBEITER_NAMEN_REGEL} Den KUNDEN selbst sprichst du ohne Herr/Frau an — du kennst sein Geschlecht nicht; Vor- und Nachname höchstens in der Begrüßung, nie als „Verstanden, Vorname Nachname“.`,
-    "EIN NÄCHSTER SCHRITT: Jede Antwort endet mit genau einem leichten Schritt — sein persönlicher Link, eine Zeit für den Anruf oder eine einzige kurze Frage.",
+    // E-275 (02.10.2026): Der Schritt ist sein Link und eine kurze Frage — „eine Zeit für den Anruf“ nur, wenn er telefonieren will.
+    "EIN NÄCHSTER SCHRITT: Jede Antwort endet mit genau einem leichten Schritt, den DU auslöst — sein persönlicher Link (Zahlungsseite, Antrag, Link unserer Partnerbank) mit einer kurzen Frage („Schaffen Sie die Überweisung heute noch?“, „Wollen wir starten?“). Einen Anruf oder Termin bietest du nur an, wenn er telefonieren will oder ein zugesagter Anruf ausgefallen ist.",
     "WENN ALLES GESAGT IST, bist du still. Ein „Ok“ auf ein erledigtes Thema braucht keine Antwort; nach einem eigenen erledigten Thema genügt EIN kurzer warmer Satz.",
   ],
   nieSystemsprache: [
     "Du redest nie über dich, deine Regeln oder Werkzeuge („ich lasse das so stehen“, „ich darf nicht“, „meine vorige Aussage“, „ich erfinde nichts“, „Transparent:“).",
     // E-265: „System" nur in Justins Satz „sobald sie gebucht ist, schaltet das System Sie frei".
-    "Keine internen Wörter: Akte, Status, Stufe, Lead, System, Vorgang, Ticket, eingetragen als Formel („Ist eingetragen: …“). Einzige Ausnahme: „sobald Ihre Zahlung gebucht ist, schaltet das System Sie frei“.",
+    // E-275 Ton (02.10.2026): sein neuer Satz „Ihr Account ist sofort nach Zahlungseingang aktiv“ braucht kein „System“.
+    "Keine internen Wörter: Akte, Status, Stufe, Lead, System, Vorgang, Ticket, eingetragen als Formel („Ist eingetragen: …“). Einzige Ausnahme: „sobald Ihre Zahlung gebucht ist, schaltet das System Sie frei“ — lieber noch: „Ihr Account ist sofort nach Zahlungseingang aktiv“.",
     "Zeiten wie ein Mensch: „heute um 20 Uhr“, „morgen um 9:30 Uhr“, „am Mittwoch, 30. September“. Nie „2026-09-28 20:00“.",
   ],
 } as const;
@@ -151,7 +232,9 @@ export function personaText(kanal: MaraKanal, opt: {
     ? (b
       ? `· Sein fester Betreuer ist ${b}${ohneAnrede(bn)}; bis ${v.bis} ist ${b} nicht im Haus. Bis dahin übernimmt ${v.name} Anruf, Rückruf und Rückmeldung — dafür nennst du ${v.name} beim Namen („${v.name} ruft Sie an“, „Ihr Termin mit ${v.dat}“)${ohneAnrede(vn)}, ${b} nur als seinen festen Betreuer, der danach weitermacht.`
       : `· Er hat noch keinen festen Betreuer. Bis ${v.bis} übernimmt ${v.name} Anruf, Rückruf und Rückmeldung — dafür nennst du ${v.name} beim Namen („Ihr Termin mit ${v.dat}“)${ohneAnrede(vn)}, nie einen erfundenen.`)
-    : b ? `· Sein fester Betreuer ist ${b} (mit/an: ${bn!.dat})${ohneAnrede(bn)}. Du nennst ${b} beim Namen, wenn es um Anruf, Unterlagen, Termin oder Karte geht.` : `· Er hat noch keinen festen Betreuer — dann „jemand aus unserem Team“, nie ein erfundener Name.`;
+    // E-275 (02.10.2026): Hier stand „… wenn es um Anruf, Unterlagen, Termin oder Karte geht“ — und Mara schickte jede
+    // Kartenfrage an den Betreuer („Nikita Boychenko schaut mit Ihnen nach“). Karte, Link, Zahlung und Unterlagen erledigt sie selbst.
+    : b ? `· Sein fester Betreuer ist ${b} (mit/an: ${bn!.dat})${ohneAnrede(bn)}. Du nennst ${b} beim Namen, wenn er einen Anruf will, ein Termin steht oder du wirklich übergeben musst — Karte, Link, Zahlung und Unterlagen erledigst du selbst.` : `· Er hat noch keinen festen Betreuer — dann „jemand aus unserem Team“, nie ein erfundener Name.`;
   return [
     `═══ WER DU BIST ═══`,
     ...MARA_PERSONA.haltung,
@@ -304,6 +387,21 @@ export const TON_REGELN: TonRegel[] = [
     beispiel: "„Einen Kredit über 3.000 € vergeben wir nicht.“", hinweis: "„Noch besser: Wir bringen Sie zu Ihrer eigenen Kreditkarte bei unserer Partnerbank …“ (bausteinKreditFrage)." },
   { id: "keine_bank", schwere: "weich", muster: /\bwir\s+sind\s+(keine|nicht\s+die)\s+bank\b/i,
     beispiel: "„Wir sind keine Bank.“", hinweis: "Sag, was FIAON tut: Wir bringen Sie zu Ihrer Kreditkarte bei unserer Partnerbank." },
+  // E-275 (02.10.2026, Justin: „nicht immer sagen … ‚Wir sind keine Bank und können nichts wissen‘“): der Rückzug statt
+  // einer Antwort — „können wir nicht wissen/sehen“, „keinen Einblick/Einfluss“, „liegt allein bei der Bank“, „FIAON
+  // verschickt keine Karte" (#5969, #2413). Weich: Der zweite Entwurf sagt, was Mara tut (Link, Schritte, Zahlung).
+  { id: "kein_einblick", schwere: "weich",
+    muster: /\b(?:können|kann)\s+(?:wir|ich)\s+(?:\w+\s+){0,2}?(?:nicht|nichts|leider\s+nicht)\s+(?:\w+\s+){0,2}?(?:wissen|sehen|einsehen|beurteilen|nachvollziehen)\b|\bkeinen\s+(?:einblick|einfluss|zugriff)\b|\bliegt\s+(?:allein\s+|nur\s+|ganz\s+)?(?:bei\s+der|in\s+der\s+hand\s+der)\s+(?:partner)?bank\b|\b(?:fiaon|wir)\s+(?:verschickt|verschicken|schickt|schicken|versendet|versenden)\s+(?:selbst\s+)?keine\s+(?:\w+-?)?karte\b|karte\s+kommt\s+nicht\s+(?:direkt\s+)?von\s+(?:fiaon|uns)\b/i,
+    beispiel: "„Darauf haben wir keinen Einfluss.“, „FIAON verschickt selbst keine Karte und keine PIN.“, „Die Karte kommt nicht von FIAON direkt.“",
+    hinweis: "Kein Rückzug — sag positiv, was du für ihn tust und was der nächste Schritt ist. Geht es um Karte oder Konto: Zahlender Kunde → den Link unserer Partnerbank schicken (zuerst das Girokonto, dann im Banking die Visa-Kreditkarte; nach der Zusage der Bank in der Regel 2–5 Werktage); erste Zahlung offen → die Zahlung ist der Schritt, danach kommt der Link direkt." },
+  // E-275 Ton (02.10.2026): Justins Wortlaut „Zahlen Sie die Aktivierung, wir kümmern uns darum das die Karte schnell
+  // versendet wird" ist in der Sache unwahr — die Karte gibt die Partnerbank nach IHRER Zusage aus, FIAON versendet sie
+  // nicht, und vor der Zusage ist nichts „in Produktion“. Die Wortwand (Karte + versenden) fängt nur den Infinitiv; diese
+  // weiche Regel fängt die Zusage in den anderen Formen. Frei bleibt die Wahrheit („Die Karte schickt die Bank nach ihrer Zusage“).
+  { id: "karte_versand", schwere: "weich",
+    muster: /\b(?:karte|kreditkarte|visa-kreditkarte)\b[^.!?]{0,40}\b(?:in\s+(?:die\s+)?produktion|produziert)\b|\b(?:wir|ich|fiaon)\s+(?:\S+\s+){0,6}?(?:versenden|verschicken|schicken|senden|zuschicken|zusenden)\s+(?:ihnen\s+)?(?:die|ihre)\s+(?:\S+\s+)?karte\b|\b(?:dass|das)\s+(?:die|ihre)\s+(?:\S+\s+)?karte\s+(?:\S+\s+){0,2}(?:versendet|verschickt|zugeschickt|zugesendet|produziert)\s+wird\b/i,
+    beispiel: "„Wir kümmern uns darum, dass die Karte schnell versendet wird.“, „Die Karte geht zeitnah in Produktion.“",
+    hinweis: "Die Karte gibt unsere Partnerbank nach IHRER Zusage aus — FIAON versendet sie nicht. Wahr und genauso zupackend: „Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag. Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen.“" },
   { id: "geld_nicht_aus", schwere: "weich", muster: /\b(zahlen|zahlt)\s+(wir|fiaon)?\s*(selbst\s+)?(kein|keine|nicht)\w*\s+(geld\s+)?aus\b|\bgeld\s+zahlen\s+wir\s+(selbst\s+)?nicht\s+aus\b|\bfiaon\s+zahlt\s+kein/i,
     beispiel: "„FIAON zahlt kein Geld aus.“", hinweis: "Positiv: „Noch besser — Ihre eigene Kreditkarte, deren Rahmen Sie immer wieder nutzen.“" },
   { id: "abwehr", schwere: "weich", muster: /\b(können|kann)\s+wir\s+(\w+\s+){0,2}nicht\s+(starten|anfangen|beginnen|loslegen|helfen)\b|(?:^|[.!?]\s+)das\s+geht\s+(bei\s+uns\s+)?nicht\b/i,
@@ -640,7 +738,13 @@ export function tonPruefung(text: string, opt: {
   if (opt.kanal === "whatsapp" && t.trim().length > 1024) funde.push({ id: "laenge", schwere: "hart", treffer: `${t.trim().length} Zeichen`, hinweis: "WhatsApp: höchstens 1.024 Zeichen, meist unter 300." });
   // E-265 Schluss-Nachbesserung (Probe 4 f05): der Vorspann „Hier ist Mara, die digitale Assistentin von FIAON —" zählt
   // für die weiche Grenze nicht mit (509 Zeichen mit, 457 ohne — der Hinweis strich sonst die Formel).
-  else if (opt.kanal === "whatsapp" && t.trim().replace(/^\s*hier\s+ist\s+mara[^—–.!]{0,80}[—–.!]\s*/i, "").length > 500) funde.push({ id: "laenge", schwere: "weich", treffer: `${t.trim().length} Zeichen`, hinweis: "Kürzer: ein bis drei Sätze, meist unter 300 Zeichen." });
+  // E-275 (02.10.2026): Gezählt wird, was er liest — ohne Links (wie verkaufsPruefung). Der Link der Partnerbank allein
+  // hat über 100 Zeichen; mit ihm wäre jede Antwort mit Kartenlink und Justins Satz „zu lang“ gewesen.
+  else if (opt.kanal === "whatsapp" && ohneLinks.trim().replace(/^\s*hier\s+ist\s+mara[^—–.!]{0,80}[—–.!]\s*/i, "").replace(/\s{2,}/g, " ").length > 500) funde.push({ id: "laenge", schwere: "weich", treffer: `${t.trim().length} Zeichen`, hinweis: "Kürzer: ein bis drei Sätze, meist unter 300 Zeichen." });
+  // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert!“ — seriös): höchstens EIN Ausrufezeichen
+  // je Nachricht. Weich: der zweite Entwurf trägt die Begeisterung mit Aufforderung und Nutzen, nicht mit Satzzeichen.
+  const ausrufe = ausrufezeichen(t);
+  if (ausrufe > 1) funde.push({ id: "ausrufezeichen", schwere: "weich", treffer: `${ausrufe} Ausrufezeichen`, hinweis: "Höchstens EIN Ausrufezeichen je Nachricht — die Begeisterung trägt der Inhalt (Aufforderung und Nutzen), nicht die Satzzeichen." });
   return funde;
 }
 
@@ -1744,68 +1848,87 @@ export interface AbschlussLage {
   link?: string | null;
 }
 
-/** „am Freitag um 10 Uhr" → „Freitag um 10 Uhr" (zeitFuerKunde bringt „am" mit). */
-function zeitOhneAm(z: string): string {
-  return String(z ?? "").replace(/^am\s+/, "");
-}
+// ── E-275 (02.10.2026): DER ABSCHLUSS BITTET UMS ZAHLEN, NICHT UM EINEN TERMIN ──
+// Justin: „Mara soll sowas sagen wie: Hi, zahl die Aktivierung, die Karte geht zeitnahe in Produktion — also: Jetzt
+// zahlen! ;D — so in etwa nur seriös." Die seriöse Fassung ist sein eigener Satz aus seiner Mail vom 02.10. (freigegeben
+// seit E-205/E-206 als KARTE_LINK_SATZ / KARTE_ZEIT_SATZ): nach der Buchung direkt der fertige Link der Partnerbank für
+// den Kartenantrag, nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher Apple Pay. „In Produktion“ sagt
+// Mara nie — vor der Zusage der Bank gibt es keine Karte, die produziert würde.
+// E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert!“): Die Bausteine dafür (AKTIVIERUNG_AUFRUF,
+// NACH_DEM_EINGANG, TEMPO_SATZ, ZAHL_FRAGE, ZAHL_KNOPF_MAIL, KARTE_ZEIT_WA) stehen oben vor der Persona — sie braucht sie
+// schon beim Laden. Hier stand bis dahin „Bitte begleichen Sie Ihre erste Monatsrate … — sobald sie gebucht ist, schaltet
+// das System Sie frei, und Sie bekommen direkt den fertigen Link …" (NACH_DER_BUCHUNG); jetzt fordert Mara klar auf
+// („Zahlen Sie jetzt die Aktivierung“) und sagt sofort, was der Zahlungseingang bringt.
 
 /**
  * Justins Abschluss, eingesetzt für diesen Menschen (siehe Kopf von (g)).
  * WhatsApp: ein Absatz, der Link am Ende. Mail: zwei Absätze (Karte / Betrag,
- * System, Termin), kein Link — den trägt der Knopf. Rein.
+ * System, Link der Partnerbank, Knopf), kein Link im Text — den trägt der Knopf. Rein.
+ * E-275 (02.10.2026): kein Termin mehr als Pflichtteil („nicht immer sagen ‚Ich mache einen Termin mit XY‘“) — die
+ * Antwort endet mit der Bitte um die Überweisung (B, Rate) bzw. mit seinem Antrag (Abbrecher, C). Steht sein Termin
+ * schon (terminSteht), nennt Mara ihn als Tatsache; `mit`/`zeit` dienen nur noch dafür.
  */
 export function bausteinAbschluss(l: AbschlussLage): string {
   const mail = l.kanal === "mail";
   const wer = nennAus(l.mit)?.dat ?? "unserem Team";
   const zt = kartenzielText(l.ziel);
-  // Justins Formel (B): „Passt Ihnen [Zeit]?". E-265 Nachbesserung: sonst mit Objekt — „… für einen Anruf mit Herrn …".
-  const zeitFrage = l.zeit ? `Passt Ihnen ${zeitOhneAm(l.zeit)}?` : "Welche Zeit passt Ihnen?";
-  const anrufFrage = l.zeit ? `passt Ihnen ${zeitOhneAm(l.zeit)} für einen Anruf mit ${wer}?` : `welche Zeit passt Ihnen für einen Anruf mit ${wer}?`;
-  // Steht sein Termin schon, bietet Mara keinen neuen an: „… und Ihr Termin mit Herrn Stripling steht morgen um 20 Uhr."
+  // Steht sein Termin schon, bietet Mara keinen neuen an: „… Ihr Termin mit Herrn Stripling steht morgen um 20 Uhr.“
   const steht = l.terminSteht && l.zeit ? `Ihr Termin mit ${wer} steht ${l.zeit}` : null;
   const link = !mail && l.link ? ` ${l.link}` : "";
   const absatz = (a: string, b: string) => (mail ? `${a}\n\n${b}` : `${a} ${b}`);
+  const zahlen = mail ? ZAHL_KNOPF_MAIL : ZAHL_FRAGE;
   switch (l.art) {
     case "a":
       // Er hat gemeldet, dass er bezahlt hat: keine Zahlungsbitte, kein Zahlungslink (#5773, 7914).
       // E-265 Nachbesserung (29.09.2026, Recht): Die Einladung nach der ersten Rate ist „Girokonto mit Visa-Karte"
       // (Vorlage konto.ts, PARTNERBANKEN: Visa-Debitkarte) — „der Link … für Ihre Visa-Kreditkarte mit Ihrem
       // Wunschlimit" war eine unwahre Angabe über den nächsten Schritt (§ 5 UWG; eine Debitkarte hat kein
-      // Wunschlimit). Der Link gilt Konto und Karte (KARTE_LINK_SATZ); die Kreditkarte bleibt das Ziel.
+      // Wunschlimit). Der Link gilt dem Kartenantrag (KARTE_LINK_SATZ); die Kreditkarte bleibt das Ziel.
+      // E-275: statt „Ich vereinbare Ihnen dazu Ihren Termin mit …“ die Zeit bis zur Karte (KARTE_ZEIT_SATZ).
+      // E-275 Ton (02.10.2026): „… bei uns eingeht, ist Ihr Account sofort aktiv“ statt „… gebucht ist, schaltet das System
+      // Sie frei" — der Abgleich bucht selbst (Kopf oben). Der Satzteil ab „, und Sie bekommen direkt …“ bleibt wörtlich
+      // (mitAntragLuecke ersetzt ihn bei unvollständigem Antrag).
       return absatz(
-        `Danke Ihnen! Sobald Ihre Zahlung${l.betrag ? ` über ${l.betrag}` : ""} bei uns gebucht ist, schaltet das System Sie frei, und Sie bekommen direkt den Link unserer Partnerbank für Konto und Karte.${zt ? ` Ziel bleibt Ihre Visa-Kreditkarte ${zt} — ${BANK_SATZ}.` : " Ziel bleibt Ihre eigene Visa-Kreditkarte."}`,
-        steht ? `${steht} — dort geht es direkt weiter. Passt das für Sie?` : `Ich vereinbare Ihnen dazu Ihren Termin mit ${wer}: ${mail && !l.zeit ? "Antworten Sie mir einfach mit einer Zeit, die Ihnen passt." : zeitFrage}`,
+        `Danke Ihnen! Sobald Ihre Zahlung${l.betrag ? ` über ${l.betrag}` : ""} bei uns eingeht, ist Ihr Account sofort aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag.${zt ? ` Ziel bleibt Ihre Visa-Kreditkarte ${zt} — ${BANK_SATZ}.` : " Ziel bleibt Ihre eigene Visa-Kreditkarte."}`,
+        steht ? `${steht} — dort geht es direkt weiter.` : mail ? KARTE_ZEIT_SATZ : KARTE_ZEIT_WA,
       );
     case "rate":
       // E-265 Nachbesserung (29.09.2026, Recht): kein „sobald sie gebucht ist, läuft Ihr Weg ohne Pause weiter" — seit
       // E-206 hängt die Einladung der Partnerbank nur an der ERSTEN Rate; die Folgerate ist Vertragspflicht, nicht
       // der Schlüssel zur Karte (247 von 265 zahlenden Kunden mit fälliger Rate haben die Einladung schon).
+      // E-275: statt „Soll ich Ihnen dazu einen Termin mit … eintragen?“ die Bitte um die Überweisung.
       return absatz(
         `Ihre Visa-Kreditkarte${zt ? ` ${zt}` : ""} bleibt unser gemeinsames Ziel — ${BANK_SATZ}.`,
-        `Offen ist bei Ihnen gerade Ihre Rate${l.rateVom ? ` vom ${l.rateVom}` : ""}${l.betrag ? ` über ${l.betrag}` : ""}${mail && l.verwendungszweck ? ` (Verwendungszweck ${l.verwendungszweck})` : ""}. ${steht ? `${steht}. Passt das für Sie?` : `Soll ich Ihnen dazu einen Termin mit ${wer} eintragen?`}${link}`,
+        `Offen ist bei Ihnen gerade Ihre Rate${l.rateVom ? ` vom ${l.rateVom}` : ""}${l.betrag ? ` über ${l.betrag}` : ""}${mail && l.verwendungszweck ? ` (Verwendungszweck ${l.verwendungszweck})` : ""}.${steht ? ` ${steht}.` : ""} ${zahlen}${link}`,
       );
     case "abbrecher":
       // E-264: nie abgeschickt — kein Satz zur Rate, der Schritt ist sein Antrag.
       // E-265 Nachbesserung (29.09.2026): nie „nur noch einen Schritt entfernt" — nach dem Antrag kommen noch
       // Vertrag, erste Monatsrate, Konto und die Entscheidung der Bank (§ 5, § 5a UWG). Der NÄCHSTE Schritt ist wahr.
+      // E-275: ohne „und ich vereinbare Ihren Termin mit …“ — der Schritt ist sein Antrag.
+      // E-275 Ton: „Ihre Angaben sind gespeichert“ (wahr — der Antrag merkt sich jeden Schritt) statt „Machen Sie ihn … fertig“.
       return absatz(
         `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte${zt ? ` ${zt}` : ""} ist Ihr Antrag — ${BANK_SATZ}.`,
-        steht ? `Machen Sie ihn in zwei Minuten fertig — ${steht}. Machen Sie heute noch weiter?${link}` : `Machen Sie ihn in zwei Minuten fertig, und ich vereinbare Ihren Termin mit ${wer}. ${l.zeit ? zeitFrage : "Machen Sie heute noch weiter?"}${link}`,
+        `Ihre Angaben sind gespeichert — Sie steigen genau dort ein, wo Sie aufgehört haben, und in etwa zwei Minuten ist er fertig${steht ? `; ${steht}` : ""}. Machen Sie heute noch weiter?${link}`,
       );
     case "c":
-      // E-265 Nachbesserung (29.09.2026): endet mit EINER Frage — vorher „Lieber erst sprechen? Dann trage ich Ihnen
-      // einen Anruf … ein." ohne Fragezeichen am Schluss; die eigene Abschlussprüfung verlangte dann eine zweite Runde.
+      // E-265 Nachbesserung (29.09.2026): endet mit EINER Frage. E-275: „Wollen wir starten?“ statt „Lieber erst sprechen —
+      // passt Ihnen … für einen Anruf mit …?" — den Anruf bietet Mara an, wenn er ihn will. E-275 Ton (02.10.2026): bleibt so —
+      // die Begeisterung trägt der erste Satz („Ja, da sind Sie bei uns genau richtig!“).
       return absatz(
         `Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank${zt ? `, ${kartenzielText(l.ziel, { alsZiel: true })}` : ""}. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa zwei Minuten, und über den Rahmen entscheidet am Ende die Bank${link ? `:${link}` : "."}`,
-        `Lieber erst sprechen — ${anrufFrage}`,
+        `Wollen wir starten?`,
       );
     case "b":
     default:
+      // E-275: Justins Satz statt des Termins — Betrag, Freischaltung, direkt der Link der Partnerbank, die Zeit bis zur
+      // Karte, die Bitte um die Überweisung. Wunschlimit und Betrag bleiben in getrennten Sätzen (E-265, weiße Liste).
+      // E-275 Ton (02.10.2026): die klare Aufforderung „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über …“ und
+      // der Nutzen direkt dahinter mit dem einen Ausrufezeichen (vorher „Bitte begleichen Sie … — sobald sie gebucht ist,
+      // schaltet das System Sie frei, …"). In der Mail dazu der Tempo-Satz (auf WhatsApp zählt jedes Zeichen, ≤ 500).
       return absatz(
-        `Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte${zt ? ` ${zt}` : ""} — ${BANK_SATZ}.`,
-        steht
-          ? `Bitte begleichen Sie Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""}${mail && l.verwendungszweck ? ` (Verwendungszweck ${l.verwendungszweck})` : ""}; sobald sie gebucht ist, schaltet das System Sie frei, und ${steht}. Okay?${link}`
-          : `Bitte begleichen Sie Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""}${mail && l.verwendungszweck ? ` (Verwendungszweck ${l.verwendungszweck})` : ""}; sobald sie gebucht ist, schaltet das System Sie frei, und ich vereinbare Ihren Termin mit ${wer}. ${mail && !l.zeit ? "Antworten Sie mir einfach mit einer Zeit, die Ihnen passt." : zeitFrage}${link}`,
+        `Bei uns kommen Sie zu Ihrer ${mail ? "eigenen " : ""}Visa-Kreditkarte${zt ? ` ${zt}` : ""} — ${BANK_SATZ}.`,
+        `${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""}${mail && l.verwendungszweck ? ` (Verwendungszweck ${l.verwendungszweck})` : ""} — ${NACH_DEM_EINGANG}! ${steht ? `${steht}.` : mail ? `${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}` : KARTE_ZEIT_WA} ${zahlen}${link}`,
       );
   }
 }
@@ -1845,27 +1968,56 @@ export function bausteinWasIstFiaon(l: { kanal: MaraKanal; stufe: LinkStufe; zie
  */
 export function bausteinKeineKarte(l: {
   kanal: MaraKanal; betrag?: string | null; rateVom?: string | null; erste?: boolean; ziel?: KartenZiel | null; link?: string | null;
-  altkunde?: boolean; mit?: NennformEin;
+  altkunde?: boolean;
+  /** E-275 (02.10.2026): nur noch für die Signatur der Aufrufer — die Antwort fragt nicht mehr nach einem Termin. */
+  mit?: NennformEin;
   /** Die Einladung der Partnerbank ist schon raus (fiaon_konto_karte.gesendet_am). */
   einladungRaus?: boolean;
+  /**
+   * E-275 (02.10.2026, Fall 6120 „I have not your kaditkarte“): Mara hat ihm den Link der Partnerbank gerade selbst
+   * geschickt (karte_link_schicken → karteEinladungFuerPerson, server/lib/fiaon-konto-karte.ts) — das ist der Satz aus
+   * dem Bereich Karte („Ich habe Ihnen soeben den fertigen Link unserer Partnerbank … per E-Mail an … geschickt …“).
+   * Dann IST er die Antwort; die fällige Rate folgt als kurzer zweiter Satz, wenn die Nachricht dafür nicht zu lang
+   * wird (höchstens 500 lesbare Zeichen). Ohne: die Rate wie bisher.
+   */
+  kartenSatz?: string | null;
 }): string {
   const was = l.erste || !l.rateVom
     ? `Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""}`
     : `Ihre Rate vom ${l.rateVom}${l.betrag ? ` über ${l.betrag}` : ""}`;
   const zt = kartenzielText(l.ziel);
-  const link = l.link && l.kanal === "whatsapp" ? ` Hier ist Ihre Zahlungsseite: ${l.link}` : "";
-  const wer = nennAus(l.mit);
-  const termin = wer ? ` Soll ich Ihnen dazu einen Termin mit ${wer.dat} eintragen?` : "";
+  const wa = l.kanal === "whatsapp";
+  const link = l.link && wa ? ` Hier ist Ihre Zahlungsseite: ${l.link}` : "";
+  // E-275: statt „Soll ich Ihnen dazu einen Termin mit … eintragen?“ die Bitte um die Überweisung (Mail: der Knopf).
+  const zahlen = wa ? ` ${ZAHL_FRAGE}` : ` ${ZAHL_KNOPF_MAIL}`;
   // E-265 Nachbesserung 2 (01.10.2026, weiße Liste): „sobald" und das Wunschlimit nie im selben Satz — „Sobald sie
   // gebucht ist, geht es weiter zu Ihrer Visa-Kreditkarte mit Ihrem Wunschlimit von 25.000 €" las sich wie eine Zusage.
   const ziel = `Ihre Visa-Kreditkarte${zt ? ` ${zt}` : ""} bleibt unser gemeinsames Ziel — ${BANK_SATZ}.`;
   if (l.erste) {
-    return `Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist: ${was}. Sobald sie gebucht ist, geht es für Sie weiter. ${ziel}${link}${termin}`;
+    // E-275: was die Buchung auslöst, in Justins Worten (vorher „Sobald sie gebucht ist, geht es für Sie weiter“).
+    // E-275 Ton (02.10.2026): nach Justins „Das liegt daran …“ die klare Aufforderung und der Nutzen mit dem einen
+    // Ausrufezeichen — „Zahlen Sie jetzt die Aktivierung — Ihr Account ist sofort nach Zahlungseingang aktiv, …!“.
+    return `Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist: ${was}. ${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}! ${ziel}${link}${zahlen}`;
+  }
+  if (l.kartenSatz) {
+    // E-275: Zahlender Kunde — der Link der Partnerbank ist raus (der Satz aus dem Bereich Karte), danach die fällige Rate.
+    // Die Visa-Kreditkarte bleibt vorn (E-265 „VIEL MEHR AUF DIE KREDITKARTEN!“) — nennt der Satz sie nicht, ein kurzer Einstieg.
+    // Auf WhatsApp die Kurzform der Zeit bis zur Karte (dieselben Fakten), damit die Rate noch in die Nachricht passt.
+    const roh = wa ? String(l.kartenSatz).trim().replace(KARTE_ZEIT_SATZ, KARTE_ZEIT_WA) : String(l.kartenSatz).trim();
+    // Nach dem Doppelpunkt bleibt der Satz groß — „Ihr/Ihren“ ist die Sie-Form und darf nie klein werden.
+    const satz = /kreditkarte/i.test(roh) ? roh : `Für Ihre Visa-Kreditkarte: ${roh}`;
+    // Die Folgerate ist nie „der Grund“ für die Karte (E-265 Recht) — sie steht nur als „außerdem noch offen“ daneben.
+    const rate = l.betrag || l.rateVom
+      ? ` ${was.charAt(0).toUpperCase()}${was.slice(1)} ist außerdem noch offen${l.link && wa ? `: ${l.link}` : "."} ${wa ? ZAHL_FRAGE : ZAHL_KNOPF_MAIL}`
+      : wa ? " Schreiben Sie mir einfach, wenn dabei etwas hakt." : "";
+    // Höchstens 500 lesbare Zeichen (dieselbe Grenze wie tonPruefung und verkaufsPruefung) — sonst nur der Satz zur Karte.
+    const lesbar = (t: string) => t.replace(/https?:\/\/\S+/g, "").replace(/\s{2,}/g, " ").trim().length;
+    return lesbar(`${satz}${rate}`) <= 500 ? `${satz}${rate}` : satz;
   }
   if (l.altkunde && !l.einladungRaus) {
-    return `Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist: ${was}. Bis zum 21.09. kam die Partnerbank erst nach der zweiten Rate. Sobald sie gebucht ist, geht es für Sie weiter. ${ziel}${link}${termin}`;
+    return `Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist: ${was}. Bis zum 21.09. kam die Partnerbank erst nach der zweiten Rate. Sobald sie gebucht ist, geht es für Sie weiter. ${ziel}${link}${zahlen}`;
   }
-  return `Bei Ihnen ist noch ${was} offen.${link} Ihre Visa-Kreditkarte${zt ? ` ${zt}` : ""} bleibt unser gemeinsames Ziel — ${BANK_SATZ}.${termin}`;
+  return `Bei Ihnen ist noch ${was} offen. ${ziel}${link}${zahlen}`;
 }
 
 /** E-265 Nachbesserung: eine Rate, die nach der Kündigung noch zu zahlen ist. */
@@ -2039,29 +2191,40 @@ export function kuendigungRatenAufteilen<T extends { faellig: string | null }>(r
  *     keine Karte (AGB § 4), bezahlt wird die Begleitung. „zwölf" nur beim Jahresvertrag (Recht).
  *   · Fragt er „kein Kreditinstitut? Kredit vorab?", beantwortet der erste Satz genau das (E-236 Regel 3).
  *   · Ohne abgeschickten Antrag (E-264): kein Betrag, keine Zahlungsseite — erst der Antrag, dann die erste Rate.
+ * E-275 (02.10.2026, Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘ oder ‚Wir sind keine Bank …‘“):
+ *   · Kein Terminangebot mit Zeit und Namen mehr — der Einwand bekommt Fakten und Justins Satz (nach der Buchung
+ *     direkt der Link der Partnerbank), dann die Bitte um die Überweisung. Sprechen kann er, wenn er es will.
+ *   · „FIAON ist tatsächlich keine Bank“ → was FIAON tut; „kein Kreditinstitut“ nur als Antwort auf seine Frage.
+ *   `mit`/`zeit` bleiben in der Signatur (Aufrufer), werden aber nicht mehr eingesetzt.
  */
 export function bausteinVorkasse(l: {
   betrag?: string | null; ziel?: KartenZiel | null; mit?: NennformEin; zeit?: string | null; link?: string | null;
   jahresvertrag?: boolean; kreditFrage?: boolean; ohneAntrag?: boolean;
 }): string {
-  const wer = nennAus(l.mit);
   const zt = kartenzielText(l.ziel, { alsZiel: true });
-  const frage = wer && l.zeit
-    ? `Passt Ihnen ${zeitOhneAm(l.zeit)} ein Anruf mit ${wer.dat}, bevor Sie etwas überweisen?`
-    : wer ? `Soll ich Ihnen vorher einen kurzen Anruf mit ${wer.dat} eintragen?` : "Soll ich Ihnen vorher einen kurzen Anruf eintragen?";
+  // E-275: die Bitte statt des Anrufs. Will er vorher sprechen, sagt er es — dann bietet Mara Zeiten an (freie_zeiten).
+  const frage = l.ohneAntrag ? "Wollen wir mit Ihrem Antrag starten?" : ZAHL_FRAGE;
   const link = l.link ? ` ${l.link}` : "";
+  /**
+   * Was der Zahlungseingang auslöst — Justins Satz. E-275 Ton (02.10.2026): vorher „Nach der Buchung kommt direkt der
+   * Link unserer Partnerbank für Ihren Kartenantrag." Auf einen Einwand ohne Imperativ: die Fakten, der Nutzen, die Frage.
+   */
+  const danach = `${NACH_DEM_EINGANG}.`;
+  // Die kurze Fassung für die Antwort auf „kein Kreditinstitut?“ — dort steht die längste Erklärung, und die Nachricht
+  // bleibt unter 500 lesbaren Zeichen (mit dem vollen Satz 531). mitAntragLuecke kennt auch sie.
+  const danachKurz = "Mit dem Zahlungseingang ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt.";
   if (l.kreditFrage) {
     // Seine Frage zuerst: „kein Kreditinstitut? Kredit vorab?" — ja, keine Bank; nein, kein Kredit (nie „keinen Kredit", kredit_nein).
     // Nie „Richtig" am Anfang: Steht „unseriös" daneben, gäbe das dem Vorwurf recht (wahrheitsBefunde, E-236).
     const rate = l.ohneAntrag
       ? "Vorab zahlen Sie keinen Kreditbetrag: Die erste Monatsrate unserer Begleitung kommt erst nach Ihrem Antrag, Sie überweisen sie selbst, abgebucht wird nichts."
-      : `Vorab zahlen Sie keinen Kreditbetrag, sondern ${l.betrag ? `die ${l.betrag} als ` : "die "}erste Monatsrate unserer Begleitung; Sie überweisen selbst, abgebucht wird nichts.`;
-    return `Verstehe ich — und FIAON ist tatsächlich keine Bank: Die Visa-Kreditkarte gibt unsere Partnerbank aus, wir bringen Sie dorthin${zt ? `, ${zt}` : ""} — über den Rahmen entscheidet die Bank. ${rate} ${frage}${link}`;
+      : `Vorab zahlen Sie keinen Kreditbetrag, sondern ${l.betrag ? `die ${l.betrag} als ` : "die "}erste Monatsrate unserer Begleitung — Sie überweisen selbst, abgebucht wird nichts. ${danachKurz}`;
+    return `Verstehe ich: Die Visa-Kreditkarte gibt unsere Partnerbank aus — FIAON ist kein Kreditinstitut, sondern bringt Sie dorthin${zt ? `, ${zt}` : ""} — über den Rahmen entscheidet die Bank. ${rate} ${frage}${link}`;
   }
-  const karte = `Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte${l.ziel ? ` ${kartenzielText(l.ziel)}` : ""} — ${BANK_SATZ}.`;
+  const karte = `Bei uns kommen Sie zu Ihrer Visa-Kreditkarte${l.ziel ? ` ${kartenzielText(l.ziel)}` : ""} — ${BANK_SATZ}.`;
   const rate = l.ohneAntrag
     ? "Die erste Monatsrate kommt erst, wenn Ihr Antrag abgeschickt ist — Sie überweisen sie selbst, abgebucht wird nichts."
-    : `${l.betrag ? `Die ${l.betrag} sind die erste ${l.jahresvertrag ? "von zwölf Monatsraten" : "Monatsrate"} Ihres Pakets` : "Sie zahlen in Monatsraten"}; Sie überweisen selbst, abgebucht wird nichts, und nach der Buchung schaltet das System Sie frei.`;
+    : `${l.betrag ? `Die ${l.betrag} sind die erste ${l.jahresvertrag ? "von zwölf Monatsraten" : "Monatsrate"} Ihres Pakets` : "Sie zahlen in Monatsraten"} — Sie überweisen selbst, abgebucht wird nichts. ${danach}`;
   return `Verstehe ich — Sie wollen erst wissen, woran Sie sind. ${karte} ${rate} ${frage}${link}`;
 }
 
@@ -2200,6 +2363,113 @@ export function fragtKreditinstitut(text: string): boolean { return KREDIT_FRAGE
 export function fragtWasIstFiaon(text: string): boolean { return WAS_IST_FIAON.test(String(text ?? "")); }
 export function fragtKeineKarte(text: string): boolean { return KEINE_KARTE.test(String(text ?? "")); }
 /**
+ * E-275 (02.10.2026): Er fragt nach seiner Karte oder dem Link der Partnerbank — nicht bekommen, wann, wo, er will sie.
+ * Echte Sätze: 6120 „I have not your kaditkarte“ (Mail), #2413 „Und das die karte endlich zugeschickt wird“, #2137 „Ich
+ * will jetzt erst das Konto und dann die Karte", 5969 „seit 26.06. nichts mit Karte und PIN“. Gebrochenes Deutsch und
+ * Englisch zählen mit; eine reine Sachfrage („Kann ich die Karte im Ausland nutzen?“) und ein Ausstieg („will keine
+ * Karte mehr", Kündigung, Widerruf) nicht. Beim zahlenden Kunden schickt Mara dann den Link selbst. Rein.
+ */
+const KARTE_THEMA = new RegExp(String.raw`${WA}(?:visa-?)?(?:kredit|kadit|credit)?-?kart\p{L}*|${WA}(?:credit\s+)?card${WE}|${WA}visa${WE}|${WA}dkb${WE}|${WA}partnerbank\p{L}*|${WA}(?:bank|karten|konto)-?link\p{L}*|${WA}link${WE}[^.!?\n]{0,40}${WA}(?:bank|kart\p{L}*|konto|dkb)|${WA}konto${WE}[^.!?\n]{0,30}${WA}(?:eröffn|eroeffn|antrag|dann\s+(?:die\s+)?karte)|${WA}pin${WE}`, "iu");
+const KARTE_FEHLT = new RegExp(String.raw`${WA}(?:nicht|nie|noch\s+nicht|kein\p{L}*|nix|nichts|not|no|never|haven'?t|didn'?t|wann|wo|wie\s+lange|when|where|kommt|kommen|bekomme|bekommen|krieg\p{L}*|erhalt\p{L}*|zugeschickt|zuschicken|schick\p{L}*|fehlt|warte\p{L}*|angekommen|finde\p{L}*|will|möchte|moechte|brauche|want|need)${WE}`, "iu");
+const KARTE_AUSSTIEG = new RegExp(String.raw`${WA}(?:kein\p{L}*|nicht)\s+(?:\p{L}+\s+){0,2}mehr${WE}|k(?:ü|ue)ndig|stornier|storno|widerruf`, "iu");
+export function fragtNachKarte(text: string): boolean {
+  const t = String(text ?? "");
+  if (KARTE_AUSSTIEG.test(t)) return false;
+  return (KARTE_THEMA.test(t) && KARTE_FEHLT.test(t)) || fragtKeineKarte(t);
+}
+
+// ── E-275 Gegenprüfung Verkauf (02.10.2026): DIE ECHTEN FORMEN VON „ANRUF“ UND „ABGABE“ ─────────────────────
+// Justin: „Aber nicht immer sagen ‚Ich mache einen Termin mit XY‘ … Mara soll positiv, verkäuferisch und selbstständig
+// agieren." Die erste Fassung der weichen Prüfungen (WhatsApp: verkaufsPruefung/anrufOk, Mail: verweisBefunde) fing nur
+// „Passt Ihnen … ein Anruf mit …?“, „meldet sich“ und „Herr X prüft“. Gemessen an Maras echten Antworten (nur lesend,
+// 18.09.–02.10.): WhatsApp 82 von 156 ohne Anrufwunsch des Kunden rutschten durch, Mail 106 von 161 — darunter der Kern
+// von #2413 („Nikita Boychenko schaut mit Ihnen genau nach, wo es hängt — heute um 13:10 Uhr oder am Montag um 12:50 Uhr,
+// was passt besser?"), „Soll Nikita Boychenko Sie dazu kurz anrufen?“ (Name ohne Herr/Frau — so heißt der Betreuer fast
+// aller Privatkunden), „prüft Nikita Boychenko das und gibt Ihnen hier Rückmeldung“, „Ich gebe Ihre Nachricht direkt an
+// Hans-Jürgen Gerhold weiter", „Justin prüft morgen, ob …“, „wird von Herrn Stripling geprüft“, „I will forward …“.
+// Diese Formen fängt selbstErledigtTreffer — weich wie bisher (zweiter Entwurf), und nur, wo der Aufrufer es verlangt
+// (WhatsApp: kein Anrufwunsch, nichts Heikles; Mail: kein Fall für einen Menschen). Rein.
+/**
+ * Ein Mensch aus dem Team als Satzgegenstand — Groß/klein zählt (Eigennamen). Nie gemeint: „Ich/Wir/Sie/Ihnen“, Artikel
+ * und Besitzwörter und das Wort danach („Ihren Widerruf prüft unsere Geschäftsführung“, „Ihre Unterlagen prüft …“,
+ * „Die Mail …“) und Satzanfänge wie „Dort“.
+ */
+const TEAM_PERSON = String.raw`(?:(?:Herr|Herrn|Frau)\s+[A-ZÄÖÜ][\wäöüß-]+|(?:[Ii]hr|[Ii]hre|[Ss]ein|[Ss]eine)\s+(?:Betreuer(?:in)?|Ansprechpartner(?:in)?)(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,2}|[Jj]emand\s+aus\s+unserem\s+Team|[Uu]nser\s+Team|(?<!\b(?:[Ii]hr\w*|[Dd](?:ie|er|en|em|es|as)|[Ee]in\w*|[Mm]ein\w*|[Uu]nser\w*|[Ss]ein\w*|[Dd]ies\w*|[Kk]ein\w*)\s+)(?!(?:Ich|Wir|Sie|Ihnen|Es|Er|Das|Dies|Diese[rsmn]?|Hier|Dann|Damit|Danach|Dafür|Darum|Deshalb|Dort|Daher|Sobald|Gern|Gerne|Ja|Nein|Bitte|Danke|Ihr|Ihre|Ihren|Ihrem|Ihres|Die|Der|Den|Dem|Des|Ein|Eine|Einen|Einem|Mein|Meine|Unser|Unsere|Unseren|Jede[rsmn]?|Alle|Auch|Heute|Morgen|Nach|Vor|Bei|Mit|Für|Zur|Zum|Im|Am|Wenn|Falls|Sobald|Ob|Wie|Was|Wann)\b)[A-ZÄÖÜ][a-zäöüß]+(?:-[A-ZÄÖÜ][a-zäöüß]+)?(?:\s+[A-ZÄÖÜ][a-zäöüß]+(?:-[A-ZÄÖÜ][a-zäöüß]+)?)?)`;
+/** Ist der Satzgegenstand Bank, Zahlungsstelle, System oder Leitung, ist es kein Abschieben an einen Kollegen. */
+const KEIN_KOLLEGE = /\b(?:bank|partnerbank|dkb|zahlungsstelle|zahlung|system|geschäftsführung|geschaeftsfuehrung|leitung|buchhaltung|auskunftei|schufa|crif|ksv|payments?\s+team|payment\s+department|management)\b/i;
+/** Ungefragtes Anruf- oder Zeitangebot. */
+const ANRUF_ANGEBOT_E275: RegExp[] = [
+  // „Soll Nikita Boychenko Sie dazu kurz anrufen?“, „kann Nikita Sie morgen um 9:50 Uhr … anrufen“, „Wann darf er Sie anrufen?“
+  new RegExp(String.raw`\b(?:soll|darf|kann|könnte|koennte|möchte|moechte)\s+[^.!?]{0,40}?\bsie\b[^.!?]{0,90}?\b(?:anrufen|zurückrufen|zurueckrufen)\b`, "iu"),
+  // „… ruft Sie morgen um 10 Uhr an — passt das?“ (eine Frage, keine Bestätigung eines gebuchten Termins)
+  new RegExp(String.raw`\bruft\s+sie\b[^.!?]{0,80}\?`, "iu"),
+  // „heute um 13:10 Uhr oder am Montag um 12:50 Uhr“ — zwei Zeiten zur Wahl
+  new RegExp(String.raw`\b\d{1,2}(?::\d{2})?\s*uhr\s+oder\s+(?:\p{L}+\s+){0,3}?(?:um\s+)?\d{1,2}(?::\d{2})?\s*uhr\b`, "iu"),
+  // „… um 9:30 Uhr … besser?“, „Welche Zeit passt Ihnen?“, „welche Zeit soll ich für Sie eintragen?“
+  new RegExp(String.raw`\b\d{1,2}(?::\d{2})?\s*uhr\b[^.!?]{0,100}\b(?:besser|lieber)\b[^.!?]*\?|\bwelche\s+(?:zeit|uhrzeit)\b[^.!?]{0,60}\b(?:passt|soll\s+ich|eintragen|nehmen)\b[^.!?]*\?`, "iu"),
+  // „Möchten Sie das kurz mit Herrn Stripling am Telefon besprechen?“
+  new RegExp(String.raw`\b(?:telefon\w*|anruf)\b[^.!?]{0,40}\b(?:besprechen|durchgehen|klären|klaeren|erklären|erklaeren)\b[^.!?]*\?|\bmöchten\s+sie\b[^.!?]{0,60}\b(?:telefonieren|am\s+telefon|anruf)\b[^.!?]*\?`, "iu"),
+  // Mail: „Soll ich Ihnen einen Termin mit … eintragen?“, „Antworten Sie mir einfach mit einer Zeit, die Ihnen passt.“
+  new RegExp(String.raw`\b(?:soll|darf|kann)\s+ich\s+(?:ihnen\s+)?[^.!?\n]{0,50}?\b(?:termin|anruf|rückruf|rueckruf|telefonat|gespräch|gespraech)\w*\b[^.!?\n]{0,50}\b(?:eintragen|vereinbaren|anbieten|buchen|ausmachen)\b|\bantworten\s+sie\s+mir\s+(?:einfach\s+)?mit\s+einer\s+(?:zeit|uhrzeit)\b`, "iu"),
+  // Englisch (Postfach): „Would you like a short call?“, „Which time suits you?“, „Reply with a time that suits you.“
+  new RegExp(String.raw`\bwould\s+you\s+like\s+(?:a|to\s+(?:schedule|book|arrange|have)\s+a)\s+(?:short\s+|quick\s+|brief\s+)?(?:call|appointment|phone\s+call)\b|\bwhich\s+time\s+(?:suits|works\s+for)\s+you\b|\breply\s+(?:to\s+me\s+)?with\s+a\s+time\b|\bshall\s+(?:i|we)\s+(?:book|schedule|arrange)\s+(?:a|an)\s+(?:call|appointment)\b`, "iu"),
+];
+/** Abgeben an einen Kollegen, wo Mara selbst antworten kann. */
+const ABGABE_E275: RegExp[] = [
+  // „Nikita Boychenko prüft das“, „Ihr Betreuer kümmert sich“, „Frau Lombardi sieht sich das an“, „… gibt Ihnen hier Rückmeldung“,
+  // „Er schaut sich die DKB-Registrierung an“, „Herr Stripling hat die Prüfung bekommen“
+  new RegExp(String.raw`\b(?<wer>${TEAM_PERSON}|Er)\s+(?:prüft|prueft|klärt|klaert|kümmert\s+sich|kuemmert\s+sich|meldet\s+sich|wird\s+sich\s+(?:\S+\s+){0,3}?melden|gibt\s+Ihnen\b[^.!?]{0,30}\b(?:Rückmeldung|Bescheid)|(?:schaut|sieht|guckt)\s+(?:sich\s+)?[^.!?]{0,60}?\b(?:an|nach|hinein|rein)\b|hat\s+(?:die\s+)?(?:Prüfung|Aufgabe|Nachricht)\b[^.!?]{0,30}\b(?:bekommen|erhalten))`, "u"),
+  // „Nikita Boychenko kann Ihre Frage zur Rate mit Ihnen durchgehen“, „… soll das mit Ihnen klären“, „Er kann mit Ihnen besprechen“
+  new RegExp(String.raw`\b(?<wer>${TEAM_PERSON}|Er)\s+(?:kann|soll|wird|möchte)\s+[^.!?]{0,80}?\b(?:prüfen|klären|anschauen|ansehen|nachsehen|nachschauen|durchgehen|besprechen|erklären|zurückmelden|Rückmeldung\s+geben|Bescheid\s+geben)\b`, "u"),
+  // „… prüft Nikita Boychenko das …“, „deshalb prüft Herr Stripling den Anhang morgen“, „schaut sich Nikita Boychenko das an“
+  new RegExp(String.raw`\b(?:prüft|klärt|übernimmt|schaut\s+sich|sieht\s+sich|kümmert\s+sich|schaut)\s+(?<wer>${TEAM_PERSON})\s+(?:das|es|dies|darum|die|den|morgen|heute|Ihre\b|Ihren\b|hinein)`, "u"),
+  // „… kann Nikita Boychenko den fehlenden Link prüfen und Ihnen hier Rückmeldung geben“
+  new RegExp(String.raw`\b(?:kann|soll|wird)\s+(?<wer>${TEAM_PERSON})\s+[^.!?]{0,80}?\b(?:prüfen|klären|anschauen|ansehen|nachsehen|nachschauen|durchgehen|besprechen|zurückmelden|Rückmeldung\s+geben|Bescheid\s+geben)\b`, "u"),
+  // „Das PDF … wird von Herrn Stripling geprüft“
+  new RegExp(String.raw`\bwird\s+(?:\S+\s+){0,3}?von\s+(?<wer>${TEAM_PERSON})\s+(?:\S+\s+){0,2}?(?:geprüft|geklärt|bearbeitet|angesehen|angeschaut)\b`, "u"),
+  // Die erste Fassung (E-275, Bereich WhatsApp): „meldet sich“, „prüft/klärt/schaut … persönlich/für Sie/mit Ihnen/nach“,
+  // „gebe … weiter“, „ich gebe … Bescheid“ — jetzt je Satz, damit „Die Partnerbank prüft Ihren Antrag — nach ihrer Zusage …“
+  // oder „Die Zahlungsstelle prüft den Eingang, nach der Buchung …“ nicht mehr als Abschieben zählt (Satzgegenstand unten).
+  new RegExp(String.raw`\b(?:meldet|melden)\s+sich\b|\b(?:prüft|klärt|schaut\s+(?:sich\s+)?(?:das\s+)?(?:an|nach)|kümmert\s+sich)\b[^.!?]{0,40}\b(?:persönlich|für\s+sie|mit\s+ihnen|darum|nach)\b|\b(?:ich\s+)?(?:gebe|leite)\s+(?:ich\s+)?(?:das|es|dies|ihre?\s+\p{L}+)\s+(?:\p{L}+\s+){0,5}?weiter\b|\bich\s+gebe\s+(?:\p{L}+\s+){1,3}bescheid\b`, "iu"),
+  // „Ich gebe Ihre Nachricht direkt an Hans-Jürgen Gerhold weiter“, „ich gebe das jetzt dringend zur Prüfung an … weiter“
+  new RegExp(String.raw`\b(?:gebe|leite)\s+(?:ich\s+)?(?:das|es|dies|ihre?n?\s+\p{L}+)\b[^.!?]{0,80}?\bweiter\b`, "iu"),
+  // „ich habe Daniel Bescheid gegeben“, „Ich habe ihm Ihre neue Nachricht gerade weitergegeben“, „… die Prüfung heute gegeben“
+  new RegExp(String.raw`\b(?:ich\s+habe|habe\s+ich|wir\s+haben)\s+[^.!?]{0,60}?\b(?:bescheid\s+gegeben|weitergegeben|weitergeleitet|gebeten|beauftragt|(?:prüfung|aufgabe)\s+(?:\p{L}+\s+){0,2}?gegeben)\b`, "iu"),
+  // „Ich habe Herrn Boychenko gerade informiert“
+  new RegExp(String.raw`\b(?:[Ii]ch\s+habe|habe\s+ich)\s+(?<wer>${TEAM_PERSON})\s+(?:\S+\s+){0,2}?informiert\b`, "u"),
+  // „Sie bekommen zeitnah eine Rückmeldung“, „Sie hören direkt von ihm“
+  new RegExp(String.raw`\bsie\s+(?:bekommen|erhalten)\s+(?:\p{L}+\s+){0,3}?(?:eine\s+)?rückmeldung\b|\bsie\s+hören\s+(?:\p{L}+\s+)?von\s+(?:ihm|ihr|herrn|frau)\b`, "iu"),
+  // Englisch (Postfach): „I have asked Nikita Boychenko to check this today“, „… will get back to you“, „I will forward this“
+  new RegExp(String.raw`\bi\s+(?:have|'ve|’ve)\s+(?:asked|forwarded|passed\s+(?:this|it|your\s+\w+)\s+(?:on|to))\b[^.!?\n]{0,60}|\b(?:will|'ll|’ll|is\s+going\s+to)\s+(?:get\s+back\s+to\s+you|contact\s+you|call\s+you|check\s+(?:this|it|that)|be\s+in\s+touch|look\s+into\s+(?:this|it|that)|reach\s+out|follow\s+up)\b|\bi\s+(?:will|'ll|’ll)\s+(?:forward|pass)\b`, "iu"),
+];
+/**
+ * E-275: der erste Treffer eines ungefragten Anruf-/Terminangebots bzw. einer Abgabe an einen Kollegen — sonst null.
+ * Je Satz; ist der Satzgegenstand Bank, Zahlungsstelle, System oder Leitung (KEIN_KOLLEGE), ist es kein Abschieben.
+ * Ob ein Anruf hier richtig ist (er will telefonieren, ein Termin steht, ein Fall für einen Menschen), entscheidet der
+ * Aufrufer. Rein.
+ */
+export function selbstErledigtTreffer(a: string): { anruf: string | null; abgabe: string | null } {
+  const t = String(a ?? "");
+  const anruf = ANRUF_ANGEBOT_E275.map((m) => t.match(m)?.[0] ?? null).find(Boolean) ?? null;
+  let abgabe: string | null = null;
+  for (const s of t.split(/(?<=[.!?])\s+|\n+|\s+[—–]\s+|;\s*/)) {
+    for (const m of ABGABE_E275) {
+      const x = s.match(m);
+      if (!x) continue;
+      // Satzgegenstand: die benannte Gruppe „wer“ — sonst der Teilsatz vor dem Treffer (ab dem letzten Komma) und der Treffer.
+      const wer = x.groups?.wer ?? `${s.slice(0, x.index ?? 0).split(/[,:]/).pop() ?? ""} ${x[0]}`;
+      if (KEIN_KOLLEGE.test(wer)) continue;
+      // Umgestellter Satz: „Bei einem unterschriebenen Auftrag klärt die Leitung …“ — der Satzgegenstand steht nach dem Verb.
+      const danach = s.slice((x.index ?? 0) + x[0].length).trim().split(/\s+/).slice(0, 3).join(" ");
+      if (/^(?:die|der|das|unsere|unser)\s/i.test(danach) && KEIN_KOLLEGE.test(danach)) continue;
+      abgabe = x[0];
+      break;
+    }
+    if (abgabe) break;
+  }
+  return { anruf, abgabe };
+}
+/**
  * E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 l01/l02/l03): Er fragt nach seinem Limit oder Rahmen — „Wie hoch ist
  * eigentlich mein Limit auf der Karte?", „Bekomme ich die 25.000 dann auch sicher?", „Brauche 20'000 CHF, geht das?".
  */
@@ -2218,15 +2488,25 @@ export function fragtLimit(text: string): boolean { return LIMIT_FRAGE.test(Stri
  * Satz, nie mit dem Wunschlimit verbunden) — und am Ende der Termin mit Herrn/Frau Nachname. Vorher: l01 ohne „Kreditkarte"
  * und verdreht, l02 ohne die Zahl auf „Wie hoch?". Rein.
  */
-export function bausteinLimitFrage(l: { kanal: MaraKanal; ziel: KartenZiel; mit?: NennformEin; zeit?: string | null; betrag?: string | null; link?: string | null }): string {
+export function bausteinLimitFrage(l: {
+  kanal: MaraKanal; ziel: KartenZiel; mit?: NennformEin; zeit?: string | null; betrag?: string | null; link?: string | null;
+  /** E-275: zahlender Kunde — die Frage nach dem nächsten Schritt zur Karte (den Link der Partnerbank schickt Mara selbst). */
+  kartenSchritt?: "schicken" | "noch_einmal" | null;
+}): string {
   const wer = nennAus(l.mit);
   const euro = euroGanz(l.ziel.euro);
   const ziel = l.ziel.art === "wunsch"
     ? `Für Ihre Visa-Kreditkarte ist Ihr Wunschlimit von ${euro} unser Ziel — ${BANK_SATZ}.`
     : `Für Ihre Visa-Kreditkarte arbeiten wir ${kartenzielText(l.ziel)} — ${BANK_SATZ}.`;
-  const rate = l.betrag ? ` Bitte begleichen Sie Ihre erste Monatsrate über ${l.betrag}; sobald sie gebucht ist, schaltet das System Sie frei.` : "";
-  const frage = wer && l.zeit ? ` Passt Ihnen ${zeitOhneAm(l.zeit)} ein Anruf mit ${wer.dat}?`
-    : wer ? ` Möchten Sie das mit ${wer.dat} durchgehen — welche Zeit passt Ihnen?` : " Welche Zeit passt Ihnen für einen kurzen Anruf?";
+  // E-275 (02.10.2026): statt „Passt Ihnen … ein Anruf mit …?“ — bei offener erster Rate Justins Satz und die Bitte um die
+  // Überweisung; sonst (zahlender Kunde) der Schritt zur Karte. Ein Termin steht nur noch da, wenn er schon gebucht ist.
+  // E-275 Ton (02.10.2026): „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über … — Ihr Account ist sofort nach
+  // Zahlungseingang aktiv, …!" statt „Bitte begleichen Sie … — sobald sie gebucht ist, schaltet das System Sie frei, …“.
+  // Ein eigener Satz nach dem Wunschlimit-Satz, ohne Rückverweis („bekommen direkt den …“, nie „bekommen Sie den …“).
+  const rate = l.betrag ? ` ${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über ${l.betrag} — ${NACH_DEM_EINGANG}!` : "";
+  const frage = l.betrag ? ` ${l.kanal === "mail" ? ZAHL_KNOPF_MAIL : ZAHL_FRAGE}`
+    : wer && l.zeit ? ` Ihr Termin mit ${wer.dat} steht ${l.zeit}.`
+    : l.kartenSchritt ? ` Soll ich Ihnen den Link unserer Partnerbank für Ihren Kartenantrag ${l.kartenSchritt === "noch_einmal" ? "noch einmal " : ""}schicken?` : "";
   const link = l.kanal === "whatsapp" && l.link ? ` ${l.link}` : "";
   return `${ziel}${rate}${frage}${link}`;
 }
@@ -2329,35 +2609,56 @@ export function abschlussPruefung(antwort: string, ein: {
   const h: string[] = [];
   if (!ein.art || !a.trim()) return h;
   if (ein.art === "a") {
-    if (/\/zahlung\/|\bbitte\s+(?:be)?(?:gleichen|zahlen|überweisen)|\b(?:begleichen|überweisen|bezahlen)\s+sie\b|zahlungsseite/i.test(a)) {
-      h.push("Er hat seine Zahlung schon gemeldet — keine Zahlungsbitte und kein Zahlungslink. Sag: Sobald sie gebucht ist, schaltet das System ihn frei, dann kommt direkt der Link unserer Partnerbank für Konto und Karte (seine Visa-Kreditkarte bleibt das Ziel), und biete den Termin an.");
+    // E-275 Ton (02.10.2026): „Zahlen Sie jetzt (die Aktivierung)“ ist ebenso eine Zahlungsbitte wie „Bitte begleichen Sie“.
+    if (/\/zahlung\/|\bbitte\s+(?:be)?(?:gleichen|zahlen|überweisen)|\b(?:begleichen|überweisen|bezahlen|zahlen)\s+sie\b|zahlungsseite/i.test(a)) {
+      // E-275 (02.10.2026): ohne „und biete den Termin an“ — dafür die Zeit bis zur Karte (KARTE_ZEIT_SATZ).
+      h.push("Er hat seine Zahlung schon gemeldet — keine Zahlungsbitte und kein Zahlungslink. Sag: Sobald sie bei uns eingeht, ist sein Account sofort aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag (seine Visa-Kreditkarte bleibt das Ziel); nach der Zusage der Bank in der Regel 2–5 Werktage.");
     }
     return h;
   }
-  if (fragtKeineKarte(k) && (ein.art === "b" || ein.art === "rate") && !/zahlung\s+offen|offen\s+ist|noch\s+(?:eine|die|ihre)\s+(?:zahlung|rate|monatsrate)|erste\s+monatsrate|ihre\s+rate\s+vom/i.test(a)) {
-    h.push("Er fragt, warum er keine Karte hat: Kern der Antwort ist die offene Zahlung — Betrag, Fälligkeit, Zahlungsseite (bei der ersten Monatsrate: „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist“). Kein Umweg über den Link oder die Zusage der Bank.");
+  if (fragtKeineKarte(k) && ein.art === "b" && !/zahlung\s+offen|offen\s+ist|noch\s+(?:eine|die|ihre)\s+(?:zahlung|rate|monatsrate)|erste\s+monatsrate|ihre\s+rate\s+vom/i.test(a)) {
+    h.push(`Er fragt, warum er keine Karte hat: Kern der Antwort ist die offene erste Zahlung — Betrag und Zahlungsseite („Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist“), dann die klare Aufforderung mit dem Nutzen („${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“).`);
+  }
+  // E-275 (02.10.2026, Fall 6120): Beim zahlenden Kunden ist der Link der Partnerbank die Antwort — die fällige Rate
+  // kommt dazu. Vorher galt hier „kein Umweg über den Link“, und die Kartenfrage ging an einen Kollegen.
+  if (fragtKeineKarte(k) && ein.art === "rate" && !/link\s+unserer\s+partnerbank|partnerbank[^.!?]{0,40}link|ihre\s+rate\s+vom|offen\s+ist/i.test(a)) {
+    h.push("Er fragt nach seiner Karte: Schick ihm den Link unserer Partnerbank (zuerst das Girokonto, dann im Banking die Visa-Kreditkarte; nach der Zusage der Bank in der Regel 2–5 Werktage) und nenn danach seine Rate vom … mit Zahlungsseite.");
   }
   const vorkasseVorher = /vorkasse|vorab|vorauszahlung|im\s+voraus|zahle\s+nichts\s+vor|zuerst\s+die\s+zahlung/i.test(String(ein.kontext ?? ""));
   const einwand = einwandSignal(k) || vorkasseVorher;
   const anlass = kaufSignal(k) || einwand || fragtWasIstFiaon(k) || fragtKeineKarte(k);
   if (!anlass) return h;
+  // E-275 (02.10.2026): Hat Mara dem zahlenden Kunden gerade den Link der Partnerbank geschickt, IST das die Antwort —
+  // Ziel, Betrag und Schlussfrage verlangt die Prüfung dann nicht (die Rate darf folgen, muss aber nicht).
+  if (ein.art === "rate" && /link\s+unserer\s+partnerbank|partnerbank[^.!?]{0,80}(?:geschickt|eröffnet)/i.test(a)) return h;
   if (einwand && new RegExp(String.raw`^\s*(?:hier\s+ist\s+mara[^—–-]*[—–-]\s*)?(?:genau|ja|klar)(?![\p{L}])`, "iu").test(a)) {
     h.push("Er hat einen Einwand — beginne nicht mit „Genau“, „Ja“ oder „Klar“ (das stimmt ihm zu und sagt dann das Gegenteil). Nimm seinen Einwand in einem Satz ernst.");
+  }
+  // E-275 Ton (02.10.2026, Echt-Probe f01): Mit der neuen Aufforderung („Zahlen Sie jetzt die Aktivierung“) fiel beim
+  // Vorkasse-Einwand das eine Argument weg, das ihn trägt. Begeisterung ersetzt die Fakten nicht — erst das Argument.
+  if ((einwandVertrauen(k) || vorkasseVorher) && (ein.art === "b" || ein.art === "rate")
+    && !/(?:überweis\w*|zahlen)[^.!?]{0,30}\bselbst\b|abgebucht\s+wird\s+nichts|nichts\s+wird\s+abgebucht/i.test(a)) {
+    h.push("Er zögert wegen der Vorauszahlung — nimm sein Argument auf, bevor du um die Zahlung bittest: „Sie überweisen selbst, abgebucht wird nichts.“");
   }
   const frueher = (ein.letzteDu ?? []).slice(0, 2).join("\n");
   const schonKarte = /kreditkarte/i.test(frueher);
   const zielText = ein.ziel ? euroGanz(ein.ziel.euro) : "";
   const schonZiel = !ein.ziel || ((frueher.includes(zielText) || frueher.includes(zielText.replace(/\s€$/, ""))) && BANK_SATZ_MUSTER.test(frueher));
   const schonBetrag = !ein.betrag || frueher.includes(ein.betrag);
-  if (!/kreditkarte/i.test(a) && !schonKarte) h.push("Nenn die Visa-Kreditkarte spätestens im zweiten Satz — dein erster Satz, der auf seine Worte eingeht, bleibt stehen; behalte auch Frage und Termin.");
+  if (!/kreditkarte/i.test(a) && !schonKarte) h.push("Nenn die Visa-Kreditkarte spätestens im zweiten Satz — dein erster Satz, der auf seine Worte eingeht, bleibt stehen; behalte auch die Frage und den Link.");
   if (ein.ziel && !schonZiel && !a.includes(zielText) && !a.includes(zielText.replace(/\s€$/, ""))) {
     h.push(`Nenn sein Kartenziel: „${kartenzielText(ein.ziel)}“ — mit „${BANK_SATZ}“ im selben Satz, nie als Zusage.`);
   }
   if ((ein.art === "b" || ein.art === "rate") && ein.betrag && !einwand && !schonBetrag && !a.includes(ein.betrag) && !fragtWasIstFiaon(k)) {
-    h.push(`Nenn den Betrag (${ein.betrag}) und dass das System ihn freischaltet, sobald die Zahlung gebucht ist.`);
+    // E-275 Ton (02.10.2026): die klare Aufforderung mit dem Nutzen statt „Das System schaltet ihn frei …“.
+    h.push(ein.art === "b"
+      ? `Nenn den Betrag (${ein.betrag}) mit der klaren Aufforderung und dem Nutzen: „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über ${ein.betrag} — ${NACH_DEM_EINGANG}!“`
+      : `Nenn den Betrag (${ein.betrag}) mit seiner Zahlungsseite.`);
   }
   const ohneLink = a.replace(/https?:\/\/\S+/g, "").trim();
-  if (!/\?\s*$/.test(ohneLink)) h.push("End mit EINER Frage zum Abschluss — am besten der Termin („Passt Ihnen heute um 15:30 Uhr für den Anruf mit Herrn Stripling?“) mit Herr/Frau Nachname.");
+  // E-275 (02.10.2026, Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): die Frage ist die Bitte ums Zahlen
+  // bzw. ums Starten — nicht mehr „am besten der Termin“.
+  if (!/\?\s*$/.test(ohneLink)) h.push(`End mit EINER kurzen Frage zum Abschluss — bei offener Zahlung „${ZAHL_FRAGE}“, ohne abgeschickten Antrag „Machen Sie heute noch weiter?“ bzw. „Wollen wir starten?“. Einen Anruf nur, wenn er telefonieren will.`);
   const einstieg = einstiegVonEntwurf(ein.vorher);
   if (einstieg && !einstiegVonEntwurf(a) && !EINSTIEG.test(saetze(a).slice(0, 2).join(" "))) {
     h.push(`Dein erster Entwurf ging auf seine Worte ein („${einstieg.slice(0, 60)}“) — dieser Einstieg fehlt jetzt. Behalte ihn und nenn die Karte im zweiten Satz.`);
@@ -2366,9 +2667,12 @@ export function abschlussPruefung(antwort: string, ein: {
 }
 
 /**
- * B-Mail: Betrag, Freischaltung und Terminfrage als weiche Pflicht (E-265 Schluss-Nachbesserung, 01.10.2026, Probe 3
- * M1/M6). M1 nannte weder die 59,99 € noch die Freischaltung noch eine Frage; M6 (englisch, automatisch gesendet) endete
- * ohne Frage und ohne Termin. Deutsch und Englisch. Rein.
+ * B-Mail: Betrag, Freischaltung und ein Schritt zum Abschluss als weiche Pflicht (E-265 Schluss-Nachbesserung,
+ * 01.10.2026, Probe 3 M1/M6). M1 nannte weder die 59,99 € noch die Freischaltung noch eine Frage; M6 (englisch,
+ * automatisch gesendet) endete ohne Frage und ohne Termin. Deutsch und Englisch. Rein.
+ * E-275 (02.10.2026, Justin: „selbstständig arbeiten ohne jedes mal ein Termin zu vereinbaren (Whatsapp aber natürlich
+ * auch per mail!)"): Der Schritt ist die Bitte um die Überweisung (Knopf, „heute noch“) ODER eine Frage — eine Frage zum
+ * Termin ist nicht mehr Pflicht. Dazu, was nach der Buchung kommt (Link der Partnerbank), als weicher Hinweis.
  */
 export function mailAbschlussPflicht(text: string, ein: { betrag?: string | null }): string[] {
   const t = String(text ?? "");
@@ -2376,12 +2680,14 @@ export function mailAbschlussPflicht(text: string, ein: { betrag?: string | null
   const b = String(ein.betrag ?? "").trim();
   const komma = b.replace(".", ","), punkt = b.replace(",", ".");
   if (b && !t.includes(komma) && !t.includes(punkt)) h.push(`Nenn den Betrag der ersten Monatsrate (${komma} €) in einem Satz.`);
-  if (!/schaltet[^.!?\n]{0,40}\bfrei\b|freigeschaltet|freischalt|account\s+(?:ist\s+)?aktiv|activat|unlock|account\s+(?:is|will\s+be)\s+active/i.test(t)) {
-    h.push("Sag, was die Zahlung auslöst: „sobald sie gebucht ist, schaltet das System Sie frei“ (englisch: „once it is booked, the system activates your account“).");
+  // E-275 Ton (02.10.2026): „Ihr Account ist sofort nach Zahlungseingang aktiv“ zählt wie „schaltet das System Sie frei“.
+  if (!/schaltet[^.!?\n]{0,40}\bfrei\b|freigeschaltet|freischalt|account\s+(?:ist\s+)?(?:[^\s.!?]+\s+){0,4}?aktiv|activat|unlock|account\s+(?:is|will\s+be)\s+(?:\S+\s+){0,3}?active/i.test(t)) {
+    h.push(`Sag, was die Zahlung auslöst: „${NACH_DEM_EINGANG}“ (englisch: „Your account is active as soon as your payment arrives, and you receive the link of our partner bank for your card application right away.“).`);
   }
   const fragen = t.split(/(?<=[.!?])\s+|\n+/).filter((x) => /\?\s*$/.test(x.trim()));
-  if (!fragen.some((x) => /termin|anruf|gespräch|gespraech|telefon|zeit|uhr|call|appointment|time|speak/i.test(x)) && !/antworten\s+sie\s+mir\s+(?:einfach\s+)?mit\s+einer\s+zeit|reply\s+(?:to\s+me\s+)?with\s+a\s+time/i.test(t)) {
-    h.push("End mit EINER Frage zum Termin mit Herrn/Frau Nachname („Welche Zeit passt Ihnen für einen kurzen Anruf mit …?“ / englisch „Which time suits you for a short call with …?“).");
+  const zahlBitte = /knopf|button|(?:überweisen|ueberweisen|begleichen|bezahlen|zahlen)\s+sie\b|heute\s+noch|gleich\s+heute|zahlungsseite|pay(?:ment)?\s+page|transfer\s+(?:it\s+)?today|please\s+(?:pay|transfer)|pay\s+the\s+activation/i.test(t);
+  if (!fragen.length && !zahlBitte && !/antworten\s+sie\s+mir\s+(?:einfach\s+)?mit\s+einer\s+zeit|reply\s+(?:to\s+me\s+)?with\s+a\s+time/i.test(t)) {
+    h.push(`Schließ mit EINEM Schritt ab — der klaren Aufforderung zur Überweisung („${AKTIVIERUNG_AUFRUF}“, dann „${ZAHL_KNOPF_MAIL}“ / englisch „Pay the activation now — the button below shows the amount, reference and QR code, ideally you transfer it today.“). Einen Termin nur, wenn er ihn will.`);
   }
   return h;
 }
@@ -2416,11 +2722,16 @@ export const KARTE_REGEL_TEXT = [
   `· Sein Wunschlimit nennst du, wenn es in SEINE LAGE steht („mit Ihrem Wunschlimit von 25.000 €“), und im selben Satz „${BANK_SATZ}“. Nie als Zusage („Sie bekommen 25.000 €“, „bekommen Sie Ihre Kreditkarte mit …“, „Ihr Wunschlimit ist Ihnen sicher“, „schalten Sie Ihr Wunschlimit frei“), nie eine andere Zahl. Der Satz über die Bank macht aus einer Zusage keine Aussicht.`,
   // E-265 Nachbesserung 2 (01.10.2026): die weiße Liste (limitPruefen) — der Server lässt nur diese Formen durch.
   `· Limit, Rahmen und Beträge ab 1.000 € NUR in diesen Formen: „mit Ihrem Wunschlimit von X €“, „mit X € als Ziel“, „Ihr Wunschlimit bleibt unser Ziel“, „Sie tragen im Antrag Ihr Wunschlimit ein“ — und „${BANK_SATZ}“ im selben Satz; dazu „Reicht Ihnen ein kleinerer Rahmen“, „Welchen Rahmen brauchen Sie?“, „mit einem Rahmen, den Sie immer wieder nutzen können“. Jede andere Form (Rahmen/Kreditrahmen mit Betrag, „Ihr Wunschlimit: …“, „… € auf der Karte“, „geht klar“, „Das bekommen Sie sicher“ im Satz danach) geht nicht raus.`,
-  `· Justins Abschluss: Karte + Wunschlimit + Satz über die Bank, dann ein PUNKT → der Betrag als neuer Satz („Bitte begleichen Sie Ihre erste Monatsrate über 99,99 €“) → „sobald sie gebucht ist, schaltet das System Sie frei“ → „und ich vereinbare Ihren Termin mit Herrn/Frau Nachname“ → EINE Frage („Passt Ihnen heute um 15:30 Uhr?“). Wunschlimit und Betrag/Freischaltung nie in EINEM Satz (kein Semikolon dazwischen).`,
-  `· Bei einem EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut, zu teuer): nie mit „Genau“ oder „Ja“ beginnen. Erst sein Einwand in einem Satz — fragt er „kein Kreditinstitut?“, beantwortest du genau das —, dann die Karte, und den Anruf OHNE Bedingung („Passt Ihnen heute um 15:30 Uhr ein Anruf mit Herrn Stripling, bevor Sie etwas überweisen?“); die Freischaltung ist ein eigener Satz. Zu teuer: das kleinere Paket mit seinem Ziel.`,
-  `· Hat er seine Zahlung schon gemeldet: keine Zahlungsbitte, kein Zahlungslink — nach der Buchung der Link unserer Partnerbank für Konto und Karte, seine Visa-Kreditkarte bleibt das Ziel, der Termin.`,
-  `· Ist sein Antrag nicht abgeschickt: kein Satz zur Rate — die Karte, sein nächster Schritt ist der Antrag, der Termin. Nie „nur noch einen Schritt entfernt“, nie „greifbar“, nie „fehlt nur noch“.`,
-  `· „Ich habe ja keine Karte bekommen — wozu zahlen?“ → Kern ist die offene Zahlung mit Betrag, Fälligkeit und Zahlungsseite. Bei der ERSTEN Monatsrate: „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist“. Beim zahlenden Kunden ist die Folgerate NICHT der Grund (die Einladung der Partnerbank hängt nur an der ersten Rate): „Bei Ihnen ist noch Ihre Rate vom … über … offen“ — ohne „Das liegt daran“. Kein Umweg über den Link der Partnerbank oder die Zusage der Bank.`,
+  // E-275 (02.10.2026, Justin: „Hi, zahl die Aktivierung, die Karte geht zeitnahe in Produktion — also: Jetzt zahlen! ;D —
+  // so in etwa nur seriös"): die seriöse Fassung ist sein eigener Satz (KARTE_LINK_SATZ, KARTE_ZEIT_SATZ) — kein Termin mehr.
+  // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung … Ihr Account
+  // ist sofort nach Eingang aktiv!‘"): die klare Aufforderung statt „Bitte begleichen Sie …“, der Nutzen direkt dahinter.
+  `· Justins Abschluss: Karte + Wunschlimit + Satz über die Bank, dann ein PUNKT → die klare Aufforderung mit dem Betrag als neuer Satz und der Nutzen direkt dahinter („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 99,99 € — ${NACH_DEM_EINGANG}!“) → „${KARTE_ZEIT_SATZ}“ (gern davor „${TEMPO_SATZ}“) → EINE Frage: „${ZAHL_FRAGE}“ (Mail: der Knopf). Begeistert, aber seriös: höchstens EIN Ausrufezeichen. Wunschlimit und Betrag/Aktivierung nie in EINEM Satz (kein Semikolon dazwischen). „Die Karte ist in Produktion“, „kommt sicher“ oder „wir versenden Ihre Karte“ sagst du nie — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
+  `· KEIN TERMIN ALS PFLICHT (Justin 02.10.2026: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): Einen Anruf oder Termin bietest du nur an, wenn er telefonieren will, unsicher bleibt und ausdrücklich sprechen möchte, oder ein zugesagter Anruf ausgefallen ist. Steht sein Termin schon, nennst du ihn.`,
+  `· Bei einem EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut, zu teuer): nie mit „Genau“ oder „Ja“ beginnen. Erst sein Einwand in einem Satz — fragt er „kein Kreditinstitut?“, beantwortest du genau das (was FIAON tut, nie „wir sind keine Bank“ als Ausrede) —, dann die Karte, „Sie überweisen selbst, abgebucht wird nichts“, was der Zahlungseingang auslöst („${NACH_DEM_EINGANG}“) und die Bitte; sprechen kann er, wenn er möchte („Möchten Sie vorher kurz sprechen, sagen Sie es mir einfach.“). Zu teuer: das kleinere Paket mit seinem Ziel.`,
+  `· Hat er seine Zahlung schon gemeldet: keine Zahlungsbitte, kein Zahlungslink — sobald sie eingeht, ist sein Account sofort aktiv und der Link unserer Partnerbank für seinen Kartenantrag kommt direkt, seine Visa-Kreditkarte bleibt das Ziel, nach der Zusage der Bank in der Regel 2–5 Werktage.`,
+  `· Ist sein Antrag nicht abgeschickt: kein Satz zur Rate — die Karte, sein nächster Schritt ist der Antrag („Machen Sie heute noch weiter?“). Nie „nur noch einen Schritt entfernt“, nie „greifbar“, nie „fehlt nur noch“.`,
+  `· „Ich habe ja keine Karte bekommen — wozu zahlen?“ → Bei der ERSTEN Monatsrate: „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist“ mit Betrag und Zahlungsseite, dann „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“. Beim ZAHLENDEN Kunden ist der Link unserer Partnerbank die Antwort: Du schickst ihn selbst (WhatsApp: karte_link_schicken) mit den Schritten (zuerst das Girokonto eröffnen, dann im Banking die Visa-Kreditkarte dazubuchen; nach der Zusage der Bank in der Regel 2–5 Werktage) — und nennst danach seine fällige Rate („Ihre Rate vom … über …“) mit Zahlungsseite. Die Folgerate ist nie „der Grund“. Nie „FIAON verschickt keine Karte“, nie ein Kollege, der nachsieht.`,
   `· Steht die Formel schon in deiner letzten Nachricht, wiederhol sie nicht ganz — nur das Neue und die Frage.`,
   `· „Was ist FIAON?“ → FIAON bringt ihn zu seiner eigenen Visa-Kreditkarte — die Karte zuerst, nie „Bonitätsplattform“ als erstes Wort.`,
 ].join("\n");
@@ -2448,6 +2759,8 @@ const BSP_STRIPLING = { nom: "Herr Stripling", dat: "Herrn Stripling" };
 const BSP_LOMBARDI = { nom: "Frau Lombardi", dat: "Frau Lombardi" };
 const BSP_ZIEL_HIGHEND = kartenZiel({ wunschEuro: 25000, rahmenEuro: 25000, paketKey: "highend" });
 const BSP_ZIEL_ULTRA = kartenZiel({ wunschEuro: 11000, rahmenEuro: 15000, paketKey: "ultra" });
+// E-275: der Satz aus dem Bereich Karte nach karteEinladungFuerPerson („erneut_gesendet“), Adresse erfunden.
+const BSP_KARTENSATZ = `Ihr Link unserer Partnerbank für den Kartenantrag ging am 21.09.2026 an Sie raus — ich habe ihn Ihnen soeben noch einmal per E-Mail an ma…@beispiel.de geschickt; schauen Sie bitte auch im Spam-Ordner nach. Darüber beantragen Sie in wenigen Minuten online Ihr Girokonto mit Visa-Karte — Sie brauchen nur Ihren Ausweis. ${KARTE_ZEIT_SATZ}`;
 
 export const MUSTERDIALOGE: Musterdialog[] = [
   {
@@ -2626,7 +2939,7 @@ export const MUSTERDIALOGE: Musterdialog[] = [
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "abschluss_b_zahlungsbereit",
-    titel: "B, zahlungsbereit — Justins Formel: Karte, Wunschlimit, Rate, System, Termin mit Herrn Nachname, Frage",
+    titel: "B, zahlungsbereit — Justins Formel: Karte, Wunschlimit, „Zahlen Sie jetzt die Aktivierung“ mit Betrag, sofort aktiv und direkt der Link der Partnerbank, 2–5 Werktage, „Schaffen Sie die Überweisung heute noch?“ (E-275: kein Termin, begeistert, ein „!“)",
     kanal: "whatsapp",
     lage: "Antrag High-End abgeschickt, erste Monatsrate 99,99 € offen, Wunschlimit 25.000 €. Fester Betreuer Herr Stripling (ab Freitag wieder da).",
     linkLage: { stufe: "zahlung_offen", zahlungsReferenz: BSP_ZAHLUNG },
@@ -2640,11 +2953,13 @@ export const MUSTERDIALOGE: Musterdialog[] = [
     nie: [
       "Ich verstehe Sie: Sie möchten erst sehen, dass es losgeht. Ich gebe Daniel Bescheid, damit er sich das persönlich mit Ihnen anschaut.",
       "Bei uns bekommen Sie Ihre Kreditkarte mit Ihrem Limit, begleichen Sie bitte die offene Rate, dann schaltet das System Sie direkt frei.",
+      // E-275 Ton (02.10.2026): Justins Wortlaut, wörtlich unwahr — die Karte gibt die Partnerbank nach ihrer Zusage aus.
+      "Zahlen Sie die Aktivierung, wir kümmern uns darum, dass die Karte schnell versendet wird. Ihr Account ist sofort aktiv!!",
     ],
   },
   {
     id: "abschluss_b_vorkasse",
-    titel: "B, Einwand „Vorkasse? unseriös?“ — ein Argument, dann Karte, Ziel, System, Anruf",
+    titel: "B, Einwand „Vorkasse? unseriös?“ — ein Argument, dann Karte, Ziel, System, Link der Partnerbank, die Bitte (E-275: Anruf nur auf Wunsch)",
     kanal: "whatsapp",
     lage: "Antrag High-End abgeschickt, erste Monatsrate 99,99 € offen, Wunschlimit 25.000 €. Team bis Fr 02.10. abwesend — Justin Schwarzott ruft an (keine Anrede hinterlegt).",
     linkLage: { stufe: "zahlung_offen", zahlungsReferenz: BSP_ZAHLUNG },
@@ -2673,7 +2988,7 @@ export const MUSTERDIALOGE: Musterdialog[] = [
   },
   {
     id: "abschluss_a_gemeldet",
-    titel: "A, Zahlung gemeldet — danke, keine Zahlungsbitte, kein Zahlungslink, Karte und Termin",
+    titel: "A, Zahlung gemeldet — danke, keine Zahlungsbitte, kein Zahlungslink, direkt der Link der Partnerbank, Karte, 2–5 Werktage (E-275: ohne Termin)",
     kanal: "whatsapp",
     lage: "Antrag Start abgeschickt, er hat gemeldet, dass er die 7,99 € überwiesen hat — die Buchung steht aus. Wunschlimit 500 €.",
     linkLage: { stufe: "zahlung_gemeldet" },
@@ -2686,7 +3001,7 @@ export const MUSTERDIALOGE: Musterdialog[] = [
   },
   {
     id: "abschluss_rate",
-    titel: "Monatsrate fällig — Karte und Ziel vorn, „Ihre Rate vom …“, Zahlungsseite, Termin-Angebot",
+    titel: "Monatsrate fällig — Karte und Ziel vorn, „Ihre Rate vom …“, Zahlungsseite, die Bitte um die Überweisung (E-275: kein Termin-Angebot)",
     kanal: "whatsapp",
     lage: "Kunde mit FIAON Ultra, Wunschlimit 11.000 €. Rate vom 13.09. über 79,99 € offen (Erinnerung bekommen).",
     linkLage: { stufe: "kunde", ratenReferenz: `${BSP_ZAHLUNG}-2` },
@@ -2699,7 +3014,7 @@ export const MUSTERDIALOGE: Musterdialog[] = [
   },
   {
     id: "abschluss_abbrecher",
-    titel: "Abbrecher (nie abgeschickt) — Kreditkarte und Ziel, Antrag fertig, Termin; KEIN Satz zur Rate (E-264)",
+    titel: "Abbrecher (nie abgeschickt) — Kreditkarte und Ziel, Antrag fertig, „Machen Sie heute noch weiter?“; KEIN Satz zur Rate (E-264), kein Termin (E-275)",
     kanal: "whatsapp",
     lage: "Antrag Ultra angefangen, bei Schritt 5 stehen geblieben, nie abgeschickt. Wunschlimit 15.000 €. Fester Betreuer Herr Gerhold.",
     linkLage: { stufe: "antrag_offen", leadCode: BSP_CODE },
@@ -2749,6 +3064,25 @@ export const MUSTERDIALOGE: Musterdialog[] = [
     kunde: "Ich habe ja keine Karte und kein Credit aufgenommen. Wozu soll ich dann bitte zahlen",
     soll: { art: "antworten", text: bausteinKeineKarte({ kanal: "whatsapp", betrag: "59,99 €", rateVom: "12.09.", ziel: kartenZiel({ wunschEuro: 5000, rahmenEuro: 5000, paketKey: "pro" }), link: "{LINK}", mit: BSP_LOMBARDI }) },
     nie: ["Ich verstehe Ihre Frage. Ihr Account ist aktiv, und der Link der Partnerbank für Konto und Karte ist bereits an Sie rausgegangen; die Karte selbst kommt erst nach der Zusage der Bank."],
+  },
+  {
+    // E-275 (02.10.2026): Fall 6120 (Mail, „I have not your kaditkarte“) und #2413/#2003 (WhatsApp) — ein zahlender Kunde
+    // ohne Karte bekam „Die Karte kommt nicht von FIAON direkt … Nikita Boychenko schaut mit Ihnen nach“ bzw. „Justin
+    // schaut nach, warum nichts angekommen ist". Jetzt schickt Mara den Link der Partnerbank selbst (karte_link_schicken).
+    id: "karte_nicht_bekommen_kunde",
+    titel: "Zahlender Kunde: „Karte nicht bekommen“ — der Link der Partnerbank selbst, die Schritte, 2–5 Werktage, dann die Rate (E-275)",
+    kanal: "whatsapp",
+    lage: "Kunde mit FIAON Ultra, erste Rate am 02.08. bezahlt, Rate vom 02.10. über 79,99 € fällig. Mara hat ihm den Link der Partnerbank gerade noch einmal geschickt (karte_link_schicken, per E-Mail).",
+    linkLage: { stufe: "kunde", ratenReferenz: `${BSP_ZAHLUNG}-3` },
+    betreuer: "Nikita Boychenko",
+    art: "rate", ziel: BSP_ZIEL_ULTRA, betrag: "79,99 €",
+    verlauf: [],
+    kunde: "Und das die karte endlich zugeschickt wird",
+    soll: { art: "antworten", text: bausteinKeineKarte({ kanal: "whatsapp", betrag: "79,99 €", rateVom: "02.10.", link: "{LINK}", kartenSatz: BSP_KARTENSATZ }) },
+    nie: [
+      "Die Visa-Kreditkarte kommt nicht von FIAON direkt, sondern nach dem Konto- und Kartenantrag über den Link der Partnerbank und nach der Zusage der Bank. Nikita Boychenko schaut mit Ihnen genau nach, wo es hängt — heute um 13:10 Uhr oder am Montag um 12:50 Uhr, was passt besser?",
+      "Nach der Zahlung ist Ihr Account aktiv. Justin Schwarzott schaut für Sie nach, warum bei Ihnen nichts angekommen ist, und meldet sich persönlich.",
+    ],
   },
   {
     id: "kuendigung_klar",

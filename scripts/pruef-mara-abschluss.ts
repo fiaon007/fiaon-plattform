@@ -58,6 +58,23 @@ let ersetzen: (t: string, extra?: Record<string, string>) => string = (t) => t;
 const OPENAI: { system: string; nutzer: string[]; werkzeugErgebnisse: any[]; zweiter: boolean; antwort?: string }[] = [];
 const FREMD: string[] = [];
 const json = (status: number, j: unknown) => new Response(JSON.stringify(j), { status, headers: { "Content-Type": "application/json" } });
+/** E-275 (02.10.2026): ein ungefragtes Anrufangebot im Fall-Entwurf → die Frage nach dem nächsten Schritt (siehe Aufruf). */
+function e275Attrappe(t: string): string {
+  return String(t ?? "")
+    .replace(/, und ich vereinbare Ihren Termin mit \{MIT_DAT\}\. Passt Ihnen \{SLOT1_FRAGE\}\?/g, ". Machen Sie heute noch weiter?")
+    .replace(/\s*\{MIT_NOM\} erklärt Ihnen den Ablauf gern in Ruhe am Telefon\. Passt Ihnen \{SLOT1_FRAGE\}\?/g, " Sie überweisen jede Zahlung selbst, abgebucht wird nichts. Machen Sie Ihren Antrag heute noch fertig?")
+    .replace(/\s*Lieber erst sprechen\? Dann trage ich Ihnen einen Anruf mit \{MIT_DAT\} ein — passt Ihnen \{SLOT1_FRAGE\}\?/g, " Wollen wir starten?");
+}
+/**
+ * E-275: Erwartete Sätze aus den Fällen vom 29.09., die Justin am 02.10. bewusst ersetzt hat — „…, bevor Sie etwas
+ * überweisen?“ (der Anruf vor der Zahlung) ist jetzt die Bitte ums Zahlen, „FIAON ist tatsächlich keine Bank“ sagt, was
+ * FIAON tut, und beim zahlenden Kunden steht der Link der Partnerbank vor der Rate.
+ */
+const E275_ERSATZ: Record<string, string> = {
+  "bevor Sie etwas überweisen": "Schaffen Sie die Überweisung heute noch?",
+  "FIAON ist tatsächlich keine Bank": "FIAON ist kein Kreditinstitut",
+  "Bei Ihnen ist noch Ihre Rate vom": "Ihre Rate vom",
+};
 /** Die fertigen Sätze, die der Server dem Modell in den Auftrag schreibt — die Attrappe „übernimmt" sie. */
 function aus(system: string, re: RegExp): string { return system.match(re)?.[1]?.trim() ?? ""; }
 const echtFetch = globalThis.fetch;
@@ -81,12 +98,16 @@ globalThis.fetch = (async (eingabe: any, init?: any) => {
       return json(200, { status: "completed", output: [{ type: "function_call", call_id: `pruef-${OPENAI.length}`, name: p.werkzeug.name, arguments: JSON.stringify(args) }], usage: { input_tokens: 10, output_tokens: 10 } });
     }
     const so = [...werkzeugErgebnisse].reverse().find((w) => w?.so_schreiben)?.so_schreiben ?? "";
-    const roh = zweiter ? (p.antworten[1] ?? p.antworten[0]) : p.antworten[0];
+    // E-275 (02.10.2026): Die Fälle wurden am 29.09. mit Justins damaliger Formel gebaut — der zweite Entwurf bot von sich
+    // aus einen Anruf mit Uhrzeit an ({SLOT1_FRAGE}). Seit Justins „nicht immer sagen ‚Ich mache einen Termin mit XY‘“ ist
+    // das kein Soll mehr (und der Server holt keinen freien Platz mehr vorab) — die Attrappe schreibt dort die E-275-Frage.
+    const roh = e275Attrappe(zweiter ? (p.antworten[1] ?? p.antworten[0]) : p.antworten[0]);
     const text = ersetzen(roh, {
       SO_SCHREIBEN: String(so),
       ABSCHLUSS: aus(system, /So, eingesetzt für ihn \(in eigenen Worten, gleiche Fakten, keine andere Zahl\): „([\s\S]*?)"\n/),
       WAS_IST: aus(system, /Deine Kurzantwort \(in eigenen Worten, gleiche Fakten, nie „Bonitätsplattform" als erstes Wort\): „([\s\S]*?)"\n/),
-      KEINE_KARTE: aus(system, /kein Umweg über den Link oder die Zusage der Bank: „([\s\S]*?)"\n/),
+      // E-275 (02.10.2026): Beim zahlenden Kunden steht im Block jetzt der Link der Partnerbank vorn — dieselbe Antwort, andere Zeile.
+      KEINE_KARTE: aus(system, /═══ „KEINE KARTE BEKOMMEN[^\n]*\n[^\n]*?: „([\s\S]*?)"\n/),
       NOCH_ZAHLEN: aus(system, /Fragt er, ob er noch zahlen muss: „([\s\S]*?)" — mit seiner Zahlungsseite/),
       // E-265 Nachbesserung (V1): die Einwand-Muster, die der Server dem Modell WIRKLICH zeigt (vorher baute der
       // Prüfstand sie selbst — Teil B war grün, obwohl das Live-Modell nur die alten Muster ohne Karte sah).
@@ -114,6 +135,16 @@ const kp = await import("../server/lib/fiaon-ki-pause");
 kp.kiNetzAbsichern();
 const wa = await import("../server/lib/fiaon-whatsapp-mara");
 const ton = await import("../shared/fiaon-mara-ton");
+// E-275 (02.10.2026): Fragt ein zahlender Kunde nach seiner Karte, schickt Mara den Link der Partnerbank (Bereich Karte,
+// karteEinladungFuerPerson — per E-Mail). Der Prüfstand verschickt nichts: Der Weg kommt aus einer Attrappe mit dem Satz,
+// wie ihn der Bereich Karte liefert.
+const { KARTE_ZEIT_SATZ } = await import("../shared/fiaon-karten-weg");
+const KARTEN_AUFRUFE: number[] = [];
+wa.KARTEN_WEG.einladung = async (personId: number) => {
+  KARTEN_AUFRUFE.push(personId);
+  return { ok: true, aktion: "erneut_gesendet", gesendet: true, grund: null, schonAm: null, betreff: null, stand: null, intern: "Prüfstand: Attrappe",
+    satz: `Ihren Link unserer Partnerbank für den Kartenantrag habe ich Ihnen soeben noch einmal per E-Mail geschickt — schauen Sie bitte auch im Spam-Ordner nach. ${KARTE_ZEIT_SATZ}` } as any;
+};
 // E-265 (01.10.2026, Recht): der Abrechnungsmonat — eine Rechnung für Teil A und Teil B.
 const antragStand = await import("../shared/fiaon-antrag-stand");
 const nm = await import("../shared/fiaon-mitarbeiter-name");
@@ -227,9 +258,13 @@ if (!NUR || NUR === "a") {
       ["bausteinWasIstFiaon (Kunde)", ton.bausteinWasIstFiaon({ kanal: "whatsapp", stufe: "kunde", ziel: ZIEL, betreuer: nennE })],
       ["bausteinAbstreiten rueckfrage", ton.bausteinAbstreiten({ kanal: "whatsapp", art: "rueckfrage", herkunft: null, betreuer: n.nom })],
     ];
+    // E-275 (02.10.2026, Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): Die Abschlüsse bitten ums Zahlen
+    // und nennen niemanden mehr — dort gilt nur noch „kein Vorname allein, nichts geraten“. Wo ein Mensch genannt wird
+    // (Rückfall, Termin, „Termin steht“, Was ist FIAON, Abstreiten), bleibt die Nennform Pflicht.
+    const OHNE_NAMEN = new Set(["bausteinAbschluss b", "bausteinAbschluss a", "bausteinAbschluss rate", "bausteinAbschluss abbrecher", "bausteinAbschluss c", "bausteinAbschluss b (Mail)", "bausteinKeineKarte", "bausteinVorkasse"]);
     for (const [was, s] of saetze) {
       const namensTreffer = TEST_VORNAME_ALLEIN.test(s) || GERATEN.test(s) || hartName(s).length > 0;
-      ok(s && s !== "null" && !namensTreffer && (s.includes(n.nom) || s.includes(n.dat)), `${was} ${wer}: Nennform, kein Vorname allein, nichts geraten — „${kurz(s, 90)}“`);
+      ok(s && s !== "null" && !namensTreffer && (OHNE_NAMEN.has(was) || s.includes(n.nom) || s.includes(n.dat)), `${was} ${wer}: ${OHNE_NAMEN.has(was) ? "kein Name nötig (E-275)" : "Nennform"}, kein Vorname allein, nichts geraten — „${kurz(s, 90)}“`);
     }
     // Die großen Texte: Persona und der ganze Auftrag an das Modell
     const persona = ton.personaText("whatsapp", { betreuer: nennE, vertretung: { name: n.nom, dat: n.dat, bis: "Freitag, 2. Oktober, 9 Uhr" } });
@@ -285,7 +320,9 @@ if (!NUR || NUR === "a") {
   for (const [was, s] of BAUSTEINE) {
     const h = ton.tonPruefung(s, { kanal: "whatsapp", land: "DE", kunde: "", mitarbeiter: TEAM }).filter((b) => b.schwere === "hart");
     const w = sendePruefung(s);
-    ok(!h.length && !w.length && s.length <= 500, `${was}: ohne harten Treffer, Wand frei, ${s.length} Zeichen${h.length || w.length ? ` — ${[...h.map((b) => b.id), ...w].join(" · ")}` : ""}`);
+    // E-275 (02.10.2026): gezählt ohne Link (wie tonPruefung und verkaufsPruefung) — Justins Satz macht die Formel länger.
+    const lesbar = s.replace(/https?:\/\/\S+/g, "").replace(/\s{2,}/g, " ").trim().length;
+    ok(!h.length && !w.length && lesbar <= 500, `${was}: ohne harten Treffer, Wand frei, ${lesbar} Zeichen ohne Link${h.length || w.length ? ` — ${[...h.map((b) => b.id), ...w].join(" · ")}` : ""}`);
   }
 
   console.log("── A5. Kartenziel (D2) ──────────────────────────────────────────────");
@@ -303,11 +340,20 @@ if (!NUR || NUR === "a") {
   const m1 = ton.abschlussPruefung(ALT1350, { art: "b", kunde: "Zuerst die Zahlung dann , zahle ich gerne weiter!", ziel: ZIEL, betrag: "99,99 €" });
   ok(m1.some((h) => /Kreditkarte/.test(h)) && m1.some((h) => /25\.000/.test(h)) && m1.some((h) => /Frage/.test(h)), `4714: alte Antwort → Karte, Ziel und Frage fehlen (${m1.length})`);
   const formel = ton.bausteinAbschluss({ kanal: "whatsapp", art: "b", ziel: ZIEL, betrag: "99,99 €", mit: ds, zeit: "morgen um 10 Uhr", link: LINK });
-  ok(!ton.abschlussPruefung(formel, { art: "b", kunde: "Zuerst die Zahlung dann , zahle ich gerne weiter!", ziel: ZIEL, betrag: "99,99 €" }).length, "… Justins Formel erfüllt alles");
+  // E-275 Ton (02.10.2026, Echt-Probe f01): Auf den Vorkasse-Einwand „Zuerst die Zahlung …“ antwortet der Server mit
+  // bausteinVorkasse (einwandJetzt „vertrauen“), nicht mit der Kauf-Formel. Die Kauf-Formel allein trägt das Argument „Sie
+  // überweisen selbst, abgebucht wird nichts“ nicht — mit der neuen Aufforderung fiel es beim echten Modell weg (Merkmal E).
+  // Deshalb jetzt: Kauf-Formel auf ein Kaufsignal ohne Hinweis; auf den Einwand genau EIN Hinweis (das Argument), und die
+  // Vorkasse-Formel erfüllt alles. Bewusst mitgezogen.
+  ok(!ton.abschlussPruefung(formel, { art: "b", kunde: "Ok, ich zahle heute noch. Wie geht es dann weiter?", ziel: ZIEL, betrag: "99,99 €" }).length, "… Justins Formel erfüllt alles (Kaufsignal)");
+  const mE = ton.abschlussPruefung(formel, { art: "b", kunde: "Zuerst die Zahlung dann , zahle ich gerne weiter!", ziel: ZIEL, betrag: "99,99 €" });
+  ok(mE.length === 1 && /Sie überweisen selbst, abgebucht wird nichts/.test(mE[0]), `… auf den Vorkasse-Einwand fehlt der Kauf-Formel nur das Argument (${mE.length})`);
+  ok(!ton.abschlussPruefung(ton.bausteinVorkasse({ betrag: "99,99 €", ziel: ZIEL, mit: ds, link: LINK, jahresvertrag: true }), { art: "b", kunde: "Zuerst die Zahlung dann , zahle ich gerne weiter!", ziel: ZIEL, betrag: "99,99 €" }).length, "… die Vorkasse-Formel erfüllt alles");
   ok(ton.abschlussPruefung(`Danke! Ihre Zahlungsseite: ${LINK}`, { art: "a", kunde: "bezahlt", ziel: null, betrag: "7,99 €" }).length === 1, "A: ein Zahlungslink nach „bezahlt“ fällt auf");
   ok(!ton.abschlussPruefung(ton.bausteinAbschluss({ kanal: "whatsapp", art: "a", betrag: "7,99 €", mit: fl, zeit: "morgen um 10 Uhr" }), { art: "a", kunde: "bezahlt", betrag: "7,99 €" }).length, "… die A-Formel (Danke, Karte, Termin) geht durch");
   const ALT1414 = "Die 59,99 € sind die Monatsrate für FIAON Pro: Ihr Account ist aktiv, und der Link der Partnerbank ist bereits an Sie rausgegangen; die Karte selbst kommt erst nach der Zusage der Bank.";
-  ok(ton.abschlussPruefung(ALT1414, { art: "rate", kunde: "Wozu soll ich dann bitte zahlen", betrag: "59,99 €" }).some((h) => /Zahlung offen/.test(h)), "8078: „keine Karte — wozu zahlen?“ ohne „Zahlung offen“ fällt auf");
+  // E-275 (02.10.2026): beim zahlenden Kunden verlangt der Hinweis den Link der Partnerbank und die Rate (vorher „Zahlung offen“).
+  ok(ton.abschlussPruefung(ALT1414, { art: "rate", kunde: "Wozu soll ich dann bitte zahlen", betrag: "59,99 €" }).some((h) => /Zahlung offen|Link unserer Partnerbank/.test(h)), "8078: „keine Karte — wozu zahlen?“ ohne Link der Partnerbank und Rate fällt auf");
   ok(!ton.abschlussPruefung(ton.bausteinKeineKarte({ kanal: "whatsapp", betrag: "59,99 €", rateVom: "12.09.", link: LINK, mit: fl }), { art: "rate", kunde: "Wozu soll ich dann bitte zahlen", betrag: "59,99 €" }).length, "… „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist“ geht durch");
   ok(!ton.abschlussPruefung("Gern, danke Ihnen.", { art: "b", kunde: "Ok danke", betrag: "99,99 €" }).length, "ohne Kaufsignal/Einwand keine Abschlusspflicht");
 
@@ -358,6 +404,17 @@ if (!NUR || NUR === "a") {
     const t = ton.musterText(d);
     if (!t) continue;
     ok(!hartName(t).length, `Musterdialog „${d.id}“: kein Mitarbeiter-Vorname allein`);
+    // E-275 Ton (02.10.2026, Justin: „eher übermotiviert!“ — seriös): höchstens EIN Ausrufezeichen, nie „die Karte wird von
+    // uns versendet“ / „in Produktion“ (weiche Regel karte_versand) — das Modell kopiert die Muster.
+    ok(ton.ausrufezeichen(t) <= 1 && !ton.tonPruefung(t, { kanal: d.kanal }).some((b) => b.id === "karte_versand" || b.id === "ausrufezeichen"),
+      `Musterdialog „${d.id}“: höchstens ein „!“, keine Versand-/Produktionszusage für die Karte`);
+  }
+  // E-275 Ton: Die Abschluss-Muster mit offener ERSTER Zahlung fordern klar auf („Zahlen Sie jetzt die Aktivierung“) — bewusst
+  // mitgezogen; vorher „Bitte begleichen Sie Ihre erste Monatsrate … — sobald sie gebucht ist, schaltet das System Sie frei“.
+  {
+    const bz = ton.musterText(ton.MUSTERDIALOGE.find((d) => d.id === "abschluss_b_zahlungsbereit")!) ?? "";
+    ok(bz.includes(ton.AKTIVIERUNG_AUFRUF) && bz.includes(ton.NACH_DEM_EINGANG) && !/Bitte begleichen|schaltet das System/.test(bz),
+      `Muster „abschluss_b_zahlungsbereit“: Aufforderung und Nutzen — „${kurz(bz.slice(bz.indexOf(ton.AKTIVIERUNG_AUFRUF)), 120)}“`);
   }
   const nieAlle = ton.MUSTERDIALOGE.flatMap((d) => (d as any).nie ?? []).join(" | ");
   for (const s of ["Daniel ruft Sie heute um 17:30 Uhr an", "Florentine begleitet Sie Schritt für Schritt", "Bonitätsplattform", "Daniel klärt das"]) ok(nieAlle.includes(s), `„nie“ enthält Justins Screenshot-Satz „${s}“`);
@@ -496,7 +553,8 @@ if (!NUR || NUR === "a") {
 
   console.log("── A11. Karte, A-Formel, Nähe, keine Karte ──────────────────────────");
   const A = ton.bausteinAbschluss({ kanal: "whatsapp", art: "a", ziel: ZIEL, betrag: "7,99 €", mit: fl, zeit: "heute um 15:40 Uhr" });
-  ok(/Link unserer Partnerbank für Konto und Karte/.test(A) && !/Link unserer Partnerbank für Ihre Visa-Kreditkarte/.test(A) && !hartIds(A).length, `A: der Link gilt Konto und Karte, die Kreditkarte bleibt Ziel — „${kurz(A, 140)}“`);
+  // E-275 (02.10.2026): Justins freigegebener Satz (KARTE_LINK_SATZ) — „für Ihren Kartenantrag“; nie „für Ihre Visa-Kreditkarte“.
+  ok(/Link unserer Partnerbank für (?:Konto und Karte|Ihren Kartenantrag)/.test(A) && !/Link unserer Partnerbank für Ihre Visa-Kreditkarte/.test(A) && !hartIds(A).length && !/Termin/.test(A), `A: der Link gilt dem Kartenantrag, die Kreditkarte bleibt Ziel, kein Termin (E-275) — „${kurz(A, 140)}“`);
   const AB = ton.bausteinAbschluss({ kanal: "whatsapp", art: "abbrecher", ziel: ZIEL, mit: ds, zeit: "heute um 15:30 Uhr", link: "https://fiaon.com/a/P265wandxx/w" });
   ok(!/nur noch/.test(AB) && /nächster Schritt/.test(AB), `Abbrecher: „Ihr nächster Schritt … ist Ihr Antrag“ statt „nur noch einen Schritt“ — „${kurz(AB, 100)}“`);
   for (const t of ["Ihre Visa-Kreditkarte ist nur noch einen Schritt entfernt.", "Ihre Karte ist greifbar.", "Dazu fehlt nur noch die offene Rechnung."]) ok(ton.tonPruefung(t, { kanal: "mail" }).some((b) => b.id === "naehe_druck"), `naehe_druck (weich): „${t}“`);
@@ -517,12 +575,16 @@ if (!NUR || NUR === "a") {
   ok(ton.abschlussPruefung("Genau: Mit Ihrer ersten Monatsrate über 99,99 € wird Ihr Account aktiv. Passt Ihnen heute um 15:30 Uhr?", { art: "b", kunde: F01, ziel: ZIEL, betrag: "99,99 €" }).some((h) => /Genau/.test(h)), "f01: „Genau:“ als Einstieg auf einen Einwand fällt (weich)");
   ok(wa.sichererSatz({ kunde: F01, aktionen: [], stufe: "zahlung_offen", abschluss: "ABSCHLUSS" }) !== "ABSCHLUSS", "sichererSatz: ein Einwand ist nie das Kaufsignal für die feste Formel");
   const VK = ton.bausteinVorkasse({ betrag: "99,99 €", ziel: ZIEL, mit: ds, zeit: "heute um 15:30 Uhr", link: LINK, jahresvertrag: true });
-  ok(/Passt Ihnen heute um 15:30 Uhr ein Anruf mit Herrn Stripling, bevor Sie etwas überweisen\?/.test(VK) && /Sie überweisen selbst, abgebucht wird nichts/.test(VK) && VK.length <= 500, `Vorkasse: der Anruf OHNE Bedingung, „Sie überweisen selbst“ — ${VK.length} Zeichen`);
+  // E-275 (02.10.2026): statt des Anrufs („…, bevor Sie etwas überweisen?“) die Fakten, Justins Satz und die Bitte ums Zahlen.
+  const vkLesbar = VK.replace(/https?:\/\/\S+/g, "").trim().length;
+  ok(/Sie überweisen selbst, abgebucht wird nichts/.test(VK) && /Link unserer Partnerbank für Ihren Kartenantrag/.test(VK) && VK.includes(ton.ZAHL_FRAGE) && !/Anruf|Herrn Stripling/.test(VK) && vkLesbar <= 500, `Vorkasse (E-275): „Sie überweisen selbst“, nach der Buchung der Link, die Bitte — kein Anruf — ${vkLesbar} Zeichen`);
   ok(!ton.abschlussPruefung(VK, { art: "b", kunde: "Nein danke habe ich gesagt ich zahle nichts vor ok", ziel: ZIEL, betrag: "99,99 €" }).length, "… erfüllt die Abschlussprüfung beim Einwand");
   ok(!ton.abschlussPruefung("Richtig, und Sie überweisen jede Rate selbst, abgebucht wird nichts. Passt Ihnen heute um 15:30 Uhr für den Anruf mit Herrn Stripling?", { art: "b", kunde: "Und wird dann was abgebucht? Ich zahle nicht vorab", ziel: ZIEL, betrag: "99,99 €", letzteDu: [formel] }).length, "zweiter Einwand: stand die Formel gerade da, keine Wiederholungspflicht");
   const F05 = "Mir wurde gesagt das sie kein Kreditinstitut sind sondern nur die Bonität prüfen? Und seit wann muss man für einen Kredit in Vorkasse bezahlen das hört sich sehr unseriös an ?";
   const VK5 = ton.bausteinVorkasse({ betrag: "99,99 €", ziel: ZIEL, mit: fl, zeit: "heute um 15:40 Uhr", link: LINK, jahresvertrag: true, kreditFrage: ton.fragtKreditinstitut(F05) });
-  ok(ton.fragtKreditinstitut(F05) && /^Verstehe ich — und FIAON ist tatsächlich keine Bank/.test(VK5) && !ton.tonPruefung(VK5, { kanal: "whatsapp", mitarbeiter: TEAM }).some((b) => b.schwere === "hart" || b.id === "kredit_nein") && VK5.length <= 500, `f05: der erste Satz beantwortet „kein Kreditinstitut?“ — ${VK5.length} Zeichen`);
+  // E-275 (02.10.2026, Justin: nicht „Wir sind keine Bank …“): der erste Satz sagt, was FIAON tut — und beantwortet die Frage.
+  const vk5Lesbar = VK5.replace(/https?:\/\/\S+/g, "").trim().length;
+  ok(ton.fragtKreditinstitut(F05) && /^Verstehe ich: Die Visa-Kreditkarte gibt unsere Partnerbank aus — FIAON ist kein Kreditinstitut, sondern bringt Sie dorthin/.test(VK5) && !/tatsächlich keine Bank/.test(VK5) && !ton.tonPruefung(VK5, { kanal: "whatsapp", mitarbeiter: TEAM }).some((b) => b.schwere === "hart" || b.id === "kredit_nein" || b.id === "keine_bank") && vk5Lesbar <= 500, `f05: der erste Satz beantwortet „kein Kreditinstitut?“ positiv — ${vk5Lesbar} Zeichen ohne Link`);
   ok(ton.abschlussPruefung("Bei uns kommen Sie zu Ihrer Visa-Kreditkarte mit Ihrem Wunschlimit von 25.000 € — über den Rahmen entscheidet unsere Partnerbank. Passt Ihnen heute um 15:30 Uhr?", { art: "b", kunde: "Nein danke, ich zahle nichts vor", ziel: ZIEL, betrag: "99,99 €", vorher: "Hier ist Mara, die digitale Assistentin von FIAON — ich verstehe Sie, wenn Sie nichts vorab zahlen möchten. Herr Stripling klärt das." }).some((h) => /Einstieg/.test(h)), "V4: der zugewandte Einstieg des ersten Entwurfs darf nicht verloren gehen");
   ok(ton.kaufSignal("Ich überweise heute") && wa.meldetZahlung("Ich habe überwiesen") && wa.meldetZahlung("Habe gestern überwiesen") && !wa.meldetZahlung("Wann habe ich überwiesen?"), "r5: „überweise/überwiesen“ trotz Umlaut erkannt");
   ok(nm.mitarbeiterVornameFunde("Daniels Kalender ist heute voll. Florentines Team meldet sich morgen. Ich habe Nikitas Nummer weitergegeben.", TEAM).filter((f) => f.schwere === "hart").length === 3, "Genitiv: „Daniels“, „Florentines“, „Nikitas“ sind harte Vornamen");
@@ -623,9 +685,11 @@ if (!NUR || NUR === "a") {
   for (const t of ["Bekomme ich die 25.000 dann auch sicher wenn ich zahle?", "Wie hoch ist eigentlich mein Limit auf der Karte?", "Brauche 20'000 CHF, geht das? Wann habe ich das Geld?", "Welches Limit bekomme ich?"]) ok(ton.fragtLimit(t), `Limit-Frage: „${t}“`);
   for (const t of ["Wie lange dauert das?", "Ich zahle heute", "Was kostet das?"]) ok(!ton.fragtLimit(t), `keine Limit-Frage: „${t}“`);
   const LF = ton.bausteinLimitFrage({ kanal: "whatsapp", ziel: ZIEL, mit: ds, zeit: "heute um 10:30 Uhr", betrag: "99,99 €", link: LINK });
-  ok(/^Für Ihre Visa-Kreditkarte ist Ihr Wunschlimit von 25\.000 € unser Ziel — über den Rahmen entscheidet unsere Partnerbank\. /.test(LF) && !hartIds(LF).length && !sendePruefung(LF).length && LF.endsWith(LINK) && /Herrn Stripling\?/.test(LF), `l01: fester Baustein — Karte, Ziel, Bank, Betrag, Termin, Link (${LF.length} Zeichen)`);
+  // E-275 (02.10.2026): statt „Passt Ihnen … ein Anruf mit Herrn Stripling?“ Justins Satz und die Bitte ums Zahlen.
+  ok(/^Für Ihre Visa-Kreditkarte ist Ihr Wunschlimit von 25\.000 € unser Ziel — über den Rahmen entscheidet unsere Partnerbank\. /.test(LF) && !hartIds(LF).length && !sendePruefung(LF).length && LF.endsWith(LINK) && LF.includes(ton.ZAHL_FRAGE) && /Link unserer Partnerbank/.test(LF), `l01: fester Baustein — Karte, Ziel, Bank, Betrag, Link der Partnerbank, die Bitte, Link (${LF.length} Zeichen)`);
   const LF2 = ton.bausteinLimitFrage({ kanal: "whatsapp", ziel: ton.kartenZiel({ wunschEuro: 11000, rahmenEuro: 15000, paketKey: "ultra" })!, mit: ds });
-  ok(/11\.000 €/.test(LF2) && /\?$/.test(LF2) && !hartIds(LF2).length && !LF2.includes("https://"), `l02: „Wie hoch?“ → die Zahl, die Frage mit Nennform — „${kurz(LF2, 120)}“`);
+  // E-275: ohne offene erste Rate keine Terminfrage mehr — die Zahl als Ziel mit dem Bank-Satz ist die Antwort.
+  ok(/11\.000 €/.test(LF2) && !/Anruf|Zeit passt/.test(LF2) && !hartIds(LF2).length && !LF2.includes("https://"), `l02: „Wie hoch?“ → die Zahl als Ziel, kein Terminangebot — „${kurz(LF2, 120)}“`);
   const LF3 = ton.bausteinLimitFrage({ kanal: "whatsapp", ziel: ton.kartenZiel({ wunschEuro: 20000, rahmenEuro: 15000, paketKey: "ultra" })!, mit: fl, zeit: "heute um 12:50 Uhr" });
   ok(!hartIds(LF3).length && /15\.000 € als Ziel/.test(LF3), `Paket-Ziel: auch über der Paketgrenze frei — „${kurz(LF3, 100)}“`);
 
@@ -665,7 +729,8 @@ if (!NUR || NUR === "mail") {
     const ziel = ton.kartenZiel({ wunschEuro: 5000, rahmenEuro: PACK_LIMITS.pro, paketKey: "pro" });
     const t = `${ton.bausteinWasIstFiaon({ kanal: "mail", stufe: "zahlung_offen", ziel, betreuer: nm.nennform({ anrede: "Frau", first_name: "Florentine", last_name: "Lombardi" }) })}\n\n${ton.bausteinAbschluss({ kanal: "mail", art: "b", ziel, betrag: "59,99 €", verwendungszweck: "FIAON-P265M1", mit: vertreter })}`;
     ok(!tpm(t).length && /Kreditkarte/.test(t) && t.includes("5.000 €") && ton.BANK_SATZ_MUSTER.test(t) && t.includes("59,99 €") && t.includes("FIAON-P265M1") && !t.includes("https://"), "M1: Kurzantwort + Formel (Karte, 5.000 €, Bank, 59,99 €, Verwendungszweck, kein Link im Text)");
-    ok(t.includes("Justin Schwarzott") && !/Lombardi\s+(?:meldet|ruft|klärt)/.test(t), "M1: Termin beim Vertreter (Justin Schwarzott), keine Zusage für die Abwesende");
+    // E-275 (02.10.2026): kein Pflicht-Termin mehr — die Mail bittet ums Zahlen (Knopf); keine Zusage für die Abwesende.
+    ok(!/Lombardi\s+(?:meldet|ruft|klärt)/.test(t) && /Knopf/.test(t) && !/Termin mit/.test(t), "M1: keine Zusage für die Abwesende, die Bitte über den Knopf, kein Pflicht-Termin (E-275)");
     ok(tpm("Gern, Florentine meldet sich heute bei Ihnen und klärt Ihre Fragen zu FIAON.").length > 0, "M1: der alte Satz mit „Florentine“ fällt hart");
     const s = pm.schrittBestimmen({ naechster_schritt: { art: "zahlung", text: "Rechnung ansehen und bezahlen" } }, "unbezahlt" as any, wz);
     ok(s.schritt?.art === "zahlung" && s.schritt?.url === ZAHL, "M1: B behält den Zahlknopf (seine Zahlungsseite)");
@@ -677,7 +742,8 @@ if (!NUR || NUR === "mail") {
     const s2 = pm.schrittBestimmen({ naechster_schritt: { art: "zahlung", text: "Rechnung ansehen" } }, "zahlung_gemeldet" as any, { zahlungslink_bauen: { zahlungsseite: ZAHL } }, false, { gemeldet: true });
     ok(s2.schritt?.art === "bereich", `M2: ohne Terminlink → sein Bereich (ist: ${s2.schritt?.art})`);
     const t = ton.bausteinAbschluss({ kanal: "mail", art: "a", ziel: ton.kartenZiel({ wunschEuro: 25000, rahmenEuro: PACK_LIMITS.highend, paketKey: "highend" }), betrag: "99,99 €", mit: nm.nennform({ anrede: "Herr", first_name: "Daniel", last_name: "Stripling" }) });
-    ok(!tpm(t).length && /Kreditkarte/.test(t) && t.includes("25.000 €") && !/begleichen|überweisen|zahlungsseite/i.test(t) && t.includes("Herrn Stripling"), "M2: A-Formel — Danke, Karte, 25.000 €, Termin mit Herrn Stripling, keine Zahlungsbitte");
+    // E-275 (02.10.2026): statt „Termin mit Herrn Stripling“ der Link der Partnerbank nach der Buchung und die Zeit bis zur Karte.
+    ok(!tpm(t).length && /Kreditkarte/.test(t) && t.includes("25.000 €") && !/begleichen|überweisen|zahlungsseite/i.test(t) && /Link unserer Partnerbank/.test(t) && /2–5 Werktagen/.test(t), "M2: A-Formel — Danke, Karte, 25.000 €, Link der Partnerbank nach der Buchung, 2–5 Werktage, keine Zahlungsbitte");
   }
   // M3 #5779 (P7815): gekündigt + Beleg — Bestätigung, kein Zahlknopf
   {
@@ -779,7 +845,10 @@ function merkmale(antwort: string, pr: Record<string, any>, ctx: {
       const f = nm.mitarbeiterVornameFunde(a, TEAM, { kundeNamen: ctx.kundeNamen });
       if (f.length) fehlt.push(`N: ${f.map((x) => `${x.treffer} (${x.schwere})`).join(", ")}`);
       // E-265 Schluss-Nachbesserung (Probe 3 f10): „mit Herrn Stripling" ist dieselbe Nennform im Dativ.
-      if (pr.nenn && !(pr.nenn as string[]).some((n) => a.includes(n) || a.includes(n.replace(/^Herr\s/, "Herrn ")))) fehlt.push(`N: keine der Nennformen ${pr.nenn.join("/")}`);
+      // E-275 (02.10.2026): Die Nennform ist nur noch Pflicht, wo die Antwort einen Anruf, Termin oder Menschen anspricht —
+      // die Abschlüsse bitten ums Zahlen und nennen niemanden (Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“).
+      const sprichtVonMensch = /\b(?:anruf\w*|ruft|rückruf\w*|termin\w*|telefon\w*|betreuer\w*|kolleg\w*)\b/i.test(a);
+      if (pr.nenn && sprichtVonMensch && !(pr.nenn as string[]).some((n) => a.includes(n) || a.includes(n.replace(/^Herr\s/, "Herrn ")))) fehlt.push(`N: keine der Nennformen ${pr.nenn.join("/")}`);
       if (pr.ohne_anrede && /\b(?:er|ihn|ihm)\b/.test(a)) fehlt.push("N: Pronomen für einen Mitarbeiter ohne Anrede");
     }
     if (m === "K" && !/kreditkarte/i.test(a)) fehlt.push("K: „Kreditkarte“ fehlt");
@@ -799,9 +868,14 @@ function merkmale(antwort: string, pr: Record<string, any>, ctx: {
       if (pr.ohne_rate && (/\d+,\d{2}\s*€/.test(a) || /\/zahlung\//.test(a))) fehlt.push("Z: Betrag/Zahlungsseite ohne abgeschickten Antrag");
     }
     if (m === "T") {
-      const frage = /\?\s*$/.test(ohneLink) && (!pr.nenn || (pr.nenn as string[]).some((n) => a.includes(n) || a.includes(n.replace(/^Herr\s/, "Herrn "))));
+      // E-275 (02.10.2026): T heißt „Abschlussfrage oder gebuchter Termin“ — die Frage ist meist die Bitte ums Zahlen oder
+      // Starten; die Nennform nur, wenn die Frage einen Anruf oder Termin anbietet.
+      const letzteFrage = ohneLink.split(/(?<=[.!?])\s+/).filter((x) => /\?\s*$/.test(x)).pop() ?? "";
+      const anrufFrage = /\b(?:anruf\w*|rückruf\w*|termin\w*|telefon\w*|uhr)\b/i.test(letzteFrage);
+      const frage = /\?\s*$/.test(ohneLink) && (!pr.nenn || !anrufFrage || (pr.nenn as string[]).some((n) => a.includes(n) || a.includes(n.replace(/^Herr\s/, "Herrn "))));
       const gebucht = !!ctx.terminGebucht && ton.uhrzeitenIn(a).includes(hhmm(ctx.terminGebucht.beginn));
-      if (!frage && !gebucht) fehlt.push("T: weder Abschlussfrage mit Nennform noch gebuchter Termin");
+      // E-275: Bei gemeldeter Zahlung (A) endet die Antwort mit Justins Satz bis zur Karte — ohne Terminfrage, ohne Bitte.
+      if (!frage && !gebucht && pr.art !== "a") fehlt.push("T: weder Abschlussfrage noch gebuchter Termin");
       if (pr.termin_uhr && !(ctx.terminUhr && ton.uhrzeitenIn(a).includes(ctx.terminUhr))) fehlt.push(`T: Uhrzeit des Kalendertermins ${ctx.terminUhr} fehlt`);
     }
     if (m === "R") {
@@ -1018,7 +1092,7 @@ try {
       ok(!fehltM.length, `${fall.id}/${schritt.id}: Soll-Merkmale ${(pr.merkmale ?? []).join(" ")}${fehltM.length ? ` — fehlt: ${fehltM.join(" · ")}` : ""}`);
       if (pr.zweiter) ok(aufrufe.some((x) => x.zweiter), `${fall.id}/${schritt.id}: Maras alte Antwort fiel durch (zweiter Entwurf)`);
       if (pr.ki_aufrufe != null) ok(aufrufe.length === pr.ki_aufrufe, `${fall.id}/${schritt.id}: ${pr.ki_aufrufe} KI-Aufruf(e) — fester Satz (${aufrufe.length})`);
-      for (const e of pr.enthaelt ?? []) ok(antwort.includes(ersetzen(e)), `${fall.id}/${schritt.id}: enthält „${ersetzen(e)}“`);
+      for (const e0 of pr.enthaelt ?? []) { const e = E275_ERSATZ[e0] ?? e0; ok(antwort.includes(ersetzen(e)), `${fall.id}/${schritt.id}: enthält „${ersetzen(e)}“${e !== e0 ? ` (E-275 statt „${e0}“)` : ""}`); }
       for (const e of pr.nicht_enthaelt ?? []) ok(!antwort.includes(ersetzen(e)), `${fall.id}/${schritt.id}: ohne „${ersetzen(e)}“`);
       // H — die Handlung ist wirklich geschehen
       if (pr.kuendigung) {

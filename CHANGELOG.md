@@ -5,6 +5,299 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 02.10.2026 — Mara verkauft die Aktivierung: „Zahlen Sie jetzt die Aktivierung — Ihr Account ist sofort nach Zahlungseingang aktiv …!“ (E-275 Ton und Restpunkte)
+
+**Der Anlass:** Justin nach dem ersten E-275-Auftrag: „Mara schreibt ‚jeden‘ ‚ich leite es an XY weiter‘ aber das soll Mara
+nicht tun, sondern selbst arbeiten, selbst TOP verkaufen, eher übermotiviert! Also wirklich sowas wie: ‚Zahlen Sie die
+Aktivierung, wir kümmern uns darum das die Karte schnell versendet wird. Ihr Account ist sofort nach Eingang aktiv!‘“
+
+**Was stimmt (geprüft):** Eine Zahlung mit richtigem Verwendungszweck bucht der Airwallex-Abgleich selbst — der Account ist
+mit dem Zahlungseingang aktiv. Den Link der Partnerbank schickt das System direkt danach, wenn der Antrag vollständig ist. Die
+KARTE gibt die Partnerbank nach IHRER Zusage aus (in der Regel 2–5 Werktage, Apple Pay meist vorher) — FIAON versendet keine
+Karte. „Wir kümmern uns darum, dass die Karte schnell versendet wird“ sagt Mara deshalb nie; die wahre, genauso zupackende
+Fassung ist „Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen“.
+
+**Was jetzt gilt:**
+- **Die klare Aufforderung bei der ersten Zahlung** (WhatsApp und Mail, eine Quelle in `shared/fiaon-mara-ton.ts`):
+  „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über 99,99 € — Ihr Account ist sofort nach Zahlungseingang aktiv,
+  und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag!“ statt „Bitte begleichen Sie … —
+  sobald sie gebucht ist, schaltet das System Sie frei, …“. Gilt für Justins Abschluss (B), „keine Karte bekommen“ bei offener
+  erster Rate, die Antwort auf die Limit-Frage und die Mail-Formel (`AKTIVIERUNG_SATZ`, `mailAbschlussFormel`). Beim Einwand
+  (Vorkasse, „kein Kreditinstitut?“) bleiben erst die Fakten („Sie überweisen selbst, abgebucht wird nichts“), dann der Nutzen.
+- **Begeistert, aber seriös:** Persona und Aufträge sagen „eher übermotiviert als zurückhaltend“ — Sie-Form, kein Slang,
+  höchstens EIN Ausrufezeichen je Nachricht (neue weiche Prüfung `ausrufezeichen`), nie „ich leite das an … weiter“.
+- **Wahrheit bleibt:** neue weiche Prüfung `karte_versand` gegen „wir versenden Ihre Karte“ / „die Karte geht in Produktion“
+  (die Wortwand fängt nur „Karte … versenden“). Fehlt im Antrag noch etwas, sagt der Satz das (kein „direkt der Link“) —
+  `mitAntragLuecke` und `aktivierungMitLuecke` kennen die neuen Sätze. Die Zahlungsruhe (Widerruf, Kündigung, Beschwerde)
+  erkennt „Zahlen Sie jetzt …“ als Zahlungsbitte (`fordertZahlung`, WhatsApp-Ruheprüfung).
+- **Restpunkte:** (a) Prüfstand `pruef-global-kunde` Teil Q prüft die Global-Regel jetzt dort, wo sie seit E-275 steht
+  (`einladungPruefen`, Reihenfolge vor `einladungSchicken` in Automatik und Mara-Weg), mit Rotprobe. (b) Zwei Regex-Literale mit
+  Flag „u“ (tsc TS1501) als `new RegExp(…)` — gleiche Muster. (c) Eine **gekündigte Bonitätsauskunft** schließt einen zahlenden
+  Stufenpaket-Kunden nicht mehr von der Einladung aus — nur die Kündigung des Stufenpakets (oder DSGVO-Löschung). Produktion
+  (nur gelesen): genau zwei Menschen betroffen, Personen 4919 und 11498 — beide schon eingeladen; Mara kann ihnen den Link jetzt
+  auf Nachfrage noch einmal schicken (vorher „gesperrt“). Die Automatik schickt dadurch niemandem zusätzlich etwas.
+- **Endkontrolle (02.10.2026, Wahrheit):** Auf WhatsApp liefen „keine Karte bekommen“ bei offener erster Rate und die Antwort
+  auf die Limit-Frage (B) noch ohne Lücken-Fassung — bei unvollständigem Antrag stand dort „… und Sie bekommen direkt den
+  fertigen Link …“, die Limit-Antwort geht als sicherer Satz sogar wörtlich raus. Jetzt laufen beide durch `mitAntragLuecke`.
+  Ebenso der Satz aus dem Bereich Karte bei unbezahltem UND unvollständigem Antrag (`einladungSatz`, „nicht_bereit“). Kann
+  Mara den Link nicht selbst schicken (Ausschluss), sagt sie „Ihr Betreuer meldet sich wegen des Links“ statt „schickt Ihnen
+  den Link“ — ob es ihn gibt, entscheidet dann ein Mensch. `fordertZahlung` wertet „Überweisen/Zahlen Sie (bitte) nichts
+  mehr“ nicht mehr als Zahlungsbitte. Belegt in `pruef-mara-karte-wa` (A2, A10).
+
+**Wo:** `shared/fiaon-mara-ton.ts` (Kopf „E-275 TON“, `AKTIVIERUNG_AUFRUF`, `NACH_DEM_EINGANG`, `TEMPO_SATZ`, Bausteine,
+Prüfungen), `server/lib/fiaon-postmeister-agent.ts`, `server/lib/fiaon-whatsapp-mara.ts`, `server/lib/fiaon-konto-karte.ts`
+(`einladungPruefen`), `server/lib/fiaon-postmeister-werkzeuge.ts`; Prüfstände `pruef-mara-karte-wa` (Abschnitt A10),
+`pruef-mara-mail-e275`, `pruef-mara-abschluss`, `pruef-mara-verkauf`, `pruef-global-kunde`.
+
+---
+
+## 02.10.2026 — Kartenlink ist Vertragsleistung: Werbesperre hält ihn nicht mehr auf, Mara schickt ihn selbst (E-275, Bereich Karte)
+
+**Der Anlass:** Justin: „MARA verweist immer mehr auf die Mitarbeiter, Mara soll aber selbstständig arbeiten … Mara soll
+selbst verkaufen … nicht immer sagen ‚Ich mache einen Termin mit XY‘ oder ‚Wir sind keine Bank und können nichts wissen‘.“
+Postmeister-Fall 6120: Satpal Jhim hat am 02.08. FIAON Ultra bezahlt und fragt seit dem 03.09. nach seiner Karte („I have
+not your kaditkarte“). Den Link der Partnerbank hat er nie bekommen: Am 09.09. setzte der Postmeister eine Werbesperre
+(Mail 3644: Text nur „Sent from Yahoo Mail for iPhone“ und ein Bild, im eigenen Betreff aber „… bitte not again send me e
+mail for rattan ok“ — ein echter Wunsch, die Sperre war richtig) — und die automatische Einladung schloss jede Werbesperre
+aus, auch für die Leistung. Mara konnte nur schreiben „die Karte verschickt die Bank … ich habe Herrn Boychenko gebeten“.
+
+**Was jetzt gilt:**
+- **Die Einladung der Partnerbank ist Vertragsleistung, keine Werbung.** Die automatische Einladung nach der ersten Zahlung
+  (Takt `karten_einladungen`, alle fünf Minuten, höchstens 40 je Lauf — unverändert) schließt die Werbesperre nicht mehr
+  aus. Ausschluss bleiben: Testkonto, Vertriebssperre, Einstufung −1, Kunde von FIAON Global (E-272), Kündigung oder
+  DSGVO-Löschung, Storno aus der Telefonkartei, keine E-Mail-Adresse. EINE Liste für Automatik und Mara (`einladungPruefen`).
+- **Die Mail-Tür musste nicht geändert werden:** Die Einladung läuft über `mailSenden`, das immer einen Auslöser mitgibt —
+  an der Tür zählt sie damit als Handversand, für den die Werbesperre nicht gilt. Gemessen: nie eine Einladung an der
+  Werbesperre gescheitert. Die Sperre saß nur in der Auswahl der Automatik.
+- **Neu für Mara (Mail und WhatsApp): `karteEinladungFuerPerson(personId, akteur)`** in `server/lib/fiaon-konto-karte.ts`.
+  Schickt die Einladung — oder den Link noch einmal, wenn er schon draußen ist (frühestens nach einer Stunde) — und liefert
+  den Satz für den Kunden in Justins wahrer Formel („… den fertigen Link unserer Partnerbank für Ihren Kartenantrag …
+  Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist können Sie sie schon vorher in
+  der App der Bank mit Apple Pay nutzen.“). Konto schon eröffnet: kein Link, sondern „Karte im DKB-Banking dazubuchen“.
+  Noch nicht bezahlt: der Verkaufssatz „Sobald Ihre erste Zahlung bei uns eingegangen ist, ist Ihr Account aktiviert. Dann
+  bekommen Sie direkt den fertigen Link …“. Ausgeschlossen (z. B. gekündigt): kein Satz, Übergabe mit Grund. Kein Termin,
+  kein „wir sind keine Bank“, keine Limit- oder Kartenzusage — alle Sätze bestehen Wortwand und Tonprüfung.
+- **Erneuter Versand ohne zweite Provision:** Dieselbe Zeile in `fiaon_konto_karte` wird fortgeschrieben (Versandtag rückt
+  auf jetzt, der frühere steht in der Notiz) — keine zweiten 10 € für denselben Weg. „Eingeladen am“ liest der Stand aus dem
+  Mail-Protokoll. Lesend dazu: `karteEinladungStand(personId)`.
+
+**Wirkung (Produktion nur gelesen, 02.10.2026):** 115 Menschen sind bereit und haben noch keine Einladung, 27 davon mit
+Werbesperre. 22 dieser 27 haben wirksam gekündigt (bleibt Ausschluss). Fünf bekommen die Einladung beim nächsten Takt nach
+dem Deploy: Personen 3289, 4816 (Satpal Jhim), 4820, 6944, 12320.
+
+**Wo:** `server/lib/fiaon-konto-karte.ts` (Kopf „DIE EINLADUNG IST VERTRAGSLEISTUNG“, `einladungPruefen`,
+`einladungSchicken`, `einladungenAutomatisch`, `karteEinladungStand`, `karteEinladungFuerPerson`).
+
+---
+
+## 02.10.2026 — Mail-Mara arbeitet selbstständig und verkauft: Kartenlink selbst, Übergabe nur noch, wo ein Mensch übernimmt (E-275, Bereich Mail)
+
+**Der Anlass:** Justin: „MARA verweist immer mehr auf die Mitarbeiter, Mara soll aber selbstständig arbeiten ohne jedes mal
+ein Termin zu vereinbaren … Mara soll selbst verkaufen … Aber nicht immer sagen ‚Ich mache einen Termin mit XY‘ oder ‚Wir sind
+keine Bank und können nichts wissen‘.“ Postmeister-Fall 6120 (welcome@, 02.10.): „I have not your kaditkarte“ — Maras
+Entwurf: „The card itself is issued and sent by the bank … I have asked Nikita Boychenko to check this today“. Gemessen (nur
+lesend, 18.09.–02.10.): 116 von 400 Antworten mit Übergabe, 186 nannten einen Mitarbeiter, 47 Termin oder Rückruf; am 02.10.
+7 von 13 Mails übergeben. 89 Mails lagen in der Lage „gesperrt“ (nur „erledigt“, nie automatisch) — 51 davon von zahlenden
+Kunden mit Werbesperre.
+
+**Was jetzt gilt:**
+- **Werbesperre beim zahlenden Kunden = kein Upsell, kein Ausschluss** (`fiaon-postmeister-dossier.ts`, `kundenlageBerechnen`):
+  Ist der Vorgang bezahlt, rechnet die Lage weiter (aktiv, Rate überfällig, gekündigt …); der Grund trägt „Werbesperre gesetzt:
+  keine Werbung, kein Angebot, kein Upsell — sein Service läuft“. Kein `auskunft_anbieten`, kein Auskunft-Block; Karte, Zahlung,
+  Unterlagen, Zugang und Fragen erledigt Mara selbst und automatisch. Unbezahlte mit Werbesperre bleiben „gesperrt“ wie bisher.
+- **Neues Werkzeug `karte_senden`** (`fiaon-postmeister-werkzeuge.ts`, Lagen aktiv, Rate überfällig, bezahlt ohne
+  Startgespräch; Global-Wand): liest den Bank-Stand der Akte (beantragt, in Produktion, versandt … → kein neuer Link) und ruft
+  `karteEinladungFuerPerson(personId, { erneut: true, quelle: "postmeister", akteurName, postmeisterId })` aus dem Bereich Karte —
+  der schickt den Link (auch erneut) und liefert den Satz für den Kunden. Fragt ein zahlender Kunde nach einer Karte, die er
+  nicht hat, holt der Server das Werkzeug vorab (wie die Zahlungsseite). Je Mail höchstens ein Versand. Nie „die Bank macht das,
+  nicht wir“, nie „ich habe Herrn X gebeten“.
+- **Abschluss ohne Pflicht-Termin** (`fiaon-postmeister-agent.ts`): Der Auftrag trägt Justins wahren Satz — „Sobald Ihre Zahlung
+  gebucht ist, ist Ihr Account aktiviert, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag.
+  Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen …“ — und die klare Bitte „Bitte begleichen Sie
+  jetzt Ihre erste Monatsrate über X € — am schnellsten über den Knopf unten“ (`mailAbschlussFormel`, `MAIL_KARTE_REGEL` statt
+  der gemeinsamen Formel mit „ich vereinbare Ihren Termin mit …“). Neuer Block „DU ERLEDIGST ES SELBST“. Wunschlimit weiter nur
+  mit „über den Rahmen entscheidet unsere Partnerbank“, keine Karten- oder Limit-Zusage. Der zweite Entwurf verlangt bei offener
+  erster Zahlung Nutzen und Bitte statt einer Terminfrage; Verweis- und Abwehrsätze („… meldet sich heute“, „nicht von FIAON
+  verschickt“, „können wir nicht wissen“) lösen ihn ebenfalls aus (`verweisBefunde`).
+- **Übergabe nur noch, wo ein Mensch übernimmt** (`fiaon-postmeister-lauf.ts`, `menschNoetig`): Beschwerde, Bestreiten, Recht/
+  Anwalt, Widerruf, „kann nicht zahlen“, Beschwerde-/Rechts-/Vertriebskategorie, AUSDRÜCKLICHER Rückruf- oder Gesprächswunsch
+  (`rueckrufGewollt`), Kunde von FIAON Global (neu als Grund, E-272), nicht gebuchte Kündigung, offener Einwand. Nicht mehr:
+  Kategorie „sonstiges“, „dringend“ allein, jedes Wort „Betreuer/Mitarbeiter/anrufen“. Ist der Rückruf schon eingeplant
+  (Aufgabe mit Zeit, Notiz mit Anruf, Terminlink), geht Maras Antwort ohne zweite Übergabe raus.
+- **Unterlagen und Bilder per Mail** bestätigt Mara selbst und notiert sie still (`notiz_an_betreuer`, ohne „meldet sich“);
+  nur ein Zahlungsbeleg geht als Aufgabe an die Zahlungsstelle. `aufgabe_an_betreuer` sagt „X meldet sich heute“ nur noch bei
+  Rückruf oder Geld zurück, sonst ist die Aufgabe intern. Mail ohne eigenen Text: Mara liest den Betreff als sein Anliegen.
+- **Werbesperre nur auf ausdrücklichen Wunsch** (`ausdruecklicherStopp`, Riegel und `werbesperre_setzen`): Es zählt nur SEIN
+  Text (ohne Zitat, ohne „Sent from …“) und SEIN Betreff (kein „Re:“ auf unsere Mail). Leere Mail, Signatur oder Bild sind nie
+  ein Wunsch — Merker „stopp“ und Kategorie „abmeldung“ fallen dann, das Werkzeug lehnt ab.
+- **Richtigstellung zum Anlass:** Die Mail vom 09.09. (Fall 3644) hatte keinen eigenen Text, aber einen Betreff: „… bitte not
+  again send me e mail for rattan ok“ — ein Wunsch, der auch nach der neuen Regel zählt. Den Schaden machten Lage „gesperrt“
+  und die Einladung ohne Werbesperre-Ausnahme; beides ist behoben (hier und im Bereich Karte).
+
+**Gemessen (Produktion nur gelesen):** Von 42 Aufrufen `werbesperre_setzen` seit 01.09. hatten alle 42 einen ausdrücklichen
+Wunsch im eigenen Text oder Betreff (nach der neuen Regel); von 69 Mails „abmeldung“ verliert nur eine leere die Kategorie. In
+1.102 anderen Kundenmails trifft die Regel 37-mal — alles Absagen, Widerrufe, Kündigungen (die Regel erlaubt nur, das Modell
+entscheidet).
+
+**Prüfstände:** neu `scripts/pruef-mara-mail-e275.ts` (offline 91/91, mit lokaler DB 131/131: Fall 6120 → `karte_senden`,
+keine Übergabe, Antwort geht selbst raus; unbezahlter Kunde fragt nach der Karte → Zahlungsseite + Abschluss, kein Kartenlink;
+Kündigung und Widerruf → weiter Übergabe; Bild ohne Text → keine Werbesperre; Rückrufwunsch; Global-Kunde). Weiter grün:
+`pruef-mara-mail` 173/173 und 283/283, `pruef-mara-abstreiten`, `pruef-mara-aktion`, `pruef-ki-pause` 156/156,
+`pruef-ki-pause-nachholen` 61/61, `pruef-wortwand-de`, `pruef-backticks`. Wiedergabe mit dem echten Modell (lokal, nichts
+versendet, 10 Aufrufe): Fall 6120, unbezahlte Kartenfrage, Kontoauszüge als Bild — alle drei selbst beantwortet, ohne
+Übergabe und ohne Termin.
+
+**Wo:** `server/lib/fiaon-postmeister-agent.ts` (Kopf „MARA ARBEITET SELBSTSTÄNDIG UND VERKAUFT“), `-dossier.ts`,
+`-werkzeuge.ts` (`karte_senden`, „WERBESPERRE NUR AUF AUSDRÜCKLICHEN WUNSCH“), `-lauf.ts` (`menschNoetig`, `rueckrufGewollt`).
+
+---
+
+## 02.10.2026 — WhatsApp-Mara erledigt selbst und verkauft: Kartenlink selbst, kein Pflicht-Termin, Justins Satz statt „Ich mache einen Termin mit XY“ (E-275, Bereich WhatsApp)
+
+**Der Anlass:** Justin: „MARA verweist immer mehr auf die Mitarbeiter, Mara soll aber selbstständig arbeiten ohne jedes mal
+ein Termin zu vereinbaren (Whatsapp aber natürlich auch per mail!) Mara soll selbst verkaufen … (Hi, zahl die Aktivierung,
+die Karte geht zeitnahe in Produktion — also: Jetzt zahlen! ;D) — so in etwa nur seriös. Aber nicht immer sagen ‚Ich mache
+einen Termin mit XY‘ oder ‚Wir sind keine Bank und können nichts wissen‘.“ Gemessen auf WhatsApp (nur lesend, 23.09.–02.10.):
+Übergaben von 23 % auf 45 % gestiegen; 306 von 546 freien Antworten nannten einen Mitarbeiter, 113 „ruft Sie an/meldet sich“,
+keine einzige bat ausdrücklich ums Zahlen; von 88 Kartenfragen gingen 55 an Übergabe, Uhrzeit oder Termin (#2413 „Die
+Visa-Kreditkarte kommt nicht von FIAON direkt … Nikita Boychenko schaut mit Ihnen nach — 13:10 oder Montag?“, #2003 „Justin
+schaut nach, warum nichts angekommen ist“). Mara hatte kein Werkzeug, um den Link der Partnerbank selbst zu schicken.
+
+**Was jetzt gilt:**
+- **Kartenlink selbst** (`server/lib/fiaon-whatsapp-mara.ts`): neues Werkzeug `karte_link_schicken` für zahlende Kunden
+  (auch mit Werbesperre — Service, keine Werbung). Es geht über die EINE Regel des Bereichs Karte
+  (`karteEinladungFuerPerson`: Ausschlüsse, Mail mit dem Link, kein zweiter Versand binnen einer Stunde, der Satz für den
+  Kunden). Fragt ein zahlender Kunde nach Karte, Konto oder Link („I have not your kaditkarte“, „wann kommt meine Karte“,
+  „nix bekommen“ — `fragtNachKarte`), schickt der Server den Link vorab; das Modell sieht „SCHON ERLEDIGT“ und schreibt es
+  ihm. Die fällige Rate kommt als „außerdem noch offen“ mit Zahlungsseite dazu — nie als Grund für die Karte. Lehnt der
+  Kartenweg ab (z. B. Vertriebssperre), übergibt Mara mit dem internen Grund, der Kunde liest keinen; fehlt nur die
+  E-Mail-Adresse, fragt Mara selbst danach. Fragt er am selben Tag noch einmal, geht keine zweite Mail raus (der Satz
+  „schon unterwegs“). Protokoll „karte_link“ im Steuerpult.
+- **Kein Pflicht-Termin mehr** (`shared/fiaon-mara-ton.ts`): Die Abschlüsse enden mit der Bitte um die Überweisung
+  („Schaffen Sie die Überweisung heute noch?“) bzw. „Machen Sie heute noch weiter?“ / „Wollen wir starten?“ — statt „… und
+  ich vereinbare Ihren Termin mit Herrn X. Passt Ihnen …?“. Was nach der Zahlung passiert, sagt Justins eigener Satz
+  (`KARTE_LINK_SATZ`, `KARTE_ZEIT_SATZ`): nach der Buchung direkt der fertige Link der Partnerbank für den Kartenantrag, nach
+  der Zusage der Bank in der Regel 2–5 Werktage, meist vorher Apple Pay. Nie „in Produktion“, nie eine Limit-Zusage.
+  Einen Anruf bietet Mara nur noch an, wenn er telefonieren will oder ein zugesagter Anruf ausfiel; der Server holt dafür
+  keinen freien Platz mehr vorab.
+- **Weniger Übergaben** (Auftrag an das Modell): Eine andere Sprache, ein Bild/eine Datei (Unterlagen → Upload im Bereich,
+  Beleg → die Zahlungsstelle gleicht ab), „ich habe überwiesen“ und ein konkreter Zahltag sind keine Übergabe mehr. Ein
+  Mensch nur noch bei Rückruf-Wunsch, Geld zurück/Stundung/Ratenpause, Beschwerde über Geld, Betrug/Anwalt/Polizei,
+  Widerruf, Kündigungs-Rücknahme und Unbeantwortbarem. STOPP, Kündigung in zwei Schritten und Global-Kunden (E-272) unverändert.
+- **Werbesperre beim zahlenden Kunden:** kein Upsell (keine Auskunft, kein anderes Paket) — der Service bleibt voll.
+- **Neue weiche Prüfungen:** ungefragtes Terminangebot und „X meldet sich/prüft/klärt“ ohne Anlass (`verkaufsPruefung`,
+  `anrufOk`), der Rückzug „können wir nicht wissen/keinen Einfluss/FIAON verschickt keine Karte“ (`kein_einblick`, Mail und
+  WhatsApp) → zweiter Entwurf. „wir sind keine Bank“ als Antwort auf „kein Kreditinstitut?“ ersetzt durch „FIAON ist kein
+  Kreditinstitut, sondern bringt Sie dorthin“. `mailAbschlussPflicht` verlangt statt der Terminfrage einen Schritt (Frage
+  oder Knopf). Hauswissen (`shared/fiaon-wissen.ts`): Werbe-Stopp hält die Einladung nicht auf; Mara schickt den Link selbst.
+
+**Prüfung:** neuer Prüfstand `scripts/pruef-mara-karte-wa.ts` (56 offline, 83 mit lokaler DB; mit `--ki` und echtem Modell
+81/81 in 10 Aufrufen, ohne Versand). Angepasst an die neue Regel (begründet im Code): `pruef-mara-abschluss.ts` (704/704),
+`pruef-mara-verkauf.ts` (204/204). Unverändert grün: `pruef-mara-wiedergabe` (578), `pruef-mara-mail` (173 offline, 283 mit DB),
+`pruef-mara-abstreiten`, `pruef-mara-aktion`, Wortwand, Backticks, esbuild, `tsc`.
+
+**Wo:** `server/lib/fiaon-whatsapp-mara.ts` (Kopf E-275, `kartenLinkSchicken`, `KARTEN_WEG`, `verkaufsPruefung`, Auftrag,
+`lageFuer`, `maraAntwortet`), `shared/fiaon-mara-ton.ts` (`bausteinAbschluss`, `bausteinKeineKarte`, `bausteinVorkasse`,
+`bausteinLimitFrage`, `fragtNachKarte`, `kein_einblick`, `KARTE_REGEL_TEXT`, `mailAbschlussPflicht`), `shared/fiaon-wissen.ts`.
+
+---
+
+## 02.10.2026 — Gegenprüfung Wahrheit und Recht: „Stopp“ bleibt Stopp, kein „direkt der Link“ bei lückenhaftem Antrag, Passwort ohne erfundenen Mail-Link (E-275)
+
+**Der Anlass:** Justin: „Mara soll positiv, verkäuferisch und selbstständig agieren.“ Die Gegenprüfung hat E-275 auf
+Wahrheit und Recht gelesen (Limit, Karte vor der Bankzusage, Aktivierung, Werbesperre, Kündigung/Widerruf/Erstattung,
+Global, Wortwand, Nachnamen, wer den Kartenlink bekommt) und gegen die Produktion gerechnet (nur lesend).
+
+**Was falsch war und jetzt stimmt:**
+- **Ein echtes „Stopp“ wäre gelöscht worden** (`riegelAnwenden`, `werbesperre_setzen`). Die neue Liste `ausdruecklicherStopp`
+  war ein Veto: Erkannte sie den Wunsch nicht, fielen Merker „stopp“ und Kategorie „abmeldung“, und das Werkzeug verweigerte
+  die Werbesperre. Gegen die 113 Stopp-Mails seit 01.08. gerechnet: 12 erkennt sie nicht, 11 davon mit eigenem Text — darunter
+  „schicken sie mir keine Nachricht mehr“, „jede weitere werbliche Kontaktaufnahme … zu unterlassen“, „bittee löschen sie
+  dieses account“, „Bitte Antrag löschen“, „fack off“. Der Merker „stopp“ ist dauerhaft (WA-Zentrale, Mara-Aktion,
+  Telefonkartei) — diese Menschen hätten wieder Werbung bekommen (§ 7 UWG, Art. 21 DSGVO). Jetzt verhindert die Liste nur,
+  was nie ein Wunsch ist: eine Mail ohne eigenen Text (Signatur, Bild, leer) und ein Zitat aus unserer eigenen Mail. Hat er
+  selbst geschrieben und das Modell sagt „Stopp“, bleibt es dabei; `werbesperre_setzen` sperrt, wenn das Zitat aus seinem
+  Text stammt (`werbesperreUrteil`, `zitatAusEigenemText`). Gerechnet: von 106 Modell-Stopps fällt nur noch die leere Mail.
+- **Richtigstellung zum Anlass:** Die Werbesperre vom 09.09. für Satpal Jhim war richtig — Mail 3644 hatte keinen eigenen
+  Text, aber im eigenen Betreff „… bitte not again send me e mail for rattan ok“. Den Kartenlink nahm ihm die Automatik, die
+  jede Werbesperre ausschloss. Die Köpfe in Karte, Postmeister, WhatsApp, Prüfstand und der Abschnitt „Bereich Karte“ oben
+  sagen das jetzt so.
+- **„Direkt nach der Zahlung der Link“ stimmt nur mit vollständigem Antrag.** Die Einladung verlangt Name, Geburtsdatum,
+  Anschrift und E-Mail. Gemessen: 20 von 452 abgeschickten, unbezahlten Anträgen der letzten 60 Tage fehlt etwas (13× nur das
+  Geburtsdatum). Für sie sagen Mail und WhatsApp jetzt: „Sobald Ihre Zahlung gebucht ist, ist Ihr Account aktiviert — und
+  sobald Ihre Angaben im Antrag vollständig sind (es fehlt noch: Geburtsdatum), geht der fertige Link unserer Partnerbank
+  für Ihren Kartenantrag an Sie raus.“ Die Akte nennt, was fehlt (`karte.fehlendeAngaben`, `karte.wasTun`). Mit
+  vollständigem Antrag bleibt Justins Satz unverändert.
+- **Passwort vergessen:** Der neue Auftrag sagte „der Link kommt an seine Adresse“ — die Seite „Passwort vergessen“ schickt
+  keinen Link; der Kunde bestätigt sich mit Vorname, Nachname, E-Mail und Geburtsdatum und setzt sofort ein neues Passwort.
+  So steht es jetzt im Auftrag.
+- **Ein Nein ist keine Kartenfrage:** „Ich brauche die Karte nicht mehr“, „will keine Karte mehr“ lösten per Mail vorab eine
+  Einladungsmail aus. Jetzt nicht mehr (dieselbe Grenze wie auf WhatsApp); das Modell kann `karte_senden` weiter selbst rufen.
+
+**Bestätigt (kein Befund):** Die Einladungsmail geht nur an bezahlte Stufenpakete (`payment_status = 'paid'`, Kategorie
+Konto, vollständiger Antrag) — nie an „Zahlung gemeldet“, nie an eine reine Bonitätsauskunft, nie an Gekündigte, Global
+oder Vertriebssperre; die fünf neuen Empfänger (3289, 4816, 4820, 6944, 12320) sind bezahlt, nicht gekündigt, ohne
+Rückläufer. Keine Limit- oder Kartenzusage, kein „in Produktion“ vor der Bankzusage in den neuen Sätzen; Wortwand 0 Treffer.
+Bei Werbesperre bekommt der zahlende Kunde Service und Zahlungspost, aber kein Angebot (kein `auskunft_anbieten`; ein Preis
+ohne Werkzeug ist ein harter Mangel). Kündigung, Widerruf, Beschwerde, Rechtsdrohung und Global bleiben beim Menschen;
+66 Mails mit Erstattungswunsch seit 20.08. verlieren keine Übergabe.
+
+**Offen (nicht in E-275-Dateien):** `scripts/pruef-global-kunde.ts` Teil Q ist rot, weil die Global-Regel der Einladung jetzt
+in `einladungPruefen` steht — vor dem Push anpassen (Vorschlag im Bericht des Bereichs Karte). Zwei zahlende Kunden haben nur
+eine gekündigte Bonitätsauskunft; `einladungPruefen` schließt sie wie früher aus (Kündigung einer Auskunft zählt wie eine
+Vertragskündigung) — Justin entscheidet.
+
+**Prüfstände:** `pruef-mara-mail-e275` 112/112 offline, 154/154 mit DB; `pruef-mara-karte-wa` 100/100 offline, 127/127 mit
+DB; `pruef-mara-mail` 173/173 und 283/283; `pruef-mara-abschluss` 704/704; `pruef-mara-wiedergabe` 578/578;
+`pruef-mara-verkauf` 204/204; `pruef-mara-abstreiten` 258/258; `pruef-mara-aktion` 40/40; `pruef-ki-pause` 156/156;
+Wortwand, Backticks, esbuild grün.
+
+**Wo:** `server/lib/fiaon-postmeister-werkzeuge.ts` (`werbesperreUrteil`, `zitatAusEigenemText`), `fiaon-postmeister-agent.ts`
+(`riegelAnwenden`, `fragtNachFehlenderKarte`, `aktivierungMitLuecke`, Auftrag „ZUGANG“), `fiaon-postmeister-dossier.ts`
+(`karte.fehlendeAngaben`), `fiaon-whatsapp-mara.ts` (`mitAntragLuecke`), Prüfstände `pruef-mara-mail-e275.ts`,
+`pruef-mara-karte-wa.ts`.
+
+---
+
+## 02.10.2026 — Gegenprüfung Verkauf: Die weiche Wand gegen „Herr X meldet sich“ und ungefragte Termine fängt jetzt die echten Sätze (E-275)
+
+**Der Anlass:** Justin: „Aber nicht immer sagen ‚Ich mache einen Termin mit XY‘ … Mara soll positiv, verkäuferisch und
+selbstständig agieren.“ Die drei Bereiche haben dafür eine weiche Prüfung gebaut (WhatsApp: ungefragter Anruf und
+„X meldet sich“; Postfach: Verweis auf einen Menschen). Die Gegenprüfung hat sie gegen Maras echte Antworten der letzten
+zwei Wochen laufen lassen (nur lesend): Auf WhatsApp rutschten 82 von 156 Antworten ohne Anrufwunsch des Kunden durch, im
+Postfach 106 von 161. Darunter der Kern von #2413 („Nikita Boychenko schaut mit Ihnen genau nach, wo es hängt — heute um
+13:10 Uhr oder am Montag um 12:50 Uhr, was passt besser?“), „Soll Nikita Boychenko Sie dazu kurz anrufen?“ (Name ohne
+Herr/Frau, so heißt der Betreuer fast aller Privatkunden), „Ich gebe Ihre Nachricht direkt an Hans-Jürgen Gerhold weiter“,
+„Justin prüft morgen, ob …“, „wird von Herrn Stripling geprüft“ und jedes ungefragte Terminangebot per Mail.
+
+**Was jetzt gilt:**
+- Eine Regel für beide Kanäle: `selbstErledigtTreffer` (shared/fiaon-mara-ton.ts) erkennt ungefragte Anruf- und
+  Zeitangebote (auch „zwei Uhrzeiten zur Wahl“, „Soll … Sie anrufen?“, „Antworten Sie mir mit einer Zeit“, englisch „Would
+  you like a short call?“) und das Abgeben an Kollegen (auch „prüft X das und gibt Ihnen Rückmeldung“, „gebe … weiter“,
+  „wird von … geprüft“, „I will forward …“). Weich wie bisher: Es gibt einen zweiten Entwurf, nichts wird gesperrt.
+- Bank, Zahlungsstelle, System und Leitung als Satzgegenstand zählen nie als Abschieben. Vorher fiel „Die Partnerbank prüft
+  Ihren Antrag — nach ihrer Zusage …“ und „Die Zahlungsstelle prüft den Eingang, nach der Buchung …“ auf WhatsApp als
+  Abschieben auf, und im Postfach „Ich habe die Zahlungsstelle um Prüfung gebeten“ (der richtige Weg für einen Beleg).
+- Postfach: Ein Terminangebot ist nur dort frei, wo ein Mensch übernimmt, wo er selbst von Anruf oder Termin schreibt, wo
+  sein Termin schon steht oder das Startgespräch sein nächster Schritt ist.
+- Postfach: Ließ sich der Kartenlink nicht schicken (Ausschluss oder Fehler), sagt karte_senden „sag ihm ehrlich, dass sich
+  jemand meldet“ — dieser Satz zählt dann nicht mehr als Abschieben (vorher widersprachen sich Werkzeug und Prüfung).
+- WhatsApp, Kündigung zurückgenommen und Zahltag genannt: Der Auftrag verlangte dort noch „EINE Frage (Termin mit
+  Nennform)“. Jetzt: ein kurzer, warmer Satz, kein Termin, kein Anruf.
+
+**Gemessen nachher:** WhatsApp 105 von 156 gefangen (vorher 74), Postfach 77 von 161 (vorher 55, ohne die Fehlgriffe oben);
+die übrigen sind überwiegend bestätigte, gebuchte Rückrufe und Fälle für einen Menschen.
+
+**Prüfstände:** `scripts/pruef-mara-karte-wa.ts` Teil A9 (echte Sätze, die fallen müssen, und Sätze, die frei bleiben,
+beide Kanäle), offline und mit DB grün; dazu `pruef-mara-mail-e275` (offline und mit DB), `pruef-mara-verkauf` (204),
+`pruef-mara-abschluss` (704), `pruef-mara-wiedergabe` (578), Wortwand, Backticks, esbuild.
+
+**Wo:** `shared/fiaon-mara-ton.ts` (`selbstErledigtTreffer`), `server/lib/fiaon-whatsapp-mara.ts` (`verkaufsPruefung`,
+Block KÜNDIGUNG „zurueck“, Typ von `entwerfen`), `server/lib/fiaon-postmeister-agent.ts` (`verweisBefunde`, Aufruf in
+`pruefenUndAbschliessen`), `scripts/pruef-mara-karte-wa.ts` (A9).
+
+---
+
 ## 02.10.2026 — Telefonkartei: Knopf „E-Mail“ in Karte und Akte (E-274)
 
 **Der Anlass:** Justin: „bei fiaon.com/chef/s/telefonkartei in der Akte — ich brauch da ein Knopf wo ich den Kunden eine

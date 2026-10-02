@@ -204,6 +204,8 @@ export const UEBERGABE_GRUND = {
   vorgeschichte: "Widerruf oder Einwand aus einer früheren Mail offen",
   // E-248: Kündigung angesprochen, aber nicht gebucht (#5626) — ein Mensch prüft und bucht.
   kuendigung: "Kündigung angesprochen, aber nicht gebucht",
+  // E-275 (02.10.2026): Kunde von FIAON Global — Mara antwortet ihm nicht automatisch, Justin übernimmt (E-272).
+  global: "Kunde von FIAON Global",
 } as const;
 
 /**
@@ -216,22 +218,65 @@ export const UEBERGABE_GRUND = {
  */
 export const GRUENDE_NUR_ANTWORT: readonly string[] = [UEBERGABE_GRUND.entwurf, UEBERGABE_GRUND.zentrale, UEBERGABE_GRUND.dringend];
 
-export function menschNoetig(e: { kategorien: readonly string[]; flags: object; dringend: boolean }, text: string): string | null {
+// ═══════════════════════════════════════════════════════════════════════════
+// E-275 (02.10.2026) — ÜBERGABE NUR NOCH, WO EIN MENSCH WIRKLICH ÜBERNIMMT
+//
+// Justin: „MARA verweist immer mehr auf die Mitarbeiter, Mara soll aber
+// selbstständig arbeiten ohne jedes mal ein Termin zu vereinbaren." Gemessen
+// (nur lesend, 18.09.–02.10.): 116 von 400 Antworten mit Übergabe (29 %); am
+// 02.10. allein 7 von 13 Mails. Zwei Regeln hier erzwangen den größten Teil:
+//   · Kategorie „sonstiges“ → immer ein Mensch. So lief #6120: „I have not your
+//     kaditkarte" (Text nur „Sent from Yahoo Mail for iPhone“) — eine
+//     Kartenfrage, die Mara seit heute selbst erledigt (karte_senden).
+//   · JEDES Wort wie „Betreuer“, „Mitarbeiter“ oder „anrufen“ → ein Mensch —
+//     auch „Mein Betreuer hat gesagt, die Karte kommt“ oder „ich habe versucht
+//     anzurufen".
+// Jetzt bleibt die Übergabe bei: Beschwerde, Bestreiten, Rechtsdrohung,
+// Widerruf, „kann nicht zahlen“ (Geld), Beschwerde-/Rechts-/Vertriebs-
+// Kategorie, AUSDRÜCKLICHEM Rückruf- oder Gesprächswunsch und Kunden von FIAON
+// Global (E-272). Kündigung und Erstattung regeln Werkzeug und Lauf wie bisher
+// (Kündigung nicht gebucht → Mensch; Geld zurück → Aufgabe an die Leitung).
+// „dringend“ allein ist kein Grund mehr: Eine eilige Frage braucht eine
+// schnelle Antwort, keinen wartenden Entwurf.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Will er AUSDRÜCKLICH einen Menschen am Telefon oder im Gespräch? Rein.
+ * Nicht: „Mein Betreuer hat gesagt …“, „ich habe versucht anzurufen“,
+ * „Herr Stripling hat mich angerufen“.
+ */
+const RUECKRUF_WUNSCH: RegExp[] = [
+  /\b(?:rufen|ruft|ruf)\s+(?:sie|ihr|du)\s+mich\s+(?:\S+\s+){0,4}?an\b/i,
+  /\b(?:bitte|können\s+sie|koennen\s+sie|könnten\s+sie|koennten\s+sie|würden\s+sie|wuerden\s+sie)\b[^.!?\n]{0,40}?(?<!nicht\s)(?<!nie\s)(?<!kein\s)\b(?:anrufen|zurückrufen|zurueckrufen|telefonisch\s+melden)\b/i,
+  /\b(?:um\s+)?(?:einen\s+|ihren\s+)?rückruf\b|\bruckruf\b|\bzurückrufen\b|\bzurueckrufen\b/i,
+  /\b(?:möchte|moechte|will|würde\s+gerne?|wuerde\s+gerne?|bitte)\b[^.!?\n]{0,50}?\b(?:mit\s+(?:einem\s+menschen|jemandem|meinem\s+(?:betreuer|ansprechpartner)\w*|meiner\s+(?:betreuerin|ansprechpartnerin)|ihnen|herrn?\s+\w+|frau\s+\w+)\s+(?:\S+\s+){0,2}?(?:sprechen|telefonieren|reden))\b/i,
+  /\b(?:persönlich|persoenlich|telefonisch)\s+(?:sprechen|besprechen|klären|klaeren)\b/i,
+  /\b(?:call\s+me|give\s+me\s+a\s+call|speak\s+to\s+(?:a\s+person|someone|a\s+human)|talk\s+to\s+(?:a\s+person|someone|a\s+human))\b/i,
+];
+export function rueckrufGewollt(text: string): boolean {
+  // E-240: Unser eigener Fuß („… direkt an Ihren Ansprechpartner“) zählt nie als Wunsch des Kunden —
+  // falls ein Zitat doch einmal durchrutscht, ohneZitat ist der erste Riegel.
+  const eigenerText = String(text || "").replace(/Fragen\? Antworten Sie einfach auf diese E-Mail[^\n]{0,160}?Ansprechpartner\.?/gi, "");
+  return RUECKRUF_WUNSCH.some((m) => m.test(eigenerText));
+}
+
+export function menschNoetig(
+  e: { kategorien: readonly string[]; flags: object; dringend: boolean }, text: string,
+  opt: { globalKunde?: boolean } = {},
+): string | null {
   const f = (e.flags || {}) as Record<string, boolean>;
   if (f.beschwerde) return UEBERGABE_GRUND.beschwerde;
   if (f.bestreitet) return UEBERGABE_GRUND.bestreitet;
   if (f.droht_anwalt || f.rechtlich) return UEBERGABE_GRUND.rechtlich;
   if (f.widerruf) return UEBERGABE_GRUND.widerruf;
   if (f.zahlungsunfaehig) return UEBERGABE_GRUND.zahlungsunfaehig;
+  // E-275: Global-Kunden bleiben bei Justin — nie eine automatische Antwort (E-272).
+  if (opt.globalKunde) return UEBERGABE_GRUND.global;
   const k = new Set(e.kategorien || []);
-  if (k.has("beschwerde") || k.has("rechtlich") || k.has("vertrieb_komplex") || k.has("sonstiges")) return UEBERGABE_GRUND.mensch;
-  if (e.dringend) return UEBERGABE_GRUND.dringend;
-  // E-240: Unser eigener Fuß („… direkt an Ihren Ansprechpartner") zählt nie als Wunsch des Kunden —
-  // falls ein Zitat doch einmal durchrutscht, ohneZitat ist der erste Riegel.
-  const eigenerText = String(text || "").replace(/Fragen\? Antworten Sie einfach auf diese E-Mail[^\n]{0,160}?Ansprechpartner\.?/gi, "");
-  if (/\b(ansprechpartner(in)?|betreuer(in)?|sachbearbeiter(in)?|mitarbeiter(in)?|einen menschen|mit jemandem sprechen|persönlich sprechen|rufen sie mich|ruft mich|rückruf|zurückrufen|anrufen)\b/i.test(eigenerText)) {
-    return UEBERGABE_GRUND.ansprechpartner;
-  }
+  // E-275: „sonstiges“ ist kein Grund mehr (#6120) — Mara beantwortet es selbst.
+  if (k.has("beschwerde") || k.has("rechtlich") || k.has("vertrieb_komplex")) return UEBERGABE_GRUND.mensch;
+  // E-275: nur der AUSDRÜCKLICHE Wunsch nach Rückruf oder Gespräch — nicht jedes Wort „Betreuer“ oder „anrufen“.
+  if (rueckrufGewollt(text)) return UEBERGABE_GRUND.ansprechpartner;
   return null;
 }
 
@@ -1018,10 +1063,22 @@ export async function mailBearbeiten(ein: {
     };
     // 04.09.2026 (E-115): Dateien an der Mail. Mara kann sie nicht öffnen, aber
     // sie muss wissen, dass sie da sind — ein Mensch sähe den Beleg auch.
+    // E-275 (02.10.2026, Justin: „Mara soll selbstständig arbeiten“): Vorher hieß es hier „leg eine Aufgabe an, die
+    // Datei zu prüfen … an den Betreuer" — drei Bilder „Account“ ergaben drei Aufgaben „Nikita Boychenko prüft das
+    // Bild" (#6075–#6077). Jetzt bestätigt Mara den Eingang selbst und notiert ihn still; nur ein Zahlungsbeleg geht
+    // als Aufgabe an die Zahlungsstelle (nur sie sieht das Bankbuch).
     const anhangHinweis = mail.anhaenge.length
-      ? `\n\n[Der Kunde hat ${mail.anhaenge.length} Datei(en) mitgeschickt: ${mail.anhaenge.map((a) => `${a.name} (${a.typ}, ${Math.max(1, Math.round(a.groesse / 1024))} KB)`).join("; ")}. Du kannst sie nicht öffnen; im Postfach sieht ein Mensch sie. Zählt der Inhalt, bestätige dem Kunden den Eingang und leg eine Aufgabe an, die Datei zu prüfen: einen Zahlungsbeleg an die Zahlungsstelle (kollege: "Zahlung"), Ausweis, Unterlagen oder Schreiben an den Betreuer.]`
+      ? `\n\n[Der Kunde hat ${mail.anhaenge.length} Datei(en) mitgeschickt: ${mail.anhaenge.map((a) => `${a.name} (${a.typ}, ${Math.max(1, Math.round(a.groesse / 1024))} KB)`).join("; ")}. Du kannst sie nicht öffnen; das Team sieht sie im Portal. Bestätige dem Kunden den Eingang SELBST und sag, wie es weitergeht (Unterlagen fließen in seine Bonitätsanalyse). Halte sie still fest mit notiz_an_betreuer — keine Aufgabe, kein „Herr X prüft das". Nur ein Zahlungsbeleg geht als Aufgabe an die Zahlungsstelle (aufgabe_an_betreuer, kollege: "Zahlung").]`
       : "";
-    const textFuerMara = neuerText + anhangHinweis;
+    // E-275: Mail ohne eigenen Text (nur „Sent from …“, nur ein Bild) — sein Anliegen steht oft im Betreff (#6120:
+    // Betreff „I have not your kaditkarte“, Text „Sent from Yahoo Mail for iPhone“). Das Modell soll es dort lesen.
+    const { hatEigenenText: eigenerTextDa, eigenerBetreff: betreffEigen } = await import("./fiaon-postmeister-werkzeuge");
+    const ohneTextHinweis = !eigenerTextDa(neuerText) && betreffEigen(mail.betreff)
+      // Beginnt wie der Anhang-Hinweis mit „[Der Kunde hat “ — dort schneiden kundeTextOhneAnhang und eigenerKundentext ab,
+      // damit der Hinweis nie als SEIN Text gelesen wird (Riegel, Werbesperre, Kündigungswille).
+      ? `\n\n[Der Kunde hat keinen eigenen Text geschrieben (nur Signatur oder Anhang). Sein Anliegen steht im Betreff: „${betreffEigen(mail.betreff).slice(0, 200)}“ — beantworte DAS. Eine Mail ohne eigenen Text ist nie eine Bitte um weniger Post.]`
+      : "";
+    const textFuerMara = neuerText + anhangHinweis + ohneTextHinweis;
 
     // 0. E-246: Eine in der KI-Pause zurückgelegte Mail wird unabhängig vom
     //    Suchfenster wieder beansprucht (postmeisterLauf). Hat ein Mensch sie
@@ -1230,10 +1287,19 @@ export async function mailBearbeiten(ein: {
     // Anliegen an einen Mitarbeiter." Was ein Mensch klären muss, geht nie
     // automatisch raus — es wird ein Entwurf UND eine Aufgabe beim Betreuer.
     const kuendigungGebucht = erg.handlungen.some((h) => h.ok && h.werkzeug === "kuendigung_vormerken") || !!akte.kuendigung;
-    const mensch = menschNoetig(einordnung, neuerText)
+    // E-275 (02.10.2026): Global-Kunden bleiben bei Justin (E-272) — die eine Regel, hier für den Entwurf.
+    const globalAbsender = await globalUebergabe(wer.personId);
+    let mensch = menschNoetig(einordnung, neuerText, { globalKunde: globalAbsender })
       ?? (vorgeschichte ? UEBERGABE_GRUND.vorgeschichte : null)
       // Kündigung angesprochen, nicht gebucht: ein Mensch prüft — nie still liegen lassen (#5626, #4682).
       ?? (einordnung.flags?.kuendigung && !kuendigungGebucht && !erg.automatischErlaubt ? UEBERGABE_GRUND.kuendigung : null);
+    // E-275: Der Rückrufwunsch ist erledigt, wenn Mara ihn selbst eingeplant hat (Aufgabe mit Rückruf, Notiz mit
+    // Anruf, Terminlink) — dann geht ihre Antwort („Herr Stripling ruft Sie morgen um 10 Uhr an“) ohne zweite
+    // Übergabe raus, sofern die Prüfung sie freigibt (die Lampe rueckruf_wunsch fällt dort ebenso).
+    if (mensch === UEBERGABE_GRUND.ansprechpartner
+      && erg.handlungen.some((h) => h.ok && ["aufgabe_an_betreuer", "notiz_an_betreuer", "terminlink_bauen"].includes(h.werkzeug))) {
+      mensch = null;
+    }
     // E-248: Sperre direkt vor dem Senden — ist auf denselben Text schon eine Antwort raus, keine zweite.
     const sperre = ein.modus === "auto" && erg.automatischErlaubt && !mensch ? await sendeSperre(id) : null;
     if (sperre) {

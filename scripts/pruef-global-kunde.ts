@@ -628,9 +628,34 @@ const zaehle = (text: string, muster: string) => text.split(muster).length - 1;
     f.includes(`globalKundeSql("a.person_id")`) && f.includes(`globalKundeSql("b.person_id")`));
 }
 {
-  const f = rumpf(quelle("server/lib/fiaon-konto-karte.ts"), "export async function einladungenAutomatisch(");
-  pruef("Konto & Karte (einladungenAutomatisch): Regel in der Auswahl vor mailSenden",
-    vorher(f, `globalKundeSql("p.id")`, "mailSenden({"));
+  // E-275 (02.10.2026): Die Ausschlüsse der Einladung stehen seit E-275 in EINER Abfrage (einladungPruefen) — für die
+  // Automatik (einladungenAutomatisch) UND für Mara (karteEinladungFuerPerson); verschickt wird nur in einladungSchicken.
+  // Vorher suchte diese Zeile die Regel im Rumpf von einladungenAutomatisch vor „mailSenden({“ — dort steht seit E-275
+  // beides nicht mehr (die Zeile war rot, obwohl die Regel griff). Jetzt die vier Stellen einzeln, mit Rotprobe.
+  const karteQ = (f: string) => {
+    const pruefen = rumpf(f, "async function einladungPruefen(");
+    const schicken = rumpf(f, "async function einladungSchicken(");
+    const auto = rumpf(f, "export async function einladungenAutomatisch(");
+    const mara = rumpf(f, "export async function karteEinladungFuerPerson(");
+    return {
+      regel: pruefen.includes(`globalKundeSql("p.id")`) && pruefen.includes("z.global ?") && vorher(pruefen, "await globalKundeBereit()", "sqlPool`"),
+      auto: vorher(auto, "einladungPruefen(", "einladungSchicken(") && auto.includes("!z.sperre"),
+      mara: vorher(mara, "einladungPruefen(", "einladungSchicken(") && vorher(mara, "if (pruefung.sperre)", "einladungSchicken("),
+      versand: schicken.includes("mailSenden({") && !auto.includes("mailSenden(") && !mara.includes("mailSenden("),
+    };
+  };
+  const f = quelle("server/lib/fiaon-konto-karte.ts");
+  const q = karteQ(f);
+  pruef("Konto & Karte (einladungPruefen): Regel an p.id in der einen Ausschluss-Abfrage, Global ist eine Sperre", q.regel);
+  pruef("… Automatik (einladungenAutomatisch): einladungPruefen vor einladungSchicken, geschickt wird nur ohne Sperre", q.auto);
+  pruef("… Mara (karteEinladungFuerPerson): einladungPruefen vor einladungSchicken, bei einer Sperre Schluss", q.mara);
+  pruef("… verschickt wird nur in einladungSchicken (mailSenden), nie an der Prüfung vorbei", q.versand);
+  // Rotprobe im Quelltext: ohne die Regel in der Abfrage bzw. ohne die Prüfung vor dem Versand muss die Zeile fallen.
+  const ohneRegel = karteQ(f.replace(/\$\{sqlPool\.unsafe\(globalKundeSql\("p\.id"\)\)\} AS global,/, "FALSE AS global,"));
+  const ohnePruefung = karteQ(f.replace("const geprueft = await einladungPruefen(", "const geprueft = await keinePruefung("));
+  const maraOhne = karteQ(f.replace("const [pruefung] = await einladungPruefen(", "const [pruefung] = await keinePruefung("));
+  pruef("… Rotprobe im Quelltext: ohne Regel, ohne Prüfung in der Automatik oder bei Mara fällt die jeweilige Zeile",
+    !ohneRegel.regel && !ohnePruefung.auto && !maraOhne.mara && ohneRegel.auto && ohnePruefung.mara);
 }
 {
   const f = quelle("server/routes/fiaon-office-vertrieb.ts");

@@ -37,7 +37,9 @@ import {
 import { auskunftArtFuer } from "./fiaon-postmeister-dossier";
 import { ANGEBOT_VERMERK, antwortAufAngebot, kundeFragtNachAuskunft } from "./fiaon-auskunft";
 import { auskunftAngebotBaustein, ANGEBOT_FASSUNGEN, ANGEBOT_SEGMENTE, ANGEBOT_BETREFF_VARIANTEN } from "../mail/vorlagen/auskunft-verkauf";
-import { zeitFuerKunde, bausteinKuendigung, kuendigungRatenAufteilen, abstreitenArt } from "@shared/fiaon-mara-ton";
+import { zeitFuerKunde, bausteinKuendigung, kuendigungRatenAufteilen, abstreitenArt, stoppWunsch, istLoeschwunsch } from "@shared/fiaon-mara-ton";
+// E-275 (02.10.2026): die Sätze zum Weg der Karte — dieselben wie in der Einladung und auf WhatsApp.
+import { KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
 // E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen).
 import { giltZumSatz, tagDeutsch } from "@shared/fiaon-antrag-stand";
 import {
@@ -289,7 +291,9 @@ async function zustaendig(personId: number | null): Promise<{ id: number | null;
  */
 export const notizAnBetreuer: Werkzeug = {
   name: "notiz_an_betreuer",
-  beschreibung: "Schreibt dem zuständigen Betreuer eine kurze Nachricht in die Akte und legt ihm eine Aufgabe an. NUR wenn ein Mensch etwas wissen MUSS, das du nicht selbst erledigst: ausdrücklicher Rückrufwunsch, eingereichte Unterlagen (Ausweis, Kontoauszug, Bescheid), Datenänderung ohne Werkzeug, Geld-zurück-Frage. NICHT bei Ärger, Zahlungsverweigerung, Anwaltsdrohung, Kündigung oder angeblicher früherer Kündigung — das beantwortest du selbst (Vertrag, offene Rate, Zahlungsseite, Härte-Stufe). Schreib so, wie du es einem Kollegen sagen würdest.",
+  // E-275 (02.10.2026, Justin: „Mara soll selbstständig arbeiten …“): Die Notiz ist STILL — der Kunde erfährt nichts
+  // davon, und sie ersetzt keine Antwort. Unterlagen per Mail gehen seitdem hierüber (vorher Aufgabe + „Herr X prüft“).
+  beschreibung: "Schreibt dem zuständigen Betreuer eine kurze, STILLE Nachricht in die Akte (der Kunde erfährt nichts davon). Für alles, was das Team wissen oder nachtragen muss, während DU dem Kunden selbst und vollständig antwortest: eingereichte Unterlagen oder Bilder per Mail (Ausweis, Kontoauszug, Auskunft, Screenshot), ein Hinweis zur Akte, ein Technik-Fehler, den du nicht lösen kannst. NICHT bei Ärger, Zahlungsverweigerung, Anwaltsdrohung, Kündigung oder angeblicher früherer Kündigung — das beantwortest du selbst (Vertrag, offene Rate, Zahlungsseite, Härte-Stufe). Dem Kunden schreibst du danach NIE „Herr X prüft das“ oder „meldet sich“ — du sagst, was du erledigt hast und wie es weitergeht. Schreib die Notiz so, wie du es einem Kollegen sagen würdest.",
   stufe: "frei",
   lagen: "alle",
   parameter: {
@@ -347,7 +351,13 @@ export const notizAnBetreuer: Werkzeug = {
         } as any);
       } catch { /* Rückruf ist ein Zusatz, kein Muss */ }
     }
-    return { ok: true, ergebnis: `${wer.kundenName} ist informiert${p.anrufen ? " und ruft Sie an" : ""}.`, daten: { betreuer: wer.kundenName, betreuer_intern: wer.name, dringend: !!p.dringend } };
+    // E-275 (02.10.2026): ohne Anruf ist die Notiz still — das Ergebnis sagt es dem Modell, damit aus ihr kein
+    // „Herr X ist informiert und kümmert sich“ in der Kundenmail wird (gemessen: 186 von 400 Antworten nannten einen Mitarbeiter).
+    return {
+      ok: true,
+      ergebnis: p.anrufen ? `${wer.kundenName} ist informiert und ruft Sie an.` : "Intern notiert (still) — dem Kunden nicht erwähnen; beantworte sein Anliegen selbst und vollständig.",
+      daten: { betreuer: wer.kundenName, betreuer_intern: wer.name, dringend: !!p.dringend, still: !p.anrufen },
+    };
   },
 };
 
@@ -358,7 +368,11 @@ export const notizAnBetreuer: Werkzeug = {
  */
 export const aufgabeAnBetreuer: Werkzeug = {
   name: "aufgabe_an_betreuer",
-  beschreibung: "Legt dem zuständigen Betreuer eine echte Aufgabe mit Titel, Auftrag und Frist an. Er sieht sie in seinem Portal unter Aufträge und bekommt eine Mail. Nutze das NUR, wenn ein Mensch etwas TUN muss, das du nicht kannst: Kunde will ausdrücklich einen Anruf, braucht eine Bescheinigung, will Daten ändern, hat Unterlagen (Ausweis, Kontoauszug, Bescheid) geschickt, oder es geht um Geld zurück (kollege Leitung) bzw. einen Zahlungsbeleg (kollege Zahlung). NIE, um eine Zahlung, eine Kündigung, einen Widerruf oder eine Beschwerde „prüfen zu lassen“ — das erledigst du selbst. Für einen bloßen Hinweis nimm notiz_an_betreuer.",
+  // E-275 (02.10.2026, Justin: „MARA verweist immer mehr auf die Mitarbeiter … Mara soll selbstständig arbeiten“):
+  // Unterlagen stehen hier nicht mehr (die gehen still über notiz_an_betreuer), und die Aufgabe ist kein Ersatz für
+  // die Antwort. Gemessen 18.09.–02.10.: 115 Aufgaben, 28 davon nur wegen Unterlagen, 186 von 400 Antworten nannten
+  // einen Mitarbeiter.
+  beschreibung: "Legt einem Menschen eine echte Aufgabe mit Titel, Auftrag und Frist an (Portal unter Aufträge, dazu eine Mail an ihn). NUR in diesen Fällen: (1) der Kunde will AUSDRÜCKLICH einen Rückruf oder ein Gespräch (rueckruf_am, wenn er eine Zeit nennt), (2) Geld zurück, Erstattung, Widerruf nach Zahlung oder Kulanz (kollege Leitung), (3) ein Zahlungsbeleg oder eine Buchungsfrage (kollege Zahlung — nur sie sieht das Bankbuch), (4) eine Datenänderung oder Bescheinigung, für die du kein Werkzeug hast, (5) ein Technik-Fehler, den du nicht selbst lösen kannst. NIE für Unterlagen oder Bilder per Mail (dafür notiz_an_betreuer, still), nie für Karten-, Zahlungs-, Zugangs- oder Ablauffragen, nie um eine Zahlung, Kündigung oder Beschwerde „prüfen zu lassen“ — das erledigst du selbst. Die Aufgabe ersetzt nie deine Antwort: Du beantwortest trotzdem JETZT alles selbst; „X meldet sich“ schreibst du nur bei einem Rückruf, den er wollte.",
   stufe: "frei",
   lagen: "alle",
   parameter: {
@@ -546,11 +560,22 @@ export const aufgabeAnBetreuer: Werkzeug = {
         terminSatz = ` (Rückruf-Termin konnte nicht eingetragen werden: ${String(e?.message || e).slice(0, 100)} — die Aufgabe steht trotzdem; nenne dem Kunden keine Uhrzeit.)`;
       }
     }
+    // ── E-275 (02.10.2026): „X MELDET SICH HEUTE“ NUR BEIM RÜCKRUF ───────────
+    // Dieser Satz war das Ergebnis JEDER Aufgabe — und das Modell schrieb ihn wörtlich in die Kundenmail
+    // („I have asked Nikita Boychenko to check this today“, #6120). Jetzt: Steht ein Rückruf (Wunschzeit,
+    // bestehender Termin) oder geht es um Geld zurück, bleibt die Zusage; sonst ist die Aufgabe intern, und
+    // das Ergebnis sagt dem Modell, dass es selbst antwortet. Der Satz beginnt weiter mit der Nennform.
+    const zusageNoetig = !!rueckrufAm || !!bestehend || leitungGewollt;
+    const ergebnisText = zusageNoetig
+      ? `${werKunde} meldet sich ${wann} bei Ihnen.${terminSatz}`
+      : `${werKunde} meldet sich nur, wenn noch etwas von Ihnen gebraucht wird — die Aufgabe ist intern. Erwähne sie nicht als „meldet sich“, sondern beantworte sein Anliegen selbst und vollständig.${terminSatz}`;
     return {
-      ok: true, ergebnis: `${werKunde} meldet sich ${wann} bei Ihnen.${terminSatz}`,
+      ok: true, ergebnis: ergebnisText,
       daten: {
         betreuer: werKunde, betreuer_intern: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id,
         rueckruf_termin: gebuchtText, bestehender_termin: bestehend ? bestehend.kundenText : null,
+        // E-275: true = die Aufgabe ist intern — kein „meldet sich“ in der Kundenmail.
+        intern: !zusageNoetig,
       },
     };
   },
@@ -1555,10 +1580,161 @@ export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { b
   return `${kopf} Offen bleiben ${liste.slice(0, -1).join(", ")} und ${liste[liste.length - 1]}, zusammen ${rateEuro(summe)}; ${opt.formlos ? `sie bleiben zu zahlen, die Kündigung ${giltZum}.` : "mit diesen Zahlungen endet der Vertrag."}`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WERBESPERRE NUR AUF AUSDRÜCKLICHEN WUNSCH — IM EIGENEN TEXT (E-275, 02.10.2026)
+//
+// Justin: „Mara soll positiv, verkäuferisch und selbstständig agieren.“ Der
+// Anlass: Satpal Jhim (Person 4816) hat FIAON Ultra am 02.08. bezahlt und fragt
+// seit dem 03.09. nach seiner Karte. Am 09.09. kam eine Mail ohne eigenen Text
+// („Sent from Yahoo Mail for iPhone“ + ein Bild); das Modell ordnete sie als
+// „abmeldung“ ein und rief werbesperre_setzen. (Richtigstellung, E-275
+// Gegenprüfung: Mail 3644 trug im eigenen Betreff „… bitte not again send me e
+// mail for rattan ok“ — ein echter Wunsch, die Sperre war richtig; auch die
+// Liste unten erkennt ihn.) Seitdem war er für das Postfach
+// „gesperrt“ (nur Übergabe) — und die automatische Einladung der Partnerbank
+// ließ ihn aus: Den Kartenlink hat er nie bekommen. Gemessen (nur lesend): 39
+// zahlende Stufenpaket-Kunden mit Werbesperre, 27 davon ohne Einladung.
+//
+// Jetzt zählt nur, was ER schreibt: sein eigener Text (ohne Zitat, ohne
+// Signaturzeilen wie „Sent from …“, ohne den Anhang-Hinweis des Laufs) und sein
+// Betreff, wenn es KEIN „Re:/AW:“ auf unsere Mail ist (dann ist es unser
+// Betreff). Eine leere Mail, eine Signatur oder ein Bild sind NIE ein Wunsch.
+// Riegel (riegelAnwenden: Merker „stopp“, Kategorie „abmeldung“) und Werkzeug
+// lesen dieselbe Regel. Rein, im Prüfstand geprüft.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Wo ein Mailprogramm seinen Fuß anhängt — nie ein Wort des Kunden. Auch mitten in der Zeile: Die
+ * Postfach-Texte kommen oft ohne Zeilenumbruch („Ich habe kein Interesse  Gesendet von Yahoo Mail …“,
+ * „STOPVon meinem/meiner Galaxy gesendet“).
+ */
+const SIGNATUR_BEGINN = /(?:sent\s+from\b|sent\s+with\b|gesendet\s+(?:von|mit|vom|über|ueber)\b|von\s+meine[mrn]?\S*\s+(?:\S+\s+){0,3}?gesendet\b|enviado\s+(?:desde|do)\b|envoy[ée]\s+(?:de|depuis)\b|inviato\s+da\b|verzonden\s+(?:vanaf|met)\b|wys[łl]ane\s+z\b|get\s+outlook\s+for\b|holen\s+sie\s+sich\s+outlook\b|yahoo\s+mail\s*:|diese\s+e-?mail\s+wurde\s+von\s+avast)/i;
+
+/** Sein eigener Text: ohne Anhang-Hinweis des Laufs, ohne Zitat, ohne Signatur. Rein. */
+export function eigenerKundentext(text: unknown): string {
+  const ohneAnhang = String(text ?? "").split("\n\n[Der Kunde hat ")[0];
+  return kundenTeil(ohneAnhang)
+    .replace(/&nbsp;/gi, " ")
+    .split("\n")
+    .filter((z) => !/^\s*(?:--|_{2,})\s*$/.test(z))
+    .map((z) => {
+      const i = z.search(SIGNATUR_BEGINN);
+      return i >= 0 ? z.slice(0, i) : z;
+    })
+    .join("\n")
+    .trim();
+}
+
+/** Der Betreff zählt nur, wenn er SEINER ist — ein „Re:/AW:“ trägt unseren Betreff. Rein. */
+export function eigenerBetreff(betreff: unknown): string {
+  const b = String(betreff ?? "").trim();
+  return /^\s*(?:re|aw|antw|sv|wg|fw|fwd|vs)\s*(?:\[\d+\])?\s*:/i.test(b) ? "" : b;
+}
+
+/** Hat er selbst etwas geschrieben? Leer, nur Signatur, nur Satzzeichen → nein. Rein. */
+export function hatEigenenText(text: unknown, betreff?: unknown): boolean {
+  const t = `${eigenerBetreff(betreff)}\n${eigenerKundentext(text)}`;
+  return /[a-zA-ZäöüÄÖÜß]{2,}/.test(t.replace(/\[[^\]]*\]/g, " "));
+}
+
+/**
+ * Was ein ausdrücklicher Wunsch nach „keine Werbung / keine Mails mehr“ ist —
+ * bewusst ohne „keine Mail bekommen“ (eine Service-Frage), ohne „belästigen“
+ * allein („Ich will Sie nicht belästigen, aber …“) und ohne „löschen“ allein
+ * (das prüft istLoeschwunsch).
+ */
+const STOPP_AUSDRUECKLICH: RegExp[] = [
+  /(?:^|[\s.,!?;:„"(])s\s?t\s?o\s?p\s?p?(?=[\s.,!?;:“")]|$)/i,
+  /\b(?:abmeld\w*|abbestell\w*|austragen|unsubscribe\w*|verteiler)\b/i,
+  /\bkeine\s+(?:\S+\s+){0,2}?(?:werbung|werbemails?|newsletter|angebote|reklame)\b/i,
+  /\bkeine\s+weiteren?\s+(?:\S+\s+){0,1}?(?:e-?mails?|mails?|ma[ei]l\w*|nachrichten|sms|anrufe|post|erinnerungen|kontaktaufnahme\w*|korrespondenz)\b/i,
+  /\bkeine\s+(?:\S+\s+){0,1}?(?:e-?mails?|mails?|ma[ei]l\w*|me[ie]l\w*|nachrichten|sms|anrufe|post|informationen|infos?|benachrichtigungen)\s+mehr\b/i,
+  /\bbitte\s+keine\s+(?:\S+\s+){0,1}?(?:e-?mails?|mails?|ma[ei]l\w*|me[ie]l\w*|nachrichten|sms|anrufe|post)\b|\bbitte\s+nicht\s+me[a-z]{0,2}h?r\b/i,
+  /\b(?:nicht|nie)\s+mehr\s+(?:\S+\s+){0,2}?(?:an)?(?:schreiben|kontaktieren|anrufen|mailen|zuschicken|schicken|senden|belästigen|belaestigen)\b/i,
+  /\b(?:kontaktieren|anschreiben|anrufen|schreiben|belästigen|belaestigen|mailen|schicken|senden)\s+(?:sie|ihr|du)\s+mich\s+(?:\S+\s+){0,2}?(?:nicht|nie)\s+mehr\b/i,
+  /\bschreib\w*\s+(?:sie\s+|ihr\s+|du\s+)?(?:\S+\s+){0,2}?mir\s+(?:\S+\s+){0,2}?(?:nicht|nie|nichts)\s+mehr\b/i,
+  /\bstellen\s+sie\s+(?:\S+\s+){0,3}?\S*(?:mail|nachricht|benachrichtigung|erinnerung)\S*\s+(?:\S+\s+){0,2}?ein\b/i,
+  /\bweitere\s+(?:e-?mails?|mails?|nachrichten|schreiben)\s+(?:sind|werden|braucht|bitte)\b|\bw(?:ü|ue)nsche\s+(?:\S+\s+)?keine\b/i,
+  /\bwenn\s+(?:ihr|sie|du)\s+mir\s+(?:\S+\s+){0,2}?weiter(?:hin)?\s+(?:\S+\s+){0,2}?(?:schick|schreib|send|mail)/i,
+  /\bh(?:ö|oe)r(?:en|t)\s+(?:sie|ihr)\s+(?:\S+\s+){0,4}?auf\b/i,
+  /\b(?:nix|nichts)\s+mehr\s+(?:\S+\s+){0,3}?(?:hören|hoeren|bekommen|erhalten|wissen)\b|\bnichts\s+(?:mehr\s+)?mit\s+(?:ihnen|euch|dir|fiaon)\s+zu\s+tun\b/i,
+  // Kein Interesse — auch mit Tippfehlern („Keine Interese“, „Nich interesiet“) und in anderen Sprachen.
+  /\bkein\w*\s+(?:inter+ess?e?|bedarf)\b|\b(?:nicht|nich)\s+(?:\S+\s+){0,6}?interess?ie?r?t\b|\bnot\s+interested\b|\bnem(?:á|a)m\s+z(?:á|a)ujem\b/i,
+  /(?:^|[.!?\n]\s*)n(?:ei|ai)n,?\s+danke\b|\bno,?\s+thanks?\b/i,
+  /\b(?:auf\s+(?:das|ihr|dieses)\s+angebot|darauf)\s+verzichten\b|\bhatt?\s+sich\s+(?:\S+\s+)?erledigt\b|\bkenne\s+(?:sie|ihre\s+firma|euch|fiaon)\s+nicht\b/i,
+  /\bm(?:ö|oe)chte\s+(?:ihre?n?|die|das|eine?n?)\s+\S+\s+nicht\b(?!\s+(?:verpassen|verlieren|warten|zahlen|bezahlen|vergessen|verpasst|kündigen|kuendigen))/i,
+  /\bm(?:ö|oe)chte\s+(?:ich\s+)?(?:\S+\s+)?kein(?:e[nm]?)?\s+(?:abo\w*|vertrag|karte|angebot\w*|dienstleistung\w*)\b|\bbrauche\s+(?:\S+\s+)?keine\s+karte\s+mehr\b/i,
+  // Löschen: „Bitte löschen.“, „löschen Sie mich“, „alle Daten zu löschen“ (istLoeschwunsch kennt die ganzen Sätze).
+  /^\s*(?:bitte\s+)?l(?:ö|oe)schen[.!]*\s*$|\bbitte\s+l(?:ö|oe)schen\b|\bl(?:ö|oe)schen\s+sie\s+(?:\S+\s+){0,2}?(?:mich|meine|alle|das)\b|\b(?:daten|account|konto|anfrage)\b[^.!?\n]{0,40}\bl(?:ö|oe)schen\b/im,
+  /\bnie\s+(?:angemeldet|registriert|angefragt|eingetragen)\b|\b(?:nicht|nichts)\s+(?:angemeldet|registriert|angefragt|eingetragen)\b|\bwiderspreche\w*\b|\bart\.?\s*21\b/i,
+  /\bin\s+ruhe\s+lassen\b|\blass\w*\s+(?:sie\s+|ihr\s+)?(?:mich|mir|uns)\s+(?:bitte\s+|endlich\s+)?in\s+ruhe\b/i,
+  /\bstop\s+(?:sending|emailing|contacting|writing|messaging)\b|\b(?:do\s+not|don'?t|never)\s+(?:\S+\s+)?(?:send|contact|write|email|e-mail)\s+me\b|\bnot\s+again\s+send\b|\bno\s+more\s+(?:e-?mails?|mails?|messages?)\b|\bremove\s+me\b|\btake\s+me\s+off\b|\bopt\s*-?\s*out\b/i,
+];
+
+/**
+ * Hat er AUSDRÜCKLICH um „keine Werbung / keine Mails mehr“ gebeten — in SEINEM
+ * Text oder SEINEM Betreff? Rein. Für den Riegel (Merker stopp, Kategorie
+ * abmeldung) und für werbesperre_setzen.
+ */
+export function ausdruecklicherStopp(betreff: unknown, text: unknown): boolean {
+  const eigen = eigenerKundentext(text);
+  const t = `${eigenerBetreff(betreff)}\n${eigen}`.replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  if (STOPP_AUSDRUECKLICH.some((m) => m.test(t)) || stoppWunsch(eigen) || stoppWunsch(eigenerBetreff(betreff))) return true;
+  const ab = abstreitenArt(eigen);
+  return ab?.art === "in_ruhe" || istLoeschwunsch(eigen);
+}
+
+// ── E-275 GEGENPRÜFUNG (02.10.2026, Wahrheit und Recht): DIE LISTE OBEN IST KEIN VETO ──────────
+// Justin: „Mara soll positiv, verkäuferisch und selbstständig agieren.“ — und die Wand des Hauses: STOPP heißt keine
+// WERBUNG mehr (§ 7 UWG, Art. 21 DSGVO). Gegen die 113 Stopp-Mails seit 01.08. gerechnet (nur lesend) erkennt
+// ausdruecklicherStopp 12 nicht — 11 davon mit eigenem Text, darunter echte Wünsche: „schicken sie mir keine Nachricht
+// mehr“ (#3149), „jede weitere werbliche Kontaktaufnahme … zu unterlassen“ (#4278), „bittee löschen sie dieses
+// account“ (#2797), „Bitte Antrag löschen“ (#5715), „fack off“ (#3879). Als Veto hätte die Liste dort die Werbesperre
+// verweigert und den Merker stopp gelöscht (STOPP_KOEPFE: WA-Zentrale, Mara-Aktion, Telefonkartei) — Werbung an
+// Menschen, die „Stopp“ gesagt haben. Ein Fehlalarm kostet seit E-275 nur Werbung (der Service für Zahlende läuft
+// trotz Sperre), ein verpasster Stopp ist ein Rechtsverstoß. Deshalb: Die Liste verhindert nur, was der 09.09. war —
+// eine Sperre aus einer Mail OHNE eigenen Text (Signatur, Bild, leer) oder aus einem Satz, der nicht seiner ist
+// (unsere zitierte Mail). Steht das Zitat in SEINEM Text, gilt das Urteil des Modells wie vor E-275.
+
+/** Die Wörter eines Textes (ab drei Buchstaben, klein) — für den Abgleich Zitat ↔ eigener Text. Rein. */
+// E-275 (02.10.2026, tsc TS1501): als new RegExp — der tsconfig-Zielstand kennt das Flag „u“ in Literalen nicht; Muster und Flags unverändert.
+const WORT_AB_DREI = new RegExp(String.raw`[\p{L}]{3,}`, "gu");
+function woerter(text: unknown): string[] {
+  return (String(text ?? "").toLowerCase().match(WORT_AB_DREI) ?? []);
+}
+
+/**
+ * Steht das Zitat (sinngemäß wörtlich) in SEINEM eigenen Text oder Betreff? Mindestens 60 % seiner Wörter — das Modell
+ * glättet Tippfehler und Satzzeichen, ein Satz aus unserer zitierten Mail oder eine Signatur trifft so nie. Rein.
+ */
+export function zitatAusEigenemText(zitat: unknown, betreff: unknown, text: unknown): boolean {
+  const z = Array.from(new Set(woerter(zitat)));
+  if (!z.length) return false;
+  const eigen = new Set(woerter(`${eigenerBetreff(betreff)}\n${eigenerKundentext(text)}`));
+  const treffer = z.filter((w) => eigen.has(w)).length;
+  return treffer >= Math.min(2, z.length) && treffer / z.length >= 0.6;
+}
+
+/**
+ * Darf werbesperre_setzen sperren? null = ja, sonst der Satz für das Modell. Ja, wenn die Liste oben den Wunsch
+ * erkennt — oder wenn er eigenen Text geschrieben hat und das Zitat daraus stammt (Urteil des Modells, s. o.). Rein.
+ */
+export function werbesperreUrteil(betreff: unknown, kundeText: unknown, zitat: unknown): string | null {
+  if (ausdruecklicherStopp(betreff, kundeText)) return null;
+  if (!hatEigenenText(kundeText, betreff)) {
+    return "Die Mail hat keinen eigenen Text (nur Signatur, Bild oder leer) — das ist NIE ein Abmeldewunsch. KEINE Werbesperre; sieh in den Betreff und beantworte sein Anliegen.";
+  }
+  if (zitatAusEigenemText(zitat, betreff, kundeText)) return null;
+  return "Das Zitat steht nicht in seinem eigenen Text (Signatur oder unsere zitierte Mail) — KEINE Werbesperre. Bittet er in SEINEN Worten um keine Post mehr, zitiere genau diese Worte; sonst beantworte sein Anliegen.";
+}
+
 /** WERBESPERRE — nur auf ausdrücklichen Wunsch, mit Zitat. */
 export const werbesperreSetzen: Werkzeug = {
   name: "werbesperre_setzen",
-  beschreibung: "Nimmt den Kunden aus allen Werbe- und Erinnerungsmails. Nur wenn er ausdrücklich darum bittet ('keine Mails mehr', 'Stopp', 'aus dem Verteiler nehmen'). Vertragspost wie Rechnungen bleibt davon unberührt.",
+  // E-275 (02.10.2026): Die Prüfung steht jetzt im Werkzeug (ausdruecklicherStopp) — eine leere Mail, eine Signatur
+  // oder ein Bild setzten am 09.09. die Sperre, die einem zahlenden Kunden den Kartenlink nahm (Person 4816).
+  beschreibung: "Nimmt den Kunden aus allen Werbe- und Erinnerungsmails. NUR wenn er in SEINEM eigenen Text ausdrücklich darum bittet ('keine Mails mehr', 'Stopp', 'abmelden', 'aus dem Verteiler nehmen', 'lassen Sie mich in Ruhe'). Nie bei einer Mail ohne eigenen Text (nur Signatur wie „Sent from …“, nur ein Bild), nie wegen Ärger über eine Mahnung allein, nie wegen eines Satzes aus unserer zitierten Mail. Vertragspost wie Rechnungen bleibt davon unberührt — und der Service für einen zahlenden Kunden (Karte, Zahlung, Fragen) läuft weiter.",
   stufe: "frei",
   // 26.09.2026 (E-244): auch „gesperrt" — dort landen beendete und stornierte
   // Verträge. Genau die schrieben am 24.09. „keine weiteren E-Mails" (Mail 5597)
@@ -1573,6 +1749,12 @@ export const werbesperreSetzen: Werkzeug = {
   async ausfuehren(p, k) {
     if (!k.personId) return { ok: false, ergebnis: "", fehler: "Ohne Personendatensatz nicht möglich." };
     if (String(p.zitat || "").trim().length < 5) return { ok: false, ergebnis: "", fehler: "Zitat fehlt." };
+    // E-275 (02.10.2026): nur sein eigener Text (oder sein eigener Betreff) zählt. Ohne Kundentext im Kontext
+    // (Werkbank, ältere Aufrufer) gilt das Zitat als sein Text — wie bisher.
+    const eigen = k.kundeText != null ? String(k.kundeText) : String(p.zitat);
+    // E-275 Gegenprüfung (02.10.2026): kein Veto der Liste über seine eigenen Worte — werbesperreUrteil (Kopf oben).
+    const nein = werbesperreUrteil(k.betreff ?? "", eigen, p.zitat);
+    if (nein) return { ok: false, ergebnis: "", fehler: nein };
     await sqlPool`
       UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), updated_at = NOW()
        WHERE id = ${k.personId}
@@ -1686,6 +1868,157 @@ export const terminlinkBauen: Werkzeug = {
     const { terminLink } = await import("./fiaon-termine");
     const url = terminLink(k.personId, "postmeister");
     return { ok: true, ergebnis: "Terminlink erzeugt — sein persönlicher Kalender, er wählt selbst eine Zeit.", daten: { terminlink: url } };
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KARTE SENDEN — DER LINK DER PARTNERBANK VON MARA SELBST (E-275, 02.10.2026)
+//
+// Justin: „MARA verweist immer mehr auf die Mitarbeiter, Mara soll aber
+// selbstständig arbeiten … Mara soll selbst verkaufen." Der Anlass (#6120,
+// 02.10.): „I have not your kaditkarte“ — Mara antwortete „The card itself is
+// issued and sent by the bank … I have asked Nikita Boychenko to check this
+// today". Ein Werkzeug, mit dem sie den Kartenlink selbst schicken kann, gab es
+// nicht; gemessen 18.09.–02.10.: 88 Kartenfragen auf WhatsApp, 62 % mit
+// Übergabe oder Termin beantwortet.
+//
+// Das Werkzeug liest zuerst den handgepflegten Bank-Stand der Akte
+// (kartenLage: beantragt, in Produktion, versandt …) — dann gibt es keinen
+// neuen Link. Sonst ruft es die EINE Funktion aus dem Bereich Karte:
+// karteEinladungFuerPerson (server/lib/fiaon-konto-karte.ts). Sie prüft
+// Ausschlüsse, Konto, Zahlung und Angaben, schickt die Einladung (oder erneut)
+// und liefert den Satz für den Kunden (satz) samt Grund (intern). Aufruf:
+// karteEinladungFuerPerson(personId, { erneut, quelle, akteurName, postmeisterId })
+// → { ok, aktion, satz, intern, gesendet, grund, schonAm, betreff }.
+// Fehlt sie, schickt das Werkzeug NICHTS und sagt das dem Modell — nie „der
+// Link ist raus" ohne Versand. Je Mail höchstens ein Versand (E-246).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Was karteEinladungFuerPerson (Bereich Karte, fiaon-konto-karte.ts) liefert — tolerant gelesen (alle Felder außer ok optional). */
+export interface KarteEinladungErgebnis {
+  /** Der Kunde hat jetzt seinen Link (oder sein Konto steht schon). */
+  ok: boolean;
+  /** gesendet · erneut_gesendet · schon_unterwegs · konto_steht · nicht_bereit · gesperrt · fehler */
+  aktion?: string | null;
+  /** Der Satz für den Kunden (Sie-Form, Deutsch) — null: nichts für ihn, Übergabe. */
+  satz?: string | null;
+  /** Für Akte, Protokoll und Übergabe — nie an den Kunden. */
+  intern?: string | null;
+  /** Ging JETZT eine Mail raus? */
+  gesendet?: boolean;
+  /** Warum nicht. */
+  grund?: string | null;
+  fehler?: string | null;
+  /** Zuletzt geschickt VOR diesem Aufruf (ISO). */
+  schonAm?: string | Date | null;
+  /** Betreff der Einladung, wie sie rausging. */
+  betreff?: string | null;
+}
+/** Die Signatur aus dem Bereich Karte (E-275), wie das Postfach sie ruft. */
+export type KarteEinladungFn = (personId: number, opt?: {
+  /** true (Vorgabe): auch wenn schon einmal geschickt (der Kunde hat ihn nicht oder nicht mehr). */
+  erneut?: boolean;
+  /** Wer auslöst — für Verlauf und Mail-Protokoll. */
+  quelle?: string;
+  akteurName?: string;
+  postmeisterId?: number | null;
+}) => Promise<KarteEinladungErgebnis>;
+
+/** Für den Prüfstand: eine Attrappe statt der echten Funktion (undefined = echte laden). */
+export const KARTE_EINLADUNG_QUELLE: { fn?: KarteEinladungFn | null } = {};
+
+/** Die Funktion aus dem Bereich Karte — null, wenn sie (noch) nicht da ist. */
+export async function karteEinladungLaden(): Promise<KarteEinladungFn | null> {
+  if (KARTE_EINLADUNG_QUELLE.fn !== undefined) return KARTE_EINLADUNG_QUELLE.fn;
+  try {
+    const m: any = await import("./fiaon-konto-karte");
+    return typeof m?.karteEinladungFuerPerson === "function" ? (m.karteEinladungFuerPerson as KarteEinladungFn) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Der Satz für den Kunden, wenn der Link jetzt raus ist und die Funktion keinen eigenen liefert — Justins wahrer Weg. Rein. */
+export function karteGesendetSatz(ein: { erneut: boolean; betreff?: string | null }): string {
+  // Der Betreff der Vorlage endet mit dem Vornamen („…, Satpal“) — zitiert wird nur der feste Teil.
+  const betreff = String(ein.betreff || "").split(",")[0].trim() || "Ihr Link zur Karte ist da";
+  return `Den fertigen Link unserer Partnerbank für Ihren Kartenantrag habe ich Ihnen ${ein.erneut ? "eben noch einmal" : "eben"} geschickt — in einer eigenen E-Mail mit dem Betreff „${betreff}“. `
+    + "Der Antrag bei unserer Partnerbank dauert online nur wenige Minuten, Sie brauchen nur Ihren Ausweis. "
+    + KARTE_ZEIT_SATZ;
+}
+
+/** Was die Bank-Stände der Akte (fiaon-kartenstatus.ts) für die Antwort heißen — kein neuer Link, wenn die Karte schon unterwegs ist. */
+const KARTE_STAND_SATZ: Record<string, string> = {
+  beantragt: "Sein Kartenantrag liegt bei der Partnerbank — sie prüft ihn gerade. Nach ihrer Zusage ist die Karte in der Regel in 2–5 Werktagen bei ihm, meist vorher schon in der App mit Apple Pay nutzbar. KEIN neuer Link.",
+  in_produktion: "Seine Karte wird gerade hergestellt — sie ist in der Regel in wenigen Werktagen bei ihm, meist vorher schon in der App der Bank mit Apple Pay nutzbar. KEIN neuer Link.",
+  versandt: "Seine Karte ist auf dem Postweg zu ihm — in der App der Bank kann er sie meist schon mit Apple Pay nutzen. KEIN neuer Link.",
+  zugestellt: "Seine Karte ist laut Akte zugestellt. Frag freundlich, ob sie angekommen ist; PIN und Freischaltung kommen von der Bank (App der Bank). KEIN neuer Link.",
+  zurueck: "Die Kartensendung kam zur Bank zurück — er soll seine Anschrift in der App der Bank prüfen; dann schickt die Bank sie erneut. KEIN neuer Link.",
+  abgelehnt: "Die Bank hat den Kartenantrag abgelehnt. Sag es ihm ehrlich und warm, ohne Vorwurf, und biete das Gespräch an (terminlink_bauen) — dort besprechen wir die nächsten Schritte. KEIN neuer Link.",
+};
+
+export const karteSenden: Werkzeug = {
+  name: "karte_senden",
+  beschreibung: "Schickt einem ZAHLENDEN Kunden den fertigen Link unserer Partnerbank für Konto und Karte (die Einladung „Ihr Link zur Karte ist da“) — oder schickt ihn erneut, wenn er ihn nicht hat. Rufe es IMMER, wenn ein zahlender Kunde nach seiner Karte fragt („wann kommt meine Karte“, „habe keine Karte / keinen Link bekommen“, „Link verloren“, „I have not your card“). Es prüft vorher selbst den Stand: Ist die Karte schon beantragt, in Produktion, versandt oder sein Konto schon eröffnet, schickt es nichts und sagt dir, was gilt; fehlen Angaben, sagt es dir welche. Liefert es so_schreiben, nimm diesen Satz (in seiner Sprache). Nie „die Bank macht das, nicht wir“, nie „ich habe Herrn X gebeten“.",
+  stufe: "frei",
+  lagen: ["aktiv", "rate_ueberfaellig", "bezahlt_ohne_startgespraech"],
+  parameter: {
+    type: "object", additionalProperties: false,
+    properties: {
+      anlass: { type: "string", description: "In einem Satz, was der Kunde zur Karte geschrieben hat (z. B. „hat keinen Kartenlink bekommen“) — steht im Verlauf." },
+    },
+    required: ["anlass"],
+  },
+  async ausfuehren(p, k) {
+    if (!k.personId) return { ok: false, ergebnis: "", fehler: "Ohne Personendatensatz gibt es keinen Kartenlink." };
+    const anlass = String(p.anlass || "").trim().slice(0, 200) || "Kunde fragt nach seiner Karte";
+    // E-246: je Mail höchstens EIN Versand — auch wenn das Modell zweimal ruft oder ein Anlauf nach der KI-Pause wiederholt.
+    const frueher = await frueherInDieserMail(k, "karte_senden");
+    if (frueher != null) {
+      return { ok: true, ergebnis: `Zu dieser Mail schon erledigt — nicht noch einmal: ${frueher}`, daten: { gesendet: false, schon_in_dieser_mail: true } };
+    }
+    // Der handgepflegte Bank-Stand: Ist die Karte schon unterwegs, gibt es keinen neuen Link.
+    const { kartenLage } = await import("./fiaon-kartenstatus");
+    const bank = await kartenLage(k.personId).catch(() => null);
+    const bankStand = bank?.status && KARTE_STAND_SATZ[bank.status] ? bank.status : null;
+    if (bankStand) {
+      return {
+        ok: true,
+        ergebnis: `Stand der Karte laut Akte: ${bank!.text}${bank!.am ? ` (seit ${new Date(bank!.am as any).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })})` : ""}. ${KARTE_STAND_SATZ[bankStand]}`,
+        daten: { gesendet: false, karten_status: bankStand },
+      };
+    }
+    const senden = await karteEinladungLaden();
+    if (!senden) {
+      return { ok: false, ergebnis: "", fehler: "Der Versand des Kartenlinks ist gerade nicht verfügbar (karteEinladungFuerPerson fehlt) — schreib NICHT, der Link sei raus. Erkläre ihm den Weg positiv und gib dem Team still Bescheid (notiz_an_betreuer: „Kartenlink erneut schicken“)." };
+    }
+    const erg: KarteEinladungErgebnis = await senden(k.personId, {
+      erneut: true, quelle: "postmeister", akteurName: "Mara (Postmeister)", postmeisterId: k.postmeisterId ?? null,
+    }).catch((e: any): KarteEinladungErgebnis => ({ ok: false, aktion: "fehler", gesendet: false, grund: String(e?.message || e).slice(0, 200) }));
+    const aktion = String(erg?.aktion || (erg?.gesendet ? "gesendet" : erg?.ok ? "schon_unterwegs" : "fehler"));
+    const satz = erg?.satz ? String(erg.satz) : null;
+    const intern = String(erg?.intern || erg?.grund || erg?.fehler || "").slice(0, 300);
+    // Nichts gesendet, aber ein Satz für ihn (Angaben fehlen, Zahlung offen): das ist SEINE Antwort — kein Mensch nötig.
+    if (!erg?.ok && aktion === "nicht_bereit" && satz) {
+      return { ok: true, ergebnis: satz, daten: { gesendet: false, aktion, so_schreiben: satz, intern } };
+    }
+    if (!erg?.ok) {
+      // Ausschluss (Sperre, Kündigung, Global …) oder Versand gescheitert: ein Fall für das Team — dem Kunden nichts versprechen.
+      return {
+        ok: false, ergebnis: "",
+        fehler: aktion === "gesperrt"
+          ? `Für ihn gibt es keinen Kartenlink (${intern || "Ausschluss"}) — schreib NICHT, der Link sei raus. Gib es mit aufgabe_an_betreuer weiter und sag ihm ehrlich, dass sich jemand meldet.`
+          : `Der Kartenlink ging nicht raus (${intern || "Versand gescheitert"}) — schreib NICHT, er sei unterwegs. Erkläre den Weg und gib dem Team still Bescheid (notiz_an_betreuer).`,
+      };
+    }
+    const soSchreiben = satz ?? (erg.gesendet ? karteGesendetSatz({ erneut: aktion === "erneut_gesendet" || !!erg.schonAm, betreff: erg.betreff ?? null }) : null);
+    // Der Verlauf der Akte bekommt seinen Eintrag von der Funktion selbst — hier nur die Handlung an der Mail-Zeile.
+    await protokoll(k, "karte_senden", `Karte (${aktion}): ${intern || (erg.gesendet ? "Link der Partnerbank geschickt" : "kein Versand")} — Anlass: ${anlass}.`, false);
+    return {
+      ok: true,
+      ergebnis: soSchreiben ?? `Stand Konto und Karte: ${intern || aktion}.`,
+      daten: { gesendet: !!erg.gesendet, aktion, so_schreiben: soSchreiben, zuerst_am: erg.schonAm ?? null },
+    };
   },
 };
 
@@ -1818,6 +2151,8 @@ export const eskalationVorbereiten: Werkzeug = {
 export const NUR_PRIVATKUNDEN_WERKZEUGE = new Set<string>([
   "kuendigung_vormerken", "mahnstopp_setzen", "eskalation_vorbereiten", "konto_freischalten", "terminlink_bauen",
   "auskunft_anbieten",
+  // E-275 (02.10.2026): Konto und Karte der Partnerbank sind ein Privatprodukt — nie an einen Kunden von FIAON Global (E-272).
+  "karte_senden",
 ]);
 
 /** Rein: Darf dieses Werkzeug in diesem Vorgang laufen? `null` = ja; sonst der Satz für das Modell. */
@@ -1918,8 +2253,9 @@ function mitGlobalWand(w: Werkzeug): Werkzeug {
 }
 
 /** Alle Werkzeuge, in der Reihenfolge, in der das Modell sie sehen soll. */
+// E-275 (02.10.2026): karte_senden direkt nach der Zahlungsseite — Karte und Zahlung sind Maras eigene Arbeit.
 export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
-  zahlungslinkBauen, rechnungAnhaengen, auskunftAnbieten, terminlinkBauen, notizAnBetreuer, aufgabeAnBetreuer, vermerkSchreiben,
+  zahlungslinkBauen, karteSenden, rechnungAnhaengen, auskunftAnbieten, terminlinkBauen, notizAnBetreuer, aufgabeAnBetreuer, vermerkSchreiben,
   kuendigungVormerken, werbesperreSetzen, mahnstoppSetzen, eskalationVorbereiten, kontoFreischalten,
   globalZugangSendenWerkzeug,
 ].map(mitGlobalWand);
@@ -1930,13 +2266,15 @@ export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
  * Kunde fragt selbst danach — dann gibt es auskunft_anbieten auch bei einem
  * offenen Antrag oder einem Lead (AUSKUNFT_ANTWORT_LAGEN), sonst dort nie.
  */
-export function werkzeugeFuerLage(lage: Kundenlage, opts: { auskunftAntwort?: boolean } = {}): Werkzeug[] {
+export function werkzeugeFuerLage(lage: Kundenlage, opts: { auskunftAntwort?: boolean; werbesperre?: boolean } = {}): Werkzeug[] {
   return POSTMEISTER_WERKZEUGE.filter((w) => w.lagen === "alle" || w.lagen.includes(lage)
-    || (w.name === "auskunft_anbieten" && !!opts.auskunftAntwort && AUSKUNFT_ANTWORT_LAGEN.includes(lage)));
+    || (w.name === "auskunft_anbieten" && !!opts.auskunftAntwort && AUSKUNFT_ANTWORT_LAGEN.includes(lage)))
+    // E-275 (02.10.2026): Werbesperre beim zahlenden Kunden — Service ja, Verkauf nein: kein Angebot der Auskunft.
+    .filter((w) => !(opts.werbesperre && w.name === "auskunft_anbieten"));
 }
 
 /** Das Format, das OpenAI erwartet. */
-export function werkzeugeAlsTools(lage: Kundenlage, opts: { auskunftAntwort?: boolean } = {}): unknown[] {
+export function werkzeugeAlsTools(lage: Kundenlage, opts: { auskunftAntwort?: boolean; werbesperre?: boolean } = {}): unknown[] {
   return werkzeugeFuerLage(lage, opts).map((w) => ({
     type: "function",
     function: { name: w.name, description: w.beschreibung, parameters: w.parameter },

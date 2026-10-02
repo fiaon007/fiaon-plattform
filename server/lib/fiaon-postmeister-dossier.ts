@@ -238,6 +238,21 @@ export async function personSuchen(absender: string, text: string): Promise<{
  * Funktion selbst (istGlobalKunde, E-272).
  */
 export async function kundenlageBerechnen(personId: number | null, ref: string | null, opt: { globalKunde?: boolean } = {}): Promise<{ lage: Kundenlage; grund: string }> {
+  const r = await kundenlageRoh(personId, ref, opt);
+  // E-275 (02.10.2026): Beim zahlenden Kunden mit Werbesperre steht die Sperre im Grund — die Lage bleibt seine echte.
+  return r.werbesperreZahlend
+    ? { lage: r.lage, grund: `${r.grund} · ${WERBESPERRE_ZAHLEND_SATZ}` }
+    : { lage: r.lage, grund: r.grund };
+}
+
+/**
+ * E-275 (02.10.2026): Was die Werbesperre beim ZAHLENDEN Kunden heißt — ein Satz für Lage, Akte und Auftrag.
+ * Justin: „Mara soll selbstständig arbeiten … Mara soll selbst verkaufen.“ Und die Wand des Hauses: STOPP heißt keine
+ * WERBUNG mehr (§ 7 UWG) — Service für einen zahlenden Kunden ist keine Werbung.
+ */
+export const WERBESPERRE_ZAHLEND_SATZ = "Werbesperre gesetzt: keine Werbung, kein Angebot, kein Upsell (keine Bonitätsauskunft, kein Upgrade) — sein Service läuft wie bei jedem zahlenden Kunden (Karte, Zahlung, Unterlagen, Zugang, Fragen erledigst du selbst)";
+
+async function kundenlageRoh(personId: number | null, ref: string | null, opt: { globalKunde?: boolean } = {}): Promise<{ lage: Kundenlage; grund: string; werbesperreZahlend?: boolean }> {
   if (!personId && !ref) return { lage: "fremd", grund: "kein Kundendatensatz zur Absenderadresse" };
 
   const [p] = personId ? (await sqlPool`
@@ -274,8 +289,30 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   const globalOhneAuftrag = globalKunde && !(a && produktkategorie(a) === "global");
 
   if (a?.gdpr_deleted_at) return { lage: "gesperrt", grund: "Daten auf Wunsch gelöscht" };
-  if (p?.werbung_gesperrt_am && !globalKunde) return { lage: "gesperrt", grund: "Werbesperre gesetzt" };
+  // ── E-275 (02.10.2026): DIE WERBESPERRE SPERRT DEN ZAHLENDEN KUNDEN NICHT AUS ──────────────
+  // Justin: „MARA verweist immer mehr auf die Mitarbeiter, Mara soll aber selbstständig arbeiten.“ Der Fall
+  // #6120: Satpal Jhim hat FIAON Ultra bezahlt, fragt nach seiner Karte — seit einer Werbesperre vom 09.09.
+  // war er hier „gesperrt“: einziger Schritt „erledigt“, keine Zahlungsseite, nie automatisch, jede Mail eine
+  // Übergabe („I have asked Nikita Boychenko …“). Gemessen (nur lesend, 18.09.–02.10.): 89 Mails in Lage
+  // „gesperrt“ von 33 Personen, bei 62 die Werbesperre schon vorher gesetzt, 51 davon zahlende Kunden.
+  // Jetzt: Ist der Vorgang BEZAHLT, rechnet die Lage weiter wie ohne Sperre (aktiv, Rate überfällig,
+  // gekündigt …); die Sperre steht im Grund (WERBESPERRE_ZAHLEND_SATZ) und hält Werbung und Upsell fern
+  // (Auftrag, auskunft_anbieten, werkzeugeFuerLage). Unbezahlte bleiben „gesperrt“ wie bisher.
+  const zahlend = a?.payment_status === "paid";
+  if (p?.werbung_gesperrt_am && !globalKunde && !zahlend) return { lage: "gesperrt", grund: "Werbesperre gesetzt" };
+  const werbesperreZahlend = !!p?.werbung_gesperrt_am && !globalKunde && zahlend;
   if (a?.account_status === "suspended" && !globalOhneAuftrag) return { lage: "gesperrt", grund: "Konto gesperrt" };
+  if (werbesperreZahlend) {
+    const weiter = await kundenlageOhneWerbesperre(personId, ref, a, globalOhneAuftrag, pid);
+    return { ...weiter, werbesperreZahlend: weiter.lage !== "gesperrt" };
+  }
+  return kundenlageOhneWerbesperre(personId, ref, a, globalOhneAuftrag, pid);
+}
+
+/** Der Rest der Rangfolge (nach Löschung, Werbesperre und Kontosperre) — unverändert aus kundenlageBerechnen herausgelöst (E-275). */
+async function kundenlageOhneWerbesperre(
+  personId: number | null, ref: string | null, a: any, globalOhneAuftrag: boolean, pid: number | null,
+): Promise<{ lage: Kundenlage; grund: string }> {
 
   // Bestreitet? Aus einer früheren Postmeister-Zeile derselben Person, 90 Tage —
   // die Kundin aus der Analyse bekam vier Automatenantworten über zwei Postfächer.
@@ -430,16 +467,39 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     try {
       const { kartenStand } = await import("./fiaon-konto-karte");
       const { kartenLage } = await import("./fiaon-kartenstatus");
-      const [st, lage] = await Promise.all([kartenStand(personId), kartenLage(personId)]);
+      // E-275: bankLage (vorher „lage“) — der Name verdeckte hier die Kundenlage, die der Block jetzt auch liest.
+      const [st, bankLage] = await Promise.all([kartenStand(personId), kartenLage(personId)]);
       if (st) {
+        // E-275 (02.10.2026): Der Weg positiv und mit dem Werkzeug — vorher endete er mit „die Bank entscheidet“, und
+        // Mara schrieb daraus „The card itself is issued and sent by the bank … I have asked Nikita Boychenko“ (#6120).
+        const zahlendJetzt = ["aktiv", "rate_ueberfaellig", "bezahlt_ohne_startgespraech"].includes(lage);
+        // E-275 Gegenprüfung (02.10.2026, Wahrheit und Recht): „direkt nach der Zahlung der Link“ stimmt nur mit vollständigem
+        // Antrag — die Einladung (einladungenAutomatisch) verlangt Name, Geburtsdatum, Anschrift, E-Mail. Gemessen (nur lesend,
+        // 02.10.): 20 von 452 abgeschickten, unbezahlten Anträgen der letzten 60 Tage fehlt etwas (13× nur das Geburtsdatum).
+        // Dann nennt die Akte, WAS fehlt, und der Abschluss verspricht den Link erst mit vollständigen Angaben.
+        // Nicht beim Interessenten: Sein nächster Schritt ist der Antrag selbst (Abschluss „abbrecher“/„c“), dort stehen die Angaben.
+        const antragLuecke = lage !== "interessent" && st.tore.find((t) => t.schluessel === "antrag")?.erfuellt === false
+          ? ((await import("./fiaon-konto-karte").then((m) => m.karteEinladungStand(personId)).catch(() => null))?.fehlendeAngaben ?? ["Angaben im Antrag (Name, Geburtsdatum, Anschrift)"])
+          : [];
         karte = {
-          reihenfolge: "erst Girokonto der Partnerbank, dann Karte als Zubuchung; Einladung erst, wenn alle drei Bedingungen erfüllt sind; die Bank entscheidet",
+          reihenfolge: "Mit dem Link unserer Partnerbank beantragt er online in wenigen Minuten Girokonto und Karte (nur Ausweis); die Visa-Kreditkarte kommt als Zubuchung dazu. Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei ihm, meist vorher schon in der App mit Apple Pay nutzbar.",
+          wasTun: antragLuecke.length
+            ? `Im Antrag fehlt noch: ${antragLuecke.join(", ")}. Der Link geht erst raus, wenn das eingetragen ist${st.zahlen.paketBezahlt ? "" : " UND die erste Zahlung gebucht ist"} — frag ihn danach; versprich nicht „direkt nach der Zahlung der Link“.`
+            : !st.bereit
+            ? "Die Einladung geht erst nach der ersten gebuchten Zahlung raus — Abschluss: Zahlung = Aktivierung, dann sofort der Link."
+            : zahlendJetzt
+              ? (st.versand
+                ? "Der Link ist raus (Feld einladung). Fragt er nach Karte oder Link oder hat ihn nicht: karte_senden — es prüft den Stand und schickt ihn erneut."
+                : "Der Link ist NOCH NICHT raus — karte_senden schickt ihn jetzt.")
+              : "Bereit — den Link schickt karte_senden, sobald er zahlender Kunde in einer der Lagen aktiv, rate_ueberfaellig oder bezahlt_ohne_startgespraech ist.",
           bereit: st.bereit,
           esFehlt: st.esFehlt,
+          // E-275 Gegenprüfung: in Worten, für Abschluss und Frage („Geburtsdatum“). Leer, wenn der Antrag vollständig ist.
+          fehlendeAngaben: antragLuecke,
           bedingungen: st.tore.map((t) => ({ titel: t.titel, erfuellt: t.erfuellt, fehlt: t.fehlt, fuerKunden: String(t.warumFuerKunden || "").replace(/Wir empfehlen das Konto erst/i, "Der Konto-Schritt kommt erst") })),
           zahlen: st.zahlen,
           einladung: st.versand ? { am: relativ(st.versand.am), status: st.versand.status } : null,
-          bankStand: lage.status ? { status: lage.status, text: lage.text, am: lage.am ? relativ(lage.am) : null } : null,
+          bankStand: bankLage.status ? { status: bankLage.status, text: bankLage.text, am: bankLage.am ? relativ(bankLage.am) : null } : null,
         };
       }
     } catch (e) {
@@ -457,7 +517,11 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   // E-272 (02.10.2026): auch jeder Global-Kunde (an der Person, istGlobalKunde) — ein alter Privatantrag
   // daneben machte aus ihm sonst einen Menschen, dem die Akte „anbieten: auskunft_anbieten rufen“ sagt.
   const nurGlobal = globalKunde || (bestellungen.length > 0 && bestellungen.every((b) => istGlobalPaket(b.pack_key)));
-  const auskunft = personId && !nurGlobal ? await auskunftDossier(personId, lage) : null;
+  const auskunftRoh = personId && !nurGlobal ? await auskunftDossier(personId, lage) : null;
+  // E-275 (02.10.2026): Werbesperre — die Auskunft wird nicht angeboten (Upsell), ihr Stand bleibt lesbar (Service).
+  const auskunft = auskunftRoh && person?.werbung_gesperrt_am && (auskunftRoh.stufe === "nichts" || auskunftRoh.stufe === "offen")
+    ? { ...auskunftRoh, bedeutung: "Werbesperre: Die Auskunft bietest du NICHT an (kein Upsell, kein Preis, kein Knopf). Fragt er selbst danach, beantwortest du seine Frage sachlich." }
+    : auskunftRoh;
 
   return {
     heute,

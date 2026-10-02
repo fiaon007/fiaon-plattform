@@ -97,7 +97,26 @@ pruef("Preis mit Jahresvertrag nicht angemahnt", !V("Sie wählen ein Paket ab 7,
 pruef("Kontoauszüge auf Einkommensnachweis-Frage erlaubt", !V("Einen Gehaltsnachweis brauchen Sie nicht. Später laden Sie in Ihrem Bereich Kontoauszüge hoch.", "Brauche ich einen Einkommensnachweis?").some((h) => /Kontoauszüge/.test(h)));
 pruef("„Das geht bei uns leider nicht“ fällt auf", V("Das geht bei uns leider nicht, nur mit Ausweis.", "nur mit Ausweis?").some((h) => /raus/.test(h)));
 pruef("Bei Kündigung kein Umstimmen", V("Schade — darf ich fragen, woran es hängt?", "Ich will kündigen").some((h) => /Kündigung/.test(h)));
-pruef("Partnerbank-Satz in der Zahlungslage fällt auf", verkaufsPruefung("Sobald die Zahlung gebucht ist, wird Ihr Account aktiv und der Link unserer Partnerbank geht raus.", { kunde: "kann erst am 30.09 zahlen, ok?", letzteDu: [], verkaufen: true, zahlungslage: true }).some((h) => /Partnerbank/.test(h)));
+// E-275 (02.10.2026, Justin: „Mara soll sowas sagen wie: Hi, zahl die Aktivierung, die Karte geht zeitnahe in Produktion —
+// also: Jetzt zahlen! ;D — so in etwa nur seriös"): Justins eigener Satz („sobald … gebucht ist, … bekommen Sie direkt den
+// fertigen Link unserer Partnerbank für Ihren Kartenantrag", KARTE_LINK_SATZ) gehört jetzt in den Abschluss. Vorher fiel
+// hier jeder Partnerbank-Satz in der Zahlungslage auf (24.09., Niko M.) — jetzt nur noch ein ZEITPUNKT für den Link oder
+// der Link ohne die Buchung davor.
+pruef("E-275: Justins Satz (nach der Buchung direkt der Link) in der Zahlungslage erlaubt", !verkaufsPruefung("Sobald die Zahlung gebucht ist, wird Ihr Account aktiv und der Link unserer Partnerbank geht raus.", { kunde: "kann erst am 30.09 zahlen, ok?", letzteDu: [], verkaufen: true, zahlungslage: true }).some((h) => /Partnerbank/.test(h)));
+pruef("E-275: ein Zeitpunkt für den Link der Partnerbank fällt auf", verkaufsPruefung("Sobald die Zahlung gebucht ist, geht morgen der Link unserer Partnerbank an Sie raus.", { kunde: "kann erst am 30.09 zahlen, ok?", letzteDu: [], verkaufen: true, zahlungslage: true }).some((h) => /Partnerbank/.test(h)));
+pruef("E-275: der Link der Partnerbank ohne Buchung davor fällt auf", verkaufsPruefung("Der Link unserer Partnerbank geht an Sie raus.", { kunde: "kann erst am 30.09 zahlen, ok?", letzteDu: [], verkaufen: true, zahlungslage: true }).some((h) => /Partnerbank/.test(h)));
+// E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Ihr Account ist sofort nach Eingang aktiv!‘“):
+// Justins neuer Satz („Zahlen Sie jetzt die Aktivierung — Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen
+// direkt den fertigen Link …“) ist in der Zahlungslage frei; „sofort“ ohne Zahlungseingang bleibt ein Zeitpunkt für den Link.
+{
+  const ton = await import("../shared/fiaon-mara-ton");
+  const ZL = { kunde: "kann erst am 30.09 zahlen, ok?", letzteDu: [] as string[], verkaufen: true, zahlungslage: true };
+  pruef("E-275 Ton: „Zahlen Sie jetzt die Aktivierung — Ihr Account ist sofort nach Zahlungseingang aktiv …“ in der Zahlungslage erlaubt",
+    !verkaufsPruefung(`${ton.AKTIVIERUNG_AUFRUF} — ${ton.NACH_DEM_EINGANG}! ${ton.ZAHL_FRAGE}`, ZL).some((h) => /Partnerbank/.test(h)));
+  pruef("E-275 Ton: „Sie bekommen sofort den Link unserer Partnerbank“ (ohne Zahlungseingang) fällt auf",
+    verkaufsPruefung("Sie bekommen sofort den Link unserer Partnerbank.", ZL).some((h) => /Partnerbank/.test(h)));
+  pruef("E-275 Ton: die Wortwand lässt Justins Satz durch", !sendePruefung(`${ton.AKTIVIERUNG_AUFRUF} — ${ton.NACH_DEM_EINGANG}! ${ton.TEMPO_SATZ}`).length);
+}
 pruef("Partnerbank erlaubt, wenn er nach der Bank fragt", !verkaufsPruefung("Unsere Partnerbank ist die DKB.", { kunde: "Welche Bank ist das?", letzteDu: [], verkaufen: true, zahlungslage: true }).some((h) => /Partnerbank/.test(h)));
 pruef("Kurzes Englisch fällt auf", V("Of course! Here is your application link: https://fiaon.com/antrag", "hello?").some((h) => /Deutsch/.test(h)));
 pruef("Behauptete Buchung ohne Werkzeug fällt auf", handlungsPruefung("Ist eingetragen: morgen 10:10 Uhr.", [], "morgen 10 bitte").length >= 1);
@@ -493,7 +512,8 @@ function zeigen(id: string, kunde: string, e: Awaited<ReturnType<typeof entwerfe
   // E-240: ohne Links gezählt, wie verkaufsPruefung (der Kauflink der Auskunft hat ~130 Zeichen).
   const lesbar = a.replace(/https?:\/\/\S+/g, "").trim().length;
   pruef(`${id}: höchstens 500 Zeichen`, lesbar <= 500, String(lesbar));
-  if (id === "S38") { pruef("S38: kein Partnerbank-Satz", !/partnerbank|dkb/i.test(a), a.slice(0, 80)); if (process.argv.includes("--werkzeuge")) pruef("S38: Zahlungszusage festgehalten", (e.aktionen ?? []).some((x: any) => x.werkzeug === "zahlungszusage_merken" && x.ok)); }
+  // E-275 (02.10.2026): Justins Satz darf stehen — nur kein Zeitpunkt für den Link und kein Link vor der Buchung.
+  if (id === "S38") { pruef("S38: Partnerbank nur nach der Buchung, ohne Zeitpunkt", !/partnerbank|dkb/i.test(a) || (/sobald|nach\s+der\s+buchung|gebucht/i.test(a) && !/(?:heute|morgen|innerhalb|sofort|gleich)[^.!?]{0,50}link|link[^.!?]{0,50}(?:heute|morgen|innerhalb|sofort|gleich)/i.test(a)), a.slice(0, 80)); if (process.argv.includes("--werkzeuge")) pruef("S38: Zahlungszusage festgehalten", (e.aktionen ?? []).some((x: any) => x.werkzeug === "zahlungszusage_merken" && x.ok)); }
   pruef(`${id}: keine Ausrede`, !verkaufsPruefung(a, { kunde, letzteDu: [], verkaufen: true }).some((h) => /redest ihn raus/.test(h)));
   if (id === "E1") pruef("E1: Auskunft angeboten, 74 €, keine Karten-/Löschzusage", /auskunft/i.test(a) && /74\s*€/.test(a) && !/kostenlos/i.test(a) && !/bekommen sie die karte|lösch\w* (?:wir|sicher)/i.test(a), a.slice(0, 120));
   if (id === "E2") pruef("E2: kein Wort zu Bonität/Auskunft/Kontoauszügen", !/bonit|schufa|auskunft|kontoausz/i.test(a), a.slice(0, 120));

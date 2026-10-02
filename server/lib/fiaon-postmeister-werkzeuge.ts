@@ -46,6 +46,9 @@ import {
 } from "./fiaon-abwesenheit";
 import { nennform } from "@shared/fiaon-mitarbeiter-name";
 import { antragAbgeschickt } from "@shared/fiaon-antrag-stand";
+// E-272 (02.10.2026): Global-Kunde als Merkmal der PERSON — die eine Regel (fiaon-global-kunde.ts).
+import { istGlobalKunde } from "./fiaon-global-kunde";
+import { produktkategorie } from "./fiaon-produktkategorie";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -250,7 +253,13 @@ async function frueherInDieserMail(k: WerkzeugKontext, werkzeug: string): Promis
  * niemand besitzt einen Kunden vor dem Mandat, und eine Aufgabe ist keine
  * Zuteilung. Rollen-Literale prüft `scripts/pruef-rollen.ts`.
  */
-async function zustaendig(personId: number | null): Promise<{ id: number | null; name: string; kundenName: string; vertretung?: boolean; board?: boolean; vt?: UebergabeVertretung | null }> {
+async function zustaendig(personId: number | null): Promise<{ id: number | null; name: string; kundenName: string; vertretung?: boolean; board?: boolean; vt?: UebergabeVertretung | null; global?: boolean }> {
+  // E-272 (02.10.2026): Ein Global-Kunde gehört nicht in den Privatvertrieb — Notiz und Aufgabe liegen beim
+  // Betreiber, wie jede Aufgabe aus FIAON Global (fiaon-global-angebot.ts: anBetreiber). Justin zum Fall
+  // Hildbrand: „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben.“
+  if (personId && await istGlobalKunde(personId).catch(() => false)) {
+    return { id: null, name: "Leitung (FIAON Global)", kundenName: "unsere Leitung", board: true, global: true };
+  }
   // E-260 (29.09.2026): Team abwesend — Notiz und Eskalation gehen nicht an Abwesende,
   // und der Kunde liest den Namen dessen, der wirklich anruft.
   // Vertretung (01.10.2026): Ist der Vertreter ein echter Mitarbeiter, bekommt ER sie; ist er der
@@ -326,7 +335,9 @@ export const notizAnBetreuer: Werkzeug = {
         link: k.personId ? `/agent/kunden?person=${k.personId}` : k.ref ? `/agent/kunden?ref=${k.ref}` : null,
       }, wer.vt);
     }
-    if (p.anrufen && k.personId) {
+    // E-272: Beim Global-Kunden kein Eintrag in die Rückruf-Liste des Vertriebs (sie geht an Betreuer oder
+    // Vertriebsleitung) — die Aufgabe liegt beim Betreiber, der ruft selbst an.
+    if (p.anrufen && k.personId && !wer.global) {
       try {
         const { rueckrufAufnehmen } = await import("./fiaon-rueckruf");
         await rueckrufAufnehmen({
@@ -386,7 +397,13 @@ export const aufgabeAnBetreuer: Werkzeug = {
       `.catch(() => [])) as any[];
       return l?.id ? { id: Number(l.id) } : null;
     };
-    const gewuenscht = zahlungGewollt
+    // E-272 (02.10.2026): Beim Global-Kunden geht die Aufgabe an den Betreiber (wie jede Aufgabe aus FIAON
+    // Global, fiaon-global-angebot.ts: anBetreiber) — nie an die Vertriebsleitung oder einen Privat-Betreuer.
+    // Nur wer ausdrücklich einen Mitarbeiter mit Namen nennt, bekommt ihn.
+    const globalKunde = k.personId ? await istGlobalKunde(k.personId).catch(() => false) : false;
+    const gewuenscht = globalKunde
+      ? (!zahlungGewollt && !leitungGewollt && p.kollege ? await mitarbeiterNachName(kollege).catch(() => null) : null)
+      : zahlungGewollt
       ? await nachRolle(["inkasso", "vertriebsleiter"])
       : leitungGewollt
         ? await nachRolle(["vertriebsleiter"])
@@ -419,9 +436,10 @@ export const aufgabeAnBetreuer: Werkzeug = {
     // gemeldet" markiert, damit der Kontoabgleich sie kennt.
     let zahlungGemeldet = "";
     if (zahlungGewollt && k.ref) {
-      const [o] = (await sqlPool`SELECT payment_status, status, current_step, submitted_at FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+      const [o] = (await sqlPool`SELECT payment_status, status, current_step, submitted_at, type, ref, pack_key FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
       // E-264: nur eine ABGESCHICKTE Bestellung kann „Zahlung gemeldet" werden — auf einen nie abgeschickten Antrag gibt es keine Rechnung.
-      if (o?.payment_status === "pending_payment" && antragAbgeschickt(o)) {
+      // E-272: beim Global-Kunden nur sein Global-Auftrag — sein Beleg gilt nie einem alten Privatantrag.
+      if (o?.payment_status === "pending_payment" && antragAbgeschickt(o) && !(globalKunde && produktkategorie(o) !== "global")) {
         await sqlPool`UPDATE fiaon_applications SET payment_status = 'claimed_paid', claimed_paid_at = COALESCE(claimed_paid_at, NOW()), updated_at = NOW() WHERE ref = ${k.ref}`.catch(() => {});
         zahlungGemeldet = " Die Bestellung steht jetzt auf „Zahlung gemeldet\".";
       }
@@ -433,7 +451,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
     // Kunde liest dessen Namen. Zahlungsbelege gehen wie immer an die Zahlungsstelle.
     // Vertretung (01.10.2026): Ist der Vertreter ein echter Mitarbeiter, bekommt ER die Aufgabe (nicht das
     // Board); Heikles — und Entscheidungen der Leitung — sieht der Betreiber zusätzlich (betreiberKopie).
-    const vtUeb = zahlungGewollt ? null
+    const vtUeb = zahlungGewollt || (globalKunde && !gewuenscht) ? null
       : gewuenscht ? await uebergabeVertretung(k.personId, gewuenscht.id) : await uebergabeVertretungAbgeleitet(k.personId);
     const abw = vtUeb?.ab ?? null;
     const vtPerson = abw && k.personId ? await vertretungFuerPerson(k.personId).catch(() => null) : null;
@@ -448,7 +466,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
       schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe`,
       quelle: "postmeister", autorName: "Mara",
       agentId: zahlungGewollt ? null : vtUeb ? (vtUeb.anVertreter ? vtUeb.ab.vertreter.id : null) : (gewuenscht?.id ?? null),
-      anBetreiber: zahlungGewollt || (!!vtUeb && !vtUeb.anVertreter),
+      anBetreiber: zahlungGewollt || (!!vtUeb && !vtUeb.anVertreter) || (globalKunde && !gewuenscht),
     });
     if (vtUeb?.anVertreter && (leitungGewollt || heikleUebergabe(`${titelMitName}\n${text}`))) {
       await betreiberKopie({
@@ -565,6 +583,9 @@ export const rechnungAnhaengen: Werkzeug = {
     const { zahlungsauftragFinden } = await import("./fiaon-zahlungsauftrag");
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keine Rechnung." };
+    // E-272: Beim Global-Kunden keine Rechnung einer Privatbestellung.
+    const privatBeiGlobal = await privatReferenzBeiGlobal(k, z);
+    if (privatBeiGlobal) return { ok: false, ergebnis: "", fehler: privatBeiGlobal };
     // E-248 (#5500): Ohne Betrag gibt es keine Rechnung — sonst „über null €".
     if (!(Number(z.amountDue) > 0)) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung ist noch kein Betrag hinterlegt — keine Rechnung und keinen Betrag nennen; der Betreuer trägt Paket und Betrag nach (aufgabe_an_betreuer)." };
     // E-264 (29.09.2026, Gegenlesen): derselbe Riegel wie in zahlungslink_bauen — ohne abgeschickten Antrag
@@ -860,6 +881,12 @@ export async function auskunftBetreuerMelden(k: WerkzeugKontext, ein: {
   if (!k.personId) return { ok: false, grund: "ohne Person" };
   if (k.auskunftGemeldet) return { ok: false, grund: "in dieser Mail schon gemeldet" };
   if (k.kundenlage === "fremd" || k.kundenlage === "unklar") return { ok: false, grund: `Lage ${k.kundenlage}` };
+  // E-272 (02.10.2026): FIAON Global ZUERST — an der Bestellung UND an der Person (istGlobalVorgang).
+  // Vorher stand die Prüfung hinter Lage, Warnlampe und Werbe-/Vertriebssperre und kannte nur die
+  // Bestellung des Vorgangs: Ein Global-Kunde mit altem Privatantrag als Vorgang und ohne Sperre bekam
+  // eine Auskunft-Aufgabe für den Privatvertrieb („bitte heute nachfassen, Karte/Limit“). Bei Hildbrand
+  // hielt nur die Vertriebssperre von Hand, die heute früh gesetzt wurde.
+  if (await istGlobalVorgang(k)) return { ok: false, grund: "FIAON Global" };
   const service = ein.stufe === "bezahlt" || ein.stufe === "dokument" || ein.stufe === "gemeldet";
   // Erste Zahlung fürs Paket fehlt noch: Kaufen kann er die Auskunft erst danach
   // (angebotLage, Kaufseite) — der Betreuer soll nicht zuerst die Auskunft verkaufen.
@@ -870,7 +897,6 @@ export async function auskunftBetreuerMelden(k: WerkzeugKontext, ein: {
     const [p] = (await sqlPool`SELECT werbung_gesperrt_am, is_blocked FROM fiaon_persons WHERE id = ${k.personId} LIMIT 1`.catch(() => [])) as any[];
     if (p?.werbung_gesperrt_am || p?.is_blocked) return { ok: false, grund: "Werbe- oder Vertriebssperre" };
   }
-  if (await istGlobalVorgang(k)) return { ok: false, grund: "FIAON Global" };
 
   // ── E-241: ANGEBOT AN EINEN OFFENEN ANTRAG ODER LEAD ─────────────────────
   // Die Aufgabe geht nach der Regel des Hauses (auskunftAufgabeAn): Betreuer,
@@ -1595,6 +1621,10 @@ export const zahlungslinkBauen: Werkzeug = {
     const { zahlungsauftragFinden } = await import("./fiaon-zahlungsauftrag");
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keinen offenen Auftrag." };
+    // E-272: Beim Global-Kunden keine Zahlungsseite einer Privatbestellung — und VOR der Neufreischaltung
+    // unten, die eine abgelaufene Privatbestellung wieder öffnet und ihm die Zahlungsdaten erneut mailt.
+    const privatBeiGlobal = await privatReferenzBeiGlobal(k, z);
+    if (privatBeiGlobal) return { ok: false, ergebnis: "", fehler: privatBeiGlobal };
     if (z.status === "paid") return { ok: false, ergebnis: "", fehler: "Diese Rechnung ist bereits bezahlt — sag das dem Kunden, statt zu einer Zahlung aufzufordern." };
     // E-265 Schluss-Nachbesserung (01.10.2026): Eine stornierte Rate wird nie verlangt (vorher baute das Werkzeug auch ihre Seite).
     if (z.status === "cancelled") return { ok: false, ergebnis: "", fehler: "Diese Rate ist storniert — sie wird nicht verlangt. Keine Zahlungsaufforderung, kein Betrag dazu." };
@@ -1771,6 +1801,17 @@ export const eskalationVorbereiten: Werkzeug = {
 // was stattdessen zu tun ist. Erlaubt bleiben Zahlungsseite, Rechnung, Notiz,
 // Aufgabe, Vermerk, Werbesperre — und das eigene Werkzeug global_zugang_senden.
 // Für jeden Vorgang OHNE Global-Bestellung ändert sich nichts.
+//
+// E-272 (02.10.2026): Die Wand erkennt FIAON Global jetzt auch an der PERSON
+// (istGlobalKunde, fiaon-global-kunde.ts) — nicht nur an der Bestellung des
+// Vorgangs. Justin zum Fall Hildbrand: „nehme ihn bitte komplett aus den
+// Workflows … Er soll Global bleiben, also keine unnötigen Mails.“ Er hatte
+// ein Individualangebot und KEINE Global-Bestellung, sein Vorgang war ein
+// alter Privatantrag — die Wand stand für ihn offen. Dazu: Zahlungsseite und
+// Rechnung gibt es für einen Global-Kunden nur zu seinem Global-Auftrag (oder
+// einer Auskunft), nie zu einer Privatbestellung (privatReferenzBeiGlobal).
+// „Gemischte“ (bezahltes Stufenpaket) sind keine Global-Kunden: für sie gilt
+// die Wand wie bisher nur an einer Global-Bestellung.
 // ═══════════════════════════════════════════════════════════════════════════
 // 24.09.2026 (E-240): auskunft_anbieten — die Auskunft zu 74/149 € gehört zur
 // Privatkundenlinie; ein Firmenkunde bekommt keine Privat-Auskunft angeboten.
@@ -1785,29 +1826,54 @@ export function globalWerkzeugSperre(werkzeug: string, istGlobalVorgang: boolean
     return istGlobalVorgang ? null : "Dieses Werkzeug gibt es nur für Firmenaufträge über FIAON Global. Privatkunden melden sich unter fiaon.com/login an.";
   }
   if (!istGlobalVorgang || !NUR_PRIVATKUNDEN_WERKZEUGE.has(werkzeug)) return null;
-  return "Das ist ein Firmenauftrag über FIAON Global — dieses Werkzeug gehört zur Privatkundenlinie und läuft hier nicht. "
+  // E-272: „Kunde von FIAON Global“ statt „Firmenauftrag“ — die Wand gilt auch ohne Auftrag (nur Angebot).
+  return "Das ist ein Kunde von FIAON Global (Firmenauftrag oder Individualangebot) — dieses Werkzeug gehört zur Privatkundenlinie und läuft hier nicht. "
     + "Storno, Beendigung, Erstattung und Zahlungsfragen entscheidet die Leitung mit der zuständigen Person: "
     + "Gib das Anliegen mit aufgabe_an_betreuer weiter (mit Zitat) und sage dem Kunden nur zu, was die Aufgabe deckt. "
     + "Kein Wort über Monatsraten, Kündigungsfristen, Mahnungen oder den Kundenbereich — das alles gibt es bei FIAON Global nicht.";
 }
 
-/** Gehört dieser Vorgang zu FIAON Global? Entschieden an der Bestellung — ohne Bestellung an ALLEN Bestellungen der Person. */
+/**
+ * Gehört dieser Vorgang zu FIAON Global? Entschieden an der Bestellung — ohne Bestellung an ALLEN Bestellungen der Person.
+ * E-272 (02.10.2026): UND an der Person — ist sie ein Global-Kunde (istGlobalKunde: Individualangebot oder
+ * lebende Global-Bestellung, kein bezahltes Stufenpaket), gehört jeder ihrer Vorgänge zu FIAON Global, auch ein
+ * alter Privatantrag. Die Prüfungen von vorher bleiben (ein Global-Auftrag eines „Gemischten“ bleibt Global).
+ */
 export async function istGlobalVorgang(k: Pick<WerkzeugKontext, "personId" | "ref">): Promise<boolean> {
   try {
+    let personId = k.personId ?? null;
     if (k.ref) {
-      const [a] = (await sqlPool`SELECT pack_key FROM fiaon_applications WHERE ref = ${k.ref} LIMIT 1`) as any[];
-      return istGlobalPaket(a?.pack_key);
-    }
-    if (k.personId) {
+      const [a] = (await sqlPool`SELECT pack_key, person_id FROM fiaon_applications WHERE ref = ${k.ref} LIMIT 1`) as any[];
+      if (istGlobalPaket(a?.pack_key)) return true;
+      if (!personId && a?.person_id != null) personId = Number(a.person_id);
+    } else if (k.personId) {
       const zeilen = (await sqlPool`
         SELECT pack_key FROM fiaon_applications
          WHERE person_id = ${k.personId} AND merged_into IS NULL AND archived_at IS NULL`) as any[];
-      return zeilen.length > 0 && zeilen.every((z) => istGlobalPaket(z.pack_key));
+      if (zeilen.length > 0 && zeilen.every((z) => istGlobalPaket(z.pack_key))) return true;
     }
+    if (personId) return await istGlobalKunde(personId);
   } catch (e) {
     console.error("[POSTMEISTER] Global-Wand konnte die Bestellung nicht lesen:", String(e).slice(0, 160));
   }
   return false;
+}
+
+/**
+ * E-272 (02.10.2026): Ist der Mensch dieses Vorgangs ein Global-Kunde und gehört die Zahlungs- oder
+ * Ratenreferenz zu einer PRIVATBESTELLUNG (Stufenpaket oder dessen Rate)? Dann der Satz für das Modell,
+ * sonst null. Sein Global-Auftrag (firmenauftrag) und eine Auskunft (produkt „auskunft“, etwa die Firmen-
+ * Auskunft für seinen Kapitalantrag) bleiben frei. Ein bezahltes Stufenpaket gibt es bei einem
+ * Global-Kunden nicht (dann wäre er „gemischt“) — eine Privatreferenz ist hier also immer eine offene
+ * Privatforderung, und die gehört nicht in eine Antwort an FIAON Global.
+ */
+export async function privatReferenzBeiGlobal(
+  k: Pick<WerkzeugKontext, "personId">, z: { firmenauftrag?: boolean; produkt?: string },
+): Promise<string | null> {
+  if (!k.personId || z.firmenauftrag || z.produkt === "auskunft") return null;
+  if (!(await istGlobalKunde(k.personId).catch(() => false))) return null;
+  return "Diese Referenz gehört zu einer Privatbestellung — dieser Mensch ist Kunde von FIAON Global. Keine Zahlungsseite, keine Rechnung "
+    + "und kein Betrag aus der Privatkundenlinie. Geht es ihm um diese alte Bestellung, gib das Anliegen mit aufgabe_an_betreuer weiter (mit Zitat).";
 }
 
 /**

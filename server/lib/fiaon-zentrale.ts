@@ -22,6 +22,7 @@ import { mailProtokoll } from "./fiaon-mail-log";
 import { terminLink } from "./fiaon-termine";
 import { absoluteUrl } from "../fiaon-base-url";
 import { BANK as BANK_QUELLE } from "@shared/fiaon-bank";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 
 type Lauf = typeof sqlPool;
 
@@ -106,12 +107,22 @@ export function bausteineFuellen(text: string, e: Empfaenger): string {
  * `werbung_gesperrt_am` (25.09.2026, E-240): Wer „Stopp" gesagt hat, steht in
  * keiner Zielgruppe und in keiner Suche — gemessen: 56 wählbare Menschen mit
  * Werbesperre. „Dann nehmen wir Sie aus allen Verteilern" ist ein Versprechen.
+ *
+ * Kunden von FIAON Global (02.10.2026, E-272): Wer ein Individualangebot oder
+ * einen Global-Auftrag hat und kein bezahltes Stufenpaket, steht in keiner
+ * Zielgruppe und in keiner Suche — die Bausteine dieser Zentrale (Zahlungsdaten
+ * zur Privatbestellung, Terminlink, Portal-Login) sind die Privatlinie. Justin:
+ * „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben, also
+ * keine unnötigen Mails“. Er hat seinen festen Ansprechpartner und die Mails des
+ * Global-Bestellwegs. Wer zusätzlich ein Stufenpaket bezahlt hat („gemischt“),
+ * bleibt wählbar. Regel: fiaon-global-kunde.ts.
  */
 const IMMER_RAUS = `
   p.merged_into_person_id IS NULL
   AND p.ist_test_am IS NULL
   AND NOT p.is_blocked
   AND p.werbung_gesperrt_am IS NULL
+  AND NOT ${globalKundeSql("p.id")}
   AND NOT EXISTS (SELECT 1 FROM fiaon_applications g
                     WHERE g.person_id = p.id AND g.gdpr_deleted_at IS NOT NULL)
   AND EXISTS (SELECT 1 FROM fiaon_applications l
@@ -167,6 +178,7 @@ export async function empfaengerSuche(
 ): Promise<Empfaenger[]> {
   const suche = q.trim();
   if (suche.length < 1) return [];
+  await globalKundeBereit(); // E-272: IMMER_RAUS liest fiaon_global_angebote
   const rows = (await lauf.unsafe(`
     SELECT ${AUSWAHL}
     FROM fiaon_persons p LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
@@ -239,6 +251,7 @@ export async function filterGruppen(
   const spalten = GRUPPEN
     .map((g, i) => `COUNT(*) FILTER (WHERE ${g.wo})::int AS g${i}`)
     .join(",\n           ");
+  await globalKundeBereit(); // E-272: IMMER_RAUS liest fiaon_global_angebote
   const [z] = (await lauf.unsafe(`
     SELECT ${spalten}
     FROM fiaon_persons p
@@ -271,6 +284,7 @@ export async function zielgruppeLaden(
     gesehen.add(k);
     aus.push(e);
   };
+  await globalKundeBereit(); // E-272: IMMER_RAUS liest fiaon_global_angebote
 
   if (ein.personIds?.length) {
     const rows = (await lauf.unsafe(`
@@ -299,18 +313,26 @@ export async function zielgruppeLaden(
   // Menschen mit Werbesperre (Hauptadresse, Antrag, Lead-Formular oder eine
   // zusammengeführte Person, werbesperreAnAdresse), fällt sie hier heraus.
   let externGesperrt = 0;
-  const { werbesperreAnAdresse } = await import("./fiaon-mail-frequenz");
+  let externGlobal = 0;
+  const { werbesperreAnAdresse, personenAnAdresse } = await import("./fiaon-mail-frequenz");
+  const { personenSindGlobalKunde } = await import("../make-webhook");
   for (const roh of ein.extern || []) {
     const adresse = String(roh).trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(adresse)) continue;
     if (await werbesperreAnAdresse(adresse)) { externGesperrt++; continue; }
+    // E-272 (02.10.2026): dasselbe für die Adresse eines Kunden von FIAON Global — IMMER_RAUS
+    // sieht nur Personen. Gefragt wie an der Mail-Tür: die Menschen hinter der Adresse, je ihr Kopf —
+    // heraus nur, wenn JEDER davon Global-Kunde ist. Ein zahlender Privatkunde mit derselben Adresse
+    // (nicht zusammengeführte Dublette) bleibt erreichbar (personenSindGlobalKunde in make-webhook.ts).
+    if (await personenSindGlobalKunde(await personenAnAdresse(adresse))) { externGlobal++; continue; }
     dazu({ personId: null, name: adresse, email: adresse, vorname: "", extern: true });
   }
 
   return {
     empfaenger: aus,
-    ausgeschlossen: "Testeinträge, DSGVO-gelöschte und archivierte Datensätze sowie Menschen mit Vertriebs- oder Werbesperre sind immer ausgeschlossen."
-      + (externGesperrt ? ` ${externGesperrt} von Hand getippte Adresse(n) gehören zu einem Menschen mit Werbesperre und wurden entfernt.` : ""),
+    ausgeschlossen: "Testeinträge, DSGVO-gelöschte und archivierte Datensätze, Menschen mit Vertriebs- oder Werbesperre sowie Kunden von FIAON Global sind immer ausgeschlossen."
+      + (externGesperrt ? ` ${externGesperrt} von Hand getippte Adresse(n) gehören zu einem Menschen mit Werbesperre und wurden entfernt.` : "")
+      + (externGlobal ? ` ${externGlobal} von Hand getippte Adresse(n) gehören zu einem Kunden von FIAON Global und wurden entfernt.` : ""),
   };
 }
 

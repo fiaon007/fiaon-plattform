@@ -61,6 +61,12 @@ type Auftrag = {
     /** E-271 (Kreditgarantie): erfüllt am — dann kein Garantiefall mehr. */
     garantieErfuelltAm?: string | null;
     teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null; rechnungUrl?: string }[];
+    /** E-273 (02.10.2026): das vom System gebuchte Startgespräch (startgespraechFuerKunde) — oder der Satz, warum keins da ist. */
+    startgespraech?: {
+      stand: string; titel: string; zeile: string | null; wie: string | null; satz: string | null;
+      kalenderUrl: string | null; googleUrl: string | null; verschiebenUrl: string | null;
+      texte: { kalender: string; google: string; verschieben: string };
+    } | null;
   } | null;
 };
 
@@ -230,6 +236,20 @@ export default function BusinessAuftrag() {
                       ))}
                     </ul>
                     <p className="ga-stichtag">{a.angebot.garantieErfuelltAm ? ANGEBOT_MEIN_AUFTRAG.garantieErfuellt(a.angebot.garantieErfuelltAm) : a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
+                    {/* E-273 (02.10.2026): „Ihr Startgespräch" — Tag, Uhrzeit, mit wem; Kalender und Verschieben. */}
+                    {a.angebot.startgespraech && (
+                      <div className="ga-schritt" data-fiaon="mein-auftrag-startgespraech" data-stand={a.angebot.startgespraech.stand}>
+                        <p><b>{a.angebot.startgespraech.titel}{a.angebot.startgespraech.zeile ? `: ${a.angebot.startgespraech.zeile}` : ""}</b></p>
+                        <small>{a.angebot.startgespraech.zeile ? a.angebot.startgespraech.wie : a.angebot.startgespraech.satz}</small>
+                        {a.angebot.startgespraech.zeile && (
+                          <div className="ga-rechts ga-start-wege">
+                            {a.angebot.startgespraech.kalenderUrl && <a className="ga-knopf" href={a.angebot.startgespraech.kalenderUrl}>{a.angebot.startgespraech.texte.kalender}</a>}
+                            {a.angebot.startgespraech.googleUrl && <a className="ga-knopf" href={a.angebot.startgespraech.googleUrl} target="_blank" rel="noopener">{a.angebot.startgespraech.texte.google}</a>}
+                            {a.angebot.startgespraech.verschiebenUrl && <a className="ga-knopf" href={a.angebot.startgespraech.verschiebenUrl}>{a.angebot.startgespraech.texte.verschieben}</a>}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </section>
                 )}
 

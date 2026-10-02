@@ -80,6 +80,11 @@ export function fruehesteHerkunft(webAm: unknown, leads: { erstellt_am: unknown;
  * Seine Lage für die Abstreiten-Antwort. Der Antrag für die Stufe wird gewählt wie
  * in Maras Lage (fiaon-whatsapp-mara.ts, lageFuer): kein Auskunft-/Global-Auftrag,
  * bezahlt zuerst, sonst der jüngste. Die Herkunft: fruehesteHerkunft. Ohne Person: nur der Lead.
+ *
+ * E-272 (02.10.2026, Gegenprüfung): Seit lageFuer archivierte, unbezahlte Bestellungen auslässt
+ * (archived_at IS NULL OR paid, wie antragBasisSql), tut es diese Wahl auch — sonst nannte die Lage
+ * den lebenden Antrag und das Abstreiten eine archivierte Dublette („abgeschickt“ statt „nie
+ * abgeschickt“). Gemessen 02.10. über alle 2.756 Personen mit Bestellung: wich für 23 ab, jetzt 0.
  */
 export async function abstreitenLage(personId: number | null, leadId: number | null = null): Promise<AbstreitenLage> {
   const [a] = personId ? (await sqlPool`
@@ -87,6 +92,7 @@ export async function abstreitenLage(personId: number | null, leadId: number | n
       FROM fiaon_applications
      WHERE person_id = ${personId} AND merged_into IS NULL AND NOT COALESCE(ist_entwurf, FALSE)
        AND COALESCE(ref, '') NOT LIKE 'FIAON-SCHUFA-%' AND COALESCE(pack_key, '') NOT LIKE 'global%'
+       AND (archived_at IS NULL OR payment_status = 'paid')
      ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1`.catch(() => [])) as any[] : [];
   // Der älteste Antrag, der im Webformular entstand (Browser-Kennung gesetzt) — auch eine spätere
   // Dublette (merged_into) war seine eigene Eingabe. Betreuer-Anlage und Akte-Anker haben keine.

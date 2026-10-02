@@ -262,7 +262,10 @@ router.post("/admin/global/angebote/:id/nachholen", requireChef("leitung"), asyn
     if (!erg.ok) return res.status(409).json({ ok: false, error: `Nicht fertig: ${erg.grund}` });
     await angebotNacharbeit(idAus(req));
     const mail = await bestaetigungSenden(idAus(req));
-    res.json({ ok: true, meldung: mail.ok ? "Bestellung, Akte und Bestätigungsmail stehen." : `Bestellung und Akte stehen — die Mail ging nicht raus: ${mail.grund}` });
+    // E-273 (02.10.2026): Die Nacharbeit bucht auch das Startgespräch (wiederholbar) — die Meldung sagt, wie es steht.
+    const sg = await import("../lib/fiaon-global-angebot-startgespraech").then((m) => m.startgespraechStand(idAus(req))).catch(() => null);
+    const sgSatz = sg?.stand === "gebucht" && sg.termin ? ` Startgespräch: ${sg.termin.zeile}.` : sg && sg.stand !== "keins" && !sg.termin ? ` Startgespräch noch nicht gebucht${sg.fehler ? ` (${sg.fehler})` : ""}.` : "";
+    res.json({ ok: true, meldung: (mail.ok ? "Bestellung, Akte und Bestätigungsmail stehen." : `Bestellung und Akte stehen — die Mail ging nicht raus: ${mail.grund}`) + sgSatz });
   } catch (err) {
     console.error("[FIAON-ANGEBOT] nachholen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

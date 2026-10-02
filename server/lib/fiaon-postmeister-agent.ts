@@ -54,6 +54,8 @@ import {
   // E-264: „Hab nix beantragt" — Erkennung und die feste Antwort, dieselbe wie auf WhatsApp.
   abstreitenArt, istLoeschwunsch, loeschenAngeboten, bausteinAbstreiten, loeschAntwort, abstreitenHinweis,
   type AbstreitenBefund, type AbstreitenFestArt,
+  // E-272 (02.10.2026): die Kreditkarten-Formel der Persona — beim Global-Kunden ersetzt (systemPrompt).
+  KARTE_REGEL_TEXT,
 } from "@shared/fiaon-mara-ton";
 import { rahmenFuer } from "./fiaon-postmeister-antworttext";
 
@@ -704,6 +706,18 @@ function auskunftBlockAntwort(lage: Kundenlage, akteAuskunft: { stufe?: string; 
   ].join("\n");
 }
 
+/**
+ * E-272 (02.10.2026): Der erste Auftrag an Mara, wenn der Mensch ein Global-Kunde ist (istGlobalKunde,
+ * Akte Feld global). Er ersetzt die beiden Kreditkarten-Aufträge und den Abschluss-Satz der Privatlinie —
+ * der Rest des Auftrags (Ton, Persona) spricht von der Karte; dieser Block sagt, dass das hier nicht gilt.
+ */
+export const GLOBAL_AUFTRAG = "DEIN ERSTER AUFTRAG: DIESER MENSCH IST KUNDE VON FIAON GLOBAL — unserer Business-Linie für Unternehmen, NICHT der Privatkundenlinie. "
+  + "Alles in diesem Auftrag, was von Kreditkarte, Wunschlimit, Partnerbank, Konto, Raten, Bonitätsauskunft, Antrag oder Abschluss spricht, gilt für ihn NICHT: "
+  + "Du erwähnst nichts davon, auch nicht als Aussicht. Du beantwortest seine Frage sachlich, ruhig und verbindlich, nach VERTRAG und Akte (Feld global). "
+  + "Hat er einen Firmenauftrag mit offener Rechnung, nennst du Betrag und Verwendungszweck aus zahlungslink_bauen — ohne Drängen. "
+  + "Was ein Mensch entscheiden oder klären muss (Angebot, Preis, Ablauf, Termin, Storno, Erstattung), gibst du mit aufgabe_an_betreuer weiter und sagst ihm, "
+  + "dass sich seine Ansprechperson bei FIAON Global meldet. Eine alte Privatbestellung in der Akte sprichst du nicht an.";
+
 function systemPrompt(ein: {
   kundenweg?: string | null;
   /** Was Mara sich aus früheren Gesprächen gemerkt hat (fiaon-mara-gedaechtnis.ts). */
@@ -754,7 +768,13 @@ function systemPrompt(ein: {
     // Die Persona steht in shared/fiaon-mara-ton.ts — dieselbe für WhatsApp und
     // Mail. Die Mail-Regeln unten ergänzen sie, sie widersprechen ihr nicht.
     // ═══════════════════════════════════════════════════════════════════
-    personaText("mail", { betreuer: ein.akte?.betreuer ?? null, vertretung: ein.akte?.vertretung ?? null }),
+    // E-272 (02.10.2026, Gegenprüfung): Die Persona trägt Justins Kreditkarten-Formel (KARTE_REGEL_TEXT: „erste Monatsrate“,
+    // „schaltet das System Sie frei“, Wunschlimit). Beim Global-Kunden (Akte, Feld global) steht dafür nur der Verweis auf
+    // GLOBAL_AUFTRAG — sonst bekäme er den Abschluss der Privatlinie doch, nur an anderer Stelle. Alle anderen: unverändert.
+    ein.akte?.global
+      ? personaText("mail", { betreuer: ein.akte?.betreuer ?? null, vertretung: ein.akte?.vertretung ?? null })
+        .replace(KARTE_REGEL_TEXT, "═══ KUNDE VON FIAON GLOBAL ═══\n· Die Regeln zur Kreditkarte, zum Wunschlimit und zum Abschluss der Privatlinie gelten für ihn nicht — es gilt DEIN ERSTER AUFTRAG (FIAON Global).")
+      : personaText("mail", { betreuer: ein.akte?.betreuer ?? null, vertretung: ein.akte?.vertretung ?? null }),
     ``,
     // Am 02.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
     // Die Sprachregel stand bis dahin als Nebensatz in einer Aufzählung. Jetzt
@@ -828,12 +848,17 @@ function systemPrompt(ein: {
     // Karte), und „Der Vertrag läuft, bis sie bezahlt ist" band die Beendigung an die Zahlung (§ 312k BGB; 329 bezahlte
     // Altverträge sind monatlich kündbar) — jetzt „die Rate bleibt zu zahlen". Regression (r3.mts): Hat er seine
     // Zahlung GEMELDET, bittet Mara nicht mehr um Zahlung (die Knopf-Regel dazu steht in schrittBestimmen).
-    (ein.lage === "zahlung_gemeldet" || ein.einordnung.flags?.zahlung_behauptet)
+    // E-272 (02.10.2026, Justin zum Fall Hildbrand: „nehme ihn bitte komplett aus den Workflows … Er soll Global
+    // bleiben"): Für einen Global-Kunden (Akte, Feld global — fiaon-postmeister-dossier.ts) gilt keiner der beiden
+    // Kreditkarten-Aufträge, sondern GLOBAL_AUFTRAG; „gemischte“ Kunden haben das Feld nicht und lesen alles wie bisher.
+    ein.akte?.global ? GLOBAL_AUFTRAG
+    : (ein.lage === "zahlung_gemeldet" || ein.einordnung.flags?.zahlung_behauptet)
       ? `DEIN ERSTER AUFTRAG: DIE KREDITKARTE — ER HAT SEINE ZAHLUNG GEMELDET. Keine Bitte um Zahlung, kein Zahlknopf: Du dankst ihm, die Zahlungsstelle prüft den Eingang (schickt er einen Beleg, geht er an die Zahlungsstelle); sobald die Zahlung gebucht ist, schaltet das System ihn frei, und er bekommt direkt den Link unserer Partnerbank für Konto und Karte — seine eigene Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank") bleibt das Ziel. Dazu bietest du den Termin mit Herrn/Frau Nachname an („antworten Sie mir einfach mit einer Zeit, die Ihnen passt"). Die offene Rate nennst du höchstens als Tatsache, wenn er danach fragt. AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung oder droht mit Anwalt oder Behörde, gilt DIESE MAIL (falls der Block unten steht).`
       : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: unserer Begleitung auf dem Weg zu seiner eigenen Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank"). Du beantwortest seine Frage UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit), die Zahlungsseite (zahlungslink_bauen) und bittest klar darum, sie jetzt zu begleichen — „sobald sie gebucht ist, schaltet das System Sie frei" — und bietest den Termin mit Herrn/Frau Nachname an („antworten Sie mir einfach mit einer Zeit, die Ihnen passt"). Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht).`,
     // E-265: Justins Abschluss, eingesetzt für DIESEN Kunden (Ziel, Nennform) — die Zahlen aus den Werkzeugen.
     (() => {
-      if (ein.ruhe) return ``;
+      // E-272: Beim Global-Kunden kein Kreditkarten-Abschluss.
+      if (ein.ruhe || ein.akte?.global) return ``;
       const nieAbgeschickt = (ein.akte?.bestellungen ?? []).some((b: any) => b?.status === "antrag_nicht_abgeschickt");
       const art: AbschlussArt | null = ein.lage === "unbezahlt" ? "b" : ein.lage === "zahlung_gemeldet" ? "a" : ein.lage === "rate_ueberfaellig" ? "rate"
         : ein.lage === "interessent" ? (nieAbgeschickt ? "abbrecher" : "c") : null;
@@ -943,7 +968,11 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
 
     `DER SATZ ÜBER DIE BANK GEHÖRT AN SEINEN PLATZ, NICHT IN JEDE MAIL. „Über Konto, Karte und Rahmen entscheidet die Bank" schreibst du, wenn der Kunde nach Geld, Auszahlung, Rahmen oder Zusage fragt — dann aber klar, freundlich und ohne Umschweife. Fragt er etwas anderes, lässt du ihn weg. In jeder Mail wiederholt klingt er wie eine Warnung vor dem eigenen Angebot, und genau so liest ihn der Kunde. Positiv sagen, was FIAON TUT: Account, Startgespräch, Betreuer, Auswertung seiner Unterlagen, der fertige Link der Partnerbank — dafür zahlt er, und das bekommt er. Die Bonitätsauskunft mit Handlungsplan und fertigen Schreiben ist ein Zusatz, den du ihm anbietest (auskunft_anbieten).`,
     // E-240: der Verkaufsblock zur Auskunft — je nach Lage ganz, knapp oder gar nicht.
-    auskunftBlock(ein.lage, ein.akte?.auskunft ?? null, ein.auskunftAntwort ?? null),
+    // E-272 (02.10.2026, Gegenprüfung): Beim Global-Kunden (Akte, Feld global) nie — der Block nannte ihm sonst je nach
+    // Lage 74/149 € oder „nach der ersten Zahlung zum Kundenpreis“, gegen GLOBAL_AUFTRAG. Justin: „Er soll Global bleiben.“
+    ein.akte?.global
+      ? "DIE BONITÄTSAUSKUNFT der Privatkundenlinie bietest du diesem Kunden von FIAON Global NICHT an — kein Preis, kein Knopf, kein auskunft_anbieten. Fragt er selbst danach (etwa für seinen Kapitalweg), gibst du das Anliegen mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global weiter."
+      : auskunftBlock(ein.lage, ein.akte?.auskunft ?? null, ein.auskunftAntwort ?? null),
 
     // ══════════════════════════════════════════════════════════════════════
     // KÜNDIGUNG MIT OFFENER RECHNUNG (23.09.2026, E-225, Justins Wortlaut)
@@ -963,11 +992,17 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     // ══════════════════════════════════════════════════════════════════════
     `WILL JEMAND KÜNDIGEN ODER STORNIEREN: Erklärt er es klar — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort"), auch „bitte alles stornieren" oder „ich will nicht mehr" —, nimmst du es SOFORT entgegen: kuendigung_vormerken mit seinem wörtlichen Satz. Kein fester Wortlaut, keine zweite Runde.${ein.formlos ? " Sein Vertrag ist nach der Fassung vor dem 03.09.2026: monatlich und formlos kündbar — jede klare Aussage genügt." : ""} Du bestätigst NUR, was das Werkzeug gebucht hat. Lehnt es ab oder hast du es nicht gerufen, schreibst du NIE „Ihre Kündigung liegt vor", „ist vorgemerkt", „ist erfasst", „ist storniert" — dann fragst du in EINEM freundlichen Satz nach („Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt." — bei einer unbezahlten Bestellung: „Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt."), aber NUR, wenn er selbst kündigen, stornieren oder widerrufen geschrieben hat. Antwortet er darauf mit „Ja", rufst du kuendigung_vormerken mit seinem „Ja" als Zitat. STORNO ODER KÜNDIGUNG BIETEST DU NIE VON DIR AUS AN — auch nicht als Nebensatz („Wenn Sie auch die Bestellung stornieren möchten …"). „Stopp" heißt nur: keine Werbung (werbesperre_setzen), sonst nichts. Verneint er („ich kündige nicht", „ich will nicht kündigen, sondern …") oder knüpft er es an eine Bedingung („sonst kündige ich", „bevor ich kündige …"), ist das KEINE Kündigung: Du gehst auf sein eigentliches Anliegen ein und machst Mut. Ein Widerruf innerhalb von 14 Tagen ist etwas anderes (Regel WIDERRUF unten).`,
 
-    `KARTE UND KONTO (seit 21.09.2026, Justin: „viel mehr auf die Kreditkarte gepitcht, immer nett und motivierend"): Die Karte ist das Ziel des Kunden — schreib positiv, warm und ermutigend darüber, nie abwehrend. Der Weg: Sobald die erste Zahlung gebucht ist, ist sein Account aktiviert und er bekommt DIREKT den fertigen Link unserer Partnerbank (DKB) für Konto und Karte; das geht automatisch raus. Die Sätze dazu: „${KARTE_LINK_SATZ}" und „${KARTE_ZEIT_SATZ}" In der Antragszeit lädt er in seinem Bereich Kontoauszüge (6 Monate) und Ausweis/Reisepass hoch; seine Bonitätsauskunft besorgt FIAON für ihn (auskunft_anbieten) — hat er schon eine aktuelle, lädt er sie hoch. Dann folgt unsere Bonitätsanalyse. Fragt er „wann bekomme ich meine Karte?" oder schreibt „bezahle ich nicht": freundlich und motivierend antworten — was er bekommt, wie einfach der nächste Schritt ist, und dass es mit der ersten Zahlung sofort losgeht; ist die Zahlung offen, gehört der Zahlungsweg in die Antwort. Nutze SEINEN Stand aus der Akte (Feld karte): Steht in karte.einladung ein Datum, ist der Link raus — dann sag, wann, und dass er ihn in der Mail „Ihr Link zur Karte ist da" findet (erneut schicken kann sein Betreuer). Über Konto und Karte entscheidet die Bank; FIAON verschickt keine Karte und keine PIN. Nie „ich empfehle", nie „garantiert", nie eine feste Frist.`,
+    // E-272 (02.10.2026, Gegenprüfung): Karte und Konto der Partnerbank sind ein Privatprodukt — beim Global-Kunden fehlt der Block.
+    ein.akte?.global ? `` : `KARTE UND KONTO (seit 21.09.2026, Justin: „viel mehr auf die Kreditkarte gepitcht, immer nett und motivierend"): Die Karte ist das Ziel des Kunden — schreib positiv, warm und ermutigend darüber, nie abwehrend. Der Weg: Sobald die erste Zahlung gebucht ist, ist sein Account aktiviert und er bekommt DIREKT den fertigen Link unserer Partnerbank (DKB) für Konto und Karte; das geht automatisch raus. Die Sätze dazu: „${KARTE_LINK_SATZ}" und „${KARTE_ZEIT_SATZ}" In der Antragszeit lädt er in seinem Bereich Kontoauszüge (6 Monate) und Ausweis/Reisepass hoch; seine Bonitätsauskunft besorgt FIAON für ihn (auskunft_anbieten) — hat er schon eine aktuelle, lädt er sie hoch. Dann folgt unsere Bonitätsanalyse. Fragt er „wann bekomme ich meine Karte?" oder schreibt „bezahle ich nicht": freundlich und motivierend antworten — was er bekommt, wie einfach der nächste Schritt ist, und dass es mit der ersten Zahlung sofort losgeht; ist die Zahlung offen, gehört der Zahlungsweg in die Antwort. Nutze SEINEN Stand aus der Akte (Feld karte): Steht in karte.einladung ein Datum, ist der Link raus — dann sag, wann, und dass er ihn in der Mail „Ihr Link zur Karte ist da" findet (erneut schicken kann sein Betreuer). Über Konto und Karte entscheidet die Bank; FIAON verschickt keine Karte und keine PIN. Nie „ich empfehle", nie „garantiert", nie eine feste Frist.`,
     // E-248 (Justin 28.09.): „Wenn jemand wegen Krediten fragt: ‚Noch besser — wir bieten
     // Kreditkarten!'" Vorher begann der Satz mit „FIAON vergibt keine Kredite" — ein Nein
     // am Anfang, genau das, was die Persona verbietet (TON_REGELN „kredit_nein").
-    `WENN DER KUNDE VON „KREDIT" SPRICHT: Nie mit einem Nein anfangen. Beginne mit dem, was es Besseres gibt — sinngemäß: „${bausteinKreditFrage(null).replace(/\s*Soll ich Ihnen Ihren Antrag schicken\?$/, "")}" Dann in einem Satz, was er gebucht hat und wofür die Rate ist: Wir bringen ihn Schritt für Schritt zu Konto und Karte bei unserer Partnerbank. Geld zahlen wir nicht selbst aus — das sagst du nur, wenn er ausdrücklich nach Auszahlung fragt, und dann als Aussicht auf seinen Kartenrahmen, nie als Abwehr.`,
+    // E-272 (02.10.2026, Gegenprüfung): Ein Kunde von FIAON Global spricht von Kredit, wenn er seinen KAPITALWEG meint
+    // (Global Kapital, Individualangebot) — „Noch besser: Kreditkarten“ und „wofür die Rate ist“ wären falsch. Für ihn
+    // der Satz aus dem Global-Vertrag (vertragsfassung): Über Darlehen entscheidet das Institut, FIAON koordiniert.
+    ein.akte?.global
+      ? "WENN ER VON KREDIT, KAPITAL ODER FINANZIERUNG SPRICHT: Er ist Kunde von FIAON Global — für ihn gibt es keine Kreditkarte und keine Rate. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut, FIAON koordiniert (wie unter VERTRAG). Keine Zusage, kein Betrag, keine Frist — Fragen zu seinem Kapitalweg gibst du mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global weiter."
+      : `WENN DER KUNDE VON „KREDIT" SPRICHT: Nie mit einem Nein anfangen. Beginne mit dem, was es Besseres gibt — sinngemäß: „${bausteinKreditFrage(null).replace(/\s*Soll ich Ihnen Ihren Antrag schicken\?$/, "")}" Dann in einem Satz, was er gebucht hat und wofür die Rate ist: Wir bringen ihn Schritt für Schritt zu Konto und Karte bei unserer Partnerbank. Geld zahlen wir nicht selbst aus — das sagst du nur, wenn er ausdrücklich nach Auszahlung fragt, und dann als Aussicht auf seinen Kartenrahmen, nie als Abwehr.`,
     // ═══════════════════════════════════════════════════════════════════
     // DAS RETTUNGSGESPRÄCH (04.09.2026, Justin): „Warum führt die KI keine
     // Kommunikation, um den Kunden zu retten? … also dass Handlungen
@@ -2030,7 +2065,10 @@ async function pruefenUndAbschliessen(roh: any, k: {
     if (ungefragt) weich.push(`Storno/Kündigung ungefragt angeboten („${ungefragt}") — er hat nichts davon geschrieben; Satz streichen, nur sein Anliegen beantworten`);
     // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M1/M6): Eine B-Mail schließt ab — Betrag, Freischaltung, Terminfrage
     // (weich: der zweite Entwurf). Nicht bei Ruhe, gemeldeter Zahlung, Storno oder wenn der Knopf der Auskunft gehört.
-    if (k.lage === "unbezahlt" && !ruheKnopf && !gemeldet && !storniert && schrittFinal?.art !== "auskunft") {
+    // E-272 (02.10.2026, Gegenprüfung): auch nicht beim Global-Kunden (Akte, Feld global) — sein „unbezahlt“ ist die Rechnung
+    // seines Firmenauftrags (Einmalpreis): Die Hinweise verlangten sonst im zweiten Entwurf „erste Monatsrate“, „schaltet das
+    // System Sie frei“ und den Termin mit Herrn/Frau Nachname, also genau den Abschluss, den GLOBAL_AUFTRAG ersetzt.
+    if (k.lage === "unbezahlt" && !ruheKnopf && !gemeldet && !storniert && schrittFinal?.art !== "auskunft" && !k.akte?.global) {
       weich.push(...mailAbschlussPflicht(t, { betrag: k.werkzeugDaten.zahlungslink_bauen?.betrag ?? null }));
     }
     // Probe 3 M4: keine Frist/Erklärung, die nicht im Hauswissen steht; Mitgefühl einmal; nicht zu lang.

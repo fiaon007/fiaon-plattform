@@ -28,6 +28,9 @@ import { antragAbgeschickt, istJahresvertrag, abrechnungsmonatEnde } from "@shar
 import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
 import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { kartenZiel, kartenzielText, kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
+// E-272 (02.10.2026): Global-Kunde als Merkmal der PERSON — die eine Regel (fiaon-global-kunde.ts).
+import { istGlobalKunde } from "./fiaon-global-kunde";
+import { produktkategorie, produktkategorieSql } from "./fiaon-produktkategorie";
 
 /** Berliner Zeitangaben — nie Number(format()), immer formatToParts. */
 function berlinJetzt(): { text: string; iso: string } {
@@ -63,6 +66,61 @@ export function relativ(datum: Date | string | null | undefined): string {
 }
 
 const eur = (cents: unknown) => (Number(cents || 0) / 100).toFixed(2).replace(".", ",");
+
+/**
+ * E-272 (02.10.2026): Eine LEBENDE Global-Zeile, als SQL über die unqualifizierten
+ * Spalten von fiaon_applications — dieselbe „lebend“-Regel wie in
+ * fiaon-global-kunde.ts (kein Entwurf, nicht superseded, nicht DSGVO-gelöscht,
+ * nicht archiviert außer bezahlt; merged_into prüft die Abfrage selbst).
+ */
+const LEBENDE_GLOBAL_ZEILE = `(${produktkategorieSql()} = 'global'
+  AND NOT COALESCE(ist_entwurf, FALSE) AND payment_status <> 'superseded'
+  AND gdpr_deleted_at IS NULL AND (archived_at IS NULL OR payment_status = 'paid'))`;
+
+/**
+ * E-272 (02.10.2026): Was der Postmeister über den Global-Teil eines Menschen
+ * wissen muss — seine Individualangebote (auch die der Person, die in ihm
+ * aufgegangen ist, zwei Stufen wie die Regel) und seine Global-Aufträge.
+ * Nur für Global-Kunden gerufen; scheitert die Abfrage, leere Listen.
+ */
+async function globalTeil(personId: number): Promise<{
+  angebote: { ref: string; status: string; gueltigBis: string | null }[];
+  auftraege: { ref: string; paket: string | null; status: string }[];
+}> {
+  const tag = (v: unknown) => (v ? new Date(v as any).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }) : null);
+  const angebote = (await sqlPool`
+    SELECT g.angebot_ref, g.status, g.gueltig_bis
+      FROM fiaon_global_angebote g
+     WHERE g.person_id = ${personId}
+        OR g.person_id IN (SELECT p1.id FROM fiaon_persons p1 WHERE p1.merged_into_person_id = ${personId})
+        OR g.person_id IN (SELECT p2.id FROM fiaon_persons p2 JOIN fiaon_persons p1 ON p1.id = p2.merged_into_person_id
+                            WHERE p1.merged_into_person_id = ${personId})
+     ORDER BY g.created_at DESC LIMIT 5
+  `.catch(() => [])) as any[];
+  const auftraege = (await sqlPool`
+    SELECT ref, pack_name, payment_status FROM fiaon_applications
+     WHERE person_id = ${personId} AND merged_into IS NULL AND ${sqlPool.unsafe(LEBENDE_GLOBAL_ZEILE)}
+     ORDER BY created_at DESC LIMIT 5
+  `.catch(() => [])) as any[];
+  return {
+    angebote: angebote.map((g) => ({ ref: String(g.angebot_ref), status: String(g.status), gueltigBis: tag(g.gueltig_bis) })),
+    auftraege: auftraege.map((a) => ({ ref: String(a.ref), paket: a.pack_name ? String(a.pack_name).split("\n")[0] : null, status: String(a.payment_status) })),
+  };
+}
+
+/**
+ * E-272 (02.10.2026): Der Satz für Lage und Akte eines Global-Kunden, dessen
+ * Vorgang KEIN Global-Auftrag ist (nur ein Individualangebot, daneben höchstens
+ * ein alter Privatantrag oder eine Auskunft). Er sagt dem Modell, was gilt.
+ */
+function globalOhneAuftragGrund(t: Awaited<ReturnType<typeof globalTeil>>): string {
+  const angebot = t.angebote[0];
+  const was = angebot
+    ? `Individualangebot ${angebot.ref} (Status ${angebot.status}${angebot.gueltigBis ? `, gültig bis ${angebot.gueltigBis}` : ""})`
+    : "Vorgang bei FIAON Global";
+  return `Kunde von FIAON Global — ${was}, KEIN Privatkunde. Kein Privatantrag, keine Kreditkarte, keine Raten, keine Bonitätsauskunft, `
+    + "keine Zahlungsaufforderung für eine Privatbestellung; sein Anliegen gibst du mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global";
+}
 
 /**
  * Wer schreibt da? Sechs Stufen, absteigend nach Sicherheit. Die letzten
@@ -131,10 +189,21 @@ export async function personSuchen(absender: string, text: string): Promise<{
     // Jetzt: Bei gleichem Zahlstand geht das Paket vor. Wer nur eine Auskunft
     // hat, behält sie als Vorgang; eine offene Auskunft neben einem stornierten
     // Paket auch (dort ist sie die einzige offene Rechnung).
+    //
+    // ── BEIM GLOBAL-KUNDEN IST DER VORGANG SEIN GLOBAL-AUFTRAG (E-272, 02.10.2026) ──
+    // Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er
+    // soll Global bleiben, also keine unnötigen Mails.“ Bei gleichem Zahlstand
+    // gewann hier bisher die jüngste Zeile — bei einem Global-Kunden mit
+    // gekaufter Auskunft die Auskunft, sonst womöglich ein alter Privatantrag.
+    // Vertrag, Lage und global_zugang_senden lesen aber genau diesen Vorgang.
+    // Für den Global-Kunden (istGlobalKunde) geht deshalb eine LEBENDE
+    // Global-Zeile vor (LEBENDE_GLOBAL_ZEILE, dieselbe Regel). Für alle anderen —
+    // auch „gemischte“ mit bezahltem Stufenpaket — bleibt die Reihenfolge.
+    const globalZuerst = (await istGlobalKunde(personId)) ? `${LEBENDE_GLOBAL_ZEILE} DESC,` : "";
     const [b] = (await sqlPool`
       SELECT ref FROM fiaon_applications
        WHERE person_id = ${personId} AND merged_into IS NULL
-       ORDER BY (payment_status = 'paid') DESC, (payment_status <> 'cancelled') DESC,
+       ORDER BY ${sqlPool.unsafe(globalZuerst)} (payment_status = 'paid') DESC, (payment_status <> 'cancelled') DESC,
                 (COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%') DESC, created_at DESC LIMIT 1
     `) as any[];
     return { personId, ref: b?.ref ?? null, sicher: true, wie, kandidaten: [] };
@@ -164,8 +233,11 @@ export async function personSuchen(absender: string, text: string): Promise<{
 /**
  * Die Lage. Die Reihenfolge der Prüfungen ist die Rangfolge: Was zuerst
  * zutrifft, gilt. Sperren schlagen alles, Bestreiten schlägt Zahlung.
+ *
+ * `opt.globalKunde`: schon bekannt (akteLesen fragt einmal) — sonst fragt die
+ * Funktion selbst (istGlobalKunde, E-272).
  */
-export async function kundenlageBerechnen(personId: number | null, ref: string | null): Promise<{ lage: Kundenlage; grund: string }> {
+export async function kundenlageBerechnen(personId: number | null, ref: string | null, opt: { globalKunde?: boolean } = {}): Promise<{ lage: Kundenlage; grund: string }> {
   if (!personId && !ref) return { lage: "fremd", grund: "kein Kundendatensatz zur Absenderadresse" };
 
   const [p] = personId ? (await sqlPool`
@@ -174,13 +246,36 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   const [a] = ref ? (await sqlPool`
     SELECT ref, payment_status, claimed_paid_at, gekuendigt_am, kuendigung_zurueckgenommen_am, vertrag_ende_am,
            account_status, onboarding_stufe, freigeschaltet_am, gdpr_deleted_at, agb_stand,
-           status, current_step, submitted_at, created_at
+           status, current_step, submitted_at, created_at, person_id, type, pack_key
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
   `) as any[] : [null];
 
+  // ── E-272 (02.10.2026): DER GLOBAL-KUNDE IST KEIN PRIVAT-INTERESSENT ────────
+  // Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er
+  // soll Global bleiben, also keine unnötigen Mails.“ William Hildbrand hatte ein
+  // offenes Individualangebot und daneben einen nie abgeschickten, archivierten
+  // Privatantrag. Dieser Vorgang machte ihn hier zum „interessent“ — und der
+  // Auftrag an Mara lautete: zum Privatantrag führen, Kreditkarte abschließen.
+  // Jetzt entscheidet die PERSON (istGlobalKunde, die eine Regel):
+  //   · Ist der Vorgang eine Global-Zeile, rechnet die Lage wie bisher daraus
+  //     (E-188: unbezahlt, Zahlung gemeldet, bezahlt …).
+  //   · Sonst (nur Angebot, daneben höchstens Privatantrag oder Auskunft):
+  //     Lage „unklar“ — kein Privatvorgang, Schritte nur Rückruf oder „wir
+  //     melden uns“, Antwort als Entwurf für einen Menschen; der Grund sagt
+  //     dem Modell, was gilt (globalOhneAuftragGrund).
+  //   · Die WERBESPERRE macht ihn nicht „gesperrt“. Sie schließt Werbung aus,
+  //     nicht die Antwort auf seine Frage — und „gesperrt“ nahm ihm die
+  //     Zahlungsseite seines Global-Auftrags (zahlungslink_bauen gibt es dort
+  //     nicht, einziger Schritt „erledigt“). Verkauft wird ihm ohnehin nichts:
+  //     die Global-Wand (fiaon-postmeister-werkzeuge.ts) sperrt die Privat-Werkzeuge.
+  // „Gemischte“ (bezahltes Stufenpaket) sind keine Global-Kunden — für sie gilt alles wie bisher.
+  const pid = personId ?? (a?.person_id != null ? Number(a.person_id) : null);
+  const globalKunde = opt.globalKunde ?? (pid ? await istGlobalKunde(pid) : false);
+  const globalOhneAuftrag = globalKunde && !(a && produktkategorie(a) === "global");
+
   if (a?.gdpr_deleted_at) return { lage: "gesperrt", grund: "Daten auf Wunsch gelöscht" };
-  if (p?.werbung_gesperrt_am) return { lage: "gesperrt", grund: "Werbesperre gesetzt" };
-  if (a?.account_status === "suspended") return { lage: "gesperrt", grund: "Konto gesperrt" };
+  if (p?.werbung_gesperrt_am && !globalKunde) return { lage: "gesperrt", grund: "Werbesperre gesetzt" };
+  if (a?.account_status === "suspended" && !globalOhneAuftrag) return { lage: "gesperrt", grund: "Konto gesperrt" };
 
   // Bestreitet? Aus einer früheren Postmeister-Zeile derselben Person, 90 Tage —
   // die Kundin aus der Analyse bekam vier Automatenantworten über zwei Postfächer.
@@ -193,6 +288,9 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
     `) as any[];
     if (b) return { lage: "bestreitet", grund: "hat die Bestellung oder Forderung schon einmal bestritten" };
   }
+
+  // E-272: Global-Kunde ohne Global-Auftrag im Vorgang — nie „interessent“ (siehe oben).
+  if (globalOhneAuftrag && pid) return { lage: "unklar", grund: globalOhneAuftragGrund(await globalTeil(pid)) };
 
   if (!a) return { lage: personId ? "interessent" : "fremd", grund: personId ? "Person bekannt, keine Bestellung" : "unbekannt" };
   if (a.gekuendigt_am && !a.kuendigung_zurueckgenommen_am && !a.vertrag_ende_am) {
@@ -224,9 +322,23 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   return { lage: "aktiv", grund: "bezahlt und aktiv, nichts überfällig" };
 }
 
+/**
+ * E-272 (02.10.2026): Der Global-Teil der Akte — nur für Global-Kunden
+ * (istGlobalKunde), sonst null. Steht im Auftrag an das Modell (akteKompakt
+ * nimmt jedes Feld mit) und sagt ihm in `regel`, was für diesen Menschen gilt.
+ */
+export interface AkteGlobal {
+  kunde: true;
+  angebote: { ref: string; status: string; gueltigBis: string | null }[];
+  auftraege: { ref: string; paket: string | null; status: string }[];
+  regel: string;
+}
+
 /** Die vollständige Akte — strukturiert, ohne Bankdaten, mit Zeitbezug. */
-export async function akteLesen(personId: number | null, ref: string | null): Promise<AkteKurz & { heute: string; lageGrund: string }> {
-  const { lage, grund } = await kundenlageBerechnen(personId, ref);
+export async function akteLesen(personId: number | null, ref: string | null): Promise<AkteKurz & { heute: string; lageGrund: string; global: AkteGlobal | null }> {
+  // E-272 (02.10.2026): einmal fragen — Lage, Auskunft, Karte und Global-Teil lesen dieselbe Antwort.
+  const globalKunde = personId ? await istGlobalKunde(personId) : false;
+  const { lage, grund } = await kundenlageBerechnen(personId, ref, personId ? { globalKunde } : {});
   const heute = berlinJetzt().text;
 
   const [person] = personId ? (await sqlPool`
@@ -313,7 +425,8 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   const deTag = (iso: string | null) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : null);
 
   let karte: any = null;
-  if (personId) {
+  // E-272: Konto und Karte der Partnerbank sind ein Privatprodukt — für den Global-Kunden kein Thema der Akte.
+  if (personId && !globalKunde) {
     try {
       const { kartenStand } = await import("./fiaon-konto-karte");
       const { kartenLage } = await import("./fiaon-kartenstatus");
@@ -341,7 +454,9 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   // der Akte, aus derselben Quelle wie Kundenbereich und Bestellweg
   // (auskunftStand): Stufe, Preis für GENAU diesen Menschen, offene Bestellung.
   // Nicht für reine FIAON-Global-Kunden — deren Produkt ist ein anderes.
-  const nurGlobal = bestellungen.length > 0 && bestellungen.every((b) => istGlobalPaket(b.pack_key));
+  // E-272 (02.10.2026): auch jeder Global-Kunde (an der Person, istGlobalKunde) — ein alter Privatantrag
+  // daneben machte aus ihm sonst einen Menschen, dem die Akte „anbieten: auskunft_anbieten rufen“ sagt.
+  const nurGlobal = globalKunde || (bestellungen.length > 0 && bestellungen.every((b) => istGlobalPaket(b.pack_key)));
   const auskunft = personId && !nurGlobal ? await auskunftDossier(personId, lage) : null;
 
   return {
@@ -357,11 +472,15 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     email: person?.primary_email ?? null,
     telefon: person?.primary_phone ?? null,
     // E-265 (29.09.2026, Justin „zum letzten Mal!!"): die Nennform („Herr Stripling"), vorher der Vorname.
-    betreuer: person?.betreuer_name || person?.betreuer_vorname
+    // E-272 (02.10.2026): Beim Global-Kunden keiner — sein Ansprechpartner sitzt bei FIAON Global, nicht im
+    // Privatvertrieb; ein noch eingetragener Privat-Betreuer stünde sonst als „sein fester Betreuer“ im Auftrag.
+    betreuer: !globalKunde && (person?.betreuer_name || person?.betreuer_vorname)
       ? nennform({ anrede: person.betreuer_anrede, first_name: person.betreuer_vorname, last_name: person.betreuer_nachname, name: person.betreuer_name }).nom
       : null,
     // E-265: sein Kartenziel — wanted_limit, gedeckelt auf den Rahmen seines Pakets (wie WhatsApp und Telefonkartei).
     kartenziel: await (async () => {
+      // E-272: Das Wunschlimit gehört zum Privatantrag — beim Global-Kunden nennt Mara keins.
+      if (globalKunde) return null;
       const b = bestellungen.find((x) => x.wanted_limit != null && Number(x.wanted_limit) > 0 && !istGlobalPaket(x.pack_key));
       if (!b) return null;
       const { PACK_LIMITS } = await import("../routes/fiaon-antrag");
@@ -372,7 +491,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     // wirklich anruft (fiaon-abwesenheit.ts). Gegenprüfung 29.09.: vorher stand der Vertreter im
     // Feld „betreuer" — die Persona nannte ihn dann „sein fester Betreuer".
     vertretung: await (async () => {
-      const vt = personId ? await abw.vertretungFuerPerson(personId).catch(() => null) : null;
+      const vt = personId && !globalKunde ? await abw.vertretungFuerPerson(personId).catch(() => null) : null;
       return vt ? { name: vt.ab.vertreter.anrufName, dat: vt.ab.vertreter.anrufDat, bis: abw.bisText(vt.ab.bis) } : null;
     })(),
     kundenlage: lage,
@@ -448,6 +567,20 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     },
     offeneAufgaben: Number(aufgaben?.n || 0),
     auskunft,
+    // E-272 (02.10.2026): Was beim Global-Kunden gilt — Angebote, Aufträge, die Regel für die Antwort.
+    global: globalKunde && personId ? await (async (): Promise<AkteGlobal> => {
+      const t = await globalTeil(personId);
+      return {
+        kunde: true, angebote: t.angebote, auftraege: t.auftraege,
+        regel: "Dieser Mensch ist Kunde von FIAON Global (Business-Linie für Unternehmen), KEIN Privatkunde. "
+          + "Du sprichst ihn nie auf Kreditkarte, Wunschlimit, Konto der Partnerbank, Raten, Bonitätsauskunft oder einen Privatantrag an, "
+          + "forderst keine Zahlung für eine Privatbestellung und schickst keinen Antragslink — eine alte Privatbestellung in der Akte ist nicht sein Thema. "
+          + (t.auftraege.length
+            ? "Zu seinem Firmenauftrag gelten die Regeln unter VERTRAG (Einmalpreis, Zahlungsseite und Rechnung seines Auftrags, „Mein Auftrag“ über global_zugang_senden). "
+            : "Einen Firmenauftrag gibt es noch nicht — er entsteht erst mit der Annahme seines Angebots. ")
+          + "Was ein Mensch entscheiden oder klären muss (Angebot, Preis, Ablauf, Termin, Storno, Erstattung), gibst du mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global weiter und sagst ihm, dass sie sich meldet.",
+      };
+    })() : null,
   };
 }
 
@@ -523,7 +656,7 @@ export async function auskunftDossier(personId: number, lage?: Kundenlage | null
 /** Welche Vertragsfassung gilt für diesen Kunden? Entscheidet den Wortlaut. */
 export async function vertragsfassung(ref: string | null): Promise<{ jahresvertrag: boolean; text: string }> {
   if (!ref) return { jahresvertrag: false, text: "keine Bestellung" };
-  const [a] = (await sqlPool`SELECT agb_stand, pack_key FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+  const [a] = (await sqlPool`SELECT agb_stand, pack_key, type, ref, person_id FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
   // E-188: Ein Auftrag über FIAON Global ist kein Abo — Mara bekäme sonst die Zwölf-Monats-Regeln der
   // Privatkunden als „VERTRAG" in den Prompt und würde einem Unternehmen Monatsraten und Kündigungsfristen erklären.
   if (istGlobalPaket(a?.pack_key)) {
@@ -534,6 +667,24 @@ export async function vertragsfassung(ref: string | null): Promise<{ jahresvertr
         + "(Stand, Vertrag, Rechnung, Unterlagen, Fristen); den Link dorthin schickst du mit global_zugang_senden. Mit dem Zahlungseingang beginnt der "
         + "Auftrag, die zuständige Person führt das Startgespräch. Storno, Beendigung, Erstattung und die Geld-zurück-Zusage entscheidet die Leitung — "
         + "sage dazu nichts zu, sondern gib das Anliegen mit aufgabe_an_betreuer an die zuständige Person. Über Konto, Karte, Rahmen und Darlehen "
+        + "entscheidet allein das jeweilige Institut; Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat, FIAON koordiniert.",
+    };
+  }
+  // ── E-272 (02.10.2026): DER VORGANG IST PRIVAT, DER MENSCH IST GLOBAL ─────
+  // Ein Global-Kunde (istGlobalKunde) mit einem alten Privatantrag oder einer
+  // Auskunft als Vorgang bekam hier die Zwölf-Monats-Regeln der Privatkunden als
+  // „VERTRAG“ — und Mara erklärte einem Unternehmer Monatsraten. Jetzt der Satz
+  // für FIAON Global. Das Wort FIRMENAUFTRAG steht darin, weil der Agent daran
+  // „formlos kündbar“ (Altvertrag der Privatlinie) ausschließt.
+  if (a?.person_id && produktkategorie(a) !== "global" && await istGlobalKunde(Number(a.person_id)).catch(() => false)) {
+    return {
+      jahresvertrag: false,
+      text: "KUNDE VON FIAON GLOBAL — KEIN PRIVATVERTRAG. Für ihn gelten keine Privatkunden-Regeln: kein Abo, keine Monatsraten, keine Kündigungsfrist, "
+        + "kein Kundenbereich mit Passwort, keine Kreditkarte, keine Bonitätsauskunft. Eine Privatbestellung in der Akte ist nicht sein Thema — du nennst "
+        + "dafür keine Rechnung, keine Zahlung und keinen Antrag. Ein FIRMENAUFTRAG über FIAON Global (Einmalpreis, Zahlung per Überweisung auf "
+        + "Rechnung) entsteht mit der Annahme seines Angebots; was dazu schon besteht, steht in der Akte unter global. Angebot, Preis, Ablauf, "
+        + "Storno und Erstattung entscheidet die Leitung mit seiner Ansprechperson — sage dazu nichts zu, sondern gib das Anliegen mit "
+        + "aufgabe_an_betreuer weiter. Über Konto, Karte, Rahmen und Darlehen "
         + "entscheidet allein das jeweilige Institut; Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat, FIAON koordiniert.",
     };
   }

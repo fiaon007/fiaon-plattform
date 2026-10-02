@@ -33,6 +33,7 @@ import { sqlPool } from "./db-pool";
 import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { terminLink } from "./fiaon-termine";
 import { versendenUndProtokollieren, type VersandStatus } from "./fiaon-mail-log";
+import { istGlobalKunde } from "./fiaon-global-kunde";
 
 type Lauf = typeof sqlPool;
 
@@ -211,7 +212,21 @@ export async function automatikNachFehlversuch(
     // bei jedem Fehlversuch eine Mail bekommt, meldet uns als Spam.
     const sperreLaeuft = p.terminlink_mail_am
       && Date.now() - new Date(p.terminlink_mail_am).getTime() < MAIL_SPERRE_TAGE * 86_400_000;
-    if (versuche >= SCHWELLE_MAIL && !sperreLaeuft && !p.is_blocked) {
+    // ── E-272 (02.10.2026): KEIN TERMINLINK AN KUNDEN VON FIAON GLOBAL ─────
+    // Die Mail lädt zum Termin der Privatlinie ein. Ein Global-Kunde (Angebot
+    // oder Global-Auftrag, kein bezahltes Stufenpaket — fiaon-global-kunde.ts)
+    // hat seinen festen Ansprechpartner. Justin: „nehme ihn bitte komplett aus
+    // den Workflows … Er soll Global bleiben, also keine unnötigen Mails“.
+    // Gescheiterte Prüfung = keine Mail (die Schwellen darunter laufen weiter).
+    // Über den Pool, nicht über `lauf`: Ein Fehler hier darf die Transaktion,
+    // die den Anruf dokumentiert, nicht abbrechen.
+    const globalKunde = versuche >= SCHWELLE_MAIL && !sperreLaeuft && !p.is_blocked
+      ? await istGlobalKunde(personId).catch(() => true)
+      : false;
+    if (globalKunde) {
+      wirkung.hinweis = "Kunde von FIAON Global — keine Terminlink-Mail der Privatlinie. Sein Ansprechpartner bei FIAON Global fasst nach.";
+    }
+    if (versuche >= SCHWELLE_MAIL && !sperreLaeuft && !p.is_blocked && !globalKunde) {
       const agentVorname = String(p.agent_vorname || "Ihr Ansprechpartner");
       const ergebnis = await versendenUndProtokollieren(
         "nicht_erreicht_termin",

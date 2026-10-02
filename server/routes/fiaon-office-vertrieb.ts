@@ -46,6 +46,7 @@ import { ensureBetreuungSpalte } from "../lib/tier";
 import { rohSlots, dauerFuer } from "../lib/fiaon-termine";
 import { gesperrteFreigeben } from "../lib/fiaon-zuteilung";
 import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
+import { globalKundeSql, globalKundeBereit } from "../lib/fiaon-global-kunde";
 
 const router = Router();
 
@@ -574,6 +575,30 @@ const gruppeVon = (tier: number, rateFaellig = false) =>
   (rateFaellig && tier === 0 ? "rate_faellig"
     : tier === 1 ? "bezahlt_gemeldet" : tier === 2 ? "rechnung_offen" : "lead");
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GLOBAL-KUNDEN STEHEN IN KEINER LISTE DES PRIVATVERTRIEBS (02.10.2026, E-272)
+//
+// Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er
+// soll Global bleiben, also keine unnötigen Mails.“ Die Einstufung stellt einen
+// Global-Kunden (Regel: fiaon-global-kunde.ts) auf Stufe -1, und alles hier
+// fragt nach Stufe 1–3 bzw. 0 mit fälliger Rate — im Normalfall ist er also
+// schon draußen. Neu gerechnet wird die Stufe aber nur, wenn sich eine
+// Bestellung ändert, und im 20-Minuten-Takt. Ein neues Individualangebot ändert
+// keine Bestellung: Bis zum nächsten Takt stünde der Mensch mit seiner alten
+// Stufe in der Arbeitsliste (auch in der Sofort-Spur), der Pool gäbe ihn
+// heraus, und der Rückfall nähme ihn seiner zuständigen Person bei FIAON Global
+// weg. Deshalb fragt jede Auswahl hier die Regel selbst, nicht nur die Stufe.
+// Gemischte Kunden (bezahltes Stufenpaket plus Global) erfüllt die Regel nicht —
+// für sie bleibt die Liste, wie sie war.
+//
+// Je Zeile, nicht als Menge wie in der Telefonkartei: Jede Abfrage hier ist auf
+// einen Mitarbeiter, den Pool oder die Rückfall-Kandidaten begrenzt. Gemessen
+// (Produktion, nur lesend, 02.10., alt → neu): Daniels Slots 22 → 22 ms, Vorrat
+// 42 → 44, Wieder dran 66 → 59, Pool-Zug 45 → 34, Rückfälle 8 → 16 und 32 → 34 —
+// kein Planwechsel, dieselben Menschen.
+// ═══════════════════════════════════════════════════════════════════════════
+const KEIN_GLOBAL_KUNDE_SQL = `NOT ${globalKundeSql("p.id")}`;
+
 /**
  * Zieht Nachschub aus dem Kundenpool, wenn der Mitarbeiter in „Neu für dich"
  * weniger als SLOTS arbeitbare Menschen hat. Läuft vor jedem Aufbau der Liste.
@@ -633,6 +658,8 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
        AND p.assigned_at < NOW() - INTERVAL '${POOL_RUECKFALL_TAGE} days'
        AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
        AND NOT p.is_blocked AND p.priority_tier IN (1,2,3)
+       -- E-272: nie einen Global-Kunden lösen (KEIN_GLOBAL_KUNDE_SQL oben).
+       AND ${KEIN_GLOBAL_KUNDE_SQL}
        AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c1 JOIN fiaon_applications ax ON ax.ref = c1.ref WHERE ax.person_id = p.id)
        AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c2 WHERE c2.person_id = p.id)
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine tx WHERE tx.person_id = p.id)`);
@@ -642,6 +669,8 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
      WHERE p.mandat_seit IS NULL AND p.assigned_agent_id IS NOT NULL
        AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
        AND NOT p.is_blocked AND p.priority_tier IN (1,2,3)
+       -- E-272: nie einen Global-Kunden lösen (KEIN_GLOBAL_KUNDE_SQL oben).
+       AND ${KEIN_GLOBAL_KUNDE_SQL}
        AND p.promised_payment_date IS NULL
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t2
                         WHERE t2.person_id = p.id AND t2.status = 'gebucht'
@@ -680,6 +709,8 @@ async function nachschubZiehen(me: number): Promise<void> {
              AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
        AND (p.priority_tier BETWEEN 1 AND 3
             OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
+       -- E-272: zählt dieselben Menschen wie die linke Spalte — ein Global-Kunde hält keinen Platz.
+       AND ${KEIN_GLOBAL_KUNDE_SQL}
        -- E-184: Wer laut Antrag gerade NICHT erreichbar sein will, hält keinen
        -- Platz besetzt — sonst stünde links den ganzen Vormittag ein Abendkunde.
        -- Unberührte fallen nach drei Tagen von selbst in den Pool zurück (oben).
@@ -711,6 +742,8 @@ async function nachschubZiehen(me: number): Promise<void> {
           -- sie hält, würde jeder Aufbau sechs Menschen horten.
           AND ${NIE_SQL}
           AND ${JETZT_ERREICHBAR_SQL}
+          -- E-272: Der Pool gibt nie einen Global-Kunden heraus (KEIN_GLOBAL_KUNDE_SQL oben).
+          AND ${KEIN_GLOBAL_KUNDE_SQL}
         ORDER BY ${POOL_ORDNUNG}
         LIMIT ${fehlt}
         FOR UPDATE SKIP LOCKED)`, [me]);
@@ -729,6 +762,8 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     await ensureKartenSpalten();
     await ensureBetreuungSpalte(sqlPool);
     await ensureVertriebSpalten();
+    // E-272: Die Regel liest fiaon_global_angebote — einmal je Prozess sichergestellt.
+    await globalKundeBereit();
     const me = req.agent!.id;
 
     // ══════════════════════════════════════════════════════════════════════
@@ -761,6 +796,9 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       "NOT p.is_blocked",
       `NOT ${ruhtSql("p")}`,
       `NOT ${wartetSql("p")}`,
+      // E-272 (02.10.2026): kein Global-Kunde in einer Spalte, im Vorrat oder in der
+      // Sofort-Spur — auch nicht mit noch alter Stufe (KEIN_GLOBAL_KUNDE_SQL oben).
+      KEIN_GLOBAL_KUNDE_SQL,
       // E-212: „oder er hat seit dem letzten Anruf selbst etwas getan" — eine
       // Wiedervorlage für nächste Woche darf einen Antrag von heute nicht
       // verdecken. Gemessen am 23.09.: 15 Menschen im Team, alle mit frischem

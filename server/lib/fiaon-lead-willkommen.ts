@@ -19,6 +19,11 @@
 //     Strecken; eine Begrüßung wäre falsch)
 //   · wer in den letzten 24 Stunden schon begrüßt wurde (zweites Formular)
 //   · Leads, die älter als 14 Tage sind (Nachholläufe über lange Zeiträume)
+//   · E-272 (02.10.2026): Kunden von FIAON Global (Regel in fiaon-global-kunde.ts)
+//     — auch wenn sie (noch einmal) ein Formular ausfüllen. Justin (Fall
+//     Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er soll Global
+//     bleiben, also keine unnötigen Mails.“ Die WhatsApp-Begrüßung desselben
+//     Eingangs prüft dieselbe Regel (fiaon-lead-whatsapp.ts).
 // Nachgeholte Leads (älter als 30 Minuten) bekommen einen ehrlichen Einstieg:
 // „Sie hatten sich am … gemeldet — entschuldigen Sie, dass Sie erst jetzt von
 // uns hören."
@@ -26,6 +31,7 @@
 import { sqlPool } from "./db-pool";
 import { anredeMail, nameFuerAnrede } from "../../shared/fiaon-anrede";
 import { kurzlinkFuerLead, kurzlinkUrl } from "./fiaon-kurzlink";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 
 type Lauf = typeof sqlPool;
 
@@ -113,6 +119,7 @@ export async function willkommenSenden(
     await lauf`UPDATE fiaon_leads SET willkommen_status = 'aus', willkommen_grund = 'Schalter aus' WHERE id = ${leadId} AND willkommen_status IS NULL`;
     return { status: "uebersprungen", grund: "Begrüßungsmail ist ausgeschaltet (Lead-Motor)." };
   }
+  await globalKundeBereit(); // E-272: die Abfrage unten liest fiaon_global_angebote
   const [l] = (await lauf`
     SELECT l.id, l.vorname, l.nachname, l.email, l.telefon, l.quelle, l.person_id, l.erstellt_am,
            l.abgemeldet_am, l.bounce_am, l.willkommen_am, l.willkommen_status, p.anrede AS person_anrede,
@@ -128,7 +135,10 @@ export async function willkommenSenden(
               WHERE x.id <> l.id AND x.willkommen_am > NOW() - INTERVAL '24 hours'
                 AND ((l.person_id IS NOT NULL AND x.person_id = l.person_id)
                      OR (NULLIF(TRIM(COALESCE(l.email, '')), '') IS NOT NULL AND LOWER(TRIM(x.email)) = LOWER(TRIM(l.email))))
-           ) AS schon_begruesst
+           ) AS schon_begruesst,
+           -- E-272 (02.10.2026): Kunde von FIAON Global (Angebot oder Global-Auftrag, kein bezahltes
+           -- Stufenpaket) — ohne Person immer FALSCH.
+           ${lauf.unsafe(globalKundeSql("l.person_id"))} AS global_kunde
       FROM fiaon_leads l
       LEFT JOIN fiaon_persons p ON p.id = l.person_id
      WHERE l.id = ${leadId}`) as any[];
@@ -145,6 +155,10 @@ export async function willkommenSenden(
     if (l.bounce_am) return auslassen("Adresse unzustellbar (Rückläufer).");
     if (l.abgemeldet_am) return auslassen("Abgemeldet.");
     if (l.hat_fertigen_antrag) return auslassen("Hat schon einen fertigen oder bezahlten Antrag.");
+    // E-272 (02.10.2026): Ein Kunde von FIAON Global bekommt keine Begrüßung der Privatlinie
+    // („Ihr Antrag bei FIAON ist vorbereitet“). Die Mail-Tür kennt lead_willkommen nicht
+    // (PRIVATLINIE_PERSON in make-webhook.ts) — deshalb steht die Regel hier, an der Quelle.
+    if (l.global_kunde === true) return auslassen("Kunde von FIAON Global — keine Begrüßung der Privatlinie (E-272).");
     if (l.schon_begruesst) return auslassen("In den letzten 24 Stunden schon begrüßt (zweites Formular).");
     if (l.erstellt_am && Date.now() - new Date(l.erstellt_am).getTime() > HOECHSTENS_TAGE * 86_400_000) {
       return auslassen(`Älter als ${HOECHSTENS_TAGE} Tage — nur Nachfass-Strecke.`);

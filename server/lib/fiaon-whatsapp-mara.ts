@@ -71,6 +71,12 @@
 //     Daten" beantwortet ein fester Satz ohne Modell: Entschuldigung, ehrliche
 //     Herkunft, Werbe-Stopp über die Werbesperre, Aufgabe an die Leitung.
 //   · Der sichere Satz liest „beantragt" nie als Frage nach dem Antrag.
+//
+// E-272 (02.10.2026, Fall Hildbrand — Justin: „nehme ihn bitte komplett aus den Workflows … Er soll Global
+// bleiben, also keine unnötigen Mails“): Einem Global-Kunden (die eine Regel, fiaon-global-kunde.ts) antwortet
+// Mara NIE — kein fester Satz, kein Modell, kein Rückruf, kein Verkauf. maraAntwortet legt EINE Aufgabe der
+// Klasse „global“ auf Justins Board und setzt die Nachricht still; versandLauf verwirft jede schon vorbereitete
+// Antwort an ihn. „Gemischte“ (bezahltes Stufenpaket) behalten Mara wie jeder Privatkunde.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { kiAufruf, antwortLesen, MODELL, agentNamen } from "./fiaon-postmeister-agent";
@@ -114,7 +120,9 @@ import {
 import { fragtNachAuskunftSelbst, lehntAuskunftAb, bezogenAufAuskunftAngebot } from "@shared/fiaon-postmeister-typen";
 // E-253 (28.09.2026): menschSperre statt personSperre — fiaon_whatsapp.person_id wird beim Zusammenführen
 // nicht umgehängt; zeigte sie auf eine Dublette, läse Mara deren Wegweiser-Marke als „Vertriebssperre".
-import { menschSperre, werbungVerboten } from "./fiaon-mail-frequenz";
+import { menschSperre, werbungVerboten, KOPF_SQL } from "./fiaon-mail-frequenz";
+// E-272 (02.10.2026): die eine Regel „Global-Kunde“ — Mara antwortet ihm nie selbst (maraAntwortet, versandLauf).
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { absoluteUrl } from "../fiaon-base-url";
 import { zuletztAngeboten } from "./fiaon-auskunft";
 import { kiPausiert, istKiPause, kiPauseLesen } from "./fiaon-ki-pause";
@@ -1386,6 +1394,10 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
        WHERE person_id = ${personId} AND merged_into IS NULL AND NOT COALESCE(ist_entwurf, FALSE)
          -- E-230: Die Bonitätsauskunft (FIAON-SCHUFA-…) und FIAON Global sind kein Paketvertrag.
          AND COALESCE(ref, '') NOT LIKE 'FIAON-SCHUFA-%' AND COALESCE(pack_key, '') NOT LIKE 'global%'
+         -- E-272 (02.10.2026): Eine archivierte Bestellung ist kein Vorgang mehr (Fall Hildbrand: sein archivierter
+         -- Privatantrag ergab weiter „NIE abgeschickt — mach ihn fertig“). Bezahlte bleiben wie überall
+         -- (archived_at IS NULL OR paid, wie antragBasisSql) — bezahlte archivierte Zeilen ändern ihre Lage nicht.
+         AND (archived_at IS NULL OR payment_status = 'paid')
        ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1`.catch(() => [])) as any[];
     const [k] = (await sqlPool`
       SELECT code FROM fiaon_kurzlinks WHERE person_id = ${personId} AND zweck = 'antrag' ORDER BY erstellt_am DESC LIMIT 1`.catch(() => [])) as any[];
@@ -1896,7 +1908,10 @@ export function ruheErklaerung(text: string, keinSatz: (s: string) => string | n
 export type AufgabenKlasse = "heikel" | "geld" | "rueckruf" | "anliegen" | "pruefung" | "ki" | "pause" | "deckel" | "versand"
   // E-264: „Kunde bestreitet Antrag" und „Löschwunsch" — beide an die Leitung; dazu (Nachbesserung)
   // „falsche Nummer", „will keinen Kontakt", „weiß nicht, wofür er zahlen soll", „verärgert".
-  | "bestreitet" | "loeschen" | "falsche_nummer" | "in_ruhe" | "rueckfrage" | "wut";
+  | "bestreitet" | "loeschen" | "falsche_nummer" | "in_ruhe" | "rueckfrage" | "wut"
+  // E-272 (02.10.2026): Ein Global-Kunde schreibt — Mara antwortet nie, die Aufgabe liegt auf Justins Board
+  // (eigene Klasse, damit sie nie an eine offene Privat-Aufgabe beim Betreuer angehängt wird).
+  | "global";
 /** Die Grundklasse einer Übergabe aus WhatsApp — eine offene Aufgabe je Mensch und Klasse. */
 export function aufgabenKlasse(kundeText: string, uebergabe = ""): AufgabenKlasse {
   if (heikelAnliegen(kundeText)) return "heikel";
@@ -2153,6 +2168,30 @@ async function stillSetzen(nummer: string, bisId: number): Promise<void> {
 }
 
 /**
+ * E-272 (02.10.2026): Ist der Mensch hinter dieser WhatsApp-Person ein Global-Kunde? Die eine Regel
+ * (fiaon-global-kunde.ts: Individualangebot oder Global-Bestellung, ohne bezahltes Stufenpaket) — gefragt
+ * am KOPF (KOPF_SQL, E-253): fiaon_whatsapp.person_id wird beim Zusammenführen nicht umgehängt, die
+ * Bestellzeilen wandern aber zum Kopf. Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den
+ * Workflows … Er soll Global bleiben, also keine unnötigen Mails.“ Laufzeitprüfung ohne eigenen Zustand —
+ * wird er „gemischt“ (bezahltes Stufenpaket), antwortet Mara ihm wieder wie jedem Privatkunden.
+ */
+export async function globalKundeWa(personId: number | null | undefined): Promise<boolean> {
+  const id = Number(personId);
+  if (!Number.isInteger(id) || id <= 0) return false;
+  await globalKundeBereit();
+  const [z] = (await sqlPool.unsafe(`
+    WITH e272_kopf AS (SELECT ${KOPF_SQL("$1::int")} AS id)
+    SELECT ${globalKundeSql("e272_kopf.id")} AS ja FROM e272_kopf`, [id])) as any[];
+  return z?.ja === true;
+}
+
+/** E-272: Was ohne Text ankommt, in der Aufgabe für Justin — kurz und deutsch (MEDIEN spricht zum Modell). */
+const MEDIEN_KURZ: Record<string, string> = {
+  audio: "(Sprachnachricht)", voice: "(Sprachnachricht)", image: "(Bild)", video: "(Video)", document: "(Dokument)",
+  sticker: "(Sticker)", reaction: "(Reaktion)", location: "(Standort)", unsupported: "(nicht übermittelte Nachricht)",
+};
+
+/**
  * Antwortet auf ein offenes Gespräch. Läuft im Hintergrund, wirft nie — eine
  * misslungene Antwort darf den Empfang nicht stören. Die Antwort wird
  * vorbereitet und nach 6–18 Sekunden vom Versandtakt geschickt.
@@ -2223,6 +2262,43 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         text: `Mara schweigt: ${abschlussZuAlt ? (nachStopp ? "Bestätigung nach seinem STOPP — nichts mehr schicken." : "Bestätigung älter als zwei Stunden — kein später Abschluss.") : urteil.grund}`,
         daten: { grund: abschlussZuAlt ? (nachStopp ? "nach_stopp" : "abschluss_zu_alt") : urteil.still ?? null, auf_id: Number(neuesteRein.id), auto_ids: urteil.autoIds } });
       return { gesendet: false, grund: `Mara schweigt: ${abschlussZuAlt ? (nachStopp ? "Bestätigung nach seinem STOPP." : "Bestätigung älter als zwei Stunden.") : urteil.grund}` };
+    }
+
+    // ── E-272 (02.10.2026): GLOBAL-KUNDEN — MARA ANTWORTET NIE, JUSTIN ÜBERNIMMT ──
+    // Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben, also keine
+    // unnötigen Mails.“ Mara kennt nur die Privatlinie (Karte, Antrag, Rate, Auskunft, Rückruf beim Betreuer) —
+    // William Hildbrand bekam am 29.09. drei Antworten über Rate und Privatantrag; seit seinem Individualangebot
+    // (01.10.) hätte jede neue Nachricht wieder dieselbe Privat-Lage ergeben. Deshalb hier, VOR
+    // jedem festen Satz (STOPP, Abstreiten, Abschluss), vor dem Ablauf einer Übernahme, vor Werkzeugen und
+    // Modell: keine Antwort, kein Rückruf, kein Verkauf. Stattdessen der vorhandene Übergabe-Weg
+    // (aufgabeFuerMenschen: Protokoll „uebergabe“, Aktenvermerk beim ersten Mal) — als EINE Aufgabe der Klasse
+    // „global“ auf Justins Board, nie beim Privat-Betreuer oder einer Vertretung. Weitere Nachrichten hängen
+    // still an dieselbe offene Aufgabe (heikle wieder sichtbar). Danach still_bis_id auf diese Nachricht: Kein
+    // Nachhol-Takt stößt sie wieder an, erst eine NEUE Kundennachricht kommt wieder hierher.
+    // Autoantworten blieben schon oben still; ein reines „Ok, danke“ bekommt weder Satz noch Aufgabe — außer es ist
+    // die Zusage auf die Frage eines Menschen (schweigen: „weitergeben“), die erfährt Justin.
+    // Laufzeitprüfung ohne eigenen Zustand (kein mara_aus_grund): Wird er „gemischt“, gilt wieder alles wie oben.
+    if (personId && await globalKundeWa(Number(personId))) {
+      const autoIdsG = new Set(urteil.autoIds);
+      const echteG = offeneRein.filter((v) => !autoIdsG.has(Number(v.id))).slice().reverse();
+      const seinTextG = echteG
+        .map((v) => String(v.text || v.knopf || MEDIEN_KURZ[String(v.typ)] || (v.typ && v.typ !== "text" ? `(${v.typ})` : "")))
+        .join(" · ").replace(/\s+/g, " ").trim();
+      const nurBestaetigungG = echteG.length > 0 && echteG.every((v) => istBestaetigung(v.text || v.knopf));
+      if (urteil.art !== "weitergeben" && (urteil.art === "abschluss" || nurBestaetigungG || !seinTextG)) {
+        await stillSetzen(nummer, Number(neuesteRein.id));
+        await protokolliere({ art: "still", ok: true, nummer, personId, leadId,
+          text: "Mara schweigt: Global-Kunde (E-272), reine Bestätigung — keine Antwort, keine Aufgabe.",
+          daten: { grund: "global_kunde", auf_id: Number(neuesteRein.id) } });
+        return { gesendet: false, grund: "Global-Kunde (E-272) — reine Bestätigung, Mara schweigt." };
+      }
+      const angelegt = await aufgabeFuerMenschen(nummer, Number(personId), leadId ? Number(leadId) : null,
+        `FIAON Global — er schreibt auf WhatsApp: „${seinTextG.slice(0, 300)}“. Mara antwortet Global-Kunden nie selbst (E-272) — bitte selbst antworten (WhatsApp-Raum), im Ton von FIAON Global.`,
+        true, "global", { betreiber: true, ...(heikelAnliegen(seinTextG) ? { still: false } : {}) });
+      // Ließ sich die Aufgabe nicht anlegen, bleibt die Nachricht offen — der Nachhol-Takt versucht es in 5 Min. wieder.
+      if (!angelegt) return { gesendet: false, grund: "Global-Kunde (E-272) — Mara antwortet nicht; die Übergabe ließ sich nicht anlegen, neuer Versuch im Nachhol-Takt." };
+      await stillSetzen(nummer, Number(neuesteRein.id));
+      return { gesendet: false, grund: "Global-Kunde (E-272) — Mara antwortet nicht, die Aufgabe liegt auf Justins Board." };
     }
 
     // Nachbesserung E-248: „Ok passt" auf die FRAGE einer Kollegin — Mara schreibt nichts, setzt aber
@@ -3297,6 +3373,10 @@ async function kuendigungAufnehmen(args: any, ctx: WerkzeugKontext): Promise<{ e
     SELECT ref, payment_status, agb_stand, gekuendigt_am, person_id FROM fiaon_applications
      WHERE person_id = ${ctx.personId} AND merged_into IS NULL AND NOT COALESCE(ist_entwurf, FALSE)
        AND COALESCE(ref, '') NOT LIKE 'FIAON-SCHUFA-%' AND COALESCE(pack_key, '') NOT LIKE 'global%'
+       -- E-272 (02.10.2026, Gegenprüfung): dieselbe Bestellung wie lageFuer — eine archivierte unbezahlte zählt nicht.
+       -- Sonst nannte die Lage den lebenden Antrag, die Kündigung landete aber auf der neueren, archivierten Dublette
+       -- (der lebende lief weiter).
+       AND (archived_at IS NULL OR payment_status = 'paid')
      ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1`.catch(() => [])) as any[];
   if (!b?.ref) return nein("Er hat keine Bestellung — es gibt nichts zu kündigen. Bestätige keine Kündigung.");
   const w = await import("./fiaon-postmeister-werkzeuge");
@@ -4179,6 +4259,7 @@ const TITEL: Record<AufgabenKlasse, string> = {
   bestreitet: "Kunde bestreitet Antrag", loeschen: "Löschwunsch (Daten löschen)",
   falsche_nummer: "Falsche Nummer — bitte korrigieren", in_ruhe: "Will keinen Kontakt mehr",
   rueckfrage: "Weiß nicht, wofür er zahlen soll", wut: "Verärgert — bitte ansehen",
+  global: "FIAON Global — Mara antwortet nicht",
 };
 /**
  * Vertretung (01.10.2026): Diese Klassen sind heikel — Kündigung/Widerruf/Beschwerde/Rechtsdrohung
@@ -4187,17 +4268,26 @@ const TITEL: Record<AufgabenKlasse, string> = {
  */
 export const HEIKLE_KLASSEN: ReadonlySet<AufgabenKlasse> = new Set<AufgabenKlasse>(["heikel", "bestreitet", "loeschen", "in_ruhe", "wut"]);
 
-/** Vertretung (01.10.2026): exportiert für scripts/pruef-vertretung.ts (wohin Maras Übergaben gehen). */
+/**
+ * Vertretung (01.10.2026): exportiert für scripts/pruef-vertretung.ts (wohin Maras Übergaben gehen).
+ * E-272 (02.10.2026): gibt true zurück, wenn die Aufgabe geschrieben ist — sonst darf der Aufrufer die
+ * Nachricht nicht still setzen (der Nachhol-Takt versucht es dann wieder).
+ */
 export async function aufgabeFuerMenschen(
   nummer: string, personId: number | null, leadId: number | null, grund: string, dringend = false,
   klasse: AufgabenKlasse = "anliegen",
   /** E-264: leitung — an die Leitung (Vertriebsleiter wie aufgabe_an_betreuer „Leitung", sonst Justin), nicht an den Betreuer. */
-  opt: { still?: boolean; leitung?: boolean } = {},
-): Promise<void> {
+  /** E-272 (02.10.2026): betreiber — auf Justins Board (Global-Kunde), ohne Betreuer, Vertretung oder Leitung. */
+  opt: { still?: boolean; leitung?: boolean; betreiber?: boolean } = {},
+): Promise<boolean> {
   try {
     const wer = personId ? String(Number(personId)) : `n${String(nummer).replace(/\D/g, "")}`;
     const tag = berlinTag(new Date());
-    const muster = `^wa-${wer}-(${klasse}(-\\d{4}-\\d{2}-\\d{2})?|\\d{4}-\\d{2}-\\d{2})$`;
+    // E-272: Die Klasse „global“ hängt nie an einen alten Tages-Schlüssel ohne Klasse (vor E-248) — der läge
+    // womöglich beim Privat-Betreuer; sie hat nur ihre eigene offene Aufgabe.
+    const muster = klasse === "global"
+      ? `^wa-${wer}-global(-\\d{4}-\\d{2}-\\d{2})?$`
+      : `^wa-${wer}-(${klasse}(-\\d{4}-\\d{2}-\\d{2})?|\\d{4}-\\d{2}-\\d{2})$`;
     const [offen] = (await sqlPool`
       SELECT schluessel FROM fiaon_betreiber_todos
        WHERE schluessel LIKE ${`wa-${wer}-%`} AND schluessel ~ ${muster} AND status <> 'erledigt' ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[];
@@ -4212,11 +4302,12 @@ export async function aufgabeFuerMenschen(
     // Vertretung (01.10.2026): Ist der Vertreter ein echter Mitarbeiter, bekommt ER sie (statt des
     // Betreiber-Boards); Heikles liegt zusätzlich auf dem Board. Ist er der Betreiber: Board wie bisher.
     const abw = await import("./fiaon-abwesenheit");
-    let vt = opt.leitung
+    // E-272: Global-Kunden gehören Justin — keine Vertretung (die vertritt die Privatlinie), keine Leitung.
+    let vt = opt.betreiber ? null : opt.leitung
       ? await abw.uebergabeVertretung(personId ? Number(personId) : null)
       : await abw.uebergabeVertretungAbgeleitet(personId ? Number(personId) : null);
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-    const leitung = opt.leitung && !vt ? await (await import("./fiaon-mara-abstreiten")).leitungId().catch(() => null) : null;
+    const leitung = !opt.betreiber && opt.leitung && !vt ? await (await import("./fiaon-mara-abstreiten")).leitungId().catch(() => null) : null;
     // Gilt die Abwesenheit nicht für den Kunden, aber für die Leitung selbst (nur einzelne abwesend): auch dann der Vertreter.
     if (!vt && leitung) vt = await abw.uebergabeVertretung(personId ? Number(personId) : null, leitung);
     const titel = `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`;
@@ -4228,7 +4319,8 @@ export async function aufgabeFuerMenschen(
     const erg: any = await auftragFuerKunden({
       // E-264 + E-260: „An die Leitung“ geht an den Vertriebsleiter — AUSSER das Team ist abwesend
       // (dann der Vertreter bzw. das Board des Betreibers; leitungId() wäre Agent 8, abwesend).
-      ...(vt ? abw.uebergabeFelder(vt) : opt.leitung ? (leitung ? { agentId: leitung } : { anBetreiber: true }) : { anBetreiber: false }),
+      // E-272: betreiber — immer Justins Board.
+      ...(opt.betreiber ? { anBetreiber: true } : vt ? abw.uebergabeFelder(vt) : opt.leitung ? (leitung ? { agentId: leitung } : { anBetreiber: true }) : { anBetreiber: false }),
       personId: personId ?? null, ref: null,
       titel, text,
       quelle: "mara-whatsapp", dringend,
@@ -4242,9 +4334,10 @@ export async function aufgabeFuerMenschen(
       ? await abw.betreiberKopie({ personId: personId ?? null, ref: null, titel, text, dringend: true, schluessel, quelle: "mara-whatsapp", link, still }, vt)
       : null;
     await protokolliere({ art: "uebergabe", ok: true, nummer, personId, leadId,
-      text: `Aufgabe an ${erg?.agentName ?? "das Team"}${vt?.anVertreter ? ` (Vertretung bis ${abw.bisText(vt.ab.bis)})` : ""}${kopie ? " + Kopie aufs Board (heikel)" : ""}${dringend ? " (dringend)" : ""}${erstes ? "" : still ? " (angehängt, still)" : " (angehängt)"}: ${grund.slice(0, 300)}`,
+      text: `Aufgabe an ${erg?.agentName ?? (opt.betreiber ? "Justin (Board)" : "das Team")}${vt?.anVertreter ? ` (Vertretung bis ${abw.bisText(vt.ab.bis)})` : ""}${kopie ? " + Kopie aufs Board (heikel)" : ""}${dringend ? " (dringend)" : ""}${erstes ? "" : still ? " (angehängt, still)" : " (angehängt)"}: ${grund.slice(0, 300)}`,
       daten: { aufgabe_id: erg?.id ?? null, klasse, erstes, still, ...(vt ? { vertretung: vt.ab.vertreter.id, an_vertreter: vt.anVertreter, board_kopie: kopie } : {}) } });
-  } catch (e) { console.error("[MARA-WA] Aufgabe:", e); }
+    return !!erg?.id;
+  } catch (e) { console.error("[MARA-WA] Aufgabe:", e); return false; }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4315,6 +4408,15 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
       if (schonBeantwortet) { await leeren(); verworfen++; continue; }
       if (!(await fensterOffen(nummer))) { await leeren(); verworfen++; continue; }
       const [w] = (await sqlPool`SELECT person_id, lead_id FROM fiaon_whatsapp WHERE nummer = ${nummer} AND (person_id IS NOT NULL OR lead_id IS NOT NULL) ORDER BY id DESC LIMIT 1`) as any[];
+      // E-272 (02.10.2026): Global-Kunde? Dann geht keine vorbereitete Antwort raus — auch keine, die gedacht
+      // wurde, bevor das Angebot entstand (6–18 Sekunden Wartezeit) oder vor dem Deploy. Verwerfen; maraAntwortet
+      // legt die Übergabe an Justin an. Lässt sich das nicht prüfen, wartet die Antwort auf den nächsten Takt.
+      let globalKunde = false;
+      try { globalKunde = await globalKundeWa(w?.person_id ?? null); } catch (e) {
+        console.warn(`[MARA-WA] ${nummer.slice(-4)}: Global-Prüfung gescheitert — die Antwort wartet:`, String(e).slice(0, 160));
+        continue;
+      }
+      if (globalKunde) { await leeren(); verworfen++; void maraAntwortet(nummer).catch(() => {}); continue; }
       const namen = await agentNamen();
       const erg = await waSenden(nummer, { text: String(g.antwort_text) }, { personId: w?.person_id ?? null, leadId: w?.lead_id ?? null, von: namen.voll });
       // E-261: Kontosperre (Bremse) — kein Fehlversuch, keine Aufgabe; die Antwort wird verworfen und nach dem

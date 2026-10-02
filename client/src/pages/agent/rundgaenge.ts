@@ -1047,6 +1047,19 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "Justin bekommt EINE dringende Aufgabe mit dem Gesamtbetrag und überweist von Hand, der Kunde bekommt eine Mail.",
     tipp: "Ein gesperrter Knopf nennt seinen Grund direkt daneben — zum Beispiel „Die Frist läuft bis …“.",
   },
+  // E-273 (02.10.2026) — ohne `ziel`: Die Zeile steht nur an angenommenen Angeboten.
+  {
+    titel: "Das Startgespräch bucht das System.",
+    text: "Mit der Annahme trägt das System das Startgespräch beim nächsten freien Termin ein — in Justins Kalender (dem Konto der "
+      + "Seite /justin), dreißig Minuten, Montag bis Freitag, frühestens zwei Stunden nach der Annahme; bei „Starten ab“ ab dem "
+      + "gewählten Tag. Der Kunde sieht Tag und Uhrzeit sofort und in seiner Bestätigung. Die Zeile „Startgespräch“ zeigt den Termin — "
+      + "oder rot „nicht gebucht — von Hand buchen“ mit dem Grund (kein Platz in vierzehn Tagen, niemand mit Zeiten); dann liegt "
+      + "bei Justin eine dringende Aufgabe. Ein technischer Fehler wird drei Tage lang im Stundenlauf nachgeholt, „Nachholen“ versucht es sofort. "
+      // Gegenprüfung E-273 (recht-zeitpunkt, 02.10.2026): die zwei Zustände nach dem Termin.
+      + "Nach dem Termin steht „Zeit vorbei — im Kalender abschließen“, bis das Ergebnis im Kalender steht; „kam nicht zustande“ heißt: "
+      + "neuen Termin von Hand vereinbaren.",
+    tipp: "Sagt der Kunde ab, wählt er über den Link bei Justin auf /justin eine neue Zeit — Justin bekommt dazu eine Aufgabe.",
+  },
   // Angebot-Aufrufe (01.10.2026, E-268) — ohne `ziel`: Der Kasten steht nur, wenn es ein Angebot gibt.
   {
     titel: "Wann, wie oft und wo hat der Kunde geöffnet?",
@@ -1194,7 +1207,9 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
       + "Teil 1 „Gründung“ (sofort fällig), Teil 2 „Kapital-Begleitung“ (erst beim Meilenstein) und das Fristende. Bis dahin "
       + "garantiert FIAON der Gesellschaft den Kreditrahmen und die Karten aus dem Angebot; sonst erstattet FIAON alles, was der Kunde "
       + "gezahlt hat. Ist das erste Kapital ausgezahlt oder die erste Karte freigeschaltet, sag es der Leitung — sie trägt den Meilenstein "
-      + "ein, dann geht die Rechnung über Teil 2 raus. Sind Kreditrahmen und Karten vollständig da, ebenfalls der Leitung Bescheid geben.",
+      + "ein, dann geht die Rechnung über Teil 2 raus. Sind Kreditrahmen und Karten vollständig da, ebenfalls der Leitung Bescheid geben. "
+      // E-273 (02.10.2026): Das Startgespräch bucht das System nach der Annahme selbst.
+      + "Die Zeile „Startgespräch“ nennt Tag, Uhrzeit und mit wem — das System hat es nach der Annahme selbst eingetragen.",
     tipp: "Fehlt eine Unterlage oder Unterschrift des Kunden, fordere sie schriftlich mit mindestens sieben Tagen Frist an und gib der Leitung Bescheid — nur dann darf die Frist ruhen.",
   },
 ];

@@ -28,6 +28,8 @@ import { SEO_SEITEN } from "../shared/fiaon-seo-seiten";
 import { GLOBAL_SEITEN, LANDINGPAGES } from "../shared/fiaon-global-seiten";
 import { GLOBAL_MENUE } from "../shared/fiaon-global-menue";
 import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN } from "../shared/fiaon-global-partner";
+// E-273 (02.10.2026): was der Kunde über das Startgespräch liest, das das System nach der Annahme bucht.
+import { STARTGESPRAECH_TEXTE } from "../shared/fiaon-global-startgespraech";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
@@ -77,6 +79,8 @@ for (const seite of [...GLOBAL_SEITEN, ...LANDINGPAGES]) sammle(seite, `seiten${
 sammle(GLOBAL_MENUE.map(({ en: _en, ...m }) => m), "menue", texte);
 sammle(GLOBAL_STANDORTE.map(({ en: _en, ...o }) => o), "standorte", texte);
 sammle(GLOBAL_VERBUNDEN, "verbunden", texte);
+// E-273: Seite nach der Annahme, Hinweis unter dem Knopf, „Mein Auftrag", Mails (Funktionen mit Musterwerten).
+sammle(STARTGESPRAECH_TEXTE, "startgespraech", texte);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
 // für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.

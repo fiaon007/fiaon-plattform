@@ -267,8 +267,15 @@ export function globalKalenderDatei(ein: {
   sprache?: "de" | "en";
   /** Das Gespräch ist abgesagt: METHOD:CANCEL, SEQUENCE + 1, Veranstalter, ohne Wecker. */
   abgesagt?: boolean;
+  /**
+   * E-273 (02.10.2026): Das Startgespräch eines Individualangebots (herkunft „individualangebot") heißt im Kalender
+   * „Startgespräch", nicht „Erstgespräch" — Titel und Absagesatz aus dem Text des Startgesprächs. Ohne Angabe bleibt
+   * jede Datei Byte für Byte, wie sie war.
+   */
+  start?: { titel: string; abgesagtText: string } | null;
 }): string {
-  const T = GLOBAL_KALENDER_TEXT[ein.sprache === "en" ? "en" : "de"];
+  const T0 = GLOBAL_KALENDER_TEXT[ein.sprache === "en" ? "en" : "de"];
+  const T = ein.start ? { ...T0, titel: ein.start.titel, abgesagtText: ein.start.abgesagtText } : T0;
   const beginn = typeof ein.beginn === "string" ? new Date(ein.beginn) : ein.beginn;
   const ende = new Date(beginn.getTime() + (ein.dauerMin ?? GLOBAL_DAUER_MIN) * 60_000);
   const beschreibung = [

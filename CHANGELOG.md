@@ -5,6 +5,113 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 02.10.2026 — Individualangebot: Das System bucht das Startgespräch nach der Annahme (E-273)
+
+**Der Anlass:** Justin an Herrn Hildbrand (WhatsApp): „… sobald dieser angenommen wurde von Ihnen bucht das System
+automatisch den nächsten freien Termin, dann können wir direkt mit der Umsetzung starten." Bis heute stimmte das nicht —
+nach der Annahme gingen nur Aufgaben raus, das Startgespräch wurde von Hand vereinbart.
+
+**Was jetzt gilt:**
+- **Buchung nach der Annahme** (`server/lib/fiaon-global-angebot-startgespraech.ts`): VOR der Antwort an die Seite und
+  VOR der Bestätigungsmail bucht der Server genau EIN Startgespräch je Angebot (Sperre je Angebot + Spalte am Angebot).
+  **Wer:** Justin — die Angebotsseite sagt „Im Startgespräch mit Justin Schwarzott …"; gebucht wird in das Konto der
+  Gründer-Seite /justin (`gruender_termin_agent_id`, Vorgabe 928, Zeiten gepflegt). Nur wenn dieses Konto nicht arbeiten
+  kann (inaktiv, gesperrt, keine Zeiten Mo–Fr): die zuständige Global-Person — Seite und Mail nennen dann deren Namen.
+  **Wann:** die Regeln des Global-Kalenders (30-Minuten-Raster, Mo–Fr, zwei Stunden Vorlauf, Tagesdeckel
+  `global_termin_pro_tag`, echte Dauer bestehender Termine) — „Sofort starten" ab jetzt, „Starten ab" ab dem Starttag,
+  ohne Wahl (ältere Seite) ab dem Start nach der Widerrufsfrist; Suche vierzehn Tage. **Wie:** `terminBuchen`
+  (quelle `global`, neue Herkunft `individualangebot` mit Klartext) — kein Firmen-Lead, keine Erstgespräch-Mail, kein
+  Privat-Ablauf (Ergebnis/„verpasst" über `globalTerminErgebnis`), Erinnerung 24 h vorher wie jeder Global-Termin.
+  `terminBuchen` kennt dafür `horizontTage` (Systembuchung bis zum Starttag, höchstens 120 Tage; Kundenwege unverändert 14).
+- **Kein Platz / niemand mit Zeiten:** kein Termin, dringende Aufgabe an Justin „Startgespräch von Hand buchen", die
+  Seite sagt ehrlich „vereinbaren wir persönlich". **Technischer Fehler:** der Stundenlauf (`globalAngebotLauf`) holt
+  nach (drei Tage lang), Justins Aufgabe schließt sich dann selbst; ging die Bestätigung schon ohne Termin raus, kommt
+  Tag und Uhrzeit in der neuen Mail `global_angebot_startgespraech`.
+- **Mails:** `global_angebot_angenommen` nennt bei gebuchtem Termin Tag, Uhrzeit, Dauer, mit wem, wie (Anruf), Kalender
+  (Apple/Outlook, Google) und „Termin verschieben oder absagen"; ohne Termin Byte für Byte die bisherige Mail.
+  `global_angebot_start` sagt bei gebuchtem Termin „Ihr Startgespräch mit … ist am … eingetragen" statt „meldet sich …".
+  Motor: Werte mit Schlüssel `…_html` stehen im Text-Teil als Klartext (sonst keine Mail verändert).
+- **Seite nach der Annahme, „Mein Auftrag", Chefbüro:** „Ihr Startgespräch: <Tag>, <Uhrzeit> Uhr mit <Name>" mit
+  Kalender und Verschieben; unter dem Annahmeknopf der Satz „Mit dem Erteilen bucht das System Ihr Startgespräch …"
+  (außerhalb des Vertragstextes). Reiter „Individualangebote": Zeile „Startgespräch" — gebucht/geführt oder rot
+  „nicht gebucht — von Hand buchen" mit Grund; „Nachholen" versucht es erneut.
+- **Absage durch den Kunden:** „Neuen Termin wählen" führt zu Justins /justin mit den Daten des Kunden; Justin bekommt
+  eine dringende Aufgabe. Die Kalenderdatei heißt „FIAON Global – Startgespräch".
+- **Vertrag und Prüfsumme unverändert:** Kein Satz des Startgesprächs steht im Vertragsrumpf (eigene Datei
+  `shared/fiaon-global-startgespraech.ts`, vom Vertrags-Renderer nicht gelesen). Prüfsummen von FIAON-IA-9E10FD
+  (Herr Hildbrand, offen) für sechs Schalterstellungen vorher/nachher identisch; `PRUEFSUMME_D_VORHER` grün.
+- **Datenbank:** Migration 090 (sieben Spalten `startgespraech_*`, nur ADD COLUMN), dieselbe DDL zur Laufzeit —
+  nicht tragend: Angebot und Kundenseite lesen weiter ohne sie (OHNE_PDF unverändert).
+- **Prüfstände:** `pruef-individualangebot` 881/881 (neu: Abschnitt 10), `pruef-angebot-startgespraech` (lokale DB)
+  40/40, `pruef-wortwand-de` 0 Treffer, `pruef-global-termin` 170/170, `pruef-kalender` 142/142, `pruef-mail-knoepfe` 153/153.
+- **Gegenprüfung Recht und Zeitpunkt (02.10.2026):** (1) Liegt das Startgespräch binnen 24 Stunden („Sofort starten"),
+  gilt die Terminerinnerung als erledigt — sonst kam 20 Minuten nach der Bestätigung „Morgen: Ihr Gespräch um …" für ein
+  Gespräch von HEUTE. (2) „verpasst" ohne Ergebnis (der Aufräumlauf nach zwölf Stunden) zählt als „vorbei" — vorher las der
+  Kunde nach einem geführten, nur nicht abgehakten Gespräch „vereinbaren wir persönlich", die Startmail „meldet sich …, um
+  das Startgespräch zu vereinbaren"; „kam nicht zustande" gilt erst, wenn ein Mensch es einträgt (Chefbüro sagt das so).
+  (3) Ein technischer Fehler, den der Stundenlauf nach drei Tagen aufgibt, zeigt „vereinbaren wir persönlich" statt für
+  immer „Tag und Uhrzeit erhalten Sie per E-Mail". (4) Der Satz unter dem Annahmeknopf nennt den Fall ohne freien Termin.
+  Prüfsumme FIAON-IA-9E10FD für zehn Schalterstellungen gegen HEAD nachgerechnet: identisch. Prüfstände 882/882, 47/47.
+- **Gegenprüfung Technik:** Bucht Justin nach einem technischen Fehler von Hand, übernimmt der Stundenlauf diesen Termin
+  ans Angebot, statt ein zweites Startgespräch zu buchen.
+- **Abschlussprüfung:** Ein Storno des Auftrags (`globalAuftragStornieren`) sagt ein künftiges, automatisch gebuchtes
+  Startgespräch STILL ab (keine Absage-Mail mit „neu buchen", keine Erinnerung 24 h vorher); Verlauf und Storno-Aufgabe
+  nennen es. `pruef-angebot-startgespraech` Fall I — 55/55.
+
+**Wo zu finden:** der persönliche Link des Kunden (nach der Annahme) · „Mein Auftrag" ·
+fiaon.com/chef/s/global-auftraege?reiter=angebote · Justins Kalender und /admin/todo.
+
+---
+
+## 02.10.2026 — Global bleibt Global: Kunden von FIAON Global aus allen Privat-Abläufen (E-272)
+
+**Der Anlass:** William Hildbrand (Person 13411) hatte ein offenes Individualangebot über FIAON Global und daneben einen
+alten, nie bezahlten Privatantrag „High End". Für Rückholung, WA-Zentrale (Gruppe „abbrecher", Automatik an), Mara,
+Arbeitsliste und Zuteilung war er ein Privat-Interessent. Justin: „nehme ihn bitte komplett aus den Workflows … Er soll
+Global bleiben, also keine unnötigen Mails." Am Morgen von Hand erledigt (Mara aus, Antrag archiviert, Vertriebssperre,
+Betreuer gelöst); E-272 macht daraus eine Regel im Code. Ohne sie wäre jede angenommene Global-Bestellung in
+Privat-Abläufe gerutscht (z. B. WhatsApp-Vorlage `fiaon_kk_rechnung` mit dem Global-Betrag, Wiedereinstiegsmail,
+Offene Kartei, DKB-Einladung).
+
+**Die Regel** (`server/lib/fiaon-global-kunde.ts`, EINE Stelle): Global-Kunde ist, wer ein Individualangebot hat (jeder
+Status) ODER eine lebende Global-Bestellzeile — UND kein bezahltes Stufenpaket. Wer eins hat („gemischt"), behält alles
+wie bisher (Raten, Erinnerungen, Betreuer). Eine bezahlte Bonitätsauskunft macht nicht gemischt. Zusammengeführte
+Personen bis zwei Stufen. `globalKundeSql(alias)` (nur mit Tabellen-Kürzel, sonst Fehler), `istGlobalKunde(id)`,
+`globalKundeBereit()` (Tabelle aus Migration 087, Sicherheitsnetz für frische Datenbanken).
+
+**Was jetzt gilt:**
+- **Einstufung** (`tier.ts`): Global-Kunde = Stufe −1 „ausgeschlossen", auch mit offenem Privatantrag — damit raus aus
+  Arbeitsliste, Pool, Rückfall, Sofort-Spur, Hitze, Zuteilung, Followup, Wiedereinstieg, Konto & Karte, Mail-Zentrale.
+  Zusätzlich ausdrückliche Wände in `sofortZuteilen`, `autoAssignTier1`, `neuVerteilen`, Pool und Arbeitsliste
+  (Zeitfenster bis zum nächsten Einstufungs-Takt).
+- **WhatsApp:** WA-Zentrale (alle Gruppen, Vorschau, Handlauf, Automatik gleich), `abbrecher` ohne archivierte Anträge,
+  `zahlung_offen`/Rate nie aus einer Global-Zeile; Lead-WhatsApp-Kette und Sofort-Begrüßung; die Tür
+  `waVorlagenSperre` sperrt Privat-Vorlagen (`fiaon_kk_*`, `fiaon_kkb_*`) an Global-Kunden — freie Texte von Menschen nie.
+- **Mara (WhatsApp):** antwortet Global-Kunden nicht und verkauft nichts; EINE Aufgabe der Klasse „global" auf Justins
+  Board (vorhandener Übergabe-Weg), kein Endlos-Nachholen. `lageFuer` und `kuendigung_aufnehmen` lassen archivierte,
+  unbezahlte Bestellungen aus; `abstreitenLage` wählt wie `lageFuer`.
+- **Mails:** Rückholung (Grundmenge, Dauerpflege, Kandidaten), Mahnkette + Bulk-Zählung + Unzustellbar-Aufgabe,
+  Antrag-Erinnerung, Mara-Aktion (Auswahl und Zweitprüfung), Mail-Zentrale, Wiedereinstieg (nie Global-Zeile als
+  „offenes Geld"), Nicht-erreicht-Mail, Konto & Karte (zählt nur Privatpakete), Begrüßung `lead_willkommen`, Lead-Strecke,
+  Monatsbericht. Mail-Tür (`make-webhook.ts`): neue Personen-Wand `PRIVATLINIE_PERSON` — über die Adresse nur, wenn JEDER
+  Mensch dahinter Global-Kunde ist; Pflichtmails, Zahlungspost, Termine und Global-Mails bleiben frei.
+- **Karteien:** Offene Kartei zeigt keine Global-Zeilen/-Kunden; Telefonkartei-Reiter ohne Global-Kunden, `stornieren`
+  sagt keine Global-Termine ab.
+- **Postmeister:** Global-Kunden (auch nur mit Angebot) sind Global-Vorgang — keine Privat-Verkaufswerkzeuge, kein Drängen
+  zum Privatantrag, Übergaben an Justins Board statt an den Privat-Betreuer; Anweisungstexte ohne Kreditkarten-Sprache.
+- **Gemessen in der Produktion (nur lesend):** Die Regel erfasst heute genau Person 13411 — auch ohne seine Sperre. Alt
+  gegen neu fällt in keiner Auswahl sonst jemand weg; gemischte Kunden bleiben bedient; keine Abfrage spürbar langsamer
+  (Regel über alle Personen 18 ms, Einstufung 22 → 41 ms).
+- **Prüfstand:** `scripts/pruef-global-kunde.ts` (lokale DB, Netz und Versand abgeklemmt) 206/206, Rotprobe mit
+  abgeschalteter Regel 77 rot. Bereichs-Prüfstände grün (WA-Sperre, WA-Bremse, Mara-Aktion, Telefonkartei, Laufzeit …).
+- **Offen (Entscheidung Justin):** Für Global-Kunden gibt es keine WhatsApp-Vorlage mehr (die Termin-Vorlagen sprechen
+  von der Kreditkarte) — eine eigene Global-Vorlage bräuchte Meta-Freigabe. `auftragEmpfaenger` (Aufgaben anderer Wege)
+  kennt die Regel nicht; trifft nur Global-Kunden, die noch einem Privat-Betreuer zugewiesen sind.
+
+**Wo zu finden:** server/lib/fiaon-global-kunde.ts · Hildbrand: /chef/s/global-auftraege?reiter=angebote
+
+---
+
 ## 01.10.2026 (21:30) — Individualangebot: Anlage 2 ohne „entscheidet das Institut" (E-271, Nachtrag)
 
 **Der Anlass:** Justin: „‚entscheidet das Institut' ÄNDERN!" — Anlage 2 (Prüfbericht) schrieb das Ergebnis noch den Instituten zu.

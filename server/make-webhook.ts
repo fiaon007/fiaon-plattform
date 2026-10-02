@@ -247,12 +247,37 @@ export async function sendMakeWebhookMitGrund(
   // gehört keine davon; er bekommt Vertrag, Rechnung und Startmail aus dem Bestellweg.
   // Entschieden wird an der BESTELLUNG der Nutzlast — derselbe Mensch darf für sein
   // Privatpaket weiter jede Mail bekommen. Bei einer Störung lässt die Wand durch.
+  // E-272 (02.10.2026): „derselbe Mensch“ heißt seitdem: einer MIT bezahltem Stufenpaket
+  // („gemischt“). Ohne eins ist er Global-Kunde — dann gilt zusätzlich die Wand darunter.
   if (PRIVATLINIE.has(eventType) && !payload.test) {
     const global = await istGlobalBestellung(payload).catch(() => false);
     if (global) {
       const erg: MakeVersand = { ok: false, grund: "FIAON Global: Diese Mail gehört zur Privatkundenlinie. Der Firmenkunde bekommt Vertrag, Rechnung und Startmail aus dem Bestellweg — siehe /chef/s/global-auftraege." };
       protokollNebenbei(eventType, payload, erg);
       console.warn(`[MAKE-WEBHOOK] '${eventType}' NICHT gesendet: Bestellung ${payload.antrag_id ?? payload.payment_reference ?? "?"} ist ein Global-Auftrag.`);
+      return erg;
+    }
+  }
+
+  // ── … UND EIN KUNDE VON FIAON GLOBAL KEINE WERBUNG UND MAHNUNG DER PRIVATLINIE (02.10.2026, E-272) ──
+  // Die Wand oben fragt die BESTELLUNG. William Hildbrand (Person 13411) hatte ein offenes
+  // Individualangebot über FIAON Global und daneben einen alten, nie bezahlten Privatantrag — die
+  // Mahnung, die Rückholung oder die Antrags-Erinnerung zu DIESER Zeile hätte die Wand passiert.
+  // Justin: „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben, also keine
+  // unnötigen Mails“. Deshalb zusätzlich je MENSCH: Ist der Empfänger Global-Kunde (Angebot oder
+  // Global-Auftrag, KEIN bezahltes Stufenpaket — fiaon-global-kunde.ts), geht keines der Ereignisse
+  // aus PRIVATLINIE_PERSON raus. Die Läufe selbst lassen ihn schon aus; das hier fängt Knöpfe und
+  // jeden künftigen Auslöser. Pflichtmails, Zahlungspost, Termine und die Global-Mails bleiben frei
+  // (Liste und Gründe unten). Auch von Hand — wie die Wand oben. Bei einer Störung lässt sie durch.
+  if (PRIVATLINIE_PERSON.has(eventType) && !payload.test) {
+    const globalKunde = await empfaengerIstGlobalKunde(payload).catch((e) => {
+      console.error(`[MAKE-WEBHOOK] '${eventType}': Global-Kunde nicht prüfbar — lasse durch:`, e instanceof Error ? e.message : e);
+      return false;
+    });
+    if (globalKunde) {
+      const erg: MakeVersand = { ok: false, grund: "FIAON Global: Der Empfänger ist Kunde von FIAON Global — Werbung, Mahnungen und Verkaufsmails der Privatkundenlinie gehen nicht an ihn (E-272). Sein Ansprechpartner fasst persönlich nach." };
+      protokollNebenbei(eventType, payload, erg);
+      console.warn(`[MAKE-WEBHOOK] '${eventType}' NICHT gesendet: Empfänger ${payload.email || "?"} ist Kunde von FIAON Global (E-272).`);
       return erg;
     }
   }
@@ -452,6 +477,92 @@ async function istGlobalBestellung(payload: MakeWebhookPayload): Promise<boolean
      WHERE (${ref} <> '' AND ref = ${ref}) OR (${zahlRef} <> '' AND payment_reference = ${zahlRef})
      ORDER BY (ref = ${ref}) DESC LIMIT 1`) as any[];
   return istGlobalPaket(a?.pack_key);
+}
+
+/**
+ * E-272 (02.10.2026): Ereignisse, die ein Kunde von FIAON Global auch zu einer PRIVATbestellung
+ * nicht bekommt — die werbenden, mahnenden und verkaufenden Mails der Privatkundenlinie.
+ *
+ * ── WAS AUS PRIVATLINIE HIER FEHLT, UND WARUM (gemeinsame Post) ─────────────
+ * · Pflichtmails (PFLICHTMAILS in fiaon-mail-frequenz.ts) — Antwort auf seine eigene Handlung
+ *   oder ein Statuswechsel an SEINER Bestellung: welcome, zugang_link, bereich_freigeschaltet,
+ *   payment_details, claim_received, payment_confirmed, payment_reactivated. Wer als
+ *   Global-Kunde selbst ein Privatpaket bestellt, bekommt seine Zahlungsdaten; mit der Zahlung
+ *   ist er „gemischt“ und die Regel greift nicht mehr.
+ * · Zahlungspost (ZAHLUNGSPOST dort) — Forderung aus einem geschlossenen Vertrag:
+ *   abo_payment_reminder, auskunft_zahlung_erinnerung (Belehrung in Textform).
+ * · Die Leistung einer gekauften Auskunft: schufa_requested, schufa_approved, schufa_rejected.
+ *   Eine Auskunft macht nicht „gemischt“, ihre Lieferung ist aber kein Werbeweg.
+ * · Nie hier: termin_* (Termin-Pflicht, auch das Global-Erstgespräch) und global_* (die
+ *   Global-Mails gehen ohnehin direkt über den Motor, globalMailSenden → mailDirektSenden).
+ *
+ * ── WAS HIER STEHT, OHNE IN PRIVATLINIE ZU STEHEN ───────────────────────────
+ * nicht_erreicht_termin (Terminlink der Privatberatung), lead_followup und lead_application_link
+ * (Lead-Strecke zum Privatantrag). Sie hängen an keiner Bestellung — die Wand oben sieht sie nie.
+ */
+const PRIVATLINIE_PERSON = new Set<string>([
+  // Zahlungsaufforderung und Mahnung zur Privatbestellung
+  "payment_reminder", "followup_48h", "agent_payment_reminder",
+  // zurück in den Privatantrag
+  "antrag_erinnerung", "zustimmung_link",
+  // Rückholung und Dauerpflege
+  "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
+  // Leistungen und Fragen eines bezahlten Stufenpakets — das hat ein Global-Kunde per Regel nicht
+  "onboarding_einladung", "konto_karte_einladung", "abo_verlaengerung_frage",
+  // Werbung der Privatlinie
+  "auskunft_angebot", "nicht_erreicht_termin", "lead_followup", "lead_application_link",
+  // Zweite Wand zur Quelle (Lückensuche 02.10.2026): der Monatsbericht des Privat-Kundenbereichs —
+  // ohne Bindung an eine Global-Bestellung. lead_willkommen steht NICHT hier: Es ist eine Pflichtmail
+  // (Antwort auf das eben abgeschickte Formular), die Tür lässt Pflichtmails immer durch; für
+  // Global-Kunden hält sie die Quelle an (fiaon-lead-willkommen.ts).
+  "app_monatsbericht",
+]);
+
+/**
+ * E-272 (02.10.2026): Sind diese Personen ALLE Kunden von FIAON Global? Jede Person zählt als
+ * ihr Kopf (zusammengeführte bis zwei Stufen, wie fiaon-global-kunde.ts) — sonst hielte ein
+ * Angebot am Verlierer einer Zusammenführung den „gemischten“ Gewinner für Global.
+ *
+ * ALLE, nicht einer (Gegenprüfung 02.10.2026): Mehr als eine Person kommt hier nur über eine
+ * ADRESSE an (personenAnAdresse — Tür ohne Bindung, getippte Adresse in der Zentrale). Teilt ein
+ * zahlender Privatkunde seine Adresse mit einem getrennten Datensatz, der nur ein Angebot hat
+ * (nicht zusammengeführte Dublette, gemessen 18 Adressen mit mehreren Köpfen), sperrte „einer
+ * reicht“ SEINE Post: Einladung zum Startgespräch und Terminlink kommen ohne Bindung (nur Adresse)
+ * an die Tür — im Prüfstand ging beides nicht raus, der Terminlink galt trotzdem als verbraucht.
+ * Es gilt die Personenbindung, keine Verbindung über die E-Mail (fiaon-global-kunde.ts): Eine
+ * Adresse sperrt nur, wenn JEDER Mensch dahinter Global-Kunde ist. Eine Person allein: wie bisher.
+ */
+export async function personenSindGlobalKunde(ids: number[]): Promise<boolean> {
+  const liste = Array.from(new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)));
+  if (!liste.length || !process.env.DATABASE_URL) return false;
+  const { sqlPool } = await import("./lib/db-pool");
+  const { globalKundeSql, globalKundeBereit } = await import("./lib/fiaon-global-kunde");
+  await globalKundeBereit();
+  const [z] = (await sqlPool.unsafe(`
+    SELECT COALESCE(BOOL_AND(${globalKundeSql("k.kopf")}), FALSE) AS ja
+      FROM (SELECT DISTINCT COALESCE(p2.merged_into_person_id, p1.merged_into_person_id, p1.id) AS kopf
+              FROM fiaon_persons p1
+              LEFT JOIN fiaon_persons p2 ON p2.id = p1.merged_into_person_id
+             WHERE p1.id = ANY($1::int[])) k`, [liste])) as any[];
+  return z?.ja === true;
+}
+
+/**
+ * E-272: Wer ist der Empfänger dieser Nutzlast? So, wie die Tür ihn auch sonst findet: die
+ * person_id der Nutzlast, sonst die Bestellung bzw. Rate oder der Lead dahinter
+ * (personAusNutzlast) — und nur wenn nichts davon trägt, die Menschen hinter der Adresse
+ * (personenAnAdresse, wie Werbesperre und Kündigung). Über die Adresse sperrt sie nur, wenn
+ * JEDER dieser Menschen Global-Kunde ist (personenSindGlobalKunde) — anders als die Werbesperre,
+ * die der Mensch selbst für seine Adresse ausgesprochen hat.
+ */
+async function empfaengerIstGlobalKunde(payload: MakeWebhookPayload): Promise<boolean> {
+  if (!process.env.DATABASE_URL) return false;
+  const direkt = payload.person_id != null && Number(payload.person_id) > 0 ? Number(payload.person_id) : await personAusNutzlast(payload);
+  if (direkt) return personenSindGlobalKunde([direkt]);
+  const adresse = String(payload.email ?? "").trim();
+  if (!adresse) return false;
+  const { personenAnAdresse } = await import("./lib/fiaon-mail-frequenz");
+  return personenSindGlobalKunde(await personenAnAdresse(adresse));
 }
 
 /**

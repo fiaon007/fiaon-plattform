@@ -128,6 +128,8 @@ async function proTagLesen(): Promise<number> {
   const n = Math.round(Number(z?.value));
   return Number.isFinite(n) && n >= 1 && n <= 12 ? n : GLOBAL_PRO_TAG;
 }
+/** E-273 (02.10.2026): derselbe Tagesdeckel für das Startgespräch eines Individualangebots — eine Einstellung, ein Leser. */
+export const globalTerminProTag = proTagLesen;
 
 // ───────────────────────────────────────────────────────────────────────────
 // Das Angebot
@@ -695,6 +697,11 @@ export async function globalTerminAbgesagt(ein: {
   terminId: number; personId: number; beginn: Date | string; wer: "kunde" | "agent";
 }): Promise<void> {
   const wann = `${berlinDatumText(ein.beginn)}, ${berlinUhrzeit(ein.beginn)} Uhr`;
+  // E-273 (02.10.2026): War es das Startgespräch eines Individualangebots, erfährt es Justin (dringende Aufgabe) und
+  // das Angebot (Verlauf) — der neue Termin wird persönlich vereinbart. Darf nichts hier aufhalten.
+  await import("./fiaon-global-angebot-startgespraech")
+    .then((m) => m.startgespraechAbgesagt({ terminId: ein.terminId, beginn: ein.beginn, wer: ein.wer }))
+    .catch((e) => console.error(`[GLOBAL-TERMIN] Absage des Startgesprächs (Termin ${ein.terminId}) nicht am Angebot vermerkt:`, e));
   const { globalLeadFortschreiben } = await import("../routes/fiaon-firmen");
   await globalLeadFortschreiben({
     personId: ein.personId,
@@ -728,7 +735,7 @@ export async function globalKalenderZuToken(stornoToken: string, sprache: "de" |
   const [t] = (await sqlPool`
     SELECT t.id, t.beginn, COALESCE(t.dauer_min, ${GLOBAL_DAUER_MIN}) AS dauer_min, t.status, t.created_at,
            GREATEST(t.created_at, t.updated_at, COALESCE(t.kal_geaendert_am, t.created_at)) AS stand,
-           COALESCE(t.kal_sequenz, 0) AS kal_sequenz,
+           COALESCE(t.kal_sequenz, 0) AS kal_sequenz, t.herkunft,
            ag.name AS agent_name, p.primary_phone AS telefon
     FROM fiaon_termine t
     LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
@@ -749,6 +756,10 @@ export async function globalKalenderZuToken(stornoToken: string, sprache: "de" |
       erstelltAm: t.stand ? new Date(t.stand) : t.created_at ? new Date(t.created_at) : undefined,
       sequenz: Number(t.kal_sequenz) || 0,
       sprache, abgesagt,
+      // E-273: Das Startgespräch eines Individualangebots heißt im Kalender „Startgespräch" (Titel und Absagesatz).
+      start: String(t.herkunft ?? "") === "individualangebot"
+        ? await import("@shared/fiaon-global-startgespraech").then((m) => ({ titel: m.STARTGESPRAECH_TEXTE.kalenderTitel, abgesagtText: m.STARTGESPRAECH_TEXTE.kalenderAbgesagt }))
+        : null,
     }),
   };
 }

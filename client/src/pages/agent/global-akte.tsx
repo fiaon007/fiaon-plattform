@@ -447,6 +447,16 @@ function AngebotAbschnitt({ akte }: Werk) {
       <ul className="gl-leise">
         {a.teile.map((t) => <li key={t.nr}><b>{t.titel}</b> · {eur(t.betragCents)} · {t.stand}{t.rechnungsnummer ? ` · ${t.rechnungsnummer}` : ""}</li>)}
       </ul>
+      {/* E-273 (02.10.2026): Das Startgespräch bucht das System nach der Annahme — hier steht, wann und mit wem. */}
+      {a.startgespraech && (
+        <p className="gl-leise" data-fiaon="office-startgespraech">
+          Startgespräch: {a.startgespraech.zeile ? <><b>{a.startgespraech.zeile}</b> — steht im Kalender; der Kunde hat Tag und Uhrzeit.</>
+            : a.startgespraech.stand === "gefuehrt" ? "geführt."
+            : a.startgespraech.stand === "abgesagt" ? "abgesagt — Justin vereinbart einen neuen Termin."
+            : a.startgespraech.stand === "folgt" ? "wird gerade eingetragen."
+            : "nicht gebucht — Justin bucht es von Hand."}
+        </p>
+      )}
       <p className="gl-leise">
         {/* E-271 (Kreditgarantie): FIAON garantiert Kreditrahmen + Karten bis zum Fristende, sonst alles Gezahlte zurück. */}
         {a.garantieErfuelltAm ? `Garantie erfüllt am ${tagText(a.garantieErfuelltAm)} — Kreditrahmen und Karten liegen vor.`

@@ -25,6 +25,13 @@
 //   → Browser-Durchlauf mit Fotos (1280 px und 380 px, Chef-Reiter, „Mein Auftrag",
 //   Bestätigung). Der Browser nimmt NIE an (Roboter-Wand, AGENTS.md).
 //
+// ── STARTGESPRÄCH (E-273, 02.10.2026) ─────────────────────────────────────
+//   Ohne DB (10.): Zeitpunkt-Regel mit festem „jetzt" — sofort, Starttag, ohne Wahl (Widerrufsfrist),
+//   Wochenende, Tagesdeckel, echte Dauer, kein Platz; die Bestätigung mit und ohne Termin (Platzhalter,
+//   Kalender, Verschieben, Wortwand), die Startmail (Vorgabe = alter Wortlaut), die Mail zum Startgespräch,
+//   Kalenderdatei „Startgespräch", Herkunft „individualangebot", Hinweis unter dem Knopf außerhalb des Vertrags,
+//   Prüfsumme unverändert. Der Ablauf gegen eine Datenbank steht in scripts/pruef-angebot-startgespraech.ts.
+//
 // ── ANGEBOT-AUFRUFE (01.10.2026) ──────────────────────────────────────────
 //   Ohne DB (9.): IP kürzen, Gerät, Ort nur aus Kopfzeilen, Besuch/Meldung nach 30 Min.,
 //   Zusammenfassung, Titel und Mail, Hinweis außerhalb des Vertrags, Prüfsumme unverändert.
@@ -66,6 +73,9 @@ const { GLOBAL_ANGEBOT_VORLAGEN } = await import("../server/mail/vorlagen/global
 const { BANK } = await import("../shared/fiaon-bank");
 const { paket, PAKETE, istAngebotsPaket, verkaufbarePakete, PAKET_PREISE_EURO } = await import("../shared/fiaon-pakete");
 const { katalogpreisCents } = await import("../server/lib/fiaon-massgebliche-bestellung");
+// E-273 (02.10.2026): das Startgespräch — reine Regeln und Texte.
+const SG = await import("../server/lib/fiaon-global-angebot-startgespraech");
+const STG = await import("../shared/fiaon-global-startgespraech");
 
 let fehler = 0; let n = 0;
 const ok = (b: unknown, was: string, zusatz?: unknown) => { n++; if (!b) { fehler++; console.log(`  FEHLER  ${was}${zusatz !== undefined ? `  → ${String(typeof zusatz === "string" ? zusatz : JSON.stringify(zusatz)).slice(0, 400)}` : ""}`); } };
@@ -474,7 +484,9 @@ titel("7. Token, Parameter, Katalog");
   ok(S.angebotRechnungsText({ angebotRef: "FIAON-IA-X", nr: 1, auftragRef: "R1" }).beschreibung.includes("Teil 1 von 2") && S.angebotRechnungsText({ angebotRef: "FIAON-IA-X", nr: 2, auftragRef: "R1", meilensteinArt: "karte", meilensteinAm: "2026-11-02" }).beschreibung.includes("Teil 2 von 2"), "Rechnungstext je Teil");
 }
 
-titel("8. Die sechs Mails");
+// E-273: Abschnitt 10 rendert dieselbe Nutzlast mit und ohne Startgespräch.
+let nutzlast8: Record<string, string> = {};
+titel("8. Die sieben Mails");
 {
   const nutzlast: Record<string, string> = {
     email: "w@example.de", sprache: "de", anrede_zeile: "Guten Tag Herr Hildbrand", firma: "William Hildbrand", paket: "FIAON Global – Individualangebot, Teil 1: Gründung",
@@ -489,6 +501,9 @@ titel("8. Die sechs Mails");
     kreditrahmen_text: "800.000 US-Dollar", karten_text: "drei Business-Kreditkarten", garantie_text: S.angebotGarantie(D.parameter).mail,
     erstattung_betrag_text: "11.500,00 €", teil2_satz_text: "Auch Ihre Zahlung für Teil 2 über 6.850,00 € erstatten wir.",
     teil2_folge_text: "Wir begleiten Ihre Gesellschaft weiter, bis der Kreditrahmen von 800.000 US-Dollar und drei Business-Kreditkarten vollständig da sind (Ziffer 3 Absatz 1). Erreicht sie das bis zum 25.12.2026 nicht, erhalten Sie auch diese Zahlung zurück (Ziffer 6).",
+    // E-273: das Startgespräch — dieselben Felder wie startgespraechMailFelder (Abschnitt 10 rechnet sie nach).
+    ...SG.startgespraechMailFelder(SG.startgespraechDarstellung({ terminId: 4711, beginn: "2026-10-05T08:00:00.000Z", dauerMin: 30, mit: "Justin Schwarzott", telefon: "+49 171 2345678", stornoToken: "a".repeat(48), quelle: "global" })),
+    startgespraech_start_html: STG.STARTGESPRAECH_TEXTE.mailStartOhne,
   };
   {
     const z = A.angebotMailZusatz({ frist_ende: "2026-12-25", frist_beginn: "2026-10-02" }, D as any);
@@ -497,7 +512,8 @@ titel("8. Die sechs Mails");
     ok(ze.teil2_folge_text === S.ANGEBOT_GARANTIE_FEST.mailErfuellt, "nach erfüllter Garantie: Teil-2-Mails ohne Erstattungs-Satz (logik-5)", ze.teil2_folge_text);
     for (const ev of ["global_angebot_teil2", "global_angebot_teil2_bezahlt"]) ok(mailRendern(ev, { ...nutzlast, teil2_folge_text: ze.teil2_folge_text })!.text.includes(S.ANGEBOT_GARANTIE_FEST.mailErfuellt), `${ev}: nach erfüllter Garantie der Erfüllt-Satz`);
   }
-  ok(Object.keys(GLOBAL_ANGEBOT_VORLAGEN).length === 6 && "global_angebot_hemmung" in GLOBAL_ANGEBOT_VORLAGEN, "sechs Vorlagen — mit der Mitteilung der Ruhezeit (Textform, Ziffer 6)");
+  // E-273 (02.10.2026): sieben — dazu die Mail zum Startgespräch (wenn das System es nach der Bestätigung gebucht hat).
+  ok(Object.keys(GLOBAL_ANGEBOT_VORLAGEN).length === 7 && "global_angebot_hemmung" in GLOBAL_ANGEBOT_VORLAGEN && "global_angebot_startgespraech" in GLOBAL_ANGEBOT_VORLAGEN, "sieben Vorlagen — mit der Mitteilung der Ruhezeit (Textform, Ziffer 6) und der Mail zum Startgespräch (E-273)");
   for (const ev of Object.keys(GLOBAL_ANGEBOT_VORLAGEN)) {
     const m = mailRendern(ev, nutzlast);
     ok(m && m.fehlend.length === 0, `${ev}: kein Platzhalter ohne Wert`, m?.fehlend);
@@ -526,6 +542,7 @@ titel("8. Die sechs Mails");
   const { globalUnterlagenListe, globalEtappeText } = await import("../shared/fiaon-global-bereich");
   ok(globalUnterlagenListe(true, true).length === 1 && globalUnterlagenListe(true, true)[0].art === "reisepass" && globalUnterlagenListe(true).length === 4, "Unterlagenliste: Individualangebot nur Reisepass, Privatauftrag wie bisher");
   ok(/laden hier nur Ihren Reisepass hoch/.test(globalEtappeText(1, "de", true).text) && /laden Sie auf dieser Seite hoch/.test(globalEtappeText(1, "de").text), "Etappe 1 beim Individualangebot: nur der Reisepass");
+  nutzlast8 = nutzlast;
 }
 
 titel("9. Angebot-Aufrufe — reine Regeln (01.10.2026)");
@@ -605,6 +622,116 @@ titel("9. Angebot-Aufrufe — reine Regeln (01.10.2026)");
   // Prüfsumme des Prüf-Angebots, gemessen mit dem Stand vor dem Nachtrag (Commit b9a79d2d) — der Nachtrag ändert sie nicht.
   // Ändert jemand später bewusst den Vertragstext, ist dieser Wert mit zu ändern.
   ok(V.angebotTextHash(D, AUS) === PRUEFSUMME_D_VORHER, "Prüfsumme (text_hash) unverändert", V.angebotTextHash(D, AUS));
+}
+
+titel("10. Startgespräch — das System bucht nach der Annahme (E-273, 02.10.2026)");
+{
+  const { berlinUhrzeit, HERKUENFTE, herkunftPruefen } = await import("../server/lib/fiaon-termine");
+  const { globalKalenderDatei } = await import("../server/lib/fiaon-global-zeiten");
+  const { globalWiderrufsfrist } = await import("../server/lib/fiaon-global-vertrag");
+  const T = STG.STARTGESPRAECH_TEXTE;
+  const nutzlast = nutzlast8;
+  // Justins Zeiten wie in der Produktion (fiaon_agent_verfuegbarkeit, Konto 928, gelesen 02.10.2026): Mo–Do 09–13 und 14–18, Fr 09–20.
+  const JUSTIN = [1, 2, 3, 4].flatMap((w) => [{ wochentag: w, von: "09:00", bis: "13:00", aktiv: true }, { wochentag: w, von: "14:00", bis: "18:00", aktiv: true }])
+    .concat([{ wochentag: 5, von: "09:00", bis: "20:00", aktiv: true }, { wochentag: 6, von: "10:00", bis: "18:00", aktiv: true }]);
+  const erster = (jetzt: Date, schalter: any, belegt: any[] = [], proTag = 4, fenster: any[] = JUSTIN, angenommenAm = jetzt) => {
+    const fr = SG.startgespraechFruehestens({ jetzt, angenommenAm, schalter });
+    const erg = SG.startgespraechZeitenRechnen({ ab: fr.ab, fenster, belegt, proTag });
+    const f = erg.frei[0];
+    return { fr, frei: erg.frei, erster: f ? `${f.tag} ${berlinUhrzeit(f.beginn)}` : null };
+  };
+  // sofort: Donnerstag 01.10.2026, 10:05 Berlin → zwei Stunden Vorlauf → 12:30 (Raster ab 09:00, 12:30 + 30 Min. ≤ 13:00).
+  const doVormittag = new Date("2026-10-01T10:05:00+02:00");
+  const a = erster(doVormittag, { sofortBeginn: true, jahresbetreuung: false });
+  ok(a.fr.art === "sofort" && a.erster === "2026-10-01 12:30", "„Sofort starten“: ab jetzt + zwei Stunden Vorlauf, im 30-Minuten-Raster", a.erster);
+  // Mittagspause: 11:20 → ab 13:20 → nicht im ersten Fenster (13:00 zu), erst 14:00.
+  ok(erster(new Date("2026-10-01T11:20:00+02:00"), { sofortBeginn: true, jahresbetreuung: false }).erster === "2026-10-01 14:00", "Pause zwischen zwei Fenstern: nächster Platz 14:00");
+  // Starttag: „Starten ab 08.10.2026“ (vor dem Ende der Widerrufsfrist → sofortBeginn true, so setzt es schalterAus) → 08.10. 09:00.
+  const sAb = A.schalterAus({ beginn: "datum", startAm: "2026-10-08" }, doVormittag);
+  const b = erster(doVormittag, sAb);
+  ok(sAb.sofortBeginn === true && b.fr.art === "starttag" && b.erster === "2026-10-08 09:00", "„Starten ab“: ab dem gewählten Tag, erster Platz des Tages", { sAb, b: b.erster });
+  // Starttag NACH der Widerrufsfrist (ohne Erklärung) → genau dieser Tag.
+  const sSpaet = A.schalterAus({ beginn: "datum", startAm: "2026-10-27" }, doVormittag);
+  ok(sSpaet.sofortBeginn === false && erster(doVormittag, sSpaet).erster === "2026-10-27 09:00", "„Starten ab“ nach der Widerrufsfrist: ab diesem Tag (vierzehn Tage Suchfenster ab dort)");
+  // Ohne Wahl (ältere Seite): ab dem Start nach der Widerrufsfrist.
+  const wf = globalWiderrufsfrist(doVormittag);
+  const c = erster(doVormittag, { sofortBeginn: false, jahresbetreuung: false });
+  // 01.10. + vierzehn Tage = 15.10. (Do), Puffer drei Tage → Start 18.10. (So) → erster Platz Montag 19.10. 09:00.
+  ok(c.fr.art === "widerruf" && c.fr.tag === wf.startAb && wf.startAb === "2026-10-18" && c.erster === "2026-10-19 09:00", "ohne Wahl: ab dem Start nach der Widerrufsfrist (Sonntag → Montag)", { startAb: wf.startAb, erster: c.erster });
+  // Wochenende: Freitag 19:00 → ab 21:00 → Freitag zu, Samstag (trotz Fenster) und Sonntag nie → Montag 09:00.
+  const fr19 = erster(new Date("2026-10-02T19:00:00+02:00"), { sofortBeginn: true, jahresbetreuung: false });
+  ok(fr19.erster === "2026-10-05 09:00" && !fr19.frei.some((f) => f.tag === "2026-10-03" || f.tag === "2026-10-04"), "Wochenende: nie Samstag/Sonntag (auch mit Samstagsfenster) — Montag 09:00", fr19.erster);
+  // Tagesdeckel: Montag hat vier Global-Gespräche → Dienstag; dort sperrt ein 20-Minuten-Termin um 09:10 den Platz 09:00 (echte Dauer).
+  const voll = ["09:00", "10:00", "11:00", "14:00"].map((z) => ({ beginn: new Date(`2026-10-05T${z}:00+02:00`), dauerMin: 30, zaehltAlsGlobal: true }));
+  const d = erster(new Date("2026-10-02T19:00:00+02:00"), { sofortBeginn: true, jahresbetreuung: false }, [...voll, { beginn: new Date("2026-10-06T09:10:00+02:00"), dauerMin: 20, zaehltAlsGlobal: false }]);
+  ok(d.erster === "2026-10-06 09:30" && !d.frei.some((f) => f.tag === "2026-10-05"), "Tagesdeckel (vier je Tag) und echte Dauer: Montag voll → Dienstag 09:30", d.erster);
+  ok(erster(new Date("2026-10-02T19:00:00+02:00"), { sofortBeginn: true, jahresbetreuung: false }, voll.slice(0, 2), 2).erster === "2026-10-06 09:00", "Tagesdeckel aus der Einstellung (global_termin_pro_tag = 2)");
+  // Kein Platz: keine Zeiten Mo–Fr (nur Samstag) → nichts; jeder Tag voll → nichts.
+  ok(erster(doVormittag, { sofortBeginn: true, jahresbetreuung: false }, [], 4, [{ wochentag: 6, von: "10:00", bis: "18:00", aktiv: true }]).erster === null && !SG.zeitenFuerGlobal([{ wochentag: 6, von: "10:00", bis: "18:00", aktiv: true }]), "kein Platz: nur Samstagszeiten → keine Buchung, Person zählt nicht als „mit Zeiten“");
+  const jedenTag = Array.from({ length: 21 }, (_, i) => ({ beginn: new Date(new Date("2026-10-01T09:00:00+02:00").getTime() + i * 864e5), dauerMin: 30, zaehltAlsGlobal: true }));
+  ok(erster(doVormittag, { sofortBeginn: true, jahresbetreuung: false }, jedenTag, 1).erster === null, "kein Platz: vierzehn Tage lang jeder Tag am Deckel → keine Buchung (Aufgabe an Justin)");
+  ok(SG.zeitenFuerGlobal(JUSTIN) && !SG.zeitenFuerGlobal([{ wochentag: 1, von: "09:00", bis: "09:20", aktiv: true }]) && !SG.zeitenFuerGlobal([]), "Zeiten zählen nur Mo–Fr mit Platz für dreißig Minuten");
+  // Suchfenster: vierzehn Tage ab dem frühesten Zeitpunkt, auch wenn der Starttag weit voraus liegt.
+  const weit = erster(doVormittag, A.schalterAus({ beginn: "datum", startAm: "2026-12-14" }, doVormittag));
+  ok(weit.erster === "2026-12-14 09:00" && weit.frei.every((f) => f.tag >= "2026-12-14" && f.tag <= "2026-12-28"), "Starttag in zehn Wochen: Suche ab dort, vierzehn Tage lang");
+
+  // ── Darstellung und Mails ──
+  const dar = SG.startgespraechDarstellung({ terminId: 4711, beginn: "2026-10-05T08:00:00.000Z", dauerMin: 30, mit: "Justin Schwarzott", telefon: "+49 171 2345678", stornoToken: "a".repeat(48), quelle: "global" });
+  ok(dar.zeile === "Montag, 05.10.2026, 10:00 Uhr mit Justin Schwarzott" && dar.dauerWort === "dreißig", "Zeile: Wochentag, Datum, Uhrzeit (Berlin), mit wem", dar.zeile);
+  ok(/\/termin\/absagen\/a{48}\?anrede=sie&bereich=business$/.test(String(dar.verschiebenUrl)) && /\/api\/fiaon\/global\/termine\/kalender\/a{48}\.ics$/.test(String(dar.kalenderUrl)) && /calendar\.google\.com/.test(dar.googleUrl) && /Startgespr/.test(decodeURIComponent(dar.googleUrl)), "Verschieben (Global-Weg, Sie-Form), Kalenderdatei und Google-Eintrag „Startgespräch“");
+  const felder = SG.startgespraechMailFelder(dar);
+  const mitTermin = mailRendern("global_angebot_angenommen", nutzlast)!;
+  ok(mitTermin.fehlend.length === 0 && mitTermin.text.includes("Ihr Startgespräch ist eingetragen: Montag, 05.10.2026, 10:00 Uhr mit Justin Schwarzott") && mitTermin.text.includes("rund dreißig Minuten") && mitTermin.text.includes("unter +49 171 2345678") && mitTermin.text.includes("Bundesstaat"), "Bestätigung MIT Termin: Tag, Uhrzeit, Dauer, mit wem, wie", mitTermin.fehlend);
+  // Text-Teil: Klartext mit Adresse statt roher Tags (motor.ts htmlWerteAlsText, nur für Schlüssel auf „_html“).
+  ok(mitTermin.text.includes(`Passt die Zeit nicht? Termin verschieben oder absagen: ${dar.verschiebenUrl}.`) && !/<a |<b>|&amp;/.test(mitTermin.text), "Text-Teil: Verschieben als „Text: Adresse“, keine Tags", mitTermin.text.slice(0, 900));
+  const { htmlWerteAlsText } = await import("../server/mail/motor");
+  const ohneHtml = { a: "<b>x</b>", b_text: "y" };
+  ok(htmlWerteAlsText(ohneHtml) === ohneHtml, "Motor: ohne „_html“-Schlüssel dieselbe Nutzlast (jede andere Mail unverändert)");
+  ok(mitTermin.html.includes(`href="${felder.startgespraech_kalender_url}"`) && mitTermin.html.includes(felder.startgespraech_google_url.replace(/&/g, "&amp;").slice(0, 60)) && mitTermin.html.includes(String(dar.verschiebenUrl).replace(/&/g, "&amp;")) && mitTermin.text.includes(`In Ihren Kalender (Apple / Outlook): ${felder.startgespraech_kalender_url}`), "Bestätigung MIT Termin: Kalender (Apple/Outlook, Google) und Verschieben-Verweis");
+  const { startgespraech_html: _1, startgespraech_kalender_url: _2, startgespraech_google_url: _3, startgespraech_storno_url: _4, startgespraech_datum_text: _5, startgespraech_uhrzeit: _6, startgespraech_mit: _7, ...ohneSg } = nutzlast;
+  const ohneTermin = mailRendern("global_angebot_angenommen", ohneSg)!;
+  ok(ohneTermin.fehlend.length === 0 && !/Startgespräch|In Ihren Kalender/.test(ohneTermin.text) && !/In Ihren Kalender/.test(ohneTermin.html), "Bestätigung OHNE Termin: kein Absatz, keine Kalenderzeile, kein leerer Platzhalter — die bisherige Mail", ohneTermin.fehlend);
+  // Dieselbe Mail wie vor E-273: Ohne die zwei neuen Teile (die der Motor ohne Termin weglässt) ergibt das Gerüst Byte
+  // für Byte das HTML der Vorlage aus Commit 6d4e1727 (gemessen 02.10.2026 mit der Vorlage von damals).
+  const { mailHtml } = await import("../server/mail/geruest");
+  const { createHash } = await import("node:crypto");
+  const ANGENOMMEN_HTML_VOR_E273 = "586d33b0740c8036d3edd18a9cce72579bf808efe591793cd1a74d9e94959475";
+  const ohneNeu = { ...GLOBAL_ANGEBOT_VORLAGEN.global_angebot_angenommen, absaetze: GLOBAL_ANGEBOT_VORLAGEN.global_angebot_angenommen.absaetze.filter((x) => x !== "{{params.startgespraech_html}}"), kalender: undefined };
+  ok(createHash("sha256").update(mailHtml(ohneNeu)).digest("hex") === ANGENOMMEN_HTML_VOR_E273, "Bestätigung ohne Termin: Gerüst Byte für Byte wie vor E-273 (Commit 6d4e1727)");
+  // Startmail: Vorgabe = Wortlaut bis E-273; mit Termin Tag und Uhrzeit; danach nur der Name.
+  ok(A.angebotMailZusatz({}, D as any).startgespraech_start_html === T.mailStartOhne, "Startmail: Vorgabe vom Server = alter Satz");
+  const startAlt = mailRendern("global_angebot_start", nutzlast)!.text;
+  ok(startAlt.includes("Ihr Ansprechpartner ist Daniel Stripling und meldet sich bei Ihnen, um das Startgespräch zu vereinbaren. Vor dem ersten Antrag prüfen wir Ihren Reisepass."), "Startmail ohne Termin: Wortlaut wie vor E-273");
+  const stand = (stand2: any, termin: any = dar) => ({ stand: stand2, termin } as any);
+  const startNeu = mailRendern("global_angebot_start", { ...nutzlast, startgespraech_start_html: SG.startgespraechStartSatz(stand("gebucht")) })!;
+  ok(startNeu.fehlend.length === 0 && startNeu.text.includes("Ihr Ansprechpartner ist Daniel Stripling. Ihr Startgespräch mit Justin Schwarzott ist am Montag, 05.10.2026, um 10:00 Uhr eingetragen. Vor dem ersten Antrag"), "Startmail mit gebuchtem Termin: Tag und Uhrzeit statt „meldet sich …“", startNeu.text.slice(0, 600));
+  ok(SG.startgespraechStartSatz(stand("gefuehrt")) === "." && SG.startgespraechStartSatz(stand("abgesagt", null)) === T.mailStartOhne && SG.startgespraechStartSatz(stand("folgt", null)) === T.mailStartOhne, "Startmail: nach dem Gespräch nur der Name; abgesagt/ohne Termin der alte Satz");
+  const eigene = mailRendern("global_angebot_startgespraech", nutzlast)!;
+  ok(eigene.fehlend.length === 0 && eigene.betreff === "Ihr Startgespräch: Montag, 05.10.2026, 10:00 Uhr" && eigene.text.includes(`In den Kalender eintragen: ${felder.startgespraech_kalender_url}`) && eigene.text.includes(`Termin verschieben oder absagen: ${dar.verschiebenUrl}`), "Mail zum Startgespräch (gebucht nach der Bestätigung): Betreff, Kalender, Verschieben", eigene.fehlend);
+  // Wortwand: jeder Kundensatz zum Startgespräch — „ruft Sie an“ ist gedeckt (Termin im Kalender + Aufgabe an die Person).
+  const saetze = [T.titel, dar.zeile, dar.wie, T.gefuehrt("05.10.2026"), T.abgesagt, T.persoenlich, T.folgt, T.hinweisAnnahme, felder.startgespraech_html, T.mailStartMit("Justin Schwarzott", dar.tagText, dar.uhrzeit), T.kalenderTitel, T.kalenderAbgesagt, eigene.text, mitTermin.text];
+  for (const x of saetze) {
+    const w = wandPruefen(ohneGarantie(x.replace(/<[^>]+>/g, "")), ["aufgabe_an_betreuer", "rechnung_anhaengen"]);
+    ok(w.length === 0, `Wortwand: „${x.replace(/<[^>]+>/g, "").slice(0, 50)}…“`, w.map((y) => y.treffer));
+    for (const r of GLOBAL_SCHAERFER) ok(!r.muster.test(x), `Global-Regel (${r.grund.slice(0, 30)}): „${x.slice(0, 30)}…“`);
+    ok(!/\b\d+\s*(Wochen|Tagen|Minuten)\b/.test(x.replace(/<[^>]+>/g, "")), `keine Dauer/Frist mit Ziffer: „${x.slice(0, 30)}…“`);
+  }
+  // Kalenderdatei: „Startgespräch“ mit herkunft individualangebot — ohne Angabe Byte für Byte die bisherige Datei.
+  const basis = { terminId: 4711, beginn: "2026-10-05T08:00:00.000Z", ansprechpartner: "Justin Schwarzott", telefon: "+49 171 2345678", stornoLink: "https://fiaon.com/termin/absagen/x", erstelltAm: new Date("2026-10-02T08:00:00Z"), sequenz: 0 };
+  const icsStart = globalKalenderDatei({ ...basis, start: { titel: T.kalenderTitel, abgesagtText: T.kalenderAbgesagt } });
+  const icsErst = globalKalenderDatei(basis);
+  ok(/SUMMARY:FIAON Global – Startgespräch/.test(icsStart) && /SUMMARY:FIAON Global – Erstgespräch/.test(icsErst) && globalKalenderDatei({ ...basis, start: null }) === icsErst, "Kalenderdatei: „Startgespräch“ für das Individualangebot, sonst unverändert „Erstgespräch“");
+  ok(/Startgespräch wurde abgesagt/.test(globalKalenderDatei({ ...basis, abgesagt: true, start: { titel: T.kalenderTitel, abgesagtText: T.kalenderAbgesagt } }).replace(/\r?\n /g, "")), "Kalenderdatei nach der Absage: Absagesatz des Startgesprächs (METHOD:CANCEL)");
+  // Herkunft: eigener Wert mit Beschriftung — kein „unbekannt“ in Termin-Zentrale und Kalender-Abo.
+  ok(herkunftPruefen("individualangebot") === "individualangebot" && /Individualangebot/.test(HERKUENFTE.individualangebot), "Herkunft „individualangebot“ mit Klartext (HERKUENFTE)");
+  // Prüfsumme: Der Hinweis unter dem Knopf und alle Sätze zum Startgespräch stehen NICHT im Vertragstext.
+  for (const sch of ALLE_SCHALTER) ok(!V.angebotText(D, sch).includes("Startgespräch automatisch") && !V.angebotVorschauHtml(D, sch).includes(T.hinweisAnnahme), `Hinweis „bucht das System“ steht nicht im Vertrag (Schalter ${JSON.stringify(sch)})`);
+  // Gegenprüfung recht-zeitpunkt (02.10.2026): Der Satz unter dem zahlungspflichtigen Knopf sagt nicht mehr zu, als
+  // passiert — ohne freien Platz bucht das System NICHT (kein_platz/keine_person), die Seite sagt dann „persönlich“.
+  ok(/ist kein Termin frei, vereinbaren wir ihn persönlich mit Ihnen\.$/.test(T.hinweisAnnahme) && !/gleich danach/.test(T.hinweisAnnahme), "Hinweis unter dem Knopf nennt den Fall ohne freien Termin (keine unbedingte Zusage)", T.hinweisAnnahme);
+  const vertragQuelle = fs.readFileSync(path.join(process.cwd(), "server/lib/fiaon-global-angebot-vertrag.ts"), "utf8");
+  ok(!vertragQuelle.includes("fiaon-global-startgespraech") && !vertragQuelle.includes("startgespraech"), "der Vertrags-Renderer liest keine Startgespräch-Texte (nichts davon in text_hash)");
+  ok(V.angebotTextHash(D, AUS) === PRUEFSUMME_D_VORHER, "Prüfsumme (text_hash) nach E-273 unverändert", V.angebotTextHash(D, AUS));
 }
 
 console.log(`\nTeil 1: ${n - fehler} von ${n} Prüfungen grün.`);

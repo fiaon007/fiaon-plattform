@@ -132,7 +132,30 @@ export async function globalAuftragStornieren(
              storno_erstattung = ${erstattung}, updated_at = NOW()
        WHERE ref = ${ref}`;
   }
-  await globalVerlauf(ref, `FIAON Global: Auftrag storniert von ${wer}. Grund: ${grund}.${bezahlt ? (erstattung ? ` Erstattung über ${globalEur(betragCents)} ist bei Justin beauftragt — überwiesen wird von Hand.` : " Keine Erstattung — die Zahlung bleibt gebucht.") : " Es war keine Zahlung gebucht."}${provisionSatz}`);
+  // ── 3b. Das automatisch gebuchte Startgespräch (E-273, 02.10.2026) ─────────
+  // Die Annahme eines Individualangebots bucht das Startgespräch selbst. Nach dem Storno gibt
+  // es nichts mehr zu starten: Der Termin wird STILL abgesagt — ohne Absage-Mail mit
+  // „neu buchen“ (terminAbsagen schickte sie) und ohne die Erinnerung 24 h vorher, die sonst
+  // für jeden gebuchten Termin rausgeht. Nur ein künftiger, noch gebuchter Termin; verbunden über
+  // die Auftragsnummer (Teil 1 = auftrag_ref des Angebots) — die Akte liest angebot_id nicht mit.
+  let terminSatz = "";
+  if (String(akte?.quelle) === "individualangebot") {
+    const abgesagt = (await sqlPool`
+      UPDATE fiaon_termine t
+         SET status = 'abgesagt', abgesagt_am = NOW(), abgesagt_von = ${wer}, updated_at = NOW()
+        FROM fiaon_global_angebote g
+       WHERE g.auftrag_ref = ${ref} AND t.id = g.startgespraech_termin_id
+         AND t.status = 'gebucht' AND t.beginn > NOW()
+      RETURNING t.beginn`.catch((e) => {
+        console.error(`[FIAON-GLOBAL] ${ref}: Startgespräch nicht abgesagt:`, e);
+        return [];
+      })) as any[];
+    if (abgesagt.length) {
+      const { berlinDatumText, berlinUhrzeit } = await import("./fiaon-termine");
+      terminSatz = ` Das Startgespräch am ${berlinDatumText(abgesagt[0].beginn)} um ${berlinUhrzeit(abgesagt[0].beginn)} Uhr ist abgesagt (ohne Mail an den Kunden).`;
+    }
+  }
+  await globalVerlauf(ref, `FIAON Global: Auftrag storniert von ${wer}. Grund: ${grund}.${bezahlt ? (erstattung ? ` Erstattung über ${globalEur(betragCents)} ist bei Justin beauftragt — überwiesen wird von Hand.` : " Keine Erstattung — die Zahlung bleibt gebucht.") : " Es war keine Zahlung gebucht."}${provisionSatz}${terminSatz}`);
 
   // ── 4. Die zuständige Person erfährt es als Aufgabe ────────────────────────
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
@@ -147,7 +170,8 @@ export async function globalAuftragStornieren(
         ? (erstattung ? "Die Erstattung veranlasst Justin von Hand — bitte dem Kunden KEINEN Termin dafür nennen." : "Es wird nichts erstattet; die Zahlung bleibt gebucht.")
         : "Es war keine Zahlung gebucht; Erinnerungen gehen keine mehr raus.",
       "Bitte offene Schritte zu diesem Auftrag ruhen lassen und die übrigen Aufgaben dazu schließen. Hat der Kunde den Storno noch nicht von dir gehört: bitte kurz anrufen.",
-    ].join("\n"),
+      terminSatz.trim(),
+    ].filter(Boolean).join("\n"),
     schluessel: `global:${ref}:storno`, bereich: "konten", quelle: "global", autorName: wer, agentId: zustaendig,
     anlageText: "Auftrag in /chef/s/global-auftraege storniert.",
   }).catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Aufgabe zum Storno nicht angelegt:`, e));

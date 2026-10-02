@@ -55,6 +55,7 @@ import { menschSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mai
 import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE, kartenZiel, kartenzielText, BANK_SATZ, nennAus, type KartenZiel } from "@shared/fiaon-mara-ton";
 import type { MitarbeiterEintrag } from "@shared/fiaon-mitarbeiter-name";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
+import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "./fiaon-global-kunde";
 
 export const DIENST = "mara-aktion";
 export const PAKETE_PRIVAT = ["start", "pro", "highend", "ultra"];
@@ -157,6 +158,7 @@ export interface Kandidat {
 export async function kandidatenLaden(grenze: number, stufen: string[]): Promise<Kandidat[]> {
   await aktionTabellen();
   if (!stufen.length || grenze <= 0) return [];
+  await globalKundeBereit(); // E-272: die Schlange liest fiaon_global_angebote
   const status = stufen.map((s) => (s === "A" ? "claimed_paid" : "pending_payment"));
   // ── EINMAL JE MENGE STATT JE ZEILE (21.09.2026) ─────────────────────────
   // Die erste Fassung prüfte jede Regel als Unterabfrage je Kandidat — gegen
@@ -240,6 +242,13 @@ export async function kandidatenLaden(grenze: number, stufen: string[]): Promise
             AND g.gekuendigt_am IS NOT NULL AND g.kuendigung_zurueckgenommen_am IS NULL
             AND g.gekuendigt_am >= app.created_at)
        AND app.person_id NOT IN (SELECT person_id FROM bezahlt)
+       -- E-272 (02.10.2026): kein GLOBAL-KUNDE. Wer ein Individualangebot oder einen Auftrag über
+       -- FIAON Global hat und kein bezahltes Stufenpaket, bekommt keine Zahlungsmail zu einem
+       -- alten Privatantrag (Fall Hildbrand, Person 13411). Justin: „nehme ihn bitte komplett aus
+       -- den Workflows … Er soll Global bleiben, also keine unnötigen Mails“. Je Zeile der Schlange
+       -- statt als Menge: Der Ausdruck läuft über den Personen-Index der Bestellungen, die Angebote
+       -- liest Postgres einmal (Regel und Gründe: fiaon-global-kunde.ts).
+       AND NOT ${sqlPool.unsafe(globalKundeSql("app.person_id"))}
        AND app.person_id NOT IN (SELECT person_id FROM ausgenommen)
        AND app.person_id NOT IN (SELECT person_id FROM storniert)
        AND app.person_id NOT IN (SELECT person_id FROM stopp)
@@ -609,7 +618,14 @@ export async function maraAktionLauf(): Promise<{ gesendet: number; abgelehnt: n
       // die Schlange (mit Zeitpunkt: wer danach neu beantragt, bleibt drin).
       // E-253 (28.09.2026): der MENSCH (menschSperre) — Werbesperre auch an einer Dublette, Vertriebssperre nur am Kopf.
       const ps = await menschSperre(k.personId).catch(() => null);
-      const sperre = (ps ? werbungVerboten({ ...ps, gekuendigt: false, vertragVorbei: false }) : null)
+      // E-272 (02.10.2026): und ein drittes Mal — ist er inzwischen GLOBAL-KUNDE? Ein Individualangebot
+      // kann zwischen Schlange und Versand angelegt worden sein. Im Zweifel (Prüfung gescheitert) nicht senden.
+      const global = await istGlobalKunde(k.personId).then(
+        (ja) => (ja ? "Kunde von FIAON Global (E-272) — keine Mail der Privatlinie" : null),
+        () => "Global-Prüfung gescheitert — lieber nicht senden (E-272)",
+      );
+      const sperre = global
+        ?? (ps ? werbungVerboten({ ...ps, gekuendigt: false, vertragVorbei: false }) : null)
         ?? ((await werbesperreAnAdresse(k.email).catch(() => false)) ? "Werbesperre an dieser Adresse" : null);
       if (sperre) {
         abgelehnt++;

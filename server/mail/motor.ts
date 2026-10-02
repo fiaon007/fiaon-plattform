@@ -183,6 +183,26 @@ const BANK_FALLBACK: Record<string, string> = {
   bic: BANK.bic,
 };
 
+/**
+ * E-273 (02.10.2026): Werte mit HTML — Schlüssel endet auf „_html", z. B. ein fertiger Absatz mit einem Verweis
+ * (startgespraech_html) — stehen im TEXT-Teil als Klartext: „Text des Verweises: Adresse", ohne Tags und Entitäten.
+ * Bis dahin landete HTML aus einem Wert roh im Text-Teil (mailText entfernt Tags nur aus der Vorlage, nicht aus Werten).
+ * Kein anderer Platzhalter trägt diese Endung: Ohne solchen Schlüssel ist es DIESELBE Nutzlast — jede andere Mail
+ * bleibt Byte für Byte, wie sie war.
+ */
+export function htmlWerteAlsText(payload: Record<string, unknown>): Record<string, unknown> {
+  const schluessel = Object.keys(payload).filter((k) => k.endsWith("_html"));
+  if (!schluessel.length) return payload;
+  const aus: Record<string, unknown> = { ...payload };
+  for (const k of schluessel) {
+    aus[k] = String(payload[k] ?? "")
+      .replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, t: string) => `${t.replace(/<[^>]+>/g, "")}: ${href.replace(/&amp;/g, "&")}`)
+      .replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")
+      .replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  }
+  return aus;
+}
+
 /** {{params.x}} durch Werte ersetzen; fehlende Schlüssel einsammeln. */
 function fuellen(text: string, payload: Record<string, unknown>, fehlend: Set<string>): string {
   return text.replace(/\{\{params\.([a-z_0-9]+)\}\}/gi, (_, k: string) => {
@@ -380,7 +400,9 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   // Der Titel wird im Text-Teil großgeschrieben — erst NACH dem Füllen. Vorher
   // wurde aus „{{params.monat_text}}" ein „{{PARAMS.MONAT_TEXT}}", das kein
   // Wert mehr traf (18.09.2026; betraf app_monatsbericht).
-  const text = fuellen(mailText(vorlage, (s) => fuellen(s, payload, fehlend)), payload, fehlend)
+  // E-273: Werte mit HTML (…_html) im Text-Teil als Klartext — ohne solche Schlüssel dieselbe Nutzlast.
+  const textNutzlast = htmlWerteAlsText(payload);
+  const text = fuellen(mailText(vorlage, (s) => fuellen(s, textNutzlast, fehlend)), textNutzlast, fehlend)
     .replace(/%%RATENLEISTE[^%]*%%/g, "");
   const betreff = fuellen(vorlage.betreff, payload, fehlend);
   return {

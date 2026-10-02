@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: FIAON GLOBAL — INDIVIDUALANGEBOT (6, deutsch)
+// VORLAGEN: FIAON GLOBAL — INDIVIDUALANGEBOT (7, deutsch — seit E-273 mit der Mail zum Startgespräch)
 // Individualangebot (01.10.2026), Register E-268
 //
 // Dieselben Regeln wie vorlagen/global.ts: gesiezt, Kopf „FIAON Global", Fuß in
@@ -18,7 +18,13 @@
 //   erstattung_tage_text, teil2_ziel_text, frist_beginn_text, frist_ende_text,
 //   buergin, ereignis_text, ereignis_am_text, erstattung_bis_text,
 //   hemmung_von_text, hemmung_bis_text, hemmung_grund_text (nur global_angebot_hemmung),
-//   kreditrahmen_text, karten_text, garantie_text, teil2_folge_text (E-271), erstattung_betrag_text, teil2_satz_text (nur global_angebot_erstattung).
+//   kreditrahmen_text, karten_text, garantie_text, teil2_folge_text (E-271), erstattung_betrag_text, teil2_satz_text (nur global_angebot_erstattung),
+//   E-273 (02.10.2026, das Startgespräch bucht das System): startgespraech_html (fertiger Absatz mit Verschieben-Verweis;
+//   …_html steht im Text-Teil als Klartext, motor.ts htmlWerteAlsText),
+//   startgespraech_datum_text, startgespraech_uhrzeit, startgespraech_mit, startgespraech_kalender_url,
+//   startgespraech_google_url, startgespraech_storno_url (fiaon-global-angebot-startgespraech.ts, startgespraechMailFelder)
+//   und startgespraech_start_html (nur global_angebot_start; Vorgabe = Wortlaut bis E-273, angebotMailZusatz).
+//   Alle Sätze dazu stehen in shared/fiaon-global-startgespraech.ts (Wortwand im Prüfstand, Abschnitt 10).
 // Der Prüfstand scripts/pruef-individualangebot.ts rendert jede Vorlage mit
 // echten Feldern und prüft Platzhalter, Knöpfe und Wortwand.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -39,6 +45,9 @@ export const GLOBAL_ANGEBOT_VORLAGEN: Record<string, MailBaustein> = {
     absaetze: [
       "{{params.anrede_zeile}}, vielen Dank für Ihr Vertrauen. Sie haben unser Angebot <b>{{params.angebot_ref}}</b> angenommen. Den Vertrag mit allen drei Anlagen — Bürgschaftszusage, Prüfbericht und Widerrufsbelehrung — und die Rechnung über Teil 1 erhalten Sie mit dieser E-Mail als PDF.",
       "Heute fällig ist nur Teil 1 „Gründung“ über <b>{{params.teil1_text}}</b>. Bankverbindung, Verwendungszweck und ein QR-Code für Ihre Banking-App stehen auf Ihrer Zahlungsseite. Teil 2 „Kapital-Begleitung“ über {{params.teil2_text}} wird erst fällig, wenn Ihre Gesellschaft eingetragen ist und das erste Kapital ausgezahlt oder die erste Business-Kreditkarte freigeschaltet ist.",
+      // E-273 (02.10.2026): das vom System gebuchte Startgespräch — Tag, Uhrzeit, Dauer, mit wem, wie, Verschieben-Verweis.
+      // Ohne Termin leer: Der Motor lässt den Absatz weg (Absatz nur aus einem Platzhalter), die Mail bleibt die bisherige.
+      "{{params.startgespraech_html}}",
       "Mit dem Start beginnt die Frist von {{params.frist_wochen_text}} Wochen. Das genaue Fristende teilen wir Ihnen mit der Bestätigung Ihrer Zahlung mit.",
       "{{params.garantie_text}}",
       "Die Bürgschaftszusage der {{params.buergin}} erhalten Sie zusätzlich im Original per Post.",
@@ -53,7 +62,33 @@ export const GLOBAL_ANGEBOT_VORLAGEN: Record<string, MailBaustein> = {
     ],
     knopf: { text: "Zur Zahlungsseite", url: "{{params.zahlungsseite_url}}" },
     knopf2: { text: "Mein Auftrag öffnen", url: "{{params.mein_auftrag_url}}" },
+    // E-273: „In Ihren Kalender: Apple / Outlook · Google Kalender" für das Startgespräch — ohne Termin entfällt die Zeile.
+    kalender: { ics: "{{params.startgespraech_kalender_url}}", google: "{{params.startgespraech_google_url}}" },
     fussnote: "Sie haben als Verbraucher ein Widerrufsrecht von vierzehn Tagen — Belehrung und Formular stehen in Anlage 3 Ihres Vertrags.",
+  },
+
+  // E-273 (02.10.2026): Hat das System das Startgespräch erst NACH der Bestätigungsmail gebucht (Stundenlauf, „Nachholen"),
+  // bekommt der Kunde Tag und Uhrzeit in dieser eigenen Mail — höchstens einmal (startgespraech_mail_am). Aufbau wie die
+  // Bestätigung des Erstgesprächs (global_termin): Datenkasten, Kalender, Verschieben.
+  global_angebot_startgespraech: {
+    ...RAHMEN,
+    betreff: "Ihr Startgespräch: {{params.startgespraech_datum_text}}, {{params.startgespraech_uhrzeit}} Uhr",
+    preheader: "Ihr Startgespräch zu Auftrag {{params.angebot_ref}} ist eingetragen — Sie brauchen nichts vorzubereiten.",
+    titel: "Ihr Startgespräch steht",
+    absaetze: [
+      "{{params.anrede_zeile}}, das Startgespräch zu Ihrem Auftrag aus dem Angebot <b>{{params.angebot_ref}}</b> ist jetzt eingetragen — hier alles auf einen Blick.",
+      "{{params.startgespraech_html}}",
+    ],
+    daten: [
+      { label: "Gespräch", wert: "Startgespräch, FIAON Global" },
+      { label: "Datum", wert: "{{params.startgespraech_datum_text}}" },
+      { label: "Uhrzeit", wert: "{{params.startgespraech_uhrzeit}} Uhr" },
+      { label: "Ihr Gesprächspartner", wert: "{{params.startgespraech_mit}}" },
+    ],
+    knopf: { text: "In den Kalender eintragen", url: "{{params.startgespraech_kalender_url}}" },
+    knopf2: { text: "Termin verschieben oder absagen", url: "{{params.startgespraech_storno_url}}" },
+    kalender: { google: "{{params.startgespraech_google_url}}" },
+    fussnote: "Passt es doch nicht? Über „Termin verschieben oder absagen“ sagen Sie ab und wählen eine neue Zeit.",
   },
 
   // Nach dem Zahlungseingang Teil 1 — erst wenn die Aufgabe „Individualangebot starten" bei einem Menschen liegt.
@@ -67,7 +102,9 @@ export const GLOBAL_ANGEBOT_VORLAGEN: Record<string, MailBaustein> = {
       "{{params.anrede_zeile}}, Ihre Zahlung für Teil 1 „Gründung“ ist eingegangen — vielen Dank. Damit beginnen wir mit der Gründung Ihrer US-Gesellschaft.",
       "Wie im Vertrag zugesagt, teilen wir Ihnen die Frist mit: Sie beginnt am <b>{{params.frist_beginn_text}}</b> und endet am <b>{{params.frist_ende_text}}</b>.",
       "{{params.garantie_text}} Die Erstattung kommt binnen {{params.erstattung_tage_text}} Tagen nach dem Fristende.",
-      "Ihr Ansprechpartner ist <b>{{params.ansprechpartner}}</b> und meldet sich bei Ihnen, um das Startgespräch zu vereinbaren. Vor dem ersten Antrag prüfen wir Ihren Reisepass.",
+      // E-273 (02.10.2026): Steht das Startgespräch schon im Kalender, nennt der Rest des Satzes Tag und Uhrzeit. Vorgabe
+      // (angebotMailZusatz) ist der Wortlaut bis E-273 — „ und meldet sich bei Ihnen, um das Startgespräch zu vereinbaren."
+      "Ihr Ansprechpartner ist <b>{{params.ansprechpartner}}</b>{{params.startgespraech_start_html}} Vor dem ersten Antrag prüfen wir Ihren Reisepass.",
       // Nachtrag (h) + Gegenprüfung 01.10.2026: keine Unterlagenliste — beim Individualangebot bereitet FIAON alles vor.
       "Sie müssen nichts vorbereiten: Wir bereiten alles fertig vor und schicken es Ihnen zur Unterschrift. Für die gesetzlich vorgeschriebene Identifizierung brauchen wir nur Ihren Reisepass — laden Sie ihn unter „Mein Auftrag“ hoch oder zeigen Sie ihn im Startgespräch.",
     ],

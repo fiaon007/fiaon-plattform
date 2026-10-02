@@ -27,6 +27,11 @@
 //     außer den zwei benannten Gruppen „Monatsrate fällig" und „Auskunft fehlt".
 //   · Eine Rechnung nur mit echtem Betrag (Katalogpreis) und echter Referenz.
 //   · Nur Vorlagen, die Meta freigegeben hat (Text- oder Bildfassung).
+//   · E-272 (02.10.2026): Global-Kunden (FIAON Global, Regel in
+//     fiaon-global-kunde.ts) bekommen von hier NICHTS — in keiner Gruppe.
+//     Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows …
+//     Er soll Global bleiben, also keine unnötigen Mails.“ Und eine Global-
+//     Bestellzeile ist nie „Rechnung offen“ oder Betrag einer Vorlage hier.
 //
 // ── DIE MONATSRATE (E-230) ─────────────────────────────────────────────────
 // fiaon_kk_rechnung verspricht die Aktivierung — bei Bestandskunden gelogen.
@@ -113,6 +118,8 @@ import { waBremse, waBremseLage, metaStandLesen, mitFaktor, wirksameQualitaet, t
 import { grundmengeIdsSql, waRangSql, tabellenBereit as verkaufTabellenBereit, WA_ANGEBOT_ABSTAND_TAGE } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
 import { OHNE_VERTRAG_SQL, WERBESPERRE_KOEPFE_SQL, STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { hostname } from "node:os";
 
 export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
@@ -249,7 +256,9 @@ export function zentraleSchema(): Promise<void> {
       throw e;
     });
   }
-  return bereit;
+  // E-272 (02.10.2026): Die BASIS liest fiaon_global_angebote (Global-Kunde) — die Tabelle muss da sein,
+  // bevor eine Gruppe gezählt oder gewählt wird. Einmal je Prozess eine Katalogabfrage (fiaon-global-kunde.ts).
+  return bereit.then(() => globalKundeBereit());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -335,6 +344,11 @@ export const BASIS = `
        -- E-230: Wer gerade mit uns schreibt, bekommt keine Vorlage mitten ins Gespräch — dort antwortet Mara.
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_whatsapp e WHERE e.person_id = p.id AND e.richtung = 'rein' AND e.created_at > NOW() - INTERVAL '24 hours')
+       -- E-272 (02.10.2026): Global-Kunden nie (Regel und Gründe: fiaon-global-kunde.ts). Justin: „nehme ihn
+       -- bitte komplett aus den Workflows … Er soll Global bleiben, also keine unnötigen Mails.“ Hier in der
+       -- BASIS, nicht je Gruppe: Gruppenzahl, Vorschau, Lauf von Hand, Automatik und Verkaufstakt sehen so
+       -- dieselbe Menge. „Gemischte“ (bezahltes Stufenpaket) erfasst die Regel nicht — ihre Monatsrate bleibt.
+       AND NOT ${globalKundeSql("p.id")}
   )`;
 
 // Für die vier Gruppen VOR der ersten Zahlung (neu, ohne Antrag, abgebrochen,
@@ -379,11 +393,17 @@ const RATE_OFFEN_FAELLIG = (r: string) => `(
   AND NOT EXISTS (SELECT 1 FROM fiaon_raten_arbeit ra WHERE ra.rate_id = ${r}.id AND ra.ergebnis = 'ueberwiesen_beleg'
                     AND ra.created_at > NOW() - INTERVAL '14 days'))`;
 
-/** Die Bestellung eines Bestandskunden, an dessen Rate erinnert werden darf. `a` ist fiaon_applications. */
+/**
+ * Die Bestellung eines Bestandskunden, an dessen Rate erinnert werden darf. `a` ist fiaon_applications.
+ * E-272 (02.10.2026): nie eine Global-Zeile — Global ist ein Einmalpreis ohne Monatsrate; eine Rate daran
+ * wäre ein Fehler, und fiaon_kk_rate an einen Global-Kunden gehört nicht in seine Welt. Gruppe und Auswahl
+ * der Rate (zeileZuKandidat) lesen beide diesen Baustein.
+ */
 const BESTAND = (a: string) => `(${a}.merged_into IS NULL AND NOT COALESCE(${a}.ist_entwurf, FALSE) AND ${a}.payment_status = 'paid'
   AND ${a}.archived_at IS NULL AND ${a}.gdpr_deleted_at IS NULL
   AND (${a}.gekuendigt_am IS NULL OR ${a}.kuendigung_zurueckgenommen_am IS NOT NULL)
-  AND ${a}.abo_gestoppt_am IS NULL AND ${a}.mahnstopp_am IS NULL)`;
+  AND ${a}.abo_gestoppt_am IS NULL AND ${a}.mahnstopp_am IS NULL
+  AND ${produktkategorieSql(a)} <> 'global')`;
 
 // „Abgeschickt" — dieselbe Regel wie der Wiedereinstieg in fiaon-antrag.ts
 // (E-210): Schritt 8 erreicht oder ein Status außerhalb der unfertigen. Die
@@ -394,6 +414,23 @@ const BESTAND = (a: string) => `(${a}.merged_into IS NULL AND NOT COALESCE(${a}.
 // E-264 (29.09.2026): die Regel steht jetzt EINMAL in shared/fiaon-antrag-stand.ts (dazu submitted_at) —
 // Mara (stufeAusAntrag) las bis heute pending_payment als „abgeschickt", diese Datei nie.
 const abgeschickt = (t: string) => abgeschicktSql(t);
+
+/**
+ * E-272 (02.10.2026): Die offene ERSTE Rechnung der Gruppe „zahlung_offen“ — EIN Baustein für die
+ * Gruppe UND für Betrag und Referenz der Vorlage (zeileZuKandidat), wie RATE_ERINNERBAR. Bis heute
+ * standen die Bedingungen zweimal da. `a` ist fiaon_applications. Neu darin:
+ *   · nie eine Global-Zeile — fiaon_kk_rechnung spricht von Konto und Kreditkarte, Betrag und
+ *     Referenz wären die des Global-Auftrags (Justin: „Er soll Global bleiben“);
+ *   · nie eine archivierte — „offen“ hieß schon laut Kommentar oben „weder … storniert noch
+ *     archiviert“, gefiltert wurde es nie. Archivieren verspricht „in keiner Arbeits- oder
+ *     Zahlungsliste mehr“ (fiaon-antrag-archiv.ts); die Mahnkette hält es so.
+ */
+const RECHNUNG_OFFEN = (a: string) => `(${a}.merged_into IS NULL AND NOT ${a}.ist_entwurf
+  AND ${abgeschickt(a)} AND ${a}.payment_status IN ('pending_payment', 'expired', 'pending') AND ${a}.mahnstopp_am IS NULL
+  AND ${a}.gekuendigt_am IS NULL AND ${a}.payment_reference IS NOT NULL
+  AND COALESCE(${a}.type, '') <> 'schufa' AND ${a}.ref NOT LIKE 'FIAON-SCHUFA-%'
+  AND ${a}.archived_at IS NULL
+  AND ${produktkategorieSql(a)} <> 'global')`;
 
 const OHNE_ANTRAG = `NOT EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL)`;
 
@@ -427,8 +464,11 @@ function gruppenKern(g: Gruppe, ohneAbstand = false): string {
       // Abgebrochen = eine Bestellung, die noch vor dem Abschicken steht, seit
       // mindestens 30 Minuten unberührt — und keine abgeschickte daneben.
       // (Entwürfe mit ist_entwurf haben keine Person; sie sind hier nie dabei.)
+      // E-272 (02.10.2026): nie eine archivierte Bestellung — Archivieren nimmt sie aus jeder Arbeitsliste
+      // (fiaon-antrag-archiv.ts). Fall Hildbrand: sein archivierter Privatantrag hielt ihn hier.
       return `${VOR_DER_ZAHLUNG} AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL AND NOT a.ist_entwurf
                         AND NOT ${abgeschickt("a")} AND a.payment_status NOT IN ('paid', 'claimed_paid', 'cancelled', 'superseded')
+                        AND a.archived_at IS NULL
                         AND a.gekuendigt_am IS NULL AND COALESCE(a.updated_at, a.created_at) < NOW() - INTERVAL '30 minutes')
               AND NOT EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = b.person_id AND a2.merged_into IS NULL
                         AND NOT a2.ist_entwurf AND ${abgeschickt("a2")})
@@ -437,10 +477,8 @@ function gruppenKern(g: Gruppe, ohneAbstand = false): string {
       // E-244 (26.09.2026): Auskunft-Bestellungen zählen hier nicht — die Vorlage spricht vom Paket.
       // Zwei offene Auskünfte tragen den Paketschlüssel „highend"; erkannt wird wie IST_AUSKUNFT
       // (fiaon-auskunft-verkauf.ts). An die Auskunft-Zahlung erinnert ein eigener Lauf.
-      return `${VOR_DER_ZAHLUNG} AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND a.merged_into IS NULL AND NOT a.ist_entwurf
-                        AND ${abgeschickt("a")} AND a.payment_status IN ('pending_payment', 'expired', 'pending') AND a.mahnstopp_am IS NULL
-                        AND a.gekuendigt_am IS NULL AND a.payment_reference IS NOT NULL
-                        AND COALESCE(a.type, '') <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%')
+      // E-272 (02.10.2026): die Bedingungen stehen in RECHNUNG_OFFEN — dieselben wie für Betrag und Referenz.
+      return `${VOR_DER_ZAHLUNG} AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND ${RECHNUNG_OFFEN("a")})
               AND ${abstand} AND ${deckel}`;
     case "rate_offen":
       // Höchstens zwei WhatsApp je Rate: Erinnerung, kein Dauermahnen (die Mail erinnert ohnehin, E-182).
@@ -596,14 +634,12 @@ async function zeileZuKandidat(g: Gruppe, r: any): Promise<Kandidat> {
         faelligAm = String(ra.faellig);
       }
     } else if (g === "zahlung_offen") {
-      const [a] = (await sqlPool`
-        SELECT payment_reference, pack_key, amount_due FROM fiaon_applications
-         WHERE person_id = ${r.person_id} AND merged_into IS NULL AND NOT ist_entwurf
-           AND payment_status IN ('pending_payment', 'expired', 'pending') AND payment_reference IS NOT NULL
-           AND mahnstopp_am IS NULL AND gekuendigt_am IS NULL
-           AND COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
-           AND ${sqlPool.unsafe(abgeschicktSql(""))}
-         ORDER BY created_at DESC LIMIT 1`) as any[];
+      // E-272 (02.10.2026): dieselbe Bestellung wie die Gruppe (RECHNUNG_OFFEN) — nie Betrag oder
+      // Referenz einer Global-Zeile oder einer archivierten Bestellung.
+      const [a] = (await sqlPool.unsafe(`
+        SELECT a.payment_reference, a.pack_key, a.amount_due FROM fiaon_applications a
+         WHERE a.person_id = $1 AND ${RECHNUNG_OFFEN("a")}
+         ORDER BY a.created_at DESC LIMIT 1`, [Number(r.person_id)])) as any[];
       if (a) {
         // E-181: Der Katalogpreis gilt; amount_due nur, wenn das Paket unbekannt ist.
         const cents = paketPreisCents(a.pack_key) || (a.amount_due != null ? Math.round(Number(a.amount_due) * 100) : 0);

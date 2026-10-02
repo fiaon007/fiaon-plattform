@@ -27,6 +27,8 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, logAction, logAgentEvent, getSettings, setSetting, normalizeSearchDigits, type AgentRequest } from "./fiaon-agent";
 import { logLead } from "./fiaon-leads";
+import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
+import { globalKundeSql, globalKundeBereit } from "../lib/fiaon-global-kunde";
 
 const router = Router();
 
@@ -91,6 +93,9 @@ const CONTACT_TYPES = ["result", "note", "email_sent"];
 // ── Schema (idempotent, additiv) ─────────────────────────────────────────────
 let ensured = false;
 export async function ensureKarteiTables(): Promise<void> {
+  // E-272: Die Kartei fragt die Regel Global-Kunde — fiaon_global_angebote muss da sein
+  // (einmal je Prozess, danach kostenlos; steht vor dem Merker, weil sie eigens merkt).
+  await globalKundeBereit();
   if (ensured) return;
   // Anträge bekommen dieselben Akten-Spalten, die Leads schon haben — damit die
   // Regel „eine aktive Akte" für BEIDE Kartenarten mit derselben Abfrage gilt.
@@ -335,6 +340,20 @@ const APP_PHONE_SQL = `
 /** Ziffern einer Lead-Rufnummer. */
 const LEAD_PHONE_SQL = `regexp_replace(COALESCE(l.telefon,''),'\\D','','g')`;
 
+// ── E-272 (02.10.2026): FIAON GLOBAL KOMMT NIE IN DIE KARTEI ─────────────────
+// Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er soll
+// Global bleiben, also keine unnötigen Mails.“ Die Kartei ist seit dem 03.08.
+// abgeschaltet (kartei_enabled) — schaltet sie jemand wieder an, darf sie
+// trotzdem keinen Firmenauftrag (Bestellzeile der Kategorie „global“) und keinen
+// Global-Kunden (Regel: fiaon-global-kunde.ts) als freie Karte anbieten. Sie las
+// bisher nur den Zahlungsstatus: Eine angenommene Global-Bestellung steht auf
+// pending_payment und wäre als „offener Antrag“ für jeden übernehmbar gewesen.
+// Dieselben Bedingungen gelten in der Übernahme (claimApp/claimLead), damit auch
+// eine Karten-Nummer von Hand nichts Globales öffnet.
+const OHNE_GLOBAL_APP_SQL = `AND ${produktkategorieSql("a")} <> 'global'
+        AND NOT ${globalKundeSql("a.person_id")}`;
+const OHNE_GLOBAL_LEAD_SQL = `AND NOT ${globalKundeSql("l.person_id")}`;
+
 /**
  * Ein Lead erzeugt NUR dann eine Karte, wenn es keinen Antrag derselben Person
  * gibt. Exakt dieselbe Bedingung wie in der zentralen Kundenakte — dadurch ist
@@ -453,6 +472,7 @@ function karteiCte(w: ReturnType<typeof karteiWeights>): string {
         AND a.dismissed_at IS NULL
         AND a.payment_status = ANY('{${OPEN_PAYMENT_STATUS.join(",")}}')
         ${appContactRule}
+        ${OHNE_GLOBAL_APP_SQL}
 
       UNION ALL
 
@@ -488,6 +508,7 @@ function karteiCte(w: ReturnType<typeof karteiWeights>): string {
         AND (l.requeue_at IS NULL OR l.requeue_at <= NOW())
         ${leadContactRule}
         AND ${leadHasNoAppSibling(schnell)}
+        ${OHNE_GLOBAL_LEAD_SQL}
     )`;
 }
 
@@ -1008,6 +1029,7 @@ async function claimLead(id: number, agentId: number): Promise<ClaimResult> {
         AND l.status = ANY(${OPEN_LEAD_STATUS})
         AND l.dismissed_at IS NULL
         AND l.converted_order_id IS NULL
+        ${sqlPool.unsafe(OHNE_GLOBAL_LEAD_SQL)}
       FOR UPDATE SKIP LOCKED
     )
     UPDATE fiaon_leads l SET
@@ -1037,6 +1059,7 @@ async function claimApp(ref: string, agentId: number): Promise<ClaimResult> {
         AND a.payment_status = ANY(${OPEN_PAYMENT_STATUS})
         AND a.merged_into IS NULL
         AND a.dismissed_at IS NULL
+        ${sqlPool.unsafe(OHNE_GLOBAL_APP_SQL)}
       FOR UPDATE SKIP LOCKED
     )
     UPDATE fiaon_applications a SET

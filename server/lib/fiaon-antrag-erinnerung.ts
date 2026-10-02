@@ -16,6 +16,7 @@ import { createHmac } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 
 const STUFEN_MAX = 7;
 const ERSTE_NACH_MIN = 10;
@@ -124,6 +125,7 @@ export const SCHRITT_TEXT: Record<number, string> = {
 /** Der Lauf — alle fünf Minuten. Gibt die Zahl der verschickten Mails zurück. */
 export async function antragErinnerungenLauf(): Promise<number> {
   await ensureAntragErinnerungSpalten();
+  await globalKundeBereit(); // E-272: die Auswahl liest fiaon_global_angebote
   const { sendMakeWebhook } = await import("../make-webhook");
   const kandidaten = (await sqlPool`
     SELECT a.ref, a.email, a.first_name, a.last_name, a.pack_name, a.pack_key, a.current_step, a.type,
@@ -139,6 +141,12 @@ export async function antragErinnerungenLauf(): Promise<number> {
       -- Antrag und spricht von Auskunft und Einträgen. Ein begonnener
       -- FIAON-Global-Auftrag (Unternehmen) bekommt sie nicht.
       AND NOT (${sqlPool.unsafe(produktkategorieSql("a"))} = 'global')
+      -- E-272 (02.10.2026): auch kein Privatantrag eines GLOBAL-KUNDEN (Individualangebot oder
+      -- Global-Auftrag, kein bezahltes Stufenpaket — Regel in fiaon-global-kunde.ts). Justin:
+      -- „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben, also keine
+      -- unnötigen Mails“. Ohne Person (früher Abbruch) bleibt die Zeile drin: Der Ausdruck ist
+      -- dann FALSE, nie NULL.
+      AND NOT ${sqlPool.unsafe(globalKundeSql("a.person_id"))}
       AND a.status NOT IN ('submitted', 'completed', 'payment_completed', 'documents_submitted', 'approved', 'processing')
       AND COALESCE(a.current_step, 0) BETWEEN 1 AND 7
       AND a.antrag_erinnerung_stufe < ${STUFEN_MAX}

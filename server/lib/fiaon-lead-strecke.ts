@@ -41,6 +41,8 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { anredeMail } from "../../shared/fiaon-anrede";
 // E-253 (28.09.2026): die eine Lesart der Sperren (Vertriebssperre nur am Kopf, Werbesperre in der Familie)
 import { VERTRIEBSSPERRE_SQL, WERBESPERRE_FAMILIE_SQL } from "./fiaon-mail-frequenz";
+// E-272 (02.10.2026): die eine Regel „Kunde von FIAON Global“ (fiaon-global-kunde.ts)
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import {
   MINDESTABSTAND_STUNDEN, faelligNachTagen, streckenKnopf, varianteFuer,
 } from "../../shared/fiaon-lead-strecke";
@@ -192,6 +194,7 @@ export async function faellige(
   //
   // `strecke_seit` ist der Einstieg. Fehlt er (Lead noch nicht eingereiht),
   // gilt `erstellt_am` — so wird ein alter Lead nicht künstlich jung.
+  await globalKundeBereit(); // E-272: die Auswahl liest fiaon_global_angebote
   const zeilen = (await lauf`
     SELECT le.id, le.email, le.vorname, le.nachname, le.person_id,
            (SELECT p.anrede FROM fiaon_persons p WHERE p.id = le.person_id) AS anrede,
@@ -216,6 +219,11 @@ export async function faellige(
       -- Gelöschte Person (DSGVO entfernt die Zeile) und Testeinträge raus.
       AND (le.person_id IS NULL OR EXISTS (
         SELECT 1 FROM fiaon_persons p WHERE p.id = le.person_id AND p.ist_test_am IS NULL))
+      -- E-272 (02.10.2026): Kunden von FIAON Global nie (Regel: fiaon-global-kunde.ts). Wer nur ein
+      -- Individualangebot hat, hat keine Bestellzeile — die Bedingung darüber ließ ihn durch, erst die
+      -- Mail-Tür hielt die Mail auf (lead_followup), und der Lead kam nach dem Mindestabstand wieder.
+      -- Justin: „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben.“ Ohne Person FALSCH.
+      AND NOT ${sqlPool.unsafe(globalKundeSql("le.person_id"))}
     ORDER BY le.erstellt_am DESC
     LIMIT 2000
   `) as any[];

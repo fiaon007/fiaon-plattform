@@ -64,6 +64,7 @@ import {
   globalMeinAuftragUrl, globalStartWartet, globalRechnungPdf, globalVertragPdfLesen, globalJahresbetreuungAus,
 } from "./fiaon-global-auftrag";
 import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
+import { STARTGESPRAECH_TEXTE } from "@shared/fiaon-global-startgespraech";
 import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
 import { dachNummer } from "@shared/fiaon-dach-telefon";
 
@@ -154,6 +155,20 @@ export function ensureAngebotTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS garantie_von TEXT,
           ADD COLUMN IF NOT EXISTS garantie_eingetragen_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS erstattung_cents BIGINT`;
+      // E-273 (02.10.2026, Migration 090): das Startgespräch, das das System nach der Annahme bucht. Bewusst NICHT
+      // tragend: Scheitert diese DDL (Sperre), lesen Angebot und Kundenseite weiter wie bisher — OHNE_PDF kennt die
+      // Spalten nicht, nur fiaon-global-angebot-startgespraech.ts liest sie. Die DDL-Wache holt „IF NOT EXISTS“
+      // selbst nach; bis dahin meldet die Buchung „technik: …“, und der Stundenlauf versucht es erneut.
+      await sqlPool`
+        ALTER TABLE fiaon_global_angebote
+          ADD COLUMN IF NOT EXISTS startgespraech_termin_id INTEGER,
+          ADD COLUMN IF NOT EXISTS startgespraech_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS startgespraech_agent_id INTEGER,
+          ADD COLUMN IF NOT EXISTS startgespraech_versuch_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS startgespraech_versuche INTEGER,
+          ADD COLUMN IF NOT EXISTS startgespraech_fehler TEXT,
+          ADD COLUMN IF NOT EXISTS startgespraech_mail_am TIMESTAMPTZ`
+        .catch((e) => console.error("[FIAON-ANGEBOT] Spalten des Startgesprächs (Migration 090) nicht angelegt — die DDL-Wache holt sie nach:", e));
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -582,7 +597,13 @@ async function angenommenAntwort(z: AngebotZeile): Promise<Record<string, unknow
   const kunde = json<AngebotKunde>(z.kunde, {} as AngebotKunde);
   const meinAuftrag = ref1 ? globalMeinAuftragUrl(ref1) : null;
   const t = meinAuftrag ? new URL(meinAuftrag).searchParams.get("t") : null;
+  // E-273 (02.10.2026): „Ihr Startgespräch: <Tag>, <Uhrzeit> Uhr mit <Name>" + Kalender + Verschieben — oder der ehrliche
+  // Satz, warum (noch) keiner da ist. Liest nie den Vertrag; scheitert das Lesen, fehlt nur dieser Block.
+  const startgespraech = await import("./fiaon-global-angebot-startgespraech")
+    .then(async (m) => m.startgespraechFuerKunde(await m.startgespraechStand(Number(z.id))))
+    .catch((e) => { console.error(`[FIAON-ANGEBOT] ${z.angebot_ref}: Startgespräch für die Antwort:`, e); return null; });
   return {
+    startgespraech,
     ref: String(z.angebot_ref), auftragRef: ref1, email: kunde.email, sofortBeginn: sch.sofortBeginn === true,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null,
     betragCents: Number(json<AngebotParameter>(z.parameter, ANGEBOT_VORGABEN).teil1Cents),
@@ -734,8 +755,15 @@ async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, bo
     // Klick holt nach; die Leitung sieht den Fehler im Reiter „Individualangebote".
     return { status: 202, body: { ok: true, teilweise: true, hinweis: "Ihre Annahme ist gespeichert. Die Rechnung wird gerade erstellt — Sie erhalten sie per E-Mail.", ...(await angenommenAntwort(neu)) } };
   }
+  // E-273 (02.10.2026): Das Startgespräch VOR der Antwort buchen — der Kunde sieht Tag und Uhrzeit sofort (Justins Zusage
+  // per WhatsApp: „… bucht das System automatisch den nächsten freien Termin"). Höchstens acht Sekunden: Dauert es länger,
+  // läuft die Buchung weiter, die Nacharbeit wartet auf ihre Sperre und findet den Termin, die Mail nennt ihn.
+  await Promise.race([
+    import("./fiaon-global-angebot-startgespraech").then((m) => m.angebotStartgespraechBuchen(Number(z.id), { anlass: "annahme" })),
+    new Promise((fertigNach) => setTimeout(fertigNach, 8_000)),
+  ]).catch((e) => console.error(`[FIAON-ANGEBOT] ${t.ref}: Startgespräch bei der Annahme — die Nacharbeit holt es nach:`, e));
   void angebotNacharbeit(Number(z.id)).catch((e) => console.error(`[FIAON-ANGEBOT] ${t.ref}: Nacharbeit abgebrochen — bitte im Reiter „Individualangebote" nachsehen:`, e));
-  return { status: 200, body: { ok: true, ...(await angenommenAntwort(neu)) } };
+  return { status: 200, body: { ok: true, ...(await angenommenAntwort((await angebotLesen({ id: Number(z.id) })) ?? neu)) } };
 }
 
 /** Bestellzeile anlegen — derselbe Weg wie /business/start (Loopback auf POST /api/fiaon/application). */
@@ -868,6 +896,20 @@ export async function angebotNacharbeit(id: number): Promise<void> {
   const { globalWiderrufsfrist } = await import("./fiaon-global-vertrag");
   const frist = globalWiderrufsfrist(new Date(z.angenommen_am));
   const teilText = `Teil 1 „Gründung“ ${angebotEur(d.parameter.teil1Cents)} (Rechnung ${b?.invoice_number ?? "—"}, Verwendungszweck ${b?.payment_reference ?? "—"}, sofort fällig) · Teil 2 „Kapital-Begleitung“ ${angebotEur(d.parameter.teil2Cents)} erst beim Meilenstein`;
+  // ── E-273 (02.10.2026): das Startgespräch — VOR Aufgaben und Bestätigungsmail, damit beide Tag und Uhrzeit nennen ──
+  // Wiederholbar: Hat die Annahme schon gebucht, findet es den Termin. Ist die Bestätigung schon draußen (Nachholen),
+  // geht Tag und Uhrzeit in einer eigenen Mail. Scheitert es, liegt eine dringende Aufgabe bei Justin.
+  const SG = await import("./fiaon-global-angebot-startgespraech");
+  await SG.angebotStartgespraechSicherstellen(id, { anlass: "nacharbeit" })
+    .catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Startgespräch in der Nacharbeit:`, e));
+  const sg = await SG.startgespraechStand(id).catch(() => null);
+  const sgZeile = sg?.stand === "gebucht" && sg.termin
+    ? `STARTGESPRÄCH: vom System gebucht — ${sg.termin.tagText}, ${sg.termin.uhrzeit} Uhr mit ${sg.termin.mit} (steht im Kalender, der Kunde hat Tag und Uhrzeit auf der Seite und per Mail).`
+    // Gegenprüfung E-273 (technik, 02.10.2026): „keins“ heißt hier, der Stand ist nicht lesbar (Spalten der Migration 090
+    // noch nicht da) — dann gibt es auch KEINE Aufgabe „von Hand buchen“; die Zeile darf keine behaupten.
+    : !sg || sg.stand === "keins"
+      ? "STARTGESPRÄCH: Stand gerade nicht lesbar (Spalten der Migration 090?) — der Stundenlauf bucht nach, sobald sie da sind; bitte im Reiter „Individualangebote“ nachsehen."
+      : `STARTGESPRÄCH: noch nicht gebucht${sg.fehler ? ` (${sg.fehler})` : ""} — Justin hat die Aufgabe „Startgespräch von Hand buchen“.`;
   // ── Aufgabe an die zuständige Person ──
   try {
     let zustaendig: number | null = akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null;
@@ -885,6 +927,7 @@ export async function angebotNacharbeit(id: number): Promise<void> {
             ? `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. Sofortiger Beginn verlangt — Start mit dem Zahlungseingang.`
             : `PRIVATPERSON: Widerrufsrecht bis ${angebotTag(frist.fristEnde)}. KEIN sofortiger Beginn — Start frühestens am ${angebotTag(frist.startAb)}, auch wenn die Zahlung früher kommt. Bis dahin nichts beantragen.`,
           `Die Frist von ${zahlwort(d.parameter.fristWochen)} Wochen beginnt mit dem Start — das Fristende steht danach im Reiter „Individualangebote“ und geht dem Kunden per Mail zu.`,
+          sgZeile,
           "Bitte kurz anrufen, die Annahme bestätigen und Fragen zur Überweisung klären. Vor Leistungsbeginn: Reisepass prüfen und die Sanktionslisten erneut abgleichen (Ziffer 7 des Vertrags).",
           `Office: ${globalOfficeAuftragPfad(ref1)} · Leitung: /chef/s/global-auftraege?reiter=angebote`,
         ].join("\n"),
@@ -904,6 +947,7 @@ export async function angebotNacharbeit(id: number): Promise<void> {
     titel: `Individualangebot angenommen: ${name} — ${angebotEur(d.parameter.teil1Cents)} erwartet`,
     text: [
       `${name} hat das Individualangebot ${d.ref} angenommen. ${teilText}.`,
+      sgZeile,
       "Bitte den Zahlungseingang von Teil 1 wie immer über den einen Weg buchen (Zahlungen verbuchen). Mit der Buchung startet der Auftrag bzw. wartet auf das Ende der Widerrufsfrist.",
       `Bürgschaftszusage: das eigenhändig unterschriebene Original (${angebotTag(d.buergin.unterzeichnetAm)}) per Post an ${d.kunde.strasse}, ${d.kunde.plz} ${d.kunde.ort} schicken, falls noch nicht geschehen. Das Original muss GENAU die angenommene Fassung der Anlage 1 tragen — Prüfsumme ${buergschaftPruefsumme(d).slice(0, 16)}… (steht auf dem Blatt „Anlage 1 zum Unterschreiben“ und im Vertrag).`,
       "Offen vor Leistungsbeginn: Reisepass prüfen, Sanktionslisten erneut abgleichen, PEP-Erklärung (Ziffer 7 Absatz 4).",
@@ -925,6 +969,11 @@ export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; gru
   const z = (await angebotLesen({ id }))!;
   const d = angebotDatenAus(z);
   const akte = await globalAkteLesen(ref1); const b = await globalBestellungLesen(ref1);
+  // E-273 (02.10.2026): Ist das Startgespräch gebucht, nennt die Bestätigung Tag, Uhrzeit, Dauer, mit wem, wie, Kalender
+  // und Verschieben. Ohne Termin bleiben die Felder leer — der Absatz entfällt, die Mail ist die bisherige.
+  const sgFelder = await import("./fiaon-global-angebot-startgespraech")
+    .then(async (m) => { const st = await m.startgespraechStand(id); return st.stand === "gebucht" ? m.startgespraechMailFelder(st.termin) : {}; })
+    .catch((e) => { console.error(`[FIAON-ANGEBOT] ${d.ref}: Startgespräch für die Bestätigung:`, e); return {} as Record<string, string>; });
   let mail: { ok: boolean; grund: string | null };
   try {
     const vertrag = await globalVertragPdfLesen(ref1);
@@ -933,10 +982,12 @@ export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; gru
     if (!rechnung) throw new Error("die Rechnung ließ sich nicht erzeugen");
     mail = await globalMailSenden("global_angebot_angenommen", akte, b, {
       anhaenge: [{ name: `FIAON_Global_Individualvereinbarung_${d.ref}.pdf`, inhalt: vertrag }, { name: rechnung.dateiname, inhalt: rechnung.pdf }],
-      zusatz: angebotMailZusatz(z, d),
+      zusatz: { ...angebotMailZusatz(z, d), ...sgFelder },
     });
   } catch (e) { mail = { ok: false, grund: e instanceof Error ? e.message : String(e) }; }
   if (mail.ok) {
+    // E-273: Tag und Uhrzeit sind beim Kunden — keine eigene Mail zum Startgespräch mehr nötig.
+    if (sgFelder.startgespraech_html) await sqlPool`UPDATE fiaon_global_angebote SET startgespraech_mail_am = COALESCE(startgespraech_mail_am, NOW()) WHERE id = ${id}`.catch(() => {});
     await sqlPool`UPDATE fiaon_global_auftraege SET auftrag_mail_am = COALESCE(auftrag_mail_am, NOW()), updated_at = NOW() WHERE ref = ${ref1}`.catch(() => {});
     await sqlPool`UPDATE fiaon_applications SET payment_email_sent_at = COALESCE(payment_email_sent_at, NOW()), welcome_sent_at = COALESCE(welcome_sent_at, NOW()) WHERE ref = ${ref1}`.catch(() => {});
   } else {
@@ -969,6 +1020,9 @@ export function angebotMailZusatz(z: AngebotZeile, d: AngebotDaten, extra: Recor
     teil2_folge_text: z.garantie_erfuellt_am
       ? esc(ANGEBOT_GARANTIE_FEST.mailErfuellt)
       : `Wir begleiten Ihre Gesellschaft weiter, bis der Kreditrahmen von ${angebotUsd(d.parameter.kapitalZielUsd)} und ${angebotKarten(d.parameter.kartenZiel)} vollständig da sind (Ziffer 3 Absatz 1). Erreicht sie das bis zum ${fristEnde ? angebotTag(fristEnde) : "Ende Ihrer Frist"} nicht, erhalten Sie auch diese Zahlung zurück (Ziffer 6).`,
+    // E-273 (02.10.2026): global_angebot_start — der Rest des Satzes „Ihr Ansprechpartner ist …". Vorgabe ist der Wortlaut bis
+    // E-273; mit gebuchtem Startgespräch setzt angebotNachZahlung Tag und Uhrzeit ein (extra überschreibt).
+    startgespraech_start_html: STARTGESPRAECH_TEXTE.mailStartOhne,
     ...extra,
   };
 }
@@ -1126,7 +1180,11 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
   const [frei] = (await sqlPool`UPDATE fiaon_applications SET confirmed_email_sent_at = NOW() WHERE ref = ${ref} AND confirmed_email_sent_at IS NULL RETURNING ref`) as any[];
   if (frei) {
     const frisch = (await globalAkteLesen(ref)) ?? akte;
-    const mail = await globalMailSenden("global_angebot_start", frisch, b, { zusatz: angebotMailZusatz(z2, d) });
+    // E-273 (02.10.2026): Steht das Startgespräch schon im Kalender, nennt die Startmail es statt „meldet sich … zu vereinbaren“.
+    const startSatz = await import("./fiaon-global-angebot-startgespraech")
+      .then(async (m) => m.startgespraechStartSatz(await m.startgespraechStand(Number(z.id))))
+      .catch(() => STARTGESPRAECH_TEXTE.mailStartOhne);
+    const mail = await globalMailSenden("global_angebot_start", frisch, b, { zusatz: angebotMailZusatz(z2, d, { startgespraech_start_html: startSatz }) });
     if (mail.ok) {
       await sqlPool`UPDATE fiaon_global_auftraege SET start_mail_am = NOW(), start_mail_fehler = NULL, updated_at = NOW() WHERE ref = ${ref}`.catch(() => {});
       await sqlPool`UPDATE fiaon_global_angebote SET start_mail_am = NOW() WHERE id = ${z.id}`.catch(() => {});
@@ -1556,6 +1614,11 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
   const aktenStand = new Map<string, string>(aktenRefs.length
     ? ((await sqlPool`SELECT ref, status FROM fiaon_global_auftraege WHERE ref = ANY(${aktenRefs})`) as any[]).map((r) => [String(r.ref), String(r.status)])
     : []);
+  // E-273 (02.10.2026): das Startgespräch je angenommenem Angebot — gebucht (wann, mit wem) oder warum nicht. Hakt das
+  // Lesen, bleibt die Liste lesbar (startgespraech: null).
+  const sgStaende = await import("./fiaon-global-angebot-startgespraech")
+    .then((m) => m.startgespraechStaende(zeilen.filter((z) => String(z.status) === "angenommen").map((z) => Number(z.id))))
+    .catch((e) => { console.error("[FIAON-ANGEBOT] Startgespräche für die Liste:", e); return new Map(); });
   const heute = berlinToday();
   return zeilen.map((z) => {
     const d = angebotDatenAus(z);
@@ -1628,6 +1691,15 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
       },
       verlauf: json<any[]>(z.verlauf, []).slice(-12),
       aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null,
+      startgespraech: (() => {
+        const sg = sgStaende.get(Number(z.id));
+        if (!sg) return null;
+        return {
+          stand: sg.stand, terminId: sg.gebuchtTerminId, neuGebucht: sg.neuGebucht, fehler: sg.fehler, versuche: sg.versuche,
+          versuchAm: sg.versuchAm, mailAm: sg.mailAm, abgesagtVon: sg.abgesagtVon, terminStatus: sg.terminStatus,
+          zeile: sg.termin ? sg.termin.zeile : null, beginn: sg.termin ? sg.termin.beginn : null,
+        };
+      })(),
     };
   });
 }
@@ -1637,9 +1709,9 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
 // Schreibt Aufgaben, KEINE Kundenmail, bewegt KEIN Geld. Wiederholbar über Marken.
 // Registriert in routes.ts als tageslauf("global_angebot_lauf", …, 60 Minuten).
 // ═══════════════════════════════════════════════════════════════════════════
-export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abgelaufen: number; warnungen: number; fristende: number; nachfrage: number; nachgeholt: number; aufrufeGeloescht: number; aufrufAufgabenGeleert: number; aufrufBeitraegeGeloescht: number }> {
+export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abgelaufen: number; warnungen: number; fristende: number; nachfrage: number; nachgeholt: number; startgespraeche: number; aufrufeGeloescht: number; aufrufAufgabenGeleert: number; aufrufBeitraegeGeloescht: number }> {
   const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS tabelle`) as any[];
-  if (!t?.tabelle) return { abgelaufen: 0, warnungen: 0, fristende: 0, nachfrage: 0, nachgeholt: 0, aufrufeGeloescht: 0, aufrufAufgabenGeleert: 0, aufrufBeitraegeGeloescht: 0 };
+  if (!t?.tabelle) return { abgelaufen: 0, warnungen: 0, fristende: 0, nachfrage: 0, nachgeholt: 0, startgespraeche: 0, aufrufeGeloescht: 0, aufrufAufgabenGeleert: 0, aufrufBeitraegeGeloescht: 0 };
   const heute = berlinToday(jetzt);
   const abgelaufen = (await sqlPool`UPDATE fiaon_global_angebote SET status = 'abgelaufen', updated_at = NOW() WHERE status = 'offen' AND gueltig_bis < ${heute}::date RETURNING id`) as any[];
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
@@ -1654,6 +1726,39 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
     if (!erg.ok) continue;
     await angebotNacharbeit(Number(h.id)).catch((e) => console.error(`[FIAON-ANGEBOT] ${h.angebot_ref}: Nacharbeit im Stundenlauf:`, e));
     nachgeholt++;
+  }
+  // E-273 (02.10.2026): Startgespräch nachholen — angenommen, Auftrag steht, noch kein Termin, und der letzte Versuch
+  // scheiterte TECHNISCH (oder es gab keinen). „kein_platz"/„keine_person" nicht: Dafür hat Justin die Aufgabe, und ein
+  // zweiter, automatischer Termin neben seinem Handtermin wäre falsch. Nur bis drei Tage nach der Annahme.
+  let startgespraeche = 0;
+  const geradeGebucht = new Set<number>();
+  const ohneStart = (await sqlPool`
+    SELECT id, angebot_ref, bestaetigung_mail_am FROM fiaon_global_angebote
+     WHERE status = 'angenommen' AND auftrag_ref IS NOT NULL AND nacharbeit_fehler IS NULL AND startgespraech_termin_id IS NULL
+       AND (startgespraech_fehler IS NULL OR startgespraech_fehler LIKE 'technik:%')
+       AND (startgespraech_versuch_am IS NULL OR startgespraech_versuch_am < ${new Date(jetzt.getTime() - 30 * 60_000)})
+       AND angenommen_am > ${new Date(jetzt.getTime() - 3 * 864e5)}
+     LIMIT 10`.catch((e) => { console.error("[FIAON-ANGEBOT] Startgespräche nachholen (Migration 090?):", e); return []; })) as any[];
+  for (const o of ohneStart) {
+    const SG = await import("./fiaon-global-angebot-startgespraech");
+    const erg = await SG.angebotStartgespraechSicherstellen(Number(o.id), { anlass: "stundenlauf" })
+      .catch((e) => { console.error(`[FIAON-ANGEBOT] ${o.angebot_ref}: Startgespräch im Stundenlauf:`, e); return null; });
+    if (erg?.status !== "gebucht") continue;
+    startgespraeche++; geradeGebucht.add(Number(o.id));
+    // Ging die Bestätigung noch gar nicht raus, nennt sie den Termin jetzt selbst (höchstens einmal, wie immer).
+    if (!o.bestaetigung_mail_am) await bestaetigungSenden(Number(o.id)).catch((e) => console.error(`[FIAON-ANGEBOT] ${o.angebot_ref}: Bestätigung im Stundenlauf:`, e));
+  }
+  // E-273: Die eigene Mail zum Startgespräch nachholen, wenn sie scheiterte — nur für einen gebuchten, künftigen Termin,
+  // nur wenn die Bestätigung schon OHNE ihn draußen ist (sonst nennt die Bestätigung ihn selbst), drei Tage lang.
+  const ohneMitteilung = (await sqlPool`
+    SELECT a.id, a.angebot_ref FROM fiaon_global_angebote a JOIN fiaon_termine t ON t.id = a.startgespraech_termin_id
+     WHERE a.status = 'angenommen' AND a.startgespraech_mail_am IS NULL AND a.bestaetigung_mail_am IS NOT NULL
+       AND t.status = 'gebucht' AND t.beginn > ${jetzt} AND a.angenommen_am > ${new Date(jetzt.getTime() - 3 * 864e5)}
+     LIMIT 10`.catch(() => [])) as any[];
+  for (const o of ohneMitteilung) {
+    if (geradeGebucht.has(Number(o.id))) continue; // eben gebucht: die Mail hat Sicherstellen schon versucht
+    await import("./fiaon-global-angebot-startgespraech").then((m) => m.startgespraechMitteilen(Number(o.id)))
+      .catch((e) => console.error(`[FIAON-ANGEBOT] ${o.angebot_ref}: Mail zum Startgespräch im Stundenlauf:`, e));
   }
   const laufend = (await sqlPool`
     SELECT a.*, t2.id AS t2_id, b2.payment_status AS t2_zahlung, b2.payment_due_date AS t2_faellig FROM fiaon_global_angebote a
@@ -1734,7 +1839,7 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
   const aufraeumen = await import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAufraeumen())
     .catch((e) => { console.error("[FIAON-ANGEBOT] Aufrufe aufräumen:", e); return { aufrufe: 0, anschluesse: 0, aufgaben: 0, beitraege: 0 }; });
   return {
-    abgelaufen: abgelaufen.length, warnungen, fristende, nachfrage, nachgeholt,
+    abgelaufen: abgelaufen.length, warnungen, fristende, nachfrage, nachgeholt, startgespraeche,
     aufrufeGeloescht: aufraeumen.aufrufe, aufrufAufgabenGeleert: aufraeumen.aufgaben, aufrufBeitraegeGeloescht: aufraeumen.beitraege,
   };
 }
@@ -1758,6 +1863,10 @@ export async function angebotSichtZurAkte(ref1: string): Promise<Record<string, 
     // E-271: Garantie — Ziel, erfüllt am, Erstattungsbetrag im Garantiefall.
     garantieZiel: angebotGarantieziel(d.parameter), garantieErfuelltAm: isoTag(z.garantie_erfuellt_am),
     erstattungCents: z.erstattung_cents != null ? Number(z.erstattung_cents) : null,
+    // E-273 (02.10.2026): „Ihr Startgespräch" — Tag, Uhrzeit, mit wem, Kalender, Verschieben (oder der Satz, warum nicht).
+    startgespraech: await import("./fiaon-global-angebot-startgespraech")
+      .then(async (m) => m.startgespraechFuerKunde(await m.startgespraechStand(Number(z.id))))
+      .catch(() => null),
   };
 }
 

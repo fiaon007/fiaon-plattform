@@ -28,6 +28,8 @@ import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { terminLink } from "./fiaon-termine";
 import { versendenUndProtokollieren } from "./fiaon-mail-log";
 import { stufeAusTier } from "@shared/fiaon-kundenstatus";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 
 type Lauf = typeof sqlPool;
 
@@ -55,6 +57,7 @@ export interface Kandidat {
 export async function wiedereinstiegKandidaten(
   limit: number | null = null, lauf: Lauf = sqlPool,
 ): Promise<Kandidat[]> {
+  await globalKundeBereit(); // E-272: die Zielgruppe liest fiaon_global_angebote
   const rows = (await lauf`
     SELECT p.id, p.priority_tier, p.tier_reason, p.unreachable_count, p.ruhe_seit,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
@@ -84,6 +87,11 @@ export async function wiedereinstiegKandidaten(
       AND p.priority_tier IN (1, 2)
       -- ── AUSSCHLÜSSE ──────────────────────────────────────────────────────
       AND NOT p.is_blocked                       -- abgelehnt oder Kontaktsperre
+      -- E-272 (02.10.2026): kein Kunde von FIAON Global. Die Mail lädt zum Termin der
+      -- Privatlinie ein; er hat seinen festen Ansprechpartner. Justin: „nehme ihn bitte komplett
+      -- aus den Workflows … Er soll Global bleiben, also keine unnötigen Mails“. Die Stufe
+      -- −1 hält ihn meist schon fern — aber erst, wenn die Einstufung nachgezogen hat.
+      AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
       AND COALESCE(p.account_status, '') <> 'suspended'
       AND p.wiedereinstieg_am IS NULL            -- hat die Mail schon bekommen
       AND p.terminlink_mail_am IS NULL           -- hat den Link schon über die
@@ -100,11 +108,15 @@ export async function wiedereinstiegKandidaten(
           AND (ax.payment_status = 'paid' OR ax.gdpr_deleted_at IS NOT NULL)
       )
       -- Mindestens eine lebende, nicht archivierte Bestellung mit offenem Geld.
+      -- E-272 (02.10.2026): und die ist NIE eine Global-Zeile. Eine offene Rechnung über
+      -- FIAON Global (nach Annahme eines Individualangebots) ist kein Anlass für die
+      -- Terminmail der Privatlinie — dort fasst der Ansprechpartner selbst nach.
       AND EXISTS (
         SELECT 1 FROM fiaon_applications ay
         WHERE ay.person_id = p.id AND ay.merged_into IS NULL AND ay.archived_at IS NULL
           AND ay.gdpr_deleted_at IS NULL
           AND ay.payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+          AND ${sqlPool.unsafe(produktkategorieSql("ay"))} <> 'global'
       )
       -- Kein Testkonto und keine Attrappen-Adresse. „Test Test" stand im
       -- ersten Vorschaulauf mit in der Liste — ein Datensatz, der eine echte

@@ -32,9 +32,18 @@
 // geht nur, wenn fiaon_settings.app_bericht_mail = 'an' (Standard: aus).
 // Registrierung in routes.ts über tageslauf('monatsbericht', …) macht die
 // Hauptsitzung.
+//
+// E-272 (02.10.2026): NICHT für Kunden von FIAON Global (Regel in
+// fiaon-global-kunde.ts). „Bezahlte Bestellung“ hieß bis heute auch ein
+// bezahlter Global-Auftrag — der Firmenkunde hätte am 1. des Folgemonats den
+// Bericht des Privat-Kundenbereichs (/app/geld/bericht) per Mail bekommen, einen
+// Bereich, den er gar nicht hat. Justin (Fall Hildbrand): „nehme ihn bitte
+// komplett aus den Workflows … Er soll Global bleiben, also keine unnötigen
+// Mails.“ „Gemischte“ (bezahltes Stufenpaket) erfasst die Regel nicht.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { pushBeiEreignis } from "./fiaon-push";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { berlinHeute, tag } from "../routes/fiaon-app";
 import { rahmenwegAus, type BereichEingang } from "@shared/fiaon-rahmenweg";
 import { FRAGEN, beantwortet, type Antworten } from "@shared/fiaon-ansprueche";
@@ -473,6 +482,8 @@ export async function monatsberichtLauf(opts: { monatIso?: string; auchAusserhal
   const grenze = Math.max(1, Math.min(500, Math.floor(opts.grenze ?? 500)));
 
   // Alle Menschen mit bezahlter Bestellung, für die der Monat noch fehlt.
+  // E-272: außer Kunden von FIAON Global (Kopf der Datei) — die Auswahl liest fiaon_global_angebote.
+  await globalKundeBereit();
   const personen = (await sqlPool`
     SELECT DISTINCT a.person_id
       FROM fiaon_applications a
@@ -480,6 +491,7 @@ export async function monatsberichtLauf(opts: { monatIso?: string; auchAusserhal
      WHERE a.payment_status = 'paid' AND a.person_id IS NOT NULL AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
        AND p.merged_into_person_id IS NULL
        AND NOT EXISTS (SELECT 1 FROM fiaon_monatsberichte b WHERE b.person_id = a.person_id AND b.monat = ${monat}::date)
+       AND NOT ${sqlPool.unsafe(globalKundeSql("a.person_id"))}
      ORDER BY a.person_id ASC
      LIMIT ${grenze}`) as any[];
 
@@ -512,6 +524,8 @@ export async function monatsberichtLauf(opts: { monatIso?: string; auchAusserhal
       JOIN fiaon_persons p ON p.id = b.person_id
      WHERE b.monat = ${monat}::date AND b.versandt_am IS NULL AND p.merged_into_person_id IS NULL
        AND COALESCE(b.kennzahlen #>> '{mail,versuchAm}', '') <> ${heuteIso}
+       -- E-272: ein schon erzeugter Bericht geht nicht an einen Kunden von FIAON Global (Kopf der Datei).
+       AND NOT ${sqlPool.unsafe(globalKundeSql("b.person_id"))}
      ORDER BY b.id ASC LIMIT ${grenze}`) as any[];
   const { mailSenden } = await import("./fiaon-mail-senden");
   const { absoluteUrl } = await import("../fiaon-base-url");

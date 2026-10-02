@@ -44,6 +44,7 @@ import { waehlbareNummer } from "./fiaon-telefon";
 import { katalogpreisCents } from "./fiaon-massgebliche-bestellung";
 import { terminTokenErzeugen } from "./fiaon-termine";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "./fiaon-global-kunde";
 import { berlinPlusTage } from "./fiaon-time";
 import { ABBRECHER_STATUS } from "./tier";
 import { boniLateralSql, BONI_SPALTEN_SQL, boniEingangAusZeile } from "./fiaon-boni-ampel";
@@ -156,6 +157,25 @@ export async function akteurName(agentId: number | null | undefined): Promise<st
 
 const ABBRECHER_SQL = ABBRECHER_STATUS.map((s) => `'${s}'`).join(", ");
 const KATEGORIE_A = produktkategorieSql("a");
+// ── E-272 (02.10.2026): GLOBAL-KUNDEN STEHEN IN KEINEM REITER ───────────────
+// Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er soll
+// Global bleiben, also keine unnötigen Mails.“ Die Reiter (A, B, C, Rate offen,
+// Alle) sind die Anrufliste der Privatlinie. Ein Global-Kunde (Regel:
+// fiaon-global-kunde.ts) steht in keinem davon — auch nicht mit der alten Stufe,
+// die er bis zum nächsten Neurechnen nach einem neuen Individualangebot trägt,
+// und nicht unter „Alle“ als „Ausgeschlossen — Bestellung storniert“. Die Suche
+// und der Einzelaufruf finden ihn weiter (wie Gesperrte und Testkonten).
+//
+// ALS MENGE, NICHT JE ZEILE — gemessen (Produktion, nur lesend, 02.10.): Die
+// Regel je Zeile in der Bedingung kostet selbst nur ~20 ms für alle Personen,
+// aber der Planer schätzt eine Bedingung aus einer Unterabfrage auf „trifft die
+// Hälfte“. Mit halb so vielen erwarteten Zeilen verband er die Anrufzählung (vz)
+// in einer Schleife statt per Hash: Reiter „Alle“ 173 ms → 1.191 ms, C 131 → 984.
+// Als Menge (die Regel EINMAL über alle Köpfe, dann „p.id <> ALL(…)“) bleibt die
+// Schätzung wie vorher und der Plan derselbe. Die Köpfe genügen: Jede Liste hier
+// zeigt nur Personen mit merged_into_person_id IS NULL.
+const GLOBAL_KUNDEN_IDS_SQL = `ARRAY(SELECT gkt.id FROM fiaon_persons gkt
+  WHERE gkt.merged_into_person_id IS NULL AND ${globalKundeSql("gkt.id")})`;
 
 interface Filter {
   gruppe: KarteiGruppe;
@@ -278,18 +298,21 @@ function suchBedingung(suche: string) {
 }
 
 function gruppenBedingung(gruppe: KarteiGruppe, RATE_FAELLIG_SQL: string) {
+  // E-272: jeder Reiter außer „Storniert“ ohne Global-Kunden (GLOBAL_KUNDEN_IDS_SQL oben).
+  const ohneGlobal = sqlPool`AND p.id <> ALL(${sqlPool.unsafe(GLOBAL_KUNDEN_IDS_SQL)})`;
   switch (gruppe) {
-    case "A": return sqlPool`AND s.person_id IS NULL AND p.priority_tier = 1`;
-    case "B": return sqlPool`AND s.person_id IS NULL AND p.priority_tier = 2`;
-    case "C": return sqlPool`AND s.person_id IS NULL AND p.priority_tier = 3 AND p.tier_reason = 'nur_lead'`;
-    case "rate": return sqlPool`AND s.person_id IS NULL AND COALESCE(p.priority_tier, 0) = 0 AND ${sqlPool.unsafe(RATE_FAELLIG_SQL)}`;
+    case "A": return sqlPool`AND s.person_id IS NULL AND p.priority_tier = 1 ${ohneGlobal}`;
+    case "B": return sqlPool`AND s.person_id IS NULL AND p.priority_tier = 2 ${ohneGlobal}`;
+    case "C": return sqlPool`AND s.person_id IS NULL AND p.priority_tier = 3 AND p.tier_reason = 'nur_lead' ${ohneGlobal}`;
+    case "rate": return sqlPool`AND s.person_id IS NULL AND COALESCE(p.priority_tier, 0) = 0 AND ${sqlPool.unsafe(RATE_FAELLIG_SQL)} ${ohneGlobal}`;
     case "storniert": return sqlPool`AND s.person_id IS NOT NULL`;
-    default: return sqlPool`AND s.person_id IS NULL`;
+    default: return sqlPool`AND s.person_id IS NULL ${ohneGlobal}`;
   }
 }
 
 async function zeilenLaden(f: Filter, grenze: number, versatz: number): Promise<any[]> {
   await karteiTabellen();
+  await globalKundeBereit();
   const { boniSpaltenSicher } = await import("./fiaon-boni-ampel");
   await boniSpaltenSicher();
   const { RATE_FAELLIG_SQL, EREIGNIS_SQL, JETZT_ERREICHBAR_SQL } = await vertriebSql();
@@ -607,9 +630,15 @@ export async function karteEinzeln(personId: number): Promise<KarteiKarte | null
 
 export async function karteiZaehler(gesperrte: boolean): Promise<Record<KarteiGruppe, number> & { gesperrt: number }> {
   await karteiTabellen();
+  await globalKundeBereit();
   const { RATE_FAELLIG_SQL } = await vertriebSql();
-  const offen = gesperrte ? sqlPool`TRUE` : sqlPool`NOT COALESCE(p.is_blocked, FALSE)`;
+  // E-272: Die Zähler zählen, was die Reiter zeigen — ohne Global-Kunden (GLOBAL_KUNDEN_IDS_SQL oben),
+  // auch unter „gesperrt“: Ein gesperrter Global-Kunde erscheint beim Einblenden in keinem Reiter.
+  // Die Menge einmal je Abfrage (gk, MATERIALIZED): Als einfache Unterabfrage zog der Planer sie in
+  // jeden Zähler einzeln hinein — fünfmal dieselbe Regel, gemessen 11 → 101 ms.
+  const offen = gesperrte ? sqlPool`p.id <> ALL(gk.ids)` : sqlPool`p.id <> ALL(gk.ids) AND NOT COALESCE(p.is_blocked, FALSE)`;
   const [z] = (await sqlPool`
+    WITH gk AS MATERIALIZED (SELECT ${sqlPool.unsafe(GLOBAL_KUNDEN_IDS_SQL)} AS ids)
     SELECT
       COUNT(*) FILTER (WHERE s.person_id IS NULL AND ${offen})::int AS alle,
       COUNT(*) FILTER (WHERE s.person_id IS NULL AND ${offen} AND p.priority_tier = 1)::int AS a,
@@ -618,9 +647,10 @@ export async function karteiZaehler(gesperrte: boolean): Promise<Record<KarteiGr
       COUNT(*) FILTER (WHERE s.person_id IS NULL AND ${offen} AND COALESCE(p.priority_tier, 0) = 0
                          AND ${sqlPool.unsafe(RATE_FAELLIG_SQL)})::int AS rate,
       COUNT(*) FILTER (WHERE s.person_id IS NOT NULL)::int AS storniert,
-      COUNT(*) FILTER (WHERE s.person_id IS NULL AND COALESCE(p.is_blocked, FALSE))::int AS gesperrt
+      COUNT(*) FILTER (WHERE s.person_id IS NULL AND p.id <> ALL(gk.ids) AND COALESCE(p.is_blocked, FALSE))::int AS gesperrt
     FROM fiaon_persons p
     LEFT JOIN fiaon_telefonkartei_storno s ON s.person_id = p.id AND s.zurueck_am IS NULL
+    CROSS JOIN gk
     WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
   `) as any[];
   return {
@@ -1420,7 +1450,9 @@ export interface StornoAntwort {
  *     bleibt fällig; „Kulanz" beendet sofort) + Bestätigungsmail
  *   · Lead → aussortiert (Grund „sonstiges"), Lead-Strecke gestoppt
  *   · Person → Vertriebssperre (nicht bei zahlenden Kunden, Regel 06.09.),
- *     Werbesperre, keine Wiedervorlage; gebuchte Termine abgesagt
+ *     Werbesperre (nicht bei Global-Kunden, E-272), keine Wiedervorlage;
+ *     gebuchte Termine abgesagt (nie die zu FIAON Global und beim Global-Kunden
+ *     nie der Gründer-Termin, E-272)
  * Der Vorher-Stand steht in der Storno-Zeile — „Zurückholen" nimmt genau das
  * zurück.
  */
@@ -1435,6 +1467,19 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
 
   const grund = text(opts.grund).slice(0, 300) || "Kunde hat am Telefon storniert";
   const grundVoll = `${grund} (${opts.akteur}, Telefonkartei)`;
+  // ── E-272 (02.10.2026): DER STORNO GILT DER PRIVATLINIE, NIE FIAON GLOBAL ──
+  // Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er
+  // soll Global bleiben.“ Storniert wird, was der Privatlinie gehört (Bestellungen
+  // ohne Global, Leads, Vertriebssperre). Unberührt bleiben: Global-Bestellungen
+  // (schon bisher), Termine mit quelle „global“ (das Erstgespräch zu FIAON Global,
+  // Schritt 4) und bei einem Global-Kunden (Regel: fiaon-global-kunde.ts) die
+  // Werbesperre. Sie ist ein Merkmal des Menschen, nicht der Privatlinie: Der
+  // Postmeister stellte ihn damit bis E-272 auf „gesperrt“, auch für Fragen zu
+  // seinem Auftrag (fiaon-postmeister-dossier.ts), und jede andere Stelle, die nach
+  // ihr fragt, hielte ihn ebenso an. Werbung der Privatlinie bekommt ein
+  // Global-Kunde seit E-272 ohnehin nicht mehr. Gelesen VOR dem Storno — so, wie
+  // der Kunde dastand, als Justin klickte.
+  const globalKunde = await istGlobalKunde(personId);
   const stand: StornoStand = {
     bestellungen: [], leads: [],
     person: { is_blocked: !!p.is_blocked, werbung_gesperrt_am: iso(p.werbung_gesperrt_am), gesperrt: false },
@@ -1519,16 +1564,31 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
   await sqlPool`
     UPDATE fiaon_persons SET
       is_blocked = ${zahlend ? sqlPool`is_blocked` : sqlPool`TRUE`},
-      werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()),
+      werbung_gesperrt_am = ${globalKunde ? sqlPool`werbung_gesperrt_am` : sqlPool`COALESCE(werbung_gesperrt_am, NOW())`},
       follow_up_date = NULL, promised_payment_date = NULL, updated_at = NOW()
     WHERE id = ${personId}`;
   punkte.push(zahlend
     ? "Zahlender Kunde: keine Vertriebssperre (Hausregel) — die offene Rate läuft bis zum Vertragsende weiter"
-    : "In keiner Anrufliste mehr, keine Werbung");
+    : globalKunde ? "In keiner Anrufliste mehr" : "In keiner Anrufliste mehr, keine Werbung");
+  if (globalKunde) punkte.push("Global-Kunde: keine Werbesperre — FIAON Global (Auftrag, Termine, Mails) läuft unverändert weiter");
 
   // 4. Gebuchte Termine absagen — der Zuständige erfährt es (terminAbsagen meldet).
+  //    E-272 (02.10.2026): nie ein Termin mit quelle „global“ — das Erstgespräch zu FIAON Global
+  //    gehört nicht der Privatlinie und bleibt samt Erinnerung bestehen (Kopf von stornieren).
+  //    Bei einem Global-Kunden auch nicht der Gründer-Termin (quelle „gruender“, /justin): Das
+  //    Startgespräch zum Individualangebot zählt einen über /justin neu gebuchten Termin als
+  //    Ersatz (fiaon-global-angebot-startgespraech.ts), und Gründer- wie Global-Termine führt nie
+  //    ein Vertreter (anruferNennform). Gegenprüfung 02.10.: ohne diese Zeile sagte der Storno
+  //    eines Global-Kunden seinen Gründer-Termin ab. Beim Privatkunden bleibt es wie bisher.
   const termine = (await sqlPool`
-    SELECT id, storno_token FROM fiaon_termine WHERE person_id = ${personId} AND status = 'gebucht' AND beginn > NOW()`) as any[];
+    SELECT id, storno_token FROM fiaon_termine WHERE person_id = ${personId} AND status = 'gebucht' AND beginn > NOW()
+      AND NOT (COALESCE(quelle, '') = 'global' OR (${globalKunde} AND quelle = 'gruender'))`) as any[];
+  const [globalTermine] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_termine WHERE person_id = ${personId} AND status = 'gebucht' AND beginn > NOW()
+      AND (quelle = 'global' OR (${globalKunde} AND quelle = 'gruender'))`) as any[];
+  if (Number(globalTermine?.n || 0) > 0) {
+    punkte.push(`${Number(globalTermine.n) === 1 ? "Der Termin" : `${globalTermine.n} Termine`} zu FIAON Global ${Number(globalTermine.n) === 1 ? "bleibt" : "bleiben"} bestehen`);
+  }
   if (termine.length) {
     const { terminAbsagen } = await import("./fiaon-termine");
     for (const t of termine) {

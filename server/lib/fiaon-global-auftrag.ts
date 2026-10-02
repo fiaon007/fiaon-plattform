@@ -571,7 +571,9 @@ export type GlobalMail =
   | "global_zugang" | "global_etappe" | "global_frist" | "global_dokument"
   // Individualangebot (01.10.2026, E-268) — server/mail/vorlagen/global-angebot.ts.
   | "global_angebot_angenommen" | "global_angebot_start" | "global_angebot_teil2"
-  | "global_angebot_teil2_bezahlt" | "global_angebot_erstattung" | "global_angebot_hemmung";
+  | "global_angebot_teil2_bezahlt" | "global_angebot_erstattung" | "global_angebot_hemmung"
+  // E-273 (02.10.2026): Tag und Uhrzeit des Startgesprächs, wenn das System es nach der Bestätigungsmail gebucht hat.
+  | "global_angebot_startgespraech";
 export type GlobalMailSprache = "de" | "en";
 
 /** In welcher Sprache der Kunde seinen Auftrag geführt hat — sie steht in der Akte (vertrag_sprache). */

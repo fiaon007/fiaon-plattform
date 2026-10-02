@@ -136,6 +136,9 @@ export const HERKUENFTE = {
   mara_whatsapp: "Von Mara per WhatsApp vereinbart (Rückruf)",
   mara_whatsapp_link: "Über Maras persönlichen Terminlink (WhatsApp) selbst gebucht",
   mara_mail: "Von Mara aus einer E-Mail vereinbart (Rückruf)",
+  // E-273 (02.10.2026): Das Startgespräch eines Individualangebots (FIAON Global) bucht das System nach der
+  // Annahme selbst — beim nächsten freien Termin (server/lib/fiaon-global-angebot-startgespraech.ts).
+  individualangebot: "Nach Annahme eines Individualangebots vom System gebucht (Startgespräch FIAON Global)",
   unbekannt: "Weg nicht mitgeführt",
 } as const;
 
@@ -1191,6 +1194,13 @@ export async function terminBuchen(
      * Zuständigkeit, und ein Buchungsweg darf sie nicht verschieben.
      */
     herkunft?: TerminHerkunft | string | null;
+    /**
+     * E-273 (02.10.2026): längster Vorlauf in Tagen für eine SYSTEMBUCHUNG. Das Startgespräch eines
+     * Individualangebots liegt am vom Kunden gewählten Starttag (bis zu neunzig Tage voraus) bzw. nach der
+     * Widerrufsfrist — die Grenze von HORIZONT_TAGE gilt für Menschen, die selbst eine Zeit wählen. Weitet
+     * die Grenze nur aus (nie enger als HORIZONT_TAGE), höchstens 120 Tage. Ohne Angabe: wie bisher.
+     */
+    horizontTage?: number | null;
   },
   lauf: Lauf = sqlPool,
 ): Promise<Buchung> {
@@ -1230,8 +1240,10 @@ export async function terminBuchen(
   if (beginn.getTime() <= jetzt) {
     throw new TerminFehler("vergangenheit", "Der Termin liegt in der Vergangenheit.");
   }
-  if (beginn.getTime() > jetzt + HORIZONT_TAGE * 86_400_000) {
-    throw new TerminFehler("zu_spaet", `Termine sind höchstens ${HORIZONT_TAGE} Tage im Voraus buchbar.`);
+  // E-273: Eine Systembuchung darf die Grenze ausweiten (horizontTage), nie verengen.
+  const horizont = Math.min(120, Math.max(HORIZONT_TAGE, Math.round(Number(eingabe.horizontTage) || HORIZONT_TAGE)));
+  if (beginn.getTime() > jetzt + horizont * 86_400_000) {
+    throw new TerminFehler("zu_spaet", `Termine sind höchstens ${horizont} Tage im Voraus buchbar.`);
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1690,8 +1702,13 @@ export async function terminAbsagen(
             // 17.09.2026 (E-188): Ein Global-Erstgespräch wird auf /business neu
             // gewählt — der Terminlink der Privatkunden würde ein
             // Vertriebsgespräch in Du-Form anbieten.
+            // E-273 (02.10.2026): Ist es das Startgespräch eines Individualangebots, führt der Link zu Justins
+            // Buchungsseite mit den Daten des Kunden (/justin?k=…) — der Kunde ist schon Kunde und gehört nicht
+            // in den Erstgesprächs-Kalender auf /business. Ohne Treffer bleibt es bei /business#gespraech.
             neu_buchen_link: String(termin.quelle) === "global"
-              ? absoluteUrl("/business#gespraech")
+              ? ((await import("./fiaon-global-angebot-startgespraech")
+                .then((m) => m.startgespraechNeuBuchenLink(Number(termin.id)))
+                .catch(() => null)) ?? absoluteUrl("/business#gespraech"))
               : absoluteUrl(`/termin/${terminTokenErzeugen(Number(termin.person_id))}`),
             // E-263, Gegenprüfung 29.09.2026: „Aus Ihrem Kalender entfernen (Apple / Outlook)" — dieselbe Datei
             // wie in Bestätigung und Erinnerung; für einen abgesagten Termin liefert sie METHOD:CANCEL.

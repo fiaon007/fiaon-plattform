@@ -35,6 +35,7 @@ import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { getSettings } from "./fiaon-agent";
 import { versandErlaubtOderProtokoll } from "../lib/fiaon-versandkanal";
 import { anrufHinweisSie, ABSAGE_HINWEIS_SIE } from "../../shared/fiaon-termin-text";
+import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "../lib/fiaon-global-kunde";
 
 const router = Router();
 
@@ -141,6 +142,10 @@ export async function autoAssignTier1(personId: number): Promise<number | null> 
     FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL
   `;
   if (!p || p.priority_tier !== 1 || p.is_blocked || p.assigned_agent_id) return null;
+  // E-272 (02.10.2026): Ein Global-Kunde geht nie an den Privatvertrieb — Justin: „Er soll Global
+  // bleiben, also keine unnötigen Mails.“ Die Regel selbst, nicht nur die Stufe: Scheitert die
+  // Einstufung im Tageslauf (sie wird nur protokolliert), stünde er mit seiner alten Stufe hier.
+  if (await istGlobalKunde(personId)) return null;
   // BESITZSCHUTZ: Eine betreute Person wird nie automatisch vergeben. Sie
   // gehört dem, der sie angerufen hat — auch wenn die Zuweisung fehlt (genau so
   // stand Axel Conrad ohne Agent da, nachdem eine Erstverteilung ihn Daniel
@@ -360,12 +365,22 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
     // Florentines Liste. Die Reihenfolge „Einstufung vor Verteilung" gilt
     // deshalb weiter; sie steht jetzt nur nicht mehr hinter dem Tagesfenster.
 
+    // ── E-272 (02.10.2026): GLOBAL-KUNDEN WEDER ZUTEILEN NOCH ESKALIEREN ──
+    // Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er
+    // soll Global bleiben, also keine unnötigen Mails.“ Die Einstufung stellt
+    // Global-Kunden auf -1; scheitert sie oben, läuft dieser Teil trotzdem — mit
+    // den alten Stufen. Deshalb fragen Auto-Assign und Eskalation die Regel
+    // (fiaon-global-kunde.ts) selbst. Im Auto-Assign VOR der Schleife: Dort
+    // bricht jedes null die Runde ab, ein Global-Kunde darf sie nicht beenden.
+    await globalKundeBereit();
+
     // 1 · Auto-Assign für herrenlose Tier-1-Personen
     const herrenlos = (await sqlPool`
-      SELECT id FROM fiaon_persons
-      WHERE assigned_agent_id IS NULL AND merged_into_person_id IS NULL
-        AND priority_tier = 1 AND NOT is_blocked AND ist_test_am IS NULL
-      ORDER BY promised_payment_date ASC NULLS LAST, id ASC
+      SELECT p.id FROM fiaon_persons p
+      WHERE p.assigned_agent_id IS NULL AND p.merged_into_person_id IS NULL
+        AND p.priority_tier = 1 AND NOT p.is_blocked AND p.ist_test_am IS NULL
+        AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
+      ORDER BY p.promised_payment_date ASC NULLS LAST, p.id ASC
       LIMIT 200
     `) as any[];
     let autoAssign = 0;
@@ -396,6 +411,8 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
         AND p.merged_into_person_id IS NULL
         AND NOT p.is_blocked
         AND p.priority_tier IN (1, 2)
+        -- E-272: kein Hinweis „Bitte anrufen“ an einem Global-Kunden (Begründung oben).
+        AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
         AND COALESCE((
           SELECT MAX(c.created_at) FROM fiaon_contact_log c
           JOIN fiaon_applications ap2 ON ap2.ref = c.ref

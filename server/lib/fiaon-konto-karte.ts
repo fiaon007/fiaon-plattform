@@ -34,6 +34,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 
 type Lauf = typeof sqlPool;
 
@@ -425,10 +427,19 @@ const STAND_SQL = `
         AND COALESCE(NULLIF(TRIM(a.city),       ''), NULLIF(TRIM(p.city),       '')) IS NOT NULL
         AND COALESCE(NULLIF(TRIM(a.email),      ''), NULLIF(TRIM(p.primary_email), '')) IS NOT NULL
     ) AS antrag_voll,
+    -- ── NUR EIN PRIVATPAKET IST EIN PAKET (02.10.2026, E-272) ──────────────
+    -- Hier zaehlte JEDE bezahlte Bestellung ausser der Auskunft — auch ein
+    -- bezahlter Auftrag ueber FIAON Global. Die Einladung der Partnerbank ist
+    -- eine Leistung der Privatlinie (Stufenpaket, Raten, Karte); ein Firmen-
+    -- kunde bekam sie bisher nur deshalb nicht, weil die Mail-Tuer zufaellig an
+    -- seiner Global-Bestellung haengen blieb. Jetzt zaehlt nur die Kategorie
+    -- konto (fiaon-produktkategorie.ts). Gemessen am 02.10.: 470 Personen vorher
+    -- wie nachher, niemand faellt heraus.
     EXISTS (
       SELECT 1 FROM fiaon_applications a
       WHERE a.person_id = p.id AND a.merged_into IS NULL
         AND a.payment_status = 'paid' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+        AND ${produktkategorieSql("a")} = 'konto'
     ) AS paket_bezahlt,
     EXISTS (
       SELECT 1 FROM fiaon_applications a
@@ -464,10 +475,12 @@ const STAND_SQL = `
         JOIN fiaon_applications a2 ON a2.ref = r.ref
         WHERE a2.person_id = p.id AND r.status = 'bezahlt'
       ), 0),
+      -- E-272: dieselbe Lesart wie paket_bezahlt oben — nur ein Privatpaket.
       CASE WHEN EXISTS (
         SELECT 1 FROM fiaon_applications a3
         WHERE a3.person_id = p.id AND a3.merged_into IS NULL
           AND a3.payment_status = 'paid' AND a3.ref NOT LIKE 'FIAON-SCHUFA-%'
+          AND ${produktkategorieSql("a3")} = 'konto'
       ) THEN 1 ELSE 0 END
     )::int AS raten_bezahlt,
     -- Wann die nächste offene Rate fällig ist. Ohne dieses Datum kann die
@@ -662,6 +675,7 @@ export async function einladungenAutomatisch(grenze = 40): Promise<{ bereit: num
   const kandidaten = await bereiteKunden({ ohneVersand: true, grenze: 500 });
   if (!kandidaten.length) return { bereit: 0, gesendet: 0, fehler: [] };
   const ids = kandidaten.map((k) => k.personId);
+  await globalKundeBereit(); // E-272: die Auswahl unten liest fiaon_global_angebote
   const erlaubt = (await sqlPool`
     SELECT p.id, p.assigned_agent_id, ag.name AS agent_name
       FROM fiaon_persons p
@@ -669,6 +683,11 @@ export async function einladungenAutomatisch(grenze = 40): Promise<{ bereit: num
      WHERE p.id = ANY(${ids}) AND p.merged_into_person_id IS NULL
        AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
        AND p.werbung_gesperrt_am IS NULL AND COALESCE(p.priority_tier, 0) <> -1
+       -- E-272 (02.10.2026): nie an einen Kunden von FIAON Global (Angebot oder Global-Auftrag,
+       -- kein bezahltes Stufenpaket). Justin: „nehme ihn bitte komplett aus den Workflows … Er soll
+       -- Global bleiben, also keine unnötigen Mails“. Seit paket_bezahlt oben nur Privatpakete zählt,
+       -- ist er dort praktisch nie bereit — diese Zeile hält es fest, auch wenn sich dort etwas ändert.
+       AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
        AND (COALESCE(p.primary_email, '') <> '' OR EXISTS (
              SELECT 1 FROM fiaon_applications ae WHERE ae.person_id = p.id AND COALESCE(ae.email, '') <> ''))
        AND NOT EXISTS (SELECT 1 FROM fiaon_applications ak

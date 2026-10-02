@@ -24,6 +24,7 @@ import { nummerFuerWhatsApp, waKanonisch } from "../../shared/fiaon-whatsapp-erl
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
 import { waFehlerText, waFehlerCode, WA_CODE_WERBUNG_ABBESTELLT } from "./fiaon-wa-unzustellbar";
 import { waBremse, kontofehlerMelden } from "./fiaon-wa-bremse";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
 
 type Lauf = typeof sqlPool;
 
@@ -782,28 +783,63 @@ export async function waAktenvermerk(personId: number | null | undefined, text: 
 //     wurden 46 Vorlagen an 26 Menschen „wegen Vertriebssperre" übersprungen,
 //     von denen keiner gesperrt war; 376 Menschen standen dahinter.
 //   · Testkonten bleiben erreichbar: An ihnen prüft Justin die Vorlagen.
+//   · E-272 (02.10.2026): Ein Global-Kunde (FIAON Global, Regel in
+//     fiaon-global-kunde.ts, gelesen am Kopf) bekommt KEINE Vorlage der
+//     Privatlinie — auch keine von Hand aus Raum, Akte oder Mara-Auftrag.
+//     Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows …
+//     Er soll Global bleiben, also keine unnötigen Mails.“ Durch gehen nur
+//     die Termin-Erinnerung und die Monatsrate (GLOBAL_DURCHLASS); freier
+//     Text eines Menschen bleibt frei. Die Regel gilt auch an Testkonten —
+//     „gemischte“ Testkonten (bezahltes Stufenpaket) erfasst sie nicht.
 // Bei einer Störung der Prüfung geht die Vorlage NICHT raus — Werbung darf
 // warten, ein gebrochenes „Stopp" nicht.
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * E-272 (02.10.2026): Die Vorlagen der Privatlinie — das Register des Hauses (shared/fiaon-lead-texte.ts)
+ * heißt durchweg fiaon_kk_* (Text) und fiaon_kkb_* (Bild): Kreditkarte, Antrag, Rechnung, Monatsrate,
+ * Bonitätsauskunft. Eine Werkstatt-Vorlage mit eigenem Namen gehört nicht dazu.
+ */
+const PRIVATLINIE_VORLAGE = /^fiaon_kkb?_/;
+
+/**
+ * E-272 (02.10.2026): Was davon trotzdem an einen Global-Kunden darf — Pflichtpost zu etwas, das er
+ * selbst hat: die Erinnerung an seinen gebuchten Termin und die Monatsrate (die ein reiner Global-Kunde
+ * nie hat; wer ein bezahltes Stufenpaket hat, ist „gemischt“ und von der Regel nicht erfasst).
+ * NICHT dabei, obwohl Service-Post (WA_NICHT_WERBLICH, fiaon-mail-frequenz.ts):
+ *   · fiaon_kk_termin — keine Erinnerung, sondern eine Einladung „Damit Ihre Kreditkarte zügig auf den
+ *     Weg kommt …“ mit dem Buchungslink der Privatlinie;
+ *   · fiaon_kk_aktiviert — „Ihr Konto ist aktiviert … Ihre Kreditkarte“ stimmt für einen Global-Kunden nie.
+ */
+const GLOBAL_DURCHLASS = new Set<string>([
+  "fiaon_kk_termin_morgen", "fiaon_kkb_termin_morgen", "fiaon_kk_rate", "fiaon_kkb_rate",
+]);
+
 export async function waVorlagenSperre(
   vorlage: string,
   nummer: string,
   zusatz: { personId?: number | null; leadId?: number | null } = {},
   lauf: Lauf = sqlPool,
 ): Promise<string | null> {
-  const { waVorlageWerblich, menschSperre, werbungVerboten } = await import("./fiaon-mail-frequenz");
-  if (!waVorlageWerblich(vorlage)) return null;
+  const { waVorlageWerblich, menschSperre, werbungVerboten, KOPF_SQL } = await import("./fiaon-mail-frequenz");
+  const werblich = waVorlageWerblich(vorlage);
+  // E-272 (02.10.2026): eine Vorlage der Privatlinie, die an einen Global-Kunden nicht darf.
+  const name = String(vorlage || "").trim();
+  const privatlinie = PRIVATLINIE_VORLAGE.test(name) && !GLOBAL_DURCHLASS.has(name);
+  if (!werblich && !privatlinie) return null;
   try {
-    // E-261 (29.09.2026): Meta-Code 131050 — dieser Empfänger hat Werbung von uns in WhatsApp abbestellt.
-    // Jede weitere Werbe-Vorlage an die Nummer scheitert und drückt die Qualität; gemessen: eine Nummer bekam
-    // nach der 131050 vom 28.09. am 29.09. die nächste. Gilt für die NUMMER, dauerhaft, nur für Werbung
-    // (dieselbe Regel in der BASIS der Zentrale und im Verkaufstakt: WA_WERBUNG_ABBESTELLT_SQL).
-    const [abbestellt] = (await lauf`
-      SELECT 1 AS x FROM fiaon_whatsapp
-       WHERE nummer = ${waKanonisch(nummer) ?? ""} AND richtung = 'raus' AND status = 'fehler'
-         AND fehler LIKE ${`(#${WA_CODE_WERBUNG_ABBESTELLT})%`}
-       LIMIT 1`) as any[];
-    if (abbestellt) return `Werbung abbestellt (Meta #${WA_CODE_WERBUNG_ABBESTELLT}): Diese Nummer hat Werbung von FIAON in WhatsApp abbestellt — keine werbliche Vorlage („${vorlage}“). Schreibt der Mensch selbst, geht eine Antwort im offenen 24-Stunden-Fenster.`;
+    if (werblich) {
+      // E-261 (29.09.2026): Meta-Code 131050 — dieser Empfänger hat Werbung von uns in WhatsApp abbestellt.
+      // Jede weitere Werbe-Vorlage an die Nummer scheitert und drückt die Qualität; gemessen: eine Nummer bekam
+      // nach der 131050 vom 28.09. am 29.09. die nächste. Gilt für die NUMMER, dauerhaft, nur für Werbung
+      // (dieselbe Regel in der BASIS der Zentrale und im Verkaufstakt: WA_WERBUNG_ABBESTELLT_SQL).
+      const [abbestellt] = (await lauf`
+        SELECT 1 AS x FROM fiaon_whatsapp
+         WHERE nummer = ${waKanonisch(nummer) ?? ""} AND richtung = 'raus' AND status = 'fehler'
+           AND fehler LIKE ${`(#${WA_CODE_WERBUNG_ABBESTELLT})%`}
+         LIMIT 1`) as any[];
+      if (abbestellt) return `Werbung abbestellt (Meta #${WA_CODE_WERBUNG_ABBESTELLT}): Diese Nummer hat Werbung von FIAON in WhatsApp abbestellt — keine werbliche Vorlage („${vorlage}“). Schreibt der Mensch selbst, geht eine Antwort im offenen 24-Stunden-Fenster.`;
+    }
     let personId = zusatz.personId && Number(zusatz.personId) > 0 ? Number(zusatz.personId) : null;
     if (!personId && zusatz.leadId) {
       const [l] = (await lauf`SELECT person_id FROM fiaon_leads WHERE id = ${Number(zusatz.leadId)} LIMIT 1`) as any[];
@@ -811,6 +847,17 @@ export async function waVorlagenSperre(
     }
     if (!personId) personId = (await wemGehoert(nummer, lauf)).personId;
     if (!personId) return null; // Unbekannter Mensch: Es gibt keine Sperre, die wir kennen könnten.
+    if (privatlinie) {
+      // E-272: am KOPF gelesen (wie menschSperre) — eine Dublette trägt weder Bestellzeilen noch die Antwort.
+      const { globalKundeSql, globalKundeBereit } = await import("./fiaon-global-kunde");
+      await globalKundeBereit();
+      const [g] = (await lauf.unsafe(
+        `SELECT ${globalKundeSql("k.id")} AS ja FROM (SELECT ${KOPF_SQL("$1::int")} AS id) k`, [personId])) as any[];
+      if (g?.ja === true) {
+        return `Global-Kunde (FIAON Global): Keine Vorlage der Privatlinie („${vorlage}“) an diesen Menschen — er bekommt die Business-Welt, nicht Kreditkarte, Antrag oder Rechnung. Schreibt er selbst, geht eine Antwort im offenen 24-Stunden-Fenster.`;
+      }
+    }
+    if (!werblich) return null;
     // E-253: EINE Lesart — Kopf über Ketten, Vertriebssperre nur dort, Werbesperre/Kündigung über die Familie.
     const s = await menschSperre(personId, lauf);
     const grund = werbungVerboten(s ? { ...s, test: false } : null);
@@ -818,7 +865,7 @@ export async function waVorlagenSperre(
     return null;
   } catch (e) {
     console.error("[WHATSAPP] Sperrprüfung:", String((e as Error)?.message || e).slice(0, 200));
-    return "Die Sperre dieses Menschen ließ sich gerade nicht prüfen — die werbliche Vorlage geht nicht raus. Bitte später erneut.";
+    return `Die Sperre dieses Menschen ließ sich gerade nicht prüfen — die ${werblich ? "werbliche " : ""}Vorlage geht nicht raus. Bitte später erneut.`;
   }
 }
 
@@ -975,9 +1022,13 @@ export async function waSenden(
       if (l?.link_code) knopfWert = `${l.link_code}/w`;
     }
     if (!knopfWert && urlKnopf.url.includes("/zahlung/") && zusatz.personId) {
+      // E-272 (02.10.2026): nie die Zahlungsseite einer Global-Bestellung — der Knopf gehört zu einer
+      // Vorlage der Privatlinie („Jetzt aktivieren“). Bei „gemischten“ Kunden war die neueste Bestellung
+      // sonst oft der Global-Auftrag.
       const [a] = (await lauf`
         SELECT payment_reference FROM fiaon_applications WHERE person_id = ${zusatz.personId}
            AND merged_into IS NULL AND payment_reference IS NOT NULL
+           AND ${lauf.unsafe(produktkategorieSql())} <> 'global'
          ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
       if (a?.payment_reference) knopfWert = String(a.payment_reference);
     }

@@ -24,9 +24,21 @@
 // dokumentiert betreut und gehört seinem Betreuer — auch wenn die Zuweisung
 // verloren ging. Diese Funktion vergibt NUR herrenlose Personen und nimmt
 // niemandem etwas weg.
+//
+// GLOBAL-KUNDEN NIE (02.10.2026, E-272)
+// Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er
+// soll Global bleiben, also keine unnötigen Mails.“ Ein Global-Kunde (Regel in
+// fiaon-global-kunde.ts) gehört FIAON Global und seiner zuständigen Person —
+// keine Funktion dieser Datei gibt ihn einem Privat-Mitarbeiter, gibt ihn frei
+// oder verteilt ihn neu. Die Einstufung stellt ihn zwar auf Stufe -1, aber
+// erst beim nächsten Neurechnen: Ein neues Individualangebot ändert keine
+// Bestellung, also gilt bis zum 20-Minuten-Takt die alte Stufe. Deshalb fragen
+// sofortZuteilen, gesperrteFreigeben, neuVerteilen und sonderrollenBereinigen
+// die Regel selbst.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "./fiaon-global-kunde";
 
 type Lauf = typeof sqlPool;
 
@@ -182,12 +194,15 @@ export async function gesperrteFreigeben(
   const out = { geprueft: 0, verteilt: 0, pool: 0 };
   const zusatz: Record<number, number> = {};
   try {
+    await globalKundeBereit();
     const rows = (await lauf.unsafe(`
       SELECT p.id, p.priority_tier, p.assigned_agent_id, COALESCE(NULLIF(a.first_name, ''), a.name) AS von
         FROM fiaon_persons p JOIN fiaon_agents a ON a.id = p.assigned_agent_id
        WHERE a.zugang_gesperrt_am IS NOT NULL AND p.mandat_seit IS NULL
          AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked
          AND p.priority_tier BETWEEN 1 AND 3
+         -- E-272 (02.10.2026): Global-Kunden bleiben, wo sie sind, auch mit noch alter Stufe (Kopf der Datei).
+         AND NOT ${globalKundeSql("p.id")}
        ORDER BY p.priority_tier ASC, p.id DESC
        LIMIT $1`, [hoechstens])) as any[];
     for (const r of rows) {
@@ -250,6 +265,13 @@ export async function sofortZuteilen(
     }
     if (p.is_blocked) return { zugeteilt: false, agentId: null, grund: "gesperrt" };
     if (p.ist_test_am) return { zugeteilt: false, agentId: null, grund: "Testeintrag" };
+    // E-272 (02.10.2026): Ein Global-Kunde geht nie an den Privatvertrieb — Justin: „Er soll
+    // Global bleiben, also keine unnötigen Mails.“ Die Regel selbst, nicht nur die Stufe: Wer
+    // gerade ein Individualangebot bekam, trägt bis zum nächsten Neurechnen noch seine alte
+    // Stufe, und gesperrteFreigeben/neuVerteilen lesen die gespeicherte (Kopf der Datei).
+    if (await istGlobalKunde(personId, lauf)) {
+      return { zugeteilt: false, agentId: null, grund: "Global-Kunde — gehört FIAON Global, nicht dem Privatvertrieb" };
+    }
     // Archiv (05.09.2026): beendete, stornierte, gesperrte Kunden werden nicht verteilt.
     const { kundeInaktivSql } = await import("./fiaon-kunde-aktiv");
     const [ina] = (await lauf.unsafe(`SELECT 1 AS x FROM fiaon_persons p WHERE p.id = $1 AND ${kundeInaktivSql("p")}`, [personId])) as any[];
@@ -433,13 +455,17 @@ export async function neuVerteilen(
 ): Promise<{ geprueft: number; verteilt: number; pool: number; je: Record<string, number> }> {
   const out = { geprueft: 0, verteilt: 0, pool: 0, je: {} as Record<string, number> };
   const zusatz: Record<number, number> = {};
+  await globalKundeBereit();
   for (const id of personIds.slice(0, 500)) {
     out.geprueft++;
+    // E-272 (02.10.2026): Ein Global-Kunde wird weder gelöst noch neu verteilt — auch nicht
+    // mit noch alter Stufe; sonst verlöre er seine zuständige Person bei FIAON Global.
     const [p] = (await lauf`
       SELECT p.id, p.priority_tier, p.assigned_agent_id, COALESCE(NULLIF(a.first_name, ''), a.name) AS von
         FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
        WHERE p.id = ${Number(id)} AND p.mandat_seit IS NULL AND p.merged_into_person_id IS NULL
-         AND p.ist_test_am IS NULL AND NOT p.is_blocked AND p.priority_tier BETWEEN 1 AND 3`) as any[];
+         AND p.ist_test_am IS NULL AND NOT p.is_blocked AND p.priority_tier BETWEEN 1 AND 3
+         AND NOT ${lauf.unsafe(globalKundeSql("p.id"))}`) as any[];
     if (!p) continue;
     await lauf`UPDATE fiaon_persons SET assigned_agent_id = NULL, assigned_at = NULL, updated_at = NOW()
                 WHERE id = ${Number(p.id)} AND mandat_seit IS NULL`;
@@ -483,6 +509,7 @@ export interface BereinigungZeile {
 export async function sonderrollenBereinigen(
   opts: { schreiben?: boolean } = {}, lauf: Lauf = sqlPool,
 ): Promise<{ zeilen: BereinigungZeile[]; verschoben: number; hinweis: string }> {
+  await globalKundeBereit();
   const betroffen = (await lauf`
     SELECT p.id AS person_id, p.priority_tier, p.tier_reason,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
@@ -506,6 +533,8 @@ export async function sonderrollenBereinigen(
       AND p.merged_into_person_id IS NULL
       AND p.priority_tier BETWEEN 1 AND 3
       AND NOT p.is_blocked
+      -- E-272 (02.10.2026): ein Global-Kunde wandert nie in den Privatvertrieb (Kopf der Datei).
+      AND NOT ${lauf.unsafe(globalKundeSql("p.id"))}
     ORDER BY a.name, p.id
   `) as any[];
 

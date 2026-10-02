@@ -24,6 +24,9 @@
 //   7 Bestellübersicht UNMITTELBAR über „Zahlungspflichtig annehmen" (§ 312j BGB —
 //     Beträge dort vollständig, das bleibt am Ende)
 //   Die Abschnitte bauen sich beim Scrollen dezent auf (Auf aus DunkleBuehne).
+//   E-273 (02.10.2026): Nach der Annahme „Ihr Startgespräch: <Tag>, <Uhrzeit> Uhr mit <Name>" mit Kalender und
+//   Verschieben — das System bucht es selbst (fiaon-global-angebot-startgespraech.ts). Unter dem Knopf der Satz, dass
+//   es das tut (STARTGESPRAECH_TEXTE.hinweisAnnahme) — AUSSERHALB des Vertragstextes, nicht in der Prüfsumme.
 //   Kein Cookie-Hinweis, keine Messung (components/site/EinwilligungsHinweis.tsx).
 //
 // ── WAS DIE SEITE TUT ──────────────────────────────────────────────────────
@@ -55,6 +58,7 @@ import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import "@/styles/global-start.css";
 import "@/styles/global-angebot.css";
 import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ, ANGEBOT_ANNAHME as AN, ANGEBOT_GARANTIE_FEST } from "@shared/fiaon-global-angebot";
+import { STARTGESPRAECH_TEXTE } from "@shared/fiaon-global-startgespraech";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -86,7 +90,36 @@ type Fertig = {
   ref: string; auftragRef: string | null; email: string; sofortBeginn: boolean; zahlungsseite: string | null; meinAuftrag: string | null;
   vertragUrl: string | null; rechnungUrl: string | null; fertigTitel: string; fertigText: string; betragCents: number; hinweis?: string;
   teil1Bezahlt?: boolean; fertigZahlung?: string; fertigFuss?: string;
+  /** E-273: das vom System gebuchte Startgespräch — oder der Satz, warum (noch) keins da ist. */
+  startgespraech?: Startgespraech | null;
 };
+/** E-273 (02.10.2026): Was der Server über das Startgespräch schickt (startgespraechFuerKunde) — auch für „Mein Auftrag". */
+type Startgespraech = {
+  stand: "gebucht" | "gefuehrt" | "abgesagt" | "persoenlich" | "folgt"; titel: string;
+  zeile: string | null; wie: string | null; satz: string | null;
+  kalenderUrl: string | null; googleUrl: string | null; verschiebenUrl: string | null;
+  texte: { kalender: string; google: string; verschieben: string };
+};
+
+/** Der Block „Ihr Startgespräch" nach der Annahme — Tag, Uhrzeit, mit wem, wie; Kalender und Verschieben. */
+function StartgespraechBlock({ sg }: { sg: Startgespraech }) {
+  return (
+    <div className="gia-startgespraech" data-fiaon="angebot-startgespraech" data-stand={sg.stand}>
+      <h2 className="gia-h2">{sg.titel}</h2>
+      {sg.zeile ? (
+        <>
+          <p className="gia-startgespraech-zeile"><b>{sg.zeile}</b></p>
+          {sg.wie && <p className="gia-fertig-satz">{sg.wie}</p>}
+          <div className="gs-dateien">
+            {sg.kalenderUrl && <a href={sg.kalenderUrl}>{sg.texte.kalender}</a>}
+            {sg.googleUrl && <a href={sg.googleUrl} target="_blank" rel="noreferrer">{sg.texte.google}</a>}
+            {sg.verschiebenUrl && <a href={sg.verschiebenUrl}>{sg.texte.verschieben}</a>}
+          </div>
+        </>
+      ) : <p className="gia-fertig-satz">{sg.satz}</p>}
+    </div>
+  );
+}
 
 /** Die Wahl als Abfrage: beginn=sofort | beginn=datum&startAm=… | ohne Wahl der Vertrag „nach der Widerrufsfrist". */
 const wahlQuery = (b: Beginn, tag: string, jb: boolean) =>
@@ -298,6 +331,8 @@ export default function BusinessAngebot() {
               {fertig.zahlungsseite && !fertig.teil1Bezahlt && <a className="gs-knopf" href={fertig.zahlungsseite}>Zur Zahlungsseite</a>}
               {fertig.meinAuftrag && <a className="gia-knopf-leise" href={fertig.meinAuftrag}>Mein Auftrag öffnen</a>}
             </div>
+            {/* E-273: das Startgespräch, das das System nach der Annahme gebucht hat. */}
+            {fertig.startgespraech && <StartgespraechBlock sg={fertig.startgespraech} />}
             <div className="gs-dateien">
               {fertig.vertragUrl && <a href={fertig.vertragUrl} target="_blank" rel="noreferrer">Vertrag mit Anlagen (PDF)</a>}
               {fertig.rechnungUrl && <a href={fertig.rechnungUrl} target="_blank" rel="noreferrer">Rechnung Teil 1 (PDF)</a>}
@@ -497,6 +532,8 @@ export default function BusinessAngebot() {
                 )}
                 <p className="gia-unterknopf">{A.unterKnopf}</p>
                 <p className="gia-fein">{A.gelesen}</p>
+                {/* E-273 (02.10.2026): was nach dem Klick passiert — außerhalb des Vertragstextes, die Prüfsumme bleibt. */}
+                <p className="gia-fein gia-start-hinweis">{STARTGESPRAECH_TEXTE.hinweisAnnahme}</p>
               </div>
             ) : (
               <div className="gia-knopf-block">

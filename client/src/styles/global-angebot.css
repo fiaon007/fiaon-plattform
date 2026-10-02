@@ -160,6 +160,12 @@ html.gia-auftakt-an{overflow:hidden}
 .gia-knopf-leise{display:inline-flex;align-items:center;min-height:50px;padding:0 22px;border-radius:8px;border:1px solid var(--linie-2);background:#fff;color:var(--tinte);font-size:14.5px;text-decoration:none}
 .gia-knopf-leise:hover{border-color:var(--navy)}
 @media(max-width:560px){.gia-fertig-knoepfe>*{width:100%;justify-content:center}}
+/* E-273 (02.10.2026): „Ihr Startgespräch" — eine ruhige Zeile mit Tag, Uhrzeit und Name, darunter Kalender und Verschieben. */
+.gia-startgespraech{margin-top:30px;padding-top:24px;border-top:1px solid var(--linie)}
+.gia-startgespraech .gia-h2{margin:0;font-size:clamp(20px,2vw,24px)}
+.gia-startgespraech-zeile{margin-top:12px;font-size:17px;line-height:1.5;color:var(--tinte);font-variant-numeric:tabular-nums}
+.gia-startgespraech-zeile b{font-weight:500}
+.gia-start-hinweis{margin-top:8px}
 
 /* ── Am Handy: die Leiste „Zur Annahme" ────────────────────────────────── */
 .gia-leiste{display:none}

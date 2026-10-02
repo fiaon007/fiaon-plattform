@@ -92,6 +92,7 @@ import { BANK } from "@shared/fiaon-bank";
 import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
+import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
 
@@ -233,6 +234,14 @@ function grundmenge() {
        -- Bestellung (Unternehmen, Einmalpreis) bekommt sie nicht; dort fasst der
        -- feste Ansprechpartner nach.
        AND NOT (${sqlPool.unsafe(produktkategorieSql("a"))} = 'global')
+       -- E-272 (02.10.2026): und kein Antrag eines GLOBAL-KUNDEN — die Zeile oben fragt nur je
+       -- Bestellung. William Hildbrand (Person 13411) hatte ein offenes Individualangebot und
+       -- daneben einen alten, nie bezahlten Privatantrag: für diese Grundmenge ein Privat-
+       -- Interessent. Justin: „nehme ihn bitte komplett aus den Workflows … Er soll Global
+       -- bleiben, also keine unnötigen Mails“. Die Regel (fiaon-global-kunde.ts) ist EINE für alle
+       -- Läufe; wer zusätzlich ein bezahltes Stufenpaket hat („gemischt“), bleibt drin. Weil
+       -- Segmente, Dauerpflege und Kandidaten alle aus dieser Grundmenge schöpfen, gilt es dort mit.
+       AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
        AND p.ist_test_am IS NULL
        AND p.werbung_gesperrt_am IS NULL
        -- E-240 (25.09.2026): die Vertriebssperre (is_blocked) — GENAU die Bedingung von
@@ -357,6 +366,7 @@ export interface SegmentStand { anzahl: number; wert_cents: number; mit_mail: nu
  */
 export async function rueckholSegmente(): Promise<Record<Segment, SegmentStand>> {
   await ensureRueckholSpalten();
+  await globalKundeBereit(); // E-272: die Grundmenge liest fiaon_global_angebote
   const abstand = await dauerpflegeAbstandTage();
   const [zeilen, dauerpflege] = await Promise.all([
     sqlPool`
@@ -474,6 +484,7 @@ async function dauerpflegeKandidaten(limit: number): Promise<RueckholFall[]> {
  */
 export async function rueckholKandidaten(segment: Segment, limit: number): Promise<RueckholFall[]> {
   await ensureRueckholSpalten();
+  await globalKundeBereit(); // E-272: die Grundmenge liest fiaon_global_angebote (auch für die Dauerpflege)
   if (segment === "s5_altbestand") return dauerpflegeKandidaten(limit);
   const event = EVENT[segment];
   const hoechstens = HOECHSTENS[segment];

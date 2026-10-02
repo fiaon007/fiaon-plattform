@@ -22,6 +22,10 @@
 // „Geöffnet: n× (zuletzt …)" bzw. „Noch nicht geöffnet", „Kunde zuletzt: …" und die aufklappbare
 // Liste (Zeit Berlin, Art, Gerät, Ort, du/Kunde). Alles kommt fertig vom Server (aufrufe) —
 // Zeiten schon in Berlin, Ort ehrlich („Ort unbekannt"). Quelle: server/lib/fiaon-global-angebot-aufrufe.ts.
+//
+// E-273 (02.10.2026): Nach der Annahme bucht das System das Startgespräch selbst (beim nächsten freien Termin, in
+// Justins Kalender — server/lib/fiaon-global-angebot-startgespraech.ts). Die Zeile „Startgespräch" zeigt den Termin
+// oder rot „nicht gebucht — von Hand buchen" mit dem Grund; „Nachholen" versucht es noch einmal.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { eur, datum, datumZeit, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
@@ -63,11 +67,32 @@ type Angebot = {
   verlauf: { am: string; wer: string; was: string }[];
   /** Angebot-Aufrufe (01.10.2026) — null, wenn die Liste der Aufrufe gerade nicht ladbar ist. */
   aufrufe: Aufrufe | null;
+  /** E-273 (02.10.2026): das vom System gebuchte Startgespräch — null bei offenen Angeboten oder wenn es nicht lesbar ist. */
+  startgespraech: {
+    stand: "gebucht" | "gefuehrt" | "vorbei" | "abgesagt" | "persoenlich" | "folgt" | "keins"; terminId: number | null; neuGebucht: boolean;
+    fehler: string | null; versuche: number; versuchAm: string | null; mailAm: string | null; abgesagtVon: string | null;
+    terminStatus: string | null; zeile: string | null; beginn: string | null;
+  } | null;
 };
 type Antwort = {
   ok: boolean; angebote: Angebot[];
   vorgaben: { parameter: Record<string, number>; buergin: Buergin; buerginFelder: { schluessel: keyof Buergin; bezeichnung: string; hinweis: string }[]; fassung: string; gueltigTage: number };
 };
+
+/** E-273: die Zeile „Startgespräch" am angenommenen Angebot. Rot, solange ein Mensch von Hand buchen muss. */
+function StartgespraechZeile({ sg }: { sg: NonNullable<Angebot["startgespraech"]> }) {
+  const grund = sg.fehler ? sg.fehler.replace(/^(kein_platz|keine_person|technik):\s*/, "") : null;
+  if (sg.stand === "gebucht" || sg.stand === "gefuehrt" || sg.stand === "vorbei") {
+    return <p className="cm-klartext" data-startgespraech={sg.stand}>Startgespräch: <b>{sg.zeile}</b> · {sg.stand === "gefuehrt" ? "geführt" : sg.stand === "vorbei" ? "Zeit vorbei — im Kalender abschließen" : "gebucht"}{sg.neuGebucht ? " (nach einer Absage neu gebucht)" : ""}{sg.mailAm ? ` · Kunde informiert ${datumZeit(sg.mailAm)}` : " · Mail an den Kunden noch nicht raus"}</p>;
+  }
+  if (sg.stand === "abgesagt") return <p className="cm-klartext cg-rot" data-startgespraech="abgesagt">Startgespräch {sg.zeile ? `(${sg.zeile}) ` : ""}abgesagt {sg.abgesagtVon === "kunde" ? "vom Kunden" : "durch das Team"} — neuen Termin von Hand vereinbaren (Aufgabe bei Justin).</p>;
+  // Gegenprüfung E-273 (recht-zeitpunkt, 02.10.2026): „verpasst“ heißt hier, ein Mensch hat im Kalender „kam nicht
+  // zustande“ eingetragen — gebucht WAR es, und eine Aufgabe an Justin entsteht dabei nicht (globalTerminErgebnis).
+  if (sg.stand === "persoenlich" && sg.terminStatus === "verpasst") return <p className="cm-klartext cg-rot" data-startgespraech="verpasst">Startgespräch{sg.zeile ? ` (${sg.zeile})` : ""} kam nicht zustande — neuen Termin von Hand vereinbaren.</p>;
+  if (sg.stand === "persoenlich") return <p className="cm-klartext cg-rot" data-startgespraech="persoenlich">Startgespräch: nicht gebucht — von Hand buchen{grund ? ` (${grund})` : ""}. Aufgabe bei Justin.</p>;
+  if (sg.stand === "folgt") return <p className="cm-klartext cg-rot" data-startgespraech="folgt">Startgespräch: noch nicht gebucht{grund ? ` (${grund}; ${sg.versuche} Versuch${sg.versuche === 1 ? "" : "e"}, der Stundenlauf versucht es weiter)` : " — die Buchung läuft"}. Sonst von Hand buchen.</p>;
+  return null;
+}
 
 const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Offen — wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
 const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["geburtsdatum", "Geburtsdatum (JJJJ-MM-TT)"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
@@ -266,7 +291,8 @@ export default function ChefGlobalAngebote() {
                 <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · sofortiger Beginn: {a.schalter?.sofortBeginn ? "ja" : "nein"} · Jahresbetreuung: {a.schalter?.jahresbetreuung ? "ja" : "nein"}</p>
                 {a.nacharbeitFehler && <p className="cm-klartext cg-rot">Nach der Annahme hing etwas: {a.nacharbeitFehler}</p>}
                 {a.bestaetigungMailFehler && !a.bestaetigungMailAm && <p className="cm-klartext cg-rot">Bestätigungsmail ging nicht raus: {a.bestaetigungMailFehler}</p>}
-                {(a.nacharbeitFehler || (a.bestaetigungMailFehler && !a.bestaetigungMailAm)) && <button type="button" className="cg-knopf" disabled={busy === `nach${a.id}`} onClick={() => aktion(`nach${a.id}`, `/admin/global/angebote/${a.id}/nachholen`, {})}>Nachholen</button>}
+                {a.startgespraech && <StartgespraechZeile sg={a.startgespraech} />}
+                {(a.nacharbeitFehler || (a.bestaetigungMailFehler && !a.bestaetigungMailAm) || (a.startgespraech && !a.startgespraech.terminId && a.startgespraech.fehler)) && <button type="button" className="cg-knopf" disabled={busy === `nach${a.id}`} onClick={() => aktion(`nach${a.id}`, `/admin/global/angebote/${a.id}/nachholen`, {})}>Nachholen</button>}
                 <div className="cm-tab-halter"><table className="cm-tab cg-teile">
                   <thead><tr><th>Teil</th><th>Betrag</th><th>Stand</th><th>Rechnung</th></tr></thead>
                   <tbody>

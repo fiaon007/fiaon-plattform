@@ -57,6 +57,8 @@
 .ga-knopf[disabled],.ga-knopf[aria-disabled="true"]{opacity:.5;cursor:default}
 .ga-knopf.blau{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
 .ga-knopf.blau:hover{background:#1e40af}
+/* E-273 (02.10.2026): Kalender und Verschieben unter „Ihr Startgespräch" — umbrechend, links bündig. */
+.ga-start-wege{margin-top:12px;flex-wrap:wrap;justify-content:flex-start}
 .ga-datei{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .ga-fuss{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .ga-frist-datum{font-size:13.5px;font-weight:400;color:#0f172a;font-variant-numeric:tabular-nums;white-space:nowrap}

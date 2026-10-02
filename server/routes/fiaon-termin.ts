@@ -595,7 +595,11 @@ router.post("/termin/absagen/:stornoToken", async (req: Request, res: Response) 
     // Du-Form heraus.
     if (String(ergebnis.termin.quelle) === "global") {
       const { absoluteUrl } = await import("../fiaon-base-url");
-      return res.json({ ok: true, neuBuchen: absoluteUrl("/business#gespraech") });
+      // E-273 (02.10.2026): Das Startgespräch eines Individualangebots wählt der Kunde bei Justin neu (/justin?k=…,
+      // seine Daten schon ausgefüllt) — er ist schon Kunde und gehört nicht in den Erstgesprächs-Kalender.
+      const start = await import("../lib/fiaon-global-angebot-startgespraech")
+        .then((m) => m.startgespraechNeuBuchenLink(Number(ergebnis.termin.id))).catch(() => null);
+      return res.json({ ok: true, neuBuchen: start ?? absoluteUrl("/business#gespraech") });
     }
     // 24.09.2026 (E-236): Wer gesiezt absagt (?anrede=sie von der Absage-Seite),
     // wählt gesiezt neu — die Anrede wandert an den frischen Link. Nur Wortwahl.

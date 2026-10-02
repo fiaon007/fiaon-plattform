@@ -38,6 +38,11 @@
 //     bei Meta-Qualität ROT keine Werbe-Vorlage, bei GELB halber Deckel. Die
 //     Begrüßung bleibt bei GELB voll (Speed-to-Lead); bei Pause/ROT wartet der
 //     Mensch in der Gruppe „neu" der Zentrale, bis es wieder geht.
+//   · E-272 (02.10.2026): Global-Kunden (FIAON Global, Regel in
+//     fiaon-global-kunde.ts) bekommen weder die Kette noch die Begrüßung —
+//     Justin: „nehme ihn bitte komplett aus den Workflows … Er soll Global
+//     bleiben, also keine unnötigen Mails.“ Und eine Global-Bestellzeile ist
+//     nie die „offene Rechnung“ der Kette (Betrag, Referenz).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { waSenden, vorlagenStand, waKonfig, waAktenvermerk, waTagesplatz } from "./fiaon-whatsapp";
@@ -45,6 +50,19 @@ import { waBremse, mitFaktor } from "./fiaon-wa-bremse";
 import { STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
+import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "./fiaon-global-kunde";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
+
+/**
+ * E-272 (02.10.2026): Die offene Rechnung der Kette (fiaon_kk_rechnung) — EIN Baustein für
+ * „rechnung_offen“, Referenz und Betrag, damit die drei dieselbe Bestellung meinen (wie
+ * RATE_ERINNERBAR in fiaon-wa-zentrale.ts). Bis heute las nur „rechnung_offen“ den Mahnstopp;
+ * Referenz und Betrag konnten von einer anderen Bestellung kommen. Nie eine Global-Zeile: Die
+ * Vorlage spricht von Konto und Kreditkarte, Betrag und Referenz wären die des Global-Auftrags.
+ */
+const RECHNUNG_OFFEN = (a: string) => `(${a}.merged_into IS NULL AND ${a}.payment_status IN ('pending_payment','expired')
+  AND ${a}.mahnstopp_am IS NULL AND ${abgeschicktSql(a)}
+  AND ${produktkategorieSql(a)} <> 'global')`;
 
 /** Der Schalter. Vorgabe: AUS — Justin schaltet ihn im Steuerpult ein. */
 export const SCHALTER = "lead_whatsapp_an";
@@ -116,6 +134,13 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
   // ── WER IST DRAN ────────────────────────────────────────────────────────
   // Menschen mit Handynummer, die heute noch keine WhatsApp bekommen haben,
   // nicht abgemeldet und nicht gesperrt sind und noch nichts bezahlt haben.
+  // E-272 (02.10.2026): Die Auswahl liest fiaon_global_angebote — die Tabelle muss da sein. Lässt sich das
+  // nicht klären, schreibt die Kette in diesem Takt niemandem (Werbung darf warten).
+  try { await globalKundeBereit(); } catch (e) {
+    console.error("[LEAD-WA] Global-Regel nicht lesbar:", e);
+    weg("Global-Regel nicht lesbar");
+    return erg;
+  }
   const kandidaten = (await sqlPool`
     SELECT p.id AS person_id, p.primary_phone, p.werbung_gesperrt_am,
            TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name,
@@ -125,16 +150,17 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
                      AND a.payment_status = 'paid') AS bezahlt,
            -- E-264 (29.09.2026): Eine Rechnung gibt es nur zu einem ABGESCHICKTEN Antrag — approved +
            -- pending_payment setzt der Antragsweg schon bei Schritt 3–5 (EINE Regel: abgeschicktSql).
-           EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = p.id AND a2.merged_into IS NULL
-                     AND a2.payment_status IN ('pending_payment','expired') AND a2.mahnstopp_am IS NULL
-                     AND ${sqlPool.unsafe(abgeschicktSql("a2"))}) AS rechnung_offen,
+           -- E-272 (02.10.2026): rechnung_offen, Referenz und Betrag aus EINEM Baustein (RECHNUNG_OFFEN),
+           -- nie aus einer Global-Zeile.
+           EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = p.id
+                     AND ${sqlPool.unsafe(RECHNUNG_OFFEN("a2"))}) AS rechnung_offen,
            EXISTS (SELECT 1 FROM fiaon_applications a3 WHERE a3.person_id = p.id AND a3.merged_into IS NULL
                      AND NOT a3.ist_entwurf) AS antrag_begonnen,
-           (SELECT a4.payment_reference FROM fiaon_applications a4 WHERE a4.person_id = p.id AND a4.merged_into IS NULL
-              AND a4.payment_status IN ('pending_payment','expired') AND ${sqlPool.unsafe(abgeschicktSql("a4"))}
+           (SELECT a4.payment_reference FROM fiaon_applications a4 WHERE a4.person_id = p.id
+              AND ${sqlPool.unsafe(RECHNUNG_OFFEN("a4"))}
               ORDER BY a4.created_at DESC LIMIT 1) AS zahlungsreferenz,
-           (SELECT ROUND(a5.amount_due, 2) FROM fiaon_applications a5 WHERE a5.person_id = p.id AND a5.merged_into IS NULL
-              AND a5.payment_status IN ('pending_payment','expired') AND ${sqlPool.unsafe(abgeschicktSql("a5"))}
+           (SELECT ROUND(a5.amount_due, 2) FROM fiaon_applications a5 WHERE a5.person_id = p.id
+              AND ${sqlPool.unsafe(RECHNUNG_OFFEN("a5"))}
               ORDER BY a5.created_at DESC LIMIT 1) AS betrag,
            EXISTS (SELECT 1 FROM fiaon_whatsapp w0 WHERE w0.person_id = p.id AND w0.richtung = 'raus'
                      AND w0.vorlage IS NOT NULL AND w0.status <> 'fehler') AS schon_angeschrieben
@@ -164,6 +190,9 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
        -- hat WhatsApp ausdrücklich abgelehnt (whatsapp_erlaubt = FALSE).
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_leads ln WHERE ln.person_id = p.id AND ln.whatsapp_erlaubt IS FALSE)
+       -- E-272 (02.10.2026): Global-Kunden nie (Regel und Gründe: fiaon-global-kunde.ts) — in der Auswahl,
+       -- damit sie auch keinen Platz unter dem Deckel belegen. „Gemischte“ erfasst die Regel nicht.
+       AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
      ORDER BY p.created_at DESC
      LIMIT ${Math.min(Math.max(deckel, 1), 200)}`.catch((e) => { console.error("[LEAD-WA] Kandidaten:", e); return []; })) as any[];
 
@@ -226,6 +255,17 @@ export async function ersteWhatsAppFuerLead(leadId: number): Promise<{ ok: boole
      WHERE le.id = ${leadId} LIMIT 1`.catch(() => [])) as any[];
   if (!l) return { ok: false, grund: "Lead nicht gefunden." };
   if (l.werbung_gesperrt_am || l.is_blocked) return { ok: false, grund: "Abgemeldet oder gesperrt." };
+  // E-272 (02.10.2026): Ein Global-Kunde bekommt keine Begrüßung der Privatlinie — auch nicht, wenn er
+  // (noch einmal) ein Formular ausfüllt. Vor dem Tagesplatz, damit er keinen verbraucht. Lässt sich die
+  // Regel nicht prüfen, wartet die Begrüßung; der Mensch steht dann in der Gruppe „neu“ der Zentrale.
+  if (l.person_id) {
+    const global = await istGlobalKunde(Number(l.person_id)).catch((e) => {
+      console.error("[LEAD-WA] Global-Prüfung:", e);
+      return null;
+    });
+    if (global === null) return { ok: false, grund: "Die Global-Regel ließ sich gerade nicht prüfen — keine Begrüßung." };
+    if (global) return { ok: false, grund: "Global-Kunde (FIAON Global) — keine Begrüßung der Privatlinie." };
+  }
   // E-229: Das Kontakt-Kästchen im Formular NICHT angehakt = ausdrückliches Nein.
   if (l.whatsapp_erlaubt === false) return { ok: false, grund: "WhatsApp im Formular abgelehnt." };
   // E-230: Entstand der Lead aus seiner eigenen WhatsApp, antwortet Mara — keine Begrüßung.

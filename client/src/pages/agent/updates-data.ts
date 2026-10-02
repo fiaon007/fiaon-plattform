@@ -84,6 +84,45 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-273 (02.10.2026): Nach der Annahme eines Individualangebots bucht das System das Startgespräch selbst.
+    id: "2026-10-02-individualangebot-startgespraech",
+    date: "2026-10-02",
+    category: "Neu",
+    title: "Individualangebot: Das Startgespräch bucht jetzt das System",
+    summary:
+      "Nimmt ein Kunde sein persönliches Angebot an, trägt das System das Startgespräch beim nächsten freien Termin ein — "
+      + "in Justins Kalender, dreißig Minuten, Montag bis Freitag. Der Kunde sieht Tag und Uhrzeit sofort auf der Seite und in seiner Bestätigung.",
+    changes: [
+      "Hat der Kunde „Starten ab“ mit einem Tag gewählt, liegt das Startgespräch ab diesem Tag.",
+      "In der Global-Akte steht im Block „Individualangebot“ jetzt die Zeile „Startgespräch“ mit Tag, Uhrzeit und Namen; deine Aufgabe zur Annahme nennt den Termin.",
+      "Ist kein Platz frei, bucht das System nichts — Justin bekommt die Aufgabe „Startgespräch von Hand buchen“.",
+    ],
+    howto: [
+      "Ruft der Kunde wegen des Startgesprächs an: Tag und Uhrzeit stehen in der Global-Akte. Verschieben kann er selbst über den Link in seiner Mail.",
+      "Gegenüber dem Kunden keinen anderen Termin zusagen — den Termin führt die Person, in deren Kalender er steht.",
+    ],
+    link: { href: "/agent/global", label: "Zu den Global-Aufträgen" },
+  },
+  {
+    // E-272 (02.10.2026): Kunden von FIAON Global aus allen Privat-Abläufen — Justin: „Er soll Global bleiben, also keine unnötigen Mails.“
+    id: "2026-10-02-global-bleibt-global",
+    date: "2026-10-02",
+    category: "Geändert",
+    title: "Kunden von FIAON Global erscheinen nicht mehr im Privatkunden-Vertrieb",
+    summary:
+      "Wer ein persönliches Global-Angebot oder einen Global-Auftrag hat und kein bezahltes Kartenpaket, steht in keiner Arbeitsliste, "
+      + "keinem Pool und keiner Kartei mehr und bekommt keine Privat-Mails, keine WhatsApp-Vorlagen der Karte und keine Antworten von Mara.",
+    changes: [
+      "Arbeitsliste, Kundenpool, Sofort-Spur, Offene Kartei und Telefonkartei zeigen diese Kunden nicht mehr; sie werden auch nicht mehr automatisch zugeteilt.",
+      "Mara antwortet ihnen auf WhatsApp nicht — ihre Nachricht landet als Aufgabe bei Justin.",
+      "Kunden mit bezahltem Kartenpaket, die zusätzlich Global kaufen, bleiben wie bisher in deiner Betreuung.",
+    ],
+    howto: [
+      "Siehst du in der Suche einen Kunden mit Global-Angebot oder Global-Auftrag: nicht zum Privatantrag oder zur Karte führen. Ansprechpartner ist die Global-Betreuung bzw. Justin.",
+    ],
+    link: { href: "/agent/global", label: "Zu den Global-Aufträgen" },
+  },
+  {
     // E-271 (01.10.2026 abends): Justin — „Kredit garantiert“. Neuer Eintrag statt den alten umzuschreiben.
     id: "2026-10-01-individualangebot-garantie",
     date: "2026-10-01",

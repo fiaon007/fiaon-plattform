@@ -68,6 +68,7 @@
  */
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
+import { globalKundeSql } from "./fiaon-global-kunde";
 
 /**
  * Abbruchstellen innerhalb von `payment_status = 'pending'`. Wer hier steht,
@@ -202,6 +203,22 @@ export function grundSql(rang = "rang"): string {
 // jede Person OHNE Global-Bestellung liefert die Abfrage exakt dasselbe wie
 // vorher: Ihre Bestellungen stehen unverändert in `bewertet`, und `firmenkunde`
 // enthält sie nicht.
+//
+// ── E-272 (02.10.2026): DER GLOBAL-KUNDE ALS PERSON ───────────────────────
+// Justin (Fall Hildbrand): „nehme ihn bitte komplett aus den Workflows … Er soll
+// Global bleiben, also keine unnötigen Mails.“ Bis hier war nur Stufe -1, wer
+// AUSSER Global nichts Bewertbares hatte. Hildbrand hatte ein offenes
+// Individualangebot (noch keine Bestellzeile) und einen alten, nie bezahlten
+// Privatantrag — für den Privatvertrieb war er ein Interessent wie jeder andere.
+// Jetzt bestimmt `firmenkunde` die EINE Regel globalKundeSql
+// (fiaon-global-kunde.ts): Individualangebot oder Global-Zeile, und KEIN
+// bezahltes Stufenpaket. Ein Global-Kunde steht auf -1, „ausgeschlossen“, auch
+// wenn daneben ein unbezahlter Privatantrag liegt. Wer ein Stufenpaket bezahlt
+// hat („gemischt“), wird gerechnet wie bisher.
+// Wer vorher -1 war, bleibt -1: Ohne bewertbare Zeile gibt es auch kein
+// bezahltes Stufenpaket, die Global-Zeile allein erfüllt die Regel. Dazu kommen
+// nur Personen mit Angebot und Global-Kunden mit offenem Privat- oder
+// Auskunftsvorgang (gemessen 02.10.: eine Person, 13411).
 // ═══════════════════════════════════════════════════════════════════════════
 const NICHT_GLOBAL_SQL = (a: string) => `${produktkategorieSql(a)} <> 'global'`;
 
@@ -227,10 +244,12 @@ export function personTierSql(): string {
         AND ${NICHT_GLOBAL_SQL("a")}
     ),
     firmenkunde AS (
-      SELECT DISTINCT a.person_id
-      FROM fiaon_applications a
-      WHERE ${antragBasisSql("a")}
-        AND NOT ${NICHT_GLOBAL_SQL("a")}
+      -- E-272 (02.10.2026): die eine Regel Global-Kunde (fiaon-global-kunde.ts) statt
+      -- nur Global-Zeile; Justin: Er soll Global bleiben, also keine unnötigen Mails.
+      SELECT fk.id AS person_id
+      FROM fiaon_persons fk
+      WHERE fk.merged_into_person_id IS NULL
+        AND ${globalKundeSql("fk.id")}
     ),
     gewinner AS (
       -- ══════════════════════════════════════════════════════════════════════
@@ -289,9 +308,10 @@ export function personTierSql(): string {
     )
     SELECT p.id                        AS person_id,
            COALESCE(g.rang, 0)         AS rang,
-           CASE WHEN g.person_id IS NULL AND f.person_id IS NOT NULL THEN -1
+           -- E-272: Global-Kunde schlägt jeden Privatrang; gemischte sind nie in firmenkunde.
+           CASE WHEN f.person_id IS NOT NULL THEN -1
                 ELSE ${tierSql("COALESCE(g.rang, 0)")} END AS priority_tier,
-           CASE WHEN g.person_id IS NULL AND f.person_id IS NOT NULL THEN 'ausgeschlossen'
+           CASE WHEN f.person_id IS NOT NULL THEN 'ausgeschlossen'
                 ELSE ${grundSql("COALESCE(g.rang, 0)")} END AS tier_reason,
            g.status                    AS abbruch_status,
            g.ref                       AS quell_ref

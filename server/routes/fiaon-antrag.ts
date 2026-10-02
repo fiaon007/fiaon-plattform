@@ -1932,6 +1932,10 @@ async function claimReminderBatch(
   // 5 h = zweimal am Tag (Justins Vorgabe 28.08.: offene Rechnungen 2×/Tag).
   // Der Wert kommt aus runPaymentReminders (Einstellung mahn_takte_pro_tag).
   const abstand = Math.max(2, Math.round(opts.abstandStunden ?? 20));
+  // E-272 (02.10.2026): die Global-Kunden-Regel unten liest fiaon_global_angebote — erst
+  // sicherstellen, dass es sie gibt. Geladen wie in den Zählungen des Sammelversands (unten).
+  const { globalKundeSql, globalKundeBereit } = await import("../lib/fiaon-global-kunde");
+  await globalKundeBereit();
   return sqlPool`
     UPDATE fiaon_applications
     SET last_reminder_at = NOW(), reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = NOW()
@@ -1971,6 +1975,21 @@ async function claimReminderBatch(
         -- Einzel- und Sammelversand laufen beide durch diese Abfrage.
         -- ════════════════════════════════════════════════════════════════
         AND NOT (${sqlPool.unsafe(produktkategorieSql("fa"))} = 'global')
+        -- ════════════════════════════════════════════════════════════════
+        -- AUCH NICHT DIE PRIVATZEILE EINES GLOBAL-KUNDEN (02.10.2026, E-272)
+        --
+        -- Die Zeile oben fragt nur die BESTELLUNG. William Hildbrand (Person
+        -- 13411) hatte ein offenes Individualangebot über FIAON Global und
+        -- daneben einen alten, nie bezahlten Privatantrag — dessen Zeile wäre
+        -- hier zweimal am Tag gemahnt worden. Justin: „nehme ihn bitte komplett
+        -- aus den Workflows … Er soll Global bleiben, also keine unnötigen
+        -- Mails“. Die Regel steht EINMAL in fiaon-global-kunde.ts: Angebot oder
+        -- Global-Bestellung, und KEIN bezahltes Stufenpaket. Wer eins hat
+        -- („gemischt“), wird gemahnt wie bisher. Gilt unabhängig von
+        -- allow_reminders_despite_paid. Einzel- und Sammelversand laufen beide
+        -- durch diese Abfrage; die Zählungen unten ebenso.
+        -- ════════════════════════════════════════════════════════════════
+        AND NOT ${sqlPool.unsafe(globalKundeSql("fa.person_id"))}
         -- ════════════════════════════════════════════════════════════════
         -- DIE BONITÄTSAUSKUNFT BEKOMMT DIESE ERINNERUNG NICHT (26.09.2026, E-244)
         --
@@ -2039,6 +2058,8 @@ function reminderPayload(r: any) {
  * Schlüssel macht es idempotent, der Lauf ist stündlich und billig.
  */
 async function unzustellbareErstzahlungenMelden(): Promise<number> {
+  const { globalKundeSql, globalKundeBereit } = await import("../lib/fiaon-global-kunde");
+  await globalKundeBereit();
   const zeilen = (await sqlPool.unsafe(`
     SELECT fa.ref, fa.person_id, fa.amount_due, fa.pack_name, ${zielMailSql("fa")} AS mail
       FROM fiaon_applications fa
@@ -2049,6 +2070,11 @@ async function unzustellbareErstzahlungenMelden(): Promise<number> {
        -- E-264 (29.09.2026): Eine Erinnerung geht nur noch an abgeschickte Anträge (claimReminderBatch) —
        -- dann ist auch nur dort eine unzustellbare Erinnerung eine Aufgabe.
        AND (fa.payment_status = 'claimed_paid' OR ${abgeschicktSql("fa")})
+       -- E-272 (02.10.2026): Gegenstück zu claimReminderBatch — keine Global-Zeile und keine
+       -- Zeile eines Global-Kunden. Dort geht keine Erinnerung raus, also ist hier auch keine
+       -- Anrufaufgabe für den Privatvertrieb fällig (Justin: „Er soll Global bleiben“).
+       AND NOT (${produktkategorieSql("fa")} = 'global')
+       AND NOT ${globalKundeSql("fa.person_id")}
        AND pt.ist_test_am IS NULL
        AND ${unzustellbarSql("fa")}
        AND ${zielMailSql("fa")} NOT ILIKE '%.test'
@@ -2369,6 +2395,8 @@ router.post("/admin/rechnungen/erste/senden", async (_req, res) => {
 router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
   try {
     await ensurePaymentColumns();
+    const { globalKundeSql, globalKundeBereit } = await import("../lib/fiaon-global-kunde");
+    await globalKundeBereit();
     const [row] = await sqlPool`
       SELECT
         COUNT(*) FILTER (WHERE (last_reminder_at IS NULL OR last_reminder_at < NOW() - INTERVAL '20 hours')) AS eligible,
@@ -2383,6 +2411,8 @@ router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
         -- E-244 (26.09.2026): Die Zählung nennt, was der Versand wirklich nimmt (claimReminderBatch) —
         -- ohne FIAON Global und ohne Bonitätsauskunft (eigener Takt, fiaon-auskunft-erinnerung.ts).
         AND ${sqlPool.unsafe(produktkategorieSql("fa"))} NOT IN ('global', 'auskunft')
+        -- E-272 (02.10.2026): und ohne die Privatzeilen eines Global-Kunden (wie claimReminderBatch).
+        AND NOT ${sqlPool.unsafe(globalKundeSql("fa.person_id"))}
         -- E-264 (29.09.2026): und nur abgeschickte Anträge (wie claimReminderBatch).
         AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
@@ -2414,6 +2444,8 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
     if (!withinHardWindow()) {
       return res.status(400).json({ ok: false, error: "Versand nur zwischen 08:00 und 20:00 Uhr (Europa/Berlin) möglich" });
     }
+    const { globalKundeSql, globalKundeBereit } = await import("../lib/fiaon-global-kunde");
+    await globalKundeBereit();
     const [row] = await sqlPool`
       SELECT COUNT(*) AS eligible FROM fiaon_applications fa
       WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
@@ -2425,6 +2457,8 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
         -- E-244 (26.09.2026): Die Zählung nennt, was der Versand wirklich nimmt (claimReminderBatch) —
         -- ohne FIAON Global und ohne Bonitätsauskunft (eigener Takt, fiaon-auskunft-erinnerung.ts).
         AND ${sqlPool.unsafe(produktkategorieSql("fa"))} NOT IN ('global', 'auskunft')
+        -- E-272 (02.10.2026): und ohne die Privatzeilen eines Global-Kunden (wie claimReminderBatch).
+        AND NOT ${sqlPool.unsafe(globalKundeSql("fa.person_id"))}
         -- E-264 (29.09.2026): und nur abgeschickte Anträge (wie claimReminderBatch).
         AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL

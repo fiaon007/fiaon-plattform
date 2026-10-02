@@ -94,6 +94,8 @@ export interface GlobalAngebotBlock {
   teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null }[];
   /** E-271 (Kreditgarantie): „Kreditrahmen von … und drei Business-Kreditkarten“ und wann sie erfüllt war. */
   garantieZiel: string | null; garantieErfuelltAm: string | null;
+  /** E-273 (02.10.2026): das vom System gebuchte Startgespräch — „Montag, 05.10.2026, 10:00 Uhr mit …“ oder der Satz, warum keins. */
+  startgespraech: { stand: string; zeile: string | null; satz: string | null } | null;
 }
 
 // ── Kleine Leser: aus „irgendwas" wird ein sicherer Wert ────────────────────
@@ -203,6 +205,7 @@ function angebotLesen(w: unknown): GlobalAngebotBlock | null {
     ref, fristBeginn: isoTagAus(o.fristBeginn), fristEnde: isoTagAus(o.fristEnde), buergin: txt(o.buergin), erstattungAusgeloest: o.erstattungAusgeloest === true,
     teile: liste(o.teile).map((t) => { const x = ding(t); return { nr: zahl(x.nr, 0), titel: txt(x.titel), betragCents: zahl(x.betragCents, 0), stand: txt(x.stand), rechnungsnummer: txt(x.rechnungsnummer) || null }; }).filter((t) => t.nr > 0),
     garantieZiel: txt(o.garantieZiel) || null, garantieErfuelltAm: isoTagAus(o.garantieErfuelltAm),
+    startgespraech: (() => { const g = ding(o.startgespraech); return txt(g.stand) ? { stand: txt(g.stand), zeile: txt(g.zeile) || null, satz: txt(g.satz) || null } : null; })(),
   };
 }
 

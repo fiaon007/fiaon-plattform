@@ -11,6 +11,10 @@
 // Fall, kein wa.me) und die neue Reihung (Anrufversuche) — hier die Regeln ohne
 // Datenbank, der Weg mit Datenbank in scripts/pruef-telefonkartei-meta.ts.
 //
+// E-274 (02.10.2026): die freie E-Mail aus der Akte — Texte von „Zahlungsdaten
+// neu senden", Knopf, Blatt und Route im Quelltext; der Weg mit Datenbank in
+// scripts/pruef-telefonkartei-mail.ts.
+//
 //   npx tsx scripts/pruef-telefonkartei.ts
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
@@ -20,6 +24,7 @@ import {
   limitZiel, anlass, pitchAbsatz, hatRechnungsweg, hatAntragsweg, euro, euroGanz, datumKurz,
   KARTEI_GRUPPEN, istKarteiGruppe, istKarteiErgebnis, ohneEmojis, type KarteiKarte,
   karteiWaVorlage, KARTEI_WA_VORLAGE, KARTEI_WA_ENTWURF, versucheText, vorlagenBetrag, NICHT_ERREICHT_HINWEIS,
+  mailZahlungsdaten, KARTEI_MAIL_DOPPELT_SEKUNDEN,
 } from "../shared/fiaon-telefonkartei";
 import { linkPruefung } from "../shared/fiaon-mara-ton";
 import { WA_VORLAGEN } from "../shared/fiaon-lead-texte";
@@ -178,6 +183,38 @@ abschnitt("Fall 1 für Leads — Antrag");
   for (const name of Object.values(KARTEI_WA_ENTWURF)) ok(!WA_VORLAGEN.some((v) => v.name === name), `Entwurf ${name} ist NICHT im Katalog (nicht eingereicht)`);
 }
 
+abschnitt("E-274 — E-Mail aus der Akte: „Zahlungsdaten neu senden“");
+{
+  // Justin (02.10.2026): „… der will einbezahlen und braucht aber die Mail neu — nur da gibts kein Knopf."
+  const mit = mailZahlungsdaten(basis, ABSENDER, true)!;
+  const ohne = mailZahlungsdaten(basis, ABSENDER, false)!;
+  ok(!!mit && !!ohne && mit.betreff === "Ihre Zahlungsdaten – wie besprochen" && ohne.betreff === mit.betreff, `Betreff „Ihre Zahlungsdaten – wie besprochen“ (${mit?.betreff})`);
+  ok(flach(mit.text).includes("Betrag: 59,99 €") && mit.text.includes("Verwendungszweck: FIAON-ABC234") && mit.text.includes("https://www.fiaon.com/zahlung/FIAON-ABC234"),
+    "Betrag, Verwendungszweck und Zahlungsseite /zahlung/<ref>");
+  ok(mit.text.includes("Ihre Rechnung finden Sie im Anhang.") && !ohne.text.includes("Anhang"), "„im Anhang“ nur, wenn die Rechnung anhängt");
+  ok(hart(`${mit.betreff}\n${mit.text}`, ["rechnung_anhaengen"]).length === 0, `mit Anhang: besteht die Wand (${hart(`${mit.betreff}\n${mit.text}`, ["rechnung_anhaengen"]).map((f) => f.treffer).join(" | ")})`);
+  ok(hart(`${ohne.betreff}\n${ohne.text}`).length === 0, `ohne Anhang: besteht die Wand auch ohne Rechnung (${hart(`${ohne.betreff}\n${ohne.text}`).map((f) => f.treffer).join(" | ")})`);
+  ok(hart(`${mit.betreff}\n${mit.text}`).length > 0, "Gegenprobe: der Text mit „im Anhang“ kommt ohne Anhang nicht durch die Wand");
+  ok(!/\bDE\d{2}[\s\d]{14,}/i.test(mit.text) && !mit.text.includes(BANK.bic) && !mit.text.includes(BANK.iban), "keine Bankdaten im Mailtext");
+  ok(!/^(Guten Tag|Hallo|Sehr geehrte)/i.test(mit.text) && mit.text.startsWith("wie besprochen"), "keine Anrede im Text — freitextVersenden setzt „Guten Tag …,“ davor");
+  ok(mit.text.trim().endsWith("Viele Grüße\nJustin Schwarzott"), "Gruß mit Justins Namen");
+  ok(mit.text.includes("aktiviere ich Ihr Konto"), "erste Zahlung: „Sobald Ihre Einzahlung da ist, aktiviere ich Ihr Konto.“");
+  // Derselbe Zahlungsteil wie „Rechnung schicken" — eine Stelle (zahlungsAbsaetze).
+  const teil = (t: string) => t.slice(t.indexOf("Ihre Rechnung finden Sie im Anhang."), t.indexOf("dann wird Ihre Zahlung sofort zugeordnet."));
+  ok(teil(mit.text).length > 100 && teil(mit.text) === teil(mailRechnung(basis, ABSENDER)!.text), "Zahlungsteil wortgleich mit der Rechnungsmail");
+  const rate = karte({
+    lage: "rate", wunschlimitEuro: null,
+    zahlung: { art: "rate", referenz: "FIAON-ABC234-2", betragCents: 5999, rateNr: 2, faelligAm: "2026-09-15", zahlungsseite: "https://www.fiaon.com/zahlung/FIAON-ABC234-2", rechnungLink: null, nochKeineRechnung: false },
+  });
+  const r = mailZahlungsdaten(rate, ABSENDER, true)!;
+  ok(r.betreff.includes("2. Monatsrate") && r.text.includes("Fällig: 15.09.2026") && r.text.includes("FIAON-ABC234-2") && !r.text.includes("aktiviere"),
+    "Rate: Betreff und Text nennen die Rate, ihre Fälligkeit und Referenz — kein Aktivierungssatz");
+  ok(hart(`${r.betreff}\n${r.text}`, ["rechnung_anhaengen"]).length === 0, "Raten-Text besteht die Wand");
+  ok(mailZahlungsdaten(karte({ zahlung: null, lage: "C" }), ABSENDER, true) === null && mailZahlungsdaten(karte({ lage: "storniert" }), ABSENDER, true) === null,
+    "ohne offene Zahlung (oder storniert) keine Schnellwahl — dieselbe Regel wie „Rechnung schicken“");
+  ok(KARTEI_MAIL_DOPPELT_SEKUNDEN === 30, "Doppelklick-Fenster der freien Mail: 30 Sekunden");
+}
+
 abschnitt("Formate, Gruppen, Versuche");
 ok(versucheText(0) === "noch nie angerufen" && versucheText(1) === "1 Versuch" && versucheText(3) === "3 Versuche", "„3 Versuche“ an der Karte");
 ok(KARTEI_GRUPPEN.every((g) => g.key === "storniert" || /10 Versuchen/.test(g.satz)), "Jeder Reiter sagt die Regel „ab 10 Versuchen ans Ende“");
@@ -301,6 +338,98 @@ abschnitt("Wände im Quelltext");
   ok(ki.includes("wandPruefen(text, [])") && ki.includes("ohneEmojis(") && ki.includes("entschaerfen"), "Antwort durch Wortwand, Emoji-Filter und Entschärfer");
   ok(ki.includes('kostenHeute("telefonkartei")') && ki.includes("TAGESDECKEL_EUR"), "Tagesdeckel für KI-Kosten");
   ok(lib.includes("async function waVermerk(") && lib.includes("NULL, ${akteur}, 'system'"), "Vermerk der persönlichen Nachricht mit Justins Namen, ohne Mitarbeiter-ID");
+
+  // ── E-274 (02.10.2026): die freie E-Mail aus der Akte ─────────────────────
+  // Justin: „ich brauch da ein Knopf wo ich den Kunden eine Email senden kann."
+  const mailFn = lib.slice(lib.indexOf("export async function karteiMail("), lib.indexOf("// ── Stornieren und Zurückholen"));
+  ok(mailFn.length > 500, "karteiMail steht in der Bibliothek");
+  for (const pfad of ["mail/vorschau", "mail"]) {
+    ok(new RegExp(`router\\.post\\("/chef/telefonkartei/:personId/${pfad}", wache,`).test(routen), `POST ${pfad} nur hinter der Inhaber-Wache`);
+  }
+  ok(/router\.get\("\/chef\/telefonkartei\/:personId\/mail-lage", wache,/.test(routen), "GET mail-lage hinter der Wache");
+  ok((mailFn.match(/freitextVersenden\(/g) ?? []).length >= 2 && /kennung: "tk_frei"/.test(mailFn), "Vorschau und Versand über freitextVersenden (Kennung „tk_frei“ im Protokoll)");
+  ok(/const offen = hatRechnungsweg\(k\) \? k\.zahlung : null;/.test(mailFn)
+     && /offen\.referenz\.trim\(\)\.toUpperCase\(\) !== gewuenscht/.test(mailFn)
+     && /status: 400/.test(mailFn)
+     && /anhangReferenz: anhang\.referenz/.test(mailFn) && !/anhangReferenz: (ein\.anhangReferenz|gewuenscht)/.test(mailFn),
+    "Anhang nur mit SEINER offenen Referenz — eine fremde ist 400, die Referenz des Browsers geht nie an rechnungAlsPdf");
+  ok(!/ergebnisBuchen|ergebnisNachbereiten|karteiWhatsApp|waSenden|promised_payment_date|zusageDatum|rueckrufeErledigen/.test(mailFn),
+    "kein Gesprächsergebnis, keine WhatsApp, kein Zusagedatum");
+  ok(!/werbung/i.test(mailFn) && !/werbung/i.test(mailRoute.slice(mailRoute.indexOf("async function adminFreitext("), mailRoute.indexOf("/** POST /agent/mail/:personId/frei/vorschau"))),
+    "dieselben Wände wie die Admin-Freitext-Route (keine Werbesperre-Prüfung — Justins eigene Mail ist keine Werbung)");
+  ok(/taktNehmen\(personId, takt, KARTEI_MAIL_DOPPELT_SEKUNDEN \/ 60\)/.test(mailFn) && (mailFn.match(/taktFreigeben\(personId, takt\)/g) ?? []).length >= 3,
+    "Doppelklick: Takt je Mensch und Text (30 Sekunden); scheitert der Versand, ist der Takt wieder frei");
+  ok(/make_interval\(secs => \$\{Math\.round\(minuten \* 60\)\}::int\)/.test(lib), "Takt in Sekunden — ganze Minuten wie vorher");
+  ok(/nurBuchen: true, aufAnweisung: true/.test(mailFn) && mailFn.indexOf("probe") < mailFn.indexOf("rechnungStellen("), "fertiger Antrag: erst die Wand, dann in Rechnung stellen, dann senden");
+  ok(/anhangAngekuendigt\?: \{ art: string; betrag: string \} \| null;/.test(mailRoute) && /nurVorschau && !anhangReferenz && ein\.anhangAngekuendigt/.test(mailRoute),
+    "Vorschau ohne Rechnungsnummer: die angekündigte Rechnung gilt nur in der Vorschau");
+  ok(/export async function freitextZiel\(/.test(mailRoute) && /freitextZiel\(personId\)/.test(lib), "Blatt zeigt Adresse und Anrede aus derselben Quelle wie der Versand");
+  // Gegenprüfung E-274: freitextVersenden schreibt den Verlauf nur an eine NICHT archivierte Bestellung —
+  // ohne sie (Lead, alles archiviert) schreibt karteiMail ihn selbst (Prüfstand mit DB: Abschnitt 11).
+  ok(/if \(ziel !== undefined && !ziel\?\.ref\)/.test(mailFn) && /INSERT INTO fiaon_contact_log \(ref, person_id, agent_id, agent_name, type, note, created_at\)/.test(mailFn)
+     && /else if \(k\.leadId\)/.test(mailFn), "Verlauf auch ohne offene Bestellung (alles archiviert) — an der Bestellung der Karte, sonst am Lead");
+  ok(lib.includes("FROM fiaon_mail_log") && lib.includes("zustellung, zustellung_grund") && lib.includes("ZUSTELL_TEXT"), "„Zuletzt an …“: Stand aus fiaon_mail_log.zustellung, Wörter aus ZUSTELL_TEXT");
+  // Die Seite
+  ok(seite.includes('className="tk-email"') && /disabled=\{!k\.email \|\| !!arbeit\}/.test(seite) && seite.includes('"keine E-Mail-Adresse"'),
+    "Karte: Knopf „E-Mail“ bei Anrufen/Nachrichten — ohne Adresse aus, mit Grund");
+  ok(seite.includes('className="tk-akte-mail"') && seite.includes("E-Mail schreiben") && /onEmail=\{\(\) => setMailFuer\(akteFuer\)\}/.test(seite), "Akte: „E-Mail schreiben“ im Kopf");
+  const nbQuelle = seite.slice(seite.indexOf("function NachrichtenBlatt"), seite.indexOf("function kiZusatz"));
+  ok(/className="tk-nb-fall blau tk-nb-mail" onClick=\{onEmail\}/.test(nbQuelle), "Blatt „Nachrichten“: „E-Mail schreiben“ unter der persönlichen Nachricht");
+  const mb = seite.slice(seite.indexOf("function MailBlatt"), seite.indexOf("function MailVerlauf"));
+  ok(mb.length > 500 && mb.includes("/mail/vorschau`") && mb.includes("/mail`") && !/\/ergebnis|whatsapp-/.test(mb), "Blatt „E-Mail“: Vorschau und Senden, kein Ergebnis-, kein WhatsApp-Weg");
+  ok(mb.includes("Zahlungsdaten neu senden") && mb.includes("mailZahlungsdaten(") && mb.includes("Rechnung als PDF anhängen") && /\{zahlung && \(/.test(mb),
+    "Schnellwahl und Anhang nur mit offener Zahlung");
+  ok(mb.includes("tk-mail-anrede") && mb.includes("Die Anrede steht automatisch davor"), "Die Anrede steht sichtbar vor dem Text");
+  ok(/anhangReferenz: zahlung\.referenz/.test(mb) && mb.includes("wandPruefen("), "Browser schickt nur die Referenz der offenen Zahlung; die Wand zeigt vorher, was aufhält");
+  ok(/addEventListener\("keydown", taste, true\)/.test(mb) && mb.includes("e.stopPropagation()"), "Esc schließt nur das Blatt (auch über dem Akte-Fenster)");
+  ok(mb.includes("Gesendet an") || /fertig\.meldung/.test(mb), "Nach dem Senden: „Gesendet an <Adresse>“");
+  ok(seite.includes("<Suspense key={runde}") && /setAkteRunde\(\(n\) => n \+ 1\)/.test(seite), "Nach dem Senden lädt die offene Akte neu (Verlauf)");
+  ok(/\.tk-email \{[\s\S]{0,80}grid-column: 1 \/ -1;/.test(css) && css.includes(".tk-mail-text textarea") && /font: 400 16px/.test(css), "Knopf über die ganze Breite; Felder 16 px (iPhone zoomt nicht)");
+  ok(lies("client/src/pages/agent/rundgaenge.ts").includes('ziel: ".tk-email"'), "Rundgang erklärt „E-Mail“");
+  ok(lies("CHANGELOG.md").includes("E-274"), "CHANGELOG-Eintrag E-274");
+
+  // ── Gegenprüfung E-274 (Bedienung, 02.10.2026) ────────────────────────────
+  // Gemessen (statisches Abbild des Blatts, Chromium): Nach „Zahlungsdaten neu senden" stand „Senden" auf
+  // 380 × 740 rund 200 px, auf 1280 × 800 rund 140 px unter der Kante — zwei Tipps hießen: tippen, suchen, scrollen.
+  const schnell = mb.slice(mb.indexOf("const schnellwahl = () =>"), mb.indexOf("const anhangUmschalten"));
+  ok(/setZeigen\("tun"\)/.test(schnell) && /ref=\{tunZeile\}/.test(mb) && /insBild\(zeigen === "tun" \? tunZeile\.current : vorschauKasten\.current\)/.test(mb),
+    "Schnellwahl holt „Senden“ ins Bild (zwei Tipps, kein Suchen)");
+  ok(/setVorschau\(j\);\s*setZeigen\("vorschau"\)/.test(mb) && /ref=\{vorschauKasten\}/.test(mb), "„Vorschau“ holt die Vorschau ins Bild — sie stand unter der Kante");
+  ok(mb.indexOf("f.style.height = `${Math.min(") > 0 && mb.indexOf("f.style.height = `${Math.min(") < mb.indexOf("insBild(zeigen"),
+    "erst die Höhe des Textfelds, dann ins Bild holen (sonst misst es die alte Höhe)");
+  const insBildFn = seite.slice(seite.indexOf("function insBild("), seite.indexOf("const ANREDE_AM_ANFANG"));
+  ok(/closest\("\.tk-blatt"\)/.test(insBildFn) && /huelle\.scrollBy\(/.test(insBildFn) && !/scrollIntoView|window\.scroll/.test(insBildFn),
+    "ins Bild nur im Blatt selbst — die Seite dahinter (und die Akte) bleibt stehen");
+  // Ein alter Entwurf darf keinen alten Verwendungszweck mit der Rechnung der NEUEN Zahlung verschicken.
+  ok(/schreiben\(entwurfSchluessel, \{ betreff, text, anhang, ref: zahlungJetzt \}\)/.test(mb)
+     && /if \(e && \(e\.ref \?\? null\) !== zahlungJetzt\) \{ loeschen\(entwurfSchluessel\); return null; \}/.test(mb),
+    "Entwurf gilt nur für dieselbe offene Zahlung — wechselt sie, ist er weg");
+  // Anrede doppelt: Der Server setzt „Guten Tag …," IMMER davor.
+  const anredeQuelle = seite.match(/const ANREDE_AM_ANFANG = (\/.+\/i);/)?.[1] ?? "";
+  const anredeAm = anredeQuelle ? (new Function(`return ${anredeQuelle};`)() as RegExp) : /$^/;
+  const mitAnrede = ["Hallo Herr Roth,\nwie besprochen", "Guten Tag Herr Roth", "  guten Morgen!", "Sehr geehrter Herr Roth,", "Lieber Manuel,", "Hi Manuel", "Moin!", "Grüß Gott"];
+  const ohneAnrede = ["wie besprochen sende ich Ihnen", "Hier noch einmal Ihre Daten", "Hinweis: Ihre Rate", "Liebenswürdig wie immer", mailZahlungsdaten(basis, ABSENDER, true)!.text];
+  ok(!!anredeQuelle && mitAnrede.every((t) => anredeAm.test(t)), `Anrede am Anfang erkannt (${mitAnrede.filter((t) => !anredeAm.test(t)).join(" | ") || "alle"})`);
+  ok(ohneAnrede.every((t) => !anredeAm.test(t)), `kein Fehlalarm — auch nicht beim Text von „Zahlungsdaten neu senden“ (${ohneAnrede.filter((t) => anredeAm.test(t)).map((t) => t.slice(0, 20)).join(" | ") || "keiner"})`);
+  ok(/const anredeDoppelt = ANREDE_AM_ANFANG\.test\(text\);/.test(mb) && /\{anredeDoppelt && \(/.test(mb) && !/const bereit = [^\n]*anredeDoppelt/.test(mb),
+    "Anrede doppelt: Hinweis unter dem Textfeld — hält nicht auf (Justin entscheidet)");
+  // Kam die letzte Mail nicht an, sagt das Blatt es OBEN — nicht erst rot unter „Senden".
+  const zustellTextQuelle = lies("server/lib/fiaon-zustellung.ts");
+  const endstand = seite.match(/const ZUSTELL_ENDSTAND = new Set\(\[([^\]]+)\]\)/)?.[1] ?? "";
+  const endWoerter = [...endstand.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  ok(endWoerter.length >= 5 && endWoerter.every((w) => zustellTextQuelle.includes(`: "${w}"`)), `Zustand-Wörter wie ZUSTELL_TEXT (${endWoerter.join(", ")})`);
+  ok(/d\?\.verlauf\.find\(\(z\) => ZUSTELL_ENDSTAND\.has\(z\.stand\)\)/.test(mb) && /if \(letzteZustellung\?\.ton === "warn"\) \{\s*hinweise\.push\(/.test(mb)
+     && mb.indexOf("letzteZustellung") < mb.indexOf("hinweise.length > 0 &&"),
+    "letzte Mail blockiert/unzustellbar → Hinweis oben im Blatt");
+  // Verbindungsabbruch: „steht gleich unter Zuletzt an …" — dann lädt der Stand auch neu.
+  ok(/window\.setTimeout\(lage\.neu, 1500\)/.test(mb) && /\}, \[personId, runde\]\);/.test(seite.slice(seite.indexOf("function useMailLage("), seite.indexOf("function insBild("))),
+    "Verbindungsabbruch beim Senden: „Zuletzt an …“ lädt neu");
+  // Rundgang: „E-Mail" NACH „Persönliche Nachricht" — jener Schritt erklärt das Blatt „Nachrichten" weiter.
+  const rg = lies("client/src/pages/agent/rundgaenge.ts");
+  const rgKartei = rg.slice(rg.indexOf("export const RUNDGANG_TELEFONKARTEI"));
+  const rgPersoenlich = rgKartei.indexOf('titel: "Persönliche Nachricht: du sagst, worum es geht."');
+  ok(rgPersoenlich > 0 && rgKartei.indexOf('ziel: ".tk-nachrichten"') < rgPersoenlich && rgPersoenlich < rgKartei.indexOf('ziel: ".tk-email"'),
+    "Rundgang: Nachrichten → Persönliche Nachricht → E-Mail");
 }
 
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden${fehler ? ` — ${fehler} FEHLER` : ""}`);

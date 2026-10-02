@@ -431,7 +431,9 @@ router.get("/admin/mail/:personId(\\d+)/:event/vorschau", async (req: Request, r
 // Pflichtangaben vom Gerüst. Vorschau und Versand nutzen dieselbe Funktion.
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function freitextZiel(personId: number): Promise<{ email: string; anrede: string; ref: string | null } | null> {
+// E-274 (02.10.2026): exportiert — das Blatt „E-Mail" der Telefonkartei zeigt vor dem Senden
+// GENAU die Adresse und die Anrede, mit denen freitextVersenden die Mail baut.
+export async function freitextZiel(personId: number): Promise<{ email: string; anrede: string; ref: string | null } | null> {
   const [p] = (await sqlPool`
     SELECT COALESCE(NULLIF(p.primary_email, ''), (
              SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
@@ -481,6 +483,13 @@ export interface FreitextAuftrag {
   akteur?: string;
   /** Maschinenlesbare Art der Mail im Protokoll-Payload (z. B. „tk_rechnung") — für Doppelversand-Prüfungen. */
   kennung?: string | null;
+  /**
+   * E-274 (02.10.2026), NUR für die Vorschau: Die Rechnung entsteht erst beim Senden (ein
+   * fertiger Antrag ohne Rechnung wird dann gestellt, wie bei „Rechnung schicken"). Die Wand
+   * rechnet mit ihr, gebaut wird sie nicht — rechnungAlsPdf vergäbe sonst schon in der
+   * Vorschau eine Rechnungsnummer, mit dem Betrag aus dem alten Bestellfeld.
+   */
+  anhangAngekuendigt?: { art: string; betrag: string } | null;
 }
 
 export async function freitextVersenden(ein: FreitextAuftrag): Promise<Record<string, any>> {
@@ -502,15 +511,18 @@ export async function freitextVersenden(ein: FreitextAuftrag): Promise<Record<st
     anhaenge.push({ name: r.dateiname, inhalt: r.pdf });
     rechnung = { rechnungsnummer: r.rechnungsnummer, betrag: r.betrag, art: r.art };
   }
+  // E-274: in der Vorschau die angekündigte Rechnung (siehe FreitextAuftrag) — beim Senden nie.
+  const angekuendigt = nurVorschau && !anhangReferenz && ein.anhangAngekuendigt ? ein.anhangAngekuendigt : null;
+  if (angekuendigt) rechnung = { rechnungsnummer: "", betrag: angekuendigt.betrag, art: angekuendigt.art };
   // Dieselbe Wand wie im Postfach. „Rechnung im Anhang" ist eine Zusage —
   // gedeckt nur, wenn wirklich eine Rechnung angehaengt wird.
   const { wandPruefen } = await import("@shared/fiaon-wortverbote");
-  const hart = wandPruefen(`${betreff}\n${text}`, anhaenge.length ? ["rechnung_anhaengen"] : []).filter((f) => f.art === "verboten" || f.art === "zusage");
+  const hart = wandPruefen(`${betreff}\n${text}`, anhaenge.length || angekuendigt ? ["rechnung_anhaengen"] : []).filter((f) => f.art === "verboten" || f.art === "zusage");
   if (hart.length) return { ok: false, error: `Die Wortwand hält den Text auf: ${hart.map((f) => `„${f.treffer}“ — ${f.hinweis}`).join(" · ")}` };
   const { freitextRendern, freitextSenden } = await import("../mail/motor");
   if (nurVorschau) {
     const mail = freitextRendern({ betreff, text, anrede: ziel.anrede });
-    return { ok: true, betreff: mail.betreff, html: mail.html, empfaenger: ziel.email, absender: mail.absender, anhang: rechnung };
+    return { ok: true, betreff: mail.betreff, html: mail.html, empfaenger: ziel.email, absender: mail.absender, anhang: rechnung, ...(angekuendigt ? { anhangBeimSenden: true } : {}) };
   }
   const erg = await freitextSenden({ an: ziel.email, betreff, text, anrede: ziel.anrede, anhaenge });
   const { mailProtokoll } = await import("../lib/fiaon-mail-log");

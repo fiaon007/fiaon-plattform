@@ -23,6 +23,8 @@
 //                        Lead-Route
 //   · Rechnung           rechnungStellen (nurBuchen), dann freitextVersenden mit
 //                        der Rechnung als PDF — Wand, Protokoll, Akte inklusive
+//   · Freie E-Mail       freitextVersenden wie die Verwaltung (E-274) — ohne
+//                        Ergebnis; die Rechnung nur mit der eigenen Referenz
 //   · Storno             kuendigungSetzen (Hausregel E-092/E-159), Vertriebs-
 //                        und Werbesperre, Lead-Stopp, Termin-Absage
 //
@@ -67,6 +69,8 @@ import {
   type KarteiGruppe, type KarteiKarte, type KarteiLage, type KarteiZahlung,
   type KarteiErgebnis, type KarteiRueckruf, type KarteiTermin,
   type KarteiWaFall, type KarteiWaFallLage, type KarteiWaLage, type KarteiWaErgebnis,
+  KARTEI_MAIL_DOPPELT_SEKUNDEN, KARTEI_MAIL_BETREFF_MAX, KARTEI_MAIL_TEXT_MAX,
+  type KarteiMailZeile, type KarteiMailLage, type KarteiMailAntwort,
 } from "@shared/fiaon-telefonkartei";
 import { anrufversucheCte, ANRUFE_ENDE, FRISCH_TAGE, PAUSE_STUNDEN } from "./fiaon-anrufversuche";
 
@@ -748,13 +752,17 @@ async function schonGetan(personId: number, kennung: string, akteur: string, min
 // vorher nur für die Vorlage.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Den Takt nehmen: true = dieser Klick darf wirken; false = derselbe Knopf lief binnen `minuten`. */
+/**
+ * Den Takt nehmen: true = dieser Klick darf wirken; false = derselbe Knopf lief binnen `minuten`.
+ * E-274 (02.10.2026): in Sekunden gerechnet — die freie Mail nimmt ein halbes Minutenfenster
+ * (KARTEI_MAIL_DOPPELT_SEKUNDEN); ganze Minuten ergeben dasselbe Fenster wie vorher.
+ */
 async function taktNehmen(personId: number, art: string, minuten: number): Promise<boolean> {
   await karteiTabellen();
   const r = (await sqlPool`
     INSERT INTO fiaon_telefonkartei_takt AS t (person_id, art, am) VALUES (${personId}, ${art}, NOW())
     ON CONFLICT (person_id, art) DO UPDATE SET am = NOW()
-      WHERE t.am < NOW() - make_interval(mins => ${minuten}::int)
+      WHERE t.am < NOW() - make_interval(secs => ${Math.round(minuten * 60)}::int)
     RETURNING am`) as any[];
   return r.length > 0;
 }
@@ -1415,6 +1423,214 @@ export async function karteiNachricht(personId: number, art: "frei" | "rueckfrag
   }
   const fensterZu = art === "frei" && !wa.ok && /24-Stunden-Fenster ist zu/.test(wa.text);
   return { ok: wa.ok, meldung: wa.text, wa, ...(fensterZu ? { fensterZu } : {}), ...(wa.bestaetigen ? { bestaetigen: true } : {}), ...(wa.doppelt ? { doppelt: true } : {}) };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-MAIL AUS DER AKTE (02.10.2026, E-274)
+//
+// Justin: „bei fiaon.com/chef/s/telefonkartei in der Akte — ich brauch da ein
+// Knopf wo ich den Kunden eine Email senden kann — wie jetzt, ich hatte eben
+// mit [einem Kunden] telefoniert, der will einbezahlen und braucht aber die
+// Mail neu — nur da gibts kein Knopf oder so." Er nahm „Rechnung schicken" —
+// das bucht „zahlt am" für morgen und schickt die WhatsApp mit. Für „bitte die
+// Mail noch einmal" ist das zu viel.
+//
+// JETZT: eine freie Mail über GENAU die Kette der Verwaltung (freitextVersenden:
+// Wortwand, Rechnungs-PDF, Brevo, Protokoll fiaon_mail_log, Verlauf der Akte).
+// Dieselben Wände wie die Admin-Route /admin/mail/:personId/frei — dort prüft
+// niemand eine Werbesperre, und eine Mail, die Justin selbst schreibt, ist keine
+// Werbung. Kein Gesprächsergebnis, keine WhatsApp, kein Zusagedatum.
+//   · Anhang nur mit SEINER Referenz: der offenen Zahlung der Karte (dieselbe
+//     Regel wie „Rechnung schicken", hatRechnungsweg). rechnungAlsPdf nähme jede
+//     Referenz des Hauses — der Server glaubt dem Browser keine.
+//   · Ein fertiger Antrag ohne Rechnung wird vor dem Senden gestellt (nurBuchen,
+//     wie bei „Rechnung schicken") — sonst trüge das PDF den alten Bestellbetrag.
+//     Vorher läuft die Wand: Hält sie den Text auf, wird auch nichts gestellt.
+//   · Doppelklick: derselbe Text binnen 30 Sekunden geht einmal raus (Takt je
+//     Mensch und Text, atomar); ein anderer Text geht sofort.
+//   · Zustellung: Das Blatt zeigt die letzten Mails dieses Menschen mit dem Stand
+//     aus fiaon_mail_log (Abgleich mit Brevo alle 20 Minuten, fiaon-zustellung.ts —
+//     zugeordnet nach Adresse und Uhrzeit, nicht nach der Nachrichten-Kennung).
+//     „gesendet" heißt nur: Brevo hat angenommen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MAIL_TON: Record<string, KarteiMailZeile["ton"]> = {
+  zugestellt: "gut", geoeffnet: "gut", geklickt: "gut", angenommen: "neutral",
+  gebounct: "warn", blockiert: "warn", spam: "warn", fehler: "warn",
+};
+
+/** Die Nutzlast einer Protokollzeile — mailProtokoll legt sie als JSON-TEXT ab (siehe NUTZLAST_SQL), manche doppelt. */
+function nutzlastAus(v: unknown): Record<string, any> {
+  let x: unknown = v;
+  for (let i = 0; i < 2 && typeof x === "string"; i++) x = ausJson<unknown>(x, null);
+  return x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, any>) : {};
+}
+
+/** Die letzten Mails dieses Menschen, neueste zuerst — „Zuletzt gesendet" im Blatt „E-Mail". */
+export async function karteiMailVerlauf(personId: number, grenze = 6): Promise<KarteiMailZeile[]> {
+  const [{ ZUSTELL_TEXT }, { VERSAND_TEXT }] = await Promise.all([import("./fiaon-zustellung"), import("./fiaon-versand")]);
+  const zeilen = (await sqlPool`
+    SELECT id, created_at, event, status, grund, ausgeloest_von, zustellung, zustellung_grund, betreff, payload
+    FROM fiaon_mail_log
+    WHERE person_id = ${personId} AND COALESCE(art, 'echt') = 'echt'
+    ORDER BY id DESC LIMIT ${Math.max(1, Math.min(20, grenze))}`) as any[];
+  return zeilen.map((r) => {
+    const nutz = nutzlastAus(r.payload);
+    const status = text(r.status);
+    const zust = text(r.zustellung);
+    let stand = "gesendet";
+    let ton: KarteiMailZeile["ton"] = "neutral";
+    let grund: string | null = null;
+    if (status === "fehlgeschlagen") { stand = "nicht gesendet"; ton = "warn"; grund = text(r.grund) || null; }
+    else if (status === "uebersprungen") { stand = "übersprungen"; grund = text(r.grund) || null; }
+    else if (status === "ausstehend") stand = "wartet";
+    else if (zust && zust !== "angenommen") {
+      stand = (ZUSTELL_TEXT as Record<string, string>)[zust] ?? zust;
+      ton = MAIL_TON[zust] ?? "neutral";
+      grund = ton === "warn" ? text(r.zustellung_grund) || null : null;
+    }
+    const event = text(r.event);
+    return {
+      id: Number(r.id),
+      am: iso(r.created_at) ?? new Date().toISOString(),
+      betreff: text(r.betreff) || text(nutz.betreff) || (VERSAND_TEXT as Record<string, { titel: string }>)[event]?.titel || event.replace(/_/g, " "),
+      stand, ton, grund,
+      von: text(r.ausgeloest_von) || "System",
+      mitAnhang: !!nutz.anhang && typeof nutz.anhang === "object",
+      ausKartei: /^tk_/.test(text(nutz.kennung)),
+    };
+  });
+}
+
+/** Was das Blatt „E-Mail" beim Öffnen braucht: Adresse und Anrede wie beim Versand, die offene Zahlung, die letzten Mails. */
+export async function karteiMailLage(personId: number, akteur: string): Promise<KarteiMailLage | null> {
+  const k = await karteEinzeln(personId);
+  if (!k) return null;
+  const { freitextZiel } = await import("../routes/fiaon-mail");
+  const [ziel, verlauf] = await Promise.all([freitextZiel(personId), karteiMailVerlauf(personId)]);
+  return {
+    ok: true,
+    empfaenger: ziel?.email || null,
+    anrede: ziel?.anrede ?? "Guten Tag,",
+    absender: akteur,
+    zahlung: hatRechnungsweg(k) ? k.zahlung : null,
+    verlauf,
+  };
+}
+
+/**
+ * Vorschau (`nurVorschau`) oder Versand der freien Mail. `status` ist der HTTP-Stand für die
+ * Route: 400 = Eingabe (leer, zu lang, fremde Referenz), 404 = unbekannt, 409 = nicht
+ * gesendet (Wand, keine Adresse, Brevo), 200 = gesendet bzw. Doppelklick.
+ */
+export async function karteiMail(
+  personId: number,
+  ein: { betreff?: unknown; text?: unknown; anhangReferenz?: unknown; nurVorschau?: boolean },
+  akteur: string,
+): Promise<KarteiMailAntwort & { status: number }> {
+  await karteiTabellen();
+  const betreff = text(ein.betreff);
+  const inhalt = text(ein.text);
+  if (!betreff || !inhalt) return { status: 400, ok: false, meldung: "Betreff und Text dürfen nicht leer sein." };
+  if (betreff.length > KARTEI_MAIL_BETREFF_MAX || inhalt.length > KARTEI_MAIL_TEXT_MAX) {
+    return { status: 400, ok: false, meldung: `Zu lang — Betreff höchstens ${KARTEI_MAIL_BETREFF_MAX} Zeichen, Text höchstens ${KARTEI_MAIL_TEXT_MAX.toLocaleString("de-DE")}.` };
+  }
+  const k = await karteEinzeln(personId);
+  if (!k) return { status: 404, ok: false, meldung: "Kunde nicht gefunden." };
+
+  // Die Rechnung hängt nur an, wenn die Referenz die offene Zahlung GENAU dieses Menschen ist.
+  const gewuenscht = text(ein.anhangReferenz).toUpperCase();
+  const offen = hatRechnungsweg(k) ? k.zahlung : null;
+  if (gewuenscht && (!offen || offen.referenz.trim().toUpperCase() !== gewuenscht)) {
+    return {
+      status: 400, ok: false,
+      meldung: offen
+        ? `${gewuenscht} ist nicht die offene Zahlung von ${k.name} (${offen.referenz}) — angehängt wird nur seine eigene Rechnung.`
+        : `${k.name} hat keine offene Zahlung — es gibt keine Rechnung zum Anhängen.`,
+    };
+  }
+  const anhang = gewuenscht && offen ? offen : null;
+  // Ein fertiger Antrag ohne Rechnung: Die Rechnung entsteht erst beim Senden (siehe Kopf).
+  const stellen = !!anhang && anhang.art === "bestellung" && anhang.nochKeineRechnung && !!k.ref;
+  const angekuendigt = stellen && anhang
+    ? { art: "bestellung", betrag: anhang.betragCents != null ? (anhang.betragCents / 100).toFixed(2) : "" }
+    : null;
+  const { freitextVersenden, freitextZiel } = await import("../routes/fiaon-mail");
+
+  if (ein.nurVorschau) {
+    const v = await freitextVersenden({
+      personId, betreff, text: inhalt, nurVorschau: true, akteur, kennung: "tk_frei",
+      ...(anhang && !stellen ? { anhangReferenz: anhang.referenz } : {}),
+      ...(angekuendigt ? { anhangAngekuendigt: angekuendigt } : {}),
+    });
+    if (!v.ok) return { status: 409, ok: false, meldung: String(v.error || "Die Vorschau ging nicht.") };
+    return {
+      status: 200, ok: true, meldung: "Vorschau", empfaenger: v.empfaenger ?? null, anhang: v.anhang ?? null,
+      ...(v.anhangBeimSenden ? { anhangBeimSenden: true } : {}),
+      vorschau: { betreff: String(v.betreff), html: String(v.html), absender: v.absender ? `${v.absender.name} <${v.absender.email}>` : null },
+    };
+  }
+
+  // Doppelklick: derselbe Text (mit derselben Rechnung) binnen 30 Sekunden zählt einmal — auch auf zwei Geräten.
+  const takt = `mail:${textSchluessel(`${betreff}\n${inhalt}\n${anhang?.referenz ?? ""}`)}`;
+  if (!(await taktNehmen(personId, takt, KARTEI_MAIL_DOPPELT_SEKUNDEN / 60))) {
+    return {
+      status: 200, ok: true, doppelt: true,
+      meldung: `Diese Mail ist vor weniger als ${KARTEI_MAIL_DOPPELT_SEKUNDEN} Sekunden schon rausgegangen — nichts ein zweites Mal.`,
+      verlauf: await karteiMailVerlauf(personId).catch(() => []),
+    };
+  }
+  try {
+    if (stellen && angekuendigt && k.ref) {
+      // Erst die Wand (ohne Wirkung), dann die Rechnung stellen — nie eine gestellte Rechnung ohne Mail wegen der Wand.
+      const probe = await freitextVersenden({ personId, betreff, text: inhalt, nurVorschau: true, akteur, anhangAngekuendigt: angekuendigt });
+      if (!probe.ok) {
+        await taktFreigeben(personId, takt);
+        return { status: 409, ok: false, meldung: String(probe.error || "Nicht gesendet.") };
+      }
+      const { rechnungStellen } = await import("./fiaon-rechnung-stellen");
+      const b = await rechnungStellen(k.ref, { akteur, agentId: null, nurBuchen: true, aufAnweisung: true });
+      if (!b.ok) {
+        await taktFreigeben(personId, takt);
+        return { status: 409, ok: false, meldung: `Rechnung konnte nicht gestellt werden: ${b.grund}` };
+      }
+    }
+    const v = await freitextVersenden({
+      personId, betreff, text: inhalt, akteur, kennung: "tk_frei",
+      ...(anhang ? { anhangReferenz: anhang.referenz } : {}),
+    });
+    if (!v.ok) {
+      await taktFreigeben(personId, takt);
+      return { status: 409, ok: false, meldung: String(v.error || "Die Mail ging nicht raus."), verlauf: await karteiMailVerlauf(personId).catch(() => []) };
+    }
+    // Den Verlauf schreibt freitextVersenden an die jüngste NICHT archivierte Bestellung (freitextZiel.ref).
+    // Gegenprüfung E-274 (02.10.2026): Gibt es die nicht — ein reiner Lead, oder alle Bestellungen sind
+    // archiviert (gemessen: 22 Menschen mit Adresse, darunter der Global-Kunde aus E-272) —, schrieb
+    // niemand einen Eintrag, und das Blatt sagte trotzdem „Steht im Verlauf der Akte“. Dann hier: an die
+    // Bestellung der Karte (die Akte liest das Kontaktprotokoll der ganzen Familie, auch archivierter),
+    // sonst an den Lead.
+    const ziel = await freitextZiel(personId).catch(() => undefined);
+    if (ziel !== undefined && !ziel?.ref) {
+      const notiz = `E-Mail „${betreff}“ an ${v.empfaenger ?? k.email} verschickt${v.anhang ? ` — mit Rechnung ${v.anhang.rechnungsnummer} über ${v.anhang.betrag} € im Anhang` : ""} (Telefonkartei).`;
+      if (k.ref) {
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+          VALUES (${k.ref}, ${personId}, NULL, ${akteur}, 'system', ${notiz}, NOW())`
+          .catch((e: unknown) => console.error("[TELEFONKARTEI] Mail-Vermerk:", e));
+      } else if (k.leadId) {
+        const { logLead } = await import("../routes/fiaon-leads");
+        await logLead(k.leadId, { id: null, name: akteur }, "note", { note: notiz })
+          .catch((e: unknown) => console.error("[TELEFONKARTEI] Mail-Vermerk:", e));
+      }
+    }
+    return {
+      status: 200, ok: true, meldung: `Gesendet an ${v.empfaenger ?? k.email}`, empfaenger: v.empfaenger ?? null,
+      anhang: v.anhang ?? null, verlauf: await karteiMailVerlauf(personId).catch(() => []),
+    };
+  } catch (e) {
+    await taktFreigeben(personId, takt);
+    throw e;
+  }
 }
 
 // ── Stornieren und Zurückholen ──────────────────────────────────────────────

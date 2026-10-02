@@ -5,6 +5,60 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 02.10.2026 — Telefonkartei: Knopf „E-Mail“ in Karte und Akte (E-274)
+
+**Der Anlass:** Justin: „bei fiaon.com/chef/s/telefonkartei in der Akte — ich brauch da ein Knopf wo ich den Kunden eine
+Email senden kann — wie jetzt, ich hatte eben mit [einem Kunden] telefoniert, der will einbezahlen und braucht aber die
+Mail neu — nur da gibts kein Knopf." Eine Mail ging aus der Kartei bisher nur zusammen mit einem Gesprächsergebnis:
+„Rechnung schicken“ bucht „zahlt am“ für morgen und schickt dazu die WhatsApp.
+
+**Was jetzt gilt:**
+- **Knopf „E-Mail“** auf jeder Karte unter „Anrufen“/„Nachrichten“ (mit der Adresse darunter), „E-Mail schreiben“ im Kopf
+  der Akte und unten im Blatt „Nachrichten“. Ohne Adresse ist der Knopf aus („keine E-Mail-Adresse“).
+- **Blatt „E-Mail an …“** (`client/src/components/admin/ChefTelefonkartei.tsx`, `MailBlatt`): Betreff und Text; die Anrede
+  („Guten Tag Vorname Nachname,“) steht sichtbar davor und wird vom Server gesetzt. Bei offener Zahlung (dieselbe Regel wie
+  „Rechnung schicken“) die Schnellwahl **„Zahlungsdaten neu senden“** — Betrag, Verwendungszweck, Zahlungsseite
+  `/zahlung/<ref>` im Wortlaut der Rechnungsmail (`mailZahlungsdaten`, gemeinsamer Zahlungsteil `zahlungsAbsaetze` — die
+  Rechnungsmail ist Byte für Byte gleich geblieben) — und der Haken **„Rechnung als PDF anhängen“**. „Vorschau“ zeigt die
+  Mail, wie sie ankommt; „Senden“ meldet „Gesendet an <Adresse>“. Ein Entwurf bleibt auf dem Gerät, bis die Mail raus ist
+  (ein Tipp neben das Blatt verliert ihn nicht). Unten **„Zuletzt an …“**: die letzten sechs Mails dieses
+  Menschen mit ihrem Stand aus `fiaon_mail_log` („gesendet“, nach dem Brevo-Abgleich alle 20 Minuten „zugestellt“/„geöffnet“,
+  rot „blockiert“/„unzustellbar“/„nicht gesendet“ mit Grund). Nach dem Senden lädt die offene Akte neu (Eintrag im Verlauf).
+  Das Blatt sagt offen, was der Abgleich NICHT kann: Er ordnet Brevos Ereignisse nach Adresse und Uhrzeit zu, nicht nach
+  der Nachrichten-Kennung — gemessen am 02.10. (nur lesend): Zahlungserinnerung 09:31 und Justins Rechnung 14:49 an
+  denselben Kunden trugen dieselbe Öffnung um 14:55. Eine genauere Zuordnung über `brevo_message_id` ist nicht gebaut.
+- **Server** (`server/lib/fiaon-telefonkartei.ts` → `karteiMail`, `karteiMailLage`, `karteiMailVerlauf`; Routen
+  `GET /chef/telefonkartei/:personId/mail-lage`, `POST …/mail/vorschau`, `POST …/mail`, Wache „inhaber“ wie jede
+  Kartei-Route): dieselbe Kette wie die Verwaltung (`freitextVersenden`: Wortwand, Rechnungs-PDF, Brevo, Protokoll
+  `frei_text` mit Kennung `tk_frei`, Verlauf der Akte; bei reinen Leads ein Lead-Vermerk). Dieselben Wände wie
+  `/admin/mail/:personId/frei` — dort gibt es keine Werbesperre-Prüfung; Sperren stehen im Blatt als Hinweis.
+  **Kein** Gesprächsergebnis, **keine** WhatsApp, **kein** Zusagedatum.
+- **Anhang nur mit seiner Referenz:** Der Server hängt die Rechnung nur an, wenn die Referenz die offene Zahlung GENAU
+  dieser Karte ist — eine fremde Referenz ist 400 (`rechnungAlsPdf` nähme jede). Ein fertiger Antrag ohne Rechnung wird wie
+  bei „Rechnung schicken“ erst gestellt (`nurBuchen`), vorher prüft die Wand den Text — nie eine gestellte Rechnung ohne
+  Mail. In der Vorschau entsteht dafür keine Rechnungsnummer (`anhangAngekuendigt`, nur Vorschau).
+- **Doppelklick:** derselbe Text an denselben Menschen binnen 30 Sekunden geht einmal raus (Takt je Mensch und Text,
+  atomar; `taktNehmen` rechnet seitdem in Sekunden, ganze Minuten wie vorher). Scheitert der Versand, ist der Takt frei.
+- **Gegenprüfung Bedienung (vor dem Push):** Gemessen an einem Abbild des Blatts (Chromium, 380 × 740 und 1280 × 800)
+  stand „Senden“ nach „Zahlungsdaten neu senden“ unter der Kante, die Vorschau ganz darunter — jetzt holt die Schnellwahl
+  „Senden“ ins Bild und „Vorschau“ die Vorschau (nur im Blatt, die Akte dahinter bleibt stehen). Ein Entwurf gilt nur für
+  dieselbe offene Zahlung (sonst ginge ein alter Verwendungszweck mit der Rechnung der neuen Rate raus). Beginnt der Text
+  mit „Hallo …“/„Guten Tag …“, sagt das Blatt, dass die Anrede schon davorsteht (hält nicht auf). Kam die letzte Mail
+  nicht an („blockiert“, „unzustellbar“), steht das oben im Blatt statt nur rot ganz unten. Nach einem Verbindungsabbruch
+  beim Senden lädt „Zuletzt an …“ wirklich neu.
+- **Rundgang** Telefonkartei: neuer Schritt „„E-Mail“: nur eine Mail, ohne Gesprächsergebnis“ — nach „Persönliche
+  Nachricht“, die das Blatt „Nachrichten“ weiter erklärt. Die Kartei ist Chefbüro (nur Inhaber) — kein Eintrag im
+  Update-Protokoll der Mitarbeiter.
+- **Prüfstände:** `pruef-telefonkartei` (ohne DB, neue Texte und Quelltext-Wände), `pruef-telefonkartei-mail` (lokale
+  DB): Vorschau, Senden → eine `frei_text`-Zeile mit Anhang-Angabe und Verlaufseintrag, fremde Referenz → 400,
+  Doppelklick → eine Zeile, kein Ergebnis gebucht.
+- **Gegenprüfung Technik (vor dem Push):** `freitextVersenden` schreibt den Verlauf nur an die jüngste NICHT archivierte
+  Bestellung. Sind alle archiviert (gemessen, nur lesend: 22 Menschen mit Adresse, darunter der Global-Kunde aus E-272),
+  ging die Mail raus, aber kein Eintrag in die Akte — das Blatt sagte trotzdem „Steht im Verlauf der Akte“. Jetzt schreibt
+  `karteiMail` ihn dann selbst an die Bestellung der Karte (sonst an den Lead). Prüfstand mit DB, Abschnitt 11: vorher rot
+  (59/60), jetzt 60/60. Global-Kunden: Die Mail-Tür (`PRIVATLINIE_PERSON`) betrifft `frei_text` nicht — eine persönliche
+  Mail darf an sie gehen; Zahlungsdaten gibt es dort nur zu einer offenen Privatzahlung (heute keine).
+
 ## 02.10.2026 — Individualangebot: Das System bucht das Startgespräch nach der Annahme (E-273)
 
 **Der Anlass:** Justin an Herrn Hildbrand (WhatsApp): „… sobald dieser angenommen wurde von Ihnen bucht das System

@@ -320,6 +320,25 @@ export function hatAntragsweg(k: Pick<KarteiKarte, "zahlung" | "lage">): boolean
 
 // ── Fall 1: erreicht, will die Rechnung ─────────────────────────────────────
 
+/**
+ * Der Zahlungsteil der Rechnungsmail — Betrag, Fälligkeit, Verwendungszweck, Zahlungsseite.
+ * E-274 (02.10.2026): eine Stelle für „Rechnung schicken" UND „Zahlungsdaten neu senden"
+ * (mailZahlungsdaten), damit beide Mails denselben Wortlaut tragen. „Ihre Rechnung finden Sie
+ * im Anhang" steht nur da, wenn die Rechnung wirklich anhängt — sonst hält die Wand die Mail auf.
+ */
+function zahlungsAbsaetze(z: KarteiZahlung, mitAnhang: boolean): string[] {
+  return [
+    [
+      mitAnhang ? "Ihre Rechnung finden Sie im Anhang." : null,
+      z.betragCents != null ? `Betrag: ${euro(z.betragCents)}` : null,
+      z.art === "rate" && z.faelligAm ? `Fällig: ${datumKurz(z.faelligAm)}` : null,
+      `Verwendungszweck: ${z.referenz}`,
+    ].filter(Boolean).join("\n"),
+    `Am schnellsten zahlen Sie über Ihre Zahlungsseite – dort übernehmen Sie alle Daten mit einem Klick in Ihre Banking-App:\n${z.zahlungsseite}`,
+    VERWENDUNGSZWECK_HINWEIS,
+  ];
+}
+
 /** Mail „Rechnung" — die Rechnung hängt als PDF an (rechnungAlsPdf, Referenz der Zahlung). */
 export function mailRechnung(k: KarteiKarte, absender: string): { betreff: string; text: string } | null {
   const z = k.zahlung;
@@ -332,17 +351,96 @@ export function mailRechnung(k: KarteiKarte, absender: string): { betreff: strin
     z.art === "rate"
       ? `Wie besprochen erhalten Sie hier die Rechnung für Ihre ${z.rateNr ? `${z.rateNr}. ` : ""}Monatsrate.`
       : pitchAbsatz(k),
-    [
-      "Ihre Rechnung finden Sie im Anhang.",
-      z.betragCents != null ? `Betrag: ${euro(z.betragCents)}` : null,
-      z.art === "rate" && z.faelligAm ? `Fällig: ${datumKurz(z.faelligAm)}` : null,
-      `Verwendungszweck: ${z.referenz}`,
-    ].filter(Boolean).join("\n"),
-    `Am schnellsten zahlen Sie über Ihre Zahlungsseite – dort übernehmen Sie alle Daten mit einem Klick in Ihre Banking-App:\n${z.zahlungsseite}`,
-    VERWENDUNGSZWECK_HINWEIS,
+    ...zahlungsAbsaetze(z, true),
     gruss(absender).join("\n"),
   ];
   return { betreff, text: absaetze.join("\n\n") };
+}
+
+// ── E-Mail aus der Akte (02.10.2026, E-274) ─────────────────────────────────
+// Justin: „ich brauch da ein Knopf wo ich den Kunden eine Email senden kann — wie
+// jetzt, ich hatte eben mit [einem Kunden] telefoniert, der will einbezahlen
+// und braucht aber die Mail neu — nur da gibts kein Knopf." Bis heute ging eine
+// Mail aus der Kartei nur mit einem Gesprächsergebnis („Rechnung schicken" bucht
+// „zahlt am" und schickt dazu die WhatsApp). Jetzt gibt es die freie Mail: Betreff
+// und Text von Justin, Anrede, Kopf und Fuß vom Gerüst (freitextVersenden) — kein
+// Ergebnis, keine WhatsApp, kein Zusagedatum. „Zahlungsdaten neu senden" füllt
+// sie mit dem Wortlaut der Rechnungsmail vor.
+
+/**
+ * „Zahlungsdaten neu senden" — Betreff und Text für die freie Mail, aus derselben
+ * Zahlung wie „Rechnung schicken" (hatRechnungsweg). Die Anrede („Guten Tag …,")
+ * setzt freitextVersenden davor; sie steht deshalb NICHT im Text.
+ */
+export function mailZahlungsdaten(k: KarteiKarte, absender: string, mitAnhang: boolean): { betreff: string; text: string } | null {
+  const z = k.zahlung;
+  if (!z || !hatRechnungsweg(k)) return null;
+  const rate = z.art === "rate" ? `${z.rateNr ? `${z.rateNr}. ` : ""}Monatsrate` : null;
+  return {
+    betreff: rate ? `Ihre Zahlungsdaten zur ${rate} – wie besprochen` : "Ihre Zahlungsdaten – wie besprochen",
+    text: [
+      rate
+        ? `wie besprochen sende ich Ihnen hier noch einmal die Zahlungsdaten für Ihre ${rate}.`
+        : "wie besprochen sende ich Ihnen hier noch einmal Ihre Zahlungsdaten.",
+      ...zahlungsAbsaetze(z, mitAnhang),
+      ...(z.art === "bestellung" ? ["Sobald Ihre Einzahlung da ist, aktiviere ich Ihr Konto."] : []),
+      gruss(absender).join("\n"),
+    ].join("\n\n"),
+  };
+}
+
+/** Doppelklick-Schutz der freien Mail: derselbe Text an denselben Menschen binnen dieser Sekunden geht einmal raus. */
+export const KARTEI_MAIL_DOPPELT_SEKUNDEN = 30;
+export const KARTEI_MAIL_BETREFF_MAX = 200;
+export const KARTEI_MAIL_TEXT_MAX = 8_000;
+/**
+ * Woher „zugestellt"/„geöffnet" kommt — die Seite sagt es, statt mehr zu versprechen. Der Abgleich
+ * (zustellungAbgleichen, Takt alle 20 Minuten) ordnet Brevos Ereignisse nach Adresse und Uhrzeit zu,
+ * nicht nach der Nachrichten-Kennung. Gemessen am 02.10. an einem Kunden: Die Zahlungserinnerung von 09:31
+ * und Justins Rechnung von 14:49 trugen dieselbe Öffnung um 14:55.
+ */
+export const KARTEI_MAIL_ZUSTELL_SATZ = "Zugestellt und geöffnet gleicht das System alle 20 Minuten mit Brevo ab — direkt nach dem Senden steht „gesendet“. Zugeordnet wird nach Adresse und Uhrzeit: Gehen zwei Mails kurz nacheinander raus, kann „geöffnet“ auch die andere meinen.";
+
+/** Eine Zeile „Zuletzt gesendet" im Blatt „E-Mail" (fiaon_mail_log dieses Menschen). */
+export interface KarteiMailZeile {
+  id: number;
+  am: string;
+  betreff: string;
+  /** „gesendet", „zugestellt", „geöffnet", „blockiert", „nicht gesendet" … */
+  stand: string;
+  ton: "gut" | "neutral" | "warn";
+  grund: string | null;
+  von: string;
+  mitAnhang: boolean;
+  /** Aus der Telefonkartei (freie Mail, Rechnung, Nicht erreicht, Antrag). */
+  ausKartei: boolean;
+}
+
+/** Was das Blatt „E-Mail" beim Öffnen vom Server bekommt. */
+export interface KarteiMailLage {
+  ok: boolean;
+  /** Dieselbe Adresse, an die freitextVersenden schickt. */
+  empfaenger: string | null;
+  /** Die Anrede, die vor Justins Text steht („Guten Tag Vorname Nachname,"). */
+  anrede: string;
+  absender: string;
+  /** Die offene Zahlung — nur sie darf als Rechnung anhängen (dieselbe Regel wie „Rechnung schicken"). */
+  zahlung: KarteiZahlung | null;
+  verlauf: KarteiMailZeile[];
+  meldung?: string;
+}
+
+/** Antwort auf Vorschau und Senden. */
+export interface KarteiMailAntwort {
+  ok: boolean;
+  meldung: string;
+  doppelt?: boolean;
+  empfaenger?: string | null;
+  anhang?: { rechnungsnummer: string; betrag: string; art: string } | null;
+  /** Die Rechnung entsteht erst beim Senden (fertiger Antrag ohne Rechnung). */
+  anhangBeimSenden?: boolean;
+  vorschau?: { betreff: string; html: string; absender: string | null };
+  verlauf?: KarteiMailZeile[];
 }
 
 // ── Fall 3: nicht erreicht ──────────────────────────────────────────────────

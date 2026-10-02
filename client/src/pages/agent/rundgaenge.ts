@@ -1328,6 +1328,24 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     tipp: "Die KI bekommt weder Telefonnummer noch E-Mail noch Bankdaten; Links setzt der Server ein. Was sie schreibt, prüft die Wortwand — Hinweise stehen gelb unter dem Text.",
   },
   {
+    // 02.10.2026 (E-274): Justin: „ich brauch da ein Knopf wo ich den Kunden eine Email senden kann — wie jetzt,
+    // ich hatte eben mit [einem Kunden] telefoniert, der will einbezahlen und braucht aber die Mail neu."
+    // Gegenprüfung: NACH „Persönliche Nachricht" — der Schritt dort erklärt das Blatt „Nachrichten" weiter
+    // („Unten im Blatt …"); dazwischen hätte er sich auf das Blatt „E-Mail" gelesen.
+    ziel: ".tk-email",
+    titel: "„E-Mail“: nur eine Mail, ohne Gesprächsergebnis.",
+    text: "Unter „Anrufen“ und „Nachrichten“ steht „E-Mail“ mit der Adresse — dasselbe Blatt öffnet „E-Mail schreiben“ oben in der Akte "
+      + "und unten im Blatt „Nachrichten“. Betreff und Text schreibst du selbst; die Anrede („Guten Tag …,“) setzt das System davor, Kopf "
+      + "und Fuß das FIAON-Gerüst. Hat der Kunde eine offene Zahlung, füllt „Zahlungsdaten neu senden“ alles aus — Betrag, "
+      + "Verwendungszweck, Link zur Zahlungsseite — und hängt die Rechnung als PDF an. „Vorschau“ zeigt die Mail so, wie sie ankommt; "
+      + "„Senden“ schickt sie von welcome@fiaon.com. Anders als „Rechnung schicken“ bucht sie kein Ergebnis, setzt kein Zahlungsdatum "
+      + "und schickt keine WhatsApp.",
+    tipp: "Unten im Blatt stehen die letzten Mails an ihn mit ihrem Stand: erst „gesendet“, nach dem Abgleich mit Brevo (alle 20 Minuten) "
+      + "„zugestellt“ oder „geöffnet“ — rot bei „blockiert“ oder „unzustellbar“. Die Mail steht im Verlauf der Akte. Zweimal „Senden“ "
+      + "binnen 30 Sekunden schickt sie einmal. Ohne Adresse ist der Knopf aus. Kam die letzte Mail nicht an, steht das oben im Blatt, "
+      + "bevor du schreibst — und beginnt dein Text mit „Hallo …“, sagt es dir, dass die Anrede schon davorsteht.",
+  },
+  {
     titel: "Akte und Termine, ohne die Seite zu verlassen.",
     text: "„Akte öffnen“ unten auf der Karte zeigt die ganze Akte in einem Fenster über der Kartei — schließen mit dem Kreuz oder der "
       + "Esc-Taste, und die Karte ist danach frisch. Ganz unten stehen zuerst deine Termine (gebucht über fiaon.com/justin und dein "

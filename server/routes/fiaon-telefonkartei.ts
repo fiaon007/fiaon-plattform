@@ -6,6 +6,8 @@
 // in SEINEN Kalender. Die Logik steht in server/lib/fiaon-telefonkartei.ts.
 // E-259 (29.09.2026): WhatsApp geht über das FIAON-Konto bei Meta — die Seite
 // fragt vorher, was jeder Fall täte (whatsapp-lage), und sendet nie selbst.
+// E-274 (02.10.2026): die freie E-Mail aus der Akte (mail-lage, mail/vorschau,
+// mail) — dieselbe Wache wie jede Route hier.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Response } from "express";
@@ -14,6 +16,7 @@ import {
   karteiListe, karteiZaehler, karteEinzeln, vcardText, vcardDateiname,
   ergebnisFesthalten, stornieren, stornoZuruecknehmen, karteiWaLage, karteiNachricht,
   rueckrufListe, rueckrufErledigt, rueckrufIcs, termineListe, akteurName, antragLinkFuer, karteiSperre,
+  karteiMailLage, karteiMail,
 } from "../lib/fiaon-telefonkartei";
 import { istKarteiGruppe, istKarteiErgebnis } from "@shared/fiaon-telefonkartei";
 
@@ -206,6 +209,44 @@ router.post("/chef/telefonkartei/:personId/whatsapp-rueckfrage", wache, async (r
     res.status(500).json({ ok: false, meldung: "Serverfehler — bitte noch einmal." });
   }
 });
+
+/**
+ * GET /chef/telefonkartei/:personId/mail-lage — was das Blatt „E-Mail" vor dem
+ * Schreiben wissen muss (E-274): Adresse und Anrede wie beim Versand, die offene
+ * Zahlung (nur sie darf als Rechnung anhängen), die letzten Mails mit Zustellstand.
+ */
+router.get("/chef/telefonkartei/:personId/mail-lage", wache, async (req: ChefRequest, res: Response) => {
+  const id = personIdAus(req, res); if (!id) return;
+  try {
+    const lage = await karteiMailLage(id, await akteurName(req.chef?.agentId));
+    if (!lage) return res.status(404).json({ ok: false, meldung: "Kunde nicht gefunden." });
+    res.json(lage);
+  } catch (e: any) {
+    console.error("[TELEFONKARTEI] mail-lage:", e);
+    res.status(500).json({ ok: false, meldung: "Der Mail-Stand ließ sich nicht laden." });
+  }
+});
+
+/**
+ * POST /chef/telefonkartei/:personId/mail/vorschau { betreff, text, anhangReferenz? }
+ * POST /chef/telefonkartei/:personId/mail          { betreff, text, anhangReferenz? }
+ * Die freie Mail (E-274) über freitextVersenden — Vorschau und Versand aus derselben
+ * Kette. Kein Gesprächsergebnis, keine WhatsApp. 400 bei einer fremden Referenz.
+ */
+async function mailRoute(req: ChefRequest, res: Response, nurVorschau: boolean): Promise<void> {
+  const id = personIdAus(req, res); if (!id) return;
+  try {
+    const { status, ...antwort } = await karteiMail(id, {
+      betreff: req.body?.betreff, text: req.body?.text, anhangReferenz: req.body?.anhangReferenz, nurVorschau,
+    }, await akteurName(req.chef?.agentId));
+    res.status(status).json(antwort);
+  } catch (e: any) {
+    console.error(`[TELEFONKARTEI] mail${nurVorschau ? " vorschau" : ""}:`, e);
+    res.status(500).json({ ok: false, meldung: "Serverfehler — bitte noch einmal." });
+  }
+}
+router.post("/chef/telefonkartei/:personId/mail/vorschau", wache, (req: ChefRequest, res: Response) => void mailRoute(req, res, true));
+router.post("/chef/telefonkartei/:personId/mail", wache, (req: ChefRequest, res: Response) => void mailRoute(req, res, false));
 
 /** POST /chef/telefonkartei/:personId/storno { grund?, kulanz? } */
 router.post("/chef/telefonkartei/:personId/storno", wache, async (req: ChefRequest, res: Response) => {

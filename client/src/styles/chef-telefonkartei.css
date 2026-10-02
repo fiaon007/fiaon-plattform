@@ -312,6 +312,32 @@
   .tk-aktionen { grid-template-columns: 1fr; gap: 8px; }
   .tk-anrufen, .tk-nachrichten { min-height: 58px; }
 }
+/* E-274 (02.10.2026): „E-Mail" — die dritte Zeile unter Anrufen und Nachrichten.
+   Dasselbe dunkle Glas wie „Nachrichten", nur flacher und mit blauem Zeichen:
+   eine ruhige Nebenhandlung, kein dritter lauter Knopf. Darunter die Adresse. */
+.tk-email {
+  grid-column: 1 / -1;
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 52px; padding: 6px 14px 6px 8px;
+  border-radius: 18px;
+  color: var(--tk-text); text-align: left; font-family: inherit; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .025));
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .16s ease, background-color .2s ease, border-color .2s ease;
+}
+.tk-email .tk-zeichen { width: 38px; height: 38px; border-radius: 13px; background: rgba(59, 130, 246, .14); box-shadow: inset 0 0 0 1px rgba(147, 197, 253, .28); }
+.tk-email .tk-zeichen svg { width: 19px; height: 19px; stroke: var(--tk-blau-hell); }
+.tk-email .tk-aktion-text b { font-size: 14.5px; }
+.tk-email .tk-aktion-text small { color: var(--tk-leise); opacity: 1; }
+@media (hover: hover) {
+  .tk-email:not(:disabled):hover { transform: translateY(-1px); border-color: rgba(147, 197, 253, .35); background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .04)); }
+}
+.tk-email:not(:disabled):active { transform: scale(.985); }
+.tk-email:focus-visible { outline: 2px solid var(--tk-blau-hell); outline-offset: 3px; }
+.tk-email:disabled { cursor: not-allowed; opacity: .5; border-style: dashed; }
+@media (prefers-reduced-motion: reduce) { .tk-email { transition: none; } }
 
 /* ── Das Blatt „Nachrichten": vier Fälle und die persönliche Nachricht ──── */
 .tk-blatt.tk-nb { width: min(520px, 100%); padding-top: 16px; }
@@ -414,6 +440,74 @@
 .tk-ki-bestaetigen { display: flex; gap: 10px; align-items: flex-start; font: 300 13px/1.45 'Inter', sans-serif; color: var(--tk-text); cursor: pointer; }
 .tk-ki-bestaetigen input { margin-top: 2px; width: 18px; height: 18px; flex: 0 0 auto; accent-color: #fda4af; }
 .tk-ki-sperre .tk-knopf.wa:disabled { cursor: not-allowed; opacity: .4; filter: grayscale(.5); box-shadow: none; }
+
+/* ── Das Blatt „E-Mail" (02.10.2026, E-274) ─────────────────────────────────
+   Bauart wie „Nachrichten": Kopf, ein Satz, Schnellwahl als Fall-Knopf, dann
+   Betreff und Text. Die Anrede steht als feste Zeile im Textfeld — sie setzt
+   der Server davor. Unten die letzten Mails mit ihrem Stand. Fürs iPhone:
+   Felder 16 px (kein Zoom beim Tippen), alles volle Breite. */
+.tk-nb-fall.tk-nb-mail { margin-top: 8px; }
+.tk-blatt.tk-mail { width: min(560px, 100%); }
+.tk-mail-an { font-weight: 500; color: var(--tk-text); overflow-wrap: anywhere; }
+.tk-mail-hinweise { margin: 0 0 12px; }
+.tk-mail-schnell { margin-bottom: 4px; }
+.tk-mail-label { display: block; margin-top: 14px; }
+.tk-mail .tk-feld { margin-bottom: 0; }
+.tk-mail-text {
+  display: grid; border-radius: 16px; border: 1px solid var(--tk-linie); background: rgba(10, 22, 40, .7);
+  overflow: hidden;
+}
+.tk-mail-text:focus-within { border-color: rgba(147, 197, 253, .5); box-shadow: 0 0 0 3px rgba(59, 130, 246, .14); }
+.tk-mail-anrede {
+  padding: 12px 14px 0; font: 400 15px/1.5 'Inter', sans-serif; color: var(--tk-leise);
+  overflow-wrap: anywhere;
+}
+.tk-mail-text textarea {
+  display: block; width: 100%; box-sizing: border-box; min-height: 180px; resize: vertical;
+  padding: 6px 14px 13px; border: 0; background: transparent; outline: none;
+  color: var(--tk-text); font: 400 16px/1.5 'Inter', sans-serif; color-scheme: dark;
+}
+.tk-mail-text textarea::placeholder { color: var(--tk-still); }
+.tk-mail-klein { margin: 7px 0 0; font: 300 12px/1.45 'Inter', sans-serif; color: var(--tk-still); }
+.tk-mail-anhang {
+  display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 2px; padding: 11px 12px; border-radius: 14px;
+  border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .03);
+  font: 400 13.5px/1.4 'Inter', sans-serif; color: var(--tk-text); cursor: pointer;
+}
+.tk-mail-anhang input { margin-top: 1px; width: 18px; height: 18px; flex: none; accent-color: #3b82f6; }
+.tk-mail-anhang span { display: grid; gap: 3px; min-width: 0; }
+.tk-mail-anhang small { font: 300 12px/1.35 'Inter', sans-serif; color: var(--tk-leise); overflow-wrap: anywhere; }
+.tk-mail .tk-ki-hinweise, .tk-mail .tk-ki-fehler { margin-top: 12px; }
+/* Gegenprüfung E-274: „Anrede doppelt" direkt unter dem Textfeld, enger an ihm als die übrigen Hinweise. */
+.tk-mail .tk-mail-doppelt { margin-top: 8px; }
+.tk-mail .tk-blatt-tun { margin-top: 14px; }
+.tk-mail .tk-knopf:disabled { cursor: not-allowed; }
+.tk-mail-vorschau { margin-top: 14px; display: grid; gap: 10px; }
+.tk-mail-vorschau p { margin: 0; font: 300 12.5px/1.55 'Inter', sans-serif; color: var(--tk-leise); overflow-wrap: anywhere; }
+.tk-mail-vorschau b { font-weight: 500; color: var(--tk-text); }
+.tk-mail-vorschau iframe { width: 100%; height: 420px; border: 1px solid rgba(148, 163, 184, .25); border-radius: 12px; background: #f0f4fa; }
+@media (max-width: 560px) { .tk-mail-vorschau iframe { height: 360px; } }
+.tk-mail-fertig {
+  display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 2px; padding: 14px; border-radius: 16px;
+  border: 1px solid rgba(110, 231, 183, .3); background: rgba(16, 185, 129, .08);
+}
+.tk-mail-fertig > div { display: grid; gap: 4px; min-width: 0; }
+.tk-mail-fertig b { font: 400 15.5px/1.35 'Inter', sans-serif; color: #fff; overflow-wrap: anywhere; }
+.tk-mail-fertig span { font: 300 12.5px/1.45 'Inter', sans-serif; color: var(--tk-leise); overflow-wrap: anywhere; }
+.tk-mail-haken { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px; background: rgba(110, 231, 183, .16); }
+.tk-mail-haken svg { width: 18px; height: 18px; fill: none; stroke: var(--tk-gruen); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tk-mail-verlauf ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.tk-mail-verlauf li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 9px 0; box-shadow: inset 0 -1px 0 var(--tk-linie); }
+.tk-mv-was { min-width: 0; display: grid; gap: 2px; }
+.tk-mv-was b { font: 400 13.5px/1.35 'Inter', sans-serif; color: var(--tk-text); overflow-wrap: anywhere; }
+.tk-mv-was span { font: 300 12px/1.35 'Inter', sans-serif; color: var(--tk-still); }
+.tk-mv-was .tk-mv-grund { color: var(--tk-rot); }
+.tk-mv-stand {
+  flex: none; padding: 4px 9px; border-radius: 999px; font: 400 11.5px/1.2 'Inter', sans-serif; white-space: nowrap;
+  color: var(--tk-leise); background: rgba(255, 255, 255, .06);
+}
+.tk-mv-stand.gut { color: #6ee7b7; background: rgba(16, 185, 129, .14); }
+.tk-mv-stand.warn { color: #fda4af; background: rgba(244, 63, 94, .14); }
 @media (prefers-reduced-motion: reduce) {
   .tk-ki-denkt i { animation: none; opacity: .7; }
   .tk-anrufen, .tk-nachrichten, .tk-nb-fall { transition: none; }
@@ -603,6 +697,15 @@
 .tk-akte-kontakt { font: 400 13px/1.3 'Inter', sans-serif; color: var(--tk-leise); text-decoration: none; overflow-wrap: anywhere; }
 a.tk-akte-kontakt { color: var(--tk-blau-hell); }
 @media (hover: hover) { a.tk-akte-kontakt:hover { color: #fff; } }
+/* E-274: „E-Mail schreiben" im Kopf der Akte — eine ruhige Kapsel neben der Adresse. */
+.tk-akte-mail {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 12px 0 10px; border-radius: 999px;
+  border: 1px solid rgba(147, 197, 253, .3); background: rgba(59, 130, 246, .12); color: #dbeafe;
+  font: 400 12.5px/1 'Inter', sans-serif; cursor: pointer;
+}
+.tk-akte-mail svg { width: 15px; height: 15px; fill: none; stroke: var(--tk-blau-hell); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) { .tk-akte-mail:hover { background: rgba(59, 130, 246, .22); color: #fff; } }
+.tk-akte-mail:focus-visible { outline: 2px solid var(--tk-blau-hell); outline-offset: 2px; }
 .tk-akte-zu {
   flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px;
   border: 1px solid var(--tk-linie); background: rgba(255, 255, 255, .06); color: var(--tk-text); cursor: pointer;

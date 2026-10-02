@@ -123,6 +123,9 @@ async function vorschau(): Promise<void> {
     if (z.deckung) console.log(`         ${z.deckung}`);
     for (const p of z.provision) console.log(`         Provision: ${p}`);
     for (const m of z.mails) console.log(`         Kunde: ${m}`);
+    // E-277 (02.10.2026): Der Vorschlag je Handfall — gebucht wird er nur über das Bankbuch bzw. die Admin-Route mit `ziel`.
+    const v = liste.find((x) => x.id === z.id)?.vorschlag;
+    if (v && !z.buchen) console.log(`         VORSCHLAG [${v.sicherheit}] ${v.text}${v.gruende.length ? ` — Grund: ${v.gruende.join(" + ")}` : ""}${v.hinweise.length ? ` — ${v.hinweise.join(" / ")}` : ""}`);
   }
   const b = aus.filter((z) => z.buchen);
   console.log(`\n${aus.length} Eingänge, davon ${b.length} buchbar (${eur(b.reduce((s, z) => s + z.betragCents, 0))}), ${aus.length - b.length} bleiben Handarbeit.`);

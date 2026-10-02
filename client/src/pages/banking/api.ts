@@ -67,12 +67,25 @@ export interface NachholZeile {
   personId: number | null; rateId: number | null; rateNr: number | null; ergebnis: string; buchen: boolean;
   deckung: string | null; provision: string[]; mails: string[]; hinweise: string[]; genannteRate: number | null;
   unklar: string | null; schonVerbucht: boolean;
+  // E-277: Ziel vom Menschen, Sammelzahlung, „Nur zuordnen", Vorschlag
+  zielVomMenschen?: string | null; dazu?: number[]; summeCents?: number; buchDatum?: string;
+  zuordenbar?: boolean; zugeordnet?: string | null; vorschlag?: NachholVorschlag | null;
+}
+
+/** E-277: Was ein Handfall ist und was der Knopf tut — gebucht wird erst nach dem Klick des Inhabers. */
+export type HandfallArt = "erstzahlung" | "rate" | "nur_zuordnen" | "teilzahlung" | "ueberzahlung" | "rueckzahlung_noetig" | "unbekannt";
+export interface NachholVorschlag {
+  art: HandfallArt; aktion: "buchen" | "zuordnen" | "aufgabe" | null; ziel: string | null; mitZiel: boolean;
+  bestellung: string | null; rateNr: number | null; rateId: number | null; kunde: string | null; personId: number | null;
+  dazu: number[]; sicherheit: "sicher" | "wahrscheinlich" | "unklar"; gruende: string[]; text: string; hinweise: string[];
+  /** Was die Trockenprobe beim Klick sagen muss — sonst bucht der Server nicht. */
+  erwartet: { regel?: NachholRegel | null; ziel: string | null; rateId: number | null } | null;
 }
 
 export interface Lage {
   ich: Ich; konten: Konto[]; kasse: Kasse;
   offen: { offenAnzahl: number; offenCents: number; schwebendAnzahl: number; schwebendCents: number };
-  nachholen: { anzahl: number; cents: number };
+  nachholen: { anzahl: number; cents: number; gesamtAnzahl?: number; gesamtCents?: number };
   fluss: MonatsFluss[]; letzte: Umsatz[]; auftraege: Auftrag[]; uebergabe: Uebergabe | null;
   dauerauftraege: Dauerauftrag[]; leute: Ich[];
   auszahlungOffen: { anzahl: number; cents: number; ohneAuftrag: number };

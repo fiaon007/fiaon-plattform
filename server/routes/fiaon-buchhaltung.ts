@@ -265,12 +265,14 @@ router.post("/buchhaltung/abmelden", async (req: Request, res: Response) => {
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/buchhaltung/lage", requireBuch(), async (req: BuchRequest, res: Response) => {
   try {
-    const { nachholZahl } = await import("../lib/fiaon-bank-nachholen");
-    const [k, offen, fluss, letzte, alle, u, dauer, ausz, nachholen] = await Promise.all([
+    const { nachholZahl, NACHHOLEN_SEIT_AELTESTE } = await import("../lib/fiaon-bank-nachholen");
+    const [k, offen, fluss, letzte, alle, u, dauer, ausz, nachholen0, aeltere] = await Promise.all([
       kasse(), offenePosten(), monatsfluss(),
       umsaetze({ konto: "alle", limit: 8 }),
-      auftraege(200), uebergabe(), dauerauftraege(), auszahlungen(), nachholZahl(),
+      auftraege(200), uebergabe(), dauerauftraege(), auszahlungen(), nachholZahl(), nachholZahl(NACHHOLEN_SEIT_AELTESTE),
     ]);
+    // E-277: Auch ältere liegengebliebene Eingänge (seit 15.08.) zählen — „lass kein über".
+    const nachholen = { ...nachholen0, gesamtAnzahl: aeltere.anzahl, gesamtCents: aeltere.cents };
     const offeneAuszahlungen = ausz.filter((p) => p.status === "angefordert");
     res.json({
       ok: true,
@@ -278,7 +280,7 @@ router.get("/buchhaltung/lage", requireBuch(), async (req: BuchRequest, res: Res
       konten: KONTEN,
       kasse: k,
       offen,
-      // Eingänge, die im Bankbuch liegen und noch keine Buchung haben (seit 01.09.) — „Zu tun".
+      // Eingänge, die im Bankbuch liegen und noch keine Buchung haben (seit 24.09.; gesamt* seit 15.08.) — „Zu tun".
       nachholen,
       fluss,
       letzte: letzte.zeilen,
@@ -355,7 +357,7 @@ const bankId = (uid: unknown): number | null => {
 router.get("/buchhaltung/nachholen", requireBuch(), async (req: Request, res: Response) => {
   try {
     const { nachholListe, NACHHOLEN_SEIT_AELTESTE } = await import("../lib/fiaon-bank-nachholen");
-    // Vorgabe: seit 24.09. (geprüfter Zeitraum); ?seit=aeltere nimmt alles seit 01.09. dazu.
+    // Vorgabe: seit 24.09. (geprüfter Zeitraum); ?seit=aeltere nimmt alles seit 15.08. dazu (E-277).
     const seit = String(req.query.seit) === "aeltere" ? NACHHOLEN_SEIT_AELTESTE : istTag(req.query.seit) ? String(req.query.seit) : null;
     const zeilen = await nachholListe({ seit });
     const buchbar = zeilen.filter((z) => z.buchen);
@@ -363,13 +365,26 @@ router.get("/buchhaltung/nachholen", requireBuch(), async (req: Request, res: Re
   } catch (err) { fehler(res, "nachholen")(err); }
 });
 
-/** Die Trockenprobe zu EINEM Eingang — für die Schublade. Schreibt nichts. */
+// E-277 (02.10.2026) — Justin: „Ok buche alle Zahlungen den Kunden richtig zu die gerade nicht
+// gebucht wurden, erkenne sie anhand des Namens, Verwendungszweck oder was auch immer, buche alle
+// und lass kein über." Je Handfall ein Vorschlag (Liste und Schublade); der Inhaber bestätigt mit
+// „So buchen" (Ziel + ggf. Sammelzahlung, der eine Weg), „Nur zuordnen" (Geld schon auf anderem
+// Weg gebucht — keine zweite Buchung) oder „Aufgabe anlegen" (Teil-, Über-, Rückzahlung).
+const zielAusBody = (b: any): string | null => (typeof b?.ziel === "string" && b.ziel.trim() ? b.ziel.trim().slice(0, 40) : null);
+const dazuAusBody = (b: any): number[] =>
+  (Array.isArray(b?.dazu) ? b.dazu : []).map((x: unknown) => bankId(x)).filter((n: number | null): n is number => !!n).slice(0, 3);
+
+/** Die Trockenprobe zu EINEM Eingang — für die Schublade und die Dialoge. Schreibt nichts. */
 router.post("/buchhaltung/nachholen/:uid/trocken", requireBuch(), async (req: Request, res: Response) => {
   try {
     const id = bankId(req.params.uid);
     if (!id) return res.status(400).json({ ok: false, error: "Das ist kein Bankeingang." });
-    const { bankeingangTrockenprobe } = await import("../lib/fiaon-bank-nachholen");
-    const a = await bankeingangTrockenprobe(id, {});
+    const nach = await import("../lib/fiaon-bank-nachholen");
+    const ziel = zielAusBody(req.body);
+    const dazu = dazuAusBody(req.body);
+    const a = String(req.body?.modus) === "zuordnen"
+      ? await nach.zuordnenPruefen(id, ziel)
+      : await nach.bankeingangTrockenprobe(id, { ziel, dazu, mitVorschlag: !ziel && !dazu.length });
     res.status(a.ok ? 200 : a.status).json(a.ok ? { ok: true, zeile: a.zeile } : { ok: false, error: a.error, zeile: a.zeile ?? null });
   } catch (err) { fehler(res, "nachholen/trocken")(err); }
 });
@@ -380,33 +395,90 @@ router.post("/buchhaltung/nachholen/:uid/buchen", requireBuch("inhaber"), async 
     const id = bankId(req.params.uid);
     if (!id) return res.status(400).json({ ok: false, error: "Das ist kein Bankeingang." });
     const { bankeingangBuchen } = await import("../lib/fiaon-bank-nachholen");
-    const a = await bankeingangBuchen(id, { wer: `Bankbuch ${req.buch!.email}`, erwartet: req.body?.erwartet ?? null });
+    const a = await bankeingangBuchen(id, {
+      wer: `Bankbuch ${req.buch!.email}`, erwartet: req.body?.erwartet ?? null, ziel: zielAusBody(req.body), dazu: dazuAusBody(req.body),
+    });
     const z = a.zeile;
     buchProtokoll(req.buch!.email, a.ok && a.ergebnis?.gebucht ? "Bankeingang gebucht" : "Bankeingang NICHT gebucht",
       z ? `bank:${z.id}` : `bank:${id}`,
-      z ? `${geldText(z.betragCents)} ${z.zweckRef ?? ""} → ${z.regel ?? "—"} ${z.ziel ?? ""}: ${a.ok ? a.ergebnis?.grund : a.error}`.slice(0, 300) : String(a.error ?? "").slice(0, 300));
+      z ? `${geldText(z.summeCents ?? z.betragCents)} ${z.zielVomMenschen ? `Ziel ${z.zielVomMenschen}` : z.zweckRef ?? ""}${z.dazu?.length ? ` + Sammel ${z.dazu.map((d) => `#${d}`).join(",")}` : ""} → ${z.regel ?? "—"} ${z.ziel ?? ""}: ${a.ok ? a.ergebnis?.grund : a.error}`.slice(0, 300) : String(a.error ?? "").slice(0, 300));
     if (!a.ok) return res.status(a.status).json({ ok: false, error: a.error, zeile: z ?? null });
     res.json({ ok: true, zeile: z, ergebnis: a.ergebnis, aufgabe: a.aufgabe ?? null });
   } catch (err) { fehler(res, "nachholen/buchen")(err); }
 });
 
-/** Mehrere auf einmal — nur Inhaber. Einer nach dem anderen, Abbruch beim ersten Fehlschlag. */
+/** E-277: „Nur zuordnen" — das Geld ist schon auf anderem Weg gebucht. Nur Inhaber, keine Buchung. */
+router.post("/buchhaltung/nachholen/:uid/zuordnen", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = bankId(req.params.uid);
+    if (!id) return res.status(400).json({ ok: false, error: "Das ist kein Bankeingang." });
+    const ziel = zielAusBody(req.body);
+    if (!ziel) return res.status(400).json({ ok: false, error: "Ziel fehlt (Raten- oder Bestellreferenz)." });
+    const { bankeingangZuordnen } = await import("../lib/fiaon-bank-nachholen");
+    const a = await bankeingangZuordnen(id, { ziel, wer: `Bankbuch ${req.buch!.email}`, erwartet: req.body?.erwartet ?? null });
+    const z = a.zeile;
+    buchProtokoll(req.buch!.email, a.ok ? "Bankeingang nur zugeordnet" : "Bankeingang NICHT zugeordnet", `bank:${id}`,
+      `${z ? geldText(z.betragCents) : ""} → ${ziel}: ${a.ok ? z?.ergebnis ?? "zugeordnet" : a.error}`.slice(0, 300));
+    if (!a.ok) return res.status(a.status).json({ ok: false, error: a.error, zeile: z ?? null });
+    res.json({ ok: true, zeile: z });
+  } catch (err) { fehler(res, "nachholen/zuordnen")(err); }
+});
+
+/** E-277: Teil-, Über-, Rückzahlung — Aufgabe statt Buchung. Nur Inhaber. */
+router.post("/buchhaltung/nachholen/:uid/aufgabe", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = bankId(req.params.uid);
+    if (!id) return res.status(400).json({ ok: false, error: "Das ist kein Bankeingang." });
+    const { bankeingangAufgabe } = await import("../lib/fiaon-bank-nachholen");
+    const a = await bankeingangAufgabe(id, { wer: req.buch!.email });
+    buchProtokoll(req.buch!.email, a.ok ? "Aufgabe zu Bankeingang angelegt" : "Aufgabe zu Bankeingang NICHT angelegt", `bank:${id}`,
+      `${a.zeile ? geldText(a.zeile.betragCents) : ""} ${a.zeile?.vorschlag?.text ?? ""}: ${a.ok ? a.aufgabe ?? "" : a.error}`.slice(0, 300));
+    if (!a.ok) return res.status(a.status).json({ ok: false, error: a.error, zeile: a.zeile ?? null });
+    res.json({ ok: true, zeile: a.zeile, aufgabe: a.aufgabe ?? null });
+  } catch (err) { fehler(res, "nachholen/aufgabe")(err); }
+});
+
+/**
+ * Mehrere auf einmal — nur Inhaber. Einer nach dem anderen, Abbruch beim ersten Fehlschlag.
+ * `ids`: buchbare Eingänge wie bisher (Referenz im Zweck). E-277 `auftraege`: bestätigte
+ * Vorschläge [{ id, modus: "buchen"|"zuordnen", ziel, dazu, erwartet }] — jeder läuft durch
+ * dieselbe Prüfung wie der Einzelklick (weicht der Stand von der Erwartung ab: Abbruch).
+ */
 router.post("/buchhaltung/nachholen/alle-buchen", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
   try {
-    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map((x: unknown) => bankId(x)).filter((n: number | null): n is number => !!n);
-    if (!ids.length) return res.status(400).json({ ok: false, error: "Keine Eingänge angegeben." });
-    if (ids.length > 50) return res.status(400).json({ ok: false, error: "Höchstens 50 auf einmal." });
-    const { bankeingangBuchen } = await import("../lib/fiaon-bank-nachholen");
-    const schritte: Array<{ id: number; gebucht: boolean; grund: string; ziel: string | null; aufgabe: string | null }> = [];
+    type Schritt = { id: number; modus: "buchen" | "zuordnen"; ziel: string | null; dazu: number[]; erwartet: any };
+    const auftraege: Schritt[] = Array.isArray(req.body?.auftraege)
+      ? req.body.auftraege.map((x: any): Schritt => ({
+        id: bankId(x?.id) ?? 0, modus: x?.modus === "zuordnen" ? "zuordnen" : "buchen", ziel: zielAusBody(x), dazu: dazuAusBody(x), erwartet: x?.erwartet ?? null,
+      })).filter((x: Schritt) => x.id > 0)
+      : (Array.isArray(req.body?.ids) ? req.body.ids : []).map((x: unknown) => bankId(x)).filter((n: number | null): n is number => !!n)
+        .map((id: number): Schritt => ({ id, modus: "buchen", ziel: null, dazu: [], erwartet: null }));
+    if (!auftraege.length) return res.status(400).json({ ok: false, error: "Keine Eingänge angegeben." });
+    if (auftraege.length > 100) return res.status(400).json({ ok: false, error: "Höchstens 100 auf einmal." });
+    if (auftraege.some((x) => x.modus === "zuordnen" && !x.ziel)) return res.status(400).json({ ok: false, error: "„Nur zuordnen“ braucht ein Ziel." });
+    const { bankeingangBuchen, bankeingangZuordnen } = await import("../lib/fiaon-bank-nachholen");
+    const schritte: Array<{ id: number; modus: string; gebucht: boolean; grund: string; ziel: string | null; aufgabe: string | null }> = [];
     let abgebrochen = false;
-    for (const id of ids) {
-      const a = await bankeingangBuchen(id, { wer: `Bankbuch ${req.buch!.email}` });
-      const gebucht = !!(a.ok && a.ergebnis?.gebucht);
-      const grund = a.ok ? String(a.ergebnis?.grund ?? "") : String(a.error ?? "");
-      schritte.push({ id, gebucht, grund, ziel: a.zeile?.ziel ?? null, aufgabe: a.aufgabe ?? null });
-      buchProtokoll(req.buch!.email, gebucht ? "Bankeingang gebucht" : "Bankeingang NICHT gebucht", `bank:${id}`,
-        a.zeile ? `${geldText(a.zeile.betragCents)} ${a.zeile.zweckRef ?? ""} → ${a.zeile.regel ?? "—"} ${a.zeile.ziel ?? ""}: ${grund}`.slice(0, 300) : grund.slice(0, 300));
-      if (!gebucht) { abgebrochen = true; break; }
+    for (const x of auftraege) {
+      const wer = `Bankbuch ${req.buch!.email}`;
+      let ok = false;
+      let grund = "";
+      let ziel: string | null = null;
+      let aufgabe: string | null = null;
+      let betrag = 0;
+      if (x.modus === "zuordnen") {
+        const a = await bankeingangZuordnen(x.id, { ziel: x.ziel, wer, erwartet: x.erwartet });
+        ok = a.ok; grund = a.ok ? "nur zugeordnet" : String(a.error ?? ""); ziel = a.zeile?.ziel ?? x.ziel; betrag = a.zeile?.betragCents ?? 0;
+      } else {
+        const a = await bankeingangBuchen(x.id, { wer, ziel: x.ziel, dazu: x.dazu, erwartet: x.erwartet });
+        ok = !!(a.ok && a.ergebnis?.gebucht); grund = a.ok ? String(a.ergebnis?.grund ?? "") : String(a.error ?? "");
+        ziel = a.zeile?.ziel ?? null; aufgabe = a.aufgabe ?? null; betrag = a.zeile?.summeCents ?? a.zeile?.betragCents ?? 0;
+      }
+      schritte.push({ id: x.id, modus: x.modus, gebucht: ok, grund, ziel, aufgabe });
+      buchProtokoll(req.buch!.email,
+        x.modus === "zuordnen" ? (ok ? "Bankeingang nur zugeordnet" : "Bankeingang NICHT zugeordnet") : (ok ? "Bankeingang gebucht" : "Bankeingang NICHT gebucht"),
+        `bank:${x.id}`, `${geldText(betrag)} → ${ziel ?? "—"}: ${grund}`.slice(0, 300));
+      if (!ok) { abgebrochen = true; break; }
     }
     res.json({ ok: true, gebucht: schritte.filter((s) => s.gebucht).length, abgebrochen, schritte });
   } catch (err) { fehler(res, "nachholen/alle-buchen")(err); }

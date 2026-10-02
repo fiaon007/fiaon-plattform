@@ -5,6 +5,51 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 02.10.2026 — Bankbuch: jeder liegengebliebene Eingang mit Vorschlag und einem Klick — „So buchen“, „Nur zuordnen“, „Aufgabe anlegen“ (E-277)
+
+**Der Anlass:** Justin: „Ok buche alle Zahlungen den Kunden richtig zu die gerade nicht gebucht wurden, erkenne sie anhand
+des Namens, Verwendungszweck oder was auch immer, buche alle und lass kein über.“ Der Nachhol-Lauf fand 80 unverbuchte
+Eingänge seit 15.08.: 10 buchbar (inzwischen gebucht), 70 „Handarbeit“ — dazu 5 Eingänge, die Airwallex noch als
+„unterwegs“ führte.
+
+**Was die Prüfung ergab (Produktion nur gelesen, Stand 02.10. abends, 75 Eingänge / 6.237,15 €):** Der größte Teil ist gar
+keine offene Buchung. 48 Eingänge (3.258,77 €) sind Geld, das schon auf anderem Weg gebucht wurde — meist die Startzahlungen
+der Buchungsläufe vom 31.08./01.09. per mark-paid, deren Zeile im Bankbuch nie ihren Haken bekam. 17 sind echte Buchungen
+(Raten gekündigter Verträge, Zahlungen ohne oder mit falscher/vertippter Referenz, eine abgelaufene Bestellung, eine
+Sammelzahlung aus zwei Überweisungen). Der Rest braucht einen Menschen: 2 Teilzahlungen, 4 Über-/Doppelzahlungen,
+1 Rückzahlung (Bestellung als „unbezahlt“ storniert, obwohl das Geld da war), 3 ohne Ziel (Kartenumsatz Flughafen Wien,
+„GLOBAL LLC Package“, 74 € für eine Auskunft ohne Bestellung).
+
+**Was jetzt gilt:**
+- **Vorschlag je Eingang** (Bankbuch → Umsätze → „Eingänge ohne Buchung“ und in der Schublade): Referenz im Zweck (auch mit
+  einem Tippfehler, auch die einer zusammengeführten Dublette), Belegnotiz des Betreuers („von einem anderen Konto
+  überwiesen (Paul …)“), Vor- und Nachname, Betrag und Datum ergeben EIN Ziel mit Art, Sicherheit (sicher /
+  wahrscheinlich / unklar) und Grund — z. B. „Vorschlag: Rate FIAON-…-2 von … — Grund: Name + Betrag = Rate + fällig 15.08.“.
+  Gebucht wird davon nichts von selbst.
+- **„So buchen“**: derselbe Buchungsweg wie jede Zahlung (liveVerbuchen → alsBezahltBuchen / rateBezahltBuchen) mit dem
+  bestätigten Ziel und allen Sperren — erst Trockenprobe im Dialog, dann der Klick. Neu dabei: Eine Monatsrate darf wie eine
+  Erstzahlung bis 1 € ZU VIEL bekommen; eine „abgelaufene“ Bestellung (nur das Zahlungsfenster) kann bezahlt werden;
+  eine **Sammelzahlung** (99,96 € + 1,00 €) wird als EINE Buchung gebucht, alle Teile bekommen ihren Haken.
+- **Unterzahlung wird nie gebucht.** Weder alsBezahltBuchen noch rateBezahltBuchen kennen einen gezahlten Betrag: Die Rate
+  stünde voll bezahlt da, der Rest würde nie gemahnt, die Provision rechnete vom Sollbetrag. Darum gibt es keinen Schalter
+  „Teilzahlung als bezahlt annehmen“, sondern **„Aufgabe anlegen“** (Teilzahlung → Betreuer; Über-/Rückzahlung → Zahlungsstelle).
+  Ausnahme ist nur die bestehende Regel B (±1 € auf Monatsraten, Go 01.10.): Fehlen bei einer Rate bis 1 €, schlägt das
+  Bankbuch die Bestellreferenz vor, und Regel B entscheidet mit allen ihren Prüfungen.
+- **„Nur zuordnen“** für Geld, das schon gebucht ist: Die Bankbuch-Zeile bekommt Haken, Zuordnung und Vermerk, die bezahlte
+  Rate den Beleg „Bankeingang … — nur zugeordnet“, die Akte einen Satz. Keine Statusänderung, keine Mail, keine Provision,
+  keine neue Rate. Sperren: Ziel muss bezahlt sein; der Eingang darf in keiner anderen Rate stehen; Deckung je Kunde (alle
+  Eingänge der Bestellung dürfen die bezahlten Raten nicht übersteigen) — sonst ist es eine Doppelzahlung, keine Zuordnung.
+- **„Alle N sicheren ausführen“** (nur Inhaber): alle sicheren Vorschläge nacheinander, jeder mit seiner Erwartung,
+  Abbruch beim ersten Fehlschlag. „Ältere einbeziehen“ reicht jetzt bis 15.08. (vorher 01.09.); die Übersicht zählt alle.
+- **„Anderes Ziel …“**: jede FIAON-Referenz von Hand eintippen und als Buchung oder Zuordnung trocken prüfen.
+
+**Wo:** `server/lib/fiaon-bank-nachholen.ts` (Vorschlag, Zuordnen, Sammelzahlung, Aufgabe), `server/routes/fiaon-wise.ts`
+(`liveVerbuchen`: `zielVomMenschen`, `notizZusatz`; Admin-Route `ziel`/`dazu`/`modus`), `server/routes/fiaon-buchhaltung.ts`
+(`/buchhaltung/nachholen/:uid/trocken|buchen|zuordnen|aufgabe`, `alle-buchen` mit `auftraege`), `client/src/pages/banking/umsaetze.tsx`.
+Prüfstand `scripts/pruef-bank-nachholen-ziel.ts` (79 Prüfungen, lokale Kopie), Regression `scripts/pruef-bank-regel-b.ts` grün.
+
+---
+
 ## 02.10.2026 — Mara verkauft die Aktivierung: „Zahlen Sie jetzt die Aktivierung — Ihr Account ist sofort nach Zahlungseingang aktiv …!“ (E-275 Ton und Restpunkte)
 
 **Der Anlass:** Justin nach dem ersten E-275-Auftrag: „Mara schreibt ‚jeden‘ ‚ich leite es an XY weiter‘ aber das soll Mara

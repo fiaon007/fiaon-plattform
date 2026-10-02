@@ -659,6 +659,14 @@
 [data-fiaon-banking] .bk-probe-hinweis { color: var(--warn); font-weight: 500; }
 [data-fiaon-banking] .bk-probe-dialog { display: grid; gap: 12px; }
 [data-fiaon-banking] .bk-probe-dialog > p { margin: 0; font-size: 12.5px; line-height: 1.5; }
+/* E-277 (02.10.2026): Vorschlag je Handfall + Ziel-Eingabe im Dialog */
+[data-fiaon-banking] .bk-vorschlag { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--r-s); border: 1px solid var(--linie); font-size: 13px; line-height: 1.45; }
+[data-fiaon-banking] .bk-vorschlag-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+[data-fiaon-banking] .bk-vorschlag-kopf strong { font-weight: 600; }
+[data-fiaon-banking] .bk-vorschlag-grund { font-size: 12.5px; }
+[data-fiaon-banking] .bk-nz-grund { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+[data-fiaon-banking] .bk-ziel-eingabe { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+[data-fiaon-banking] .bk-ziel-eingabe input { flex: 1 1 220px; min-width: 0; height: 36px; padding: 0 10px; border-radius: var(--r-s); border: 1px solid var(--feld-linie); background: var(--flaeche); color: var(--tinte); font: inherit; font-size: 13px; }
 @media (max-width: 640px) {
   [data-fiaon-banking] .bk-nz-kopf { grid-template-columns: auto auto; }
   [data-fiaon-banking] .bk-nz-zweck { grid-column: 1 / -1; }

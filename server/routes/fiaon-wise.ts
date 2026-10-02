@@ -217,6 +217,22 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
 //     (Route unten): eine Erstzahlung darf so viele Cent ÜBER dem Soll liegen
 //     (höchstens 100). Nie darunter. Die Automatik ruft ohne → centgenau wie bisher.
 //   `anlass` — wer bucht; steht in Vermerk und Ratennotiz (Vorgabe: Automatik).
+//   `zielVomMenschen` — E-277 (02.10.2026), Justin: „Ok buche alle Zahlungen den
+//     Kunden richtig zu die gerade nicht gebucht wurden, erkenne sie anhand des
+//     Namens, Verwendungszweck oder was auch immer, buche alle und lass kein
+//     über." Die Referenz kommt NICHT aus dem Verwendungszweck, sondern hat ein
+//     Mensch im Bankbuch bestätigt (Vorschlag aus Name, Betrag, Datum). Dieselben
+//     Zweige, dieselben Sperren — nur zwei Unterschiede: Eine Monatsrate darf wie
+//     eine Erstzahlung bis `ueberzahlungBisCents` ÜBER dem Soll liegen (nie
+//     darunter), und eine ABGELAUFENE Bestellung (expired = nur das Zahlungs-
+//     fenster ist zu, Grundsatz 02.09.: nie deaktivieren) darf bezahlt werden.
+//     Eine UNTERZAHLUNG wird nie gebucht: alsBezahltBuchen und rateBezahltBuchen
+//     kennen keinen gezahlten Betrag — die Rate stünde als voll bezahlt da, die
+//     Mahnung des Rests endete, die Provision rechnete vom Sollbetrag. Sie wird
+//     als Aufgabe ausgewiesen (server/lib/fiaon-bank-nachholen.ts).
+//   `notizZusatz` — E-277: weitere Eingänge einer Sammelzahlung („Bankeingang
+//     AWX-… (Sammelzahlung)"); steht in der Ratennotiz, damit die Sperre „schon
+//     verbraucht" auch diese Eingänge kennt.
 // ═══════════════════════════════════════════════════════════════════════════
 export interface VerbuchenErgebnis {
   gebucht: boolean;
@@ -235,9 +251,11 @@ export interface VerbuchenErgebnis {
 
 export async function liveVerbuchen(
   txnId: string, ref: string | null, cents: number, datum: string,
-  opts: { trocken?: boolean; ueberzahlungBisCents?: number; anlass?: string } = {},
+  opts: { trocken?: boolean; ueberzahlungBisCents?: number; anlass?: string; zielVomMenschen?: boolean; notizZusatz?: string | null } = {},
 ): Promise<VerbuchenErgebnis> {
   const wer = opts.anlass || "Wise-Automatik";
+  const zusatz = opts.notizZusatz ? ` · ${String(opts.notizZusatz).slice(0, 600)}` : "";
+  const toleranzCents = Math.max(0, Math.min(100, Math.floor(Number(opts.ueberzahlungBisCents) || 0)));
   const vermerk = async (note: string, applied = false, zielBestellung: string | null = null) => {
     if (opts.trocken) return;
     // Beim Verbuchen hält das Bankbuch fest, WELCHER Bestellung das Geld gehört
@@ -287,18 +305,27 @@ export async function liveVerbuchen(
         await vermerk(`${wer}: Rate ${rateRef} ist bereits als bezahlt gebucht — Eingang bitte von Hand zuordnen (Doppelzahlung?).`);
         return { gebucht: false, grund: "Rate schon bezahlt", ...basis };
       }
-      if (Number(raten[0].betrag_cents) !== cents) {
+      // E-277: Mit vom Menschen bestätigtem Ziel darf eine Rate wie eine Erstzahlung bis
+      // zur Toleranz ÜBER dem Soll liegen (100,00 € auf 99,99 €). Darunter nie.
+      const rateZuViel = cents - Number(raten[0].betrag_cents);
+      const rateTol = opts.zielVomMenschen ? toleranzCents : 0;
+      if (opts.zielVomMenschen && rateZuViel < 0) {
+        await vermerk(`${wer}: Rate ${rateRef} — Teilzahlung (${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} €), nicht gebucht.`);
+        return { gebucht: false, grund: `Teilzahlung: ${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} € — wird nicht gebucht (Aufgabe)`, ...basis };
+      }
+      if (!(rateZuViel === 0 || (rateZuViel > 0 && rateZuViel <= rateTol))) {
         await vermerk(`${wer}: Rate ${rateRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
         return { gebucht: false, grund: "Betrag weicht ab", ...basis };
       }
-      if (opts.trocken) return { gebucht: false, grund: `würde buchen: Rate ${rateRef}`, ...basis };
+      const rateUeberText = rateZuViel > 0 ? ` (Überzahlung ${(rateZuViel / 100).toFixed(2)} €)` : "";
+      if (opts.trocken) return { gebucht: false, grund: `würde buchen: Rate ${rateRef}${rateUeberText}`, ...basis };
       const { rateBezahltBuchen } = await import("./fiaon-abo");
       const erg = await rateBezahltBuchen({
         rateId: Number(raten[0].id), zahlungsdatum: datum, quelle: "bank",
-        notiz: `Bankeingang ${txnId} — ${opts.anlass ? `gebucht (${opts.anlass})` : "automatisch gebucht (Wise-Automatik)"}`,
+        notiz: `Bankeingang ${txnId} — ${opts.anlass ? `gebucht (${opts.anlass})` : "automatisch gebucht (Wise-Automatik)"}${rateUeberText}${zusatz}`,
       });
       if (erg.ok && !erg.schonBezahlt) {
-        await vermerk(`${wer}: LIVE verbucht — Rate ${rateRef} bezahlt per ${datum} (Ratenprovision nach Schalter: gebucht oder vorgemerkt).`, true, basis.bestellung);
+        await vermerk(`${wer}: LIVE verbucht — Rate ${rateRef} bezahlt per ${datum}${rateUeberText} (Ratenprovision nach Schalter: gebucht oder vorgemerkt).`, true, basis.bestellung);
         console.log(`[WISE] LIVE verbucht: Rate ${rateRef} (${(cents / 100).toFixed(2)} €)`);
         return { gebucht: true, grund: "Rate gebucht", ...basis };
       }
@@ -336,7 +363,7 @@ export async function liveVerbuchen(
       const erg = await rateBezahltBuchen({
         rateId: b.rate.id, zahlungsdatum: datum, quelle: "bank",
         notiz: `Bankeingang ${txnId} — Regel B: Eingang ohne Ratennummer (${bestellRef}), älteste offene Rate${abwText}`
-          + (opts.anlass ? `, gebucht (${opts.anlass})` : ", automatisch gebucht"),
+          + (opts.anlass ? `, gebucht (${opts.anlass})` : ", automatisch gebucht") + zusatz,
       });
       if (erg.ok && !erg.schonBezahlt) {
         await vermerk(`${wer}: LIVE verbucht (Regel B) — Eingang ohne Ratennummer → Rate ${b.rate.zahlungsreferenz} bezahlt per ${datum}${abwText}. ${b.deckung?.text ?? ""}`.trim(), true, String(app.ref));
@@ -348,13 +375,20 @@ export async function liveVerbuchen(
     }
 
     const basis = { regel: "erstzahlung" as const, ziel: bestellRef, bestellung: String(app.ref) };
-    if (!["pending_payment", "claimed_paid"].includes(String(app.payment_status))) {
+    // E-277: „abgelaufen" heißt nur, das Zahlungsfenster ist zu — hat ein Mensch das Ziel
+    // bestätigt, wird die Bestellung mit dem Geld bezahlt (Fall Antonic, FIAON-BT655W).
+    const offeneStati = opts.zielVomMenschen ? ["pending_payment", "claimed_paid", "expired"] : ["pending_payment", "claimed_paid"];
+    if (!offeneStati.includes(String(app.payment_status))) {
       await vermerk(`${wer}: Bestellung ${bestellRef} steht auf '${app.payment_status}' — nichts automatisch gebucht, bitte von Hand zuordnen (Rate? Doppelzahlung?).`);
       return { gebucht: false, grund: `Status ${app.payment_status}`, ...basis };
     }
     const soll = Number(app.soll_cents);
     const zuViel = cents - soll;
-    const toleranz = Math.max(0, Math.min(100, Math.floor(Number(opts.ueberzahlungBisCents) || 0)));
+    const toleranz = toleranzCents;
+    if (opts.zielVomMenschen && zuViel < 0) {
+      await vermerk(`${wer}: Bestellung ${bestellRef} — Teilzahlung (${(cents / 100).toFixed(2)} € statt ${(soll / 100).toFixed(2)} €), nicht gebucht.`);
+      return { gebucht: false, grund: `Teilzahlung: ${(cents / 100).toFixed(2)} € statt ${(soll / 100).toFixed(2)} € — wird nicht gebucht (Aufgabe)`, ...basis };
+    }
     if (!(zuViel === 0 || (zuViel > 0 && zuViel <= toleranz))) {
       await vermerk(`${wer}: Bestellung ${bestellRef} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(soll / 100).toFixed(2)} €) — bitte von Hand buchen.`);
       return { gebucht: false, grund: "Betrag weicht ab", ...basis };
@@ -590,19 +624,34 @@ router.post("/admin/wise/einlesen", async (req: Request, res: Response) => {
 //     im Bankbuch (FIAON Banking → Umsätze, fiaon-buchhaltung.ts) — dieselbe
 //     Rechnung aus server/lib/fiaon-bank-nachholen.ts, ohne Admin-Code.
 // ═══════════════════════════════════════════════════════════════════════════
+// E-277 (02.10.2026): dazu `ziel` (vom Menschen bestätigte Bestell-/Ratenreferenz), `dazu`
+// (Sammelzahlung: weitere fiaon_bank_txns.id) und `modus`: "zuordnen" („Nur zuordnen" — Geld
+// schon auf anderem Weg gebucht, keine zweite Buchung) bzw. "aufgabe" (Teil-/Über-/Rückzahlung).
+// Trocken bleibt die Vorgabe; dieselben Funktionen wie im Bankbuch.
 router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: Response) => {
   const id = Number(req.body?.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "id fehlt (fiaon_bank_txns.id)." });
   // Vorsicht als Vorgabe: Nur ein ausdrückliches trocken:false bucht.
   const trocken = req.body?.trocken !== false;
   const ueberzahlungBisCents = Math.max(0, Math.min(100, Math.floor(Number(req.body?.ueberzahlungBisCents) || 0)));
+  const ziel = typeof req.body?.ziel === "string" && req.body.ziel.trim() ? String(req.body.ziel).trim().slice(0, 40) : null;
+  const dazu = (Array.isArray(req.body?.dazu) ? req.body.dazu : []).map(Number).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 3);
+  const modus = ["zuordnen", "aufgabe"].includes(String(req.body?.modus)) ? String(req.body.modus) : "buchen";
   try {
-    const { bankeingangTrockenprobe, bankeingangBuchen } = await import("../lib/fiaon-bank-nachholen");
+    const nach = await import("../lib/fiaon-bank-nachholen");
+    const { bankeingangTrockenprobe, bankeingangBuchen } = nach;
     const chef = readChef(req);
     const wer = chef ? `Chef #${chef.agentId}` : "Admin-Code";
+    if (modus !== "buchen") {
+      const b = modus === "zuordnen"
+        ? (trocken ? await nach.zuordnenPruefen(id, ziel) : await nach.bankeingangZuordnen(id, { ziel, wer, erwartet: req.body?.erwartet ?? null }))
+        : (trocken ? await bankeingangTrockenprobe(id, { mitVorschlag: true }) : await nach.bankeingangAufgabe(id, { wer }));
+      if (!b.ok) return res.status(b.status).json({ ok: false, id, trocken, modus, error: b.error, zeile: b.zeile ?? null });
+      return res.json({ ok: true, id, trocken, modus, zeile: b.zeile ?? null, aufgabe: (b as any).aufgabe ?? null });
+    }
     const a = trocken
-      ? await bankeingangTrockenprobe(id, { ueberzahlungBisCents })
-      : await bankeingangBuchen(id, { ueberzahlungBisCents, wer, erwartet: req.body?.erwartet ?? null });
+      ? await bankeingangTrockenprobe(id, { ueberzahlungBisCents, ziel, dazu, mitVorschlag: !ziel && !dazu.length })
+      : await bankeingangBuchen(id, { ueberzahlungBisCents, wer, erwartet: req.body?.erwartet ?? null, ziel, dazu });
     const z = a.zeile;
     // Kopf wie bisher (das Skript liest ihn), dazu die ganze Zeile der Trockenprobe.
     const kopf = z ? { id: z.id, txnId: z.txnId, betragCents: z.betragCents, datum: z.datum, referenz: z.zweckRef, trocken } : { id, trocken };

@@ -7,7 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ruf, type Auftrag, type Ich, type NachholZeile, type Umsatz, type UmsatzArt } from "./api";
+import { ruf, type Auftrag, type HandfallArt, type Ich, type NachholVorschlag, type NachholZeile, type Umsatz, type UmsatzArt } from "./api";
 import { geld, geldVz, heute, initialen, tag, tagesKopf, zeit, zahl } from "./format";
 import { Chip, Dialog, Knopf, KnopfLink, Kopierfeld, Laden, Leer, Meldung, Schublade, Zeichen, useEntprellt, type ChipArt } from "./ui";
 
@@ -117,7 +117,7 @@ export function Trockenprobe({ z, kompakt }: { z: NachholZeile; kompakt?: boolea
     <dl className="bk-dl bk-probe">
       <dt>Ziel</dt><dd className="bk-mono">{z.ziel ?? "—"}{z.kunde ? <span className="bk-leise"> · {z.kunde}</span> : null}</dd>
       <dt>Regel</dt><dd>{z.regel ? REGEL_TEXT[z.regel] ?? z.regel : "—"}{z.rateNr != null ? ` · Rate ${z.rateNr}` : ""}</dd>
-      <dt>Betrag</dt><dd>{geld(z.betragCents)} am {tag(z.datum)}</dd>
+      <dt>Betrag</dt><dd>{z.dazu?.length && z.summeCents ? `${geld(z.summeCents)} (Sammelzahlung aus ${z.dazu.length + 1} Eingängen) per ${tag(z.buchDatum ?? z.datum)}` : `${geld(z.betragCents)} am ${tag(z.datum)}`}</dd>
       {!kompakt && z.deckung ? <><dt>Deckung</dt><dd className="bk-leise">{z.deckung}</dd></> : null}
       <dt>Provision</dt><dd>{z.provision.length ? z.provision.map((p, i) => <div key={i}>{p}</div>) : "keine"}</dd>
       {!kompakt ? <><dt>Kunde bekommt</dt><dd>{z.mails.length ? z.mails.map((m, i) => <div key={i}>{m}</div>) : "keine Mail"}</dd></> : null}
@@ -152,17 +152,179 @@ async function eingangBuchen(z: NachholZeile): Promise<{ grund: string; aufgabe:
   return { grund: j.ergebnis.grund, aufgabe: j.aufgabe ?? null };
 }
 
+// ── E-277 (02.10.2026): Jeder Handfall mit einem Klick ──────────────────────
+// Justin: „Ok buche alle Zahlungen den Kunden richtig zu die gerade nicht gebucht wurden,
+// erkenne sie anhand des Namens, Verwendungszweck oder was auch immer, buche alle und lass
+// kein über." Der Server schlägt je Eingang EIN Ziel vor (Referenz, auch mit Tippfehler,
+// Name, Belegnotiz, Betrag, Datum). Der Inhaber sieht Vorschlag und Grund, prüft im Dialog
+// trocken nach und bestätigt: „So buchen" (der eine Weg), „Nur zuordnen" (Geld schon auf
+// anderem Weg gebucht — keine zweite Buchung) oder „Aufgabe anlegen" (Teil-/Über-/Rückzahlung).
+const HANDFALL_TEXT: Record<HandfallArt, string> = {
+  erstzahlung: "Erstzahlung", rate: "Monatsrate", nur_zuordnen: "Nur zuordnen — schon gebucht", teilzahlung: "Teilzahlung",
+  ueberzahlung: "Überzahlung", rueckzahlung_noetig: "Rückzahlung nötig", unbekannt: "Unbekannt",
+};
+const SICHERHEIT_CHIP: Record<NachholVorschlag["sicherheit"], ChipArt> = { sicher: "gut", wahrscheinlich: "info", unklar: "warn" };
+
+/** Vorschlag + Grund — in der Liste und in der Schublade derselbe Kasten. */
+export function VorschlagKasten({ v }: { v: NachholVorschlag }) {
+  return (
+    <div className="bk-vorschlag">
+      <div className="bk-vorschlag-kopf">
+        <Chip art={SICHERHEIT_CHIP[v.sicherheit]}>{v.sicherheit}</Chip>
+        <Chip art="still">{HANDFALL_TEXT[v.art]}</Chip>
+        <span><strong>Vorschlag:</strong> {v.text}</span>
+      </div>
+      {v.gruende.length ? <div className="bk-vorschlag-grund bk-leise">Grund: {v.gruende.join(" + ")}</div> : null}
+      {v.hinweise.length ? <div className="bk-probe-hinweis">{v.hinweise.map((h, i) => <div key={i}>{h}</div>)}</div> : null}
+    </div>
+  );
+}
+
+type HandfallModus = "buchen" | "zuordnen" | "aufgabe";
+interface HandfallAuftrag { z: NachholZeile; modus: HandfallModus | "anders"; ziel: string; dazu: number[] }
+
+/** Der Erwartungs-Stempel: was der Mensch gesehen hat — weicht der Server ab, bucht er nicht. */
+function erwartungAus(p: NachholZeile, modus: HandfallModus) {
+  return modus === "zuordnen" ? { ziel: p.ziel, rateId: p.rateId } : { regel: p.regel, ziel: p.ziel, rateId: p.rateId };
+}
+
+/** Prüfen und bestätigen: erst trocken, dann der Klick. Auch für ein selbst getipptes Ziel. */
+function HandfallDialog({ auftrag, onZu, onFertig }: { auftrag: HandfallAuftrag | null; onZu: () => void; onFertig: (meldung: string) => void }) {
+  const [modus, setModus] = useState<HandfallModus | "anders">("buchen");
+  const [ziel, setZiel] = useState("");
+  const [probe, setProbe] = useState<NachholZeile | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const z = auftrag?.z ?? null;
+  const dazu = auftrag?.dazu ?? [];
+
+  const pruefen = useCallback(async (m: HandfallModus, zielText: string) => {
+    if (!z) return;
+    setModus(m); setProbe(null); setFehler(null);
+    if (m === "aufgabe") return;
+    setLaeuft(true);
+    try {
+      const j = await ruf<{ zeile: NachholZeile }>(`/buchhaltung/nachholen/bank:${z.id}/trocken`, {
+        body: m === "zuordnen" ? { ziel: zielText, modus: "zuordnen" } : { ziel: zielText, dazu: m === "buchen" && zielText === auftrag?.ziel ? dazu : [] },
+      });
+      setProbe(j.zeile);
+    } catch (e: any) { setFehler(e.message); } finally { setLaeuft(false); }
+  }, [z, dazu, auftrag?.ziel]);
+
+  useEffect(() => {
+    if (!auftrag) return;
+    setZiel(auftrag.ziel); setProbe(null); setFehler(null);
+    if (auftrag.modus === "anders") { setModus("anders"); return; }
+    void pruefen(auftrag.modus, auftrag.ziel);
+  }, [auftrag]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ausfuehren = async () => {
+    if (!z) return;
+    setLaeuft(true); setFehler(null);
+    try {
+      if (modus === "aufgabe") {
+        const j = await ruf<{ aufgabe: string | null }>(`/buchhaltung/nachholen/bank:${z.id}/aufgabe`, { body: {} });
+        onFertig(`Aufgabe angelegt${j.aufgabe ? ` — ${j.aufgabe}` : ""}. Der Eingang bleibt unverbucht stehen.`);
+      } else if (modus === "zuordnen" && probe) {
+        await ruf(`/buchhaltung/nachholen/bank:${z.id}/zuordnen`, { body: { ziel, erwartet: erwartungAus(probe, "zuordnen") } });
+        onFertig(`Zugeordnet: ${geld(z.betragCents)} → ${probe.ziel} (${probe.kunde ?? "—"}) — keine zweite Buchung.`);
+      } else if (modus === "buchen" && probe) {
+        const j = await ruf<{ ergebnis: { gebucht: boolean; grund: string }; aufgabe: string | null }>(`/buchhaltung/nachholen/bank:${z.id}/buchen`, {
+          body: { ziel, dazu: probe.dazu ?? [], erwartet: erwartungAus(probe, "buchen") },
+        });
+        if (!j.ergebnis?.gebucht) throw new Error(j.ergebnis?.grund || "Nicht gebucht.");
+        onFertig(`Gebucht: ${geld(probe.summeCents ?? z.betragCents)} auf ${probe.ziel} — ${j.ergebnis.grund}${j.aufgabe ? ` · ${j.aufgabe}` : ""}.`);
+      }
+    } catch (e: any) { setFehler(e.message); } finally { setLaeuft(false); }
+  };
+
+  const titel = modus === "zuordnen" ? "Nur zuordnen?" : modus === "aufgabe" ? "Aufgabe anlegen?" : modus === "anders" ? "Anderes Ziel" : "So buchen?";
+  const bereit = modus === "aufgabe" || (!!probe && (modus === "zuordnen" ? !!probe.zuordenbar : modus === "buchen" ? probe.buchen : false));
+  return (
+    <Dialog offen={!!auftrag} titel={titel} onZu={onZu} breit>
+      {z ? (
+        <div className="bk-probe-dialog">
+          <p className="bk-leise">
+            Eingang #{z.id}: {geld(z.betragCents)} am {tag(z.datum)}{z.absender ? ` von ${z.absender}` : ""} · Zweck „{z.zweck || "—"}“
+          </p>
+          <div className="bk-ziel-eingabe">
+            <input value={ziel} onChange={(e) => setZiel(e.target.value)} placeholder="FIAON-XXXXXX oder FIAON-XXXXXX-N" aria-label="Ziel (Bestell- oder Ratenreferenz)" />
+            <Knopf klein onClick={() => void pruefen("buchen", ziel)} disabled={laeuft || !ziel.trim()}>Als Buchung prüfen</Knopf>
+            <Knopf klein art="still" onClick={() => void pruefen("zuordnen", ziel)} disabled={laeuft || !ziel.trim()}>Als „Nur zuordnen“ prüfen</Knopf>
+          </div>
+          {modus === "zuordnen" ? <p className="bk-leise">„Nur zuordnen“ bucht nichts: Das Geld gehört zu einer Rate, die schon als bezahlt gebucht ist. Die Zeile im Bankbuch bekommt ihren Haken, die Rate den Beleg, die Akte einen Satz — keine Mail, keine Provision, keine neue Rate.</p> : null}
+          {modus === "buchen" ? <p className="bk-leise">Derselbe Buchungsweg wie jede andere Zahlung. Provision wird nach dem Schalter im Chefbüro vorgemerkt, nicht gebucht.</p> : null}
+          {modus === "aufgabe" && auftrag?.z.vorschlag ? (
+            <>
+              <VorschlagKasten v={auftrag.z.vorschlag} />
+              <p className="bk-leise">Gebucht wird nichts. {auftrag.z.vorschlag.art === "teilzahlung" ? "Der Betreuer klärt den Rest mit dem Kunden; kommt er, bucht das Bankbuch beide Eingänge zusammen." : "Die Zahlungsstelle entscheidet: erstatten oder mit einer offenen Forderung verrechnen („Anderes Ziel“)."}</p>
+            </>
+          ) : null}
+          {laeuft && !probe ? <Laden zeilen={3} /> : null}
+          {probe && modus !== "aufgabe" ? (
+            <>
+              <Trockenprobe z={probe} />
+              {modus === "zuordnen" && probe.deckung ? <p className="bk-leise">{probe.deckung}</p> : null}
+              {!bereit ? <Meldung art="warn">Nicht möglich: {probe.unklar ?? probe.ergebnis}</Meldung> : null}
+            </>
+          ) : null}
+          {fehler ? <Meldung art="fehler">{fehler}</Meldung> : null}
+          <div className="bk-knopfreihe bk-rechts">
+            <Knopf art="still" onClick={onZu} disabled={laeuft}>Abbrechen</Knopf>
+            {modus !== "anders" ? (
+              <Knopf art="primaer" zeichen="haken" onClick={() => void ausfuehren()} disabled={laeuft || !bereit}>
+                {laeuft ? "Läuft …" : modus === "zuordnen" ? `${geld(z.betragCents)} zuordnen` : modus === "aufgabe" ? "Aufgabe anlegen" : `${geld(probe?.summeCents ?? z.betragCents)} auf ${probe?.ziel ?? "—"} buchen`}
+              </Knopf>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </Dialog>
+  );
+}
+
+/** Die Knöpfe zu einem Vorschlag — nur der Inhaber; „Anderes Ziel" immer. */
+function HandfallKnoepfe({ z, inhaber, gesperrt, onWahl }: { z: NachholZeile; inhaber: boolean; gesperrt: boolean; onWahl: (a: HandfallAuftrag) => void }) {
+  const v = z.vorschlag;
+  if (!inhaber) return <p className="bk-leise">Buchen und zuordnen kann nur der Inhaber.</p>;
+  return (
+    <div className="bk-knopfreihe bk-eng">
+      {v?.aktion === "buchen" && v.mitZiel && v.ziel ? <Knopf art="primaer" zeichen="haken" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "buchen", ziel: v.ziel!, dazu: v.dazu })}>So buchen</Knopf> : null}
+      {v?.aktion === "zuordnen" && v.ziel ? <Knopf art="primaer" zeichen="haken" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "zuordnen", ziel: v.ziel!, dazu: [] })}>Nur zuordnen</Knopf> : null}
+      {v?.aktion === "aufgabe" ? <Knopf art="warnung" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "aufgabe", ziel: v.ziel ?? "", dazu: [] })}>Aufgabe anlegen</Knopf> : null}
+      <Knopf art="still" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "anders", ziel: v?.ziel ?? z.ziel ?? "", dazu: [] })}>Anderes Ziel …</Knopf>
+    </div>
+  );
+}
+
+/** Was „Alle sicheren ausführen" schickt — nur sichere Vorschläge mit Knopf, je mit Erwartung. */
+function sichererAuftrag(z: NachholZeile): { id: number; modus: HandfallModus; ziel: string | null; dazu: number[]; erwartet: any; text: string } | null {
+  if (z.buchen) return { id: z.id, modus: "buchen", ziel: null, dazu: [], erwartet: { regel: z.regel, ziel: z.ziel, rateId: z.rateId }, text: `${geld(z.betragCents)} → ${z.ziel} (${z.regel === "erstzahlung" ? "Erstzahlung" : `Rate ${z.rateNr ?? "?"}`})` };
+  const v = z.vorschlag;
+  if (!v || v.sicherheit !== "sicher" || !v.ziel || !v.mitZiel) return null;
+  if (!v.erwartet) return null;
+  if (v.aktion === "zuordnen") return { id: z.id, modus: "zuordnen", ziel: v.ziel, dazu: [], erwartet: v.erwartet, text: `${geld(z.betragCents)} nur zuordnen → ${v.ziel} (${v.kunde ?? "—"})` };
+  if (v.aktion === "buchen") {
+    return {
+      id: z.id, modus: "buchen", ziel: v.ziel, dazu: v.dazu, erwartet: v.erwartet,
+      text: `${geld(z.betragCents)}${v.dazu.length ? ` + Sammel ${v.dazu.map((d) => `#${d}`).join(", ")}` : ""} buchen → ${v.erwartet.ziel ?? v.ziel} (${v.kunde ?? "—"})`,
+    };
+  }
+  return null;
+}
+
 /**
  * Der Kasten über der Umsatzliste: „N Eingänge warten auf Buchung" → „Alle prüfen"
  * lädt jede Trockenprobe, dann je Zeile „Jetzt buchen" (nur Inhaber) oder der Grund.
  */
-export function NachholPanel({ ich, anzahl, cents, onGebucht }: { ich: Ich; anzahl: number; cents: number; onGebucht: () => void }) {
+export function NachholPanel({ ich, anzahl, cents, gesamtAnzahl = 0, onGebucht }: { ich: Ich; anzahl: number; cents: number; gesamtAnzahl?: number; onGebucht: () => void }) {
   const [liste, setListe] = useState<NachholZeile[] | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [wahl, setWahl] = useState<NachholZeile | null>(null);
-  // Vorgabe: der geprüfte Zeitraum seit 24.09. — ältere Eingänge (seit 01.09.) nur auf Wunsch,
+  const [handfall, setHandfall] = useState<HandfallAuftrag | null>(null);
+  // Vorgabe: der geprüfte Zeitraum seit 24.09. — ältere Eingänge (seit 15.08., E-277) nur auf Wunsch,
   // damit „Alle buchen" nie Zeilen mitnimmt, die niemand angesehen hat.
   const [aeltere, setAeltere] = useState(false);
   const inhaber = ich.rolle === "inhaber";
@@ -193,9 +355,27 @@ export function NachholPanel({ ich, anzahl, cents, onGebucht }: { ich: Ich; anza
       onGebucht(); await pruefen();
     } catch (e: any) { setFehler(e.message); } finally { setLaeuft(null); }
   };
+  // E-277: alle SICHEREN Vorschläge (und die buchbaren) nacheinander — jeder mit seiner Erwartung.
+  const sichereAusfuehren = async () => {
+    const auftraege = (liste || []).map(sichererAuftrag).filter((x): x is NonNullable<ReturnType<typeof sichererAuftrag>> => !!x);
+    if (!auftraege.length) return;
+    const text = auftraege.map((a) => `· #${a.id} ${a.text}`).join("\n");
+    if (!window.confirm(`${auftraege.length} sichere Vorschläge jetzt ausführen?\n\n${text}\n\nEiner nach dem anderen über denselben Weg wie der Einzelklick, Abbruch beim ersten Fehlschlag. „Nur zuordnen“ bucht nichts. Provision wird vorgemerkt, nicht gebucht.`)) return;
+    setLaeuft("sicher"); setFehler(null);
+    try {
+      const j = await ruf<{ gebucht: number; abgebrochen: boolean; schritte: { id: number; gebucht: boolean; grund: string }[] }>("/buchhaltung/nachholen/alle-buchen", {
+        body: { auftraege: auftraege.map(({ text: _t, ...a }) => a) },
+      });
+      const kaputt = j.schritte.find((x) => !x.gebucht);
+      setMeldung(`${j.gebucht} von ${auftraege.length} erledigt.${kaputt ? ` Abbruch bei #${kaputt.id}: ${kaputt.grund}` : ""}`);
+      onGebucht(); await pruefen();
+    } catch (e: any) { setFehler(e.message); } finally { setLaeuft(null); }
+  };
 
-  if (!anzahl && !liste) return null;
+  if (!anzahl && !gesamtAnzahl && !liste) return null;
   const buchbar = (liste || []).filter((z) => z.buchen);
+  const sichere = (liste || []).map(sichererAuftrag).filter(Boolean).length;
+  const mitVorschlag = (liste || []).filter((z) => !z.buchen && z.vorschlag && z.vorschlag.art !== "unbekannt").length;
   return (
     <section className="bk-nachholen" aria-label="Liegengebliebene Eingänge">
       <header className="bk-nachholen-kopf">
@@ -203,15 +383,18 @@ export function NachholPanel({ ich, anzahl, cents, onGebucht }: { ich: Ich; anza
           <div className="bk-block-titel">Eingänge ohne Buchung</div>
           <p className="bk-leise">
             {liste
-              ? `${liste.length} geprüft · ${buchbar.length} buchbar (${geld(buchbar.reduce((s, z) => s + z.betragCents, 0))}) · ${liste.length - buchbar.length} bleiben Handarbeit`
-              : `${anzahl} Eingänge über ${geld(cents)} liegen seit dem 24.09. im Bankbuch, ohne dass eine Buchung sie angefasst hat. „Alle prüfen“ rechnet jede Zeile trocken vor — gebucht wird erst nach deinem Klick.`}
+              ? `${liste.length} geprüft · ${buchbar.length} buchbar (${geld(buchbar.reduce((s, z) => s + z.betragCents, 0))}) · ${mitVorschlag} mit Vorschlag · ${sichere} sicher · ${liste.length - buchbar.length - mitVorschlag} ohne Vorschlag`
+              : `${anzahl} Eingänge über ${geld(cents)} liegen seit dem 24.09. im Bankbuch${gesamtAnzahl > anzahl ? ` (seit 15.08.: ${gesamtAnzahl})` : ""}, ohne dass eine Buchung sie angefasst hat. „Alle prüfen“ rechnet jede Zeile trocken vor und schlägt je Eingang ein Ziel vor — gebucht wird erst nach deinem Klick.`}
           </p>
         </div>
         <div className="bk-knopfreihe bk-eng">
           <Knopf zeichen="suche" klein onClick={() => void pruefen()} disabled={!!laeuft}>{laeuft === "pruefen" ? "Prüft …" : liste ? "Erneut prüfen" : `Alle ${anzahl} prüfen`}</Knopf>
-          {liste && !aeltere ? <Knopf art="still" klein onClick={() => { setAeltere(true); void pruefen(true); }} disabled={!!laeuft}>Ältere einbeziehen (seit 01.09.)</Knopf> : null}
+          {!aeltere && gesamtAnzahl > anzahl ? <Knopf art="still" klein onClick={() => { setAeltere(true); void pruefen(true); }} disabled={!!laeuft}>Ältere einbeziehen (seit 15.08.)</Knopf> : null}
           {inhaber && buchbar.length > 1 ? (
             <Knopf art="primaer" zeichen="haken" klein onClick={() => void alleBuchen()} disabled={!!laeuft}>{laeuft === "alle" ? "Bucht …" : `Alle ${buchbar.length} buchen`}</Knopf>
+          ) : null}
+          {inhaber && sichere > 1 ? (
+            <Knopf art="primaer" zeichen="haken" klein onClick={() => void sichereAusfuehren()} disabled={!!laeuft}>{laeuft === "sicher" ? "Läuft …" : `Alle ${sichere} sicheren ausführen`}</Knopf>
           ) : null}
         </div>
       </header>
@@ -238,13 +421,18 @@ export function NachholPanel({ ich, anzahl, cents, onGebucht }: { ich: Ich; anza
                   ) : <p className="bk-leise">Buchen kann nur der Inhaber.</p>}
                 </>
               ) : (
-                <Meldung art="warn">Bleibt Handarbeit: {z.unklar ?? z.ergebnis}{z.ziel ? <span className="bk-mono"> · {z.ziel}</span> : null}</Meldung>
+                <>
+                  {z.vorschlag ? <VorschlagKasten v={z.vorschlag} /> : null}
+                  <p className="bk-leise bk-nz-grund">Trockenprobe ohne Ziel: {z.unklar ?? z.ergebnis}{z.ziel ? <span className="bk-mono"> · {z.ziel}</span> : null}</p>
+                  <HandfallKnoepfe z={z} inhaber={inhaber} gesperrt={!!laeuft} onWahl={setHandfall} />
+                </>
               )}
             </article>
           ))}
         </div>
       ) : null}
       <BuchenDialog z={wahl} offen={!!wahl} laeuft={!!laeuft} onZu={() => setWahl(null)} onBuchen={() => { if (wahl) void buchen(wahl); }} />
+      <HandfallDialog auftrag={handfall} onZu={() => setHandfall(null)} onFertig={(m) => { setHandfall(null); setMeldung(m); onGebucht(); void pruefen(); }} />
     </section>
   );
 }
@@ -257,9 +445,10 @@ export function UmsatzDetail({ uid, onZu, ich, onGebucht }: { uid: string | null
   const [frage, setFrage] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [gebucht, setGebucht] = useState<string | null>(null);
+  const [handfall, setHandfall] = useState<HandfallAuftrag | null>(null);
   useEffect(() => {
     if (!uid) return;
-    setDaten(null); setFehler(null); setProbe(null); setFrage(false); setGebucht(null);
+    setDaten(null); setFehler(null); setProbe(null); setFrage(false); setGebucht(null); setHandfall(null);
     ruf<{ umsatz: Umsatz; auftrag: Auftrag | null }>(`/buchhaltung/umsatz/${encodeURIComponent(uid)}`)
       .then((j) => {
         setDaten(j);
@@ -321,15 +510,19 @@ export function UmsatzDetail({ uid, onZu, ich, onGebucht }: { uid: string | null
                       ? <div className="bk-knopfreihe"><Knopf art="primaer" zeichen="haken" onClick={() => setFrage(true)} disabled={laeuft}>Jetzt buchen</Knopf></div>
                       : <p className="bk-leise">Buchbar — buchen kann nur der Inhaber.</p>
                   ) : (
-                    <Meldung art="warn">Bleibt Handarbeit: {z.unklar ?? z.ergebnis}. {u.art === "offen"
-                      ? "Zuordnen lässt er sich in der Zahlungszentrale — dort wird er mit derselben Regel gebucht wie jeder andere Eingang."
-                      : "Ein Mensch entscheidet die Zuordnung in der Zahlungszentrale."}</Meldung>
+                    <>
+                      {/* E-277: Vorschlag und Knöpfe auch hier — derselbe Weg wie im Kasten „Eingänge ohne Buchung“. */}
+                      {z.vorschlag ? <VorschlagKasten v={z.vorschlag} /> : null}
+                      <p className="bk-leise">Ohne Ziel: {z.unklar ?? z.ergebnis}.</p>
+                      <HandfallKnoepfe z={z} inhaber={ich?.rolle === "inhaber"} gesperrt={laeuft} onWahl={setHandfall} />
+                    </>
                   )}
                 </>
               ) : null}
             </div>
           ) : null}
           <BuchenDialog z={z} offen={frage} laeuft={laeuft} onZu={() => setFrage(false)} onBuchen={() => void buchen()} />
+          <HandfallDialog auftrag={handfall} onZu={() => setHandfall(null)} onFertig={(m) => { setHandfall(null); setGebucht(m); setProbe(null); onGebucht?.(); }} />
           <div className="bk-knopfreihe">
             {u.auftragId ? <KnopfLink href={`/api/fiaon/buchhaltung/auftrag/${u.auftragId}/bestaetigung.pdf`} zeichen="pdf">Zahlungsbestätigung</KnopfLink> : null}
             {u.auszahlungId ? <KnopfLink href={`/api/fiaon/buchhaltung/auszahlung/${u.auszahlungId}/beleg.pdf`} zeichen="pdf">Auszahlungsbeleg</KnopfLink> : null}
@@ -363,7 +556,7 @@ function zeitraumGrenzen(z: Zeitraum, von: string, bis: string): { von: string |
 export default function Umsaetze({ vorfilter, ich, nachholen, onGebucht }: {
   vorfilter?: { arten?: UmsatzArt[]; konto?: string };
   ich?: Ich;
-  nachholen?: { anzahl: number; cents: number };
+  nachholen?: { anzahl: number; cents: number; gesamtAnzahl?: number };
   onGebucht?: () => void;
 }) {
   const [konto, setKonto] = useState<string>(vorfilter?.konto ?? "alle");
@@ -421,7 +614,7 @@ export default function Umsaetze({ vorfilter, ich, nachholen, onGebucht }: {
 
   return (
     <div className="bk-seite">
-      {ich && nachholen ? <NachholPanel ich={ich} anzahl={nachholen.anzahl} cents={nachholen.cents} onGebucht={nachBuchung} /> : null}
+      {ich && nachholen ? <NachholPanel ich={ich} anzahl={nachholen.anzahl} cents={nachholen.cents} gesamtAnzahl={nachholen.gesamtAnzahl ?? 0} onGebucht={nachBuchung} /> : null}
       <div className="bk-filter" role="search">
         <div className="bk-such">
           <Zeichen n="suche" g={16} />

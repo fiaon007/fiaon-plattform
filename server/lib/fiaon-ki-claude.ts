@@ -452,6 +452,8 @@ export function claudeFehlerArt(status: number, body: unknown): "abrechnung" | "
   const code = String(err.details?.error_code ?? err.code ?? "");
   if (status === 402 || typ === "billing_error") return "abrechnung";
   if (/credit balance is too low/i.test(meldung)) return "abrechnung";
+  // 03.10.2026 (gemessen): Organisations-Schlüssel ohne Arbeitsbereich — jede Anfrage 400. Das ist Zugang, nicht Zufall.
+  if (status === 400 && /not scoped to a workspace|anthropic-workspace-id/i.test(meldung)) return "zugang";
   if (status === 429) return code === "enforced_spend_limit_reached" || /usage limits|spend limit/i.test(meldung) ? "abrechnung" : null;
   if (status === 401 || typ === "authentication_error") return "zugang";
   if (status === 403 && /api key|organization|organisation|disabled|suspended|deactivated|not authorized/i.test(meldung)) return "zugang";

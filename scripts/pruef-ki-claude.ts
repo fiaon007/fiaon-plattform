@@ -170,6 +170,7 @@ async function main() {
   pruef("E5 529 → null", fe(529, "overloaded_error", "Overloaded") === null);
   pruef("E6 übliche 400 → null", fe(400, "invalid_request_error", "messages: field required") === null);
   pruef("E7 HTML → null", C.claudeFehlerArt(502, "<html>bad gateway</html>") === null);
+  pruef("E8 Organisations-Schlüssel ohne Arbeitsbereich → zugang", fe(400, "invalid_request_error", "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header") === "zugang");
 
   // ── F: Kosten ───────────────────────────────────────────────────────────
   const k1 = C.claudeKostenCents("claude-opus-5-5", c1.usage);
@@ -272,6 +273,16 @@ async function main() {
   pruef("H8 jetzt ist Claude pausiert (dieser Prozess)", (await P.kiPausiert("claude")) === true);
   P.kiPauseZwischenspeicherLeeren();
   P.kiPauseProduktionSimulieren(null);
+
+  // Pause von Hand (wie am 03.10. bis zur Arbeitsbereich-Kennung): Aktivieren prüft den TRAGENDEN Anbieter (Claude).
+  await sqlPool`DELETE FROM fiaon_settings WHERE key = 'ki_pause'`;
+  P.kiPauseZwischenspeicherLeeren();
+  await P.pausieren({ art: "hand", fehler: "bis zur Kennung angehalten", dienst: "ki-weiche", von: "Prüfstand" });
+  pruef("H9 Pause von Hand hält auch Claude", (await P.kiPausiert("claude")) === true && (await P.kiPauseLesen(true)).an === true);
+  rufe.length = 0;
+  antworten = [() => claudeText("OK")];
+  const h10 = await P.aktivieren("Prüfstand", { nachholen: false });
+  pruef("H10 Aktivieren nach Hand-Pause: Probe bei Claude, Pause weg", h10.ok && rufe[0]?.url === "https://api.anthropic.com/v1/messages" && (await P.kiPausiert("claude")) === false, { ok: h10.ok, url: rufe[0]?.url, f: h10.fehler });
 
   // ── I: Quelltext ────────────────────────────────────────────────────────
   const { readFileSync } = await import("node:fs");

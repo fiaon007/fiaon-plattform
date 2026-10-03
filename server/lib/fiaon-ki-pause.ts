@@ -407,6 +407,16 @@ async function alarm(z: KiPauseZustand): Promise<void> {
   const zeit = z.seit ? new Date(z.seit).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
   const claude = z.anbieter === "claude";
   const wer = anbieterName(z.anbieter);
+  // E-279: Pausiert ein Anbieter, der die KI gerade NICHT trägt (OpenAI, während Claude trägt), steht nur Whisper.
+  if ((z.anbieter ?? "openai") !== aktiverAnbieter()) {
+    await auftragFuerKunden({
+      personId: null, ref: null, anBetreiber: true, dringend: false,
+      titel: `${wer} lehnt ab — nur Telefon-Transkripte warten (Mara läuft über ${anbieterName(aktiverAnbieter())})`,
+      text: `Seit ${zeit} · ${wer} meldet: ${String(z.fehler || "").slice(0, 240)}\n\nBetroffen sind nur die Telefon-Transkripte (Sprache zu Text gibt es bei Claude nicht). Alles andere — Mara, Postfach, Auswertungen — läuft über ${anbieterName(aktiverAnbieter())}.`,
+      quelle: "ki-pause", bereich: "technik", link: KI_PAUSE_KLICKWEG, schluessel: `ki-pause-${z.seit}`, autorName: "System",
+    });
+    return;
+  }
   const titel = z.art === "zugang"
     ? `${wer} lehnt den Zugang ab — alle KI-Funktionen pausiert`
     : `${wer} konnte nicht abbuchen — alle KI-Funktionen pausiert`;
@@ -451,7 +461,7 @@ export async function aktivieren(von: string, opt: { probe?: boolean; nachholen?
   }
   let hinweis: string | undefined;
   // E-279: geprüft wird der Anbieter DIESER Pause (eine OpenAI-Pause mit OpenAI, eine Claude-Pause mit Claude).
-  const pauseAnbieter: KiAnbieter = (vorher.anbieter ?? "openai") as KiAnbieter;
+  const pauseAnbieter: KiAnbieter = vorher.art === "hand" ? aktiverAnbieter() : (vorher.anbieter ?? "openai") as KiAnbieter;
   const probeSchluessel = pauseAnbieter === "claude" ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
   if (opt.probe !== false && probeSchluessel) {
     const p = pauseAnbieter === "claude" ? await claudeProbe() : await probe();
@@ -691,7 +701,7 @@ function claudeKopf(art: "x-api-key" | "bearer" = claudeKopfArt): Record<string,
 /** Organisations-Schlüssel ohne Arbeitsbereich: den Standard-Arbeitsbereich über die Admin-API ermitteln (einmal je Prozess). */
 async function arbeitsbereichErmitteln(): Promise<string | null> {
   try {
-    const res = await rohFetch()(`${ANTHROPIC_V1}/organizations/workspaces?limit=100`, { headers: claudeKopf(), signal: AbortSignal.timeout(15_000) });
+    const res = await rohFetch()(`${ANTHROPIC_V1}/organizations/workspaces?limit=100&include_default=true`, { headers: claudeKopf(), signal: AbortSignal.timeout(15_000) });
     const j: any = await res.json().catch(() => null);
     const liste = Array.isArray(j?.data) ? j.data.filter((w: any) => !w?.archived_at) : [];
     const w = liste.find((x: any) => /^(default|standard)$/i.test(String(x?.name ?? ""))) ?? liste[0];

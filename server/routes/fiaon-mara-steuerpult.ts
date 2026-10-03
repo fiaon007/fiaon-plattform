@@ -15,7 +15,7 @@ import { requireChef, chefProtokoll, type ChefRequest } from "./fiaon-chef-zugan
 import { tageslauf } from "../lib/fiaon-crons";
 import { sqlPool } from "../lib/db-pool";
 import {
-  aktionTabellen, aktionZaehler, einstellungenLesen, einstellungSetzen, kandidatenLaden, mailSchreiben, maraAktionLauf,
+  aktionTabellen, aktionZaehler, einstellungenLesen, einstellungSetzen, kandidatenLaden, mailSchreiben, maraAktionLauf, rundeStand,
   AKTION_SCHLUESSEL, DIENST,
 } from "../lib/fiaon-mara-aktion";
 import { gedaechtnisLesen, gedaechtnisLoeschen } from "../lib/fiaon-mara-gedaechtnis";
@@ -184,6 +184,8 @@ router.get("/chef/mara/stand", wache, async (_req: ChefRequest, res: Response) =
     const e = await einstellungenLesen();
     const z = await aktionZaehler(e);
     const schlange = await kandidatenLaden(40, e.stufen.length ? e.stufen : ["A", "B"]);
+    // E-276 (02.10.2026): die Runde für alle offenen Erstzahler — „Runde seit … — X geschrieben, Y offen“ (null ohne Runde).
+    const runde = await rundeStand(e).catch(() => null);
     // E-244 (26.09.2026): „bezahlt" las a.paid_at — das setzt eine bezahlte Rate nie, die Kachel
     // stand bei 0, obwohl 4 Zahlungen gebucht waren. Jetzt gebuchtes Geld aus Maras Bilanz-Logik.
     const zahlen = await aktionWirkung14();
@@ -200,6 +202,7 @@ router.get("/chef/mara/stand", wache, async (_req: ChefRequest, res: Response) =
       ok: true,
       einstellungen: e,
       zaehler: z,
+      runde,
       zahlen: { ...zahlen, bezahltEuro: Number(zahlen?.bezahlt_cents || 0) / 100, postfach: post },
       kosten: { heuteEuro: Number(kosten?.heute || 0) / 100, wocheEuro: Number(kosten?.woche || 0) / 100 },
       schlange: schlange.map((k) => ({

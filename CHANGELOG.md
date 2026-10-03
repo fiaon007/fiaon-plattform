@@ -5,6 +5,53 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 02.10.2026 — Mara-Aktion verkauft selbst + Runde für alle offenen Erstzahler (E-276)
+
+**Der Anlass:** Justin: „ja, bau die Mara-Aktion genauso um“ (wie E-275: selbst verkaufen, eher übermotiviert, seriös)
+und „ALLE Mails dafür müssen noch heute raus gehen, wirklich alle die eine Zahlung offen haben (nicht die gesperrten)
+ohne Ausnahme!“ Bis heute endete jede Aktionsmail mit „… und ich vereinbare Ihren Termin mit … — antworten Sie mir
+einfach mit einer Zeit“, und Takt und Pausen hielten die meisten zurück (am 02.10. gingen 4 Aktionsmails raus).
+
+**Was jetzt gilt:**
+- **Stufe B (Antrag abgeschickt, erste Zahlung offen):** die Karte vorn, dann „Zahlen Sie jetzt die Aktivierung, Ihre
+  erste Monatsrate über … — mit Ihrem Verwendungszweck FIAON-… ist Ihr Account sofort nach Eingang aktiv, und Sie
+  bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag!“, das Tempo, die Zeit bis zur Karte, der
+  Knopf. Fehlt im Antrag noch etwas, sagt die Mail was — kein „direkt der Link“. Dieselben Bausteine wie Postfach und
+  WhatsApp (shared/fiaon-mara-ton.ts), keine eigene Formulierung.
+- **Stufe A (Zahlung gemeldet, noch nicht gebucht):** Dank, „Sobald wir Ihre Zahlung zugeordnet haben, ist Ihr Account
+  sofort aktiv …“, Hilfe (Überweisungsbeleg als Antwort), Knopf „Verwendungszweck und Zahlungsdaten ansehen“ statt
+  „Rechnung ansehen und bezahlen“. Nie eine erneute Zahlungsbitte — harte Prüfung.
+- **Hart geprüft (geht so nicht raus):** Termin oder Anruf als Ziel, „Herr X meldet sich/prüft“, „wir sind keine Bank“,
+  „wir versenden die Karte“/„in Produktion“, „sofort“ ohne Verwendungszweck. Weiche Befunde (Ton, mehr als ein „!“,
+  fehlende Aufforderung bei B) lösen einen zweiten Entwurf aus; übrige „!“ werden Punkte.
+- **Ersatzfassung:** Besteht auch der zweite Entwurf nicht, geht (nur auf Deutsch) die Mail aus den freigegebenen
+  Bausteinen raus statt „abgelehnt“ — vermerkt im Denkprotokoll der Mail (wissen.ersatz).
+- **Ungebuchter Eingang:** Wer womöglich schon gezahlt hat — ein ungebuchter Eingang im Bankbuch passt unscharf
+  (verkürzte Bestellnummer „FIAONMUAYRM“, Zahlungsreferenz im Zweck „Fisimatenten-MADJ3S“, Vor- und Nachname des
+  Zahlers) —, bekommt keine Mail: in der Schlange und noch einmal direkt vor dem Schreiben. Grund in der Liste:
+  „ungebuchter Eingang — buchen statt anschreiben“. Lieber einer zu wenig angeschrieben als einem Zahler „Zahlen Sie jetzt“.
+- **Die Runde:** Steuerpult /chef/s/mara → „Runde jetzt starten“ (Einstellung mara_aktion_runde_seit = „jetzt“/„aus“).
+  24 Stunden lang ist jeder Mensch der Stufen A/B fällig, der seit dem Start noch keine Aktionsmail bekam — ohne die
+  Pausen des Takts (24 h nach Antrag, 2/4/7/14 Tage, 7 Tage nach seiner Mail, 12 h nach einem Gespräch, 6 h nach einer
+  anderen Mail), höchstens EINE Mail je Mensch. Alle Sperren bleiben (Werbesperre, Stopp, Vertriebssperre, Test, Global,
+  Ausschluss, Storno, Einwand, Kündigung, unzustellbare Adresse, ungebuchter Eingang). Nach einem Fehlversuch eine Stunde
+  Ruhe, nach zwei ist er für die Runde fertig. Danach gilt der Takt von selbst. Das Tempo setzt weiter „je Stunde“.
+  Anzeige: „Runde seit … — X geschrieben, Y offen“.
+- **Nie doppelt:** Jede Mail beginnt mit einem Anspruch je Mensch (Zeile „in_arbeit“, eindeutiger Index) — überlappende
+  Durchgänge (Neustart beim Deploy, Knopf „Durchgang“) überspringen ihn; liegen gebliebene Ansprüche werden nach
+  30 Minuten „abgebrochen“. Drei Mails gleichzeitig je Durchgang.
+
+**Gemessen (Produktion nur gelesen, 02.10. ~21:30):** Mit Runde fällig: 482 Menschen (84 A, 398 B) von 1.074 mit
+offener erster Zahlung. Draußen (Überschneidungen möglich): Vertriebssperre 345, unzustellbare Adresse 288 (181 nur
+deswegen: 138 bei Brevo „blockiert“, 43 Rückläufer), Werbesperre/gesperrte Adresse 84, Testkonto 32, Stopp 30,
+Einwand 23, ungebuchter Eingang 5. Modell je Mail im Mittel 4,0 s, ~0,9 ct (Hausrechnung).
+
+**Wo:** server/lib/fiaon-mara-aktion.ts, server/lib/fiaon-zahlung-unverbucht.ts, server/routes/fiaon-mara-steuerpult.ts,
+client/src/components/admin/ChefMara.tsx (Zeile „Runde“), Rundgang Mara, Knopftext in fiaon-postmeister-antworttext.ts;
+Prüfstand scripts/pruef-mara-aktion.ts (mit --db gegen eine eigene lokale Test-DB).
+
+---
+
 ## 02.10.2026 — Bankbuch: jeder liegengebliebene Eingang mit Vorschlag und einem Klick — „So buchen“, „Nur zuordnen“, „Aufgabe anlegen“ (E-277)
 
 **Der Anlass:** Justin: „Ok buche alle Zahlungen den Kunden richtig zu die gerade nicht gebucht wurden, erkenne sie anhand

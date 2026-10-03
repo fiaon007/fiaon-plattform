@@ -271,8 +271,14 @@ const fb = agent.mailAbschlussFormel("b", ZIEL);
 // E-275 Ton (02.10.2026, Justin: „Zahlen Sie die Aktivierung … Ihr Account ist sofort nach Eingang aktiv!“): die klare
 // Aufforderung statt „Bitte begleichen Sie jetzt …“, der Nutzen direkt dahinter, das Tempo — bewusst mitgezogen.
 ok(fb.includes(agent.AKTIVIERUNG_SATZ) && fb.includes(KARTE_ZEIT_SATZ) && fb.includes(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über [Betrag]`) && fb.includes(ton.TEMPO_SATZ) && fb.includes(ton.BANK_SATZ)
-  && agent.AKTIVIERUNG_SATZ.startsWith("Ihr Account ist sofort nach Zahlungseingang aktiv") && ton.ausrufezeichen(fb) === 1,
-  "Abschluss B: „Zahlen Sie jetzt die Aktivierung“, der Nutzen (sofort aktiv → direkt der Link), Tempo, 2–5 Werktage, Wunschlimit nur mit Bank-Satz, ein „!“");
+  // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — der Satz beginnt jetzt mit der Bedingung.
+  && agent.AKTIVIERUNG_SATZ.startsWith("Mit Ihrem Verwendungszweck ist Ihr Account sofort nach Eingang aktiv") && ton.ausrufezeichen(fb) === 1,
+  "Abschluss B: „Zahlen Sie jetzt die Aktivierung“, der Nutzen (mit Verwendungszweck sofort aktiv → direkt der Link), Tempo, 2–5 Werktage, Wunschlimit nur mit Bank-Satz, ein „!“");
+// E-276: Stufe A sagt „sobald wir Ihre Zahlung zugeordnet haben …“ — und mit unvollständigem Antrag kein „direkt“.
+const faL = agent.mailAbschlussFormel("a", null);
+ok(faL.includes(agent.AKTIVIERUNG_SATZ_A) && !faL.includes(agent.AKTIVIERUNG_SATZ) && !ton.mitAntragLuecke(faL, ["Geburtsdatum"]).includes("direkt den fertigen Link")
+  && /es fehlt noch: Geburtsdatum/.test(ton.mitAntragLuecke(faL, ["Geburtsdatum"])),
+  "Abschluss A (E-276): „sobald wir Ihre Zahlung zugeordnet haben“, mit Lücke ohne „direkt“");
 ok(fb.indexOf(ton.AKTIVIERUNG_AUFRUF) < fb.indexOf(agent.AKTIVIERUNG_SATZ) && fb.split("\n\n")[0].includes(agent.AKTIVIERUNG_SATZ), "Abschluss B: erst die Aufforderung, direkt dahinter der Nutzen — im ersten Absatz");
 ok(!/Bitte begleichen|überweisen|zahlen Sie/i.test(agent.mailAbschlussFormel("a", null)), "Abschluss A (Zahlung gemeldet): keine Zahlungsbitte, keine Aufforderung");
 ok(agent.mailAbschlussVerkauf(fb.replace(/\[Betrag\]/g, "59,99 €")).length === 0, "mailAbschlussVerkauf: die Formel erfüllt Nutzen und Bitte");

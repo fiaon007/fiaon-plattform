@@ -1429,6 +1429,14 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     titel: "Wen Mara anschreibt.",
     text: "Links: welche Stufen Mara anschreibt und wer als Nächstes dran ist.",
   },
+  // E-276 (02.10.2026): die Runde für alle offenen Erstzahler.
+  {
+    ziel: "[data-mara-runde]",
+    titel: "Die Runde: jeder offene Erstzahler einmal.",
+    text: "„Runde jetzt starten“ schreibt jedem mit offener erster Zahlung (A und B) einmal — ohne die Pausen des Takts, "
+      + "im Tempo des Takts, 24 Stunden lang. Gesperrte, „Stopp“, Global-Kunden und wer womöglich schon ungebucht gezahlt hat, "
+      + "bleiben draußen. B liest „Zahlen Sie jetzt die Aktivierung …“, A nie eine Zahlungsbitte; kein Termin.",
+  },
   {
     ziel: ".mp-steuer",
     titel: "Wie Mara schreibt: Takt, Deckel, Stil.",

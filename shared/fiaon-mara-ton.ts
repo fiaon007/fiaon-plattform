@@ -143,13 +143,71 @@ export function nennAus(x: NennformEin): Nennform | null {
 // ═══════════════════════════════════════════════════════════════════════════
 /** Die klare Aufforderung zur ERSTEN Zahlung — Justins Wort: Die erste Monatsrate aktiviert den Account. */
 export const AKTIVIERUNG_AUFRUF = "Zahlen Sie jetzt die Aktivierung";
+
+// ── E-276 (02.10.2026): „SOFORT“ GILT NUR MIT SEINEM VERWENDUNGSZWECK ───────────────────────────────────────
+// Justin: „ALLE Mails dafür müssen noch heute raus gehen, wirklich alle die eine Zahlung offen haben (nicht die
+// gesperrten) ohne Ausnahme!“ — und dafür muss der Satz, der sie trägt, wahr sein. Gemessen (Produktion, nur lesend,
+// 02.10.2026): 37 eingegangene Zahlungen (2.328 €, 30 Tage) liegen NICHT gebucht im Bankbuch, die meisten, weil der
+// Verwendungszweck verkürzt oder ohne Bindestrich kam („FIAONMUAYRM“ statt „FIAON-MUAYRM“, „Fisimatenten-MADJ3S“,
+// „/RFS/FIAON U2C85C“). Der Abgleich bucht selbst nur mit genau dem Verwendungszweck — dann ist der Account wirklich
+// sofort nach dem Zahlungseingang aktiv; ohne ihn ordnet ein Mensch zu. Deshalb trägt Justins Satz jetzt die
+// Bedingung, genauso zupackend und in Justins eigenem Wort („sofort nach Eingang aktiv“): „… mit Ihrem Verwendungszweck
+// FIAON-AB12CD ist Ihr Account sofort nach Eingang aktiv, und Sie bekommen direkt den fertigen Link …!“ (auf WhatsApp
+// zählt jedes Zeichen — „Eingang“ statt „Zahlungseingang“ hält Justins Abschluss unter 500 lesbaren Zeichen). Wer seine Zahlung schon gemeldet hat (A),
+// liest „sobald wir Ihre Zahlung zugeordnet haben …“ (NACH_DER_ZUORDNUNG) — das stimmt mit und ohne Verwendungszweck.
+// Die weiche Prüfung „sofort_ohne_zweck“ (TON_REGELN) fängt die Kurzform ohne Bedingung in freien Antworten.
 /**
- * Was der Zahlungseingang auslöst (Justins Satz, wahr bei vollständigem Antrag) — ein Hauptsatz ohne Schlusszeichen,
- * der mit „Ihr“ beginnt (Sie-Form, immer groß). mitAntragLuecke (fiaon-whatsapp-mara.ts) sucht genau
- * „, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag“ — nicht umformulieren,
- * ohne die Lücken-Fassung mitzuziehen.
+ * Was der Zahlungseingang auslöst (Justins Satz, wahr bei vollständigem Antrag UND seinem Verwendungszweck). `ref`:
+ * der Verwendungszweck, wenn er im Text stehen soll (Mail); `anfang`: am Satzanfang groß („Mit …“), sonst klein — der
+ * Satz steht meist nach dem Gedankenstrich der Aufforderung („Zahlen Sie jetzt die Aktivierung … — mit Ihrem
+ * Verwendungszweck … ist Ihr Account …“). mitAntragLuecke sucht genau „, und Sie bekommen direkt den fertigen Link
+ * unserer Partnerbank für Ihren Kartenantrag“ — nicht umformulieren, ohne die Lücken-Fassung mitzuziehen. Rein.
  */
-export const NACH_DEM_EINGANG = "Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag";
+export function nachDemEingang(opt: { ref?: string | null; anfang?: boolean } = {}): string {
+  const ref = String(opt.ref ?? "").trim();
+  return `${opt.anfang ? "Mit" : "mit"} Ihrem Verwendungszweck${ref ? ` ${ref}` : ""} ist Ihr Account sofort nach Eingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag`;
+}
+/**
+ * Justins Satz nach dem Gedankenstrich der Aufforderung (klein, ohne Schlusszeichen): „… — mit Ihrem Verwendungszweck
+ * ist Ihr Account sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link …“.
+ * E-275 → E-276 (02.10.2026): vorher „Ihr Account ist sofort nach Zahlungseingang aktiv, …“ — ohne die Bedingung.
+ */
+export const NACH_DEM_EINGANG = nachDemEingang();
+/** Derselbe Satz am Satzanfang („Mit Ihrem Verwendungszweck ist Ihr Account …“). */
+export const NACH_DEM_EINGANG_SATZ = nachDemEingang({ anfang: true });
+/**
+ * Stufe A (er hat seine Zahlung GEMELDET, sie ist noch nicht gebucht): wahr mit und ohne richtigen Verwendungszweck —
+ * mit ihm bucht der Abgleich, ohne ihn ordnet die Zahlungsstelle zu. Klein, ohne Schlusszeichen (nach „Danke Ihnen — “;
+ * am Satzanfang macht der Aufrufer das „S“ groß). Derselbe Schwanz wie NACH_DEM_EINGANG (mitAntragLuecke). E-276. Rein.
+ */
+export function nachDerZuordnung(opt: { betrag?: string | null; anfang?: boolean } = {}): string {
+  return `${opt.anfang ? "Sobald" : "sobald"} wir Ihre Zahlung${opt.betrag ? ` über ${opt.betrag}` : ""} zugeordnet haben, ist Ihr Account sofort aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag`;
+}
+export const NACH_DER_ZUORDNUNG = nachDerZuordnung();
+
+/**
+ * E-275 Gegenprüfung (02.10.2026, Wahrheit und Recht): „… und Sie bekommen DIREKT den fertigen Link unserer Partnerbank“
+ * stimmt nur mit vollständigem Antrag — die Einladung (einladungenAutomatisch) verlangt Name, Geburtsdatum, Anschrift und
+ * E-Mail. Gemessen (nur lesend, 02.10.): 20 von 452 abgeschickten, unbezahlten Anträgen der letzten 60 Tage fehlt etwas
+ * (13× nur das Geburtsdatum). Dann sagt der Satz, was noch fehlt, und verspricht den Link erst danach. Ohne Lücke: unverändert.
+ * E-276 (02.10.2026): aus fiaon-whatsapp-mara.ts hierher gezogen (dort weiter exportiert) — die Mara-Aktion braucht
+ * dieselbe Lücken-Fassung, und eine zweite Kopie würde auseinanderlaufen. In der Sache unverändert. Rein.
+ */
+export function mitAntragLuecke<T extends string | null>(text: T, luecke: readonly string[]): T {
+  if (!text || !luecke.length) return text;
+  const fehlt = luecke.join(", ");
+  return String(text)
+    .replace(/,\s*und\s+Sie\s+bekommen\s+direkt\s+den\s+fertigen\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag/,
+      // Ein eigener Satz ohne „bekommen Sie den …“: im Satz mit dem Betrag oder nach dem Wunschlimit wäre das für
+      // tonPruefung eine Limit-Zusage (limit_zusage, hart).
+      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}), geht der fertige Link unserer Partnerbank für Ihren Kartenantrag an Sie raus`)
+    .replace(/Nach\s+der\s+Buchung\s+kommt\s+direkt\s+der\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag\./,
+      `Nach der Buchung und mit vollständigen Angaben im Antrag (es fehlt noch: ${fehlt}) kommt der Link unserer Partnerbank für Ihren Kartenantrag.`)
+    // E-275 Ton (02.10.2026): die kurze Fassung aus bausteinVorkasse (Antwort auf „kein Kreditinstitut?“) — seit E-276
+    // „Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt."
+    .replace(/,\s*und\s+der\s+Link\s+unserer\s+Partnerbank\s+kommt\s+direkt\./,
+      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}), geht der Link unserer Partnerbank an Sie raus.`) as T;
+}
 /** Tempo als Nutzen, ohne Zusage zur Karte — derselbe Satz wie im Bereich Karte (einladungSatz „nicht_bereit“). */
 export const TEMPO_SATZ = "Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen.";
 /** Die Bitte um die Überweisung als EINE Frage am Schluss (WhatsApp) — erste Zahlung wie Folgerate. */
@@ -182,7 +240,8 @@ export const MARA_PERSONA = {
     // E-275 Ton (02.10.2026), Justin: „selbst arbeiten, selbst TOP verkaufen, eher übermotiviert! Also wirklich sowas wie:
     // ‚Zahlen Sie die Aktivierung, wir kümmern uns darum das die Karte schnell versendet wird. Ihr Account ist sofort nach
     // Eingang aktiv!‘" — die Karte versendet die Partnerbank nach IHRER Zusage, nicht FIAON; die wahre Fassung steht hier.
-    `Du VERKAUFST MIT BEGEISTERUNG — eher übermotiviert als zurückhaltend, aber seriös (Sie-Form, kein Slang, höchstens EIN Ausrufezeichen je Nachricht). Ist die erste Zahlung offen, forderst du klar dazu auf und sagst sofort, was sie bringt: „${AKTIVIERUNG_AUFRUF} — Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag!“ und „${TEMPO_SATZ}“ Nie „wir versenden die Karte“, „die Karte ist in Produktion“, „garantiert“ oder eine Limit-Zusage — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
+    // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — ohne ihn bucht der Abgleich nicht selbst (NACH_DEM_EINGANG).
+    `Du VERKAUFST MIT BEGEISTERUNG — eher übermotiviert als zurückhaltend, aber seriös (Sie-Form, kein Slang, höchstens EIN Ausrufezeichen je Nachricht). Ist die erste Zahlung offen, forderst du klar dazu auf und sagst sofort, was sie bringt: „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ und „${TEMPO_SATZ}“ „Sofort“ sagst du nur zusammen mit seinem Verwendungszweck — ohne ihn bucht der Abgleich nicht selbst. Nie „wir versenden die Karte“, „die Karte ist in Produktion“, „garantiert“ oder eine Limit-Zusage — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
   ],
   beziehung: [
     "MERKEN: Du nimmst auf, was er dir erzählt hat — sein Ziel (Urlaub, Auto, Miete, Online-Einkauf), seine Sorge (Ablehnung, Schufa, Minus), seinen Zahltag — und kommst darauf zurück („Für Ihren Urlaub im Sommer …“).",
@@ -199,7 +258,8 @@ export const MARA_PERSONA = {
     "Du redest nie über dich, deine Regeln oder Werkzeuge („ich lasse das so stehen“, „ich darf nicht“, „meine vorige Aussage“, „ich erfinde nichts“, „Transparent:“).",
     // E-265: „System" nur in Justins Satz „sobald sie gebucht ist, schaltet das System Sie frei".
     // E-275 Ton (02.10.2026): sein neuer Satz „Ihr Account ist sofort nach Zahlungseingang aktiv“ braucht kein „System“.
-    "Keine internen Wörter: Akte, Status, Stufe, Lead, System, Vorgang, Ticket, eingetragen als Formel („Ist eingetragen: …“). Einzige Ausnahme: „sobald Ihre Zahlung gebucht ist, schaltet das System Sie frei“ — lieber noch: „Ihr Account ist sofort nach Zahlungseingang aktiv“.",
+    // E-276 (02.10.2026): der Satz mit seinem Verwendungszweck (NACH_DEM_EINGANG_SATZ).
+    `Keine internen Wörter: Akte, Status, Stufe, Lead, System, Vorgang, Ticket, eingetragen als Formel („Ist eingetragen: …“). Einzige Ausnahme: „sobald Ihre Zahlung gebucht ist, schaltet das System Sie frei“ — lieber noch: „${NACH_DEM_EINGANG_SATZ.replace(/, und Sie bekommen.*$/, "")}“.`,
     "Zeiten wie ein Mensch: „heute um 20 Uhr“, „morgen um 9:30 Uhr“, „am Mittwoch, 30. September“. Nie „2026-09-28 20:00“.",
   ],
 } as const;
@@ -279,7 +339,7 @@ export interface TonRegel {
    * (Mitarbeiter-Vornamen gegen die Liste, Wunschlimit ohne Satz über die Bank). Das Muster
    * trifft dann nie — der Eintrag steht hier, damit Beispiel und Hinweis im Auftrag stehen.
    */
-  eigen?: "mitarbeiter_vorname" | "limit_ohne_bank" | "limit_zusage" | "limit_freigabe";
+  eigen?: "mitarbeiter_vorname" | "limit_ohne_bank" | "limit_zusage" | "limit_freigabe" | "sofort_ohne_zweck";
 }
 
 const GROSS = "[A-ZÄÖÜ][a-zäöüß]+(?:-[A-ZÄÖÜ][a-zäöüß]+)?";
@@ -401,7 +461,16 @@ export const TON_REGELN: TonRegel[] = [
   { id: "karte_versand", schwere: "weich",
     muster: /\b(?:karte|kreditkarte|visa-kreditkarte)\b[^.!?]{0,40}\b(?:in\s+(?:die\s+)?produktion|produziert)\b|\b(?:wir|ich|fiaon)\s+(?:\S+\s+){0,6}?(?:versenden|verschicken|schicken|senden|zuschicken|zusenden)\s+(?:ihnen\s+)?(?:die|ihre)\s+(?:\S+\s+)?karte\b|\b(?:dass|das)\s+(?:die|ihre)\s+(?:\S+\s+)?karte\s+(?:\S+\s+){0,2}(?:versendet|verschickt|zugeschickt|zugesendet|produziert)\s+wird\b/i,
     beispiel: "„Wir kümmern uns darum, dass die Karte schnell versendet wird.“, „Die Karte geht zeitnah in Produktion.“",
-    hinweis: "Die Karte gibt unsere Partnerbank nach IHRER Zusage aus — FIAON versendet sie nicht. Wahr und genauso zupackend: „Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag. Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen.“" },
+    // E-276 (02.10.2026): der Satz mit seinem Verwendungszweck (NACH_DEM_EINGANG_SATZ).
+    hinweis: `Die Karte gibt unsere Partnerbank nach IHRER Zusage aus — FIAON versendet sie nicht. Wahr und genauso zupackend: „${NACH_DEM_EINGANG_SATZ}. ${TEMPO_SATZ}“` },
+  // E-276 (02.10.2026, Justin: „ALLE Mails dafür müssen noch heute raus gehen … ohne Ausnahme!“): Der Abgleich bucht eine
+  // Zahlung nur mit genau dem Verwendungszweck selbst — 37 Eingänge (2.328 €) lagen am 02.10. ungebucht, meist mit
+  // verkürztem Zweck. „Sofort nach (dem) Zahlungseingang aktiv“ ohne den Verwendungszweck im selben Satz verspricht mehr,
+  // als der Abgleich hält. Weich: der zweite Entwurf nimmt die Bedingung auf (NACH_DEM_EINGANG). Die Regel rechnet
+  // satzweise in tonPruefung (eigen); „sobald wir Ihre Zahlung zugeordnet haben …“ (Stufe A) ist frei.
+  { id: "sofort_ohne_zweck", schwere: "weich", eigen: "sofort_ohne_zweck", muster: /(?!)/,
+    beispiel: "„Ihr Account ist sofort nach Zahlungseingang aktiv.“ (ohne Verwendungszweck)",
+    hinweis: `„Sofort“ nur mit seinem Verwendungszweck — ohne ihn bucht der Abgleich nicht selbst: „${NACH_DEM_EINGANG_SATZ}.“ Hat er seine Zahlung schon gemeldet: „Sobald wir Ihre Zahlung zugeordnet haben, ist Ihr Account sofort aktiv …“` },
   { id: "geld_nicht_aus", schwere: "weich", muster: /\b(zahlen|zahlt)\s+(wir|fiaon)?\s*(selbst\s+)?(kein|keine|nicht)\w*\s+(geld\s+)?aus\b|\bgeld\s+zahlen\s+wir\s+(selbst\s+)?nicht\s+aus\b|\bfiaon\s+zahlt\s+kein/i,
     beispiel: "„FIAON zahlt kein Geld aus.“", hinweis: "Positiv: „Noch besser — Ihre eigene Kreditkarte, deren Rahmen Sie immer wieder nutzen.“" },
   { id: "abwehr", schwere: "weich", muster: /\b(können|kann)\s+wir\s+(\w+\s+){0,2}nicht\s+(starten|anfangen|beginnen|loslegen|helfen)\b|(?:^|[.!?]\s+)das\s+geht\s+(bei\s+uns\s+)?nicht\b/i,
@@ -440,6 +509,18 @@ export const TON_REGELN: TonRegel[] = [
 ];
 
 export interface TonBefund { id: string; schwere: TonSchwere; treffer: string; hinweis: string }
+
+/** E-276: „sofort nach (dem/Ihrem) Zahlungseingang“, „sofort nach Ihrer Zahlung“, „mit dem Zahlungseingang … sofort“. */
+const SOFORT_EINGANG = /\bsofort\s+nach\s+(?:dem\s+|ihrem\s+|der\s+|ihrer\s+)?(?:zahlungs)?(?:eingang|zahlung|überweisung|ueberweisung)\b|\bmit\s+(?:dem\s+|ihrem\s+)?(?:zahlungs)?eingang\b[^.!?]{0,40}\bsofort\b/i;
+/** Die Bedingung, die „sofort“ wahr macht — oder die Fassung für Stufe A (zugeordnet). */
+const ZWECK_GENANNT = /verwendungszweck|zugeordnet|zuordn|zahlungsreferenz/i;
+/**
+ * E-276 (02.10.2026): der erste Satz, der „sofort nach Zahlungseingang“ verspricht, ohne den Verwendungszweck im selben
+ * Satz zu nennen — sonst null. Rein.
+ */
+export function sofortOhneZweck(text: string): string | null {
+  return saetze(String(text ?? "").replace(/https?:\/\/\S+/g, " ")).find((s) => SOFORT_EINGANG.test(s) && !ZWECK_GENANNT.test(s)) ?? null;
+}
 
 /** Die Sätze eines Textes — für die Satzanfang-Regeln. */
 function saetze(text: string): string[] {
@@ -703,6 +784,12 @@ export function tonPruefung(text: string, opt: {
     }
     if (r.eigen === "limit_zusage") {
       const s = limitZusage(ohneLinks);
+      if (s) funde.push({ id: r.id, schwere: r.schwere, treffer: s.slice(0, 60), hinweis: r.hinweis });
+      continue;
+    }
+    if (r.eigen === "sofort_ohne_zweck") {
+      // E-276: satzweise — „Mit Ihrem Verwendungszweck … ist Ihr Account sofort nach Zahlungseingang aktiv“ ist frei.
+      const s = sofortOhneZweck(ohneLinks);
       if (s) funde.push({ id: r.id, schwere: r.schwere, treffer: s.slice(0, 60), hinweis: r.hinweis });
       continue;
     }
@@ -1888,8 +1975,10 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // E-275 Ton (02.10.2026): „… bei uns eingeht, ist Ihr Account sofort aktiv“ statt „… gebucht ist, schaltet das System
       // Sie frei" — der Abgleich bucht selbst (Kopf oben). Der Satzteil ab „, und Sie bekommen direkt …“ bleibt wörtlich
       // (mitAntragLuecke ersetzt ihn bei unvollständigem Antrag).
+      // E-276 (02.10.2026): „Sobald wir Ihre Zahlung … zugeordnet haben“ statt „… bei uns eingeht“ — er hat schon überwiesen;
+      // kam sein Verwendungszweck verkürzt an, bucht der Abgleich nicht selbst, dann ordnet die Zahlungsstelle zu (nachDerZuordnung).
       return absatz(
-        `Danke Ihnen! Sobald Ihre Zahlung${l.betrag ? ` über ${l.betrag}` : ""} bei uns eingeht, ist Ihr Account sofort aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag.${zt ? ` Ziel bleibt Ihre Visa-Kreditkarte ${zt} — ${BANK_SATZ}.` : " Ziel bleibt Ihre eigene Visa-Kreditkarte."}`,
+        `Danke Ihnen! ${nachDerZuordnung({ betrag: l.betrag, anfang: true })}.${zt ? ` Ziel bleibt Ihre Visa-Kreditkarte ${zt} — ${BANK_SATZ}.` : " Ziel bleibt Ihre eigene Visa-Kreditkarte."}`,
         steht ? `${steht} — dort geht es direkt weiter.` : mail ? KARTE_ZEIT_SATZ : KARTE_ZEIT_WA,
       );
     case "rate":
@@ -1926,9 +2015,11 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // E-275 Ton (02.10.2026): die klare Aufforderung „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über …“ und
       // der Nutzen direkt dahinter mit dem einen Ausrufezeichen (vorher „Bitte begleichen Sie … — sobald sie gebucht ist,
       // schaltet das System Sie frei, …"). In der Mail dazu der Tempo-Satz (auf WhatsApp zählt jedes Zeichen, ≤ 500).
+      // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — per Mail steht er im Satz („mit Ihrem
+      // Verwendungszweck FIAON-AB12CD ist Ihr Account …“, statt in Klammern davor), auf WhatsApp zeigt ihn die Zahlungsseite.
       return absatz(
         `Bei uns kommen Sie zu Ihrer ${mail ? "eigenen " : ""}Visa-Kreditkarte${zt ? ` ${zt}` : ""} — ${BANK_SATZ}.`,
-        `${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""}${mail && l.verwendungszweck ? ` (Verwendungszweck ${l.verwendungszweck})` : ""} — ${NACH_DEM_EINGANG}! ${steht ? `${steht}.` : mail ? `${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}` : KARTE_ZEIT_WA} ${zahlen}${link}`,
+        `${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""} — ${nachDemEingang({ ref: mail ? l.verwendungszweck : null })}! ${steht ? `${steht}.` : mail ? `${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}` : KARTE_ZEIT_WA} ${zahlen}${link}`,
       );
   }
 }
@@ -2209,10 +2300,12 @@ export function bausteinVorkasse(l: {
    * Was der Zahlungseingang auslöst — Justins Satz. E-275 Ton (02.10.2026): vorher „Nach der Buchung kommt direkt der
    * Link unserer Partnerbank für Ihren Kartenantrag." Auf einen Einwand ohne Imperativ: die Fakten, der Nutzen, die Frage.
    */
-  const danach = `${NACH_DEM_EINGANG}.`;
+  const danach = `${NACH_DEM_EINGANG_SATZ}.`; // E-276: am Satzanfang groß
   // Die kurze Fassung für die Antwort auf „kein Kreditinstitut?“ — dort steht die längste Erklärung, und die Nachricht
   // bleibt unter 500 lesbaren Zeichen (mit dem vollen Satz 531). mitAntragLuecke kennt auch sie.
-  const danachKurz = "Mit dem Zahlungseingang ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt.";
+  // E-276 (02.10.2026): „sofort“ nur mit dem Verwendungszweck (vorher „Mit dem Zahlungseingang ist Ihr Account sofort aktiv, …“);
+  // die Zahlungsseite dahinter zeigt ihn. Genau 500 lesbare Zeichen mit Wunschlimit-Ziel — wie vorher unter der Grenze.
+  const danachKurz = "Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt.";
   if (l.kreditFrage) {
     // Seine Frage zuerst: „kein Kreditinstitut? Kredit vorab?" — ja, keine Bank; nein, kein Kredit (nie „keinen Kredit", kredit_nein).
     // Nie „Richtig" am Anfang: Steht „unseriös" daneben, gäbe das dem Vorwurf recht (wahrheitsBefunde, E-236).
@@ -2612,7 +2705,8 @@ export function abschlussPruefung(antwort: string, ein: {
     // E-275 Ton (02.10.2026): „Zahlen Sie jetzt (die Aktivierung)“ ist ebenso eine Zahlungsbitte wie „Bitte begleichen Sie“.
     if (/\/zahlung\/|\bbitte\s+(?:be)?(?:gleichen|zahlen|überweisen)|\b(?:begleichen|überweisen|bezahlen|zahlen)\s+sie\b|zahlungsseite/i.test(a)) {
       // E-275 (02.10.2026): ohne „und biete den Termin an“ — dafür die Zeit bis zur Karte (KARTE_ZEIT_SATZ).
-      h.push("Er hat seine Zahlung schon gemeldet — keine Zahlungsbitte und kein Zahlungslink. Sag: Sobald sie bei uns eingeht, ist sein Account sofort aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag (seine Visa-Kreditkarte bleibt das Ziel); nach der Zusage der Bank in der Regel 2–5 Werktage.");
+      // E-276 (02.10.2026): „sobald wir sie zugeordnet haben“ (NACH_DER_ZUORDNUNG) statt „sobald sie bei uns eingeht“.
+      h.push("Er hat seine Zahlung schon gemeldet — keine Zahlungsbitte und kein Zahlungslink. Sag: Sobald wir sie zugeordnet haben, ist sein Account sofort aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag (seine Visa-Kreditkarte bleibt das Ziel); nach der Zusage der Bank in der Regel 2–5 Werktage.");
     }
     return h;
   }
@@ -2682,7 +2776,8 @@ export function mailAbschlussPflicht(text: string, ein: { betrag?: string | null
   if (b && !t.includes(komma) && !t.includes(punkt)) h.push(`Nenn den Betrag der ersten Monatsrate (${komma} €) in einem Satz.`);
   // E-275 Ton (02.10.2026): „Ihr Account ist sofort nach Zahlungseingang aktiv“ zählt wie „schaltet das System Sie frei“.
   if (!/schaltet[^.!?\n]{0,40}\bfrei\b|freigeschaltet|freischalt|account\s+(?:ist\s+)?(?:[^\s.!?]+\s+){0,4}?aktiv|activat|unlock|account\s+(?:is|will\s+be)\s+(?:\S+\s+){0,3}?active/i.test(t)) {
-    h.push(`Sag, was die Zahlung auslöst: „${NACH_DEM_EINGANG}“ (englisch: „Your account is active as soon as your payment arrives, and you receive the link of our partner bank for your card application right away.“).`);
+    // E-276 (02.10.2026): mit seinem Verwendungszweck — nur dann bucht der Abgleich sofort.
+    h.push(`Sag, was die Zahlung auslöst: „${NACH_DEM_EINGANG_SATZ}“ (englisch: „With your payment reference, your account is active as soon as your payment arrives, and you receive the link of our partner bank for your card application right away.“).`);
   }
   const fragen = t.split(/(?<=[.!?])\s+|\n+/).filter((x) => /\?\s*$/.test(x.trim()));
   const zahlBitte = /knopf|button|(?:überweisen|ueberweisen|begleichen|bezahlen|zahlen)\s+sie\b|heute\s+noch|gleich\s+heute|zahlungsseite|pay(?:ment)?\s+page|transfer\s+(?:it\s+)?today|please\s+(?:pay|transfer)|pay\s+the\s+activation/i.test(t);
@@ -2728,8 +2823,9 @@ export const KARTE_REGEL_TEXT = [
   // ist sofort nach Eingang aktiv!‘"): die klare Aufforderung statt „Bitte begleichen Sie …“, der Nutzen direkt dahinter.
   `· Justins Abschluss: Karte + Wunschlimit + Satz über die Bank, dann ein PUNKT → die klare Aufforderung mit dem Betrag als neuer Satz und der Nutzen direkt dahinter („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 99,99 € — ${NACH_DEM_EINGANG}!“) → „${KARTE_ZEIT_SATZ}“ (gern davor „${TEMPO_SATZ}“) → EINE Frage: „${ZAHL_FRAGE}“ (Mail: der Knopf). Begeistert, aber seriös: höchstens EIN Ausrufezeichen. Wunschlimit und Betrag/Aktivierung nie in EINEM Satz (kein Semikolon dazwischen). „Die Karte ist in Produktion“, „kommt sicher“ oder „wir versenden Ihre Karte“ sagst du nie — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
   `· KEIN TERMIN ALS PFLICHT (Justin 02.10.2026: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): Einen Anruf oder Termin bietest du nur an, wenn er telefonieren will, unsicher bleibt und ausdrücklich sprechen möchte, oder ein zugesagter Anruf ausgefallen ist. Steht sein Termin schon, nennst du ihn.`,
-  `· Bei einem EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut, zu teuer): nie mit „Genau“ oder „Ja“ beginnen. Erst sein Einwand in einem Satz — fragt er „kein Kreditinstitut?“, beantwortest du genau das (was FIAON tut, nie „wir sind keine Bank“ als Ausrede) —, dann die Karte, „Sie überweisen selbst, abgebucht wird nichts“, was der Zahlungseingang auslöst („${NACH_DEM_EINGANG}“) und die Bitte; sprechen kann er, wenn er möchte („Möchten Sie vorher kurz sprechen, sagen Sie es mir einfach.“). Zu teuer: das kleinere Paket mit seinem Ziel.`,
-  `· Hat er seine Zahlung schon gemeldet: keine Zahlungsbitte, kein Zahlungslink — sobald sie eingeht, ist sein Account sofort aktiv und der Link unserer Partnerbank für seinen Kartenantrag kommt direkt, seine Visa-Kreditkarte bleibt das Ziel, nach der Zusage der Bank in der Regel 2–5 Werktage.`,
+  `· Bei einem EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut, zu teuer): nie mit „Genau“ oder „Ja“ beginnen. Erst sein Einwand in einem Satz — fragt er „kein Kreditinstitut?“, beantwortest du genau das (was FIAON tut, nie „wir sind keine Bank“ als Ausrede) —, dann die Karte, „Sie überweisen selbst, abgebucht wird nichts“, was der Zahlungseingang auslöst („${NACH_DEM_EINGANG_SATZ}“) und die Bitte; sprechen kann er, wenn er möchte („Möchten Sie vorher kurz sprechen, sagen Sie es mir einfach.“). Zu teuer: das kleinere Paket mit seinem Ziel.`,
+  // E-276 (02.10.2026): „sobald wir sie zugeordnet haben“ — mit verkürztem Verwendungszweck bucht der Abgleich nicht selbst.
+  `· Hat er seine Zahlung schon gemeldet: keine Zahlungsbitte, kein Zahlungslink — sobald wir sie zugeordnet haben, ist sein Account sofort aktiv und der Link unserer Partnerbank für seinen Kartenantrag kommt direkt, seine Visa-Kreditkarte bleibt das Ziel, nach der Zusage der Bank in der Regel 2–5 Werktage.`,
   `· Ist sein Antrag nicht abgeschickt: kein Satz zur Rate — die Karte, sein nächster Schritt ist der Antrag („Machen Sie heute noch weiter?“). Nie „nur noch einen Schritt entfernt“, nie „greifbar“, nie „fehlt nur noch“.`,
   `· „Ich habe ja keine Karte bekommen — wozu zahlen?“ → Bei der ERSTEN Monatsrate: „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist“ mit Betrag und Zahlungsseite, dann „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“. Beim ZAHLENDEN Kunden ist der Link unserer Partnerbank die Antwort: Du schickst ihn selbst (WhatsApp: karte_link_schicken) mit den Schritten (zuerst das Girokonto eröffnen, dann im Banking die Visa-Kreditkarte dazubuchen; nach der Zusage der Bank in der Regel 2–5 Werktage) — und nennst danach seine fällige Rate („Ihre Rate vom … über …“) mit Zahlungsseite. Die Folgerate ist nie „der Grund“. Nie „FIAON verschickt keine Karte“, nie ein Kollege, der nachsieht.`,
   `· Steht die Formel schon in deiner letzten Nachricht, wiederhol sie nicht ganz — nur das Neue und die Frage.`,

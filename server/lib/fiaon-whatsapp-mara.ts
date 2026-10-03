@@ -129,7 +129,11 @@ import {
   AKTIVIERUNG_AUFRUF, NACH_DEM_EINGANG, TEMPO_SATZ,
   // E-275 Gegenprüfung Verkauf: ungefragter Anruf und Abgabe an einen Kollegen — eine Regel für WhatsApp und Mail
   selbstErledigtTreffer,
+  // E-276 (02.10.2026): Justins Satz mit seinem Verwendungszweck am Satzanfang; die Lücken-Fassung steht jetzt in shared
+  // (die Mara-Aktion braucht dieselbe) und wird hier weiter exportiert.
+  NACH_DEM_EINGANG_SATZ, mitAntragLuecke,
 } from "@shared/fiaon-mara-ton";
+export { mitAntragLuecke };
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
 import { nennform, vornamenErsetzen, mitarbeiterVornameFunde, MITARBEITER_NAMEN_KURZ, type Nennform, type MitarbeiterEintrag } from "@shared/fiaon-mitarbeiter-name";
 import { mitarbeiterListe } from "./fiaon-mitarbeiter-namen";
@@ -854,7 +858,7 @@ export function verkaufsPruefung(antwort: string, ein: {
   const linkOhneBuchung = /link\s+(?:unserer|der)\s+(?:partner)?bank/i.test(a) && !/sobald|nach\s+der\s+(?:buchung|zahlung)|gebucht|aktiviert|freigeschaltet|schaltet[^.!?]{0,30}frei|zahlungseingang|account\s+(?:ist\s+)?(?:[^\s.!?]+\s+){0,4}?aktiv/i.test(a);
   if (ein.zahlungslage && !ein.bankLinkOk && (linkZeitpunkt.test(ohneEingangSofort) || (linkOhneBuchung && !/partnerbank|\bdkb\b|\bbank\b|karte|link/i.test(kunde)))) {
     // E-275 Ton (02.10.2026): Justins neuer Satz („Ihr Account ist sofort nach Zahlungseingang aktiv …“).
-    hinweise.push(`Es geht um seine Zahlung: Den Link der Partnerbank gibt es erst nach dem Zahlungseingang — sag es wie Justin: „${NACH_DEM_EINGANG}“, ohne Tag oder Uhrzeit.`);
+    hinweise.push(`Es geht um seine Zahlung: Den Link der Partnerbank gibt es erst nach dem Zahlungseingang — sag es wie Justin: „${NACH_DEM_EINGANG_SATZ}“, ohne Tag oder Uhrzeit.`);
   }
   // ── E-275 (02.10.2026): MARA ERLEDIGT SELBST — KEIN UNGEFRAGTER TERMIN, KEIN „X MELDET SICH“ ─────────────────
   // Gemessen 23.09.–02.10.: 113 von 546 freien Antworten „X ruft Sie an/meldet sich/Rückruf“, 49 fragten nach einer
@@ -1159,7 +1163,7 @@ function auftrag(ein: {
         ? `Er hat seine Zahlung gemeldet — KEINE Zahlungsbitte, KEIN Zahlungslink. Danke, nach der Buchung direkt der Link unserer Partnerbank für seinen Kartenantrag, die Karte, die Zeit bis zur Karte.`
         : ein.abschluss.art === "abbrecher" || ein.abschluss.art === "c"
           ? `Sein Antrag ist nicht abgeschickt — KEIN Satz zur Rate (keine Zahlung, kein Betrag). Die Karte, sein Antrag (DEIN LINK), eine kurze Frage („Machen Sie heute noch weiter?“ / „Wollen wir starten?“).`
-          : `Gibt er ein Kaufsignal, ist das deine Antwort — Karte, sein Ziel mit dem Satz über die Bank, dann begeistert und klar die Aufforderung mit dem Betrag („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über …“), der Nutzen direkt dahinter („${NACH_DEM_EINGANG}!“), die Zeit bis zur Karte und die Bitte um die Überweisung als EINE Frage („${ZAHL_FRAGE}“). Hat er einen EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut): erst sein Einwand in einem Satz, nie „Genau/Ja" am Anfang, dann die Fakten — PFLICHT: „Sie überweisen selbst, abgebucht wird nichts“ —, dann der Nutzen („${NACH_DEM_EINGANG}.“) und die Frage; einen Anruf nur, wenn er vorher sprechen möchte.`,
+          : `Gibt er ein Kaufsignal, ist das deine Antwort — Karte, sein Ziel mit dem Satz über die Bank, dann begeistert und klar die Aufforderung mit dem Betrag („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über …“), der Nutzen direkt dahinter („${NACH_DEM_EINGANG_SATZ}!“), die Zeit bis zur Karte und die Bitte um die Überweisung als EINE Frage („${ZAHL_FRAGE}“). Hat er einen EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut): erst sein Einwand in einem Satz, nie „Genau/Ja" am Anfang, dann die Fakten — PFLICHT: „Sie überweisen selbst, abgebucht wird nichts“ —, dann der Nutzen („${NACH_DEM_EINGANG}.“) und die Frage; einen Anruf nur, wenn er vorher sprechen möchte.`,
       `So, eingesetzt für ihn (in eigenen Worten, gleiche Fakten, keine andere Zahl): „${ein.abschluss.satz}"`,
       ein.abschluss.ziel ? `Sein Kartenziel: ${kartenzielText(ein.abschluss.ziel)} — nie eine andere Zahl, nie als Zusage, immer mit „${BANK_SATZ}".` : `Sein Wunschlimit kennst du nicht — nenne keine Zahl.`,
       ein.abschluss.zeitHerkunft ? `Die Zeit im Satz ist ${ein.abschluss.zeitHerkunft} — das ist eine Tatsache, kein neues Angebot.` : ``,
@@ -1248,7 +1252,8 @@ function auftrag(ein: {
     `· „Lastschrift, Karte, PayPal?" → Ganz einfach per Überweisung mit seinem Verwendungszweck; Bankdaten und QR-Code stehen auf seiner Zahlungsseite.`,
     `· „Welche Bank ist das?" → Unsere Partnerbank ist die DKB: erst das Girokonto, daraus bucht er die Visa-Kreditkarte dazu — genau in dieser Reihenfolge begleiten wir ihn.`,
     // E-275 Ton (02.10.2026): „sofort nach Zahlungseingang“ statt „sobald sie gebucht ist“ — der Abgleich bucht selbst.
-    `· „Was passiert nach der Zahlung?" → Sein Account ist sofort nach Zahlungseingang aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag; dazu das Startgespräch mit seinem festen Betreuer, etwa 15 Minuten am Telefon.`,
+    // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — ohne ihn bucht der Abgleich nicht selbst.
+    `· „Was passiert nach der Zahlung?" → Mit seinem Verwendungszweck ist sein Account sofort nach Zahlungseingang aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag; dazu das Startgespräch mit seinem festen Betreuer, etwa 15 Minuten am Telefon.`,
     // E-275 (02.10.2026): Hier stand „Steht dort nichts, sag, dass sein Betreuer nachsieht, und übergib.“ — 55 von 88 Kartenfragen.
     `· „Wann kommt mein Link oder meine Karte?“ / „Karte nicht bekommen“ → ZAHLENDER Kunde: Du schickst ihm den Link unserer Partnerbank selbst${ein.kartenWerkzeug ? " (karte_link_schicken)" : ""} — auch wenn er schon einmal raus war (dann mit dem Datum aus SEINE LAGE: „hier noch einmal“) — mit den Schritten: zuerst das Girokonto eröffnen, dann im Banking die Visa-Kreditkarte dazubuchen; nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher Apple Pay. Erste Zahlung offen: Justins Satz (nach der Buchung direkt der Link) und seine Zahlungsseite. Zahlung gemeldet: nach der Buchung kommt er direkt. Nie „sein Betreuer sieht nach“, nie „FIAON verschickt keine Karte“ als Antwort.`,
     // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 f11): Hier stand „Vertrag und Rechnung kamen per E-Mail" — eine
@@ -3576,27 +3581,8 @@ export const KARTEN_WEG = {
     (await import("./fiaon-konto-karte")).karteEinladungFuerPerson(personId, akteur),
 };
 
-/**
- * E-275 Gegenprüfung (02.10.2026, Wahrheit und Recht): „… und Sie bekommen DIREKT den fertigen Link unserer Partnerbank“
- * stimmt nur mit vollständigem Antrag — die Einladung (einladungenAutomatisch) verlangt Name, Geburtsdatum, Anschrift und
- * E-Mail. Gemessen (nur lesend, 02.10.): 20 von 452 abgeschickten, unbezahlten Anträgen der letzten 60 Tage fehlt etwas
- * (13× nur das Geburtsdatum). Dann sagt der Satz, was noch fehlt, und verspricht den Link erst danach. Ohne Lücke: unverändert. Rein.
- */
-export function mitAntragLuecke<T extends string | null>(text: T, luecke: readonly string[]): T {
-  if (!text || !luecke.length) return text;
-  const fehlt = luecke.join(", ");
-  return String(text)
-    .replace(/,\s*und\s+Sie\s+bekommen\s+direkt\s+den\s+fertigen\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag/,
-      // Ein eigener Satz ohne „bekommen Sie den …“: im Satz mit dem Betrag oder nach dem Wunschlimit wäre das für
-      // tonPruefung eine Limit-Zusage (limit_zusage, hart).
-      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}), geht der fertige Link unserer Partnerbank für Ihren Kartenantrag an Sie raus`)
-    .replace(/Nach\s+der\s+Buchung\s+kommt\s+direkt\s+der\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag\./,
-      `Nach der Buchung und mit vollständigen Angaben im Antrag (es fehlt noch: ${fehlt}) kommt der Link unserer Partnerbank für Ihren Kartenantrag.`)
-    // E-275 Ton (02.10.2026): die kurze Fassung aus bausteinVorkasse (Antwort auf „kein Kreditinstitut?“) — „Mit dem
-    // Zahlungseingang ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt."
-    .replace(/,\s*und\s+der\s+Link\s+unserer\s+Partnerbank\s+kommt\s+direkt\./,
-      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}), geht der Link unserer Partnerbank an Sie raus.`) as T;
-}
+// E-276 (02.10.2026): mitAntragLuecke steht jetzt in shared/fiaon-mara-ton.ts (oben importiert und weiter exportiert) —
+// die Mara-Aktion braucht dieselbe Lücken-Fassung. In der Sache unverändert.
 
 async function kartenLinkSchicken(ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
   const name = "karte_link_schicken";
@@ -4070,8 +4056,9 @@ export function handlungsPruefung(
   if ((heikelHier || kannNichtZahlen(kunde) || ruheJetzt) && !(fragtZahlweg && !kannNichtZahlen(kunde)) && !formelGedeckt) {
     const zahlLink = /\/zahlung\/\S+/i.test(a);
     // E-275 Ton (02.10.2026): auch die neue Aufforderung („Zahlen Sie jetzt die Aktivierung“) und der neue Nutzen-Satz
-    // („Ihr Account ist sofort nach Zahlungseingang aktiv“) sind eine Bitte um Zahlung — in der Ruhe nie.
-    const bitte = a.match(/\b(?:bitte|jetzt|zeitnah|umgehend|gleich)\b[^.!?\n]{0,60}?\b(?:begleichen|bezahlen|überweisen|ueberweisen)\b|\b(?:begleichen|bezahlen|überweisen|ueberweisen)\s+sie\b|nach\s+der\s+zahlung\s+ist\s+ihr\s+account\s+aktiv|schaltet\s+das\s+system\s+sie\s+frei|zahlen\s+sie\s+bitte\s+noch|\bzahlen\s+sie\s+(?:jetzt|gleich|heute|die\s+aktivierung)\b|account\s+ist\s+sofort\s+nach\s+(?:dem\s+)?zahlungseingang/i);
+    // („Ihr Account ist sofort nach Zahlungseingang aktiv“) sind eine Bitte um Zahlung — in der Ruhe nie. E-276 (02.10.2026):
+    // auch in der neuen Wortstellung „mit Ihrem Verwendungszweck ist Ihr Account sofort nach Zahlungseingang aktiv“.
+    const bitte = a.match(/\b(?:bitte|jetzt|zeitnah|umgehend|gleich)\b[^.!?\n]{0,60}?\b(?:begleichen|bezahlen|überweisen|ueberweisen)\b|\b(?:begleichen|bezahlen|überweisen|ueberweisen)\s+sie\b|nach\s+der\s+zahlung\s+ist\s+ihr\s+account\s+aktiv|schaltet\s+das\s+system\s+sie\s+frei|zahlen\s+sie\s+bitte\s+noch|\bzahlen\s+sie\s+(?:jetzt|gleich|heute|die\s+aktivierung)\b|account\s+(?:ist\s+)?sofort\s+nach\s+(?:dem\s+)?(?:zahlungs)?eingang|(?<!zugeordnet\s+haben,\s+)ist\s+ihr\s+account\s+sofort\s+(?:nach|aktiv)\b/i);
     if (zahlLink || bitte) {
       // E-265 Nachbesserung (29.09.2026, Verkauf, f04): „sag, wer es mit ihm klärt" machte aus einem guten Entwurf
       // „Herr Stripling klärt das persönlich" — bis Fr 02.10. klärt es niemand. Auf „kann nicht zahlen" der leichteste Weg.

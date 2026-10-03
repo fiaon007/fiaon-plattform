@@ -323,14 +323,16 @@ console.log("── A10. E-275 Ton: Aufforderung, Nutzen, ein Ausrufezeichen, di
   const MB2 = ton.bausteinAbschluss({ kanal: "mail", art: "b", ziel: ZIEL, betrag: "59,99 €", verwendungszweck: "FIAON-P275M", mit: ds });
   const AUFRUF = `${ton.AKTIVIERUNG_AUFRUF}`;
   for (const [was, x] of [["B", B], ["keine Karte (erste Rate)", KKE], ["Limit-Frage", LF], ["Mail-B", MB2]] as const) {
-    ok(x.includes(AUFRUF) && x.indexOf(AUFRUF) < x.indexOf("Ihr Account ist sofort nach Zahlungseingang aktiv") && ton.ausrufezeichen(x) === 1,
+    // E-276 (02.10.2026): „mit Ihrem Verwendungszweck … ist Ihr Account sofort nach Eingang aktiv“ — die Bedingung im selben Satz.
+    ok(x.includes(AUFRUF) && x.indexOf(AUFRUF) < x.indexOf("ist Ihr Account sofort nach Eingang aktiv") && /mit Ihrem Verwendungszweck (?:FIAON-\S+ )?ist Ihr Account sofort nach Eingang aktiv/.test(x) && ton.ausrufezeichen(x) === 1,
       `${was}: „Zahlen Sie jetzt die Aktivierung“, der Nutzen direkt dahinter, genau ein „!“`);
   }
   for (const [was, x] of [["A", A], ["Rate", RATE], ["Vorkasse", VK], ["Vorkasse Kredit", VKK], ["Abbrecher", AB], ["C", C]] as const) {
     ok(ton.ausrufezeichen(x) <= 1 && !x.includes(AUFRUF), `${was}: keine Aufforderung zur Aktivierung (nicht die erste Zahlung bzw. Einwand/kein Antrag), höchstens ein „!“`);
   }
-  ok(/Sobald Ihre Zahlung über 99,99 € bei uns eingeht, ist Ihr Account sofort aktiv, und Sie bekommen direkt den fertigen Link/.test(A), "A: „sobald Ihre Zahlung bei uns eingeht, ist Ihr Account sofort aktiv“ — keine Bitte");
-  ok(/Mit dem Zahlungseingang ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt\./.test(VKK) && lesbar(VKK) <= 500, `Vorkasse Kredit: die kurze Fassung, ${lesbar(VKK)} Zeichen`);
+  // E-276 (02.10.2026): A „sobald wir Ihre Zahlung … zugeordnet haben“ (statt „… bei uns eingeht“) — wahr auch mit verkürztem Zweck.
+  ok(/Sobald wir Ihre Zahlung über 99,99 € zugeordnet haben, ist Ihr Account sofort aktiv, und Sie bekommen direkt den fertigen Link/.test(A), "A: „sobald wir Ihre Zahlung zugeordnet haben, ist Ihr Account sofort aktiv“ — keine Bitte");
+  ok(/Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt\./.test(VKK) && lesbar(VKK) <= 500, `Vorkasse Kredit: die kurze Fassung mit dem Verwendungszweck (E-276), ${lesbar(VKK)} Zeichen`);
   const VKKL = wa.mitAntragLuecke(VKK, ["Geburtsdatum"]);
   ok(!/kommt direkt/.test(VKKL) && /es fehlt noch: Geburtsdatum/.test(VKKL) && !ton.tonPruefung(VKKL, { kanal: "whatsapp", land: "DE", kunde: "" }).some((b) => b.schwere === "hart"),
     "Vorkasse Kredit mit unvollständigem Antrag: kein „direkt“, nennt was fehlt");
@@ -353,7 +355,7 @@ console.log("── A10. E-275 Ton: Aufforderung, Nutzen, ein Ausrufezeichen, di
   // Der Nutzen-Satz ist in der Zahlungslage kein „Zeitpunkt für den Link“ — ein „sofort“ ohne Zahlungseingang schon.
   const vz = (a: string) => wa.verkaufsPruefung(a, { kunde: "Wie geht es weiter?", letzteDu: [], verkaufen: true, zahlungslage: true }).filter((h: string) => /Link der Partnerbank gibt es erst/.test(h));
   ok(!vz(B).length && vz(`Ihr Account ist sofort aktiv, und Sie bekommen den Link unserer Partnerbank. ${ton.ZAHL_FRAGE}`).length > 0, "Zahlungslage: Justins Satz frei, „sofort … Link unserer Partnerbank“ ohne Zahlungseingang fällt auf");
-  ok(!vz(`${ton.NACH_DEM_EINGANG}. ${ton.ZAHL_FRAGE}`).length && vz(`Sie bekommen morgen den Link unserer Partnerbank. ${ton.ZAHL_FRAGE}`).length > 0, "Zahlungslage: „sofort nach Zahlungseingang“ frei, „morgen“ fällt weiter auf");
+  ok(!vz(`${ton.NACH_DEM_EINGANG_SATZ}. ${ton.ZAHL_FRAGE}`).length && vz(`Sie bekommen morgen den Link unserer Partnerbank. ${ton.ZAHL_FRAGE}`).length > 0, "Zahlungslage: „sofort nach Eingang“ (mit Verwendungszweck) frei, „morgen“ fällt weiter auf");
   // Ruhe (Widerruf, Kündigung): die neue Aufforderung ist eine Zahlungsbitte wie „Bitte begleichen Sie“.
   ok(!!agent.fordertZahlung(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 59,99 €.`) && !!agent.fordertZahlung("Überweisen Sie sie am besten gleich heute.") && !agent.fordertZahlung("Jede Rate überweisen Sie selbst, abgebucht wird nichts."),
     "Postfach: „Zahlen Sie jetzt die Aktivierung“ und „Überweisen Sie … gleich heute“ sind Zahlungsbitten, die Erklärung „überweisen Sie selbst“ nicht");
@@ -363,13 +365,43 @@ console.log("── A10. E-275 Ton: Aufforderung, Nutzen, ein Ausrufezeichen, di
     "Postfach: „Überweisen/Zahlen Sie (bitte) nichts mehr“ ist keine Zahlungsbitte — „Überweisen Sie jetzt, damit keine …“ bleibt eine");
   ok(ton.abschlussPruefung(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 7,99 €.`, { art: "a", kunde: "habe bezahlt" }).length > 0, "A (Zahlung gemeldet): „Zahlen Sie jetzt …“ fällt auf");
   ok(ton.mailAbschlussPflicht(`Bei uns kommen Sie zu Ihrer Visa-Kreditkarte. ${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 59,99 € — ${ton.NACH_DEM_EINGANG}!`, { betrag: "59.99" }).length === 0,
-    "Mail-Pflicht: „Ihr Account ist sofort nach Zahlungseingang aktiv“ zählt als Freischaltung, „Zahlen Sie jetzt“ als Schritt");
+    "Mail-Pflicht: „mit Ihrem Verwendungszweck ist Ihr Account sofort nach Eingang aktiv“ zählt als Freischaltung, „Zahlen Sie jetzt“ als Schritt");
   // Persona und Auftrag: übermotiviert, seriös, nie „ich leite das weiter“.
   const P = ton.personaText("whatsapp", {});
   ok(/VERKAUFST MIT BEGEISTERUNG/.test(P) && /höchstens EIN Ausrufezeichen/.test(P) && /ich leite das an … weiter/.test(P) && P.includes(ton.TEMPO_SATZ), "Persona: begeistert, seriös, ein „!“, nie „ich leite das an … weiter“, der Tempo-Satz");
   ok(AUF_B.includes(ton.AKTIVIERUNG_AUFRUF) && AUF_B.includes(ton.NACH_DEM_EINGANG), "WhatsApp-Auftrag (B): die Aufforderung und der Nutzen-Satz");
   ok(/ich leite das an X weiter/.test(agent.selbstBlock({})) && agent.selbstBlock({}).includes(ton.AKTIVIERUNG_AUFRUF), "Postfach „DU ERLEDIGST ES SELBST“: nie „ich leite das an X weiter“, die Aufforderung bei der ersten Zahlung");
 }
+
+// ── A11. E-276 (02.10.2026): „SOFORT“ NUR MIT SEINEM VERWENDUNGSZWECK ────────────────────────────────────────────
+// Justin: „ALLE Mails dafür müssen noch heute raus gehen … ohne Ausnahme!“ — gemessen 02.10.: 37 Eingänge (2.328 €) lagen
+// ungebucht im Bankbuch, meist mit verkürztem Verwendungszweck. Der Abgleich bucht nur mit genau dem Zweck selbst.
+console.log("── A11. E-276: „sofort“ nur mit dem Verwendungszweck, Stufe A „zugeordnet“ ──");
+{
+  const agent = await import("../server/lib/fiaon-postmeister-agent");
+  ok(ton.NACH_DEM_EINGANG.startsWith("mit Ihrem Verwendungszweck ist Ihr Account sofort nach Eingang aktiv, und Sie bekommen direkt den fertigen Link")
+    && ton.NACH_DEM_EINGANG_SATZ.startsWith("Mit Ihrem Verwendungszweck") && ton.nachDemEingang({ ref: "FIAON-AB12CD" }).includes("mit Ihrem Verwendungszweck FIAON-AB12CD ist Ihr Account"),
+    "Justins Satz trägt die Bedingung (klein nach dem Gedankenstrich, groß am Satzanfang, per Mail mit dem Zweck)");
+  ok(agent.AKTIVIERUNG_SATZ === `${ton.NACH_DEM_EINGANG_SATZ}!` && agent.AKTIVIERUNG_SATZ_A.startsWith("sobald wir Ihre Zahlung zugeordnet haben, ist Ihr Account sofort aktiv"),
+    "Postfach: AKTIVIERUNG_SATZ mit Verwendungszweck, Stufe A „sobald wir Ihre Zahlung zugeordnet haben“");
+  const MB = ton.bausteinAbschluss({ kanal: "mail", art: "b", betrag: "59,99 €", verwendungszweck: "FIAON-P276M" });
+  ok(MB.includes("— mit Ihrem Verwendungszweck FIAON-P276M ist Ihr Account sofort nach Eingang aktiv") && !/\(Verwendungszweck FIAON-P276M\)/.test(MB),
+    "Mail-B: der Verwendungszweck steht IM Satz (nicht mehr in Klammern davor)");
+  // Die weiche Prüfung „sofort_ohne_zweck“: „sofort nach (Zahlungs-)Eingang“ ohne Zweck im selben Satz.
+  const w = (t: string) => ton.tonPruefung(t, { kanal: "whatsapp" }).filter((b) => b.id === "sofort_ohne_zweck");
+  ok(w("Ihr Account ist sofort nach Zahlungseingang aktiv.").length === 1 && w("Mit dem Zahlungseingang ist Ihr Account sofort aktiv.").length === 1
+    && w("Sobald Sie überweisen, ist alles sofort nach Ihrer Zahlung freigeschaltet.").length === 1 && w("Ihr Account ist sofort nach Zahlungseingang aktiv.")[0]?.schwere === "weich",
+    "„sofort nach Zahlungseingang“ ohne Verwendungszweck fällt weich auf (drei Formen)");
+  for (const t of [B, A, KKE_E276(), MB, ton.NACH_DEM_EINGANG_SATZ, agent.mailAbschlussFormel("b", null), agent.mailAbschlussFormel("a", null), "Danke Ihnen! Ihr Account ist sofort aktiv."]) {
+    ok(!w(t).length, `sofort_ohne_zweck frei: „${kurz(t, 70)}“`);
+  }
+  // Ruhe (Widerruf, Kündigung): auch die neue Wortstellung ist eine Zahlungsbitte; Stufe A („zugeordnet“) bleibt frei.
+  const { readFileSync } = await import("node:fs");
+  const q = readFileSync(new URL("../server/lib/fiaon-whatsapp-mara.ts", import.meta.url), "utf8");
+  ok(/\(\?<!zugeordnet\\s\+haben,\\s\+\)ist\\s\+ihr\\s\+account\\s\+sofort/.test(q), "WhatsApp-Ruhe: „… ist Ihr Account sofort nach Eingang aktiv“ zählt als Zahlungsbitte, „zugeordnet haben, ist Ihr Account …“ nicht");
+  ok(wa.mitAntragLuecke === ton.mitAntragLuecke, "mitAntragLuecke: EINE Quelle (shared), WhatsApp exportiert sie weiter");
+}
+function KKE_E276(): string { return ton.bausteinKeineKarte({ kanal: "whatsapp", betrag: "99,99 €", erste: true, ziel: ZIEL, link: LINK }); }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // B. GEGEN DIE LOKALE TEST-DB

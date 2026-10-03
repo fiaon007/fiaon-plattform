@@ -258,8 +258,15 @@ export function antwortBauen(ein: {
   sprache?: string | null;
   /** Name des Agenten — damit eine doppelte Signatur des Modells erkannt wird. */
   agentName?: string | null;
+  /**
+   * E-276 (02.10.2026): ein eigener Knopftext statt des Standards der Schrittart — die Mara-Aktion an Stufe A (Zahlung
+   * gemeldet) zeigt „Verwendungszweck und Zahlungsdaten ansehen“ statt „Rechnung ansehen und bezahlen“ (nie eine
+   * erneute Zahlungsaufforderung). Ohne Angabe wie bisher.
+   */
+  knopfText?: string | null;
 }): FertigeAntwort {
   const w = rahmenFuer(ein.sprache);
+  const knopf = (s: NaechsterSchritt) => (String(ein.knopfText ?? "").trim() || knopfText(s, w));
   const kern = kernBereinigen(ein.kern, ein.agentName ?? "", ein.schritt?.url);
   // 04.09.2026: Bis hierher wurde jeder einfache Zeilenumbruch zu einem
   // Leerzeichen — der Text kam als ein einziger Block beim Kunden an, und der
@@ -299,12 +306,12 @@ export function antwortBauen(ein: {
     // vor dem Umbau verschickte reinen Text, MIT Gruß. Der Umbau auf HTML hat
     // den Mangel also erst erzeugt.
     absaetze: [esc(ein.anrede), ...absaetze, esc(gruss)].filter((z) => String(z || "").trim()),
-    knopf: ein.schritt?.url ? { text: knopfText(ein.schritt, w), url: ein.schritt.url } : undefined,
+    knopf: ein.schritt?.url ? { text: knopf(ein.schritt), url: ein.schritt.url } : undefined,
     persoenlich: true,
   };
 
   const html = mailHtml(baustein);
-  const text = [ein.anrede, "", ...absaetze, "", ein.schritt?.url ? `${knopfText(ein.schritt, w)}: ${ein.schritt.url}` : "", "", gruss]
+  const text = [ein.anrede, "", ...absaetze, "", ein.schritt?.url ? `${knopf(ein.schritt)}: ${ein.schritt.url}` : "", "", gruss]
     .filter((z, i, a) => !(z === "" && a[i - 1] === "")).join("\n");
   return { text, html };
 }

@@ -47,12 +47,14 @@ const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
 // E-260 (29.09.2026): Maras Termine — der vierte Reiter, erst beim Öffnen geladen.
 const MaraTermine = lazy(() => import("./ChefMaraTermine"));
 
-interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null }
+interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null; rundeSeit?: string | null }
 interface Stand {
   einstellungen: Einstellungen;
   zaehler: { letzteStunde: number; heute: number; tagesDeckel: number; kostenHeuteEuro: number };
   zahlen: { gesendet: number; menschen: number; antworten: number; gemeldet: number; bezahlt: number; bezahltEuro?: number; abgelehnt: number; fehler: number; ausgeschlossen: number; postfach?: { heute_rein?: number; heute_beantwortet?: number; entwuerfe?: number } };
   kosten: { heuteEuro: number; wocheEuro: number };
+  /** E-276 (02.10.2026): die Runde für alle offenen Erstzahler — null ohne Runde. */
+  runde?: { seit: string; bis: string; geschrieben: number; ausgelassen: number; offen: number } | null;
   schlange: { personId: number; ref: string; stufe: "A" | "B"; schritt: number; name: string; paket: string | null; betragEuro: number | null; wunschlimit: number | null; ereignisAm: string; zuletztAm: string | null }[];
 }
 interface Mail {
@@ -462,6 +464,22 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
             </div>
           </div>
           <Meldung m={meldung} ort="status" onZu={zu} />
+          {/* E-276 (02.10.2026): die RUNDE — Justin: „ALLE Mails dafür müssen noch heute raus gehen, wirklich alle die eine
+              Zahlung offen haben (nicht die gesperrten)“. Einmal je Mensch der Stufen A/B, ohne Takt; alle Sperren bleiben. */}
+          <div className="mara-hinweise" data-mara-runde={s.runde ? "an" : "aus"}>
+            <p className="mara-hinweis">
+              <span>
+                {s.runde
+                  ? <>Runde seit {uhrBerlin(s.runde.seit)} — {oderWort(s.runde.geschrieben, "noch keiner")} geschrieben, {oderWort(s.runde.offen, "keiner")} offen{s.runde.ausgelassen ? `, ${zahl(s.runde.ausgelassen)} ausgelassen (Sperre, ungebuchter Eingang, Prüfung)` : ""} · endet {tagZeitBerlin(s.runde.bis)} von selbst, das Tempo setzt der Takt ({rate} je Stunde). </>
+                  : <>Keine Runde. Eine Runde schreibt jedem mit offener erster Zahlung (A und B) einmal — ohne Takt, alle Sperren bleiben. </>}
+                <button type="button" className="mara-knopf text"
+                  onClick={() => {
+                    if (!s.runde && !window.confirm("Runde starten: Mara schreibt jedem mit offener erster Zahlung (A und B) einmal — im Tempo des Takts, ohne die Pausen des Takts. Gesperrte, „Stopp“ und ungebuchte Eingänge bleiben draußen. Weiter?")) return;
+                    void setzen("mara_aktion_runde_seit", s.runde ? "aus" : "jetzt", s.runde ? "Runde beendet — es gilt wieder der Takt." : "Runde läuft — die Mails gehen im Takt raus.", "status");
+                  }}>{s.runde ? "Runde beenden" : "Runde jetzt starten"}</button>
+              </span>
+            </p>
+          </div>
           {!e.an && (
             <div className="mara-hinweise">
               <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Die Aktion ist pausiert. Antworten im Postfach laufen weiter.</span></p>

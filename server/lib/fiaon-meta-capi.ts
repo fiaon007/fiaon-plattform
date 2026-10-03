@@ -111,6 +111,19 @@ function ereignisZeit(zeit?: Date | string | null): number {
   return Number.isFinite(t) && t <= jetzt && jetzt - t < 6 * 86_400 ? t : jetzt;
 }
 
+/**
+ * E-279 (03.10.2026, Meta-Prüfung): Die Kaufzeit ist der Eingangstag um 12:00 UTC — bei 16 % der Zahlungen lag sie
+ * VOR dem Antrag bzw. Klick, und Meta kann einen Kauf vor dem Klick keiner Anzeige zuordnen. Deshalb nie früher als der
+ * letzte Messsatz (Klick/Antrag) dieses Menschen; nie in der Zukunft, nie älter als 6 Tage (ereignisZeit). Rein.
+ */
+export function kaufZeit(zeit?: Date | string | null, messAm?: Date | string | null): number {
+  const t = ereignisZeit(zeit);
+  if (!messAm) return t;
+  const jetzt = Math.floor(Date.now() / 1000);
+  const m = Math.floor(new Date(messAm).getTime() / 1000);
+  return Number.isFinite(m) && m > t && m <= jetzt ? m : t;
+}
+
 let bereit = false;
 export async function capiTabellen(lauf: Lauf = sqlPool): Promise<void> {
   if (bereit) return;
@@ -320,7 +333,7 @@ export async function webEreignis(
            first_name, last_name, zip, city, country, person_id, pack_key, pack_name, amount_due, type
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
   let [mess] = (await lauf`
-    SELECT fbp, fbc, (einwilligung AND COALESCE(fassung, 1) >= ${META_FASSUNG_AB}) AS einwilligung, ip, ua, seite
+    SELECT fbp, fbc, (einwilligung AND COALESCE(fassung, 1) >= ${META_FASSUNG_AB}) AS einwilligung, ip, ua, seite, updated_at AS mess_am
       FROM fiaon_meta_messung WHERE ref = ${ref}`) as any[];
   // E-239: Eine Auskunft aus dem Kundenbereich (FIAON-SCHUFA-…) oder eine
   // Bestellung, die der Betreuer angelegt hat, hat keinen eigenen Messsatz — der
@@ -328,7 +341,7 @@ export async function webEreignis(
   // MIT Einwilligung. Ohne einen solchen: nichts (wie bisher).
   if (!mess?.einwilligung && a?.person_id) {
     [mess] = (await lauf`
-      SELECT m.fbp, m.fbc, m.einwilligung, m.ip, m.ua, m.seite FROM fiaon_meta_messung m
+      SELECT m.fbp, m.fbc, m.einwilligung, m.ip, m.ua, m.seite, m.updated_at AS mess_am FROM fiaon_meta_messung m
        WHERE m.einwilligung AND COALESCE(m.fassung, 1) >= ${META_FASSUNG_AB}
          AND (m.person_id = ${a.person_id} OR m.ref IN (SELECT ref FROM fiaon_applications WHERE person_id = ${a.person_id}))
        ORDER BY m.updated_at DESC LIMIT 1`) as any[];
@@ -352,6 +365,10 @@ export async function webEreignis(
   setz("ct", hashFeld("ct", m.city));
   // Das Land nur, wenn ein Antrag es kennt — für ein Gespräch ohne Antrag wäre „de" geraten.
   if (m.antrag_ref) setz("country", hashFeld("country", m.country === "AT" ? "at" : m.country === "CH" ? "ch" : m.country || "de"));
+  // E-279 (03.10.2026, Meta-Prüfung): external_id fehlte in allen Ereignissen — dieselbe Person (Antrag begonnen,
+  // Antrag angenommen, Kauf) war für Meta nur über Mail/Telefon verknüpft. Gehasht wie die übrigen Kennungen.
+  const extern = m.person_id != null ? `fiaon-person-${m.person_id}` : `fiaon-ref-${ref}`;
+  nutzer.external_id = [sha(extern)];
   if (m.fbp) nutzer.fbp = m.fbp;
   if (m.fbc) nutzer.fbc = m.fbc;
   if (m.ip) nutzer.client_ip_address = m.ip;
@@ -365,7 +382,7 @@ export async function webEreignis(
   const paketName = produkt === META_PRODUKT.auskunft ? "FIAON Auskunft" : (opts.paket ?? m.pack_name ?? null);
   const nutzlast = {
     event_name: name,
-    event_time: ereignisZeit(opts.zeit),
+    event_time: istKauf ? kaufZeit(opts.zeit, m.mess_am) : ereignisZeit(opts.zeit),
     event_id: ereignisId(name, ref),
     action_source: "website",
     ...(m.seite ? { event_source_url: `https://fiaon.com${m.seite}` } : {}),

@@ -32,6 +32,11 @@ werden OPENAI wechseln“ und „mach es fix und fertig“.
 `server/lib/fiaon-postmeister-agent.ts` (kiAufruf), `server/lib/fiaon-postmeister-schema.ts` (Kosten).
 Prüfstand `scripts/pruef-ki-claude.ts` (80/80).
 
+**Nachtrag 03.10. — Meta-Messung (Prüfung des Pixels und der Conversions API):** Der Kauf ging mit dem Eingangstag 12:00 UTC
+an Meta — bei 16 % der Zahlungen VOR dem Klick, so kann Meta ihn keiner Anzeige zuordnen. Jetzt nie früher als der letzte
+Messsatz (`kaufZeit` in `server/lib/fiaon-meta-capi.ts`). Dazu geht jetzt eine gehashte Personen-Kennung (`external_id`) mit
+jedem Ereignis — Antrag begonnen, angenommen und Kauf derselben Person sind für Meta verknüpft.
+
 ## 03.10.2026 — Bankbuch: Altlast-Sperre repariert, Storno zurücknehmen und Doppelzahlung mit heutigem Datum verrechnen (E-278)
 
 **Der Anlass:** Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“ — vorher freigegeben:

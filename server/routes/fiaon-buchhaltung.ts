@@ -373,6 +373,12 @@ router.get("/buchhaltung/nachholen", requireBuch(), async (req: Request, res: Re
 const zielAusBody = (b: any): string | null => (typeof b?.ziel === "string" && b.ziel.trim() ? b.ziel.trim().slice(0, 40) : null);
 const dazuAusBody = (b: any): number[] =>
   (Array.isArray(b?.dazu) ? b.dazu : []).map((x: unknown) => bankId(x)).filter((n: number | null): n is number => !!n).slice(0, 3);
+// E-278 (03.10.2026), Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“ —
+// zwei Haken bei „Anderes Ziel …“: Storno zurücknehmen (Kündigungs-/Kulanz-Storno bzw. stornierte
+// Bestellung) und mit heutigem Datum verrechnen (Doppelzahlung an der Rückwärtssperre). Nur ein
+// ausdrückliches true zählt; gebucht wird damit nur vom Inhaber (Routen unten).
+const optionenAusBody = (b: any): { stornoZuruecknehmen: boolean; verrechnungHeute: boolean } =>
+  ({ stornoZuruecknehmen: b?.stornoZuruecknehmen === true, verrechnungHeute: b?.verrechnungHeute === true });
 
 /** Die Trockenprobe zu EINEM Eingang — für die Schublade und die Dialoge. Schreibt nichts. */
 router.post("/buchhaltung/nachholen/:uid/trocken", requireBuch(), async (req: Request, res: Response) => {
@@ -384,7 +390,7 @@ router.post("/buchhaltung/nachholen/:uid/trocken", requireBuch(), async (req: Re
     const dazu = dazuAusBody(req.body);
     const a = String(req.body?.modus) === "zuordnen"
       ? await nach.zuordnenPruefen(id, ziel)
-      : await nach.bankeingangTrockenprobe(id, { ziel, dazu, mitVorschlag: !ziel && !dazu.length });
+      : await nach.bankeingangTrockenprobe(id, { ziel, dazu, mitVorschlag: !ziel && !dazu.length, ...optionenAusBody(req.body) });
     res.status(a.ok ? 200 : a.status).json(a.ok ? { ok: true, zeile: a.zeile } : { ok: false, error: a.error, zeile: a.zeile ?? null });
   } catch (err) { fehler(res, "nachholen/trocken")(err); }
 });
@@ -395,15 +401,17 @@ router.post("/buchhaltung/nachholen/:uid/buchen", requireBuch("inhaber"), async 
     const id = bankId(req.params.uid);
     if (!id) return res.status(400).json({ ok: false, error: "Das ist kein Bankeingang." });
     const { bankeingangBuchen } = await import("../lib/fiaon-bank-nachholen");
+    const opt = optionenAusBody(req.body);
     const a = await bankeingangBuchen(id, {
-      wer: `Bankbuch ${req.buch!.email}`, erwartet: req.body?.erwartet ?? null, ziel: zielAusBody(req.body), dazu: dazuAusBody(req.body),
+      wer: `Bankbuch ${req.buch!.email}`, erwartet: req.body?.erwartet ?? null, ziel: zielAusBody(req.body), dazu: dazuAusBody(req.body), ...opt,
     });
     const z = a.zeile;
+    const optText = `${opt.stornoZuruecknehmen ? " [Storno zurück]" : ""}${opt.verrechnungHeute ? " [heute verrechnet]" : ""}`;
     buchProtokoll(req.buch!.email, a.ok && a.ergebnis?.gebucht ? "Bankeingang gebucht" : "Bankeingang NICHT gebucht",
       z ? `bank:${z.id}` : `bank:${id}`,
-      z ? `${geldText(z.summeCents ?? z.betragCents)} ${z.zielVomMenschen ? `Ziel ${z.zielVomMenschen}` : z.zweckRef ?? ""}${z.dazu?.length ? ` + Sammel ${z.dazu.map((d) => `#${d}`).join(",")}` : ""} → ${z.regel ?? "—"} ${z.ziel ?? ""}: ${a.ok ? a.ergebnis?.grund : a.error}`.slice(0, 300) : String(a.error ?? "").slice(0, 300));
+      z ? `${geldText(z.summeCents ?? z.betragCents)} ${z.zielVomMenschen ? `Ziel ${z.zielVomMenschen}` : z.zweckRef ?? ""}${z.dazu?.length ? ` + Sammel ${z.dazu.map((d) => `#${d}`).join(",")}` : ""}${optText} → ${z.regel ?? "—"} ${z.ziel ?? ""}: ${a.ok ? a.ergebnis?.grund : a.error}`.slice(0, 300) : String(a.error ?? "").slice(0, 300));
     if (!a.ok) return res.status(a.status).json({ ok: false, error: a.error, zeile: z ?? null });
-    res.json({ ok: true, zeile: z, ergebnis: a.ergebnis, aufgabe: a.aufgabe ?? null });
+    res.json({ ok: true, zeile: z, ergebnis: a.ergebnis, aufgabe: a.aufgabe ?? null, aufgabenErledigt: a.aufgabenErledigt ?? 0 });
   } catch (err) { fehler(res, "nachholen/buchen")(err); }
 });
 
@@ -446,13 +454,14 @@ router.post("/buchhaltung/nachholen/:uid/aufgabe", requireBuch("inhaber"), async
  */
 router.post("/buchhaltung/nachholen/alle-buchen", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
   try {
-    type Schritt = { id: number; modus: "buchen" | "zuordnen"; ziel: string | null; dazu: number[]; erwartet: any };
+    type Schritt = { id: number; modus: "buchen" | "zuordnen"; ziel: string | null; dazu: number[]; erwartet: any; stornoZuruecknehmen: boolean; verrechnungHeute: boolean };
     const auftraege: Schritt[] = Array.isArray(req.body?.auftraege)
       ? req.body.auftraege.map((x: any): Schritt => ({
         id: bankId(x?.id) ?? 0, modus: x?.modus === "zuordnen" ? "zuordnen" : "buchen", ziel: zielAusBody(x), dazu: dazuAusBody(x), erwartet: x?.erwartet ?? null,
+        ...optionenAusBody(x),
       })).filter((x: Schritt) => x.id > 0)
       : (Array.isArray(req.body?.ids) ? req.body.ids : []).map((x: unknown) => bankId(x)).filter((n: number | null): n is number => !!n)
-        .map((id: number): Schritt => ({ id, modus: "buchen", ziel: null, dazu: [], erwartet: null }));
+        .map((id: number): Schritt => ({ id, modus: "buchen", ziel: null, dazu: [], erwartet: null, stornoZuruecknehmen: false, verrechnungHeute: false }));
     if (!auftraege.length) return res.status(400).json({ ok: false, error: "Keine Eingänge angegeben." });
     if (auftraege.length > 100) return res.status(400).json({ ok: false, error: "Höchstens 100 auf einmal." });
     if (auftraege.some((x) => x.modus === "zuordnen" && !x.ziel)) return res.status(400).json({ ok: false, error: "„Nur zuordnen“ braucht ein Ziel." });
@@ -470,7 +479,7 @@ router.post("/buchhaltung/nachholen/alle-buchen", requireBuch("inhaber"), async 
         const a = await bankeingangZuordnen(x.id, { ziel: x.ziel, wer, erwartet: x.erwartet });
         ok = a.ok; grund = a.ok ? "nur zugeordnet" : String(a.error ?? ""); ziel = a.zeile?.ziel ?? x.ziel; betrag = a.zeile?.betragCents ?? 0;
       } else {
-        const a = await bankeingangBuchen(x.id, { wer, ziel: x.ziel, dazu: x.dazu, erwartet: x.erwartet });
+        const a = await bankeingangBuchen(x.id, { wer, ziel: x.ziel, dazu: x.dazu, erwartet: x.erwartet, stornoZuruecknehmen: x.stornoZuruecknehmen, verrechnungHeute: x.verrechnungHeute });
         ok = !!(a.ok && a.ergebnis?.gebucht); grund = a.ok ? String(a.ergebnis?.grund ?? "") : String(a.error ?? "");
         ziel = a.zeile?.ziel ?? null; aufgabe = a.aufgabe ?? null; betrag = a.zeile?.summeCents ?? a.zeile?.betragCents ?? 0;
       }

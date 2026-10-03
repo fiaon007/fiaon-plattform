@@ -233,6 +233,15 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
 //   `notizZusatz` — E-277: weitere Eingänge einer Sammelzahlung („Bankeingang
 //     AWX-… (Sammelzahlung)"); steht in der Ratennotiz, damit die Sperre „schon
 //     verbraucht" auch diese Eingänge kennt.
+//   `stornoAlsOffen` — E-278 (03.10.2026), Justin: „Konchenko-Sperre im Code
+//     reparieren und dann buchen mach ALLE fertig“. NUR in der Trockenprobe: Eine
+//     per Kündigung oder Kulanz stornierte Rate (storno_grund 'kuendigung' bzw.
+//     'kuendigung_kulanz') bzw. eine stornierte Bestellung (payment_status
+//     'cancelled') zählt, als wäre der Storno schon zurückgenommen — so rechnet die
+//     Vorschau vor, was nach „Storno zurücknehmen“ gebucht würde. Scharf wirkt die
+//     Option NIE: Dort nimmt server/lib/fiaon-bank-nachholen.ts den Storno erst
+//     zurück und ruft diesen Weg dann ohne sie — eine noch stornierte Rate oder
+//     Bestellung wird hier also nie gebucht.
 // ═══════════════════════════════════════════════════════════════════════════
 export interface VerbuchenErgebnis {
   gebucht: boolean;
@@ -251,9 +260,11 @@ export interface VerbuchenErgebnis {
 
 export async function liveVerbuchen(
   txnId: string, ref: string | null, cents: number, datum: string,
-  opts: { trocken?: boolean; ueberzahlungBisCents?: number; anlass?: string; zielVomMenschen?: boolean; notizZusatz?: string | null } = {},
+  opts: { trocken?: boolean; ueberzahlungBisCents?: number; anlass?: string; zielVomMenschen?: boolean; notizZusatz?: string | null; stornoAlsOffen?: boolean } = {},
 ): Promise<VerbuchenErgebnis> {
   const wer = opts.anlass || "Wise-Automatik";
+  // E-278: nur in der Trockenprobe und nur mit einem vom Menschen bestätigten Ziel.
+  const stornoAlsOffen = !!(opts.trocken && opts.zielVomMenschen && opts.stornoAlsOffen);
   const zusatz = opts.notizZusatz ? ` · ${String(opts.notizZusatz).slice(0, 600)}` : "";
   const toleranzCents = Math.max(0, Math.min(100, Math.floor(Number(opts.ueberzahlungBisCents) || 0)));
   const vermerk = async (note: string, applied = false, zielBestellung: string | null = null) => {
@@ -293,11 +304,19 @@ export async function liveVerbuchen(
 
     // ── Monatsrate: FIAON-XXXXXX-N, seit 08.08. auch FIAONXXXXXX-N ─────────
     if (RATEN_MUSTER.test(ref)) {
-      const raten = (await sqlPool`
+      let raten = (await sqlPool`
         SELECT id, ref, rate_nr, zahlungsreferenz, betrag_cents, status FROM fiaon_abo_raten
         WHERE UPPER(REGEXP_REPLACE(zahlungsreferenz, '[^A-Za-z0-9]', '', 'g')) = ${refVergleichsform(ref)}
           AND storniert_am IS NULL
       `) as any[];
+      if (raten.length === 0 && stornoAlsOffen) {
+        // E-278: Vorschau „Storno zurücknehmen“ — die stornierte Rate zählt wie eine offene.
+        raten = (await sqlPool`
+          SELECT id, ref, rate_nr, zahlungsreferenz, betrag_cents, 'offen' AS status FROM fiaon_abo_raten
+          WHERE UPPER(REGEXP_REPLACE(zahlungsreferenz, '[^A-Za-z0-9]', '', 'g')) = ${refVergleichsform(ref)}
+            AND status = 'storniert' AND storno_grund IN ('kuendigung', 'kuendigung_kulanz') AND bezahlt_am IS NULL
+        `) as any[];
+      }
       if (raten.length !== 1) return { gebucht: false, grund: "Rate nicht eindeutig", regel: "rate" };
       const rateRef = String(raten[0].zahlungsreferenz);
       const basis = { regel: "rate" as const, ziel: rateRef, bestellung: String(raten[0].ref), rateId: Number(raten[0].id), rateNr: Number(raten[0].rate_nr) };
@@ -378,6 +397,8 @@ export async function liveVerbuchen(
     // E-277: „abgelaufen" heißt nur, das Zahlungsfenster ist zu — hat ein Mensch das Ziel
     // bestätigt, wird die Bestellung mit dem Geld bezahlt (Fall Antonic, FIAON-BT655W).
     const offeneStati = opts.zielVomMenschen ? ["pending_payment", "claimed_paid", "expired"] : ["pending_payment", "claimed_paid"];
+    // E-278: Vorschau „Storno zurücknehmen“ — die stornierte Bestellung zählt wie eine offene.
+    if (stornoAlsOffen) offeneStati.push("cancelled");
     if (!offeneStati.includes(String(app.payment_status))) {
       await vermerk(`${wer}: Bestellung ${bestellRef} steht auf '${app.payment_status}' — nichts automatisch gebucht, bitte von Hand zuordnen (Rate? Doppelzahlung?).`);
       return { gebucht: false, grund: `Status ${app.payment_status}`, ...basis };
@@ -628,6 +649,10 @@ router.post("/admin/wise/einlesen", async (req: Request, res: Response) => {
 // (Sammelzahlung: weitere fiaon_bank_txns.id) und `modus`: "zuordnen" („Nur zuordnen" — Geld
 // schon auf anderem Weg gebucht, keine zweite Buchung) bzw. "aufgabe" (Teil-/Über-/Rückzahlung).
 // Trocken bleibt die Vorgabe; dieselben Funktionen wie im Bankbuch.
+// E-278 (03.10.2026), Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“ —
+// dazu `stornoZuruecknehmen` (Kündigungs-/Kulanz-Storno der Zielrate bzw. stornierte Bestellung erst
+// zurücknehmen, dann buchen) und `verrechnungHeute` (Doppelzahlung an der Rückwärtssperre mit dem
+// heutigen Datum verrechnen). Beide nur mit `ziel`, nur als ausdrückliches true, Vorgabe aus.
 router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: Response) => {
   const id = Number(req.body?.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "id fehlt (fiaon_bank_txns.id)." });
@@ -637,6 +662,10 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
   const ziel = typeof req.body?.ziel === "string" && req.body.ziel.trim() ? String(req.body.ziel).trim().slice(0, 40) : null;
   const dazu = (Array.isArray(req.body?.dazu) ? req.body.dazu : []).map(Number).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 3);
   const modus = ["zuordnen", "aufgabe"].includes(String(req.body?.modus)) ? String(req.body.modus) : "buchen";
+  const stornoZuruecknehmen = req.body?.stornoZuruecknehmen === true;
+  const verrechnungHeute = req.body?.verrechnungHeute === true;
+  // Wer freigegeben hat — steht in den Vermerken („Justin 03.10.2026“); Vorgabe „Justin“.
+  const freigabe = typeof req.body?.freigabe === "string" && req.body.freigabe.trim() ? String(req.body.freigabe).trim().slice(0, 60) : null;
   try {
     const nach = await import("../lib/fiaon-bank-nachholen");
     const { bankeingangTrockenprobe, bankeingangBuchen } = nach;
@@ -650,8 +679,8 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
       return res.json({ ok: true, id, trocken, modus, zeile: b.zeile ?? null, aufgabe: (b as any).aufgabe ?? null });
     }
     const a = trocken
-      ? await bankeingangTrockenprobe(id, { ueberzahlungBisCents, ziel, dazu, mitVorschlag: !ziel && !dazu.length })
-      : await bankeingangBuchen(id, { ueberzahlungBisCents, wer, erwartet: req.body?.erwartet ?? null, ziel, dazu });
+      ? await bankeingangTrockenprobe(id, { ueberzahlungBisCents, ziel, dazu, mitVorschlag: !ziel && !dazu.length, stornoZuruecknehmen, verrechnungHeute, freigabe })
+      : await bankeingangBuchen(id, { ueberzahlungBisCents, wer, erwartet: req.body?.erwartet ?? null, ziel, dazu, stornoZuruecknehmen, verrechnungHeute, freigabe });
     const z = a.zeile;
     // Kopf wie bisher (das Skript liest ihn), dazu die ganze Zeile der Trockenprobe.
     const kopf = z ? { id: z.id, txnId: z.txnId, betragCents: z.betragCents, datum: z.datum, referenz: z.zweckRef, trocken } : { id, trocken };
@@ -659,7 +688,7 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
     const ergebnis = trocken
       ? { gebucht: false, grund: z!.ergebnis, regel: z!.regel ?? undefined, ziel: z!.ziel ?? undefined, bestellung: z!.bestellung ?? undefined, rateId: z!.rateId ?? undefined, rateNr: z!.rateNr ?? undefined }
       : (a as any).ergebnis;
-    res.json({ ok: true, ...kopf, ergebnis, bankbuch: (a as any).bankbuch ?? null, zeile: z ?? null, aufgabe: (a as any).aufgabe ?? null });
+    res.json({ ok: true, ...kopf, ergebnis, bankbuch: (a as any).bankbuch ?? null, zeile: z ?? null, aufgabe: (a as any).aufgabe ?? null, aufgabenErledigt: (a as any).aufgabenErledigt ?? 0 });
   } catch (e: any) {
     console.error("[BANK-NACHHOLEN]", e?.message || e);
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });

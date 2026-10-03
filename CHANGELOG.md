@@ -5,6 +5,47 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 03.10.2026 — Bankbuch: Altlast-Sperre repariert, Storno zurücknehmen und Doppelzahlung mit heutigem Datum verrechnen (E-278)
+
+**Der Anlass:** Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“ — vorher freigegeben:
+Doppelzahlungen als Vorauszahlung der nächsten Rate verrechnen, Robiban reaktivieren und buchen, Körner/Condescu
+„gutschreiben“ (die Zahlung auf eine per Kulanz stornierte Rate behalten). Fünf Eingänge blieben nach E-277 liegen:
+Konchenko (7,99 €) scheiterte an der Datenbank („duplicate key“), Schlebusch (59,99 €, doppelte Startzahlung) an der
+Rückwärtssperre, Robiban (100,00 €) an der stornierten Bestellung, Körner (7,99 €) und Condescu (8,00 €) an der per
+Kulanz stornierten Rate.
+
+**Was jetzt gilt:**
+- **Altlast-Nummern sperren keine Buchung mehr.** Rate 5 von Konchenko trug aus der Korrektur vom 27.08. noch
+  „Bankeingang TRANSFER-… · Rueckbuchung …“ — dieselbe Nummer steht in der bezahlten Rate 4, und der Schutz „ein Eingang,
+  eine Rate“ (Datenbank-Index) hielt das für eine Doppelbuchung. Beim Buchen einer Rate wird jetzt jede alte Wise-Nummer
+  in ihrer Notiz entschärft („Wise-Eingang … (gehört zu einer anderen Rate)“), die schon in einer ANDEREN bezahlten Rate
+  steht — oder die die Notiz selbst per „Rueckbuchung …“ widerlegt (127 offene Raten tragen so einen Vermerk, z. B.
+  Körner; sonst beanspruchte die bezahlte Rate danach einen Eingang, der ihr nie gehörte). Der Index bleibt unverändert:
+  Eine echte Doppelbuchung (dieselbe Nummer im neuen Vermerk) scheitert weiter.
+- **„Storno zurücknehmen“** (Haken bei „Anderes Ziel …“, nur Inhaber): Ist das Ziel eine Rate, die bei einer Kündigung
+  storniert wurde (Grund „kuendigung“ oder „kuendigung_kulanz“), wird sie wieder offen — mit Vermerk „Storno (…)
+  zurückgenommen: Zahlung … am … eingegangen — Justin …“ — und über den einen Weg gebucht. Der Vertrag bleibt gekündigt.
+  Ist das Ziel eine stornierte Bestellung ohne bezahlte Rate, wird sie reaktiviert: Kündigung zurück, Zahlungsstatus
+  offen, gesperrtes Konto wird mit der Buchung aktiv, danach die Vertriebssperre der Person aufgehoben (derselbe Baustein
+  wie die Verwaltung, mit Vermerk; das Sperr-Protokoll schreibt mit). Scheitert die Buchung, wird der Storno genau
+  wiederhergestellt. Stornos aus Erstattung, Dublette oder Abo-Stopp bleiben unangetastet.
+- **„Mit heutigem Datum verrechnen“** (zweiter Haken): Eine Doppel- oder Vorauszahlung, die an der Rückwärtssperre
+  scheitert (die Vorgängerrate wurde später bezahlt, als das Geld kam), wird als Zahlung der gewählten Rate mit dem
+  heutigen Datum gebucht — Vermerk „Eingang vom … (Doppelzahlung) am … mit Rate … verrechnet — Justin …“ in Rate,
+  Bankbuch und Akte. Nur für Raten, und nur wenn die Sperre wirklich greift; sonst sagt die Probe „Nicht nötig“.
+- **Die Trockenprobe sagt die Rückwärtssperre vorher** (Hinweis statt Überraschung beim Klick).
+- **Nach jeder Buchung schließt das Bankbuch die offenen Aufgaben dieses Eingangs** (Teil-, Über-, Rückzahlung) — damit
+  niemand erstattet, was gerade gebucht wurde.
+- Ohne Haken bleibt alles wie bisher.
+
+**Wo:** `server/routes/fiaon-abo.ts` (`rateBezahltBuchen`, `fremdeWiseNummernEntschaerfen`), `server/lib/fiaon-bank-nachholen.ts`
+(Optionen `stornoZuruecknehmen`/`verrechnungHeute`, `stornoLageLesen`), `server/routes/fiaon-wise.ts` (`liveVerbuchen`:
+`stornoAlsOffen` nur in der Trockenprobe; Admin-Route mit beiden Optionen), `server/routes/fiaon-buchhaltung.ts`
+(Bankbuch-Routen), `server/routes/fiaon-kunden.ts` (`vertriebssperreAendern`, von der Verwaltungs-Route und vom Bankbuch
+benutzt), `client/src/pages/banking/umsaetze.tsx` (zwei Haken im Dialog „Anderes Ziel“). Prüfstand
+`scripts/pruef-bank-nachholen-ziel.ts` (139 Prüfungen, davon 60 neu für E-278, lokale Kopie), Regression
+`scripts/pruef-bank-regel-b.ts` und `scripts/pruef-raten-storno.ts` grün.
+
 ## 02.10.2026 — Mara-Aktion verkauft selbst + Runde für alle offenen Erstzahler (E-276)
 
 **Der Anlass:** Justin: „ja, bau die Mara-Aktion genauso um“ (wie E-275: selbst verkaufen, eher übermotiviert, seriös)

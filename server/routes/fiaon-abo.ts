@@ -1604,16 +1604,35 @@ export async function rateBezahltBuchen(opts: {
 
   const vermerk = opts.notiz ?? null;
 
+  // ── E-278 (03.10.2026): ALTLAST-NUMMERN IN DER NOTIZ ENTSCHÄRFEN ──────────
+  // Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“
+  // Rate 5 von Konchenko trug aus der Korrektur vom 27.08. noch „Bankeingang
+  // TRANSFER-2321070942 · Rueckbuchung …“ — dieselbe Nummer steht in der BEZAHLTEN
+  // Rate 4. Der Index fiaon_raten_ein_eingang_eine_rate liest die erste
+  // TRANSFER-Nummer der Notiz; beim Setzen auf „bezahlt“ sah er also eine
+  // Doppelbuchung, die keine war, und jede Buchung dieser Rate scheiterte.
+  // Jetzt wird jede Nummer der BESTEHENDEN Notiz, die schon in einer anderen
+  // bezahlten Rate steht, vorher entschärft („Wise-Eingang <n> (gehört zu einer
+  // anderen Rate)“). Der Index bleibt, wie er ist; eine echte Doppelbuchung —
+  // dieselbe Nummer im NEUEN Vermerk — scheitert weiter an ihm.
+  const altNotiz = rate.notiz == null ? null : String(rate.notiz);
+  const entschaerft = await fremdeWiseNummernEntschaerfen(opts.rateId, altNotiz);
+  const basisNeu = entschaerft.nummern.length ? entschaerft.notiz : null;
+
   const geaendert = await sqlPool`
     UPDATE fiaon_abo_raten
     SET status = 'bezahlt', bezahlt_am = ${`${zahlungsdatum}T12:00:00Z`},
         quelle = ${opts.quelle === "admin" ? rate.quelle : opts.quelle},
-        notiz = CASE WHEN ${vermerk}::text IS NULL THEN notiz
-                     ELSE CONCAT_WS(' · ', NULLIF(notiz, ''), ${vermerk}::text) END,
+        notiz = CASE WHEN ${vermerk}::text IS NULL
+                     THEN (CASE WHEN ${basisNeu}::text IS NOT NULL AND notiz IS NOT DISTINCT FROM ${altNotiz}::text THEN ${basisNeu}::text ELSE notiz END)
+                     ELSE CONCAT_WS(' · ', NULLIF(CASE WHEN ${basisNeu}::text IS NOT NULL AND notiz IS NOT DISTINCT FROM ${altNotiz}::text THEN ${basisNeu}::text ELSE notiz END, ''), ${vermerk}::text) END,
         updated_at = NOW()
     WHERE id = ${opts.rateId} AND status <> 'bezahlt'
   `;
   if ((geaendert as any).count === 0) return { ok: true, schonBezahlt: true };
+  if (entschaerft.nummern.length) {
+    console.log(`[FIAON-ABO] Rate ${opts.rateId} (${rate.zahlungsreferenz}): alte Wise-Nummer(n) ${entschaerft.nummern.join(", ")} in der Notiz entschärft — gehören zu einer anderen bezahlten Rate (E-278).`);
+  }
 
   // Die nächste Rate rechnet ab dem Zahlungsdatum — nicht ab der bisherigen
   // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
@@ -1692,10 +1711,58 @@ export async function rateBezahltBuchen(opts: {
   await sqlPool`
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
     VALUES (${rate.ref}, NULL, 'System', 'system',
-            ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) ${quelleText} — Zahlungseingang ${zahlungsdatum}${opts.notiz ? ` (${opts.notiz})` : ""}`})
+            ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) ${quelleText} — Zahlungseingang ${zahlungsdatum}${opts.notiz ? ` (${opts.notiz})` : ""}`
+              + (entschaerft.nummern.length ? ` Alte Wise-Nummer(n) ${entschaerft.nummern.join(", ")} in der Ratennotiz entschärft — sie gehören zu einer anderen bezahlten Rate.` : "")})
   `.catch(() => {});
   const { tag: anker } = await aboAnker(rate.ref);
   return { ok: true, naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker, zahlungsdatum) : null };
+}
+
+/**
+ * E-278 (03.10.2026) — Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“
+ *
+ * Welche „TRANSFER-<n>“-Nummern der Notiz einer Rate gehören NICHT zu ihr?
+ *   1. Die Nummer steht schon in einer ANDEREN bezahlten Rate (Fall Konchenko).
+ *   2. Die Notiz widerlegt sie selbst: Auf JEDE Nennung folgt ein Rückbuchungs-Vermerk
+ *      („Bankeingang TRANSFER-… · Rueckbuchung 27.08.2026: Der Bankeingang war bereits für
+ *      die Paketzahlung verbraucht …“ — dieselbe Regel wie belegeAusNotiz in
+ *      server/lib/fiaon-bank-nachholen.ts). Am 03.10. trugen 127 offene Raten so einen
+ *      Vermerk (Fall Körner). Bliebe die Nummer stehen, beanspruchte die gerade bezahlte
+ *      Rate über den Index einen Eingang, der ihr nie gehörte — die nächste Konchenko-Sperre.
+ * Sie werden ersetzt durch „Wise-Eingang <n> (gehört zu einer anderen Rate)“ — mit dem
+ * davorstehenden Wort „Bankeingang“, damit auch Regel B und die Deckungsrechnung sie nicht
+ * mehr als Beleg dieser Rate lesen. Alle übrigen Nummern bleiben unangetastet. Schreibt
+ * nichts; rateBezahltBuchen setzt das Ergebnis im selben UPDATE, das die Rate auf
+ * „bezahlt“ stellt.
+ */
+export async function fremdeWiseNummernEntschaerfen(rateId: number, notiz: string | null): Promise<{ notiz: string | null; nummern: string[] }> {
+  const text = notiz == null ? null : String(notiz);
+  if (!text || !/TRANSFER-[0-9]/.test(text)) return { notiz: text, nummern: [] };
+  const alle = Array.from(new Set(Array.from(text.matchAll(/TRANSFER-([0-9]+)/g), (m) => m[1])));
+  // Nennungen je Nummer: widerlegt (das nächste Notizstück ist eine Rückbuchung) oder nicht.
+  const stuecke = text.split(/\s·\s/);
+  const widerlegt = new Map<string, boolean>();
+  stuecke.forEach((st, i) => {
+    const rueck = /^R(ue|ü)ckbuchung/i.test(String(stuecke[i + 1] ?? "").trim());
+    for (const m of Array.from(st.matchAll(/TRANSFER-([0-9]+)/g))) widerlegt.set(m[1], (widerlegt.get(m[1]) ?? true) && rueck);
+  });
+  const fremd: string[] = [];
+  for (const n of alle) {
+    if (widerlegt.get(n) === true) { fremd.push(n); continue; }
+    // Ganze Nummer, nicht nur ihr Anfang: TRANSFER-232 darf TRANSFER-2321070942 nicht treffen.
+    const [da] = (await sqlPool`
+      SELECT 1 AS da FROM fiaon_abo_raten
+       WHERE id <> ${rateId} AND status = 'bezahlt' AND notiz ~ ${`TRANSFER-${n}([^0-9]|$)`}
+       LIMIT 1
+    `) as any[];
+    if (da) fremd.push(n);
+  }
+  if (!fremd.length) return { notiz: text, nummern: [] };
+  let neu = text;
+  for (const n of fremd) {
+    neu = neu.replace(new RegExp(`(?:Bankeingang\\s+)?TRANSFER-${n}(?![0-9])`, "g"), `Wise-Eingang ${n} (gehört zu einer anderen Rate)`);
+  }
+  return { notiz: neu, nummern: fremd };
 }
 
 /**

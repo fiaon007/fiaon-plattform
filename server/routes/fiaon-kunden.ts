@@ -1184,29 +1184,41 @@ router.post("/admin/kunden/:ref/note", async (req: Request, res: Response) => {
 // Bestellung der Person, damit der Betreuer weiß, warum der Kunde wieder in
 // seiner Liste steht. Das Sperr-Protokoll (Trigger) schreibt ohnehin mit.
 // ═══════════════════════════════════════════════════════════════════════════
+// E-278 (03.10.2026): Die Logik steht jetzt in vertriebssperreAendern — dieselbe, die das Bankbuch
+// ruft, wenn es eine stornierte Bestellung nach einer Zahlung reaktiviert (Justin: „Konchenko-Sperre
+// im Code reparieren und dann buchen mach ALLE fertig“, Fall Robiban). Ein Weg, zwei Türen.
+export async function vertriebssperreAendern(
+  personId: number, gesperrt: boolean, grundRoh: string,
+): Promise<{ ok: true; unveraendert: boolean } | { ok: false; status: number; error: string }> {
+  const grund = String(grundRoh || "").trim().slice(0, 500);
+  const [vorher] = (await sqlPool`
+    SELECT id, is_blocked FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL
+  `) as any[];
+  if (!vorher) return { ok: false, status: 404, error: "Kunde nicht gefunden" };
+  if (Boolean(vorher.is_blocked) === gesperrt) return { ok: true, unveraendert: true };
+  await sqlPool`
+    UPDATE fiaon_persons
+    SET is_blocked = ${gesperrt}, follow_up_date = ${gesperrt ? null : sqlPool`follow_up_date`}, updated_at = NOW()
+    WHERE id = ${personId}
+  `;
+  const refs = (await sqlPool`SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL`) as any[];
+  const note = (gesperrt ? "Vertriebssperre GESETZT durch die Verwaltung" : "Vertriebssperre AUFGEHOBEN durch die Verwaltung")
+    + (grund ? ` — ${grund}` : "");
+  for (const r of refs) await auditApp(String(r.ref), note);
+  console.log(`[FIAON-KUNDEN] vertriebssperre person=${personId} ${vorher.is_blocked} → ${gesperrt}${grund ? ` (${grund})` : ""}`);
+  return { ok: true, unveraendert: false };
+}
+
 router.post("/admin/kunden/:personId/vertriebssperre", async (req: Request, res: Response) => {
   try {
     const personId = Number(req.params.personId);
     if (!Number.isFinite(personId) || personId <= 0) return res.status(400).json({ ok: false, error: "Person fehlt" });
     const gesperrt = req.body?.gesperrt === true;
-    const grund = String(req.body?.grund || "").trim().slice(0, 500);
-    const [vorher] = (await sqlPool`
-      SELECT id, is_blocked FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL
-    `) as any[];
-    if (!vorher) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-    if (Boolean(vorher.is_blocked) === gesperrt) {
+    const e = await vertriebssperreAendern(personId, gesperrt, String(req.body?.grund || ""));
+    if (!e.ok) return res.status(e.status).json({ ok: false, error: e.error });
+    if (e.unveraendert) {
       return res.json({ ok: true, unveraendert: true, meldung: gesperrt ? "Der Kunde war schon gesperrt." : "Der Kunde war nicht gesperrt." });
     }
-    await sqlPool`
-      UPDATE fiaon_persons
-      SET is_blocked = ${gesperrt}, follow_up_date = ${gesperrt ? null : sqlPool`follow_up_date`}, updated_at = NOW()
-      WHERE id = ${personId}
-    `;
-    const refs = (await sqlPool`SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL`) as any[];
-    const note = (gesperrt ? "Vertriebssperre GESETZT durch die Verwaltung" : "Vertriebssperre AUFGEHOBEN durch die Verwaltung")
-      + (grund ? ` — ${grund}` : "");
-    for (const r of refs) await auditApp(String(r.ref), note);
-    console.log(`[FIAON-KUNDEN] vertriebssperre person=${personId} ${vorher.is_blocked} → ${gesperrt}${grund ? ` (${grund})` : ""}`);
     res.json({
       ok: true,
       meldung: gesperrt

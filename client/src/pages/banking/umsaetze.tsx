@@ -195,17 +195,23 @@ function HandfallDialog({ auftrag, onZu, onFertig }: { auftrag: HandfallAuftrag 
   const [probe, setProbe] = useState<NachholZeile | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
+  // E-278 (03.10.2026), Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“ —
+  // zwei Haken für „Als Buchung prüfen“: Kündigungs-/Kulanz-Storno erst zurücknehmen, Doppelzahlung an
+  // der Rückwärtssperre mit dem heutigen Datum verrechnen. Vorgabe aus; ein Haken macht die Probe ungültig.
+  const [stornoZurueck, setStornoZurueck] = useState(false);
+  const [heuteVerrechnen, setHeuteVerrechnen] = useState(false);
   const z = auftrag?.z ?? null;
   const dazu = auftrag?.dazu ?? [];
+  const optionen = { stornoZuruecknehmen: stornoZurueck, verrechnungHeute: heuteVerrechnen };
 
-  const pruefen = useCallback(async (m: HandfallModus, zielText: string) => {
+  const pruefen = useCallback(async (m: HandfallModus, zielText: string, opt: { stornoZuruecknehmen: boolean; verrechnungHeute: boolean } = { stornoZuruecknehmen: false, verrechnungHeute: false }) => {
     if (!z) return;
     setModus(m); setProbe(null); setFehler(null);
     if (m === "aufgabe") return;
     setLaeuft(true);
     try {
       const j = await ruf<{ zeile: NachholZeile }>(`/buchhaltung/nachholen/bank:${z.id}/trocken`, {
-        body: m === "zuordnen" ? { ziel: zielText, modus: "zuordnen" } : { ziel: zielText, dazu: m === "buchen" && zielText === auftrag?.ziel ? dazu : [] },
+        body: m === "zuordnen" ? { ziel: zielText, modus: "zuordnen" } : { ziel: zielText, dazu: m === "buchen" && zielText === auftrag?.ziel ? dazu : [], ...opt },
       });
       setProbe(j.zeile);
     } catch (e: any) { setFehler(e.message); } finally { setLaeuft(false); }
@@ -214,6 +220,7 @@ function HandfallDialog({ auftrag, onZu, onFertig }: { auftrag: HandfallAuftrag 
   useEffect(() => {
     if (!auftrag) return;
     setZiel(auftrag.ziel); setProbe(null); setFehler(null);
+    setStornoZurueck(false); setHeuteVerrechnen(false);
     if (auftrag.modus === "anders") { setModus("anders"); return; }
     void pruefen(auftrag.modus, auftrag.ziel);
   }, [auftrag]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -230,7 +237,7 @@ function HandfallDialog({ auftrag, onZu, onFertig }: { auftrag: HandfallAuftrag 
         onFertig(`Zugeordnet: ${geld(z.betragCents)} → ${probe.ziel} (${probe.kunde ?? "—"}) — keine zweite Buchung.`);
       } else if (modus === "buchen" && probe) {
         const j = await ruf<{ ergebnis: { gebucht: boolean; grund: string }; aufgabe: string | null }>(`/buchhaltung/nachholen/bank:${z.id}/buchen`, {
-          body: { ziel, dazu: probe.dazu ?? [], erwartet: erwartungAus(probe, "buchen") },
+          body: { ziel, dazu: probe.dazu ?? [], erwartet: erwartungAus(probe, "buchen"), ...optionen },
         });
         if (!j.ergebnis?.gebucht) throw new Error(j.ergebnis?.grund || "Nicht gebucht.");
         onFertig(`Gebucht: ${geld(probe.summeCents ?? z.betragCents)} auf ${probe.ziel} — ${j.ergebnis.grund}${j.aufgabe ? ` · ${j.aufgabe}` : ""}.`);
@@ -249,9 +256,23 @@ function HandfallDialog({ auftrag, onZu, onFertig }: { auftrag: HandfallAuftrag 
           </p>
           <div className="bk-ziel-eingabe">
             <input value={ziel} onChange={(e) => setZiel(e.target.value)} placeholder="FIAON-XXXXXX oder FIAON-XXXXXX-N" aria-label="Ziel (Bestell- oder Ratenreferenz)" />
-            <Knopf klein onClick={() => void pruefen("buchen", ziel)} disabled={laeuft || !ziel.trim()}>Als Buchung prüfen</Knopf>
+            <Knopf klein onClick={() => void pruefen("buchen", ziel, optionen)} disabled={laeuft || !ziel.trim()}>Als Buchung prüfen</Knopf>
             <Knopf klein art="still" onClick={() => void pruefen("zuordnen", ziel)} disabled={laeuft || !ziel.trim()}>Als „Nur zuordnen“ prüfen</Knopf>
           </div>
+          {modus === "anders" || modus === "buchen" ? (
+            <div className="bk-knopfreihe bk-eng">
+              <label className="bk-inline bk-leise">
+                <input type="checkbox" checked={stornoZurueck} disabled={laeuft}
+                  onChange={(e) => { setStornoZurueck(e.target.checked); setProbe(null); if (modus === "buchen") setModus("anders"); }} />
+                Storno zurücknehmen
+              </label>
+              <label className="bk-inline bk-leise">
+                <input type="checkbox" checked={heuteVerrechnen} disabled={laeuft}
+                  onChange={(e) => { setHeuteVerrechnen(e.target.checked); setProbe(null); if (modus === "buchen") setModus("anders"); }} />
+                mit heutigem Datum verrechnen
+              </label>
+            </div>
+          ) : null}
           {modus === "zuordnen" ? <p className="bk-leise">„Nur zuordnen“ bucht nichts: Das Geld gehört zu einer Rate, die schon als bezahlt gebucht ist. Die Zeile im Bankbuch bekommt ihren Haken, die Rate den Beleg, die Akte einen Satz — keine Mail, keine Provision, keine neue Rate.</p> : null}
           {modus === "buchen" ? <p className="bk-leise">Derselbe Buchungsweg wie jede andere Zahlung. Provision wird nach dem Schalter im Chefbüro vorgemerkt, nicht gebucht.</p> : null}
           {modus === "aufgabe" && auftrag?.z.vorschlag ? (

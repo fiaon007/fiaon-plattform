@@ -46,9 +46,30 @@
 //     (Lehre vom 23.08.: nie mehr Geld zuordnen, als bezahlt gebucht ist).
 //   · bankeingangAufgabe: Teilzahlung, Überzahlung, Rückzahlung — keine Buchung,
 //     sondern eine Aufgabe für den Betreuer bzw. die Zahlungsstelle.
+//
+// ── E-278 (03.10.2026): STORNO ZURÜCKNEHMEN, MIT HEUTIGEM DATUM VERRECHNEN ──
+// Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“
+// — vorher freigegeben: Doppelzahlungen als Vorauszahlung der nächsten Rate
+// verrechnen, Robiban reaktivieren und buchen, Körner/Condescu „gutschreiben“
+// (die Zahlung auf eine per Kulanz stornierte Rate behalten).
+// Zwei ausdrückliche Optionen für bankeingangBuchen (und die Trockenprobe), nur
+// mit einem vom Menschen bestätigten Ziel, Vorgabe AUS:
+//   · stornoZuruecknehmen — Ziel ist eine Rate, die per Kündigung oder Kulanz
+//     storniert wurde: Sie wird wieder offen und dann über den einen Weg gebucht.
+//     Ziel ist eine stornierte BESTELLUNG: Sie wird reaktiviert (Kündigung zurück,
+//     Zahlungsstatus offen, gesperrtes Konto auf „pending“, alsBezahltBuchen setzt
+//     es aktiv), dann die Erstzahlung gebucht, danach die Vertriebssperre der
+//     Person aufgehoben. Scheitert die Buchung, wird der Storno wiederhergestellt.
+//   · verrechnungHeute — eine Doppel- oder Vorauszahlung, die an der Rückwärts-
+//     sperre scheitert (die Vorgängerrate ist später bezahlt als der Eingang kam),
+//     wird mit dem heutigen Datum (Berlin) als Zahlung der Zielrate gebucht, mit
+//     Vermerk „Eingang vom … (Doppelzahlung) am … mit Rate … verrechnet“.
+// Nach jeder Buchung schließt bankeingangBuchen die offenen Bankbuch-Aufgaben
+// dieses Eingangs (Teil-, Über-, Rückzahlung) — sonst erstattet die Zahlungsstelle
+// Geld, das gerade gebucht wurde.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { berlinDatum } from "./fiaon-time";
+import { berlinDatum, berlinToday } from "./fiaon-time";
 import { RATEN_MUSTER, refVergleichsform } from "./fiaon-zahlungsauftrag";
 
 /** E-277: Was ein liegengebliebener Eingang ist. */
@@ -126,6 +147,10 @@ export interface NachholZeile {
   zugeordnet: string | null;
   /** E-277: Vorschlag aus Referenz, Name, Betrag, Datum — in Liste und Schublade, nie selbst gebucht. */
   vorschlag: NachholVorschlag | null;
+  /** E-278: Was „Storno zurücknehmen“ vor der Buchung tut (null = nichts zurückzunehmen). */
+  stornoZurueck: string | null;
+  /** E-278: Vermerk „Eingang vom … (Doppelzahlung) am … mit Rate … verrechnet“ (null = nicht verrechnet). */
+  verrechnung: string | null;
 }
 
 export interface NachholAntwort {
@@ -181,6 +206,7 @@ async function kopfLesen(id: number): Promise<{ status: number; ok: boolean; err
     unklar: null, schonVerbucht: !!z.applied,
     zielVomMenschen: null, dazu: [], summeCents: Number(z.amount_cents), buchDatum: datum, zuordenbar: false,
     zugeordnet: z.matched_ref ? String(z.matched_ref) : null, vorschlag: null,
+    stornoZurueck: null, verrechnung: null,
   };
   if (z.applied) return { status: 409, ok: false, error: "Dieser Eingang ist schon verbucht.", z, zeile: { ...zeile, ergebnis: "schon verbucht", unklar: "schon verbucht" } };
   if (!(zeile.betragCents > 0)) return { status: 409, ok: false, error: "Kein Geldeingang (Betrag ≤ 0).", z, zeile: { ...zeile, ergebnis: "kein Geldeingang", unklar: "kein Geldeingang" } };
@@ -205,6 +231,12 @@ export async function bankeingangTrockenprobe(id: number, opts: {
   dazu?: number[] | null;
   /** E-277: Vorschlag aus Name, Betrag, Datum mitliefern (Schublade). */
   mitVorschlag?: boolean;
+  /** E-278: Storno der Zielrate (Kündigung/Kulanz) bzw. der Zielbestellung vor der Buchung zurücknehmen. Nur mit Ziel. */
+  stornoZuruecknehmen?: boolean;
+  /** E-278: Doppel-/Vorauszahlung an der Rückwärtssperre — mit dem heutigen Datum verrechnen. Nur mit Ziel, nur Raten. */
+  verrechnungHeute?: boolean;
+  /** E-278: Wer freigegeben hat (steht in den Vermerken, Vorgabe „Justin“). */
+  freigabe?: string | null;
 } = {}): Promise<NachholAntwort> {
   const toleranz = Math.max(0, Math.min(100, Math.floor(Number(opts.ueberzahlungBisCents ?? 100) || 0)));
   const kopf = await kopfLesen(id);
@@ -217,6 +249,22 @@ export async function bankeingangTrockenprobe(id: number, opts: {
     zielRef = z;
     zeile.zielVomMenschen = z;
   }
+  // E-278: Beide Optionen ändern, was gebucht wird — sie gelten nur für ein Ziel, das ein Mensch bestätigt hat.
+  if ((opts.stornoZuruecknehmen || opts.verrechnungHeute) && !zeile.zielVomMenschen) {
+    return { status: 400, ok: false, error: "„Storno zurücknehmen“ und „mit heutigem Datum verrechnen“ gehen nur mit einem bestätigten Ziel.", zeile };
+  }
+  let lage: StornoLage | null = null;
+  if (opts.stornoZuruecknehmen && zeile.zielVomMenschen) {
+    const l = await stornoLageLesen(zeile.zielVomMenschen);
+    if (!l.ok) return { status: 409, ok: false, error: l.error, zeile: { ...zeile, ergebnis: l.error, unklar: l.error } };
+    lage = l.lage;
+    if (lage) {
+      zeile.stornoZurueck = lage.text;
+      zeile.hinweise.push(`Storno zurücknehmen: ${lage.text}`);
+    } else {
+      zeile.hinweise.push("Storno zurücknehmen: Das Ziel ist nicht storniert — die Option ändert nichts.");
+    }
+  }
   let notizZusatz: string | null = null;
   if (opts.dazu && opts.dazu.length) {
     const s = await sammelPruefen(zeile, opts.dazu);
@@ -227,10 +275,14 @@ export async function bankeingangTrockenprobe(id: number, opts: {
     notizZusatz = s.notiz;
     zeile.hinweise.push(s.hinweis);
   }
+  // E-278: Das Datum des Eingangs (bei einer Sammelzahlung der späteste) — und, wenn verrechnet wird, der Buchungstag heute.
+  const eingangsTag = zeile.buchDatum;
+  const heute = berlinToday();
+  if (opts.verrechnungHeute) zeile.buchDatum = heute;
   const { liveVerbuchen } = await import("../routes/fiaon-wise");
   const erg = await liveVerbuchen(zeile.txnId, zielRef, zeile.summeCents, zeile.buchDatum, {
     trocken: true, ueberzahlungBisCents: toleranz, anlass: "Nachhol-Lauf",
-    zielVomMenschen: !!zeile.zielVomMenschen, notizZusatz,
+    zielVomMenschen: !!zeile.zielVomMenschen, notizZusatz, stornoAlsOffen: !!lage,
   });
   zeile.regel = erg.regel ?? null;
   zeile.ziel = erg.ziel ?? null;
@@ -241,6 +293,29 @@ export async function bankeingangTrockenprobe(id: number, opts: {
   zeile.deckung = erg.deckung?.text ?? null;
   zeile.buchen = erg.grund.startsWith("würde buchen");
   if (!zeile.buchen) zeile.unklar = erg.grund;
+  // ── E-278: Rückwärtssperre vorrechnen ─────────────────────────────────────
+  // rateBezahltBuchen lehnt ein Zahldatum ab, das vor der Zahlung der Vorgängerrate liegt
+  // (Fall Schlebusch: Doppelzahlung vom 25.08., Rate 2 am 02.10. bezahlt). Die Trockenprobe
+  // sagt es jetzt vorher — ohne Option als Hinweis, mit „verrechnungHeute“ als Bedingung.
+  if (zeile.buchen && zeile.regel !== "erstzahlung" && zeile.bestellung && zeile.rateNr != null) {
+    const vorherTag = await letzteZahlungVorher(zeile.bestellung, zeile.rateNr);
+    const sperrt = !!vorherTag && eingangsTag < vorherTag;
+    if (opts.verrechnungHeute) {
+      if (!sperrt) {
+        const grund = `Nicht nötig: Das Eingangsdatum ${tagLang(eingangsTag)} liegt nicht vor der letzten bezahlten Rate${vorherTag ? ` (${tagLang(vorherTag)})` : ""} — bitte ohne „mit heutigem Datum verrechnen“ buchen.`;
+        zeile.buchen = false; zeile.unklar = grund; zeile.ergebnis = grund;
+      } else {
+        zeile.verrechnung = `Eingang vom ${tagLang(eingangsTag)} (Doppelzahlung) am ${tagLang(heute)} mit Rate ${zeile.rateNr} verrechnet — ${freigabeSatz(opts.freigabe)}`;
+        zeile.hinweise.push(`Verrechnung: ${zeile.verrechnung}. Gebucht per ${tagLang(heute)}; die Rückwärtssperre (Vorgängerrate bezahlt am ${tagLang(vorherTag!)}) greift so nicht.`);
+      }
+    } else if (sperrt) {
+      zeile.hinweise.push(`Rückwärtssperre: Die Vorgängerrate ist am ${tagLang(vorherTag!)} bezahlt, der Eingang ist vom ${tagLang(eingangsTag)} — so wird die Buchung abgelehnt. Doppel- oder Vorauszahlung? Dann „mit heutigem Datum verrechnen“.`);
+    }
+  }
+  if (opts.verrechnungHeute && zeile.buchen && zeile.regel === "erstzahlung") {
+    const grund = "„Mit heutigem Datum verrechnen“ gilt nur für Raten (Doppel- oder Vorauszahlung), nicht für eine Erstzahlung.";
+    zeile.buchen = false; zeile.unklar = grund; zeile.ergebnis = grund;
+  }
   if (zeile.bestellung) {
     const [app] = (await sqlPool`
       SELECT ref, person_id, first_name, last_name, contact_name FROM fiaon_applications WHERE ref = ${zeile.bestellung} LIMIT 1`.catch(() => [])) as any[];
@@ -250,7 +325,8 @@ export async function bankeingangTrockenprobe(id: number, opts: {
     }
   }
   if (zeile.buchen && zeile.bestellung) await vorschauErgaenzen(zeile);
-  if (zeile.zielVomMenschen && zeile.bestellung) await zielHinweise(zeile);
+  // Wird die Bestellung reaktiviert (E-278), ist der Satz „Vertrag gekündigt …“ überholt — die Kündigung wird zurückgenommen.
+  if (zeile.zielVomMenschen && zeile.bestellung && lage?.art !== "bestellung") await zielHinweise(zeile);
   if (opts.mitVorschlag && !zeile.zielVomMenschen && !zeile.dazu.length) {
     try { zeile.vorschlag = await vorschlagErmitteln(zeile, await kontextLaden()); }
     catch (e: any) { console.error("[BANK-NACHHOLEN] Vorschlag:", String(e?.message || e).slice(0, 160)); }
@@ -447,9 +523,18 @@ export async function bankeingangBuchen(
     ziel?: string | null;
     /** E-277: Sammelzahlung — weitere Eingänge, die mit diesem zusammen gebucht werden. */
     dazu?: number[] | null;
+    /** E-278: Storno der Zielrate bzw. -bestellung zurücknehmen, dann buchen (scheitert die Buchung: Storno zurück). */
+    stornoZuruecknehmen?: boolean;
+    /** E-278: Doppel-/Vorauszahlung an der Rückwärtssperre mit dem heutigen Datum verrechnen. */
+    verrechnungHeute?: boolean;
+    /** E-278: Wer freigegeben hat (Vermerke), Vorgabe „Justin“. */
+    freigabe?: string | null;
   },
-): Promise<NachholAntwort & { ergebnis?: any; bankbuch?: any; aufgabe?: string | null }> {
-  const probe = await bankeingangTrockenprobe(id, { ueberzahlungBisCents: opts.ueberzahlungBisCents, ziel: opts.ziel ?? null, dazu: opts.dazu ?? null });
+): Promise<NachholAntwort & { ergebnis?: any; bankbuch?: any; aufgabe?: string | null; aufgabenErledigt?: number }> {
+  const probe = await bankeingangTrockenprobe(id, {
+    ueberzahlungBisCents: opts.ueberzahlungBisCents, ziel: opts.ziel ?? null, dazu: opts.dazu ?? null,
+    stornoZuruecknehmen: !!opts.stornoZuruecknehmen, verrechnungHeute: !!opts.verrechnungHeute, freigabe: opts.freigabe ?? null,
+  });
   if (!probe.ok || !probe.zeile) return probe;
   const zeile = probe.zeile;
   if (!zeile.buchen) return { status: 409, ok: false, error: `Nicht buchbar: ${zeile.ergebnis}`, zeile };
@@ -468,10 +553,45 @@ export async function bankeingangBuchen(
     const toleranz = Math.max(0, Math.min(100, Math.floor(Number(opts.ueberzahlungBisCents ?? 100) || 0)));
     const { liveVerbuchen } = await import("../routes/fiaon-wise");
     const anlass = `Nachhol-Lauf (${String(opts.wer || "Bankbuch").slice(0, 80)})`;
-    const notizZusatz = dazuTxn.length ? dazuTxn.map((t) => `Bankeingang ${t} (Sammelzahlung mit ${zeile.txnId})`).join(" · ") : null;
-    const erg = await liveVerbuchen(zeile.txnId, zeile.zielVomMenschen ?? zeile.zweckRef, zeile.summeCents, zeile.buchDatum, {
-      trocken: false, ueberzahlungBisCents: toleranz, anlass, zielVomMenschen: !!zeile.zielVomMenschen, notizZusatz,
-    });
+    const notizTeile = [
+      ...dazuTxn.map((t) => `Bankeingang ${t} (Sammelzahlung mit ${zeile.txnId})`),
+      ...(zeile.verrechnung ? [zeile.verrechnung] : []),
+    ];
+    const notizZusatz = notizTeile.length ? notizTeile.join(" · ") : null;
+
+    // ── E-278: Storno zurücknehmen — erst NACH der Trockenprobe, im Schutz der Sperre ──
+    // Die Lage wird hier frisch gelesen (nicht aus der Vorschau übernommen). Scheitert die
+    // Buchung danach, stellt `zurueck` den Storno wieder her — kein halber Zustand.
+    let storno: StornoSchritt | null = null;
+    if (opts.stornoZuruecknehmen && zeile.zielVomMenschen) {
+      const l = await stornoLageLesen(zeile.zielVomMenschen);
+      if (!l.ok) return { status: 409, ok: false, error: l.error, zeile };
+      if (l.lage) {
+        const sch = await stornoVorBuchungZuruecknehmen(l.lage, zeile, anlass, freigabeSatz(opts.freigabe));
+        if (!sch.ok) return { status: 409, ok: false, error: sch.error, zeile };
+        storno = sch;
+      }
+    }
+    let erg: Awaited<ReturnType<typeof liveVerbuchen>> | null = null;
+    try {
+      erg = await liveVerbuchen(zeile.txnId, zeile.zielVomMenschen ?? zeile.zweckRef, zeile.summeCents, zeile.buchDatum, {
+        trocken: false, ueberzahlungBisCents: toleranz, anlass, zielVomMenschen: !!zeile.zielVomMenschen, notizZusatz,
+      });
+    } finally {
+      if (storno && !erg?.gebucht) {
+        await storno.zurueck(erg?.grund ?? "Fehler beim Buchen").catch((e: any) => console.error("[BANK-NACHHOLEN] Storno wiederherstellen:", String(e?.message || e).slice(0, 200)));
+      }
+    }
+    if (!erg) throw new Error("Buchung ohne Ergebnis");
+    if (erg.gebucht && storno) {
+      await storno.danach().catch((e: any) => console.error("[BANK-NACHHOLEN] Nach der Reaktivierung:", String(e?.message || e).slice(0, 200)));
+    }
+    if (erg.gebucht && zeile.verrechnung) {
+      await sqlPool`
+        UPDATE fiaon_bank_txns SET note = CONCAT_WS(' · ', NULLIF(note, ''), ${zeile.verrechnung}::text), updated_at = NOW()
+         WHERE id = ${id}
+      `.catch(() => {});
+    }
     if (erg.gebucht && zeile.dazu.length) {
       // Die übrigen Eingänge der Sammelzahlung: verbucht, derselben Bestellung zugeordnet, kein zweites Geld.
       await sqlPool`
@@ -488,7 +608,8 @@ export async function bankeingangBuchen(
     if (erg.gebucht && zeile.genannteRate != null && zeile.rateNr != null && zeile.bestellung) {
       aufgabe = await aufgabeAndereRate(zeile, anlass);
     }
-    return { status: 200, ok: true, zeile: { ...zeile, schonVerbucht: !!nach?.applied }, ergebnis: erg, bankbuch: nach ?? null, aufgabe };
+    const aufgabenErledigt = erg.gebucht ? await bankAufgabenSchliessen(alle, anlass, `Gebucht: ${eur(zeile.summeCents)} auf ${erg.ziel ?? zeile.ziel ?? "—"} (${erg.grund}). Nichts erstatten — das Geld ist verbucht.`) : 0;
+    return { status: 200, ok: true, zeile: { ...zeile, schonVerbucht: !!nach?.applied }, ergebnis: erg, bankbuch: nach ?? null, aufgabe, aufgabenErledigt };
   } finally {
     for (const t of alle) inArbeit.delete(t);
   }
@@ -513,6 +634,289 @@ async function aufgabeAndereRate(zeile: NachholZeile, anlass: string): Promise<s
   } catch (e: any) {
     console.error("[BANK-NACHHOLEN] Aufgabe andere Rate:", String(e?.message || e).slice(0, 160));
     return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-278 (03.10.2026) — STORNO ZURÜCKNEHMEN UND MIT HEUTIGEM DATUM VERRECHNEN
+//
+// Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“
+//
+// Die Fälle vom 03.10.: Körner und Condescu haben die Rate bezahlt, die bei ihrer
+// Kündigung per Kulanz storniert wurde — das Geld wird behalten, der Storno also
+// zurückgenommen und die Rate gebucht. Robiban hat bezahlt, ihre Bestellung war
+// am 17.09. als „unbezahlt“ storniert — sie wird reaktiviert und gebucht.
+// Schlebusch hat die Startzahlung doppelt überwiesen — verrechnet mit Rate 3,
+// gebucht mit dem heutigen Datum (die Rückwärtssperre lehnt den 25.08. ab, weil
+// Rate 2 am 02.10. bezahlt wurde).
+//
+// Zurückgenommen werden NUR Stornos, die eine Kündigung gesetzt hat (Raten:
+// storno_grund 'kuendigung' oder 'kuendigung_kulanz', die Gründe der beiden
+// bestehenden Rücknahmewege) und stornierte Bestellungen ohne bezahlte Rate. Ein
+// Storno wegen Erstattung, Dublette oder Abo-Stopp bleibt, wie er ist.
+// ═══════════════════════════════════════════════════════════════════════════
+const STORNO_ZURUECK_GRUENDE = ["kuendigung", "kuendigung_kulanz"] as const;
+
+/** E-278: „03.10.2026“ aus „2026-10-03“. */
+const tagLang = (t: string) => `${t.slice(8, 10)}.${t.slice(5, 7)}.${t.slice(0, 4)}`;
+
+/** E-278: Wer freigegeben hat, mit Datum (Berlin) — „Justin 03.10.2026“. */
+function freigabeSatz(freigabe?: string | null): string {
+  const wer = String(freigabe ?? "").trim().slice(0, 60) || "Justin";
+  return `${wer} ${tagLang(berlinToday())}`;
+}
+
+/**
+ * E-278: Wann wurde die letzte Vorgängerrate bezahlt? Dieselbe Abfrage wie die Rückwärtssperre
+ * in rateBezahltBuchen (server/routes/fiaon-abo.ts) — damit die Vorschau genau das sagt, was die
+ * Buchung tun wird. „YYYY-MM-DD“ oder null.
+ */
+async function letzteZahlungVorher(bestellung: string, rateNr: number): Promise<string | null> {
+  const [v] = (await sqlPool`
+    SELECT MAX(bezahlt_am) AS letzte FROM fiaon_abo_raten
+     WHERE ref = ${bestellung} AND rate_nr < ${rateNr} AND status = 'bezahlt' AND bezahlt_am IS NOT NULL
+  `) as any[];
+  return v?.letzte ? new Date(v.letzte).toISOString().slice(0, 10) : null;
+}
+
+/** E-278: Was „Storno zurücknehmen“ an diesem Ziel tun würde. */
+export interface StornoLage {
+  art: "rate" | "bestellung";
+  /** fiaon_applications.ref */
+  bestellung: string;
+  rateId: number | null;
+  rateNr: number | null;
+  /** Raten- bzw. Bestellreferenz in der Schreibweise der Datenbank. */
+  zahlungsreferenz: string;
+  /** storno_grund der Rate; bei der Bestellung „cancelled“. */
+  grund: string;
+  personId: number | null;
+  /** Ein Satz für die Vorschau. */
+  text: string;
+}
+
+/**
+ * E-278: Ist das Ziel storniert, und darf der Storno zurückgenommen werden? Schreibt nichts.
+ * lage = null: nichts zurückzunehmen (die Rate lebt, die Bestellung ist nicht storniert).
+ */
+export async function stornoLageLesen(ziel: string): Promise<{ ok: true; lage: StornoLage | null } | { ok: false; error: string }> {
+  const vgl = refVergleichsform(ziel);
+  if (RATEN_MUSTER.test(ziel)) {
+    const [lebt] = (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_abo_raten
+       WHERE UPPER(REGEXP_REPLACE(zahlungsreferenz, '[^A-Za-z0-9]', '', 'g')) = ${vgl} AND storniert_am IS NULL
+    `) as any[];
+    if (Number(lebt?.n) > 0) return { ok: true, lage: null };
+    const st = (await sqlPool`
+      SELECT r.id, r.ref, r.rate_nr, r.zahlungsreferenz, r.storno_grund, r.bezahlt_am, a.person_id
+        FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+       WHERE UPPER(REGEXP_REPLACE(r.zahlungsreferenz, '[^A-Za-z0-9]', '', 'g')) = ${vgl} AND r.status = 'storniert'
+    `) as any[];
+    if (!st.length) return { ok: true, lage: null };
+    if (st.length > 1) return { ok: false, error: `Rate ${ziel} ist mehrfach storniert — bitte von Hand klären.` };
+    const r = st[0];
+    const grund = String(r.storno_grund ?? "");
+    if (!(STORNO_ZURUECK_GRUENDE as readonly string[]).includes(grund)) {
+      return { ok: false, error: `Rate ${r.zahlungsreferenz} ist storniert (Grund „${grund || "—"}“) — zurückgenommen werden nur Stornos aus einer Kündigung („kuendigung“, „kuendigung_kulanz“).` };
+    }
+    if (r.bezahlt_am) return { ok: false, error: `Rate ${r.zahlungsreferenz} trägt schon ein Zahldatum — bitte von Hand klären.` };
+    return {
+      ok: true,
+      lage: {
+        art: "rate", bestellung: String(r.ref), rateId: Number(r.id), rateNr: Number(r.rate_nr), zahlungsreferenz: String(r.zahlungsreferenz),
+        grund, personId: r.person_id != null ? Number(r.person_id) : null,
+        text: `Rate ${r.rate_nr} (${r.zahlungsreferenz}) ist storniert (${grund}) — der Storno wird zurückgenommen, die Rate wieder offen und dann mit diesem Eingang gebucht. Scheitert die Buchung, bleibt der Storno.`,
+      },
+    };
+  }
+  const apps = (await sqlPool`
+    SELECT a.ref, a.payment_reference, a.payment_status, a.account_status, a.gekuendigt_am, a.person_id, p.is_blocked
+      FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE UPPER(REGEXP_REPLACE(COALESCE(a.payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ${vgl} AND a.merged_into IS NULL
+  `) as any[];
+  if (apps.length !== 1 || String(apps[0].payment_status) !== "cancelled") return { ok: true, lage: null };
+  const a = apps[0];
+  const [bez] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_abo_raten WHERE ref = ${a.ref} AND status = 'bezahlt'`) as any[];
+  if (Number(bez?.n) > 0) {
+    return { ok: false, error: `Die stornierte Bestellung ${a.payment_reference} hat schon bezahlte Raten — sie wird nicht über eine Erstzahlung reaktiviert. Bitte von Hand klären.` };
+  }
+  const schritte = [
+    "Zahlungsstatus storniert → offen",
+    a.gekuendigt_am ? `Kündigung vom ${tagLang(berlinDatum(new Date(a.gekuendigt_am)))} zurückgenommen` : null,
+    String(a.account_status) === "suspended" ? "gesperrtes Konto wird mit der Buchung aktiv" : null,
+    a.is_blocked ? "Vertriebssperre der Person aufgehoben" : null,
+  ].filter(Boolean);
+  return {
+    ok: true,
+    lage: {
+      art: "bestellung", bestellung: String(a.ref), rateId: null, rateNr: null, zahlungsreferenz: String(a.payment_reference),
+      grund: "cancelled", personId: a.person_id != null ? Number(a.person_id) : null,
+      text: `Die Bestellung ${a.payment_reference} ist storniert — sie wird reaktiviert (${schritte.join(", ")}) und dann die Erstzahlung gebucht. Scheitert die Buchung, bleibt sie storniert.`,
+    },
+  };
+}
+
+/** E-278: Ein zurückgenommener Storno — `zurueck` stellt ihn wieder her, `danach` läuft nach der Buchung. */
+interface StornoSchritt {
+  ok: true;
+  zurueck: (grund: string) => Promise<void>;
+  danach: () => Promise<void>;
+}
+
+/**
+ * E-278: Den Storno VOR der Buchung zurücknehmen. Rate: wieder offen, mit Vermerk. Bestellung:
+ * kuendigungZuruecknehmen, Zahlungsstatus offen, gesperrtes Konto auf „pending“ (alsBezahltBuchen
+ * setzt danach „active“ — ein gesperrtes Konto ließe es stehen). Die Vertriebssperre fällt erst in
+ * `danach`, wenn das Geld gebucht ist — so muss bei einem Fehlschlag niemand wieder gesperrt werden.
+ */
+async function stornoVorBuchungZuruecknehmen(
+  lage: StornoLage, zeile: NachholZeile, anlass: string, freigabe: string,
+): Promise<StornoSchritt | { ok: false; error: string }> {
+  const zahlung = `Zahlung ${eur(zeile.summeCents)} am ${tagLang(zeile.datum)} eingegangen`;
+
+  if (lage.art === "rate" && lage.rateId) {
+    const [vorher] = (await sqlPool`
+      SELECT id, ref, rate_nr, zahlungsreferenz, status, storniert_am, storno_grund, notiz FROM fiaon_abo_raten WHERE id = ${lage.rateId}
+    `) as any[];
+    if (!vorher || vorher.status !== "storniert" || !(STORNO_ZURUECK_GRUENDE as readonly string[]).includes(String(vorher.storno_grund))) {
+      return { ok: false, error: "Die Rate ist nicht mehr per Kündigung storniert — bitte neu prüfen." };
+    }
+    const vermerk = `Storno (${vorher.storno_grund}) zurückgenommen: ${zahlung} — ${freigabe}`;
+    try {
+      const w = (await sqlPool`
+        UPDATE fiaon_abo_raten
+           SET status = 'offen', storniert_am = NULL, storno_grund = NULL,
+               notiz = CONCAT_WS(' · ', NULLIF(notiz, ''), ${vermerk}::text), updated_at = NOW()
+         WHERE id = ${vorher.id} AND status = 'storniert' AND storno_grund = ${vorher.storno_grund}
+         RETURNING id
+      `) as any[];
+      if (!w.length) return { ok: false, error: "Die Rate hat sich gerade geändert — bitte neu prüfen." };
+    } catch (e: any) {
+      const m = String(e?.message || e);
+      if (/duplicate key|unique/i.test(m)) return { ok: false, error: `Rate ${vorher.zahlungsreferenz}: Eine andere Rate dieses Vertrags ist auf denselben Tag fällig — der Storno lässt sich nicht zurücknehmen.` };
+      throw e;
+    }
+    console.log(`[BANK-NACHHOLEN] ${zeile.txnId}: Storno (${vorher.storno_grund}) von Rate ${vorher.zahlungsreferenz} zurückgenommen (${anlass}) — jetzt wird gebucht.`);
+    return {
+      ok: true,
+      zurueck: async (grund: string) => {
+        await sqlPool`
+          UPDATE fiaon_abo_raten
+             SET status = 'storniert', storniert_am = ${vorher.storniert_am}, storno_grund = ${vorher.storno_grund},
+                 notiz = ${vorher.notiz}, updated_at = NOW()
+           WHERE id = ${vorher.id} AND status = 'offen' AND bezahlt_am IS NULL
+        `;
+        console.log(`[BANK-NACHHOLEN] ${zeile.txnId}: Buchung gescheitert (${grund}) — Storno von Rate ${vorher.zahlungsreferenz} wiederhergestellt.`);
+      },
+      danach: async () => {
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+          VALUES (${vorher.ref}, ${lage.personId}, NULL, 'System', 'system',
+                  ${`Rate ${vorher.rate_nr} (${vorher.zahlungsreferenz}): Storno (${vorher.storno_grund}) zurückgenommen — ${zahlung} (Bankeingang ${zeile.txnId}), die Zahlung wird behalten und ist gebucht. Freigabe: ${freigabe} (${anlass}).`})
+        `.catch(() => {});
+      },
+    };
+  }
+
+  // ── Bestellung reaktivieren (Fall Robiban) ────────────────────────────────
+  const [a] = (await sqlPool`
+    SELECT ref, payment_reference, payment_status, cancelled_at, account_status, gekuendigt_am, kuendigung_zurueckgenommen_am,
+           letzte_rate_nr, vertrag_ende_am, abo_gestoppt_am, abo_stopp_grund, person_id
+      FROM fiaon_applications WHERE ref = ${lage.bestellung} LIMIT 1
+  `) as any[];
+  if (!a || String(a.payment_status) !== "cancelled") return { ok: false, error: "Die Bestellung ist nicht mehr storniert — bitte neu prüfen." };
+  const kuendigungsRaten = (await sqlPool`
+    SELECT id, storniert_am FROM fiaon_abo_raten WHERE ref = ${a.ref} AND status = 'storniert' AND storno_grund = 'kuendigung'
+  `) as any[];
+  const grundText = `${zahlung} (Bankeingang ${zeile.txnId}) — Bestellung reaktiviert, Freigabe: ${freigabe}`;
+  const zurueckSetzen = async () => {
+    await sqlPool`
+      UPDATE fiaon_applications
+         SET payment_status = ${a.payment_status}, cancelled_at = ${a.cancelled_at}, account_status = ${a.account_status},
+             gekuendigt_am = ${a.gekuendigt_am}, kuendigung_zurueckgenommen_am = ${a.kuendigung_zurueckgenommen_am},
+             letzte_rate_nr = ${a.letzte_rate_nr}, vertrag_ende_am = ${a.vertrag_ende_am},
+             abo_gestoppt_am = ${a.abo_gestoppt_am}, abo_stopp_grund = ${a.abo_stopp_grund}, updated_at = NOW()
+       WHERE ref = ${a.ref} AND payment_status <> 'paid'
+    `;
+    for (const r of kuendigungsRaten) {
+      await sqlPool`
+        UPDATE fiaon_abo_raten SET status = 'storniert', storniert_am = ${r.storniert_am}, storno_grund = 'kuendigung', updated_at = NOW()
+         WHERE id = ${r.id} AND status = 'offen' AND bezahlt_am IS NULL
+      `;
+    }
+  };
+  try {
+    if (a.gekuendigt_am) {
+      const { kuendigungZuruecknehmen } = await import("./fiaon-kuendigung");
+      await kuendigungZuruecknehmen(String(a.ref), grundText);
+    }
+    const w = (await sqlPool`
+      UPDATE fiaon_applications
+         SET payment_status = 'pending_payment', cancelled_at = NULL,
+             account_status = CASE WHEN account_status = 'suspended' THEN 'pending' ELSE account_status END,
+             updated_at = NOW()
+       WHERE ref = ${a.ref} AND payment_status = 'cancelled'
+       RETURNING ref
+    `) as any[];
+    if (!w.length) throw new Error("Die Bestellung hat sich gerade geändert — bitte neu prüfen.");
+  } catch (e: any) {
+    await zurueckSetzen().catch(() => {});
+    return { ok: false, error: String(e?.message || e).slice(0, 200) };
+  }
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+    VALUES (${a.ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
+            ${`Storno der Bestellung zurückgenommen: ${grundText}. Zahlungsstatus storniert → offen${String(a.account_status) === "suspended" ? ", gesperrtes Konto → wird mit der Buchung aktiv" : ""} (${anlass}).`})
+  `.catch(() => {});
+  console.log(`[BANK-NACHHOLEN] ${zeile.txnId}: Bestellung ${a.payment_reference} reaktiviert (${anlass}) — jetzt wird gebucht.`);
+  return {
+    ok: true,
+    zurueck: async (grund: string) => {
+      await zurueckSetzen();
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${a.ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
+                ${`Reaktivierung zurückgedreht: Die Buchung von Bankeingang ${zeile.txnId} ist gescheitert (${String(grund).slice(0, 160)}) — die Bestellung ist wieder storniert wie vorher.`})
+      `.catch(() => {});
+      console.log(`[BANK-NACHHOLEN] ${zeile.txnId}: Buchung gescheitert (${grund}) — Bestellung ${a.payment_reference} wieder storniert.`);
+    },
+    danach: async () => {
+      // Die Vertriebssperre fällt wie über POST /admin/kunden/:personId/vertriebssperre — derselbe Baustein.
+      if (a.person_id == null) return;
+      const { vertriebssperreAendern } = await import("../routes/fiaon-kunden");
+      const s = await vertriebssperreAendern(Number(a.person_id), false, grundText);
+      if (s.ok && !s.unveraendert) console.log(`[BANK-NACHHOLEN] ${zeile.txnId}: Vertriebssperre der Person ${a.person_id} aufgehoben.`);
+    },
+  };
+}
+
+/**
+ * E-278: Offene Bankbuch-Aufgaben dieses Eingangs schließen (Teil-, Über-, Rückzahlung aus
+ * bankeingangAufgabe). Das Geld ist gebucht — eine stehengebliebene „Rückzahlung nötig“ hieße,
+ * die Zahlungsstelle erstattet, was gerade verbucht wurde. Liefert, wie viele geschlossen wurden.
+ */
+async function bankAufgabenSchliessen(txnIds: string[], anlass: string, text: string): Promise<number> {
+  try {
+    const schluessel = txnIds.flatMap((t) => ["teilzahlung", "ueberzahlung", "rueckzahlung_noetig"].map((art) => `bank-nachholen:${art}:${t}`));
+    if (!schluessel.length) return 0;
+    const zu = (await sqlPool`
+      UPDATE fiaon_betreiber_todos
+         SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${anlass.slice(0, 120)},
+             ergebnis = COALESCE(ergebnis, ${text}::text), frage_offen = FALSE, updated_at = NOW()
+       WHERE schluessel = ANY(${schluessel}) AND status <> 'erledigt'
+       RETURNING id
+    `) as any[];
+    for (const t of zu) {
+      await sqlPool`
+        INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, art, text)
+        VALUES (${t.id}, 'system', ${anlass.slice(0, 120)}, 'ergebnis', ${text})
+      `.catch(() => {});
+    }
+    if (zu.length) console.log(`[BANK-NACHHOLEN] ${txnIds[0]}: ${zu.length} Bankbuch-Aufgabe(n) erledigt — Geld gebucht.`);
+    return zu.length;
+  } catch (e: any) {
+    console.error("[BANK-NACHHOLEN] Aufgaben schließen:", String(e?.message || e).slice(0, 160));
+    return 0;
   }
 }
 

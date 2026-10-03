@@ -70,6 +70,8 @@ export interface NachholZeile {
   // E-277: Ziel vom Menschen, Sammelzahlung, „Nur zuordnen", Vorschlag
   zielVomMenschen?: string | null; dazu?: number[]; summeCents?: number; buchDatum?: string;
   zuordenbar?: boolean; zugeordnet?: string | null; vorschlag?: NachholVorschlag | null;
+  // E-278: was „Storno zurücknehmen“ vorher tut, und der Verrechnungsvermerk „mit heutigem Datum“
+  stornoZurueck?: string | null; verrechnung?: string | null;
 }
 
 /** E-277: Was ein Handfall ist und was der Knopf tut — gebucht wird erst nach dem Klick des Inhabers. */

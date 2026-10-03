@@ -14,6 +14,15 @@
 // Fährt den ECHTEN Code (fiaon-bank-nachholen → liveVerbuchen → alsBezahltBuchen /
 // rateBezahltBuchen) mit erfundenen Datensätzen (Marke Q277). Jeder Netzaufruf ist
 // abgeklemmt. Räumt vorher und nachher auf.
+//
+// E-278 (03.10.2026), Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach
+// ALLE fertig“ — dazu die Abschnitte U bis Y (eigene Kopie fiaon_e278 genügt):
+//   U  Altlast-TRANSFER in der offenen Rate (Nummer einer bezahlten Rate oder per Rückbuchung
+//      widerlegt) → Buchung gelingt, Nummer entschärft; echte Doppelbuchung scheitert weiter
+//   V  Kulanz-Storno zurücknehmen + buchen; Fehlschlag stellt den Storno wieder her
+//   W  stornierte Bestellung reaktivieren + buchen (Konto aktiv, Sperre weg, Kündigung zurück)
+//   X  Doppelzahlung an der Rückwärtssperre mit heutigem Datum verrechnen
+//   Y  ohne Optionen alles wie bisher
 // ═══════════════════════════════════════════════════════════════════════════
 import postgres from "postgres";
 
@@ -66,6 +75,7 @@ async function aufraeumen() {
   }
   const personen = (await sql`SELECT id FROM fiaon_persons WHERE person_ref LIKE ${`PRUEF-${M}-%`}`).map((r: any) => Number(r.id));
   if (personen.length) {
+    await sql`DELETE FROM fiaon_sperr_protokoll WHERE person_id = ANY(${personen})`.catch(() => {});
     await sql`DELETE FROM fiaon_mail_log WHERE person_id = ANY(${personen})`.catch(() => {});
     await sql`DELETE FROM fiaon_contact_log WHERE person_id = ANY(${personen})`;
   }
@@ -455,6 +465,243 @@ async function main() {
   const eS = await eingang("s", heute, 136684, "Card transaction of 1,366.84 EUR issued by Vienna Airport Wien", "");
   const vS = await vorschlag(eS.id);
   ok("S unbekannt, unklar, kein Knopf", vS?.art === "unbekannt" && vS.sicherheit === "unklar" && vS.aktion === null, vS);
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // E-278 (03.10.2026) — Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“
+  // ═════════════════════════════════════════════════════════════════════════
+  const { rateBezahltBuchen, fremdeWiseNummernEntschaerfen } = await import("../server/routes/fiaon-abo");
+  const tagLang = (t: string) => `${t.slice(8, 10)}.${t.slice(5, 7)}.${t.slice(0, 4)}`;
+  const heuteBerlin = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const aufgabe = async (art: string, txnId: string, ref: string) => {
+    await sql`INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, link, quelle, status)
+              VALUES (${`bank-nachholen:${art}:${txnId}`}, ${`Prüfstand E-278 ${art}`}, 'Prüfstand', 'konten', 2, ${`/admin/kunde/${ref}`}, 'bankbuch', 'offen')`;
+  };
+  const aufgabeStatus = async (art: string, txnId: string) =>
+    String(((await sql`SELECT status FROM fiaon_betreiber_todos WHERE schluessel = ${`bank-nachholen:${art}:${txnId}`}`)[0] as any)?.status ?? "—");
+  const app = async (ref: string) => (await sql`
+    SELECT payment_status, account_status, cancelled_at, gekuendigt_am, kuendigung_zurueckgenommen_am, vertrag_ende_am, letzte_rate_nr, abo_gestoppt_am
+      FROM fiaon_applications WHERE ref = ${ref}`)[0] as any;
+  const rateZeile = async (id: number) => (await sql`SELECT id, rate_nr, status, storniert_am, storno_grund, bezahlt_am, faellig_am, notiz FROM fiaon_abo_raten WHERE id = ${id}`)[0] as any;
+  const akte = async (ref: string, muster: string) => Number((await sql`SELECT COUNT(*)::int AS n FROM fiaon_contact_log WHERE ref = ${ref} AND note LIKE ${muster}`)[0].n);
+  const T_A = "99278000001";
+  const T_B = "99278000002";
+
+  // ── U: Altlast-TRANSFER (Fall Konchenko) ─────────────────────────────────
+  console.log("\nU  Offene Rate trägt die TRANSFER-Nummer der bezahlten Vorgängerrate (Korrektur 27.08.) → Buchung gelingt");
+  const prU = `FIAON-${M}U1`;
+  const U = await kunde("U", { pr: prU, cents: 799, vorname: "Juri", nachname: "Quonchenko", rate1Am: tag(-90) });
+  await eingang("u0", tag(-90), 799, prU, "JURI QUONCHENKO", { applied: true, matchedRef: U.ref });
+  await rate(U.ref, 2, `${prU}-2`, 799, tag(-60), true, `Bankeingang TRANSFER-${T_A}`);
+  const r3U = await rate(U.ref, 3, `${prU}-3`, 799, tag(-30), true, `Bankeingang TRANSFER-${T_B} · Zuordnung am 27.08.2026 richtiggestellt`);
+  const altU = `Bankeingang TRANSFER-${T_B} · Rueckbuchung 27.08.2026: Fuer diese Rate ist kein Geldeingang vorhanden.`;
+  const r4U = await rate(U.ref, 4, `${prU}-4`, 799, tag(30), false, altU);
+  let indexSperrt = false;
+  try { await sql`UPDATE fiaon_abo_raten SET status = 'bezahlt', bezahlt_am = NOW() WHERE id = ${r4U}`; } catch (e: any) { indexSperrt = /fiaon_raten_ein_eingang_eine_rate/.test(String(e?.message)); }
+  ok("U Vorher: der Index sperrt die Rate (die alte Notiz trägt die Nummer der bezahlten Rate 3)", indexSperrt);
+  const eU = await eingang("u", tag(-5), 799, `Fiaon-${M}U1 , Juri Quonchenko`, "JURI QUONCHENKO");
+  const pU = await nach.bankeingangTrockenprobe(eU.id, { ziel: `${prU}-4` });
+  ok("U Trockenprobe: würde buchen (Rate 4)", pU.ok && pU.zeile?.buchen === true && pU.zeile.rateId === r4U, pU.zeile?.ergebnis);
+  const bU = await nach.bankeingangBuchen(eU.id, { wer: "Prüfstand", ziel: `${prU}-4`, erwartet: { regel: "rate", ziel: `${prU}-4`, rateId: r4U } });
+  ok("U gebucht über den einen Weg", bU.ok && bU.ergebnis?.gebucht === true, bU.error ?? bU.ergebnis?.grund);
+  const n4U = await rateZeile(r4U);
+  ok("U Rate 4 bezahlt, alte Nummer entschärft, neuer Beleg dahinter",
+    n4U.status === "bezahlt" && String(n4U.notiz).startsWith(`Wise-Eingang ${T_B} (gehört zu einer anderen Rate) · Rueckbuchung 27.08.2026`)
+      && !String(n4U.notiz).includes(`TRANSFER-${T_B}`) && String(n4U.notiz).includes(`Bankeingang ${eU.txnId}`), n4U.notiz);
+  ok("U Rate 3 unverändert (die Nummer gehört ihr)", String((await rateZeile(r3U)).notiz).startsWith(`Bankeingang TRANSFER-${T_B}`));
+  ok("U Akte nennt die Entschärfung", (await akte(U.ref, `%Alte Wise-Nummer(n) ${T_B}%entschärft%`)) === 1);
+  const r5U = Number(((await raten(U.ref)).find((r) => r.rate_nr === 5) as any)?.id ?? 0);
+  ok("U Rate 5 neu angelegt", r5U > 0);
+  let doppelScheitert = false;
+  try {
+    await rateBezahltBuchen({ rateId: r5U, zahlungsdatum: heute, quelle: "bank", notiz: `Bankeingang TRANSFER-${T_A} — Prüfstand: echte Doppelbuchung` });
+  } catch (e: any) { doppelScheitert = /duplicate key|unique/i.test(String(e?.message)); }
+  ok("U Echte Doppelbuchung (Nummer der bezahlten Rate 2 im NEUEN Vermerk) scheitert weiter am Index", doppelScheitert && (await rateZeile(r5U)).status === "offen");
+  const aU = await liveVerbuchen(`TRANSFER-${T_A}`, `${prU}-5`, 799, heute, { trocken: true });
+  ok("U Wise-Eingang, der schon in Rate 2 steht → „schon verbraucht“", !aU.gebucht && /schon verbraucht/.test(aU.grund), aU.grund);
+  const fU = await fremdeWiseNummernEntschaerfen(0, `Bankeingang TRANSFER-${T_A.slice(0, -1)} · x`);
+  ok("U Nur ganze Nummern: ein Präfix der Nummer von Rate 2 bleibt stehen", fU.nummern.length === 0 && fU.notiz === `Bankeingang TRANSFER-${T_A.slice(0, -1)} · x`, fU);
+  const T_C = "99278000003";
+  const fW = await fremdeWiseNummernEntschaerfen(0, `Bankeingang TRANSFER-${T_C} · Rueckbuchung 27.08.2026: Der Bankeingang war bereits fuer die Paketzahlung verbraucht`);
+  ok("U' Von der Notiz selbst widerlegte Nummer (Rückbuchung) wird entschärft, auch wenn keine andere Rate sie kennt",
+    fW.nummern.join() === T_C && fW.notiz === `Wise-Eingang ${T_C} (gehört zu einer anderen Rate) · Rueckbuchung 27.08.2026: Der Bankeingang war bereits fuer die Paketzahlung verbraucht`, fW);
+  const fW2 = await fremdeWiseNummernEntschaerfen(0, `Bankeingang TRANSFER-${T_C} · Rueckbuchung 27.08.2026: x · Bankeingang TRANSFER-${T_C} (neu zugeordnet)`);
+  ok("U' Wieder gültig genannte Nummer bleibt (nur widerlegt, wenn JEDE Nennung eine Rückbuchung hinter sich hat)", fW2.nummern.length === 0, fW2);
+  const fW3 = await fremdeWiseNummernEntschaerfen(0, `Bankeingang TRANSFER-${T_C}`);
+  ok("U' Eigene, nirgends sonst stehende Nummer ohne Rückbuchung bleibt", fW3.nummern.length === 0 && fW3.notiz === `Bankeingang TRANSFER-${T_C}`, fW3);
+  // Fall Körner: Rate mit widerlegter Nummer wird bezahlt → sie beansprucht die Nummer danach NICHT (Index, „verbraucht“).
+  await sql`UPDATE fiaon_abo_raten SET notiz = ${`Bankeingang TRANSFER-${T_C} · Rueckbuchung 27.08.2026: Der Bankeingang war bereits fuer die Paketzahlung verbraucht — diese Rate war nie bezahlt.`} WHERE id = ${r5U}`;
+  const eU2 = await eingang("u2", tag(-1), 799, `${prU}-5`, "JURI QUONCHENKO");
+  const bU2 = await nach.bankeingangBuchen(eU2.id, { wer: "Prüfstand", ziel: `${prU}-5` });
+  const n5U = await rateZeile(r5U);
+  ok("U' Rate 5 (widerlegte Nummer) gebucht, Nummer entschärft", bU2.ok && bU2.ergebnis?.gebucht === true && String(n5U.notiz).startsWith(`Wise-Eingang ${T_C} (gehört zu einer anderen Rate) · Rueckbuchung`), n5U.notiz);
+  const aU2 = await liveVerbuchen(`TRANSFER-${T_C}`, `${prU}-6`, 799, heute, { trocken: true });
+  ok("U' Der Wise-Eingang gilt danach NICHT als „verbraucht“ von Rate 5", !/schon verbraucht/.test(aU2.grund), aU2.grund);
+
+  // ── V: Kulanz-Storno zurücknehmen (Fälle Körner, Condescu) ────────────────
+  console.log("\nV  Rate per Kulanz storniert (Kündigung), Kunde zahlt sie trotzdem → Storno zurück, buchen; Fehlschlag stellt ihn wieder her");
+  const prV = `FIAON-${M}V1`;
+  const V = await kunde("V", { pr: prV, cents: 799, vorname: "Jürgen", nachname: "Quörner", rate1Am: tag(-50) });
+  await eingang("v0", tag(-50), 799, prV, "Jurgen Quorner", { applied: true, matchedRef: V.ref });
+  const stornoAm = `${tag(-12)}T10:00:00.000Z`;
+  const [rv2] = await sql`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle, storniert_am, storno_grund, notiz)
+    VALUES (${V.ref}, 2, ${`${prV}-2`}, 799, ${tag(-20)}, 'storniert', 'auto', ${stornoAm}, 'kuendigung_kulanz', 'Fälligkeit korrigiert') RETURNING id`;
+  const [rv3] = await sql`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle, storniert_am, storno_grund)
+    VALUES (${V.ref}, 3, ${`${prV}-3`}, 799, ${tag(10)}, 'storniert', 'auto', ${stornoAm}, 'kuendigung_kulanz') RETURNING id`;
+  const r2V = Number(rv2.id); const r3V = Number(rv3.id);
+  await sql`UPDATE fiaon_applications SET gekuendigt_am = ${stornoAm}, letzte_rate_nr = 1, vertrag_ende_am = ${stornoAm}, abo_gestoppt_am = ${stornoAm},
+            abo_stopp_grund = 'Kündigung (Kulanz, sofort)', account_status = 'suspended' WHERE ref = ${V.ref}`;
+  const eV = await eingang("v", tag(-5), 800, "Trimis prin Revolut", "Cornel Quondescu");
+  await aufgabe("ueberzahlung", eV.txnId, V.ref);
+  const pV0 = await nach.bankeingangTrockenprobe(eV.id, { ziel: `${prV}-2` });
+  ok("V ohne Option: „Rate nicht eindeutig“ (stornierte Rate wird nicht gebucht — wie bisher)", pV0.ok && pV0.zeile?.buchen === false && pV0.zeile.ergebnis === "Rate nicht eindeutig", pV0.zeile?.ergebnis);
+  const pVo = await nach.bankeingangTrockenprobe(eV.id, { stornoZuruecknehmen: true });
+  ok("V Option ohne Ziel → 400", !pVo.ok && pVo.status === 400, pVo.error);
+  const pV = await nach.bankeingangTrockenprobe(eV.id, { ziel: `${prV}-2`, stornoZuruecknehmen: true });
+  ok("V Trockenprobe mit Option: würde buchen (Überzahlung 0.01 €), sagt den Storno an", pV.ok && pV.zeile?.buchen === true && pV.zeile.rateId === r2V && /Überzahlung 0.01/.test(pV.zeile.ergebnis) && /kuendigung_kulanz/.test(String(pV.zeile.stornoZurueck)), pV.zeile?.ergebnis);
+  ok("V Trockenprobe schreibt nichts (Rate bleibt storniert)", (await rateZeile(r2V)).status === "storniert");
+  // Fehlschlag: Eingang VOR der Zahlung von Rate 1 → die Rückwärtssperre lehnt ab, nachdem der Storno schon zurück war.
+  const eVf = await eingang("vf", tag(-60), 799, `${prV}-2`, "Jurgen Quorner");
+  const vorV = await rateZeile(r2V);
+  const bVf = await nach.bankeingangBuchen(eVf.id, { wer: "Prüfstand", ziel: `${prV}-2`, stornoZuruecknehmen: true });
+  const nachVf = await rateZeile(r2V);
+  ok("V Fehlschlag: nicht gebucht (Rückwärtssperre)", bVf.ok && bVf.ergebnis?.gebucht === false && /vor der vorherigen Rate/.test(String(bVf.ergebnis?.grund)), bVf.error ?? bVf.ergebnis?.grund);
+  ok("V Fehlschlag: Storno wiederhergestellt (Status, Grund, Zeitpunkt, Notiz wie vorher)",
+    nachVf.status === "storniert" && nachVf.storno_grund === "kuendigung_kulanz" && new Date(nachVf.storniert_am).getTime() === new Date(vorV.storniert_am).getTime()
+      && nachVf.notiz === vorV.notiz && nachVf.bezahlt_am == null, nachVf);
+  const bV = await nach.bankeingangBuchen(eV.id, { wer: "Prüfstand", ziel: `${prV}-2`, stornoZuruecknehmen: true, erwartet: { regel: "rate", ziel: `${prV}-2`, rateId: r2V } });
+  ok("V gebucht", bV.ok && bV.ergebnis?.gebucht === true, bV.error ?? bV.ergebnis?.grund);
+  const n2V = await rateZeile(r2V);
+  ok("V Rate 2 bezahlt, Storno weg, Vermerk „Storno (kuendigung_kulanz) zurückgenommen: Zahlung 8,00 € am … eingegangen — Justin …“",
+    n2V.status === "bezahlt" && n2V.storniert_am == null && n2V.storno_grund == null
+      && String(n2V.notiz).includes(`Storno (kuendigung_kulanz) zurückgenommen: Zahlung 8,00 € am ${tagLang(tag(-5))} eingegangen — Justin ${tagLang(heuteBerlin)}`)
+      && String(n2V.notiz).includes(`Bankeingang ${eV.txnId}`), n2V.notiz);
+  ok("V Rate 3 bleibt storniert, keine neue Rate (Vertrag gekündigt)", (await rateZeile(r3V)).status === "storniert" && (await raten(V.ref)).length === 3, (await raten(V.ref)).map((r) => `${r.rate_nr}:${r.status}`));
+  const aV = await app(V.ref);
+  ok("V Vertrag bleibt gekündigt (nur die eine Rate lebt wieder)", aV.gekuendigt_am != null && aV.kuendigung_zurueckgenommen_am == null, aV);
+  ok("V Akte: Storno zurückgenommen, Zahlung behalten", (await akte(V.ref, "Rate 2 (%Storno (kuendigung_kulanz) zurückgenommen%behalten%")) === 1);
+  ok("V Bankbuch: verbucht", (await bank(eV.id)).applied === true);
+  ok("V Aufgabe „Überzahlung“ erledigt (nichts erstatten)", (await aufgabeStatus("ueberzahlung", eV.txnId)) === "erledigt");
+  ok("V Fehlschlag-Eingang bleibt unverbucht", (await bank(eVf.id)).applied === false);
+  // Storno aus einem anderen Grund wird NICHT zurückgenommen
+  const prV2 = `FIAON-${M}V2`;
+  const V2 = await kunde("V2", { pr: prV2, cents: 799, vorname: "Vera", nachname: "Quattrup", rate1Am: tag(-50) });
+  await sql`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle, storniert_am, storno_grund)
+    VALUES (${V2.ref}, 2, ${`${prV2}-2`}, 799, ${tag(-20)}, 'storniert', 'auto', ${stornoAm}, 'erstattet')`;
+  const eV2 = await eingang("v2", tag(-5), 799, `${prV2}-2`, "Vera Quattrup");
+  const pV2 = await nach.bankeingangTrockenprobe(eV2.id, { ziel: `${prV2}-2`, stornoZuruecknehmen: true });
+  ok("V' Storno „erstattet“ → 409, nur Kündigungs-Stornos", !pV2.ok && pV2.status === 409 && /nur Stornos aus einer Kündigung/.test(String(pV2.error)), pV2.error);
+
+  // ── W: Stornierte Bestellung reaktivieren (Fall Robiban) ─────────────────
+  console.log("\nW  Bestellung als „unbezahlt“ storniert + gekündigt + Konto gesperrt + Vertriebssperre, Kundin hat bezahlt → reaktivieren und buchen");
+  const sperre = async (ref: string) => {
+    await sql`UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = ${stornoAm}, gekuendigt_am = ${stornoAm}, vertrag_ende_am = ${stornoAm},
+              kuendigung_quelle = 'telefon', account_status = 'suspended', mahnstopp_am = ${stornoAm} WHERE ref = ${ref}`;
+    await sql`UPDATE fiaon_persons SET is_blocked = TRUE WHERE id = (SELECT person_id FROM fiaon_applications WHERE ref = ${ref})`;
+  };
+  const gesperrt = async (personId: number) => !!((await sql`SELECT is_blocked FROM fiaon_persons WHERE id = ${personId}`)[0] as any)?.is_blocked;
+  // Fehlschlag zuerst: Eingang über ein Jahr alt → alsBezahltBuchen lehnt ab, nachdem schon reaktiviert war.
+  const prW0 = `FIAON-${M}W0`;
+  const W0 = await kunde("W0", { pr: prW0, cents: 9999, vorname: "Dana", nachname: "Quobibon" });
+  await sperre(W0.ref);
+  const vorW0 = await app(W0.ref);
+  const eW0 = await eingang("w0", tag(-400), 10000, `Circul Bank Sa-${prW0}`, "DANA QUOBIBON");
+  const pW0 = await nach.bankeingangTrockenprobe(eW0.id, { ziel: prW0, stornoZuruecknehmen: true });
+  ok("W Fehlschlag-Fall: Trockenprobe würde buchen", pW0.ok && pW0.zeile?.buchen === true, pW0.zeile?.ergebnis);
+  const bW0 = await nach.bankeingangBuchen(eW0.id, { wer: "Prüfstand", ziel: prW0, stornoZuruecknehmen: true });
+  const nachW0 = await app(W0.ref);
+  ok("W Fehlschlag: nicht gebucht (Datum über ein Jahr)", bW0.ok && bW0.ergebnis?.gebucht === false && /über ein Jahr/.test(String(bW0.ergebnis?.grund)), bW0.error ?? bW0.ergebnis?.grund);
+  ok("W Fehlschlag: Bestellung wieder storniert wie vorher (Status, Kündigung, Konto, Vertragsende)",
+    nachW0.payment_status === "cancelled" && nachW0.account_status === "suspended"
+      && new Date(nachW0.cancelled_at).getTime() === new Date(vorW0.cancelled_at).getTime()
+      && new Date(nachW0.gekuendigt_am).getTime() === new Date(vorW0.gekuendigt_am).getTime()
+      && nachW0.kuendigung_zurueckgenommen_am == null && new Date(nachW0.vertrag_ende_am).getTime() === new Date(vorW0.vertrag_ende_am).getTime(), nachW0);
+  ok("W Fehlschlag: Vertriebssperre bleibt, Akte sagt „zurückgedreht“", (await gesperrt(W0.personId)) && (await akte(W0.ref, "Reaktivierung zurückgedreht%")) === 1);
+  // Jetzt der echte Fall
+  const prW = `FIAON-${M}W1`;
+  const W = await kunde("W", { pr: prW, cents: 9999, vorname: "Daniela", nachname: "Quobiban" });
+  await sperre(W.ref);
+  const eW = await eingang("w", tag(-29), 10000, `Circul Bank Sa-${prW}`, "DANIELA QUOBIBAN");
+  await aufgabe("rueckzahlung_noetig", eW.txnId, W.ref);
+  const pW1 = await nach.bankeingangTrockenprobe(eW.id, { ziel: prW });
+  ok("W ohne Option: „Status cancelled“ (wie bisher)", pW1.ok && pW1.zeile?.buchen === false && pW1.zeile.ergebnis === "Status cancelled", pW1.zeile?.ergebnis);
+  const pW = await nach.bankeingangTrockenprobe(eW.id, { ziel: prW, stornoZuruecknehmen: true });
+  ok("W Trockenprobe mit Option: würde buchen (Erstzahlung, Überzahlung 0.01 €), sagt die Reaktivierung an",
+    pW.ok && pW.zeile?.buchen === true && pW.zeile.regel === "erstzahlung" && /Überzahlung 0.01/.test(pW.zeile.ergebnis)
+      && /reaktiviert/.test(String(pW.zeile.stornoZurueck)) && /Vertriebssperre/.test(String(pW.zeile.stornoZurueck)), pW.zeile?.stornoZurueck ?? pW.error);
+  ok("W Trockenprobe schreibt nichts", (await app(W.ref)).payment_status === "cancelled" && (await gesperrt(W.personId)));
+  const bW = await nach.bankeingangBuchen(eW.id, { wer: "Prüfstand", ziel: prW, stornoZuruecknehmen: true, erwartet: { regel: "erstzahlung", ziel: prW, rateId: null } });
+  ok("W gebucht", bW.ok && bW.ergebnis?.gebucht === true, bW.error ?? bW.ergebnis?.grund);
+  const nW = await app(W.ref);
+  ok("W Bestellung bezahlt, Konto aktiv, Storno und Kündigung zurück",
+    nW.payment_status === "paid" && nW.account_status === "active" && nW.cancelled_at == null && nW.gekuendigt_am == null
+      && nW.kuendigung_zurueckgenommen_am != null && nW.vertrag_ende_am == null, nW);
+  ok("W Vertriebssperre aufgehoben (+ Vermerk wie die Admin-Route)", !(await gesperrt(W.personId)) && (await akte(W.ref, "Vertriebssperre AUFGEHOBEN durch die Verwaltung — Zahlung 100,00 €%")) === 1);
+  ok("W Sperr-Protokoll (Trigger) schreibt mit", Number((await sql`SELECT COUNT(*)::int AS n FROM fiaon_sperr_protokoll WHERE person_id = ${W.personId} AND alt = TRUE AND neu = FALSE`.catch(() => [{ n: -1 }]))[0].n) === 1);
+  ok("W Akte: Storno der Bestellung zurückgenommen, Kündigung zurückgenommen",
+    (await akte(W.ref, "Storno der Bestellung zurückgenommen%")) === 1 && (await akte(W.ref, "Kündigung zurückgenommen%")) === 1);
+  const rW = await bis(() => raten(W.ref), (r) => r.length >= 1);
+  ok("W Ratenkette angelegt (Rate 1 bezahlt)", rW.some((r) => r.rate_nr === 1 && r.status === "bezahlt"), rW.map((r) => `${r.rate_nr}:${r.status}`));
+  ok("W Aufgabe „Rückzahlung nötig“ erledigt", (await aufgabeStatus("rueckzahlung_noetig", eW.txnId)) === "erledigt");
+  // Stornierte Bestellung MIT bezahlter Rate → nicht über eine Erstzahlung
+  const prW3 = `FIAON-${M}W3`;
+  const W3 = await kunde("W3", { pr: prW3, cents: 799, vorname: "Wolf", nachname: "Quandt", rate1Am: tag(-40), status: "cancelled" });
+  const eW3 = await eingang("w3", tag(-3), 799, prW3, "Wolf Quandt");
+  const pW3 = await nach.bankeingangTrockenprobe(eW3.id, { ziel: prW3, stornoZuruecknehmen: true });
+  ok("W' stornierte Bestellung mit bezahlter Rate → 409", !pW3.ok && pW3.status === 409 && /schon bezahlte Raten/.test(String(pW3.error)), pW3.error);
+  void W3;
+
+  // ── X: Doppelzahlung mit heutigem Datum verrechnen (Fall Schlebusch) ─────
+  console.log("\nX  Startzahlung doppelt überwiesen, Rate 2 gestern bezahlt → Rückwärtssperre; mit heutigem Datum als Rate 3 verrechnen");
+  const prX = `FIAON-${M}X1`;
+  const X = await kunde("X", { pr: prX, cents: 5999, vorname: "Wolfgang", nachname: "Quebusch", rate1Am: tag(-40) });
+  await eingang("x0", tag(-40), 5999, prX, "Wolfgang Quebusch", { applied: true, matchedRef: X.ref });
+  const r2X = await rate(X.ref, 2, `${prX}-2`, 5999, tag(-10), true, "Bankeingang AWX-q277-zz2 — Prüfstand");
+  await sql`UPDATE fiaon_abo_raten SET bezahlt_am = ${`${tag(-1)}T12:00:00Z`} WHERE id = ${r2X}`;
+  const r3X = await rate(X.ref, 3, `${prX}-3`, 5999, tag(20));
+  const eX = await eingang("x", tag(-39), 5999, `${prX} Received money from Wolfgang Quebusch with reference ${prX}`, "Wolfgang Quebusch");
+  await aufgabe("ueberzahlung", eX.txnId, X.ref);
+  const pX0 = await nach.bankeingangTrockenprobe(eX.id, { ziel: `${prX}-3` });
+  ok("X ohne Option: Trockenprobe sagt die Rückwärtssperre als Hinweis an", pX0.ok && pX0.zeile?.buchen === true && pX0.zeile.hinweise.some((h) => /Rückwärtssperre/.test(h)), pX0.zeile?.hinweise);
+  const bX0 = await nach.bankeingangBuchen(eX.id, { wer: "Prüfstand", ziel: `${prX}-3` });
+  ok("X ohne Option: Buchung abgelehnt (Rückwärtssperre, wie bisher), Rate 3 offen", bX0.ok && bX0.ergebnis?.gebucht === false && /vor der vorherigen Rate/.test(String(bX0.ergebnis?.grund)) && (await rateZeile(r3X)).status === "offen", bX0.ergebnis?.grund);
+  ok("X ohne Option: Aufgabe bleibt offen", (await aufgabeStatus("ueberzahlung", eX.txnId)) === "offen");
+  const pXo = await nach.bankeingangTrockenprobe(eX.id, { verrechnungHeute: true });
+  ok("X Option ohne Ziel → 400", !pXo.ok && pXo.status === 400, pXo.error);
+  const pX = await nach.bankeingangTrockenprobe(eX.id, { ziel: `${prX}-3`, verrechnungHeute: true });
+  const satzX = `Eingang vom ${tagLang(tag(-39))} (Doppelzahlung) am ${tagLang(heuteBerlin)} mit Rate 3 verrechnet — Justin ${tagLang(heuteBerlin)}`;
+  ok("X Trockenprobe mit Option: würde buchen per heute, Vermerk steht", pX.ok && pX.zeile?.buchen === true && pX.zeile.buchDatum === heuteBerlin && pX.zeile.verrechnung === satzX, pX.zeile?.verrechnung ?? pX.zeile?.ergebnis);
+  const eX2 = await eingang("x2", heute, 5999, `${prX}-3`, "Wolfgang Quebusch");
+  const pX2 = await nach.bankeingangTrockenprobe(eX2.id, { ziel: `${prX}-3`, verrechnungHeute: true });
+  ok("X Option, wo die Sperre nicht greift → „Nicht nötig“, nicht buchbar", pX2.ok && pX2.zeile?.buchen === false && /^Nicht nötig/.test(String(pX2.zeile.ergebnis)), pX2.zeile?.ergebnis);
+  const prX3 = `FIAON-${M}X3`;
+  await kunde("X3", { pr: prX3, cents: 799, vorname: "Xaver", nachname: "Quell" });
+  const eX3 = await eingang("x3", tag(-2), 799, prX3, "Xaver Quell");
+  const pX3 = await nach.bankeingangTrockenprobe(eX3.id, { ziel: prX3, verrechnungHeute: true });
+  ok("X Option auf eine Erstzahlung → nicht buchbar („nur für Raten“)", pX3.ok && pX3.zeile?.buchen === false && /nur für Raten/.test(String(pX3.zeile.ergebnis)), pX3.zeile?.ergebnis);
+  const bX = await nach.bankeingangBuchen(eX.id, { wer: "Prüfstand", ziel: `${prX}-3`, verrechnungHeute: true, erwartet: { regel: "rate", ziel: `${prX}-3`, rateId: r3X } });
+  ok("X gebucht", bX.ok && bX.ergebnis?.gebucht === true, bX.error ?? bX.ergebnis?.grund);
+  const n3X = await rateZeile(r3X);
+  ok("X Rate 3 bezahlt per heute, Notiz: Beleg + Verrechnungsvermerk",
+    n3X.status === "bezahlt" && new Date(n3X.bezahlt_am).toISOString().slice(0, 10) === heuteBerlin
+      && String(n3X.notiz).includes(`Bankeingang ${eX.txnId}`) && String(n3X.notiz).includes(satzX), n3X.notiz);
+  const r4X = (await raten(X.ref)).find((r) => r.rate_nr === 4) as any;
+  const f4 = r4X ? (await sql`SELECT faellig_am::text AS f, (faellig_am - ${tag(20)}::date)::int AS abstand FROM fiaon_abo_raten WHERE id = ${r4X.id}`)[0] as any : null;
+  ok("X Rate 4 neu, im Rhythmus der Kette (ein Monat nach Rate 3, nicht nach heute)", !!r4X && r4X.status === "offen" && Number(f4?.abstand) >= 28 && Number(f4?.abstand) <= 31, f4 ?? "fehlt");
+  ok("X Bankbuch: verbucht, Vermerk „verrechnet“", (await bank(eX.id)).applied === true && /mit Rate 3 verrechnet/.test(String((await bank(eX.id)).note)), (await bank(eX.id)).note);
+  ok("X Aufgabe „Überzahlung“ erledigt", (await aufgabeStatus("ueberzahlung", eX.txnId)) === "erledigt");
+
+  // ── Y: ohne Optionen wie bisher ──────────────────────────────────────────
+  console.log("\nY  Ohne Optionen: kein Storno wird angefasst, kein Datum verschoben");
+  const pY = await nach.bankeingangTrockenprobe(eV2.id, { ziel: `${prV2}-2` });
+  ok("Y stornierte Rate (erstattet) ohne Option: „Rate nicht eindeutig“, kein Storno-Text", pY.ok && pY.zeile?.buchen === false && pY.zeile.ergebnis === "Rate nicht eindeutig" && pY.zeile.stornoZurueck == null && pY.zeile.verrechnung == null, pY.zeile?.ergebnis);
+  const aY = await liveVerbuchen(eV2.txnId, `${prV2}-2`, 799, tag(-5), { trocken: true, zielVomMenschen: true, stornoAlsOffen: true, ueberzahlungBisCents: 100 });
+  ok("Y liveVerbuchen: stornoAlsOffen holt nur Kündigungs-Stornos in die Vorschau", !aY.gebucht && aY.grund === "Rate nicht eindeutig", aY.grund);
+  const prY = `FIAON-${M}Y1`;
+  const Y = await kunde("Y", { pr: prY, cents: 799, vorname: "Yvonne", nachname: "Quist", rate1Am: tag(-50) });
+  await sql`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle, storniert_am, storno_grund)
+    VALUES (${Y.ref}, 2, ${`${prY}-2`}, 799, ${tag(-20)}, 'storniert', 'auto', ${stornoAm}, 'kuendigung_kulanz')`;
+  const aY2 = await liveVerbuchen("AWX-q277-y-scharf", `${prY}-2`, 799, tag(-5), { trocken: false, zielVomMenschen: true, stornoAlsOffen: true, ueberzahlungBisCents: 100 });
+  ok("Y scharf wirkt stornoAlsOffen NIE (stornierte Rate bleibt ungebucht)", !aY2.gebucht && aY2.grund === "Rate nicht eindeutig" && (await raten(Y.ref)).find((r) => r.rate_nr === 2)?.status === "storniert", aY2.grund);
 
   console.log(`\nNetzaufrufe abgeklemmt: ${blockiert}`);
   await aufraeumen();

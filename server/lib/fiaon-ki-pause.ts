@@ -36,10 +36,23 @@
 // Abrechnungsmerkmal), 5xx, 400, Zeitgrenze, Netzfehler — das sind
 // vorübergehende Störungen, dafür haben die Aufrufer ihre Wiederholungen.
 // ═══════════════════════════════════════════════════════════════════════════
+// E-279 (03.10.2026): DIE KI-WEICHE. OpenAI hat am 03.10. das Konto deaktiviert — seitdem trägt Claude.
+// Jeder Aufruf an /chat/completions und /responses geht weiter durch openaiFetch, wird aber übersetzt
+// (fiaon-ki-claude.ts) und an Claude geschickt, sobald ANTHROPIC_API_KEY gesetzt ist (KI_ANBIETER schaltet).
+// Die Pause gilt JE ANBIETER (zustand.anbieter): eine OpenAI-Pause hält nur noch, was bei OpenAI bleibt
+// (Whisper/Transkripte), nicht Mara.
 import { sqlPool } from "./db-pool";
+import {
+  aktiverAnbieter, claudeKannPfad, claudeModellFuer, chatNachClaude, alsAnweisung, claudeNachChat,
+  responsesNachChat, chatNachResponses, chatAlsSse, claudeFehlerArt, alsOpenAiFehler, type KiAnbieter,
+} from "./fiaon-ki-claude";
+export { aktiverAnbieter, type KiAnbieter } from "./fiaon-ki-claude";
 
 export const OPENAI_HOST = "api.openai.com";
 export const OPENAI_V1 = "https://api.openai.com/v1";
+export const ANTHROPIC_HOST = "api.anthropic.com";
+export const ANTHROPIC_V1 = "https://api.anthropic.com/v1";
+const ANTHROPIC_VERSION = "2023-06-01";
 export const KI_PAUSE_SCHLUESSEL = "ki_pause";
 /** Der Satz, den Justin im Alarm liest (Auftrag 27.09.2026). */
 export const KI_PAUSE_ALARM_TEXT =
@@ -65,6 +78,8 @@ export interface KiPauseZustand {
   dienst: string | null;
   /** Fingerabdruck des Schlüssels, mit dem der Fehler kam („…ab12cd“, letzte 6 Zeichen). */
   schluessel?: string | null;
+  /** E-279: Wessen Pause? Fehlt (alte Zeilen) = OpenAI. Sie gilt nur für Aufrufe an DIESEN Anbieter. */
+  anbieter?: KiAnbieter | null;
   /** Nur in diesem Prozess pausiert (kein Produktionsdienst) — nie gespeichert. */
   nurLokal?: boolean;
   seit: string | null;
@@ -104,17 +119,28 @@ export function schluesselFingerabdruck(schluessel: string | null | undefined): 
 // ── Der Fehler, an dem jeder Aufrufer „liegen lassen" erkennt ─────────────
 export class KiPausiertFehler extends Error {
   readonly kiPause = true;
-  constructor(readonly dienst: string, readonly art: KiPauseArt | null = null) {
-    super(kiPauseMeldung(art));
+  constructor(readonly dienst: string, readonly art: KiPauseArt | null = null, readonly anbieter: KiAnbieter = "openai") {
+    super(kiPauseMeldung(art, anbieter));
     this.name = "KiPausiertFehler";
   }
 }
 
 /** Die Meldung, die interaktive Stellen zeigen. Beginnt IMMER mit „KI pausiert" (Aufrufer prüfen darauf). */
-export function kiPauseMeldung(art: KiPauseArt | null): string {
+export function kiPauseMeldung(art: KiPauseArt | null, anbieter: KiAnbieter | null = "openai"): string {
+  const wer = anbieterName(anbieter);
   if (art === "hand") return "KI pausiert — im Chefbüro von Hand angehalten. Justin aktiviert sie dort wieder.";
-  if (art === "zugang") return "KI pausiert — OpenAI lehnt den Zugang ab (Schlüssel oder Konto). Justin aktiviert sie im Chefbüro wieder.";
-  return "KI pausiert — OpenAI konnte nicht abbuchen (Guthaben). Justin aktiviert sie im Chefbüro wieder.";
+  if (art === "zugang") return `KI pausiert — ${wer} lehnt den Zugang ab (Schlüssel oder Konto). Justin aktiviert sie im Chefbüro wieder.`;
+  return `KI pausiert — ${wer} konnte nicht abbuchen (Guthaben). Justin aktiviert sie im Chefbüro wieder.`;
+}
+
+/** „OpenAI“ oder „Claude (Anthropic)“ — für Meldungen. */
+export function anbieterName(a: KiAnbieter | null | undefined): string {
+  return a === "claude" ? "Claude (Anthropic)" : "OpenAI";
+}
+
+/** E-279: Gilt diese Pause für Aufrufe an diesen Anbieter? Alte Zeilen ohne Anbieter sind OpenAI. */
+export function pauseGilt(z: KiPauseZustand | null | undefined, anbieter: KiAnbieter = aktiverAnbieter()): boolean {
+  return !!z?.an && ((z.anbieter ?? "openai") === anbieter || z.art === "hand");
 }
 
 /**
@@ -158,7 +184,19 @@ function lesen(roh: unknown): KiPauseZustand {
   }
 }
 
-export async function kiPauseLesen(frisch = false): Promise<KiPauseZustand> {
+/**
+ * E-279: Der Zustand, wie ihn der Rest des Systems sieht — die Pause des TRAGENDEN Anbieters (oder eine von
+ * Hand). Eine OpenAI-Pause, während Claude trägt, gilt hier als „nicht pausiert“: Sie hält nur noch, was bei
+ * OpenAI bleibt (Whisper), und das prüft kiBereit am rohen Zustand. Steht in `nebenPause`.
+ */
+export async function kiPauseLesen(frisch = false): Promise<KiPauseZustand & { nebenPause?: { anbieter: KiAnbieter; art: KiPauseArt | null; seit: string | null } | null }> {
+  const z = await kiPauseRohLesen(frisch);
+  if (!z.an || pauseGilt(z, aktiverAnbieter())) return z;
+  return { ...z, an: false, nebenPause: { anbieter: (z.anbieter ?? "openai") as KiAnbieter, art: z.art, seit: z.seit } };
+}
+
+/** Der gespeicherte Zustand, ungefiltert — für Pausieren, Aktivieren und kiBereit. */
+export async function kiPauseRohLesen(frisch = false): Promise<KiPauseZustand> {
   if (!frisch && zwischen && zwischen.bis > Date.now()) return lokalePause ?? zwischen.wert;
   try {
     const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${KI_PAUSE_SCHLUESSEL} LIMIT 1`) as any[];
@@ -179,7 +217,7 @@ export async function kiPauseLesen(frisch = false): Promise<KiPauseZustand> {
         zwischen = null;
         if (neu && alarmOffen && z.art !== "hand") await alarm(z).catch((e) => console.error("[KI-PAUSE] Alarm (nachgeholt):", e));
         alarmOffen = false;
-        return neu ? z : await kiPauseLesen(true);
+        return neu ? z : await kiPauseRohLesen(true);
       }
       return z;
     }
@@ -196,14 +234,15 @@ export async function kiPauseLesen(frisch = false): Promise<KiPauseZustand> {
   }
 }
 
-export async function kiPausiert(): Promise<boolean> {
-  return (await kiPauseLesen()).an;
+/** Ist die KI des TRAGENDEN Anbieters (oder von Hand alles) pausiert? E-279: eine OpenAI-Pause hält Claude nicht an. */
+export async function kiPausiert(anbieter: KiAnbieter = aktiverAnbieter()): Promise<boolean> {
+  return pauseGilt(await kiPauseRohLesen(), anbieter);
 }
 
-/** Vor jedem OpenAI-Aufruf: wirft KiPausiertFehler, wenn pausiert. */
-export async function kiBereit(dienst: string): Promise<void> {
-  const z = await kiPauseLesen();
-  if (z.an) throw new KiPausiertFehler(dienst, z.art);
+/** Vor jedem KI-Aufruf: wirft KiPausiertFehler, wenn DIESER Anbieter pausiert ist. */
+export async function kiBereit(dienst: string, anbieter: KiAnbieter = aktiverAnbieter()): Promise<void> {
+  const z = await kiPauseRohLesen();
+  if (pauseGilt(z, anbieter)) throw new KiPausiertFehler(dienst, z.art, (z.anbieter ?? "openai") as KiAnbieter);
 }
 
 async function speichern(z: KiPauseZustand): Promise<void> {
@@ -276,12 +315,13 @@ export function abrechnungsFehler(status: number, body: unknown): KiPauseArt | n
   return null;
 }
 
-function grundAus(art: KiPauseArt, fehler: string): string {
+function grundAus(art: KiPauseArt, fehler: string, anbieter: KiAnbieter = "openai"): string {
+  const wer = anbieterName(anbieter);
   if (art === "hand") return fehler || "Von Hand angehalten.";
-  if (art === "zugang") return `OpenAI lehnt den Zugang ab (Schlüssel oder Konto): ${fehler.slice(0, 160)}`;
-  if (/no credits|credit balance/i.test(fehler)) return "OpenAI meldet: kein Guthaben mehr.";
-  if (/spend limit|usage limit|hard_limit/i.test(fehler)) return "OpenAI meldet: Ausgabengrenze erreicht.";
-  return "OpenAI konnte nicht abbuchen.";
+  if (art === "zugang") return `${wer} lehnt den Zugang ab (Schlüssel oder Konto): ${fehler.slice(0, 160)}`;
+  if (/no credits|credit balance/i.test(fehler)) return `${wer} meldet: kein Guthaben mehr.`;
+  if (/spend limit|usage limit|hard_limit/i.test(fehler)) return `${wer} meldet: Ausgabengrenze erreicht.`;
+  return `${wer} konnte nicht abbuchen.`;
 }
 
 // ── Pausieren (höchstens einmal, genau ein Alarm) ─────────────────────────
@@ -301,14 +341,22 @@ async function pauseSchreiben(z: KiPauseZustand): Promise<boolean> {
   return r.length > 0;
 }
 
-export async function pausieren(ein: { art: KiPauseArt; fehler: string; dienst: string; von: string; schluessel?: string | null }): Promise<{ neu: boolean; zustand: KiPauseZustand }> {
+export async function pausieren(ein: { art: KiPauseArt; fehler: string; dienst: string; von: string; schluessel?: string | null; anbieter?: KiAnbieter }): Promise<{ neu: boolean; zustand: KiPauseZustand }> {
   const jetzt = new Date().toISOString();
-  const vorher = await kiPauseLesen(true);
-  if (vorher.an) return { neu: false, zustand: vorher };
-  const grund = grundAus(ein.art, ein.fehler);
-  const fingerabdruck = ein.art === "hand" ? null : schluesselFingerabdruck(ein.schluessel ?? process.env.OPENAI_API_KEY);
+  const vorher = await kiPauseRohLesen(true);
+  const anbieter: KiAnbieter = ein.anbieter ?? (ein.art === "hand" ? aktiverAnbieter() : "openai");
+  // E-279: Es gibt EINE Pausenzeile. Steht dort schon eine, bleibt sie — außer die neue betrifft den TRAGENDEN
+  // Anbieter und die alte einen anderen (z. B. alte OpenAI-Pause, jetzt bucht Claude nicht ab): dann ersetzt
+  // die neue sie, sonst liefe Mara gegen eine Wand ohne Pause und ohne Alarm.
+  // Eine Pause von Hand (Chefbüro) ersetzt jede automatische.
+  const ersetzen = vorher.an && vorher.art !== "hand"
+    && (ein.art === "hand" || ((vorher.anbieter ?? "openai") !== anbieter && anbieter === aktiverAnbieter()));
+  if (vorher.an && !ersetzen) return { neu: false, zustand: vorher };
+  const grund = grundAus(ein.art, ein.fehler, anbieter);
+  const fingerabdruck = ein.art === "hand" ? null
+    : schluesselFingerabdruck(ein.schluessel ?? (anbieter === "claude" ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY));
   const z: KiPauseZustand = {
-    an: true, art: ein.art, grund, fehler: ein.fehler.slice(0, 400), dienst: ein.dienst, schluessel: fingerabdruck,
+    an: true, art: ein.art, grund, fehler: ein.fehler.slice(0, 400), dienst: ein.dienst, schluessel: fingerabdruck, anbieter,
     seit: jetzt, von: ein.von,
     aufgehobenAm: null, aufgehobenVon: null,
     verlauf: [{ am: jetzt, was: "pausiert" as const, von: ein.von, grund }, ...vorher.verlauf].slice(0, 20),
@@ -330,11 +378,12 @@ export async function pausieren(ein: { art: KiPauseArt; fehler: string; dienst: 
   zwischen = { wert: z, bis: Date.now() + 10_000 };
   let gespeichert = false;
   try {
-    const neu = await pauseSchreiben(z);
+    // E-279: Ersetzen schreibt über die alte Pause hinweg (pauseSchreiben schreibt nur in eine leere Zeile).
+    const neu = ersetzen ? (await speichern(z), true) : await pauseSchreiben(z);
     lokalePause = null;
     if (!neu) {
       zwischen = null;
-      return { neu: false, zustand: await kiPauseLesen(true) };
+      return { neu: false, zustand: await kiPauseRohLesen(true) };
     }
     gespeichert = true;
   } catch (e) {
@@ -356,21 +405,27 @@ export async function pausieren(ein: { art: KiPauseArt; fehler: string; dienst: 
 async function alarm(z: KiPauseZustand): Promise<void> {
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   const zeit = z.seit ? new Date(z.seit).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  const claude = z.anbieter === "claude";
+  const wer = anbieterName(z.anbieter);
   const titel = z.art === "zugang"
-    ? "OpenAI lehnt den Zugang ab — alle KI-Funktionen pausiert"
-    : "OpenAI konnte nicht abbuchen — alle KI-Funktionen pausiert";
+    ? `${wer} lehnt den Zugang ab — alle KI-Funktionen pausiert`
+    : `${wer} konnte nicht abbuchen — alle KI-Funktionen pausiert`;
   const text = [
     z.art === "zugang"
-      ? "OpenAI lehnt den Schlüssel oder das Konto ab — alle KI-Funktionen pausiert. Nach der Klärung im Chefbüro ‚KI wieder aktivieren' drücken."
-      : KI_PAUSE_ALARM_TEXT,
+      ? `${wer} lehnt den Schlüssel oder das Konto ab — alle KI-Funktionen pausiert. Nach der Klärung im Chefbüro ‚KI wieder aktivieren' drücken.`
+      : claude ? "Claude (Anthropic) konnte nicht abbuchen — alle KI-Funktionen pausiert. Nach dem Aufladen im Chefbüro ‚KI wieder aktivieren' drücken." : KI_PAUSE_ALARM_TEXT,
     "",
-    `Seit ${zeit} · erster Fehler bei: ${z.dienst} · Schlüssel ${z.schluessel ?? "—"} · OpenAI meldet: ${String(z.fehler || "").slice(0, 240)}`,
+    `Seit ${zeit} · erster Fehler bei: ${z.dienst} · Schlüssel ${z.schluessel ?? "—"} · ${wer} meldet: ${String(z.fehler || "").slice(0, 240)}`,
     "",
     "Was steht: Mara auf WhatsApp und im Postfach, Mara-Aktion und Mara-Aufträge, Kontoauszug- und SCHUFA-Auswertung, Texterkennung, Transkripte, Ratgeber, Firmen-Radar, Copilot und alle KI-Knöpfe. Nichts davon schickt in der Pause etwas an Kunden — auch keinen Ersatzsatz.",
     "Was weiterläuft: alles ohne KI — Betreuer schreiben selbst, WA-Zentrale, Mailwerk, Rückholung, Auskunft-Verkauf (Vorlagen).",
     KI_PAUSE_MAIL_HINWEIS,
     "",
-    z.art === "zugang"
+    claude
+      ? (z.art === "zugang"
+        ? "So geht es weiter: Schlüssel unter platform.claude.com → API-Schlüssel prüfen (bei Render: ANTHROPIC_API_KEY), dann Chefbüro → Band oben ‚KI wieder aktivieren' (oder Mara-Steuerpult /chef/s/mara)."
+        : "So geht es weiter: platform.claude.com → Guthaben (Billing) aufladen oder die Ausgabengrenze anheben, dann Chefbüro → Band oben ‚KI wieder aktivieren' (oder Mara-Steuerpult /chef/s/mara). Vor dem Aktivieren macht das System einen Probe-Aufruf; liegen Gebliebenes holen die normalen Läufe danach von selbst nach.")
+      : z.art === "zugang"
       ? "So geht es weiter: Schlüssel/Konto unter platform.openai.com prüfen, dann Chefbüro → Band oben ‚KI wieder aktivieren' (oder Mara-Steuerpult /chef/s/mara)."
       : "So geht es weiter: platform.openai.com → Settings → Billing → Guthaben aufladen, dann Chefbüro → Band oben ‚KI wieder aktivieren' (oder Mara-Steuerpult /chef/s/mara). Vor dem Aktivieren macht das System einen Probe-Aufruf; liegen Gebliebenes holen die normalen Läufe danach von selbst nach.",
   ].join("\n");
@@ -383,7 +438,7 @@ async function alarm(z: KiPauseZustand): Promise<void> {
 
 // ── Wieder aktivieren (mit Probe) ─────────────────────────────────────────
 export async function aktivieren(von: string, opt: { probe?: boolean; nachholen?: boolean } = {}): Promise<{ ok: boolean; zustand: KiPauseZustand; hinweis?: string; fehler?: string }> {
-  const vorher = await kiPauseLesen(true);
+  const vorher = await kiPauseRohLesen(true);
   // Nicht pausiert (Route direkt aufgerufen, zwei Klicks gekreuzt): nichts
   // ändern. Früher setzte eine gescheiterte Probe hier an=true — eine Pause
   // ohne Alarm, ohne seit und ohne Dienst (Nachprüfung 27.09.). Bucht OpenAI
@@ -392,11 +447,14 @@ export async function aktivieren(von: string, opt: { probe?: boolean; nachholen?
   // Eine Pause nur dieses Prozesses (kein Produktionsdienst) stand nie in der DB — dort auch nichts schreiben.
   if (lokalNurHier && lokalePause && vorher === lokalePause) {
     lokalePause = null; lokalNurHier = false; zwischen = null;
-    return { ok: true, zustand: await kiPauseLesen(true), hinweis: "Nur in diesem Prozess pausiert gewesen — aufgehoben, nichts gespeichert." };
+    return { ok: true, zustand: await kiPauseRohLesen(true), hinweis: "Nur in diesem Prozess pausiert gewesen — aufgehoben, nichts gespeichert." };
   }
   let hinweis: string | undefined;
-  if (opt.probe !== false && process.env.OPENAI_API_KEY) {
-    const p = await probe();
+  // E-279: geprüft wird der Anbieter DIESER Pause (eine OpenAI-Pause mit OpenAI, eine Claude-Pause mit Claude).
+  const pauseAnbieter: KiAnbieter = (vorher.anbieter ?? "openai") as KiAnbieter;
+  const probeSchluessel = pauseAnbieter === "claude" ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+  if (opt.probe !== false && probeSchluessel) {
+    const p = pauseAnbieter === "claude" ? await claudeProbe() : await probe();
     if (p.art) {
       const jetzt = new Date().toISOString();
       const z: KiPauseZustand = {
@@ -407,8 +465,8 @@ export async function aktivieren(von: string, opt: { probe?: boolean; nachholen?
       return {
         ok: false, zustand: z,
         fehler: p.art === "abrechnung"
-          ? `OpenAI bucht noch nicht ab — die Pause bleibt. (${p.fehler.slice(0, 160)})`
-          : `OpenAI lehnt den Zugang noch ab — die Pause bleibt. (${p.fehler.slice(0, 160)})`,
+          ? `${anbieterName(pauseAnbieter)} bucht noch nicht ab — die Pause bleibt. (${p.fehler.slice(0, 160)})`
+          : `${anbieterName(pauseAnbieter)} lehnt den Zugang noch ab — die Pause bleibt. (${p.fehler.slice(0, 160)})`,
       };
     }
     if (!p.ok) hinweis = `Probe-Aufruf unklar (${p.fehler.slice(0, 120)}) — trotzdem aktiviert. Kommt wieder ein Abrechnungsfehler, pausiert sie sofort erneut.`;
@@ -533,7 +591,9 @@ function hausSchluessel(init?: RequestInit): boolean {
 export async function openaiFetch(dienst: string, pfad: string, init: RequestInit = {}): Promise<Response> {
   const url = zuUrl(pfad);
   if (!istOpenAi(url)) return rohFetch()(url, init);
-  await kiBereit(dienst);
+  // E-279: Text, Bild, PDF → Claude, solange Claude trägt. Sprache (/audio) bleibt bei OpenAI.
+  if (aktiverAnbieter() === "claude" && claudeKannPfad(url, init.method ?? "POST")) return claudeStatt(dienst, url, init);
+  await kiBereit(dienst, "openai");
   const res = await rohFetch()(url, init);
   if (!res.ok) await antwortPruefen(dienst, res, init);
   return res;
@@ -560,7 +620,12 @@ async function antwortPruefen(dienst: string, res: Response, init?: RequestInit)
  * fetch(Request, init) der Körper verloren, gemessen: leerer GET).
  */
 async function requestFetch(dienst: string, input: Request, init?: RequestInit): Promise<Response> {
-  await kiBereit(dienst);
+  // E-279: ein Request-Objekt (SDK) an einen übersetzbaren Pfad → Körper lesen und über die Weiche schicken.
+  if (aktiverAnbieter() === "claude" && claudeKannPfad(input.url, init?.method ?? input.method)) {
+    const koerper = typeof init?.body === "string" ? init.body : await input.clone().text().catch(() => "");
+    return claudeStatt(dienst, input.url, { method: "POST", body: koerper, signal: init?.signal ?? input.signal });
+  }
+  await kiBereit(dienst, "openai");
   const res = await rohFetch()(input, init);
   if (!res.ok) {
     const kopf = new Headers(input.headers);
@@ -591,6 +656,14 @@ export function kiNetzAbsichern(): void {
   if (g.__kiRohFetch) return;
   const roh: typeof fetch = g.fetch.bind(globalThis);
   g.__kiRohFetch = roh;
+  // E-279: Beim Start des Produktionsdienstes einmal sagen, wer trägt und ob Claude antwortet (Render-Protokoll).
+  if (istProduktionsdienst() && aktiverAnbieter() === "claude") {
+    setTimeout(() => {
+      void claudeProbe().then((p) => console.log(p.ok
+        ? `[KI-WEICHE] Claude trägt die KI — Probe ok (groß ${claudeModellFuer("gpt-5.5")}, klein ${claudeModellFuer("gpt-4.1-mini")}).`
+        : `[KI-WEICHE] Claude-Probe gescheitert (${p.art ?? "vorübergehend"}): ${p.fehler.slice(0, 300)}`));
+    }, 8_000);
+  }
   g.fetch = (async (input: any, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : String(input?.url ?? "");
     if (!istOpenAi(url)) return roh(input, init);
@@ -598,6 +671,145 @@ export function kiNetzAbsichern(): void {
     if (istRequest(input)) return requestFetch("netz", input, init);
     return openaiFetch("netz", url, init ?? {});
   }) as typeof fetch;
+}
+
+// ── E-279: Der Weg zu Claude ─────────────────────────────────────────────
+/** Arbeitsbereich für Organisations-Schlüssel (anthropic-workspace-id): Umgebung, sonst einmal ermittelt. */
+let claudeArbeitsbereich: string | null | undefined;
+/** Wie der Schlüssel mitgeht — x-api-key (Standard) oder Bearer (identitätsgebundene Schlüssel). */
+let claudeKopfArt: "x-api-key" | "bearer" = "x-api-key";
+
+function claudeKopf(art: "x-api-key" | "bearer" = claudeKopfArt): Record<string, string> {
+  const k = String(process.env.ANTHROPIC_API_KEY || "").trim();
+  const h: Record<string, string> = { "content-type": "application/json", "anthropic-version": ANTHROPIC_VERSION };
+  if (art === "bearer") h.authorization = `Bearer ${k}`; else h["x-api-key"] = k;
+  const ws = String(process.env.ANTHROPIC_WORKSPACE_ID || "").trim() || claudeArbeitsbereich;
+  if (ws) h["anthropic-workspace-id"] = ws;
+  return h;
+}
+
+/** Organisations-Schlüssel ohne Arbeitsbereich: den Standard-Arbeitsbereich über die Admin-API ermitteln (einmal je Prozess). */
+async function arbeitsbereichErmitteln(): Promise<string | null> {
+  try {
+    const res = await rohFetch()(`${ANTHROPIC_V1}/organizations/workspaces?limit=100`, { headers: claudeKopf(), signal: AbortSignal.timeout(15_000) });
+    const j: any = await res.json().catch(() => null);
+    const liste = Array.isArray(j?.data) ? j.data.filter((w: any) => !w?.archived_at) : [];
+    const w = liste.find((x: any) => /^(default|standard)$/i.test(String(x?.name ?? ""))) ?? liste[0];
+    console.log(`[KI-WEICHE] Arbeitsbereich ermittelt: ${w?.id ?? "keiner"} (${liste.length} aktiv, HTTP ${res.status}).`);
+    return w?.id ? String(w.id) : null;
+  } catch (e) {
+    console.error("[KI-WEICHE] Arbeitsbereich nicht ermittelbar:", String(e).slice(0, 160));
+    return null;
+  }
+}
+
+/**
+ * Ein Aufruf an Claude (POST /v1/messages). Wiederholt bei Überlastung (529/503/500) und reinem Ratenlimit
+ * (429 ohne Abrechnungsmerkmal) bis zu dreimal; ermittelt einmal den Arbeitsbereich (Organisations-Schlüssel)
+ * und probiert einmal die andere Schlüssel-Kopfart (401). Wirft nie wegen HTTP — der Status kommt zurück.
+ */
+async function claudeSenden(anfrage: any, signal?: AbortSignal | null): Promise<{ status: number; json: any; text: string }> {
+  let letzte = { status: 0, json: null as any, text: "" };
+  let kopfProbiert = false;
+  for (let versuch = 1; versuch <= 6; versuch++) {
+    const res = await rohFetch()(`${ANTHROPIC_V1}/messages`, {
+      method: "POST", headers: claudeKopf(), body: JSON.stringify(anfrage), signal: signal ?? undefined,
+    });
+    const text = await res.text().catch(() => "");
+    let json: any = null;
+    try { json = JSON.parse(text); } catch { /* kein JSON */ }
+    letzte = { status: res.status, json, text };
+    if (res.ok) return letzte;
+    const meldung = String(json?.error?.message ?? "");
+    if (res.status === 400 && /workspace/i.test(meldung) && !process.env.ANTHROPIC_WORKSPACE_ID && claudeArbeitsbereich === undefined) {
+      claudeArbeitsbereich = await arbeitsbereichErmitteln();
+      if (claudeArbeitsbereich) continue;
+    }
+    if (res.status === 401 && !kopfProbiert) {
+      kopfProbiert = true;
+      const vorher = claudeKopfArt;
+      claudeKopfArt = vorher === "x-api-key" ? "bearer" : "x-api-key";
+      const r2 = await rohFetch()(`${ANTHROPIC_V1}/messages`, { method: "POST", headers: claudeKopf(), body: JSON.stringify(anfrage), signal: signal ?? undefined });
+      const t2 = await r2.text().catch(() => "");
+      let j2: any = null;
+      try { j2 = JSON.parse(t2); } catch { /* kein JSON */ }
+      if (r2.ok) { console.log(`[KI-WEICHE] Schlüssel geht als ${claudeKopfArt} mit.`); return { status: r2.status, json: j2, text: t2 }; }
+      claudeKopfArt = vorher;
+      return letzte;
+    }
+    const voruebergehend = res.status === 529 || res.status === 503 || res.status === 500 || (res.status === 429 && !claudeFehlerArt(429, json));
+    if (!voruebergehend || versuch >= 4) return letzte;
+    const warte = (Number(res.headers.get("retry-after")) || 0) * 1000 || 1_500 * versuch * versuch;
+    await new Promise((r) => setTimeout(r, Math.min(warte, 20_000)));
+  }
+  return letzte;
+}
+
+function jsonAntwort(x: unknown, status = 200): Response {
+  return new Response(JSON.stringify(x), { status, headers: { "content-type": "application/json" } });
+}
+
+/**
+ * Ein OpenAI-Aufruf (Chat Completions oder Responses), ausgeführt von Claude. Die Antwort hat dieselbe Form,
+ * die der Aufrufer von OpenAI erwartet — auch als Datenstrom (stream: true) und auch im Fehlerfall (error.message).
+ * Pausiert → KiPausiertFehler. Abrechnung/Zugang → pausieren (Anbieter claude, einmal Alarm).
+ */
+async function claudeStatt(dienst: string, url: string, init: RequestInit): Promise<Response> {
+  await kiBereit(dienst, "claude");
+  if (!process.env.ANTHROPIC_API_KEY) return jsonAntwort({ error: { message: "Kein Claude-Schlüssel gesetzt (ANTHROPIC_API_KEY).", type: "claude_error", code: "kein_schluessel" } }, 500);
+  let pfad = url;
+  try { pfad = new URL(url).pathname; } catch { /* Pfad */ }
+  const istResponses = /\/responses\/?$/.test(pfad);
+  let body: any = {};
+  try {
+    const roh = typeof init.body === "string" ? init.body : init.body ? await new Response(init.body as any).text() : "{}";
+    body = JSON.parse(roh || "{}");
+  } catch { body = {}; }
+  const chat = istResponses ? responsesNachChat(body) : body;
+  let ueb = chatNachClaude(chat);
+  let r = await claudeSenden(ueb.anfrage, init.signal);
+  // Festes Format abgelehnt (Schema-Eigenheit, Websuche mit Belegen …) → einmal als klare Anweisung.
+  if (r.status === 400 && ueb.anfrage.output_config && !claudeFehlerArt(r.status, r.json)) {
+    console.warn(`[KI-WEICHE] ${dienst}: festes Format abgelehnt (${String(r.json?.error?.message ?? r.text).slice(0, 160)}) — zweiter Versuch mit Anweisung.`);
+    ueb = alsAnweisung(ueb);
+    r = await claudeSenden(ueb.anfrage, init.signal);
+  }
+  if (r.status < 200 || r.status >= 300) {
+    const art = claudeFehlerArt(r.status, r.json);
+    if (art) {
+      const { zustand } = await pausieren({
+        art, fehler: `HTTP ${r.status}: ${r.text.slice(0, 360)}`, dienst, von: "automatisch",
+        schluessel: process.env.ANTHROPIC_API_KEY ?? null, anbieter: "claude",
+      });
+      throw new KiPausiertFehler(dienst, zustand.art ?? art, (zustand.anbieter ?? "claude") as KiAnbieter);
+    }
+    console.error(`[KI-WEICHE] ${dienst}: Claude HTTP ${r.status}: ${r.text.slice(0, 300)}`);
+    return jsonAntwort(alsOpenAiFehler(r.status, r.json, r.text), r.status || 502);
+  }
+  const antwort = claudeNachChat(r.json, { json: ueb.json, modell: ueb.anfrage.model });
+  if (istResponses) return jsonAntwort(chatNachResponses(antwort));
+  if (ueb.stream) return new Response(chatAlsSse(antwort), { status: 200, headers: { "content-type": "text/event-stream" } });
+  return jsonAntwort(antwort);
+}
+
+/** Ein winziger echter Claude-Aufruf (Probe beim Aktivieren und beim Start) — kostet Bruchteile eines Cents. */
+async function claudeProbe(): Promise<{ ok: boolean; art: KiPauseArt | null; fehler: string }> {
+  try {
+    const r = await claudeSenden({
+      model: claudeModellFuer("gpt-4.1-mini"), max_tokens: 16, thinking: { type: "disabled" },
+      messages: [{ role: "user", content: "Antworte nur mit OK." }],
+    }, AbortSignal.timeout(30_000));
+    if (r.status >= 200 && r.status < 300) return { ok: true, art: null, fehler: "" };
+    return { ok: false, art: claudeFehlerArt(r.status, r.json), fehler: `HTTP ${r.status}: ${r.text.slice(0, 240)}` };
+  } catch (e: any) {
+    return { ok: false, art: null, fehler: String(e?.message || e) };
+  }
+}
+
+/** Nur für Prüfstände: Arbeitsbereich und Kopfart vergessen. */
+export function kiWeicheZuruecksetzen(): void {
+  claudeArbeitsbereich = undefined;
+  claudeKopfArt = "x-api-key";
 }
 
 /** Nur für Prüfstände: Zwischenspeicher vergessen. */

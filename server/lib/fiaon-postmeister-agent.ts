@@ -44,7 +44,7 @@ import {
 } from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
-import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
+import { openaiFetch, istKiPause, aktiverAnbieter } from "./fiaon-ki-pause";
 import { wissenFakten } from "@shared/fiaon-wissen";
 // E-248: EINE Quelle für Maras Stimme, ihre Links und ihre Verkaufssätze — Mail und WhatsApp.
 import {
@@ -440,11 +440,48 @@ export function antwortLesen(j: any, wofuer: string): any {
   }
 }
 
+/** E-279: kiAufruf über Claude — Chat-Format hinein, Chat-Format heraus (mit _unvollstaendig wie bisher). */
+async function kiAufrufClaude(ein: {
+  dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
+  aufwand?: "low" | "medium" | "high"; maxTokens?: number;
+}, start: number): Promise<any> {
+  const abbruch = new AbortController();
+  // Claude denkt mit — die Zeitgrenze etwas weiter als bei OpenAI.
+  const uhr = setTimeout(() => abbruch.abort(), ZEITGRENZE_MS + 60_000);
+  try {
+    const chat: any = {
+      model: ein.modell, messages: ein.nachrichten,
+      max_tokens: ein.maxTokens ?? 8000, reasoning_effort: ein.aufwand ?? "medium",
+    };
+    if (ein.schema) chat.response_format = { type: "json_schema", json_schema: { name: "antwort", strict: true, schema: ein.schema } };
+    if (ein.tools?.length) { chat.tools = ein.tools; chat.tool_choice = "auto"; }
+    const res = await openaiFetch(ein.dienst, "/chat/completions", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(chat), signal: abbruch.signal,
+    });
+    const j: any = await res.json();
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${JSON.stringify(j?.error ?? j).slice(0, 200)}`);
+    j._unvollstaendig = j?.choices?.[0]?.finish_reason === "length" ? "max_output_tokens" : null;
+    await nutzungMerken({ dienst: ein.dienst, modell: String(j?.usage?._modell ?? ein.modell), usage: j?.usage, dauerMs: Date.now() - start, ok: true });
+    return j;
+  } catch (e: any) {
+    if (!istKiPause(e)) {
+      await nutzungMerken({ dienst: ein.dienst, modell: ein.modell, dauerMs: Date.now() - start, ok: false, fehler: String(e?.message || e).slice(0, 200) });
+    }
+    throw e;
+  } finally {
+    clearTimeout(uhr);
+  }
+}
+
 export async function kiAufruf(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
   aufwand?: "low" | "medium" | "high"; maxTokens?: number;
 }): Promise<any> {
   const start = Date.now();
+  // E-279 (03.10.2026): Trägt Claude, geht der Aufruf im Chat-Format an die Weiche (fiaon-ki-claude.ts) — dann
+  // bleiben Claudes Denk- und Werkzeugblöcke an der Nachricht (`_claude_inhalt`) und kommen in der nächsten
+  // Werkzeugrunde unverändert zurück. Antwort und Zählwerte haben dieselbe Form wie bisher.
+  if (aktiverAnbieter() === "claude") return kiAufrufClaude(ein, start);
   const schluessel = SCHLUESSEL();
   if (!schluessel) throw new Error("Kein OpenAI-Schlüssel gesetzt (OPENAI_API_KEY).");
   const abbruch = new AbortController();

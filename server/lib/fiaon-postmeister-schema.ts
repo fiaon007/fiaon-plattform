@@ -12,6 +12,7 @@
 // Frage lesen können.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { claudeKostenCents, nutzungsModell } from "./fiaon-ki-claude";
 import { sqlPool } from "./db-pool";
 
 let bereit = false;
@@ -144,8 +145,23 @@ const PREIS: Record<string, { ein: number; aus: number }> = {
   "gpt-4.1-mini": { ein: 0.04, aus: 0.16 },
 };
 
+/**
+ * E-279: Claude-Kosten — aus Claudes eigener Zählung (_anbieter: "claude"), oder, wenn ein Modul seine Zählung
+ * selbst umbaut (nur Ein-/Ausgabe), mit dem Claude-Modell, das für diesen OpenAI-Namen lief. null = OpenAI.
+ */
+function claudeKosten(modell: string, usage: any): number | null {
+  const direkt = claudeKostenCents(modell, usage);
+  if (direkt != null) return direkt;
+  const echt = nutzungsModell(modell);
+  if (echt === modell || !/^claude-/.test(echt)) return null;
+  return claudeKostenCents(echt, { ...usage, _anbieter: "claude", _modell: echt });
+}
+
 /** Kosten eines Aufrufs in Cent — dieselbe Hausrechnung wie im Protokoll (21.09.2026, Mara-Aktion). */
 export function kostenCentsAus(modell: string, usage: any): number {
+  // E-279: Kommt die Zählung von Claude (oder trägt Claude für ein OpenAI-Modell), gilt Claudes Preis.
+  const c = claudeKosten(modell, usage);
+  if (c != null) return c;
   const p = PREIS[modell] ?? PREIS[modell.replace(/-\d{4}-\d{2}-\d{2}$/, "")] ?? { ein: 0.1, aus: 0.8 };
   return (Number(usage?.prompt_tokens || 0) / 1000) * p.ein + (Number(usage?.completion_tokens || 0) / 1000) * p.aus;
 }
@@ -157,7 +173,9 @@ export async function nutzungMerken(ein: {
   const pt = Number(ein.usage?.prompt_tokens || 0);
   const ct = Number(ein.usage?.completion_tokens || 0);
   const rt = Number(ein.usage?.completion_tokens_details?.reasoning_tokens || 0);
-  const kosten = (pt / 1000) * p.ein + (ct / 1000) * p.aus;
+  // E-279: Claude-Preis (mit Cache-Anteilen), und in der Tabelle steht das Modell, das wirklich lief.
+  const kosten = claudeKosten(ein.modell, ein.usage) ?? ((pt / 1000) * p.ein + (ct / 1000) * p.aus);
+  ein = { ...ein, modell: String(ein.usage?._modell ?? nutzungsModell(ein.modell)) };
   await sqlPool`
     INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler)
     VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null})

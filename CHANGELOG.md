@@ -5,6 +5,33 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 03.10.2026 — KI-Weiche: Claude statt OpenAI (E-279)
+
+**Der Anlass:** OpenAI hat am 03.10. um 05:15 das Konto hinter dem FIAON-Schlüssel deaktiviert („account … has been
+deactivated“) — seitdem stand jede KI: Mara im Postfach, auf WhatsApp und die Mara-Aktion. Justin: „Ok ich denke wir
+werden OPENAI wechseln“ und „mach es fix und fertig“.
+
+**Was geändert:**
+- **Eine Weiche statt 25 Umbauten:** Jeder KI-Aufruf ging schon durch `openaiFetch` (E-246). Dort wird er jetzt — sobald
+  `ANTHROPIC_API_KEY` gesetzt ist — in die Claude-Sprache übersetzt und die Antwort zurück in die OpenAI-Form, die der
+  Code kennt: Chat, Responses, Datenstrom (Copilot), Werkzeuge, festes Antwortformat, Bilder, PDFs, Websuche (Radar).
+- **Modelle:** Was bisher gpt-5.x/4.1/4o war, läuft auf **Claude Opus 5.5**; *-mini auf **Claude Sonnet 5.5**.
+  Umschaltbar über `CLAUDE_MODELL_GROSS` / `CLAUDE_MODELL_KLEIN`, ganz zurück mit `KI_ANBIETER=openai`.
+- **Mara-Hauptweg:** `kiAufruf` (Postmeister, WhatsApp, Mara-Aktion) spricht Claude direkt im Chat-Format — Claudes
+  Denk- und Werkzeugblöcke bleiben zwischen den Werkzeugrunden erhalten.
+- **Pause je Anbieter:** Die alte OpenAI-Pause hält nur noch, was bei OpenAI bleibt (Telefon-Transkripte/Whisper —
+  Claude hat kein Sprache-zu-Text). Lehnt Claude ab oder fehlt Guthaben, pausiert alles wie gewohnt — mit Alarm, der
+  jetzt „Claude (Anthropic)“ und den Weg über platform.claude.com nennt.
+- **Organisations-Schlüssel:** Der nötige Arbeitsbereich (`anthropic-workspace-id`) wird beim ersten Aufruf selbst
+  ermittelt (oder `ANTHROPIC_WORKSPACE_ID` setzen).
+- **Kosten:** Claude-Preise (Opus 5.5 4/20 $, Sonnet 5.5 2/10 $ je Mio. Tokens, Cache-Anteile) in der Nutzungstabelle;
+  dort steht jetzt das Modell, das wirklich lief.
+- **Beim Start** sagt der Dienst im Render-Protokoll „[KI-WEICHE] Claude trägt die KI — Probe ok“ (oder warum nicht).
+
+**Wo zu finden:** `server/lib/fiaon-ki-claude.ts` (Übersetzung, rein), `server/lib/fiaon-ki-pause.ts` (Netz, Pause),
+`server/lib/fiaon-postmeister-agent.ts` (kiAufruf), `server/lib/fiaon-postmeister-schema.ts` (Kosten).
+Prüfstand `scripts/pruef-ki-claude.ts` (80/80).
+
 ## 03.10.2026 — Bankbuch: Altlast-Sperre repariert, Storno zurücknehmen und Doppelzahlung mit heutigem Datum verrechnen (E-278)
 
 **Der Anlass:** Justin: „Konchenko-Sperre im Code reparieren und dann buchen mach ALLE fertig“ — vorher freigegeben:

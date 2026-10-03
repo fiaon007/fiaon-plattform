@@ -2605,7 +2605,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const letzteVorlage = lv ? { name: String(lv.vorlage), text: lv.text ?? null } : null;
     const lage = await lageFuer(personId ? Number(personId) : null, leadId ? Number(leadId) : null, letzteVorlage, String(neuesteRein?.text ?? ""));
 
-    const deckel = Number(await einstellung("mara_wa_tag_euro", "15")) || 15;
+    const deckel = Number(await einstellung("mara_wa_tag_euro", "30")) || 30; // E-280: Claude-Preise (Justin 03.10.: 30 €)
     const heute = await kostenHeute(DIENST_WA).catch(() => 0);
     if (heute >= deckel) {
       const schluessel = `${nummer}-${new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })}`;
@@ -4344,7 +4344,7 @@ export async function entwerfen(
       : "Schreib sie neu — wahr, kurz, warm, positiv zuerst, gleiche Fakten, ohne diese Wörter und Wendungen.",
     aktionen.length ? "Die Werkzeuge sind schon gelaufen — übernimm Zeiten, Namen und Links genau aus ihren Ergebnissen (so_schreiben), ruf keines neu auf." : "",
   ].filter(Boolean).join(" ");
-  const d2 = await denken(system, [...d1.werkzeugVerlauf, ...(a1 ? [{ role: "assistant" as const, content: JSON.stringify({ antwort: a1 }) }] : []), { role: "user" as const, content: bitte }], null);
+  const d2 = await denken(system, [...d1.werkzeugVerlauf, ...(a1 ? [{ role: "assistant" as const, content: JSON.stringify({ antwort: a1 }) }] : []), { role: "user" as const, content: bitte }], null, werkzeugKontext?.personId ?? null);
   const roh2 = d2.roh;
   const a2 = reparieren(String(roh2?.antwort ?? "").trim());
   const p2 = pruefe(a2, a1);
@@ -4405,7 +4405,7 @@ type Nachricht = { role: "assistant" | "user" | "tool"; content: string; tool_ca
  * zweiter Versuch. Liefert die Antwort ODER den letzten Fehler, dazu was die Werkzeuge taten
  * und den Werkzeug-Verlauf (für einen zweiten Entwurf ohne neue Aufrufe).
  */
-async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontext | null): Promise<{ roh: any; fehler: string | null; aktionen: Aktion[]; werkzeugVerlauf: Nachricht[] }> {
+async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontext | null, person: number | null = ctx?.personId ?? null): Promise<{ roh: any; fehler: string | null; aktionen: Aktion[]; werkzeugVerlauf: Nachricht[] }> {
   let fehler: string | null = null;
   const aktionen: Aktion[] = [];
   const werkzeugVerlauf: Nachricht[] = [];
@@ -4422,7 +4422,7 @@ async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontex
     for (let versuch = 1; versuch <= 2 && !j; versuch++) {
       try {
         j = await kiAufruf({
-          dienst: DIENST_WA, modell: MODELL(), aufwand: "low", maxTokens: 2500, schema: SCHEMA,
+          dienst: DIENST_WA, modell: MODELL(), aufwand: "low", maxTokens: 2500, schema: SCHEMA, person,
           nachrichten: [...basis, ...werkzeugVerlauf] as any,
           ...(mitWerkzeugen && werkzeuge ? { tools: werkzeuge } : {}),
         });
@@ -4809,7 +4809,7 @@ export async function nachholLauf(): Promise<{ angestossen: number }> {
   const stunde = stundeBerlin();
   const nacht = stunde >= 22 || stunde < 7;
   // Kostendeckel erreicht? Dann gar nicht erst anstoßen — die Aufgaben sind schon angelegt.
-  const deckel = Number(await einstellung("mara_wa_tag_euro", "15")) || 15;
+  const deckel = Number(await einstellung("mara_wa_tag_euro", "30")) || 30; // E-280: Claude-Preise (Justin 03.10.: 30 €)
   if ((await kostenHeute(DIENST_WA).catch(() => 0)) >= deckel) return { angestossen: 0 };
   // E-236 (Prüfung 24.09.): 200 holen und nur die echten Anstöße deckeln — sonst belegten gedrosselte
   // oder übersprungene Gespräche die 20 Plätze, und ein neuer Kunde kam nie dran.

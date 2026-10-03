@@ -5,6 +5,21 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 03.10.2026 — Mara im A/B-Test: Opus 5.5 gegen Sonnet 5.5 (E-280)
+
+**Der Anlass:** Justin: „Mach einen mix damit wir später wissen welches Modell — 50 % OPUS 5.5 und 50 % Sonnet 5.5“ und
+„Ja: WA 30 €, Postfach 35 €“.
+
+**Was geändert:**
+- **Fest je Mensch:** Jede Person ist über ihre Personennummer fest einer Gruppe zugeordnet (`maraGruppe` in
+  `server/lib/fiaon-ki-claude.ts`, gleichmäßig 50/50) — in WhatsApp, Postfach-Antworten und Mara-Aktion dieselbe. So lässt sich
+  später allein aus person_id zählen, welche Gruppe öfter zahlt; das gelaufene Modell steht an jedem Aufruf in fiaon_ki_nutzung,
+  bei der Mara-Aktion zusätzlich im Denkprotokoll (`abGruppe`). Ohne bekannte Person: Opus. Abschalten: `MARA_AB=aus`.
+- **Interne Aufgaben auf Sonnet:** Einordnen, Texterkennung, Analysen, Radar, Ratgeber, Copilot — kein Kundentext, halber Preis.
+- **Tagesdeckel an Claude-Preise:** WhatsApp-Mara 30 € (vorher 15 €), Postfach 35 € (vorher 25 €).
+
+Prüfstand `scripts/pruef-ki-claude.ts` 121/121.
+
 ## 03.10.2026 — KI-Weiche: Claude statt OpenAI (E-279)
 
 **Der Anlass:** OpenAI hat am 03.10. um 05:15 das Konto hinter dem FIAON-Schlüssel deaktiviert („account … has been

@@ -392,6 +392,33 @@ async function main() {
   const h10 = await P.aktivieren("Prüfstand", { nachholen: false });
   pruef("H10 Aktivieren nach Hand-Pause: Probe bei Claude, Pause weg", h10.ok && rufe[0]?.url === "https://api.anthropic.com/v1/messages" && (await P.kiPausiert("claude")) === false, { ok: h10.ok, url: rufe[0]?.url, f: h10.fehler });
 
+  // ── J: A/B-Test Mara (E-280) und interne Dienste auf Sonnet ──────────────
+  const gruppen = { opus: 0, sonnet: 0 } as Record<string, number>;
+  for (let i = 1; i <= 10_000; i++) gruppen[C.maraGruppe(i) as string]++;
+  pruef("J1 A/B etwa 50/50 (10.000 Personen)", gruppen.opus > 4_800 && gruppen.sonnet > 4_800, gruppen);
+  pruef("J2 fest je Person", C.maraGruppe(13411) === C.maraGruppe("13411") && C.maraGruppe(13411) === C.maraGruppe(13411));
+  pruef("J3 ohne Person keine Gruppe", C.maraGruppe(null) === null && C.maraModell(null, "gpt-5.5") === "gpt-5.5");
+  const opusPerson = Array.from({ length: 50 }, (_, i) => i + 1).find((i) => C.maraGruppe(i) === "opus")!;
+  const sonnetPerson = Array.from({ length: 50 }, (_, i) => i + 1).find((i) => C.maraGruppe(i) === "sonnet")!;
+  pruef("J4 maraModell je Gruppe", C.maraModell(opusPerson, "gpt-5.5") === "claude-opus-5-5" && C.maraModell(sonnetPerson, "gpt-5.5") === "claude-sonnet-5-5");
+  process.env.MARA_AB = "aus";
+  pruef("J5 MARA_AB=aus → kein Test", C.maraModell(sonnetPerson, "gpt-5.5") === "gpt-5.5");
+  delete process.env.MARA_AB;
+  pruef("J6 interne Dienste → Sonnet, Kundendienste → Opus", C.claudeModellFuer("gpt-5.5", "radar") === "claude-sonnet-5-5" && C.claudeModellFuer("gpt-5.5", "postmeister-einordnen") === "claude-sonnet-5-5" && C.claudeModellFuer("gpt-5.5", "mara-whatsapp") === "claude-opus-5-5" && C.claudeModellFuer("claude-opus-5-5", "ocr") === "claude-opus-5-5");
+  rufe.length = 0;
+  antworten = [() => claudeText("Seite 1")];
+  await P.openaiFetch("ocr", "/responses", { method: "POST", body: JSON.stringify({ model: "gpt-4.1", input: "lies" }) });
+  pruef("J7 Texterkennung läuft auf Sonnet", rufe[0]?.body?.model === "claude-sonnet-5-5", rufe[0]?.body?.model);
+  const A = await import("../server/lib/fiaon-postmeister-agent");
+  rufe.length = 0;
+  antworten = [() => claudeText("{\"antwort\":\"ok\"}")];
+  await A.kiAufruf({ dienst: "mara-whatsapp", modell: "gpt-5.5", nachrichten: [{ role: "user", content: "x" }], person: sonnetPerson });
+  pruef("J8 kiAufruf mit Person der Sonnet-Gruppe → Sonnet", rufe[0]?.body?.model === "claude-sonnet-5-5", rufe[0]?.body?.model);
+  rufe.length = 0;
+  antworten = [() => claudeText("{\"antwort\":\"ok\"}")];
+  await A.kiAufruf({ dienst: "mara-whatsapp", modell: "gpt-5.5", nachrichten: [{ role: "user", content: "x" }], person: opusPerson });
+  pruef("J9 … der Opus-Gruppe → Opus", rufe[0]?.body?.model === "claude-opus-5-5", rufe[0]?.body?.model);
+
   // ── I: Quelltext ────────────────────────────────────────────────────────
   const { readFileSync } = await import("node:fs");
   const weiche = readFileSync("server/lib/fiaon-ki-claude.ts", "utf8");

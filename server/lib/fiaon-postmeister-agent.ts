@@ -45,6 +45,7 @@ import {
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { openaiFetch, istKiPause, aktiverAnbieter } from "./fiaon-ki-pause";
+import { maraModell } from "./fiaon-ki-claude";
 import { wissenFakten } from "@shared/fiaon-wissen";
 // E-248: EINE Quelle für Maras Stimme, ihre Links und ihre Verkaufssätze — Mail und WhatsApp.
 import {
@@ -443,14 +444,15 @@ export function antwortLesen(j: any, wofuer: string): any {
 /** E-279: kiAufruf über Claude — Chat-Format hinein, Chat-Format heraus (mit _unvollstaendig wie bisher). */
 async function kiAufrufClaude(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
-  aufwand?: "low" | "medium" | "high"; maxTokens?: number;
+  aufwand?: "low" | "medium" | "high"; maxTokens?: number; person?: number | string | null;
 }, start: number): Promise<any> {
   const abbruch = new AbortController();
   // Claude denkt mit — die Zeitgrenze etwas weiter als bei OpenAI.
   const uhr = setTimeout(() => abbruch.abort(), ZEITGRENZE_MS + 60_000);
   try {
+    // E-280: A/B je Mensch (Opus 5.5 / Sonnet 5.5) — nur, wo Mara mit dem Kunden spricht und die Person bekannt ist.
     const chat: any = {
-      model: ein.modell, messages: ein.nachrichten,
+      model: ein.person != null ? maraModell(ein.person, ein.modell) : ein.modell, messages: ein.nachrichten,
       max_tokens: ein.maxTokens ?? 8000, reasoning_effort: ein.aufwand ?? "medium",
     };
     if (ein.schema) chat.response_format = { type: "json_schema", json_schema: { name: "antwort", strict: true, schema: ein.schema } };
@@ -476,6 +478,8 @@ async function kiAufrufClaude(ein: {
 export async function kiAufruf(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
   aufwand?: "low" | "medium" | "high"; maxTokens?: number;
+  /** E-280: der Mensch, um den es geht — entscheidet die A/B-Gruppe (Opus/Sonnet), wenn Claude trägt. */
+  person?: number | string | null;
 }): Promise<any> {
   const start = Date.now();
   // E-279 (03.10.2026): Trägt Claude, geht der Aufruf im Chat-Format an die Weiche (fiaon-ki-claude.ts) — dann
@@ -1967,7 +1971,8 @@ export async function antwortErzeugen(ein: {
   };
 
   // Kostendeckel — die einzige Bremse gegen eine Überraschung auf der Rechnung.
-  const deckel = Number(process.env.POSTMEISTER_TAG_EURO || 25);
+  // E-280 (03.10.2026, Justin: „Ja: WA 30 €, Postfach 35 €“): Claude Opus kostet je Mail ein Mehrfaches von gpt-5.5.
+  const deckel = Number(process.env.POSTMEISTER_TAG_EURO || 35);
   const heute = await kostenHeute("postmeister-antwort").catch(() => 0);
   if (heute > deckel) return { ...leer, grund: `Tagesdeckel erreicht (${heute.toFixed(2)} € von ${deckel} €)` };
 
@@ -2150,7 +2155,7 @@ export async function antwortErzeugen(ein: {
   // Werkzeug-Runden
   for (let runde = 0; runde < MAX_RUNDEN; runde++) {
     const j = await kiAufruf({
-      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000,
+      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000, person: ein.personId ?? null,
       nachrichten, tools, schema: runde >= MAX_RUNDEN - 1 ? SCHEMA_B : undefined,
     }).catch((e) => { if (istKiPause(e)) throw e; return { fehler: String(e?.message || e) } as any; });
     if ((j as any).fehler) return { ...leer, grund: `Modell nicht erreichbar: ${(j as any).fehler}`, handlungen };
@@ -2164,7 +2169,7 @@ export async function antwortErzeugen(ein: {
       nachrichten.push(nachricht);
       // Kein Werkzeug mehr — jetzt die Antwort im Schema anfordern.
       const fertig = await kiAufruf({
-        dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000, schema: SCHEMA_B,
+        dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000, schema: SCHEMA_B, person: ein.personId ?? null,
         nachrichten: [...nachrichten, { role: "user", content: "Schreibe jetzt die Antwort an den Kunden im vorgegebenen Format." }],
       }).catch((e) => { if (istKiPause(e)) throw e; return { fehler: String(e?.message || e) } as any; });
       if ((fertig as any).fehler) return { ...leer, grund: `Antwort nicht erzeugt: ${(fertig as any).fehler}`, handlungen };
@@ -2462,7 +2467,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     ].join("\n");
     const weichVorher = weich;
     const neu = await kiAufruf({
-      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "low", maxTokens: 6000, schema: SCHEMA_B,
+      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "low", maxTokens: 6000, schema: SCHEMA_B, person: k.kontext?.personId ?? null,
       nachrichten: [...k.nachrichten, { role: "user", content: `Deine Antwort hat diese Mängel:\n${liste}\n\nSchreib sie neu — dieselbe Sache, ohne die Mängel, im Ton von WER DU BIST (warm, mutmachend, mit Aussicht, ohne Zusage). Nichts erfinden.` }],
     }).catch((e) => { if (istKiPause(e)) throw e; return null; }); // E-246: in der Pause liegen lassen, nicht die Mängel-Fassung nehmen
     if (neu) {

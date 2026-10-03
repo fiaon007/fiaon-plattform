@@ -61,13 +61,43 @@ export function claudeKannPfad(url: string, methode?: string | null): boolean {
   return /\/(chat\/completions|responses)\/?$/.test(pfad);
 }
 
-/** Das Claude-Modell für ein OpenAI-Modell: *-mini/*-nano → KLEIN, alles andere → GROSS. claude-* bleibt. */
-export function claudeModellFuer(modell: string | null | undefined): string {
+/**
+ * Dienste, in denen Mara mit Kunden spricht — dort gilt Opus (bzw. der A/B-Test, E-280). Alles andere (Einordnen,
+ * Texterkennung, Analysen, Radar, Ratgeber, Copilot …) läuft auf Sonnet: halber Preis, kein Kundentext (03.10.2026).
+ */
+export const KUNDEN_DIENSTE: ReadonlySet<string> = new Set(["mara-whatsapp", "mara-aktion", "postmeister-antwort", "mara-auftrag", "kontakt-chat"]);
+
+/** Das Claude-Modell für ein OpenAI-Modell: claude-* bleibt; interne Dienste → KLEIN; *-mini/*-nano → KLEIN; sonst GROSS. */
+export function claudeModellFuer(modell: string | null | undefined, dienst?: string | null): string {
   const m = String(modell || "").trim();
   if (/^claude-/.test(m)) return m;
+  if (dienst && !KUNDEN_DIENSTE.has(dienst)) return process.env.CLAUDE_MODELL_KLEIN || CLAUDE_KLEIN_VORGABE;
   return /mini|nano/i.test(m)
     ? (process.env.CLAUDE_MODELL_KLEIN || CLAUDE_KLEIN_VORGABE)
     : (process.env.CLAUDE_MODELL_GROSS || CLAUDE_GROSS_VORGABE);
+}
+
+// ── A/B-Test Mara: Opus 5.5 gegen Sonnet 5.5 (E-280) ──────────────────────
+/**
+ * Justin, 03.10.2026: „Mach einen mix damit wir später wissen welches Modell — 50 % Opus 5.5 und 50 % Sonnet 5.5“.
+ * Fest je MENSCH (Personennummer): FNV-1a über „fiaon-ab-e280:<person>“, letztes Bit 0 → Opus, 1 → Sonnet. Dieselbe
+ * Person bleibt in jedem Kanal und jeder Runde in derselben Gruppe — auswertbar allein aus person_id (Zahlungen je
+ * Gruppe), dazu steht das gelaufene Modell an jedem Aufruf in fiaon_ki_nutzung. Ohne Person: kein Test (Opus).
+ * Abschalten: MARA_AB=aus (dann wieder alle Opus bzw. CLAUDE_MODELL_GROSS). Rein.
+ */
+export function maraGruppe(person: number | string | null | undefined): "opus" | "sonnet" | null {
+  if (person == null || String(person).trim() === "") return null;
+  let h = 0x811c9dc5;
+  for (const z of `fiaon-ab-e280:${String(person).trim()}`) { h ^= z.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return (h & 1) === 0 ? "opus" : "sonnet";
+}
+
+/** Das Modell für Maras Kundentext dieses Menschen (nur wenn Claude trägt und der Test an ist), sonst `sonst`. */
+export function maraModell(person: number | string | null | undefined, sonst: string): string {
+  if (aktiverAnbieter() !== "claude" || /^aus$/i.test(String(process.env.MARA_AB || ""))) return sonst;
+  const g = maraGruppe(person);
+  if (!g) return sonst;
+  return g === "opus" ? "claude-opus-5-5" : "claude-sonnet-5-5";
 }
 
 // ── Inhalt: OpenAI-Teile → Claude-Blöcke ──────────────────────────────────
@@ -219,8 +249,8 @@ function anLetzteNachricht(nachrichten: { role: string; content: any[] }[], text
   if (letzte) letzte.content = [...letzte.content, { type: "text", text }];
 }
 
-export function chatNachClaude(body: any, opt: { denkenAus?: boolean; ohneRoh?: boolean } = {}): ClaudeUebersetzung {
-  const modell = claudeModellFuer(body?.model);
+export function chatNachClaude(body: any, opt: { denkenAus?: boolean; ohneRoh?: boolean; dienst?: string | null } = {}): ClaudeUebersetzung {
+  const modell = claudeModellFuer(body?.model, opt.dienst);
   const art = denkArt(modell);
 
   // Werkzeuge zuerst: Nur wenn die Anfrage Werkzeuge trägt, dürfen Claudes Rohblöcke (Denken + tool_use) zurück —

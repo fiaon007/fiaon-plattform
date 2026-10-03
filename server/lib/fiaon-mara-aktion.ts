@@ -79,6 +79,7 @@ import { kundenwegLesen } from "./fiaon-kundenweg";
 import { gedaechtnisText } from "./fiaon-mara-gedaechtnis";
 import { kiAufruf, antwortLesen, akteKompakt, MODELL, agentNamen, fordertZahlung } from "./fiaon-postmeister-agent";
 import { kiPausiert, istKiPause } from "./fiaon-ki-pause";
+import { maraGruppe } from "./fiaon-ki-claude";
 import { anredeBestimmen, antwortBauen, grussMitAgent } from "./fiaon-postmeister-antworttext";
 import { postfachGruss } from "./fiaon-postmeister-postfaecher";
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
@@ -712,6 +713,8 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   // der Mail, damit jede Zeile nachvollziehbar bleibt (Justin, 22.09.2026).
   const wissen = {
     stufe: k.stufe, schritt: k.schritt,
+    // E-280: A/B-Gruppe dieses Menschen (Opus 5.5 / Sonnet 5.5) — für den späteren Vergleich der Zahlungen.
+    abGruppe: maraGruppe(k.personId),
     betreuer: weg?.zustaendig?.kundenName ?? null,
     faelligAm, paket: (akte as any)?.vertrag?.paket ?? null,
     offeneRate: (akte as any)?.zahlung?.offeneRate ?? null,
@@ -733,7 +736,7 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   let kosten = 0;
   const rufen = async (extra?: string) => {
     const j = await kiAufruf({
-      dienst: DIENST, modell: MODELL(), aufwand: "low", maxTokens: 3500, schema: SCHEMA,
+      dienst: DIENST, modell: MODELL(), aufwand: "low", maxTokens: 3500, schema: SCHEMA, person: k.personId,
       nachrichten: extra ? [...nachrichten, { role: "user", content: extra }] : nachrichten,
     });
     kosten += kostenCentsAus(MODELL(), j?.usage);

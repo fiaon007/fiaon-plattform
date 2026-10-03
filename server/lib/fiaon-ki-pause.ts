@@ -843,7 +843,7 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
     body = JSON.parse(roh || "{}");
   } catch { body = {}; }
   const chat = istResponses ? responsesNachChat(body) : body;
-  let ueb = chatNachClaude(chat);
+  let ueb = chatNachClaude(chat, { dienst });
   let r = await claudeSenden(ueb.anfrage, init.signal);
   // Festes Format abgelehnt (Schema-Eigenheit, Websuche mit Belegen …) → einmal als klare Anweisung.
   if (r.status === 400 && ueb.anfrage.output_config?.format && !claudeFehlerArt(r.status, r.json)
@@ -855,7 +855,7 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
   // Denk-Signatur passt nicht mehr zum Verlauf (z. B. ein Hinweis der Vorrunde fehlt) → einmal ohne Rohblöcke, als Text.
   if (r.status === 400 && /signature|different conversation/i.test(String(r.json?.error?.message ?? r.text))) {
     console.warn(`[KI-WEICHE] ${dienst}: Denk-Signatur passt nicht — Verlauf einmal als Text neu.`);
-    const flach = chatNachClaude(chat, { ohneRoh: true });
+    const flach = chatNachClaude(chat, { ohneRoh: true, dienst });
     ueb = ueb.json === "objekt" && flach.json === "schema" ? alsAnweisung(flach) : flach;
     r = await claudeSenden(ueb.anfrage, init.signal);
   }

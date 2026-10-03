@@ -61,7 +61,7 @@ import {
   // E-272 (02.10.2026): die Kreditkarten-Formel der Persona — beim Global-Kunden ersetzt (systemPrompt).
   KARTE_REGEL_TEXT,
   // E-275 (02.10.2026): Bausteine für den Mail-Abschluss ohne Pflicht-Termin (mailAbschlussFormel).
-  BANK_SATZ, kartenzielText, type KartenZiel,
+  BANK_SATZ, kartenzielText, ohneLimitUndBankSatz, type KartenZiel,
   // E-275 Gegenprüfung Verkauf: ungefragter Termin und Abgabe an einen Kollegen — dieselbe Regel wie auf WhatsApp.
   selbstErledigtTreffer,
   // E-275 Ton (02.10.2026): die klare Aufforderung und der Nutzen — EINE Quelle für Mail und WhatsApp.
@@ -2241,7 +2241,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   /** E-275: zahlender Kunde mit Werbesperre — kein Verkauf, also auch keine Pflicht zu auskunft_anbieten. */
   werbesperreZahlend?: boolean;
 }): Promise<AgentErgebnis> {
-  let text = String(roh.antwort || "").trim();
+  // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
+  let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
   // E-265 (29.09.2026): wessen Vorname nie allein in der Kundenmail steht (harte Prüfung unten).
   const mitarbeiterJetzt = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);
   // 02.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort

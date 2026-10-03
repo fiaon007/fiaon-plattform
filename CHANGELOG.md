@@ -5,6 +5,20 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 03.10.2026 — Mara nennt kein Limit mehr, kein „über den Rahmen entscheidet unsere Partnerbank“ (E-281)
+
+**Der Anlass:** Justin: „„über den Rahmen entscheidet unsere Partnerbank“. WEG damit, das steht 100x auf unserer Website und
+muss in keiner Mail stehen … die Kunden sind total verunsichert“.
+
+**Was geändert:** Der Satz war nur Pflicht, weil Mara das Wunschlimit nannte (E-265 — sonst wäre es eine Limit-Zusage). Jetzt
+nennt Mara kein Limit mehr: `kartenZiel()` liefert nichts, feste Sätze hängen den Bank-Satz nicht mehr an (`bankZusatz()`), und
+direkt vor dem Versand entfernt `ohneLimitUndBankSatz()` beides aus Mail, WhatsApp und Mara-Aktion, falls ein Entwurf sie doch
+enthält. Mara spricht von „Ihrer eigenen Visa-Kreditkarte“. Zurück zum alten Verhalten: `MARA_LIMIT_NENNEN=an`.
+Die Website und die Bestellübersicht im Antrag bleiben unverändert.
+
+**Wo zu finden:** `shared/fiaon-mara-ton.ts` (limitNennen, bankZusatz, ohneLimitUndBankSatz), Aufrufe in fiaon-mara-aktion.ts,
+fiaon-whatsapp-mara.ts, fiaon-postmeister-agent.ts. Prüfstand `scripts/pruef-ki-claude.ts` 129/129; Mara-Prüfstände in beiden Modi grün.
+
 ## 03.10.2026 — Mara im A/B-Test: Opus 5.5 gegen Sonnet 5.5 (E-280)
 
 **Der Anlass:** Justin: „Mach einen mix damit wir später wissen welches Modell — 50 % OPUS 5.5 und 50 % Sonnet 5.5“ und

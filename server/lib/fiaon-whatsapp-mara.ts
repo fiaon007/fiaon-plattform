@@ -115,7 +115,7 @@ import {
   nennAus, type NennformEin, bausteinAbschluss, bausteinWasIstFiaon, bausteinKeineKarte, bausteinKuendigung, bausteinKuendigungFrage,
   abschlussPruefung, abschlussArtAus, kartenZiel, kartenzielText, kaufSignal, einwandSignal, fragtWasIstFiaon, fragtKeineKarte, kuendigungsFrage,
   kuendigungBitte, jaAufKuendigungsAngebot,
-  KUENDIGUNG_REGEL_TEXT, BANK_SATZ, bankSatzErgaenzen, type KartenZiel, type AbschlussArt,
+  KUENDIGUNG_REGEL_TEXT, BANK_SATZ, bankSatzErgaenzen, limitNennen, ohneLimitUndBankSatz, type KartenZiel, type AbschlussArt,
   // E-265 Nachbesserung (29.09.2026)
   bausteinVorkasse, bausteinZuTeuerKarte, naechstKleineresPaket, einwandVertrauen, fragtKreditinstitut, kuendigungFristFrage,
   kuendigungRatenAufteilen, einstiegVonEntwurf, type LetzteRaus, type KuendigungRate,
@@ -4156,7 +4156,8 @@ export function reparieren(text: string, opt: { limit?: boolean; jetzt?: Date } 
   t = t.replace(new RegExp("(^|[.!?]\\s+|\\n)transparent\\s*:\\s*(\\p{L})", "giu"), (_m, v, b) => `${v}${b.toUpperCase()}`);
   if (opt.limit) {
     // E-265: „Wunschlimit" bleibt (erlaubt, mit dem Satz über die Bank — der wird hier ergänzt, falls er fehlt).
-    t = bankSatzErgaenzen(t);
+    // E-281: Limit nur noch, wenn MARA_LIMIT_NENNEN=an — sonst Limit und Bank-Satz raus (Justin 03.10.2026).
+    t = limitNennen() ? bankSatzErgaenzen(t) : ohneLimitUndBankSatz(t);
     t = t.replace(/\b(Kredit|Karten)limit(s)?\b/g, (_m, w, s2) => `${w}rahmen${s2 ? "s" : ""}`)
       .replace(/\b(kredit|karten)limit(s)?\b/g, (_m, w, s2) => `${w}rahmen${s2 ? "s" : ""}`)
       .replace(/\b([Dd])as Limit\b/g, (_m, d) => (d === "D" ? "Der Rahmen" : "den Rahmen"))

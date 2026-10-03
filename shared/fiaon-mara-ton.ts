@@ -1885,6 +1885,8 @@ export function euroGanz(n: number): string {
 
 /** Sein Kartenziel aus wanted_limit und dem Rahmen seines Pakets (PACK_LIMITS, vom Server). Ohne Wunsch: null. */
 export function kartenZiel(ein: { wunschEuro?: number | string | null; rahmenEuro?: number | string | null; paketKey?: string | null }): KartenZiel | null {
+  // E-281: Mara nennt kein Limit mehr (Justin 03.10.2026) — ohne Ziel fällt auch der Bank-Satz weg.
+  if (!limitNennen()) return null;
   const w = Number(ein.wunschEuro);
   if (ein.wunschEuro == null || !Number.isFinite(w) || w <= 0) return null;
   const r = ein.rahmenEuro != null && Number(ein.rahmenEuro) > 0 ? Number(ein.rahmenEuro) : null;
@@ -1895,13 +1897,49 @@ export function kartenZiel(ein: { wunschEuro?: number | string | null; rahmenEur
 
 /** „mit Ihrem Wunschlimit von 25.000 €" bzw. „mit 15.000 € als Ziel in Ihrem Paket FIAON Ultra". Ohne Ziel leer. */
 export function kartenzielText(z: KartenZiel | null | undefined, opt: { alsZiel?: boolean } = {}): string {
-  if (!z) return "";
+  // E-281: ohne Limit-Nennung nie eine Zahl in Maras festen Sätzen — auch wenn irgendwo doch ein Ziel übergeben wird.
+  if (!z || !limitNennen()) return "";
   if (z.art === "paket") return `mit ${euroGanz(z.euro)} als Ziel${z.paketName ? ` in Ihrem Paket ${z.paketName}` : ""}`;
   return `mit Ihrem Wunschlimit von ${euroGanz(z.euro)}${opt.alsZiel ? " als Ziel" : ""}`;
 }
 
 /** Der Satz über die Bank — Pflicht neben jedem Wunschlimit (limit_ohne_bank). */
 export const BANK_SATZ = "über den Rahmen entscheidet unsere Partnerbank";
+
+// ── E-281 (03.10.2026): KEIN LIMIT, KEIN BANK-SATZ IN KUNDENTEXTEN ─────────
+// Justin: „„über den Rahmen entscheidet unsere Partnerbank“. WEG damit, das steht 100x auf unserer Website und muss in
+// keiner Mail stehen … die Kunden sind total verunsichert“. Der Satz war nur Pflicht, WEIL Mara das Wunschlimit nannte
+// (E-265, sonst wäre es eine Limit-Zusage). Also: Mara nennt kein Limit mehr — dann braucht es den Satz nicht.
+// Zurück zu E-265 (Limit + Bank-Satz): MARA_LIMIT_NENNEN=an.
+/** Nennt Mara das Wunschlimit (mit Bank-Satz)? Vorgabe seit 03.10.2026: nein. */
+export function limitNennen(): boolean {
+  const env = (globalThis as any)?.process?.env;
+  return /^(an|ja|1|true)$/i.test(String(env?.MARA_LIMIT_NENNEN ?? ""));
+}
+/** „ — über den Rahmen entscheidet unsere Partnerbank“ an festen Sätzen — nur, solange Limits genannt werden. */
+export function bankZusatz(): string {
+  return limitNennen() ? ` — ${BANK_SATZ}` : "";
+}
+/**
+ * Letzte Stelle vor dem Versand (Mail, WhatsApp, Aktion): Bank-Satz und genannte Limits raus, falls ein Entwurf sie doch
+ * enthält — nur, solange limitNennen() aus ist. Danach steht dort „Ihre (eigene) Visa-Kreditkarte“ ohne Zahl. Rein.
+ */
+export function ohneLimitUndBankSatz(text: string): string {
+  if (limitNennen()) return String(text ?? "");
+  let t = String(text ?? "");
+  const bank = String.raw`(?:über\s+den\s+(?:genauen\s+)?(?:Kredit)?rahmen\s+entscheide[nt]\s+(?:am\s+Ende\s+)?(?:immer\s+)?(?:die|unsere)\s+Partnerbank|den\s+(?:Kredit)?rahmen\s+legt\s+(?:die|unsere)\s+(?:Partner)?bank\s+fest|die\s+Entscheidung\s+(?:über\s+den\s+Rahmen\s+)?trifft\s+(?:die|unsere)\s+Partnerbank)`;
+  // „… Ziel — über den Rahmen entscheidet unsere Partnerbank.“ / „…, über den Rahmen …“ / „; über den Rahmen …“
+  t = t.replace(new RegExp(String.raw`\s*[—–-]\s*${bank}`, "giu"), "");
+  t = t.replace(new RegExp(String.raw`\s*[,;:]\s*${bank}`, "giu"), "");
+  // eigener Satz „Über den Rahmen entscheidet unsere Partnerbank.“
+  t = t.replace(new RegExp(String.raw`(^|[.!?]\s+|
+)${bank}\s*[.!]?\s*`, "giu"), (_m, v) => v);
+  // genannte Limits: „mit Ihrem Wunschlimit von 5.000 €( als Ziel)“, „mit 15.000 € als Ziel( in Ihrem Paket FIAON Ultra)“
+  t = t.replace(new RegExp(String.raw`\s+mit\s+Ihrem\s+Wunsch-?limit\s+von\s+[\d.,]+\s*(?:€|Euro)(?:\s+als\s+Ziel)?`, "giu"), "");
+  t = t.replace(new RegExp(String.raw`\s+mit\s+[\d.,]+\s*(?:€|Euro)\s+als\s+Ziel(?:\s+in\s+Ihrem\s+Paket\s+FIAON\s+\p{L}+)?`, "giu"), "");
+  t = t.replace(new RegExp(String.raw`Ihr\s+Wunsch-?limit\s+von\s+[\d.,]+\s*(?:€|Euro)\s+(?:bleibt|ist)\s+unser\s+Ziel`, "giu"), "Ihre Visa-Kreditkarte bleibt unser Ziel");
+  return t.replace(/[ 	]{2,}/g, " ").replace(/\s+([.,!?])/g, "$1");
+}
 
 /** Welche Abschlussformel gilt? null = keine (Vertrag beendet, zahlender Kunde ohne fällige Rate). */
 export function abschlussArtAus(stufe: LinkStufe | null | undefined, opt: { rateOffen?: boolean } = {}): AbschlussArt | null {
@@ -1978,7 +2016,7 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // E-276 (02.10.2026): „Sobald wir Ihre Zahlung … zugeordnet haben“ statt „… bei uns eingeht“ — er hat schon überwiesen;
       // kam sein Verwendungszweck verkürzt an, bucht der Abgleich nicht selbst, dann ordnet die Zahlungsstelle zu (nachDerZuordnung).
       return absatz(
-        `Danke Ihnen! ${nachDerZuordnung({ betrag: l.betrag, anfang: true })}.${zt ? ` Ziel bleibt Ihre Visa-Kreditkarte ${zt} — ${BANK_SATZ}.` : " Ziel bleibt Ihre eigene Visa-Kreditkarte."}`,
+        `Danke Ihnen! ${nachDerZuordnung({ betrag: l.betrag, anfang: true })}.${zt ? ` Ziel bleibt Ihre Visa-Kreditkarte ${zt}${bankZusatz()}.` : " Ziel bleibt Ihre eigene Visa-Kreditkarte."}`,
         steht ? `${steht} — dort geht es direkt weiter.` : mail ? KARTE_ZEIT_SATZ : KARTE_ZEIT_WA,
       );
     case "rate":
@@ -1987,7 +2025,7 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // der Schlüssel zur Karte (247 von 265 zahlenden Kunden mit fälliger Rate haben die Einladung schon).
       // E-275: statt „Soll ich Ihnen dazu einen Termin mit … eintragen?“ die Bitte um die Überweisung.
       return absatz(
-        `Ihre Visa-Kreditkarte${zt ? ` ${zt}` : ""} bleibt unser gemeinsames Ziel — ${BANK_SATZ}.`,
+        `Ihre Visa-Kreditkarte${zt ? ` ${zt}` : ""} bleibt unser gemeinsames Ziel${bankZusatz()}.`,
         `Offen ist bei Ihnen gerade Ihre Rate${l.rateVom ? ` vom ${l.rateVom}` : ""}${l.betrag ? ` über ${l.betrag}` : ""}${mail && l.verwendungszweck ? ` (Verwendungszweck ${l.verwendungszweck})` : ""}.${steht ? ` ${steht}.` : ""} ${zahlen}${link}`,
       );
     case "abbrecher":
@@ -1997,7 +2035,7 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // E-275: ohne „und ich vereinbare Ihren Termin mit …“ — der Schritt ist sein Antrag.
       // E-275 Ton: „Ihre Angaben sind gespeichert“ (wahr — der Antrag merkt sich jeden Schritt) statt „Machen Sie ihn … fertig“.
       return absatz(
-        `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte${zt ? ` ${zt}` : ""} ist Ihr Antrag — ${BANK_SATZ}.`,
+        `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte${zt ? ` ${zt}` : ""} ist Ihr Antrag${bankZusatz()}.`,
         `Ihre Angaben sind gespeichert — Sie steigen genau dort ein, wo Sie aufgehört haben, und in etwa zwei Minuten ist er fertig${steht ? `; ${steht}` : ""}. Machen Sie heute noch weiter?${link}`,
       );
     case "c":
@@ -2018,7 +2056,7 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — per Mail steht er im Satz („mit Ihrem
       // Verwendungszweck FIAON-AB12CD ist Ihr Account …“, statt in Klammern davor), auf WhatsApp zeigt ihn die Zahlungsseite.
       return absatz(
-        `Bei uns kommen Sie zu Ihrer ${mail ? "eigenen " : ""}Visa-Kreditkarte${zt ? ` ${zt}` : ""} — ${BANK_SATZ}.`,
+        `Bei uns kommen Sie zu Ihrer ${mail ? "eigenen " : ""}Visa-Kreditkarte${zt ? ` ${zt}` : ""}${bankZusatz()}.`,
         `${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""} — ${nachDemEingang({ ref: mail ? l.verwendungszweck : null })}! ${steht ? `${steht}.` : mail ? `${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}` : KARTE_ZEIT_WA} ${zahlen}${link}`,
       );
   }
@@ -2083,7 +2121,7 @@ export function bausteinKeineKarte(l: {
   const zahlen = wa ? ` ${ZAHL_FRAGE}` : ` ${ZAHL_KNOPF_MAIL}`;
   // E-265 Nachbesserung 2 (01.10.2026, weiße Liste): „sobald" und das Wunschlimit nie im selben Satz — „Sobald sie
   // gebucht ist, geht es weiter zu Ihrer Visa-Kreditkarte mit Ihrem Wunschlimit von 25.000 €" las sich wie eine Zusage.
-  const ziel = `Ihre Visa-Kreditkarte${zt ? ` ${zt}` : ""} bleibt unser gemeinsames Ziel — ${BANK_SATZ}.`;
+  const ziel = `Ihre Visa-Kreditkarte${zt ? ` ${zt}` : ""} bleibt unser gemeinsames Ziel${bankZusatz()}.`;
   if (l.erste) {
     // E-275: was die Buchung auslöst, in Justins Worten (vorher „Sobald sie gebucht ist, geht es für Sie weiter“).
     // E-275 Ton (02.10.2026): nach Justins „Das liegt daran …“ die klare Aufforderung und der Nutzen mit dem einen
@@ -2314,7 +2352,7 @@ export function bausteinVorkasse(l: {
       : `Vorab zahlen Sie keinen Kreditbetrag, sondern ${l.betrag ? `die ${l.betrag} als ` : "die "}erste Monatsrate unserer Begleitung — Sie überweisen selbst, abgebucht wird nichts. ${danachKurz}`;
     return `Verstehe ich: Die Visa-Kreditkarte gibt unsere Partnerbank aus — FIAON ist kein Kreditinstitut, sondern bringt Sie dorthin${zt ? `, ${zt}` : ""} — über den Rahmen entscheidet die Bank. ${rate} ${frage}${link}`;
   }
-  const karte = `Bei uns kommen Sie zu Ihrer Visa-Kreditkarte${l.ziel ? ` ${kartenzielText(l.ziel)}` : ""} — ${BANK_SATZ}.`;
+  const karte = `Bei uns kommen Sie zu Ihrer Visa-Kreditkarte${l.ziel ? ` ${kartenzielText(l.ziel)}` : ""}${bankZusatz()}.`;
   const rate = l.ohneAntrag
     ? "Die erste Monatsrate kommt erst, wenn Ihr Antrag abgeschickt ist — Sie überweisen sie selbst, abgebucht wird nichts."
     : `${l.betrag ? `Die ${l.betrag} sind die erste ${l.jahresvertrag ? "von zwölf Monatsraten" : "Monatsrate"} Ihres Pakets` : "Sie zahlen in Monatsraten"} — Sie überweisen selbst, abgebucht wird nichts. ${danach}`;
@@ -2326,7 +2364,7 @@ export function bausteinVorkasse(l: {
  * kleineres Paket mit seinem Ziel (Rahmen des Pakets vom Server), eine Frage. Rein.
  */
 export function bausteinZuTeuerKarte(l: { paketKey: string; zielEuro?: number | null }): string {
-  const ziel = l.zielEuro ? `, mit ${euroGanz(l.zielEuro)} als Ziel für Ihre Visa-Kreditkarte — ${BANK_SATZ}` : ` für Ihre Visa-Kreditkarte — ${BANK_SATZ}`;
+  const ziel = l.zielEuro ? `, mit ${euroGanz(l.zielEuro)} als Ziel für Ihre Visa-Kreditkarte${bankZusatz()}` : ` für Ihre Visa-Kreditkarte${bankZusatz()}`;
   return `Verstehe ich. Reicht Ihnen ein kleinerer Rahmen, gibt es ${paketName(l.paketKey)} für ${paketPreisText(l.paketKey)} im Monat${ziel}. Welchen Rahmen brauchen Sie wirklich?`;
 }
 
@@ -2347,7 +2385,7 @@ export function naechstKleineresPaket(key: string | null | undefined): string | 
  */
 export function bausteinKuendigungFrage(l: { kanal: MaraKanal; ziel?: KartenZiel | null }): string {
   const zt = kartenzielText(l.ziel);
-  return `Ja, das können Sie${l.kanal === "whatsapp" ? ", auch hier" : ""}. Ihr Weg zu Ihrer Visa-Kreditkarte${zt ? ` ${zt}` : ""} läuft — ${BANK_SATZ}. ${KUENDIGUNG_RUECKFRAGE}`;
+  return `Ja, das können Sie${l.kanal === "whatsapp" ? ", auch hier" : ""}. Ihr Weg zu Ihrer Visa-Kreditkarte${zt ? ` ${zt}` : ""} läuft${bankZusatz()}. ${KUENDIGUNG_RUECKFRAGE}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2589,8 +2627,8 @@ export function bausteinLimitFrage(l: {
   const wer = nennAus(l.mit);
   const euro = euroGanz(l.ziel.euro);
   const ziel = l.ziel.art === "wunsch"
-    ? `Für Ihre Visa-Kreditkarte ist Ihr Wunschlimit von ${euro} unser Ziel — ${BANK_SATZ}.`
-    : `Für Ihre Visa-Kreditkarte arbeiten wir ${kartenzielText(l.ziel)} — ${BANK_SATZ}.`;
+    ? `Für Ihre Visa-Kreditkarte ist Ihr Wunschlimit von ${euro} unser Ziel${bankZusatz()}.`
+    : `Für Ihre Visa-Kreditkarte arbeiten wir ${kartenzielText(l.ziel)}${bankZusatz()}.`;
   // E-275 (02.10.2026): statt „Passt Ihnen … ein Anruf mit …?“ — bei offener erster Rate Justins Satz und die Bitte um die
   // Überweisung; sonst (zahlender Kunde) der Schritt zur Karte. Ein Termin steht nur noch da, wenn er schon gebucht ist.
   // E-275 Ton (02.10.2026): „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über … — Ihr Account ist sofort nach

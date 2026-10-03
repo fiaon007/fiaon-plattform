@@ -86,7 +86,7 @@ import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { absoluteUrl } from "../fiaon-base-url";
 import { menschSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
 // E-248: Maras Stimme aus EINER Quelle — dieselbe Persona wie im Postfach und auf WhatsApp.
-import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE, kartenZiel, kartenzielText, BANK_SATZ, type KartenZiel,
+import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE, kartenZiel, kartenzielText, BANK_SATZ, ohneLimitUndBankSatz, type KartenZiel,
   // E-276 (02.10.2026): dieselben Bausteine wie Postfach und WhatsApp (E-275) — Abschluss, Aufforderung, Lücke, Prüfungen.
   bausteinAbschluss, mitAntragLuecke, nachDemEingang, nachDerZuordnung, AKTIVIERUNG_AUFRUF, TEMPO_SATZ, ZAHL_KNOPF_MAIL,
   selbstErledigtTreffer, ausrufezeichen,
@@ -785,6 +785,9 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   if (maengel.length) return { ...leer, betreff, kern: text, maengel, auftrag, wissen, grund: `Prüfung: ${maengel.slice(0, 2).join("; ")}` };
   // höchstens EIN „!“ (E-275 Ton) — übrig gebliebene werden Punkte
   text = nurEinAusrufezeichen(text);
+  // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
+  text = ohneLimitUndBankSatz(text);
+  betreff = ohneLimitUndBankSatz(betreff);
 
   // Zusammensetzen wie jede Mara-Mail: Anrede · Kern · Knopf · Gruß.
   const anrede = await anredeBestimmen(k.personId, k.vorname, k.nachname, sprache);

@@ -420,6 +420,21 @@ async function main() {
   await A.kiAufruf({ dienst: "mara-whatsapp", modell: "gpt-5.5", nachrichten: [{ role: "user", content: "x" }], person: opusPerson });
   pruef("J9 … der Opus-Gruppe → Opus", rufe[0]?.body?.model === "claude-opus-5-5", rufe[0]?.body?.model);
 
+  // ── K: E-281 — kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ (Justin 03.10.2026) ──
+  const T = await import("../shared/fiaon-mara-ton");
+  const raus = T.ohneLimitUndBankSatz;
+  pruef("K1 Ziel-Satz mit Limit und Bank-Satz", raus("Danke Ihnen! Ziel bleibt Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von 15.000 € — über den Rahmen entscheidet unsere Partnerbank. Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen.")
+    === "Danke Ihnen! Ziel bleibt Ihre Visa-Kreditkarte. Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen.", raus("Danke Ihnen! Ziel bleibt Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von 15.000 € — über den Rahmen entscheidet unsere Partnerbank. Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen."));
+  pruef("K2 mit Komma", raus("Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte mit Ihrem Wunschlimit von 5.000 €, über den Rahmen entscheidet unsere Partnerbank.") === "Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte.");
+  pruef("K3 eigener Satz", raus("Über den Rahmen entscheidet unsere Partnerbank. Zahlen Sie jetzt die Aktivierung.") === "Zahlen Sie jetzt die Aktivierung.", raus("Über den Rahmen entscheidet unsere Partnerbank. Zahlen Sie jetzt die Aktivierung."));
+  pruef("K4 „als Ziel in Ihrem Paket“", raus("Wir arbeiten mit 15.000 € als Ziel in Ihrem Paket FIAON Ultra für Ihre Karte.") === "Wir arbeiten für Ihre Karte.");
+  pruef("K5 kein Ziel, kein Limit-Text", T.kartenZiel({ wunschEuro: 5000, rahmenEuro: 5000, paketKey: "pro" }) === null && T.kartenzielText({ euro: 5000, art: "wunsch", paketName: null } as any) === "" && T.bankZusatz() === "");
+  pruef("K6 Rest unangetastet", raus("Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über 99,99 € — mit Ihrem Verwendungszweck FIAON-AB12CD ist Ihr Account sofort nach Eingang aktiv!")
+    === "Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über 99,99 € — mit Ihrem Verwendungszweck FIAON-AB12CD ist Ihr Account sofort nach Eingang aktiv!");
+  process.env.MARA_LIMIT_NENNEN = "an";
+  pruef("K7 MARA_LIMIT_NENNEN=an → wie E-265", raus("Ihre Karte mit Ihrem Wunschlimit von 5.000 € — über den Rahmen entscheidet unsere Partnerbank.").includes("über den Rahmen") && T.bankZusatz() === " — über den Rahmen entscheidet unsere Partnerbank" && T.kartenZiel({ wunschEuro: 5000, rahmenEuro: 5000, paketKey: "pro" }) !== null);
+  delete process.env.MARA_LIMIT_NENNEN;
+
   // ── I: Quelltext ────────────────────────────────────────────────────────
   const { readFileSync } = await import("node:fs");
   const weiche = readFileSync("server/lib/fiaon-ki-claude.ts", "utf8");

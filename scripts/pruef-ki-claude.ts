@@ -128,7 +128,7 @@ async function main() {
   pruef("B19 assistant am Ende → user angehängt", b3.anfrage.messages[b3.anfrage.messages.length - 1].role === "user");
 
   const b4 = C.chatNachClaude({ model: "claude-haiku-4-5-20251001", reasoning_effort: "high", messages: [{ role: "user", content: "x" }] });
-  pruef("B20 Haiku: kein effort, kein thinking", b4.anfrage.effort === undefined && b4.anfrage.output_config === undefined && b4.anfrage.thinking === undefined && b4.anfrage.max_tokens === 8000);
+  pruef("B20 Haiku: kein effort, kein thinking", b4.anfrage.effort === undefined && b4.anfrage.output_config === undefined && b4.anfrage.thinking === undefined && b4.anfrage.max_tokens === 16000);
   const b4b = C.chatNachClaude({ model: "claude-haiku-4-5-20251001", temperature: 0.3, messages: [{ role: "user", content: "x" }] });
   pruef("B20b Haiku behält die Temperatur", b4b.anfrage.temperature === 0.3);
   const b4c = C.chatNachClaude({ model: "gpt-4.1-mini", reasoning_effort: "medium", max_tokens: 200, messages: [{ role: "user", content: "x" }] }, { denkenAus: true });
@@ -150,6 +150,13 @@ async function main() {
     !b9.anfrage.output_config?.format && b9.anfrage.output_config?.effort === "low" && /JSON-Schema/.test(JSON.stringify(b9.anfrage.messages[b9.anfrage.messages.length - 1])) && b9.anfrage.system === a1.system && b9.json === "objekt");
   pruef("B26 Ersatz ändert das Original nicht", !/JSON-Schema/.test(JSON.stringify(b1.anfrage.messages)));
   pruef("B27 Leerraum im base64 fällt weg", C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AA\nAA" } }] }] }).anfrage.messages[0].content[0].source.data === "AAAA");
+  const b29 = C.chatNachClaude({ model: "gpt-4.1", temperature: 0, messages: [{ role: "user", content: "lies" }] });
+  pruef("B29 Temperatur 0 ohne Werkzeuge → Aufwand low (Auslesen)", b29.anfrage.output_config?.effort === "low" && b29.anfrage.temperature === undefined);
+  pruef("B30 ohne max_tokens → 16000", C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: "x" }] }).anfrage.max_tokens === 16000);
+  const b31 = C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "data:application/pdf;name=a.pdf;base64,JVBE" } }] }] });
+  pruef("B31 Daten-URL mit Parametern", b31.anfrage.messages[0].content[0].type === "document" && b31.anfrage.messages[0].content[0].source.data === "JVBE");
+  const b32 = C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: [{ type: "file", file: { filename: "scan.png", file_data: "iVBORw0K" } }] }] });
+  pruef("B32 rohes base64 mit .png → Bild", b32.anfrage.messages[0].content[0].type === "image" && b32.anfrage.messages[0].content[0].source.media_type === "image/png");
   pruef("B28 denkArt", C.denkArt("claude-opus-5-5") === "immer" && C.denkArt("claude-sonnet-5-5") === "abschaltbar" && C.denkArt("claude-haiku-4-5-20251001") === "ohne" && C.denkArt("claude-fable-5-1") === "immer");
 
   // ── C: Claude → Chat ────────────────────────────────────────────────────
@@ -163,6 +170,12 @@ async function main() {
   const c3 = C.claudeNachChat({ id: "m3", content: [{ type: "text", text: "abgeschn" }], stop_reason: "max_tokens", usage: {} }, { json: null, modell: "x" });
   pruef("C5 max_tokens → length", c3.choices[0].finish_reason === "length");
   pruef("C6 Prosa vor JSON", C.jsonKern("Hier: {\"a\":1} fertig") === "{\"a\":1}");
+  pruef("C7 gültiges JSON mit ``` im Wert bleibt", C.jsonKern('{"antwort":"Bitte so: ```IBAN DE00``` eintragen","n":1}') === '{"antwort":"Bitte so: ```IBAN DE00``` eintragen","n":1}');
+  const c8 = C.claudeNachChat({ id: "m", content: [
+    { type: "server_tool_use", id: "s", name: "web_search", input: {} }, { type: "web_search_tool_result", tool_use_id: "s", content: [] },
+    { type: "text", text: '{"firmen":[{"name":"' }, { type: "text", text: "Muster GmbH", citations: [{}] }, { type: "text", text: '","ort":"' }, { type: "text", text: "Berlin", citations: [{}] }, { type: "text", text: '"}]}' },
+  ], stop_reason: "end_turn", usage: {} }, { json: "objekt", modell: "x" });
+  pruef("C8 JSON aus Beleg-Bruchstücken zusammengesetzt", c8.choices[0].message.content === '{"firmen":[{"name":"Muster GmbH","ort":"Berlin"}]}', c8.choices[0].message.content);
 
   // ── D: Responses ↔ Chat, Datenstrom ─────────────────────────────────────
   const d1 = C.responsesNachChat({ model: "gpt-5.5", instructions: "Anw", input: [
@@ -193,6 +206,7 @@ async function main() {
   pruef("E5 529 → null", fe(529, "overloaded_error", "Overloaded") === null);
   pruef("E6 übliche 400 → null", fe(400, "invalid_request_error", "messages: field required") === null);
   pruef("E7 HTML → null", C.claudeFehlerArt(502, "<html>bad gateway</html>") === null);
+  pruef("E9 gesperrte Organisation (400) → zugang", fe(400, "invalid_request_error", "This organization has been disabled.") === "zugang");
   pruef("E8 Organisations-Schlüssel ohne Arbeitsbereich → zugang", fe(400, "invalid_request_error", "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header") === "zugang");
 
   // ── F: Kosten ───────────────────────────────────────────────────────────
@@ -305,6 +319,35 @@ async function main() {
   antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: "messages.1.content.0: unexpected" } }, 400)];
   const g18 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", messages: [{ role: "user", content: "x" }], response_format: { type: "json_schema", json_schema: { name: "a", schema: { type: "object", properties: {} } } } }) });
   pruef("G18 anderer 400 → kein sinnloser Format-Ersatz", g18.status === 400 && rufe.length === 1);
+  // Denk-Signatur passt nicht → einmal ohne Rohblöcke (Verlauf als Text).
+  rufe.length = 0;
+  antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: "Invalid `signature` in `thinking` block: bound to a different conversation" } }, 400), () => claudeText("ok")];
+  const g19 = await P.openaiFetch("postmeister", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", messages: [
+    { role: "user", content: "Hi" },
+    { role: "assistant", content: null, tool_calls: [{ id: "toolu_9", type: "function", function: { name: "akte", arguments: "{}" } }], _claude_inhalt: roh },
+    { role: "tool", tool_call_id: "toolu_9", content: "ok" },
+  ], tools: [{ type: "function", function: { name: "akte", parameters: { type: "object", properties: {} } } }] }) });
+  pruef("G19 Signatur-Fehler → Verlauf als Text, neu", g19.ok && rufe.length === 2 && JSON.stringify(rufe[0].body.messages).includes('"thinking"') && !JSON.stringify(rufe[1].body.messages).includes('"thinking"'));
+  // Ratenlimit auch nach Wiederholungen → „drossel“ (wie eine Pause: liegen lassen), nichts gespeichert.
+  rufe.length = 0;
+  const limit = () => json({ type: "error", error: { type: "rate_limit_error", message: "Number of request tokens has exceeded your per-minute rate limit" } }, 429, { "retry-after": "1" });
+  antworten = [limit, limit, limit, limit];
+  let g20: any = null;
+  try { await P.openaiFetch("mara-aktion", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", messages: [{ role: "user", content: "x" }] }) }); } catch (e) { g20 = e; }
+  P.kiPauseZwischenspeicherLeeren();
+  pruef("G20 Ratenlimit → KiPausiertFehler „drossel“, keine gespeicherte Pause", P.istKiPause(g20) && g20?.art === "drossel" && rufe.length === 4 && (await P.kiPausiert("claude")) === false, { n: rufe.length, art: g20?.art });
+  // pause_turn, Fortsetzung scheitert an Guthaben → Pause, kein doppelter Text.
+  P.kiPauseProduktionSimulieren(false);
+  rufe.length = 0;
+  antworten = [
+    () => json({ id: "m", type: "message", model: "claude-opus-5-5", content: [{ type: "text", text: "Zwischenstand. " }], stop_reason: "pause_turn", usage: {} }),
+    () => json({ type: "error", error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API." } }, 400),
+  ];
+  let g21: any = null;
+  try { await P.openaiFetch("radar", "/responses", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", input: "x", tools: [{ type: "web_search" }] }) }); } catch (e) { g21 = e; }
+  pruef("G21 pause_turn + Guthaben leer → Pause statt halber Antwort", P.istKiPause(g21) && g21?.art === "abrechnung", String(g21));
+  P.kiPauseZwischenspeicherLeeren();
+  P.kiPauseProduktionSimulieren(null);
   P.kiWeicheZuruecksetzen();
 
   // ── H: Pause je Anbieter ────────────────────────────────────────────────

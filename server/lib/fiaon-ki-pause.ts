@@ -63,7 +63,8 @@ export const KI_PAUSE_MAIL_HINWEIS =
 /** Wo der Knopf steht — ein Band im Kopf jeder Chefbüro-Seite, dazu die Karte im Mara-Steuerpult. */
 export const KI_PAUSE_KLICKWEG = "/chef/s/mara";
 
-export type KiPauseArt = "abrechnung" | "zugang" | "hand";
+/** „drossel“ wird nie gespeichert: nur die Meldung eines Aufrufs, den Claudes Ratenlimit auch nach Wiederholungen abwies. */
+export type KiPauseArt = "abrechnung" | "zugang" | "hand" | "drossel";
 
 export interface KiPauseEreignis { am: string; was: "pausiert" | "aktiviert" | "probe_gescheitert"; von: string; grund: string | null }
 
@@ -129,6 +130,7 @@ export class KiPausiertFehler extends Error {
 export function kiPauseMeldung(art: KiPauseArt | null, anbieter: KiAnbieter | null = "openai"): string {
   const wer = anbieterName(anbieter);
   if (art === "hand") return "KI pausiert — im Chefbüro von Hand angehalten. Justin aktiviert sie dort wieder.";
+  if (art === "drossel") return `KI pausiert — ${wer} ist gerade ausgelastet (Ratenlimit); in wenigen Minuten geht es von selbst weiter.`;
   if (art === "zugang") return `KI pausiert — ${wer} lehnt den Zugang ab (Schlüssel oder Konto). Justin aktiviert sie im Chefbüro wieder.`;
   return `KI pausiert — ${wer} konnte nicht abbuchen (Guthaben). Justin aktiviert sie im Chefbüro wieder.`;
 }
@@ -845,9 +847,16 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
   let r = await claudeSenden(ueb.anfrage, init.signal);
   // Festes Format abgelehnt (Schema-Eigenheit, Websuche mit Belegen …) → einmal als klare Anweisung.
   if (r.status === 400 && ueb.anfrage.output_config?.format && !claudeFehlerArt(r.status, r.json)
-    && /output_config|format|schema/i.test(String(r.json?.error?.message ?? r.text))) {
+    && /output_config|format|schema|structured|citation/i.test(String(r.json?.error?.message ?? r.text))) {
     console.warn(`[KI-WEICHE] ${dienst}: festes Format abgelehnt (${String(r.json?.error?.message ?? r.text).slice(0, 160)}) — zweiter Versuch mit Anweisung.`);
     ueb = alsAnweisung(ueb);
+    r = await claudeSenden(ueb.anfrage, init.signal);
+  }
+  // Denk-Signatur passt nicht mehr zum Verlauf (z. B. ein Hinweis der Vorrunde fehlt) → einmal ohne Rohblöcke, als Text.
+  if (r.status === 400 && /signature|different conversation/i.test(String(r.json?.error?.message ?? r.text))) {
+    console.warn(`[KI-WEICHE] ${dienst}: Denk-Signatur passt nicht — Verlauf einmal als Text neu.`);
+    const flach = chatNachClaude(chat, { ohneRoh: true });
+    ueb = ueb.json === "objekt" && flach.json === "schema" ? alsAnweisung(flach) : flach;
     r = await claudeSenden(ueb.anfrage, init.signal);
   }
   if (r.status < 200 || r.status >= 300) {
@@ -859,6 +868,12 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
       });
       throw new KiPausiertFehler(dienst, zustand.art ?? art, (zustand.anbieter ?? "claude") as KiAnbieter);
     }
+    // Ratenlimit auch nach Wiederholungen: wie eine kurze Pause behandeln (der Aufrufer lässt liegen und versucht es
+    // im nächsten Takt) — nie als „abgelehnt“, sonst fiele ein Kunde aus der Runde. Nichts wird gespeichert.
+    if (r.status === 429) {
+      console.warn(`[KI-WEICHE] ${dienst}: Ratenlimit — liegen lassen, nächster Takt.`);
+      throw new KiPausiertFehler(dienst, "drossel", "claude");
+    }
     console.error(`[KI-WEICHE] ${dienst}: Claude HTTP ${r.status}: ${r.text.slice(0, 300)}`);
     return jsonAntwort(alsOpenAiFehler(r.status, r.json, r.text), r.status || 502);
   }
@@ -867,10 +882,19 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
   let roh = r.json;
   const vorher: any[] = [];
   for (let n = 0; n < 3 && roh?.stop_reason === "pause_turn"; n++) {
-    vorher.push(...(Array.isArray(roh.content) ? roh.content : []));
     const weiter = { ...ueb.anfrage, messages: [...ueb.anfrage.messages, { role: "assistant", content: roh.content }] };
     const r2 = await claudeSenden(weiter, init.signal);
-    if (r2.status < 200 || r2.status >= 300) break;
+    if (r2.status < 200 || r2.status >= 300) {
+      // Abrechnung/Zugang in der Fortsetzung → wie beim ersten Aufruf pausieren (nicht verschlucken).
+      const art = claudeFehlerArt(r2.status, r2.json);
+      if (art) {
+        const { zustand } = await pausieren({ art, fehler: `HTTP ${r2.status}: ${r2.text.slice(0, 360)}`, dienst, von: "automatisch", schluessel: process.env.ANTHROPIC_API_KEY ?? null, anbieter: "claude" });
+        throw new KiPausiertFehler(dienst, zustand.art ?? art, (zustand.anbieter ?? "claude") as KiAnbieter);
+      }
+      break;
+    }
+    // Erst nach einer gelungenen Fortsetzung sammeln — sonst stünde der Zwischenstand doppelt in der Antwort.
+    vorher.push(...(Array.isArray(roh.content) ? roh.content : []));
     roh = r2.json;
     ueb = { ...ueb, anfrage: weiter };
   }

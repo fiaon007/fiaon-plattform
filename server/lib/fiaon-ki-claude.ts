@@ -72,7 +72,7 @@ export function claudeModellFuer(modell: string | null | undefined): string {
 
 // ── Inhalt: OpenAI-Teile → Claude-Blöcke ──────────────────────────────────
 function datenUrl(url: string): { media: string; daten: string } | null {
-  const m = /^data:([^;,]+);base64,([\s\S]*)$/.exec(String(url || ""));
+  const m = /^data:([^;,]+)(?:;[^;,]+)*;base64,([\s\S]*)$/.exec(String(url || ""));
   return m ? { media: m[1].toLowerCase(), daten: m[2].replace(/\s+/g, "") } : null;
 }
 
@@ -107,8 +107,13 @@ function teilNachClaude(t: any): any | null {
     case "input_file": case "file": {
       const roh = t.file_data ?? t.file?.file_data;
       if (!roh) return null;
-      const d = datenUrl(roh) ?? { media: /\.pdf$/i.test(String(t.filename ?? t.file?.filename ?? "")) || !t.filename ? "application/pdf" : "application/octet-stream", daten: String(roh) };
-      return dateiBlock(d.media, d.daten);
+      // Rohes base64 ohne Daten-URL: die Art aus dem Dateinamen (Chat: file.filename, Responses: filename).
+      const name = String(t.filename ?? t.file?.filename ?? "");
+      const d = datenUrl(roh) ?? (/^data:/i.test(String(roh)) ? null : {
+        media: !name || /\.pdf$/i.test(name) ? "application/pdf" : /\.png$/i.test(name) ? "image/png" : /\.jpe?g$/i.test(name) ? "image/jpeg" : "application/octet-stream",
+        daten: String(roh).replace(/\s+/g, ""),
+      });
+      return d ? dateiBlock(d.media, d.daten) : null;
     }
     case "refusal":
       return null;
@@ -214,7 +219,7 @@ function anLetzteNachricht(nachrichten: { role: string; content: any[] }[], text
   if (letzte) letzte.content = [...letzte.content, { type: "text", text }];
 }
 
-export function chatNachClaude(body: any, opt: { denkenAus?: boolean } = {}): ClaudeUebersetzung {
+export function chatNachClaude(body: any, opt: { denkenAus?: boolean; ohneRoh?: boolean } = {}): ClaudeUebersetzung {
   const modell = claudeModellFuer(body?.model);
   const art = denkArt(modell);
 
@@ -263,7 +268,7 @@ export function chatNachClaude(body: any, opt: { denkenAus?: boolean } = {}): Cl
     }
     if (rolle === "assistant") {
       const roh = Array.isArray(n._claude_inhalt) && n._claude_inhalt.length ? n._claude_inhalt : null;
-      if (roh && mitWerkzeugen) {
+      if (roh && mitWerkzeugen && !opt.ohneRoh) {
         for (const b of roh) if (b?.type === "tool_use") { rohIds.add(String(b.id)); namen.set(String(b.id), String(b.name)); }
         anhaengen("assistant", roh);
         continue;
@@ -327,6 +332,8 @@ export function chatNachClaude(body: any, opt: { denkenAus?: boolean } = {}): Cl
 
   // Denken und Aufwand (output_config.effort)
   let effort = EFFORT[String(body?.reasoning_effort ?? body?.reasoning?.effort ?? "").toLowerCase()] ?? null;
+  // Temperatur 0 ohne Werkzeuge = Auslesen (Texterkennung, Kontoauszug, SCHUFA): wenig Nachdenken, Platz für die Antwort.
+  if (!effort && Number(body?.temperature) === 0 && body?.temperature !== null && body?.temperature !== undefined && !mitWerkzeugen) effort = "low";
   let zwischenWerkzeugen = false;
   if (art === "abschaltbar" && opt.denkenAus && effort !== "xhigh" && effort !== "max") {
     anfrage.thinking = { type: "between_tools" };
@@ -338,7 +345,8 @@ export function chatNachClaude(body: any, opt: { denkenAus?: boolean } = {}): Cl
   if (art === "ohne" && body?.temperature != null) anfrage.temperature = Math.max(0, Math.min(1, Number(body.temperature) || 0));
   if (Object.keys(ausgabe).length) anfrage.output_config = ausgabe;
 
-  const gewuenscht = Number(body?.max_tokens ?? body?.max_completion_tokens ?? body?.max_output_tokens ?? 8_000) || 8_000;
+  // Ohne Angabe 16.000 (Claude-Empfehlung für nicht-streamende Aufrufe) — das Denken zählt mit.
+  const gewuenscht = Number(body?.max_tokens ?? body?.max_completion_tokens ?? body?.max_output_tokens ?? 16_000) || 16_000;
   // Adaptives Denken zählt gegen dieselbe Grenze — Luft lassen (bezahlt wird, was gebraucht wird).
   const boden = art === "ohne" || zwischenWerkzeugen ? 1_024 : 8_000;
   anfrage.max_tokens = Math.min(MAX_TOKENS_DECKEL, Math.max(gewuenscht, boden));
@@ -363,6 +371,8 @@ export function alsAnweisung(u: ClaudeUebersetzung): ClaudeUebersetzung {
 /** JSON aus einem Text holen: Codeblock weg, sonst vom ersten „{“ bis zum letzten „}“. Rein. */
 export function jsonKern(text: string): string {
   let t = String(text ?? "").trim();
+  // Schon gültiges JSON (festes Format) — so lassen, auch wenn ein Wert ``` enthält.
+  try { JSON.parse(t); return t; } catch { /* weiter mit Codeblock/Klammern */ }
   const block = /```(?:json)?\s*([\s\S]*?)```/i.exec(t);
   if (block) t = block[1].trim();
   if (t.startsWith("{") || t.startsWith("[")) return t;
@@ -373,10 +383,12 @@ export function jsonKern(text: string): string {
 export function claudeNachChat(roh: any, opt: { json: ClaudeUebersetzung["json"]; modell: string }): any {
   const bloecke: any[] = Array.isArray(roh?.content) ? roh.content : [];
   const texte = bloecke.filter((b) => b?.type === "text" && typeof b.text === "string").map((b) => b.text as string);
-  let text = opt.json
-    // Bei JSON zählt der letzte Textblock, der wie JSON aussieht (Websuche liefert Zwischentexte mit Belegen).
-    ? jsonKern([...texte].reverse().find((t) => /[{[]/.test(t)) ?? texte.join(""))
-    : texte.join("");
+  // Bei JSON zählen die Textblöcke NACH dem letzten Werkzeug-/Suchblock, zusammengefügt — mit Belegen zerlegt Claude
+  // die Antwort an jeder belegten Stelle in eigene Blöcke (Gegenprüfung 03.10.).
+  let schlussAb = bloecke.length;
+  while (schlussAb > 0 && bloecke[schlussAb - 1]?.type === "text") schlussAb--;
+  const schluss = bloecke.slice(schlussAb).map((b) => String(b?.text ?? "")).join("");
+  let text = opt.json ? jsonKern(schluss.trim() ? schluss : texte.join("")) : texte.join("");
   text = text.trim() ? text : "";
   const tool_calls = bloecke.filter((b) => b?.type === "tool_use").map((b) => ({
     id: String(b.id), type: "function", function: { name: String(b.name), arguments: JSON.stringify(b.input ?? {}) },
@@ -513,6 +525,8 @@ export function claudeFehlerArt(status: number, body: unknown): "abrechnung" | "
   if (/credit balance is too low/i.test(meldung)) return "abrechnung";
   // 03.10.2026 (gemessen): Organisations-Schlüssel ohne Arbeitsbereich — jede Anfrage 400. Das ist Zugang, nicht Zufall.
   if (status === 400 && /not scoped to a workspace|anthropic-workspace-id/i.test(meldung)) return "zugang";
+  // Gesperrte Organisation kommt als 400 (öffentlich belegt) — derselbe Fall wie OpenAI am 03.10., nur bei Claude.
+  if (status === 400 && /organi[sz]ation (has been )?(disabled|suspended|deactivated)|disabled api key authentication/i.test(meldung)) return "zugang";
   if (status === 429) return code === "enforced_spend_limit_reached" || /usage limits|spend limit/i.test(meldung) ? "abrechnung" : null;
   if (status === 401 || typ === "authentication_error") return "zugang";
   if (status === 403 && /api key|organization|organisation|disabled|suspended|deactivated|not authorized/i.test(meldung)) return "zugang";

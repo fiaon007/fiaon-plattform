@@ -4398,7 +4398,7 @@ export async function entwerfen(
 // E-246 (27.09.2026): Der tägliche „Guthaben leer"-Alarm von hier ist weg — die KI-Pause
 // (fiaon-ki-pause.ts) meldet einen Abrechnungsfehler genau einmal, für alle Dienste.
 
-type Nachricht = { role: "assistant" | "user" | "tool"; content: string; tool_calls?: any[]; tool_call_id?: string };
+type Nachricht = { role: "assistant" | "user" | "tool"; content: string; tool_calls?: any[]; tool_call_id?: string; _claude_inhalt?: any[] };
 
 /**
  * Ein KI-Aufruf — mit Werkzeugen höchstens vier Runden. Bei einem Fehler je Runde genau ein
@@ -4414,6 +4414,8 @@ async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontex
     { role: "user", content: "Antworte jetzt auf seine letzte Nachricht — und auf alles davor, was noch offen ist." },
     ...nachtrag,
   ];
+  // E-279: Werkzeuge einmal je Gespräch — Claudes Denk-Signaturen hängen am byte-gleichen Werkzeug-Satz.
+  const werkzeuge = ctx ? werkzeugeFuer(ctx) : null;
   for (let runde = 0; runde < (ctx ? 4 : 1) + 1; runde++) {
     const mitWerkzeugen = !!ctx && runde < 4;
     let j: any = null;
@@ -4422,7 +4424,7 @@ async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontex
         j = await kiAufruf({
           dienst: DIENST_WA, modell: MODELL(), aufwand: "low", maxTokens: 2500, schema: SCHEMA,
           nachrichten: [...basis, ...werkzeugVerlauf] as any,
-          ...(mitWerkzeugen ? { tools: werkzeugeFuer(ctx) } : {}),
+          ...(mitWerkzeugen && werkzeuge ? { tools: werkzeuge } : {}),
         });
         void kostenCentsAus(MODELL(), j?.usage);
       } catch (e) {
@@ -4439,7 +4441,8 @@ async function denken(system: string, nachtrag: Nachricht[], ctx: WerkzeugKontex
       try { return { roh: antwortLesen(j, "Mara-WhatsApp"), fehler: null, aktionen, werkzeugVerlauf }; }
       catch (e) { fehler = String((e as Error)?.message || e).slice(0, 300); return { roh: null, fehler, aktionen, werkzeugVerlauf }; }
     }
-    werkzeugVerlauf.push({ role: "assistant", content: String(msg.content ?? ""), tool_calls: aufrufe });
+    // E-279: Claudes Rohblöcke (Denken + Werkzeugaufruf) mitnehmen — die nächste Runde spielt sie unverändert zurück.
+    werkzeugVerlauf.push({ role: "assistant", content: String(msg.content ?? ""), tool_calls: aufrufe, ...(Array.isArray(msg._claude_inhalt) ? { _claude_inhalt: msg._claude_inhalt } : {}) });
     for (const c of aufrufe) {
       let args: any = {};
       try { args = JSON.parse(c?.function?.arguments || "{}"); } catch { args = {}; }

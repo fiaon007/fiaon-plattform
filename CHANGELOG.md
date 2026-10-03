@@ -32,6 +32,12 @@ werden OPENAI wechseln“ und „mach es fix und fertig“.
 `server/lib/fiaon-postmeister-agent.ts` (kiAufruf), `server/lib/fiaon-postmeister-schema.ts` (Kosten).
 Prüfstand `scripts/pruef-ki-claude.ts` (80/80).
 
+**Nachtrag 03.10. — nach Claude-Doku und zwei Gegenprüfungen:** Opus 5.5 denkt immer (kein Abschalten, keine Temperatur),
+Sonnet 5.5 schaltet mit „between_tools“ ab; der Aufwand steht in `output_config.effort`. Fehlen Claudes Rohblöcke, geht der
+Werkzeugverlauf als Text; Format-Hinweise hängen an der letzten Nachricht (Denk-Signaturen bleiben gültig). Lehnt Claude ein Feld
+trotzdem ab, lernt die Weiche es je Modell. Ratenlimit = kurz liegen lassen (nie „abgelehnt“), gesperrte Organisation = Pause mit
+Alarm, Websuche in der neuen Fassung mit Fortsetzung. WhatsApp-Mara behält Claudes Werkzeugrunden. Prüfstand 112/112.
+
 **Nachtrag 03.10. — Meta-Messung (Prüfung des Pixels und der Conversions API):** Der Kauf ging mit dem Eingangstag 12:00 UTC
 an Meta — bei 16 % der Zahlungen VOR dem Klick, so kann Meta ihn keiner Anzeige zuordnen. Jetzt nie früher als der letzte
 Messsatz (`kaufZeit` in `server/lib/fiaon-meta-capi.ts`). Dazu geht jetzt eine gehashte Personen-Kennung (`external_id`) mit

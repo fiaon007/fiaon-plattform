@@ -42,7 +42,8 @@ const SEITEN_JE_AUFRUF = 4;
 /** Mehr liest niemand: Eine SCHUFA-Auskunft hat selten über 40 Seiten. */
 const HOECHSTENS_SEITEN = 48;
 const GLEICHZEITIG = 3;
-const ZEITGRENZE_MS = 120_000;
+// E-279 (03.10.2026): Claude liest mit (wenig) Denken — mehr Luft als bei OpenAI.
+const ZEITGRENZE_MS = 300_000;
 
 const zwischenspeicher = new Map<string, OcrErgebnis>();
 function merken(schluessel: string, e: OcrErgebnis): void {

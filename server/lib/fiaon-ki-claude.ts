@@ -598,8 +598,9 @@ export function claudeKostenCents(modell: string, usage: any): number | null {
 }
 
 /** Ein OpenAI-Modellname in der Nutzungstabelle, während Claude trägt: das Claude-Modell, das wirklich lief. */
-export function nutzungsModell(modell: string): string {
+export function nutzungsModell(modell: string, dienst?: string | null): string {
   const m = String(modell || "");
   if (aktiverAnbieter() !== "claude" || /^claude-/.test(m) || /whisper|transcribe|tts|embedding/i.test(m) || m === "-") return m;
-  return claudeModellFuer(m);
+  // Mit Dienst: dieselbe Wahl wie die Weiche (interne Dienste → Sonnet) — sonst stünden Texterkennung/Radar als Opus da.
+  return claudeModellFuer(m, dienst);
 }

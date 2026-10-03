@@ -217,6 +217,7 @@ async function main() {
   pruef("F3 kostenCentsAus nimmt Claude-Preis", Math.abs(S.kostenCentsAus("gpt-5.5", c1.usage) - 1.2) < 1e-9);
   // Ein Modul, das seine Zählung selbst umbaut (OCR): gpt-5.5 + nur Ein/Aus → zum Opus-Preis
   pruef("F4 umgebaute Zählung → Claude-Preis des gelaufenen Modells", Math.abs(S.kostenCentsAus("gpt-5.5", { prompt_tokens: 1000, completion_tokens: 100 }) - (1000 * 4 + 100 * 20) / 10_000) < 1e-9);
+  pruef("F6 Nutzung mit Dienst: Texterkennung als Sonnet verbucht", C.nutzungsModell("gpt-4.1", "ocr") === "claude-sonnet-5-5" && C.nutzungsModell("gpt-5.5", "mara-whatsapp") === "claude-opus-5-5");
   pruef("F5 Haiku mit Datum", Math.abs((C.claudeKostenCents("claude-haiku-4-5-20251001", { _anbieter: "claude", _modell: "claude-haiku-4-5-20251001", _eingabe: 10000, completion_tokens: 0 }) ?? 0) - 1) < 1e-9);
 
   // ── G: Netz über openaiFetch ────────────────────────────────────────────

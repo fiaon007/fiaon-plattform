@@ -149,10 +149,10 @@ const PREIS: Record<string, { ein: number; aus: number }> = {
  * E-279: Claude-Kosten — aus Claudes eigener Zählung (_anbieter: "claude"), oder, wenn ein Modul seine Zählung
  * selbst umbaut (nur Ein-/Ausgabe), mit dem Claude-Modell, das für diesen OpenAI-Namen lief. null = OpenAI.
  */
-function claudeKosten(modell: string, usage: any): number | null {
+function claudeKosten(modell: string, usage: any, dienst?: string | null): number | null {
   const direkt = claudeKostenCents(modell, usage);
   if (direkt != null) return direkt;
-  const echt = nutzungsModell(modell);
+  const echt = nutzungsModell(modell, dienst);
   if (echt === modell || !/^claude-/.test(echt)) return null;
   return claudeKostenCents(echt, { ...usage, _anbieter: "claude", _modell: echt });
 }
@@ -174,8 +174,8 @@ export async function nutzungMerken(ein: {
   const ct = Number(ein.usage?.completion_tokens || 0);
   const rt = Number(ein.usage?.completion_tokens_details?.reasoning_tokens || 0);
   // E-279: Claude-Preis (mit Cache-Anteilen), und in der Tabelle steht das Modell, das wirklich lief.
-  const kosten = claudeKosten(ein.modell, ein.usage) ?? ((pt / 1000) * p.ein + (ct / 1000) * p.aus);
-  ein = { ...ein, modell: String(ein.usage?._modell ?? nutzungsModell(ein.modell)) };
+  const kosten = claudeKosten(ein.modell, ein.usage, ein.dienst) ?? ((pt / 1000) * p.ein + (ct / 1000) * p.aus);
+  ein = { ...ein, modell: String(ein.usage?._modell ?? nutzungsModell(ein.modell, ein.dienst)) };
   await sqlPool`
     INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler)
     VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null})

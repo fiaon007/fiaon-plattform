@@ -685,16 +685,34 @@ export function kiNetzAbsichern(): void {
 
 // ── E-279: Der Weg zu Claude ─────────────────────────────────────────────
 /**
- * Gelernte Denk-Einstellungen je Modell (03.10.2026, gemessen): Claude Sonnet 5.5 lehnt `thinking: {type: "disabled"}` ab —
- * „To turn thinking off on this model, send {"type": "between_tools"} instead“. Die Weiche übernimmt solche Hinweise von
- * Claude selbst (einmal je Modell und Prozess) statt bei jedem Aufruf zu scheitern.
+ * Was die Weiche je Modell gelernt hat (03.10.2026). Gemessen: Claude Sonnet 5.5 lehnte `thinking: disabled` ab und
+ * nannte den richtigen Wert. Die Übersetzung hält sich an die Doku (denkArt); lehnt Claude trotzdem ein Feld ab
+ * (Denken, Aufwand, Websuche-Fassung), merkt sich die Weiche das je Modell und Prozess und sendet einmal neu —
+ * statt bei jedem Aufruf zu scheitern.
  */
-const DENKEN_ERSATZ = new Map<string, Record<string, string>>();
+interface Gelernt { denken?: Record<string, string>; denkenWeg?: boolean; effortWeg?: boolean; websucheAlt?: boolean }
+const GELERNT = new Map<string, Gelernt>();
+function lernen(modell: string, g: Gelernt): void {
+  const alt = GELERNT.get(modell) ?? {};
+  GELERNT.set(modell, { ...alt, ...g, denken: { ...(alt.denken ?? {}), ...(g.denken ?? {}) } });
+}
 
 function denkenAnpassen(anfrage: any): any {
-  const t = anfrage?.thinking?.type;
-  const ersatz = t ? DENKEN_ERSATZ.get(String(anfrage.model))?.[t] : undefined;
-  return ersatz ? { ...anfrage, thinking: { ...anfrage.thinking, type: ersatz } } : anfrage;
+  const g = GELERNT.get(String(anfrage?.model));
+  if (!g) return anfrage;
+  let a = anfrage;
+  const t = a?.thinking?.type;
+  if (g.denkenWeg && a.thinking) { a = { ...a }; delete a.thinking; }
+  else if (t && g.denken?.[t]) a = { ...a, thinking: { type: g.denken[t] } };
+  if (g.effortWeg && a.output_config?.effort) {
+    const { effort: _e, ...rest } = a.output_config;
+    a = { ...a };
+    if (Object.keys(rest).length) a.output_config = rest; else delete a.output_config;
+  }
+  if (g.websucheAlt && Array.isArray(a.tools) && a.tools.some((w: any) => w?.type === "web_search_20260209")) {
+    a = { ...a, tools: a.tools.map((w: any) => (w?.type === "web_search_20260209" ? { ...w, type: "web_search_20250305" } : w)) };
+  }
+  return a;
 }
 
 /** „send "thinking": {"type": "X"} instead of {"type": "Y"}“ → { neu: X, alt: Y }. Rein. */
@@ -739,7 +757,8 @@ async function arbeitsbereichErmitteln(): Promise<string | null> {
  */
 async function claudeSenden(anfrage: any, signal?: AbortSignal | null): Promise<{ status: number; json: any; text: string }> {
   let letzte = { status: 0, json: null as any, text: "" };
-  let kopfProbiert = false, denkenGelernt = false, temperaturWeg = false;
+  let kopfProbiert = false;
+  const geheilt = new Set<string>();
   for (let versuch = 1; versuch <= 7; versuch++) {
     anfrage = denkenAnpassen(anfrage);
     const res = await rohFetch()(`${ANTHROPIC_V1}/messages`, {
@@ -751,21 +770,31 @@ async function claudeSenden(anfrage: any, signal?: AbortSignal | null): Promise<
     letzte = { status: res.status, json, text };
     if (res.ok) return letzte;
     const meldung = String(json?.error?.message ?? "");
-    // Claude sagt selbst, wie „Denken aus“ auf diesem Modell heißt → merken und einmal neu.
-    const hinweis = res.status === 400 ? denkHinweis(meldung) : null;
-    if (hinweis && !denkenGelernt) {
-      denkenGelernt = true;
-      DENKEN_ERSATZ.set(String(anfrage.model), { ...(DENKEN_ERSATZ.get(String(anfrage.model)) ?? {}), [hinweis.alt]: hinweis.neu });
-      console.log(`[KI-WEICHE] ${anfrage.model}: Denken „${hinweis.alt}“ heißt hier „${hinweis.neu}“ — gemerkt.`);
-      continue;
-    }
-    // Temperatur abgelehnt (z. B. zusammen mit Denken) → ohne Temperatur einmal neu.
-    if (res.status === 400 && anfrage.temperature != null && !temperaturWeg && /temperature/i.test(meldung)) {
-      temperaturWeg = true;
-      anfrage = { ...anfrage };
-      delete anfrage.temperature;
-      console.log(`[KI-WEICHE] ${anfrage.model}: Temperatur abgelehnt — ohne Temperatur neu.`);
-      continue;
+    // Selbstkorrektur: Claude lehnt ein Feld ab → je Art einmal anpassen (und je Modell merken), dann neu.
+    if (res.status === 400) {
+      const modell = String(anfrage.model);
+      const heilen = (art: string, g: Gelernt | null, aendern: (a: any) => any, satz: string): boolean => {
+        if (geheilt.has(art)) return false;
+        geheilt.add(art);
+        if (g) lernen(modell, g);
+        anfrage = aendern({ ...anfrage });
+        console.log(`[KI-WEICHE] ${modell}: ${satz} — ${g ? "gemerkt, " : ""}neu gesendet.`);
+        return true;
+      };
+      const hinweis = denkHinweis(meldung);
+      if (hinweis && heilen("denken", { denken: { [hinweis.alt]: hinweis.neu } }, (a) => ({ ...a, thinking: { type: hinweis.neu } }), `Denken „${hinweis.alt}“ heißt hier „${hinweis.neu}“`)) continue;
+      if (anfrage.thinking && /thinking/i.test(meldung) && heilen("denken-weg", { denkenWeg: true }, (a) => { delete a.thinking; return a; }, "Denk-Einstellung abgelehnt")) continue;
+      if (anfrage.output_config?.effort && /effort/i.test(meldung) && heilen("effort", { effortWeg: true }, (a) => {
+        const { effort: _e, ...rest } = a.output_config;
+        if (Object.keys(rest).length) a.output_config = rest; else delete a.output_config;
+        return a;
+      }, "Aufwand abgelehnt")) continue;
+      if ((anfrage.temperature != null || anfrage.top_p != null || anfrage.top_k != null) && /temperature|top_p|top_k/i.test(meldung)
+        && heilen("sampling", null, (a) => { delete a.temperature; delete a.top_p; delete a.top_k; return a; }, "Temperatur abgelehnt")) continue;
+      if (anfrage.tool_choice && anfrage.tool_choice.type !== "auto" && /tool_choice/i.test(meldung)
+        && heilen("tool_choice", null, (a) => ({ ...a, tool_choice: { type: "auto" } }), "Werkzeugwahl abgelehnt")) continue;
+      if (Array.isArray(anfrage.tools) && anfrage.tools.some((w: any) => w?.type === "web_search_20260209") && /web_search/i.test(meldung)
+        && heilen("websuche", { websucheAlt: true }, (a) => ({ ...a, tools: a.tools.map((w: any) => (w?.type === "web_search_20260209" ? { ...w, type: "web_search_20250305" } : w)) }), "neue Websuche abgelehnt")) continue;
     }
     if (res.status === 400 && /workspace/i.test(meldung) && !process.env.ANTHROPIC_WORKSPACE_ID && claudeArbeitsbereich === undefined) {
       claudeArbeitsbereich = await arbeitsbereichErmitteln();
@@ -815,7 +844,8 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
   let ueb = chatNachClaude(chat);
   let r = await claudeSenden(ueb.anfrage, init.signal);
   // Festes Format abgelehnt (Schema-Eigenheit, Websuche mit Belegen …) → einmal als klare Anweisung.
-  if (r.status === 400 && ueb.anfrage.output_config && !claudeFehlerArt(r.status, r.json)) {
+  if (r.status === 400 && ueb.anfrage.output_config?.format && !claudeFehlerArt(r.status, r.json)
+    && /output_config|format|schema/i.test(String(r.json?.error?.message ?? r.text))) {
     console.warn(`[KI-WEICHE] ${dienst}: festes Format abgelehnt (${String(r.json?.error?.message ?? r.text).slice(0, 160)}) — zweiter Versuch mit Anweisung.`);
     ueb = alsAnweisung(ueb);
     r = await claudeSenden(ueb.anfrage, init.signal);
@@ -832,7 +862,20 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
     console.error(`[KI-WEICHE] ${dienst}: Claude HTTP ${r.status}: ${r.text.slice(0, 300)}`);
     return jsonAntwort(alsOpenAiFehler(r.status, r.json, r.text), r.status || 502);
   }
-  const antwort = claudeNachChat(r.json, { json: ueb.json, modell: ueb.anfrage.model });
+  // Websuche: Claude hält nach seiner Schleifengrenze an („pause_turn“) — den Zwischenstand zurückgeben und
+  // weitermachen lassen (höchstens dreimal); die Blöcke werden für die Antwort zusammengelegt.
+  let roh = r.json;
+  const vorher: any[] = [];
+  for (let n = 0; n < 3 && roh?.stop_reason === "pause_turn"; n++) {
+    vorher.push(...(Array.isArray(roh.content) ? roh.content : []));
+    const weiter = { ...ueb.anfrage, messages: [...ueb.anfrage.messages, { role: "assistant", content: roh.content }] };
+    const r2 = await claudeSenden(weiter, init.signal);
+    if (r2.status < 200 || r2.status >= 300) break;
+    roh = r2.json;
+    ueb = { ...ueb, anfrage: weiter };
+  }
+  if (vorher.length) roh = { ...roh, content: [...vorher, ...(Array.isArray(roh?.content) ? roh.content : [])] };
+  const antwort = claudeNachChat(roh, { json: ueb.json, modell: ueb.anfrage.model });
   if (istResponses) return jsonAntwort(chatNachResponses(antwort));
   if (ueb.stream) return new Response(chatAlsSse(antwort), { status: 200, headers: { "content-type": "text/event-stream" } });
   return jsonAntwort(antwort);
@@ -841,10 +884,9 @@ async function claudeStatt(dienst: string, url: string, init: RequestInit): Prom
 /** Ein winziger echter Claude-Aufruf (Probe beim Aktivieren und beim Start) — kostet Bruchteile eines Cents. */
 async function claudeProbe(): Promise<{ ok: boolean; art: KiPauseArt | null; fehler: string }> {
   try {
-    const r = await claudeSenden({
-      model: claudeModellFuer("gpt-4.1-mini"), max_tokens: 16, thinking: { type: "disabled" },
-      messages: [{ role: "user", content: "Antworte nur mit OK." }],
-    }, AbortSignal.timeout(30_000));
+    // Dieselbe Übersetzung wie jeder echte Aufruf (Denken je Modell, Sonnet 5.5 mit „between_tools“).
+    const { anfrage } = chatNachClaude({ model: "gpt-4.1-mini", max_tokens: 1_024, messages: [{ role: "user", content: "Antworte nur mit OK." }] }, { denkenAus: true });
+    const r = await claudeSenden(anfrage, AbortSignal.timeout(30_000));
     if (r.status >= 200 && r.status < 300) return { ok: true, art: null, fehler: "" };
     return { ok: false, art: claudeFehlerArt(r.status, r.json), fehler: `HTTP ${r.status}: ${r.text.slice(0, 240)}` };
   } catch (e: any) {
@@ -852,9 +894,12 @@ async function claudeProbe(): Promise<{ ok: boolean; art: KiPauseArt | null; feh
   }
 }
 
+/** Nur für Prüfstände: ein Rohaufruf an Claude (mit Selbstkorrektur), wie ihn claudeStatt macht. */
+export const claudeSendenFuerPruefstand = (anfrage: any) => claudeSenden(anfrage);
+
 /** Nur für Prüfstände: Arbeitsbereich, Kopfart und Gelerntes vergessen. */
 export function kiWeicheZuruecksetzen(): void {
-  DENKEN_ERSATZ.clear();
+  GELERNT.clear();
   claudeArbeitsbereich = undefined;
   claudeKopfArt = "x-api-key";
 }

@@ -86,14 +86,15 @@ async function main() {
   const a1 = b1.anfrage;
   pruef("B1 Modell übersetzt", a1.model === "claude-opus-5-5");
   pruef("B2 System + Developer zusammen", a1.system === "Du bist Mara.\n\nSie-Form.", a1.system);
-  pruef("B3 Werkzeugaufruf → tool_use", a1.messages[1].role === "assistant" && a1.messages[1].content.some((b: any) => b.type === "tool_use" && b.id === "call_1" && b.input.id === 5));
-  pruef("B4 Werkzeugergebnis → tool_result in user", a1.messages[2].role === "user" && a1.messages[2].content[0].type === "tool_result" && a1.messages[2].content[0].tool_use_id === "call_1");
-  pruef("B5 Werkzeugverlauf ohne Rohblöcke → Denken aus", a1.thinking?.type === "disabled");
-  pruef("B6 Aufwand low", a1.effort === "low");
+  // Ohne Claudes Rohblöcke wird der Werkzeugverlauf zu Text (Opus 5.5 kann Denken nicht abschalten — nie ein tool_use ohne Denkblöcke).
+  pruef("B3 Werkzeugaufruf ohne Rohblöcke → Text, kein tool_use", a1.messages[1].role === "assistant" && !a1.messages[1].content.some((b: any) => b.type === "tool_use") && a1.messages[1].content.some((b: any) => b.text === '[Werkzeugaufruf akte({"id":5})]'), a1.messages[1].content);
+  pruef("B4 Werkzeugergebnis → Text in user", a1.messages[2].role === "user" && a1.messages[2].content[0].type === "text" && /\[Ergebnis akte: \{\\"ok\\":true\}\]/.test(JSON.stringify(a1.messages[2].content[0])), a1.messages[2].content);
+  pruef("B5 Opus: nie ein thinking-Feld", a1.thinking === undefined);
+  pruef("B6 Aufwand low in output_config, nicht oben", a1.output_config?.effort === "low" && a1.effort === undefined);
   pruef("B7 festes Format → output_config", a1.output_config?.format?.type === "json_schema");
   pruef("B8 Schema geglättet (minLength/maxLength/minimum weg)", !JSON.stringify(a1.output_config.format.schema).match(/minLength|maxLength|minimum/) && a1.output_config.format.schema.additionalProperties === false);
   pruef("B9 Werkzeug-Schema bleibt", a1.tools[0].name === "akte" && a1.tools[0].input_schema.type === "object" && a1.tool_choice.type === "auto");
-  pruef("B10 max_tokens ohne Denken wie gewünscht", a1.max_tokens === 3500, a1.max_tokens);
+  pruef("B10 Opus denkt immer → max_tokens ≥ 8000", a1.max_tokens === 8000, a1.max_tokens);
   pruef("B11 Ende nie assistant", a1.messages[a1.messages.length - 1].role === "user");
   pruef("B12 Antwortform schema", b1.json === "schema");
 
@@ -102,7 +103,17 @@ async function main() {
     { role: "user", content: "Hi" },
     { role: "assistant", content: null, tool_calls: [{ id: "toolu_9", type: "function", function: { name: "akte", arguments: "{}" } }], _claude_inhalt: roh },
     { role: "tool", tool_call_id: "toolu_9", content: "ok" },
+  ], tools: [{ type: "function", function: { name: "akte", parameters: { type: "object", properties: {} } } }] });
+  pruef("B13b Rohblöcke → tool_result-Block", b2.anfrage.messages[2].content[0].type === "tool_result" && b2.anfrage.messages[2].content[0].tool_use_id === "toolu_9");
+  // Letzte Runde ohne Werkzeuge (Postmeister „schreib jetzt die Antwort“): Rohblöcke würden die Signatur brechen → Text.
+  const b2b = C.chatNachClaude({ model: "gpt-5.5", messages: [
+    { role: "system", content: "Auftrag" }, { role: "user", content: "Hi" },
+    { role: "assistant", content: null, tool_calls: [{ id: "toolu_9", type: "function", function: { name: "akte", arguments: "{}" } }], _claude_inhalt: roh },
+    { role: "tool", tool_call_id: "toolu_9", content: "ok" },
+    { role: "system", content: "Jetzt im Schema antworten" },
   ] });
+  pruef("B13c ohne Werkzeuge: Rohblöcke → Text, kein Denkblock", !JSON.stringify(b2b.anfrage.messages).includes('"thinking"') && !JSON.stringify(b2b.anfrage.messages).includes("tool_use") && /Werkzeugaufruf akte/.test(JSON.stringify(b2b.anfrage.messages)));
+  pruef("B13d späterer System-Hinweis geht in den Verlauf, System bleibt", b2b.anfrage.system === "Auftrag" && /\[Hinweis\] Jetzt im Schema antworten/.test(JSON.stringify(b2b.anfrage.messages)));
   pruef("B13 Rohblöcke kommen unverändert zurück (Denken bleibt an)", b2.anfrage.messages[1].content === roh || JSON.stringify(b2.anfrage.messages[1].content) === JSON.stringify(roh));
   pruef("B14 mit Rohblöcken kein Denken-aus", !b2.anfrage.thinking);
   pruef("B15 mit Denken max_tokens ≥ 8000", b2.anfrage.max_tokens >= 8000);
@@ -112,22 +123,34 @@ async function main() {
     { role: "assistant", content: "Vorbefüllt" },
   ], response_format: { type: "json_object" } });
   pruef("B16 Bild als base64-Block", b3.anfrage.messages[0].content[1].type === "image" && b3.anfrage.messages[0].content[1].source.media_type === "image/png");
-  pruef("B17 temperature → Denken aus + Temperatur", b3.anfrage.thinking?.type === "disabled" && b3.anfrage.temperature === 0);
-  pruef("B18 json_object → Anweisung im System", /JSON-Objekt/.test(String(b3.anfrage.system)) && b3.json === "objekt");
+  pruef("B17 Sonnet: Temperatur fällt weg, Denken bleibt adaptiv", b3.anfrage.model === "claude-sonnet-5-5" && b3.anfrage.temperature === undefined && b3.anfrage.thinking === undefined);
+  pruef("B18 json_object → Anweisung an der letzten Nachricht, nicht im System", /JSON-Objekt/.test(JSON.stringify(b3.anfrage.messages[b3.anfrage.messages.length - 1])) && !/JSON-Objekt/.test(String(b3.anfrage.system ?? "")) && b3.json === "objekt");
   pruef("B19 assistant am Ende → user angehängt", b3.anfrage.messages[b3.anfrage.messages.length - 1].role === "user");
 
   const b4 = C.chatNachClaude({ model: "claude-haiku-4-5-20251001", reasoning_effort: "high", messages: [{ role: "user", content: "x" }] });
-  pruef("B20 Haiku: kein effort, kein thinking", b4.anfrage.effort === undefined && b4.anfrage.thinking === undefined);
+  pruef("B20 Haiku: kein effort, kein thinking", b4.anfrage.effort === undefined && b4.anfrage.output_config === undefined && b4.anfrage.thinking === undefined && b4.anfrage.max_tokens === 8000);
+  const b4b = C.chatNachClaude({ model: "claude-haiku-4-5-20251001", temperature: 0.3, messages: [{ role: "user", content: "x" }] });
+  pruef("B20b Haiku behält die Temperatur", b4b.anfrage.temperature === 0.3);
+  const b4c = C.chatNachClaude({ model: "gpt-4.1-mini", reasoning_effort: "medium", max_tokens: 200, messages: [{ role: "user", content: "x" }] }, { denkenAus: true });
+  pruef("B20c Sonnet + denkenAus → between_tools, Boden 1024", b4c.anfrage.thinking?.type === "between_tools" && Object.keys(b4c.anfrage.thinking).length === 1 && b4c.anfrage.max_tokens === 1024 && b4c.anfrage.output_config?.effort === "medium");
+  const b4d = C.chatNachClaude({ model: "gpt-4.1-mini", reasoning_effort: "max", messages: [{ role: "user", content: "x" }] }, { denkenAus: true });
+  pruef("B20d Sonnet mit Aufwand max → kein between_tools", b4d.anfrage.thinking === undefined && b4d.anfrage.output_config?.effort === "max");
+  const b4e = C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: "x" }] }, { denkenAus: true });
+  pruef("B20e Opus + denkenAus → kein thinking, Aufwand low", b4e.anfrage.thinking === undefined && b4e.anfrage.output_config?.effort === "low");
   const b5 = C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "assistant", content: "Hallo" }, { role: "user", content: "Antwort" }] });
   pruef("B21 Beginn immer user", b5.anfrage.messages[0].role === "user");
   const b6 = C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "system", content: "x".repeat(7000) }, { role: "user", content: "a" }] });
   pruef("B22 langer Auftrag wird zwischengespeichert", Array.isArray(b6.anfrage.system) && b6.anfrage.system[0].cache_control?.type === "ephemeral");
   const b7 = C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: "a" }], tools: [{ type: "web_search" }], tool_choice: "required" });
-  pruef("B23 Websuche → Claude-Websuche", b7.anfrage.tools[0].type === "web_search_20250305" && b7.anfrage.tool_choice.type === "any");
+  pruef("B23 Websuche → neueste Fassung, required → auto + Hinweis", b7.anfrage.tools[0].type === "web_search_20260209" && b7.anfrage.tool_choice.type === "auto" && /eines der Werkzeuge/.test(JSON.stringify(b7.anfrage.messages)));
   const b8 = C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: "a" }], tools: [{ type: "function", function: { name: "x", parameters: {} } }], tool_choice: { type: "function", function: { name: "x" } } });
-  pruef("B24 tool_choice Funktion → tool", b8.anfrage.tool_choice.type === "tool" && b8.anfrage.tool_choice.name === "x");
+  pruef("B24 genanntes Werkzeug → auto + „Verwende jetzt das Werkzeug“", b8.anfrage.tool_choice.type === "auto" && /Verwende jetzt das Werkzeug „x“/.test(JSON.stringify(b8.anfrage.messages)));
   const b9 = C.alsAnweisung(b1);
-  pruef("B25 Ersatzanweisung: ohne output_config, Schema im System", !b9.anfrage.output_config && /JSON-Schema/.test(JSON.stringify(b9.anfrage.system)) && b9.json === "objekt");
+  pruef("B25 Ersatzanweisung: Format weg, Aufwand bleibt, Schema an der letzten Nachricht, System unverändert",
+    !b9.anfrage.output_config?.format && b9.anfrage.output_config?.effort === "low" && /JSON-Schema/.test(JSON.stringify(b9.anfrage.messages[b9.anfrage.messages.length - 1])) && b9.anfrage.system === a1.system && b9.json === "objekt");
+  pruef("B26 Ersatz ändert das Original nicht", !/JSON-Schema/.test(JSON.stringify(b1.anfrage.messages)));
+  pruef("B27 Leerraum im base64 fällt weg", C.chatNachClaude({ model: "gpt-5.5", messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AA\nAA" } }] }] }).anfrage.messages[0].content[0].source.data === "AAAA");
+  pruef("B28 denkArt", C.denkArt("claude-opus-5-5") === "immer" && C.denkArt("claude-sonnet-5-5") === "abschaltbar" && C.denkArt("claude-haiku-4-5-20251001") === "ohne" && C.denkArt("claude-fable-5-1") === "immer");
 
   // ── C: Claude → Chat ────────────────────────────────────────────────────
   const c1 = C.claudeNachChat({ id: "m", model: "claude-opus-5-5", content: [{ type: "thinking", thinking: "t", signature: "s" }, { type: "text", text: "```json\n{\"text\":\"Hallo\"}\n```" }], stop_reason: "end_turn",
@@ -242,24 +265,46 @@ async function main() {
   const g7 = await P.openaiFetch("transkript", "/audio/transcriptions", { method: "POST", body: "{}" });
   pruef("G10 Sprache bleibt bei OpenAI", g7.ok && rufe[0]?.url === "https://api.openai.com/v1/audio/transcriptions");
 
-  // Gemessen 03.10.: Sonnet 5.5 lehnt „thinking: disabled“ ab und nennt den richtigen Wert → gemerkt, einmal neu.
+  // Selbstkorrektur: Claude nennt den richtigen Denk-Wert (gemessen 03.10.) → gemerkt, einmal neu.
   P.kiWeicheZuruecksetzen();
   rufe.length = 0;
   antworten = [
-    () => json({ type: "error", error: { type: "invalid_request_error", message: 'To turn thinking off on this model, send "thinking": {"type": "between_tools"} instead of {"type": "disabled"}. The model does not think before responding.' } }, 400),
-    () => claudeText("ok"),
-    () => claudeText("ok2"),
+    () => json({ type: "error", error: { type: "invalid_request_error", message: 'To turn thinking off on this model, send "thinking": {"type": "between_tools"} instead of {"type": "disabled"}.' } }, 400),
+    () => claudeText("ok"), () => claudeText("ok2"),
   ];
-  const g11 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-4.1-mini", temperature: 0, messages: [{ role: "user", content: "x" }] }) });
-  pruef("G11 Denk-Hinweis übernommen und neu gesendet", g11.ok && rufe.length === 2 && rufe[0].body.thinking?.type === "disabled" && rufe[1].body.thinking?.type === "between_tools", rufe.map((r) => r.body?.thinking));
+  const g11 = await P.claudeSendenFuerPruefstand({ model: "claude-sonnet-5-5", max_tokens: 1024, thinking: { type: "disabled" }, messages: [{ role: "user", content: "x" }] });
+  pruef("G11 Denk-Hinweis übernommen und neu gesendet", g11.status === 200 && rufe.length === 2 && rufe[1].body.thinking?.type === "between_tools", rufe.map((r) => r.body?.thinking));
   rufe.length = 0;
-  const g12 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-4.1-mini", temperature: 0, messages: [{ role: "user", content: "y" }] }) });
-  pruef("G12 gemerkt: nächster Aufruf gleich richtig", g12.ok && rufe.length === 1 && rufe[0].body.thinking?.type === "between_tools");
+  const g12 = await P.claudeSendenFuerPruefstand({ model: "claude-sonnet-5-5", max_tokens: 1024, thinking: { type: "disabled" }, messages: [{ role: "user", content: "y" }] });
+  pruef("G12 gemerkt: nächster Aufruf gleich richtig", g12.status === 200 && rufe.length === 1 && rufe[0].body.thinking?.type === "between_tools");
   pruef("G13 denkHinweis liest den Satz", JSON.stringify(P.denkHinweis('send "thinking": {"type": "between_tools"} instead of {"type": "disabled"}')) === JSON.stringify({ neu: "between_tools", alt: "disabled" }));
   rufe.length = 0;
-  antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: "temperature may only be set to 1 when thinking is enabled" } }, 400), () => claudeText("ok")];
-  const g14 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", temperature: 0.2, messages: [{ role: "user", content: "z" }] }) });
-  pruef("G14 Temperatur abgelehnt → ohne Temperatur neu", g14.ok && rufe.length === 2 && rufe[1].body.temperature === undefined);
+  antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: "output_config.effort: Extra inputs are not permitted" } }, 400), () => claudeText("ok"), () => claudeText("ok2")];
+  const g14 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", reasoning_effort: "low", messages: [{ role: "user", content: "z" }] }) });
+  pruef("G14 Aufwand abgelehnt → ohne Aufwand neu", g14.ok && rufe.length === 2 && rufe[0].body.output_config?.effort === "low" && rufe[1].body.output_config === undefined);
+  rufe.length = 0;
+  await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", reasoning_effort: "low", messages: [{ role: "user", content: "z2" }] }) });
+  pruef("G14b gemerkt: Aufwand gleich weg", rufe.length === 1 && rufe[0].body.output_config === undefined);
+  rufe.length = 0;
+  antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: '"thinking.type.disabled" is not supported for this model. Use "thinking.type.adaptive" and "output_config.effort"' } }, 400), () => claudeText("ok")];
+  const g15 = await P.claudeSendenFuerPruefstand({ model: "claude-opus-5-5", max_tokens: 1024, thinking: { type: "disabled" }, messages: [{ role: "user", content: "x" }] });
+  pruef("G15 Opus-Meldung ohne Hinweis → Denk-Feld weg, neu", g15.status === 200 && rufe.length === 2 && rufe[1].body.thinking === undefined);
+  rufe.length = 0;
+  antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: "tools.0: Input tag 'web_search_20260209' found using 'type' does not match any of the expected tags" } }, 400), () => claudeText("{\"firmen\":[]}")];
+  const g16 = await P.openaiFetch("radar", "/responses", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", input: "x", tools: [{ type: "web_search" }], text: { format: { type: "json_schema", name: "r", schema: { type: "object", properties: { firmen: { type: "array", items: { type: "string" } } } } } } }) });
+  pruef("G16 neue Websuche abgelehnt → alte Fassung", g16.ok && rufe.length === 2 && rufe[1].body.tools[0].type === "web_search_20250305");
+  rufe.length = 0;
+  antworten = [
+    () => json({ id: "m", type: "message", model: "claude-opus-5-5", content: [{ type: "server_tool_use", id: "s1", name: "web_search", input: {} }, { type: "text", text: "Zwischenstand" }], stop_reason: "pause_turn", usage: { input_tokens: 10, output_tokens: 5 } }),
+    () => claudeText("{\"firmen\":[\"A\"]}"),
+  ];
+  const g17 = await P.openaiFetch("radar", "/responses", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", input: "x", tools: [{ type: "web_search" }], text: { format: { type: "json_schema", name: "r", schema: { type: "object", properties: { firmen: { type: "array", items: { type: "string" } } } } } } }) });
+  const g17j: any = await g17.json();
+  pruef("G17 pause_turn → fortgesetzt, Endantwort gelesen", rufe.length === 2 && rufe[1].body.messages[rufe[1].body.messages.length - 1].role === "assistant" && g17j.output_text === "{\"firmen\":[\"A\"]}", { n: rufe.length, t: g17j.output_text });
+  rufe.length = 0;
+  antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: "messages.1.content.0: unexpected" } }, 400)];
+  const g18 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", messages: [{ role: "user", content: "x" }], response_format: { type: "json_schema", json_schema: { name: "a", schema: { type: "object", properties: {} } } } }) });
+  pruef("G18 anderer 400 → kein sinnloser Format-Ersatz", g18.status === 400 && rufe.length === 1);
   P.kiWeicheZuruecksetzen();
 
   // ── H: Pause je Anbieter ────────────────────────────────────────────────

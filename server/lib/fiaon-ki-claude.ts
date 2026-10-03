@@ -25,8 +25,11 @@
 //   · Werkzeugschleifen: Die Antwort trägt Claudes Rohblöcke (Denken,
 //     Werkzeugaufrufe) als `_claude_inhalt` an der Nachricht — wer die
 //     Nachricht unverändert in den Verlauf legt (Postmeister), bekommt sie in
-//     der nächsten Runde zurück. Fehlen sie, wird Denken für diese Runde
-//     abgeschaltet (sonst lehnt Claude Werkzeugverlauf ohne Denkblöcke ab).
+//     der nächsten Runde zurück. Fehlen sie (oder trägt die Anfrage keine
+//     Werkzeuge), gehen Aufrufe und Ergebnisse als TEXT in den Verlauf — nie
+//     ein tool_use ohne seine Denkblöcke (Opus 5.5 kann Denken nicht abschalten).
+//   · Denken je Modell (denkArt), Aufwand in output_config.effort, Temperatur
+//     nur für Haiku; Format-/Schema-Anweisungen an der letzten Nachricht.
 //   · NICHT übersetzt: /audio/* (Whisper, Telefon-Transkripte) — Claude hat
 //     kein Sprache-zu-Text; das bleibt bei OpenAI.
 //
@@ -67,15 +70,10 @@ export function claudeModellFuer(modell: string | null | undefined): string {
     : (process.env.CLAUDE_MODELL_GROSS || CLAUDE_GROSS_VORGABE);
 }
 
-/** Haiku kennt weder `effort` noch adaptives Denken (400 bei beidem). */
-function ohneDenken(modell: string): boolean {
-  return /haiku/i.test(modell);
-}
-
 // ── Inhalt: OpenAI-Teile → Claude-Blöcke ──────────────────────────────────
 function datenUrl(url: string): { media: string; daten: string } | null {
   const m = /^data:([^;,]+);base64,([\s\S]*)$/.exec(String(url || ""));
-  return m ? { media: m[1].toLowerCase(), daten: m[2] } : null;
+  return m ? { media: m[1].toLowerCase(), daten: m[2].replace(/\s+/g, "") } : null;
 }
 
 function dateiBlock(media: string, daten: string): any | null {
@@ -183,11 +181,60 @@ export interface ClaudeUebersetzung {
 
 const EFFORT: Record<string, string> = { none: "low", minimal: "low", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
 
-export function chatNachClaude(body: any): ClaudeUebersetzung {
+/**
+ * Wie ein Modell denkt (03.10.2026, Claude-Doku + Messung in der Produktion):
+ *   · „immer“      — Opus 5.5, Fable 5.1 (und Unbekanntes): adaptives Denken ist immer an; `thinking: disabled` UND
+ *                    `between_tools` → 400; keine Temperatur. „Weniger Denken“ heißt dort Aufwand „low“.
+ *   · „abschaltbar“ — Sonnet 5.5: aus = `thinking: {type: "between_tools"}` (nur bei Aufwand ≤ high); `disabled` → 400.
+ *   · „ohne“       — Haiku 4.5: kein adaptives Denken, kein Aufwand; Temperatur erlaubt.
+ */
+export type DenkArt = "immer" | "abschaltbar" | "ohne";
+export function denkArt(modell: string): DenkArt {
+  if (/haiku/i.test(modell)) return "ohne";
+  if (/sonnet-5/i.test(modell)) return "abschaltbar";
+  return "immer";
+}
+
+/** Die Websuche in ihrer neuesten Fassung — ältere Modelle (Haiku) bekommen die Grundfassung. */
+function websucheWerkzeug(modell: string): any {
+  return /opus-5|sonnet-5|fable-5|mythos/i.test(modell)
+    ? { type: "web_search_20260209", name: "web_search", max_uses: 8 }
+    : { type: "web_search_20250305", name: "web_search", max_uses: 8 };
+}
+
+/** Ein Werkzeugaufruf als Text (wenn Claudes Rohblöcke fehlen) — kein tool_use ohne seine Denkblöcke. */
+function aufrufAlsText(name: string, args: unknown): string {
+  const a = typeof args === "string" ? args : JSON.stringify(args ?? {});
+  return `[Werkzeugaufruf ${name}(${String(a).slice(0, 4_000)})]`;
+}
+
+/** Text an die letzte Nachricht (immer „user“) hängen — der System-Text bleibt unverändert (Denk-Signaturen). */
+function anLetzteNachricht(nachrichten: { role: string; content: any[] }[], text: string): void {
+  const letzte = nachrichten[nachrichten.length - 1];
+  if (letzte) letzte.content = [...letzte.content, { type: "text", text }];
+}
+
+export function chatNachClaude(body: any, opt: { denkenAus?: boolean } = {}): ClaudeUebersetzung {
   const modell = claudeModellFuer(body?.model);
+  const art = denkArt(modell);
+
+  // Werkzeuge zuerst: Nur wenn die Anfrage Werkzeuge trägt, dürfen Claudes Rohblöcke (Denken + tool_use) zurück —
+  // ihre Signaturen hängen am Werkzeug-Satz. Ohne Werkzeuge wird der Verlauf zu Text.
+  const werkzeuge = (Array.isArray(body?.tools) ? body.tools : []).map((t: any) => {
+    if (t?.type === "function" || (t && !t.type && t.name)) {
+      const f = t.function ?? t;
+      return { name: String(f.name), description: String(f.description ?? ""), input_schema: werkzeugSchema(f.parameters) };
+    }
+    if (t?.type === "web_search" || t?.type === "web_search_preview") return websucheWerkzeug(modell);
+    return null;
+  }).filter(Boolean);
+  const mitWerkzeugen = werkzeuge.length > 0;
+
   const system: string[] = [];
   const nachrichten: { role: "user" | "assistant"; content: any[] }[] = [];
-  let werkzeugVerlaufOhneRoh = false;
+  const rohIds = new Set<string>();
+  const namen = new Map<string, string>();
+  let vorneSystem = true;
   const anhaengen = (role: "user" | "assistant", bloecke: any[]) => {
     if (!bloecke.length) return;
     const letzte = nachrichten[nachrichten.length - 1];
@@ -200,23 +247,37 @@ export function chatNachClaude(body: any): ClaudeUebersetzung {
     const rolle = String(n.role || "user");
     if (rolle === "system" || rolle === "developer") {
       const t = inhaltAlsText(n.content);
-      if (t.trim()) system.push(t);
+      if (!t.trim()) continue;
+      // Nur der Auftrag VORNE ist der System-Text; spätere Hinweise gehen als Text in den Verlauf.
+      if (vorneSystem) system.push(t);
+      else anhaengen("user", [{ type: "text", text: `[Hinweis] ${t}` }]);
       continue;
     }
+    vorneSystem = false;
     if (rolle === "tool" || rolle === "function") {
+      const id = idGlatt(n.tool_call_id);
       const inhalt = typeof n.content === "string" ? n.content : JSON.stringify(n.content ?? "");
-      anhaengen("user", [{ type: "tool_result", tool_use_id: idGlatt(n.tool_call_id), content: inhalt || "(leer)" }]);
+      if (rohIds.has(id)) anhaengen("user", [{ type: "tool_result", tool_use_id: id, content: inhalt || "(leer)" }]);
+      else anhaengen("user", [{ type: "text", text: `[Ergebnis ${namen.get(id) ?? "Werkzeug"}: ${String(inhalt || "(leer)").slice(0, 12_000)}]` }]);
       continue;
     }
     if (rolle === "assistant") {
-      if (Array.isArray(n._claude_inhalt) && n._claude_inhalt.length) {
-        anhaengen("assistant", n._claude_inhalt);
+      const roh = Array.isArray(n._claude_inhalt) && n._claude_inhalt.length ? n._claude_inhalt : null;
+      if (roh && mitWerkzeugen) {
+        for (const b of roh) if (b?.type === "tool_use") { rohIds.add(String(b.id)); namen.set(String(b.id), String(b.name)); }
+        anhaengen("assistant", roh);
         continue;
       }
-      const bl = inhaltNachClaude(n.content).filter((b) => b.type === "text");
-      for (const r of Array.isArray(n.tool_calls) ? n.tool_calls : []) {
-        werkzeugVerlaufOhneRoh = true;
-        bl.push({ type: "tool_use", id: idGlatt(r.id), name: String(r.function?.name ?? r.name ?? "werkzeug"), input: jsonOderLeer(r.function?.arguments ?? r.arguments) });
+      // Ohne Rohblöcke (oder ohne Werkzeuge in dieser Anfrage): Text + Werkzeugaufrufe als Text, Denken bleibt an.
+      const bl: any[] = roh
+        ? roh.filter((b: any) => b?.type === "text" && String(b.text ?? "").trim()).map((b: any) => ({ type: "text", text: String(b.text) }))
+        : inhaltNachClaude(n.content).filter((b) => b.type === "text");
+      const aufrufe = roh
+        ? roh.filter((b: any) => b?.type === "tool_use").map((b: any) => ({ id: String(b.id), name: String(b.name), args: b.input }))
+        : (Array.isArray(n.tool_calls) ? n.tool_calls : []).map((r: any) => ({ id: String(r.id), name: String(r.function?.name ?? r.name ?? "werkzeug"), args: r.function?.arguments ?? r.arguments }));
+      for (const r of aufrufe) {
+        namen.set(idGlatt(r.id), r.name);
+        bl.push({ type: "text", text: aufrufAlsText(r.name, r.args) });
       }
       anhaengen("assistant", bl);
       continue;
@@ -230,6 +291,7 @@ export function chatNachClaude(body: any): ClaudeUebersetzung {
   }
 
   const anfrage: any = { model: modell, messages: nachrichten };
+  const ausgabe: any = {};
 
   // Festes Antwortformat
   let json: ClaudeUebersetzung["json"] = null;
@@ -238,10 +300,10 @@ export function chatNachClaude(body: any): ClaudeUebersetzung {
   if (rf?.type === "json_schema" && rf.json_schema?.schema) {
     json = "schema";
     schema = rf.json_schema.schema;
-    anfrage.output_config = { format: { type: "json_schema", schema: schemaGlaetten(schema) } };
+    ausgabe.format = { type: "json_schema", schema: schemaGlaetten(schema) };
   } else if (rf?.type === "json_object") {
     json = "objekt";
-    system.push("Antworte ausschließlich mit einem einzigen gültigen JSON-Objekt — ohne Erklärtext davor oder danach und ohne Codeblock.");
+    anLetzteNachricht(nachrichten, "Antworte ausschließlich mit einem einzigen gültigen JSON-Objekt — ohne Erklärtext davor oder danach und ohne Codeblock.");
   }
 
   const systemText = system.join("\n\n").trim();
@@ -252,51 +314,48 @@ export function chatNachClaude(body: any): ClaudeUebersetzung {
       : systemText;
   }
 
-  // Werkzeuge
-  const werkzeuge = (Array.isArray(body?.tools) ? body.tools : []).map((t: any) => {
-    if (t?.type === "function" || (t && !t.type && t.name)) {
-      const f = t.function ?? t;
-      return { name: String(f.name), description: String(f.description ?? ""), input_schema: werkzeugSchema(f.parameters) };
-    }
-    if (t?.type === "web_search" || t?.type === "web_search_preview") return { type: "web_search_20250305", name: "web_search", max_uses: 8 };
-    return null;
-  }).filter(Boolean);
-  if (werkzeuge.length) {
+  if (mitWerkzeugen) {
     anfrage.tools = werkzeuge;
     const tc = body?.tool_choice;
-    if (tc === "required") anfrage.tool_choice = { type: "any" };
-    else if (tc === "none") anfrage.tool_choice = { type: "none" };
-    else if (tc && typeof tc === "object" && (tc.function?.name || tc.name)) anfrage.tool_choice = { type: "tool", name: String(tc.function?.name ?? tc.name) };
+    const genannt = tc && typeof tc === "object" ? String(tc.function?.name ?? tc.name ?? "") : "";
+    // Opus/Sonnet 5.x nehmen nur auto/none — „required“ und ein genanntes Werkzeug werden zu „auto“ mit klarem Hinweis.
+    if (tc === "none") anfrage.tool_choice = { type: "none" };
     else anfrage.tool_choice = { type: "auto" };
+    if (genannt) anLetzteNachricht(nachrichten, `Verwende jetzt das Werkzeug „${genannt}“.`);
+    else if (tc === "required") anLetzteNachricht(nachrichten, "Verwende jetzt eines der Werkzeuge.");
   }
 
-  // Denken und Aufwand
-  const temperatur = body?.temperature;
-  const denkenAus = werkzeugVerlaufOhneRoh || temperatur != null;
-  if (!ohneDenken(modell)) {
-    if (denkenAus) anfrage.thinking = { type: "disabled" };
-    const e = EFFORT[String(body?.reasoning_effort ?? body?.reasoning?.effort ?? "").toLowerCase()];
-    if (e) anfrage.effort = e;
+  // Denken und Aufwand (output_config.effort)
+  let effort = EFFORT[String(body?.reasoning_effort ?? body?.reasoning?.effort ?? "").toLowerCase()] ?? null;
+  let zwischenWerkzeugen = false;
+  if (art === "abschaltbar" && opt.denkenAus && effort !== "xhigh" && effort !== "max") {
+    anfrage.thinking = { type: "between_tools" };
+    zwischenWerkzeugen = true;
+  } else if (art === "immer" && opt.denkenAus && !effort) {
+    effort = "low";
   }
-  if (temperatur != null && denkenAus) anfrage.temperature = Math.max(0, Math.min(1, Number(temperatur) || 0));
+  if (art !== "ohne" && effort) ausgabe.effort = effort;
+  if (art === "ohne" && body?.temperature != null) anfrage.temperature = Math.max(0, Math.min(1, Number(body.temperature) || 0));
+  if (Object.keys(ausgabe).length) anfrage.output_config = ausgabe;
 
   const gewuenscht = Number(body?.max_tokens ?? body?.max_completion_tokens ?? body?.max_output_tokens ?? 8_000) || 8_000;
-  // Mit Denken zählt das Nachdenken gegen dieselbe Grenze — Luft lassen (bezahlt wird, was gebraucht wird).
-  anfrage.max_tokens = Math.min(MAX_TOKENS_DECKEL, Math.max(gewuenscht, denkenAus || ohneDenken(modell) ? 1_024 : 8_000));
+  // Adaptives Denken zählt gegen dieselbe Grenze — Luft lassen (bezahlt wird, was gebraucht wird).
+  const boden = art === "ohne" || zwischenWerkzeugen ? 1_024 : 8_000;
+  anfrage.max_tokens = Math.min(MAX_TOKENS_DECKEL, Math.max(gewuenscht, boden));
 
   return { anfrage, json, schema, stream: body?.stream === true };
 }
 
 /**
  * Ersatz, wenn Claude das feste Format ablehnt (Schema-Eigenheit, Websuche mit Belegen): dasselbe ohne
- * output_config, dafür eine klare Anweisung mit dem Schema. Die Antwort wird als JSON gelesen (jsonKern). Rein.
+ * output_config.format (der Aufwand bleibt), dafür eine klare Anweisung mit dem Schema an der letzten Nachricht —
+ * nie im System-Text (Denk-Signaturen). Die Antwort wird als JSON gelesen (jsonKern). Rein.
  */
 export function alsAnweisung(u: ClaudeUebersetzung): ClaudeUebersetzung {
-  const anfrage = { ...u.anfrage };
-  delete anfrage.output_config;
-  const satz = `Antworte ausschließlich mit einem einzigen gültigen JSON-Objekt, das genau diesem JSON-Schema entspricht — ohne Erklärtext und ohne Codeblock:\n${JSON.stringify(u.schema ?? {})}`;
-  if (Array.isArray(anfrage.system)) anfrage.system = [...anfrage.system, { type: "text", text: satz }];
-  else anfrage.system = [anfrage.system, satz].filter(Boolean).join("\n\n");
+  const anfrage = { ...u.anfrage, messages: u.anfrage.messages.map((m: any) => ({ ...m, content: [...m.content] })) };
+  const { format: _weg, ...rest } = anfrage.output_config ?? {};
+  if (Object.keys(rest).length) anfrage.output_config = rest; else delete anfrage.output_config;
+  anLetzteNachricht(anfrage.messages, `Antworte ausschließlich mit einem einzigen gültigen JSON-Objekt, das genau diesem JSON-Schema entspricht — ohne Erklärtext und ohne Codeblock:\n${JSON.stringify(u.schema ?? {})}`);
   return { ...u, anfrage, json: "objekt" };
 }
 
@@ -322,7 +381,7 @@ export function claudeNachChat(roh: any, opt: { json: ClaudeUebersetzung["json"]
   const tool_calls = bloecke.filter((b) => b?.type === "tool_use").map((b) => ({
     id: String(b.id), type: "function", function: { name: String(b.name), arguments: JSON.stringify(b.input ?? {}) },
   }));
-  const finish = roh?.stop_reason === "max_tokens" ? "length"
+  const finish = roh?.stop_reason === "max_tokens" || roh?.stop_reason === "pause_turn" ? "length"
     : tool_calls.length ? "tool_calls"
     : roh?.stop_reason === "refusal" ? "content_filter" : "stop";
   const u = roh?.usage ?? {};

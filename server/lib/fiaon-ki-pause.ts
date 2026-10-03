@@ -684,6 +684,25 @@ export function kiNetzAbsichern(): void {
 }
 
 // ── E-279: Der Weg zu Claude ─────────────────────────────────────────────
+/**
+ * Gelernte Denk-Einstellungen je Modell (03.10.2026, gemessen): Claude Sonnet 5.5 lehnt `thinking: {type: "disabled"}` ab —
+ * „To turn thinking off on this model, send {"type": "between_tools"} instead“. Die Weiche übernimmt solche Hinweise von
+ * Claude selbst (einmal je Modell und Prozess) statt bei jedem Aufruf zu scheitern.
+ */
+const DENKEN_ERSATZ = new Map<string, Record<string, string>>();
+
+function denkenAnpassen(anfrage: any): any {
+  const t = anfrage?.thinking?.type;
+  const ersatz = t ? DENKEN_ERSATZ.get(String(anfrage.model))?.[t] : undefined;
+  return ersatz ? { ...anfrage, thinking: { ...anfrage.thinking, type: ersatz } } : anfrage;
+}
+
+/** „send "thinking": {"type": "X"} instead of {"type": "Y"}“ → { neu: X, alt: Y }. Rein. */
+export function denkHinweis(meldung: string): { neu: string; alt: string } | null {
+  const m = /"thinking"\s*:\s*\{\s*"type"\s*:\s*"([a-z_]+)"\s*\}\s*instead of\s*\{\s*"type"\s*:\s*"([a-z_]+)"\s*\}/i.exec(String(meldung || ""));
+  return m ? { neu: m[1], alt: m[2] } : null;
+}
+
 /** Arbeitsbereich für Organisations-Schlüssel (anthropic-workspace-id): Umgebung, sonst einmal ermittelt. */
 let claudeArbeitsbereich: string | null | undefined;
 /** Wie der Schlüssel mitgeht — x-api-key (Standard) oder Bearer (identitätsgebundene Schlüssel). */
@@ -720,8 +739,9 @@ async function arbeitsbereichErmitteln(): Promise<string | null> {
  */
 async function claudeSenden(anfrage: any, signal?: AbortSignal | null): Promise<{ status: number; json: any; text: string }> {
   let letzte = { status: 0, json: null as any, text: "" };
-  let kopfProbiert = false;
-  for (let versuch = 1; versuch <= 6; versuch++) {
+  let kopfProbiert = false, denkenGelernt = false, temperaturWeg = false;
+  for (let versuch = 1; versuch <= 7; versuch++) {
+    anfrage = denkenAnpassen(anfrage);
     const res = await rohFetch()(`${ANTHROPIC_V1}/messages`, {
       method: "POST", headers: claudeKopf(), body: JSON.stringify(anfrage), signal: signal ?? undefined,
     });
@@ -731,6 +751,22 @@ async function claudeSenden(anfrage: any, signal?: AbortSignal | null): Promise<
     letzte = { status: res.status, json, text };
     if (res.ok) return letzte;
     const meldung = String(json?.error?.message ?? "");
+    // Claude sagt selbst, wie „Denken aus“ auf diesem Modell heißt → merken und einmal neu.
+    const hinweis = res.status === 400 ? denkHinweis(meldung) : null;
+    if (hinweis && !denkenGelernt) {
+      denkenGelernt = true;
+      DENKEN_ERSATZ.set(String(anfrage.model), { ...(DENKEN_ERSATZ.get(String(anfrage.model)) ?? {}), [hinweis.alt]: hinweis.neu });
+      console.log(`[KI-WEICHE] ${anfrage.model}: Denken „${hinweis.alt}“ heißt hier „${hinweis.neu}“ — gemerkt.`);
+      continue;
+    }
+    // Temperatur abgelehnt (z. B. zusammen mit Denken) → ohne Temperatur einmal neu.
+    if (res.status === 400 && anfrage.temperature != null && !temperaturWeg && /temperature/i.test(meldung)) {
+      temperaturWeg = true;
+      anfrage = { ...anfrage };
+      delete anfrage.temperature;
+      console.log(`[KI-WEICHE] ${anfrage.model}: Temperatur abgelehnt — ohne Temperatur neu.`);
+      continue;
+    }
     if (res.status === 400 && /workspace/i.test(meldung) && !process.env.ANTHROPIC_WORKSPACE_ID && claudeArbeitsbereich === undefined) {
       claudeArbeitsbereich = await arbeitsbereichErmitteln();
       if (claudeArbeitsbereich) continue;
@@ -816,8 +852,9 @@ async function claudeProbe(): Promise<{ ok: boolean; art: KiPauseArt | null; feh
   }
 }
 
-/** Nur für Prüfstände: Arbeitsbereich und Kopfart vergessen. */
+/** Nur für Prüfstände: Arbeitsbereich, Kopfart und Gelerntes vergessen. */
 export function kiWeicheZuruecksetzen(): void {
+  DENKEN_ERSATZ.clear();
   claudeArbeitsbereich = undefined;
   claudeKopfArt = "x-api-key";
 }

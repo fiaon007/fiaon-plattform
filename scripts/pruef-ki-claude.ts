@@ -242,6 +242,26 @@ async function main() {
   const g7 = await P.openaiFetch("transkript", "/audio/transcriptions", { method: "POST", body: "{}" });
   pruef("G10 Sprache bleibt bei OpenAI", g7.ok && rufe[0]?.url === "https://api.openai.com/v1/audio/transcriptions");
 
+  // Gemessen 03.10.: Sonnet 5.5 lehnt „thinking: disabled“ ab und nennt den richtigen Wert → gemerkt, einmal neu.
+  P.kiWeicheZuruecksetzen();
+  rufe.length = 0;
+  antworten = [
+    () => json({ type: "error", error: { type: "invalid_request_error", message: 'To turn thinking off on this model, send "thinking": {"type": "between_tools"} instead of {"type": "disabled"}. The model does not think before responding.' } }, 400),
+    () => claudeText("ok"),
+    () => claudeText("ok2"),
+  ];
+  const g11 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-4.1-mini", temperature: 0, messages: [{ role: "user", content: "x" }] }) });
+  pruef("G11 Denk-Hinweis übernommen und neu gesendet", g11.ok && rufe.length === 2 && rufe[0].body.thinking?.type === "disabled" && rufe[1].body.thinking?.type === "between_tools", rufe.map((r) => r.body?.thinking));
+  rufe.length = 0;
+  const g12 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-4.1-mini", temperature: 0, messages: [{ role: "user", content: "y" }] }) });
+  pruef("G12 gemerkt: nächster Aufruf gleich richtig", g12.ok && rufe.length === 1 && rufe[0].body.thinking?.type === "between_tools");
+  pruef("G13 denkHinweis liest den Satz", JSON.stringify(P.denkHinweis('send "thinking": {"type": "between_tools"} instead of {"type": "disabled"}')) === JSON.stringify({ neu: "between_tools", alt: "disabled" }));
+  rufe.length = 0;
+  antworten = [() => json({ type: "error", error: { type: "invalid_request_error", message: "temperature may only be set to 1 when thinking is enabled" } }, 400), () => claudeText("ok")];
+  const g14 = await P.openaiFetch("pruef", "/chat/completions", { method: "POST", body: JSON.stringify({ model: "gpt-5.5", temperature: 0.2, messages: [{ role: "user", content: "z" }] }) });
+  pruef("G14 Temperatur abgelehnt → ohne Temperatur neu", g14.ok && rufe.length === 2 && rufe[1].body.temperature === undefined);
+  P.kiWeicheZuruecksetzen();
+
   // ── H: Pause je Anbieter ────────────────────────────────────────────────
   // Die alte OpenAI-Pause (wie in der Produktion seit 03.10. 05:15) hält Claude nicht an.
   await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES ('ki_pause', ${JSON.stringify({ an: true, art: "zugang", grund: "OpenAI lehnt ab", fehler: "account_deactivated", dienst: "postmeister-einordnen", seit: "2026-10-03T03:15:35.206Z", von: "automatisch", verlauf: [] })}, NOW())

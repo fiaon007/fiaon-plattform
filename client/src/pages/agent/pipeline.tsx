@@ -2634,6 +2634,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     : sitArt === "bezahlt_ohne_termin" ? "Mandat da, Termin fehlt – buche das Startgespräch"
                     : sitArt === "startgespraech_erledigt" ? `Startgespräch geführt${(sit as any)?.startgespraechAm ? ` am ${dtag((sit as any).startgespraechAm)}` : ""} – ${sit?.naechsteRate ? `nächste Rate ${eur(sit.naechsteRate.betragCents)} am ${dtag(sit.naechsteRate.faelligAm)}` : "alles läuft"}`
                     : sitArt === "alles_gut" && sit?.terminAm && (sit as any)?.terminQuelle === "support" ? `Support-Termin ${terminText(sit.terminAm)} – der Kunde braucht Hilfe`
+                    /* E-283 (05.10.2026): das Limit-Gespräch — vorher stand hier „Alles läuft“, als gäbe es keinen Termin. */
+                    : sitArt === "alles_gut" && sit?.terminAm && (sit as any)?.terminQuelle === "limit_gespraech" ? `Limit-Gespräch ${terminText(sit.terminAm)} – Raten, Akte und der nächste Schritt`
                     : sitArt === "zahlung_gemeldet" ? "Kunde meldet Zahlung – das Geld ist noch nicht da. Sichere den Termin"
                     : sitArt === "rechnung_offen" ? `Antrag fertig – ${paketPreis(k) ? `${eur(paketPreis(k))} offen` : "Rechnung offen"}. Schick die Zahlungsdaten`
                     : sitArt === "lead_ohne_antrag" ? "Registriert, noch kein Antrag – hol das Mandat"
@@ -2652,12 +2654,21 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     : sitArt === "bezahlt_ohne_termin" ? "Der Kunde hat bezahlt und wartet. Im Startgespräch aktivierst du sein Konto – vergib den nächsten freien Termin."
                     : sitArt === "startgespraech_erledigt" ? "Das Startgespräch ist geführt und bleibt es. Braucht der Kunde später Hilfe – Technik, Ablauf, Unterlagen –, buch ihm einen Support-Termin. Der ändert diesen Stand nicht."
                     : sitArt === "alles_gut" && sit?.terminAm && (sit as any)?.terminQuelle === "support" ? "Ein Support-Termin ist ein Hilfegespräch für einen Bestandskunden – kein Verkauf, kein Startgespräch. Akte kurz durchsehen, pünktlich anrufen."
+                    : sitArt === "alles_gut" && sit?.terminAm && (sit as any)?.terminQuelle === "limit_gespraech" ? "Alle drei Monate: Zahlungsnachweis, Stand der Akte und ein konkreter nächster Schritt zu einem höheren Limit – kein Verkauf, keine Limit-Zusage. Nach dem Gespräch als erledigt abhaken, erst dann zählt es."
                     : sitArt === "zahlung_gemeldet" ? "Bitte um den Überweisungsbeleg und sichere den Termin – mit dem Eingang aktivierst du direkt im Gespräch."
                     : sitArt === "rechnung_offen" ? "Antrag und Rechnung sind da – die Zahlung fehlt noch. Ruf an, vereinbare den Termin und weise dezent darauf hin: Geht die Rechnung vor dem Termin ein, aktivierst du im Gespräch direkt."
                     : sitArt === "lead_ohne_antrag" ? "Daten aufnehmen, Paket am Telefon annehmen lassen, Zugänge senden – der Leitfaden führt dich durch."
                     : sitArt === "termin_heute" ? "Akte kurz durchsehen, pünktlich anrufen – Termintreue wird gemessen."
                     : "Betreuter Kunde ohne offenen Schritt. Eine kurze Notiz nach jedem Kontakt hält die Akte lebendig."}
                 </p>
+                {/* E-283 (05.10.2026): „Limit-Gespräch: ab … / jetzt buchbar / gebucht …“ — derselbe Stand, den der
+                    Kunde unter „Limit-Erhöhung anfragen“ sieht (kundenSituation → limitStandText). Buchen darfst du
+                    jederzeit: Kalender → Termin anlegen → „Limit-Gespräch“. */}
+                {(sit as any)?.limit?.text && (
+                  <p className="pi-fussnote" data-fiaon="akte-limit" title="Pro, Ultra und High-End: alle drei Monate, vom Kunden im Kundenbereich gebucht. Mitarbeiter buchen es jederzeit im Kalender.">
+                    {String((sit as any).limit.text)}
+                  </p>
+                )}
               </div>
               {k.erreichbarkeit && (
                 <p className="pi-fussnote" style={{ color: "#93c5fd" }}

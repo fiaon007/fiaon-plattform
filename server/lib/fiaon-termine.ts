@@ -27,6 +27,7 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { berlinZeitpunkt, berlinDatum, berlinWochentag, zeitZuMinuten, minutenZuZeit } from "./fiaon-time";
 import { GLOBAL_DAUER_MIN } from "./fiaon-global-zeiten";
 import { nennform } from "@shared/fiaon-mitarbeiter-name";
+import { LIMIT_PFAD, LIMIT_QUELLE } from "@shared/fiaon-limit-gespraech";
 
 type Lauf = typeof sqlPool;
 
@@ -83,6 +84,14 @@ export const QUELLEN = {
   // Zeitfenster-Rechnung und die Raster-Wand unten dieselbe Zahl benutzen.
   // Der Text ist gesiezt: Er steht nur in Mails an Unternehmen.
   global: { minuten: GLOBAL_DAUER_MIN, text: "FIAON Global – Erstgespräch" },
+  // 05.10.2026 (E-283): Das Limit-Gespräch der Pakete Pro, Ultra und High-End —
+  // alle drei Monate, vom Kunden im Kundenbereich gebucht (/app/mehr/limit) oder
+  // vom Mitarbeiter im Kalender. 20 Minuten, damit es ins Raster passt. Keine
+  // Rolle (rolleFuerQuelle → null): Es führt der Betreuer, ohne Betreuer der
+  // Verteilpool — nie das Forderungsmanagement (die Wand in terminBuchen).
+  // Der Text erscheint nur in der Meldung der Rollenwand („falsche_rolle");
+  // was Kunde und Mitarbeiter als Art lesen, kommt aus shared/fiaon-termin-art.ts.
+  limit_gespraech: { minuten: 20, text: "Limit-Gespräch mit dem persönlichen Ansprechpartner" },
 } as const;
 
 export type TerminQuelle = keyof typeof QUELLEN;
@@ -141,6 +150,8 @@ export const HERKUENFTE = {
   // E-273 (02.10.2026): Das Startgespräch eines Individualangebots (FIAON Global) bucht das System nach der
   // Annahme selbst — beim nächsten freien Termin (server/lib/fiaon-global-angebot-startgespraech.ts).
   individualangebot: "Nach Annahme eines Individualangebots vom System gebucht (Startgespräch FIAON Global)",
+  // 05.10.2026 (E-283): der Bildschirm „Limit-Erhöhung anfragen" im Kundenbereich (/app/mehr/limit).
+  kundenbereich_limit: "Im Kundenbereich gebucht (Limit-Gespräch)",
   unbekannt: "Weg nicht mitgeführt",
 } as const;
 
@@ -1100,6 +1111,9 @@ export const VERSUCH_GRUND_TEXT: Record<string, string> = {
   keine_auswahl: "Kein Slot ausgewählt",
   // E-188: nur beim Erstgespräch zu FIAON Global (höchstens vier je Tag).
   tag_voll: "Tagesdeckel erreicht (FIAON Global)",
+  // E-283: nur beim Limit-Gespräch aus dem Kundenbereich.
+  limit_gesperrt: "Limit-Gespräch noch nicht buchbar (Sperrfrist, Rückstand, Startgespräch)",
+  limit_offen: "Limit-Gespräch schon gebucht (eines je Person)",
   serverfehler: "Serverfehler",
   unbekannt: "ohne Grund-Code",
 };
@@ -1276,8 +1290,15 @@ export async function terminBuchen(
   // ein Erstgespräch zu FIAON Global bucht, hat keinen Kundenzustand, aus dem
   // sich etwas ableiten ließe; die Ableitung würde daraus ein Vertriebsgespräch
   // für Privatkunden machen.
+  // 05.10.2026 (E-283): `limit_gespraech` wie `global` — die Art setzt der
+  // Server fest (POST /kunde/:ref/limit-gespraech/buchen, nach der Prüfung des
+  // Anspruchs), nie ein Parameter von außen; die öffentliche Route bucht fest
+  // „auto". Ohne diesen Eintrag machte die Ableitung daraus still „support"
+  // oder „inkasso_call", und der Kunde hätte ein anderes Gespräch gebucht als
+  // das, das er gewählt hat.
   const eigenerRueckruf = gewuenscht === "agent_manuell" || gewuenscht === "onboarding"
-    || gewuenscht === "gruender" || gewuenscht === "global" || eingabe.herkunft === "agent";
+    || gewuenscht === "gruender" || gewuenscht === "global" || gewuenscht === LIMIT_QUELLE
+    || eingabe.herkunft === "agent";
   const abgeleitet = eigenerRueckruf
     ? null
     : await entscheidFuerPerson(eingabe.personId, gewuenscht, lauf);
@@ -1446,6 +1467,13 @@ export async function terminBuchen(
       RETURNING id
     `) as any[];
   } catch (err: any) {
+    // 05.10.2026 (E-283): Ein zweites offenes Limit-Gespräch derselben Person
+    // verbietet der Teilindex fiaon_termine_ein_limit_offen (Migration 092). Das
+    // ist kein vergebener Slot — der Satz sagt, was wirklich los ist. Die
+    // Kundenroute übersetzt den Code in die Sie-Fassung.
+    if (String(err?.code) === "23505" && String(err?.constraint_name ?? "") === "fiaon_termine_ein_limit_offen") {
+      throw new TerminFehler("limit_offen", "Für diesen Kunden ist schon ein Limit-Gespräch gebucht — erst absagen oder abhaken, dann neu buchen.");
+    }
     if (String(err?.code) === "23505") {
       throw new TerminFehler("belegt", "Dieser Termin wurde gerade vergeben. Bitte wählen Sie einen anderen.");
     }
@@ -1707,11 +1735,15 @@ export async function terminAbsagen(
             // E-273 (02.10.2026): Ist es das Startgespräch eines Individualangebots, führt der Link zu Justins
             // Buchungsseite mit den Daten des Kunden (/justin?k=…) — der Kunde ist schon Kunde und gehört nicht
             // in den Erstgesprächs-Kalender auf /business. Ohne Treffer bleibt es bei /business#gespraech.
+            // E-283 (05.10.2026): Ein Limit-Gespräch bucht der Kunde im Kundenbereich neu (/app/mehr/limit) —
+            // der Terminlink leitete die Art aus dem Zustand ab und böte ein Support-Gespräch an.
             neu_buchen_link: String(termin.quelle) === "global"
               ? ((await import("./fiaon-global-angebot-startgespraech")
                 .then((m) => m.startgespraechNeuBuchenLink(Number(termin.id)))
                 .catch(() => null)) ?? absoluteUrl("/business#gespraech"))
-              : absoluteUrl(`/termin/${terminTokenErzeugen(Number(termin.person_id))}`),
+              : String(termin.quelle) === LIMIT_QUELLE
+                ? absoluteUrl(LIMIT_PFAD)
+                : absoluteUrl(`/termin/${terminTokenErzeugen(Number(termin.person_id))}`),
             // E-263, Gegenprüfung 29.09.2026: „Aus Ihrem Kalender entfernen (Apple / Outlook)" — dieselbe Datei
             // wie in Bestätigung und Erinnerung; für einen abgesagten Termin liefert sie METHOD:CANCEL.
             kalender_url: absoluteUrl(`/kalender/k/${stornoToken}.ics`),

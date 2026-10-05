@@ -44,6 +44,9 @@ const QUELLE_TEXT: Record<string, string> = {
   // E-188: Die BUCHUNG eines Global-Gesprächs meldet der Auftrag
   // (fiaon-global-termin.ts), nicht diese Datei — die ABSAGE läuft hier durch.
   global: "FIAON Global – Erstgespräch mit einem Unternehmen (gebucht über fiaon.com/business)",
+  // 05.10.2026 (E-283): Ohne Eintrag stand in der Mail an den Mitarbeiter der rohe Wert.
+  support: "Support-Gespräch — Bestandskunde braucht Hilfe (kein Verkauf, kein Startgespräch)",
+  limit_gespraech: "Limit-Gespräch — alle drei Monate: Zahlungsnachweis, Stand der Akte, nächster Schritt zu einem höheren Limit (keine Limit-Zusage)",
 };
 
 interface Beteiligte {

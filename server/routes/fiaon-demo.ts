@@ -38,6 +38,8 @@ import { paket as paketVon } from "@shared/fiaon-pakete";
 import { demoStand, demoStufeAus, demoAlterTage, DEMO_STUFEN, DEMO_STUFEN_MAX } from "@shared/fiaon-demo-stufen";
 import { auskunftPreisCents, euroText } from "@shared/fiaon-auskunft";
 import { auskunftKaufBlock } from "./fiaon-kunde-bereich";
+import { limitAnspruchAus } from "@shared/fiaon-limit-gespraech";
+import { berlinToday } from "../lib/fiaon-time";
 
 export const DEMO_REF = "FIAON-DEMO";
 const router = Router();
@@ -182,6 +184,20 @@ function demoBereich(stufeRoh: unknown) {
 
   const jetzt = DEMO_STUFEN.find((x) => x.nr === stufe) ?? DEMO_STUFEN[0];
 
+  // ── DAS LIMIT-GESPRÄCH (05.10.2026, E-283) ───────────────────────────────
+  // Dieselbe reine Regel wie beim echten Kunden (limitAnspruchAus), gefüttert
+  // mit den Demo-Daten dieser Stufe: Paket Pro, Anker = Tag der ersten Rate,
+  // Rückstand = die älteste offene Rate vor heute. Damit erzählt die Demo, was
+  // ein Kunde an dieser Stelle wirklich sähe — vor dem Startgespräch „zuerst
+  // das Startgespräch", danach „ab …", bei offener Rate „sobald Ihre Rate …".
+  const heuteIso = berlinToday();
+  const ueberfaellig = raten.find((r) => r.status !== "bezahlt" && r.faelligIso < heuteIso) ?? null;
+  const limitGespraech = limitAnspruchAus({
+    paketKey: pk?.key || "pro", bezahlt: st.bezahlt, startGefuehrt: st.startgespraech,
+    ankerIso: st.bezahlt ? raten[0].faelligIso : null, rueckstandNr: ueberfaellig ? ueberfaellig.nr : null,
+    beendet: false, letztesGezaehltIso: null, gebucht: null, letztes: null, heuteIso,
+  });
+
   return {
     ok: true,
     demo: true,
@@ -213,6 +229,7 @@ function demoBereich(stufeRoh: unknown) {
     },
     termin: amStart ? { beginn: amStart.toISOString(), status: "erledigt", agent: "Lena Winter" } : null,
     onboardingGelaufen: st.startgespraech,
+    limitGespraech,
     fahrplan: etappen,
     naechsterSchritt: { key: jetzt.key, titel: jetzt.titel, text: jetzt.was, href: null },
     ansprechpartner: { name: "Lena Winter", rolle: "Onboarding" },
@@ -252,6 +269,22 @@ router.get(`/kunde/${DEMO_REF}/termine`, async (req: Request, res: Response) => 
     buchungsLink: null,
   });
 });
+
+// E-283 (05.10.2026): „Limit-Erhöhung anfragen" — dieselbe Form wie
+// GET /kunde/:ref/limit-gespraech. Zeiten bietet die Demo nie an, gebucht wird
+// nichts (POST unten: nur zur Ansicht).
+router.get(`/kunde/${DEMO_REF}/limit-gespraech`, (req: Request, res: Response) => {
+  const b = demoBereich(stufeAus(req));
+  res.json({
+    ok: true, demo: true,
+    anspruch: b.limitGespraech,
+    ansprechpartnerDat: "Frau Winter",
+    slots: [],
+    slotMinuten: 20,
+    vertretung: null,
+  });
+});
+router.post(`/kunde/${DEMO_REF}/limit-gespraech/buchen`, (_req: Request, res: Response) => nurAnsicht(res));
 
 router.get(`/kunde/${DEMO_REF}/tickets`, (req: Request, res: Response) => {
   const st = demoStand(stufeAus(req));

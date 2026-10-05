@@ -11,7 +11,8 @@ import { SUPPORT } from "@shared/fiaon-wissen";
 import { api } from "./Bausteine";
 
 interface Ticket { id: number; betreff: string; text: string; status: string; antwort: string | null; beantwortet_am: string | null; created_at: string }
-interface Termin { id: number; beginn: string; datumText: string; uhrzeit: string; status: string; mit: string | null; absageLink: string | null }
+// E-283 (05.10.2026): `art` — der Server lieferte sie schon (terminArtAusQuelle: „Limit-Gespräch", „Support", …), die Seite zeigte sie nicht.
+interface Termin { id: number; beginn: string; datumText: string; uhrzeit: string; status: string; mit: string | null; absageLink: string | null; art?: string | null }
 interface Termine { kommende: Termin[]; vergangene: Termin[]; buchungsLink: string | null }
 
 const datum = (iso: string | null) => { if (!iso) return ""; const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" }); };
@@ -118,7 +119,7 @@ export function Termine({ kundeRef, demo, daten }: { kundeRef: string; demo: boo
             {daten.kommende.length === 0 && <div className="ap-karte" style={{ padding: 18 }}><p style={{ margin: 0 }}>Kein Termin geplant.{daten.buchungsLink ? " Wählen Sie unten eine Zeit, wenn Sie sprechen möchten." : ""}</p></div>}
             {daten.kommende.map((t) => (
               <article key={t.id ?? t.beginn} className="ap-karte">
-                <div className="ap-karte-kopf"><h3>{t.datumText}, {t.uhrzeit} Uhr</h3><span className="ap-stempel">am Telefon</span></div>
+                <div className="ap-karte-kopf"><h3>{t.datumText}, {t.uhrzeit} Uhr</h3><span className="ap-stempel">{t.art ? `${t.art} · am Telefon` : "am Telefon"}</span></div>
                 <p>{t.mit ? `Mit ${t.mit}. ` : ""}Halten Sie Ihr Handy bereit – wir rufen Sie an.</p>
                 {t.absageLink && <a className="ap-link" href={t.absageLink} style={{ display: "inline-block", marginTop: 10, fontSize: 15 }}>Termin absagen</a>}
               </article>
@@ -133,7 +134,7 @@ export function Termine({ kundeRef, demo, daten }: { kundeRef: string; demo: boo
                   {daten.vergangene.map((t) => (
                     <li key={t.id ?? t.beginn} className={`ap-etappe ${t.status === "erledigt" ? "fertig" : "kommt"}`}>
                       <span className={`ap-punkt ${t.status === "erledigt" ? "fertig" : ""}`}>{t.status === "erledigt" ? "✓" : null}</span>
-                      <div><b>{t.datumText}, {t.uhrzeit} Uhr</b><small>{t.mit ? `Mit ${t.mit} · ` : ""}{t.status === "erledigt" ? "geführt" : t.status === "verpasst" ? "nicht erreicht" : t.status === "abgesagt" ? "abgesagt" : t.status}</small></div>
+                      <div><b>{t.datumText}, {t.uhrzeit} Uhr</b><small>{t.art ? `${t.art} · ` : ""}{t.mit ? `Mit ${t.mit} · ` : ""}{t.status === "erledigt" ? "geführt" : t.status === "verpasst" ? "nicht erreicht" : t.status === "abgesagt" ? "abgesagt" : t.status}</small></div>
                       <span />
                     </li>
                   ))}

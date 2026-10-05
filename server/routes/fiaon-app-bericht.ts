@@ -130,7 +130,8 @@ router.get("/kunde/:ref/app/bericht-letzter", requireKunde, async (req: KundeReq
 
 // ── Ereignisprotokoll (Modul E) ─────────────────────────────────────────────
 // E-282 (05.10.2026): „pin“ — der Bildschirm /app/mehr/pin (Persönliche PIN). Nur der Name, nie die PIN.
-const BILDSCHIRME = new Set(["heute", "weg", "brief", "geld", "mehr", "vorgaenge", "ansprueche", "unterlagen", "zahlen", "bericht", "hilfe", "termine", "vollmacht", "mitteilungen", "daten", "abo", "konto", "pin"]);
+// E-283 (05.10.2026): „limit“ — /app/mehr/limit (Limit-Erhöhung anfragen).
+const BILDSCHIRME = new Set(["heute", "weg", "brief", "geld", "mehr", "vorgaenge", "ansprueche", "unterlagen", "zahlen", "bericht", "hilfe", "termine", "vollmacht", "mitteilungen", "daten", "abo", "konto", "pin", "limit"]);
 const EREIGNISSE = new Set(["geoeffnet", "knopf", "fertig"]);
 const DECKEL_JE_STUNDE = 60;
 

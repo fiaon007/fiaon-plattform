@@ -48,7 +48,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { AGENDA } from "./fiaon-onboarding-agenda";
 
-export type Art = "stufe_a" | "stufe_b" | "stufe_c" | "reaktivierung" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
+// E-283 (05.10.2026): „limit" — das Limit-Gespräch (Pro/Ultra/High-End, alle drei
+// Monate). Vorher fiel ein solcher Termin auf den Startgespräch-Leitfaden.
+export type Art = "stufe_a" | "stufe_b" | "stufe_c" | "reaktivierung" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung" | "limit";
 export interface Schritt { titel: string; text?: string; satz?: string }
 export interface Einwand { frage: string; antwort: string }
 
@@ -199,6 +201,26 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
       { frage: "„Warum ruft ihr schon wieder an?“", antwort: "Weil Ihr Antrag bei uns offen liegt und ich nicht möchte, dass er einfach verfällt. Wenn Sie es nicht mehr möchten, sage ich das so in die Akte – und Sie hören nichts mehr von uns." },
     ],
   },
+  // ── E-283 (05.10.2026): DAS LIMIT-GESPRÄCH ─────────────────────────────────
+  // Der Kunde bucht es selbst im Kundenbereich („Limit-Erhöhung anfragen"),
+  // frühestens drei Monate nach der ersten Rate und drei Monate nach dem
+  // letzten gezählten (shared/fiaon-limit-gespraech.ts). Kein Verkauf und nie
+  // eine Limit-Zusage: Über das Limit entscheidet die Bank.
+  {
+    key: "limit", label: "Limit-Gespräch", kurz: "Alle drei Monate – Zahlungsnachweis, Stand der Akte, nächster Schritt zu einem höheren Limit. Keine Limit-Zusage.",
+    schritte: [
+      { titel: "Anknüpfen", text: "Akte vorher öffnen: Raten, Unterlagen, Vorgänge, letztes Limit-Gespräch. Der Kunde hat das Gespräch selbst gebucht – er erwartet, dass du vorbereitet bist.", satz: "Guten Tag, hier ist … von FIAON – heute ist unser Limit-Gespräch. Haben Sie gerade Zeit?" },
+      { titel: "Zahlungsnachweis", text: "Die Raten der letzten Monate durchgehen: Pünktlich gezahlt ist der wichtigste Nachweis gegenüber der Bank. Ist eine Rate offen, freundlich ansprechen und die Zahlungsdaten erneut senden.", satz: "Ihre Raten sind seit … pünktlich eingegangen – genau das zählt für die Bank." },
+      { titel: "Stand der Akte", text: "Was hat sich seit dem letzten Gespräch getan: Antworten auf Schreiben, erledigte Einträge, neue Post, aktueller Kontoauszug?", satz: "Seit unserem letzten Gespräch hat sich in Ihrer Akte Folgendes getan: …" },
+      { titel: "Nächster Schritt zu einem höheren Limit", text: "Einen konkreten Schritt mit Datum vereinbaren: fehlende Unterlage, nächstes Schreiben, Kontoverhalten. Kein Limit nennen und nichts zusagen – über das Limit entscheidet die Bank.", satz: "Als Nächstes … – damit bereiten wir den nächsten Schritt zu einem höheren Limit vor. Über das Limit selbst entscheidet die Bank." },
+      { titel: "Ergebnis festhalten", text: "Den Termin als erledigt abhaken – erst dann zählt er, und das nächste Limit-Gespräch ist frühestens in drei Monaten im Kundenbereich buchbar. Den vereinbarten Schritt in der Akte notieren.", satz: "Ihr nächstes Limit-Gespräch buchen Sie in drei Monaten selbst in Ihrem Kundenbereich unter „Limit-Erhöhung anfragen“." },
+    ],
+    einwaende: [
+      { frage: "„Bekomme ich jetzt ein höheres Limit?“", antwort: "Darüber entscheidet die Bank – das kann ich Ihnen nicht zusagen. Was wir tun: Ihre Akte so vorbereiten, dass der nächste Schritt trägt. Heute ist das …" },
+      { frage: "„Warum erst in drei Monaten wieder?“", antwort: "Weil sich Ihr Zahlungsverhalten erst über Monate zeigt – drei weitere pünktliche Raten sagen der Bank mehr als jedes Gespräch. Fragen können Sie uns jederzeit über „Hilfe“ in Ihrem Bereich schreiben." },
+      { frage: "„Ich habe gerade eine Rate offen.“", antwort: "Danke, dass Sie es ansprechen. Ich schicke Ihnen die Zahlungsdaten gleich noch einmal – eine pünktliche Rate ist der wichtigste Nachweis für die Bank." },
+    ],
+  },
 ];
 
 /** Welche Lage (KundenSituation.art aus server/routes/fiaon-office-vertrieb.ts)
@@ -212,6 +234,8 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
 export function leitfadenFuerLage(lage: string | null | undefined, terminHeuteQuelle?: string | null): Art {
   if (terminHeuteQuelle === "onboarding_call") return "startgespraech";
   if (terminHeuteQuelle === "inkasso_call") return "reaktivierung";
+  // E-283: Ein Limit-Gespräch heute bekommt seinen eigenen Leitfaden.
+  if (terminHeuteQuelle === "limit_gespraech") return "limit";
   switch (lage) {
     case "rate_ueberfaellig": return "reaktivierung";
     case "zusage_gebrochen":

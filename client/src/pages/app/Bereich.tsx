@@ -35,6 +35,7 @@ import { Abo } from "./Abo";
 import { Mitteilungen } from "./Mitteilungen";
 import { Passwort } from "./Passwort";
 import { Pin } from "./Pin";
+import { Limit } from "./Limit";
 import "@/styles/app.css";
 
 const DEMO_REF = "FIAON-DEMO";
@@ -256,9 +257,12 @@ export default function AppBereich() {
         {/* E-282 (05.10.2026): die persönliche FIAON-PIN. Nach dem Speichern weiß die Schale es sofort —
             sonst stünde auf „Heute“ bis zum nächsten Laden noch „Persönliche PIN festlegen“. */}
         {b && bildschirm === "mehr" && rest[0] === "pin" && <Pin kundeRef={ref} demo={demo} basis={basis} gesetzt={b.pinGesetzt} frisch={!!b.pinFrisch} email={b.kunde.email} geburtsdatum={b.kunde.geburtsdatum} onGespeichert={() => setB((x) => (x ? { ...x, pinGesetzt: true, pinFrisch: false } : x))} />}
+        {/* E-283 (05.10.2026): „Limit-Erhöhung anfragen“ — das Limit-Gespräch alle drei Monate. Der neue Stand
+            nach dem Laden oder Buchen geht zurück in die Schale (Zeile unter Mehr, Karte auf Heute). */}
+        {b && bildschirm === "mehr" && rest[0] === "limit" && <Limit kundeRef={ref} demo={demo} demoStufe={stufe} basis={basis} onStand={(a) => setB((x) => (x ? { ...x, limitGespraech: a } : x))} />}
         {b && bildschirm === "mehr" && rest[0] === "daten" && <MeineDaten kundeRef={ref} demo={demo} kunde={b.kunde} />}
         {b && bildschirm === "mehr" && rest[0] === "abo" && <Abo kundeRef={ref} basis={basis} demo={demo} b={b} />}
-        {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} pinGesetzt={demo ? true : b.pinGesetzt} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}
+        {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} pinGesetzt={demo ? true : b.pinGesetzt} limit={b.limitGespraech ?? null} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}
         {hinweis && <div className="ap-meldung" role="status">{hinweis}</div>}
       </main>
       {zeigeAktion && primaer && (

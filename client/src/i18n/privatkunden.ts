@@ -30,7 +30,8 @@ const de = {
   beliebt: "Beliebt", zielRahmen: "Ziel-Rahmen", proMonat: "/ Monat", ziel: "Ziel: ", mitStarten: (n: string) => `Mit ${n} starten`, waehlenUndStarten: (n: string) => `${n} wählen und Antrag starten`,
   pakete: {
     start: { sub: "Der Einstieg", ziel: "Wissen, was gespeichert ist", feats: ["Auswertung Ihrer Bonitätsauskunft – jeder Eintrag erklärt (Ihre selbst angeforderte Datenkopie oder die Auskunft als Zusatz)", "Kontoauszug-Analyse mit Ihrem Spielraum", "Ihr Bereich mit Fahrplan", "Unterstützung per E-Mail"] },
-    pro: { sub: "Standard", ziel: "Einträge bereinigen, Konto eröffnen", feats: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und feste Ansprechpartnerin", "Girokonto für jeden Kunden"] },
+    // E-283 (05.10.2026): das Limit-Gespräch — gilt für alle bezahlten Pro-, Ultra- und High-End-Kunden (Ultra/High-End: „Alles aus Pro").
+    pro: { sub: "Standard", ziel: "Einträge bereinigen, Konto eröffnen", feats: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und feste Ansprechpartnerin", "Limit-Gespräch alle drei Monate – im Kundenbereich buchbar", "Girokonto für jeden Kunden"] },
     ultra: { sub: "Mit Karte", ziel: "Kreditkarte bis 15.000 € bei guter Bonität", feats: ["Alles aus Pro", "Begleitung bis zur Kreditkarte – Readiness, Meilensteine, Antrag", "Bevorzugte Bearbeitung Ihrer Schreiben", "Telefonische Betreuung"] },
     highend: { sub: "Das Maximum", ziel: "Karte bis 25.000 €, Finanzierung, persönliche Betreuung", feats: ["Alles aus Ultra", "Persönlicher Betreuer für Ihre Akte", "Vorbereitung auf Finanzierungen", "Erreichbar auch außerhalb der Bürozeiten"] },
   } as Record<string, { sub: string; ziel: string; feats: string[] }>,
@@ -112,7 +113,8 @@ const en: typeof de = {
   beliebt: "Popular", zielRahmen: "Target limit", proMonat: "/ month", ziel: "Goal: ", mitStarten: (n: string) => `Start with ${n}`, waehlenUndStarten: (n: string) => `Choose ${n} and start the application`,
   pakete: {
     start: { sub: "The entry point", ziel: "Know what is on file", feats: ["Review of your credit report — every entry explained (a data copy you requested yourself, or the report as an add-on)", "Bank statement analysis with your headroom", "Your area with a roadmap", "Support by e-mail"] },
-    pro: { sub: "Standard", ziel: "Clean up entries, open an account", feats: ["Everything in Start", "Deletion requests and objections — prepared, sent, tracked", "Instalment agreements with reply tracking", "Onboarding call and a named contact person", "A current account for every customer"] },
+    // E-283 (05.10.2026): the limit review call, as in German.
+    pro: { sub: "Standard", ziel: "Clean up entries, open an account", feats: ["Everything in Start", "Deletion requests and objections — prepared, sent, tracked", "Instalment agreements with reply tracking", "Onboarding call and a named contact person", "A limit review call every three months — booked in your customer area", "A current account for every customer"] },
     ultra: { sub: "With a card", ziel: "A credit card up to €15,000 with a good file", feats: ["Everything in Pro", "Guidance all the way to the credit card — readiness, milestones, application", "Priority handling of your letters", "Support by phone"] },
     highend: { sub: "The maximum", ziel: "A card up to €25,000, finance, personal support", feats: ["Everything in Ultra", "A personal manager for your file", "Preparation for finance", "Reachable outside office hours too"] },
   },

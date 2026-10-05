@@ -47,6 +47,7 @@ import { rohSlots, dauerFuer } from "../lib/fiaon-termine";
 import { gesperrteFreigeben } from "../lib/fiaon-zuteilung";
 import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
 import { globalKundeSql, globalKundeBereit } from "../lib/fiaon-global-kunde";
+import { limitStandText } from "@shared/fiaon-limit-gespraech";
 
 const router = Router();
 
@@ -168,6 +169,12 @@ export interface KundenSituation {
   startgespraechAm?: string | null;
   naechsteRate: { faelligAm: string; betragCents: number } | null;
   tier: number;
+  /**
+   * E-283 (05.10.2026): Stand des Limit-Gesprächs für die Akte — „Limit-Gespräch:
+   * ab … / jetzt buchbar / gebucht …" (limitStandText). null ohne Paket mit
+   * Limit-Gespräch, bei Global-Kunden und wenn die Abfrage ausfiel.
+   */
+  limit?: { text: string; grund: string; buchbar: boolean; abIso: string | null } | null;
 }
 export async function kundenSituation(personId: number): Promise<KundenSituation | null> {
   const [z] = (await sqlPool`
@@ -257,8 +264,15 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     : tier === 3 ? "lead_ohne_antrag"
     : z.termin_heute ? "termin_heute"
     : "alles_gut";
+  // E-283: dieselbe Regel wie im Kundenbereich (shared/fiaon-limit-gespraech.ts). Fällt
+  // sie aus, fehlt nur diese Zeile — nie die Situation. Der Fehler steht im Protokoll.
+  const limitStand = await import("../lib/fiaon-limit-gespraech")
+    .then((m) => m.limitAnspruchFuerPerson(personId))
+    .catch((e) => { console.error("[VERTRIEB] Limit-Gespräch in der Situation:", e?.message || e); return null; });
+  const limitText = limitStandText(limitStand);
   return {
     art, rate,
+    limit: limitStand && limitText ? { text: limitText, grund: limitStand.grund, buchbar: limitStand.buchbar, abIso: limitStand.abIso } : null,
     zusageAm: z.promised_payment_date ? String(z.promised_payment_date).slice(0, 10) : null,
     rueckrufAm: z.rueckruf_am ?? null,
     terminAm: z.termin_am ?? null,

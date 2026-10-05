@@ -17,9 +17,15 @@
 import { KARTE_LINK_SATZ } from "./fiaon-karten-weg";
 
 /** Fassung der Leistungsbeschreibung des neuen Wegs — steht mit jeder Vertragsannahme in der Datenbank. */
-export const ANTRAG_NEU_LEISTUNG_FASSUNG = "AN-2026-10-05";
+// E-283 (05.10.2026): „b" — das Limit-Gespräch sagt jetzt, wie es gebucht wird
+// (im Kundenbereich, frühestens drei Monate nach der ersten Rate, dann drei Monate
+// nach dem letzten). Wer unter „AN-2026-10-05" angenommen hat, behält seinen Text;
+// die Buchungsregel gilt für ihn als Betriebsregel — sein Satz verspricht nur
+// „alle drei Monate".
+export const ANTRAG_NEU_LEISTUNG_FASSUNG = "AN-2026-10-05b";
 /** Fassung des Vertragstextes (Hash und PDF tragen sie). */
-export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-05";
+// E-283 (05.10.2026): „b" — § 3 nennt die Buchung des Limit-Gesprächs (Pakete mit dieser Leistung).
+export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-05b";
 
 export type AntragNeuPaketKey = "start" | "pro" | "ultra" | "highend";
 export const ANTRAG_NEU_PAKET_KEYS: AntragNeuPaketKey[] = ["start", "pro", "ultra", "highend"];
@@ -46,7 +52,10 @@ export interface AntragNeuPaket {
 
 const KARTE_PUNKT = `Ihr Weg zur eigenen Visa-Kreditkarte: ${KARTE_LINK_SATZ}`;
 const BONITAET_PUNKT = "An Ihrer Bonität arbeiten: Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt.";
-const LIMIT_GESPRAECH = "Alle drei Monate ein Limit-Gespräch: Gemeinsam steuern Sie das höchstmögliche Limit an.";
+// E-283 (05.10.2026): Der Satz sagt, wie das Gespräch zustande kommt — der Kunde
+// bucht es selbst im Kundenbereich (/app/mehr/limit, Regel: shared/fiaon-limit-gespraech.ts).
+// Exportiert, damit § 3 des Vertrags die Buchungsregel nur bei Paketen mit dieser Leistung nennt.
+export const LIMIT_GESPRAECH = "Alle drei Monate ein Limit-Gespräch, das Sie in Ihrem Kundenbereich selbst buchen: Gemeinsam steuern Sie das höchstmögliche Limit an.";
 
 export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
   {
@@ -63,7 +72,7 @@ export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
   },
   {
     key: "pro", name: "FIAON Pro", beisatz: "Am häufigsten gewählt", kartenLabel: "PRO", bis: 5000, limits: [1000, 2500, 5000],
-    intro: "FIAON Pro begleitet Sie persönlich auf dem Weg zu Ihrer Karte: Ihre feste Ansprechpartnerin steuert mit Ihnen das höchstmögliche Limit an, spricht alle drei Monate mit Ihnen über den nächsten Schritt zu einem höheren Limit und arbeitet mit Ihnen an Ihrer Bonität.",
+    intro: "FIAON Pro begleitet Sie persönlich auf dem Weg zu Ihrer Karte: Ihre feste Ansprechpartnerin steuert mit Ihnen das höchstmögliche Limit an, arbeitet mit Ihnen an Ihrer Bonität und bespricht alle drei Monate in einem Limit-Gespräch, das Sie in Ihrem Kundenbereich buchen, mit Ihnen den nächsten Schritt zu einem höheren Limit.",
     leistungen: [
       KARTE_PUNKT,
       "Ihre feste Ansprechpartnerin – mit persönlichem Startgespräch.",
@@ -77,7 +86,7 @@ export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
   },
   {
     key: "ultra", name: "FIAON Ultra", beisatz: "Mit telefonischer Betreuung", kartenLabel: "ULTRA", bis: 15000, limits: [7500, 10000, 15000],
-    intro: "Mit FIAON Ultra begleiten wir Sie enger: telefonisch, bevorzugt und mit einem klaren Plan bis zum Kartenantrag. Alle drei Monate sprechen Sie mit Ihrer Ansprechpartnerin über den nächsten Schritt zu einem höheren Limit.",
+    intro: "Mit FIAON Ultra begleiten wir Sie enger: telefonisch, bevorzugt und mit einem klaren Plan bis zum Kartenantrag. Alle drei Monate buchen Sie in Ihrem Kundenbereich ein Limit-Gespräch und besprechen mit Ihrer Ansprechpartnerin den nächsten Schritt zu einem höheren Limit.",
     leistungen: [
       KARTE_PUNKT,
       "Begleitung auf dem Weg zu einer Kreditkarte: Readiness, Meilensteine, Antragsvorbereitung.",

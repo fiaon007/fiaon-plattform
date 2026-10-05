@@ -1,6 +1,7 @@
 // Gemeinsame Typen des Kundenbereichs /app — Spiegel der Antwort von
 // GET /api/fiaon/kunde/:ref/bereich (fiaon-kunde-bereich.ts) und der /app-Endpunkte.
 import type { AuskunftKauf } from "@/components/kunde/AuskunftKauf";
+import type { LimitAnspruch } from "@shared/fiaon-limit-gespraech";
 export interface Etappe { key: string; titel: string; text: string; stand: "fertig" | "jetzt" | "kommt"; datum: string | null; stempel: string | null; href?: string | null }
 export interface Rate { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null; referenz?: string | null }
 export interface Bereich {
@@ -21,6 +22,8 @@ export interface Bereich {
   abo: { verlaengerung?: { gefragt: boolean; entschieden: boolean; verlaengert: boolean; beendet: boolean; bezahlteRaten: number }; naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: Rate[] };
   termin: { beginn: string; status: string; agent: string | null } | null;
   onboardingGelaufen?: boolean;
+  /** E-283 (05.10.2026): Anspruch auf das Limit-Gespräch (shared/fiaon-limit-gespraech.ts) — null, wenn der Stand nicht lesbar war. */
+  limitGespraech?: LimitAnspruch | null;
   fahrplan: Etappe[];
   naechsterSchritt: { key: string; titel: string; text: string; href: string | null } | null;
   ansprechpartner: { name: string; rolle: string | null; avatar?: string | null } | null;

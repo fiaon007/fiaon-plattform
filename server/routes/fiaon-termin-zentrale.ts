@@ -47,6 +47,10 @@ export const QUELLE_TEXT: Record<string, string> = {
   gruender: "Gespräch mit dem Gründer",
   // 17.09.2026 (E-188): der Gesprächskalender auf /business.
   global: "FIAON Global – Erstgespräch",
+  // 05.10.2026 (E-283): „support" fehlte seit E-168 — der Filter zeigte den
+  // rohen Wert. Dazu das Limit-Gespräch (Pro/Ultra/High-End, alle drei Monate).
+  support: "Support-Gespräch (Bestandskunde)",
+  limit_gespraech: "Limit-Gespräch (alle drei Monate)",
 };
 
 /**

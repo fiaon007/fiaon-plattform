@@ -14,6 +14,7 @@ import { FRAGEN, befunde, beantwortet as anzahlBeantwortet, summeMonatlichCents,
 import type { Vorgang } from "./typen";
 import { AuskunftKaufkarte, type AuskunftKauf } from "@/components/kunde/AuskunftKauf";
 import { demoStand, demoAlterTage, DEMO_STUFEN_MAX } from "@shared/fiaon-demo-stufen";
+import { limitZusatz, LIMIT_TEXTE, type LimitAnspruch } from "@shared/fiaon-limit-gespraech";
 
 export const eur = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
 /** ISO-Zeit → „Sa., 09.05., 10:30“ in Berliner Zeit (Zeit-Falle: nie Number(format())). */
@@ -401,10 +402,12 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
 // ═══════════════════════════════════════════════════════════════════════════
 // MEHR — Daten, Paket, Abmelden, Rechtliches (Passwort: Passwort.tsx, persönliche PIN: Pin.tsx)
 // ═══════════════════════════════════════════════════════════════════════════
-export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, naechsterTermin, pinGesetzt }: {
+export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, naechsterTermin, pinGesetzt, limit }: {
   kundeRef: string; demo: boolean; basis: string; naechsterTermin?: string | null;
   /** E-282: persönliche FIAON-PIN festgelegt? false = der Eintrag sagt es dazu; null/undefined = unbekannt, kein Zusatz. */
   pinGesetzt?: boolean | null;
+  /** E-283: Stand des Limit-Gesprächs — ohne Stand (null) und für Global-Kunden kein Eintrag. */
+  limit?: LimitAnspruch | null;
   kunde: { vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; kundeSeit: string | null };
   paket: { name: string; abo: boolean; monatlichCents: number | null; zahlungsstatus: string };
   ansprechpartner: { name: string; rolle: string | null } | null;
@@ -420,6 +423,10 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
         <div className="ap-karte ap-linkliste">
           <Link href={`${basis}/mehr/hilfe`}>Hilfe und Nachricht{ansprechpartner ? ` an ${ansprechpartner.name}` : ""}</Link>
           <Link href={`${basis}/mehr/termine`}>Termine{naechsterTermin ? ` · nächster ${naechsterTermin}` : ""}</Link>
+          {/* E-283 (05.10.2026): „jetzt buchbar“ / „ab TT.MM.“ / „gebucht …“ — aus limitZusatz (shared). */}
+          {limit && limit.grund !== "global" && (
+            <Link href={`${basis}/mehr/limit`} data-fiaon="mehr-limit">{LIMIT_TEXTE.titel}{limitZusatz(limit) ? ` · ${limitZusatz(limit)}` : ""}</Link>
+          )}
           <Link href={`${basis}/unterlagen`}>Unterlagen</Link>
           <Link href={`${basis}/vorgaenge`}>Vorgänge und Ansprüche</Link>
           <Link href={`${basis}/mehr/vollmachten`}>Vollmacht</Link>

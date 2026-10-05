@@ -76,7 +76,7 @@ const de = {
     { href: "/bonitaet-verbessern", t: "Bonität Schritt für Schritt aufbauen" },
   ],
   fussSatz: "Redaktionelle Einordnung, Stand 2. September 2026 – keine Rechtsberatung im Einzelfall.",
-  aufrufTitel: "Erst die Auskunft, dann die Klarheit.", aufrufSatz: "FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF, erklärt jede Zeile in Klartext und greift an, was angreifbar ist. Konto in zwei Minuten eröffnet – den Rest sehen Sie in Ihrem Kundenbereich.",
+  aufrufTitel: "Erst die Auskunft, dann die Klarheit.", aufrufSatz: "FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF, erklärt jede Zeile in Klartext und greift an, was angreifbar ist. Ihre Angaben in rund fünf Minuten – den Rest sehen Sie in Ihrem Kundenbereich.",
 };
 const en: typeof de = {
   metaTitel: "Understanding the SCHUFA score: table and meaning",
@@ -151,6 +151,6 @@ const en: typeof de = {
     { href: "/bonitaet-verbessern", t: "building your credit file step by step" },
   ],
   fussSatz: "Editorial classification, as of 2 September 2026 — no legal advice in individual cases.",
-  aufrufTitel: "First the report, then the clarity.", aufrufSatz: "FIAON obtains your reports from SCHUFA, KSV and CRIF, explains every line in plain language and challenges what can be challenged. Account opened in two minutes — you see the rest in your customer area.",
+  aufrufTitel: "First the report, then the clarity.", aufrufSatz: "FIAON obtains your reports from SCHUFA, KSV and CRIF, explains every line in plain language and challenges what can be challenged. Your details in about five minutes — you see the rest in your customer area.",
 };
 export const SCHUFA_SCORE_WOERTER = { de, en };

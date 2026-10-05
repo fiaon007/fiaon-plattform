@@ -363,6 +363,34 @@ for (const d of MEINE_DATEIEN) {
 ok("Katalogpreis je Global-Paket > 0 (paketPreisCents)", Object.keys(GLOBAL_SOLL).every((k) => paketPreisCents(k) === GLOBAL_SOLL[k]));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 05.10.2026, E-283 — Justin: „Passe fiaon.com/privatkunden so an, dass die Produkte den gleichen Text
+// haben wie bei /start.“ start.tsx bleibt unverändert; der Wortlaut steht dort (PACKS) UND in
+// client/src/lib/paket-merkmale.ts. Verglichen wird der Quelltext je Paket, buchstabengetreu — ändert
+// jemand nur eine der beiden Stellen, wird es hier rot.
+titel("5. /privatkunden trägt den Paket-Wortlaut von /start");
+{
+  const karten = (q: string): Record<string, string> => {
+    const aus: Record<string, string> = {};
+    for (const m of q.matchAll(/key: "(\w+)", name: "([^"]+)", sub: "([^"]+)"[^\n]*\n\s*feats: (\(l: Land\) => \[.*\])/g)) aus[m[1]] = `${m[2]} · ${m[3]} · ${m[4]}`;
+    return aus;
+  };
+  const start = karten(datei("client/src/pages/start.tsx"));
+  const quelle = karten(datei("client/src/lib/paket-merkmale.ts"));
+  gleich("/start und paket-merkmale.ts kennen dieselben vier Pakete", Object.keys(quelle), ["start", "pro", "ultra", "highend"]);
+  for (const k of ["start", "pro", "ultra", "highend"]) ok(`${k}: Name, Untertitel und Merkmale wortgleich mit /start`, !!start[k] && start[k] === quelle[k], `start.tsx: ${start[k]} | paket-merkmale.ts: ${quelle[k]}`);
+  const seite = datei("client/src/pages/site/privatkunden.tsx");
+  ok("/privatkunden liest Name und Merkmale aus dem Wörterbuch (landabhängig), keine eigene Zeile „Ziel: …“", /\{w\.name\}/.test(seite) && /w\.feats\(land\)/.test(seite) && !/t\.ziel\b/.test(seite));
+  const { PRIVATKUNDEN_WOERTER } = await import("../client/src/i18n/privatkunden");
+  for (const k of ["start", "pro", "ultra", "highend"]) {
+    const d = PRIVATKUNDEN_WOERTER.de.pakete[k], e = PRIVATKUNDEN_WOERTER.en.pakete[k];
+    ok(`${k}: Englisch mit demselben Namen und gleich vielen Merkmalen`, !!d && !!e && d.name === e.name && (["de", "at", "ch"] as const).every((l) => d.feats(l).length === e.feats(l).length));
+  }
+  const hoch = PRIVATKUNDEN_WOERTER.de.pakete.highend, hochEn = PRIVATKUNDEN_WOERTER.en.pakete.highend;
+  gleich("Merkmale hängen vom Land ab wie auf /start", [hoch.feats("de")[0], hoch.feats("ch")[0], PRIVATKUNDEN_WOERTER.de.pakete.start.feats("at")[2]], ["Ihr 25.000 € Black-Card Setup", "Ihr CHF 25'000 Black-Card Setup", "KSV-neutrale Profil-Prüfung"]);
+  gleich("Englisch: Beträge en-GB", [hochEn.feats("de")[0], hochEn.feats("ch")[0]], ["Your €25,000 Black Card set-up", "Your CHF 25,000 Black Card set-up"]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 log(`\n${"═".repeat(74)}`);
 log(schlecht === 0 ? `PAKETE: alle ${gut} Prüfungen grün.` : `PAKETE: ${schlecht} ROT, ${gut} grün.`);
 process.exit(schlecht === 0 ? 0 : 1);

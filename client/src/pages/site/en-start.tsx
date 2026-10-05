@@ -36,16 +36,17 @@ export default function EnStart() {
 
       <Licht>
         <Block pille="How it works" titel={<>From application to <span className="dk-verlauf">first letter.</span></>} lead="Your details take about five minutes. The application is currently in German; our team speaks English on the phone." mitte>
+          {/* 05.10.2026, E-283: Ablauf des neuen Antrags — vorher „Accept the contract and you are in your customer area straight away“. */}
           <Schritte items={[
-            { titel: "Choose a plan and apply", text: "E-mail, name, date of birth, phone, address. Accept the contract and you are in your customer area straight away." },
+            { titel: "Apply and choose a plan", text: "Your details, checked right in the application — then you choose your plan and accept the contract on screen." },
             { titel: "Pay the first instalment by bank transfer", text: "Payment details with a QR code in your area. Every later instalment by bank transfer too — bank details and payment reference are in every payment e-mail." },
-            { titel: "Onboarding call, 15 minutes", text: "A named person goes through your goal and your situation with you and activates your area fully." },
+            { titel: "Onboarding call, 15 minutes", text: "A named person goes through your goal and your situation with you and agrees the first steps." },
             { titel: "Report, analysis, letters", text: "We request your report with your authorisation. About 24 hours after it arrives you see every entry explained — and the letters that make sense, ready for your approval." },
           ]} />
         </Block>
       </Licht>
 
-      <Block pille="What it costs" titel={<>Plans from {preis(privat[0].preisCents)} <span className="dk-verlauf">a month.</span></>} lead={`Twelve instalments, cancellable at any time to the end of the current month. Just the credit report on its own: ${"€" + SCHUFA_PREIS_EURO.toFixed(2)} one-off. No commission on limits, no fee per letter.`}>
+      <Block pille="What it costs" titel={<>Plans from {preis(privat[0].preisCents)} <span className="dk-verlauf">a month.</span></>} lead={`Twelve monthly instalments, then cancellable monthly. Just the credit report on its own: ${"€" + SCHUFA_PREIS_EURO.toFixed(2)} one-off. No commission on limits, no fee per letter.`}>
         <div className="sx-vertiefen">
           {privat.map((p) => <a key={p.key} href={`/antrag?pack=${p.key}&src=en`}><b>{p.label.replace(" (Standard)", "")}</b><span>{preis(p.preisCents)} a month · twelve instalments</span></a>)}
         </div>
@@ -62,7 +63,7 @@ export default function EnStart() {
           <Fragen items={[
             { f: "Is FIAON available in English?", a: "The website is being translated page by page; the application and the customer area are currently in German. Our team speaks English on the phone and by e-mail." },
             { f: "Which credit bureaus does FIAON work with?", a: "SCHUFA in Germany, KSV1870 and CRIF in Austria, CRIF and Intrum in Switzerland — always with your written authorisation." },
-            { f: "Can I cancel?", a: "Yes, at any time to the end of the current month, informally. The plan runs for twelve instalments; after that we ask you whether you want to stay — no silent renewal." },
+            { f: "Can I cancel?", a: "Yes. The plan runs for twelve monthly instalments; you can give notice in text form with one month's notice to the end of those twelve months, and at any time with one month's notice after that. The 14-day right of withdrawal applies in addition." },
             { f: "How long does a settled debt stay on file?", a: "Under the credit bureaus' code of conduct, three years after settlement to the day; if you settle within 100 days of the entry and have no other entries, 18 months. FIAON tracks the exact date for every entry." },
           ]} />
         </Block>

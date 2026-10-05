@@ -20,6 +20,10 @@
 // Unterschrift, erste Rate) statt „Paket zuerst, zwei Minuten, Passwort".
 // Neu: DIE PERSÖNLICHE FIAON-PIN und DAS LIMIT-GESPRÄCH. Mara (Mail und
 // WhatsApp) liest dieselben Fakten (wissenFakten, wissenFuerWhatsApp).
+// Nachtrag 05.10.2026, E-283: Anmelden ohne Passwort geht über den Anmelde-Link
+// auf fiaon.com/app/login (fiaon.com/login fragt nur das Passwort ab und
+// verweist dorthin); der Kartenlink kommt ohne verlangten sofortigen Beginn
+// erst nach der Widerrufsfrist (fiaon-konto-karte.ts, einladungenAutomatisch).
 // ═══════════════════════════════════════════════════════════════════════════
 import { PAKETE } from "./fiaon-pakete";
 import {
@@ -185,7 +189,7 @@ DER WEG FÜR NEUE KUNDEN (der Privatantrag seit 05.10.2026 — jeder Link auf de
 3. Persönliche FIAON-PIN festlegen (siehe DIE PERSÖNLICHE FIAON-PIN).
 4. Paket wählen (das vorgewählte lässt sich hier noch ändern), dazu das Ziel-Limit des Pakets und wofür der Kunde die Karte nutzen möchte.
 5. Vertrag lesen und am Bildschirm unterschreiben. Erst der Knopf „Zahlungspflichtig annehmen“ schließt den Vertrag; davor stehen Paket, Monatsrate, zwölf Monate Laufzeit, Gesamtbetrag und Kündigungsregel. Die Vertragsbestätigung kommt per E-Mail.
-6. Erste Monatsrate per Überweisung: Die Zahlungsdaten mit QR-Code stehen direkt danach im Antrag und in der E-Mail. Danach öffnet der Kunde seinen Kundenbereich; später meldet er sich mit seiner E-Mail-Adresse über einen Anmelde-Link an (ein Passwort ist freiwillig).
+6. Erste Monatsrate per Überweisung: Die Zahlungsdaten mit QR-Code stehen direkt danach im Antrag und in der E-Mail. Danach öffnet der Kunde seinen Kundenbereich; später meldet er sich unter fiaon.com/app/login mit seiner E-Mail-Adresse über einen Anmelde-Link an (ein Passwort ist freiwillig; auf fiaon.com/login führt „Ohne Passwort anmelden“ dorthin).
 7. Nach Zahlungseingang: Startgespräch buchen (Pflicht, rund 15 Minuten am Telefon) — im Kundenbereich, mit FIAON Pro, Ultra oder High-End auch direkt auf der letzten Seite des Antrags. Dazu kommt nach der ersten Rate der Link unserer Partnerbank für den Kartenantrag (hat der Kunde keinen sofortigen Beginn verlangt, nach Ablauf der Widerrufsfrist), siehe KONTO UND KARTE.
 Wer im früheren Antrag (vor dem 05.10.2026) einen Antrag begonnen hat, macht dort weiter — über den Link aus der Erinnerungsmail.
 Die Bonitätsauskunft kann der Kunde am Ende des Antrags zum Kundenpreis dazubestellen (fällig erst nach der ersten Paketzahlung) oder jederzeit später, mit oder ohne Paket (siehe DIE BONITÄTSAUSKUNFT).
@@ -201,8 +205,8 @@ DAS LIMIT-GESPRÄCH (FIAON Pro, Ultra und High-End)
 - Höchstens einmal je drei Monate, frühestens drei Monate nach der ersten Rate. FIAON Start hat kein Limit-Gespräch.
 - Es ist ein Gespräch, keine Limit-Zusage.
 
-DER KUNDENBEREICH (fiaon.com/login → „Mein Bereich“)
-Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (Kontoauszug der letzten drei Monate, Ausweis — Handyfoto genügt; je Unterlage mehrere Dateien auf einmal auswählen, z. B. drei Monatsauszüge oder Vorder- und Rückseite, sie werden zu einem Dokument zusammengefügt — ein neuer Upload ersetzt den vorigen), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen.
+DER KUNDENBEREICH (Anmelden: fiaon.com/app/login — mit Passwort oder ohne Passwort über einen Anmelde-Link per E-Mail; fiaon.com/login fragt nur das Passwort ab und führt mit „Ohne Passwort anmelden“ dorthin)
+Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (Kontoauszug der letzten drei Monate, Ausweis — Handyfoto genügt; je Unterlage mehrere Dateien auf einmal auswählen, z. B. drei Monatsauszüge oder Vorder- und Rückseite, sie werden zu einem Dokument zusammengefügt — ein neuer Upload ersetzt den vorigen), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen — oder ohne Passwort über den Anmelde-Link auf fiaon.com/app/login.
 
 DAS STARTGESPRÄCH (Agenda des Mitarbeiters)
 ${agenda}
@@ -251,7 +255,7 @@ VERTRAG UND KÜNDIGUNG
 
 KONTO UND KARTE — REIHENFOLGE UND BEDINGUNGEN
 - Erst das Girokonto, dann die Karte: FIAON vermittelt das Girokonto der Partnerbank DKB (Kooperationspartner — nie „Affiliate"); die Visa-Kreditkarte bucht der Kunde aus dem fertigen Banking selbst dazu. Wer ohne Konto zur Karte geschickt würde, bekäme eine Ablehnung, und die stünde wieder in seiner Auskunft.
-- Die Einladung zum Konto- und Kartenantrag (Link der Partnerbank) verschickt FIAON automatisch, sobald die erste Zahlung gebucht ist — der Account ist dann aktiviert (seit 21.09.2026; vorher erst nach zwei Raten). Voraussetzung ist nur ein vollständiger Antrag (Name, Geburtsdatum, Anschrift, E-Mail); ein Werbe-Stopp hält sie nicht auf — sie gehört zum Vertrag. Fragt ein zahlender Kunde nach Karte oder Link, schickt Mara ihm den Link selbst (noch einmal) — kein Kollege, der nachsieht.
+- Die Einladung zum Konto- und Kartenantrag (Link der Partnerbank) verschickt FIAON automatisch, sobald die erste Zahlung gebucht ist — der Account ist dann aktiviert (seit 21.09.2026; vorher erst nach zwei Raten). Ausnahme: Hat der Kunde im Antrag seit 05.10.2026 keinen sofortigen Beginn verlangt, kommt der Link erst nach Ablauf der Widerrufsfrist, dann von selbst. Voraussetzung ist nur ein vollständiger Antrag (Name, Geburtsdatum, Anschrift, E-Mail); ein Werbe-Stopp hält sie nicht auf — sie gehört zum Vertrag. Fragt ein zahlender Kunde nach Karte oder Link, schickt Mara ihm den Link selbst (noch einmal) — kein Kollege, der nachsieht.
 - In der Antragszeit lädt der Kunde im Kundenbereich hoch: Kontoauszüge der letzten sechs Monate, Ausweis oder Reisepass und seine Bonitätsauskunft — entweder die FIAON-Bonitätsauskunft (Kundenpreis ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, Leistung siehe DIE BONITÄTSAUSKUNFT) oder eine selbst angeforderte Datenkopie (Anleitung im Kundenbereich). Daraus macht FIAON seine Bonitätsanalyse.
 - Zeit bis zur Karte: Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen beim Kunden; meist kann er sie schon vorher in der App der Bank mit Apple Pay nutzen. Nie als feste Frist oder Zusage formulieren.
 - Über Konto, Karte und Rahmen entscheidet immer die Bank; Karte und PIN schickt die Bank nach ihrer Zusage (FIAON verschickt selbst keine Karte oder PIN). FIAON bereitet vor, schickt den Link der Partnerbank und begleitet bis zur Karte — im Gespräch sagst du, was FIAON tut, nie „wir sind keine Bank“ als Antwort. Ein Kartenrahmen bis 25.000 € ist bei guter Bonität möglich, nie zugesagt.

@@ -84,17 +84,18 @@ router.post("/antrag/weiter-link", async (req: Request, res: Response) => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return res.status(400).json({ ok: false, error: "Bitte eine gültige E-Mail-Adresse angeben." });
     const jetzt = Date.now(); const z = weiterZaehler.get(email);
     if (!z || z.bis < jetzt) weiterZaehler.set(email, { n: 1, bis: jetzt + 3600000 }); else if (z.n++ >= 3) return res.status(429).json({ ok: false, error: "Wir haben Ihnen den Link bereits geschickt – bitte schauen Sie auch im Spam-Ordner nach." });
-    const [a] = (await sqlPool`SELECT ref, first_name, last_name, current_step, pack_key, pack_name, payment_reference, payment_status
+    const [a] = (await sqlPool`SELECT ref, first_name, last_name, current_step, pack_key, pack_name, payment_reference, payment_status, antrag_weg
       FROM fiaon_applications WHERE lower(email) = ${email} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1`) as any[];
     // Immer dieselbe Antwort — ob es den Antrag gibt, verrät diese Route nicht.
     if (!a || a.payment_reference || a.payment_status === "paid") return res.json({ ok: true, gesendet: true });
-    const { weiterLink } = await import("../lib/fiaon-antrag-erinnerung");
+    const { weiterLink, schrittText } = await import("../lib/fiaon-antrag-erinnerung");
     const { sendMakeWebhook } = await import("../make-webhook");
     const { absoluteUrl } = await import("../fiaon-base-url");
     const schritt = Number(a.current_step || 1);
     const ok = await sendMakeWebhook("antrag_erinnerung", {
       email, vorname: a.first_name || null, nachname: a.last_name || null, antrag_id: a.ref, paket: a.pack_name || null, pack_key: a.pack_key || null,
-      schritt, schritt_text: `Schritt ${schritt}`, weiter_link: weiterLink(String(a.ref)), erinnerung_nr: 0, portal_url: absoluteUrl("/antrag"),
+      // E-283: ein Antrag aus /antrag-neu nennt seinen Schritt in Worten (der neue Weg zählt anders).
+      schritt, schritt_text: a.antrag_weg === "neu" ? schrittText(schritt, "neu") : `Schritt ${schritt}`, weiter_link: weiterLink(String(a.ref)), erinnerung_nr: 0, portal_url: absoluteUrl("/antrag"),
     } as any).catch(() => false);
     await sqlPool`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
       VALUES (${a.ref}, NULL, 'System', 'system', ${`Kunde hat im Antrag den Weiter-Link angefordert — ${ok ? "verschickt" : "NICHT verschickt (Make)"}.`}, NOW())`.catch(() => {});

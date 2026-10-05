@@ -9,6 +9,7 @@ import { PAKETE } from "@shared/fiaon-pakete";
 import { AUSKUNFT_PREISE_CENTS, euroText } from "@shared/fiaon-auskunft";
 import { GLOBAL_PAKETE, GLOBAL_ROLLEN, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import { SUPPORT } from "@shared/fiaon-wissen";
+import { ANTRAG_NEU_SCHRITTE } from "@shared/fiaon-antrag-neu";
 
 const eur = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
 const PRIVAT = PAKETE.filter((x) => x.abo && x.art === "privat" && !x.eingestellt);
@@ -24,23 +25,26 @@ const auskunftFirma = `${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)} einzeln,
 
 export const KAPITEL_2: KapitelInhalt = {
   inhalte: {
+    // 05.10.2026 (E-283): Seit dem Umschalten führt jeder Link auf /antrag in den neuen Antrag
+    // (client/src/pages/antrag-neu, server/routes/fiaon-antrag-neu.ts) — die Tabelle zeigt dessen
+    // Schritte; die Zählung „Schritt n von …“ kommt aus shared/fiaon-antrag-neu.ts.
     antrag: {
-      einleitung: "fiaon.com/antrag: etwa zwei Minuten, neun Schritte, und am Ende ist der Kunde eingeloggt. Du musst wissen, was er dort sieht – weil du am Telefon oft daneben sitzt.",
+      einleitung: `fiaon.com/antrag: die Angaben in etwa fünf Minuten, dann Prüfung, persönliche PIN, Paket und Vertrag mit Unterschrift – ${ANTRAG_NEU_SCHRITTE} gezählte Schritte, dazu Prüfung, Ergebnis und Danke. Du musst wissen, was der Kunde dort sieht – weil du am Telefon oft daneben sitzt.`,
       bloecke: [
         tab(["Schritt", "Was der Kunde sieht", "Was im System steht"],
-          ["0 · Start", "Paketwahl (von /privatkunden oder direkt), Hinweis auf zwei Minuten", "Antrag angelegt: Zustand „started“"],
-          ["1 · Persönliches", "E-Mail, Name, Geburtsdatum, Telefon", "„personal_data“ – ab hier kann die Abbruch-Erinnerung greifen"],
-          ["2 · Finanzen", "Beschäftigung, Einkommen, Wunschlimit", "„finances“"],
-          ["3 · Konfiguration", "Adresse (füllt sich beim Tippen über Photon aus), Paket prüfen, Upgrade dezent", "„config“"],
-          ["4 · Prüfung", "Zusammenfassung, Zusagen (drei Häkchen)", "„verifying“"],
-          ["5 · Freigabe", "Ergebnis und Paketwechsel, Knopf „Weiter zum Vertrag“ (bindet noch nicht)", "„approved“"],
-          ["6 · Vertrag", "„Ihre Angaben“ mit „Angaben ändern“ (führt über Schritt 1–3 ohne neue Prüfung zurück), Bestellübersicht (Paket, Kernleistungen, Rate, zwölf Monate, Gesamtbetrag, Kündigung) und Knopf „Zahlungspflichtig annehmen“ – erst dieser Klick schließt den Vertrag", "„contract“"],
-          ["7/8 · Abschluss", "Bestätigung, Weiterleitung in den Bereich", "„processing“ / „completed“"],
-          ["9 · Passwort", "Passwort festlegen – der Kunde ist sofort eingeloggt", "„submitted“ – der Antrag ist abgeschickt, eine Rechnung kann gestellt werden"],
+          ["1–3 · Sie", "Name, Kontakt (E-Mail, Mobilnummer), Geburtsdatum. Ein Paket aus dem Link ist nur vorgewählt.", "Nach dem Kontakt ist der Antrag angelegt: „personal_data“ (Schritt 1) – ab hier kann die Abbruch-Erinnerung greifen"],
+          ["4–7 · Profil", "Anschrift (füllt sich beim Tippen aus), Beruf, Einkommen und Wohnen, negative Einträge", "„personal_data“ / „finances“ (Schritt 1–2)"],
+          ["Prüfung", "Acht Punkte laufen sichtbar durch: Angaben, Anschrift, Telefon, E-Mail, Einkommen, Ausgangslage, kein Doppelvertrag, Profil – ohne Abfrage bei einer Auskunftei", "„verifying“ (Schritt 4). Läuft schon ein bezahltes Paket, hält der Antrag hier an – mit Vermerk in der Akte"],
+          ["Ergebnis", "„Ihr Antrag ist bestätigt“ – bestätigt die Angaben, keine Zusage von Karte oder Limit", "„approved“ (Schritt 5)"],
+          ["8 · PIN", "Persönliche FIAON-PIN, vier Ziffern – zum Erkennen am Telefon, keine Karten-PIN", "In der Akte „PIN festgelegt“; prüfen mit „PIN prüfen“ (gilt ab der ersten Zahlung)"],
+          ["9–10 · Ziel", "Paket (die Karte trägt schon den Namen), Ziel-Limit und Nutzung", "„approved“ (Schritt 5)"],
+          ["11–12 · Vertrag", "Vertrag lesen, Haken, Unterschrift am Bildschirm, Knopf „Zahlungspflichtig annehmen“ – erst dieser Klick schließt den Vertrag", "„contract“ (Schritt 6), mit der Annahme „submitted“ (Schritt 8) – Vertrag, Bestellung und Rechnung entstehen"],
+          [`${ANTRAG_NEU_SCHRITTE} · Zahlung`, "Zahlungsdaten der ersten Monatsrate mit QR-Code, „Ich habe überwiesen“, Rückruf vor der Überweisung", "Bestellung mit Verwendungszweck; „Ich habe überwiesen“ meldet die Zahlung"],
+          ["Danke", "Startgespräch (ab Pro, nach Zahlungseingang), Bonitätsauskunft dazubestellen, Bereich öffnen", "–"],
         ),
-        p("Direkt nach dem Vertrag stehen zwei Karten, und keine lässt sich wegklicken: „Jetzt aktivieren“ (Zahlungsdaten mit QR-Code, Kopieren-Knopf) oder „Zuerst sprechen“ (Termin mit dir). Wer „Zuerst sprechen“ wählt, braucht später kein zweites Startgespräch – derselbe Termin wird zum Startgespräch."),
+        p("Direkt nach der Unterschrift stehen die Zahlungsdaten der ersten Monatsrate mit QR-Code. Hat der Kunde vorher noch Fragen, wählt er eine Zeit, und wir rufen ihn an. Danach öffnet er seinen Bereich; später meldet er sich mit seiner E-Mail-Adresse über einen Anmelde-Link an. Wer im früheren Antrag (vor dem 05.10.2026) begonnen hat, macht dort weiter – über den Link aus seiner Erinnerungsmail."),
         p("Abbruch-Erinnerungen: Wer den Antrag nach Schritt 1 liegen lässt, bekommt drei Stufen Erinnerung (nach 10 Minuten, dann in Tages-Slots). Seit dem Office-Umbau enthalten sie einen Terminlink statt einer Zahlungsaufforderung – ein Gespräch mit dir schließt mehr ab als eine Mahnung."),
-        merk("Der Antrag ist kein Formular, das du erklärst. Er ist die Strecke, an deren Ende dein Kunde steht. Geh sie selbst einmal durch: fiaon.com/antrag – und brich vor der Zahlung ab."),
+        merk("Der Antrag ist kein Formular, das du erklärst. Er ist die Strecke, an deren Ende dein Kunde steht. Geh sie selbst einmal durch: fiaon.com/antrag – und brich vor der Unterschrift ab: „Zahlungspflichtig annehmen“ schließt einen echten Vertrag."),
         link("/antrag", "Antragsstrecke öffnen"),
       ],
     },
@@ -180,7 +184,7 @@ export const KAPITEL_2: KapitelInhalt = {
     },
   },
   test: [
-    frage("Was sieht der Kunde direkt nach dem Vertrag im Antrag?", ["Die Startseite", "Zwei Karten: „Jetzt aktivieren“ oder „Zuerst sprechen“", "Die Bonitätsauskunft", "Ein Kreditangebot"], 1, "Zahlung oder Termin – keine der Karten lässt sich wegklicken."),
+    frage("Was sieht der Kunde direkt nach der Unterschrift im Antrag?", ["Die Startseite", "Die Zahlungsdaten seiner ersten Monatsrate mit QR-Code", "Die Bonitätsauskunft", "Ein Kreditangebot"], 1, "Betrag, Bankdaten, Verwendungszweck und QR-Code – dazu „Ich habe überwiesen“ und ein Rückruf, falls er vor der Überweisung Fragen hat."),
     frage(`Was kostet FIAON Start im Monat?`, [preis("start"), preis("pro"), preis("ultra"), preis("highend")], 0, "Preise kommen aus dem Paketkatalog."),
     frage("Die Bonitätsauskunft ohne Paket …", ["ist ein Abo", `kostet ${auskunftEinzeln} einmalig und erzeugt nie eine Rate`, "ist in jedem Paket enthalten", "gibt es nur für Geschäftskunden"], 1, `Einmalkauf, kein Abo. Mit laufendem Paket kostet sie ${auskunftMitPaket}.`),
     frage("Welche Unterlagen braucht der Kunde im Bereich?", ["Steuerbescheid", "Kontoauszug der letzten drei Monate und Ausweis – Handyfoto genügt", "Arbeitsvertrag", "Mietvertrag"], 1, "Fehlende Unterlagen sind der häufigste Grund, warum es nicht weitergeht."),

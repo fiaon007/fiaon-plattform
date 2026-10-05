@@ -51,7 +51,7 @@ export function FlugHero({ knoepfe }: { knoepfe: ReactNode }) {
   const MOMENTE = [
     { ueber: `Bonität in ${LANDNAME[land]} · Auskunft: ${AUSKUNFTEI[land]}`, h: <>Wissen, was <span className="dk-verlauf">über Sie</span> gespeichert ist.</>, satz: "Ihre Auskunft, beschafft und in Menschensprache erklärt – innerhalb von 24 Stunden." },
     { ueber: "Schicht 2 · Aktion", h: <>Und es <span className="dk-verlauf">ändern.</span></>, satz: "Löschanträge, Widersprüche, Ratenvereinbarungen – vorbereitet, anwaltlich geprüft, mit einem Klick versendet." },
-    { ueber: "Schicht 3 · Zugang", h: <>Dann die <span className="dk-verlauf">Tür.</span></>, satz: "Girokonto, Kreditkarte bis 25.000 €, Finanzierung. Konto in zwei Minuten, Einsicht in 24 Stunden." },
+    { ueber: "Schicht 3 · Zugang", h: <>Dann die <span className="dk-verlauf">Tür.</span></>, satz: "Girokonto, Kreditkarte bis 25.000 €, Finanzierung. Antrag in rund fünf Minuten, Einsicht in 24 Stunden." },
   ];
 
   // Video: stumm, in Schleife, nur sichtbar laufen lassen

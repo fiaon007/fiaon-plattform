@@ -486,7 +486,7 @@ export function whatsappAntrag(k: KarteiKarte, absender: string, antragLink: str
   return ohneEmojis([
     anredeWhatsApp(k),
     "",
-    "danke für das nette Telefonat gerade. Wie besprochen hier der Link zu Ihrem Antrag, das dauert nur etwa zwei Minuten:",
+    "danke für das nette Telefonat gerade. Wie besprochen hier der Link zu Ihrem Antrag, das dauert nur etwa fünf Minuten:",
     antragLink,
     "",
     "Sobald der Antrag da ist, geht es weiter. Wenn unterwegs etwas unklar ist, schreiben Sie mir einfach hier.",
@@ -501,7 +501,7 @@ export function mailAntrag(k: KarteiKarte, absender: string, antragLink: string)
     betreff: "Ihr Link zum Antrag – wie besprochen",
     text: [
       "vielen Dank für das freundliche Telefonat eben!",
-      `Wie besprochen hier der Link zu Ihrem Antrag – das dauert nur etwa zwei Minuten:\n${antragLink}`,
+      `Wie besprochen hier der Link zu Ihrem Antrag – das dauert nur etwa fünf Minuten:\n${antragLink}`,
       "Wenn unterwegs etwas unklar ist, antworten Sie einfach auf diese Mail.",
       gruss(absender).join("\n"),
     ].join("\n\n"),

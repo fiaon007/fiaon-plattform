@@ -20,6 +20,7 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { appViewport } from "@/lib/app-viewport";
 import { antragEreignis, antragSitzung } from "@/lib/antrag-ereignis";
+import { auskunftVorabAus } from "@shared/fiaon-auskunft-buendel";
 import {
   ANTRAG_NEU_ABSCHNITTE, ANTRAG_NEU_PAKETE, ANTRAG_NEU_REIHE, ANTRAG_NEU_SCHRITTE, ANTRAG_NEU_SCHRITT_NR,
   antragNeuLuecke, antragNeuPaket, type AntragNeuSchritt,
@@ -349,11 +350,15 @@ export default function AntragNeuSeite() {
     const weg = () => antragEreignis("neu", "verlassen", { schritt: jetztRef.current, ref: zRef.current.ref ?? undefined });
     window.addEventListener("pagehide", weg);
 
-    // Persönlicher Link (?l=…) und Paket aus der Adresse (?paket=…)
+    // Persönlicher Link (?l=…), Paket aus der Adresse (?paket=… oder ?pack=…) und — seit E-283 — die
+    // Auskunft-Parameter des alten Antrags (src=auskunft, auskunft=1|0, src=auskunft_da), damit ein
+    // Link über die Weiche hier dieselbe Bedeutung behält.
     try {
       const q = new URLSearchParams(location.search);
       const l = q.get("l");
       if (l && /^[A-Za-z0-9]{10}$/.test(l)) {
+        // Der Kanal (k) VOR dem Aufräumen merken — die Antwort der Vorbelegung kommt erst danach (E-283).
+        const kanal = q.get("k") || "link";
         sessionStorage.setItem("fiaon_lead_link", l);
         void api.vorbelegung(l).then((r) => {
           const j: any = r.json;
@@ -363,7 +368,7 @@ export default function AntragNeuSeite() {
             vorname: z.vorname || j.vorname || "", nachname: z.nachname || j.nachname || "", email: z.email || j.email || "",
             ...(j.vorwahl && j.telefon && !z.telefon ? { vorwahl: j.vorwahl, telefon: String(j.telefon) } : {}),
           });
-          antragEreignis("neu", "vorbelegt", { schritt: jetztRef.current, detail: q.get("k") || "link" });
+          antragEreignis("neu", "vorbelegt", { schritt: jetztRef.current, detail: kanal });
         });
         q.delete("l"); q.delete("k");
         history.replaceState(history.state, "", `${location.pathname}${q.toString() ? `?${q}` : ""}${location.hash}`);
@@ -371,6 +376,8 @@ export default function AntragNeuSeite() {
       const pk = q.get("paket") || q.get("pack");
       const p = pk ? antragNeuPaket(pk) : null;
       if (p && !zRef.current.ref) { setze({ paket: p.key, limit: p.limits[p.limits.length - 1] }); setDeckIndex(paketIndex(p.key)); }
+      const vorab = auskunftVorabAus(q.toString());
+      if (vorab) setze({ auskunftVorab: vorab });
     } catch { /* egal */ }
 
     // Abgleich: Es gibt schon einen Antrag in diesem Tab — gilt das Antrags-Cookie noch, und was weiß der Server

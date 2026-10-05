@@ -7,6 +7,7 @@ import {
   type Beruf, type Eintraege, type Land, type Seit, type Wohnen,
 } from "@shared/fiaon-antrag-neu";
 import { messungsDaten, metaEreignis, META_EREIGNIS } from "@/lib/werbung";
+import { paketPreisCents } from "@shared/fiaon-pakete";
 import { Feld, Ico, Knopf, Lead, Seg, Tipp, Tippbar, Titel, Warum, useAntrag, useFehler } from "./bausteine";
 import { api } from "./api";
 import { datenAus, paket, schoen } from "./zustand";
@@ -144,7 +145,8 @@ export function SchrittKontakt() {
       }
       const ref = r.json.ref;
       setze({ ref, email });
-      metaEreignis(META_EREIGNIS.antragBegonnen, ref, { content_name: paket(S.paket).name, value: 0 });
+      // E-283: Wert = Monatsrate des (vor)gewählten Pakets, wie im alten Antrag (dort pack.fee) — vorher 0.
+      metaEreignis(META_EREIGNIS.antragBegonnen, ref, { content_name: paket(S.paket).name, value: paketPreisCents(S.paket) / 100 });
       weiter();
     } finally {
       laeuft.current = false;

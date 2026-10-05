@@ -222,13 +222,14 @@ export function SchrittErgebnis() {
 // Paket — das Kartendeck (Wischen, Pfeile), Limit groß, Preis leise
 // ═══════════════════════════════════════════════════════════════════════════
 export function SchrittPaket() {
-  const { S, gehe, deckIndex, deckGehe, paketWaehlen, oeffneSheet, speichern, ereignis } = useAntrag();
+  const { S, gehe, deckIndex, deckGehe, paketWaehlen, oeffneSheet, speichern, ereignis, sitzung } = useAntrag();
   const i = deckIndex;
   const P = ANTRAG_NEU_PAKETE[i] ?? ANTRAG_NEU_PAKETE[1];
   const N = ANTRAG_NEU_PAKETE[i + 1] ?? null;
   const los = () => {
     const teil = paketWaehlen(P.key);
     ereignis("paket", { schritt: "paket", detail: P.key });
+    api.klick("pack_select", S.ref, sitzung, { pack: P.key });
     void speichern("paket", teil);
     gehe(S.rueckZu === "vertrag" || S.rueckZu === "unterschrift" ? "limit" : "limit");
   };
@@ -632,13 +633,16 @@ function Posten({ n, label, anzeige, kopie, mono, unter }: { n: number; label: s
 }
 
 export function SchrittZahlung() {
-  const { S, setze, gehe, oeffneSheet, ereignis, toast } = useAntrag();
+  const { S, setze, gehe, oeffneSheet, ereignis, toast, sitzung } = useAntrag();
   const P = paket(S.paket);
   const [daten, setDaten] = useState<{ betrag: number; faellig: string | null; referenz: string } | null>(
     S.paymentReference ? { betrag: Number(S.betrag) || rate(S.paket), faellig: S.faellig, referenz: S.paymentReference } : null);
   const [geraet, setGeraet] = useState<"handy" | "pc">(() => { try { return window.matchMedia("(pointer: coarse)").matches ? "handy" : "pc"; } catch { return "handy"; } });
   const [meldet, setMeldet] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+
+  // Für die Akte der Mitarbeiter (wie der alte Antrag): „Zahlungsseite (Überweisung) geöffnet".
+  useEffect(() => { api.klick("checkout_bank_transfer", S.ref, sitzung, { packKey: S.paket }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!S.paymentReference) return;
@@ -708,7 +712,7 @@ export function SchrittZahlung() {
           : <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => oeffneSheet(<TerminWahl art="vorher" />)}>Fragen vor der Überweisung? Wir rufen Sie an.</button>}
       </div>
       <div className="an-chips" style={{ justifyContent: "center" }}>
-        <a className="an-chip" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none", color: "inherit" }} href={api.vertragPdf(S.ref!)} target="_blank" rel="noopener" onClick={() => ereignis("vertrag_pdf", { schritt: "zahlung" })}>Vertrag (PDF)</a>
+        <a className="an-chip" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none", color: "inherit" }} href={api.vertragPdf(S.ref!)} target="_blank" rel="noopener" onClick={() => { ereignis("vertrag_pdf", { schritt: "zahlung" }); api.klick("contract_download", S.ref, sitzung); }}>Vertrag (PDF)</a>
         <a className="an-chip" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none", color: "inherit" }} href={api.rechnung(S.ref!)} target="_blank" rel="noopener" onClick={() => ereignis("rechnung_pdf", { schritt: "zahlung" })}>Rechnung (PDF)</a>
       </div>
       {S.bezahlt ? <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => { toast("Ihre Zahlung ist schon da."); gehe("danke"); }}>Zahlung ist schon da – weiter</button> : null}
@@ -845,7 +849,10 @@ function StartBox() {
 
 function AuskunftBox() {
   const { S, setze, oeffneSheet, ereignis } = useAntrag();
-  const [wahl, setWahl] = useState<"" | "besorgen" | "selbst" | "habe">("");
+  // E-283: Kam der Kunde über einen Link „mit Auskunft" (?auskunft=1, src=auskunft), ist „Wir besorgen
+  // sie für Sie" vorgewählt. Bestellt wird trotzdem erst im Sheet — mit Haken und Knopf, wie immer.
+  const gewuenscht = S.auskunftVorab === "gewuenscht";
+  const [wahl, setWahl] = useState<"" | "besorgen" | "selbst" | "habe">(() => (gewuenscht ? "besorgen" : ""));
   const wort = S.land === "DE" ? "SCHUFA-Auskunft" : S.land === "AT" ? "KSV-Auskunft" : "Bonitätsauskunft";
   if (S.auskunft === "bestellt") {
     return (
@@ -853,6 +860,20 @@ function AuskunftBox() {
         <span className="an-marke">Bonitätsauskunft</span>
         <div className="an-erledigt-zeile">Bestellt zum Kundenpreis von 74 €</div>
         <p>{S.bezahlt ? "Ihre erste Rate ist da – Rechnung und Zahlungsdaten der Auskunft kommen per E-Mail." : "Rechnung und Zahlungsdaten kommen erst nach Ihrer ersten Paketzahlung per E-Mail. Ihre Überweisung von heute bleibt, wie sie ist."}</p>
+      </div>
+    );
+  }
+  // E-283: Liegt die Auskunft schon vor (src=auskunft_da, Mail „Ihre Auskunft ist da") oder ist sie schon
+  // bestellt (auskunft=0, von ihrer Zahlungsseite) — keine zweite anbieten.
+  if (S.auskunftVorab === "da" || S.auskunftVorab === "bestellt") {
+    const da = S.auskunftVorab === "da";
+    return (
+      <div className="an-box" data-fiaon="antrag-neu-auskunft-vorab">
+        <span className="an-marke">Bonitätsauskunft</span>
+        <div className="an-erledigt-zeile">{da ? "Ihre Auskunft liegt schon vor" : "Ihre Auskunft ist schon bestellt"}</div>
+        <p>{da
+          ? "Sie haben Ihre Bonitätsauskunft bereits über FIAON bekommen – eine zweite brauchen Sie nicht."
+          : "Sie haben Ihre Bonitätsauskunft bereits bei uns bestellt – eine zweite brauchen Sie nicht."}</p>
       </div>
     );
   }
@@ -887,6 +908,7 @@ function AuskunftBox() {
       <span className={`an-marke${empfohlen ? " an-warm" : ""}`}>{empfohlen ? "Für Ihre Lage wichtig" : "Damit wir starten können"}</span>
       <h2>Ihre {wort}.</h2>
       <p>Mit Ihrer Auskunft sehen wir, was die Bank sieht – und richten Ihren Weg zur Karte genau danach aus.</p>
+      {gewuenscht ? <p className="an-klein" style={{ margin: 0 }}>Sie kommen über das Angebot mit Bonitätsauskunft – „Wir besorgen sie für Sie“ ist schon ausgewählt. Bestellt ist sie erst, wenn Sie sie ansehen und bestätigen.</p> : null}
       <div className="an-liste" role="radiogroup" aria-label="Ihre Auskunft">
         {w("besorgen", "Wir besorgen sie für Sie", "74 € als FIAON-Kunde · einzeln 149 € · einmalig, kein Abo. Fällig erst nach Ihrer ersten Paketzahlung.")}
         {w("selbst", "Ich fordere sie selbst kostenlos an", "Die Datenkopie steht Ihnen kostenlos zu. Die Antwort kommt per Post, spätestens nach einem Monat.")}

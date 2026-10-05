@@ -113,7 +113,8 @@ const de = {
   zwischenrufA: "Nicht sicher, welches Paket?", zwischenrufB: " Drei Fragen im Paketfinder oben – oder 15 Minuten mit einem Mitarbeiter.",
   paketfinder: "Paketfinder", kontakt: "Kontakt aufnehmen",
   abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.",
-  abschlussText: (ab: string) => `Antrag in zwei Minuten, jeder Eintrag Ihrer Auskunft erklärt, ein Mensch, der Sie durch alles führt – ab ${ab} im Monat, zwölf Raten.`,
+  // 05.10.2026 (E-283): „Antrag in zwei Minuten“ galt für den alten Antrag; im neuen dauern die Angaben rund fünf.
+  abschlussText: (ab: string) => `Ihre Angaben in rund fünf Minuten, jeder Eintrag Ihrer Auskunft erklärt, ein Mensch, der Sie durch alles führt – ab ${ab} im Monat, zwölf Raten.`,
   mitStarten: (paket: string) => `Mit ${paket} starten`, nurDieAuskunft: "Nur die Auskunft",
 };
 
@@ -206,7 +207,7 @@ const en: typeof de = {
   zwischenrufA: "Not sure which plan?", zwischenrufB: " Three questions in the plan finder above — or 15 minutes with one of our team.",
   paketfinder: "Plan finder", kontakt: "Get in touch",
   abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.",
-  abschlussText: (ab: string) => `Application in two minutes, every entry in your report explained, a person who guides you through everything — from ${ab} a month, twelve instalments.`,
+  abschlussText: (ab: string) => `Your details in about five minutes, every entry in your report explained, a person who guides you through everything — from ${ab} a month, twelve instalments.`,
   mitStarten: (paket: string) => `Start with ${paket}`, nurDieAuskunft: "Report only",
 };
 

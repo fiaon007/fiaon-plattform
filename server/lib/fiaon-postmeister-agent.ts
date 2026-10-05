@@ -872,9 +872,9 @@ export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null):
       return `${zielSatz("Ihre Visa-Kreditkarte bleibt unser gemeinsames Ziel")}\n\nOffen ist bei Ihnen Ihre Rate vom [Fälligkeit] über [Betrag] (Verwendungszweck [Verwendungszweck]). Überweisen Sie sie am besten gleich heute — über den Knopf unten haben Sie alles sofort zur Hand.`;
     case "abbrecher":
       // E-264: nie abgeschickt — kein Satz zur Rate, der Schritt ist sein Antrag. Nie „nur noch einen Schritt“.
-      return `${ziel ? `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ${kartenzielText(ziel, { alsZiel: true })} ist Ihr Antrag — ${BANK_SATZ}.` : "Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ist Ihr Antrag."} Ihre Angaben sind gespeichert, in etwa zwei Minuten ist er fertig — der Knopf unten bringt Sie genau dorthin, wo Sie aufgehört haben.`;
+      return `${ziel ? `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ${kartenzielText(ziel, { alsZiel: true })} ist Ihr Antrag — ${BANK_SATZ}.` : "Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ist Ihr Antrag."} Ihre Angaben sind gespeichert, in etwa fünf Minuten ist er fertig — der Knopf unten bringt Sie genau dorthin, wo Sie aufgehört haben.`;
     case "c":
-      return "Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa zwei Minuten, und über den Rahmen entscheidet am Ende die Bank. Der Knopf unten bringt Sie direkt hin.";
+      return "Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa fünf Minuten, und über den Rahmen entscheidet am Ende die Bank. Der Knopf unten bringt Sie direkt hin.";
     case "b":
     default:
       // E-275 Ton (02.10.2026, Justin: „Zahlen Sie die Aktivierung … Ihr Account ist sofort nach Eingang aktiv!“): die klare

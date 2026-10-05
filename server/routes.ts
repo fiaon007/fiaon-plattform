@@ -738,7 +738,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAntragNeu = await import('./routes/fiaon-antrag-neu');
   app.use('/api/fiaon', fiaonAntragNeu.default);
   // 🔀 Die Weiche alt/neu (E-282): GET /antrag schickt einen Anteil der neuen Besucher auf /antrag-neu
-  //    (Einstellung antrag_neu_anteil, Vorgabe 0 = aus). Läuft vor dem Ausliefern der Seite
+  //    (Einstellung antrag_neu_anteil; ohne Zeile die Render-Variable ANTRAG_NEU_ANTEIL, sonst 0 = aus,
+  //    E-283). Läuft vor dem Ausliefern der Seite
   //    (setupVite/serveStatic kommen in index.ts erst nach registerRoutes). Dazu der Vergleich
   //    alt/neu und die Einstellung unter /admin/finance (adminCodeGate hängt weiter oben).
   const fiaonAntragWeiche = await import('./lib/fiaon-antrag-weiche');
@@ -909,8 +910,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(unbekannt ? 404 : 200);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      // Eine Fehlerseite bleibt in keinem Zwischenspeicher liegen.
-      res.setHeader('Cache-Control', unbekannt ? 'no-store' : 'public, max-age=300');
+      // Eine Fehlerseite bleibt in keinem Zwischenspeicher liegen. Die Antragsseiten auch nicht
+      // (05.10.2026, E-283): Bei /antrag entscheidet die Weiche je Aufruf (302 auf /antrag-neu) —
+      // mit max-age=300 hätte bis zu fünf Minuten der Browser-Speicher statt der Weiche entschieden.
+      const antragSeite = /^\/antrag(-neu)?\/?$/i.test(req.path);
+      res.setHeader('Cache-Control', unbekannt || antragSeite ? 'no-store' : 'public, max-age=300');
       res.send(html);
     } catch (e) { console.error('[SEITEN-SEO]', e); next(); }
   });

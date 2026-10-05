@@ -92,7 +92,7 @@ export default function LoginPage() {
               )}
 
               <button type="submit" className="dk-knopf lg-knopf" disabled={laeuft}>{laeuft ? "Wird geprüft …" : "Anmelden"}</button>
-              <p className="lg-unten">Noch kein Konto? <a href="/antrag">In zwei Minuten eröffnen</a></p>
+              <p className="lg-unten">Noch kein Konto? <a href="/antrag">Antrag stellen</a></p>
             </form>
           </Auf>
           <Auf verzoegerung={150}>
@@ -115,7 +115,8 @@ export default function LoginPage() {
           <div className="dk-raster" style={{ textAlign: "left", marginTop: 36 }}>
             <Auf><Glas tag="Passwort vergessen" titel="Neu setzen in einer Minute">Sie bekommen einen Link an Ihre E-Mail-Adresse. Der Link ist 60 Minuten gültig; danach fordern Sie einfach einen neuen an.<div className="dk-knoepfe" style={{ marginTop: 16 }}><Knopf href="/passwort-vergessen" still>Passwort zurücksetzen</Knopf></div></Glas></Auf>
             <Auf verzoegerung={80}><Glas tag="Antrag unterbrochen" titel="Genau dort weitermachen">Ihre Angaben sind gespeichert. Mit dem Link aus unserer E-Mail landen Sie im Antrag an der Stelle, an der Sie aufgehört haben – ohne neu zu beginnen.<div className="dk-knoepfe" style={{ marginTop: 16 }}><Knopf href="/antrag" still>Zum Antrag</Knopf></div></Glas></Auf>
-            <Auf verzoegerung={160}><Glas tag="Noch kein Konto" titel="In zwei Minuten eröffnen">Paket wählen, wenige Angaben, Vertrag annehmen – und Sie sind in Ihrem Bereich. Die Zahlung und das erste Gespräch wählen Sie dort.<div className="dk-knoepfe" style={{ marginTop: 16 }}><Knopf href="/antrag">Konto eröffnen</Knopf></div></Glas></Auf>
+            {/* E-283 (05.10.2026): der Ablauf des neuen Antrags — vorher „In zwei Minuten eröffnen … Paket wählen, wenige Angaben, Vertrag annehmen“. */}
+            <Auf verzoegerung={160}><Glas tag="Noch kein Konto" titel="Antrag in rund fünf Minuten">Ihre Angaben, die Prüfung direkt im Antrag, Ihre persönliche PIN, Paket und Vertrag – danach die erste Monatsrate per Überweisung, und Ihr Bereich ist eingerichtet.<div className="dk-knoepfe" style={{ marginTop: 16 }}><Knopf href="/antrag">Konto eröffnen</Knopf></div></Glas></Auf>
           </div>
         </Block>
         <Block pille="Sicherheit" mitte>

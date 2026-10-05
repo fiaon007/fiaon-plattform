@@ -122,13 +122,30 @@ export const SCHRITT_TEXT: Record<number, string> = {
   4: "Schritt 3 von 5 — Bonitätsprüfung", 5: "Schritt 3 von 5 — Ihr Rahmen steht", 6: "Schritt 4 von 5 — Vertrag annehmen", 7: "Schritt 4 von 5 — Vertrag annehmen",
 };
 
+/**
+ * Die Schritte des NEUEN Antrags (05.10.2026, E-283) — current_step, wie
+ * server/routes/fiaon-antrag-neu.ts (STAND) ihn schreibt: 1 Angaben, 2 Beruf
+ * und Einkommen, 4 Prüfung, 5 Ergebnis/PIN/Paket/Limit, 6 Vertrag und
+ * Unterschrift. Ohne „von 5" (der neue Weg zählt anders) und ohne „Rahmen
+ * steht"/„genehmigt" — über Karte und Limit entscheidet die Bank.
+ */
+export const NEU_SCHRITT_TEXT: Record<number, string> = {
+  1: "Ihre Angaben", 2: "Beruf und Einkommen", 4: "Prüfung", 5: "Persönliche PIN, Paket und Limit", 6: "Vertrag",
+};
+
+/** Der Schritt in Worten — je Weg (antrag_weg „neu" oder alt). Eine Quelle für Lauf und Handversand. */
+export function schrittText(schritt: number, weg: string | null | undefined): string {
+  if (weg === "neu") return NEU_SCHRITT_TEXT[schritt] || "Ihr Antrag";
+  return SCHRITT_TEXT[schritt] || `Schritt ${schritt}`;
+}
+
 /** Der Lauf — alle fünf Minuten. Gibt die Zahl der verschickten Mails zurück. */
 export async function antragErinnerungenLauf(): Promise<number> {
   await ensureAntragErinnerungSpalten();
   await globalKundeBereit(); // E-272: die Auswahl liest fiaon_global_angebote
   const { sendMakeWebhook } = await import("../make-webhook");
   const kandidaten = (await sqlPool`
-    SELECT a.ref, a.email, a.first_name, a.last_name, a.pack_name, a.pack_key, a.current_step, a.type,
+    SELECT a.ref, a.email, a.first_name, a.last_name, a.pack_name, a.pack_key, a.current_step, a.type, a.antrag_weg,
            a.antrag_erinnerung_stufe AS stufe, a.antrag_erinnerung_am AS letzte_am,
            COALESCE(a.antrag_stand_am, a.updated_at, a.created_at) AS stand_am
     FROM fiaon_applications a
@@ -167,17 +184,18 @@ export async function antragErinnerungenLauf(): Promise<number> {
     `) as any[];
     if (claimed.length === 0) continue;
     const schritt = Number(k.current_step || 1);
+    const text = schrittText(schritt, k.antrag_weg);
     const ok = await sendMakeWebhook("antrag_erinnerung", {
       email: String(k.email), vorname: k.first_name || null, nachname: k.last_name || null,
       antrag_id: k.ref, paket: k.pack_name || null, pack_key: k.pack_key || null,
-      schritt: schritt, schritt_text: SCHRITT_TEXT[schritt] || `Schritt ${schritt}`,
+      schritt: schritt, schritt_text: text,
       weiter_link: weiterLink(String(k.ref)), erinnerung_nr: stufe,
       portal_url: absoluteUrl("/antrag"),
     } as any).catch(() => false);
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
       VALUES (${k.ref}, NULL, 'System', 'system',
-              ${`Antrags-Erinnerung ${stufe}/${STUFEN_MAX} ${ok ? "verschickt" : "NICHT verschickt (Make)"} — ${SCHRITT_TEXT[schritt] || `Schritt ${schritt}`}.`}, NOW())
+              ${`Antrags-Erinnerung ${stufe}/${STUFEN_MAX} ${ok ? "verschickt" : "NICHT verschickt (Make)"} — ${text}.`}, NOW())
     `.catch(() => {});
     if (ok) n++;
   }

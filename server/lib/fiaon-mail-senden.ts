@@ -439,7 +439,7 @@ async function linkBaustein(
   // nie (1 Versand seit Bestehen); das steht als offene Entscheidung im Bericht.
   if (eventType === "antrag_erinnerung" && !hat("weiter_link")) {
     const [e] = (await lauf`
-      SELECT ref, current_step, pack_name FROM fiaon_applications
+      SELECT ref, current_step, pack_name, antrag_weg FROM fiaon_applications
        WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
          AND gdpr_deleted_at IS NULL
          AND COALESCE(payment_status, 'pending') = 'pending'
@@ -448,11 +448,12 @@ async function linkBaustein(
        ORDER BY created_at DESC LIMIT 1
     `) as any[];
     if (!e) return { links, fehler: "Dieser Kunde hat keinen begonnenen Antrag — es gibt nichts fortzusetzen." };
-    const { weiterLink, SCHRITT_TEXT } = await import("./fiaon-antrag-erinnerung");
+    const { weiterLink, schrittText } = await import("./fiaon-antrag-erinnerung");
     const schritt = Number(e.current_step || 1);
     links.weiter_link = weiterLink(String(e.ref));
     links.antrag_id = String(e.ref);
-    setze("schritt_text", SCHRITT_TEXT[schritt] || `Schritt ${schritt}`);
+    // E-283: je Weg — ein Antrag aus /antrag-neu hat eigene Schritte (kein „Schritt 3 von 5 — Ihr Rahmen steht").
+    setze("schritt_text", schrittText(schritt, e.antrag_weg));
     if (e.pack_name) setze("paket", String(e.pack_name).split("\n")[0].trim());
   }
 

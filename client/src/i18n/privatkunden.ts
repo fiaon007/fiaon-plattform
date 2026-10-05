@@ -82,7 +82,8 @@ const de = {
     { f: "Wie erreiche ich meine Ansprechpartnerin?", a: "Im Bereich, per E-Mail, telefonisch – und für viele Kunden per WhatsApp. Jede Frage landet bei der Person, die Ihre Akte kennt." },
   ],
   abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einem Klick.",
-  abschlussText: "Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie bis zur Karte begleitet.",
+  // 05.10.2026 (E-283): „Konto in zwei Minuten“ galt für den alten Antrag; im neuen dauern die Angaben rund fünf.
+  abschlussText: "Ihre Angaben in rund fünf Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie bis zur Karte begleitet.",
   bereichAnsehen: "Den Bereich ansehen",
 };
 
@@ -164,7 +165,7 @@ const en: typeof de = {
     { f: "How do I reach my contact person?", a: "In your area, by e-mail, by phone — and for many customers by WhatsApp. Every question lands with the person who knows your file." },
   ],
   abschlussA: "Your journey starts ", abschlussB: "with one click.",
-  abschlussText: "An account in two minutes. Your report within 24 hours. A person who stays with you all the way to the card.",
+  abschlussText: "Your details in about five minutes. Your report within 24 hours. A person who stays with you all the way to the card.",
   bereichAnsehen: "See the customer area",
 };
 

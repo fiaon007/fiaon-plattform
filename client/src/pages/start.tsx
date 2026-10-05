@@ -3,7 +3,6 @@ import GlassNav from "@/components/GlassNav";
 import { LandWahl } from "@/components/LandWahl";
 import { LAENDER, betrag, gebuehr, landLesen, landSchreiben, type Land } from "@/lib/fiaon-land";
 import PremiumFooter from "@/components/PremiumFooter";
-import { antragEinstiegLink } from "@shared/fiaon-antrag-einstieg";
 
 /* ════════════════════════════════════════════
    FIAON · WhatsApp Landing  /start
@@ -80,9 +79,17 @@ const PACKS = [
     feats: (l: Land) => [`Ihr ${betrag("25.000", l)} Black-Card Setup`, "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
 ];
 
-/* ── Paket, Werbe-Kennungen und Herkunft in den Antrag (E-283: ohne erzwungenes src=wa) ── */
+/* ── propagate UTM/src to antrag ── */
 function antragLink(pack?: string) {
-  return antragEinstiegLink(pack, typeof window === "undefined" ? "" : window.location.search);
+  if (typeof window === "undefined") return pack ? `/antrag?pack=${pack}&src=wa` : "/antrag?src=wa";
+  const params = new URLSearchParams(window.location.search);
+  const out = new URLSearchParams();
+  if (pack) out.set("pack", pack);
+  out.set("src", params.get("src") || "wa");
+  ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "ref"].forEach(k => {
+    const v = params.get(k); if (v) out.set(k, v);
+  });
+  return `/antrag?${out.toString()}`;
 }
 
 /* ════════════════════════════════════════════
@@ -295,13 +302,12 @@ function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 <span className="absolute inline-flex w-full h-full rounded-full bg-[#2563eb] opacity-60 animate-ping" />
                 <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[#2563eb]" />
               </span>
-              {/* E-283: vorher „Schritt 1 von 2“ — der neue Antrag hat Angaben, Prüfung, PIN, Paket, Vertrag. */}
-              Ihre Angaben: rund 5 Minuten
+              Schritt 1 von 2
             </div>
             <h3 className="text-[22px] sm:text-[24px] font-semibold tracking-tight text-gray-900 leading-snug">
               Wählen Sie Ihr <G>Wunschlimit</G>
             </h3>
-            <p className="text-[13px] text-gray-500 mt-1.5">Zahlung erst nach der Prüfung Ihres Antrags</p>
+            <p className="text-[13px] text-gray-500 mt-1.5">0 € heute — Zahlung erst nach Freigabe</p>
           </div>
 
           <div className="space-y-2.5">
@@ -430,8 +436,7 @@ function Hero({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElement>;
         {/* Trust pill */}
         <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur shadow-sm mb-8 sm:mb-9" style={{ animation: "startCardEnter .55s cubic-bezier(.22,1,.36,1) both" }}>
           <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-          {/* E-283: vorher „Entscheidung in 120 Sekunden · 100 % kostenlos“ — über Karte und Limit entscheidet die Bank. */}
-          <span className="text-[12px] sm:text-[13px] font-semibold text-gray-600">Antrag in rund <b className="text-gray-900">5 Minuten</b> · Prüfung direkt im Antrag</span>
+          <span className="text-[12px] sm:text-[13px] font-semibold text-gray-600">Entscheidung in <b className="text-gray-900">120 Sekunden</b> · 100&nbsp;% kostenlos</span>
         </div>
 
         {/* Headline */}
@@ -577,8 +582,7 @@ function Pains() {
     // Seite für jemand anderen geschrieben wurde. „Ihre bisherige" gilt
     // überall und sagt dasselbe.
     { icon: <path d="M3 12l3 3 15-15" />, t: `${LAENDER[land].register}? Egal.`, d: "Wir arbeiten mit dem US-Credit-Building-System. Ihre bisherige Bonitätsgeschichte ist kein Teil unserer Gleichung." },
-    // E-283: vorher „Echtzeit-Freigabe … in unter 120 Sekunden“ — der Antrag prüft Angaben, er gibt kein Limit frei.
-    { icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>, t: "Ergebnis sofort.", d: `Kein Aktenordner, keine ${LAENDER[land].register}-Abfrage: Anschrift, Kontakt und laufende Verträge prüfen wir direkt im Antrag.` },
+    { icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>, t: "Echtzeit-Freigabe.", d: "Kein Aktenordner. Kein Sachbearbeiter. Algorithmische Bonitäts-Kalibrierung in unter 120 Sekunden." },
     { icon: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 11h18M7 16h3" /></>, t: "Sofort einsatzbereit.", d: "Virtuelle Karte direkt im Hub. Physische Metal-Card per Express binnen 48 h." },
   ];
   return (
@@ -627,7 +631,7 @@ function Packages() {
             <G>Wählen Sie Ihr Limit. Der Rest läuft automatisch.</G>
           </h2>
           <p className="text-gray-500 text-[15px] leading-relaxed max-w-[520px] mx-auto">
-            Vom Fundament bis zur Black Card — <b className="text-gray-700">Sie zahlen erst, wenn Ihr Antrag die Prüfung bestanden hat.</b> Keine Vorkasse. Zwölf Monatsraten, danach monatlich kündbar.
+            Vom Fundament bis zur Black Card — <b className="text-gray-700">Sie zahlen erst, wenn Ihr Limit freigegeben ist.</b> Keine Vorkasse. Zwölf Monatsraten, danach monatlich kündbar.
           </p>
           <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200/70">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
@@ -705,7 +709,7 @@ function Packages() {
                     <span className="relative z-10">{p.rec ? `${p.lim} € Limit prüfen` : "Limit prüfen"}</span>
                     {p.rec && <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent)", animation: "startShimmer 3s ease-in-out infinite" }} />}
                   </a>
-                  <p className="mt-2.5 text-center text-[11px] text-gray-400 font-medium">Zahlung erst nach der Prüfung Ihres Antrags</p>
+                  <p className="mt-2.5 text-center text-[11px] text-gray-400 font-medium">0 € heute — Zahlung erst nach Freigabe</p>
                 </div>
               </div>
             </div>
@@ -713,7 +717,7 @@ function Packages() {
         </div>
         <p className="text-center text-[12px] text-gray-400 mt-6">
           <svg className="inline-block mr-1 -mt-0.5" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-          Zwölf Monatsraten, danach monatlich kündbar · Keine versteckten Gebühren · Besteht Ihr Antrag die Prüfung nicht, zahlen Sie nichts
+          Zwölf Monatsraten, danach monatlich kündbar · Keine versteckten Gebühren · Werden Sie abgelehnt, zahlen Sie nichts
         </p>
       </div>
     </section>
@@ -762,14 +766,11 @@ function UseCases() {
    HOW IT WORKS
    ════════════════════════════════════════════ */
 function HowItWorks() {
-  const land = useLand();
   const obs = useReveal();
-  // E-283 (05.10.2026): der Ablauf des neuen Antrags — vorher „Unter 2 Minuten“, „Algorithmische
-  // Freigabe … Limit-Ziel in Sekunden“ und „Virtuelle Karte sofort“. Die Karte gibt die Bank aus.
   const steps = [
-    { n: "01", t: "Antrag stellen", d: "Ihre Angaben in rund 5 Minuten, direkt am Handy. Kein Papierkram." },
-    { n: "02", t: "Prüfung und Vertrag", d: `Wir prüfen Ihre Angaben direkt im Antrag – ohne ${LAENDER[land].register}-Abfrage. Dann wählen Sie Paket und Ziel-Limit und unterschreiben am Bildschirm.` },
-    { n: "03", t: "Erste Rate, dann die Bank", d: "Nach Ihrer ersten Monatsrate per Überweisung bekommen Sie den Link zum Kartenantrag unserer Partnerbank. Über Karte und Limit entscheidet die Bank." },
+    { n: "01", t: "Antrag stellen", d: "Daten eingeben, Paket wählen. Unter 2 Minuten. Kein Papierkram." },
+    { n: "02", t: "Algorithmische Freigabe", d: "Unsere Engine analysiert Ihr Profil live. Limit-Ziel in Sekunden kalibriert." },
+    { n: "03", t: "Karte aktiv", d: "Virtuelle Karte sofort im Hub. Physische Metal-Card per Express binnen 48 h." },
   ];
   return (
     <section className="py-20 sm:py-28 relative" ref={obs.ref} style={{ background: "linear-gradient(180deg,#ffffff 0%, #f8faff 100%)" }}>
@@ -811,7 +812,7 @@ function Testimonials() {
   const reviews = [
     { n: LAENDER[land].namen[0], c: LAENDER[land].staedte[0], t: "vor 3 Tagen", q: `Nach 2 Bank-Absagen wegen ${LAENDER[land].register} hatte ich hier in unter 3 Minuten mein ${betrag("15.000", land)} Limit. Ich dachte erst, das ist zu gut um wahr zu sein — ist es nicht.`, lim: betrag("15.000", land) },
     { n: LAENDER[land].namen[1], c: LAENDER[land].staedte[1], t: "vor 1 Woche", q: "Kein Papierkram, keine peinlichen Fragen, keine Vorkasse. Antrag abends auf der Couch gestellt, Karte war sofort im Dashboard. Genau so muss das 2026 laufen.", lim: betrag("5.000", land) },
-    { n: LAENDER[land].namen[2], c: LAENDER[land].staedte[2], t: "vor 2 Wochen", q: `Ich war skeptisch wegen „ohne ${LAENDER[land].register}". Aber: transparent, seriös. Habe direkt auf High End upgegradet.`, lim: betrag("25.000", land) },
+    { n: LAENDER[land].namen[2], c: LAENDER[land].staedte[2], t: "vor 2 Wochen", q: `Ich war skeptisch wegen „ohne ${LAENDER[land].register}". Aber: transparent, seriös, und die Gebühr kam wirklich erst NACH der Freigabe. Habe direkt auf High End upgegradet.`, lim: betrag("25.000", land) },
   ];
   return (
     <section className="py-20 sm:py-28" ref={obs.ref} style={{ background: "linear-gradient(180deg,#ffffff 0%, #f8faff 100%)" }}>
@@ -868,7 +869,7 @@ function SecurityStrip() {
         ? "AES-256-Verschlüsselung, Serverstandort Europa. Volle Datenhoheit, jederzeit Auskunft & Löschung."
         : "Serverstandort EU. Volle Datenhoheit, jederzeit Auskunft & Löschung.",
       icon: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></> },
-    { t: "Zahlung erst nach der Prüfung", d: "Keine Einrichtungsgebühr. Besteht Ihr Antrag die Prüfung nicht, entsteht kein Vertrag – und keine Kosten.", icon: <><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></> },
+    { t: "Zahlung erst nach Freigabe", d: "Keine Vorkasse, keine Einrichtungsgebühr. Abgelehnt = 0 € Kosten.", icon: <><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></> },
     { t: "14 Tage Widerrufsrecht", d: "Zwölf Monatsraten, danach monatlich kündbar. Den Vertrag können Sie 14 Tage lang ohne Grund widerrufen.", icon: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></> },
   ];
   return (
@@ -904,11 +905,10 @@ function FAQ() {
   const obs = useReveal();
   const [open, setOpen] = useState<number | null>(0);
   const qas = [
-    // E-283: Ablauf des neuen Antrags — vorher „erst fällig, wenn Ihr Limit freigegeben wurde“, „Freigabe in unter 120 Sekunden“.
-    { q: "Muss ich Vorkasse leisten?", a: "Vor der Prüfung zahlen Sie nichts. Ihre erste Monatsrate überweisen Sie erst, wenn Ihr Antrag die Prüfung bestanden hat und Sie den Vertrag unterschrieben haben – ohne Einrichtungsgebühr, ohne Kartendaten." },
-    { q: "Wie lange dauert es wirklich?", a: `Ihre Angaben dauern rund 5 Minuten, die Prüfung läuft direkt im Antrag – ohne ${LAENDER[land].register}-Abfrage. Nach Ihrer ersten Monatsrate bekommen Sie den Link zum Kartenantrag unserer Partnerbank. Über Karte und Limit entscheidet die Bank.` },
+    { q: "Muss ich Vorkasse leisten?", a: "Nein. Niemals. Die Paket-Gebühr wird erst fällig, wenn Ihr Limit freigegeben wurde. Zero Risiko auf Ihrer Seite." },
+    { q: "Wie lange dauert es wirklich?", a: "Antrag in unter 2 Minuten. Algorithmische Freigabe in unter 120 Sekunden. Virtuelle Karte sofort einsatzbereit." },
     { q: `Ist das in meiner ${LAENDER[land].register} sichtbar?`, a: "Nein. Zu 100 % neutral. Wir holen keine Auskunft ein. Ihr Score bleibt unangetastet." },
-    { q: "Was passiert, wenn ich abgelehnt werde?", a: "Besteht Ihr Antrag unsere Prüfung nicht, entsteht kein Vertrag – und keine Kosten. Das Ergebnis sehen Sie direkt im Antrag. Über Karte und Limit entscheidet danach allein die Bank; mit Ihrem Paket bereiten wir Sie auf diese Entscheidung vor." },
+    { q: "Was passiert, wenn ich abgelehnt werde?", a: "Dann zahlen Sie nichts. Unsere Engine ist transparent – Sie sehen die Entscheidung direkt und wir geben Ihnen den strategischen Fahrplan zur Nachjustierung." },
     { q: "Wie lange läuft der Vertrag?", a: "Zwölf Monatsraten. Danach läuft er unbefristet weiter und ist jederzeit mit einem Monat Frist kündbar. Den Vertragsschluss können Sie 14 Tage lang ohne Grund widerrufen." },
     { q: `Funktioniert das auch bei negativem ${LAENDER[land].register}-Eintrag?`, a: "Ja. Genau dafür existieren wir. Wir nutzen das US-Credit-Building-System — Ihr bisheriger Score ist für uns kein Ausschlusskriterium." },
   ];
@@ -957,11 +957,10 @@ function Reversal({ onOpenPack }: { onOpenPack: () => void }) {
         <span className="inline-block mb-4 px-3.5 py-1 rounded-full text-[11px] font-bold tracking-[0.14em] uppercase text-[#93c5fd]"
           style={{ background: "rgba(37,99,235,0.14)", border: "1px solid rgba(37,99,235,0.28)" }}>Risiko-Umkehr</span>
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-white leading-[1.08] mb-5">
-          {/* E-283: vorher „bevor Ihr Limit aktiv ist“ — die erste Rate kommt nach der Prüfung und dem Vertrag. */}
-          Sie zahlen keinen Cent,<br /><span className="text-[#93c5fd]">bevor Ihr Antrag geprüft ist.</span>
+          Sie zahlen keinen Cent,<br /><span className="text-[#93c5fd]">bevor Ihr Limit aktiv ist.</span>
         </h2>
         <p className="text-[15px] sm:text-[17px] text-gray-300 leading-relaxed max-w-[560px] mx-auto mb-9">
-          Keine Einrichtungsgebühr. Kein versteckter Haken. Besteht Ihr Antrag die Prüfung nicht, entsteht kein Vertrag – und keine Kosten. Punkt.
+          Keine Einrichtungsgebühr. Keine Vorkasse. Kein versteckter Haken. Wenn wir nicht liefern, zahlen Sie nichts. Punkt.
         </p>
         <button type="button" onClick={onOpenPack}
           className="relative inline-flex items-center gap-2 px-9 py-4 rounded-full text-[16px] font-semibold text-white overflow-hidden group"
@@ -1009,7 +1008,7 @@ function StickyCTA({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElem
             <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">Ihre FIAON Karte</span>
           </div>
           <div className="text-[10.5px] leading-snug font-medium text-gray-600">
-            Beantragen Sie direkt – Ihre Angaben dauern <b className="text-gray-900">rund 5 Minuten</b>.
+            Beantragen Sie direkt & erfahren Sie Ihr Limit <b className="text-gray-900">in unter 2 Minuten</b>.
           </div>
         </div>
         <button type="button"
@@ -1043,7 +1042,7 @@ export default function StartPage() {
     let meta = document.querySelector(`meta[name="${metaName}"]`) as HTMLMetaElement | null;
     const prevDesc = meta?.content || "";
     if (!meta) { meta = document.createElement("meta"); meta.name = metaName; document.head.appendChild(meta); }
-    meta.content = "Bis 25.000 € Sofort-Limit. Schufaneutral. Keine Vorkasse. Antrag in rund 5 Minuten.";
+    meta.content = "Bis 25.000 € Sofort-Limit. Schufaneutral. Keine Vorkasse. In unter 5 Minuten einsatzbereit.";
 
     let robots = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
     const prevRobots = robots?.content || "";

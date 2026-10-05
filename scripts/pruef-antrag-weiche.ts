@@ -6,7 +6,7 @@
 // und mit der alten Erlaubtliste blieb /start auch bei 100 % beim alten Weg,
 // ohne dass es jemand merkte. Fünf Teile, alle ohne Datenbank und ohne Anfrage:
 //   1. Link-Ausnahme: Adresse → bleibt alt ja/nein (die Sperrliste).
-//   2. Der Link von /start (antragEinstiegLink) löst keine Ausnahme aus.
+//   2. Die Links von /start (unverändert: pack, src=wa, utm_*, ref) lösen keine Ausnahme aus.
 //   3. Die Regel bei 0 / 50 / 100 % mit und ohne Cookie, offenem Antrag, Roboter.
 //   4. Woher der Anteil kommt: Zeile im Chefbüro, Render-Variable, Vorgabe.
 //   5. Roboter-Muster: CUBOT ist ein Mensch, Googlebot nicht.
@@ -18,7 +18,6 @@
 import {
   weicheLinkAusnahme, weicheRegel, anteilBestimmen, anteilAusRender, istWeicheRoboter, type WeicheUrteil,
 } from "../server/lib/fiaon-antrag-weiche";
-import { antragEinstiegLink } from "../shared/fiaon-antrag-einstieg";
 import { auskunftVorabAus } from "../shared/fiaon-auskunft-buendel";
 
 let ok = 0, fehl = 0;
@@ -71,20 +70,16 @@ for (const [suche, erwartet, was] of LINKS) {
   pruef(`Link ${suche || "(leer)"} → ${erwartet ? "alt" : "Entscheidung"} (${was})`, weicheLinkAusnahme(suche) === erwartet, `bekam ${weicheLinkAusnahme(suche)}`);
 }
 
-// ── 2. Der Link von /start ────────────────────────────────────────────────
-{
-  const ein = "?utm_source=fb&utm_campaign=herbst&utm_id=42&fbclid=IwAR0&gclid=g1&src=wa&ref=zz&quelle=empfehlung&foo=bar&weiter=x.y.z";
-  const link = antragEinstiegLink("pro", ein);
-  const q = new URLSearchParams(link.split("?")[1] || "");
-  pruef("/start: Ziel bleibt /antrag", link.startsWith("/antrag?"), link);
-  pruef("/start: Paket dabei", q.get("pack") === "pro", link);
-  pruef("/start: utm_* dabei (auch utm_id)", q.get("utm_source") === "fb" && q.get("utm_campaign") === "herbst" && q.get("utm_id") === "42", link);
-  pruef("/start: fbclid, gclid, quelle, ref dabei", q.get("fbclid") === "IwAR0" && q.get("gclid") === "g1" && q.get("quelle") === "empfehlung" && q.get("ref") === "zz", link);
-  pruef("/start: kein src (weder erzwungen noch durchgereicht)", !q.has("src"), link);
-  pruef("/start: Fremdes (foo, weiter) bleibt draußen", !q.has("foo") && !q.has("weiter"), link);
-  pruef("/start: der Link löst keine Ausnahme aus", !weicheLinkAusnahme(link.slice(link.indexOf("?"))), link);
-  pruef("/start ohne Paket und ohne Parameter → /antrag", antragEinstiegLink(undefined, "") === "/antrag", antragEinstiegLink(undefined, ""));
-  pruef("/start nur Paket", antragEinstiegLink("highend", "?src=wa") === "/antrag?pack=highend", antragEinstiegLink("highend", "?src=wa"));
+// ── 2. Die Links von /start ───────────────────────────────────────────────
+// /start bleibt, wie es ist (Justin 05.10.2026: „entferne bei /start gar nichts“).
+// Seine Paketknöpfe bauen /antrag?pack=…&src=wa[&utm_*][&ref] — genau diese Form
+// muss die Sperrliste durchlassen, sonst bliebe /start beim alten Antrag.
+for (const suche of [
+  "?pack=start&src=wa", "?pack=pro&src=wa", "?pack=ultra&src=wa", "?pack=highend&src=wa",
+  "?pack=pro&src=wa&utm_source=fb&utm_medium=paid&utm_campaign=herbst&utm_term=t&utm_content=c",
+  "?pack=ultra&src=wa&ref=empfehlung", "?src=wa",
+]) {
+  pruef(`/start-Link ${suche} → Entscheidung (kein alter Weg)`, weicheLinkAusnahme(suche) === false, `bekam ${weicheLinkAusnahme(suche)}`);
 }
 
 // ── 3. Die Regel ──────────────────────────────────────────────────────────

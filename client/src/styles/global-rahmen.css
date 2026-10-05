@@ -138,6 +138,7 @@ html.fg-dokument #root { overflow-x:clip; }
 .gf-kontakt { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:20px !important; font-size:13.5px !important; }
 /* Die Punkte zwischen Telefon, E-Mail und „Mein Auftrag" blieben beim Umbruch allein am Zeilenende stehen — der Abstand trennt. */
 .gf-kontakt > span[aria-hidden] { display:none; }
+.gf-sozial { margin-top:18px !important; color:rgba(255,255,255,.86); }
 .gf-kontakt a { color:#fff; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,.3); }
 /* auto-fit: deutsch vier Spalten, englisch fünf (FIAON Global + die vier deutschen Themen „in German") — ohne Umbruch in eine zweite Reihe. */
 .gf-themen { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:28px 24px; }

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, type ComponentType } from "react";
 // Stil des Laders steht inline in index.html (E-287, shared/fiaon-startbuehne.ts) — vorher styles/laden.css.
-import { buehneInnen, HELLE_BUEHNE, BUEHNE_MINDESTENS_MS } from "@shared/fiaon-startbuehne";
+import { buehnenMotiv, buehneMindestensMs } from "@shared/fiaon-startbuehne";
 import { Umleitung } from "@/components/Umleitung";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 // Das Telefon des Office hängt an der App, nicht an der Seite (09.09.2026, E-169).
@@ -326,32 +326,34 @@ function admin(Component: ComponentType) {
 // hellen Rechtstexte. Vorher stand zwischen dem hellen Vorab-HTML bzw. zwei
 // hellen Business-Seiten für einen Augenblick die dunkle Weltkugel.
 // 25.09.2026 (E-241): /bonitaet ist keine helle Seite mehr, sondern die Weiterleitung auf die dunkle Übersicht.
-// 05.10.2026 (E-287): Die Weltkugel ist abgelöst — Justin wählte aus drei Entwürfen „Aufwärts“: eine
-// steigende Lichtkurve, dann steigen die Buchstaben der neuen Wortmarke auf. Derselbe Bildschirm steht
-// beim ersten Aufruf ab dem ersten Byte (Startbühne in index.html). Eine Quelle für beide.
-const HELLER_LADER = HELLE_BUEHNE;
-const LADER_INNEN = buehneInnen("R");
-function SeiteLaedt({ hell = false }: { hell?: boolean }) {
-  return <div className={hell ? "ld hell" : "ld"} role="status" aria-label="Seite wird geladen" dangerouslySetInnerHTML={{ __html: LADER_INNEN }} />;
+// 06.10.2026 (E-287): Die Weltkugel ist abgelöst. Zwei Welten, zwei Motive aus Justins Wahl: „Riffelglas“
+// (Privat) und „Fassade“ (FIAON Global, Business-Adressen) — shared/fiaon-startbuehne.ts. Derselbe Bildschirm
+// steht beim ersten Aufruf ab dem ersten Byte (Startbühne in index.html). Eine Quelle für beide.
+function SeiteLaedt({ pfad }: { pfad: string }) {
+  const m = buehnenMotiv(pfad, typeof window !== "undefined" ? window.location.search : "");
+  return <div className={`${m.klasse} lader`} role="status" aria-label={m.aria} dangerouslySetInnerHTML={{ __html: m.innen }} />;
 }
 
 /**
  * Nimmt die Startbühne aus index.html weg — erst, wenn die erste Seite wirklich steht: Diese Komponente
  * sitzt IN der Suspense-Grenze und wird erst eingehängt, wenn die Seite geladen ist. Mindestens so lange,
- * bis die Wortmarke gefüllt ist, damit nichts blitzt. Danach einmal sanft ausblenden.
+ * wie das Motiv für seinen Auftakt braucht. Dann bekommt die Wurzel des sichtbaren Motivs „weg“ (sein
+ * eigener Ausgang öffnet die Seite), danach wird die Hülle entfernt.
  */
 let startbuehneWeg = false;
 function StartbuehneWeg() {
   useEffect(() => {
     if (startbuehneWeg) return;
     startbuehneWeg = true;
-    const buehne = document.getElementById("fi-start");
-    if (!buehne) return;
-    const rest = Math.max(0, BUEHNE_MINDESTENS_MS - performance.now());
+    const huelle = document.getElementById("fi-start");
+    if (!huelle) return;
+    const motiv = buehnenMotiv(window.location.pathname, window.location.search);
+    const rest = Math.max(0, buehneMindestensMs(motiv) - performance.now());
     window.setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => {
-      buehne.classList.add("weg");
+      huelle.classList.add("zu");
+      huelle.querySelectorAll(".lader").forEach((l) => l.classList.add("weg"));
       document.documentElement.classList.remove("ld-an");
-      window.setTimeout(() => buehne.remove(), 650);
+      window.setTimeout(() => huelle.remove(), 950);
     })), rest);
   }, []);
   return null;
@@ -365,7 +367,7 @@ function Router() {
 
   return (
     <>
-    <Suspense fallback={<SeiteLaedt hell={HELLER_LADER.test(tabPfad)} />}>
+    <Suspense fallback={<SeiteLaedt pfad={tabPfad} />}>
     <StartbuehneWeg />
     <Switch>
       <Route path="/" component={FiaonHome} />

@@ -112,7 +112,9 @@ export function serveStatic(app: Express) {
     // Vorher antwortete der Server mit 200 + HTML; Safari verwarf das Stilblatt still und die App startete
     // ungestaltet (Justin, iPhone, 00:33 — eine Minute nach dem Deploy, als alte und neue Instanz parallel liefen).
     // Mit 404 meldet der Browser einen Fehler, und client/src/main.tsx lädt die Seite frisch.
-    if (req.originalUrl.startsWith("/assets/")) {
+    // Dasselbe für jede andere fehlende Datei mit Dateiendung (z. B. /favicon.ico vor E-292: HTML statt Symbol).
+    const pfadOhneQuery = req.originalUrl.split("?")[0];
+    if (req.originalUrl.startsWith("/assets/") || /\.(ico|png|jpe?g|gif|svg|webp|avif|css|m?js|map|woff2?|ttf|otf|mp4|webm|webmanifest)$/i.test(pfadOhneQuery)) {
       res.setHeader("Cache-Control", "no-store");
       return res.status(404).type("text/plain").send("Nicht gefunden");
     }

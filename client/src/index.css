@@ -1251,3 +1251,10 @@ a, button, input, select, textarea, label { touch-action: manipulation; }
 @keyframes mmZu{from{opacity:1;transform:none}to{opacity:0;transform:scale(.94) translateY(-6px)}}
 @keyframes mmZeile{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.mm-karte,.mm-zeile,.mm-fuss,.mm-schleier,.mm.zu .mm-karte,.mm.zu .mm-schleier{animation-duration:.01ms}}
+
+/* ═══ Social-Profile in den Fußzeilen (E-292) ═══ */
+.fi-sozial{display:flex;gap:10px;margin:0;padding:0;list-style:none}
+.fi-sozial a{display:grid;place-items:center;width:38px;height:38px;border-radius:999px;color:inherit;opacity:.78;
+  border:1px solid currentColor;border-color:color-mix(in srgb,currentColor 28%,transparent);transition:opacity .2s ease,transform .2s ease,border-color .2s ease}
+.fi-sozial a:hover,.fi-sozial a:focus-visible{opacity:1;transform:translateY(-2px);border-color:color-mix(in srgb,currentColor 60%,transparent)}
+@media (prefers-reduced-motion:reduce){.fi-sozial a{transition:none}.fi-sozial a:hover{transform:none}}

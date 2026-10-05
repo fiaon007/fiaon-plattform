@@ -19,6 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { UI, EN_FUSS } from "@shared/fiaon-sprache";
+import { SozialeLinks } from "@/components/site/SozialeLinks";
 import { useSprache, inSprache } from "@/i18n/sprache";
 import GlobalFuss from "@/components/site/GlobalFuss";
 import { useBusinessBereich } from "@/lib/bereich";
@@ -153,6 +154,7 @@ function PrivatFuss() {
             <div className="inline-block px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg">
               <span className="pf-text text-xs font-medium">{ui.fussAbzeichen}</span>
             </div>
+            <SozialeLinks en={en} className="mt-6 pf-text" />
           </div>
 
           <Spalte titel={ui.fussPlattform} links={en ? EN_PLATTFORM : PLATTFORM} zu={zu} />

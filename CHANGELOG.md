@@ -5,6 +5,23 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 — Ladeanimation „Riffelglas“ und „Fassade“, Favicon komplett, Instagram und Facebook (E-287 Abschluss, E-292)
+
+**E-287 — die Motive:** Justin wollte „andere, bessere“ Ladeanimationen und für Business eine eigene. Zwölf Entwürfe (Werkbank, Jury,
+Nachschliff), Justin wählte „Riffelglas“ (Privat: Licht läuft durch Glasrippen, FIAON wird scharf, zum Öffnen drehen die Rippen wie
+Lamellen auf) und „Fassade“ (FIAON Global: Säulen, Gebälk mit „FIAON Global“, LONDON · ZÜRICH · MIAMI; zum Öffnen geht man durch die
+Tür). Beide liegen in index.html; ein Skript im Kopf wählt vor dem ersten Bild per Adresse (Business = /business, /en/business,
+?bereich=business). Derselbe Bildschirm beim Seitenwechsel. Motive: shared/fiaon-startbuehne-motive.ts (erzeugt).
+
+**E-292 — an alles gedacht:** /favicon.ico war die HTML-Seite (Fallback) — jetzt das echte Symbol (16/32/48), dazu favicon-48/96/192,
+icon-192/512 („any“ für die Installation), Safari-Tab-Symbol, Windows-Kachel; Manifeste bereinigt (Maskable nur noch maskable),
+Browserfarbe Nachtblau #0a1628, alles ?v=3. Fehlende Dateien mit Dateiendung antworten jetzt 404 statt mit HTML. Instagram
+(@fiaon.ltd) und die Facebook-Seite „FIAON“ als offizielle Profile in den strukturierten Daten (sameAs, eine Liste
+shared/fiaon-sozial.ts) und als Links in beiden Fußzeilen. Letzte „ARAS AI“-Altlast in einer Mailvorlage durch FIAON ersetzt.
+
+**Wo:** shared/fiaon-startbuehne.ts, shared/fiaon-startbuehne-motive.ts, client/src/App.tsx, vite.config.ts, client/index.html,
+client/public/*, shared/fiaon-sozial.ts, client/src/components/site/SozialeLinks.tsx, server/lib/fiaon-seiten-seo.ts, server/vite.ts.
+
 ## 06.10.2026 — Florentine Lombardi Geschäftsführerin; nach einem Deploy nie mehr ungestaltet (E-290, E-291)
 
 **E-290:** Justin: „Florentine ist ab nächster Woche Geschäftsführerin, also das ändern bitte überall (außer auf den alten Posts).“

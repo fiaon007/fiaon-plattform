@@ -2,7 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
-import { BUEHNE_STIL, startbuehneHtml } from "./shared/fiaon-startbuehne";
+import { buehneKopf, startbuehneHtml } from "./shared/fiaon-startbuehne";
 
 // Generate build ID from timestamp (can be replaced with git SHA in CI)
 const BUILD_ID = process.env.VITE_BUILD_ID || `build-${Date.now()}`;
@@ -51,7 +51,7 @@ function startbuehne(): Plugin {
       handler(html) {
         if (!html.includes("<!--FIAON-STARTBUEHNE-->")) return html;
         return html
-          .replace("<!--FIAON-BUEHNE-STIL-->", `<style id="fi-buehne-stil">${BUEHNE_STIL}</style>`)
+          .replace("<!--FIAON-BUEHNE-STIL-->", buehneKopf())
           .replace("<!--FIAON-STARTBUEHNE-->", startbuehneHtml());
       },
     },

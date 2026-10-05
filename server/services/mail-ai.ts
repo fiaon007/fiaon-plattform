@@ -9,6 +9,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../logger';
+import { markeMailImg } from '@shared/fiaon-marke';
 
 // ============================================================================
 // TYPES
@@ -279,13 +280,13 @@ function wrapInArasTemplate(bodyHtml: string): string {
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">ARAS AI</div>
+      <div class="logo">${markeMailImg("weiss", 20)}</div>
     </div>
     <div class="content">
       ${bodyHtml}
     </div>
     <div class="footer">
-      <p class="footer-text"><span class="footer-brand">ARAS</span> — Premium Business Intelligence</p>
+      <p class="footer-text"><span class="footer-brand">FIAON LTD</span> · fiaon.com</p>
     </div>
   </div>
 </body>

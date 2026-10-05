@@ -12,6 +12,7 @@ import { useSprache } from "@/i18n/sprache";
 import { globalMenue } from "@shared/fiaon-global-menue";
 import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN, standortNachweis } from "@shared/fiaon-global-partner";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { SozialeLinks } from "@/components/site/SozialeLinks";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { mitBereich } from "@/lib/bereich";
@@ -62,6 +63,7 @@ export default function GlobalFuss() {
               <span aria-hidden="true">·</span>
               <a href={en ? "/en/business/auftrag" : "/business/auftrag"}>{en ? EN.auftrag : "Mein Auftrag"}</a>
             </p>
+            <SozialeLinks en={en} className="gf-sozial" />
           </div>
 
           <nav className="gf-themen" aria-label={en ? "Topics" : "Themen"}>

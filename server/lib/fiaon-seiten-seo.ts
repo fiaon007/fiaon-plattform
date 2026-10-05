@@ -38,6 +38,7 @@ import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
 import { globalMenue } from "@shared/fiaon-global-menue";
 import { globalStartPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
 import { markeSvg, MARKE_NAVY } from "@shared/fiaon-marke";
 // Trägt die Unterseiten von FIAON Global in die SEO-Tabelle ein — VOR jeder Abfrage.
 import "./fiaon-global-seo";
@@ -159,7 +160,7 @@ export function organisationLd(): Record<string, unknown> {
     name: "FIAON",
     legalName: "FIAON LTD",
     url: BASIS,
-    logo: { "@type": "ImageObject", url: `${BASIS}/icon-maskable-512.png?v=2`, width: 512, height: 512 },
+    logo: { "@type": "ImageObject", url: `${BASIS}/icon-512.png?v=3`, width: 512, height: 512 },
     image: `${BASIS}/og-fiaon.jpg?v=2`,
     description: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
     // 23.09.2026 (E-232): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
@@ -174,7 +175,11 @@ export function organisationLd(): Record<string, unknown> {
     // Der Registereintrag im Companies House ist die amtliche Seite der Firma. Eine LinkedIn-Firmenseite
     // gibt es noch nicht, einen Trustpilot-Eintrag auch nicht (Prüfung 23.09.: die „2.347 Bewertungen" auf /start waren
     // erfunden); die neue Facebook-Seite „FIAON" kommt dazu, sobald ihre Adresse feststeht. Nie erfinden.
-    sameAs: [`https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`],
+    // 06.10.2026 (E-292): Instagram fiaon.ltd und die Facebook-Seite „FIAON“ — per Graph geprüft (Seite ↔ IG verbunden).
+    sameAs: [
+      `https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`,
+      ...SOZIALE_PROFILE.map((p) => p.href),
+    ],
   };
 }
 

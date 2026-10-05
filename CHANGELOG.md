@@ -5,6 +5,23 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 — Florentine Lombardi Geschäftsführerin; nach einem Deploy nie mehr ungestaltet (E-290, E-291)
+
+**E-290:** Justin: „Florentine ist ab nächster Woche Geschäftsführerin, also das ändern bitte überall (außer auf den alten Posts).“
+Neu „Geschäftsführerin · Menschen & Onboarding“ / „Managing Director · People & Onboarding“ auf /team, /karriere, /ueber-uns (Frage
+„Wer steht hinter FIAON?“), bei den Ansprechpartnern im persönlichen Angebot (wortgleich mit /team; steht nicht im Vertragstext,
+Prüfsumme unberührt), in der Banking-Zuständigkeit und im Kopf des Chefbüros (Migration 093). Das Impressum („Director“) folgt erst
+mit der Eintragung bei Companies House.
+
+**E-291:** Justin am iPhone, eine Minute nach dem Deploy: Ladeanimation, danach eine ungestaltete Seite. Während Render umschaltet,
+laufen alte und neue Instanz parallel; eine fehlende Bau-Datei bekam bisher die index.html mit Status 200 — Safari verwarf das
+Stilblatt still. Jetzt: fehlende /assets/* = 404; fehlt das Stilblatt oder ein Seitenbaustein, lädt die Seite frisch nach (höchstens
+dreimal in zwei Minuten), die Ladeanimation bleibt solange stehen. Nachgetestet: fehlt das Stilblatt einmal, steht die Seite nach
+einem Neuladen gestaltet da.
+
+**Wo:** client/src/components/site/Team.tsx, client/src/i18n/{team,karriere,ueber-uns}.ts, shared/fiaon-global-angebot.ts,
+server/lib/fiaon-buchhaltung.ts, db/migrations/093_florentine_geschaeftsfuehrerin.sql, server/vite.ts, client/src/main.tsx.
+
 ## 06.10.2026 — Neues Logo überall, Ladebildschirm ab dem ersten Byte, Porträt, Handy-Menü (E-286 bis E-289)
 
 **E-286 — Die neue Wortmarke überall.** Justin hat am 05.10. die Wortmarke A „Editorial“ freigegeben (Playfair Display 800,

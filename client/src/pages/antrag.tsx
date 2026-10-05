@@ -423,11 +423,6 @@ const ALT_SCHRITT = ["a0_paket", "a1_person", "a2_finanzen", "a3_karte", "a4_pru
 function altSchritt(n: number): string { return ALT_SCHRITT[n] ?? `a${n}`; }
 type MessOpt = { schritt?: string; detail?: string | number; ref?: string };
 
-/** Steht im Cookie der Weiche schon „alt"? Dann muss der Antrag nicht nachfragen (Cookie gilt, auch bei 100 %). */
-function weicheCookieAlt(): boolean {
-  try { return /(?:^|;\s*)fiaon_aw=alt\./.test(document.cookie); } catch { return false; }
-}
-
 /* === LIVE CREDIT CARD — HYPER-REALISTIC DESIGN === */
 function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: string; name: string; lim: string | null; className?: string; compact?: boolean }) {
   const displayName = name || "MAX MUSTERMANN";
@@ -866,8 +861,9 @@ function AntragSeite() {
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
   // E-282: Die Weiche fragen (steht nach der Sitzungskennung, damit track() sie schon hat).
+  // E-283 (05.10.2026): IMMER fragen. Bis hier sprang die Seite bei einem Cookie „fiaon_aw=alt."
+  // ohne Nachfrage in den alten Weg — bei 100 % schreibt der Server so ein Cookie aber auf „neu" um.
   useEffect(() => {
-    if (weicheCookieAlt()) { messungFreigeben(); return; }
     const suche = window.location.search;
     let vorbei = false;
     const abbruch = typeof AbortController !== "undefined" ? new AbortController() : null;

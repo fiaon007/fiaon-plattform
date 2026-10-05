@@ -94,7 +94,7 @@ function platzhalterFuer(k: KarteiKarte, u: KiUmfeld): Platzhalter[] {
   if (k.zahlung?.zahlungsseite) liste.push({ zeichen: "[ZAHLUNGSSEITE]", wofuer: "die Zahlungsseite, Zahlung mit einem Klick in der Banking-App", wert: k.zahlung.zahlungsseite });
   if (k.zahlung?.rechnungLink) liste.push({ zeichen: "[RECHNUNG]", wofuer: "die Rechnung als PDF", wert: k.zahlung.rechnungLink });
   if (!k.zahlung && (k.lage === "C" || k.lage === "abbrecher") && u.antragLink) {
-    liste.push({ zeichen: "[ANTRAG]", wofuer: "sein persönlicher Link zum Antrag, dauert etwa zwei Minuten", wert: u.antragLink });
+    liste.push({ zeichen: "[ANTRAG]", wofuer: "sein persönlicher Link zum Antrag, dauert etwa fünf Minuten", wert: u.antragLink });
   }
   return liste;
 }

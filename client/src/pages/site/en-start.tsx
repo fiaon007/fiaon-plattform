@@ -35,7 +35,7 @@ export default function EnStart() {
       </Block>
 
       <Licht>
-        <Block pille="How it works" titel={<>From application to <span className="dk-verlauf">first letter.</span></>} lead="The application takes about two minutes. It is currently in German; our team speaks English on the phone." mitte>
+        <Block pille="How it works" titel={<>From application to <span className="dk-verlauf">first letter.</span></>} lead="Your details take about five minutes. The application is currently in German; our team speaks English on the phone." mitte>
           <Schritte items={[
             { titel: "Choose a plan and apply", text: "E-mail, name, date of birth, phone, address. Accept the contract and you are in your customer area straight away." },
             { titel: "Pay the first instalment by bank transfer", text: "Payment details with a QR code in your area. Every later instalment by bank transfer too — bank details and payment reference are in every payment e-mail." },
@@ -68,7 +68,7 @@ export default function EnStart() {
         </Block>
       </Licht>
 
-      <Abschluss titel={<>Your journey starts <span className="dk-verlauf">with an e-mail address.</span></>} text="Application in two minutes, report within 24 hours, a person who guides you through everything else." knoepfe={<><Knopf href="/antrag">Get started</Knopf><Knopf href="/en/pricing" still>Pricing & plans</Knopf></>} />
+      <Abschluss titel={<>Your journey starts <span className="dk-verlauf">with an e-mail address.</span></>} text="Application in about five minutes, report within 24 hours, a person who guides you through everything else." knoepfe={<><Knopf href="/antrag">Get started</Knopf><Knopf href="/en/pricing" still>Pricing & plans</Knopf></>} />
     </Dunkel>
   );
 }

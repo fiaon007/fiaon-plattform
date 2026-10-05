@@ -168,7 +168,7 @@ abschnitt("Fall 1 für Leads — Antrag");
   ok(karteiWaVorlage(lead, "rechnung", ABSENDER).art === "keine" && mailRechnung(lead, ABSENDER) === null, "ohne Zahlung keine Rechnung (weder Vorlage noch Mail)");
   // Nachbesserung E-259: immer SEIN Link (Hausregel E-248) — der Server baut ihn (antragLinkFuer).
   const wa = whatsappAntrag(lead, ABSENDER, "https://fiaon.com/a/Ab3dEf7hJk/w");
-  ok(wa.includes("https://fiaon.com/a/Ab3dEf7hJk/w") && wa.includes("zwei Minuten"), "Antrags-Link in WhatsApp");
+  ok(wa.includes("https://fiaon.com/a/Ab3dEf7hJk/w") && wa.includes("fünf Minuten"), "Antrags-Link in WhatsApp");
   ok(linkPruefung(wa).every((f) => f.art !== "nackt") && linkPruefung("https://www.fiaon.com/antrag").some((f) => f.art === "nackt"),
     "Persönlicher Link besteht die Link-Prüfung, der nackte /antrag nicht");
   const m = mailAntrag(lead, ABSENDER, "https://fiaon.com/a/Ab3dEf7hJk/m");

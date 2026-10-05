@@ -837,11 +837,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/hilfe": [
     {
       "f": "Wie lange dauert der Antrag?",
-      "a": "Etwa zwei Minuten: E-Mail, Name, Geburtsdatum, Telefon, Adresse (füllt sich beim Tippen selbst aus), Beschäftigung, Einkommen, Wunschlimit. Danach nehmen Sie den Vertrag an und sind sofort in Ihrem Bereich."
+      "a": "Ihre Angaben dauern rund fünf Minuten: Name, Kontakt, Geburtsdatum, Adresse (füllt sich beim Tippen selbst aus), Beruf, Einkommen und Ihre Ausgangslage. Danach prüfen wir Ihre Angaben direkt im Antrag – Anschrift, Kontakt, kein laufender Vertrag, ohne Abfrage bei einer Auskunftei. Dann legen Sie Ihre persönliche PIN fest, wählen Paket und Ziel-Limit und unterschreiben den Vertrag am Bildschirm."
     },
     {
       "f": "Was passiert nach dem Antrag?",
-      "a": "Sie legen ein Passwort fest und wählen: „Jetzt aktivieren“ (Zahlungsdaten mit QR-Code) oder „Zuerst sprechen“ (Termin mit einem Mitarbeiter). Nach Zahlungseingang buchen Sie das Startgespräch – bis dahin bleibt der Bereich geschlossen."
+      "a": "Direkt nach der Unterschrift sehen Sie die Zahlungsdaten Ihrer ersten Monatsrate mit QR-Code und überweisen sie. Danach öffnen Sie Ihren Bereich; später melden Sie sich mit Ihrer E-Mail-Adresse an. Nach Zahlungseingang wählen Sie dort Ihr Startgespräch, und Sie bekommen den Link unserer Partnerbank für Ihren Kartenantrag. Über Karte und Limit entscheidet die Bank."
     },
     {
       "f": "Was ist das Startgespräch?",
@@ -853,7 +853,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Ich habe den Antrag abgebrochen – was nun?",
-      "a": "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Kosten entstehen erst, wenn Sie im Schritt „Vertrag“ auf „Zahlungspflichtig annehmen“ klicken – direkt darüber sehen Sie Paket, Monatsrate, Laufzeit und Gesamtbetrag."
+      "a": "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Kosten entstehen erst, wenn Sie den Vertrag unterschreiben und auf „Zahlungspflichtig annehmen“ klicken – davor sehen Sie Paket, Monatsrate, Laufzeit und Gesamtbetrag."
     },
     {
       "f": "Wie bezahle ich die erste Rate?",
@@ -983,11 +983,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/en/help": [
     {
       "f": "How long does the application take?",
-      "a": "About two minutes: e-mail, name, date of birth, phone, address (fills in as you type), occupation, income, desired limit. Then you accept the contract and are in your area straight away. The application is currently in German; our team helps in English on the phone."
+      "a": "Your details take about five minutes: name, contact, date of birth, address (fills in as you type), occupation, income and your current situation. We then check your details right in the application — address, contact, no existing contract, without any credit bureau enquiry. Then you set your personal PIN, choose your plan and target limit and sign the contract on screen. The application is currently in German; our team helps in English on the phone."
     },
     {
       "f": "What happens after the application?",
-      "a": "You set a password and choose: “Activate now” (payment details with a QR code) or “Talk first” (an appointment with one of our team). After the payment arrives you book the onboarding call — until then the area stays closed."
+      "a": "Straight after signing you see the payment details for your first monthly instalment with a QR code and make the transfer. Then you open your area; later you sign in with your e-mail address. Once your payment has arrived, you choose your onboarding call there and receive our partner bank's link for your card application. The bank decides on the card and the limit."
     },
     {
       "f": "What is the onboarding call?",
@@ -999,7 +999,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "I abandoned the application — what now?",
-      "a": "You can continue at any time: the link in the e-mail takes you back into the application. Costs only arise when you click “Zahlungspflichtig annehmen” (accept with obligation to pay) in the “Contract” step — directly above it you see the plan, monthly instalment, term and total amount."
+      "a": "You can continue at any time: the link in the e-mail takes you back into the application. Costs only arise when you sign the contract and click “Zahlungspflichtig annehmen” (accept with obligation to pay) — before that you see the plan, monthly instalment, term and total amount."
     },
     {
       "f": "How do I pay the first instalment?",

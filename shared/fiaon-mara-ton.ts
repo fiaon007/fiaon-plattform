@@ -936,7 +936,7 @@ export const AUSSICHT_SAETZE = [
 
 /** Kredit-Frage: kein Nein am Anfang, keine Zusage, positiv zur eigenen Kreditkarte. */
 export function bausteinKreditFrage(link: string | null): string {
-  return `Noch besser: Wir bringen Sie zu Ihrer eigenen Kreditkarte bei unserer Partnerbank — mit einem Rahmen, den Sie immer wieder nutzen können. Den Rahmen legt die Bank fest, und wir bereiten Ihren Antrag so vor, dass er stark bei ihr ankommt.${link ? ` Hier geht es in zwei Minuten weiter: ${link}` : " Soll ich Ihnen Ihren Antrag schicken?"}`;
+  return `Noch besser: Wir bringen Sie zu Ihrer eigenen Kreditkarte bei unserer Partnerbank — mit einem Rahmen, den Sie immer wieder nutzen können. Den Rahmen legt die Bank fest, und wir bereiten Ihren Antrag so vor, dass er stark bei ihr ankommt.${link ? ` Hier geht es weiter, Ihre Angaben dauern etwa fünf Minuten: ${link}` : " Soll ich Ihnen Ihren Antrag schicken?"}`;
 }
 
 /** Einwand „Warum vorher zahlen?": die erste von zwölf Monatsraten — und das kleinere Paket als Tür. */
@@ -2036,14 +2036,14 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // E-275 Ton: „Ihre Angaben sind gespeichert“ (wahr — der Antrag merkt sich jeden Schritt) statt „Machen Sie ihn … fertig“.
       return absatz(
         `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte${zt ? ` ${zt}` : ""} ist Ihr Antrag${bankZusatz()}.`,
-        `Ihre Angaben sind gespeichert — Sie steigen genau dort ein, wo Sie aufgehört haben, und in etwa zwei Minuten ist er fertig${steht ? `; ${steht}` : ""}. Machen Sie heute noch weiter?${link}`,
+        `Ihre Angaben sind gespeichert — Sie steigen genau dort ein, wo Sie aufgehört haben, und in etwa fünf Minuten ist er fertig${steht ? `; ${steht}` : ""}. Machen Sie heute noch weiter?${link}`,
       );
     case "c":
       // E-265 Nachbesserung (29.09.2026): endet mit EINER Frage. E-275: „Wollen wir starten?“ statt „Lieber erst sprechen —
       // passt Ihnen … für einen Anruf mit …?" — den Anruf bietet Mara an, wenn er ihn will. E-275 Ton (02.10.2026): bleibt so —
       // die Begeisterung trägt der erste Satz („Ja, da sind Sie bei uns genau richtig!“).
       return absatz(
-        `Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank${zt ? `, ${kartenzielText(l.ziel, { alsZiel: true })}` : ""}. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa zwei Minuten, und über den Rahmen entscheidet am Ende die Bank${link ? `:${link}` : "."}`,
+        `Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank${zt ? `, ${kartenzielText(l.ziel, { alsZiel: true })}` : ""}. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa fünf Minuten, und über den Rahmen entscheidet am Ende die Bank${link ? `:${link}` : "."}`,
         `Wollen wir starten?`,
       );
     case "b":
@@ -2073,7 +2073,7 @@ export function bausteinWasIstFiaon(l: { kanal: MaraKanal; stufe: LinkStufe; zie
   const b = nennAus(l.betreuer);
   const link = l.link && l.kanal === "whatsapp" ? `: ${l.link}` : ".";
   if (l.stufe === "lead" || (l.stufe === "antrag_offen" && !l.ziel)) {
-    return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte bei unserer Partnerbank: Sie tragen im Antrag Ihr Wunschlimit ein, wir bereiten alles so vor, dass Ihr Antrag stark ankommt, und über den Rahmen entscheidet die Bank. Das dauert etwa zwei Minuten${link}`;
+    return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte bei unserer Partnerbank: Sie tragen im Antrag Ihr Wunschlimit ein, wir bereiten alles so vor, dass Ihr Antrag stark ankommt, und über den Rahmen entscheidet die Bank. Das dauert etwa fünf Minuten${link}`;
   }
   const ziel = l.ziel ? `, bei Ihnen ${kartenzielText(l.ziel, { alsZiel: true })}` : "";
   const auskunft = l.stufe === "kunde" ? " Dazu erklären wir jeden Eintrag Ihrer Auskunft und übernehmen die Schreiben an die Auskunfteien." : "";

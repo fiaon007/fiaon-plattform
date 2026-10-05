@@ -169,7 +169,8 @@ export default function FiaonHome() {
         </div>
       </Block>
 
-      <Zwischenruf text="Ihr Konto ist in zwei Minuten angelegt – Ihre Auskunft liegt innerhalb von 24 Stunden in Ihrem Bereich." knopf="Jetzt starten" href="/antrag" still={{ knopf: "Pakete ansehen", href: "#setups" }} />
+      {/* E-283 (05.10.2026): /antrag führt in den neuen Antrag — Angaben rund fünf Minuten, nicht „Konto in zwei“. */}
+      <Zwischenruf text="Ihre Angaben dauern rund fünf Minuten – Ihre Auskunft liegt innerhalb von 24 Stunden in Ihrem Bereich." knopf="Jetzt starten" href="/antrag" still={{ knopf: "Pakete ansehen", href: "#setups" }} />
 
       <Licht>
       <Block pille="Ihr Vertrauen" titel={<>Gef&uuml;hrt wie ein Finanzinstitut. <span className="dk-verlauf">Gebaut wie eine App.</span></>}
@@ -222,7 +223,7 @@ export default function FiaonHome() {
       <Block id="ablauf" pille="Ablauf" titel={<>In drei Schritten zu <span className="dk-verlauf">Ihrer Bonit&auml;t.</span></>} mitte>
         <div style={{ textAlign: "left" }}>
           <Schritte items={[
-            { titel: "Konto anlegen", text: "E-Mail-Adresse, wenige Angaben, zwei Minuten. Ihr Bereich ist sofort aktiv – am Handy wie am Rechner." },
+            { titel: "Antrag stellen", text: "Ihre Angaben in rund fünf Minuten, die Prüfung direkt im Antrag, dann Paket und Vertrag. Danach ist Ihr Bereich eingerichtet – am Handy wie am Rechner." },
             { titel: "Auskunft erhalten", text: "FIAON beantragt Ihre Auskunft. Innerhalb von 24 Stunden sehen Sie, was SCHUFA, KSV oder CRIF über Sie führen – und was sich ändern lässt." },
             { titel: "Handeln und Zugang erhalten", text: "Schreiben freigeben, Raten vereinbaren, Etappen abschließen. Am Ende stehen Konto, Karte und – wenn Sie möchten – die Finanzierung." },
           ]} />
@@ -256,7 +257,7 @@ export default function FiaonHome() {
 
       <Abschluss
         titel={<>Ihr Weg beginnt <span className="dk-verlauf">mit einer E-Mail-Adresse.</span></>}
-        text="Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet. Zahlung per Überweisung · EU-Hosting · DSGVO-konform · Anwaltlich geprüft."
+        text="Antrag in rund fünf Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet. Zahlung per Überweisung · EU-Hosting · DSGVO-konform · Anwaltlich geprüft."
         knoepfe={<><Knopf onClick={openModal}>Jetzt starten</Knopf><Knopf href="/was-ist-fiaon" still>Die Plattform kennenlernen</Knopf></>}
       />
 

@@ -106,7 +106,8 @@ export const UI: Record<Sprache, Record<string, string>> = {
     kontoEroeffnen: "Konto eröffnen", login: "Login", meinBereich: "Mein Bereich",
     menueAuf: "Menü öffnen", menueZu: "Menü schließen",
     fuerKunden: "Für Kunden", unternehmen: "Unternehmen", ihrKonto: "Ihr Konto",
-    kontoSatz: "Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie begleitet.",
+    // 05.10.2026 (E-283): der neue Antrag — Angaben rund fünf Minuten (vorher „Konto in zwei Minuten“).
+    kontoSatz: "Antrag in rund fünf Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie begleitet.",
     vertrauen: "Zahlung per Überweisung · EU-Hosting · Anwaltlich geprüft",
     sprache: "Sprache", zurAnderenSprache: "Read this page in English", spracheKurz: "EN",
     fussMission: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang. Für Deutschland, Österreich und die Schweiz.",
@@ -120,7 +121,7 @@ export const UI: Record<Sprache, Record<string, string>> = {
     kontoEroeffnen: "Open an account", login: "Log in", meinBereich: "My account",
     menueAuf: "Open menu", menueZu: "Close menu",
     fuerKunden: "For customers", unternehmen: "Company", ihrKonto: "Your account",
-    kontoSatz: "An account in two minutes. Your credit report within 24 hours. A person who stays with you.",
+    kontoSatz: "Application in about five minutes. Your credit report within 24 hours. A person who stays with you.",
     vertrauen: "Payment by bank transfer · Hosted in the EU · Reviewed by lawyers",
     sprache: "Language", zurAnderenSprache: "Diese Seite auf Deutsch lesen", spracheKurz: "DE",
     fussMission: "The operating system for creditworthiness: insight, action, access. For Germany, Austria and Switzerland.",

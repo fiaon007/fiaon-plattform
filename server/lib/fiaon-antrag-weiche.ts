@@ -7,25 +7,32 @@
 // GET /antrag statt zweier Links, die verschiedene Menschen erreichen.
 //
 // ── DIE REGELN ────────────────────────────────────────────────────────────
-// · Einstellung antrag_neu_anteil in fiaon_settings (0–100, Vorgabe 0). Bei 0
+// · Der Anteil (0–100): die Zeile antrag_neu_anteil in fiaon_settings. Gibt
+//   es KEINE Zeile, gilt die Render-Variable ANTRAG_NEU_ANTEIL (ganze Zahl
+//   0–100, sonst 0). Eine im Chefbüro gespeicherte Zeile gewinnt immer — so
+//   bleibt das Zurückstellen ohne Deploy möglich (05.10.2026, E-283). Bei 0
 //   tut die Weiche NICHTS: kein Cookie, kein Ereignis, kein Umweg.
 // · Wer zugeteilt ist, bleibt zugeteilt (Cookie fiaon_aw, 90 Tage, Wert
-//   „alt.<kennung>" oder „neu.<kennung>"). Auch ein späteres Hochsetzen auf
-//   100 % schreibt kein vorhandenes Cookie um: Ein Mensch soll nicht zwischen
-//   zwei Anträgen hin- und hergeworfen werden.
+//   „alt.<kennung>" oder „neu.<kennung>") — bei 1–99 %. Bei 100 % gibt es
+//   keinen alten Weg mehr für neue Besucher: Ein vorhandenes „alt."-Cookie
+//   wird auf „neu." umgeschrieben (Justin 05.10.2026: „Stelle den neuen
+//   Antrag live, überall"), und ein Sitzungs-Cookie „alt." entsteht nicht.
 // · Immer ALT, ohne Zuteilung: Roboter (Vorschau, Suchmaschine, Skript), jeder
-//   Link mit Parametern, die nur der alte Weg versteht (Lead-Link l, Weiter-
-//   Link weiter, Empfehlung, Agenten-Link, Auskunft-Zusatz …), und wer schon
-//   einen ALTEN Antrag offen hat (Antrags-Cookie aus fiaon-antrag-sitzung.ts).
-//   Erlaubt sind nur Werbe-Kennungen und ein gültiges Paket.
-// · Jede ZUTEILUNG (nicht jede Wiederkehr) steht als Ereignis „weiche" in
-//   fiaon_antrag_ereignisse — weg = zugeteilter Weg, detail = Anteil. Damit
-//   lässt sich nachrechnen, ob die Aufteilung dem eingestellten Anteil folgt.
+//   Link mit Parametern, die nur der alte Weg kann (Sperrliste in
+//   weicheLinkAusnahme: weiter, skip, skipPayment, step, ein Paket, das der
+//   neue Weg nicht kennt), und wer schon einen ALTEN Antrag offen hat
+//   (Antrags-Cookie aus fiaon-antrag-sitzung.ts) — dessen Angaben stehen im
+//   alten Formular.
+// · Jede ZUTEILUNG (nicht jede Wiederkehr, nicht das Umschreiben bei 100 %)
+//   steht als Ereignis „weiche" in fiaon_antrag_ereignisse — weg = zugeteilter
+//   Weg, detail = Anteil. Damit lässt sich nachrechnen, ob die Aufteilung dem
+//   eingestellten Anteil folgt.
 //
 // ── WARUM KEIN httpOnly ───────────────────────────────────────────────────
-// Der alte Antrag liest das Cookie im Browser: Steht dort „alt", muss er die
-// Weiche nicht noch einmal fragen und misst sofort. Das Cookie trägt nichts
-// außer dem Weg und einer Zufallskennung — kein Geheimnis, keine Person.
+// Das Cookie trägt nichts außer dem Weg und einer Zufallskennung — kein
+// Geheimnis, keine Person. Der alte Antrag las es früher im Browser und
+// fragte bei „alt" die Weiche nicht mehr; seit E-283 fragt er immer (sonst
+// hielte ein altes Cookie ihn auch bei 100 % auf dem alten Weg).
 //
 // Montage (server/routes.ts): antragWeicheMiddleware vor dem Ausliefern der
 // Seite an GET /antrag; antragWeicheRouter unter /api/fiaon NACH dem
@@ -37,11 +44,16 @@ import { sqlPool } from "./db-pool";
 import { antragAusCookie } from "./fiaon-antrag-sitzung";
 import { istRoboterUnterschrift } from "./fiaon-vertrieb-zusage";
 import { chefProtokoll } from "../routes/fiaon-chef-zugang";
-import { ANTRAG_NEU_PAKET_KEYS, ANTRAG_NEU_REIHE } from "@shared/fiaon-antrag-neu";
+import { antragNeuPaket, ANTRAG_NEU_REIHE } from "@shared/fiaon-antrag-neu";
 
 export type AntragWegWahl = "alt" | "neu";
-/** Warum die Weiche so entschied — für die Antwort an den Browser und die Fehlersuche. */
-export type WeicheGrund = "aus" | "roboter" | "link" | "antrag_offen" | "cookie" | "zugeteilt";
+/**
+ * Warum die Weiche so entschied — für die Antwort an den Browser und die Fehlersuche.
+ * „umgeschrieben": bei 100 % aus einem vorhandenen „alt."-Cookie ein „neu."-Cookie (E-283).
+ */
+export type WeicheGrund = "aus" | "roboter" | "link" | "antrag_offen" | "cookie" | "umgeschrieben" | "zugeteilt";
+/** Woher der Anteil kommt: gespeicherte Zeile, Render-Variable oder keins von beiden (0). */
+export type AnteilQuelle = "chefbuero" | "render" | "vorgabe";
 
 export const WEICHE_COOKIE = "fiaon_aw";
 const COOKIE_TAGE = 90;
@@ -49,7 +61,10 @@ const COOKIE_MUSTER = /^(alt|neu)\.([a-z0-9]{8,40})$/;
 export const WEICHE_EINSTELLUNG = "antrag_neu_anteil";
 /** Die Stufen, die das Chefbüro anbietet. Der Server nimmt jede ganze Zahl 0–100. */
 export const WEICHE_STUFEN = [0, 10, 25, 50, 100] as const;
-/** So lange wartet die Weiche höchstens auf die Datenbank, dann gilt der alte Weg. */
+/**
+ * So lange wartet die Weiche höchstens auf die Datenbank. Danach gilt beim Anteil der letzte
+ * bekannte Wert (sonst die Render-Variable), beim Weg eines offenen Antrags der alte Weg.
+ */
 const FRIST_MS = 1500;
 /** Protokoll-Ziel in fiaon_admin_log — daraus liest die Anzeige „geändert von". */
 const PROTOKOLL_ZIEL = "antrag-weiche";
@@ -99,8 +114,15 @@ export const NEU_SCHRITTE: { schritt: string; label: string }[] = ANTRAG_NEU_REI
  * server/routes/fiaon-auskunft-kauf.ts (dort nicht exportiert) — ohne
  * „telegram" und „skype": Deren Vorschau-Abrufer tragen „bot" bzw. „preview",
  * der eingebaute Browser von Telegram aber Menschen.
+ *
+ * „bot" nur am Wortende (05.10.2026, E-283): Vorher traf das nackte „bot" auch
+ * Handys der Marke CUBOT („Android 10; CUBOT X30") — echte Menschen landeten
+ * als Roboter im alten Weg. Jetzt zählt „bot"/„bots" nur, wenn danach ein
+ * Wortende oder „_" kommt und davor nicht „cu" steht: Googlebot/2.1,
+ * bingbot, AhrefsBot, AdsBot-Google, Slackbot-LinkExpanding, Discordbot und
+ * GPTBot bleiben Roboter. Prüfstand: scripts/pruef-antrag-weiche.ts.
  */
-const KEIN_MENSCH = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|headless|lighthouse|python|curl|wget|go-http|java\/|okhttp|axios|node-fetch|^node$|undici|linkcheck|scanner/i;
+const KEIN_MENSCH = /(?<!cu)bots?(?:\b|_)|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|headless|lighthouse|python|curl|wget|go-http|java\/|okhttp|axios|node-fetch|^node$|undici|linkcheck|scanner/i;
 
 /** Ein Roboter bekommt immer den alten Weg und nie ein Cookie. Leere Kennung zählt als Roboter. */
 export function istWeicheRoboter(userAgent: unknown): boolean {
@@ -124,14 +146,32 @@ export function antragGeraet(userAgent: unknown): "handy" | "tablet" | "desktop"
   return "desktop";
 }
 
-/** Werbe-Kennungen und Herkunft — sie ändern nichts am Antrag und dürfen mit auf den neuen Weg. */
-const ERLAUBTE_PARAMETER = new Set(["fbclid", "gclid", "gbraid", "wbraid", "msclkid", "ttclid", "ref_quelle"]);
+/**
+ * Parameter, die nur der alte Weg kann (Groß/klein egal):
+ *   weiter       — Weiter-Link aus Erinnerungsmail und /a/ bei begonnenem Antrag.
+ *                  Ein NEUER Antrag springt von dort selbst nach /antrag-neu
+ *                  (GET /antrag/weiter/:token, antrag.tsx).
+ *   skip, skippayment, step — Abkürzungen des alten Formulars im Entwicklungsbetrieb.
+ */
+const NUR_ALT = new Set(["weiter", "skip", "skippayment", "step"]);
 
 /**
- * Trägt die Adresse etwas, das nur der alte Weg versteht? Dann bleibt der
- * Besuch alt. Erlaubt: utm_*, die Klick-Kennungen oben und pack/paket mit
- * einem Paket des neuen Wegs. „pack=schufa" gehört NICHT dazu — das leitet
- * der alte Weg auf /bonitaet-antrag um.
+ * Trägt die Adresse etwas, das nur der alte Weg kann? Dann bleibt der Besuch alt.
+ *
+ * SPERRLISTE STATT ERLAUBTLISTE (05.10.2026, E-283): Bis hier war nur erlaubt,
+ * was ausdrücklich auf einer Liste stand (utm_*, Klick-Kennungen, Paket). Fast
+ * jeder echte Einstieg trägt aber mehr — /start hängte src=wa an, /privatkunden
+ * src=privatkunden, der persönliche Link l und k, Google gad_source und
+ * srsltid —, und so blieb „überall neu" auch bei 100 % beim alten Weg. Jetzt
+ * bleibt nur alt, was der neue Weg wirklich nicht kann:
+ *   · ein Parameter aus NUR_ALT,
+ *   · pack/paket mit einem Wert, den antragNeuPaket() nicht als Privatpaket
+ *     kennt (schufa, auskunft*, business_… — der alte Weg leitet die
+ *     Auskunft-Pakete selbst auf /bonitaet-antrag weiter).
+ * Alles andere (l, k, src, ref, quelle, lead, auskunft, gad_source, srsltid,
+ * _gl, utm_*, fbclid …) geht in die normale Entscheidung. Den persönlichen
+ * Link (l, k) und die Auskunft-Parameter (src=auskunft, auskunft=1|0,
+ * src=auskunft_da) liest der neue Weg selbst (antrag-neu/index.tsx).
  */
 export function weicheLinkAusnahme(suche: string): boolean {
   let ausnahme = false;
@@ -140,28 +180,69 @@ export function weicheLinkAusnahme(suche: string): boolean {
   params.forEach((wert, schluessel) => {
     if (ausnahme) return;
     const k = schluessel.trim().toLowerCase();
-    if (/^utm_[a-z0-9_]{1,40}$/.test(k) || ERLAUBTE_PARAMETER.has(k)) return;
-    if (k === "pack" || k === "paket") {
-      if ((ANTRAG_NEU_PAKET_KEYS as string[]).includes(wert.trim().toLowerCase())) return;
-    }
-    ausnahme = true;
+    if (NUR_ALT.has(k)) { ausnahme = true; return; }
+    // Ein leeres pack= ist kein Paket — es ändert nichts am Weg.
+    if ((k === "pack" || k === "paket") && wert.trim() && !antragNeuPaket(wert)) ausnahme = true;
   });
   return ausnahme;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DER ANTEIL — gelesen über getSettings, 30 Sekunden im Speicher
+// DER ANTEIL — Zeile in fiaon_settings, sonst Render-Variable; 30 Sekunden im Speicher
 // ═══════════════════════════════════════════════════════════════════════════
-// getSettings liest jedes Mal die ganze Tabelle (fiaon-agent.ts hat keinen
-// Zwischenspeicher). GET /antrag ist die meistbesuchte Formularseite — deshalb
-// hier ein kurzer Speicher. Ein Wechsel im Chefbüro gilt in diesem Prozess
-// sofort, in anderen nach höchstens 30 Sekunden.
-let anteilStand: { wert: number; bis: number } | null = null;
+// GET /antrag ist die meistbesuchte Formularseite — deshalb ein kurzer
+// Speicher. Ein Wechsel im Chefbüro gilt in diesem Prozess sofort, in anderen
+// nach höchstens 30 Sekunden. Gelesen wird nur die eine Zeile (nicht
+// getSettings): Nur so ist „keine Zeile" von „Zeile mit 0" zu unterscheiden.
+//
+// ── DIE RENDER-VARIABLE (05.10.2026, E-283) ───────────────────────────────
+// Das Hochsetzen im Chefbüro braucht den Admin-Code oder eine Chef-Sitzung.
+// Damit der Schalter auch ohne beides umgelegt werden kann, gilt
+// ANTRAG_NEU_ANTEIL, solange es KEINE Zeile gibt. Wer im Chefbüro speichert,
+// legt die Zeile an — ab dann zählt nur noch sie (Zurückstellen ohne Deploy).
+// Render übernimmt eine geänderte Variable erst mit dem nächsten Deploy.
+let anteilStand: { wert: number; quelle: AnteilQuelle; bis: number } | null = null;
 let anteilLaeuft: Promise<number> | null = null;
 
 function anteilAusText(v: unknown): number {
   const n = Number(String(v ?? "").trim());
   return Number.isInteger(n) && n >= 0 && n <= 100 ? n : 0;
+}
+
+/** ANTRAG_NEU_ANTEIL als ganze Zahl 0–100 — null, wenn nicht gesetzt oder ungültig. */
+export function anteilAusRender(roh: unknown): number | null {
+  const s = String(roh ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isInteger(n) && n >= 0 && n <= 100 ? n : null;
+}
+
+/**
+ * Welcher Anteil gilt — rein, ohne Datenbank (Prüfstand).
+ * @param zeile Wert der Zeile antrag_neu_anteil; null = es gibt keine Zeile.
+ * @param render Inhalt der Render-Variable ANTRAG_NEU_ANTEIL.
+ */
+export function anteilBestimmen(zeile: string | null, render: unknown): { wert: number; quelle: AnteilQuelle } {
+  if (zeile !== null) return { wert: anteilAusText(zeile), quelle: "chefbuero" };
+  const r = anteilAusRender(render);
+  return r === null ? { wert: 0, quelle: "vorgabe" } : { wert: r, quelle: "render" };
+}
+
+let renderGewarnt = false;
+/** Die Variable lesen — ein ungültiger Wert wird EINMAL gemeldet und gilt als nicht gesetzt (0 %). */
+function renderAnteil(): unknown {
+  const roh = process.env.ANTRAG_NEU_ANTEIL;
+  if (!renderGewarnt && String(roh ?? "").trim() && anteilAusRender(roh) === null) {
+    renderGewarnt = true;
+    console.warn(`[ANTRAG-WEICHE] ANTRAG_NEU_ANTEIL="${String(roh).slice(0, 20)}" ist keine ganze Zahl von 0 bis 100 — gilt als nicht gesetzt (0 %).`);
+  }
+  return roh;
+}
+
+/** Die Zeile antrag_neu_anteil — null, wenn es sie nicht gibt. */
+async function anteilZeile(): Promise<{ value: string; updated_at: Date | null } | null> {
+  const [z] = (await sqlPool`SELECT value, updated_at FROM fiaon_settings WHERE key = ${WEICHE_EINSTELLUNG} LIMIT 1`) as any[];
+  return z ? { value: String(z.value ?? ""), updated_at: z.updated_at ?? null } : null;
 }
 
 function mitFrist<T>(p: Promise<T>, ms: number, was: string): Promise<T> {
@@ -171,20 +252,25 @@ function mitFrist<T>(p: Promise<T>, ms: number, was: string): Promise<T> {
   });
 }
 
+/** Ohne Datenbank: der letzte bekannte Anteil, sonst die Render-Variable (nicht mehr pauschal 0). */
+function anteilOhneDatenbank(): { wert: number; quelle: AnteilQuelle } {
+  return anteilStand ? { wert: anteilStand.wert, quelle: anteilStand.quelle } : anteilBestimmen(null, renderAnteil());
+}
+
 /** Der eingestellte Anteil neuer Besucher für /antrag-neu (0–100). Wirft, wenn die Datenbank nicht antwortet. */
 export function antragNeuAnteil(): Promise<number> {
   if (anteilStand && anteilStand.bis > Date.now()) return Promise.resolve(anteilStand.wert);
   if (!anteilLaeuft) {
     anteilLaeuft = (async () => {
       try {
-        const { getSettings } = await import("../routes/fiaon-agent");
-        const wert = anteilAusText((await getSettings())[WEICHE_EINSTELLUNG]);
-        anteilStand = { wert, bis: Date.now() + 30_000 };
-        return wert;
+        const z = await anteilZeile();
+        const a = anteilBestimmen(z ? z.value : null, renderAnteil());
+        anteilStand = { ...a, bis: Date.now() + 30_000 };
+        return a.wert;
       } catch (e) {
-        // Zehn Sekunden mit dem letzten bekannten Wert weiter (sonst 0 = alter Weg),
+        // Zehn Sekunden mit dem letzten bekannten Wert weiter (sonst der Render-Variable),
         // damit eine kranke Datenbank nicht jede Seitenanfrage um die Frist verlängert.
-        anteilStand = { wert: anteilStand?.wert ?? 0, bis: Date.now() + 10_000 };
+        anteilStand = { ...anteilOhneDatenbank(), bis: Date.now() + 10_000 };
         throw e;
       } finally {
         anteilLaeuft = null;
@@ -268,10 +354,62 @@ async function zuteilungMerken(weg: AntragWegWahl, sitzung: string, anteil: numb
     VALUES (${weg}, ${sitzung}, 'weiche', ${String(anteil)}, ${antragGeraet(userAgent)})`;
 }
 
+/** Was die Regel aus einer Lage macht — ohne Anfrage, ohne Datenbank. */
+export interface WeicheUrteil {
+  weg: AntragWegWahl;
+  grund: WeicheGrund;
+  /** Cookie, das gesetzt werden soll (dauerhaft = 90 Tage, sonst Sitzungs-Cookie) — oder null. */
+  cookie: { wert: string; dauerhaft: boolean } | null;
+  /** Eine neue Zuteilung, die als Ereignis „weiche" gemessen wird. */
+  zuteilung: boolean;
+}
+
+/**
+ * DIE REGEL — rein, damit der Prüfstand sie ohne Anfrage und ohne Datenbank
+ * Fall für Fall durchgehen kann (scripts/pruef-antrag-weiche.ts).
+ * @param offen Weg des offenen Antrags aus dem Antrags-Cookie (null = keiner
+ *   oder nicht gefragt). weicheEntscheiden fragt die Datenbank nur, wenn die
+ *   Regel die Antwort braucht.
+ * @param zufall Zahl in [0, 100) — die Würfel der Zuteilung.
+ * @param neueId Kennung für ein neues Cookie.
+ */
+export function weicheRegel(e: {
+  anteil: number; roboter: boolean; link: boolean; offen: AntragWegWahl | null;
+  cookie: { weg: AntragWegWahl; id: string } | null; zufall: number; neueId: string;
+}): WeicheUrteil {
+  if (e.anteil <= 0) {
+    // Auch bei 0 %: Wer schon einen NEUEN Antrag offen hat (Antrags-Cookie), macht dort weiter —
+    // das alte Formular kennt dessen Angaben nicht. Nur ohne Link-Ausnahme (die gehört dem alten Weg).
+    if (!e.link && e.offen === "neu") return { weg: "neu", grund: "antrag_offen", cookie: null, zuteilung: false };
+    return { weg: "alt", grund: "aus", cookie: null, zuteilung: false };
+  }
+  if (e.roboter) return { weg: "alt", grund: "roboter", cookie: null, zuteilung: false };
+  if (e.link) {
+    // Bei 1–99 %: Ein Sitzungs-Cookie „alt" hält den Besucher auch nach einem Neuladen
+    // ohne die Parameter im alten Weg (der räumt weiter aus der Adresszeile). Bei 100 %
+    // nicht — dort gibt es für neue Besucher keinen alten Weg mehr; ein offener alter
+    // Antrag hält ihn über das Antrags-Cookie. Ein vorhandenes Cookie bleibt unangetastet.
+    const cookie = !e.cookie && e.anteil < 100 ? { wert: `alt.${e.neueId}`, dauerhaft: false } : null;
+    return { weg: "alt", grund: "link", cookie, zuteilung: false };
+  }
+  // Ein offener ALTER Antrag bleibt alt (seine Angaben stehen im alten Formular), auch bei 100 %.
+  if (e.offen) return { weg: e.offen, grund: "antrag_offen", cookie: null, zuteilung: false };
+  if (e.cookie) {
+    if (e.anteil >= 100 && e.cookie.weg === "alt") {
+      // 100 %: aus „alt.<id>" wird „neu.<id>" — dieselbe Kennung, keine neue Zuteilung in der Messung.
+      return { weg: "neu", grund: "umgeschrieben", cookie: { wert: `neu.${e.cookie.id}`, dauerhaft: true }, zuteilung: false };
+    }
+    return { weg: e.cookie.weg, grund: "cookie", cookie: null, zuteilung: false };
+  }
+  const weg: AntragWegWahl = e.zufall < e.anteil ? "neu" : "alt";
+  return { weg, grund: "zugeteilt", cookie: { wert: `${weg}.${e.neueId}`, dauerhaft: true }, zuteilung: true };
+}
+
 /**
  * Die Weiche selbst — für die Middleware und für GET /antrag-weiche.
  * Setzt bei einer Zuteilung das Cookie auf res. Datenbankfehler und Fristen
- * enden hier als „alt"; die beiden Aufrufer fangen trotzdem selbst ab.
+ * enden beim letzten bekannten Anteil (sonst der Render-Variable) bzw. beim
+ * alten Weg des offenen Antrags; die beiden Aufrufer fangen trotzdem selbst ab.
  * @param suche Die Abfrage der Seite (mit oder ohne führendes „?").
  */
 export async function weicheEntscheiden(req: Request, res: Response, suche: string): Promise<{ weg: AntragWegWahl; grund: WeicheGrund }> {
@@ -279,44 +417,25 @@ export async function weicheEntscheiden(req: Request, res: Response, suche: stri
   try {
     anteil = await mitFrist(antragNeuAnteil(), FRIST_MS, "Anteil");
   } catch (e: any) {
-    anteil = anteilStand?.wert ?? 0;
+    anteil = anteilOhneDatenbank().wert;
     console.warn(`[ANTRAG-WEICHE] Anteil nicht lesbar, weiter mit ${anteil} %:`, e?.message || e);
   }
-  if (anteil <= 0) {
-    // Auch bei 0 %: Wer schon einen NEUEN Antrag offen hat (Antrags-Cookie), macht dort weiter —
-    // das alte Formular kennt dessen Angaben nicht. Nur ohne Link-Parameter (die gehören dem alten Weg).
-    const offen = weicheLinkAusnahme(suche) ? null : antragAusCookie(req);
-    if (offen && (await offenerAntragWeg(offen)) === "neu") return { weg: "neu", grund: "antrag_offen" };
-    return { weg: "alt", grund: "aus" };
-  }
-
   const ua = req.headers["user-agent"];
-  if (istWeicheRoboter(ua)) return { weg: "alt", grund: "roboter" };
-
-  const vorhanden = weicheCookieLesen(req);
-  if (weicheLinkAusnahme(suche)) {
-    // Der alte Weg räumt l, k und weiter nach dem Laden aus der Adresszeile.
-    // Ohne dieses Sitzungs-Cookie landete ein Neuladen ohne die Parameter bei
-    // der Zuteilung — und ein Lead-Link womöglich auf dem neuen Weg, der ihn
-    // nicht kennt. Ein vorhandenes Cookie bleibt unangetastet.
-    if (!vorhanden) weicheCookieSetzen(res, `alt.${neueKennung()}`, false);
-    return { weg: "alt", grund: "link" };
-  }
-
-  const offen = antragAusCookie(req);
-  if (offen) return { weg: await offenerAntragWeg(offen), grund: "antrag_offen" };
-
-  if (vorhanden) return { weg: vorhanden.weg, grund: "cookie" };
-
-  const weg: AntragWegWahl = Math.random() * 100 < anteil ? "neu" : "alt";
+  // Bei 0 % wird nicht nach Robotern gefragt (die Weiche ist aus) — wie bisher.
+  const roboter = anteil > 0 && istWeicheRoboter(ua);
+  const link = weicheLinkAusnahme(suche);
+  const ref = antragAusCookie(req);
+  // Die Datenbank nur fragen, wenn die Regel die Antwort braucht.
+  const offen = ref && !link && !roboter ? await offenerAntragWeg(ref) : null;
   const id = neueKennung();
-  weicheCookieSetzen(res, `${weg}.${id}`, true);
-  if (zuteilungMessenErlaubt(req)) {
-    void zuteilungMerken(weg, id, anteil, ua).catch((e: any) => {
+  const u = weicheRegel({ anteil, roboter, link, offen, cookie: weicheCookieLesen(req), zufall: Math.random() * 100, neueId: id });
+  if (u.cookie) weicheCookieSetzen(res, u.cookie.wert, u.cookie.dauerhaft);
+  if (u.zuteilung && zuteilungMessenErlaubt(req)) {
+    void zuteilungMerken(u.weg, id, anteil, ua).catch((e: any) => {
       console.warn("[ANTRAG-WEICHE] Zuteilung nicht gemessen:", e?.message || e);
     });
   }
-  return { weg, grund: "zugeteilt" };
+  return { weg: u.weg, grund: u.grund };
 }
 
 /**
@@ -351,16 +470,18 @@ export function antragWeicheMiddleware(req: Request, res: Response, next: NextFu
 
 export interface WeicheStand {
   anteil: number;
+  /** chefbuero = gespeicherte Zeile · render = Variable ANTRAG_NEU_ANTEIL (keine Zeile) · vorgabe = keins von beiden, 0 %. */
+  quelle: AnteilQuelle;
   geaendertAm: string | null;
   geaendertVon: string | null;
   stufen: number[];
 }
 
-/** Anteil frisch aus der Tabelle (nicht aus dem Speicher), dazu wann und von wem zuletzt geändert. */
+/** Anteil frisch aus der Tabelle (nicht aus dem Speicher), dazu Quelle, wann und von wem zuletzt geändert. */
 export async function weicheStand(): Promise<WeicheStand> {
-  const [z] = (await sqlPool`SELECT value, updated_at FROM fiaon_settings WHERE key = ${WEICHE_EINSTELLUNG}`) as any[];
-  const anteil = anteilAusText(z?.value);
-  anteilStand = { wert: anteil, bis: Date.now() + 30_000 };
+  const z = await anteilZeile();
+  const { wert: anteil, quelle } = anteilBestimmen(z ? z.value : null, renderAnteil());
+  anteilStand = { wert: anteil, quelle, bis: Date.now() + 30_000 };
   let geaendertVon: string | null = null;
   try {
     const [p] = (await sqlPool`
@@ -377,6 +498,7 @@ export async function weicheStand(): Promise<WeicheStand> {
   }
   return {
     anteil,
+    quelle,
     geaendertAm: z?.updated_at ? new Date(z.updated_at).toISOString() : null,
     geaendertVon,
     stufen: [...WEICHE_STUFEN],
@@ -424,12 +546,16 @@ antragWeicheRouter.post("/admin/finance/antrag-weiche", async (req: Request, res
     const vorher = await weicheStand();
     const { setSetting } = await import("../routes/fiaon-agent");
     await setSetting(WEICHE_EINSTELLUNG, String(anteil));
-    anteilStand = { wert: anteil, bis: Date.now() + 30_000 };
-    if (vorher.anteil !== anteil) {
+    anteilStand = { wert: anteil, quelle: "chefbuero", bis: Date.now() + 30_000 };
+    // Auch derselbe Wert ist eine Änderung, wenn er bisher aus der Render-Variable kam:
+    // Ab jetzt gilt die Zeile, die Variable nicht mehr (E-283).
+    const geaendert = vorher.anteil !== anteil || vorher.quelle !== "chefbuero";
+    if (geaendert) {
       // Abgewartet, damit „geändert von" in der Antwort schon stimmt. chefProtokoll wirft nie.
-      await chefProtokoll(req, PROTOKOLL_ZIEL, `Anteil neuer Antrag: ${vorher.anteil} % → ${anteil} %`);
+      const herkunft = vorher.quelle === "render" ? " (vorher über die Render-Variable ANTRAG_NEU_ANTEIL)" : "";
+      await chefProtokoll(req, PROTOKOLL_ZIEL, `Anteil neuer Antrag: ${vorher.anteil} % → ${anteil} %${herkunft}`);
     }
-    res.json({ ok: true, geaendert: vorher.anteil !== anteil, ...(await weicheStand()) });
+    res.json({ ok: true, geaendert, ...(await weicheStand()) });
   } catch (err) {
     console.error("[ANTRAG-WEICHE] Speichern:", err);
     res.status(500).json({ ok: false, error: "Der Anteil wurde NICHT gespeichert (Serverfehler)." });

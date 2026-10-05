@@ -235,6 +235,18 @@ function meilenstein(req: Request, ref: string, ereignis: string, schritt: strin
     .catch((e) => console.error(`[ANTRAG-NEU] Messung „${ereignis}" für ${ref} nicht geschrieben:`, e));
 }
 
+/**
+ * Der Messsatz des Browsers (fbp, fbc, Einwilligung, Kampagne) für /application — oder nichts.
+ * E-283 (05.10.2026): bei JEDEM Speichern und bei der Prüfung, wie im alten Antrag (antrag.tsx
+ * schickt ihn bei jedem Speichern). Vorher nur bei /anlegen und /annehmen: Wer erst nach dem
+ * Kontakt-Bildschirm einwilligte, kam nie als InitiateCheckout bei Meta an (webEreignis bricht
+ * ohne Einwilligung ab, und bei der Annahme ist Schritt 8 schon erreicht).
+ */
+function messAus(req: Request): { messung?: Record<string, unknown> } {
+  const m = req.body?.messung;
+  return m && typeof m === "object" && !Array.isArray(m) ? { messung: m } : {};
+}
+
 async function speichernIntern(req: Request, ref: string, d: AntragNeuDaten, leadLink: string | null,
   stand: { schritt: number; status: string }, extra: Record<string, unknown> = {}): Promise<{ ok: boolean; status: number; fehler?: string }> {
   const r = await intern(req, "/application", { ...antragKoerper(ref, d, stand, extra), ...(leadLink ? { leadLink } : {}) });
@@ -307,7 +319,7 @@ router.post("/antrag-neu/anlegen", async (req: Request, res: Response) => {
     const r = await intern(req, "/application", {
       ...antragKoerper(ref, d, STAND.kontakt),
       ...(leadLink ? { leadLink } : {}),
-      ...(req.body?.messung && typeof req.body.messung === "object" ? { messung: req.body.messung } : {}),
+      ...messAus(req),
     });
     if (r.status >= 300 || !r.json?.ok) {
       console.error(`[ANTRAG-NEU] anlegen ${ref}: /application HTTP ${r.status}`, r.json?.code ?? r.json?.error ?? "");
@@ -399,7 +411,7 @@ router.post("/antrag-neu/:ref/speichern", async (req: Request, res: Response) =>
     // Speichern ab „Vertrag" nur mit geprüftem Antrag — sonst bliebe die Prüfung übersprungen.
     const zielFrei = STAND[ziel] && (STAND[ziel].schritt < 5 || !!z.antrag_neu_geprueft_am) && STAND[ziel].schritt < 8 ? ziel : "name";
     const paketGewaehlt = (["paket", "limit", "vertrag", "unterschrift"] as string[]).includes(zielFrei);
-    const erg = await speichernIntern(req, ref, d, leadLink, standFuer(z, zielFrei), paketGewaehlt ? { willkommenZurueckhalten: false } : {});
+    const erg = await speichernIntern(req, ref, d, leadLink, standFuer(z, zielFrei), { ...(paketGewaehlt ? { willkommenZurueckhalten: false } : {}), ...messAus(req) });
     if (!erg.ok) return res.status(erg.fehler ? 400 : 502).json({ ok: false, error: erg.fehler || "Ihre Angaben konnten gerade nicht gespeichert werden." });
     res.json({ ok: true });
   } catch (err) {
@@ -491,7 +503,7 @@ router.post("/antrag-neu/:ref/pruefen", async (req: Request, res: Response) => {
     ];
     const pruefung = { punkte, mail, anschrift, doppelt: !!laufend, am: new Date().toISOString() };
     const stand = laufend ? standFuer(z, "pruefung") : standFuer(z, "ergebnis");
-    const erg = await speichernIntern(req, ref, d, leadLink, stand);
+    const erg = await speichernIntern(req, ref, d, leadLink, stand, messAus(req));
     if (!erg.ok) return res.status(502).json({ ok: false, error: "Die Prüfung konnte gerade nicht abgeschlossen werden. Bitte versuchen Sie es gleich noch einmal." });
     await sqlPool`
       UPDATE fiaon_applications
@@ -713,8 +725,7 @@ router.post("/antrag-neu/:ref/annehmen", async (req: Request, res: Response) => 
     // Die Antragszeile: Schritt 8, abgeschickt, AGB und Vertrag angenommen (ag1/ag3 — wie der alte Knopf).
     // Dann die Bestellung (Verwendungszweck, Rechnung, Fälligkeit, Zahlungsmail) — wie im alten Weg,
     // aber immer zu DIESEM Vertrag.
-    await annahmeAbschliessen(req, ref, d, leadLink,
-      req.body?.messung && typeof req.body.messung === "object" ? { messung: req.body.messung } : {});
+    await annahmeAbschliessen(req, ref, d, leadLink, messAus(req));
 
     // Für die Akte: was nur der neue Weg fragt — damit der Mitarbeiter es am Telefon vor sich hat.
     const notiz = [

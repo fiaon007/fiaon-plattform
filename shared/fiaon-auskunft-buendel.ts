@@ -71,6 +71,30 @@ export function buendelAnzeige(suche: string): BuendelAnzeige {
   return "dezent";
 }
 
+/**
+ * Dieselben Parameter für den NEUEN Antrag (05.10.2026, E-283) — er bietet die
+ * Auskunft erst im Danke-Schritt an (AuskunftBox, antrag-neu/schritte-abschluss.tsx):
+ *   „gewuenscht" ← ?auskunft=1 oder src=auskunft: „Wir besorgen sie für Sie" ist
+ *                  vorgewählt. Bestellt wird NIE von selbst — der Kunde bestätigt
+ *                  wie immer mit Haken und Knopf.
+ *   „bestellt"   ← ?auskunft=0 (Zahlungsseite einer schon bestellten Auskunft,
+ *                  i18n/zahlung-auskunft.ts): keine zweite anbieten.
+ *   „da"         ← src=auskunft_da (Mail „Ihre Auskunft ist da"): liegt schon vor.
+ *   ""           ← nichts davon.
+ * Dieselbe Reihenfolge wie buendelAnzeige: Was „aus" ist, gewinnt vor „offen".
+ */
+export type AuskunftVorab = "" | "gewuenscht" | "bestellt" | "da";
+export function auskunftVorabAus(suche: string): AuskunftVorab {
+  try {
+    const q = new URLSearchParams(suche);
+    const src = String(q.get("src") ?? "").trim().toLowerCase();
+    if (src === "auskunft_da") return "da";
+    if (q.get("auskunft") === "0") return "bestellt";
+    if (q.get("auskunft") === "1" || src === "auskunft") return "gewuenscht";
+  } catch { /* egal — nichts vorgemerkt */ }
+  return "";
+}
+
 /** Die Art aus dem Paket: ein FIAON-Business-Paket heißt Firmen-Auskunft (wie auskunftArtFuer). */
 export function buendelArt(packKey: unknown): AuskunftArt {
   return String(packKey ?? "").trim().toLowerCase().startsWith("business_") ? "firma" : "privat";

@@ -15,6 +15,7 @@ import {
   antragNeuDatenSauber, antragNeuPaket, geburtText, staatAnzeige,
   type AntragNeuDaten, type AntragNeuPaket, type AntragNeuSchritt,
 } from "@shared/fiaon-antrag-neu";
+import type { AuskunftVorab } from "@shared/fiaon-auskunft-buendel";
 
 export type PruefPunkt = { id: string; titel: string; text: string; ok: boolean };
 
@@ -42,6 +43,12 @@ export interface Zustand extends AntragNeuDaten {
   rueckZu: AntragNeuSchritt | "";
   /** Danke-Seite */
   auskunft: "" | "bestellt" | "selbst" | "habe";
+  /**
+   * Was die Adresse zur Auskunft mitbrachte (E-283, auskunftVorabAus): „gewuenscht" wählt
+   * „Wir besorgen sie für Sie" vor (bestellt wird nie von selbst), „bestellt"/„da" bieten keine
+   * zweite an. Gelesen beim Laden der Seite, wie das Paket.
+   */
+  auskunftVorab: AuskunftVorab;
   ak1: boolean; ak2: boolean;
   termin: { text: string; mit: string | null } | null;
   rueckruf: { text: string; mit: string | null } | null;
@@ -53,7 +60,7 @@ export const ZUSTAND_LEER: Zustand = {
   ref: null, adresseOffen: false, geprueftAm: null, pruefPunkte: null, doppelt: false, pinGesetzt: false,
   ag1: false, ag3: false, ag4: false, angenommenAm: null, sofortBeginn: null,
   paymentReference: null, betrag: null, faellig: null, verknuepft: false, zahlungGemeldet: false, zahlungGemeldetAm: null, bezahlt: false,
-  rueckZu: "", auskunft: "", ak1: false, ak2: false, termin: null, rueckruf: null, passwort: false,
+  rueckZu: "", auskunft: "", auskunftVorab: "", ak1: false, ak2: false, termin: null, rueckruf: null, passwort: false,
 };
 
 const SITZUNG = "fiaon_antrag_neu";

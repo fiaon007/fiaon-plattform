@@ -202,8 +202,13 @@ export async function logLead(
 function leadName(l: any): string {
   return [l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`;
 }
-function antragUrl(leadId: number): string {
-  return `${fiaonBaseUrl()}/antrag?lead=${leadId}`;
+/**
+ * Der Rückfall, wenn der persönliche Link (/a/<code>) nicht entsteht. Schlicht /antrag
+ * (05.10.2026, E-283): ?lead=<id> las keiner der beiden Anträge — es hielt den Besucher
+ * nur über die Weiche im alten Weg fest.
+ */
+function antragUrl(): string {
+  return `${fiaonBaseUrl()}/antrag`;
 }
 
 // ── Zeit-Fenster (identisch zur bestehenden Payment-Engine) ──────────────────
@@ -491,7 +496,7 @@ function followupPayload(l: any) {
     lead_id: l.id,
     followup_number: Number(l.lead_reminder_count || 1),
     quelle: l.quelle || null,
-    antrag_url: antragUrl(l.id),
+    antrag_url: antragUrl(),
   };
 }
 
@@ -525,7 +530,7 @@ async function leadMailFelder(l: any, kanal: "m" | "a"): Promise<{ anrede: strin
   const [z] = (await sqlPool`
     SELECT l.vorname, l.nachname, p.anrede FROM fiaon_leads l
     LEFT JOIN fiaon_persons p ON p.id = l.person_id WHERE l.id = ${Number(l.id)}`.catch(() => [])) as any[];
-  let url = antragUrl(Number(l.id));
+  let url = antragUrl();
   try {
     const { kurzlinkFuerLead, kurzlinkUrl } = await import("../lib/fiaon-kurzlink");
     url = kurzlinkUrl(await kurzlinkFuerLead(Number(l.id)), kanal);

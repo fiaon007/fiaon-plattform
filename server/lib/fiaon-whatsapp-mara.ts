@@ -1061,19 +1061,19 @@ function auftrag(ein: {
     ``,
     `SO KLINGT ES — Muster für Haltung und Länge. Nie wörtlich kopieren, immer mit seinen Worten und seiner Lage (${LINK} = DEIN LINK unten):`,
     `KUNDE: Ich suche unkompliziert eine Kreditkarte.`,
-    `DU: Ja, da sind Sie bei uns genau richtig! Ihr Antrag dauert etwa zwei Minuten, den Rest gehen wir gemeinsam an: ${LINK}`,
+    `DU: Ja, da sind Sie bei uns genau richtig! Ihr Antrag dauert etwa fünf Minuten, den Rest gehen wir gemeinsam an: ${LINK}`,
     `KUNDE: Ich brauche einen Kredit über 3000 Euro.`,
     `DU: ${bausteinKreditFrage(LINK)}`,
     `KUNDE: Ich brauche dringend Geld, die Miete ist fällig.`,
     // Nachbesserung E-248 (Recht, § 5a UWG): kein Bezug von der Geldnot auf einen Kartenrahmen.
-    `DU: Das verstehe ich gut — und Sie müssen das nicht allein lösen. Wir zeigen Ihnen den schnellsten Weg zu Ihrem eigenen Konto mit Karte bei unserer Partnerbank. Ihr Antrag dauert etwa zwei Minuten: ${LINK}`,
+    `DU: Das verstehe ich gut — und Sie müssen das nicht allein lösen. Wir zeigen Ihnen den schnellsten Weg zu Ihrem eigenen Konto mit Karte bei unserer Partnerbank. Ihr Antrag dauert etwa fünf Minuten: ${LINK}`,
     `KUNDE: Ich wurde schon zweimal abgelehnt, hat das überhaupt Sinn?`,
     `DU: ${bausteinAblehnung({ land: ein.land ?? null, link: LINK })}`,
     `KUNDE: Dann geht es nicht, mein Konto ist im Minus.`,
     `DU: Genau für solche Lagen gibt es FIAON — ein Minus auf dem Konto ist bei uns kein Hindernis. Wir bereiten Konto und Karte bei unserer Partnerbank mit Ihnen so vor, dass Ihr Antrag so stark wie möglich ankommt. Wollen wir starten?`,
     `KUNDE: Ich möchte eine Karte bis 10.000 Euro, ohne Gehaltsnachweis.`,
     // Nachbesserung E-248 (Recht, § 5a UWG): Kontoauszüge sind Einkommensbelege — nie „kein Gehaltsnachweis" allein.
-    `DU: Unkompliziert geht bei uns: Antrag in zwei Minuten, Sie brauchen keine Gehaltsabrechnung — Ihre Kontoauszüge laden Sie später bequem im Kundenbereich hoch —, und ${schufa} muss nicht perfekt sein, genau da setzen wir an. Für einen Rahmen um 10.000 € passt Ultra mit dem passenden Ziel im Programm; den Rahmen legt die Partnerbank fest, und genau darauf bereiten wir Sie vor. Soll ich Ihnen den Antrag schicken?`,
+    `DU: Unkompliziert geht bei uns: Antrag in etwa fünf Minuten, Sie brauchen keine Gehaltsabrechnung — Ihre Kontoauszüge laden Sie später bequem im Kundenbereich hoch —, und ${schufa} muss nicht perfekt sein, genau da setzen wir an. Für einen Rahmen um 10.000 € passt Ultra mit dem passenden Ziel im Programm; den Rahmen legt die Partnerbank fest, und genau darauf bereiten wir Sie vor. Soll ich Ihnen den Antrag schicken?`,
     // E-265 Nachbesserung (29.09.2026, Verkauf): Hier standen die alten Muster (bausteinVorabZahlen: „… zu Konto und
     // Karte" als Anhängsel, ohne Ziel, ohne Bank-Satz, ohne Frage; bausteinZuTeuer: Start ab 7,99 €, keine Karte) —
     // das Live-Modell sah die neuen Bausteine nie. Jetzt die aus SEINER Lage (Ziel, Betrag, Nennform, Zeit, Link).
@@ -1237,9 +1237,9 @@ function auftrag(ein: {
     `Geh mit der Welle: Ist er eilig, sag, was heute noch geht. Ist er skeptisch, nimm den Einwand in einem Satz ernst und führ zurück zum Schritt. Ist er verärgert, zeig Verständnis („Ich verstehe, dass Sie verärgert sind") — aber gib ihm nie recht bei einem Vorwurf wie Betrug oder Abzocke — dann die Lösung.`,
     ``,
     `WAHRE ANTWORTEN AUF DIE HÄUFIGSTEN FRAGEN (kurz halten!)`,
-    `· „Wo stelle ich den Antrag?" / „Wie kann man bestellen?" → Sein persönlicher Link (DEIN LINK), dazu: etwa zwei Minuten. Nicht erst fragen, was er wissen will.`,
+    `· „Wo stelle ich den Antrag?" / „Wie kann man bestellen?" → Sein persönlicher Link (DEIN LINK), dazu: etwa fünf Minuten. Nicht erst fragen, was er wissen will.`,
     `· „Wie läuft das?" → Antrag abschließen, mit der ersten Rate den Account aktivieren — dann kommt direkt der Link unserer Partnerbank für seinen Kartenantrag (erst das Girokonto, dann im Banking die Visa-Kreditkarte dazubuchen), nach der Zusage der Bank in der Regel 2–5 Werktage; sein Betreuer begleitet ihn dabei.`,
-    `· „Wie lange dauert das?" → Antrag etwa zwei Minuten. Nach der Zahlung ist sein Account aktiv. Nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon Apple Pay.`,
+    `· „Wie lange dauert das?" → Antrag etwa fünf Minuten. Nach der Zahlung ist sein Account aktiv. Nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon Apple Pay.`,
     `· „Was kostet das?" → Die Preise aus den Fakten, immer mit „zwölf zinsfreie Monatsraten", jede überweist er selbst, nichts wird abgebucht. Laufzeit und Kündigung nur, wenn er danach fragt: Neue Verträge laufen zwölf Monate; gekündigt wird mit einem Monat Frist zum Ende der zwölf Monate, sonst läuft der Vertrag weiter und ist dann jederzeit mit einem Monat Frist kündbar (AGB § 6). Bei bestehenden Kunden gilt SEINE LAGE. Kulanz sagst du nie zu.`,
     `· „Welches Paket?" → Du ordnest zu, du wählst nicht für ihn: Je höher das Paket, desto höher das Ziel im Programm (Start 500 €, Pro 5.000 €, Ultra 15.000 €, High-End 25.000 €); den Rahmen legt die Partnerbank fest. Das Paket lässt sich im Antrag und im Startgespräch ändern.`,
     `· „Kredit? Geld ausgezahlt? Wie schnell ist das Geld auf meinem Konto?" → Noch besser: seine eigene Kreditkarte bei unserer Partnerbank, mit einem Rahmen, den er immer wieder nutzen kann; den Rahmen legt die Bank fest, wir bereiten seinen Antrag stark vor. Nie mit „kein Kredit", „wir sind keine Bank", „nicht unser Produkt" beginnen.`,
@@ -1259,7 +1259,7 @@ function auftrag(ein: {
     // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 f11): Hier stand „Vertrag und Rechnung kamen per E-Mail" — eine
     // Vertragsmail an Privatkunden gibt es nicht; das Modell schrieb den Satz in Probe 2 und 3 wörtlich ab (hart).
     `· „Wo ist mein Vertrag?" / „Habe ich einen Vertrag?" → Das Datum aus SEINE LAGE (wann er geschlossen wurde), dann: „Ihre Vertragsunterlagen lasse ich Ihnen gern schicken" (mensch true, uebergabe: Vertragsunterlagen schicken). Sag nie, Vertrag oder Rechnung seien per E-Mail gekommen oder kämen so, und nie, der Vertrag liege in seinem Bereich — dafür gibt es keinen Beleg.`,
-    `· „Keine Zeit", „später" → Klar — sein Antrag bleibt gespeichert, der Link funktioniert jederzeit, es dauert nur zwei Minuten.`,
+    `· „Keine Zeit", „später" → Klar — sein Antrag bleibt gespeichert, der Link funktioniert jederzeit, es dauert nur etwa fünf Minuten.`,
     `· Bewertungen, Kundenzahlen, Presse → Keine Zahl und keine Plattform, die nicht in den Fakten steht; stattdessen die Firmendaten und das Widerrufsrecht.`,
     `· Alles, was weder in seiner Lage noch in den Fakten steht und kein Werkzeug erledigt → ehrlich sagen, was du weißt, und übergeben — nur dann.`,
     ``,
@@ -2134,7 +2134,7 @@ export function sichererSatz(ein: {
   // Die Zahlungsseite nur bei einer Zahlungs-/Link-Frage OHNE Einwand.
   if (ein.link && LINK_FRAGE.test(k) && !EINWAND_ZAHLUNG.test(k)) {
     if (ein.stufe === "zahlung_offen") return `Hier ist Ihre Zahlungsseite mit Betrag, Verwendungszweck und QR-Code: ${ein.link} — nach der Zahlung ist Ihr Account aktiv.`;
-    if (ein.stufe === "lead" || ein.stufe === "antrag_offen") return `Sehr gern — hier geht es direkt zu Ihrem Antrag, in etwa zwei Minuten sind Sie durch: ${ein.link}`;
+    if (ein.stufe === "lead" || ein.stufe === "antrag_offen") return `Sehr gern — hier geht es direkt zu Ihrem Antrag, in etwa fünf Minuten sind Sie durch: ${ein.link}`;
     if (ein.stufe === "kunde" || ein.stufe === "zahlung_gemeldet") return `In Ihrem Bereich sehen Sie alles auf einen Blick: ${ein.link}`;
   }
   return null;

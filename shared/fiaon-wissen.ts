@@ -14,6 +14,12 @@
 // deshalb nur in den Kundenbereich schicken. Jetzt eine Wahrheit aus
 // shared/fiaon-auskunft.ts: Zusatzprodukt, NICHT im Paket, 149 € einzeln /
 // 74 € mit Paket (Firma 349/199 €), sofort bestellbar.
+//
+// 05.10.2026 (E-283): „DER WEG FÜR NEUE KUNDEN" beschreibt den neuen Antrag
+// (Angaben, Prüfung ohne Auskunftei-Abfrage, PIN, Paket, Vertrag mit
+// Unterschrift, erste Rate) statt „Paket zuerst, zwei Minuten, Passwort".
+// Neu: DIE PERSÖNLICHE FIAON-PIN und DAS LIMIT-GESPRÄCH. Mara (Mail und
+// WhatsApp) liest dieselben Fakten (wissenFakten, wissenFuerWhatsApp).
 // ═══════════════════════════════════════════════════════════════════════════
 import { PAKETE } from "./fiaon-pakete";
 import {
@@ -173,12 +179,27 @@ ${globalWissen()}
 
 ${auskunftWissen()}
 
-DER WEG FÜR NEUE KUNDEN
-1. Paket wählen (fiaon.com/privatkunden oder fiaon.com/antrag) — der Antrag dauert etwa zwei Minuten: E-Mail, Name, Geburtsdatum, Telefon, Adresse (füllt sich beim Tippen selbst aus), Beschäftigung, Einkommen, Wunschlimit.
-2. Im Schritt „Vertrag“ „Zahlungspflichtig annehmen“ klicken (darüber stehen Paket, Monatsrate, zwölf Monate Laufzeit, Gesamtbetrag und Kündigungsregel; über „Angaben ändern“ lassen sich die Angaben vorher berichtigen; erst dieser Klick schließt den Vertrag) — danach ist der Kunde sofort in seinem Bereich eingeloggt, legt ein Passwort fest und wählt: „Jetzt aktivieren“ (Zahlungsdaten, QR-Code, Kopieren) oder „Zuerst sprechen“ (Termin mit einem Mitarbeiter).
-3. Nach Zahlungseingang: Startgespräch buchen (Pflicht — bis dahin bleibt der Bereich geschlossen). Wer vorher einen Termin gebucht hat, braucht keinen zweiten: derselbe Termin wird zum Startgespräch.
-4. Nach dem Startgespräch: Bereich vollständig aktiv. Liegt eine Auskunft vor (FIAON-Bonitätsauskunft oder hochgeladene Datenkopie), wird sie ausgewertet und jeder Eintrag erklärt.
-Die Bonitätsauskunft ist jederzeit bestellbar, mit oder ohne Paket (siehe DIE BONITÄTSAUSKUNFT) — mit bezahltem Paket zum Kundenpreis.
+DER WEG FÜR NEUE KUNDEN (der Privatantrag seit 05.10.2026 — jeder Link auf den Antrag führt dorthin)
+1. Angaben (fiaon.com/privatkunden oder fiaon.com/antrag), etwa fünf Minuten: Name, E-Mail und Mobilnummer, Geburtsdatum, Adresse (füllt sich beim Tippen selbst aus), Staatsangehörigkeit, Beruf, Einkommen, Wohnsituation und die Frage nach negativen Einträgen. Ein Paket aus dem Link ist nur vorgewählt.
+2. Prüfung direkt im Antrag: Angaben vollständig und volljährig, Anschrift, Mobilnummer aus Deutschland, Österreich oder der Schweiz, E-Mail-Adresse kann Post empfangen, kein laufender FIAON-Vertrag auf denselben Namen. KEINE Abfrage bei SCHUFA oder einer anderen Auskunftei, kein Einfluss auf den Score. Danach steht „Ihr Antrag ist bestätigt“ — das bestätigt die Angaben, es ist keine Zusage von Karte oder Limit.
+3. Persönliche FIAON-PIN festlegen (siehe DIE PERSÖNLICHE FIAON-PIN).
+4. Paket wählen (das vorgewählte lässt sich hier noch ändern), dazu das Ziel-Limit des Pakets und wofür der Kunde die Karte nutzen möchte.
+5. Vertrag lesen und am Bildschirm unterschreiben. Erst der Knopf „Zahlungspflichtig annehmen“ schließt den Vertrag; davor stehen Paket, Monatsrate, zwölf Monate Laufzeit, Gesamtbetrag und Kündigungsregel. Die Vertragsbestätigung kommt per E-Mail.
+6. Erste Monatsrate per Überweisung: Die Zahlungsdaten mit QR-Code stehen direkt danach im Antrag und in der E-Mail. Danach öffnet der Kunde seinen Kundenbereich; später meldet er sich mit seiner E-Mail-Adresse über einen Anmelde-Link an (ein Passwort ist freiwillig).
+7. Nach Zahlungseingang: Startgespräch buchen (Pflicht, rund 15 Minuten am Telefon) — im Kundenbereich, mit FIAON Pro, Ultra oder High-End auch direkt auf der letzten Seite des Antrags. Dazu kommt nach der ersten Rate der Link unserer Partnerbank für den Kartenantrag (hat der Kunde keinen sofortigen Beginn verlangt, nach Ablauf der Widerrufsfrist), siehe KONTO UND KARTE.
+Wer im früheren Antrag (vor dem 05.10.2026) einen Antrag begonnen hat, macht dort weiter — über den Link aus der Erinnerungsmail.
+Die Bonitätsauskunft kann der Kunde am Ende des Antrags zum Kundenpreis dazubestellen (fällig erst nach der ersten Paketzahlung) oder jederzeit später, mit oder ohne Paket (siehe DIE BONITÄTSAUSKUNFT).
+
+DIE PERSÖNLICHE FIAON-PIN
+- Im Antrag legt der Kunde nach der Prüfung eine vierstellige persönliche FIAON-PIN fest. Mit ihr erkennen ihn die Mitarbeiter am Telefon.
+- Sie ist KEINE Karten-PIN und hat nichts mit der Karte der Bank zu tun; die PIN einer Bankkarte vergibt allein die Bank.
+- Ändern: im Kundenbereich unter Mehr → Persönliche PIN (fiaon.com/app/mehr/pin). Wer sie vergessen hat, setzt sie dort über „PIN vergessen?“ neu — mit einem Anmelde-Link an seine E-Mail-Adresse.
+- Die Mitarbeiter fragen sie ab der ersten Zahlung ab; vorher erkennen sie den Kunden wie bisher. FIAON sieht die Ziffern nicht (gespeichert ist nur ein Prüfwert, aus dem sie sich nicht zurückrechnen lassen) — frage nie per Mail oder WhatsApp nach der PIN und nenne sie nie.
+
+DAS LIMIT-GESPRÄCH (FIAON Pro, Ultra und High-End)
+- Mit einem bezahlten Paket Pro, Ultra oder High-End bucht der Kunde sein Limit-Gespräch selbst im Kundenbereich unter „Limit-Erhöhung anfragen“ (fiaon.com/app/mehr/limit): ein Gespräch mit seiner Ansprechpartnerin über den nächsten Schritt zu einem höheren Limit.
+- Höchstens einmal je drei Monate, frühestens drei Monate nach der ersten Rate. FIAON Start hat kein Limit-Gespräch.
+- Es ist ein Gespräch, keine Limit-Zusage.
 
 DER KUNDENBEREICH (fiaon.com/login → „Mein Bereich“)
 Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (Kontoauszug der letzten drei Monate, Ausweis — Handyfoto genügt; je Unterlage mehrere Dateien auf einmal auswählen, z. B. drei Monatsauszüge oder Vorder- und Rückseite, sie werden zu einem Dokument zusammengefügt — ein neuer Upload ersetzt den vorigen), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen.

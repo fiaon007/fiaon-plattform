@@ -539,7 +539,8 @@ const START: { s: string; titel: string; text: string; bereich: string; prio: nu
   { s: "doppelzahler-gutschrift", bereich: "entscheidung", prio: 2, titel: "Doppelzahler-Gutschrift freigeben (E-011)", text: "Sobald die Liste steht." },
   { s: "website-freigeben", bereich: "pruefen", prio: 1, titel: "Neue Website ansehen und freigeben",
     text: "fiaon.com (Startseite), /investoren, /presse, /datenraum, /partner, /karriere — Texte, Zahlen, Tonalität. Zahlen für Investoren/Presse stehen als „auf Anfrage“, bis du sie bestätigst.", link: "https://www.fiaon.com/" },
-  { s: "antrag-pruefen", bereich: "pruefen", prio: 1, titel: "Antrag am Handy durchspielen (Sie-Form, 5 Schritte, neue Prüfung)", text: "fiaon.com/antrag — bis zur Zahlungsseite.", link: "https://www.fiaon.com/antrag" },
+  // E-283 (05.10.2026): /antrag führt in den neuen Antrag — Ablauf und Abbruchpunkt angeglichen.
+  { s: "antrag-pruefen", bereich: "pruefen", prio: 1, titel: "Antrag am Handy durchspielen (neuer Antrag: Angaben, Prüfung, PIN, Paket, Vertrag)", text: "fiaon.com/antrag — bis zur Unterschrift, dort abbrechen: „Zahlungspflichtig annehmen“ schließt einen echten Vertrag.", link: "https://www.fiaon.com/antrag" },
   { s: "presse-fakten", bereich: "sonstiges", prio: 3, titel: "Presse-Fakten bestätigen für /presse und /investoren", text: "Gründung, Sitz, Teamgröße, Kundenzahl, ARR-Run-Rate." },
   { s: "higgsfield-guthaben", bereich: "konten", prio: 3, titel: "Higgsfield-Guthaben prüfen (65,5 Credits)", text: "Bei Bedarf aufladen, wenn die Website-Szenen gefallen." },
   { s: "footer-disclaimer", bereich: "entscheidung", prio: 2, titel: "Fußzeilen-Disclaimer an die neue Ausrichtung anpassen lassen",

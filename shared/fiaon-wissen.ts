@@ -202,7 +202,7 @@ DIE PERSÖNLICHE FIAON-PIN
 
 DAS LIMIT-GESPRÄCH (FIAON Pro, Ultra und High-End)
 - Mit einem bezahlten Paket Pro, Ultra oder High-End bucht der Kunde sein Limit-Gespräch selbst im Kundenbereich unter „Limit-Erhöhung anfragen“ (fiaon.com/app/mehr/limit): ein Gespräch mit seiner Ansprechpartnerin über den nächsten Schritt zu einem höheren Limit.
-- Höchstens einmal je drei Monate, frühestens drei Monate nach der ersten Rate. FIAON Start hat kein Limit-Gespräch.
+- Das erste frühestens drei Monate nach der ersten Rate, jedes weitere drei Monate nach dem letzten GEFÜHRTEN Limit-Gespräch (ein verpasstes zählt nicht — dann einfach neu buchen). Voraussetzungen: Startgespräch geführt, keine offene Rate. FIAON Start hat kein Limit-Gespräch.
 - Es ist ein Gespräch, keine Limit-Zusage.
 
 DER KUNDENBEREICH (Anmelden: fiaon.com/app/login — mit Passwort oder ohne Passwort über einen Anmelde-Link per E-Mail; fiaon.com/login fragt nur das Passwort ab und führt mit „Ohne Passwort anmelden“ dorthin)

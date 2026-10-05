@@ -3,7 +3,21 @@
 // Beide Sprachen Schlüssel für Schlüssel; die Seite liest über useWoerter().
 // Britisches Englisch. Karte, Konto und Rahmen bleiben Ziel, nie Zusage —
 // in beiden Sprachen. Der FAQ-Generator teilt an „const en".
+//
+// 05.10.2026, E-283 (Justin: „Passe fiaon.com/privatkunden so an, dass die
+// Produkte den gleichen Text haben wie bei /start.“): Name, Untertitel und
+// Merkmale der Paketkarten kommen auf Deutsch aus client/src/lib/paket-merkmale.ts
+// (Wortlaut wie /start, abhängig vom Land); die Zeile „Ziel: …“ gibt es auf
+// /start nicht und ist entfallen. Englisch: dieselben Merkmale, übersetzt.
 // ═══════════════════════════════════════════════════════════════════════════
+import { LAENDER, type Land } from "@/lib/fiaon-land";
+import { PAKET_MERKMALE } from "@/lib/paket-merkmale";
+
+type PaketText = { name: string; sub: string; feats: (l: Land) => string[] };
+
+/** Betrag für die englische Seite: „€5,000“ bzw. „CHF 5,000“ — die Zahl bleibt, wie auf /start. */
+const betragEn = (zahl: string, l: Land) => (LAENDER[l].waehrungVorn ? `${LAENDER[l].waehrung} ` : LAENDER[l].waehrung) + Number(zahl.replace(/\./g, "")).toLocaleString("en-GB");
+
 const de = {
   metaTitel: "Privatkunden · Bonität, Konto, Kreditkarte",
   metaBeschreibung: "Einträge bereinigen, Girokonto eröffnen, Kreditkarte bis 25.000 € – FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, versendet die Schreiben und öffnet die Tür. Pakete ab 7,99 € im Monat.",
@@ -27,14 +41,9 @@ const de = {
   ],
   paketePille: "Ihr Paket", paketeH2a: "Wählen Sie, wie weit Sie gehen. ", paketeH2b: "Nicht, ob.",
   paketeLead: "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto näher rückt die Karte. Ein Klick – und Sie sind im Antrag, Schritt 1, Paket gesetzt.",
-  beliebt: "Beliebt", zielRahmen: "Ziel-Rahmen", proMonat: "/ Monat", ziel: "Ziel: ", mitStarten: (n: string) => `Mit ${n} starten`, waehlenUndStarten: (n: string) => `${n} wählen und Antrag starten`,
-  pakete: {
-    start: { sub: "Der Einstieg", ziel: "Wissen, was gespeichert ist", feats: ["Auswertung Ihrer Bonitätsauskunft – jeder Eintrag erklärt (Ihre selbst angeforderte Datenkopie oder die Auskunft als Zusatz)", "Kontoauszug-Analyse mit Ihrem Spielraum", "Ihr Bereich mit Fahrplan", "Unterstützung per E-Mail"] },
-    // E-283 (05.10.2026): das Limit-Gespräch — gilt für alle bezahlten Pro-, Ultra- und High-End-Kunden (Ultra/High-End: „Alles aus Pro").
-    pro: { sub: "Standard", ziel: "Einträge bereinigen, Konto eröffnen", feats: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und feste Ansprechpartnerin", "Limit-Gespräch alle drei Monate – im Kundenbereich buchbar", "Girokonto für jeden Kunden"] },
-    ultra: { sub: "Mit Karte", ziel: "Kreditkarte bis 15.000 € bei guter Bonität", feats: ["Alles aus Pro", "Begleitung bis zur Kreditkarte – Readiness, Meilensteine, Antrag", "Bevorzugte Bearbeitung Ihrer Schreiben", "Telefonische Betreuung"] },
-    highend: { sub: "Das Maximum", ziel: "Karte bis 25.000 €, Finanzierung, persönliche Betreuung", feats: ["Alles aus Ultra", "Persönlicher Betreuer für Ihre Akte", "Vorbereitung auf Finanzierungen", "Erreichbar auch außerhalb der Bürozeiten"] },
-  } as Record<string, { sub: string; ziel: string; feats: string[] }>,
+  beliebt: "Beliebt", zielRahmen: "Ziel-Rahmen", proMonat: "/ Monat", mitStarten: (n: string) => `Mit ${n} starten`, waehlenUndStarten: (n: string) => `${n} wählen und Antrag starten`,
+  // 05.10.2026, E-283: Paketkarten im Wortlaut von /start (eine Quelle: client/src/lib/paket-merkmale.ts).
+  pakete: Object.fromEntries(PAKET_MERKMALE.map(({ key, name, sub, feats }) => [key, { name, sub, feats }])) as Record<string, PaketText>,
   paketeHinweis: (auskunft: string) => `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie · Paket im Antrag jederzeit änderbar · Nur die Auskunft? Bonitätsauskunft ${auskunft} einmalig. Über Konto, Karte und Rahmen entscheidet immer die Bank.`,
   tutPille: "Was FIAON für Sie tut", tutH2a: "Einsicht. Aktion. ", tutH2b: "Zugang.",
   tut: [
@@ -111,13 +120,17 @@ const en: typeof de = {
   ],
   paketePille: "Your plan", paketeH2a: "Choose how far you go. ", paketeH2b: "Not whether.",
   paketeLead: "Every plan starts with your report. The further you go, the closer the card comes. One click — and you are in the application, step 1, plan set.",
-  beliebt: "Popular", zielRahmen: "Target limit", proMonat: "/ month", ziel: "Goal: ", mitStarten: (n: string) => `Start with ${n}`, waehlenUndStarten: (n: string) => `Choose ${n} and start the application`,
+  beliebt: "Popular", zielRahmen: "Target limit", proMonat: "/ month", mitStarten: (n: string) => `Start with ${n}`, waehlenUndStarten: (n: string) => `Choose ${n} and start the application`,
+  // 05.10.2026, E-283: the plan cards as on /start, translated — same structure, same dependence on the country.
   pakete: {
-    start: { sub: "The entry point", ziel: "Know what is on file", feats: ["Review of your credit report — every entry explained (a data copy you requested yourself, or the report as an add-on)", "Bank statement analysis with your headroom", "Your area with a roadmap", "Support by e-mail"] },
-    // E-283 (05.10.2026): the limit review call, as in German.
-    pro: { sub: "Standard", ziel: "Clean up entries, open an account", feats: ["Everything in Start", "Deletion requests and objections — prepared, sent, tracked", "Instalment agreements with reply tracking", "Onboarding call and a named contact person", "A limit review call every three months — booked in your customer area", "A current account for every customer"] },
-    ultra: { sub: "With a card", ziel: "A credit card up to €15,000 with a good file", feats: ["Everything in Pro", "Guidance all the way to the credit card — readiness, milestones, application", "Priority handling of your letters", "Support by phone"] },
-    highend: { sub: "The maximum", ziel: "A card up to €25,000, finance, personal support", feats: ["Everything in Ultra", "A personal manager for your file", "Preparation for finance", "Reachable outside office hours too"] },
+    start: { name: "FIAON Starter", sub: "The foundation",
+      feats: (l: Land) => [`Your ${betragEn("500", l)} entry set-up`, "Access: basic card portfolio", `${LAENDER[l].register}-neutral profile check`, "Online dashboard & management"] },
+    pro: { name: "FIAON Pro", sub: "Standard",
+      feats: (l: Land) => [`Your ${betragEn("5.000", l)} limit protocol`, "Access: premium card network", "Dynamic limit top-up", "Instant score analysis", "Priority processing in the system"] },
+    ultra: { name: "FIAON Ultra", sub: "Elite account",
+      feats: (l: Land) => [`Your ${betragEn("15.000", l)} elite portfolio`, "Access: Gold & Platinum cards", "Cashback & air miles activation", "Individual approval roadmap", "VIP support & account optimisation"] },
+    highend: { name: "FIAON High End", sub: "The maximum",
+      feats: (l: Land) => [`Your ${betragEn("25.000", l)} Black Card set-up`, "Exclusive access: metal & VIP cards", "Personal account director", "International limit structures", "24/7 dedicated concierge support"] },
   },
   paketeHinweis: (auskunft: string) => `All plans: monthly by bank transfer · twelve instalments, then you decide · plan can be changed in the application at any time · Just the report? Credit report ${auskunft} one-off. The bank always decides on account, card and limit. The application is currently in German; our team speaks English on the phone.`,
   tutPille: "What FIAON does for you", tutH2a: "Insight. Action. ", tutH2b: "Access.",

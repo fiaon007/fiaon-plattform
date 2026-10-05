@@ -82,11 +82,13 @@ const de = {
   richtwerteLink: "Werkzeuge", richtwerteB: " oft aus – nutzen Sie sie.",
   wegH2a: "Der Zahlungsweg – ", wegH2b: "Schritt für Schritt.",
   wegLead: "Keine Vorkasse für Leistungen, die noch nicht erbracht sind. So läuft die Zahlung wirklich.",
+  // 05.10.2026, E-283: Tag 0 im neuen Antrag (vorher „Ihr Kundenbereich ist sofort aktiv“) und die Laufzeit nach
+  // AGB § 6 (vorher „jederzeit · Kündigen zum Monatsende“).
   weg: [
-    { dauer: "Tag 0", titel: "Antrag, Paket, Vertrag", text: "Sie wählen das Paket, sehen den Preis, nehmen den Vertrag an. Ihr Kundenbereich ist sofort aktiv – noch ohne Zahlung." },
+    { dauer: "Tag 0", titel: "Antrag, Paket, Vertrag", text: "Ihre Angaben, die Prüfung direkt im Antrag, dann Paket und Vertrag – den Preis sehen Sie, bevor Sie annehmen. Danach ist Ihr Kundenbereich eingerichtet." },
     { dauer: "Tag 0–3", titel: "Erste Rate per Überweisung", text: "Zahlungsdaten mit QR-Code im Kundenbereich. Sobald die Bank den Eingang bestätigt, startet das Startgespräch – „bezahlt“ heißt bei FIAON immer bankbestätigt." },
     { dauer: "ab Monat 2", titel: "Jede weitere Rate per Überweisung", text: "Elf weitere Raten, jeden Monat per Überweisung. Bankverbindung und Verwendungszweck stehen in jeder Zahlungsmail und im Kundenbereich; zwei Tage vorher erinnert der Zahlungskalender. Keine Kreditkarte nötig." },
-    { dauer: "jederzeit", titel: "Kündigen zum Monatsende, formlos", text: "Im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Nach der zwölften Rate fragen wir, ob Sie bleiben – Ansprechpartner, Akte und Fristenüberwachung laufen dann weiter." },
+    { dauer: "nach zwölf Raten", titel: "Danach monatlich kündbar, formlos", text: "Im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Nach der zwölften Rate fragen wir, ob Sie bleiben – Ansprechpartner, Akte und Fristenüberwachung laufen dann weiter." },
   ],
   weiterlesen: "Zum Weiterlesen",
   weiter: [
@@ -105,7 +107,7 @@ const de = {
   fragen: [
     { f: "Wie lange läuft der Vertrag?", a: "Der Vertrag läuft über zwölf Monatsraten – so lange, weil Auskunft, Schreiben und Antworten Zeit brauchen. Danach läuft er unbefristet weiter und ist jederzeit mit einer Frist von einem Monat kündbar, formlos: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das gesetzliche Widerrufsrecht von 14 Tagen ab Vertragsschluss gilt zusätzlich." },
     { f: "Ist die Bonitätsauskunft im Paket enthalten?", a: "Nein, sie ist ein eigenes Produkt. Mit laufendem Paket kostet sie einmalig 74 €, ohne Paket 149 € (für Unternehmen 199 € mit Paket, 349 € ohne). Sie bekommen die Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, die Speicherfristen geprüft, einen Handlungsplan und fertige Schreiben zur Freigabe. Ihre Datenkopie steht Ihnen bei jeder Auskunftei auch kostenlos zu – fordern Sie sie selbst an, laden Sie sie im Kundenbereich hoch, und Ihr Paket erklärt sie." },
-    { f: "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?", a: "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – dazu auf Wunsch die Bonitätsauskunft. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten." },
+    { f: "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?", a: "Für Sie nicht – weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – dazu auf Wunsch die Bonitätsauskunft. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten." },
     { f: "Wie wird bezahlt?", a: "Jede Rate per Überweisung – die erste wie alle weiteren. Die Zahlungsdaten mit QR-Code stehen im Kundenbereich, Bankverbindung und Verwendungszweck zusätzlich in jeder Zahlungsmail. Keine Kreditkarte nötig, keine Vorkasse für Leistungen, die noch nicht erbracht sind." },
     { f: "Kann ich das Paket wechseln?", a: "Im Antrag, im Startgespräch und danach jederzeit nach oben; nach unten zum nächsten Ratenlauf. Der Paketfinder auf dieser Seite gibt die erste Orientierung – die endgültige Zuordnung besprechen Sie im Startgespräch." },
     { f: "Was, wenn alle meine Einträge berechtigt sind?", a: "Dann sagen wir es Ihnen nach der Auskunft – und Sie entscheiden, ob Sie weitermachen. Auch bei berechtigten Einträgen gibt es einen Weg: Erledigt-Vermerke, Ratenvereinbarungen mit Meldeverzicht, das Girokonto, die Zahlungshistorie. Nur Löschung gibt es dann nicht, und das versprechen wir auch nicht." },
@@ -177,10 +179,10 @@ const en: typeof de = {
   wegH2a: "How you pay — ", wegH2b: "step by step.",
   wegLead: "No payment in advance for services not yet delivered. This is how payment really works.",
   weg: [
-    { dauer: "Day 0", titel: "Application, plan, contract", text: "You choose the plan, see the price, accept the contract. Your customer area is active straight away — before any payment." },
+    { dauer: "Day 0", titel: "Application, plan, contract", text: "Your details, the check right in the application, then plan and contract — you see the price before you accept. After that your customer area is set up." },
     { dauer: "Days 0–3", titel: "First instalment by bank transfer", text: "Payment details with a QR code in your customer area. As soon as the bank confirms receipt, the onboarding call is booked — at FIAON, “paid” always means confirmed by the bank." },
     { dauer: "from month 2", titel: "Every further instalment by bank transfer", text: "Eleven further instalments, each month by bank transfer. Bank details and payment reference are in every payment e-mail and in your customer area; the payment calendar reminds you two days ahead. No credit card needed." },
-    { dauer: "any time", titel: "Cancel to the end of the month, informally", text: "In your customer area under Subscription & payments or by e-mail. After the twelfth instalment we ask whether you want to stay — your contact person, your file and deadline tracking then continue." },
+    { dauer: "after twelve instalments", titel: "Then cancellable monthly, informally", text: "In your customer area under Subscription & payments or by e-mail. After the twelfth instalment we ask whether you want to stay — your contact person, your file and deadline tracking then continue." },
   ],
   weiterlesen: "Read on",
   weiter: [
@@ -199,7 +201,7 @@ const en: typeof de = {
   fragen: [
     { f: "How long does the contract run?", a: "The contract runs for twelve monthly instalments — that long because reports, letters and replies take time. After that it continues indefinitely and can be cancelled at any time with one month\x27s notice, informally: in your customer area under Subscription & payments or by e-mail. The statutory 14-day right of withdrawal from the conclusion of the contract applies in addition." },
     { f: "Is the credit report included in a plan?", a: "No, it is a separate product. With a running plan it costs €74 one-off, without a plan €149 (for companies €199 with a plan, €349 without). You receive the data copies from every credit bureau in your country, every line explained, storage periods checked, an action plan and finished letters for your approval. You are also entitled to your data copy from each bureau free of charge — request it yourself, upload it in your customer area and your plan explains it." },
-    { f: "Are there fees per letter or success commissions?", a: "No. Neither per letter nor on deletions, accounts or card limits. The plan price is the price — plus the credit report if you want it. Registered-letter postage, follow-up, escalation — all included." },
+    { f: "Are there fees per letter or success commissions?", a: "Not for you — neither per letter nor on deletions, accounts or card limits. The plan price is the price — plus the credit report if you want it. Registered-letter postage, follow-up, escalation — all included. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing." },
     { f: "How do I pay?", a: "Every instalment by bank transfer — the first and all further ones. The payment details with a QR code are in your customer area, and bank details and payment reference are also in every payment e-mail. No credit card needed, no payment in advance for services not yet delivered." },
     { f: "Can I change plans?", a: "In the application, in the onboarding call and upwards at any time afterwards; downwards from the next instalment cycle. The plan finder on this page gives a first orientation — the final choice is discussed in the onboarding call." },
     { f: "What if all my entries are justified?", a: "Then we tell you so after the report — and you decide whether to continue. Even with justified entries there is a way forward: settled markers, instalment agreements with a waiver of reporting, the current account, your payment history. Only deletion is off the table then, and we do not promise it." },

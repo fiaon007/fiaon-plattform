@@ -16,8 +16,9 @@ const de = {
   ],
   wegPille: "Der Weg", wegA: "Was passiert, ", wegB: "Tag für Tag.", wegLead: "Klicken Sie sich durch. Jede Station zeigt, was FIAON tut, was Sie tun – und wo es im Kundenbereich steht.",
   imBereich: "im Bereich:", zurueck: "Zurück", weiter: "Weiter", amZiel: "Am Ziel",
+  // 05.10.2026, E-283: Tag 0 im neuen Antrag — vorher „zwei Minuten … sofort in Ihrem Bereich, Passwort festlegen, Zahlung oder Termin wählen“.
   weg: [
-    { tag: "Tag 0", titel: "Antrag in zwei Minuten", text: "E-Mail, Name, Adresse, Beschäftigung. Vertrag annehmen – und Sie sind sofort in Ihrem Bereich, Passwort festlegen, Zahlung oder Termin wählen.", bereich: "Übersicht · Einrichtung" },
+    { tag: "Tag 0", titel: "Antrag in rund fünf Minuten", text: "Ihre Angaben, die Prüfung direkt im Antrag, Paket und Vertrag – danach die erste Monatsrate per Überweisung, und Ihr Bereich ist eingerichtet.", bereich: "Übersicht · Einrichtung" },
     { tag: "Tag 1–3", titel: "Startgespräch, 15 Minuten", text: "Ein Mitarbeiter ruft an: Lage, Ziel, Unterlagen, nächste Schritte. Danach kennen Sie Ihren festen Ansprechpartner.", bereich: "Mein Fahrplan" },
     { tag: "Tag 1–5", titel: "Unterlagen mit dem Handy", text: "Kontoauszug der letzten drei Monate und Ausweis fotografieren. Vollmacht für die Auskunft digital unterschreiben.", bereich: "Unterlagen" },
     { tag: "Tag 3–10", titel: "Auskunft beschafft", text: "FIAON holt die Bonitätsauskunft bei SCHUFA, KSV1870 oder CRIF. Jeder Eintrag wird in Menschensprache erklärt und bewertet: berechtigt, angreifbar, falsch.", bereich: "Meine Bonität" },
@@ -88,7 +89,7 @@ const de = {
     { f: "Wer sieht meine Daten?", a: "Ihr Ansprechpartner und die Mitarbeiter, die an Ihrer Akte arbeiten. Niemand sonst. Daten werden nie verkauft oder für Werbung weitergegeben." },
   ],
   zwischenrufFett: "Noch Fragen zur Plattform?", zwischenruf: " Der FIAON-Assistent kennt jede Seite, jedes Paket und jede Frist – sofort, kostenlos.", assistentFragen: "Assistent fragen", kontaktSupport: "Kontakt & Support",
-  abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Antrag in zwei Minuten, Auskunft innerhalb von 24 Stunden, ein Mensch, der Sie durch alles Weitere begleitet.",
+  abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Auskunft innerhalb von 24 Stunden, ein Mensch, der Sie durch alles Weitere begleitet.",
   jetztStarten: "Jetzt starten", paketeAnsehen: "Pakete ansehen",
 };
 const en: typeof de = {
@@ -106,7 +107,7 @@ const en: typeof de = {
   wegPille: "The route", wegA: "What happens, ", wegB: "day by day.", wegLead: "Click through. Each station shows what FIAON does, what you do – and where it sits in the customer area.",
   imBereich: "in the area:", zurueck: "Back", weiter: "Next", amZiel: "Arrived",
   weg: [
-    { tag: "Day 0", titel: "Application in two minutes", text: "E-mail, name, address, occupation. Accept the contract – and you are in your area immediately: set a password, choose payment or a call.", bereich: "Overview · Setup" },
+    { tag: "Day 0", titel: "Application in about five minutes", text: "Your details, the check right in the application, plan and contract – then the first monthly instalment by bank transfer, and your area is set up.", bereich: "Overview · Setup" },
     { tag: "Days 1–3", titel: "Onboarding call, 15 minutes", text: "A member of staff calls: situation, goal, documents, next steps. Afterwards you know your dedicated contact.", bereich: "My roadmap" },
     { tag: "Days 1–5", titel: "Documents with your phone", text: "Photograph the bank statement of the last three months and your ID. Sign the power of attorney for the report digitally.", bereich: "Documents" },
     { tag: "Days 3–10", titel: "Report obtained", text: "FIAON obtains the credit report from SCHUFA, KSV1870 or CRIF. Every entry is explained in plain language and assessed: justified, challengeable, wrong.", bereich: "My credit file" },
@@ -183,7 +184,7 @@ const en: typeof de = {
     { f: "Who sees my data?", a: "Your contact and the staff working on your file. Nobody else. Data is never sold or passed on for advertising." },
   ],
   zwischenrufFett: "Still have questions about the platform?", zwischenruf: " The FIAON assistant knows every page, every plan and every deadline – immediately, free of charge.", assistentFragen: "Ask the assistant", kontaktSupport: "Contact & support",
-  abschlussA: "Your route begins ", abschlussB: "with an e-mail address.", abschlussText: "Application in two minutes, report within 24 hours, a human who accompanies you through everything else.",
+  abschlussA: "Your route begins ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, report within 24 hours, a human who accompanies you through everything else.",
   jetztStarten: "Start now", paketeAnsehen: "See the plans",
 };
 export const PLATTFORM_KONZEPT_WOERTER = { de, en };

@@ -19,15 +19,17 @@ import { PRIVATKUNDEN_WOERTER } from "@/i18n/privatkunden";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf, Licht, Szenenbild } from "@/components/site/DunkleBuehne";
 import KartenSzene from "@/components/home3d/KartenSzene";
 import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { landLesen, type Land } from "@/lib/fiaon-land";
 import "@/styles/privatkunden.css";
 
-// Die Pakete: Schlüssel, Name, Ziel-Rahmen, Farbe — die Texte (Untertitel,
-// Ziel, Leistungen) stehen im Wörterbuch unter demselben Schlüssel.
+// Die Pakete: Schlüssel, Ziel-Rahmen, Farbe — Name, Untertitel und Merkmale
+// stehen im Wörterbuch unter demselben Schlüssel. 05.10.2026, E-283: im
+// Wortlaut von /start (client/src/lib/paket-merkmale.ts), ohne die Zeile „Ziel: …“.
 const PAKETE = [
-  { key: "start", name: "FIAON Start", lim: 500, bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)" },
-  { key: "pro", name: "FIAON Pro", lim: 5000, rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)" },
-  { key: "ultra", name: "FIAON Ultra", lim: 15000, bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)" },
-  { key: "highend", name: "FIAON High End", lim: 25000, bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)" },
+  { key: "start", lim: 500, bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)" },
+  { key: "pro", lim: 5000, rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)" },
+  { key: "ultra", lim: 15000, bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)" },
+  { key: "highend", lim: 25000, bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)" },
 ];
 
 function Readiness({ label }: { label: string }) {
@@ -50,6 +52,8 @@ export default function Privatkunden() {
   const t = useWoerter(PRIVATKUNDEN_WOERTER);
   const sprache = useSprache();
   const en = sprache === "en";
+  // Das Land wie auf /start (?land=…, sonst die letzte Wahl, sonst Deutschland) — es steckt in den Merkmalen.
+  const [land] = useState<Land>(() => landLesen());
   const zu = (p: string) => inSprache(p, sprache);
   // Preise in der Sprache der Seite: 7,99 € (de) — €7.99 (en).
   const preis = (key: string) => { const c = paketVon(key)?.preisCents ?? 0; return en ? "€" + (c / 100).toFixed(2) : (c / 100).toFixed(2).replace(".", ",") + " €"; };
@@ -81,19 +85,18 @@ export default function Privatkunden() {
               const w = t.pakete[p.key];
               return (
                 <Auf key={p.key} verzoegerung={i * 90}>
-                  <button type="button" className="pk-paket" data-top={p.rec ? "1" : undefined} onClick={() => start(p.key)} aria-label={t.waehlenUndStarten(p.name)}>
+                  <button type="button" className="pk-paket" data-top={p.rec ? "1" : undefined} onClick={() => start(p.key)} aria-label={t.waehlenUndStarten(w.name)}>
                     {p.rec && <span className="band">{t.beliebt}</span>}
                     <div className="pk-karte" style={{ background: p.bg }}>
                       <span className="chip" /><span className="wort">FIAON</span>
                       <span className="limit">{en ? "€" + p.lim.toLocaleString("en-GB") : p.lim.toLocaleString("de-DE") + " €"}</span>
                       <span className="inhaber">{t.zielRahmen}</span>
                     </div>
-                    <p className="name">{p.name}</p>
+                    <p className="name">{w.name}</p>
                     <p className="sub">{w.sub}</p>
                     <p className="betrag dk-verlauf zahl">{preis(p.key)}<small>{t.proMonat}</small></p>
-                    <p className="ziel">{t.ziel}{w.ziel}</p>
-                    <ul className="dk-liste">{w.feats.map((f) => <li key={f}>{f}</li>)}</ul>
-                    <span className={`dk-knopf${p.rec ? "" : " still"}`}>{t.mitStarten(p.name.replace("FIAON ", ""))}</span>
+                    <ul className="dk-liste">{w.feats(land).map((f) => <li key={f}>{f}</li>)}</ul>
+                    <span className={`dk-knopf${p.rec ? "" : " still"}`}>{t.mitStarten(w.name.replace("FIAON ", ""))}</span>
                   </button>
                 </Auf>
               );

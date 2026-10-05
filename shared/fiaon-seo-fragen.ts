@@ -311,7 +311,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?",
-      "a": "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – dazu auf Wunsch die Bonitätsauskunft. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten."
+      "a": "Für Sie nicht – weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – dazu auf Wunsch die Bonitätsauskunft. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
     },
     {
       "f": "Wie wird bezahlt?",
@@ -337,7 +337,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Are there fees per letter or success commissions?",
-      "a": "No. Neither per letter nor on deletions, accounts or card limits. The plan price is the price — plus the credit report if you want it. Registered-letter postage, follow-up, escalation — all included."
+      "a": "Not for you — neither per letter nor on deletions, accounts or card limits. The plan price is the price — plus the credit report if you want it. Registered-letter postage, follow-up, escalation — all included. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
     },
     {
       "f": "How do I pay?",
@@ -363,7 +363,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Can I cancel?",
-      "a": "Yes, at any time to the end of the current month, informally. The plan runs for twelve instalments; after that we ask you whether you want to stay — no silent renewal."
+      "a": "Yes. The plan runs for twelve monthly instalments; you can give notice in text form with one month's notice to the end of those twelve months, and at any time with one month's notice after that. The 14-day right of withdrawal applies in addition."
     },
     {
       "f": "How long does a settled debt stay on file?",
@@ -381,7 +381,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Schadet die Anfrage für die Karte meiner Auskunft?",
-      "a": "Eine Kreditanfrage wird zwölf Monate gespeichert und ist zehn Tage für andere sichtbar. Deshalb stellt FIAON den Antrag erst, wenn die Auskunft trägt – und nie mehrere gleichzeitig."
+      "a": "Eine Kreditanfrage wird zwölf Monate gespeichert und ist zehn Tage für andere sichtbar. Deshalb stellen Sie den Antrag über den Link unserer Partnerbank erst, wenn die Auskunft trägt – und nie mehrere gleichzeitig."
     },
     {
       "f": "Welche Karte bekomme ich über FIAON?",
@@ -389,7 +389,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was kostet die Karte?",
-      "a": "Die Kartengebühr legt der Herausgeber fest und wird vorher genannt. FIAON nimmt keine Provision auf Karte oder Rahmen – der Paketpreis ist der Preis."
+      "a": "Die Kartengebühr legt der Herausgeber fest und wird vorher genannt. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten – der Paketpreis ist der Preis."
     }
   ],
   "/en/credit-card": [
@@ -403,7 +403,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Does the card application hurt my report?",
-      "a": "A credit enquiry is stored for twelve months and visible to others for ten days. That is why FIAON only applies once the report supports it — and never several at once."
+      "a": "A credit enquiry is stored for twelve months and visible to others for ten days. That is why you apply via our partner bank's link only once the report supports it — and never for several at once."
     },
     {
       "f": "Which card do I get through FIAON?",
@@ -411,7 +411,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does the card cost?",
-      "a": "The card fee is set by the issuer and named beforehand. FIAON takes no commission on card or limit — the plan price is the price."
+      "a": "The card fee is set by the issuer and named beforehand. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing — the plan price is the price."
     }
   ],
   "/oesterreich": [
@@ -681,7 +681,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was kostet FIAON?",
-      "a": "Die Bonitätsauskunft mit Prüfung kostet einmalig 74 Euro. Die Pakete für die laufende Begleitung laufen über zwölf Monatsraten von 7,99 bis 99,99 Euro; alle Preise stehen offen auf der Preisseite. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben, keine Provision auf Konto oder Karte."
+      "a": "Die Bonitätsauskunft mit Prüfung kostet einmalig 74 Euro. Die Pakete für die laufende Begleitung laufen über zwölf Monatsraten von 7,99 bis 99,99 Euro; alle Preise stehen offen auf der Preisseite. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
     },
     {
       "f": "Kann FIAON meine SCHUFA-Einträge löschen?",
@@ -715,7 +715,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does FIAON cost?",
-      "a": "The credit report with review costs €74 one-off. The plans for ongoing support run over twelve monthly instalments from €7.99 to €99.99; all prices are open on the pricing page. No success fee, no fee per letter, no commission on account or card."
+      "a": "The credit report with review costs €74 one-off. The plans for ongoing support run over twelve monthly instalments from €7.99 to €99.99; all prices are open on the pricing page. No success fee, no fee per letter. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
     },
     {
       "f": "Can FIAON delete my SCHUFA entries?",
@@ -731,7 +731,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How do I cancel if I am not satisfied?",
-      "a": "At any time to the end of the current month, informally and without giving a reason — in the customer area under Subscription & payments or by e-mail. The 14-day right of withdrawal applies in addition."
+      "a": "The contract runs for twelve monthly instalments, then it is cancellable monthly — at any time with one month's notice, informally in the customer area under Subscription & payments or by e-mail. The 14-day right of withdrawal applies in addition."
     },
     {
       "f": "Where are the reviews?",
@@ -841,7 +841,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was passiert nach dem Antrag?",
-      "a": "Direkt nach der Unterschrift sehen Sie die Zahlungsdaten Ihrer ersten Monatsrate mit QR-Code und überweisen sie. Danach öffnen Sie Ihren Bereich; später melden Sie sich mit Ihrer E-Mail-Adresse an. Nach Zahlungseingang wählen Sie dort Ihr Startgespräch, und Sie bekommen den Link unserer Partnerbank für Ihren Kartenantrag. Über Karte und Limit entscheidet die Bank."
+      "a": "Direkt nach der Unterschrift sehen Sie die Zahlungsdaten Ihrer ersten Monatsrate mit QR-Code und überweisen sie. Danach öffnen Sie Ihren Bereich; später melden Sie sich mit Ihrer E-Mail-Adresse an. Nach Zahlungseingang wählen Sie dort Ihr Startgespräch, und Sie bekommen den Link unserer Partnerbank für Ihren Kartenantrag (haben Sie keinen sofortigen Beginn verlangt, nach Ablauf der Widerrufsfrist). Über Karte und Limit entscheidet die Bank."
     },
     {
       "f": "Was ist das Startgespräch?",
@@ -987,7 +987,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What happens after the application?",
-      "a": "Straight after signing you see the payment details for your first monthly instalment with a QR code and make the transfer. Then you open your area; later you sign in with your e-mail address. Once your payment has arrived, you choose your onboarding call there and receive our partner bank's link for your card application. The bank decides on the card and the limit."
+      "a": "Straight after signing you see the payment details for your first monthly instalment with a QR code and make the transfer. Then you open your area; later you sign in with your e-mail address. Once your payment has arrived, you choose your onboarding call there and receive our partner bank's link for your card application (if you did not request an immediate start, once the withdrawal period has expired). The bank decides on the card and the limit."
     },
     {
       "f": "What is the onboarding call?",
@@ -1141,7 +1141,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie verdient FIAON Geld?",
-      "a": "Mit Festpreisen: der Bonitätsauskunft (74 Euro einmalig) und Paketen über zwölf Monatsraten. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Über Partnerbanken kann später eine Vergütung je vermitteltem Konto hinzukommen – das steht offen auf der Partner-Seite."
+      "a": "Mit Festpreisen: der Bonitätsauskunft (74 Euro einmalig) und Paketen über zwölf Monatsraten. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
     },
     {
       "f": "Warum führt FIAON ein öffentliches Entscheidungsregister?",
@@ -1163,7 +1163,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How does FIAON make money?",
-      "a": "With fixed prices: the credit report (€74 one-off) and plans over twelve monthly instalments. No success fee, no fee per letter. Through partner banks a fee per account introduced may be added later — that is stated openly on the partner page."
+      "a": "With fixed prices: the credit report (€74 one-off) and plans over twelve monthly instalments. No success fee, no fee per letter. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
     },
     {
       "f": "Why does FIAON keep a public decision register?",
@@ -1597,11 +1597,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie lange dauert der Weg zum Konto?",
-      "a": "Der FIAON-Antrag dauert etwa zwei Minuten. Danach hängt das Tempo von zwei Dingen ab: wie schnell die Auskunfteien liefern (Tage bis etwa vier Wochen) und wie die Bank entscheidet. Einen festen Termin verspricht Ihnen hier niemand seriös — Sie sehen aber jeden Schritt in Ihrem Kundenbereich."
+      "a": "Ihre Angaben im FIAON-Antrag dauern etwa fünf Minuten. Danach hängt das Tempo von zwei Dingen ab: wie schnell die Auskunfteien liefern (Tage bis etwa vier Wochen) und wie die Bank entscheidet. Einen festen Termin verspricht Ihnen hier niemand seriös — Sie sehen aber jeden Schritt in Ihrem Kundenbereich."
     },
     {
       "f": "Kostet der Kontoantrag bei FIAON extra?",
-      "a": "Der Weg zum Konto ist Teil der FIAON-Pakete; die Preise stehen transparent auf der Preisseite. Es gibt keine Erfolgsprovision auf eine Kontoeröffnung — so bleibt unser Rat frei von falschen Anreizen."
+      "a": "Der Weg zum Konto ist Teil der FIAON-Pakete; die Preise stehen transparent auf der Preisseite. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
     },
     {
       "f": "Was passiert, wenn die Bank ablehnt?",
@@ -1627,11 +1627,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How long does the route to an account take?",
-      "a": "The FIAON application takes about two minutes. After that the pace depends on two things: how quickly the credit bureaus deliver (days to about four weeks) and how the bank decides. Nobody seriously promises you a fixed date here — but you see every step in your customer area."
+      "a": "Your details in the FIAON application take about five minutes. After that the pace depends on two things: how quickly the credit bureaus deliver (days to about four weeks) and how the bank decides. Nobody seriously promises you a fixed date here — but you see every step in your customer area."
     },
     {
       "f": "Does the account application at FIAON cost extra?",
-      "a": "The route to an account is part of the FIAON plans; the prices are transparent on the pricing page. There is no success commission on an account opening — so our guidance stays free of wrong incentives."
+      "a": "The route to an account is part of the FIAON plans; the prices are transparent on the pricing page. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
     },
     {
       "f": "What happens if the bank refuses?",

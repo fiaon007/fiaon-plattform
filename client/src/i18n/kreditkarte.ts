@@ -49,23 +49,25 @@ const de = {
     { href: "/schufa-score-verstehen", t: "SCHUFA-Score verstehen", s: "Die Zahl, an der der Kartenrahmen hängt — Tabelle und Hebel." },
   ],
   ehrlichPille: "Ehrlichkeit", ehrlichH2a: "Was wir ", ehrlichH2b: "nicht versprechen.",
+  // 05.10.2026, E-283: wie AGB § 2 — den Kartenantrag stellt der Kunde selbst über den Link der Partnerbank;
+  // FIAON erhält bei einer Kontoeröffnung eine Vergütung (vorher „FIAON stellt den Kartenantrag“, „keine Provision“).
   ehrlich: [
     { tag: "Keine Garantie", titel: "Die Bank entscheidet", text: "Niemand kann eine Kreditkarte garantieren – wer es tut, verkauft Prepaid oder Gebühren. FIAON bereitet vor und sagt vorher, was realistisch ist." },
     { tag: "Kein Score-Trick", titel: "Nur, was nicht hingehört, geht weg", text: "Berechtigte Einträge bleiben, bis ihre Frist abläuft. FIAON nennt das Datum – und nutzt die 100-Tage-Regel, wo sie greift." },
-    { tag: "Keine Anfragen-Flut", titel: "Erst die Auskunft, dann der Antrag", text: "FIAON stellt den Kartenantrag erst, wenn die Auskunft trägt. Eine Ablehnung kostet Zeit – und steht zwölf Monate in der Auskunft." },
+    { tag: "Keine Anfragen-Flut", titel: "Erst die Auskunft, dann der Antrag", text: "Den Kartenantrag stellen Sie selbst, über den Link unserer Partnerbank – sinnvoll erst, wenn die Auskunft trägt. Eine Ablehnung kostet Zeit – und steht zwölf Monate in der Auskunft." },
   ],
   fragenPille: "Häufige Fragen",
   fragen: [
     { f: "Bekomme ich mit einem offenen Eintrag eine Kreditkarte?", a: "Mit Rahmen praktisch nie. Eine Debit- oder Prepaid-Karte ja – und parallel gehört der Eintrag geprüft: Ist er berechtigt? Wann läuft die Frist? Oft ist die Sperre kürzer als gedacht." },
     { f: "Wie hoch ist der Rahmen am Anfang?", a: "Bei erledigten Einträgen oder kurzer Historie meist 500 bis 2.000 Euro. Nach sechs Monaten pünktlicher Abrechnung prüfen Herausgeber neu. Die Schwelle des Kartenpartners liegt bei 25.000 Euro." },
-    { f: "Schadet die Anfrage für die Karte meiner Auskunft?", a: "Eine Kreditanfrage wird zwölf Monate gespeichert und ist zehn Tage für andere sichtbar. Deshalb stellt FIAON den Antrag erst, wenn die Auskunft trägt – und nie mehrere gleichzeitig." },
+    { f: "Schadet die Anfrage für die Karte meiner Auskunft?", a: "Eine Kreditanfrage wird zwölf Monate gespeichert und ist zehn Tage für andere sichtbar. Deshalb stellen Sie den Antrag über den Link unserer Partnerbank erst, wenn die Auskunft trägt – und nie mehrere gleichzeitig." },
     { f: "Welche Karte bekomme ich über FIAON?", a: "Eine Kreditkarte eines Kartenpartners, je nach Profil Mastercard oder Visa, mit Monatsabrechnung. Welche konkret, klärt das Startgespräch anhand Ihrer Auskunft." },
-    { f: "Was kostet die Karte?", a: "Die Kartengebühr legt der Herausgeber fest und wird vorher genannt. FIAON nimmt keine Provision auf Karte oder Rahmen – der Paketpreis ist der Preis." },
+    { f: "Was kostet die Karte?", a: "Die Kartengebühr legt der Herausgeber fest und wird vorher genannt. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten – der Paketpreis ist der Preis." },
   ],
   zwischenrufA: "Fünf Angaben, eine ehrliche Einordnung.", zwischenrufB: " Der Karten-Check stellt keine Anfrage und hinterlässt keine Spur.",
   checkStarten: "Karten-Check starten", paketeAnsehen: "Pakete ansehen",
   abschlussA: "Die Karte beginnt ", abschlussB: "mit der Auskunft.",
-  abschlussText: "Antrag in zwei Minuten, Auskunft innerhalb von 24 Stunden, Kartenantrag vorbereitet, sobald sie trägt.",
+  abschlussText: "Ihre Angaben in rund fünf Minuten, Auskunft innerhalb von 24 Stunden, Kartenantrag vorbereitet, sobald sie trägt.",
   jetztStarten: "Jetzt starten", preise: "Preise",
 };
 
@@ -117,20 +119,20 @@ const en: typeof de = {
   ehrlich: [
     { tag: "No guarantee", titel: "The bank decides", text: "Nobody can guarantee a credit card — anyone who does is selling prepaid or fees. FIAON prepares and tells you beforehand what is realistic." },
     { tag: "No score trick", titel: "Only what does not belong goes", text: "Justified entries stay until their deadline expires. FIAON names the date — and uses the 100-day rule where it applies." },
-    { tag: "No flood of enquiries", titel: "First the report, then the application", text: "FIAON only makes the card application once the report supports it. A rejection costs time — and stays on your report for twelve months." },
+    { tag: "No flood of enquiries", titel: "First the report, then the application", text: "You make the card application yourself, via our partner bank's link — ideally only once the report supports it. A rejection costs time — and stays on your report for twelve months." },
   ],
   fragenPille: "Frequently asked questions",
   fragen: [
     { f: "Can I get a credit card with an open entry?", a: "With a limit, practically never. A debit or prepaid card, yes — and in parallel the entry should be checked: is it justified? When does the deadline expire? The block is often shorter than you think." },
     { f: "How high is the limit at the start?", a: "With settled entries or a short history usually €500 to €2,000. After six months of statements settled on time, issuers review. The card partner's threshold is €25,000." },
-    { f: "Does the card application hurt my report?", a: "A credit enquiry is stored for twelve months and visible to others for ten days. That is why FIAON only applies once the report supports it — and never several at once." },
+    { f: "Does the card application hurt my report?", a: "A credit enquiry is stored for twelve months and visible to others for ten days. That is why you apply via our partner bank's link only once the report supports it — and never for several at once." },
     { f: "Which card do I get through FIAON?", a: "A credit card from a card partner, Mastercard or Visa depending on your profile, with a monthly statement. Which one exactly is settled in the onboarding call on the basis of your report." },
-    { f: "What does the card cost?", a: "The card fee is set by the issuer and named beforehand. FIAON takes no commission on card or limit — the plan price is the price." },
+    { f: "What does the card cost?", a: "The card fee is set by the issuer and named beforehand. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing — the plan price is the price." },
   ],
   zwischenrufA: "Five inputs, one honest assessment.", zwischenrufB: " The card check makes no enquiry and leaves no trace.",
   checkStarten: "Start the card check", paketeAnsehen: "See the plans",
   abschlussA: "The card starts ", abschlussB: "with the report.",
-  abschlussText: "Application in two minutes, report within 24 hours, card application prepared as soon as it supports it.",
+  abschlussText: "Your details in about five minutes, report within 24 hours, card application prepared as soon as it supports it.",
   jetztStarten: "Get started", preise: "Pricing",
 };
 

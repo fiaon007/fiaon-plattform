@@ -82,6 +82,9 @@ export interface BestellUebersicht {
 // (Wortwand): kein „Kreditkarte bis …", kein „Girokonto für jeden Kunden",
 // kein „SCHUFA" (AT/CH), kein „in 24 Stunden". Die Punkte stehen auch in der
 // Paketwahl des Antrags (antrag.tsx, PACKS.feats) — eine Quelle für beide.
+// 05.10.2026, E-283: /privatkunden zeigt die Paketkarten seither im Wortlaut
+// von /start (client/src/lib/paket-merkmale.ts); diese Punkte bleiben die
+// Leistungsbeschreibung in der Bestellübersicht (AGB § 4 Abs. 1).
 //
 // DIE AUSKUNFT SELBST IST NICHT IM PAKET (Nachbesserung 26.09.2026): Hier stand „Ihre Bonitätsauskunft –
 // beschafft und erklärt" — und darunter verkaufte dieselbe Übersicht die Auskunft als Zusatz für 74 €.

@@ -73,6 +73,10 @@ const VERBOTEN: [RegExp, string][] = [
   [/niemand ist gebunden|nobody is tied in/i, "niemand ist gebunden"],
   [/jederzeit kündbar/i, "jederzeit kündbar"],
   [/no minimum term|no lock-in/i, "no minimum term"],
+  // 05.10.2026, E-283: die englische Startseite versprach „jederzeit zum Monatsende“ und „keine stille Verlängerung“ —
+  // beides widerspricht AGB § 6 (zwölf Monate, danach unbefristet mit einem Monat Frist).
+  [/at any time to the end of the (current )?month|cancellable at any time/i, "cancellable at any time"],
+  [/no silent renewal/i, "no silent renewal"],
 ];
 for (const datei of kundenDateien()) {
   if (AUSGENOMMEN.has(datei)) continue;

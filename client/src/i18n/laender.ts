@@ -62,7 +62,7 @@ const de: { oesterreich: Land; schweiz: Land } = {
       { f: "Arbeitet FIAON mit österreichischem Recht?", a: "Ja. Schreiben, Fristen und Paragraphen sind für Österreich angepasst: DSGVO, DSG, GewO, Verbraucherzahlungskontogesetz. Der Ansprechpartner kennt beide Länder." },
     ],
     zwischenA: "Sie sind in Österreich?", zwischenB: " Der Antrag erkennt Ihr Land und beschafft KSV- und CRIF-Auskunft.", anderesLand: "Schweiz", anderesLandHref: "/schweiz",
-    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Antrag in zwei Minuten, Auskünfte innerhalb von 24 Stunden nach Eingang, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
+    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Auskünfte innerhalb von 24 Stunden nach Eingang, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
   },
   schweiz: {
     metaTitel: "FIAON in der Schweiz · Betreibungsregister, CRIF, Intrum",
@@ -106,7 +106,7 @@ const de: { oesterreich: Land; schweiz: Land } = {
       { f: "Wie lange dauert die Nichtbekanntgabe nach Art. 8a?", a: "Das Gesuch ist frühestens drei Monate nach Zustellung des Zahlungsbefehls möglich; das Amt fragt den Gläubiger an, der 20 Tage Zeit hat, ein Verfahren nachzuweisen. Danach wird die Betreibung Dritten nicht mehr angezeigt." },
     ],
     zwischenA: "Sie sind in der Schweiz?", zwischenB: " Der Antrag erkennt Ihr Land und beschafft Registerauszug, CRIF- und Intrum-Auskunft.", anderesLand: "Österreich", anderesLandHref: "/oesterreich",
-    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Antrag in zwei Minuten, Auskünfte innerhalb von 24 Stunden nach Eingang, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
+    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Auskünfte innerhalb von 24 Stunden nach Eingang, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
   },
 };
 const en: typeof de = {
@@ -152,7 +152,7 @@ const en: typeof de = {
       { f: "Does FIAON work under Austrian law?", a: "Yes. Letters, deadlines and sections are adapted for Austria: GDPR, DSG, GewO, Consumer Payment Accounts Act. Your contact person knows both countries." },
     ],
     zwischenA: "Are you in Austria?", zwischenB: " The application recognises your country and obtains the KSV and CRIF reports.", anderesLand: "Switzerland", anderesLandHref: "/schweiz",
-    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Application in two minutes, reports explained within 24 hours of receipt, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
+    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, reports explained within 24 hours of receipt, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
   },
   schweiz: {
     metaTitel: "FIAON in Switzerland · debt enforcement register, CRIF, Intrum",
@@ -196,7 +196,7 @@ const en: typeof de = {
       { f: "How long does non-disclosure under Art. 8a take?", a: "The request is possible at the earliest three months after service of the payment order; the office asks the creditor, who has 20 days to prove proceedings. After that the enforcement is no longer shown to third parties." },
     ],
     zwischenA: "Are you in Switzerland?", zwischenB: " The application recognises your country and obtains the register extract and the CRIF and Intrum reports.", anderesLand: "Austria", anderesLandHref: "/oesterreich",
-    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Application in two minutes, reports explained within 24 hours of receipt, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
+    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, reports explained within 24 hours of receipt, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
   },
 };
 export const LAENDER_WOERTER = { de, en };

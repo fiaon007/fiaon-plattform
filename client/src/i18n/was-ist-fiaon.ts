@@ -56,8 +56,9 @@ const de = {
     { tag: "Später", titel: "Finanzierung.", text: "Die dritte Tür: Ratenkredit und Umschuldung über Partner – für Kunden, deren Akte es trägt." },
   ],
   wegPille: "Der Weg", wegH2a: "Von der E-Mail-Adresse ", wegH2b: "zur Karte.",
+  // 05.10.2026, E-283: der Ablauf des neuen Antrags — vorher „zwei Minuten. Ihr Bereich ist sofort aktiv.“
   weg: [
-    { titel: "Konto anlegen", text: "E-Mail-Adresse, wenige Angaben, zwei Minuten. Ihr Bereich ist sofort aktiv." },
+    { titel: "Antrag stellen", text: "Ihre Angaben in rund fünf Minuten, die Prüfung direkt im Antrag, dann Paket und Vertrag." },
     { titel: "Startgespräch", text: "Ein Mensch ruft Sie an, erklärt die Auskunft, prüft Paket und Zahlung, legt den ersten Schritt fest." },
     { titel: "Einsicht", text: "Innerhalb von 24 Stunden liegt Ihre Auskunft erklärt im Bereich – mit Kontoauszug-Analyse und Fahrplan." },
     { titel: "Aktion", text: "Schreiben freigeben, Raten vereinbaren, Antworten verfolgen. Etappe für Etappe, mit festem Ansprechpartner." },
@@ -89,7 +90,7 @@ const de = {
     { tag: "Aus Kunden", titel: "Wem geholfen wurde, hilft.", text: "Viele im Team waren selbst Kunden. Sie erklären den Weg, weil sie ihn gegangen sind." },
   ],
   zitat: "Wir bauen kein Produkt, das Bonität anzeigt. Wir bauen die Infrastruktur, mit der 100 Millionen Menschen sie ändern können.", zitatWer: "Justin Schwarzott, Gründer FIAON",
-  zwischenruf: "Ihr Konto ist in zwei Minuten angelegt – Ihre Auskunft liegt innerhalb von 24 Stunden in Ihrem Bereich.", paketeAnsehen: "Pakete ansehen",
+  zwischenruf: "Ihre Angaben dauern rund fünf Minuten – Ihre Auskunft liegt innerhalb von 24 Stunden in Ihrem Bereich.", paketeAnsehen: "Pakete ansehen",
   fragenPille: "Häufige Fragen",
   fragen: [
     { f: "Ist FIAON eine Bank?", a: "Nein. FIAON ist kein Kreditinstitut und vergibt weder Konten noch Karten. Über die Vergabe entscheidet immer die jeweilige Partnerbank. FIAON bereitet Sie vor und dokumentiert Ihre Bonität." },
@@ -100,7 +101,7 @@ const de = {
     { f: "Wo liegen meine Daten?", a: "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen." },
   ],
   abschlussA: "Einsicht. Aktion. Zugang. ", abschlussB: "Ihr Weg beginnt mit einer E-Mail-Adresse.",
-  abschlussText: "Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet.",
+  abschlussText: "Ihre Angaben in rund fünf Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet.",
   werDasBaut: "Wer das baut",
 };
 
@@ -157,7 +158,7 @@ const en: typeof de = {
   ],
   wegPille: "The path", wegH2a: "From an e-mail address ", wegH2b: "to a card.",
   weg: [
-    { titel: "Create an account", text: "E-mail address, a few details, two minutes. Your area is active straight away." },
+    { titel: "Apply", text: "Your details in about five minutes, the check right in the application, then plan and contract." },
     { titel: "Onboarding call", text: "A person calls you, explains the report, checks plan and payment, sets the first step." },
     { titel: "Insight", text: "Within 24 hours your report is explained in your area — with bank statement analysis and a roadmap." },
     { titel: "Action", text: "Approve letters, agree instalments, track replies. Stage by stage, with a named contact person." },
@@ -189,7 +190,7 @@ const en: typeof de = {
     { tag: "From customers", titel: "Those who were helped, help.", text: "Many in the team were customers themselves. They explain the path because they have walked it." },
   ],
   zitat: "We are not building a product that displays creditworthiness. We are building the infrastructure with which 100 million people can change it.", zitatWer: "Justin Schwarzott, founder of FIAON",
-  zwischenruf: "Your account is set up in two minutes — your report is in your area within 24 hours.", paketeAnsehen: "See the plans",
+  zwischenruf: "Your details take about five minutes — your report is in your area within 24 hours.", paketeAnsehen: "See the plans",
   fragenPille: "Frequently asked questions",
   fragen: [
     { f: "Is FIAON a bank?", a: "No. FIAON is not a credit institution and issues neither accounts nor cards. The respective partner bank always decides on the issue. FIAON prepares you and documents your credit file." },
@@ -200,7 +201,7 @@ const en: typeof de = {
     { f: "Where is my data held?", a: "Encrypted on servers in the EU, GDPR-compliant. You decide what you upload and can have it deleted at any time." },
   ],
   abschlussA: "Insight. Action. Access. ", abschlussB: "Your journey starts with an e-mail address.",
-  abschlussText: "An account in two minutes. Your report within 24 hours. A person who guides you through everything else.",
+  abschlussText: "Your details in about five minutes. Your report within 24 hours. A person who guides you through everything else.",
   werDasBaut: "Who builds this",
 };
 

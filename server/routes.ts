@@ -743,6 +743,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    (setupVite/serveStatic kommen in index.ts erst nach registerRoutes). Dazu der Vergleich
   //    alt/neu und die Einstellung unter /admin/finance (adminCodeGate hängt weiter oben).
   const fiaonAntragWeiche = await import('./lib/fiaon-antrag-weiche');
+  // 05.10.2026, E-283: Den Anteil einmal vorladen — antwortet die Datenbank beim ersten Besuch nicht
+  // binnen 1,5 s, gilt sonst 0 (alter Weg), auch wenn die Render-Variable 100 sagt.
+  void fiaonAntragWeiche.antragNeuAnteil().catch(() => {});
   app.get('/antrag', fiaonAntragWeiche.antragWeicheMiddleware);
   app.use('/api/fiaon', fiaonAntragWeiche.antragWeicheRouter);
   // 📉 Alte Startseiten-Variante sendet Klick-Statistik an /api/track — es gibt keinen Empfänger.
@@ -880,14 +883,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // /bonitaetsauskunft — 301 mit Abfrage (utm_*, fbclid alter Kampagnen-Links); der Anker bleibt im Browser.
   // Vorher leitete nur der Client weiter (pages/bonitaet.tsx, bleibt als Rückfall): erst weißer Grund, dann Sprung.
   // 05.10.2026 (E-283): /terms zeigte einen fremden ARAS-Text (andere Firma, „garantiert“) — dauerhaft auf /agb.
+  // Express nimmt die Pfade unabhängig von Groß/klein an (/TERMS, /Global) — der Schlüssel wird deshalb
+  // klein geschrieben nachgeschlagen; vorher hieß das Ziel dort „undefined“. Alle Schlüssel sind klein.
   const UMGEZOGEN: Record<string, string> = {
     '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start',
     '/bonitaet': '/bonitaetsauskunft', '/bonitaet-service': '/bonitaetsauskunft',
     '/terms': '/agb',
   };
-  app.get(Object.keys(UMGEZOGEN), (req, res) => {
+  app.get(Object.keys(UMGEZOGEN), (req, res, next) => {
+    const pfad = req.path.replace(/\/+$/, '').toLowerCase();
+    const ziel = UMGEZOGEN[pfad];
+    if (!ziel) return next();
     const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
-    res.redirect(301, UMGEZOGEN[req.path.replace(/\/$/, '')] + (req.path === '/business-antrag' ? '' : abfrage));
+    res.redirect(301, ziel + (pfad === '/business-antrag' ? '' : abfrage));
   });
 
   app.get('*', async (req, res, next) => {

@@ -3199,6 +3199,19 @@ router.post("/application", async (req, res) => {
     console.log("[FIAON-APP] Saving application with ref:", ref, "status:", status, "password length:", password?.length, "email:", email);
 
     if (existing.length > 0) {
+      // 05.10.2026, E-283: Einen Antrag aus dem NEUEN Weg überschreibt das alte Formular nicht —
+      // dessen Speichern setzte Geburtsdatum, Adresse und Finanzen auf den Stand des leeren Formulars
+      // (etwa nach einem abgelaufenen Weiter-Link, dessen Referenz im alten Formular hängen blieb).
+      // Der neue Weg selbst ruft diese Route intern auf (intern() in fiaon-antrag-neu.ts) und reicht
+      // die Cookies des Menschen durch; jede seiner Routen prüft vorher antragPasst — sein
+      // Antrags-Cookie passt also auch hier. Ohne passendes Cookie: abgewiesen, nichts gespeichert.
+      if (!antragPasst(req, ref)) {
+        const [weg] = (await sqlPool`SELECT antrag_weg FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+        if (weg?.antrag_weg === "neu") {
+          console.warn(`[FIAON-APP] ${ref}: Antrag aus dem neuen Weg — Speichern ohne Antrags-Cookie abgewiesen.`);
+          return res.status(409).json({ ok: false, code: "NEUER_WEG", error: "Dieser Antrag wird im neuen Antragsformular fortgesetzt. Bitte öffnen Sie fiaon.com/antrag-neu." });
+        }
+      }
       console.log("[FIAON-APP] Updating existing application via direct SQL only to prevent password overwrite");
       
       // Use direct SQL for ALL fields to prevent Drizzle from overwriting password

@@ -11,13 +11,17 @@
 //   4. Woher der Anteil kommt: Zeile im Chefbüro, Render-Variable, Vorgabe.
 //   5. Roboter-Muster: CUBOT ist ein Mensch, Googlebot nicht.
 //   6. Die Auskunft-Parameter für den neuen Antrag (auskunftVorabAus).
+//   7. (05.10.2026, E-283) Weiter-Links: nur ein GÜLTIGER hält den Besuch alt;
+//      ohne Datenbank gilt 0 statt der Render-Variable — auch durch
+//      weicheEntscheiden hindurch (Datenbank auf Port 9 antwortet nie).
 //
 //   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine \
 //     npx tsx scripts/pruef-antrag-weiche.ts
 // ═══════════════════════════════════════════════════════════════════════════
 import {
-  weicheLinkAusnahme, weicheRegel, anteilBestimmen, anteilAusRender, istWeicheRoboter, type WeicheUrteil,
+  weicheLinkAusnahme, weicheRegel, anteilBestimmen, anteilAusRender, anteilRueckfall, istWeicheRoboter, weicheEntscheiden, type WeicheUrteil,
 } from "../server/lib/fiaon-antrag-weiche";
+import { weiterSignatur } from "../server/lib/fiaon-antrag-erinnerung";
 import { auskunftVorabAus } from "../shared/fiaon-auskunft-buendel";
 
 let ok = 0, fehl = 0;
@@ -26,6 +30,12 @@ function pruef(name: string, bed: boolean, info = "") {
 }
 
 // ── 1. Link-Ausnahme: bleibt diese Adresse beim alten Weg? ────────────────
+// Weiter-Zeichen wie in weiterLink (ref.exp.sig) — mit demselben Geheimnis wie der Server in diesem Lauf.
+const WREF = "FIAON-MG8K2P3A-X7QZ";
+const weiterZeichen = (ref: string, exp: number, sig = weiterSignatur(ref, exp)) => encodeURIComponent(`${ref}.${exp}.${sig}`);
+const W_GUELTIG = weiterZeichen(WREF, Date.now() + 7 * 864e5);
+const W_ABGELAUFEN = weiterZeichen(WREF, Date.now() - 60_000);
+const W_GEFAELSCHT = weiterZeichen(WREF, Date.now() + 7 * 864e5, "0".repeat(32));
 const LINKS: [string, boolean, string][] = [
   // Einstiege, die jetzt in die normale Entscheidung gehen (bei 100 % → neu)
   ["?pack=pro&utm_source=x", false, "/start mit Paket und Kampagne"],
@@ -59,12 +69,18 @@ const LINKS: [string, boolean, string][] = [
   ["?pack=auskunft_firma&utm_source=x", true, "Firmen-Auskunft mit Kampagne"],
   ["?pack=auskunft", true, "Auskunft (alter Schlüssel)"],
   ["?pack=business_pro", true, "eingestelltes Business-Paket"],
-  ["?weiter=x.y.z", true, "Weiter-Link aus der Erinnerung"],
-  ["?WEITER=x.y.z", true, "Weiter-Link groß geschrieben"],
+  [`?weiter=${W_GUELTIG}`, true, "gültiger Weiter-Link aus der Erinnerung"],
+  [`?WEITER=${W_GUELTIG}`, true, "gültiger Weiter-Link, Schlüssel groß geschrieben"],
+  [`?utm_source=x&weiter=${W_GUELTIG}`, true, "gültiger Weiter-Link mit Kampagne"],
   ["?step=3", true, "Entwicklungs-Abkürzung step"],
   ["?skip=true&skipPayment=true", true, "Entwicklungs-Abkürzung skip"],
   ["?skippayment=true", true, "skippayment klein"],
-  ["?utm_source=x&weiter=a.b.c", true, "Weiter-Link mit Kampagne"],
+  // E-283: Ein abgelaufener oder kaputter Weiter-Link hält nicht mehr alt — normale Entscheidung.
+  [`?weiter=${W_ABGELAUFEN}`, false, "abgelaufener Weiter-Link (14 Tage um)"],
+  [`?utm_source=x&weiter=${W_ABGELAUFEN}`, false, "abgelaufener Weiter-Link mit Kampagne"],
+  [`?weiter=${W_GEFAELSCHT}`, false, "Weiter-Link mit falscher Unterschrift"],
+  ["?weiter=x.y.z", false, "verstümmelter Weiter-Link"],
+  ["?weiter=", false, "leeres weiter="],
 ];
 for (const [suche, erwartet, was] of LINKS) {
   pruef(`Link ${suche || "(leer)"} → ${erwartet ? "alt" : "Entscheidung"} (${was})`, weicheLinkAusnahme(suche) === erwartet, `bekam ${weicheLinkAusnahme(suche)}`);
@@ -184,6 +200,31 @@ const V: [string, string][] = [
   ["", ""],
 ];
 for (const [suche, erwartet] of V) pruef(`Auskunft ${suche || "(leer)"} → ${erwartet || "nichts"}`, auskunftVorabAus(suche) === erwartet, `bekam ${auskunftVorabAus(suche)}`);
+
+// ── 7. Ohne Datenbank: 0 statt Render-Variable (E-283) ────────────────────
+{
+  const r = anteilRueckfall(null);
+  pruef("Rückfall ohne bekannten Anteil → 0 (Vorgabe), nie die Variable", r.wert === 0 && r.quelle === "vorgabe", JSON.stringify(r));
+  const s = anteilRueckfall({ wert: 0, quelle: "chefbuero" });
+  pruef("Rückfall mit bekanntem 0 aus dem Chefbüro → 0", s.wert === 0 && s.quelle === "chefbuero", JSON.stringify(s));
+  const t = anteilRueckfall({ wert: 100, quelle: "render" });
+  pruef("Rückfall mit bekanntem 100 aus der Variable → 100", t.wert === 100 && t.quelle === "render", JSON.stringify(t));
+}
+// Durch die echte Weiche: Variable 100, Datenbank antwortet nicht (nur gegen die Prüf-Adresse auf Port 9,
+// nie gegen eine echte Datenbank — dort gäbe es eine Zeile, und der Fall wäre ein anderer).
+if (/@127\.0\.0\.1:9\//.test(String(process.env.DATABASE_URL || ""))) {
+  process.env.ANTRAG_NEU_ANTEIL = "100";
+  const gesetzt: string[] = [];
+  const req: any = { method: "GET", headers: { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1" }, cookies: {}, ip: "203.0.113.9" };
+  const res: any = { cookie: (name: string, wert: string) => { gesetzt.push(`${name}=${wert}`); } };
+  for (const [suche, was] of [["?pack=pro&src=wa", "/start-Link"], [`?weiter=${W_ABGELAUFEN}`, "abgelaufener Weiter-Link"]] as const) {
+    const e = await weicheEntscheiden(req, res, suche);
+    pruef(`Datenbank weg, Variable 100, ${was} → alt (0 %), kein Cookie`, e.weg === "alt" && e.grund === "aus" && gesetzt.length === 0, `${JSON.stringify(e)} ${gesetzt.join(" ")}`);
+  }
+  delete process.env.ANTRAG_NEU_ANTEIL;
+} else {
+  console.log("  (Teil 7b übersprungen: nur mit DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine)");
+}
 
 console.log(`\n${fehl === 0 ? "GRÜN" : "ROT"} — ${ok} ok, ${fehl} rot (pruef-antrag-weiche)`);
 process.exit(fehl === 0 ? 0 : 1);

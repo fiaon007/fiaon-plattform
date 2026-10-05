@@ -16,6 +16,8 @@ import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { istJahresvertrag } from "@shared/fiaon-antrag-stand";
 import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, istGehasht, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { pinAendern, frischPasst } from "../lib/fiaon-kunden-pin";
+import { limitAnspruchFuer, limitBuchen, limitSlots, startgespraechGefuehrt } from "../lib/fiaon-limit-gespraech";
+import { LIMIT_QUELLE, LIMIT_TEXTE } from "@shared/fiaon-limit-gespraech";
 import { effectiveLimit } from "./fiaon-antrag";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 import {
@@ -320,9 +322,12 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     `) as any[]) : [];
     // Ein Gespräch, nicht zwei (23.08.2026): Wer vor der Zahlung einen Termin gebucht hat, sieht ihn hier
     // als sein Gespräch — die Gesprächsart leitet die Terminlogik aus dem Zustand ab.
+    // E-283 (05.10.2026): Ein Limit-Gespräch ist nie „Ihr Startgespräch" — der
+    // Rückfall auf „irgendein gebuchter Termin" nimmt es aus, sonst stünde auf
+    // Heute „Ihr Startgespräch: …" für ein Gespräch über das Limit.
     const start = termine.find((t) => t.quelle === "onboarding_call" && t.status === "erledigt")
       || termine.find((t) => t.quelle === "onboarding_call" && t.status === "gebucht")
-      || termine.find((t) => t.status === "gebucht" && new Date(t.beginn) > new Date()) || null;
+      || termine.find((t) => t.status === "gebucht" && t.quelle !== LIMIT_QUELLE && new Date(t.beginn) > new Date()) || null;
 
     // ══════════════════════════════════════════════════════════════════════
     // HAT DAS GESPRÄCH STATTGEFUNDEN? (26.08.2026, Florentines Punkt 1)
@@ -365,19 +370,10 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     // Zwei Belege genügen und sind beide belastbar: ein als erledigt
     // vermerkter Onboarding-Termin oder ein dokumentiertes Gespräch.
     // ══════════════════════════════════════════════════════════════════════
-    const [ob] = a.person_id ? ((await sqlPool`
-      SELECT
-        EXISTS (SELECT 1 FROM fiaon_termine t
-                 WHERE t.person_id = ${a.person_id}
-                   AND t.quelle = 'onboarding_call' AND t.status = 'erledigt') AS termin_erledigt,
-        EXISTS (SELECT 1 FROM fiaon_contact_log cl
-                 WHERE cl.person_id = ${a.person_id}
-                   AND cl.type IN ('onboarding', 'startgespraech')) AS gespraech_im_verlauf,
-        TRUE AS platzhalter
-    `) as any[]) : [null];
-    // Zwei Belege genügen und sind beide belastbar: ein als erledigt
-    // vermerkter Onboarding-Termin oder ein dokumentiertes Gespräch.
-    const onboardingGelaufen = !!(ob?.termin_erledigt || ob?.gespraech_im_verlauf);
+    // E-283 (05.10.2026): Die Abfrage steht wörtlich in startgespraechGefuehrt
+    // (server/lib/fiaon-limit-gespraech.ts) — das Limit-Gespräch fragt dieselbe
+    // Tatsache, und zwei Fassungen liefen auseinander.
+    const onboardingGelaufen = await startgespraechGefuehrt(a.person_id ? Number(a.person_id) : null);
 
     // Die Bonitätsauskunft ist eine EIGENE Bestellung (type='schufa') mit eigenem
     // Verwendungszweck — der Kunde soll sie VOR dem Startgespräch bezahlen können.
@@ -519,6 +515,14 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       return null;
     });
 
+    // E-283 (05.10.2026): Der Stand des Limit-Gesprächs („Limit-Erhöhung
+    // anfragen" unter Mehr, die Karte auf Heute). Fällt die Abfrage aus, fehlt
+    // nur dieser Stand (null) — nie der Bereich. Der Fehler steht im Protokoll.
+    const limitGespraech = await limitAnspruchFuer(ref, sqlPool, { startGefuehrt: onboardingGelaufen }).catch((e) => {
+      console.error("[MEIN-BEREICH] Limit-Gespräch:", e?.message || e);
+      return null;
+    });
+
     res.json({
       ok: true,
       kunde: {
@@ -611,6 +615,9 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       termin: start ? { beginn: start.beginn, status: start.status, agent: start.agent || null } : null,
       // Der Kundenbereich sperrt anhand dieser Tatsache, nicht anhand des Termins.
       onboardingGelaufen,
+      // E-283: Anspruch, Sperrfrist und gebuchtes Limit-Gespräch — null, wenn die Abfrage ausfiel.
+      // Ohne interne Kennungen (ref, personId), dieselbe Form wie GET /kunde/:ref/limit-gespraech.
+      limitGespraech: limitFuerKunden(limitGespraech),
       fahrplan: etappen,
       naechsterSchritt: jetzt ? { key: jetzt.key, titel: jetzt.titel, text: jetzt.text, href: jetzt.href || null } : null,
       ansprechpartner: a.betreuer_name ? { name: a.betreuer_name, rolle: a.betreuer_rolle || null } : null,
@@ -991,8 +998,10 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
       status: t.status,
       mit: t.agent_vorname || null,
       // Absagen nur fuer kommende gebuchte — ueber die bestehende oeffentliche Seite.
+      // E-283: Ein Limit-Gespräch sagt der Kunde in der Sie-Fassung ab — „Neuen Termin wählen"
+      // führt dort zurück in den Kundenbereich (/app/mehr/limit), nicht auf den Terminlink.
       absageLink: t.status === "gebucht" && new Date(t.beginn).getTime() > jetzt && t.storno_token
-        ? `/termin/absagen/${t.storno_token}` : null,
+        ? `/termin/absagen/${t.storno_token}${String(t.quelle) === LIMIT_QUELLE ? "?anrede=sie" : ""}` : null,
     });
     res.json({
       ok: true,
@@ -1003,6 +1012,120 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
   } catch (err) {
     console.error("[KUNDE] termine:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIMIT-ERHÖHUNG ANFRAGEN — DAS LIMIT-GESPRÄCH (05.10.2026, E-283)
+//
+// Justin: „Limit-Gespräch muss der Kunde buchen in der App, also sowas wie
+// ‚Limit-Erhöhung anfragen', das geht aber nur alle 3 Monate."
+//
+// Zwei Routen hinter requireKunde, beide auf `req.kundeRef` (die Sitzung), nie
+// auf der Referenz in der Adresse. Die Regel steht in
+// shared/fiaon-limit-gespraech.ts, die Tatsachen sammelt
+// server/lib/fiaon-limit-gespraech.ts, gebucht wird über den gemeinsamen
+// Buchungsteil der Terminseite (kundenBuchungAusfuehren). Die öffentliche
+// Route /termin/:token bleibt fest „auto" — ein Limit-Gespräch entsteht nur hier.
+//
+// Die Als-Kunde-Ansicht liest (GET); buchen kann sie nicht (nurLesenWand und
+// requireKunde lehnen jedes POST ab). Das Demo-Konto hat eigene Antworten in
+// fiaon-demo.ts (dieselbe Form, gerechnet mit derselben reinen Funktion).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der Anspruch ohne interne Kennungen — so liest ihn die App. */
+function limitFuerKunden(a: Awaited<ReturnType<typeof limitAnspruchFuer>>) {
+  if (!a) return null;
+  const { ref: _r, personId: _p, ...rest } = a;
+  return rest;
+}
+
+/** GET /kunde/:ref/limit-gespraech — Anspruch und, wenn buchbar, die freien Zeiten. */
+router.get("/kunde/:ref/limit-gespraech", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const { anspruch, auskunft } = await limitSlots(ref);
+    if (!anspruch) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
+    // „mit Herrn Stripling" für die Unterzeile — nur ein Betreuer, der Gespräche
+    // führen kann (aktiv, nicht gesperrt); sonst „Ihrem Ansprechpartner".
+    const [ap] = anspruch.personId ? ((await sqlPool`
+      SELECT ${sqlPool.unsafe(nennformSql("ag", "dat"))} AS dat
+      FROM fiaon_persons p JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+      WHERE p.id = ${anspruch.personId} AND ag.active AND ag.zugang_gesperrt_am IS NULL
+    `) as any[]) : [];
+    const ab = auskunft?.abwesenheit ?? null;
+    const { bisFuerKunden } = await import("./fiaon-termin");
+    const { dauerFuer } = await import("../lib/fiaon-termine");
+    res.json({
+      ok: true,
+      anspruch: limitFuerKunden(anspruch),
+      ansprechpartnerDat: ap?.dat ? String(ap.dat) : null,
+      slots: auskunft?.slots ?? [],
+      slotMinuten: dauerFuer(LIMIT_QUELLE),
+      // Vertretung (01.10.2026): Bis „bis" ruft der Vertreter an — die Plätze davor sind seine.
+      vertretung: ab && !ab.vertreterIstBetreuer
+        ? { anrufer: ab.vertreterNenn.nom, betreuer: ab.betreuerNenn?.nom ?? null, bis: bisFuerKunden(ab.bis) }
+        : null,
+    });
+  } catch (err) {
+    console.error("[KUNDE] limit-gespraech:", err);
+    res.status(500).json({ ok: false, error: "Ihr Limit-Gespräch lässt sich gerade nicht laden. Bitte versuchen Sie es in einem Moment noch einmal." });
+  }
+});
+
+/** POST /kunde/:ref/limit-gespraech/buchen { beginn, agentId } — prüft den Anspruch erneut und bucht. */
+router.post("/kunde/:ref/limit-gespraech/buchen", requireKunde, async (req: KundeRequest, res: Response) => {
+  const { beginn, agentId } = req.body || {};
+  let personId: number | null = null;
+  const { versuchProtokollieren, TerminFehler } = await import("../lib/fiaon-termine");
+  // Jeder Ausgang wird protokolliert (fiaon_termin_versuche), wie auf der Terminseite.
+  const ablehnen = async (grund: string, text: string, status = 409, extra: Record<string, unknown> = {}) => {
+    await versuchProtokollieren({
+      ergebnis: "abgelehnt", personId, slotBeginn: beginn ?? null,
+      agentId: agentId ? Number(agentId) : null, grund, quelle: LIMIT_QUELLE, akteur: "kunde",
+    });
+    return res.status(status).json({ ok: false, error: text, grund, ...extra });
+  };
+  try {
+    const ref = req.kundeRef!;
+    const [pa] = (await sqlPool`
+      SELECT person_id FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
+    personId = pa?.person_id ? Number(pa.person_id) : null;
+    if (!beginn || !agentId) return await ablehnen("keine_auswahl", "Bitte wählen Sie zuerst eine Zeit aus.", 400);
+    const erg = await limitBuchen(ref, String(beginn), Number(agentId));
+    if (!erg.ok && erg.grund === "kein_anspruch") {
+      const a = erg.anspruch;
+      const text = a?.grund === "gebucht" ? LIMIT_TEXTE.schonGebucht
+        : a?.grund === "sperrfrist" && a.abText ? LIMIT_TEXTE.sperrfrist(a.abText)
+        : a?.grund === "rueckstand" ? LIMIT_TEXTE.rueckstand
+        : a?.grund === "start_fehlt" ? LIMIT_TEXTE.startFehlt
+        : "Ein Limit-Gespräch lässt sich für Ihr Konto gerade nicht buchen.";
+      return await ablehnen(a?.grund === "gebucht" ? "limit_offen" : "limit_gesperrt", text, 409, { anspruch: limitFuerKunden(a) });
+    }
+    if (!erg.ok) {
+      return await ablehnen("nicht_angeboten", erg.nochFrei > 0
+        ? "Diese Zeit wurde gerade vergeben – bitte wählen Sie eine andere."
+        : `Diese Zeit wurde gerade vergeben. ${LIMIT_TEXTE.keineZeit}`);
+    }
+    const b = erg.buchung;
+    res.json({
+      ok: true,
+      termin: { datumText: b.datumText, uhrzeit: b.uhrzeit, agentVorname: b.agentVorname },
+      bestaetigt: erg.bestaetigt,
+      meldung: LIMIT_TEXTE.gebuchtErfolg({ datumText: b.datumText, uhrzeit: b.uhrzeit }, erg.bestaetigt),
+    });
+  } catch (err) {
+    if (err instanceof TerminFehler) {
+      if (err.code === "limit_offen") return await ablehnen("limit_offen", LIMIT_TEXTE.schonGebucht);
+      const { terminFehlerSie } = await import("./fiaon-termin");
+      return await ablehnen(err.code, terminFehlerSie(err.code, err.message));
+    }
+    console.error("[KUNDE] limit-gespraech buchen:", err);
+    await versuchProtokollieren({
+      ergebnis: "abgelehnt", personId, slotBeginn: beginn ?? null,
+      agentId: agentId ? Number(agentId) : null, grund: "serverfehler", quelle: LIMIT_QUELLE, akteur: "kunde",
+    });
+    res.status(500).json({ ok: false, grund: "serverfehler", error: "Da ist bei uns etwas schiefgelaufen – nicht bei Ihnen. Bitte versuchen Sie es noch einmal; klappt es weiter nicht, schreiben Sie uns an support@fiaon.com." });
   }
 });
 

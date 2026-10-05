@@ -18,7 +18,7 @@ import { FIAON_FIRMA } from "./fiaon-firma";
 import { globalWiderrufsbelehrung } from "./fiaon-global-widerruf";
 import { paketPreisCents } from "./fiaon-pakete";
 import { AGB_FASSUNG, agbAdresse } from "./fiaon-vertrag-paket";
-import { agbDatumLang, antragNeuPaket, ANTRAG_NEU_VERTRAG_FASSUNG, LANDNAME, type Land } from "./fiaon-antrag-neu";
+import { agbDatumLang, antragNeuPaket, ANTRAG_NEU_VERTRAG_FASSUNG, LANDNAME, LIMIT_GESPRAECH, type Land } from "./fiaon-antrag-neu";
 import { KUENDIGUNG_ZEILE, BANK_SATZ } from "../client/src/components/antrag/bestelluebersicht-daten";
 
 export interface VertragDaten {
@@ -92,6 +92,11 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   teile.push(p("(5) Für den Zugang zur Plattform gilt das gesetzliche Mängelhaftungsrecht."));
   teile.push(h(`§ 3 Leistungen des Pakets ${P?.name ?? d.paketKey}`));
   teile.push(`<ol>${(P?.leistungen ?? []).map((l) => `<li>${esc(l)}</li>`).join("")}</ol>`);
+  // E-283 (05.10.2026, Fassung PV-2026-10-05b): Wie und ab wann das Limit-Gespräch gebucht wird — nur bei
+  // Paketen, die es enthalten (Pro, Ultra, High-End). Die Regel im Code: shared/fiaon-limit-gespraech.ts.
+  if (P?.leistungen.includes(LIMIT_GESPRAECH)) {
+    teile.push(p("Das erste Limit-Gespräch ist drei Monate nach Eingang der ersten Monatsrate im Kundenbereich buchbar, jedes weitere drei Monate nach dem letzten geführten. Nicht genutzte Gespräche werden nicht nachgeholt."));
+  }
   teile.push(p(`Den Antragslink der Partnerbank schickt FIAON dem Kunden ${d.sofortBeginn ? "nach Eingang der ersten Monatsrate" : "nach Eingang der ersten Monatsrate und Ablauf der Widerrufsfrist (§ 6)"} per E-Mail; auf Wunsch schickt FIAON ihn erneut. Den Antrag bei der Bank stellt der Kunde selbst und im eigenen Namen. FIAON erhält von der Partnerbank für eine Kontoeröffnung eine Vergütung; für den Kunden entstehen dadurch keine Kosten.`));
   teile.push(h("§ 4 Mitwirkung des Kunden"));
   teile.push(p("Der Kunde macht vollständige und wahre Angaben und stellt die für die Leistungen benötigten Unterlagen bereit, insbesondere Ausweis, Kontoauszug und Bonitätsauskunft. Gegenüber Banken macht er nur wahre Angaben. Verzögert sich seine Mitwirkung, verschieben sich die davon abhängigen Leistungen entsprechend."));

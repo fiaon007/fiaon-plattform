@@ -46,7 +46,17 @@
 // das Falsche sagte: Der Mitarbeiter stellte sich auf einen Privatkunden ein,
 // der noch nicht bezahlt hat — am Telefon ist ein Unternehmen, das über ein
 // Paket ab 2.499 € sprechen will. Die Arbeit dazu liegt im Firmen-Cockpit.
-export type TerminArt = "onboarding" | "vertrieb" | "rueckruf" | "forderung" | "gruender" | "global";
+//
+// ── DIE SIEBTE UND ACHTE (05.10.2026, E-283) ─────────────────────────────
+// SUPPORT gab es als Quelle seit E-168 (09.09.2026) — nur hier nicht. Der
+// Rückfall „unbekannte Quelle → Vertrieb" zeigte jedes Support-Gespräch in
+// Kalender, Bestätigungsmail und Termin-Zentrale als „Vertrieb": Der
+// Mitarbeiter stellte sich auf einen Verkauf ein, am Telefon war ein
+// Bestandskunde mit einer Frage.
+// LIMIT ist das Limit-Gespräch der Pakete Pro, Ultra und High-End — alle drei
+// Monate, vom Kunden im Kundenbereich gebucht (/app/mehr/limit) oder vom
+// Mitarbeiter im Kalender. Kein Verkauf, keine Limit-Zusage.
+export type TerminArt = "onboarding" | "vertrieb" | "rueckruf" | "forderung" | "gruender" | "global" | "support" | "limit";
 
 export interface TerminArtMarke {
   art: TerminArt;
@@ -101,6 +111,20 @@ const MARKEN: Record<TerminArt, Omit<TerminArtMarke, "grund">> = {
     // Unternehmen ist keines von beiden.
     ton: "#0f766e",
   },
+  support: {
+    art: "support",
+    text: "Support",
+    erklaerung: "Hilfegespräch mit einem Bestandskunden nach dem Startgespräch — kein Verkauf, kein Startgespräch. Akte kurz durchsehen, pünktlich anrufen.",
+    // Schiefergrau: ruhig, kein Verkaufs-Blau — es geht um eine Frage, nicht um einen Abschluss.
+    ton: "#475569",
+  },
+  limit: {
+    art: "limit",
+    text: "Limit-Gespräch",
+    erklaerung: "Alle drei Monate mit einem zahlenden Kunden (Pro/Ultra/High-End): Zahlungsnachweis, Stand der Akte, nächster Schritt zu einem höheren Limit. Kein Verkauf, keine Limit-Zusage — über das Limit entscheidet die Bank.",
+    // Violett: von keiner anderen Art belegt; das Gespräch gehört weder zum Verkauf noch zur Zahlung.
+    ton: "#6d28d9",
+  },
 };
 
 /**
@@ -139,6 +163,12 @@ export function terminArtAusQuelle(quelle: unknown): TerminArtMarke {
       return { ...MARKEN.gruender, grund: `Quelle „${q}“` };
     case "global":
       return { ...MARKEN.global, grund: `Quelle „${q}“` };
+    // E-283 (05.10.2026): beide fehlten — „support" fiel bis heute als
+    // unbekannte Quelle auf „Vertrieb" zurück (Kopf dieser Datei).
+    case "support":
+      return { ...MARKEN.support, grund: `Quelle „${q}“` };
+    case "limit_gespraech":
+      return { ...MARKEN.limit, grund: `Quelle „${q}“` };
     default:
       return {
         ...MARKEN.vertrieb,
@@ -169,11 +199,16 @@ export function terminArtRueckruf(): TerminArtMarke {
  * Liste — ein zweites Wörterbuch für dieselbe Sache war schon dreimal die
  * Ursache dafür, dass eine Auswahl garantiert nichts gefunden hat.
  */
+// E-283 (05.10.2026): Support und Limit-Gespräch dazu — beide führt der Betreuer
+// selbst, beide stehen in seinem Kalender. Gründer und Global bleiben draußen:
+// Sie haben eigene Kalender (/justin, /business) und eigene Räume.
 export const TERMIN_ARTEN: TerminArtMarke[] = [
   { ...MARKEN.vertrieb, grund: "" },
   { ...MARKEN.onboarding, grund: "" },
   { ...MARKEN.rueckruf, grund: "" },
   { ...MARKEN.forderung, grund: "" },
+  { ...MARKEN.support, grund: "" },
+  { ...MARKEN.limit, grund: "" },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════

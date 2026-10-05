@@ -591,8 +591,11 @@ function CalendarInnen() {
           unterscheidbar. */}
       <div className="ca-arten">
         <p className="ca-arten-satz">
-          Hier stehen <b>alle deine Termine</b> — Vertriebsgespräche, Rückrufe, Zahlungsgespräche
-          und Startgespräche. Die Farbe links an jedem Termin sagt dir, welche Art es ist.
+          Hier stehen <b>alle deine Termine</b> — Vertriebsgespräche, Rückrufe, Zahlungsgespräche,
+          Startgespräche, Support- und Limit-Gespräche. Die Farbe links an jedem Termin sagt dir, welche Art es ist.
+          {/* E-283 (05.10.2026) */}
+          {" "}<b>Limit-Gespräche</b> buchen Kunden mit Pro, Ultra oder High-End alle drei Monate selbst im Kundenbereich;
+          du kannst eines jederzeit über „Termin anlegen“ eintragen.
           {/* 24.09.2026 (E-236) */}
           {" "}Rückrufe, die Mara per WhatsApp oder E-Mail für dich vereinbart hat, tragen die Marke <b>„von Mara“</b> — darunter steht, worum es geht.
         </p>
@@ -1096,7 +1099,9 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
   const [wann, setWann] = useState(vorschlag);
   // 25.08.2026 (Florentine): „direkt angeben können, um welche Art von Termin
   // es sich handelt" — die Arten sind die bestehenden Gesprächsarten.
-  const [art, setArt] = useState<"rueckruf" | "zahlung" | "vertrieb" | "onboarding">("rueckruf");
+  // E-283 (05.10.2026): „limit“ — das Limit-Gespräch (Pro/Ultra/High-End). Mitarbeiter buchen es jederzeit,
+  // die Sperrfrist von drei Monaten gilt nur für den Kunden; ein zweites offenes lehnt der Server ab.
+  const [art, setArt] = useState<"rueckruf" | "zahlung" | "vertrieb" | "onboarding" | "limit">("rueckruf");
   const [notiz, setNotiz] = useState("");
   const [busy, setBusy] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -1140,7 +1145,7 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
               <input type="datetime-local" className="ca-feld" value={wann} onChange={(e) => setWann(e.target.value)} aria-label="Zeitpunkt" />
               <p style={{ marginBottom: 4 }}>Worum geht es?</p>
               <div className="ca-treffer" role="radiogroup" aria-label="Art des Termins">
-                {([["rueckruf", "Rückruf"], ["zahlung", "Zahlung"], ["vertrieb", "Vertrieb"], ["onboarding", "Onboarding"]] as const).map(([k, t]) => (
+                {([["rueckruf", "Rückruf"], ["zahlung", "Zahlung"], ["vertrieb", "Vertrieb"], ["onboarding", "Onboarding"], ["limit", "Limit-Gespräch"]] as const).map(([k, t]) => (
                   <button key={k} type="button" className={art === k ? "an" : ""} role="radio" aria-checked={art === k} onClick={() => setArt(k)}><span>{t}</span></button>
                 ))}
               </div>

@@ -93,9 +93,12 @@ export const PAKET_KERN: Record<string, { zeile: string; punkte: string[] }> = {
     zeile: `${PAKET_START_AUSKUNFT_PUNKT}; Kontoauszug-Analyse mit Ihrem finanziellen Spielraum; Ihr Kundenbereich mit Fahrplan; Unterstützung per E-Mail.`,
     punkte: [PAKET_START_AUSKUNFT_PUNKT, "Kontoauszug-Analyse mit Ihrem Spielraum", "Ihr Kundenbereich mit Fahrplan", "Unterstützung per E-Mail"],
   },
+  // E-283 (05.10.2026): Das Limit-Gespräch gilt für ALLE bezahlten Pro-, Ultra- und High-End-Kunden, alter und
+  // neuer Antrag gleich (Entscheidung Justin) — es steht deshalb auch hier. Ultra und High-End erben es über
+  // „Alles aus Pro“. Gebucht wird im Kundenbereich (Regel: shared/fiaon-limit-gespraech.ts).
   pro: {
-    zeile: "Alles aus Start, dazu Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt; Ratenvereinbarungen mit Antwort-Verfolgung; Startgespräch und feste Ansprechpartnerin.",
-    punkte: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und feste Ansprechpartnerin"],
+    zeile: "Alles aus Start, dazu Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt; Ratenvereinbarungen mit Antwort-Verfolgung; Startgespräch und feste Ansprechpartnerin; Limit-Gespräch alle drei Monate, im Kundenbereich buchbar.",
+    punkte: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und feste Ansprechpartnerin", "Limit-Gespräch alle drei Monate – im Kundenbereich buchbar"],
   },
   ultra: {
     zeile: "Alles aus Pro, dazu Begleitung auf dem Weg zu einer Kreditkarte (Readiness, Meilensteine, Antragsvorbereitung); bevorzugte Bearbeitung Ihrer Schreiben; telefonische Betreuung.",

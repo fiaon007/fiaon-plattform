@@ -26,6 +26,8 @@ import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { anrufHinweisSie, ABSAGE_HINWEIS_SIE } from "../../shared/fiaon-termin-text";
 import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
+import { LIMIT_PFAD, LIMIT_QUELLE } from "@shared/fiaon-limit-gespraech";
+import { absoluteUrl } from "../fiaon-base-url";
 
 const router = Router();
 
@@ -39,8 +41,11 @@ const router = Router();
 // senden darf, lehnte die Rollenprüfung jede Umbuchung durch einen
 // Mitarbeiter ab. Die Bestätigung ist eine Systemmail zu einer Buchung; sie
 // geht hier mit vollständiger Nutzlast über versendenUndProtokollieren.
+//
+// 05.10.2026 (E-283): exportiert — der gemeinsame Buchungsteil
+// (kundenBuchungAusfuehren, unten) ruft sie auch für das Limit-Gespräch.
 // ───────────────────────────────────────────────────────────────────────────
-async function bestaetigungSenden(
+export async function bestaetigungSenden(
   buchung: Pick<Awaited<ReturnType<typeof terminBuchen>>, "personId" | "agentVorname" | "datumText" | "uhrzeit" | "quelle" | "stornoToken">,
   opts: {
     verlaufText?: string;
@@ -124,6 +129,93 @@ async function bestaetigungSenden(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DER GEMEINSAME BUCHUNGSTEIL EINER KUNDENBUCHUNG (05.10.2026, E-283)
+//
+// Bis heute stand dieser Ablauf nur in POST /termin/:token/buchen: Zeit war
+// angeboten, buchen, Vertretungs-Notiz, buchungAnwenden, Bestätigung,
+// Protokoll. Das Limit-Gespräch aus dem Kundenbereich
+// (server/lib/fiaon-limit-gespraech.ts) braucht genau denselben Ablauf — eine
+// Kopie wäre die zweite Buchungslogik, die beim nächsten Fix (Vertretung,
+// Anrede, Kalenderzeile) vergessen wird. Deshalb steht er jetzt HIER, und
+// beide Wege rufen ihn.
+//
+// `quelle` ist bewusst nur „auto" oder „limit_gespraech":
+//   · Die öffentliche Route bucht FEST „auto" (Begründung dort, 24.08.2026) —
+//     der Zustand des Menschen entscheidet die Gesprächsart.
+//   · „limit_gespraech" setzt nur der Server hinter requireKunde, nachdem er
+//     den Anspruch geprüft hat. Von außen lässt sich die Art nicht wählen.
+//
+// Was NICHT hier steht: die Sätze an den Kunden (Du/Sie, Mara-Rückweg) und das
+// Protokoll einer Ablehnung — die gehören der jeweiligen Route.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function kundenBuchungAusfuehren(o: {
+  personId: number;
+  beginn: string;
+  agentId: number;
+  quelle: "auto" | "limit_gespraech";
+  herkunft: string | null;
+  /** Bucht jemand in der Sie-Form? Dann trägt der Absage-Link der Bestätigung `?anrede=sie`. */
+  sie: boolean;
+}): Promise<
+  | { ok: true; buchung: Awaited<ReturnType<typeof terminBuchen>>; bestaetigt: boolean }
+  | { ok: false; grund: "nicht_angeboten"; nochFrei: number }
+> {
+  // Der Kunde darf nur Slots buchen, die ihm auch angeboten wurden — sonst
+  // ließe sich der Besitzschutz umgehen, indem man einen fremden Agenten
+  // in die Anfrage schreibt.
+  const auskunft = await freieSlots(o.personId, sqlPool, o.quelle);
+  const erlaubt = auskunft.slots.some(
+    (s) => s.beginn === new Date(o.beginn).toISOString() && s.agentId === Number(o.agentId),
+  );
+  if (!erlaubt) return { ok: false, grund: "nicht_angeboten", nochFrei: auskunft.slots.length };
+
+  const buchung = await terminBuchen({
+    personId: o.personId,
+    agentId: Number(o.agentId),
+    beginn: String(o.beginn),
+    quelle: o.quelle,
+    // Die HERKUNFT darf mitkommen: Sie steuert nichts, sie beschreibt nur den
+    // Weg — und ungültige Werte fallen in `herkunftPruefen` auf „unbekannt",
+    // statt gespeichert zu werden, wie sie kamen.
+    herkunft: o.herkunft ?? null,
+  });
+  // ── VERTRETUNG (01.10.2026) ───────────────────────────────────────────
+  // Ein Platz des Vertreters (Abwesenheit): Er ruft an, aber Kunde und
+  // Betreuer bleiben, wo sie sind (zuordnen: false — wie Maras Buchungen,
+  // E-260 B10). Die Notiz sagt dem Vertreter, für wen er einspringt; sie
+  // steht vor buchungAnwenden, weil dessen Meldung an ihn sie mitnimmt.
+  const ab = auskunft.abwesenheit;
+  const beimVertreter = !!ab && !ab.vertreterIstBetreuer && Number(o.agentId) === ab.vertreterId
+    && new Date(buchung.beginn).getTime() < new Date(ab.bis).getTime();
+  if (beimVertreter) {
+    // E-265: die Notiz nennt beide in der Nennform („in Abwesenheit von Herrn Stripling, bei Nikita Boychenko").
+    // E-283: Ein Limit-Gespräch sagt es dazu — sonst liest der Vertreter nur „Über die Terminseite".
+    const weg = o.quelle === "limit_gespraech" ? "Im Kundenbereich gebucht (Limit-Gespräch)" : "Über die Terminseite gebucht";
+    await sqlPool`
+      UPDATE fiaon_termine
+         SET notiz = ${`${weg} — ${ab!.betreuerNenn ? `in Abwesenheit von ${ab!.betreuerNenn.dat}` : "in Abwesenheit des Teams"}, bei ${ab!.vertreterNenn.dat}.`},
+             updated_at = NOW()
+       WHERE id = ${buchung.id}`.catch((e) => console.error("[TERMIN] Vertretungs-Notiz:", String(e).slice(0, 160)));
+  }
+  await buchungAnwenden(buchung, sqlPool, { zuordnen: !beimVertreter });
+  // ── DER ABSAGE-LINK DER MAIL TRÄGT DIE ANREDE (24.09.2026, E-236) ───────
+  // Die Bestätigungsmail siezt immer. Ihr Absage-Link führte aber auf die
+  // Du-Fassung von /termin/absagen — wer gesiezt gebucht hat (Maras Link),
+  // wurde dort plötzlich geduzt, und „Neuen Termin wählen" duzte weiter.
+  // Bei einer Sie-Buchung bekommt der Link deshalb `?anrede=sie`. Ohne
+  // Anrede geht die Mail unverändert raus.
+  const mail = await bestaetigungSenden(buchung, o.sie && buchung.stornoToken
+    ? { zusatz: { storno_link: `${stornoLink(buchung.stornoToken)}?anrede=sie` } }
+    : {});
+
+  await versuchProtokollieren({
+    ergebnis: "gebucht", personId: o.personId, slotBeginn: o.beginn,
+    agentId: Number(o.agentId), quelle: buchung.quelle, akteur: "kunde",
+  });
+  return { ok: true, buchung, bestaetigt: mail?.status === "versandt" };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ÖFFENTLICH — kein Login
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -150,8 +242,10 @@ function anredeSie(req: Request): boolean {
  * Vertretung (01.10.2026): „Donnerstag, 15.10., 09:00 Uhr" — so liest der Kunde,
  * bis wann sein Ansprechpartner nicht im Haus ist. Berliner Zeit über
  * formatToParts (Zeit-Falle 04.09.2026), nie über Number(format()).
+ * E-283 (05.10.2026): exportiert — der Bildschirm „Limit-Erhöhung anfragen"
+ * nennt die Vertretung mit demselben Satzteil.
  */
-function bisFuerKunden(iso: string): string {
+export function bisFuerKunden(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const t: Record<string, string> = {};
@@ -175,7 +269,8 @@ function ueberMara(req: Request): boolean {
  */
 const DU_SPUR = /(^|[^a-zäöüß])(du|dich|dir|dein|deine|deinem|deinen|deiner|deines|wähl|wähle|melde|versuch|versuche|lade|sag)(?![a-zäöüß])/i;
 
-function terminFehlerSie(code: string, text: string): string {
+// E-283 (05.10.2026): exportiert — die Limit-Route im Kundenbereich siezt immer.
+export function terminFehlerSie(code: string, text: string): string {
   if (code === "falsche_rolle") {
     return "Diese Zeit passt nicht zu Ihrem Gespräch. Bitte wählen Sie eine der angezeigten Zeiten.";
   }
@@ -455,20 +550,35 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
         sie ? "Bitte wählen Sie zuerst eine Zeit aus." : "Bitte wähle zuerst eine Zeit aus.", 400);
     }
 
-    // Der Kunde darf nur Slots buchen, die ihm auch angeboten wurden — sonst
-    // ließe sich der Besitzschutz umgehen, indem man einen fremden Agenten
-    // in die Anfrage schreibt.
-    const auskunft = await freieSlots(geprueft.personId, sqlPool, gewuenscht);
-    const erlaubt = auskunft.slots.some(
-      (s) => s.beginn === new Date(beginn).toISOString() && s.agentId === Number(agentId),
-    );
-    if (!erlaubt) {
+    if (wunsch && wunsch !== "auto") {
+      // Der Wunsch entscheidet nichts mehr — aber er soll nachlesbar bleiben.
+      console.log(`[TERMIN] Person ${geprueft.personId}: mitgeschickte Quelle „${wunsch}" `
+        + "aus dem Anfragerumpf verworfen (öffentliche Route bucht immer „auto“).");
+    }
+    // ── 05.10.2026 (E-283): DER ABLAUF STEHT IN kundenBuchungAusfuehren ─────
+    // Angebot prüfen, buchen, Vertretungs-Notiz, buchungAnwenden, Bestätigung,
+    // Protokoll — dort, weil das Limit-Gespräch im Kundenbereich denselben Weg
+    // nimmt. Die Sätze an den Kunden bleiben hier.
+    const ergebnis = await kundenBuchungAusfuehren({
+      personId: geprueft.personId,
+      agentId: Number(agentId),
+      beginn: String(beginn),
+      // ── FEST „auto" (24.08.2026) ──────────────────────────────────────────
+      // VORHER: `quelle: wunsch ?? "auto"` — der Body entschied mit und konnte
+      // über `eigenerRueckruf` die Ableitung UND den Vorlauf aushebeln (siehe
+      // den Block oben). NACHHER entscheidet ausschliesslich der Zustand des
+      // Menschen; der Wunsch steht nur noch im Protokoll.
+      quelle: gewuenscht,
+      herkunft: herkunft ?? null,
+      sie,
+    });
+    if (!ergebnis.ok) {
       // ── DER GRUND, DEN DER KUNDE VERSTEHT ────────────────────────────────
       // „Dieser Termin ist nicht mehr frei" war richtig, aber unvollständig:
       // Der Satz sagt nicht, was jetzt zu tun ist. Und er trifft zwei Lagen —
       // der Slot wurde gerade vergeben, oder er ist aus dem Angebot gefallen
       // (Vorlauf abgelaufen, während die Seite offen lag).
-      const nochFrei = auskunft.slots.length;
+      const nochFrei = ergebnis.nochFrei;
       if (sie) {
         return await ablehnen("nicht_angeboten",
           nochFrei > 0
@@ -485,58 +595,7 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
             + "Zeiten belegt. Lade die Seite in ein paar Minuten neu oder melde dich "
             + "bei deinem Ansprechpartner.");
     }
-
-    if (wunsch && wunsch !== "auto") {
-      // Der Wunsch entscheidet nichts mehr — aber er soll nachlesbar bleiben.
-      console.log(`[TERMIN] Person ${geprueft.personId}: mitgeschickte Quelle „${wunsch}" `
-        + "aus dem Anfragerumpf verworfen (öffentliche Route bucht immer „auto“).");
-    }
-    const buchung = await terminBuchen({
-      personId: geprueft.personId,
-      agentId: Number(agentId),
-      beginn: String(beginn),
-      // ── FEST „auto" (24.08.2026) ──────────────────────────────────────────
-      // VORHER: `quelle: wunsch ?? "auto"` — der Body entschied mit und konnte
-      // über `eigenerRueckruf` die Ableitung UND den Vorlauf aushebeln (siehe
-      // den Block oben). NACHHER entscheidet ausschliesslich der Zustand des
-      // Menschen; der Wunsch steht nur noch im Protokoll.
-      quelle: "auto",
-      // Die HERKUNFT dagegen darf mitkommen: Sie steuert nichts, sie beschreibt
-      // nur den Weg — und ungültige Werte fallen in `herkunftPruefen` auf
-      // „unbekannt", statt gespeichert zu werden, wie sie kamen.
-      herkunft: herkunft ?? null,
-    });
-    // ── VERTRETUNG (01.10.2026) ───────────────────────────────────────────
-    // Ein Platz des Vertreters (Abwesenheit): Er ruft an, aber Kunde und
-    // Betreuer bleiben, wo sie sind (zuordnen: false — wie Maras Buchungen,
-    // E-260 B10). Die Notiz sagt dem Vertreter, für wen er einspringt; sie
-    // steht vor buchungAnwenden, weil dessen Meldung an ihn sie mitnimmt.
-    const ab = auskunft.abwesenheit;
-    const beimVertreter = !!ab && !ab.vertreterIstBetreuer && Number(agentId) === ab.vertreterId
-      && new Date(buchung.beginn).getTime() < new Date(ab.bis).getTime();
-    if (beimVertreter) {
-      // E-265: die Notiz nennt beide in der Nennform („in Abwesenheit von Herrn Stripling, bei Nikita Boychenko").
-      await sqlPool`
-        UPDATE fiaon_termine
-           SET notiz = ${`Über die Terminseite gebucht — ${ab!.betreuerNenn ? `in Abwesenheit von ${ab!.betreuerNenn.dat}` : "in Abwesenheit des Teams"}, bei ${ab!.vertreterNenn.dat}.`},
-               updated_at = NOW()
-         WHERE id = ${buchung.id}`.catch((e) => console.error("[TERMIN] Vertretungs-Notiz:", String(e).slice(0, 160)));
-    }
-    await buchungAnwenden(buchung, sqlPool, { zuordnen: !beimVertreter });
-    // ── DER ABSAGE-LINK DER MAIL TRÄGT DIE ANREDE (24.09.2026, E-236) ───────
-    // Die Bestätigungsmail siezt immer. Ihr Absage-Link führte aber auf die
-    // Du-Fassung von /termin/absagen — wer gesiezt gebucht hat (Maras Link),
-    // wurde dort plötzlich geduzt, und „Neuen Termin wählen" duzte weiter.
-    // Bei einer Sie-Buchung bekommt der Link deshalb `?anrede=sie`. Ohne
-    // Anrede geht die Mail unverändert raus.
-    await bestaetigungSenden(buchung, sie && buchung.stornoToken
-      ? { zusatz: { storno_link: `${stornoLink(buchung.stornoToken)}?anrede=sie` } }
-      : {});
-
-    await versuchProtokollieren({
-      ergebnis: "gebucht", personId: geprueft.personId, slotBeginn: beginn,
-      agentId: Number(agentId), quelle: buchung.quelle, akteur: "kunde",
-    });
+    const buchung = ergebnis.buchung;
 
     res.json({
       ok: true,
@@ -600,6 +659,12 @@ router.post("/termin/absagen/:stornoToken", async (req: Request, res: Response) 
       const start = await import("../lib/fiaon-global-angebot-startgespraech")
         .then((m) => m.startgespraechNeuBuchenLink(Number(ergebnis.termin.id))).catch(() => null);
       return res.json({ ok: true, neuBuchen: start ?? absoluteUrl("/business#gespraech") });
+    }
+    // 05.10.2026 (E-283): Ein Limit-Gespräch wird im Kundenbereich neu gebucht
+    // (/app/mehr/limit) — der Terminlink leitete die Art aus dem Zustand ab und
+    // böte ein Support-Gespräch an. Dort steht auch, ab wann es wieder geht.
+    if (String(ergebnis.termin.quelle) === LIMIT_QUELLE) {
+      return res.json({ ok: true, neuBuchen: absoluteUrl(LIMIT_PFAD) });
     }
     // 24.09.2026 (E-236): Wer gesiezt absagt (?anrede=sie von der Absage-Seite),
     // wählt gesiezt neu — die Anrede wandert an den frischen Link. Nur Wortwahl.
@@ -845,6 +910,15 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
     // Zustellprotokoll. Eine zweite Versandlogik neben ihm wäre die zweite
     // Wahrheit, an der wir heute schon mehrfach hängengeblieben sind.
     let versandFehler: string | null = null;
+    // ── 05.10.2026 (E-283): EIN LIMIT-GESPRÄCH HAT EIGENE FOLGEN ─────────────
+    // „Nicht erschienen“ verschickt „Wir haben Sie verpasst“ — der Knopf darin
+    // führt beim Limit-Gespräch in den Kundenbereich (/app/mehr/limit), nicht
+    // auf den Terminlink: Der leitete die Art aus dem Zustand ab und böte ein
+    // Support-Gespräch an. Dort steht, ab wann das nächste buchbar ist.
+    // „Abgesagt“ schickte die Einladung zum STARTGESPRÄCH — für ein Limit-
+    // Gespräch der falsche Brief. Deshalb dort keine Mail; der Hinweis sagt es.
+    const istLimit = String(termin.quelle) === LIMIT_QUELLE;
+    const mailArt = istLimit && regel.art === "onboarding_einladung" ? null : regel.art;
     if (regel.art === "number_update_request") {
       // ── „NUMMER FALSCH" ÜBER DEN NUMMERN-WEG (18.09.2026) ─────────────────
       // Hier lief mailSenden(„number_update_request") — ohne update_url, also
@@ -877,7 +951,7 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
               : "Die Nachricht konnte nicht gesendet werden — sie steht mit Grund im Zustellprotokoll.";
         }
       }
-    } else if (regel.art) {
+    } else if (mailArt) {
       const { mailSenden } = await import("../lib/fiaon-mail-senden");
       const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
       // Vertretung (01.10.2026, Gegenprüfung): Lag der verpasste Termin bei einem Abwesenden (vor „bis"),
@@ -890,15 +964,18 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
         } catch { /* ohne Abwesenheit: der Gebuchte */ }
       }
       const erg = await mailSenden({
-        event: regel.art,
+        event: mailArt,
         personId: Number(termin.person_id),
         // 18.09.2026: Der No-Show nennt SEINEN Termin. Ohne diese Felder stand
         // in der Mail „am  um  Uhr" (67 von 76 verschickten, Messung 18.09.).
-        zusatz: regel.art === "termin_verpasst" && termin.beginn
+        // E-283: termin_link beim Limit-Gespräch — mailSenden überschreibt
+        // einen mitgegebenen Wert nicht (setze in fiaon-mail-senden.ts).
+        zusatz: mailArt === "termin_verpasst" && termin.beginn
           ? {
               termin_datum: berlinDatumText(termin.beginn),
               termin_uhrzeit: berlinUhrzeit(termin.beginn),
               ...(anrufer ? { agent_vorname: anrufer } : {}),
+              ...(istLimit ? { termin_link: absoluteUrl(LIMIT_PFAD) } : {}),
             }
           : undefined,
         akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: (await rolleVon(req.agent!.id)) as any },
@@ -917,7 +994,9 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
       ok: true,
       hinweis: versandFehler
         ? `Vermerkt. Die Nachricht ging NICHT raus: ${versandFehler}`
-        : regel.hinweis(String(termin.name)),
+        : istLimit && !mailArt && regel.art
+          ? `Vermerkt. Keine Mail an ${String(termin.name)} — die Einladung zum Startgespräch passt nicht zu einem Limit-Gespräch. Das nächste bucht der Kunde selbst im Kundenbereich.`
+          : regel.hinweis(String(termin.name)),
     });
   } catch (err) {
     console.error("[TERMIN] nicht-zustande:", err);
@@ -1722,6 +1801,11 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
       rueckruf: "agent_manuell", vertrieb: "agent_manuell",
       onboarding: "onboarding_call", zahlung: "inkasso_call",
       support: "support", // E-168: Bestandskunde braucht später Hilfe
+      // E-283 (05.10.2026): Ein Mitarbeiter darf ein Limit-Gespräch JEDERZEIT
+      // buchen — die Sperrfrist von drei Monaten gilt nur für den Kunden
+      // (shared/fiaon-limit-gespraech.ts). Ein zweites offenes Limit-Gespräch
+      // derselben Person lehnt die Datenbank ab (Migration 092, „limit_offen").
+      limit: LIMIT_QUELLE,
     };
     const art = String(req.body?.art || "");
     const notiz = req.body?.notiz ? String(req.body.notiz).trim().slice(0, 500) : null;

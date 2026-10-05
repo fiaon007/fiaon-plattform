@@ -15,6 +15,7 @@ import type { Rahmenweg } from "@shared/fiaon-rahmenweg";
 import type { Bereich, Vorgang } from "./typen";
 import { Zielkarte } from "./Weg";
 import { api, eur, zeit } from "./Bausteine";
+import { LIMIT_TEXTE } from "@shared/fiaon-limit-gespraech";
 
 interface BerichtKurz { monat: string; monatText: string; grosseZahlCents: number; grosseZahlText: string; gelesen: boolean }
 const DEMO_BERICHT: BerichtKurz = { monat: "2026-08", monatText: "August 2026", grosseZahlCents: 59742, grosseZahlText: "Im August für Sie geholt: 597,42 € im Monat.", gelesen: false };
@@ -29,6 +30,9 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
   const laufend = (post ?? []).filter((v) => v.offen).slice(0, 3);
   const briefeGesendet = (post ?? []).filter((v) => v.art === "brief").length;
   const ap = b.ansprechpartner;
+  // E-283: Karte zum Limit-Gespräch nur, wenn es JETZT etwas zu sehen gibt — buchbar oder gebucht (kommend).
+  const lg = b.limitGespraech ?? null;
+  const limitKarte = !!lg && (lg.grund === "frei" || (lg.grund === "gebucht" && !!lg.gebucht && !lg.gebucht.vorbei));
   // Zahl des Monats: nur ein GESPEICHERTER Bericht (Beleg, nicht Anzeige). Isolierter Abruf — fällt er aus, fällt nur diese Karte.
   const [bericht, setBericht] = useState<BerichtKurz | null | undefined>(demo ? DEMO_BERICHT : undefined);
   useEffect(() => {
@@ -137,6 +141,16 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
           <h3>Persönliche PIN festlegen</h3>
           <p>Vier Ziffern, an denen wir Sie am Telefon sicher erkennen. Sie ist nicht die PIN Ihrer Karte.</p>
           <span className="ap-link" style={{ display: "inline-block", marginTop: 10 }}>PIN festlegen →</span>
+        </Link>
+      )}
+
+      {/* E-283 (05.10.2026): Limit-Gespräch — eine ruhige Karte wie die PIN-Karte, kein Band: Nichts daran ist
+          dringend. Nur bei „jetzt buchbar“ oder einem gebuchten, kommenden Gespräch; sonst steht der Stand unter Mehr. */}
+      {limitKarte && lg && (
+        <Link href={`${basis}/mehr/limit`} className="ap-karte ap-auf v3" style={{ display: "block", textDecoration: "none" }} data-fiaon="heute-limit">
+          <h3>{LIMIT_TEXTE.titel}</h3>
+          <p>{lg.grund === "frei" ? `${LIMIT_TEXTE.heuteFrei} ${LIMIT_TEXTE.unterzeile(null)}` : lg.gebucht ? LIMIT_TEXTE.gebucht(lg.gebucht) : ""}</p>
+          <span className="ap-link" style={{ display: "inline-block", marginTop: 10 }}>{lg.grund === "frei" ? `${LIMIT_TEXTE.knopf} →` : "Ansehen →"}</span>
         </Link>
       )}
 

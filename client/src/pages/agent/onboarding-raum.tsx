@@ -584,7 +584,8 @@ function Wartende({ onGeaendert, flash }: { onGeaendert: () => void; flash: (tex
         const gebucht = w.terminGebucht ?? !!w.terminAm;
         const gewaehlt = auswahl.has(w.personId);
         const q = w.naechsterTerminQuelle;
-        const terminArt = q === "onboarding_call" || !q ? "Startgespräch gebucht" : q === "inkasso_call" ? "Termin (Inkasso) gebucht — kein Startgespräch" : q === "support" ? "Termin (Support) gebucht — kein Startgespräch" : "Termin gebucht — kein Startgespräch";
+        // E-283 (05.10.2026): das Limit-Gespräch eigens — es ist nie das Startgespräch.
+        const terminArt = q === "onboarding_call" || !q ? "Startgespräch gebucht" : q === "inkasso_call" ? "Termin (Inkasso) gebucht — kein Startgespräch" : q === "support" ? "Termin (Support) gebucht — kein Startgespräch" : q === "limit_gespraech" ? "Limit-Gespräch gebucht — kein Startgespräch" : "Termin gebucht — kein Startgespräch";
         const stand = gebucht ? { ton: q === "onboarding_call" || !q ? "gut" : "warn", text: `${terminArt}: ${zeitTag(w.naechsterTerminAm || w.terminAm || "")}` }
           : w.terminAm ? { ton: "warn", text: `Termin war ${zeitTag(w.terminAm)} — ohne Ergebnis` }
           : w.eingeladenAm ? { ton: "warn", text: `Eingeladen am ${zeitTag(w.eingeladenAm)} — noch keine Buchung` }

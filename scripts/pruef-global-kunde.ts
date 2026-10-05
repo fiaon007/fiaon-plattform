@@ -711,6 +711,22 @@ const zaehle = (text: string, muster: string) => text.split(muster).length - 1;
     rumpf(f, "async function claimApp(").includes("OHNE_GLOBAL_APP_SQL") && rumpf(f, "async function claimLead(").includes("OHNE_GLOBAL_LEAD_SQL"));
 }
 
+{
+  // E-283 (05.10.2026): Das Limit-Gespräch ist ein Privat-Ablauf (Pakete Pro, Ultra, High-End,
+  // gebucht im Kundenbereich). Die Regel steht in der Tatsachen-Sammlung VOR der reinen Regel —
+  // dort wird ein Global-Kunde zu „global“ (nie buchbar), und die Buchung fragt denselben Anspruch.
+  // Bewusst NICHT in fiaon-termine.ts (der Termin-Kern fragt die Regel nicht, Teil 3).
+  const f = quelle("server/lib/fiaon-limit-gespraech.ts");
+  const anspruch = rumpf(f, "export async function limitAnspruchFuer(");
+  pruef("Limit-Gespräch (limitAnspruchFuer): istGlobalKunde vor der Regel, das Ergebnis geht als globalKunde hinein",
+    vorher(anspruch, "istGlobalKunde(personId, lauf)", "limitAnspruchAus(") && zaehle(anspruch, "globalKunde,") >= 2);
+  pruef("… die Buchung (limitBuchen) prüft diesen Anspruch vor kundenBuchungAusfuehren",
+    vorher(rumpf(f, "export async function limitBuchen("), "limitAnspruchFuer(ref)", "kundenBuchungAusfuehren("));
+  // Rotprobe im Quelltext: ohne die Abfrage muss die Zeile fallen.
+  const ohne = rumpf(f.replace("await istGlobalKunde(personId, lauf)", "false"), "export async function limitAnspruchFuer(");
+  pruef("… Rotprobe im Quelltext: ohne istGlobalKunde fällt die Zeile", !vorher(ohne, "istGlobalKunde(personId, lauf)", "limitAnspruchAus("));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TEIL 3 — TERMIN-ERINNERUNG UND GLOBAL BLEIBEN FREI
 // ═══════════════════════════════════════════════════════════════════════════

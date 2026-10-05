@@ -84,6 +84,66 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-283 (05.10.2026): Umschalten — jeder Antragslink führt in den neuen Antrag.
+    id: "2026-10-05-neuer-antrag-ueberall",
+    date: "2026-10-05",
+    category: "Neu",
+    title: "Der neue Antrag gilt jetzt überall",
+    summary:
+      "Persönliche Links (/a/…), /start, /privatkunden und alle Paketknöpfe führen in den neuen Antrag: Angaben, Prüfung, "
+      + "persönliche PIN, Paket, Vertrag mit Unterschrift, erste Rate per Überweisung.",
+    changes: [
+      "Dein WhatsApp- und Mail-Text aus der Telefonkartei sagt jetzt „etwa fünf Minuten“ — so lange dauern die Angaben im neuen Antrag.",
+      "In der Akte siehst du auch bei neuen Anträgen „Paket gewählt“, „Zahlungsseite geöffnet“ und „Vertrag heruntergeladen“.",
+      "Kunden mit einem begonnenen alten Antrag machen dort weiter (Link aus der Erinnerungsmail, solange er gilt).",
+      "Mara und der KI-Assistent kennen den neuen Ablauf, die persönliche FIAON-PIN und das Limit-Gespräch.",
+    ],
+    howto: [
+      "Begleitest du einen Antrag am Telefon: erst die Angaben, dann prüft der Antrag sie selbst (keine SCHUFA-Abfrage), dann PIN, Paket und Vertrag.",
+      "Selbst ansehen: fiaon.com/antrag — vor der Unterschrift abbrechen, „Zahlungspflichtig annehmen“ schließt einen echten Vertrag.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+    important: true,
+  },
+  {
+    // E-283 (05.10.2026): Limit-Gespräch im Kundenbereich.
+    id: "2026-10-05-limit-gespraech",
+    date: "2026-10-05",
+    category: "Neu",
+    title: "Neu: Limit-Gespräch alle drei Monate",
+    summary:
+      "Kunden mit bezahltem Pro, Ultra oder High-End buchen alle drei Monate selbst ein Limit-Gespräch in ihrem Bereich "
+      + "(„Limit-Erhöhung anfragen“) — das erste frühestens drei Monate nach der ersten Rate.",
+    changes: [
+      "Im Kalender trägt es die violette Marke „Limit-Gespräch“ (20 Minuten), in der Akte steht „Limit-Gespräch: ab … / jetzt buchbar / gebucht …“.",
+      "Inhalt laut Leitfaden: Raten, Stand der Akte, ein konkreter nächster Schritt. Nie ein Limit zusagen — darüber entscheidet die Bank.",
+      "Nach dem Gespräch als erledigt abhaken — nur ein geführtes Gespräch zählt für die nächsten drei Monate. „Kam nicht zustande“ zählt nicht, der Kunde bucht neu.",
+      "Voraussetzungen für die Buchung durch den Kunden: Startgespräch geführt, keine offene Rate, Vertrag läuft.",
+      "Support-Termine heißen jetzt auch im Kalender „Support“ statt „Vertrieb“.",
+    ],
+    howto: [
+      "Selbst eintragen geht jederzeit: Kalender → Termin anlegen → Art „Limit-Gespräch“.",
+    ],
+    link: { href: "/agent/kalender", label: "Zum Kalender" },
+  },
+  {
+    // E-283 (05.10.2026): AGB neue Fassung, Archiv unter /agb/<Datum>.
+    id: "2026-10-05-agb-neue-fassung",
+    date: "2026-10-05",
+    category: "Geändert",
+    title: "Neue AGB vom 5. Oktober 2026 — alte Fassungen bleiben abrufbar",
+    summary:
+      "Die AGB sind neu gefasst. Jeder Kunde kann die Fassung, die für seinen Vertrag gilt, weiter nachlesen: "
+      + "fiaon.com/agb/2026-09-26, /2026-09-03 oder /2026-07-04.",
+    changes: [
+      "Fragt ein Kunde nach Provisionen: FIAON erhält von der Partnerbank eine Vergütung, wenn der Kunde dort ein Konto eröffnet — für ihn kostenlos, sein Paketpreis hängt nicht davon ab (AGB § 2).",
+      "Die persönliche FIAON-PIN steht in den AGB (§ 3): Sie dient nur dazu, den Kunden am Telefon zu erkennen, und ist keine Karten-PIN.",
+      "Die Bonitätsauskunft ist nicht Teil der Pakete; das Paket enthält ihre Auswertung (§ 4).",
+      "Die weiteren Raten sind am Kalendertag fällig, an dem die erste Rate eingegangen ist (§ 5).",
+      "fiaon.com/terms leitet auf die AGB.",
+    ],
+  },
+  {
     // E-282 (05.10.2026): der neue Antrag /antrag-neu mit persönlicher FIAON-PIN.
     id: "2026-10-05-persoenliche-pin",
     date: "2026-10-05",

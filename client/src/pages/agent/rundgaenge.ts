@@ -138,7 +138,9 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "und daneben der Knopf „PIN prüfen“. Willst du sicher sein, dass wirklich der Kunde am Telefon ist, drückst du ihn, lässt dir "
       + "die vier Ziffern nennen und tippst „Prüfen“. Du siehst nur das Ergebnis — „PIN stimmt“, „stimmt nicht“ mit den restlichen "
       + "Versuchen oder „gesperrt bis“ —, nie die PIN selbst. Nach fünf Fehlversuchen ist die Prüfung 15 Minuten gesperrt, und jede "
-      + "Prüfung steht mit deinem Namen im Verlauf.",
+      + "Prüfung steht mit deinem Namen im Verlauf. Eine PIN gilt erst ab der ersten Zahlung — vorher steht dort „PIN gilt ab 1. Zahlung“. "
+      // 05.10.2026 (E-283) mitgezogen: die Zeile zum Limit-Gespräch in der Akte.
+      + "Bei Pro, Ultra und High-End steht außerdem „Limit-Gespräch: ab … / jetzt buchbar / gebucht …“.",
     tipp: "Frag nie nach der PIN einer Bankkarte — die vergibt allein die Bank. Hat der Kunde seine FIAON-PIN vergessen, tippt er in seinem Bereich auf „PIN vergessen?“ und legt über den Anmelde-Link eine neue fest.",
   },
   {
@@ -315,7 +317,12 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       // 17.09.2026 (E-188) mitgezogen: die Marke „FIAON Global" und ihr Sprung ins Firmen-Cockpit.
       + "Steht auf einer Karte „FIAON Global“, hat ein Unternehmen über fiaon.com/business ein "
       + "Erstgespräch gebucht: 30 Minuten, du rufst an — und „Zur Akte“ führt dich ins "
-      + "Firmen-Cockpit, wo Firma, Paketwunsch und Verlauf liegen.",
+      + "Firmen-Cockpit, wo Firma, Paketwunsch und Verlauf liegen. "
+      // 05.10.2026 (E-283) mitgezogen: Support heißt jetzt auch im Kalender so, dazu das Limit-Gespräch.
+      + "„Support“ ist ein Hilfegespräch mit einem Bestandskunden nach dem Startgespräch. Violett ist ein "
+      + "Limit-Gespräch: Kunden mit Pro, Ultra oder High-End buchen es alle drei Monate selbst in ihrem Bereich — "
+      + "Raten, Stand der Akte, ein konkreter nächster Schritt, nie ein Limit zusagen. Danach als erledigt abhaken, "
+      + "nur dann zählt es; „kam nicht zustande“ zählt nicht.",
     // 24.09.2026 (E-236) mitgezogen: Mara trägt Rückrufe selbst ein.
     tipp: "Auf jeder Terminkarte steht außerdem, ob der Kunde selbst gebucht hat oder ob du den Termin eingetragen hast. "
       + "„von Mara“ (im Wochenraster ein blauer Punkt) heißt: Mara hat den Rückruf per WhatsApp oder E-Mail mit dem Kunden "
@@ -327,6 +334,9 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
     text: "Trägst du hier einen Termin ein, ist der Zeitpunkt für alle anderen blockiert: Kein "
       + "zweiter Kunde kann sich über seinen Link auf dieselbe Zeit buchen. Das gilt in beide "
       + "Richtungen — hat ein Kunde eine Zeit genommen, bekommst du sie nicht mehr angeboten.",
+    // 05.10.2026 (E-283) mitgezogen: die Art „Limit-Gespräch“ beim Anlegen.
+    tipp: "Ein Limit-Gespräch kannst du jederzeit selbst eintragen: „Termin anlegen“ → Art „Limit-Gespräch“. "
+      + "Für dich gilt die Drei-Monats-Regel nicht, nur für die Buchung im Kundenbereich.",
   },
   {
     // 29.09.2026 (E-263): Justin — „mit 1 Klick in mein Google oder Apple Kalender".

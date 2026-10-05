@@ -5,6 +5,43 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 05.10.2026 — Neuer Antrag überall, AGB-Fassung vom 5. Oktober, Limit-Gespräch im Kundenbereich (E-283)
+
+**Der Anlass:** Justin (05.10.): „Stelle den neuen Antrag live, überall für die Privatkunden (also auch auf fiaon.com/start) …
+Ja pass die AGBs an … Limit-Gespräch muss der Kunde buchen in der App, also sowas wie ‚Limit-Erhöhung anfragen‘, das geht aber nur
+alle 3 Monate.“ Dazu: „entferne bei /start gar nichts! Lass es so“ und „passe /privatkunden so an, dass die Produkte den gleichen
+Text haben wie bei /start“.
+
+**Was geändert:**
+- **Weiche auf 100 % über die Render-Variable `ANTRAG_NEU_ANTEIL`** (gilt, solange im Chefbüro keine Stufe gespeichert ist; eine
+  gespeicherte Stufe gewinnt immer, /chef/s/finanzen zeigt die Quelle). Sperrliste statt Erlaubtliste: Im alten Antrag bleiben nur
+  gültige Weiter-Links begonnener alter Anträge, Entwickler-Abkürzungen und Pakete, die der neue Antrag nicht kennt (Auskunft).
+  /start (unverändert), /privatkunden, /preise, /en, persönliche Links /a/…, /fb, Google- und Meta-Klicks landen im neuen Antrag;
+  frühere „alt“-Zuteilungen werden bei 100 % umgeschrieben. /antrag und /antrag-neu ohne Seitenspeicher (no-store).
+- **Messung wie im alten Weg:** Werbe-Einwilligung und Kennungen reisen bei jedem Speichern mit, InitiateCheckout trägt die Monatsrate,
+  die Akte zeigt „Paket gewählt“, „Zahlungsseite geöffnet“, „Vertrag heruntergeladen“. Auskunft-Links („mit Auskunft“, „Auskunft da“)
+  wirken im neuen Antrag (vorgewählt, nie automatisch bestellt).
+- **AGB-Fassung vom 5. Oktober 2026** mit Archiv unter fiaon.com/agb/<Datum> (26.09., 03.09., 04.07.; 12.04. abrufbar, nicht gelistet):
+  § 2 Partnerbank und Vergütung, § 3 Vertragsschluss und persönliche PIN, § 4 Leistungen (Auskunft nicht im Paket, Limit-Gespräch im
+  Kundenbereich), § 5 Fälligkeit am Tag des Eingangs der ersten Rate, Überweisung, § 8 Entscheidungen Dritter, § 10 Widerrufsbelehrung
+  aus derselben Quelle wie der Vertrag, § 12 ohne OS-Plattform; § 6 (Laufzeit) unverändert. Vertrag und Bestätigungsmail verlinken die
+  Fassung DIESES Vertrags. Impressum, Fußzeile, Cookie-Einstellungen, /widerrufsbelehrung mitgezogen; /terms → /agb (301).
+- **Limit-Gespräch** („Limit-Erhöhung anfragen“, /app/mehr/limit) für bezahlte Pro-, Ultra- und High-End-Kunden (alter und neuer Weg):
+  frühestens drei Monate nach der ersten Rate, danach drei Monate nach dem letzten GEFÜHRTEN Limit-Gespräch; Startgespräch geführt,
+  keine offene Rate, Vertrag läuft; Global-Kunden nie. Neue Termin-Art `limit_gespraech` (20 Minuten, violett, Betreuer), Migration 092
+  (ein offenes je Person), Leitfaden, Akte-Zeile, Kalender-Auswahl; Mitarbeiter buchen jederzeit. Nebenbei: Support-Termine heißen nicht
+  mehr „Vertrieb“; Kunden sehen in Liste und Mails nie interne Art-Namen. Vertrag (PV-2026-10-05b) § 3 nennt die Buchungsregel.
+- **/privatkunden:** Die Paketkarten tragen denselben Wortlaut wie /start (Name, Untertitel, Merkmale, landabhängig), Englisch mitgezogen.
+- **Wahre Texte** auf Startseite, Navigation, /preise, /privatkunden-Rest, /en, Hilfe, /login, Wissen/Mara (Ablauf, PIN, Limit-Gespräch,
+  „etwa fünf Minuten“); Erinnerungsmail mit eigenen Schritt-Namen für neue Anträge. /start bleibt wie es ist.
+- **Gegenprüfung** (32 Funde, 25 bestätigt): u. a. abgelaufene Weiter-Links führen nicht mehr ins alte Formular und das alte Formular
+  überschreibt keine Zeile des neuen Wegs; Annahme mit Fassungsabgleich; Limit-Gespräch zählt nie ein nicht geführtes; die öffentliche
+  Terminroute nimmt keine „agent“-Herkunft aus dem Browser an.
+
+**Wo:** server/lib/fiaon-antrag-weiche.ts, client/src/pages/agb.tsx + agb-archiv/, shared/fiaon-vertrag-paket.ts,
+shared/fiaon-limit-gespraech.ts, server/lib/fiaon-limit-gespraech.ts, client/src/pages/app/Limit.tsx, client/src/lib/paket-merkmale.ts;
+Prüfstände scripts/pruef-antrag-weiche.ts, scripts/pruef-limit-gespraech.ts.
+
 ## 05.10.2026 — Der neue Privatantrag /antrag-neu, persönliche FIAON-PIN, Statistik alt gegen neu (E-282)
 
 **Der Anlass:** Justin (04./05.10.): „der GESAMTE Antragsweg muss neu gemacht werden … bau es jetzt unter /antrag-neu … achte auf

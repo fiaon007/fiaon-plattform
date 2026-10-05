@@ -17,11 +17,22 @@ const SEIT_WERTE: [Seit, string][] = [["<1", "unter 1 Jahr"], ["1-5", "1–5 Jah
 // ═══════════════════════════════════════════════════════════════════════════
 // 1 · Name
 // ═══════════════════════════════════════════════════════════════════════════
+// ── DER ERSTE EINDRUCK (05.10.2026, E-284) ───────────────────────────────────
+// Gemessen am ersten Tag: 8 von 15 Besuchern verließen diesen Bildschirm nach
+// 0–30 Sekunden, ohne ein Feld anzufassen — und wer blieb, drückte viermal
+// „Weiter“ ohne Anrede (das kleine Segment wurde übersehen). Deshalb: drei kurze
+// Zusagen oben (was es kostet an Zeit, keine Auskunftei-Abfrage, wann gezahlt
+// wird) und die Anrede als zwei große Felder; ein Tipp darauf führt in den Vornamen.
 export function SchrittName() {
   const { S, setze, buehne, weiter, speichern, weiterText } = useAntrag();
   const f = useFehler("name");
+  const anredeWaehlen = (v: "Frau" | "Herr" | "keine") => {
+    // Fokus direkt im Tipp — iOS öffnet die Tastatur nur dann, nicht aus einem Zeitgeber.
+    if (!S.vorname.trim()) { try { document.getElementById("an-vorname")?.focus({ preventScroll: true }); } catch { /* egal */ } }
+    setze({ anrede: v }); f.weg("anrede");
+  };
   const los = () => {
-    if (!S.anrede) return f.zeigen("anrede", "Bitte wählen Sie eine Anrede.");
+    if (!S.anrede) return f.zeigen("anrede", "Bitte tippen Sie auf „Frau“ oder „Herr“ – oder auf „Lieber ohne Anrede“.");
     if (!S.vorname.trim()) return f.zeigen("vorname", "Bitte tragen Sie Ihren Vornamen ein.");
     if (!S.nachname.trim()) return f.zeigen("nachname", "Bitte tragen Sie Ihren Nachnamen ein.");
     const teil = { vorname: schoen(S.vorname), nachname: schoen(S.nachname) };
@@ -33,10 +44,19 @@ export function SchrittName() {
     <>
       <Titel text="Ihre Karte. Ihr Name." fokus={false} />
       <Lead>So, wie es in Ihrem Ausweis steht.</Lead>
+      {/* Eine leise Zeile statt drei Pillen: schiebt die Anrede am kleinen Handy nicht aus dem Bild.
+          Das Land ist hier noch unbekannt — deshalb „Auskunfteien“, nie „SCHUFA“ (AT/CH). */}
+      <p className="an-zusage-zeile">Keine Abfrage bei Auskunfteien · Kosten erst mit Ihrer Unterschrift</p>
       <div className="an-feld">
-        <span className="an-etikett">Anrede</span>
-        <Seg name="anrede" label="Anrede" werte={[["Frau", "Frau"], ["Herr", "Herr"], ["keine", "Ohne Anrede"]]} wahl={S.anrede}
-          onWahl={(v) => { setze({ anrede: v }); f.weg("anrede"); }} fehlt={!!f.bei("anrede")} />
+        <span className="an-etikett" id="an-anrede-titel">Wie dürfen wir Sie ansprechen?</span>
+        <div className={`an-anrede${f.bei("anrede") ? " an-fehlt" : ""}`} role="radiogroup" aria-labelledby="an-anrede-titel" data-feld="anrede">
+          {(["Frau", "Herr"] as const).map((a) => (
+            <button key={a} type="button" role="radio" aria-checked={S.anrede === a} className="an-anrede-wahl" onClick={() => anredeWaehlen(a)}>{a}</button>
+          ))}
+          <button type="button" role="radio" aria-checked={S.anrede === "keine"} className="an-knopf an-text an-anrede-ohne" onClick={() => anredeWaehlen("keine")}>
+            {S.anrede === "keine" ? <>Ohne Anrede<span aria-hidden="true"> ✓</span></> : "Lieber ohne Anrede"}
+          </button>
+        </div>
         {f.bei("anrede") ? <Tipp text={f.bei("anrede")!} /> : null}
       </div>
       <div className="an-reihe">
@@ -48,7 +68,7 @@ export function SchrittName() {
       <Warum text="Ihr Name steht genau so auf Ihrem Vertrag – und so beantragen Sie später auch Ihre Karte bei der Bank." />
       <Knopf text={weiterText("Weiter")} onClick={los} />
       <div className="an-fuss-zeile">
-        Rund drei Minuten · Ihre Angaben werden laufend gespeichert. Wir verarbeiten sie für Ihren Antrag und Vertrag – mehr in der{" "}
+        Ihre Angaben werden laufend gespeichert. Wir verarbeiten sie für Ihren Antrag und Vertrag – mehr in der{" "}
         <a href="/datenschutz" target="_blank" rel="noopener" style={{ color: "inherit" }}>Datenschutzerklärung</a>.
       </div>
     </>

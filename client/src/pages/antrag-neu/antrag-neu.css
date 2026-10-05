@@ -405,3 +405,32 @@ html.an-sheet-offen, html.an-sheet-offen body{overflow:hidden}
 @media (min-width:1024px){.an-seite .an-toast{top:calc(104px + env(safe-area-inset-top,0px))}}
 .an-seite .an-wieder{margin-bottom:14px}
 .an-seite .an-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* E-284 (05.10.2026): erster Eindruck — drei Zusagen, Anrede als zwei große Felder */
+.an-seite .an-zusage-zeile{margin:-6px 0 0;font-size:.8125rem;line-height:1.45;color:var(--tief)}
+.an-seite .an-anrede{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.an-seite .an-anrede-wahl{height:54px;border-radius:14px;border:1.5px solid var(--linie-2);background:#fff;font-size:1rem;font-weight:500;color:var(--tinte);box-shadow:var(--schatten-klein);transition:border-color .2s,background .2s,box-shadow .2s,transform .15s}
+.an-seite .an-anrede-wahl:active{transform:scale(.98)}
+.an-seite .an-anrede-wahl[aria-checked="true"]{border-color:var(--akzent);background:var(--akzent-weich);color:var(--tief);box-shadow:0 0 0 3px var(--akzent-hauch)}
+.an-seite .an-anrede.an-fehlt .an-anrede-wahl{border-color:var(--bernstein);box-shadow:0 0 0 3px var(--bernstein-weich)}
+.an-seite .an-anrede-ohne{grid-column:1 / -1;justify-self:start;min-height:32px;font-size:.8125rem;padding:0;margin-top:-2px}
+.an-seite .an-anrede-ohne[aria-checked="true"]{color:var(--tief);font-weight:500}
+/* E-284: „Fast geschafft" — das Paket auf einen Blick statt eines Vertragsdokuments */
+.an-seite .an-blick{display:flex;flex-direction:column;gap:14px;border-radius:18px;padding:16px;background:#fff;border:1px solid var(--linie);box-shadow:var(--schatten-klein)}
+.an-seite .an-blick-kopf{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--linie)}
+.an-seite .an-blick-name{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;min-width:0}
+.an-seite .an-blick-name b{font-size:1.0625rem;font-weight:600;color:var(--tinte)}
+.an-seite .an-blick-name small{font-size:.75rem;color:var(--tinte-3)}
+.an-seite .an-blick-preis{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.an-seite .an-blick-preis b{font-size:1.0625rem;font-weight:600;color:var(--tief);font-variant-numeric:tabular-nums;white-space:nowrap}
+.an-seite .an-blick-preis b span{font-size:.75rem;font-weight:400;color:var(--tinte-2)}
+.an-seite .an-blick-preis small{font-size:.8125rem;font-weight:500;color:var(--tinte);line-height:1.35}
+.an-seite .an-blick-liste{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.an-seite .an-blick-liste li{position:relative;padding-left:26px;font-size:.8125rem;line-height:1.45;color:var(--tinte-2)}
+.an-seite .an-blick-liste li b{font-weight:500;color:var(--tinte)}
+.an-seite .an-blick-liste li::before{content:"";position:absolute;left:0;top:1px;width:17px;height:17px;border-radius:50%;background:var(--akzent-weich) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M4 7.2l2 2 4-4.4' fill='none' stroke='%231D4ED8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/15px no-repeat}
+.an-seite .an-blick-fuss{margin:0;padding-top:12px;border-top:1px solid var(--linie);font-size:.75rem;line-height:1.5;color:var(--tinte-3)}
+.an-seite .an-blick-links{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0 18px;color:var(--tinte-3);font-size:.8125rem}
+.an-seite .an-blick-links .an-knopf.an-text{min-height:32px;font-size:.8125rem;padding:0 2px}
+.an-seite .an-chip.an-chip-stark{border:1.5px dashed var(--akzent);background:#fff;color:var(--tief);font-weight:500}
+.an-seite .an-uebersicht .an-akk{margin:4px 0 2px}
+.an-seite .an-uebersicht .an-akk>button{min-height:40px;font-size:.8125rem;color:var(--tinte-2)}

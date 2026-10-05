@@ -116,6 +116,43 @@ export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
   },
 ];
 
+/**
+ * Die Leistungen in Kurzform für „Fast geschafft" (05.10.2026, E-284) — NUR Anzeige.
+ * Maßgeblich bleiben die ganzen Sätze in `leistungen` (Vertrag § 3) und `zeile`
+ * (Bestellübersicht). Hier nichts versprechen, was dort nicht steht.
+ */
+export const ANTRAG_NEU_KURZ: Record<AntragNeuPaketKey, string[]> = {
+  start: [
+    "Fertiger Antragslink unserer Partnerbank für Ihre Visa-Kreditkarte",
+    "Auswertung Ihrer Bonitätsauskunft – jeder Eintrag erklärt",
+    "Kontoauszug-Analyse mit Ihrem Spielraum",
+    "Kundenbereich mit persönlichem Fahrplan",
+    "Unterstützung per E-Mail",
+  ],
+  pro: [
+    "Fertiger Antragslink unserer Partnerbank für Ihre Visa-Kreditkarte",
+    "Feste Ansprechpartnerin mit persönlichem Startgespräch",
+    "Limit-Gespräch alle drei Monate – im Kundenbereich gebucht",
+    "Löschanträge und Widersprüche – vorbereitet, versendet, verfolgt",
+    "Ratenvereinbarungen mit Ihren Gläubigern",
+    "Alles aus Start: Auswertung, Analyse, Fahrplan",
+  ],
+  ultra: [
+    "Alles aus Pro",
+    "Telefonische Betreuung durch Ihre feste Ansprechpartnerin",
+    "Begleitung bis zum Kartenantrag – Readiness und Meilensteine",
+    "Bevorzugte Bearbeitung Ihrer Schreiben",
+    "Limit-Gespräch alle drei Monate – im Kundenbereich gebucht",
+  ],
+  highend: [
+    "Alles aus Ultra",
+    "Persönlicher Betreuer für Ihre gesamte Akte",
+    "Erreichbar auch außerhalb der Bürozeiten",
+    "Vorbereitung auf Finanzierungen",
+    "Limit-Gespräch alle drei Monate – im Kundenbereich gebucht",
+  ],
+};
+
 export function antragNeuPaket(key: unknown): AntragNeuPaket | null {
   const k = String(key ?? "").trim().toLowerCase().replace(/[-_\s]/g, "");
   return ANTRAG_NEU_PAKETE.find((p) => p.key === k) ?? null;
@@ -402,6 +439,16 @@ export function agbDatumLang(fassung: string): string {
   return m ? `${Number(m[3])}. ${MONATE[Number(m[2]) - 1]} ${m[1]}` : fassung;
 }
 export const ANTRAG_NEU_HAKEN_GEPRUEFT = "Ich habe Paket, Monatsrate, Laufzeit, Gesamtbetrag und Kündigungsregel in der Bestellübersicht geprüft.";
+// ── EIN HAKEN STATT ZWEI (05.10.2026, E-284) ─────────────────────────────────
+// Justin: „Optimiere es!" — die Unterschrift-Seite war mit drei Haken, Übersicht
+// und Rechtstexten die Seite, auf der die Kunden aufhörten. AGB und „Bestellung
+// geprüft" sind jetzt EIN Haken. Gespeichert wird wörtlich dieser Satz (Nachweis
+// im Vertrags-PDF); die Seite setzt ihn aus denselben Teilen zusammen.
+export const ANTRAG_NEU_HAKEN_KOMBI_VOR = "Ich akzeptiere die";
+export const ANTRAG_NEU_HAKEN_KOMBI_NACH = "und habe Paket, Monatsrate, Laufzeit, Gesamtbetrag und Kündigungsregel oben geprüft.";
+export function antragNeuHakenKombi(agbDatumText: string): string {
+  return `${ANTRAG_NEU_HAKEN_KOMBI_VOR} AGB (Fassung vom ${agbDatumText}) ${ANTRAG_NEU_HAKEN_KOMBI_NACH}`;
+}
 export const ANTRAG_NEU_SOFORT_TEXT = "Damit wir direkt nach Ihrer Zahlung starten können: Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit den Leistungen beginnt. Mir ist bekannt, dass ich bei einem Widerruf einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahle.";
 /** Hinweis nach § 7 Abs. 3 UWG — bei der Erhebung der Adresse (Kontakt) und vor der Annahme. */
 export const ANTRAG_NEU_WERBE_HINWEIS =

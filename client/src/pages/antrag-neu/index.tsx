@@ -68,7 +68,16 @@ const istSchritt = (s: unknown): s is AntragNeuSchritt => typeof s === "string" 
 
 function dachText(id: AntragNeuSchritt, bezahlt: boolean): string {
   const nr = ANTRAG_NEU_SCHRITT_NR[id];
-  if (nr) return `Schritt ${nr} von ${ANTRAG_NEU_SCHRITTE}${id === "zahlung" ? " · Aktivierung" : ""}`;
+  if (id === "zahlung") return "Aktivierung";
+  if (nr) {
+    // E-284 (05.10.2026): kein „Schritt 1 von 13“ mehr — am ersten Tag gingen 8 von 15 Besuchern
+    // auf dem ersten Bildschirm, ohne etwas einzugeben. Die verbleibende Zeit (rund 25 s je
+    // Bildschirm bis zur Unterschrift) sagt mehr und schreckt nicht.
+    const rest = ANTRAG_NEU_SCHRITTE - 1 - nr;
+    if (rest <= 0) return "Letzter Schritt";
+    const min = Math.max(1, Math.round(((rest + 1) * 25) / 60));
+    return `Noch rund ${min} ${min === 1 ? "Minute" : "Minuten"}`;
+  }
   return id === "pruefung" ? "Prüfung" : id === "ergebnis" ? "Ergebnis" : id === "danke" ? (bezahlt ? "Konto aktiv" : "Geschafft") : "";
 }
 

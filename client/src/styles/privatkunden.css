@@ -1,27 +1,50 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    PRIVATKUNDEN — Pakete als Karten, Vergleich, Readiness (23.08.2026)
    ═══════════════════════════════════════════════════════════════════════════ */
-.pk-pakete{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:40px;text-align:left}
-.pk-paket{position:relative;display:flex;flex-direction:column;gap:6px;padding:22px 22px 24px;border-radius:24px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 20px 50px rgba(37,99,235,.1);text-align:left;font:inherit;cursor:pointer;transition:transform .35s,box-shadow .35s,border-color .35s;height:100%}
+/* ── Pakete (05.10.2026, E-284): zentriert, das Limit im Mittelpunkt, Karten aus Metall ── */
+.pk-pakete{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:44px;text-align:center}
+.pk-pakete>.dk-auf{display:flex}
+.pk-paket{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;gap:0;padding:22px 20px 22px;border-radius:26px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 22px 54px rgba(37,99,235,.1);text-align:center;font:inherit;color:inherit;cursor:pointer;transition:transform .35s,box-shadow .35s,border-color .35s}
 .pk-paket:hover{transform:translateY(-6px);box-shadow:0 4px 8px rgba(15,23,42,.04),0 34px 70px rgba(37,99,235,.2);border-color:rgba(37,99,235,.35)}
-.pk-paket[data-top="1"]{border-color:rgba(37,99,235,.4);box-shadow:0 24px 60px rgba(37,99,235,.18)}
-.pk-paket .band{position:absolute;top:-12px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 11px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 8px 20px rgba(37,99,235,.35)}
-.pk-karte{position:relative;aspect-ratio:1.586/1;border-radius:14px;padding:14px 16px;margin-bottom:14px;color:#fff;display:grid;grid-template-rows:auto 1fr auto;box-shadow:0 18px 40px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,.25);overflow:hidden;transform:rotateX(6deg);transition:transform .4s}
-.pk-paket:hover .pk-karte{transform:rotateX(0) translateY(-2px)}
-.pk-karte::after{content:"";position:absolute;inset:-30%;background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.22) 50%,transparent 58%);transform:translateX(-70%);transition:transform .9s}
-.pk-paket:hover .pk-karte::after{transform:translateX(70%)}
-.pk-karte .chip{width:28px;height:20px;border-radius:4px;background:linear-gradient(135deg,#c9a227,#f7e39a 40%,#d4af37 60%,#fff3b0)}
-.pk-karte .wort{position:absolute;right:16px;top:12px;font:700 13px/1 'Inter',sans-serif;letter-spacing:.02em;opacity:.9}
-.pk-karte .limit{align-self:end;font:500 22px/1 'Inter',sans-serif;letter-spacing:-.02em}
-.pk-karte .inhaber{font:500 9px/1 'Inter',sans-serif;letter-spacing:.18em;text-transform:uppercase;opacity:.6;margin-top:6px}
-.pk-paket .name{margin:0;font:400 19px/1.2 'Inter',sans-serif;color:#0f172a;letter-spacing:-.015em}
-.pk-paket .sub{margin:0;font-size:13px;color:#64748b}
-.pk-paket .betrag{margin:10px 0 2px;font-size:30px;font-weight:300;letter-spacing:-.03em}
-.pk-paket .betrag small{font-size:12px;color:#64748b;margin-left:4px;-webkit-text-fill-color:#64748b}
-.pk-paket .ziel{margin:0 0 8px;font-size:12.5px;color:#1d4ed8}
-.pk-paket .dk-liste{margin:0 0 18px;flex:1}
+.pk-paket[data-top="1"]{border-color:rgba(37,99,235,.42);box-shadow:0 0 0 1px rgba(37,99,235,.12),0 26px 64px rgba(37,99,235,.2)}
+.pk-paket .band{position:absolute;top:-12px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 11px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 8px 20px rgba(37,99,235,.35);z-index:2}
+/* Die Karte: Metall je Stufe (Hintergrund kommt aus PAKETE), Glanz, feine Struktur, Chip, Kontaktlos */
+.pk-karte{position:relative;width:100%;aspect-ratio:1.586/1;border-radius:16px;color:#fff;overflow:hidden;isolation:isolate;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.34),inset 0 -1px 0 rgba(0,0,0,.3),0 26px 46px -18px rgba(11,18,32,.55),0 12px 24px -12px rgba(29,78,216,.45);
+  transform:perspective(900px) rotateX(6deg);transform-origin:50% 100%;transition:transform .5s cubic-bezier(.22,1,.36,1)}
+.pk-karte::before{content:"";position:absolute;inset:0;z-index:-1;background:
+  radial-gradient(120% 85% at 0% 0%,rgba(255,255,255,.28),transparent 52%),
+  radial-gradient(85% 65% at 100% 100%,rgba(0,0,0,.34),transparent 62%),
+  radial-gradient(60% 40% at 78% 18%,rgba(147,197,253,.18),transparent 70%),
+  repeating-linear-gradient(118deg,rgba(255,255,255,.04) 0 1px,transparent 1px 4px)}
+.pk-karte::after{content:"";position:absolute;inset:-40%;background:linear-gradient(112deg,transparent 42%,rgba(255,255,255,.26) 50%,transparent 58%);transform:translateX(-62%);transition:transform 1.1s cubic-bezier(.22,1,.36,1);pointer-events:none}
+.pk-paket:hover .pk-karte{transform:perspective(900px) rotateX(0) translateY(-2px)}
+.pk-paket:hover .pk-karte::after{transform:translateX(62%)}
+.pk-karte-wort{position:absolute;left:7.5%;top:12%;font:500 13px/1 'Inter',sans-serif;letter-spacing:.34em;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+.pk-karte-funk{position:absolute;right:7%;top:9.5%;width:22px;height:22px;opacity:.85;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+.pk-karte-chip{position:absolute;left:7.5%;top:38%;width:16%;aspect-ratio:1.32/1;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(120,86,20,.45),0 1px 2px rgba(0,0,0,.3);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 30'%3E%3Cpath d='M0 10h13M0 20h13M27 10h13M27 20h13M13 0v30M27 0v30M13 15h14' stroke='%23876218' stroke-width='1' fill='none' opacity='.55'/%3E%3C/svg%3E") center/100% 100% no-repeat,
+  linear-gradient(135deg,#f8e7a4 0%,#d9b04c 32%,#f3dc8c 52%,#b98a2a 78%,#e9cd7a 100%)}
+.pk-karte-inhaber{position:absolute;left:7.5%;bottom:12%;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.22em;text-transform:uppercase;opacity:.86}
+.pk-karte-stufe{position:absolute;right:7%;bottom:12%;font:600 10.5px/1 'Inter',sans-serif;letter-spacing:.26em;opacity:.95}
+/* Schwarzmetall und Mitternacht: Silber statt Weiß */
+.pk-karte-highend .pk-karte-wort,.pk-karte-highend .pk-karte-stufe,.pk-karte-ultra .pk-karte-stufe{background:linear-gradient(180deg,#ffffff 0%,#c9d2df 55%,#8e99a8 100%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
+.pk-karte-highend::before{background:
+  radial-gradient(120% 85% at 0% 0%,rgba(255,255,255,.2),transparent 50%),
+  radial-gradient(85% 65% at 100% 100%,rgba(0,0,0,.5),transparent 62%),
+  repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px)}
+/* Das Limit als Mittelpunkt */
+.pk-rahmen{display:flex;flex-direction:column;align-items:center;gap:6px;margin:22px 0 14px}
+.pk-rahmen small{font:400 10.5px/1 'Inter',sans-serif;letter-spacing:.24em;text-transform:uppercase;color:#64748b}
+.pk-rahmen b{font:300 38px/1.05 'Inter',sans-serif;letter-spacing:-.035em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pk-paket .name{margin:0;font:400 16px/1.3 'Inter',sans-serif;color:#0f172a;letter-spacing:-.01em}
+.pk-paket .name .sub{color:#64748b;font-size:13.5px}
+.pk-paket .betrag{margin:6px 0 16px;font:400 15px/1.2 'Inter',sans-serif;color:#1d4ed8;letter-spacing:-.01em}
+.pk-paket .betrag small{font-size:12px;color:#64748b;margin-left:4px}
+.pk-paket .dk-liste{margin:0 0 20px;flex:1;width:100%;padding-top:14px;border-top:1px solid rgba(15,23,42,.07);text-align:left}
 .pk-paket .dk-liste li{color:#475569;font-size:13.5px}
 .pk-paket .dk-knopf{justify-content:center;width:100%}
+.pk-punkte{display:none}
 .pk-vergleich{overflow-x:auto;margin-top:34px;border-radius:20px;border:1px solid rgba(15,23,42,.08);background:#fff;box-shadow:0 2px 4px rgba(15,23,42,.03),0 18px 44px rgba(37,99,235,.08);text-align:left}
 .pk-vergleich table{width:100%;border-collapse:collapse;font-size:14px}
 .pk-vergleich th{padding:16px 18px;text-align:left;font-weight:500;color:#64748b;border-bottom:1px solid rgba(15,23,42,.08);background:#f8fafc}
@@ -37,5 +60,19 @@
 .pk-ready-mitte{text-align:center;position:relative}
 .pk-ready-mitte b{display:block;font:300 38px/1 'Inter',sans-serif;color:#fff;letter-spacing:-.03em}
 .pk-ready-mitte small{display:block;font:500 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;margin-top:8px}
-@media(max-width:1100px){.pk-pakete{grid-template-columns:1fr 1fr}}
-@media(max-width:640px){.pk-pakete{grid-template-columns:1fr}.pk-vergleich table{font-size:13px}.pk-vergleich th,.pk-vergleich td{padding:11px 12px}}
+@media(max-width:1100px){.pk-pakete{grid-template-columns:1fr 1fr;gap:22px}}
+/* Am Handy: eine wischbare Reihe, eine Karte groß in der Mitte, die Nachbarn lugen hervor */
+@media(max-width:640px){
+  .pk-pakete{display:flex;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    margin:34px calc(50% - 50vw) 0;padding:18px 11vw 14px}
+  .pk-pakete::-webkit-scrollbar{display:none}
+  .pk-pakete>.dk-auf{flex:0 0 78vw;max-width:360px;scroll-snap-align:center}
+  .pk-paket{padding:20px 18px 20px}
+  .pk-paket:hover{transform:none}
+  .pk-rahmen b{font-size:42px}
+  .pk-punkte{display:flex;justify-content:center;gap:8px;margin-top:6px}
+  .pk-punkte button{width:8px;height:8px;padding:0;border:0;border-radius:999px;background:rgba(37,99,235,.22);transition:width .3s,background .3s}
+  .pk-punkte button.an{width:22px;background:#2563eb}
+  .pk-vergleich table{font-size:13px}.pk-vergleich th,.pk-vergleich td{padding:11px 12px}
+}
+@media(prefers-reduced-motion:reduce){.pk-karte,.pk-karte::after,.pk-paket{transition:none}.pk-pakete{scroll-behavior:auto}}

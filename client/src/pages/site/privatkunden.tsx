@@ -13,24 +13,36 @@
 // 02.09.2026: zweisprachig — /privatkunden (Deutsch) und /en/personal
 // (Englisch); Texte im Wörterbuch client/src/i18n/privatkunden.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { PRIVATKUNDEN_WOERTER } from "@/i18n/privatkunden";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf, Licht, Szenenbild } from "@/components/site/DunkleBuehne";
 import KartenSzene from "@/components/home3d/KartenSzene";
 import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
-import { landLesen, type Land } from "@/lib/fiaon-land";
+import { betrag, landLesen, type Land } from "@/lib/fiaon-land";
 import "@/styles/privatkunden.css";
 
 // Die Pakete: Schlüssel, Ziel-Rahmen, Farbe — Name, Untertitel und Merkmale
 // stehen im Wörterbuch unter demselben Schlüssel. 05.10.2026, E-283: im
 // Wortlaut von /start (client/src/lib/paket-merkmale.ts), ohne die Zeile „Ziel: …“.
+// 05.10.2026 (E-284, Justin: „am Handy schön, clean, zentriert — das Limit im Mittelpunkt,
+// und die Kreditkarten viel besser, die sehen so billig aus"): je Stufe ein eigenes Metall —
+// Stahlblau, Königsblau, Mitternacht, Schwarzmetall —, die Stufe steht auf der Karte.
 const PAKETE = [
-  { key: "start", lim: 500, bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)" },
-  { key: "pro", lim: 5000, rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)" },
-  { key: "ultra", lim: 15000, bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)" },
-  { key: "highend", lim: 25000, bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)" },
+  { key: "start", lim: 500, stufe: "STARTER", bg: "linear-gradient(135deg,#79a8ea 0%,#4579c6 46%,#2b5596 100%)" },
+  { key: "pro", lim: 5000, rec: true, stufe: "PRO", bg: "linear-gradient(135deg,#4486ff 0%,#1d4ed8 48%,#122c80 100%)" },
+  { key: "ultra", lim: 15000, stufe: "ULTRA", bg: "linear-gradient(135deg,#2c4f8c 0%,#172c57 50%,#0a1530 100%)" },
+  { key: "highend", lim: 25000, stufe: "HIGH END", bg: "linear-gradient(135deg,#454c5a 0%,#1a1f2a 52%,#040609 100%)" },
 ];
+
+/** Kontaktlos-Zeichen (vier Bögen) — gezeichnet, kein Markenlogo. */
+function Kontaktlos() {
+  return (
+    <svg className="pk-karte-funk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <path d="M8.5 9.2a4.2 4.2 0 0 1 0 5.6" /><path d="M11.6 7.1a7.4 7.4 0 0 1 0 9.8" /><path d="M14.7 5a10.6 10.6 0 0 1 0 14" /><path d="M17.8 3a13.8 13.8 0 0 1 0 18" />
+    </svg>
+  );
+}
 
 function Readiness({ label }: { label: string }) {
   const [p, setP] = useState(0);
@@ -59,6 +71,34 @@ export default function Privatkunden() {
   const preis = (key: string) => { const c = paketVon(key)?.preisCents ?? 0; return en ? "€" + (c / 100).toFixed(2) : (c / 100).toFixed(2).replace(".", ",") + " €"; };
   const auskunft = en ? "€" + SCHUFA_PREIS_EURO.toFixed(2) : SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
   const start = (key: string) => { try { sessionStorage.setItem("fiaon_paket", key); } catch { /* egal */ } window.location.href = `/antrag?pack=${key}&src=privatkunden`; };
+  // Das Limit in der Sprache der Seite und im Land wie die Merkmale: „bis 5.000 €" / „bis CHF 5'000" / „up to €5,000".
+  const rahmen = (lim: number) => t.bisRahmen(en ? "€" + lim.toLocaleString("en-GB") : betrag(lim.toLocaleString("de-DE"), land));
+
+  // ── Am Handy: eine wischbare Reihe, eine Karte in der Mitte (Pro zuerst), Punkte darunter ──
+  const reihe = useRef<HTMLDivElement>(null);
+  const [aktiv, setAktiv] = useState(1);
+  useEffect(() => {
+    const r = reihe.current;
+    if (!r || typeof window === "undefined" || !window.matchMedia("(max-width: 640px)").matches) return;
+    const el = r.children[1] as HTMLElement | undefined;
+    if (el) r.scrollLeft = el.offsetLeft - (r.clientWidth - el.clientWidth) / 2;
+    let lauf = 0;
+    const beimWischen = () => {
+      cancelAnimationFrame(lauf);
+      lauf = requestAnimationFrame(() => {
+        const mitte = r.scrollLeft + r.clientWidth / 2;
+        let best = 0, abstand = Infinity;
+        Array.from(r.children).forEach((c, i) => { const e = c as HTMLElement; const d = Math.abs(e.offsetLeft + e.clientWidth / 2 - mitte); if (d < abstand) { abstand = d; best = i; } });
+        setAktiv(best);
+      });
+    };
+    r.addEventListener("scroll", beimWischen, { passive: true });
+    return () => { r.removeEventListener("scroll", beimWischen); cancelAnimationFrame(lauf); };
+  }, []);
+  const zuKarte = (i: number) => {
+    const r = reihe.current; const el = r?.children[i] as HTMLElement | undefined;
+    if (r && el) r.scrollTo({ left: el.offsetLeft - (r.clientWidth - el.clientWidth) / 2, behavior: "smooth" });
+  };
   return (
     <Dunkel seite="privatkunden" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <Hero
@@ -80,27 +120,37 @@ export default function Privatkunden() {
 
       <Licht>
         <Block id="pakete" pille={t.paketePille} titel={<>{t.paketeH2a}<span className="dk-verlauf">{t.paketeH2b}</span></>} lead={t.paketeLead} mitte>
-          <div className="pk-pakete">
+          <div className="pk-pakete" ref={reihe}>
             {PAKETE.map((p, i) => {
               const w = t.pakete[p.key];
               return (
                 <Auf key={p.key} verzoegerung={i * 90}>
                   <button type="button" className="pk-paket" data-top={p.rec ? "1" : undefined} onClick={() => start(p.key)} aria-label={t.waehlenUndStarten(w.name)}>
                     {p.rec && <span className="band">{t.beliebt}</span>}
-                    <div className="pk-karte" style={{ background: p.bg }}>
-                      <span className="chip" /><span className="wort">FIAON</span>
-                      <span className="limit">{en ? "€" + p.lim.toLocaleString("en-GB") : p.lim.toLocaleString("de-DE") + " €"}</span>
-                      <span className="inhaber">{t.zielRahmen}</span>
+                    <div className={`pk-karte pk-karte-${p.key}`} style={{ background: p.bg }} aria-hidden="true">
+                      <span className="pk-karte-wort">FIAON</span>
+                      <Kontaktlos />
+                      <span className="pk-karte-chip" />
+                      <span className="pk-karte-inhaber">{t.karteName}</span>
+                      <span className="pk-karte-stufe">{p.stufe}</span>
                     </div>
-                    <p className="name">{w.name}</p>
-                    <p className="sub">{w.sub}</p>
-                    <p className="betrag dk-verlauf zahl">{preis(p.key)}<small>{t.proMonat}</small></p>
+                    <div className="pk-rahmen">
+                      <small>{t.zielRahmen}</small>
+                      <b className="dk-verlauf zahl">{rahmen(p.lim)}</b>
+                    </div>
+                    <p className="name">{w.name}<span className="sub"> · {w.sub}</span></p>
+                    <p className="betrag zahl">{preis(p.key)}<small>{t.proMonat}</small></p>
                     <ul className="dk-liste">{w.feats(land).map((f) => <li key={f}>{f}</li>)}</ul>
                     <span className={`dk-knopf${p.rec ? "" : " still"}`}>{t.mitStarten(w.name.replace("FIAON ", ""))}</span>
                   </button>
                 </Auf>
               );
             })}
+          </div>
+          <div className="pk-punkte" role="tablist" aria-label={t.paketePille}>
+            {PAKETE.map((p, i) => (
+              <button key={p.key} type="button" role="tab" aria-selected={aktiv === i} aria-label={t.pakete[p.key].name} className={aktiv === i ? "an" : undefined} onClick={() => zuKarte(i)} />
+            ))}
           </div>
           <p className="dk-leise" style={{ marginTop: 26, maxWidth: "72ch", marginLeft: "auto", marginRight: "auto" }}>{t.paketeHinweis(auskunft)}</p>
         </Block>

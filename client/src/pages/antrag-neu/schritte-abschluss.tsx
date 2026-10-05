@@ -1,10 +1,10 @@
 // Die Bildschirme nach den Angaben: Prüfung, Ergebnis, Paket, Limit, Vertrag,
 // Unterschrift, Zahlung, Danke (PIN: pin.tsx). Wortlaut aus dem freigegebenen
 // Prototyp v2 — mit echten Daten, echter Prüfung, echter Annahme und Zahlung.
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ANTRAG_NEU_HAKEN_GEPRUEFT, ANTRAG_NEU_LEISTUNG_FASSUNG, ANTRAG_NEU_PAKETE, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WERBE_HINWEIS, ANTRAG_NEU_SOFORT_OHNE, ANTRAG_NEU_SOFORT_TEXT, OHNE_ABFRAGE, ZWECK_TEXT,
+  ANTRAG_NEU_HAKEN_KOMBI_NACH, ANTRAG_NEU_HAKEN_KOMBI_VOR, ANTRAG_NEU_KURZ, ANTRAG_NEU_LEISTUNG_FASSUNG, ANTRAG_NEU_PAKETE, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WERBE_HINWEIS, ANTRAG_NEU_SOFORT_OHNE, ANTRAG_NEU_SOFORT_TEXT, OHNE_ABFRAGE, ZWECK_TEXT,
   agbDatum, antragNeuLuecke, geburtText, type Zweck,
 } from "@shared/fiaon-antrag-neu";
 import { paketPreisCents } from "@shared/fiaon-pakete";
@@ -19,7 +19,7 @@ import { META_PAKETWECHSEL } from "@shared/fiaon-meta-ereignisse";
 import { Akk, Fehlerkasten, Guilloche, Haken, Ico, Knopf, Lead, Pfeil, Seg, Siegel, Tipp, Tippbar, Titel, Zeile, useAntrag, useFehler } from "./bausteine";
 import { api } from "./api";
 import {
-  anredeDativ, anredeKurz, anschriftText, datenAus, datenZeilen, datum, euro, kartenName, mitWem, naechstesPaket, paket, paketIndex, telefonText, uhr, zustandVergessen,
+  anredeDativ, anredeKurz, anschriftText, datenAus, datum, euro, kartenName, mitWem, naechstesPaket, paket, paketIndex, telefonText, uhr, zustandVergessen,
   type PruefPunkt, type Zustand,
 } from "./zustand";
 import { AngabenSheet, AuskunftSheet, LeistungSheet, PasswortSheet, QrSheet, TerminWahl, VertragSheet } from "./sheets";
@@ -339,7 +339,16 @@ export function SchrittLimit() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Vertrag — alles, was gilt; erst der Knopf auf der nächsten Seite schließt ihn
+// Vertrag — „Fast geschafft": das Paket auf einen Blick (05.10.2026, E-284)
+//
+// Justin: „Mach den Vertrag versteckter, dass er nicht sofort abgeschreckt wird
+// von den dicken Vertragsunterlagen." Gemessen am ersten Tag: 4 sahen diese Seite,
+// 1 unterschrieb. Vorher stand hier ein Dokument (Guilloche, „FIAON-Vertrag",
+// „Hier steht alles, was gilt", fünf Klappen). Jetzt: was der Kunde bekommt, was
+// es kostet, drei Zusagen — der vollständige Vertrag ist einen Tipp entfernt
+// („Vertrag ansehen"), und er kommt mit der Bestätigung per E-Mail.
+// Rechtlich zählt die Bestellübersicht direkt über dem Knopf (§ 312j BGB) — die
+// steht auf der nächsten Seite mit allen Pflichtangaben und dem Bank-Satz sichtbar.
 // ═══════════════════════════════════════════════════════════════════════════
 export function SchrittVertrag() {
   const { S, setze, gehe, weiter, oeffneSheet, ereignis } = useAntrag();
@@ -347,36 +356,25 @@ export function SchrittVertrag() {
   const r = rate(S.paket);
   return (
     <>
-      <Titel text={`Ihr Vertrag${anredeKurz(S)}.`} />
-      <Lead>Hier steht alles, was gilt. Erst der Knopf auf der nächsten Seite schließt den Vertrag.</Lead>
-      <div className="an-vertragskarte">
-        <Guilloche />
-        <h2>FIAON-Vertrag · {P.name}</h2>
-        <p className="an-ziel">Ihr Ziel: die eigene Visa-Kreditkarte · Start-Limit {euro(S.limit, false)}</p>
-        <div className="an-akkordeon">
-          <Akk titel="Ihre Angaben">
-            <dl className="an-datenliste">{datenZeilen(S).map(([a, b]) => <Fragment key={a}><dt>{a}</dt><dd>{b}</dd></Fragment>)}</dl>
-            <button type="button" className="an-knopf an-text" style={{ marginTop: 6 }} onClick={() => oeffneSheet(<AngabenSheet />)}>Angaben ändern</button>
-          </Akk>
-          <Akk titel="Was FIAON für Sie tut" offen>
-            <p style={{ margin: "0 0 8px" }}>{P.intro}</p>
-            <ol className="an-nummern">{P.leistungen.map((l) => <li key={l}><span>{l}</span></li>)}</ol>
-          </Akk>
-          <Akk titel="Kosten und Laufzeit">
-            <p style={{ margin: 0 }}>{euro(r)} im Monat, zinsfrei, Laufzeit zwölf Monate (zusammen {euro(r * 12)}). Zahlung per Überweisung. Die erste Monatsrate ist mit Vertragsschluss fällig, die weiteren jeweils monatlich.</p>
-          </Akk>
-          <Akk titel="Kündigung"><p style={{ margin: 0 }}>{KUENDIGUNG_ZEILE}</p></Akk>
-          <Akk titel="Ihr Widerrufsrecht">
-            <p style={{ margin: 0 }}>Sie können den Vertrag binnen vierzehn Tagen ohne Angabe von Gründen widerrufen. Eine kurze Nachricht an FIAON genügt. Die vollständige Widerrufsbelehrung und das Muster-Widerrufsformular stehen im Vertrag und kommen mit Ihrer Vertragsbestätigung.</p>
-          </Akk>
+      <Titel text={`Fast geschafft${anredeKurz(S)}.`} />
+      <Lead>Das ist Ihr Paket – danach nur noch unterschreiben.</Lead>
+      <div className="an-blick">
+        <div className="an-blick-kopf">
+          <div className="an-blick-name"><b>{P.name}</b><small>{P.beisatz}</small></div>
+          <div className="an-blick-preis"><b>{euro(r)} <span>im Monat</span></b><small>12 Monate · zusammen {euro(r * 12)}</small></div>
         </div>
-        <div className="an-knoepfe" style={{ marginTop: 12 }}>
-          <button type="button" className="an-knopf an-leise" onClick={() => { ereignis("vertrag_gelesen", { schritt: "vertrag", detail: "ganz" }); oeffneSheet(<VertragSheet />); }}>Vollständigen Vertrag lesen</button>
-          <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => { setze({ rueckZu: "vertrag" }); gehe("paket", { richtung: "zurueck" }); }}>Paket ändern</button>
-        </div>
+        <ul className="an-blick-liste">
+          {ANTRAG_NEU_KURZ[P.key].map((l) => <li key={l}><b>{l}</b></li>)}
+        </ul>
+        <p className="an-blick-fuss">Gesetzliches Widerrufsrecht: 14 Tage · Zahlung per Überweisung</p>
+      </div>
+      <div className="an-blick-links">
+        <button type="button" className="an-knopf an-text" onClick={() => oeffneSheet(<AngabenSheet />)}>Ihre Angaben prüfen</button>
+        <button type="button" className="an-knopf an-text" onClick={() => { setze({ rueckZu: "vertrag" }); gehe("paket", { richtung: "zurueck" }); }}>Paket ändern</button>
+        <button type="button" className="an-knopf an-text" onClick={() => { ereignis("vertrag_gelesen", { schritt: "vertrag", detail: "ganz" }); oeffneSheet(<VertragSheet />); }}>Vertrag ansehen</button>
       </div>
       <Knopf text="Weiter zur Unterschrift" onClick={weiter} />
-      <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => oeffneSheet(<TerminWahl art="vorher" />)}>Fragen? Wir rufen Sie zurück.</button>
+      <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => { ereignis("rueckruf_geoeffnet", { schritt: "vertrag" }); oeffneSheet(<TerminWahl art="vorher" />); }}>Fragen? Wir rufen Sie zurück.</button>
     </>
   );
 }
@@ -493,12 +491,12 @@ function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderun
       </div>
       <div className="an-chips">
         <button type="button" className="an-chip" disabled={sperren} onClick={() => { sig.current = { striche: [], text: "", asp: sig.current.asp }; zeichnen(); melden(); buehne()?.signatur(sig.current); }}>Neu zeichnen</button>
-        <button type="button" className="an-chip" disabled={sperren} onClick={() => {
+        <button type="button" className="an-chip an-chip-stark" disabled={sperren} onClick={() => {
           sig.current = { striche: [], text: getippterName, asp: sig.current.asp };
           ereignis("unterschrift_getippt", { schritt: "unterschrift" });
           zeichnen(); melden(); buehne()?.signatur(sig.current);
           void document.fonts?.load?.('500 40px "Dancing Script"').then(() => { zeichnen(); melden(); buehne()?.signatur(sig.current); });
-        }}>Lieber den Namen tippen</button>
+        }}>Mit meinem Namen unterschreiben</button>
       </div>
     </>
   );
@@ -522,8 +520,8 @@ export function SchrittUnterschrift() {
   const annehmen = async () => {
     if (annahme) return;
     if (!sig.da) { setFehlt("sig"); document.querySelector('[data-feld="unterschrift"]')?.scrollIntoView({ behavior: "smooth", block: "center" }); toast("Bitte unterschreiben Sie auf der Linie."); ereignis("fehler", { schritt: "unterschrift", detail: "unterschrift" }); return; }
-    if (!S.ag1) { setFehlt("ag1"); document.getElementById("an-ag1")?.scrollIntoView({ behavior: "smooth", block: "center" }); toast("Bitte bestätigen Sie die AGB."); ereignis("fehler", { schritt: "unterschrift", detail: "ag1" }); return; }
-    if (!S.ag3) { setFehlt("ag3"); document.getElementById("an-ag3")?.scrollIntoView({ behavior: "smooth", block: "center" }); toast("Bitte bestätigen Sie, dass Sie die Bestellung geprüft haben."); ereignis("fehler", { schritt: "unterschrift", detail: "ag3" }); return; }
+    // E-284: EIN Haken für AGB und „Bestellung geprüft" — er setzt ag1 und ag3 zusammen.
+    if (!S.ag1 || !S.ag3) { setFehlt("ag1"); document.getElementById("an-ag1")?.scrollIntoView({ behavior: "smooth", block: "center" }); toast("Bitte bestätigen Sie AGB und Bestellung mit dem Haken."); ereignis("fehler", { schritt: "unterschrift", detail: "ag1" }); return; }
     const luecke = antragNeuLuecke(datenAus(S));
     if (luecke) { gehe(luecke, { richtung: "zurueck" }); toast("Bitte ergänzen Sie noch Ihre Angaben."); return; }
     const png = sig.png();
@@ -532,7 +530,9 @@ export function SchrittUnterschrift() {
     setAnnahme("laeuft");
     const antwort = await api.annehmen(S.ref!, {
       daten: datenAus(S), sitzung, knopf: KNOPF_ZAHLUNGSPFLICHTIG,
-      haken: { agb: S.ag1, geprueft: S.ag3, sofort: S.ag4 },
+      // agbGeprueft nur, wenn der Kunde DIESEN Haken gesetzt hat — zwei alte Haken aus einem früheren Stand
+      // (Sitzungsspeicher) gehen als die zwei Texte in den Nachweis, die er damals gesehen hat.
+      haken: { agb: S.ag1, geprueft: S.ag3, agbGeprueft: S.ag1 && S.ag3 && S.hakenKombi, sofort: S.ag4 },
       unterschrift: { png, getippt: sig.getippt }, messung: messungsDaten(),
       // E-283: die Fassungen, die diese Seite zeigt — weichen sie vom Server ab, nimmt er nicht an (409).
       fassungen: { agb: AGB_FASSUNG, vertrag: ANTRAG_NEU_VERTRAG_FASSUNG, leistung: ANTRAG_NEU_LEISTUNG_FASSUNG },
@@ -563,32 +563,34 @@ export function SchrittUnterschrift() {
 
   return (
     <>
-      <Titel text="Ihre Unterschrift." />
-      <Lead>Mit dem Finger auf die Linie schreiben – am Computer mit Maus oder Trackpad.</Lead>
+      <Titel text="Unterschreiben – fertig." />
+      <Lead>Mit Finger oder Maus auf die Linie – oder mit einem Tipp Ihren Namen einsetzen.</Lead>
       <Unterschriftsfeld getippterName={kartenName(S)} sperren={!!annahme}
         onAenderung={(o) => { setSig(o); if (o.da && fehlt === "sig") setFehlt(""); }} />
       {fehlt === "sig" ? <Tipp text="Bitte unterschreiben Sie auf der Linie – etwas größer, wenn es nicht reicht." /> : null}
       <div className="an-uebersicht">
+        {/* E-284: die Pflichtangaben (§ 312j Abs. 2 BGB: Leistung samt Bank-Satz, Gesamtpreis, Laufzeit, Kündigung)
+            bleiben sichtbar direkt über dem Knopf; nur Anbieter und Ziel-Limit stehen unter „Weitere Angaben“. */}
         <h3>Ihre Bestellung</h3>
-        <Zeile a="Anbieter" b={`${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}`} />
         <Zeile a="Paket" b={P.name} />
-        <div className="an-zeile"><span>Leistung</span><span style={{ textAlign: "left", maxWidth: "68%" }}>{P.zeile}</span></div>
-        <Zeile a="Ziel-Limit" b={`${euro(S.limit, false)} (Ihre Angabe)`} />
+        <div className="an-zeile"><span>Leistung</span><span style={{ textAlign: "left", maxWidth: "68%" }}>{P.zeile} {BANK_SATZ}</span></div>
         <div className="an-zeile"><span>Monatsrate</span><span>{euro(r)} · zinsfrei<small style={{ display: "block", color: "var(--tinte-2)", fontSize: ".8125rem" }}>12 Raten · zusammen {euro(r * 12)}</small></span></div>
         <Zeile a="Laufzeit" b="12 Monate, danach monatlich kündbar" />
-        <Zeile a="Erste Rate" b={`mit Vertragsschluss, bitte bis ${datum(faelligBis)}`} />
-        <Zeile a="Zahlung" b="per Überweisung" />
+        <Zeile a="Erste Rate" b={`per Überweisung, bitte bis ${datum(faelligBis)}`} />
         <p className="an-bank">Kündigung: {KUENDIGUNG_ZEILE}</p>
-        <p className="an-bank">{BANK_SATZ}</p>
         <p className="an-bank">{FUSS_SATZ}</p>
+        <Akk titel="Weitere Angaben">
+          <Zeile a="Anbieter" b={`${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}`} />
+          <Zeile a="Ziel-Limit" b={`${euro(S.limit, false)} (Ihre Angabe)`} />
+        </Akk>
         <p className="an-bank">
-          <a href="/agb" target="_blank" rel="noopener">AGB</a> · <button type="button" className="an-knopf an-text an-link" style={{ fontSize: "inherit", minHeight: 0 }} onClick={() => oeffneSheet(<VertragSheet fokus="widerruf" />)}>Widerrufsbelehrung</button> · <a href="/datenschutz" target="_blank" rel="noopener">Datenschutz</a>
+          <a href="/agb" target="_blank" rel="noopener">AGB</a> · <button type="button" className="an-knopf an-text an-link" style={{ fontSize: "inherit", minHeight: 0 }} onClick={() => oeffneSheet(<VertragSheet fokus="widerruf" />)}>Widerrufsbelehrung</button> · <button type="button" className="an-knopf an-text an-link" style={{ fontSize: "inherit", minHeight: 0 }} onClick={() => { ereignis("vertrag_gelesen", { schritt: "unterschrift", detail: "ganz" }); oeffneSheet(<VertragSheet />); }}>Vertrag ansehen</button> · <a href="/datenschutz" target="_blank" rel="noopener">Datenschutz</a>
         </p>
       </div>
-      <Haken id="an-ag1" an={S.ag1} fehlt={fehlt === "ag1"} onClick={() => { setze({ ag1: !S.ag1 }); if (fehlt === "ag1") setFehlt(""); }}>
-        Ich akzeptiere die <a href="/agb" target="_blank" rel="noopener">AGB (Fassung vom {agb})</a>.
+      {/* Wortgleich mit antragNeuHakenKombi() — so steht der Satz im Nachweis. */}
+      <Haken id="an-ag1" an={S.ag1 && S.ag3} fehlt={fehlt === "ag1"} onClick={() => { const v = !(S.ag1 && S.ag3); setze({ ag1: v, ag3: v, hakenKombi: v }); if (fehlt === "ag1") setFehlt(""); }}>
+        {ANTRAG_NEU_HAKEN_KOMBI_VOR} <a href="/agb" target="_blank" rel="noopener">AGB (Fassung vom {agb})</a> {ANTRAG_NEU_HAKEN_KOMBI_NACH}
       </Haken>
-      <Haken id="an-ag3" an={S.ag3} fehlt={fehlt === "ag3"} onClick={() => { setze({ ag3: !S.ag3 }); if (fehlt === "ag3") setFehlt(""); }}>{ANTRAG_NEU_HAKEN_GEPRUEFT}</Haken>
       <Haken id="an-ag4" an={S.ag4} onClick={() => setze({ ag4: !S.ag4 })}>{ANTRAG_NEU_SOFORT_TEXT}</Haken>
       <p className="an-klein" style={{ margin: "-4px 0 0 36px" }}>{ANTRAG_NEU_SOFORT_OHNE}</p>
       <p className="an-klein" style={{ margin: 0 }}>{ANTRAG_NEU_WERBE_HINWEIS}</p>
@@ -603,6 +605,7 @@ export function SchrittUnterschrift() {
           <>
             <button type="button" className="an-knopf an-haupt" onClick={() => void annehmen()}>{KNOPF_ZAHLUNGSPFLICHTIG}</button>
             <div className="an-fuss-zeile">{euro(r)} im Monat für 12 Monate (zusammen {euro(r * 12)}). Erste Rate mit Vertragsschluss fällig, bitte bis {datum(faelligBis)}. Bestätigung, Vertrag und Widerrufsbelehrung kommen sofort per E-Mail.</div>
+            <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => { ereignis("rueckruf_geoeffnet", { schritt: "unterschrift" }); oeffneSheet(<TerminWahl art="vorher" />); }}>Noch Fragen? Wir rufen Sie an.</button>
           </>
         )}
       </div>

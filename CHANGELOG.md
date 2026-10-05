@@ -5,6 +5,28 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 05.10.2026 — Antrag leichter gemacht, /privatkunden-Pakete neu gestaltet (E-284)
+
+**Der Anlass:** Erster Tag des neuen Antrags: 8 von 15 Besuchern gingen auf dem ersten Bildschirm, ohne etwas einzugeben;
+viermal „Weiter“ ohne Anrede; 4 sahen den Vertrag, 1 unterschrieb. Justin: „Anrede präsenter … mach den Vertrag versteckter,
+dass er nicht sofort abgeschreckt wird von den dicken Vertragsunterlagen. Optimiere es!“ — und zu /privatkunden: „am Handy schön,
+clean, zentriert, das Limit im Mittelpunkt, und die Kreditkarten viel besser, die sehen so billig aus“.
+
+**Was geändert:**
+- **Erster Bildschirm:** Anrede als zwei große Felder („Frau“, „Herr“, dazu „Lieber ohne Anrede“), ein Tipp führt in den Vornamen
+  (auch am iPhone mit Tastatur). Eine leise Zeile „Keine Abfrage bei Auskunfteien · Kosten erst mit Ihrer Unterschrift“.
+  Kopfzeile „Noch rund N Minuten“ statt „Schritt 1 von 13“.
+- **„Fast geschafft“ statt Vertragsdokument:** Paket, Monatsrate mit Gesamtbetrag, Leistungen in Kurzform (ANTRAG_NEU_KURZ, nur
+  Anzeige — maßgeblich bleibt § 3), gesetzliches Widerrufsrecht; der vollständige Vertrag hinter „Vertrag ansehen“.
+- **Unterschrift-Seite schlanker:** Bestellübersicht mit allen Pflichtangaben (§ 312j, inkl. Bank-Satz in der Leistungszeile) direkt
+  über dem Knopf, Anbieter und Ziel-Limit eingeklappt; EIN Haken für AGB und „Bestellung geprüft“ (gespeichert wird wörtlich dieser
+  Satz; der alte Weg mit zwei Haken bleibt angenommen); „Mit meinem Namen unterschreiben“ deutlich; „Noch Fragen? Wir rufen Sie an.“
+- **/privatkunden:** Paketkarten am Handy als wischbare Reihe, eine Karte zentriert (Pro zuerst), Punkte darunter; das Limit groß als
+  Mittelpunkt; die Kreditkarten neu gezeichnet (Metall je Stufe, Chip, Kontaktlos-Zeichen, Glanz). Texte unverändert wie /start.
+
+**Wo:** client/src/pages/antrag-neu/*, shared/fiaon-antrag-neu.ts (ANTRAG_NEU_KURZ, antragNeuHakenKombi),
+server/routes/fiaon-antrag-neu.ts, client/src/pages/site/privatkunden.tsx, client/src/styles/privatkunden.css.
+
 ## 05.10.2026 — Neuer Antrag überall, AGB-Fassung vom 5. Oktober, Limit-Gespräch im Kundenbereich (E-283)
 
 **Der Anlass:** Justin (05.10.): „Stelle den neuen Antrag live, überall für die Privatkunden (also auch auf fiaon.com/start) …

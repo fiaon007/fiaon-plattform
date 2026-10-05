@@ -42,7 +42,7 @@ import { istRoboterUnterschrift } from "../lib/fiaon-vertrieb-zusage";
 import { pinErstmalsSetzen } from "../lib/fiaon-kunden-pin";
 import { antragGeraet } from "../lib/fiaon-antrag-weiche";
 import {
-  ANTRAG_NEU_BERUF_SPALTE, ANTRAG_NEU_HAKEN_GEPRUEFT, ANTRAG_NEU_LEER, ANTRAG_NEU_LEISTUNG_FASSUNG,
+  ANTRAG_NEU_BERUF_SPALTE, ANTRAG_NEU_HAKEN_GEPRUEFT, antragNeuHakenKombi, ANTRAG_NEU_LEER, ANTRAG_NEU_LEISTUNG_FASSUNG,
   ANTRAG_NEU_SOFORT_TEXT, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WOHNEN_SPALTE, BERUF_MIT_ARBEITGEBER,
   EINTRAG_TEXT, LANDNAME, OHNE_ABFRAGE, SEIT_TEXT, ZWECK_TEXT, agbDatum, antragNeuDatenSauber, antragNeuLuecke,
   antragNeuPaket, emailGueltig, geburtPruefen, geburtText, limitErlaubt, staatAnzeige, telefonZiffern,
@@ -682,8 +682,11 @@ router.post("/antrag-neu/:ref/annehmen", async (req: Request, res: Response) => 
     if (!limitErlaubt(d.paket, d.limit)) return res.status(409).json({ ok: false, zurueck: { schritt: "limit", meldung: "Bitte wählen Sie Ihr Start-Limit." } });
 
     const h = req.body?.haken || {};
-    if (h.agb !== true) return res.status(400).json({ ok: false, feld: "agb", error: "Bitte bestätigen Sie die AGB." });
-    if (h.geprueft !== true) return res.status(400).json({ ok: false, feld: "geprueft", error: "Bitte bestätigen Sie, dass Sie die Bestellung geprüft haben." });
+    // E-284: Die Seite zeigt EINEN Haken für AGB und „Bestellung geprüft" (agbGeprueft). Ein Stand
+    // von vorher schickt noch beide einzeln — beides gilt, gespeichert wird, was der Kunde gesehen hat.
+    const kombi = h.agbGeprueft === true;
+    if (!kombi && h.agb !== true) return res.status(400).json({ ok: false, feld: "agb", error: "Bitte bestätigen Sie die AGB." });
+    if (!kombi && h.geprueft !== true) return res.status(400).json({ ok: false, feld: "geprueft", error: "Bitte bestätigen Sie, dass Sie die Bestellung geprüft haben." });
     const sofort = h.sofort === true;
     if (String(req.body?.knopf || "") !== KNOPF_ZAHLUNGSPFLICHTIG) return res.status(400).json({ ok: false, error: "Bitte nutzen Sie den Knopf „Zahlungspflichtig annehmen“." });
     // 05.10.2026, E-283: Angenommen wird, was der Kunde gesehen hat. Gespeichert werden unten die
@@ -711,8 +714,9 @@ router.post("/antrag-neu/:ref/annehmen", async (req: Request, res: Response) => 
     const rate = paketPreisCents(d.paket);
     const agbText = `Ich akzeptiere die AGB (Fassung vom ${agbDatum(AGB_FASSUNG)}).`;
     const haken = [
-      { id: "agb", text: agbText, gesetzt: true },
-      { id: "geprueft", text: ANTRAG_NEU_HAKEN_GEPRUEFT, gesetzt: true },
+      ...(kombi
+        ? [{ id: "agb_geprueft", text: antragNeuHakenKombi(agbDatum(AGB_FASSUNG)), gesetzt: true }]
+        : [{ id: "agb", text: agbText, gesetzt: true }, { id: "geprueft", text: ANTRAG_NEU_HAKEN_GEPRUEFT, gesetzt: true }]),
       { id: "sofort", text: ANTRAG_NEU_SOFORT_TEXT, gesetzt: sofort },
     ];
     const neu = (await sqlPool`

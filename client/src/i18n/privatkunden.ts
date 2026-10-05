@@ -40,8 +40,8 @@ const de = {
     { titel: "Karte", text: "Aus Einträgen, Einkommen und Kontoverhalten berechnet FIAON Ihre Readiness. Reicht der Wert, ist der Antrag beim Kartenpartner vorbereitet." },
   ],
   paketePille: "Ihr Paket", paketeH2a: "Wählen Sie, wie weit Sie gehen. ", paketeH2b: "Nicht, ob.",
-  paketeLead: "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto näher rückt die Karte. Ein Klick – und Sie sind im Antrag, Schritt 1, Paket gesetzt.",
-  beliebt: "Beliebt", zielRahmen: "Ziel-Rahmen", proMonat: "/ Monat", mitStarten: (n: string) => `Mit ${n} starten`, waehlenUndStarten: (n: string) => `${n} wählen und Antrag starten`,
+  paketeLead: "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto näher rückt die Karte. Ein Klick – und Ihr Antrag startet mit diesem Paket.",
+  beliebt: "Beliebt", zielRahmen: "Ziel-Rahmen", karteName: "Ihr Name", bisRahmen: (b: string) => `bis ${b}`, proMonat: "/ Monat", mitStarten: (n: string) => `Mit ${n} starten`, waehlenUndStarten: (n: string) => `${n} wählen und Antrag starten`,
   // 05.10.2026, E-283: Paketkarten im Wortlaut von /start (eine Quelle: client/src/lib/paket-merkmale.ts).
   pakete: Object.fromEntries(PAKET_MERKMALE.map(({ key, name, sub, feats }) => [key, { name, sub, feats }])) as Record<string, PaketText>,
   paketeHinweis: (auskunft: string) => `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie · Paket im Antrag jederzeit änderbar · Nur die Auskunft? Bonitätsauskunft ${auskunft} einmalig. Über Konto, Karte und Rahmen entscheidet immer die Bank.`,
@@ -119,8 +119,8 @@ const en: typeof de = {
     { titel: "Card", text: "From entries, income and account behaviour FIAON calculates your readiness. When the value is there, the application with the card partner is prepared." },
   ],
   paketePille: "Your plan", paketeH2a: "Choose how far you go. ", paketeH2b: "Not whether.",
-  paketeLead: "Every plan starts with your report. The further you go, the closer the card comes. One click — and you are in the application, step 1, plan set.",
-  beliebt: "Popular", zielRahmen: "Target limit", proMonat: "/ month", mitStarten: (n: string) => `Start with ${n}`, waehlenUndStarten: (n: string) => `Choose ${n} and start the application`,
+  paketeLead: "Every plan starts with your report. The further you go, the closer the card comes. One click — and your application starts with this plan.",
+  beliebt: "Popular", zielRahmen: "Target limit", karteName: "Your name", bisRahmen: (b: string) => `up to ${b}`, proMonat: "/ month", mitStarten: (n: string) => `Start with ${n}`, waehlenUndStarten: (n: string) => `Choose ${n} and start the application`,
   // 05.10.2026, E-283: the plan cards as on /start, translated — same structure, same dependence on the country.
   pakete: {
     start: { name: "FIAON Starter", sub: "The foundation",

@@ -29,6 +29,8 @@ export interface Zustand extends AntragNeuDaten {
   pinGesetzt: boolean;
   // Haken bei der Annahme
   ag1: boolean; ag3: boolean; ag4: boolean;
+  /** E-284: Der gemeinsame Haken (AGB + Bestellung geprüft) wurde in DIESEM Stand gesetzt. */
+  hakenKombi: boolean;
   angenommenAm: string | null;
   sofortBeginn: boolean | null;
   paymentReference: string | null;
@@ -58,7 +60,7 @@ export interface Zustand extends AntragNeuDaten {
 export const ZUSTAND_LEER: Zustand = {
   ...ANTRAG_NEU_LEER,
   ref: null, adresseOffen: false, geprueftAm: null, pruefPunkte: null, doppelt: false, pinGesetzt: false,
-  ag1: false, ag3: false, ag4: false, angenommenAm: null, sofortBeginn: null,
+  ag1: false, ag3: false, ag4: false, hakenKombi: false, angenommenAm: null, sofortBeginn: null,
   paymentReference: null, betrag: null, faellig: null, verknuepft: false, zahlungGemeldet: false, zahlungGemeldetAm: null, bezahlt: false,
   rueckZu: "", auskunft: "", auskunftVorab: "", ak1: false, ak2: false, termin: null, rueckruf: null, passwort: false,
 };

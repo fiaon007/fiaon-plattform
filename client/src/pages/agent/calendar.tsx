@@ -38,6 +38,7 @@ import { useOffice } from "./OfficeShell";
 import "@/styles/office-calendar.css";
 import { TERMIN_ARTEN, terminArtAusQuelle } from "@shared/fiaon-termin-art";
 import { maraMarke, MARA_NEU_STUNDEN, type MaraMarke } from "@shared/fiaon-mara-marke";
+import { LIMIT_QUELLE } from "@shared/fiaon-limit-gespraech";
 import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
   from "@shared/fiaon-anruf-nachbereitung";
 import { Rundgang } from "@/components/agent/Rundgang";
@@ -209,6 +210,12 @@ const tSelbstGebucht = (a: Termin) =>
 // angelegt hat. Der Weg steht in `herkunft`; die Aufschrift kommt aus
 // shared/fiaon-mara-marke.ts (dieselbe wie Dashboard und Erinnerungsleiste).
 const tMara = (a: Termin): MaraMarke | null => (a.quelle === "termin" ? maraMarke(a.herkunft) : null);
+// ── E-283 (05.10.2026): DAS LIMIT-GESPRÄCH ZÄHLT NUR GEFÜHRT ─────────────────
+// Die echte Art steht bei Terminen in `buchungsquelle` (`quelle` ist „termin").
+// Diese Wege aus dem Abschluss heißen: Das Gespräch fand NICHT statt — „Niemand
+// dran", „Mailbox", „Falsche Nummer" (unter beiden Urteilen) und „Ohne Ergebnis".
+const tIstLimit = (a: Termin) => a.art === "termin" && a.buchungsquelle === LIMIT_QUELLE;
+const LIMIT_NICHT_GEFUEHRT = ["nicht_erreicht", "mailbox", "nummer_falsch", "notiz"];
 /** Frisch von Mara eingetragen — die Marke bekommt den Zusatz „neu". */
 const tMaraNeu = (a: Termin) => !!tMara(a) && !!a.gebucht_am
   && Date.now() - new Date(a.gebucht_am).getTime() < MARA_NEU_STUNDEN * 3_600_000;
@@ -401,6 +408,17 @@ function CalendarInnen() {
 
   /** Ergebnis festhalten UND den Termin schließen — in dieser Reihenfolge. */
   const abschlussBuchen = async (a: Termin, art: string, zusatz: Record<string, unknown>) => {
+    // ── 05.10.2026 (E-283): EIN LIMIT-GESPRÄCH ZÄHLT NUR GEFÜHRT ──────────────
+    // Der Haken schloss jeden Termin als „erledigt" — auch nach „Nicht erschienen
+    // → Niemand dran". Ein erledigtes Limit-Gespräch sperrt den Kunden drei
+    // Monate (limitGezaehlt). Kam es nicht zustande, nimmt es jetzt den Weg des X
+    // („kam nicht zustande"): Der Kunde bekommt „Wir haben Sie verpasst" mit dem
+    // Link in seinen Bereich bzw. die Bitte um die richtige Nummer, und bucht neu.
+    if (tIstLimit(a) && LIMIT_NICHT_GEFUEHRT.includes(art)) {
+      const ok = await nichtZustande(a, art === "nummer_falsch" ? "nummer_falsch" : "nicht_erschienen");
+      if (ok) setAbschluss(null);
+      return ok;
+    }
     setBusy(tKey(a));
     const e = await api(`/agent/crm/kunden/${a.person_id}/aktivitaet`, {
       method: "POST", body: JSON.stringify({ art, ...zusatz }),
@@ -408,8 +426,9 @@ function CalendarInnen() {
     if (!e.ok) { setBusy(null); flash(e.json?.error || "Das Ergebnis wurde nicht gespeichert.", true); return false; }
     // Erst wenn das Ergebnis steht, wird der Termin geschlossen. Andersherum
     // wäre der Termin weg und das Ergebnis verloren.
+    // E-283: `gefuehrt` sagt dem Server, ob das Gespräch stattfand — beim Limit-Gespräch zählt nur das.
     const r = a.art === "termin"
-      ? await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "erledigt" }) })
+      ? await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "erledigt", gefuehrt: !LIMIT_NICHT_GEFUEHRT.includes(art) }) })
       : await api(`/agent/calendar/${a.id}/done`, { method: "POST" });
     setBusy(null);
     flash(r.ok ? (e.json?.meldung || "Ergebnis festgehalten.") : (r.json?.error || "Ergebnis steht, Termin blieb offen."), !r.ok);
@@ -423,7 +442,7 @@ function CalendarInnen() {
    * Funktion: Kunde löschen!)". Der Server bekommt den Grund und löst die
    * passende Nachricht aus; die Karte sagt danach, WAS passiert ist.
    */
-  const nichtZustande = async (a: Termin, grund: string) => {
+  const nichtZustande = async (a: Termin, grund: string): Promise<boolean> => {
     if (grund === "kein_interesse") {
       const sicher = window.confirm(
         `${tName(a)} will nicht mehr?\n\n`
@@ -431,7 +450,7 @@ function CalendarInnen() {
         + "und die Verteilung fasst ihn nicht mehr an. Zahlungs- und "
         + "Vertragsdaten bleiben erhalten — gelöscht wird nichts.",
       );
-      if (!sicher) return;
+      if (!sicher) return false;
     }
     setBusy(tKey(a));
     const r = a.art === "termin"
@@ -440,6 +459,7 @@ function CalendarInnen() {
     setBusy(null);
     if (r.ok) { flash(r.json?.hinweis || "Vermerkt."); entfernen(a); setDetail(null); laden(); }
     else flash(r.json?.error || "Das hat nicht geklappt.", true);
+    return r.ok;
   };
 
   const verpasst = async (a: Termin) => {
@@ -1419,14 +1439,24 @@ function TerminAbschluss({ a, busy, onZu, onBuchen }: {
               ))}
             </div>
 
-            <button type="button" className="ca-knopf still" style={{ marginTop: 12, width: "100%" }}
-                    disabled={busy} onClick={() => void onBuchen("notiz", { notiz: notiz.trim() || "Termin ohne festgehaltenes Ergebnis abgeschlossen." })}>
-              Ohne Ergebnis schließen
-            </button>
-            <p className="ca-lade" style={{ marginTop: 8 }}>
-              Ein Termin ohne Ergebnis ist für den nächsten Anruf ein verlorenes Gespräch — der Mensch
-              erzählt dann alles noch einmal.
-            </p>
+            {/* E-283: Beim Limit-Gespräch entscheidet das Ergebnis, ob es zählt — „ohne Ergebnis“ gibt es dort nicht. */}
+            {tIstLimit(a) ? (
+              <p className="ca-lade" style={{ marginTop: 12 }}>
+                Ein Limit-Gespräch zählt nur, wenn es geführt wurde. Kam es nicht zustande, „Nicht erschienen“
+                wählen: Der Kunde bekommt den Link in seinen Bereich und bucht neu.
+              </p>
+            ) : (
+              <>
+                <button type="button" className="ca-knopf still" style={{ marginTop: 12, width: "100%" }}
+                        disabled={busy} onClick={() => void onBuchen("notiz", { notiz: notiz.trim() || "Termin ohne festgehaltenes Ergebnis abgeschlossen." })}>
+                  Ohne Ergebnis schließen
+                </button>
+                <p className="ca-lade" style={{ marginTop: 8 }}>
+                  Ein Termin ohne Ergebnis ist für den nächsten Anruf ein verlorenes Gespräch — der Mensch
+                  erzählt dann alles noch einmal.
+                </p>
+              </>
+            )}
           </>
         )}
       </div>

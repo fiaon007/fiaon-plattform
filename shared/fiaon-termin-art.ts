@@ -178,6 +178,26 @@ export function terminArtAusQuelle(quelle: unknown): TerminArtMarke {
 }
 
 /**
+ * Die Gesprächsart, wie der KUNDE sie liest — Bestätigung, Erinnerung, Absage,
+ * Terminliste im Kundenbereich (05.10.2026, E-283).
+ *
+ * Die Marken oben sind für das Team: „Vertrieb", „Onboarding", „Support",
+ * „Zahlung" sagen dem Mitarbeiter, worauf er sich einstellt. In einer Kundenmail
+ * stand so „Gespräch: Vertrieb" — ein interner Name, und für einen Kunden mit
+ * offener Rate „Zahlung" ein Vorwurf. Der Kunde liest nur, was das Gespräch für
+ * ihn ist: Startgespräch, Limit-Gespräch, Gespräch zu FIAON Global (Erstgespräch
+ * ODER Startgespräch eines Individualangebots — beide quelle „global") — sonst
+ * „Gespräch".
+ */
+export function terminArtFuerKunden(quelle: unknown): string {
+  const q = String(quelle ?? "").trim().toLowerCase();
+  if (q === "limit_gespraech") return MARKEN.limit.text;
+  if (q === "onboarding" || q === "onboarding_call") return "Startgespräch";
+  if (q === "global") return "Gespräch zu FIAON Global";
+  return "Gespräch";
+}
+
+/**
  * Die Art für einen Eintrag, der KEIN Termin ist.
  *
  * Der Kalender mischt zwei Dinge: Termine aus `fiaon_termine` und

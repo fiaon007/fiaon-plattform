@@ -591,6 +591,12 @@ router.post("/chef/mara/termine/:id/ergebnis", wache, async (req: ChefRequest, r
     // Startgespräch und FIAON Global haben eigene Wege (Freischaltung und Gutschrift bzw. Firmen-Cockpit).
     if (String(t.quelle) === "onboarding_call") return res.status(409).json({ ok: false, error: "Ein Startgespräch schließt du in der Akte ab — dort hängen Freischaltung und Gutschrift daran." });
     if (String(t.quelle) === "global") return res.status(409).json({ ok: false, error: "Ein Erstgespräch zu FIAON Global schließt du im Firmen-Cockpit ab." });
+    // 05.10.2026 (E-283): dieselbe Wand wie /agent/termine/:id/ergebnis — ein Limit-Gespräch zählt
+    // nur GEFÜHRT für die Sperrfrist; „erledigt" braucht deshalb die ausdrückliche Angabe.
+    const { LIMIT_QUELLE } = await import("@shared/fiaon-limit-gespraech");
+    if (String(t.quelle) === LIMIT_QUELLE && ergebnis === "erledigt" && req.body?.gefuehrt !== true) {
+      return res.status(409).json({ ok: false, error: "Ein Limit-Gespräch wird nur als erledigt vermerkt, wenn es geführt wurde. Sonst „Nicht erreicht“ wählen." });
+    }
     const chefId = req.chef?.agentId ?? null;
     const [ich] = chefId ? (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${chefId}`) as any[] : [null];
     const fuer = chefId && Number(t.agent_id) !== chefId && t.bei ? `, für ${t.bei}` : "";

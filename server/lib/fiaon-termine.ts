@@ -1211,6 +1211,15 @@ export async function terminBuchen(
      */
     herkunft?: TerminHerkunft | string | null;
     /**
+     * Die gewählte Art gilt, ohne Ableitung (05.10.2026, E-283) — NUR hinter
+     * requireAgent setzen (POST /agent/termine): Ein angemeldeter Mitarbeiter
+     * hat sie ausdrücklich gewählt. Bis heute hing das an `herkunft === "agent"`,
+     * und die Herkunft kommt auf der öffentlichen Route aus dem Rumpf
+     * (kundenBuchungAusfuehren) — ein Kunde schaltete mit „herkunft: agent" die
+     * Ableitung ab. Die Herkunft bleibt reine Buchführung.
+     */
+    artVomMitarbeiter?: boolean;
+    /**
      * E-273 (02.10.2026): längster Vorlauf in Tagen für eine SYSTEMBUCHUNG. Das Startgespräch eines
      * Individualangebots liegt am vom Kunden gewählten Starttag (bis zu neunzig Tage voraus) bzw. nach der
      * Widerrufsfrist — die Grenze von HORIZONT_TAGE gilt für Menschen, die selbst eine Zeit wählen. Weitet
@@ -1284,7 +1293,9 @@ export async function terminBuchen(
   //
   // Die Regel bleibt fuer oeffentliche Wege richtig (ein URL-Parameter darf
   // nicht entscheiden, wer anruft). Ein ANGEMELDETER Mitarbeiter ist kein
-  // URL-Parameter: Buchungen mit herkunft 'agent' behalten die gewaehlte Art.
+  // URL-Parameter: Seine Buchungen behalten die gewaehlte Art — seit dem
+  // 05.10.2026 (E-283) über `artVomMitarbeiter`, nicht mehr über herkunft
+  // 'agent': Die Herkunft schickt auf der öffentlichen Route der Kunde mit.
   // 17.09.2026 (E-188): `global` wie `gruender` — die Art setzt der Server in
   // der eigenen Route fest, nie ein Parameter von außen. Ein Unternehmen, das
   // ein Erstgespräch zu FIAON Global bucht, hat keinen Kundenzustand, aus dem
@@ -1298,7 +1309,7 @@ export async function terminBuchen(
   // das, das er gewählt hat.
   const eigenerRueckruf = gewuenscht === "agent_manuell" || gewuenscht === "onboarding"
     || gewuenscht === "gruender" || gewuenscht === "global" || gewuenscht === LIMIT_QUELLE
-    || eingabe.herkunft === "agent";
+    || eingabe.artVomMitarbeiter === true;
   const abgeleitet = eigenerRueckruf
     ? null
     : await entscheidFuerPerson(eingabe.personId, gewuenscht, lauf);
@@ -1655,10 +1666,16 @@ export async function buchungAnwenden(
 export async function terminAbsagen(
   stornoToken: string, wer: "kunde" | "agent" | "verschoben", lauf: Lauf = sqlPool,
 ): Promise<{ ok: boolean; termin?: any }> {
+  // 05.10.2026 (E-283): Der KUNDE sagt nur ab, was noch kommt. Ein schon
+  // begonnenes Gespräch, das noch niemand abgehakt hat, ließ sich nachträglich
+  // absagen — ein geführtes Limit-Gespräch zählte dann nicht, und die Sperrfrist
+  // war umgangen. Die Route antwortet dann „bereits abgesagt oder liegt zurück".
+  const auchBegonnene = wer !== "kunde";
   const [termin] = (await lauf`
     UPDATE fiaon_termine
     SET status = 'abgesagt', abgesagt_am = NOW(), abgesagt_von = ${wer}, updated_at = NOW()
     WHERE storno_token = ${stornoToken} AND status = 'gebucht'
+      AND (${auchBegonnene} OR beginn > NOW())
     RETURNING id, person_id, agent_id, beginn, quelle
   `) as any[];
   if (!termin) return { ok: false };
@@ -1728,7 +1745,8 @@ export async function terminAbsagen(
             nachname: k.nachname || null,
             termin_datum: berlinDatumText(beginnDatum),
             termin_uhrzeit: berlinUhrzeit(beginnDatum),
-            termin_art: (await import("@shared/fiaon-termin-art")).terminArtAusQuelle(String(termin.quelle)).text,
+            // E-283 (05.10.2026): der Kundenname der Art, nie die interne Marke („Vertrieb", „Support").
+            termin_art: (await import("@shared/fiaon-termin-art")).terminArtFuerKunden(termin.quelle),
             // 17.09.2026 (E-188): Ein Global-Erstgespräch wird auf /business neu
             // gewählt — der Terminlink der Privatkunden würde ein
             // Vertriebsgespräch in Du-Form anbieten.

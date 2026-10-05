@@ -17,7 +17,7 @@ import { istJahresvertrag } from "@shared/fiaon-antrag-stand";
 import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, istGehasht, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { pinAendern, frischPasst } from "../lib/fiaon-kunden-pin";
 import { limitAnspruchFuer, limitBuchen, limitSlots, startgespraechGefuehrt } from "../lib/fiaon-limit-gespraech";
-import { LIMIT_QUELLE, LIMIT_TEXTE } from "@shared/fiaon-limit-gespraech";
+import { LIMIT_QUELLE, LIMIT_TEXTE, limitGrundSatz } from "@shared/fiaon-limit-gespraech";
 import { effectiveLimit } from "./fiaon-antrag";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 import {
@@ -988,15 +988,15 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
        ORDER BY t.beginn DESC LIMIT 20`) as any[];
 
     const { terminTokenErzeugen, berlinDatumText, berlinUhrzeit } = await import("../lib/fiaon-termine");
-    const { terminArtAusQuelle } = await import("../../shared/fiaon-termin-art");
+    const { terminArtFuerKunden } = await import("../../shared/fiaon-termin-art");
     const jetzt = Date.now();
     const zeile = (t: any) => ({
       beginn: t.beginn,
       datumText: berlinDatumText(new Date(t.beginn)),
       uhrzeit: berlinUhrzeit(new Date(t.beginn)),
-      // Kunden sehen nie die internen Arten („Vertrieb", „Onboarding", „Support"), nur was das Gespräch für sie ist.
-      art: String(t.quelle) === "limit_gespraech" ? terminArtAusQuelle("limit_gespraech").text
-        : ["onboarding", "onboarding_call"].includes(String(t.quelle)) ? "Startgespräch" : "Gespräch",
+      // Kunden sehen nie die internen Arten („Vertrieb", „Onboarding", „Support"), nur was das Gespräch für sie ist —
+      // dieselbe Fassung wie Bestätigung, Erinnerung und Absage (terminArtFuerKunden, shared/fiaon-termin-art.ts).
+      art: terminArtFuerKunden(t.quelle),
       status: t.status,
       mit: t.agent_vorname || null,
       // Absagen nur fuer kommende gebuchte — ueber die bestehende oeffentliche Seite.
@@ -1097,11 +1097,10 @@ router.post("/kunde/:ref/limit-gespraech/buchen", requireKunde, async (req: Kund
     const erg = await limitBuchen(ref, String(beginn), Number(agentId));
     if (!erg.ok && erg.grund === "kein_anspruch") {
       const a = erg.anspruch;
+      // E-283: Die Sätze kommen aus limitGrundSatz — derselbe wie auf der Seite, mit dem Tag der Frist bei
+      // Rückstand und fehlendem Startgespräch. Nur „schon gebucht" ist hier ein eigener Satz.
       const text = a?.grund === "gebucht" ? LIMIT_TEXTE.schonGebucht
-        : a?.grund === "sperrfrist" && a.abText ? LIMIT_TEXTE.sperrfrist(a.abText)
-        : a?.grund === "rueckstand" ? LIMIT_TEXTE.rueckstand
-        : a?.grund === "start_fehlt" ? LIMIT_TEXTE.startFehlt
-        : "Ein Limit-Gespräch lässt sich für Ihr Konto gerade nicht buchen.";
+        : (a ? limitGrundSatz(a) : null) ?? "Ein Limit-Gespräch lässt sich für Ihr Konto gerade nicht buchen.";
       return await ablehnen(a?.grund === "gebucht" ? "limit_offen" : "limit_gesperrt", text, 409, { anspruch: limitFuerKunden(a) });
     }
     if (!erg.ok) {

@@ -478,7 +478,8 @@ export default function ChefMaraTermine() {
   const ergebnis = async (t: TerminZeile, e: "erledigt" | "verpasst") => {
     setBusy(`${e === "erledigt" ? "e" : "v"}${t.id}`);
     try {
-      const j = await post(`/chef/mara/termine/${t.id}/ergebnis`, { ergebnis: e });
+      // E-283: „Erledigt“ heißt hier „geführt“ — ein Limit-Gespräch zählt nur so (der Server verlangt die Angabe).
+      const j = await post(`/chef/mara/termine/${t.id}/ergebnis`, { ergebnis: e, ...(e === "erledigt" ? { gefuehrt: true } : {}) });
       melden(`${t.person.name}: ${j.hinweis}`, t.gruppe === "jetzt" ? "jetzt" : "liste");
       setFrage(null);
       d.neu();

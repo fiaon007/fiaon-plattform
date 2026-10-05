@@ -22,7 +22,7 @@ import {
   HORIZONT_TAGE, SLOT_MINUTEN, VORLAUF_STUNDEN, dauerFuer,
   versuchProtokollieren, herkunftPruefen,
 } from "../lib/fiaon-termine";
-import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
+import { terminArtAusQuelle, terminArtFuerKunden } from "../../shared/fiaon-termin-art";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { anrufHinweisSie, ABSAGE_HINWEIS_SIE } from "../../shared/fiaon-termin-text";
 import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
@@ -101,8 +101,13 @@ export async function bestaetigungSenden(
       // BETREIBER-TODO: In Brevo als {{params.termin_art}} einsetzen. Solange
       // das nicht geschehen ist, wird das Feld übertragen und nicht angezeigt
       // — es schadet nichts und wartet.
-      termin_art: terminArtAusQuelle(buchung.quelle).text,
-      storno_link: buchung.stornoToken ? stornoLink(buchung.stornoToken) : null,
+      // 05.10.2026 (E-283): der Kundenname der Art, nie die interne Marke
+      // („Gespräch: Vertrieb" stand so in der Mail) — terminArtFuerKunden.
+      termin_art: terminArtFuerKunden(buchung.quelle),
+      // E-283: Ein Limit-Gespräch sagt der Kunde in der Sie-Fassung ab (der Kundenbereich siezt) —
+      // auch wenn ein Mitarbeiter es eingetragen oder verschoben hat.
+      storno_link: buchung.stornoToken
+        ? `${stornoLink(buchung.stornoToken)}${String(buchung.quelle) === LIMIT_QUELLE ? "?anrede=sie" : ""}` : null,
       // ── „WIR RUFEN AN" ALS FERTIGER SATZ (19.08.2026) ──────────────────
       // Der Kunde, der einen Videokonferenz-Link erwartet, sitzt zur
       // vereinbarten Zeit vor seinem Rechner, während das Telefon klingelt.
@@ -1093,6 +1098,15 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
       return res.json({ ok: true, hinweis: erg.hinweis });
     }
 
+    // ── 05.10.2026 (E-283): EIN LIMIT-GESPRÄCH IST NUR „ERLEDIGT", WENN ES GEFÜHRT WURDE ──
+    // „Erledigt" zählt für die Sperrfrist (limitGezaehlt) und sperrt den Kunden
+    // drei Monate. Der Kalender-Haken schloss aber JEDEN Termin als „erledigt" —
+    // auch nach „Nicht erschienen → Niemand dran". Wer abschließt, sagt es deshalb
+    // ausdrücklich (gefuehrt: true); sonst ist es „Nicht erschienen".
+    if (String(termin.quelle) === LIMIT_QUELLE && String(ergebnis) === "erledigt" && req.body?.gefuehrt !== true) {
+      return res.status(409).json({ ok: false, error: "Ein Limit-Gespräch wird nur als erledigt vermerkt, wenn es geführt wurde. Sonst „Nicht erschienen“ wählen." });
+    }
+
     // E-260 (29.09.2026): Der Kern (Status, Zähler, Nicht-erreicht-Automatik,
     // Verlauf) steht jetzt in server/lib/fiaon-termin-ergebnis.ts — derselbe
     // Weg für den Reiter „Termine" im Mara-Steuerpult (/chef/mara/termine/:id/ergebnis).
@@ -1476,8 +1490,8 @@ export async function terminUebergeben(ein: {
         agent_vorname: nennform(ziel).nom,
         termin_datum: berlinDatumText(termin.beginn),
         termin_uhrzeit: berlinUhrzeit(termin.beginn),
-        termin_art: terminArtAusQuelle(termin.quelle).text,
-        storno_link: stornoLink(String(termin.storno_token)),
+        termin_art: terminArtFuerKunden(termin.quelle), // E-283: Kundenname der Art, nie die interne Marke
+        storno_link: `${stornoLink(String(termin.storno_token))}${String(termin.quelle) === LIMIT_QUELLE ? "?anrede=sie" : ""}`,
         hinweis_anruf: anrufHinweisSie(nennform(ziel).nom),
         hinweis_absage: ABSAGE_HINWEIS_SIE,
         // E-263: dieselbe Kalender-Zeile wie nach der Buchung — gleiche UID, der Eintrag beim Kunden bleibt einer.
@@ -1822,6 +1836,8 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
       // Die öffentliche Route darf diesen Wert seit dem 24.08.2026 nicht mehr
       // setzen (siehe den Fund oben bei POST /termin/:token/buchen).
       beginn: String(beginn), quelle: ART_ZU_QUELLE[art] ?? "agent_manuell", herkunft: "agent",
+      // E-283: Die gewählte Art gilt — weil hier ein angemeldeter Mitarbeiter bucht, nicht wegen der Herkunft.
+      artVomMitarbeiter: true,
     });
     if (notiz) {
       await sqlPool`UPDATE fiaon_termine SET notiz = ${notiz} WHERE id = ${buchung.id}`.catch(() => {});

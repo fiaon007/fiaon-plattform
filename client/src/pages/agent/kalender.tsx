@@ -179,7 +179,8 @@ function KalenderContent() {
     setBusy(a.id);
     const r = a.art === "termin"
       ? await api(`/agent/termine/${a.id}/ergebnis`, {
-          method: "POST", body: JSON.stringify({ ergebnis: "erledigt" }),
+          // E-283: Der Haken heißt „geführt“ („Nicht erschienen“ ist der eigene Knopf) — ein Limit-Gespräch zählt nur so.
+          method: "POST", body: JSON.stringify({ ergebnis: "erledigt", gefuehrt: true }),
         })
       : await api(`/agent/calendar/${a.id}/done`, { method: "POST" });
     setBusy(null);

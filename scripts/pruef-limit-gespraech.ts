@@ -17,9 +17,9 @@
 //      öffentliche Route fest „auto") — ausdrücklich als solche benannt
 //
 //   npx tsx scripts/pruef-limit-gespraech.ts             → Exit 1 bei Fehlern
-//   npx tsx scripts/pruef-limit-gespraech.ts --rot-probe → baut zwei Fehler
-//     ein (Monatsende über Date-Überlauf, „verpasst" zählt immer) und MUSS rot
-//     werden — sonst prüft der Prüfstand nichts.
+//   npx tsx scripts/pruef-limit-gespraech.ts --rot-probe → baut drei Fehler
+//     ein (Monatsende über Date-Überlauf, „verpasst" zählt immer, gestopptes Abo
+//     zählt nicht als beendet) und MUSS rot werden — sonst prüft der Prüfstand nichts.
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";
@@ -28,7 +28,7 @@ import { faelligkeit } from "../server/lib/fiaon-abo-zyklus";
 import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { ANTRAG_NEU_PAKETE, ANTRAG_NEU_LEISTUNG_FASSUNG, ANTRAG_NEU_VERTRAG_FASSUNG, LIMIT_GESPRAECH } from "../shared/fiaon-antrag-neu";
 import { antragNeuVertragHtml } from "../shared/fiaon-antrag-neu-vertrag";
-import { terminArtAusQuelle, TERMIN_ARTEN } from "../shared/fiaon-termin-art";
+import { terminArtAusQuelle, terminArtFuerKunden, TERMIN_ARTEN } from "../shared/fiaon-termin-art";
 import { leitfadenFuerLage, leitfadenVonKey } from "../shared/fiaon-leitfaeden";
 
 const ROT = process.argv.includes("--rot-probe");
@@ -45,9 +45,12 @@ const lies = (p: string) => fs.readFileSync(path.join(wurzel, p), "utf8");
 const F = {
   plusMonate: L.plusMonate,
   limitGezaehlt: L.limitGezaehlt,
+  limitVertragBeendet: L.limitVertragBeendet,
 };
 if (ROT) {
-  console.log("ROTPROBE: Monatsende über Date-Überlauf, „verpasst“ zählt immer — dieser Lauf MUSS rot werden.");
+  console.log("ROTPROBE: Monatsende über Date-Überlauf, „verpasst“ zählt immer, gestopptes Abo nie beendet — dieser Lauf MUSS rot werden.");
+  // Die alte Regel vor E-283: Nur „gekündigt UND Ende erreicht" beendet — ein gestopptes Abo bleibt ewig buchbar.
+  F.limitVertragBeendet = (e) => e.gekuendigt && e.vertragEndeErreicht;
   // Der klassische Fehler: setMonth läuft über (30.11. + 3 → 02.03. statt 28.02.).
   F.plusMonate = (t: string, n: number) => {
     const d = new Date(`${t}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10);
@@ -136,6 +139,31 @@ ok(g({ gebucht: GEBUCHT, rueckstandNr: 2, startGefuehrt: false }).grund === "geb
 ok(g({ rueckstandNr: 2, startGefuehrt: false }).grund === "rueckstand", "Reihenfolge: Rückstand vor Startgespräch (wie die Zuständigkeit)");
 ok(g({ startGefuehrt: false, heuteIso: "2026-08-01" }).grund === "start_fehlt", "Reihenfolge: Startgespräch vor Sperrfrist");
 ok(g({ rueckstandNr: 2 }).abIso === "2026-10-05", "„ab“ wird auch bei anderem Grund mitgerechnet (für die Akte)");
+// E-283 (#23): fristOffen ist dieselbe Bedingung wie der Grund „sperrfrist“.
+ok(g({ heuteIso: "2026-10-04" }).fristOffen === true && g({}).fristOffen === false, "fristOffen: am Vortag offen, am Stichtag nicht");
+ok(g({ ankerIso: null }).fristOffen === false, "fristOffen: ohne Frist nie offen");
+ok(g({ heuteIso: "kaputt" }).fristOffen === true, "fristOffen: ein unlesbares „heute“ hält die Frist offen");
+for (const h of ["2026-09-01", "2026-10-04", "2026-10-05", "2026-12-24"]) {
+  const x = g({ heuteIso: h });
+  ok(x.fristOffen === (x.grund === "sperrfrist"), `fristOffen = Grund „sperrfrist“ (heute ${h})`, x);
+}
+// E-283 (#20): Vertrag beendet — auch ein ohne Kündigung gestopptes Abo, sobald der Monat der letzten Rate vorbei ist.
+const vb = (e: Partial<Parameters<typeof L.limitVertragBeendet>[0]>) => F.limitVertragBeendet({
+  gekuendigt: false, vertragEndeErreicht: false, aboGestoppt: false, letzteRateFaelligIso: null, heuteIso: "2026-10-05", ...e,
+});
+ok(vb({}) === false, "beendet: laufendes Abo ohne Kündigung und ohne Stopp → nein");
+ok(vb({ aboGestoppt: true, letzteRateFaelligIso: "2026-08-05" }) === true, "beendet: gestoppt ohne Kündigung, letzte Rate 05.08., heute 05.10. → ja");
+ok(vb({ aboGestoppt: true, letzteRateFaelligIso: "2026-09-20" }) === false, "beendet: gestoppt, letzte Rate 20.09. — der bezahlte Monat läuft bis 20.10. → nein");
+ok(vb({ aboGestoppt: true, letzteRateFaelligIso: "2026-09-05" }) === true, "beendet: gestoppt, letzte Rate 05.09. — am 05.10. ist der Monat vorbei → ja");
+ok(vb({ aboGestoppt: true, letzteRateFaelligIso: "2026-08-31", heuteIso: "2026-09-29" }) === false
+  && vb({ aboGestoppt: true, letzteRateFaelligIso: "2026-08-31", heuteIso: "2026-09-30" }) === true, "beendet: Monatsende 31.08. + 1 Monat = 30.09.");
+ok(vb({ aboGestoppt: true, letzteRateFaelligIso: null }) === true, "beendet: gestoppt ohne jede Rate → ja (es läuft nichts)");
+ok(vb({ gekuendigt: true, aboGestoppt: true, vertragEndeErreicht: false, letzteRateFaelligIso: "2026-01-05" }) === false,
+  "beendet: gekündigt (setzt abo_gestoppt_am sofort), Vertragsende in der Zukunft → nein");
+ok(vb({ gekuendigt: true, aboGestoppt: true, vertragEndeErreicht: true }) === true, "beendet: gekündigt, Vertragsende vorbei → ja");
+ok(vb({ gekuendigt: true, vertragEndeErreicht: false }) === false, "beendet: gekündigt ohne erreichtes Ende → nein");
+ok(vb({ aboGestoppt: true, letzteRateFaelligIso: "2026-09-20", heuteIso: "kaputt" }) === true, "beendet: unlesbares „heute“ schaltet nichts frei");
+ok(g({ beendet: vb({ aboGestoppt: true, letzteRateFaelligIso: "2026-06-05" }) }).grund === "beendet", "gestopptes Abo nach dem letzten Monat: Grund „beendet“");
 // Zusätze und Akte
 ok(L.limitZusatz(g({})) === "jetzt buchbar", "Mehr: „jetzt buchbar“", L.limitZusatz(g({})));
 ok(L.limitZusatz(g({ heuteIso: "2026-09-01" })) === "ab 05.10.", "Mehr: „ab 05.10.“", L.limitZusatz(g({ heuteIso: "2026-09-01" })));
@@ -154,7 +182,7 @@ const saetze: [string, string][] = [];
 for (const [k, v] of Object.entries(L.LIMIT_TEXTE)) {
   if (typeof v === "string") saetze.push([k, v]);
   else if (k === "unterzeile") { saetze.push([k, v("Herrn Stripling" as never)]); saetze.push([`${k}()`, v(null as never)]); }
-  else if (k === "sperrfrist") saetze.push([k, (v as (s: string) => string)("05.01.2027")]);
+  else if (k === "sperrfrist" || k === "rueckstandAb" || k === "startFehltAb") saetze.push([k, (v as (s: string) => string)("05.01.2027")]);
   else if (k === "gebuchtErfolg") { saetze.push([k, (v as any)(beispiel, true)]); saetze.push([`${k}(ohne Mail)`, (v as any)(beispiel, false)]); }
   else saetze.push([k, (v as (t: typeof beispiel) => string)(beispiel)]);
 }
@@ -174,6 +202,18 @@ ok(L.LIMIT_TEXTE.sperrfrist("05.01.2027") === "Ihr nächstes Limit-Gespräch kö
 ok(L.LIMIT_TEXTE.rueckstand === "Sobald Ihre offene Rate beglichen ist, können Sie Ihr Limit-Gespräch buchen.", "Rückstand wörtlich");
 ok(L.LIMIT_TEXTE.keinPaket === "Das Limit-Gespräch gehört zu FIAON Pro, Ultra und High-End.", "Start-Paket wörtlich");
 ok(L.LIMIT_TEXTE.startFehlt === "Zuerst führen Sie Ihr Startgespräch – danach können Sie hier Ihr Limit-Gespräch buchen.", "Startgespräch fehlt wörtlich");
+// E-283 (#23): Rückstand und fehlendes Startgespräch nennen bei laufender Frist den Tag — sonst der feste Satz.
+{
+  const rS = L.limitGrundSatz(g({ ankerIso: "2026-10-01", rueckstandNr: 2, heuteIso: "2026-11-05" }));
+  ok(!!rS && rS.includes("ab dem 01.01.2027") && rS.startsWith("Sobald Ihre offene Rate beglichen ist"), "Rückstand mit offener Frist: „… ab dem 01.01.2027 buchen.“", rS);
+  const rO = L.limitGrundSatz(g({ ankerIso: "2026-07-01", rueckstandNr: 2, heuteIso: "2026-11-05" }));
+  ok(rO === L.LIMIT_TEXTE.rueckstand, "Rückstand nach der Frist: der feste Satz ohne Datum", rO);
+  const sS = L.limitGrundSatz(g({ ankerIso: "2026-10-01", startGefuehrt: false, heuteIso: "2026-11-05" }));
+  ok(!!sS && sS.includes("ab dem 01.01.2027") && sS.startsWith("Zuerst führen Sie Ihr Startgespräch"), "Startgespräch fehlt mit offener Frist: „… ab dem 01.01.2027 buchen.“", sS);
+  const sO = L.limitGrundSatz(g({ ankerIso: "2026-07-01", startGefuehrt: false, heuteIso: "2026-11-05" }));
+  ok(sO === L.LIMIT_TEXTE.startFehlt, "Startgespräch fehlt nach der Frist: der feste Satz", sO);
+  ok(L.limitGrundSatz(g({ ankerIso: null, rueckstandNr: 1 })) === L.LIMIT_TEXTE.rueckstand, "Rückstand ohne belegbare Frist: der feste Satz");
+}
 ok(L.LIMIT_TEXTE.keineZeit === "Gerade ist keine Zeit frei. Schauen Sie morgen wieder vorbei – oder schreiben Sie uns an support@fiaon.com.", "Keine Zeit frei wörtlich");
 ok(!/(melden uns|rufen sie (zurück|an)|rückruf)/i.test(L.LIMIT_TEXTE.keineZeit), "keine Rückruf-Zusage bei leerem Kalender");
 // Vertrag § 3 — wörtlich, nur bei Paketen mit der Leistung, und nur in § 3.
@@ -204,6 +244,19 @@ ok(terminArtAusQuelle("support").art === "support" && terminArtAusQuelle("suppor
 ok(TERMIN_ARTEN.some((a) => a.art === "limit") && TERMIN_ARTEN.some((a) => a.art === "support"), "Legende kennt Limit-Gespräch und Support");
 ok(new Set(TERMIN_ARTEN.map((a) => a.ton)).size === TERMIN_ARTEN.length, "jede Art der Legende hat einen eigenen Farbton");
 ok(leitfadenFuerLage("alles_gut", "limit_gespraech") === "limit" && leitfadenVonKey("limit").key === "limit", "Leitfaden „Limit-Gespräch“ für einen Limit-Termin heute");
+// E-283: Kunden lesen nie die internen Arten — in Mails und im Kundenbereich.
+{
+  const intern = ["Vertrieb", "Onboarding", "Support", "Zahlung", "Rückruf", "Gründer"];
+  const soll: [string, string][] = [
+    ["limit_gespraech", "Limit-Gespräch"], ["onboarding_call", "Startgespräch"], ["onboarding", "Startgespräch"],
+    ["global", "Gespräch zu FIAON Global"], ["support", "Gespräch"], ["nichterreicht_mail", "Gespräch"], ["portal", "Gespräch"],
+    ["agent_manuell", "Gespräch"], ["inkasso_call", "Gespräch"], ["gruender", "Gespräch"], ["", "Gespräch"], ["irgendwas", "Gespräch"],
+  ];
+  for (const [q, t] of soll) {
+    const k = terminArtFuerKunden(q);
+    ok(k === t && !intern.some((w) => k.includes(w)), `Kunden-Art „${q}“ → „${t}“`, k);
+  }
+}
 for (const s of leitfadenVonKey("limit").schritte) {
   const t = wandPruefen(`${s.text ?? ""} ${s.satz ?? ""}`).filter((x) => x.art === "verboten");
   ok(t.length === 0, `Leitfaden-Schritt „${s.titel}“ ohne Wortwand-Treffer`, t.map((x) => x.treffer).join(", "));
@@ -226,6 +279,61 @@ ok(/requireKunde/.test(buchenRoute.slice(0, 200)) && /req\.kundeRef!/.test(buche
 const lib = lies("server/lib/fiaon-limit-gespraech.ts");
 const buchenLib = lib.slice(lib.indexOf("export async function limitBuchen("));
 ok(buchenLib.indexOf("limitAnspruchFuer(ref)") >= 0 && buchenLib.indexOf("limitAnspruchFuer(ref)") < buchenLib.indexOf("kundenBuchungAusfuehren("), "limitBuchen prüft den Anspruch VOR dem Buchen erneut");
+// ── E-283 (Gegenprüfung 05.10.2026): weitere stille Fehler, wieder nur am Quelltext ──
+// #10: Die Herkunft aus dem Rumpf der öffentlichen Route schaltet die Ableitung nicht ab.
+ok(!/eingabe\.herkunft === "agent"/.test(eigener) && /eingabe\.artVomMitarbeiter === true/.test(eigener),
+  "terminBuchen: die Art gilt über artVomMitarbeiter, nicht über herkunft „agent“");
+const agentTermine = route.slice(route.indexOf(`router.post("/agent/termine", requireAgent`));
+ok(/artVomMitarbeiter: true/.test(agentTermine.slice(0, 6000)), "POST /agent/termine setzt artVomMitarbeiter (hinter requireAgent)");
+const kundenBuchung = route.slice(route.indexOf("export async function kundenBuchungAusfuehren("), route.indexOf(`router.get("/termin/:token"`));
+ok(kundenBuchung.length > 100 && !/artVomMitarbeiter/.test(kundenBuchung), "kundenBuchungAusfuehren setzt artVomMitarbeiter nie");
+// #2: „erledigt“ für ein Limit-Gespräch nur mit gefuehrt: true — in beiden Türen, VOR terminErgebnisSetzen.
+const ergebnisRoute = route.slice(route.indexOf(`router.post("/agent/termine/:id/ergebnis"`));
+const wand2 = ergebnisRoute.indexOf("req.body?.gefuehrt !== true"), kern2 = ergebnisRoute.indexOf("terminErgebnisSetzen({");
+ok(wand2 > 0 && kern2 > wand2 && /String\(termin\.quelle\) === LIMIT_QUELLE && String\(ergebnis\) === "erledigt"/.test(ergebnisRoute.slice(0, kern2)),
+  "/agent/termine/:id/ergebnis: Limit-Gespräch „erledigt“ ohne gefuehrt → 409, vor terminErgebnisSetzen");
+const mara = lies("server/routes/fiaon-mara-steuerpult.ts");
+const maraRoute = mara.slice(mara.indexOf(`router.post("/chef/mara/termine/:id/ergebnis"`));
+const wandM = maraRoute.indexOf("req.body?.gefuehrt !== true"), kernM = maraRoute.indexOf("terminErgebnisSetzen({");
+ok(wandM > 0 && kernM > wandM && /LIMIT_QUELLE && ergebnis === "erledigt"/.test(maraRoute.slice(0, kernM)), "/chef/mara/termine/:id/ergebnis: dieselbe Wand");
+ok(/ergebnis: e, \.\.\.\(e === "erledigt" \? \{ gefuehrt: true \}/.test(lies("client/src/components/admin/ChefMaraTermine.tsx")), "Mara-Steuerpult: „Erledigt“ sagt gefuehrt: true");
+const kal = lies("client/src/pages/agent/calendar.tsx");
+ok(/const LIMIT_NICHT_GEFUEHRT = \["nicht_erreicht", "mailbox", "nummer_falsch", "notiz"\];/.test(kal), "Kalender: Niemand dran, Mailbox, Falsche Nummer, Ohne Ergebnis = nicht geführt");
+const abschluss = kal.slice(kal.indexOf("const abschlussBuchen = async"), kal.indexOf("const nichtZustande = async"));
+ok(abschluss.indexOf("tIstLimit(a) && LIMIT_NICHT_GEFUEHRT.includes(art)") > 0
+  && abschluss.indexOf("tIstLimit(a) && LIMIT_NICHT_GEFUEHRT.includes(art)") < abschluss.indexOf("/aktivitaet")
+  && /nichtZustande\(a, art === "nummer_falsch" \? "nummer_falsch" : "nicht_erschienen"\)/.test(abschluss),
+  "Kalender: ein nicht geführtes Limit-Gespräch geht den Weg „kam nicht zustande“, nie „erledigt“");
+ok(/gefuehrt: !LIMIT_NICHT_GEFUEHRT\.includes\(art\)/.test(abschluss), "Kalender: der Haken sagt dem Server, ob geführt");
+// #19: Der Kunde sagt nur Kommendes ab.
+const absagen = termine.slice(termine.indexOf("export async function terminAbsagen("));
+ok(/const auchBegonnene = wer !== "kunde";/.test(absagen) && /AND \(\$\{auchBegonnene\} OR beginn > NOW\(\)\)/.test(absagen.slice(0, 1500)),
+  "terminAbsagen: Kundenabsage nur vor Beginn (Sperrfrist nicht umgehbar)");
+// #22 und die Kunden-Art in den Mails.
+const followup = lies("server/routes/fiaon-followup.ts");
+ok(/String\(t\.quelle\) === LIMIT_QUELLE \? "\?anrede=sie"/.test(followup), "Erinnerung: Absage-Link des Limit-Gesprächs in der Sie-Fassung");
+ok(/termin_art: terminArtFuerKunden\(t\.quelle\)/.test(followup), "Erinnerung: Kunden-Art");
+ok(/termin_art: terminArtFuerKunden\(buchung\.quelle\)/.test(route) && /termin_art: terminArtFuerKunden\(termin\.quelle\)/.test(route), "Bestätigung (Buchung, Übergabe): Kunden-Art");
+ok(/terminArtFuerKunden\(termin\.quelle\)/.test(absagen), "Absage durch das Team: Kunden-Art");
+ok(!/termin_art: [^\n]*terminArtAusQuelle/.test(route + followup + termine), "keine Kundenmail nimmt termin_art aus terminArtAusQuelle");
+ok(/art: terminArtFuerKunden\(t\.quelle\)/.test(bereich), "Kundenbereich: Terminliste mit Kunden-Art");
+// #20: Der Server liest den Stopp und fragt die eine Regel.
+ok(/abo_gestoppt_am/.test(lib.slice(lib.indexOf("export async function limitAnspruchFuer("), lib.indexOf("// E-272: Global-Kunden"))) && /limitVertragBeendet\(\{/.test(lib),
+  "limitAnspruchFuer: liest abo_gestoppt_am und entscheidet mit limitVertragBeendet");
+// #23: Die Buchungsroute nimmt dieselben Sätze wie die Seite.
+ok(/limitGrundSatz\(a\)/.test(buchenRoute.slice(0, 3000)) && !/LIMIT_TEXTE\.rueckstand\b/.test(buchenRoute.slice(0, 3000)), "Buchungsroute: Ablehnungssätze aus limitGrundSatz");
+// #24/#25: Unterzeile nur mit Anspruch; nach der Buchung ist die Zeitwahl gesperrt.
+const limitSeite = lies("client/src/pages/app/Limit.tsx");
+ok(/const mitAnspruch = !!a && !\["kein_paket", "global", "beendet", "nicht_bezahlt"\]\.includes\(a\.grund\);/.test(limitSeite)
+  && /\{mitAnspruch && <small>\{LIMIT_TEXTE\.unterzeile/.test(limitSeite) && /\{mitAnspruch && <p[^>]*>\{LIMIT_TEXTE\.bank\}/.test(limitSeite),
+  "Limit-Seite: Unterzeile und Bank-Satz nur mit Anspruch dem Grunde nach");
+const erfolg = limitSeite.slice(limitSeite.indexOf("if (r?.ok && r.json?.ok) {"), limitSeite.indexOf("// Jeder Ausgang ist sichtbar"));
+ok(/setGewaehlt\(null\);/.test(erfolg) && /setEbenGebucht\(true\);/.test(erfolg) && /disabled=\{!gewaehlt \|\| bucht \|\| ebenGebucht\}/.test(limitSeite),
+  "Limit-Seite: nach der Buchung Auswahl leer und Knopf gesperrt, bis der neue Stand da ist");
+// #15: AGB § 4 Abs. 1 sagt dieselbe Regel wie Vertrag und Code.
+const agb = lies("client/src/pages/agb.tsx");
+ok(agb.includes("Das erste Limit-Gespräch kann er dort frühestens drei Monate nach Eingang der ersten Monatsrate buchen, jedes weitere frühestens drei Monate nach dem letzten geführten Limit-Gespräch.")
+  && !agb.includes("höchstens einmal je drei Monate anfragen"), "AGB § 4 Abs. 1: erste Rate + 3 Monate, danach 3 Monate nach dem letzten GEFÜHRTEN");
 const mig = lies("db/migrations/092_limit_gespraech.sql");
 ok(/CREATE UNIQUE INDEX IF NOT EXISTS fiaon_termine_ein_limit_offen/.test(mig) && /WHERE quelle = 'limit_gespraech' AND status = 'gebucht'/.test(mig) && !/REFERENCES|DROP/i.test(mig.replace(/^--.*$/gm, "")),
   "Migration 092: eindeutiger Teilindex, IF NOT EXISTS, kein Fremdschlüssel, kein DROP");

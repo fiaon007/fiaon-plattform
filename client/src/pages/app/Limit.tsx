@@ -51,6 +51,9 @@ export function Limit({ kundeRef, demo, demoStufe, basis, onStand }: {
   const [gewaehlt, setGewaehlt] = useState<ZeitSlot | null>(null);
   const [bucht, setBucht] = useState(false);
   const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
+  // E-283: Eben gebucht — bis der neue Stand („gebucht") da ist, bleibt die Zeitwahl gesperrt.
+  // Sonst ersetzte ein zweiter Tipp die Erfolgsmeldung durch „schon gebucht".
+  const [ebenGebucht, setEbenGebucht] = useState(false);
 
   useEffect(() => {
     let aktiv = true;
@@ -74,6 +77,7 @@ export function Limit({ kundeRef, demo, demoStufe, basis, onStand }: {
         };
         setDaten(d);
         setGewaehlt(null);
+        setEbenGebucht(false);
         onStand?.(d.anspruch);
       })
       .catch(() => { if (aktiv) setFehler("Ihr Limit-Gespräch lässt sich gerade nicht laden. Bitte versuchen Sie es in einem Moment noch einmal."); })
@@ -82,7 +86,7 @@ export function Limit({ kundeRef, demo, demoStufe, basis, onStand }: {
   }, [kundeRef, demo, demoStufe, versuch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buchen = async () => {
-    if (!gewaehlt || bucht) return;
+    if (!gewaehlt || bucht || ebenGebucht) return;
     ereignisMelden(kundeRef, demo, "limit", "knopf");
     setBucht(true); setMeldung(null);
     const ref = demo ? DEMO_REF : encodeURIComponent(kundeRef);
@@ -94,6 +98,8 @@ export function Limit({ kundeRef, demo, demoStufe, basis, onStand }: {
     if (r?.ok && r.json?.ok) {
       ereignisMelden(kundeRef, demo, "limit", "fertig");
       setMeldung({ ton: "gut", text: String(r.json.meldung || LIMIT_TEXTE.gebuchtErfolg(r.json.termin, !!r.json.bestaetigt)) });
+      setGewaehlt(null);
+      setEbenGebucht(true);
       setVersuch((v) => v + 1);
       return;
     }
@@ -113,10 +119,13 @@ export function Limit({ kundeRef, demo, demoStufe, basis, onStand }: {
 
   const a = daten?.anspruch ?? null;
   const satz = a ? limitGrundSatz(a) : null;
+  // E-283: „Alle drei Monate besprechen Sie …" und der Bank-Satz nur, wo das Gespräch dem Grunde nach
+  // zusteht — nicht bei FIAON Start, Global, beendetem Vertrag oder unbezahltem Paket; auch nicht beim Laden.
+  const mitAnspruch = !!a && !["kein_paket", "global", "beendet", "nicht_bezahlt"].includes(a.grund);
 
   return (
     <>
-      <h1 className="ap-gruss ap-auf">{LIMIT_TEXTE.titel}<small>{LIMIT_TEXTE.unterzeile(daten?.ansprechpartnerDat)}</small></h1>
+      <h1 className="ap-gruss ap-auf">{LIMIT_TEXTE.titel}{mitAnspruch && <small>{LIMIT_TEXTE.unterzeile(daten?.ansprechpartnerDat)}</small>}</h1>
 
       {!daten && !fehler && <div className="ap-skelett" style={{ height: 160, borderRadius: 14 }} />}
       {fehler && (
@@ -153,10 +162,10 @@ export function Limit({ kundeRef, demo, demoStufe, basis, onStand }: {
               <div style={{ marginTop: 14 }}>
                 {daten!.slots.length === 0
                   ? <p style={{ margin: 0 }}>{LIMIT_TEXTE.keineZeit}</p>
-                  : <ZeitWahl slots={daten!.slots} gewaehlt={gewaehlt?.beginn ?? null} gesperrt={bucht} onWahl={(s) => { setGewaehlt(s); setMeldung(null); }} />}
+                  : <ZeitWahl slots={daten!.slots} gewaehlt={gewaehlt?.beginn ?? null} gesperrt={bucht || ebenGebucht} onWahl={(s) => { setGewaehlt(s); setMeldung(null); }} />}
               </div>
               {daten!.slots.length > 0 && (
-                <button type="button" className="ap-knopf" style={{ marginTop: 16 }} disabled={!gewaehlt || bucht} onClick={() => void buchen()} data-fiaon="limit-buchen">
+                <button type="button" className="ap-knopf" style={{ marginTop: 16 }} disabled={!gewaehlt || bucht || ebenGebucht} onClick={() => void buchen()} data-fiaon="limit-buchen">
                   {bucht ? "Wird gebucht …" : LIMIT_TEXTE.knopf}
                 </button>
               )}
@@ -174,7 +183,7 @@ export function Limit({ kundeRef, demo, demoStufe, basis, onStand }: {
           )}
 
           {a.letztes && a.grund !== "gebucht" && <p className="ap-fuss" style={{ marginTop: 10 }}>{LIMIT_TEXTE.letztes(a.letztes)}</p>}
-          <p className="ap-fuss" style={{ marginTop: 10 }}>{LIMIT_TEXTE.bank}</p>
+          {mitAnspruch && <p className="ap-fuss" style={{ marginTop: 10 }}>{LIMIT_TEXTE.bank}</p>}
         </section>
       )}
 

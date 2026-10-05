@@ -398,7 +398,7 @@ function AntragVergleich({ qs }: { qs: string }) {
             {/* E-283: Woher der Anteil kommt — ohne gespeicherte Stufe gilt die Render-Variable. */}
             {weiche.quelle === "render" && (
               <p className="text-[12px] text-amber-700 mt-0.5" data-fiaon="antrag-weiche-quelle">
-                Steht auf {aktuell} % über die Render-Variable ANTRAG_NEU_ANTEIL — Speichern hier überschreibt sie.
+                Steht auf {aktuell} % über die Render-Variable ANTRAG_NEU_ANTEIL — Speichern hier überschreibt sie. Zum dauerhaften Zurückstellen genügt die hier gespeicherte Stufe; die Variable muss nicht entfernt werden.
               </p>
             )}
             {weiche.quelle === "vorgabe" && (
@@ -407,7 +407,7 @@ function AntragVergleich({ qs }: { qs: string }) {
               </p>
             )}
             <p className="text-[11px] text-slate-400 mt-0.5 mb-3">
-              Zuteilungen im Zeitraum: alt {zahl(weiche.zuteilungen?.alt)} · neu {zahl(weiche.zuteilungen?.neu)}. Bei 1–99 % bleibt jeder Zugeteilte auf seinem Weg; bei 100 % kommen auch früher alt Zugeteilte in den neuen Antrag. Immer alt bleiben offene alte Anträge, Weiter-Links aus Erinnerungsmails und Links mit einem Paket, das der neue Antrag nicht kennt (z. B. die Bonitätsauskunft). Persönliche Links (/a/…), /start und die Paketknöpfe der Website folgen der Weiche.
+              Zuteilungen im Zeitraum: alt {zahl(weiche.zuteilungen?.alt)} · neu {zahl(weiche.zuteilungen?.neu)}. Bei 1–99 % bleibt jeder Zugeteilte auf seinem Weg; bei 100 % kommen auch früher alt Zugeteilte in den neuen Antrag. Immer alt bleiben offene alte Anträge, gültige Weiter-Links aus Erinnerungsmails und Links mit einem Paket, das der neue Antrag nicht kennt (z. B. die Bonitätsauskunft). Persönliche Links (/a/…), /start und die Paketknöpfe der Website folgen der Weiche.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {WEICHE_STUFEN_UI.map((s) => (
@@ -424,9 +424,9 @@ function AntragVergleich({ qs }: { qs: string }) {
                 <p className="text-[12.5px] text-slate-800 font-semibold">Ab jetzt sehen {gewaehlt} % der neuen Besucher den neuen Antrag.</p>
                 <p className="text-[11.5px] text-slate-500 mt-0.5">
                   {gewaehlt === 0
-                    ? "Bei 0 % ist die Weiche aus: Alle Besucher sehen den alten Antrag, auch wer schon dem neuen zugeteilt war."
+                    ? "Bei 0 % ist die Weiche aus: Alle Besucher sehen den alten Antrag, auch wer schon dem neuen zugeteilt war. Die gespeicherte Stufe hält dauerhaft — auch wenn bei Render noch ANTRAG_NEU_ANTEIL steht."
                     : gewaehlt >= 100
-                      ? "Alle neuen Besucher kommen in den neuen Antrag, auch wer früher dem alten zugeteilt war. Nur offene alte Anträge und Weiter-Links aus Erinnerungsmails bleiben alt. Die Änderung gilt sofort, auf allen Servern spätestens nach 30 Sekunden."
+                      ? "Alle neuen Besucher kommen in den neuen Antrag, auch wer früher dem alten zugeteilt war. Nur offene alte Anträge und gültige Weiter-Links aus Erinnerungsmails bleiben alt. Die Änderung gilt sofort, auf allen Servern spätestens nach 30 Sekunden."
                       : "Wer schon zugeteilt ist, bleibt auf seinem Weg. Die Änderung gilt sofort, auf allen Servern spätestens nach 30 Sekunden."}
                 </p>
                 <div className="flex gap-2 mt-2">
@@ -495,7 +495,7 @@ export default function AdminFinanzenPage() {
           "Fahre mit der Maus über das ⓘ an jeder Kennzahl — dort steht die genaue Definition.",
           "Der Alt-Import (bezahlt importierte Alt-Kunden ohne Beleg) wird separat ausgewiesen und fließt bewusst in keine Kennzahl ein.",
           "„Antragsweg: alt gegen neu“ vergleicht /antrag mit /antrag-neu im gewählten Zeitraum: Sitzungen, angelegte, abgeschickte und bezahlte Anträge (erste Rate gebucht), die Quoten dazwischen, den Trichter je Schritt mit Abbrüchen und die häufigsten Feldfehler. Ein Pfeil zeigt, ob der neue Weg besser (grün) oder schlechter (rot) ist.",
-          "Die Weiche darunter legt fest, wie viel Prozent der NEUEN Besucher den neuen Antrag sehen (0, 10, 25, 50 oder 100 %). Bei 1–99 % bleibt jeder Zugeteilte auf seinem Weg, bei 100 % kommen alle in den neuen Antrag. Offene alte Anträge und Weiter-Links aus Erinnerungsmails bleiben immer alt. 0 % schaltet die Weiche ganz aus. Ist hier nichts gespeichert, gilt die Render-Variable ANTRAG_NEU_ANTEIL — der Satz unter dem Anteil sagt es dann.",
+          "Die Weiche darunter legt fest, wie viel Prozent der NEUEN Besucher den neuen Antrag sehen (0, 10, 25, 50 oder 100 %). Bei 1–99 % bleibt jeder Zugeteilte auf seinem Weg, bei 100 % kommen alle in den neuen Antrag. Offene alte Anträge und gültige Weiter-Links aus Erinnerungsmails bleiben immer alt. 0 % schaltet die Weiche ganz aus. Ist hier nichts gespeichert, gilt die Render-Variable ANTRAG_NEU_ANTEIL — der Satz unter dem Anteil sagt es dann.",
         ]}
       />
 

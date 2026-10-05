@@ -4,7 +4,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ANTRAG_NEU_HAKEN_GEPRUEFT, ANTRAG_NEU_PAKETE, ANTRAG_NEU_WERBE_HINWEIS, ANTRAG_NEU_SOFORT_OHNE, ANTRAG_NEU_SOFORT_TEXT, OHNE_ABFRAGE, ZWECK_TEXT,
+  ANTRAG_NEU_HAKEN_GEPRUEFT, ANTRAG_NEU_LEISTUNG_FASSUNG, ANTRAG_NEU_PAKETE, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WERBE_HINWEIS, ANTRAG_NEU_SOFORT_OHNE, ANTRAG_NEU_SOFORT_TEXT, OHNE_ABFRAGE, ZWECK_TEXT,
   agbDatum, antragNeuLuecke, geburtText, type Zweck,
 } from "@shared/fiaon-antrag-neu";
 import { paketPreisCents } from "@shared/fiaon-pakete";
@@ -512,6 +512,8 @@ export function SchrittUnterschrift() {
   const [fehlt, setFehlt] = useState<"" | "ag1" | "ag3" | "sig">("");
   const [annahme, setAnnahme] = useState<"" | "laeuft" | "fertig">("");
   const [fehler, setFehler] = useState<string | null>(null);
+  // E-283: Der Server hat neuere Vertragsbedingungen als diese Seite — nur Neuladen hilft.
+  const [neuLaden, setNeuLaden] = useState(false);
   const [tippText, setTippText] = useState("Ihr Vertrag wird geschlossen …");
   const faelligBis = new Date(Date.now() + 7 * 864e5);
   const agb = agbDatum(AGB_FASSUNG);
@@ -532,12 +534,16 @@ export function SchrittUnterschrift() {
       daten: datenAus(S), sitzung, knopf: KNOPF_ZAHLUNGSPFLICHTIG,
       haken: { agb: S.ag1, geprueft: S.ag3, sofort: S.ag4 },
       unterschrift: { png, getippt: sig.getippt }, messung: messungsDaten(),
+      // E-283: die Fassungen, die diese Seite zeigt — weichen sie vom Server ab, nimmt er nicht an (409).
+      fassungen: { agb: AGB_FASSUNG, vertrag: ANTRAG_NEU_VERTRAG_FASSUNG, leistung: ANTRAG_NEU_LEISTUNG_FASSUNG },
     });
     const j: any = antwort.json;
     if (!antwort.ok || !j?.angenommenAm) {
       setAnnahme("");
       if (j?.zurueck?.schritt) { toast(j.zurueck.meldung); gehe(j.zurueck.schritt, { richtung: "zurueck", hinweis: { text: j.zurueck.meldung } }); return; }
       if (j?.feld === "unterschrift") setFehlt("sig");
+      // Neue Bedingungen: Der AGB-Haken galt der alten Fassung — nach dem Neuladen setzt der Kunde ihn neu.
+      if (j?.neuLaden) { setze({ ag1: false }); setNeuLaden(true); }
       setFehler(j?.error || "Keine Verbindung. Ihr Vertrag ist noch nicht geschlossen – bitte versuchen Sie es noch einmal.");
       return;
     }
@@ -586,7 +592,7 @@ export function SchrittUnterschrift() {
       <Haken id="an-ag4" an={S.ag4} onClick={() => setze({ ag4: !S.ag4 })}>{ANTRAG_NEU_SOFORT_TEXT}</Haken>
       <p className="an-klein" style={{ margin: "-4px 0 0 36px" }}>{ANTRAG_NEU_SOFORT_OHNE}</p>
       <p className="an-klein" style={{ margin: 0 }}>{ANTRAG_NEU_WERBE_HINWEIS}</p>
-      {fehler ? <Fehlerkasten text={fehler} /> : null}
+      {fehler ? <Fehlerkasten text={fehler} knopf={neuLaden ? "Seite neu laden" : undefined} onKnopf={neuLaden ? () => window.location.reload() : undefined} /> : null}
       <div className="an-knoepfe">
         {annahme === "fertig" || annahme === "laeuft" ? (
           <>

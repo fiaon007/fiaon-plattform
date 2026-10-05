@@ -686,6 +686,15 @@ router.post("/antrag-neu/:ref/annehmen", async (req: Request, res: Response) => 
     if (h.geprueft !== true) return res.status(400).json({ ok: false, feld: "geprueft", error: "Bitte bestätigen Sie, dass Sie die Bestellung geprüft haben." });
     const sofort = h.sofort === true;
     if (String(req.body?.knopf || "") !== KNOPF_ZAHLUNGSPFLICHTIG) return res.status(400).json({ ok: false, error: "Bitte nutzen Sie den Knopf „Zahlungspflichtig annehmen“." });
+    // 05.10.2026, E-283: Angenommen wird, was der Kunde gesehen hat. Gespeichert werden unten die
+    // Fassungen des Servers — der Browser schickt die mit, die sein Stand zeigt (AGB, Vertrag,
+    // Leistungsbeschreibung). Weicht eine ab (ein Deploy zwischen Laden und Klick) oder fehlt das Feld
+    // (ein Stand von vor diesem Abgleich), wird nichts gespeichert: neu laden, lesen, erneut annehmen.
+    const fa = req.body?.fassungen || {};
+    if (fa.agb !== AGB_FASSUNG || fa.vertrag !== ANTRAG_NEU_VERTRAG_FASSUNG || fa.leistung !== ANTRAG_NEU_LEISTUNG_FASSUNG) {
+      console.warn(`[ANTRAG-NEU] Annahme ${ref} abgewiesen: Fassung im Browser ${JSON.stringify(fa).slice(0, 160)} ≠ Server ${AGB_FASSUNG}/${ANTRAG_NEU_VERTRAG_FASSUNG}/${ANTRAG_NEU_LEISTUNG_FASSUNG}.`);
+      return res.status(409).json({ ok: false, neuLaden: true, error: "Die Vertragsbedingungen wurden gerade aktualisiert – bitte laden Sie die Seite neu. Ihre Angaben bleiben gespeichert." });
+    }
 
     // Die Unterschrift: ein PNG aus dem Browser, höchstens 400 KB.
     const u = req.body?.unterschrift || {};

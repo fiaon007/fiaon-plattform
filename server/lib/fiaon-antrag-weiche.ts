@@ -10,8 +10,10 @@
 // · Der Anteil (0–100): die Zeile antrag_neu_anteil in fiaon_settings. Gibt
 //   es KEINE Zeile, gilt die Render-Variable ANTRAG_NEU_ANTEIL (ganze Zahl
 //   0–100, sonst 0). Eine im Chefbüro gespeicherte Zeile gewinnt immer — so
-//   bleibt das Zurückstellen ohne Deploy möglich (05.10.2026, E-283). Bei 0
-//   tut die Weiche NICHTS: kein Cookie, kein Ereignis, kein Umweg.
+//   bleibt das Zurückstellen ohne Deploy möglich (05.10.2026, E-283). Die
+//   Variable gilt nur, wenn die Datenbank bestätigt, dass es keine Zeile gibt;
+//   antwortet sie nicht, gilt der letzte bekannte Anteil, sonst 0. Bei 0 tut
+//   die Weiche NICHTS: kein Cookie, kein Ereignis, kein Umweg.
 // · Wer zugeteilt ist, bleibt zugeteilt (Cookie fiaon_aw, 90 Tage, Wert
 //   „alt.<kennung>" oder „neu.<kennung>") — bei 1–99 %. Bei 100 % gibt es
 //   keinen alten Weg mehr für neue Besucher: Ein vorhandenes „alt."-Cookie
@@ -19,8 +21,8 @@
 //   Antrag live, überall"), und ein Sitzungs-Cookie „alt." entsteht nicht.
 // · Immer ALT, ohne Zuteilung: Roboter (Vorschau, Suchmaschine, Skript), jeder
 //   Link mit Parametern, die nur der alte Weg kann (Sperrliste in
-//   weicheLinkAusnahme: weiter, skip, skipPayment, step, ein Paket, das der
-//   neue Weg nicht kennt), und wer schon einen ALTEN Antrag offen hat
+//   weicheLinkAusnahme: ein GÜLTIGER Weiter-Link, skip, skipPayment, step, ein
+//   Paket, das der neue Weg nicht kennt), und wer schon einen ALTEN Antrag offen hat
 //   (Antrags-Cookie aus fiaon-antrag-sitzung.ts) — dessen Angaben stehen im
 //   alten Formular.
 // · Jede ZUTEILUNG (nicht jede Wiederkehr, nicht das Umschreiben bei 100 %)
@@ -45,6 +47,7 @@ import { antragAusCookie } from "./fiaon-antrag-sitzung";
 import { istRoboterUnterschrift } from "./fiaon-vertrieb-zusage";
 import { chefProtokoll } from "../routes/fiaon-chef-zugang";
 import { antragNeuPaket, ANTRAG_NEU_REIHE } from "@shared/fiaon-antrag-neu";
+import { weiterPruefen } from "./fiaon-antrag-erinnerung";
 
 export type AntragWegWahl = "alt" | "neu";
 /**
@@ -63,7 +66,7 @@ export const WEICHE_EINSTELLUNG = "antrag_neu_anteil";
 export const WEICHE_STUFEN = [0, 10, 25, 50, 100] as const;
 /**
  * So lange wartet die Weiche höchstens auf die Datenbank. Danach gilt beim Anteil der letzte
- * bekannte Wert (sonst die Render-Variable), beim Weg eines offenen Antrags der alte Weg.
+ * bekannte Wert (sonst 0, alter Weg), beim Weg eines offenen Antrags der alte Weg.
  */
 const FRIST_MS = 1500;
 /** Protokoll-Ziel in fiaon_admin_log — daraus liest die Anzeige „geändert von". */
@@ -148,12 +151,17 @@ export function antragGeraet(userAgent: unknown): "handy" | "tablet" | "desktop"
 
 /**
  * Parameter, die nur der alte Weg kann (Groß/klein egal):
- *   weiter       — Weiter-Link aus Erinnerungsmail und /a/ bei begonnenem Antrag.
- *                  Ein NEUER Antrag springt von dort selbst nach /antrag-neu
- *                  (GET /antrag/weiter/:token, antrag.tsx).
  *   skip, skippayment, step — Abkürzungen des alten Formulars im Entwicklungsbetrieb.
+ * Dazu weiter (Weiter-Link aus Erinnerungsmail und /a/ bei begonnenem Antrag) —
+ * aber nur mit GÜLTIGEM Zeichen (weiterPruefen). Ein NEUER Antrag springt von dort
+ * selbst nach /antrag-neu (GET /antrag/weiter/:token, antrag.tsx).
+ *
+ * 05.10.2026, E-283: Bis hier hielt JEDES weiter= den Besuch alt, auch ein
+ * abgelaufenes oder verstümmeltes — der Kunde landete dann auch bei 100 % im
+ * alten Formular, und zwar leer („Link abgelaufen"). Jetzt geht ein ungültiger
+ * Weiter-Link in die normale Entscheidung; der neue Weg übergeht weiter=.
  */
-const NUR_ALT = new Set(["weiter", "skip", "skippayment", "step"]);
+const NUR_ALT = new Set(["skip", "skippayment", "step"]);
 
 /**
  * Trägt die Adresse etwas, das nur der alte Weg kann? Dann bleibt der Besuch alt.
@@ -181,6 +189,7 @@ export function weicheLinkAusnahme(suche: string): boolean {
     if (ausnahme) return;
     const k = schluessel.trim().toLowerCase();
     if (NUR_ALT.has(k)) { ausnahme = true; return; }
+    if (k === "weiter") { if (weiterPruefen(wert)) ausnahme = true; return; }
     // Ein leeres pack= ist kein Paket — es ändert nichts am Weg.
     if ((k === "pack" || k === "paket") && wert.trim() && !antragNeuPaket(wert)) ausnahme = true;
   });
@@ -201,6 +210,11 @@ export function weicheLinkAusnahme(suche: string): boolean {
 // ANTRAG_NEU_ANTEIL, solange es KEINE Zeile gibt. Wer im Chefbüro speichert,
 // legt die Zeile an — ab dann zählt nur noch sie (Zurückstellen ohne Deploy).
 // Render übernimmt eine geänderte Variable erst mit dem nächsten Deploy.
+//
+// 05.10.2026, E-283: „Keine Zeile" muss die Datenbank SAGEN. Antwortet sie
+// nicht (Neustart, Ausfall) und ist noch kein Anteil bekannt, gilt 0 — nicht
+// die Variable. Sonst schaltete ein Neustart mit hakender Datenbank eine im
+// Chefbüro auf 0 zurückgestellte Weiche über die Variable wieder auf 100.
 let anteilStand: { wert: number; quelle: AnteilQuelle; bis: number } | null = null;
 let anteilLaeuft: Promise<number> | null = null;
 
@@ -252,9 +266,16 @@ function mitFrist<T>(p: Promise<T>, ms: number, was: string): Promise<T> {
   });
 }
 
-/** Ohne Datenbank: der letzte bekannte Anteil, sonst die Render-Variable (nicht mehr pauschal 0). */
+/**
+ * Ohne Datenbank: der letzte bekannte Anteil, sonst 0 (alter Weg) — rein, für den Prüfstand.
+ * Die Render-Variable gilt hier nie: Ob es eine Zeile gibt, weiß nur die Datenbank.
+ */
+export function anteilRueckfall(stand: { wert: number; quelle: AnteilQuelle } | null): { wert: number; quelle: AnteilQuelle } {
+  return stand ? { wert: stand.wert, quelle: stand.quelle } : { wert: 0, quelle: "vorgabe" };
+}
+
 function anteilOhneDatenbank(): { wert: number; quelle: AnteilQuelle } {
-  return anteilStand ? { wert: anteilStand.wert, quelle: anteilStand.quelle } : anteilBestimmen(null, renderAnteil());
+  return anteilRueckfall(anteilStand);
 }
 
 /** Der eingestellte Anteil neuer Besucher für /antrag-neu (0–100). Wirft, wenn die Datenbank nicht antwortet. */
@@ -268,7 +289,7 @@ export function antragNeuAnteil(): Promise<number> {
         anteilStand = { ...a, bis: Date.now() + 30_000 };
         return a.wert;
       } catch (e) {
-        // Zehn Sekunden mit dem letzten bekannten Wert weiter (sonst der Render-Variable),
+        // Zehn Sekunden mit dem letzten bekannten Wert weiter (sonst 0, alter Weg),
         // damit eine kranke Datenbank nicht jede Seitenanfrage um die Frist verlängert.
         anteilStand = { ...anteilOhneDatenbank(), bis: Date.now() + 10_000 };
         throw e;
@@ -408,8 +429,8 @@ export function weicheRegel(e: {
 /**
  * Die Weiche selbst — für die Middleware und für GET /antrag-weiche.
  * Setzt bei einer Zuteilung das Cookie auf res. Datenbankfehler und Fristen
- * enden beim letzten bekannten Anteil (sonst der Render-Variable) bzw. beim
- * alten Weg des offenen Antrags; die beiden Aufrufer fangen trotzdem selbst ab.
+ * enden beim letzten bekannten Anteil (sonst 0, alter Weg) bzw. beim alten Weg
+ * des offenen Antrags; die beiden Aufrufer fangen trotzdem selbst ab.
  * @param suche Die Abfrage der Seite (mit oder ohne führendes „?").
  */
 export async function weicheEntscheiden(req: Request, res: Response, suche: string): Promise<{ weg: AntragWegWahl; grund: WeicheGrund }> {

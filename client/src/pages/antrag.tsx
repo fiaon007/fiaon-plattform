@@ -423,6 +423,9 @@ const ALT_SCHRITT = ["a0_paket", "a1_person", "a2_finanzen", "a3_karte", "a4_pru
 function altSchritt(n: number): string { return ALT_SCHRITT[n] ?? `a${n}`; }
 type MessOpt = { schritt?: string; detail?: string | number; ref?: string };
 
+/** Merker „der Weiter-Link war abgelaufen" über das Neuladen ohne ihn hinweg (E-283, höchstens 60 s alt). */
+const WEITER_ABGELAUFEN = "fiaon_weiter_abgelaufen";
+
 /* === LIVE CREDIT CARD — HYPER-REALISTIC DESIGN === */
 function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: string; name: string; lim: string | null; className?: string; compact?: boolean }) {
   const displayName = name || "MAX MUSTERMANN";
@@ -678,11 +681,19 @@ function AntragSeite() {
       return sessionStorage.getItem("fiaon_lead_link");
     } catch { return null; }
   });
+  // 05.10.2026, E-283: Die Referenz aus dem Link wird erst gemerkt, wenn der Server den Link
+  // bestätigt hat (unten im Erfolgszweig) — sonst bliebe nach einem Abbruch vor der Antwort eine
+  // ungeprüfte Referenz in der Sitzung, und das Formular speicherte womöglich in einen fremden Antrag.
   const [ref] = useState(() => {
-    if (weiterToken) { const r = weiterToken.split(".")[0]; try { sessionStorage.setItem("fiaon_antrag_ref", r); } catch { /* egal */ } return r; }
+    if (weiterToken) return weiterToken.split(".")[0];
     return getPersistentRef("fiaon_antrag_ref");
   });
-  const [wiederEinstieg, setWiederEinstieg] = useState<"laedt" | "fertig" | "abgelaufen" | null>(weiterToken ? "laedt" : null);
+  // Nach einem abgelaufenen Link lädt die Seite ohne ihn neu (siehe unten) — der Hinweis kommt mit.
+  const [wiederEinstieg, setWiederEinstieg] = useState<"laedt" | "fertig" | "abgelaufen" | null>(() => {
+    if (weiterToken) return "laedt";
+    try { const t = Number(sessionStorage.getItem(WEITER_ABGELAUFEN) || 0); return t && Date.now() - t < 60_000 ? "abgelaufen" : null; } catch { return null; }
+  });
+  useEffect(() => { try { sessionStorage.removeItem(WEITER_ABGELAUFEN); } catch { /* egal */ } }, []);
   // ── DIE WEICHE IM BROWSER (05.10.2026, E-282) ────────────────────────────
   // Beim Seitenaufruf entscheidet der Server (Middleware vor GET /antrag). Kommt
   // der Kunde über einen Link innerhalb der App, fragt die Seite selbst nach —
@@ -740,10 +751,25 @@ function AntragSeite() {
       const r = await fetch(`/api/fiaon/antrag/weiter/${encodeURIComponent(weiterToken)}`).catch(() => null);
       const j = await r?.json().catch(() => null);
       if (weg) return;
-      if (!r?.ok || !j?.ok) { setWiederEinstieg("abgelaufen"); return; }
+      if (!r?.ok || !j?.ok) {
+        // 05.10.2026, E-283: Abgelaufener, ungültiger oder ins Leere zeigender Link (zusammengeführt,
+        // nicht gefunden). Bis hier blieb der Kunde dann im alten Formular — auch bei 100 % — und die
+        // Referenz aus dem Link galt weiter. Jetzt: ohne „weiter" neu laden, dann entscheidet die
+        // Weiche wie bei jedem Besuch. Dieser Aufruf misst nichts mehr für den alten Weg.
+        messStand.current = "neu";
+        messWartend.current = [];
+        clearPersistentRef("fiaon_antrag_ref");
+        try { sessionStorage.setItem(WEITER_ABGELAUFEN, String(Date.now())); } catch { /* egal */ }
+        const u = new URL(window.location.href);
+        u.searchParams.delete("weiter");
+        window.location.replace(u.pathname + u.search);
+        return;
+      }
       if (j.fertig && j.zahlung) { window.location.href = j.zahlung; return; }
       // E-282: Antrag aus dem neuen Weg — dort geht er weiter (Cookie ist gesetzt).
       if (j.neu) { window.location.replace(j.weiter || "/antrag-neu"); return; }
+      // E-283: Erst jetzt ist die Referenz aus dem Link bestätigt — ab hier gilt sie in der Sitzung.
+      try { sessionStorage.setItem("fiaon_antrag_ref", ref); } catch { /* egal */ }
       const pk = PACKS.find((x) => x.key === j.packKey) || null;
       if (pk) setPack(pk);
       setD((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(j.daten || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")) }));

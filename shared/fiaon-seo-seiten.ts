@@ -49,6 +49,9 @@ import { AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_PREISE_CENTS, auskunfteienFuer, au
 // 25.09.2026 (E-241): die Seitenfamilie /bonitaetsauskunft — Leistungszeit und Unternehmer-Satz
 // wortgleich mit Bestellseite und Vertragsbestätigung.
 import { AUSKUNFT_KEIN_WIDERRUF, auskunftLeistungszeit } from "./fiaon-auskunft-widerruf";
+// 05.10.2026 (E-283): die AGB-Fassung und ihr Archiv unter /agb/<Fassung>.
+import { AGB_FASSUNG, AGB_FRUEHERE_FASSUNGEN } from "./fiaon-vertrag-paket";
+import { agbDatumLang } from "./fiaon-antrag-neu";
 
 const AUSK_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
 const AUSK_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
@@ -1004,7 +1007,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       abschnitte: [
         { h2: "What legitimately exists", text: "So-called Swiss loans from foreign banks without a SCHUFA enquiry: fixed sums of €3,500 to €7,500, terms around 40 months, effective rates of 10 to 16 per cent, an attachable income required. Without income there is nothing." },
         { h2: "Spot fraud in 30 seconds", text: "Advance costs before the payout, home visits with add-on products, guarantee promises such as “100 % approval”. Legitimate lenders never demand money before money flows." },
-        { h2: "The better route", text: "Request the data copy, check every entry, enforce deletion where it can be challenged — then the normal credit market is open again at normal rates. FIAON does not broker loans and receives no commission from lenders." },
+        { h2: "The better route", text: "Request the data copy, check every entry, enforce deletion where it can be challenged — then the normal credit market is open again at normal rates. FIAON does not broker loans." },
       ],
       weiter: ["/schufa-neutral-anfragen", "/girokonto-trotz-negativer-bonitaet"],
       krumen: [{ name: "Loans without SCHUFA", pfad: "/en/loans-without-schufa" }],
@@ -1879,7 +1882,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // RECHTLICHES — indexierbar, nicht beworben
   // ═════════════════════════════════════════════════════════════════════════
   "/impressum": {
-    pfad: "/impressum", art: "recht", stand: "2026-08-22", prio: 0.3,
+    pfad: "/impressum", art: "recht", stand: "2026-10-05", prio: 0.3,
     titel: "Impressum: FIAON LTD, London — Anbieterkennzeichnung",
     beschreibung: "Anbieterkennzeichnung: FIAON LTD, 128 City Road, London, Company Registration Number 17318250, Vertretung, Kontakt und Verbraucherstreitbeilegung.",
     h1: "Impressum / Legal Notice",
@@ -1906,8 +1909,9 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     weiter: ["/sicherheit", "/impressum", "/agb"],
     krumen: [{ name: "Datenschutzerklärung", pfad: "/privacy" }],
   },
+  // stand = die Fassung der AGB (E-283): Der Text ändert sich mit der Fassung, nicht dazwischen.
   "/agb": {
-    pfad: "/agb", art: "recht", stand: "2026-09-26", prio: 0.3,
+    pfad: "/agb", art: "recht", stand: AGB_FASSUNG, prio: 0.3,
     titel: "Allgemeine Geschäftsbedingungen (AGB) — FIAON",
     beschreibung: "Die Bedingungen für die Leistungen von FIAON: Vertragsschluss, Laufzeit von zwölf Monatsraten, Zahlung per Überweisung, Kündigung, Widerruf und Haftung.",
     h1: "Allgemeine Geschäftsbedingungen (AGB)",
@@ -1915,6 +1919,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     weiter: ["/widerrufsbelehrung", "/preise", "/impressum", "/privacy"],
     krumen: [{ name: "AGB", pfad: "/agb" }],
   },
+  // E-283 (05.10.2026): Der Server leitet /terms mit 301 auf /agb um (der fremde ARAS-Text ist weg) —
+  // der Eintrag bleibt für die Weiterleitung im Browser und für ?bereich=business.
   "/terms": {
     pfad: "/terms", art: "recht", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", canonical: "/agb",
     titel: "Allgemeine Geschäftsbedingungen — FIAON",
@@ -1924,7 +1930,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     weiter: ["/agb"],
   },
   "/widerrufsbelehrung": {
-    pfad: "/widerrufsbelehrung", art: "recht", stand: "2026-08-22", prio: 0.3,
+    pfad: "/widerrufsbelehrung", art: "recht", stand: "2026-10-05", prio: 0.3,
     titel: "Widerrufsbelehrung: Ihr Widerrufsrecht bei FIAON",
     beschreibung: "Ihr Widerrufsrecht als Verbraucher: Frist von 14 Tagen, Form, Folgen des Widerrufs und das Muster-Widerrufsformular – für alle Verträge mit FIAON LTD.",
     h1: "Widerrufsbelehrung",
@@ -1975,6 +1981,33 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/vereinbarung": { pfad: "/vereinbarung", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", bild: "", titel: "Vertrauliches Dokument — FIAON", beschreibung: "Diese Seite ist geschützt.", h1: "Vertrauliches Dokument", lead: "Diese Seite ist geschützt." },
   "/scp-datenraum": { pfad: "/scp-datenraum", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", bild: "", titel: "Datenraum", beschreibung: "Vertraulicher Zugang.", h1: "Datenraum", lead: "Vertraulicher Zugang." },
 };
+
+// ── Das AGB-Archiv /agb/<Fassung> (05.10.2026, E-283) ───────────────────────
+// Verträge und Bestätigungsmails verlinken die Fassung, die für sie gilt
+// (agbAdresse in shared/fiaon-vertrag-paket.ts). Jede Fassung bekommt hier
+// einen Eintrag, damit der Server sie mit 200 und eigenem Kopf ausliefert —
+// eine Adresse, die ein Vertrag nennt, darf nie als 404 oder Soft-404 enden
+// (seiteUnbekannt in server/lib/fiaon-seiten-seo.ts kennt nur diese).
+// noindex: In den Suchindex gehört nur /agb. Die aktuelle Fassung zeigt dieselbe
+// Seite wie /agb und verweist deshalb per canonical dorthin.
+for (const f of [AGB_FASSUNG, ...AGB_FRUEHERE_FASSUNGEN]) {
+  const aktuell = f === AGB_FASSUNG;
+  const datum = agbDatumLang(f);
+  SEO_SEITEN[`/agb/${f}`] = {
+    pfad: `/agb/${f}`, art: "recht", stand: f, prio: 0.1, robots: "noindex,follow",
+    ...(aktuell ? { canonical: "/agb" } : {}),
+    titel: `AGB, Fassung vom ${datum} — FIAON`,
+    beschreibung: aktuell
+      ? `Die Allgemeinen Geschäftsbedingungen von FIAON in der aktuellen Fassung vom ${datum} – zum Nachlesen und Speichern.`
+      : `Archivfassung der Allgemeinen Geschäftsbedingungen von FIAON vom ${datum} – für Verträge, für die sie gilt. Zum Nachlesen und Speichern.`,
+    h1: "Allgemeine Geschäftsbedingungen (AGB)",
+    lead: aktuell
+      ? `Fassung vom ${datum} – die aktuelle Fassung.`
+      : `Archivfassung vom ${datum}. Die aktuelle Fassung steht unter fiaon.com/agb.`,
+    weiter: ["/agb", "/widerrufsbelehrung", "/impressum"],
+    krumen: [{ name: "AGB", pfad: "/agb" }],
+  };
+}
 
 // ── Einträge, die der SERVER ergänzt (19.09.2026, E-191) ────────────────────
 // Die Unterseiten von FIAON Global kommen aus shared/fiaon-global-seiten —

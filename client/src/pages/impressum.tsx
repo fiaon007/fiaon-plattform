@@ -153,9 +153,13 @@ export default function ImpressumPage() {
                     <h3 className="font-semibold mb-2">2. Keine Bankgeschäfte:</h3>
                     <p className="text-sm">Die Betreiberin ist kein Kreditinstitut oder Finanzdienstleistungsinstitut im Sinne des Kreditwesengesetzes (KWG) und unterliegt nicht der Aufsicht der Bundesanstalt für Finanzdienstleistungsaufsicht (BaFin). Die Plattform gibt keine Kreditkarten heraus, gewährt keine Kredite und führt keine Bankgeschäfte durch.</p>
                   </div>
+                  {/* E-283 (05.10.2026): Hier stand „vollständig unabhängig von Banken … ausschließlich durch die Abonnement-
+                      Gebühren … zu keinem Zeitpunkt … Provisionen …". Falsch, seit FIAON je Kontoeröffnung bei der
+                      Partnerbank vergütet wird (server/lib/fiaon-konto-karte.ts) — und das Wort steht unter Wortverbot.
+                      Jetzt inhaltsgleich mit AGB § 2 „Partnerbank und Vergütung". */}
                   <div>
-                    <h3 className="font-semibold mb-2">3. Unabhängigkeit & Vergütung:</h3>
-                    <p className="text-sm">FIAON ist vollständig unabhängig von Banken, Auskunfteien, Kreditkartenherausgebern und Zahlungsdienstleistern. Die Plattform finanziert sich ausschließlich durch die von den Nutzern entrichteten Abonnement-Gebühren (SaaS-Lizenzgebühren). Die Betreiberin erhält zu keinem Zeitpunkt Affiliate-Provisionen, Kick-backs, Cost-per-Lead-Vergütungen oder sonstige erfolgsbasierte Zahlungen von Dritten für den Abschluss von Kreditkartenverträgen. Etwaige auf der Plattform erwähnte Anbieter oder Finanzprodukte dienen ausschließlich Informations- und Bildungszwecken auf Basis neutraler Algorithmen.</p>
+                    <h3 className="font-semibold mb-2">3. Partnerbank und Vergütung:</h3>
+                    <p className="text-sm">FIAON finanziert sich über die Preise, die Nutzer für Pakete und Zusatzleistungen zahlen, und über die Vergütung seiner Partnerbank: Eröffnet ein Kunde über den Antragslink, den er von FIAON erhält, ein Konto bei der Partnerbank, erhält FIAON dafür eine Vergütung. Für den Kunden entstehen dadurch keine Kosten, und der Preis seines Pakets hängt davon nicht ab. Über Konto und Karte entscheidet allein die Bank. Andere auf der Plattform genannte Anbieter und Finanzprodukte nennt FIAON nur zur Information; von ihnen erhält FIAON keine Vergütung.</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">4. Eigenverantwortlichkeit des Nutzers:</h3>
@@ -202,10 +206,8 @@ export default function ImpressumPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Streitbeilegung</h2>
                 <div className="space-y-4 text-gray-700">
-                  <div>
-                    <h3 className="font-semibold mb-2">EU-Streitschlichtung</h3>
-                    <p className="text-sm">Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit, die Sie unter <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">https://ec.europa.eu/consumers/odr/</a> finden. Unsere E-Mail-Adresse finden Sie oben im Impressum.</p>
-                  </div>
+                  {/* E-283 (05.10.2026): Der Absatz „EU-Streitschlichtung" mit Link auf die OS-Plattform ist weg — die
+                      Plattform der EU ist seit dem 20.07.2025 abgeschaltet (wie AGB § 12). */}
                   <div>
                     <h3 className="font-semibold mb-2">Verbraucherstreitbeilegung / Universalschlichtungsstelle</h3>
                     <p className="text-sm">Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
@@ -291,8 +293,8 @@ export default function ImpressumPage() {
                     <p className="text-sm">The operator is not a credit institution or financial services institution within the meaning of the German Banking Act (Kreditwesengesetz, KWG) and is not subject to supervision by the German Federal Financial Supervisory Authority (BaFin) or the UK Financial Conduct Authority (FCA). The platform does not issue credit cards, does not grant loans and does not conduct banking business of any kind.</p>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">3. Independence & remuneration:</h3>
-                    <p className="text-sm">FIAON is fully independent of banks, credit bureaus, credit card issuers and payment service providers. The platform is financed exclusively through the subscription fees (SaaS licence fees) paid by its users. The operator does not, at any time, receive affiliate commissions, kick-backs, cost-per-lead remuneration or any other success-based payments from third parties for the conclusion of credit card contracts. Any providers or financial products mentioned on the platform serve exclusively informational and educational purposes based on neutral algorithms.</p>
+                    <h3 className="font-semibold mb-2">3. Partner bank and remuneration:</h3>
+                    <p className="text-sm">FIAON is funded by the prices users pay for packages and additional services, and by the remuneration from its partner bank: if a customer opens an account with the partner bank via the application link they receive from FIAON, FIAON receives a fee for it. This costs the customer nothing, and the price of their package does not depend on it. Decisions on the account and the card rest solely with the bank. Other providers and financial products mentioned on the platform are named for information only; FIAON receives no remuneration from them.</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">4. User's own responsibility:</h3>
@@ -312,10 +314,6 @@ export default function ImpressumPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Dispute Resolution</h2>
                 <div className="space-y-4 text-gray-700">
-                  <div>
-                    <h3 className="font-semibold mb-2">EU Online Dispute Resolution</h3>
-                    <p className="text-sm">The European Commission provides a platform for online dispute resolution (ODR), which you can find at <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">https://ec.europa.eu/consumers/odr/</a>. Our e-mail address can be found above in this legal notice.</p>
-                  </div>
                   <div>
                     <h3 className="font-semibold mb-2">Consumer dispute resolution</h3>
                     <p className="text-sm">We are neither willing nor obliged to participate in dispute resolution proceedings before a consumer arbitration board.</p>

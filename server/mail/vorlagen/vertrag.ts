@@ -14,6 +14,10 @@
 // · Die AGB stehen NICHT im Anhang (es gibt im Haus keine druckbare Fassung,
 //   nur die Seite fiaon.com/agb). Der Vertrag sagt in Anlage 3, dass sie der
 //   Bestätigungsmail als Link beiliegen — genau das tut Absatz 2.
+// · Seit 05.10.2026 (E-283) führt der Link auf die Fassung DIESES Vertrags
+//   (fiaon.com/agb/<agb_fassung der Annahme>), nicht auf die jeweils neueste:
+//   Wer die Mail in einem Jahr öffnet, liest die Bedingungen, die er angenommen
+//   hat. Die Adresse baut agbAdresse (shared/fiaon-vertrag-paket.ts).
 // · Der Beginn hängt am Wunsch nach sofortigem Beginn (Vertrag § 6). Mit ihm
 //   beginnt alles mit der ersten Rate, und bei einem Widerruf ist Wertersatz
 //   fällig. Ohne ihn öffnet sich das Konto (Kundenbereich) zwar mit der ersten
@@ -44,7 +48,7 @@ export const VERTRAG_VORLAGEN: Record<string, MailBaustein> = {
     marke: "Vertragspost",
     absaetze: [
       "{{params.anrede_zeile}}, vielen Dank für Ihr Vertrauen. Hiermit bestätigen wir Ihren Vertrag über <b>{{params.paket}}</b>, den Sie am {{params.angenommen_datum}} um {{params.angenommen_uhrzeit}} Uhr angenommen haben.",
-      "Im Anhang finden Sie Ihren Vertrag mit Leistungsbeschreibung, der Widerrufsbelehrung und dem Muster-Widerrufsformular. Ergänzend gelten unsere Allgemeinen Geschäftsbedingungen in der Fassung vom {{params.agb_fassung_text}}; Sie können sie unter <a href=\"https://fiaon.com/agb\" style=\"color:#1d4ed8;\">fiaon.com/agb</a> jederzeit abrufen und speichern.",
+      "Im Anhang finden Sie Ihren Vertrag mit Leistungsbeschreibung, der Widerrufsbelehrung und dem Muster-Widerrufsformular. Ergänzend gelten unsere Allgemeinen Geschäftsbedingungen in der Fassung vom {{params.agb_fassung_text}}; Sie können sie unter <a href=\"https://{{params.agb_adresse}}\" style=\"color:#1d4ed8;\">{{params.agb_adresse}}</a> jederzeit abrufen und speichern.",
       "Sie können den Vertrag binnen 14 Tagen ohne Angabe von Gründen widerrufen – eine E-Mail an {{params.widerruf_email}} genügt. Die Einzelheiten stehen in der Widerrufsbelehrung im Anhang.",
       "{{params.beginn_satz}} Die Zahlungsdaten erhalten Sie in einer separaten E-Mail.",
     ],

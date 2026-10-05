@@ -14,6 +14,7 @@ import { Phone, Users, FileText, ClipboardList, BookOpen, Headset, ShieldCheck, 
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import { api } from "./shared";
 import "@/styles/agent-anmeldung.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 const BEREICHE = [
   { Icon: Phone, titel: "Vertrieb", text: "Leads, Rückrufe, Gesprächsleitfaden und Abschluss in einem Bildschirm. Jeder Anruf läuft über das Softphone im Browser – mit Aufzeichnung." },
@@ -79,7 +80,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
   if (gesperrt?.gekuendigt) return (
     <div className="aa aa-umbau">
       <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>
-      <header className="aa-kopf"><a href="/" className="aa-wort">FIAON</a><span className="aa-marke">Mitarbeiterbereich</span></header>
+      <header className="aa-kopf"><a href="/" className="aa-wort"><FiaonWortmarke /></a><span className="aa-marke">Mitarbeiterbereich</span></header>
       <section className="aa-umbau-buehne">
         <div className="aa-kugel" aria-hidden="true"><NeuralSphere variant="calm" className="absolute inset-0" /></div>
         <span className="aa-pille">Zugang beendet · {uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</span>
@@ -92,7 +93,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
   if (gesperrt) return (
     <div className="aa aa-umbau">
       <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>
-      <header className="aa-kopf"><a href="/" className="aa-wort">FIAON</a><span className="aa-marke">Mitarbeiterbereich</span></header>
+      <header className="aa-kopf"><a href="/" className="aa-wort"><FiaonWortmarke /></a><span className="aa-marke">Mitarbeiterbereich</span></header>
       <section className="aa-umbau-buehne">
         <div className="aa-kugel" aria-hidden="true"><NeuralSphere variant="calm" className="absolute inset-0" /></div>
         <span className="aa-pille">Zugang gesperrt · {uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</span>
@@ -106,7 +107,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
   if (umbau) return (
     <div className="aa aa-umbau">
       <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>
-      <header className="aa-kopf"><a href="/" className="aa-wort">FIAON</a><span className="aa-marke">Mitarbeiterbereich</span></header>
+      <header className="aa-kopf"><a href="/" className="aa-wort"><FiaonWortmarke /></a><span className="aa-marke">Mitarbeiterbereich</span></header>
       <section className="aa-umbau-buehne">
         <div className="aa-kugel" aria-hidden="true"><NeuralSphere variant="calm" className="absolute inset-0" /></div>
         <span className="aa-pille">Großes Update · {uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} Uhr</span>
@@ -123,7 +124,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
       <div className="aa-bild" aria-hidden="true"><img src="/kino/cockpit.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="aa-schleier" /></div>
 
       <header className="aa-kopf">
-        <a href="/" className="aa-wort">FIAON</a>
+        <a href="/" className="aa-wort"><FiaonWortmarke /></a>
         <span className="aa-marke">Mitarbeiterbereich</span>
         <nav className="aa-kopf-links"><a href="/karriere">Zugang beantragen</a><a href="/">Zur Website</a></nav>
       </header>

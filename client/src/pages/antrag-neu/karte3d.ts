@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { markeAufCanvas } from "@/components/marke/marke-canvas";
 
 /*
   Die 3D-Karte des neuen Antrags (/antrag-neu).
@@ -214,7 +215,7 @@ export class KartenBuehne {
     const c = k.fc.getContext("2d")!, w = 1024, h = 646, L = k.P.look;
     c.clearRect(0, 0, w, h); this.grund(c, L, w, h);
     c.fillStyle = L.gravur; c.textBaseline = "alphabetic"; c.textAlign = "left";
-    c.font = "300 44px Inter, system-ui, sans-serif"; spaced(c, "FIAON", 70, 104, 14);
+    markeAufCanvas(c, 70, 66, 40, L.gravur);
     c.font = "500 22px Inter, system-ui, sans-serif"; c.globalAlpha = 0.72; spaced(c, k.P.label, w - 70, 100, 7, true); c.globalAlpha = 1;
     this.chip(c, 70, 232, !!L.champagner);
     c.strokeStyle = L.gravur; c.lineWidth = 4; c.globalAlpha = 0.75;
@@ -256,7 +257,7 @@ export class KartenBuehne {
       c.restore();
     }
     if (this.stempelText) { c.fillStyle = L.gravur; c.font = "300 26px Inter, system-ui, sans-serif"; c.fillText(this.stempelText, 70, 470); }
-    c.fillStyle = L.gravur; c.globalAlpha = 0.6; c.font = "300 34px Inter, system-ui, sans-serif"; spaced(c, "FIAON", w - 70, h - 70, 12, true); c.globalAlpha = 1;
+    c.globalAlpha = 0.6; markeAufCanvas(c, w - 70, h - 98, 30, L.gravur, { rechts: true }); c.globalAlpha = 1;
     k.bt.needsUpdate = true;
   }
 

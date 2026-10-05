@@ -22,11 +22,14 @@
          SVG zuerst: Es ist scharf auf jedem Bildschirm und trägt die
          Hell-/Dunkel-Umschaltung in sich. Das PNG ist der Rückfall für
          Browser ohne SVG-Favicon (Safari älter als 16). -->
-    <!-- Vorher: SVG-Wortmarke. Nachher (24.08., Justin): Higgsfield-Icon (Glas-F mit Ring) als PNG-Satz. -->
-    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
+    <!-- Vorher: SVG-Wortmarke, dann (24.08., Justin) Higgsfield-Icon (Glas-F mit Ring) als PNG-Satz.
+         Seit 05.10.2026 (E-286): Monogramm „F“ der neuen Wortmarke A „Editorial“, weiß auf Navy.
+         Gebaut mit scripts/marke-bilder.ts; ?v=2, damit Browser das alte Zeichen nicht aus dem Speicher zeigen. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png?v=2" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
+    <link rel="manifest" href="/site.webmanifest?v=2" />
     <meta name="theme-color" content="#0A1A3C" />
 
     <!-- Primary Meta Tags -->
@@ -45,8 +48,8 @@
     <meta property="og:description" content="Ihre Bonitätsauskunft in Menschensprache, Schreiben an Gläubiger und Auskunfteien, Girokonto und Kreditkarte. Deutschland, Österreich, Schweiz." />
     <meta property="og:site_name" content="FIAON" />
     <meta property="og:locale" content="de_DE" />
-    <meta property="og:image" content="https://fiaon.com/og-fiaon.jpg" />
-    <meta property="og:image:secure_url" content="https://fiaon.com/og-fiaon.jpg" />
+    <meta property="og:image" content="https://fiaon.com/og-fiaon.jpg?v=2" />
+    <meta property="og:image:secure_url" content="https://fiaon.com/og-fiaon.jpg?v=2" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -54,7 +57,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="FIAON – Das Betriebssystem für Bonität" />
     <meta name="twitter:description" content="Ihre Bonitätsauskunft in Menschensprache, Schreiben an Gläubiger und Auskunfteien, Girokonto und Kreditkarte. Deutschland, Österreich, Schweiz." />
-    <meta name="twitter:image" content="https://fiaon.com/og-fiaon.jpg" />
+    <meta name="twitter:image" content="https://fiaon.com/og-fiaon.jpg?v=2" />
     
     <meta name="msapplication-TileColor" content="#0A1A3C" />
     
@@ -146,8 +149,15 @@
       .vorab-hell main h1,.vorab-hell main h2{font-family:Newsreader,"Iowan Old Style",Georgia,serif;font-weight:300;letter-spacing:-.012em}
       .vorab-hell header strong{font-size:19px;letter-spacing:-.01em}
     </style>
+    <!-- ── DIE STARTBÜHNE (E-287, 05.10.2026, Justin: „die ersten Sekunden so komisch … das soll nie passieren“) ──
+         Über dem Vorab-Korpus steht ab dem ersten Byte der Ladebildschirm (Weltkugel + Wortmarke, die sich füllt).
+         Stil und Markup kommen aus shared/fiaon-startbuehne.ts (vite.config.ts setzt sie hier ein); der Korpus
+         darunter bleibt unverändert für Suchmaschinen. App.tsx (StartbuehneWeg) nimmt die Bühne weg, sobald die
+         erste Seite steht. -->
+    <!--FIAON-BUEHNE-STIL-->
   </head>
   <body>
+    <!--FIAON-STARTBUEHNE-->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

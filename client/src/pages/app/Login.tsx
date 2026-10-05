@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
 import "@/styles/app.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 type Problem = { code?: string; error: string; hint?: string; action?: string; actionHref?: string; retryable?: boolean };
 
@@ -67,8 +68,8 @@ export default function AppLogin() {
     <div className="ap-root ap-login">
       <header className="ap-login-kopf">
         <a className="ap-marke" href="/" aria-label="FIAON Startseite">
-          <span className="ap-marke-zeichen">F</span>
-          <span className="ap-marke-wort">FIAON</span>
+          <span className="ap-marke-zeichen"><FiaonWortmarke variante="f" dekorativ /></span>
+          <span className="ap-marke-wort"><FiaonWortmarke dekorativ /></span>
         </a>
         <a className="ap-link" href="/antrag" style={{ fontSize: 14 }}>Noch kein Zugang?</a>
       </header>

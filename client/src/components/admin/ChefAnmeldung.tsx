@@ -14,6 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import "@/styles/chefbuero.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 export interface ChefStatus { stufe: string; name: string | null; titel: string | null; quelle: "chef" | "alt"; gratulation?: { titel: string; mal: number } | null }
 
@@ -79,7 +80,7 @@ export default function ChefAnmeldung({ onAngemeldet }: { onAngemeldet: (status:
   return (
     <div className="cb-anmeldung">
       <div className="cb-anmeldung-karte" role="dialog" aria-label="Anmeldung Chefbüro">
-        <p className="cb-anmeldung-marke">FIAON</p>
+        <p className="cb-anmeldung-marke"><FiaonWortmarke /></p>
         <p className="cb-anmeldung-unter">Chefbüro</p>
         <p className="cb-anmeldung-satz">
           {pruefeStatus

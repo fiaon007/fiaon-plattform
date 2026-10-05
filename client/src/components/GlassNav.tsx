@@ -7,6 +7,7 @@ import { useSprache, inSprache } from "@/i18n/sprache";
 import { globalMenue } from "@shared/fiaon-global-menue";
 import GlobalNav from "@/components/site/GlobalNav";
 import { useBusinessBereich } from "@/lib/bereich";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 interface GlassNavProps {
   /** Erzwingt den Rahmen von FIAON Global — z. B. die Zahlungsseite eines Firmenauftrags ohne ?bereich=business. */
@@ -28,6 +29,17 @@ export default function GlassNav(props: GlassNavProps) {
 function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mob, setMob] = useState(false);
+  // Schließen läuft als kurze Rückwärts-Animation, erst danach verschwindet das Menü (E-289).
+  const [mobZu, setMobZu] = useState(false);
+  const menueZu = () => { setMobZu(true); window.setTimeout(() => { setMob(false); setMobZu(false); }, 220); };
+  useEffect(() => {
+    if (!mob) return;
+    const vorher = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const taste = (e: KeyboardEvent) => { if (e.key === "Escape") menueZu(); };
+    window.addEventListener("keydown", taste);
+    return () => { document.body.style.overflow = vorher; window.removeEventListener("keydown", taste); };
+  }, [mob]);
   const [showModal, setShowModal] = useState(false);
   // Mega-Menü am Rechner: öffnet beim Überfahren der Leiste, schließt mit kurzer Verzögerung
   const [mega, setMega] = useState(false);
@@ -87,6 +99,77 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
     { label: "Privatkunden", href: "/privatkunden", key: "privatkunden" },
     { label: "Business", href: "/business", key: "business" },
   ];
+  // ── Das Handy-Menü in fünf Gruppen (E-289) ─────────────────────────────────
+  // „gross“ = die zwei Wege mit Zweitzeile (Privatkunden, dann Unternehmen), „kompakt“ = Kacheln.
+  // `start` ist der Versatz der Einblend-Animation (Zeile für Zeile).
+  type MenueEintrag = { href: string; label: string; text: string; key: string };
+  type MenueGruppe = { titel: string; zusatz?: string; art: "gross" | "kompakt"; eintraege: MenueEintrag[]; start: number };
+  const globalPunkte = (pfade: string[]): MenueEintrag[] => globalMenue().flatMap((m) => m.eintraege)
+    .filter((e) => pfade.includes(e.pfad)).sort((a, b) => pfade.indexOf(a.pfad) - pfade.indexOf(b.pfad))
+    .map((e) => ({ href: e.pfad, label: e.titel, text: e.text, key: e.pfad }));
+  const gruppenOhneStart: Omit<MenueGruppe, "start">[] = en ? [
+    { titel: "For individuals", art: "gross", eintraege: [
+      { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing", key: "privatkunden" },
+      { href: zu("/bonitaetsauskunft-beantragen"), label: "Credit report", text: "Your report, obtained and explained by FIAON", key: "bonitaetsauskunft" },
+      { href: zu("/werkzeuge/eintrag-pruefen"), label: "Check an entry", text: "Five questions — can your entry be challenged?", key: "werkzeuge" },
+    ] },
+    { titel: "For companies", zusatz: "FIAON Global", art: "gross", eintraege: [
+      { href: zu("/business"), label: "FIAON Global", text: "US company, banking and capital from one source", key: "business" },
+    ] },
+    { titel: "Learn", art: "kompakt", eintraege: [
+      { href: "/en", label: "Home", text: "", key: "startseite" },
+      { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "", key: "was-ist-fiaon" },
+      { href: zu("/ratgeber"), label: "Guides", text: "", key: "ratgeber" },
+      { href: zu("/kontakt"), label: "Contact & support", text: "", key: "kontakt" },
+    ] },
+    { titel: "About FIAON", art: "kompakt", eintraege: [
+      { href: zu("/team"), label: "Team", text: "", key: "team" },
+      { href: zu("/karriere"), label: "Careers", text: "", key: "karriere" },
+      { href: zu("/partner"), label: "Partners", text: "", key: "partner" },
+      { href: zu("/presse"), label: "Press", text: "", key: "presse" },
+      { href: "/investoren", label: "Investors", text: "", key: "investoren" },
+    ] },
+  ] : [
+    { titel: "Für Privatkunden", art: "gross", eintraege: [
+      { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
+      { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Erklärt, mit Handlungsplan – DE, AT, CH", key: "bonitaetsauskunft" },
+      { href: "/werkzeuge/eintrag-pruefen", label: "Eintrag prüfen", text: "Fünf Fragen – ist Ihr Eintrag angreifbar?", key: "werkzeuge" },
+      { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
+    ] },
+    { titel: "Für Unternehmen", zusatz: "FIAON Global", art: "gross", eintraege: [
+      { href: "/business", label: "Übersicht und Pakete", text: "US-Gesellschaft aus einer Hand, Festpreis", key: "business" },
+      ...globalPunkte(["/business/us-firmengruendung", "/business/firmenkarten-kapital", "/business/paket-finder"]),
+    ] },
+    { titel: "Verstehen", art: "kompakt", eintraege: [
+      { href: "/", label: "Startseite", text: "", key: "startseite" },
+      { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "", key: "was-ist-fiaon" },
+      { href: "/ratgeber", label: "Ratgeber", text: "", key: "ratgeber" },
+      { href: "/vergleich", label: "Vergleich", text: "", key: "vergleich" },
+    ] },
+    { titel: "Hilfe", art: "kompakt", eintraege: [
+      { href: "/hilfe", label: "Hilfe-Center", text: "", key: "hilfe" },
+      { href: "/kontakt", label: "Kontakt & Support", text: "", key: "kontakt" },
+      { href: "/status", label: "Status", text: "", key: "status" },
+      { href: "/transparenz", label: "Transparenz", text: "", key: "transparenz" },
+    ] },
+    { titel: "Über FIAON", art: "kompakt", eintraege: [
+      { href: "/ueber-uns", label: "Über uns", text: "", key: "ueber-uns" },
+      { href: "/team", label: "Team", text: "", key: "team" },
+      { href: "/karriere", label: "Karriere", text: "", key: "karriere" },
+      { href: "/partner", label: "Partner", text: "", key: "partner" },
+      { href: "/presse", label: "Presse", text: "", key: "presse" },
+      { href: "/investoren", label: "Investoren", text: "", key: "investoren" },
+    ] },
+  ];
+  // Wer von einer Business-Seite kommt, sieht FIAON Global zuerst.
+  const sortiert = activePage === "business" ? [gruppenOhneStart[1], gruppenOhneStart[0], ...gruppenOhneStart.slice(2)] : gruppenOhneStart;
+  let zeile = 1;
+  const menueGruppen: MenueGruppe[] = sortiert.map((g) => {
+    const start = zeile;
+    zeile += 1 + (g.art === "gross" ? g.eintraege.length : Math.ceil(g.eintraege.length / 2));
+    return { ...g, start };
+  });
+
   /** Der Umschalter: ein Glas-Chip „DE | EN" — rechts neben dem Login, am Handy die erste Zeile. */
   const SprachChip = ({ breit = false }: { breit?: boolean }) => (
     <a href={andereSprache} hrefLang={en ? "de" : "en"} lang={en ? "de" : "en"} title={ui.zurAnderenSprache} aria-label={ui.zurAnderenSprache}
@@ -106,7 +189,8 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
       <nav
         className="fixed top-0 inset-x-0 z-50 transition-all duration-500"
       >
-        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-3">
+        {/* z-[45]: Die Leiste mit dem Schließen-Kreuz liegt über dem Schleier des Handy-Menüs (z-40). */}
+        <div className="relative z-[45] max-w-[1000px] mx-auto px-4 sm:px-6 py-3">
           {/* Glass pill container */}
           <div
             ref={leisteRef}
@@ -119,7 +203,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
             <div className="relative z-10 h-[72px] px-5 flex items-center justify-between gap-4">
               {/* Logo */}
               <a href={en ? "/en" : "/"} className="flex items-center shrink-0">
-                <span className="text-xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
+                <FiaonWortmarke className="text-[18px] sm:text-xl" farbe={MARKE_NAVY} />
               </a>
 
               {/* Desktop: Links in der Mitte — das volle Menü öffnet sich beim Überfahren der Leiste */}
@@ -159,32 +243,13 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
 
               {/* Mobile hamburger */}
               <button
-                className="lg:hidden p-1"
-                onClick={() => setMob(!mob)}
+                type="button"
+                className={`nav-burger lg:hidden${mob && !mobZu ? " auf" : ""}`}
+                onClick={() => (mob ? menueZu() : setMob(true))}
                 aria-label={mob ? ui.menueZu : ui.menueAuf}
+                aria-expanded={mob}
               >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#1f2937"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  {mob ? (
-                    <>
-                      <path d="M18 6L6 18" />
-                      <path d="M6 6l12 12" />
-                    </>
-                  ) : (
-                    <>
-                      <path d="M4 7h16" />
-                      <path d="M4 12h16" />
-                      <path d="M4 17h16" />
-                    </>
-                  )}
-                </svg>
+                <i /><i /><i />
               </button>
             </div>
           </div>
@@ -284,107 +349,54 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
           )}
         </div>
 
-        {/* ── Handy-Menü (neu 22.08.2026): dunkle Glasbühne statt leerer weißer Fläche.
-            Zwei Gruppen (Für Kunden · Unternehmen), jede Zeile mit Zweitzeile,
-            darunter die beiden Knöpfe und die Vertrauenszeile. Gleiche Sprache wie die Website. */}
+        {/* ── Handy-Menü (E-289, 05.10.2026; Justin: „sinnvoller sortieren, Business zur Ergänzung,
+            Animation beim Öffnen, transparenter“). Vorher: zwei lange Listen mit 19 Zeilen, Business mitten
+            unter den Privatkunden-Themen und ein zweites Mal ganz unten. Jetzt: zuerst die zwei Wege
+            (Privatkunden, dann Unternehmen · FIAON Global) groß mit Zweitzeile, darunter Wissen, Hilfe und
+            Über FIAON als ruhige Kacheln. Die Karte wächst aus dem Menüknopf auf, die Zeilen folgen versetzt,
+            Schließen läuft rückwärts. Klareres Glas, die Seite schimmert durch. */}
         {mob && (
-          <div className="lg:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .22s ease both" }}>
-            {/* Leichter Schleier — tippen daneben schließt */}
-            <button type="button" aria-label={ui.menueZu} onClick={() => setMob(false)} className="absolute inset-0 w-full h-full"
-                    style={{ background: "rgba(10,22,40,.28)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }} />
-            {/* Die schwebende Karte unter der Kopfzeile: helles Glas, dunkle Schrift */}
-            <div className="absolute left-3 right-3 top-[82px] rounded-[26px] overflow-hidden flex flex-col"
-                 style={{ maxHeight: "calc(100dvh - 100px)", background: "rgba(255,255,255,.86)", border: "1px solid rgba(255,255,255,.9)",
-                          boxShadow: "0 30px 80px rgba(15,23,42,.28), inset 0 1px 0 #fff", backdropFilter: "blur(28px) saturate(160%)", WebkitBackdropFilter: "blur(28px) saturate(160%)",
-                          animation: "mobItemIn .45s cubic-bezier(.22,1,.36,1) both" }}>
-              <div className="overflow-y-auto px-4 pt-4 pb-3">
+          <div className={`mm lg:hidden${mobZu ? " zu" : ""}`}>
+            <button type="button" aria-label={ui.menueZu} onClick={menueZu} className="mm-schleier" />
+            <div className="mm-karte" role="dialog" aria-modal="true" aria-label={en ? "Menu" : "Menü"}>
+              <div className="mm-rolle">
                 {/* Die Sprache steht ganz oben — nie verdeckt, nie abgeschnitten (Justin, 02.09.2026). */}
-                <div className="flex items-center justify-between px-2 pb-3 mb-1" style={{ borderBottom: "1px solid rgba(15,23,42,.06)" }}>
-                  <span className="text-[10.5px] uppercase tracking-[.2em]" style={{ color: "#2563eb" }}>{ui.sprache}</span>
+                <div className="mm-sprache mm-zeile" style={{ ["--i" as string]: 0 }}>
+                  <span>{ui.sprache}</span>
                   <SprachChip breit />
                 </div>
-                {(en ? [
-                  { titel: "For customers", eintraege: [
-                    { href: "/en", label: "Home", text: "Insight · Action · Access", key: "startseite" },
-                    { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "The platform in three layers", key: "was-ist-fiaon" },
-                    { href: zu("/ratgeber"), label: "Guides", text: "Entries, reports, cards — explained honestly", key: "ratgeber" },
-                    { href: zu("/werkzeuge/eintrag-pruefen"), label: "Check an entry", text: "Five questions — can your entry be challenged?", key: "werkzeuge" },
-                    { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing", key: "privatkunden" },
-                    { href: zu("/bonitaetsauskunft-beantragen"), label: "Credit report", text: "Your report, obtained by FIAON", key: "bonitaetsauskunft" },
-                    { href: zu("/business"), label: "Business", text: "FIAON Global: US company, banking, capital", key: "business" },
-                  ] },
-                  { titel: "Company", eintraege: [
-                    { href: zu("/team"), label: "Team", text: "Who builds FIAON", key: "team" },
-                    { href: zu("/karriere"), label: "Careers", text: "Employed or freelance, remote across DACH", key: "karriere" },
-                    { href: zu("/partner"), label: "Partners", text: "Banks, credit bureaus, intermediaries", key: "partner" },
-                    { href: zu("/presse"), label: "Press", text: "Facts, figures, contacts", key: "presse" },
-                    { href: "/investoren", label: "Investors", text: "The model, the data room", key: "investoren" },
-                    { href: zu("/kontakt"), label: "Contact & support", text: "Phone, e-mail, assistant, urgent matters", key: "kontakt" },
-                  ] },
-                ] : [
-                  { titel: "Für Kunden", eintraege: [
-                    { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang", key: "startseite" },
-                    { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Plattform in drei Schichten", key: "was-ist-fiaon" },
-                    { href: "/ratgeber", label: "Ratgeber", text: "Einträge, Auskunft, Karte – ehrlich erklärt", key: "ratgeber" },
-                    { href: "/werkzeuge/eintrag-pruefen", label: "Eintrag prüfen", text: "Fünf Fragen – ist Ihr Eintrag angreifbar?", key: "werkzeuge" },
-                    { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
-                    { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Erklärt, mit Handlungsplan – DE, AT, CH", key: "bonitaetsauskunft" },
-                    { href: "/business", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital", key: "business" },
-                    { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
-                    { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft", key: "hilfe" },
-                    { href: "/vergleich", label: "Vergleich", text: "Anwalt, App, selbst – oder FIAON?", key: "vergleich" },
-                  ] },
-                  { titel: "Unternehmen", eintraege: [
-                    { href: "/team", label: "Team", text: "Wer FIAON baut", key: "team" },
-                    { href: "/karriere", label: "Karriere", text: "Fest oder frei, remote in DACH", key: "karriere" },
-                    { href: "/partner", label: "Partner", text: "Banken, Auskunfteien, Vermittler", key: "partner" },
-                    { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner", key: "presse" },
-                    { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum", key: "investoren" },
-                    { href: "/kontakt", label: "Kontakt & Support", text: "Telefon, E-Mail, Assistent, Dringend melden", key: "kontakt" },
-                    { href: "/ueber-uns", label: "Über FIAON", text: "Geschichte, Meilensteine, Haltung", key: "ueber-uns" },
-                    { href: "/transparenz", label: "Transparenzbericht", text: "Zahlen mit Definition und Stand", key: "transparenz" },
-                    { href: "/status", label: "Status", text: "Läuft FIAON gerade? Live geprüft", key: "status" },
-                  ] },
-                ]).reduce((liste, g) => {
-                  // 19.09.2026 (E-191): FIAON Global als eigene Gruppe — auf den Business-Seiten zuerst.
-                  if (en || liste.some((x) => x.titel === "FIAON Global")) return [...liste, g];
-                  const global = { titel: "FIAON Global", eintraege: [
-                    { href: "/business", label: "Übersicht und Pakete", text: "US-Gesellschaft aus einer Hand, Festpreis", key: "business" },
-                    ...globalMenue().flatMap((m) => m.eintraege).filter((e) => ["/business/us-firmengruendung", "/business/ein-itin", "/business/firmenkarten-kapital", "/business/privatpersonen", "/business/kosten", "/business/paket-finder", "/business/wissen", "/business/fragen"].includes(e.pfad))
-                      .map((e) => ({ href: e.pfad, label: e.titel, text: e.text, key: e.pfad })),
-                  ] };
-                  return activePage === "business" ? [global, ...liste, g] : [...liste, g, ...(liste.length === 1 ? [global] : [])];
-                }, [] as { titel: string; eintraege: { href: string; label: string; text: string; key: string }[] }[]).map((g, gi) => (
-                  <div key={g.titel} className={gi ? "mt-4" : ""} style={{ animation: `mobItemIn .45s cubic-bezier(.22,1,.36,1) ${0.06 + gi * 0.08}s both` }}>
-                    <p className="text-[10.5px] uppercase tracking-[.2em] mb-1.5 px-2" style={{ color: "#2563eb" }}>{g.titel}</p>
-                    <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.55)", border: "1px solid rgba(15,23,42,.06)" }}>
-                      {g.eintraege.map((e, i) => (
-                        <a key={e.href} href={e.href} onClick={() => setMob(false)}
-                           className="flex items-center justify-between gap-3 px-3.5 py-3 active:bg-blue-50"
-                           style={{ borderTop: i ? "1px solid rgba(15,23,42,.06)" : undefined, background: activePage === e.key ? "rgba(37,99,235,.08)" : undefined }}>
-                          <span className="min-w-0">
-                            <span className="block text-[15px]" style={{ fontWeight: 400, color: "#0f172a" }}>{e.label}</span>
-                            <span className="block text-[11.5px] mt-0.5" style={{ color: "#64748b" }}>{e.text}</span>
-                          </span>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round" className="shrink-0"><path d="M9 18l6-6-6-6" /></svg>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
+                {menueGruppen.map((g) => (
+                  <section key={g.titel} className="mm-gruppe">
+                    <p className="mm-titel mm-zeile" style={{ ["--i" as string]: g.start }}>
+                      {g.titel}{g.zusatz && <span className="mm-zusatz">{g.zusatz}</span>}
+                    </p>
+                    {g.art === "gross" ? (
+                      <div className="mm-liste">
+                        {g.eintraege.map((e, i) => (
+                          <a key={e.href} href={e.href} onClick={() => setMob(false)} className={`mm-weg mm-zeile${activePage === e.key ? " aktiv" : ""}`}
+                             style={{ ["--i" as string]: g.start + 1 + i }} aria-current={activePage === e.key ? "page" : undefined}>
+                            <span className="min-w-0"><b>{e.label}</b><small>{e.text}</small></span>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mm-kacheln">
+                        {g.eintraege.map((e, i) => (
+                          <a key={e.href} href={e.href} onClick={() => setMob(false)} className={`mm-kachel mm-zeile${activePage === e.key ? " aktiv" : ""}`}
+                             style={{ ["--i" as string]: g.start + 1 + Math.floor(i / 2) }} aria-current={activePage === e.key ? "page" : undefined}>{e.label}</a>
+                        ))}
+                      </div>
+                    )}
+                  </section>
                 ))}
               </div>
-              <div className="px-4 pb-4 pt-2 flex gap-2.5" style={{ borderTop: "1px solid rgba(15,23,42,.06)", animation: "mobItemIn .45s cubic-bezier(.22,1,.36,1) .22s both" }}>
-                <button onClick={handleAntragClick}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[14.5px] text-white active:scale-[.98] transition-transform"
-                        style={{ fontWeight: 400, background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 10px 24px rgba(37,99,235,.3), inset 0 1px 0 rgba(255,255,255,.25)" }}>
+              <div className="mm-fuss">
+                <button onClick={(e) => { setMob(false); handleAntragClick(e); }} className="mm-knopf haupt">
                   {ui.kontoEroeffnen}
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </button>
-                <a href={eingeloggt ? "/dashboard" : "/login"}
-                   className="flex-1 flex items-center justify-center py-3 rounded-full text-[14.5px] active:scale-[.98] transition-transform"
-                   style={{ fontWeight: 400, color: "#1d4ed8", background: "#fff", border: "1px solid rgba(37,99,235,.35)" }}>
-                  {eingeloggt ? ui.meinBereich : ui.login}
-                </a>
+                <a href={eingeloggt ? "/dashboard" : "/login"} className="mm-knopf">{eingeloggt ? ui.meinBereich : ui.login}</a>
               </div>
             </div>
           </div>

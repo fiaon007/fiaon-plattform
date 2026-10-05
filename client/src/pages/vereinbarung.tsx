@@ -25,6 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import "@/styles/vereinbarung.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 const API = "/api/fiaon";
 
@@ -149,7 +150,7 @@ export default function VereinbarungSeite(): JSX.Element {
     return (
       <main className="vb-tor">
         <div className="vb-tor-karte">
-          <p className="vb-marke">FIAON</p>
+          <p className="vb-marke"><FiaonWortmarke /></p>
           <p className="vb-tor-art">Vertrauliches Dokument</p>
           <h1>Zusatzvereinbarung zum Vertriebspartnervertrag</h1>
           <p className="vb-tor-satz">
@@ -182,7 +183,7 @@ export default function VereinbarungSeite(): JSX.Element {
       <div className="vb-blatt">
 
         <header className="vb-band">
-          <p className="vb-marke">FIAON</p>
+          <p className="vb-marke"><FiaonWortmarke /></p>
           <p className="vb-art">Zusatzvereinbarung zum Vertriebspartnervertrag</p>
           <h1>Leistungsvereinbarung und garantierte Monatsprovision</h1>
           <p className="vb-kennung">

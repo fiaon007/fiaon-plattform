@@ -3,6 +3,7 @@ import GlassNav from "@/components/GlassNav";
 import { PAKETE, paket as paketVon } from "@shared/fiaon-pakete";
 const preisText = (key: string) => ((paketVon(key)?.preisCents ?? 0) / 100).toFixed(2).replace(".", ",");
 import PremiumFooter from "@/components/PremiumFooter";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 /* ── scroll reveal ── */
 function useReveal(t = 0.12) {
@@ -102,7 +103,7 @@ function Card({ bg, lim, label, className = "", size = "normal" }: { bg: string;
         <div className={`absolute inset-0 p-5 sm:p-6 flex flex-col justify-between z-10`}>
           <div className="flex justify-between items-start">
             <div className={`rounded ${isHero ? "w-12 h-9" : "w-10 h-7"}`} style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }} />
-            <span className="text-sm font-semibold tracking-wide" style={{ color: "rgba(255,255,255,.65)" }}>FIAON</span>
+            <FiaonWortmarke className="text-sm" farbe="rgba(255,255,255,.72)" />
           </div>
           <div>
             <div className={`text-[8px] uppercase tracking-[.14em] font-medium mb-0.5`} style={{ color: "rgba(255,255,255,.35)" }}>{label || ""}</div>

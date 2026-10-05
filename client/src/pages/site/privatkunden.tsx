@@ -21,6 +21,7 @@ import KartenSzene from "@/components/home3d/KartenSzene";
 import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 import { betrag, landLesen, type Land } from "@/lib/fiaon-land";
 import "@/styles/privatkunden.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 // Die Pakete: Schlüssel, Ziel-Rahmen, Farbe — Name, Untertitel und Merkmale
 // stehen im Wörterbuch unter demselben Schlüssel. 05.10.2026, E-283: im
@@ -128,7 +129,7 @@ export default function Privatkunden() {
                   <button type="button" className="pk-paket" data-top={p.rec ? "1" : undefined} onClick={() => start(p.key)} aria-label={t.waehlenUndStarten(w.name)}>
                     {p.rec && <span className="band">{t.beliebt}</span>}
                     <div className={`pk-karte pk-karte-${p.key}`} style={{ background: p.bg }} aria-hidden="true">
-                      <span className="pk-karte-wort">FIAON</span>
+                      <span className="pk-karte-wort"><FiaonWortmarke /></span>
                       <Kontaktlos />
                       <span className="pk-karte-chip" />
                       <span className="pk-karte-inhaber">{t.karteName}</span>

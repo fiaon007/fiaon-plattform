@@ -35,6 +35,7 @@ import { api } from "./api";
 import {
   datenAus, dauerhafteRef, euro, kartenName, paket, paketIndex, ruhigSystem, zustandLaden, zustandMerken, zustandVergessen, type Zustand,
 } from "./zustand";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 /** Das Aussehen der vier Karten (aus dem Prototyp). */
 const LOOK: Record<string, KartenLook> = {
@@ -554,7 +555,7 @@ export default function AntragNeuSeite() {
               <canvas className="an-leinwand" ref={leinwandRef} aria-hidden="true" />
               <div className="an-css-karte" aria-hidden="true"
                 style={{ background: `linear-gradient(135deg,${cssLook.g1},${cssLook.g2})`, filter: (jetzt === "zahlung" || jetzt === "danke") && !S.bezahlt ? "grayscale(.8)" : "none" }}>
-                <b>FIAON</b>
+                <b><FiaonWortmarke /></b>
                 <i style={{ position: "absolute", right: 18, top: 16, fontStyle: "normal", fontSize: ".625rem", letterSpacing: ".2em", opacity: 0.75 }}>{(jetzt === "paket" ? deckP : P).kartenLabel}</i>
                 <span>{kartenName(S) || "Ihr Name"}</span>
               </div>

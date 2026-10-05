@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
 import { KeyRound, Check } from "lucide-react";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PASSWORT FESTLEGEN ÜBER DEN SETZ-LINK (06.09.2026)
@@ -69,7 +70,7 @@ export default function ZugangSetzenPage() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8">
-        <p className="text-lg font-bold tracking-tight mb-5 text-center" style={{ color: ACCENT }}>FIAON</p>
+        <p className="text-xl leading-none mb-5 text-center" style={{ color: MARKE_NAVY }}><FiaonWortmarke /></p>
         <span className="mx-auto flex w-12 h-12 rounded-full border border-slate-200 items-center justify-center text-slate-400 mb-4">
           {lage === "fertig" ? <Check size={20} strokeWidth={1.7} /> : <KeyRound size={20} strokeWidth={1.7} />}
         </span>

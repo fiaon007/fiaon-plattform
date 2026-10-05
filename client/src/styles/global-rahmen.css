@@ -32,10 +32,12 @@ html.fg-dokument #root { overflow-x:clip; }
 .gk-leiste { max-width:1248px; margin:0 auto; padding:0 24px; height:72px; display:flex; align-items:center; gap:24px; }
 
 .gk-marke { display:inline-flex; align-items:baseline; gap:8px; text-decoration:none; flex:0 0 auto; }
-.gk-marke b { font:600 19px/1 var(--gk-sans); letter-spacing:-.01em; color:var(--gk-tinte); }
-.gk-marke i { font:italic 400 18px/1 var(--gk-serif); color:var(--gk-navy); letter-spacing:-.005em; }
-.gk-marke.hell b { color:#fff; }
-.gk-marke.hell i { color:#b9c8e6; }
+.gk-marke { color:#0c1a2e; }
+/* Wortmarke „FIAON Global“ (E-286): Kopf 20 px, am Handy 18 px; Fuß 24 px, weiß. */
+.gk-marke svg { height:20px; display:block; }
+.gk-marke.hell { color:#fff; }
+.gk-marke.hell svg { height:24px; }
+@media (max-width:640px) { .gk-marke svg { height:18px; } .gk-marke.hell svg { height:22px; } }
 
 .gk-themen { flex:1; display:flex; justify-content:center; gap:2px; min-width:0; }
 .gk-thema { display:inline-flex; align-items:center; gap:6px; padding:10px 12px; border:0; border-radius:8px; background:none;

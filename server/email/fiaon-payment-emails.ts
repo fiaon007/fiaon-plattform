@@ -8,6 +8,7 @@
 import { sendEmail, type SendEmailResult } from "./mailer";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
+import { markeMailImg } from "@shared/fiaon-marke";
 
 // ── Bankverbindung (Vorkasse) ────────────────────────────────────────────────
 export const FIAON_BANK = {
@@ -61,7 +62,7 @@ function paymentDetailsHtml(o: PaymentOrderInfo): string {
 function wrap(inner: string): string {
   return `
   <div style="font-family:Inter,system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a;">
-    <p style="font-size:20px;font-weight:800;color:#2563eb;margin-bottom:24px;">FIAON</p>
+    <p style="margin:0 0 24px;line-height:0;">${markeMailImg("navy", 20)}</p>
     ${inner}
     <p style="font-size:12px;color:#94a3b8;margin-top:32px;border-top:1px solid #e2e8f0;padding-top:16px;">
       FIAON LTD · 128 City Road, London, EC1V 2NX, United Kingdom · Registered in England and Wales, Companies House No. 17318250 · Director: Justin Schwarzott · support@fiaon.com<br/>

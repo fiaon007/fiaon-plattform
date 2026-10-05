@@ -23,6 +23,7 @@ import "@/styles/office-space.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 // ── Datenformen (wie in space.tsx) ──────────────────────────────────────────
 interface Kommentar {
@@ -99,18 +100,11 @@ function istFrisch(iso: string): boolean {
   return !Number.isNaN(d) && Date.now() - d < 12 * 3600_000;
 }
 
-/** Der Systemavatar — FIAON selbst, dieselbe Kachel wie das Favicon. */
+/** Der Systemavatar — FIAON selbst, dieselbe Kachel wie das Favicon: das Monogramm „F“ (E-286). */
 function SystemAvatar({ size = 44 }: { size?: number }) {
   return (
     <span className="sp-systemavatar" style={{ width: size, height: size }} aria-label="FIAON">
-      <svg viewBox="0 0 64 64" width={size * 0.62} height={size * 0.62} aria-hidden="true">
-        <g fill="#fff">
-          <rect x="19" y="17" width="6.5" height="30" rx="3.25" />
-          <rect x="19" y="17" width="24" height="6.5" rx="3.25" />
-          <rect x="19" y="29" width="17" height="6.5" rx="3.25" />
-        </g>
-        <path d="M40 44 L50 34" stroke="#60a5fa" strokeWidth="5" strokeLinecap="round" />
-      </svg>
+      <FiaonWortmarke variante="f" dekorativ hoehe={Math.round(size * 0.5)} farbe="#ffffff" />
     </span>
   );
 }

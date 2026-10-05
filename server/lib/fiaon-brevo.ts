@@ -20,6 +20,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { brevoKlartext, brevoNichtEingerichtet, type BrevoKlartext } from "./fiaon-brevo-fehler";
+import { markeMailImg } from "@shared/fiaon-marke";
 
 const BASIS = "https://api.brevo.com/v3";
 
@@ -446,7 +447,7 @@ export function rahmen(betreff: string, text: string, gruppe = false, zusatz: Pi
          style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;
                 box-shadow:0 1px 3px rgba(15,23,42,.06);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
     <tr><td style="padding:28px 32px 0;">
-      <div style="font-size:19px;font-weight:800;letter-spacing:-.02em;color:#1d4ed8;">FIAON</div>
+      <div style="line-height:0;">${markeMailImg("navy", 20)}</div>
       <div style="height:1px;background:linear-gradient(90deg,rgba(29,78,216,.28),rgba(15,23,42,.06) 40%,transparent);margin:18px 0 24px;"></div>
     </td></tr>
     <tr><td style="padding:0 32px 28px;font-size:15px;color:#0f172a;">${html}</td></tr>

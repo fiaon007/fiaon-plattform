@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Auf, Glas } from "./DunkleBuehne";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { TEAM_WOERTER } from "@/i18n/team";
+import { portraitUrl, portraitAlt, portraitMitKi, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
 
 export const PERSONEN = [
   {
@@ -63,17 +64,22 @@ function Portrait({ kuerzel, name, gross = false }: { kuerzel: string; name: str
   const [fehlt, setFehlt] = useState(false);
   const initialen = name.split(" ").map((t) => t[0]).join("").slice(0, 2);
   const groesse = gross ? 168 : 104;
+  const sprache = useSprache() === "en" ? "en" : "de";
+  const ki = portraitMitKi(kuerzel);
   return (
+    <>
     <div className="tm-portrait" style={{ width: groesse, height: groesse, borderRadius: "50%", overflow: "hidden", flex: "0 0 auto", position: "relative",
                   background: "linear-gradient(135deg,rgba(37,99,235,.35),rgba(15,23,42,.6))", border: "1px solid rgba(255,255,255,.14)",
                   boxShadow: "0 20px 50px rgba(2,6,23,.45), inset 0 1px 0 rgba(255,255,255,.12)" }}>
       {!fehlt ? (
-        <img src={`/portraits/${kuerzel}.jpg`} alt={name} width={groesse} height={groesse} loading="lazy" decoding="async"
+        <img src={portraitUrl(kuerzel)} alt={portraitAlt(kuerzel, name, sprache)} title={ki ? KI_PORTRAIT_HINWEIS[sprache] : undefined} width={groesse} height={groesse} loading="lazy" decoding="async"
              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 18%", display: "block" }} onError={() => setFehlt(true)} />
       ) : (
         <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#bfdbfe", fontSize: gross ? 44 : 28, fontWeight: 300, letterSpacing: ".04em" }}>{initialen}</span>
       )}
     </div>
+    {ki && !fehlt && <span style={{ marginTop: 8, fontSize: 11, letterSpacing: ".02em", color: "#7c8798" }}>{KI_PORTRAIT_HINWEIS[sprache]}</span>}
+    </>
   );
 }
 

@@ -66,8 +66,7 @@
 @media (prefers-reduced-motion: reduce) { .vb-tor-karte { animation: none; } }
 
 .vb-marke {
-  font: 500 17px/1 var(--sans);
-  letter-spacing: .28em;
+  font-size: 19px; line-height: 1;
   color: #fff;
   margin: 0 0 24px;
 }

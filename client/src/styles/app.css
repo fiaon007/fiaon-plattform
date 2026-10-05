@@ -64,12 +64,12 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
 .ap-marke { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .ap-marke-zeichen {
   width: 30px; height: 30px; border-radius: 9px;
-  background: linear-gradient(145deg, var(--ap-blau), var(--fi-primaer));
+  background: linear-gradient(160deg, #16305a, #0b1c36);
   display: grid; place-items: center; color: #fff;
-  font-family: Outfit, Inter, sans-serif; font-weight: 800; font-size: 15px; letter-spacing: -0.02em;
-  box-shadow: 0 4px 12px rgba(40, 141, 250, 0.28);
+  font-size: 16px; line-height: 1;
+  box-shadow: 0 4px 12px rgba(11, 28, 54, 0.22);
 }
-.ap-marke-wort { font-family: Inter, sans-serif; font-weight: 500; font-size: 17px; letter-spacing: 0.02em; color: var(--ap-navy); }
+.ap-marke-wort { display: inline-flex; font-size: 18px; line-height: 1; color: #0c1a2e; }
 .ap-kopf-rechts { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--fi-text-leise); }
 .ap-avatar {
   width: 44px; height: 44px; border-radius: 50%;

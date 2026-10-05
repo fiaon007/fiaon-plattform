@@ -8,6 +8,7 @@ import AdminApplicationsManager from "@/components/admin/AdminApplicationsManage
 import AdminRevenueDashboard from "@/components/admin/AdminRevenueDashboard";
 import AdminInvestorsManager from "@/components/admin/AdminInvestorsManager";
 import AdminLedgerManager from "@/components/admin/AdminLedgerManager";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 interface AI_Task {
   id: string;
@@ -365,7 +366,7 @@ export default function AdminDatabasePage() {
       <aside className="w-[220px] shrink-0 h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col z-20 shadow-sm">
         <div className="px-5 pt-6 pb-5 border-b border-slate-100">
           <a href="/" className="flex items-center gap-2.5">
-            <span className="text-lg font-bold fiaon-gradient-text-animated tracking-tight">FIAON</span>
+            <FiaonWortmarke className="text-lg" farbe={MARKE_NAVY} />
             <span className="text-[10px] font-bold bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-md uppercase tracking-wider">Admin</span>
           </a>
         </div>

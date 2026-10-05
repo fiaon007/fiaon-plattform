@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import "@/styles/mein-bereich.css";
 import "@/styles/demo-kundenbereich.css";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ── Platzhalterdaten ────────────────────────────────────────────────────────
 const KUNDE = { vorname: "Max", nachname: "Mustermann", ref: "FIAON-DEMO", paket: "FIAON Pro", rahmen: 5000, seit: "April 2026", betreuerin: "Viktoria Reichert", email: "max.mustermann@beispiel.de" };
@@ -152,7 +153,7 @@ function Mitgliedskarte() {
       <div ref={ref} className="mb-kk" style={{ background: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)" }} onMouseMove={bewegen} onMouseLeave={verlassen}>
         <div className="mb-kk-licht" /><div className="mb-kk-streifen" />
         <div className="mb-kk-innen">
-          <div className="mb-kk-kopf"><span className="w">FIAON</span><span className="p">Pro</span></div>
+          <div className="mb-kk-kopf"><span className="w"><FiaonWortmarke hoehe=".85em" /></span><span className="p">Pro</span></div>
           <div className="mb-chip" />
           <div className="mb-kk-rahmen"><small>Paket-Rahmen</small><b>{eur(KUNDE.rahmen)}</b></div>
           <div className="mb-kk-fuss"><span className="n">{KUNDE.vorname} {KUNDE.nachname}</span><span className="m">Mitgliedskarte</span></div>
@@ -354,7 +355,7 @@ export default function DemoKundenbereich() {
       {/* ── Kopfzeile ── */}
       <header className="mb-kopf">
         <div className="mb-kopf-innen">
-          <a href="/" className="mb-wort" style={{ color: "var(--blau-tief)" }}>FIAON</a>
+          <a href="/" className="mb-wort" style={{ color: MARKE_NAVY }}><FiaonWortmarke hoehe=".9em" /></a>
           <span className="mb-bereich-marke">Mitgliedsbereich · Demo</span>
           <div className="mb-kopf-rechts">
             {modus !== "fuehrung" && <button type="button" className="kb-kopf-knopf" onClick={() => { setStation(0); setModus("fuehrung"); }}>Führung starten</button>}

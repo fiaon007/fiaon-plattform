@@ -12,7 +12,7 @@
 .cb-schleier{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.42) 0%,rgba(10,22,40,.66) 45%,rgba(10,22,40,.9) 100%),radial-gradient(ellipse at 18% 12%,rgba(59,130,246,.3),transparent 58%),radial-gradient(ellipse at 85% 70%,rgba(37,99,235,.14),transparent 60%)}
 /* Kopf */
 .cb-kopf{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;height:62px;padding:0 18px;background:rgba(10,22,40,.55);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);border-bottom:1px solid rgba(255,255,255,.08)}
-.cb-wort{font:600 18px/1 'Inter',sans-serif;letter-spacing:.08em;color:#fff;text-decoration:none}
+.cb-wort{display:inline-flex;align-items:center;font-size:19px;line-height:1;color:#fff;text-decoration:none}
 .cb-marke{font:500 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--cb-blau-hell);padding:5px 9px;border:1px solid rgba(147,197,253,.35);border-radius:999px}
 .cb-kopf-titel{margin-left:10px;min-width:0}
 .cb-kopf-titel b{display:block;font:400 15px/1.2 'Inter',sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

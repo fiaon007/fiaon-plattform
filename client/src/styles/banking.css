@@ -74,7 +74,7 @@
 }
 [data-fiaon-banking] .bk-tor-seite { position: relative; padding: 24px 0; }
 [data-fiaon-banking] .bk-tor-band { position: absolute; left: -40px; right: -20px; top: -128px; height: 150px; color: var(--licht-hell); opacity: .16; width: calc(100% + 60px); }
-[data-fiaon-banking] .bk-tor-marke { position: relative; font-family: var(--anzeige); font-weight: 200; font-size: 44px; letter-spacing: .36em; color: #fff; line-height: 1; }
+[data-fiaon-banking] .bk-tor-marke { position: relative; font-size: 44px; color: #fff; line-height: 1; }
 [data-fiaon-banking] .bk-tor-marke small { display: block; font-family: var(--schrift); font-size: 11px; font-weight: 500; letter-spacing: .44em; color: var(--licht-hell); text-transform: uppercase; margin-top: 14px; }
 [data-fiaon-banking] .bk-tor-satz { font-family: var(--anzeige); font-weight: 200; font-size: 30px; line-height: 1.22; color: #fff; margin: 46px 0 34px; max-width: 18em; text-wrap: balance; }
 [data-fiaon-banking] .bk-tor-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; max-width: 34em; }
@@ -160,11 +160,11 @@
 [data-fiaon-banking] .bk-leiste-marke { display: flex; align-items: center; gap: 12px; padding: 4px 6px 22px; min-height: 58px; }
 [data-fiaon-banking] .bk-monogramm {
   flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
-  font-family: var(--anzeige); font-weight: 300; font-size: 18px; color: #fff;
+  font-size: 19px; line-height: 1; color: #fff;
   background: linear-gradient(158deg, #13213c, #22365e); border: 1px solid rgba(156, 203, 255, .2);
   box-shadow: inset 0 1px 0 rgba(170, 210, 255, .18);
 }
-[data-fiaon-banking] .bk-leiste-wort { font-family: var(--anzeige); font-weight: 300; font-size: 17px; letter-spacing: .3em; color: #fff; white-space: nowrap; }
+[data-fiaon-banking] .bk-leiste-wort { font-size: 17px; line-height: 1; color: #fff; white-space: nowrap; }
 [data-fiaon-banking] .bk-leiste-wort small { display: block; font-family: var(--schrift); font-size: 9.5px; letter-spacing: .36em; text-transform: uppercase; color: var(--licht-hell); margin-top: 3px; font-weight: 500; }
 [data-fiaon-banking] .bk-leiste nav { display: grid; gap: 2px; }
 [data-fiaon-banking] .bk-nav {

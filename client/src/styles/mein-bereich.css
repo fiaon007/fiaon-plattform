@@ -32,7 +32,7 @@
 @keyframes mbTreiben1{0%,100%{transform:translate(0,0)}50%{transform:translate(-4%,5%)}}
 @keyframes mbTreiben2{0%,100%{transform:translate(0,0)}50%{transform:translate(5%,-4%)}}
 
-.mb-wort{font:800 22px/1 'Outfit',sans-serif;letter-spacing:-.04em;text-decoration:none}
+.mb-wort{display:inline-flex;align-items:center;font-size:22px;line-height:1;text-decoration:none}
 .mb-bereich-marke{font:600 10px/1 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.14em;color:var(--text-still);background:var(--flaeche-still);padding:5px 8px;border-radius:7px}
 .mb-kopf{position:relative;z-index:5;background:var(--glas);backdrop-filter:var(--glas-filter);-webkit-backdrop-filter:var(--glas-filter);border-bottom:1px solid var(--linie)}
 .mb-kopf-innen{max-width:1240px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:16px}
@@ -98,7 +98,7 @@
 .mb-kk-streifen{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,transparent,transparent 50px,rgba(255,255,255,.016) 50px,rgba(255,255,255,.016) 51px)}
 .mb-kk-innen{position:absolute;inset:0;padding:22px 26px;display:flex;flex-direction:column;justify-content:space-between;z-index:2;color:#fff}
 .mb-kk-kopf{display:flex;justify-content:space-between;align-items:flex-start}
-.mb-kk-kopf .w{font:700 20px/1 'Outfit',sans-serif;letter-spacing:-.02em;opacity:.92}
+.mb-kk-kopf .w{font-size:20px;line-height:1;opacity:.92}
 .mb-kk-kopf .p{font:600 10px/1 'Inter',sans-serif;letter-spacing:.18em;text-transform:uppercase;opacity:.55}
 .mb-chip{width:44px;height:32px;border-radius:5px;background:linear-gradient(135deg,#c9a227 0%,#f7e39a 35%,#d4af37 55%,#fff3b0 75%,#b8921f 100%);background-size:200% 200%;animation:mbChip 5s ease-in-out infinite;box-shadow:0 1px 4px rgba(0,0,0,.25);position:relative;overflow:hidden}
 .mb-chip::after{content:"";position:absolute;inset:0;opacity:.22;background-image:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.3) 2px,rgba(0,0,0,.3) 4px)}

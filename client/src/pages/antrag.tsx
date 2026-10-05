@@ -30,6 +30,7 @@ import {
   buendelAnzeige, buendelArt, buendelHakenText, buendelPreisZeile, buendelTitel,
   type BuendelAnzeige, type BuendelZusatz,
 } from "@shared/fiaon-auskunft-buendel";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 /**
  * Hart nach oben scrollen — umgeht das globale `html { scroll-behavior: smooth }`
@@ -461,7 +462,7 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
           }}>
             <div className="w-full h-full rounded opacity-25" style={{ background: "repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,.2) 3px, rgba(0,0,0,.2) 4px)" }} />
           </div>
-          <span className={`font-semibold tracking-[.08em] ${compact ? "text-xs" : "text-sm"}`} style={{ color: "rgba(255,255,255,.75)", textShadow: "0 1px 2px rgba(0,0,0,.2)" }}>FIAON</span>
+          <FiaonWortmarke className={compact ? "text-xs" : "text-sm"} farbe="rgba(255,255,255,.82)" />
         </div>
 
         <div className="flex-1 flex items-center justify-center">

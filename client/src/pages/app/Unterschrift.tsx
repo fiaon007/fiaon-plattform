@@ -18,6 +18,7 @@ import { api } from "./Bausteine";
 import { artKlartext } from "./Vollmacht";
 import "@/styles/app.css";
 import "@/styles/app-antraege.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 type Zustand = "offen" | "unterschrieben" | "abgelaufen" | "widerrufen" | "ungueltig";
 interface UmfangOption { wert: string; text: string }
@@ -242,8 +243,8 @@ export default function AppUnterschrift() {
       <header className="ap-kopf">
         <div className="ap-kopf-innen">
           <a className="ap-marke" href="/app" aria-label="Mein FIAON">
-            <span className="ap-marke-zeichen">F</span>
-            <span className="ap-marke-wort">FIAON</span>
+            <span className="ap-marke-zeichen"><FiaonWortmarke variante="f" dekorativ /></span>
+            <span className="ap-marke-wort"><FiaonWortmarke dekorativ /></span>
           </a>
           {d?.schritt && !ergebnis && <span className="ap-status" style={{ marginLeft: "auto" }}>Schritt {d.schritt.nr} von {d.schritt.von}</span>}
         </div>

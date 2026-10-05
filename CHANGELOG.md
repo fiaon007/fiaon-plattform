@@ -5,6 +5,47 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 — Neues Logo überall, Ladebildschirm ab dem ersten Byte, Porträt, Handy-Menü (E-286 bis E-289)
+
+**E-286 — Die neue Wortmarke überall.** Justin hat am 05.10. die Wortmarke A „Editorial“ freigegeben (Playfair Display 800,
+Forbes-Charakter; Sub-Marke „FIAON Global“ mit kursivem „Global“; Monogramm „F“) und sie „überall richtig und passend“ ersetzen
+lassen. Vorher war das Logo nur Text (Inter Bold mit animiertem Verlauf). Jetzt: eine Quelle `shared/fiaon-marke.ts` (Vektorpfade),
+die Komponente `FiaonWortmarke` für die Oberfläche, `markeSvg` für Server-HTML/PDF, `markeMailImg` (PNG) für Mails,
+`markeInsPdf` für pdfkit, `markeAufCanvas` für die 3D-Kartentexturen.
+- **Website:** Kopf (20 px, Handy 18 px), Fuß (24 px, weiß), FIAON Global in Kopf und Fuß (eine Marke „FIAON Global“),
+  Presseseite mit neuen Mustern und Download (SVG, PNG, Monogramm, App-Symbol unter /marke/), 404, Investoren-Tor, Landingpage Global.
+- **Kartenbilder:** 3D-Karte auf Startseite/Privatkunden, Karte im neuen Antrag, Paketkarten /privatkunden, Karten im Kundenbereich,
+  Ranglisten-Teilbild. /start bleibt unverändert (nur der gemeinsame Kopf trägt das neue Logo).
+- **Bereiche:** Kundenbereich /app (Login, Kopf, Unterschrift; „F“-Kachel), Mitarbeiter-Anmeldung, Office, Chefbüro, Verwaltung,
+  Zugangscode, Banking, Abschluss-Seite, Vereinbarung, Systemavatar im Space.
+- **Symbole:** favicon.svg/-32/-64, apple-touch-icon, icon-maskable-512 (neues „F“ auf Navy), Manifeste; OG-Bilder og-fiaon,
+  og-global, og-global-en neu (alle mit ?v=2). Gebaut mit `scripts/marke-bilder.ts`.
+- **Mails und PDFs:** Mail-Gerüst (Kopf: Wortmarke als Bild, Business: „FIAON Global“), Brevo-Hülle, Zahlungsmails; Rechnung,
+  Dokument-PDFs (Chromium und pdfkit-Rückfall), Provisionsabrechnung, Banking-Belege, Academy-Urkunde, Kalender-Abo-Seite,
+  Auskunfts-Kaufseiten, SEO-Vorschau-Kopf.
+
+**E-287 — Ladebildschirm ab dem ersten Byte.** Justin (mit Bildschirmfoto): „wenn man unsere Seite öffnet schaut das die ersten
+Sekunden so komisch … aus — das soll nie passieren.“ Gemeint war der Vorab-Text für Suchmaschinen, der bis zum Start der App als
+Textseite im Fenster stand. Jetzt liegt sofort ein Ladebildschirm darüber (`shared/fiaon-startbuehne.ts`, eingesetzt in index.html
+durch vite.config.ts), der erst geht, wenn die Seite steht (App.tsx `StartbuehneWeg`); derselbe Bildschirm beim Seitenwechsel.
+Motiv vorerst „Aufwärts“ (steigende Lichtkurve, die Buchstaben steigen auf) — Justin wählt aus neuen Entwürfen je Welt (Privat
+und Business). Der Text für Suchmaschinen bleibt unverändert im HTML; ohne JavaScript bzw. nach 9 s verschwindet die Bühne.
+
+**E-288 — Justins neues Porträt.** Das alte Büro-Foto ist auf der Website ersetzt (Team, Investoren, Was ist FIAON, Angebote von
+FIAON Global) durch das von ihm gewählte, mit KI aus echten Fotos erzeugte Porträt; am Bild steht „Porträt mit KI erstellt“
+(Art. 50 Abs. 4 KI-VO), Alt-Text „Justin Schwarzott, Gründer von FIAON“, Cache-Stand ?v=2026-10-05 (`shared/fiaon-portraits.ts`).
+Das Profilbild im Office/Chefbüro (auch auf /justin) liegt im Konto — Justin lädt es unter Office → Profil selbst hoch.
+
+**E-289 — Handy-Menü neu sortiert.** Justin: „sinnvoller sortieren, Business zur Ergänzung … Animation beim Öffnen, transparenter“.
+Zuerst „Für Privatkunden“ (Privatkunden, Bonitätsauskunft, Eintrag prüfen, Startgespräch), dann „Für Unternehmen · FIAON Global“
+(Übersicht und Pakete, US-Firmengründung, Firmenkarten und Kapital, Paket-Finder), darunter Wissen, Hilfe und Über FIAON als
+Kacheln. Business stand vorher mitten unter den Privatthemen und zusätzlich ganz unten. Die Karte wächst aus dem Menüknopf, die
+Zeilen folgen versetzt, Schließen läuft rückwärts, klareres Glas, die Leiste mit dem Kreuz bleibt sichtbar, Escape schließt.
+
+**Wo:** shared/fiaon-marke.ts, shared/fiaon-startbuehne.ts, shared/fiaon-portraits.ts, client/src/components/marke/*,
+client/src/components/GlassNav.tsx, client/index.html, vite.config.ts, server/lib/fiaon-marke-pdf.ts, scripts/marke-bilder.ts,
+client/public/{marke,mail,portraits}/.
+
 ## 05.10.2026 — Antrag leichter gemacht, /privatkunden-Pakete neu gestaltet (E-284)
 
 **Der Anlass:** Erster Tag des neuen Antrags: 8 von 15 Besuchern gingen auf dem ersten Bildschirm, ohne etwas einzugeben;

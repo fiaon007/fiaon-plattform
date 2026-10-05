@@ -25,6 +25,7 @@ import { Haken, Pfeil, Standorte } from "@/pages/site/global-seite";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-rahmen.css";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 export default function GlobalLandingPage() {
   const lp = globalLandingpage(typeof window !== "undefined" ? window.location.pathname : "");
@@ -49,8 +50,7 @@ export default function GlobalLandingPage() {
       <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(255,255,255,.92)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid var(--linie)" }}>
         <div className="fg-rahmen" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, minHeight: 66 }}>
           <a href="/business" style={{ display: "flex", alignItems: "baseline", gap: 10, textDecoration: "none" }}>
-            <b style={{ fontSize: 19, letterSpacing: "-.01em", color: "var(--tinte)" }}>FIAON</b>
-            <span style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 16, color: "var(--navy)" }}>Global</span>
+            <FiaonWortmarke variante="global" hoehe={20} farbe={MARKE_NAVY} />
           </a>
           <a className="fg-knopf" href="#gespraech" onClick={zumGespraech} style={{ minHeight: 42, padding: "0 18px", fontSize: 13.5 }}>Gespräch vereinbaren</a>
         </div>

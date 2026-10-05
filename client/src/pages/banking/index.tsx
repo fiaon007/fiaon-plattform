@@ -25,6 +25,7 @@ import Auftraege from "./auftraege";
 import Auszahlungen from "./auszahlungen";
 import Auszuege from "./auszuege";
 import { EmpfaengerSeite, KontostandSeite, SicherheitSeite } from "./verwaltung";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 const LEERLAUF_S = 10 * 60;
 const MENUE_KEY = "fiaon-banking-menue";
@@ -155,8 +156,8 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
     <div data-fiaon-banking className={`bk-app${breit ? " bk-breit" : ""}`}>
       <aside className={`bk-leiste${handyMenue ? " offen" : ""}`} aria-label="Banking">
         <div className="bk-leiste-marke">
-          <span className="bk-monogramm" aria-hidden="true">F</span>
-          <span className="bk-leiste-wort">FIAON<small>Banking</small></span>
+          <span className="bk-monogramm" aria-hidden="true"><FiaonWortmarke variante="f" dekorativ /></span>
+          <span className="bk-leiste-wort"><FiaonWortmarke /><small>Banking</small></span>
         </div>
         <nav>
           {sichtbar.map((x) => {

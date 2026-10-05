@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { ZeichenMailPruefung } from "./ZeichenMailPruefung";
 import AdminCodeGate from "./AdminCodeGate";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ═══════════════════════════════════════════════════════════════════
 // AdminShell (Paket N1) — persistentes Gerüst um ALLE /admin-Seiten:
@@ -460,7 +461,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
         }}
       >
         <div className="px-5 py-4" style={{ boxShadow: "inset 0 -1px 0 var(--a3-linie, #e4e9f2)" }}>
-          <Link href="/admin" className="text-lg font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</Link>
+          <Link href="/admin" className="inline-flex text-lg" style={{ color: MARKE_NAVY }}><FiaonWortmarke /></Link>
           <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-slate-400 mt-0.5">Verwaltung</p>
         </div>
         <Nav />
@@ -477,7 +478,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
           >
             <Menu size={17} />
           </button>
-          <Link href="/admin" className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</Link>
+          <Link href="/admin" className="inline-flex text-[16px]" style={{ color: MARKE_NAVY }}><FiaonWortmarke /></Link>
           <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Admin</span>
         </div>
         <button
@@ -497,7 +498,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
           <div className="absolute inset-y-0 left-0 w-72 bg-white flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <p className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</p>
+                <p className="text-[16px] leading-none mb-1" style={{ color: MARKE_NAVY }}><FiaonWortmarke /></p>
                 <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-slate-400">Verwaltung</p>
               </div>
               <button

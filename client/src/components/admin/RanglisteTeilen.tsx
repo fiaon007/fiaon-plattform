@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Download, Share2, Image as BildIcon } from "lucide-react";
 import { ACCENT } from "./AdminShell";
+import { markeAufCanvas } from "@/components/marke/marke-canvas";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Rangliste als Bild — für die Vertriebsgruppe
@@ -118,9 +119,7 @@ function malen(
 
   // ── Kopf
   ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "800 62px Outfit, system-ui, sans-serif";
-  ctx.fillText("FIAON", 72, 132);
+  markeAufCanvas(ctx, 72, 84, 50, "#ffffff");
 
   ctx.fillStyle = "rgba(255,255,255,.42)";
   ctx.font = "700 20px Outfit, system-ui, sans-serif";

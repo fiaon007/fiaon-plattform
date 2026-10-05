@@ -16,6 +16,10 @@
 import {
   KALENDER_TEXT, kalenderZustandSatz, type KalenderAboSicht,
 } from "../../shared/fiaon-kalender-abo";
+import { markeSvg } from "@shared/fiaon-marke";
+
+/** Die Wortmarke (E-286), weiß auf dem dunklen Grund der Seite. */
+const MARKE = markeSvg("fiaon", "#ffffff", "20px");
 
 const esc = (s: unknown) => String(s ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -27,7 +31,7 @@ const STIL = `
   body { min-height: 100vh; background: #0a1730; background-image: linear-gradient(160deg, #12264f 0%, #0a1730 55%, #081226 100%);
          color: #E6EDF7; font: 300 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   main { max-width: 560px; margin: 0 auto; padding: 40px 16px 56px; }
-  .marke { font-weight: 500; letter-spacing: .14em; font-size: 13px; color: #8CC2FF; }
+  .marke { line-height: 0; }
   h1 { font-weight: 400; font-size: 26px; line-height: 1.25; letter-spacing: -.01em; margin: 18px 0 8px; }
   p { margin: 0 0 12px; color: #A7B4CA; }
   .zustand { margin: 18px 0 22px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(148,170,210,.2); background: rgba(255,255,255,.03); color: #E6EDF7; }
@@ -64,7 +68,7 @@ export function kalenderSeiteHtml(s: KalenderAboSicht, jetzt: Date = new Date())
 <title>FIAON · Kalender-Abo</title>
 <style>${STIL}</style>
 </head><body><main>
-  <div class="marke">FIAON</div>
+  <div class="marke">${MARKE}</div>
   <h1>${esc(titel)}</h1>
   <p>Einmal abonnieren — danach kommen neue Termine von selbst, verschobene ändern sich, abgesagte verschwinden. Nichts steht doppelt.</p>
   ${team ? `<p>Hier stehen die Termine der Mitarbeiter, ohne deine eigenen — die kommen über „Meine Termine“. ${esc(KALENDER_TEXT.chefBeide)}</p>` : ""}
@@ -121,7 +125,7 @@ export function kalenderUnbekanntHtml(): string {
 <title>FIAON · Kalender-Link</title>
 <style>${STIL}</style>
 </head><body><main>
-  <div class="marke">FIAON</div>
+  <div class="marke">${MARKE}</div>
   <h1>Dieser Kalender-Link gilt nicht (mehr).</h1>
   <p>Vielleicht wurde ein neuer Link erzeugt — dann hört der alte sofort auf. Den aktuellen findest du im Portal unter Calendar → „In meinen Kalender“ · als Chef: Chefbüro → Mara → Termine → „Termine in deinem Kalender“.</p>
   <p>Hattest du den alten Link abonniert, zeigt dieser Kalender keine Termine mehr — lösch ihn in deiner Kalender-App.</p>

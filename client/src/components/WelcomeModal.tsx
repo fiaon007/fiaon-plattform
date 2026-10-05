@@ -1,4 +1,5 @@
 import { welcomeConfig, fillName, type WelcomeState } from "@/config/welcome";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 interface WelcomeModalProps {
   open: boolean;
@@ -56,7 +57,7 @@ export default function WelcomeModal({ open, state, firstName, coaching, onClose
           </button>
 
           <div className="relative flex items-center gap-2 mb-4">
-            <span className="text-base font-bold tracking-tight text-white">FIAON</span>
+            <FiaonWortmarke className="text-base" farbe="#ffffff" />
             <span className="text-[9px] font-semibold text-white/70 bg-white/15 px-1.5 py-0.5 rounded-md uppercase tracking-wider">Mitgliedsbereich</span>
           </div>
           <h2 className="relative text-2xl font-bold text-white tracking-tight leading-tight">

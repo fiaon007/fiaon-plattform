@@ -7,6 +7,7 @@ import KartenSzene from "@/components/home3d/KartenSzene";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { PRESSE_WOERTER } from "@/i18n/presse";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 export default function Presse() {
   const t = useWoerter(PRESSE_WOERTER);
@@ -78,10 +79,16 @@ export default function Presse() {
           <Auf>
             <Glas ruhig tag={t.wortmarke}>
               <div style={{ display: "grid", gap: 14 }}>
-                <div style={{ background: "#fff", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}><span className="fiaon-gradient-text-animated" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-.03em" }}>FIAON</span></div>
-                <div style={{ background: "#0a1628", border: "1px solid rgba(255,255,255,.1)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}><span style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-.03em", color: "#fff" }}>FIAON</span></div>
+                <div style={{ background: "#fff", borderRadius: 16, padding: "34px 24px", textAlign: "center" }}><FiaonWortmarke hoehe={40} farbe={MARKE_NAVY} /></div>
+                <div style={{ background: "linear-gradient(160deg,#16305a,#0b1c36)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 16, padding: "34px 24px", textAlign: "center" }}><FiaonWortmarke hoehe={40} farbe="#ffffff" /></div>
               </div>
               <p className="dk-leise" style={{ marginTop: 14 }}>{t.wortmarkeHinweis}</p>
+              <p className="dk-leise" style={{ marginTop: 12, fontSize: 13 }}>
+                <b style={{ color: "#fff", fontWeight: 600 }}>{t.wortmarkeLaden}:</b>{" "}
+                {t.wortmarkeDateien.map(([name, href], i) => (
+                  <span key={href}>{i > 0 && " · "}<a href={href} download style={{ color: "#9ec5ff", textDecoration: "underline", textUnderlineOffset: 3 }}>{name}</a></span>
+                ))}
+              </p>
             </Glas>
           </Auf>
           <Auf verzoegerung={120}><div className="dk-szene"><KartenSzene anzahl={1} className="absolute inset-0" /></div></Auf>

@@ -25,6 +25,7 @@ import "@/styles/mein-bereich.css";
 import { Einrichtung, einrichtungsPhase } from "@/components/kunde/Einrichtung";
 import { AuskunftKaufkarte, type AuskunftKauf } from "@/components/kunde/AuskunftKauf";
 import { auskunfteienText, auskunftLand } from "@shared/fiaon-auskunft";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // Demo-Konto (23.08.2026): unter /demo/kundenbereich zeigt dieselbe Seite die
 // Platzhalterdaten von FIAON-DEMO (server/routes/fiaon-demo.ts) — ohne Login.
@@ -106,7 +107,7 @@ function Mitgliedskarte({ name, paket, rahmen }: { name: string; paket: string; 
       <div ref={ref} className="mb-kk" style={{ background: paketVerlauf(paket) }} onMouseMove={bewegen} onMouseLeave={verlassen}>
         <div className="mb-kk-licht" /><div className="mb-kk-streifen" />
         <div className="mb-kk-innen">
-          <div className="mb-kk-kopf"><span className="w">FIAON</span><span className="p">{paketKurz(paket)}</span></div>
+          <div className="mb-kk-kopf"><span className="w"><FiaonWortmarke hoehe=".85em" /></span><span className="p">{paketKurz(paket)}</span></div>
           <div className="mb-chip" />
           <div className="mb-kk-rahmen"><small>Paket-Rahmen</small><b>{eur(rahmen)}</b></div>
           <div className="mb-kk-fuss"><span className="n">{name}</span><span className="m">Mitgliedskarte</span></div>
@@ -297,7 +298,7 @@ export default function MeinBereichPage() {
       <header className="mb-kopf">
         <div className="mb-kopf-innen">
           <button type="button" className="mb-burger" aria-label="Menü öffnen" aria-expanded={menueOffen} onClick={() => setMenueOffen(true)}><span /><span /><span /></button>
-          <a className="mb-wort fiaon-gradient-text-animated" href="/mein-bereich">FIAON</a>
+          <a className="mb-wort" href="/mein-bereich" style={{ color: MARKE_NAVY }}><FiaonWortmarke hoehe=".9em" /></a>
           <span className="mb-bereich-marke">Mitgliedsbereich</span>
           <div className="mb-kopf-rechts">
             <div className="mb-kopf-name">{name}<small>{d.paket.name}{d.kunde.kundeSeit ? ` · Mitglied seit ${d.kunde.kundeSeit}` : ""}</small></div>
@@ -311,7 +312,7 @@ export default function MeinBereichPage() {
       <div className={`mb-schublade-hintergrund${menueOffen ? " offen" : ""}`} onClick={() => setMenueOffen(false)} aria-hidden="true" />
       <aside className={`mb-schublade${menueOffen ? " offen" : ""}`} aria-label="Menü" aria-hidden={!menueOffen}>
         <div className="mb-schublade-kopf">
-          <span className="mb-wort fiaon-gradient-text-animated">FIAON</span>
+          <span className="mb-wort" style={{ color: MARKE_NAVY }}><FiaonWortmarke hoehe=".9em" /></span>
           <button type="button" className="mb-schublade-zu" onClick={() => setMenueOffen(false)} aria-label="Menü schließen"><X size={20} strokeWidth={2} /></button>
         </div>
         <div className="mb-schublade-nutzer"><div className="mb-gesicht" aria-hidden="true">{initialen}</div><div><b>{name}</b><small>{d.paket.name}</small></div></div>

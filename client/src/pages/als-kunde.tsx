@@ -19,6 +19,7 @@
 // Seite die Daten des Betreibers statt die des Kunden.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 export default function AlsKundePage(): JSX.Element {
   const [fehler, setFehler] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export default function AlsKundePage(): JSX.Element {
   return (
     <div className="min-h-screen bg-white flex items-start justify-center px-5 py-20">
       <div className="w-full max-w-[420px]">
-        <div className="text-[11px] tracking-[0.18em] text-slate-400 uppercase mb-8">FIAON</div>
+        <div className="mb-8 text-[18px] leading-none" style={{ color: MARKE_NAVY }}><FiaonWortmarke /></div>
         {fehler ? (
           <>
             <h1 className="text-[19px] font-medium text-slate-900 mb-3">Ansicht nicht möglich</h1>

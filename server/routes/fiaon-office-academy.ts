@@ -27,6 +27,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import PDFDocument from "pdfkit";
+import { markeInsPdf, markeBreite } from "../lib/fiaon-marke-pdf";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { LEHRPLAN, UEBUNGS_ARTEN, TEST_SCHWELLE, PRUEFUNG_SCHWELLE, PRUEFUNG_FRAGEN, PRUEFUNG_SEKUNDEN_JE_FRAGE, PRUEFUNG_SEKUNDEN_GESAMT, PRUEFUNG_SPERRE_STUNDEN, PRUEFUNG_VERSUCHE_JE_WOCHE, ZERTIFIKAT_PROVISIONS_BONUS, ZERTIFIKAT_STUFE, lehrplanKapitel, lehrplanSchritt, SCHRITTE_GESAMT } from "@shared/fiaon-academy-lehrplan";
@@ -389,7 +390,7 @@ function urkundePdf(p: { name: string; nummer: string; datum: Date; punkte: numb
       doc.lineWidth(1).strokeColor(BLAU).rect(36, 150, W - 72, H - 186).stroke();
       doc.lineWidth(0.5).strokeColor("#cbd5e1").rect(42, 156, W - 84, H - 198).stroke();
       // Kopf
-      doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(26).text("FIAON", 60, 40, { characterSpacing: 4 });
+      markeInsPdf(doc, 60, 38, 24, "#ffffff");
       doc.fillColor(BLAU_HELL).font("Helvetica").fontSize(8.5).text("ACADEMY · AUSBILDUNG ZUM BONITÄTSMANAGER", 60, 74, { characterSpacing: 2 });
       doc.fillColor("#cbd5e1").font("Helvetica").fontSize(8.5).text(`${SUPPORT.firma} · ${SUPPORT.adresse}`, 60, 92);
       doc.fillColor("#cbd5e1").text(`${SUPPORT.register}`, 60, 104);
@@ -413,7 +414,7 @@ function urkundePdf(p: { name: string; nummer: string; datum: Date; punkte: numb
       doc.circle(sx, sy, 46).lineWidth(2).strokeColor(BLAU).stroke();
       doc.circle(sx, sy, 40).lineWidth(0.6).strokeColor(BLAU).stroke();
       doc.circle(sx, sy, 30).fill(NAVY);
-      doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(11).text("FIAON", sx - 30, sy - 7, { width: 60, align: "center", characterSpacing: 1.5 });
+      markeInsPdf(doc, sx - markeBreite(9) / 2, sy - 4.5, 9, "#ffffff");
       doc.fillColor(BLAU).font("Helvetica").fontSize(5.5).text("GEPRÜFT · ACADEMY · LONDON · " + p.datum.getFullYear(), sx - 46, sy + 48, { width: 92, align: "center", characterSpacing: 1 });
       doc.restore();
       // Signatur

@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { BUEHNE_STIL, startbuehneHtml } from "./shared/fiaon-startbuehne";
 
 // Generate build ID from timestamp (can be replaced with git SHA in CI)
 const BUILD_ID = process.env.VITE_BUILD_ID || `build-${Date.now()}`;
@@ -38,6 +39,25 @@ function stilblattOhneSperre(): Plugin {
   };
 }
 
+/**
+ * Die Startbühne (E-287): Ladebildschirm und sein Stil aus shared/fiaon-startbuehne.ts in index.html —
+ * inline, damit er vor jedem Stilblatt und jedem Skript steht. Gilt im Dev-Server und im Build.
+ */
+function startbuehne(): Plugin {
+  return {
+    name: "fiaon-startbuehne",
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        if (!html.includes("<!--FIAON-STARTBUEHNE-->")) return html;
+        return html
+          .replace("<!--FIAON-BUEHNE-STIL-->", `<style id="fi-buehne-stil">${BUEHNE_STIL}</style>`)
+          .replace("<!--FIAON-STARTBUEHNE-->", startbuehneHtml());
+      },
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID),
@@ -46,6 +66,7 @@ export default defineConfig({
     react(),
     runtimeErrorOverlay(),
     stilblattOhneSperre(),
+    startbuehne(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [

@@ -43,7 +43,7 @@ html.an-scroll, html.an-scroll body, html.an-scroll #root { height: auto; min-he
 .an-seite .an-leinwand{transition:opacity .5s}
 .an-seite .an-css-karte{display:none}
 .an-seite.an-ohne-3d .an-css-karte{display:block;position:absolute;left:50%;top:50%;width:min(280px,76%);aspect-ratio:1.586;transform:translate(-50%,-50%);border-radius:14px;background:linear-gradient(135deg,#173064,#0a1830);box-shadow:0 24px 50px rgba(11,18,32,.3);color:#eaf1ff;padding:16px 18px;font-weight:300}
-.an-seite .an-css-karte b{font-weight:300;letter-spacing:.3em;display:block;font-size:.875rem}
+.an-seite .an-css-karte b{display:block;font-size:1rem;line-height:0}
 .an-seite .an-css-karte span{position:absolute;left:18px;bottom:14px;font-size:.9375rem}
 .an-seite .an-ziel-pille{position:absolute;top:6px;right:max(4px,calc(50% - 160px));padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.86);border:1px solid var(--kante);box-shadow:var(--schatten-klein);font-size:.75rem;color:var(--tinte-2);white-space:nowrap;z-index:2}
 .an-seite .an-ziel-pille b{font-weight:500;color:var(--tief);font-variant-numeric:tabular-nums}

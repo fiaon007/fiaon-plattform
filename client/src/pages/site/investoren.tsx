@@ -28,6 +28,7 @@ import ArasCore from "@/components/home3d/ArasCore";
 import { Team } from "@/components/site/Team";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 type Sprache = "de" | "en";
 const SPRACHE_SCHLUESSEL = "fiaon-investoren-sprache";
@@ -141,7 +142,7 @@ function Sprachtor({ waehlen }: { waehlen: (s: Sprache) => void }) {
     <div className="iv-tor" role="dialog" aria-label="Sprache wählen / Choose language">
       <div className="iv-tor-sterne" aria-hidden="true"><Sternenfeld /></div>
       <div className="iv-tor-innen">
-        <span className="iv-tor-marke">FIAON</span>
+        <span className="iv-tor-marke"><FiaonWortmarke hoehe=".85em" /></span>
         <p className="iv-tor-satz">Das Betriebssystem für Bonität · The operating system for creditworthiness</p>
         <div className="iv-tor-wahl">
           <button type="button" onClick={() => waehlen("de")}>

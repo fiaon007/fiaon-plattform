@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { markeAufCanvas } from "@/components/marke/marke-canvas";
 
 /*
   Gemeinsame Bausteine für die 3D-Objekte der Startseite.
@@ -133,10 +134,8 @@ export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture
   // Wortmarke
   const silber = ctx.createLinearGradient(96, 80, 360, 140);
   silber.addColorStop(0, "#f1f5f9"); silber.addColorStop(0.5, "#cbd5e1"); silber.addColorStop(1, "#e2e8f0");
-  ctx.fillStyle = silber;
-  ctx.font = "500 68px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  markeAufCanvas(ctx, 96, 80, 52, silber);
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("FIAON", 96, 132);
   ctx.font = "500 26px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.fillText("BONITÄT · DACH", 100, 172);

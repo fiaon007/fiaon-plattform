@@ -29,6 +29,9 @@
 // einzelner Baustein aus Versehen ein Versprechen daraus machen.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Kopf-Wortmarke als PNG (E-286): Mailprogramme zeigen kein SVG; ohne Bilder steht der Alt-Text da.
+import { markeMailImg } from "@shared/fiaon-marke";
+
 /** Wer im Postfach als Absender steht. Alle senden über welcome@fiaon.com. */
 export type AbsenderRolle = "welcome" | "accounting" | "legal" | "team";
 
@@ -316,7 +319,7 @@ export function mailHtml(b: MailBaustein): string {
 
         <tr><td style="background:${NAVY};background-image:linear-gradient(135deg,#12264f,${NAVY_TIEF});padding:26px 34px;">
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
-            <td style="font:700 21px/1 ${SCHRIFT};letter-spacing:.13em;color:#ffffff;">FIAON</td>
+            <td style="line-height:0;">${markeMailImg(b.bereich === "business" ? "global-weiss" : "weiss", 21)}</td>
             <td align="right" style="font:400 12px/1 ${SCHRIFT};color:#93c5fd;">${b.kopfSatz ?? KOPF_SATZ}</td>
           </tr></table>
         </td></tr>

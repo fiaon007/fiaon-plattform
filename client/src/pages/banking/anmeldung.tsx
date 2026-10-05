@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { ruf, type Ich } from "./api";
 import { Guilloche, Meldung, Segmente, Zeichen } from "./ui";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 interface Person { email: string; name: string; titel: string; gesperrt?: boolean }
 
@@ -53,7 +54,7 @@ export default function Anmeldung({ fertig, hinweis }: { fertig: (ich: Ich) => v
     <div className="bk-tor-buehne">
       <section className="bk-tor-seite" aria-hidden="false">
         <Guilloche className="bk-tor-band" linien={26} />
-        <div className="bk-tor-marke">FIAON<small>Banking</small></div>
+        <div className="bk-tor-marke"><FiaonWortmarke hoehe=".8em" /><small>Banking</small></div>
         <h1 className="bk-tor-satz">Geschäftskonto, Zahlungsverkehr und Auszahlungen der FIAON LTD.</h1>
         <ul className="bk-tor-liste">
           <li><Zeichen n="schloss" g={16} /><span><strong>Zwei Faktoren.</strong> Passwort, dann ein Einmal-PIN an die eigene Adresse.</span></li>

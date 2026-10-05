@@ -16,6 +16,8 @@ import { createHash } from "crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import PDFDocument from "pdfkit";
+import { markeSvg, MARKE_NAVY } from "@shared/fiaon-marke";
+import { markeInsPdf } from "./fiaon-marke-pdf";
 
 type Browser = any;
 let browserPromise: Promise<Browser> | null = null;
@@ -344,7 +346,7 @@ export function wrapFiaonDocument(opts: {
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
   }
-  .wordmark { font-size: 20pt; font-weight: 800; letter-spacing: -0.02em; color: ${FIAON_ACCENT}; }
+  .wordmark { line-height: 0; margin-bottom: 7px; }
   .brandline { font-size: 8pt; color: #64748b; margin-top: 2px; letter-spacing: .02em; }
   header.doc { border-bottom: 2px solid ${FIAON_ACCENT}; padding-bottom: 10px; margin-bottom: 18px; }
   h1.doc-title { font-size: 15pt; font-weight: 800; margin: 18px 0 2px; color: #0f172a; }
@@ -380,7 +382,7 @@ export function wrapFiaonDocument(opts: {
   ${watermarkHtml}
   <div class="content">
     <header class="doc">
-      <div class="wordmark">FIAON</div>
+      <div class="wordmark">${markeSvg("fiaon", MARKE_NAVY, "19pt")}</div>
       <div class="brandline">${escapeHtml(markenzeile)}</div>
     </header>
     <h1 class="doc-title">${escapeHtml(documentTitle)}</h1>
@@ -469,7 +471,8 @@ function renderPdfKitFallback(opts: DocumentPdfOptions): Promise<Buffer> {
       doc.on("error", reject);
 
       // Kopf: Wortmarke + Markenzeile + Trennlinie
-      doc.fillColor(FIAON_ACCENT).font("Helvetica-Bold").fontSize(20).text("FIAON");
+      markeInsPdf(doc, 56, doc.y, 19);
+      doc.y += 25;
       doc.fillColor("#64748b").font("Helvetica").fontSize(8).text("FIAON LTD · Company No. 17318250 · London, United Kingdom");
       doc.moveDown(0.4);
       const y = doc.y;

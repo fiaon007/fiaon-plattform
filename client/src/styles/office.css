@@ -78,7 +78,7 @@
    zwischen den drei Elementen — NACHHER 70px, 22px Rand, 14px Abstand,
    und die Tap-Ziele wachsen von 36 auf 40px. */
 .of-kopf{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:20px;height:76px;padding:0 28px;background:rgba(10,22,40,.55);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);border-bottom:1px solid rgba(255,255,255,.08)}
-.of-wort{font:600 18px/1 'Inter',sans-serif;letter-spacing:.08em;color:#fff;text-decoration:none}
+.of-wort{display:inline-flex;align-items:center;font-size:19px;line-height:1;color:#fff;text-decoration:none}
 .of-marke{font:500 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--of-blau-hell);padding:5px 9px;border:1px solid rgba(147,197,253,.35);border-radius:999px}
 .of-kopf-titel{margin-left:10px;min-width:0;flex:1 1 auto}
 .of-kopf-titel b{display:block;font:300 16px/1.25 'Inter',sans-serif;color:#e5e7eb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

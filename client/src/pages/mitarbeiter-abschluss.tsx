@@ -31,6 +31,7 @@ import { useRoute } from "wouter";
 import SignaturePad from "@/components/agent/SignaturPad";
 import "@/styles/agent-anmeldung.css";
 import "@/styles/mitarbeiter-abschluss.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 interface Lage {
   vorname: string;
@@ -167,7 +168,7 @@ export default function MitarbeiterAbschlussPage() {
   const buehne = (inhalt: React.ReactNode) => (
     <div className="aa">
       <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>
-      <header className="aa-kopf"><a href="/" className="aa-wort">FIAON</a><span className="aa-marke">Mitarbeiterbereich</span></header>
+      <header className="aa-kopf"><a href="/" className="aa-wort"><FiaonWortmarke /></a><span className="aa-marke">Mitarbeiterbereich</span></header>
       {inhalt}
     </div>
   );
@@ -250,7 +251,7 @@ export default function MitarbeiterAbschlussPage() {
       )}
 
       <article className="ma-papier">
-        <div className="ma-papier-band"><b>FIAON</b><span>Kündigungsschreiben · {datum(lage.ausgesprochenAm)}</span></div>
+        <div className="ma-papier-band"><b><FiaonWortmarke hoehe={15} /></b><span>Kündigungsschreiben · {datum(lage.ausgesprochenAm)}</span></div>
         {/* Server-gerendert und vertrauenswürdig — enthält keine Eingaben Dritter. */}
         <div className="ma-dokument" dangerouslySetInnerHTML={{ __html: lage.dokumentHtml || "" }} />
       </article>

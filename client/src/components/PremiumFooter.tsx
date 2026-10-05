@@ -22,6 +22,7 @@ import { UI, EN_FUSS } from "@shared/fiaon-sprache";
 import { useSprache, inSprache } from "@/i18n/sprache";
 import GlobalFuss from "@/components/site/GlobalFuss";
 import { useBusinessBereich } from "@/lib/bereich";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 const WISSEN: [string, string][] = [
   ["/schufa-eintrag-loeschen", "SCHUFA-Eintrag löschen"],
@@ -145,9 +146,7 @@ function PrivatFuss() {
           {/* Column 1: Brand & Mission */}
           <div>
             <div className="mb-6">
-              <span className="text-2xl font-bold tracking-tight text-white fiaon-gradient-text-animated">
-                FIAON
-              </span>
+              <FiaonWortmarke className="text-2xl" farbe="#ffffff" />
             </div>
             <p className="pf-text text-[14px] leading-relaxed mb-6">{ui.fussMission}</p>
             {/* Trust Badge */}

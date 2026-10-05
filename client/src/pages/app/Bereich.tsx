@@ -37,6 +37,7 @@ import { Passwort } from "./Passwort";
 import { Pin } from "./Pin";
 import { Limit } from "./Limit";
 import "@/styles/app.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 const DEMO_REF = "FIAON-DEMO";
 const basisVon = (ort: string) => (ort === "/app/demo" || ort.startsWith("/app/demo/") ? "/app/demo" : "/app");
@@ -290,8 +291,8 @@ function Kopf({ b, basis, demo }: { b: Bereich | null; basis: string; demo: bool
     <header className="ap-kopf">
       <div className="ap-kopf-innen">
         <Link className="ap-marke" href={basis} aria-label="Mein FIAON">
-          <span className="ap-marke-zeichen">F</span>
-          <span className="ap-marke-wort">FIAON</span>
+          <span className="ap-marke-zeichen"><FiaonWortmarke variante="f" dekorativ /></span>
+          <span className="ap-marke-wort"><FiaonWortmarke dekorativ /></span>
         </Link>
         <div className="ap-kopf-rechts">
           {demo && <span className="ap-status" title="Feste Vorführdaten, kein echtes Konto">Demo-Ansicht</span>}

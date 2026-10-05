@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-286 (05./06.10.2026): neue Wortmarke überall.
+    id: "2026-10-06-neues-logo",
+    date: "2026-10-06",
+    category: "Neu",
+    title: "FIAON hat ein neues Logo",
+    summary:
+      "Die Wortmarke „FIAON“ in Serifen (Forbes-Charakter) steht jetzt überall: Website, Kundenbereich, Office, Chefbüro, Mails, "
+      + "Rechnungen, Verträge, Urkunden — und das neue „F“ als Symbol im Browser-Tab und auf dem Handy-Startbildschirm.",
+    changes: [
+      "Mails an Kunden tragen oben die neue Wortmarke; zeigt ein Postfach keine Bilder, steht dort „FIAON“ in Schrift.",
+      "Business-Seiten zeigen „FIAON Global“ als eine Marke (FIAON + kursiv Global).",
+      "Auf fiaon.com öffnet sich jede Seite mit einer kurzen Ladeanimation statt mit einer halbfertigen Textseite.",
+      "Am Handy ist das Website-Menü neu sortiert: zuerst Privatkunden, dann Unternehmen (FIAON Global), darunter Wissen, Hilfe und Über FIAON.",
+    ],
+    howto: [
+      "Siehst du noch das alte Zeichen im Browser-Tab: einmal neu laden — der Browser hält Symbole gern ein paar Tage fest.",
+      "Fragt ein Kunde nach dem neuen Look: Es ist nur das Erscheinungsbild — Verträge, Preise und Abläufe bleiben gleich.",
+    ],
+  },
+  {
     // E-283 (05.10.2026): Umschalten — jeder Antragslink führt in den neuen Antrag.
     id: "2026-10-05-neuer-antrag-ueberall",
     date: "2026-10-05",

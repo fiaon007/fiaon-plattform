@@ -5,6 +5,7 @@ import { SignatureCore } from "./motion";
 // 13.09.2026: Die Leinwand liegt jetzt in components/agent/SignaturPad.tsx —
 // der Abschluss der Mitarbeiterzeit (Kündigung unterschreiben) nutzt dieselbe.
 import SignaturePad from "@/components/agent/SignaturPad";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ============================================================================
 // Onboarding-Gate (Prompt 1) — Pflicht-Flow beim Login.
@@ -64,7 +65,7 @@ export default function OnboardingGate({ onComplete }: { onComplete: () => void 
         <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-slate-200">
           <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</span>
+              <FiaonWortmarke className="text-[17px]" farbe={MARKE_NAVY} />
               <span className="text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400 truncate">Onboarding</span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">

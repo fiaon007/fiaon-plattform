@@ -64,8 +64,8 @@ const auskunfteienZeilen = (land: AuskunftLand) => auskunfteienFuer(land).map((a
 
 export const SEO_BASIS = "https://fiaon.com";
 /** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-232). */
-export const GLOBAL_BILD = `${SEO_BASIS}/og-global.jpg`;
-export const GLOBAL_BILD_EN = `${SEO_BASIS}/og-global-en.jpg`;
+export const GLOBAL_BILD = `${SEO_BASIS}/og-global.jpg?v=2`;
+export const GLOBAL_BILD_EN = `${SEO_BASIS}/og-global-en.jpg?v=2`;
 
 export type SeoArt = "start" | "produkt" | "land" | "pfeiler" | "werkzeug" | "unternehmen" | "recht" | "intern";
 

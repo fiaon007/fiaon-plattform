@@ -10,6 +10,7 @@ import {
   BonitaetsCheck, IhrWeg, NochZuErledigen, FahrplanVorschau, useBonitaetStatus,
 } from "@/components/dashboard/naechste-schritte";
 import { gruss } from "@/pages/agent/zeit";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 /* ── Inject dashboard-specific animations ── */
 if (typeof document !== "undefined" && !document.head.querySelector("style[data-db-anim]")) {
@@ -86,7 +87,7 @@ function CreditCard3D({ user }: { user: SessionUser }) {
         <div className="absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(90deg,transparent,transparent 50px,rgba(255,255,255,.015) 50px,rgba(255,255,255,.015) 51px)" }} />
         <div className="absolute inset-0 p-5 sm:p-7 flex flex-col justify-between z-10">
           <div className="flex justify-between items-start">
-            <span className="text-xl font-bold tracking-tight text-white/90">FIAON</span>
+            <FiaonWortmarke className="text-xl" farbe="rgba(255,255,255,.92)" />
             <span className="text-[10px] font-semibold tracking-[.18em] uppercase text-white/50">
               {/* `split(" ").pop()` stand hier und ergab bei „FIAON High End
                   (Das Maximum)" das Wort „Maximum)" — letztes Wort samt
@@ -553,7 +554,7 @@ export default function DashboardPage() {
       {/* Logo */}
       <div className="px-4 pt-6 pb-5 border-b border-slate-100">
         <a href="/" className="flex items-center gap-2">
-          <span className="text-lg font-bold fiaon-gradient-text-animated tracking-tight">FIAON</span>
+          <FiaonWortmarke className="text-lg" farbe={MARKE_NAVY} />
           <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase tracking-wider">Mitgliedsbereich</span>
         </a>
       </div>

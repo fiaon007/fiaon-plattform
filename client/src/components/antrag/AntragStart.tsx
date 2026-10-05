@@ -11,6 +11,7 @@
 import { Block, Karten, Schritte, Glas, Fragen, Zwischenruf, Knopf, Auf, Licht } from "@/components/site/DunkleBuehne";
 import KartenSzene from "@/components/home3d/KartenSzene";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 export interface StartPaket { key: string; name: string; sub: string; fee: number; lim: number; rec?: boolean; bg: string; feats: readonly string[] | string[] }
 
@@ -45,7 +46,7 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
                 <button type="button" className="as-paket" data-top={p.rec ? "1" : undefined} onClick={() => onWahl(p)} aria-label={`${p.name} (${p.sub}) wählen`}>
                   {p.rec && <span className="band">Beliebt</span>}
                   <div className="as-karte" style={{ background: p.bg }}>
-                    <span className="chip" /><span className="wort">FIAON</span>
+                    <span className="chip" /><span className="wort"><FiaonWortmarke /></span>
                     <span className="limit">{p.lim.toLocaleString("de-DE")} €</span>
                     <span className="inhaber">Ziel-Rahmen</span>
                   </div>

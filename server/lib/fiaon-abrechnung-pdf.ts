@@ -40,6 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { escapeHtml, docHash } from "./fiaon-html-pdf";
 import { htmlZuPdfMitFusszeile } from "./fiaon-html-pdf";
+import { markeSvg } from "@shared/fiaon-marke";
 import { type Firmierung, fussZeile } from "./fiaon-firmierung";
 
 /** Navy des Kopfbands. Dunkler als der Akzent — ein Beleg ist kein Werbemittel. */
@@ -259,7 +260,7 @@ export function abrechnungHtml(d: AbrechnungDaten): { html: string; hash: string
 
   const html = `
   <div class="kopfband">
-    <div class="wortmarke">FIAON</div>
+    <div class="wortmarke">${markeSvg("fiaon", "#ffffff", "18pt")}</div>
     <div class="kopf-rechts">
       <div class="dokumentart">Provisionsabrechnung</div>
       <div class="nummer">${escapeHtml(d.nummer)}</div>
@@ -374,7 +375,7 @@ const STIL = `
     margin: 0 -16mm; padding: 5mm 16mm 4.5mm;
     display: flex; align-items: flex-end; justify-content: space-between;
   }
-  .wortmarke { font-size: 19pt; font-weight: 800; letter-spacing: -0.02em; line-height: 1; flex: 0 0 auto; }
+  .wortmarke { line-height: 0; flex: 0 0 auto; }
   /* Die Nummer lief im ersten Muster bis an die Blattkante und wurde
      abgeschnitten. Sie bekommt jetzt eine Höchstbreite und darf umbrechen —
      eine abgeschnittene Belegnummer ist ein unbrauchbarer Beleg. */

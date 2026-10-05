@@ -31,6 +31,7 @@ import { KiPauseBand } from "./ChefKiPause";
 import { WaPauseBand } from "./ChefWaPause";
 import "@/styles/chefbuero.css";
 import "@/styles/chefbuero-seiten.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 export type ChefStufe = "inhaber" | "geschaeftsfuehrung" | "leitung";
 const RANG: Record<ChefStufe, number> = { inhaber: 3, geschaeftsfuehrung: 2, leitung: 1 };
@@ -245,7 +246,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
 
       <header className="cb-kopf">
         <button type="button" className="cb-burger" aria-label="Räume öffnen" onClick={() => setMenueOffen(true)}><Menu size={20} /></button>
-        <Link href="/chef" className="cb-wort">FIAON</Link>
+        <Link href="/chef" className="cb-wort"><FiaonWortmarke /></Link>
         <span className="cb-marke">Chefbüro</span>
         <div className="cb-kopf-titel">
           <b>{aktiv.label}</b>
@@ -285,7 +286,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
       <div className={`cb-schublade-hintergrund${menueOffen ? " offen" : ""}`} onClick={() => setMenueOffen(false)} aria-hidden="true" />
       <aside className={`cb-schublade${menueOffen ? " offen" : ""}`} aria-label="Räume" aria-hidden={!menueOffen}>
         <div className="cb-schublade-kopf">
-          <span className="cb-wort">FIAON</span>
+          <span className="cb-wort"><FiaonWortmarke /></span>
           <span className="cb-marke">Chefbüro</span>
           <button type="button" className="cb-rund" onClick={() => setMenueOffen(false)} aria-label="Schließen"><X size={18} /></button>
         </div>

@@ -20,6 +20,7 @@
 import { createHash } from "crypto";
 import { sqlPool } from "./db-pool";
 import { BANK } from "@shared/fiaon-bank";
+import { markeSvg, MARKE_NAVY } from "@shared/fiaon-marke";
 import {
   auftrag, buchPerson, ibanHuebsch, ibanMaskiert, uebergabe, BUCH_LOGIN, type BuchPerson,
 } from "./fiaon-buchhaltung";
@@ -129,7 +130,7 @@ const STIL = `
   }
   .band { height: 12mm; color: #1D4ED8; opacity: .30; margin: 0 0 6.5mm; }
   .kopf { display: flex; justify-content: space-between; align-items: flex-end; gap: 10mm; }
-  .marke { font-family: Outfit, Inter, sans-serif; font-weight: 300; font-size: 21pt; letter-spacing: .34em; color: #0B1220; line-height: 1; }
+  .marke { line-height: 1; }
   .marke small { display: block; font-family: Inter, sans-serif; font-size: 6.2pt; letter-spacing: .36em; text-transform: uppercase; color: #1D4ED8; margin-top: 2.4mm; font-weight: 500; }
   .dok { text-align: right; }
   .dok .art { font-size: 6.2pt; letter-spacing: .3em; text-transform: uppercase; color: #526277; font-weight: 600; }
@@ -203,7 +204,7 @@ function briefHtml(b: Brief): string {
 <style>${STIL}</style></head><body>
   <div class="band">${guillocheBand()}</div>
   <div class="kopf">
-    <div class="marke">FIAON<small>Banking</small></div>
+    <div class="marke">${markeSvg("fiaon", MARKE_NAVY, "17pt")}<small>Banking</small></div>
     <div class="dok">
       <div class="art">${esc(b.art)}</div>
       <div class="titel">${esc(b.titel)}</div>

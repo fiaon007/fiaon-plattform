@@ -1195,3 +1195,59 @@ a, button, input, select, textarea, label { touch-action: manipulation; }
 .pf-demo-text b{font-weight:500;color:#e2e8f0}
 .pf-demo-knopf{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid rgba(147,197,253,.35);color:#bfdbfe;font:400 12px/1 'Inter',sans-serif;white-space:nowrap}
 @media(max-width:720px){.pf-demo{flex-wrap:wrap}.pf-demo-text{flex-basis:100%}}
+
+/* ═══ Handy-Menü (E-289, 05.10.2026; Justin: „sinnvoller sortieren … Animation beim Öffnen … transparenter“) ═══
+   Die Karte wächst aus dem Menüknopf (oben rechts) auf, die Zeilen folgen versetzt (--i), Schließen läuft
+   rückwärts (.zu). Klares Glas: Die Seite schimmert durch, die Schrift bleibt dunkel und lesbar. */
+.nav-burger{position:relative;width:38px;height:38px;margin-right:-6px;border-radius:999px;display:grid;place-items:center;transition:background-color .2s ease}
+.nav-burger:active{background:rgba(15,23,42,.07)}
+.nav-burger i{position:absolute;left:10px;right:10px;top:50%;height:2px;margin-top:-1px;border-radius:2px;background:#0c1a2e;
+  transition:transform .4s cubic-bezier(.22,1,.36,1),opacity .2s ease}
+.nav-burger i:nth-child(1){transform:translateY(-6px)}
+.nav-burger i:nth-child(3){transform:translateY(6px);right:15px}
+.nav-burger.auf i:nth-child(1){transform:rotate(45deg)}
+.nav-burger.auf i:nth-child(2){opacity:0;transform:scaleX(.2)}
+.nav-burger.auf i:nth-child(3){transform:rotate(-45deg);right:10px}
+
+.mm{position:fixed;inset:0;z-index:40}
+.mm-schleier{position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;background:rgba(8,18,36,.30);
+  -webkit-backdrop-filter:blur(6px) saturate(120%);backdrop-filter:blur(6px) saturate(120%);animation:mmSchleier .35s ease both}
+.mm-karte{position:absolute;left:12px;right:12px;top:84px;max-height:calc(100dvh - 100px);display:flex;flex-direction:column;
+  border-radius:26px;overflow:hidden;background:rgba(255,255,255,.58);border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 30px 80px rgba(15,23,42,.30),inset 0 1px 0 rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
+  transform-origin:calc(100% - 30px) -14px;animation:mmAuf .55s cubic-bezier(.22,1,.36,1) both}
+.mm-rolle{overflow-y:auto;overscroll-behavior:contain;padding:14px 14px 10px}
+.mm-zeile{animation:mmZeile .5s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(var(--i, 0) * 26ms + 110ms)}
+.mm-sprache{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 12px;margin-bottom:4px;border-bottom:1px solid rgba(15,23,42,.07)}
+.mm-sprache>span{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#1d4ed8}
+.mm-gruppe{margin-top:14px}
+.mm-titel{display:flex;align-items:baseline;gap:8px;margin:0 0 7px;padding:0 6px;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#1d4ed8}
+.mm-zusatz{letter-spacing:0;text-transform:none;font-family:'Newsreader',Georgia,serif;font-style:italic;font-size:13px;color:#12284a}
+.mm-liste{border-radius:18px;overflow:hidden;background:rgba(255,255,255,.5);border:1px solid rgba(15,23,42,.06)}
+.mm-weg{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;color:#2563eb;text-decoration:none;transition:background-color .15s ease}
+.mm-weg+.mm-weg{border-top:1px solid rgba(15,23,42,.06)}
+.mm-weg b{display:block;font-weight:400;font-size:15px;color:#0f172a}
+.mm-weg small{display:block;margin-top:2px;font-size:11.5px;color:#5b6678}
+.mm-weg:active,.mm-kachel:active{background:rgba(37,99,235,.08)}
+.mm-weg.aktiv,.mm-kachel.aktiv{background:rgba(37,99,235,.09)}
+.mm-weg svg{flex:0 0 auto;transition:transform .2s ease}
+.mm-weg:active svg{transform:translateX(3px)}
+.mm-kacheln{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.mm-kachel{display:flex;align-items:center;min-height:44px;padding:10px 14px;border-radius:14px;font-size:14px;color:#0f172a;text-decoration:none;
+  background:rgba(255,255,255,.42);border:1px solid rgba(15,23,42,.05);transition:background-color .15s ease}
+.mm-fuss{display:flex;gap:10px;padding:10px 14px 14px;border-top:1px solid rgba(15,23,42,.07);background:rgba(255,255,255,.35);
+  animation:mmZeile .5s cubic-bezier(.22,1,.36,1) .2s both}
+.mm-knopf{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;border-radius:999px;font-size:14.5px;font-weight:400;
+  color:#1d4ed8;background:rgba(255,255,255,.85);border:1px solid rgba(37,99,235,.32);text-decoration:none;transition:transform .15s ease}
+.mm-knopf.haupt{color:#fff;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);box-shadow:0 10px 24px rgba(37,99,235,.3),inset 0 1px 0 rgba(255,255,255,.25)}
+.mm-knopf:active{transform:scale(.98)}
+.mm.zu .mm-karte{animation:mmZu .22s cubic-bezier(.4,0,1,1) both}
+.mm.zu .mm-schleier{animation:mmSchleierZu .22s ease both}
+@keyframes mmSchleier{from{opacity:0}to{opacity:1}}
+@keyframes mmSchleierZu{from{opacity:1}to{opacity:0}}
+@keyframes mmAuf{from{opacity:0;transform:scale(.88) translateY(-8px);clip-path:inset(0 0 88% 55% round 26px)}
+  60%{opacity:1}to{opacity:1;transform:none;clip-path:inset(0 0 0 0 round 26px)}}
+@keyframes mmZu{from{opacity:1;transform:none}to{opacity:0;transform:scale(.94) translateY(-6px)}}
+@keyframes mmZeile{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.mm-karte,.mm-zeile,.mm-fuss,.mm-schleier,.mm.zu .mm-karte,.mm.zu .mm-schleier{animation-duration:.01ms}}

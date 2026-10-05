@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 export default function AbmeldenPage(): JSX.Element {
   const { schluessel } = useParams<{ schluessel: string }>();
@@ -67,7 +68,7 @@ export default function AbmeldenPage(): JSX.Element {
   return (
     <div className="min-h-screen bg-white flex items-start justify-center px-5 py-16">
       <div className="w-full max-w-[440px]">
-        <div className="text-[11px] tracking-[0.18em] text-slate-400 uppercase mb-8">FIAON</div>
+        <div className="mb-8 text-[18px] leading-none" style={{ color: MARKE_NAVY }}><FiaonWortmarke /></div>
 
         {laedt && (
           <p className="text-[14px] text-slate-500">Einen Moment.</p>

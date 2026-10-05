@@ -27,6 +27,7 @@
 
 import { useEffect, useState } from "react";
 import { LAENDER, landGewaehlt, landSchreiben, type Land } from "@/lib/fiaon-land";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 /* ══════════════════════════════════════════════════════════════════════════
    DIE FLAGGEN — ALLE DREI GLEICH GROSS
@@ -177,7 +178,7 @@ export function LandWahl({ onWahl }: { onWahl: (l: Land) => void }) {
         <div className="fi-lw-karte" data-raus={gehtRaus ? "1" : "0"}>
           {/* Die Marke zuerst: Wer hier landet, soll wissen, wo er ist,
               bevor er eine Frage beantwortet. */}
-          <p className="fi-lw-marke">FIAON</p>
+          <p className="fi-lw-marke"><FiaonWortmarke /></p>
           <h2 className="fi-lw-frage">Wo bist du zu Hause?</h2>
           <p className="fi-lw-warum">
             Wir zeigen dir Limits, Gebühren und Bedingungen in deiner Währung —
@@ -341,8 +342,8 @@ const LAND_CSS = `
 /* Jede Schriftfarbe steht ausdrücklich — auf dunklem Grund gewinnt sonst eine
    geerbte Tailwind-Farbe, und der Text verschwindet. */
 .fi-lw-marke {
-  font-size: 10.5px; font-weight: 800; letter-spacing: .38em;
-  color: rgba(147, 184, 240, .8) !important;
+  font-size: 20px; line-height: 1;
+  color: #ffffff !important;
   margin-bottom: 16px;
   animation: fiLwText 620ms cubic-bezier(.22,1,.36,1) 140ms both;
 }

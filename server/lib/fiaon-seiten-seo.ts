@@ -38,6 +38,7 @@ import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
 import { globalMenue } from "@shared/fiaon-global-menue";
 import { globalStartPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { markeSvg, MARKE_NAVY } from "@shared/fiaon-marke";
 // Trägt die Unterseiten von FIAON Global in die SEO-Tabelle ein — VOR jeder Abfrage.
 import "./fiaon-global-seo";
 import { globalSeite, globalLandingpage } from "@shared/fiaon-global-seiten";
@@ -158,8 +159,8 @@ export function organisationLd(): Record<string, unknown> {
     name: "FIAON",
     legalName: "FIAON LTD",
     url: BASIS,
-    logo: { "@type": "ImageObject", url: `${BASIS}/icon-maskable-512.png`, width: 512, height: 512 },
-    image: `${BASIS}/og-fiaon.jpg`,
+    logo: { "@type": "ImageObject", url: `${BASIS}/icon-maskable-512.png?v=2`, width: 512, height: 512 },
+    image: `${BASIS}/og-fiaon.jpg?v=2`,
     description: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
     // 23.09.2026 (E-232): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
     identifier: { "@type": "PropertyValue", propertyID: "Companies House (England and Wales)", value: FIAON_FIRMA.companyNo },
@@ -206,7 +207,7 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
     dateModified: s.stand, isPartOf: { "@id": `${BASIS}/#website` },
     ...(s.art === "pfeiler" ? {
       author: { "@id": `${BASIS}/#organisation` }, publisher: { "@id": `${BASIS}/#organisation` }, mainEntityOfPage: url,
-      datePublished: s.erschienen ?? s.stand, image: s.bild || `${BASIS}/og-fiaon.jpg`,
+      datePublished: s.erschienen ?? s.stand, image: s.bild || `${BASIS}/og-fiaon.jpg?v=2`,
     } : {}),
   });
   if (fragen.length) {
@@ -273,7 +274,7 @@ export function seoRahmen(sprache: Sprache = "de"): { kopf: string; fuss: string
   const ziel = (p: string) => (en ? (schwesterPfad(p, "en") ?? p) : p);
   const nav = en ? EN_NAV : SEO_NAV;
   const fussGruppen = en ? EN_FUSS : SEO_FUSS;
-  const kopf = `<header><nav aria-label="${en ? "Main navigation" : "Hauptnavigation"}"><a href="${en ? "/en" : "/"}" aria-label="${en ? "FIAON home" : "FIAON Startseite"}"><strong>FIAON</strong></a><ul>${nav.map(([p, t]) => `<li>${link(ziel(p), t)}</li>`).join("")}</ul></nav></header>`;
+  const kopf = `<header><nav aria-label="${en ? "Main navigation" : "Hauptnavigation"}"><a href="${en ? "/en" : "/"}" aria-label="${en ? "FIAON home" : "FIAON Startseite"}">${markeSvg("fiaon", MARKE_NAVY, "20px")}</a><ul>${nav.map(([p, t]) => `<li>${link(ziel(p), t)}</li>`).join("")}</ul></nav></header>`;
   const zeile = en
     ? "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Customers in Germany, Austria and Switzerland · Support +41 44 244 93 01 · support@fiaon.com · The German version of all legal texts is binding."
     : "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Kunden in Deutschland, Österreich und der Schweiz · Support +41 44 244 93 01 · support@fiaon.com";

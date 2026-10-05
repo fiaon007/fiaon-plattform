@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 // ═══════════════════════════════════════════════════════════════════
 // Admin-Zugang — die Tür vor dem Verwaltungsbereich.
@@ -181,7 +182,7 @@ export default function AdminCodeGate({ onOffen }: { onOffen: () => void }) {
       <span className="az-licht b" aria-hidden />
 
       <div className={`az-karte${zittern ? " zittern" : ""}`} role="dialog" aria-label="Zugangscode Verwaltung">
-        <p className="az-marke">FIAON</p>
+        <p className="az-marke"><FiaonWortmarke /></p>
         <p className="az-unter">Verwaltung</p>
         <p className="az-frage">
           {wartenSek > 0

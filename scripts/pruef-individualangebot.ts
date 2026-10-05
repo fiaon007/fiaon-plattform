@@ -697,7 +697,12 @@ titel("10. Startgespräch — das System bucht nach der Annahme (E-273, 02.10.20
   const { createHash } = await import("node:crypto");
   const ANGENOMMEN_HTML_VOR_E273 = "586d33b0740c8036d3edd18a9cce72579bf808efe591793cd1a74d9e94959475";
   const ohneNeu = { ...GLOBAL_ANGEBOT_VORLAGEN.global_angebot_angenommen, absaetze: GLOBAL_ANGEBOT_VORLAGEN.global_angebot_angenommen.absaetze.filter((x) => x !== "{{params.startgespraech_html}}"), kalender: undefined };
-  ok(createHash("sha256").update(mailHtml(ohneNeu)).digest("hex") === ANGENOMMEN_HTML_VOR_E273, "Bestätigung ohne Termin: Gerüst Byte für Byte wie vor E-273 (Commit 6d4e1727)");
+  // E-286 (05.10.2026): Die Kopf-Wortmarke des Gerüsts ist seitdem ein Bild — für den Vergleich
+  // wird genau diese eine Zelle auf den Stand von damals zurückgesetzt, alles andere bleibt Byte für Byte.
+  const { markeMailImg } = await import("../shared/fiaon-marke");
+  const kopfAlt = (h: string) => h.replace(`<td style="line-height:0;">${markeMailImg("global-weiss", 21)}</td>`,
+    `<td style="font:700 21px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;letter-spacing:.13em;color:#ffffff;">FIAON</td>`);
+  ok(createHash("sha256").update(kopfAlt(mailHtml(ohneNeu))).digest("hex") === ANGENOMMEN_HTML_VOR_E273, "Bestätigung ohne Termin: Gerüst Byte für Byte wie vor E-273 (Commit 6d4e1727)");
   // Startmail: Vorgabe = Wortlaut bis E-273; mit Termin Tag und Uhrzeit; danach nur der Name.
   ok(A.angebotMailZusatz({}, D as any).startgespraech_start_html === T.mailStartOhne, "Startmail: Vorgabe vom Server = alter Satz");
   const startAlt = mailRendern("global_angebot_start", nutzlast)!.text;

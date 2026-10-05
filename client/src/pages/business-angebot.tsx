@@ -59,6 +59,7 @@ import "@/styles/global-start.css";
 import "@/styles/global-angebot.css";
 import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ, ANGEBOT_ANNAHME as AN, ANGEBOT_GARANTIE_FEST } from "@shared/fiaon-global-angebot";
 import { STARTGESPRAECH_TEXTE } from "@shared/fiaon-global-startgespraech";
+import { portraitUrl, portraitMitKi, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -183,9 +184,9 @@ function Ansprechpartner({ angebotRef }: { angebotRef: string }) {
             <span className="gia-kontakt-bild" aria-hidden="true">
               {ohneBild[p.kuerzel]
                 ? <span className="gia-kontakt-mono">{p.name.split(/\s+/).map((t) => t[0]).join("").slice(0, 2)}</span>
-                : <img src={`/portraits/${p.kuerzel}.jpg`} alt="" width={72} height={72} loading="lazy" decoding="async" onError={() => setOhneBild((o) => ({ ...o, [p.kuerzel]: true }))} />}
+                : <img src={portraitUrl(p.kuerzel)} alt="" width={72} height={72} loading="lazy" decoding="async" onError={() => setOhneBild((o) => ({ ...o, [p.kuerzel]: true }))} />}
             </span>
-            <span className="gia-kontakt-wer"><b>{p.name}</b><span>{p.rolle}</span></span>
+            <span className="gia-kontakt-wer"><b>{p.name}</b><span>{p.rolle}</span>{portraitMitKi(p.kuerzel) && !ohneBild[p.kuerzel] && <small className="gia-kontakt-ki">{KI_PORTRAIT_HINWEIS.de}</small>}</span>
           </div>
           <div className="gia-kontakt-wege">
             <a href={`mailto:${p.email}?subject=${betreff}`}>

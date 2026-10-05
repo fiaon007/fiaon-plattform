@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type ReactNode, type ElementType } from "react";
 import { Link } from "wouter";
 import { ACCENT } from "./shared";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ============================================================================
 // Agent-Portal — Cinematic Motion-Primitive (Paket S)
@@ -213,8 +214,8 @@ export function AuthLayout({
       <div className="relative z-10 w-full max-w-sm">
         <div className="text-center mb-8">
           <Reveal index={0}>
-            <a href={homeHref} className="text-2xl font-black tracking-tight" style={{ color: ACCENT }}>
-              FIAON
+            <a href={homeHref} className="inline-flex text-2xl" style={{ color: MARKE_NAVY }}>
+              <FiaonWortmarke />
             </a>
           </Reveal>
           <Reveal index={1}>

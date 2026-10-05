@@ -1,5 +1,6 @@
-import { lazy, Suspense, type ComponentType } from "react";
-import "@/styles/laden.css";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
+// Stil des Laders steht inline in index.html (E-287, shared/fiaon-startbuehne.ts) — vorher styles/laden.css.
+import { buehneInnen, HELLE_BUEHNE, BUEHNE_MINDESTENS_MS } from "@shared/fiaon-startbuehne";
 import { Umleitung } from "@/components/Umleitung";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 // Das Telefon des Office hängt an der App, nicht an der Seite (09.09.2026, E-169).
@@ -325,22 +326,35 @@ function admin(Component: ComponentType) {
 // hellen Rechtstexte. Vorher stand zwischen dem hellen Vorab-HTML bzw. zwei
 // hellen Business-Seiten für einen Augenblick die dunkle Weltkugel.
 // 25.09.2026 (E-241): /bonitaet ist keine helle Seite mehr, sondern die Weiterleitung auf die dunkle Übersicht.
-const HELLER_LADER = /^\/(en\/)?business(\/|$)|^\/(privacy|datenschutz)\/?$/;
+// 05.10.2026 (E-287): Die Weltkugel ist abgelöst — Justin wählte aus drei Entwürfen „Aufwärts“: eine
+// steigende Lichtkurve, dann steigen die Buchstaben der neuen Wortmarke auf. Derselbe Bildschirm steht
+// beim ersten Aufruf ab dem ersten Byte (Startbühne in index.html). Eine Quelle für beide.
+const HELLER_LADER = HELLE_BUEHNE;
+const LADER_INNEN = buehneInnen("R");
 function SeiteLaedt({ hell = false }: { hell?: boolean }) {
-  return (
-    <div className={hell ? "ld hell" : "ld"} role="status" aria-label="Seite wird geladen">
-      <div className="ld-glut" /><div className="ld-sterne" />
-      <div className="ld-mitte">
-        <div className="ld-kugel">
-          <div className="ld-kern" />
-          <div className="ld-ring r1" /><div className="ld-ring r2" /><div className="ld-ring r3" />
-          <div className="ld-bahn"><i className="ld-satellit" /></div>
-        </div>
-        <span className="ld-wort">FIAON</span>
-        <div className="ld-balken"><i /></div>
-      </div>
-    </div>
-  );
+  return <div className={hell ? "ld hell" : "ld"} role="status" aria-label="Seite wird geladen" dangerouslySetInnerHTML={{ __html: LADER_INNEN }} />;
+}
+
+/**
+ * Nimmt die Startbühne aus index.html weg — erst, wenn die erste Seite wirklich steht: Diese Komponente
+ * sitzt IN der Suspense-Grenze und wird erst eingehängt, wenn die Seite geladen ist. Mindestens so lange,
+ * bis die Wortmarke gefüllt ist, damit nichts blitzt. Danach einmal sanft ausblenden.
+ */
+let startbuehneWeg = false;
+function StartbuehneWeg() {
+  useEffect(() => {
+    if (startbuehneWeg) return;
+    startbuehneWeg = true;
+    const buehne = document.getElementById("fi-start");
+    if (!buehne) return;
+    const rest = Math.max(0, BUEHNE_MINDESTENS_MS - performance.now());
+    window.setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+      buehne.classList.add("weg");
+      document.documentElement.classList.remove("ld-an");
+      window.setTimeout(() => buehne.remove(), 650);
+    })), rest);
+  }, []);
+  return null;
 }
 
 function Router() {
@@ -352,6 +366,7 @@ function Router() {
   return (
     <>
     <Suspense fallback={<SeiteLaedt hell={HELLER_LADER.test(tabPfad)} />}>
+    <StartbuehneWeg />
     <Switch>
       <Route path="/" component={FiaonHome} />
       <Route path="/investoren" component={SiteInvestoren} />

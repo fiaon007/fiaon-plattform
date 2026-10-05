@@ -26,6 +26,7 @@ import { globalStartPfad, globalSeitePfad, globalPaketePfad } from "@shared/fiao
 import { globalSchwester } from "@shared/fiaon-global-pfade";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global-rahmen.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 type Promo = Record<MenueGruppe, { titel: string; text: string; href: string; knopf: string }>;
 const PROMO: { de: Promo; en: Promo } = {
@@ -54,7 +55,7 @@ function Winkel() {
 export function GlobalMarke({ en = false, hell = false }: { en?: boolean; hell?: boolean }) {
   return (
     <a href={en ? "/en/business" : "/business"} className={`gk-marke${hell ? " hell" : ""}`} aria-label={en ? "FIAON Global — home" : "FIAON Global — Startseite"}>
-      <b>FIAON</b><i>Global</i>
+      <FiaonWortmarke variante="global" dekorativ hoehe={null} />
     </a>
   );
 }

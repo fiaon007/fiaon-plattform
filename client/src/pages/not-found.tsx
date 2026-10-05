@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Compass } from "lucide-react";
 import { istBusinessBereich } from "@/lib/bereich";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ═══════════════════════════════════════════════════════════════════
 // Rollenbewusste 404 (Paket N4): Statt Sackgasse zeigt die Seite je
@@ -27,7 +28,7 @@ export default function NotFound() {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 px-4">
         <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 text-center">
-          <p className="text-lg tracking-tight mb-5" style={{ color: NAVY }}><b>FIAON</b> <i style={{ fontFamily: "'Newsreader', Georgia, serif" }}>Global</i></p>
+          <p className="text-xl leading-none mb-5" style={{ color: MARKE_NAVY }}><FiaonWortmarke variante="global" /></p>
           <span className="inline-flex w-12 h-12 rounded-full border border-slate-200 items-center justify-center text-slate-400 mb-4">
             <Compass size={20} strokeWidth={1.7} />
           </span>
@@ -62,7 +63,7 @@ export default function NotFound() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 text-center">
-        <p className="text-lg font-bold tracking-tight mb-5" style={{ color: ACCENT }}>FIAON</p>
+        <p className="text-xl leading-none mb-5" style={{ color: MARKE_NAVY }}><FiaonWortmarke /></p>
         <span className="inline-flex w-12 h-12 rounded-full border border-slate-200 items-center justify-center text-slate-400 mb-4">
           <Compass size={20} strokeWidth={1.7} />
         </span>

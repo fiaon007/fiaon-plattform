@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentShell } from "./shared";
 import { FiaonEbene } from "@/components/FiaonEbene";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SPACE — der Raum, in dem das Team miteinander redet
@@ -173,14 +174,7 @@ function KommentarZeile({ k, onAntwort, onWeg }: {
 function SystemAvatar({ size = 44 }: { size?: number }) {
   return (
     <span className="fi-sp-systemavatar" style={{ width: size, height: size }} aria-label="FIAON">
-      <svg viewBox="0 0 64 64" width={size * 0.62} height={size * 0.62} aria-hidden="true">
-        <g fill="#fff">
-          <rect x="19" y="17" width="6.5" height="30" rx="3.25" />
-          <rect x="19" y="17" width="24" height="6.5" rx="3.25" />
-          <rect x="19" y="29" width="17" height="6.5" rx="3.25" />
-        </g>
-        <path d="M40 44 L50 34" stroke="#60a5fa" strokeWidth="5" strokeLinecap="round" />
-      </svg>
+      <FiaonWortmarke variante="f" dekorativ hoehe={Math.round(size * 0.5)} farbe="#ffffff" />
     </span>
   );
 }

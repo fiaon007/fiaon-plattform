@@ -52,6 +52,7 @@ import { sqlPool } from "../lib/db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { AUSKUNFT_WIDERRUF, AUSKUNFT_KEIN_WIDERRUF } from "@shared/fiaon-auskunft-widerruf";
 import { anredeMail } from "@shared/fiaon-anrede";
+import { markeSvg } from "@shared/fiaon-marke";
 import {
   AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT,
   auskunftLeistung, auskunftWort, auskunfteienText, auskunftPreisCents, euroText,
@@ -334,8 +335,8 @@ p{margin:0 0 12px}ul{margin:0 0 18px;padding-left:20px}li{margin:0 0 6px}
 button,.knopf{display:block;width:100%;box-sizing:border-box;text-align:center;border:0;border-radius:12px;padding:16px;font:600 16px/1.2 -apple-system,Segoe UI,Arial,sans-serif;color:#fff;background:var(--blau);cursor:pointer;text-decoration:none}
 button:hover,.knopf:hover{background:var(--blau-tief)}button:disabled{opacity:.6;cursor:default}
 a{color:var(--blau)}.fuss{margin-top:14px;text-align:center;font-size:13px;color:var(--leise)}
-.logo{margin:0 0 14px 4px;font:700 17px/1 -apple-system,Segoe UI,Arial,sans-serif;letter-spacing:.22em;color:var(--text)}
-</style></head><body><main><p class="logo">FIAON</p><div class="karte">${inhalt}</div>
+.logo{margin:0 0 16px 4px;line-height:0;color:var(--text)}
+</style></head><body><main><p class="logo">${markeSvg("fiaon", "currentColor", "20px")}</p><div class="karte">${inhalt}</div>
 <p class="fuss">FIAON · <a href="${absoluteUrl("/")}">fiaon.com</a> · <a href="${absoluteUrl("/impressum")}">Impressum</a> · <a href="${absoluteUrl("/datenschutz")}">Datenschutz</a></p></main></body></html>`;
 }
 

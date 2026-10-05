@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 /* ── Journey-spezifische Animationen (reduced-motion wird respektiert) ── */
 if (typeof document !== "undefined" && !document.head.querySelector("style[data-rm-anim]")) {
@@ -401,7 +402,7 @@ function GoalCard({ state }: { state: RoadmapState }) {
           <div className={`rm-float w-full aspect-[1.586/1] rounded-2xl relative overflow-hidden ${unlocked ? "" : "grayscale-[.3]"}`} style={{ background: "linear-gradient(145deg,#0f2d5c,#1a4a8a,#2563eb)", border: "1px solid rgba(255,255,255,.12)", boxShadow: "0 20px 40px -10px rgba(37,99,235,.4)" }}>
             <div className="absolute inset-0 p-4 flex flex-col justify-between">
               <div className="flex justify-between items-start">
-                <span className="text-sm font-bold text-white/90">FIAON</span>
+                <FiaonWortmarke className="text-sm" farbe="rgba(255,255,255,.92)" />
                 <span className="text-[8px] font-semibold uppercase tracking-widest text-white/50">Ziel</span>
               </div>
               <div className="w-8 h-6 rounded" style={{ background: "linear-gradient(135deg,#d4af37,#f0d875)" }} />

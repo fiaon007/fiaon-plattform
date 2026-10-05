@@ -225,7 +225,7 @@
 .as-karte::after{content:"";position:absolute;inset:-40% -60%;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.28) 50%,transparent 60%);transform:translateX(-60%);animation:wsGlanz 7s ease-in-out infinite}
 @keyframes wsGlanz{0%,55%{transform:translateX(-60%)}85%,100%{transform:translateX(60%)}}
 .as-karte .chip{position:absolute;left:16px;top:16px;width:34px;height:25px;border-radius:6px;background:linear-gradient(135deg,#e9c872,#f7e3a2 45%,#c9a227);box-shadow:0 2px 5px rgba(0,0,0,.25)}
-.as-karte .wort{position:absolute;right:16px;top:14px;font-size:12px;letter-spacing:.16em;opacity:.85}
+.as-karte .wort{position:absolute;right:16px;top:14px;font-size:13px;line-height:0;opacity:.9}
 .as-karte .limit{position:absolute;left:16px;bottom:30px;font-size:22px;font-weight:400;letter-spacing:-.02em}
 .as-karte .inhaber{position:absolute;left:16px;bottom:12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
 .as-paket .name{margin-top:18px;font-size:16px;font-weight:500;color:#0f172a}

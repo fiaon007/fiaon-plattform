@@ -15,6 +15,7 @@ import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator,
 import { Einfuehrung } from "@/components/agent/Einfuehrung";
 import { globalZugriffLesen, globalZugriffMerken } from "./global-zugriff";
 import "@/styles/office.css";
+import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 export interface Raum { href: string; label: string; Icon: any; match: string[]; szene: string; gruppe: "arbeit" | "team" | "ich" | "mehr"; nurRolle?: string; nichtRolle?: string[]; badge?: string;
   /** Der Raum erscheint nur, wenn der Server den Zugriff bestätigt hat (E-188: „global"). */
@@ -361,7 +362,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
         {banner}
         <header className="of-kopf">
           <button type="button" className="of-burger" aria-label="Räume öffnen" onClick={() => setMenueOffen(true)}><Menu size={20} /></button>
-          <Link href="/agent/start" className="of-wort">FIAON</Link><span className="of-marke">Office</span>
+          <Link href="/agent/start" className="of-wort"><FiaonWortmarke /></Link><span className="of-marke">Office</span>
           {/* 24.08.2026 (Justin: „das ‚More' löschen"): VORHER stand hier der
               Raumname — derselbe, der in der Leiste links ohnehin blau
               hervorgehoben ist. Bei „More" las er sich zudem wie ein
@@ -447,7 +448,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
         )}
         <div className={`of-schublade-hintergrund${menueOffen ? " offen" : ""}`} onClick={() => setMenueOffen(false)} aria-hidden="true" />
         <aside className={`of-schublade${menueOffen ? " offen" : ""}`} aria-label="Räume" aria-hidden={!menueOffen}>
-          <div className="of-schublade-kopf"><span className="of-wort">FIAON</span><span className="of-marke">Office</span><button type="button" className="of-rund" onClick={() => setMenueOffen(false)} aria-label="Schließen"><X size={18} /></button></div>
+          <div className="of-schublade-kopf"><span className="of-wort"><FiaonWortmarke /></span><span className="of-marke">Office</span><button type="button" className="of-rund" onClick={() => setMenueOffen(false)} aria-label="Schließen"><X size={18} /></button></div>
           <div className="of-schublade-nutzer"><span className="of-gesicht">{agent.avatar ? <img src={agent.avatar} alt="" /> : initialen}</span><div><b>{agent.name}</b><small>{PRAESENZ[praesenz][0]}</small></div></div>
           <nav className="of-schublade-liste"><Liste inSchublade /></nav>
           <div className="of-schublade-fuss"><button type="button" onClick={() => { setMenueOffen(false); window.dispatchEvent(new CustomEvent("fiaon-einfuehrung-starten")); }}><Compass size={17} /><span>Einführung</span></button><button type="button" onClick={logout}><LogOut size={17} /><span>Abmelden</span></button></div>

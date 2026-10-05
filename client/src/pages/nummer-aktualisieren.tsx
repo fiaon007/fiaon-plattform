@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { checkPhone } from "@/lib/phone";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ════════════════════════════════════════════════════════════════════
 // #23 — Öffentliche Kundenseite „Telefonnummer aktualisieren" (Premium-CI).
@@ -56,7 +57,7 @@ export default function NummerAktualisierenPage() {
       <div className="w-full max-w-md">
         {/* Kopf-Wortmarke */}
         <div className="text-center mb-5">
-          <span className="text-[22px] font-extrabold tracking-tight text-slate-900">FIAON</span>
+          <FiaonWortmarke className="text-[22px]" farbe={MARKE_NAVY} />
         </div>
 
         <div className="bg-white rounded-3xl shadow-[0_20px_60px_-20px_rgba(15,23,42,0.25)] border border-white/70 p-6 sm:p-8">

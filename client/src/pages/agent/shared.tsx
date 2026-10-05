@@ -14,6 +14,7 @@ import {
   AGENT_UPDATES, getUnseenCount, fmtUpdateDate,
   getUnseenImportant, markImportantSeen, type AgentUpdate,
 } from "./updates-data";
+import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -557,7 +558,7 @@ function AgentDrawer({
         onTouchEnd={onTouchEnd}
       >
         <div className="px-5 pt-5 pb-4 border-b border-slate-100">
-          <span className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</span>
+          <FiaonWortmarke className="text-[17px]" farbe={MARKE_NAVY} />
           <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Team</span>
         </div>
 

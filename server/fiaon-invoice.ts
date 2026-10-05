@@ -52,6 +52,7 @@ import { istGlobalPaket, istAngebotsPaket } from "@shared/fiaon-pakete";
 import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
 import type PDFKit from "pdfkit";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { markeInsPdf } from "./lib/fiaon-marke-pdf";
 
 // 18.09.2026 (E-188): Die Angaben kommen aus shared/fiaon-firma.ts — die Seite /business zeigt denselben Vertragspartner.
 export const FIAON_ENTITY = {
@@ -241,7 +242,7 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   };
 
   // ── Kopf: FIAON Wortmarke links, Entity-Block rechtsbündig ──
-  doc.font("Helvetica-Bold").fontSize(24).fillColor(CI.blue).text("FIAON", M, M);
+  markeInsPdf(doc, M, M + 1, 20);
   doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
     .text(firmenkunde ? "FIAON Global" : "SaaS- & E-Learning-Plattform", M, M + 28);
 

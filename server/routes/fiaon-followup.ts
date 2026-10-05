@@ -531,7 +531,8 @@ export async function runTerminErinnerungen(): Promise<number> {
 
   const { versendenUndProtokollieren } = await import("../lib/fiaon-mail-log");
   const { berlinDatumText, berlinUhrzeit, stornoLink } = await import("../lib/fiaon-termine");
-  const { terminArtAusQuelle } = await import("../../shared/fiaon-termin-art");
+  const { terminArtFuerKunden } = await import("../../shared/fiaon-termin-art");
+  const { LIMIT_QUELLE } = await import("../../shared/fiaon-limit-gespraech");
   let versandt = 0;
   let fehlgeschlagen = 0;
   let nochmal = 0;
@@ -570,12 +571,15 @@ export async function runTerminErinnerungen(): Promise<number> {
         // Die Terminart, aus derselben Ableitung wie die Bestätigung und die
         // Oberfläche. BETREIBER-TODO: als {{params.termin_art}} in die
         // Brevo-Vorlage aufnehmen.
-        termin_art: terminArtAusQuelle(t.quelle).text,
+        // 05.10.2026 (E-283): der Kundenname der Art, nie die interne Marke („Vertrieb", „Support").
+        termin_art: terminArtFuerKunden(t.quelle),
         // 17.09.2026 (E-188): Die Absage-Seite duzt Privatkunden. Ein Unternehmen,
         // das ein Erstgespräch zu FIAON Global gebucht hat, liest dort die
         // Sie-Fassung — der Zusatz am Link schaltet sie ein; seit 19.09.2026 auch den Rahmen von FIAON Global.
+        // 05.10.2026 (E-283): Das Limit-Gespräch auch — der Kundenbereich siezt, und die Absage-Seite
+        // führt beim Limit-Gespräch zurück in ihn (wie der Absage-Link auf /app/mehr/limit).
         storno_link: t.storno_token
-          ? `${stornoLink(String(t.storno_token))}${String(t.quelle) === "global" ? "?anrede=sie&bereich=business" : ""}`
+          ? `${stornoLink(String(t.storno_token))}${String(t.quelle) === "global" ? "?anrede=sie&bereich=business" : String(t.quelle) === LIMIT_QUELLE ? "?anrede=sie" : ""}`
           : "",
         // Derselbe fertige Satz wie in der Bestätigung — für
         // {{params.hinweis_anruf}} in der Brevo-Vorlage. In der Erinnerung ist

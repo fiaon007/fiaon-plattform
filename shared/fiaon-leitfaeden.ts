@@ -204,7 +204,7 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
   // ── E-283 (05.10.2026): DAS LIMIT-GESPRÄCH ─────────────────────────────────
   // Der Kunde bucht es selbst im Kundenbereich („Limit-Erhöhung anfragen"),
   // frühestens drei Monate nach der ersten Rate und drei Monate nach dem
-  // letzten gezählten (shared/fiaon-limit-gespraech.ts). Kein Verkauf und nie
+  // letzten GEFÜHRTEN (shared/fiaon-limit-gespraech.ts). Kein Verkauf und nie
   // eine Limit-Zusage: Über das Limit entscheidet die Bank.
   {
     key: "limit", label: "Limit-Gespräch", kurz: "Alle drei Monate – Zahlungsnachweis, Stand der Akte, nächster Schritt zu einem höheren Limit. Keine Limit-Zusage.",
@@ -213,7 +213,7 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
       { titel: "Zahlungsnachweis", text: "Die Raten der letzten Monate durchgehen: Pünktlich gezahlt ist der wichtigste Nachweis gegenüber der Bank. Ist eine Rate offen, freundlich ansprechen und die Zahlungsdaten erneut senden.", satz: "Ihre Raten sind seit … pünktlich eingegangen – genau das zählt für die Bank." },
       { titel: "Stand der Akte", text: "Was hat sich seit dem letzten Gespräch getan: Antworten auf Schreiben, erledigte Einträge, neue Post, aktueller Kontoauszug?", satz: "Seit unserem letzten Gespräch hat sich in Ihrer Akte Folgendes getan: …" },
       { titel: "Nächster Schritt zu einem höheren Limit", text: "Einen konkreten Schritt mit Datum vereinbaren: fehlende Unterlage, nächstes Schreiben, Kontoverhalten. Kein Limit nennen und nichts zusagen – über das Limit entscheidet die Bank.", satz: "Als Nächstes … – damit bereiten wir den nächsten Schritt zu einem höheren Limit vor. Über das Limit selbst entscheidet die Bank." },
-      { titel: "Ergebnis festhalten", text: "Den Termin als erledigt abhaken – erst dann zählt er, und das nächste Limit-Gespräch ist frühestens in drei Monaten im Kundenbereich buchbar. Den vereinbarten Schritt in der Akte notieren.", satz: "Ihr nächstes Limit-Gespräch buchen Sie in drei Monaten selbst in Ihrem Kundenbereich unter „Limit-Erhöhung anfragen“." },
+      { titel: "Ergebnis festhalten", text: "Nur ein geführtes Gespräch abhaken („Gut gelaufen“) – erst dann zählt es, und das nächste Limit-Gespräch ist frühestens in drei Monaten im Kundenbereich buchbar. Kam es nicht zustande: „Nicht erschienen“ – das zählt nicht, der Kunde bucht neu. Den vereinbarten Schritt in der Akte notieren.", satz: "Ihr nächstes Limit-Gespräch buchen Sie in drei Monaten selbst in Ihrem Kundenbereich unter „Limit-Erhöhung anfragen“." },
     ],
     einwaende: [
       { frage: "„Bekomme ich jetzt ein höheres Limit?“", antwort: "Darüber entscheidet die Bank – das kann ich Ihnen nicht zusagen. Was wir tun: Ihre Akte so vorbereiten, dass der nächste Schritt trägt. Heute ist das …" },

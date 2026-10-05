@@ -14,7 +14,10 @@
 //                         Bereich ruft sie; eine Fassung, nicht zwei)
 //   Rückstand           → älteste offene Rate vor heute (Berlin), personenweit wie
 //                         die Situation der Akte (fiaon-office-vertrieb.ts)
-//   Vertrag beendet     → gekündigt UND Vertragsende erreicht (wie vertrag.beendet)
+//   Vertrag beendet     → limitVertragBeendet (shared): gekündigt UND Vertragsende
+//                         erreicht (wie vertrag.beendet) — oder ohne Kündigung
+//                         gestoppt (abo_gestoppt_am) und der Monat der letzten
+//                         Rate vorbei (E-283, 05.10.2026)
 //   Anker               → aboAnker (fiaon-abo.ts): paid_at → Bankbuchung → Abschluss
 //   Limit-Gespräche     → fiaon_termine quelle „limit_gespraech"; gezählt wird mit
 //                         limitGezaehlt (die EINE Fassung, in shared/)
@@ -28,7 +31,7 @@ import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
 import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import {
-  limitAnspruchAus, limitGezaehlt, paketMitLimit, LIMIT_HERKUNFT, LIMIT_PAKETE, LIMIT_QUELLE,
+  limitAnspruchAus, limitGezaehlt, limitVertragBeendet, paketMitLimit, LIMIT_HERKUNFT, LIMIT_PAKETE, LIMIT_QUELLE,
   type LimitAnspruch, type LimitGebucht, type LimitTermin,
 } from "@shared/fiaon-limit-gespraech";
 
@@ -77,6 +80,15 @@ async function rueckstandNr(ref: string, personId: number | null, lauf: Lauf): P
   return r ? Number(r.rate_nr) : null;
 }
 
+/** Fälligkeit („JJJJ-MM-TT") der letzten nicht stornierten Rate dieser Bestellung — null ohne Rate. */
+async function letzteRateFaellig(ref: string, lauf: Lauf): Promise<string | null> {
+  const [r] = (await lauf`
+    SELECT to_char(r.faellig_am, 'YYYY-MM-DD') AS tag FROM fiaon_abo_raten r
+    WHERE r.ref = ${ref} AND r.storniert_am IS NULL AND r.status <> 'storniert'
+    ORDER BY r.rate_nr DESC LIMIT 1`) as any[];
+  return r?.tag ? String(r.tag) : null;
+}
+
 /**
  * Der Anspruch für die Bestellung `ref` (die Sitzung des Kunden). null, wenn es
  * die Bestellung nicht gibt. `opts.startGefuehrt` übernimmt der Bereich, der die
@@ -86,14 +98,24 @@ export async function limitAnspruchFuer(
   ref: string, lauf: Lauf = sqlPool, opts: { startGefuehrt?: boolean } = {},
 ): Promise<LimitStand | null> {
   const [a] = (await lauf`
-    SELECT ref, person_id, pack_key, payment_status, gekuendigt_am, vertrag_ende_am
+    SELECT ref, person_id, pack_key, payment_status, gekuendigt_am, vertrag_ende_am, abo_gestoppt_am
     FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
   `) as any[];
   if (!a) return null;
   const personId = a.person_id ? Number(a.person_id) : null;
   const heuteIso = berlinToday();
   const bezahlt = String(a.payment_status) === "paid";
-  const beendet = !!a.gekuendigt_am && !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now();
+  // E-283 (05.10.2026): Ein ohne Kündigung gestopptes Abo (E-024 „Nein" nach Rate 12,
+  // Stopp in der Verwaltung) übersah die alte Regel — das Limit-Gespräch blieb dauerhaft
+  // buchbar. Die Regel steht in limitVertragBeendet; hier nur die Tatsachen.
+  const aboGestoppt = !a.gekuendigt_am && !!a.abo_gestoppt_am;
+  const beendet = limitVertragBeendet({
+    gekuendigt: !!a.gekuendigt_am,
+    vertragEndeErreicht: !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now(),
+    aboGestoppt,
+    letzteRateFaelligIso: aboGestoppt ? await letzteRateFaellig(ref, lauf) : null,
+    heuteIso,
+  });
 
   // E-272: Global-Kunden stehen in keinem Privat-Ablauf. Der Rest wird für sie
   // gar nicht erst gelesen.

@@ -22,8 +22,9 @@
 //   Antragsweg gleich (dieselben Paketschlüssel). FIAON Start nicht.
 //   Global-Kunden nie (Regel E-272, server/lib/fiaon-global-kunde.ts).
 //   Dazu: Startgespräch geführt, keine überfällige Rate, Vertrag nicht beendet
-//   (gekündigt, aber noch laufend = buchbar), kein gebuchtes offenes
-//   Limit-Gespräch.
+//   (gekündigt, aber noch laufend = buchbar; Abo ohne Kündigung gestoppt =
+//   beendet, sobald der Monat der letzten Rate vorbei ist — limitVertragBeendet),
+//   kein gebuchtes offenes Limit-Gespräch.
 //
 //   Frühester Tag = der SPÄTERE von
 //     (a) Abo-Anker (Eingang der ersten Monatsrate, aboAnker) + 3 Kalendermonate
@@ -93,6 +94,12 @@ export interface LimitAnspruch {
   abIso: string | null;
   /** Derselbe Tag als „TT.MM.JJJJ". */
   abText: string | null;
+  /**
+   * Liegt „ab" noch vor heute? Dieselbe Bedingung wie der Grund „sperrfrist" —
+   * die Sätze bei Rückstand und fehlendem Startgespräch nennen dann den Tag mit
+   * (E-283: sonst versprachen sie eine Buchbarkeit, die die Frist noch verhindert).
+   */
+  fristOffen: boolean;
   /** Das gebuchte, offene Limit-Gespräch. */
   gebucht: LimitGebucht | null;
   /** Das letzte gezählte Limit-Gespräch. */
@@ -113,7 +120,7 @@ export interface LimitEingabe {
   ankerIso: string | null;
   /** Nummer der ältesten überfälligen Rate, sonst null. */
   rueckstandNr: number | null;
-  /** Vertrag beendet (gekündigt UND Vertragsende erreicht). */
+  /** Vertrag beendet — limitVertragBeendet (gekündigt und Ende erreicht, oder gestoppt und letzte Rate vorbei). */
   beendet: boolean;
   /** Tag („JJJJ-MM-TT", Berlin) des letzten GEZÄHLTEN Limit-Gesprächs. */
   letztesGezaehltIso: string | null;
@@ -189,6 +196,35 @@ export function paketMitLimit(paketKey: unknown): boolean {
 }
 
 /**
+ * Ist der Vertrag beendet? (05.10.2026, E-283)
+ *   · gekündigt → wenn das Vertragsende erreicht ist (wie vertrag.beendet im Bereich).
+ *     Die Kündigung setzt abo_gestoppt_am schon am Tag der Kündigung
+ *     (fiaon-kuendigung.ts) — der Vertrag läuft trotzdem bis zum Ende.
+ *   · ohne Kündigung gestoppt (abo_gestoppt_am: „Nein" nach Rate 12, E-024 —
+ *     „Ihr Abo endet mit der letzten Rate"; Stopp in der Verwaltung) → wenn der
+ *     Monat der letzten nicht stornierten Rate vorbei ist: Fälligkeit + 1 Monat
+ *     ≤ heute. Der bezahlte letzte Monat bleibt buchbar. Ohne Rate: beendet —
+ *     es läuft nichts mehr. Ein unlesbarer Tag schaltet nichts frei.
+ */
+export function limitVertragBeendet(e: {
+  gekuendigt: boolean;
+  /** Vertragsende (vertrag_ende_am) erreicht? */
+  vertragEndeErreicht: boolean;
+  /** abo_gestoppt_am gesetzt? */
+  aboGestoppt: boolean;
+  /** Fälligkeit der letzten nicht stornierten Rate („JJJJ-MM-TT"), null ohne Rate. */
+  letzteRateFaelligIso: string | null;
+  heuteIso: string;
+}): boolean {
+  if (e.gekuendigt) return e.vertragEndeErreicht;
+  if (!e.aboGestoppt) return false;
+  if (e.letzteRateFaelligIso == null) return true;
+  const ende = plusMonate(e.letzteRateFaelligIso, 1);
+  if (!ende || !istTag(e.heuteIso)) return true;
+  return e.heuteIso >= ende;
+}
+
+/**
  * Der früheste Tag nach der Sperrfrist: der spätere von Anker + 3 Monate und
  * letztes gezähltes Gespräch + 3 Monate. Ohne Anker UND ohne Gespräch: null —
  * dann gibt es keine Frist, die sich belegen ließe (aboAnker hat vier
@@ -210,6 +246,8 @@ export function limitAbIso(ankerIso: string | null, letztesGezaehltIso: string |
  */
 export function limitAnspruchAus(e: LimitEingabe): LimitAnspruch {
   const abIso = limitAbIso(istTag(e.ankerIso) ? e.ankerIso : null, istTag(e.letztesGezaehltIso) ? e.letztesGezaehltIso : null);
+  // Ein unlesbares „heute" schaltet nichts frei — dann gilt die Frist weiter.
+  const fristOffen = !!abIso && (!istTag(e.heuteIso) || e.heuteIso < abIso);
   const grund: LimitGrund =
     e.globalKunde ? "global"
     : !paketMitLimit(e.paketKey) ? "kein_paket"
@@ -218,14 +256,14 @@ export function limitAnspruchAus(e: LimitEingabe): LimitAnspruch {
     : e.gebucht ? "gebucht"
     : e.rueckstandNr != null ? "rueckstand"
     : !e.startGefuehrt ? "start_fehlt"
-    // Ein unlesbares „heute" schaltet nichts frei — dann gilt die Frist weiter.
-    : abIso && (!istTag(e.heuteIso) || e.heuteIso < abIso) ? "sperrfrist"
+    : fristOffen ? "sperrfrist"
     : "frei";
   return {
     grund,
     buchbar: grund === "frei",
     abIso,
     abText: tagText(abIso),
+    fristOffen,
     gebucht: e.gebucht ?? null,
     letztes: e.letztes ?? null,
     rueckstandNr: e.rueckstandNr ?? null,
@@ -248,8 +286,12 @@ export const LIMIT_TEXTE = {
   bank: "Über Ihr Limit entscheidet die Bank – im Gespräch bereiten wir Ihren nächsten Schritt vor.",
   sperrfrist: (abText: string) => `Ihr nächstes Limit-Gespräch können Sie ab dem ${abText} buchen.`,
   rueckstand: "Sobald Ihre offene Rate beglichen ist, können Sie Ihr Limit-Gespräch buchen.",
+  /** Rückstand bei noch laufender Sperrfrist — mit dem Tag, ab dem es frühestens geht. */
+  rueckstandAb: (abText: string) => `Sobald Ihre offene Rate beglichen ist, können Sie Ihr Limit-Gespräch ab dem ${abText} buchen.`,
   keinPaket: "Das Limit-Gespräch gehört zu FIAON Pro, Ultra und High-End.",
   startFehlt: "Zuerst führen Sie Ihr Startgespräch – danach können Sie hier Ihr Limit-Gespräch buchen.",
+  /** Startgespräch fehlt bei noch laufender Sperrfrist — mit dem Tag. */
+  startFehltAb: (abText: string) => `Zuerst führen Sie Ihr Startgespräch – Ihr Limit-Gespräch können Sie hier ab dem ${abText} buchen.`,
   nichtBezahlt: "Ihr erstes Limit-Gespräch können Sie drei Monate nach Eingang Ihrer ersten Monatsrate buchen.",
   beendet: "Ihr Vertrag ist beendet – ein Limit-Gespräch lässt sich nicht mehr buchen.",
   /** Die Karte auf Heute, wenn jetzt gebucht werden kann. */
@@ -268,15 +310,16 @@ export const LIMIT_TEXTE = {
   nurAnsicht: "In dieser Ansicht lässt sich kein Termin buchen.",
 } as const;
 
-/** Der Satz zum Grund — für die App und die Demo. `null` bei „frei" und „gebucht" (eigene Darstellung). */
+/** Der Satz zum Grund — für App, Demo und die Ablehnung der Buchungsroute. `null` bei „frei" und „gebucht" (eigene Darstellung). */
 export function limitGrundSatz(a: LimitAnspruch): string | null {
   switch (a.grund) {
     case "global":
     case "kein_paket": return LIMIT_TEXTE.keinPaket;
     case "nicht_bezahlt": return LIMIT_TEXTE.nichtBezahlt;
     case "beendet": return LIMIT_TEXTE.beendet;
-    case "rueckstand": return LIMIT_TEXTE.rueckstand;
-    case "start_fehlt": return LIMIT_TEXTE.startFehlt;
+    // E-283: Läuft die Frist noch, nennt der Satz den Tag — sonst klänge es, als ginge es sofort nach Ausgleich.
+    case "rueckstand": return a.fristOffen && a.abText ? LIMIT_TEXTE.rueckstandAb(a.abText) : LIMIT_TEXTE.rueckstand;
+    case "start_fehlt": return a.fristOffen && a.abText ? LIMIT_TEXTE.startFehltAb(a.abText) : LIMIT_TEXTE.startFehlt;
     case "sperrfrist": return a.abText ? LIMIT_TEXTE.sperrfrist(a.abText) : null;
     default: return null;
   }

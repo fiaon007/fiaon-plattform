@@ -22,7 +22,7 @@ export const PERSONEN = [
     email: "js@fiaon.com", telefon: "+41 77 288 4902",
   },
   {
-    kuerzel: "florentine", name: "Florentine Lombardi", rolle: "Gesellschafterin · Menschen & Onboarding",
+    kuerzel: "florentine", name: "Florentine Lombardi", rolle: "Geschäftsführerin · Menschen & Onboarding",
     kurz: "Verantwortet Mitarbeiter, Einschulungen und Onboardings – jeder neue Kollege und jeder neue Kunde beginnt bei ihr.",
     lang: "Florentine baut das Team auf und hält es zusammen: Sie schult neue Mitarbeiter in der Academy, begleitet die Onboardings und sorgt dafür, dass jeder Kunde sein Startgespräch mit einem Menschen führt, der die Akte kennt.",
     email: "florentine@fiaon.com", telefon: "+41 77 202 84 49",

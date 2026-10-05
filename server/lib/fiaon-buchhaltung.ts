@@ -56,7 +56,7 @@ export interface BuchPerson {
 
 export const BUCH_LEUTE: readonly BuchPerson[] = [
   { email: "js@fiaon.com", name: "Justin Schwarzott", rolle: "inhaber", titel: "Inhaber" },
-  { email: "florentine@fiaon.com", name: "Florentine Lombardi", rolle: "buchhaltung", titel: "Künftige Geschäftsführung" },
+  { email: "florentine@fiaon.com", name: "Florentine Lombardi", rolle: "buchhaltung", titel: "Geschäftsführerin" },
 ] as const;
 
 /** Die gemeinsame Anmeldeadresse — erster Faktor, sagt noch nicht, wer kommt. */

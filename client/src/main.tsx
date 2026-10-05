@@ -57,14 +57,54 @@ zoomAmTelefonSperren();
 // übernimmt jetzt diese Schranke. Ohne sie könnte React auf einer langsamen
 // Leitung ungestaltet erscheinen. Im Dev-Server gibt es den Link nicht.
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// NACH EINEM DEPLOY: NEU LADEN STATT UNGESTALTET (06.10.2026, E-291)
+//
+// Justin, iPhone, 00:33 — eine Minute nach dem Deploy: Ladeanimation, danach eine
+// ungestaltete Seite (Times, nackte Links, weißer Schleier). Während Render umschaltet,
+// laufen alte und neue Instanz kurz parallel: Das neue HTML verlangt
+// /assets/index-<neu>.css, die Anfrage landet bei der alten Instanz — dort gibt es die
+// Datei nicht. Dasselbe gilt für Seiten-Bausteine (vite:preloadError).
+// Jetzt: Fehlt das Stilblatt (Fehler ODER geladen, aber ohne Regeln), lädt die Seite frisch
+// neu — höchstens dreimal in zwei Minuten, mit wachsender Pause. Die Startbühne bleibt
+// solange stehen; erst danach startet die App notfalls ohne Stil, wie früher.
+// ═══════════════════════════════════════════════════════════════════════════
+const NEU_SCHLUESSEL = "fiaon-neu-geladen";
+function neuLadenErlaubt(): number | null {
+  try {
+    const alt = JSON.parse(sessionStorage.getItem(NEU_SCHLUESSEL) || "null") as { n: number; t: number } | null;
+    const frisch = alt && Date.now() - alt.t < 120_000 ? alt : { n: 0, t: Date.now() };
+    if (frisch.n >= 3) return null;
+    sessionStorage.setItem(NEU_SCHLUESSEL, JSON.stringify({ n: frisch.n + 1, t: frisch.t }));
+    return 600 + frisch.n * 1400;
+  } catch {
+    return null;
+  }
+}
+function frischLaden(): boolean {
+  const pause = neuLadenErlaubt();
+  if (pause === null) return false;
+  window.setTimeout(() => window.location.reload(), pause);
+  return true;
+}
+window.addEventListener("vite:preloadError", (e) => { if (frischLaden()) e.preventDefault(); });
+
 function stilblattBereit(): Promise<void> {
   const links = Array.from(document.querySelectorAll<HTMLLinkElement>("link[data-fiaon-stil]"));
   return Promise.all(links.map((link) => new Promise<void>((fertig) => {
-    const anwenden = () => { link.media = "all"; fertig(); };
-    if (link.sheet) return anwenden();
-    link.addEventListener("load", anwenden, { once: true });
-    // Fehlgeschlagen: nicht ewig warten — die App startet, wie sie es bei einem 404 auch vorher tat.
-    link.addEventListener("error", () => fertig(), { once: true });
+    let erledigt = false;
+    const pruefen = () => {
+      if (erledigt) return;
+      erledigt = true;
+      let regeln = 0;
+      try { regeln = link.sheet?.cssRules.length ?? 0; } catch { regeln = 1; }
+      if (regeln > 0) { link.media = "all"; return fertig(); }
+      // Geladen, aber leer (z. B. HTML statt CSS) oder Fehler: frisch laden; sonst wie früher weiter.
+      if (!frischLaden()) fertig();
+    };
+    if (link.sheet) return pruefen();
+    link.addEventListener("load", pruefen, { once: true });
+    link.addEventListener("error", pruefen, { once: true });
   }))).then(() => undefined);
 }
 

@@ -1133,7 +1133,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wer steht hinter FIAON?",
-      "a": "Gründer und Geschäftsführer Justin Schwarzott; Florentine Lombardi (Menschen und Onboarding) und Daniel Stripling (Vertrieb) als Gesellschafter im operativen Betrieb; ein Team aus Vertrieb, Onboarding und Forderungsmanagement – viele davon selbst ehemalige Kunden. Investor und Partner: Schwarzott Capital Partners AG, Zürich. Namen und Gesichter stehen auf der Team-Seite."
+      "a": "Gründer und Geschäftsführer Justin Schwarzott; Geschäftsführerin Florentine Lombardi (Menschen und Onboarding); Daniel Stripling (Vertrieb) als Gesellschafter im operativen Betrieb; ein Team aus Vertrieb, Onboarding und Forderungsmanagement – viele davon selbst ehemalige Kunden. Investor und Partner: Schwarzott Capital Partners AG, Zürich. Namen und Gesichter stehen auf der Team-Seite."
     },
     {
       "f": "Ist FIAON eine Bank, ein Inkasso oder eine Kanzlei?",
@@ -1155,7 +1155,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Who is behind FIAON?",
-      "a": "Founder and managing director Justin Schwarzott; Florentine Lombardi (people and onboarding) and Daniel Stripling (sales) as shareholders in day-to-day operations; a team in sales, onboarding and collections — many of them former customers themselves. Investor and partner: Schwarzott Capital Partners AG, Zurich. Names and faces are on the team page."
+      "a": "Founder and managing director Justin Schwarzott; managing director Florentine Lombardi (people and onboarding); Daniel Stripling (sales) as shareholder in day-to-day operations; a team in sales, onboarding and collections — many of them former customers themselves. Investor and partner: Schwarzott Capital Partners AG, Zurich. Names and faces are on the team page."
     },
     {
       "f": "Is FIAON a bank, a debt collector or a law firm?",

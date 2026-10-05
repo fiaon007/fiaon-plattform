@@ -108,6 +108,14 @@ export function serveStatic(app: Express) {
   // fall through to index.html if the file doesn't exist
   // CRITICAL: Never serve index.html for /api/* routes - they must return JSON 404
   app.use("*", (req, res) => {
+    // 06.10.2026 (E-291): Eine fehlende Bau-Datei (/assets/…) bekommt ein echtes 404 — NIE die index.html.
+    // Vorher antwortete der Server mit 200 + HTML; Safari verwarf das Stilblatt still und die App startete
+    // ungestaltet (Justin, iPhone, 00:33 — eine Minute nach dem Deploy, als alte und neue Instanz parallel liefen).
+    // Mit 404 meldet der Browser einen Fehler, und client/src/main.tsx lädt die Seite frisch.
+    if (req.originalUrl.startsWith("/assets/")) {
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(404).type("text/plain").send("Nicht gefunden");
+    }
     if (req.originalUrl.startsWith("/api")) {
       return res.status(404).json({
         ok: false,

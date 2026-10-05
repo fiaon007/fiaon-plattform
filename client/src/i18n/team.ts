@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const de = {
   metaTitel: "Team",
-  metaBeschreibung: "Das Team hinter FIAON: Justin Schwarzott (Gründer), Florentine Lombardi (Menschen & Onboarding), Daniel Stripling (Vertrieb) – und Schwarzott Capital Partners AG als Investor.",
+  metaBeschreibung: "Das Team hinter FIAON: Justin Schwarzott (Gründer), Florentine Lombardi (Geschäftsführerin, Menschen & Onboarding), Daniel Stripling (Vertrieb) – und Schwarzott Capital Partners AG als Investor.",
   pille: "Team", h1a: "Ein junges Legal- und FinTech ", h1b: "auf dem Weg zum Unicorn.",
   lead: "FIAON ist ein Team aus Vertrieb, Onboarding und Forderungsmanagement – und drei Gesellschaftern, die selbst im Betrieb stehen. Wir bauen das Betriebssystem für Bonität in Deutschland, Österreich und der Schweiz: Einsicht, Aktion, Zugang für 100 Millionen Menschen. Und wir suchen Menschen, die das mit uns bauen.",
   kontakt: "Kontakt aufnehmen", teilWerden: "Teil des Teams werden",
@@ -37,7 +37,7 @@ const de = {
   // ── Die Bausteine (components/site/Team.tsx) ─────────────────────────────
   personen: {
     justin: { rolle: "Gründer · Geschäftsführer · Director", kurz: "Führt FIAON seit dem ersten Tag – Produkt, Strategie, Partner. Entscheidungen stehen im Register, jeder Tag im Logbuch.", lang: "Justin hat FIAON gegründet, weil er gesehen hat, wie viele Menschen an einem Eintrag scheitern, den niemand erklärt und niemand anfasst. Er verantwortet Produkt, Strategie, Partnerschaften und Finanzen – und führt das Unternehmen so, als würde es morgen geprüft." },
-    florentine: { rolle: "Gesellschafterin · Menschen & Onboarding", kurz: "Verantwortet Mitarbeiter, Einschulungen und Onboardings – jeder neue Kollege und jeder neue Kunde beginnt bei ihr.", lang: "Florentine baut das Team auf und hält es zusammen: Sie schult neue Mitarbeiter in der Academy, begleitet die Onboardings und sorgt dafür, dass jeder Kunde sein Startgespräch mit einem Menschen führt, der die Akte kennt." },
+    florentine: { rolle: "Geschäftsführerin · Menschen & Onboarding", kurz: "Verantwortet Mitarbeiter, Einschulungen und Onboardings – jeder neue Kollege und jeder neue Kunde beginnt bei ihr.", lang: "Florentine baut das Team auf und hält es zusammen: Sie schult neue Mitarbeiter in der Academy, begleitet die Onboardings und sorgt dafür, dass jeder Kunde sein Startgespräch mit einem Menschen führt, der die Akte kennt." },
     daniel: { rolle: "Gesellschafter · Leitung Vertrieb", kurz: "Leitet den gesamten Vertrieb – vom ersten Anruf bis zum Abschluss, inklusive Provisionsregeln und Qualität der Gespräche.", lang: "Daniel führt den Vertrieb: Gesprächsqualität, Ergebnisse, Provisionen, Bestandspflege. Er entscheidet, wer welchen Kunden betreut, und hält die Linie zwischen ‚verkaufen‘ und ‚helfen‘ – bei FIAON ist das dasselbe." },
   } as Record<string, { rolle: string; kurz: string; lang: string }>,
   mitarbeiter: {
@@ -57,7 +57,7 @@ const de = {
 
 const en: typeof de = {
   metaTitel: "Team",
-  metaBeschreibung: "The team behind FIAON: Justin Schwarzott (founder), Florentine Lombardi (people & onboarding), Daniel Stripling (sales) — and Schwarzott Capital Partners AG as investor.",
+  metaBeschreibung: "The team behind FIAON: Justin Schwarzott (founder), Florentine Lombardi (managing director, people & onboarding), Daniel Stripling (sales) — and Schwarzott Capital Partners AG as investor.",
   pille: "Team", h1a: "A young legal and fintech company ", h1b: "on its way to becoming a unicorn.",
   lead: "FIAON is a team in sales, onboarding and collections — and three shareholders who work in the business themselves. We are building the operating system for creditworthiness in Germany, Austria and Switzerland: insight, action, access for 100 million people. And we are looking for people to build it with us.",
   kontakt: "Get in touch", teilWerden: "Join the team",
@@ -87,7 +87,7 @@ const en: typeof de = {
   jetztStarten: "Get started", fuerInvestoren: "For investors",
   personen: {
     justin: { rolle: "Founder · Managing Director · Director", kurz: "Has run FIAON since day one — product, strategy, partners. Decisions are on record in the register, every day in the logbook.", lang: "Justin founded FIAON because he saw how many people fail because of an entry that nobody explains and nobody touches. He is responsible for product, strategy, partnerships and finance — and runs the company as if it were to be audited tomorrow." },
-    florentine: { rolle: "Shareholder · People & Onboarding", kurz: "Responsible for staff, training and onboarding — every new colleague and every new customer starts with her.", lang: "Florentine builds the team and holds it together: she trains new staff in the Academy, accompanies onboardings and makes sure every customer has their onboarding call with a person who knows the file." },
+    florentine: { rolle: "Managing Director · People & Onboarding", kurz: "Responsible for staff, training and onboarding — every new colleague and every new customer starts with her.", lang: "Florentine builds the team and holds it together: she trains new staff in the Academy, accompanies onboardings and makes sure every customer has their onboarding call with a person who knows the file." },
     daniel: { rolle: "Shareholder · Head of Sales", kurz: "Leads all of sales — from the first call to the close, including commission rules and the quality of conversations.", lang: "Daniel leads sales: quality of conversations, results, commissions, care of the existing customer base. He decides who looks after which customer and holds the line between ‘selling’ and ‘helping’ — at FIAON they are the same thing." },
   },
   mitarbeiter: {

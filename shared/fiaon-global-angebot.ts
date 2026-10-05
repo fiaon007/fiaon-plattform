@@ -1076,7 +1076,7 @@ export const ANGEBOT_ANSPRECHPARTNER_TITEL = "Ihre Ansprechpartner";
 export const ANGEBOT_ANSPRECHPARTNER_SATZ =
   "Drei Menschen kennen Ihren Auftrag persönlich — vor der Annahme bei jeder Frage zum Vertrag und danach bei jedem Schritt. Sie erreichen jeden von ihnen direkt per E-Mail oder Telefon.";
 export const ANGEBOT_ANSPRECHPARTNER: readonly { kuerzel: string; name: string; rolle: string; email: string; telefon: string }[] = [
-  { kuerzel: "florentine", name: "Florentine Lombardi", rolle: "Gesellschafterin · Menschen & Onboarding", email: "florentine@fiaon.com", telefon: "+41 77 202 84 49" },
+  { kuerzel: "florentine", name: "Florentine Lombardi", rolle: "Geschäftsführerin · Menschen & Onboarding", email: "florentine@fiaon.com", telefon: "+41 77 202 84 49" },
   { kuerzel: "daniel", name: "Daniel Stripling", rolle: "Gesellschafter · Leitung Vertrieb", email: "daniel@fiaon.com", telefon: "+41 77 281 18 34" },
   { kuerzel: "justin", name: "Justin Schwarzott", rolle: "Gründer · Geschäftsführer · Director", email: "js@fiaon.com", telefon: "+41 77 288 4902" },
 ];

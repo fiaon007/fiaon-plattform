@@ -994,7 +994,9 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
       beginn: t.beginn,
       datumText: berlinDatumText(new Date(t.beginn)),
       uhrzeit: berlinUhrzeit(new Date(t.beginn)),
-      art: terminArtAusQuelle(String(t.quelle)).text,
+      // Kunden sehen nie die internen Arten („Vertrieb", „Onboarding", „Support"), nur was das Gespräch für sie ist.
+      art: String(t.quelle) === "limit_gespraech" ? terminArtAusQuelle("limit_gespraech").text
+        : ["onboarding", "onboarding_call"].includes(String(t.quelle)) ? "Startgespräch" : "Gespräch",
       status: t.status,
       mit: t.agent_vorname || null,
       // Absagen nur fuer kommende gebuchte — ueber die bestehende oeffentliche Seite.

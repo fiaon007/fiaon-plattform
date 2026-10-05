@@ -32,12 +32,10 @@
 //   Rechnung wie die Ratenfälligkeit (faelligkeit, server/lib/fiaon-abo-zyklus.ts;
 //   der Prüfstand hält beide gegeneinander).
 //
-//   GEZÄHLT wird ein Limit-Gespräch, das „erledigt" ist, oder „verpasst" MIT
-//   erledigt_am — das setzt nur ein Mitarbeiter (Abhaken „nicht erschienen",
-//   Kalender „kam nicht zustande"). Das automatische „verpasst" nach zwölf
-//   Stunden (runVerpassteTermine) setzt kein erledigt_am und zählt NICHT: Sonst
-//   wäre ein Kunde drei Monate gesperrt, nur weil niemand abgehakt hat.
-//   Abgesagte Gespräche zählen nie.
+//   GEZÄHLT wird nur ein GEFÜHRTES Limit-Gespräch („erledigt") — so steht es im
+//   Vertrag § 3 („drei Monate nach dem letzten geführten“). Verpasst (automatisch
+//   oder vom Mitarbeiter bestätigt) und abgesagt zählen nie: Der Kunde bucht neu,
+//   wie es die Mail „Wir haben Sie verpasst“ sagt (Entscheidung 05.10.2026).
 //
 //   Mitarbeiter buchen ein Limit-Gespräch jederzeit, ohne diese Prüfung
 //   (Kalender, Art „Limit-Gespräch") — die Sperrfrist gilt nur für den Kunden.
@@ -175,15 +173,14 @@ function spaeter(a: string | null, b: string | null): string | null {
 }
 
 /**
- * Zählt dieses Limit-Gespräch für die Sperrfrist? „erledigt", oder „verpasst"
- * mit erledigt_am (vom Mitarbeiter bestätigt). Abgesagt und das automatische
- * „verpasst" ohne erledigt_am zählen nicht. Die EINE Fassung der Regel — der
- * Server filtert seine Termine mit genau dieser Funktion.
+ * Zählt dieses Limit-Gespräch für die Sperrfrist? Nur „erledigt" (geführt).
+ * Die EINE Fassung der Regel — der Server filtert seine Termine mit genau dieser Funktion.
  */
-export function limitGezaehlt(t: { status: unknown; erledigtAm: unknown }): boolean {
-  const status = String(t.status ?? "");
-  if (status === "erledigt") return true;
-  return status === "verpasst" && t.erledigtAm !== null && t.erledigtAm !== undefined && String(t.erledigtAm) !== "";
+export function limitGezaehlt(t: { status: unknown; erledigtAm?: unknown }): boolean {
+  // Nur ein GEFÜHRTES Gespräch zählt (Vertrag § 3: „drei Monate nach dem letzten geführten“).
+  // Ein verpasstes — auch ein vom Mitarbeiter bestätigtes — sperrt nicht: Der Kunde bucht neu,
+  // genau wie es die Mail „Wir haben Sie verpasst“ sagt (Entscheidung 05.10.2026).
+  return String(t.status ?? "") === "erledigt";
 }
 
 /** Hat dieses Paket das Limit-Gespräch? */

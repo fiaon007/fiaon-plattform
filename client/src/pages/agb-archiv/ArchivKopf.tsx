@@ -24,11 +24,19 @@ const GELTUNG_OHNE_NENNUNG: Record<string, string> = {
   "2026-04-12": "Verträge, die vor dem 3. September 2026 geschlossen wurden, nennen keine Fassung. Für sie gilt die Fassung, die beim Vertragsschluss auf fiaon.com stand – diese hier für Verträge vom 12. April bis zum 3. Juli 2026.",
 };
 
+/**
+ * Nicht in der Liste, aber unter ihrer Adresse abrufbar: die Fassung der SCP Real Estate KG
+ * (anderer Anbieter, Zahlung über Stripe, Platzhalter-Telefonnummer). Wer sie braucht, bekommt
+ * den Link; auf jeder AGB-Seite verwirrt sie nur (Entscheidung 05.10.2026).
+ */
+const NICHT_IN_DER_LISTE = new Set(["2026-04-12"]);
+
 /** Die Liste aller früheren Fassungen als Links — die gezeigte ohne Link. */
 export function FassungenListe({ ausser }: { ausser?: string }) {
+  const liste = AGB_FRUEHERE_FASSUNGEN.filter((f) => f === ausser || !NICHT_IN_DER_LISTE.has(f));
   return (
     <>
-      {AGB_FRUEHERE_FASSUNGEN.map((f, i) => (
+      {liste.map((f, i) => (
         <span key={f}>
           {i > 0 ? " · " : ""}
           {f === ausser

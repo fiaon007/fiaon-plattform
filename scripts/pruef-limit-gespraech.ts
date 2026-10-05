@@ -52,7 +52,7 @@ if (ROT) {
   F.plusMonate = (t: string, n: number) => {
     const d = new Date(`${t}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10);
   };
-  // Der teure Fehler: Das automatische „verpasst" (ohne erledigt_am) sperrt drei Monate.
+  // Der teure Fehler: Ein verpasstes Gespräch sperrt drei Monate.
   F.limitGezaehlt = (t) => String(t.status) === "erledigt" || String(t.status) === "verpasst";
 }
 
@@ -96,7 +96,7 @@ ok(L.tagText("2027-02-28") === "28.02.2027" && L.tagKurz("2027-02-28") === "28.0
 abschnitt("2 · Gezählt oder nicht");
 ok(F.limitGezaehlt({ status: "erledigt", erledigtAm: "2026-10-01T10:00:00Z" }) === true, "erledigt zählt");
 ok(F.limitGezaehlt({ status: "erledigt", erledigtAm: null }) === true, "erledigt zählt auch ohne erledigt_am (Altbestand)");
-ok(F.limitGezaehlt({ status: "verpasst", erledigtAm: new Date() }) === true, "verpasst MIT erledigt_am (Mitarbeiter bestätigt) zählt");
+ok(F.limitGezaehlt({ status: "verpasst", erledigtAm: new Date() }) === false, "verpasst MIT erledigt_am (Mitarbeiter bestätigt) zählt NICHT — Vertrag: nur geführte");
 ok(F.limitGezaehlt({ status: "verpasst", erledigtAm: null }) === false, "verpasst OHNE erledigt_am (automatisch nach 12 h) zählt NICHT");
 ok(F.limitGezaehlt({ status: "verpasst", erledigtAm: undefined }) === false, "verpasst ohne Feld zählt nicht");
 ok(F.limitGezaehlt({ status: "abgesagt", erledigtAm: "2026-10-01" }) === false, "abgesagt zählt nie");

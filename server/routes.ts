@@ -879,9 +879,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 25.09.2026 (E-241): /bonitaet und /bonitaet-service sind umgezogen auf die Übersicht der Seitenfamilie
   // /bonitaetsauskunft — 301 mit Abfrage (utm_*, fbclid alter Kampagnen-Links); der Anker bleibt im Browser.
   // Vorher leitete nur der Client weiter (pages/bonitaet.tsx, bleibt als Rückfall): erst weißer Grund, dann Sprung.
+  // 05.10.2026 (E-283): /terms zeigte einen fremden ARAS-Text (andere Firma, „garantiert“) — dauerhaft auf /agb.
   const UMGEZOGEN: Record<string, string> = {
     '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start',
     '/bonitaet': '/bonitaetsauskunft', '/bonitaet-service': '/bonitaetsauskunft',
+    '/terms': '/agb',
   };
   app.get(Object.keys(UMGEZOGEN), (req, res) => {
     const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';

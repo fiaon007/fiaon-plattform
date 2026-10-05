@@ -21,7 +21,6 @@ const BusinessPage = lazy(() => import("@/pages/site/business"));
 const AntragPage = lazy(() => import("@/pages/antrag"));
 // E-282 (05.10.2026): der neue Privatantrag — eigener Weg, der alte /antrag bleibt (Weiche: /chef/s/finanzen).
 const AntragNeuPage = lazy(() => import("@/pages/antrag-neu"));
-const Terms = lazy(() => import("@/pages/terms"));
 const Privacy = lazy(() => import("@/pages/privacy"));
 import NotFound from "@/pages/not-found";
 const AdminKundenPage = lazy(() => import("@/pages/admin-kunden"));
@@ -45,6 +44,8 @@ const AppUnterschrift = lazy(() => import("@/pages/app/Unterschrift"));
 const AgentAppVorgangPage = lazy(() => import("@/pages/agent/app-vorgang"));
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
+// E-283 (05.10.2026): frühere Fassungen der AGB unter /agb/<Fassung> — erst beim Aufruf geladen.
+const AgbFassungPage = lazy(() => import("@/pages/agb-archiv"));
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
 import CookieEinstellungenPage from "@/pages/cookie-einstellungen";
 import EinwilligungsHinweis from "@/components/site/EinwilligungsHinweis";
@@ -786,13 +787,16 @@ function Router() {
       <Route path="/nummer-aktualisieren" component={NummerAktualisierenPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />
       <Route path="/plattform-konzept" component={PlattformKonzeptPage} />
-      <Route path="/terms" component={Terms} />
+      {/* E-283 (05.10.2026): /terms zeigte einen fremden ARAS-Text (andere Firma, „garantiert"). Der Server leitet
+          mit 301 auf /agb um (UMGEZOGEN in server/routes.ts); hier nur der Rückfall für die Navigation im Browser. */}
+      <Route path="/terms"><Redirect to="/agb" replace /></Route>
       <Route path="/privacy" component={Privacy} />
       {/* 06.09.2026: /datenschutz stand in jeder Kundenmail (geruest.ts), im Kundenbereich und auf
           /sicherheit — und lief auf „Diese Seite existiert nicht". Alias auf dieselbe Seite. */}
       <Route path="/datenschutz" component={Privacy} />
       <Route path="/impressum" component={ImpressumPage} />
       <Route path="/agb" component={AGBPage} />
+      <Route path="/agb/:fassung" component={AgbFassungPage} />
       <Route path="/widerrufsbelehrung" component={WiderrufsbelehrungPage} />
       <Route path="/cookie-einstellungen" component={CookieEinstellungenPage} />
       <Route path="/passwort-vergessen" component={PasswortVergessenPage} />

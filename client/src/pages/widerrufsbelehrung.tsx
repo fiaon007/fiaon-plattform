@@ -1,6 +1,26 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// /widerrufsbelehrung — EINE QUELLE MIT AGB § 10 UND DEM VERTRAG (05.10.2026, E-283)
+//
+// Verlinkt aus dem alten Antrag (Bestelluebersicht.tsx), dem Kundenbereich
+// (app/Bausteine.tsx), dem Bündel-Sheet des neuen Antrags (antrag-neu/sheets.tsx)
+// und von Kaufkarte und Kauflink der Bonitätsauskunft.
+//
+// Bis heute stand hier ein eigener Wortlaut: ohne Telefonnummer (Pflicht seit
+// 2022), mit einem Block „Vorzeitiges Erlöschen … bei digitalen Inhalten“ (die
+// Pakete sind Dienstleistungen) und einer zweiten Fassung des Wertersatz-Satzes.
+// Jetzt liest die Seite das gesetzliche Muster aus shared/fiaon-global-widerruf.ts
+// — wörtlich dasselbe wie AGB § 10 und Anlage 1/2 des neuen Vertrags. Für die
+// Bonitätsauskunft kommt der Satz zum vorzeitigen Erlöschen aus ihrer eigenen
+// Belehrung (shared/fiaon-auskunft-widerruf.ts) dazu — er gilt nur dort.
+// Nicht „verbessern“: Jede Abweichung vom Muster kostet die Musterwirkung.
+// ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import { globalWiderrufsbelehrung } from "@shared/fiaon-global-widerruf";
+import { AUSKUNFT_WIDERRUF } from "@shared/fiaon-auskunft-widerruf";
+
+const WB = globalWiderrufsbelehrung("de");
 
 export default function WiderrufsbelehrungPage() {
   useEffect(() => {
@@ -37,80 +57,47 @@ export default function WiderrufsbelehrungPage() {
               }} />
               <div className="relative z-10">
                 <p className="text-gray-700 leading-relaxed">
-                  Die folgenden Regelungen zum Widerrufsrecht gelten ausschließlich für Nutzer, die das FIAON-Abonnement zu Zwecken abschließen, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (Verbraucher im Sinne des § 13 BGB). Für Geschäftskunden (Unternehmer im Sinne des § 14 BGB) besteht kein gesetzliches Widerrufsrecht.
+                  Die folgenden Regelungen zum Widerrufsrecht gelten ausschließlich für Nutzer, die einen Vertrag mit FIAON zu Zwecken abschließen, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (Verbraucher im Sinne des § 13 BGB). Für Geschäftskunden (Unternehmer im Sinne des § 14 BGB) besteht kein gesetzliches Widerrufsrecht.
                 </p>
               </div>
             </div>
 
-            {/* Widerrufsrecht */}
-            <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden border-2 border-blue-200/50">
-              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(59,130,246,0.2), rgba(37,99,235,0.1))",
-                backgroundSize: "200% 200%",
-                animation: "limitGlow 6s ease-in-out infinite"
-              }} />
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 12l2 2 4-4" />
-                      <path d="M21 12c0 4.97-4.03 9-9 9a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9z" />
-                    </svg>
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Widerrufsrecht</h2>
+            {/* Die Belehrung — Abschnitte aus dem gesetzlichen Muster (Widerrufsrecht, Folgen des Widerrufs) */}
+            {WB.abschnitte.map((a, i) => (
+              <div key={a.h} className={`fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden${i === 0 ? " border-2 border-blue-200/50" : ""}`}>
+                <div className={`absolute inset-0 ${i === 0 ? "opacity-10" : "opacity-15"} pointer-events-none`} style={{
+                  background: i === 0
+                    ? "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(59,130,246,0.2), rgba(37,99,235,0.1))"
+                    : "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                  backgroundSize: "200% 200%",
+                  animation: "limitGlow 6s ease-in-out infinite"
+                }} />
+                <div className="relative z-10">
+                  {i === 0 ? (
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 12l2 2 4-4" />
+                          <path d="M21 12c0 4.97-4.03 9-9 9a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9z" />
+                        </svg>
+                      </div>
+                      <h2 className="text-xl font-semibold text-gray-900">{a.h}</h2>
+                    </div>
+                  ) : (
+                    <h2 className="text-xl font-semibold text-gray-900 mb-4">{a.h}</h2>
+                  )}
+                  {a.absaetze.map((t) => (
+                    <p key={t} className="text-gray-700 leading-relaxed mb-4 last:mb-0">{t}</p>
+                  ))}
                 </div>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
-                </p>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.
-                </p>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Um Ihr Widerrufsrecht auszuüben, müssen Sie uns:
-                </p>
-                <div className="bg-white/50 rounded-xl p-4 mb-4">
-                  <p className="font-semibold text-gray-900 mb-2">FIAON LTD</p>
-                  <p className="text-sm text-gray-700">128 City Road</p>
-                  <p className="text-sm text-gray-700">London, EC1V 2NX</p>
-                  <p className="text-sm text-gray-700">Vereinigtes Königreich (United Kingdom)</p>
-                  <p className="text-sm text-gray-700 mt-2">E-Mail: support@fiaon.com</p>
-                </div>
-                <p className="text-gray-700 leading-relaxed">
-                  mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder eine E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
-                </p>
-                <p className="text-gray-700 leading-relaxed mt-4">
-                  Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
-                </p>
               </div>
-            </div>
+            ))}
 
-            {/* Folgen des Widerrufs */}
-            <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
-              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
-                backgroundSize: "200% 200%",
-                animation: "limitGlow 6s ease-in-out infinite"
-              }} />
-              <div className="relative z-10">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Folgen des Widerrufs</h2>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.
-                </p>
-                <p className="text-gray-700 leading-relaxed">
-                  Haben Sie verlangt, dass die Dienstleistung während der Widerrufsfrist beginnen soll, so haben Sie uns einen angemessenen Betrag zu zahlen, der dem Anteil der bis zu dem Zeitpunkt, zu dem Sie uns von der Ausübung des Widerrufsrechts hinsichtlich dieses Vertrags unterrichten, bereits erbrachten Dienstleistungen im Vergleich zum Gesamtumfang der im Vertrag vorgesehenen Dienstleistungen entspricht.
-                </p>
-              </div>
-            </div>
-
-            {/* Wertersatz bei Dienstleistungen (§ 357 Abs. 8 BGB) — ergänzt 02.09.2026 */}
+            {/* Wertersatz (ergänzt 02.09.2026, § 357a Abs. 2 BGB). E-283: Der erste Absatz wiederholte den Muster-Satz
+                „Haben Sie verlangt …" in eigenen Worten — eine zweite Fassung derselben Regel. Er ist weg; die Erläuterung
+                zur Berechnung bleibt, deutlich NACH der Belehrung und als Erläuterung überschrieben. */}
             <div className="fiaon-glass-panel rounded-2xl p-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Wertersatz bei vorzeitigem Leistungsbeginn</h2>
-              <p className="text-gray-700 leading-relaxed mb-4">
-                Haben Sie verlangt, dass wir mit unseren Dienstleistungen bereits während der Widerrufsfrist beginnen,
-                und widerrufen Sie den Vertrag danach, so haben Sie uns einen angemessenen Betrag zu zahlen. Er entspricht
-                dem Anteil der bis zum Zeitpunkt Ihres Widerrufs bereits erbrachten Leistungen im Verhältnis zum
-                Gesamtumfang der vertraglich vereinbarten Leistungen.
-              </p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Erläuterung zu den Paketen: Berechnung des Wertersatzes</h2>
               <p className="text-gray-700 leading-relaxed">
                 Maßgeblich für die Berechnung ist die vereinbarte Gesamtvergütung nach § 5 Absatz 2 der Allgemeinen
                 Geschäftsbedingungen. Bereits von Ihnen geleistete Zahlungen werden angerechnet; ein darüber hinausgehender
@@ -118,7 +105,11 @@ export default function WiderrufsbelehrungPage() {
               </p>
             </div>
 
-            {/* Vorzeitiges Erlöschen */}
+            {/* Nur für die Bonitätsauskunft: das vorzeitige Erlöschen (§ 356 Abs. 4 BGB) — aus ihrer eigenen Belehrung.
+                ── NUR KOMMENTAR, NIE KUNDENTEXT (25.09.2026, E-240) ─────────────────
+                Hier stand bis zum 25.09. öffentlich sichtbar eine Umsetzungsnotiz der Anbieterin („… holen wir diese
+                Zustimmung … über eine zwingend anzukreuzende Checkbox im Checkout-Prozess ein"). Für die Auskunft war sie
+                falsch: Dort ist der Haken freiwillig („Ohne diesen Haken beginnen wir nach Ablauf der Widerrufsfrist"). */}
             <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden border-2 border-amber-200/50">
               <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
                 background: "linear-gradient(135deg, rgba(245,158,11,0.1), rgba(251,191,36,0.2), rgba(245,158,11,0.1))",
@@ -126,39 +117,14 @@ export default function WiderrufsbelehrungPage() {
                 animation: "limitGlow 6s ease-in-out infinite"
               }} />
               <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-900">⚠️ Wichtiger Hinweis: Vorzeitiges Erlöschen des Widerrufsrechts bei digitalen Inhalten (Software & E-Learning)</h2>
-                </div>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Das FIAON-Abonnement umfasst die Bereitstellung von digitalen Inhalten und Dienstleistungen, die sich nicht auf einem körperlichen Datenträger befinden (Zugang zur SaaS-Plattform, Score-Simulator, Video-Coachings und Dashboards).
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Für die Bonitätsauskunft: {AUSKUNFT_WIDERRUF.erloeschen.h}</h2>
+                <p className="text-gray-700 leading-relaxed">
+                  {AUSKUNFT_WIDERRUF.erloeschen.text}
                 </p>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Ihr Widerrufsrecht erlischt bei einem Vertrag über die Bereitstellung von digitalen Inhalten vorzeitig, wenn:
-                </p>
-                <ul className="list-disc list-inside text-gray-700 mb-4 space-y-2">
-                  <li>wir mit der Ausführung des Vertrags (Freischaltung des Dashboards) begonnen haben,</li>
-                  <li>Sie zuvor ausdrücklich zugestimmt haben, dass wir mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist beginnen, und</li>
-                  <li>Sie Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung des Vertrags Ihr Widerrufsrecht verlieren.</li>
-                </ul>
-                {/* ── NUR KOMMENTAR, NIE KUNDENTEXT (25.09.2026, E-240) ─────────────────
-                    Hier stand öffentlich sichtbar eine Umsetzungsnotiz der Anbieterin:
-                    „(Hinweis der Anbieterin: Um Ihnen den sofortigen Zugang zu unseren
-                    Systemen direkt nach der Buchung zu ermöglichen, holen wir diese
-                    Zustimmung und Bestätigung über eine zwingend anzukreuzende Checkbox im
-                    Checkout-Prozess ein)." Das ist keine Belehrung, sondern eine Notiz zum
-                    Bestellweg — und für die Bonitätsauskunft falsch: Kaufkarte und Kauflink
-                    verweisen hierher, und dort ist der Haken freiwillig („Ohne diesen Haken
-                    beginnen wir nach Ablauf der Widerrufsfrist"). Die Belehrung der Auskunft
-                    steht in shared/fiaon-auskunft-widerruf.ts. */}
               </div>
             </div>
 
-            {/* Muster-Widerrufsformular */}
+            {/* Muster-Widerrufsformular — aus derselben Quelle */}
             <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
               <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
                 background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
@@ -166,32 +132,16 @@ export default function WiderrufsbelehrungPage() {
                 animation: "limitGlow 6s ease-in-out infinite"
               }} />
               <div className="relative z-10">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Muster-Widerrufsformular</h2>
-                <p className="text-gray-500 text-sm mb-6">
-                  (Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück. Die Nutzung des Formulars ist nicht zwingend, Sie können den Widerruf auch formlos per E-Mail an support@fiaon.com formulieren).
-                </p>
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">{WB.formular.titel}</h2>
+                <p className="text-gray-500 text-sm mb-6">{WB.formular.hinweis}</p>
                 <div className="bg-white/50 rounded-xl p-6 space-y-3">
-                  <p className="text-sm text-gray-700"><strong>An:</strong></p>
-                  <p className="text-sm text-gray-700">FIAON LTD</p>
-                  <p className="text-sm text-gray-700">128 City Road</p>
-                  <p className="text-sm text-gray-700">London, EC1V 2NX</p>
-                  <p className="text-sm text-gray-700">Vereinigtes Königreich (United Kingdom)</p>
-                  <p className="text-sm text-gray-700">E-Mail: support@fiaon.com</p>
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <p className="text-sm text-gray-700 mb-4">Hiermit widerrufe(n) ich/wir () den von mir/uns () abgeschlossenen Vertrag über den Kauf der folgenden Waren () / die Erbringung der folgenden Dienstleistung ():</p>
-                    <p className="text-sm text-gray-700 mb-2">Zugang zur FIAON-Software (Abonnement-Paket: ........................................................)</p>
-                    <p className="text-sm text-gray-700 mb-2">Bestellt am (*): ....................................................</p>
-                    <p className="text-sm text-gray-700 mb-2">Name des/der Verbraucher(s): ....................................................</p>
-                    <p className="text-sm text-gray-700 mb-2">Anschrift des/der Verbraucher(s): ....................................................</p>
-                    <p className="text-sm text-gray-700 mb-2">E-Mail-Adresse des/der Verbraucher(s) (zur Zuordnung des Accounts): ....................................................</p>
-                    <div className="border-t border-gray-200 pt-4 mt-4">
-                      <p className="text-sm text-gray-700">.........................................................................................</p>
-                      <p className="text-sm text-gray-700">Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</p>
-                      <p className="text-sm text-gray-700 mt-2">.........................................................................................</p>
-                      <p className="text-sm text-gray-700">Datum</p>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-4">() Unzutreffendes streichen.*</p>
+                  <p className="text-sm text-gray-700">{WB.formular.an}</p>
+                  <div className="border-t border-gray-200 pt-4 mt-4 space-y-3">
+                    {WB.formular.zeilen.map((z) => (
+                      <p key={z} className="text-sm text-gray-700">{z}</p>
+                    ))}
                   </div>
+                  <p className="text-sm text-gray-500 mt-4">{WB.formular.fuss}</p>
                 </div>
               </div>
             </div>

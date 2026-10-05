@@ -129,9 +129,14 @@ export const ZUSATZ_LEISTUNG: Record<AuskunftArt, string> = {
 export const HAKEN_VERTRAG_TITEL = "Bestellung geprüft";
 export const HAKEN_VERTRAG_TEXT = "Ich habe Paket, Monatsrate, Laufzeit, Gesamtbetrag und Kündigungsregel in der Bestellübersicht geprüft.";
 
-/** Zahlungsweise — AGB § 5 Abs. 2–4. */
+/**
+ * Zahlungsweise — AGB § 5 Abs. 2–4. E-283 (05.10.2026): Stichtag der weiteren Raten ist der Kalendertag,
+ * an dem die erste Rate EINGEGANGEN ist (server/lib/fiaon-abo-zyklus.ts: Anker = bankbestätigte Buchung),
+ * nicht der Tag des Vertragsschlusses — so steht es seit der Fassung vom 05.10.2026 in AGB § 5 Abs. 3
+ * und im neuen Vertrag § 5 Abs. 2.
+ */
 export const ZAHLUNG_ZEILE =
-  "Überweisung. Die erste Rate ist mit Vertragsschluss fällig, die weiteren jeweils monatlich im Voraus am Kalendertag des Vertragsschlusses.";
+  "Überweisung. Die erste Rate ist mit Vertragsschluss fällig, die weiteren jeweils monatlich im Voraus am Kalendertag, an dem die erste Rate bei FIAON eingegangen ist.";
 
 /** Kündigung — AGB § 6 Abs. 2 und 3. */
 export const KUENDIGUNG_ZEILE =

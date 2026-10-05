@@ -17,7 +17,7 @@
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { globalWiderrufsbelehrung } from "./fiaon-global-widerruf";
 import { paketPreisCents } from "./fiaon-pakete";
-import { AGB_FASSUNG } from "./fiaon-vertrag-paket";
+import { AGB_FASSUNG, agbAdresse } from "./fiaon-vertrag-paket";
 import { agbDatumLang, antragNeuPaket, ANTRAG_NEU_VERTRAG_FASSUNG, LANDNAME, type Land } from "./fiaon-antrag-neu";
 import { KUENDIGUNG_ZEILE, BANK_SATZ } from "../client/src/components/antrag/bestelluebersicht-daten";
 
@@ -123,7 +123,7 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   teile.push(h("§ 13 Vertragsschluss, Nachweis und Schlussbestimmungen"));
   teile.push(p("(1) Dieser Text ist das verbindliche Angebot von FIAON. Der Vertrag kommt zustande, wenn der Kunde nach seiner Unterschrift die Schaltfläche „Zahlungspflichtig annehmen“ anklickt."));
   teile.push(p("(2) FIAON speichert den Vertragstext, den Zeitpunkt der Annahme, die Unterschrift und eine Prüfsumme und sendet dem Kunden Vertrag, Bestellbestätigung und Widerrufsbelehrung unverzüglich per E-Mail. Der Kunde kann den Vertrag jederzeit im Kundenbereich abrufen."));
-  teile.push(p(`(3) Ergänzend gelten die Allgemeinen Geschäftsbedingungen von FIAON in der Fassung vom ${esc(agbDatumLang(AGB_FASSUNG))} (abrufbar und speicherbar unter fiaon.com/agb). Widersprechen sie diesem Vertrag, geht dieser Vertrag vor. Vertragssprache ist Deutsch.`));
+  teile.push(p(`(3) Ergänzend gelten die Allgemeinen Geschäftsbedingungen von FIAON in der Fassung vom ${esc(agbDatumLang(AGB_FASSUNG))} (abrufbar und speicherbar unter ${esc(agbAdresse(AGB_FASSUNG))}). Widersprechen sie diesem Vertrag, geht dieser Vertrag vor. Vertragssprache ist Deutsch.`));
   teile.push(p("(4) Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts; ist der Kunde Verbraucher, gilt diese Rechtswahl nur, soweit ihm dadurch nicht der Schutz der zwingenden Bestimmungen des Staates seines gewöhnlichen Aufenthalts entzogen wird. FIAON ist weder bereit noch verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt der Vertrag im Übrigen wirksam; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften."));
   teile.push(`<div class="vt-kasten"><div><span class="vt-klein">Für FIAON</span><br>${esc(f.name)} – elektronisch ausgefertigt<br>${esc(f.director)}, Director</div><div><span class="vt-klein">Kunde</span><br>${angenommen ? `${esc(name)} – unterschrieben und angenommen am ${esc(angenommen)}` : "Ihre Unterschrift folgt im nächsten Schritt."}</div></div>`);
   teile.push(`<h3 id="vt-widerruf">Anlage 1 – Widerrufsbelehrung</h3>`);
@@ -131,6 +131,6 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   teile.push(`<h3 id="vt-formular">Anlage 2 – ${esc(wb.formular.titel)}</h3>`);
   teile.push(`<div class="vt-kasten">${p(esc(wb.formular.hinweis))}${p(esc(wb.formular.an))}${wb.formular.zeilen.map((z) => p(esc(z))).join("")}${p(esc(wb.formular.fuss))}</div>`);
   teile.push(`<h3 id="vt-agb">Anlage 3 – Allgemeine Geschäftsbedingungen</h3>`);
-  teile.push(p(`Es gelten die Allgemeinen Geschäftsbedingungen der FIAON LTD in der Fassung vom ${esc(agbDatumLang(AGB_FASSUNG))}. Sie sind unter fiaon.com/agb abrufbar und speicherbar und liegen der Bestätigungsmail als Link bei.`));
+  teile.push(p(`Es gelten die Allgemeinen Geschäftsbedingungen der FIAON LTD in der Fassung vom ${esc(agbDatumLang(AGB_FASSUNG))}. Sie sind unter ${esc(agbAdresse(AGB_FASSUNG))} abrufbar und speicherbar und liegen der Bestätigungsmail als Link bei.`));
   return teile.join("\n");
 }

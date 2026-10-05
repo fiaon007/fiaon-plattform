@@ -7,12 +7,13 @@ import { ExternalLink } from "lucide-react";
 // damit der Review-Stand (LEXR) jederzeit sichtbar bleibt.
 // ═══════════════════════════════════════════════════════════════════
 
+// E-283 (05.10.2026): „/terms" ist raus — die Seite war ein fremder ARAS-Text und leitet jetzt auf /agb um.
+// Frühere AGB-Fassungen stehen unter /agb/<Fassung>; die Liste dazu zeigt der Fassungskasten auf /agb.
 const LIVE_PAGES = [
   { href: "/impressum", label: "Impressum" },
   { href: "/agb", label: "AGB" },
   { href: "/widerrufsbelehrung", label: "Widerrufsbelehrung" },
   { href: "/privacy", label: "Datenschutz" },
-  { href: "/terms", label: "Terms" },
   { href: "/cookie-einstellungen", label: "Cookie-Einstellungen" },
 ];
 

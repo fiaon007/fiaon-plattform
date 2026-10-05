@@ -55,6 +55,7 @@
 import { sqlPool } from "./db-pool";
 import { escapeHtml, wrapFiaonDocument, htmlZuPdfMitFusszeile, docHash } from "./fiaon-html-pdf";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { agbAdresse } from "@shared/fiaon-vertrag-paket";
 import { antragNeuPaket } from "@shared/fiaon-antrag-neu";
 import { euroCent } from "@shared/fiaon-antrag-neu-vertrag";
 import { anredeLesen } from "@shared/fiaon-mitarbeiter-name";
@@ -509,6 +510,8 @@ export function bestaetigungNutzlast(
     angenommen_datum: datum,
     angenommen_uhrzeit: uhrzeit,
     agb_fassung_text: escapeHtml(fassungsDatum(z.agb_fassung)),
+    // E-283 (05.10.2026): die Adresse der Fassung, die DIESER Vertrag nennt — „fiaon.com/agb/2026-09-26“.
+    agb_adresse: escapeHtml(agbAdresse(z.agb_fassung)),
     widerruf_email: escapeHtml(FIAON_FIRMA.email),
     // Eine fehlende Angabe wird angezeigt, nicht gefüllt (AGENTS.md).
     ziel_limit_text: z.ziel_limit != null && Number(z.ziel_limit) > 0 ? euroCent(Number(z.ziel_limit) * 100) : "nicht angegeben",

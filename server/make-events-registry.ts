@@ -121,7 +121,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: {
       email: "maria.muster@example.com", anrede_zeile: "Guten Tag Frau Muster", paket: "FIAON Pro",
       antrag_id: "FIAON-MB2XK4LQ-7T9A", angenommen_datum: "05.10.2026", angenommen_uhrzeit: "14:32",
-      agb_fassung_text: "26.09.2026", widerruf_email: "support@fiaon.com",
+      agb_fassung_text: "05.10.2026", agb_adresse: "fiaon.com/agb/2026-10-05", widerruf_email: "support@fiaon.com",
       ziel_limit_text: euroCent(2500 * 100), rate_text: euroCent(paketPreisCents("pro")), gesamt_text: euroCent(paketPreisCents("pro") * 12),
       beginn_satz: VERTRAG_BEGINN_SATZ.sofort,
     },

@@ -392,9 +392,16 @@ const BUSINESS_APP_WEGE = [
   /^\/business\/angebot\/[^/]+$/,            // Individualangebot mit Token (01.10.2026, E-268)
 ];
 
-/** true = die Adresse liegt unter /business (auch /en/business) und ist dort keine Seite → 404. */
+// 05.10.2026 (E-283): Das AGB-Archiv /agb/<Fassung>. Jede Fassung, die es gibt, steht mit noindex in der
+// SEO-Tabelle (shared/fiaon-seo-seiten.ts, aus AGB_FASSUNG und AGB_FRUEHERE_FASSUNGEN) und kommt mit 200 —
+// eine Vertragsadresse darf nie als 404 antworten. Jede andere Adresse dort ist keine Seite: 404 mit noindex,
+// der Browser zeigt den Hinweis mit Link auf /agb (client/src/pages/agb-archiv).
+const AGB_ARCHIV = /^\/agb\/[^/]+$/;
+
+/** true = die Adresse liegt unter /business (auch /en/business) oder im AGB-Archiv und ist dort keine Seite → 404. */
 export function seiteUnbekannt(pfad: string): boolean {
   const p = (pfad.split("?")[0].replace(/\/+$/, "") || "/").toLowerCase();
+  if (AGB_ARCHIV.test(p)) return !seoSeite(p);
   if (!BUSINESS.test(p) || BUSINESS_APP_WEGE.some((w) => w.test(p))) return false;
   return !seoSeite(p) && !globalSeite(p) && !globalLandingpage(p);
 }
@@ -406,6 +413,14 @@ export function nichtGefundenHtml(pfad: string): string | null {
   // Wie die Nicht-gefunden-Ansicht des Clients (client/src/pages/not-found.tsx): unter /business die von
   // FIAON Global, unter /en englisch (19.09.2026, E-192).
   const en = /^\/en(\/|$)/.test(pfad);
+  // E-283 (05.10.2026): Das AGB-Archiv gehört zu FIAON, nicht zu FIAON Global.
+  if (!BUSINESS.test(pfad.toLowerCase())) {
+    return kopfEinsetzen(html, {
+      titel: "Seite nicht gefunden — FIAON",
+      beschreibung: "Diese Adresse gibt es bei FIAON nicht – vielleicht ein Tippfehler oder ein veralteter Link.",
+      url: `${BASIS}${pfad}`, robots: "noindex", canonical: false, sprache: "de",
+    });
+  }
   return kopfEinsetzen(html, {
     titel: en ? "Page not found — FIAON Global" : "Seite nicht gefunden — FIAON Global",
     beschreibung: en ? "This address does not exist at FIAON Global — perhaps a typo or an outdated link." : "Diese Adresse gibt es bei FIAON Global nicht – vielleicht ein Tippfehler oder ein veralteter Link.",

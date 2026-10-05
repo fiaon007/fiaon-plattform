@@ -37,7 +37,9 @@ const de = {
     { f: "Was ist der bessere Weg?", a: "In den meisten Fällen: die Auskunft in Ordnung bringen statt sie umgehen. Viele Negativeinträge sind angreifbar — falsch gemeldet, verfristet oder ohne die gesetzlichen Voraussetzungen eingetragen. Ist die Auskunft sauber, steht der normale Kreditmarkt wieder offen, zu normalen Zinsen." },
     { f: "Hilft FIAON bei der Kreditvermittlung?", a: "Nein — FIAON vermittelt keine Kredite und verkauft keine Finanzprodukte. FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF, prüft jeden Eintrag auf Angreifbarkeit und setzt Löschung oder Berichtigung durch, wo die Rechtslage es hergibt. Das Ziel ist, dass Sie keinen Umgehungskredit brauchen." },
   ],
-  fussSatz: "FIAON vermittelt keine Kredite und erhält keine Provisionen von Kreditgebern. Diese Seite ist eine redaktionelle Einordnung nach öffentlich zugänglichen Quellen (Stand August 2026) und keine Rechts- oder Anlageberatung.",
+  // E-283 (05.10.2026): „… und erhält keine Provisionen von Kreditgebern" gestrichen — FIAON wird von seiner
+  // Partnerbank je Kontoeröffnung vergütet (AGB § 2). Was stimmt, steht in den AGB; hier nur, was die Seite braucht.
+  fussSatz: "FIAON vermittelt keine Kredite. Diese Seite ist eine redaktionelle Einordnung nach öffentlich zugänglichen Quellen (Stand August 2026) und keine Rechts- oder Anlageberatung.",
   weiterlesen: "Zum Weiterlesen",
   weiter: [
     { href: "/schufa-neutral-anfragen", t: "SCHUFA-neutral anfragen", s: "Der saubere Weg zum Vergleich: die Konditionsanfrage, die der Score nie sieht." },
@@ -83,7 +85,7 @@ const en: typeof de = {
     { f: "What is the better route?", a: "In most cases: put the credit file in order instead of circumventing it. Many negative entries can be challenged — wrongly reported, expired or entered without the legal requirements. Once the file is clean, the normal credit market is open again, at normal rates." },
     { f: "Does FIAON help with credit brokerage?", a: "No — FIAON does not broker loans and does not sell financial products. FIAON obtains your reports from SCHUFA, KSV and CRIF, checks every entry for whether it can be challenged and enforces deletion or correction where the law allows. The goal is that you do not need a workaround loan." },
   ],
-  fussSatz: "FIAON does not broker loans and receives no commission from lenders. This page is an editorial classification based on publicly available sources (as of August 2026) and not legal or investment advice.",
+  fussSatz: "FIAON does not broker loans. This page is an editorial classification based on publicly available sources (as of August 2026) and not legal or investment advice.",
   weiterlesen: "Read on",
   weiter: [
     { href: "/schufa-neutral-anfragen", t: "SCHUFA-neutral enquiries", s: "The clean route to a comparison: the rate enquiry the score never sees." },

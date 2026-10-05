@@ -268,8 +268,12 @@ export default function CookieEinstellungenPage() {
                       </svg>
                     </div>
                     <div>
-                      <p className="font-semibold">Kein Affiliate-Tracking:</p>
-                      <p className="text-sm">Wir setzen keine Cookies ein, um zu verfolgen, ob Sie nach der Nutzung unseres Kartenkompasses eine Kreditkarte bei einer Bank beantragen.</p>
+                      {/* E-283 (05.10.2026): Die Überschrift hier verneinte ein Tracking von Bankanträgen — mit einem Wort
+                          unter Wortverbot, und so stimmte es nicht: Der Antragslink der Partnerbank trägt eine Kennung
+                          (clickref in server/lib/fiaon-konto-karte.ts), damit eine Kontoeröffnung zugeordnet werden kann.
+                          Wahr bleibt: Auf fiaon.com setzt dafür kein Cookie. */}
+                      <p className="font-semibold">Keine Cookies, die Bankanträge verfolgen:</p>
+                      <p className="text-sm">Auf fiaon.com setzen wir keine Cookies ein, um zu verfolgen, ob Sie bei einer Bank ein Konto oder eine Kreditkarte beantragen. Der Antragslink unserer Partnerbank, den Kunden von uns erhalten, trägt eine Kennung, damit uns eine Kontoeröffnung zugeordnet werden kann. Was nach dem Klick außerhalb von fiaon.com geschieht, regeln die Datenschutzhinweise der Bank und der Dienste, über die der Link führt.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">

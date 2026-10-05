@@ -85,7 +85,7 @@ async function main(): Promise<void> {
     + PFLICHTFELDER.map((f) => f.spalte).join(", "));
 
   const faelle = (await sqlPool.unsafe(`
-    SELECT a.ref, a.person_id, a.status, a.payment_status, a.created_at, a.updated_at,
+    SELECT a.ref, a.person_id, a.status, a.payment_status, a.created_at, a.updated_at, a.antrag_weg, a.pack_key,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                     p.company_name, 'Ohne Namen') AS name,
            ag.name AS agent_name,

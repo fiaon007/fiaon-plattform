@@ -399,10 +399,12 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MEHR — Daten, Paket, Abmelden, Rechtliches (Passwort: Passwort.tsx)
+// MEHR — Daten, Paket, Abmelden, Rechtliches (Passwort: Passwort.tsx, persönliche PIN: Pin.tsx)
 // ═══════════════════════════════════════════════════════════════════════════
-export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, naechsterTermin }: {
+export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, naechsterTermin, pinGesetzt }: {
   kundeRef: string; demo: boolean; basis: string; naechsterTermin?: string | null;
+  /** E-282: persönliche FIAON-PIN festgelegt? false = der Eintrag sagt es dazu; null/undefined = unbekannt, kein Zusatz. */
+  pinGesetzt?: boolean | null;
   kunde: { vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; kundeSeit: string | null };
   paket: { name: string; abo: boolean; monatlichCents: number | null; zahlungsstatus: string };
   ansprechpartner: { name: string; rolle: string | null } | null;
@@ -425,6 +427,8 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
           <Link href={`${basis}/mehr/abo`}>Geld und Abo</Link>
           <Link href={`${basis}/mehr/mitteilungen`}>Mitteilungen</Link>
           <Link href={`${basis}/mehr/passwort`}>Passwort</Link>
+          {/* E-282 (05.10.2026): die persönliche FIAON-PIN — neben dem Passwort, wo Zugang und Sicherheit stehen. */}
+          <Link href={`${basis}/mehr/pin`} data-fiaon="mehr-pin">Persönliche PIN{pinGesetzt === false ? " · noch nicht festgelegt" : ""}</Link>
         </div>
       </section>
       <section className="ap-abschnitt ap-auf v1">

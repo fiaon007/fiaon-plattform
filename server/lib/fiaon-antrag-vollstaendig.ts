@@ -109,6 +109,17 @@ export interface Pflichtfeld {
  * Feld, das das Formular nicht erzwingt, darf hier nicht stehen — sonst
  * verlangt die Karte etwas, das der Kunde nie gefragt wurde.
  */
+// ── DER NEUE ANTRAGSWEG FRAGT DREI DINGE NICHT MEHR (05.10.2026, E-282) ──
+// /antrag-neu (antrag_weg = 'neu') fragt weder den Tag des Gehaltseingangs
+// noch eine SCHUFA-Einwilligung (der Weg fragt bei keiner Auskunftei an) und
+// „beschäftigt seit" nur bei Angestellten, Beamten und Selbstständigen. Nach
+// der Regel oben („Ein Feld, das das Formular nicht erzwingt, darf hier nicht
+// stehen") gelten diese drei Felder deshalb nur für Anträge des alten Wegs —
+// sonst stünde jeder neue Kunde als „Es fehlt: Tag des Gehaltseingangs" in der
+// Karte, und die SCHUFA-Einwilligung würde von ihm verlangt.
+const nurAlterWeg = (z: Record<string, any>): boolean => String(z.antrag_weg ?? "") !== "neu";
+const nurAlterWegSql = (a: string): string => `COALESCE(${a}.antrag_weg, '') <> 'neu'`;
+
 export const PFLICHTFELDER: readonly Pflichtfeld[] = [
   // Schritt 1 — persönliche Daten
   { spalte: "first_name", person: "first_name", name: "Vorname", art: "text" },
@@ -122,19 +133,19 @@ export const PFLICHTFELDER: readonly Pflichtfeld[] = [
   { spalte: "nationality", person: "nationality", name: "Staatsangehörigkeit", art: "text" },
   // Schritt 2 — Beschäftigung
   { spalte: "employment", name: "Beschäftigung", art: "text" },
-  { spalte: "employed_since", name: "beschäftigt seit", art: "text" },
+  { spalte: "employed_since", name: "beschäftigt seit", art: "text", nurWenn: nurAlterWeg, nurWennSql: nurAlterWegSql },
   { spalte: "housing", name: "Wohnsituation", art: "text" },
   // Schritt 3 — Verwendung
   { spalte: "purpose", name: "Verwendungszweck der Karte", art: "text" },
   // Schritt 6 — Abschluss
   { spalte: "email", person: "primary_email", name: "E-Mail-Adresse", art: "text" },
-  { spalte: "salary_receipt_day", name: "Tag des Gehaltseingangs", art: "text" },
+  { spalte: "salary_receipt_day", name: "Tag des Gehaltseingangs", art: "text", nurWenn: nurAlterWeg, nurWennSql: nurAlterWegSql },
   // 19.09.2026 (E-194): Die IBAN des Kunden ist KEIN Pflichtfeld mehr. Sie war nur für
   // die Lastschrift da (billing_method = 'iban' ist der Vorgabewert jedes Antrags) — und
   // stand so bei JEDEM Kunden als „Es fehlt: IBAN" in der Karte. GoCardless ist beendet,
   // jede Rate wird überwiesen; niemand soll am Telefon nach einer IBAN fragen.
   { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja", nurKunde: true },
-  { spalte: "consent_schufa", name: "SCHUFA-Einwilligung", art: "ja", nurKunde: true },
+  { spalte: "consent_schufa", name: "SCHUFA-Einwilligung", art: "ja", nurKunde: true, nurWenn: nurAlterWeg, nurWennSql: nurAlterWegSql },
   { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja", nurKunde: true },
 ] as const;
 
@@ -199,9 +210,17 @@ export function antragVollstaendig(zeile: Record<string, any>): boolean {
  * trägt der Mitarbeiter am Telefon nach, Zustimmungen gibt nur der Kunde.
  */
 export function fehlendeZustimmungen(zeile: Record<string, any>): string[] {
+  return fehlendeZustimmungsFelder(zeile).map((f) => f.name);
+}
+
+/** Dieselben fehlenden Erklärungen als Spaltennamen (für den Zustimmungslink, E-282). */
+export function fehlendeZustimmungsSpalten(zeile: Record<string, any>): string[] {
+  return fehlendeZustimmungsFelder(zeile).map((f) => f.spalte);
+}
+
+function fehlendeZustimmungsFelder(zeile: Record<string, any>) {
   return pflichtfelderFuer(zeile.type)
-    .filter((f) => f.nurKunde && (!f.nurWenn || f.nurWenn(zeile)) && !traegt(zeile, f))
-    .map((f) => f.name);
+    .filter((f) => f.nurKunde && (!f.nurWenn || f.nurWenn(zeile)) && !traegt(zeile, f));
 }
 
 /**

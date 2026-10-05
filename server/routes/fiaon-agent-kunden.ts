@@ -2524,3 +2524,158 @@ router.post("/agent/crm/kunden/:personId/konto-sperre", requireAgent, async (req
   }
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE PERSÖNLICHE FIAON-PIN AM TELEFON PRÜFEN (05.10.2026, E-282)
+//
+// Justin: „Nach der Bonitätsprüfung soll der Kunde einen 4-stelligen
+// persönlichen Code auswählen … mit der wir ihn verifizieren können."
+// Bis heute erkannte das Team einen Anrufer nur an der Rufnummer — und die
+// lässt sich fälschen (bestand-kunde-pin.md, Abschnitt 2).
+//
+// ── WAS DIESE ROUTE TUT ────────────────────────────────────────────────────
+// Der Mitarbeiter tippt die vier Ziffern, die der Kunde ihm nennt. Zurück
+// kommt NUR „stimmt“ / „stimmt nicht, noch n Versuche“ / „gesperrt bis“ /
+// „keine PIN“ — nie der Hash, nie ein Hinweis auf die Ziffern. Fünf
+// Fehlversuche sperren die Prüfung 15 Minuten (in der Datenbank, gemeinsam
+// mit dem Ändern im Kundenbereich: pinVersuch in fiaon-kunden-pin.ts).
+//
+// ── WER DARF ───────────────────────────────────────────────────────────────
+// Wer die Akte bearbeiten darf: meinePerson (Betreuer, sonst darfAnKunde —
+// Leitung, Inkasso mit offener Rate, Onboarding mit Startgespräch, Pool).
+// Fremde Kunden bekommen 404 wie überall in dieser Datei.
+//
+// ── PROTOKOLL ──────────────────────────────────────────────────────────────
+// JEDER Versuch steht im Verlauf der Akte (fiaon_contact_log, Typ „system“)
+// und in fiaon_agent_events — wer, wann, welcher Kunde, welches Ergebnis.
+// Hat der Mensch keine einzige Bestellung (keine Zeile für den Verlauf), steht
+// er nur in fiaon_agent_events. Eine Eingabe, die keine vier Ziffern sind,
+// ist kein Versuch: nicht gezählt, nicht protokolliert.
+// Die eingegebenen Ziffern stehen NIRGENDS, auch nicht im Server-Log.
+//
+// GET …/pin-stand liefert der Akte die ruhige Kennung („PIN festgelegt“ /
+// „Keine PIN“ / „gesperrt bis“) — dieselbe Auflösung (pinZeileFuer).
+//
+// ── DIE BREMSE JE MITARBEITER ──────────────────────────────────────────────
+// Die Sperre je Kunde hält das Durchprobieren EINES Kunden auf. Gegen das
+// Durchprobieren über viele Kunden (je vier Versuche, dann der nächste) hilft
+// sie nicht — dafür 20 Prüfungen je Mitarbeiter in 10 Minuten. Die Zahl ist
+// NICHT gemessen (die Funktion ist neu, es gibt keinen Bestand): Eine Prüfung
+// gehört zu einem Telefonat, und 20 Telefonate in 10 Minuten führt niemand.
+// Eine harte Sperre ist hier richtig, weil es um Sicherheit geht (AGENTS.md,
+// „Harte Sperren nur bei Sicherheit oder Recht“) — und sie hält kein
+// Gespräch auf: Der Mensch am Telefon lässt sich auch ohne PIN bedienen.
+// ═══════════════════════════════════════════════════════════════════════════
+const PIN_PRUEF_DECKEL = 20;
+const PIN_PRUEF_FENSTER_MS = 10 * 60 * 1000;
+const pinPruefBremse = new Map<number, number[]>();
+function pinPruefungErlaubt(agentId: number, jetzt = Date.now()): boolean {
+  if (pinPruefBremse.size > 2000) pinPruefBremse.forEach((zeiten, k) => { if (!zeiten.some((t) => jetzt - t < PIN_PRUEF_FENSTER_MS)) pinPruefBremse.delete(k); });
+  const frisch = (pinPruefBremse.get(agentId) ?? []).filter((t) => jetzt - t < PIN_PRUEF_FENSTER_MS);
+  if (frisch.length >= PIN_PRUEF_DECKEL) { pinPruefBremse.set(agentId, frisch); return false; }
+  frisch.push(jetzt);
+  pinPruefBremse.set(agentId, frisch);
+  return true;
+}
+
+/** Der PIN-Stand für den Akten-Kopf — null, wenn die Abfrage ausfällt (dann zeigt die Akte keine Kennung, nie eine falsche). */
+async function pinStandDerPerson(personId: number): Promise<{ gesetzt: boolean; gesperrtBis: string | null; unbestaetigt: boolean } | null> {
+  try {
+    const { pinZeileFuer } = await import("./fiaon-kunde-bereich");
+    const z = await pinZeileFuer({ personId });
+    return z ? { gesetzt: z.hatPin, gesperrtBis: z.gesperrtBis, unbestaetigt: !!z.unbestaetigt } : { gesetzt: false, gesperrtBis: null, unbestaetigt: false };
+  } catch (e: any) {
+    console.error(`[AGENT-KUNDEN] PIN-Stand Person ${personId}:`, e?.message || e);
+    return null;
+  }
+}
+
+router.get("/agent/crm/kunden/:personId/pin-stand", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const stand = await pinStandDerPerson(personId);
+    if (!stand) return res.status(500).json({ ok: false, error: "Der PIN-Stand ließ sich gerade nicht lesen." });
+    res.json({ ok: true, ...stand });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] pin-stand:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/agent/crm/kunden/:personId/pin-pruefen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const agentId = req.agent!.id;
+    const agentName = req.agent!.name;
+    const p = await meinePerson(personId, agentId);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const pin = String(req.body?.pin ?? "").trim();
+    // Keine vier Ziffern = kein Versuch: nichts gezählt, nichts gesperrt.
+    if (!/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: "Bitte genau vier Ziffern eingeben." });
+
+    /** Ein Eintrag je Versuch — in den Verlauf der Akte und in die Ereignisse des Mitarbeiters. */
+    const protokoll = async (ergebnis: string, satz: string, ref: string | null, extra: Record<string, unknown> = {}) => {
+      if (ref) {
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+          VALUES (${ref}, ${personId}, ${agentId}, ${agentName}, 'system', ${satz})
+        `.catch((e) => console.error(`[AGENT-KUNDEN] PIN-Prüfung: Verlaufseintrag Person ${personId} nicht geschrieben:`, e));
+      }
+      await sqlPool`
+        INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
+        VALUES (${agentId}, 'kunden_pin_pruefung', ${JSON.stringify({ person_id: personId, ref, ergebnis, ...extra })}, ${agentName}, ${satz})
+      `.catch((e) => console.error(`[AGENT-KUNDEN] PIN-Prüfung: Ereignis Person ${personId} nicht geschrieben:`, e));
+    };
+
+    if (!pinPruefungErlaubt(agentId)) {
+      await protokoll("gebremst", `PIN-Prüfung abgewiesen: mehr als ${PIN_PRUEF_DECKEL} Prüfungen in 10 Minuten durch ${agentName}. Nicht geprüft.`, p.schreib_ref ?? null);
+      return res.status(429).json({
+        ok: false, gebremst: true,
+        error: `Du hast in den letzten 10 Minuten ${PIN_PRUEF_DECKEL} PINs geprüft — mehr lässt das System zum Schutz der Kunden nicht zu. In ein paar Minuten geht es wieder.`,
+      });
+    }
+
+    const { pinZeileFuer } = await import("./fiaon-kunde-bereich");
+    const zeile = await pinZeileFuer({ personId });
+    const ref: string | null = zeile?.hatPin ? zeile.ref : (p.schreib_ref ?? zeile?.ref ?? null);
+    // Gegenprüfung 05.10.2026: Nur eine PIN an einer bezahlten Bestellung gilt (pinZeileFuer) — eine PIN an einer
+    // unbezahlten Zeile könnte jeder gesetzt haben, der die Telefonnummer des Kunden kennt.
+    if (!zeile || !zeile.hatPin || !ref) {
+      const unbestaetigt = !!zeile?.unbestaetigt;
+      await protokoll(unbestaetigt ? "unbestaetigt" : "keine_pin", unbestaetigt
+        ? "Persönliche FIAON-PIN geprüft: Die PIN dieses Kunden gilt erst ab seiner ersten Zahlung — nicht geprüft."
+        : "Persönliche FIAON-PIN geprüft: Für diesen Kunden ist keine PIN festgelegt.", ref);
+      return res.json({ ok: true, stimmt: false, gesperrt: false, keinePin: true, unbestaetigt });
+    }
+
+    const { pinVersuch } = await import("../lib/fiaon-kunden-pin");
+    const { formatBerlin } = await import("../lib/fiaon-time");
+    const erg = await pinVersuch(ref, pin);
+    if (!erg.ok) {
+      if (erg.code === "KEINE_PIN") {
+        await protokoll("keine_pin", "Persönliche FIAON-PIN geprüft: Für diesen Kunden ist keine PIN festgelegt.", ref);
+        return res.json({ ok: true, stimmt: false, gesperrt: false, keinePin: true });
+      }
+      await protokoll("unbekannt", `PIN-Prüfung nicht möglich: ${erg.meldung}`, p.schreib_ref ?? null);
+      return res.status(erg.status || 404).json({ ok: false, error: erg.meldung });
+    }
+    if (erg.gesperrt) {
+      await protokoll("gesperrt", `Persönliche FIAON-PIN: Prüfung gesperrt bis ${formatBerlin(erg.gesperrtBis)} (zu viele Fehlversuche). Nicht bestätigt.`, ref, { gesperrt_bis: erg.gesperrtBis });
+      return res.json({ ok: true, stimmt: false, gesperrt: true, gesperrtBis: erg.gesperrtBis });
+    }
+    if (erg.stimmt) {
+      await protokoll("stimmt", "Persönliche FIAON-PIN am Telefon geprüft: stimmt.", ref);
+      return res.json({ ok: true, stimmt: true, gesperrt: false });
+    }
+    await protokoll("falsch", `Persönliche FIAON-PIN am Telefon geprüft: stimmt NICHT (noch ${erg.restVersuche} ${erg.restVersuche === 1 ? "Versuch" : "Versuche"} bis zur Sperre).`, ref, { rest_versuche: erg.restVersuche });
+    res.json({ ok: true, stimmt: false, gesperrt: false, restVersuche: erg.restVersuche });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] pin-pruefen:", err);
+    res.status(500).json({ ok: false, error: "Die PIN konnte gerade nicht geprüft werden — bitte gleich noch einmal." });
+  }
+});

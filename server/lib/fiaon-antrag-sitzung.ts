@@ -58,6 +58,11 @@ export function antragCookieSetzen(res: Response, ref: string): void {
   }
 }
 
+/** Cookie entfernen — „Nicht Sie? Neu beginnen" im neuen Antrag (E-282). */
+export function antragCookieLoeschen(res: Response): void {
+  res.clearCookie(COOKIE, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" });
+}
+
 /** Referenz aus einem gültigen Antrags-Cookie — sonst null. */
 export function antragAusCookie(req: Request): string | null {
   const roh = String((req as any).cookies?.[COOKIE] || "");

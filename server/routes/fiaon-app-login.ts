@@ -51,6 +51,7 @@ import { Router, type Request } from "express";
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { sqlPool } from "../lib/db-pool";
 import { kundenSitzungSetzen } from "../lib/fiaon-kunde-session";
+import { frischCookieSetzen } from "../lib/fiaon-kunden-pin";
 import { mailSenden } from "../lib/fiaon-mail-senden";
 import { absoluteUrl } from "../fiaon-base-url";
 import { maskEmailForLog, pickAccountRow, istNurFirmenkunde } from "../fiaon-login-logic";
@@ -314,6 +315,12 @@ router.get("/app/login/link/:token", async (req, res) => {
     const erg = await loginLinkEinloesen(req.params.token, clientIp(req), String(req.headers["user-agent"] || ""));
     if (!erg) return abgelaufen();
     kundenSitzungSetzen(res, erg.ref, { bleiben: true });
+    // E-282 (05.10.2026), „PIN vergessen“: Der Klick aus der Mail beweist das
+    // Postfach. 15 Minuten lang darf dieser Browser die persönliche FIAON-PIN
+    // neu festlegen, ohne die bisherige zu kennen (POST /kunde/:ref/pin,
+    // frischPasst). Gilt für jede Einlösung — der Beweis ist derselbe, egal
+    // wohin der Link führt; das Ziel /app/mehr/pin erlaubt weiterZiel ohnehin.
+    frischCookieSetzen(res, erg.ref);
     console.log(`[APP-LOGIN-LINK] angemeldet (${erg.ref})`);
     return res.redirect(302, weiterZiel(req.query.weiter));
   } catch (e) {

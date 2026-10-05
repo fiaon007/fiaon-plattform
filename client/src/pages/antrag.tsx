@@ -12,6 +12,7 @@ import { paketPreisEuro } from "@shared/fiaon-pakete";
 import { appViewport } from "@/lib/app-viewport";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
 import { zustandFuerSchritt } from "@shared/fiaon-antrag-schritte";
+import { antragEreignis } from "@/lib/antrag-ereignis";
 import GlassNav from "@/components/GlassNav";
 import "@/styles/dunkel.css";
 import "@/styles/antrag-dunkel.css";
@@ -396,6 +397,37 @@ async function track(event: string, data?: any, ref?: string) {
   try { await fetch("/api/fiaon/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event, data, ref, sessionId: sessionStorage.getItem("fiaon_sid") || "", page: location.pathname }) }); } catch {}
 }
 
+// ── MESSUNG ALT GEGEN NEU (05.10.2026, E-282) ────────────────────────────────
+// Justin: „ich will später wissen, wie der Weg performt und wie das alte".
+// Der alte Weg schreibt dieselben Ereignisse wie /antrag-neu
+// (client/src/lib/antrag-ereignis.ts): geoeffnet · schritt · fehler (nur der
+// Feldname, NIE der Inhalt) · angelegt (mit ref) · paket · angenommen ·
+// auskunft_gewaehlt · konto_betreten · verlassen. Die bisherigen track()-Aufrufe
+// bleiben daneben stehen.
+//
+// Die Schritte heißen nach ihrer Nummer im Code (= current_step in
+// fiaon_applications) — stabil, solange die Nummern bleiben:
+//   a0_paket         Paketwahl (AntragStart)
+//   a1_person        Persönliche Daten (Mail, Name, Geburt, Telefon, Adresse)
+//   a2_finanzen      Beschäftigung, Einkommen, Wohnen
+//   a3_karte         Wunschlimit und Verwendungszweck
+//   a4_pruefung      Prüf-Animation (12 s)
+//   a5_ergebnis      Ergebnis mit Paket-Aufstieg
+//   a6_vertrag       Angaben, Haken, Bestellübersicht, Knopf „Zahlungspflichtig annehmen"
+//   a7_verarbeitung  6-s-Spinner nach dem Klick
+//   a8_angenommen    Vertrag angenommen, Weiter in den Bereich
+//   a9_passwort      Passwortseite (nur Entwicklung)
+// Dieselbe Liste (ohne a9) steht als ALT_SCHRITTE in server/lib/fiaon-antrag-weiche.ts
+// (Reihenfolge des Trichters). Wer hier einen Schritt einfügt, ändert beide.
+const ALT_SCHRITT = ["a0_paket", "a1_person", "a2_finanzen", "a3_karte", "a4_pruefung", "a5_ergebnis", "a6_vertrag", "a7_verarbeitung", "a8_angenommen", "a9_passwort"];
+function altSchritt(n: number): string { return ALT_SCHRITT[n] ?? `a${n}`; }
+type MessOpt = { schritt?: string; detail?: string | number; ref?: string };
+
+/** Steht im Cookie der Weiche schon „alt"? Dann muss der Antrag nicht nachfragen (Cookie gilt, auch bei 100 %). */
+function weicheCookieAlt(): boolean {
+  try { return /(?:^|;\s*)fiaon_aw=alt\./.test(document.cookie); } catch { return false; }
+}
+
 /* === LIVE CREDIT CARD — HYPER-REALISTIC DESIGN === */
 function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: string; name: string; lim: string | null; className?: string; compact?: boolean }) {
   const displayName = name || "MAX MUSTERMANN";
@@ -656,6 +688,34 @@ function AntragSeite() {
     return getPersistentRef("fiaon_antrag_ref");
   });
   const [wiederEinstieg, setWiederEinstieg] = useState<"laedt" | "fertig" | "abgelaufen" | null>(weiterToken ? "laedt" : null);
+  // ── DIE WEICHE IM BROWSER (05.10.2026, E-282) ────────────────────────────
+  // Beim Seitenaufruf entscheidet der Server (Middleware vor GET /antrag). Kommt
+  // der Kunde über einen Link innerhalb der App, fragt die Seite selbst nach —
+  // höchstens 1,5 s; der alte Weg wird dabei sofort gezeigt. Bis zur Antwort
+  // wartet nur, was ein „neu" ungeschehen machen müsste: die Messung (sonst
+  // zählte der alte Weg eine Sitzung, die gar nicht seine war) und das erste
+  // Speichern (sonst entstünde ein leerer alter Antrag samt Antrags-Cookie,
+  // und der Kunde hinge danach auf dem alten Weg fest).
+  const messStand = useRef<"offen" | "alt" | "neu">("offen");
+  const messWartend = useRef<{ ereignis: string; o: MessOpt }[]>([]);
+  const letzterSchritt = useRef("");
+  const angelegtGemeldet = useRef(false);
+  const [weicheFrei, setWeicheFrei] = useState(false);
+  const messen = useCallback((ereignis: string, o: MessOpt = {}) => {
+    if (messStand.current === "neu") return;
+    if (messStand.current === "offen") { messWartend.current.push({ ereignis, o }); return; }
+    antragEreignis("alt", ereignis, o);
+  }, []);
+  const messungFreigeben = useCallback(() => {
+    if (messStand.current !== "offen") return;
+    messStand.current = "alt";
+    antragEreignis("alt", "geoeffnet", { schritt: letzterSchritt.current || undefined });
+    let packParam: string | null = null;
+    try { packParam = new URLSearchParams(window.location.search).get("pack"); } catch { /* egal */ }
+    track("antrag_geoeffnet", { pack: packParam }, ref);
+    for (const w of messWartend.current.splice(0)) antragEreignis("alt", w.ereignis, w.o);
+    setWeicheFrei(true);
+  }, [ref]);
   // Das Land des Besuchers — Vorschlag für Land, Vorwahl, Staatsangehörigkeit
   // und Mail-Endungen. Wird NUR gesetzt, solange der Kunde nichts gewählt hat.
   const [land, setLand] = useState<string | null>(null);
@@ -687,6 +747,8 @@ function AntragSeite() {
       if (weg) return;
       if (!r?.ok || !j?.ok) { setWiederEinstieg("abgelaufen"); return; }
       if (j.fertig && j.zahlung) { window.location.href = j.zahlung; return; }
+      // E-282: Antrag aus dem neuen Weg — dort geht er weiter (Cookie ist gesetzt).
+      if (j.neu) { window.location.replace(j.weiter || "/antrag-neu"); return; }
       const pk = PACKS.find((x) => x.key === j.packKey) || null;
       if (pk) setPack(pk);
       setD((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(j.daten || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")) }));
@@ -778,8 +840,9 @@ function AntragSeite() {
       wantedLimit: prev.wantedLimit > newPack.lim ? newPack.lim : prev.wantedLimit,
     }));
     track("pack_switch", { from: pack?.key, to: newPack.key, direction: newIdx > currentIdx ? "upgrade" : "downgrade" }, ref);
+    messen("paket", { detail: newPack.key, schritt: letzterSchritt.current || undefined });
     setShowPackSwitcher(false);
-  }, [pack, ref]);
+  }, [pack, ref, messen]);
 
   /**
    * Aufstieg direkt aus dem Ergebnis (22.09.2026): Paket wechseln, Ziel-Rahmen
@@ -794,12 +857,65 @@ function AntragSeite() {
     setApproved(neuesPaket.lim);
     setAufstiegZu(neuesPaket.key);
     track("upsell_wechsel", { von: vorher, zu: neuesPaket.key, limit: neuesPaket.lim }, ref);
+    messen("paket", { detail: neuesPaket.key, schritt: letzterSchritt.current || undefined });
     metaEreignis(META_PAKETWECHSEL, `${ref}.${neuesPaket.key}`, { content_name: neuesPaket.name, value: neuesPaket.fee });
   }, [pack, ref]);
 
   const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
+
+  // E-282: Die Weiche fragen (steht nach der Sitzungskennung, damit track() sie schon hat).
+  useEffect(() => {
+    if (weicheCookieAlt()) { messungFreigeben(); return; }
+    const suche = window.location.search;
+    let vorbei = false;
+    const abbruch = typeof AbortController !== "undefined" ? new AbortController() : null;
+    // Antwortet die Weiche nicht in 1,5 s, bleibt dieser Besuch alt — ein späteres
+    // „neu" zieht den Kunden nicht mehr aus einem Antrag, den er schon begonnen hat.
+    const frist = setTimeout(() => { abbruch?.abort(); messungFreigeben(); }, 1500);
+    void (async () => {
+      try {
+        const r = await fetch(`/api/fiaon/antrag-weiche?q=${encodeURIComponent(suche)}`, { credentials: "same-origin", signal: abbruch?.signal });
+        const j = await r.json().catch(() => null);
+        if (vorbei || messStand.current !== "offen") return;
+        if (r.ok && j?.weg === "neu") {
+          clearTimeout(frist);
+          messStand.current = "neu";
+          messWartend.current = [];
+          window.location.replace(`/antrag-neu${suche}`);
+          return;
+        }
+        if (!r.ok) console.warn(`[FIAON-ANTRAG] Weiche antwortet mit HTTP ${r.status} — alter Weg.`);
+      } catch (e) {
+        if (vorbei || messStand.current !== "offen") return;
+        console.warn("[FIAON-ANTRAG] Weiche nicht erreichbar — alter Weg:", e);
+      }
+      clearTimeout(frist);
+      messungFreigeben();
+    })();
+    return () => { vorbei = true; clearTimeout(frist); abbruch?.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // E-282: Jeder gezeigte Schritt einmal (Wiedereinstieg erst, wenn sein Ziel feststeht).
+  useEffect(() => {
+    if (wiederEinstieg === "laedt") return;
+    const name = altSchritt(step);
+    if (name === letzterSchritt.current) return;
+    letzterSchritt.current = name;
+    messen("schritt", { schritt: name });
+  }, [step, wiederEinstieg, messen]);
+
+  // E-282: Beim Verlassen der Seite den letzten Schritt melden (der Helfer sendet ihn sofort per sendBeacon).
+  useEffect(() => {
+    const verlassen = () => {
+      if (messStand.current === "offen") messungFreigeben();
+      messen("verlassen", { schritt: letzterSchritt.current || undefined });
+    };
+    window.addEventListener("pagehide", verlassen);
+    return () => window.removeEventListener("pagehide", verlassen);
+  }, [messen, messungFreigeben]);
 
   // Auto-scroll to top on step change — useLayoutEffect läuft synchron nach DOM-Mutation, vor Browser-Paint
   useLayoutEffect(() => {
@@ -824,9 +940,14 @@ function AntragSeite() {
       // 3) Einloggen — der frische Antrag darf ohne Passwort hinein; das Passwort folgt im Bereich
       const r = await fetch(`/api/fiaon/antrag/${encodeURIComponent(ref)}/einloggen`, { method: "POST", credentials: "include" });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.ok) { setEinrichtungFehler(j?.error || "Der Bereich konnte nicht geöffnet werden. Bitte melden Sie sich mit Ihrer E-Mail an."); setEinrichtungLaeuft(false); return; }
+      if (!r.ok || !j?.ok) {
+        // E-282: als Fehler gemessen (kein Feld, sondern die Tür in den Bereich) — ohne Inhalt.
+        messen("fehler", { schritt: altSchritt(8), detail: "einrichtung" });
+        setEinrichtungFehler(j?.error || "Der Bereich konnte nicht geöffnet werden. Bitte melden Sie sich mit Ihrer E-Mail an."); setEinrichtungLaeuft(false); return;
+      }
       try { sessionStorage.setItem("fiaon_user", JSON.stringify({ ref })); localStorage.setItem("fiaon_user", JSON.stringify({ ref })); sessionStorage.removeItem("mb_begruesst"); } catch { /* egal */ }
       track("checkout_bank_transfer", { ref, packKey: pack.key }, ref);
+      messen("konto_betreten", { schritt: altSchritt(8), ref });
       metaEreignis(META_EREIGNIS.antragFertig, ref, { content_name: pack.name, value: pack.fee });
       clearPersistentRef("fiaon_antrag_ref");
       window.location.href = "/mein-bereich?einrichten=1";
@@ -835,7 +956,7 @@ function AntragSeite() {
       setEinrichtungFehler("Keine Verbindung. Bitte versuchen Sie es gleich noch einmal.");
       setEinrichtungLaeuft(false);
     }
-  }, [pack, ref, d, approved, einrichtungLaeuft, zusatz]);
+  }, [pack, ref, d, approved, einrichtungLaeuft, zusatz, messen]);
 
   // Synchronized progress for verification screen
   useEffect(() => {
@@ -886,7 +1007,7 @@ function AntragSeite() {
   // Upgrade-Hinweis (23.08.2026, Justin: „dezent, nicht aufdringlich — der Kunde
   // soll dazu gebracht werden, im Antrag upzugraden"): das nächstgrößere Paket.
   const nextPack = useMemo(() => { const i = PACKS.findIndex(p => p.key === pack?.key); return i >= 0 && i < PACKS.length - 1 ? PACKS[i + 1] : null; }, [pack]);
-  const upgraden = (np: typeof PACKS[number]) => { setPack(np); track("pack_upgrade", { von: pack?.key, zu: np.key, step }, ref); };
+  const upgraden = (np: typeof PACKS[number]) => { setPack(np); track("pack_upgrade", { von: pack?.key, zu: np.key, step }, ref); messen("paket", { detail: np.key, schritt: altSchritt(step) }); };
   const cardName = (d.firstName + " " + d.lastName).trim().toUpperCase();
 
   // Dynamic placeholders based on country
@@ -938,11 +1059,21 @@ function AntragSeite() {
       // E-244: Ohne Paket gibt es keine Bestellübersicht — und ohne Übersicht keinen zahlungspflichtigen Klick.
       if (!bestellUebersicht(pack?.key)) e.consent = "Bitte wählen Sie zuerst Ihr Paket.";
     }
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) {
+      // E-282: Je abgelehntem Feld ein Ereignis — nur der Feldname, NIE der Inhalt oder die Meldung.
+      for (const feld of Object.keys(e)) messen("fehler", { schritt: altSchritt(step), detail: feld });
+      setErrors(e); return;
+    }
     // E-244: Nach „Angaben ändern" führt Schritt 3 direkt zurück zum Vertrag — keine zweite Prüfung.
     if (step === 3 && korrektur) { setKorrektur(false); goStep(6); return; }
     if (step === 3) { goStep(4); runVerify(); return; }
-    if (step === 6) { goStep(7); setTimeout(() => goStep(8), 6000); return; }
+    if (step === 6) {
+      // E-282: Der Klick auf „Zahlungspflichtig annehmen" ist die Annahme. Den Zusatz misst dieselbe
+      // Bedingung wie zusatzNutzlast() — gezählt wird nur, was mit dem Vertrag wirklich mitgeht.
+      messen("angenommen", { schritt: altSchritt(6), ref });
+      if (zusatzAnzeige !== "aus" && zusatz.an) messen("auskunft_gewaehlt", { schritt: altSchritt(6), ref });
+      goStep(7); setTimeout(() => goStep(8), 6000); return;
+    }
     goStep(step + 1);
   }
 
@@ -980,25 +1111,32 @@ function AntragSeite() {
   // E-210: „Antrag begonnen" einmal an Meta — dieselbe Kennung wie der Server (Doppel-Erkennung).
   const [begonnenGemeldet, setBegonnenGemeldet] = useState(false);
   useEffect(() => {
-    if (step === 1 && !begonnenGemeldet) {
+    // E-282: erst nach der Weiche — ein Besuch, der auf /antrag-neu wechselt, hat hier nichts begonnen.
+    if (step === 1 && !begonnenGemeldet && weicheFrei) {
       setBegonnenGemeldet(true);
       metaEreignis(META_EREIGNIS.antragBegonnen, ref, { content_name: pack?.name ?? "", value: pack?.fee ?? 0 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, weicheFrei]);
   useEffect(() => {
-    if (step > 0) {
+    // E-282: Vor der Antwort der Weiche (höchstens 1,5 s) legt der alte Weg keine Zeile an — sonst bliebe
+    // bei „neu" ein leerer alter Antrag mit Antrags-Cookie zurück. Sobald sie frei gibt, läuft dieser Haken
+    // erneut und speichert den Schritt, auf dem der Kunde gerade steht.
+    if (step > 0 && weicheFrei) {
       const status = zustandFuerSchritt(step);
       // E-244 (Nachbesserung 26.09.): ag3 heißt nur „Bestellung geprüft" — angenommen wird allein mit dem
       // Knopf (AGB § 3 Abs. 3). Vor Schritt 7 (= nach dem Klick) geht der Haken deshalb NIE als Annahme mit;
       // sonst stünde nach „Zurück"/„Angaben ändern" consent_contract = TRUE ohne Klick. Der Server prüft es noch einmal.
       fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, ag3: step >= 7 ? d.ag3 : false, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved, leadLink, messung: messungsDaten(), auskunftZusatz: step >= 7 ? zusatzNutzlast() : undefined }) })
         .then((r) => {
-          if (!r.ok) console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert: HTTP ${r.status}`);
+          if (!r.ok) { console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert: HTTP ${r.status}`); return; }
+          // E-282: Ab dem ersten gelungenen Speichern hat der Server die Zeile — der Antrag ist angelegt.
+          if (!angelegtGemeldet.current) { angelegtGemeldet.current = true; messen("angelegt", { schritt: altSchritt(step), ref }); }
         })
         .catch((e) => console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert:`, e));
     }
-  }, [step]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, weicheFrei]);
 
   // ══ ENTWICKLER-ABKÜRZUNGEN NUR IN DER ENTWICKLUNG (22.08.2026) ══════════
   // Die Produktionsseite druckte „?skip=true — Skip to payment" und
@@ -1027,6 +1165,7 @@ function AntragSeite() {
         if (matched) {
           setPack(matched);
           setD((prev) => ({ ...prev, wantedLimit: Math.min(prev.wantedLimit || matched.lim, matched.lim) }));
+          messen("paket", { detail: matched.key });
           if (step === 0) setTimeout(() => setStep(1), 250);
         }
       }
@@ -1183,7 +1322,7 @@ function AntragSeite() {
 
       {/* ── Main Content ── */}
       {step === 0 && (
-        <AntragStart packs={PACKS} onWahl={(p) => { setPack(p as typeof PACKS[number]); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 400); }} />
+        <AntragStart packs={PACKS} onWahl={(p) => { setPack(p as typeof PACKS[number]); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); messen("paket", { detail: p.key, schritt: altSchritt(0) }); setTimeout(() => goStep(1), 400); }} />
       )}
       <div ref={topRef} className={`max-w-6xl mx-auto px-4 sm:px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10 overflow-x-hidden w-full ${step === 0 ? "hidden" : ""}`}>
         {step > 0 && <Progress step={step} total={10} />}

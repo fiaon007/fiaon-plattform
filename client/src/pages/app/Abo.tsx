@@ -110,6 +110,10 @@ export function Abo({ kundeRef, basis, demo, b }: { kundeRef: string; basis: str
       <div className="ap-karte ap-linkliste ap-auf v2">
         <Link href={`${basis}/geld/bericht`}>Monatsberichte</Link>
         <Link href={`${basis}/geld/zahlen`}>Rate zahlen</Link>
+        {b.vertragPdf && !demo ? (
+          <a href={`/api/fiaon/kunde/${encodeURIComponent(kundeRef)}/vertrag.pdf`} target="_blank" rel="noopener"
+            onClick={() => ereignisMelden(kundeRef, demo, "abo", "knopf")}>Ihr Vertrag (PDF)</a>
+        ) : null}
       </div>
 
       {/* Kündigung: der Satz und ein stiller Link, sonst nichts */}

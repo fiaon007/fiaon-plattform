@@ -31,6 +31,12 @@ export interface Bereich {
   // dann bleibt der Schritt offen, wie bisher.
   konto?: { eroeffnet: boolean; am?: string | null } | null;
   passwortGesetzt?: boolean;
+  /** E-282 (05.10.2026): persönliche FIAON-PIN festgelegt? null = Stand unbekannt (Abfrage fiel aus). */
+  pinGesetzt?: boolean | null;
+  /** E-282: gerade über den Anmelde-Link angemeldet — die PIN darf ohne die bisherige neu festgelegt werden (15 Minuten). */
+  pinFrisch?: boolean;
+  /** E-282: Es gibt einen angenommenen Vertrag aus dem neuen Antrag — als PDF abrufbar (Vertrag § 13 Abs. 2). */
+  vertragPdf?: boolean;
   finanzen?: any;
 }
 export interface Vorgang { id: number; art: string; artText: string; titel: string; stand: string; standText: string; fristAm: string | null; versandtAm: string | null; empfaenger: string | null; zustaendig: string | null; aktenzeichen?: string | null; eingegangenAm: string | null; aktualisiertAm: string | null; dokumente: number; offen: boolean }

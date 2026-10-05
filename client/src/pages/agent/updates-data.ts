@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-282 (05.10.2026): der neue Antrag /antrag-neu mit persönlicher FIAON-PIN.
+    id: "2026-10-05-persoenliche-pin",
+    date: "2026-10-05",
+    category: "Neu",
+    title: "Persönliche FIAON-PIN: Anrufer sicher erkennen",
+    summary:
+      "Kunden aus dem neuen Antrag legen eine vierstellige persönliche PIN fest. In der Akte prüfst du sie mit „PIN prüfen“ — "
+      + "so weißt du am Telefon, dass wirklich der Kunde spricht.",
+    changes: [
+      "Im Kopf der Akte steht „PIN festgelegt“ oder „Keine PIN“, daneben der Knopf „PIN prüfen“.",
+      "Das Ergebnis ist nur „PIN stimmt“ oder „stimmt nicht“ — die PIN selbst sieht niemand. Nach fünf falschen Versuchen ist die Prüfung 15 Minuten gesperrt.",
+      "Jede Prüfung steht mit deinem Namen im Verlauf.",
+      "Die PIN gilt erst ab der ersten Zahlung des Kunden — vorher steht dort „PIN gilt ab 1. Zahlung“. Bis dahin erkennst du den Kunden wie bisher.",
+      "Neue Anträge haben in der Akte einen Vermerk mit Einträgen laut Kunde, Nutzung und dem Beginn: Hat der Kunde keinen sofortigen Beginn verlangt, beginnen Gespräche und Schreiben erst nach der Widerrufsfrist (Datum steht im Vermerk).",
+    ],
+    howto: [
+      "Kunde ruft an und will etwas an seinem Vertrag oder seinen Daten ändern: „Nennen Sie mir bitte Ihre persönliche FIAON-PIN.“ → „PIN prüfen“ → vier Ziffern eintippen → Prüfen.",
+      "Nie nach der PIN einer Bankkarte fragen — die FIAON-PIN ist eine andere. Kennt der Kunde seine PIN nicht: Er setzt sie selbst neu unter Mehr → Persönliche PIN in seinem Bereich.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+    important: true,
+  },
+  {
     // E-273 (02.10.2026): Nach der Annahme eines Individualangebots bucht das System das Startgespräch selbst.
     id: "2026-10-02-individualangebot-startgespraech",
     date: "2026-10-02",

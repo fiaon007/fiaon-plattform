@@ -117,6 +117,8 @@ export type TerminQuelle = keyof typeof QUELLEN;
 /** Die Wege, auf denen ein Terminlink zum Menschen kommt — mit Klartext. */
 export const HERKUENFTE = {
   antrag_vor_zahlung: "Terminlink aus der Antragsstrecke (vor der Zahlung)",
+  // 05.10.2026 (E-282): der neue Antrag /antrag-neu — Rückruf vor der Überweisung und Gespräch nach der Annahme.
+  antrag_neu: "Aus dem neuen Antrag (/antrag-neu) gebucht",
   nicht_erreicht_mail: "Mail „Wir haben Sie nicht erreicht“",
   nummer_korrektur: "Mail zur Nummern-Korrektur",
   onboarding_einladung: "Einladung zum Startgespräch",

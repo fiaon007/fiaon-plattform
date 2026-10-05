@@ -5,6 +5,57 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 05.10.2026 — Der neue Privatantrag /antrag-neu, persönliche FIAON-PIN, Statistik alt gegen neu (E-282)
+
+**Der Anlass:** Justin (04./05.10.): „der GESAMTE Antragsweg muss neu gemacht werden … bau es jetzt unter /antrag-neu … achte auf
+JEDES Detail! Nach der Bonitätsprüfung soll der Kunde einen 4-stelligen persönlichen Code auswählen … führe Statistik darüber, ich will
+später wissen, wie der Weg performt und wie das alte.“ Grundlage ist der freigegebene Prototyp v2.
+
+**Was geändert:**
+- **Neuer Antrag unter /antrag-neu** (der alte /antrag bleibt unverändert): 16 Bildschirme mit 3D-Karte, auf der der Name des Kunden
+  steht — Name, Kontakt, Geburtsdatum, Anschrift (Adressverzeichnis), Beruf, Einkommen, Pflichtfrage zu negativen Einträgen (DE SCHUFA,
+  AT KSV1870, CH CRIF), echte Prüfung (Vollständigkeit, Volljährigkeit, Anschrift im Verzeichnis, Mobilnummer DE/AT/CH, E-Mail-Domain kann
+  Post empfangen, kein laufender Vertrag — keine Auskunftei-Abfrage), Ergebnis „Ihr Antrag ist bestätigt“, **persönliche FIAON-PIN**,
+  Paket (Kartendeck), Start-Limit und Nutzung, Vertrag (§§ 1–13 + Widerrufsbelehrung + Muster-Formular), Unterschrift, „Zahlungspflichtig
+  annehmen“, Zahlungsseite (Kopieren, GiroCode), Danke (Gespräch buchen, Auskunft zum Kundenpreis, Bereich öffnen, Passwort freiwillig).
+- **Ein Weg in die Plattform, kein zweiter:** Der Antrag wird erst nach dem Kontakt-Schritt angelegt und läuft über POST /application
+  (Personenbindung, Willkommensmail, Lead, Messung, Einstufung) und bestellungFuerAntrag (Verwendungszweck, Rechnung, Zahlungsmail) — wie
+  der alte. Jede Annahme steht mit Vertragstext, Prüfsumme, Unterschrift, Haken und Gerät in `fiaon_vertragsannahmen`; die
+  **Vertragsbestätigung mit PDF** geht als Pflichtmail raus (Nachhol-Lauf alle 10 Minuten).
+- **Persönliche FIAON-PIN:** nur als Hash (scrypt + Geheimnis außerhalb der Datenbank), 5 Fehlversuche → 15 Minuten gesperrt. Kunde ändert
+  sie unter /app/mehr/pin („PIN vergessen“ über den Anmelde-Link). Mitarbeiter prüfen sie in der Akte mit „PIN prüfen“ — jede Prüfung
+  steht im Verlauf. Sie ist ausdrücklich KEINE Karten-PIN (die vergibt die Bank).
+- **Statistik alt gegen neu** auf /chef/s/finanzen: Sitzungen, angelegt, abgeschickt, bezahlt (Geldwahrheit), Trichter je Bildschirm,
+  häufigste Feldfehler, Geräte; beide Wege messen in `fiaon_antrag_ereignisse` (nie Inhalte, nie IP; Löschfrist 180 Tage).
+- **Die Weiche:** Ein einstellbarer Anteil neuer Besucher von /antrag geht auf /antrag-neu (Vorgabe **0 %** — nichts ändert sich, bis
+  Justin sie auf /chef/s/finanzen hochsetzt).
+- **Vollständigkeit:** Tag des Gehaltseingangs, SCHUFA-Einwilligung und „beschäftigt seit“ gelten nur noch für den alten Weg — der neue
+  fragt sie nicht (sonst stünde jeder neue Kunde als „Es fehlt …“ in der Karte).
+
+**Nach der Gegenprüfung (34 bestätigte Funde, vor dem Deploy behoben):**
+- **Bestellung zum Vertrag:** /annehmen legt immer die eigene Bestellung zum unterschriebenen Paket an (`bestellungFuerAntrag(ref,
+  { ohneVerknuepfung: true })`); eine ältere offene Stufen-Bestellung derselben Person wird abgelöst (Zahlung auf die alte Referenz folgt
+  dem Zeiger). Vorher wäre der neue Vertrag in die alte Bestellung gemischt worden — Zahlungsdaten zu einem anderen Paket.
+- **Halbe Annahme:** Fehlen nach der Annahme Schritt 8 oder die Bestellung, holt der nächste Aufruf (Neuladen, /stand) beides nach.
+- **PIN:** Mitarbeiter sehen eine PIN erst ab der ersten Zahlung als gültig („PIN gilt ab 1. Zahlung“); Fehlversuche atomar gezählt;
+  „schon festgelegt“ wird dem Kunden gesagt statt verschluckt; die Tastatur nimmt nach der vierten Ziffer bis zum Leeren nichts an.
+- **Wiedereinstieg:** Der Link aus der Erinnerungsmail führt Anträge des neuen Wegs zurück nach /antrag-neu (vorher ins alte Formular);
+  /antrag-neu nimmt den Antrag auch über das Antrags-Cookie auf, mit „Willkommen zurück … Nicht Sie? Neu beginnen“. „Bereich öffnen“
+  vergisst den Antrag auf dem Gerät. Die Weiche lässt offene neue Anträge auch bei 0 % im neuen Weg.
+- **Willkommensmail** erst, wenn der Kunde sein Paket gewählt hat (sie nennt „Ihr Paket“); der Zustimmungslink setzt nur Erklärungen,
+  die der Kunde auch sieht (keine SCHUFA-Einwilligung im neuen Weg).
+- **Kein Sofortbeginn verlangt:** Kartenlink der Partnerbank erst nach der Widerrufsfrist (Automatik wartet 15 Tage), Danke-Seite nennt
+  das Datum. Vor Zahlungseingang bietet die Danke-Seite kein „Startgespräch“ mehr an (es wäre ein Vertriebstermin geworden), sondern
+  einen Rückruf für Fragen; das Startgespräch wählt der Kunde nach der Zahlung im Bereich.
+- **Texte:** „Oder lieber auf ein Ziel bis … hinarbeiten“ statt Limit-Versprechen, Gesamtpreis für 12 Monate neben der Monatsrate,
+  Bank-Satz unter dem Limit, UWG-Hinweis vollständig und schon beim E-Mail-Feld, PIN „als geschützter Prüfwert, nie im Klartext“,
+  Vertrag § 3 (Partnerlink per E-Mail) und AGB-Datum aus AGB_FASSUNG. Vertrag als PDF im Kundenbereich unter „Geld und Abo“.
+- **Oberfläche:** Doppel-Enter legt keinen zweiten Antrag an, Geburtsdatum/Anschrift werden nicht übersprungen, „Ändern“ im Angaben-Blatt
+  hält Adresse und Verlauf richtig, Panel bleibt bei schnellem Zurück sichtbar, Screenreader lesen getippte Texte.
+
+**Wo zu finden:** client/src/pages/antrag-neu/*, server/routes/fiaon-antrag-neu.ts, shared/fiaon-antrag-neu.ts (+ -vertrag.ts),
+server/lib/fiaon-kunden-pin.ts, server/lib/fiaon-antrag-neu-bestaetigung.ts, server/lib/fiaon-antrag-weiche.ts, Migration 091.
+
 ## 03.10.2026 — Mara nennt kein Limit mehr, kein „über den Rahmen entscheidet unsere Partnerbank“ (E-281)
 
 **Der Anlass:** Justin: „„über den Rahmen entscheidet unsere Partnerbank“. WEG damit, das steht 100x auf unserer Website und

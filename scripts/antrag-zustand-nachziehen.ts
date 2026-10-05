@@ -51,7 +51,7 @@ async function main(): Promise<void> {
   // vergleicht beide) und nicht erst beim nächsten Agenten.
   const treffer = (await sqlPool.unsafe(`
     SELECT a.ref, a.person_id, a.type, a.status, a.current_step, a.payment_status,
-           a.billing_method, a.created_at, a.updated_at,
+           a.billing_method, a.created_at, a.updated_at, a.antrag_weg, a.pack_key,
            a.first_name, a.last_name, a.birthdate, a.phone, a.street, a.zip, a.city,
            a.country, a.nationality, a.employment, a.employed_since, a.housing,
            a.purpose, a.email, a.salary_receipt_day, a.iban,

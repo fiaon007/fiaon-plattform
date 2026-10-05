@@ -80,7 +80,8 @@ async function main(): Promise<void> {
   ));
   const zeilen = (await sqlPool.unsafe(`
     -- pack_key: Individualangebot (01.10.2026) — die AGB-Zustimmung hängt am Paket (nurWenn), die TS-Seite braucht die Spalte.
-    SELECT a.ref, a.type, a.status, a.billing_method, a.pack_key,
+    -- antrag_weg: der neue Antragsweg (05.10.2026, E-282) — drei Felder gelten nur im alten Weg (nurWenn).
+    SELECT a.ref, a.type, a.status, a.billing_method, a.pack_key, a.antrag_weg,
            ${spalten.map((s) => `a.${s}`).join(", ")},
            ${antragVollstaendigSql("a")} AS sql_voll,
            ${fehlendeFelderAusdruckSql("a")} AS sql_fehlt

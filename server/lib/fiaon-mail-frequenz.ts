@@ -65,6 +65,7 @@ export const PFLICHTMAILS = new Set<string>([
   "bankverbindung_neu",      // 02.09.2026: Kontowechsel — wer die alte IBAN hat, MUSS die neue bekommen.
   "kuendigung_bestaetigt",   // Vertragspost: Eingang der Kündigung und was noch offen ist.
   "vertrag_beendet",         // Vertragspost: der Vertrag ist beendet.
+  "vertrag_bestaetigung",    // E-282 (05.10.2026): Vertragspost — Antwort auf die eben erklärte Annahme, mit dem Vertrag als PDF (§ 312f BGB).
   "termin_bestaetigung",
   "global_termin",           // E-188: Antwort auf die eben gebuchte Zeit (Erstgespräch FIAON Global).
   "termin_erinnerung",

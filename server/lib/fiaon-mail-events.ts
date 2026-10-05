@@ -278,6 +278,14 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     vonHand: false,
     klartext: "FIAON Global: frischer Link zu „Mein Auftrag“ (30 Tage) — Firmenkunden haben kein Passwort.",
   },
+  // E-282 (05.10.2026): Die Vertragsbestätigung des neuen Antrags entsteht aus der Vertragsannahme und trägt
+  // das Vertrags-PDF — aus einer Kundenakte oder dem Sende-Menü wäre sie eine Bestätigung ohne Vertrag. Die
+  // Pflichtfelder kennt nur ihr eigener Weg (vertragBestaetigungSenden); jeder andere Weg lehnt damit ab.
+  vertrag_bestaetigung: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false, pflichtFelder: ["anrede_zeile", "angenommen_datum", "angenommen_uhrzeit", "beginn_satz"],
+    klartext: "Neuer Antrag: Vertrag angenommen — Bestätigung mit dem Vertrag als PDF (Leistungsbeschreibung, Widerrufsbelehrung, Nachweis). Geht automatisch nach der Annahme; der Nachhol-Lauf versucht es bis zu fünfmal.",
+  },
   lead_followup: {
     gruppe: "lead", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
     klartext: "Nachfassen bei einem Lead, der noch keinen Antrag gestellt hat.",

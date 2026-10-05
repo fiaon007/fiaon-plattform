@@ -732,6 +732,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 📅 Termin mit dem Vertrieb aus dem Antrag (23.08.2026).
   const fiaonAntragTermin = await import('./routes/fiaon-antrag-termin');
   app.use('/api/fiaon', fiaonAntragTermin.default);
+
+  // 💳 Der neue Privatantrag /antrag-neu (05.10.2026, E-282): Anlegen nach dem Kontakt,
+  //    Prüfung, persönliche FIAON-PIN, Vertrag mit Unterschrift, Messung beider Wege.
+  const fiaonAntragNeu = await import('./routes/fiaon-antrag-neu');
+  app.use('/api/fiaon', fiaonAntragNeu.default);
+  // 🔀 Die Weiche alt/neu (E-282): GET /antrag schickt einen Anteil der neuen Besucher auf /antrag-neu
+  //    (Einstellung antrag_neu_anteil, Vorgabe 0 = aus). Läuft vor dem Ausliefern der Seite
+  //    (setupVite/serveStatic kommen in index.ts erst nach registerRoutes). Dazu der Vergleich
+  //    alt/neu und die Einstellung unter /admin/finance (adminCodeGate hängt weiter oben).
+  const fiaonAntragWeiche = await import('./lib/fiaon-antrag-weiche');
+  app.get('/antrag', fiaonAntragWeiche.antragWeicheMiddleware);
+  app.use('/api/fiaon', fiaonAntragWeiche.antragWeicheRouter);
   // 📉 Alte Startseiten-Variante sendet Klick-Statistik an /api/track — es gibt keinen Empfänger.
   // Antwort 204 statt 404, damit das Fehlerprotokoll sauber bleibt.
   app.post('/api/track', (_req, res) => res.status(204).end());
@@ -966,6 +978,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('app-ereignisse-aufraeumen', async () => await (await import('./routes/fiaon-app-bericht')).ereignisseAufraeumen(), 24 * 60 * 60 * 1000, { beimStartNach: 600_000 });
     // Push „Rate in drei Tagen fällig" — nur mit VAPID-Schlüsseln, eine Mitteilung je Tag und Person.
     tageslauf('push-rate-erinnerung', async () => await (await import('./lib/fiaon-push')).pushRatenLauf(), 24 * 60 * 60 * 1000, { beimStartNach: 660_000 });
+    // E-282: Messung der Antragswege — nach 180 Tagen weg (nur Bildschirm/Feldname/Zeit, keine Inhalte).
+    tageslauf('antrag-ereignisse-aufraeumen', async () => await (await import('./lib/fiaon-antrag-weiche')).antragEreignisseAufraeumen(), 24 * 60 * 60 * 1000, { beimStartNach: 630_000 });
+    // E-282: Vertragsbestätigung mit PDF nachholen, falls der Versand bei der Annahme scheiterte (höchstens 5 Versuche).
+    tageslauf('antrag_neu_bestaetigung', async () => (await (await import('./lib/fiaon-antrag-neu-bestaetigung')).vertragBestaetigungNachholen()) > 0, 10 * 60 * 1000, { beimStartNach: 330_000, nurMitErgebnis: true });
   });
 
   // 💶 GoCardless (Lastschrift, Sofortzahlung) ist seit 19.09.2026 beendet (E-194). Übrig

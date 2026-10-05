@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { Download, Plus, Trash2 } from "lucide-react";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
@@ -128,6 +128,311 @@ function LineChart({ points, color = ACCENT }: { points: { date: string; v: numb
   );
 }
 
+// ════════════════════════════════════════════════════════════════════
+// ANTRAGSWEG: ALT GEGEN NEU (05.10.2026, E-282)
+// Justin: „ich will später wissen, wie der Weg performt und wie das alte".
+// Zahlen: GET /admin/finance/antrag-vergleich (gleicher Zeitraum wie oben).
+// Weiche: POST /admin/finance/antrag-weiche — wie viel Prozent der NEUEN
+// Besucher /antrag-neu sehen. Unterschiede nur als Text-Pfeil, keine
+// Doppelachsen: Die Wege haben verschieden viele Besucher, vergleichbar
+// sind deshalb die Quoten, nicht die Stückzahlen.
+// ════════════════════════════════════════════════════════════════════
+
+const WEICHE_STUFEN_UI = [0, 10, 25, 50, 100];
+const PAKET_NAME: Record<string, string> = { start: "Start", pro: "Pro", ultra: "Ultra", highend: "High-End", ohne: "ohne Paket" };
+
+function zahl(n: number | null | undefined) {
+  return n == null ? "—" : Number(n).toLocaleString("de-DE");
+}
+function minuten(n: number | null | undefined) {
+  return n == null ? "—" : `${Number(n).toLocaleString("de-DE", { maximumFractionDigits: 1 })} Min.`;
+}
+function berlinZeit(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+/** Unterschied neu gegen alt als Text-Pfeil. hoeherBesser=false bei Dauer. */
+function Pfeil({ alt, neu, einheit, hoeherBesser = true }: { alt: number | null | undefined; neu: number | null | undefined; einheit: string; hoeherBesser?: boolean }) {
+  if (alt == null || neu == null) return null;
+  const diff = Math.round((neu - alt) * 10) / 10;
+  if (diff === 0) return <span className="ml-1.5 text-[11px] text-slate-400 whitespace-nowrap">= gleich</span>;
+  const besser = hoeherBesser ? diff > 0 : diff < 0;
+  return (
+    <span className={`ml-1.5 text-[11px] font-semibold whitespace-nowrap ${besser ? "text-emerald-600" : "text-rose-600"}`}>
+      {diff > 0 ? "↑" : "↓"} {Math.abs(diff).toLocaleString("de-DE")} {einheit}
+    </span>
+  );
+}
+
+function paketZeile(pakete: { paket: string; abgeschickt: number }[] | undefined) {
+  const l = (pakete || []).filter((p) => p.abgeschickt > 0).sort((a, b) => b.abgeschickt - a.abgeschickt);
+  if (l.length === 0) return "—";
+  return l.map((p) => `${PAKET_NAME[p.paket] ?? p.paket} ${p.abgeschickt.toLocaleString("de-DE")}`).join(" · ");
+}
+
+function geraeteZeile(geraete: { geraet: string; sitzungen: number }[] | undefined) {
+  const l = geraete || [];
+  const summe = l.reduce((s, g) => s + g.sitzungen, 0);
+  if (summe === 0) return null;
+  const name: Record<string, string> = { handy: "Handy", tablet: "Tablet", desktop: "Desktop", unbekannt: "unbekannt" };
+  return l.map((g) => `${name[g.geraet] ?? g.geraet} ${Math.round((g.sitzungen / summe) * 100)} %`).join(" · ");
+}
+
+function WegTrichter({ titel, weg, farbe }: { titel: string; weg: any; farbe: string }) {
+  const sitzungen: number = weg?.sitzungen ?? 0;
+  const schritte: any[] = weg?.trichter ?? [];
+  const geraete = geraeteZeile(weg?.geraete);
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4" data-fiaon={`antragsvergleich-trichter-${titel.startsWith("Alt") ? "alt" : "neu"}`}>
+      <p className="text-[13px] font-semibold text-slate-800">{titel}</p>
+      <p className="text-[11px] text-slate-400 mb-3">Balken = Anteil der {zahl(sitzungen)} geöffneten Sitzungen, die den Schritt gesehen haben. Rechts: Abbruch an diesem Schritt.</p>
+      {sitzungen === 0 ? (
+        <p className="text-[12px] text-slate-400">Noch keine gemessenen Sitzungen auf diesem Weg im Zeitraum.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {schritte.map((s) => (
+            <div key={s.schritt} className="flex items-center gap-2">
+              <div className="w-28 sm:w-36 text-[12px] text-slate-500 shrink-0 truncate" title={s.schritt}>{s.label}</div>
+              <div className="flex-1 min-w-0 h-6 rounded-md bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-md flex items-center px-1.5 text-[11px] font-semibold text-white tabular-nums" style={{ width: `${Math.max(s.sitzungen > 0 ? 8 : 0, Math.min(100, s.anteil ?? 0))}%`, background: farbe }}>{s.sitzungen > 0 ? s.sitzungen : ""}</div>
+              </div>
+              <div className="w-12 text-right text-[12px] text-slate-600 tabular-nums shrink-0">{s.anteil == null ? "—" : `${Math.round(s.anteil)} %`}</div>
+              <div className="w-10 text-right text-[11px] text-slate-400 tabular-nums shrink-0" title="Sitzungen, die hier zuletzt standen, ohne den Vertrag anzunehmen">{s.abbruch > 0 ? `−${s.abbruch}` : ""}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {sitzungen > 0 && (
+        <div className="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100 space-y-0.5">
+          {weg.abbruchOhneSchritt > 0 && <p>Ohne gezeigten Schritt verlassen: {zahl(weg.abbruchOhneSchritt)}</p>}
+          <p>Vertrag angenommen in {zahl(weg.angenommenSitzungen)} Sitzungen.</p>
+          {geraete && <p>Geräte: {geraete}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeldFehler({ titel, fehler }: { titel: string; fehler: { schritt: string | null; feld: string; anzahl: number }[] | undefined }) {
+  const l = fehler || [];
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <p className="text-[13px] font-semibold text-slate-800">{titel}</p>
+      <p className="text-[11px] text-slate-400 mb-2">Abgelehnte Eingaben je Feld (nur der Feldname, nie der Inhalt).</p>
+      {l.length === 0 ? (
+        <p className="text-[12px] text-slate-400">Noch keine Feldfehler im Zeitraum.</p>
+      ) : (
+        <table className="w-full text-[12.5px]">
+          <tbody>
+            {l.map((f, i) => (
+              <tr key={`${f.schritt}-${f.feld}-${i}`} className="border-t border-slate-100 first:border-0">
+                <td className="py-1 text-slate-700">{f.feld}</td>
+                <td className="py-1 text-slate-400">{f.schritt ?? "—"}</td>
+                <td className="py-1 text-right text-slate-800 font-semibold tabular-nums">{zahl(f.anzahl)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function AntragVergleich({ qs }: { qs: string }) {
+  const [daten, setDaten] = useState<any>(null);
+  const [laedt, setLaedt] = useState(true);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [wahl, setWahl] = useState<number | null>(null);
+  const [fragen, setFragen] = useState(false);
+  const [speichert, setSpeichert] = useState(false);
+  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+
+  const laden = useCallback(async () => {
+    setLaedt(true); setFehler(null);
+    const ab = new AbortController();
+    const zeit = setTimeout(() => ab.abort(), 20_000);
+    try {
+      const r = await apiF(`/admin/finance/antrag-vergleich?${qs}`, { signal: ab.signal });
+      if (r.ok) setDaten(r.json);
+      else setFehler(r.json?.error || `Der Vergleich konnte nicht geladen werden (HTTP ${r.status}).`);
+    } catch (e: any) {
+      setFehler(e?.name === "AbortError" ? "Der Vergleich hat nach 20 Sekunden nicht geantwortet." : "Keine Verbindung zum Server — der Vergleich wurde nicht geladen.");
+    } finally {
+      clearTimeout(zeit);
+      setLaedt(false);
+    }
+  }, [qs]);
+  useEffect(() => { void laden(); }, [laden]);
+
+  const weiche = daten?.weiche;
+  const aktuell: number | null = weiche ? Number(weiche.anteil) : null;
+  const gewaehlt = wahl ?? aktuell;
+  const geaendert = gewaehlt != null && aktuell != null && gewaehlt !== aktuell;
+
+  const speichern = async () => {
+    if (gewaehlt == null) return;
+    setSpeichert(true); setMeldung(null);
+    try {
+      const r = await apiF("/admin/finance/antrag-weiche", { method: "POST", body: JSON.stringify({ anteil: gewaehlt }) });
+      if (r.ok) {
+        setDaten((d: any) => d ? { ...d, weiche: { ...d.weiche, anteil: r.json.anteil, geaendertAm: r.json.geaendertAm, geaendertVon: r.json.geaendertVon } } : d);
+        setWahl(null); setFragen(false);
+        setMeldung({ art: "ok", text: `Gespeichert. Ab jetzt sehen ${r.json.anteil} % der neuen Besucher den neuen Antrag.` });
+      } else {
+        setMeldung({ art: "fehler", text: r.json?.error || `Nicht gespeichert (HTTP ${r.status}). Der bisherige Anteil gilt weiter.` });
+      }
+    } catch {
+      setMeldung({ art: "fehler", text: "Keine Verbindung — nicht gespeichert. Der bisherige Anteil gilt weiter." });
+    } finally {
+      setSpeichert(false);
+    }
+  };
+
+  const alt = daten?.alt, neu = daten?.neu, def = daten?.definitionen || {};
+  const leer = !!daten && (alt?.sitzungenBasis ?? 0) === 0 && (alt?.angelegt ?? 0) === 0 && (neu?.sitzungen ?? 0) === 0 && (neu?.angelegt ?? 0) === 0;
+  const wenig = !!daten && !leer && Math.min(alt?.sitzungenBasis ?? 0, neu?.sitzungen ?? 0) < 50;
+
+  const zeilen: { label: string; tip?: string; a: string; n: string; pfeil?: ReactNode }[] = daten && !leer ? [
+    { label: "Sitzungen", tip: def.sitzungen, a: zahl(alt.sitzungenBasis) + (alt.sitzungenHilfsweise ? " *" : ""), n: zahl(neu.sitzungen) },
+    { label: "Antrag angelegt", tip: def.angelegt, a: zahl(alt.angelegt), n: zahl(neu.angelegt) },
+    { label: "Abgeschickt", tip: def.abgeschickt, a: zahl(alt.abgeschickt), n: zahl(neu.abgeschickt) },
+    { label: "Erste Rate bezahlt", tip: def.bezahlt, a: zahl(alt.bezahlt), n: zahl(neu.bezahlt) },
+    { label: "Umsatz erste Raten", tip: def.umsatz, a: eur(alt.umsatzErsteRatenCents), n: eur(neu.umsatzErsteRatenCents) },
+    { label: "Auskunft dazubestellt", tip: def.auskunft, a: zahl(alt.auskunft), n: zahl(neu.auskunft) },
+    { label: "Termin gebucht", tip: def.termin, a: zahl(alt.termin), n: zahl(neu.termin) },
+    { label: "FIAON-PIN festgelegt", tip: def.pin, a: "—", n: zahl(neu.pinGesetzt) },
+    { label: "Pakete (abgeschickt)", a: paketZeile(alt.pakete), n: paketZeile(neu.pakete) },
+    { label: "Median bis Abschicken", tip: def.median, a: minuten(alt.medianMinutenBisAbschicken), n: minuten(neu.medianMinutenBisAbschicken), pfeil: <Pfeil alt={alt.medianMinutenBisAbschicken} neu={neu.medianMinutenBisAbschicken} einheit="Min." hoeherBesser={false} /> },
+  ] : [];
+  const quoten: { label: string; k: string }[] = [
+    { label: "Angelegt je Sitzung", k: "angelegtJeSitzung" },
+    { label: "Abgeschickt je angelegt", k: "abgeschicktJeAngelegt" },
+    { label: "Bezahlt je abgeschickt", k: "bezahltJeAbgeschickt" },
+    { label: "Bezahlt je Sitzung", k: "bezahltJeSitzung" },
+  ];
+
+  return (
+    <div className="mb-5" data-fiaon="antragsvergleich">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <p className="text-[13px] font-semibold text-slate-800">Antragsweg: alt gegen neu</p>
+          <button onClick={() => void laden()} disabled={laedt} className="text-[12px] text-slate-500 hover:text-slate-800 disabled:text-slate-300 shrink-0">{laedt ? "Lädt…" : "Neu laden"}</button>
+        </div>
+        <p className="text-[11px] text-slate-400 mb-3">Alt = /antrag, neu = /antrag-neu. Anträge: im Zeitraum angelegt, bezahlt bis heute. Vergleichbar sind die Quoten — die Stückzahlen hängen am Anteil der Weiche.</p>
+
+        {fehler && <p className="text-[12.5px] text-rose-600 mb-2" data-fiaon="antragsvergleich-fehler">{fehler}</p>}
+        {laedt && !daten && !fehler && <p className="text-[12.5px] text-slate-400">Lädt…</p>}
+        {leer && (
+          <p className="text-[12.5px] text-slate-500 py-2" data-fiaon="antragsvergleich-leer">
+            Noch keine Daten im gewählten Zeitraum. Die Messung beider Wege läuft seit dem 05.10.2026 — der neue Antrag erscheint hier, sobald die Weiche unten Besucher dorthin schickt.
+          </p>
+        )}
+
+        {daten && !leer && (
+          <>
+            {wenig && <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">Unter 50 Sitzungen auf mindestens einem Weg — die Quoten schwanken noch stark.</p>}
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-[12.5px] min-w-[300px]">
+                <thead className="text-slate-400 text-[11px] uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left px-1 py-1.5 font-semibold">Kennzahl</th>
+                    <th className="text-right px-1 py-1.5 font-semibold">Alt</th>
+                    <th className="text-right px-1 py-1.5 font-semibold">Neu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {zeilen.map((z) => (
+                    <tr key={z.label} className="border-t border-slate-100">
+                      <td className="px-1 py-1.5 text-slate-600"><span className="inline-flex items-center">{z.label}{z.tip && <Tip text={z.tip} />}</span></td>
+                      <td className="px-1 py-1.5 text-right text-slate-800 tabular-nums">{z.a}</td>
+                      <td className="px-1 py-1.5 text-right text-slate-800 tabular-nums">{z.n}{z.pfeil}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-slate-200"><td colSpan={3} className="px-1 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Quoten</td></tr>
+                  {quoten.map((q) => (
+                    <tr key={q.k} className="border-t border-slate-100">
+                      <td className="px-1 py-1.5 text-slate-600">{q.label}</td>
+                      <td className="px-1 py-1.5 text-right text-slate-800 font-semibold tabular-nums">{pct(alt.quoten?.[q.k])}</td>
+                      <td className="px-1 py-1.5 text-right text-slate-800 font-semibold tabular-nums">{pct(neu.quoten?.[q.k])}<Pfeil alt={alt.quoten?.[q.k]} neu={neu.quoten?.[q.k]} einheit="Pp." /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {alt.sitzungenHilfsweise && (
+              <p className="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
+                * Alt: davon {zahl(alt.sitzungenHilfsweise.anzahl)} Sitzungen hilfsweise aus dem Klick-Protokoll ({berlinZeit(alt.sitzungenHilfsweise.von)} bis {berlinZeit(alt.sitzungenHilfsweise.bis)}, vor Beginn der Messung). Dort steht nur, wer ein Paket gewählt oder einen Schritt gewechselt hat — die Quoten je Sitzung sind für den alten Weg deshalb zu hoch.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {daten && !leer && (
+        <>
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            <WegTrichter titel="Alt · /antrag" weg={alt} farbe="#64748b" />
+            <WegTrichter titel="Neu · /antrag-neu" weg={neu} farbe={ACCENT} />
+          </div>
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            <FeldFehler titel="Häufigste Feldfehler · alt" fehler={alt.fehler} />
+            <FeldFehler titel="Häufigste Feldfehler · neu" fehler={neu.fehler} />
+          </div>
+        </>
+      )}
+
+      {/* Die Weiche — wer sieht den neuen Antrag? */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4" data-fiaon="antrag-weiche">
+        <p className="text-[13px] font-semibold text-slate-800 mb-1">Weiche: wer sieht den neuen Antrag?</p>
+        {!weiche ? (
+          <p className="text-[12px] text-slate-400">{laedt ? "Lädt…" : "Der Stand der Weiche ist nicht geladen."}</p>
+        ) : (
+          <>
+            <p className="text-[12.5px] text-slate-600">
+              Aktuell sehen <b className="text-slate-900 tabular-nums">{aktuell} %</b> der neuen Besucher den neuen Antrag.
+              {weiche.geaendertAm && <span className="text-slate-400"> Geändert am {berlinZeit(weiche.geaendertAm)}{weiche.geaendertVon ? ` von ${weiche.geaendertVon}` : ""}.</span>}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5 mb-3">
+              Zuteilungen im Zeitraum: alt {zahl(weiche.zuteilungen?.alt)} · neu {zahl(weiche.zuteilungen?.neu)}. Wer zugeteilt ist, bleibt auf seinem Weg; Links mit Kundendaten (Lead-, Weiter-, Betreuer-Links) und offene alte Anträge bleiben immer alt.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {WEICHE_STUFEN_UI.map((s) => (
+                <button key={s} data-fiaon={`antrag-weiche-stufe-${s}`} onClick={() => { setWahl(s); setFragen(false); setMeldung(null); }}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border tabular-nums ${gewaehlt === s ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}>{s} %</button>
+              ))}
+              <button data-fiaon="antrag-weiche-speichern" onClick={() => setFragen(true)} disabled={!geaendert || speichert}
+                className="px-3 py-1.5 rounded-lg text-[12px] font-semibold border disabled:border-slate-200 disabled:text-slate-300 disabled:bg-slate-50"
+                style={geaendert && !speichert ? { color: ACCENT, borderColor: ACCENT, background: "#fff" } : undefined}>Speichern</button>
+              {!geaendert && !fragen && <span className="text-[11px] text-slate-400">Andere Stufe wählen, um zu speichern.</span>}
+            </div>
+            {fragen && geaendert && gewaehlt != null && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3" data-fiaon="antrag-weiche-frage">
+                <p className="text-[12.5px] text-slate-800 font-semibold">Ab jetzt sehen {gewaehlt} % der neuen Besucher den neuen Antrag.</p>
+                <p className="text-[11.5px] text-slate-500 mt-0.5">
+                  {gewaehlt === 0
+                    ? "Bei 0 % ist die Weiche aus: Alle Besucher sehen den alten Antrag, auch wer schon dem neuen zugeteilt war."
+                    : "Wer schon zugeteilt ist, bleibt auf seinem Weg. Die Änderung gilt sofort, auf allen Servern spätestens nach 30 Sekunden."}
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <button data-fiaon="antrag-weiche-bestaetigen" onClick={() => void speichern()} disabled={speichert}
+                    className="px-3 py-1.5 rounded-lg text-white text-[12px] font-semibold disabled:opacity-60" style={{ background: ACCENT }}>{speichert ? "Speichert…" : "Ja, speichern"}</button>
+                  <button onClick={() => setFragen(false)} disabled={speichert} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold border border-slate-200 text-slate-600 bg-white">Abbrechen</button>
+                </div>
+              </div>
+            )}
+            {meldung && (
+              <p className={`mt-3 text-[12.5px] ${meldung.art === "ok" ? "text-emerald-700" : "text-rose-600"}`} data-fiaon="antrag-weiche-meldung">{meldung.text}</p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminFinanzenPage() {
   const [rangeKey, setRangeKey] = useState<RangeKey>("30t");
   const [custom, setCustom] = useState({ from: "", to: "" });
@@ -176,6 +481,8 @@ export default function AdminFinanzenPage() {
           "CAC und Lead-Kosten brauchen ein eingetragenes Werbebudget (Abschnitt unten). LTV/CAC ist als ANNAHME gekennzeichnet — die 12 Monate Laufzeit sind nicht gemessen.",
           "Fahre mit der Maus über das ⓘ an jeder Kennzahl — dort steht die genaue Definition.",
           "Der Alt-Import (bezahlt importierte Alt-Kunden ohne Beleg) wird separat ausgewiesen und fließt bewusst in keine Kennzahl ein.",
+          "„Antragsweg: alt gegen neu“ vergleicht /antrag mit /antrag-neu im gewählten Zeitraum: Sitzungen, angelegte, abgeschickte und bezahlte Anträge (erste Rate gebucht), die Quoten dazwischen, den Trichter je Schritt mit Abbrüchen und die häufigsten Feldfehler. Ein Pfeil zeigt, ob der neue Weg besser (grün) oder schlechter (rot) ist.",
+          "Die Weiche darunter legt fest, wie viel Prozent der NEUEN Besucher den neuen Antrag sehen (0, 10, 25, 50 oder 100 %). Wer schon zugeteilt ist, bleibt auf seinem Weg; Links mit Kundendaten und offene alte Anträge bleiben immer alt. 0 % schaltet die Weiche ganz aus.",
         ]}
       />
 
@@ -246,6 +553,9 @@ export default function AdminFinanzenPage() {
           )}
         </>
       )}
+
+      {/* E-282: Antragsweg alt gegen neu + Weiche (eigener Lader, eigener Fehlerweg) */}
+      <AntragVergleich qs={qs} />
 
       {/* Attribution */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-5">

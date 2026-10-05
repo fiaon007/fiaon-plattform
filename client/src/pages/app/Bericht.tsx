@@ -84,7 +84,7 @@ const KEINE_PERSON_TEXT = "Ihre Akte wird gerade mit Ihrer Person verknüpft. Bi
 const zahl = (v: unknown, sonst = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : sonst);
 
 // ── Ereignisprotokoll (Modul E): nur Bildschirm/Knopf/Zeit, keine Inhalte ───
-export type ProtokollBildschirm = "heute" | "weg" | "brief" | "geld" | "mehr" | "vorgaenge" | "ansprueche" | "unterlagen" | "zahlen" | "bericht" | "hilfe" | "termine" | "vollmacht" | "mitteilungen" | "daten" | "abo" | "konto";
+export type ProtokollBildschirm = "heute" | "weg" | "brief" | "geld" | "mehr" | "vorgaenge" | "ansprueche" | "unterlagen" | "zahlen" | "bericht" | "hilfe" | "termine" | "vollmacht" | "mitteilungen" | "daten" | "abo" | "konto" | "pin";
 export type ProtokollEreignis = "geoeffnet" | "knopf" | "fertig";
 /**
  * Feuer und vergiss — ein Fehler hier darf nie einen Bildschirm stören. Demo meldet nichts.

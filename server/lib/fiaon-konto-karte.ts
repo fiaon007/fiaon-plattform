@@ -866,7 +866,18 @@ export async function einladungenAutomatisch(grenze = 40): Promise<{ bereit: num
   const kandidaten = await bereiteKunden({ ohneVersand: true, grenze: 500 });
   if (!kandidaten.length) return { bereit: 0, gesendet: 0, fehler: [] };
   const geprueft = await einladungPruefen(kandidaten.map((k) => k.personId)).catch(() => [] as EinladungPruefung[]);
-  const erlaubt = geprueft.filter((z) => !z.sperre && !z.fehlschlag24h);
+  // ── KEIN SOFORTBEGINN VERLANGT (E-282, 05.10.2026) ─────────────────────────
+  // Wer im neuen Antrag den sofortigen Beginn NICHT verlangt hat, bekommt den Link
+  // der Partnerbank (Vertrag § 3 Nr. 1) erst nach Ablauf der Widerrufsfrist — so
+  // steht es in § 6 seines Vertrags. Dieser Takt holt ihn danach von selbst nach.
+  const ids = geprueft.map((z) => z.personId);
+  const inFrist = new Set<number>(ids.length ? ((await sqlPool`
+    SELECT DISTINCT COALESCE(a.person_id, v.person_id) AS person_id
+      FROM fiaon_vertragsannahmen v LEFT JOIN fiaon_applications a ON a.ref = v.ref
+     WHERE (a.person_id = ANY(${ids}) OR v.person_id = ANY(${ids}))
+       AND v.sofort_beginn = FALSE AND v.angenommen_am > NOW() - INTERVAL '15 days'
+  `.catch(() => [])) as any[]).map((r) => Number(r.person_id)) : []);
+  const erlaubt = geprueft.filter((z) => !z.sperre && !z.fehlschlag24h && !inFrist.has(z.personId));
 
   let gesendet = 0;
   let mitWerbesperre = 0;

@@ -19,6 +19,8 @@ const BusinessPage = lazy(() => import("@/pages/site/business"));
 // Sie werden erst beim Aufruf geladen, damit das Agent-Portal auf dem Handy
 // nicht die komplette Kundenstrecke mitziehen muss.
 const AntragPage = lazy(() => import("@/pages/antrag"));
+// E-282 (05.10.2026): der neue Privatantrag — eigener Weg, der alte /antrag bleibt (Weiche: /chef/s/finanzen).
+const AntragNeuPage = lazy(() => import("@/pages/antrag-neu"));
 const Terms = lazy(() => import("@/pages/terms"));
 const Privacy = lazy(() => import("@/pages/privacy"));
 import NotFound from "@/pages/not-found";
@@ -497,6 +499,7 @@ function Router() {
       <Route path="/global"><Redirect to="/business" /></Route>
       <Route path="/privatkunden" component={SitePrivatkunden} />
       <Route path="/antrag" component={AntragPage} />
+      <Route path="/antrag-neu" component={AntragNeuPage} />
       <Route path="/business-antrag"><Redirect to="/business/start" /></Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/app/login" component={AppLogin} />

@@ -121,7 +121,11 @@ export type MakeEventType =
   | "commission_statement_issued" // Provisions-Abrechnung/Gutschrift erzeugt (Prompt 2 E)
   // ── /app Scheibe 6 (06.09.2026) ───────────────────────────────────────────
   | "app_login_link"          // Anmelde-Link ohne Passwort (Modul C, fiaon-app-login.ts)
-  | "app_monatsbericht";      // Monatsbericht des Kundenbereichs (fiaon-monatsbericht.ts), hinter fiaon_settings.app_bericht_mail
+  | "app_monatsbericht"       // Monatsbericht des Kundenbereichs (fiaon-monatsbericht.ts), hinter fiaon_settings.app_bericht_mail
+  // ── Der neue Privatantrag /antrag-neu (05.10.2026, E-282) — geht NIE über Make: Die Mail trägt das
+  //    Vertrags-PDF als Anhang (dauerhafter Datenträger, § 312f BGB). Versand und Protokoll stehen in
+  //    server/lib/fiaon-antrag-neu-bestaetigung.ts (direkt über den Motor, wie globalMailSenden).
+  | "vertrag_bestaetigung";   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
 
 export interface MakeWebhookPayload {
   email: string;
@@ -282,6 +286,18 @@ export async function sendMakeWebhookMitGrund(
     }
   }
 
+  // ── DIE VERTRAGSBESTÄTIGUNG NUR MIT IHREM PDF (05.10.2026, E-282) ─────────
+  // Die Mail sagt „Im Anhang finden Sie Ihren Vertrag“. Durch diese Tür reist kein Anhang —
+  // ein echter Versand von hier wäre eine Vertragsbestätigung ohne Vertrag. Der eine Weg ist
+  // vertragBestaetigungSenden (server/lib/fiaon-antrag-neu-bestaetigung.ts); hier geht nur der
+  // Prüfversand (test: true) an eine Testadresse durch.
+  if (!payload.test && eventType === "vertrag_bestaetigung") {
+    const erg: MakeVersand = { ok: false, grund: "Die Vertragsbestätigung geht nur mit dem Vertrags-PDF raus — über vertragBestaetigungSenden (server/lib/fiaon-antrag-neu-bestaetigung.ts), nicht über diese Tür." };
+    protokollNebenbei(eventType, payload, erg);
+    console.warn(`[MAKE-WEBHOOK] 'vertrag_bestaetigung' NICHT gesendet an ${payload.email || "?"}: nur über vertragBestaetigungSenden (mit PDF).`);
+    return erg;
+  }
+
   // ── WERBUNG NUR MIT ABMELDELINK (18.09.2026) ────────────────────────────
   // Lead-Strecke und Dauerpflege schreiben Menschen ohne Vertrag an. Fehlt
   // der Abmeldelink, rendert das Gerüst die Zeile „Hier abmelden" nicht mehr
@@ -407,7 +423,9 @@ export async function sendMakeWebhookMitGrund(
     || /^FIAON-SCHUFA-/i.test(String(payload.antrag_id ?? ""));
   // 26.09.2026 (E-243): auskunft_kundenpreis gibt es ebenfalls nur als Quelltext-Vorlage.
   // E-244 (26.09.2026): die Zahlungserinnerung der Auskunft ebenso — sie trägt die Belehrung, und Make kennt sie nicht.
-  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected"].includes(eventType)
+  // 05.10.2026 (E-282): vertrag_bestaetigung ebenso — Make kennt sie nicht. Durch diese Tür kommt sie nur als
+  // Prüfversand (Wand oben); der echte Versand mit PDF läuft direkt am Motor.
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung"].includes(eventType)
     || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
@@ -464,6 +482,8 @@ const PRIVATLINIE = new Set<string>([
   "auskunft_angebot", "schufa_requested", "schufa_approved", "schufa_rejected",
   // E-244: die Zahlungserinnerung der Auskunft (Privatkundenlinie, Bankdaten im Text).
   "auskunft_zahlung_erinnerung",
+  // E-282 (05.10.2026): die Vertragsbestätigung des neuen Privatantrags — Stufenpaket, Kundenbereich, Monatsrate.
+  "vertrag_bestaetigung",
 ]);
 
 /** Gehört die Bestellung dieser Nutzlast zu FIAON Global (Katalog-Art "global")? */

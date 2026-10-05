@@ -2098,6 +2098,9 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   // Der ganze Antrag (24.08.2026). Kommt mit derselben Antwort wie die Akte —
   // kein zweiter Aufruf, kein Warten beim Reiterwechsel.
   const [antrag, setAntrag] = useState<any | null>(null);
+  // E-282 (05.10.2026): persönliche FIAON-PIN — Kennung im Kopf, Prüffeld darunter.
+  const [pinStand, setPinStand] = usePinStand(k.personId);
+  const [pinOffen, setPinOffen] = useState(false);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -2578,6 +2581,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             )}
             {/* E-202: die Boni-Ampel — ein Tipp zeigt die fünf Teile (Adresse, Einkommen, Ausgaben, Schulden, SCHUFA). */}
             <BoniAmpelAkte personId={k.personId} name={k.name} />
+            {/* E-282: persönliche FIAON-PIN — ruhige Kennung und der Knopf zum Prüfen am Telefon. */}
+            <PinKennung stand={pinStand} offen={pinOffen} onKlick={() => setPinOffen((v) => !v)} />
             {k.mandatSeit && <span className="pi-marke">Mandat seit {dtag(k.mandatSeit)}</span>}
             {termin && <span className="pi-marke">Termin {terminText(k.terminAm!)}</span>}
             {k.termin && !termin && <span className="pi-marke">{terminText(k.termin.beginn)} · {k.termin.art}</span>}
@@ -2590,6 +2595,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
           <button type="button" className="pi-lade-zu" onClick={onZu} aria-label="Akte schließen"><X size={18} strokeWidth={1.75} /></button>
         </div>
       </div>
+      {pinOffen && <PinPruefen personId={k.personId} name={k.name} stand={pinStand} onStand={setPinStand} onZu={() => setPinOffen(false)} />}
       {/* 04.09.2026 (E-120): Für die Leitung sichtbar in JEDEM Reiter — Florentine
           fand den Verschiebe-Block nicht (er lag unten im Reiter „Gespräche") und
           den Portal-Knopf nur im Reiter „Sein Antrag". */}
@@ -4899,5 +4905,153 @@ function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; 
         <span className="pi-luecke">Das Land ändert die Vertriebsleitung.</span>
       </div>
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DIE PERSÖNLICHE FIAON-PIN AM TELEFON PRÜFEN (05.10.2026, E-282)
+//
+// Justin: „… einen 4-stelligen persönlichen Code … mit der wir ihn
+// verifizieren können." Bis heute erkannte das Team einen Anrufer nur an der
+// Rufnummer — und die lässt sich fälschen.
+//
+// Im Kopf der Akte steht eine ruhige Kennung („PIN festgelegt“ / „Keine PIN“)
+// und daneben der Knopf „PIN prüfen“. Er öffnet unter dem Kopf ein Feld für
+// vier Ziffern; „Prüfen“ fragt POST /agent/crm/kunden/:personId/pin-pruefen
+// (fiaon-agent-kunden.ts). Die Antwort ist nur ein Ergebnis — „PIN stimmt“,
+// „stimmt nicht, noch n Versuche“, „gesperrt bis“, „keine PIN“ —, nie die
+// PIN. Das Feld ist danach leer; jede Prüfung steht mit Namen im Verlauf.
+//
+// Der Kopf ist fest (sticky): Das Feld bleibt beim Scrollen in Reichweite —
+// wer telefoniert, wechselt nicht die Stelle (AGENTS.md).
+// Die PIN ist KEINE Karten-PIN; der Satz am Feld sagt es dem Mitarbeiter.
+// ══════════════════════════════════════════════════════════════════════════
+type PinStand = { gesetzt: boolean; gesperrtBis: string | null; unbestaetigt?: boolean };
+
+/** Uhrzeit in Berliner Zeit („14:35“) — als Text, nie als Zahl (Zeit-Falle). */
+function pinUhr(iso: string | null | undefined): string {
+  if (!iso) return "?";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "?";
+  return new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(d);
+}
+
+/** Der PIN-Stand der Person (GET …/pin-stand). null = lädt, "fehler" = nicht lesbar (dann keine Kennung, nie eine falsche). */
+function usePinStand(personId: number): [PinStand | null | "fehler", (s: PinStand) => void] {
+  const [stand, setStand] = useState<PinStand | null | "fehler">(null);
+  useEffect(() => {
+    let an = true;
+    api(`/agent/crm/kunden/${personId}/pin-stand`)
+      .then((r: any) => {
+        if (!an) return;
+        if (r.ok) setStand({ gesetzt: r.json?.gesetzt === true, gesperrtBis: r.json?.gesperrtBis ?? null, unbestaetigt: r.json?.unbestaetigt === true });
+        else { console.error(`[AKTE] PIN-Stand Person ${personId}: HTTP ${r.status}`, r.json?.error ?? ""); setStand("fehler"); }
+      })
+      .catch((e: unknown) => { console.error(`[AKTE] PIN-Stand Person ${personId}:`, e); if (an) setStand("fehler"); });
+    return () => { an = false; };
+  }, [personId]);
+  return [stand, (s: PinStand) => setStand(s)];
+}
+
+function PinKennung({ stand, offen, onKlick }: { stand: PinStand | null | "fehler"; offen: boolean; onKlick: () => void }) {
+  const bekannt = stand !== null && stand !== "fehler";
+  const gesperrt = bekannt && !!stand.gesperrtBis && new Date(stand.gesperrtBis).getTime() > Date.now();
+  return (
+    <>
+      {bekannt && (
+        <span className={`pi-marke${gesperrt ? " dringend" : stand.gesetzt ? "" : " still"}`} data-fiaon="pin-kennung"
+              title={stand.gesetzt ? "Der Kunde hat eine persönliche FIAON-PIN festgelegt." : "Der Kunde hat noch keine persönliche FIAON-PIN festgelegt."}>
+          {gesperrt ? `PIN gesperrt bis ${pinUhr(stand.gesperrtBis)}` : stand.gesetzt ? "PIN festgelegt" : stand.unbestaetigt ? "PIN gilt ab 1. Zahlung" : "Keine PIN"}
+        </span>
+      )}
+      <button type="button" className="pi-marke" onClick={onKlick} aria-expanded={offen} data-fiaon="pin-pruefen-knopf"
+              style={{ border: "1px solid rgba(96,165,250,.45)", cursor: "pointer", background: offen ? "rgba(37,99,235,.32)" : undefined }}>
+        PIN prüfen
+      </button>
+    </>
+  );
+}
+
+function PinPruefen({ personId, name, stand, onStand, onZu }: {
+  personId: number; name: string; stand: PinStand | null | "fehler"; onStand: (s: PinStand) => void; onZu: () => void;
+}) {
+  const [pin, setPin] = useState("");
+  const [laeuft, setLaeuft] = useState(false);
+  const [ergebnis, setErgebnis] = useState<{ art: "stimmt" | "falsch" | "gesperrt" | "keine"; text: string } | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const feld = useRef<HTMLInputElement | null>(null);
+  const keinePinBekannt = stand !== null && stand !== "fehler" && !stand.gesetzt;
+  const pinUnbestaetigt = stand !== null && stand !== "fehler" && !!stand.unbestaetigt;
+
+  const pruefen = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (pin.length !== 4 || laeuft) return;
+    const eingabe = pin;
+    // Das Feld ist sofort leer — die Ziffern bleiben nicht auf dem Bildschirm stehen, während der Kunde zuhört.
+    setPin(""); setLaeuft(true); setFehler(null); setErgebnis(null);
+    try {
+      const r = await api(`/agent/crm/kunden/${personId}/pin-pruefen`, { method: "POST", body: JSON.stringify({ pin: eingabe }) });
+      setLaeuft(false);
+      if (r.ok) {
+        const j = r.json || {};
+        if (j.keinePin) {
+          setErgebnis({ art: "keine", text: j.unbestaetigt ? "PIN gilt erst ab der ersten Zahlung" : "Keine PIN festgelegt" });
+          onStand({ gesetzt: false, gesperrtBis: null, unbestaetigt: !!j.unbestaetigt });
+        }
+        else if (j.gesperrt) { setErgebnis({ art: "gesperrt", text: `Gesperrt bis ${pinUhr(j.gesperrtBis)}` }); onStand({ gesetzt: true, gesperrtBis: j.gesperrtBis ?? null }); }
+        else if (j.stimmt) { setErgebnis({ art: "stimmt", text: "PIN stimmt" }); onStand({ gesetzt: true, gesperrtBis: null }); }
+        else {
+          const n = Number(j.restVersuche);
+          setErgebnis({ art: "falsch", text: Number.isFinite(n) ? `PIN stimmt nicht – noch ${n} ${n === 1 ? "Versuch" : "Versuche"}` : "PIN stimmt nicht" });
+          onStand({ gesetzt: true, gesperrtBis: null });
+        }
+      } else {
+        setFehler(r.json?.error || `Die PIN wurde nicht geprüft (HTTP ${r.status}).`);
+      }
+    } catch (err) {
+      console.error("[AKTE] PIN-Prüfung:", err);
+      setLaeuft(false);
+      setFehler("Keine Verbindung — die PIN wurde nicht geprüft. Bitte gleich noch einmal.");
+    }
+    feld.current?.focus();
+  };
+
+  const pille = ergebnis?.art === "stimmt" ? " gut" : ergebnis?.art === "gesperrt" ? " dringend" : ergebnis?.art === "falsch" ? " warn" : " still";
+  return (
+    <form onSubmit={pruefen} data-fiaon="pin-pruefen" aria-label={`PIN von ${name} prüfen`}
+          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "10px 20px 12px", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+      <label htmlFor={`pin-pruefen-${personId}`} style={{ flex: "1 1 100%", fontSize: 12.5, lineHeight: 1.45, color: "#9ca3af" }}>
+        {keinePinBekannt && pinUnbestaetigt
+          ? <>{name} hat eine PIN festgelegt — sie gilt aber erst ab der ersten Zahlung (erst die Überweisung mit Namensabgleich belegt, dass der Antrag wirklich von ihm stammt). Bis dahin den Kunden anders erkennen.</>
+          : keinePinBekannt
+          ? <>Für {name} ist noch keine persönliche FIAON-PIN festgelegt. Der Kunde legt sie im neuen Antrag fest oder in seinem Bereich unter „Mehr → Persönliche PIN“.</>
+          : <>Lass dir die vier Ziffern der persönlichen FIAON-PIN nennen. <b style={{ color: "#e5e7eb", fontWeight: 500 }}>Nie nach der PIN einer Bankkarte fragen</b> — die vergibt allein die Bank.</>}
+      </label>
+      <input
+        ref={feld}
+        id={`pin-pruefen-${personId}`}
+        className="pi-eingabe"
+        type="password"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
+        spellCheck={false}
+        data-1p-ignore="true"
+        data-lpignore="true"
+        placeholder="••••"
+        aria-label={`Persönliche FIAON-PIN von ${name}, vier Ziffern`}
+        value={pin}
+        onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 4)); if (fehler) setFehler(null); }}
+        disabled={laeuft}
+        autoFocus
+        style={{ flex: "0 0 auto", width: 128, fontSize: 16, letterSpacing: ".45em", textAlign: "center", fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+      />
+      <button type="submit" className="pi-knopf klein" disabled={pin.length !== 4 || laeuft}>
+        {laeuft ? "Prüfe …" : pin.length > 0 && pin.length < 4 ? `Prüfen (${pin.length}/4)` : "Prüfen"}
+      </button>
+      {ergebnis && <span className={`pi-marke${pille}`} role="status" data-fiaon="pin-ergebnis" style={{ padding: "8px 12px", fontSize: 12.5 }}>{ergebnis.text}</span>}
+      <button type="button" className="pi-knopf still klein" onClick={onZu} style={{ marginLeft: "auto" }}>Schließen</button>
+      {fehler && <span className="pi-meldung schlecht" role="alert" style={{ flex: "1 1 100%" }}>{fehler}</span>}
+    </form>
   );
 }

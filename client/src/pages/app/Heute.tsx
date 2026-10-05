@@ -130,6 +130,16 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
         </Link>
       )}
 
+      {/* E-282 (05.10.2026): Ohne persönliche FIAON-PIN eine ruhige Karte — kein Band, denn nichts
+          daran ist dringend. Nur bei sicherem „keine PIN“ (false), nie bei unbekanntem Stand, nie in der Demo. */}
+      {b.pinGesetzt === false && !demo && (
+        <Link href={`${basis}/mehr/pin`} className="ap-karte ap-auf v3" style={{ display: "block", textDecoration: "none" }} data-fiaon="heute-pin">
+          <h3>Persönliche PIN festlegen</h3>
+          <p>Vier Ziffern, an denen wir Sie am Telefon sicher erkennen. Sie ist nicht die PIN Ihrer Karte.</p>
+          <span className="ap-link" style={{ display: "inline-block", marginTop: 10 }}>PIN festlegen →</span>
+        </Link>
+      )}
+
       <section className="ap-abschnitt ap-auf v4">
         <div className="ap-karte" style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {ap ? (

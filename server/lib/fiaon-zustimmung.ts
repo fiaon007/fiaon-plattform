@@ -36,7 +36,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
-import { fehlendeZustimmungen, NUR_KUNDE_SPALTEN } from "./fiaon-antrag-vollstaendig";
+import { fehlendeZustimmungen, fehlendeZustimmungsSpalten, NUR_KUNDE_SPALTEN } from "./fiaon-antrag-vollstaendig";
 import { AGB_FASSUNG, vertragsPaketKey } from "@shared/fiaon-vertrag-paket";
 
 type Lauf = typeof sqlPool;
@@ -102,7 +102,7 @@ export async function zustimmungsLage(
   ref: string, lauf: Lauf = sqlPool,
 ): Promise<ZustimmungsLage | null> {
   const [a] = (await lauf`
-    SELECT ref, type, pack_name, pack_key,
+    SELECT ref, type, pack_name, pack_key, antrag_weg,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), ''),
                     company_name, contact_name, '') AS name,
            consent_agb, consent_schufa, consent_contract
@@ -116,7 +116,9 @@ export async function zustimmungsLage(
     name: String(a.name || "").trim(),
     paket: a.pack_name ? String(a.pack_name).split("\n")[0].trim() : null,
     offen,
-    spalten: NUR_KUNDE_SPALTEN.filter((s) => a[s] !== true),
+    // Nur, was DIESE Bestellung braucht und noch fehlt (E-282): Der neue Antrag fragt keine
+    // SCHUFA-Einwilligung — sie darf über den Link nicht unbemerkt mitgesetzt werden.
+    spalten: fehlendeZustimmungsSpalten(a),
     fertig: offen.length === 0,
     packKey: vertragsPaketKey(a.pack_key, a.pack_name),
     vertragsFassung: vertragsPaketKey(a.pack_key, a.pack_name) ? AGB_FASSUNG : null,
@@ -141,7 +143,14 @@ export async function zustimmungFesthalten(
   nachweis: { ip: string | null; userAgent: string | null },
   lauf: Lauf = sqlPool,
 ): Promise<{ ok: boolean; grund?: string; erteilt?: string[] }> {
-  const erlaubt = spalten.filter((s) => NUR_KUNDE_SPALTEN.includes(s));
+  // Nur Erklärungen, die diese Bestellung noch braucht (E-282) — nie eine, die der Kunde
+  // auf der Seite gar nicht gesehen hat (dieselbe Regel wie `offen` in zustimmungsLage).
+  const [zeile] = (await lauf`
+    SELECT type, pack_key, antrag_weg, consent_agb, consent_schufa, consent_contract
+      FROM fiaon_applications WHERE ref = ${ref} AND gdpr_deleted_at IS NULL AND merged_into IS NULL LIMIT 1
+  `) as any[];
+  const noetig = new Set(zeile ? fehlendeZustimmungsSpalten(zeile) : []);
+  const erlaubt = spalten.filter((s) => NUR_KUNDE_SPALTEN.includes(s) && noetig.has(s));
   if (erlaubt.length === 0) {
     return { ok: false, grund: "Bitte allen Punkten zustimmen — sonst kommt der Vertrag nicht zustande." };
   }

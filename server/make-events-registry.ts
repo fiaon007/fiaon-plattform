@@ -17,6 +17,11 @@ import { BANK, BANK_ALT_GESPERRT } from "@shared/fiaon-bank";
 import { AUSKUNFT_PREISE_CENTS, auskunftLeistung, auskunfteienText, euroText } from "@shared/fiaon-auskunft";
 // E-241 (25.09.2026): Die Sätze von schufa_requested je Lieferweg — das Beispiel zeigt den Vollmacht-Weg.
 import { schufaRequestedSaetze } from "./mail/vorlagen/auskunft-lead";
+// E-282 (05.10.2026): Beginn-Satz, Preis und Betragsform der Vertragsbestätigung aus ihren Quellen —
+// das Beispiel zeigt dieselben Sätze und Zahlen wie die echte Mail.
+import { VERTRAG_BEGINN_SATZ } from "./mail/vorlagen/vertrag";
+import { paketPreisCents } from "@shared/fiaon-pakete";
+import { euroCent } from "@shared/fiaon-antrag-neu-vertrag";
 
 export interface MakeEventDef {
   type: MakeEventType;
@@ -101,6 +106,25 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     customerBound: true,
     // 18.09.2026: portal_url (Knopf „Zu meinen Unterlagen“) fehlte im Beispiel.
     example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", portal_url: "https://www.fiaon.com/login" },
+  },
+  // ── Der neue Privatantrag /antrag-neu (05.10.2026, E-282) ─────────────────
+  // customerBound: false — die Nutzlast entsteht aus der Vertragsannahme
+  // (fiaon_vertragsannahmen), und die Mail trägt das Vertrags-PDF als Anhang.
+  // „Für echten Kunden senden" würde eine Vertragsbestätigung ohne Vertrag
+  // verschicken; die Tür in make-webhook.ts lehnt das ohnehin ab. Das Beispiel
+  // zeigt die Fassung MIT sofortigem Beginn (beginn_satz).
+  {
+    type: "vertrag_bestaetigung",
+    label: "Vertragsbestätigung mit Vertrags-PDF (neuer Antrag)",
+    description: "Geht automatisch direkt nach „Zahlungspflichtig annehmen“ auf /antrag-neu — mit dem Vertrag als PDF (Leistungsbeschreibung, Widerrufsbelehrung, Muster-Widerrufsformular, Nachweis der Annahme). Immer Direktversand über den Motor (server/lib/fiaon-antrag-neu-bestaetigung.ts); scheitert er, versucht es der Nachhol-Lauf bis zu fünfmal. Pflichtmail (Vertragspost): keine Frequenzbremse, keine Werbesperre.",
+    customerBound: false,
+    example: {
+      email: "maria.muster@example.com", anrede_zeile: "Guten Tag Frau Muster", paket: "FIAON Pro",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", angenommen_datum: "05.10.2026", angenommen_uhrzeit: "14:32",
+      agb_fassung_text: "26.09.2026", widerruf_email: "support@fiaon.com",
+      ziel_limit_text: euroCent(2500 * 100), rate_text: euroCent(paketPreisCents("pro")), gesamt_text: euroCent(paketPreisCents("pro") * 12),
+      beginn_satz: VERTRAG_BEGINN_SATZ.sofort,
+    },
   },
   {
     type: "bankverbindung_neu",

@@ -631,6 +631,12 @@ const MERGE_SKIP_COLS = new Set([
   "id", "ref", "created_at", "updated_at", "merged_into", "superseded_by",
   "payment_status", "payment_reference", "invoice_number", "invoice_date",
   "amount_due", "confirmed_email_sent_at", "cancelled_at", "gdpr_deleted_at",
+  // E-282 (05.10.2026): Weg-Marke, Angaben und Prüfung des neuen Antrags gehören zu
+  // SEINER Zeile — ein alter Gewinner würde sonst als „neuer Weg" gelten (andere
+  // Pflichtfelder). Die PIN bleibt an ihrer Zeile; pinZeileFuer findet sie über merged_into.
+  "antrag_weg", "antrag_neu_daten", "antrag_neu_pruefung", "antrag_neu_geprueft_am",
+  "kunden_pin_hash", "kunden_pin_gesetzt_am", "kunden_pin_geaendert_am",
+  "kunden_pin_fehlversuche", "kunden_pin_gesperrt_bis",
 ]);
 // KYC-Dokumente separat behandelt (bytea) — nur füllen, wenn Gewinner leer.
 const MERGE_DOC_COLS = ["bank_statement_pdf", "id_card_pdf", "schufa_pdf"];
@@ -979,7 +985,7 @@ export async function sendPaymentConfirmedOnce(ref: string): Promise<boolean> {
  */
 export async function bestellungFuerAntrag(
   ref: string,
-  opts: { globalMailFolgt?: boolean } = {},
+  opts: { globalMailFolgt?: boolean; ohneVerknuepfung?: boolean } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   await ensurePaymentColumns();
   const rows = await sqlPool`
@@ -1001,7 +1007,17 @@ export async function bestellungFuerAntrag(
   // und die BESTEHENDE Bestellung wiederverwenden — kein zweiter Kunde/Agent/Anruf.
   // Berührt keine bestehende Zahlung/Provision/Rechnung. Bei Unsicherheit (zwei
   // Bezahlte) wird NICHT gemergt, sondern für /admin/dubletten geflaggt.
-  const link = await linkDuplicateToPaidOrActive(ref);
+  //
+  // `ohneVerknuepfung` (E-282, 05.10.2026): Der neue Antrag /antrag-neu legt die
+  // Bestellung zu einem UNTERSCHRIEBENEN Vertrag an — Paket, Rate und Ziel-Limit
+  // stehen im Vertrag. Würde dieser Antrag in eine ältere offene Bestellung
+  // gemischt, bekäme der Kunde Zahlungsdaten zu einem anderen Paket als dem
+  // unterschriebenen. Dort entsteht deshalb immer die eigene Bestellung, und die
+  // ältere offene Stufen-Bestellung wird unten abgelöst (supersedeSisterOrders —
+  // eine Zahlung auf die alte Referenz folgt dem Zeiger). Wer schon ein
+  // laufendes bezahltes Paket hat, kommt bis hierher gar nicht (Prüfung „doppelt").
+  const link: Awaited<ReturnType<typeof linkDuplicateToPaidOrActive>> = opts.ohneVerknuepfung
+    ? { linked: false } : await linkDuplicateToPaidOrActive(ref);
   if (link.linked && link.winnerRef) {
     const w = await sqlPool`
       SELECT payment_reference, payment_status FROM fiaon_applications WHERE ref = ${link.winnerRef} LIMIT 1
@@ -2214,7 +2230,7 @@ router.get("/antrag/weiter/:token", async (req, res) => {
       SELECT ref, type, status, current_step, pack_key, first_name, last_name, birthdate, phone, phone_country_code,
              street, zip, city, country, nationality, employment, employer, employed_since, income, rent, debts, housing,
              wanted_limit, purpose, billing, addon, nfc, email, salary_receipt_day, billing_method, approved_limit,
-             payment_reference, payment_status, submitted_at
+             payment_reference, payment_status, submitted_at, antrag_weg
       FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL AND gdpr_deleted_at IS NULL LIMIT 1
     `) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden." });
@@ -2230,6 +2246,12 @@ router.get("/antrag/weiter/:token", async (req, res) => {
     const fertig = a.payment_status === "paid" || antragAbgeschickt(a);
     if (fertig) {
       return res.json({ ok: true, fertig: true, zahlung: a.payment_status !== "paid" && a.payment_reference ? `/zahlung/${a.payment_reference}` : "/login" });
+    }
+    // E-282 (05.10.2026): Ein Antrag aus dem neuen Weg geht im neuen Weg weiter — das alte
+    // Formular kennt dessen Angaben nicht. Cookie setzen, /antrag-neu nimmt ihn darüber auf.
+    if (a.antrag_weg === "neu") {
+      antragCookieSetzen(res, String(a.ref));
+      return res.json({ ok: true, neu: true, weiter: "/antrag-neu" });
     }
     const g = a.birthdate ? String(a.birthdate).slice(0, 10).split("-") : null;
     // 06.09.2026: Der Weiter-Link ist der Nachweis — er ging per Mail an den Antragsteller. Cookie setzen.
@@ -3299,9 +3321,12 @@ router.post("/application", async (req, res) => {
     // E-188 (17.09.2026): Nicht für FIAON Global. `welcome` zeigt das Kartenbild und kündigt
     // „Auskunft holen, Einträge prüfen" an — der Firmenkunde bekommt stattdessen `global_auftrag`
     // mit Vertrag und Rechnung. Der Schalter hängt am Katalog, nicht an einem Feld des Aufrufers.
+    // E-282 (05.10.2026): Der neue Antrag /antrag-neu hält sie zurück, bis der Kunde sein Paket
+    // gewählt hat — die Mail nennt „Ihr Paket". Der Schalter unterdrückt nur die eigene Mail.
+    const willkommenZurueck = req.body?.willkommenZurueckhalten === true;
     try {
       await ensurePaymentColumns();
-      const claimed = istGlobalPaket(packKey) ? [] : await sqlPool`
+      const claimed = istGlobalPaket(packKey) || willkommenZurueck ? [] : await sqlPool`
         UPDATE fiaon_applications SET welcome_sent_at = NOW()
         WHERE ref = ${ref} AND welcome_sent_at IS NULL
           AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL

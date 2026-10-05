@@ -15,6 +15,7 @@ import { sqlPool } from "../lib/db-pool";
 import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { istJahresvertrag } from "@shared/fiaon-antrag-stand";
 import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, istGehasht, type KundeRequest } from "../lib/fiaon-kunde-session";
+import { pinAendern, frischPasst } from "../lib/fiaon-kunden-pin";
 import { effectiveLimit } from "./fiaon-antrag";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 import {
@@ -511,6 +512,13 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       }
     }
 
+    // E-282: Fällt die PIN-Abfrage aus (etwa vor Migration 091), fehlt nur der
+    // PIN-Stand — nie der Bereich. Der Fehler steht im Protokoll, nicht still.
+    const pinStand = await pinZeileFuer({ ref }).catch((e) => {
+      console.error("[MEIN-BEREICH] PIN-Stand:", e?.message || e);
+      return null;
+    });
+
     res.json({
       ok: true,
       kunde: {
@@ -609,6 +617,14 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       kontoVerbunden: false,
       // Einrichtung (23.08.2026): Ohne Passwort zeigt der Bereich die Einrichtungs-Ebene.
       passwortGesetzt: istGehasht(a.password),
+      // E-282 (05.10.2026): die persönliche FIAON-PIN. null = Stand unbekannt
+      // (Abfrage fiel aus) — dann zeigt /app weder „festlegen“ noch „gesetzt“,
+      // sondern die Änderungsmaske; der Server entscheidet beim Speichern.
+      // pinFrisch = gerade über den Anmelde-Link hereingekommen („PIN vergessen“).
+      pinGesetzt: pinStand ? pinStand.hatPin : null,
+      // E-282: Vertrag aus dem neuen Antrag als PDF (Vertrag § 13 Abs. 2) — Link unter „Geld und Abo".
+      vertragPdf: await (await import("../lib/fiaon-antrag-neu-bestaetigung")).vertragsRefFuerKunde(ref).then((r) => !!r).catch(() => false),
+      pinFrisch: frischPasst(req, ref),
       // Die Auswertung des Kontoauszugs (22.08.2026) — null, solange keiner da ist.
       finanzen: await (await import("../lib/fiaon-kontoauszug-analyse")).analyseFuer(ref).catch(() => null),
       // ── DIE AUSWERTUNG DER BONITAETSAUSKUNFT (10.09.2026, E-174) ────────
@@ -760,6 +776,172 @@ router.post("/kunde/:ref/passwort", requireKunde, async (req: KundeRequest, res:
   } catch (err) {
     console.error("[MEIN-BEREICH] passwort:", err);
     res.status(500).json({ ok: false, error: "Das Passwort konnte nicht geändert werden." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE PERSÖNLICHE FIAON-PIN IM BEREICH (05.10.2026, E-282)
+//
+// Justin: „… er kann den jederzeit auf der Plattform ändern." Mit der PIN
+// erkennen Mitarbeiter den Kunden am Telefon (POST /agent/crm/kunden/:personId/
+// pin-pruefen). Sie ist KEINE Karten-PIN — die vergibt allein die Bank.
+//
+// ── WELCHE ZEILE TRÄGT DIE PIN? ───────────────────────────────────────────
+// Die PIN liegt als Hash an EINER Antragszeile (server/lib/fiaon-kunden-pin.ts),
+// gesetzt im neuen Antrag an dessen Zeile. Die Sitzung des Kunden steht aber
+// auf der Kontozeile, die der Login auswählt (pickAccountRow) — bei einem
+// Menschen mit zwei Bestellungen ist das nicht zwingend dieselbe. Ohne eine
+// gemeinsame Auflösung hieße es im Bereich „keine PIN“, während die
+// Mitarbeiterin am Telefon „PIN stimmt“ liest — zwei Wahrheiten.
+//
+// Deshalb EINE Auflösung für beide Türen (Kunde hier, Mitarbeiter in
+// fiaon-agent-kunden.ts):
+//   1. Die Sitzungszeile, über merged_into bis zur lebenden Zeile verfolgt.
+//   2. Unter allen Zeilen derselben Person (und dieser Zeile selbst) die mit
+//      einer PIN — bei mehreren die zuletzt gesetzte oder geänderte; das ist
+//      die, die der Mensch im Kopf hat. Zusammengeführte Zeilen zählen mit:
+//      Eine PIN geht bei einer Zusammenführung nicht verloren.
+//   3. Keine PIN: die Zeile aus Schritt 1 (dort wird die erste gesetzt).
+// DSGVO-gelöschte Zeilen zählen nie.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface PinZeile {
+  /** Die Antragszeile, an der die PIN hängt — oder, ohne PIN, an der sie gesetzt würde. */
+  ref: string;
+  hatPin: boolean;
+  /** ISO-Zeitpunkt einer laufenden Sperre nach fünf Fehlversuchen, sonst null. */
+  gesperrtBis: string | null;
+  /** Nur bei Aufruf mit personId: Die Person hat eine PIN, die für die Telefon-Prüfung noch nicht gilt (unbezahlte Bestellung). */
+  unbestaetigt?: boolean;
+}
+
+/**
+ * Die Zeile der persönlichen FIAON-PIN.
+ *
+ * ── WARUM ZWEI VERSCHIEDENE REGELN (Gegenprüfung 05.10.2026) ──────────────
+ * Ein neuer Antrag hängt sich über Telefon ODER E-Mail an eine bestehende
+ * Person (bindePersonAnAntrag). Wer nur die Mobilnummer einer Kundin kennt,
+ * konnte so eine eigene Zeile an IHRER Person anlegen, darauf eine PIN setzen —
+ * und die Telefon-Prüfung der Mitarbeiterin hätte diese fremde PIN für die
+ * Kundin gelten lassen. Genau der Angriff, gegen den die PIN gedacht ist.
+ *
+ *   · Mit `ref` (Kundensitzung): NUR die eigene Zeile (über merged_into bis zur
+ *     lebenden) und Zeilen, die in sie zusammengeführt wurden. Nie die Zeile
+ *     eines anderen Antrags derselben Person — sonst könnte eine fremde Sitzung
+ *     die PIN der Kundin ändern.
+ *   · Nur mit `personId` (Telefon-Prüfung): NUR PINs an Bestellungen, deren
+ *     erste Zahlung eingegangen ist (bzw. Zeilen, die in eine bezahlte
+ *     Bestellung derselben Person zusammengeführt wurden). Die Überweisung mit
+ *     Namensabgleich belegt, dass die Zeile der Person gehört. Eine PIN an einer
+ *     unbezahlten Zeile gilt erst ab der ersten Zahlung (unbestaetigt).
+ * DSGVO-gelöschte Zeilen zählen nie.
+ */
+export async function pinZeileFuer(ein: { ref?: string | null; personId?: number | null }): Promise<PinZeile | null> {
+  if (ein.ref) {
+    let basis: string | null = null;
+    let r = String(ein.ref).trim();
+    // Höchstens vier Schritte über merged_into — eine Kette, die länger ist, ist ein Datenfehler, keine Schleife.
+    for (let i = 0; i < 4 && r; i++) {
+      const [z] = (await sqlPool`
+        SELECT ref, merged_into FROM fiaon_applications
+         WHERE ref = ${r} AND gdpr_deleted_at IS NULL LIMIT 1`) as any[];
+      if (!z) break;
+      basis = String(z.ref);
+      if (!z.merged_into || z.merged_into === z.ref) break;
+      r = String(z.merged_into);
+    }
+    if (!basis) return null;
+    const [t] = (await sqlPool`
+      SELECT ref, kunden_pin_gesperrt_bis FROM fiaon_applications
+       WHERE kunden_pin_hash IS NOT NULL AND gdpr_deleted_at IS NULL
+         AND (ref = ${basis} OR merged_into = ${basis})
+       ORDER BY (ref = ${basis}) DESC, COALESCE(kunden_pin_geaendert_am, kunden_pin_gesetzt_am) DESC NULLS LAST
+       LIMIT 1`) as any[];
+    if (t) {
+      const bis = t.kunden_pin_gesperrt_bis ? new Date(t.kunden_pin_gesperrt_bis) : null;
+      return { ref: String(t.ref), hatPin: true, gesperrtBis: bis && bis.getTime() > Date.now() ? bis.toISOString() : null };
+    }
+    return { ref: basis, hatPin: false, gesperrtBis: null };
+  }
+  const personId = ein.personId != null && Number.isFinite(Number(ein.personId)) ? Number(ein.personId) : null;
+  if (personId == null) return null;
+  const [t] = (await sqlPool`
+    SELECT a.ref, a.kunden_pin_gesperrt_bis FROM fiaon_applications a
+     WHERE a.person_id = ${personId} AND a.kunden_pin_hash IS NOT NULL AND a.gdpr_deleted_at IS NULL
+       AND (a.payment_status = 'paid'
+            OR EXISTS (SELECT 1 FROM fiaon_applications w
+                        WHERE w.ref = a.merged_into AND w.person_id = a.person_id AND w.payment_status = 'paid'))
+     ORDER BY COALESCE(a.kunden_pin_geaendert_am, a.kunden_pin_gesetzt_am) DESC NULLS LAST, a.created_at DESC
+     LIMIT 1`) as any[];
+  if (t) {
+    const bis = t.kunden_pin_gesperrt_bis ? new Date(t.kunden_pin_gesperrt_bis) : null;
+    return { ref: String(t.ref), hatPin: true, gesperrtBis: bis && bis.getTime() > Date.now() ? bis.toISOString() : null };
+  }
+  const [u] = (await sqlPool`
+    SELECT ref FROM fiaon_applications
+     WHERE person_id = ${personId} AND kunden_pin_hash IS NOT NULL AND gdpr_deleted_at IS NULL
+     LIMIT 1`) as any[];
+  return u ? { ref: String(u.ref), hatPin: false, gesperrtBis: null, unbestaetigt: true } : null;
+}
+
+// ── Bremse: 10 Speicherversuche je Konto in 15 Minuten ──────────────────────
+// Die bisherige PIN schützt schon die Sperre in der Datenbank (5 Fehlversuche →
+// 15 Minuten, gemeinsam mit der Telefon-Prüfung). Diese Bremse hält zusätzlich
+// die Rechenlast klein (zwei scrypt-Läufe je Versuch) — wer seine PIN in Ruhe
+// ändert, braucht ein bis drei Versuche. Im Speicher wie die Bremsen in
+// fiaon-einrichtung.ts; ein Neustart vergisst sie, das ist hier verkraftbar.
+const PIN_BREMSE_DECKEL = 10;
+const PIN_BREMSE_FENSTER_MS = 15 * 60 * 1000;
+const pinBremse = new Map<string, number[]>();
+function pinBremseErlaubt(schluessel: string, jetzt = Date.now()): boolean {
+  if (pinBremse.size > 5000) pinBremse.forEach((zeiten, k) => { if (!zeiten.some((t) => jetzt - t < PIN_BREMSE_FENSTER_MS)) pinBremse.delete(k); });
+  const frisch = (pinBremse.get(schluessel) ?? []).filter((t) => jetzt - t < PIN_BREMSE_FENSTER_MS);
+  if (frisch.length >= PIN_BREMSE_DECKEL) { pinBremse.set(schluessel, frisch); return false; }
+  frisch.push(jetzt);
+  pinBremse.set(schluessel, frisch);
+  return true;
+}
+
+/**
+ * POST /kunde/:ref/pin { alt?, neu } — PIN festlegen oder ändern.
+ * Ohne bestehende PIN genügt die neue. Mit PIN braucht es die bisherige —
+ * oder eine frische Anmeldung über den Anmelde-Link („PIN vergessen“, Cookie
+ * fiaon_frisch, 15 Minuten, gesetzt in fiaon-app-login.ts).
+ * Antwort { ok:true } bzw. { ok:false, code, meldung, restVersuche? } mit dem
+ * Status aus pinAendern. Die PIN steht nie in Antwort, Vermerk oder Protokoll.
+ */
+router.post("/kunde/:ref/pin", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const sitzungRef = req.kundeRef!;
+    if (!pinBremseErlaubt(sitzungRef)) {
+      return res.status(429).json({ ok: false, code: "ZU_OFT", meldung: "Sie haben es gerade mehrfach versucht. Bitte warten Sie 15 Minuten und versuchen Sie es dann noch einmal." });
+    }
+    const neu = String(req.body?.neu ?? "").trim();
+    const altRoh = req.body?.alt;
+    const alt = altRoh === undefined || altRoh === null || String(altRoh).trim() === "" ? null : String(altRoh).trim();
+    if (!/^\d{4}$/.test(neu)) return res.status(400).json({ ok: false, code: "SCHWACH", meldung: "Bitte genau vier Ziffern eingeben." });
+
+    const zeile = await pinZeileFuer({ ref: sitzungRef });
+    if (!zeile) return res.status(404).json({ ok: false, code: "UNBEKANNT", meldung: "Ihr Konto finden wir gerade nicht." });
+    // Das frische Cookie stellt der Anmelde-Link auf die Sitzungsreferenz aus — geprüft wird gegen sie.
+    const frisch = frischPasst(req, sitzungRef);
+    const erg = await pinAendern(zeile.ref, { alt, neu, frisch });
+    if (!erg.ok) {
+      return res.status(erg.status).json({
+        ok: false, code: erg.code, meldung: erg.meldung,
+        ...(typeof erg.restVersuche === "number" ? { restVersuche: erg.restVersuche } : {}),
+      });
+    }
+    const wie = !zeile.hatPin ? "festgelegt" : frisch && !alt ? "neu festgelegt (über den Anmelde-Link, ohne die bisherige PIN)" : "geändert";
+    await sqlPool`
+      INSERT INTO fiaon_vermerke (art, ref, text, sicht, autor_art, autor_name, created_at)
+      VALUES ('system', ${zeile.ref}, ${`Der Kunde hat seine persönliche FIAON-PIN im Kundenbereich ${wie}.`},
+              'intern', 'kunde', 'Kundenbereich', NOW())`
+      .catch((e) => console.error(`[MEIN-BEREICH] PIN-Vermerk ${zeile.ref}:`, e?.message || e));
+    console.log(`[MEIN-BEREICH] PIN ${wie} (${zeile.ref}${zeile.ref !== sitzungRef ? `, Sitzung ${sitzungRef}` : ""})`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[MEIN-BEREICH] pin:", err);
+    res.status(500).json({ ok: false, code: "STOERUNG", meldung: "Ihre PIN konnte gerade nicht gespeichert werden. Bitte versuchen Sie es in einem Moment noch einmal." });
   }
 });
 

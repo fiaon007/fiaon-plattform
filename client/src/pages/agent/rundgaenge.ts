@@ -130,6 +130,18 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "„geschätzt“ hinter der Zahl heißt: Die Unterlagen fehlen noch — Kontoauszüge, Ausweis, Auskunft. Und nie eine Farbe als Zusage verkaufen: Über die Karte entscheidet die Bank.",
   },
   {
+    // 05.10.2026 (E-282): die persönliche FIAON-PIN. Ohne `ziel` — Kennung und
+    // Knopf stehen nur in der geöffneten Akte, nicht auf der Pipeline selbst.
+    titel: "Am Telefon sicher sein: „PIN prüfen“.",
+    text: "Kunden legen im neuen Antrag eine vierstellige persönliche FIAON-PIN fest; ändern können sie sie jederzeit in ihrem Bereich "
+      + "unter „Mehr → Persönliche PIN“. Oben in der Akte, neben den Marken unter dem Namen, steht „PIN festgelegt“ oder „Keine PIN“ "
+      + "und daneben der Knopf „PIN prüfen“. Willst du sicher sein, dass wirklich der Kunde am Telefon ist, drückst du ihn, lässt dir "
+      + "die vier Ziffern nennen und tippst „Prüfen“. Du siehst nur das Ergebnis — „PIN stimmt“, „stimmt nicht“ mit den restlichen "
+      + "Versuchen oder „gesperrt bis“ —, nie die PIN selbst. Nach fünf Fehlversuchen ist die Prüfung 15 Minuten gesperrt, und jede "
+      + "Prüfung steht mit deinem Namen im Verlauf.",
+    tipp: "Frag nie nach der PIN einer Bankkarte — die vergibt allein die Bank. Hat der Kunde seine FIAON-PIN vergessen, tippt er in seinem Bereich auf „PIN vergessen?“ und legt über den Anmelde-Link eine neue fest.",
+  },
+  {
     ziel: ".pi-trenner",
     titel: "Darunter stehen die, die danach kommen.",
     text: "Deine Arbeitsliste hat immer genau sechs Plätze: zwei Menschen, die eine Zahlung gemeldet "

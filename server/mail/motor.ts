@@ -50,6 +50,8 @@ import { GLOBAL_VORLAGEN, GLOBAL_VORLAGEN_EN } from "./vorlagen/global";
 import { GLOBAL_BEREICH_VORLAGEN, GLOBAL_BEREICH_VORLAGEN_EN } from "./vorlagen/global-bereich";
 // 01.10.2026 (E-268): das Individualangebot von FIAON Global (Bestätigung, Start, Teil 2, Erstattung).
 import { GLOBAL_ANGEBOT_VORLAGEN, GLOBAL_ANGEBOT_ABSENDER } from "./vorlagen/global-angebot";
+// 05.10.2026 (E-282): die Vertragsbestätigung des neuen Antrags /antrag-neu (mit Vertrags-PDF als Anhang).
+import { VERTRAG_VORLAGEN } from "./vorlagen/vertrag";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -68,6 +70,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...GLOBAL_VORLAGEN,
   ...GLOBAL_BEREICH_VORLAGEN,
   ...GLOBAL_ANGEBOT_VORLAGEN,
+  ...VERTRAG_VORLAGEN,
 };
 
 /**
@@ -132,6 +135,9 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   bankverbindung_neu: "accounting",
   kuendigung_bestaetigt: "legal",
   vertrag_beendet: "legal",
+  // 05.10.2026 (E-282): Die Vertragsbestätigung des neuen Antrags ist Vertragspost wie Kündigung und
+  // Vertragsende — sie kommt von „FIAON Legal“; die Zahlungsdaten daneben weiter aus der Buchhaltung.
+  vertrag_bestaetigung: "legal",
 };
 
 /**

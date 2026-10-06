@@ -107,7 +107,7 @@ import {
 } from "@shared/fiaon-auskunft";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
-import { KOPF_SQL, FAMILIE_SQL, POSTFACH_STOPP_ZEILE_SQL } from "./fiaon-mail-frequenz";
+import { KOPF_SQL, FAMILIE_SQL, POSTFACH_STOPP_ZEILE_SQL, WA_WIDERSPRUCH_TEXT_SQL } from "./fiaon-mail-frequenz";
 import { WHATSAPP_EINWILLIGUNG_SQL, WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 import { WA_NUMMER_UNZUSTELLBAR_SQL, WA_WERBUNG_ABBESTELLT_SQL } from "./fiaon-wa-unzustellbar";
 import { AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE } from "@shared/fiaon-lead-texte";
@@ -555,7 +555,8 @@ export const AUSKUNFT_FEHLT_SQL = (person: string) => `(
 /** WhatsApp-Stopp: „STOPP" oder „Keine Nachrichten mehr" — dieselbe Regel wie die BASIS der WA-Zentrale. */
 const WA_STOPP_SQL = (person: string) => `EXISTS (
   SELECT 1 FROM fiaon_whatsapp ax_w WHERE ax_w.person_id = ${person} AND ax_w.richtung = 'rein'
-     AND (ax_w.text ILIKE '%stopp%' OR ax_w.knopf ILIKE '%stopp%' OR ax_w.text ILIKE '%keine nachrichten%' OR ax_w.knopf ILIKE '%keine nachrichten%'))`;
+     AND (ax_w.text ILIKE '%stopp%' OR ax_w.knopf ILIKE '%stopp%' OR ax_w.text ILIKE '%keine nachrichten%' OR ax_w.knopf ILIKE '%keine nachrichten%'
+          OR ${WA_WIDERSPRUCH_TEXT_SQL("ax_w")}))`;
 
 /**
  * Nachgewiesene WhatsApp-Einwilligung — DIE Regel des Hauses (shared/fiaon-whatsapp-erlaubnis.ts),

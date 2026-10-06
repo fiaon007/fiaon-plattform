@@ -5,6 +5,19 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 abends — Nach der ersten WhatsApp-Kampagne: Kontonummer direkt, Bedenkzeit, Kredit-Missverständnis, Widerspruch
+
+- **Kontonummer:** Fragt jemand mit offener Zahlung nach Kontonummer/IBAN, schreibt Mara Empfänger, IBAN und BIC (aus shared/fiaon-bank.ts)
+  direkt in die Antwort — vorher nur der Verweis auf die Zahlungsseite („Schicken Sie mir bitte eine deutsche Kontonummer“, zweimal).
+- **Bedenkzeit:** „Ich überlege es mir noch“ → kein „Schaffen Sie die Überweisung heute noch?“ im selben Atemzug, sondern Zeit lassen + Anruf.
+- **„Den Kredit bekomme ich eh“:** Mara antwortet mit Justins Umdeutung („Noch besser — Ihre eigene Visa-Kreditkarte …“), keine Kreditzusage.
+- **Widerspruch gegen Werbung:** Die Sperr-Regel für WhatsApp-Kampagnen erkennt jetzt auch „STOP“, „(Danke,) kein Interesse (mehr)“,
+  „nicht mehr kontaktieren“, „lassen Sie mich in Ruhe“, „bitte abmelden“ — eine Kundin hatte zweimal „Danke kein Interesse mehr“
+  geschrieben und bekam die Rechnungs-Vorlage dreimal. 5 Menschen neu geschützt (geprüft: keine Fehltreffer).
+
+**Wo:** shared/fiaon-mara-ton.ts (abschlussPruefung), server/lib/fiaon-mail-frequenz.ts (WA_WIDERSPRUCH_TEXT_SQL),
+server/lib/fiaon-auskunft-verkauf.ts. Prüfstände grün (Mara 409/207/173/161/257/114/77/250, WA-Sperre 128/128).
+
 ## 06.10.2026 abends — Mara wieder an (FIAON-eigenes OpenAI-Konto), drei Korrekturen aus der Prüfung der ersten Nachrichten
 
 - **Mara läuft wieder** über das neue OpenAI-Konto von FIAON (KI_ANBIETER=openai, GPT-5.5); Karte mit Wunschlimit als Ziel wieder an

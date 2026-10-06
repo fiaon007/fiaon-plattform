@@ -654,9 +654,19 @@ export const WERBESPERRE_FAMILIE_SQL = (p: string) => `(${KOPF_SQL(p)} IN ${WERB
 //     flags steht teils als JSON-Text in der jsonb-Spalte — deshalb der
 //     Textvergleich, nie ein Cast, der an einer Zeile scheitert (wie
 //     fiaon-mara-aktion.ts und ruecksichtSql in fiaon-auskunft-verkauf.ts).
+/**
+ * Weitere Formen des Widerspruchs (06.10.2026): „STOP“ mit einem p, „(Danke,) kein Interesse (mehr/daran)“ als ganze
+ * Nachricht, „nicht mehr kontaktieren/anschreiben“, „lassen Sie mich in Ruhe“, „bitte abmelden“. Anlass: Eine Kundin
+ * schrieb am 26. und 29.09. „Danke kein Interesse mehr“ und bekam trotzdem dreimal die Rechnungs-Vorlage (Kampagne 06.10.).
+ * Ein Widerspruch gegen Werbung ist endgültig (§ 7 UWG) — und jede ungewollte Vorlage kostet Meta-Qualität.
+ */
+export const WA_WIDERSPRUCH_TEXT_SQL = (w: string) => `(COALESCE(${w}.text, '') ~* '^\\W*stop\\W*$'
+  OR COALESCE(${w}.text, '') ~* '^\\W*(danke\\W*)?kein(e|en)?\\s+interesse(\\s+(mehr|daran))?\\W*(danke\\W*)?$'
+  OR COALESCE(${w}.text, '') ~* '(nicht\\s+mehr\\s+(kontaktieren|anschreiben)|lassen\\s+sie\\s+mich\\s+in\\s+ruhe|bitte\\s+abmelden)')`;
 /** Eine eingehende WhatsApp `w` sagt „STOPP". */
 export const WA_STOPP_ZEILE_SQL = (w: string) => `(${w}.richtung = 'rein'
-  AND (${w}.text ILIKE '%stopp%' OR ${w}.knopf ILIKE '%stopp%' OR ${w}.text ILIKE '%keine nachrichten%' OR ${w}.knopf ILIKE '%keine nachrichten%'))`;
+  AND (${w}.text ILIKE '%stopp%' OR ${w}.knopf ILIKE '%stopp%' OR ${w}.text ILIKE '%keine nachrichten%' OR ${w}.knopf ILIKE '%keine nachrichten%'
+       OR ${WA_WIDERSPRUCH_TEXT_SQL(w)}))`;
 /** Eine Postfach-Zeile `pm` trägt das Merkmal stopp. */
 export const POSTFACH_STOPP_ZEILE_SQL = (pm: string) => `(${pm}.flags::text ~ 'stopp\\\\?"\\s*:\\s*true')`;
 

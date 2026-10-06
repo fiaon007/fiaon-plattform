@@ -96,6 +96,7 @@ import { antragAbgeschickt, giltZumSatz } from "./fiaon-antrag-stand";
 import { limitZiel } from "./fiaon-telefonkartei";
 // E-275 (02.10.2026): Justins wahrer Kartensatz — freigegeben seit E-205/E-206, eine Stelle für Mail, WhatsApp, Kartei.
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "./fiaon-karten-weg";
+import { BANK } from "./fiaon-bank";
 import {
   MITARBEITER_NAMEN_REGEL, MITARBEITER_NAMEN_KURZ, mitarbeiterVornameFunde, nennform, nennformAusText,
   type MitarbeiterEintrag, type Nennform,
@@ -216,6 +217,20 @@ export const ZAHL_FRAGE = "Schaffen Sie die Überweisung heute noch?";
 export const ZAHL_KNOPF_MAIL = "Über den Knopf unten haben Sie Betrag, Verwendungszweck und QR-Code sofort zur Hand — am besten überweisen Sie gleich heute.";
 /** KARTE_ZEIT_SATZ in der Kurzform für WhatsApp (gleiche Fakten: in der Regel, nach der Zusage der Bank, meist vorher Apple Pay). */
 export const KARTE_ZEIT_WA = "Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen da, Apple Pay meist schon vorher.";
+/** Fragt er nach Kontonummer/IBAN/Bankdaten? Rein. */
+export function fragtKontonummer(text: string): boolean {
+  return /\b(?:konto-?nummer|kontonr\.?|iban|bank-?verbindung|bank-?daten|konto-?daten|kontoverbindung)\b/i.test(String(text ?? ""));
+}
+/** Will er Bedenkzeit — „überlege es mir noch“, „muss erst nachdenken“, „melde mich später“? Rein. */
+// Umlautfest (ohne u-Flag ist „ü“ für \b kein Wortzeichen) — als new RegExp, der tsconfig-Zielstand kennt „u“ in Literalen nicht.
+const BEDENKZEIT = new RegExp(String.raw`(?:^|[^\p{L}])(?:überleg|ueberleg)\p{L}*|(?:^|[^\p{L}])nachdenken(?![\p{L}])|denke\s+(?:noch\s+)?(?:darüber|drüber)\s+nach|melde\s+mich\s+(?:später|noch)|(?:^|[^\p{L}])nicht\s+jetzt(?![\p{L}])`, "iu");
+export function bedenkzeit(text: string): boolean {
+  return BEDENKZEIT.test(String(text ?? ""));
+}
+/** Spricht er von einem Kredit (nicht von der Kreditkarte)? Rein. */
+export function sprichtVonKredit(text: string): boolean {
+  return /\bkredit(?!karte|kart|rahmen|institut)\w*\b/i.test(String(text ?? ""));
+}
 /** Will er heute Geld — „überweisen Sie mir …“, „brauche jetzt das Geld“, „auszahlen“, „Kredit heute“? Rein. */
 export function willHeuteGeld(text: string): boolean {
   const t = String(text ?? "");
@@ -2778,6 +2793,20 @@ export function abschlussPruefung(antwort: string, ein: {
   // Weg („Noch besser — Ihre eigene Visa-Kreditkarte …“, nie „FIAON zahlt kein Geld aus“), dazu ehrlich die Zeit.
   if (willHeuteGeld(k) && !/noch\s+besser|immer\s+wieder\s+nutzen/i.test(a) && !/werktag/i.test(a)) {
     h.push(`Er will heute Geld (überweisen, auszahlen, Kredit) — nimm seine Lage in einem Satz ernst, dann Justins Umdeutung: „Noch besser — Ihre eigene Visa-Kreditkarte, deren Rahmen Sie immer wieder nutzen.“ und ehrlich die Zeit: „${KARTE_ZEIT_WA}“ Nie der Eindruck, dass heute Geld kommt; danach wie immer der nächste Schritt.`);
+  }
+  // 06.10.2026 (erste WA-Kampagne nach dem Neustart, „fiaon_kkb_rechnung“): zweimal „Schicken Sie mir eine deutsche
+  // Kontonummer“ — Mara verwies nur auf die Zahlungsseite. Wer zahlen will, bekommt die Bankdaten direkt (EINE Quelle:
+  // shared/fiaon-bank.ts) — nur bei offener Zahlung, sonst wäre es eine Zahlungsbitte vor dem Antrag (ZAHLUNG_SCHULD).
+  if (fragtKontonummer(k) && (ein.art === "b" || ein.art === "rate") && !a.includes(BANK.iban) && !a.includes(BANK.ibanDisplay)) {
+    h.push(`Er fragt nach der Kontonummer — gib sie ihm direkt im Text, nicht nur die Zahlungsseite: „Empfänger ${BANK.empfaenger}, IBAN ${BANK.ibanDisplay}, BIC ${BANK.bic}“, dazu der Betrag${ein.betrag ? ` (${ein.betrag})` : ""} und sein Verwendungszweck genau so, wie er auf seiner Zahlungsseite steht (sonst bucht der Abgleich nicht selbst). Den Link darfst du dazuschreiben.`);
+  }
+  // Bedenkzeit („Nein! Ich sagte ich überlege es mir noch!“) — dann nicht im selben Atemzug „heute noch?“.
+  if (bedenkzeit(k) && a.includes(ZAHL_FRAGE)) {
+    h.push(`Er will es sich noch überlegen — lass „${ZAHL_FRAGE}“ weg. Nimm es ernst („Nehmen Sie sich die Zeit.“), sag in einem Satz, wofür die Zahlung ist, und biete einen kurzen Anruf mit seinem Betreuer an.`);
+  }
+  // „Den Kredit bekomme ich eh noch“ — er glaubt an einen Kredit. Justins Umdeutung, nie „FIAON zahlt kein Geld aus“.
+  if (sprichtVonKredit(k) && !willHeuteGeld(k) && !/noch\s+besser|immer\s+wieder\s+nutzen/i.test(a)) {
+    h.push(`Er spricht von einem Kredit — sag in Justins Wort, was er bekommt: „Noch besser — Ihre eigene Visa-Kreditkarte, deren Rahmen Sie immer wieder nutzen.“ Kein Kredit, keine Auszahlung versprechen.`);
   }
   const anlass = kaufSignal(k) || einwand || fragtWasIstFiaon(k) || fragtKeineKarte(k);
   if (!anlass) return h;

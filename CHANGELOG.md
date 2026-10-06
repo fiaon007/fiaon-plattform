@@ -5,6 +5,23 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 — Business: die Bilder sind da — Urkunde, Karten, Term Sheet, Boardroom (E-293, Scheibe C)
+
+- **Hero:** Statt des Platzhalters liegt die Gründungsurkunde mit goldenem Prägesiegel (freigestellt, KI-Bild). Über das Siegel läuft
+  kurz nach dem Öffnen ein schmaler Lichtglanz, danach alle 12 Sekunden — nur solange die Urkunde zu sehen ist. Ab Laptop-Breite
+  zieht sich eine feine blaue Linie vom Papier zum Festpreis. Am Handy ragt die Urkunde wie bisher angeschnitten herein.
+- **Wegleiste I–IV:** Über den Etappen liegen jetzt die echten Gegenstände: Urkunde, Navy-Metallkarte (mit einem Lichtstreif), die
+  Kartenleiter aus drei Karten (Navy, Graphit, Champagner treten nacheinander hervor) und das Term Sheet mit Füller.
+- **Schlussband (/business und alle 78 Unterseiten):** leerer Boardroom über einer US-Skyline zur blauen Stunde, auf dem Tisch die
+  Urkunde — der Text steht links im Dunkeln. Am Handy steht das Bild über dem Text. Kein Film (nur, wenn er perfekt ist).
+- **KI-Kennzeichnung überall sichtbar:** „Abbildung mit KI erstellt“ (Urkunde), „Abbildungen mit KI erstellt“ (Wegleiste, eine Zeile),
+  „Szene mit KI erstellt“ (Boardroom), englisch ebenso. In keinem Bild steht Text, Logo, Wappen oder Flagge.
+- Feste Bildmaße (kein Springen beim Laden), Urkunde ≤ 170 KB am Desktop und 53 KB am Handy, alle anderen Bilder laden erst im Bild.
+  „Weniger Bewegung“: alles steht still und fertig da.
+
+**Wo:** client/public/global/ (Bilder), client/src/lib/global-bilder.ts, components/site/global/GlobalObjekt.tsx, WegLinie.tsx,
+HeroLinie.tsx, GlobalSchlussBild.tsx, styles/global-grafik.css. Originale und Prompts: 08_Medien_Higgsfield/2026-10-06_Global_Website/.
+
 ## 06.10.2026 — Business: Bewegung der Grafiken und neue Vorlage der Unterseiten (E-293, Scheiben B und D)
 
 - **B — Bewegung:** Jede Grafik auf /business bewegt sich genau einmal beim Hineinscrollen: Wegleiste zeichnet sich, Knoten rasten ein;

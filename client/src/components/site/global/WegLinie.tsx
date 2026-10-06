@@ -24,13 +24,29 @@
 // Die Zeitpunkte der Knoten (T_D, T_M) sind aus der Kurve --fg-ease-io
 // zurückgerechnet: Bei x = 16,7 % ist die Linie nach 417 ms, bei 50 % nach
 // 600 ms. Die Zeiten stehen als --td/--tm am Knoten, das CSS wählt je Breite.
+//
+// 06.10.2026 (E-293, Scheibe C): Über den Knoten liegen die freigestellten
+// Higgsfield-Objekte (lib/global-bilder.ts) — Urkunde, Navy-Karte (mit einem
+// Lichtstreif, nachdem sie hereingeglitten ist), die Kartenleiter als Stapel
+// aus drei Bildern und das Term Sheet. Der KI-Bildnachweis steht EINMAL rechts
+// außen an der Leiste, nicht je Objekt (die vier stehen in einem Blickfeld).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import GlobalObjekt, { type GlobalObjektArt } from "@/components/site/global/GlobalObjekt";
+import GlobalObjekt, { type GlobalObjektArt, type GlobalBildQuelle } from "@/components/site/global/GlobalObjekt";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+import { GLOBAL_BILDER } from "@/lib/global-bilder";
 
 const ROEMISCH = ["I", "II", "III", "IV"];
 const OBJEKTE: GlobalObjektArt[] = ["urkunde", "karte", "karten", "termsheet"];
+// Die Bilder je Etappe (Scheibe C). Kartenleiter: hinten → vorn, die Navy-Karte vorn wie in Etappe II.
+const BILDER: { bild?: GlobalBildQuelle; stapel?: readonly GlobalBildQuelle[]; licht?: "bild" }[] = [
+  { bild: GLOBAL_BILDER.urkunde },
+  { bild: GLOBAL_BILDER.karteNavy, licht: "bild" },
+  { stapel: [GLOBAL_BILDER.karteChampagner, GLOBAL_BILDER.karteGraphit, GLOBAL_BILDER.karteNavy] },
+  { bild: GLOBAL_BILDER.termsheet },
+];
+// Anzeigebreite der Objekte (styles/global-grafik.css: höchstens 110 px) — für die Wahl im srcset.
+const OBJEKT_GROESSE = 110;
 // Desktop: Knoten auf der steigenden Linie (viewBox 1000 × 60), II–IV über den Tafelmitten.
 const PUNKTE_D = [[6, 52], [167, 40], [500, 26], [833, 12]] as const;
 const LINIE_D = "M0 52 L6 52 L167 52 L167 40 L500 40 L500 26 L833 26 L833 12 L1000 6";
@@ -43,7 +59,7 @@ const T_M = [375, 546, 654, 825];
 
 export interface WegEtappe { titel: string; dauer: string; text: ReactNode; abzeichen?: string }
 
-export default function WegLinie({ id, etappen, label, stempel, bis = 4, mitObjekten = true, titelInhalt, klammer }: {
+export default function WegLinie({ id, etappen, label, stempel, bis = 4, mitObjekten = true, titelInhalt, klammer, nachweis }: {
   /** Anker (auf /business „ablauf“ — von außen verlinkt). */
   id?: string;
   etappen: WegEtappe[];
@@ -58,6 +74,8 @@ export default function WegLinie({ id, etappen, label, stempel, bis = 4, mitObje
   titelInhalt?: (i: number) => ReactNode;
   /** Die Klammer über I–II („In jedem Paket“). */
   klammer?: string;
+  /** KI-Bildnachweis der Objekte, eine Zeile rechts außen („Abbildungen mit KI erstellt“). */
+  nachweis?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEinmalSichtbar(ref);
@@ -81,6 +99,7 @@ export default function WegLinie({ id, etappen, label, stempel, bis = 4, mitObje
         <path d={LINIE_M} pathLength={1} />
       </svg>
       {klammer && <span className="fg-weg-klammer"><span>{klammer}</span></span>}
+      {mitObjekten && nachweis && <span className="fg-weg-nachweis">{nachweis}</span>}
       {etappen.map((e, i) => {
         const auf = offen === i;
         const stil = {
@@ -90,7 +109,7 @@ export default function WegLinie({ id, etappen, label, stempel, bis = 4, mitObje
         } as React.CSSProperties;
         return (
           <div key={e.titel} className={`fg-weg-knoten k${i + 1}${i < bis ? " an" : " aus"}${auf ? " offen" : ""}`} style={stil}>
-            {mitObjekten && <GlobalObjekt art={OBJEKTE[i]} className="fg-weg-objekt" />}
+            {mitObjekten && <GlobalObjekt art={OBJEKTE[i]} {...BILDER[i]} groesse={OBJEKT_GROESSE} className="fg-weg-objekt" />}
             <button type="button" className="fg-weg-punkt" aria-expanded={auf} aria-controls={`${id ?? "weg"}-pop-${i}`}
               aria-label={`${ROEMISCH[i]} · ${e.titel}`} onClick={() => setOffen(auf ? null : i)}>
               <span aria-hidden="true">{ROEMISCH[i]}</span>

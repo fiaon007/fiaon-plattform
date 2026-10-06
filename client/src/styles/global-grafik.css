@@ -42,9 +42,33 @@
 .fg-objekt-svg .karte.graphit{fill:#4a525e;stroke:#3a414b}
 .fg-objekt-svg .karte.champagner{fill:#e9dcc0;stroke:#cdbb93}
 .fg-objekt-svg .chip{fill:#d7dbe2;stroke:#b7bfcc;stroke-width:1}
+.fg-objekt.mit-bild picture{display:block} /* sonst greifen transform-Auftritte der Wegleiste nicht (inline) */
 .fg-objekt.mit-bild img{display:block;width:100%;height:auto;filter:var(--fg-kontakt)}
 /* Redaktioneller Bildnachweis: senkrecht an der rechten Bildkante, wie in einem Wirtschaftsmagazin. */
-.fg-bildnachweis{position:absolute;right:-16px;bottom:0;writing-mode:vertical-rl;font:500 10px/1 var(--sans,inherit);letter-spacing:.14em;text-transform:uppercase;color:currentColor;opacity:.55}
+.fg-bildnachweis{position:absolute;right:-16px;bottom:0;writing-mode:vertical-rl;font:500 10px/1 var(--sans,inherit);letter-spacing:.14em;text-transform:uppercase;color:var(--leise)}
+/* Scheibe C (06.10.2026): die Kartenleiter als Stapel aus drei deckungsgleichen Bildern. Die vordere (Navy) liegt
+   unten links, Graphit (t1) und Champagner (t2) je eine Stufe nach oben rechts — wie die Platzhalter-Treppe. Die
+   Stufe sitzt im transform: Der Auftritt in der Wegleiste läuft von „none“ (deckungsgleich mit Navy) dorthin. */
+.fg-stapel{position:relative;display:block;aspect-ratio:100/70}
+.fg-objekt.mit-bild .fg-stapel img{position:absolute;left:0;bottom:0;width:82%;height:auto}
+.fg-stapel img.t1{transform:translate(10%,-14%)}
+.fg-stapel img.t2{transform:translate(20%,-28%)}
+/* Ein Lichtstreif über dem Bild — nur transform. Der Streif (i) ist 2,5-mal so breit wie das Bild; bei −62 %
+   liegt seine helle Mitte links neben dem Bild, bei 2 % rechts daneben. Maske: Siegelkreis (Hero) oder die Form
+   des Bildes selbst (Karte, Alphakanal per mask-image im Element). */
+.fg-licht{position:absolute;inset:0;overflow:hidden;pointer-events:none;-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.fg-licht i{position:absolute;top:0;bottom:0;left:0;width:250%;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.55) 50%,transparent 60%);transform:translateX(-62%)}
+/* Siegel: Maske knapp innerhalb der Zackenspitzen (92 %), damit kein Licht auf Papier und Band fällt; ein schmaler
+   Streif, per overlay gemischt — das Gold glänzt auf, die Prägung bleibt sichtbar (kein weißer Schleier). */
+.fg-licht.siegel{mix-blend-mode:overlay;-webkit-mask-image:radial-gradient(circle at var(--sx) var(--sy),#000 0 calc(var(--sr) * .92),transparent calc(var(--sr) * .92 + .4%));mask-image:radial-gradient(circle at var(--sx) var(--sy),#000 0 calc(var(--sr) * .92),transparent calc(var(--sr) * .92 + .4%))}
+.fg-licht.siegel i{background:linear-gradient(105deg,transparent 46.5%,rgba(255,255,255,.85) 50%,transparent 53.5%)}
+.fg-licht.bild i{background:linear-gradient(105deg,transparent 42%,rgba(255,255,255,.32) 50%,transparent 58%)}
+@keyframes fg-c-streif{from{transform:translateX(-62%)}to{transform:translateX(2%)}}
+/* Siegel-Licht: 1,4 s, erstmals 2,25 s nach dem Einhängen (150 ms + 900 ms Einstieg + 1,2 s), danach alle 12 s.
+   Hält an, solange die Startbühne steht (ld-an) oder die Urkunde außer Sicht ist (data-sicht, GlobalObjekt). */
+.fg-hero-objekt .fg-licht.siegel i{animation:fg-c-siegel 12s var(--fg-ease-io) 2.25s infinite backwards}
+.ld-an .fg-hero-objekt .fg-licht i,.fg-hero-objekt[data-sicht="0"] .fg-licht i{animation-play-state:paused}
+@keyframes fg-c-siegel{0%{transform:translateX(-62%)}11.7%,100%{transform:translateX(2%)}}
 
 /* ── 1 Hero ─────────────────────────────────────────────────────────────── */
 .fg-neu .fg-hero{padding:128px 0 0;border-bottom:0}
@@ -60,6 +84,17 @@
 .fg-hero-objekt{width:min(100%,400px);transform:rotate(-4deg);animation:fg-objekt-ein 900ms var(--fg-ease) 150ms both}
 .ld-an .fg-hero-objekt{animation-play-state:paused}
 @keyframes fg-objekt-ein{from{opacity:0;transform:translateY(16px) rotate(-2deg)}to{opacity:1;transform:translateY(0) rotate(-4deg)}}
+/* Aufwärts-Haarlinie (HeroLinie.tsx, ab 1.024 px): hinter Text und Urkunde, zeichnet sich einmal ab 600 ms. */
+.fg-neu .fg-hero-raster{position:relative}
+.fg-hero-linie{position:absolute;left:0;top:0;z-index:0;pointer-events:none;overflow:visible}
+.fg-hero-linie.leer{display:none}
+.fg-hero-linie path{fill:none;stroke:#1d4ed8;stroke-opacity:.45;stroke-width:1;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;animation:fg-b-zeichnen 1.2s var(--fg-ease-io) .6s backwards}
+.fg-hero-linie circle{fill:#1d4ed8;fill-opacity:.75;animation:fg-b-ein .3s var(--fg-ease) 1.75s backwards}
+.ld-an .fg-hero-linie path,.ld-an .fg-hero-linie circle{animation-play-state:paused}
+.fg-hero-nachweis{display:none}
+/* 721–1120 px: Die Urkunde füllt ihre Spalte; der senkrechte Nachweis (right:-16px, dazu die Drehung) lief über den
+   Bildrand hinaus und wurde abgeschnitten. Rechts Platz lassen. */
+@media(min-width:721px) and (max-width:1120px){.fg-neu .fg-hero-objekt-rahmen{padding-right:30px}}
 @media(hover:hover) and (pointer:fine){
   .fg-hero-objekt{transition:transform 600ms var(--fg-ease)}
   .fg-hero-objekt-rahmen:hover .fg-hero-objekt{transform:rotate(-1deg) translateY(-2px)}
@@ -104,6 +139,12 @@
   .fg-neu .fg-hero-gespraech.fg-knopf{background:none;border:0;box-shadow:none;min-height:40px;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
   .fg-neu .fg-hero-objekt-rahmen{order:6;justify-content:flex-end;height:120px;margin:8px -24px 0 0;overflow:hidden}
   .fg-neu .fg-hero-objekt{width:160px;transform:rotate(-6deg) translate(26px,8px);animation:none}
+  .fg-neu .fg-hero-objekt .fg-licht{display:none}
+  .fg-neu .fg-hero-objekt .fg-bildnachweis{width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  /* Oben auf dem freien Papier, nicht unten auf Siegel und Band; zweizeilig, damit es auch bei 375 px ganz auf dem
+     sichtbaren Papier steht und nicht an „Dreißig Minuten …“ stößt. */
+  .fg-neu .fg-hero-nachweis{display:block;position:absolute;right:16px;top:34px;max-width:112px;padding:4px 6px;border-radius:3px;background:rgba(255,255,255,.82);
+    font:500 9px/1.35 var(--sans);letter-spacing:.12em;text-transform:uppercase;text-align:right;color:var(--navy)}
   .fg-neu .fg-hero .fg-mikro{order:7;margin-top:-104px;max-width:58%}
   .fg-neu .fg-hero .fg-fussnote{order:8;margin-top:52px}
   .fg-vertrauensleiste{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:24px}
@@ -157,6 +198,8 @@
 .fg-weg-pop b{display:block;font:500 11px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--blau)}
 .fg-weg-pop p{margin-top:8px;font-size:13.5px;line-height:1.6;color:var(--text)}
 .fg-weg-lead{margin:-6px 0 0;font-size:12.5px;line-height:1.5;color:var(--leise);text-align:right}
+/* KI-Bildnachweis der vier Objekte: eine Zeile, senkrecht rechts außen an der Leiste (Bauplan 2.3). */
+.fg-weg-nachweis{position:absolute;right:-20px;top:6px;writing-mode:vertical-rl;font:500 9.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--leise);pointer-events:none}
 .fg-pakete-sek .fg-tarife{margin-top:18px}
 /* Desktop ab 1181 px: Knoten I sitzt am Rahmen (nicht 6 px davor), Titel I endet vor Titel II — bei 1180 px
    stießen „Gründung und Dokumente“ und „Die erste Firmenkarte“ sonst ohne Abstand aneinander, und ein
@@ -198,6 +241,7 @@
   .fg-weg-titel{top:104px;margin-left:0;transform:translateX(-50%);width:calc(25% - 6px);max-width:none;text-align:center;font-size:11.5px;line-height:1.3}
   .fg-weg-pop,.fg-weg-knoten.k3 .fg-weg-pop,.fg-weg-knoten.k4 .fg-weg-pop{left:0;right:0;top:142px;width:auto;margin:0}
   .fg-weg-lead{text-align:left;margin-top:4px}
+  .fg-weg-nachweis{right:0;top:-16px;writing-mode:horizontal-tb;font-size:9px}
 }
 /* Gefüllt nur die Etappen des gewählten Pakets — nur wo die Wischreihe die Wahl setzt (≤ 640 px). Darüber stehen
    die Tafeln untereinander, nichts ist gewählt, und blasse Etappen III–IV sähen wie „nicht verfügbar“ aus. */
@@ -525,9 +569,40 @@
 .fg-neu #fragen{padding:80px 0}
 @media(max-width:720px){.fg-neu #fragen{padding:64px 0}}
 
-/* ── 8 Schlussband (HF-4 kommt mit Scheibe C) ─────────────────────────── */
+/* ── 8 Schlussband mit Bild (HF-4, Scheibe C; auch auf den 78 Unterseiten) ──
+   Desktop: Boardroom 16:9 hinter dem Text, Verlauf von links — der Text steht links im Lichtkegel, Lampe und
+   Urkunde bleiben in der Mitte frei. Handy: 4:5-Ausschnitt über dem Text, unten in das Navy des Bandes verlaufend. */
 .fg-neu .fg-schluss{padding:96px 0 100px}
-.fg-neu .fg-schluss .fg-knoepfe{margin-top:30px}
+.fg-neu .fg-schluss .fg-knoepfe,.fg-schluss.mit-bild .fg-knoepfe{margin-top:30px}
+.fg-schluss.mit-bild{position:relative;isolation:isolate;overflow:hidden;text-align:left;display:flex;align-items:center;min-height:clamp(480px,42vw,640px);padding:96px 0}
+.fg-schluss.mit-bild>.fg-rahmen{width:100%}
+.fg-schluss-buehne{position:absolute;inset:0;z-index:-1;background:var(--navy-2)}
+.fg-schluss-buehne picture,.fg-schluss-buehne img{display:block;width:100%;height:100%}
+.fg-schluss-buehne img{object-fit:cover;object-position:50% 62%}
+.fg-schluss-buehne::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,18,34,.88) 0,rgba(8,18,34,.8) 30%,rgba(8,18,34,.3) 50%,rgba(8,18,34,.12) 72%,rgba(8,18,34,.2) 100%)}
+.fg-schluss-text{max-width:min(500px,42%)}
+.fg-schluss.mit-bild .fg-h2{margin:0;max-width:none;text-align:left}
+.fg-schluss.mit-bild .fg-lead{margin:18px 0 0;max-width:46ch}
+.fg-schluss.mit-bild .fg-knoepfe{justify-content:flex-start}
+.fg-schluss-nachweis{position:absolute;right:20px;bottom:16px;z-index:1;padding:4px 7px;border-radius:3px;background:rgba(8,18,34,.55);font:500 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#fff;opacity:.9}
+/* 721–1020 px: breitere Textspalte — der Verlauf bleibt bis hinter ihr Ende dunkel (Kontrast ≥ 4,5:1 auch auf den Unterseiten mit Lead). */
+@media(max-width:1020px){
+  .fg-schluss-text{max-width:min(500px,52%)}
+  .fg-schluss-buehne::after{background:linear-gradient(90deg,rgba(8,18,34,.88) 0,rgba(8,18,34,.8) 48%,rgba(8,18,34,.35) 64%,rgba(8,18,34,.15) 82%,rgba(8,18,34,.2) 100%)}
+}
+@media(max-width:820px){.fd .fg-schluss.mit-bild{padding-bottom:140px}}
+@media(max-width:720px){
+  .fg-schluss.mit-bild{display:block;min-height:0;padding:0 0 72px}
+  .fd .fg-schluss.mit-bild{padding-bottom:140px}
+  /* Ausschnitt: oben fällt die Decke weg, Lampe und Urkunde stehen frei; der Verlauf beginnt erst unter der
+     Urkunde und legt die Vorderkante des Tisches (eine harte Linie im Bild) in den Schatten, statt sie als Naht
+     gegen das Navy stehen zu lassen. */
+  .fg-schluss-buehne{position:relative;inset:auto;z-index:0;height:min(100vw,440px)}
+  .fg-schluss-buehne img{object-position:50% 62%}
+  .fg-schluss-buehne::after{background:linear-gradient(180deg,rgba(11,28,54,0) 80%,rgba(11,28,54,.72) 92%,var(--navy-2) 100%)}
+  .fg-schluss-nachweis{right:16px;bottom:auto;top:14px}
+  .fg-schluss-text{position:relative;max-width:none;margin-top:28px}
+}
 
 /* ── Klebeleiste am Handy (Bauplan 2.12): eine helle Glasleiste am unteren Rand ──
    06.10.2026 (Gutachten): nur bis 640 px (global.css .fg-mobil) — darüber setzt keine Wischreihe die Wahl.
@@ -635,7 +710,7 @@
 .fg-wegleiste[data-an="0"] .fg-weg-titel,.fg-wegleiste[data-an="0"] .fg-weg-abzeichen,.fg-wegleiste[data-an="0"] .fg-weg-klammer{opacity:0}
 .fg-wegleiste[data-an="0"] .fg-weg-punkt::before{transform:scale(0)}
 .fg-wegleiste[data-an="0"] .fg-weg-fall{transform:scaleY(0)}
-.fg-wegleiste[data-an="0"] .fg-objekt-svg .tritt{opacity:0}
+.fg-wegleiste[data-an="0"] .fg-objekt .tritt{opacity:0}
 .fg-wegleiste[data-an="1"] .fg-weg-linie{animation:fg-b-wischen 1.2s var(--fg-ease-io) backwards}
 /* Knoten: Ring wächst (300 ms), die Navy-Scheibe füllt ihn 120 ms später. */
 .fg-wegleiste[data-an="1"] .fg-weg-punkt{animation:fg-b-rasten .32s var(--fg-ease) var(--t) backwards}
@@ -651,6 +726,12 @@
 .fg-wegleiste[data-an="1"] .fg-objekt-svg .tritt.t2{animation:fg-b-tritt2 .5s var(--fg-ease) calc(var(--t) + 320ms) backwards}
 @keyframes fg-b-tritt1{from{opacity:0;transform:translate(-14px,16px)}}
 @keyframes fg-b-tritt2{from{opacity:0;transform:translate(-28px,32px)}}
+/* Scheibe C: Mit Bildern treten Graphit und Champagner aus der deckungsgleichen Navy-Karte auf ihre Stufe. */
+.fg-wegleiste[data-an="1"] .fg-stapel .tritt.t1{animation:fg-c-tritt .5s var(--fg-ease) calc(var(--t) + 200ms) backwards}
+.fg-wegleiste[data-an="1"] .fg-stapel .tritt.t2{animation:fg-c-tritt .5s var(--fg-ease) calc(var(--t) + 320ms) backwards}
+@keyframes fg-c-tritt{from{opacity:0;transform:none}}
+/* Die Navy-Karte (II): ein Lichtstreif, nachdem sie hereingeglitten ist (1,2 s, einmal). */
+.fg-wegleiste[data-an="1"] .k2 .fg-licht i{animation:fg-c-streif 1.2s var(--fg-ease-io) calc(var(--t) + 900ms) 1 backwards}
 /* Institut-Zeichen: 200 ms nach seinem Knoten. */
 .fg-weg-stempel{transform-origin:50% 50%}
 .fg-wegleiste[data-an="1"] .fg-weg-stempel{animation:fg-b-rasten .3s var(--fg-ease) calc(var(--t) + 200ms) backwards}
@@ -770,4 +851,7 @@
   .fg-stern.zustand-mit .ebene-mit path,.fg-schaubild .pfeil,.gf-orte-karte .zug{stroke-dashoffset:0!important}
   .fg-plakette-buehne .fg-plakette{transform:none!important}
   .gf-orte-karte .puls{opacity:0!important}
+  /* Scheibe C: Siegel-Licht, Lichtstreif und Haarlinie stehen still; die Linie ist gezeichnet. */
+  .fg-licht i,.fg-hero-linie path,.fg-hero-linie circle{animation:none!important}
+  .fg-hero-linie path{stroke-dashoffset:0!important}
 }

@@ -13,34 +13,86 @@
 // Komponente <picture> mit festen Maßen und den redaktionellen Bildnachweis
 // senkrecht an der rechten Bildkante (Text aus i18n: bildKi/szeneKi). `alt=""`,
 // weil das Objekt Schmuck ist — die Aussage steht im Text daneben.
+//
+// 06.10.2026 (E-293, Scheibe C) — die Bilder sind da (lib/global-bilder.ts):
+// · `stapel` = die Kartenleiter (III): drei deckungsgleiche Bilder hinten →
+//   vorn; die hinteren sitzen per transform versetzt (Treppe) und treten in der
+//   Wegleiste aus der vorderen hervor (styles/global-grafik.css).
+// · `licht` = ein Lichtstreif über dem Bild, nur per transform bewegt:
+//   „siegel“ (Hero) ist auf den Siegelkreis maskiert (Mitte und Radius aus
+//   GLOBAL_BILDER) und läuft 2,25 s nach dem Einstieg, danach alle 12 s — nur
+//   solange das Bild im Bild ist; „bild“ (Navy-Karte in II) ist auf die Form
+//   des Bildes selbst maskiert (Alphakanal) und läuft einmal.
 // ═══════════════════════════════════════════════════════════════════════════
+import { useEffect, useRef } from "react";
+import { GLOBAL_BILDER } from "@/lib/global-bilder";
+import { beobachteSichtbar } from "@/components/site/global/bewegung";
 
 export type GlobalObjektArt = "urkunde" | "karte" | "karten" | "termsheet";
 
 /** Ein freigestelltes Bild (Scheibe C): Pfad ohne Breite und Endung, Breiten, Seitenverhältnis. */
-export interface GlobalBildQuelle { pfad: string; breiten: readonly number[]; seite: readonly [number, number]; version?: number }
+export interface GlobalBildQuelle {
+  pfad: string; breiten: readonly number[]; seite: readonly [number, number]; version?: number;
+  /** Nur Urkunde: Siegelmitte (x/y in %) und Radius als Farbstopp des radial-gradient (rStopp). */
+  siegel?: { x: string; y: string; rStopp: string };
+}
 
-export default function GlobalObjekt({ art, bild, nachweis, hero = false, className = "", groesse }: {
+const datei = (bild: GlobalBildQuelle, w: number) => `${bild.pfad}-${w}.webp?v=${bild.version ?? GLOBAL_BILDER.version}`;
+
+/** Ein Bild mit festen Maßen (CLS 0): größte Breite als width/height, alle Breiten im srcset. */
+function Bild({ bild, sizes, hero, className }: { bild: GlobalBildQuelle; sizes: string; hero: boolean; className?: string }) {
+  const [b, h] = bild.seite;
+  const gross = Math.max(...bild.breiten);
+  return (
+    <img className={className} src={datei(bild, gross)} srcSet={bild.breiten.map((w) => `${datei(bild, w)} ${w}w`).join(", ")} sizes={sizes}
+      width={gross} height={Math.round((gross * h) / b)} decoding="async" loading={hero ? "eager" : "lazy"}
+      {...(hero ? ({ fetchpriority: "high" } as Record<string, string>) : {})} alt="" />
+  );
+}
+
+export default function GlobalObjekt({ art, bild, stapel, licht, nachweis, hero = false, className = "", groesse }: {
   art: GlobalObjektArt;
   bild?: GlobalBildQuelle | null;
+  /** Kartenleiter: drei deckungsgleiche Bilder, hinten → vorn (die hinteren tragen „tritt t2/t1“). */
+  stapel?: readonly GlobalBildQuelle[];
+  /** Lichtstreif über dem Bild: auf das Siegel maskiert (Hero) oder auf die Form des Bildes (Karte). */
+  licht?: "siegel" | "bild";
   /** Redaktioneller Bildnachweis („Abbildung mit KI erstellt“) — nur zusammen mit einem echten Bild. */
   nachweis?: string;
   hero?: boolean;
   className?: string;
-  /** Anzeigebreite in px (für sizes). */
-  groesse?: number;
+  /** Anzeigebreite: Zahl in px oder ein sizes-Ausdruck (z. B. „(max-width: 720px) 160px, 400px“). */
+  groesse?: number | string;
 }) {
-  if (bild) {
-    const [b, h] = bild.seite;
-    const gross = Math.max(...bild.breiten);
-    const srcSet = bild.breiten.map((w) => `${bild.pfad}-${w}.webp?v=${bild.version ?? 1} ${w}w`).join(", ");
+  const ref = useRef<HTMLElement>(null);
+  const sizes = groesse === undefined ? "100vw" : typeof groesse === "number" ? `${groesse}px` : groesse;
+  const lichtBild = licht === "siegel" ? (bild?.siegel ? bild : null) : licht === "bild" ? bild ?? null : null;
+  // Das Siegel-Licht ist eine Schleife: Sie hält an, solange die Urkunde außer Sicht oder der Tab im Hintergrund ist (Bauplan 2.1).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || licht !== "siegel" || !lichtBild) return;
+    return beobachteSichtbar(el, (sichtbar) => el.setAttribute("data-sicht", sichtbar ? "1" : "0"));
+  }, [licht, lichtBild]);
+
+  if (bild || stapel?.length) {
+    const lichtStil = !lichtBild ? undefined : licht === "siegel" && lichtBild.siegel
+      ? ({ "--sx": lichtBild.siegel.x, "--sy": lichtBild.siegel.y, "--sr": lichtBild.siegel.rStopp } as React.CSSProperties)
+      : ({ WebkitMaskImage: `url("${datei(lichtBild, Math.min(...lichtBild.breiten))}")`, maskImage: `url("${datei(lichtBild, Math.min(...lichtBild.breiten))}")` } as React.CSSProperties);
     return (
-      <figure className={`fg-objekt mit-bild ${art} ${className}`}>
-        <picture>
-          <img src={`${bild.pfad}-${gross}.webp?v=${bild.version ?? 1}`} srcSet={srcSet} sizes={groesse ? `${groesse}px` : "100vw"}
-            width={gross} height={Math.round((gross * h) / b)} decoding="async" loading={hero ? "eager" : "lazy"}
-            {...(hero ? ({ fetchpriority: "high" } as Record<string, string>) : {})} alt="" />
-        </picture>
+      // Ohne eigenen Nachweis ist das Objekt reiner Schmuck (Wegleiste: eine gemeinsame Zeile) — sonst läse ein
+      // Bildschirmleser vier leere „Abbildung“ zwischen den Etappen-Knöpfen.
+      <figure ref={ref} className={`fg-objekt mit-bild ${art} ${className}`} aria-hidden={nachweis ? undefined : true}>
+        {stapel?.length ? (
+          <span className="fg-stapel">
+            {stapel.map((q, i) => {
+              const rang = stapel.length - 1 - i; // 0 = vorn
+              return <Bild key={q.pfad} bild={q} sizes={sizes} hero={hero} className={rang ? `tritt t${rang}` : undefined} />;
+            })}
+          </span>
+        ) : bild ? (
+          <picture><Bild bild={bild} sizes={sizes} hero={hero} /></picture>
+        ) : null}
+        {lichtBild && <span className={`fg-licht ${licht}`} style={lichtStil} aria-hidden="true"><i /></span>}
         {nachweis && <figcaption className="fg-bildnachweis">{nachweis}</figcaption>}
       </figure>
     );

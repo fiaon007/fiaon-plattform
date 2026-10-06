@@ -33,6 +33,7 @@ import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import Merkblatt from "@/components/site/global-seite/Merkblatt";
+import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import SeitenWeg from "@/components/site/global-seite/SeitenWeg";
 import GespraechKarte from "@/components/site/global-seite/GespraechKarte";
 import { SeitenTafel, SeitenTafeln, OrteKarte, RollenDreieck } from "@/components/site/global-seite/SeitenBausteine";
@@ -279,13 +280,16 @@ function Seite({ s }: { s: GlobalSeite }) {
         )}
 
         {/* ── Schlussband — auf den Unterseiten die eine dunkle Fläche ──────── */}
-        <section className="fg-schluss">
-          <div className="fg-rahmen schmal">
-            <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
-            <p className="fg-lead">{s.schluss?.text ?? t.schlussText}</p>
-            <div className="fg-knoepfe">
-              <a className="fg-knopf" href={globalPaketePfad(sp)}>{t.knopfPakete}<Pfeil /></a>
-              <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
+        <section className="fg-schluss mit-bild">
+          <GlobalSchlussBild nachweis={t.szeneKi} />
+          <div className="fg-rahmen">
+            <div className="fg-schluss-text">
+              <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
+              <p className="fg-lead">{s.schluss?.text ?? t.schlussText}</p>
+              <div className="fg-knoepfe">
+                <a className="fg-knopf" href={globalPaketePfad(sp)}>{t.knopfPakete}<Pfeil /></a>
+                <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
+              </div>
             </div>
           </div>
         </section>

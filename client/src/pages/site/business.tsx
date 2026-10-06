@@ -55,6 +55,9 @@ import GlobalStern from "@/components/site/global/GlobalStern";
 import GlobalBeleg from "@/components/site/global/GlobalBeleg";
 import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
 import GlobalObjekt from "@/components/site/global/GlobalObjekt";
+import HeroLinie from "@/components/site/global/HeroLinie";
+import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
+import { GLOBAL_BILDER } from "@/lib/global-bilder";
 import { mitBegriffen } from "@/components/site/global/Begriff";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import "@/styles/global.css";
@@ -255,6 +258,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
         {/* ── 1 Hero: Anspruch, Kapitalrahmen und Festpreis links, die Urkunde rechts, darunter die Vertrauensleiste ── */}
         <section className="fg-hero">
           <div className="fg-rahmen fg-hero-raster">
+            {/* Die Aufwärts-Haarlinie vom Siegel zum Festpreis (ab 1.024 px) — zuerst im DOM, damit Text und Urkunde darüber liegen. */}
+            <HeroLinie />
             <Auf className="fg-hero-text">
               <span className="fg-auge">{auge}</span>
               <h1 className="fg-h1">{t.h1a}<br /><em>{t.h1b}</em></h1>
@@ -280,9 +285,13 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <p className="fg-mikro">{t.gespraechMikro}</p>
               <p className="fg-fussnote"><sup>{nrFrei}</sup> {frei.satz} {frei.steuer}</p>
             </Auf>
-            {/* Die Gründungsurkunde (HF-1, Scheibe C) — bis dahin ein Platzhalter aus Haarlinien. */}
+            {/* Die Gründungsurkunde (HF-1, Scheibe C) mit Siegel-Licht. Am Handy ragt sie angeschnitten herein — dort steht
+                der Bildnachweis waagerecht über dem sichtbaren Teil (.fg-hero-nachweis, für Bildschirmleser doppelt und
+                daher aria-hidden); die senkrechte Zeile bleibt als Bildunterschrift für Bildschirmleser im DOM. */}
             <div className="fg-hero-objekt-rahmen">
-              <GlobalObjekt art="urkunde" hero className="fg-hero-objekt" groesse={460} nachweis={t.bildKi} />
+              <GlobalObjekt art="urkunde" hero bild={GLOBAL_BILDER.urkunde} licht="siegel" className="fg-hero-objekt"
+                groesse="(max-width: 720px) 160px, (max-width: 900px) 30vw, 400px" nachweis={t.bildKi} />
+              <span className="fg-hero-nachweis" aria-hidden="true">{t.bildKi}</span>
             </div>
           </div>
           <div className="fg-rahmen">
@@ -303,7 +312,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <div><span className="fg-auge">{t.paketeAuge}</span><h2 className="fg-h2">{t.paketeH2}</h2></div>
               <p className="fg-lead">{mitBegriffen(t.paketeLead, [begriff("kapitalrahmen")])}</p>
             </div>
-            <WegLinie id="ablauf" label={t.wegLabel} stempel={t.stempelInstitut} bis={etappenBis(mobilIndex)} klammer={t.inJedemPaket}
+            <WegLinie id="ablauf" label={t.wegLabel} stempel={t.stempelInstitut} bis={etappenBis(mobilIndex)} klammer={t.inJedemPaket} nachweis={t.bilderKi}
               titelInhalt={(i) => mitBegriffen(t.weg[i].titel, [begriff("kartenleiter")])}
               etappen={t.weg.map((w, i) => ({
                 titel: w.titel,
@@ -480,12 +489,15 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
         </Sek>
 
         {/* ── 8 Schlussband ── */}
-        <section className="fg-schluss">
-          <div className="fg-rahmen schmal">
-            <h2 className="fg-h2">{t.schlussA}<em>{t.schlussB}</em></h2>
-            <div className="fg-knoepfe">
-              <a className="fg-knopf" href={start()} onClick={klick(undefined, "schluss")}>{t.schlussBeauftragen}<Pfeil /></a>
-              <button type="button" className="fg-knopf hell" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
+        <section className="fg-schluss mit-bild">
+          <GlobalSchlussBild nachweis={t.szeneKi} />
+          <div className="fg-rahmen">
+            <div className="fg-schluss-text">
+              <h2 className="fg-h2">{t.schlussA}<em>{t.schlussB}</em></h2>
+              <div className="fg-knoepfe">
+                <a className="fg-knopf" href={start()} onClick={klick(undefined, "schluss")}>{t.schlussBeauftragen}<Pfeil /></a>
+                <button type="button" className="fg-knopf hell" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
+              </div>
             </div>
           </div>
         </section>

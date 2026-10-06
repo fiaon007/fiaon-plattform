@@ -71,6 +71,8 @@ const de = {
   ],
   // Redaktioneller Bildnachweis an jedem Higgsfield-Objekt (Art. 50 KI-VO) — erst sichtbar, wenn das Bild da ist (Scheibe C).
   bildKi: "Abbildung mit KI erstellt",
+  /** Eine gemeinsame Zeile für die vier Objekte der Wegleiste (Bauplan 2.3: nicht je Objekt). */
+  bilderKi: "Abbildungen mit KI erstellt",
   szeneKi: "Szene mit KI erstellt",
 
   // ── Begriffe zum Antippen (nur bei Bedarf sichtbar) ──
@@ -316,6 +318,7 @@ const en: typeof de = {
     `${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`,
   ],
   bildKi: "Image created with AI",
+  bilderKi: "Images created with AI",
   szeneKi: "Scene created with AI",
 
   begriffe: {

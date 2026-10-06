@@ -5,6 +5,14 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 abends — KI wieder aktivieren prüft den Anbieter, der die KI trägt (E-279)
+
+- Vorbereitung auf das FIAON-eigene OpenAI-Konto (Justin, 06.10.: das alte OpenAI-Konto lief über ARAS AI und ist seit 03.10. deaktiviert;
+  Anthropic hat die Organisation seit 03.10. gesperrt). Steht KI_ANBIETER auf einem anderen Anbieter als die gespeicherte Pause, prüft
+  „KI wieder aktivieren“ jetzt den tragenden Anbieter — vorher hätte die Probe den gesperrten Anbieter gefragt und die Pause nie aufgehoben.
+
+**Wo:** server/lib/fiaon-ki-pause.ts (aktivieren).
+
 ## 06.10.2026 abends — Instagram-Handy sofort gefüllt, höher und größer; Uhren-Zeiger in Safari (E-296, E-293)
 
 - **Instagram auf fiaon.com zeigt jetzt die freigegebenen Beiträge** (Justin: „da ist unser Mockup, Karussell nicht, das fehlt

@@ -463,7 +463,10 @@ export async function aktivieren(von: string, opt: { probe?: boolean; nachholen?
   }
   let hinweis: string | undefined;
   // E-279: geprüft wird der Anbieter DIESER Pause (eine OpenAI-Pause mit OpenAI, eine Claude-Pause mit Claude).
-  const pauseAnbieter: KiAnbieter = vorher.art === "hand" ? aktiverAnbieter() : (vorher.anbieter ?? "openai") as KiAnbieter;
+  // 06.10.2026: Trägt inzwischen ein ANDERER Anbieter die KI (KI_ANBIETER umgestellt — Claude gesperrt, FIAON-eigenes
+  // OpenAI-Konto), prüft die Probe den tragenden Anbieter; sonst bliebe die Pause ewig, weil der gesperrte nie antwortet.
+  const gespeichert = (vorher.anbieter ?? "openai") as KiAnbieter;
+  const pauseAnbieter: KiAnbieter = vorher.art === "hand" || gespeichert !== aktiverAnbieter() ? aktiverAnbieter() : gespeichert;
   const probeSchluessel = pauseAnbieter === "claude" ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
   if (opt.probe !== false && probeSchluessel) {
     const p = pauseAnbieter === "claude" ? await claudeProbe() : await probe();

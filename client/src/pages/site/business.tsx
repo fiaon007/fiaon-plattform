@@ -42,14 +42,14 @@ import { GLOBAL_WOERTER, type GlobalBegriff } from "@/i18n/global";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND,
   GLOBAL_NICHT_INKLUSIVE, GLOBAL_VERGLEICH, GLOBAL_KAPITAL_FREI, GLOBAL_BUERGSCHAFT_SEITE, globalPaket, globalPreisText, globalPlanungText,
-  globalKapitalSpanne, globalJahresbetreuungPreisText, type GlobalSchluessel,
+  globalKapitalSpanne, globalJahresbetreuungPreisText,
 } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { GLOBAL_VERBUNDEN } from "@shared/fiaon-global-partner";
 import { globalSeite } from "@shared/fiaon-global-seiten";
 import { werbeEreignis } from "@/lib/werbung";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
-import GlobalTafel, { Haken, Pfeil } from "@/components/site/global/GlobalTafel";
+import GlobalTafel, { Haken, Pfeil, TAFEL_ETAPPE_AB, TAFEL_ZUERST, tafelEtappenBis } from "@/components/site/global/GlobalTafel";
 import WegLinie from "@/components/site/global/WegLinie";
 import GlobalStern from "@/components/site/global/GlobalStern";
 import GlobalBeleg from "@/components/site/global/GlobalBeleg";
@@ -67,14 +67,11 @@ function Winkel({ offen }: { offen: boolean }) {
 const FOKUS = "global_kapital";
 /** „Struktur“ statt „Global Struktur“ — in der Viererwahl und der Klebeleiste am Handy (dort zählt jede Zeile). */
 const kurzName = (name: string) => name.replace(/^Global\s+/, "");
-/** Ab welchem Paket eine Etappe des Wegs enthalten ist — deckungsgleich mit GLOBAL_VERGLEICH. */
-const ETAPPE_AB: GlobalSchluessel[] = ["global_struktur", "global_struktur", "global_banking", "global_kapital"];
-/** Bis zu welcher Etappe (1–4) ein Paket begleitet — aus ETAPPE_AB, also deckungsgleich mit dem Weg. */
-const etappenBis = (i: number) => ETAPPE_AB.filter((ab) => GLOBAL_PAKETE.findIndex((p) => p.key === ab) <= i).length;
-/** Global Struktur zeigt zuerst: Gründung, EIN/ITIN, erster Konto- und Kartenantrag (06.10.2026: drei statt vier). */
-const STRUKTUR_ZUERST = [0, 1, 6];
-/** Je Tafel die eigenen Leistungen, die vor „Alle N Leistungen“ stehen (VIP: die Termine vor Ort). */
-const ZUERST: Record<GlobalSchluessel, number[]> = { global_struktur: STRUKTUR_ZUERST, global_banking: [0, 1], global_kapital: [0, 1], global_vip: [1] };
+/** Etappen und Reihenfolge der Leistungen je Tafel: eine Quelle in GlobalTafel.tsx, die auch die Unterseiten lesen
+ *  (06.10.2026, E-293). Hier nur nach Index der Tafel. */
+const ETAPPE_AB = TAFEL_ETAPPE_AB;
+const etappenBis = (i: number) => tafelEtappenBis(GLOBAL_PAKETE[i]?.key ?? "global_struktur");
+const ZUERST = TAFEL_ZUERST;
 /** Die fünf sichtbaren Fragen (Index im Wörterbuch, dessen Reihenfolge das FAQ-Markup trägt); der Rest hinter „Alle 17 Fragen“. */
 const FRAGEN_ZUERST = [0, 1, 7, 3, 5];
 

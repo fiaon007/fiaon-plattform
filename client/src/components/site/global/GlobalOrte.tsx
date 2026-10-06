@@ -10,14 +10,22 @@
 // GLOBAL_WOERTER[sp].uhren (pruef-global-seiten.ts §9 prüft sie). Unter jedem
 // Standort Stadt, Gesellschaft, Rolle und Registernachweis wie bisher.
 // Am Handy eine senkrechte Liste ohne Bögen.
+//
+// Bewegung (Scheibe B, 06.10.2026): einmal beim Hineinscrollen zeichnen sich die
+// Bögen DACH → London und DACH → Miami (1.400 ms), danach pulst Miami EINMAL.
+// Die Sekundenzeiger laufen nur, solange die Uhren im Bild sind (UhrMini).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { GLOBAL_STANDORTE, standortNachweis } from "@shared/fiaon-global-partner";
 import { UhrMini } from "@/components/site/GlobalUhren";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 
-const PUNKT = { sie: [170, 120], london: [300, 70], zuerich: [205, 150], miami: [800, 160] } as const;
 const ZONE = { sie: "Europe/Berlin", london: "Europe/London", miami: "America/New_York" } as const;
+// Höhe des Kartenstreifens über der Uhrenreihe; die Punkte liegen auf GRUND, die Bögen steigen darüber.
+const HOEHE = 72, GRUND = 60;
+
+/** Spaltenmitte der Uhr (bzw. des leeren Uhrenplatzes bei Zürich) relativ zum Rahmen, in px. */
+interface Lage { breite: number; x: Partial<Record<"sie" | "london" | "zuerich" | "miami", number>> }
 
 export default function GlobalOrte({ en, label, sie, sieZusatz, rollen, uhren }: {
   en: boolean;
@@ -31,25 +39,64 @@ export default function GlobalOrte({ en, label, sie, sieZusatz, rollen, uhren }:
   const ref = useRef<HTMLDivElement>(null);
   useEinmalSichtbar(ref, 0.2);
   const ortName = (zone: string) => uhren.find((u) => u.zone === zone)?.ort ?? zone;
-  const bogen = (a: readonly [number, number], b: readonly [number, number]) => `M${a[0]} ${a[1]} Q${(a[0] + b[0]) / 2} ${Math.min(a[1], b[1]) - 70} ${b[0]} ${b[1]}`;
+
+  // 06.10.2026 (E-293, Scheibe B): Die Punkte sitzen genau über ihren Uhren — gemessen, nicht geschätzt. In Scheibe A
+  // schwebte ein festes SVG (viewBox 960 × 220) mittig über der Uhrenreihe, die Punkte standen neben ihren Uhren und
+  // die Karte war deshalb aus. Jetzt misst ein ResizeObserver die Spalten; das SVG hat die Pixelmaße des Rahmens.
+  const [lage, setLage] = useState<Lage | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const messen = () => {
+      const r = el.getBoundingClientRect();
+      const x: Lage["x"] = {};
+      el.querySelectorAll<HTMLElement>("[data-ort]").forEach((li) => {
+        const l = li.getBoundingClientRect();
+        const uhr = li.querySelector<HTMLElement>(".fg-uhr-mini")?.getBoundingClientRect();
+        // Zürich hat keine Uhr: der Punkt sitzt über dem freien Uhrenplatz der Spalte (Breite wie eine Uhr).
+        const mitte = uhr && uhr.width ? uhr.left + uhr.width / 2 : l.left + Math.min(64, l.width) / 2;
+        x[li.dataset.ort as keyof Lage["x"]] = Math.round((mitte - r.left) * 10) / 10;
+      });
+      setLage((alt) => (alt && alt.breite === Math.round(r.width) && JSON.stringify(alt.x) === JSON.stringify(x) ? alt : { breite: Math.round(r.width), x }));
+    };
+    messen();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(messen);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const { sie: xs, london: xl, zuerich: xz, miami: xm } = lage?.x ?? {};
+  /** Ein Bogen von Ihnen zu einem Ort; `hub` = wie hoch er über die Grundlinie steigt. */
+  const bogen = (a: number, b: number, hub: number) => `M${a} ${GRUND} Q${(a + b) / 2} ${GRUND - 2 * hub} ${b} ${GRUND}`;
+
   return (
     <div ref={ref} className="gf-drei-orte" role="group" aria-label={label}>
-      <svg className="gf-orte-karte" viewBox="0 0 960 220" aria-hidden="true">
-        <path d={bogen(PUNKT.sie, PUNKT.london)} className="bogen" pathLength={1} />
-        <path d={bogen(PUNKT.sie, PUNKT.miami)} className="bogen" pathLength={1} />
-        <circle cx={PUNKT.zuerich[0]} cy={PUNKT.zuerich[1]} r="3" className="punkt neben" />
-        <circle cx={PUNKT.sie[0]} cy={PUNKT.sie[1]} r="5" className="punkt sie" />
-        <circle cx={PUNKT.london[0]} cy={PUNKT.london[1]} r="5" className="punkt" />
-        <circle cx={PUNKT.miami[0]} cy={PUNKT.miami[1]} r="5" className="punkt miami" />
-      </svg>
+      {/* 06.10.2026 (E-293): Bis gemessen ist, hält ein leerer Platz mit derselben Klasse die 72 px frei (ab 721 px
+          sichtbar, darunter wie die Karte aus) — sonst schiebt sich der Fuß nach dem Start um ≈ 60 px. */}
+      {!(lage && xs !== undefined && xl !== undefined && xm !== undefined) && <div className="gf-orte-karte gf-orte-platz" aria-hidden="true" />}
+      {lage && xs !== undefined && xl !== undefined && xm !== undefined && (
+        <svg className="gf-orte-karte" viewBox={`0 0 ${lage.breite} ${HOEHE}`} width={lage.breite} height={HOEHE} aria-hidden="true">
+          <path d={bogen(xs, xl, 26)} className="bogen spur" />
+          <path d={bogen(xs, xm, 50)} className="bogen spur" />
+          <path d={bogen(xs, xl, 26)} className="bogen zug b1" pathLength={1} />
+          <path d={bogen(xs, xm, 50)} className="bogen zug b2" pathLength={1} />
+          {([["sie", xs], ["london", xl], ["miami", xm]] as const).map(([n, x]) => <line key={n} x1={x} x2={x} y1={GRUND + 6} y2={HOEHE} className="lot" />)}
+          {xz !== undefined && <circle cx={xz} cy={GRUND} r="2.5" className="punkt neben" />}
+          <circle cx={xs} cy={GRUND} r="4" className="punkt sie" />
+          <circle cx={xl} cy={GRUND} r="4" className="punkt london" />
+          <circle cx={xm} cy={GRUND} r="4" className="punkt miami" />
+          <circle cx={xm} cy={GRUND} r="9" className="puls" />
+        </svg>
+      )}
       <ul className="gf-orte-liste">
-        <li className="sie">
+        <li className="sie" data-ort="sie">
           <UhrMini zone={ZONE.sie} ort={ortName(ZONE.sie)} />
           <span className="gf-stadt">{sie}</span>
           <span>{sieZusatz}</span>
         </li>
         {GLOBAL_STANDORTE.map((o) => (
-          <li key={o.schluessel} className={o.schluessel}>
+          <li key={o.schluessel} className={o.schluessel} data-ort={o.schluessel}>
             {o.schluessel !== "zuerich" && <UhrMini zone={ZONE[o.schluessel as "london" | "miami"]} ort={en ? o.en.stadt : o.stadt} />}
             <span className="gf-stadt">{en ? o.en.stadt : o.stadt}</span>
             <b>{o.gesellschaft}</b>

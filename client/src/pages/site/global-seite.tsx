@@ -8,21 +8,35 @@
 // /en/business/knowledge/<slug> — die Sprache kommt aus der Registerseite
 // (globalSprache), die festen Wörter aus client/src/i18n/global-seite.ts.
 //
-// ── AUFBAU („Dossier") ─────────────────────────────────────────────────────
+// ── AUFBAU SEIT 06.10.2026 (E-293, Bauplan /business Kapitel 5, Scheibe D) ──
 //   Lesefortschritt
-//   Kopf: Brotkrumen · Oberzeile · H1 (Glanz) · Einleitung · Kennziffern ·
-//         zwei Handlungen — rechts das Merkblatt mit Kennung und Stand
-//   Körper: links das Inhaltsverzeichnis (läuft mit), rechts „Kurz
-//           beantwortet", die Abschnitte mit römischer Ziffer, die Fragen,
-//           Stand und Quellen
-//   Weiterlesen · Gespräch (Kalender) · Schlussband · Handlungsleiste am Handy
-// Gestaltung: styles/global.css (.fg, Farben, Glanz) + styles/global-seiten.css (.fd-).
+//   Kopf: Brotkrumen · Augenzeile · H1 · Lead · zwei Knöpfe · Ziffern als
+//         schmale Leiste — rechts das Merkblatt als Karteikarte (drei Zeilen,
+//         „Alle Angaben“ klappbar; am Handy ganz zugeklappt)
+//   Körper: links das Inhaltsverzeichnis (läuft mit), rechts zuerst die
+//           Antwortkarte „Kurz beantwortet“, dann die Abschnitte mit römischer
+//           Ziffer — Etappen als Weg, Hinweise als Randnotiz (≥ 1280 px in
+//           einer eigenen Spalte), Tabellen aus Haarlinien, Karten mit
+//           Linien-Zeichen, Pakete als dieselben Tafeln wie auf /business —,
+//           die Fragen, Stand und Quellen (klappbar)
+//   Jahresbetreuung als Band · Erstgespräch (Kalender erst auf Wunsch) ·
+//   Weiterlesen · Schlussband · Handlungsleiste am Handy
+// Nur Darstellung: Kein Registertext ändert sich. Was der Korpus für
+// Suchmaschinen enthält (blockAlsText), bleibt sichtbar; Zugeklapptes steht
+// in <details> im DOM, nie display:none.
+// Gestaltung: styles/global.css (.fg, Farben, Glanz) + styles/global-seiten.css
+// (.fd-) + styles/global-grafik.css (Tafel, Jahresband, Bewegungsgrundgesetz).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
-import GlobalGespraech from "@/components/site/GlobalGespraech";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
+import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+import Merkblatt from "@/components/site/global-seite/Merkblatt";
+import SeitenWeg from "@/components/site/global-seite/SeitenWeg";
+import GespraechKarte from "@/components/site/global-seite/GespraechKarte";
+import { SeitenTafel, SeitenTafeln, OrteKarte, RollenDreieck } from "@/components/site/global-seite/SeitenBausteine";
+import { Zeichen, zeichenFuerSeite, zeichenReihe } from "@/components/site/global-seite/Zeichen";
 import NotFound from "@/pages/not-found";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import { GLOBAL_SEITE_WOERTER } from "@/i18n/global-seite";
@@ -40,7 +54,6 @@ import "@/styles/global-seiten.css";
 import "@/styles/global-grafik.css";
 
 const ROEMISCH = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
-const FOKUS: GlobalSchluessel = "global_kapital";
 
 export function Haken({ groesse = 16 }: { groesse?: number }) {
   return (
@@ -80,7 +93,12 @@ function Seite({ s }: { s: GlobalSeite }) {
   }, [inhalt]);
   const aktiv = useScrollspy(inhalt.map((e) => e.id));
   const fortschritt = useRef<HTMLSpanElement>(null);
+  const kopf = useRef<HTMLElement>(null);
+  useEinmalSichtbar(kopf, 0.1);
   const [leiste, setLeiste] = useState(false);
+  // 06.10.2026 (E-293): Der Kalender lädt erst auf Wunsch — oder sofort, wenn jemand mit #gespraech ankommt.
+  const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");
+  const [gespraechPaket, setGespraechPaket] = useState<string | null>(s.paket ?? null);
 
   useEffect(() => {
     const neu = () => {
@@ -89,20 +107,29 @@ function Seite({ s }: { s: GlobalSeite }) {
       fortschritt.current?.style.setProperty("--fd-p", String(Math.min(1, window.scrollY / max)));
       setLeiste(window.scrollY > 560);
     };
+    const hash = () => { if (window.location.hash === "#gespraech") setGespraechOffen(true); };
     neu();
     window.addEventListener("scroll", neu, { passive: true });
     window.addEventListener("resize", neu);
+    window.addEventListener("hashchange", hash);
     // Wer mit #anker ankommt, landet dort — erst nach dem ersten Bild.
     if (window.location.hash) requestAnimationFrame(() => setTimeout(() => document.querySelector(window.location.hash)?.scrollIntoView(), 80));
-    return () => { window.removeEventListener("scroll", neu); window.removeEventListener("resize", neu); };
+    return () => { window.removeEventListener("scroll", neu); window.removeEventListener("resize", neu); window.removeEventListener("hashchange", hash); };
   }, []);
 
   const paket = s.paket ?? null;
   const beauftragen = paket ? globalStartPfad(paket, sp, s.auftraggeber) : globalPaketePfad(sp);
   const paketName = paket ? globalPaket(paket)![sp].name : "";
-  const zumGespraech = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }); };
+  // Jeder Weg zum Gespräch öffnet die Karte an ihrer Stelle; eine Tafel füllt dabei ihr Paket vor.
+  const oeffneGespraech = (wahl?: GlobalSchluessel) => {
+    if (wahl) setGespraechPaket(wahl);
+    setGespraechOffen(true);
+    requestAnimationFrame(() => document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }));
+  };
+  const zumGespraech = (e: React.MouseEvent) => { e.preventDefault(); oeffneGespraech(); };
   const klickBeauftragen = () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: s.pfad });
   const krumen = globalKrumen(s);
+  const stand = u.stand(datumIn(s.stand, sp));
 
   return (
     <Dunkel seite="business" titel={s.seo.titel} beschreibung={s.seo.beschreibung} sprache={sp}>
@@ -110,7 +137,7 @@ function Seite({ s }: { s: GlobalSeite }) {
         <div className="fd-fortschritt" aria-hidden="true"><i ref={fortschritt as any} /></div>
 
         {/* ── Kopf ───────────────────────────────────────────────────────── */}
-        <header className="fd-kopf">
+        <header ref={kopf} className="fd-kopf neu">
           <div className="fg-rahmen fd-kopf-raster">
             <Auf>
               <nav aria-label={u.krumen}>
@@ -130,18 +157,17 @@ function Seite({ s }: { s: GlobalSeite }) {
                 </a>
                 <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
               </div>
+              {/* Kennziffern als schmale Leiste: höchstens drei Werte, jede Zahl mit ihrem Satz (Blickfang-Regel). */}
               {s.ziffern?.length ? (
-                <div className="fd-ziffern">
-                  {s.ziffern.map((z) => <div key={z.label}><b className="fg-glanz">{z.wert}</b><span>{z.label}</span></div>)}
+                <div className="fd-leiste">
+                  {s.ziffern.slice(0, 3).map((z) => <div key={z.label}><b>{z.wert}</b><span>{z.label}</span></div>)}
                 </div>
               ) : null}
+              <p className="fd-kopf-stand">{stand}</p>
             </Auf>
             <Auf verzoegerung={140}>
-              <aside className="fd-merkblatt" aria-label={u.blick}>
-                <div className="fd-merkblatt-kopf"><b>{u.blick}</b><span>{s.kennung}</span></div>
-                <dl>{s.blick.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-                <div className="fd-merkblatt-fuss"><span>{u.stand(datumIn(s.stand, sp))}</span><span>{FIAON_FIRMA.name} · Companies House {FIAON_FIRMA.companyNo}</span></div>
-              </aside>
+              <Merkblatt titel={u.blick} kennung={s.kennung} zeilen={s.blick} alle={u.alleAngaben} punkte={u.blickPunkte(s.blick.length)}
+                stand={stand} firma={`${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`} />
             </Auf>
           </div>
         </header>
@@ -155,7 +181,7 @@ function Seite({ s }: { s: GlobalSeite }) {
         )}
 
         {/* ── Körper ─────────────────────────────────────────────────────── */}
-        <div className="fd-koerper">
+        <div className="fd-koerper neu">
           <nav className="fd-inhalt" aria-label={u.inhaltLabel}>
             <p>{u.inhalt}</p>
             <ol>
@@ -172,7 +198,13 @@ function Seite({ s }: { s: GlobalSeite }) {
             </div>
           </nav>
 
-          <article className="fd-text">
+          <article className="fd-text neu">
+            {/* Die Antwortkarte ist das erste Element im Körper (Bauplan Kapitel 5, Punkt 3). */}
+            <section id="kurz" className="fd-antwort" aria-label={w.kurz}>
+              <span className="fd-marke">{w.kurz}</span>
+              <p>{s.kurz}</p>
+            </section>
+
             <details className="fd-inhalt-mobil">
               <summary>{u.inhaltLabel}</summary>
               <ol>
@@ -180,39 +212,37 @@ function Seite({ s }: { s: GlobalSeite }) {
               </ol>
             </details>
 
-            <section id="kurz" className="fd-kurz" aria-label={w.kurz}>
-              <span className="fd-marke">{w.kurz}</span>
-              <p>{s.kurz}</p>
-            </section>
-
-            {s.bloecke.map((b) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} />)}
-
-            {/* 19.09.2026 (E-196): die Jahresbetreuung ab dem zweiten Jahr — auf jeder Seite, dieselben Sätze wie im Vertrag. */}
-            <GlobalJahresbetreuung sprache={sp} startPfad={beauftragen} knopf={t.jbKnopf} so={t.jbSo} />
+            {s.bloecke.map((b, i) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} onGespraech={oeffneGespraech}
+              randUnten={b.typ === "hinweis" && !randDaneben(s.bloecke[i + 1])} />)}
 
             {s.fragen.length > 0 && (
-              <section id="fragen" className="fd-abschnitt">
+              <Abschnitt id="fragen">
                 <span className="fd-nr">{nummer.get("fragen")}.</span>
                 <h2 className="fd-h2 fg-h2">{w.fragen}</h2>
                 <div className="fd-fragen"><Fragen items={s.fragen} /></div>
-              </section>
+              </Abschnitt>
             )}
 
             <footer className="fd-vermerk">
               <span><b>{u.vermerkStand}</b> {datumIn(s.stand, sp)} · <b>{u.vermerkRedaktion}</b> FIAON Global · <b>{u.vermerkKennung}</b> {s.kennung}</span>
               {s.quellen?.length ? (
-                <>
-                  <span><b>{u.quellen}</b></span>
+                <details className="fd-quellen">
+                  <summary>{u.quellenZahl(s.quellen.length)}</summary>
                   <ol>{s.quellen.map((q) => <li key={q.url}><a href={q.url} target="_blank" rel="noopener noreferrer">{q.titel}</a></li>)}</ol>
-                </>
+                </details>
               ) : null}
               <span>{u.vermerkHinweis}</span>
             </footer>
           </article>
         </div>
 
+        {/* 19.09.2026 (E-196): die Jahresbetreuung ab dem zweiten Jahr — auf jeder Seite, dieselben Sätze wie im Vertrag.
+            06.10.2026 (E-293): als Band wie auf /business (Jahresring, ein Satz, Zeitleiste; die vollen Sätze unter
+            „So funktioniert es“). Das Band trägt id="jahresbetreuung" selbst. */}
+        <GlobalJahresbetreuung sprache={sp} groesse="band" startPfad={beauftragen} knopf={t.jbKnopf} so={t.jbSo} />
+
         {/* ── Gespräch ───────────────────────────────────────────────────── */}
-        <section id="gespraech" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
+        <section id="gespraech" className="fg-sek stein fd-gespraech" style={{ scrollMarginTop: 72 }}>
           <div className="fg-rahmen">
             <Auf>
               <div className="fg-kopf">
@@ -220,7 +250,7 @@ function Seite({ s }: { s: GlobalSeite }) {
                 <p className="fg-lead">{t.gespraechLead}</p>
               </div>
             </Auf>
-            <GlobalGespraech paket={paket} />
+            <GespraechKarte sp={sp} offen={gespraechOffen} onOeffnen={() => setGespraechOffen(true)} paket={gespraechPaket} />
           </div>
         </section>
 
@@ -231,10 +261,14 @@ function Seite({ s }: { s: GlobalSeite }) {
             <div className="fd-weiter-raster">
               {s.weiter.map((p) => {
                 const z = p === globalSeitePfad(sp) ? null : globalSeite(p);
+                const titel = z ? `${z.h1.replace(/[.]$/, "")}` : u.uebersichtTitel;
                 return (
                   <a key={p} href={p}>
-                    <span className="tag">{z ? z.auge.split(" · ").pop() : "FIAON Global"}</span>
-                    <span className="titel">{z ? `${z.h1.replace(/[.]$/, "")}` : u.uebersichtTitel}</span>
+                    <span className="fd-weiter-kopf">
+                      <Zeichen art={zeichenFuerSeite(p, `${z?.auge ?? ""} ${titel}`, z?.art)} />
+                      <span className="tag">{z ? z.auge.split(" · ").pop() : "FIAON Global"}</span>
+                    </span>
+                    <span className="titel">{titel}</span>
                     <span className="text">{z ? globalMenuePunkt(z.pfad)?.text ?? z.seo.beschreibung.slice(0, 90) + "…" : u.uebersichtText}</span>
                     <span className="pfeil"><Pfeil /></span>
                   </a>
@@ -244,7 +278,7 @@ function Seite({ s }: { s: GlobalSeite }) {
           </section>
         )}
 
-        {/* ── Schlussband ────────────────────────────────────────────────── */}
+        {/* ── Schlussband — auf den Unterseiten die eine dunkle Fläche ──────── */}
         <section className="fg-schluss">
           <div className="fg-rahmen schmal">
             <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
@@ -283,6 +317,17 @@ function useScrollspy(ids: string[]): string | null {
 }
 
 // ── Die Bausteine ────────────────────────────────────────────────────────────
+/**
+ * Ein Abschnitt, der einmal „ankommt“: data-an="1" beim Hineinscrollen (useEinmalSichtbar). Daran hängen der
+ * einmalige Glanz der H2 (styles/global.css) und die Grafik-Bewegung der Bausteine. Schwelle 0 mit eigenem Rand,
+ * weil ein Abschnitt höher als der Bildschirm sein kann (bewegung.ts).
+ */
+function Abschnitt({ id, className = "", children }: { id: string; className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  useEinmalSichtbar(ref, 0, "0px 0px -20% 0px");
+  return <section ref={ref} id={id} className={`fd-abschnitt${className ? ` ${className}` : ""}`}>{children}</section>;
+}
+
 function Kopf({ nr, h2, lead }: { nr?: string; h2: string; lead?: string }) {
   return (
     <>
@@ -293,122 +338,146 @@ function Kopf({ nr, h2, lead }: { nr?: string; h2: string; lead?: string }) {
   );
 }
 
-function Baustein({ b, nr, seite, sp }: { b: GlobalBlock; nr?: string; seite: GlobalSeite; sp: Sp }): ReactNode {
+/** Randnotiz-Zeichen: § bei Recht, Steuer und Pflichten, sonst i. Linien, kein Text im Bild. */
+function RandZeichen({ recht }: { recht: boolean }) {
+  return (
+    <span className="fd-rand-zeichen" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" focusable="false">
+        {recht
+          ? <path d="M15 6.4c-.6-1.4-1.8-2.1-3.2-2.1-1.8 0-3.1 1.1-3.1 2.6 0 3.4 6.8 2.7 6.8 6.4 0 1.4-1 2.4-2.6 2.6 M9 17.6c.6 1.4 1.8 2.1 3.2 2.1 1.8 0 3.1-1.1 3.1-2.6 0-3.4-6.8-2.7-6.8-6.4 0-1.4 1-2.4 2.6-2.6" />
+          : <><circle cx="12" cy="12" r="8.6" /><path d="M12 11v5.4 M12 7.6v.2" /></>}
+      </svg>
+    </span>
+  );
+}
+const RECHT = /§|recht|steuer|pflicht|haft|gesetz|finanzamt|meldung|behörde|vertrag|\blaw|legal|\btax|liab|oblig|filing|authorit|contract/i;
+
+/**
+ * Die Randnotiz reicht ab 1280 px über zwei Zeilen: den Abschnitt davor und den danach (06.10.2026, E-293). Ist der
+ * nächste Baustein breit (Pakettafeln über beide Spalten) oder fehlt er, kann er nicht neben ihr stehen — dann blieb
+ * links eine Lücke (auf /business/ablauf ≈ 225 px vor „Die vier Pakete“). Solche Notizen stehen deshalb unter ihrem
+ * Abschnitt, eingerückt mit Haarlinie, wie unter 1280 px.
+ */
+const randDaneben = (naechster?: GlobalBlock) => !!naechster && naechster.typ !== "pakete" && naechster.typ !== "hinweis";
+
+function Baustein({ b, nr, seite, sp, onGespraech, randUnten = false }: { b: GlobalBlock; nr?: string; seite: GlobalSeite; sp: Sp; onGespraech: (paket?: GlobalSchluessel) => void; randUnten?: boolean }): ReactNode {
   const u = GLOBAL_SEITE_WOERTER[sp];
+  const wege = { sp, seite: seite.pfad, art: seite.auftraggeber, onGespraech };
   switch (b.typ) {
     case "text":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} />
           {b.absaetze.map((a) => <p key={a.slice(0, 40)} className="fd-p">{a}</p>)}
           {b.punkte?.length ? <ul className="fd-punkte">{b.punkte.map((p) => <li key={p}><Haken />{p}</li>)}</ul> : null}
           {b.nach && <p className="fd-nach">{b.nach}</p>}
-        </section>
+        </Abschnitt>
       );
     case "etappen":
+      // Der Weg: dieselbe Haarlinien-Sprache wie die Wegleiste auf /business — Titel, Dauer und Text sichtbar.
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <ol className="fd-etappen">
-            {b.etappen.map((e, i) => (
-              <li key={e.titel} className="fd-etappe">
-                <span className="nr">{ROEMISCH[i]}</span>
-                <div>
-                  <h3>{e.titel}</h3>
-                  {e.dauer && <span className="dauer">{e.dauer}</span>}
-                  <p>{e.text}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
+          <SeitenWeg etappen={b.etappen} />
+        </Abschnitt>
       );
     case "rollen":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
+          <RollenDreieck sp={sp} />
           <div className="fd-rollen">
             {([[u.rollen.fiaon, b.fiaon, "fiaon"], [u.rollen.partner, b.partner, ""], [u.rollen.sie, b.sie, ""]] as const).map(([titel, liste, k]) => (
               <div key={titel} className={`fd-rolle ${k}`}><h3>{titel}</h3><ul>{liste.map((x) => <li key={x}>{x}</li>)}</ul></div>
             ))}
           </div>
-        </section>
+        </Abschnitt>
       );
     case "tabelle":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <div className="fd-tabelle" role="region" aria-label={b.h2} tabIndex={0}>
+          <div className="fd-tabelle neu" role="region" aria-label={b.h2} tabIndex={0}>
             <table>
               <thead><tr>{b.kopf.map((k, i) => <th key={i} scope="col" className={b.hervor === i ? "hervor" : undefined}>{k}</th>)}</tr></thead>
               <tbody>
                 {b.zeilen.map((z, zi) => (
-                  <tr key={zi}>{z.map((zelle, i) => (i === 0 && b.kopf[0] === "" ? <th key={i} scope="row" style={{ textAlign: "left", fontWeight: 500, color: "var(--tinte)", textTransform: "none", letterSpacing: 0, fontSize: 14, background: "transparent", borderBottom: 0, borderTop: zi ? "1px solid var(--linie)" : 0, padding: "14px 16px", whiteSpace: "normal" }}>{zelle}</th> : <td key={i} className={b.hervor === i ? "hervor" : undefined} data-label={i > 0 && b.kopf[i] ? b.kopf[i] : undefined}>{zelle}</td>))}</tr>
+                  <tr key={zi}>{z.map((zelle, i) => (i === 0 && b.kopf[0] === "" ? <th key={i} scope="row" className="zeilenkopf">{zelle}</th> : <td key={i} className={b.hervor === i ? "hervor" : undefined} data-label={i > 0 && b.kopf[i] ? b.kopf[i] : undefined}>{zelle}</td>))}</tr>
                 ))}
               </tbody>
             </table>
           </div>
           {b.fuss?.length ? <ul className="fd-fuss">{b.fuss.map((f) => <li key={f}>{f}</li>)}</ul> : null}
-        </section>
+        </Abschnitt>
       );
-    case "karten":
+    case "karten": {
+      const ersatz = seite.art === "wissen" ? "wissen" : "gesellschaft";
+      // Je Karte ein anderes Zeichen — oder im ganzen Baustein keins (Zeichen.tsx, zeichenReihe; 06.10.2026, E-293).
+      // Gewählt nach der Marke (tag = die Art der Karte), nur ohne Marke nach dem Titel: So sagen DE und EN dasselbe.
+      const zeichen = zeichenReihe(b.karten.map((k) => k.tag || k.titel), ersatz);
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <div className={`fd-karten${b.spalten === 3 ? " drei" : ""}`}>
-            {b.karten.map((k) => {
-              const innen = <>{k.tag && <span className="tag">{k.tag}</span>}<h3>{k.titel}</h3><p>{k.text}</p></>;
+          <div className={`fd-karten neu${b.spalten === 3 ? " drei" : ""}`}>
+            {b.karten.map((k, i) => {
+              const art = zeichen[i];
+              const innen = (
+                <>
+                  {(art || k.tag) && <span className="fd-karte-kopf">{art && <Zeichen art={art} />}{k.tag && <span className="tag">{k.tag}</span>}</span>}
+                  <h3>{k.titel}</h3><p>{k.text}</p>
+                </>
+              );
               return k.pfad ? <a key={k.titel} className="fd-karte" href={k.pfad}>{innen}</a> : <div key={k.titel} className="fd-karte">{innen}</div>;
             })}
           </div>
-        </section>
+        </Abschnitt>
       );
-    case "hinweis":
+    }
+    case "hinweis": {
+      // Randnotiz (Bauplan Kapitel 5, Punkt 5): ab 1280 px in der rechten Spalte neben dem Abschnitt davor, darunter
+      // eingerückt mit Haarlinie — immer offen, jeder Punkt sichtbar (Pflichthinweise werden nie geklappt).
+      const recht = RECHT.test([b.h2, b.lead ?? "", ...b.punkte].join(" "));
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id} className={`fd-rand${randUnten ? " unten" : ""}`}>
+          <RandZeichen recht={recht} />
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <div className="fd-hinweis">
-            <span className="fd-marke">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5" /><path d="M12 11v6M12 7.5v.5" /></svg>
-              {u.vermerk}
-            </span>
-            <ol>{b.punkte.map((p) => <li key={p.slice(0, 50)}><span>{p}</span></li>)}</ol>
-          </div>
-        </section>
+          <ol className="fd-rand-punkte">{b.punkte.map((p) => <li key={p.slice(0, 50)}><span>{p}</span></li>)}</ol>
+        </Abschnitt>
       );
+    }
     case "zitat":
       return <blockquote id={b.id} className="fd-zitat"><p>{u.zitat(b.text)}</p>{b.quelle && <footer>{b.quelle}</footer>}</blockquote>;
     case "paket":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <PaketTafel k={b.paket} seite={seite.pfad} art={seite.auftraggeber} sp={sp} />
-        </section>
+          <SeitenTafel k={b.paket} {...wege} />
+        </Abschnitt>
       );
     case "pakete":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id} className="breit">
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <PaketeKompakt seite={seite.pfad} art={seite.auftraggeber} sp={sp} />
-        </section>
+          <SeitenTafeln {...wege} />
+        </Abschnitt>
       );
     case "standorte":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <Standorte sp={sp} />
-        </section>
+          <OrteKarte sp={sp} />
+        </Abschnitt>
       );
     case "finder":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
           <PaketFinder sp={sp} seite={seite.pfad} />
-        </section>
+        </Abschnitt>
       );
     case "verzeichnis":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
           <ul className="fd-verzeichnis">
             {b.eintraege.map((e) => {
@@ -422,77 +491,16 @@ function Baustein({ b, nr, seite, sp }: { b: GlobalBlock; nr?: string; seite: Gl
               );
             })}
           </ul>
-        </section>
+        </Abschnitt>
       );
     case "fragen":
       return (
-        <section id={b.id} className="fd-abschnitt">
+        <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
           <div className="fd-fragen"><Fragen items={b.fragen} /></div>
-        </section>
+        </Abschnitt>
       );
   }
-}
-
-// ── Das eine passende Paket ──────────────────────────────────────────────────
-export function PaketTafel({ k, seite, art, sp = "de" }: { k: GlobalSchluessel; seite: string; art?: "privat"; sp?: Sp }) {
-  const p = globalPaket(k)!;
-  const w = p[sp];
-  const kapital = globalKapital(k, sp);
-  const t = GLOBAL_WOERTER[sp];
-  const u = GLOBAL_SEITE_WOERTER[sp];
-  return (
-    <div className="fd-tafel">
-      <div className="fd-tafel-links">
-        <span className="marke">{w.marke}</span>
-        <h3>{w.name}</h3>
-        <p className="fuer">{w.fuer}</p>
-        <ul>{w.leistungen.slice(0, 6).map((x) => <li key={x}><Haken />{x}</li>)}</ul>
-        <a className="mehr" href={globalPaketePfad(sp)}>{u.alleImVergleich}</a>
-      </div>
-      <div className="fd-tafel-rechts">
-        <div className="fg-kapital">
-          <span>{kapital.bisZu ? `${t.planung} ${kapital.bisZu}` : t.planung}</span>
-          <b className="fg-glanz">{kapital.wert}</b>
-          <em>{t.planungZusatz}</em>
-        </div>
-        <div className="fg-preis">
-          <span className="fg-preis-marke">{t.festpreis}</span>
-          <b className="fg-glanz">{globalPreisText(k, sp)}</b>
-          <span className="fg-chip"><Haken groesse={13} />{t.inklusive}</span>
-        </div>
-        <div className="tun">
-          <a className="fg-knopf voll" href={globalStartPfad(k, sp, art)} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: k, seite })}>{t.beauftragen(w.name)}<Pfeil /></a>
-          <a className="fg-textknopf" href="#gespraech" style={{ textAlign: "center" }} onClick={(e) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }); }}>{t.erstSprechen}</a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Alle vier Pakete kompakt ─────────────────────────────────────────────────
-export function PaketeKompakt({ seite, art, sp = "de" }: { seite: string; art?: "privat"; sp?: Sp }) {
-  const t = GLOBAL_WOERTER[sp];
-  const u = GLOBAL_SEITE_WOERTER[sp];
-  return (
-    <div className="fd-pakete">
-      {GLOBAL_PAKETE.map((p) => {
-        const kapital = globalKapital(p.key, sp);
-        const w = p[sp];
-        return (
-          <a key={p.key} className={`fd-paket${p.key === FOKUS ? " fokus" : ""}`} href={globalStartPfad(p.key, sp, art)} aria-label={t.beauftragen(w.name)}
-             onClick={() => werbeEreignis("global_beauftragen_klick", { paket: p.key, seite })}>
-            <span className="marke">{w.marke}</span>
-            <span className="name">{w.name}</span>
-            <span className="kap">{u.kapitalrahmen}{kapital.bisZu ? ` ${kapital.bisZu}` : ""}</span>
-            <span className="kapwert fg-glanz">{kapital.wert}</span>
-            <span className="zeile"><span>{w.dauerKurz.charAt(0).toUpperCase() + w.dauerKurz.slice(1)}</span><b>{globalPreisText(p.key, sp)}</b></span>
-            <span className="pfeil"><Pfeil /></span>
-          </a>
-        );
-      })}
-    </div>
-  );
 }
 
 // ── London · Zürich · Miami — mit Ortszeit ───────────────────────────────────

@@ -5,6 +5,19 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 — Business: Bewegung der Grafiken und neue Vorlage der Unterseiten (E-293, Scheiben B und D)
+
+- **B — Bewegung:** Jede Grafik auf /business bewegt sich genau einmal beim Hineinscrollen: Wegleiste zeichnet sich, Knoten rasten ein;
+  die acht Fäden ordnen sich zu einem Ansprechpartner (Schalter per Tastatur); Beleg, Jahresring, Drei Orte mit Bögen im Fuß,
+  Klebeleiste am Handy. „Weniger Bewegung“ zeigt sofort den Endzustand, ohne JavaScript steht alles fertig da.
+- **D — Unterseiten (78 Seiten, eine Vorlage):** kompakter Kopf, „Auf einen Blick“ als Karteikarte (klappbar), Etappen als Linie,
+  Pakete als dieselben Tafeln wie auf /business, Gesprächskarte (Kalender lädt erst auf Klick), Zeichen statt Textwand. Registertexte
+  und Suchmaschinen-Korpus unverändert.
+- Kopf von FIAON Global: Das Themen-Panel schließt jetzt auch, wenn die Tastatur den Kopf verlässt.
+
+**Wo:** client/src/components/site/global/*, client/src/styles/global-grafik.css, client/src/pages/site/global-seite.tsx,
+client/src/components/site/global-seite/*, client/src/styles/global-seiten.css, client/src/i18n/global-seite.ts, GlobalNav.tsx.
+
 ## 06.10.2026 — /business neu: halb so lang, Pakete sofort, Grafik statt Textwand (E-293, Scheibe A)
 
 **Der Anlass:** Justin: „die Business Seite wirkt super überladen mit Texten – viel zu unübersichtlich. Mach den Business Bereich besser,

@@ -81,12 +81,26 @@ export default function GlobalNav() {
     return () => { window.removeEventListener("scroll", fn); root?.removeEventListener("scroll", fn); };
   }, []);
   // Escape schließt Panel und Handy-Menü; ein Klick daneben schließt das Panel.
+  // 06.10.2026 (E-293): Auch die Tastatur schließt es — verlässt der Fokus den Kopf (Tab in den Inhalt), geht das Panel
+  // zu. Vorher blieb „Wissen“ offen, während man längst im Inhalt tabbte, und verdeckte Wegknoten, Schalter und
+  // Kalender. Escape aus dem Panel heraus gibt den Fokus an den Themen-Knopf zurück (sonst fiele er ins Leere).
+  // relatedTarget null (Klick auf eine leere Fläche im Panel) schließt nicht — dafür gibt es den Klick daneben.
   useEffect(() => {
-    const taste = (e: KeyboardEvent) => { if (e.key === "Escape") { setOffen(null); setMobil(false); } };
+    const taste = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const k = kopf.current;
+      if (k && document.activeElement instanceof HTMLElement && document.activeElement.closest(".gk-panel")) {
+        k.querySelector<HTMLElement>('.gk-thema[aria-expanded="true"]')?.focus();
+      }
+      setOffen(null); setMobil(false);
+    };
     const klick = (e: MouseEvent) => { if (kopf.current && !kopf.current.contains(e.target as Node)) setOffen(null); };
+    const k = kopf.current;
+    const fokusRaus = (e: FocusEvent) => { const n = e.relatedTarget as Node | null; if (k && n && !k.contains(n)) setOffen(null); };
     window.addEventListener("keydown", taste);
     document.addEventListener("mousedown", klick);
-    return () => { window.removeEventListener("keydown", taste); document.removeEventListener("mousedown", klick); };
+    k?.addEventListener("focusout", fokusRaus);
+    return () => { window.removeEventListener("keydown", taste); document.removeEventListener("mousedown", klick); k?.removeEventListener("focusout", fokusRaus); };
   }, []);
   // Das Handy-Menü sperrt das Scrollen der Seite dahinter.
   useEffect(() => {

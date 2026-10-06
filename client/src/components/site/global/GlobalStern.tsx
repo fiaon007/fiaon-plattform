@@ -12,13 +12,22 @@
 //
 // Alle Beschriftungen kommen aus i18n/global.ts (Wortwand). Ein Tipp auf eine
 // Stelle zeigt den Satz aus GLOBAL_INKLUSIVE (im DOM, nicht gezählt). Ohne JS
-// oder bei „weniger Bewegung“ steht „Mit“. Scheibe A: Linien statisch, der
-// Wechsel blendet über; das Zeichnen der Speichen kommt mit Scheibe B.
+// oder bei „weniger Bewegung“ steht „Mit“.
+//
+// 06.10.2026 (E-293, Scheibe B) — der Ablauf: Liegt der Stern beim Laden noch
+// außer Sicht (und Bewegung ist erlaubt), steht er auf „Ohne“. Kommt er ins
+// Bild, ordnen sich nach 300 ms Pause die acht Fäden zu einem: „Ohne“ blendet
+// auf 12 %, die Linie Sie → Ansprechpartner zeichnet sich, die Mitte rastet ein
+// (scale .8 → 1), die acht Speichen zeichnen sich je 60 ms versetzt, die
+// Zeichen (Haken / offener Kreis) folgen je 80 ms — ≈ 1,4 s, danach Ruhe. Der
+// Schalter spielt denselben Ablauf vorwärts (gestaucht, --k = .43) oder
+// rückwärts in ≈ 600 ms. Kein Pfad-Morph über `d`: Überblenden plus Zeichnen
+// (stroke-dashoffset mit pathLength = 1) läuft in jedem Browser gleich.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { GlobalSternKnoten } from "@/i18n/global";
 import { Begriff, mitBegriffen } from "@/components/site/global/Begriff";
-import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+import { ruhigGewuenscht } from "@/components/site/global/bewegung";
 
 const C = [400, 230] as const;
 const SIE = [40, 230] as const;
@@ -59,8 +68,31 @@ export default function GlobalStern({ knoten, ohne, schalter, mitte, sie, legend
   begriffe: { wort: string; erklaerung: string }[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEinmalSichtbar(ref);
   const [mit, setMit] = useState(true);
+  // „lang“ = der erste, selbst ablaufende Wechsel (≈ 1,4 s); danach spielt der Schalter gestaucht (≈ 600 ms).
+  const [lang, setLang] = useState(false);
+  const selbst = useRef(0);
+
+  // Vor dem ersten Bild entscheiden (useLayoutEffect, kein Aufblitzen): außer Sicht → „Ohne“, im Bild → „Mit“ ab Start.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || ruhigGewuenscht() || typeof IntersectionObserver === "undefined") return;
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight * 0.9 && r.bottom > 0) return;
+    setMit(false); setLang(true);
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      selbst.current = window.setTimeout(() => {
+        setMit(true);
+        selbst.current = window.setTimeout(() => setLang(false), 1600);
+      }, 300);
+    }, { threshold: 0.35, rootMargin: "0px 0px -10% 0px" });
+    io.observe(el);
+    return () => { io.disconnect(); window.clearTimeout(selbst.current); };
+  }, []);
+  // Ein Druck auf den Schalter beendet den Selbstlauf.
+  const waehle = (wert: boolean) => { window.clearTimeout(selbst.current); setLang(false); setMit(wert); };
   const erklaerung = (k: GlobalSternKnoten) => {
     const begriff = begriffe.find((b) => b.wort.toLowerCase() === k.name.toLowerCase())?.erklaerung;
     const satz = k.status === "fest" && k.inkl !== undefined ? inklusive[k.inkl] : legende[1];
@@ -68,10 +100,10 @@ export default function GlobalStern({ knoten, ohne, schalter, mitte, sie, legend
   };
 
   return (
-    <div ref={ref} className={`fg-stern ${mit ? "zustand-mit" : "zustand-ohne"}`}>
+    <div ref={ref} className={`fg-stern ${mit ? "zustand-mit" : "zustand-ohne"}${lang ? " lang" : ""}`}>
       <div className="fg-stern-schalter" role="group" aria-label={label}>
-        <button type="button" aria-pressed={!mit} onClick={() => setMit(false)}>{schalter[0]}</button>
-        <button type="button" aria-pressed={mit} onClick={() => setMit(true)}>{schalter[1]}</button>
+        <button type="button" aria-pressed={!mit} onClick={() => waehle(false)}>{schalter[0]}</button>
+        <button type="button" aria-pressed={mit} onClick={() => waehle(true)}>{schalter[1]}</button>
       </div>
 
       {/* ── Desktop: Ellipse mit Beschriftung als HTML darüber ── */}
@@ -82,12 +114,19 @@ export default function GlobalStern({ knoten, ohne, schalter, mitte, sie, legend
           </g>
           <g className="ebene-mit">
             <path d={`M${SIE[0]} ${SIE[1]} L${C[0] - 34} ${C[1]}`} className="zum-partner" pathLength={1} />
-            {ORTE.map(([x, y], i) => <path key={i} d={`M${C[0]} ${C[1]} L${x} ${y}`} className="speiche" pathLength={1} />)}
+            {/* Speichen beginnen am Rand der Mitte (r 34), nicht in ihr — sie wachsen sichtbar aus dem Kreis heraus. */}
+            {ORTE.map(([x, y], i) => {
+              const l = Math.hypot(x - C[0], y - C[1]);
+              const sx = C[0] + ((x - C[0]) / l) * 34, sy = C[1] + ((y - C[1]) / l) * 34;
+              return <path key={i} d={`M${sx.toFixed(1)} ${sy.toFixed(1)} L${x} ${y}`} className="speiche" pathLength={1} style={{ "--i": i } as React.CSSProperties} />;
+            })}
           </g>
           {ORTE.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="7" className="knoten" />)}
           <circle cx={SIE[0]} cy={SIE[1]} r="5" className="sie" />
-          <circle cx={C[0]} cy={C[1]} r="34" className="mitte" />
-          <path d="M392 222 a8 8 0 1 1 16 0 a8 8 0 1 1 -16 0 M386 246 q14 -14 28 0" className="mitte-figur" />
+          <g className="mitte-g">
+            <circle cx={C[0]} cy={C[1]} r="34" className="mitte" />
+            <path d="M392 222 a8 8 0 1 1 16 0 a8 8 0 1 1 -16 0 M386 246 q14 -14 28 0" className="mitte-figur" />
+          </g>
         </svg>
         <span className="fg-stern-sie" style={{ left: `${(SIE[0] / 760) * 100}%`, top: `${(SIE[1] / 460) * 100}%` }}>{sie}</span>
         <span className="fg-stern-mitte" style={{ left: `${(C[0] / 760) * 100}%`, top: `${((C[1] + 44) / 460) * 100}%` }}>{mitte}</span>
@@ -95,7 +134,7 @@ export default function GlobalStern({ knoten, ohne, schalter, mitte, sie, legend
           const [x, y] = ORTE[i];
           const rechts = x > C[0];
           return (
-            <span key={k.name} className={`fg-stern-label ${rechts ? "rechts" : "links"}`} style={{ left: `${(x / 760) * 100}%`, top: `${(y / 460) * 100}%` }}>
+            <span key={k.name} className={`fg-stern-label ${rechts ? "rechts" : "links"}`} style={{ left: `${(x / 760) * 100}%`, top: `${(y / 460) * 100}%`, "--i": i } as React.CSSProperties}>
               <span className="mit-text">
                 <Zeichen status={k.status} />
                 <span className="name"><Begriff wort={k.name} erklaerung={erklaerung(k)} /></span>
@@ -112,7 +151,7 @@ export default function GlobalStern({ knoten, ohne, schalter, mitte, sie, legend
         <span className="fg-stern-sie-m"><i aria-hidden="true" />{sie}</span>
         <ul className="fg-stern-chips">
           {knoten.map((k, i) => (
-            <li key={k.name} className={k.status}>
+            <li key={k.name} className={k.status} style={{ "--i": i } as React.CSSProperties}>
               <span className="mit-text">
                 <Zeichen status={k.status} />
                 <span className="name"><Begriff wort={k.name} erklaerung={erklaerung(k)} /></span>
@@ -127,9 +166,9 @@ export default function GlobalStern({ knoten, ohne, schalter, mitte, sie, legend
             {[20, 70, 120, 170, 200, 250, 290, 330].map((x, i) => <path key={i} d={`M${x} 0 C${340 - x} 40 ${x} 70 ${(i * 47) % 343} 118`} style={{ strokeDasharray: STRICH[i] }} />)}
           </g>
           <g className="ebene-mit">
-            {[43, 129, 214, 300].map((x) => <path key={x} d={`M${x} 0 C${x} 50 171 50 171 92`} className="speiche" />)}
+            {[43, 129, 214, 300].map((x, i) => <path key={x} d={`M${x} 0 C${x} 50 171 50 171 84`} className="speiche" pathLength={1} style={{ "--i": i * 2 } as React.CSSProperties} />)}
           </g>
-          <circle cx="171" cy="100" r="16" className="mitte" />
+          <g className="mitte-g"><circle cx="171" cy="100" r="16" className="mitte" /></g>
         </svg>
         <span className="fg-stern-mitte-m">{mitte}</span>
       </div>

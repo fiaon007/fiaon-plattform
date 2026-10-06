@@ -13,7 +13,17 @@
 // Linie als SVG (nur die Linie wird gedehnt), Knoten und Texte als HTML — scharf
 // und übersetzbar. Am Handy dieselbe Leiste in vier gleichen Spalten; gefüllt
 // sind die Etappen des gewählten Pakets (`bis`). Scheibe A: Objekte als
-// Haarlinien-Platzhalter (GlobalObjekt), Bewegung kommt mit Scheibe B.
+// Haarlinien-Platzhalter (GlobalObjekt).
+//
+// 06.10.2026 (E-293, Scheibe B) — die Bewegung, einmal beim Hineinscrollen:
+// Die Linie zeichnet sich von links nach rechts (clip-path, 1,2 s); jeder Knoten
+// rastet ein, sobald die Linie ihn erreicht (Ring wächst, füllt sich navy), das
+// Objekt darüber steigt 80 ms später auf, die Karten der Kartenleiter treten
+// nacheinander aus der Navy-Karte hervor, das Institut-Zeichen folgt Knoten II,
+// zuletzt fallen die Haarlinien in die Tafeln. Gesamt ≈ 1,9 s, danach Ruhe.
+// Die Zeitpunkte der Knoten (T_D, T_M) sind aus der Kurve --fg-ease-io
+// zurückgerechnet: Bei x = 16,7 % ist die Linie nach 417 ms, bei 50 % nach
+// 600 ms. Die Zeiten stehen als --td/--tm am Knoten, das CSS wählt je Breite.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import GlobalObjekt, { type GlobalObjektArt } from "@/components/site/global/GlobalObjekt";
@@ -27,6 +37,9 @@ const LINIE_D = "M0 52 L6 52 L167 52 L167 40 L500 40 L500 26 L833 26 L833 12 L10
 // Handy: vier gleiche Spalten (viewBox 1000 × 30).
 const PUNKTE_M = [[125, 24], [375, 18], [625, 12], [875, 6]] as const;
 const LINIE_M = "M0 26 L125 24 L375 18 L625 12 L875 6 L1000 4";
+// Wann die Linie (1.200 ms, cubic-bezier(.65,0,.35,1)) den Knoten erreicht — Desktop- und Vier-Spalten-Linie.
+const T_D = [120, 417, 600, 783];
+const T_M = [375, 546, 654, 825];
 
 export interface WegEtappe { titel: string; dauer: string; text: ReactNode; abzeichen?: string }
 
@@ -73,6 +86,7 @@ export default function WegLinie({ id, etappen, label, stempel, bis = 4, mitObje
         const stil = {
           "--xd": `${PUNKTE_D[i][0] / 10}%`, "--yd": `${PUNKTE_D[i][1]}px`,
           "--xm": `${PUNKTE_M[i][0] / 10}%`, "--ym": `${PUNKTE_M[i][1]}px`, "--i": i,
+          "--td": `${T_D[i]}ms`, "--tm": `${T_M[i]}ms`,
         } as React.CSSProperties;
         return (
           <div key={e.titel} className={`fg-weg-knoten k${i + 1}${i < bis ? " an" : " aus"}${auf ? " offen" : ""}`} style={stil}>

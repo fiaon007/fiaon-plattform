@@ -85,11 +85,12 @@ function Platzhalter({ art }: { art: GlobalObjektArt }) {
       </svg>
     );
   }
-  // Drei Karten als Treppe: Navy, Graphit, Champagner — je 14 px nach oben links versetzt.
+  // Drei Karten als Treppe: Navy, Graphit, Champagner — je 14 px nach oben links versetzt. Graphit und Champagner
+// tragen `tritt t1/t2`: In der Wegleiste treten sie nacheinander aus der Navy-Karte hervor (Scheibe B, 06.10.2026).
   return (
     <svg viewBox="0 0 170 128" className="fg-objekt-svg">
-      <rect x="32" y="4" width="134" height="82" rx="9" className="karte champagner" />
-      <rect x="18" y="20" width="134" height="82" rx="9" className="karte graphit" />
+      <rect x="32" y="4" width="134" height="82" rx="9" className="karte champagner tritt t2" />
+      <rect x="18" y="20" width="134" height="82" rx="9" className="karte graphit tritt t1" />
       <rect x="4" y="36" width="134" height="82" rx="9" className="karte navy" />
       <rect x="16" y="62" width="20" height="15" rx="3" className="chip" />
     </svg>

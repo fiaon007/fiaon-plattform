@@ -15,7 +15,9 @@
    · Bewegung startet einmal, wenn der Abschnitt `data-an="1"` bekommt
      (components/site/global/bewegung.ts) — nie an die Scrollposition gekoppelt.
      Animiert werden nur transform, opacity, stroke-dashoffset und clip-path.
-     Scheibe A: ruhige Platzhalter, nur Einblenden; das Zeichnen kommt mit B.
+     Scheibe B (06.10.2026): Linien zeichnen sich, Knoten rasten ein — alle
+     Abläufe im Block „BEWEGUNG“ am Ende. Der Hook setzt data-an="0" (Start)
+     nur mit JS und erlaubter Bewegung; ohne ihn steht immer der Endzustand.
    · „Weniger Bewegung“: jeder Endzustand sofort (Block am Ende).
    Importiert in pages/site/business.tsx, pages/site/global-seite.tsx und
    components/site/GlobalFuss.tsx.
@@ -129,8 +131,12 @@
 .fg-weg-linie.m{display:none}
 .fg-weg-knoten{position:absolute;inset:0;pointer-events:none;--x:var(--xd);--y:calc(96px + var(--yd))}
 .fg-weg-knoten>*{pointer-events:auto}
-.fg-weg-punkt{position:absolute;left:var(--x);top:var(--y);width:26px;height:26px;margin:-13px 0 0 -13px;padding:0;border-radius:50%;border:1px solid #cdd5e0;background:#12284a;color:#fff;
-  display:grid;place-items:center;font:400 11px/1 var(--serif);cursor:pointer;box-shadow:0 0 0 4px var(--stein);transition:transform .2s var(--fg-ease)}
+.fg-weg-punkt{position:absolute;left:var(--x);top:var(--y);width:26px;height:26px;margin:-13px 0 0 -13px;padding:0;border-radius:50%;border:1px solid #cdd5e0;background:#fff;color:#fff;
+  display:grid;place-items:center;font:400 11px/1 var(--serif);cursor:pointer;box-shadow:0 0 0 4px var(--stein);transition:transform .2s var(--fg-ease);isolation:isolate}
+/* Die Navy-Füllung liegt als eigene Scheibe im Ring (Scheibe B): Sie wächst beim Einrasten und beim Paketwechsel
+   (Handy, 300 ms) per transform — Hintergrundfarbe wird nie animiert. */
+.fg-weg-punkt::before{content:"";position:absolute;inset:-1px;border-radius:50%;background:#12284a;z-index:-1;transition:transform .3s var(--fg-ease)}
+.fg-weg-punkt>span{position:relative;transition:color .3s var(--fg-ease)}
 .fg-weg-punkt:hover,.fg-weg-knoten.offen .fg-weg-punkt{transform:scale(1.08)}
 .fg-weg-objekt{position:absolute;left:var(--x);top:calc(var(--y) - 22px);transform:translate(-50%,-100%)}
 .fg-weg-knoten.k1 .fg-weg-objekt{transform:translate(-13px,-100%)}
@@ -198,7 +204,8 @@
 @media(max-width:640px){
   .fg-weg-knoten>*{transition:opacity .3s var(--fg-ease)}
   .fg-weg-knoten.aus .fg-weg-punkt,.fg-weg-knoten.aus .fg-weg-objekt,.fg-weg-knoten.aus .fg-weg-titel{opacity:.35}
-  .fg-weg-knoten.aus .fg-weg-punkt{background:#fff;color:var(--navy)}
+  .fg-weg-knoten.aus .fg-weg-punkt{color:var(--navy)}
+  .fg-weg-knoten.aus .fg-weg-punkt::before{transform:scale(0)}
 }
 
 /* ── 2 Pakete: Tafeln am Handy als Wischreihe ──────────────────────────── */
@@ -307,7 +314,7 @@
 .fg-jb-ring .kreis{fill:none;stroke:var(--linie-2);stroke-width:1}
 .fg-jb-ring .monat{stroke:#b9c3d1;stroke-width:2;stroke-linecap:round}
 .fg-jb-ring .monat.eins{stroke:var(--navy);stroke-width:3.5}
-.fg-jb-ring .zeiger{stroke:var(--navy);stroke-width:1.5;stroke-linecap:round;transform-origin:110px 110px}
+.fg-jb-ring .zeiger{stroke:var(--navy);stroke-width:1.5;stroke-linecap:round;transform-box:view-box;transform-origin:110px 110px}
 .fg-jb-ring .nabe{fill:var(--navy)}
 /* Einspaltig: in zwei ≈ 130 px schmalen Spalten brach „US-“ / „Telefonnummer“ um (Gutachten 06.10.2026). */
 .fg-jb.band .fg-jb-kurz{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,max-content);gap:6px}
@@ -360,11 +367,10 @@
 .fg-stern svg *{vector-effect:non-scaling-stroke}
 .fg-stern .ebene-ohne path{fill:none;stroke:#9aa6b8;stroke-width:1}
 .fg-stern .ebene-mit path{fill:none;stroke:var(--navy);stroke-width:1.25}
-.fg-stern .ebene-ohne,.fg-stern .ebene-mit{transition:opacity .4s var(--fg-ease)}
 .fg-stern.zustand-mit .ebene-ohne{opacity:.12}
-.fg-stern.zustand-ohne .ebene-mit,.fg-stern.zustand-ohne .mitte,.fg-stern.zustand-ohne .mitte-figur{opacity:.12}
 .fg-stern .knoten{fill:#fff;stroke:var(--navy);stroke-width:1}
-.fg-stern .mitte{fill:var(--navy);transition:opacity .4s}
+.fg-stern .mitte{fill:var(--navy)}
+.fg-stern .mitte-g{transform-box:fill-box;transform-origin:50% 50%}
 .fg-stern .mitte-figur{fill:none;stroke:#fff;stroke-width:1.4;stroke-linecap:round}
 .fg-stern .sie{fill:var(--blau)}
 .fg-stern-zeichen{flex:0 0 auto;fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
@@ -379,7 +385,14 @@
 .fg-stern-label.links .umfang{grid-column:1}
 .fg-stern-label .umfang{grid-column:2;font-size:12px;color:var(--leise)}
 .fg-stern-label .ohne-text{display:block;font-size:12px;color:var(--leise);max-width:160px}
-.fg-stern.zustand-mit .ohne-text,.fg-stern.zustand-ohne .mit-text{display:none}
+/* 06.10.2026 (E-293): Beide Fassungen liegen in DERSELBEN Rasterzelle, getauscht wird nur die Deckkraft. Vorher wechselte
+   display — beim Selbstlauf standen alle acht Beschriftungen ≈ 0,5 s leer, und am Handy wuchsen die Chips um 10 px
+   (Trichter und Legende rutschten, CLS 0,019). Jetzt hat jede Stelle immer die Höhe des längeren Texts. Die verdeckte
+   Fassung ist visibility:hidden — aus dem Vorlesebaum und der Tab-Reihenfolge, aber im DOM (kein display:none). */
+.fg-stern-label,.fg-stern-chips li{display:grid;align-content:start}
+.fg-stern-label>.mit-text,.fg-stern-label>.ohne-text,.fg-stern-chips li>.mit-text,.fg-stern-chips li>.ohne-text{grid-area:1/1}
+.fg-stern-label.links>.ohne-text{justify-self:end}
+.fg-stern.zustand-mit .ohne-text,.fg-stern.zustand-ohne .mit-text{opacity:0;visibility:hidden}
 .fg-stern-sie{position:absolute;transform:translate(-50%,12px);font-size:13px;font-weight:500;color:var(--blau)}
 /* Papier unter der Beschriftung: Die Speichen zu „Banken“ und „US-CPA“ liefen mitten durch „Ihr Ansprechpartner“ (06.10.). */
 .fg-stern-mitte{position:absolute;z-index:1;transform:translateX(-50%);padding:2px 8px;border-radius:999px;background:var(--papier,#fff);font-size:13px;font-weight:500;color:var(--navy);white-space:nowrap}
@@ -430,7 +443,8 @@
 .fg-buergschaft-plakette-m{display:none}
 .fg-buergschaft-plakette-d{display:contents}
 .fg-buergschaft-bild{display:flex;align-items:center;gap:24px;margin-top:28px}
-.fg-plakette{flex:0 0 auto;display:block;border-radius:50%;
+.fg-plakette-buehne{flex:0 0 auto;display:block;position:relative;perspective:600px}
+.fg-plakette{position:relative;display:block;width:100%;height:100%;border-radius:50%;
   background:conic-gradient(from 215deg,#fbfcfd,#c5cdd8 12%,#eef2f7 24%,#a8b3c1 38%,#f4f6f9 52%,#bcc6d2 66%,#f7f9fb 80%,#b9c3cf 92%,#fbfcfd);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -3px 8px rgba(12,26,46,.22),0 18px 26px -16px rgba(12,26,46,.45)}
 .fg-plakette svg{display:block;width:100%;height:100%}
@@ -444,10 +458,11 @@
 .fg-schaubild rect.buergin{stroke:var(--navy)}
 .fg-schaubild text{font:400 12.5px var(--sans);fill:var(--tinte)}
 .fg-schaubild text.klein{font-size:11px;fill:var(--leise)}
-.fg-schaubild .pfeil{fill:none;stroke:var(--navy);stroke-width:1.25}
-.fg-schaubild .pfeil.gestrichelt{stroke-dasharray:4 4}
+.fg-schaubild .pfeil{fill:none;stroke:var(--navy);stroke-width:1.25;stroke-dasharray:1;stroke-dashoffset:0}
 .fg-schaubild .gesellschafter{fill:none;stroke:var(--linie-2);stroke-width:1}
-.fg-schaubild marker path{fill:none;stroke:var(--navy);stroke-width:1.25}
+.fg-schaubild .spitze{fill:none;stroke:var(--navy);stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round}
+/* Maske des gestrichelten Rückgriff-Pfeils: Weiß = sichtbar. Unabhängig vom Hintergrund (06.10.2026, E-293). */
+.fg-schaubild .luecken{fill:none;stroke:#fff;stroke-width:6;stroke-dasharray:4 4}
 .fg-buergschaft-gilt{padding:28px 28px 26px;border-radius:14px;background:#fff;border:1px solid var(--linie)}
 .fg-buergschaft-gilt h3{font:400 20px/1.25 var(--serif);color:var(--tinte)}
 .fg-buergschaft-gilt ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
@@ -533,20 +548,32 @@
   html.fg-kopf-weg .fg-neu .fg-paket-wahl{transform:translateY(-68px)}
 }
 .fg-mobil-linie{position:absolute;left:0;right:0;top:-1px;height:2px;display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
-.fg-mobil-linie i{background:var(--linie)}
-.fg-mobil-linie i.an{background:var(--navy)}
+.fg-mobil-linie i{position:relative;overflow:hidden;background:var(--linie)}
+/* Die Füllung folgt dem gewählten Paket (300 ms, je Etappe 50 ms versetzt); beim Erscheinen der Leiste läuft die
+   Linie einmal von I nach IV ein (clip-path, 600 ms) — transform/clip-path auf einer 2-px-Linie, keine
+   Dauer-Animation unter dem Glas (Scheibe B, 06.10.2026). */
+.fg-mobil-linie{animation:fg-b-wischen .6s var(--fg-ease) .1s backwards}
+.fg-mobil-linie i::after{content:"";position:absolute;inset:0;background:var(--navy);transform:scaleX(0);transform-origin:0 50%;transition:transform .3s var(--fg-ease) calc(var(--j,0) * 50ms)}
+.fg-mobil-linie i.an::after{transform:scaleX(1)}
+.fg-mobil-linie i:nth-child(2){--j:1}
+.fg-mobil-linie i:nth-child(3){--j:2}
+.fg-mobil-linie i:nth-child(4){--j:3}
 
 /* ── Fuß: „Drei Orte“ mit Mini-Uhren (auf dem dunklen Fuß) ──────────────── */
 .gf-drei-orte{margin:52px 0 0;padding:20px 0 24px;border-top:1px solid rgba(255,255,255,.12);border-bottom:1px solid rgba(255,255,255,.12)}
-/* Bis Scheibe B ohne Bögen: Das schmale SVG schwebte mittig über der vollen Uhrenreihe, die Punkte standen
-   nicht über ihren Uhren und lasen sich als loser Schnörkel (Gutachten 06.10.2026). Scheibe B koppelt die
-   Punkte an die Spaltenmitten und schaltet die Karte wieder ein. */
-.gf-orte-karte{display:none;width:100%;height:110px}
-.gf-orte-karte .bogen{fill:none;stroke:rgba(205,213,224,.4);stroke-width:1;vector-effect:non-scaling-stroke}
+/* In Scheibe A ohne Bögen (das feste SVG schwebte neben den Uhren, Gutachten 06.10.2026). Seit Scheibe B misst
+   GlobalOrte die Spalten: Die Punkte sitzen genau über ihren Uhren, das SVG hat die Pixelmaße des Rahmens. */
+.gf-orte-karte{display:block;width:100%;height:72px;overflow:visible}
+.gf-orte-karte .bogen{fill:none;stroke-width:1;stroke-linecap:round}
+.gf-orte-karte .bogen.spur{stroke:rgba(205,213,224,.22)}
+.gf-orte-karte .bogen.zug{stroke:#60a5fa;stroke-opacity:.55;stroke-dasharray:1;stroke-dashoffset:0}
+.gf-orte-karte .lot{stroke:rgba(205,213,224,.22);stroke-width:1}
 .gf-orte-karte .punkt{fill:#cdd5e0}
 .gf-orte-karte .punkt.sie{fill:#93c5fd}
 .gf-orte-karte .punkt.miami{fill:#60a5fa}
-.gf-orte-karte .punkt.neben{fill:rgba(205,213,224,.6)}
+.gf-orte-karte .punkt.neben{fill:rgba(205,213,224,.55)}
+.gf-orte-karte .puls{fill:none;stroke:#60a5fa;stroke-width:1.2;opacity:0;transform-box:fill-box;transform-origin:50% 50%}
+.gf-drei-orte:has(.gf-orte-karte){padding-top:8px}
 .gf-orte-liste{list-style:none;margin:8px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
 .gf-orte-liste li{display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:14px;row-gap:3px;align-content:start}
 .gf-orte-liste li>*:not(.fg-uhr-mini){grid-column:2}
@@ -563,11 +590,170 @@
 .fg-uhr-mini .sekunde line{stroke:#60a5fa;stroke-width:3;stroke-linecap:round}
 .fg-uhr-mini .nabe{fill:#fff}
 @media(max-width:720px){
+  .gf-orte-karte{display:none}
+  .gf-drei-orte:has(.gf-orte-karte){padding-top:20px}
   .gf-orte-liste{grid-template-columns:minmax(0,1fr);gap:14px;margin-top:0}
   .gf-orte-liste li{grid-template-columns:56px minmax(0,1fr);column-gap:14px;row-gap:2px}
   .gf-orte-liste li>*:not(.fg-uhr-mini){grid-column:2}
   .gf-orte-liste .fg-uhr-mini{grid-row:1/span 3;width:56px;height:56px;margin:0}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BEWEGUNG — SCHEIBE B (06.10.2026, E-293, Bauplan 2.1 und Kapitel 7)
+
+   Ein Gesetz für alle Grafiken: Der Abschnitt bekommt einmal data-an="1", wenn
+   er ins Bild kommt (bewegung.ts). Vorher trägt er data-an="0" — nur dann, nur
+   mit JS und nur bei erlaubter Bewegung, sonst steht sofort der Endzustand.
+   · Der Grundzustand jeder Regel oben IST der Endzustand. [data-an="0"] hält
+     den Anfang fest, [data-an="1"] spielt eine Keyframe-Animation mit
+     `backwards` — nie `both`, damit spätere Zustände (Paketwechsel am Handy,
+     Schalter im Stern) nicht von einer gehaltenen Endfolie überdeckt werden.
+   · Nur transform, opacity, stroke-dashoffset, clip-path. SVG-Linien mit
+     pathLength="1", stroke-dasharray 1, Start stroke-dashoffset 1.
+   · Kurven: --fg-ease (Ankommen), --fg-ease-io (Zeichnen, Zeiger).
+   · Keine Schleife: Nichts hier läuft länger als ≈ 3 s, nichts wiederholt sich
+     — auch nicht unter dem Glas der Klebeleiste.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes fg-b-zeichnen{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes fg-b-ein{from{opacity:0}}
+@keyframes fg-b-auf{from{opacity:0;transform:translateY(8px)}}
+@keyframes fg-b-auf-klein{from{opacity:0;transform:translateY(4px)}}
+@keyframes fg-b-rasten{from{opacity:0;transform:scale(.6)}}
+@keyframes fg-b-fuellen{from{transform:scale(0)}}
+@keyframes fg-b-fallen{from{transform:scaleY(0)}}
+@keyframes fg-b-wischen{from{-webkit-clip-path:inset(0 100% 0 0);clip-path:inset(0 100% 0 0)}to{-webkit-clip-path:inset(0 0 0 0);clip-path:inset(0 0 0 0)}}
+
+/* ── Wegleiste: die Linie zeichnet sich, die Knoten rasten ein (≈ 1,9 s) ───
+   Die Linie wird per clip-path von links aufgedeckt statt per stroke-dashoffset: Sie ist mit
+   preserveAspectRatio="none" und vector-effect:non-scaling-stroke gedehnt — dort rechnen Safari und Chrome
+   pathLength verschieden. Die Linie steigt nur nach rechts, das Aufdecken sieht aus wie Zeichnen.
+   --t = Zeitpunkt, an dem die Linie den Knoten erreicht (WegLinie.tsx, T_D/T_M). */
+.fg-weg-knoten{--t:var(--td)}
+@media(max-width:1180px){.fg-weg-knoten{--t:var(--tm)}}
+.fg-wegleiste[data-an="0"] .fg-weg-linie{-webkit-clip-path:inset(0 100% 0 0);clip-path:inset(0 100% 0 0)}
+.fg-wegleiste[data-an="0"] .fg-weg-punkt,.fg-wegleiste[data-an="0"] .fg-weg-objekt>*,.fg-wegleiste[data-an="0"] .fg-weg-stempel,
+.fg-wegleiste[data-an="0"] .fg-weg-titel,.fg-wegleiste[data-an="0"] .fg-weg-abzeichen,.fg-wegleiste[data-an="0"] .fg-weg-klammer{opacity:0}
+.fg-wegleiste[data-an="0"] .fg-weg-punkt::before{transform:scale(0)}
+.fg-wegleiste[data-an="0"] .fg-weg-fall{transform:scaleY(0)}
+.fg-wegleiste[data-an="0"] .fg-objekt-svg .tritt{opacity:0}
+.fg-wegleiste[data-an="1"] .fg-weg-linie{animation:fg-b-wischen 1.2s var(--fg-ease-io) backwards}
+/* Knoten: Ring wächst (300 ms), die Navy-Scheibe füllt ihn 120 ms später. */
+.fg-wegleiste[data-an="1"] .fg-weg-punkt{animation:fg-b-rasten .32s var(--fg-ease) var(--t) backwards}
+.fg-wegleiste[data-an="1"] .fg-weg-punkt::before{animation:fg-b-fuellen .3s var(--fg-ease) calc(var(--t) + 120ms) backwards}
+.fg-wegleiste[data-an="1"] .fg-weg-titel{animation:fg-b-auf-klein .5s var(--fg-ease) calc(var(--t) + 60ms) backwards}
+/* Objekt: 80 ms nach seinem Knoten, steigt 8 px auf (500 ms). Die Navy-Karte (II) gleitet schräg herein. */
+.fg-wegleiste[data-an="1"] .fg-weg-objekt>*{animation:fg-b-auf .5s var(--fg-ease) calc(var(--t) + 80ms) backwards}
+.fg-wegleiste[data-an="1"] .k2 .fg-weg-objekt>*{animation:fg-b-karte .8s var(--fg-ease) calc(var(--t) + 80ms) backwards}
+@keyframes fg-b-karte{from{opacity:0;transform:translateX(24px) rotate(6deg)}}
+/* Kartenleiter (III): Graphit und Champagner treten nacheinander (je 120 ms) aus der Navy-Karte hervor. */
+.fg-objekt-svg .tritt{transform-box:view-box}
+.fg-wegleiste[data-an="1"] .fg-objekt-svg .tritt.t1{animation:fg-b-tritt1 .5s var(--fg-ease) calc(var(--t) + 200ms) backwards}
+.fg-wegleiste[data-an="1"] .fg-objekt-svg .tritt.t2{animation:fg-b-tritt2 .5s var(--fg-ease) calc(var(--t) + 320ms) backwards}
+@keyframes fg-b-tritt1{from{opacity:0;transform:translate(-14px,16px)}}
+@keyframes fg-b-tritt2{from{opacity:0;transform:translate(-28px,32px)}}
+/* Institut-Zeichen: 200 ms nach seinem Knoten. */
+.fg-weg-stempel{transform-origin:50% 50%}
+.fg-wegleiste[data-an="1"] .fg-weg-stempel{animation:fg-b-rasten .3s var(--fg-ease) calc(var(--t) + 200ms) backwards}
+/* Zuletzt: Abzeichen, Klammer und die Fall-Linien in die Tafeln (300 ms). */
+.fg-wegleiste[data-an="1"] .fg-weg-abzeichen,.fg-wegleiste[data-an="1"] .fg-weg-klammer{animation:fg-b-ein .4s var(--fg-ease) 1.2s backwards}
+.fg-weg-fall{transform-origin:50% 0}
+.fg-wegleiste[data-an="1"] .fg-weg-fall{animation:fg-b-fallen .3s var(--fg-ease) calc(1.45s + var(--i) * 60ms) backwards}
+
+/* ── Stern: acht Fäden ordnen sich zu einem ───────────────────────────────
+   Vorwärts (→ „Mit“): „Ohne“ blendet aus, Linie Sie → Mitte zeichnet sich, Mitte rastet ein, die Speichen
+   zeichnen sich je 60 ms versetzt, die Zeichen folgen je 80 ms. Selbstlauf (.lang) ≈ 1,4 s, Schalter ≈ 600 ms
+   (--k staucht Dauer und Verzug). Rückwärts (→ „Ohne“): Speichen ziehen sich zurück, dann kehren die Fäden. */
+.fg-stern{--k:.43}
+.fg-stern.lang{--k:1}
+.fg-stern .ebene-mit path{vector-effect:none;stroke-dasharray:1;stroke-dashoffset:0}
+.fg-stern .ebene-ohne{transition:opacity calc(var(--k) * 400ms) var(--fg-ease)}
+.fg-stern .zum-partner{transition:stroke-dashoffset calc(var(--k) * 400ms) var(--fg-ease-io) calc(var(--k) * 200ms)}
+.fg-stern .mitte-g{transition:transform calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * 450ms),opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * 450ms)}
+.fg-stern .speiche{transition:stroke-dashoffset calc(var(--k) * 450ms) var(--fg-ease-io) calc(var(--k) * (550ms + var(--i,0) * 60ms))}
+.fg-stern.zustand-ohne .ebene-ohne{transition:opacity .35s var(--fg-ease) .25s}
+.fg-stern.zustand-ohne .zum-partner{stroke-dashoffset:1;transition:stroke-dashoffset .25s var(--fg-ease-io) .2s}
+.fg-stern.zustand-ohne .mitte-g{opacity:.12;transform:scale(.8);transition:transform .25s var(--fg-ease) .2s,opacity .25s var(--fg-ease) .2s}
+.fg-stern.zustand-ohne .speiche{stroke-dashoffset:1;transition:stroke-dashoffset .3s var(--fg-ease-io) calc((7 - var(--i,0)) * 25ms)}
+/* Beschriftungen: überblenden in derselben Zelle (06.10.2026, E-293). Je Stelle laufen Aus- und Einblenden GLEICHZEITIG
+   mit derselben Kurve (Summe der Deckkraft immer 1, keine Stelle steht leer): → „Mit“ ab k·(250 ms + i·60 ms) über
+   k·300 ms, → „Ohne“ sofort über 250 ms. Die verdeckte Fassung wird erst nach dem Ausblenden visibility:hidden
+   (Verzug am visibility-Übergang), die neue sofort sichtbar. */
+.fg-stern .mit-text,.fg-stern .ohne-text{transition:opacity .25s var(--fg-ease),transform .25s var(--fg-ease),visibility 0s linear .25s}
+.fg-stern.zustand-mit .ohne-text{transition:opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * (250ms + var(--i,0) * 60ms)),visibility 0s linear calc(var(--k) * (550ms + var(--i,0) * 60ms))}
+.fg-stern.zustand-mit .mit-text{transition:opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * (250ms + var(--i,0) * 60ms)),transform calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * (250ms + var(--i,0) * 60ms)),visibility 0s}
+.fg-stern.zustand-ohne .mit-text{transform:translateY(3px)}
+.fg-stern.zustand-ohne .ohne-text{transition:opacity .25s var(--fg-ease),visibility 0s}
+/* Die Zeichen (Haken / offener Kreis) rasten 150 ms nach ihrer Beschriftung ein. */
+.fg-stern .mit-text .fg-stern-zeichen{transform-origin:50% 50%;transition:transform .2s var(--fg-ease)}
+.fg-stern.zustand-mit .mit-text .fg-stern-zeichen{transition:transform calc(var(--k) * 200ms + 100ms) var(--fg-ease) calc(var(--k) * (400ms + var(--i,0) * 60ms))}
+.fg-stern.zustand-ohne .mit-text .fg-stern-zeichen{transform:scale(.6)}
+.fg-stern.zustand-ohne .fg-stern-mitte,.fg-stern.zustand-ohne .fg-stern-mitte-m{opacity:.35}
+.fg-stern-mitte,.fg-stern-mitte-m{transition:opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * 450ms)}
+.fg-stern.zustand-ohne .fg-stern-mitte,.fg-stern.zustand-ohne .fg-stern-mitte-m{transition-delay:.2s}
+
+/* ── Beleg: der Streifen kommt aus dem Schlitz ─────────────────────────────
+   clip-path von oben nach unten (1.100 ms); der Endwert ragt seitlich und unten über den Streifen hinaus, damit
+   der Kontaktschatten nicht beschnitten bleibt. Zeilen je 60 ms, Haken zeichnen sich (200 ms), dann die Summe. */
+@keyframes fg-b-drucken{from{-webkit-clip-path:inset(0 -40px 100% -40px);clip-path:inset(0 -40px 100% -40px);transform:translateY(-6px)}to{-webkit-clip-path:inset(0 -40px -60px -40px);clip-path:inset(0 -40px -60px -40px);transform:none}}
+.fg-beleg-haken path{stroke-dasharray:1;stroke-dashoffset:0}
+.fg-beleg-rahmen[data-an="0"] .fg-beleg{-webkit-clip-path:inset(0 -40px 100% -40px);clip-path:inset(0 -40px 100% -40px)}
+.fg-beleg-rahmen[data-an="0"] .fg-beleg li,.fg-beleg-rahmen[data-an="0"] .fg-beleg-summe{opacity:0}
+.fg-beleg-rahmen[data-an="0"] .fg-beleg-haken path{stroke-dashoffset:1}
+.fg-beleg-rahmen[data-an="1"] .fg-beleg{animation:fg-b-drucken 1.1s var(--fg-ease) backwards}
+.fg-beleg-rahmen[data-an="1"] .fg-beleg li{animation:fg-b-ein .35s var(--fg-ease) calc(180ms + var(--i,0) * 60ms) backwards}
+.fg-beleg-rahmen[data-an="1"] .fg-beleg-haken path{animation:fg-b-zeichnen .2s var(--fg-ease-io) calc(300ms + var(--i,0) * 60ms) backwards}
+.fg-beleg-rahmen[data-an="1"] .fg-beleg-summe{animation:fg-b-auf-klein .45s var(--fg-ease) .95s backwards}
+/* Der Haken im li erbt --i vom li (style am li in GlobalBeleg.tsx). */
+
+/* ── Jahresring: der Zeiger dreht EINE Runde, die sechs Leistungen leuchten nacheinander ──
+   Zeiger 2.400 ms; je Leistung 400 ms von 35 % auf 100 %; danach füllt sich „Ab Jahr 2“ von links (600 ms). */
+@keyframes fg-b-runde{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes fg-b-hell{from{opacity:.35}}
+.fg-jb-zeit .zwei::after{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:3px;background:#3d5680}
+.fg-jb-band-sek[data-an="0"] .fg-jb-kurz li{opacity:.35}
+.fg-jb-band-sek[data-an="0"] .fg-jb-zeit .zwei::after{-webkit-clip-path:inset(0 100% 0 0);clip-path:inset(0 100% 0 0)}
+.fg-jb-band-sek[data-an="1"] .fg-jb-ring .zeiger{animation:fg-b-runde 2.4s var(--fg-ease-io) backwards}
+.fg-jb-band-sek[data-an="1"] .fg-jb-kurz li{animation:fg-b-hell .4s var(--fg-ease) calc(var(--i,0) * 400ms) backwards}
+.fg-jb-band-sek[data-an="1"] .fg-jb-zeit .zwei::after{animation:fg-b-wischen .6s var(--fg-ease) 2.4s backwards}
+
+/* ── Bürgschaft (Block aus, Bewegung fertig): Kästen, dann drei Pfeile nacheinander ──
+   Kästen 300 ms; Finanzierung ab 300 ms, Bürgschaft ab 950 ms, Rückgriff ab 1.600 ms (je 500 ms, 150 ms Abstand);
+   Spitze und Beschriftung kommen, wenn ihre Linie angekommen ist. */
+.fg-schaubild .fg-pfeil{--p:300ms}
+.fg-schaubild .fg-pfeil.p2{--p:950ms}
+.fg-schaubild .fg-pfeil.p3{--p:1600ms}
+.fg-buergschaft[data-an="0"] .fg-schaubild .kaesten,.fg-buergschaft[data-an="0"] .fg-schaubild .spitze,.fg-buergschaft[data-an="0"] .fg-schaubild .beschriftung{opacity:0}
+.fg-buergschaft[data-an="0"] .fg-schaubild .pfeil{stroke-dashoffset:1}
+.fg-buergschaft[data-an="1"] .fg-schaubild .kaesten{animation:fg-b-ein .3s var(--fg-ease) backwards}
+.fg-buergschaft[data-an="1"] .fg-schaubild .pfeil{animation:fg-b-zeichnen .5s var(--fg-ease-io) var(--p) backwards}
+.fg-buergschaft[data-an="1"] .fg-schaubild .spitze{animation:fg-b-ein .15s linear calc(var(--p) + 450ms) backwards}
+.fg-buergschaft[data-an="1"] .fg-schaubild .beschriftung{animation:fg-b-ein .35s var(--fg-ease) calc(var(--p) + 400ms) backwards}
+/* Plakette: „Prägung“ (scale 1.06 → 1, der weite Schatten zieht sich zusammen, 600 ms), danach ein Lichtstreif (1,4 s).
+   Neigung ±4° nur mit Maus (useNeigung setzt --nx/--ny). */
+.fg-plakette::before{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:0 30px 44px -12px rgba(12,26,46,.42);opacity:0;pointer-events:none}
+.fg-plakette-licht{position:absolute;inset:0;border-radius:50%;overflow:hidden;pointer-events:none}
+.fg-plakette-licht::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.7) 50%,transparent 62%);transform:translateX(-130%)}
+@keyframes fg-b-praegen{from{transform:scale(1.06)}}
+@keyframes fg-b-schatten{from{opacity:1}to{opacity:0}}
+@keyframes fg-b-streif{from{transform:translateX(-130%)}to{transform:translateX(130%)}}
+.fg-buergschaft[data-an="0"] .fg-plakette{opacity:0}
+.fg-buergschaft[data-an="1"] .fg-plakette{animation:fg-b-praegen .6s var(--fg-ease) backwards,fg-b-ein .25s linear backwards}
+.fg-buergschaft[data-an="1"] .fg-plakette::before{animation:fg-b-schatten .6s var(--fg-ease) backwards}
+.fg-buergschaft[data-an="1"] .fg-plakette-licht::after{animation:fg-b-streif 1.4s var(--fg-ease-io) .7s backwards}
+@media(hover:hover) and (pointer:fine){
+  .fg-plakette-buehne .fg-plakette{transition:transform .6s var(--fg-ease);transform:rotateX(calc(var(--ny,0) * -4deg)) rotateY(calc(var(--nx,0) * 4deg))}
+}
+
+/* ── Drei Orte: die Bögen zeichnen sich (1.400 ms), Miami pulst EINMAL ───── */
+@keyframes fg-b-puls{0%{opacity:.9;transform:scale(.4)}100%{opacity:0;transform:scale(1.6)}}
+.gf-drei-orte[data-an="0"] .gf-orte-karte .zug{stroke-dashoffset:1}
+.gf-drei-orte[data-an="0"] .gf-orte-karte .punkt.london,.gf-drei-orte[data-an="0"] .gf-orte-karte .punkt.miami{opacity:.35}
+.gf-drei-orte[data-an="1"] .gf-orte-karte .zug{animation:fg-b-zeichnen 1.4s var(--fg-ease-io) backwards}
+.gf-drei-orte[data-an="1"] .gf-orte-karte .zug.b2{animation-delay:.12s}
+.gf-drei-orte[data-an="1"] .gf-orte-karte .punkt.london{animation:fg-b-hell .3s var(--fg-ease) 1.1s backwards}
+.gf-drei-orte[data-an="1"] .gf-orte-karte .punkt.miami{animation:fg-b-hell .3s var(--fg-ease) 1.45s backwards}
+/* Ohne Füllmodus: Vor und nach dem einen Puls ist der Ring unsichtbar (Grundzustand opacity 0). */
+.gf-drei-orte[data-an="1"] .gf-orte-karte .puls{animation:fg-b-puls 1.6s ease-out 1.5s 1}
 
 /* ── Weniger Bewegung: jeder Endzustand sofort ─────────────────────────── */
 @media(prefers-reduced-motion:reduce){
@@ -576,4 +762,12 @@
   .fg-weg-knoten>*,.fg-weg-punkt,.fg-stern .ebene-ohne,.fg-stern .ebene-mit,.fg-stern .mitte,.fg-fragen-rest,.fg-wisch-punkte i,.fg-hero-objekt{transition:none!important}
   [data-an="1"] .fg-h2{animation:none}
   .fg-weg-linie path,.fg-stern path,.fg-beleg-haken path,.gf-orte-karte path{stroke-dashoffset:0}
+  /* Scheibe B: alle Abläufe aus, jeder Endzustand sofort; Schalter, Paketwechsel und Klebeleiste ohne Übergang.
+     Der Hook setzt hier nie data-an="0" — die Regeln unten sind die zweite Sicherung. */
+  .fg-wegleiste *,.fg-wegleiste *::before,.fg-weg-linie,.fg-stern *,.fg-beleg-rahmen *,.fg-jb-band-sek *,.fg-jb-band-sek *::after,
+  .fg-buergschaft *,.fg-buergschaft *::before,.fg-buergschaft *::after,.gf-drei-orte *,.fg-mobil-linie,.fg-mobil-linie i::after{animation:none!important;transition:none!important}
+  .fg-weg-linie,.fg-beleg,.fg-jb-zeit .zwei::after{-webkit-clip-path:none!important;clip-path:none!important}
+  .fg-stern.zustand-mit .ebene-mit path,.fg-schaubild .pfeil,.gf-orte-karte .zug{stroke-dashoffset:0!important}
+  .fg-plakette-buehne .fg-plakette{transform:none!important}
+  .gf-orte-karte .puls{opacity:0!important}
 }

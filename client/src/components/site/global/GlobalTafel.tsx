@@ -13,12 +13,28 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState, type ReactNode } from "react";
 import type { GLOBAL_WOERTER } from "@/i18n/global";
-import { globalKapital, globalPreisText, type GlobalPaket } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, globalKapital, globalPreisText, type GlobalPaket, type GlobalSchluessel } from "@shared/fiaon-global";
 import { GlobalVipBuehne, GlobalVipTicket } from "@/components/site/GlobalVip";
 import { mitBegriffen } from "@/components/site/global/Begriff";
 
 const ROEMISCH = ["I", "II", "III", "IV"];
 type Texte = typeof GLOBAL_WOERTER.de;
+
+// ── Eine Quelle für Etappen und Reihenfolge der Leistungen (06.10.2026, E-293) ──
+// /business (pages/site/business.tsx) und die Unterseiten (global-seite/SeitenBausteine.tsx) lesen beide von hier:
+// Dieselbe Tafel muss überall dasselbe sagen — dieselben Etappen, dieselben Leistungen vor „Alle N Leistungen“.
+/** Ab welchem Paket eine Etappe des Wegs enthalten ist — deckungsgleich mit GLOBAL_VERGLEICH. */
+export const TAFEL_ETAPPE_AB: readonly GlobalSchluessel[] = ["global_struktur", "global_struktur", "global_banking", "global_kapital"];
+/** Bis zu welcher Etappe (1–4) ein Paket begleitet — aus TAFEL_ETAPPE_AB, also deckungsgleich mit dem Weg. */
+export const tafelEtappenBis = (k: GlobalSchluessel) => {
+  const i = GLOBAL_PAKETE.findIndex((p) => p.key === k);
+  return TAFEL_ETAPPE_AB.filter((ab) => GLOBAL_PAKETE.findIndex((p) => p.key === ab) <= i).length;
+};
+/** Je Tafel die eigenen Leistungen, die vor „Alle N Leistungen“ stehen. Global Struktur: Gründung, EIN/ITIN, erster
+ *  Konto- und Kartenantrag (drei statt vier); VIP: die Termine vor Ort. */
+export const TAFEL_ZUERST: Readonly<Record<GlobalSchluessel, readonly number[]>> = {
+  global_struktur: [0, 1, 6], global_banking: [0, 1], global_kapital: [0, 1], global_vip: [1],
+};
 
 export function Haken({ groesse = 16 }: { groesse?: number }) {
   return (
@@ -49,7 +65,7 @@ export default function GlobalTafel({ p, s, t, bis, zuerst, fokus = false, gewae
   /** Bis zu welcher Etappe (1–4) das Paket begleitet. */
   bis: number;
   /** Welche eigenen Leistungen (ohne „Alles aus …“) zuerst stehen — der Rest hinter „Alle N Leistungen“. */
-  zuerst: number[];
+  zuerst: readonly number[];
   /** Die Tafel mit dem Band „Alle vier Etappen“. */
   fokus?: boolean;
   gewaehlt?: boolean;

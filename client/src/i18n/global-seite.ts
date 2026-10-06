@@ -42,6 +42,13 @@ const de = {
   festpreisEinmalig: "Festpreis · einmalig",
   ortszeit: (stadt: string) => `Ortszeit ${stadt}`,
   zitat: (text: string) => `„${text}“`,
+  // 06.10.2026 (E-293, Scheibe D): die Vorlage wird kompakter — Merkblatt klappbar, Kalender erst auf Wunsch,
+  // Quellen als Klappzeile. Wortlaut aus dem Bauplan Kapitel 5 (gegen Wand und E-188 geprüft).
+  alleAngaben: "Alle Angaben",
+  blickPunkte: (n: number) => `Auf einen Blick · ${n} Punkte`,
+  gespraechKarte: "Erstgespräch: dreißig Minuten, kostenfrei",
+  zeitWaehlen: "Zeit wählen",
+  quellenZahl: (n: number) => `Quellen (${n})`,
   finder: {
     fortschritt: "Fortschritt",
     zurueck: "Zurück",
@@ -103,6 +110,11 @@ const en: typeof de = {
   festpreisEinmalig: "Fixed price · one-off",
   ortszeit: (stadt: string) => `Local time in ${stadt}`,
   zitat: (text: string) => `“${text}”`,
+  alleAngaben: "All details",
+  blickPunkte: (n: number) => `At a glance · ${n} points`,
+  gespraechKarte: "First call: thirty minutes, free of charge",
+  zeitWaehlen: "Choose a time",
+  quellenZahl: (n: number) => `Sources (${n})`,
   finder: {
     fortschritt: "Progress",
     zurueck: "Back",

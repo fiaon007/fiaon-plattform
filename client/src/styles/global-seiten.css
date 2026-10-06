@@ -345,3 +345,315 @@ a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);
   .fd-tabelle tbody tr:hover td{background:transparent}
   .fd-tabelle tbody tr:hover td.hervor{background:var(--blau-hell)}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   06.10.2026 (E-293, Bauplan /business Kapitel 5, Scheibe D) — DIE VORLAGE NEU
+
+   Die Unterseiten sollen aussehen wie die neue /business: kompakter Kopf, das
+   Merkblatt als Karteikarte (am Handy zugeklappt), Grafik statt Textwand, wo
+   der Plan es sagt — Etappen als Weg, Hinweise als Randnotiz, Tabellen aus
+   Haarlinien, Karten mit Linien-Zeichen, dieselben Pakettafeln (GlobalTafel),
+   „Drei Orte“, Rollen-Dreieck —, die Jahresbetreuung als Band und der
+   Kalender erst auf Wunsch. Nur Darstellung: kein Registertext ändert sich,
+   Zugeklapptes bleibt im DOM (<details>), kein display:none für Korpustext.
+   Die neuen Regeln hängen an „.neu“ bzw. neuen Klassen, weil die Landingpages
+   (/business/lp/*, global-lp.tsx) .fd-kopf, .fd-merkblatt, .fd-hinweis und
+   .fd-pakete weiter in der alten Form nutzen.
+   Bewegung (Bewegungsgrundgesetz, Bauplan 2.1): einmal beim Hineinscrollen
+   (data-an="1"), nur transform, opacity, stroke-dashoffset; keine Schleife;
+   „weniger Bewegung“ = Endzustand sofort. Der Startzustand hängt an
+   data-an="0", das erst der Hook setzt (bewegung.ts) — ohne JS steht alles.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Kopf: kompakter ─────────────────────────────────────────────────────── */
+.fd-kopf.neu{padding:122px 0 52px}
+@media(max-width:720px){.fd-kopf.neu{padding:98px 0 30px}}
+.fd-kopf.neu .fd-kopf-raster{grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr);gap:56px}
+@media(max-width:1020px){.fd-kopf.neu .fd-kopf-raster{grid-template-columns:minmax(0,1fr);gap:20px}}
+.fd-kopf.neu .fd-krumen{margin-bottom:18px}
+.fd-kopf.neu .fd-h1{font-size:clamp(34px,4.3vw,58px);margin-top:16px}
+.fd-kopf.neu .fd-lead{margin-top:16px;line-height:1.66}
+.fd-kopf.neu .fd-kopf-knoepfe{margin-top:24px}
+@media(max-width:560px){.fd-kopf.neu .fd-kopf-knoepfe{gap:8px}.fd-kopf.neu .fd-kopf-knoepfe .fg-knopf{min-height:48px}}
+
+/* Kennziffern als schmale Leiste: höchstens drei Werte, Zahl 28 px leicht, Glanz einmal */
+.fd-leiste{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:30px;border-top:1px solid var(--linie)}
+.fd-leiste>div{padding:14px 16px 0 0;min-width:0}
+.fd-leiste>div+div{padding-left:16px;border-left:1px solid var(--linie)}
+.fd-leiste b{display:block;font-family:var(--serif);font-weight:300;font-size:28px;line-height:1.1;letter-spacing:-.012em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums;overflow-wrap:break-word}
+.fd-leiste span{display:block;margin-top:6px;font-size:12px;line-height:1.45;color:var(--leise)}
+@media(max-width:640px){
+  .fd-leiste{grid-template-columns:minmax(0,1fr);margin-top:20px}
+  .fd-leiste>div,.fd-leiste>div+div{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:14px;align-items:baseline;padding:10px 0;border-left:0;border-bottom:1px solid var(--linie)}
+  .fd-leiste b{font-size:19px}
+  .fd-leiste span{margin-top:0}
+}
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .fd-leiste b{
+    --glanz-grund:var(--tinte);--glanz-mitte:#2c5cc5;--glanz-licht:#7ea2e8;
+    background-image:linear-gradient(105deg,var(--glanz-grund) 0%,var(--glanz-grund) 42%,var(--glanz-mitte) 47%,var(--glanz-licht) 50%,var(--glanz-mitte) 53%,var(--glanz-grund) 58%,var(--glanz-grund) 100%);
+    background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
+    -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+  [data-an="1"] .fd-leiste b{animation:fg-glanz 1.6s cubic-bezier(.45,.05,.35,1) .5s 1 both}
+  [data-an="1"] .fd-leiste>div:nth-child(2) b{animation-delay:.75s}
+  [data-an="1"] .fd-leiste>div:nth-child(3) b{animation-delay:1s}
+}
+/* „Stand“ im Kopf — am Desktop steht er im Fuß der Karteikarte daneben. */
+.fd-kopf-stand{margin-top:16px;font-size:12px;line-height:1.5;color:var(--leise);font-variant-numeric:tabular-nums}
+@media(min-width:1021px){.fd-kopf-stand{display:none}}
+
+/* ── Merkblatt als Karteikarte ───────────────────────────────────────────── */
+.fd-karteikarte{position:relative;background:#fff;border:1px solid var(--linie);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(12,26,46,.04),0 24px 56px rgba(18,40,74,.1)}
+.fd-karteikarte>summary{list-style:none;display:flex;align-items:baseline;gap:12px;padding:16px 20px;background:var(--navy);color:#fff;cursor:pointer}
+.fd-karteikarte>summary::-webkit-details-marker{display:none}
+.fd-karteikarte>summary .gross{font-family:var(--serif);font-weight:300;font-size:20px;letter-spacing:-.005em}
+.fd-karteikarte>summary .klein{display:none}
+.fd-karteikarte>summary .kennung{margin-left:auto;font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#aebbd0;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fd-karteikarte.breit>summary{cursor:default}
+.fd-karteikarte dl{display:grid;margin:0}
+.fd-karteikarte dl>div{display:grid;grid-template-columns:116px minmax(0,1fr);gap:12px;padding:11px 20px;border-top:1px solid var(--linie)}
+.fd-karteikarte>dl>div:first-child{border-top:0}
+.fd-karteikarte dt{font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--leise);padding-top:3px}
+.fd-karteikarte dd{margin:0;font-size:13.5px;line-height:1.55;color:var(--tinte)}
+.fd-karteikarte-mehr>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:11px 20px;border-top:1px solid var(--linie);font-size:13px;font-weight:500;color:var(--navy);cursor:pointer}
+.fd-karteikarte-mehr>summary::-webkit-details-marker{display:none}
+.fd-karteikarte-mehr>summary::after,.fd-karteikarte:not(.breit)>summary::after,.fd-quellen>summary::after{content:"";width:7px;height:7px;border-right:1.5px solid var(--navy);border-bottom:1.5px solid var(--navy);transform:rotate(45deg) translateY(-2px);transition:transform .25s}
+.fd-karteikarte-mehr[open]>summary::after,.fd-karteikarte:not(.breit)[open]>summary::after,.fd-quellen[open]>summary::after{transform:rotate(-135deg)}
+.fd-karteikarte-fuss{display:flex;justify-content:space-between;gap:6px 12px;flex-wrap:wrap;padding:10px 20px;background:var(--stein);border-top:1px solid var(--linie);font-size:11.5px;color:var(--leise);font-variant-numeric:tabular-nums}
+/* Am Handy: eine Zeile „Auf einen Blick · n Punkte“, die Karte ist zu. */
+.fd-karteikarte:not(.breit){border-radius:12px;box-shadow:none}
+.fd-karteikarte:not(.breit)>summary{align-items:center;padding:14px 16px;background:#fff;color:var(--tinte)}
+.fd-karteikarte:not(.breit)>summary .gross{display:none}
+.fd-karteikarte:not(.breit)>summary .klein{display:inline;font-size:13.5px;font-weight:500}
+.fd-karteikarte:not(.breit)>summary .kennung{color:var(--leise)}
+.fd-karteikarte:not(.breit)[open]>summary{border-bottom:1px solid var(--linie)}
+@media(max-width:520px){.fd-karteikarte dl>div{grid-template-columns:minmax(0,1fr);gap:3px;padding:11px 16px}.fd-karteikarte-mehr>summary,.fd-karteikarte-fuss{padding-left:16px;padding-right:16px}}
+
+/* ── Körper; ab 1280 px mit einer Spalte für Randnotizen ─────────────────── */
+.fd-koerper.neu{padding-top:60px}
+@media(max-width:1100px){.fd-koerper.neu{padding-top:34px}}
+.fd-text.neu .fd-abschnitt{padding-top:52px}
+@media(max-width:640px){.fd-text.neu .fd-abschnitt{padding-top:44px}}
+@media(min-width:1280px){
+  /* 06.10.2026 (E-293): Die linke Kante des Körpers (Inhaltsverzeichnis) fluchtet mit Logo und Kopf (Inhalt 1.200 px
+     mittig); nur die Randspalte wächst nach rechts, bis 646 px rechts der Mitte. Vorher stand der Körper mittig mit
+     1.340 px und begann 46 px links vom Kopf. */
+  .fd-koerper.neu{max-width:none;margin:0;padding-left:calc(50% - 600px);padding-right:max(24px,calc(50% - 646px));grid-template-columns:220px minmax(0,1fr);gap:56px}
+  .fd-text.neu{max-width:none;display:grid;grid-template-columns:minmax(0,1fr) 260px;column-gap:48px;align-content:start}
+  .fd-text.neu>*{grid-column:1;min-width:0}
+  /* Die Randnotiz steht neben dem Abschnitt davor (Auto-Platzierung: gleiche Zeile, Spalte 2) und reicht in den nächsten. */
+  .fd-text.neu>.fd-rand{grid-column:2;grid-row:span 2;align-self:start}
+  .fd-text.neu>.breit{grid-column:1/-1}
+}
+
+/* „Kurz beantwortet“ als Antwortkarte — das erste Element im Körper */
+.fd-antwort{padding:2px 0 4px 22px;border-left:2px solid var(--navy);scroll-margin-top:112px}
+.fd-antwort p{margin-top:10px;font-family:var(--serif);font-weight:300;font-size:20px;line-height:1.56;color:var(--tinte);text-wrap:pretty}
+@media(max-width:640px){.fd-antwort{padding-left:16px}.fd-antwort p{font-size:18.5px}}
+.fd-text.neu .fd-inhalt-mobil{margin:28px 0 0}
+
+/* ── Etappen als Weg (SeitenWeg.tsx) ─────────────────────────────────────── */
+.fd-weg{container-type:inline-size;margin-top:28px}
+.fd-weg-buehne{position:relative}
+.fd-weg-linie{display:none}
+.fd-weg ol{position:relative;list-style:none;margin:0;padding:0;display:grid}
+/* Senkrechter Faden (Handy und lange Wege) */
+.fd-weg ol::before{content:"";position:absolute;left:13px;top:14px;bottom:18px;width:1px;margin-left:-.5px;background:var(--linie-2);transform-origin:50% 0;transition:transform 1.2s var(--fg-ease-io)}
+.fd-weg-station{position:relative;display:grid;grid-template-columns:26px minmax(0,1fr);align-content:start;gap:16px;padding-bottom:24px}
+.fd-weg-station:last-child{padding-bottom:0}
+.fd-weg-kopf{position:relative;height:26px}
+.fd-weg-knoten{position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#fff;border:1px solid var(--linie-2);
+  font:400 11px/1 var(--serif);color:var(--navy);font-variant-numeric:lining-nums;transition:transform .5s var(--fg-ease);transition-delay:calc(200ms + var(--i) * 120ms)}
+.fd-weg-station:first-child .fd-weg-knoten{background:var(--navy);border-color:var(--navy);color:#fff}
+.fd-weg-inhalt{min-width:0;transition:transform .6s var(--fg-ease);transition-delay:calc(280ms + var(--i) * 120ms)}
+.fd-weg-inhalt h3{margin:0;padding-top:3px;font-size:16px;font-weight:500;line-height:1.4;color:var(--tinte)}
+.fd-weg-inhalt .dauer{display:inline-block;margin-top:4px;font-size:11.5px;font-weight:500;letter-spacing:.05em;color:var(--blau)}
+.fd-weg-inhalt p{margin:6px 0 0;font-size:15px;line-height:1.7;font-weight:300;color:var(--text)}
+.fd-weg[data-an="0"] ol::before{transform:scaleY(0)}
+.fd-weg[data-an="0"] .fd-weg-knoten{transform:scale(.6)}
+/* 06.10.2026 (E-293): Titel, Dauer und Text der Stationen sind Korpus (blockAlsText) — sie stehen IMMER mit voller
+   Deckkraft da, auch wenn der Beobachter nie auslöst (Crawler mit JS). Beim Hineinscrollen bewegen sich nur Faden,
+   Linie und Knoten; der Text rückt höchstens 6 px nach. */
+.fd-weg[data-an="0"] .fd-weg-inhalt{transform:translateY(6px)}
+/* Quer, wenn es bis vier Stationen sind und die Spalte breit genug ist: die Linie steigt in Stufen */
+@container (min-width:600px){
+  /* 06.10.2026 (E-293): Die Linie ist mit preserveAspectRatio="none" gedehnt und braucht deshalb
+     vector-effect:non-scaling-stroke — dort rechnen Safari und Chrome pathLength verschieden. Wie die Wegleiste auf
+     /business (global-grafik.css) wird sie deshalb per clip-path von links aufgedeckt, nicht per stroke-dashoffset;
+     sie steigt nur nach rechts, das Aufdecken sieht aus wie Zeichnen. Der Endwert ragt 4 px über den Rahmen hinaus,
+     damit die Strichkanten nicht beschnitten bleiben. */
+  .fd-weg-buehne.quer .fd-weg-linie{display:block;position:absolute;left:13px;top:0;width:100%;height:var(--fd-weg-h);overflow:visible;pointer-events:none;
+    -webkit-clip-path:inset(-4px -4px -4px -4px);clip-path:inset(-4px -4px -4px -4px);transition:-webkit-clip-path 1.2s var(--fg-ease-io) .1s,clip-path 1.2s var(--fg-ease-io) .1s}
+  .fd-weg-linie path{fill:none;stroke:var(--linie-2);stroke-width:1.25;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+  .fd-weg[data-an="0"] .fd-weg-buehne.quer .fd-weg-linie{-webkit-clip-path:inset(-4px 100% -4px -4px);clip-path:inset(-4px 100% -4px -4px)}
+  .fd-weg-buehne.quer ol{grid-template-columns:repeat(var(--n),minmax(0,1fr))}
+  .fd-weg-buehne.quer ol::before{display:none}
+  .fd-weg-buehne.quer .fd-weg-station{grid-template-columns:minmax(0,1fr);gap:14px;padding:0 22px 0 0}
+  .fd-weg-buehne.quer .fd-weg-kopf{height:var(--fd-weg-h)}
+  .fd-weg-buehne.quer .fd-weg-knoten{top:calc((var(--n) - 1 - var(--i)) * 14px)}
+  .fd-weg-buehne.quer .fd-weg-inhalt p{font-size:14.5px;line-height:1.65}
+}
+
+/* ── Hinweis als Randnotiz ───────────────────────────────────────────────── */
+.fd-text.neu>.fd-rand{margin-top:44px;padding:2px 0 4px 22px;border-top:0;border-left:1px solid var(--linie-2)}
+.fd-text.neu>.fd-rand+.fd-abschnitt{border-top:1px solid var(--linie)}
+.fd-rand-zeichen{display:grid;place-items:center;width:32px;height:32px;margin-bottom:12px;border-radius:50%;border:1px solid var(--linie-2);background:#fff;color:var(--navy)}
+.fd-rand .fd-nr{font-size:13.5px;margin-bottom:6px}
+.fd .fd-rand .fd-h2{font-size:clamp(20px,1.6vw,23px);line-height:1.25;max-width:none}
+.fd-rand .fd-block-lead{font-size:14.5px;line-height:1.65}
+.fd-rand-punkte{margin:14px 0 0;padding:0;list-style:none;counter-reset:r;display:grid;gap:10px}
+.fd-rand-punkte li{counter-increment:r;display:grid;grid-template-columns:22px minmax(0,1fr);gap:6px;font-size:14px;line-height:1.62;color:var(--text)}
+.fd-rand-punkte li::before{content:counter(r,lower-roman) ".";font-family:var(--serif);font-style:italic;color:var(--navy)}
+@media(min-width:1280px){
+  .fd-text.neu>.fd-rand:not(.unten){margin:0;padding:58px 0 0;border:0}
+  /* Ohne Abschnitt danach, der neben ihr stehen kann: unter dem Abschnitt, eingerückt (global-seite.tsx, randDaneben). */
+  .fd-text.neu>.fd-rand.unten{grid-column:1;grid-row:auto}
+  .fd-text.neu>.fd-rand .fd-rand-zeichen{width:30px;height:30px}
+  .fd .fd-text.neu>.fd-rand .fd-h2{font-size:19px}
+  .fd-text.neu>.fd-rand .fd-rand-punkte li{font-size:13.5px;line-height:1.6}
+}
+
+/* ── Tabelle aus Haarlinien ──────────────────────────────────────────────── */
+.fd-tabelle.neu{border:0;border-radius:0;background:transparent;border-top:1px solid var(--tinte);border-bottom:1px solid var(--linie)}
+.fd-tabelle.neu th{background:transparent;border-bottom:1px solid var(--linie-2);padding:12px 14px 10px}
+.fd-tabelle.neu td{padding:13px 14px;font-variant-numeric:lining-nums tabular-nums}
+.fd-tabelle.neu th.hervor{background:transparent;color:var(--navy);box-shadow:inset 0 2px 0 var(--navy)}
+.fd-tabelle.neu td.hervor{background:rgba(238,243,254,.6)}
+.fd-tabelle.neu .zeilenkopf{text-align:left;font-weight:500;color:var(--tinte);text-transform:none;letter-spacing:0;font-size:14px;line-height:1.5;background:transparent;border-bottom:0;border-top:1px solid var(--linie);padding:13px 14px;white-space:normal}
+.fd-tabelle.neu tbody tr:first-child .zeilenkopf{border-top:0}
+@media(min-width:561px){
+  /* Die erste Spalte klebt, wenn die Tabelle seitlich rollt. */
+  .fd-tabelle.neu tbody td:first-child,.fd-tabelle.neu tbody th:first-child,.fd-tabelle.neu thead th:first-child{position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 0 var(--linie)}
+  .fd-tabelle.neu tbody tr:hover td:first-child,.fd-tabelle.neu tbody tr:hover th:first-child{background:#f7f9fb}
+}
+@media(max-width:560px){.fd-tabelle.neu{border:0}}
+
+/* ── Karten mit Linien-Zeichen ───────────────────────────────────────────── */
+.fd-karte-kopf{display:flex;align-items:center;gap:10px;min-height:36px}
+.fd-karte-kopf .fd-zeichen{flex:0 0 auto;box-sizing:content-box;padding:7px;border-radius:10px;background:var(--blau-hell);color:var(--navy)}
+.fd-karten.neu .fd-karte h3{margin-top:14px}
+.fd-karten.neu .fd-karte h3:first-child{margin-top:0}
+@media(hover:hover) and (pointer:fine){.fd-karten.neu .fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);transform:translateY(-2px)}}
+
+/* ── Rollen-Dreieck ─────────────────────────────────────────────────────── */
+.fd-dreieck{display:block;width:min(100%,340px);height:auto;margin:24px 0 2px;overflow:visible}
+/* 06.10.2026 (E-293): kein vector-effect:non-scaling-stroke — das SVG skaliert gleichmäßig, und nur so gilt
+   pathLength="1" in Safari wie in Chrome (dieselbe Lehre wie beim Stern, global-grafik.css). */
+.fd-dreieck .kante{fill:none;stroke-width:1.25}
+.fd-dreieck .kante.fest{stroke:var(--navy);stroke-dasharray:1;stroke-dashoffset:0;transition:stroke-dashoffset .9s var(--fg-ease-io) .15s}
+.fd-dreieck .kante.k2{transition-delay:.45s}
+.fd-dreieck .kante.leise{stroke:var(--linie-2);stroke-dasharray:.02 .025;transition:opacity .6s var(--fg-ease) .9s}
+.fd-dreieck[data-an="0"] .kante.fest{stroke-dashoffset:1}
+.fd-dreieck[data-an="0"] .kante.leise{opacity:0}
+.fd-dreieck .knoten{fill:#fff;stroke:var(--linie-2);stroke-width:1.25}
+.fd-dreieck .knoten.fiaon{fill:var(--navy);stroke:var(--navy)}
+.fd-dreieck .schrift{font:500 12px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;fill:var(--leise)}
+.fd-dreieck .schrift.fiaon{fill:var(--navy)}
+
+/* ── „Drei Orte“, ausführlich und hell (Baustein „standorte“) ─────────────── */
+.fd-orte{margin-top:24px}
+.fd-orte-karte{display:block;width:100%;height:auto;max-height:150px;overflow:visible}
+/* 06.10.2026 (E-293): ohne vector-effect (pathLength sonst in Safari unzuverlässig). Das SVG steht mit ≈ 0,6–0,75 seiner
+   viewBox da, deshalb 1,4 statt 1 — sichtbar bleibt es eine Haarlinie um 1 px. */
+.fd-orte-karte .bogen{fill:none;stroke:var(--blau);stroke-opacity:.45;stroke-width:1.4;stroke-dasharray:1;stroke-dashoffset:0;transition:stroke-dashoffset 1.4s var(--fg-ease-io) .2s}
+.fd-orte-karte .bogen.b2{transition-delay:.45s}
+.fd-orte[data-an="0"] .fd-orte-karte .bogen{stroke-dashoffset:1}
+.fd-orte-karte .punkt{fill:var(--navy)}
+.fd-orte-karte .punkt.sie{fill:var(--blau)}
+.fd-orte-karte .punkt.neben{fill:var(--linie-2)}
+.fd-orte-karte .ort{font:500 15px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;fill:var(--leise)}
+.fd-orte-karte .ort.neben{font-size:13px;fill:#8a93a3}
+.fd-orte-liste{list-style:none;margin:8px 0 0;padding:22px 0 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 28px;border-top:1px solid var(--tinte)}
+.fd-orte-liste li{display:grid;grid-template-columns:56px minmax(0,1fr);gap:16px;align-items:start;min-width:0}
+.fd-orte .fg-uhr-mini{width:56px;height:56px;margin:0}
+.fd-orte .fg-uhr-mini .flaeche{fill:#fff;stroke:var(--linie-2);stroke-width:2}
+.fd-orte .fg-uhr-mini .strich{stroke:#b9c3d1}
+.fd-orte .fg-uhr-mini .strich.gross{stroke:var(--navy)}
+.fd-orte .fg-uhr-mini .stunde path,.fd-orte .fg-uhr-mini .minute path{fill:var(--navy)}
+.fd-orte .fg-uhr-mini .sekunde line{stroke:var(--blau)}
+.fd-orte .fg-uhr-mini .nabe{fill:var(--navy)}
+.fd-orte-ohne-uhr{position:relative;width:56px;height:56px}
+.fd-orte-ohne-uhr::after{content:"";position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:var(--linie-2)}
+.fd-orte-liste .stadt{display:block;font-family:var(--serif);font-weight:300;font-size:clamp(24px,2.2vw,30px);line-height:1.1;letter-spacing:-.012em;color:var(--tinte)}
+.fd-orte-liste .land{display:block;margin-top:3px;font-size:11.5px;letter-spacing:.06em;color:var(--leise)}
+.fd-orte-liste .ges{display:block;margin-top:12px;font-size:14px;font-weight:500;color:var(--tinte)}
+.fd-orte-liste .rechtsform{display:block;font-size:12px;color:var(--leise)}
+.fd-orte-liste .rolle{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--text)}
+.fd-orte-liste address{margin-top:10px;font-style:normal;font-size:12.5px;line-height:1.6;color:var(--leise)}
+.fd-orte-liste address span{display:block}
+.fd-orte-liste .reg{display:block;margin-top:6px;font-size:11.5px;letter-spacing:.03em;color:var(--leise);font-variant-numeric:tabular-nums}
+@media(max-width:640px){.fd-orte-karte{display:none}.fd-orte-liste{grid-template-columns:minmax(0,1fr);gap:22px;margin-top:0}}
+
+/* ── Pakete: dieselben Tafeln wie /business ─────────────────────────────── */
+/* Ein Paket: die Tafel quer — links Zahlen und Knöpfe, rechts die Leistungen. */
+.fd-tafel-eins{display:block;margin-top:26px;container-type:inline-size}
+@container (min-width:600px){
+  .fd-tafel-eins .fg-tarif{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:30px;align-items:start}
+  .fd-tafel-eins .fg-tarif>*{grid-column:1}
+  .fd-tafel-eins .fg-tarif>.fg-tarif-leistungen{grid-column:2;grid-row:1/span 4;align-self:stretch;margin-top:0;padding:0 0 0 30px;border-top:0;border-left:1px solid var(--linie)}
+}
+/* Alle vier: drei Tafeln nebeneinander, wo Platz ist; sonst eine Wischreihe. Global VIP darunter als helle Zeile. */
+.fd-tafeln-rahmen{margin-top:26px;container-type:inline-size}
+.fd-tafeln{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding:0 24px;margin:0 -24px;padding:18px 24px 10px;align-items:stretch;scrollbar-width:thin}
+.fd-tafeln>.dk-auf{flex:0 0 min(86%,330px);display:flex;scroll-snap-align:start}
+.fd-tafeln>.dk-auf>.fg-tarif{flex:1 1 auto;min-width:0}
+@container (min-width:900px){
+  .fd-tafeln{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;overflow:visible;margin:0;padding:18px 0 0}
+  .fd-tafeln>.dk-auf{display:flex}
+}
+.fd-vip{display:block;margin-top:14px;container-type:inline-size}
+.fd-vip.einzeln{margin-top:26px}
+.fd-vip-zeile{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,.8fr) auto;gap:24px;align-items:center;padding:22px 26px;border:1px solid var(--linie-2);border-radius:18px;
+  background:linear-gradient(155deg,#fbfcfe 0%,#f1f4f9 100%);scroll-margin-top:120px}
+.fd-vip-marke{display:inline-flex;align-items:center;gap:9px;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fd-vip-marke b{padding:3px 8px;border-radius:4px;background:var(--navy);color:#fff;font-weight:500;letter-spacing:.12em}
+.fd-vip-kopf h3{margin-top:8px;font-family:var(--serif);font-weight:400;font-size:clamp(24px,2.1vw,29px);line-height:1.1;letter-spacing:-.012em;color:var(--tinte)}
+.fd-vip-kopf .fg-tarif-weg{margin-top:10px;min-height:0}
+.fd-vip-zahl{display:grid;gap:6px;min-width:0}
+.fd-vip-zahl span{font-size:10px;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--navy)}
+.fd-vip-zahl b{font-family:var(--serif);font-weight:400;font-size:clamp(24px,2.1vw,28px);line-height:1;letter-spacing:-.015em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.fd-vip-zahl em{font-style:normal;font-size:11px;line-height:1.45;color:var(--leise)}
+.fd-vip-zahl em.inkl{display:inline-flex;align-items:flex-start;gap:5px;color:var(--navy)}
+.fd-vip-zahl em.inkl .fg-haken{margin-top:1px;flex:0 0 auto}
+.fd-vip-tun{display:grid;gap:2px;justify-items:center}
+.fd-vip-tun .fg-knopf{min-height:46px;font-size:14px;white-space:nowrap}
+@container (max-width:860px){
+  .fd-vip-zeile{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px;padding:22px 20px}
+  .fd-vip-kopf,.fd-vip-tun{grid-column:1/-1}
+  .fd-vip-tun .fg-knopf{width:100%}
+}
+@container (max-width:340px){.fd-vip-zeile{grid-template-columns:minmax(0,1fr)}}
+
+/* ── Erstgespräch: erst die Karte, der Kalender auf Wunsch ───────────────── */
+.fd-gespraech-karte{display:flex;flex-wrap:wrap;align-items:center;gap:16px 20px;margin-top:30px;padding:22px 24px;border:1px solid var(--linie);border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(12,26,46,.03),0 18px 40px rgba(18,40,74,.06)}
+.fd-gespraech-zeichen{flex:0 0 auto;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--blau-hell);color:var(--navy)}
+.fd-gespraech-karte b{flex:1 1 240px;font-family:var(--serif);font-weight:400;font-size:clamp(19px,1.7vw,22px);line-height:1.3;color:var(--tinte)}
+.fd-gespraech-karte .fg-knopf{flex:0 0 auto}
+@media(max-width:560px){.fd-gespraech-karte{padding:20px 18px}.fd-gespraech-karte .fg-knopf{width:100%}}
+.fd-gespraech-kalender{margin-top:6px}
+.fd-gespraech-laedt{min-height:420px}
+@media(max-width:720px){.fd-gespraech.fg-sek{padding-top:64px;padding-bottom:64px}}
+
+/* ── Weiterlesen mit Linien-Zeichen; Quellen als Klappzeile ─────────────── */
+.fd-weiter-kopf{display:flex;align-items:center;gap:10px}
+.fd-weiter-kopf .fd-zeichen{flex:0 0 auto;color:var(--navy)}
+.fd-quellen>summary{list-style:none;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-weight:500;color:var(--tinte)}
+.fd-quellen>summary::-webkit-details-marker{display:none}
+.fd-quellen ol{margin-top:10px}
+
+/* ── Weniger Bewegung: Endzustand sofort; Druck: alles sichtbar ─────────── */
+@media(prefers-reduced-motion:reduce){
+  .fd-weg ol::before,.fd-weg-knoten,.fd-weg-inhalt,.fd-weg-linie,.fd-dreieck .kante,.fd-orte-karte .bogen,.fd-karten.neu .fd-karte,.fd-karteikarte summary::after,.fd-quellen>summary::after{transition:none!important}
+  .fd-weg ol::before,.fd-weg-knoten,.fd-weg-inhalt{transform:none!important;opacity:1!important}
+  .fd-weg-linie{-webkit-clip-path:none!important;clip-path:none!important}
+  .fd-dreieck .kante.fest,.fd-orte-karte .bogen{stroke-dashoffset:0!important}
+  .fd-dreieck .kante.leise{opacity:1!important}
+  [data-an="1"] .fd-leiste b{animation:none}
+  .fd-karten.neu .fd-karte:hover{transform:none}
+}
+@media print{
+  .fd-weg ol::before,.fd-weg-knoten,.fd-weg-inhalt{transform:none!important;opacity:1!important}
+  .fd-weg-linie{-webkit-clip-path:none!important;clip-path:none!important}
+  .fd-dreieck .kante,.fd-orte-karte .bogen{stroke-dashoffset:0!important;opacity:1!important}
+  .fd-text.neu{display:block}
+}

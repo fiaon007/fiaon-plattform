@@ -16,6 +16,11 @@
 //   POST /chef/social/post/:id/<aktion>     freigeben | zurueck | verschieben |
 //                                           veroeffentlicht | verwerfen | ki-haken | checkliste
 //   GET  /chef/social/vorschau/instagram?tage=0|7|30&marke=alle|fiaon|global
+//   POST /chef/social/post/:id/web-varianten  E-296: kleine Web-Bilder (480 px JPEG) aus dem Studio
+//
+// ÖFFENTLICH (E-296, Website-Feed — ohne Anmeldung, Vertrag shared/fiaon-sozial-feed.ts):
+//   GET  /social/feed?marke&thema&n        sichtbare Posts + Profile; Fehler → 200 mit leerer Liste
+//   GET  /social/bild/:dateiId             NUR Bilder sichtbarer Posts (Regel bei jeder Anfrage in SQL)
 //
 // Rechte: alle Studio-Wege ab Stufe Geschäftsführung (requireChef). „Trotzdem
 // freigeben" bei rotem Wort-Check prüft der Server selbst auf Inhaber. Jede
@@ -37,13 +42,16 @@ import { ZipArchive } from "archiver";
 import { requireChef, chefProtokoll, protokollSchreiben, type ChefRequest } from "./fiaon-chef-zugang";
 import {
   ensureSocialTabellen, socialImport, socialAktion, postLaden, planLaden, instagramVorschau, postDateienFuerZip,
-  ichLaden, statusZaehler, SocialFehlerWurf, type SocialHandelnder,
+  ichLaden, statusZaehler, webVariantenSpeichern, SocialFehlerWurf, type SocialHandelnder, type WebVarianteEingang,
 } from "../lib/fiaon-social";
 import { dateiKopf, dateiLesen, dateiStuecke, downloadName, STUECK_BYTES } from "../lib/fiaon-social-dateien";
+import { sozialFeed, sozialFeedLeer, sozialFeedLeeren, websiteBild } from "../lib/fiaon-sozial-feed";
+import { SOZIAL_FEED_PFAD } from "@shared/fiaon-sozial-feed";
 import { fensterDrossel } from "../lib/fiaon-global-bereich-regeln";
+import { aufrufClientIp } from "../lib/fiaon-global-angebot-aufrufe";
 import {
   manifestPruefen, istVerworfenerOrdner, SOCIAL_AKTIONEN, IMPORT_MAX_DATEI_BYTES, IMPORT_MAX_DATEIEN, IMPORT_MAX_META_BYTES,
-  IMPORT_MAX_GESAMT_BYTES, IMPORT_TOKEN_MIN,
+  IMPORT_MAX_GESAMT_BYTES, IMPORT_TOKEN_MIN, WEB_480_MAX_BYTES,
   type SocialAktion,
 } from "@shared/fiaon-social";
 
@@ -218,6 +226,7 @@ router.post("/social/import", importZugang, importAnnehmen, async (req: Request,
       altText: altRoh.trim() ? altRoh.replace(/\r\n?/g, "\n") : null, dateien, ordner, probe, wer,
     }));
     if (!probe && r.antwort.id) {
+      sozialFeedLeeren();
       // Ein Ort für das Audit: Chef-Importe über chefProtokoll, Token-Importe direkt ins fiaon_admin_log.
       if (wer?.von === "import-token") await protokollSchreiben(null, "import", "POST", "/api/fiaon/social/import", `social:${r.antwort.id}`, `import ${r.antwort.ergebnis} (Token) ${p.manifest.id} Fassung ${r.antwort.fassung}`);
       else void chefProtokoll(req, `social:${r.antwort.id}`, `import ${r.antwort.ergebnis}`);
@@ -394,6 +403,40 @@ router.get("/chef/social/post/:id/zip", wache, async (req: ChefRequest, res: Res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-296 · KLEINE WEB-BILDER — POST /chef/social/post/:id/web-varianten
+// ═══════════════════════════════════════════════════════════════════════════
+// multipart/form-data, je Datei ein Feld, dessen NAME die id des Originals ist
+// (quelle_id), Inhalt ein 480 px breites JPEG aus dem Studio (canvas). Im Speicher
+// (je Bild ≤ 1 MB, höchstens 14) — kein Platten-Umweg nötig. MUSS vor der
+// allgemeinen Aktions-Route stehen, sonst wäre „web-varianten“ eine unbekannte Aktion.
+const webUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: WEB_480_MAX_BYTES, files: IMPORT_MAX_DATEIEN, fields: 4, parts: IMPORT_MAX_DATEIEN + 4 },
+}).any();
+router.post("/chef/social/post/:id/web-varianten", wache, (req: Request, res: Response, next: NextFunction) => {
+  webUpload(req, res, (err: any) => {
+    if (!err) return next();
+    if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ ok: false, code: "ZU_GROSS", error: `Ein kleines Bild ist größer als ${Math.round(WEB_480_MAX_BYTES / 1024)} KB.` });
+    if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_PART_COUNT") return res.status(413).json({ ok: false, code: "ZU_GROSS", error: `Höchstens ${IMPORT_MAX_DATEIEN} kleine Bilder auf einmal.` });
+    return res.status(400).json({ ok: false, code: "UNGUELTIG", error: "Die Anfrage ließ sich nicht lesen (multipart/form-data, je Bild ein Feld mit der id des Originals)." });
+  });
+}, async (req: ChefRequest, res: Response) => {
+  const id = idAus(req);
+  if (!id) return res.status(400).json({ ok: false, code: "UNGUELTIG", error: "Ungültige Post-Nummer." });
+  try {
+    const ich = await ichLaden(req.chef);
+    const dateien = ((req as any).files ?? []) as Express.Multer.File[];
+    const eingang: WebVarianteEingang[] = dateien.map((f) => ({ quelle_id: Number(String(f.fieldname).replace(/^quelle[_-]?/, "")), inhalt: f.buffer }));
+    const r = await webVariantenSpeichern(id, eingang, ich);
+    if (r.angelegt.length) {
+      sozialFeedLeeren();
+      void chefProtokoll(req, `social:${id}`, `web-varianten: ${r.angelegt.length} angelegt${r.fehler.length ? `, ${r.fehler.length} abgelehnt` : ""}`);
+    }
+    return res.json({ ok: true, ...r });
+  } catch (e) { return fehlerSenden(res, e, "Web-Bilder"); }
+});
+
 router.post("/chef/social/post/:id/:aktion", wache, async (req: ChefRequest, res: Response) => {
   const id = idAus(req);
   const aktion = String(req.params.aktion) as SocialAktion;
@@ -402,10 +445,89 @@ router.post("/chef/social/post/:id/:aktion", wache, async (req: ChefRequest, res
   try {
     const ich = await ichLaden(req.chef);
     const r = await socialAktion(id, aktion, req.body, ich);
+    // Jede Aktion kann die Website betreffen (Schalter, Status, Termin) — der Feed liest beim nächsten Abruf neu.
+    sozialFeedLeeren();
     void chefProtokoll(req, r.ziel, `${aktion}: ${r.notiz}`);
     const post = await postLaden(id, ich);
     return res.json({ ok: true, post, meldung: r.meldung });
   } catch (e) { return fehlerSenden(res, e, `Aktion ${aktion}`); }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-296 · ÖFFENTLICH: WEBSITE-FEED UND BILDER (ohne Anmeldung)
+// ═══════════════════════════════════════════════════════════════════════════
+// Die Website darf nie brechen: Jeder Fehler im Feed wird geloggt und als 200 mit
+// leerer Liste beantwortet (die Seite zeigt dann nur die Profile). Bilder: nur,
+// was die Regel JETZT erlaubt (websiteBild, frisch in SQL), sonst 404 — ohne zu
+// verraten, ob es die Datei gibt. Drossel je Besucher-IP gegen Abgrasen der Bild-ids.
+const FEED_ROUTE = SOZIAL_FEED_PFAD.replace(/^\/api\/fiaon/, "");
+// Großzügig (Mobilfunk-NAT: viele Besucher hinter einer IP); Wiederholungen kommen ohnehin aus dem Browser-Cache.
+const bildZuViel = fensterDrossel(1200, 60_000);
+
+router.get(FEED_ROUTE, async (req: Request, res: Response) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  try {
+    const antwort = await sozialFeed({ marke: req.query.marke, thema: req.query.thema, n: req.query.n });
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return res.json(antwort);
+  } catch (e) {
+    console.error("[SOCIAL] Website-Feed:", e);
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.status(200).json(sozialFeedLeer());
+  }
+});
+
+async function websiteBildAusliefern(req: Request, res: Response, nurKopf: boolean) {
+  const id = idAus(req);
+  // Fehlerantworten nie zwischenspeichern (auch nicht in Cloudflare) und ohne die Kopfzeilen eines Bildes.
+  const nichtDa = () => {
+    for (const k of ["ETag", "Content-Length", "Content-Type", "Content-Security-Policy", "Cross-Origin-Resource-Policy"]) res.removeHeader(k);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(404).json({ ok: false, error: "Dieses Bild gibt es nicht." });
+  };
+  if (!id) return nichtDa();
+  // Prüfung 06.10.2026: NICHT req.ip — hinter Cloudflare ist das der Rand (141.101.x.x), alle Besucher dahinter
+  // teilten sich sonst einen Topf. Dieselbe Quelle wie fiaon-global-angebot (cf-connecting-ip zuerst).
+  const ip = aufrufClientIp(req) || "—";
+  if (bildZuViel(ip)) { res.setHeader("Retry-After", "60"); res.setHeader("Cache-Control", "no-store"); return res.status(429).json({ ok: false, error: "Zu viele Anfragen — bitte kurz warten." }); }
+  try {
+    const k = await websiteBild(id);
+    if (!k) return nichtDa();
+    const etag = `"${k.sha256}"`;
+    const bildKoepfe = () => {
+      res.setHeader("ETag", etag);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
+      // Nur für die eigenen Seiten — fremde Seiten binden die Bilder nicht ein.
+      res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+      res.setHeader("Content-Type", k.mime);
+    };
+    if (String(req.headers["if-none-match"] || "") === etag) { bildKoepfe(); return res.status(304).end(); }
+    if (nurKopf) { bildKoepfe(); res.setHeader("Content-Length", String(k.bytes)); return res.status(200).end(); }
+    // Erst das erste Stück lesen, DANN Status und Cache-Kopfzeilen setzen (Prüfung 06.10.2026): Bricht die
+    // Datenbank vorher ab, geht ein 404 mit no-store hinaus — nie ein Fehler mit „public, max-age=86400“.
+    const stuecke = dateiStuecke(k.id, k.bytes)[Symbol.asyncIterator]();
+    const erstes = await stuecke.next();
+    // Kein einziges Stück (Inhalt fehlt trotz Kopfzeile): kein halbes Bild mit falscher Länge, sondern 404.
+    if (erstes.done) return nichtDa();
+    bildKoepfe();
+    res.setHeader("Content-Length", String(k.bytes));
+    res.status(200);
+    let weg = false;
+    res.on("close", () => { weg = true; });
+    for (let x: IteratorResult<Buffer> = erstes; !x.done; x = await stuecke.next()) {
+      if (weg) { await stuecke.return?.(undefined); return; }
+      if (!res.write(x.value)) await new Promise<void>((ok) => { res.once("drain", ok); res.once("close", ok); });
+    }
+    return res.end();
+  } catch (e) {
+    console.error("[SOCIAL] Website-Bild:", e);
+    if (!res.headersSent) return nichtDa();
+    try { res.destroy(); } catch { /* weg */ }
+  }
+}
+router.head("/social/bild/:id", (req: Request, res: Response) => websiteBildAusliefern(req, res, true));
+router.get("/social/bild/:id", (req: Request, res: Response) => websiteBildAusliefern(req, res, false));
 
 export default router;

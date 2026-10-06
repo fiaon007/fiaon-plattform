@@ -14,6 +14,7 @@ import { markdownZuHtml, inhaltsverzeichnis, textAusMarkdown } from "@shared/fia
 import "@/styles/ratgeber.css";
 // 27.08.2026: Nach 80 Sekunden Lesezeit ein Angebot — siehe LeseAufruf.tsx.
 import LeseAufruf from "@/components/site/LeseAufruf";
+import { SozialBeitrag } from "@/components/site/sozial/SozialBeitrag";
 
 interface Weiterer { slug: string; titel: string; teaser: string; kategorie: string; land: string; lesezeit: number; veroeffentlichtAm: string | null }
 const LANDKURZ: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz", DACH: "DACH" };
@@ -137,6 +138,8 @@ export default function RatgeberArtikel() {
                   {a.faq.map((f) => <details key={f.frage}><summary>{f.frage}</summary><p>{f.antwort}</p></details>)}
                 </section>
               )}
+              {/* E-296 (06.10.2026): ein Beitrag von Instagram, der zum Thema passt — sonst nichts. */}
+              <SozialBeitrag kategorie={a.kategorie} schlagworte={a.schlagworte} />
               <div className="rg-autorin">
                 <img src={AUTORIN.bild} alt={AUTORIN.name} />
                 <div><small>{AUTORIN.rolle}</small><b>{AUTORIN.name}</b><p>{AUTORIN.kurz}</p></div>

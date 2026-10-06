@@ -28,8 +28,9 @@ import {
   socialWortcheck, ausnahmenAusManifest, checklisteSoll, offenePflichtpunkte, zeichenStaende,
   erlaubteAktionen, darfUebergang, istSocialStatus, istSocialKanal, istPlanDatum, istPlanZeit,
   importKanon, planHinweise, planSortierung, permalinkPruefen, rasterSymbol, rasterZuschnitt,
-  studioUrl, wortTrefferZahl, istAusnahmeSchluessel, SOCIAL_VERSCHIEBBAR,
-  type SocialManifest, type SocialStatus, type SocialKanal, type SocialFormat, type SocialMarke, type SocialRolle,
+  studioUrl, wortTrefferZahl, istAusnahmeSchluessel, SOCIAL_VERSCHIEBBAR, SOCIAL_STATUS_INFO,
+  istWebsiteSchalterStatus, websiteStand, feedBildEintraege, WEB_480_MAX_BREITE, WEB_480_MAX_BYTES, IMPORT_MAX_DATEIEN,
+  type FeedDateiEintrag, type SocialManifest, type SocialStatus, type SocialKanal, type SocialFormat, type SocialMarke, type SocialRolle,
   type SocialWortcheck, type SocialCheckliste, type SocialPostKarte, type SocialPostDetail, type SocialDatei,
   type SocialIch, type SocialAktion, type SocialImportAntwort, type SocialFehlerCode, type SocialWortFeld,
   type SocialRasterKachel, type SocialInstagramAntwort, type SocialPlanAntwort, type SocialVeroeffentlichung,
@@ -37,7 +38,7 @@ import {
 import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
 import {
   dateiSchreiben, dateiTypAusBytes, rolleTypFehler, metaHinweise, sha256Hex, vorhandeneShas, speicherBytes,
-  dateiUrl, dateiDownloadUrl, downloadName, type DateiAnalyse,
+  dateiUrl, dateiDownloadUrl, downloadName, webVarianten, type DateiAnalyse,
 } from "./fiaon-social-dateien";
 
 // ── Tabellen ───────────────────────────────────────────────────────────────
@@ -102,10 +103,17 @@ function vorschauAus(dateien: PostDatei[]): SocialPostKarte["vorschau"] {
   return d ? { datei_id: d.datei_id, url: dateiUrl(d.datei_id), breite: d.breite, hoehe: d.hoehe } : null;
 }
 
-function karteAus(r: any): SocialPostKarte {
+function karteAus(r: any, heute: string = berlinToday()): SocialPostKarte {
   const dateien = (Array.isArray(r.dateien) ? r.dateien : []) as PostDatei[];
   const wc = r.wortcheck as SocialWortcheck | null;
   const veroeff = (r.veroeffentlicht ?? {}) as Record<string, unknown>;
+  // E-296: dieselbe Regel wie der Website-Feed (shared/fiaon-social.ts §9) — mit Instagram-Meldung und dem
+  // Wort-Check nach den aktuellen Regeln (gespeichert, wenn der Regelstand passt; sonst nur bei Schalter an frisch).
+  const rot = wc && wc.regelstand === SOCIAL_REGELSTAND ? wc.ergebnis === "rot" : !!r.website_sichtbar && wortcheckFuer(r).ergebnis === "rot";
+  const web = websiteStand({
+    website_sichtbar: !!r.website_sichtbar, status: r.status, plan_datum: r.pd, format: r.format, dateien: dateien as FeedDateiEintrag[],
+    wortcheck_rot: rot, kanaele: arr(r.kanaele), gemeldet: Object.keys(veroeff),
+  }, heute);
   return {
     id: Number(r.id), extern_id: r.extern_id, version: Number(r.version), fassung: Number(r.fassung),
     titel: r.titel, serie: r.serie ?? null, format: r.format, marke: r.marke, kanaele: arr(r.kanaele).filter(istSocialKanal) as SocialKanal[],
@@ -114,6 +122,7 @@ function karteAus(r: any): SocialPostKarte {
     wortcheck_ergebnis: wc?.ergebnis ?? null, wort_treffer: wortTrefferZahl(wc),
     vorschau: vorschauAus(dateien), dateien_anzahl: dateien.length,
     veroeffentlicht_kanaele: Object.keys(veroeff).filter(istSocialKanal) as SocialKanal[],
+    website_sichtbar: web.sichtbar, website_jetzt: web.jetzt,
   };
 }
 
@@ -159,11 +168,14 @@ async function detailAus(r: any, ich: SocialIch): Promise<SocialPostDetail> {
   const verlauf = (await sqlPool`
     SELECT id, art, von, fassung, grund, am, vorher, nachher FROM fiaon_social_verlauf
      WHERE post_id = ${r.id} ORDER BY am DESC, id DESC LIMIT 50`) as any[];
+  // E-296: kleine Web-Bilder (480 px) je Bild/Titelbild — das Studio legt fehlende an.
+  const web = await webVarianten(dateien.filter((d) => d.rolle === "bild" || d.rolle === "cover").map((d) => Number(d.datei_id)));
   const sd: SocialDatei[] = dateien.map((d) => ({
     id: d.datei_id, pos: d.pos, rolle: d.rolle, dateiname: d.dateiname, mime: d.mime, bytes: d.bytes,
     breite: d.breite, hoehe: d.hoehe, sekunden: d.sekunden, sha256: d.sha256,
     url: dateiUrl(d.datei_id), download_url: dateiDownloadUrl(d.datei_id),
     download_name: downloadName(r.extern_id, d.pos, d.rolle, d.mime, bilder),
+    web_480: (() => { const w = web.get(Number(d.datei_id)); return w ? { id: w.id, breite: w.breite, hoehe: w.hoehe } : null; })(),
   }));
   const soll = checklisteSoll({ format: r.format, ki_noetig: !!r.ki_noetig, link: r.link, kanaele: arr(r.kanaele) });
   const meta: string[] = [];
@@ -188,6 +200,11 @@ async function detailAus(r: any, ich: SocialIch): Promise<SocialPostDetail> {
     sperren: sperrenFuer(r, wc, ich),
     zuletzt_importiert_am: iso(r.zuletzt_importiert_am),
     meta_hinweise: meta,
+    website: websiteStand({
+      website_sichtbar: !!r.website_sichtbar, status: r.status, plan_datum: r.pd, format: r.format,
+      dateien: dateien as FeedDateiEintrag[], wortcheck_rot: wc.ergebnis === "rot", web_480_ids: new Set(Array.from(web.keys())),
+      kanaele: arr(r.kanaele), gemeldet: Object.keys((r.veroeffentlicht ?? {}) as Record<string, unknown>),
+    }, berlinToday()),
   };
 }
 
@@ -216,7 +233,7 @@ export async function planLaden(vonRoh: unknown, bisRoh: unknown, ich: SocialIch
   if (tage > 120) bis = new Date(Date.parse(`${von}T12:00:00Z`) + 120 * 86_400_000).toISOString().slice(0, 10);
   const rows = (await sqlPool.unsafe(
     `SELECT ${POST_SPALTEN} FROM fiaon_social_posts p WHERE p.plan_datum BETWEEN $1::date AND $2::date`, [von, bis])) as any[];
-  const posts = rows.map(karteAus).sort(planSortierung);
+  const posts = rows.map((x) => karteAus(x, heute)).sort(planSortierung);
   const zaehler = await statusZaehler();
   // „Heute zu posten" rechnet unabhängig vom geblätterten Zeitraum (Prüfung 06.10.2026).
   const heuteRows = (await sqlPool.unsafe(
@@ -231,7 +248,7 @@ export async function planLaden(vonRoh: unknown, bisRoh: unknown, ich: SocialIch
       ORDER BY p.plan_datum, p.plan_zeit NULLS FIRST, p.reihenfolge NULLS LAST, p.id LIMIT 1`, [heute])) as any[];
   return {
     ok: true, ich, von, bis, heute, posts,
-    heute_posts: heuteRows.map(karteAus).sort(planSortierung),
+    heute_posts: heuteRows.map((x) => karteAus(x, heute)).sort(planSortierung),
     bei_claude: bc.map((x) => ({ id: Number(x.id), titel: x.titel, plan_datum: x.pd, notiz: String(x.zurueck_notiz) })),
     hinweise: planHinweise(posts, von, bis, heute),
     zaehler,
@@ -305,6 +322,7 @@ const schnappschuss = (r: any) => ({
   caption: r.caption, hashtags: r.hashtags, erster_kommentar: r.erster_kommentar, alt_text: r.alt_text, bildtexte: r.bildtexte,
   link: r.link, ki_noetig: r.ki_noetig, ki_grund: r.ki_grund, ausnahmen: r.ausnahmen, dateien: r.dateien,
   status: r.status, plan_datum: r.pd, plan_zeit: r.pz, veroeffentlicht: r.veroeffentlicht, kennzahlen: r.kennzahlen, checkliste: r.checkliste,
+  website_sichtbar: !!r.website_sichtbar,
 });
 
 // ── Import ─────────────────────────────────────────────────────────────────
@@ -476,6 +494,8 @@ export async function socialImport(e: ImportEingabe): Promise<{ status: number; 
     const version = Number(a.version) + 1;
     if (konflikt) hinweise.push("Der Post war im Studio bearbeitet — die Studio-Fassung bleibt im Verlauf abrufbar.");
     if (a.status === "freigegeben" || a.status === "eingeplant") hinweise.push(`Die alte Fassung war „${a.status}“ — die neue muss neu freigegeben werden.`);
+    // E-296: Der Website-Schalter galt für den alten Inhalt — nach der neuen Freigabe neu einschalten.
+    if (a.website_sichtbar) hinweise.push("„Auf der Website zeigen“ ist für die neue Fassung aus — nach der Freigabe neu einschalten.");
     if (e.probe) {
       return { status: 200, antwort: { ok: true as const, probe: true, ergebnis: "neue_version" as const, id, version: Number(a.version), fassung, status: "zur_freigabe" as SocialStatus, vorher_status: a.status, konflikt, studio_url: studioUrl(id), ...basis } };
     }
@@ -505,7 +525,8 @@ export async function socialImport(e: ImportEingabe): Promise<{ status: number; 
         wortcheck_manifest = ${m.wortcheck ? tx.json(m.wortcheck as any) : null}, meta_roh = ${tx.json(e.metaRoh as any)},
         dateien = ${tx.json(pd as any)}, checkliste = '{}'::jsonb,
         freigegeben_von = NULL, freigegeben_von_agent = NULL, freigegeben_am = NULL, freigabe_grund = NULL, freigabe_trotz_rot = FALSE,
-        zurueck_notiz = NULL, veroeffentlicht = '{}'::jsonb, veroeffentlicht_am = NULL, kennzahlen = '{}'::jsonb, updated_at = NOW()
+        zurueck_notiz = NULL, veroeffentlicht = '{}'::jsonb, veroeffentlicht_am = NULL, kennzahlen = '{}'::jsonb,
+        website_sichtbar = FALSE, updated_at = NOW()
       WHERE id = ${id}`;
     await verlaufSchreiben(tx, { post_id: id, version, fassung, art: "neue_version", wer: e.wer, vorher, nachher: { import_hash: importHash, dateien: pd.length, wortcheck: wc.ergebnis, konflikt }, grund: hinweise.length ? hinweise.join(" · ") : null });
     if (kiKonflikt) {
@@ -519,6 +540,8 @@ export async function socialImport(e: ImportEingabe): Promise<{ status: number; 
 
 // ── Aktionen ───────────────────────────────────────────────────────────────
 const textOk = (x: unknown, min = GRUND_MIN) => typeof x === "string" && x.trim().length >= min;
+/** „2026-10-08“ → „08.10.2026“. */
+const datumDe = (iso: string) => `${String(iso).slice(8, 10)}.${String(iso).slice(5, 7)}.${String(iso).slice(0, 4)}`;
 
 /**
  * Führt eine Studio-Aktion aus. Jede prüft version, Status und Rechte, erhöht
@@ -615,12 +638,29 @@ export async function socialAktion(id: number, aktion: SocialAktion, body: any, 
           veroeff[k] = { am: jetzt, permalink: x.permalink, plattform_id: x.plattform_id, von: wer.name };
         }
         if (ohneKi.length) throw wurf(409, `Erst den KI-Haken setzen: ${ohneKi.map((k) => KANAL_INFO[k].titel).join(", ")}. Der Post ist als KI-Inhalt gekennzeichnet (Art. 50 KI-VO).`, "KI_HAKEN_FEHLT", { kanaele: ohneKi });
+        // E-296: Beim ERSTEN Melden kommt der Post mit auf die Website (Schalter an) — wenn er auf Instagram
+        // geht, ein Bild hat und der Wort-Check nicht rot ist. Gezeigt wird er erst mit der Instagram-Meldung
+        // (Feed-Regel). Weitere Kanäle melden ändert den Schalter nicht mehr. Und (Prüfung 06.10.2026): Wurde der
+        // Schalter für DIESE Fassung schon einmal von Hand geschaltet (Verlauf „website“), bleibt Justins Wahl —
+        // ein bewusstes Aus vor der ersten Meldung wird nicht überschrieben.
+        const ersteMeldung = status !== "veroeffentlicht";
+        let webAn = ersteMeldung && !r.website_sichtbar && kanaele.includes("instagram")
+          && feedBildEintraege(r.format, (Array.isArray(r.dateien) ? r.dateien : []) as FeedDateiEintrag[]).length > 0 && wortcheckFuer(r).ergebnis !== "rot";
+        if (webAn) {
+          const geschaltet = (await tx`
+            SELECT 1 FROM fiaon_social_verlauf WHERE post_id = ${id} AND art = 'website' AND fassung = ${Number(r.fassung)} LIMIT 1`) as any[];
+          if (geschaltet.length) webAn = false;
+        }
         await tx`
           UPDATE fiaon_social_posts SET status = 'veroeffentlicht', version = ${neu}, veroeffentlicht = ${tx.json(veroeff as any)},
-            veroeffentlicht_am = COALESCE(veroeffentlicht_am, NOW()), updated_at = NOW()
+            veroeffentlicht_am = COALESCE(veroeffentlicht_am, NOW()), website_sichtbar = (website_sichtbar OR ${webAn}), updated_at = NOW()
           WHERE id = ${id}`;
-        await verlauf("veroeffentlicht", { status, veroeffentlicht: r.veroeffentlicht ?? {} }, { status: "veroeffentlicht", meldungen });
-        return { meldung: `Als veröffentlicht gemeldet: ${meldungen.map((x) => KANAL_INFO[x.kanal].titel).join(", ")}.`, ziel: `social:${id}`, notiz: meldungen.map((x) => `${x.kanal} ${x.permalink}`).join(" · ") };
+        await verlauf("veroeffentlicht", { status, veroeffentlicht: r.veroeffentlicht ?? {}, website_sichtbar: !!r.website_sichtbar }, { status: "veroeffentlicht", meldungen, website_sichtbar: !!r.website_sichtbar || webAn });
+        const aufInstagram = meldungen.some((x) => x.kanal === "instagram") || !!(r.veroeffentlicht ?? {}).instagram;
+        const webSatz = webAn
+          ? (!aufInstagram ? " Auf der Website, sobald Instagram gemeldet ist." : r.pd > berlinToday() ? ` Auf der Website ab ${datumDe(r.pd)}.` : " Steht damit auch auf der Website.")
+          : "";
+        return { meldung: `Als veröffentlicht gemeldet: ${meldungen.map((x) => KANAL_INFO[x.kanal].titel).join(", ")}.${webSatz}`, ziel: `social:${id}`, notiz: `${meldungen.map((x) => `${x.kanal} ${x.permalink}`).join(" · ")}${webAn ? " · website an" : ""}` };
       }
       case "verwerfen": {
         if (!darfUebergang(status, "verworfen")) throw wurf(409, `Ein Post im Status „${status}“ kann nicht mehr verworfen werden.`, "UEBERGANG_UNZULAESSIG");
@@ -678,8 +718,113 @@ export async function socialAktion(id: number, aktion: SocialAktion, body: any, 
         await verlauf(punkt === KI_PUNKT ? "ki_haken" : "checkliste", { kanal: k, punkt, erledigt: !!r.checkliste?.[k]?.[punkt] }, { kanal: k, punkt, erledigt: b.erledigt });
         return { meldung: b.erledigt ? "Abgehakt." : "Haken entfernt.", ziel: `social:${id}`, notiz: `${k}.${punkt}=${b.erledigt}` };
       }
+      case "website": {
+        // E-296: Schalter „Auf der Website zeigen“. Einschalten (vormerken) ab der Freigabe, nur mit Instagram als
+        // Kanal, mit Bild und ohne roten Wort-Check; ausschalten geht immer. Gezeigt wird erst, wenn der Post auf
+        // Instagram als veröffentlicht gemeldet ist, und nie vor dem Plantag (Berlin).
+        if (typeof b.sichtbar !== "boolean") throw wurf(400, "Bitte „Auf der Website zeigen“ als an oder aus schicken.", "UNGUELTIG");
+        const an = b.sichtbar;
+        if (!!r.website_sichtbar === an) return { meldung: an ? "Steht schon auf der Website (ab dem Plantag)." : "Steht schon nicht auf der Website.", ziel: `social:${id}`, notiz: `unverändert ${an}` };
+        if (an) {
+          if (!istWebsiteSchalterStatus(status)) throw wurf(409, `Auf die Website kommt ein Post erst nach der Freigabe — er ist „${SOCIAL_STATUS_INFO[status]?.titel ?? status}“.`, "UEBERGANG_UNZULAESSIG");
+          if (!arr(r.kanaele).includes("instagram")) throw wurf(409, "Dieser Post geht nicht auf Instagram — die Website zeigt nur Beiträge von @fiaon.ltd.", "KEIN_INSTAGRAM");
+          if (!feedBildEintraege(r.format, (Array.isArray(r.dateien) ? r.dateien : []) as FeedDateiEintrag[]).length) {
+            throw wurf(409, "Dieser Post hat kein Bild — die Website zeigt nur Posts mit Folien oder Titelbild.", "KEIN_BILD");
+          }
+          const wc = wortcheckFuer(r);
+          if (wc.ergebnis === "rot") throw wurf(409, "Der Wort-Check ist rot — auf die Website kommt nur, was grün ist.", "WORTCHECK_ROT", { felder: wc.felder.filter((f: SocialWortFeld) => f.treffer.length) });
+        }
+        await tx`UPDATE fiaon_social_posts SET website_sichtbar = ${an}, version = ${neu}, updated_at = NOW() WHERE id = ${id}`;
+        await verlauf("website", { website_sichtbar: !!r.website_sichtbar }, { website_sichtbar: an, ab: r.pd });
+        const spaeter = r.pd > berlinToday();
+        const gemeldet = !!(r.veroeffentlicht ?? {}).instagram && (status === "veroeffentlicht" || status === "ausgewertet");
+        const meldung = an
+          ? (!gemeldet ? "Vorgemerkt: Der Post erscheint auf der Website, sobald er auf Instagram als veröffentlicht gemeldet ist."
+            : spaeter ? `Auf der Website ab ${datumDe(r.pd)} (Plantag).` : "Steht jetzt auf der Website. Schon geöffnete Seiten zeigen es nach spätestens fünf Minuten.")
+          : "Von der Website genommen. Schon geöffnete Seiten zeigen es höchstens noch fünf Minuten.";
+        return { meldung, ziel: `social:${id}`, notiz: `${!!r.website_sichtbar}→${an}${an && r.pd > berlinToday() ? ` ab ${r.pd}` : ""}` };
+      }
       default:
         throw wurf(400, "Diese Aktion gibt es nicht.", "UNGUELTIG");
     }
   });
+}
+
+// ── Kleine Web-Bilder (E-296) ──────────────────────────────────────────────
+/**
+ * Das Studio rechnet beim Einschalten von „Auf der Website zeigen“ je Bild/Titelbild
+ * ein 480 px breites JPEG (canvas, Qualität 0,82) und schickt es hierher. Der Server
+ * prüft selbst: JPEG aus den Bytes, höchstens 600 px breit, nicht größer als das
+ * Original, gleiches Seitenverhältnis, die Quelle ist ein aktuelles Bild DIESES Posts.
+ * Gespeichert als variante 'web_480' mit quelle_id = Original (dateiSchreiben,
+ * eindeutiger Index je post/sha256/variante). Jede Datei einzeln: Was nicht passt,
+ * steht in `fehler`, der Rest wird trotzdem gespeichert. Keine neue version — der
+ * Inhalt des Posts ändert sich nicht; eine Verlaufszeile, wenn etwas angelegt wurde.
+ */
+export interface WebVarianteEingang { quelle_id: number; inhalt: Buffer }
+export interface WebVariantenErgebnis { angelegt: { quelle_id: number; id: number }[]; schon_da: number[]; fehler: { quelle_id: number; error: string }[] }
+
+export async function webVariantenSpeichern(id: number, eingang: WebVarianteEingang[], ich: SocialIch): Promise<WebVariantenErgebnis> {
+  await ensureSocialTabellen();
+  const wer = handelnderAus(ich);
+  if (!eingang.length) throw wurf(400, "Es kam kein Bild an.", "UNGUELTIG");
+  if (eingang.length > IMPORT_MAX_DATEIEN) throw wurf(400, `Höchstens ${IMPORT_MAX_DATEIEN} kleine Bilder auf einmal.`, "UNGUELTIG");
+  const r = ((await sqlPool`SELECT id, extern_id, version, fassung, dateien FROM fiaon_social_posts WHERE id = ${id}`) as any[])[0];
+  if (!r) throw wurf(404, "Diesen Post gibt es nicht (mehr).", "NICHT_GEFUNDEN");
+  const liste = ((Array.isArray(r.dateien) ? r.dateien : []) as PostDatei[]).filter((d) => d.rolle === "bild" || d.rolle === "cover");
+  const jeId = new Map(liste.map((d) => [Number(d.datei_id), d] as const));
+  const out: WebVariantenErgebnis = { angelegt: [], schon_da: [], fehler: [] };
+  const gesehen = new Set<number>();
+  for (const e of eingang) {
+    const q = Number(e.quelle_id);
+    const fehler = (text: string) => out.fehler.push({ quelle_id: Number.isFinite(q) ? q : 0, error: text });
+    if (!Number.isInteger(q) || q <= 0) { fehler("Die Quelle fehlt (Feldname = id des Originals)."); continue; }
+    if (gesehen.has(q)) { fehler("Diese Quelle kam zweimal."); continue; }
+    gesehen.add(q);
+    const eintrag = jeId.get(q);
+    if (!eintrag) { fehler("Diese Datei ist kein aktuelles Bild oder Titelbild dieses Posts."); continue; }
+    const k = ((await sqlPool`
+      SELECT id, post_id, mime, breite, hoehe FROM fiaon_social_dateien
+       WHERE id = ${q} AND variante = 'original' AND geloescht_am IS NULL AND inhalt_geleert_am IS NULL`) as any[])[0];
+    if (!k || Number(k.post_id) !== id || !(k.mime === "image/jpeg" || k.mime === "image/png")) { fehler("Das Original ist kein JPEG/PNG dieses Posts (mehr)."); continue; }
+    if (!Buffer.isBuffer(e.inhalt) || !e.inhalt.length) { fehler("Die Datei ist leer."); continue; }
+    if (e.inhalt.length > WEB_480_MAX_BYTES) { fehler(`Das kleine Bild ist größer als ${Math.round(WEB_480_MAX_BYTES / 1024)} KB.`); continue; }
+    const a = dateiTypAusBytes(e.inhalt);
+    if (!a || a.mime !== "image/jpeg") { fehler("Das kleine Bild muss ein JPEG sein."); continue; }
+    if (!a.breite || !a.hoehe) { fehler("Die Maße des kleinen Bildes ließen sich nicht lesen."); continue; }
+    if (a.breite > WEB_480_MAX_BREITE) { fehler(`Das kleine Bild ist ${a.breite} px breit — höchstens ${WEB_480_MAX_BREITE} px.`); continue; }
+    const ob = Number(k.breite) || 0, oh = Number(k.hoehe) || 0;
+    if (ob && a.breite > ob) { fehler("Das kleine Bild ist breiter als das Original."); continue; }
+    if (ob && oh && Math.abs(a.breite / a.hoehe - ob / oh) > (ob / oh) * 0.03) { fehler("Das Seitenverhältnis passt nicht zum Original."); continue; }
+    const sha = sha256Hex(e.inhalt);
+    try {
+      const neuId = await sqlPool.begin(async (tx: any) => {
+        // Je Post nacheinander (zwei offene Fenster schicken sonst dieselben Bilder gleichzeitig).
+        await tx`SELECT pg_advisory_xact_lock(hashtext(${"social-web:" + id}))`;
+        const da = (await tx`
+          SELECT id FROM fiaon_social_dateien
+           WHERE variante = 'web_480' AND quelle_id = ${q} AND geloescht_am IS NULL AND inhalt_geleert_am IS NULL LIMIT 1`) as any[];
+        if (da[0]) return null;
+        const basis = String(eintrag.dateiname || `datei-${q}`).replace(/\.[a-z0-9]+$/i, "");
+        return await dateiSchreiben(tx, {
+          post_id: id, pos: Number(eintrag.pos) || 1, rolle: eintrag.rolle, dateiname: `${basis}_web480.jpg`, sha256: sha,
+          inhalt: e.inhalt, analyse: a, sekunden: null, von: wer.von, variante: "web_480", quelle_id: q,
+        });
+      });
+      if (neuId === null) out.schon_da.push(q);
+      else out.angelegt.push({ quelle_id: q, id: neuId });
+    } catch (err: any) {
+      console.error("[SOCIAL] Web-Bild:", err);
+      fehler(err instanceof Error && /gehört schon/.test(err.message) ? err.message : "Speichern ging nicht.");
+    }
+  }
+  if (out.angelegt.length) {
+    try {
+      await sqlPool.begin(async (tx: any) => {
+        await verlaufSchreiben(tx, { post_id: id, version: Number(r.version), fassung: Number(r.fassung), art: "web_varianten", wer,
+          nachher: { angelegt: out.angelegt, schon_da: out.schon_da, fehler: out.fehler.length } });
+      });
+    } catch (err) { console.error("[SOCIAL] Web-Bild-Verlauf:", err); }
+  }
+  return out;
 }

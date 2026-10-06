@@ -1919,6 +1919,15 @@ export const RUNDGANG_SOCIAL_POST: RundgangSchritt[] = [
       + "Den Link vorher prüfen: Ändern geht hier noch nicht.",
   },
   {
+    ziel: "[data-so-website]",
+    titel: "Auf der Website zeigen.",
+    text: "Der Schalter holt den Post in das Instagram-Handy auf fiaon.com (Startseite, Privatkunden, Business, passende Ratgeber). "
+      + "Gezeigt wird er erst, wenn er auf Instagram als veröffentlicht gemeldet ist (mit Link) und sein Plantag erreicht ist — "
+      + "das Handy zeigt nur, was wirklich auf Instagram steht. Die Zeile darunter sagt, warum ein Post noch nicht zu sehen ist.",
+    tipp: "Beim ersten „Als veröffentlicht melden“ für Instagram geht der Schalter von selbst an. Beim Einschalten rechnet der "
+      + "Browser kleine Web-Bilder; geöffnete Seiten zeigen eine Änderung nach spätestens fünf Minuten.",
+  },
+  {
     ziel: "[data-so-texte]",
     titel: "Texte: kopieren und zählen.",
     text: "Caption, Hashtags, erster Kommentar und Alt-Text haben je einen Knopf „Kopieren“. Darunter die Zeichen je Kanal "

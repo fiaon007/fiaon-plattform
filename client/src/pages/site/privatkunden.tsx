@@ -22,6 +22,7 @@ import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 import { betrag, landLesen, type Land } from "@/lib/fiaon-land";
 import "@/styles/privatkunden.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
+import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 
 // Die Pakete: Schlüssel, Ziel-Rahmen, Farbe — Name, Untertitel und Merkmale
 // stehen im Wörterbuch unter demselben Schlüssel. 05.10.2026, E-283: im
@@ -190,6 +191,9 @@ export default function Privatkunden() {
           {t.vertrauen.map((k, i) => <Auf key={k.tag} verzoegerung={i * 80}><Glas tag={k.tag} titel={k.titel}>{k.text}</Glas></Auf>)}
         </div>
       </Block>
+
+      {/* E-296 (06.10.2026): FIAON auf Instagram und Facebook — erst Beiträge der Privatlinie, unter drei alle. */}
+      <SozialFenster aussehen="dunkel" marke="fiaon" ersatz="alle" mindestens={3} />
 
       <Zwischenruf text={t.zwischenruf} knopf={t.paketWaehlen} href="#pakete" still={{ knopf: t.erstAuskunft, href: zu("/bonitaet") }} />
 

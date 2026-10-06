@@ -20,17 +20,21 @@
 // in Reihenfolge bzw. Reel + Titelbild) neben „Kopieren“ der Caption — Instagram
 // wählt aus „Fotos“, ein Download landet in der Dateien-App. „Zurück an Claude“
 // sagt ehrlich, dass Claude die Notiz in Scheibe 1 nicht selbst liest.
+// E-296 (06.10.2026): Schalter „Auf der Website zeigen“ (Aktion „website“) mit der
+// Regel in einem Satz; beim Einschalten rechnet der Browser kleine Web-Bilder
+// (480 px JPEG per canvas) und lädt sie hoch — scheitert das, nimmt die Website
+// die Originale, der Schalter bleibt an.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Geruest, Fehlermeldung, useDaten, zahl } from "../chef-teile";
 import { useMaraRundgang, useMeldung, Meldung, tagZeitBerlin } from "../mara-lage";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
-import { SozialFehler, kopieren, sozialAktion, Kanaele, KanalKuerzel, StatusPille, FormatEtikett, tagWort, groesse, kannDateienTeilen, dateienHolen } from "./social-teile";
+import { SozialFehler, kopieren, sozialAktion, Kanaele, KanalKuerzel, StatusPille, FormatEtikett, tagWort, groesse, kannDateienTeilen, dateienHolen, webBilderAnlegen } from "./social-teile";
 import { HandyRahmen } from "./HandyRahmen";
 import {
   SOCIAL_API, SOCIAL_STATUS_INFO, KANAL_INFO, GRUND_MIN, KI_PUNKT, SOCIAL_AUSNAHMEN, zeichenZaehlen,
-  offenePflichtpunkte, permalinkPruefen, istPlanDatum, istPlanZeit, wortTrefferZahl,
+  offenePflichtpunkte, permalinkPruefen, istPlanDatum, istPlanZeit, wortTrefferZahl, WEBSITE_REGEL, WEB_480_BREITE,
   type SocialPostAntwort, type SocialPostDetail, type SocialIch, type SocialAktionKoerper, type SocialKanal, type SocialAktion, type SocialWortFeld,
 } from "@shared/fiaon-social";
 import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
@@ -165,6 +169,8 @@ function PostAnsicht({ post, ich, setPost, neuLaden, onGeaendert }: {
 
         <Aktionen post={post} ich={ich} busy={busy} tun={tun} roteFelder={roteFelder} />
         <Meldung m={meldung} ort="aktion" onZu={zu} />
+        <Website post={post} busy={busy} tun={tun} neuLaden={neuLaden} />
+        <Meldung m={meldung} ort="website" onZu={zu} />
 
         <WortCheck post={post} />
         <Texte post={post} />
@@ -363,6 +369,67 @@ function Pflicht({ titel, ton, children }: { titel: string; ton?: "warn" | "krit
 }
 function GrundZaehler({ n }: { n: number }) {
   return <span className={`grund${n < GRUND_MIN ? " fehlt" : ""}`}>{n < GRUND_MIN ? `Pflicht: mindestens ${GRUND_MIN} Zeichen (${n}/${GRUND_MIN}).` : "Wird mit deinem Namen im Verlauf gespeichert."}</span>;
+}
+
+// ── Auf der Website zeigen (E-296) ────────────────────────────────────────
+/**
+ * Der Schalter mit der Regel in einem Satz. Ist er an (auch durch „Als veröffentlicht
+ * melden“), legt der Browser einmal je Ansicht die fehlenden kleinen Web-Bilder an —
+ * still im Hintergrund; ein Fehler sperrt nichts (die Website nimmt dann die Originale).
+ */
+function Website({ post, busy, tun, neuLaden }: { post: SocialPostDetail; busy: string | null; tun: Tun; neuLaden: () => void }) {
+  const w = post.website;
+  const darf = post.erlaubte_aktionen.includes("website");
+  const an = w.sichtbar;
+  const [web, setWeb] = useState<{ stand: "ruhe" | "laeuft" | "fertig" | "fehler"; text: string }>({ stand: "ruhe", text: "" });
+  // Einmal je Post und Ansicht versuchen; das Ergebnis gilt, solange die Ansicht lebt (auch wenn der Post sich zwischendurch ändert).
+  const versucht = useRef<number | null>(null);
+  const lebt = useRef(true);
+  useEffect(() => { lebt.current = true; return () => { lebt.current = false; }; }, []);
+  const fehlend = useMemo(() => post.dateien.filter((x) =>
+    (x.rolle === "bild" || x.rolle === "cover") && (x.mime === "image/jpeg" || x.mime === "image/png") && !x.web_480 && (x.breite ?? 0) > WEB_480_BREITE,
+  ), [post.dateien]);
+  useEffect(() => {
+    if (!an || !darf || !fehlend.length || versucht.current === post.id) return;
+    versucht.current = post.id;
+    setWeb({ stand: "laeuft", text: `Rechne ${fehlend.length} kleine Web-${fehlend.length === 1 ? "Bild" : "Bilder"} (480 px) …` });
+    webBilderAnlegen(post.id, fehlend.map((x) => ({ id: x.id, url: x.url })))
+      .then((r) => {
+        if (!lebt.current) return;
+        const n = r.angelegt + r.schon_da;
+        setWeb({ stand: r.fehler ? "fehler" : "fertig", text: r.fehler
+          ? `Kleine Web-Bilder: ${zahl(r.angelegt)} angelegt, ${zahl(r.fehler)} nicht — dafür nimmt die Website die Originale.`
+          : `${n === 1 ? "1 kleines Web-Bild" : `${zahl(n)} kleine Web-Bilder`} bereit — die Website lädt schnell.` });
+        if (r.angelegt) neuLaden();
+      })
+      .catch((e: Error) => { if (lebt.current) setWeb({ stand: "fehler", text: `Kleine Web-Bilder: ${e.message} Die Website nimmt die Originale.` }); });
+  }, [an, darf, fehlend, post.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gesperrt = !!busy || (!an && (!darf || !w.darf_an));
+  const ton = w.jetzt ? "gut" : an ? "warn" : "";
+  return (
+    <section className="mara-karte so-website" aria-labelledby="so-website" data-so-website>
+      <div className="so-website-kopf">
+        <div style={{ minWidth: 0 }}>
+          <h3 id="so-website">Auf der Website zeigen</h3>
+          <p className="mara-satz mara-still">{WEBSITE_REGEL} „Als veröffentlicht melden“ schaltet den Schalter beim ersten Melden mit ein — außer, du hast ihn für diese Fassung schon selbst geschaltet.</p>
+        </div>
+        <button type="button" role="switch" aria-checked={an} aria-labelledby="so-website" className={`so-schalter${an ? " an" : ""}`} disabled={gesperrt}
+          data-so-knopf="website" title={gesperrt && !busy ? w.satz : an ? "Von der Website nehmen" : "Auf der Website zeigen"}
+          onClick={() => void tun("website", { version: post.version, sichtbar: !an }, "website")}>
+          <span className="so-schalter-knopf" aria-hidden />
+        </button>
+      </div>
+      <p className={`mara-hinweis${ton ? ` ${ton}` : ""}`} data-so-website-stand>
+        <span className={`mara-punkt${ton ? ` ${ton}` : ""}`} />
+        <span>{busy === "website" ? (an ? "Nehme von der Website …" : "Stelle auf die Website …") : w.satz}
+          {an && w.bilder > 0 ? ` · ${w.bilder === 1 ? "1 Bild" : `${zahl(w.bilder)} Bilder`}, davon ${zahl(w.web_480)} als kleines Web-Bild` : ""}</span>
+      </p>
+      {web.stand !== "ruhe" && (
+        <p className={`mara-still mara-klein${web.stand === "fehler" ? " mara-warn-t" : ""}`} role="status">{web.text}</p>
+      )}
+    </section>
+  );
 }
 
 // ── Wort-Check ─────────────────────────────────────────────────────────────
@@ -638,6 +705,7 @@ const ART_TITEL: Record<string, string> = {
   checkliste: "Checkliste", ki_haken: "KI-Haken", ki_kennzeichnung: "KI-Kennzeichnung geändert", ki_konflikt: "KI-Kennzeichnung: Studio und meta.json weichen ab",
   bearbeitet: "Im Studio bearbeitet", wortcheck: "Wort-Check neu", eingeplant: "Eingeplant",
   plan_aus_import: "Termin aus dem Import", kennzahlen: "Kennzahlen",
+  website: "Website-Schalter", web_varianten: "Kleine Web-Bilder angelegt",
 };
 function Verlauf({ post }: { post: SocialPostDetail }) {
   if (!post.verlauf?.length) return null;

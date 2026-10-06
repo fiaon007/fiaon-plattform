@@ -414,3 +414,31 @@
 .so-monat-tag .so-mehr { min-height: 0; padding: 2px 4px; font-size: 12px; margin-top: 2px; }
 .so-teilen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .so-teilen .mara-knopf { min-height: 40px; }
+
+/* ═══ E-296: „Auf der Website zeigen“ — Schalter im Post-Detail, Marke „Web“ im Plan ═══
+   Nur transform wird animiert (der Knopf gleitet), die Farbe springt; ohne Bewegung bei
+   prefers-reduced-motion. Kein Glas — die Karte ist matt wie die übrige Arbeitsspalte. */
+.so-website { display: flex; flex-direction: column; gap: 10px; }
+.so-website-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.so-schalter {
+  position: relative; flex: none; width: 52px; height: 30px; margin-top: 2px; padding: 0; border-radius: 15px; cursor: pointer;
+  border: 1px solid var(--m-linie-2); background: rgba(255, 255, 255, .08);
+}
+.so-schalter.an { border-color: rgba(125, 184, 255, .7); background: var(--m-licht); }
+.so-schalter:disabled { cursor: not-allowed; opacity: .45; }
+.so-schalter:focus-visible { outline: 2px solid var(--m-licht-text); outline-offset: 3px; }
+.so-schalter-knopf {
+  position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transform: translateX(0); transition: transform .18s ease;
+}
+.so-schalter.an .so-schalter-knopf { transform: translateX(22px); }
+/* Tippziel ≥ 44 px am Handy, ohne das Bild des Schalters zu ändern */
+.so-schalter::before { content: ""; position: absolute; inset: -8px -4px; }
+.so-web {
+  display: inline-grid; place-items: center; height: 17px; padding: 0 5px; border-radius: 5px; font-size: 10.5px; letter-spacing: .04em; line-height: 1;
+  color: var(--m-licht-text); border: 1px solid rgba(125, 184, 255, .55);
+}
+.so-web.spaeter { color: var(--m-text-3); border-style: dashed; border-color: var(--m-linie-2); }
+@media (prefers-reduced-motion: reduce) {
+  .so-schalter-knopf { transition: none; }
+}

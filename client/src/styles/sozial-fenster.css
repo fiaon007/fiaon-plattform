@@ -1,0 +1,374 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAS SOCIAL-FENSTER (E-296, 06.10.2026) — components/site/sozial/*
+
+   Zwei Looks: .sz-dunkel (dunkle Bühne: Startseite, /privatkunden) und
+   .sz-kanzlei (Papier von FIAON Global: /business). Dazu .sz-beitrag (ein
+   Beitrag im hellen Leseraum des Ratgebers) und .sz-ansicht (der Dialog).
+
+   Bewegung: nur transform, opacity, clip-path. Schleifen (Raster, Schein)
+   laufen nur mit data-laeuft="1" (im Bild, Tab sichtbar) und nur, wenn das
+   Raster treibt; das Raster hält bei Hover an, Fokus stellt es oben still,
+   „Bewegung anhalten“ (WCAG 2.2.2) stoppt beides. Der Ring dreht sich einmal
+   (unter 5 s). „Weniger Bewegung“: Endzustand, keine Schleife.
+   Kein backdrop-filter, kein großer Weichzeichner (iPhone).
+   Präfix .sz- (Sozial). Maßeinheit im Handy: --e = 1 px bei 300 px Breite.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sz{position:relative;z-index:1;--sz-blau:#2563eb;--sz-hell:#60a5fa}
+.sz-dunkel{--sz-text:#e5e7eb;--sz-weiss:#fff;--sz-leise:#9ca3af;--sz-linie:rgba(255,255,255,.09);--sz-linie-2:rgba(96,165,250,.38);--sz-flaeche:rgba(255,255,255,.035);--sz-flaeche-2:rgba(255,255,255,.06);--sz-akzent:#93c5fd;
+  --sz-ring:conic-gradient(from 0deg,#93c5fd,#2563eb 28%,#60a5fa 52%,#1d4ed8 76%,#93c5fd);
+  --sz-schirm:#000;--sz-schirm-text:#f5f5f5;--sz-schirm-leise:#a8a8a8;--sz-schirm-linie:#262626;--sz-schirm-link:#e0f1ff;--sz-knopf2:#262626;--sz-kachel:#121212}
+.sz-kanzlei{--sz-text:var(--text,#3b4658);--sz-weiss:var(--tinte,#0c1a2e);--sz-leise:var(--leise,#5d6678);--sz-linie:var(--linie,#e3e7ee);--sz-linie-2:var(--linie-2,#cdd5e0);--sz-flaeche:#fff;--sz-flaeche-2:var(--stein,#f5f7fa);--sz-akzent:var(--navy,#12284a);
+  --sz-ring:conic-gradient(from 0deg,#7ea2e8,#1d4ed8 30%,#12284a 58%,#2c5cc5 80%,#7ea2e8);
+  --sz-schirm:#fff;--sz-schirm-text:#0c1a2e;--sz-schirm-leise:#737373;--sz-schirm-linie:#e5e5e5;--sz-schirm-link:#00376b;--sz-knopf2:#efefef;--sz-kachel:#eef1f5}
+
+/* ── Profilbild mit Story-Ring ─────────────────────────────────────────── */
+.sz-avatar{position:relative;display:inline-block;flex:0 0 auto;border-radius:50%}
+.sz-ring{position:absolute;inset:0;border-radius:50%;background:var(--sz-ring,conic-gradient(#93c5fd,#2563eb,#60a5fa,#93c5fd));
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2.5px));
+  animation:szDrehen 4.6s cubic-bezier(.45,.05,.25,1) .5s 1 both}
+.sz-avatar-kern{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 32% 26%,#22427a 0%,#12284a 48%,#0c1a2e 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.sz-avatar.mit-ring .sz-avatar-kern{inset:5.5px}
+@keyframes szDrehen{to{transform:rotate(360deg)}}
+
+/* ── Abschnitt: Kopf, Handy, Reihe ─────────────────────────────────────── */
+.sz-buehne{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);grid-template-areas:"handy kopf" "handy reihe";column-gap:clamp(40px,6vw,96px);row-gap:34px;align-items:center}
+.sz-kopf{grid-area:kopf;align-self:end}
+.sz-kopf .dk-lead{max-width:56ch;margin-top:20px}
+.sz-kopf .dk-h2{margin-top:24px}
+.sz .sz-kopf .sz-profile:not(.gross){margin-top:24px}
+.sz-dunkel.sz-voll{padding:104px 0 112px}
+@media(max-width:720px){.sz-dunkel.sz-voll{padding:80px 0 84px}}
+.sz-handy-ort{grid-area:handy}
+.sz-reihe-ort{grid-area:reihe;align-self:start;min-width:0}
+.sz-kanzlei .sz-buehne{grid-template-columns:minmax(0,360px) minmax(0,1fr);grid-template-areas:"kopf kopf" "handy reihe";row-gap:56px}
+.sz-kanzlei .sz-kopf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:48px;align-items:end}
+.sz-kanzlei .sz-kopf .fg-lead{margin-top:0}
+@media(max-width:960px){
+  .sz-buehne,.sz-kanzlei .sz-buehne{grid-template-columns:minmax(0,262px) minmax(0,1fr);grid-template-areas:"kopf kopf" "handy reihe";column-gap:36px;row-gap:44px}
+  .sz-kanzlei .sz-kopf{grid-template-columns:1fr;gap:18px}
+}
+@media(max-width:720px){
+  .sz-buehne,.sz-kanzlei .sz-buehne{grid-template-columns:minmax(0,1fr);grid-template-areas:"kopf" "handy" "reihe";row-gap:40px}
+  .sz .sz-profile:not(.gross){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sz-profile:not(.gross) .sz-profil{width:100%;padding-right:12px}
+  .sz-profil-pfeil{display:none}
+}
+
+/* ── Die Profile als Leiste (mit Beiträgen) ─────────────────────────────── */
+/* Mit .sz davor: .fg :where(ul,p){margin:0} (global.css) und .dk :where(p) haben dieselbe Gewichtung und kommen später. */
+.sz .sz-profile{list-style:none;margin:0;padding:0}
+.sz .sz-profile:not(.gross){display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.sz-profile:not(.gross) .sz-profil{display:inline-flex;align-items:center;gap:12px;min-height:50px;padding:6px 16px 6px 6px;border-radius:999px;border:1px solid var(--sz-linie);background:var(--sz-flaeche);color:var(--sz-text);text-decoration:none;transition:transform .25s cubic-bezier(.22,1,.36,1),border-color .25s,background .25s}
+.sz-profile:not(.gross) .sz-profil:hover{transform:translateY(-2px);border-color:var(--sz-linie-2);background:var(--sz-flaeche-2)}
+.sz-profil-glyphe{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(96,165,250,.14);color:#bfdbfe}
+.sz-profil-text{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.sz-profil-text small{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--sz-leise)}
+.sz-profil-text b{font-weight:500;font-size:14px;color:var(--sz-weiss);margin-top:3px}
+.sz-profil-pfeil{color:var(--sz-leise);margin-left:2px;transition:transform .25s}
+.sz-profil:hover .sz-profil-pfeil{transform:translate(2px,-2px)}
+.sz-kanzlei .sz-profile:not(.gross) .sz-profil{border-radius:8px;padding-right:14px}
+.sz-kanzlei .sz-profil-glyphe{border-radius:6px;background:var(--blau-hell,#eef3fe);color:var(--navy,#12284a)}
+
+/* ── Ohne Beiträge: das Profilband ──────────────────────────────────────── */
+/* Solange der Feed lädt, hält das Band unsichtbar den Platz (kein falscher Inhalt; im leeren Fall springt nichts). */
+.sz[data-stand="wartet"] .sz-band{visibility:hidden}
+.sz-band{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:36px 72px;align-items:center}
+.sz-band .dk-h2,.sz-band .fg-h2{font-size:clamp(25px,2.7vw,36px)}
+.sz-band .dk-lead{margin-top:20px;max-width:46ch}
+.sz-band .fg-lead{margin-top:16px;max-width:44ch}
+.sz-profile.gross{display:grid;grid-template-columns:repeat(2,minmax(0,260px));gap:16px}
+.sz-profile.gross li{transition:opacity .8s cubic-bezier(.22,1,.36,1),transform .8s cubic-bezier(.22,1,.36,1);transition-delay:calc(.15s + var(--i,0)*.12s)}
+.sz[data-an="0"] .sz-profile.gross li{opacity:0;transform:translateY(18px)}
+.sz-profile.gross .sz-profil{position:relative;overflow:hidden;display:flex;align-items:center;gap:18px;height:100%;padding:20px 22px;border-radius:22px;border:1px solid var(--sz-linie);background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.015));color:var(--sz-text);text-decoration:none;
+  transition:transform .35s cubic-bezier(.22,1,.36,1),border-color .3s}
+.sz-profile.gross .sz-profil:hover{transform:translateY(-3px);border-color:var(--sz-linie-2)}
+.sz-profile.gross .sz-profil::after{content:"";position:absolute;inset:-40% -30%;background:linear-gradient(105deg,transparent 42%,rgba(147,197,253,.16) 50%,transparent 58%);transform:translateX(-80%);pointer-events:none}
+.sz[data-an="1"] .sz-profile.gross .sz-profil::after{animation:szStreif 1.8s cubic-bezier(.4,0,.2,1) 1 both;animation-delay:calc(.7s + var(--i,0)*.25s)}
+.sz-profile.gross li{list-style:none}
+.sz-profil-bild{position:relative;flex:0 0 auto;display:inline-flex}
+.sz-profil-kanal{position:absolute;right:-5px;bottom:-5px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#0c1a2e;box-shadow:0 0 0 3px #0f1a2d,0 4px 10px rgba(0,0,0,.25)}
+.sz-profile.gross .sz-profil-text b{font-size:17px;font-weight:400;margin-top:5px}
+.sz-profil-aktion{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;color:var(--sz-hell)}
+.sz-profil-aktion svg{transition:transform .25s}
+.sz-profil:hover .sz-profil-aktion svg{transform:translateX(3px)}
+.sz-kanzlei .sz-profile.gross .sz-profil{border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(18,40,74,.04),0 14px 30px -18px rgba(18,40,74,.25)}
+.sz-kanzlei .sz-profile.gross .sz-profil::after{background:linear-gradient(105deg,transparent 42%,rgba(29,78,216,.07) 50%,transparent 58%)}
+.sz-kanzlei .sz-profil-kanal{background:var(--navy,#12284a);color:#fff;box-shadow:0 0 0 3px #fff}
+.sz-kanzlei .sz-profile.gross .sz-profil-text b{font-family:var(--serif);font-size:20px;color:var(--tinte,#0c1a2e)}
+.sz-kanzlei .sz-profil-aktion{color:var(--navy,#12284a)}
+@media(max-width:900px){.sz-band{grid-template-columns:1fr}.sz-profile.gross{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.sz-profile.gross{grid-template-columns:1fr}}
+@keyframes szStreif{from{transform:translateX(-80%)}to{transform:translateX(80%)}}
+
+/* ── Das Handy ──────────────────────────────────────────────────────────── */
+.sz-handy-ort{position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:20px 0}
+.sz-schein{position:absolute;left:50%;top:50%;width:min(580px,130%);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(37,99,235,.34),rgba(37,99,235,.12) 46%,rgba(37,99,235,0) 72%);animation:szAtmen 9s ease-in-out infinite alternate}
+@keyframes szAtmen{from{transform:translate(-50%,-50%) scale(.9);opacity:.8}to{transform:translate(-50%,-50%) scale(1.06);opacity:1}}
+.sz-handy-ort:not(.treibt) .sz-schein{animation:none}
+.sz-kanzlei .sz-schein{top:auto;bottom:6px;width:72%;aspect-ratio:auto;height:44px;transform:translate(-50%,0);background:radial-gradient(closest-side,rgba(18,40,74,.26),rgba(18,40,74,0));animation:none}
+.sz-kanzlei .sz-handy-ort.treibt .sz-schein{bottom:62px}
+.sz-neigung{position:relative;--nx:0;--ny:0;--ruhe-y:0deg;--ruhe-x:0deg;transform:perspective(1600px) rotateY(calc(var(--ruhe-y) + var(--nx)*7deg)) rotateX(calc(var(--ruhe-x) + var(--ny)*-5deg));transition:transform .9s cubic-bezier(.16,1,.3,1)}
+@media(min-width:961px){.sz-dunkel .sz-neigung{--ruhe-y:-8deg;--ruhe-x:2deg}}
+.sz-handy{--hb:300px;--e:calc(var(--hb) / 300);position:relative;width:var(--hb);aspect-ratio:300/620;border-radius:calc(var(--e)*50);padding:calc(var(--e)*10);
+  background:linear-gradient(145deg,#59657a 0%,#1d2533 16%,#0b111c 48%,#1a2230 82%,#4a5568 100%);
+  box-shadow:inset 0 0 0 calc(var(--e)*1) rgba(255,255,255,.16),inset 0 0 0 calc(var(--e)*3.5) #04070d,0 60px 100px -30px rgba(2,6,23,.85),0 30px 60px -36px rgba(37,99,235,.55);
+  transition:transform 1.4s cubic-bezier(.16,1,.3,1),opacity 1s ease}
+.sz[data-an="0"] .sz-handy{opacity:0;transform:perspective(1600px) translateY(64px) rotateX(18deg) rotateY(-16deg) scale(.93)}
+.sz-kanzlei .sz-handy{box-shadow:inset 0 0 0 calc(var(--e)*1) rgba(255,255,255,.18),inset 0 0 0 calc(var(--e)*3.5) #04070d,0 40px 70px -28px rgba(18,40,74,.45),0 14px 26px -14px rgba(18,40,74,.32)}
+.sz-taste{position:absolute;width:calc(var(--e)*3.5);border-radius:2px;background:linear-gradient(90deg,#2b3444,#4b5567)}
+.sz-taste.a{left:calc(var(--e)*-2.5);top:18%;height:5%}
+.sz-taste.b{left:calc(var(--e)*-2.5);top:26%;height:9%}
+.sz-taste.c{left:calc(var(--e)*-2.5);top:37%;height:9%}
+.sz-taste.d{right:calc(var(--e)*-2.5);top:28%;height:14%;background:linear-gradient(270deg,#2b3444,#4b5567)}
+.sz-schirm{position:relative;width:100%;height:100%;border-radius:calc(var(--e)*40);overflow:hidden;background:var(--sz-schirm);color:var(--sz-schirm-text);isolation:isolate;transform:translateZ(0)}
+.sz-schirm-inhalt{position:absolute;inset:0;display:flex;flex-direction:column;font:400 calc(var(--e)*12)/1.35 'Inter',-apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:0;
+  clip-path:inset(0 0 0 0);transition:clip-path 1s cubic-bezier(.65,0,.35,1) .45s}
+.sz[data-an="0"] .sz-schirm-inhalt{clip-path:inset(0 0 100% 0)}
+.sz-glanz{position:absolute;inset:-10% -70%;background:linear-gradient(105deg,transparent 42%,rgba(255,255,255,.13) 50%,transparent 58%);transform:translateX(-70%);pointer-events:none;z-index:3}
+.sz-kanzlei .sz-glanz{background:linear-gradient(105deg,transparent 42%,rgba(29,78,216,.07) 50%,transparent 58%)}
+.sz[data-an="1"] .sz-glanz{animation:szGlanz 1.8s cubic-bezier(.4,0,.2,1) 1.2s 1 both}
+@keyframes szGlanz{from{transform:translateX(-70%)}to{transform:translateX(70%)}}
+
+.sz-status{position:relative;flex:0 0 auto;height:calc(var(--e)*40);display:flex;align-items:center;justify-content:space-between;padding:calc(var(--e)*4) calc(var(--e)*24) 0}
+.sz-status .zeit{font-weight:600;font-size:calc(var(--e)*13);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.sz-status .rechts{display:inline-flex;align-items:center;gap:calc(var(--e)*5)}
+.sz-status .rechts svg{width:auto;height:calc(var(--e)*10)}
+.sz-insel{position:absolute;left:50%;top:calc(var(--e)*9);width:calc(var(--e)*86);height:calc(var(--e)*25);border-radius:999px;background:#000;transform:translateX(-50%)}
+.sz-oben{flex:0 0 auto;height:calc(var(--e)*38);display:flex;align-items:center;justify-content:space-between;padding:0 calc(var(--e)*14)}
+.sz-oben b{font-weight:700;font-size:calc(var(--e)*17);letter-spacing:-.02em}
+.sz-oben-rechts{display:inline-flex;gap:calc(var(--e)*16)}
+.sz-oben-rechts svg{width:calc(var(--e)*21);height:calc(var(--e)*21)}
+.sz-profilkopf{flex:0 0 auto;display:flex;align-items:center;gap:calc(var(--e)*16);padding:calc(var(--e)*6) calc(var(--e)*14) 0}
+.sz-profilkopf .sz-avatar{width:calc(var(--e)*72) !important;height:calc(var(--e)*72) !important}
+.sz-profil-zahlen{display:flex;flex-direction:column;gap:calc(var(--e)*4);min-width:0}
+.sz-profil-name{font-weight:600;font-size:calc(var(--e)*13.5);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sz-bio{flex:0 0 auto;padding:calc(var(--e)*10) calc(var(--e)*14) 0;font-size:calc(var(--e)*12)}
+.sz-bio small{display:block;font-size:calc(var(--e)*11.5);color:var(--sz-schirm-leise)}
+.sz .sz-bio p{margin:calc(var(--e)*2) 0 0;line-height:1.35}
+.sz-bio-link{display:inline-flex;align-items:center;gap:calc(var(--e)*4);margin-top:calc(var(--e)*3);font-weight:600;color:var(--sz-schirm-link)}
+.sz-bio-link svg{width:calc(var(--e)*11);height:calc(var(--e)*11)}
+.sz-profil-knoepfe{flex:0 0 auto;display:flex;gap:calc(var(--e)*6);padding:calc(var(--e)*12) calc(var(--e)*14) calc(var(--e)*10)}
+.sz-profil-knoepfe a{flex:1;display:inline-flex;align-items:center;justify-content:center;height:calc(var(--e)*31);border-radius:calc(var(--e)*8);font-weight:600;font-size:calc(var(--e)*12.5);text-decoration:none;transition:transform .2s,filter .2s}
+.sz-folgen{background:#2563eb;color:#fff}
+.sz-folgen:hover{filter:brightness(1.1)}
+.sz-zweit{background:var(--sz-knopf2);color:var(--sz-schirm-text)}
+.sz-profil-knoepfe a:active{transform:scale(.97)}
+.sz-reiter{flex:0 0 auto;display:flex;height:calc(var(--e)*40);border-top:1px solid var(--sz-schirm-linie)}
+.sz-reiter span{flex:1;display:flex;align-items:center;justify-content:center;color:var(--sz-schirm-leise)}
+.sz-reiter span.an{color:var(--sz-schirm-text);box-shadow:inset 0 calc(var(--e)*-1.5) 0 var(--sz-schirm-text)}
+.sz-reiter svg{width:calc(var(--e)*20);height:calc(var(--e)*20)}
+
+/* Das Raster: zwei gleiche Hälften untereinander, die Spur wandert um genau eine Hälfte — nahtlos. */
+.sz-raster-fenster{position:relative;flex:1 1 auto;min-height:0;overflow:hidden}
+.sz-spur{will-change:auto}
+.sz-raster-fenster.treibt .sz-spur{will-change:transform;animation:szTreiben var(--sz-dauer,20s) linear 2.2s infinite}
+.sz-raster{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(var(--e)*1.5);padding-bottom:calc(var(--e)*1.5)}
+@keyframes szTreiben{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-50%,0)}}
+.sz:not([data-laeuft="1"]) :is(.sz-spur,.sz-ring,.sz-schein),.sz[data-an="0"] .sz-spur,
+.sz-raster-fenster:hover .sz-spur,.sz-handy-ort[data-angehalten="1"] .sz-schein{animation-play-state:paused}
+/* Fokus im Raster (Tastatur): nicht anhalten, sondern still oben hinstellen — sonst läge die fokussierte Kachel
+   oft außerhalb des Fensters (WCAG 2.4.7/2.4.11). „Bewegung anhalten“: ebenso still (Prüfung 06.10.2026). */
+.sz-raster-fenster:focus-within .sz-spur,.sz-handy-ort[data-angehalten="1"] .sz-spur{animation:none}
+.sz-kachel{position:relative;display:block;width:100%;aspect-ratio:4/5;overflow:hidden;padding:0;margin:0;border:0;border-radius:0;background:var(--sz-kachel);cursor:pointer;color:#fff;
+  transition:opacity .6s ease,transform .7s cubic-bezier(.16,1,.3,1);transition-delay:calc(.75s + var(--i,0)*45ms)}
+.sz[data-an="0"] .sz-kachel{opacity:0;transform:scale(.9)}
+.sz-kachel img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .6s cubic-bezier(.22,1,.36,1)}
+.sz-kachel:hover img{transform:scale(1.06)}
+.sz-kachel:focus-visible{outline:2px solid #60a5fa;outline-offset:-2px}
+.sz-art{position:absolute;top:calc(var(--e,1px)*5);right:calc(var(--e,1px)*5);display:inline-flex;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
+.sz-kachel .sz-art svg{width:calc(var(--e)*13);height:calc(var(--e)*13)}
+.sz-ki{position:absolute;left:calc(var(--e,1px)*4);bottom:calc(var(--e,1px)*4);padding:calc(var(--e,1px)*2) calc(var(--e,1px)*4);border-radius:calc(var(--e,1px)*4);background:rgba(10,15,25,.78);color:#fff;
+  font:500 max(9.5px,calc(var(--e,1px)*8))/1.2 'Inter',sans-serif;letter-spacing:.01em;white-space:nowrap;pointer-events:none}
+/* In der Kachel OBEN links (Prüfung 06.10.2026): Das Handy zeigt knapp zwei Reihen — unten wäre der Hinweis bei
+   stehendem Raster unter der Unterleiste verschwunden. Mindestens 9,5 px (Art. 50 KI-VO: klar erkennbar); bricht
+   bei schmalen Kacheln um, statt unter das Karussell-Zeichen zu laufen. */
+.sz-kachel .sz-ki{top:calc(var(--e)*4);bottom:auto;max-width:calc(100% - var(--e)*8);white-space:normal;padding:calc(var(--e)*2) calc(var(--e)*3.5)}
+.sz-kachel:has(.sz-art) .sz-ki{max-width:calc(100% - var(--e)*26)}
+.sz-bild-ersatz{display:block;width:100%;height:100%;background:radial-gradient(circle at 30% 25%,#22427a,#12284a 55%,#0c1a2e)}
+.sz-mehr{display:flex;flex-direction:column;align-items:center;gap:calc(var(--e)*8);padding:calc(var(--e)*22) calc(var(--e)*16) calc(var(--e)*12);text-align:center;color:var(--sz-schirm-leise);font-size:calc(var(--e)*11.5);text-decoration:none}
+.sz-mehr-ring{width:calc(var(--e)*46);height:calc(var(--e)*46);border-radius:50%;display:grid;place-items:center;border:calc(var(--e)*1.5) solid var(--sz-schirm-text);color:var(--sz-schirm-text)}
+.sz-mehr-ring svg{width:calc(var(--e)*22);height:calc(var(--e)*22)}
+.sz-mehr b{font-weight:600;font-size:calc(var(--e)*13);color:var(--sz-schirm-text)}
+.sz-mehr span.blau{color:#2563eb;font-weight:600}
+/* Auf dem schwarzen Bildschirm reicht #2563eb nicht (4,1:1) — das helle Blau hat 8,3:1 (WCAG 1.4.3). */
+.sz-dunkel .sz-mehr span.blau{color:var(--sz-hell)}
+.sz-mehr:hover span.blau{text-decoration:underline}
+.sz-unterleiste{flex:0 0 auto;height:calc(var(--e)*50);display:flex;align-items:center;justify-content:space-around;padding:0 calc(var(--e)*8) calc(var(--e)*10);border-top:1px solid var(--sz-schirm-linie);background:var(--sz-schirm);position:relative;z-index:1}
+.sz-unterleiste svg{width:calc(var(--e)*22);height:calc(var(--e)*22)}
+.sz-unterleiste .sz-avatar.klein{width:calc(var(--e)*23) !important;height:calc(var(--e)*23) !important;box-shadow:0 0 0 calc(var(--e)*1.5) var(--sz-schirm-text)}
+.sz-heimbalken{position:absolute;left:50%;bottom:calc(var(--e)*6);width:calc(var(--e)*108);height:calc(var(--e)*4.5);border-radius:999px;background:var(--sz-schirm-text);transform:translateX(-50%);z-index:2;opacity:.92}
+
+@media(min-width:961px){.sz-handy{--hb:316px}}
+@media(max-width:960px){.sz-handy{--hb:262px}}
+@media(max-width:720px){.sz-handy{--hb:280px}}
+@media(max-width:400px){.sz-handy{--hb:262px}}
+
+/* „Bewegung anhalten“ unter dem Handy (nur, wenn das Raster treibt; bei „weniger Bewegung“ gar nicht). */
+.sz-bewegung{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px 0 11px;border-radius:999px;border:1px solid var(--sz-linie);background:var(--sz-flaeche);color:var(--sz-leise);font:400 12.5px/1 'Inter',sans-serif;cursor:pointer;transition:color .2s,border-color .2s,background .2s}
+.sz-bewegung:hover{color:var(--sz-weiss);border-color:var(--sz-linie-2);background:var(--sz-flaeche-2)}
+.sz-bewegung:focus-visible{outline:2px solid var(--sz-hell);outline-offset:3px}
+.sz-bewegung-zeichen{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,.16);color:var(--sz-akzent)}
+.sz-kanzlei .sz-bewegung{border-radius:8px}
+.sz-kanzlei .sz-bewegung-zeichen{border-radius:4px;background:var(--blau-hell,#eef3fe);color:var(--navy,#12284a)}
+
+/* ── Die Reihe der neuesten Beiträge ────────────────────────────────────── */
+.sz-reihe-kopf{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}
+.sz-reihe-titel{font-size:11px;font-weight:400;letter-spacing:.2em;text-transform:uppercase;color:var(--sz-akzent)}
+.sz-kanzlei .sz-reihe-titel{font-weight:500;letter-spacing:.18em}
+.sz-reihe-knoepfe{display:inline-flex;gap:8px}
+.sz-reihe-ort[data-fest="1"] .sz-reihe-knoepfe,.sz-reihe-ort[data-fest="1"] .sz-fortschritt{visibility:hidden}
+/* Weitergeblättert: links läuft die Reihe weich aus, statt hart am Rand abzuschneiden (Maske steht, sie bewegt sich nicht). */
+/* Nur 14 px: Die eingerastete Karte beginnt bei 2 px, ihr Text bei 15 px — eine breitere Blende lag über dem Text (Kontrast). */
+.sz-reihe-ort[data-weiter="1"] .sz-reihe{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px);mask-image:linear-gradient(90deg,transparent 0,#000 14px)}
+.sz-reihe-knoepfe button{width:42px;height:42px;border-radius:50%;border:1px solid var(--sz-linie);background:var(--sz-flaeche);color:var(--sz-weiss);display:inline-grid;place-items:center;cursor:pointer;transition:transform .2s,border-color .2s,opacity .2s,background .2s}
+.sz-reihe-knoepfe button:hover:not(:disabled){transform:translateY(-1px);border-color:var(--sz-linie-2);background:var(--sz-flaeche-2)}
+.sz-reihe-knoepfe button:disabled{opacity:.32;cursor:default}
+.sz-kanzlei .sz-reihe-knoepfe button{border-radius:8px}
+.sz .sz-reihe{list-style:none;margin:0;padding:6px 2px 20px;display:grid;grid-auto-flow:column;grid-auto-columns:clamp(220px,19vw,250px);gap:16px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;scroll-padding:0 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.sz-reihe::-webkit-scrollbar{display:none}
+.sz-reihe:focus-visible{outline:2px solid var(--sz-hell);outline-offset:4px;border-radius:12px}
+.sz-karte{scroll-snap-align:start;min-width:0;transition:opacity .9s cubic-bezier(.22,1,.36,1),transform 1s cubic-bezier(.22,1,.36,1);transition-delay:calc(.35s + var(--i,0)*90ms)}
+.sz[data-an="0"] .sz-karte{opacity:0;transform:translate3d(40px,0,0)}
+.sz-karte-flaeche{display:flex;flex-direction:column;gap:12px;width:100%;height:100%;padding:12px 12px 16px;border-radius:20px;border:1px solid var(--sz-linie);background:var(--sz-flaeche);color:var(--sz-text);text-align:left;font:inherit;cursor:pointer;text-decoration:none;
+  transition:transform .4s cubic-bezier(.22,1,.36,1),border-color .3s,background .3s}
+.sz-karte-flaeche:hover{transform:translateY(-4px);border-color:var(--sz-linie-2);background:var(--sz-flaeche-2)}
+.sz-karte-kopf{display:flex;align-items:center;gap:8px;font-size:12.5px;line-height:1;padding:2px 2px 0}
+.sz-karte-kopf .sz-avatar{width:24px !important;height:24px !important}
+.sz-karte-kopf b{font-weight:500;color:var(--sz-weiss)}
+.sz-karte-kopf time{margin-left:auto;color:var(--sz-leise);font-size:11.5px;white-space:nowrap}
+.sz-karte-bild{position:relative;display:block;aspect-ratio:4/5;border-radius:13px;overflow:hidden;background:#0b1220}
+.sz-karte-bild img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .9s cubic-bezier(.22,1,.36,1)}
+.sz-karte-flaeche:hover .sz-karte-bild img{transform:scale(1.045)}
+.sz-karte-bild .sz-art{top:10px;right:10px}
+.sz-karte-bild .sz-ki{left:10px;bottom:10px;padding:4px 9px;border-radius:999px;font-size:10.5px}
+.sz-karte-text{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:calc(1.55em * 3);font-size:13.5px;line-height:1.55;font-weight:300;color:var(--sz-leise);padding:0 2px}
+.sz-karte-mehr{margin-top:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sz-hell);padding:0 2px}
+.sz-karte-mehr svg{transition:transform .25s}
+.sz-karte-flaeche:hover .sz-karte-mehr svg{transform:translateX(3px)}
+.sz-fortschritt{display:block;height:2px;border-radius:2px;background:var(--sz-linie);overflow:hidden;margin:2px 2px 0}
+.sz-fortschritt i{display:block;height:100%;width:100%;border-radius:2px;background:linear-gradient(90deg,#2563eb,#60a5fa);transform-origin:0 50%;
+  transform:translateX(calc(var(--pos,0) * (1 - var(--anteil,1)) * 100%)) scaleX(var(--anteil,1));transition:transform .2s linear}
+.sz-kanzlei .sz-karte-flaeche{border-radius:12px;box-shadow:0 1px 2px rgba(18,40,74,.04)}
+.sz-kanzlei .sz-karte-flaeche:hover{transform:translateY(-2px);box-shadow:0 18px 36px -22px rgba(18,40,74,.35)}
+.sz-kanzlei .sz-karte-bild{border-radius:8px;background:var(--stein,#f5f7fa)}
+.sz-kanzlei .sz-karte-text{color:var(--text,#3b4658)}
+.sz-kanzlei .sz-karte-mehr{color:var(--navy,#12284a)}
+.sz-kanzlei .sz-fortschritt i{background:var(--navy,#12284a)}
+/* Am Desktop läuft die Reihe bis an den rechten Rand des Fensters — die nächste Karte schaut herein. */
+@media(min-width:961px){
+  .sz .sz-reihe{margin-right:calc(-1 * (max(0px, (100vw - 1200px) / 2) + 24px));padding-right:calc(max(0px, (100vw - 1200px) / 2) + 24px);scroll-padding-right:calc(max(0px, (100vw - 1200px) / 2) + 24px)}
+}
+@media(max-width:720px){
+  .sz .sz-reihe{margin:0 -24px;padding:6px 24px 20px;scroll-padding:0 24px;grid-auto-columns:min(258px,72vw)}
+  .sz-fortschritt{margin:2px 0 0}
+}
+
+/* ── Die große Ansicht (Dialog, per Portal an <body>) ───────────────────── */
+.sz-ansicht{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(4,9,18,.84);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;
+  animation:szEin .22s ease both}
+.sz-ansicht.weg{animation:szAus .18s ease both}
+.sz-kanzlei-ansicht,.sz-hell-ansicht{background:rgba(12,26,46,.62)}
+@keyframes szEin{from{opacity:0}to{opacity:1}}
+@keyframes szAus{from{opacity:1}to{opacity:0}}
+/* Prüfung 06.10.2026: Die Bildspalte bekommt eine feste BREITE (nicht die Höhe) — sie passt immer neben die
+   Textspalte (360 px) ins Fenster. Vorher war das Bild Höhe × Verhältnis breit und ragte auf Tablet-Breiten
+   28–80 px in den Text. Die Textspalte trägt nichts zur Zeilenhöhe bei (contain:size): Die Zeile ist so hoch wie
+   das Bild, der Text scrollt darin — keine schwarzen Balken über und unter dem Bild. */
+.sz-ansicht-kasten{--sz-hoch:min(780px,calc(100svh - 48px));--sz-textb:360px;position:relative;display:grid;grid-template-columns:auto var(--sz-textb);max-width:100%;max-height:calc(100svh - 48px);border-radius:22px;overflow:hidden;
+  background:#0d1626;color:#e5e7eb;box-shadow:0 40px 120px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.06);animation:szAuf .38s cubic-bezier(.16,1,.3,1) both}
+.sz-ansicht.weg .sz-ansicht-kasten{animation:szAb .18s ease both}
+@keyframes szAuf{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes szAb{to{opacity:0;transform:scale(.98)}}
+.sz-kanzlei-ansicht .sz-ansicht-kasten,.sz-hell-ansicht .sz-ansicht-kasten{background:#fff;color:#3b4658;box-shadow:0 40px 120px rgba(12,26,46,.35)}
+.sz-ansicht-bild{position:relative;width:min(calc(var(--sz-hoch) * var(--sz-verh,.8)),calc(100vw - 48px - var(--sz-textb)));aspect-ratio:var(--sz-verh,.8);height:auto;background:#000;overflow:hidden}
+.sz-folien{position:absolute;inset:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.sz-folien::-webkit-scrollbar{display:none}
+.sz-folien:focus-visible{outline:2px solid #60a5fa;outline-offset:-3px}
+.sz-folie{flex:0 0 100%;margin:0;scroll-snap-align:center;scroll-snap-stop:always;display:flex;align-items:center;justify-content:center}
+.sz-folie img,.sz-folie .sz-bild-ersatz{display:block;width:100%;height:100%;object-fit:contain;user-select:none}
+.sz-folie-knopf{position:absolute;top:50%;width:40px;height:40px;margin-top:-20px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.92);color:#0c1a2e;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.28);transition:opacity .2s,transform .2s;z-index:2}
+.sz-folie-knopf.links{left:12px}.sz-folie-knopf.rechts{right:12px}
+.sz-folie-knopf:hover:not(:disabled){transform:scale(1.06)}
+.sz-folie-knopf[aria-disabled="true"]{opacity:0;pointer-events:none}
+.sz-folie-knopf[aria-disabled="true"]:focus-visible{opacity:.45}
+.sz-punkte{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;gap:6px;pointer-events:none;z-index:2}
+.sz-punkte i{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.45;transition:opacity .25s,transform .25s}
+.sz-punkte i.an{opacity:1;transform:scale(1.3)}
+.sz-ansicht-bild>.sz-ki.gross{left:14px;top:14px;bottom:auto;padding:5px 10px;border-radius:999px;font-size:11px;z-index:2}
+.sz-reel-marke{position:absolute;right:14px;top:14px;z-index:2;display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border-radius:999px;background:rgba(10,15,25,.72);color:#fff;font-size:11px;pointer-events:none}
+.sz-unsichtbar{position:absolute !important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.sz-ansicht-text{display:flex;flex-direction:column;gap:14px;padding:20px 22px 24px;overflow-y:auto;min-height:0;contain:size}
+.sz-ansicht-kopf{display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sz-ansicht-kopf .sz-avatar{width:36px !important;height:36px !important}
+.sz-ansicht-kopf div{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.sz-ansicht-kopf b{font-weight:600;font-size:14px;color:#fff}
+.sz-ansicht-kopf small{font-size:12px;color:#9ca3af}
+.sz-ansicht-zu{margin-left:auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:transparent;color:inherit;display:grid;place-items:center;cursor:pointer;flex:0 0 auto;transition:background .2s}
+.sz-ansicht-zu:hover{background:rgba(255,255,255,.08)}
+.sz-ansicht-zu:focus-visible,.sz-link-knopf:focus-visible,.sz-folie-knopf:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.sz-ansicht-titel{margin:0;font-size:19px;font-weight:400;line-height:1.3;letter-spacing:-.01em;color:#fff;text-wrap:balance}
+.sz-ansicht-caption{margin:0;font-size:14px;line-height:1.65;font-weight:300;white-space:pre-line;color:#cbd5e1}
+.sz-ansicht-tags{margin:0;font-size:13px;line-height:1.6;color:#93c5fd;word-break:break-word}
+.sz-ansicht-hinweis,.sz-ansicht-zaehler{margin:0;font-size:12.5px;color:#9ca3af}
+.sz-ansicht-ki{margin:0}
+.sz-ansicht-ki .sz-ki{position:static;display:inline-block;padding:5px 10px;border-radius:999px;font-size:11.5px;background:rgba(96,165,250,.14);color:#bfdbfe}
+.sz-ansicht-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:auto;padding-top:8px}
+.sz-link-knopf{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font-size:13.5px;text-decoration:none;transition:transform .2s}
+.sz-link-knopf:hover{transform:translateY(-1px)}
+.sz-link-knopf.still{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);color:#e5e7eb}
+.sz-kanzlei-ansicht .sz-ansicht-kopf,.sz-hell-ansicht .sz-ansicht-kopf{border-bottom-color:#e3e7ee}
+.sz-kanzlei-ansicht .sz-ansicht-kopf b,.sz-hell-ansicht .sz-ansicht-kopf b,.sz-kanzlei-ansicht .sz-ansicht-titel,.sz-hell-ansicht .sz-ansicht-titel{color:#0c1a2e}
+.sz-kanzlei-ansicht .sz-ansicht-titel{font-family:'Newsreader','Iowan Old Style',Georgia,serif;font-size:23px}
+.sz-kanzlei-ansicht .sz-ansicht-caption,.sz-hell-ansicht .sz-ansicht-caption{color:#3b4658}
+.sz-kanzlei-ansicht .sz-ansicht-tags,.sz-hell-ansicht .sz-ansicht-tags{color:#1d4ed8}
+.sz-kanzlei-ansicht .sz-ansicht-kopf small,.sz-hell-ansicht .sz-ansicht-kopf small,.sz-kanzlei-ansicht .sz-ansicht-hinweis,.sz-hell-ansicht .sz-ansicht-hinweis,.sz-kanzlei-ansicht .sz-ansicht-zaehler,.sz-hell-ansicht .sz-ansicht-zaehler{color:#5d6678}
+.sz-kanzlei-ansicht .sz-ansicht-zu,.sz-hell-ansicht .sz-ansicht-zu{border-color:#cdd5e0}
+.sz-kanzlei-ansicht .sz-ansicht-zu:hover,.sz-hell-ansicht .sz-ansicht-zu:hover{background:#f5f7fa}
+.sz-kanzlei-ansicht .sz-ansicht-ki .sz-ki,.sz-hell-ansicht .sz-ansicht-ki .sz-ki{background:#eef3fe;color:#12284a}
+.sz-kanzlei-ansicht .sz-link-knopf{border-radius:8px;background:#12284a}
+.sz-kanzlei-ansicht .sz-link-knopf.still,.sz-hell-ansicht .sz-link-knopf.still{background:#fff;border:1px solid #cdd5e0;color:#12284a}
+@media(max-width:760px){
+  .sz-ansicht{padding:0;align-items:stretch}
+  .sz-ansicht-kasten{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);width:100%;height:100svh;max-height:none;border-radius:0}
+  .sz-ansicht-bild{height:auto;width:100%;max-width:none;max-height:64svh}
+  .sz-ansicht-text{padding:16px 18px 28px}
+  .sz-ansicht-zu{position:absolute;top:12px;right:12px;z-index:4;background:rgba(10,15,25,.62) !important;border-color:rgba(255,255,255,.28) !important;color:#fff}
+  .sz-ansicht-kopf{padding-right:0}
+  .sz-reel-marke{right:auto;left:14px;top:auto;bottom:14px}
+  .sz-folie-knopf{width:36px;height:36px;margin-top:-18px}
+}
+
+/* ── Ein Beitrag zum Thema (Ratgeber, heller Leseraum) ──────────────────── */
+.sz-beitrag{margin-top:48px;display:grid;grid-template-columns:168px minmax(0,1fr);gap:24px;align-items:center;padding:18px 22px 18px 18px;border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.07);
+  box-shadow:0 2px 4px rgba(15,23,42,.03),0 14px 36px rgba(37,99,235,.08);transition:opacity .9s cubic-bezier(.22,1,.36,1),transform .9s cubic-bezier(.22,1,.36,1)}
+.sz-beitrag[data-an="0"]{opacity:0;transform:translateY(22px)}
+.sz-beitrag-bild{position:relative;display:block;aspect-ratio:4/5;border-radius:14px;overflow:hidden;border:0;padding:0;margin:0;background:#e8eef8;cursor:pointer;
+  box-shadow:0 12px 26px -12px rgba(37,99,235,.45)}
+.sz-beitrag-bild img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .8s cubic-bezier(.22,1,.36,1)}
+.sz-beitrag-bild,.sz-karte-flaeche,.sz-kachel{position:relative}
+.sz-beitrag-bild:hover img{transform:scale(1.05)}
+.sz-beitrag-bild .sz-art{top:9px;right:9px}
+.sz-beitrag-bild .sz-ki{left:8px;bottom:8px;padding:3px 8px;border-radius:999px;font-size:10px}
+.sz-beitrag .sz-beitrag-kicker{margin:0;display:flex;align-items:center;gap:8px;font:500 10.5px/1.2 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#1d4ed8}
+.sz-beitrag .sz-beitrag-titel{margin:10px 0 0;font:400 19px/1.3 'Inter',sans-serif;letter-spacing:-.01em;color:#0f172a;text-wrap:balance}
+.sz-beitrag .sz-beitrag-text{margin:8px 0 0;font:300 14px/1.6 'Inter',sans-serif;color:#475569;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.sz-beitrag .sz-beitrag-meta{margin:8px 0 0;font-size:12.5px;color:#64748b;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.sz-beitrag-meta .sz-ki{position:static;display:inline-block;padding:3px 8px;border-radius:999px;font-size:10.5px;background:#eef3fe;color:#12284a}
+.sz-beitrag-fuss{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:16px}
+.sz-beitrag-knopf{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 18px;border-radius:999px;border:0;background:linear-gradient(135deg,#0f1f3d,#1b2d52);color:#fff;font:400 13.5px/1 'Inter',sans-serif;text-decoration:none;cursor:pointer;box-shadow:0 10px 22px -10px rgba(15,31,61,.6);transition:transform .2s}
+.sz-beitrag-knopf:hover{transform:translateY(-1px)}
+.sz-beitrag-folgen{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:#1d4ed8;text-decoration:none}
+.sz-beitrag-folgen:hover{text-decoration:underline;text-underline-offset:3px}
+.sz-beitrag :focus-visible{outline:2px solid #1d4ed8;outline-offset:3px;border-radius:10px}
+@media(max-width:560px){.sz-beitrag{grid-template-columns:112px minmax(0,1fr);gap:16px;padding:14px;align-items:start}.sz-beitrag-titel{font-size:16.5px}.sz-beitrag-text{-webkit-line-clamp:2}}
+
+/* ── Weniger Bewegung: Endzustand, keine Schleife, kein Einblenden ──────── */
+@media(prefers-reduced-motion:reduce){
+  .sz *,.sz *::after,.sz-ansicht,.sz-ansicht *,.sz-beitrag,.sz-beitrag *{animation:none !important;transition:none !important}
+  .sz[data-an] .sz-handy,.sz[data-an] .sz-kachel,.sz[data-an] .sz-karte,.sz[data-an] .sz-profile.gross li,.sz-beitrag[data-an]{opacity:1;transform:none}
+  .sz[data-an] .sz-schirm-inhalt{clip-path:none}
+  .sz-neigung{transform:none}
+}

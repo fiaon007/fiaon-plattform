@@ -5,6 +5,25 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 — Instagram auf der Website + Business am Handy repariert (E-296, E-293)
+
+- **Instagram/Facebook auf fiaon.com:** Auf Startseite, Privatkunden und Business (auch Englisch) steht ein iPhone mit dem Profil
+  @fiaon.ltd; darin laufen die Beiträge als Raster langsam durch, daneben ein Karussell der neuesten Beiträge. Antippen öffnet den
+  Beitrag groß (Folien zum Durchwischen) oder — wenn er schon gepostet ist — direkt auf Instagram. Im Ratgeber steht je ein passender
+  Beitrag zum Thema. KI-Beiträge tragen „Mit KI erstellt“. Ohne Beiträge zeigt die Seite nur die beiden Profile, nie ein leeres Handy.
+- **Quelle ist das Social-Studio:** Im Instagram-Handy steht nur, was WIRKLICH auf Instagram steht: Post freigegeben, Schalter
+  „Auf der Website zeigen“ an, im Studio als auf Instagram veröffentlicht gemeldet (mit Link) und Plantag erreicht. Neuer Schalter im
+  Studio; „als veröffentlicht melden“ schaltet ihn beim ersten Melden mit. Beim Einschalten rechnet das Studio kleine Web-Bilder.
+- **Alle 22 Posts freigegeben** (Justin im Chat: „ja alle genehmigen, mach es fix und fertig“) — mit Migration 095, dieselben Schritte
+  wie die Studio-Knöpfe, je Post im Verlauf; der Website-Schalter ist für alle Instagram-Posts vorgemerkt. Sichtbar wird jeder Post,
+  sobald er auf Instagram gepostet und sein Link im Studio gemeldet ist.
+- **Business am Handy:** Die Pakete steckten beim Wischen (die Reihe änderte mitten im Wischen ihre Höhe, Safari rastete zurück) —
+  jetzt ändert sich während des Wischens nichts. Die Urkunde oben ist ganz zu sehen statt angeschnitten. „Für wen“ bricht um.
+
+**Wo:** shared/fiaon-sozial-feed.ts, server/lib/fiaon-sozial-feed.ts, server/routes/fiaon-social.ts (GET /api/fiaon/social/feed,
+/api/fiaon/social/bild/:id), client/src/components/site/sozial/*, styles/sozial-fenster.css, Studio unter /chef/s/mara?reiter=social,
+db/migrations/095_social_alle_freigegeben.sql, pages/site/business.tsx, styles/global-grafik.css.
+
 ## 06.10.2026 — Business: die Bilder sind da — Urkunde, Karten, Term Sheet, Boardroom (E-293, Scheibe C)
 
 - **Hero:** Statt des Platzhalters liegt die Gründungsurkunde mit goldenem Prägesiegel (freigestellt, KI-Bild). Über das Siegel läuft

@@ -14,6 +14,7 @@
 import { useCallback, useState } from "react";
 import { Dunkel, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf, Licht } from "@/components/site/DunkleBuehne";
 import { FlugHero } from "@/components/site/FlugHero";
+import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import ArasCore from "@/components/home3d/ArasCore";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
 import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
@@ -232,6 +233,10 @@ export default function FiaonHome() {
       </Block>
 
       </Licht>
+
+      {/* E-296 (06.10.2026): FIAON auf Instagram und Facebook — Handy mit dem Profil und die neuesten Beiträge;
+          ohne freigegebene Beiträge nur die beiden Profile. Daten erst, wenn der Abschnitt in die Nähe kommt. */}
+      <SozialFenster aussehen="dunkel" marke="alle" />
 
       {/* Kundenstimmen bewusst entfernt (23.08.2026): Bis echte, freigegebene Stimmen vorliegen,
           steht hier nichts — erfundene Bewertungen sind unzulässig (UWG) und wirkten „fake" (Florentine). */}

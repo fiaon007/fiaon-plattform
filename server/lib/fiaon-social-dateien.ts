@@ -173,6 +173,10 @@ export interface DateiKopf {
   sekunden: number | null;
   ablage: "db" | "extern";
   geleert: boolean;
+  /** „original“ oder eine abgeleitete Fassung (E-296: „web_480“ für die Website-Kacheln). */
+  variante: string;
+  /** Bei web_480: die id des Originals. Bei einem kopierten Original: die Zeile, aus der kopiert wurde. */
+  quelle_id: number | null;
 }
 
 const kopfAus = (r: any): DateiKopf => ({
@@ -180,12 +184,13 @@ const kopfAus = (r: any): DateiKopf => ({
   dateiname: r.dateiname, mime: r.mime, bytes: Number(r.bytes), sha256: String(r.sha256).trim(),
   breite: r.breite == null ? null : Number(r.breite), hoehe: r.hoehe == null ? null : Number(r.hoehe),
   sekunden: r.sekunden == null ? null : Number(r.sekunden), ablage: r.ablage, geleert: !!r.inhalt_geleert_am,
+  variante: String(r.variante ?? "original"), quelle_id: r.quelle_id == null ? null : Number(r.quelle_id),
 });
 
 /** Kopf einer Datei (ohne Inhalt). */
 export async function dateiKopf(id: number): Promise<DateiKopf | null> {
   const r = (await sqlPool`
-    SELECT id, post_id, pos, rolle, dateiname, mime, bytes, sha256, breite, hoehe, sekunden, ablage, inhalt_geleert_am
+    SELECT id, post_id, pos, rolle, dateiname, mime, bytes, sha256, breite, hoehe, sekunden, ablage, inhalt_geleert_am, variante, quelle_id
       FROM fiaon_social_dateien WHERE id = ${id} AND geloescht_am IS NULL`) as any[];
   return r[0] ? kopfAus(r[0]) : null;
 }
@@ -195,7 +200,7 @@ export async function dateiKoepfe(ids: number[]): Promise<Map<number, DateiKopf>
   const m = new Map<number, DateiKopf>();
   if (!ids.length) return m;
   const r = (await sqlPool`
-    SELECT id, post_id, pos, rolle, dateiname, mime, bytes, sha256, breite, hoehe, sekunden, ablage, inhalt_geleert_am
+    SELECT id, post_id, pos, rolle, dateiname, mime, bytes, sha256, breite, hoehe, sekunden, ablage, inhalt_geleert_am, variante, quelle_id
       FROM fiaon_social_dateien WHERE id = ANY(${ids}::bigint[])`) as any[];
   for (const x of r) m.set(Number(x.id), kopfAus(x));
   return m;
@@ -292,6 +297,12 @@ export interface DateiNeu {
   analyse: DateiAnalyse | null;
   sekunden: number | null;
   von: string;
+  /**
+   * E-296: abgeleitete Fassung — „web_480“ (480 px JPEG für die Website-Kacheln) mit
+   * `quelle_id` = id des Originals. Ohne Angabe: „original“ (Import, wie bisher).
+   */
+  variante?: "original" | "web_480";
+  quelle_id?: number | null;
 }
 
 /**
@@ -304,11 +315,19 @@ export interface DateiNeu {
  * Liefert die id.
  */
 export async function dateiSchreiben(tx: any, d: DateiNeu): Promise<number> {
+  const variante = d.variante ?? "original";
+  if (variante !== "original" && (!d.inhalt || !d.quelle_id)) throw new Error(`Die Fassung „${variante}“ von „${d.dateiname}“ braucht Bytes und ein Original.`);
+  // Eindeutig je (post_id, sha256, variante) — der Index fiaon_social_dateien_einmal_idx.
   const da = (await tx`
-    SELECT id FROM fiaon_social_dateien
-     WHERE post_id = ${d.post_id} AND sha256 = ${d.sha256} AND variante = 'original' AND geloescht_am IS NULL
+    SELECT id, quelle_id FROM fiaon_social_dateien
+     WHERE post_id = ${d.post_id} AND sha256 = ${d.sha256} AND variante = ${variante} AND geloescht_am IS NULL
      LIMIT 1`) as any[];
   if (da[0]) {
+    if (variante !== "original") {
+      // Dieselben Bytes als kleines Bild eines ANDEREN Originals: nicht umhängen (Doppelbelegung).
+      if (Number(da[0].quelle_id) !== Number(d.quelle_id)) throw new Error(`Dieses kleine Bild gehört schon zu Datei ${da[0].quelle_id}.`);
+      return Number(da[0].id);
+    }
     await tx`UPDATE fiaon_social_dateien SET pos = ${d.pos}, rolle = ${d.rolle}, dateiname = ${d.dateiname}, ersetzt_durch = NULL WHERE id = ${da[0].id}`;
     return Number(da[0].id);
   }
@@ -326,14 +345,15 @@ export async function dateiSchreiben(tx: any, d: DateiNeu): Promise<number> {
     const vorne = [
       d.post_id, d.pos, d.rolle, d.dateiname, a?.mime ?? "application/octet-stream", bytes, d.sha256,
       massOderNull(a?.breite), massOderNull(a?.hoehe), sekundenOderNull(d.sekunden ?? a?.sekunden ?? null), d.von,
+      variante, variante === "original" ? null : d.quelle_id ?? null,
     ].map(copyFeld).join("\t") + "\t";
     const ziel = await tx`
-      COPY fiaon_social_dateien (post_id, pos, rolle, dateiname, mime, bytes, sha256, breite, hoehe, sekunden, hochgeladen_von, inhalt)
+      COPY fiaon_social_dateien (post_id, pos, rolle, dateiname, mime, bytes, sha256, breite, hoehe, sekunden, hochgeladen_von, variante, quelle_id, inhalt)
       FROM STDIN`.writable();
     await pipeline(quelle, alsCopyZeile(vorne, d.sha256, d.dateiname), ziel);
     const r = (await tx`
       SELECT id FROM fiaon_social_dateien
-       WHERE post_id = ${d.post_id} AND sha256 = ${d.sha256} AND variante = 'original' AND geloescht_am IS NULL
+       WHERE post_id = ${d.post_id} AND sha256 = ${d.sha256} AND variante = ${variante} AND geloescht_am IS NULL
        ORDER BY id DESC LIMIT 1`) as any[];
     if (!r[0]) throw new Error(`Die Datei „${d.dateiname}“ ließ sich nicht speichern.`);
     return Number(r[0].id);
@@ -350,6 +370,23 @@ export async function dateiSchreiben(tx: any, d: DateiNeu): Promise<number> {
     RETURNING id`) as any[];
   if (!r[0]) throw new Error(`Die Datei „${d.dateiname}“ fehlt und liegt auch nicht schon in der Datenbank.`);
   return Number(r[0].id);
+}
+
+/**
+ * E-296: die kleinen Web-Bilder (web_480) zu einer Liste von Originalen —
+ * je Original die jüngste lesbare Zeile. Liest nie die Spalte inhalt.
+ */
+export async function webVarianten(quelleIds: number[]): Promise<Map<number, { id: number; breite: number | null; hoehe: number | null; bytes: number }>> {
+  const m = new Map<number, { id: number; breite: number | null; hoehe: number | null; bytes: number }>();
+  const ids = Array.from(new Set(quelleIds.filter((x) => Number.isInteger(x) && x > 0)));
+  if (!ids.length) return m;
+  const r = (await sqlPool`
+    SELECT DISTINCT ON (quelle_id) id, quelle_id, breite, hoehe, bytes FROM fiaon_social_dateien
+     WHERE variante = 'web_480' AND quelle_id = ANY(${ids}::bigint[]) AND geloescht_am IS NULL AND inhalt_geleert_am IS NULL AND ablage = 'db'
+       AND mime = 'image/jpeg'
+     ORDER BY quelle_id, id DESC`) as any[];
+  for (const x of r) m.set(Number(x.quelle_id), { id: Number(x.id), breite: x.breite == null ? null : Number(x.breite), hoehe: x.hoehe == null ? null : Number(x.hoehe), bytes: Number(x.bytes) });
+  return m;
 }
 
 /** Speicherbedarf aller Social-Dateien (für den Studio-Kopf: Warnung ab 3 GB). */

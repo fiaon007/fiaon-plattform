@@ -25,11 +25,14 @@
 //   6. Manifest fiaon-social-post/1 (Import) — Prüfung und Import-Prüfsumme
 //   7. Planprüfung (zwei Reels zur selben Zeit, Lücken)
 //   8. API-Vertrag (Typen der Antworten, Pfade)
+//   9. Website-Feed (E-296): Sichtbarkeit, Bilder, Text und Hashtags, Reihenfolge
+//      — der Vertrag zur Seite steht in shared/fiaon-sozial-feed.ts
 // ═══════════════════════════════════════════════════════════════════════════
 import { globalWortPruefen, GLOBAL_SCHAERFER, type GlobalWorthinweis } from "./fiaon-global-wortregeln";
 import { WORTREGELN } from "./fiaon-wortverbote";
 import { ANGEBOT_GARANTIE_FEST } from "./fiaon-global-angebot";
 import { globalPlanungText } from "./fiaon-global";
+import { SOZIAL_WEBSITE_STATUS, SOZIAL_WEBSITE_KANAL, SOZIAL_FEED_MAX } from "./fiaon-sozial-feed";
 
 // ── 1. STATUS ──────────────────────────────────────────────────────────────
 export const SOCIAL_STATUS = ["entwurf", "zur_freigabe", "freigegeben", "eingeplant", "veroeffentlicht", "ausgewertet", "verworfen"] as const;
@@ -62,8 +65,11 @@ export const darfUebergang = (von: SocialStatus, nach: SocialStatus): boolean =>
 /** Status, in denen der Termin noch verschoben werden darf. */
 export const SOCIAL_VERSCHIEBBAR: SocialStatus[] = ["entwurf", "zur_freigabe", "freigegeben", "eingeplant"];
 
-/** Die Knöpfe im Post-Detail. */
-export const SOCIAL_AKTIONEN = ["freigeben", "zurueck", "verschieben", "veroeffentlicht", "verwerfen", "ki-haken", "checkliste"] as const;
+/**
+ * Die Knöpfe im Post-Detail. „website“ (E-296): der Schalter „Auf der Website zeigen“ —
+ * kein Statuswechsel, aber wie jede Aktion mit version und Verlauf.
+ */
+export const SOCIAL_AKTIONEN = ["freigeben", "zurueck", "verschieben", "veroeffentlicht", "verwerfen", "ki-haken", "checkliste", "website"] as const;
 export type SocialAktion = (typeof SOCIAL_AKTIONEN)[number];
 
 /** Welche Aktionen im aktuellen Status überhaupt angeboten werden (der Server prüft trotzdem jede einzeln). */
@@ -75,6 +81,7 @@ export function erlaubteAktionen(status: SocialStatus): SocialAktion[] {
   if (status === "freigegeben" || status === "eingeplant" || status === "veroeffentlicht") a.push("veroeffentlicht");
   if (darfUebergang(status, "verworfen")) a.push("verwerfen");
   if (status !== "verworfen" && status !== "ausgewertet") a.push("ki-haken", "checkliste");
+  if (istWebsiteSchalterStatus(status)) a.push("website");
   return a;
 }
 
@@ -657,6 +664,8 @@ export const SOCIAL_API = {
   /** Nur die Zähler je Status — für die Zahlmarke am Reiter (statt des ganzen Plans). */
   zaehler: "/chef/social/zaehler",
   import: "/api/fiaon/social/import",
+  /** E-296: kleine Web-Bilder (480 px JPEG) hochladen — multipart, je Datei ein Feld mit der quelle_id als Name. */
+  webVarianten: (id: number) => `/api/fiaon/chef/social/post/${id}/web-varianten`,
 } as const;
 /** Adresse des Post-Details in der Oberfläche (auch für ICS und Import-Antwort). */
 export const studioUrl = (id: number) => `/chef/s/mara?reiter=social&sicht=plan&post=${id}`;
@@ -665,7 +674,7 @@ export type SocialFehlerCode =
   | "VERSION_VERALTET" | "WORTCHECK_ROT" | "NUR_INHABER" | "GRUND_FEHLT" | "UEBERGANG_UNZULAESSIG"
   | "KI_HAKEN_FEHLT" | "PERMALINK_FEHLT" | "NICHT_GEFUNDEN" | "UNGUELTIG"
   | "IMPORT_NICHT_EINGERICHTET" | "TOKEN_FALSCH" | "PRUEFSUMME" | "DATEI_FEHLT" | "DATEI_TYP" | "ZU_GROSS"
-  | "BEREITS_VEROEFFENTLICHT" | "VERWORFEN" | "VERWORFENER_ORDNER";
+  | "BEREITS_VEROEFFENTLICHT" | "VERWORFEN" | "VERWORFENER_ORDNER" | "KEIN_BILD" | "KEIN_INSTAGRAM";
 
 export interface SocialFehler {
   ok: false;
@@ -699,6 +708,8 @@ export interface SocialDatei {
   download_url: string;
   /** „FIAON_03_Folie-02.jpg" — so heißt der Download. */
   download_name: string;
+  /** E-296: kleines Web-Bild (480 px breit) für die Website-Kacheln — null, solange keins angelegt ist. */
+  web_480: { id: number; breite: number | null; hoehe: number | null } | null;
 }
 
 export interface SocialVeroeffentlichung { am: string; permalink: string; plattform_id: string | null; von: string }
@@ -731,6 +742,10 @@ export interface SocialPostKarte {
   dateien_anzahl: number;
   /** Kanäle, die schon als veröffentlicht gemeldet sind. */
   veroeffentlicht_kanaele: SocialKanal[];
+  /** E-296: Schalter „Auf der Website zeigen“. */
+  website_sichtbar: boolean;
+  /** E-296: steht JETZT auf der Website (Schalter, Status, Plantag erreicht, mit Bild). */
+  website_jetzt: boolean;
 }
 
 export interface SocialVerlaufEintrag { id: number; art: string; von: string; fassung: number | null; grund: string | null; am: string; vorher: unknown; nachher: unknown }
@@ -765,6 +780,8 @@ export interface SocialPostDetail extends SocialPostKarte {
   sperren: Partial<Record<SocialAktion, string>>;
   zuletzt_importiert_am: string | null;
   meta_hinweise: string[];
+  /** E-296: Stand auf der Website, mit dem Grund, warum (noch) nicht. */
+  website: SocialWebsiteStand;
 }
 
 export interface SocialPlanAntwort {
@@ -838,6 +855,7 @@ export interface SocialAktionKoerper {
   verwerfen: { version: number; grund: string };
   "ki-haken": { version: number; noetig: boolean; grund: string };
   checkliste: { version: number; kanal: SocialKanal; punkt: string; erledigt: boolean };
+  website: { version: number; sichtbar: boolean };
 }
 
 export interface SocialImportAntwort {
@@ -855,4 +873,216 @@ export interface SocialImportAntwort {
   dateien: { gespeichert: number; schon_vorhanden: number; fehlend: string[] };
   wortcheck: { ergebnis: SocialWortcheck["ergebnis"]; treffer: number; abweichung_zum_manifest: boolean };
   hinweise: string[];
+}
+
+// ── 9. WEBSITE-FEED (E-296) ────────────────────────────────────────────────
+// Justin (06.10.): „zeig unsere Social Media Profile … auf der Startseite …
+// genauso auf der Business Seite“. Der Vertrag zur Seite (Pfade, Antwortform)
+// steht in shared/fiaon-sozial-feed.ts; hier die reinen Regeln, die Server
+// (server/lib/fiaon-sozial-feed.ts), Studio und Prüfstand gemeinsam lesen.
+//
+// Auf die Website kommt ein Post NUR, wenn ALLES zutrifft:
+//   · Schalter website_sichtbar an (Studio; „als veröffentlicht melden“ setzt ihn beim ersten
+//     Melden mit — außer bei rotem Wort-Check, ohne Instagram-Kanal, ohne Bild, oder wenn der
+//     Schalter für diese Fassung schon einmal von Hand geschaltet wurde),
+//   · auf Instagram als veröffentlicht gemeldet (Status veröffentlicht/ausgewertet, Permalink) —
+//     Prüfung 06.10.2026: „freigegeben“ reichte vorher; dann stand ein nie geposteter Beitrag
+//     im Instagram-Handy von @fiaon.ltd (UWG). Vormerken (Schalter an) geht ab „freigegeben“,
+//   · Plantag (Europe/Berlin) erreicht — nie etwas vor seinem Tag,
+//   · Wort-Check nach den AKTUELLEN Regeln nicht rot (der Feed rechnet ihn bei jedem Laden neu),
+//   · mindestens ein Bild (JPEG/PNG): Karussell und Bild die Folien, Reel das Titelbild.
+
+/** Status, in denen ein Post auf der Website STEHT (mit Instagram-Meldung). */
+export const istWebsiteStatus = (s: unknown): boolean => (SOZIAL_WEBSITE_STATUS as readonly string[]).includes(String(s ?? ""));
+/** Status, in denen der Schalter „Auf der Website zeigen“ eingeschaltet (vorgemerkt) werden darf. */
+export const WEBSITE_SCHALTER_STATUS = ["freigegeben", "eingeplant", "veroeffentlicht", "ausgewertet"] as const;
+export const istWebsiteSchalterStatus = (s: unknown): boolean => (WEBSITE_SCHALTER_STATUS as readonly string[]).includes(String(s ?? ""));
+
+/** Rollen, deren Bilder öffentlich ausgeliefert werden dürfen (Original oder web_480). */
+export const WEB_BILD_ROLLEN = ["bild", "cover"] as const;
+export const WEB_BILD_MIMES = ["image/jpeg", "image/png"] as const;
+/** Breite der kleinen Web-Bilder (Kacheln) und die Obergrenze, die der Server annimmt. */
+export const WEB_480_BREITE = 480;
+export const WEB_480_MAX_BREITE = 600;
+export const WEB_480_QUALITAET = 0.82;
+/** Ein kleines Web-Bild ist höchstens so groß — 480 px JPEG liegen bei 30–90 KB. */
+export const WEB_480_MAX_BYTES = 1024 * 1024;
+
+/** Kurze Regel für Studio und Prüfstand — wortgleich an einem Ort. */
+export const WEBSITE_REGEL = "Steht auf fiaon.com (Startseite, Business und passende Seiten), sobald der Post auf Instagram als veröffentlicht gemeldet ist — frühestens ab dem Plantag, nur mit Bild und nur bei grünem Wort-Check. Vormerken geht schon ab der Freigabe.";
+
+export interface FeedDateiEintrag { datei_id: number; pos: number; rolle: string; mime?: string | null; breite?: number | null; hoehe?: number | null }
+
+/**
+ * Welche Bilder eines Posts auf die Website kommen, in Reihenfolge:
+ * Reel → das Titelbild (cover); sonst die Folien (rolle bild, nach pos);
+ * gibt es keine Folie, das Titelbild. Nur JPEG/PNG, jede Datei einmal.
+ */
+export function feedBildEintraege<T extends FeedDateiEintrag>(format: string, dateien: readonly T[]): T[] {
+  const bildArtig = (d: T) => !d.mime || (WEB_BILD_MIMES as readonly string[]).includes(String(d.mime));
+  const sortiert = [...(dateien ?? [])].filter((d) => d && Number.isFinite(Number(d.datei_id))).sort((a, b) => Number(a.pos) - Number(b.pos));
+  const cover = sortiert.filter((d) => d.rolle === "cover" && bildArtig(d));
+  const folien = sortiert.filter((d) => d.rolle === "bild" && bildArtig(d));
+  const wahl = format === "reel" ? cover.slice(0, 1) : folien.length ? folien : cover.slice(0, 1);
+  const gesehen = new Set<number>();
+  return wahl.filter((d) => (gesehen.has(Number(d.datei_id)) ? false : (gesehen.add(Number(d.datei_id)), true)));
+}
+
+export type WebsiteGrund = "aus" | "status" | "instagram" | "plantag" | "kein_bild" | "wortcheck";
+export interface SocialWebsiteStand {
+  /** Schalter an? */
+  sichtbar: boolean;
+  /** Steht jetzt auf der Website? */
+  jetzt: boolean;
+  /** Warum (noch) nicht — null, wenn jetzt sichtbar. */
+  grund: WebsiteGrund | null;
+  /** Ab diesem Tag (Plantag), wenn der Schalter an ist. */
+  ab: string;
+  /** Darf der Schalter eingeschaltet werden (Status ab Freigabe, Instagram-Kanal, Bild da, Wort-Check nicht rot)? */
+  darf_an: boolean;
+  /** Satz für das Studio. */
+  satz: string;
+  /** Wie viele Bilder die Website zeigt und wie viele davon schon ein kleines Web-Bild haben. */
+  bilder: number;
+  web_480: number;
+}
+
+/**
+ * Die eine Sichtbarkeitsregel (rein; `heute` = Berliner Tag JJJJ-MM-TT).
+ * Der Feed rechnet sie in SQL (Schalter, Status, Instagram-Meldung, Plantag) und in JS (Bild, Wort-Check) —
+ * gleiches Ergebnis. `kanaele`: Kanäle des Posts; `gemeldet`: Kanäle, die als veröffentlicht gemeldet sind.
+ * Ohne Angabe von `kanaele` gilt Instagram als vorhanden (alte Aufrufer), ohne `gemeldet` gilt: gemeldet, wenn der
+ * Status veröffentlicht/ausgewertet ist.
+ */
+export function websiteStand(p: {
+  website_sichtbar: boolean; status: string; plan_datum: string; format: string; dateien: readonly FeedDateiEintrag[];
+  wortcheck_rot?: boolean; web_480_ids?: ReadonlySet<number>; kanaele?: readonly string[]; gemeldet?: readonly string[];
+}, heute: string): SocialWebsiteStand {
+  const bilder = feedBildEintraege(p.format, p.dateien ?? []);
+  const web = bilder.filter((b) => p.web_480_ids?.has(Number(b.datei_id))).length;
+  const schalterOk = istWebsiteSchalterStatus(p.status);
+  const hatKanal = p.kanaele ? p.kanaele.includes(SOZIAL_WEBSITE_KANAL) : true;
+  const gemeldet = istWebsiteStatus(p.status) && (p.gemeldet ? p.gemeldet.includes(SOZIAL_WEBSITE_KANAL) : true);
+  const darfAn = schalterOk && hatKanal && bilder.length > 0 && !p.wortcheck_rot;
+  const tag = String(p.plan_datum ?? "");
+  const tagText = /^\d{4}-\d{2}-\d{2}$/.test(tag) ? `${tag.slice(8, 10)}.${tag.slice(5, 7)}.${tag.slice(0, 4)}` : tag;
+  let grund: WebsiteGrund | null = null;
+  if (!p.website_sichtbar) grund = "aus";
+  else if (!schalterOk) grund = "status";
+  else if (!bilder.length) grund = "kein_bild";
+  else if (p.wortcheck_rot) grund = "wortcheck";
+  else if (!hatKanal || !gemeldet) grund = "instagram";
+  else if (tag > heute) grund = "plantag";
+  const satz = grund === null ? "Steht jetzt auf der Website."
+    : grund === "aus" ? (darfAn ? "Nicht auf der Website." : !schalterOk ? "Nicht auf der Website — erst nach der Freigabe möglich." : !hatKanal ? "Nicht auf der Website — der Post geht nicht auf Instagram." : !bilder.length ? "Nicht auf der Website — der Post hat kein Bild." : "Nicht auf der Website — der Wort-Check ist rot.")
+    : grund === "status" ? "Schalter an, aber der Post ist nicht (mehr) freigegeben — die Website zeigt ihn nicht."
+    : grund === "kein_bild" ? "Schalter an, aber ohne Bild zeigt die Website nichts."
+    : grund === "wortcheck" ? "Schalter an, aber der Wort-Check ist rot — die Website zeigt ihn nicht."
+    : grund === "instagram" ? (hatKanal ? "Schalter an — erscheint auf der Website, sobald der Post auf Instagram als veröffentlicht gemeldet ist." : "Schalter an, aber der Post geht nicht auf Instagram — die Website zeigt ihn nicht.")
+    : `Schalter an — steht ab dem Plantag ${tagText} auf der Website.`;
+  return { sichtbar: !!p.website_sichtbar, jetzt: grund === null, grund, ab: tag, darf_an: darfAn, satz, bilder: bilder.length, web_480: web };
+}
+
+// Text und Hashtags für die Website
+export const FEED_TEXT_MAX = 280;
+export const FEED_HASHTAGS_MAX = 5;
+// Unicode-Klassen (\p{L}: Umlaute in #Bonität) über den Konstruktor — das Ziel im tsconfig kennt das u-Flag als Literal nicht.
+const HASHTAG_ZEICHEN = "[\\p{L}\\p{N}_]";
+const HASHTAG = new RegExp(`(^|[\\s(\\[{"„“'‚‘])#${HASHTAG_ZEICHEN}+`, "gu");
+const HASHTAG_FANGEN = new RegExp(`#(${HASHTAG_ZEICHEN}+)`, "gu");
+const HASHTAG_GANZ = new RegExp(`^${HASHTAG_ZEICHEN}{1,60}$`, "u");
+
+/** Bildunterschrift ohne Hashtags; leere Abstandszeilen („.“) und doppelte Leerzeilen raus. */
+export function captionOhneHashtags(caption: string | null | undefined): string {
+  const ohne = textNormal(caption).replace(HASHTAG, "$1");
+  const zeilen = ohne.split("\n").map((z) => z.replace(/[ \t]+/g, " ").trim()).map((z) => (/^[.·•\-–—_]+$/.test(z) ? "" : z));
+  return zeilen.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Abkürzungen, nach deren Punkt KEIN Satz endet („zzgl. USt.“, „z. B.“, „Art. 15“). */
+const ABKUERZUNGEN = new Set(["z", "b", "d", "h", "u", "a", "o", "bzw", "ca", "inkl", "zzgl", "ggf", "evtl", "usw", "etc", "nr", "art", "abs", "dr", "hr", "fr", "st", "vgl", "sog", "mio", "mrd", "tsd", "max", "min", "mind", "gem", "jan", "feb", "mrz", "apr", "jun", "jul", "aug", "sep", "sept", "okt", "nov", "dez", "tel", "std", "mo", "di", "mi", "do", "sa", "so"]);
+
+/**
+ * Höchstens `max` Zeichen (Codepunkte, wie zeichenZaehlen), mit „…“ — das „…“ zählt mit.
+ * Gekürzt wird bevorzugt nach einem GANZEN Satz oder einer ganzen Zeile (dann „ …“):
+ * ein halber Satz kann den Sinn umdrehen („Die Bank erhöht…“ statt „… erhöht nicht von
+ * selbst“). Nur wenn im hinteren Teil kein Satzende liegt, an der letzten Wortgrenze.
+ * Zeilenumbrüche bleiben (die Seite setzt white-space: pre-line).
+ */
+export function feedTextKuerzen(text: string, max: number = FEED_TEXT_MAX): string {
+  const t = String(text ?? "").trim();
+  const z = Array.from(t);
+  if (z.length <= max) return t;
+  // 1) Satzende oder Zeilenende — frühestens nach 40 % der Länge.
+  const roh = z.slice(0, max - 2).join("");
+  let satz = -1;
+  for (const m of Array.from(roh.matchAll(/[.!?…](?=["“”»)]?\s)|\n/g))) {
+    const i = m.index ?? -1;
+    let ende = i;
+    if (m[0] !== "\n") {
+      const wort = (/([A-Za-zÄÖÜäöüß]+)$/.exec(roh.slice(0, i))?.[1] ?? "").toLowerCase();
+      // „1. Juli“, „2.499 €“: Ziffer vor dem Punkt ist kein Satzende; Abkürzungen auch nicht.
+      if (m[0] === "." && (/\d$/.test(roh.slice(0, i)) || ABKUERZUNGEN.has(wort))) continue;
+      ende = i + 1;
+      if (/["“”»)]/.test(roh[ende] ?? "")) ende++;
+    }
+    if (Array.from(roh.slice(0, ende)).length >= max * 0.4) satz = ende;
+  }
+  if (satz > 0) return `${roh.slice(0, satz).trimEnd()} …`;
+  // 2) Rückfall: an der letzten Wortgrenze (wenn dabei nicht mehr als ein Drittel verloren geht).
+  let stueck = z.slice(0, max - 1).join("");
+  const grenze = Math.max(stueck.lastIndexOf(" "), stueck.lastIndexOf("\n"));
+  if (grenze > (max * 2) / 3) stueck = stueck.slice(0, grenze);
+  stueck = stueck.replace(/[\s,;:–—\-(/]+$/, "");
+  return `${stueck}…`;
+}
+
+/** Hashtags für die Website: aus der Liste des Posts (sonst aus der Caption), ohne „#“, ohne Doppelte, höchstens fünf. */
+export function feedHashtags(liste: readonly string[] | null | undefined, caption?: string | null): string[] {
+  const roh = (liste ?? []).length ? (liste ?? []).map(String) : Array.from(textNormal(caption).matchAll(HASHTAG_FANGEN)).map((m) => m[1]);
+  const out: string[] = [];
+  const gesehen = new Set<string>();
+  for (const h of roh) {
+    const t = h.trim().replace(/^#+/, "");
+    if (!t || !HASHTAG_GANZ.test(t)) continue;
+    const k = t.toLocaleLowerCase("de-DE");
+    if (gesehen.has(k)) continue;
+    gesehen.add(k);
+    out.push(t);
+    if (out.length >= FEED_HASHTAGS_MAX) break;
+  }
+  return out;
+}
+
+/** ?thema=… streng: a–z, 0–9, Bindestrich, Unterstrich, 1–40 Zeichen — sonst kein Thema. */
+export function feedThemaSlug(roh: unknown): string | null {
+  const s = String(roh ?? "").trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9_-]{0,39}$/.test(s) ? s : null;
+}
+/** ?n=… 1…12, Standard 9. */
+export function feedAnzahl(roh: unknown): number {
+  const n = Number(roh);
+  if (roh == null || roh === "" || !Number.isFinite(n)) return 9;
+  return Math.min(SOZIAL_FEED_MAX, Math.max(1, Math.round(n)));
+}
+/** ?marke=… fiaon | global | alle (Standard). */
+export const feedMarke = (roh: unknown): "fiaon" | "global" | "alle" => (roh === "fiaon" || roh === "global" ? roh : "alle");
+
+/**
+ * Reihenfolge im Feed: neueste zuerst — Veröffentlichung, sonst geplanter Zeitpunkt,
+ * sonst Plantag (Berliner Mitternacht). Gleichstand: höhere Reihenfolge (später gepostet)
+ * zuerst, dann höhere id.
+ */
+export function feedSortierung(a: { zeit_ms: number; reihenfolge: number | null; id: number }, b: typeof a): number {
+  if (a.zeit_ms !== b.zeit_ms) return b.zeit_ms - a.zeit_ms;
+  const ra = a.reihenfolge ?? -1, rb = b.reihenfolge ?? -1;
+  if (ra !== rb) return rb - ra;
+  return b.id - a.id;
+}
+
+/** Passende zuerst (Thema im Post), sonst die Reihenfolge behalten. */
+export function feedNachThema<T extends { themen: readonly string[] }>(liste: readonly T[], thema: string | null): T[] {
+  if (!thema) return [...liste];
+  const passt = (p: T) => p.themen.some((t) => String(t).toLowerCase() === thema);
+  return [...liste.filter(passt), ...liste.filter((p) => !passt(p))];
 }

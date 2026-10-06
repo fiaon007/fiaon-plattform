@@ -10,7 +10,7 @@
 import { useEffect, useRef } from "react";
 import { API } from "../chef-teile";
 import {
-  KANAL_INFO, SOCIAL_API, SOCIAL_STATUS_INFO, FORMAT_INFO, istSocialKanal,
+  KANAL_INFO, SOCIAL_API, SOCIAL_STATUS_INFO, FORMAT_INFO, istSocialKanal, WEB_480_BREITE, WEB_480_QUALITAET,
   type SocialAktion, type SocialAktionAntwort, type SocialAktionKoerper, type SocialFehler,
   type SocialFormat, type SocialKanal, type SocialStatus,
 } from "@shared/fiaon-social";
@@ -268,4 +268,72 @@ export async function dateienHolen(liste: { url: string; name: string; mime: str
     out.push(new File([b], d.name, { type: d.mime || b.type }));
   }
   return out;
+}
+
+// ── Kleine Web-Bilder (E-296) ─────────────────────────────────────────────
+/**
+ * Rechnet aus einem Studio-Bild (mit Sitzung geladen) ein 480 px breites JPEG
+ * (Qualität 0,82) — für die Kacheln auf der Website. Ohne Bibliothek: canvas.
+ * PNG mit Transparenz bekommt einen weißen Grund (JPEG kennt keine Transparenz).
+ */
+export async function webBildRechnen(url: string): Promise<Blob> {
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) throw new Error(`Bild ließ sich nicht laden (HTTP ${r.status}).`);
+  const quelle = await r.blob();
+  let breite = 0, hoehe = 0;
+  let malen: (ctx: CanvasRenderingContext2D, b: number, h: number) => void;
+  let schliessen = () => {};
+  if (typeof createImageBitmap === "function") {
+    const bmp = await createImageBitmap(quelle);
+    breite = bmp.width; hoehe = bmp.height;
+    malen = (ctx, b, h) => ctx.drawImage(bmp, 0, 0, b, h);
+    schliessen = () => { try { bmp.close(); } catch { /* egal */ } };
+  } else {
+    const adresse = URL.createObjectURL(quelle);
+    const img = await new Promise<HTMLImageElement>((ok, nein) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => nein(new Error("Bild ließ sich nicht lesen."));
+      i.src = adresse;
+    });
+    breite = img.naturalWidth; hoehe = img.naturalHeight;
+    malen = (ctx, b, h) => ctx.drawImage(img, 0, 0, b, h);
+    schliessen = () => URL.revokeObjectURL(adresse);
+  }
+  try {
+    if (!breite || !hoehe) throw new Error("Bild ohne Maße.");
+    const b = Math.min(WEB_480_BREITE, breite);
+    const h = Math.max(1, Math.round((b * hoehe) / breite));
+    const c = document.createElement("canvas");
+    c.width = b; c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) throw new Error("Dieser Browser kann keine Bilder verkleinern.");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, b, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    malen(ctx, b, h);
+    return await new Promise<Blob>((ok, nein) => c.toBlob((x) => (x ? ok(x) : nein(new Error("JPEG ließ sich nicht erzeugen."))), "image/jpeg", WEB_480_QUALITAET));
+  } finally { schliessen(); }
+}
+
+/**
+ * Legt für die genannten Bilder kleine Web-Bilder an: eins nach dem anderen rechnen,
+ * dann EIN Upload (je Bild ein Feld mit der id des Originals). Antwort des Servers:
+ * angelegt / schon_da / fehler — scheitert etwas, nimmt die Website die Originale.
+ */
+export async function webBilderAnlegen(postId: number, bilder: { id: number; url: string }[]): Promise<{ angelegt: number; schon_da: number; fehler: number }> {
+  const fd = new FormData();
+  let gerechnet = 0;
+  for (const x of bilder) {
+    try {
+      fd.append(String(x.id), await webBildRechnen(x.url), `${x.id}_web480.jpg`);
+      gerechnet++;
+    } catch { /* dieses eine bleibt ohne kleines Bild */ }
+  }
+  if (!gerechnet) throw new Error("Die kleinen Bilder ließen sich in diesem Browser nicht rechnen.");
+  const r = await fetch(SOCIAL_API.webVarianten(postId), { method: "POST", credentials: "include", body: fd });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.ok) throw new Error(j?.error || `Hochladen ging nicht (HTTP ${r.status}).`);
+  return { angelegt: (j.angelegt ?? []).length, schon_da: (j.schon_da ?? []).length, fehler: (j.fehler ?? []).length + (bilder.length - gerechnet) };
 }

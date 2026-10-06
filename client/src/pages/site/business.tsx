@@ -60,6 +60,7 @@ import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import { GLOBAL_BILDER } from "@/lib/global-bilder";
 import { mitBegriffen } from "@/components/site/global/Begriff";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import "@/styles/global.css";
 import "@/styles/global-grafik.css";
 
@@ -150,30 +151,55 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
     if (anker) requestAnimationFrame(() => setTimeout(() => document.querySelector(anker)?.scrollIntoView(), 60));
   }, []);
 
-  // Am Handy setzt die Tafel, die zu 60 % in der Wischreihe steht, die Wahl (Viererwahl, Klebeleiste, Wegleiste).
+  // Am Handy setzt die Tafel in der Mitte der Wischreihe die Wahl (Viererwahl, Klebeleiste, Wegleiste) — aber erst,
+  // wenn das Wischen zur Ruhe gekommen ist. 06.10.2026 (Justin: „beim Wischen stecken die“): Vorher wechselte ein
+  // IntersectionObserver die Wahl MITTEN im Wischen, die Reihe änderte daraufhin ihre Höhe (animiert), und Safari
+  // rastete beim Neuberechnen auf die alte Tafel zurück. Jetzt ändert sich während des Wischens nichts am Layout.
+  const wischtBis = useRef(0);
   useEffect(() => {
     const reihe = tafeln.current;
-    if (!reihe || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver((eintraege) => {
+    if (!reihe) return;
+    let ruhe = 0;
+    const mitte = () => {
       if (!handy()) return;
-      for (const e of eintraege) if (e.isIntersecting) setMobilPaket(e.target.id.replace(/^paket-/, ""));
-    }, { root: reihe, threshold: 0.6 });
-    reihe.querySelectorAll("[id^='paket-']").forEach((el) => io.observe(el));
-    return () => io.disconnect();
+      const r = reihe.getBoundingClientRect();
+      const ziel = r.left + r.width / 2;
+      let best: HTMLElement | null = null, abstand = Infinity;
+      reihe.querySelectorAll<HTMLElement>("[id^='paket-']").forEach((el) => {
+        const b = el.getBoundingClientRect();
+        const d = Math.abs(b.left + b.width / 2 - ziel);
+        if (d < abstand) { abstand = d; best = el; }
+      });
+      if (best) setMobilPaket((best as HTMLElement).id.replace(/^paket-/, ""));
+    };
+    const beimWischen = () => {
+      wischtBis.current = Date.now() + 160;
+      window.clearTimeout(ruhe);
+      ruhe = window.setTimeout(mitte, 160);
+    };
+    reihe.addEventListener("scroll", beimWischen, { passive: true });
+    return () => { reihe.removeEventListener("scroll", beimWischen); window.clearTimeout(ruhe); };
   }, []);
 
   // Am Handy ist die Wischreihe so hoch wie die Tafel in der Mitte — nicht wie die längste (Global VIP), sonst
-  // klafft unter Global Struktur eine Lücke. Aufgeklappte Leistungen ändern die Höhe mit (ResizeObserver).
+  // klafft unter Global Struktur eine Lücke. Aufgeklappte Leistungen ändern die Höhe mit (ResizeObserver). Die Höhe
+  // wird nie während des Wischens gesetzt (siehe oben), sonst rastet Safari zurück.
   useEffect(() => {
     const reihe = tafeln.current;
     const el = document.getElementById(`paket-${mobilPaket}`);
     if (!reihe || !el) return;
-    const setzen = () => { reihe.style.height = handy() ? `${el.offsetHeight + 22}px` : ""; };
+    let warten = 0;
+    const setzen = () => {
+      window.clearTimeout(warten);
+      const rest = wischtBis.current - Date.now();
+      if (rest > 0) { warten = window.setTimeout(setzen, rest + 20); return; }
+      reihe.style.height = handy() ? `${el.offsetHeight + 22}px` : "";
+    };
     setzen();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(setzen);
     ro?.observe(el);
     window.addEventListener("resize", setzen);
-    return () => { ro?.disconnect(); window.removeEventListener("resize", setzen); };
+    return () => { ro?.disconnect(); window.removeEventListener("resize", setzen); window.clearTimeout(warten); };
   }, [mobilPaket]);
 
   // 06.10.2026 (E-293, Gutachten): Im Paketabschnitt klebten am Handy drei Leisten zugleich (Kopf 73 px, Viererwahl
@@ -224,7 +250,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   };
   const zuDenPaketen = () => document.getElementById("pakete")?.scrollIntoView({ behavior: glatt() });
   const zurJahresbetreuung = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("jahresbetreuung")?.scrollIntoView({ behavior: glatt() }); };
-  const paketZeigen = (key: string) => { setMobilPaket(key); wischeZu(key, glatt()); };
+  // Antippen der Viererwahl: Die Reihe gleitet selbst — die Höhe folgt erst danach (wischtBis, Safari rastet sonst zurück).
+  const paketZeigen = (key: string) => { wischtBis.current = Date.now() + 700; setMobilPaket(key); wischeZu(key, glatt()); };
   const geld = GLOBAL_GELD_ZURUECK.aktiv ? GLOBAL_GELD_ZURUECK[s] : null;
   // 19.09.2026 — Justin: „Das Kapital muss NICHT in den USA ausgegeben werden." Im Kopf steht der kurze
   // Satz am Kapitalrahmen, die Fußnote nennt beide Bedingungen (Institut, Partner-Steuerberater). Seit
@@ -285,13 +312,11 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <p className="fg-mikro">{t.gespraechMikro}</p>
               <p className="fg-fussnote"><sup>{nrFrei}</sup> {frei.satz} {frei.steuer}</p>
             </Auf>
-            {/* Die Gründungsurkunde (HF-1, Scheibe C) mit Siegel-Licht. Am Handy ragt sie angeschnitten herein — dort steht
-                der Bildnachweis waagerecht über dem sichtbaren Teil (.fg-hero-nachweis, für Bildschirmleser doppelt und
-                daher aria-hidden); die senkrechte Zeile bleibt als Bildunterschrift für Bildschirmleser im DOM. */}
+            {/* Die Gründungsurkunde (HF-1, Scheibe C) mit Siegel-Licht. Am Handy steht sie ganz (nicht mehr angeschnitten —
+                Justin 06.10.: „Bilder abgeschnitten“) unter den Knöpfen, der Bildnachweis senkrecht daneben wie am Desktop. */}
             <div className="fg-hero-objekt-rahmen">
               <GlobalObjekt art="urkunde" hero bild={GLOBAL_BILDER.urkunde} licht="siegel" className="fg-hero-objekt"
-                groesse="(max-width: 720px) 160px, (max-width: 900px) 30vw, 400px" nachweis={t.bildKi} />
-              <span className="fg-hero-nachweis" aria-hidden="true">{t.bildKi}</span>
+                groesse="(max-width: 720px) 220px, (max-width: 900px) 30vw, 400px" nachweis={t.bildKi} />
             </div>
           </div>
           <div className="fg-rahmen">
@@ -487,6 +512,10 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
             </div>
           </div>
         </Sek>
+
+        {/* ── 7b FIAON auf Instagram und Facebook (E-296): NUR Beiträge von FIAON Global — kein Rückfall auf „alle“,
+               die Business-Welt zeigt nie Privatthemen (E-192, Prüfung 06.10.2026); ohne Beiträge nur die Profile ── */}
+        <SozialFenster aussehen="kanzlei" marke="global" />
 
         {/* ── 8 Schlussband ── */}
         <section className="fg-schluss mit-bild">

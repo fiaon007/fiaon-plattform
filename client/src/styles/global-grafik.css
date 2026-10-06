@@ -91,7 +91,6 @@
 .fg-hero-linie path{fill:none;stroke:#1d4ed8;stroke-opacity:.45;stroke-width:1;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;animation:fg-b-zeichnen 1.2s var(--fg-ease-io) .6s backwards}
 .fg-hero-linie circle{fill:#1d4ed8;fill-opacity:.75;animation:fg-b-ein .3s var(--fg-ease) 1.75s backwards}
 .ld-an .fg-hero-linie path,.ld-an .fg-hero-linie circle{animation-play-state:paused}
-.fg-hero-nachweis{display:none}
 /* 721–1120 px: Die Urkunde füllt ihre Spalte; der senkrechte Nachweis (right:-16px, dazu die Drehung) lief über den
    Bildrand hinaus und wurde abgeschnitten. Rechts Platz lassen. */
 @media(min-width:721px) and (max-width:1120px){.fg-neu .fg-hero-objekt-rahmen{padding-right:30px}}
@@ -137,16 +136,12 @@
   .fg-neu .fg-hero-knoepfe{order:5;flex-direction:column;align-items:stretch;gap:2px;margin-top:20px}
   .fg-neu .fg-hero-knoepfe .fg-knopf{width:100%;min-height:48px}
   .fg-neu .fg-hero-gespraech.fg-knopf{background:none;border:0;box-shadow:none;min-height:40px;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
-  .fg-neu .fg-hero-objekt-rahmen{order:6;justify-content:flex-end;height:120px;margin:8px -24px 0 0;overflow:hidden}
-  .fg-neu .fg-hero-objekt{width:160px;transform:rotate(-6deg) translate(26px,8px);animation:none}
-  .fg-neu .fg-hero-objekt .fg-licht{display:none}
-  .fg-neu .fg-hero-objekt .fg-bildnachweis{width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-  /* Oben auf dem freien Papier, nicht unten auf Siegel und Band; zweizeilig, damit es auch bei 375 px ganz auf dem
-     sichtbaren Papier steht und nicht an „Dreißig Minuten …“ stößt. */
-  .fg-neu .fg-hero-nachweis{display:block;position:absolute;right:16px;top:34px;max-width:112px;padding:4px 6px;border-radius:3px;background:rgba(255,255,255,.82);
-    font:500 9px/1.35 var(--sans);letter-spacing:.12em;text-transform:uppercase;text-align:right;color:var(--navy)}
-  .fg-neu .fg-hero .fg-mikro{order:7;margin-top:-104px;max-width:58%}
-  .fg-neu .fg-hero .fg-fussnote{order:8;margin-top:52px}
+  /* 06.10.2026 (Justin: „am Handy … Bilder abgeschnitten“): Die Urkunde steht ganz unter den Knöpfen statt als
+     angeschnittener Streifen; Bildnachweis senkrecht rechts daneben wie am Desktop, Siegel-Licht läuft mit. */
+  .fg-neu .fg-hero-objekt-rahmen{order:6;justify-content:center;margin:30px 0 6px}
+  .fg-neu .fg-hero-objekt{width:min(56vw,220px);transform:rotate(-4deg);animation:none}
+  .fg-neu .fg-hero .fg-mikro{order:5;margin-top:10px;text-align:center}
+  .fg-neu .fg-hero .fg-fussnote{order:8;margin-top:22px}
   .fg-vertrauensleiste{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:24px}
   .fg-vertrauensleiste li{min-height:72px;padding:12px 10px;font-size:12.5px;gap:9px;align-items:flex-start}
   .fg-vertrauensleiste li:first-child{padding-left:0}
@@ -472,9 +467,8 @@
   .fg-stern.zustand-ohne .fg-stern-mitte-m{opacity:.35}
   .fg-stern-legende{justify-content:flex-start;margin-top:16px}
   .fg-stern-partner{font-size:16px}
-  .fg-fuer-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:-24px;padding-right:24px}
-  .fg-fuer-chips::-webkit-scrollbar{display:none}
-  .fg-fuer-chips ul{flex-wrap:nowrap}
+  /* Umbrechen statt waagerecht aus dem Bild laufen (06.10.2026: am Handy sah die Reihe abgeschnitten aus). */
+  .fg-fuer-chips{flex-direction:column;align-items:flex-start;gap:12px}
 }
 
 /* ── 5 Persönliches Angebot mit Bürgschaftszusage (Schalter, Start: aus) ── */

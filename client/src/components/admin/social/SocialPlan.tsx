@@ -15,6 +15,8 @@
 // geblätterten Zeitraum); „Liegt bei Claude (n)“ zeigt die Rückgaben mit Notiz —
 // Claude liest sie in Scheibe 1 nicht selbst; Lücken stehen als Spannen, bei
 // aktivem Filter steht „Kein Post passt zum Filter“ statt „nichts geplant“.
+// E-296: Marke „Web“ an Karten, die auf der Website stehen (gedämpft: Schalter an,
+// aber erst ab dem Plantag bzw. nach der Freigabe).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { Geruest, Fehlermeldung, useDaten, zahl } from "../chef-teile";
@@ -319,7 +321,7 @@ function BeiClaude({ daten, onOeffnen }: { daten: SocialPlanAntwort; onOeffnen: 
 // ── Eine Karte ───────────────────────────────────────────────────────────
 function Karte({ p, onOeffnen, onZiehen, liste = false, eng = false }: { p: SocialPostKarte; onOeffnen: (id: number) => void; onZiehen?: (e: DragEvent, p: SocialPostKarte) => void; liste?: boolean; eng?: boolean }) {
   const ziehbar = !!onZiehen && SOCIAL_VERSCHIEBBAR.includes(p.status);
-  const titel = `${p.reihenfolge != null ? `#${p.reihenfolge} · ` : ""}${p.titel} — ${FORMAT_INFO[p.format].titel}, ${SOCIAL_STATUS_INFO[p.status].titel}${p.plan_zeit ? `, ${p.plan_zeit} Uhr` : ", ganztags"}`;
+  const titel = `${p.reihenfolge != null ? `#${p.reihenfolge} · ` : ""}${p.titel} — ${FORMAT_INFO[p.format].titel}, ${SOCIAL_STATUS_INFO[p.status].titel}${p.plan_zeit ? `, ${p.plan_zeit} Uhr` : ", ganztags"}${p.website_jetzt ? ", steht auf der Website" : p.website_sichtbar ? ", Website-Schalter an" : ""}`;
   const bild = (
     <span className="bild">
       {p.vorschau ? <img src={p.vorschau.url} alt="" loading="lazy" decoding="async" draggable={false} /> : null}
@@ -333,6 +335,10 @@ function Karte({ p, onOeffnen, onZiehen, liste = false, eng = false }: { p: Soci
       <FormatZeichen f={p.format} className="so-zeichen" />
       {p.wortcheck_ergebnis === "rot" && <span className="mara-krit-t" title={`Wort-Check rot (${p.wort_treffer})`}>{liste ? "Wort-Check rot" : "Wort rot"}</span>}
       {p.ki_noetig && <span title="KI-Kennzeichnung nötig">{liste ? "KI-Kennzeichnung" : "KI"}</span>}
+      {p.website_sichtbar && (
+        <span className={`so-web${p.website_jetzt ? "" : " spaeter"}`} data-so-web
+          title={p.website_jetzt ? "Steht auf der Website (fiaon.com)" : "Website-Schalter an — erscheint, sobald der Post auf Instagram als veröffentlicht gemeldet ist (frühestens am Plantag)"}>Web</span>
+      )}
       <StatusPunkt s={p.status} />
     </span>
   );

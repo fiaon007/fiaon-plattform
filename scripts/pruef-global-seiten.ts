@@ -44,8 +44,9 @@ import { globalStartPfad } from "../shared/fiaon-global-wege";
 import { SEO_SEITEN, seoFragen, seoIndexierbar } from "../shared/fiaon-seo-seiten";
 import "../server/lib/fiaon-global-seo";
 import { istBusinessBereich, mitBereich } from "../client/src/lib/bereich";
-import { GLOBAL_WOERTER } from "../client/src/i18n/global";
-import { GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalJahresbetreuungPreisText } from "../shared/fiaon-global";
+import { GLOBAL_WOERTER, GLOBAL_FUSS_WOERTER } from "../client/src/i18n/global";
+import { GLOBAL_BUERGSCHAFT_SEITE, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalJahresbetreuungPreisText } from "../shared/fiaon-global";
+import { GLOBAL_STANDORTE } from "../shared/fiaon-global-partner";
 import { GLOBAL_SCHLAGZEILEN } from "../shared/fiaon-global-schlagzeilen";
 import { globalWortPruefen, globalWortPruefenEn } from "../shared/fiaon-global-wortregeln";
 import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX } from "../shared/fiaon-pixel";
@@ -203,7 +204,8 @@ for (const l of LANDINGPAGES) {
 
 // ═══ 5: LANDINGPAGES FÜR ANZEIGEN ════════════════════════════════════════════
 abschnitt("Landingpages");
-const FINANZ = /kapitalrahmen|kreditkarte|firmenkarte|\bkarten?\b|darlehen|\bkredit|finanzierung|kartenleiter/i;
+// 06.10.2026 (E-293): auch das persönliche Angebot mit Bürgschaftszusage gehört nie auf eine Anzeigenseite.
+const FINANZ = /kapitalrahmen|kreditkarte|firmenkarte|\bkarten?\b|darlehen|\bkredit|finanzierung|kartenleiter|b(ü|ue)rgschaft|b(ü|ue)rgin|guaranty|surety/i;
 for (const l of LANDINGPAGES) {
   ok(!!globalPaket(l.paket), `${l.pfad}: Paket ${l.paket} nicht im Katalog`);
   ok(l.vorteile.length >= 3 && l.fragen.length >= 3, `${l.pfad}: zu wenige Vorteile oder Fragen`);
@@ -290,9 +292,8 @@ for (const [pfad, e] of Object.entries(tabelle) as [string, any][]) {
   const zweig = nf.slice(nf.indexOf("if (business)"), nf.indexOf("const primary"));
   ok(/istBusinessBereich\(/.test(nf) && zweig.length > 50 && /"\/business"/.test(zweig) && !/"\/(login|was-ist-fiaon)"|href: "\/"/.test(zweig), "not-found.tsx: die 404-Ansicht unter /business führt nicht zu FIAON Global oder in die Privatwelt");
 }
-// Die Kacheln „Für wen" auf /business führen auf Unterseiten, die es gibt.
-for (const k of GLOBAL_WOERTER.de.fuer) ok(!k.pfad || seitenPfade.has(k.pfad), `/business „Für wen": ${k.tag} → ${k.pfad} gibt es nicht`);
-for (const [ziel] of GLOBAL_WOERTER.de.fuerLaenderLinks) ok(seitenPfade.has(ziel), `/business „Für wen": ${ziel} gibt es nicht`);
+// Die Chips „Für wen" auf /business (seit 06.10.2026, E-293, statt Kacheln und Länderzeile) führen auf Seiten, die es gibt.
+for (const k of [...GLOBAL_WOERTER.de.fuerChips, ...GLOBAL_WOERTER.de.privat.fuerChips]) ok(!k.pfad || k.pfad === "/business" || seitenPfade.has(k.pfad), `/business „Für wen": ${k.text} → ${k.pfad} gibt es nicht`);
 // 19.09.2026: beide Rechtsseiten auch englisch (Vertrag und Belehrung gibt es in Vertragssprache Englisch).
 for (const route of ["/business/widerrufsbelehrung", "/business/mustervertrag", "/en/business/widerrufsbelehrung", "/en/business/mustervertrag"]) {
   ok(appTsx.includes(`path="${route}"`) && appTsx.indexOf(`path="${route}"`) < appTsx.indexOf(`path="/business/:slug"`), `App.tsx: Route ${route} fehlt oder steht hinter /business/:slug`);
@@ -316,6 +317,45 @@ ok(/globalKapitalSpanne\(s\)/.test(hubSeite.slice(0, hubSeite.indexOf('id="leist
 const einstieg = String(Math.round((PAKETE.find((x) => x.key === "global_struktur")?.preisCents ?? 0) / 100).toLocaleString("de-DE"));
 ok(GLOBAL_WOERTER.de.metaTitel.includes(einstieg) && String(tabelle["/business"]?.titel).includes(einstieg), `/business: Titel nennt nicht den Einstiegspreis ${einstieg} € (Seite und SEO-Tabelle)`);
 ok(GLOBAL_WOERTER.de.metaTitel === tabelle["/business"]?.titel && GLOBAL_WOERTER.en.metaTitel === tabelle["/business"]?.en?.titel, "/business: Titel der Seite und der SEO-Tabelle weichen voneinander ab");
+// 06.10.2026 (E-293): Beschreibung der Seite = SEO-Tabelle (beide Sprachen).
+ok(GLOBAL_WOERTER.de.metaBeschreibung === tabelle["/business"]?.beschreibung && GLOBAL_WOERTER.en.metaBeschreibung === tabelle["/business"]?.en?.beschreibung, "/business: Beschreibung der Seite und der SEO-Tabelle weichen voneinander ab");
+// 06.10.2026 (E-293): Das persönliche Angebot mit Bürgschaftszusage steht nie in Meta, SEO-Korpus oder FAQ-Markup —
+// weder auf /business noch auf /business/privatpersonen (Bauplan 3.1: die Pakete sagen „Ihr Ziel“, das Angebot etwas anderes).
+{
+  const BUERGSCHAFT = /b(ü|ue)rgschaft|b(ü|ue)rgin|guaranty|surety/i;
+  const korpus = (e: any) => e ? [e.titel, e.beschreibung, e.h1, e.lead, ...((e.abschnitte ?? []) as any[]).flatMap((x) => [x.h2, x.text, ...(x.punkte ?? [])])].join(" \n ") : "";
+  for (const [pfad, meta] of [["/business", GLOBAL_WOERTER.de.metaBeschreibung], ["/business/privatpersonen", GLOBAL_WOERTER.de.privat.metaBeschreibung]] as const) {
+    const e = tabelle[pfad];
+    const text = [meta, korpus(e), korpus(e?.en), ...seoFragen(pfad).flatMap((f) => [f.f, f.a])].join(" \n ");
+    ok(!!e && !BUERGSCHAFT.test(text), `${pfad}: „${text.match(BUERGSCHAFT)?.[0]}“ in Meta, SEO-Korpus oder FAQ-Markup — das persönliche Angebot gehört nur auf die Seite selbst`);
+  }
+  for (const pfad of ["/en/business", "/en/business/private-individuals"]) {
+    const text = [korpus(tabelle[pfad]), ...seoFragen(pfad).flatMap((f) => [f.f, f.a])].join(" \n ");
+    ok(!BUERGSCHAFT.test(text), `${pfad}: „${text.match(BUERGSCHAFT)?.[0]}“ im SEO-Korpus oder FAQ-Markup`);
+  }
+}
+// 06.10.2026 (E-293, Gutachten): Freigabebedingung (1) aus Bauplan 3.5 als harte Probe — das persönliche Angebot nennt die
+// Bürgin öffentlich erst, wenn ihr Registernachweis (Sunbiz „Active“) in GLOBAL_STANDORTE eingetragen ist. Die Anwaltsantwort
+// zu KWG und § 34c GewO (Bedingung 2) bleibt eine Freigabe durch Justin und lässt sich hier nicht prüfen.
+{
+  const miami = GLOBAL_STANDORTE.find((o) => o.schluessel === "miami");
+  ok(!GLOBAL_BUERGSCHAFT_SEITE.aktiv || !!miami?.register, "GLOBAL_BUERGSCHAFT_SEITE.aktiv ist an, aber der Registernachweis der Schwarzott Global LLC (GLOBAL_STANDORTE miami.register) fehlt — erst Sunbiz-Auszug „Active“ eintragen (Bauplan 3.5)");
+}
+// 06.10.2026 (E-293): Jede H2 des Korpus /business steht so auf der Seite (Regel 1: nichts im Korpus, was der Besucher nicht sieht).
+// Verglichen ohne Schlusspunkt — gegen die Liste der Überschriften, die business.tsx wirklich zeigt (nicht gegen das ganze
+// Wörterbuch: sonst meldete eine H2 grün, die nur in einer zugeklappten Antwort oder einem Popover steht; Gutachten 06.10.).
+// Die Jahresbetreuung baut ihre Überschrift aus GLOBAL_JAHRESBETREUUNG (Titel und Preis).
+for (const sp of ["de", "en"] as const) {
+  const e = sp === "de" ? tabelle["/business"] : tabelle["/business"]?.en;
+  const w = GLOBAL_WOERTER[sp];
+  const jb = `${GLOBAL_JAHRESBETREUUNG[sp].titel}: ${GLOBAL_JAHRESBETREUUNG[sp].preisZeile}`;
+  const gezeigt = [w.paketeH2, w.vsH2, w.wissenTitel, w.gespraechH2, w.fragenH2, jb].map((x) => x.replace(/\.$/, ""));
+  for (const a of (e?.abschnitte ?? []) as { h2: string }[]) {
+    const h2 = a.h2.replace(/\.$/, "");
+    ok(gezeigt.includes(h2), `SEO /business (${sp}): Abschnitt „${a.h2}“ ist keine Überschrift der Seite (paketeH2, vsH2, wissenTitel, gespraechH2, fragenH2, Jahresbetreuung)`);
+  }
+  ok(((e?.abschnitte ?? []) as unknown[]).length >= 4, `SEO /business (${sp}): weniger als vier Abschnitte im Korpus`);
+}
 
 // ═══ 9: JAHRESBETREUUNG, UHREN, NACHRICHTENLAGE, STARTSEITE PRIVATPERSONEN (19.09.2026, E-196) ═══
 abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
@@ -324,12 +364,14 @@ abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
   ok(GLOBAL_JAHRESBETREUUNG.preisCents === 69900, `Jahresbetreuung: Preis ${GLOBAL_JAHRESBETREUUNG.preisCents} statt 69900`);
   for (const sp of ["de", "en"] as const) {
     const j = GLOBAL_JAHRESBETREUUNG[sp];
-    const jt = [j.kurz, j.lead, ...j.leistungen, j.bedingungen, j.buchen, j.gebucht, j.nichtHeute].join("\n");
+    // 06.10.2026 (E-293): dazu die Wörter des Bands auf /business (Ring, Satz, Zeitleiste, Bedingung kurz).
+    const jt = [j.kurz, j.lead, ...j.leistungen, j.bedingungen, j.buchen, j.gebucht, j.nichtHeute, ...j.kurzLeistungen, j.bandSatz, ...j.zeitleiste, j.bandBedingung].join("\n");
     // 24.09.2026 (E-234): die englische Hälfte mit den englischen Regeln — die deutschen fanden in ihr nichts.
     const funde = sp === "en" ? globalWortPruefenEn(jt) : globalWortPruefen(jt);
     ok(funde.length === 0, `Jahresbetreuung (${sp}) verletzt die Wortregeln: ${funde.map((x) => x.treffer).join(", ")}`);
     ok(/Staatsgeb|state fee/i.test(j.leistungen.join(" ")), `Jahresbetreuung (${sp}): die Staatsgebühr fehlt in den Leistungen`);
-    ok(/nicht von selbst|does not renew/i.test(j.bedingungen), `Jahresbetreuung (${sp}): „verlängert sich nicht von selbst" fehlt`);
+    ok(/nicht von selbst|does not renew/i.test(j.bedingungen) && /nicht von selbst|does not renew/i.test(j.bandBedingung), `Jahresbetreuung (${sp}): „verlängert sich nicht von selbst" fehlt (Bedingungen oder Band)`);
+    ok(j.kurzLeistungen.length === j.leistungen.length, `Jahresbetreuung (${sp}): ${j.kurzLeistungen.length} Ringbeschriftungen für ${j.leistungen.length} Leistungen`);
   }
   for (const datei of ["client/src/pages/site/business.tsx", "client/src/pages/site/global-seite.tsx", "client/src/pages/site/global-lp.tsx"]) {
     ok(fs.readFileSync(path.join(WURZEL, datei), "utf8").includes("<GlobalJahresbetreuung"), `${datei}: der Block Jahresbetreuung fehlt`);
@@ -472,12 +514,13 @@ abschnitt("Englische Unterseiten");
   const jbEn = globalMenue("en").flatMap((g) => g.eintraege).find((m) => m.pfad === "/en/business#jahresbetreuung");
   ok(!!jbEn && jbEn.text.includes(globalJahresbetreuungPreisText("en")), "Menü (en): Jahresbetreuung fehlt oder nennt einen anderen Preis");
   // Übersicht /en/business: „Who it is for" und die Länder führen auf englische Seiten; Privatpersonen: Kopf = Register.
-  for (const k of GLOBAL_WOERTER.en.fuer) ok(!!k.pfad && enPfade.has(k.pfad), `/en/business „Who it is for": ${k.tag} → ${k.pfad || "(leer)"}`);
-  for (const [ziel] of GLOBAL_WOERTER.en.fuerLaenderLinks) ok(enPfade.has(ziel), `/en/business: ${ziel} gibt es nicht`);
+  for (const k of GLOBAL_WOERTER.en.fuerChips) ok(!!k.pfad && enPfade.has(k.pfad), `/en/business „For": ${k.text} → ${k.pfad || "(leer)"}`);
+  for (const k of GLOBAL_WOERTER.en.privat.fuerChips) ok(!k.pfad || k.pfad === "/en/business" || enPfade.has(k.pfad), `/en/business/private-individuals „For": ${k.text} → ${k.pfad}`);
   const privatEn = GLOBAL_SEITEN_EN.find((x) => x.pfad === "/en/business/private-individuals");
   ok(!!privatEn && privatEn.auftraggeber === "privat" && GLOBAL_WOERTER.en.privat.metaTitel === privatEn.seo.titel && GLOBAL_WOERTER.en.privat.metaBeschreibung === privatEn.seo.beschreibung,
     "Private individuals: Titel/Beschreibung der Startseite weichen vom englischen Registereintrag ab (oder art privat fehlt)");
-  ok(GLOBAL_WOERTER.en.standorteVerbunden === (await import("../shared/fiaon-global-partner")).GLOBAL_VERBUNDEN_EN, "i18n/global.ts en.standorteVerbunden weicht von GLOBAL_VERBUNDEN_EN ab");
+  // 06.10.2026 (E-293): Die Standorte stehen nur noch im Fuß (GlobalOrte) — dort liest GlobalFuss.tsx GLOBAL_VERBUNDEN_EN direkt.
+  ok(/neither a bank/.test(GLOBAL_FUSS_WOERTER.en.keineBank) && /keine Bank/.test(GLOBAL_FUSS_WOERTER.de.keineBank), "GLOBAL_FUSS_WOERTER: der Satz „keine Bank“ (§ 39/§ 41 KWG) fehlt im Fuß");
   // Das Kapital ist nicht an die USA gebunden — dieselbe Frage auf den englischen Schwestern.
   for (const pfad of ["/business/firmenkarten-kapital", "/business/privatpersonen", "/business/bau-immobilien"]) {
     const e = GLOBAL_SEITEN_EN.find((x) => x.schwester === pfad);

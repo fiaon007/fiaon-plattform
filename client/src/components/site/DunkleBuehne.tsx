@@ -210,8 +210,10 @@ export function Zitat({ text, wer, en }: { text: string; wer: string; en?: boole
   );
 }
 
-export function Fragen({ items }: { items: { f: string; a: string }[] }) {
-  const [auf, setAuf] = useState<number | null>(0);
+// 06.10.2026 (E-293): `start` — welche Frage offen beginnt (Standard die erste; null = alle zu). /business zeigt
+// fünf Fragen offen sichtbar und die übrigen zwölf in einer zweiten Liste hinter „Alle 17 Fragen“, die zu beginnt.
+export function Fragen({ items, start = 0 }: { items: { f: string; a: string }[]; start?: number | null }) {
+  const [auf, setAuf] = useState<number | null>(start);
   return (
     <div style={{ marginTop: 36 }}>
       {items.map((q, i) => (

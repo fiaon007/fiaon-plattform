@@ -489,6 +489,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Die Aktion selbst: alle 10 Minuten, rund um die Uhr, A vor B, Takt und Kostendeckel in fiaon-mara-aktion.ts.
   const fiaonMaraSteuerpultRoutes = await import('./routes/fiaon-mara-steuerpult');
   app.use('/api/fiaon', fiaonMaraSteuerpultRoutes.default);
+  // 📲 Social-Studio (06.10.2026, E-294): Reiter „Social" im Mara-Steuerpult — Plan, Post-Detail,
+  //    Freigabe mit Wort-Check, Instagram-Vorschau. POST /api/fiaon/social/import (Bearer
+  //    SOCIAL_IMPORT_TOKEN, darf NUR importieren) liegt bewusst NICHT unter /api/admin — dort fängt
+  //    der ARAS-Router (admin.ts, requireAdmin) alles ab. Studio-Wege /chef/social/* ab Stufe GF.
+  app.use('/api/fiaon', (await import('./routes/fiaon-social')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('mara_aktion', async () => await (await import('./lib/fiaon-mara-aktion')).maraAktionLauf(), 10 * 60 * 1000, { beimStartNach: 300_000 });
   });

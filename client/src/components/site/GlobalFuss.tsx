@@ -9,64 +9,56 @@
 // ?bereich=business, damit auch dort der Business-Rahmen steht (lib/bereich.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useSprache } from "@/i18n/sprache";
+import { GLOBAL_FUSS_WOERTER, GLOBAL_WOERTER } from "@/i18n/global";
 import { globalMenue } from "@shared/fiaon-global-menue";
-import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN, standortNachweis } from "@shared/fiaon-global-partner";
+import { GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN } from "@shared/fiaon-global-partner";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { SozialeLinks } from "@/components/site/SozialeLinks";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { mitBereich } from "@/lib/bereich";
 import { GlobalMarke } from "@/components/site/GlobalNav";
+import GlobalOrte from "@/components/site/global/GlobalOrte";
 import "@/styles/global-rahmen.css";
-
-const EN = {
-  satz: "Your US company from one source — for companies and private individuals. Fixed price, everything included.",
-  gespraech: "Arrange a call", beauftragen: "Order now", auftrag: "My order",
-  orte: { london: "Contracting party", zuerich: "Capital stage partner", miami: "Team on the ground" },
-  recht: [["/impressum", "Legal notice"], ["/datenschutz", "Privacy policy"], ["/cookie-einstellungen", "Cookie settings"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]],
-  registriert: "Registered in England and Wales",
-  keineBank: "FIAON is neither a bank nor a law firm. Accounts, cards and loans are decided solely by the institutions; tax and legal questions are handled by our partners under your engagement.",
-} as const;
+import "@/styles/global-grafik.css";
 
 // 19.09.2026 (E-192): Ein Paket heißt „Global Banking" — „Bank" in einer Bezeichnung ist nach § 39 KWG Kreditinstituten
-// vorbehalten, außer der Zusammenhang schließt den Anschein von Bankgeschäften aus (§ 41 KWG). Dieser Satz steht
-// deshalb auf jeder Seite der Business-Welt, direkt beim Vertragspartner.
-const KEINE_BANK = "FIAON ist keine Bank und keine Kanzlei. Über Konten, Karten und Darlehen entscheiden allein die Institute; Steuer- und Rechtsfragen klären unsere Partner auf Ihr Mandat.";
-
-const DE_ORTE = { london: "Vertragspartner", zuerich: "Partner Kapital-Etappe", miami: "Team vor Ort" } as const;
+// vorbehalten, außer der Zusammenhang schließt den Anschein von Bankgeschäften aus (§ 41 KWG). Der Satz KEINE_BANK
+// (GLOBAL_FUSS_WOERTER.keineBank) steht deshalb auf jeder Seite der Business-Welt, direkt beim Vertragspartner.
+// 06.10.2026 (E-293): Alle Wörter des Fußes stehen in i18n/global.ts (GLOBAL_FUSS_WOERTER), damit die Wortwand sie
+// liest; die Standort-Liste ist jetzt „Drei Orte“ mit Mini-Uhren (components/site/global/GlobalOrte.tsx).
 
 export default function GlobalFuss() {
   const sprache = useSprache();
   const en = sprache === "en";
+  const w = GLOBAL_FUSS_WOERTER[en ? "en" : "de"];
   const jahr = new Date().getFullYear();
-  const recht: [string, string][] = en
-    ? EN.recht.map(([p, l]) => [p.startsWith("/en/") ? p : schwesterPfad(p, "en") ?? p, l])
-    : [["/impressum", "Impressum"], ["/datenschutz", "Datenschutz"], ["/cookie-einstellungen", "Cookie-Einstellungen"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
+  const recht: [string, string][] = w.recht.map(({ pfad, text }) => [en && !pfad.startsWith("/en/") ? schwesterPfad(pfad, "en") ?? pfad : pfad, text]);
   // Die Business-eigenen Rechtsseiten tragen den Rahmen ohnehin; die gemeinsamen bekommen ?bereich=business.
   const rechtHref = (p: string) => (/^\/(en\/)?business(\/|$)/.test(p) ? p : mitBereich(p));
 
   return (
-    <footer className="gf" aria-label={en ? "FIAON Global — footer" : "FIAON Global — Fußzeile"}>
+    <footer className="gf" aria-label={w.label}>
       <div className="gf-rahmen">
         <div className="gf-oben">
           <div className="gf-marke">
             <GlobalMarke en={en} hell />
-            <p>{en ? EN.satz : "US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Festpreis, alles inklusive."}</p>
+            <p>{w.satz}</p>
             <div className="gf-tun">
-              <a href={en ? "/en/business#gespraech" : "/business#gespraech"} className="gf-knopf">{en ? EN.gespraech : "Gespräch vereinbaren"}</a>
-              <a href={globalStartPfad(undefined, en ? "en" : "de")} className="gf-knopf hell">{en ? EN.beauftragen : "Beauftragen"}</a>
+              <a href={en ? "/en/business#gespraech" : "/business#gespraech"} className="gf-knopf">{w.gespraech}</a>
+              <a href={globalStartPfad(undefined, en ? "en" : "de")} className="gf-knopf hell">{w.beauftragen}</a>
             </div>
             <p className="gf-kontakt">
               <a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a>
               <span aria-hidden="true">·</span>
               <a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a>
               <span aria-hidden="true">·</span>
-              <a href={en ? "/en/business/auftrag" : "/business/auftrag"}>{en ? EN.auftrag : "Mein Auftrag"}</a>
+              <a href={en ? "/en/business/auftrag" : "/business/auftrag"}>{w.auftrag}</a>
             </p>
             <SozialeLinks en={en} className="gf-sozial" />
           </div>
 
-          <nav className="gf-themen" aria-label={en ? "Topics" : "Themen"}>
+          <nav className="gf-themen" aria-label={w.themen}>
             {/* 24.09.2026 (E-234): dieselben vier Spalten in beiden Sprachen — die Unterseiten gibt es jetzt auch englisch. */}
             {globalMenue(en ? "en" : "de").map((g) => (
               <div key={g.titel} className="gf-spalte">
@@ -77,26 +69,18 @@ export default function GlobalFuss() {
           </nav>
         </div>
 
-        <ul className="gf-orte" aria-label={en ? "Locations" : "Standorte"}>
-          {GLOBAL_STANDORTE.map((o) => (
-            <li key={o.schluessel}>
-              <span className="gf-stadt">{en ? o.en.stadt : o.stadt}</span>
-              <b>{o.gesellschaft}</b>
-              <span>{en ? EN.orte[o.schluessel] : DE_ORTE[o.schluessel]} · {standortNachweis(o)}</span>
-            </li>
-          ))}
-        </ul>
+        <GlobalOrte en={en} label={w.standorte} sie={w.orteSie} sieZusatz={w.orteSieZusatz} rollen={w.orte} uhren={GLOBAL_WOERTER[en ? "en" : "de"].uhren} />
 
         <div className="gf-unten">
           <div className="gf-firma">
-            <p>© {jahr} {FIAON_FIRMA.name} · {en ? EN.registriert : "Eingetragen in England und Wales"}, Company No. {FIAON_FIRMA.companyNo} · {FIAON_FIRMA.strasse}, {FIAON_FIRMA.ortZeile}</p>
-            <p className="gf-verbunden">{en ? EN.keineBank : KEINE_BANK}</p>
+            <p>© {jahr} {FIAON_FIRMA.name} · {w.registriert}, Company No. {FIAON_FIRMA.companyNo} · {FIAON_FIRMA.strasse}, {FIAON_FIRMA.ortZeile}</p>
+            <p className="gf-verbunden">{w.keineBank}</p>
             <p className="gf-verbunden">{en ? GLOBAL_VERBUNDEN_EN : GLOBAL_VERBUNDEN}</p>
           </div>
-          <nav className="gf-recht" aria-label={en ? "Legal" : "Rechtliches"}>
+          <nav className="gf-recht" aria-label={w.rechtlich}>
             {recht.map(([p, l]) => <a key={p} href={rechtHref(p)}>{l}</a>)}
             {/* Die Einwilligung lässt sich von jeder Seite aus ändern (components/site/EinwilligungsHinweis.tsx). */}
-            <button type="button" onClick={() => window.dispatchEvent(new Event("fiaon-einwilligung-oeffnen"))}>{en ? "Consent" : "Einwilligung ändern"}</button>
+            <button type="button" onClick={() => window.dispatchEvent(new Event("fiaon-einwilligung-oeffnen"))}>{w.einwilligung}</button>
           </nav>
         </div>
       </div>

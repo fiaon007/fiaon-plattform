@@ -1,106 +1,108 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /business — FIAON GLOBAL (Neubau 17.09.2026, neu gestaltet 18.09.2026, E-188;
-// neu geordnet 19.09.2026, E-192)
+// neu geordnet 19.09.2026, E-192; neu gebaut 06.10.2026, E-293)
 //
 // Justin (17.09.): „FIAON positioniert sich für den B2B-Sektor komplett neu …
 // Firmengründung in den USA, Steuerberater, Kreditkarten-System, Fundings —
-// alles remote und über uns." Justin (18.09.): „In den Paketen sind ALLE
-// Gebühren enthalten … Eine Mischung aus super seriösem Anwalt, Bank und
-// Unternehmensberatung." Justin (19.09., /goal): „Die Business Seite muss
+// alles remote und über uns." Justin (19.09., /goal): „Die Business Seite muss
 // PERFEKT sein, dass sie konvertieren kann … aus JEDER Perspektive."
+// Justin (06.10., Logbuch): „Business-Bereich übersichtlicher, grafischer,
+// moderner, Texte neu (auch Bürgschaft bei ausgewählten Kunden)."
 //
-// ── AUFBAU (19.09.2026) ────────────────────────────────────────────────────
-// Hell wie ein Kanzlei- oder Bankauftritt (Stil: styles/global.css, .fg-):
-//   Hero (Kapitalrahmen UND Festpreis im ersten Bildschirm, Auftragsübersicht)
-//   → Acht Anlaufstellen oder ein Vertrag (#leistungen, mit ehrlicher Zeile)
-//   → Der Weg I–IV (#ablauf, je Etappe: ab welchem Paket)
-//   → Pakete (#pakete) mit Inklusivliste, Geld zurück, „Nicht im Festpreis",
-//     Pflichthinweisen → Vergleichstabelle (am Handy zugeklappt)
-//   → Erstgespräch (#gespraech) → Für wen (#fuer-wen) → Klare Verhältnisse
-//   → Fragen (#fragen, mit den Einwänden aus dem Verkauf) → Schlussband.
-//   Am Handy eine Handlungsleiste: Erstgespräch + „Pakete ab …", nach den
-//   Paketen „Jetzt beauftragen".
-// Gestrichen am 19.09.: „Aus einer Hand" (doppelt), „Unterlagen" (jetzt eine
-// Frage), das Verzeichnis (Menü und Fußzeile führen alle Unterseiten) und der
-// Erfahrungssatz („Wir sind diesen Weg selbst gegangen" — Justins eigener Fall
-// gehört nicht auf die Seite, Entscheidung 17.09.). Das Team steht seit
-// 18.09.2026 abends nicht mehr hier (Justin: „Das Team bitte weg").
+// ── AUFBAU SEIT 06.10.2026 (BAUPLAN /business, Scheibe A) ──────────────────
+// Gemessen waren 17,7 Bildschirme und rund 2.730 Wörter; die Pakete begannen
+// erst nach vier Bildschirmen. Jetzt eine Seite, ein Weg, ein Preis:
+//   Hero (Kapitalrahmen UND Festpreis im ersten Bild, Urkunde, Vertrauensleiste)
+//   → Pakete (#pakete) mit Wegleiste (#ablauf), drei Tafeln, VIP-Bühne, Klappe
+//     „Alle Leistungen im Vergleich“ (#vergleich), Paketfuß, Beleg „Im Festpreis“
+//     und dem Kleingedruckten in drei Spalten (Geld zurück, Nicht im Festpreis,
+//     Pflichthinweise — immer offen, nie geklappt)
+//   → Jahresbetreuung als Band (#jahresbetreuung)
+//   → Ein Ansprechpartner statt acht (#leistungen: Stern, Partnersatz, Ehrlich-
+//     Zeile, Für-wen-Chips #fuer-wen)
+//   → Persönliches Angebot mit Bürgschaftszusage (#persoenliches-angebot, nur bei
+//     GLOBAL_BUERGSCHAFT_SEITE.aktiv und deutsch — Start: aus)
+//   → Erstgespräch (#gespraech) → Fragen (#fragen, fünf sichtbar) → Schlussband
+//   → Klebeleiste am Handy (vier Lagen, Bauplan 2.12).
+// Weg: Mandat-Karte, Nachrichtenlage (jetzt auf /business/wissen), „Der Weg“ als
+// Abschnitt, Für-wen-Kacheln, drei Uhren (jetzt „Drei Orte“ im Fuß), „Klare
+// Verhältnisse“, Kontaktkasten. Grafiken in Scheibe A als ruhige Haarlinien;
+// Bewegung (Scheibe B) und Higgsfield-Objekte (Scheibe C) folgen.
 //
-// ── KAPITALRAHMEN UND GLANZ (18.09.2026 abends, Justin) ────────────────────
-// „Statt Planungsgröße sowas wie Kapitalgröße — und präsenter machen, darum
-// geht's ja." Der Kapitalrahmen steht im Kopf der Seite (Spanne über alle
-// Pakete) und auf jeder Tafel groß über dem Preis; der Satz „über den Rahmen
-// entscheidet das Institut" steht direkt darunter (Blickfang-Regel). Seit
-// 19.09. steht der Festpreis „ab …" gleich daneben — wer ihn erst am Ende
-// der Seite findet, rechnet mit mehr. Ebenfalls seit 19.09. (Justin: „Das
-// Kapital muss NICHT in den USA ausgegeben werden"): am Kapitalrahmen der
-// Hinweis „Auch in Europa einsetzbar" mit Fußnote, unter den Tafeln derselbe
-// Satz — beides aus GLOBAL_KAPITAL_FREI, immer mit Institut und Steuerberater.
-//
-// Preise kommen aus dem Katalog (shared/fiaon-pakete.ts), Leistungen,
-// Inklusivliste, Vergleich und Pflichthinweise aus shared/fiaon-global.ts —
-// dieselben Sätze stehen im Vertrag, den der Kunde unterschreibt.
+// Gestrichen bleibt (17.–19.09.): Justins eigener Fall, das Team, „Aus einer
+// Hand“ als Doppelung. Preise kommen aus dem Katalog (shared/fiaon-pakete.ts),
+// Leistungen, Inklusivliste, Vergleich und Pflichthinweise aus
+// shared/fiaon-global.ts — dieselben Sätze stehen im Vertrag.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache } from "@/i18n/sprache";
-import { GLOBAL_WOERTER } from "@/i18n/global";
+import { GLOBAL_WOERTER, type GlobalBegriff } from "@/i18n/global";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND,
-  GLOBAL_NICHT_INKLUSIVE, GLOBAL_VERGLEICH, GLOBAL_KAPITAL_FREI, globalPaket, globalPreisText, globalPlanungText, globalKapital, globalKapitalSpanne,
-  type GlobalSchluessel,
+  GLOBAL_NICHT_INKLUSIVE, GLOBAL_VERGLEICH, GLOBAL_KAPITAL_FREI, GLOBAL_BUERGSCHAFT_SEITE, globalPaket, globalPreisText, globalPlanungText,
+  globalKapitalSpanne, globalJahresbetreuungPreisText, type GlobalSchluessel,
 } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
-import { FIAON_FIRMA } from "@shared/fiaon-firma";
-import { GLOBAL_STANDORTE, standortNachweis } from "@shared/fiaon-global-partner";
+import { GLOBAL_VERBUNDEN } from "@shared/fiaon-global-partner";
 import { globalSeite } from "@shared/fiaon-global-seiten";
 import { werbeEreignis } from "@/lib/werbung";
-import GlobalUhren from "@/components/site/GlobalUhren";
-import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
-import { GlobalVipBuehne, GlobalVipTicket } from "@/components/site/GlobalVip";
+import GlobalTafel, { Haken, Pfeil } from "@/components/site/global/GlobalTafel";
+import WegLinie from "@/components/site/global/WegLinie";
+import GlobalStern from "@/components/site/global/GlobalStern";
+import GlobalBeleg from "@/components/site/global/GlobalBeleg";
+import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
+import GlobalObjekt from "@/components/site/global/GlobalObjekt";
+import { mitBegriffen } from "@/components/site/global/Begriff";
+import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import "@/styles/global.css";
+import "@/styles/global-grafik.css";
 
-/** Das eine Zeichen der Seite: ein ruhiger Haken. */
-export function Haken({ groesse = 16 }: { groesse?: number }) {
-  return (
-    <svg className="fg-haken" width={groesse} height={groesse} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="7.25" stroke="currentColor" strokeOpacity=".28" strokeWidth="1" />
-      <path d="M4.8 8.2l2.1 2.1 4.3-4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function Pfeil() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
+function Winkel({ offen }: { offen: boolean }) {
+  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: offen ? "rotate(180deg)" : undefined, transition: "transform .25s" }}><path d="m6 9 6 6 6-6" /></svg>;
 }
 
 const FOKUS = "global_kapital";
-const ROEMISCH = ["I", "II", "III", "IV"];
+/** „Struktur“ statt „Global Struktur“ — in der Viererwahl und der Klebeleiste am Handy (dort zählt jede Zeile). */
+const kurzName = (name: string) => name.replace(/^Global\s+/, "");
 /** Ab welchem Paket eine Etappe des Wegs enthalten ist — deckungsgleich mit GLOBAL_VERGLEICH. */
 const ETAPPE_AB: GlobalSchluessel[] = ["global_struktur", "global_struktur", "global_banking", "global_kapital"];
 /** Bis zu welcher Etappe (1–4) ein Paket begleitet — aus ETAPPE_AB, also deckungsgleich mit dem Weg. */
 const etappenBis = (i: number) => ETAPPE_AB.filter((ab) => GLOBAL_PAKETE.findIndex((p) => p.key === ab) <= i).length;
-/** Global Struktur zeigt zuerst: Gründung, EIN/ITIN, Agent/Adresse/Telefon, erster Konto- und Kartenantrag. */
-const STRUKTUR_ZUERST = [0, 1, 2, 6];
+/** Global Struktur zeigt zuerst: Gründung, EIN/ITIN, erster Konto- und Kartenantrag (06.10.2026: drei statt vier). */
+const STRUKTUR_ZUERST = [0, 1, 6];
+/** Je Tafel die eigenen Leistungen, die vor „Alle N Leistungen“ stehen (VIP: die Termine vor Ort). */
+const ZUERST: Record<GlobalSchluessel, number[]> = { global_struktur: STRUKTUR_ZUERST, global_banking: [0, 1], global_kapital: [0, 1], global_vip: [1] };
+/** Die fünf sichtbaren Fragen (Index im Wörterbuch, dessen Reihenfolge das FAQ-Markup trägt); der Rest hinter „Alle 17 Fragen“. */
+const FRAGEN_ZUERST = [0, 1, 7, 3, 5];
 
-function Plus() {
-  return <svg className="fg-plus" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
+/** Ein Abschnitt, der einmal `data-an` bekommt, wenn er ins Bild kommt (Glanz der H2 einmal, Grafiken).
+ *  06.10.2026 (E-293, Gutachten): Schwelle 0 mit einem Rand statt eines Anteils der Höhe — #pakete ist am Handy
+ *  rund 3.270 px hoch, 15 % davon (490 px) passen in kein Handy quer; dann käme data-an nie. */
+function Sek({ id, className, children }: { id?: string; className: string; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  useEinmalSichtbar(ref, 0, "0px 0px -25% 0px");
+  return <section ref={ref} id={id} className={className} style={id ? { scrollMarginTop: 72 } : undefined}>{children}</section>;
 }
-function Winkel({ offen }: { offen: boolean }) {
-  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: offen ? "rotate(180deg)" : undefined, transition: "transform .25s" }}><path d="m6 9 6 6 6-6" /></svg>;
-}
-/** Der Funke am VIP-Zeichen und am Band der empfohlenen Tafel. */
-function Funke() {
-  return <svg className="fg-funke" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5l2.6 7.9 7.9 2.6-7.9 2.6L12 22.5l-2.6-7.9L1.5 12l7.9-2.6z" fill="currentColor" /></svg>;
+
+/** Die Linien-Zeichen der Vertrauensleiste: Paragraf, Dokument, Rechnung, Register. */
+function LeistenZeichen({ i }: { i: number }) {
+  const pfade = [
+    "M8.5 4.5c-2-1.6-5-.6-4.4 1.5.6 2.2 6.4 2.6 6.4 5.3 0 1.8-2.5 2.4-3.9 1.4M11.5 15.5c2 1.6 5 .6 4.4-1.5-.6-2.2-6.4-2.6-6.4-5.3 0-1.8 2.5-2.4 3.9-1.4",
+    "M5.5 2.5h6.5l3.5 3.5v11.5h-10zM12 2.5V6h3.5M8 10h5M8 13h5",
+    "M5 2.5h10v15l-2-1.3-1.7 1.3-1.6-1.3L8 17.5l-1.5-1.3L5 17.5zM7.5 7h5M7.5 10h5M7.5 13h3",
+    "M3 7.5 10 3l7 4.5M4 8h12M5.5 9v6M10 9v6M14.5 9v6M3.5 16.5h13",
+  ];
+  return <svg className="fg-leiste-zeichen" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d={pfade[i]} /></svg>;
 }
 
 // ── ZWEI STARTSEITEN, EIN AUFBAU (19.09.2026, E-196) ─────────────────────────
 // Justin: „Auf /business/privatpersonen soll die Privatperson auch die anderen
-// Pakete zur Auswahl bekommen — vom Design her wie eine Startseite für
-// Privatpersonen, viel hochwertiger und konversionsstärker." Dieselbe Seite mit
-// eigenem Kopf, eigenen Fragen und „Für wen" (GLOBAL_WOERTER.*.privat); jede
-// Paket-Tafel führt in den Auftrag als Privatperson (?art=privat).
+// Pakete zur Auswahl bekommen". Dieselbe Seite mit eigenem Kopf, eigenen Fragen
+// und eigenen Für-wen-Chips (GLOBAL_WOERTER.*.privat); jede Paket-Tafel führt in
+// den Auftrag als Privatperson (?art=privat).
 export default function Business() {
   return <BusinessSeite zielgruppe="unternehmen" />;
 }
@@ -114,91 +116,155 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   const start = (paket?: string) => globalStartPfad(paket, s, privat ? "privat" : undefined);
   const seitePfad = privat ? (s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen") : s === "en" ? "/en/business" : "/business";
   const abPreis = globalPreisText("global_struktur", s);
+  const begriff = (k: GlobalBegriff) => ({ wort: t.begriffWoerter[k], erklaerung: t.begriffe[k] });
 
-  // Der Paketwunsch reist von der Tafel („Erst sprechen") in den Kalender.
+  // Der Paketwunsch reist von der Tafel („Erst sprechen") in den Kalender, das Thema vom persönlichen Angebot.
   const [wunsch, setWunsch] = useState<string | null>(null);
-  // Am Handy steht immer EINE Tafel da, die Wahl darüber zeigt alle vier Preise (CSS greift nur unter 641 px).
+  const [thema, setThema] = useState<string | null>(null);
+  // Am Handy: welche Tafel der Wischreihe gerade in der Mitte steht (Startwert Global Struktur oder ?paket=).
   const [mobilPaket, setMobilPaket] = useState<string>("global_struktur");
-  // Die Vergleichstabelle ist am Handy zugeklappt (CSS greift nur unter 900 px).
   const [tabelleAuf, setTabelleAuf] = useState(false);
-  // Aufgeklappte Leistungslisten der Tafeln (Global Struktur hat acht Punkte).
-  const [mehr, setMehr] = useState<Record<string, boolean>>({});
-  // Handlungsleiste am Handy: erst nach dem Kopf, nie über Kalender oder Schlussband.
-  const [leiste, setLeiste] = useState<"aus" | "pakete" | "beauftragen">("aus");
+  const [alleFragen, setAlleFragen] = useState(false);
+  // Klebeleiste am Handy: aus (Hero, Kalender, Angebot, Schlussband) · vor den Paketen · in den Paketen · danach.
+  const [leiste, setLeiste] = useState<"aus" | "vor" | "in" | "nach">("aus");
+  const tafeln = useRef<HTMLDivElement>(null);
+  const fragenRestRef = useRef<HTMLDivElement>(null);
+  const handy = () => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 640px)").matches;
+  const glatt = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth") as ScrollBehavior;
+
+  /** Die Wischreihe am Handy auf eine Tafel stellen — waagerecht, ohne die Seite zu verschieben. */
+  const wischeZu = (key: string, verhalten: ScrollBehavior) => {
+    const reihe = tafeln.current;
+    const el = document.getElementById(`paket-${key}`)?.closest<HTMLElement>(".dk-auf");
+    if (!reihe || !el || !handy()) return;
+    reihe.scrollTo({ left: el.offsetLeft - (reihe.clientWidth - el.clientWidth) / 2, behavior: verhalten });
+  };
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("paket");
     if (p) setWunsch(p);
-    if (p && globalPaket(p)) setMobilPaket(globalPaket(p)!.key);
+    if (p && globalPaket(p)) { setMobilPaket(globalPaket(p)!.key); requestAnimationFrame(() => wischeZu(globalPaket(p)!.key, "auto")); }
     // Wer mit #gespraech oder #pakete ankommt (z. B. von /termin?quelle=global), landet dort —
     // erst nach dem ersten Bild, sonst misst der Browser die Höhe der Seite falsch.
     const anker = window.location.hash;
     if (anker) requestAnimationFrame(() => setTimeout(() => document.querySelector(anker)?.scrollIntoView(), 60));
   }, []);
 
+  // Am Handy setzt die Tafel, die zu 60 % in der Wischreihe steht, die Wahl (Viererwahl, Klebeleiste, Wegleiste).
+  useEffect(() => {
+    const reihe = tafeln.current;
+    if (!reihe || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((eintraege) => {
+      if (!handy()) return;
+      for (const e of eintraege) if (e.isIntersecting) setMobilPaket(e.target.id.replace(/^paket-/, ""));
+    }, { root: reihe, threshold: 0.6 });
+    reihe.querySelectorAll("[id^='paket-']").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  // Am Handy ist die Wischreihe so hoch wie die Tafel in der Mitte — nicht wie die längste (Global VIP), sonst
+  // klafft unter Global Struktur eine Lücke. Aufgeklappte Leistungen ändern die Höhe mit (ResizeObserver).
+  useEffect(() => {
+    const reihe = tafeln.current;
+    const el = document.getElementById(`paket-${mobilPaket}`);
+    if (!reihe || !el) return;
+    const setzen = () => { reihe.style.height = handy() ? `${el.offsetHeight + 22}px` : ""; };
+    setzen();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(setzen);
+    ro?.observe(el);
+    window.addEventListener("resize", setzen);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", setzen); };
+  }, [mobilPaket]);
+
+  // 06.10.2026 (E-293, Gutachten): Im Paketabschnitt klebten am Handy drei Leisten zugleich (Kopf 73 px, Viererwahl
+  // ≈ 62 px, Klebeleiste 64 px) — ein Viertel des Bildschirms genau dort, wo gewählt wird. Beim Abwärtsscrollen in
+  // #pakete fährt der Kopf deshalb ein (html.fg-kopf-weg, styles/global-grafik.css), beim Aufwärtsscrollen kommt er
+  // wieder; die Viererwahl rückt dann nach oben. Außerhalb von #pakete steht der Kopf immer.
   useEffect(() => {
     let bild = 0;
+    let zuletzt = window.scrollY;
+    const kopfWeg = (an: boolean) => document.documentElement.classList.toggle("fg-kopf-weg", an);
     const messen = () => {
       bild = 0;
+      const y = window.scrollY;
+      const runter = y > zuletzt + 2;
+      const hoch = y < zuletzt - 2;
+      if (runter || hoch) zuletzt = y;
       const h = window.innerHeight;
-      const oben = (id: string) => document.getElementById(id)?.getBoundingClientRect() ?? null;
-      const kopf = document.querySelector(".fg-hero")?.getBoundingClientRect();
-      const pakete = oben("pakete");
-      const gespraech = oben("gespraech");
-      const schluss = document.querySelector(".fg-schluss")?.getBoundingClientRect();
-      const kopfWeg = !!kopf && kopf.bottom < 80;
-      const gespraechDa = !!gespraech && gespraech.top < h * 0.85 && gespraech.bottom > h * 0.15;
-      const schlussDa = !!schluss && schluss.top < h;
-      if (!kopfWeg || gespraechDa || schlussDa) { setLeiste("aus"); return; }
-      // Wer die Pakete gesehen hat, bekommt „Jetzt beauftragen" statt „Pakete ab …".
-      setLeiste(pakete && pakete.top < h * 0.3 ? "beauftragen" : "pakete");
+      const rahmen = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
+      const imBild = (r: DOMRect | null) => !!r && r.top < h * 0.85 && r.bottom > h * 0.15;
+      const kopf = rahmen(".fg-hero");
+      const pakete = rahmen("#pakete");
+      const schluss = rahmen(".fg-schluss");
+      const inPaketen = handy() && !!pakete && pakete.top < 0 && pakete.bottom > h * 0.5;
+      if (!inPaketen) kopfWeg(false);
+      else if (runter) kopfWeg(true);
+      else if (hoch) kopfWeg(false);
+      if (!kopf || kopf.bottom >= 80 || imBild(rahmen("#gespraech")) || imBild(rahmen("#persoenliches-angebot")) || (!!schluss && schluss.top < h)) { setLeiste("aus"); return; }
+      if (!pakete || pakete.top > h * 0.5) setLeiste("vor");
+      else if (pakete.bottom > h * 0.5) setLeiste("in");
+      else setLeiste("nach");
     };
     const planen = () => { if (!bild) bild = requestAnimationFrame(messen); };
     messen();
     window.addEventListener("scroll", planen, { passive: true });
     window.addEventListener("resize", planen);
-    return () => { window.removeEventListener("scroll", planen); window.removeEventListener("resize", planen); if (bild) cancelAnimationFrame(bild); };
+    return () => { window.removeEventListener("scroll", planen); window.removeEventListener("resize", planen); if (bild) cancelAnimationFrame(bild); kopfWeg(false); };
   }, []);
 
-  const glatt = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth") as ScrollBehavior;
-  const zumGespraech = (paket?: string) => {
+  // Die zugeklappten Fragen sind für Tab und Screenreader aus (inert), solange sie zu sind. Per Ref statt als
+  // JSX-Attribut: React 18 setzt inert="" als Attribut, React 19 liest "" als false — nach einem Update wären
+  // die zwölf unsichtbaren Fragen sonst wieder per Tab erreichbar (06.10.2026, E-293, Gutachten).
+  useEffect(() => { fragenRestRef.current?.toggleAttribute("inert", !alleFragen); }, [alleFragen]);
+
+  const zumGespraech = (paket?: string, neuesThema?: string) => {
     if (paket) setWunsch(paket);
+    if (neuesThema) setThema(neuesThema);
     document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() });
   };
   const zuDenPaketen = () => document.getElementById("pakete")?.scrollIntoView({ behavior: glatt() });
-  // Unter den Tafeln: „Alle Leistungen im Vergleich" öffnet die Tabelle und gleitet hin.
-  const zumVergleich = () => { setTabelleAuf(true); requestAnimationFrame(() => document.getElementById("vergleich")?.scrollIntoView({ behavior: glatt() })); };
-  // Wer mitten in einer Tafel umschaltet, beginnt die neue oben — nicht irgendwo in ihrer Mitte.
-  const paketZeigen = (key: string) => {
-    setMobilPaket(key);
-    requestAnimationFrame(() => {
-      const tafel = document.getElementById(`paket-${key}`);
-      if (tafel && tafel.getBoundingClientRect().top < 150) tafel.scrollIntoView({ block: "start", behavior: glatt() });
-    });
-  };
+  const zurJahresbetreuung = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("jahresbetreuung")?.scrollIntoView({ behavior: glatt() }); };
+  const paketZeigen = (key: string) => { setMobilPaket(key); wischeZu(key, glatt()); };
   const geld = GLOBAL_GELD_ZURUECK.aktiv ? GLOBAL_GELD_ZURUECK[s] : null;
   // 19.09.2026 — Justin: „Das Kapital muss NICHT in den USA ausgegeben werden." Im Kopf steht der kurze
-  // Satz am Kapitalrahmen, die Fußnote nennt beide Bedingungen (Institut, Partner-Steuerberater) — wie bei
-  // „Geld zurück". Ist der Schalter für „Geld zurück" aus, rückt die Fußnote auf die Nummer 1.
+  // Satz am Kapitalrahmen, die Fußnote nennt beide Bedingungen (Institut, Partner-Steuerberater). Seit
+  // 06.10.2026 steht „Geld zurück" nicht mehr im Hero, sondern einmal mit Bedingungen im Kleingedruckten —
+  // die Fußnote hat deshalb immer die Nummer 1.
   const frei = GLOBAL_KAPITAL_FREI[s];
-  const nrFrei = geld ? 2 : 1;
+  const nrFrei = 1;
   // Wie auf Unterseiten und Landingpages: Jeder Klick auf „beauftragen" zählt (nur mit Einwilligung, lib/werbung.ts).
   const klick = (paket?: string, ort = "") => () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: seitePfad, ort });
-  const londonOrt = GLOBAL_STANDORTE.find((o) => o.schluessel === "london");
+  const mobilIndex = Math.max(0, GLOBAL_PAKETE.findIndex((p) => p.key === mobilPaket));
+  const mobilPaketDaten = GLOBAL_PAKETE[mobilIndex];
+  const mobilVip = mobilPaketDaten.key === "global_vip";
+  const angebot = GLOBAL_BUERGSCHAFT_SEITE.aktiv && s === "de" ? GLOBAL_BUERGSCHAFT_SEITE.de : null;
+
+  // Die Fragen: fünf sichtbar, der Rest dahinter (Privatpersonen: die Fragen des Registereintrags, die ersten fünf).
+  const fragen = privat ? globalSeite(s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen")?.fragen ?? t.fragen : t.fragen;
+  const fragenZuerst = privat ? fragen.slice(0, 5) : FRAGEN_ZUERST.map((i) => fragen[i]).filter(Boolean);
+  const fragenRest = fragen.filter((f) => !fragenZuerst.includes(f));
+
+  // Die Augenzeile: „Privatpersonen“ führt auf die Startseite für Privatpersonen (nicht auf ihr selbst).
+  // Text und Link stehen in EINEM <span>: .fg-auge ist ein Flex-Rahmen, sonst würden Textknoten und Link zwei
+  // Spalten und „Privatpersonen“ stünde am Handy als eigene Spalte neben dem Text (06.10.2026, E-293, Gutachten).
+  const augeIdx = privat ? -1 : t.auge.indexOf(t.augeLink);
+  const auge = augeIdx < 0 ? t.auge : (
+    <span>{t.auge.slice(0, augeIdx)}<a href={s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen"}>{t.augeLink}</a>{t.auge.slice(augeIdx + t.augeLink.length)}</span>
+  );
 
   return (
     <Dunkel seite="business" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
-      <div className="fg">
-        {/* ── Hero: Anspruch, Kapitalrahmen und Festpreis links, der Auftrag rechts ── */}
+      <div className="fg fg-neu">
+        {/* ── 1 Hero: Anspruch, Kapitalrahmen und Festpreis links, die Urkunde rechts, darunter die Vertrauensleiste ── */}
         <section className="fg-hero">
           <div className="fg-rahmen fg-hero-raster">
             <Auf className="fg-hero-text">
-              <span className="fg-auge">{t.auge}</span>
+              <span className="fg-auge">{auge}</span>
               <h1 className="fg-h1">{t.h1a}<br /><em>{t.h1b}</em></h1>
-              <p className="fg-lead">{t.lead}</p>
+              <p className="fg-lead">{mitBegriffen(t.lead, [begriff("ein"), begriff("itin")])}</p>
               <div className="fg-kopf-zahlen">
                 <div>
-                  <span>{t.kapitalKopf}</span>
+                  <span>{mitBegriffen(t.kapitalKopf, [begriff("kapitalrahmen")])}</span>
                   <b className="fg-glanz">{globalKapitalSpanne(s)}</b>
                   <em>{t.kapitalKopfZusatz}</em>
                   <p className="fg-chip fg-kapital-frei"><Haken groesse={12} /><span>{frei.kurz}<sup>{nrFrei}</sup></span></p>
@@ -207,453 +273,219 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                   <span>{t.preisKopf}</span>
                   <b className="fg-glanz">{t.preisAb} {abPreis}</b>
                   <em>{t.preisKopfZusatz}</em>
+                  <a className="fg-jahr-zeile" href="#jahresbetreuung" onClick={zurJahresbetreuung}>{t.jahrZeile(globalJahresbetreuungPreisText(s))}</a>
                 </div>
               </div>
               <div className="fg-knoepfe fg-hero-knoepfe">
                 <button type="button" className="fg-knopf" onClick={zuDenPaketen}>{t.knopfPakete}<Pfeil /></button>
-                <button type="button" className="fg-knopf hell" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
+                <button type="button" className="fg-knopf hell fg-hero-gespraech" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
               </div>
               <p className="fg-mikro">{t.gespraechMikro}</p>
-              <ul className="fg-vertrauen">
-                <li><Haken />{t.vertrauen[0]}</li>
-                <li><Haken />{t.vertrauenZusatz.pfad ? <a href={t.vertrauenZusatz.pfad}>{t.vertrauenZusatz.text}</a> : t.vertrauenZusatz.text}</li>
-                <li><Haken />{t.vertrauen[1]}</li>
-                {geld && <li><Haken /><span>{geld.kurz}<sup>1</sup></span></li>}
-              </ul>
-              {geld && <p className="fg-fussnote"><sup>1</sup> {geld.bedingungen}</p>}
               <p className="fg-fussnote"><sup>{nrFrei}</sup> {frei.satz} {frei.steuer}</p>
             </Auf>
-            <Auf verzoegerung={140} className="fg-hero-auftrag">
-              <figure className="fg-mandat" aria-label={t.mandatTitel}>
-                <div className="fg-mandat-kopf"><b>{t.mandatTitel}</b><span>{t.mandatMarke}</span></div>
-                <dl>
-                  {t.mandat.map(([k, v]) => <div key={k}><dt>{k}</dt><dd><Haken />{v}</dd></div>)}
-                  <div className="preis"><dt>{t.mandatPreis}</dt><dd><Haken />{t.mandatPreisText(abPreis)}</dd></div>
-                  <div><dt>{t.mandatJahr[0]}</dt><dd><Haken />{t.mandatJahr[1]}</dd></div>
-                </dl>
-                <figcaption className="fg-mandat-fuss">{t.mandatPartner}: <b>{FIAON_FIRMA.name}</b> · Companies House No. {FIAON_FIRMA.companyNo} · {FIAON_FIRMA.ortZeile.split(",")[0]}</figcaption>
-              </figure>
-            </Auf>
+            {/* Die Gründungsurkunde (HF-1, Scheibe C) — bis dahin ein Platzhalter aus Haarlinien. */}
+            <div className="fg-hero-objekt-rahmen">
+              <GlobalObjekt art="urkunde" hero className="fg-hero-objekt" groesse={460} nachweis={t.bildKi} />
+            </div>
+          </div>
+          <div className="fg-rahmen">
+            <ul className="fg-vertrauensleiste">
+              {t.vertrauensleiste.map((x, i) => (
+                <li key={x}><LeistenZeichen i={i} />
+                  {i === 1 ? <a href={s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag"}>{x}</a> : <span>{x}</span>}
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
-        {/* ── Nachrichtenlage: echte Meldungen mit Quelle (19.09.2026, E-196) ── */}
-        <GlobalSchlagzeilen sprache={s} auge={t.presseAuge} h2={t.presseH2} stand={t.presseStand} zurQuelle={t.presseZurQuelle}
-          hinweis={t.presseHinweis} laufband={t.presseLaufband} pause={t.pressePause} weiter={t.presseWeiter} />
-
-        {/* ── Acht Anlaufstellen oder ein Vertrag ────────────────────────────── */}
-        <section id="leistungen" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
+        {/* ── 2 Pakete: Wegleiste, Tafeln, VIP, Vergleich, Paketfuß, Beleg, Kleingedrucktes ── */}
+        <Sek id="pakete" className="fg-sek stein fg-pakete-sek">
           <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.vsAuge}</span><h2 className="fg-h2">{t.vsH2}</h2></div>
-                <p className="fg-lead">{t.vsLead}</p>
-              </div>
-            </Auf>
-            <Auf verzoegerung={80}>
-              <div className="fg-vs">
-                <div className="fg-vs-karte ohne">
-                  <h3>{t.ohneTitel}</h3>
-                  <ol>{t.ohne.map((x, i) => <li key={x}><span className="nr">{i + 1}</span>{x}</li>)}</ol>
-                </div>
-                <div className="fg-vs-karte mit">
-                  <h3>{t.mitTitel}</h3>
-                  <ul>{t.mit.map((x) => <li key={x}><Haken groesse={18} />{x}</li>)}</ul>
-                  <div className="fg-knoepfe" style={{ marginTop: 30 }}>
-                    <button type="button" className="fg-knopf" onClick={zuDenPaketen}>{t.knopfPakete}<Pfeil /></button>
-                  </div>
-                </div>
-              </div>
-              {/* Ehrlich statt laut: Wer nur die Gesellschaft braucht, ist woanders günstiger. */}
-              <div className="fg-ehrlich">
-                <b>{t.ehrlichTitel}</b>
-                <p>{t.ehrlichText}</p>
-                <a href={s === "en" ? "/en/business/comparison" : "/business/vergleich"}>{t.ehrlichLink}<Pfeil /></a>
-              </div>
-            </Auf>
-          </div>
-        </section>
+            <div className="fg-kopf">
+              <div><span className="fg-auge">{t.paketeAuge}</span><h2 className="fg-h2">{t.paketeH2}</h2></div>
+              <p className="fg-lead">{mitBegriffen(t.paketeLead, [begriff("kapitalrahmen")])}</p>
+            </div>
+            <WegLinie id="ablauf" label={t.wegLabel} stempel={t.stempelInstitut} bis={etappenBis(mobilIndex)} klammer={t.inJedemPaket}
+              titelInhalt={(i) => mitBegriffen(t.weg[i].titel, [begriff("kartenleiter")])}
+              etappen={t.weg.map((w, i) => ({
+                titel: w.titel,
+                dauer: w.dauer,
+                text: mitBegriffen(w.text, [begriff("herausgeber"), begriff("bareinlage"), begriff("registeredAgent"), begriff("operatingAgreement")]),
+                abzeichen: i < 2 ? undefined : t.abPaket(globalPaket(ETAPPE_AB[i])![s].name),
+              }))} />
+            <p className="fg-weg-lead">{t.wegLead}</p>
 
-        {/* ── Der Weg ────────────────────────────────────────────────────────── */}
-        <section id="ablauf" className="fg-sek" style={{ scrollMarginTop: 72 }}>
-          <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.wegAuge}</span><h2 className="fg-h2">{t.wegH2}</h2></div>
-                <p className="fg-lead">{t.wegLead}</p>
-              </div>
-            </Auf>
-            <Auf verzoegerung={80}>
-              <ol className="fg-weg">
-                {t.weg.map((w, i) => {
-                  const ab = ETAPPE_AB[i];
-                  return (
-                    <li key={w.titel}>
-                      <span className="nr">{ROEMISCH[i]}</span>
-                      <span className={`fg-etappe-paket${ab === "global_struktur" ? " alle" : ""}`}>{ab === "global_struktur" ? t.inJedemPaket : t.abPaket(globalPaket(ab)![s].name)}</span>
-                      <h3>{w.titel}</h3>
-                      <span className="dauer">{w.dauer}</span>
-                      <p>{w.text}</p>
-                    </li>
-                  );
-                })}
-              </ol>
-            </Auf>
-          </div>
-        </section>
-
-        {/* ── Pakete ─────────────────────────────────────────────────────────── */}
-        <section id="pakete" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
-          <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.paketeAuge}</span><h2 className="fg-h2">{t.paketeH2}</h2></div>
-                <p className="fg-lead">{t.paketeLead}</p>
-              </div>
-            </Auf>
-            {/* Am Handy: die Wahl zwischen den vier Tafeln — mit Preis, damit niemand suchen muss.
-                Der Rahmen hält die Wahl nur so lange oben, wie die Tafel zu sehen ist. */}
+            {/* Am Handy: die Viererwahl mit Preis über der Wischreihe — sie klebt nur, solange eine Tafel zu sehen ist. */}
             <div className="fg-pakete-rahmen">
               <div className="fg-paket-wahl" role="group" aria-label={t.paketeAuge}>
                 {GLOBAL_PAKETE.map((p) => (
                   <button key={p.key} type="button" id={`wahl-${p.key}`} aria-pressed={mobilPaket === p.key} aria-controls={`paket-${p.key}`} onClick={() => paketZeigen(p.key)}>
-                    <b>{p[s].name.replace(/^Global\s+/, "")}</b><span>{globalPreisText(p.key, s)}</span>
+                    <b>{kurzName(p[s].name)}</b><span>{globalPreisText(p.key, s)}</span>
                   </button>
                 ))}
               </div>
-              {/* 19.09.2026 — Justin: „zu lang, zu schmal … das VIP-Paket muss speziell angezeigt werden".
-                  Drei Tafeln nebeneinander (Zahlen nebeneinander, Knopf vor der Liste, lange Liste
-                  aufklappbar), Global VIP darunter über die ganze Breite (components/site/GlobalVip.tsx). */}
-              <div className="fg-tarife">
-                {GLOBAL_PAKETE.map((p, i) => {
-                  const w = p[s];
-                  const kapital = globalKapital(p.key, s);
-                  const vip = p.key === "global_vip";
-                  const fokus = p.key === FOKUS;
-                  const bis = etappenBis(i);
-                  // Ab dem zweiten Paket ist der erste Punkt „Alles aus …" — er steht als eigene Zeile über der Liste.
-                  const erbe = i > 0 ? w.leistungen[0] : null;
-                  const eigene = i > 0 ? w.leistungen.slice(1) : w.leistungen;
-                  const klasse = `fg-tarif${fokus ? " fokus" : ""}${vip ? " vip" : ""}${p.key === mobilPaket ? " gewaehlt" : ""}`;
-                  const kapitalZeile = kapital.bisZu ? `${t.planung} ${kapital.bisZu}` : t.planung;
-                  const weg = (
-                    <div className="fg-tarif-weg">
-                      <span className="balken" aria-hidden="true">{ROEMISCH.map((r, j) => <i key={r} className={j < bis ? "an" : undefined} />)}</span>
-                      <span className="text">{t.etappenBis(ROEMISCH[bis - 1])} · {w.dauerKurz}</span>
-                    </div>
-                  );
-
-                  if (vip) {
-                    return (
-                      <Auf key={p.key} verzoegerung={i * 70}>
-                        <GlobalVipBuehne id={`paket-${p.key}`} className={klasse} label={w.name}>
-                          <div className="fg-vip-text">
-                            <div className="fg-vip-zeile"><span className="fg-vip-zeichen"><Funke />{t.vipZeichen}</span><span className="marke">{w.marke}</span></div>
-                            <h3>{w.name}</h3>
-                            <p className="fuer">{w.fuer}</p>
-                            {weg}
-                            <div className="fg-vip-kapital">
-                              <span>{kapitalZeile}</span>
-                              <b className="fg-glanz">{kapital.wert}</b>
-                              <em>{t.planungZusatz}</em>
-                            </div>
-                            {erbe && <p className="fg-tarif-erbe"><Plus />{erbe}</p>}
-                            <ul>{eigene.map((x) => <li key={x}><Haken />{x}</li>)}</ul>
-                          </div>
-                          <div className="fg-vip-seite">
-                            <GlobalVipTicket texte={t.vipTicket} />
-                            <div className="fg-vip-preis">
-                              <div><span>{t.festpreis}</span><b className="fg-glanz">{globalPreisText(p.key, s)}</b></div>
-                              <span className="inkl"><Haken groesse={13} />{t.inklusive}</span>
-                            </div>
-                            {/* Global VIP beginnt mit einem Gespräch — für 35.999 € kauft niemand ohne. */}
-                            <div className="tun">
-                              <button type="button" className="fg-knopf voll" aria-label={t.vipGespraech(w.name)} onClick={() => zumGespraech(p.key)}>{t.vipGespraechKurz}<Pfeil /></button>
-                              <a className="fg-textknopf" href={start(p.key)} onClick={klick(p.key, "tafel")}>{t.direktBeauftragen}</a>
-                            </div>
-                          </div>
-                        </GlobalVipBuehne>
-                      </Auf>
-                    );
-                  }
-
-                  const alle = mehr[p.key] === true;
-                  // Global Struktur hat acht Punkte: zuerst die vier, an denen man das Paket erkennt, der Rest aufklappbar.
-                  const zuerstIdx = i === 0 ? STRUKTUR_ZUERST.filter((j) => j < eigene.length) : eigene.map((_, j) => j);
-                  const zuerst = zuerstIdx.map((j) => eigene[j]);
-                  const danach = eigene.filter((_, j) => !zuerstIdx.includes(j));
-                  return (
-                    <Auf key={p.key} verzoegerung={i * 70}>
-                      <article id={`paket-${p.key}`} className={klasse} aria-label={w.name}>
-                        {fokus && <span className="fg-tarif-band"><Funke />{t.fokusBand}</span>}
-                        <div className="fg-tarif-kopf">
-                          <span className="marke">{w.marke}</span>
-                          <h3>{w.name}</h3>
-                          <p className="fuer">{w.fuer}</p>
-                        </div>
-                        {weg}
-                        <div className="fg-tarif-zahlen">
-                          <div>
-                            <span>{kapitalZeile}</span>
-                            <b className="fg-glanz">{kapital.wert}</b>
-                            <em>{t.planungZusatz}</em>
-                          </div>
-                          <div>
-                            <span>{t.festpreisKurz}</span>
-                            <b className="fg-glanz">{globalPreisText(p.key, s)}</b>
-                            <em className="inkl"><Haken groesse={12} />{t.einmaligInklusive}</em>
-                          </div>
-                        </div>
-                        <div className="tun">
-                          <a className={`fg-knopf voll${fokus ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(w.name)} onClick={klick(p.key, "tafel")}>
-                            {t.beauftragenKurz}<Pfeil />
-                          </a>
-                          <button type="button" className="fg-textknopf" onClick={() => zumGespraech(p.key)}>{t.erstSprechen}</button>
-                        </div>
-                        <div className="fg-tarif-leistungen">
-                          {erbe && <p className="fg-tarif-erbe"><Plus />{erbe}</p>}
-                          <ul id={`leistungen-${p.key}`}>
-                            {zuerst.map((x) => <li key={x}><Haken />{x}</li>)}
-                            {alle && danach.map((x) => <li key={x} className="neu"><Haken />{x}</li>)}
-                          </ul>
-                          {danach.length > 0 && (
-                            <button type="button" className="fg-tarif-mehr" aria-expanded={alle} aria-controls={`leistungen-${p.key}`}
-                                    onClick={() => setMehr({ ...mehr, [p.key]: !alle })}>
-                              {alle ? t.wenigerLeistungen : t.alleLeistungen(eigene.length)}<Winkel offen={alle} />
-                            </button>
-                          )}
-                        </div>
-                      </article>
-                    </Auf>
-                  );
-                })}
+              <div className="fg-tarife" ref={tafeln}>
+                {/* „Kapitalrahmen“ ist auf den Tafeln kein Begriff-Knopf mehr: Hero und Paket-Lead erklären ihn schon,
+                    vier weitere Tab-Halte vor „Jetzt beauftragen“ verlängern nur den Weg (06.10.2026, Gutachten). */}
+                {GLOBAL_PAKETE.map((p, i) => (
+                  <Auf key={p.key} verzoegerung={i * 70}>
+                    <GlobalTafel p={p} s={s} t={t} bis={etappenBis(i)} zuerst={ZUERST[p.key]} fokus={p.key === FOKUS} gewaehlt={p.key === mobilPaket}
+                      startHref={start(p.key)} onBeauftragen={klick(p.key, "tafel")} onGespraech={() => zumGespraech(p.key)} />
+                  </Auf>
+                ))}
+              </div>
+              <div className="fg-wisch-punkte" aria-hidden="true">
+                {GLOBAL_PAKETE.map((p) => <i key={p.key} className={`${p.key === mobilPaket ? "an" : ""}${p.key === "global_vip" ? " vip" : ""}`} />)}
               </div>
             </div>
-            <button type="button" className="fg-tarif-vergleich" onClick={zumVergleich}>{t.zumVergleich}<Pfeil /></button>
+
+            {/* Alle Leistungen im Vergleich — die Tabelle unverändert, auf allen Breiten erst auf Wunsch. */}
+            <div id="vergleich" className={`fg-vergleich${tabelleAuf ? " auf" : ""}`} style={{ scrollMarginTop: 88 }}>
+              <button type="button" className="fg-tarif-vergleich" aria-expanded={tabelleAuf} aria-controls="fg-tabelle" onClick={() => setTabelleAuf(!tabelleAuf)}>
+                {t.zumVergleich}<Winkel offen={tabelleAuf} />
+              </button>
+              <p className="fg-wisch">{t.wischen}</p>
+              <div className="fg-tabelle" id="fg-tabelle" role="region" aria-label={t.zumVergleich} tabIndex={0}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">{t.leistung}</th>
+                      {GLOBAL_PAKETE.map((p) => (
+                        <th key={p.key} scope="col" className={p.key === FOKUS ? "fokus" : undefined}><b>{p[s].name}</b><span>{globalPreisText(p.key, s)}</span></th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="zahl"><th scope="row">{t.zeilePlanung}</th>{GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}>{globalPlanungText(p.key, s)}</td>)}</tr>
+                    <tr className="zahl"><th scope="row">{t.zeileDauer}</th>{GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}>{p[s].dauerKurz}</td>)}</tr>
+                    {GLOBAL_VERGLEICH.map((g) => [
+                      <tr key={g.titel.de} className="gruppe"><td colSpan={GLOBAL_PAKETE.length + 1}>{g.titel[s]}</td></tr>,
+                      ...g.zeilen.map((z) => (
+                        <tr key={z.de}>
+                          <th scope="row">{z[s]}</th>
+                          {GLOBAL_PAKETE.map((p) => (
+                            <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}>
+                              {z.in[p.key] ? <span role="img" aria-label={t.ja}><Haken /></span> : <span role="img" aria-label={t.nein} className="fg-strich" />}
+                            </td>
+                          ))}
+                        </tr>
+                      )),
+                    ])}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td />
+                      {GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}><a className={`fg-knopf${p.key === FOKUS ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(p[s].name)} onClick={klick(p.key, "tabelle")}>{t.beauftragenKurz}</a></td>)}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
             <div className="fg-paket-fuss">
               {/* Das Kapital der Tafeln ist nicht an die USA gebunden — mit beiden Bedingungen (GLOBAL_KAPITAL_FREI). */}
               <p className="fg-paket-europa"><Haken groesse={14} /><span>{frei.satz} {frei.steuer}</span></p>
-              <p>
-                {t.vertragVorab} <a href={s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag"}>{t.mustervertragLesen}</a>. {t.perRechnung} {t.kostenHinweis}
-              </p>
-              <p>{t.finderFrage} <a href={s === "en" ? "/en/business/package-finder" : "/business/paket-finder"}>{t.finderLink}</a></p>
+              <p>{t.kostenHinweis} <a href={s === "en" ? "/en/business/package-finder" : "/business/paket-finder"}>{t.finderLink}</a></p>
             </div>
 
-            <Auf>
-              <div className="fg-inkl">
+            {/* Der Beleg „Im Festpreis“ — der Vertragswortlaut (GLOBAL_INKLUSIVE, GLOBAL_LAUFEND) in der Klappe. */}
+            <GlobalBeleg className="fg-inkl" auge={t.inklAuge} titel={t.inklTitel} zeilen={t.beleg} summe={t.belegSumme} preis={`${t.preisAb} ${abPreis}`}
+              klappe={t.belegKlappe} vertrag={GLOBAL_INKLUSIVE[s]} laufend={GLOBAL_LAUFEND[s]} />
+
+            {/* Das Kleingedruckte: immer offen, drei ruhige Spalten, gleicher Wortlaut wie im Vertrag. */}
+            <div className={`fg-kleingedruckt${geld ? "" : " ohne-geld"}`}>
+              {geld && (
                 <div>
-                  <span className="fg-auge">{t.inklAuge}</span>
-                  <h3>{t.inklTitel}</h3>
+                  <h3><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" /><path d="M4.8 8.2l2.1 2.1 4.3-4.6" /></svg>{geld.kurz}</h3>
+                  <p>{geld.bedingungen}</p>
                 </div>
-                <div>
-                  <p className="fg-leise" style={{ marginTop: 0, marginBottom: 14 }}>{t.inklLead}</p>
-                  <ul>{GLOBAL_INKLUSIVE[s].map((x) => <li key={x}><Haken />{x}</li>)}</ul>
-                  <p className="fg-leise">{GLOBAL_LAUFEND[s]}</p>
-                </div>
+              )}
+              <div>
+                <h3><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" /><path d="M5 8h6" /></svg>{t.nichtTitel}</h3>
+                <ul>{GLOBAL_NICHT_INKLUSIVE[s].map((x) => <li key={x}>{x}</li>)}</ul>
               </div>
-            </Auf>
-
-            <Auf>
-              <div className={`fg-klar${geld ? "" : " ohne-geld"}`}>
-                {geld && (
-                  <div className="fg-karte geld">
-                    <span className="tag">FIAON</span>
-                    <h3>{geld.titel}</h3>
-                    <p>{geld.text}</p>
-                    <p className="klein">{geld.bedingungen}</p>
-                  </div>
-                )}
-                <div className="fg-karte">
-                  <h3 style={{ marginTop: 0 }}>{t.nichtTitel}</h3>
-                  <p className="klein" style={{ marginTop: 8 }}>{t.nichtLead}</p>
-                  <ul>{GLOBAL_NICHT_INKLUSIVE[s].map((x) => <li key={x}>{x}</li>)}</ul>
-                </div>
-                <div className="fg-karte">
-                  <h3 style={{ marginTop: 0 }}>{t.wissenTitel}</h3>
-                  <ul>{GLOBAL_PFLICHTHINWEIS[s].map((x) => <li key={x}>{x}</li>)}</ul>
-                </div>
+              <div>
+                <h3><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 7v6.5h8V7" /></svg>{t.wissenTitel}</h3>
+                <ul>{GLOBAL_PFLICHTHINWEIS[s].map((x) => <li key={x}>{x}</li>)}</ul>
               </div>
-            </Auf>
-          </div>
-        </section>
-
-        {/* ── Jahresbetreuung ab dem zweiten Jahr (19.09.2026, E-196) ───────── */}
-        <GlobalJahresbetreuung sprache={s} groesse="voll" startPfad={start()} onGespraech={() => zumGespraech()}
-          knopf={t.jbKnopf} gespraech={t.jbGespraech} so={t.jbSo} />
-
-        {/* ── Alle Leistungen im Vergleich ───────────────────────────────────── */}
-        <section id="vergleich" className={`fg-sek fg-vergleich${tabelleAuf ? " auf" : ""}`} style={{ scrollMarginTop: 72 }}>
-          <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.vergleichAuge}</span><h2 className="fg-h2">{t.vergleichH2}</h2></div>
-                <p className="fg-lead">{t.vergleichLead}</p>
-              </div>
-            </Auf>
-            <button type="button" className="fg-knopf hell fg-tabelle-schalter" aria-expanded={tabelleAuf} aria-controls="fg-tabelle" onClick={() => setTabelleAuf(!tabelleAuf)}>
-              {tabelleAuf ? t.tabelleZu : t.tabelleAuf}
-            </button>
-            <p className="fg-wisch">{t.wischen}</p>
-            <div className="fg-tabelle" id="fg-tabelle" role="region" aria-label={t.vergleichH2} tabIndex={0}>
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">{t.leistung}</th>
-                    {GLOBAL_PAKETE.map((p) => (
-                      <th key={p.key} scope="col" className={p.key === FOKUS ? "fokus" : undefined}><b>{p[s].name}</b><span>{globalPreisText(p.key, s)}</span></th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="zahl"><th scope="row">{t.zeilePlanung}</th>{GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}>{globalPlanungText(p.key, s)}</td>)}</tr>
-                  <tr className="zahl"><th scope="row">{t.zeileDauer}</th>{GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}>{p[s].dauerKurz}</td>)}</tr>
-                  {GLOBAL_VERGLEICH.map((g) => [
-                    <tr key={g.titel.de} className="gruppe"><td colSpan={GLOBAL_PAKETE.length + 1}>{g.titel[s]}</td></tr>,
-                    ...g.zeilen.map((z) => (
-                      <tr key={z.de}>
-                        <th scope="row">{z[s]}</th>
-                        {GLOBAL_PAKETE.map((p) => (
-                          <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}>
-                            {z.in[p.key] ? <span role="img" aria-label={t.ja}><Haken /></span> : <span role="img" aria-label={t.nein} className="fg-strich" />}
-                          </td>
-                        ))}
-                      </tr>
-                    )),
-                  ])}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td />
-                    {GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}><a className={`fg-knopf${p.key === FOKUS ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(p[s].name)} onClick={klick(p.key, "tabelle")}>{t.beauftragenKurz}</a></td>)}
-                  </tr>
-                </tfoot>
-              </table>
             </div>
           </div>
-        </section>
+        </Sek>
 
-        {/* ── Erstgespräch ───────────────────────────────────────────────────── */}
-        <section id="gespraech" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
+        {/* ── 3 Jahresbetreuung als Band (trägt id="jahresbetreuung" selbst) ── */}
+        <GlobalJahresbetreuung sprache={s} groesse="band" startPfad={start()} knopf={t.jbKnopf} so={t.jbSo} />
+
+        {/* ── 4 Ein Ansprechpartner statt acht ── */}
+        <Sek id="leistungen" className="fg-sek fg-stern-sek">
           <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.gespraechAuge}</span><h2 className="fg-h2">{t.gespraechH2}</h2></div>
-                <p className="fg-lead">{t.gespraechLead}</p>
-              </div>
-            </Auf>
-            <GlobalGespraech paket={wunsch} />
+            <div className="fg-kopf mitte">
+              <div><span className="fg-auge">{t.vsAuge}</span><h2 className="fg-h2">{t.vsH2}</h2></div>
+            </div>
+            <GlobalStern knoten={t.sternKnoten} ohne={t.ohne} schalter={t.sternSchalter} mitte={t.sternMitte} sie={t.sternSie} legende={t.sternLegende}
+              label={t.sternLabel} inklusive={GLOBAL_INKLUSIVE[s]} begriffe={[begriff("registeredAgent"), begriff("operatingAgreement"), begriff("usCpa")]} />
+            <div className="fg-stern-unter">
+              <p className="fg-stern-partner">{GLOBAL_ROLLEN[s].partner}</p>
+              {/* Ehrlich statt laut: Wer nur die Gesellschaft braucht, ist woanders günstiger. */}
+              <p className="fg-ehrlich-zeile"><b>{t.ehrlichTitel}:</b> {t.ehrlichText}{" "}
+                <a href={s === "en" ? "/en/business/comparison" : "/business/vergleich"}>{t.ehrlichLink}<Pfeil /></a></p>
+            </div>
+            <div id="fuer-wen" className="fg-fuer-chips" style={{ scrollMarginTop: 96 }}>
+              <span>{t.fuerKurz}</span>
+              <ul>
+                {t.fuerChips.map((c) => <li key={c.text}>{c.pfad ? <a href={c.pfad}>{c.text}</a> : <span>{c.text}</span>}</li>)}
+              </ul>
+            </div>
           </div>
-        </section>
+        </Sek>
 
-        {/* ── Für wen ────────────────────────────────────────────────────────── */}
-        <section id="fuer-wen" className="fg-sek eng" style={{ scrollMarginTop: 72 }}>
+        {/* ── 5 Persönliches Angebot mit Bürgschaftszusage — Schalter in shared/fiaon-global.ts (Start: aus) ── */}
+        {angebot && (
+          <GlobalBuergschaft texte={angebot} verbunden={GLOBAL_VERBUNDEN}
+            onGespraech={() => { klick(undefined, "angebot")(); zumGespraech(undefined, angebot.thema); }} />
+        )}
+
+        {/* ── 6 Erstgespräch ── */}
+        <Sek id="gespraech" className="fg-sek fg-gespraech-sek">
           <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.fuerAuge}</span><h2 className="fg-h2">{t.fuerH2}</h2></div>
-                <p className="fg-lead">{t.fuerLead}</p>
-              </div>
-              {/* Deutsch führt jede Kachel auf ihre Unterseite; die Unterseiten gibt es nur deutsch. */}
-              <div className="fg-fuer">
-                {t.fuer.map((x) => x.pfad
-                  ? <a key={x.tag} href={x.pfad}><b>{x.tag}</b><p>{x.text}</p><span className="pfeil"><Pfeil /></span></a>
-                  : <div key={x.tag}><b>{x.tag}</b><p>{x.text}</p></div>)}
-              </div>
-              {t.fuerLaenderLinks.length > 0 && (
-                <p className="fg-laender">{t.fuerLaender} {t.fuerLaenderLinks.map(([pfad, text], i) => <span key={pfad}>{i > 0 && " · "}<a href={pfad}>{text}</a></span>)}</p>
-              )}
-              {/* 19.09.2026 (E-191): Auch ohne eigene Firma — die englische Seite führt direkt in den Auftrag.
-                  Auf der Startseite für Privatpersonen (E-196) zeigt die Kachel den Weg zurück für Unternehmen. */}
-              {privat ? (
-                <a className="fg-privat" href={s === "en" ? "/en/business" : "/business"}>
-                  <span className="fg-privat-rumpf">
-                    <span className="fg-auge">{basis.privat.gegenAuge}</span>
-                    <b>{basis.privat.gegenTitel}</b>
-                    <span>{basis.privat.gegenText}</span>
-                  </span>
-                  <span className="fg-privat-knopf">{basis.privat.gegenKnopf}<Pfeil /></span>
-                </a>
-              ) : (
-                <a className="fg-privat" href={s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen"}>
-                  <span className="fg-privat-rumpf">
-                    <span className="fg-auge">{t.privatAuge}</span>
-                    <b>{t.privatTitel}</b>
-                    <span>{t.privatText}</span>
-                  </span>
-                  <span className="fg-privat-knopf">{t.privatKnopf}<Pfeil /></span>
-                </a>
-              )}
-              <p className="fg-ausstieg">{t.fuerAusstieg}</p>
-            </Auf>
+            <div className="fg-kopf">
+              <div><span className="fg-auge">{t.gespraechAuge}</span><h2 className="fg-h2">{t.gespraechH2}</h2></div>
+              <p className="fg-lead">{t.gespraechLead}</p>
+            </div>
+            <GlobalGespraech paket={wunsch} thema={thema} punkte={false} />
           </div>
-        </section>
+        </Sek>
 
-        {/* ── Drei Uhren: Deutschland, Florida, London (19.09.2026, E-196) ─── */}
-        <GlobalUhren auge={t.uhrenAuge} h2={t.uhrenH2} lead={t.uhrenLead} orte={t.uhren} gleichText={t.uhrenGleich} differenzText={t.uhrenDifferenz} />
-
-        {/* ── Klare Verhältnisse ─────────────────────────────────────────────── */}
-        <section className="fg-sek stein">
-          <div className="fg-rahmen">
-            <Auf>
-              <span className="fg-auge">{t.sicherAuge}</span>
-              <h2 className="fg-h2">{t.sicherH2}</h2>
-            </Auf>
-            <Auf verzoegerung={80}>
-              <div className="fg-drei">
-                {(["fiaon", "partner", "kosten"] as const).map((k) => (
-                  <div key={k} className="fg-karte"><h3 style={{ marginTop: 0 }}>{t.rollenTitel[k]}</h3><p>{GLOBAL_ROLLEN[s][k]}</p></div>
-                ))}
-              </div>
-              {/* Die drei Standorte — und offen gesagt, wie sie verbunden sind (shared/fiaon-global-partner.ts). */}
-              <div className="fg-standorte">
-                <div className="fg-standorte-kopf">
-                  <span className="fg-auge">{t.standorteAuge}</span>
-                  <h3>{t.standorteTitel}</h3>
-                </div>
-                <ul>
-                  {GLOBAL_STANDORTE.map((o) => (
-                    <li key={o.schluessel} className={o === londonOrt ? "vertragspartner" : undefined}>
-                      <span className="stadt">{o.stadt}</span>
-                      <b>{o.gesellschaft}</b>
-                      <span className="rolle">{t.standorteRolle[o.schluessel]}</span>
-                      <address>
-                        {o.adresse.join(", ")} · {t.standorteLand[o.schluessel]}<br />{standortNachweis(o)}
-                        {o === londonOrt && (
-                          <><br />Director: {FIAON_FIRMA.director}<br /><a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a> · <a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a></>
-                        )}
-                      </address>
-                    </li>
-                  ))}
-                </ul>
-                <p className="fg-leise">{t.standorteVerbunden} <a href={s === "en" ? "/en/business/partners" : "/business/partner"}>{t.standorteMehr}</a></p>
-              </div>
-            </Auf>
-          </div>
-        </section>
-
-        {/* ── Fragen ─────────────────────────────────────────────────────────── */}
-        <section id="fragen" className="fg-sek" style={{ scrollMarginTop: 72 }}>
+        {/* ── 7 Fragen: fünf sichtbar, die übrigen im DOM hinter „Alle 17 Fragen“ ── */}
+        <Sek id="fragen" className="fg-sek stein">
           <div className="fg-rahmen fg-fragen">
-            <Auf className="fg-fragen-kopf">
+            <div className="fg-fragen-kopf">
               <span className="fg-auge">{t.fragenAuge}</span>
               <h2 className="fg-h2">{t.fragenH2}</h2>
-              <div className="fg-fragen-kontakt">
-                <b>{t.fragenNicht}</b>
-                <p>{t.fragenNichtText}</p>
-                <p><a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a><br /><a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a></p>
-                <a className="fg-fragen-alle" href={s === "en" ? "/en/business/faq" : "/business/fragen"}>{t.fragenAlle}<Pfeil /></a>
-              </div>
-            </Auf>
-            {/* Privatpersonen: die Fragen aus dem Registereintrag — dasselbe FAQ-Markup wie das Vorab-HTML dieser Adresse. */}
-            <Fragen items={privat ? globalSeite(s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen")?.fragen ?? t.fragen : t.fragen} />
+              <a className="fg-fragen-alle" href={s === "en" ? "/en/business/faq" : "/business/fragen"}>{t.fragenAlle}<Pfeil /></a>
+            </div>
+            <div className="fg-fragen-liste">
+              {/* Privatpersonen: die Fragen aus dem Registereintrag — dasselbe FAQ-Markup wie das Vorab-HTML dieser Adresse. */}
+              {/* Alle Antworten beginnen zu — die fünf Fragen selbst sind die Übersicht (Bauplan 2.8, Wortbudget). */}
+              <Fragen items={fragenZuerst} start={null} />
+              {fragenRest.length > 0 && (
+                <>
+                  <div id="fg-fragen-rest" ref={fragenRestRef} className={`fg-fragen-rest${alleFragen ? " auf" : ""}`}>
+                    <div><Fragen items={fragenRest} start={null} /></div>
+                  </div>
+                  <button type="button" className="fg-tarif-mehr fg-fragen-mehr" aria-expanded={alleFragen} aria-controls="fg-fragen-rest" onClick={() => setAlleFragen(!alleFragen)}>
+                    {alleFragen ? t.wenigerLeistungen : t.fragenAlleZahl(fragen.length)}<Winkel offen={alleFragen} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </section>
+        </Sek>
 
-        {/* ── Schlussband ────────────────────────────────────────────────────── */}
+        {/* ── 8 Schlussband ── */}
         <section className="fg-schluss">
           <div className="fg-rahmen schmal">
             <h2 className="fg-h2">{t.schlussA}<em>{t.schlussB}</em></h2>
-            <p className="fg-lead">{t.schlussText}</p>
             <div className="fg-knoepfe">
               <a className="fg-knopf" href={start()} onClick={klick(undefined, "schluss")}>{t.schlussBeauftragen}<Pfeil /></a>
               <button type="button" className="fg-knopf hell" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
@@ -661,12 +493,30 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           </div>
         </section>
 
-        {/* ── Handlungsleiste am Handy ───────────────────────────────────────── */}
-        <div className={`fg-mobil${leiste !== "aus" ? " da" : ""}`} aria-hidden={leiste === "aus"}>
-          <button type="button" className="hell" onClick={() => zumGespraech()} tabIndex={leiste === "aus" ? -1 : 0}>{t.leisteGespraech}</button>
-          {leiste === "beauftragen"
-            ? <a className="voll" href={start()} tabIndex={0} onClick={klick(undefined, "leiste")}>{t.leisteBeauftragen}</a>
-            : <button type="button" className="voll" onClick={zuDenPaketen} tabIndex={leiste === "aus" ? -1 : 0}>{t.leistePakete(abPreis)}</button>}
+        {/* ── Klebeleiste am Handy (Bauplan 2.12): in den Paketen folgt sie der Tafel in der Mitte ──
+            06.10.2026 (Gutachten): nur bis 640 px — darüber stehen die Tafeln untereinander, keine Wischreihe setzt
+            die Wahl, und die Leiste hätte immer Global Struktur angeboten. Der Kurzname („Struktur · 2.499 € —
+            beauftragen“) passt einzeilig. Bei Global VIP führt sie wie die Tafel mit dem Gespräch; der Direktkauf
+            über 35.999 € ist der helle Knopf (Messpunkt ort „leiste“ bleibt). */}
+        <div className={`fg-mobil${leiste !== "aus" ? " da" : ""}${leiste === "in" ? " in-paketen" : ""}`} aria-hidden={leiste === "aus"}>
+          {leiste === "in" && (
+            <span className="fg-mobil-linie" aria-hidden="true">{[0, 1, 2, 3].map((j) => <i key={j} className={j < etappenBis(mobilIndex) ? "an" : undefined} />)}</span>
+          )}
+          {leiste === "in" && mobilVip ? (
+            <>
+              <a className="hell" href={start(mobilPaket)} tabIndex={0} onClick={klick(mobilPaket, "leiste")}>{t.direktBeauftragen}</a>
+              <button type="button" className="voll" onClick={() => zumGespraech(mobilPaket)} tabIndex={0} aria-label={t.vipGespraech(mobilPaketDaten[s].name)}>{t.vipGespraechKurz}</button>
+            </>
+          ) : leiste === "in"
+            ? <button type="button" className="hell" onClick={() => zumGespraech(mobilPaket)} tabIndex={0}>{t.erstSprechen}</button>
+            : <button type="button" className="hell" onClick={() => zumGespraech()} tabIndex={leiste === "aus" ? -1 : 0}>{t.leisteGespraech}</button>}
+          {leiste === "in" && mobilVip ? null : leiste === "in" ? (
+            <a className="voll" href={start(mobilPaket)} tabIndex={0} onClick={klick(mobilPaket, "leiste")}>{t.leisteTafel(kurzName(mobilPaketDaten[s].name), globalPreisText(mobilPaket, s))}</a>
+          ) : leiste === "nach" ? (
+            <a className="voll" href={start()} tabIndex={0} onClick={klick(undefined, "leiste")}>{t.leisteBeauftragen}</a>
+          ) : (
+            <button type="button" className="voll" onClick={zuDenPaketen} tabIndex={leiste === "aus" ? -1 : 0}>{t.leistePakete(abPreis)}</button>
+          )}
         </div>
       </div>
     </Dunkel>

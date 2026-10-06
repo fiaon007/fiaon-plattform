@@ -1,0 +1,579 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /business — DIE GRAFIKEN (06.10.2026, E-293, BAUPLAN /business Scheibe A)
+
+   Justin (06.10.): „übersichtlicher, grafischer, moderner". Jede Grafik ersetzt
+   einen Absatz: Wegleiste über den Tafeln, Beleg „Im Festpreis“, Kleingedrucktes
+   in drei Spalten, Jahresring, Stern „Ein Ansprechpartner statt acht“, Schaubild
+   und Plakette des persönlichen Angebots, „Drei Orte“ im Fuß, Begriffe zum
+   Antippen, Klebeleiste am Handy.
+
+   DIE HALTUNG (Bauplan 2.1)
+   · Haarlinien (#cdd5e0) auf Papier, Navy für das Gewählte, Blau (#1d4ed8) nur
+     für das, worüber ein Institut entscheidet.
+   · Gegenstände liegen mit Kontaktschatten, sie schweben nicht. Glas nur in der
+     VIP-Bühne (styles/global.css).
+   · Bewegung startet einmal, wenn der Abschnitt `data-an="1"` bekommt
+     (components/site/global/bewegung.ts) — nie an die Scrollposition gekoppelt.
+     Animiert werden nur transform, opacity, stroke-dashoffset und clip-path.
+     Scheibe A: ruhige Platzhalter, nur Einblenden; das Zeichnen kommt mit B.
+   · „Weniger Bewegung“: jeder Endzustand sofort (Block am Ende).
+   Importiert in pages/site/business.tsx, pages/site/global-seite.tsx und
+   components/site/GlobalFuss.tsx.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fg,.gf{--fg-ease:cubic-bezier(.2,.7,.2,1);--fg-ease-io:cubic-bezier(.65,0,.35,1);--fg-kontakt:drop-shadow(0 18px 22px rgba(12,26,46,.13)) drop-shadow(0 2px 3px rgba(12,26,46,.18))}
+
+/* ── Gegenstände: Platzhalter aus Haarlinien (Scheibe C ersetzt sie durch freigestellte Bilder) ── */
+.fg-objekt{display:block;margin:0;position:relative}
+.fg-objekt-svg{display:block;width:100%;height:auto;overflow:visible;filter:var(--fg-kontakt)}
+.fg-objekt-svg *{vector-effect:non-scaling-stroke}
+.fg-objekt-svg .blatt{fill:#fffefb;stroke:#cdd5e0;stroke-width:1}
+.fg-objekt-svg .rand{fill:none;stroke:#c9d3e2;stroke-width:1;stroke-dasharray:2 2}
+.fg-objekt-svg .zeile{stroke:#e3e7ee;stroke-width:1.5;stroke-linecap:round}
+.fg-objekt-svg .siegel{fill:#f6f1e3;stroke:#b79a52;stroke-width:1}
+.fg-objekt-svg .siegel-innen{fill:none;stroke:#b79a52;stroke-width:1;stroke-dasharray:1.5 2}
+.fg-objekt-svg .band{fill:none;stroke:#12284a;stroke-width:2;stroke-linecap:round}
+.fg-objekt-svg .fueller{fill:none;stroke:#12284a;stroke-width:3;stroke-linecap:round}
+.fg-objekt-svg .fueller-spitze{fill:none;stroke:#b79a52;stroke-width:2;stroke-linecap:round}
+.fg-objekt-svg .karte{stroke-width:1}
+.fg-objekt-svg .karte.navy{fill:#16294a;stroke:#0b1c36}
+.fg-objekt-svg .karte.graphit{fill:#4a525e;stroke:#3a414b}
+.fg-objekt-svg .karte.champagner{fill:#e9dcc0;stroke:#cdbb93}
+.fg-objekt-svg .chip{fill:#d7dbe2;stroke:#b7bfcc;stroke-width:1}
+.fg-objekt.mit-bild img{display:block;width:100%;height:auto;filter:var(--fg-kontakt)}
+/* Redaktioneller Bildnachweis: senkrecht an der rechten Bildkante, wie in einem Wirtschaftsmagazin. */
+.fg-bildnachweis{position:absolute;right:-16px;bottom:0;writing-mode:vertical-rl;font:500 10px/1 var(--sans,inherit);letter-spacing:.14em;text-transform:uppercase;color:currentColor;opacity:.55}
+
+/* ── 1 Hero ─────────────────────────────────────────────────────────────── */
+.fg-neu .fg-hero{padding:128px 0 0;border-bottom:0}
+.fg-neu .fg-hero-raster{grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:56px}
+.fg-neu .fg-hero .fg-h1{font-size:clamp(36px,3.5vw,52px)}
+.fg-neu .fg-hero .fg-lead{max-width:52ch}
+.fg-neu .fg-auge a{color:inherit;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
+.fg-neu .fg-kopf-zahlen{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px 52px}
+.fg-jahr-zeile{margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
+.fg-jahr-zeile:hover{text-decoration-color:var(--navy)}
+.fg-neu .fg-hero-knoepfe{margin-top:26px}
+.fg-hero-objekt-rahmen{position:relative;display:flex;justify-content:center;align-items:center}
+.fg-hero-objekt{width:min(100%,400px);transform:rotate(-4deg);animation:fg-objekt-ein 900ms var(--fg-ease) 150ms both}
+.ld-an .fg-hero-objekt{animation-play-state:paused}
+@keyframes fg-objekt-ein{from{opacity:0;transform:translateY(16px) rotate(-2deg)}to{opacity:1;transform:translateY(0) rotate(-4deg)}}
+@media(hover:hover) and (pointer:fine){
+  .fg-hero-objekt{transition:transform 600ms var(--fg-ease)}
+  .fg-hero-objekt-rahmen:hover .fg-hero-objekt{transform:rotate(-1deg) translateY(-2px)}
+}
+/* Die Vertrauensleiste: vier Felder, Haarlinien dazwischen, je ein Linien-Zeichen */
+.fg-vertrauensleiste{list-style:none;margin:56px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--linie)}
+.fg-vertrauensleiste li{display:flex;align-items:center;gap:12px;min-height:88px;padding:0 20px;font-size:13.5px;line-height:1.45;color:var(--tinte)}
+.fg-vertrauensleiste li+li{border-left:1px solid var(--linie)}
+.fg-vertrauensleiste li:first-child{padding-left:0}
+.fg-vertrauensleiste a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
+.fg-leiste-zeichen{flex:0 0 auto;stroke:var(--navy);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;opacity:.8}
+
+@media(max-width:1020px){
+  .fg-neu .fg-hero-raster{grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:36px}
+}
+/* 721–900 px (iPad hochkant): Bei 768 px schob sich die Urkunde 19 px über „ab 2.499 €“ (Gutachten 06.10.).
+   Die Urkunde wird schmaler, die beiden Zahlen teilen sich die Textspalte zu gleichen Teilen (der Kapitalrahmen
+   darf umbrechen, der Preis nie), und der Text liegt über dem Objekt. */
+.fg-neu .fg-hero-text{position:relative;z-index:1}
+@media(min-width:721px) and (max-width:900px){
+  .fg-neu .fg-hero-raster{grid-template-columns:minmax(0,1fr) minmax(0,30vw);gap:24px}
+  .fg-neu .fg-kopf-zahlen{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:18px 28px}
+  .fg-neu .fg-kopf-zahlen b{white-space:normal}
+  .fg-neu .fg-kopf-zahlen>div+div b{white-space:nowrap}
+}
+@media(max-width:720px){
+  .fg-neu .fg-hero{padding:96px 0 0}
+  /* Am Handy eine Spalte: Kapitalrahmen, Festpreis und Knopf im ersten Bild, die Urkunde ragt danach rechts herein. */
+  .fg-neu .fg-hero-raster{display:flex;flex-direction:column;align-items:stretch;gap:0}
+  .fg-neu .fg-hero-text{display:contents}
+  .fg-neu .fg-hero .fg-auge{order:1;line-height:1.5}
+  .fg-neu .fg-hero .fg-h1{order:2;font-size:36px;margin-top:16px}
+  .fg-neu .fg-hero .fg-lead{order:3;font-size:16px;margin-top:14px}
+  .fg-neu .fg-kopf-zahlen{order:4;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:0;margin-top:22px;padding:0}
+  .fg-neu .fg-kopf-zahlen>div{padding:14px 12px 14px 0}
+  .fg-neu .fg-kopf-zahlen>div+div{padding-left:12px;border-left:1px solid var(--linie)}
+  .fg-neu .fg-kopf-zahlen b{font-size:22px;font-weight:300;white-space:normal}
+  .fg-neu .fg-kopf-zahlen em{font-size:12px}
+  .fg-neu .fg-kopf-zahlen span{font-size:10px;letter-spacing:.12em}
+  .fg-neu .fg-hero-knoepfe{order:5;flex-direction:column;align-items:stretch;gap:2px;margin-top:20px}
+  .fg-neu .fg-hero-knoepfe .fg-knopf{width:100%;min-height:48px}
+  .fg-neu .fg-hero-gespraech.fg-knopf{background:none;border:0;box-shadow:none;min-height:40px;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
+  .fg-neu .fg-hero-objekt-rahmen{order:6;justify-content:flex-end;height:120px;margin:8px -24px 0 0;overflow:hidden}
+  .fg-neu .fg-hero-objekt{width:160px;transform:rotate(-6deg) translate(26px,8px);animation:none}
+  .fg-neu .fg-hero .fg-mikro{order:7;margin-top:-104px;max-width:58%}
+  .fg-neu .fg-hero .fg-fussnote{order:8;margin-top:52px}
+  .fg-vertrauensleiste{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:24px}
+  .fg-vertrauensleiste li{min-height:72px;padding:12px 10px;font-size:12.5px;gap:9px;align-items:flex-start}
+  .fg-vertrauensleiste li:first-child{padding-left:0}
+  .fg-vertrauensleiste li:nth-child(3){padding-left:0;border-left:0;border-top:1px solid var(--linie)}
+  .fg-vertrauensleiste li:nth-child(4){border-top:1px solid var(--linie)}
+}
+
+/* ── Begriffe zum Antippen ─────────────────────────────────────────────── */
+.fg .fg-begriff-rahmen,.gf .fg-begriff-rahmen{position:relative;display:inline;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit}
+.fg-begriff{all:unset;cursor:help;color:inherit;text-decoration:underline dotted;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.5)}
+.fg-begriff:focus-visible{outline:2px solid var(--blau);outline-offset:2px;border-radius:3px}
+.fg .fg-begriff-pop{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:40;width:max-content;max-width:min(280px,calc(100vw - 32px));padding:12px 14px;border-radius:10px;
+  background:#fff;border:1px solid var(--linie);box-shadow:0 14px 34px rgba(12,26,46,.14),0 2px 4px rgba(12,26,46,.06);
+  font:400 13px/1.55 var(--sans);letter-spacing:0;text-transform:none;color:var(--text);text-align:left;white-space:normal;transform:translateX(var(--fg-begriff-x,0px))}
+.fg .fg-begriff-pop.auf{display:block}
+
+/* ── 2 Pakete: Wegleiste ───────────────────────────────────────────────── */
+.fg-pakete-sek{padding-top:96px}
+.fg-wegleiste{position:relative;height:252px;margin-top:44px}
+.fg-weg-linie{position:absolute;left:0;width:100%;overflow:visible;pointer-events:none}
+.fg-weg-linie path{fill:none;stroke:var(--linie-2);stroke-width:1.25;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.fg-weg-linie.d{top:96px;height:60px}
+.fg-weg-linie.m{display:none}
+.fg-weg-knoten{position:absolute;inset:0;pointer-events:none;--x:var(--xd);--y:calc(96px + var(--yd))}
+.fg-weg-knoten>*{pointer-events:auto}
+.fg-weg-punkt{position:absolute;left:var(--x);top:var(--y);width:26px;height:26px;margin:-13px 0 0 -13px;padding:0;border-radius:50%;border:1px solid #cdd5e0;background:#12284a;color:#fff;
+  display:grid;place-items:center;font:400 11px/1 var(--serif);cursor:pointer;box-shadow:0 0 0 4px var(--stein);transition:transform .2s var(--fg-ease)}
+.fg-weg-punkt:hover,.fg-weg-knoten.offen .fg-weg-punkt{transform:scale(1.08)}
+.fg-weg-objekt{position:absolute;left:var(--x);top:calc(var(--y) - 22px);transform:translate(-50%,-100%)}
+.fg-weg-knoten.k1 .fg-weg-objekt{transform:translate(-13px,-100%)}
+.fg-weg-objekt.urkunde,.fg-weg-objekt.termsheet{width:70px}
+.fg-weg-objekt.karte{width:96px}
+.fg-weg-objekt.karten{width:110px}
+.fg-weg-stempel{position:absolute;left:var(--x);top:var(--y);margin:-7px 0 0 18px;width:14px;height:14px;color:var(--blau);cursor:help}
+.fg-weg-stempel svg{display:block;fill:none;stroke:currentColor;stroke-width:1;stroke-linecap:round}
+.fg-weg-titel{position:absolute;left:var(--x);top:166px;margin-left:-13px;max-width:190px;font:400 13.5px/1.35 var(--sans);color:var(--tinte)}
+.fg-weg-abzeichen,.fg-weg-klammer>span{display:inline-flex;align-items:center;height:20px;padding:0 9px;border-radius:999px;background:var(--blau-hell);color:var(--navy);font:500 10.5px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+.fg-weg-abzeichen{position:absolute;left:var(--x);top:208px;margin-left:-13px}
+.fg-weg-klammer{position:absolute;left:0;width:calc(16.7% + 13px);top:208px;height:20px;border-top:1px solid var(--linie-2);border-left:1px solid var(--linie-2);border-right:1px solid var(--linie-2);border-radius:4px 4px 0 0;margin-top:-6px;padding-top:0}
+.fg-weg-klammer>span{position:relative;top:-11px;left:10px;background:var(--stein-2);color:var(--text)}
+.fg-weg-fall{position:absolute;left:var(--x);top:230px;bottom:0;width:1px;margin-left:-.5px;background:var(--linie-2)}
+.fg-weg-pop{position:absolute;left:var(--x);top:196px;margin-left:-13px;z-index:8;width:320px;padding:14px 16px;border-radius:12px;background:#fff;border:1px solid var(--linie);box-shadow:0 18px 40px rgba(12,26,46,.14)}
+.fg-weg-knoten.k3 .fg-weg-pop,.fg-weg-knoten.k4 .fg-weg-pop{left:auto;right:calc(100% - var(--x));margin:0 -13px 0 0}
+.fg-weg-pop[hidden]{display:none}
+.fg-weg-pop b{display:block;font:500 11px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--blau)}
+.fg-weg-pop p{margin-top:8px;font-size:13.5px;line-height:1.6;color:var(--text)}
+.fg-weg-lead{margin:-6px 0 0;font-size:12.5px;line-height:1.5;color:var(--leise);text-align:right}
+.fg-pakete-sek .fg-tarife{margin-top:18px}
+/* Desktop ab 1181 px: Knoten I sitzt am Rahmen (nicht 6 px davor), Titel I endet vor Titel II — bei 1180 px
+   stießen „Gründung und Dokumente“ und „Die erste Firmenkarte“ sonst ohne Abstand aneinander, und ein
+   zweizeiliger Titel I lief in die Klammer „In jedem Paket“ (06.10.2026). */
+@media(min-width:1181px){
+  .fg-weg-knoten.k1{--x:13px}
+  .fg-weg-knoten.k1 .fg-weg-titel{max-width:calc(16.7% - 18px)}
+}
+/* 721–1180 px (iPad hochkant und quer, kleine Laptops): Auf der Desktop-Linie liegen die Knoten I und II nur 16,7 % auseinander —
+   bei 768 px rund 120 px für bis zu 190 px breite Titel; gemessen überlappten „Gründung und Dokumente“ und „Die erste
+   Firmenkarte“ um 53 px (768) bis 11 px (1024), und Titel I ragte links aus dem Rahmen (Gutachten 06.10.2026).
+   Hier gelten deshalb die vier gleichen Spalten der Handy-Fassung, mit Desktop-Schrift, Abzeichen und Klammer;
+   die Fall-Linien entfallen (die Tafeln stehen hier nicht unter den Knoten). */
+@media(min-width:721px) and (max-width:1180px){
+  .fg-wegleiste{height:238px}
+  .fg-weg-linie.d,.fg-weg-fall{display:none}
+  .fg-weg-linie.m{display:block;top:104px;height:30px}
+  .fg-weg-knoten{--x:var(--xm);--y:calc(104px + var(--ym))}
+  .fg-weg-knoten.k1 .fg-weg-objekt{transform:translate(-50%,-100%)}
+  .fg-weg-objekt.urkunde,.fg-weg-objekt.termsheet{width:58px}
+  .fg-weg-objekt.karte{width:80px}
+  .fg-weg-objekt.karten{width:92px}
+  .fg-weg-titel{top:148px;margin-left:0;transform:translateX(-50%);width:calc(25% - 20px);max-width:220px;text-align:center}
+  .fg-weg-abzeichen{top:208px;margin-left:0;transform:translateX(-50%)}
+  .fg-weg-klammer{left:calc(2.5% + 10px);width:calc(47.5% - 20px);top:208px}
+  .fg-weg-klammer>span{left:50%;transform:translateX(-50%)}
+}
+@media(max-width:720px){
+  .fg-wegleiste{height:150px;margin-top:28px}
+  .fg-weg-linie.d,.fg-weg-abzeichen,.fg-weg-klammer,.fg-weg-fall,.fg-weg-stempel{display:none}
+  .fg-weg-linie.m{display:block;top:66px;height:30px}
+  .fg-weg-knoten{--x:var(--xm);--y:calc(66px + var(--ym))}
+  .fg-weg-punkt{width:22px;height:22px;margin:-11px 0 0 -11px;font-size:10px}
+  .fg-weg-objekt{top:calc(var(--y) - 16px)}
+  .fg-weg-knoten.k1 .fg-weg-objekt{transform:translate(-50%,-100%)}
+  .fg-weg-objekt.urkunde,.fg-weg-objekt.termsheet{width:40px}
+  .fg-weg-objekt.karte{width:52px}
+  .fg-weg-objekt.karten{width:58px}
+  .fg-weg-titel{top:104px;margin-left:0;transform:translateX(-50%);width:calc(25% - 6px);max-width:none;text-align:center;font-size:11.5px;line-height:1.3}
+  .fg-weg-pop,.fg-weg-knoten.k3 .fg-weg-pop,.fg-weg-knoten.k4 .fg-weg-pop{left:0;right:0;top:142px;width:auto;margin:0}
+  .fg-weg-lead{text-align:left;margin-top:4px}
+}
+/* Gefüllt nur die Etappen des gewählten Pakets — nur wo die Wischreihe die Wahl setzt (≤ 640 px). Darüber stehen
+   die Tafeln untereinander, nichts ist gewählt, und blasse Etappen III–IV sähen wie „nicht verfügbar“ aus. */
+@media(max-width:640px){
+  .fg-weg-knoten>*{transition:opacity .3s var(--fg-ease)}
+  .fg-weg-knoten.aus .fg-weg-punkt,.fg-weg-knoten.aus .fg-weg-objekt,.fg-weg-knoten.aus .fg-weg-titel{opacity:.35}
+  .fg-weg-knoten.aus .fg-weg-punkt{background:#fff;color:var(--navy)}
+}
+
+/* ── 2 Pakete: Tafeln am Handy als Wischreihe ──────────────────────────── */
+.fg-wisch-punkte{display:none}
+@media(max-width:640px){
+  .fg-neu .fg-tarife{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding:0 16px;margin:16px -24px 0;padding:16px 24px 6px;align-items:flex-start;scrollbar-width:none;position:relative}
+  .fg-neu .fg-tarife::-webkit-scrollbar{display:none}
+  .fg-neu .fg-tarife{overflow-y:hidden;transition:height .3s var(--fg-ease)}
+  .fg-neu .fg-tarife>.dk-auf{flex:0 0 calc(100% - 20px);scroll-snap-align:center;display:block}
+  .fg-neu .fg-tarife>.dk-auf:has(.vip){margin-top:0}
+  .fg-wisch-punkte{display:flex;justify-content:center;gap:7px;margin-top:12px}
+  .fg-wisch-punkte i{width:6px;height:6px;border-radius:50%;background:#c8d0dc;transition:transform .2s,background .2s}
+  .fg-wisch-punkte i.vip{background:#5b6b86}
+  .fg-wisch-punkte i.an{background:var(--navy);transform:scale(1.35)}
+  .fg-wisch-punkte i.vip.an{background:#0b1220}
+  /* VIP am Handy: Ticket als Standbild, keine Wellen. */
+  .fg-tarif.vip .fg-vip-wellen{display:none}
+  .fg-tarif.vip .fg-ticket,.fg-tarif.vip .fg-ticket-blatt::after,.fg-tarif.vip .fg-ticket-route .spur{animation:none}
+}
+/* Am Handy bleiben Kapitalrahmen und Festpreis nebeneinander (quer vergleichen, Bauplan 2.3). */
+@container (max-width:300px){
+  .fg-neu .fg-tarif-zahlen{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fg-neu .fg-tarif-zahlen>div{padding:13px 12px 12px}
+  .fg-neu .fg-tarif-zahlen>div+div{border-top:0;border-left:1px solid #dde5f1}
+  .fg-neu .fg-tarif-zahlen b{font-size:22px}
+}
+/* Die Tafeln ohne „für wen“: der Kopf wird niedriger. */
+.fg-neu .fg-tarif-kopf h3{margin-top:10px}
+/* VIP-Bühne höchstens 420 px hoch (Desktop) */
+.fg-neu .fg-vip-inhalt{padding:28px 40px 26px;gap:40px;align-items:center}
+.fg-neu .fg-tarif.vip h3{font-size:clamp(32px,3vw,42px);margin-top:10px}
+.fg-neu .fg-tarif.vip .fg-tarif-weg{margin-top:10px;min-height:0}
+.fg-neu .fg-vip-kapital{margin-top:12px;padding:12px 18px}
+.fg-neu .fg-vip-kapital b{font-size:clamp(34px,3.4vw,46px);margin-top:6px}
+.fg-neu .fg-vip-kapital em{margin-top:6px}
+.fg-neu .fg-vip-seite .fg-ticket{max-width:420px}
+.fg-neu .fg-ticket-blatt{padding-top:14px}
+.fg-neu .fg-ticket-route{margin-top:8px}
+.fg-neu .fg-ticket-unten{height:76px;margin-top:10px;padding-top:10px}
+.fg-vip-liste{display:grid;gap:8px;margin-top:12px}
+.fg-neu .fg-tarif.vip .fg-vip-liste .fg-tarif-erbe{margin-top:0}
+.fg-neu .fg-tarif.vip .fg-vip-liste ul{margin-top:0;grid-template-columns:1fr}
+.fg-tarif.vip .fg-tarif-mehr{color:#cfe0ff}
+.fg-tarif.vip .fg-tarif-mehr:hover{color:#fff}
+.fg-neu .fg-vip-preis{margin-top:14px;padding-top:12px}
+.fg-neu .fg-vip-preis b{font-size:clamp(34px,3.2vw,44px)}
+.fg-neu .fg-tarif.vip .tun{margin-top:12px}
+.fg-neu .fg-tarif.vip .tun .fg-knopf{min-height:48px}
+@media(max-width:640px){.fg-neu .fg-vip-inhalt{padding:26px 20px 24px;gap:22px}}
+
+/* Klappzeile „Alle Leistungen im Vergleich“ */
+.fg-neu .fg-vergleich{margin-top:26px}
+.fg-neu .fg-vergleich .fg-tarif-vergleich{margin-top:0}
+.fg-neu .fg-vergleich .fg-tabelle{margin-top:18px}
+
+/* Paketfuß */
+.fg-neu .fg-paket-fuss{margin-top:26px;padding-top:20px;border-top:1px solid var(--linie)}
+
+/* ── 2 Pakete: Beleg „Im Festpreis“ ─────────────────────────────────────── */
+.fg-beleg-rahmen{display:grid;grid-template-columns:420px minmax(0,1fr);gap:56px;align-items:center;margin-top:48px}
+.fg-beleg-kopf{grid-column:2;grid-row:1}
+.fg-beleg-kopf h3{margin-top:14px;font-family:var(--serif);font-weight:300;font-size:clamp(26px,2.6vw,36px);line-height:1.18;letter-spacing:-.015em;color:var(--tinte);max-width:20ch;text-wrap:balance}
+.fg-beleg-spalte{grid-column:1;grid-row:1;position:relative}
+.fg-beleg-schlitz{display:block;height:3px;margin:0 -12px;border-radius:2px;background:var(--navy);position:relative;z-index:2}
+.fg-beleg{position:relative;padding:24px 28px 20px;background:#fff;filter:drop-shadow(0 18px 22px rgba(12,26,46,.10)) drop-shadow(0 2px 3px rgba(12,26,46,.12));
+  -webkit-mask:radial-gradient(circle 4px at 8px 0,transparent 98%,#000) 0 0/16px 100% repeat-x;mask:radial-gradient(circle 4px at 8px 0,transparent 98%,#000) 0 0/16px 100% repeat-x}
+.fg-beleg ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.fg-beleg li{display:flex;gap:10px;align-items:baseline;font:400 15px/1.4 var(--serif);color:var(--tinte)}
+.fg-beleg-haken{flex:0 0 auto;align-self:center}
+.fg-beleg-haken path{fill:none;stroke:var(--blau);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fg-beleg-summe{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:16px;padding-top:12px;border-top:3px double var(--linie-2);font-size:13px;letter-spacing:.04em;color:var(--leise)}
+.fg-beleg-summe b{font-family:var(--serif);font-weight:400;font-size:22px;letter-spacing:-.01em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
+.fg-beleg-klappe{margin-top:12px;font-size:12.5px;line-height:1.6;color:var(--leise)}
+.fg-beleg-klappe summary{cursor:pointer;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3);list-style:none}
+.fg-beleg-klappe summary::-webkit-details-marker{display:none}
+.fg-beleg-klappe ul{margin:10px 0 0;padding-left:18px;display:grid;gap:4px}
+.fg-beleg-klappe p{margin-top:8px}
+@media(max-width:900px){
+  .fg-beleg-rahmen{grid-template-columns:minmax(0,1fr);gap:20px;margin-top:40px}
+  .fg-beleg-kopf,.fg-beleg-spalte{grid-column:1;grid-row:auto}
+  .fg-beleg li{font-size:14.5px}
+}
+
+/* ── 2 Pakete: das Kleingedruckte in drei Spalten (immer offen) ──────────── */
+.fg-kleingedruckt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:52px;border-top:1px solid var(--linie)}
+.fg-kleingedruckt.ohne-geld{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fg-kleingedruckt>div{padding:24px 28px 0 0}
+.fg-kleingedruckt>div+div{padding-left:28px;border-left:1px solid var(--linie)}
+.fg-kleingedruckt h3{display:flex;gap:10px;align-items:flex-start;font:400 15.5px/1.35 var(--serif);color:var(--tinte)}
+.fg-kleingedruckt h3 svg{flex:0 0 auto;margin-top:1px;fill:none;stroke:var(--navy);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.fg-kleingedruckt p,.fg-kleingedruckt li{font-size:14px;line-height:1.62;color:var(--text)}
+.fg-kleingedruckt p{margin-top:10px}
+.fg-kleingedruckt ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.fg-kleingedruckt li{position:relative;padding-left:16px}
+.fg-kleingedruckt li::before{content:"";position:absolute;left:0;top:.8em;width:8px;height:1px;background:var(--navy)}
+@media(max-width:900px){
+  .fg-kleingedruckt,.fg-kleingedruckt.ohne-geld{grid-template-columns:minmax(0,1fr);border-top:0;margin-top:36px}
+  .fg-kleingedruckt>div,.fg-kleingedruckt>div+div{padding:20px 0 0;border-left:0;border-top:1px solid var(--linie);margin-top:12px}
+}
+
+/* ── 3 Jahresbetreuung als Band ────────────────────────────────────────── */
+.fg-jb-band-sek{padding:64px 0;border-bottom:1px solid var(--linie)}
+.fg-jb.band{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:48px;align-items:center}
+.fg-jb-ring-rahmen{display:flex;align-items:center;gap:22px}
+.fg-jb-ring{flex:0 0 auto;width:150px;height:150px}
+.fg-jb-ring .kreis{fill:none;stroke:var(--linie-2);stroke-width:1}
+.fg-jb-ring .monat{stroke:#b9c3d1;stroke-width:2;stroke-linecap:round}
+.fg-jb-ring .monat.eins{stroke:var(--navy);stroke-width:3.5}
+.fg-jb-ring .zeiger{stroke:var(--navy);stroke-width:1.5;stroke-linecap:round;transform-origin:110px 110px}
+.fg-jb-ring .nabe{fill:var(--navy)}
+/* Einspaltig: in zwei ≈ 130 px schmalen Spalten brach „US-“ / „Telefonnummer“ um (Gutachten 06.10.2026). */
+.fg-jb.band .fg-jb-kurz{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,max-content);gap:6px}
+.fg-jb.band .fg-jb-kurz li{display:block;font-size:12.5px;line-height:1.35;color:var(--text);hyphens:manual}
+.fg-jb.band .fg-jb-kurz li::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--navy);margin:0 7px 1px 0;vertical-align:middle}
+.fg-jb-titel{margin-top:12px;font-family:var(--serif);font-weight:400;font-size:clamp(24px,2.3vw,30px);line-height:1.15;letter-spacing:-.01em;color:var(--tinte)}
+.fg-jb-satz{margin-top:6px;font-size:14.5px;line-height:1.55;color:var(--text)}
+.fg-jb-zeit{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px;margin-top:14px;max-width:420px}
+.fg-jb-zeit .eins{padding-right:12px}
+.fg-jb-zeit span{display:block;padding-top:9px;font-size:11.5px;line-height:1.3;color:var(--leise);position:relative}
+.fg-jb-zeit span::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:3px}
+.fg-jb-zeit .eins::before{background:var(--navy)}
+.fg-jb-zeit .zwei::before{box-shadow:inset 0 0 0 1px var(--navy)}
+.fg-jb.band .fg-jb-klein{margin-top:10px}
+.fg-jb-tun{display:grid;gap:10px;justify-items:start;max-width:260px}
+.fg-jb-so{font-size:13px;color:var(--leise)}
+.fg-jb-so summary{cursor:pointer;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3);list-style:none}
+.fg-jb-so summary::-webkit-details-marker{display:none}
+.fg-jb-so[open]{max-width:420px}
+.fg-jb-so p,.fg-jb-so ul{margin-top:8px;line-height:1.6}
+.fg-jb-so ul{padding-left:18px}
+@media(max-width:1100px){.fg-jb.band{grid-template-columns:auto minmax(0,1fr)}.fg-jb-tun{grid-column:1/-1;grid-auto-flow:column;align-items:center;max-width:none}}
+@media(max-width:720px){
+  .fg-jb-band-sek{padding:52px 0}
+  .fg-jb.band{grid-template-columns:minmax(0,1fr);gap:22px}
+  /* Erst Augenzeile, Titel mit Preis und Satz, dann Ring und Stichpunkte — sonst las man sechs Stichpunkte,
+     bevor klar war, dass es um die Jahresbetreuung für 699 € geht (Gutachten 06.10.2026). */
+  .fg-jb.band .fg-jb-mitte{order:-1}
+  .fg-jb-ring-rahmen{gap:14px}
+  /* 76 px: so passt „US-Meldung durch unseren US-CPA“ bei 375 px ohne Bruch hinter „US-“ neben den Ring. */
+  .fg-jb-ring{width:76px;height:76px}
+  .fg-jb.band .fg-jb-kurz{grid-template-columns:minmax(0,1fr);gap:5px}
+  .fg-jb.band .fg-jb-kurz li{max-width:none}
+  .fg-jb-tun{grid-auto-flow:row;justify-items:stretch}
+  .fg-jb-tun .fg-knopf{width:100%}
+}
+
+/* ── 4 Ein Ansprechpartner statt acht: der Stern ───────────────────────── */
+.fg-stern-sek{padding:80px 0 72px}
+.fg-kopf.mitte{grid-template-columns:1fr;justify-items:center;text-align:center}
+.fg-kopf.mitte .fg-h2{margin-left:auto;margin-right:auto}
+.fg-kopf.mitte .fg-auge::after{content:"";width:24px;height:1px;background:currentColor;opacity:.6}
+.fg-stern{display:grid;justify-items:center;margin-top:28px}
+.fg-stern-schalter{display:inline-flex;gap:2px;padding:3px;border-radius:999px;border:1px solid var(--linie-2);background:#fff}
+.fg-stern-schalter button{border:0;background:none;padding:8px 16px;border-radius:999px;font:400 13px/1 var(--sans);color:var(--text);cursor:pointer}
+.fg-stern-schalter button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.fg-stern-bild.d{position:relative;width:100%;max-width:800px;aspect-ratio:760/460;margin-top:10px}
+.fg-stern-bild.d>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.fg-stern-bild.m{display:none}
+.fg-stern svg *{vector-effect:non-scaling-stroke}
+.fg-stern .ebene-ohne path{fill:none;stroke:#9aa6b8;stroke-width:1}
+.fg-stern .ebene-mit path{fill:none;stroke:var(--navy);stroke-width:1.25}
+.fg-stern .ebene-ohne,.fg-stern .ebene-mit{transition:opacity .4s var(--fg-ease)}
+.fg-stern.zustand-mit .ebene-ohne{opacity:.12}
+.fg-stern.zustand-ohne .ebene-mit,.fg-stern.zustand-ohne .mitte,.fg-stern.zustand-ohne .mitte-figur{opacity:.12}
+.fg-stern .knoten{fill:#fff;stroke:var(--navy);stroke-width:1}
+.fg-stern .mitte{fill:var(--navy);transition:opacity .4s}
+.fg-stern .mitte-figur{fill:none;stroke:#fff;stroke-width:1.4;stroke-linecap:round}
+.fg-stern .sie{fill:var(--blau)}
+.fg-stern-zeichen{flex:0 0 auto;fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.fg-stern-zeichen.fest{stroke:var(--navy)}
+.fg-stern-zeichen.antrag{stroke:var(--blau)}
+.fg-stern-label{position:absolute;transform:translate(14px,-50%);max-width:190px;font-size:13px;line-height:1.35;color:var(--tinte)}
+.fg-stern-label.links{transform:translate(calc(-100% - 14px),-50%);text-align:right}
+.fg-stern-label .mit-text{display:grid;grid-template-columns:auto auto;column-gap:7px;align-items:center;justify-content:start}
+.fg-stern-label.links .mit-text{justify-content:end;grid-template-columns:auto auto}
+.fg-stern-label.links .fg-stern-zeichen{grid-column:2;grid-row:1}
+.fg-stern-label.links .name{grid-column:1;grid-row:1}
+.fg-stern-label.links .umfang{grid-column:1}
+.fg-stern-label .umfang{grid-column:2;font-size:12px;color:var(--leise)}
+.fg-stern-label .ohne-text{display:block;font-size:12px;color:var(--leise);max-width:160px}
+.fg-stern.zustand-mit .ohne-text,.fg-stern.zustand-ohne .mit-text{display:none}
+.fg-stern-sie{position:absolute;transform:translate(-50%,12px);font-size:13px;font-weight:500;color:var(--blau)}
+/* Papier unter der Beschriftung: Die Speichen zu „Banken“ und „US-CPA“ liefen mitten durch „Ihr Ansprechpartner“ (06.10.). */
+.fg-stern-mitte{position:absolute;z-index:1;transform:translateX(-50%);padding:2px 8px;border-radius:999px;background:var(--papier,#fff);font-size:13px;font-weight:500;color:var(--navy);white-space:nowrap}
+.fg-stern.zustand-ohne .fg-stern-mitte{opacity:.35}
+.fg-stern-legende{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 28px;margin:6px 0 0;padding:0}
+.fg-stern-legende li{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text)}
+.fg-stern-unter{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;margin-top:30px;padding-top:22px;border-top:1px solid var(--linie)}
+.fg-stern-partner{font-family:var(--serif);font-size:17px;line-height:1.5;color:var(--tinte)}
+.fg-ehrlich-zeile{font-size:14px;line-height:1.65;color:var(--text)}
+.fg-ehrlich-zeile b{font-family:var(--serif);font-style:italic;font-weight:400;font-size:16px;color:var(--navy)}
+.fg-ehrlich-zeile a{display:inline;color:var(--navy);white-space:normal}
+.fg-ehrlich-zeile a svg{display:inline;vertical-align:-2px;margin-left:6px}
+.fg-fuer-chips{display:flex;align-items:center;gap:14px;margin-top:26px;padding-top:18px;border-top:1px solid var(--linie)}
+.fg-fuer-chips>span{flex:0 0 auto;font-size:11.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--navy)}
+.fg-fuer-chips ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.fg-fuer-chips li>a,.fg-fuer-chips li>span{display:inline-flex;align-items:center;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--linie-2);background:#fff;font-size:13.5px;color:var(--tinte);text-decoration:none;white-space:nowrap}
+.fg-fuer-chips li>a:hover{border-color:var(--navy);color:var(--navy)}
+@media(max-width:900px){.fg-stern-unter{grid-template-columns:minmax(0,1fr);gap:16px}}
+@media(max-width:720px){
+  .fg-stern-sek{padding:64px 0}
+  .fg-stern-bild.d{display:none}
+  .fg-stern-bild.m{display:grid;justify-items:center;width:100%;margin-top:16px}
+  .fg-stern-sie-m{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--blau)}
+  .fg-stern-sie-m i{width:8px;height:8px;border-radius:50%;background:var(--blau)}
+  .fg-stern-chips{list-style:none;margin:12px 0 0;padding:0;width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .fg-stern-chips li{min-height:56px;padding:9px 11px;border:1px solid var(--linie);border-radius:10px;background:#fff;font-size:12.5px;line-height:1.3;color:var(--tinte)}
+  .fg-stern-chips .mit-text{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:center}
+  .fg-stern-chips .umfang{grid-column:2;font-size:11.5px;color:var(--leise)}
+  .fg-stern-chips .ohne-text{font-size:11.5px;color:var(--leise)}
+  .fg-stern-trichter{display:block;width:100%;height:auto;overflow:visible}
+  .fg-stern-trichter .speiche{stroke-width:1.25}
+  .fg-stern-mitte-m{margin-top:4px;font-size:13px;font-weight:500;color:var(--navy)}
+  .fg-stern.zustand-ohne .fg-stern-mitte-m{opacity:.35}
+  .fg-stern-legende{justify-content:flex-start;margin-top:16px}
+  .fg-stern-partner{font-size:16px}
+  .fg-fuer-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:-24px;padding-right:24px}
+  .fg-fuer-chips::-webkit-scrollbar{display:none}
+  .fg-fuer-chips ul{flex-wrap:nowrap}
+}
+
+/* ── 5 Persönliches Angebot mit Bürgschaftszusage (Schalter, Start: aus) ── */
+.fg-buergschaft-raster{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);grid-template-areas:"text gilt" "bild gilt";gap:0 56px;align-items:start}
+.fg-buergschaft-text{grid-area:text}
+.fg-buergschaft-bild{grid-area:bild}
+.fg-buergschaft-gilt{grid-area:gilt}
+.fg-buergschaft .fg-lead{max-width:60ch}
+.fg-buergschaft-kopf{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.fg-buergschaft-plakette-m{display:none}
+.fg-buergschaft-plakette-d{display:contents}
+.fg-buergschaft-bild{display:flex;align-items:center;gap:24px;margin-top:28px}
+.fg-plakette{flex:0 0 auto;display:block;border-radius:50%;
+  background:conic-gradient(from 215deg,#fbfcfd,#c5cdd8 12%,#eef2f7 24%,#a8b3c1 38%,#f4f6f9 52%,#bcc6d2 66%,#f7f9fb 80%,#b9c3cf 92%,#fbfcfd);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -3px 8px rgba(12,26,46,.22),0 18px 26px -16px rgba(12,26,46,.45)}
+.fg-plakette svg{display:block;width:100%;height:100%}
+.fg-plakette .r1,.fg-plakette .r2,.fg-plakette .r3{fill:none;stroke:rgba(12,26,46,.35);stroke-width:.8}
+.fg-plakette .ring{font:400 9px var(--serif);letter-spacing:.2em;fill:var(--tinte)}
+.fg-plakette .mono{font:italic 400 26px var(--serif);fill:var(--navy)}
+.fg-schaubild{flex:1 1 auto;margin:0;min-width:0}
+.fg-schaubild svg{display:block;width:100%;height:auto;overflow:visible}
+.fg-schaubild svg.m{display:none}
+.fg-schaubild rect{fill:#fff;stroke:var(--linie-2);stroke-width:1}
+.fg-schaubild rect.buergin{stroke:var(--navy)}
+.fg-schaubild text{font:400 12.5px var(--sans);fill:var(--tinte)}
+.fg-schaubild text.klein{font-size:11px;fill:var(--leise)}
+.fg-schaubild .pfeil{fill:none;stroke:var(--navy);stroke-width:1.25}
+.fg-schaubild .pfeil.gestrichelt{stroke-dasharray:4 4}
+.fg-schaubild .gesellschafter{fill:none;stroke:var(--linie-2);stroke-width:1}
+.fg-schaubild marker path{fill:none;stroke:var(--navy);stroke-width:1.25}
+.fg-buergschaft-gilt{padding:28px 28px 26px;border-radius:14px;background:#fff;border:1px solid var(--linie)}
+.fg-buergschaft-gilt h3{font:400 20px/1.25 var(--serif);color:var(--tinte)}
+.fg-buergschaft-gilt ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.fg-buergschaft-gilt li{position:relative;padding-left:16px;font-size:14px;line-height:1.6;color:var(--text)}
+.fg-buergschaft-gilt li::before{content:"";position:absolute;left:0;top:.8em;width:8px;height:1px;background:var(--navy)}
+.fg-buergschaft-verbunden{margin-top:16px;padding-top:14px;border-top:1px solid var(--linie);font-size:12.5px;line-height:1.6;color:var(--leise)}
+.fg-buergschaft-aufruf{margin-top:14px;font-size:14.5px;line-height:1.6;color:var(--tinte)}
+.fg-buergschaft-gilt .fg-knopf{margin-top:16px;width:100%}
+@media(max-width:900px){
+  /* Am Handy war der Block 1.836 px hoch (2,3 Bildschirme für 212 Wörter, Gutachten 06.10.2026): Plakette neben
+     die Überschrift, Schaubild höchstens 343 × 340 wie geplant, Bedingungen enger — kein Pflichtwort gestrichen. */
+  .fg-buergschaft-raster{grid-template-columns:minmax(0,1fr);grid-template-areas:"text" "gilt" "bild";gap:20px}
+  .fg-buergschaft-plakette-m{display:block;flex:0 0 auto}
+  .fg-buergschaft-plakette-d{display:none}
+  .fg-buergschaft .fg-lead{font-size:16px;line-height:1.62;margin-top:16px}
+  .fg-buergschaft-bild{margin-top:0;justify-content:center}
+  .fg-schaubild{max-width:343px}
+  .fg-schaubild svg.d{display:none}
+  .fg-schaubild svg.m{display:block}
+  .fg-buergschaft-gilt{padding:20px 18px 18px}
+  .fg-buergschaft-gilt ul{gap:6px;margin-top:10px}
+  .fg-buergschaft-gilt li{line-height:1.55}
+  .fg-buergschaft-verbunden{margin-top:12px;padding-top:10px}
+  .fg-buergschaft-aufruf{margin-top:10px}
+  .fg-buergschaft-gilt .fg-knopf{margin-top:12px}
+}
+
+/* ── 6 Erstgespräch: Visitenkarte und Kalender in zwei Schritten ───────── */
+.fg-neu .fg-gespraech-sek{padding:80px 0}
+.fg-neu .fg-gespraech{grid-template-columns:300px minmax(0,1fr);gap:48px;margin-top:40px}
+.fg-gespraech-seite{display:grid;gap:28px;align-content:start}
+.fg-visitenkarte{width:280px;max-width:100%;min-height:170px;box-sizing:border-box;display:grid;align-content:space-between;gap:12px;padding:20px 22px;border-radius:6px;background:#fff;border:1px solid var(--linie);
+  box-shadow:0 1px 2px rgba(12,26,46,.05),0 22px 40px -26px rgba(12,26,46,.35)}
+.fg-visitenkarte-titel{font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fg-visitenkarte-wer{display:flex;align-items:center;gap:14px}
+.fg-visitenkarte .monogramm{flex:0 0 46px;width:46px;height:46px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--navy);color:#fff;font:400 21px/1 var(--serif)}
+.fg-visitenkarte-wer b{font:400 22px/1.1 var(--serif);color:var(--tinte)}
+.fg-visitenkarte p{font-size:13px;line-height:1.5;color:var(--text)}
+.fg-neu .fg-tag{min-width:64px;height:72px;min-height:72px;padding:8px 6px;display:grid;align-content:center;gap:2px}
+.fg-neu .fg-tag b{margin-top:0;font:400 22px/1 var(--serif)}
+.fg-neu .fg-tag small.monat{font-size:10px;letter-spacing:.06em}
+.fg-schritt.zwei{animation:fg-schritt-ein 240ms var(--fg-ease) both}
+@keyframes fg-schritt-ein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.fg-neu .fg-gewaehlt{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0}
+.fg-rueckruf-schalter{display:inline-block;margin-top:14px;padding:0;border:0;background:none;font:400 12.5px/1.4 var(--sans);color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3);cursor:pointer}
+@media(max-width:960px){.fg-neu .fg-gespraech{grid-template-columns:minmax(0,1fr);gap:20px;margin-top:28px}.fg-visitenkarte{width:100%;min-height:0}}
+/* Am Handy passten genau vier Blätter, nichts ragte herein — die Tage 5 bis 10 fand niemand (06.10.2026).
+   Jetzt ragt das fünfte Blatt etwa zur Hälfte ins Bild: Man sieht, dass die Leiste weitergeht. */
+@media(max-width:640px){.fg-neu .fg-tag{flex:0 0 calc((100% - 3 * 8px) / 4.5);min-width:0}}
+@media(max-width:720px){.fg-neu .fg-gespraech-sek{padding:64px 0}}
+
+/* ── 7 Fragen: fünf sichtbar, der Rest im DOM hinter „Alle 17 Fragen“ ──── */
+.fg-neu .fg-fragen-liste>div:first-child{margin-top:0!important}
+.fg-fragen-rest{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s var(--fg-ease)}
+.fg-fragen-rest.auf{grid-template-rows:1fr}
+.fg-fragen-rest>div{overflow:hidden;min-height:0}
+.fg-fragen-rest>div>div{margin-top:0!important}
+.fg-fragen-mehr{margin-top:16px}
+.fg-neu .fg-fragen-kopf .fg-fragen-alle{display:inline-flex;margin-top:22px;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
+.fg-neu #fragen{padding:80px 0}
+@media(max-width:720px){.fg-neu #fragen{padding:64px 0}}
+
+/* ── 8 Schlussband (HF-4 kommt mit Scheibe C) ─────────────────────────── */
+.fg-neu .fg-schluss{padding:96px 0 100px}
+.fg-neu .fg-schluss .fg-knoepfe{margin-top:30px}
+
+/* ── Klebeleiste am Handy (Bauplan 2.12): eine helle Glasleiste am unteren Rand ──
+   06.10.2026 (Gutachten): nur bis 640 px (global.css .fg-mobil) — darüber setzt keine Wischreihe die Wahl.
+   Kein Polster mehr unter der Seite: Am Seitenende ist die Leiste ohnehin aus (Schlussband im Bild), das
+   Polster war nur ein heller 64-px-Streifen zwischen dunklem Schlussband und dunklem Fuß. */
+@media(max-width:640px){
+  .fg-neu .fg-mobil{left:0;right:0;bottom:0;border-radius:0;border-width:1px 0 0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));min-height:64px;box-sizing:border-box;box-shadow:0 -10px 30px rgba(12,26,46,.08)}
+  .fg-neu .fg-mobil a,.fg-neu .fg-mobil button{min-height:44px;font-size:13.5px;line-height:1.25}
+  .fg-neu .fg-mobil .hell{flex:0 0 36%}
+  /* In den Paketen einzeilig: „Struktur · 2.499 € — beauftragen“ (bei 375 px brach es zweizeilig um, 06.10.2026). */
+  .fg-neu .fg-mobil.in-paketen .hell{flex:0 0 31%}
+  .fg-neu .fg-mobil.in-paketen a,.fg-neu .fg-mobil.in-paketen button{padding:0 8px;white-space:nowrap}
+  /* Im Paketabschnitt fährt der Kopf beim Abwärtsscrollen ein (business.tsx, html.fg-kopf-weg) — die Viererwahl
+     rückt nach oben; statt drei klebenden Leisten (≈ 200 von 812 px) bleiben zwei. */
+  html.fg-dokument .gk{transition:transform .3s cubic-bezier(.2,.7,.2,1),border-color .25s,box-shadow .25s,background .25s}
+  html.fg-kopf-weg .gk{transform:translateY(-100%)}
+  .fg-neu .fg-paket-wahl{transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+  html.fg-kopf-weg .fg-neu .fg-paket-wahl{transform:translateY(-68px)}
+}
+.fg-mobil-linie{position:absolute;left:0;right:0;top:-1px;height:2px;display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
+.fg-mobil-linie i{background:var(--linie)}
+.fg-mobil-linie i.an{background:var(--navy)}
+
+/* ── Fuß: „Drei Orte“ mit Mini-Uhren (auf dem dunklen Fuß) ──────────────── */
+.gf-drei-orte{margin:52px 0 0;padding:20px 0 24px;border-top:1px solid rgba(255,255,255,.12);border-bottom:1px solid rgba(255,255,255,.12)}
+/* Bis Scheibe B ohne Bögen: Das schmale SVG schwebte mittig über der vollen Uhrenreihe, die Punkte standen
+   nicht über ihren Uhren und lasen sich als loser Schnörkel (Gutachten 06.10.2026). Scheibe B koppelt die
+   Punkte an die Spaltenmitten und schaltet die Karte wieder ein. */
+.gf-orte-karte{display:none;width:100%;height:110px}
+.gf-orte-karte .bogen{fill:none;stroke:rgba(205,213,224,.4);stroke-width:1;vector-effect:non-scaling-stroke}
+.gf-orte-karte .punkt{fill:#cdd5e0}
+.gf-orte-karte .punkt.sie{fill:#93c5fd}
+.gf-orte-karte .punkt.miami{fill:#60a5fa}
+.gf-orte-karte .punkt.neben{fill:rgba(205,213,224,.6)}
+.gf-orte-liste{list-style:none;margin:8px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.gf-orte-liste li{display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:14px;row-gap:3px;align-content:start}
+.gf-orte-liste li>*:not(.fg-uhr-mini){grid-column:2}
+.gf-orte-liste .fg-uhr-mini{grid-row:1/span 3;margin:0}
+.gf-orte-liste b{font:500 14px/1.35 var(--gk-sans,inherit);color:#fff}
+.gf-orte-liste span:last-child{font:400 12.5px/1.45 var(--gk-sans,inherit);color:rgba(255,255,255,.6)}
+.fg-uhr-mini{display:block;width:64px;height:64px;margin-bottom:8px}
+.fg-uhr-mini svg{display:block;width:100%;height:100%}
+.fg-uhr-mini .flaeche{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.35);stroke-width:2}
+.fg-uhr-mini .strich{stroke:rgba(255,255,255,.45);stroke-width:3;stroke-linecap:round}
+.fg-uhr-mini .strich.gross{stroke:#fff;stroke-width:5}
+.fg-uhr-mini .zeiger{transform-box:view-box;transform-origin:100px 100px}
+.fg-uhr-mini .stunde path,.fg-uhr-mini .minute path{fill:#fff}
+.fg-uhr-mini .sekunde line{stroke:#60a5fa;stroke-width:3;stroke-linecap:round}
+.fg-uhr-mini .nabe{fill:#fff}
+@media(max-width:720px){
+  .gf-orte-liste{grid-template-columns:minmax(0,1fr);gap:14px;margin-top:0}
+  .gf-orte-liste li{grid-template-columns:56px minmax(0,1fr);column-gap:14px;row-gap:2px}
+  .gf-orte-liste li>*:not(.fg-uhr-mini){grid-column:2}
+  .gf-orte-liste .fg-uhr-mini{grid-row:1/span 3;width:56px;height:56px;margin:0}
+}
+
+/* ── Weniger Bewegung: jeder Endzustand sofort ─────────────────────────── */
+@media(prefers-reduced-motion:reduce){
+  .fg-hero-objekt,.fg-schritt.zwei{animation:none!important}
+  .fg-hero-objekt{opacity:1}
+  .fg-weg-knoten>*,.fg-weg-punkt,.fg-stern .ebene-ohne,.fg-stern .ebene-mit,.fg-stern .mitte,.fg-fragen-rest,.fg-wisch-punkte i,.fg-hero-objekt{transition:none!important}
+  [data-an="1"] .fg-h2{animation:none}
+  .fg-weg-linie path,.fg-stern path,.fg-beleg-haken path,.gf-orte-karte path{stroke-dashoffset:0}
+}

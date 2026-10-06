@@ -699,6 +699,12 @@ a.mp-name:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .mara *, .mara *::before, .mara *::after { transition: none !important; animation: none !important; }
 }
+/* E-294 (06.10.2026): fünf Reiter (dazu „Social") — am Handy (390 px) passen sie nur mit
+   schmalerem Rand und 13 px Schrift in eine Zeile, samt Zahlmarken. Keine Querrolle. */
+@media (max-width: 440px) {
+  .mara .mara-reiter button { padding: 0 3px; font-size: 13px; gap: 4px; }
+  .mara .mara-reiter .mara-zahlmarke { min-width: 17px; height: 17px; padding: 0 4px; font-size: 10.5px; margin-left: 3px; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    E-261 (29.09.2026): WHATSAPP-BREMSE — Chip „WhatsApp" und sein Aufklapper

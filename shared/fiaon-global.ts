@@ -396,6 +396,27 @@ export const GLOBAL_JAHRESBETREUUNG = {
     // Vertragssprache (Ziffern 2 und 5) — kein „Ihr", „unser", „wir" (pruef-global-vertrag.ts).
     vertrag: "Der Auftraggeber bucht die Jahresbetreuung dazu. Ab dem zweiten Jahr nach der Gründung übernimmt FIAON für 699 € je Betreuungsjahr: den Registered Agent und die US-Geschäftsadresse, die US-Telefonnummer, die jährliche US-Meldung (Form 5472 mit Form 1120) durch einen US-CPA aus dem Partnernetz von FIAON, die Jahresmeldung beim Bundesstaat einschließlich der Staatsgebühr, den Pflichtenkalender und einen festen Ansprechpartner. Alle Gebühren und Honorare für diese Leistungen sind im Preis enthalten.",
     vertragBedingungen: "Die Jahresbetreuung wird jährlich im Voraus berechnet und verlängert sich nicht von selbst: Mit der Zahlung der Jahresrechnung beginnt das jeweilige Betreuungsjahr. Bleibt die Zahlung aus, endet die Jahresbetreuung; die laufenden Kosten der Gesellschaft trägt der Auftraggeber dann selbst.",
+    // 06.10.2026 (E-293): /business zeigt die Jahresbetreuung als schmales Band mit Jahresring — die sechs
+    // Ringbeschriftungen sind Kurzformen der `leistungen` oben (die vollen Sätze stehen unter „So funktioniert
+    // es" im DOM). Warum hier und nicht in i18n: Preis, Leistungen und Bedingungen haben EINE Quelle, und
+    // Wortwand sowie pruef-global-seiten.ts §9 lesen diese Datei.
+    kurzLeistungen: [
+      "Registered Agent und Adresse",
+      "US-Telefonnummer",
+      "US-Meldung durch unseren US-CPA",
+      "Jahresmeldung samt Staatsgebühr",
+      "Pflichtenkalender",
+      "Ihr Ansprechpartner",
+    ],
+    // 06.10.2026 (E-293, Rechtsgutachten): „um alles“ war eine Pauschale ohne Grenze — laufende Buchhaltung und
+    // Steuererklärungen im Wohnsitzland stehen ausdrücklich unter „Nicht im Festpreis“. Und „Jahr 1: im Paket“
+    // stand direkt am Ring mit den sechs Leistungen, als wären alle sechs im ersten Jahr im Paket; die
+    // Jahresmeldung beim Bundesstaat steht aber in keinem Paket, der Pflichtenkalender erst ab Global Banking
+    // (§ 5 Abs. 1 UWG). Darum sagt das erste Segment nur noch „Leistungen Ihres Pakets“. `kurz` bleibt
+    // (Justins Satz, steht an anderen Orten mit der Leistungsliste daneben).
+    bandSatz: "Wir kümmern uns fortlaufend um die US-Pflichten Ihrer Gesellschaft — alle Gebühren inklusive.",
+    zeitleiste: ["Jahr 1: Leistungen Ihres Pakets", "Ab Jahr 2: Jahresbetreuung"],
+    bandBedingung: "Jährlich im Voraus berechnet, verlängert sich nicht von selbst.",
   },
   en: {
     titel: "Annual care plan",
@@ -417,6 +438,17 @@ export const GLOBAL_JAHRESBETREUUNG = {
     nichtHeute: "Only the package price is due today; we invoice the annual care plan from the second year.",
     vertrag: "The Client adds the annual care plan. From the second year after formation, FIAON takes over for €699 per year of care: the registered agent and the US business address, the US phone number, the annual US filing (Form 5472 with Form 1120) by a US CPA from FIAON’s partner network, the annual report to the state including the state fee, the compliance calendar and a dedicated contact. All fees and charges for these services are included in the price.",
     vertragBedingungen: "The annual care plan is billed annually in advance and does not renew automatically: each year of care begins when the annual invoice is paid. If payment is not made, the annual care plan ends and the Client then bears the company’s running costs itself.",
+    kurzLeistungen: [
+      "Registered agent and address",
+      "US phone number",
+      "US filing by our US CPA",
+      "Annual report incl. state fee",
+      "Compliance calendar",
+      "Your dedicated contact",
+    ],
+    bandSatz: "We take care of your company’s US obligations on an ongoing basis — all fees included.",
+    zeitleiste: ["Year 1: your package’s services", "From year 2: annual care plan"],
+    bandBedingung: "Billed annually in advance, does not renew automatically.",
   },
 } as const;
 
@@ -583,6 +615,71 @@ export const GLOBAL_GELD_ZURUECK = {
     vertrag: "If the Client’s US company and the EIN are not in place by the date agreed between FIAON and the Client at the start, FIAON refunds the package price.",
     vertragBedingungen: "This requires complete documents and the Client’s cooperation. It does not cover a refusal by an authority for reasons relating to the Client or its business. Decisions by banks and card issuers are not part of this commitment.",
   },
+} as const;
+
+// ── DAS PERSÖNLICHE ANGEBOT MIT BÜRGSCHAFTSZUSAGE (06.10.2026, E-293) ───────
+// Justin (Logbuch 06.10.): „Business-Bereich … Texte neu (auch Bürgschaft bei ausgewählten
+// Kunden)". Der Abschnitt auf /business beschreibt das Individualangebot (E-268,
+// shared/fiaon-global-angebot.ts), nicht die vier Pakete — deshalb steht er zwei Abschnitte
+// von den Pakettafeln entfernt und nie in H1, Hero, Meta, SEO-Korpus, FAQ-Markup, auf
+// Landingpages oder in Anzeigen (pruef-global-seiten.ts §5/§8).
+// Der Zusagesatz ist auf Anlage 1 zurückgeschnitten (Ziffer 1: nur Finanzierungen, deren
+// Antrag FIAON vorbereitet oder begleitet; Ziffern 2, 4, 7: Höchstbetrag, Voraussetzungen und
+// Dauer legt das Angebot fest). Kein „garant…", kein „bis zu/maximal/höchstens", keine
+// Dollarzahl (der Höchstbetrag ist je Angebot verschieden), kein „kostenlos" (im Preis des
+// Angebots enthalten), kein Pauschalsatz „keine persönliche Haftung" (Kartenhaftung steht
+// direkt dabei). Die Verbindung wird zur Laufzeit aus GLOBAL_VERBUNDEN gelesen, nie kopiert.
+//
+// SCHALTER: `aktiv` bleibt false, bis (1) ein Sunbiz-Auszug mit Status „Active" für die
+// Schwarzott Global LLC (Document Number L24000309016) in der Akte liegt und `register` in
+// shared/fiaon-global-partner.ts nachgetragen ist, und (2) die Anwaltsantwort vorliegt, dass
+// das wiederholt öffentlich angebotene Übernehmen von Bürgschaften kein erlaubnispflichtiges
+// Garantiegeschäft nach § 1 Abs. 1 S. 2 Nr. 8 KWG ist und § 34c GewO nicht greift.
+// Englisch gibt es in Fassung 1 nicht (das Angebot gibt es nur auf Deutsch,
+// fiaon-global-bereich.ts) — `en: null`.
+// Bedingung (1) prüft pruef-global-seiten.ts §8 hart: `aktiv` ohne eingetragenes `register` ist rot.
+//
+// FÜR DIE ANWALTSRUNDE VOR SCHEIBE E (Rechtsgutachten 06.10.2026):
+// · Anlage 1 Ziffer 6 nimmt gesetzliche Ansprüche wegen vorsätzlich falscher Angaben vom Haftungs-
+//   ausschluss aus; „Sie persönlich haften dafür nicht“ (gilt.punkte[1]) ist absolut formuliert.
+//   Ändert der Anwalt den Satz (z. B. „… — außer bei vorsätzlich falschen Angaben“), gilt das hier und
+//   überall, wo der Satz steht. Im Schaubild steht deshalb schon jetzt „Rückgriff auf die Gesellschaft“
+//   ohne „nur“ — eine Grafikbeschriftung trägt keinen Bedingungssatz.
+// · Die Plakette (GlobalBuergschaft.tsx) ist eine runde Prägeform neben „Bürgschaftszusage“: Justin und
+//   dem Anwalt mit dem Schaubild zeigen (UWG Anhang Nr. 2, keine siegelartigen Zeichen). Bleiben
+//   Zweifel, wird sie eine schlichte Wortmarke ohne Ringform.
+export const GLOBAL_BUERGSCHAFT_SEITE = {
+  aktiv: false as boolean,
+  de: {
+    auge: "Für ausgewählte Vorhaben",
+    h2: "Das persönliche Angebot — mit Bürgschaftszusage.",
+    text: "Nach unserer Prüfung erstellen wir ein persönliches Angebot mit eigenem Vertrag. Dazu gehört eine Bürgschaftszusage der Schwarzott Global LLC: Verlangt ein Institut für eine Finanzierung Ihrer US-Gesellschaft, deren Antrag wir vorbereiten oder begleiten, eine Bürgschaft, übernimmt sie die Schwarzott Global LLC — mit dem Höchstbetrag, unter den Voraussetzungen und für die Dauer, die Ihr Angebot festlegt.",
+    schaubild: {
+      titel: "Wer bürgt wofür",
+      institut: "Institut",
+      gesellschaft: "Ihre US-Gesellschaft",
+      buergin: "Schwarzott Global LLC · Bürgin",
+      sie: "Sie",
+      finanzierung: "Finanzierung",
+      buergschaft: "Bürgschaft auf Anforderung",
+      rueckgriff: "Rückgriff auf die Gesellschaft",
+    },
+    plakette: "Schwarzott Global LLC",
+    gilt: {
+      titel: "Was dabei gilt",
+      punkte: [
+        "Ob ein Institut eine Bürgschaft verlangt oder annimmt und zu welchen Bedingungen es finanziert, legt das Institut fest.",
+        "Zahlt die Bürgin, kann sie den Betrag von Ihrer Gesellschaft zurückverlangen; Sie persönlich haften dafür nicht.",
+        "Verlangt ein Kartenherausgeber selbst die persönliche Haftung des Inhabers, ersetzt die Bürgschaft sie nur mit seiner Zustimmung.",
+        "Eine gesonderte Avalprovision gibt es nicht — die Bürgschaft ist im Preis des Angebots enthalten.",
+        "Die vier Pakete enthalten keine Bürgschaft; einen Anspruch auf ein persönliches Angebot gibt es nicht.",
+      ],
+    },
+    aufruf: "Im Erstgespräch klären wir, ob ein persönliches Angebot für Ihr Vorhaben in Frage kommt.",
+    knopf: "Persönliches Angebot besprechen",
+    thema: "Persönliches Angebot",
+  },
+  en: null,
 } as const;
 
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte.

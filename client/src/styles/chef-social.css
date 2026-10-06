@@ -1,0 +1,416 @@
+/* ═══ Social-Studio im Mara-Steuerpult (06.10.2026, E-294) — Präfix .so- ═══
+   Reiter „Social" unter /chef/s/mara?reiter=social&sicht=plan|vorschau&post=<id>.
+   Läuft in der dunklen Mara-Welt und nutzt deren Bausteine (chef-mara.css):
+   Tokens --m-*, .mara-knopf, .mara-pille, .mara-punkt, .mara-karte, .mara-glas.
+   Regeln (Justin, Designsystem des Steuerpults):
+   · Genau EIN .mara-glas je Unteransicht — Plan: die Kopfkarte „Heute zu posten",
+     Post-Detail: der Handy-Rahmen, Vorschau: keines (das Profil steht im Handy, matt).
+     Diese Datei hat KEINE eigene backdrop-filter-Regel.
+   · Im Handy sieht die App aus wie in echt: hell wie Instagram (das ist die
+     „helle Fläche" des Konzepts) — nur dort helle Farben.
+   · Kanalfarben sind eigene Tokens (--so-kanal-*), getrennt von Status (gut/warn/krit)
+     und vom Blau-Paar. Kanäle tragen immer zusätzlich ihr Kürzel (IG, FB …).
+   · Inter 300/400, tabellarische Ziffern nur an Zahlen, keine Dauer-Animation,
+     prefers-reduced-motion. Handy 390 px ohne Querscrollen, Tippziele ≥ 40 px. */
+
+.so {
+  --so-kanal-instagram: #E66AA5;
+  --so-kanal-facebook: #7C93FF;
+  --so-kanal-linkedin: #4FB3D9;
+  --so-kanal-tiktok: #6FE3DA;
+  --so-kanal-youtube: #FF9466;
+  --so-kanal-threads: #C3CCDB;
+  --so-ig-text: #0F1419;
+  --so-ig-leise: #737373;
+  --so-ig-linie: #DBDBDB;
+  --so-ig-blau: #0095F6;
+  min-width: 0;
+}
+.so-verborgen { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── Kopfzeile des Reiters: Plan | So sieht es aus · Stand ─────────────── */
+.so-kopf { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin: -4px 0 16px; }
+.so-kopf .mara-ansicht { margin: 0; flex-wrap: wrap; }
+.so-kopf-rechts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.so-zurueck { margin: -4px 0 14px; }
+
+/* ── Kanal-Kürzel und Format-Zeichen ─────────────────────────────────── */
+.so-kanaele { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.so-kanal {
+  display: inline-grid; place-items: center; min-width: 24px; height: 20px; padding: 0 5px; border-radius: 6px;
+  border: 1px solid currentColor; font-size: 10.5px; letter-spacing: .04em; line-height: 1; font-weight: 500; opacity: .92;
+}
+.so-kanal[data-k="instagram"] { color: var(--so-kanal-instagram); }
+.so-kanal[data-k="facebook"] { color: var(--so-kanal-facebook); }
+.so-kanal[data-k^="linkedin"] { color: var(--so-kanal-linkedin); }
+.so-kanal[data-k="tiktok"] { color: var(--so-kanal-tiktok); }
+.so-kanal[data-k="youtube_shorts"] { color: var(--so-kanal-youtube); }
+.so-kanal[data-k="threads"] { color: var(--so-kanal-threads); }
+.so-format { display: inline-flex; align-items: center; gap: 5px; color: var(--m-text-2); font-size: 12px; }
+.so-format svg { width: 14px; height: 14px; flex: none; }
+.so-zeichen { width: 16px; height: 16px; flex: none; }
+
+/* ── Plan: die eine Glasfläche „Heute zu posten" ───────────────────────── */
+.so-heute { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: center; }
+.so-heute h2 { font-size: 18px; }
+.so-heute-liste { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.so-heute-liste li { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13.5px; color: var(--m-text); }
+.so-heute-liste .uhr { width: 62px; flex: none; color: var(--m-text-2); font-variant-numeric: tabular-nums; }
+.so-heute-liste .titel { min-height: 0; }
+.so-pos { font-variant-numeric: tabular-nums; color: var(--m-text-2); }
+.so-heute-liste .so-pos.nr { width: 30px; flex: none; }
+.so-heute-liste .titel { flex: 1; min-width: 0; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--m-text); }
+.so-heute-liste .titel:hover { color: var(--m-licht-text); }
+.so-heute-liste .titel .t { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-countdown { text-align: right; }
+.so-countdown b { display: block; font-weight: 300; font-size: 30px; line-height: 1.1; color: var(--m-text); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.so-countdown small { display: block; margin: 2px 0 10px; font-size: 12.5px; color: var(--m-text-3); }
+
+/* ── Plan: Filter und Wochenleiste ──────────────────────────────────── */
+.so-werkzeug { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; margin: 18px 0 12px; }
+.so-filter { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.so-filter select { min-height: 36px; padding: 4px 10px; font-size: 13px; }
+.so-woche { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.so-woche .was { min-width: 150px; text-align: center; font-size: 13.5px; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.so-pruefung { margin: 0 0 12px; }
+
+/* Woche: sieben Spalten am breiten Schirm */
+.so-wochenraster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.so-tag {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 180px; padding: 10px 8px; border-radius: 12px;
+  border: 1px solid var(--m-linie); background: var(--m-matt);
+}
+.so-tag.heute { border-color: rgba(40, 141, 250, .45); }
+.so-tag.ziel { border-color: rgba(125, 184, 255, .7); background: rgba(40, 141, 250, .07); }
+.so-tag-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 12.5px; color: var(--m-text-2); }
+.so-tag-kopf b { font-weight: 400; color: var(--m-text); font-variant-numeric: tabular-nums; }
+.so-tag-leer { font-size: 12px; color: var(--m-text-3); }
+
+/* Eine Post-Karte */
+.so-karte {
+  display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; padding: 6px; border-radius: 10px;
+  border: 1px solid var(--m-linie-2); background: rgba(255, 255, 255, .025); color: var(--m-text); text-align: left; cursor: pointer;
+  font: inherit;
+}
+.so-karte[draggable="true"] { cursor: grab; }
+.so-karte.verworfen { opacity: .55; }
+.so-karte.verworfen .titel { text-decoration: line-through; }
+@media (hover: hover) { .so-karte:hover { border-color: rgba(125, 184, 255, .45); } }
+.so-karte .bild { position: relative; width: 100%; aspect-ratio: 4 / 5; border-radius: 7px; overflow: hidden; background: rgba(255, 255, 255, .05); }
+.so-karte .bild img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.so-karte .bild .so-zeichen { position: absolute; top: 6px; right: 6px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .55)); }
+.so-karte .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; font-size: 12px; color: var(--m-text-2); }
+.so-karte .zeile .uhr { font-variant-numeric: tabular-nums; color: var(--m-text); }
+.so-karte .titel { font-size: 12.5px; line-height: 1.35; color: var(--m-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.so-karte .mara-punkt { margin-left: auto; }
+
+/* Schmale Karte in der Woche (mehr als zwei Posts am Tag): Bildchen links, Text rechts */
+.so-karte.eng { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: start; padding: 5px; }
+.so-karte.eng .bild .so-zeichen { width: 12px; height: 12px; top: 3px; right: 3px; }
+.so-karte.eng .text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.so-karte.eng .titel { font-size: 12px; }
+.so-karte.eng .so-kanal { min-width: 20px; height: 17px; padding: 0 3px; font-size: 9.5px; }
+
+/* Liste (Handy, Monat): Tag als Überschrift, Karten waagrecht */
+.so-tagesliste { display: flex; flex-direction: column; gap: 14px; }
+.so-tagesliste .so-tag { min-height: 0; padding: 12px; }
+.so-tagesliste .so-karte { flex-direction: row; align-items: center; gap: 12px; padding: 8px; }
+.so-tagesliste .so-karte .bild { width: 64px; flex: none; }
+.so-tagesliste .so-karte .text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.so-tagesliste .so-karte .titel { font-size: 13.5px; }
+
+/* Monat: sieben Spalten mit kleinen Bildchen */
+.so-monat { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.so-monat .wt { padding: 0 4px 2px; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--m-text-3); }
+.so-monat-tag { min-height: 96px; padding: 6px; border-radius: 10px; border: 1px solid var(--m-linie); background: var(--m-matt); min-width: 0; }
+.so-monat-tag.fremd { opacity: .4; }
+.so-monat-tag.heute { border-color: rgba(40, 141, 250, .45); }
+.so-monat-tag .nr { font-size: 12px; color: var(--m-text-2); font-variant-numeric: tabular-nums; }
+.so-monat-tag .bilder { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin-top: 4px; }
+.so-monat-tag .bilder button { position: relative; padding: 0; border: 0; border-radius: 4px; overflow: hidden; aspect-ratio: 4 / 5; background: rgba(255, 255, 255, .06); cursor: pointer; }
+.so-monat-tag .bilder img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.so-monat-tag .bilder .mara-punkt { position: absolute; left: 3px; bottom: 3px; width: 6px; height: 6px; box-shadow: none; }
+
+.so-leer { padding: 22px; border-radius: var(--m-r); border: 1px dashed var(--m-linie-2); color: var(--m-text-2); font-size: 13.5px; line-height: 1.6; }
+.so-leer b { font-weight: 400; color: var(--m-text); }
+.so-leer code { font-size: 12.5px; color: var(--m-licht-text); }
+
+/* ── Post-Detail: links das Handy (Glas), rechts die matte Arbeitsspalte ─ */
+.so-detail { display: grid; grid-template-columns: minmax(320px, 410px) minmax(0, 1fr); gap: 22px; align-items: start; }
+.so-detail > .mara-glas { padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.so-detail-arbeit { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.so-detail-kopf { display: flex; flex-direction: column; gap: 8px; }
+.so-detail-kopf h2 { font-size: 22px; line-height: 1.25; }
+.so-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--m-text-2); }
+.so-meta .tabzahl { font-variant-numeric: tabular-nums; }
+.so-ansicht-wahl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.so-ansicht-wahl .mara-ansicht { margin: 0; }
+
+/* Texte mit Kopieren und Zeichenzählung */
+.so-text { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--m-linie); }
+.so-text:first-child { padding-top: 0; border-top: 0; }
+.so-text-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.so-text-kopf .mara-etikett { margin-right: auto; }
+.so-text pre {
+  margin: 0; padding: 12px 14px; max-height: 320px; overflow: auto; border-radius: 10px; border: 1px solid var(--m-linie);
+  background: rgba(6, 12, 24, .45); color: var(--m-text); font: 400 13.5px/1.6 'Inter', -apple-system, sans-serif;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.so-text pre.leer { color: var(--m-text-3); }
+.so-zaehl { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--m-text-3); }
+.so-zaehl span { font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.so-zaehl .ueber { color: var(--m-krit); }
+.so-zaehl .knapp { color: var(--m-warn); }
+.so-bildtexte { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.so-bildtexte li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; font-size: 13px; color: var(--m-text-2); }
+.so-bildtexte li span { color: var(--m-text-3); font-variant-numeric: tabular-nums; }
+
+/* Wort-Check */
+.so-wort { display: flex; flex-direction: column; gap: 6px; }
+.so-wort ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.so-wort li { font-size: 13px; color: #F7C5C9; }
+.so-wort li small { display: block; color: var(--m-text-3); }
+
+/* Dateien */
+.so-dateien { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.so-dateien li { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 0; border-top: 1px solid var(--m-linie); min-width: 0; }
+.so-dateien li:first-child { border-top: 0; }
+.so-dateien .mini { width: 36px; height: 45px; flex: none; border-radius: 5px; overflow: hidden; background: rgba(255, 255, 255, .06); }
+.so-dateien .mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.so-dateien .name { flex: 1; min-width: 0; font-size: 13px; color: var(--m-text); overflow-wrap: anywhere; }
+.so-dateien .name small { display: block; font-size: 12px; color: var(--m-text-3); font-variant-numeric: tabular-nums; }
+
+/* Checkliste je Kanal */
+.so-check { display: flex; flex-direction: column; gap: 12px; }
+.so-check fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.so-check legend { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; padding: 0; font-size: 13px; color: var(--m-text); }
+.so-check label { display: flex; align-items: flex-start; gap: 10px; min-height: 40px; padding: 8px 0; font-size: 13.5px; color: var(--m-text-2); cursor: pointer; }
+.so-check label input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--m-licht); }
+.so-check label.pflicht { color: var(--m-text); }
+.so-check label .pflicht-marke { margin-left: 6px; font-size: 11.5px; color: var(--m-warn); white-space: nowrap; }
+.so-check label.erledigt { color: var(--m-text-3); }
+
+/* Status-Knöpfe und ihre Pflichtfelder */
+.so-aktionen { display: flex; gap: 8px; flex-wrap: wrap; }
+.so-pflicht { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding: 14px; border-radius: 12px; border: 1px solid var(--m-linie-2); background: rgba(255, 255, 255, .02); }
+.so-pflicht.warn { border-color: rgba(242, 182, 76, .4); background: rgba(242, 182, 76, .05); }
+.so-pflicht.krit { border-color: rgba(240, 113, 120, .4); background: rgba(240, 113, 120, .05); }
+.so-pflicht textarea.mara-eingabe { min-height: 84px; resize: vertical; line-height: 1.5; }
+.so-pflicht .mara-reihe .mara-eingabe { flex: 1 1 160px; }
+.so-pflicht .grund { font-size: 12px; color: var(--m-text-3); }
+.so-pflicht .grund.fehlt { color: var(--m-warn); }
+.so-permalink { display: flex; flex-direction: column; gap: 6px; }
+.so-permalink label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--m-text-2); }
+
+/* Verlauf */
+.so-verlauf { list-style: none; margin: 0; padding: 0; }
+.so-verlauf li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--m-linie); font-size: 12.5px; color: var(--m-text-2); }
+.so-verlauf li:first-child { border-top: 0; }
+.so-verlauf li span { color: var(--m-text-3); font-variant-numeric: tabular-nums; }
+
+/* ═══ DAS HANDY ══════════════════════════════════════════════════════════
+   Rahmen nach dem Vier-Schichten-Rezept (Titan, Kantenlicht, Display, Glanz),
+   ohne fixed — es steht im Fluss. Darin die App, hell wie in echt. */
+.so-handy {
+  position: relative; width: 100%; max-width: 340px; aspect-ratio: 390 / 844; padding: 11px; border-radius: 52px;
+  background: linear-gradient(145deg, #3A4352 0%, #1B212B 38%, #2B3340 70%, #151A22 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14), inset 0 0 0 3px rgba(0, 0, 0, .55), 0 30px 60px -30px rgba(0, 0, 0, .8);
+}
+.so-handy::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(115deg, rgba(255, 255, 255, .1) 0%, transparent 28%, transparent 72%, rgba(255, 255, 255, .05) 100%);
+}
+.so-bildschirm {
+  position: relative; width: 100%; height: 100%; border-radius: 42px; overflow: hidden; background: #fff; color: var(--so-ig-text);
+  font: 400 13px/1.4 -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; color-scheme: light;
+  display: flex; flex-direction: column;
+}
+.so-bildschirm.dunkel { background: #000; color: #fff; }
+.so-insel { position: absolute; top: 9px; left: 50%; width: 31%; height: 25px; margin-left: -15.5%; border-radius: 20px; background: #000; z-index: 5; }
+.so-statusleiste { display: flex; justify-content: space-between; align-items: center; height: 44px; padding: 6px 26px 0 30px; flex: none; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; z-index: 4; }
+.so-statusleiste svg { height: 11px; width: auto; }
+.so-bildschirm.dunkel .so-statusleiste { position: absolute; top: 0; left: 0; right: 0; color: #fff; }
+
+/* Instagram: Kopf der Beitragsansicht */
+.so-ig-leiste { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; flex: none; font-size: 15px; font-weight: 600; border-bottom: 1px solid #EFEFEF; }
+.so-ig-leiste svg { width: 20px; height: 20px; }
+.so-ig-leiste small { display: block; font-size: 11px; font-weight: 400; color: var(--so-ig-leise); }
+.so-ig-rolle { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.so-ig-rolle::-webkit-scrollbar { display: none; }
+.so-ig-kopf { display: flex; align-items: center; gap: 9px; padding: 9px 12px; }
+.so-ig-kopf .wer { flex: 1; min-width: 0; line-height: 1.25; }
+.so-ig-kopf .wer b { display: block; font-weight: 600; font-size: 13px; }
+.so-ig-kopf .wer small { display: block; font-size: 11px; color: var(--so-ig-text); }
+.so-ig-kopf .punkte { width: 18px; height: 18px; color: var(--so-ig-text); }
+.so-avatar {
+  display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; color: #fff;
+  background: #0c1a2e; box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px #E1306C;
+}
+.so-avatar svg { height: 46%; }
+.so-avatar.gross { width: 78px; height: 78px; box-shadow: 0 0 0 1px var(--so-ig-linie); }
+
+/* Karussell: CSS scroll-snap, zum Wischen; Pfeile am Rand, Zähler oben rechts */
+.so-karussell { position: relative; width: 100%; aspect-ratio: 4 / 5; background: #F2F2F2; overflow: hidden; }
+.so-karussell .spur {
+  display: flex; width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory;
+  scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x pan-y; cursor: grab;
+}
+.so-karussell .spur.zieht { cursor: grabbing; scroll-snap-type: none; }
+.so-karussell .spur::-webkit-scrollbar { display: none; }
+.so-karussell .folie { flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
+.so-karussell .folie img { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.so-karussell .zaehler {
+  position: absolute; top: 10px; right: 10px; padding: 3px 8px; border-radius: 12px; background: rgba(18, 18, 18, .72); color: #fff;
+  font-size: 11.5px; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.so-karussell .pfeil {
+  position: absolute; top: 50%; width: 28px; height: 28px; margin-top: -14px; padding: 0; border: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, .88); color: #262626; display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+.so-karussell .pfeil svg { width: 12px; height: 12px; }
+.so-karussell .pfeil.links { left: 8px; }
+.so-karussell .pfeil.rechts { right: 8px; }
+.so-karussell .pfeil:focus-visible { outline: 2px solid var(--so-ig-blau); outline-offset: 2px; }
+.so-ig-aktionen { position: relative; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px 4px; }
+.so-ig-aktionen .links { display: flex; gap: 12px; }
+.so-ig-aktionen svg { width: 22px; height: 22px; color: var(--so-ig-text); }
+.so-ig-aktionen .rechts { display: flex; }
+.so-ig-punkte { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -25%); display: flex; gap: 4px; }
+.so-ig-punkte i { width: 5px; height: 5px; border-radius: 50%; background: #C7C7C7; }
+.so-ig-punkte i.an { background: var(--so-ig-blau); }
+.so-ig-text { padding: 2px 12px 14px; font-size: 13px; line-height: 1.42; overflow-wrap: anywhere; }
+.so-ig-text b { font-weight: 600; margin-right: 5px; }
+.so-ig-text .rumpf { white-space: pre-wrap; }
+.so-ig-text .rumpf.zu { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.so-ig-text button.mehr { padding: 0; border: 0; background: none; color: var(--so-ig-leise); font: inherit; cursor: pointer; }
+.so-ig-text .wann { display: block; margin-top: 6px; font-size: 11px; color: var(--so-ig-leise); }
+.so-ig-ki { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--so-ig-text); }
+
+/* Reel: 9:16 randlos, Aktionen rechts, Text unten */
+.so-reel { position: relative; flex: 1; min-height: 0; background: #000; overflow: hidden; }
+/* contain statt cover: das ganze 9:16-Bild bleibt sichtbar (so prüft man Texte am Rand) — wie in der App auf hohen iPhones mit Rand oben/unten. */
+.so-reel video, .so-reel > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.so-reel .tippen { position: absolute; inset: 0; z-index: 1; padding: 0; border: 0; background: none; cursor: pointer; }
+.so-reel .spielen {
+  position: absolute; left: 50%; top: 50%; z-index: 2; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(0, 0, 0, .45); color: #fff; pointer-events: none;
+}
+.so-reel .spielen svg { width: 26px; height: 26px; margin-left: 3px; }
+.so-reel .seite { position: absolute; right: 10px; bottom: 78px; z-index: 2; display: flex; flex-direction: column; gap: 16px; color: #fff; }
+.so-reel .seite svg { width: 24px; height: 24px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+.so-reel .unten { position: absolute; left: 0; right: 52px; bottom: 0; z-index: 2; padding: 0 12px 16px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.so-reel .unten .wer { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 600; font-size: 13px; }
+.so-reel .unten .wer .so-avatar { width: 28px; height: 28px; box-shadow: 0 0 0 1.5px #fff; }
+.so-reel .unten p { margin: 0; font-size: 12.5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.so-reel .unten .so-ig-ki { color: #fff; margin-top: 4px; }
+.so-reel .ton {
+  position: absolute; right: 10px; top: 54px; z-index: 3; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(0, 0, 0, .5); color: #fff; cursor: pointer;
+}
+.so-reel .ton svg { width: 16px; height: 16px; }
+.so-reel .lauf { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; height: 3px; background: rgba(255, 255, 255, .25); }
+.so-reel .lauf i { display: block; height: 100%; background: #fff; }
+.so-reel .titelbild-marke { position: absolute; left: 12px; top: 54px; z-index: 3; padding: 3px 8px; border-radius: 10px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px; }
+
+/* Story: 9:16 mit eingezeichneten Freiräumen */
+.so-story { position: relative; flex: 1; min-height: 0; background: #111; }
+.so-story > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.so-story .frei { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .14) 0 6px, transparent 6px 12px); border: 1px dashed rgba(255, 255, 255, .7); color: #fff; font-size: 10.5px; display: grid; place-items: center; }
+.so-story .frei.oben { top: 0; height: 14%; }
+.so-story .frei.unten { bottom: 0; height: 18%; }
+.so-story .sticker { position: absolute; left: 14%; right: 14%; top: 56%; height: 14%; border: 1.5px dashed #FFD24A; border-radius: 12px; display: grid; place-items: center; color: #FFD24A; font-size: 11px; background: rgba(0, 0, 0, .25); }
+
+/* Text- oder Dokument-Beitrag ohne Medienvorschau */
+.so-ohne { margin: 12px; padding: 16px; border-radius: 10px; border: 1px solid var(--so-ig-linie); font-size: 12.5px; color: var(--so-ig-leise); line-height: 1.5; }
+
+/* Leiste unten (Home-Balken) */
+.so-heimbalken { height: 22px; flex: none; display: grid; place-items: center; }
+.so-heimbalken i { width: 38%; height: 5px; border-radius: 3px; background: #111; }
+.so-bildschirm.dunkel .so-heimbalken { position: absolute; bottom: 0; left: 0; right: 0; z-index: 4; }
+.so-bildschirm.dunkel .so-heimbalken i { background: #fff; }
+
+/* ═══ Vorschau „So sieht es aus": Instagram-Profil im Handy ═══════════════ */
+.so-vorschau { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 22px; align-items: start; }
+.so-vorschau-handy { display: flex; justify-content: center; padding: 18px; border-radius: var(--m-r); border: 1px solid var(--m-linie); background: var(--m-matt); }
+.so-vorschau-seite { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.so-regler { display: flex; flex-direction: column; gap: 8px; }
+.so-regler .mara-ansicht { margin: 0; flex-wrap: wrap; }
+.so-ig-profil { padding: 10px 14px 6px; }
+.so-ig-profil .oben { display: flex; align-items: center; gap: 18px; }
+.so-ig-profil .zahlen { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); text-align: center; }
+.so-ig-profil .zahlen b { display: block; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+.so-ig-profil .zahlen span { font-size: 12px; }
+.so-ig-profil .name { margin-top: 8px; font-weight: 600; font-size: 13px; }
+.so-ig-profil .bio { font-size: 12.5px; line-height: 1.4; white-space: pre-line; }
+.so-ig-profil .bio.leise { color: var(--so-ig-leise); font-style: italic; }
+.so-ig-profil .knoepfe { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.so-ig-profil .knoepfe span { display: grid; place-items: center; height: 30px; border-radius: 8px; background: #EFEFEF; font-size: 12.5px; font-weight: 600; }
+.so-ig-reiter { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 10px; border-bottom: 1px solid #EFEFEF; }
+.so-ig-reiter span { display: grid; place-items: center; height: 38px; color: var(--so-ig-leise); }
+.so-ig-reiter span.an { color: var(--so-ig-text); box-shadow: inset 0 -1px 0 var(--so-ig-text); }
+.so-ig-reiter svg { width: 20px; height: 20px; }
+/* Das Raster: 3:4 aus der Mitte jedes 4:5-Beitrags (Instagram seit 2025) */
+.so-raster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+.so-raster button { position: relative; padding: 0; border: 0; aspect-ratio: 3 / 4; overflow: hidden; background: #EFEFEF; cursor: pointer; display: block; }
+.so-raster img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; display: block; }
+.so-raster .so-zeichen { position: absolute; top: 6px; right: 6px; width: 15px; height: 15px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+.so-raster .geplant {
+  position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 8px; background: rgba(12, 26, 46, .78); color: #fff;
+  font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none;
+}
+/* Prüfung 06.10.2026: keine Rahmen mehr — randlos wie in der App. Markierungen nur auf
+   Wunsch („Mit Markierungen“): kleiner Status-Punkt oben links, Datum unten links. */
+.so-raster .marke { position: absolute; top: 6px; left: 6px; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: rgba(12, 26, 46, .7); pointer-events: none; }
+.so-raster .marke .mara-punkt { width: 7px; height: 7px; margin: 0; }
+.so-raster button:focus-visible { outline: 2px solid var(--so-ig-blau); outline-offset: -2px; z-index: 1; }
+.so-raster .leer { aspect-ratio: 3 / 4; background: #FAFAFA; }
+.so-raster-legende { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--m-text-2); }
+.so-raster-legende i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px; border-radius: 3px; }
+.so-raster-legende i { border-radius: 50%; width: 9px; height: 9px; vertical-align: 0; }
+.so-raster-legende i.geplant { background: var(--m-licht); }
+.so-raster-legende i.frei { background: var(--m-warn); }
+.so-raster-legende i.live { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5); }
+
+/* ═══ Umbrüche ══════════════════════════════════════════════════════════ */
+@media (max-width: 980px) {
+  .so-detail { grid-template-columns: minmax(0, 1fr); }
+  .so-detail > .mara-glas { order: -1; }
+  .so-vorschau { grid-template-columns: minmax(0, 1fr); }
+  .so-vorschau-handy { order: -1; }
+}
+@media (max-width: 760px) {
+  .so-heute { grid-template-columns: minmax(0, 1fr); }
+  /* Tippziele ≥ 40 px (Prüfung 06.10.2026): die Heute-Liste ist am Handy der Haupteinstieg. */
+  .so-heute-liste { gap: 2px; }
+  .so-heute-liste li { min-height: 44px; }
+  .so-heute-liste .titel { min-height: 44px; }
+  .so-permalink .mara-knopf.text { min-height: 40px; }
+  .so-countdown { text-align: left; }
+  .so-countdown b { font-size: 26px; }
+  .so-werkzeug { margin-top: 14px; }
+  .so-filter { width: 100%; }
+  .so-filter select { flex: 1 1 140px; min-height: 40px; }
+  .so-woche { width: 100%; justify-content: space-between; }
+  .so-woche .was { min-width: 0; flex: 1; }
+  .so-woche .mara-knopf { min-width: 40px; }
+  .so-detail > .mara-glas { padding: 14px 10px; }
+  .so-handy { max-width: 300px; }
+  .so-vorschau-handy { padding: 14px 8px; }
+  .so-text-kopf .mara-knopf { min-height: 40px; }
+  .so-bildtexte li { grid-template-columns: 48px minmax(0, 1fr); }
+  .so-verlauf li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .so-karussell .pfeil { width: 32px; height: 32px; margin-top: -16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .so-karussell .spur { scroll-behavior: auto; }
+}
+
+/* ═══ Prüfung 06.10.2026 (E-294): „Liegt bei Claude", „+n" im Monat, Teilen ═══ */
+.so-bei-claude { margin-top: 14px; }
+.so-bei-claude-zeile { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px solid var(--m-linie); }
+.so-bei-claude-zeile:first-child { border-top: 0; }
+.so-bei-claude-zeile .mara-knopf.text { justify-content: flex-start; text-align: left; min-height: 40px; }
+.so-monat-tag .so-mehr { min-height: 0; padding: 2px 4px; font-size: 12px; margin-top: 2px; }
+.so-teilen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.so-teilen .mara-knopf { min-height: 40px; }

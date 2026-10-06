@@ -38,6 +38,8 @@
 import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
 import { globalSchwester } from "./fiaon-global-pfade";
+// 06.10.2026 (E-293): der Verbindungssatz für den Korpus /business — gelesen, nie kopiert.
+import { GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN } from "./fiaon-global-partner";
 // 24.09.2026 (E-240): Die Bonitätsauskunft ist ein Zusatzprodukt mit zwei
 // Preisen (149 € einzeln, 74 € mit laufendem Paket; Unternehmen 349/199 €) —
 // nicht „74 € einmalig", ohne Anrechnung auf ein Paket (die gab es nie), und in
@@ -353,22 +355,31 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // Unternehmen. Die Business-Abos der Bonitätslinie sind eingestellt; /global
   // (Entwurf vom 15.09.) leitet dauerhaft hierher. Sie-Form wie die Seite,
   // keine Zahl im Blickfang, kein Bankname, Entscheidung beim Institut.
-  // 19.09.2026 (E-191): auch für Privatpersonen; Standorte London · Zürich · Miami; Weiterlesen auf die Unterseiten.
+  // 06.10.2026 (E-293, Neubau /business): Der Korpus spiegelt die neue, kürzere Seite (Regel 1) — nur sichtbare
+  // H2 und ihre Inhalte. „Auch für Privatpersonen.“ und „London, Zürich, Miami.“ sind keine Abschnitte mehr
+  // (Chips und Fuß). Das persönliche Angebot mit Bürgschaftszusage steht NIE im Korpus, in der Beschreibung oder
+  // im FAQ-Markup (pruef-global-seiten.ts §8). Jede H2 hier steht wortgleich in GLOBAL_WOERTER (Prüfstand §8).
+  // Nachgezogen am 06.10.2026 (Gutachten): Die Jahresbetreuung sagt hier, was das Band sagt (bandSatz statt
+  // `kurz` mit „um alles“), plus die vollen Bedingungen (im DOM unter „So funktioniert es“). Der Abschnitt
+  // „Ein Ansprechpartner …“ endet mit GLOBAL_VERBUNDEN: Lead und Beschreibung nennen „unser Team in Miami“
+  // (Schwarzott Global LLC) — wer ohne JS liest (Crawler, Snippet), sieht die Verbindung so wie im Fuß.
+  // Bewusst so gelassen: „Was Sie vor dem Auftrag wissen müssen“ ist hier eine H2, auf der Seite die h3 im
+  // Kleingedruckten (gleicher Wortlaut, eigener Abschnitt im Vorab-HTML). Die Mikrozeile „Dreißig Minuten …“
+  // steht sichtbar nur im Hero und deshalb nicht mehr im Gesprächsabschnitt.
   "/business": {
-    pfad: "/business", art: "produkt", stand: "2026-09-19", prio: 0.9,
+    pfad: "/business", art: "produkt", stand: "2026-10-06", prio: 0.9,
     // 23.09.2026 (E-232): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
     bild: GLOBAL_BILD,
     titel: "US-Gesellschaft gründen ab 2.499 € — FIAON Global",
-    beschreibung: "US-Gesellschaft gründen mit Team vor Ort — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto, Karten. Festpreis ab 2.499 €, alles inklusive.",
-    h1: "US-Gesellschaft gründen. Aus einer Hand, zum Festpreis.",
-    lead: "Gründung, EIN und ITIN, Bankkonto und Firmenkarten in den USA — umgesetzt von unserem Team in Miami, unseren Partner-Anwälten und Partner-Steuerberatern. Ein Ansprechpartner, ein Vertrag nach deutschem Recht, ein Festpreis — alle Gebühren inklusive.",
+    beschreibung: "US-Gesellschaft gründen mit Team in Miami — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto- und Kartenanträge. Festpreis ab 2.499 €.",
+    h1: "US-Gesellschaft gründen. Den Weg zum Kapital planen.",
+    lead: "Gründung, EIN und ITIN, Konto- und Kartenanträge — mit unserem Team in Miami und einem festen Ansprechpartner.",
     abschnitte: [
-      { h2: "Acht Anlaufstellen — oder ein Vertrag.", text: "Wer eine US-Gesellschaft selbst aufbaut, verhandelt mit Gründungsdienst, Registered Agent, US-Steuerbehörde, Anwalt, Steuerberater, US-CPA, Banken und Kartenherausgebern. Bei FIAON Global koordiniert ein Ansprechpartner alle. Steuerberater, US-CPA und Anwälte arbeiten auf das Mandat des Kunden, ihre Honorare trägt FIAON; über Konto, Karte und Rahmen entscheidet das jeweilige Institut. Wer nur die Gesellschaft braucht, zahlt bei einem reinen Gründungsdienst weniger." },
-      { h2: "Vier Etappen. Eine Reihenfolge, die sich bewährt hat.", text: "Gründung und Dokumente (Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse), die erste Firmenkarte mit kleinem Rahmen, die Kartenleiter über weitere Herausgeber und später ein mögliches Bankdarlehen. Dauern nennt FIAON als Erfahrungswerte — Behörden und Institute bestimmen das Tempo.", punkte: ["Gründung und Dokumente", "Die erste Firmenkarte", "Die Kartenleiter", "Das Bankdarlehen"] },
-      { h2: "Wie weit sollen wir Sie begleiten?", text: "Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 € und Global VIP mit Auftakt vor Ort in Miami 35.999 € — jeweils einmalig, alle Gebühren und Honorare der Partner inklusive: Staatsgebühren, Registered Agent, Partner-Anwalt, Partner-Steuerberater und US-CPA. Den Vertrag gibt es vorab als Mustervertrag; bezahlt wird einmal, per Rechnung. Direkt beauftragen oder zuerst ein kostenfreies Erstgespräch vereinbaren." },
-      { h2: "Auch für Privatpersonen.", text: "Eine eigene Firma ist nicht nötig: Gründer, Selbständige und Unternehmer, die privat buchen, beauftragen FIAON Global direkt und werden selbst Gesellschafter der US-Gesellschaft. Vertrag und Rechnung laufen auf ihren Namen, der Festpreis ist ein Endpreis, und für Verbraucher gilt das gesetzliche Widerrufsrecht." },
-      { h2: "London, Zürich, Miami.", text: "Vertragspartner ist in jedem Fall die FIAON LTD in London. Die Schwarzott Capital Partners AG in Zürich begleitet die Kapital-Etappe und Kunden aus der Schweiz, die Schwarzott Global LLC in Miami stellt das Team vor Ort. Beide sind mit FIAON über den Gründer Justin Schwarzott verbunden." },
-      { h2: "Was Sie vor dem Auftrag wissen müssen.", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden. In den USA gelten jährliche Meldepflichten, auch ohne Umsatz. US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus." },
+      { h2: "Wie weit sollen wir Sie begleiten?", text: "Der Kapitalrahmen ist Ihr Ziel. Je höher er liegt, desto länger begleiten wir Sie. Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 € und Global VIP mit Auftakt vor Ort in Miami 35.999 € — jeweils einmalig, alle Gebühren des Pakets inklusive. Über den Rahmen entscheidet das jeweilige Institut; das Tempo bestimmen Behörden und Institute.", punkte: ["Gründung und Dokumente", "Die erste Firmenkarte", "Die Kartenleiter", "Das Bankdarlehen"] },
+      { h2: "Jahresbetreuung: 699 € im Jahr", text: "Ab dem zweiten Jahr: Wir kümmern uns fortlaufend um die US-Pflichten Ihrer Gesellschaft — alle Gebühren inklusive. Beginn mit dem zweiten Jahr nach der Gründung. Berechnet wird jährlich im Voraus; die Jahresbetreuung verlängert sich nicht von selbst – mit der Zahlung der Jahresrechnung beginnt das nächste Betreuungsjahr." },
+      { h2: "Ein Ansprechpartner statt acht Anlaufstellen.", text: "Steuerberater, US-CPA und Anwälte aus unserem Partnernetz arbeiten auf Ihr Mandat — ihre Honorare für die Leistungen Ihres Pakets trägt FIAON. Ehrlich gesagt: Nur die Gesellschaft gibt es beim Gründungsdienst günstiger. Unser Festpreis deckt auch die Schritte danach — von EIN und ITIN bis zur ersten US-Meldung. " + GLOBAL_VERBUNDEN },
+      { h2: "Was Sie vor dem Auftrag wissen müssen", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden (in Deutschland nach § 138 AO). In den USA gelten jährliche Meldepflichten, auch ohne Umsatz (Form 5472 mit Form 1120), dazu Staatsgebühren und die Kosten des Registered Agent. US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut." },
+      { h2: "Erst sprechen, dann entscheiden.", text: "Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt." },
     ],
     weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
     krumen: [{ name: "Business", pfad: "/business" }],
@@ -376,14 +387,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       pfad: "/en/business",
       bild: GLOBAL_BILD_EN,
       titel: "Form a US company from €2,499 — FIAON Global",
-      beschreibung: "Form a US company with a team on the ground — for companies and private individuals: formation, EIN, ITIN, account, cards. Fixed price from €2,499.",
-      h1: "Form a US company. From one source, at a fixed price.",
-      lead: "Formation, EIN and ITIN, bank account and business credit cards in the United States — handled by our team in Miami, our partner lawyers and partner tax advisers. One contact, one contract under German law, one fixed price — all fees included.",
+      beschreibung: "Form a US company with our team in Miami — for companies and private individuals: formation, EIN, ITIN, account and card applications. From €2,499.",
+      h1: "Form a US company. Plan your route to capital.",
+      lead: "Formation, EIN and ITIN, account and card applications — with our team in Miami and one dedicated contact.",
       abschnitte: [
-        { h2: "Eight points of contact — or one contract.", text: "Anyone building a US company alone deals with a formation service, registered agent, the US tax authority, a lawyer, a tax adviser, a US CPA, banks and card issuers. At FIAON Global one contact coordinates them all. Tax advisers, US CPA and lawyers act under the client’s engagement; FIAON pays their fees. The institution concerned decides on account, card and limit. If all you need is the company, a pure formation service costs less." },
-        { h2: "Four stages. A sequence that has proven itself.", text: "Formation and documents (company, EIN, ITIN, registered agent, US address), the first business card with a small limit, the card ladder across further issuers and, later, a possible bank loan. FIAON gives durations as typical experience — authorities and institutions set the pace." },
-        { h2: "How far should we take you?", text: "Global Structure €2,499, Global Banking €4,999, Global Capital €6,999 and Global VIP with the kick-off in person in Miami €35,999 — each one-off, with all fees and partner fees included: state fees, registered agent, partner lawyer, partner tax adviser and US CPA. You pay once, by invoice. Order directly, or arrange a free first call." },
-        { h2: "Also for private individuals.", text: "You do not need a company of your own: founders, freelancers and business owners ordering privately instruct FIAON Global directly and become the shareholder of the US company themselves. Contract and invoice are issued in their name, the fixed price is a final price, and the statutory right of withdrawal applies to consumers." },
+        { h2: "How far should we take you?", text: "The capital range is your target. The higher it is, the longer we support you. Global Structure €2,499, Global Banking €4,999, Global Capital €6,999 and Global VIP with the kick-off in person in Miami €35,999 — each one-off, all package fees included. The institution concerned decides on the limit; authorities and institutions set the pace.", punkte: ["Formation and documents", "The first business card", "The card ladder", "The bank loan"] },
+        { h2: "Annual care plan: €699 a year", text: "From the second year: we take care of your company’s US obligations on an ongoing basis — all fees included. Starts with the second year after formation. Billed annually in advance; the plan does not renew automatically – the next year of care begins when the annual invoice is paid." },
+        { h2: "One contact instead of eight.", text: "Tax advisers, US CPAs and lawyers from our partner network act under your engagement — FIAON pays their fees for the services in your package. To be honest: a formation service is cheaper if all you need is the company. Our fixed price also covers the steps after — from EIN and ITIN to the first US filing. " + GLOBAL_VERBUNDEN_EN },
+        { h2: "What you need to know before ordering", text: "A US company that is managed from Germany, Austria or Switzerland remains taxable there; its formation must be reported to the tax office (in Germany under section 138 of the German Fiscal Code, AO). Annual filing duties apply in the United States even without revenue (Form 5472 with Form 1120), along with state fees and the cost of the registered agent. US business credit cards generally require a personal guarantee from the owner. The institution alone decides on the account, the card and the limit." },
+        { h2: "Talk first, then decide.", text: "Your plans, your country of residence, your goal — and which package fits." },
       ],
       // 19.09.2026: Kein Verweis mehr auf /preise und /privatkunden — die Business-Welt verlinkt nie die Privatkunden-Seiten.
       // 24.09.2026 (E-234): dieselben Ziele wie deutsch — weiterlesen() nimmt die englischen Schwestern.

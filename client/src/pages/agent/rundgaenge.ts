@@ -1394,8 +1394,8 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
     ziel: ".mara-kopf",
     titel: "Oben: gilt für alle Reiter.",
-    // E-260 (29.09.2026): vier Reiter — dazu „Termine".
-    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand und „Mara anweisen“ (dort auch Maras Ton) — das gilt für alle vier Reiter.",
+    // E-260 (29.09.2026): vier Reiter — dazu „Termine". E-294 (06.10.2026): fünf — dazu „Social".
+    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand und „Mara anweisen“ (dort auch Maras Ton) — das gilt für alle fünf Reiter.",
   },
   // E-261 (29.09.2026): die WhatsApp-Bremse — der Chip steht immer da (grün, gelb oder rot).
   {
@@ -1417,9 +1417,11 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   },
   {
     ziel: ".mara-reiter",
-    titel: "Vier Reiter: WhatsApp, Mail, Bonitätsauskunft, Termine.",
+    titel: "Fünf Reiter: WhatsApp, Mail, Bonitätsauskunft, Termine, Social.",
     text: "Die Adresse merkt sich den Reiter: /chef/s/mara?reiter=auskunft öffnet direkt die Bonitätsauskunft, "
-      + "/chef/s/mara?reiter=termine alle Termine — die Zahl am Reiter „Termine“ sind Kunden, die gerade warten.",
+      + "/chef/s/mara?reiter=termine alle Termine — die Zahl am Reiter „Termine“ sind Kunden, die gerade warten. "
+      // E-294 (06.10.2026): das Social-Studio.
+      + "/chef/s/mara?reiter=social ist das Social-Studio: die Zahl dort sind Posts, die auf deine Freigabe warten.",
   },
   {
     ziel: ".mp-aktion-schalter",
@@ -1847,6 +1849,122 @@ export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/mara?reiter=social (06.10.2026, E-294) ──────────────────────────
+// Justin: „unser Content … muss auch auf der Plattform eine Seite haben, mit Termin,
+// Post, Plattform, Texten … dass man auch echt was machen kann von dort aus."
+// Drei Rundgänge, weil die Ziele nur in der offenen Unteransicht stehen:
+// Plan (.so-heute, [data-so-filter], [data-so-woche], [data-so-plan]),
+// Vorschau ([data-so-regler], [data-so-raster]) und Post-Detail (.so-handy,
+// [data-so-aktionen], [data-so-texte], [data-so-dateien], [data-so-checkliste]).
+export const RUNDGANG_SOCIAL_PLAN: RundgangSchritt[] = [
+  {
+    ziel: "[data-so-heute]",
+    titel: "Heute zu posten.",
+    text: "Oben steht, was heute dran ist — egal, welche Woche du gerade blätterst —, und der Countdown bis zum nächsten Termin. "
+      + "„#1“, „#2“ … ist die Reihenfolge beim Posten, damit das Raster stimmt. „Post öffnen“ führt direkt ins Post-Detail — "
+      + "dort kopierst du Texte, sicherst die Dateien und meldest den Post nach dem Hochladen als veröffentlicht.",
+    tipp: "Claude spielt die Posts fertig ein; sie kommen immer als „Zur Freigabe“. Die Zahl am Reiter „Social“ zählt genau diese.",
+  },
+  // Prüfung 06.10.2026: „Zurück an Claude“ ehrlich — Claude liest die Notiz in Scheibe 1 nicht selbst.
+  {
+    ziel: "[data-so-bei-claude]",
+    titel: "Liegt bei Claude.",
+    text: "Posts, die du mit „Zurück an Claude“ zurückgegeben hast, stehen hier mit deiner Notiz. Claude sieht das noch nicht von selbst — "
+      + "sag Claude in der Social-Sitzung Bescheid. Die neue Fassung kommt dann wieder als „Zur Freigabe“.",
+  },
+  {
+    ziel: "[data-so-filter]",
+    titel: "Filter: Kanal, Marke, Status.",
+    text: "Grenzt den Plan ein — zum Beispiel nur „Zur Freigabe“, um alles Offene am Stück zu prüfen, oder nur FIAON Global. "
+      + "Verworfene stehen nur, wenn du sie im Status-Filter wählst. Passt nichts, steht „Kein Post passt zum Filter“ mit „Filter zurücksetzen“.",
+  },
+  {
+    ziel: "[data-so-woche]",
+    titel: "Woche oder Monat.",
+    text: "Mit den Pfeilen blätterst du, „Heute“ springt zurück. Darunter warnt die Planprüfung: zwei Reels zur selben Zeit, "
+      + "ein Termin vorbei, aber noch nicht freigegeben, und Lücken ohne Post (zusammengefasst). Im Monat zeigt „+5“ die Woche dieses Tages.",
+  },
+  {
+    ziel: "[data-so-plan]",
+    titel: "Jede Karte ein Post.",
+    text: "Reihenfolge (#1 …), Uhrzeit (oder „ganztags“, wenn keine feste Zeit geplant ist), Format, Titel, Vorschaubild, Kanäle und der Status-Punkt: "
+      + "gelb wartet auf dich, blau ist freigegeben, grün ist online. „Wort-Check rot“ heißt: der Wort-Check hat etwas gefunden; "
+      + "„KI“ heißt: KI-Kennzeichnung nötig. Ein Klick öffnet den Post, „Zurück“ bringt dich wieder zu dieser Karte.",
+    tipp: "Am großen Bildschirm ziehst du eine Karte auf einen anderen Tag, um sie zu verschieben — die Uhrzeit bleibt. "
+      + "Am Handy verschiebst du im Post-Detail.",
+  },
+];
+
+export const RUNDGANG_SOCIAL_POST: RundgangSchritt[] = [
+  {
+    ziel: ".so-handy",
+    titel: "So sieht es in der App aus.",
+    text: "Links das Handy mit der echten Vorschau aus den eingespielten Dateien: Karussell zum Wischen (oder Ziehen mit der Maus, "
+      + "Pfeiltasten), Reel zum Abspielen mit Ton und „Titelbild“, die Caption mit „… mehr“ wie bei Instagram.",
+  },
+  {
+    ziel: "[data-so-aktionen]",
+    titel: "Was jetzt? Die Knöpfe.",
+    text: "„Freigeben“ gibt den Post frei — ist der Wort-Check rot, ist der Knopf gesperrt; nur der Inhaber kann mit Grund "
+      + "„Trotzdem freigeben“, das steht dann im Verlauf. „Zurück an Claude“ verlangt, was anders sein soll, und legt den Post "
+      + "als Entwurf mit deiner Notiz ab (im Plan unter „Liegt bei Claude“) — Claude liest das noch nicht selbst, sag in der "
+      + "Social-Sitzung Bescheid. „Verschieben“ ändert Tag und Uhrzeit. „Verwerfen“ geht nur mit Grund.",
+    tipp: "Gibt es eine neue Fassung von Claude, kommt der Post wieder zur Freigabe — nie still überschrieben.",
+  },
+  {
+    ziel: '[data-so-knopf="veroeffentlicht"]',
+    titel: "Als veröffentlicht melden.",
+    text: "Nach dem Posten in der App: je Kanal den Link zum Beitrag einfügen — Datum und Uhrzeit setzt das System. "
+      + "Braucht der Post eine KI-Kennzeichnung, ist der Haken „KI-Info“ in der Checkliste Pflicht, sonst bleibt das Feld gesperrt. "
+      + "Den Link vorher prüfen: Ändern geht hier noch nicht.",
+  },
+  {
+    ziel: "[data-so-texte]",
+    titel: "Texte: kopieren und zählen.",
+    text: "Caption, Hashtags, erster Kommentar und Alt-Text haben je einen Knopf „Kopieren“. Darunter die Zeichen je Kanal "
+      + "(Instagram 2.200, LinkedIn 3.000, TikTok 2.200) — rot heißt zu lang für diesen Kanal. Am Handy steht neben der Caption "
+      + "„In Fotos sichern“: alle Folien (bzw. Reel und Titelbild) in Reihenfolge ins Teilen-Blatt, von dort in Fotos — Instagram wählt aus Fotos.",
+  },
+  {
+    ziel: "[data-so-dateien]",
+    titel: "Dateien: einzeln oder als ZIP.",
+    text: "Jede Datei heißt beim Laden nach ihrer Folie, das ZIP liegt in Upload-Reihenfolge — so lädst du in der App in der richtigen Reihenfolge hoch. "
+      + "Am Handy ist „In Fotos sichern“ der schnellere Weg; Laden und ZIP landen dort in der Dateien-App.",
+  },
+  {
+    ziel: "[data-so-checkliste]",
+    titel: "Checkliste und KI-Kennzeichnung.",
+    text: "Je Kanal das, was beim Hochladen gern vergessen wird: Titelbild, „Auch auf Facebook teilen“, Musik aus der Bibliothek, "
+      + "Link in den ersten Kommentar. Oben steht, ob eine KI-Kennzeichnung nötig ist (Art. 50 KI-VO) — „Ändern“ setzt Ja/Nein mit Grund. "
+      + "Abschalten darf nur der Inhaber (Grund mindestens 10 Zeichen), und nie, solange Claudes meta.json „nötig“ sagt. "
+      + "Ist der Post schon freigegeben, geht er mit jeder Änderung zurück zur Freigabe.",
+  },
+];
+
+export const RUNDGANG_SOCIAL_VORSCHAU: RundgangSchritt[] = [
+  {
+    ziel: "[data-so-raster]",
+    titel: "Das Profil wie in der App.",
+    text: "Das Raster schneidet jeden 4:5-Beitrag auf 3:4 aus der Mitte — so zeigt Instagram das Profil seit 2025. "
+      + "Reels zeigen ihr Titelbild, Karussells das Mehrfach-Zeichen. Neueste oben links. Vorgabe ist „Wie in der App“: randlos, ohne Rahmen und Datum.",
+  },
+  // Prüfung 06.10.2026: EIN Raster @fiaon.ltd — FIAON und Global gemischt, wie es online steht.
+  {
+    ziel: "[data-so-konto]",
+    titel: "Ein Konto, ein Raster.",
+    text: "„@fiaon.ltd (alles, was dort erscheint)“ ist das echte Profil: FIAON- und Global-Posts in der Reihenfolge, in der sie online gehen. "
+      + "„nur FIAON“ und „nur Global“ sind Filter darauf — für das echte Schachbrett immer das ganze Konto prüfen.",
+    tipp: "Ein eigenes Konto @fiaon.global gibt es noch nicht. Sobald es angelegt ist, zeigt „nur Global“ dessen eigenes Raster.",
+  },
+  {
+    ziel: "[data-so-regler]",
+    titel: "Der Zeitregler.",
+    text: "„In 7 Tagen“ und „In 30 Tagen“ stellen alles Geplante schon ins Raster. So siehst du das Schachbrett aus hellen und dunklen "
+      + "Kacheln, bevor es entsteht. „Mit Markierungen“ zeigt je Kachel einen kleinen Punkt (blau geplant, gelb wartet auf Freigabe) und das Datum. "
+      + "Ein Tipp öffnet den Post.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   auskunft:    { titel: "Auskunft-Verkauf", schritte: RUNDGANG_AUSKUNFT },
   auskunftBeschaffung: { titel: "Auskunft-Beschaffung", schritte: RUNDGANG_AUSKUNFT_BESCHAFFUNG },
@@ -1857,6 +1975,10 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },
   maraTermine: { titel: "Termine", schritte: RUNDGANG_MARA_TERMINE },
+  // E-294 (06.10.2026): Social-Studio im Mara-Steuerpult — je Unteransicht einer.
+  socialPlan:     { titel: "Social · Plan", schritte: RUNDGANG_SOCIAL_PLAN },
+  socialPost:     { titel: "Social · Post", schritte: RUNDGANG_SOCIAL_POST },
+  socialVorschau: { titel: "Social · Vorschau", schritte: RUNDGANG_SOCIAL_VORSCHAU },
   leadMotor:   { titel: "Lead-Motor", schritte: RUNDGANG_LEAD_MOTOR },
   whatsapp:    { titel: "WhatsApp", schritte: RUNDGANG_WHATSAPP },
   global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },

@@ -156,6 +156,32 @@ for (const { datei, s: e } of englisch) {
   ok(n(GLOBAL_GELD_ZURUECK.en.bedingungen) >= n(GLOBAL_GELD_ZURUECK.en.text), `${wo}: Geld-zurück ohne seine Bedingungen`);
 }
 
+// ── /en/business und der Fuß (06.10.2026, E-293) ────────────────────────────
+// Die englische Startseite liest GLOBAL_WOERTER.en, den Kalender GLOBAL_GESPRAECH_WOERTER.en, den Fuß aller
+// Business-Seiten GLOBAL_FUSS_WOERTER.en (bis heute JSX in GlobalFuss.tsx) und das Band der Jahresbetreuung
+// GLOBAL_JAHRESBETREUUNG.en — dieselben schärferen Regeln wie die Unterseiten (die VIP-Zahl darf „up to" tragen).
+{
+  const { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER, GLOBAL_FUSS_WOERTER } = await import("../client/src/i18n/global");
+  const { GLOBAL_JAHRESBETREUUNG } = await import("../shared/fiaon-global");
+  const sammle = (wert: unknown, pfad: string, aus: [string, string][]) => {
+    if (typeof wert === "string") { if (wert.trim()) aus.push([pfad, wert]); return; }
+    if (typeof wert === "function") { try { sammle((wert as (...a: unknown[]) => unknown)("Sample", "Sample"), `${pfad}()`, aus); } catch { /* nicht aufrufbar */ } return; }
+    if (Array.isArray(wert)) { wert.forEach((x, i) => sammle(x, `${pfad}[${i}]`, aus)); return; }
+    if (wert && typeof wert === "object") for (const [k, v] of Object.entries(wert)) sammle(v, `${pfad}.${k}`, aus);
+  };
+  const startseite: [string, string][] = [];
+  sammle(GLOBAL_WOERTER.en, "i18n/global.en", startseite);
+  sammle(GLOBAL_GESPRAECH_WOERTER.en, "i18n/global#gespraech.en", startseite);
+  sammle(GLOBAL_FUSS_WOERTER.en, "i18n/global#fuss.en", startseite);
+  const j = GLOBAL_JAHRESBETREUUNG.en;
+  sammle({ kurzLeistungen: j.kurzLeistungen, bandSatz: j.bandSatz, zeitleiste: j.zeitleiste, bandBedingung: j.bandBedingung }, "fiaon-global/jahresbetreuung.en", startseite);
+  for (const [p, t] of startseite) {
+    if (/\.(pfad|zone)$/.test(p)) continue;
+    for (const f of globalWortPruefenEn(t, VIP)) ok(false, `${p}: ${f.hinweis} — „${f.treffer}" in „${t.slice(0, 90)}"`);
+  }
+  console.log(`  /en/business: ${startseite.length} englische Texte (Seite, Kalender, Fuß, Band) gegen die Wortregeln gehalten`);
+}
+
 console.log(`\n── Ergebnis ──────────────────────────────────────────────────────────`);
 if (hinweise.length) { console.log("  Hinweise (kein Fehler):"); for (const h of hinweise.slice(0, 60)) console.log(`    · ${h}`); if (hinweise.length > 60) console.log(`    … und ${hinweise.length - 60} weitere`); }
 console.log(`  ${englisch.length} englische Seiten, ${geprueft} Prüfungen, ${fehler} Fehler.`);

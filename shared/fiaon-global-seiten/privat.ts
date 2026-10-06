@@ -20,14 +20,16 @@ export const PRIVAT_SEITE: GlobalSeite = {
   art: "zielgruppe",
   seo: {
     titel: "US-Firma als Privatperson gründen — FIAON Global",
-    beschreibung: "Sie brauchen keine eigene Firma: Als Privatperson oder Gründer beauftragen Sie FIAON Global direkt — US-Gesellschaft, EIN, ITIN und Konto zum Festpreis.",
+    beschreibung: "Keine eigene Firma nötig: Als Privatperson oder Gründer beauftragen Sie FIAON Global direkt — US-Gesellschaft, EIN, ITIN und Kontoantrag zum Festpreis.",
   },
-  stand: "2026-09-19",
+  // 06.10.2026 (E-293): H1 und Lead deckungsgleich mit der sichtbaren Startseite für Privatpersonen
+  // (GLOBAL_WOERTER.de.privat, business-privat.tsx) — Vorab-HTML und Seite sagen dasselbe.
+  stand: "2026-10-06",
   kennung: "FG · 29",
   auge: "Für wen · Privatpersonen und Gründer",
-  h1: "Keine Firma nötig.",
-  h1b: "Auch privat beauftragen.",
-  lead: "Sie brauchen kein bestehendes Unternehmen, um FIAON Global zu beauftragen. Als Privatperson, als Gründer oder als Unternehmer, der privat bucht, werden Sie selbst Gesellschafter Ihrer US-Gesellschaft — mit demselben Festpreis, demselben Team vor Ort und denselben Partnern.",
+  h1: "Ihre eigene US-Gesellschaft.",
+  h1b: "Ohne Firma, zum Festpreis.",
+  lead: "Sie werden selbst Gesellschafter: Wir gründen, beantragen EIN und ITIN und bereiten Konto- und Kartenanträge vor — Vertrag und Rechnung laufen auf Ihren Namen.",
   ziffern: [
     { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, für Privatpersonen Endpreis" },
     { wert: "Ihr Name", label: "auf Vertrag und Rechnung" },

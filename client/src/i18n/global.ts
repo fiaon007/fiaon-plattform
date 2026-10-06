@@ -7,68 +7,181 @@
 // shared/fiaon-global.ts und im Katalog (shared/fiaon-pakete.ts) — die Seite
 // liest beides.
 //
-// 18.09.2026 — Justin: „In den Paketen sind ALLE Gebühren enthalten … wir
-// kümmern uns um alles", „mehr Informationen, mehr Conversion, seriöser —
-// eine Mischung aus Anwalt, Bank und Unternehmensberatung." Die Seite spricht
-// deshalb vom Festpreis mit allen Gebühren, vom Mandat, vom Vertragspartner.
-//
 // Die Grenzen der Wortwahl (Register E-187/E-188): kein Ergebnis zusagen, das
 // ein Institut entscheidet; kein Bankname; keine Frist mit Ziffer;
 // Steuerberater und Anwälte arbeiten auf das Mandat des Kunden (die Honorare
 // trägt FIAON); Dauer nur als Erfahrungswert. Jeder deutsche Satz passiert
-// scripts/pruef-wortwand-de.ts, jeder englische scripts/seo-wortverbote-en.ts.
+// scripts/pruef-wortwand-de.ts, jeder englische scripts/seo-wortverbote-en.ts
+// und scripts/pruef-global-en.ts (globalWortPruefenEn).
+//
+// ── NEUBAU 06.10.2026 (E-293, BAUPLAN /business Scheibe A) ─────────────────
+// Justin: „Business-Bereich übersichtlicher, grafischer, moderner, Texte neu
+// (auch Bürgschaft bei ausgewählten Kunden)". Die Seite schrumpft von rund
+// 2.730 auf rund 1.030 sichtbare Wörter: Pakete direkt nach dem Hero, jede
+// Grafik ersetzt einen Absatz. Warum JEDER sichtbare Satz hier steht — auch
+// Grafik-Beschriftungen, Tooltips, aria-label mit Aussage und Bildnachweise:
+// Die Wortwand liest kein JSX. Vertragsgleiche Sätze (Pakete, Inklusivliste,
+// Pflichthinweise, Geld zurück, Rollen) bleiben in shared/fiaon-global.ts;
+// was hier steht, sind Kurzfassungen — der volle Wortlaut steht im DOM in der
+// Klappe „Wortlaut wie im Vertrag“.
+// Gestrichen am 06.10.: Mandat-Karte, Nachrichtenlage (jetzt /business/wissen),
+// „Der Weg“ als eigener Abschnitt (jetzt Wegleiste über den Tafeln), Für-wen-
+// Kacheln (jetzt Chips), drei Uhren (jetzt „Drei Orte“ im Fuß), „Klare
+// Verhältnisse“ (Partnersatz im Stern, Standorte im Fuß), Kontaktkasten.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { GLOBAL_VERBUNDEN } from "@shared/fiaon-global-partner";
-import { IRS } from "@shared/fiaon-global-seiten/fakten";
+import { FIAON_FIRMA } from "@shared/fiaon-firma";
 
 // 19.09.2026 (E-192) — Justin: „Die Business Seite muss PERFEKT sein, dass sie konvertieren
-// kann." Die Seite wurde nach einer Prüfung aus Marketing-, Vertriebs-, Rechts- und
-// Gestaltungssicht neu geordnet: Preis und Kapitalrahmen im ersten Bildschirm, der Weg
-// vor den Paketen, das Gespräch direkt nach dem Vergleich, Einwände als Fragen beantwortet.
-// Gestrichen: „Aus einer Hand" (doppelt zum Vergleich), „Unterlagen" (jetzt eine Frage),
-// das Verzeichnis (steht im Menü und in der Fußzeile) und der Satz „Wir sind diesen Weg
-// selbst gegangen" (Justins eigener Fall gehört nicht auf die Seite, Entscheidung 17.09.).
-// FAQ-Antworten bleiben reine Zeichenketten in "…" — scripts/seo-fragen-erzeugen.ts liest
+// kann." FAQ-Antworten bleiben reine Zeichenketten in "…" — scripts/seo-fragen-erzeugen.ts liest
 // nur diese Form (Vorlagen mit ${…} fehlen sonst im FAQ-Markup).
+
+/** Ein Begriff zum Antippen (components/site/global/Begriff.tsx): Schlüssel → Erklärung. */
+export type GlobalBegriff = "ein" | "itin" | "registeredAgent" | "operatingAgreement" | "usCpa" | "kartenleiter" | "bareinlage" | "herausgeber" | "kapitalrahmen";
+/** Ein Knoten im Stern „Ein Ansprechpartner statt acht“: fest = im Festpreis, antrag = vorbereitet, das Institut entscheidet. */
+export interface GlobalSternKnoten { name: string; umfang?: string; status: "fest" | "antrag"; inkl?: number }
 
 const de = {
   metaTitel: "US-Gesellschaft gründen ab 2.499 € — FIAON Global",
-  metaBeschreibung: "US-Gesellschaft gründen mit Team vor Ort — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto, Karten. Festpreis ab 2.499 €, alles inklusive.",
+  // 06.10.2026 (E-293): ohne „Konto, Karten“ als Leistung und ohne „alles inklusive“ — es sind Anträge, und „inklusive“ gilt für das Paket.
+  metaBeschreibung: "US-Gesellschaft gründen mit Team in Miami — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto- und Kartenanträge. Festpreis ab 2.499 €.",
 
+  // ── 1 Hero mit Vertrauensleiste ──
   auge: "FIAON Global · Für Unternehmen und Privatpersonen",
+  /** Das Wort der Augenzeile, das auf /business/privatpersonen führt. */
+  augeLink: "Privatpersonen",
   h1a: "US-Gesellschaft gründen.",
-  h1b: "Aus einer Hand, zum Festpreis.",
-  lead: "Gründung, EIN und ITIN, Bankkonto und Firmenkarten in den USA — umgesetzt von unserem Team in Miami, Partner-Anwälten und Partner-Steuerberatern. Ein Ansprechpartner, ein Vertrag nach deutschem Recht, ein Festpreis.",
+  h1b: "Den Weg zum Kapital planen.",
+  lead: "Gründung, EIN und ITIN, Konto- und Kartenanträge — mit unserem Team in Miami und einem festen Ansprechpartner.",
   knopfPakete: "Pakete und Preise",
   knopfGespraech: "Erstgespräch vereinbaren",
-  gespraechMikro: "Dreißig Minuten mit Ihrem Ansprechpartner — kostenfrei und ohne Verpflichtung.",
+  gespraechMikro: "Dreißig Minuten, kostenfrei und ohne Verpflichtung.",
   preisKopf: "Festpreis",
   preisAb: "ab",
-  preisKopfZusatz: "einmalig, alle Gebühren inklusive",
+  preisKopfZusatz: "Einmalig, alle Gebühren des Pakets inklusive.",
   kapitalKopf: "Kapitalrahmen je nach Paket",
   kapitalKopfZusatz: "Ihr Ziel — über jeden Rahmen entscheidet das jeweilige Institut.",
-  vertrauen: ["Vertrag auf Deutsch, nach deutschem Recht", "Einmal zahlen, per Rechnung — kein Abo"],
-  vertrauenZusatz: { text: "Mustervertrag vorab lesen", pfad: "/business/mustervertrag" },
+  jahrZeile: (preis: string) => `Ab Jahr zwei optional: Jahresbetreuung ${preis} im Jahr`,
+  // Vier Felder unter dem Hero; das zweite führt auf den Mustervertrag, das vierte kommt aus FIAON_FIRMA.
+  vertrauensleiste: [
+    "Vertrag auf Deutsch, nach deutschem Recht",
+    "Mustervertrag vorab lesen",
+    "Per Rechnung, kein Abo",
+    `${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`,
+  ],
+  // Redaktioneller Bildnachweis an jedem Higgsfield-Objekt (Art. 50 KI-VO) — erst sichtbar, wenn das Bild da ist (Scheibe C).
+  bildKi: "Abbildung mit KI erstellt",
+  szeneKi: "Szene mit KI erstellt",
 
-  mandatTitel: "Ihr Auftrag",
-  mandatMarke: "FIAON Global",
-  mandat: [
-    ["Gesellschaft", "US-LLC oder Corporation, gegründet von unserem Team vor Ort"],
-    ["Steuernummern", "EIN und ITIN, beantragt und eingereicht"],
-    ["Bank und Karten", "Konto- und Kartenanträge, vollständig vorbereitet"],
-    ["Partner", "Anwalt, Steuerberater und US-CPA — Honorare inklusive"],
-    ["Vor Ort", "Schwarzott Global LLC, Miami"],
-    ["Betreuung", "Ein fester Ansprechpartner ab dem ersten Tag"],
-  ] as [string, string][],
-  mandatPreis: "Preis",
-  mandatPreisText: (preis: string) => `ab ${preis} — Festpreis, einmalig, alle Gebühren inklusive`,
-  mandatPartner: "Vertragspartner",
+  // ── Begriffe zum Antippen (nur bei Bedarf sichtbar) ──
+  begriffe: {
+    ein: "Die Steuernummer Ihrer US-Gesellschaft, vergeben von der US-Steuerbehörde.",
+    itin: "Ihre persönliche US-Steuernummer — für Gesellschafter ohne US-Sozialversicherungsnummer.",
+    registeredAgent: "Die vorgeschriebene Zustelladresse Ihrer Gesellschaft im Bundesstaat der Gründung.",
+    operatingAgreement: "Der Gesellschaftsvertrag einer LLC: wem sie gehört und wer entscheidet.",
+    usCpa: "In den USA zugelassener Steuer- und Rechnungsprüfer (Certified Public Accountant); er erstellt die US-Meldung.",
+    kartenleiter: "Erst eine Karte, dann weitere Herausgeber in einer geplanten Reihenfolge — jede pünktliche Abrechnung baut Historie auf.",
+    bareinlage: "Ein Guthaben, das manche Herausgeber als Sicherheit verlangen.",
+    herausgeber: "Die Bank oder das Unternehmen, das eine Karte ausgibt.",
+    kapitalrahmen: "Der Rahmen, den Sie mit uns anstreben — Ihr Ziel, keine Zusage. Über jeden Rahmen entscheidet das jeweilige Institut.",
+  } as Record<GlobalBegriff, string>,
+  /** Wie der Begriff im Fließtext steht (Groß-/Kleinschreibung egal) — dort wird er antippbar. */
+  begriffWoerter: {
+    ein: "EIN", itin: "ITIN", registeredAgent: "Registered Agent", operatingAgreement: "Operating Agreement", usCpa: "US-CPA",
+    kartenleiter: "Kartenleiter", bareinlage: "Bareinlage", herausgeber: "Herausgeber", kapitalrahmen: "Kapitalrahmen",
+  } as Record<GlobalBegriff, string>,
 
-  vsAuge: "Eine Anlaufstelle",
-  vsH2: "Acht Anlaufstellen — oder ein Vertrag.",
-  vsLead: "Wer eine US-Gesellschaft selbst aufbaut, verhandelt mit Gründungsdienst, Registered Agent, US-Steuerbehörde, Anwalt, Steuerberater, US-CPA, Banken und Kartenherausgebern — jeder mit eigenem Vertrag und eigener Rechnung. Bei FIAON Global koordiniert ein Ansprechpartner alle.",
-  ohneTitel: "Ohne FIAON Global",
+  // ── 2 Pakete mit Wegleiste, Beleg und Kleingedrucktem ──
+  paketeAuge: "Pakete und Preise",
+  paketeH2: "Wie weit sollen wir Sie begleiten?",
+  paketeLead: "Der Kapitalrahmen ist Ihr Ziel. Je höher er liegt, desto länger begleiten wir Sie.",
+  wegLabel: "Der Weg in vier Etappen",
+  wegLead: "Das Tempo bestimmen Behörden und Institute — wir nennen Erfahrungswerte, keine Fristen.",
+  // Die Titel sind wortgleich mit GLOBAL_ETAPPEN 1–4 (scripts/pruef-global-bereich.ts); Dauer und Text stehen im Knoten-Popover.
+  weg: [
+    { titel: "Gründung und Dokumente", dauer: "in der Regel wenige Wochen", text: "Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse und Telefonnummer, Operating Agreement. Unser Team vor Ort reicht ein und holt ab; die ITIN vergibt die US-Steuerbehörde in eigener Frist." },
+    { titel: "Die erste Firmenkarte", dauer: "nach vollständigen Dokumenten", text: "Sie stellen den ersten Antrag bei einem US-Herausgeber — meist mit kleinem Rahmen und ohne Bareinlage, dafür mit persönlicher Haftung des Inhabers. Wir bereiten den Antrag vor; der Herausgeber entscheidet." },
+    { titel: "Die Kartenleiter", dauer: "über einige Monate", text: "Pünktliche Abrechnung öffnet weitere Herausgeber. Viele bieten neuen Firmenkunden einen Einführungszeitraum ohne Sollzins — ob und zu welchen Bedingungen, legt jeder Herausgeber selbst fest." },
+    { titel: "Das Bankdarlehen", dauer: "mit gewachsener Historie", text: "Mit gewachsener Historie kann ein Darlehen bei einer US-Bank in Frage kommen. Wir bereiten Unterlagen und Kennzahlen auf; den Antrag stellen Sie bei der Bank, die ihn nach ihren Regeln prüft." },
+  ],
+  inJedemPaket: "In jedem Paket",
+  abPaket: (name: string) => `Ab ${name}`,
+  stempelInstitut: "Hier entscheidet das Institut",
+  fokusBand: "Alle vier Etappen",
+  festpreis: "Festpreis, einmalig",
+  inklusive: "Alle Gebühren des Pakets inklusive",
+  planung: "Kapitalrahmen",
+  planungZusatz: "Ihr Ziel — über den Rahmen entscheidet das Institut",
+  beauftragen: (name: string) => `${name} beauftragen`,
+  beauftragenKurz: "Jetzt beauftragen",
+  vipGespraech: (name: string) => `Gespräch zu ${name} vereinbaren`,
+  vipGespraechKurz: "Gespräch vereinbaren",
+  direktBeauftragen: "Direkt beauftragen",
+  erstSprechen: "Erst sprechen",
+  etappenBis: (bis: string) => `Etappen I–${bis}`,
+  festpreisKurz: "Festpreis",
+  einmaligInklusive: "Einmalig, alle Gebühren des Pakets inklusive",
+  alleLeistungen: (n: number) => `Alle ${n} Leistungen`,
+  wenigerLeistungen: "Weniger anzeigen",
+  zumVergleich: "Alle Leistungen im Vergleich",
+  wischen: "Tabelle seitlich verschieben, um alle vier Pakete zu sehen.",
+  vipZeichen: "VIP",
+  vipTicket: {
+    titel: "Ihr Auftakt in Miami",
+    abflug: "Abflug", abflugOrte: "Deutschland · Österreich · Schweiz",
+    ziel: "Ziel", zielOrt: "Miami, Florida",
+    enthalten: "Enthalten", enthaltenText: "Hin- und Rückflug · Hotel",
+    fuer: "Für", fuerText: "1 Person",
+  },
+  kostenHinweis: "Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise.",
+  finderLink: "Paket-Finder: vier Fragen",
+  // Der Beleg „Im Festpreis“ — Kurzzeilen; der Vertragswortlaut (GLOBAL_INKLUSIVE + GLOBAL_LAUFEND) steht in der Klappe.
+  inklAuge: "Im Festpreis",
+  inklTitel: "Ein Festpreis — die Honorare für die Leistungen Ihres Pakets trägt FIAON.",
+  beleg: [
+    "Staatliche Gründungsgebühren",
+    "Registered Agent, US-Adresse und Telefon im ersten Jahr",
+    "Anträge für EIN und ITIN",
+    "Partner-Anwalt: Operating Agreement",
+    "Partner-Steuerberater: Prüfung vor der Gründung",
+    "US-CPA: erste jährliche US-Meldung",
+    "Termine und Einreichungen vor Ort",
+    "Ihr fester Ansprechpartner",
+  ],
+  belegSumme: "Ihr Festpreis · einmalig",
+  belegKlappe: "Wortlaut wie im Vertrag",
+  nichtTitel: "Nicht im Festpreis",
+  wissenTitel: "Was Sie vor dem Auftrag wissen müssen",
+  // Vergleichstabelle (hinter der Klappzeile „Alle Leistungen im Vergleich“, auf allen Breiten zu)
+  leistung: "Leistung",
+  zeilePlanung: "Kapitalrahmen",
+  zeileDauer: "Begleitung (Erfahrungswert)",
+  ja: "enthalten",
+  nein: "nicht enthalten",
+
+  // ── 3 Jahresbetreuung als Band (Texte und Preis: GLOBAL_JAHRESBETREUUNG) ──
+  jbKnopf: "Beim Auftrag dazubuchen",
+  jbSo: "So funktioniert es",
+
+  // ── 4 Ein Ansprechpartner statt acht (#leistungen, darin #fuer-wen) ──
+  vsAuge: "Aus einer Hand",
+  vsH2: "Ein Ansprechpartner statt acht Anlaufstellen.",
+  sternLabel: "Ein Ansprechpartner statt acht Anlaufstellen",
+  sternSchalter: ["Ohne FIAON Global", "Mit FIAON Global"] as [string, string],
+  sternKnoten: [
+    { name: "Gründungsdienst", umfang: "Gründung samt Staatsgebühren", status: "fest", inkl: 0 },
+    { name: "Registered Agent", umfang: "im ersten Jahr", status: "fest", inkl: 1 },
+    { name: "US-Steuerbehörde", umfang: "Anträge für EIN und ITIN", status: "fest", inkl: 2 },
+    { name: "Anwalt", umfang: "Operating Agreement", status: "fest", inkl: 3 },
+    { name: "Steuerberater", umfang: "Prüfung vor der Gründung", status: "fest", inkl: 4 },
+    { name: "US-CPA", umfang: "erste US-Meldung", status: "fest", inkl: 5 },
+    { name: "Banken", status: "antrag" },
+    { name: "Kartenherausgeber", status: "antrag" },
+  ] as GlobalSternKnoten[],
+  sternMitte: "Ihr Ansprechpartner",
+  sternSie: "Sie",
+  sternLegende: ["Im Festpreis enthalten", "Antrag vorbereitet — das Institut entscheidet"] as [string, string],
+  // Im Zustand „Ohne“ (nur im DOM, nicht gezählt): wen man ohne FIAON Global selbst anspricht — je Knoten eine Zeile.
   ohne: [
     "Gründungsdienst für die Gesellschaft",
     "Registered Agent und US-Adresse",
@@ -79,128 +192,33 @@ const de = {
     "Banken für das Geschäftskonto",
     "Kartenherausgeber für jede Firmenkarte",
   ],
-  mitTitel: "Mit FIAON Global",
-  mit: [
-    "Ein Vertrag, am Bildschirm unterschrieben",
-    "Ein Ansprechpartner für alle Schritte",
-    "Ein Festpreis — alle Gebühren und Honorare inklusive",
-    "Ein Team, das vor Ort Termine wahrnimmt",
-  ],
   ehrlichTitel: "Ehrlich gesagt",
-  ehrlichText: `Wer nur die Gesellschaft braucht, zahlt bei einem reinen Gründungsdienst weniger. Teuer wird eine US-Gesellschaft durch das, was danach kommt: eine vergessene Form 5472 — die US-Steuerbehörde kann dafür ${IRS.strafe5472} festsetzen —, ein Konto, das an widersprüchlichen Unterlagen scheitert, eine Steuerpflicht zu Hause, die niemand vorher geprüft hat.`,
+  ehrlichText: "Nur die Gesellschaft gibt es beim Gründungsdienst günstiger. Unser Festpreis deckt auch die Schritte danach — von EIN und ITIN bis zur ersten US-Meldung.",
   ehrlichLink: "Selbst, Gründungsdienst oder FIAON Global: der Vergleich",
+  fuerKurz: "Für wen:",
+  fuerChips: [
+    { text: "Mittelstand", pfad: "/business/tochtergesellschaft-usa" },
+    { text: "Onlinehandel", pfad: "/business/onlinehandel" },
+    { text: "Agenturen und Software", pfad: "/business/agenturen-software" },
+    { text: "Bau und Immobilien", pfad: "/business/bau-immobilien" },
+    { text: "Privatpersonen", pfad: "/business/privatpersonen" },
+  ] as { text: string; pfad?: string }[],
 
-  wegAuge: "Der Weg",
-  wegH2: "Vier Etappen. Eine Reihenfolge, die sich bewährt hat.",
-  wegLead: "Jede Etappe macht die nächste erst möglich. Wie lange eine Etappe dauert, bestimmen Behörden und Institute — wir nennen Ihnen deshalb Erfahrungswerte, keine Fristen.",
-  weg: [
-    { titel: "Gründung und Dokumente", dauer: "in der Regel wenige Wochen", text: "Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse und Telefonnummer, Operating Agreement. Unser Team vor Ort reicht ein und holt ab; die ITIN vergibt die US-Steuerbehörde in eigener Frist." },
-    { titel: "Die erste Firmenkarte", dauer: "nach vollständigen Dokumenten", text: "Sie stellen den ersten Antrag bei einem US-Herausgeber — meist mit kleinem Rahmen und ohne Bareinlage, dafür mit persönlicher Haftung des Inhabers. Wir bereiten den Antrag vor; der Herausgeber entscheidet." },
-    { titel: "Die Kartenleiter", dauer: "über einige Monate", text: "Pünktliche Abrechnung öffnet weitere Herausgeber. Viele bieten neuen Firmenkunden einen Einführungszeitraum ohne Sollzins — ob und zu welchen Bedingungen, legt jeder Herausgeber selbst fest." },
-    { titel: "Das Bankdarlehen", dauer: "mit gewachsener Historie", text: "Mit gewachsener Historie kann ein Darlehen bei einer US-Bank in Frage kommen. Wir bereiten Unterlagen und Kennzahlen auf; den Antrag stellen Sie bei der Bank, die ihn nach ihren Regeln prüft." },
-  ],
-  inJedemPaket: "In jedem Paket",
-  abPaket: (name: string) => `Ab ${name}`,
-
-  fuerAuge: "Für wen",
-  fuerH2: "Für Unternehmen jeder Art — und für Sie persönlich.",
-  // 19.09.2026: Der Kapitalbedarf hängt nicht mehr an den USA — das Kapital ist nicht an die USA gebunden (Justin, GLOBAL_KAPITAL_FREI).
-  fuerLead: "Die US-Struktur passt zu Betrieben mit Kunden, Lieferanten oder Projekten in den USA, zu Unternehmen mit Kapitalbedarf — und zu Menschen, die ein zweites Standbein mit eigener Bank- und Kartenhistorie aufbauen wollen. Eine eigene Firma brauchen Sie dafür nicht.",
-  fuer: [
-    { tag: "Mittelstand und Industrie", text: "Eine Tochtergesellschaft für Vertrieb, Service und Einkauf in den USA.", pfad: "/business/tochtergesellschaft-usa" },
-    { tag: "Onlinehandel und Marken", text: "Verkaufen an Kunden in den USA — mit eigener Gesellschaft, EIN und Konto.", pfad: "/business/onlinehandel" },
-    { tag: "Agenturen und Software", text: "Kunden, Werbekonten und Abrechnung in den USA.", pfad: "/business/agenturen-software" },
-    { tag: "Bau, Handwerk und Immobilien", text: "Aufträge, Material, Objektgesellschaften und Partner in den USA.", pfad: "/business/bau-immobilien" },
-  ],
-  fuerLaender: "Was für Sie zu Hause gilt:",
-  fuerLaenderLinks: [["/business/aus-deutschland", "aus Deutschland"], ["/business/aus-der-schweiz", "aus der Schweiz"]] as [string, string][],
-  privatAuge: "Auch ohne eigene Firma",
-  privatTitel: "Als Privatperson beauftragen",
-  privatText: "Gründer, Selbständige oder Unternehmer, die privat buchen: Sie werden selbst Gesellschafter der US-Gesellschaft. Vertrag und Rechnung laufen auf Ihren Namen, der Festpreis ist Ihr Endpreis. Handeln Sie als Verbraucher, gilt das gesetzliche Widerrufsrecht.",
-  privatKnopf: "So beauftragen Privatpersonen",
-  fuerAusstieg: "Im ersten Gespräch prüfen wir gemeinsam, ob die Struktur zu Ihrem Vorhaben passt — und sagen es Ihnen auch, wenn nicht.",
-
-  paketeAuge: "Pakete und Preise",
-  paketeH2: "Wie weit sollen wir Sie begleiten?",
-  paketeLead: "Jedes Paket ist ein Auftrag zum Festpreis — alle Gebühren und die Honorare unserer Partner inklusive. Der Kapitalrahmen ist das Ziel, das Sie anstreben; danach richten sich Dauer und Tiefe unserer Begleitung. Über jeden Rahmen entscheiden die Institute.",
-  fokusBand: "Alle vier Etappen",
-  festpreis: "Festpreis, einmalig",
-  inklusive: "Alle Gebühren inklusive",
-  planung: "Kapitalrahmen",
-  planungZusatz: "Ihr Ziel — über den Rahmen entscheidet das Institut",
-  begleitung: "Begleitung",
-  beauftragen: (name: string) => `${name} beauftragen`,
-  beauftragenKurz: "Jetzt beauftragen",
-  vipGespraech: (name: string) => `Gespräch zu ${name} vereinbaren`,
-  vipGespraechKurz: "Gespräch vereinbaren",
-  direktBeauftragen: "Direkt beauftragen",
-  wischen: "Tabelle seitlich verschieben, um alle vier Pakete zu sehen.",
-  erstSprechen: "Erst sprechen",
-  // 19.09.2026: neue Pakettafeln — Etappen-Leiste, aufklappbare Leistungen, Global VIP mit Ticket nach Miami.
-  etappenBis: (bis: string) => `Etappen I–${bis}`,
-  festpreisKurz: "Festpreis",
-  einmaligInklusive: "Einmalig, alle Gebühren inklusive",
-  alleLeistungen: (n: number) => `Alle ${n} Leistungen ansehen`,
-  wenigerLeistungen: "Weniger anzeigen",
-  zumVergleich: "Alle Leistungen im Vergleich",
-  vipZeichen: "VIP",
-  vipTicket: {
-    titel: "Ihr Auftakt in Miami",
-    abflug: "Abflug", abflugOrte: "Deutschland · Österreich · Schweiz",
-    ziel: "Ziel", zielOrt: "Miami, Florida",
-    enthalten: "Enthalten", enthaltenText: "Hin- und Rückflug · Hotel",
-    fuer: "Für", fuerText: "1 Person",
-  },
-  vertragVorab: "Sie sehen den Vertrag vor der Unterschrift:",
-  mustervertragLesen: "Mustervertrag lesen",
-  perRechnung: "Bezahlt wird einmal, per Rechnung.",
-  kostenHinweis: "Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise.",
-  finderFrage: "Unsicher, welches Paket passt?",
-  finderLink: "Paket-Finder: vier Fragen",
-
-  inklAuge: "Alles inklusive",
-  inklTitel: "Sie zahlen einen Preis. Wir bezahlen alle, die für Ihre Gesellschaft arbeiten.",
-  inklLead: "Im Festpreis jedes Pakets enthalten:",
-  nichtTitel: "Nicht im Festpreis",
-  nichtLead: "Damit Sie wissen, womit Sie rechnen:",
-  wissenTitel: "Was Sie vor dem Auftrag wissen müssen",
-
-  vergleichAuge: "Im Detail",
-  vergleichH2: "Alle Leistungen im Vergleich.",
-  vergleichLead: "Was jedes Paket enthält — Zeile für Zeile. Dieselben Leistungen stehen in Ihrem Vertrag.",
-  tabelleAuf: "Vergleichstabelle öffnen",
-  tabelleZu: "Vergleichstabelle schließen",
-  leistung: "Leistung",
-  zeilePlanung: "Kapitalrahmen",
-  zeileDauer: "Begleitung (Erfahrungswert)",
-  ja: "enthalten",
-  nein: "nicht enthalten",
-
-  sicherAuge: "Klare Verhältnisse",
-  sicherH2: "Wer was tut — und mit wem Sie den Vertrag schließen.",
-  rollenTitel: { fiaon: "Was FIAON tut", partner: "Was Partner tun", kosten: "Was der Festpreis abdeckt" },
-  standorteAuge: "London · Zürich · Miami",
-  standorteTitel: "Drei Standorte, ein Vertragspartner.",
-  standorteLand: { london: "Vereinigtes Königreich", zuerich: "Schweiz", miami: "USA" },
-  standorteRolle: {
-    london: "Ihr Vertragspartner — Vertrag, Rechnung, Ansprechpartner",
-    zuerich: "Partner für die Kapital-Etappe und für Kunden aus der Schweiz",
-    miami: "Unser Team vor Ort in den USA",
-  },
-  standorteMehr: "Standorte und Partner im Detail",
-  standorteVerbunden: GLOBAL_VERBUNDEN,
-
+  // ── 6 Erstgespräch ──
   gespraechAuge: "Erstgespräch",
   gespraechH2: "Erst sprechen, dann entscheiden.",
-  gespraechLead: "Dreißig Minuten mit Ihrem Ansprechpartner: Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt. Kostenfrei und ohne Verpflichtung.",
+  gespraechLead: "Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt.",
 
+  // ── 7 Fragen ──
   fragenAuge: "Häufige Fragen",
   fragenH2: "Was Unternehmer und Gründer vor dem Auftrag fragen.",
-  fragenNicht: "Ihre Frage ist nicht dabei?",
-  fragenNichtText: "Rufen Sie uns an oder schreiben Sie uns — Ihr Ansprechpartner antwortet persönlich.",
   fragenAlle: "Alle Antworten zu FIAON Global",
+  fragenAlleZahl: (n: number) => `Alle ${n} Fragen`,
+  // 06.10.2026 (E-293, Gutachten 2, § 5 UWG): Frage 1 endet nicht mehr mit „wir bezahlen alle, die für Ihre Gesellschaft
+  // arbeiten“ — FIAON trägt die Honorare für die Leistungen des Pakets, nicht jede Rechnung rund um die Gesellschaft.
+  // Reihenfolge bleibt; /business zeigt zuerst die Fragen FRAGEN_ZUERST (business.tsx), die übrigen hinter „Alle 17 Fragen“.
   fragen: [
-    { f: "Was ist im Festpreis enthalten?", a: "Alle Gebühren und Honorare für die Leistungen Ihres Pakets: staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN, die Honorare unseres Partner-Anwalts, unseres Partner-Steuerberaters und unseres US-CPA sowie die Arbeit unseres Teams vor Ort. Sie zahlen einen Preis — wir bezahlen alle, die für Ihre Gesellschaft arbeiten." },
+    { f: "Was ist im Festpreis enthalten?", a: "Alle Gebühren und Honorare für die Leistungen Ihres Pakets: staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN, die Honorare unseres Partner-Anwalts, unseres Partner-Steuerberaters und unseres US-CPA sowie die Arbeit unseres Teams vor Ort. Sie zahlen einen Preis — die Honorare für die Leistungen Ihres Pakets trägt FIAON." },
     { f: "Warum kostet das mehr als eine Online-Gründung?", a: "Eine Online-Gründung liefert die Gesellschaft — und endet dort. Im Festpreis stecken zusätzlich EIN und ITIN, Registered Agent, US-Adresse und Telefon im ersten Jahr, das Operating Agreement unseres Partner-Anwalts, die Prüfung durch unseren Partner-Steuerberater vor der Gründung, die erste jährliche US-Meldung durch unseren US-CPA, die vorbereiteten Konto- und Kartenanträge und ein Ansprechpartner, der alles zusammenhält. Wer nur die Gesellschaft braucht, zahlt bei einem reinen Gründungsdienst weniger — das sagen wir Ihnen auch im Gespräch." },
     { f: "Entscheidet FIAON über Karten und Rahmen?", a: "Nein. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut nach eigenen Regeln. FIAON baut die Struktur auf, bereitet Anträge vor und plant die Reihenfolge." },
     // 19.09.2026 (Justin): wortgleich mit GLOBAL_KAPITAL_FREI.de (frage/antwort) — scripts/pruef-global-seiten.ts prüft das.
@@ -219,30 +237,26 @@ const de = {
     { f: "Wie bezahle ich?", a: "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Das Paket zahlen Sie einmal, ohne Abo und ohne Raten; die Jahresbetreuung ab dem zweiten Jahr ist freiwillig und verlängert sich nicht von selbst." },
     { f: "Für wen passt es nicht?", a: "Für Vorhaben ohne echte Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist." },
   ],
-
+  // ── 8 Schlussband ──
   schlussA: "Eine Struktur, die Ihnen gehört — ",
   schlussB: "mit einem Ansprechpartner, der Ihr Vorhaben kennt.",
+  // Nur noch auf den Unterseiten (global-seite.tsx); /business zeigt im Schlussband keinen Absatz mehr.
   schlussText: "Wählen Sie ein Paket oder sprechen Sie zuerst mit uns. Erstgespräch: dreißig Minuten, kostenfrei und ohne Verpflichtung.",
   schlussBeauftragen: "Jetzt beauftragen",
 
+  // ── Klebeleiste am Handy ──
   leisteGespraech: "Erstgespräch",
   leistePakete: (preis: string) => `Pakete ab ${preis}`,
   leisteBeauftragen: "Jetzt beauftragen",
-  // ── 19.09.2026 (E-196): Jahresbetreuung, drei Uhren, Nachrichtenlage, Startseite für Privatpersonen ──
-  mandatJahr: ["Ab Jahr zwei", "Jahresbetreuung 699 € im Jahr — alle Gebühren inklusive"] as [string, string],
-  jbKnopf: "Beim Auftrag dazubuchen",
-  jbGespraech: "Erst darüber sprechen",
-  jbSo: "So funktioniert es",
-  uhrenAuge: "Drei Zeitzonen",
-  uhrenH2: "Deutschland, Florida, London.",
-  uhrenLead: "Wo Sie zu Hause sind, wo Ihre Gesellschaft entsteht und wo Ihr Vertragspartner sitzt — die Uhrzeit dort, in diesem Moment.",
+  leisteTafel: (name: string, preis: string) => `${name} · ${preis} — beauftragen`,
+
+  // ── Uhren (Mini-Uhren in „Drei Orte“ im Fuß) — Zonen prüft scripts/pruef-global-seiten.ts §9 ──
   uhren: [
     { zone: "Europe/Berlin", ort: "Deutschland", zusatz: "auch Österreich und Schweiz" },
     { zone: "America/New_York", ort: "Florida", zusatz: "Miami · Team vor Ort" },
     { zone: "Europe/London", ort: "London", zusatz: "FIAON LTD · Vertragspartner" },
   ],
-  uhrenGleich: "Ihre Zeit",
-  uhrenDifferenz: (stunden: number) => `${Math.abs(stunden)} ${Math.abs(stunden) === 1 ? "Stunde" : "Stunden"} ${stunden < 0 ? "hinter" : "vor"} Deutschland`,
+  // ── Nachrichtenlage: seit 06.10.2026 auf /business/wissen (global-seite.tsx, Übersicht) ──
   presseAuge: "Nachrichtenlage",
   presseH2: "Was gerade für eine US-Gesellschaft spricht.",
   presseStand: (datum: string) => `Stand ${datum}`,
@@ -251,36 +265,26 @@ const de = {
   presseLaufband: "Weitere Schlagzeilen",
   pressePause: "Laufband anhalten",
   presseWeiter: "Laufband fortsetzen",
+
+  // ── /business/privatpersonen: dieselbe Seite, eigene Wörter (E-196) ──
   privat: {
     // Deckungsgleich mit dem Registereintrag (Kopf im Vorab-HTML und in der SEO-Tabelle): shared/fiaon-global-seiten/privat.ts.
+    // 06.10.2026 (E-293): „Kontoantrag“ statt „Konto“ — im Suchtreffer steht der Satz ohne den Institut-Satz,
+    // und über das Konto entscheidet allein das Institut (Pflichthinweis 3, § 5 UWG). Wie bei /business.
     metaTitel: "US-Firma als Privatperson gründen — FIAON Global",
-    metaBeschreibung: "Sie brauchen keine eigene Firma: Als Privatperson oder Gründer beauftragen Sie FIAON Global direkt — US-Gesellschaft, EIN, ITIN und Konto zum Festpreis.",
+    metaBeschreibung: "Keine eigene Firma nötig: Als Privatperson oder Gründer beauftragen Sie FIAON Global direkt — US-Gesellschaft, EIN, ITIN und Kontoantrag zum Festpreis.",
     auge: "FIAON Global · Für Privatpersonen und Gründer",
     h1a: "Ihre eigene US-Gesellschaft.",
     h1b: "Ohne Firma, zum Festpreis.",
-    lead: "Sie brauchen kein Unternehmen, um in den USA zu gründen: Sie werden selbst Gesellschafter. Wir gründen die Gesellschaft, beantragen EIN und ITIN und bereiten Konto und Karten vor — mit unserem Team in Miami, Partner-Anwälten und Partner-Steuerberatern. Vertrag und Rechnung laufen auf Ihren Namen.",
-    mandat: [
-      ["Gesellschafter", "Sie persönlich — später auf Wunsch Ihre Holding"],
-      ["Gesellschaft", "US-LLC oder Corporation, gegründet von unserem Team vor Ort"],
-      ["Steuernummern", "EIN und ITIN, beantragt und eingereicht"],
-      ["Bank und Karten", "Konto- und Kartenanträge, vollständig vorbereitet"],
-      ["Partner", "Anwalt, Steuerberater und US-CPA — Honorare inklusive"],
-      ["Widerruf", "Vierzehn Tage gesetzliches Widerrufsrecht als Verbraucher"],
-    ] as [string, string][],
-    mandatPreisText: (preis: string) => `ab ${preis} — Endpreis, einmalig, alle Gebühren inklusive`,
-    vertrauen: ["Vertrag auf Deutsch, nach deutschem Recht", "Einmal zahlen, per Rechnung — der Festpreis ist Ihr Endpreis"],
-    fuerH2: "Für Gründer, Selbständige und alle, die privat gründen.",
-    fuerLead: "Die US-Gesellschaft gehört Ihnen persönlich. Sie passt, wenn Sie in den USA verkaufen, Kunden betreuen oder ein zweites Standbein mit eigener Bank- und Kartenhistorie aufbauen wollen.",
-    fuer: [
-      { tag: "Gründer", text: "Ihr erstes Unternehmen oder ein neues Geschäft — Sie beauftragen als Person." },
-      { tag: "Selbständige und Freiberufler", text: "Kunden oder Aufträge in den USA — mit eigener Gesellschaft, EIN und Konto." },
-      { tag: "Unternehmer, die privat buchen", text: "Die US-Gesellschaft persönlich halten statt über die eigene Firma." },
-      { tag: "Onlinehandel und Marken", text: "Verkaufen an Kunden in den USA — mit Gesellschaft, Steuernummer und Konto." },
-    ] as { tag: string; text: string; pfad?: string }[],
-    gegenAuge: "Sie haben eine Firma?",
-    gegenTitel: "Als Unternehmen beauftragen",
-    gegenText: "Ihre GmbH, AG oder Holding wird Vertragspartner und Gesellschafterin — mit Registerauszug, Rechnung an die Firma und denselben vier Paketen.",
-    gegenKnopf: "Zur Seite für Unternehmen",
+    lead: "Sie werden selbst Gesellschafter: Wir gründen, beantragen EIN und ITIN und bereiten Konto- und Kartenanträge vor — Vertrag und Rechnung laufen auf Ihren Namen.",
+    preisKopfZusatz: "Einmalig, Endpreis, alle Gebühren des Pakets inklusive.",
+    // Gründer und Selbständige haben keine eigene Unterseite — die Chips ordnen ein, „Als Unternehmen“ führt zurück.
+    fuerChips: [
+      { text: "Gründer" },
+      { text: "Selbständige" },
+      { text: "Onlinehandel", pfad: "/business/onlinehandel" },
+      { text: "Als Unternehmen", pfad: "/business" },
+    ] as { text: string; pfad?: string }[],
     fragenH2: "Was Privatpersonen und Gründer vor dem Auftrag fragen.",
     schlussA: "Ihre Gesellschaft, Ihr Name — ",
     schlussB: "mit einem Ansprechpartner, der Ihr Vorhaben kennt.",
@@ -289,65 +293,52 @@ const de = {
 
 const en: typeof de = {
   metaTitel: "Form a US company from €2,499 — FIAON Global",
-  metaBeschreibung: "Form a US company with a team on the ground — for companies and private individuals: formation, EIN, ITIN, account, cards. Fixed price from €2,499.",
+  metaBeschreibung: "Form a US company with our team in Miami — for companies and private individuals: formation, EIN, ITIN, account and card applications. From €2,499.",
 
   auge: "FIAON Global · For companies and private individuals",
+  augeLink: "private individuals",
   h1a: "Form a US company.",
-  h1b: "From one source, at a fixed price.",
-  lead: "Formation, EIN and ITIN, bank account and business credit cards in the United States — handled by our team in Miami, partner lawyers and partner tax advisers. One contact, one contract under German law, one fixed price.",
+  h1b: "Plan your route to capital.",
+  lead: "Formation, EIN and ITIN, account and card applications — with our team in Miami and one dedicated contact.",
   knopfPakete: "Packages and prices",
   knopfGespraech: "Arrange a first call",
-  gespraechMikro: "Thirty minutes with your contact — free of charge and without obligation.",
+  gespraechMikro: "Thirty minutes, free of charge and without obligation.",
   preisKopf: "Fixed price",
   preisAb: "from",
-  preisKopfZusatz: "one-off, all fees included",
+  preisKopfZusatz: "One-off, all package fees included.",
   kapitalKopf: "Capital range by package",
   kapitalKopfZusatz: "Your target — each institution decides on its own limit.",
-  vertrauen: ["Contract under German law", "Pay once, by invoice — no subscription"],
-  vertrauenZusatz: { text: "Read the model contract first", pfad: "/en/business/mustervertrag" },
-
-  mandatTitel: "Your engagement",
-  mandatMarke: "FIAON Global",
-  mandat: [
-    ["Company", "US LLC or corporation, formed by our team on the ground"],
-    ["Tax numbers", "EIN and ITIN, applied for and filed"],
-    ["Banking and cards", "Account and card applications, fully prepared"],
-    ["Partners", "Lawyer, tax adviser and US CPA — fees included"],
-    ["On the ground", "Schwarzott Global LLC, Miami"],
-    ["Support", "One dedicated contact from day one"],
+  jahrZeile: (preis: string) => `From year two, optional: annual care plan ${preis} a year`,
+  vertrauensleiste: [
+    "Contract under German law",
+    "Read the model contract first",
+    "Pay by invoice, no subscription",
+    `${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`,
   ],
-  mandatPreis: "Price",
-  mandatPreisText: (preis: string) => `from ${preis} — fixed price, one-off, all fees included`,
-  mandatPartner: "Contracting party",
+  bildKi: "Image created with AI",
+  szeneKi: "Scene created with AI",
 
-  vsAuge: "One point of contact",
-  vsH2: "Eight points of contact — or one contract.",
-  vsLead: "Anyone building a US company alone deals with a formation service, registered agent, the US tax authority, a lawyer, a tax adviser, a US CPA, banks and card issuers — each with its own contract and its own invoice. At FIAON Global one contact coordinates them all.",
-  ohneTitel: "Without FIAON Global",
-  ohne: [
-    "Formation service for the company",
-    "Registered agent and US address",
-    "US tax authority for EIN and ITIN",
-    "Lawyer for the operating agreement",
-    "Tax adviser in your country of residence",
-    "US CPA for the annual filing",
-    "Banks for the business account",
-    "Card issuers for every business card",
-  ],
-  mitTitel: "With FIAON Global",
-  mit: [
-    "One contract, signed on screen",
-    "One contact for every step",
-    "One fixed price — all fees and charges included",
-    "One team attending appointments on the ground",
-  ],
-  ehrlichTitel: "To be honest",
-  ehrlichText: "If all you need is the company, a pure formation service costs less. What makes a US company expensive is what comes afterwards: a missed Form 5472 — the IRS can impose a penalty of $25,000 per form and year —, an account that fails on inconsistent documents, a tax liability at home that nobody checked beforehand.",
-  ehrlichLink: "Yourself, a formation service or FIAON Global: the comparison",
+  begriffe: {
+    ein: "The tax number of your US company, issued by the US tax authority.",
+    itin: "Your personal US tax number — for shareholders without a US social security number.",
+    registeredAgent: "The mandatory address for service of your company in the state of formation.",
+    operatingAgreement: "The articles of an LLC: who owns it and who decides.",
+    usCpa: "A certified public accountant licensed in the US; prepares the US filing.",
+    kartenleiter: "First one card, then further issuers in a planned order — every punctual repayment builds history.",
+    bareinlage: "A balance that some issuers require as security.",
+    herausgeber: "The bank or company that issues a card.",
+    kapitalrahmen: "The range you aim for with us — your target, not a commitment. Each institution decides on its own limit.",
+  },
+  begriffWoerter: {
+    ein: "EIN", itin: "ITIN", registeredAgent: "registered agent", operatingAgreement: "operating agreement", usCpa: "US CPA",
+    kartenleiter: "card ladder", bareinlage: "cash deposit", herausgeber: "issuer", kapitalrahmen: "capital range",
+  },
 
-  wegAuge: "The path",
-  wegH2: "Four stages. A sequence that has proven itself.",
-  wegLead: "Each stage makes the next one possible. How long a stage takes is set by authorities and institutions — so we give you typical experience, not deadlines.",
+  paketeAuge: "Packages and prices",
+  paketeH2: "How far should we take you?",
+  paketeLead: "The capital range is your target. The higher it is, the longer we support you.",
+  wegLabel: "The route in four stages",
+  wegLead: "Authorities and institutions set the pace — we give you experience, not deadlines.",
   weg: [
     { titel: "Formation and documents", dauer: "typically a few weeks", text: "Company, EIN, ITIN, registered agent, US address and phone number, operating agreement. Our team on the ground files and collects; the ITIN is issued by the US tax authority on its own timeline." },
     { titel: "The first business card", dauer: "once documents are complete", text: "You submit the first application to a US issuer — usually with a small limit and no cash deposit, but with a personal guarantee from the owner. We prepare the application; the issuer decides." },
@@ -356,46 +347,25 @@ const en: typeof de = {
   ],
   inJedemPaket: "In every package",
   abPaket: (name: string) => `From ${name}`,
-
-  fuerAuge: "Who it is for",
-  fuerH2: "For companies of every kind — and for you in person.",
-  fuerLead: "The US structure suits businesses with customers, suppliers or projects in the United States, companies with capital needs — and people who want to build a second pillar with its own banking and card history. You do not need a company of your own for it.",
-  fuer: [
-    { tag: "SMEs and industry", text: "A subsidiary for sales, service and purchasing in the US.", pfad: "/en/business/us-subsidiary" },
-    { tag: "E-commerce and brands", text: "Selling to customers in the US — with your own company, EIN and account.", pfad: "/en/business/e-commerce" },
-    { tag: "Agencies and software", text: "Clients, advertising accounts and billing in the US.", pfad: "/en/business/agencies-software" },
-    { tag: "Construction, trades and property", text: "Contracts, materials, property companies and partners in the US.", pfad: "/en/business/construction-property" },
-  ],
-  fuerLaender: "What applies to you at home:",
-  fuerLaenderLinks: [["/en/business/from-germany", "from Germany"], ["/en/business/from-switzerland", "from Switzerland"]],
-  privatAuge: "No company of your own needed",
-  privatTitel: "Order as a private individual",
-  privatText: "Founders, freelancers or business owners ordering privately: you become the shareholder of the US company yourself. Contract and invoice are issued in your name, the fixed price is your final price. If you act as a consumer, the statutory right of withdrawal applies.",
-  privatKnopf: "Order as a private individual",
-  fuerAusstieg: "In the first call we check together whether the structure fits your plans — and we tell you if it does not.",
-
-  paketeAuge: "Packages and prices",
-  paketeH2: "How far should we take you?",
-  paketeLead: "Each package is an engagement at a fixed price — all fees and our partners’ charges included. The capital range is the limit you are aiming for; it determines how long and how closely we work with you. Every limit is decided by the institutions.",
+  stempelInstitut: "The institution decides here",
   fokusBand: "All four stages",
   festpreis: "Fixed price, one-off",
-  inklusive: "All fees included",
+  inklusive: "All package fees included",
   planung: "Capital range",
   planungZusatz: "Your target — the institution decides on the limit",
-  begleitung: "Support",
   beauftragen: (name: string) => `Order ${name}`,
   beauftragenKurz: "Order now",
   vipGespraech: (name: string) => `Arrange a call about ${name}`,
   vipGespraechKurz: "Arrange a call",
   direktBeauftragen: "Order directly",
-  wischen: "Scroll the table sideways to see all four packages.",
   erstSprechen: "Talk first",
   etappenBis: (bis: string) => `Stages I–${bis}`,
   festpreisKurz: "Fixed price",
-  einmaligInklusive: "One-off, all fees included",
-  alleLeistungen: (n: number) => `See all ${n} services`,
+  einmaligInklusive: "One-off, all package fees included",
+  alleLeistungen: (n: number) => `All ${n} services`,
   wenigerLeistungen: "Show less",
   zumVergleich: "Compare all services",
+  wischen: "Scroll the table sideways to see all four packages.",
   vipZeichen: "VIP",
   vipTicket: {
     titel: "Your kick-off in Miami",
@@ -404,56 +374,82 @@ const en: typeof de = {
     enthalten: "Included", enthaltenText: "Return flight · Hotel",
     fuer: "For", fuerText: "1 person",
   },
-  vertragVorab: "You see the contract before you sign:",
-  mustervertragLesen: "read the model contract",
-  perRechnung: "You pay once, by invoice.",
   kostenHinweis: "Companies: plus VAT where applicable. Private individuals: final prices.",
-  finderFrage: "Not sure which package fits?",
   finderLink: "Package finder: four questions",
-
-  inklAuge: "Everything included",
-  inklTitel: "You pay one price. We pay everyone who works on your company.",
-  inklLead: "Included in the fixed price of every package:",
+  inklAuge: "In the fixed price",
+  inklTitel: "One fixed price — FIAON pays the fees for the services in your package.",
+  beleg: [
+    "State formation fees",
+    "Registered agent, US address and phone in year one",
+    "EIN and ITIN applications",
+    "Partner lawyer: operating agreement",
+    "Partner tax adviser: review before formation",
+    "US CPA: first annual US filing",
+    "Appointments and filings on the ground",
+    "Your dedicated contact",
+  ],
+  belegSumme: "Your fixed price · one-off",
+  belegKlappe: "Wording as in the contract",
   nichtTitel: "Not in the fixed price",
-  nichtLead: "So you know what to expect:",
   wissenTitel: "What you need to know before ordering",
-
-  vergleichAuge: "In detail",
-  vergleichH2: "All services compared.",
-  vergleichLead: "What each package contains — line by line. The same services appear in your contract.",
-  tabelleAuf: "Open the comparison table",
-  tabelleZu: "Close the comparison table",
   leistung: "Service",
   zeilePlanung: "Capital range",
   zeileDauer: "Support (typical)",
   ja: "included",
   nein: "not included",
 
-  sicherAuge: "Clear arrangements",
-  sicherH2: "Who does what — and whom you contract with.",
-  rollenTitel: { fiaon: "What FIAON does", partner: "What partners do", kosten: "What the fixed price covers" },
-  standorteAuge: "London · Zurich · Miami",
-  standorteTitel: "Three locations, one contracting party.",
-  standorteLand: { london: "United Kingdom", zuerich: "Switzerland", miami: "USA" },
-  standorteRolle: {
-    london: "Your contracting party — contract, invoice, contact",
-    zuerich: "Partner for the capital stage and for clients from Switzerland",
-    miami: "Our team on the ground in the USA",
-  },
-  standorteMehr: "Locations and partners in detail",
-  standorteVerbunden: "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.",
+  jbKnopf: "Add it when you order",
+  jbSo: "How it works",
+
+  vsAuge: "From one source",
+  vsH2: "One contact instead of eight.",
+  sternLabel: "One contact instead of eight points of contact",
+  sternSchalter: ["Without FIAON Global", "With FIAON Global"],
+  sternKnoten: [
+    { name: "Formation service", umfang: "formation incl. state fees", status: "fest", inkl: 0 },
+    { name: "Registered agent", umfang: "in year one", status: "fest", inkl: 1 },
+    { name: "US tax authority", umfang: "EIN and ITIN applications", status: "fest", inkl: 2 },
+    { name: "Lawyer", umfang: "operating agreement", status: "fest", inkl: 3 },
+    { name: "Tax adviser", umfang: "review before formation", status: "fest", inkl: 4 },
+    { name: "US CPA", umfang: "first US filing", status: "fest", inkl: 5 },
+    { name: "Banks", status: "antrag" },
+    { name: "Card issuers", status: "antrag" },
+  ],
+  sternMitte: "Your contact",
+  sternSie: "You",
+  sternLegende: ["Included in the fixed price", "Application prepared — the institution decides"],
+  ohne: [
+    "Formation service for the company",
+    "Registered agent and US address",
+    "US tax authority for EIN and ITIN",
+    "Lawyer for the operating agreement",
+    "Tax adviser in your country of residence",
+    "US CPA for the annual filing",
+    "Banks for the business account",
+    "Card issuers for every business credit card",
+  ],
+  ehrlichTitel: "To be honest",
+  ehrlichText: "a formation service is cheaper if all you need is the company. Our fixed price also covers the steps after — from EIN and ITIN to the first US filing.",
+  ehrlichLink: "Yourself, a formation service or FIAON Global: the comparison",
+  fuerKurz: "For:",
+  fuerChips: [
+    { text: "SMEs", pfad: "/en/business/us-subsidiary" },
+    { text: "E-commerce", pfad: "/en/business/e-commerce" },
+    { text: "Agencies and software", pfad: "/en/business/agencies-software" },
+    { text: "Construction and property", pfad: "/en/business/construction-property" },
+    { text: "Private individuals", pfad: "/en/business/private-individuals" },
+  ],
 
   gespraechAuge: "First call",
   gespraechH2: "Talk first, then decide.",
-  gespraechLead: "Thirty minutes with your contact: your plans, your residence, your goal — and which package fits. Free of charge and without obligation.",
+  gespraechLead: "Your plans, your country of residence, your goal — and which package fits.",
 
   fragenAuge: "Frequently asked questions",
   fragenH2: "What business owners and founders ask before ordering.",
-  fragenNicht: "Your question is not listed?",
-  fragenNichtText: "Call or write to us — your contact answers in person.",
   fragenAlle: "All answers about FIAON Global",
+  fragenAlleZahl: (n: number) => `All ${n} questions`,
   fragen: [
-    { f: "What is included in the fixed price?", a: "All fees and charges for the services in your package: US state formation fees, registered agent, US address and phone in the first year, the EIN and ITIN applications, the fees of our partner lawyer, partner tax adviser and US CPA, and the work of our team on the ground. You pay one price — we pay everyone who works on your company." },
+    { f: "What is included in the fixed price?", a: "All fees and charges for the services in your package: US state formation fees, registered agent, US address and phone in the first year, the EIN and ITIN applications, the fees of our partner lawyer, partner tax adviser and US CPA, and the work of our team on the ground. You pay one price — FIAON pays the fees for the services in your package." },
     { f: "Why does this cost more than an online formation?", a: "An online formation delivers the company — and stops there. The fixed price also covers EIN and ITIN, registered agent, US address and phone in the first year, the operating agreement by our partner lawyer, the review by our partner tax adviser before formation, the first annual US filing by our US CPA, the prepared account and card applications and one contact who keeps it all together. If all you need is the company, a pure formation service costs less — we tell you that in the call as well." },
     { f: "Does FIAON decide on cards and limits?", a: "No. The institution concerned decides on account, card and limit under its own rules. FIAON builds the structure, prepares applications and plans the sequence." },
     { f: "Does the capital have to be spent in the US?", a: "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes." },
@@ -471,7 +467,6 @@ const en: typeof de = {
     { f: "How do I pay?", a: "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. You pay for the package once, with no subscription and no instalments; the annual care plan from the second year is optional and does not renew automatically." },
     { f: "Who is it not for?", a: "For plans without genuine business activity, and for anyone who does not want to run a company with ongoing duties. We clarify that in the first call — openly, even if the answer is no." },
   ],
-
   schlussA: "A structure that belongs to you — ",
   schlussB: "with one contact who knows your plans.",
   schlussText: "Choose a package or talk to us first. First call: thirty minutes, free of charge and without obligation.",
@@ -480,21 +475,13 @@ const en: typeof de = {
   leisteGespraech: "First call",
   leistePakete: (preis: string) => `Packages from ${preis}`,
   leisteBeauftragen: "Order now",
+  leisteTafel: (name: string, preis: string) => `${name} · ${preis} — order`,
 
-  mandatJahr: ["From year two", "Annual care plan €699 a year — all fees included"] as [string, string],
-  jbKnopf: "Add it when you order",
-  jbGespraech: "Talk about it first",
-  jbSo: "How it works",
-  uhrenAuge: "Three time zones",
-  uhrenH2: "Germany, Florida, London.",
-  uhrenLead: "Where you live, where your company is formed and where your contracting party is based — the time there, right now.",
   uhren: [
     { zone: "Europe/Berlin", ort: "Germany", zusatz: "also Austria and Switzerland" },
     { zone: "America/New_York", ort: "Florida", zusatz: "Miami · team on the ground" },
     { zone: "Europe/London", ort: "London", zusatz: "FIAON LTD · contracting party" },
   ],
-  uhrenGleich: "Your time",
-  uhrenDifferenz: (stunden: number) => `${Math.abs(stunden)} ${Math.abs(stunden) === 1 ? "hour" : "hours"} ${stunden < 0 ? "behind" : "ahead of"} Germany`,
   presseAuge: "The news",
   presseH2: "What speaks for a US company right now.",
   presseStand: (datum: string) => `As of ${datum}`,
@@ -505,33 +492,18 @@ const en: typeof de = {
   presseWeiter: "Resume the ticker",
   privat: {
     metaTitel: "Form a US company as a private individual — FIAON Global",
-    metaBeschreibung: "No business of your own needed: as a private individual or founder, you engage FIAON Global directly — US company, EIN, ITIN and account at a fixed price.",
+    metaBeschreibung: "No company needed: as a private individual or founder, engage FIAON Global directly — US company, EIN, ITIN and account application, fixed price.",
     auge: "FIAON Global · For private individuals and founders",
     h1a: "Your own US company.",
-    h1b: "No company needed, fixed price.",
-    lead: "You do not need a business to form a company in the US: you become the shareholder yourself. We form the company, apply for the EIN and ITIN and prepare account and card applications — with our team in Miami, partner lawyers and partner tax advisers. Contract and invoice are in your name.",
-    mandat: [
-      ["Shareholder", "You personally — later your holding if you wish"],
-      ["Company", "US LLC or corporation, formed by our team on the ground"],
-      ["Tax numbers", "EIN and ITIN, applied for and filed"],
-      ["Bank and cards", "Account and card applications, fully prepared"],
-      ["Partners", "Lawyer, tax adviser and US CPA — fees included"],
-      ["Withdrawal", "Fourteen-day statutory right of withdrawal as a consumer"],
-    ] as [string, string][],
-    mandatPreisText: (preis: string) => `from ${preis} — final price, one-off, all fees included`,
-    vertrauen: ["Contract under German law", "Pay once, by invoice — the fixed price is your final price"],
-    fuerH2: "For founders, the self-employed and everyone forming privately.",
-    fuerLead: "The US company belongs to you personally. It fits if you sell in the US, serve clients there or want to build a second pillar with its own bank and card history.",
-    fuer: [
-      { tag: "Founders", text: "Your first business or a new venture — you order as a person." },
-      { tag: "Self-employed and freelancers", text: "Clients or projects in the US — with your own company, EIN and account." },
-      { tag: "Entrepreneurs ordering privately", text: "Hold the US company personally rather than through your business." },
-      { tag: "E-commerce and brands", text: "Sell to customers in the US — with a company, tax number and account." },
-    ] as { tag: string; text: string; pfad?: string }[],
-    gegenAuge: "You have a company?",
-    gegenTitel: "Order as a business",
-    gegenText: "Your GmbH, AG or holding becomes the contracting party and shareholder — with a register extract, an invoice to the company and the same four packages.",
-    gegenKnopf: "To the page for businesses",
+    h1b: "No company needed — at a fixed price.",
+    lead: "You become the shareholder yourself: we form the company, apply for the EIN and ITIN and prepare account and card applications — contract and invoice are in your name.",
+    preisKopfZusatz: "One-off, final price, all package fees included.",
+    fuerChips: [
+      { text: "Founders" },
+      { text: "Self-employed" },
+      { text: "E-commerce", pfad: "/en/business/e-commerce" },
+      { text: "As a company", pfad: "/en/business" },
+    ],
     fragenH2: "What private individuals and founders ask before ordering.",
     schlussA: "Your company, your name — ",
     schlussB: "with a contact who knows your plans.",
@@ -539,6 +511,7 @@ const en: typeof de = {
 };
 
 export const GLOBAL_WOERTER = { de, en };
+
 
 // ── Das Gespräch (Kalender auf /business#gespraech) ────────────────────────
 const gespraechDe = {
@@ -548,7 +521,6 @@ const gespraechDe = {
     "Was im Festpreis steckt und was wir nicht zusagen können.",
     "Ohne Verpflichtung — Sie entscheiden danach in Ruhe.",
   ],
-  mitWem: (name: string) => `Ihr Gespräch mit ${name}`,
   mitWemZusatz: "Dreißig Minuten am Telefon — wir rufen Sie zur gewählten Zeit an.",
   direkt: "Lieber sofort sprechen?",
   laedt: "Freie Zeiten werden geladen …",
@@ -567,7 +539,6 @@ const gespraechDe = {
   sendet: "Wird gesendet …",
   rueckfallTitel: "Wir rufen Sie zurück",
   rueckfallText: "Im Moment sind online keine freien Zeiten hinterlegt. Hinterlassen Sie Ihre Angaben — Ihr Ansprechpartner meldet sich und stimmt einen Termin mit Ihnen ab.",
-  lieberRueckruf: "Keine passende Zeit dabei? Rückruf anfragen",
   zurueckKalender: "Zurück zu den freien Zeiten",
   vergeben: "Diese Zeit wurde gerade vergeben. Bitte wählen Sie eine andere.",
   fehler: "Das hat nicht geklappt. Bitte prüfen Sie Ihre Angaben und versuchen Sie es erneut.",
@@ -578,6 +549,10 @@ const gespraechDe = {
   anfrageText: "Ihr Ansprechpartner meldet sich bei Ihnen und stimmt einen Termin ab.",
   paketGewaehlt: (name: string) => `Paketwunsch: ${name}`,
   datenschutz: "Ihre Angaben verwenden wir nur für dieses Gespräch. Einzelheiten stehen in der Datenschutzerklärung.",
+  // 06.10.2026 (E-293): Visitenkarte statt Punkteliste, Kalender in zwei Schritten (erst Tag und Uhrzeit, dann die Angaben).
+  karteTitel: "Ihr Ansprechpartner",
+  zurueck: "Zurück",
+  rueckrufStatt: "Rückruf statt Termin",
 };
 
 const gespraechEn: typeof gespraechDe = {
@@ -587,7 +562,6 @@ const gespraechEn: typeof gespraechDe = {
     "What the fixed price covers and what we cannot commit to.",
     "No obligation — you decide afterwards, in your own time.",
   ],
-  mitWem: (name: string) => `Your call with ${name}`,
   mitWemZusatz: "Thirty minutes by phone — we call you at the time you choose.",
   direkt: "Rather talk right away?",
   laedt: "Loading available times …",
@@ -606,7 +580,6 @@ const gespraechEn: typeof gespraechDe = {
   sendet: "Sending …",
   rueckfallTitel: "We will call you back",
   rueckfallText: "There are currently no available times online. Leave your details — your contact will get in touch and agree a time with you.",
-  lieberRueckruf: "No suitable time? Request a call back",
   zurueckKalender: "Back to the available times",
   vergeben: "This time has just been taken. Please choose another one.",
   fehler: "That did not work. Please check your details and try again.",
@@ -617,6 +590,69 @@ const gespraechEn: typeof gespraechDe = {
   anfrageText: "Your contact will get in touch and agree a time with you.",
   paketGewaehlt: (name: string) => `Package of interest: ${name}`,
   datenschutz: "We use your details only for this call. Details are in the privacy policy.",
+  karteTitel: "Your contact",
+  zurueck: "Back",
+  rueckrufStatt: "Call me back instead",
 };
 
 export const GLOBAL_GESPRAECH_WOERTER = { de: gespraechDe, en: gespraechEn };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER FUSS DER BUSINESS-WELT (GlobalFuss.tsx) — 06.10.2026 (E-293)
+// Bis heute standen diese Wörter als JSX in GlobalFuss.tsx; die Wortwand liest
+// kein JSX. Jetzt prüft scripts/pruef-wortwand-de.ts die deutsche Hälfte und
+// scripts/pruef-global-en.ts die englische. Der Satz unter der Marke sagt nicht
+// mehr „alles inklusive“, sondern was inklusive ist: die Gebühren des Pakets.
+// KEINE_BANK steht auf jeder Seite der Business-Welt (Paketname „Global Banking“,
+// § 39/§ 41 KWG) — Begründung in GlobalFuss.tsx.
+// ═══════════════════════════════════════════════════════════════════════════
+const fussDe = {
+  label: "FIAON Global — Fußzeile",
+  satz: "US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Festpreis, alle Gebühren des Pakets inklusive.",
+  gespraech: "Gespräch vereinbaren",
+  beauftragen: "Beauftragen",
+  auftrag: "Mein Auftrag",
+  themen: "Themen",
+  standorte: "Standorte",
+  rechtlich: "Rechtliches",
+  orte: { london: "Vertragspartner", zuerich: "Partner Kapital-Etappe", miami: "Team vor Ort" },
+  // „Drei Orte“: wo Sie sind (Deutschland, Österreich, Schweiz) und die drei Gesellschaften.
+  orteSie: "Sie",
+  orteSieZusatz: "Deutschland · Österreich · Schweiz",
+  recht: [
+    { pfad: "/impressum", text: "Impressum" },
+    { pfad: "/datenschutz", text: "Datenschutz" },
+    { pfad: "/cookie-einstellungen", text: "Cookie-Einstellungen" },
+    { pfad: "/business/widerrufsbelehrung", text: "Widerrufsbelehrung" },
+    { pfad: "/business/mustervertrag", text: "Mustervertrag" },
+  ],
+  registriert: "Eingetragen in England und Wales",
+  keineBank: "FIAON ist keine Bank und keine Kanzlei. Über Konten, Karten und Darlehen entscheiden allein die Institute; Steuer- und Rechtsfragen klären unsere Partner auf Ihr Mandat.",
+  einwilligung: "Einwilligung ändern",
+};
+
+const fussEn: typeof fussDe = {
+  label: "FIAON Global — footer",
+  satz: "Your US company from one source — for companies and private individuals. Fixed price, all package fees included.",
+  gespraech: "Arrange a call",
+  beauftragen: "Order now",
+  auftrag: "My order",
+  themen: "Topics",
+  standorte: "Locations",
+  rechtlich: "Legal",
+  orte: { london: "Contracting party", zuerich: "Capital stage partner", miami: "Team on the ground" },
+  orteSie: "You",
+  orteSieZusatz: "Germany · Austria · Switzerland",
+  recht: [
+    { pfad: "/impressum", text: "Legal notice" },
+    { pfad: "/datenschutz", text: "Privacy policy" },
+    { pfad: "/cookie-einstellungen", text: "Cookie settings" },
+    { pfad: "/en/business/widerrufsbelehrung", text: "Withdrawal instructions" },
+    { pfad: "/en/business/mustervertrag", text: "Model contract" },
+  ],
+  registriert: "Registered in England and Wales",
+  keineBank: "FIAON is neither a bank nor a law firm. Accounts, cards and loans are decided solely by the institutions; tax and legal questions are handled by our partners under your engagement.",
+  einwilligung: "Change consent",
+};
+
+export const GLOBAL_FUSS_WOERTER = { de: fussDe, en: fussEn };

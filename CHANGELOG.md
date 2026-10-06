@@ -5,6 +5,54 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 — /business neu: halb so lang, Pakete sofort, Grafik statt Textwand (E-293, Scheibe A)
+
+**Der Anlass:** Justin: „die Business Seite wirkt super überladen mit Texten – viel zu unübersichtlich. Mach den Business Bereich besser,
+moderner … mehr grafisch statt nur Text – die Leute abholen, Texte anpassen (auch mit der Bürgschaft bei ausgewählten Kunden)“.
+Bestandsaufnahme: am Handy 27 Bildschirme, Pakete erst nach 7,6, Inhalte bis zu siebenmal doppelt, kein Bild.
+
+**Was geändert:** Drei Konzepte, zwei Gutachten (Wirkung, Recht), ein Bauplan (scratchpad/business-konzept/BAUPLAN.md).
+- Neue Reihenfolge: Hero („US-Gesellschaft gründen. Den Weg zum Kapital planen.“, Kapitalrahmen und Festpreis mit ihren Pflichtsätzen,
+  Vertrauensleiste) → Pakete mit Wegleiste I–IV, Tafeln, VIP, Vergleich zum Aufklappen, „Im Festpreis“-Beleg, Pflichthinweise →
+  Jahresbetreuung als Band → „Ein Ansprechpartner statt acht Anlaufstellen“ (Grafik mit Schalter Ohne/Mit) + Für-wen-Chips →
+  Erstgespräch (zwei Schritte) → fünf Fragen offen, zwölf dahinter → Schlussband.
+- Gemessen: 1.055 statt ≈ 2.730 sichtbare Wörter; 8,8 statt 17,7 Bildschirme am Desktop, 12,8 statt 27,1 am Handy; Pakete nach 0,95 bzw.
+  1,41 Bildschirmen. Fachbegriffe zum Antippen erklärt. Nachrichtenlage auf /business/wissen.
+- Bürgschaft „für ausgewählte Vorhaben“ ist gebaut, aber AUS (GLOBAL_BUERGSCHAFT_SEITE.aktiv = false), bis Registerstatus der Bürgin und
+  KWG-Frage geklärt sind. Wortgleiche Pflichtsätze (Kapital-FAQ, Institut-, Festpreis-, Keine-Bank-Satz, Jahresbetreuung) bleiben.
+- SEO-Korpus /business und /business/privatpersonen = sichtbare Seite; Prüfstände erweitert (Bürgschaft nie in Meta/Korpus, H2 = sichtbar).
+
+**Folgt:** Scheibe B (Bewegung der Grafiken), C (Higgsfield-Objekte: Urkunde mit Siegel, Metallkarten, Term Sheet, Boardroom — erst nach
+Justins Blick), D (Vorlage der 78 Unterseiten), E (Bürgschaft live).
+
+**Wo:** client/src/pages/site/business.tsx, client/src/i18n/global.ts, client/src/components/site/global/*, client/src/styles/global*.css,
+shared/fiaon-global.ts, shared/fiaon-seo-seiten.ts, shared/fiaon-global-seiten/(en/)privat.ts, scripts/pruef-global-*.ts.
+
+## 06.10.2026 — Social-Studio im Mara-Steuerpult (E-294, Scheibe 1)
+
+**Der Anlass:** Justin: „unser Content … muss auch auf der Plattform eine Seite haben, mit Termin, Post, Plattform, Texten … wie sieht
+Instagram aus wenn es fertig ist … dass man auch echt was machen kann von dort aus“ — und: Claude spielt die Posts ein, das Team prüft,
+bearbeitet und postet dort.
+
+**Was es gibt:** Reiter „Social-Studio“ im Mara-Steuerpult (/chef/s/mara?reiter=social; keine neue Chef-Seite).
+- **Plan:** Woche/Monat, „Heute zu posten“ mit Countdown, Filter (Kanal, Marke, Status), Planhinweise, Verschieben per Ziehen (Desktop).
+- **Post-Detail:** Handy-Rahmen mit Karussell zum Wischen bzw. Reel mit Ton und Titelbild; Texte mit Kopieren und Zeichenzählung je
+  Kanal; Dateien einzeln, als ZIP oder „In Fotos sichern“ (iPhone); Checkliste je Kanal mit KI-Pflichthaken; Verlauf.
+- **Knöpfe:** Freigeben (Wort-Check rot sperrt; „trotzdem freigeben“ nur Inhaber mit Grund), Zurück an Claude (Pflichtnotiz),
+  Verschieben, Als veröffentlicht melden (Permalink Pflicht, KI-Haken Pflicht), Verwerfen (Grund).
+- **Vorschau:** Instagram-Profil @fiaon.ltd wie in der App, Raster 3:4 aus den 4:5-Beiträgen, Zeitregler heute / 7 / 30 Tage.
+- **Import:** POST /api/fiaon/social/import (Bearer SOCIAL_IMPORT_TOKEN, darf nur importieren; idempotent über extern_id und sha256;
+  neue Fassungen landen als „zur Freigabe“, nie still überschrieben; Veröffentlichtes wird nicht ersetzt). Dateien als BYTEA in der
+  Datenbank (Migration 094), Videos mit Range für Safari.
+- **Rechte:** Seite in Scheibe 1 nur Inhaber, Schnittstelle ab Geschäftsführung; jede Aktion im Chef-Protokoll.
+
+**Folgt:** Profile, Bearbeiten mit Verlauf, LinkedIn/Facebook/TikTok-Vorschau, Kalender-Abo „Social“, Veröffentlichen über Meta
+(braucht den neuen META_SYSTEM_TOKEN), Wirkung und Ziel 1 Mio, Social-Feed auf der Website.
+
+**Wo:** shared/fiaon-social.ts, server/lib/fiaon-social*.ts, server/routes/fiaon-social.ts, db/migrations/094_social_studio.sql,
+client/src/components/admin/ChefMaraSocial.tsx, client/src/components/admin/social/*, client/src/styles/chef-social.css,
+scripts/pruef-social.ts, scripts/social-sync.ts.
+
 ## 06.10.2026 — Ladeanimation „Riffelglas“ und „Fassade“, Favicon komplett, Instagram und Facebook (E-287 Abschluss, E-292)
 
 **E-287 — die Motive:** Justin wollte „andere, bessere“ Ladeanimationen und für Business eine eigene. Zwölf Entwürfe (Werkbank, Jury,

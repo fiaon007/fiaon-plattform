@@ -163,7 +163,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/business": [
     {
       "f": "Was ist im Festpreis enthalten?",
-      "a": "Alle Gebühren und Honorare für die Leistungen Ihres Pakets: staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN, die Honorare unseres Partner-Anwalts, unseres Partner-Steuerberaters und unseres US-CPA sowie die Arbeit unseres Teams vor Ort. Sie zahlen einen Preis — wir bezahlen alle, die für Ihre Gesellschaft arbeiten."
+      "a": "Alle Gebühren und Honorare für die Leistungen Ihres Pakets: staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN, die Honorare unseres Partner-Anwalts, unseres Partner-Steuerberaters und unseres US-CPA sowie die Arbeit unseres Teams vor Ort. Sie zahlen einen Preis — die Honorare für die Leistungen Ihres Pakets trägt FIAON."
     },
     {
       "f": "Warum kostet das mehr als eine Online-Gründung?",
@@ -233,7 +233,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/en/business": [
     {
       "f": "What is included in the fixed price?",
-      "a": "All fees and charges for the services in your package: US state formation fees, registered agent, US address and phone in the first year, the EIN and ITIN applications, the fees of our partner lawyer, partner tax adviser and US CPA, and the work of our team on the ground. You pay one price — we pay everyone who works on your company."
+      "a": "All fees and charges for the services in your package: US state formation fees, registered agent, US address and phone in the first year, the EIN and ITIN applications, the fees of our partner lawyer, partner tax adviser and US CPA, and the work of our team on the ground. You pay one price — FIAON pays the fees for the services in your package."
     },
     {
       "f": "Why does this cost more than an online formation?",

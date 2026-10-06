@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
+import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import NotFound from "@/pages/not-found";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import { GLOBAL_SEITE_WOERTER } from "@/i18n/global-seite";
@@ -36,6 +37,7 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { werbeEreignis } from "@/lib/werbung";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
+import "@/styles/global-grafik.css";
 
 const ROEMISCH = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
 const FOKUS: GlobalSchluessel = "global_kapital";
@@ -143,6 +145,14 @@ function Seite({ s }: { s: GlobalSeite }) {
             </Auf>
           </div>
         </header>
+
+        {/* 06.10.2026 (E-293): Die Nachrichtenlage stand bis heute auf /business direkt nach dem Hero — noch bevor das
+            Angebot erklärt war. Sie steht jetzt auf der Wissen-Übersicht (/business/wissen), mit denselben Daten
+            (shared/fiaon-global-schlagzeilen.ts) und derselben Prüfung (pruef-global-seiten.ts §9). */}
+        {s.art === "hub" && (
+          <GlobalSchlagzeilen sprache={sp} auge={t.presseAuge} h2={t.presseH2} stand={t.presseStand} zurQuelle={t.presseZurQuelle}
+            hinweis={t.presseHinweis} laufband={t.presseLaufband} pause={t.pressePause} weiter={t.presseWeiter} />
+        )}
 
         {/* ── Körper ─────────────────────────────────────────────────────── */}
         <div className="fd-koerper">

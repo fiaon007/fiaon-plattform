@@ -53,8 +53,8 @@ export function GlobalVipBuehne({ id, className, label, children }: { id: string
   return (
     <article id={id} ref={ref} className={className} aria-label={label}>
       <span className="fg-vip-rand" aria-hidden="true" />
+      {/* 06.10.2026 (E-293): eine Lichtkugel statt zwei, Bühne höchstens 420 px hoch; am Handy ohne WellenFeld (CSS). */}
       <span className="fg-vip-licht a" aria-hidden="true" />
-      <span className="fg-vip-licht b" aria-hidden="true" />
       <WellenFeld className="fg-vip-wellen" />
       <div className="fg-vip-inhalt">{children}</div>
     </article>

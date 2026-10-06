@@ -122,7 +122,7 @@ function ensureChefSchema(): Promise<void> {
 }
 
 // ── Protokoll ───────────────────────────────────────────────────────────────
-async function protokollSchreiben(
+export async function protokollSchreiben(
   agentId: number | null, stufe: string | null, methode: string, pfad: string,
   ziel: string | null, notiz: string | null,
 ): Promise<void> {

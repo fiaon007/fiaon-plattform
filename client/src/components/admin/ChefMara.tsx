@@ -46,6 +46,8 @@ const AuskunftVerkauf = lazy(() => import("./ChefAuskunft"));
 const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
 // E-260 (29.09.2026): Maras Termine — der vierte Reiter, erst beim Öffnen geladen.
 const MaraTermine = lazy(() => import("./ChefMaraTermine"));
+// E-294 (06.10.2026): das Social-Studio — der fünfte Reiter, erst beim Öffnen geladen.
+const MaraSocial = lazy(() => import("./ChefMaraSocial"));
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null; rundeSeit?: string | null }
 interface Stand {
@@ -1445,6 +1447,14 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
 // „Team abwesend — Mara bucht bei mir". Die Zahlmarke am Reiter zählt die
 // Kunden, die gerade warten (keine Marke bei null). Verkaufsleiste und Chips
 // bleiben, wie E-252 sie freigegeben hat.
+//
+// E-294 (06.10.2026), Justin: „unser Content … muss auch auf der Plattform eine
+// Seite haben, mit Termin, Post, Plattform, Texten … wie sieht Instagram aus
+// wenn es fertig ist … dass man auch echt was machen kann von dort aus." Keine
+// neue Seite — der fünfte Reiter „Social" (?reiter=social&sicht=plan|vorschau
+// &post=<id>): Plan, Post-Detail im Handy-Rahmen mit Freigeben, Zurück an
+// Claude, Verschieben, Als veröffentlicht melden und Verwerfen, dazu die
+// Instagram-Vorschau. Die Zahlmarke zählt Posts, die auf die Freigabe warten.
 // ═══════════════════════════════════════════════════════════════════════════
 // E-261 (29.09.2026): der Chip „WhatsApp" neben „KI" — Pause, Meta-Qualität, „WhatsApp wieder aktivieren".
 type Aufklapper = "ki" | "wa" | "bilanz" | "anweisen";
@@ -1453,14 +1463,18 @@ const REITER: { r: MaraReiter; lang: string; kurz: string }[] = [
   { r: "mail", lang: "E-Mail-Aktion", kurz: "Mail" },
   { r: "auskunft", lang: "Bonitätsauskunft", kurz: "Auskunft" },
   { r: "termine", lang: "Termine", kurz: "Termine" },
+  { r: "social", lang: "Social-Studio", kurz: "Social" },
 ];
 interface TermineKern { zaehler: { wartet: number } }
+/** E-294: nur die Zahl „zur Freigabe" aus GET /chef/social/plan (shared/fiaon-social.ts, SocialPlanAntwort). */
+interface SocialKern { zaehler?: { zur_freigabe?: number } }
 
 function Steuerpult() {
   const lage = useMaraLage();
   const auftraege = useMaraDaten<AuftraegeDaten>("auftraege", MARA_QUELLEN.auftraege);
   const auskunft = useMaraDaten<AuskunftKern>("auskunft", MARA_QUELLEN.auskunft);
   const termine = useMaraDaten<TermineKern>("termine", MARA_QUELLEN.termine);
+  const social = useMaraDaten<SocialKern>("social", MARA_QUELLEN.social);
   const [offen, setOffen] = useState<Aufklapper | null>(null);
   // E-252 (Gegenprüfung): „Mara anweisen" bleibt nach dem ersten Öffnen montiert (nur ausgeblendet) — Entwürfe bleiben.
   const [anweisenDa, setAnweisenDa] = useState(false);
@@ -1478,6 +1492,7 @@ function Steuerpult() {
   const { reiter, ansicht, wechseln } = lage;
   const bs = auskunft.daten?.beschaffung;
   const wartenTermine = Number(termine.daten?.zaehler?.wartet || 0);
+  const socialPruefen = Number(social.daten?.zaehler?.zur_freigabe || 0);
 
   return (
     <div className="mara mara-pult">
@@ -1509,6 +1524,9 @@ function Steuerpult() {
             <span className="lang">{x.lang}</span><span className="kurz">{x.kurz}</span>
             {x.r === "termine" && wartenTermine > 0
               ? <span className="mara-zahlmarke" title={`${wartenTermine} ${wartenTermine === 1 ? "Kunde wartet" : "Kunden warten"} auf deinen Anruf`}>{wartenTermine}</span>
+              : null}
+            {x.r === "social" && socialPruefen > 0
+              ? <span className="mara-zahlmarke" title={`${socialPruefen} ${socialPruefen === 1 ? "Post wartet" : "Posts warten"} auf deine Freigabe`}>{socialPruefen}</span>
               : null}
           </button>
         ))}
@@ -1542,6 +1560,13 @@ function Steuerpult() {
         <div role="tabpanel" aria-labelledby="mara-tab-termine">
           <Suspense fallback={<Geruest zeilen={8} />}>
             <MaraTermine />
+          </Suspense>
+        </div>
+      )}
+      {reiter === "social" && (
+        <div role="tabpanel" aria-labelledby="mara-tab-social">
+          <Suspense fallback={<Geruest zeilen={8} />}>
+            <MaraSocial onGeaendert={social.neu} />
           </Suspense>
         </div>
       )}

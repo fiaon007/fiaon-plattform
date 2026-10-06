@@ -12,7 +12,7 @@
 //
 // ── SCHNITTSTELLE (auch in scratchpad/e252/schnittstelle.md) ──────────────
 //
-//   <MaraLage>…</MaraLage>            Wurzel (ChefMara). Hält sechs Quellen,
+//   <MaraLage>…</MaraLage>            Wurzel (ChefMara). Hält sieben Quellen,
 //                                     den Reiter und die Sprünge.
 //
 //   useMaraDaten<T>(schluessel, url)  → { daten, laedt, fehler, neu, geladenAm }
@@ -23,6 +23,8 @@
 //       "bilanz"    "/chef/mara/bilanz"
 //       "auftraege" "/chef/mara/auftraege"
 //       "termine"   "/chef/mara/termine"        (E-260, Reiter „Termine")
+//       "social"    MARA_QUELLEN.social          (E-294, nur die Zahlmarke
+//                   „n zur Freigabe" am Reiter „Social"; das Studio lädt selbst)
 //     Im Steuerpult: die Instanz der Wurzel. Außerhalb (z. B. eine Seite, die
 //     dieselbe Komponente allein zeigt): eine eigene useDaten-Instanz — die
 //     Hook-Regel bleibt gewahrt, weil immer dieselben Haken laufen.
@@ -43,6 +45,11 @@
 //   Hilfen: berlinTag, tagNur, uhrBerlin, tagZeitBerlin, wannWieder,
 //           naechsteGruppe (nächster Schritt WhatsApp), betragTextCents.
 //
+// E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio). Adresse
+//   ?reiter=social&sicht=plan|vorschau&post=<id> — `sicht` und `post` liest
+//   ChefMaraSocial selbst; `wechseln()` löscht beide, sobald ein anderer Reiter
+//   offen ist (wie `termin` bei den Terminen).
+//
 // Sprungziele: Jeder Reiter trägt an seinem Hauptschalter
 //   data-mara-schalter="whatsapp" | "mail" | "auskunft" | "termine"
 // — die Zellen der Leiste springen dorthin und heben ihn kurz hervor.
@@ -54,7 +61,8 @@ import {
 import { useDaten, ruhig } from "./chef-teile";
 
 // ── Quellen ────────────────────────────────────────────────────────────────
-export type MaraQuelle = "lage" | "stand" | "auskunft" | "bilanz" | "auftraege" | "termine";
+export type MaraQuelle = "lage" | "stand" | "auskunft" | "bilanz" | "auftraege" | "termine" | "social";
+
 export const MARA_QUELLEN: Record<MaraQuelle, string> = {
   lage: "/chef/wa-zentrale/lage",
   stand: "/chef/mara/stand",
@@ -63,6 +71,9 @@ export const MARA_QUELLEN: Record<MaraQuelle, string> = {
   auftraege: "/chef/mara/auftraege",
   // E-260 (29.09.2026): Reiter „Termine" — die Zahlmarke „n warten" am Reiter liest dieselbe Instanz.
   termine: "/chef/mara/termine",
+  // E-294 (06.10.2026): nur für die Zahlmarke „n zur Freigabe" am Reiter „Social" (zaehler.zur_freigabe).
+  // Prüfung 06.10.2026: der schmale Weg — nur das GROUP BY status, nicht der ganze Plan.
+  social: "/chef/social/zaehler",
 };
 const ALLE_QUELLEN = Object.keys(MARA_QUELLEN) as MaraQuelle[];
 
@@ -74,7 +85,7 @@ export interface MaraGeladen<T> {
 }
 
 // ── Reiter, Wege, Sprünge ──────────────────────────────────────────────────
-export type MaraReiter = "whatsapp" | "mail" | "auskunft" | "termine";
+export type MaraReiter = "whatsapp" | "mail" | "auskunft" | "termine" | "social";
 export type AuskunftAnsicht = "verkauf" | "beschaffung";
 /** Die drei Wege der Leiste — je einer mit Hauptschalter. */
 export type MaraWeg = "whatsapp" | "mail" | "auskunft";
@@ -93,7 +104,7 @@ interface ZeigenOptionen { reiter?: MaraReiter; ansicht?: AuskunftAnsicht; hervo
 
 export interface MaraLageWert {
   quellen: Record<MaraQuelle, MaraGeladen<unknown>>;
-  /** Alle sechs Quellen sofort neu. */
+  /** Alle Quellen sofort neu. */
   alleNeu: () => void;
   reiter: MaraReiter;
   ansicht: AuskunftAnsicht;
@@ -110,33 +121,34 @@ export interface MaraLageWert {
 
 const Kontext = createContext<MaraLageWert | null>(null);
 
-/** Reiter und Ansicht aus der Adresse: ?reiter=mail|auskunft|termine, &ansicht=beschaffung (E-229, E-243, E-260). */
+/** Reiter und Ansicht aus der Adresse: ?reiter=mail|auskunft|termine|social, &ansicht=beschaffung (E-229, E-243, E-260, E-294). */
 function ausAdresse(): { reiter: MaraReiter; ansicht: AuskunftAnsicht } {
   try {
     const q = new URLSearchParams(window.location.search);
     const r = q.get("reiter");
     return {
-      reiter: r === "mail" ? "mail" : r === "auskunft" ? "auskunft" : r === "termine" ? "termine" : "whatsapp",
+      reiter: r === "mail" ? "mail" : r === "auskunft" ? "auskunft" : r === "termine" ? "termine" : r === "social" ? "social" : "whatsapp",
       ansicht: q.get("ansicht") === "beschaffung" ? "beschaffung" : "verkauf",
     };
   } catch { return { reiter: "whatsapp", ansicht: "verkauf" }; }
 }
 
 export function MaraLage({ children }: { children: ReactNode }) {
-  // Sechs Quellen, je einmal (E-260: + termine). Die Reihenfolge der Haken ist fest.
+  // Sieben Quellen, je einmal (E-260: + termine, E-294: + social). Die Reihenfolge der Haken ist fest.
   const lage = useDaten<unknown>(MARA_QUELLEN.lage);
   const stand = useDaten<unknown>(MARA_QUELLEN.stand);
   const auskunft = useDaten<unknown>(MARA_QUELLEN.auskunft);
   const bilanz = useDaten<unknown>(MARA_QUELLEN.bilanz);
   const auftraege = useDaten<unknown>(MARA_QUELLEN.auftraege);
   const termine = useDaten<unknown>(MARA_QUELLEN.termine);
-  const roh = { lage, stand, auskunft, bilanz, auftraege, termine };
+  const social = useDaten<unknown>(MARA_QUELLEN.social);
+  const roh = { lage, stand, auskunft, bilanz, auftraege, termine, social };
   const rohRef = useRef(roh);
   rohRef.current = roh;
 
   // Wann jede Quelle zuletzt Daten brachte — useDaten merkt sich das nicht.
   const [geladenAm, setGeladenAm] = useState<Record<MaraQuelle, number | null>>(
-    { lage: null, stand: null, auskunft: null, bilanz: null, auftraege: null, termine: null });
+    { lage: null, stand: null, auskunft: null, bilanz: null, auftraege: null, termine: null, social: null });
   const merke = (q: MaraQuelle) => setGeladenAm((alt) => ({ ...alt, [q]: Date.now() }));
   useEffect(() => { if (lage.daten) merke("lage"); }, [lage.daten]);
   useEffect(() => { if (stand.daten) merke("stand"); }, [stand.daten]);
@@ -144,6 +156,7 @@ export function MaraLage({ children }: { children: ReactNode }) {
   useEffect(() => { if (bilanz.daten) merke("bilanz"); }, [bilanz.daten]);
   useEffect(() => { if (auftraege.daten) merke("auftraege"); }, [auftraege.daten]);
   useEffect(() => { if (termine.daten) merke("termine"); }, [termine.daten]);
+  useEffect(() => { if (social.daten) merke("social"); }, [social.daten]);
 
   // Stabile neu()-Funktionen: Wer sie in einen Effekt schreibt, löst keine Schleife aus.
   const neuFuer = useMemo(() => {
@@ -154,7 +167,7 @@ export function MaraLage({ children }: { children: ReactNode }) {
   const zuletzt = useRef(Date.now());
   // Wann jede Quelle zuletzt ANGEFORDERT wurde (nicht: Daten brachte) — für den Takt je Quelle.
   const angefordert = useRef<Record<MaraQuelle, number>>(
-    { lage: Date.now(), stand: Date.now(), auskunft: Date.now(), bilanz: Date.now(), auftraege: Date.now(), termine: Date.now() });
+    { lage: Date.now(), stand: Date.now(), auskunft: Date.now(), bilanz: Date.now(), auftraege: Date.now(), termine: Date.now(), social: Date.now() });
   const alleNeu = useCallback(() => {
     zuletzt.current = Date.now();
     for (const q of ALLE_QUELLEN) { angefordert.current[q] = Date.now(); rohRef.current[q].neu(); }
@@ -182,6 +195,8 @@ export function MaraLage({ children }: { children: ReactNode }) {
       if (q === "auftraege") return 120_000;
       // E-260: offener Reiter jede Minute (Justin telefoniert daneben), sonst alle 5 Minuten für die Zahlmarke.
       if (q === "termine") return r === "termine" ? 60_000 : 300_000;
+      // E-294: die Zahlmarke — offener Reiter jede Minute (das Studio lädt dann ohnehin selbst), sonst alle 5 Minuten.
+      if (q === "social") return r === "social" ? 60_000 : 300_000;
       return 300_000; // bilanz — am Server 60 s zwischengespeichert, Geld ändert sich selten
     };
     const faellige = () => {
@@ -207,6 +222,8 @@ export function MaraLage({ children }: { children: ReactNode }) {
       if (reiter === "whatsapp") u.searchParams.delete("reiter"); else u.searchParams.set("reiter", reiter);
       if (reiter === "auskunft" && ansicht === "beschaffung") u.searchParams.set("ansicht", "beschaffung"); else u.searchParams.delete("ansicht");
       if (reiter !== "termine") u.searchParams.delete("termin"); // E-260: der Sprung zu einer Terminzeile gilt nur im Reiter „Termine"
+      // E-294: Unteransicht und offener Post des Social-Studios gelten nur im Reiter „Social".
+      if (reiter !== "social") { u.searchParams.delete("sicht"); u.searchParams.delete("post"); }
       window.history.replaceState(null, "", u.toString());
     } catch { /* Adresse bleibt, der Reiter wechselt trotzdem */ }
   }, []);

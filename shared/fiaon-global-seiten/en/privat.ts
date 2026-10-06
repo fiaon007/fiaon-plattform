@@ -33,15 +33,16 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
   art: "zielgruppe",
   seo: {
     titel: "Form a US company as a private individual — FIAON Global",
-    beschreibung: "No business of your own needed: as a private individual or founder, you engage FIAON Global directly — US company, EIN, ITIN and account at a fixed price.",
+    beschreibung: "No company needed: as a private individual or founder, engage FIAON Global directly — US company, EIN, ITIN and account application, fixed price.",
   },
-  stand: S,
+  stand: "2026-10-06",
   erschienen: S,
   kennung: "FG · 29",
   auge: "Who it is for · Private individuals and founders",
-  h1: "No company needed.",
-  h1b: "You can also engage us as a private individual.",
-  lead: "You do not need an existing business to engage FIAON Global. As a private individual, as a founder or as a business owner ordering privately, you become the shareholder of your US company yourself — with the same fixed price, the same team on the ground and the same partners.",
+  // 06.10.2026 (E-293): H1 und Lead deckungsgleich mit der sichtbaren Startseite (GLOBAL_WOERTER.en.privat).
+  h1: "Your own US company.",
+  h1b: "No company needed — at a fixed price.",
+  lead: "You become the shareholder yourself: we form the company, apply for the EIN and ITIN and prepare account and card applications — contract and invoice are in your name.",
   ziffern: [
     { wert: AB, label: "Fixed price — the final price for private individuals" },
     { wert: "Your name", label: "on the contract and invoice" },

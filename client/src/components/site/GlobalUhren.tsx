@@ -12,7 +12,8 @@
 // Zeiger beim Sprung von 59 auf 0 rückwärts. Sommer- und Winterzeit stimmen
 // von selbst; der Abstand zu Deutschland wird jede Minute neu gerechnet.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { beobachteSichtbar } from "@/components/site/global/bewegung";
 
 export interface UhrOrt { zone: string; ort: string; zusatz: string }
 
@@ -121,5 +122,42 @@ export default function GlobalUhren({ auge, h2, lead, orte, gleichText, differen
         </div>
       </div>
     </section>
+  );
+}
+
+// ── MINI-UHR FÜR „DREI ORTE“ IM FUSS (06.10.2026, E-293) ───────────────────
+// Seit dem Neubau stehen die drei Uhren nicht mehr als eigener Abschnitt auf
+// /business, sondern klein (64 px, Handy 56 px) an den Punkten der Karte „Drei
+// Orte“ im Fuß jeder Business-Seite (components/site/global/GlobalOrte.tsx).
+// Dasselbe Zifferblatt ohne Ziffern, dieselbe Zeitrechnung (versatzMinuten) —
+// der Sekundenzeiger läuft nur, solange die Uhr im Bild und der Tab vorne ist.
+export function UhrMini({ zone, ort }: { zone: string; ort: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [jetzt, setJetzt] = useState(() => new Date());
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    let wecker = 0;
+    const ticken = () => { setJetzt(new Date()); wecker = window.setTimeout(ticken, 1000 - (Date.now() % 1000) + 5); };
+    const aus = beobachteSichtbar(el, (sichtbar) => { window.clearTimeout(wecker); if (sichtbar) ticken(); });
+    return () => { window.clearTimeout(wecker); aus(); };
+  }, []);
+  const versatz = versatzMinuten(zone, jetzt);
+  const lokaleMinuten = Math.floor(jetzt.getTime() / 60_000) + versatz;
+  const sekunden = Math.floor(jetzt.getTime() / 1000);
+  const stunde = Math.floor((((lokaleMinuten % 1440) + 1440) % 1440) / 60);
+  const minute = ((lokaleMinuten % 60) + 60) % 60;
+  return (
+    <span ref={ref} className="fg-uhr-mini" role="img" aria-label={`${ort}: ${zwei(stunde)}:${zwei(minute)}`}>
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="100" cy="100" r="94" className="flaeche" />
+        {Array.from({ length: 12 }, (_, i) => (
+          <line key={i} x1="100" y1="14" x2="100" y2={i % 3 === 0 ? 34 : 26} className={i % 3 === 0 ? "strich gross" : "strich"} transform={`rotate(${i * 30} 100 100)`} />
+        ))}
+        <g className="zeiger stunde" style={{ transform: `rotate(${lokaleMinuten * 0.5}deg)` }}><path d="M95 112 L97.5 56 Q100 50 102.5 56 L105 112 Z" /></g>
+        <g className="zeiger minute" style={{ transform: `rotate(${lokaleMinuten * 6 + (sekunden % 60) * 0.1}deg)` }}><path d="M96.5 116 L98.8 30 Q100 25 101.2 30 L103.5 116 Z" /></g>
+        <g className="zeiger sekunde" style={{ transform: `rotate(${sekunden * 6}deg)` }}><line x1="100" y1="124" x2="100" y2="22" /></g>
+        <circle cx="100" cy="100" r="7" className="nabe" />
+      </svg>
+    </span>
   );
 }

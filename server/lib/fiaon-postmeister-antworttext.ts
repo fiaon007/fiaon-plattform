@@ -18,6 +18,7 @@
 import { sqlPool } from "./db-pool";
 import { mailHtml, mailText, type MailBaustein } from "../mail/geruest";
 import type { NaechsterSchritt } from "@shared/fiaon-postmeister-typen";
+import { schreibweiseFuerAnzeige } from "@shared/fiaon-anrede";
 
 /** Vornamen, bei denen die Anrede eindeutig ist. Alles andere bleibt neutral. */
 const WEIBLICH = /^(anna|maria|julia|sabine|petra|claudia|andrea|susanne|monika|katrin|katharina|christina|christine|sandra|nicole|stefanie|melanie|jessica|jasmin|laura|lisa|lena|sarah|sara|nadine|tanja|silke|birgit|gabriele|gaby|heike|kerstin|martina|manuela|marion|ute|ulrike|angelika|barbara|beate|bettina|brigitte|carmen|daniela|denise|diana|doris|elke|erika|eva|franziska|gisela|hannelore|helga|ingrid|irene|iris|karin|kathrin|kristin|marlene|michaela|natalie|nina|patricia|rebecca|regina|renate|rita|ruth|simone|sonja|sylvia|tamara|theresa|vanessa|verena|veronika|victoria|viktoria|waltraud|yvonne|magdalena|teodora|verica|mirjana|milena|snezana|dragana|jelena|olga|elena|irina|natalia|svetlana|halina)$/i;
@@ -140,8 +141,10 @@ export async function anredeBestimmen(
   // Namen mit Ziffern („Edam2021") sind Tippfehler oder Nutzernamen — nie in
   // eine Anrede (05.09.2026, gesehen bei „Guten Tag Edam2021 Tokmak").
   const sauber = (x: string) => (/\d/.test(x) ? "" : x);
-  const vor = sauber(String(vorname || "").trim());
-  const nach = sauber(String(nachname || "").trim());
+  // 06.10.2026 (erste Mara-Aktion-Mails nach dem Neustart): „Guten Tag MATO Masic“ — Einheitsschrift (alles groß oder
+  // alles klein) wird wie in allen anderen Kanälen gerichtet (schreibweiseFuerAnzeige); gemischte Schreibweise bleibt.
+  const vor = schreibweiseFuerAnzeige(sauber(String(vorname || "").trim())) ?? "";
+  const nach = schreibweiseFuerAnzeige(sauber(String(nachname || "").trim()), "nachname") ?? "";
   const neutral = w.grussNeutral([vor, nach].filter(Boolean).join(" "));
   if (!personId) return { zeile: neutral, gespeichert: false };
 

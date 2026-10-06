@@ -5,6 +5,19 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 abends — Mara wieder an (FIAON-eigenes OpenAI-Konto), drei Korrekturen aus der Prüfung der ersten Nachrichten
+
+- **Mara läuft wieder** über das neue OpenAI-Konto von FIAON (KI_ANBIETER=openai, GPT-5.5); Karte mit Wunschlimit als Ziel wieder an
+  (MARA_LIMIT_NENNEN=an, mit dem Halbsatz über die Bank). Nach 14 Minuten war das Startguthaben leer — die KI pausierte sauber.
+- **Aktivierungssatz nicht mehr gestoppt:** Justins Satz „Zahlen Sie jetzt die Aktivierung … und Sie bekommen direkt den fertigen Link
+  unserer Partnerbank …“ fiel direkt nach dem Satz über die Bank als Limit-Zusage durch (4 von 25 Aktions-Mails blieben liegen). Er ist
+  jetzt ein freigegebener Baustein; echte Zusagen („Das bekommen Sie sicher“, „Sie bekommen Ihr Wunschlimit“) bleiben gesperrt.
+- **Geld heute:** Schreibt jemand „überweisen Sie mir heute …“ / „brauche jetzt Geld“, bekommt Mara den Hinweis: Lage ernst nehmen, Justins
+  Umdeutung („Noch besser — Ihre eigene Visa-Kreditkarte …“) und ehrlich die Zeit (Zusage der Bank, dann 2–5 Werktage).
+- **Namen:** „Guten Tag MATO Masic“ → „Guten Tag Mato Masic“ — Großschrift wird in Mails wie überall gerichtet.
+
+**Wo:** shared/fiaon-mara-ton.ts, server/lib/fiaon-postmeister-antworttext.ts. Prüfstände Mara alle grün (409, 207, 173, 161, 257, 114, 77, 250).
+
 ## 06.10.2026 abends — KI wieder aktivieren prüft den Anbieter, der die KI trägt (E-279)
 
 - Vorbereitung auf das FIAON-eigene OpenAI-Konto (Justin, 06.10.: das alte OpenAI-Konto lief über ARAS AI und ist seit 03.10. deaktiviert;

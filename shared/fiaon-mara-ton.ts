@@ -216,6 +216,11 @@ export const ZAHL_FRAGE = "Schaffen Sie die Überweisung heute noch?";
 export const ZAHL_KNOPF_MAIL = "Über den Knopf unten haben Sie Betrag, Verwendungszweck und QR-Code sofort zur Hand — am besten überweisen Sie gleich heute.";
 /** KARTE_ZEIT_SATZ in der Kurzform für WhatsApp (gleiche Fakten: in der Regel, nach der Zusage der Bank, meist vorher Apple Pay). */
 export const KARTE_ZEIT_WA = "Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen da, Apple Pay meist schon vorher.";
+/** Will er heute Geld — „überweisen Sie mir …“, „brauche jetzt das Geld“, „auszahlen“, „Kredit heute“? Rein. */
+export function willHeuteGeld(text: string): boolean {
+  const t = String(text ?? "");
+  return /\büberweis\w*\s+(?:sie\s+|ihr\s+)?mir\b|\bauszahl\w*|\bausgezahlt\b|\b(?:brauch|benötig|bräucht)\w*\b[^.!?\n]{0,40}\b(?:geld|euro|€|kredit)\b|\b(?:geld|kredit|euro|€)\b[^.!?\n]{0,30}\b(?:heute|sofort|jetzt|dringend)\b|\b(?:heute|sofort|jetzt|dringend)\b[^.!?\n]{0,30}\b(?:geld|kredit)\b/i.test(t);
+}
 /** Höchstens EIN Ausrufezeichen je Nachricht (E-275 Ton) — gezählt ohne Links. Rein. */
 export function ausrufezeichen(text: string): number {
   return (String(text ?? "").replace(/https?:\/\/\S+/g, " ").match(/!/g) ?? []).length;
@@ -644,6 +649,14 @@ const FREIE_BAUSTEINE: RegExp[] = [
   String.raw`(?:und\s+|dann\s+)?(?:sobald|wenn|nachdem)\s+(?:sie|es|die(?:se)?\s+(?:erste\s+)?(?:monats)?rate|ihre\s+(?:erste\s+|offene\s+)?(?:monats)?rate|(?:ihre|die)\s+(?:erste\s+)?zahlung|(?:ihre|die)\s+überweisung|(?:der|ihr)\s+eingang|die\s+${L_BETRAG})\s+(?:bei\s+uns\s+)?(?:gebucht|verbucht|eingegangen)\s+(?:ist|wurde|sind),?\s+schaltet\s+(?:sie\s+)?das\s+system\s+sie\s+(?:direkt\s+)?frei`,
   String.raw`(?:und\s+)?(?:dann|danach|nach\s+der\s+buchung)\s+schaltet\s+(?:sie\s+)?das\s+system\s+sie\s+(?:direkt\s+)?frei`,
   String.raw`das\s+system\s+schaltet\s+sie\s+(?:direkt\s+)?frei`,
+  // 06.10.2026 (Neustart auf OpenAI, Prüfung der ersten Mara-Aktion-Mails): Justins Aktivierungssatz fiel als
+  // Rückverweis-Zusage durch („… und Sie bekommen direkt DEN fertigen Link …“ direkt nach dem Satz über die Bank) —
+  // 4 von 25 Mails blieben liegen. Was er zusagt, ist der LINK der Partnerbank für den Kartenantrag (stimmt bei
+  // vollständigem Antrag, E-275/E-276), kein Limit. Frei sind nur genau diese Fassungen (NACH_DEM_EINGANG,
+  // NACH_DER_ZUORDNUNG) und die Aufforderung selbst; „Sie bekommen Ihr Wunschlimit“ oder „Den bekommen Sie sicher“ bleiben hart.
+  String.raw`zahlen\s+sie\s+jetzt\s+die\s+aktivierung`,
+  String.raw`mit\s+ihrem\s+verwendungszweck(?:\s+[a-z0-9-]+)?\s+ist\s+ihr\s+account\s+sofort\s+nach\s+(?:zahlungs)?eingang\s+aktiv,?\s+und\s+sie\s+bekommen\s+direkt\s+den\s+fertigen\s+link\s+unserer\s+partnerbank\s+für\s+ihren\s+kartenantrag`,
+  String.raw`sobald\s+wir\s+ihre\s+zahlung(?:\s+über\s+${L_BETRAG})?\s+zugeordnet\s+haben,?\s+ist\s+ihr\s+account\s+sofort\s+aktiv,?\s+und\s+sie\s+bekommen\s+direkt\s+den\s+fertigen\s+link\s+unserer\s+partnerbank\s+für\s+ihren\s+kartenantrag`,
 ].map((x) => new RegExp(x, "giu"));
 /**
  * Die Sätze für die Limit-Prüfung — nie an „12.09. über" geteilt (ein neuer Satz beginnt groß), und nie am
@@ -706,7 +719,9 @@ export function limitPruefen(text: string): LimitBefund[] {
     // Rückverweis: Der Satz davor sprach von Limit, Rahmen oder Betrag (auch nur im Satz über die Bank), dieser sagt
     // zu („Das bekommen Sie bei uns sicher.", „Den bekommen Sie aber sicher.").
     const davor = i > 0 ? s[i - 1] : "";
-    if (davor && (LIMIT_WORT.test(davor) || betraegeIn(davor).some((n) => n >= 1000)) && rueckverweis(x) && ZUSAGE_WORT.test(x)) funde.push({ art: "zusage", satz: x });
+    // Rückverweis am REST des Satzes (ohne freigegebene Bausteine) — Justins Aktivierungssatz zeigt nicht auf den Rahmen.
+    const restX = limitRest(x);
+    if (davor && (LIMIT_WORT.test(davor) || betraegeIn(davor).some((n) => n >= 1000)) && rueckverweis(restX) && ZUSAGE_WORT.test(restX)) funde.push({ art: "zusage", satz: x });
     if (!istLimitSatz(x)) continue;
     const rest = limitRest(x);
     if (ZUSAGE_WORT.test(rest)) funde.push({ art: "zusage", satz: x });
@@ -2758,6 +2773,12 @@ export function abschlussPruefung(antwort: string, ein: {
   }
   const vorkasseVorher = /vorkasse|vorab|vorauszahlung|im\s+voraus|zahle\s+nichts\s+vor|zuerst\s+die\s+zahlung/i.test(String(ein.kontext ?? ""));
   const einwand = einwandSignal(k) || vorkasseVorher;
+  // 06.10.2026 (Prüfung der ersten 20 Nachrichten nach dem Neustart): „brauch jetzt das Geld … überweisen Sie mir heute
+  // 1500 Euro“ — Mara bat um die Aktivierung, ohne zu sagen, dass heute kein Geld kommt. Justins Umdeutung bleibt der
+  // Weg („Noch besser — Ihre eigene Visa-Kreditkarte …“, nie „FIAON zahlt kein Geld aus“), dazu ehrlich die Zeit.
+  if (willHeuteGeld(k) && !/noch\s+besser|immer\s+wieder\s+nutzen/i.test(a) && !/werktag/i.test(a)) {
+    h.push(`Er will heute Geld (überweisen, auszahlen, Kredit) — nimm seine Lage in einem Satz ernst, dann Justins Umdeutung: „Noch besser — Ihre eigene Visa-Kreditkarte, deren Rahmen Sie immer wieder nutzen.“ und ehrlich die Zeit: „${KARTE_ZEIT_WA}“ Nie der Eindruck, dass heute Geld kommt; danach wie immer der nächste Schritt.`);
+  }
   const anlass = kaufSignal(k) || einwand || fragtWasIstFiaon(k) || fragtKeineKarte(k);
   if (!anlass) return h;
   // E-275 (02.10.2026): Hat Mara dem zahlenden Kunden gerade den Link der Partnerbank geschickt, IST das die Antwort —

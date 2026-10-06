@@ -147,6 +147,11 @@ export default function FiaonHome() {
         ]} />
       </Block>
 
+      {/* E-296 (06.10.2026): FIAON auf Instagram und Facebook — Handy mit dem Profil und die neuesten Beiträge;
+          ohne freigegebene Beiträge nur die beiden Profile. Seit 06.10. abends direkt unter den Kennzahlen
+          (Justin: „höher setzen … präsenter“). Daten erst, wenn der Abschnitt in die Nähe kommt. */}
+      <SozialFenster aussehen="dunkel" marke="alle" />
+
       <Block pille="Das Problem" titel={<>Ihre Bonit&auml;t entscheidet &uuml;ber Konto, Karte und Kredit. <span className="dk-verlauf">Nur Sie selbst sehen sie nie.</span></>}
              lead="100 Millionen Menschen in Deutschland, Österreich und der Schweiz haben einen Eintrag bei SCHUFA, KSV oder CRIF. Allein in Deutschland gelten sechs Millionen als überschuldet. Die meisten wissen nicht, was dort steht – und niemand hilft ihnen, es zu ändern.">
         <Karten items={[
@@ -233,10 +238,6 @@ export default function FiaonHome() {
       </Block>
 
       </Licht>
-
-      {/* E-296 (06.10.2026): FIAON auf Instagram und Facebook — Handy mit dem Profil und die neuesten Beiträge;
-          ohne freigegebene Beiträge nur die beiden Profile. Daten erst, wenn der Abschnitt in die Nähe kommt. */}
-      <SozialFenster aussehen="dunkel" marke="alle" />
 
       {/* Kundenstimmen bewusst entfernt (23.08.2026): Bis echte, freigegebene Stimmen vorliegen,
           steht hier nichts — erfundene Bewertungen sind unzulässig (UWG) und wirkten „fake" (Florentine). */}

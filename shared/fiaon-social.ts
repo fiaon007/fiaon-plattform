@@ -885,14 +885,14 @@ export interface SocialImportAntwort {
 //   · Schalter website_sichtbar an (Studio; „als veröffentlicht melden“ setzt ihn beim ersten
 //     Melden mit — außer bei rotem Wort-Check, ohne Instagram-Kanal, ohne Bild, oder wenn der
 //     Schalter für diese Fassung schon einmal von Hand geschaltet wurde),
-//   · auf Instagram als veröffentlicht gemeldet (Status veröffentlicht/ausgewertet, Permalink) —
-//     Prüfung 06.10.2026: „freigegeben“ reichte vorher; dann stand ein nie geposteter Beitrag
-//     im Instagram-Handy von @fiaon.ltd (UWG). Vormerken (Schalter an) geht ab „freigegeben“,
+//   · freigegeben (freigegeben/eingeplant/veröffentlicht/ausgewertet) mit Instagram als Kanal —
+//     Justin 06.10.2026 abends, nach Hinweis auf das Gutachten (nur Gemeldetes zeigen): sofort zeigen,
+//     was er freigegeben hat; der Instagram-Link erscheint, sobald er gemeldet ist,
 //   · Plantag (Europe/Berlin) erreicht — nie etwas vor seinem Tag,
 //   · Wort-Check nach den AKTUELLEN Regeln nicht rot (der Feed rechnet ihn bei jedem Laden neu),
 //   · mindestens ein Bild (JPEG/PNG): Karussell und Bild die Folien, Reel das Titelbild.
 
-/** Status, in denen ein Post auf der Website STEHT (mit Instagram-Meldung). */
+/** Status, in denen ein Post auf der Website STEHT (ab der Freigabe, mit Instagram-Kanal). */
 export const istWebsiteStatus = (s: unknown): boolean => (SOZIAL_WEBSITE_STATUS as readonly string[]).includes(String(s ?? ""));
 /** Status, in denen der Schalter „Auf der Website zeigen“ eingeschaltet (vorgemerkt) werden darf. */
 export const WEBSITE_SCHALTER_STATUS = ["freigegeben", "eingeplant", "veroeffentlicht", "ausgewertet"] as const;
@@ -909,7 +909,7 @@ export const WEB_480_QUALITAET = 0.82;
 export const WEB_480_MAX_BYTES = 1024 * 1024;
 
 /** Kurze Regel für Studio und Prüfstand — wortgleich an einem Ort. */
-export const WEBSITE_REGEL = "Steht auf fiaon.com (Startseite, Business und passende Seiten), sobald der Post auf Instagram als veröffentlicht gemeldet ist — frühestens ab dem Plantag, nur mit Bild und nur bei grünem Wort-Check. Vormerken geht schon ab der Freigabe.";
+export const WEBSITE_REGEL = "Steht auf fiaon.com (Startseite, Privatkunden, Business und passende Ratgeber) ab dem Plantag — nach der Freigabe, nur Posts für Instagram, nur mit Bild und nur bei grünem Wort-Check. „Auf Instagram ansehen“ erscheint, sobald der Link gemeldet ist.";
 
 export interface FeedDateiEintrag { datei_id: number; pos: number; rolle: string; mime?: string | null; breite?: number | null; hoehe?: number | null }
 
@@ -962,7 +962,6 @@ export function websiteStand(p: {
   const web = bilder.filter((b) => p.web_480_ids?.has(Number(b.datei_id))).length;
   const schalterOk = istWebsiteSchalterStatus(p.status);
   const hatKanal = p.kanaele ? p.kanaele.includes(SOZIAL_WEBSITE_KANAL) : true;
-  const gemeldet = istWebsiteStatus(p.status) && (p.gemeldet ? p.gemeldet.includes(SOZIAL_WEBSITE_KANAL) : true);
   const darfAn = schalterOk && hatKanal && bilder.length > 0 && !p.wortcheck_rot;
   const tag = String(p.plan_datum ?? "");
   const tagText = /^\d{4}-\d{2}-\d{2}$/.test(tag) ? `${tag.slice(8, 10)}.${tag.slice(5, 7)}.${tag.slice(0, 4)}` : tag;
@@ -971,14 +970,14 @@ export function websiteStand(p: {
   else if (!schalterOk) grund = "status";
   else if (!bilder.length) grund = "kein_bild";
   else if (p.wortcheck_rot) grund = "wortcheck";
-  else if (!hatKanal || !gemeldet) grund = "instagram";
+  else if (!hatKanal) grund = "instagram";
   else if (tag > heute) grund = "plantag";
   const satz = grund === null ? "Steht jetzt auf der Website."
     : grund === "aus" ? (darfAn ? "Nicht auf der Website." : !schalterOk ? "Nicht auf der Website — erst nach der Freigabe möglich." : !hatKanal ? "Nicht auf der Website — der Post geht nicht auf Instagram." : !bilder.length ? "Nicht auf der Website — der Post hat kein Bild." : "Nicht auf der Website — der Wort-Check ist rot.")
     : grund === "status" ? "Schalter an, aber der Post ist nicht (mehr) freigegeben — die Website zeigt ihn nicht."
     : grund === "kein_bild" ? "Schalter an, aber ohne Bild zeigt die Website nichts."
     : grund === "wortcheck" ? "Schalter an, aber der Wort-Check ist rot — die Website zeigt ihn nicht."
-    : grund === "instagram" ? (hatKanal ? "Schalter an — erscheint auf der Website, sobald der Post auf Instagram als veröffentlicht gemeldet ist." : "Schalter an, aber der Post geht nicht auf Instagram — die Website zeigt ihn nicht.")
+    : grund === "instagram" ? "Schalter an, aber der Post geht nicht auf Instagram — die Website zeigt ihn nicht."
     : `Schalter an — steht ab dem Plantag ${tagText} auf der Website.`;
   return { sichtbar: !!p.website_sichtbar, jetzt: grund === null, grund, ab: tag, darf_an: darfAn, satz, bilder: bilder.length, web_480: web };
 }

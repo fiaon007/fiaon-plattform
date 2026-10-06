@@ -30,6 +30,31 @@ function versatzMinuten(zone: string, jetzt: Date): number {
 
 const zwei = (n: number) => String(n).padStart(2, "0");
 
+/**
+ * Zeigerwinkel in Grad — klein und genau, und sie wachsen weiter (ein Zeiger springt nie rückwärts).
+ * 06.10.2026 (Justin: „die Zeiger bei den Uhren passen nicht ganz“): Vorher zählten die Winkel ab 1970
+ * (Sekundenzeiger rotate(≈10.700.000.000deg)). Browser rechnen transform in einfacher Genauigkeit — bei solchen
+ * Zahlen standen Stunden- und Minutenzeiger schief und der Sekundenzeiger irgendwo. Jetzt zählen sie ab dem Beginn
+ * des 12-Stunden-Blocks (UTC), in dem die Seite geladen wurde: ein Vielfaches von 12 h, also dieselbe Zeigerstellung.
+ */
+const BEZUG_SEK = Math.floor(Date.now() / 1000 / 43_200) * 43_200;
+
+/**
+ * Unsichtbarer Kreis um die Zifferblatt-Mitte in jeder Zeigergruppe: Dadurch ist der Umriss (fill-box) der Gruppe
+ * genau um (100 | 100) zentriert. Safari drehte die Zeiger um die Mitte des ZEIGERS statt um die Achse (Justin,
+ * 06.10.2026, Bildschirmfoto) — mit diesem Kreis fallen „Mitte des Umrisses“ (fill-box 50 % 50 %) und die Achse
+ * zusammen, in jedem Browser. Inline-Stil, damit keine Farbregel ihn je sichtbar macht.
+ */
+function Achse() {
+  return <circle cx="100" cy="100" r="96" style={{ fill: "none", stroke: "none", pointerEvents: "none" }} />;
+}
+function zeigerWinkel(lokaleMinuten: number, sekunden: number) {
+  const min = lokaleMinuten - BEZUG_SEK / 60; // BEZUG_SEK / 60 ist ein Vielfaches von 720 → gleiche Stellung
+  const sek = sekunden - BEZUG_SEK;
+  const s = ((sekunden % 60) + 60) % 60;
+  return { stunde: min * 0.5, minute: min * 6 + s * 0.1, sekunde: sek * 6 };
+}
+
 function Uhr({ ort, jetzt, deutschlandVersatz, gleichText, differenzText }: {
   ort: UhrOrt; jetzt: Date; deutschlandVersatz: number;
   gleichText: string; differenzText: (stunden: number) => string;
@@ -38,10 +63,7 @@ function Uhr({ ort, jetzt, deutschlandVersatz, gleichText, differenzText }: {
   // Winkel wachsen mit der Zeit — ein Zeiger springt nie rückwärts.
   const lokaleMinuten = Math.floor(jetzt.getTime() / 60_000) + versatz;
   const sekunden = Math.floor(jetzt.getTime() / 1000);
-  const s = sekunden % 60;
-  const stundeWinkel = lokaleMinuten * 0.5;
-  const minuteWinkel = lokaleMinuten * 6 + s * 0.1;
-  const sekundeWinkel = sekunden * 6;
+  const { stunde: stundeWinkel, minute: minuteWinkel, sekunde: sekundeWinkel } = zeigerWinkel(lokaleMinuten, sekunden);
   const stunde = Math.floor((((lokaleMinuten % 1440) + 1440) % 1440) / 60);
   const minute = ((lokaleMinuten % 60) + 60) % 60;
   const abstand = Math.round((versatz - deutschlandVersatz) / 60);
@@ -60,13 +82,13 @@ function Uhr({ ort, jetzt, deutschlandVersatz, gleichText, differenzText }: {
               const w = (i * 90 - 90) * (Math.PI / 180);
               return <text key={z} x={100 + Math.cos(w) * 58} y={100 + Math.sin(w) * 58} className="ziffer" textAnchor="middle" dominantBaseline="central">{z}</text>;
             })}
-            <g className="zeiger stunde" style={{ transform: `rotate(${stundeWinkel}deg)` }}>
+            <g className="zeiger stunde" style={{ transform: `rotate(${stundeWinkel}deg)` }}><Achse />
               <path d="M96.6 112 L98.4 52 Q100 47 101.6 52 L103.4 112 Z" />
             </g>
-            <g className="zeiger minute" style={{ transform: `rotate(${minuteWinkel}deg)` }}>
+            <g className="zeiger minute" style={{ transform: `rotate(${minuteWinkel}deg)` }}><Achse />
               <path d="M97.6 116 L99.1 26 Q100 22 100.9 26 L102.4 116 Z" />
             </g>
-            <g className="zeiger sekunde" style={{ transform: `rotate(${sekundeWinkel}deg)` }}>
+            <g className="zeiger sekunde" style={{ transform: `rotate(${sekundeWinkel}deg)` }}><Achse />
               <line x1="100" y1="124" x2="100" y2="20" />
               <circle cx="100" cy="30" r="4.2" />
             </g>
@@ -146,6 +168,7 @@ export function UhrMini({ zone, ort }: { zone: string; ort: string }) {
   const sekunden = Math.floor(jetzt.getTime() / 1000);
   const stunde = Math.floor((((lokaleMinuten % 1440) + 1440) % 1440) / 60);
   const minute = ((lokaleMinuten % 60) + 60) % 60;
+  const w = zeigerWinkel(lokaleMinuten, sekunden);
   return (
     <span ref={ref} className="fg-uhr-mini" role="img" aria-label={`${ort}: ${zwei(stunde)}:${zwei(minute)}`}>
       <svg viewBox="0 0 200 200" aria-hidden="true">
@@ -153,9 +176,9 @@ export function UhrMini({ zone, ort }: { zone: string; ort: string }) {
         {Array.from({ length: 12 }, (_, i) => (
           <line key={i} x1="100" y1="14" x2="100" y2={i % 3 === 0 ? 34 : 26} className={i % 3 === 0 ? "strich gross" : "strich"} transform={`rotate(${i * 30} 100 100)`} />
         ))}
-        <g className="zeiger stunde" style={{ transform: `rotate(${lokaleMinuten * 0.5}deg)` }}><path d="M95 112 L97.5 56 Q100 50 102.5 56 L105 112 Z" /></g>
-        <g className="zeiger minute" style={{ transform: `rotate(${lokaleMinuten * 6 + (sekunden % 60) * 0.1}deg)` }}><path d="M96.5 116 L98.8 30 Q100 25 101.2 30 L103.5 116 Z" /></g>
-        <g className="zeiger sekunde" style={{ transform: `rotate(${sekunden * 6}deg)` }}><line x1="100" y1="124" x2="100" y2="22" /></g>
+        <g className="zeiger stunde" style={{ transform: `rotate(${w.stunde}deg)` }}><Achse /><path d="M95 112 L97.5 56 Q100 50 102.5 56 L105 112 Z" /></g>
+        <g className="zeiger minute" style={{ transform: `rotate(${w.minute}deg)` }}><Achse /><path d="M96.5 116 L98.8 30 Q100 25 101.2 30 L103.5 116 Z" /></g>
+        <g className="zeiger sekunde" style={{ transform: `rotate(${w.sekunde}deg)` }}><Achse /><line x1="100" y1="124" x2="100" y2="22" /></g>
         <circle cx="100" cy="100" r="7" className="nabe" />
       </svg>
     </span>

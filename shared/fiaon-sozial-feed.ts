@@ -8,13 +8,14 @@
  * Quelle sind die Posts des Social-Studios (E-294, fiaon_social_posts). Auf die Website kommt ein Post NUR, wenn
  *   · website_sichtbar = TRUE (Schalter im Studio; „als veröffentlicht melden“ setzt ihn beim ersten Melden mit —
  *     außer, er wurde für diese Fassung schon einmal bewusst geschaltet), und
- *   · er auf INSTAGRAM als veröffentlicht gemeldet ist (Status veröffentlicht/ausgewertet, Permalink in
- *     `veroeffentlicht.instagram`) — das Handy ist die Darstellung von @fiaon.ltd, also steht darin nur, was dort
- *     wirklich steht (Fix 06.10.2026: vorher reichte „freigegeben“ — ein nie geposteter Beitrag stand dann als
- *     Instagram-Beitrag auf fiaon.com, UWG), und
+ *   · er freigegeben ist (freigegeben, eingeplant, veröffentlicht oder ausgewertet) und Instagram zu seinen Kanälen
+ *     gehört, und
  *   · sein Plantag (Europe/Berlin) erreicht ist — nie etwas vor seinem Tag, und
  *   · sein Wort-Check nach den AKTUELLEN Regeln nicht rot ist (beim Ausliefern gerechnet, nicht nur beim Einschalten).
- * Der Schalter darf schon ab „freigegeben“ an sein (vorgemerkt) — gezeigt wird erst nach der Instagram-Meldung.
+ * Entscheidung Justin, 06.10.2026 abends: Ein Gutachten hatte verlangt, nur auf Instagram GEMELDETE Posts zu zeigen
+ * (das Handy stellt @fiaon.ltd dar). Justin, darüber informiert, will Handy und Karussell sofort mit seinen
+ * freigegebenen Posts („da ist unser Mockup, Karussell nicht, das fehlt komplett“). „Auf Instagram ansehen“ steht nur,
+ * wenn ein geprüfter Permalink gemeldet ist; sonst öffnet der Beitrag die große Ansicht auf fiaon.com.
  * Ohne solche Posts liefert der Feed eine leere Liste; die Seite zeigt dann nur die Profile (SOZIALE_PROFILE) — kein
  * leeres Handy, keine erfundenen Zahlen.
  */
@@ -24,9 +25,9 @@ import type { SozialesProfil } from "./fiaon-sozial";
 export const SOZIAL_FEED_PFAD = "/api/fiaon/social/feed";
 export const sozialBildPfad = (dateiId: number) => `/api/fiaon/social/bild/${dateiId}`;
 
-/** Status, die auf der Website stehen dürfen (zusammen mit website_sichtbar, Instagram-Meldung und erreichtem Plantag). */
-export const SOZIAL_WEBSITE_STATUS = ["veroeffentlicht", "ausgewertet"] as const;
-/** Auf diesem Kanal muss der Post als veröffentlicht gemeldet sein (Schlüssel in fiaon_social_posts.veroeffentlicht). */
+/** Status, die auf der Website stehen dürfen (zusammen mit website_sichtbar, Instagram-Kanal und erreichtem Plantag). */
+export const SOZIAL_WEBSITE_STATUS = ["freigegeben", "eingeplant", "veroeffentlicht", "ausgewertet"] as const;
+/** Diesen Kanal muss der Post haben (fiaon_social_posts.kanaele) — das Handy stellt @fiaon.ltd auf Instagram dar. */
 export const SOZIAL_WEBSITE_KANAL = "instagram";
 
 export type SozialFeedMarke = "fiaon" | "global" | "alle";
@@ -52,7 +53,7 @@ export interface SozialFeedPost {
   hashtags: string[];
   /** Alt-Text aus dem Studio; leer → die Seite nimmt den Titel. */
   alt: string;
-  /** Links zu den echten Beiträgen (geprüfte Permalinks). `instagram` ist bei jedem gelieferten Post gesetzt. */
+  /** Links zu den echten Beiträgen (geprüfte Permalinks) — nur, wenn im Studio als veröffentlicht gemeldet. */
   links: { instagram?: string; facebook?: string; linkedin?: string; tiktok?: string };
   /** Als KI-Inhalt gekennzeichnet (Art. 50 KI-VO) → sichtbarer Hinweis an Kachel und Ansicht. */
   ki: boolean;

@@ -654,7 +654,7 @@
 .fg-uhr-mini .flaeche{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.35);stroke-width:2}
 .fg-uhr-mini .strich{stroke:rgba(255,255,255,.45);stroke-width:3;stroke-linecap:round}
 .fg-uhr-mini .strich.gross{stroke:#fff;stroke-width:5}
-.fg-uhr-mini .zeiger{transform-box:view-box;transform-origin:100px 100px}
+.fg-uhr-mini .zeiger{transform-box:fill-box;transform-origin:50% 50%} /* Achse: unsichtbarer Kreis je Gruppe (GlobalUhren.tsx) */
 .fg-uhr-mini .stunde path,.fg-uhr-mini .minute path{fill:#fff}
 .fg-uhr-mini .sekunde line{stroke:#60a5fa;stroke-width:3;stroke-linecap:round}
 .fg-uhr-mini .nabe{fill:#fff}

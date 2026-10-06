@@ -447,6 +447,11 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
         {/* ── 3 Jahresbetreuung als Band (trägt id="jahresbetreuung" selbst) ── */}
         <GlobalJahresbetreuung sprache={s} groesse="band" startPfad={start()} knopf={t.jbKnopf} so={t.jbSo} />
 
+        {/* ── 3b FIAON auf Instagram und Facebook (E-296): NUR Beiträge von FIAON Global — kein Rückfall auf „alle“,
+               die Business-Welt zeigt nie Privatthemen (E-192, Prüfung 06.10.2026); ohne Beiträge nur die Profile.
+               Seit 06.10. abends direkt nach Paketen und Jahresbetreuung (Justin: „höher setzen … präsenter“). ── */}
+        <SozialFenster aussehen="kanzlei" marke="global" />
+
         {/* ── 4 Ein Ansprechpartner statt acht ── */}
         <Sek id="leistungen" className="fg-sek fg-stern-sek">
           <div className="fg-rahmen">
@@ -512,10 +517,6 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
             </div>
           </div>
         </Sek>
-
-        {/* ── 7b FIAON auf Instagram und Facebook (E-296): NUR Beiträge von FIAON Global — kein Rückfall auf „alle“,
-               die Business-Welt zeigt nie Privatthemen (E-192, Prüfung 06.10.2026); ohne Beiträge nur die Profile ── */}
-        <SozialFenster aussehen="kanzlei" marke="global" />
 
         {/* ── 8 Schlussband ── */}
         <section className="fg-schluss mit-bild">

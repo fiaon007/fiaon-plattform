@@ -32,7 +32,8 @@
 @keyframes szDrehen{to{transform:rotate(360deg)}}
 
 /* ── Abschnitt: Kopf, Handy, Reihe ─────────────────────────────────────── */
-.sz-buehne{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);grid-template-areas:"handy kopf" "handy reihe";column-gap:clamp(40px,6vw,96px);row-gap:34px;align-items:center}
+/* 06.10.2026 abends (Justin: „präsenter … höher setzen“): größeres Handy, stärkerer Schein, größere Karten. */
+.sz-buehne{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);grid-template-areas:"handy kopf" "handy reihe";column-gap:clamp(40px,6vw,96px);row-gap:34px;align-items:center}
 .sz-kopf{grid-area:kopf;align-self:end}
 .sz-kopf .dk-lead{max-width:56ch;margin-top:20px}
 .sz-kopf .dk-h2{margin-top:24px}
@@ -103,8 +104,8 @@
 
 /* ── Das Handy ──────────────────────────────────────────────────────────── */
 .sz-handy-ort{position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:20px 0}
-.sz-schein{position:absolute;left:50%;top:50%;width:min(580px,130%);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
-  background:radial-gradient(closest-side,rgba(37,99,235,.34),rgba(37,99,235,.12) 46%,rgba(37,99,235,0) 72%);animation:szAtmen 9s ease-in-out infinite alternate}
+.sz-schein{position:absolute;left:50%;top:50%;width:min(680px,150%);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(37,99,235,.46),rgba(59,130,246,.16) 46%,rgba(37,99,235,0) 72%);animation:szAtmen 9s ease-in-out infinite alternate}
 @keyframes szAtmen{from{transform:translate(-50%,-50%) scale(.9);opacity:.8}to{transform:translate(-50%,-50%) scale(1.06);opacity:1}}
 .sz-handy-ort:not(.treibt) .sz-schein{animation:none}
 .sz-kanzlei .sz-schein{top:auto;bottom:6px;width:72%;aspect-ratio:auto;height:44px;transform:translate(-50%,0);background:radial-gradient(closest-side,rgba(18,40,74,.26),rgba(18,40,74,0));animation:none}
@@ -200,7 +201,8 @@
 .sz-unterleiste .sz-avatar.klein{width:calc(var(--e)*23) !important;height:calc(var(--e)*23) !important;box-shadow:0 0 0 calc(var(--e)*1.5) var(--sz-schirm-text)}
 .sz-heimbalken{position:absolute;left:50%;bottom:calc(var(--e)*6);width:calc(var(--e)*108);height:calc(var(--e)*4.5);border-radius:999px;background:var(--sz-schirm-text);transform:translateX(-50%);z-index:2;opacity:.92}
 
-@media(min-width:961px){.sz-handy{--hb:316px}}
+@media(min-width:961px){.sz-handy{--hb:340px}}
+@media(min-width:1200px){.sz-handy{--hb:360px}}
 @media(max-width:960px){.sz-handy{--hb:262px}}
 @media(max-width:720px){.sz-handy{--hb:280px}}
 @media(max-width:400px){.sz-handy{--hb:262px}}
@@ -226,7 +228,7 @@
 .sz-reihe-knoepfe button:hover:not(:disabled){transform:translateY(-1px);border-color:var(--sz-linie-2);background:var(--sz-flaeche-2)}
 .sz-reihe-knoepfe button:disabled{opacity:.32;cursor:default}
 .sz-kanzlei .sz-reihe-knoepfe button{border-radius:8px}
-.sz .sz-reihe{list-style:none;margin:0;padding:6px 2px 20px;display:grid;grid-auto-flow:column;grid-auto-columns:clamp(220px,19vw,250px);gap:16px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
+.sz .sz-reihe{list-style:none;margin:0;padding:6px 2px 20px;display:grid;grid-auto-flow:column;grid-auto-columns:clamp(232px,21vw,280px);gap:18px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
   scroll-snap-type:x mandatory;scroll-padding:0 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .sz-reihe::-webkit-scrollbar{display:none}
 .sz-reihe:focus-visible{outline:2px solid var(--sz-hell);outline-offset:4px;border-radius:12px}

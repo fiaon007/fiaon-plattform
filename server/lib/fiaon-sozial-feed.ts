@@ -103,7 +103,7 @@ async function sichtbareLaden(heute: string): Promise<Vorrat> {
            p.veroeffentlicht, p.veroeffentlicht_am, p.plan_zeitpunkt, p.plan_datum::text AS pd, p.reihenfolge
       FROM fiaon_social_posts p
      WHERE p.website_sichtbar AND p.status = ANY(${status}::text[]) AND p.plan_datum <= ${heute}::date
-       AND (p.veroeffentlicht -> ${SOZIAL_WEBSITE_KANAL}) IS NOT NULL
+       AND ${SOZIAL_WEBSITE_KANAL} = ANY(p.kanaele)
      ORDER BY p.plan_datum DESC, p.id DESC
      LIMIT ${FEED_ZEILEN_MAX}`) as any[];
   const bildIds = new Set<number>();
@@ -131,9 +131,9 @@ async function sichtbareLaden(heute: string): Promise<Vorrat> {
   const out: FeedEintrag[] = [];
   for (const r of rows) {
     const id = Number(r.id);
-    // Nur mit gültigem Instagram-Link (das Handy zeigt @fiaon.ltd) und nicht rot nach den Regeln von heute.
+    // Nicht rot nach den Regeln von heute. Instagram-Kanal prüft die Abfrage; der Link kommt mit, sobald er gemeldet ist.
     const links = linksAus(r.veroeffentlicht);
-    if (!links.instagram || istRot(r)) continue;
+    if (istRot(r)) continue;
     const bilder: SozialFeedBild[] = [];
     for (const d of jePost.get(id) ?? []) {
       const kopf = koepfe.get(Number(d.datei_id));
@@ -220,7 +220,7 @@ export const sozialFeedLeer = (): SozialFeedAntwort => ({ profile: SOZIALE_PROFI
  *      Prüfung 06.10.2026: Vorher lieferte die Route jede Datei mit Rolle bild/cover eines sichtbaren Posts —
  *      auch Titelbilder von Karussells und Bilder von Reels, die nirgends auf der Website stehen.
  *   2. Frisch in SQL bei jeder Anfrage: JPEG/PNG, Original oder web_480, nicht gelöscht, mit Inhalt; ihr Post:
- *      Schalter an, Status veröffentlicht/ausgewertet mit Instagram-Meldung, Plantag (Berlin) erreicht; das
+ *      Schalter an, Status ab Freigabe mit Instagram-Kanal, Plantag (Berlin) erreicht; das
  *      Original (bei web_480: die quelle_id) steht in der AKTUELLEN Dateiliste — alte Fassungen bleiben privat.
  */
 export async function websiteBild(dateiId: number): Promise<{ id: number; mime: string; bytes: number; sha256: string } | null> {
@@ -235,7 +235,7 @@ export async function websiteBild(dateiId: number): Promise<{ id: number; mime: 
        AND d.mime IN ('image/jpeg', 'image/png') AND d.rolle IN ('bild', 'cover') AND d.variante IN ('original', 'web_480')
        AND (d.variante = 'original' OR d.quelle_id IS NOT NULL)
        AND p.website_sichtbar AND p.status = ANY(${status}::text[]) AND p.plan_datum <= ${heute}::date
-       AND (p.veroeffentlicht -> ${SOZIAL_WEBSITE_KANAL}) IS NOT NULL
+       AND ${SOZIAL_WEBSITE_KANAL} = ANY(p.kanaele)
        AND p.dateien @> jsonb_build_array(jsonb_build_object(
              'datei_id', CASE WHEN d.variante = 'web_480' THEN d.quelle_id ELSE d.id END,
              'rolle', d.rolle))

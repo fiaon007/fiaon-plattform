@@ -359,7 +359,7 @@
 .fg-uhr-blatt .strich{stroke:#56617a;stroke-width:1.1;stroke-linecap:round}
 .fg-uhr-blatt .strich.gross{stroke:var(--tinte);stroke-width:3.2}
 .fg-uhr-blatt .ziffer{font-family:var(--serif);font-size:23px;font-weight:400;fill:var(--tinte)}
-.fg-uhr-blatt .zeiger{transform-box:view-box;transform-origin:100px 100px}
+.fg-uhr-blatt .zeiger{transform-box:fill-box;transform-origin:50% 50%} /* Achse: unsichtbarer Kreis je Gruppe (GlobalUhren.tsx) */
 .fg-uhr-blatt .stunde,.fg-uhr-blatt .minute{transition:transform .6s cubic-bezier(.3,.8,.3,1)}
 .fg-uhr-blatt .stunde path,.fg-uhr-blatt .minute path{fill:var(--tinte)}
 .fg-uhr-blatt .sekunde{transition:transform .3s cubic-bezier(.4,2.2,.55,1)}

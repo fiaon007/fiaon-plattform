@@ -212,10 +212,11 @@ async function main() {
     ok("Sichtbar: Schalter + auf Instagram veröffentlicht + Plantag heute + Bild", st({}).jetzt && st({}).grund === null);
     ok("Schalter aus → nicht sichtbar (Grund „aus“)", !st({ website_sichtbar: false }).jetzt && st({ website_sichtbar: false }).grund === "aus");
     ok("zur_freigabe/entwurf/verworfen → nicht sichtbar (Grund „status“)", ["zur_freigabe", "entwurf", "verworfen"].every((s) => st({ status: s }).grund === "status"));
-    ok("Website-Status sind nur veröffentlicht und ausgewertet", SOZIAL_WEBSITE_STATUS.join() === "veroeffentlicht,ausgewertet" && SOZIAL_WEBSITE_STATUS.every((s) => st({ status: s }).jetzt));
-    ok("freigegeben/eingeplant mit Schalter: vorgemerkt, NICHT sichtbar (Grund „instagram“), darf_an ja",
-      ["freigegeben", "eingeplant"].every((s) => st({ status: s, gemeldet: [] }).grund === "instagram" && !st({ status: s, gemeldet: [] }).jetzt && st({ status: s, gemeldet: [], website_sichtbar: false }).darf_an));
-    ok("veröffentlicht nur auf Facebook → nicht sichtbar (Grund „instagram“)", st({ gemeldet: ["facebook"] }).grund === "instagram" && /sobald/.test(st({ gemeldet: ["facebook"] }).satz));
+    // Justin 06.10.2026 abends: freigegebene Posts mit Instagram-Kanal stehen ab dem Plantag — auch ohne Instagram-Meldung.
+    ok("Website-Status: ab der Freigabe (freigegeben, eingeplant, veröffentlicht, ausgewertet)", SOZIAL_WEBSITE_STATUS.join() === "freigegeben,eingeplant,veroeffentlicht,ausgewertet" && SOZIAL_WEBSITE_STATUS.every((s) => st({ status: s }).jetzt));
+    ok("freigegeben/eingeplant mit Schalter, noch nicht gemeldet: SICHTBAR, darf_an ja",
+      ["freigegeben", "eingeplant"].every((s) => st({ status: s, gemeldet: [] }).jetzt && st({ status: s, gemeldet: [] }).grund === null && st({ status: s, gemeldet: [], website_sichtbar: false }).darf_an));
+    ok("nur auf Facebook gemeldet, Instagram-Kanal vorhanden → sichtbar", st({ gemeldet: ["facebook"] }).jetzt);
     ok("ohne Instagram-Kanal → darf_an nein, Satz sagt es", !st({ kanaele: ["facebook"], website_sichtbar: false }).darf_an && /nicht auf Instagram/.test(st({ kanaele: ["facebook"], website_sichtbar: false }).satz) && st({ kanaele: ["facebook"] }).grund === "instagram");
     ok("Wort-Check rot bei Schalter an → nicht sichtbar (Grund „wortcheck“)", st({ wortcheck_rot: true }).grund === "wortcheck" && !st({ wortcheck_rot: true }).jetzt);
     ok("Plantag morgen → erst dann (Grund „plantag“, ab = Plantag)", st({ plan_datum: "2026-10-07" }).grund === "plantag" && st({ plan_datum: "2026-10-07" }).ab === "2026-10-07" && /07\.10\.2026/.test(st({ plan_datum: "2026-10-07" }).satz));
@@ -612,7 +613,7 @@ async function main() {
       r = await aktion(idK, "website", { version: pK.version, sichtbar: "ja" });
       ok("„website“ ohne an/aus (kein boolean): 400", r.status === 400 && r.json?.code === "UNGUELTIG", r.json);
       r = await aktion(idK, "website", { version: pK.version, sichtbar: true });
-      ok("„website“ an (GF, freigegeben): 200, version+1, VORGEMERKT — Grund „instagram“, steht nicht", r.status === 200 && r.json?.post?.version === pK.version + 1 && r.json?.post?.website?.jetzt === false && r.json?.post?.website?.grund === "instagram" && r.json?.post?.website_sichtbar === true && /Vorgemerkt/.test(r.json?.meldung ?? ""), { w: r.json?.post?.website, m: r.json?.meldung });
+      ok("„website“ an (GF, freigegeben): 200, version+1, steht jetzt (Instagram-Kanal, Plantag heute)", r.status === 200 && r.json?.post?.version === pK.version + 1 && r.json?.post?.website?.jetzt === true && r.json?.post?.website?.grund === null && r.json?.post?.website_sichtbar === true && /Steht jetzt/.test(r.json?.meldung ?? ""), { w: r.json?.post?.website, m: r.json?.meldung });
       pK = r.json?.post;
       ok("Verlauf: Zeile „website“ mit vorher aus, nachher an", pK?.verlauf?.some((v: any) => v.art === "website" && v.vorher?.website_sichtbar === false && v.nachher?.website_sichtbar === true));
       const prot296 = (await sqlPool`SELECT notiz FROM fiaon_admin_log WHERE ziel = ${"social:" + idK} AND notiz LIKE 'website:%' ORDER BY id DESC LIMIT 1`) as any[];
@@ -621,9 +622,9 @@ async function main() {
       ok("noch einmal an: 200, keine neue version", r.status === 200 && r.json?.post?.version === pK.version, r.json?.meldung);
       const folien = [...pK.dateien].filter((x: any) => x.rolle === "bild").sort((a: any, b: any) => a.pos - b.pos);
       const erste = folien[0];
-      ok("Prüfung 06.10.: freigegeben + Schalter an, aber nicht auf Instagram gemeldet → nicht im Feed", !(await feedIds()).includes(idK));
+      ok("freigegeben + Schalter an, noch nicht gemeldet → im Feed, ohne Instagram-Link", (await feedIds()).includes(idK));
       let b = await holen(bildPfad(erste.id), { stufe: null });
-      ok("… und sein Bild: 404, no-store, JSON, nicht der ETag des Bildes", b.status === 404 && b.kopf.get("cache-control") === "no-store" && !(b.kopf.get("etag") ?? "").includes(erste.sha256) && (b.kopf.get("content-type") ?? "").includes("json"), { s: b.status, cc: b.kopf.get("cache-control"), e: b.kopf.get("etag") });
+      ok("… und sein Bild: 200, öffentlich zwischengespeichert", b.status === 200 && (b.kopf.get("cache-control") ?? "").includes("public"), { s: b.status, cc: b.kopf.get("cache-control") });
 
       // Neue Fassung: Schalter aus (der Schalter galt dem alten Inhalt)
       r = await importieren(l02, { id: "pruef296-k", meta: mitThema(l02), caption: l02.caption + "\nNeue Fassung für den Prüfstand.", dateien: [] });
@@ -634,7 +635,7 @@ async function main() {
       pK = r.json?.post;
       r = await aktion(idK, "website", { version: pK.version, sichtbar: true });
       pK = r.json?.post;
-      ok("neue Fassung freigegeben und vorgemerkt", r.status === 200 && pK?.website_sichtbar === true && pK?.website?.grund === "instagram", pK?.website);
+      ok("neue Fassung freigegeben und wieder auf der Website", r.status === 200 && pK?.website_sichtbar === true && pK?.website?.jetzt === true, pK?.website);
 
       // Plantag: morgen → auch nach der Instagram-Meldung nicht vor dem Tag
       r = await aktion(idK, "verschieben", { version: pK.version, datum: morgen, zeit: null });

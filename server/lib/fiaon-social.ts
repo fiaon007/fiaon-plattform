@@ -737,10 +737,8 @@ export async function socialAktion(id: number, aktion: SocialAktion, body: any, 
         await tx`UPDATE fiaon_social_posts SET website_sichtbar = ${an}, version = ${neu}, updated_at = NOW() WHERE id = ${id}`;
         await verlauf("website", { website_sichtbar: !!r.website_sichtbar }, { website_sichtbar: an, ab: r.pd });
         const spaeter = r.pd > berlinToday();
-        const gemeldet = !!(r.veroeffentlicht ?? {}).instagram && (status === "veroeffentlicht" || status === "ausgewertet");
         const meldung = an
-          ? (!gemeldet ? "Vorgemerkt: Der Post erscheint auf der Website, sobald er auf Instagram als veröffentlicht gemeldet ist."
-            : spaeter ? `Auf der Website ab ${datumDe(r.pd)} (Plantag).` : "Steht jetzt auf der Website. Schon geöffnete Seiten zeigen es nach spätestens fünf Minuten.")
+          ? (spaeter ? `Auf der Website ab ${datumDe(r.pd)} (Plantag).` : "Steht jetzt auf der Website. Schon geöffnete Seiten zeigen es nach spätestens fünf Minuten.")
           : "Von der Website genommen. Schon geöffnete Seiten zeigen es höchstens noch fünf Minuten.";
         return { meldung, ziel: `social:${id}`, notiz: `${!!r.website_sichtbar}→${an}${an && r.pd > berlinToday() ? ` ab ${r.pd}` : ""}` };
       }

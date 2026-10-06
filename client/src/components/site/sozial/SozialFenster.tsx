@@ -102,7 +102,8 @@ function Handy({ posts, profile, w, aussehen, onOeffnen }: { posts: SozialFeedPo
     try { if (a) localStorage.removeItem(BEWEGUNG_SCHLUESSEL); else localStorage.setItem(BEWEGUNG_SCHLUESSEL, "aus"); } catch { /* ohne Speicher */ }
     return !a;
   });
-  const knopfZeigen = treibt && !ruhigGewuenscht();
+  // Der Knopf hält auch das selbst blätternde Karussell an (Reihe liest denselben Schlüssel) — darum schon ab zwei Beiträgen.
+  const knopfZeigen = (treibt || posts.length >= 2) && !ruhigGewuenscht();
   // Tastatur im treibenden Raster (WCAG 2.4.7/2.4.11): Fokus hält das Treiben an (CSS: animation none, das Raster
   // steht oben) und holt die Kachel ins Fenster; wer das Fenster verlässt, bekommt es wieder von oben.
   const beimFokus = (e: FocusEvent<HTMLDivElement>) => {
@@ -113,7 +114,7 @@ function Handy({ posts, profile, w, aussehen, onOeffnen }: { posts: SozialFeedPo
     if (fenster.current && !fenster.current.contains(e.relatedTarget as Node | null)) fenster.current.scrollTop = 0;
   };
   return (
-    <div className={`sz-handy-ort${treibt ? " treibt" : ""}`} data-angehalten={angehalten && treibt ? "1" : undefined}>
+    <div className={`sz-handy-ort${treibt ? " treibt" : ""}`} data-angehalten={angehalten ? "1" : undefined}>
       <div className="sz-schein" aria-hidden="true" />
       <div ref={neigung} className="sz-neigung">
         <div className="sz-handy" role="group" aria-label={w.handyLabel}>
@@ -229,6 +230,37 @@ function Reihe({ posts, w, onOeffnen }: { posts: SozialFeedPost[]; w: SozialWoer
     const schritt = karte ? karte.getBoundingClientRect().width + parseFloat(getComputedStyle(s).columnGap || "16") : s.clientWidth * 0.8;
     s.scrollBy({ left: richtung * schritt, behavior: ruhigGewuenscht() ? "auto" : "smooth" });
   };
+  // 06.10.2026 abends (Justin: „präsenter … Karussell“): Das Karussell blättert von selbst, alle 4,5 s eine Karte, am Ende
+  // weich zurück zum Anfang. Nie bei „weniger Bewegung“, nie außer Sicht oder im Hintergrund-Tab, nie solange Zeiger oder
+  // Fokus darauf liegen, 9 s Ruhe nach jedem Wischen/Klicken — und aus, wenn „Bewegung anhalten“ gedrückt ist (WCAG 2.2.2).
+  useEffect(() => {
+    const s = spur.current;
+    if (!s || posts.length < 2 || ruhigGewuenscht()) return;
+    let darauf = false, zuletzt = 0;
+    const an = () => { darauf = true; };
+    const ab = () => { darauf = false; };
+    const beruehrt = () => { zuletzt = Date.now(); };
+    s.addEventListener("pointerenter", an); s.addEventListener("pointerleave", ab);
+    s.addEventListener("focusin", an); s.addEventListener("focusout", ab);
+    s.addEventListener("pointerdown", beruehrt); s.addEventListener("wheel", beruehrt, { passive: true });
+    s.addEventListener("touchstart", beruehrt, { passive: true });
+    const takt = window.setInterval(() => {
+      if (darauf || Date.now() - zuletzt < 9000 || document.visibilityState !== "visible") return;
+      if (s.closest(".sz")?.getAttribute("data-laeuft") !== "1") return;
+      try { if (localStorage.getItem(BEWEGUNG_SCHLUESSEL) === "aus") return; } catch { /* ohne Speicher: läuft */ }
+      const max = s.scrollWidth - s.clientWidth;
+      if (max <= 4) return;
+      if (s.scrollLeft >= max - 4) s.scrollTo({ left: 0, behavior: "smooth" }); else blaettern(1);
+    }, 4500);
+    return () => {
+      window.clearInterval(takt);
+      s.removeEventListener("pointerenter", an); s.removeEventListener("pointerleave", ab);
+      s.removeEventListener("focusin", an); s.removeEventListener("focusout", ab);
+      s.removeEventListener("pointerdown", beruehrt); s.removeEventListener("wheel", beruehrt);
+      s.removeEventListener("touchstart", beruehrt);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts.length]);
   return (
     <div className="sz-reihe-ort" data-fest={rand.anfang && rand.ende ? "1" : undefined} data-weiter={rand.anfang ? undefined : "1"}>
       <div className="sz-reihe-kopf">

@@ -5,6 +5,23 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.10.2026 abends — Instagram-Handy sofort gefüllt, höher und größer; Uhren-Zeiger in Safari (E-296, E-293)
+
+- **Instagram auf fiaon.com zeigt jetzt die freigegebenen Beiträge** (Justin: „da ist unser Mockup, Karussell nicht, das fehlt
+  komplett“): ab dem Plantag, nach der Freigabe, nur Posts für Instagram, Wort-Check nicht rot. Vorher erst nach der Meldung mit
+  Instagram-Link (Gutachten); Justin hat sich nach dem Hinweis dafür entschieden, sofort zu zeigen. „Auf Instagram ansehen“ erscheint,
+  sobald der Link im Studio gemeldet ist; bis dahin öffnet ein Beitrag die große Ansicht auf fiaon.com.
+- **Höher und präsenter:** Startseite direkt unter den Kennzahlen (statt fast am Ende), Business direkt nach Paketen und Jahresbetreuung.
+  Größeres Handy (360 px), stärkerer Schein, größere Karten; das Karussell blättert alle 4,5 s von selbst weiter (hält bei Berührung,
+  Zeiger, Fokus, „Bewegung anhalten“ und „weniger Bewegung“).
+- **Uhren:** In Safari drehten sich die Zeiger um ihre eigene Mitte statt um die Achse (Fuß und Drei Orte). Jetzt sitzt in jeder
+  Zeigergruppe ein unsichtbarer Kreis um die Achse — in jedem Browser derselbe Drehpunkt. Zeigerwinkel zählen ab einem 12-Stunden-Block
+  statt ab 1970 (vorher Winkel mit zehn Stellen).
+
+**Wo:** shared/fiaon-sozial-feed.ts, shared/fiaon-social.ts, server/lib/fiaon-sozial-feed.ts, server/lib/fiaon-social.ts,
+client/src/components/site/sozial/SozialFenster.tsx, styles/sozial-fenster.css, pages/fiaon-home.tsx, pages/site/business.tsx,
+components/site/GlobalUhren.tsx, styles/global.css, styles/global-grafik.css, scripts/pruef-social.ts (284 grün).
+
 ## 06.10.2026 — Instagram auf der Website + Business am Handy repariert (E-296, E-293)
 
 - **Instagram/Facebook auf fiaon.com:** Auf Startseite, Privatkunden und Business (auch Englisch) steht ein iPhone mit dem Profil

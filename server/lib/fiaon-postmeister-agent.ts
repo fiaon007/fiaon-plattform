@@ -61,7 +61,7 @@ import {
   // E-272 (02.10.2026): die Kreditkarten-Formel der Persona — beim Global-Kunden ersetzt (systemPrompt).
   KARTE_REGEL_TEXT,
   // E-275 (02.10.2026): Bausteine für den Mail-Abschluss ohne Pflicht-Termin (mailAbschlussFormel).
-  BANK_SATZ, kartenzielText, ohneLimitUndBankSatz, type KartenZiel,
+  BANK_SATZ, kartenzielText, ohneLimitUndBankSatz, type KartenZiel, bankZusatz, bankSatzNurAufNachfrage, bankSatzNurWennGefragt, bankSatzRegel,
   // E-275 Gegenprüfung Verkauf: ungefragter Termin und Abgabe an einen Kollegen — dieselbe Regel wie auf WhatsApp.
   selbstErledigtTreffer,
   // E-275 Ton (02.10.2026): die klare Aufforderung und der Nutzen — EINE Quelle für Mail und WhatsApp.
@@ -857,7 +857,8 @@ export function aktivierungMitLuecke(luecke: readonly string[]): string {
  * [Fälligkeit] setzt das Modell aus zahlungslink_bauen bzw. der Akte ein. Rein.
  */
 export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null): string {
-  const zielSatz = (vorn: string) => (ziel ? `${vorn} ${kartenzielText(ziel, { alsZiel: true })} — ${BANK_SATZ}.` : `${vorn}.`);
+  // E-297: der Satz über die Bank über bankZusatz() — mit MARA_BANK_SATZ=nachfrage fällt er hier weg.
+  const zielSatz = (vorn: string) => (ziel ? `${vorn} ${kartenzielText(ziel, { alsZiel: true })}${bankZusatz()}.` : `${vorn}.`);
   switch (art) {
     case "a":
       // Er hat gemeldet, dass er bezahlt hat: keine Zahlungsbitte, kein Zahlungslink (#5773).
@@ -872,9 +873,9 @@ export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null):
       return `${zielSatz("Ihre Visa-Kreditkarte bleibt unser gemeinsames Ziel")}\n\nOffen ist bei Ihnen Ihre Rate vom [Fälligkeit] über [Betrag] (Verwendungszweck [Verwendungszweck]). Überweisen Sie sie am besten gleich heute — über den Knopf unten haben Sie alles sofort zur Hand.`;
     case "abbrecher":
       // E-264: nie abgeschickt — kein Satz zur Rate, der Schritt ist sein Antrag. Nie „nur noch einen Schritt“.
-      return `${ziel ? `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ${kartenzielText(ziel, { alsZiel: true })} ist Ihr Antrag — ${BANK_SATZ}.` : "Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ist Ihr Antrag."} Ihre Angaben sind gespeichert, in etwa fünf Minuten ist er fertig — der Knopf unten bringt Sie genau dorthin, wo Sie aufgehört haben.`;
+      return `${ziel ? `Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ${kartenzielText(ziel, { alsZiel: true })} ist Ihr Antrag${bankZusatz()}.` : "Ihr nächster Schritt zu Ihrer Visa-Kreditkarte ist Ihr Antrag."} Ihre Angaben sind gespeichert, in etwa fünf Minuten ist er fertig — der Knopf unten bringt Sie genau dorthin, wo Sie aufgehört haben.`;
     case "c":
-      return "Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa fünf Minuten, und über den Rahmen entscheidet am Ende die Bank. Der Knopf unten bringt Sie direkt hin.";
+      return `Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa fünf Minuten${bankSatzNurAufNachfrage() ? "" : ", und über den Rahmen entscheidet am Ende die Bank"}. Der Knopf unten bringt Sie direkt hin.`;
     case "b":
     default:
       // E-275 Ton (02.10.2026, Justin: „Zahlen Sie die Aktivierung … Ihr Account ist sofort nach Eingang aktiv!“): die klare
@@ -893,7 +894,7 @@ export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null):
 export const MAIL_KARTE_REGEL = [
   `═══ DIE KREDITKARTE VORN — SO SCHLIESST DU PER MAIL AB (Justin 29.09. und 02.10.2026) ═══`,
   `· Wer uns schreibt, will seine eigene Visa-Kreditkarte. Sie steht früh in der Antwort (spätestens im zweiten Satz — dein erster Satz darf auf seine Worte eingehen).`,
-  `· Sein Wunschlimit nennst du, wenn es in der Akte steht (Feld kartenziel: „mit Ihrem Wunschlimit von 25.000 € als Ziel“), und im selben Satz „${BANK_SATZ}“. Nie als Zusage („Sie bekommen 25.000 €“, „bekommen Sie Ihre Kreditkarte mit …“), nie eine andere Zahl. Limit, Rahmen und Beträge ab 1.000 € NUR in diesen Formen: „mit Ihrem Wunschlimit von X €“, „mit X € als Ziel“, „Ihr Wunschlimit bleibt unser Ziel“, „Sie tragen im Antrag Ihr Wunschlimit ein“ — immer mit „${BANK_SATZ}“. Wunschlimit und Betrag nie in EINEM Satz.`,
+  `· Sein Wunschlimit nennst du, wenn es in der Akte steht (Feld kartenziel: „mit Ihrem Wunschlimit von 25.000 € als Ziel“) — ${bankSatzRegel()}. Nie als Zusage („Sie bekommen 25.000 €“, „bekommen Sie Ihre Kreditkarte mit …“), nie eine andere Zahl. Limit, Rahmen und Beträge ab 1.000 € NUR in diesen Formen: „mit Ihrem Wunschlimit von X €“, „mit X € als Ziel“, „Ihr Wunschlimit bleibt unser Ziel“, „Sie tragen im Antrag Ihr Wunschlimit ein“ — ${bankSatzRegel()}. Wunschlimit und Betrag nie in EINEM Satz.`,
   // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung, wir kümmern uns
   // darum das die Karte schnell versendet wird. Ihr Account ist sofort nach Eingang aktiv!‘“) — die wahre Fassung: Die Karte
   // gibt die Partnerbank nach ihrer Zusage aus; FIAON sorgt dafür, dass der Kartenantrag sofort starten kann.
@@ -2243,6 +2244,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
+  // E-297 (07.10.2026): der Satz über die Bank nur auf seine Frage (MARA_BANK_SATZ=nachfrage).
+  text = bankSatzNurWennGefragt(text, k.kundeText ?? "");
   // E-265 (29.09.2026): wessen Vorname nie allein in der Kundenmail steht (harte Prüfung unten).
   const mitarbeiterJetzt = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);
   // 02.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort

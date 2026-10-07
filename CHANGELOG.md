@@ -5,6 +5,28 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.10.2026 abends — E-297: Mara verkauft härter (Bank-Satz nur auf Nachfrage, kein Rückzug beim Geld, ein Paket tiefer)
+
+- **Warum:** Zahlenrunde mit Justin. Seit dem Neustart 63 WhatsApp-Gespräche, danach keine einzige Zahlungsmeldung. Mail-Aktion
+  vom 03.10.: 488 Mails, eine Zahlung. Fast jede Antwort hängte „über den Rahmen entscheidet unsere Partnerbank“ an, auf „habe nur
+  5 € auf dem Konto“ kam „dann warten Sie besser“, auf „zu teuer“ (99,99 €) sofort FIAON Start für 7,99 €. Nikita arbeitet nicht mehr,
+  Mara muss allein abschließen.
+- **Bank-Satz nur auf Nachfrage** (Justins Entscheidung): Das Wunschlimit bleibt genannt, der Satz über die Bank steht nur noch, wenn
+  der Kunde nach Limit, Rahmen, Betrag, Sicherheit, Kredit oder Ablehnung fragt. Die Wände gegen echte Zusagen („Sie bekommen Ihr
+  Wunschlimit“, „Ihr Rahmen ist sicher“, „Das bekommen Sie sicher“) bleiben hart. Schalter in Render: MARA_BANK_SATZ=nachfrage
+  (leer = wie vorher). Gegenprobe an Maras echten 177 Antworten vom 06./07.10.: 29 mit Bank-Satz, 12 davon ungefragt (fallen weg),
+  17 auf eine echte Frage (bleiben), keine neue Zusage.
+- **Kein Rückzug beim Geld:** „Dann warten Sie besser“, „unterschreiben Sie bitte nichts“, „sobald es für Sie passt“ lösen einen
+  zweiten Entwurf aus. Stattdessen fragt Mara nach dem Tag, an dem das Geld kommt, hält ihn fest (Zahlungszusage) oder zeigt das
+  nächstkleinere Paket für heute.
+- **Zu teuer → ein Paket tiefer:** High-End → Ultra, Ultra → Pro, Pro → Start; Start erst, wenn auch das nicht passt.
+- **Zögern:** statt „Klar, lassen Sie sich Zeit“ die Frage „Was hält Sie noch zurück — der Betrag, der Ablauf oder etwas anderes?“
+
+**Wo:** shared/fiaon-mara-ton.ts (bankSatzNurAufNachfrage, FRAGT_NACH_RAHMEN, bankSatzNurWennGefragt, bausteinVorabZahlen,
+bausteinZoegern), server/lib/fiaon-whatsapp-mara.ts (Regel 7, Rückzug-Prüfung, reparieren), server/lib/fiaon-postmeister-agent.ts,
+server/lib/fiaon-mara-aktion.ts. Prüfstand neu: scripts/pruef-mara-e297.ts (48/48). Bestehende grün: 409/257/207/161/173/114/77,
+KI-Weiche 129, Wortwand 5.640/0, tsc unverändert 183 Altfehler.
+
 ## 06.10.2026 abends — Nach der ersten WhatsApp-Kampagne: Kontonummer direkt, Bedenkzeit, Kredit-Missverständnis, Widerspruch
 
 - **Kontonummer:** Fragt jemand mit offener Zahlung nach Kontonummer/IBAN, schreibt Mara Empfänger, IBAN und BIC (aus shared/fiaon-bank.ts)

@@ -741,7 +741,8 @@ export function limitPruefen(text: string): LimitBefund[] {
     const rest = limitRest(x);
     if (ZUSAGE_WORT.test(rest)) funde.push({ art: "zusage", satz: x });
     else if (LIMIT_WORT.test(rest) || betraegeIn(rest).some((n) => n >= 1000)) funde.push({ art: "freigabe", satz: x });
-    if (ZIEL_MIT_ZAHL.test(x) && /\d/.test(x) && !BANK_SATZ_MUSTER.test(x) && !(s[i + 1] && BANK_SATZ_MUSTER.test(s[i + 1]))) funde.push({ art: "ohne_bank", satz: x });
+    // E-297: Mit MARA_BANK_SATZ=nachfrage ist der Satz über die Bank keine Pflicht mehr (die Zusage-Prüfung oben bleibt hart).
+    if (!bankSatzNurAufNachfrage() && ZIEL_MIT_ZAHL.test(x) && /\d/.test(x) && !BANK_SATZ_MUSTER.test(x) && !(s[i + 1] && BANK_SATZ_MUSTER.test(s[i + 1]))) funde.push({ art: "ohne_bank", satz: x });
   }
   return funde;
 }
@@ -765,6 +766,7 @@ export function limitOhneBank(text: string): string | null {
  */
 export function bankSatzErgaenzen(text: string): string {
   let t = String(text ?? "");
+  if (bankSatzNurAufNachfrage()) return t; // E-297: nie ungefragt ergänzen
   for (let i = 0; i < 3; i++) {
     const s = limitOhneBank(t);
     if (!s) break;
@@ -974,7 +976,9 @@ export function bausteinVorabZahlen(opt: { paketKey?: string | null; betreuer?: 
   const key = opt.paketKey && paket(opt.paketKey) ? opt.paketKey : null;
   const rate = key ? `Die ${paketPreisText(key)} sind die erste von zwölf Monatsraten` : "Sie zahlen in zwölf Monatsraten, die erste zum Start";
   const wer = opt.betreuer ? `${opt.betreuer} begleitet` : "Ihr Betreuer begleitet";
-  const kleiner = key !== "start" ? ` Wenn Sie kleiner einsteigen möchten: ${paketName("start")} gibt es schon ab ${paketPreisText("start")} im Monat.` : "";
+  // E-297 (07.10.2026): ein Paket tiefer, nicht gleich Start (Mara sprang von 99,99 € auf 7,99 €). Ohne Paket: Start als Tür.
+  const tiefer = key ? naechstKleineresPaket(key) : "start";
+  const kleiner = tiefer ? ` Wenn Sie kleiner einsteigen möchten: ${paketName(tiefer)} gibt es${tiefer === "start" ? " schon ab" : " für"} ${paketPreisText(tiefer)} im Monat.` : "";
   return `Das verstehe ich gut. ${rate} — und mit ihr fangen wir sofort für Sie an: Ihr Account ist dann aktiv, und ${wer} Sie Schritt für Schritt zu Konto und Karte.${kleiner}${opt.link ? ` Hier geht es weiter: ${opt.link}` : ""}`;
 }
 
@@ -982,7 +986,8 @@ export function bausteinVorabZahlen(opt: { paketKey?: string | null; betreuer?: 
 export function bausteinZoegern(opt: { link: string | null; terminLink?: string | null; betreuer?: string | null }): string {
   const wer = opt.betreuer ?? "jemand aus unserem Team";
   if (opt.terminLink) return `Klar, lassen Sie sich Zeit. Mit Ihrem Antrag sind Sie schon einen großen Schritt weiter, und Ihre Angaben bleiben gespeichert. Wenn Sie mögen, zeigt Ihnen ${wer} in einem kurzen Anruf, wie es für Sie weitergeht — die Zeit suchen Sie sich hier selbst aus: ${opt.terminLink}`;
-  return `Klar, lassen Sie sich Zeit. Mit Ihrem Antrag sind Sie schon einen großen Schritt weiter, und Ihre Angaben bleiben gespeichert — es geht genau dort weiter, wo Sie aufgehört haben${opt.link ? `: ${opt.link}` : "."}`;
+  // E-297 (07.10.2026, Justin: „Mara muss verkaufsstärker werden"): statt „lassen Sie sich Zeit" die Frage, was ihn hält.
+  return `Verstehe ich. Was hält Sie noch zurück — der Betrag, der Ablauf oder etwas anderes? Ihre Angaben bleiben gespeichert, es geht genau dort weiter, wo Sie aufgehört haben${opt.link ? `: ${opt.link}` : "."}`;
 }
 
 /** Ablehnung, Minus, Einträge: Mut. AT/CH ohne „SCHUFA". */
@@ -1946,9 +1951,70 @@ export function limitNennen(): boolean {
   const env = (globalThis as any)?.process?.env;
   return /^(an|ja|1|true)$/i.test(String(env?.MARA_LIMIT_NENNEN ?? ""));
 }
-/** „ — über den Rahmen entscheidet unsere Partnerbank“ an festen Sätzen — nur, solange Limits genannt werden. */
+/** „ — über den Rahmen entscheidet unsere Partnerbank“ an festen Sätzen — nur, solange Limits genannt werden (E-297: und nie ungefragt). */
 export function bankZusatz(): string {
+  return limitNennen() && !bankSatzNurAufNachfrage() ? ` — ${BANK_SATZ}` : "";
+}
+/** Wie bankZusatz, aber für Antworten AUF seine Frage nach Limit oder Sicherheit (bausteinLimitFrage) — dort gehört der Satz hin. */
+export function bankZusatzAufFrage(): string {
   return limitNennen() ? ` — ${BANK_SATZ}` : "";
+}
+
+// ── E-297 (07.10.2026): DER BANK-SATZ NUR AUF NACHFRAGE ─────────────────────
+// Justin nach der Zahlenrunde am 07.10.: Seit dem Neustart führte Mara auf WhatsApp 63 Gespräche, danach kam keine
+// einzige Zahlungsmeldung — und fast jede Antwort hängte „über den Rahmen entscheidet unsere Partnerbank“ an, auch
+// wenn niemand gefragt hatte. Seine Entscheidung: „Bank-Satz nur auf Nachfrage“ (das Risiko — Kunden lesen das
+// Wunschlimit als Zusage — stand in der Frage). Das Wunschlimit bleibt genannt (MARA_LIMIT_NENNEN=an); der Satz über
+// die Bank kommt nur noch, wenn der Kunde nach Limit, Rahmen, Betrag, Sicherheit, Zusage oder Entscheidung fragt
+// (FRAGT_NACH_RAHMEN). Was bleibt: limit_zusage, limit_freigabe und die Wortwand (E-225) — genannt ja, zugesagt nie.
+// Schalter: MARA_BANK_SATZ=nachfrage. Ohne ihn gilt E-265 (Pflicht neben jedem Wunschlimit).
+/** Kommt der Satz über die Bank nur noch auf seine Frage? (MARA_BANK_SATZ=nachfrage) */
+export function bankSatzNurAufNachfrage(): boolean {
+  const env = (globalThis as any)?.process?.env;
+  return /^(nachfrage|frage)$/i.test(String(env?.MARA_BANK_SATZ ?? "").trim());
+}
+/** Fragt er nach Limit, Rahmen, Betrag, Sicherheit oder Entscheidung? Dann darf (und soll) der Satz über die Bank stehen. */
+export const FRAGT_NACH_RAHMEN = new RegExp([
+  // Limit, Rahmen, Wunschlimit — oder ein Betrag ab 1.000 („2500", „25.000", „10 000")
+  String.raw`limit|rahmen|\b\d{1,3}(?:[.\s']\d{3})+\b|\b\d{4,}\b|\d+\s*(?:k|tsd|tausend)\b`,
+  // Wie viel / wie hoch / welches Limit
+  String.raw`wie\s*viel|wieviel|wie\s+hoch|\bhöhe\b|welche[snm]?\s+(?:betrag|summe|limit|rahmen)`,
+  // Sicherheit, Zusage, Chance — „bekomme ich die Karte sicher?", „ist das garantiert?", „abgemacht war …"
+  String.raw`sicher|garant|zusage|zugesagt|genehmig|bewillig|versproch|abgemacht|chance|wahrscheinlich|klappt\s+(?:das|es)|ablehn|abgelehnt`,
+  // Wer entscheidet — und „bekomme ich die Karte / das Geld / den Kredit"
+  String.raw`entscheid|wer\s+(?:gibt|vergibt|bestimmt)|(?:bekomm|krieg|erhalt)\w*\s+ich\s+(?:\w+\s+){0,2}?(?:karte|kreditkarte|limit|rahmen|geld|kredit|betrag)`,
+  // Kredit und Auszahlung (Regel 5: dann einmal positiv gerahmt) — nicht „Kreditkarte"
+  String.raw`kredit(?!\s*-?\s*karte)|darlehen|auszahl|ausgezahlt|geld\s+(?:auf|aufs)\b`,
+].join("|"), "iu");
+export function fragtNachRahmen(kunde: string | null | undefined): boolean {
+  return FRAGT_NACH_RAHMEN.test(String(kunde ?? ""));
+}
+/** Der Satz über die Bank in jeder üblichen Form — für das Herausnehmen (ohneLimitUndBankSatz, bankSatzRaus). */
+const BANK_KLAUSEL = String.raw`(?:über\s+den\s+(?:genauen\s+)?(?:Kredit)?rahmen\s+entscheide[nt]\s+(?:am\s+Ende\s+)?(?:immer\s+)?(?:allein\s+)?(?:die|unsere)\s+(?:Partner)?bank|den\s+(?:Kredit)?rahmen\s+legt\s+(?:am\s+Ende\s+)?(?:die|unsere)\s+(?:Partner)?bank\s+fest|die\s+Entscheidung\s+(?:über\s+den\s+Rahmen\s+)?trifft\s+(?:die|unsere)\s+Partnerbank)(?:\s+\(?DKB\)?)?`;
+/** Nur den Satz über die Bank heraus — Limits und alles andere bleiben. Rein. */
+export function bankSatzRaus(text: string): string {
+  let t = String(text ?? "");
+  t = t.replace(new RegExp(String.raw`\s*[—–-]\s*${BANK_KLAUSEL}`, "giu"), "");
+  t = t.replace(new RegExp(String.raw`\s*[,;:]\s*(?:und\s+)?${BANK_KLAUSEL}`, "giu"), "");
+  t = t.replace(new RegExp(String.raw`(^|[.!?]\s+|\n)${BANK_KLAUSEL}\s*[.!]?\s*`, "giu"), (_m, v) => v);
+  return t.replace(/[ \t]{2,}/g, " ").replace(/\s+([.,!?])/g, "$1");
+}
+/**
+ * Letzte Stelle vor dem Versand (E-297): Fragt er nicht nach Limit, Rahmen oder Sicherheit, fällt der Satz über die Bank
+ * heraus — nur, wenn der Text danach die Limit-Prüfung genauso gut besteht wie vorher (nie eine neue Zusage). Rein.
+ */
+export function bankSatzNurWennGefragt(text: string, kunde: string | null | undefined): string {
+  const t = String(text ?? "");
+  if (!bankSatzNurAufNachfrage() || fragtNachRahmen(kunde) || !BANK_SATZ_MUSTER.test(t)) return t;
+  const ohne = bankSatzRaus(t);
+  if (!ohne.trim() || limitPruefen(ohne).length > limitPruefen(t).length) return t;
+  return ohne;
+}
+/** Die Regel für die Aufträge (WhatsApp, Mail, Aktion): wann der Satz über die Bank neben dem Wunschlimit steht. */
+export function bankSatzRegel(): string {
+  return bankSatzNurAufNachfrage()
+    ? `OHNE den Satz über die Bank — „${BANK_SATZ}“ schreibst du NUR, wenn er nach Limit, Rahmen, Betrag, Sicherheit oder Entscheidung fragt; ungefragt nimmt er deinem Satz den Schwung`
+    : `immer mit „${BANK_SATZ}“ im selben Satz`;
 }
 /**
  * Letzte Stelle vor dem Versand (Mail, WhatsApp, Aktion): Bank-Satz und genannte Limits raus, falls ein Entwurf sie doch
@@ -1957,7 +2023,7 @@ export function bankZusatz(): string {
 export function ohneLimitUndBankSatz(text: string): string {
   if (limitNennen()) return String(text ?? "");
   let t = String(text ?? "");
-  const bank = String.raw`(?:über\s+den\s+(?:genauen\s+)?(?:Kredit)?rahmen\s+entscheide[nt]\s+(?:am\s+Ende\s+)?(?:immer\s+)?(?:die|unsere)\s+Partnerbank|den\s+(?:Kredit)?rahmen\s+legt\s+(?:die|unsere)\s+(?:Partner)?bank\s+fest|die\s+Entscheidung\s+(?:über\s+den\s+Rahmen\s+)?trifft\s+(?:die|unsere)\s+Partnerbank)`;
+  const bank = BANK_KLAUSEL;
   // „… Ziel — über den Rahmen entscheidet unsere Partnerbank.“ / „…, über den Rahmen …“ / „; über den Rahmen …“
   t = t.replace(new RegExp(String.raw`\s*[—–-]\s*${bank}`, "giu"), "");
   t = t.replace(new RegExp(String.raw`\s*[,;:]\s*${bank}`, "giu"), "");
@@ -2103,11 +2169,11 @@ export function bausteinWasIstFiaon(l: { kanal: MaraKanal; stufe: LinkStufe; zie
   const b = nennAus(l.betreuer);
   const link = l.link && l.kanal === "whatsapp" ? `: ${l.link}` : ".";
   if (l.stufe === "lead" || (l.stufe === "antrag_offen" && !l.ziel)) {
-    return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte bei unserer Partnerbank: Sie tragen im Antrag Ihr Wunschlimit ein, wir bereiten alles so vor, dass Ihr Antrag stark ankommt, und über den Rahmen entscheidet die Bank. Das dauert etwa fünf Minuten${link}`;
+    return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte bei unserer Partnerbank: Sie tragen im Antrag Ihr Wunschlimit ein, wir bereiten alles so vor, dass Ihr Antrag stark ankommt${bankSatzNurAufNachfrage() ? "" : ", und über den Rahmen entscheidet die Bank"}. Das dauert etwa fünf Minuten${link}`;
   }
   const ziel = l.ziel ? `, bei Ihnen ${kartenzielText(l.ziel, { alsZiel: true })}` : "";
   const auskunft = l.stufe === "kunde" ? " Dazu erklären wir jeden Eintrag Ihrer Auskunft und übernehmen die Schreiben an die Auskunfteien." : "";
-  return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte${ziel} — über den Rahmen entscheidet die Bank. Dafür bereiten wir Konto und Karte bei unserer Partnerbank mit Ihnen vor.${auskunft}${b ? ` Fest an Ihrer Seite ist ${b.nom}.` : ""}`;
+  return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte${ziel}${bankSatzNurAufNachfrage() ? "" : " — über den Rahmen entscheidet die Bank"}. Dafür bereiten wir Konto und Karte bei unserer Partnerbank mit Ihnen vor.${auskunft}${b ? ` Fest an Ihrer Seite ist ${b.nom}.` : ""}`;
 }
 
 /**
@@ -2657,8 +2723,8 @@ export function bausteinLimitFrage(l: {
   const wer = nennAus(l.mit);
   const euro = euroGanz(l.ziel.euro);
   const ziel = l.ziel.art === "wunsch"
-    ? `Für Ihre Visa-Kreditkarte ist Ihr Wunschlimit von ${euro} unser Ziel${bankZusatz()}.`
-    : `Für Ihre Visa-Kreditkarte arbeiten wir ${kartenzielText(l.ziel)}${bankZusatz()}.`;
+    ? `Für Ihre Visa-Kreditkarte ist Ihr Wunschlimit von ${euro} unser Ziel${bankZusatzAufFrage()}.`
+    : `Für Ihre Visa-Kreditkarte arbeiten wir ${kartenzielText(l.ziel)}${bankZusatzAufFrage()}.`;
   // E-275 (02.10.2026): statt „Passt Ihnen … ein Anruf mit …?“ — bei offener erster Rate Justins Satz und die Bitte um die
   // Überweisung; sonst (zahlender Kunde) der Schritt zur Karte. Ein Termin steht nur noch da, wenn er schon gebucht ist.
   // E-275 Ton (02.10.2026): „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über … — Ihr Account ist sofort nach
@@ -2825,11 +2891,11 @@ export function abschlussPruefung(antwort: string, ein: {
   const frueher = (ein.letzteDu ?? []).slice(0, 2).join("\n");
   const schonKarte = /kreditkarte/i.test(frueher);
   const zielText = ein.ziel ? euroGanz(ein.ziel.euro) : "";
-  const schonZiel = !ein.ziel || ((frueher.includes(zielText) || frueher.includes(zielText.replace(/\s€$/, ""))) && BANK_SATZ_MUSTER.test(frueher));
+  const schonZiel = !ein.ziel || ((frueher.includes(zielText) || frueher.includes(zielText.replace(/\s€$/, ""))) && (bankSatzNurAufNachfrage() || BANK_SATZ_MUSTER.test(frueher)));
   const schonBetrag = !ein.betrag || frueher.includes(ein.betrag);
   if (!/kreditkarte/i.test(a) && !schonKarte) h.push("Nenn die Visa-Kreditkarte spätestens im zweiten Satz — dein erster Satz, der auf seine Worte eingeht, bleibt stehen; behalte auch die Frage und den Link.");
   if (ein.ziel && !schonZiel && !a.includes(zielText) && !a.includes(zielText.replace(/\s€$/, ""))) {
-    h.push(`Nenn sein Kartenziel: „${kartenzielText(ein.ziel)}“ — mit „${BANK_SATZ}“ im selben Satz, nie als Zusage.`);
+    h.push(`Nenn sein Kartenziel: „${kartenzielText(ein.ziel)}“ — ${bankSatzRegel()}, nie als Zusage.`);
   }
   if ((ein.art === "b" || ein.art === "rate") && ein.betrag && !einwand && !schonBetrag && !a.includes(ein.betrag) && !fragtWasIstFiaon(k)) {
     // E-275 Ton (02.10.2026): die klare Aufforderung mit dem Nutzen statt „Das System schaltet ihn frei …“.
@@ -2902,9 +2968,9 @@ export function mailWeichBefunde(text: string, ein: { wissen: string; kunde?: st
 export const KARTE_REGEL_TEXT = [
   `═══ DIE KREDITKARTE VORN — SO SCHLIESST DU AB (Justin 29.09.2026: „VIEL MEHR AUF DIE KREDITKARTEN!“) ═══`,
   `· Wer uns schreibt, will seine eigene Visa-Kreditkarte. Sie steht früh in der Antwort (spätestens im zweiten Satz — dein erster Satz darf auf seine Worte eingehen) — nicht „Konto und Karte“ als Anhängsel am Satzende.`,
-  `· Sein Wunschlimit nennst du, wenn es in SEINE LAGE steht („mit Ihrem Wunschlimit von 25.000 €“), und im selben Satz „${BANK_SATZ}“. Nie als Zusage („Sie bekommen 25.000 €“, „bekommen Sie Ihre Kreditkarte mit …“, „Ihr Wunschlimit ist Ihnen sicher“, „schalten Sie Ihr Wunschlimit frei“), nie eine andere Zahl. Der Satz über die Bank macht aus einer Zusage keine Aussicht.`,
+  `· Sein Wunschlimit nennst du, wenn es in SEINE LAGE steht („mit Ihrem Wunschlimit von 25.000 €“) — ${bankSatzRegel()}. Nie als Zusage („Sie bekommen 25.000 €“, „bekommen Sie Ihre Kreditkarte mit …“, „Ihr Wunschlimit ist Ihnen sicher“, „schalten Sie Ihr Wunschlimit frei“), nie eine andere Zahl. Der Satz über die Bank macht aus einer Zusage keine Aussicht.`,
   // E-265 Nachbesserung 2 (01.10.2026): die weiße Liste (limitPruefen) — der Server lässt nur diese Formen durch.
-  `· Limit, Rahmen und Beträge ab 1.000 € NUR in diesen Formen: „mit Ihrem Wunschlimit von X €“, „mit X € als Ziel“, „Ihr Wunschlimit bleibt unser Ziel“, „Sie tragen im Antrag Ihr Wunschlimit ein“ — und „${BANK_SATZ}“ im selben Satz; dazu „Reicht Ihnen ein kleinerer Rahmen“, „Welchen Rahmen brauchen Sie?“, „mit einem Rahmen, den Sie immer wieder nutzen können“. Jede andere Form (Rahmen/Kreditrahmen mit Betrag, „Ihr Wunschlimit: …“, „… € auf der Karte“, „geht klar“, „Das bekommen Sie sicher“ im Satz danach) geht nicht raus.`,
+  `· Limit, Rahmen und Beträge ab 1.000 € NUR in diesen Formen: „mit Ihrem Wunschlimit von X €“, „mit X € als Ziel“, „Ihr Wunschlimit bleibt unser Ziel“, „Sie tragen im Antrag Ihr Wunschlimit ein“ — ${bankSatzRegel()}; dazu „Reicht Ihnen ein kleinerer Rahmen“, „Welchen Rahmen brauchen Sie?“, „mit einem Rahmen, den Sie immer wieder nutzen können“. Jede andere Form (Rahmen/Kreditrahmen mit Betrag, „Ihr Wunschlimit: …“, „… € auf der Karte“, „geht klar“, „Das bekommen Sie sicher“ im Satz danach) geht nicht raus.`,
   // E-275 (02.10.2026, Justin: „Hi, zahl die Aktivierung, die Karte geht zeitnahe in Produktion — also: Jetzt zahlen! ;D —
   // so in etwa nur seriös"): die seriöse Fassung ist sein eigener Satz (KARTE_LINK_SATZ, KARTE_ZEIT_SATZ) — kein Termin mehr.
   // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung … Ihr Account

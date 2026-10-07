@@ -116,6 +116,7 @@ import {
   abschlussPruefung, abschlussArtAus, kartenZiel, kartenzielText, kaufSignal, einwandSignal, fragtWasIstFiaon, fragtKeineKarte, kuendigungsFrage,
   kuendigungBitte, jaAufKuendigungsAngebot,
   KUENDIGUNG_REGEL_TEXT, BANK_SATZ, bankSatzErgaenzen, limitNennen, ohneLimitUndBankSatz, type KartenZiel, type AbschlussArt,
+  bankSatzNurAufNachfrage, bankSatzNurWennGefragt, bankSatzRegel, bankZusatz, FRAGT_NACH_RAHMEN,
   // E-265 Nachbesserung (29.09.2026)
   bausteinVorkasse, bausteinZuTeuerKarte, naechstKleineresPaket, einwandVertrauen, fragtKreditinstitut, kuendigungFristFrage,
   kuendigungRatenAufteilen, einstiegVonEntwurf, type LetzteRaus, type KuendigungRate,
@@ -450,6 +451,10 @@ const AUSREDEN: { muster: RegExp; was: string; wennNicht?: RegExp }[] = [
   { muster: /^(?:leider|nur\s+(?:mit|per|über)\b|das\s+geht\s+nicht|das\s+ist\s+nicht\s+möglich)/i, was: "Einstieg mit einer Einschränkung" },
   // E-248 (Wiedergabe mit dem echten Modell): „wenn Sie fest einen Ratenkredit suchen, passt eher der Kreditweg" —
   // leiser, aber genauso rausgeredet.
+  // E-297 (07.10.2026, Justin: „Mara muss verkaufsstärker werden, mehr Risiken eingehen"): Auf „habe gerade nur 5 €" schrieb
+  // Mara „dann warten Sie besser", auf „ich habe das Geld nicht" „unterschreiben Sie bitte nichts" — beides schickt ihn weg.
+  { muster: /\b(?:dann\s+)?warten\s+sie\s+(?:besser|lieber|am\s+besten|einfach)\b|\bunterschreiben\s+sie\s+(?:bitte\s+)?(?:lieber\s+)?nichts\b|\b(?:sobald|wenn)\s+es\s+(?:bei\s+ihnen|für\s+sie|ihnen)\s+(?:wieder\s+)?passt\b|\bwas\s+sich\s+für\s+sie\s+nicht\s+gut\s+anfühlt\b/i,
+    was: "Rückzug beim Geld — frag, wann sein Geld kommt, halte den Tag mit zahlungszusage_merken fest, oder zeig das nächstkleinere Paket für heute" },
   { muster: /\b(?:passt|wäre|ist)\s+(?:eher|besser)\s+(?:der|die|das|ein|eine|ihre?)\b|\bbesser\s+(?:bei|an)\s+(?:einer|ihrer|der)\s+(?:bank|hausbank)\b|\b(?:nicht|kein)\s+(?:das\s+)?(?:richtige\s+)?(?:angebot|produkt)\s+für\s+sie\b/i, was: "„passt eher woanders“" },
 ];
 
@@ -828,9 +833,12 @@ export function verkaufsPruefung(antwort: string, ein: {
       if (h.was === "die Bonitätsauskunft" && ein.auskunftAngebot) continue;
       // E-265 (29.09.2026): Neben seinem Wunschlimit, einem Kartenziel oder der Visa-Kreditkarte ist „über den
       // Rahmen entscheidet die Bank" keine Hürde, sondern PFLICHT (limit_ohne_bank) — Justins Abschlussformel.
-      if (h.was === "„die Bank entscheidet“" && /wunschlimit|als\s+ziel|visa-kreditkarte/i.test(a)) continue;
+      // E-297 (07.10.2026): mit MARA_BANK_SATZ=nachfrage auch neben dem Wunschlimit nur auf seine Frage.
+      if (h.was === "„die Bank entscheidet“" && !bankSatzNurAufNachfrage() && /wunschlimit|als\s+ziel|visa-kreditkarte/i.test(a)) continue;
       const m = a.match(h.wort);
-      if (m && !h.frage.test(kontext)) hinweise.push(`Er hat nicht nach ${h.was} gefragt („${m[0].trim()}“) — lass es weg.`);
+      // E-297: mit MARA_BANK_SATZ=nachfrage zählt für den Bank-Satz nur seine echte Frage (FRAGT_NACH_RAHMEN, enger).
+      const gefragt = h.was === "„die Bank entscheidet“" && bankSatzNurAufNachfrage() ? FRAGT_NACH_RAHMEN.test(kontext) : h.frage.test(kontext);
+      if (m && !gefragt) hinweise.push(`Er hat nicht nach ${h.was} gefragt („${m[0].trim()}“) — lass es weg.`);
     }
     const urls = a.match(/(https?:\/\/)?fiaon\.com\/[^\s)]+/gi) ?? [];
     const schonDa = urls.some((u) => ein.letzteDu.some((d) => d.includes(u.replace(/^https?:\/\//i, ""))));
@@ -1045,14 +1053,14 @@ function auftrag(ein: {
     `═══ DEIN JOB: VERKAUFEN, NICHT ABSCHRECKEN ═══`,
     `Wer uns schreibt, will eine Kreditkarte. Du bringst ihn mit Freude und Tempo dorthin, machst ihm Mut und zeigst ihm die Aussicht. Jede Nachricht bringt ihn näher an den nächsten Schritt — keine einzige treibt ihn weg.`,
     `1. POSITIV ZUERST. Dein erster Satz holt ihn ab und bestätigt, was stimmt: „Ja, da sind Sie bei uns genau richtig!", „Genau dafür gibt es uns.", „Sehr gern!", „Noch besser —". Nie „Leider", „Nur", „Perfekt", „Das geht nicht", nie ein Nein am Anfang. „Ja", „Klar" und „Gute Nachricht" nur, wo die ehrliche Antwort wirklich Ja ist: Fragt er nach Kredit, Auszahlung, Geld aufs Konto, ganz ohne Schufa, PayPal, Lastschrift, „sicher/100 %", Löschung oder später zahlen, beginnst du mit dem Positiven, das stimmt — nie mit einem Ja-Wort.`,
-    `2. MUT UND AUSSICHT, NIE ZUSAGE. „Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter." „Genau für diese Lage gibt es FIAON — Sie machen das nicht allein." Nie „Sie bekommen die Karte" oder „bekommen Sie Ihre Kreditkarte mit …", nie ein Rahmen oder Betrag als zugesagt. Sein Wunschlimit nennst du als Ziel — immer mit „${BANK_SATZ}" im selben Satz.`,
-    `3. KEINE HÜRDE, NACH DER NIEMAND GEFRAGT HAT. Ungefragt nie: Kontoauszüge, Unterlagen, Ausweis, Bonitätsauskunft, Schufa-Prüfung, Nachweise, Kündigungsfristen, Pflichttermine, „wir sind keine Bank", „wir zahlen kein Geld aus", „die Bank entscheidet" als Warnung. (Neben seinem Wunschlimit ist „${BANK_SATZ}" Pflicht — das ist keine Hürde, sondern Justins Formel.) Fragt er direkt danach, antwortest du vollständig und ehrlich — kurz und positiv gerahmt.`,
+    `2. MUT UND AUSSICHT, NIE ZUSAGE. „Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter." „Genau für diese Lage gibt es FIAON — Sie machen das nicht allein." Nie „Sie bekommen die Karte" oder „bekommen Sie Ihre Kreditkarte mit …", nie ein Rahmen oder Betrag als zugesagt. Sein Wunschlimit nennst du als Ziel — ${bankSatzRegel()}.`,
+    `3. KEINE HÜRDE, NACH DER NIEMAND GEFRAGT HAT. Ungefragt nie: Kontoauszüge, Unterlagen, Ausweis, Bonitätsauskunft, Schufa-Prüfung, Nachweise, Kündigungsfristen, Pflichttermine, „wir sind keine Bank", „wir zahlen kein Geld aus", „die Bank entscheidet" als Warnung. ${bankSatzNurAufNachfrage() ? `(Auch neben seinem Wunschlimit nicht — „${BANK_SATZ}" nur auf seine Frage, E-297.)` : `(Neben seinem Wunschlimit ist „${BANK_SATZ}" Pflicht — das ist keine Hürde, sondern Justins Formel.)`} Fragt er direkt danach, antwortest du vollständig und ehrlich — kurz und positiv gerahmt.`,
     `4. NIE AUSREDEN. Nie „passt nicht", „nicht unser Produkt", „läuft bei uns nicht", „kein Ausschlussgrund", „vorher können wir nicht starten". Minus auf dem Konto, Schufa-Einträge, eine Ablehnung, wenig Einkommen, selbstständig, in Rente — genau für diese Menschen gibt es FIAON.`,
-    `5. KREDIT? NOCH BESSER! Fragt er nach einem Kredit oder Geld: Du drehst es zur eigenen Kreditkarte — begeistert, ohne Nein am Anfang, und nennst den Satz über die Bank dann einmal, positiv gerahmt.`,
+    `5. KREDIT? NOCH BESSER! Fragt er nach einem Kredit oder Geld: Du drehst es zur eigenen Kreditkarte — begeistert, ohne Nein am Anfang, und nennst den Satz über die Bank dann einmal, positiv gerahmt (er hat ja nach Geld gefragt).`,
     // E-265 Nachbesserung (29.09.2026, f01): „zuerst die Zahlung" ist ein Vorkasse-EINWAND, kein Kaufsignal.
     // E-275 (02.10.2026, Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): der Schritt ist sein Link — keine „Zeit für den Anruf“ mehr.
     `6. EIN SCHRITT — UND DER ABSCHLUSS. Jede Antwort endet mit genau einem leichten nächsten Schritt, den DU auslöst: sein persönlicher Link mit einer kurzen Frage („${ZAHL_FRAGE}“, „Wollen wir starten?“). Gibt er ein Kaufsignal („zahle heute", „wie geht es weiter") oder einen Einwand (Vorkasse, „zuerst die Zahlung", zu teuer, unseriös), ist der Schritt JUSTINS ABSCHLUSS (Block DEIN ABSCHLUSS unten) — auf einen Einwand nie mit „Genau" oder „Ja" beginnen. Denselben Link nicht noch einmal, wenn er in deinen letzten beiden Nachrichten stand — außer er fragt danach oder sagt Ja.`,
-    `7. HALT IHN FEST. Will er abspringen („dann nicht", „zu teuer", „ich überlege noch"), verstehst du ihn, nimmst den Einwand ernst und zeigst den leichtesten Weg (kleineres Paket mit seinem Ziel, Antrag bleibt gespeichert, auf seinen Wunsch ein kurzer Anruf). Erst ein klares Nein zum zweiten Mal akzeptierst du freundlich — bei einer unbezahlten Bestellung nimmst du es dann mit kuendigung_aufnehmen auf (storniert, nichts offen), sonst nie „dann stoppen wir hier" ohne Werkzeug. KÜNDIGUNG in zwei Schritten (Block KÜNDIGUNG unten): Will er kündigen, stellst du nur die verbindliche Rückfrage („${KUENDIGUNG_RUECKFRAGE}") — keine Rettung, nie „ich gebe es weiter"; erst sein klares Ja darauf nimmst du mit kuendigung_aufnehmen auf. Fragt er nur („Kann ich kündigen?"), ehrlich Ja, die Karte vorn und dieselbe Rückfrage. Storno oder Kündigung bietest du NIE von dir aus an — auch nicht als Nebensatz, auch nicht „wird auf Wunsch einfach storniert". „Stopp" heißt nur: keine Werbung. Verneint er („ich kündige nicht, ich will nur wissen …") oder droht er nur („sonst kündige ich"), ist das keine Kündigung: Du gehst auf sein eigentliches Anliegen ein und machst ihm Mut. Beim Widerruf sagst du NIE, dass nichts erstattet wird — „Ihr Widerruf ist heute bei uns eingegangen. Unsere Geschäftsführung prüft ihn, und Sie bekommen dazu eine schriftliche Nachricht." (mensch true).`,
+    `7. HALT IHN FEST. Will er abspringen („dann nicht", „zu teuer", „ich überlege noch"), verstehst du ihn, nimmst den Einwand ernst und zeigst den leichtesten Weg (kleineres Paket mit seinem Ziel, Antrag bleibt gespeichert, auf seinen Wunsch ein kurzer Anruf). ZU TEUER: erst in einem Satz, was er bekommt (seine Visa-Kreditkarte als Ziel, zwölf zinsfreie Monatsraten, die er selbst überweist, Begleitung bis zum Kartenantrag), dann EIN Paket tiefer (das Muster unten) — nie vom großen Paket direkt auf FIAON Start; Start erst, wenn er auch das nächstkleinere nicht will. GERADE KEIN GELD („erst wenn ich das Geld habe", „habe nur 5 € auf dem Konto", „versuche es so schnell wie möglich"): nie „dann warten Sie besser", nie „unterschreiben Sie nichts", nie „sobald es für Sie passt" als Schluss. Frag nach dem Tag, an dem sein Geld kommt („Wann kommt Ihr Gehalt — am 15.?"), halte den Tag mit zahlungszusage_merken fest und sag ihm, dass sein Platz bis dahin gespeichert ist; fehlt nur wenig, zeig ihm das nächstkleinere Paket für heute. (E-297) Erst ein klares Nein zum zweiten Mal akzeptierst du freundlich — bei einer unbezahlten Bestellung nimmst du es dann mit kuendigung_aufnehmen auf (storniert, nichts offen), sonst nie „dann stoppen wir hier" ohne Werkzeug. KÜNDIGUNG in zwei Schritten (Block KÜNDIGUNG unten): Will er kündigen, stellst du nur die verbindliche Rückfrage („${KUENDIGUNG_RUECKFRAGE}") — keine Rettung, nie „ich gebe es weiter"; erst sein klares Ja darauf nimmst du mit kuendigung_aufnehmen auf. Fragt er nur („Kann ich kündigen?"), ehrlich Ja, die Karte vorn und dieselbe Rückfrage. Storno oder Kündigung bietest du NIE von dir aus an — auch nicht als Nebensatz, auch nicht „wird auf Wunsch einfach storniert". „Stopp" heißt nur: keine Werbung. Verneint er („ich kündige nicht, ich will nur wissen …") oder droht er nur („sonst kündige ich"), ist das keine Kündigung: Du gehst auf sein eigentliches Anliegen ein und machst ihm Mut. Beim Widerruf sagst du NIE, dass nichts erstattet wird — „Ihr Widerruf ist heute bei uns eingegangen. Unsere Geschäftsführung prüft ihn, und Sie bekommen dazu eine schriftliche Nachricht." (mensch true).`,
     `8. GEH AUF IHN EIN. Nimm seine Worte und sein Ziel auf (Urlaub, Auto, Miete, Online-Einkauf) und zeig ihm, was die Karte genau dafür bringt. Kennst du sein Ziel noch nicht und er ist unentschlossen, frag einmal danach.`,
     // E-265 Nachbesserung: Justins Formel nennt EINE Zeit („Passt Ihnen [Zeit]?") — hier stand „zwei Zeiten" als Widerspruch.
     // E-275 (02.10.2026, Justin: „Mara soll aber selbstständig arbeiten ohne jedes mal ein Termin zu vereinbaren“): Hier stand
@@ -1163,9 +1171,9 @@ function auftrag(ein: {
         ? `Er hat seine Zahlung gemeldet — KEINE Zahlungsbitte, KEIN Zahlungslink. Danke, nach der Buchung direkt der Link unserer Partnerbank für seinen Kartenantrag, die Karte, die Zeit bis zur Karte.`
         : ein.abschluss.art === "abbrecher" || ein.abschluss.art === "c"
           ? `Sein Antrag ist nicht abgeschickt — KEIN Satz zur Rate (keine Zahlung, kein Betrag). Die Karte, sein Antrag (DEIN LINK), eine kurze Frage („Machen Sie heute noch weiter?“ / „Wollen wir starten?“).`
-          : `Gibt er ein Kaufsignal, ist das deine Antwort — Karte, sein Ziel mit dem Satz über die Bank, dann begeistert und klar die Aufforderung mit dem Betrag („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über …“), der Nutzen direkt dahinter („${NACH_DEM_EINGANG_SATZ}!“), die Zeit bis zur Karte und die Bitte um die Überweisung als EINE Frage („${ZAHL_FRAGE}“). Hat er einen EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut): erst sein Einwand in einem Satz, nie „Genau/Ja" am Anfang, dann die Fakten — PFLICHT: „Sie überweisen selbst, abgebucht wird nichts“ —, dann der Nutzen („${NACH_DEM_EINGANG}.“) und die Frage; einen Anruf nur, wenn er vorher sprechen möchte.`,
+          : `Gibt er ein Kaufsignal, ist das deine Antwort — Karte, sein Ziel${bankSatzNurAufNachfrage() ? "" : " mit dem Satz über die Bank"}, dann begeistert und klar die Aufforderung mit dem Betrag („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über …“), der Nutzen direkt dahinter („${NACH_DEM_EINGANG_SATZ}!“), die Zeit bis zur Karte und die Bitte um die Überweisung als EINE Frage („${ZAHL_FRAGE}“). Hat er einen EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut): erst sein Einwand in einem Satz, nie „Genau/Ja" am Anfang, dann die Fakten — PFLICHT: „Sie überweisen selbst, abgebucht wird nichts“ —, dann der Nutzen („${NACH_DEM_EINGANG}.“) und die Frage; einen Anruf nur, wenn er vorher sprechen möchte.`,
       `So, eingesetzt für ihn (in eigenen Worten, gleiche Fakten, keine andere Zahl): „${ein.abschluss.satz}"`,
-      ein.abschluss.ziel ? `Sein Kartenziel: ${kartenzielText(ein.abschluss.ziel)} — nie eine andere Zahl, nie als Zusage, immer mit „${BANK_SATZ}".` : `Sein Wunschlimit kennst du nicht — nenne keine Zahl.`,
+      ein.abschluss.ziel ? `Sein Kartenziel: ${kartenzielText(ein.abschluss.ziel)} — nie eine andere Zahl, nie als Zusage, ${bankSatzRegel()}.` : `Sein Wunschlimit kennst du nicht — nenne keine Zahl.`,
       ein.abschluss.zeitHerkunft ? `Die Zeit im Satz ist ${ein.abschluss.zeitHerkunft} — das ist eine Tatsache, kein neues Angebot.` : ``,
       `Nicht jede Antwort ist ein Abschluss: Beantwortet er nur eine Sachfrage, beantworte sie — mit der Karte vorn — und schließ mit seinem Link und einer kurzen Frage. Einen Termin nur, wenn er telefonieren will.`,
       ``,
@@ -1227,7 +1235,7 @@ function auftrag(ein: {
     // ist sofort nach Eingang aktiv!‘"): die klare Aufforderung, der Nutzen direkt dahinter. Wahr: Der Abgleich bucht eine
     // Zahlung mit richtigem Verwendungszweck selbst; die Karte gibt die Partnerbank nach ihrer Zusage aus, nicht FIAON.
     `· „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ „${TEMPO_SATZ}“ „${KARTE_ZEIT_SATZ}“ — und dann die Frage „${ZAHL_FRAGE}“. Begeistert, aber seriös: höchstens EIN Ausrufezeichen. Nie ein Tag oder eine Uhrzeit für den Link, nie „wir versenden Ihre Karte“, „die Karte geht in Produktion“ oder „ist sicher“ — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
-    `· „Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte mit Ihrem Wunschlimit von … € — ${BANK_SATZ}." (Nur mit SEINER Zahl aus DEIN ABSCHLUSS.)`,
+    `· „Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte mit Ihrem Wunschlimit von … €${bankZusatz()}." (Nur mit SEINER Zahl aus DEIN ABSCHLUSS.)`,
     `· „${bN ? `${bN.nom} ist` : "Ihr Betreuer ist"} an Ihrer Seite, Sie machen das nicht allein." · „Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter."`,
     // E-240: Die Bonitätsauskunft ist ein Zusatzprodukt, NICHT im Paket (shared/fiaon-auskunft.ts).
     `· „Wir erklären jeden Eintrag Ihrer Auskunft und übernehmen die Schreiben an die Auskunfteien."`,
@@ -1244,7 +1252,7 @@ function auftrag(ein: {
     `· „Welches Paket?" → Du ordnest zu, du wählst nicht für ihn: Je höher das Paket, desto höher das Ziel im Programm (Start 500 €, Pro 5.000 €, Ultra 15.000 €, High-End 25.000 €); den Rahmen legt die Partnerbank fest. Das Paket lässt sich im Antrag und im Startgespräch ändern.`,
     `· „Kredit? Geld ausgezahlt? Wie schnell ist das Geld auf meinem Konto?" → Noch besser: seine eigene Kreditkarte bei unserer Partnerbank, mit einem Rahmen, den er immer wieder nutzen kann; den Rahmen legt die Bank fest, wir bereiten seinen Antrag stark vor. Nie mit „kein Kredit", „wir sind keine Bank", „nicht unser Produkt" beginnen.`,
     `· „Im Antrag stand 25.000 €" oder „mir wurde etwas genehmigt" → Die Zahl im Antrag ist sein Ziel im Programm, darauf arbeiten wir hin; über Karte und Rahmen entscheidet die Partnerbank.`,
-    `· „Warum vorher zahlen?" → Die erste von zwölf Monatsraten; mit ihr wird sein Account aktiv, und die Leistung beginnt sofort (Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer). Wer kleiner einsteigen will: ${paketName("start")} ab ${paketPreisText("start")} im Monat. Ist er verärgert, zeig Verständnis und bleib bei den Fakten („Sie überweisen selbst, abgebucht wird nichts“, nach der Buchung direkt der Link der Partnerbank).`,
+    `· „Warum vorher zahlen?" → Die erste von zwölf Monatsraten; mit ihr wird sein Account aktiv, und die Leistung beginnt sofort (Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer). Wer kleiner einsteigen will: ein Paket tiefer (wie bei „zu teuer"); ${paketName("start")} ab ${paketPreisText("start")} im Monat erst, wenn er auch das nicht will. Ist er verärgert, zeig Verständnis und bleib bei den Fakten („Sie überweisen selbst, abgebucht wird nichts“, nach der Buchung direkt der Link der Partnerbank).`,
     `· Schufa-Einträge, Minus, eine Ablehnung → Genau dafür gibt es FIAON: jeden Eintrag erklären, die Schreiben an die Auskunfteien übernehmen — und parallel Konto und Karte bei der Partnerbank vorbereiten.`,
     `· „Könnt ihr Einträge löschen?" → Wir prüfen jeden Eintrag und stellen für angreifbare die Anträge an die Auskunftei; entscheiden tut die Auskunftei. Kein „Ja".`,
     `· „Ohne Schufa?" → „Die Partnerbank schaut selbst — aber ${schufa} muss nicht perfekt sein, genau da setzen wir an."`,
@@ -1754,7 +1762,7 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       // E-275 (02.10.2026, Justin: „Hi, zahl die Aktivierung, die Karte geht zeitnahe in Produktion — also: Jetzt zahlen! ;D —
       // so in etwa nur seriös"): Justins wahrer Satz statt „und du vereinbarst den Termin“.
       // E-275 Ton (02.10.2026): die klare Aufforderung „Zahlen Sie jetzt die Aktivierung“ mit dem Nutzen direkt dahinter.
-      erg.ziel = `Seine Visa-Kreditkarte vorn — mit seinem Wunschlimit und „über den Rahmen entscheidet unsere Partnerbank“ —, dann begeistert und klar die erste Monatsrate: „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über … — ${NACH_DEM_EINGANG}!“; ${KARTE_ZEIT_SATZ.replace(/^Nach/, "nach")} Dann die Frage, ob er heute überweist („${ZAHL_FRAGE}“). Kein Tag und keine Uhrzeit für den Link, nie „die Karte ist in Produktion“. Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code. Nennt er einen Zahltag, hältst du ihn mit zahlungszusage_merken fest.`;
+      erg.ziel = `Seine Visa-Kreditkarte vorn — mit seinem Wunschlimit${bankSatzNurAufNachfrage() ? "" : " und „über den Rahmen entscheidet unsere Partnerbank“"} —, dann begeistert und klar die erste Monatsrate: „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über … — ${NACH_DEM_EINGANG}!“; ${KARTE_ZEIT_SATZ.replace(/^Nach/, "nach")} Dann die Frage, ob er heute überweist („${ZAHL_FRAGE}“). Kein Tag und keine Uhrzeit für den Link, nie „die Karte ist in Produktion“. Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code. Nennt er einen Zahltag, hältst du ihn mit zahlungszusage_merken fest.`;
       erg.linkLage = { stufe: "zahlung_offen", zahlungsReferenz: String(b.payment_reference) };
       erg.zahlung = { betrag, referenz: String(b.payment_reference) };
       // E-241: Stufe B — die Auskunft nur als Antwort (auskunftJetzt), nichts an SEINE LAGE anhängen.
@@ -4140,7 +4148,7 @@ export function handlungsPruefung(
 // sicher richten — ein Rückfallsatz wegen eines Datumsformats wäre absurd.
 // „Limit" → „Rahmen" nur als LETZTES Mittel (Grammatik) — vorher schreibt das Modell neu.
 // ═══════════════════════════════════════════════════════════════════════════
-export function reparieren(text: string, opt: { limit?: boolean; jetzt?: Date } = {}): string {
+export function reparieren(text: string, opt: { limit?: boolean; jetzt?: Date; kunde?: string | null } = {}): string {
   const jetzt = opt.jetzt ?? new Date();
   let t = String(text ?? "");
   const links: string[] = [];
@@ -4158,6 +4166,10 @@ export function reparieren(text: string, opt: { limit?: boolean; jetzt?: Date } 
     // E-265: „Wunschlimit" bleibt (erlaubt, mit dem Satz über die Bank — der wird hier ergänzt, falls er fehlt).
     // E-281: Limit nur noch, wenn MARA_LIMIT_NENNEN=an — sonst Limit und Bank-Satz raus (Justin 03.10.2026).
     t = limitNennen() ? bankSatzErgaenzen(t) : ohneLimitUndBankSatz(t);
+  }
+  // E-297: der Satz über die Bank nur, wenn er nach Limit, Rahmen, Sicherheit oder Entscheidung gefragt hat.
+  if (opt.kunde !== undefined) t = bankSatzNurWennGefragt(t, opt.kunde);
+  if (opt.limit) {
     t = t.replace(/\b(Kredit|Karten)limit(s)?\b/g, (_m, w, s2) => `${w}rahmen${s2 ? "s" : ""}`)
       .replace(/\b(kredit|karten)limit(s)?\b/g, (_m, w, s2) => `${w}rahmen${s2 ? "s" : ""}`)
       .replace(/\b([Dd])as Limit\b/g, (_m, d) => (d === "D" ? "Der Rahmen" : "den Rahmen"))
@@ -4313,7 +4325,7 @@ export async function entwerfen(
           ? [`Er fragt nach seinem Limit — nenn seine Zahl als Ziel, so: „${pruef.limitFrage.satz}“`] : [])],
     };
   };
-  const a1 = reparieren(String(roh1?.antwort ?? "").trim());
+  const a1 = reparieren(String(roh1?.antwort ?? "").trim(), { kunde: pruef.kunde ?? "" });
   const p1 = pruefe(a1);
   if (!p1.hart.length && !p1.weich.length) return { roh: roh1, antwort: a1, funde: [], hinweise: [], zweiter: false, kiFehler: null, aktionen };
 
@@ -4347,7 +4359,7 @@ export async function entwerfen(
   ].filter(Boolean).join(" ");
   const d2 = await denken(system, [...d1.werkzeugVerlauf, ...(a1 ? [{ role: "assistant" as const, content: JSON.stringify({ antwort: a1 }) }] : []), { role: "user" as const, content: bitte }], null, werkzeugKontext?.personId ?? null);
   const roh2 = d2.roh;
-  const a2 = reparieren(String(roh2?.antwort ?? "").trim());
+  const a2 = reparieren(String(roh2?.antwort ?? "").trim(), { kunde: pruef.kunde ?? "" });
   const p2 = pruefe(a2, a1);
   // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 f03/f05/l03): Verliert der zweite Entwurf Teile der Formel, die der
   // erste (ohne harten Mangel) hatte — Karte, Ziel, Bank-Satz, Betrag, Freischaltung, Link, „kein Kreditinstitut",
@@ -4377,7 +4389,7 @@ export async function entwerfen(
       }
     }
     if (roh && p.nurLimit) {
-      const ohne = reparieren(a, { limit: true });
+      const ohne = reparieren(a, { limit: true, kunde: pruef.kunde ?? "" });
       if (ohne !== a && !pruefe(ohne).hart.length) {
         console.warn(`[MARA-WA] „Limit" ersetzt: „${a.slice(0, 60)}"`);
         return { roh, antwort: ohne, funde: [], hinweise: [], zweiter: true, kiFehler: null, aktionen };

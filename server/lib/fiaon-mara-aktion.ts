@@ -87,6 +87,7 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { menschSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mail-frequenz";
 // E-248: Maras Stimme aus EINER Quelle — dieselbe Persona wie im Postfach und auf WhatsApp.
 import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE, kartenZiel, kartenzielText, BANK_SATZ, ohneLimitUndBankSatz, type KartenZiel,
+  bankSatzRegel, bankSatzNurWennGefragt,
   // E-276 (02.10.2026): dieselben Bausteine wie Postfach und WhatsApp (E-275) — Abschluss, Aufforderung, Lücke, Prüfungen.
   bausteinAbschluss, mitAntragLuecke, nachDemEingang, nachDerZuordnung, AKTIVIERUNG_AUFRUF, TEMPO_SATZ, ZAHL_KNOPF_MAIL,
   selbstErledigtTreffer, ausrufezeichen,
@@ -530,7 +531,7 @@ function aktionsPrompt(ein: {
     `· ${a ? "Gemeldete Zahlung (erste Monatsrate)" : "Aktivierung = erste Monatsrate"}: ${eur(k.betragEuro) ?? "Betrag steht auf der Zahlungsseite"}${!a && ein.faelligAm ? `, fällig am ${ein.faelligAm}` : ""}`,
     `· Verwendungszweck: ${k.zahlungsreferenz ?? "steht auf der Zahlungsseite"}`,
     // E-265: „Wunschlimit" darf stehen — genannt, nie zugesagt, immer mit dem Satz über die Bank (limit_ohne_bank, hart).
-    `· Sein Wunschlimit (aus dem Antrag, auf den Rahmen seines Pakets begrenzt): ${ein.kartenziel ? `${kartenzielText(ein.kartenziel)} — so darfst du es nennen, immer mit „${BANK_SATZ}" im selben Satz; nie „Sie bekommen …", nie „Limit" allein` : "keins angegeben — dann sprich von seinem Ziel, seiner Visa-Kreditkarte, ohne Zahl"}`,
+    `· Sein Wunschlimit (aus dem Antrag, auf den Rahmen seines Pakets begrenzt): ${ein.kartenziel ? `${kartenzielText(ein.kartenziel)} — so darfst du es nennen, ${bankSatzRegel()}; nie „Sie bekommen …", nie „Limit" allein` : "keins angegeben — dann sprich von seinem Ziel, seiner Visa-Kreditkarte, ohne Zahl"}`,
     ...(ein.luecke.length ? [`· Im Antrag fehlt noch: ${ein.luecke.join(", ")} — der Link der Partnerbank geht erst raus, wenn das eingetragen ist; nie „direkt nach der Zahlung der Link“ (der Abschluss oben sagt es richtig).`] : []),
     `· Persönlicher Betreuer (so nennst du ihn — mit Herr/Frau, nie mit Vornamen): ${ein.betreuer ?? "wird nach der Aktivierung zugeteilt"} — höchstens als Begleiter nach der Aktivierung, nie „meldet sich“, „ruft an“ oder „prüft“.`,
     `· Tageszeit jetzt: ${tageszeit()}`,
@@ -788,6 +789,9 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   text = ohneLimitUndBankSatz(text);
   betreff = ohneLimitUndBankSatz(betreff);
+  // E-297: In der Aktion hat er nichts gefragt — mit MARA_BANK_SATZ=nachfrage fällt der Satz über die Bank weg.
+  text = bankSatzNurWennGefragt(text, "");
+  betreff = bankSatzNurWennGefragt(betreff, "");
 
   // Zusammensetzen wie jede Mara-Mail: Anrede · Kern · Knopf · Gruß.
   const anrede = await anredeBestimmen(k.personId, k.vorname, k.nachname, sprache);

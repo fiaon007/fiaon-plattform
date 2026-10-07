@@ -1,6 +1,6 @@
-// Prüfstand E-297 (07.10.2026): Mara verkauft härter — Bank-Satz nur auf Nachfrage, kein Rückzug beim Geld,
+// Prüfstand E-298 (07.10.2026): Mara verkauft härter — Bank-Satz nur auf Nachfrage, kein Rückzug beim Geld,
 // ein Paket tiefer statt gleich Start. Offline, ohne KI. Aufruf:
-//   env -i HOME=$HOME PATH=… DATABASE_URL=<lokal> node_modules/.bin/tsx scripts/pruef-mara-e297.ts
+//   env -i HOME=$HOME PATH=… DATABASE_URL=<lokal> node_modules/.bin/tsx scripts/pruef-mara-e298.ts
 // Der Prüfstand setzt MARA_LIMIT_NENNEN und MARA_BANK_SATZ selbst (vor dem Laden der Module — die Regeltexte
 // werden beim Laden gebaut, wie auf Render beim Start).
 import fs from "fs";

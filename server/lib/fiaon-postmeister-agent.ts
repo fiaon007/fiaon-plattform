@@ -857,7 +857,7 @@ export function aktivierungMitLuecke(luecke: readonly string[]): string {
  * [Fälligkeit] setzt das Modell aus zahlungslink_bauen bzw. der Akte ein. Rein.
  */
 export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null): string {
-  // E-297: der Satz über die Bank über bankZusatz() — mit MARA_BANK_SATZ=nachfrage fällt er hier weg.
+  // E-298: der Satz über die Bank über bankZusatz() — mit MARA_BANK_SATZ=nachfrage fällt er hier weg.
   const zielSatz = (vorn: string) => (ziel ? `${vorn} ${kartenzielText(ziel, { alsZiel: true })}${bankZusatz()}.` : `${vorn}.`);
   switch (art) {
     case "a":
@@ -2244,7 +2244,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
-  // E-297 (07.10.2026): der Satz über die Bank nur auf seine Frage (MARA_BANK_SATZ=nachfrage).
+  // E-298 (07.10.2026): der Satz über die Bank nur auf seine Frage (MARA_BANK_SATZ=nachfrage).
   text = bankSatzNurWennGefragt(text, k.kundeText ?? "");
   // E-265 (29.09.2026): wessen Vorname nie allein in der Kundenmail steht (harte Prüfung unten).
   const mitarbeiterJetzt = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);

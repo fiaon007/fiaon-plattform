@@ -5,7 +5,7 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
-## 07.10.2026 abends — E-297: Mara verkauft härter (Bank-Satz nur auf Nachfrage, kein Rückzug beim Geld, ein Paket tiefer)
+## 07.10.2026 abends — E-298: Mara verkauft härter (Bank-Satz nur auf Nachfrage, kein Rückzug beim Geld, ein Paket tiefer)
 
 - **Warum:** Zahlenrunde mit Justin. Seit dem Neustart 63 WhatsApp-Gespräche, danach keine einzige Zahlungsmeldung. Mail-Aktion
   vom 03.10.: 488 Mails, eine Zahlung. Fast jede Antwort hängte „über den Rahmen entscheidet unsere Partnerbank“ an, auf „habe nur
@@ -24,7 +24,8 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 **Wo:** shared/fiaon-mara-ton.ts (bankSatzNurAufNachfrage, FRAGT_NACH_RAHMEN, bankSatzNurWennGefragt, bausteinVorabZahlen,
 bausteinZoegern), server/lib/fiaon-whatsapp-mara.ts (Regel 7, Rückzug-Prüfung, reparieren), server/lib/fiaon-postmeister-agent.ts,
-server/lib/fiaon-mara-aktion.ts. Prüfstand neu: scripts/pruef-mara-e297.ts (48/48). Bestehende grün: 409/257/207/161/173/114/77,
+server/lib/fiaon-mara-aktion.ts. Prüfstand neu: scripts/pruef-mara-e298.ts (48/48). (Commit 73b65516 nennt versehentlich E-297 — die Nummer war parallel
+für die Compliance-Bericht-Pflicht vergeben.) Bestehende grün: 409/257/207/161/173/114/77,
 KI-Weiche 129, Wortwand 5.640/0, tsc unverändert 183 Altfehler.
 
 ## 06.10.2026 abends — Nach der ersten WhatsApp-Kampagne: Kontonummer direkt, Bedenkzeit, Kredit-Missverständnis, Widerspruch

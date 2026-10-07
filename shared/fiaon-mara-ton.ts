@@ -741,7 +741,7 @@ export function limitPruefen(text: string): LimitBefund[] {
     const rest = limitRest(x);
     if (ZUSAGE_WORT.test(rest)) funde.push({ art: "zusage", satz: x });
     else if (LIMIT_WORT.test(rest) || betraegeIn(rest).some((n) => n >= 1000)) funde.push({ art: "freigabe", satz: x });
-    // E-297: Mit MARA_BANK_SATZ=nachfrage ist der Satz über die Bank keine Pflicht mehr (die Zusage-Prüfung oben bleibt hart).
+    // E-298: Mit MARA_BANK_SATZ=nachfrage ist der Satz über die Bank keine Pflicht mehr (die Zusage-Prüfung oben bleibt hart).
     if (!bankSatzNurAufNachfrage() && ZIEL_MIT_ZAHL.test(x) && /\d/.test(x) && !BANK_SATZ_MUSTER.test(x) && !(s[i + 1] && BANK_SATZ_MUSTER.test(s[i + 1]))) funde.push({ art: "ohne_bank", satz: x });
   }
   return funde;
@@ -766,7 +766,7 @@ export function limitOhneBank(text: string): string | null {
  */
 export function bankSatzErgaenzen(text: string): string {
   let t = String(text ?? "");
-  if (bankSatzNurAufNachfrage()) return t; // E-297: nie ungefragt ergänzen
+  if (bankSatzNurAufNachfrage()) return t; // E-298: nie ungefragt ergänzen
   for (let i = 0; i < 3; i++) {
     const s = limitOhneBank(t);
     if (!s) break;
@@ -976,7 +976,7 @@ export function bausteinVorabZahlen(opt: { paketKey?: string | null; betreuer?: 
   const key = opt.paketKey && paket(opt.paketKey) ? opt.paketKey : null;
   const rate = key ? `Die ${paketPreisText(key)} sind die erste von zwölf Monatsraten` : "Sie zahlen in zwölf Monatsraten, die erste zum Start";
   const wer = opt.betreuer ? `${opt.betreuer} begleitet` : "Ihr Betreuer begleitet";
-  // E-297 (07.10.2026): ein Paket tiefer, nicht gleich Start (Mara sprang von 99,99 € auf 7,99 €). Ohne Paket: Start als Tür.
+  // E-298 (07.10.2026): ein Paket tiefer, nicht gleich Start (Mara sprang von 99,99 € auf 7,99 €). Ohne Paket: Start als Tür.
   const tiefer = key ? naechstKleineresPaket(key) : "start";
   const kleiner = tiefer ? ` Wenn Sie kleiner einsteigen möchten: ${paketName(tiefer)} gibt es${tiefer === "start" ? " schon ab" : " für"} ${paketPreisText(tiefer)} im Monat.` : "";
   return `Das verstehe ich gut. ${rate} — und mit ihr fangen wir sofort für Sie an: Ihr Account ist dann aktiv, und ${wer} Sie Schritt für Schritt zu Konto und Karte.${kleiner}${opt.link ? ` Hier geht es weiter: ${opt.link}` : ""}`;
@@ -986,7 +986,7 @@ export function bausteinVorabZahlen(opt: { paketKey?: string | null; betreuer?: 
 export function bausteinZoegern(opt: { link: string | null; terminLink?: string | null; betreuer?: string | null }): string {
   const wer = opt.betreuer ?? "jemand aus unserem Team";
   if (opt.terminLink) return `Klar, lassen Sie sich Zeit. Mit Ihrem Antrag sind Sie schon einen großen Schritt weiter, und Ihre Angaben bleiben gespeichert. Wenn Sie mögen, zeigt Ihnen ${wer} in einem kurzen Anruf, wie es für Sie weitergeht — die Zeit suchen Sie sich hier selbst aus: ${opt.terminLink}`;
-  // E-297 (07.10.2026, Justin: „Mara muss verkaufsstärker werden"): statt „lassen Sie sich Zeit" die Frage, was ihn hält.
+  // E-298 (07.10.2026, Justin: „Mara muss verkaufsstärker werden"): statt „lassen Sie sich Zeit" die Frage, was ihn hält.
   return `Verstehe ich. Was hält Sie noch zurück — der Betrag, der Ablauf oder etwas anderes? Ihre Angaben bleiben gespeichert, es geht genau dort weiter, wo Sie aufgehört haben${opt.link ? `: ${opt.link}` : "."}`;
 }
 
@@ -1951,7 +1951,7 @@ export function limitNennen(): boolean {
   const env = (globalThis as any)?.process?.env;
   return /^(an|ja|1|true)$/i.test(String(env?.MARA_LIMIT_NENNEN ?? ""));
 }
-/** „ — über den Rahmen entscheidet unsere Partnerbank“ an festen Sätzen — nur, solange Limits genannt werden (E-297: und nie ungefragt). */
+/** „ — über den Rahmen entscheidet unsere Partnerbank“ an festen Sätzen — nur, solange Limits genannt werden (E-298: und nie ungefragt). */
 export function bankZusatz(): string {
   return limitNennen() && !bankSatzNurAufNachfrage() ? ` — ${BANK_SATZ}` : "";
 }
@@ -1960,7 +1960,7 @@ export function bankZusatzAufFrage(): string {
   return limitNennen() ? ` — ${BANK_SATZ}` : "";
 }
 
-// ── E-297 (07.10.2026): DER BANK-SATZ NUR AUF NACHFRAGE ─────────────────────
+// ── E-298 (07.10.2026): DER BANK-SATZ NUR AUF NACHFRAGE ─────────────────────
 // Justin nach der Zahlenrunde am 07.10.: Seit dem Neustart führte Mara auf WhatsApp 63 Gespräche, danach kam keine
 // einzige Zahlungsmeldung — und fast jede Antwort hängte „über den Rahmen entscheidet unsere Partnerbank“ an, auch
 // wenn niemand gefragt hatte. Seine Entscheidung: „Bank-Satz nur auf Nachfrage“ (das Risiko — Kunden lesen das
@@ -2000,7 +2000,7 @@ export function bankSatzRaus(text: string): string {
   return t.replace(/[ \t]{2,}/g, " ").replace(/\s+([.,!?])/g, "$1");
 }
 /**
- * Letzte Stelle vor dem Versand (E-297): Fragt er nicht nach Limit, Rahmen oder Sicherheit, fällt der Satz über die Bank
+ * Letzte Stelle vor dem Versand (E-298): Fragt er nicht nach Limit, Rahmen oder Sicherheit, fällt der Satz über die Bank
  * heraus — nur, wenn der Text danach die Limit-Prüfung genauso gut besteht wie vorher (nie eine neue Zusage). Rein.
  */
 export function bankSatzNurWennGefragt(text: string, kunde: string | null | undefined): string {

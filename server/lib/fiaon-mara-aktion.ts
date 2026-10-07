@@ -789,7 +789,7 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   text = ohneLimitUndBankSatz(text);
   betreff = ohneLimitUndBankSatz(betreff);
-  // E-297: In der Aktion hat er nichts gefragt — mit MARA_BANK_SATZ=nachfrage fällt der Satz über die Bank weg.
+  // E-298: In der Aktion hat er nichts gefragt — mit MARA_BANK_SATZ=nachfrage fällt der Satz über die Bank weg.
   text = bankSatzNurWennGefragt(text, "");
   betreff = bankSatzNurWennGefragt(betreff, "");
 

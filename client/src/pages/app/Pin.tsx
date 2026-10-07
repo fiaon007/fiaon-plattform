@@ -245,7 +245,7 @@ export function Pin({ kundeRef, demo, basis: basisProp, gesetzt, frisch, email, 
         <PinFeld id="neu2" titel="Neue PIN wiederholen" wert={neu2} setzen={(v) => feld("neu2", v)} aus={laeuft || demo}
           satz={feldFehler.neu2 ?? (wiederholungFalsch ? "Die beiden Eingaben stimmen nicht überein." : neu2.length === 4 && neu.length === 4 && !neuGrund ? "Stimmt überein." : null)}
           ton={feldFehler.neu2 || wiederholungFalsch ? "fehler" : neu2.length === 4 && neu.length === 4 && !neuGrund ? "gut" : null} />
-        <p className="ap-fuss" style={{ margin: "2px 2px 0" }}>Bitte keine Zahlenreihe wie 1234, nicht viermal dieselbe Ziffer und nicht Ihr Geburtstag oder Geburtsjahr.</p>
+        <p className="ap-fuss" style={{ margin: "2px 2px 0" }}>Vier Ziffern, ganz nach Ihrer Wahl.</p>
         {!demo && (
           <button type="submit" className="ap-knopf" disabled={!bereit}>
             {laeuft ? "Wird gespeichert …" : hatPin ? "PIN ändern" : "PIN festlegen"}

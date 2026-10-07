@@ -27,7 +27,7 @@ import {
 } from "@shared/fiaon-antrag-neu";
 import { Kontext, ZurueckPfeil, type AntragKontext, type GeheOpt } from "./bausteine";
 import { SchrittAdresse, SchrittBeruf, SchrittEinkommen, SchrittEintraege, SchrittGeburt, SchrittKontakt, SchrittName } from "./schritte-angaben";
-import { SchrittDanke, SchrittErgebnis, SchrittLimit, SchrittPaket, SchrittPruefung, SchrittUnterschrift, SchrittVertrag, SchrittZahlung } from "./schritte-abschluss";
+import { RettungSheet, SchrittDanke, SchrittErgebnis, SchrittLimit, SchrittPaket, SchrittPruefung, SchrittUnterschrift, SchrittVertrag, SchrittZahlung } from "./schritte-abschluss";
 import { SchrittPin } from "./pin";
 import { AngabenSheet } from "./sheets";
 import type { KartenBuehne, KartenLook } from "./karte3d";
@@ -155,6 +155,8 @@ export default function AntragNeuSeite() {
   const sheetAusloeser = useRef<Element | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const sheetAnRef = useRef(false);
+  /** E-299: Das Rettungsfenster an der Unterschrift erscheint höchstens einmal je Besuch. */
+  const rettungGezeigt = useRef(false);
   const schliesseSheet = useCallback((ausVerlauf = false) => {
     if (!sheetAnRef.current) return;
     sheetAnRef.current = false;
@@ -341,11 +343,23 @@ export default function AntragNeuSeite() {
         toast("Ihr Vertrag ist bereits geschlossen.");
         return;
       }
+      // E-299: Wer zum ersten Mal von der Unterschrift zurückgeht, sieht einmal je Besuch das Rettungsfenster
+      // (kleineres Paket, Rückruf, weiter, später). Nur, wenn er auf dem Schritt bleibt — wer in einem Zug weiter
+      // zurückspringt (die Zurück-Taste mehrfach, der Browser eines Netzwerks), will gehen und wird nicht aufgehalten.
+      const vonUnterschrift = jetztRef.current === "unterschrift" && idx(s) < idx("unterschrift") && !z.angenommenAm;
       gehe(s, { push: false });
+      if (vonUnterschrift && !rettungGezeigt.current) {
+        rettungGezeigt.current = true;
+        window.setTimeout(() => {
+          if (jetztRef.current !== s || sheetAnRef.current) return;
+          antragEreignis("neu", "rettung_gezeigt", { schritt: "unterschrift", detail: s, ref: zRef.current.ref ?? undefined });
+          oeffneSheet(<RettungSheet />);
+        }, 450);
+      }
     };
     window.addEventListener("popstate", zurueck);
     return () => window.removeEventListener("popstate", zurueck);
-  }, [gehe, schliesseSheet, toast]);
+  }, [gehe, schliesseSheet, toast, oeffneSheet]);
 
   // ── Seite einrichten: Ansicht, Schrift, Messung, Einstieg ──
   useEffect(() => {

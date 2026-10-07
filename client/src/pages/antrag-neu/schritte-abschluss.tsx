@@ -19,7 +19,7 @@ import { META_PAKETWECHSEL } from "@shared/fiaon-meta-ereignisse";
 import { Akk, Fehlerkasten, Guilloche, Haken, Ico, Knopf, Lead, Pfeil, Seg, Siegel, Tipp, Tippbar, Titel, Zeile, useAntrag, useFehler } from "./bausteine";
 import { api } from "./api";
 import {
-  anredeDativ, anredeKurz, anschriftText, datenAus, datum, euro, kartenName, mitWem, naechstesPaket, paket, paketIndex, telefonText, uhr, zustandVergessen,
+  anredeDativ, anredeKurz, anschriftText, datenAus, datum, euro, kartenName, kleineresPaket, mitWem, naechstesPaket, paket, paketIndex, telefonText, uhr, zustandVergessen,
   type PruefPunkt, type Zustand,
 } from "./zustand";
 import { AngabenSheet, AuskunftSheet, LeistungSheet, PasswortSheet, QrSheet, TerminWahl, VertragSheet } from "./sheets";
@@ -431,9 +431,12 @@ function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderun
     for (const s of sig.current.striche) for (let j = 1; j < s.length; j++) n += Math.hypot((s[j][0] - s[j - 1][0]) * w, (s[j][1] - s[j - 1][1]) * h);
     return n;
   };
+  // E-299: Gezeichnete Unterschriften zählen (getippte meldet der Knopf) — vorher sah die Messung nur den Namen-Knopf.
+  const gezeichnetGemeldet = useRef(false);
   const melden = () => {
     const s = sig.current;
     const da = !!s.text || laenge() > 60;
+    if (da && !s.text && !gezeichnetGemeldet.current) { gezeichnetGemeldet.current = true; ereignis("unterschrift_gezeichnet", { schritt: "unterschrift" }); }
     onAenderung({
       da, getippt: !!s.text,
       png: () => { try { return cv.current?.toDataURL("image/png") ?? null; } catch { return null; } },
@@ -588,7 +591,7 @@ export function SchrittUnterschrift() {
         </p>
       </div>
       {/* Wortgleich mit antragNeuHakenKombi() — so steht der Satz im Nachweis. */}
-      <Haken id="an-ag1" an={S.ag1 && S.ag3} fehlt={fehlt === "ag1"} onClick={() => { const v = !(S.ag1 && S.ag3); setze({ ag1: v, ag3: v, hakenKombi: v }); if (fehlt === "ag1") setFehlt(""); }}>
+      <Haken id="an-ag1" an={S.ag1 && S.ag3} fehlt={fehlt === "ag1"} onClick={() => { const v = !(S.ag1 && S.ag3); setze({ ag1: v, ag3: v, hakenKombi: v }); if (v) ereignis("haken_gesetzt", { schritt: "unterschrift" }); if (fehlt === "ag1") setFehlt(""); }}>
         {ANTRAG_NEU_HAKEN_KOMBI_VOR} <a href="/agb" target="_blank" rel="noopener">AGB (Fassung vom {agb})</a> {ANTRAG_NEU_HAKEN_KOMBI_NACH}
       </Haken>
       <Haken id="an-ag4" an={S.ag4} onClick={() => setze({ ag4: !S.ag4 })}>{ANTRAG_NEU_SOFORT_TEXT}</Haken>
@@ -603,11 +606,52 @@ export function SchrittUnterschrift() {
           </>
         ) : (
           <>
+            {/* E-299: die zwei Sorgen vor dem Knopf in einem Satz — beides steht schon im Vertrag (Überweisung, Widerruf). */}
+            <div className="an-fuss-zeile" style={{ fontWeight: 500, color: "var(--tinte-2)" }}>Sie überweisen selbst – abgebucht wird nichts. Gesetzliches Widerrufsrecht: 14 Tage.</div>
             <button type="button" className="an-knopf an-haupt" onClick={() => void annehmen()}>{KNOPF_ZAHLUNGSPFLICHTIG}</button>
             <div className="an-fuss-zeile">{euro(r)} im Monat für 12 Monate (zusammen {euro(r * 12)}). Erste Rate mit Vertragsschluss fällig, bitte bis {datum(faelligBis)}. Bestätigung, Vertrag und Widerrufsbelehrung kommen sofort per E-Mail.</div>
             <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => { ereignis("rueckruf_geoeffnet", { schritt: "unterschrift" }); oeffneSheet(<TerminWahl art="vorher" />); }}>Noch Fragen? Wir rufen Sie an.</button>
           </>
         )}
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rettungsfenster (07.10.2026, E-299)
+//
+// Gemessen 05.–07.10.: 21 Menschen erreichten die Unterschrift, 8 schlossen ab — die
+// übrigen gingen fast alle über die Zurück-Taste (in Sekundenbruchteilen bis zum Anfang).
+// Wer zum ersten Mal von der Unterschrift zurückgeht, sieht EINMAL je Besuch dieses
+// Fenster: das nächstkleinere Paket, einen Rückruf, weiter — oder später. Kein Zwang:
+// „Später weitermachen“ und die Zurück-Taste schließen es, danach erscheint es nicht mehr.
+// ═══════════════════════════════════════════════════════════════════════════
+export function RettungSheet() {
+  const { S, gehe, schliesseSheet, paketWaehlen, speichern, setze, oeffneSheet, toast, ereignis } = useAntrag();
+  const K = kleineresPaket(S.paket);
+  return (
+    <>
+      <h2 id="an-sheetTitel" tabIndex={-1}>{`Fast geschafft${anredeKurz(S)}. Woran hakt es noch?`}</h2>
+      <p className="an-lead" style={{ margin: "0 0 12px", fontSize: ".875rem" }}>Ihre Angaben sind gespeichert. Wählen Sie, was Ihnen jetzt hilft.</p>
+      {K ? (
+        <button type="button" className="an-pitch" onClick={() => {
+          ereignis("rettung_kleiner", { schritt: "unterschrift", detail: K.key });
+          const teil = paketWaehlen(K.key);
+          void speichern("limit", teil);
+          setze({ rueckZu: "unterschrift" });
+          toast(`Sie sind jetzt bei ${K.name} · ${euro(rate(K.key))} im Monat · 12 Monate · zusammen ${euro(rate(K.key) * 12)}.`);
+          gehe("limit", { richtung: "zurueck" });
+        }}>
+          <span>Lieber kleiner starten: <b>{K.name}</b> für {euro(rate(K.key))} im Monat</span><Pfeil />
+        </button>
+      ) : null}
+      <button type="button" className="an-pitch" style={{ marginTop: 8 }} onClick={() => { ereignis("rettung_rueckruf", { schritt: "unterschrift" }); oeffneSheet(<TerminWahl art="vorher" />); }}>
+        <span>Erst kurz sprechen? <b>Wir rufen Sie zurück.</b></span><Pfeil />
+      </button>
+      <div className="an-knoepfe" style={{ marginTop: 12 }}>
+        <button type="button" className="an-knopf an-haupt" onClick={() => { ereignis("rettung_weiter", { schritt: "unterschrift" }); gehe("unterschrift", { richtung: "vor" }); }}>Weiter zur Unterschrift</button>
+        <button type="button" className="an-knopf an-leise" onClick={() => { ereignis("rettung_spaeter", { schritt: "unterschrift" }); schliesseSheet(); }}>Später weitermachen</button>
       </div>
     </>
   );

@@ -5,6 +5,25 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.10.2026 spätabends — E-299: Antrag ohne Stolperstellen, Rettung an der Unterschrift, Mara fasst nach
+
+- **PIN frei wählbar** (Justin: „beim PIN kann man wählen was man will“): Nur noch vier Ziffern — 1234, 0000, Geburtsjahr gehen. Vorher
+  scheiterten 12 von 32 Menschen mindestens einmal an „zu leicht“. Gilt im Antrag, im Kundenbereich und auf dem Server (eine Regel).
+- **Adresse ohne Sackgasse:** Wer Straße und Nummer tippt und „Weiter“ drückt, ohne einen Vorschlag anzutippen, bekam eine Fehlermeldung
+  (28 von 50). Jetzt: Gibt es genau einen Vorschlag, wird er übernommen; bei mehreren rät das Formular nie (eine „Lindenstraße 12“ gibt es in
+  vielen Orten) — die Felder öffnen sich mit Straße und Nummer, der Cursor steht in der Postleitzahl.
+- **Rettung an der Unterschrift:** Von 21 Menschen auf der Unterschriftsseite schlossen 8 ab; fast alle anderen gingen über die Zurück-Taste.
+  Wer zum ersten Mal von dort zurückgeht, sieht einmal ein Fenster: kleiner starten (nächstkleineres Paket), Rückruf, weiter zur Unterschrift
+  oder später. Über dem Knopf steht jetzt: „Sie überweisen selbst – abgebucht wird nichts. Gesetzliches Widerrufsrecht: 14 Tage.“
+  Gezeichnete Unterschriften und der Haken werden jetzt gemessen.
+- **Mara fasst einmal nach:** Hat sie das letzte Wort und der Kunde (erste Zahlung offen, Antrag offen oder Lead) meldet sich nicht, schreibt
+  sie 16–23 Stunden später einmal (im kostenlosen 24-Stunden-Fenster, 8–20:30 Uhr): Zahlungsaufforderung mit Link bzw. „Ihr Antrag ist in
+  fünf Minuten fertig“. Nie nach STOPP, Widerspruch, „nein danke“, Kündigung/Beschwerde/Löschwunsch, Übergabe, Sperre, festgehaltenem Zahltag;
+  höchstens einmal in sieben Tagen, höchstens 40 am Tag. Abschalten: Einstellung mara_wa_nachfass = aus.
+
+**Wo:** shared/fiaon-antrag-neu.ts (pinPruefen), client/src/pages/antrag-neu/{pin,schritte-angaben,schritte-abschluss,index,zustand},
+client/src/pages/app/Pin.tsx, server/lib/fiaon-mara-nachfass.ts, server/routes.ts (Takt). Prüfstand neu: scripts/pruef-e299.ts (78/78).
+
 ## 07.10.2026 abends — E-298: Mara verkauft härter (Bank-Satz nur auf Nachfrage, kein Rückzug beim Geld, ein Paket tiefer)
 
 - **Warum:** Zahlenrunde mit Justin. Seit dem Neustart 63 WhatsApp-Gespräche, danach keine einzige Zahlungsmeldung. Mail-Aktion

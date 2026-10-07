@@ -171,7 +171,7 @@ export function SchrittPin() {
           </div>
         ) : (
           <div className={`an-pin-status${meldung?.fehler ? " an-fehler" : ""}`} role={meldung?.fehler ? "alert" : "status"} aria-live="polite">
-            {meldung?.text ?? (phase === "waehlen" ? "Vier Ziffern – keine Reihe wie 1234, nicht Ihr Geburtsjahr." : "")}
+            {meldung?.text ?? (phase === "waehlen" ? "Vier Ziffern, ganz nach Ihrer Wahl." : "")}
           </div>
         )}
         {beruehrung && !gesichert ? (

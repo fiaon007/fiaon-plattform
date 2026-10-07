@@ -142,6 +142,8 @@ export function einkommenText(z: Pick<Zustand, "einkommen">): string { return z.
 export function paket(key: string): AntragNeuPaket { return antragNeuPaket(key) ?? ANTRAG_NEU_PAKETE[1]; }
 export function paketIndex(key: string): number { const i = ANTRAG_NEU_PAKETE.findIndex((p) => p.key === key); return i < 0 ? 1 : i; }
 export function naechstesPaket(key: string): AntragNeuPaket | null { return ANTRAG_NEU_PAKETE[paketIndex(key) + 1] ?? null; }
+/** E-299: das nächstkleinere Paket (High-End → Ultra → Pro → Start) — für das Rettungsfenster an der Unterschrift. */
+export function kleineresPaket(key: string): AntragNeuPaket | null { const i = paketIndex(key); return i > 0 ? ANTRAG_NEU_PAKETE[i - 1] ?? null : null; }
 
 export function euro(n: number, dez = true): string {
   return `${Number(n).toLocaleString("de-DE", { minimumFractionDigits: dez ? 2 : 0, maximumFractionDigits: dez ? 2 : 0 })} €`;

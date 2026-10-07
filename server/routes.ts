@@ -342,6 +342,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('mara_wa_versand', async () => await (await import('./lib/fiaon-whatsapp-mara')).versandLauf(), 20 * 1000, { beimStartNach: 45_000 });
     // E-230: Jedes Gespräch, dessen letzte Nachricht vom Kunden ist und das keine Antwort bekam, wird nachgeholt.
     tageslauf('mara_wa_nachholen', async () => { await (await import('./lib/fiaon-whatsapp-mara')).nachholLauf(); }, 60 * 1000, { beimStartNach: 60_000 });
+    // E-299 (07.10.2026): Mara fasst einmal nach — im offenen 24-h-Fenster, wenn er nach ihrer Antwort verstummt ist.
+    tageslauf('mara_wa_nachfass', async () => { await (await import('./lib/fiaon-mara-nachfass')).nachfassLauf(); }, 10 * 60 * 1000, { beimStartNach: 330_000 });
     // E-236: Der Kreislauf — jede von Mara gebuchte Rückruf-Zeit wird alle 5 Minuten nachgeprüft
     // (steht der Termin, Arbeitszeit, Überschneidung, Mail raus, Kunde hat die Uhrzeit).
     tageslauf('mara_termine_pruefen', async () => { await (await import('./lib/fiaon-mara-termin')).maraTermineNachpruefen(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });

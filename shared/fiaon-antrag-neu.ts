@@ -251,30 +251,19 @@ export function einkommenGueltig(euro: unknown): boolean {
 // wird nur ein scrypt-Hash mit Geheimnis außerhalb der Datenbank
 // (server/lib/fiaon-kunden-pin.ts); die Ziffern sieht niemand bei FIAON.
 
-/** Häufige, leicht erratbare PINs. */
-const PIN_SCHWACH = new Set([
-  "1212", "1122", "1313", "2121", "1010", "2020", "6969", "1004", "2000", "2001", "1111", "0000",
-  "1357", "2468", "1590", "7777", "4321", "1230", "0852", "2580", "1478", "9632", "1236", "6789",
-]);
-
 /**
  * Prüft eine neue PIN. Gibt null zurück, wenn sie zulässig ist, sonst einen
  * Satz, der dem Kunden sagt, was er ändern soll.
- * @param geburt Geburtsdatum als { tag, monat, jahr } — Geburtstag und -jahr sind tabu.
+ *
+ * E-299 (07.10.2026, Justin: „beim PIN kann man wählen was man will“): Vorher
+ * waren gleiche Ziffern, Zahlenreihen, 24 „leichte“ PINs sowie Geburtstag und
+ * -jahr gesperrt — am 05.–07.10. scheiterten 12 von 32 Menschen im neuen Antrag
+ * mindestens einmal daran („pin_schwach“). Seitdem gilt nur noch: vier Ziffern.
+ * Die Sperre nach PIN_MAX_FEHLVERSUCHE Fehlversuchen bleibt der Schutz.
+ * @param _geburt bleibt in der Unterschrift, damit Aufrufer unverändert bleiben.
  */
-export function pinPruefen(pin: string, geburt?: { tag?: number; monat?: number; jahr?: number } | null): string | null {
+export function pinPruefen(pin: string, _geburt?: { tag?: number; monat?: number; jahr?: number } | null): string | null {
   if (!/^\d{4}$/.test(pin)) return "Bitte genau vier Ziffern eingeben.";
-  const z = pin.split("").map(Number);
-  if (z.every((d) => d === z[0])) return "Bitte nicht viermal dieselbe Ziffer.";
-  const auf = z.every((d, i) => i === 0 || d === z[i - 1] + 1);
-  const ab = z.every((d, i) => i === 0 || d === z[i - 1] - 1);
-  if (auf || ab) return "Bitte keine Zahlenreihe wie 1234 oder 4321.";
-  if (PIN_SCHWACH.has(pin)) return "Diese PIN ist zu leicht zu erraten. Bitte wählen Sie eine andere.";
-  if (geburt) {
-    const t = String(geburt.tag ?? "").padStart(2, "0"), m = String(geburt.monat ?? "").padStart(2, "0"), j = String(geburt.jahr ?? "");
-    if (j.length === 4 && pin === j) return "Bitte nicht Ihr Geburtsjahr.";
-    if (geburt.tag && geburt.monat && (pin === t + m || pin === m + t)) return "Bitte nicht Ihren Geburtstag.";
-  }
   return null;
 }
 

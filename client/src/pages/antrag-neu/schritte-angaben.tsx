@@ -354,7 +354,23 @@ export function SchrittAdresse() {
   };
   const los = () => {
     const len = PLZ_STELLEN[S.land];
-    if (!S.adresseOffen) return f.zeigen("suche", such.trim().length > 2 ? "Bitte wählen Sie Ihre Adresse aus der Liste – oder geben Sie sie selbst ein." : "Bitte tragen Sie Straße und Hausnummer ein.");
+    if (!S.adresseOffen) {
+      // E-299 (07.10.2026): Wer Straße und Nummer getippt und „Weiter" gedrückt hat, ohne einen Vorschlag anzutippen,
+      // bekam hier eine Fehlermeldung — 28 von 50 Menschen im neuen Antrag (05.–07.10.). Jetzt: Gibt es GENAU einen
+      // Vorschlag, gilt er (er sieht PLZ und Ort und drückt noch einmal „Weiter"); bei mehreren nie raten — „Lindenstraße 12"
+      // gibt es in vielen Orten, der erste Vorschlag wäre eine fremde Stadt im Vertrag. Dann öffnen sich die Felder mit
+      // seinem Text, und der Cursor steht im nächsten leeren Feld (Hausnummer oder PLZ).
+      const q = such.trim();
+      if (q.length <= 2) return f.zeigen("suche", "Bitte tragen Sie Straße und Hausnummer ein.");
+      if (liste.length === 1) { waehlen(liste[0]); toast("Bitte prüfen Sie kurz Ihre Anschrift."); ereignis("adresse_uebernommen", { schritt: "adresse", detail: "vorschlag" }); return; }
+      const m = q.match(NUMMER);
+      // PLZ und Ort leeren: Sie könnten von einer früher gewählten Adresse stammen — der getippte Text ersetzt sie.
+      setze({ adresseQuelle: "hand", adresseOffen: true, plz: "", ort: "", ...(m ? { strasse: schoen(m[1]), nr: m[2] } : { strasse: schoen(q), nr: "" }) });
+      ereignis("adresse_uebernommen", { schritt: "adresse", detail: "hand" });
+      toast(m ? "Bitte ergänzen Sie noch Postleitzahl und Ort." : "Bitte ergänzen Sie noch Hausnummer, Postleitzahl und Ort.");
+      setTimeout(() => (m ? document.getElementById("an-plz") : nrRef.current)?.focus(), 340);
+      return;
+    }
     if (!S.strasse.trim()) return f.zeigen("strasse", "Bitte tragen Sie die Straße ein.");
     if (!S.nr.trim()) return f.zeigen("nr", "Bitte tragen Sie die Hausnummer ein.");
     if (!new RegExp(`^\\d{${len}}$`).test(S.plz)) return f.zeigen("plz", `Die Postleitzahl hat in ${LANDNAME[S.land]} ${len} Ziffern.`);

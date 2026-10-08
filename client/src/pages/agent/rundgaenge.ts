@@ -1718,6 +1718,27 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
     titel: "Hier schreibst du mit deinen Kunden.",
     text: "Alles läuft über eine Nummer des Hauses (+49 1511 0761284) — nie über dein privates Telefon. Jede Nachricht, "
       + "hin wie zurück, steht in der Akte des Menschen. Du musst nichts abtippen und nichts weiterleiten.",
+    // E-IT-H (08.10.2026): Der Raum füllt jetzt den ganzen Bildschirm; der Rundgang hat keinen festen Knopf mehr.
+    tipp: "Diesen Rundgang startest du jederzeit wieder über „Rundgang“ oben rechts im Raum.",
+  },
+  // E-IT-H (08.10.2026, Punkt 15): Ansicht je Mitarbeiter — die Knöpfe stehen im Kopf, in jeder Breite.
+  {
+    ziel: ".wr-kopf-knoepfe",
+    titel: "Schrift größer — und der Rundgang.",
+    text: "„Schrift größer“ macht Nachrichten, Liste und Fall im ganzen Raum größer; ein zweiter Klick („Schrift normal“) "
+      + "nimmt es zurück. Der Raum ist ohnehin größer gesetzt als der Rest des Office. Daneben startet „Rundgang“ diese "
+      + "Erklärung neu.",
+    tipp: "Dein Browser merkt sich die Einstellung — auch nach dem Neuladen gilt sie wieder, nur für dich.",
+  },
+  // E-IT-H: « und (i) gibt es am Handy nicht — deshalb ohne Ziel (Rundgang-Regel 2).
+  {
+    titel: "Mehr Platz für den Chat.",
+    text: "Der Raum füllt den ganzen Bildschirm, nur der Verlauf, die Liste und der Fall rollen. Das « oben in der Liste "
+      + "macht sie zur schmalen Leiste mit Bild, Ungelesen-Zahl und grünem Punkt, solange das Fenster offen ist (» klappt "
+      + "sie wieder auf). Das (i) rechts im Chat-Kopf blendet den Fall ein und aus — auf großen Bildschirmen steht er als "
+      + "eigene Spalte rechts, sonst als Schublade über dem Verlauf. Dein Browser merkt sich beides.",
+    tipp: "Am Laptop lohnt sich: Liste schmal und Fall aus — dann hat der Chat fast die ganze Breite. „Ergebnis buchen“ "
+      + "und die Notiz holst du dir mit dem (i) zurück.",
   },
   // E-261 (29.09.2026): Der Hinweis erscheint nur, solange die Bremse greift — deshalb ohne Ziel (Rundgang-Regel 2).
   {
@@ -1731,15 +1752,31 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
   {
     ziel: ".wr-liste",
     titel: "Links stehen die Gespräche.",
-    text: "Der blaue Punkt zählt ungelesene Nachrichten. Die Vorschau sagt, wer zuletzt geschrieben hat: „Mara:“, der Name "
+    text: "Die Liste startet mit „Mit Antwort“: nur Gespräche, in denen der Kunde selbst geschrieben hat. „Alle“ zeigt mit "
+      + "einem Klick auch die, in denen bisher nur wir geschrieben haben (z. B. Maras Vorlagen). Der blaue Punkt zählt "
+      + "ungelesene Nachrichten. Die Vorschau sagt, wer zuletzt geschrieben hat: „Mara:“, der Name "
       + "aus dem Team — oder gelb „Automatische Antwort“, wenn nur ein Anrufbeantworter geantwortet hat. „Fenster offen“ heißt: "
       + "Du darfst gerade frei schreiben. „Mara aus“ heißt: Hier antwortet die digitale Assistentin gerade nicht selbst.",
-    tipp: "Hat jemand aus dem Team ein Gespräch offen, steht „jemand liest mit“ daran — dann antwortet ihr nicht doppelt.",
+    // E-IT-H (Gegenprüfung 08.10.2026): Beim Suchen gilt „Mit Antwort“ nicht — die Suche läuft über alle eigenen Gespräche.
+    tipp: "Die Suche findet Name und Nummer, ab vier Zeichen auch Wörter aus allen Nachrichten — und zwar in ALLEN deinen "
+      + "Gesprächen, auch in denen ohne Antwort und nicht nur in den geladenen. Solange du suchst, steht der Filter deshalb "
+      + "auf „Alle“. Findest du jemanden nicht, beginne erst dann ein neues Gespräch. Ganz unten holt „Ältere Gespräche "
+      + "laden“ weitere, bis 1.000 — noch ältere findest du über die Suche. Hat jemand aus dem Team ein Gespräch offen, steht „jemand liest mit“ daran — dann antwortet ihr "
+      + "nicht doppelt.",
+  },
+  // E-IT-H: Direktsprung aus Akte und Aufgaben — ohne Ziel, der Knopf steht in der Akte.
+  {
+    titel: "Aus der Akte direkt ins Gespräch.",
+    text: "In der Kundenakte steht unter „WhatsApp schicken“ der Knopf „Chat im WhatsApp-Raum öffnen“ — er öffnet genau "
+      + "dieses Gespräch. Genauso führt „WhatsApp öffnen“ an Maras Aufgaben ohne Akte direkt zur richtigen Nummer — auch "
+      + "wenn du gerade schon im Raum sitzt; nach so einem Sprung bringt dich „Zurück“ im Browser zum Gespräch davor. Die "
+      + "Adresse oben im Browser trägt die Nummer mit: Neu laden oder als Lesezeichen behalten öffnet dasselbe Gespräch.",
   },
   {
     ziel: ".wr-eingabe",
     titel: "Schreiben wie im Handy — nur mit Sicherheitsnetz.",
-    text: "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile; am Handy sendet nur der runde Knopf. Ein Doppelklick "
+    text: "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile; am Handy sendet nur der runde Knopf. Das Feld "
+      + "wächst mit, bis gut ein Drittel der Chathöhe — längere Antworten siehst du beim Schreiben ganz. Ein Doppelklick "
       + "schickt nichts doppelt, und dein Entwurf bleibt beim Kunden, für den du ihn geschrieben hast — wechselst du das "
       + "Gespräch, wandert er nicht mit. Über dem Feld steht, wie lange das 24-Stunden-Fenster noch läuft. Ist es zu, "
       + "geht nur eine von Meta freigegebene Vorlage.",

@@ -116,9 +116,11 @@ export const RAEUME: Raum[] = [
 ];
 const GRUPPEN: Record<Raum["gruppe"], string> = { arbeit: "Workspace", team: "Team", ich: "Me", mehr: "" };
 
-interface OfficeCtx { dunkel: (an: boolean) => void; titel: (t: string | null) => void; praesenz: Praesenz; setPraesenz: (p: Praesenz) => void }
+// E-IT-H (08.10.2026, Punkt 15): `vollflaeche(true)` — die Seite füllt das Fenster (ohne 1440-px-Deckel, Höhe bis
+// zum Rand, die Seite selbst rollt nicht). Heute nur der WhatsApp-Raum; wie `dunkel` bei jedem Ortswechsel zurück.
+interface OfficeCtx { dunkel: (an: boolean) => void; vollflaeche: (an: boolean) => void; titel: (t: string | null) => void; praesenz: Praesenz; setPraesenz: (p: Praesenz) => void }
 type Praesenz = "da" | "pause" | "telefon" | "weg";
-const Ctx = createContext<OfficeCtx>({ dunkel: () => {}, titel: () => {}, praesenz: "da", setPraesenz: () => {} });
+const Ctx = createContext<OfficeCtx>({ dunkel: () => {}, vollflaeche: () => {}, titel: () => {}, praesenz: "da", setPraesenz: () => {} });
 export const useOffice = () => useContext(Ctx);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -253,6 +255,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
 }) {
   const [location] = useLocation();
   const [dunkel, setDunkel] = useState(false);
+  const [voll, setVoll] = useState(false);
   const [titel, setTitel] = useState<string | null>(null);
   const [eingeklappt, setEingeklappt] = useState(() => { try { return localStorage.getItem("fiaon_office_leiste") === "zu"; } catch { return false; } });
   const [menueOffen, setMenueOffen] = useState(false);
@@ -328,7 +331,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
   }, [istVertriebsleitung, agent.email]);
 
   const vorherigerOrt = useRef(location);
-  useEffect(() => { if (vorherigerOrt.current === location) return; vorherigerOrt.current = location; setMenueOffen(false); setDunkel(false); setTitel(null); }, [location]);
+  useEffect(() => { if (vorherigerOrt.current === location) return; vorherigerOrt.current = location; setMenueOffen(false); setDunkel(false); setVoll(false); setTitel(null); }, [location]);
   useEffect(() => { const r = document.getElementById("root"); if (r) r.style.overflow = menueOffen ? "hidden" : ""; return () => { if (r) r.style.overflow = ""; }; }, [menueOffen]);
 
   const sichtbar = RAEUME.filter((r) => (!r.nurRolle || r.nurRolle === rolle) && !(r.nichtRolle ?? []).includes(rolle) && (r.nurMitZugriff !== "global" || globalZugriff));
@@ -337,7 +340,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
   const initialen = String(agent.name || "?").split(/\s+/).map((t) => t[0]).join("").slice(0, 2).toUpperCase();
   const vorname = String(agent.name || "").split(" ")[0];
   const stunde = new Date().getHours(); const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";
-  const ctx: OfficeCtx = { dunkel: setDunkel, titel: setTitel, praesenz, setPraesenz };
+  const ctx: OfficeCtx = { dunkel: setDunkel, vollflaeche: setVoll, titel: setTitel, praesenz, setPraesenz };
 
   const Punkt = ({ r, inSchublade = false }: { r: Raum; inSchublade?: boolean }) => {
     const an = aktiv?.href === r.href; const b = r.badge ? zaehler[r.badge] || 0 : 0;
@@ -357,7 +360,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
 
   return (
     <Ctx.Provider value={ctx}>
-      <div className={`of szene-${szene}${dunkel ? " dunkel" : ""}${eingeklappt ? " zu" : ""}`}>
+      <div className={`of szene-${szene}${dunkel ? " dunkel" : ""}${voll ? " voll" : ""}${eingeklappt ? " zu" : ""}`}>
         <Buehne szene={szene} />
         {banner}
         <header className="of-kopf">

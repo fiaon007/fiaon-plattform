@@ -299,3 +299,36 @@
 @media(prefers-reduced-motion:reduce){.of-flaeche,.of-schublade{animation:none;transition:none}}
 /* Bestehende Seiten auf der hellen Fläche: ihre eigene Hintergrundfarbe darf nicht durchschlagen */
 .of-flaeche .agent-scope,.of-flaeche .agent-ambient{background:transparent !important;min-height:0 !important}
+
+/* ═══ DIE VOLLFLÄCHE (E-IT-H, 08.10.2026, Punkt 15) ═══════════════════════════
+   Team: „Der WhatsApp-Raum ist viel zu klein." GEMESSEN: .of-grund deckelte auf
+   1440 px — mit dem Zoom von 87,5 % nie breiter als 1260 Bildschirm-px; bei
+   Full HD blieb ein Drittel leer, der Chat bekam 450 px. Die Höhe maß der Raum
+   per JS und verlor sie an Köpfe und schwebende Knöpfe.
+
+   Eine Seite, die `vollflaeche(true)` sagt (heute nur der WhatsApp-Raum),
+   bekommt die GANZE Fläche: ohne Deckel, Höhe genau bis zum Fensterrand, die
+   Seite selbst rollt nicht — gerollt wird nur in Liste, Verlauf und Fall.
+   · Die Höhe rechnet in der gezoomten Welt (siehe oben: 100dvh / Zoom) und
+     zieht die Terminleiste ab (--fi-erin-hoehe, TerminErinnerung.tsx — sie
+     schiebt den body um 40 px nach unten).
+   · Die äußere App-Hülle (#root > .min-h-screen, App.tsx) verlangt sonst
+     100vh Mindesthöhe — mit Terminleiste wären das 40 px Rollweg zu viel.
+   · Die Office-Verkleinerung (87,5 %) bleibt; der Raum gleicht über größere
+     Schrift aus (whatsapp-raum.css). Alle anderen Office-Seiten bleiben, wie
+     sie sind — die Hülle setzt `voll` bei jedem Ortswechsel zurück. */
+.of.voll{
+  height:calc((100vh - var(--fi-erin-hoehe, 0px)) / var(--of-zoom, 1));
+  height:calc((100dvh - var(--fi-erin-hoehe, 0px)) / var(--of-zoom, 1));
+  min-height:0;display:flex;flex-direction:column}
+.of.voll>*:not(.of-grund){flex:none}
+/* Nichts rollt — also klebt auch nichts. Sonst schob die Terminleiste (body:has(.fi-erin) .of-kopf{top:40px})
+   den Kopf um ihre Höhe nach unten, und er deckte die Kopfzeile des Raums zu (gemessen am Prüfstand). */
+.of.voll .of-kopf{position:relative;top:auto}
+.of.voll>.of-grusszeile{max-width:none}
+.of.voll .of-grund{flex:1 1 auto;min-height:0;max-width:none;margin:0;padding:14px 16px 12px;gap:16px;grid-template-rows:minmax(0,1fr)}
+.of.voll .of-leiste{position:relative;top:auto;max-height:100%}
+.of.voll .of-inhalt{min-height:0;display:flex;flex-direction:column}
+.of.voll .of-inhalt>.agent-scope{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#root:has(.of.voll)>.min-h-screen{min-height:0}
+@media(max-width:960px){.of.voll .of-grund{padding:10px 10px 8px}}

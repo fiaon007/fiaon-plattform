@@ -15,6 +15,11 @@
 // grau und verwaschen, die Überschrift unsichtbar. Der feste 1320-px-Rahmen
 // ist weg: Wie der Raum sich aufteilt, entscheidet sein Platz (Container Queries).
 // Die Office-Hülle setzt `dunkel` bei jedem Seitenwechsel selbst zurück.
+//
+// E-IT-H (08.10.2026, Punkt 15): `vollflaeche(true)` — der Raum füllt das
+// Fenster (ohne den 1440-px-Deckel der Hülle, Höhe bis zum Rand, die Seite
+// rollt nicht). Die 87,5 % des Office bleiben; der Raum gleicht über größere
+// Schrift aus. Auch das setzt die Hülle beim Seitenwechsel zurück.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import { AgentShell } from "./shared";
@@ -22,8 +27,8 @@ import { useOffice } from "./OfficeShell";
 import WhatsAppRaum from "@/components/whatsapp/WhatsAppRaum";
 
 function Innen() {
-  const { dunkel } = useOffice();
-  useEffect(() => { dunkel(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { dunkel, vollflaeche } = useOffice();
+  useEffect(() => { dunkel(true); vollflaeche(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return <WhatsAppRaum basis="/agent/whatsapp" telefon="softphone" />;
 }
 

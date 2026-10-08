@@ -136,6 +136,7 @@ import {
 } from "@shared/fiaon-mara-ton";
 export { mitAntragLuecke };
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
+import { raumPfad } from "@shared/fiaon-wa-raum";
 import { nennform, vornamenErsetzen, mitarbeiterVornameFunde, MITARBEITER_NAMEN_KURZ, type Nennform, type MitarbeiterEintrag } from "@shared/fiaon-mitarbeiter-name";
 import { mitarbeiterListe } from "./fiaon-mitarbeiter-namen";
 // E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen), giltZumSatz.
@@ -4650,7 +4651,8 @@ export async function aufgabeFuerMenschen(
     // E-248: Der Schlüssel trägt jetzt die Grundklasse (wa-<person>-<klasse>-<tag>) — die Karte „Neu von Mara"
     // (fiaon-agent-aufgaben-popup.ts, personAusZeile) findet die Person deshalb über den Link.
     // Vertretung: Ohne Person führt der Link in den WhatsApp-Raum des Mitarbeiters statt ins Chefbüro.
-    const link = personId ? `/agent/kunden?person=${Number(personId)}` : vt?.anVertreter ? "/agent/whatsapp" : "/chef/s/whatsapp";
+    // E-IT-H (08.10.2026, Punkt 15): mit ?nummer= — der Raum öffnet genau dieses Gespräch (vorher nur den Raum).
+    const link = personId ? `/agent/kunden?person=${Number(personId)}` : raumPfad(vt?.anVertreter ? "agent" : "chef", nummer);
     const erg: any = await auftragFuerKunden({
       // E-264 + E-260: „An die Leitung“ geht an den Vertriebsleiter — AUSSER das Team ist abwesend
       // (dann der Vertreter bzw. das Board des Betreibers; leitungId() wäre Agent 8, abwesend).

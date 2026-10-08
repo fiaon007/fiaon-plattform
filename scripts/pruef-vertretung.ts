@@ -470,7 +470,8 @@ try {
 
     await wa.aufgabeFuerMenschen("4915177700009", null, null, `Unbekannte Nummer fragt nach dem Antrag ${MARKE}`, false, "anliegen");
     const a4 = await aufgabenVon(null, "4915177700009");
-    ok("ohne Person: bei 13, Link in den WhatsApp-Raum des Mitarbeiters", a4.length === 1 && anVertreter(a4[0]) && a4[0].link === "/agent/whatsapp", a4);
+    // E-IT-H (08.10.2026): Der Link trägt die Nummer — der Raum öffnet genau dieses Gespräch.
+    ok("ohne Person: bei 13, Link in den WhatsApp-Raum des Mitarbeiters (mit ?nummer=)", a4.length === 1 && anVertreter(a4[0]) && a4[0].link === "/agent/whatsapp?nummer=4915177700009", a4);
 
     const PN = await person({ betreuer: VERTRETER });
     await wa.aufgabeFuerMenschen("4915177700010", PN, null, `Eigener Kunde von Nikita ${MARKE}`, false, "anliegen");

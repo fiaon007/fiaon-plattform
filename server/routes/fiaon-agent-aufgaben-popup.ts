@@ -63,6 +63,7 @@ import { ensureTodoTabelle, refAusLink } from "./fiaon-betreiber-todo";
 // E-IT-F (08.10.2026): Herkunft, Kunde und Person aus EINER Quelle — dieselbe wie die Liste.
 import { auftragHerkunft, nameAusTitel } from "../../shared/fiaon-auftrag-arten";
 import { auftraegeZuordnen } from "../lib/fiaon-auftraege";
+import { nummerAusRaumPfad, raumPfad } from "../../shared/fiaon-wa-raum";
 
 const router = Router();
 
@@ -119,6 +120,10 @@ export function zielVon(a: { link: string | null; personId: number | null; ref: 
   const link = String(a.link || "");
   // E-IT-F: „&auftrag=<id>" — in der Akte steht dann die Leiste mit diesem Auftrag (Erledigt, Nächster).
   const auftrag = a.id ? `&auftrag=${Number(a.id)}` : "";
+  // E-IT-H (08.10.2026, Punkt 15): Maras Übergabe ohne Person trägt die Nummer (…/whatsapp?nummer=…) —
+  // auch eine fürs Chefbüro gedachte führt den Mitarbeiter in SEINEN Raum, direkt ins Gespräch.
+  const waNummer = a.personId ? null : nummerAusRaumPfad(link);
+  if (waNummer) return { href: raumPfad("agent", waNummer), text: "WhatsApp öffnen" };
   if (link.startsWith("/agent/") && !/^\/agent\/(kunden|pipeline)(\?|$)/.test(link)) return { href: link, text: "Akte öffnen" };
   if (a.personId) return { href: `/agent/kunden?person=${a.personId}${auftrag}`, text: "Akte öffnen" };
   if (a.ref) return { href: `/agent/kunden?ref=${encodeURIComponent(a.ref)}${auftrag}`, text: "Akte öffnen" };

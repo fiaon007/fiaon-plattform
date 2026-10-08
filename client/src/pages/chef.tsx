@@ -81,7 +81,8 @@ export default function ChefPage() {
 
   return (
     <ChefShell stufe={stufe} name={status.name} titel={(status as any).titel ?? null} raumKey={raum.key} onAbmelden={abmelden}
-               ruhigeHuelle={!!seite?.ruhig /* E-252: nur Seiten mit `ruhig` (heute /chef/s/mara) */}>
+               ruhigeHuelle={!!seite?.ruhig /* E-252: nur Seiten mit `ruhig` (heute /chef/s/mara) */}
+               vollflaeche={!!seite?.vollflaeche /* E-IT-H: nur Seiten mit `vollflaeche` (heute /chef/s/whatsapp) */}>
       {istSeite && !seite ? (
         <div className="cb-hinweis" role="status">
           <b>Diese Seite gibt es hier nicht.</b>

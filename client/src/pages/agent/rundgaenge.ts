@@ -119,6 +119,22 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Zwei Minuten, die sich beim nächsten Anruf auszahlen: Der Kunde muss nichts wiederholen, und du weißt vor dem Wählen, worüber ihr sprecht.",
   },
   {
+    // 08.10.2026 (E-IT-G, Punkt 14) mitgezogen: Geburtsdatum in drei Feldern, Speichern nur geänderter Felder,
+    // Hinweis bei zwei Geburtsdaten. Ohne `ziel` — das Formular steht nur in der geöffneten Akte.
+    titel: "Stammdaten: Geburtsdatum in drei Feldern, gespeichert wird nur, was du änderst.",
+    text: "Im Reiter „Daten“ öffnet „Kunde bearbeiten“ das Formular — auch über jedes „… fehlt – jetzt nachtragen“ und über die "
+      + "Vertragslücke. Das Geburtsdatum hat drei Felder: Tag · Monat · Jahr. Tipp einfach 17 11 63 — die Felder springen von selbst "
+      + "weiter, „63“ wird sichtbar zu 1963, und darunter steht zum Gegenlesen „17. November 1963 · 62 Jahre“. Du kannst auch "
+      + "„17.11.1963“ am Stück eintippen oder einfügen. Wäre der Kunde danach unter 18 oder über 94, fragt die Akte „stimmt das?“ — "
+      + "nach „Stimmt so“ darfst du speichern. Gespeichert wird nur, was du geändert hast; das Geburtsdatum landet an der Person UND "
+      + "an allen Bestellungen, mit altem und neuem Wert im Verlauf. Geht etwas nicht, sagt dir „Nicht gespeichert“ genau, warum.",
+    tipp: "Steht oben „Geburtsdatum weicht ab“, tragen Person und Bestellungen verschiedene Daten — etwa weil der Kunde im Antrag "
+      + "ein anderes angegeben hat (der Antrag überschreibt die Akte nicht). Lass dir den Ausweis zeigen und übernimm das richtige mit "
+      + "einem Klick. Steht dort „Eine Bestellung trägt einen anderen Namen“, erst klären — womöglich zwei Menschen. Ein halb "
+      + "gelöschtes Datum löscht nichts; ganz entfernen kann nur die Leitung. Auch „+ Kunde anlegen“ nimmt das Geburtsdatum in "
+      + "denselben drei Feldern.",
+  },
+  {
     // 21.09.2026 (E-202): die Boni-Ampel im Kopf der Akte. Ohne `ziel` — sie
     // steht nur in der geöffneten Akte, nicht auf der Pipeline selbst.
     titel: "Oben in der Akte: die Boni-Ampel.",
@@ -1048,7 +1064,8 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     text: "Ein persönliches Angebot für eine Person — Teil 1 „Gründung“ sofort fällig, Teil 2 „Kapital-Begleitung“ erst, wenn die "
       + "Gesellschaft eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist. Dazu die "
       + "Bürgschaftszusage der Schwarzott Global LLC und die Kreditgarantie (E-271): Erhält die Gesellschaft in der Frist nicht den "
-      + "Kreditrahmen und die Karten aus dem Angebot, erstattet FIAON alles, was der Kunde gezahlt hat. „Neues Individualangebot“ holt Name, Anschrift und Geburtsdatum aus dem jüngsten Antrag der Person.",
+      + "Kreditrahmen und die Karten aus dem Angebot, erstattet FIAON alles, was der Kunde gezahlt hat. „Neues Individualangebot“ holt Name, Anschrift und Geburtsdatum aus dem jüngsten Antrag der Person "
+      + "(das Geburtsdatum steht in drei Feldern Tag · Monat · Jahr — seit 08.10. kein Tippen im Format JJJJ-MM-TT mehr).",
     tipp: "Angenommen wird nur vom Kunden über seinen Link. Öffnest du den Link aus dem Chefbüro, siehst du die Seite ohne Annahmeknopf.",
   },
   {
@@ -1392,6 +1409,10 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     text: "„Akte öffnen“ unten auf der Karte zeigt die ganze Akte in einem Fenster über der Kartei — schließen mit dem Kreuz oder der "
       + "Esc-Taste, und die Karte ist danach frisch. Ganz unten stehen zuerst deine Termine (gebucht über fiaon.com/justin und dein "
       + "Kalender, mit Anliegen), darunter aufklappbar alle Termine des Teams.",
+    // 08.10.2026 (E-IT-G, Punkt 14) mitgezogen: das Geburtsdatum in der Akte.
+    tipp: "Das Geburtsdatum korrigierst du in der Akte mit dem Stift: drei Felder Tag · Monat · Jahr, „63“ wird 1963, Speichern erst, "
+      + "wenn das Datum stimmt. Es gilt dann an der Person und an allen Bestellungen; „Weicht ab“ darunter heißt: laut Ausweis wählen. "
+      + "„Geburtsdatum entfernen“ gibt es nur für die Leitung – hier in der Chef-Akte und in der Akte unter „Kunde bearbeiten“.",
   },
   {
     titel: "Storniert ist nicht gelöscht.",

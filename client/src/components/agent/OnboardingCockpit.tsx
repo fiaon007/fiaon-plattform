@@ -32,6 +32,7 @@ import {
 // 06.09.2026 (Scheibe 7, Modul A): Die zehn Fragen und die Regeln kommen aus
 // derselben Datei wie im Kundenbereich — eine Quelle, zwei Tische.
 import { FRAGEN, REGELN, type Frage } from "@shared/fiaon-ansprueche";
+import { geburtsdatumMitAlter } from "@shared/fiaon-geburtsdatum";
 import "@/styles/office-ansprueche.css";
 
 /** Haken — 20×20, 1,5 px, currentColor (AGENTS.md: keine Icon-Bibliotheken). */
@@ -482,9 +483,7 @@ export function OnboardingCockpit({
                           background: "rgba(2,6,23,.45)", border: "1px solid rgba(148,163,184,.18)",
                           display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "8px 18px" }}>
               {[
-                ["Geburtsdatum", lage.stammdaten.geburtsdatum
-                  ? new Date(String(lage.stammdaten.geburtsdatum).slice(0, 10) + "T12:00:00Z").toLocaleDateString("de-DE")
-                  : "—"],
+                ["Geburtsdatum", lage.stammdaten.geburtsdatum ? geburtsdatumMitAlter(lage.stammdaten.geburtsdatum) : "—"],
                 ["Adresse", lage.stammdaten.adresse || "—"],
                 ["E-Mail", lage.stammdaten.email || "—"],
                 ["Bonitätsauskunft", lage.bonitaet || "—"],

@@ -12,6 +12,7 @@ import { MarkeFunke, anrufStarten } from "@/components/Softphone";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { ErgebnisWahl, type ErgebnisAusgang } from "@/components/agent/ErgebnisWahl";
 import { ERGEBNIS_TEXT, type Ergebnis } from "@shared/fiaon-kontakt-ergebnis-liste";
+import { geburtsdatumMitAlter } from "@shared/fiaon-geburtsdatum";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kunden — DIE EINE ARBEITSLISTE
@@ -2363,7 +2364,8 @@ function KundenKarte({
                 {[
                   ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null],
                   ["Land", k.stammdaten?.land],
-                  ["Geburtsdatum", k.stammdaten?.geburtsdatum ? dtag(String(k.stammdaten.geburtsdatum)) : null],
+                  // E-IT-G (08.10.2026): vierstellig mit Alter — dtag() zeigte „17.11.63“.
+                  ["Geburtsdatum", k.stammdaten?.geburtsdatum ? geburtsdatumMitAlter(k.stammdaten.geburtsdatum) : null],
                   ["E-Mail", k.email],
                   ["Telefon", k.telefon],
                   ["Verwendungszweck", k.zahlung?.referenz],
@@ -2745,16 +2747,22 @@ export function Versandzentrum({ personId }: { personId: number }) {
 // Audit je Feld, alte Nummer wird Alias. Kein zweiter Schreibweg.
 function KundeBearbeiten({ k, onFertig }: { k: Kunde; onFertig: () => Promise<void> }) {
   const { zeige } = useToast();
-  const [f, setF] = useState({
+  const [anfang] = useState(() => ({
     firstName: (k.name || "").split(" ").slice(0, -1).join(" ") || k.name || "", lastName: (k.name || "").split(" ").slice(-1).join(""),
     phone: k.telefon || "", street: k.stammdaten?.strasse || "", zip: k.stammdaten?.plz || "", city: k.stammdaten?.ort || "",
-  });
+  }));
+  const [f, setF] = useState(anfang);
   const [busy, setBusy] = useState(false);
   const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
   const speichern = async () => {
     if (!ref) { zeige("fehler", "Keine Bestellung", "Ohne Bestellung gibt es keine Akte, an der die Daten hängen."); return; }
+    // E-IT-G (08.10.2026): nur geänderte Felder — sonst schrieb jedes Speichern die
+    // Telefon-Anzeigeform (+49) und den am Leerzeichen geteilten Namen mit.
+    const body: Record<string, string> = {};
+    for (const key of Object.keys(f) as (keyof typeof f)[]) if (f[key].trim() !== anfang[key].trim()) body[key] = f[key];
+    if (Object.keys(body).length === 0) { zeige("info", "Nichts geändert", "Es gibt keine Änderung zum Speichern."); return; }
     setBusy(true);
-    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(f) });
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(body) });
     setBusy(false);
     if (!r.ok) { zeige("fehler", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
     zeige("erfolg", "Gespeichert", "Die Änderungen stehen mit altem und neuem Wert in der Akte.");
@@ -2778,7 +2786,7 @@ function KundeBearbeiten({ k, onFertig }: { k: Kunde; onFertig: () => Promise<vo
         <button type="button" onClick={() => void speichern()} disabled={busy} className="fi-primaerknopf px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:opacity-50">
           {busy ? "Speichert …" : "Speichern"}
         </button>
-        <span className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>Geburtsdatum und Land ändert die Vertriebsleitung.</span>
+        <span className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>Das Geburtsdatum änderst du in der Pipeline: Akte öffnen → Reiter „Daten“ → „Kunde bearbeiten“; das Land ändert die Vertriebsleitung.</span>
       </div>
     </div>
   );

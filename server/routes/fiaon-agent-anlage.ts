@@ -42,6 +42,7 @@ import { paket, paketPreisEuro, verkaufbarePakete, type Paket } from "../../shar
 import { istAuskunftSchluessel, auskunftSchluessel, type AuskunftArt } from "../../shared/fiaon-auskunft";
 import { produktkategorie, produktkategorieSql } from "../lib/fiaon-produktkategorie";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
+import { geburtsdatumFuerSpeicher } from "../../shared/fiaon-geburtsdatum";
 
 const router = Router();
 
@@ -375,6 +376,15 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
           + "Ohne Erreichbarkeit entsteht ein Datensatz, den niemand erreichen kann.",
       });
     }
+    // ── E-IT-G (08.10.2026), Punkt (14): DAS GEBURTSDATUM WIRD GEPRÜFT ──────
+    // VORHER wurde der Wert ungeprüft übernommen (`slice(0,10)`) — „0063-11-17“
+    // aus dem Datumsfeld des Browsers wäre so in die Akte gegangen. NACHHER
+    // derselbe Prüfer wie in der Akte (Kontext „akte“: unter 18 oder ab 95 nur
+    // mit Bestätigung `geburtBestaetigt`). Leer bleibt erlaubt (optional).
+    const geburtPruef = geburtsdatumFuerSpeicher(b.birthdate, "akte", { bestaetigt: b.geburtBestaetigt === true });
+    if (!geburtPruef.ok) {
+      return res.status(400).json({ ok: false, error: `Geburtsdatum: ${geburtPruef.fehler}`, rueckfrage: geburtPruef.rueckfrage || undefined });
+    }
 
     // ── DER PREIS KOMMT AUS DEM KATALOG ────────────────────────────────────
     // Ein mitgeschickter Betrag wird IGNORIERT, nicht übernommen. Ein frei
@@ -439,7 +449,7 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
     // ── ANLEGEN ────────────────────────────────────────────────────────────
     const ref = neueRef();
     const zahlungsreferenz = neueZahlungsreferenz(ref);
-    const geburt = String(b.birthdate ?? "").trim().slice(0, 10) || null;
+    const geburt = geburtPruef.aenderung === "setzen" ? geburtPruef.iso : null;
 
     await sqlPool`
       INSERT INTO fiaon_applications (
@@ -905,7 +915,9 @@ router.post("/agent/customers/:ref/stammdaten", requireAgent, async (req: AgentR
     // erlauben hieße ein Feld anzubieten, das „ok" meldet und nichts tut.
     // E-047 (24.08.): `birthdate` WIRD jetzt verarbeitet (Bestellung + Person,
     // mit Audit) — der alte Hinweis, es werde verworfen, ist Geschichte.
-    const erlaubt = ["firstName", "lastName", "email", "phone", "street", "zip", "city", "birthdate"];
+    // E-IT-G (08.10.2026): `geburtBestaetigt` (Rückfrage „stimmt das?“ bejaht) und
+    // `birthdateEntfernen` (nur Leitung, prüft updateCustomerContact) gehören dazu.
+    const erlaubt = ["firstName", "lastName", "email", "phone", "street", "zip", "city", "birthdate", "geburtBestaetigt", "birthdateEntfernen"];
     const koerper: any = {};
     const abgelehnt: string[] = [];
     for (const [k, v] of Object.entries(req.body || {})) {
@@ -921,8 +933,20 @@ router.post("/agent/customers/:ref/stammdaten", requireAgent, async (req: AgentR
     }
 
     const { updateCustomerContact } = await import("./fiaon-agent");
+    const { istLeitungsRolle } = await import("../lib/fiaon-geburtsdatum-akte");
     const erg = await updateCustomerContact(ref, koerper,
-      { id: req.agent!.id, name: req.agent!.name });
+      { id: req.agent!.id, name: req.agent!.name, darfGeburtLoeschen: istLeitungsRolle(rolle) });
+
+    // ── E-IT-G (08.10.2026): KEIN „GESPEICHERT“ MEHR, WENN NICHTS GESPEICHERT WURDE ──
+    // VORHER antwortete diese Route IMMER mit ok:true — auch wenn
+    // updateCustomerContact mit „E-Mail-Format ungültig“ oder „Geburtsdatum
+    // bitte als JJJJ-MM-TT“ abgebrochen hatte. Die Akte meldete „Gespeichert“,
+    // gespeichert war nichts (gemessen 08.10.: 340 betreute Akten, 12,8 %,
+    // wegen einer leeren E-Mail, die das Formular bei jedem Speichern
+    // mitschickte). Das Formular schickt seit E-IT-G nur noch geänderte Felder.
+    if (erg?.error) {
+      return res.status(erg.error.code).json({ ok: false, error: erg.error.msg, rueckfrage: erg.error.rueckfrage || undefined });
+    }
 
     res.json({
       ok: true,

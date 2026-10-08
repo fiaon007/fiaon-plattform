@@ -84,6 +84,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-IT-G (08.10.2026), Punkt (14): Geburtsdatum in drei Feldern, eine Regel für alle Stellen.
+    id: "2026-10-08-geburtsdatum",
+    date: "2026-10-08",
+    category: "Behoben",
+    title: "Geburtsdatum: drei Felder, „63“ wird 1963",
+    summary:
+      "Das Geburtsdatum tippst du jetzt überall in drei Felder Tag · Monat · Jahr — kein Kalender mehr zum Zurückblättern, "
+      + "und ein zweistelliges Jahr wird sichtbar ergänzt („63“ → 1963). Die Akte zeigt es immer vierstellig mit Alter.",
+    changes: [
+      "„Kunde bearbeiten“ und „+ Kunde anlegen“: drei Felder, darunter zum Gegenlesen z. B. „17. November 1963 · 62 Jahre“. „17.11.1963“ am Stück tippen oder einfügen geht auch.",
+      "Wäre der Kunde danach unter 18 oder über 94, fragt die Akte „stimmt das?“ — nach „Stimmt so“ darfst du speichern.",
+      "Gespeichert wird nur, was du geändert hast. Klappt etwas nicht (z. B. eine Telefonnummer ohne Vorwahl), steht dort jetzt „Nicht gespeichert“ mit dem Grund — vorher kam manchmal „Gespeichert“, obwohl nichts gespeichert war.",
+      "Korrigierst du (oder die Leitung) das Geburtsdatum, gilt es an der Person UND an allen Bestellungen; Chefbüro-Akte und deine Akte zeigen dasselbe.",
+      "Gibt ein Kunde im Antragsformular ein anderes Geburtsdatum an, bleibt die Akte stehen (Ausnahme: seine einzige, noch unbezahlte Bestellung). Dann steht im Reiter „Daten“ „Geburtsdatum weicht ab“ und im Verlauf der neue Wert — laut Ausweis das richtige übernehmen.",
+      "Steht dort zusätzlich „Achtung: Eine Bestellung trägt einen anderen Namen“, hängen womöglich zwei Menschen an einer Person (gemeinsame E-Mail) — dann nicht vereinheitlichen, sondern erst klären.",
+      "Kündigungsseite: Passen Name und E-Mail, nimmt die Seite die Kündigung jetzt immer an — auch wenn bei uns kein oder ein anderes Geburtsdatum steht. Dann bekommst du als Betreuer die Aufgabe „Kündigung – Identität prüfen“, und im Verlauf steht, was der Kunde angegeben hat. Gebucht wird erst nach der Prüfung.",
+    ],
+    howto: [
+      "Akte öffnen → Reiter „Daten“ → „Kunde bearbeiten“ (oder „Geburtsdatum fehlt – jetzt nachtragen“).",
+      "Tag, Monat, Jahr tippen — die Felder springen von selbst weiter. Zeile darunter lesen, dann „Speichern“.",
+      "Ein Geburtsdatum ganz entfernen kann nur die Leitung; ein halb gelöschtes Feld löscht nichts.",
+    ],
+  },
+  {
     // E-286 (05./06.10.2026): neue Wortmarke überall.
     id: "2026-10-06-neues-logo",
     date: "2026-10-06",

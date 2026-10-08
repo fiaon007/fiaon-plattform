@@ -34,6 +34,7 @@ import { sqlPool } from "./lib/db-pool";
 import { randomBytes } from "crypto";
 import { isAddonOrderRow, pickAccountRow, storedPasswordOf } from "./fiaon-login-logic";
 import { waehlbareNummer } from "./lib/fiaon-telefon";
+import { geburtsdatumIso } from "../shared/fiaon-geburtsdatum";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEIL 1 — REINE LOGIK (keine Datenbank, testbar ohne Verbindung)
@@ -678,7 +679,7 @@ async function neuePersonAnlegen(ein: PersonEingabe, emails: string[], phones: s
     ) VALUES (
       ${personRef}, ${s.kind ?? "private"},
       ${s.first_name ?? null}, ${s.last_name ?? null}, ${s.company_name ?? null},
-      ${s.contact_name ?? null}, ${s.birthdate ?? null},
+      ${s.contact_name ?? null}, ${geburtsdatumIso(s.birthdate)},
       ${emails[0] ?? null}, ${s.primary_phone ?? null}, ${phones[0] ?? null},
       ${s.street ?? null}, ${s.zip ?? null}, ${s.city ?? null},
       ${s.country ?? null}, ${s.nationality ?? null},
@@ -739,7 +740,13 @@ async function stammdatenErgaenzen(personId: number, ein: PersonEingabe): Promis
       last_name    = COALESCE(last_name,    ${wert(s.last_name)}),
       company_name = COALESCE(company_name, ${wert(s.company_name)}),
       contact_name = COALESCE(contact_name, ${wert(s.contact_name)}),
-      birthdate    = COALESCE(birthdate,    ${wert(s.birthdate)}),
+      -- E-IT-G (08.10.2026): nur ein echtes JJJJ-MM-TT (Wand: Migration 103) — und nur, wenn der
+      -- Name der Zeile zur Person passt (Gegenprüfung 08.10.: eine E-Mail kann zwei Menschen tragen;
+      -- sonst bekäme die Person das Geburtsdatum des Partners). Rechts stehen die ALTEN Werte.
+      birthdate    = COALESCE(birthdate, CASE
+                       WHEN (first_name IS NULL OR lower(btrim(first_name)) = lower(btrim(${wert(s.first_name)}::text)))
+                        AND (last_name  IS NULL OR lower(btrim(last_name))  = lower(btrim(${wert(s.last_name)}::text)))
+                       THEN ${geburtsdatumIso(s.birthdate)}::text END),
       street       = COALESCE(street,       ${wert(s.street)}),
       zip          = COALESCE(zip,          ${wert(s.zip)}),
       city         = COALESCE(city,         ${wert(s.city)}),
@@ -972,7 +979,7 @@ async function personenZusammenfuehren(zielId: number, verliererId: number, quel
       last_name    = COALESCE(last_name,    ${verlierer.last_name}),
       company_name = COALESCE(company_name, ${verlierer.company_name}),
       contact_name = COALESCE(contact_name, ${verlierer.contact_name}),
-      birthdate    = COALESCE(birthdate,    ${verlierer.birthdate}),
+      birthdate    = COALESCE(birthdate,    ${geburtsdatumIso(verlierer.birthdate)}),
       street       = COALESCE(street,       ${verlierer.street}),
       zip          = COALESCE(zip,          ${verlierer.zip}),
       city         = COALESCE(city,         ${verlierer.city}),

@@ -762,6 +762,16 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       }
     }
 
+    // ── E-IT-G (08.10.2026): DAS GEBURTSDATUM WIE IN DER AGENTENAKTE ────────
+    // VORHER zeigte die Chef-Akte NUR das Datum der Bestellung, die Agentenakte
+    // das der Person — zwei Akten, zwei Geburtsdaten. NACHHER dieselbe Regel
+    // (Person zuerst, sonst jüngste Bestellung) und der Hinweis bei Abweichung.
+    let geburt: Awaited<ReturnType<typeof import("../lib/fiaon-geburtsdatum-akte").geburtStandAkte>> | null = null;
+    if (primaryApp?.person_id) {
+      const { geburtStandAkte } = await import("../lib/fiaon-geburtsdatum-akte");
+      geburt = await geburtStandAkte(Number(primaryApp.person_id)).catch(() => null);
+    }
+
     res.json({
       ok: true,
       head,
@@ -789,7 +799,8 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
             street: primaryApp.street,
             zip: primaryApp.zip,
             city: primaryApp.city,
-            birthdate: primaryApp.birthdate,
+            birthdate: geburt ? (geburt.wert ?? primaryApp.birthdate) : primaryApp.birthdate,
+            geburtsdatumAbweichung: geburt?.abweichend ? geburt.werte : null,
             packKey: primaryApp.pack_key,
             packName: primaryApp.pack_name,
             approvedLimit: primaryApp.approved_limit,
@@ -886,31 +897,23 @@ router.post("/admin/kunden/:ref/stammdaten", async (req: Request, res: Response)
     const body = req.body || {};
     const { updateCustomerContact } = await import("./fiaon-agent");
     // Kontakt-Felder über die bestehende, auditierte Engine
-    const contactKeys = ["firstName", "lastName", "email", "phone", "street", "zip", "city"];
+    // ── E-IT-G (08.10.2026), Punkt (14): DAS GEBURTSDATUM GEHT DENSELBEN WEG ──
+    // VORHER hatte das Geburtsdatum hier einen eigenen Block: nur die Form
+    // geprüft, NUR die Bestellung geschrieben — die Agentenakte (liest Person
+    // zuerst) zeigte danach weiter den alten Wert. NACHHER ist es ein Feld der
+    // Engine: shared-Prüfer, Person + alle lebenden Bestellungen in einer
+    // Transaktion, derselbe Verlaufseintrag. Die Chefbüro-Akte ist Leitung —
+    // sie darf ein Geburtsdatum auch entfernen (birthdateEntfernen: true).
+    const contactKeys = ["firstName", "lastName", "email", "phone", "street", "zip", "city", "birthdate", "geburtBestaetigt", "birthdateEntfernen"];
     const contactBody: any = {};
     for (const k of contactKeys) if (body[k] !== undefined) contactBody[k] = body[k];
     let changes: Array<{ field: string; from: string; to: string }> = [];
     let duplicate: any = null;
     if (Object.keys(contactBody).length > 0) {
-      const result = await updateCustomerContact(ref, contactBody, { id: null, name: "Admin" });
-      if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg });
+      const result = await updateCustomerContact(ref, contactBody, { id: null, name: "Admin", darfGeburtLoeschen: true });
+      if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg, rueckfrage: result.error.rueckfrage || undefined });
       changes = result.changes || [];
       duplicate = result.duplicate || null;
-    }
-    // Geburtsdatum (nicht Teil der Engine) — eigenes auditiertes Update
-    if (body.birthdate !== undefined) {
-      const bd = String(body.birthdate || "").trim();
-      if (bd && !/^\d{4}-\d{2}-\d{2}$/.test(bd)) {
-        return res.status(400).json({ ok: false, error: "Geburtsdatum ungültig (JJJJ-MM-TT)" });
-      }
-      const cur = await sqlPool`SELECT birthdate FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL`;
-      if (cur.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-      const from = cur[0].birthdate ? String(cur[0].birthdate).slice(0, 10) : "—";
-      if (from !== (bd || "—")) {
-        await sqlPool`UPDATE fiaon_applications SET birthdate = ${bd || null}, updated_at = NOW() WHERE ref = ${ref}`;
-        await auditApp(ref, `Geburtsdatum korrigiert durch Admin: ${from} → ${bd || "—"}`);
-        changes.push({ field: "Geburtsdatum", from, to: bd || "—" });
-      }
     }
     res.json({ ok: true, changes, duplicate });
   } catch (err) {

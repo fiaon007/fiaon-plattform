@@ -1,5 +1,6 @@
 import { passwortPasst } from "./lib/fiaon-kunde-session";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
+import { geburtsdatumIso } from "@shared/fiaon-geburtsdatum";
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  * KUNDEN-LOGIN — DIE ENTSCHEIDUNG (reine Logik, keine Datenbank, keine Seiteneffekte)
@@ -334,10 +335,8 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
   return { granted: true, account, matched };
 }
 
-/** Geburtsdatum aus der DB (Date oder String) als YYYY-MM-DD. */
+/** Geburtsdatum aus der DB (Date oder String) als YYYY-MM-DD. E-IT-G (08.10.2026): über den einen Leser (shared/fiaon-geburtsdatum.ts). */
 export function birthdateKey(value: any): string | null {
   if (!value) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  const s = String(value);
-  return s.length >= 10 ? s.slice(0, 10) : null;
+  return geburtsdatumIso(value) ?? (String(value).length >= 10 ? String(value).slice(0, 10) : null);
 }

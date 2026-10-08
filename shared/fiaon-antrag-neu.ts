@@ -15,6 +15,7 @@
 // Der Vertragstext steht in shared/fiaon-antrag-neu-vertrag.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { KARTE_LINK_SATZ } from "./fiaon-karten-weg";
+import { berlinHeuteIso, geburtsdatumLesen, tageImMonat } from "./fiaon-geburtsdatum";
 
 /** Fassung der Leistungsbeschreibung des neuen Wegs — steht mit jeder Vertragsannahme in der Datenbank. */
 // E-283 (05.10.2026): „b" — das Limit-Gespräch sagt jetzt, wie es gebucht wird
@@ -368,16 +369,27 @@ export function geburtText(d: Pick<AntragNeuDaten, "gt" | "gm" | "gj">): string 
   return d.gt && d.gm && d.gj.length === 4 && Number(d.gm) >= 1 && Number(d.gm) <= 12 ? `${Number(d.gt)}. ${MONATE[Number(d.gm) - 1]} ${d.gj}` : "";
 }
 
-/** Gibt es den Tag, und ist der Mensch zwischen 18 und 110? */
+/**
+ * Gibt es den Tag, und ist der Mensch zwischen 18 und 110?
+ * E-IT-G (08.10.2026): eine dünne Hülle um den EINEN Leser
+ * (shared/fiaon-geburtsdatum.ts, Kontext „vertrag“) — die Stände bleiben, wie
+ * sie waren (antragNeuLuecke und der Server lesen sie). Gespeichert wird nur ein
+ * vierstelliges Jahr: Ein zweistelliges („63“) ergänzt die Seite vorher sichtbar.
+ */
 export function geburtPruefen(d: Pick<AntragNeuDaten, "gt" | "gm" | "gj">, heute: Date = new Date()): "ok" | "fehlt" | "ungueltig" | "jung" | "alt" {
-  const t = Number(d.gt), m = Number(d.gm), j = Number(d.gj);
   if (!d.gt || !d.gm || d.gj.length !== 4) return "fehlt";
-  const dt = new Date(j, m - 1, t);
-  if (m < 1 || m > 12 || dt.getFullYear() !== j || dt.getMonth() !== m - 1 || dt.getDate() !== t) return "ungueltig";
-  const alter = heute.getFullYear() - j - (heute.getMonth() < m - 1 || (heute.getMonth() === m - 1 && heute.getDate() < t) ? 1 : 0);
-  if (alter < 18) return "jung";
-  if (alter > 110) return "alt";
-  return "ok";
+  const e = geburtsdatumLesen({ tag: d.gt, monat: d.gm, jahr: d.gj }, "vertrag", berlinHeuteIso(heute));
+  switch (e.stand) {
+    case "ok": return "ok";
+    // Ein Datum in der Zukunft hieß schon vorher „jung“ (negatives Alter).
+    case "zu_jung": case "zukunft": return "jung";
+    case "zu_alt": return "alt";
+    // Vor 1900 hieß vorher „alt“ (über 110) — sofern es den Kalendertag gibt; ein Jahr unter 100 „ungültig“.
+    case "ungueltig":
+      return e.jahr != null && e.jahr >= 100 && e.jahr < 1900 && e.tag != null && e.monat != null && e.tag <= tageImMonat(e.jahr, e.monat)
+        ? "alt" : "ungueltig";
+    default: return "fehlt";
+  }
 }
 
 export function emailGueltig(e: string): boolean {

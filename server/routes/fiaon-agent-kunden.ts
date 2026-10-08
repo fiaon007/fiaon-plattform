@@ -672,9 +672,17 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
       } : null,
     };
 
+    // ── E-IT-G (08.10.2026): ZWEI GEBURTSDATEN FÜR EINEN MENSCHEN? ─────────
+    // Person und Bestellungen können verschiedene Geburtsdaten tragen (gemessen
+    // 07.10.: 15 Menschen). Die Akte zeigt dann den Hinweis mit Übernehmen-
+    // Knöpfen (pipeline.tsx, GeburtAbweichungHinweis). Nur hier, nie in Listen.
+    const { geburtStandAkte } = await import("../lib/fiaon-geburtsdatum-akte");
+    const geburt = await geburtStandAkte(personId).catch(() => null);
+
     res.json({
       ok: true,
       antrag,
+      geburtsdatumAbweichung: geburt?.abweichend ? { werte: geburt.werte } : null,
       kunde: kartePayload(p, (verlauf as any[])[0]),
       verlauf: (verlauf as any[]).map((v) => ({
         id: v.id,

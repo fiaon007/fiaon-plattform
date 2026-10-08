@@ -206,6 +206,65 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     important: true,
   },
   {
+    // E-IT-B (08.10.2026), Punkte (2) und (11) — Eintrag beim Zusammenführen der IT-Etappe nachgetragen.
+    id: "2026-10-08-konto-karte-erneut",
+    date: "2026-10-08",
+    category: "Neu",
+    title: "Konto & Karte: Einladung mit einem Klick erneut senden — Gekündigte raus aus der Liste",
+    summary:
+      "In der Akte steht der Kasten „Konto & Karte“ mit dem ganzen Weg der Einladung. „E-Mail erneut senden“ schickt "
+      + "denselben Link noch einmal — ohne neuen Vorgang. Die Liste heißt jetzt „Konto & Karte nachfassen“ und zeigt keine Gekündigten mehr.",
+    changes: [
+      "Kasten „Konto & Karte“ (Überblick und „Sein Antrag“): wann die Einladung zuerst ging, wann zuletzt erneut und von wem, an welche Adresse, und ob sie zugestellt, geöffnet oder geklickt wurde.",
+      "„E-Mail erneut senden“: dieselbe Einladung mit demselben Link — höchstens drei am Tag, mindestens 15 Minuten Abstand; die 10 € bleiben, wem sie gehören.",
+      "Kommt an die Adresse nichts an, steht das rot da — erst die richtige Adresse eintragen, dann erneut senden.",
+      "„Wirksam gekündigt“ ist jetzt EINE Regel für alle Listen und Automatiken; eine gekündigte Bonitätsauskunft ist keine Vertragskündigung.",
+      "Ein Kündigungsantrag aus dem Formular, der noch nicht gebucht ist, steht als „liegt vor, ist aber nicht gebucht“ da — er zählt erst nach „Jetzt buchen“.",
+    ],
+    howto: [
+      "Akte öffnen → Überblick → Kasten „Konto & Karte“ → „E-Mail erneut senden“ (Adresse vorher mit dem Kunden abgleichen).",
+      "Bestand: Filter „Konto & Karte nachfassen“; auf dem Schreibtisch stehen die Fälle unten in „Jetzt dran“.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+  },
+  {
+    // E-IT-C (08.10.2026), Punkte (3) und (13) — Eintrag beim Zusammenführen der IT-Etappe nachgetragen.
+    id: "2026-10-08-unterlagen-einzeln",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "Unterlagen: jede Datei einzeln — Hinzufügen statt Ersetzen",
+    summary:
+      "Im Reiter „Dokumente“ siehst du je Unterlage den Stand (liegt vor, fehlt, wird geprüft, bitte neu) und jede Datei einzeln. "
+      + "Neue Dateien legen sich dazu, statt die alten zu ersetzen — beim Kunden genauso.",
+    changes: [
+      "„Hinzufügen“ legt den fehlenden Monat oder die Rückseite dazu; „Alles ersetzen“ tauscht nur mit Grund aus; „Entfernen“ nimmt eine falsche Datei heraus (sie bleibt im Archiv).",
+      "Neu: „Weitere Unterlagen“ (Aufenthaltstitel, Einkommensnachweis, Bescheide, Sonstiges); deine Notiz dort sieht der Kunde nicht.",
+      "Bis 50 MB je Datei, auch iPhone-Fotos (HEIC); eine passwortgeschützte, leere oder falsche Datei bekommt einen klaren Satz statt eines Fehlurteils.",
+      "„Geprüft“ setzt du, wenn du hingesehen hast — danach entfernt der Kunde dort nichts mehr selbst. Ausweisfotos liest keine KI: bitte selbst ansehen.",
+    ],
+    howto: [
+      "Akte öffnen → Reiter „Dokumente“ → bei der Unterlage „Hinzufügen“, „Entfernen“ oder „Geprüft“.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+  },
+  {
+    // E-IT-H (08.10.2026), Punkt (15) — Eintrag beim Zusammenführen der IT-Etappe nachgetragen.
+    id: "2026-10-08-whatsapp-raum-gross",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "WhatsApp-Raum: ganzer Bildschirm, größere Schrift, Suche über alle Gespräche",
+    summary:
+      "Der WhatsApp-Raum füllt jetzt den ganzen Bildschirm, die Schrift lässt sich vergrößern, und die Suche läuft über deine Gespräche statt nur über die geladene Liste.",
+    changes: [
+      "Nur Verlauf, Liste und Fall rollen; die Liste lässt sich mit « zur Schiene einklappen.",
+      "„Schrift größer“ vergrößert Nachrichten, Liste und Fall im ganzen Raum.",
+      "Die Liste startet mit „Mit Antwort“; die Suche schaut im Standardfilter in alle deine Gespräche.",
+      "Aus der Akte („Chat im WhatsApp-Raum öffnen“) und aus Maras Aufgaben springst du direkt in das richtige Gespräch.",
+      "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile.",
+    ],
+    link: { href: "/agent/whatsapp", label: "WhatsApp-Raum öffnen" },
+  },
+  {
     // E-286 (05./06.10.2026): neue Wortmarke überall.
     id: "2026-10-06-neues-logo",
     date: "2026-10-06",

@@ -851,6 +851,14 @@ titel("11. Runde 3 (Justin 08.10.2026, Endfassung): Kapital vorne, Gründungskos
   ok(S.FIRMA_FASSUNGEN.includes("IA-FIRMA-2026-10-08-C" as any) && S.FIRMA_FASSUNGEN[S.FIRMA_FASSUNGEN.length - 1] === "IA-FIRMA-2026-10-08-D" && S.ANLAGE1_FIRMA_FASSUNG === "IA-FIRMA-ANLAGE1-2026-10-08-D", "Fassungen: D aktuell, C bleibt lesbar; Anlage 1 unverändert (Fassung D der Anlage)");
 }
 
+titel("13. Annahme meldet sich per Mail an Justin (08.10.2026, Hildbrand)");
+{
+  const ia = fs.readFileSync("server/lib/fiaon-global-angebot.ts", "utf8"); const fa = fs.readFileSync("server/lib/fiaon-global-angebot-firma.ts", "utf8");
+  const au = fs.readFileSync("server/lib/fiaon-global-angebot-aufrufe.ts", "utf8");
+  ok(/export async function annahmeMelden/.test(au) && /an: AUFRUF_MELDUNG_AN/.test(au.slice(au.indexOf("export async function annahmeMelden"))), "annahmeMelden schickt an js@fiaon.com (AUFRUF_MELDUNG_AN)");
+  ok(/A\.annahmeMelden\(\{ ref: d\.ref, name, art: "Individualangebot"/.test(ia) && /A\.annahmeMelden\(\{ ref: d\.ref, name, art: "Firmenangebot"/.test(fa), "Individual- und Firmenangebot melden die Annahme sofort per Mail");
+}
+
 titel("12. Gegenprüfung 08.10.2026: Starttag mit spätestem Start in jedem Satz, Stundenlauf ohne Starttag, Kündigung vor dem Starttag");
 {
   // ── Fund 1: Jeder Satz der Seite, der „live“ sagt, nennt auch den spätesten Start (Ziffer 10 Absatz 2) ──

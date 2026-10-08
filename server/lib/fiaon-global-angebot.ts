@@ -1041,6 +1041,11 @@ export async function angebotNacharbeit(id: number): Promise<void> {
     anBetreiber: true, schluessel: `global:${ref1}:angebot-justin`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
     link: "/chef/s/global-auftraege?reiter=angebote", anlageText: `Individualangebot ${d.ref} angenommen.`,
   }).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Aufgabe an Justin:`, e));
+  // Justin 08.10.2026: dazu SOFORT eine Mail an ihn — die Aufgabe auf dem Board allein mailt nicht.
+  await import("./fiaon-global-angebot-aufrufe")
+    .then((A) => A.annahmeMelden({ ref: d.ref, name, art: "Individualangebot", betrag: angebotEur(d.parameter.teil1Cents), zeilen: [teilText, sgZeile] }))
+    .then((s) => console.log(`[FIAON-ANGEBOT] ${d.ref}: Annahme — ${s}`))
+    .catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Annahme-Mail an Justin:`, e));
   // ── Die Bestätigungsmail — höchstens einmal, nachholbar ──
   await bestaetigungSenden(id).catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Bestätigungsmail:`, e));
   await globalVerlauf(ref1, `FIAON Global: Individualangebot ${d.ref} angenommen (${ANGEBOT_KNOPF}). Vertrag mit Prüfsumme in der Akte; Rechnung Teil 1 ${b?.invoice_number ?? ""} über ${angebotEur(d.parameter.teil1Cents)}, sofort fällig.`);

@@ -769,6 +769,11 @@ export async function firmaNacharbeit(id: number): Promise<void> {
     anBetreiber: true, schluessel: `global:${ref1}:angebot-justin`, bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
     anlageText: `Firmenangebot ${d.ref} angenommen.`,
   }).catch((e) => console.error(`[FIAON-FIRMA] ${d.ref}: Aufgabe an Justin:`, e));
+  // Justin 08.10.2026: dazu SOFORT eine Mail an ihn — die Aufgabe auf dem Board allein mailt nicht.
+  await import("./fiaon-global-angebot-aufrufe")
+    .then((A) => A.annahmeMelden({ ref: d.ref, name, art: "Firmenangebot", betrag: firmaEur(d.parameter.startCents), zeilen: [teilText, sgZeile] }))
+    .then((s) => console.log(`[FIAON-FIRMA] ${d.ref}: Annahme — ${s}`))
+    .catch((e) => console.error(`[FIAON-FIRMA] ${d.ref}: Annahme-Mail an Justin:`, e));
   await globalVerlauf(ref1, `FIAON Global: Firmenangebot ${d.ref} angenommen (${FIRMA_KNOPF}). Vertrag mit Prüfsumme in der Akte; Rechnung Gründung ${b?.invoice_number ?? ""} über ${firmaEur(d.parameter.startCents)}, sofort fällig, Reverse Charge. Starttag ${firmaTag(sch.starttag)}.`);
 }
 

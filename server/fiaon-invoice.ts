@@ -48,7 +48,7 @@
 import { createHmac } from "crypto";
 import { absoluteUrl } from "./fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
-import { istGlobalPaket, istAngebotsPaket } from "@shared/fiaon-pakete";
+import { istGlobalPaket, istAngebotsPaket, paket } from "@shared/fiaon-pakete";
 import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
 import type PDFKit from "pdfkit";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
@@ -340,12 +340,16 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
 
   // 04.09.2026 (E-115): Eine Monatsrate bekommt dieselbe Rechnung, nur mit
   // eigener Beschreibung und eigenem Zeitraum — die Zeile darf sie mitbringen.
+  // E-314 (08.10.2026): Ein Katalogpaket mit eigenem Rechnungstext (Einzelrechnung) — alle anderen wie bisher.
+  const katalogText = paket(a.pack_key)?.rechnung ?? null;
   const description = a.beschreibung
     ? String(a.beschreibung)
+    : katalogText
+      ? `${packName} — ${katalogText.beschreibung}`
     : firmenkunde
       ? `${packName} — Aufbau einer US-Unternehmensstruktur gemäß Auftrag ${a.ref || ""}`.trim()
       : `${packName} — monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform (Software-Lizenz, KI-Profilanalyse, Lernmodule, Dashboard)`;
-  const zeitraum = a.zeitraum ? String(a.zeitraum) : firmenkunde ? "einmalig" : "1 Monat ab Freischaltung des Zugangs";
+  const zeitraum = a.zeitraum ? String(a.zeitraum) : katalogText ? katalogText.zeitraum : firmenkunde ? "einmalig" : "1 Monat ab Freischaltung des Zugangs";
   const rowTop = y + 10;
   doc.font("Helvetica").fontSize(9.5).fillColor(CI.dark)
     .text(description, descX, rowTop, { width: descW });

@@ -65,6 +65,11 @@ export interface Paket {
    * (fiaon_paketpreise verlangt preis_cents > 0).
    */
   preisJeAngebot?: true;
+  /**
+   * Eigener Rechnungstext (08.10.2026, E-314): Beschreibung hinter dem Paketnamen und Zeitraum. Ohne das Feld schreibt die
+   * Rechnung wie bisher „monatlicher Zugang …“ (Privat) bzw. „Aufbau einer US-Unternehmensstruktur …“ (Global).
+   */
+  rechnung?: { beschreibung: string; zeitraum: string };
 }
 
 export const PAKETE: Paket[] = [
@@ -112,6 +117,12 @@ export const PAKETE: Paket[] = [
   // LIKE 'global%') unverändert mit. `eingestellt`: nie in einer Auswahl;
   // `preisJeAngebot`: der Betrag kommt aus dem Angebotsteil (server/lib/fiaon-global-angebot.ts).
   { key: "global_individuell",  label: "FIAON Global – Individualangebot", preisCents: 0, art: "global", abo: false, eingestellt: true, preisJeAngebot: true },
+  // ── EINZELRECHNUNG FÜR BESTANDSKUNDEN (08.10.2026, E-314) ────────────────
+  // Justin: „die 169,70 € als Rechnung anlegen, so wie er es bezahlt hat“ — das Unterlagen-Paket zur LLC-Gründung eines
+  // Bestandskunden (Begleitvertrag E-312). Einmalkauf (abo: false → nie eine Rate), Art „privat“ statt „global“: Ein
+  // Global-Paket startete nach der Zahlung den Global-Auftrag mit Kundenmail (globalNachZahlung). `eingestellt`: in keiner Auswahl.
+  { key: "llc_paket",           label: "GLOBAL LLC Package",        preisCents:   16970, art: "privat", abo: false, eingestellt: true,
+    rechnung: { beschreibung: "Unterlagen-Paket für die Gründung Ihrer US-Gesellschaft (LLC)", zeitraum: "einmalig" } },
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));

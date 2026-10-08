@@ -5,6 +5,14 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.10.2026 nachts — E-314 Einzelrechnung „GLOBAL LLC Package“ (Bestandskunde, 169,70 €)
+- **Was:** Neuer Katalogeintrag `llc_paket` (169,70 €, Einmalkauf, Art privat, nicht verkaufbar) mit eigenem Rechnungstext:
+  „GLOBAL LLC Package — Unterlagen-Paket für die Gründung Ihrer US-Gesellschaft (LLC)“, Zeitraum „einmalig“. Rechnungen anderer
+  Pakete bleiben unverändert (der Text greift nur bei Paketen mit `rechnung`).
+- **Warum:** Justin: „die 169,70 € als Rechnung anlegen, so wie er es bezahlt hat, und bei ihm verbuchen“. Ohne Paket schrieb die
+  Rechnung „monatlicher Zugang …“; ein Global-Paket hätte nach der Zahlung den Global-Start mit Kundenmail ausgelöst.
+- **Wo:** shared/fiaon-pakete.ts, server/fiaon-invoice.ts; Prüfstand pruef-pakete 357/0, pruef-katalogpreis-wand (lokal) 36/0.
+
 ## 08.10.2026 nachts — E-312 Begleitvertrag für Bestandskunden (FIAON Global)
 - **Was:** Eine dritte Fassung des persönlichen Angebots unter `/business/angebot/<Link>` für Kunden aus dem alten Business-Konzept:
   kein Abo mehr (die Mitgliedschaft endet mit der Annahme), Gründung der US-LLC zum Selbstkostenpreis (Spanne mit Höchstbetrag,

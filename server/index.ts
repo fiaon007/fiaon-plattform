@@ -73,7 +73,9 @@ app.use((req, res, next) => {
         // „Mein Auftrag" (Kunde) und die Office-/Leitungsrouten dazu: dieselbe Nummer, derselbe Schutz.
         .replace(/\/global\/(auftrag|mein-auftrag|auftraege|angebot)\/[^/?]+/, "/global/$1/…");
       // Die Antworten der Office- und Leitungsrouten tragen den Kundenlink mit frischem Token — auch sie bleiben draußen.
-      const ohneAntwort = /\/api\/fiaon\/((agent|admin)\/)?global\//.test(path);
+      // 08.10.2026: Zugang übergeben — die Antworten tragen Link und Code (Chefbüro) oder das Start-Passwort
+      // (Empfängerseite). Für diese Pfade steht nur die Anfrage-Zeile im Protokoll, nie die Antwort.
+      const ohneAntwort = /\/api\/fiaon\/((agent|admin)\/)?global\//.test(path) || /\/zugang-uebergabe(\/|$)/i.test(path);
       let logLine = `${req.method} ${pfadOhneToken} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse && !ohneAntwort) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;

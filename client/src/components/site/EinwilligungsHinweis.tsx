@@ -24,7 +24,9 @@ const INTERN = /^\/(agent|admin|chef|Admindashboard|admindashboard|onboarding|in
 // Individualangebot (01.10.2026), Nachtrag d: Auf der persönlichen Vertragsseite gibt es KEINE Messung —
 // kein Pixel, kein Clarity, keine Analytics, und der Hinweis wird dort nicht gezeigt. Auch eine früher auf
 // anderen Seiten gegebene Einwilligung wird dort nicht angewendet (messungStarten bleibt aus).
-const OHNE_MESSUNG = /^\/business\/angebot(\/|$)/;
+// 08.10.2026: Ebenso die Empfängerseite „Zugang übergeben“ — dort steht ein Start-Passwort im Bild; eine
+// Sitzungsaufzeichnung (Clarity) darf es nie sehen, auch nicht mit einer früher gegebenen Einwilligung.
+const OHNE_MESSUNG = /^\/(business\/angebot|zugang\/uebergabe)(\/|$)/;
 
 export default function EinwilligungsHinweis() {
   // Auf Business-Seiten öffnen die Rechtsseiten im Rahmen von FIAON Global (lib/bereich.ts).

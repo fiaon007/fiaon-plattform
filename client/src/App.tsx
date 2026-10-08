@@ -29,6 +29,8 @@ const AdminKundeAktePage = lazy(() => import("@/pages/admin-kunde"));
 const AdminAntraegePage = lazy(() => import("@/pages/admin-antraege"));
 const AdminFunktionenPage = lazy(() => import("@/pages/admin-funktionen"));
 const ZugangSetzenPage = lazy(() => import("@/pages/zugang-setzen"));
+// 08.10.2026: Zugang digital übergeben — Empfängerseite (Token im Anker, Passwort erst nach dem Code).
+const ZugangUebergabePage = lazy(() => import("@/pages/zugang-uebergabe"));
 const WasIstFiaonPage = lazy(() => import("@/pages/site/was-ist-fiaon"));
 const PlattformKonzeptPage = lazy(() => import("@/pages/site/plattform-konzept"));
 import LoginPage from "@/pages/login";
@@ -822,6 +824,8 @@ function Router() {
       <Route path="/passwort-vergessen" component={PasswortVergessenPage} />
       {/* 06.09.2026: Der Setz-Link aus „Zugang retten“ (Mitarbeiter) führte bis heute auf die 404-Seite —
           der Server kannte /zugang/:ref/pruefen und /setzen, der Browser keine Seite dazu. */}
+      {/* 08.10.2026: VOR /zugang/:ref — sonst nähme der Setz-Link für Kunden „uebergabe“ als Kundennummer. */}
+      <Route path="/zugang/uebergabe" component={ZugangUebergabePage} />
       <Route path="/zugang/:ref" component={ZugangSetzenPage} />
       <Route path="/abo-kuendigen" component={AboKuendigenPage} />
       {/* E-240: Die alten Auskunft-Seiten versprachen „Express am selben Werktag" und eine

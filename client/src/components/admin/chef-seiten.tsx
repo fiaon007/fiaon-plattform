@@ -194,6 +194,8 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "nachbuchung", label: "Provision nachbuchen", satz: "Eine übersehene Provision nachträglich anlegen.", Seite: TeamZentrale, raum: "team", mindest: "geschaeftsfuehrung", suche: "tab=nachbuchung", auch: "nachtragen backfill" },
   { slug: "rangliste", label: "Rangliste & Leistung", satz: "Wer steht wo — auch zum Teilen.", Seite: TeamZentrale, raum: "team", suche: "rang=1", auch: "ranking wettbewerb deckungsbeitrag" },
   { slug: "einladen", label: "Teammitglied einladen", satz: "Neuen Mitarbeiter per E-Mail anlegen.", Seite: TeamZentrale, raum: "team", suche: "einladen=1" },
+  // 08.10.2026: Keine neue Seite (Hausregel) — ein Reiter der Team-Zentrale, wie „Provision nachbuchen“.
+  { slug: "zugang-uebergeben", label: "Zugang übergeben", satz: "Zugang und Start-Passwort digital übergeben: Einmal-Link mit QR-Code und Code, nach Bestätigung gelöscht.", Seite: TeamZentrale, raum: "team", suche: "tab=zugang", auch: "zugang passwort startpasswort start-passwort übergabe uebergabe übergeben postfach e-mail email google workspace onboarding praktikum neue mitarbeiterin neuer mitarbeiter qr code link einmal" },
   { slug: "bewerbungen", label: "Bewerbungen", satz: "Wer sich beworben hat, wer zuständig ist — Zusage oder Absage mit Mail, dann die Einladung.", Seite: Bewerbungen, raum: "team", auch: "karriere bewerber bewerbung einstellen recruiting" },
   { slug: "vertraege", label: "Onboarding & Verträge", satz: "Zustimmungen, Vertragsstand, Vorlagen, Nachweise.", Seite: Vertraege, raum: "team" },
   { slug: "agent-portal", label: "Team-Updates & Feedback", satz: "Portal-Updates posten, Feedback prüfen.", Seite: AgentPortal, raum: "team" },

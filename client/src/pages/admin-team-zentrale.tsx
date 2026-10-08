@@ -7,6 +7,8 @@ import { NachbuchenTafel } from "@/components/admin/NachbuchenTafel";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 import VerguetungTafel from "@/components/admin/VerguetungTafel";
 import Bewerbungen from "@/components/admin/Bewerbungen";
+// 08.10.2026: Zugang digital übergeben (Link + Code statt Übergabe-PDF mit Handfeld).
+import ZugangUebergabe from "@/components/admin/ZugangUebergabe";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEAM-ZENTRALE — alles über einen Menschen an einem Ort
@@ -1293,15 +1295,25 @@ export default function AdminTeamZentrale() {
   // Detail. Jetzt ist sie da, wo der Weg schon hinzeigte.
   const [reiter, setReiter] = useState<
     "menschen" | "nachbuchung" | "aktivitaet" | "inkasso" | "neu" | "partner"
-    | "praemien" | "skripte" | "einstellungen" | "bewerbungen"
+    | "praemien" | "skripte" | "einstellungen" | "bewerbungen" | "zugang"
   >(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    return (["menschen", "nachbuchung", "aktivitaet", "inkasso", "neu", "partner", "praemien", "skripte", "einstellungen", "bewerbungen"].includes(String(t))
+    return (["menschen", "nachbuchung", "aktivitaet", "inkasso", "neu", "partner", "praemien", "skripte", "einstellungen", "bewerbungen", "zugang"].includes(String(t))
       ? t : "menschen") as any;
   });
   const [einladen, setEinladen] = useState(
     () => new URLSearchParams(window.location.search).get("einladen") === "1",
   );
+  // Reiter wechseln und in der Adresse merken — dieselbe Zeile für die Reiterleiste und den Kopfknopf
+  // „Zugang übergeben“ (08.10.2026). Bleibt auf der Adresse, auf der die Seite läuft: im Chefbüro
+  // /chef/s/team, sonst /admin/team (vorher sprang der Reiterwechsel im Chefbüro nach /admin/team).
+  const reiterWechseln = (w: typeof reiter) => {
+    setReiter(w);
+    const p = new URLSearchParams(window.location.search);
+    w === "menschen" ? p.delete("tab") : p.set("tab", w);
+    const basis = window.location.pathname.startsWith("/chef") ? window.location.pathname : "/admin/team";
+    window.history.replaceState(null, "", `${basis}${p.toString() ? `?${p}` : ""}`);
+  };
 
   // ── TESTKONTEN SIND EIN FILTER, KEIN DAUERGAST ──────────────────────────
   // GEMESSEN am 17.08.2026: 49 Mitarbeiter-Konten, davon 43 Testkonten aus
@@ -1388,6 +1400,11 @@ export default function AdminTeamZentrale() {
                 {nurTest ? `Testkonten (${testZahl.test}) — zurück zum Team` : `Testkonten ${testZahl.test}`}
               </button>
             )}
+            {/* 08.10.2026: Zugang und Start-Passwort digital übergeben — öffnet den Reiter „Zugang übergeben“. */}
+            <button type="button" onClick={() => reiterWechseln("zugang")}
+                    className="zu-knopf px-3.5 py-2 rounded-xl text-[12.5px] font-semibold bg-white border border-slate-200 text-slate-600">
+              Zugang übergeben
+            </button>
             <button type="button" onClick={() => setEinladen(true)}
                     className="px-3.5 py-2 rounded-xl text-[12.5px] font-bold text-white bg-[#1d4ed8]">
               Teammitglied anlegen
@@ -1409,17 +1426,14 @@ export default function AdminTeamZentrale() {
             // 11.09.2026 (E-177): Bewerbungen von /karriere — bis dahin nur
             // in einer zugeklappten Werkstatt-Karte des Chefbüros zu sehen.
             ["bewerbungen", "Bewerbungen"],
+            // 08.10.2026: Einmal-Link + Code statt Übergabe-PDF — Passwort nur verschlüsselt, nach Bestätigung gelöscht.
+            ["zugang", "Zugang übergeben"],
             ["praemien", "Meilenstein-Prämien"],
             ["skripte", "Skripte & Leitfäden"],
             ["einstellungen", "Einstellungen"],
           ] as const).map(([w, t]) => (
             <button key={w} type="button"
-                    onClick={() => {
-                      setReiter(w);
-                      const p = new URLSearchParams(window.location.search);
-                      w === "menschen" ? p.delete("tab") : p.set("tab", w);
-                      window.history.replaceState(null, "", `/admin/team${p.toString() ? `?${p}` : ""}`);
-                    }}
+                    onClick={() => reiterWechseln(w)}
                     className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold"
                     style={reiter === w
                       ? { background: "#1d4ed8", color: "#fff" }
@@ -1445,6 +1459,7 @@ export default function AdminTeamZentrale() {
           <PartnerSuggestionsCard flash={(m) => setMeldung({ art: "gut", text: m })} onChanged={laden} />
         )}
         {reiter === "bewerbungen" && <Bewerbungen />}
+        {reiter === "zugang" && <ZugangUebergabe />}
         {reiter === "praemien" && (
           <MilestoneTasksCard flash={(m) => setMeldung({ art: "gut", text: m })} />
         )}

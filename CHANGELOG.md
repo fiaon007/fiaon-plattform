@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.10.2026 — E-310: Zugang digital übergeben (Link + Code statt Übergabe-PDF)
+
+Stand: live seit 08.10.2026 abends. Warum: Bisher bekam ein neues Teammitglied ein Übergabe-PDF mit
+einem Handfeld für das Start-Passwort. Jetzt läuft die Übergabe über die Plattform — und das Passwort steht nirgends offen.
+
+- **Chefbüro › Team › „Zugang übergeben“** (Reiter der Team-Zentrale, auch über den Knopf oben dort; keine neue Seite):
+  Die Leitung trägt Name, Rolle, Zugang (E-Mail), Anmeldeadresse, Ansprechperson und das Start-Passwort ein. Das System
+  erzeugt einen Link (48 Stunden gültig, als QR-Code zum Scannen) und einen sechsstelligen Code für die mündliche Weitergabe.
+  Link und Code stehen nur in diesem Moment da. Die Liste darunter zeigt je Übergabe „übergeben / angesehen / bestätigt am …“
+  oder „abgelaufen / gesperrt — neu ausstellen“; „Zurückziehen“ löscht ein noch offenes Passwort sofort.
+- **Empfängerseite fiaon.com/zugang/uebergabe** (hell, im Stil des PDFs): erst den Code, dann Willkommen, Zugang, Start-Passwort
+  (verdeckt, „Anzeigen“, „Kopieren“), die drei ersten Schritte, Sicherheitsregeln, Ansprechperson und der Knopf „Ich habe meinen
+  Zugang erhalten und das Passwort geändert“.
+- **Sicherheit:** Das Passwort steht nur verschlüsselt in der Datenbank (AES-256-GCM, eigener Server-Schlüssel
+  `ZUGANG_SCHLUESSEL`); vom Link und vom Code stehen nur Prüfsummen dort. Nach der Bestätigung, nach 48 Stunden oder nach drei
+  falschen Codes wird es gelöscht (die Zeile bleibt als Nachweis: wer ausgestellt hat, wann angesehen, wann bestätigt). Keine
+  Mail, kein Protokoll, keine Messung auf der Seite, keine Suchmaschine, kein Zwischenspeicher. Versuche sind je Link und je
+  Anschluss begrenzt.
+- **Server-Schlüssel:** `ZUGANG_SCHLUESSEL` ist in Render gesetzt (32 Byte, base64; 08.10.2026). Ohne ihn verweigert das
+  Chefbüro das Ausstellen mit Hinweis; wird er gewechselt, müssen offene Übergaben neu ausgestellt werden. Die Tabelle (Migration 107) entsteht beim Start von selbst.
+- Nebenbei: Ein Reiterwechsel in der Team-Zentrale sprang im Chefbüro bisher auf /admin/team; er bleibt jetzt im Chefbüro.
+
+---
+
 ## 08.10.2026 abends — E-301 Größen-Korrektur der Firmenangebotsseite (Justin: „vieles abgeschnitten … alles ein wenig kleiner“)
 - Große Beträge (Kapital, Hero, Vereinbarung, Rechner, Budget) passen sich der Breite ihres Kastens an (Container-Einheiten) — der Betrag im
   Kapital-Block wurde bei mittleren Breiten abgeschnitten.

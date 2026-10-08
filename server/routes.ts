@@ -617,6 +617,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonZugangRetten = await import('./routes/fiaon-zugang-retten');
   app.use('/api/fiaon', fiaonZugangRetten.default);
 
+  // 🔐 Zugang digital übergeben (08.10.2026): Die Leitung stellt im Chefbüro (Team-Zentrale, Reiter
+  //    „Zugang übergeben") einen Einmal-Link mit Code aus; das Start-Passwort steht nur verschlüsselt
+  //    (ZUGANG_SCHLUESSEL) in der Tabelle und wird nach Bestätigung, 48 h oder 3 falschen Codes geleert.
+  //    Pfade beginnen nicht mit /admin (requireChef statt adminCodeGate). Lib: lib/fiaon-zugang-uebergabe.ts.
+  const fiaonZugangUebergabe = await import('./routes/fiaon-zugang-uebergabe');
+  app.use('/api/fiaon', fiaonZugangUebergabe.default);
+  import('./lib/fiaon-zugang-uebergabe').then(({ ensureZugangUebergabeTabelle, abgelaufeneLoeschen }) => {
+    ensureZugangUebergabeTabelle().catch((e) => console.error('[ZUGANG-UEBERGABE] Tabelle beim Start:', e?.message || e));
+    // Abgelaufene Passwörter leeren, auch wenn niemand Link oder Liste öffnet. Nur im Betrieb (tageslauf);
+    // eine Historienzeile nur, wenn wirklich etwas geleert wurde (nurMitErgebnis).
+    import('./lib/fiaon-crons').then(({ tageslauf }) => {
+      tageslauf('zugang_uebergabe_ablauf', async () => (await abgelaufeneLoeschen()) > 0, 10 * 60 * 1000, { beimStartNach: 90_000, nurMitErgebnis: true });
+    });
+  });
+
   // 🗂️ Zentralen — EINE Kundenliste statt sechs Seiten, EINE Team-Zentrale.
   //    Filter, Massenauswahl, Loeschen (endgueltig vs. anonymisiert),
   //    Team-Kennzahlen, Protokolle, Nachrichten und Banner.
@@ -863,6 +878,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // „Mein Auftrag" trägt sein Token in der Adresse (?t=…). Die Seite darf in keinen Index,
   // und die Adresse darf nicht als Referer an fremde Hosts (Schriften, Bilder) mitreisen.
   // 01.10.2026 (E-268): Das Individualangebot trägt sein Token im Pfad — derselbe Schutz.
+  // 08.10.2026: Die Empfängerseite „Zugang übergeben“ (Token im Anker, Passwort nach dem Code) — derselbe Schutz, und
+  // sie wird nie vorgerendert (kein Eintrag in fiaon-seiten-seo, seitenHtml liefert für sie nichts).
+  app.get(['/zugang/uebergabe', '/zugang/uebergabe/*'], (_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  });
   app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*', '/business/angebot/*'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');

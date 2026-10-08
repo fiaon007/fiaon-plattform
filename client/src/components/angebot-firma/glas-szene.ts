@@ -405,8 +405,8 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
     // Kamera: Abstand so, dass das Glas mit Deckel passt; fährt heran und hebt sich zum Licht.
     const tanH = Math.tan(THREE.MathUtils.degToRad(kamera.fov / 2));
     const dHoch = 1.55 / tanH, dBreit = 1.45 / (tanH * kamera.aspect);
-    // Runde 2: das Glas etwa 17 % kleiner im Bild (Abstand × 1,2).
-    const d0 = Math.max(dHoch, dBreit) * (handy ? 1.36 : 1.44);
+    // Runde 2: das Glas etwa 17 % kleiner im Bild (Abstand × 1,2); Korrektur 08.10. (Justin: „alles ein wenig kleiner“) nochmals × 1,2.
+    const d0 = Math.max(dHoch, dBreit) * (handy ? 1.62 : 1.74);
     // Die Kamera steigt und blickt ins Glas; der Abstand wächst leicht, damit Glas, Licht und Zeile ins Bild passen.
     const d = d0 * (1 + 0.16 * fahrt);
     const zielY = mix(0.95, 1.75, fahrt);

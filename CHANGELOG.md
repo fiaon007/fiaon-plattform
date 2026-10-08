@@ -5,6 +5,13 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.10.2026 abends — E-301 Größen-Korrektur der Firmenangebotsseite (Justin: „vieles abgeschnitten … alles ein wenig kleiner“)
+- Große Beträge (Kapital, Hero, Vereinbarung, Rechner, Budget) passen sich der Breite ihres Kastens an (Container-Einheiten) — der Betrag im
+  Kapital-Block wurde bei mittleren Breiten abgeschnitten.
+- Überschriften und Zahlen rund ein Viertel kleiner; 3D-Glas nochmals etwa 17 % kleiner im Bild; lange Titel brechen sauber.
+- Geprüft bei 360, 390, 820, 1024, 1280, 1440, 1920 px: kein abgeschnittener Text, kein seitliches Scrollen. pruef-angebot-firma 432/0,
+  pruef-individualangebot 882/882, vite build grün.
+
 ## 08.10.2026 — IT-Feedback Etappe 1: Punkte 1–15 (außer Ausweis-KI)
 
 Stand: in einem Zweig zusammengeführt und geprüft, **noch nicht live** — erst mit dem Deploy bedienbar. Punkt 12 (Ausweis an die KI)

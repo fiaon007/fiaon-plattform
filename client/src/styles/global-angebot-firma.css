@@ -1251,3 +1251,42 @@ label.gaf-wahl, .gaf-wahl-kopf { display:flex; align-items:center; gap:14px; min
 @media (prefers-reduced-motion:reduce) {
   .gaf-mehr *, .gaf-zeile *, .gaf-fragen-weitere { transition:none !important; animation:none !important; }
 }
+
+/* ═══ Größen-Korrektur 08.10.2026 (Justin: „vieles abgeschnitten … alles ein wenig kleiner, so groß und unsauber“) ═══
+   1) Große Beträge passen sich der Breite ihres Kastens an (Container-Einheiten) — „250.000 USD“ kann nicht mehr abgeschnitten werden.
+   2) Überschriften und Zahlen insgesamt rund ein Viertel kleiner, ruhiger. */
+.gaf-kapital-buehne, .gaf-hero-kapital, .gaf-bekommen-liste li.erste, .gaf-rechner, .gaf-zeile-klapp, .gaf-posten > * { container-type:inline-size; }
+.gaf-kapital-betrag { font-size:min(76px, 15cqw); letter-spacing:-.03em; }
+.gaf-hero-betrag { font-size:min(clamp(46px,5.2vw,80px), 16cqw); letter-spacing:-.035em; }
+.gaf-bekommen-liste li.erste .gaf-bekommen-wert { font-size:min(clamp(34px,3.6vw,52px), 15cqw); }
+.gaf-rechner-zahl { font-size:min(clamp(44px,5vw,76px), 15cqw); }
+.gaf-budget-zahl, .gaf-zeile-klapp .gaf-budget-zahl { font-size:min(clamp(40px,4.2vw,60px), 15cqw); }
+.gaf-posten-betrag { font-size:min(clamp(36px,3.4vw,50px), 18cqw); }
+.gaf-h1 { font-size:clamp(30px,3.4vw,48px); }
+.gaf-h2 { font-size:clamp(27px,2.9vw,42px); }
+.gaf-hero-kapital + .gaf-h1 { font-size:clamp(23px,2.1vw,30px); }
+.gaf-auftakt-gruss { font-size:clamp(34px,5.4vw,80px); }
+.gaf-hero-weg-zeile { font-size:clamp(34px,4.8vw,72px); }
+.gaf-etappe-titel { font-size:clamp(22px,2.1vw,28px); }
+.gaf-person-name { font-size:clamp(28px,2.8vw,40px); }
+.gaf-kernzahlen dd { font-size:clamp(28px,2.8vw,40px); }
+.gaf-urteil-titel { font-size:clamp(21px,2.1vw,29px); }
+.gaf-dokument-titel { font-size:clamp(22px,2.1vw,29px); }
+.gaf-gruendung-satz { font-size:clamp(20px,1.9vw,26px); }
+.gaf-garantie-kern { font-size:clamp(17px,1.5vw,20px); }
+.gaf-bed-titel { font-size:20px; }
+.gaf-bekommen-wert { font-size:clamp(22px,2vw,28px); }
+.gaf-zeile-betrag { font-size:clamp(28px,2.6vw,38px); }
+.gaf-kapital-buehne { padding:44px 40px 38px; }
+/* Lange Wörter (Firmennamen, Ziffern-Titel) brechen sauber statt aus dem Kasten zu laufen. */
+.gaf-h1, .gaf-h2, .gaf-etappe-titel, .gaf-bed-titel, .gaf-dokument-titel { overflow-wrap:break-word; hyphens:auto; }
+.gaf-auge { hyphens:manual; }
+@media (max-width:899.98px), (orientation:portrait) {
+  .gaf-hero-betrag { font-size:min(clamp(42px,12vw,68px), 16cqw); }
+  .gaf-hero-kapital + .gaf-h1 { font-size:clamp(20px,5vw,26px); }
+}
+@media (max-width:620px) {
+  .gaf-kapital-buehne { padding:28px 20px 24px; }
+  .gaf-kapital-betrag { font-size:min(58px, 15cqw); }
+  .gaf-h2 { font-size:clamp(25px,7vw,32px); }
+}

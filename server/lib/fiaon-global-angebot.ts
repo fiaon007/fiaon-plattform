@@ -48,6 +48,7 @@
 import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
+import { geburtsdatumFuerSpeicher } from "../../shared/fiaon-geburtsdatum";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
   ANGEBOT_FASSUNG, ANGEBOT_FASSUNGEN, ANGEBOT_VORGABEN, ANGEBOT_GUELTIG_TAGE, ANGEBOT_ANNAHME, ANGEBOT_KNOPF, ANGEBOT_FEST, BUERGIN_VORGABE, BUERGIN_FELDER,
@@ -392,11 +393,15 @@ export function angebotKundePruefen(k: any): { ok: true; kunde: AngebotKunde } |
   const kunde: AngebotKunde = {
     anrede: ["Herr", "Frau"].includes(String(k?.anrede)) ? (String(k.anrede) as "Herr" | "Frau") : "",
     vorname: text(k?.vorname, 80), nachname: text(k?.nachname, 80),
-    geburtsdatum: text(k?.geburtsdatum, 10), strasse: text(k?.strasse, 160), plz: text(k?.plz, 10), ort: text(k?.ort, 120), land,
+    geburtsdatum: text(k?.geburtsdatum, 40), strasse: text(k?.strasse, 160), plz: text(k?.plz, 10), ort: text(k?.ort, 120), land,
     email: text(k?.email, 160).toLowerCase(), telefon: text(k?.telefon, 40),
   };
   if (!kunde.vorname || !kunde.nachname) return { ok: false, error: "Vor- und Nachname fehlen." };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(kunde.geburtsdatum)) return { ok: false, error: "Geburtsdatum als JJJJ-MM-TT." };
+  // E-IT-G (08.10.2026): der eine Leser (Kontext „vertrag“: ab 18, echter Kalendertag; „14.03.1963“ und ISO).
+  const geb = geburtsdatumFuerSpeicher(kunde.geburtsdatum, "vertrag");
+  if (!geb.ok) return { ok: false, error: `Geburtsdatum: ${geb.fehler}` };
+  if (geb.aenderung !== "setzen") return { ok: false, error: "Geburtsdatum fehlt (TT.MM.JJJJ)." };
+  kunde.geburtsdatum = geb.iso;
   if (kunde.strasse.length < 3 || !kunde.ort) return { ok: false, error: "Anschrift unvollständig." };
   if (!(land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(kunde.plz)) return { ok: false, error: "Postleitzahl passt nicht zum Land." };
   if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(kunde.email)) return { ok: false, error: "E-Mail-Adresse ungültig." };

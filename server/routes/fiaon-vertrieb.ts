@@ -36,6 +36,7 @@ import { requireAgent, type AgentRequest, normalizeSearchDigits } from "./fiaon-
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { ERGEBNISSE, ergebnisAnwenden, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
+import { geburtsdatumFuerSpeicher } from "../../shared/fiaon-geburtsdatum";
 
 const router = Router();
 
@@ -532,7 +533,17 @@ router.patch("/agent/vertrieb/person/:id", requireAgent, nurLeitung, nurMitZusag
     const aenderungen: Record<string, { alt: any; neu: any }> = {};
     for (const feld of STAMM_FELDER) {
       if (req.body?.[feld] === undefined) continue;
-      const neu = String(req.body[feld] ?? "").trim() || null;
+      let neu = String(req.body[feld] ?? "").trim() || null;
+      // E-IT-G (08.10.2026): Diese Tür schrieb das Geburtsdatum ungeprüft an die Person
+      // (keine Oberfläche ruft sie heute auf — offen war sie trotzdem). Jetzt: der eine
+      // Leser (Kontext „akte“, mit Bestätigung, weil nur die Leitung hier schreibt),
+      // leer heißt „keine Änderung“ — entfernen geht über die Akte.
+      if (feld === "birthdate") {
+        const geb = geburtsdatumFuerSpeicher(req.body[feld], "akte", { bestaetigt: true });
+        if (!geb.ok) return res.status(400).json({ ok: false, error: `Geburtsdatum: ${geb.fehler}` });
+        if (geb.aenderung !== "setzen") continue;
+        neu = geb.iso;
+      }
       if (String(vorher[feld] ?? "") === String(neu ?? "")) continue;
       aenderungen[feld] = { alt: vorher[feld], neu };
     }

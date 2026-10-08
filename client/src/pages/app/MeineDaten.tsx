@@ -18,6 +18,7 @@ import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from "r
 import { Link } from "wouter";
 import type { Bereich } from "./typen";
 import { api } from "./Bausteine";
+import { geburtsdatumAnzeige } from "@shared/fiaon-geburtsdatum";
 import { ereignisMelden } from "./Bericht";
 import "@/styles/app-antraege.css";
 import "@/styles/app-bericht.css";
@@ -119,8 +120,7 @@ export function MeineDaten({ kundeRef, demo, kunde, basis: basisProp }: { kundeR
   );
 }
 
-/** 'YYYY-MM-DD' (oder ISO-Zeit) → „14.05.1988“; alles andere unverändert. */
+/** 'YYYY-MM-DD' (oder ISO-Zeit) → „14.05.1988“; alles andere unverändert. E-IT-G (08.10.2026): die eine Anzeige aus shared. */
 function geburtstag(v: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : v;
+  return geburtsdatumAnzeige(v) || v;
 }

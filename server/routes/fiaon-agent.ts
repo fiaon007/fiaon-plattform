@@ -18,6 +18,7 @@ import { readChef } from "./fiaon-chef-zugang";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { nameSauber } from "../../shared/fiaon-namen";
+import { geburtsdatumFuerSpeicher, geburtsdatumAnzeige, GEBURT_TEXTE } from "../../shared/fiaon-geburtsdatum";
 import bcrypt from "bcryptjs";
 import { createHmac, createHash, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import PDFDocument from "pdfkit";
@@ -1482,9 +1483,9 @@ export function normalizePhone(raw: string): string | null {
 export async function updateCustomerContact(
   ref: string,
   body: any,
-  actor: { id: number | null; name: string },
+  actor: { id: number | null; name: string; darfGeburtLoeschen?: boolean },
 ): Promise<{
-  error?: { code: number; msg: string };
+  error?: { code: number; msg: string; rueckfrage?: boolean };
   changes?: Array<{ field: string; from: string; to: string }>;
   duplicate?: { ref: string; payment_status: string; name: string } | null;
   loginEmailChanged?: boolean;
@@ -1519,10 +1520,23 @@ export async function updateCustomerContact(
   // fiaon-agent-anlage.ts hat es dokumentiert: „ok gemeldet und nichts
   // getan“). NACHHER wird es verarbeitet: JJJJ-MM-TT, an Bestellung UND
   // Person geschrieben, mit Audit-Zeile wie jedes andere Feld.
-  const birthdate = body.birthdate !== undefined ? String(body.birthdate).trim() : null;
-  if (birthdate !== null && birthdate !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) {
-    return { error: { code: 400, msg: "Geburtsdatum bitte als JJJJ-MM-TT." } };
+  // ── E-IT-G (08.10.2026), Punkt (14): EIN PRÜFER, EIN SCHREIBWEG ───────
+  // VORHER: nur die Form JJJJ-MM-TT („0063-11-17“, ein 31.02. und 2025 gingen
+  // durch), "" setzte die Bestellung auf NULL, die Person blieb (zwei
+  // Wahrheiten). NACHHER: shared/fiaon-geburtsdatum.ts (Kontext „akte“: unter
+  // 18 und ab 95 nur mit Bestätigung `geburtBestaetigt`), "" heißt „keine
+  // Änderung“, Entfernen nur mit `birthdateEntfernen` UND Leitungsrecht.
+  // Geschrieben wird über geburtsdatumSetzen (Person + alle lebenden
+  // Bestellungen, eine Transaktion, ein Verlaufseintrag).
+  if (body.birthdateEntfernen === true && !actor.darfGeburtLoeschen) {
+    return { error: { code: 403, msg: GEBURT_TEXTE.nurLeitungLoescht } };
   }
+  const geburt = geburtsdatumFuerSpeicher(body.birthdate, "akte", {
+    bestaetigt: body.geburtBestaetigt === true,
+    loeschen: body.birthdateEntfernen === true,
+  });
+  if (!geburt.ok) return { error: { code: 400, msg: `Geburtsdatum: ${geburt.fehler}`, rueckfrage: geburt.rueckfrage } };
+  const birthdate: string | null | undefined = geburt.aenderung === "setzen" ? geburt.iso : geburt.aenderung === "loeschen" ? null : undefined;
 
   // ── EIN FELD, DAS NUR LEERRAUM ENTHIELT, IST LEER ─────────────────────
   // `nameSauber` gibt dafür `null` zurück. Die alte Prüfung („!firstName")
@@ -1551,7 +1565,22 @@ export async function updateCustomerContact(
   if (street !== null && street !== (cur.street || "")) changes.push({ field: "Straße", from: cur.street || "—", to: street || "—" });
   if (zip !== null && zip !== (cur.zip || "")) changes.push({ field: "PLZ", from: cur.zip || "—", to: zip || "—" });
   if (city !== null && city !== (cur.city || "")) changes.push({ field: "Ort", from: cur.city || "—", to: city || "—" });
-  if (birthdate !== null && birthdate !== String(cur.birthdate || "").slice(0, 10)) changes.push({ field: "Geburtsdatum", from: String(cur.birthdate || "").slice(0, 10) || "—", to: birthdate || "—" });
+  // Das Geburtsdatum vergleicht gegen das, was die Akte ZEIGT (Person zuerst) —
+  // sonst entstünde bei Akten, deren Datum nur an der Person steht, eine
+  // „Änderung“ von — auf denselben Wert (Mitläufer-Zeile, Gegenprüfung 08.10.).
+  let geburtStand: Awaited<ReturnType<typeof import("../lib/fiaon-geburtsdatum-akte").geburtStandAkte>> | null = null;
+  if (birthdate !== undefined) {
+    const { geburtStandAkte } = await import("../lib/fiaon-geburtsdatum-akte");
+    const [pz] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref}`) as any[];
+    geburtStand = pz?.person_id ? await geburtStandAkte(Number(pz.person_id)) : null;
+    const bisher = geburtStand ? geburtStand.wert : (String(cur.birthdate || "").slice(0, 10) || null);
+    const schonEinheitlich = geburtStand ? !geburtStand.abweichend && geburtStand.bestellungen.every((b) => b.iso === birthdate) : bisher === birthdate;
+    if (bisher !== birthdate || !schonEinheitlich) {
+      // Wich das Datum zwischen Person und Bestellungen ab, nennt der Verlauf ALLE bisherigen Werte.
+      const von = geburtStand?.abweichend ? geburtStand.werte.map((w) => w.anzeige).join(" / ") : bisher ? geburtsdatumAnzeige(bisher) : "—";
+      changes.push({ field: "Geburtsdatum", from: von, to: birthdate ? geburtsdatumAnzeige(birthdate) : "—" });
+    }
+  }
   if (changes.length === 0) return { changes: [], duplicate: null, loginEmailChanged: false };
 
   // Duplikat-Warnung (Paket AC5): Kollision mit anderem Kunden derselben E-Mail?
@@ -1582,17 +1611,17 @@ export async function updateCustomerContact(
       street = ${street !== null ? (street || null) : cur.street},
       zip = ${zip !== null ? (zip || null) : cur.zip},
       city = ${city !== null ? (city || null) : cur.city},
-      birthdate = ${birthdate !== null ? (birthdate || null) : cur.birthdate},
       updated_at = NOW()
     WHERE ref = ${ref}
   `;
   // E-047: Das Geburtsdatum auch an der PERSON — dieselbe Regel wie bei
   // Nummer und E-Mail: zwei Wahrheiten wären eine Verabredung, wer sich irrt.
-  if (birthdate !== null && birthdate !== "") {
-    await sqlPool`
-      UPDATE fiaon_persons p SET birthdate = ${birthdate}, updated_at = NOW()
-      WHERE p.id = (SELECT person_id FROM fiaon_applications WHERE ref = ${ref})
-    `.catch(() => {});
+  // E-IT-G: über den EINEN Schreibweg (Person + alle lebenden Bestellungen in
+  // einer Transaktion). Ein Fehler wird NICHT mehr verschluckt — er geht als
+  // 500 an die Oberfläche, statt still eine zweite Wahrheit zu hinterlassen.
+  if (birthdate !== undefined && changes.some((c) => c.field === "Geburtsdatum")) {
+    const { geburtsdatumSetzen } = await import("../lib/fiaon-geburtsdatum-akte");
+    await geburtsdatumSetzen(ref, birthdate, { id: actor.id, name: actor.name }, { verlauf: false });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -2651,8 +2680,10 @@ router.patch("/agent/customers/:ref/contact-data", requireAgent, requireEigenerK
   try {
     const guard = await claimOrGuard(req.params.ref, req.agent!);
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
-    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: req.agent!.id, name: req.agent!.name });
-    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg });
+    // E-IT-G (08.10.2026): Ein Geburtsdatum ENTFERNEN darf nur die Leitung.
+    const { istLeitungsRolle } = await import("../lib/fiaon-geburtsdatum-akte");
+    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: req.agent!.id, name: req.agent!.name, darfGeburtLoeschen: istLeitungsRolle(req.agent!.rolle) });
+    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg, rueckfrage: result.error.rueckfrage || undefined });
     res.json({ ok: true, changes: result.changes, duplicate: result.duplicate, loginEmailChanged: result.loginEmailChanged });
   } catch (err) {
     console.error("[FIAON-AGENT] contact-data:", err);

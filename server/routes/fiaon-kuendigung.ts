@@ -201,13 +201,23 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
     const schreiben = req.body?.schreiben === true;
     const mailSenden = req.body?.mail === true;
     const deckel = Math.min(300, Math.max(1, Number(req.body?.deckel) || 300));
-    const kandidaten = (await sqlPool`
-      SELECT DISTINCT ON (c.ref) c.ref, c.created_at, c.reason
+    const alleKandidaten = (await sqlPool`
+      SELECT DISTINCT ON (c.ref) c.ref, c.created_at, c.reason,
+             -- E-IT-G (08.10.2026): Ohne passendes Geburtsdatum angenommen (Kündigungsseite) → erst buchen,
+             -- wenn die Aufgabe „Kündigung – Identität prüfen“ erledigt ist. to_jsonb: läuft auch ohne Migration 103.
+             ((COALESCE(to_jsonb(c) ->> 'identifiziert_ueber', 'geburtsdatum') <> 'geburtsdatum'
+               OR COALESCE(c.admin_note, '') LIKE '%– Identität prüfen]%')
+              AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t
+                               WHERE t.schluessel = 'kuendigung-identitaet:' || c.id::text AND t.status = 'erledigt')
+             ) AS identitaet_offen
         FROM cancellation_requests c
         JOIN fiaon_applications a ON a.ref = c.ref AND a.merged_into IS NULL
        WHERE c.status = 'pending' AND a.gekuendigt_am IS NULL
        ORDER BY c.ref, c.created_at ASC
     `) as any[];
+    // Zurückgehalten: Identität noch nicht geprüft — steht in der Vorschau getrennt.
+    const identitaetOffen = alleKandidaten.filter((k) => k.identitaet_offen === true).map((k) => String(k.ref));
+    const kandidaten = alleKandidaten.filter((k) => k.identitaet_offen !== true);
     const ergebnisse: any[] = [];
     let bleibtCents = 0, entfaelltCents = 0, mails = 0;
     for (const k of kandidaten.slice(0, deckel)) {
@@ -237,6 +247,7 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
     for (const e of ergebnisse) jeWeg[e.weg] = (jeWeg[e.weg] || 0) + 1;
     res.json({
       ok: true, schreiben, mailSenden, kandidaten: kandidaten.length, bearbeitet: ergebnisse.length, jeWeg,
+      identitaetOffen: identitaetOffen.length, identitaetOffenRefs: identitaetOffen.slice(0, 50),
       forderungBleibtEuro: Math.round(bleibtCents) / 100,
       forderungEntfaelltEuro: Math.round(entfaelltCents) / 100,
       mails, beispiele: ergebnisse.slice(0, 10),

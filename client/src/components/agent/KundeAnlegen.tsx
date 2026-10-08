@@ -61,6 +61,7 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { LABEL_VERTRIEB } from "@shared/fiaon-zustaendigkeit-text";
 import { AUSKUNFT_PREISE_CENTS, istAuskunftSchluessel } from "@shared/fiaon-auskunft";
+import { GeburtsdatumFeld, useGeburtsdatum } from "@/components/GeburtsdatumFeld";
 // Das Bauteil bringt seine Formensprache selbst mit: Es steht in pipeline.tsx
 // (lädt die Datei ohnehin) UND in kunden-neu.tsx (/agent/kunden-alt, lädt sie
 // nicht). Ohne diesen Import wäre es dort unformatiert. Die Datei enthält
@@ -127,8 +128,12 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
   const [pakete, setPakete] = useState<Paket[]>([]);
   const [f, setF] = useState({
     firstName: "", lastName: "", email: "", phone: "",
-    street: "", zip: "", city: "", birthdate: "", packKey: "",
+    street: "", zip: "", city: "", packKey: "",
   });
+  // E-IT-G (08.10.2026): das gemeinsame Geburtsdatum-Bauteil statt type=date
+  // („63“ → 1963, kein Kalender zum Zurückblättern). Kontext „akte“: unter 18
+  // oder ab 95 erst nach „Stimmt so“.
+  const geb = useGeburtsdatum(null, "akte");
   const [treffer, setTreffer] = useState<Treffer[]>([]);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -164,7 +169,10 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
   const anlegen = async () => {
     setLaeuft(true);
     setFehler(null);
-    const j = await ruf("/agent/kunden/neu", f);
+    const j = await ruf("/agent/kunden/neu", {
+      ...f,
+      ...(geb.iso ? { birthdate: geb.iso, ...(geb.bestaetigtMitsenden ? { geburtBestaetigt: true } : {}) } : {}),
+    });
     setLaeuft(false);
     if (!j?.ok) {
       setFehler(String(j?.error ?? "Unbekannter Fehler"));
@@ -185,7 +193,8 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
 
   const zuruecksetzen = () => {
     setF({ firstName: "", lastName: "", email: "", phone: "",
-           street: "", zip: "", city: "", birthdate: "", packKey: "" });
+           street: "", zip: "", city: "", packKey: "" });
+    geb.zuruecksetzen(null);
     setTreffer([]); setFehler(null); setErfolg(null);
     setTerminLink(null); setMeldung(null);
   };
@@ -214,6 +223,8 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
   if (!f.firstName.trim()) fehlt.push("Vorname");
   if (!f.lastName.trim()) fehlt.push("Nachname");
   if (!erreichbar) fehlt.push("E-Mail oder Telefon");
+  // Ein angefangenes, aber nicht stimmiges Geburtsdatum wird nicht still weggelassen.
+  if (geb.sperrGrund) fehlt.push(`Geburtsdatum (${geb.erg.stand === "pruefen" ? "„Stimmt so“ bestätigen oder korrigieren" : "vollständig und gültig"})`);
 
   const kannAnlegen = fehlt.length === 0 && !laeuft;
   const gewaehlt = pakete.find((p) => p.key === f.packKey);
@@ -571,11 +582,11 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
                   <input value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}
                          placeholder="Ort" className="pi-eingabe" />
                 </label>
-                <label className="pi-anl-feld">
+                <div className="pi-anl-feld">
                   <span>Geburtsdatum</span>
-                  <input value={f.birthdate} onChange={(e) => setF({ ...f, birthdate: e.target.value })}
-                         type="date" className="pi-eingabe" />
-                </label>
+                  <GeburtsdatumFeld teile={geb.teile} onTeile={geb.setTeile} kontext="akte" ergebnis={geb.erg}
+                                    bestaetigt={geb.bestaetigt} onBestaetigen={geb.bestaetigen} variante="office" />
+                </div>
               </div>
             </div>
           </details>

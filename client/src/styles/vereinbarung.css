@@ -565,6 +565,9 @@ table.vb-kennzahl tr:last-child td { border-bottom: 0; }
   .vb-unter { grid-template-columns: 1fr; gap: 30px; }
   .vb-knopf.gross { width: 100%; min-width: 0; }
   .vb-luecke input { width: 100% !important; }
+  /* E-IT-G (08.10.2026): Das Geburtsdatum hat drei Felder in einer Reihe — nicht je 100 % breit. */
+  .vb-luecke.vb-geburt input { width: 3.6em !important; }
+  .vb-luecke.vb-geburt input[autocomplete="bday-year"] { width: 5.6em !important; }
 }
 
 @media print {

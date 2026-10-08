@@ -32,6 +32,8 @@ import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN } from "../shared/fiaon-global-partn
 import { STARTGESPRAECH_TEXTE } from "../shared/fiaon-global-startgespraech";
 // E-296 (06.10.2026): der Social-Feed auf Startseite, /privatkunden, /business und im Ratgeber.
 import { SOZIAL_WOERTER } from "../client/src/i18n/sozial";
+// E-IT-G (08.10.2026): die Sätze des einen Geburtsdatum-Lesers (Kunden- und Office-Seiten).
+import { GEBURT_TEXTE } from "../shared/fiaon-geburtsdatum";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
@@ -89,6 +91,7 @@ sammle(GLOBAL_VERBUNDEN, "verbunden", texte);
 sammle(STARTGESPRAECH_TEXTE, "startgespraech", texte);
 // E-296: Handy, Karten, Profilband und Ratgeber-Beitrag (Funktionen mit Musterwerten).
 sammle(SOZIAL_WOERTER.de, "i18n/sozial", texte);
+sammle(GEBURT_TEXTE, "geburtsdatum", texte);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
 // für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.

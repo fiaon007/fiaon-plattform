@@ -26,6 +26,8 @@
 import { useEffect, useRef, useState } from "react";
 import "@/styles/vereinbarung.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+import { geburtTeileAusText, geburtsdatumAnzeige, geburtsdatumIso } from "@shared/fiaon-geburtsdatum";
 
 const API = "/api/fiaon";
 
@@ -250,7 +252,12 @@ export default function VereinbarungSeite(): JSX.Element {
               <tr><td>Vollständiger Name laut Ausweis</td><td>
                 <Luecke name="legalName" wert={feld("legalName")} setzen={setz("legalName")} gesperrt={gesperrt} breite={260} hinweis="wie im Ausweis" /></td></tr>
               <tr><td>Geburtsdatum</td><td>
-                <Luecke name="geburtsdatum" wert={feld("geburtsdatum")} setzen={setz("geburtsdatum")} gesperrt={gesperrt} breite={150} hinweis="TT.MM.JJJJ" /></td></tr>
+                {/* E-IT-G (08.10.2026): drei Felder (gemeinsames Bauteil); im Vertrag steht es als „TT.MM.JJJJ“. */}
+                {gesperrt
+                  ? <Luecke name="geburtsdatum" wert={feld("geburtsdatum")} setzen={setz("geburtsdatum")} gesperrt breite={150} hinweis="TT.MM.JJJJ" />
+                  : <span className="vb-luecke vb-geburt"><GeburtsdatumFeld variante="hell" kontext="mitarbeiter" klasseEingabe=""
+                      teile={geburtTeileAusText(feld("geburtsdatum"))}
+                      onTeile={(t) => { const iso = t.jahr.length === 4 ? geburtsdatumIso(t) : null; setz("geburtsdatum")(iso ? geburtsdatumAnzeige(iso) : t.tag || t.monat || t.jahr ? `${t.tag}.${t.monat}.${t.jahr}` : ""); }} /></span>}</td></tr>
               <tr><td>Straße und Hausnummer</td><td>
                 <Luecke name="strasse" wert={feld("strasse")} setzen={setz("strasse")} gesperrt={gesperrt} breite={280} hinweis="Straße, Nr." /></td></tr>
               <tr><td>Postleitzahl und Ort</td><td>

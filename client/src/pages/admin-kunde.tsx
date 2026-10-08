@@ -16,6 +16,8 @@ import { LABEL_VERTRIEB, LABEL_FORDERUNG, zustaendigText } from "@shared/fiaon-z
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 import { AKTE_FEHLER_TITEL, umleitungText, type Umleitung } from "@shared/fiaon-akte-aufloesung";
 import { akteLink, imChefbuero } from "@/lib/akte-link";
+import { GeburtsdatumFeld, useGeburtsdatum } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumMitAlter, GEBURT_TEXTE } from "@shared/fiaon-geburtsdatum";
 
 /** Klartext der Archivgründe — dieselbe Liste wie im Server (fiaon-antrag-archiv.ts). */
 const ARCHIV_GRUND_TEXT: Record<string, string> = {
@@ -202,6 +204,77 @@ function Field({ label, value, onSave, type = "text", sensitive, placeholder, an
         </div>
         {!edit && (
           <button type="button" onClick={() => setEdit(true)} className="ak-stift p-1.5 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-50 shrink-0" title={`${label} bearbeiten`}>
+            <Pencil size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Geburtsdatum (E-IT-G, 08.10.2026) ────────────────────────────────────────
+// VORHER ein Feld mit type=date: Enter speicherte sofort, aus „63“ wurde 0063,
+// und der Wert landete NUR an der Bestellung (Agentenakte zeigte weiter den
+// alten). NACHHER das gemeinsame Bauteil (TT · MM · JJJJ, „63“ → 1963), Speichern
+// nur, wenn das Datum stimmt (unter 18 oder ab 95 nach „Stimmt so“), und der
+// Server schreibt Person UND Bestellungen. Die Chef-Akte ist Leitung: Nur hier
+// gibt es „Geburtsdatum entfernen“.
+function GeburtFeldChef({ wert, abweichung, onSave }: {
+  wert: string; abweichung: { iso: string; anzeige: string; quellen: string[]; fremderName?: boolean }[] | null;
+  onSave: (body: Record<string, unknown>) => Promise<string | null>;
+}) {
+  const [edit, setEdit] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [zeigeFehler, setZeigeFehler] = useState(false);
+  const geb = useGeburtsdatum(wert || null, "akte");
+  const { zuruecksetzen } = geb;
+  useEffect(() => { zuruecksetzen(wert || null); }, [wert]); // eslint-disable-line react-hooks/exhaustive-deps
+  const schicken = async (body: Record<string, unknown>) => {
+    setBusy(true); setErr(null);
+    const e = await onSave(body);
+    setBusy(false);
+    if (e) setErr(e); else { setEdit(false); setZeigeFehler(false); }
+  };
+  const speichern = async () => {
+    if (geb.leer) { setEdit(false); return; }
+    if (!geb.iso) { setZeigeFehler(true); return; }
+    if (!geb.geaendert && !abweichung) { setEdit(false); return; }
+    await schicken({ birthdate: geb.iso, ...(geb.bestaetigtMitsenden ? { geburtBestaetigt: true } : {}) });
+  };
+  const entfernen = async () => {
+    if (!confirm(`Geburtsdatum wirklich entfernen?\n\nBisher: ${geburtsdatumMitAlter(wert) || "—"}\n\nEs wird an der Person und an allen Bestellungen geleert und mit alt → neu protokolliert.`)) return;
+    await schicken({ birthdateEntfernen: true });
+  };
+  return (
+    <div className="ak-feld py-2 border-b border-slate-50 last:border-0" data-feld="geburtsdatum">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Geburtsdatum</p>
+          {!edit ? (
+            <p className="ak-wert text-[13.5px] font-medium text-slate-800 break-words">{wert ? geburtsdatumMitAlter(wert) : <span className="text-slate-300">—</span>}</p>
+          ) : (
+            <div className="mt-1 grid gap-1.5">
+              <GeburtsdatumFeld teile={geb.teile} onTeile={(t) => { geb.setTeile(t); setErr(null); }} kontext="akte" ergebnis={geb.erg}
+                bestaetigt={geb.bestaetigt} onBestaetigen={geb.bestaetigen} variante="hell" zeigeFehler={zeigeFehler} autoFocus
+                onEnter={() => void speichern()} />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button type="button" onClick={() => void speichern()} disabled={busy} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[12px] font-semibold disabled:opacity-50" title="Speichern"><Check size={13} className="inline -mt-0.5" /> Speichern</button>
+                <button type="button" onClick={() => { zuruecksetzen(wert || null); setEdit(false); setErr(null); setZeigeFehler(false); }} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 text-[12px]" title="Abbrechen">Abbrechen</button>
+                {wert && <button type="button" onClick={() => void entfernen()} disabled={busy} className="ml-auto px-2.5 py-1 rounded-lg text-rose-600 text-[12px] hover:bg-rose-50">Geburtsdatum entfernen</button>}
+              </div>
+            </div>
+          )}
+          {abweichung && (
+            <p className="text-[11.5px] mt-1" style={{ color: "#b45309" }} data-geburt-abweichung>
+              Weicht ab: {abweichung.map((w) => `${w.anzeige} (${w.quellen.join(", ")})`).join(" · ")} — laut Ausweis prüfen; Speichern setzt das gewählte Datum überall.
+              {abweichung.some((w) => w.fremderName) && <><br /><b data-geburt-fremder-name>{GEBURT_TEXTE.fremderName}</b></>}
+            </p>
+          )}
+          {err && <p className="text-[11px] font-semibold text-rose-600 mt-1">{err}</p>}
+        </div>
+        {!edit && (
+          <button type="button" onClick={() => setEdit(true)} className="ak-stift p-1.5 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-50 shrink-0" title="Geburtsdatum bearbeiten">
             <Pencil size={13} />
           </button>
         )}
@@ -441,6 +514,12 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     return () => { weg = true; };
   }, [ref]);
 
+  const saveGeburt = async (body: Record<string, unknown>): Promise<string | null> => {
+    const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/stammdaten`, body);
+    if (!r.ok) return r.json?.error || "Fehler";
+    load();
+    return null;
+  };
   const saveStammdaten = (field: string) => async (v: string): Promise<string | null> => {
     const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/stammdaten`, { [field]: v });
     if (!r.ok) return r.json?.error || "Fehler";
@@ -817,7 +896,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               <Field label="Straße" value={app.street || ""} onSave={saveStammdaten("street")} />
               <Field label="PLZ" value={app.zip || ""} onSave={saveStammdaten("zip")} />
               <Field label="Ort" value={app.city || ""} onSave={saveStammdaten("city")} />
-              <Field label="Geburtsdatum" value={app.birthdate ? String(app.birthdate).slice(0, 10) : ""} onSave={saveStammdaten("birthdate")} type="date" anzeige={tagDe} />
+              <GeburtFeldChef wert={app.birthdate ? String(app.birthdate).slice(0, 10) : ""} abweichung={app.geburtsdatumAbweichung ?? null} onSave={saveGeburt} />
               </div>
               <div className="ak-konditionen mt-3 pt-3 border-t border-slate-100">
                 <p className="ak-zwischen text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Konditionen <span className="ak-hinweis font-normal normal-case tracking-normal">· Änderung nur mit Rückfrage</span></p>

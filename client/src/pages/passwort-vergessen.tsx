@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumLesen } from "@shared/fiaon-geburtsdatum";
 
 /* === ANIMATIONS === */
 if (typeof document !== "undefined" && !document.head.querySelector('style[data-pw-reset]')) {
@@ -103,6 +105,9 @@ export default function PasswortVergessenPage() {
     if (!firstName || !lastName || !email || !birthDay || !birthMonth || !birthYear) {
       setVerifyError("Bitte alle Felder ausfüllen"); return;
     }
+    // E-IT-G (08.10.2026): derselbe Leser wie überall — ohne Altersregel (Kontext „pruefung“), der Mensch soll durchkommen.
+    const geb = geburtsdatumLesen({ tag: birthDay, monat: birthMonth, jahr: birthYear }, "pruefung");
+    if (!geb.iso || geb.stand !== "ok") { setVerifyError(geb.meldung || "Bitte das Geburtsdatum prüfen."); return; }
     if (!email.includes("@")) {
       setVerifyError("Bitte eine gültige E-Mail eingeben"); return;
     }
@@ -111,7 +116,7 @@ export default function PasswortVergessenPage() {
       const res = await fetch("/api/fiaon/verify-identity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, birthDay, birthMonth, birthYear }),
+        body: JSON.stringify({ firstName, lastName, email, birthDay: String(geb.tag), birthMonth: String(geb.monat), birthYear: String(geb.jahr) }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -151,7 +156,7 @@ export default function PasswortVergessenPage() {
         // ist. Vorher stand hier „Du kannst dich jetzt anmelden" — und jeder
         // Fünfte lief Sekunden später gegen „Zahlung noch nicht eingegangen".
         setZugang(data.zugangOffen === false ? {
-          hinweis: data.hinweis || "Dein Zugang ist noch nicht offen.",
+          hinweis: data.hinweis || "Ihr Zugang ist noch nicht offen.",
           erklaerung: data.erklaerung || "",
           weiter: data.weiter || null,
         } : null);
@@ -197,7 +202,7 @@ export default function PasswortVergessenPage() {
               <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Konto-Wiederherstellung</p>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight fiaon-gradient-text-animated mb-3">Passwort zurücksetzen</h1>
               <p className="text-[14px] text-gray-500 leading-relaxed max-w-sm mx-auto">
-                Bestätige deine Identität — kein E-Mail-Link nötig. Neues Passwort sofort festlegen.
+                Bitte bestätigen Sie Ihre Identität — kein E-Mail-Link nötig. Neues Passwort sofort festlegen.
               </p>
             </div>
 
@@ -252,49 +257,11 @@ export default function PasswortVergessenPage() {
 
                 {/* Birthdate */}
                 <Field label="Geburtsdatum" req>
-                  <div className="grid grid-cols-3 gap-2">
-                    {/* Day */}
-                    <div className="relative">
-                      <select
-                        value={birthDay}
-                        onChange={e => { setBirthDay(e.target.value); setVerifyError(null); }}
-                        className="w-full px-3 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none appearance-none"
-                        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: "28px" }}
-                      >
-                        <option value="">Tag</option>
-                        {Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{String(i + 1).padStart(2, "0")}</option>)}
-                      </select>
-                    </div>
-                    {/* Month */}
-                    <div className="relative">
-                      <select
-                        value={birthMonth}
-                        onChange={e => { setBirthMonth(e.target.value); setVerifyError(null); }}
-                        className="w-full px-3 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none appearance-none"
-                        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: "28px" }}
-                      >
-                        <option value="">Monat</option>
-                        {["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"].map((m, i) => (
-                          <option key={i} value={String(i + 1)}>{m}</option>
-                        ))}
-                      </select>
-                    </div>
-                    {/* Year */}
-                    <div className="relative">
-                      <select
-                        value={birthYear}
-                        onChange={e => { setBirthYear(e.target.value); setVerifyError(null); }}
-                        className="w-full px-3 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none appearance-none"
-                        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: "28px" }}
-                      >
-                        <option value="">Jahr</option>
-                        {Array.from({ length: 80 }, (_, i) => {
-                          const y = new Date().getFullYear() - 17 - i;
-                          return <option key={y} value={String(y)}>{y}</option>;
-                        })}
-                      </select>
-                    </div>
-                  </div>
+                  {/* E-IT-G (08.10.2026): drei Felder statt drei Listen — die Jahr-Liste reichte nur von
+                      1930 bis 2009 (wer 1927 geboren ist, kam hier nie durch) und musste gescrollt werden. */}
+                  <GeburtsdatumFeld variante="kunde" kontext="pruefung"
+                    teile={{ tag: birthDay, monat: birthMonth, jahr: birthYear }}
+                    onTeile={(t) => { setBirthDay(t.tag); setBirthMonth(t.monat); setBirthYear(t.jahr); setVerifyError(null); }} />
                 </Field>
 
                 {/* Error */}
@@ -308,7 +275,7 @@ export default function PasswortVergessenPage() {
                 {/* Security note */}
                 <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 mb-5">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" className="shrink-0 mt-0.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  <p className="text-[12px] text-blue-700 leading-relaxed">Deine Daten werden sicher verifiziert. Kein Link per E-Mail nötig.</p>
+                  <p className="text-[12px] text-blue-700 leading-relaxed">Ihre Daten werden sicher verifiziert. Kein Link per E-Mail nötig.</p>
                 </div>
 
                 <PremiumBtn onClick={handleVerify} disabled={verifyLoading}>
@@ -349,7 +316,7 @@ export default function PasswortVergessenPage() {
               <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-[.2em] mb-2">Identität bestätigt</p>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight fiaon-gradient-text-animated mb-3">Neues Passwort festlegen</h1>
               <p className="text-[14px] text-gray-500 max-w-sm mx-auto">
-                Wähle ein sicheres Passwort für dein FIAON Konto.
+                Bitte wählen Sie ein sicheres Passwort für Ihr FIAON Konto.
               </p>
             </div>
 
@@ -528,7 +495,7 @@ export default function PasswortVergessenPage() {
             ) : (
               <>
                 <p className="text-[15px] text-gray-500 mb-2 max-w-sm mx-auto leading-relaxed">
-                  Dein neues Passwort wurde gesetzt. Du kannst dich jetzt damit anmelden.
+                  Ihr neues Passwort wurde gesetzt. Sie können sich jetzt damit anmelden.
                 </p>
                 <p className="text-[13px] text-gray-400 mb-10">Das Fenster wird in wenigen Sekunden weitergeleitet.</p>
 

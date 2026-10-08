@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { X, FileText, Download, Eye, Check, Plus, Pencil } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+import { geburtTeileAusText, geburtTextAusTeile } from "@shared/fiaon-geburtsdatum";
 
 // ============================================================================
 // /admin/vertraege — Onboarding-Status, Vertragsvorlagen & Vertragsvariablen
@@ -349,7 +351,14 @@ function AgentDetail({ id, onClose, flash }: { id: number; onClose: () => void; 
                 {field("PLZ", "postalCode")}
                 {field("Ort", "city")}
                 {field("Land", "country")}
-                {field(isCompany ? "Gründungsdatum" : "Geburtsdatum", isCompany ? "foundingDate" : "birthDate", "date")}
+                {isCompany ? field("Gründungsdatum", "foundingDate", "date") : (
+                  // E-IT-G (08.10.2026): Geburtsdatum als drei Felder („63“ → 1963), nicht type=date.
+                  <div key="birthDate">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Geburtsdatum</label>
+                    <GeburtsdatumFeld variante="hell" kontext="mitarbeiter" teile={geburtTeileAusText(vars.birthDate || "")}
+                      onTeile={(t) => set("birthDate", geburtTextAusTeile(t))} />
+                  </div>
+                )}
                 {isCompany && field("Rechtsform", "legalForm")}
                 {isCompany && field("Register-Nr.", "registerNo")}
                 {isCompany && field("USt-ID", "vatId")}

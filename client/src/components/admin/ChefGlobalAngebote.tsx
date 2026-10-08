@@ -35,6 +35,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState, type ReactNode } from "react";
 import { eur, datum, datumZeit, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+// E-IT-G (08.10.2026): das Geburtsdatum im Angebot als drei Felder; der Text ist ISO (auch aus dem Antrag) oder halb getippt — der Server liest beides.
+import { geburtTeileAusText, geburtTextAusTeile } from "@shared/fiaon-geburtsdatum";
 
 /** „800.000 $" — Kreditrahmen der Garantie (E-271). */
 const usd = (n: number) => `${Math.round(n).toLocaleString("de-DE")} $`;
@@ -101,7 +104,8 @@ function StartgespraechZeile({ sg }: { sg: NonNullable<Angebot["startgespraech"]
 }
 
 const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Offen — wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
-const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["geburtsdatum", "Geburtsdatum (JJJJ-MM-TT)"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
+// E-IT-G (08.10.2026): „Geburtsdatum (JJJJ-MM-TT)“ als Freitext ist raus — es steht als eigenes Bauteil darunter.
+const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
 const PARAM_FELDER: [string, string, "euro" | "zahl"][] = [["teil1Cents", "Teil 1 „Gründung“ (€)", "euro"], ["teil2Cents", "Teil 2 „Kapital-Begleitung“ (€)", "euro"], ["fristWochen", "Frist in Wochen", "zahl"], ["erstattungTage", "Erstattung binnen Tagen", "zahl"], ["teil2ZielTage", "Zahlungsziel Teil 2 (Tage)", "zahl"], ["kapitalZielUsd", "Garantierter Kreditrahmen (US-Dollar)", "zahl"], ["kartenZiel", "Garantierte Business-Kreditkarten (Anzahl)", "zahl"], ["buergschaftUsd", "Höchstbetrag Bürgschaft (US-Dollar)", "zahl"]];
 
 /** Wer hat den persönlichen Link wann, wie oft und wo geöffnet — und wurde Justin benachrichtigt? */
@@ -487,6 +491,11 @@ export default function ChefGlobalAngebote() {
               {KUNDE_FELDER.map(([k, l]) => (
                 <label key={k}>{l}<input value={neuForm.kunde[k] ?? ""} onChange={(e) => setNeuForm({ ...neuForm, kunde: { ...neuForm.kunde, [k]: e.target.value } })} /></label>
               ))}
+              <div className="cg-geburt" data-feld="geburtsdatum">Geburtsdatum
+                <GeburtsdatumFeld variante="office" kontext="vertrag" klasseEingabe=""
+                  teile={geburtTeileAusText(neuForm.kunde.geburtsdatum ?? "")}
+                  onTeile={(t) => setNeuForm({ ...neuForm, kunde: { ...neuForm.kunde, geburtsdatum: geburtTextAusTeile(t) } })} />
+              </div>
             </div>
             <p className="cm-fein">Teile und Fristen (leer = Vorgabe der Fassung: {eur(V.parameter.teil1Cents)} + {eur(V.parameter.teil2Cents)}, {V.parameter.fristWochen} Wochen):</p>
             <div className="cg-raster">

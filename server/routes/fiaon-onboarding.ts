@@ -25,6 +25,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { absenderBlock, firmierung, fussZeile } from "../lib/fiaon-firmierung";
 import { sqlPool } from "../lib/db-pool";
+import { geburtsdatumFuerSpeicher } from "../../shared/fiaon-geburtsdatum";
 import { requireAgent, logAgentEvent, getSettings, type AgentRequest } from "./fiaon-agent";
 import { sendMakeWebhook } from "../make-webhook";
 import { formatBerlin } from "../lib/fiaon-time";
@@ -1028,6 +1029,11 @@ router.post("/admin/agents/:id/contract-variables", async (req, res) => {
     const b = req.body || {};
     const partnerType = b.partnerType === "company" ? "company" : "private";
     const s = (v: any) => (v == null || v === "" ? null : String(v).trim());
+    // E-IT-G (08.10.2026): Geburtsdatum über den einen Leser (Kontext „mitarbeiter“: ab 16, echter Tag,
+    // „14.03.1963“ oder ISO). Leer heißt hier weiter „leeren“ (ein Formular, das alle Felder schickt).
+    const geb = geburtsdatumFuerSpeicher(b.birthDate, "mitarbeiter");
+    if (!geb.ok) return res.status(400).json({ ok: false, error: `Geburtsdatum: ${geb.fehler}` });
+    const birthDate = geb.aenderung === "setzen" ? geb.iso : null;
     await sqlPool`
       UPDATE fiaon_agents SET
         partner_type = ${partnerType},
@@ -1036,7 +1042,7 @@ router.post("/admin/agents/:id/contract-variables", async (req, res) => {
         postal_code = ${s(b.postalCode)},
         city = ${s(b.city)},
         country = ${s(b.country)},
-        birth_date = ${s(b.birthDate)},
+        birth_date = ${birthDate},
         founding_date = ${s(b.foundingDate)},
         tax_id = ${s(b.taxId)},
         vat_id = ${s(b.vatId)},

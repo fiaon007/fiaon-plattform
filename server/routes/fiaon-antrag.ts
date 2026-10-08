@@ -50,6 +50,7 @@ import {
   isGlobalOrderRow,
   GLOBAL_LOGIN_HINWEIS,
 } from "../fiaon-login-logic";
+import { geburtsdatumLesen, geburtsdatumFuerSpeicher, geburtsdatumIso, geburtsdatumAnzeige, antragKorrigiertPerson } from "../../shared/fiaon-geburtsdatum";
 
 const router = Router();
 
@@ -1237,7 +1238,11 @@ router.post("/payment-order", async (req, res) => {
           if (v) { personId = v.person_id ?? null; vorlage = v; }
         }
       }
-      const geburt = typeof b.birthDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate) ? b.birthDate : (vorlage?.birthdate ?? null);
+      // E-IT-G (08.10.2026): derselbe Prüfer wie überall (Kontext „vertrag“: ab 18,
+      // echter Kalendertag). Vorher nur die Form — ein 31.02. ging durch.
+      const geburtPruef = geburtsdatumFuerSpeicher(b.birthDate, "vertrag");
+      if (!geburtPruef.ok) return res.status(400).json({ ok: false, error: `Geburtsdatum: ${geburtPruef.fehler}` });
+      const geburt = geburtPruef.aenderung === "setzen" ? geburtPruef.iso : (geburtsdatumIso(vorlage?.birthdate) ?? vorlage?.birthdate ?? null);
       // ── DER PREIS KOMMT VOM SERVER (24.09.2026, E-240) ───────────────────
       // Mit bezahltem, laufendem Paket 74 € (Firma 199 €), sonst 149 € (349 €).
       // Wer eine Auskunft schon offen hat, bekommt deren Zahlungslink statt einer
@@ -3047,8 +3052,9 @@ router.post("/admin/applications/:ref/contact", async (req, res) => {
   try {
     await ensurePaymentColumns();
     const { updateCustomerContact } = await import("./fiaon-agent");
-    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: null, name: "Admin" });
-    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg });
+    // E-IT-G (08.10.2026): Verwaltung = Leitung — sie darf ein Geburtsdatum auch entfernen.
+    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: null, name: "Admin", darfGeburtLoeschen: true });
+    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg, rueckfrage: result.error.rueckfrage || undefined });
     res.json({ ok: true, changes: result.changes, duplicate: result.duplicate });
   } catch (err) {
     console.error("[FIAON-ADMIN-CONTACT]", err);
@@ -3113,7 +3119,18 @@ router.post("/application", async (req, res) => {
       return res.status(400).json({ ok: false, code: "NUR_DACH", error: NUR_DACH_MELDUNG });
     }
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
-    const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
+    // ── E-IT-G (08.10.2026), Punkt (14): DAS GEBURTSDATUM ÜBER DEN EINEN LESER ──
+    // VORHER wurde der Text ungeprüft zusammengesetzt („63-11-17“, ein 31.02.).
+    // NACHHER shared/fiaon-geburtsdatum.ts im Kontext „pruefung“ (echter
+    // Kalendertag, 1900 bis heute, zweistellige Jahre ergänzt). Die
+    // Altersregel (ab 18) prüfen das Formular und antragNeuLuecke. Ist die
+    // Angabe unvollständig oder ungültig, wird NICHTS überschrieben (COALESCE
+    // im UPDATE) — die Zwischenspeicherung wird dadurch nie blockiert.
+    const geburtGelesen = birthDay || birthMonth || birthYear
+      ? geburtsdatumLesen({ tag: birthDay, monat: birthMonth, jahr: birthYear }, "pruefung")
+      : null;
+    const birthdate = geburtGelesen?.stand === "ok" ? geburtGelesen.iso : null;
+    if (geburtGelesen && !birthdate) console.warn(`[FIAON-APP] ${String(req.body?.ref ?? "neu")}: Geburtsdatum nicht übernommen (${geburtGelesen.stand}) — der gespeicherte Wert bleibt.`);
     const contactName = contactFirstName && contactLastName ? `${contactFirstName} ${contactLastName}` : contactFirstName || contactLastName || null;
 
     // Auto-run migration for new fields if they don't exist
@@ -3267,7 +3284,8 @@ router.post("/application", async (req, res) => {
           pack_name = ${values.packName ?? null},
           first_name = COALESCE(NULLIF(${values.firstName ?? ''}, ''), first_name),
           last_name = COALESCE(NULLIF(${values.lastName ?? ''}, ''), last_name),
-          birthdate = ${values.birthdate ?? null},
+          -- E-IT-G: leer oder ungültig heißt „alter Wert bleibt“ (vorher: jedes Speichern ohne Geburtsfelder löschte ihn).
+          birthdate = COALESCE(${values.birthdate ?? null}, birthdate),
           phone = ${values.phone ?? null},
           phone_country_code = ${values.phoneCountryCode ?? null},
           street = ${values.street ?? null},
@@ -3413,6 +3431,59 @@ router.post("/application", async (req, res) => {
     // war die Ursache des Login-Ausfalls.
     await bindePersonAnAntrag(ref).catch((e) =>
       console.error("[FIAON-PERSON] Zuordnung nach /application:", e));
+
+    // ── E-IT-G (08.10.2026): DAS ANTRAGSFORMULAR SCHREIBT NUR DIE EIGENE BESTELLUNG ──
+    // Gegenprüfung 08.10. (hoch): Eine erste Fassung schrieb eine geänderte
+    // Angabe über geburtsdatumSetzen an die Person UND an alle ihre lebenden
+    // Bestellungen. Die Person hängt aber nur über E-Mail- oder Telefon-Alias
+    // am Antrag (personFuerZeile, ohne Namensabgleich). Gemessen am 08.10.:
+    // 17 Personen tragen Bestellungen mit verschiedenen Vornamen. Bei einem Paar
+    // mit gemeinsamer Adresse hätte das öffentliche Formular ohne Anmeldung das
+    // Geburtsdatum des Partners überschrieben, auch an bezahlten Bestellungen.
+    // Dieses Datum ist ein Identifikationsmerkmal für Kündigung,
+    // Passwort-Reset und Auskunft.
+    // JETZT:
+    //   · Das Formular schreibt die eigene Bestellung (UPDATE/INSERT oben).
+    //   · Eine leere Person füllt wie bisher stammdatenErgaenzen. Seit E-IT-G
+    //     geschieht das nur, wenn der Name der Bestellung zur Person passt.
+    //   · Weicht die Angabe vom Datum der Person ab, ändert das Formular die
+    //     Person nur in EINEM Fall (shared antragKorrigiertPerson): Es ist die
+    //     einzige, noch unbezahlte Bestellung der Person, und der Name passt.
+    //     So landet die Korrektur eines Tippfehlers an der richtigen Stelle.
+    //   · In jedem anderen Fall bleibt die Akte stehen. Sie zeigt „Geburtsdatum
+    //     weicht ab“, ein Verlaufseintrag nennt den Wert, und der Mitarbeiter
+    //     wählt laut Ausweis.
+    if (birthdate && geburtsdatumIso(existing[0]?.birthdate) !== birthdate) {
+      try {
+        const [pp] = (await sqlPool`
+          SELECT p.birthdate, p.first_name AS p_vor, p.last_name AS p_nach,
+                 a.first_name, a.last_name, a.payment_status,
+                 (SELECT COUNT(*)::int FROM fiaon_applications x WHERE x.person_id = p.id AND x.merged_into IS NULL) AS lebende
+            FROM fiaon_persons p JOIN fiaon_applications a ON a.person_id = p.id
+           WHERE a.ref = ${ref} AND a.merged_into IS NULL
+        `) as any[];
+        const personWert = pp ? geburtsdatumIso(pp.birthdate) : null;
+        if (personWert && personWert !== birthdate) {
+          const { vollerNamePasst } = await import("../lib/fiaon-kuendigung-identitaet");
+          const darf = antragKorrigiertPerson({
+            lebendeBestellungen: Number(pp.lebende || 0),
+            bezahlt: pp.payment_status === "paid",
+            namePasst: vollerNamePasst({ first_name: pp.p_vor, last_name: pp.p_nach }, { firstName: pp.first_name, lastName: pp.last_name }),
+          });
+          if (darf) {
+            const { geburtsdatumSetzen } = await import("../lib/fiaon-geburtsdatum-akte");
+            await geburtsdatumSetzen(ref, birthdate, { id: null, name: "Kunde" }, { zusatz: "eigene Korrektur im Antragsformular, einzige Bestellung" });
+          } else {
+            const wer = [pp.first_name, pp.last_name].filter(Boolean).join(" ") || "ohne Namen";
+            await sqlPool`
+              INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+              VALUES (${ref}, NULL, 'System', 'system',
+                      ${`Im Antragsformular angegebenes Geburtsdatum (${wer}): ${geburtsdatumAnzeige(birthdate)} — an der Person steht ${geburtsdatumAnzeige(personWert)}. Die Akte bleibt unverändert; bitte laut Ausweis prüfen („Geburtsdatum weicht ab“).`})
+            `;
+          }
+        }
+      } catch (e) { console.error(`[FIAON-APP] ${ref}: Geburtsdatum-Abgleich mit der Person fehlgeschlagen:`, e); }
+    }
 
     // ── DER PERSÖNLICHE LINK (22.09.2026, E-210) ──────────────────────────
     // Kam der Mensch über fiaon.com/a/<code>, hängt dieser Antrag EXAKT an dem
@@ -5511,7 +5582,7 @@ router.get("/admin/applications/:ref/document/:type", async (req, res) => {
 /** Eine Meldung für „E-Mail unbekannt" UND „Angaben passen nicht" — keine Auskunft
  *  darüber, ob eine E-Mail-Adresse bei uns existiert. */
 const VERIFY_NEUTRAL_MESSAGE =
-  "Die Angaben stimmen nicht mit einem Konto überein. Bitte prüfe Vorname, Nachname, E-Mail-Adresse und Geburtsdatum — genau so, wie du sie im Antrag angegeben hast.";
+  "Die Angaben stimmen nicht mit einem Konto überein. Bitte prüfen Sie Vorname, Nachname, E-Mail-Adresse und Geburtsdatum — genau so, wie Sie sie im Antrag angegeben haben.";
 
 // POST /api/fiaon/verify-identity — prüft Name + Geb. + Email, gibt Token zurück
 router.post("/verify-identity", async (req, res) => {
@@ -5524,7 +5595,9 @@ router.post("/verify-identity", async (req, res) => {
 
     await ensurePaymentColumns();
     const trimEmail = String(email).trim().toLowerCase();
-    const birthdate = `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`;
+    // E-IT-G (08.10.2026): derselbe Leser wie überall (Kontext „pruefung“ — keine
+    // Altersregel, der Mensch soll durchkommen; zweistellige Jahre ergänzt).
+    const birthdate = geburtsdatumLesen({ tag: birthDay, monat: birthMonth, jahr: birthYear }, "pruefung").iso ?? "ungueltig";
 
     // Dieselbe Kontoauflösung wie im Login: die ganze Familie der E-Mail.
     const family = await loadLoginFamily(trimEmail);
@@ -5615,7 +5688,7 @@ router.post("/verify-identity", async (req, res) => {
       ok: false,
       code: `RESET-05-${incident}`,
       error: "Technisches Problem — bitte in einem Moment erneut versuchen.",
-      hint: `Bleibt das Problem, nenne dem Support diesen Fehlercode: RESET-05-${incident}`,
+      hint: `Bleibt das Problem, nennen Sie dem Support diesen Fehlercode: RESET-05-${incident}`,
     });
   }
 });
@@ -5705,8 +5778,8 @@ router.post("/reset-password-direct", async (req, res) => {
     return res.status(503).json({
       ok: false,
       code: `RESET-05-${incident}`,
-      error: "Technisches Problem — dein Passwort wurde NICHT geändert. Bitte in einem Moment erneut versuchen.",
-      hint: `Bleibt das Problem, nenne dem Support diesen Fehlercode: RESET-05-${incident}`,
+      error: "Technisches Problem — Ihr Passwort wurde NICHT geändert. Bitte in einem Moment erneut versuchen.",
+      hint: `Bleibt das Problem, nennen Sie dem Support diesen Fehlercode: RESET-05-${incident}`,
     });
   }
 });

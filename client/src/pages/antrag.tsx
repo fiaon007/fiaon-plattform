@@ -2,6 +2,8 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } fr
 import { Redirect } from "wouter";
 import { ERREICHBARKEIT_WERTE } from "@shared/fiaon-erreichbarkeit";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumLesen } from "@shared/fiaon-geburtsdatum";
 import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
 import { messungsDaten, metaEreignis, META_EREIGNIS } from "@/lib/werbung";
 import { META_PAKETWECHSEL } from "@shared/fiaon-meta-ereignisse";
@@ -790,7 +792,7 @@ function AntragSeite() {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
-  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", erreichbarkeit: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
+  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "", phoneCountryCode: "+49", phone: "", erreichbarkeit: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [vorbelegt, setVorbelegt] = useState(false);
   useEffect(() => {
     if (!leadLink || weiterToken) return;
@@ -1059,8 +1061,13 @@ function AntragSeite() {
       if (!d.email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email.trim())) e.email = "Gültige E-Mail eingeben";
       if (!d.firstName) e.firstName = "Vorname eingeben";
       if (!d.lastName) e.lastName = "Nachname eingeben";
-      if (!d.birthDay || !d.birthMonth || !d.birthYear || d.birthYear.length < 4) e.birth = "Gültiges Datum eingeben";
-      else { const age = new Date().getFullYear() - +d.birthYear; if (age < 18) e.birth = "Sie müssen mindestens 18 Jahre alt sein"; }
+      // E-IT-G (08.10.2026): der eine Leser (shared/fiaon-geburtsdatum.ts, Kontext „vertrag“) — echter
+      // Kalendertag (vorher ging der 31.02. durch), Alter auf den Tag genau, „63“ wird 1963.
+      const geb = geburtsdatumLesen({ tag: d.birthDay, monat: d.birthMonth, jahr: d.birthYear }, "vertrag");
+      if (geb.stand === "leer" || geb.stand === "unvollstaendig") e.birth = "Bitte Tag, Monat und Jahr eintragen";
+      else if (geb.stand === "zu_jung") e.birth = "Sie müssen mindestens 18 Jahre alt sein";
+      else if (geb.stand !== "ok") e.birth = geb.meldung;
+      else if (geb.jahrErgaenzt && geb.jahr) setD((p) => ({ ...p, birthYear: String(geb.jahr) }));
       if (!d.phoneCountryCode || !d.phone) e.phone = "Telefonnummer eingeben";
       else if (!checkPhone(`${d.phoneCountryCode}${d.phone}`).valid) e.phone = checkPhone(`${d.phoneCountryCode}${d.phone}`).reason || "Bitte gültige Telefonnummer eingeben";
       else if (dachPruefen(`${d.phoneCountryCode}${d.phone}`)) e.phone = dachPruefen(`${d.phoneCountryCode}${d.phone}`)!;
@@ -1406,11 +1413,13 @@ function AntragSeite() {
                     </div>
                     <div className="space-y-2">
                       <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Geburtsdatum</label>
-                      <div className="antrag-geburt">
-                        <Sel value={d.birthDay} onChange={(v: string) => up("birthDay", v)} aria-label="Tag"><option value="">Tag</option>{Array.from({length:31},(_,i)=><option key={i+1} value={String(i+1)}>{String(i+1).padStart(2,"0")}</option>)}</Sel>
-                        <Sel value={d.birthMonth} onChange={(v: string) => up("birthMonth", v)} aria-label="Monat"><option value="">Monat</option>{["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"].map((m,i)=><option key={i} value={String(i+1)}>{m}</option>)}</Sel>
-                        <Sel value={d.birthYear} onChange={(v: string) => up("birthYear", v)} aria-label="Jahr"><option value="">Jahr</option>{Array.from({length:100},(_,i)=><option key={i} value={String(new Date().getFullYear() - 18 - i)}>{new Date().getFullYear() - 18 - i}</option>)}</Sel>
-                      </div>
+                      {/* E-IT-G (08.10.2026): drei Felder statt drei Listen — keine 100 Jahrgänge
+                          zum Scrollen, keine Vorbelegung „1990“; „63“ wird 1963 (gemeinsames Bauteil). */}
+                      <GeburtsdatumFeld variante="kunde" kontext="vertrag"
+                        teile={{ tag: d.birthDay, monat: d.birthMonth, jahr: d.birthYear }}
+                        onTeile={(t) => setD((p) => ({ ...p, birthDay: t.tag, birthMonth: t.monat, birthYear: t.jahr }))}
+                        klasseEingabe="px-3 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none placeholder:text-gray-300"
+                        zeilenFarben={{ gut: "#94a3b8", warn: "#f87171" }} />
                       {errors.birth && <p className="mt-1 text-xs text-red-500">{errors.birth}</p>}
                     </div>
                     <PremiumPhoneInput countryCode={d.phoneCountryCode} phone={d.phone} onCountryCodeChange={(v: string) => up("phoneCountryCode", v)} onPhoneChange={(v: string) => up("phone", v)} error={errors.phone} />
@@ -1534,7 +1543,7 @@ function AntragSeite() {
                   <div data-angaben className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 min-w-0">
                     <div className="min-w-0 text-[12.5px] text-slate-700 leading-relaxed break-words">
                       <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.18em] mb-1">Ihre Angaben</p>
-                      <p>{[`${d.firstName} ${d.lastName}`.trim(), d.birthDay && d.birthMonth && d.birthYear ? `geb. ${d.birthDay.padStart(2, "0")}.${d.birthMonth.padStart(2, "0")}.${d.birthYear}` : ""].filter(Boolean).join(" · ")}</p>
+                      <p>{[`${d.firstName} ${d.lastName}`.trim(), d.birthDay && d.birthMonth && d.birthYear ? `geb. ${geburtsdatumLesen({ tag: d.birthDay, monat: d.birthMonth, jahr: d.birthYear }, "pruefung").anzeige || `${d.birthDay}.${d.birthMonth}.${d.birthYear}`}` : ""].filter(Boolean).join(" · ")}</p>
                       <p>{[d.street, [d.zip, d.city].filter(Boolean).join(" "), d.country].filter(Boolean).join(", ")}</p>
                       <p>{d.phone ? `${d.phoneCountryCode} ${d.phone}` : ""}</p>
                     </div>
@@ -1646,7 +1655,7 @@ function AntragSeite() {
                         {d.birthDay && d.birthMonth && d.birthYear && (
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-[11px] text-gray-400">Geburtsdatum</span>
-                            <span className="text-[12px] font-semibold text-gray-900">{d.birthDay} {["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"][parseInt(d.birthMonth)-1]} {d.birthYear}</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{geburtsdatumLesen({ tag: d.birthDay, monat: d.birthMonth, jahr: d.birthYear }, "pruefung").lang || `${d.birthDay}.${d.birthMonth}.${d.birthYear}`}</span>
                           </div>
                         )}
                         

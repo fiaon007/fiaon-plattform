@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumLesen, type GeburtTeile } from "@shared/fiaon-geburtsdatum";
 
 /* === ANIMATIONS === */
 if (typeof document !== "undefined" && !document.head.querySelector('style[data-ak-anim]')) {
@@ -108,7 +110,12 @@ export default function AboKuendigenPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [birthdate, setBirthdate] = useState("");
+  // E-IT-G (08.10.2026): drei Felder (gemeinsames Bauteil) statt type=date — dort wurde aus „63“ das Jahr 0063.
+  const [geburt, setGeburt] = useState<GeburtTeile>({ tag: "", monat: "", jahr: "" });
+  const gebGelesen = geburtsdatumLesen(geburt, "pruefung");
+  const birthdate = gebGelesen.stand === "ok" ? gebGelesen.iso ?? "" : "";
+  // Gegenprüfung 08.10.: Die Seite sagt nach außen nur „weiter“ oder EINE neutrale Meldung —
+  // ob bei uns ein Geburtsdatum steht oder es abweicht, erfährt nur das Team (Aufgabe „Identität prüfen“).
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
 
@@ -132,8 +139,12 @@ export default function AboKuendigenPage() {
   /* === STEP 1: Verify identity via existing application === */
   async function handleVerify() {
     setVerifyError(null);
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !birthdate) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || gebGelesen.stand === "leer") {
       setVerifyError("Bitte alle Pflichtfelder ausfüllen");
+      return;
+    }
+    if (!birthdate) {
+      setVerifyError(gebGelesen.meldung || "Bitte prüfen Sie Ihr Geburtsdatum.");
       return;
     }
     if (!email.includes("@")) {
@@ -156,9 +167,9 @@ export default function AboKuendigenPage() {
       const data = await res.json();
       if (res.status === 409) {
         setVerifyError(data.error || "Bereits ein offener Antrag vorhanden.");
-      } else if (res.status === 404) {
+      } else if (res.status === 404 || res.status === 429) {
         setVerifyError(
-          "Keine Übereinstimmung gefunden. Bitte prüfe Vor- und Nachname, E-Mail sowie Geburtsdatum."
+          data.error || "Keine Übereinstimmung gefunden. Bitte prüfen Sie Vor- und Nachname sowie die E-Mail-Adresse, mit der Sie bestellt haben."
         );
       } else if (!data.ok) {
         setVerifyError(data.error || "Verifizierung fehlgeschlagen");
@@ -181,7 +192,7 @@ export default function AboKuendigenPage() {
       return;
     }
     if (!confirmed) {
-      setFormError("Bitte bestätige, dass du kündigen möchtest");
+      setFormError("Bitte bestätigen Sie, dass Sie kündigen möchten");
       return;
     }
     setFormLoading(true);
@@ -281,8 +292,8 @@ export default function AboKuendigenPage() {
                 Abo kündigen
               </h1>
               <p className="text-[14px] text-gray-500 leading-relaxed max-w-sm mx-auto">
-                Bestätige deine Identität. Wir prüfen deinen Antrag und
-                kontaktieren dich innerhalb von 1–2 Werktagen.
+                Bitte bestätigen Sie Ihre Identität. Wir prüfen Ihren Antrag und
+                melden uns innerhalb von 1–2 Werktagen bei Ihnen.
               </p>
             </div>
 
@@ -347,19 +358,10 @@ export default function AboKuendigenPage() {
                   />
                 </Field>
 
-                {/* Birthdate */}
+                {/* Birthdate — E-IT-G (08.10.2026): drei Felder, „63“ wird 1963, kein Kalender zum Zurückblättern. */}
                 <Field label="Geburtsdatum" req>
-                  <input
-                    type="date"
-                    value={birthdate}
-                    onChange={(e) => {
-                      setBirthdate(e.target.value);
-                      setVerifyError(null);
-                    }}
-                    max={new Date().toISOString().split("T")[0]}
-                    className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none"
-                    autoComplete="bday"
-                  />
+                  <GeburtsdatumFeld variante="kunde" kontext="pruefung" teile={geburt}
+                    onTeile={(t) => { setGeburt(t); setVerifyError(null); }} />
                 </Field>
 
                 {/* Error */}
@@ -400,8 +402,8 @@ export default function AboKuendigenPage() {
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   </svg>
                   <p className="text-[12px] text-blue-700 leading-relaxed">
-                    Deine Kündigung wird von unserem Team geprüft und innerhalb
-                    von 1–2 Werktagen bearbeitet. Wir gleichen deine Angaben
+                    Ihre Kündigung wird von unserem Team geprüft und innerhalb
+                    von 1–2 Werktagen bearbeitet. Wir gleichen Ihre Angaben
                     sicher gegen unsere Daten ab.
                   </p>
                 </div>
@@ -494,8 +496,8 @@ export default function AboKuendigenPage() {
                 Kündigungsantrag
               </h1>
               <p className="text-[14px] text-gray-500 max-w-sm mx-auto">
-                Teile uns den Grund mit. Unser Team prüft deinen Antrag und
-                meldet sich bei dir.
+                Teilen Sie uns den Grund mit. Unser Team prüft Ihren Antrag und
+                meldet sich bei Ihnen.
               </p>
             </div>
 
@@ -519,7 +521,7 @@ export default function AboKuendigenPage() {
                 <p className="text-[13px] font-bold text-slate-800 truncate">
                   {firstName} {lastName}
                 </p>
-                <p className="text-[11px] text-slate-400 truncate">{email} · geb. {birthdate}</p>
+                <p className="text-[11px] text-slate-400 truncate">{email} · geb. {gebGelesen.anzeige || birthdate}</p>
               </div>
               <button
                 onClick={() => setPhase("verify")}
@@ -590,7 +592,7 @@ export default function AboKuendigenPage() {
                     <textarea
                       value={customReason}
                       onChange={(e) => setCustomReason(e.target.value)}
-                      placeholder="Bitte beschreibe deinen Grund…"
+                      placeholder="Bitte beschreiben Sie Ihren Grund …"
                       rows={3}
                       className="mt-3 w-full px-4 py-3 rounded-xl fiaon-input-glass text-[14px] text-gray-900 outline-none placeholder:text-gray-300 resize-none"
                     />
@@ -766,7 +768,7 @@ export default function AboKuendigenPage() {
               Kündigung beantragt!
             </h2>
             <p className="text-[15px] text-gray-500 mb-2 max-w-sm mx-auto leading-relaxed">
-              Dein Kündigungsantrag wurde erfolgreich übermittelt und wird von
+              Ihr Kündigungsantrag wurde erfolgreich übermittelt und wird von
               unserem Team geprüft.
             </p>
             {requestId && (
@@ -775,7 +777,7 @@ export default function AboKuendigenPage() {
               </p>
             )}
             <p className="text-[13px] text-gray-400 mb-10">
-              Wir melden uns innerhalb von 1–2 Werktagen bei dir per E-Mail.
+              Wir melden uns innerhalb von 1–2 Werktagen per E-Mail bei Ihnen.
             </p>
 
             <div className="max-w-xs mx-auto space-y-3">

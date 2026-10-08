@@ -123,6 +123,8 @@ import { AnrufPlayer } from "@/components/AnrufPlayer";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { ARTEN, type Art as LeitfadenArt } from "./tools/gespraech";
 import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
+import { GeburtsdatumFeld, useGeburtsdatum } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumAnzeige, geburtsdatumMitAlter, geburtsdatumLesen, GEBURT_TEXTE } from "@shared/fiaon-geburtsdatum";
 import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
@@ -1954,7 +1956,7 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
                     <button type="button" className={`pi-dub-zeile${wahl?.id === t.id ? " gewaehlt" : ""}`} onClick={() => waehlen(t)}>
                       <span className="pi-dub-name">{t.name}{t.bezahlt && <em className="pi-dub-marke">bezahlt</em>}</span>
                       <span className="pi-dub-sub">
-                        {[t.email, t.telefon, t.ort, t.geburtsdatum ? dtag(t.geburtsdatum) : null].filter(Boolean).join(" · ") || t.personRef}
+                        {[t.email, t.telefon, t.ort, t.geburtsdatum ? geburtsdatumAnzeige(t.geburtsdatum) : null].filter(Boolean).join(" · ") || t.personRef}
                       </span>
                       <span className="pi-dub-sub leise">
                         {t.bestellungen === 1 ? "1 Bestellung" : `${t.bestellungen} Bestellungen`}
@@ -2297,6 +2299,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   // Der ganze Antrag (24.08.2026). Kommt mit derselben Antwort wie die Akte —
   // kein zweiter Aufruf, kein Warten beim Reiterwechsel.
   const [antrag, setAntrag] = useState<any | null>(null);
+  // E-IT-G (08.10.2026): zwei verschiedene Geburtsdaten an Person und Bestellungen? (kommt mit der Akte)
+  const [geburtAbw, setGeburtAbw] = useState<GeburtAbweichung | null>(null);
   // E-282 (05.10.2026): persönliche FIAON-PIN — Kennung im Kopf, Prüffeld darunter.
   const [pinStand, setPinStand] = usePinStand(k.personId);
   const [pinOffen, setPinOffen] = useState(false);
@@ -2319,11 +2323,11 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   const frisch = async () => {
     const r = await api(`/agent/crm/kunden/${k.personId}`);
     if (r.ok && r.json?.kunde) onNeu(r.json.kunde);
-    if (r.ok) { setVerlauf(r.json.verlauf ?? []); setAntrag(r.json.antrag ?? null); }
+    if (r.ok) { setVerlauf(r.json.verlauf ?? []); setAntrag(r.json.antrag ?? null); setGeburtAbw(r.json.geburtsdatumAbweichung ?? null); }
   };
   const verlaufNachladen = async () => {
     const r = await api(`/agent/crm/kunden/${k.personId}`);
-    if (r.ok) setAntrag(r.json.antrag ?? null);
+    if (r.ok) { setAntrag(r.json.antrag ?? null); setGeburtAbw(r.json.geburtsdatumAbweichung ?? null); }
     if (r.ok) setVerlauf(r.json.verlauf ?? []);
   };
   useEffect(() => { void verlaufNachladen(); }, [k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -3543,13 +3547,15 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             )}
             {produktOffen && <ProduktDunkel k={k} aufKlappen={setProduktOffen} fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />}
             {bearbeiten && <KundeBearbeiten k={k} melden={melden} fokus={bearbeitenFokus} onProdukt={() => setProduktOffen(true)} onFertig={async () => { setBearbeiten(false); setBearbeitenFokus(null); await frisch(); }} />}
+            {geburtAbw && hatBestellung && <GeburtAbweichungHinweis k={k} abw={geburtAbw} melden={melden} onFertig={frisch} />}
             {/* E-047 Nr. 4, NEUE REGEL: Jeder „fehlt“-Hinweis ist klickbar und
                 öffnet das Formular MIT Fokus auf dem fehlenden Feld. */}
             <dl className="pi-dl">
               {([
                 ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null, "street"],
                 ["Land", k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : null, null],
-                ["Geburtsdatum", k.stammdaten?.geburtsdatum ? dtag(String(k.stammdaten.geburtsdatum)) : null, "birthdate"],
+                // E-IT-G (08.10.2026): VORHER dtag() mit zweistelligem Jahr („17.11.63“ — 1927 sah aus wie 2027).
+                ["Geburtsdatum", k.stammdaten?.geburtsdatum ? geburtsdatumMitAlter(k.stammdaten.geburtsdatum) : null, "birthdate"],
                 ["E-Mail", k.email, "email"], ["Telefon", k.telefon, "phone"],
                 ["Verwendungszweck", k.zahlung?.referenz, null],
                 ["Wiedervorlage", k.wiedervorlage ? dtag(k.wiedervorlage) : null, null],
@@ -4640,7 +4646,7 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
       <Sek titel="Zur Person" erklaer="Die Angaben aus dem Antrag. Stimmt etwas nicht mehr, änderst du es unter „Daten“.">
         <div className="pi-ab-liste">
           <Z was="Name laut Antrag" wert={[P.vorname, P.nachname].filter(Boolean).join(" ") || null} />
-          <Z was="Geburtsdatum" wert={P.geburtsdatum} />
+          <Z was="Geburtsdatum" wert={P.geburtsdatum ? geburtsdatumAnzeige(P.geburtsdatum) : null} />
           {/* Staatsangehörigkeit ist KEIN Hinweis auf die Sprache — siehe den
               Sprachvermerk weiter unten, der von Hand gesetzt wird. */}
           <Z was="Staatsangehörigkeit" wert={P.staatsangehoerigkeit} />
@@ -4975,13 +4981,32 @@ function Versandzentrum({ personId }: { personId: number }) {
 // E-047 Nr. 4: VORHER fehlten E-Mail und Geburtsdatum im Formular („Kunde
 // bearbeiten muss ALLE Felder haben“); der Server verarbeitet birthdate jetzt
 // (updateCustomerContact). `fokus` springt direkt ins fehlende Feld.
+//
+// ── E-IT-G (08.10.2026), Punkt (14) ─────────────────────────────────────────
+// 1) Das Geburtsdatum ist das gemeinsame Bauteil (TT · MM · JJJJ, „63“ → 1963,
+//    Gegenlesen „17. November 1963 · 62 Jahre“), nicht mehr type=date (aus
+//    1-7-1-1-6-3 wurde dort der 17.11.0063, und der Kalender verlangte 60 bis
+//    80 Jahre Zurückblättern). Unter 18 oder ab 95: Rückfrage „stimmt das?“,
+//    nach „Stimmt so“ darf gespeichert werden.
+// 2) GESCHICKT WIRD NUR, WAS SICH GEÄNDERT HAT. Vorher gingen bei jedem
+//    Speichern alle Felder mit: eine leere E-Mail ließ den Server mit „E-Mail-
+//    Format ungültig“ abbrechen (340 Akten, die Route meldete trotzdem
+//    „Gespeichert“), die Telefon-Anzeigeform wurde zu +49 umgeschrieben und
+//    mehrteilige Nachnamen am letzten Leerzeichen neu geteilt.
+// 3) Ein halb geleertes Geburtsdatum löscht nichts — Speichern sagt, was fehlt.
+//    Entfernen kann nur die Leitung (eigener Knopf, Server prüft die Rolle).
 function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void>; fokus?: string | null; onProdukt?: () => void }) {
-  const [f, setF] = useState({
+  const [anfang] = useState(() => ({
     firstName: (k.name || "").split(" ").slice(0, -1).join(" ") || k.name || "", lastName: (k.name || "").split(" ").slice(-1).join(""),
     email: k.email || "", phone: k.telefon || "",
     street: k.stammdaten?.strasse || "", zip: k.stammdaten?.plz || "", city: k.stammdaten?.ort || "",
-    birthdate: k.stammdaten?.geburtsdatum ? String(k.stammdaten.geburtsdatum).slice(0, 10) : "",
-  });
+  }));
+  const [f, setF] = useState(anfang);
+  const geb = useGeburtsdatum(k.stammdaten?.geburtsdatum ?? null, "akte");
+  const [geburtFehler, setGeburtFehler] = useState(false);
+  const [entfernen, setEntfernen] = useState(false);
+  const [leitung, setLeitung] = useState(false);
+  useEffect(() => { let an = true; void leitungsRechte().then((r) => { if (an) setLeitung(r.darf); }); return () => { an = false; }; }, []);
   const [busy, setBusy] = useState(false);
   const felderRef = useRef<Record<string, HTMLInputElement | null>>({});
   useEffect(() => {
@@ -4990,16 +5015,27 @@ function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; 
     if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus(); }
   }, [fokus]);
   const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
+  const geaenderteFelder = (Object.keys(f) as (keyof typeof f)[]).filter((key) => f[key].trim() !== anfang[key].trim());
   const speichern = async () => {
     // Justin 24.08.: VORHER endete der Weg hier mit einer roten Meldung —
     // NACHHER führt der Hinweis über dem Formular direkt zum Produkt-Anlegen;
     // diese Meldung ist nur noch der Rückfall, falls jemand doch hier landet.
     if (!ref) { melden("schlecht", "Keine Bestellung", "Leg oben mit einem Klick ein Produkt an – daran hängen die Stammdaten."); onProdukt?.(); return; }
+    const body: Record<string, unknown> = {};
+    for (const key of geaenderteFelder) body[key] = f[key];
+    if (entfernen) body.birthdateEntfernen = true;
+    // Gegenprüfung 08.10.: Ein UNVERÄNDERTES Altdatum (z. B. unter 18 oder ab 95) blockiert das Speichern anderer Felder nicht.
+    else if (!geb.leer && (geb.erg.iso !== geb.startIso || !geb.erg.iso)) {
+      if (!geb.iso) { setGeburtFehler(true); melden("schlecht", "Geburtsdatum prüfen", geb.sperrGrund || "Bitte Tag, Monat und Jahr eintragen."); return; }
+      if (geb.geaendert) { body.birthdate = geb.iso; if (geb.bestaetigtMitsenden) body.geburtBestaetigt = true; }
+    }
+    if (Object.keys(body).length === 0) { melden("info", "Nichts geändert", "Es gibt keine Änderung zum Speichern."); return; }
     setBusy(true);
-    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(f) });
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(body) });
     setBusy(false);
-    if (!r.ok) { melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
-    melden("gut", "Gespeichert", "Die Änderungen stehen mit altem und neuem Wert in der Akte.");
+    if (!r.ok) { if (r.json?.rueckfrage) setGeburtFehler(true); melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
+    const n = Array.isArray(r.json?.geaendert) ? r.json.geaendert.length : 0;
+    melden("gut", "Gespeichert", n ? `${n === 1 ? "Eine Änderung steht" : `${n} Änderungen stehen`} mit altem und neuem Wert in der Akte.` : "Die Akte war schon auf diesem Stand.");
     await onFertig();
   };
   const feld = (key: keyof typeof f, label: string, breit = false, typ = "text") => (
@@ -5012,13 +5048,63 @@ function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; 
         {feld("email", "E-Mail", true, "email")}
         {feld("phone", "Telefon", true)}{feld("street", "Straße", true)}
         {feld("zip", "PLZ")}{feld("city", "Ort")}
-        {feld("birthdate", "Geburtsdatum", true, "date")}
+        <div className="breit pi-geburt-gruppe">
+          <span>Geburtsdatum</span>
+          {entfernen ? (
+            <span className="pi-geburt-weg">Wird beim Speichern entfernt. <button type="button" className="pi-link" onClick={() => setEntfernen(false)}>Doch behalten</button></span>
+          ) : (
+            <GeburtsdatumFeld
+              teile={geb.teile} onTeile={(t) => { geb.setTeile(t); setGeburtFehler(false); }} kontext="akte" ergebnis={geb.erg}
+              bestaetigt={geb.bestaetigt} onBestaetigen={geb.bestaetigen} variante="office" zeigeFehler={geburtFehler}
+              feldRef={(el) => { felderRef.current.birthdate = el; }} onEnter={() => void speichern()}
+              zusatz={leitung && geb.startIso ? <button type="button" className="pi-link" onClick={() => setEntfernen(true)}>Geburtsdatum entfernen</button> : null}
+            />
+          )}
+        </div>
       </div>
       <div className="pi-reihe">
         <button type="button" className="pi-knopf klein" onClick={() => void speichern()} disabled={busy || !ref} title={ref ? undefined : "Erst ein Produkt anlegen – daran hängen die Stammdaten."}>{busy ? "Speichert …" : "Speichern"}</button>
         {!ref && onProdukt && <button type="button" className="pi-knopf klein still" onClick={onProdukt}>Produkt hinzufügen</button>}
-        <span className="pi-luecke">Das Land ändert die Vertriebsleitung.</span>
+        <span className="pi-luecke">Gespeichert wird nur, was du änderst. Das Land ändert die Vertriebsleitung.</span>
       </div>
+    </div>
+  );
+}
+
+// ── Geburtsdatum weicht ab (E-IT-G, 08.10.2026) ───────────────────────────────
+// Person und Bestellungen tragen verschiedene Geburtsdaten (gemessen 07.10.:
+// 15 Menschen, z. B. 15.11.2025 an der Person, 19.01.1947 an der Bestellung).
+// KEINE automatische Korrektur — der Mitarbeiter wählt laut Ausweis; der Klick
+// schreibt den Wert über denselben Stammdaten-Weg an Person UND alle
+// Bestellungen (ein Verlaufseintrag). Steht nur in der Akte, nie in Listen.
+type GeburtAbweichung = { werte: { iso: string; anzeige: string; quellen: string[]; fremderName?: boolean }[] };
+function GeburtAbweichungHinweis({ k, abw, melden, onFertig }: { k: Kunde; abw: GeburtAbweichung; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void> }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
+  if (!ref || abw.werte.length < 2) return null;
+  const nehmen = async (iso: string) => {
+    // Gegenprüfung 08.10.: Die Rückfrage (unter 18 / ab 95) gilt auch hier — „Stimmt so“ erst nach ausdrücklicher Bestätigung.
+    const e = geburtsdatumLesen(iso, "akte");
+    if (e.stand === "pruefen" && !window.confirm(`${e.meldung}\n\n${geburtsdatumAnzeige(iso)} an Person und allen Bestellungen übernehmen?`)) return;
+    setBusy(iso);
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify({ birthdate: iso, ...(e.stand === "pruefen" ? { geburtBestaetigt: true } : {}) }) });
+    setBusy(null);
+    if (!r.ok) { melden("schlecht", "Nicht übernommen", r.json?.error || "Bitte erneut versuchen."); return; }
+    melden("gut", "Geburtsdatum vereinheitlicht", `${geburtsdatumAnzeige(iso)} steht jetzt an Person und allen Bestellungen.`);
+    await onFertig();
+  };
+  return (
+    <div className="pi-sackgasse" data-geburt-abweichung>
+      <span><b>Geburtsdatum weicht ab</b>{abw.werte.map((w) => `${w.anzeige} (${w.quellen.join(", ")})`).join(" · ")} — bitte laut Ausweis prüfen und das richtige übernehmen.
+        {/* Gegenprüfung 08.10.: verschiedene Namen an einer Person → erst klären, nicht blind vereinheitlichen. */}
+        {abw.werte.some((w) => w.fremderName) && <><br /><b data-geburt-fremder-name>{GEBURT_TEXTE.fremderName}</b></>}</span>
+      <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {abw.werte.map((w) => (
+          <button key={w.iso} type="button" className="pi-knopf klein" disabled={!!busy} onClick={() => void nehmen(w.iso)}>
+            {busy === w.iso ? "Übernimmt …" : `${geburtsdatumMitAlter(w.iso)} übernehmen`}
+          </button>
+        ))}
+      </span>
     </div>
   );
 }

@@ -9,6 +9,7 @@
 // Nichts wird gespeichert oder gesendet; der Brief entsteht im Browser.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
+import { geburtsdatumLesen } from "@shared/fiaon-geburtsdatum";
 import { Dunkel, Hero, Block, Licht, Knopf, Zwischenruf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
@@ -22,6 +23,13 @@ const AUSKUNFTEIEN = [
   { key: "crif-ch", land: "CH", name: "CRIF AG", adresse: ["Hagenholzstrasse 81", "8050 Zürich"], recht: "Art. 25 DSG" },
   { key: "intrum-ch", land: "CH", name: "Intrum AG", adresse: ["Eschenstrasse 12", "8603 Schwerzenbach"], recht: "Art. 25 DSG" },
 ] as const;
+
+// E-IT-G (08.10.2026): das Geburtsdatum über den einen Leser in den Brief — „14.5.88“ wird 14.05.1988,
+// ein unmöglicher Tag (31.02.) bleibt als Platzhalter stehen, statt so an die Auskunftei zu gehen.
+function geburtBrief(roh: string): string {
+  const e = geburtsdatumLesen(roh, "pruefung");
+  return e.stand === "ok" ? e.anzeige : "[TT.MM.JJJJ]";
+}
 
 export default function Selbstauskunft() {
   const t = useWoerter(WZ_SELBSTAUSKUNFT_WOERTER);
@@ -59,7 +67,7 @@ hiermit beantrage ich gemäß ${ch ? "Art. 25 des Schweizer Datenschutzgesetzes 
 
 Zur Identifikation:
 Name: ${f.name || "[Name]"}
-Geburtsdatum: ${f.geburt || "[TT.MM.JJJJ]"}
+Geburtsdatum: ${geburtBrief(f.geburt)}
 Aktuelle Anschrift: ${[f.strasse, f.plzOrt].filter(Boolean).join(", ") || "[Anschrift]"}${f.frueher ? `\nFrühere Anschrift: ${f.frueher}` : ""}
 
 Eine Kopie meines Ausweises liegt bei; nicht erforderliche Angaben habe ich geschwärzt.

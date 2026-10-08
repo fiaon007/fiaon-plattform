@@ -22,13 +22,21 @@
 //   „Active“ (nie „Inactive“, „not Active“, Auflösung); Link und Freigabe des Anwalts bei gesperrtem Versand nur für die Stufe
 //   „inhaber“; die Freigabe hängt auch an den Angaben der Bürgin. Zweite Nachprüfung: „Nachholen“ meldet beim Firmenangebot
 //   keine Bestätigungsmail; die Annahme prüft vorher die CHECKs der Migration 096 (sonst 503, nichts gespeichert).
+//   Runde 2 (08.10.2026, Fassung C, Abschnitt 10): Garantiefrist ab Annahme mit Ruhen bei fehlender Mitwirkung, Empfängerin die
+//   US-Gesellschaft; gemeinsames Wachstumsbudget (Hälfte, Aufstellung = Summe, Start erst am Tag „Shop live“, Mindestlaufzeit ab
+//   dann); Unterschrift Pflicht (leer/ohne → abgewiesen, gezeichnet oder getippt, im Annahmevermerk); Team nur aus den
+//   Angebotsdaten (kein KI-Porträt, Monogramm), Leser mit Annahme-Knopf am Ende, keine Fotos im Zeitstrahl und auf den Karten.
+//   Runde 3 (08.10.2026, Fassung D, Abschnitt 11): Kapital im Hero und direkt danach, Gründungskosten nur als Zeile, kompakt
+//   (drei Punkte, ein Satz, acht Fragen offen), Ziffer 7 garantiert die Auszahlung (keine Zusage), spätester Starttag des
+//   Wachstumsbudgets (Ziffer 10 Absatz 2), Team nur mit bestaetigt !== false.
 //
 // ── TEIL 2 — MIT --lokal (Prüfstand-DB auf 127.0.0.1 + laufender lokaler Server, PRUEF_BASIS) ──
 //   Anlegen über das Import-Skript mit einer erfundenen Firma (Musterfirma Beispiel GmbH) → Kundensicht (Form =
-//   FirmaKundenSicht) → Annahme: Häkchen fehlen 400, Start fehlt 400, Datum falsch 400, Hash falsch 409, gut 200 →
+//   FirmaKundenSicht) → Annahme: Häkchen fehlen 400, Unterschrift fehlt/leer 400, Name ohne Nachnamen 400, Hash falsch 409, gut 200 →
 //   Person am Angebot + Global-Kunde-Regel → Rechnung Gründung (Firma, UID, Reverse Charge, Rechnungstext) →
-//   vierundzwanzig Monatsteile → Monatslauf mit simulierter Uhr (Rechnung am Fälligkeitstag, nicht davor, nicht doppelt) →
-//   Zahlung Gründung → Start → Bedingungen erfüllt → Garantiefrist → Frist ruht → Garantiefall (Erstattung 6.900 €) →
+//   Garantiefrist ab Annahme, Unterschrift gespeichert und im PDF → vor „Shop live“ keine Monatsteile → „Shop live“: vierundzwanzig
+//   Monatsteile ab dem Tag, erste Rechnung sofort (2.000 €), keine Mail → Monatslauf mit simulierter Uhr (Rechnung am Fälligkeitstag,
+//   nicht davor, nicht doppelt) → Zahlung Gründung → Start → Bedingungen erfüllt (Frist bleibt) → Frist ruht → Garantiefall →
 //   Umsatz (erstes Jahr anteilig, Quartale, Jahresabgleich mit Gutschrift) → Verkauf 5 % → Verlängerung → Kündigung →
 //   PDFs über den Kundenlink → Liste der Leitung (art „firma“, Knöpfe) → Leitungsrouten ohne Anmeldung gesperrt →
 //   Nachbesserung: Jahresabgleich und Nullmeldung zählen einmal, Ende der Umsatzbeteiligung, Cent-Feld als Text → 400,
@@ -54,6 +62,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zl from "node:zlib";
 import { execFileSync } from "node:child_process";
 
 const LOKAL = process.argv.includes("--lokal");
@@ -95,6 +104,7 @@ const INHALT = {
   ansprechpartner: "justin",
 };
 const PARAMETER = { ...S.FIRMA_VORGABEN, inhalt: INHALT };
+const FIRMA_OHNE_INHALT = () => ({ ...S.FIRMA_VORGABEN, inhalt: {} });
 const BUERGIN_VOLL = { ...SA.BUERGIN_VORGABE, registernummer: "L00000000000", unterzeichnetAm: "2026-10-07", bestaetigt: true, bestaetigtGrundlage: "Registerauszug (Sunbiz) vom 07.10.2026: Status Active — Prüfstand" };
 const befund = (id: string, pruefung: string) => ({ id, aussage: `Prüfaussage ${id}.`, quelle_name: "Prüfquelle", quelle_url: "https://example.org/quelle", stand: "07.10.2026", art: "primär", pruefung });
 const COMPLIANCE_ROH = {
@@ -133,7 +143,22 @@ const D: FirmaDaten = { ref: "FIAON-IA-FPRUEF1", fassung: S.FIRMA_FASSUNG, kunde
  *     Absatz 2 („gleich ob in einem Betrag oder in Teilbeträgen“), Ziffer 8 Absatz 3 (keine Bindung der Bürgschaft an die
  *     Auszahlungsart oder einen Verwendungsplan), Anlage 1 Fassung D (bei Teilbeträgen gilt die Zusage für alle).
  */
-const PRUEFSUMME_FIRMA_D = "7ba1bdcfee61bf505011f7ec4a90099c4e2a7f1a8c05418ebb8c4c0f0fd54ecc";
+/*   7ba1bdcfee61bf505011f7ec4a90099c4e2a7f1a8c05418ebb8c4c0f0fd54ecc  (bis Runde 2)
+ *   08.10.2026 (E-301, Runde 2 — Justins Änderungen nach der Live-Seite, Vertragsfassung IA-FIRMA-2026-10-08-C): BEWUSST neu gesetzt.
+ *     Grund: Ziffer 7 Absatz 1/3/4 (Garantiefrist ab dem Tag der Annahme, Empfängerin die US-Gesellschaft, Ruhen bei fehlenden
+ *     Unterlagen nach Ziffer 8 Absatz 4), Ziffer 10 (gemeinsames Wachstumsbudget mit Aufstellung, Starttag = Tag „Shop live“,
+ *     Mehrbudget in Absatz 6), Verweise in den Ziffern 3, 5, 6, 13, 14, Präambel, Annahmeblock („mit Unterschrift und Klick“).
+ *     Anlage 1 unverändert (Fassung D, eigene Prüfsumme gleich — Prüfung unten).
+ *     3fd1283153c3a5e6c14b04581b9b383526d5f510aab227caa5067af12902dd22  (bis Runde 3)
+ *   08.10.2026 (E-301, Runde 3 — Endfassung zum Versand, Vertragsfassung IA-FIRMA-2026-10-08-D): BEWUSST neu gesetzt.
+ *     Grund: Ziffer 7 Absatz 1, 2 und 5 — garantiert ist die AUSZAHLUNG der ersten Runde an die US-Gesellschaft binnen drei
+ *     Monaten ab der Annahme, eine Zusage allein genügt nicht mehr (Justin, Punkt 4); Ziffer 10 Absatz 2 — spätester Starttag
+ *     des Wachstumsbudgets sechs Monate nach der Annahme, es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu
+ *     vertreten hat (Punkt 5). Die Fassung steht in der Prüfsumme (firmaHashEingabe). Anlage 1 unverändert (Prüfung unten).
+ */
+const PRUEFSUMME_FIRMA_D = "a819be482a28db13e6932e275be3299ca07d02adb07abbb533b0792b1e948f22";
+/** Die Prüfsumme der Anlage 1 der Testfirma — Runde 2 darf sie NICHT ändern (das unterschriebene Original bleibt gültig). */
+const PRUEFSUMME_ANLAGE1_D = "ce6bfc306ea38af67f3ec958145381fd7bdd3d200c193ed6dffe158f8b685a8a"; // = Stand vor Runde 2 (aus main 50cde08d nachgerechnet)
 
 // Die Garantie-Sätze — die EINE Quelle. Sie (und die Etiketten) werden vor der Wortwand herausgenommen.
 const G = S.firmaGarantie(PARAMETER);
@@ -166,7 +191,7 @@ titel("1. Ziffern und Vertragssprache");
   ok(/Anlage 2 — Prüfbericht/.test(t) && /Anlage 1 — Bürgschaftszusage der Schwarzott Global LLC/.test(t), "Rumpf: Anlage 1 und Anlage 2");
   // Verweise: die Absätze, auf die der Text zeigt, gibt es.
   const abs = (nr: number) => z[nr - 1].absaetze.length;
-  ok(abs(7) >= 5 && abs(8) >= 5 && abs(10) >= 4 && abs(11) >= 8 && abs(12) >= 3 && abs(14) >= 4, "Verweise Ziffer 7 Abs. 4/5, 8 Abs. 4/5, 10 Abs. 4, 11 Abs. 5–8, 12 Abs. 3, 14 Abs. 3/4 zeigen auf echte Absätze");
+  ok(abs(7) >= 5 && abs(8) >= 5 && abs(10) >= 6 && abs(11) >= 8 && abs(12) >= 3 && abs(14) >= 4, "Verweise Ziffer 7 Abs. 4/5, 8 Abs. 4/5, 10 Abs. 2/3/6, 11 Abs. 5–8, 12 Abs. 3, 14 Abs. 3/4 zeigen auf echte Absätze");
 }
 
 titel("2. Wortwand, Global-Regeln, Fristen als Wort");
@@ -199,9 +224,9 @@ titel("2. Wortwand, Global-Regeln, Fristen als Wort");
   ok(rest.length === 0, "„garant…“ steht nur in firmaGarantie / FIRMA_GARANTIE_FEST", rest);
   ok(G_SAETZE.every((x) => /garant/i.test(x) || x.length > 0), "Garantie-Quelle vorhanden");
   // Justin (07.10.2026): Die erste Runde ist kein „Ziel“ — sie kommt.
-  const kapitalTexte = [texteAus(seite.kapital), texteAus(seite.hero), texteAus(seite.leistungen.karten.find((k) => k.schluessel === "kapital")), seite.phasen.liste.find((p) => p.nr === 4)?.text ?? ""].flat().join("\n");
+  const kapitalTexte = [texteAus(seite.kapital), texteAus(seite.hero), texteAus(seite.leistungen.karten.find((k) => k.schluessel === "kapital")), seite.phasen.liste.find((p) => p.abzeichen === "Kapital")?.text ?? ""].flat().join("\n");
   ok(!/\bZiel/i.test(kapitalTexte), "Kapital: nie „Ziel“ (Justin 07.10.2026: die 250.000 USD kommen)", kapitalTexte.match(/.{0,30}Ziel.{0,30}/gi));
-  ok(seite.kapital.garantie.every((x) => G.kapital.includes(x)) && seite.hero.nutzen.includes(G.nutzenKapital), "Seite: Garantie-Sätze aus firmaGarantie");
+  ok(seite.kapital.garantie.every((x) => G.kapital.includes(x)) && seite.hero.kapital.satz === G.satz, "Seite: Garantie-Sätze aus firmaGarantie (Kapital und Hero)");
   // zahlwort bis neunundneunzig
   const zw: [number, string][] = [[1, "eins"], [12, "zwölf"], [21, "einundzwanzig"], [24, "vierundzwanzig"], [31, "einunddreißig"], [36, "sechsunddreißig"], [60, "sechzig"], [90, "neunzig"], [99, "neunundneunzig"]];
   for (const [z2, w] of zw) ok(S.zahlwort(z2) === w, `zahlwort(${z2}) = ${w}`, S.zahlwort(z2));
@@ -385,8 +410,10 @@ titel("5. Prüfsumme");
   else ok(h1 === PRUEFSUMME_FIRMA_D, "Prüfsumme der Testfirma D unverändert (Wortlaut-Stand E-301)", h1);
   ok(F.firmaTextHash({ ...D, buergin: { ...BUERGIN_VOLL, unterzeichnetAm: "2026-10-08" } }) !== h1, "Anlage 1 geändert → andere Prüfsumme");
   ok(F.firmaTextHash({ ...D, compliance: { ...COMPLIANCE, gesamt: { ...COMPLIANCE.gesamt, titel: "anders" } } }) !== h1, "Anlage 2 geändert → andere Prüfsumme");
-  const mit = F.firmaRumpf(D, { am: new Date("2026-10-08T10:00:00Z"), ip: "203.0.113.7", userAgent: "Mozilla/5.0", hash: h1, starttag: "2026-10-08", sofort: true });
-  ok(mit.includes("Starttag: 08.10.2026") && mit.includes("Vertretungsbefugnis") && F.firmaTextHash(D) === h1, "Annahmevermerk (Starttag, Bestätigungen) steht im PDF, nicht in der Prüfsumme");
+  const mit = F.firmaRumpf(D, { am: new Date("2026-10-08T10:00:00Z"), ip: "203.0.113.7", userAgent: "Mozilla/5.0", hash: h1, unterschrift: { art: "getippt", name: "Martina Muster", png: null } });
+  ok(mit.includes("Unterschrift: Name getippt („Martina Muster“)") && mit.includes("Vertretungsbefugnis") && !mit.includes("Starttag:") && F.firmaTextHash(D) === h1, "Annahmevermerk (Unterschrift, Bestätigungen; kein Starttag in Fassung C) steht im PDF, nicht in der Prüfsumme");
+  if (PRUEFSUMME_ANLAGE1_D.startsWith("__")) console.log(`  HINWEIS  Prüfsumme Anlage 1 der Testfirma D: ${F.firmaAnlage1Pruefsumme(D)} — in PRUEFSUMME_ANLAGE1_D eintragen.`);
+  else ok(F.firmaAnlage1Pruefsumme(D) === PRUEFSUMME_ANLAGE1_D, "Anlage 1 der Testfirma D unverändert (Runde 2 berührt sie nicht)", F.firmaAnlage1Pruefsumme(D));
   ok(F.firmaAnlage1Pruefsumme(D) !== h1 && /^[0-9a-f]{64}$/.test(F.firmaAnlage1Pruefsumme(D)), "Anlage 1 hat ihre eigene Prüfsumme");
 }
 
@@ -421,7 +448,7 @@ titel("7. Seite, Übersicht, Annahme");
 {
   const s = S.firmaSeite(D);
   ok(s.auftakt.gruss === "Herzlichen Glückwunsch, Frau Muster." && s.auftakt.zeile === "BEISPIELMARKE geht in die Welt — und wir gehen mit.", "Auftakt aus dem Angebot", s.auftakt);
-  ok(s.phasen.liste.length === 7 && s.phasen.liste.map((p) => p.nr).join() === "0,1,2,3,4,5,6" && s.phasen.liste[2].bild?.src === INHALT.bilder.herkunft.src, "sieben Phasen (0–6), Szenenbild aus den Parametern");
+  ok(s.phasen.liste.length === 7 && s.phasen.liste.map((p) => p.nr).join() === "0,1,2,3,4,5,6" && s.phasen.liste.every((p) => !p.bild) && s.phasen.liste[2].titel === "Aufbau" && s.phasen.liste[2].illustration === "aufbau", "sieben Phasen (0–6), keine Fotos im Zeitstrahl — „Aufbau“ mit eigener Animation (Runde 2, Punkt 4)");
   ok(s.phasen.sub === "Sieben Etappen — vom Start bis in weitere Runden.", "Untertitel des Zeitstrahls", s.phasen.sub);
   // Justin (07.10.2026, Punkt 2): keine „neue Rolle“, kein Rollenwechsel, keine Begleitung einer neuen Geschäftsführung — nirgends.
   const rumpfText = S.htmlZuText(F.firmaRumpf(D));
@@ -441,34 +468,42 @@ titel("7. Seite, Übersicht, Annahme");
   // Nachprüfung 08.10.2026: „in einer Auszahlung“ ist VORGESEHEN, kein Tatbestand — nicht in der Bestimmung „erhalten“ (Ziffer 7
   // Absatz 2), keine Grenze der Bürgschaft (Ziffer 8 Absatz 3) und keine Grenze der Zusage (Anlage 1): Zahlt ein Institut in
   // Teilbeträgen aus, bleiben Garantie und Bürgschaft stehen.
-  ok(!/in einer Auszahlung|bereitgestellt/.test(G.vertragErhalten) && G.vertragErhalten.includes("ausgezahlt oder in Textform verbindlich zugesagt hat, gleich ob in einem Betrag oder in Teilbeträgen."), "Ziffer 7 Absatz 2: erhalten = ausgezahlt oder zugesagt, gleich ob in einem Betrag oder in Teilbeträgen", G.vertragErhalten.slice(0, 260));
+  // Runde 3 (Fassung D, Punkt 4): garantiert ist die AUSZAHLUNG — eine Zusage allein genügt nicht mehr.
+  ok(!/in einer Auszahlung|bereitgestellt|verbindlich zugesagt/.test(G.vertragErhalten) && G.vertragErhalten.includes("ausgezahlt hat, gleich ob in einem Betrag oder in Teilbeträgen; eine Zusage allein genügt nicht."), "Ziffer 7 Absatz 2: ausgezahlt (keine bloße Zusage), gleich ob in einem Betrag oder in Teilbeträgen", G.vertragErhalten.slice(0, 260));
   ok(!/in einer Auszahlung bereitgestellt|deren Mittel der US-Gesellschaft in einer Auszahlung/.test(rumpfText) && rumpfText.includes("Weder FIAON noch die Bürgin knüpfen die Bürgschaft an eine Auszahlung in Teilbeträgen oder an einen Plan über die Verwendung der Mittel."), "Ziffer 8 Absatz 3: die Bürgschaft hängt an keiner Auszahlungsart und keinem Verwendungsplan");
   const a1Ausz = S.firmaAnlage1Ziffern(D).find((z) => z.titel === "Auszahlung in einem Betrag");
   const a1AuszText = a1Ausz ? absaetzeText([a1Ausz]).join(" ") : "";
   ok(a1AuszText.includes("weder an eine Auszahlung in Teilbeträgen noch an einen Plan über die Verwendung der Mittel") && a1AuszText.includes("gilt die Zusage für alle Teilbeträge"), "Anlage 1: Zusage ohne Bindung an die Auszahlungsart — bei Teilbeträgen gilt sie für alle", a1AuszText);
   ok(S.ANLAGE1_FIRMA_FASSUNG === "IA-FIRMA-ANLAGE1-2026-10-08-D", "Anlage 1 trägt die neue Fassung D (Wortlaut geändert → neue Kennung)", S.ANLAGE1_FIRMA_FASSUNG);
   const auszSeite = texteAus(s).filter((x) => /einer Auszahlung|einem Betrag/.test(x));
-  ok(auszSeite.length >= 3 && auszSeite.every((x) => /vorgesehen/i.test(x)) && !/Bereitgestellt in einer Auszahlung|kommt in einer Auszahlung/.test(seiteText), "Seite: die Auszahlung in einem Betrag ist überall „vorgesehen“, keine Zusage", auszSeite);
+  ok(auszSeite.length >= 2 && auszSeite.every((x) => /vorgesehen/i.test(x)) && !/Bereitgestellt in einer Auszahlung|kommt in einer Auszahlung/.test(seiteText), "Seite: die Auszahlung in einem Betrag ist überall „vorgesehen“, keine Zusage", auszSeite);
   ok(!/in einer Auszahlung|in einem Betrag/.test(G.phaseKapital.split(" — sonst")[0]), "Phase „Erste Runde“: die Auszahlungsart steht nicht im Satz der Garantie", G.phaseKapital);
   ok(/Einsicht in Umsatzsteuervoranmeldungen, betriebswirtschaftliche Auswertungen/.test(rumpfText), "Prüfrecht der Umsatzbeteiligung (UVA/BWA) bleibt in Ziffer 11");
   ok(/binnen vierzehn Tagen nach Vorlage der letzten Unterlage/.test(rumpfText) && /vierzehnte Tag nach dieser Vorlage/.test(rumpfText), "Tag der erfüllten Bedingungen: Bestätigung binnen vierzehn Tagen bleibt");
   ok(!S.firmaAnlage1Ziffern(D).some((z) => /Sicherheit/.test(z.titel)) && S.firmaAnlage1Ziffern(D).every((z, i) => z.nr === i + 1), "Anlage 1: keine Ziffer „Sicherheiten“, fortlaufend gezählt");
-  // Punkt 7 + Go 07.10.: Team unter dem Ansprechpartner — nur die Leitung ohne den Ansprechpartner.
+  // Runde 2, Punkt 9: Team aus den Angebotsdaten (inhalt.team). Ohne Daten: die Leitung mit ihren echten Porträts (nie ein KI-Porträt).
   const team = s.team.personen.map((p) => p.name);
-  ok(s.team.titel === "Ihr Team bei FIAON Global" && !team.includes("Justin Schwarzott") && team.includes("Florentine Lombardi") && team.includes("Daniel Stripling")
-    && team.length === 2 && s.team.personen.every((p) => p.portrait.startsWith("/portraits/") && p.initialen.length === 2), "Team: nur die Leitung (Florentine Lombardi, Daniel Stripling), Porträts", team);
+  ok(s.team.titel === "Ihr Team bei FIAON Global" && !team.includes("Justin Schwarzott") && team.length === 2 && s.team.personen.every((p) => (p.foto === null || p.foto.startsWith("/portraits/")) && p.initialen.length === 2), "Team ohne Angebotsdaten: die Leitung (ohne den Ansprechpartner), nur echte Porträts", team);
+  const tbasis = "/api/fiaon/global/angebot/T/bild/";
+  const tdaten = S.firmaSeite({ ...D, parameter: { ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "Testperson Eins", rolle: "Testrolle A" }, { name: "Dr. Testperson", rolle: "Testrolle B", foto: `${tbasis}team-t.webp` }, { name: "Justin Schwarzott", rolle: "doppelt" }, { name: "Testperson Drei", rolle: "Testrolle C", foto: "haus:justin" }] } } }).team.personen;
+  ok(tdaten.length === 3 && tdaten[0].foto === null && tdaten[0].initialen === "TE" && tdaten[1].foto === `${tbasis}team-t.webp` && tdaten[1].initialen === "T" && tdaten[2].foto === null, "Team aus inhalt.team: Monogramm ohne Foto, echtes Foto hinter dem Link, KI-Porträt des Hauses abgewiesen, Ansprechpartner nicht doppelt", tdaten);
+  ok(!S.firmaTeamFotoOk("haus:justin") && S.firmaTeamFotoOk("haus:florentine") && S.firmaTeamFotoOk("team-a.webp") && !S.firmaTeamFotoOk("/portraits/x.jpg"), "Teamfoto: nur echte Fotos (KI-Porträt nein, Bildname ja)");
+  ok(/Team \(inhalt\.team\)/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "X", rolle: "Y", foto: "haus:justin" }] } }) ?? ""), "firmaParameterFehler lehnt ein KI-Porträt im Team ab");
+  ok(S.firmaBildVerweise({ team: [{ name: "a", rolle: "b", foto: "team-a.webp" }, { name: "c", rolle: "d", foto: "haus:florentine" }] }).join() === "team-a.webp", "Import spielt Teamfotos ein (nur Bildnamen)");
+  const seiteQ7 = fs.readFileSync("client/src/pages/business-angebot-firma.tsx", "utf8");
+  ok(!/gaf-ki-rund|portraitHinweis|gaf-team-ki/.test(seiteQ7.replace(/\/\/.*$|\{\/\*[\s\S]*?\*\/\}/gm, "")) && s.bildnachweis.includes("Porträt Justin Schwarzott: Porträt mit KI erstellt"), "kein KI-Hinweis unter den Porträts — einmal im Bildnachweis am Seitenende");
   // Punkt 8: Inhaltsverzeichnis des Lesers = Ziffern des Rumpfs (Anker vorhanden).
   const html = F.firmaRumpf(D);
   ok(s.vertrag.inhalt.length === 23 && s.vertrag.inhalt.every((z) => html.includes(`id="${z.anker}"`)), "Leser: Inhalt (Präambel, zwanzig Ziffern, zwei Anlagen) mit Ankern im Vertrags-HTML", s.vertrag.inhalt.map((z) => z.anker));
   ok(s.leistungen.karten.map((k) => k.schluessel).join() === "gesellschaft,kapital,strategie,plattform,vertrieb,ansprechpartner", "sechs Leistungskarten");
-  ok(s.investition.posten.length === 4 && s.investition.posten.every((p) => p.was && p.wann && p.warum && p.wie) && s.investition.posten.map((p) => p.betrag).join(" · ") === "6.900 € · 1.990 € · 10 % · 5 %", "vier Posten mit Was/Wann/Warum/Wie", s.investition.posten.map((p) => p.betrag));
+  ok(s.investition.posten.length === 4 && s.investition.posten.every((p) => p.was && p.wann && p.warum && p.wie) && s.investition.posten.map((p) => p.betrag).join(" · ") === "6.900 € · 2.000 € · 10 % · 5 %", "vier Posten mit Was/Wann/Warum/Wie (Wachstumsbudget: Ihr Anteil 2.000 €)", s.investition.posten.map((p) => p.betrag));
   ok(s.investition.rechner.minCents === 60_000_000 && s.investition.rechner.maxCents === 300_000_000 && s.investition.rechner.zeileBeteiligung.includes("{umsatz}") && s.investition.rechner.zeileBeteiligung.includes("{cent}") && s.investition.rechner.zeileUnterSchwelle.includes("{schwelle}"), "Rechner 600.000 € … 3.000.000 €, Platzhalter");
-  ok(!("extra" in s.investition) && !/Werbebudget|Etikettendruck|Labortests/.test(texteAus(s).join("\n")), "Punkt 6: keine Liste „Was Sie direkt zahlen“ auf der Seite");
-  ok(/das Werbebudget für bezahlte Anzeigen/.test(rumpfText) && /Etikettendruck/.test(rumpfText), "… sie steht nur im Vertrag (Ziffer 10 Absatz 4)");
+  ok(!("extra" in s.investition) && !/Etikettendruck|Labortests|Lager und Logistik/.test(texteAus(s).join("\n")), "Punkt 6: keine Liste „Was Sie direkt zahlen“ auf der Seite");
+  ok(/Werbebudget für bezahlte Anzeigen über das gemeinsame Wachstumsbudget nach Absatz 3 hinaus \(Mehrbudget nach Absprache\)/.test(rumpfText) && /Etikettendruck/.test(rumpfText), "… sie steht nur im Vertrag (Ziffer 10 Absatz 6) — Werbebudget nur über das gemeinsame Budget hinaus");
   // Punkt 5: Rechner mit Skala (Schwelle + volle Millionen).
   ok(JSON.stringify(s.investition.rechner.skala) === JSON.stringify([{ cents: 60_000_000, text: "600.000 €", schwelle: true }, { cents: 100_000_000, text: "1 Mio." }, { cents: 200_000_000, text: "2 Mio." }, { cents: 300_000_000, text: "3 Mio." }]) && s.investition.rechner.zahlTitel === "Beteiligung pro Jahr", "Rechner: Skala 600.000 € · 1 Mio. · 2 Mio. · 3 Mio., Titel der Zahl", s.investition.rechner.skala);
   const fr = s.fragen.liste.map((x) => x.frage).join(" | ");
-  for (const m of [/Was zahle ich wann/, /Warum eine Umsatzbeteiligung/, /Umsatz nicht wächst/, /Muss ich verkaufen/, /Monatspauschale/, /Wie ist die erste Runde abgesichert/, /Bedingungen hat die Bürgschaft/, /Sonderfreigabe/, /kündige/, /Gehört die US-Gesellschaft mir/, /selbst tun/, /Bleibe ich Geschäftsführerin und Eigentümerin/, /Umsatzsteuer/, /Ist die erste Runde ein Kredit\?/])
+  for (const m of [/Was zahle ich wann/, /Warum eine Umsatzbeteiligung/, /Umsatz nicht wächst/, /Muss ich verkaufen/, /Wachstumsbudget/, /Wie ist die erste Runde abgesichert/, /Bedingungen hat die Bürgschaft/, /Sonderfreigabe/, /kündige/, /Gehört die US-Gesellschaft mir/, /selbst tun/, /Bleibe ich Geschäftsführerin und Eigentümerin/, /Umsatzsteuer/, /Ist die erste Runde ein Kredit\?/])
     ok(m.test(fr), `Frage vorhanden: ${m.source}`);
   ok(s.fragen.liste.length >= 14 && s.fragen.liste.every((x) => x.antwort.length >= 1 && x.antwort.every((a) => a.length > 20)), "mindestens vierzehn Fragen mit Antworten");
   ok(s.kapital.betrag === "250.000 USD" && s.kapital.bedingungen.length === 2 && s.kapital.bedingungen.map((b) => b.titel).join(" | ") === "Nachweis zur Testbedingung | Jahresabschlüsse der letzten zwei Jahre" && s.kapital.bedingungen.every((b) => b.titel && b.text) && s.kapital.sonderfreigabe.unterzeichner === "Justin Schwarzott", "Kapital: Betrag, zwei Bedingungen (die aus den Angebotsdaten zuerst) mit Warum, Sonderfreigabe");
@@ -479,20 +514,26 @@ titel("7. Seite, Übersicht, Annahme");
   ok(S.firmaSeite({ ...D, parameter: { ...PARAMETER, inhalt: { ...INHALT, bedingungenAus: ["testbedingung"] } } }).kapital.bedingungen.length === 1, "Bedingung abschaltbar (bedingungenAus)");
   ok(S.firmaBedingungenAusInhalt([{ schluessel: "a b", vertrag: "x", titel: "y", warum: "z" }, { schluessel: "gut", vertrag: "", titel: "y", warum: "z" }, { schluessel: "gut2", vertrag: "v", titel: "t", warum: "w" }, { schluessel: "gut2", vertrag: "v2", titel: "t2", warum: "w2" }]).map((b) => b.schluessel).join() === "gut2", "ungültige oder doppelte Bedingungen fallen weg");
   ok(/inhalt\.bedingungen/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, bedingungen: [{ schluessel: "x", vertrag: "", titel: "", warum: "" }] as any } }) ?? ""), "firmaParameterFehler lehnt eine unvollständige Bedingung ab");
-  ok(s.bildnachweis.includes("Szenen mit KI erstellt") && s.bildnachweis.includes("Porträt mit KI erstellt"), "Bildnachweis aus den Bildern", s.bildnachweis);
+  const mitStimmung = S.firmaSeite({ ...D, parameter: { ...PARAMETER, inhalt: { ...INHALT, bilder: { ...INHALT.bilder, usa: { ...INHALT.bilder.herkunft, src: "szene-b.webp", srcset: undefined } } } } });
+  ok(mitStimmung.stimmung?.src === "szene-b.webp" && mitStimmung.bildnachweis.includes("Stimmungsbild mit KI erstellt") && s.stimmung === null && !s.bildnachweis.includes("Stimmungsbild") && s.bildnachweis.includes("Porträt mit KI erstellt"), "höchstens ein Stimmungsbild (usa/stimmung), Bildnachweis nur aus dem, was die Seite zeigt", mitStimmung.bildnachweis);
+  ok(s.leistungen.karten.every((k) => !k.bild), "Leistungskarten ohne Fotos (Runde 2, Punkt 5)");
+  ok(s.leistungen.karten[0].text === "Ihre US-Gesellschaft komplett — mit Office, Empfangsdame, Telefonannahme, rechtlichen Unterlagen, Dokumenten und einem direkten Ansprechpartner für Sie", "Leistung „US-Gesellschaft“: Justins Untertitel wörtlich (Punkt 2)");
+  ok(s.investition.titel === "Unsere Vereinbarung" && S.FIRMA_VEREINBARUNG_TITEL === "Unsere Vereinbarung", "„Ihre Investition“ heißt „Unsere Vereinbarung“ (Punkt 6, eine Zeile in der Textquelle)");
+  const gp = s.investition.posten.find((p) => p.schluessel === "gruendung")!;
+  ok(gp.titel === "Gründungskosten" && gp.hinweis === "Wir verdienen an den Gründungskosten nichts — sie decken ausschließlich, was Gründung und Start kosten." && gp.bestandteile?.join(" · ") === "Gründung und Eintragung · EIN und ITIN · Registered Agent · Anwalt · Steuerberater · Bank- und Kontoeröffnung · Unterlagen · Behörden" && !/\d+[.,]?\d*\s?€/.test(gp.bestandteile.join(" ")), "Gründungskosten: Justins Satz, Bestandteile ohne Einzelbeträge (Punkt 7)");
   const ue = S.firmaBestellUebersicht(D);
-  ok(["Vertragspartner", "Auftraggeberin", "Gründung", "Plattform & Team", "Umsatzbeteiligung", "Verkaufsbeteiligung", "Erste Runde", "Bürgschaft", "Laufzeit", "Umsatzsteuer", "Recht"].every((l) => ue.zeilen.some((z) => z.label === l)), "Bestellübersicht: alle Kernzeilen");
+  ok(ue.titel === "Unsere Zusammenarbeit im Überblick" && ["Vertragspartner", "Auftraggeberin", "Gründungskosten", "Wachstumsbudget", "Umsatzbeteiligung", "Verkaufsbeteiligung", "Erste Runde", "Bürgschaft", "Laufzeit", "Umsatzsteuer", "Recht"].every((l) => ue.zeilen.some((z) => z.label === l)), "Bestellübersicht: alle Kernzeilen");
   const an = S.firmaAnnahmeTexte(D);
   // Punkt 9: eigener Knopf der Firmenfassung aus EINER Quelle (Seite, Annahmevermerk im PDF); Hildbrand unverändert.
   ok(S.FIRMA_KNOPF === "Zusammenarbeit und Kapital verbindlich annehmen" && SA.ANGEBOT_KNOPF === "Auftrag zahlungspflichtig erteilen", "Knopf Firma neu, Knopf Individualangebot unverändert");
-  ok(rumpfText.includes(`Wird durch Klick auf „${S.FIRMA_KNOPF}“ angenommen.`) && F.firmaRumpf(D, { am: new Date("2026-10-08T10:00:00Z"), ip: "203.0.113.7", userAgent: "Mozilla/5.0", hash: "x", starttag: "2026-10-08", sofort: true }).includes(`Angenommen durch Klick auf „${S.FIRMA_KNOPF}“`), "Annahmevermerk im PDF nennt den Knopf der Firmenfassung");
+  ok(rumpfText.includes(`Wird mit Unterschrift und Klick auf „${S.FIRMA_KNOPF}“ angenommen.`) && F.firmaRumpf(D, { am: new Date("2026-10-08T10:00:00Z"), ip: "203.0.113.7", userAgent: "Mozilla/5.0", hash: "x", unterschrift: { art: "getippt", name: "Martina Muster" } }).includes(`Angenommen mit Unterschrift und Klick auf „${S.FIRMA_KNOPF}“`), "Annahmevermerk im PDF nennt Unterschrift und Knopf der Firmenfassung");
   ok(an.unterKnopf.startsWith("Mit Klick nehmen Sie das Angebot verbindlich an; die Gründungskosten von 6.900 € werden mit der Rechnung fällig"), "Satz unter dem Knopf nennt die Zahlungspflicht", an.unterKnopf);
   ok(an.knopf === S.FIRMA_KNOPF && an.unternehmer.includes("kein Widerrufsrecht") && an.vertretung.includes("allein zu vertreten"), "Annahme: Knopf und zwei Pflicht-Häkchen");
   ok(S.firmaKundeAnrede(KUNDE) === "Sehr geehrte Frau Muster" && S.firmaKundeAnrede({ ...KUNDE, vertretung: { ...KUNDE.vertretung, anrede: "Herr" as any } }) === "Sehr geehrter Herr Muster", "Anrede");
   ok(S.firmaPflichtFehlen(D).length === 0 && S.firmaPflichtFehlen({ ...D, compliance: null }).some((x) => /Prüfbericht/.test(x)) && S.firmaPflichtFehlen({ ...D, buergin: SA.BUERGIN_VORGABE }).length > 0, "Pflichtfelder sperren die Annahme");
   ok(/Anwalt/.test(S.firmaVersandSperre(BUERGIN_VOLL, {}) ?? "") && S.firmaVersandSperre(BUERGIN_VOLL, { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07" } }) === null && /Registernachweis/.test(S.firmaVersandSperre(SA.BUERGIN_VORGABE, { anwalt: { name: "K", am: "2026-10-07" } }) ?? ""), "Versandsperre = Sunbiz + Anwaltsfreigabe");
   const r = ["sofort", "monatlich", "umsatz", "verkauf"].map((f) => S.firmaRechnungsText({ angebotRef: "FIAON-IA-FPRUEF1", auftragRef: "FIAON-X", faelligkeit: f, titel: f === "monatlich" ? S.FIRMA_TEIL_TITEL.monat(3) : f === "umsatz" ? S.FIRMA_TEIL_TITEL.umsatz(2027, 2) : f === "verkauf" ? S.FIRMA_TEIL_TITEL.verkauf : "Gründung", zeitraum: f === "umsatz" ? "Q2 2027" : null, bemessungCents: 70_000_000 }));
-  ok(r[0].beschreibung.includes("Gründung der US-Gesellschaft") && r[1].beschreibung.includes("Plattform & Team — Monat 3") && r[2].beschreibung.includes("Umsatzbeteiligung — Q2 2027") && r[2].zeitraum === "Q2 2027" && r[3].beschreibung.includes("Verkaufsbeteiligung"), "Rechnungstexte je Posten");
+  ok(r[0].beschreibung.includes("Gründung der US-Gesellschaft") && r[1].beschreibung.includes("Wachstumsbudget — Ihr Anteil, Monat 3") && r[1].beschreibung.includes("gemeinsamen Wachstumsbudget") && r[2].beschreibung.includes("Umsatzbeteiligung — Q2 2027") && r[2].zeitraum === "Q2 2027" && r[3].beschreibung.includes("Verkaufsbeteiligung"), "Rechnungstexte je Posten");
 }
 
 titel("8. Hildbrand: Individualangebot unverändert");
@@ -544,18 +585,21 @@ titel("9. Vor-Live-Prüfung (07./08.10.2026): Texte, Versandsperre, keine Kunden
   // ── Texte: nichts zusagen, was über Ziffer 7 hinausgeht ──
   const seite = S.firmaSeite(D); const alles = texteAus(seite).join("\n");
   ok(!/sehr sicher/i.test(alles) && !/sobald die Bedingungen der Bürgschaft erfüllt sind/i.test(texteAus(seite.hero).join("\n")), "Seite: kein „sehr sicher“, im Kopf kein „sobald …“");
-  ok(G.frageSicher[0].startsWith("Vertraglich garantiert nach Ziffer 7") && /entscheidet das Institut/.test(G.frageSicher[0]) && /erstatten wir Ihnen die Gründung/.test(G.frageSicher.join(" ")), "„Wie ist die erste Runde abgesichert?“: Garantie nach Ziffer 7 mit Bedingungen, Institut entscheidet, sonst Erstattung", G.frageSicher[0]);
+  ok(G.frageSicher[0].startsWith("Vertraglich garantiert nach Ziffer 7") && /Auszahlung einer ersten Runde/.test(G.frageSicher[0]) && /erstatten wir Ihnen die Gründung/.test(G.frageSicher.join(" ")) && /entscheidet das Institut/.test(G.frageSicherMehr) && seite.fragen.liste.some((f) => f.antwort.includes(G.frageSicherMehr)), "„Wie ist die erste Runde abgesichert?“: Auszahlung garantiert nach Ziffer 7, sonst Erstattung; Institut entscheidet (unter „Weitere Fragen“)", G.frageSicher[0]);
   ok(!/erhält die erste Runde/.test(G.frageRot) && /Ziffer 7/.test(G.frageRot) && /erstatten wir Ihnen die Gründung/.test(G.frageRot), "Frage „Rot“: keine Zusage „erhält die erste Runde“, sondern Frist und Erstattung", G.frageRot);
-  ok(/Ziffer 7/.test(G.nutzenKapital) && /innerhalb von drei Monaten, nachdem die Bedingungen/.test(G.nutzenKapital) && /erstatten wir die Gründung/.test(G.nutzenKapital), "Kopf: Garantie mit Frist (drei Monate nach den Bedingungen) und Erstattung", G.nutzenKapital);
+  // Runde 2 (Justin 08.10.2026, Punkt 3) — sein Satz wörtlich, ohne Verstärker, an erster Stelle (Kopf und „Ihr Kapital“).
+  const JUSTINS_SATZ = "Vertraglich garantiert nach Ziffer 7: eine erste Runde über 250.000 USD für Ihre Gesellschaft. Auszahlung innerhalb von drei Monaten nach Annahme.";
+  ok(G.satz === JUSTINS_SATZ && G.kapital[0] === JUSTINS_SATZ && seite.hero.kapital.satz === JUSTINS_SATZ, "Garantie-Satz wörtlich (Kopf neben der großen Zahl und Kapital)", G.satz);
+  ok(!/sehr sicher|sicher|ganz bestimmt|auf jeden Fall|100 %|erhält die erste Runde/i.test([...G.kapital, G.nutzenKapital, G.leistungKapital, G.phaseKapital, G.uebersicht, G.annahmeUnterKnopf, ...G.frageSicher, G.frageSicherMehr, G.frageRot].join(" ")), "keine Verstärker und kein „erhält die erste Runde“ auf der Seite");
   ok(!/Normalerweise/.test(alles) && /Die Geschäftsleitung hat die Bürgschaft trotz offener Punkte freigegeben/.test(alles), "Sonderfreigabe ohne Behauptung über eine Praxis der Bürgin");
-  ok([...G.kapital, G.leistungKapital, G.phaseKapital, G.nutzenKapital, G.heroSiegel, ...G.frageSicher].filter((x) => /garantier|erhält/i.test(x)).every((x) => /Ziffer 7/.test(x)), "jeder Satz, der die erste Runde zusagt, bindet sie an Ziffer 7");
+  ok([...G.kapital, G.leistungKapital, G.phaseKapital, G.nutzenKapital, ...G.frageSicher].filter((x) => /garantier|erhält/i.test(x)).every((x) => /Ziffer 7/.test(x)), "jeder Satz, der die erste Runde zusagt, bindet sie an Ziffer 7");
   // ── Versandsperre an die Fassung gebunden ──
   const jetzt = { textHash: F.firmaTextHash(D), anlage1: F.firmaAnlage1Pruefsumme(D) };
   ok(S.firmaVersandSperre(BUERGIN_VOLL, { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07", ...jetzt } }, jetzt) === null, "Freigabe zur aktuellen Fassung → Versand frei");
   ok(/geändert/.test(S.firmaVersandSperre(BUERGIN_VOLL, { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07", ...jetzt } }, { ...jetzt, textHash: "0".repeat(64) }) ?? ""), "Vertrag seit der Freigabe geändert → gesperrt");
   ok(/geändert/.test(S.firmaVersandSperre(BUERGIN_VOLL, { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07", ...jetzt } }, { ...jetzt, anlage1: "1".repeat(64) }) ?? ""), "Anlage 1 seit der Freigabe geändert → gesperrt");
   ok(/geändert/.test(S.firmaVersandSperre(BUERGIN_VOLL, { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07" } }, jetzt) ?? ""), "Freigabe ohne Prüfsumme → gesperrt (neu eintragen)");
-  ok(F.firmaTextHash({ ...D, parameter: { ...PARAMETER, monatCents: 199100 } }) !== jetzt.textHash, "eine geänderte Monatspauschale ändert die Prüfsumme (sperrt eine alte Freigabe)");
+  ok(F.firmaTextHash({ ...D, parameter: { ...PARAMETER, monatCents: 199100 } }) !== jetzt.textHash, "ein geänderter Anteil am Wachstumsbudget ändert die Prüfsumme (sperrt eine alte Freigabe)");
   // ── Nachprüfung 08.10.2026: Versand erst bei Sunbiz „Active“ (Justin 07.10.) — nicht schon beim Wort „Sunbiz“ ──
   ok(S.firmaRegisterAktiv("Sunbiz-Auszug vom 09.10.2026: Status Active") && S.firmaRegisterAktiv("Registerauszug (Sunbiz), ACTIVE")
     && !S.firmaRegisterAktiv("Registerauszug (Sunbiz) vom 07.10.2026") && !S.firmaRegisterAktiv("Sunbiz-Auszug vom 01.10.2026: Status Inactive")
@@ -666,6 +710,197 @@ titel("9. Vor-Live-Prüfung (07./08.10.2026): Texte, Versandsperre, keine Kunden
   ok(teamGleich, "client/src/components/site/Team.tsx unverändert gegenüber main");
 }
 
+// ── Test-PNG (erfunden): RGBA 8 Bit, gültige Prüfsummen — leer oder mit einem Strich ──────────────────────────────
+function testPngRgba(breite: number, hoehe: number, tinte: boolean): Buffer {
+  const zeile = breite * 4 + 1; const roh = Buffer.alloc(zeile * hoehe);
+  if (tinte) for (let x = 10; x < breite - 10; x++) { const y = Math.round(hoehe / 2 + Math.sin(x / 9) * 8); const o = y * zeile + 1 + x * 4; roh[o] = 27; roh[o + 1] = 56; roh[o + 2] = 102; roh[o + 3] = 255; }
+  const block = (art: string, d: Buffer) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const t = Buffer.from(art, "latin1"); const c = Buffer.alloc(4); c.writeUInt32BE(zl.crc32(Buffer.concat([t, d])) >>> 0); return Buffer.concat([l, t, d, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(breite, 0); ihdr.writeUInt32BE(hoehe, 4); ihdr[8] = 8; ihdr[9] = 6;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), block("IHDR", ihdr), block("IDAT", zl.deflateSync(roh)), block("IEND", Buffer.alloc(0))]);
+}
+const pngUrl = (b: Buffer) => `data:image/png;base64,${b.toString("base64")}`;
+
+titel("10. Runde 2 (Justin 08.10.2026): Garantie ab Annahme, Wachstumsbudget ab „Shop live“, Unterschrift, Leser, Team");
+{
+  const rumpf = S.htmlZuText(F.firmaRumpf({ ...D, compliance: null }));
+  // ── Punkt 3: Garantiefrist ab Annahme, Empfängerin die US-Gesellschaft, Ruhen bei fehlender Mitwirkung ──
+  // Runde 3: Fassung D folgt auf C — die Garantiefrist läuft weiter ab der Annahme.
+  ok(S.FIRMA_FASSUNG === "IA-FIRMA-2026-10-08-D" && S.garantieAbAnnahme(S.FIRMA_FASSUNG) && S.garantieAbAnnahme("IA-FIRMA-2026-10-08-C") && !S.garantieAbAnnahme("IA-FIRMA-2026-10-07-B") && !S.garantieAbAnnahme("IA-2026-10-01-KG"), "Firmen-Fassung D (nach C); ab C zählt die Garantiefrist ab der Annahme");
+  ok(G.vertragGarantie.includes("an die US-Gesellschaft der Auftraggeberin (Ziffer 1 Absatz 3) innerhalb von drei Monaten nach dem Tag, an dem die Auftraggeberin diesen Vertrag angenommen hat (Tag der Annahme), eine erste Finanzierungsrunde über 250.000 US-Dollar ausgezahlt wird") && G.vertragGarantie.includes("Empfängerin der Auszahlung ist allein die US-Gesellschaft"), "Ziffer 7 Absatz 1: Auszahlung binnen drei Monaten ab dem Tag der Annahme, Empfängerin die US-Gesellschaft", G.vertragGarantie);
+  ok(G.vertragBeginn.startsWith("Die Frist der Garantie beginnt mit dem Tag der Annahme; sie hängt nicht davon ab, wann die Bedingungen der Bürgschaft") && !/Solange die Bedingungen nach Ziffer 8 Absatz 4 nicht erfüllt sind, beginnt die Frist nicht/.test(rumpf), "Ziffer 7 Absatz 3: Beginn mit der Annahme — nicht mehr mit den erfüllten Bedingungen");
+  ok(G.vertragRuhen.includes("insbesondere die Unterlagen für die Bedingungen nach Ziffer 8 Absatz 4") && G.vertragRuhen.includes("mit einer Frist von mindestens sieben Tagen angefordert") && G.vertragRuhen.includes("Verzögerungen bei Instituten, Behörden, der Bürgin oder Partnern von FIAON lassen die Frist weiterlaufen"), "Ziffer 7 Absatz 4: Ruhen nur bei fehlender Mitwirkung (Unterlagen) nach Aufforderung mit mindestens sieben Tagen");
+  ok(rumpf.includes(G.vertragGarantie) && rumpf.includes(G.vertragBeginn) && rumpf.includes(G.vertragRuhen) && G.vertragFolge.includes("erstattet FIAON der Auftraggeberin die gezahlte Vergütung für die Gründung (6.900,00 €)"), "Vertrag: Ziffer 7 aus firmaGarantie, Folge unverändert Erstattung der Gründung");
+  ok(G.kapital[2].includes("Nachweis zur Testbedingung und Jahresabschlüsse der letzten zwei Jahre") && /ruht die Frist/.test(G.kapital[2]) && !/Testbedingung/.test(JSON.stringify(S.firmaGarantie(FIRMA_OHNE_INHALT()))), "Seite: die Unterlagen kommen aus den Angebotsdaten (kein Kundenbaustein im Code), fehlen sie, ruht die Frist");
+  const phaseK = S.firmaSeite(D).phasen.liste.find((p) => p.abzeichen === "Kapital")!;
+  ok(phaseK.nr === 3 && phaseK.dauer === "innerhalb von drei Monaten nach Annahme" && phaseK.text.startsWith("Ab Ihrer Annahme läuft die Frist nach Ziffer 7: Auszahlung"), "Zeitstrahl: „Erste Runde“ innerhalb von drei Monaten nach Annahme (vor dem Strategietag)", phaseK);
+  // ── Punkt 8: gemeinsames Wachstumsbudget, Start am Tag „Shop live“ ──
+  const b = S.firmaBudget(PARAMETER);
+  ok(PARAMETER.monatCents === 200000 && PARAMETER.budgetGesamtCents === 400000 && PARAMETER.budgetStart === "shop-live" && PARAMETER.garantieAb === "annahme", "Vorgaben: Anteil 2.000 €, Budget 4.000 €, Start „Shop live“, Garantie ab Annahme");
+  ok(b.zeilen.length === 8 && b.zeilen.reduce((a, z) => a + z.cents, 0) === 400000 && b.zeilen.map((z) => z.betrag).join(" · ") === "1.500 € · 600 € · 600 € · 400 € · 350 € · 250 € · 150 € · 150 €" && b.ihrAnteil === "2.000 €" && b.fiaonAnteil === "2.000 €", "Aufstellung: acht Posten, Summe 4.000 € (Planwerte), Hälfte Kundin / Hälfte FIAON", b.zeilen.map((z) => z.betrag));
+  ok(rumpf.includes("bilden die Parteien ab dem Starttag ein gemeinsames Wachstumsbudget von 4.000,00 € im Monat. Die Auftraggeberin trägt davon die Hälfte, 2.000,00 € im Monat (Anteil der Auftraggeberin); FIAON trägt die andere Hälfte.") && rumpf.includes("Starttag ist der Tag, an dem der Online-Shop nach Ziffer 5 live ist") && rumpf.includes("erstmals am Starttag"), "Ziffer 10 Absatz 2: Budget, Hälfte, Starttag = Tag „Shop live“, erste Rechnung an diesem Tag");
+  ok(rumpf.includes("Werbebudget Anzeigen (Google, Meta, Pinterest): 1.500,00 €") && rumpf.includes("Recht und Compliance laufend (Impressum, AGB, Datenschutz, Lebensmittel-Kennzeichnung): 150,00 €") && rumpf.includes("Planwerte je Monat, zusammen 4.000,00 €") && rumpf.includes("Personal von FIAON wird aus dem Wachstumsbudget nicht bezahlt."), "Ziffer 10 Absatz 3/4: dieselbe Aufstellung wie auf der Seite, Planwerte, kein Personal");
+  ok(rumpf.includes(`Die Mindestlaufzeit beträgt vierundzwanzig Monate ab dem Starttag.`) && rumpf.includes("Das gemeinsame Wachstumsbudget und der Anteil der Auftraggeberin beginnen am Starttag (Ziffer 10 Absatz 2)") && !/Monatspauschale/.test(rumpf), "Ziffer 14: vierundzwanzig Monate ab dem Starttag („Shop live“); keine „Monatspauschale“ mehr im Vertrag");
+  ok(!/Starttag ist der Tag, den die Auftraggeberin bei der Annahme wählt/.test(rumpf) && !/\bbis zu\b/i.test(texteAus(b).join(" ") + rumpf), "keine Startwahl bei der Annahme, kein „bis zu“");
+  ok(/budgetGesamtCents muss genau das Doppelte/.test(S.firmaParameterFehler({ ...PARAMETER, monatCents: 199000 }) ?? "") && /budgetStart/.test(S.firmaParameterFehler({ ...PARAMETER, budgetStart: "annahme" as any }) ?? "") && /garantieAb/.test(S.firmaParameterFehler({ ...PARAMETER, garantieAb: "bedingungen" as any }) ?? "")
+    && /Aufstellung ergibt/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, budgetPosten: [{ schluessel: "a", titel: "A", cents: 100000 }] } }) ?? "") && S.firmaParameterFehler(PARAMETER) === null, "firmaParameterFehler: Hälfte, Start „Shop live“, Garantie ab Annahme, Summe der Aufstellung");
+  ok(S.firmaParameterAus({ monatCents: 200000, budgetGesamtCents: 400000, budgetStart: "shop-live", garantieAb: "annahme" }).budgetGesamtCents === 400000 && S.firmaParameterAus({}).budgetStart === "shop-live", "Parameter: Text-Werte und Vorgaben werden gelesen");
+  ok(S.FIRMA_TEIL_TITEL.monat(1) === "Wachstumsbudget — Ihr Anteil, Monat 1", "Rechnungstitel „Wachstumsbudget — Ihr Anteil, Monat n“");
+  const kn = F.firmaKnoepfe({ status: "angenommen", fr: {}, fristBeginn: "2026-10-08", fristEnde: "2027-01-08", garantieErfuelltAm: null, erstattungAusgeloest: false, gruendungBezahlt: false, heute: "2026-10-09", starttag: null });
+  const kn2 = F.firmaKnoepfe({ status: "angenommen", fr: {}, fristBeginn: "2026-10-08", fristEnde: "2027-01-08", garantieErfuelltAm: null, erstattungAusgeloest: false, gruendungBezahlt: false, heute: "2026-10-09", starttag: "2026-11-02" });
+  // Gegenprüfung 08.10.2026 (Fund 3): aus wichtigem Grund schon vor dem Starttag — nur die ORDENTLICHE Kündigung wartet auf „Shop live“.
+  ok(kn.shopLive === null && /Shop live/.test(String(kn.umsatz)) && kn.kuendigung === null && /Shop live/.test(String(kn.kuendigungOrdentlich)) && /Schon eingetragen/.test(String(kn2.shopLive)) && kn2.umsatz === null && kn2.kuendigungOrdentlich === null && kn.kapital === null, "Knöpfe: „Shop live“ frei nach der Annahme, Umsatz und ordentliche Kündigung erst danach (aus wichtigem Grund schon vorher); erste Runde frei, weil die Frist ab Annahme läuft");
+  const routenQ = fs.readFileSync("server/routes/fiaon-global-angebot.ts", "utf8");
+  ok(/"shop-live": "firmaShopLive"/.test(routenQ) && /requireChef\(FIRMA_NUR_INHABER\.has\(pfad\) \? "inhaber" : "leitung"\)/.test(routenQ), "Route …/firma/shop-live (Leitung)");
+  const chefQ = fs.readFileSync("client/src/components/admin/ChefGlobalAngebote.tsx", "utf8");
+  ok(/pfad\("shop-live"\)/.test(chefQ) && /Shop live/.test(chefQ), "Chefbüro: Knopf „Shop live“");
+  const shopQ = fs.readFileSync("server/lib/fiaon-global-angebot-firma.ts", "utf8");
+  const shopTeil = shopQ.slice(shopQ.indexOf("export async function firmaShopLive"), shopQ.indexOf("export async function firmaKapitalErhalten"));
+  ok(shopTeil.length > 100 && !/globalMailSenden|sendMakeWebhook|brevo/i.test(shopTeil) && /keine automatische Mail/.test(shopTeil), "„Shop live“ schickt keine Mail an die Kundin (nur Aufgabe an die zuständige Person)");
+  // ── Punkt 11: Unterschrift Pflicht ──
+  const leer = testPngRgba(400, 140, false); const voll = testPngRgba(400, 140, true);
+  ok(F.firmaPngTintePruefen(leer) !== null && F.firmaPngTintePruefen(voll) === null && F.firmaPngTintePruefen(Buffer.from("kein png")) !== null, "Tinte: leeres Feld abgewiesen, Strich angenommen");
+  const up = (x: unknown) => F.firmaUnterschriftPruefen(x, KUNDE);
+  ok(!up(undefined).ok && !up({}).ok && !up({ art: "gezeichnet", png: pngUrl(leer) }).ok && !up({ art: "gezeichnet", png: "data:image/png;base64,AAAA" }).ok && !up({ art: "getippt", name: "Martina" }).ok && !up({ art: "getippt", name: "ab" }).ok, "Unterschrift fehlt, leer, kaputt oder ohne Nachnamen → abgewiesen");
+  const ug = up({ art: "gezeichnet", png: pngUrl(voll) }); const ut = up({ art: "getippt", name: "  Martina   Muster " });
+  ok(ug.ok && ug.vermerk.art === "gezeichnet" && !!ug.vermerk.png && ut.ok && ut.vermerk.name === "Martina Muster" && ut.vermerk.png === null && (up({ art: "getippt", name: "Martina Meier" }) as any).ok === false && (up({ art: "getippt", name: "M. MÜSTER" }) as any).ok === true && (up({ art: "getippt", name: "martina muster" }) as any).ok === true, "gezeichnet (mit Bild) oder getippt (Name mit Nachnamen) angenommen");
+  const pdfHtml = F.firmaRumpf(D, { am: new Date("2026-10-08T10:00:00Z"), ip: "203.0.113.7", userAgent: "Mozilla/5.0", hash: "x", unterschrift: { art: "gezeichnet", png: pngUrl(voll) } });
+  ok(pdfHtml.includes(`<img class="gv-unterschrift-bild" src="${pngUrl(voll)}"`) && pdfHtml.includes("Unterschrift (von Hand gezeichnet)") && pdfHtml.includes("Unterschrift: von Hand gezeichnet, gespeichert mit Zeit und IP-Adresse"), "Annahmevermerk zeigt die gezeichnete Unterschrift (Bild)");
+  const boes = F.firmaRumpf(D, { am: new Date(), ip: "x", userAgent: "x", hash: "x", unterschrift: { art: "getippt", name: "<script>x</script> Muster", png: "javascript:alert(1)" } });
+  ok(!boes.includes("<script>") && !boes.includes("javascript:") && boes.includes("gv-unterschrift-getippt"), "Annahmevermerk: getippter Name escaped, nur echte PNG-Daten im Bild");
+  const annQ = shopQ.slice(shopQ.indexOf("export async function firmaAnnehmen"), shopQ.indexOf("/** Bestellzeile anlegen"));
+  ok(annQ.indexOf("firmaUnterschriftPruefen(") > 0 && annQ.indexOf("firmaUnterschriftPruefen(") < annQ.indexOf("firmaVertragPdf(") && /fehler\(400, u\.error/.test(annQ) && /frist_beginn = \$\{abAnnahme \? annahmeTag : null\}::date/.test(annQ), "Server: Unterschrift VOR PDF und Speicherung geprüft (sonst 400); Garantiefrist ab dem Tag der Annahme gesetzt");
+  const anQ = fs.readFileSync("client/src/components/angebot-firma/AnnahmeFirma.tsx", "utf8");
+  ok(/UnterschriftFeld/.test(anQ) && !/startAm|startTitel/.test(anQ), "Seite: Unterschriftsfeld in der Annahme, keine Startwahl mehr");
+  // ── Punkt 10: Leser mit Annahme-Knopf am Ende ──
+  const leserQ = fs.readFileSync("client/src/components/angebot-firma/VertragsLeser.tsx", "utf8");
+  const seiteQ10 = fs.readFileSync("client/src/pages/business-angebot-firma.tsx", "utf8");
+  ok(/data-fiaon="firma-leser-annehmen"/.test(leserQ) && /annehmen\.knopf/.test(leserQ) && /annehmen=\{\{ knopf: sicht\.annahme\.knopf, onAnnehmen: zurAnnahme \}\}/.test(seiteQ10), "Leser: Abschluss-Block mit dem Knopf aus annahme.knopf — schließt und springt zur Annahme");
+  // ── Punkt 4/5: keine Fotos im Zeitstrahl und auf den Karten ──
+  const ztQ = fs.readFileSync("client/src/components/angebot-firma/PhasenZeitstrahl.tsx", "utf8"); const lkQ = fs.readFileSync("client/src/components/angebot-firma/LeistungsKarten.tsx", "utf8");
+  ok(!/<Bild\b/.test(ztQ) && /AufbauAnimation/.test(ztQ) && !/<Bild\b/.test(lkQ) && /LeistungsIllustration/.test(lkQ), "Zeitstrahl ohne Fotos (Aufbau-Animation), Karten mit eigenen Linien-Illustrationen");
+}
+
+titel("11. Runde 3 (Justin 08.10.2026, Endfassung): Kapital vorne, Gründungskosten leise, kompakter, Auszahlung garantiert, spätester Start, Team bestätigt");
+{
+  const seite = S.firmaSeite(D); const rumpf = S.htmlZuText(F.firmaRumpf({ ...D, compliance: null }));
+  const satzZahl = (t: string) => (t.replace(/\b(?:z|d|u|o)\.\s?[a-zä]\./gi, "").match(/[.!?](?=\s+[A-ZÄÖÜ„]|$)/g) ?? []).length;
+  // ── Punkt 1: Kapital zuerst ──
+  ok(seite.hero.kapital.betrag === "250.000 USD" && seite.hero.kapital.satz === G.satz && seite.hero.nutzen.length <= 3 && !seite.hero.nutzen.includes(G.satz), "Hero: große Zahl 250.000 USD mit Justins Satz (eine Quelle), höchstens drei Nutzen ohne Wiederholung");
+  const seiteQ = fs.readFileSync("client/src/pages/business-angebot-firma.tsx", "utf8");
+  const iKap = seiteQ.indexOf('id="kapital"'), iZiele = seiteQ.indexOf('id="ziele"'), iWeg = seiteQ.indexOf('id="weg"'), iLst = seiteQ.indexOf('id="leistungen"'), iInv = seiteQ.indexOf('id="investition"');
+  const iPb = seiteQ.indexOf("<ComplianceBuehne"), iFr = seiteQ.indexOf('id="fragen"'), iAp = seiteQ.indexOf('id="ansprechpartner"'), iVt = seiteQ.indexOf('id="vertrag"'), iAn = seiteQ.indexOf('id="annahme"');
+  ok([iKap, iZiele, iWeg, iLst, iInv, iPb, iFr, iAp, iVt, iAn].every((x, i, a) => x > 0 && (i === 0 || x > a[i - 1])), "Lesefluss: Hero → Kapital → Ziele → Weg → Leistungen → Vereinbarung → Prüfbericht → Fragen → Team → Vertrag → Annahme", [iKap, iZiele, iWeg, iLst, iInv, iPb, iFr, iAp, iVt, iAn]);
+  ok(/S\.hero\.kapital\.betrag/.test(seiteQ) && /S\.hero\.kapital\.satz/.test(seiteQ) && !/garantier/i.test(seiteQ.replace(/\/\/.*$/gm, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "")), "Seite: Zahl und Satz aus den Daten — kein eigener „garant…“-Satz in der Oberfläche");
+  const bek = seite.investition.bekommen;
+  ok(bek.titel === "Was Sie bekommen" && bek.punkte[0].wert === "250.000 USD" && bek.punkte.length === 3 && seite.investition.konditionenTitel === "Die Konditionen", "Vereinbarung: zuerst „Was Sie bekommen“ (250.000 USD, Gesellschaft, Team), dann die Konditionen");
+  // ── Punkt 2: Gründungskosten leise ──
+  const gp = seite.investition.posten.find((x) => x.schluessel === "gruendung")!;
+  ok(gp.satz === "Einmalige Gründungskosten 6.900 € — wir verdienen daran nichts; sie decken Gründung und Start.", "Gründungskosten: Justins ruhige Zeile", gp.satz);
+  const kopfKapital = [...texteAus(seite.hero), ...texteAus(seite.kapital)].join(" ");
+  ok(!/6\.900/.test(kopfKapital), "Hero und Kapital nennen die Gründungskosten nicht mit Betrag", kopfKapital.match(/.{0,40}6\.900.{0,40}/g));
+  const ue = S.firmaBestellUebersicht(D).zeilen.find((z) => z.label === "Gründungskosten");
+  ok(ue?.wert === "6.900,00 € einmalig — fällig mit der Annahme" && rumpf.includes("zahlt die Auftraggeberin einmalig 6.900,00 €. Der Betrag ist mit Vertragsschluss fällig"), "Pflichtangaben bleiben: Preis und Fälligkeit in der Übersicht und im Vertrag");
+  const ipQ = fs.readFileSync("client/src/components/angebot-firma/InvestitionsPosten.tsx", "utf8");
+  ok(!/gaf-gruendung-klar/.test(ipQ) && /gaf-gruendung-zeile/.test(ipQ) && /<Mehr /.test(ipQ), "Oberfläche: keine große Gründungskarte mehr — eine Zeile, Bestandteile im Aufklapper");
+  // ── Punkt 3: kompakter ──
+  ok(seite.leistungen.karten.every((k) => k.punkte.length <= 3 && satzZahl(k.text) <= 1), "Leistungskarten: ein Satz und höchstens drei Punkte sichtbar (Rest unter „Mehr erfahren“)", seite.leistungen.karten.map((k) => [k.schluessel, k.punkte.length, satzZahl(k.text)]));
+  ok(seite.investition.posten.every((x) => typeof x.satz === "string" && x.satz.length > 20 && satzZahl(x.satz) <= 1), "Vereinbarung: jede Zeile mit genau einem Satz");
+  ok(seite.phasen.liste.every((ph) => satzZahl(ph.text) <= 1), "Zeitstrahl: je Etappe ein Satz", seite.phasen.liste.map((ph) => [ph.nr, satzZahl(ph.text)]));
+  ok(seite.ziele.punkte.length <= 3, "Ziele: höchstens drei Karten");
+  ok(seite.fragen.sichtbar === 8 && seite.fragen.liste.length >= 14 && seite.fragen.liste.slice(0, 8).every((f) => f.antwort.length === 1 && satzZahl(f.antwort[0]) <= 2), "Fragen: acht sichtbar mit kurzer Antwort (höchstens zwei Sätze), der Rest unter „Weitere Fragen“", seite.fragen.liste.slice(0, 8).map((f) => [f.frage.slice(0, 20), f.antwort.length, satzZahl(f.antwort.join(" "))]));
+  const faQ = fs.readFileSync("client/src/components/angebot-firma/FragenAntworten.tsx", "utf8"); const cbQ = fs.readFileSync("client/src/components/angebot-firma/ComplianceBuehne.tsx", "utf8");
+  ok(/Weitere Fragen/.test(faQ) && /sichtbar=\{S\.fragen\.sichtbar\}/.test(seiteQ) && /<Mehr id="gaf-buehne-mehr"/.test(cbQ) && /gesamt\.text\.slice\(0, 1\)/.test(cbQ), "Oberfläche: „Weitere Fragen“, Prüfbericht mit Gesamturteil und Kacheln, Details und Methodik eingeklappt");
+  const gmQ = fs.readFileSync("client/src/components/angebot-firma/gemeinsam.tsx", "utf8");
+  ok(/inert: ""/.test(gmQ) && /aria-expanded=\{auf\}/.test(gmQ), "Aufklapper: aria-expanded, zugeklappt inert (nicht per Tastatur erreichbar)");
+  // ── Punkt 4: Ziffer 7 — garantiert ist die Auszahlung ──
+  ok(rumpf.includes(G.vertragGarantie) && rumpf.includes(G.vertragErhalten) && G.vertragFolge.startsWith("Wird die erste Runde nicht innerhalb der Frist an die US-Gesellschaft ausgezahlt, erstattet FIAON") && !/verbindlich zugesagt/.test(rumpf) && rumpf.includes(G.vertragRuhen), "Ziffer 7: Auszahlung garantiert (Absatz 1/2/5), Ruhen und Folge bleiben, keine „verbindliche Zusage“ mehr");
+  ok(S.garantieNurAuszahlung(S.FIRMA_FASSUNG) && !S.garantieNurAuszahlung("IA-FIRMA-2026-10-08-C") && !S.garantieNurAuszahlung("IA-2026-10-01-KG"), "Fassung D: nur die Auszahlung zählt; ältere Fassungen behalten ihre Regel");
+  const srvQ = fs.readFileSync("server/lib/fiaon-global-angebot-firma.ts", "utf8");
+  const kapTeil = srvQ.slice(srvQ.indexOf("export async function firmaKapitalErhalten"), srvQ.indexOf("export async function firmaFristHemmen"));
+  ok(/garantieNurAuszahlung\(l\.d\.fassung\)/.test(kapTeil) && /\["ausgezahlt", "abgelehnt"\]/.test(kapTeil), "Server: „erste Runde erhalten“ nimmt ab Fassung D keine Zusage an");
+  const chefQ = fs.readFileSync("client/src/components/admin/ChefGlobalAngebote.tsx", "utf8");
+  ok(/!a\.garantieNurAuszahlung && <option value="zugesagt">/.test(chefQ), "Chefbüro: Auswahl „verbindlich zugesagt“ nur bei älteren Fassungen");
+  // ── Punkt 5: spätester Start des Wachstumsbudgets ──
+  ok(PARAMETER.budgetSpaetestensMonate === 6 && S.budgetSpaetesterStart("2026-10-08", PARAMETER) === "2027-04-08" && S.budgetSpaetesterStart("2026-08-31", PARAMETER) === "2027-02-28", "spätester Starttag: Annahme + sechs Monate, monatsende-sicher");
+  ok(rumpf.includes("Ist der Online-Shop sechs Monate nach dem Tag der Annahme (Ziffer 7 Absatz 1) nicht live, ist Starttag dieser Tag (spätester Starttag), es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat; dann bleibt es beim Tag, an dem der Online-Shop live ist."), "Ziffer 10 Absatz 2: spätester Starttag sechs Monate nach der Annahme, außer die Verzögerung liegt bei FIAON");
+  const mp = seite.investition.posten.find((x) => x.schluessel === "monat")!;
+  ok(/spätestens sechs Monate nach Ihrer Annahme, es sei denn, die Verzögerung liegt bei uns/.test(mp.satz) && /spätestens sechs Monate nach Ihrer Annahme/.test(seite.investition.budget.start), "Seite: der späteste Start in einem Satz (Zeile und Aufstellung)", mp.satz);
+  ok(/budgetSpaetestensMonate/.test(S.firmaParameterFehler({ ...PARAMETER, budgetSpaetestensMonate: 0 }) ?? "") && /budgetSpaetestensMonate/.test(S.firmaParameterFehler({ ...PARAMETER, budgetSpaetestensMonate: 30 }) ?? "") && S.firmaParameterAus({}).budgetSpaetestensMonate === 6, "Parameter: budgetSpaetestensMonate eins bis vierundzwanzig, Vorgabe sechs");
+  const shopTeil = srvQ.slice(srvQ.indexOf("export async function firmaShopLive"), srvQ.indexOf("export async function firmaKapitalErhalten"));
+  ok(/art \?\? ""\) === "spaetestens"/.test(shopTeil) && /verzoegerungFiaon !== true/.test(shopTeil) && /budgetSpaetesterStart\(angenommen/.test(shopTeil), "Server: „Spätester Starttag“ erst ab dem Tag, späteres „Shop live“ nur mit Bestätigung der Verzögerung bei FIAON");
+  ok(/value="spaetestens"/.test(chefQ) && /verzoegerungFiaon/.test(chefQ), "Chefbüro: Auswahl „Spätester Starttag“ und Haken „Verzögerung bei FIAON“");
+  // ── Punkt 6: Team nur bestätigt ──
+  const teamPar = { ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "Erika Beispiel", rolle: "Prüfrolle A", bestaetigt: true }, { name: "Max Probe", rolle: "Prüfrolle B", bestaetigt: false }, { name: "Dr. Test Muster", rolle: "Prüfrolle C" }] } };
+  const tm = S.firmaTeam(teamPar);
+  ok(tm.personen.map((x) => x.name).join(" | ") === "Erika Beispiel | Dr. Test Muster", "Team: bestaetigt = false ausgeblendet, fehlendes Feld gilt als bestätigt", tm.personen.map((x) => x.name));
+  ok(S.firmaParameterFehler(teamPar) === null && /bestaetigt/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "Erika Beispiel", rolle: "A", bestaetigt: "ja" as any }] } }) ?? ""), "Team: bestaetigt nur true oder false");
+  ok(S.firmaTeamFotoOk("haus:florentine") && S.firmaTeamFotoOk("haus:daniel") && !S.firmaTeamFotoOk("haus:justin"), "Hausporträts: echte Fotos erlaubt, das KI-Porträt nicht");
+  ok(/Porträt mit KI erstellt/.test(S.firmaBildnachweis(PARAMETER)) && !/Porträt mit KI erstellt/.test(texteAus(S.firmaTeam(PARAMETER)).join(" ")), "KI-Hinweis zu Porträts einmal im Bildnachweis, nicht im Team");
+  // ── Punkt 7: Fassung und Anlage 1 ──
+  ok(S.FIRMA_FASSUNGEN.includes("IA-FIRMA-2026-10-08-C" as any) && S.FIRMA_FASSUNGEN[S.FIRMA_FASSUNGEN.length - 1] === "IA-FIRMA-2026-10-08-D" && S.ANLAGE1_FIRMA_FASSUNG === "IA-FIRMA-ANLAGE1-2026-10-08-D", "Fassungen: D aktuell, C bleibt lesbar; Anlage 1 unverändert (Fassung D der Anlage)");
+}
+
+titel("12. Gegenprüfung 08.10.2026: Starttag mit spätestem Start in jedem Satz, Stundenlauf ohne Starttag, Kündigung vor dem Starttag");
+{
+  // ── Fund 1: Jeder Satz der Seite, der „live“ sagt, nennt auch den spätesten Start (Ziffer 10 Absatz 2) ──
+  const saetze = (t: string) => t.split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ„])/);
+  const liveOhneSpaetestens = (texte: string[]) => texte.flatMap(saetze).filter((x) => /\blive\b/i.test(x) && !/spätestens/.test(x));
+  ok(liveOhneSpaetestens(["Mindestlaufzeit vierundzwanzig Monate ab dem Tag „Shop live“, danach jeweils zwölf Monate mehr."]).length === 1
+    && liveOhneSpaetestens(["Mindestlaufzeit vierundzwanzig Monate ab dem Starttag („Shop live“, spätestens sechs Monate nach Ihrer Annahme)."]).length === 0,
+    "Prüfung selbst: „ab dem Tag „Shop live““ ohne „spätestens“ im selben Satz wird rot, mit „spätestens“ grün");
+  const seite = S.firmaSeite(D); const ueb = S.firmaBestellUebersicht(D); const ann = S.firmaAnnahmeTexte(D);
+  const fertigD = S.FIRMA_ANNAHME.fertigText("pruef@musterfirma-beispiel.example", S.monateWort(PARAMETER.budgetSpaetestensMonate));
+  const kundenTexte = [...texteAus(seite), ...texteAus(ueb), ...texteAus(ann), fertigD, F.firmaTeil2Bedingung(D)];
+  const rot = liveOhneSpaetestens(kundenTexte);
+  ok(rot.length === 0, "Seite, Übersicht, Annahme, Bestätigung und „Mein Auftrag“: kein Satz mit „live“ ohne „spätestens“", rot.map((x) => x.slice(0, 140)));
+  const SP = "(„Shop live“, spätestens sechs Monate nach Ihrer Annahme)";
+  const mp = seite.investition.posten.find((x) => x.schluessel === "monat")!;
+  const frageLauf = seite.fragen.liste.find((f) => f.frage.startsWith("Wie lange läuft der Vertrag"))!;
+  const frageUs = seite.fragen.liste.find((f) => f.frage === "Gehört die US-Gesellschaft mir?")!;
+  const aufbau = seite.phasen.liste.find((ph) => ph.nr === 2)!;
+  ok(mp.wie.startsWith(`Mindestlaufzeit vierundzwanzig Monate ab dem Starttag ${SP}, danach`), "Vereinbarung, Wachstumsbudget „Wie“: Mindestlaufzeit ab dem Starttag mit spätestem Start", mp.wie);
+  ok(frageLauf.antwort[0].startsWith(`Mindestens vierundzwanzig Monate ab dem Starttag ${SP}, danach`), "Frage „Wie lange läuft der Vertrag“: ab dem Starttag mit spätestem Start", frageLauf.antwort[0]);
+  ok(frageUs.antwort.some((a) => a.includes(`was vor dem Starttag ${SP} entsteht, mit dem ersten Anteil`)), "Frage „Gehört die US-Gesellschaft mir?“: Rechte „vor dem Starttag“ (wie Ziffer 5)", frageUs.antwort);
+  ok(aufbau.text.includes(`ab dem Starttag ${SP} beginnt unser gemeinsames Wachstumsbudget`) && saetze(aufbau.text).length === 1, "Zeitstrahl „Aufbau“: Wachstumsbudget ab dem Starttag mit spätestem Start, ein Satz", aufbau.text);
+  ok(ueb.zeilen.find((z) => z.label === "Laufzeit")?.wert.startsWith("Beginn mit der Annahme; mindestens vierundzwanzig Monate ab dem Starttag („Shop live“, spätestens sechs Monate nach Annahme), danach"), "Übersicht „Laufzeit“: ab dem Starttag mit spätestem Start", ueb.zeilen.find((z) => z.label === "Laufzeit")?.wert);
+  ok(ann.unterKnopf.includes("Ihr Anteil am Wachstumsbudget erst ab dem Starttag („Shop live“, spätestens sechs Monate nach Annahme)."), "Satz unter dem Knopf: Anteil erst ab dem Starttag mit spätestem Start", ann.unterKnopf);
+  ok(fertigD.includes("beginnt erst, wenn Ihr Shop live ist, spätestens sechs Monate nach Ihrer Annahme.") && /FIRMA_ANNAHME\.fertigText\(d\.kunde\.email, budgetSpaetestensGilt\(d\.fassung\) \? monateWort\(d\.parameter\.budgetSpaetestensMonate\) : null\)/.test(fs.readFileSync("server/lib/fiaon-global-angebot-firma.ts", "utf8")), "Bestätigung nach der Annahme: mit spätestem Start (Fassung D) — der Server reicht ihn nur bei Fassung D herein", fertigD);
+  ok(F.firmaTeil2Bedingung(D) === "Wachstumsbudget: Ihr Anteil 2.000,00 € pro Monat im Voraus ab dem Starttag („Shop live“, spätestens sechs Monate nach Annahme)", "„Mein Auftrag“ (Fassung D): ab dem Starttag mit spätestem Start", F.firmaTeil2Bedingung(D));
+  // Ältere Fassungen behalten ihren Satz (ohne spätesten Start gibt es ihn dort nicht).
+  ok(F.firmaTeil2Bedingung({ ...D, fassung: "IA-FIRMA-2026-10-08-C" }) === "Wachstumsbudget: Ihr Anteil 2.000,00 € pro Monat im Voraus ab dem Tag „Shop live“"
+    && S.FIRMA_ANNAHME.fertigText("x@y.example") === "Ihr Vertrag gilt ab heute. Mit der Gründung Ihrer US-Gesellschaft legen wir los, sobald die Gründungskosten eingegangen sind; Ihr Anteil am Wachstumsbudget beginnt erst, wenn Ihr Shop live ist. Vertrag und Rechnung finden Sie hier; Ihr Ansprechpartner schickt beides zusätzlich an x@y.example.",
+    "Fassung C: „Mein Auftrag“ und Bestätigung unverändert");
+  ok(F.firmaTextHash(D) === PRUEFSUMME_FIRMA_D && F.firmaAnlage1Pruefsumme(D) === PRUEFSUMME_ANLAGE1_D, "Vertrag und Anlage 1 unverändert: die Seitentexte stehen nicht in der Prüfsumme (Fassung D bleibt freigegeben)");
+  // ── Fund 2: Der Stundenlauf überspringt ohne Starttag nur Verlängerung und Monatsrechnungen ──
+  const srvQ = fs.readFileSync("server/lib/fiaon-global-angebot-firma.ts", "utf8");
+  const laufTeil = srvQ.slice(srvQ.indexOf("export async function firmaStundenlauf"), srvQ.indexOf("// LEITUNG (requireChef"));
+  const iStart = laufTeil.indexOf("if (sch.starttag) {"); const iHaengt = laufTeil.indexOf("// ── Hängende Teile nachholen"); const iFrist = laufTeil.indexOf("// ── Fristende der Garantie");
+  ok(laufTeil.length > 500 && !/if \(!sch\.starttag\) continue;/.test(laufTeil) && iStart > 0 && iStart < laufTeil.indexOf("Verlängerung: Kündigungsfrist") && iHaengt > laufTeil.indexOf("Fällige Monatsteile") && iFrist > iHaengt,
+    "Stundenlauf: ohne Starttag kein „continue“ mehr — nur Verlängerung und Monatsrechnungen hängen am Starttag; Fristende und hängende Teile laufen immer");
+  ok(/schluessel: `global:\$\{d\.ref\}:spaetester-starttag`/.test(laufTeil) && /COALESCE\(schalter->>'spaetesterStartErinnertAm', ''\) = ''/.test(laufTeil) && /!sch\.starttag && !fr\.kuendigung && budgetSpaetestensGilt\(d\.fassung\)/.test(laufTeil),
+    "Stundenlauf: Aufgabe „Spätester Starttag erreicht“ (Fassung D, kein Starttag, keine Kündigung) — einmal, Marke atomar im Schalter");
+  // ── Fund 3: Kündigung aus wichtigem Grund vor dem Starttag; danach kein „Shop live“, und die Garantie entfällt ──
+  const basis = { status: "angenommen", fristBeginn: "2026-10-08", fristEnde: "2027-01-08", garantieErfuelltAm: null, erstattungAusgeloest: false, gruendungBezahlt: true, starttag: null } as const;
+  const kw: NonNullable<import("../shared/fiaon-global-angebot-firma").FirmaFreigaben["kuendigung"]> = { am: "2026-10-20", zum: "2026-10-20", von: "Prüfstand", seite: "auftraggeberin", art: "ausserordentlich", garantieEntfaellt: true };
+  const k0 = F.firmaKnoepfe({ ...basis, fr: {}, heute: "2026-10-09" });
+  ok(k0.kuendigung === null && /Starttag/.test(String(k0.kuendigungOrdentlich)) && k0.shopLive === null, "vor „Shop live“: Kündigung aus wichtigem Grund frei, ordentliche erst ab dem Starttag", k0);
+  const k1 = F.firmaKnoepfe({ ...basis, fr: { kuendigung: kw }, heute: "2027-01-09" });
+  ok(/entfallen/.test(String(k1.garantiefall)) && /gekündigt/.test(String(k1.shopLive)) && /Schon eingetragen/.test(String(k1.kuendigung)) && /Schon eingetragen/.test(String(k1.kuendigungOrdentlich)),
+    "nach der Kündigung aus wichtigem Grund vor dem Fristende: Garantiefall gesperrt (Ziffer 14 Absatz 3), „Shop live“ gesperrt", k1);
+  ok(F.firmaKnoepfe({ ...basis, fr: {}, heute: "2027-01-09" }).garantiefall === null && F.firmaKnoepfe({ ...basis, fr: { kuendigung: { ...kw, garantieEntfaellt: false } }, heute: "2027-01-09" }).garantiefall === null,
+    "Gegenprobe: ohne Kündigung — oder wenn FIAON den Grund gab — bleibt der Garantiefall nach dem Fristende frei");
+  const kuendTeil = srvQ.slice(srvQ.indexOf("export async function firmaKuendigung"), srvQ.indexOf("// RECHNUNGSZEILE"));
+  const shopTeil = srvQ.slice(srvQ.indexOf("export async function firmaShopLive"), srvQ.indexOf("export async function firmaKapitalErhalten"));
+  ok(/if \(art === "ordentlich" && kn\.kuendigungOrdentlich\) return nein\(kn\.kuendigungOrdentlich, 409\)/.test(kuendTeil) && /if \(starttag\) await monatsteileBis/.test(kuendTeil) && !/l\.sch\.starttag!/.test(kuendTeil),
+    "Server: ordentliche Kündigung an den Starttag gebunden, aus wichtigem Grund ohne Starttag (keine Monatsteile)");
+  ok(/COALESCE\(freigaben->'kuendigung', 'null'::jsonb\) = 'null'::jsonb/.test(shopTeil), "Server: „Shop live“ setzt den Starttag nur ohne Kündigung (atomar in der Abfrage)");
+  const chefQ = fs.readFileSync("client/src/components/admin/ChefGlobalAngebote.tsx", "utf8");
+  ok(/!a\.freigaben\.kuendigung && !k\.kuendigungOrdentlich && <option value="ordentlich">/.test(chefQ) && /a\.freigaben\.kuendigung \|\| k\.kuendigungOrdentlich \? "ausserordentlich" : "ordentlich"/.test(chefQ),
+    "Chefbüro: vor „Shop live“ bietet die Kündigung nur „aus wichtigem Grund“ an");
+  // Das alte Individualangebot (E-268) ist nicht berührt: eigener Server-Teil, eigene Knöpfe.
+  ok(!/kuendigungOrdentlich|spaetester-starttag/.test(fs.readFileSync("server/lib/fiaon-global-angebot.ts", "utf8")), "Individualangebot (E-268): keine der Änderungen");
+}
+
 // ═══ TEIL 2 ════════════════════════════════════════════════════════════════
 if (LOKAL) {
   const BASIS = String(process.env.PRUEF_BASIS || "http://127.0.0.1:5298");
@@ -740,11 +975,11 @@ if (LOKAL) {
   titel("B. Kundensicht (Form = FirmaKundenSicht)");
   const lesen = async () => { const r = await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(token)}`, { headers: { "user-agent": UA, "x-forwarded-for": IP } }); return { status: r.status, body: await r.json() as any }; };
   let sicht = await lesen();
-  const SCHLUESSEL = ["ok", "status", "art", "ref", "fassung", "gueltigBis", "kunde", "kundeAnrede", "seite", "compliance", "ansprechpartner", "uebersicht", "annahme", "beginn", "annahmeBereit", "gesperrtGrund", "html", "textHash", "vertragPdf", "anlage1Pdf", "pruefberichtPdf"];
+  const SCHLUESSEL = ["ok", "status", "art", "ref", "fassung", "gueltigBis", "kunde", "kundeAnrede", "seite", "compliance", "ansprechpartner", "uebersicht", "annahme", "annahmeBereit", "gesperrtGrund", "html", "textHash", "vertragPdf", "anlage1Pdf", "pruefberichtPdf"];
   ok(sicht.status === 200 && SCHLUESSEL.every((k) => k in sicht.body) && Object.keys(sicht.body).every((k) => SCHLUESSEL.includes(k) || ["vorschauLeitung", "fehlt"].includes(k)), "alle Felder von FirmaKundenSicht, keine fremden", Object.keys(sicht.body));
   ok(sicht.body.art === "firma" && sicht.body.status === "offen" && sicht.body.annahmeBereit === false && typeof sicht.body.gesperrtGrund === "string", "offen, gesperrt solange die Bürgin unvollständig ist");
   ok(sicht.body.compliance?.bereiche?.length === 7 && sicht.body.seite.kapital.garantie.length === 3 && /^[0-9a-f]{64}$/.test(sicht.body.textHash), "Prüfbericht (Kundenfassung), Garantie-Sätze, Prüfsumme");
-  ok(sicht.body.kunde.firma === KUNDE.firma.name && sicht.body.kundeAnrede === "Sehr geehrte Frau Muster" && sicht.body.beginn.morgen > heute, "Kunde, Anrede, Startrahmen");
+  ok(sicht.body.kunde.firma === KUNDE.firma.name && sicht.body.kundeAnrede === "Sehr geehrte Frau Muster" && !("beginn" in sicht.body) && sicht.body.fassung === S.FIRMA_FASSUNG && !!sicht.body.annahme.unterschrift?.titel, "Kunde, Anrede, Fassung C, Texte der Unterschrift (keine Startwahl mehr)");
   const ae = await F.firmaAendern(id, { buergin: BUERGIN_VOLL }, "Prüfstand");
   ok(ae.ok && (ae as any).fehlt.length === 0, "Bürgin vollständig eingetragen (firmaAendern)", ae);
   sicht = await lesen();
@@ -754,7 +989,7 @@ if (LOKAL) {
   {
     const basis = `/api/fiaon/global/angebot/${encodeURIComponent(token)}/bild/`;
     const sb = sicht.body.seite;
-    ok(sb.phasen.liste.find((p: any) => p.nr === 2)?.bild?.src === `${basis}szene-a.webp` && String(sb.phasen.liste.find((p: any) => p.nr === 2)?.bild?.srcset).includes(`${basis}szene-a-gross.webp 1920w`) && sb.hero.glas?.etikett === `${basis}etikett-t.webp` && sb.hero.glas?.foto?.src === `${basis}foto-t.webp`, "Kundensicht: jede Bildadresse liegt hinter dem Link", { phase: sb.phasen.liste.find((p: any) => p.nr === 2)?.bild, glas: sb.hero.glas });
+    ok(sb.phasen.liste.every((p: any) => !p.bild) && sb.hero.glas?.etikett === `${basis}etikett-t.webp` && sb.hero.glas?.foto?.src === `${basis}foto-t.webp`, "Kundensicht: Etikett und Produktfoto hinter dem Link, keine Fotos im Zeitstrahl", { glas: sb.hero.glas?.etikett });
     ok(!JSON.stringify(sb).includes("/angebote/"), "Kundensicht nennt keinen öffentlichen Bildpfad");
     const holen = (pfad: string, kopf: Record<string, string> = {}) => fetch(`${BASIS}${pfad}`, { headers: { "user-agent": UA, "x-forwarded-for": IP, ...kopf } });
     const r = await holen(`${basis}szene-a.webp`);
@@ -798,7 +1033,7 @@ if (LOKAL) {
     const eintrag = async () => ((await A.angebotListe()) as any[]).find((x) => x.id === id);
     let e0 = await eintrag();
     ok(fa.ok && e0?.versandSperre === null && e0?.freigaben?.anwalt?.textHash === sicht.body.textHash && /Prüfsumme/.test((fa as any).meldung), "Freigabe mit Prüfsumme der aktuellen Fassung → Versand frei", { sperre: e0?.versandSperre, meldung: (fa as any).meldung });
-    const ae2 = await F.firmaAendern(id, { parameter: { ...PARAMETER_LOKAL, monatCents: 199100 } }, "Prüfstand");
+    const ae2 = await F.firmaAendern(id, { parameter: { ...PARAMETER_LOKAL, umsatzSchwelleCents: 60_100_000 } }, "Prüfstand"); // Runde 2: der Anteil am Budget muss die Hälfte bleiben — geändert wird die Schwelle
     e0 = await eintrag();
     ok(ae2.ok && /geändert/.test(e0?.versandSperre ?? ""), "Vertrag nach der Freigabe geändert → Versand wieder gesperrt", e0?.versandSperre);
     await F.firmaAendern(id, { parameter: PARAMETER_LOKAL }, "Prüfstand");
@@ -827,16 +1062,20 @@ if (LOKAL) {
 
   titel("C. Annahme");
   const annehmen = async (body: Record<string, unknown>) => { const r = await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, { method: "POST", headers: { "content-type": "application/json", "user-agent": UA, "x-forwarded-for": IP }, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() as any }; };
-  const morgen = sicht.body.beginn.morgen as string;
-  let r1 = await annehmen({ textHash: sicht.body.textHash, unternehmer: true, startAm: morgen });
+  // Runde 2: Unterschrift Pflicht — erfundene Test-PNGs (RGBA, leer bzw. mit einem Strich).
+  const UNTERSCHRIFT = { art: "gezeichnet", png: pngUrl(testPngRgba(480, 160, true)) };
+  const gutBody = { textHash: sicht.body.textHash, unternehmer: true, vertretung: true, unterschrift: UNTERSCHRIFT };
+  let r1 = await annehmen({ textHash: sicht.body.textHash, unternehmer: true, unterschrift: UNTERSCHRIFT });
   ok(r1.status === 400 && r1.body.code === "HAEKCHEN" && r1.body.fehlt?.includes("vertretung"), "Häkchen „Vertretung“ fehlt → 400", r1);
   r1 = await annehmen({ textHash: sicht.body.textHash, unternehmer: true, vertretung: true });
-  ok(r1.status === 400 && r1.body.code === "BEGINN", "Startwahl fehlt → 400", r1);
-  r1 = await annehmen({ textHash: sicht.body.textHash, unternehmer: true, vertretung: true, startAm: heute });
-  ok(r1.status === 400 && r1.body.code === "STARTDATUM", "Starttag heute als Datum (statt „sofort“) → 400", r1);
-  r1 = await annehmen({ textHash: "0".repeat(64), unternehmer: true, vertretung: true, startAm: morgen });
+  ok(r1.status === 400 && r1.body.code === "UNTERSCHRIFT", "ohne Unterschrift → 400 (der Server prüft, nicht nur die Seite)", r1);
+  r1 = await annehmen({ ...gutBody, unterschrift: { art: "gezeichnet", png: pngUrl(testPngRgba(480, 160, false)) } });
+  ok(r1.status === 400 && r1.body.code === "UNTERSCHRIFT", "leeres Unterschriftsfeld → 400", r1);
+  r1 = await annehmen({ ...gutBody, unterschrift: { art: "getippt", name: "Martina" } });
+  ok(r1.status === 400 && r1.body.code === "UNTERSCHRIFT" && /Muster/.test(String(r1.body.error)), "getippter Name ohne Nachnamen → 400", r1);
+  r1 = await annehmen({ ...gutBody, textHash: "0".repeat(64) });
   ok(r1.status === 409 && r1.body.code === "GEAENDERT", "Prüfsumme falsch → 409", r1);
-  const rb = await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, { method: "POST", headers: { "content-type": "application/json", "user-agent": "HeadlessChrome/129", "x-forwarded-for": IP }, body: JSON.stringify({ textHash: sicht.body.textHash, unternehmer: true, vertretung: true, startAm: morgen }) });
+  const rb = await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, { method: "POST", headers: { "content-type": "application/json", "user-agent": "HeadlessChrome/129", "x-forwarded-for": IP }, body: JSON.stringify(gutBody) });
   ok(rb.status === 403, "Roboter (HeadlessChrome) → 403");
   // Zweite Nachprüfung 08.10.2026 (N6): CHECKs der Teile noch alt UND die Tabelle gerade gesperrt (der Tausch scheitert an der
   // Sperre) → die Annahme speichert NICHTS (503). Danach holt der nächste Aufruf den Tausch nach. In diesem Prozess (dieselbe
@@ -855,7 +1094,7 @@ if (LOKAL) {
     const halter = sqlPool.begin(async (tx: any) => { await tx`LOCK TABLE fiaon_global_angebot_teile IN ACCESS SHARE MODE`; gesperrt(); await gehalten; });
     await sperreDa;
     const t0 = Date.now();
-    const r503 = await A.angebotAnnehmen(token, { textHash: sicht.body.textHash, unternehmer: true, vertretung: true, startAm: morgen }, { ip: IP, userAgent: UA, leitung: false });
+    const r503 = await A.angebotAnnehmen(token, gutBody, { ip: IP, userAgent: UA, leitung: false });
     const dauer = Date.now() - t0;
     loslassen(); await halter;
     const [st503] = (await sqlPool`SELECT status, angenommen_am FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
@@ -864,15 +1103,30 @@ if (LOKAL) {
     for (let i = 0; i < 25 && !nachgeholt; i++) { await new Promise((r) => setTimeout(r, 1000)); A.firmaTeileCheckVergessen(); nachgeholt = await A.firmaTeileCheckSichern(); }
     ok(nachgeholt && await A.firmaTeileCheckLesen(), "Sperre weg → der nächste Aufruf holt den CHECK-Tausch nach (nr bis 500, monatlich/umsatz/verkauf)");
   }
-  const gut = await annehmen({ textHash: sicht.body.textHash, unternehmer: true, vertretung: true, startAm: morgen });
+  const gut = await annehmen(gutBody);
   ok(gut.status === 200 && gut.body.ok === true && gut.body.art === "firma" && typeof gut.body.auftragRef === "string" && gut.body.fertigTitel, "gute Annahme → 200 mit Auftrag", gut);
-  const doppelt = await annehmen({ textHash: sicht.body.textHash, unternehmer: true, vertretung: true, startAm: morgen });
+  const doppelt = await annehmen(gutBody);
   ok(doppelt.status === 200 && doppelt.body.schon === true && doppelt.body.auftragRef === gut.body.auftragRef, "zweiter Klick → dieselbe Annahme, nichts doppelt", doppelt.status);
 
   titel("D. Akte, Person, Rechnung Gründung (Firma, UID, Reverse Charge)");
   const [az] = (await sqlPool`SELECT status, person_id, auftrag_ref, schalter, text_hash, fassung, (vertrag_pdf IS NOT NULL) AS pdf FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
   const sch = typeof az.schalter === "string" ? JSON.parse(az.schalter) : az.schalter;
-  ok(az.status === "angenommen" && az.pdf && az.text_hash === sicht.body.textHash && az.fassung === S.FIRMA_FASSUNG && sch.starttag === morgen && sch.startWahl === morgen && sch.unternehmer === true, "angenommen, PDF, Prüfsumme, Starttag und Häkchen gespeichert", { ...az, schalter: sch });
+  ok(az.status === "angenommen" && az.pdf && az.text_hash === sicht.body.textHash && az.fassung === S.FIRMA_FASSUNG && sch.starttag === null && sch.startWahl === null && sch.unternehmer === true, "angenommen, PDF, Prüfsumme, Häkchen gespeichert — Starttag noch offen (kommt mit „Shop live“)", { ...az, schalter: { ...sch, unterschrift: sch.unterschrift ? "…" : null } });
+  ok(sch.unterschrift?.art === "gezeichnet" && sch.unterschrift?.png === UNTERSCHRIFT.png && sch.unterschrift?.ip === IP && /^\d{4}-\d{2}-\d{2}T/.test(String(sch.unterschrift?.am)), "Unterschrift gespeichert: Bild, Zeit, IP-Adresse", { art: sch.unterschrift?.art, ip: sch.unterschrift?.ip, am: sch.unterschrift?.am });
+  {
+    const [fz] = (await sqlPool`SELECT frist_beginn, frist_ende, vertrag_pdf FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
+    const fb = fz.frist_beginn instanceof Date ? berlinToday(fz.frist_beginn) : String(fz.frist_beginn).slice(0, 10);
+    const fe = fz.frist_ende instanceof Date ? berlinToday(fz.frist_ende) : String(fz.frist_ende).slice(0, 10);
+    ok(fb === heute && fe === S.garantieFristEnde(heute, 3), "Garantiefrist der ersten Runde ab dem Tag der Annahme: drei Monate (Runde 2, Punkt 3)", { fb, fe });
+    let txt = "";
+    try {
+      const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs" as any);
+      const doc = await pdfjs.getDocument({ data: new Uint8Array(Buffer.from(fz.vertrag_pdf)), verbosity: 0 }).promise;
+      for (let pn = 1; pn <= doc.numPages; pn++) { const tc = await (await doc.getPage(pn)).getTextContent(); txt += " " + tc.items.map((it: any) => it.str).join(" "); }
+      txt = txt.replace(/\s+/g, " ");
+    } catch (e) { txt = `(nicht lesbar: ${e instanceof Error ? e.message : e})`; }
+    ok(txt.includes("Unterschrift (von Hand gezeichnet)") && txt.includes("Angenommen mit Unterschrift und Klick auf") && /Unterschrift: von Hand gezeichnet, gespeichert mit Zeit und IP-Adresse/.test(txt), "Vertrags-PDF: Annahmevermerk zeigt die Unterschrift", txt.slice(txt.indexOf("Für die Auftraggeberin"), txt.indexOf("Für die Auftraggeberin") + 300));
+  }
   ok(az.person_id != null, "Person am Angebot (fiaon_global_angebote.person_id)", az.person_id);
   if (az.person_id != null) ok(await istGlobalKunde(Number(az.person_id)), "Global-Kunde-Regel (E-272) greift für die Person");
   const ref1 = String(az.auftrag_ref);
@@ -899,7 +1153,7 @@ if (LOKAL) {
   ok(akte && af?.name === KUNDE.firma.name && af?.art !== "privat" && akte.ust_id === KUNDE.firma.uid && akte.rechnung_ust_modus === "reverse_charge" && Number(akte.angebot_id) === id, "Akte als Unternehmen mit UID", akte);
   const monate = (await sqlPool`SELECT nr, betrag_cents, faellig_am, zeitraum, titel FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' ORDER BY nr`) as any[];
   const fa = (x: any) => (x instanceof Date ? berlinToday(x) : String(x).slice(0, 10));
-  ok(monate.length === 24 && monate[0].nr === 2 && monate[23].nr === 25 && monate.every((m, i) => Number(m.betrag_cents) === 199000 && fa(m.faellig_am) === S.monatFaelligAm(morgen, i + 1)), "vierundzwanzig Monatsteile, nr 2 … 25, fällig ab dem Starttag", monate.slice(0, 2));
+  ok(monate.length === 0, "vor „Shop live“: keine Monatsteile — das Wachstumsbudget hat noch nicht begonnen", monate.length);
 
   titel("D2. Keine automatische Mail an die Kundin (Zahlungstakt, Termine, Türen)");
   {
@@ -947,23 +1201,48 @@ if (LOKAL) {
       "Route „Nachholen“ (Firmenangebot): meldet „keine Mail — Vertrag und Rechnung von Hand“, kein Eintrag im Mail-Protokoll", { status: nh.status, meldung: nhj.meldung ?? nhj.error, mails: [mailVor[0].n, mailNach[0].n] });
   }
 
-  titel("E. Monatslauf mit simulierter Uhr");
+  titel("E. „Shop live“ startet das Wachstumsbudget — dann Monatslauf mit simulierter Uhr");
   const berlin = (tag: string) => new Date(`${tag}T10:00:00+02:00`);
-  let l1 = await F.firmaStundenlauf(berlin(heute));
+  let l1 = await F.firmaStundenlauf(berlin(S.plusTageIso(heute, 40)));
   const nr2 = () => sqlPool`SELECT bestell_ref FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND nr = 2`.then((r: any) => r[0]?.bestell_ref ?? null);
-  ok(l1.rechnungen === 0 && (await nr2()) === null, "vor dem Fälligkeitstag: keine Monatsrechnung", l1);
-  l1 = await F.firmaStundenlauf(berlin(morgen));
+  ok(l1.rechnungen === 0 && (await nr2()) === null, "ohne „Shop live“ stellt der Stundenlauf keine Monatsrechnung (auch Wochen später nicht)", l1);
+  const umsatzVor = await F.firmaUmsatz(id, { jahr: Number(heute.slice(0, 4)), quartal: 1, kumuliert: "1,00", beleg: "vor Shop live" }, "Prüfstand");
+  ok(!umsatzVor.ok && /Shop live/.test((umsatzVor as any).error), "Umsatz eintragen erst nach „Shop live“", umsatzVor);
+  const mailVorShop = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE LOWER(empfaenger) = ${email}`) as any[];
+  const zukunft = await F.firmaShopLive(id, { am: S.plusTageIso(heute, 1) }, "Prüfstand");
+  ok(!zukunft.ok && (zukunft as any).status === 400, "„Shop live“ in der Zukunft → abgewiesen", zukunft);
+  // Runde 3 (Fassung D, Ziffer 10 Absatz 2): „Spätester Starttag“ erst ab Annahme + sechs Monate; später nur mit Bestätigung.
+  const spZuFrueh = await F.firmaShopLive(id, { art: "spaetestens" }, "Prüfstand");
+  ok(!spZuFrueh.ok && /spätest/.test((spZuFrueh as any).error ?? ""), "„Spätester Starttag“ vor Annahme + sechs Monate → abgewiesen", spZuFrueh);
+  const spaeter = S.plusTageIso(S.budgetSpaetesterStart(heute, PARAMETER), 3);
+  const ohneHaken = await F.firmaShopLive(id, { am: spaeter }, "Prüfstand", { heute: spaeter });
+  ok(!ohneHaken.ok && /Verzögerung/.test((ohneHaken as any).error ?? ""), "„Shop live“ nach dem spätesten Starttag ohne Bestätigung der Verzögerung bei FIAON → abgewiesen", ohneHaken);
+  const sl = await F.firmaShopLive(id, { am: heute }, "Prüfstand");
+  const start = heute;
+  ok(sl.ok && (sl as any).starttag === start && (sl as any).monate === 24, "„Shop live“ heute → Starttag, vierundzwanzig Monatsteile", sl);
+  const monateS = (await sqlPool`SELECT nr, betrag_cents, faellig_am, zeitraum, titel FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' ORDER BY nr`) as any[];
+  ok(monateS.length === 24 && monateS[0].nr === 2 && monateS[23].nr === 25 && monateS.every((m, i) => Number(m.betrag_cents) === 200000 && fa(m.faellig_am) === S.monatFaelligAm(start, i + 1)) && monateS[0].titel === "Wachstumsbudget — Ihr Anteil, Monat 1", "Monatsteile: 2.000 € je Monat ab dem Tag „Shop live“ (nr 2 … 25)", monateS.slice(0, 2));
+  const [schS] = (await sqlPool`SELECT schalter FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
+  const schS2 = typeof schS.schalter === "string" ? JSON.parse(schS.schalter) : schS.schalter;
+  ok(schS2.starttag === start && schS2.shopLiveAm === start && schS2.unterschrift?.art === "gezeichnet", "Schalter: Starttag = Tag „Shop live“, Unterschrift bleibt", { starttag: schS2.starttag });
   const ref2 = await nr2();
-  ok(l1.rechnungen === 1 && !!ref2, "am Fälligkeitstag (Berlin): Rechnung Monat 1", l1);
+  ok(!!ref2, "erste Monatsrechnung an diesem Tag — sofort gestellt", ref2);
+  const zweimal = await F.firmaShopLive(id, { am: heute }, "Prüfstand");
+  ok(!zweimal.ok && (zweimal as any).status === 409, "„Shop live“ ein zweites Mal → 409", zweimal);
+  const mailNachShop = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE LOWER(empfaenger) = ${email} AND COALESCE(grund, '') NOT LIKE '%E-301%'`) as any[];
+  const [aShop] = (await sqlPool`SELECT text FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${ref}:shop-live`} LIMIT 1`) as any[];
+  ok(mailNachShop[0].n <= mailVorShop[0].n && /keine automatische Mail/.test(String(aShop?.text ?? "")), "„Shop live“ und erste Monatsrechnung: keine Mail an die Kundin, Aufgabe „Shop live mitteilen“", { vor: mailVorShop[0].n, nach: mailNachShop[0].n });
+  l1 = await F.firmaStundenlauf(berlin(start));
+  ok(l1.rechnungen === 0, "Stundenlauf am selben Tag: Monat 1 steht schon, nichts doppelt", l1);
   if (ref2) {
     const [b2] = (await sqlPool`SELECT amount_due, company_name, tax_id, rechnung_ust_modus, invoice_number, pack_name FROM fiaon_applications WHERE ref = ${ref2}`) as any[];
-    ok(Number(b2.amount_due) === 1990 && b2.company_name === KUNDE.firma.name && b2.rechnung_ust_modus === "reverse_charge" && !!b2.invoice_number && String(b2.pack_name).includes("Monat 1"), "Monatsrechnung: 1.990,00 €, Firma, Reverse Charge, eigene Nummer", b2);
+    ok(Number(b2.amount_due) === 2000 && b2.company_name === KUNDE.firma.name && b2.rechnung_ust_modus === "reverse_charge" && !!b2.invoice_number && String(b2.pack_name).includes("Monat 1"), "Monatsrechnung: 2.000,00 € (Ihr Anteil), Firma, Reverse Charge, eigene Nummer", b2);
     const z2 = await A.angebotRechnungsZeile(String(ref2));
-    ok(z2?.beschreibung.includes("Plattform & Team — Monat 1") && z2?.zeitraum === S.monatZeitraum(morgen, 1).text, "Rechnungstext Monat 1 mit Zeitraum", z2);
+    ok(z2?.beschreibung.includes("Wachstumsbudget — Ihr Anteil, Monat 1") && z2?.beschreibung.includes("gemeinsamen Wachstumsbudget") && z2?.zeitraum === S.monatZeitraum(start, 1).text, "Rechnungstext „Wachstumsbudget — Ihr Anteil, Monat 1“ mit Zeitraum", z2);
   }
-  l1 = await F.firmaStundenlauf(berlin(morgen));
+  l1 = await F.firmaStundenlauf(berlin(start));
   ok(l1.rechnungen === 0, "zweiter Lauf am selben Tag: nichts doppelt", l1);
-  l1 = await F.firmaStundenlauf(berlin(S.monatFaelligAm(morgen, 2)));
+  l1 = await F.firmaStundenlauf(berlin(S.monatFaelligAm(start, 2)));
   ok(l1.rechnungen === 1, "einen Monat später: Rechnung Monat 2", l1);
   {
     const [t2] = (await sqlPool`SELECT id FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND nr = 2`) as any[];
@@ -974,15 +1253,15 @@ if (LOKAL) {
     // Die Bestellzeile trägt payment_reference ab dem Anlegen (NOT NULL); „ohne Rechnung“ heißt payment_status noch 'pending'.
     await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW() WHERE schluessel = ${schl}`;
     await sqlPool`UPDATE fiaon_applications SET payment_status = 'pending', rechnung_ust_modus = 'none' WHERE ref = ${ref2}`;
-    const tagM2 = S.monatFaelligAm(morgen, 2);
+    const tagM2 = S.monatFaelligAm(start, 2);
     const teileJ = (await sqlPool`SELECT t.*, a.payment_status, a.payment_reference, a.invoice_number, a.payment_due_date, a.completed_at FROM fiaon_global_angebot_teile t LEFT JOIN fiaon_applications a ON a.ref = t.bestell_ref WHERE t.angebot_id = ${id}`) as any[];
     const liste1 = F.firmaListenEintrag((await A.angebotLesen({ id }))!, teileJ, { fr: await F.firmaFreigabenLesen(id), heute: tagM2, aufrufe: null, startgespraech: null }) as any;
     const t2l = liste1?.teile.find((t: any) => t.nr === 2);
     ok(t2l && t2l.rechnungKnopf === null && !t2l.rechnungUrl, "hängende Rechnung: das Chefbüro zeigt „Rechnung jetzt stellen“ (kein „Rechnung steht“)", t2l && { knopf: t2l.rechnungKnopf, url: t2l.rechnungUrl, status: t2l.zahlungsstatus });
-    const frischGesperrt = await F.firmaStundenlauf(berlin(S.monatFaelligAm(morgen, 2)));
+    const frischGesperrt = await F.firmaStundenlauf(berlin(S.monatFaelligAm(start, 2)));
     ok(frischGesperrt.rechnungen === 0, "eine gerade erst gebundene Bestellzeile holt der Stundenlauf nicht nach (fünfzehn Minuten Ruhe)", frischGesperrt);
     await sqlPool`UPDATE fiaon_global_angebot_teile SET rechnung_am = NOW() - INTERVAL '1 hour' WHERE id = ${t2.id}`;
-    const nachLauf = await F.firmaStundenlauf(berlin(S.monatFaelligAm(morgen, 2)));
+    const nachLauf = await F.firmaStundenlauf(berlin(S.monatFaelligAm(start, 2)));
     const [bn] = (await sqlPool`SELECT payment_reference, payment_status, rechnung_ust_modus FROM fiaon_applications WHERE ref = ${ref2}`) as any[];
     const [an2] = (await sqlPool`SELECT status FROM fiaon_betreiber_todos WHERE schluessel = ${schl} LIMIT 1`) as any[];
     const vl = ((await sqlPool`SELECT verlauf FROM fiaon_global_angebote WHERE id = ${id}`) as any[])[0]?.verlauf;
@@ -995,7 +1274,7 @@ if (LOKAL) {
     // Storno über die Zahlungsliste (Gründungsbestellung storniert, Akte bleibt „offen“): keine Monatsrechnung, keine Verlängerung.
     await sqlPool`UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW() WHERE ref = ${ref1}`;
     const vorher = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND bestell_ref IS NOT NULL`) as any[];
-    const ls = await F.firmaStundenlauf(berlin(S.monatFaelligAm(morgen, 3)));
+    const ls = await F.firmaStundenlauf(berlin(S.monatFaelligAm(start, 3)));
     const nachher = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND bestell_ref IS NOT NULL`) as any[];
     const [t4m] = (await sqlPool`SELECT id FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND nr = 4`) as any[];
     const jetztSt = await F.firmaTeilJetztBerechnen(id, Number(t4m.id), "Prüfstand");
@@ -1005,24 +1284,27 @@ if (LOKAL) {
 
   titel("F. Zahlung Gründung → Start");
   await sqlPool`UPDATE fiaon_applications SET payment_status = 'paid', completed_at = NOW() WHERE ref = ${ref1}`; // nur Prüfstand-Kopie: Zahlung simuliert
-  const start = await A.angebotNachZahlung(ref1);
+  const gestartet = await A.angebotNachZahlung(ref1);
   const [ak2] = (await sqlPool`SELECT status FROM fiaon_global_auftraege WHERE ref = ${ref1}`) as any[];
-  ok(start.gestartet === true && ak2.status === "gestartet", "Gründung bezahlt → Auftrag gestartet (Unternehmen, ohne Widerrufsfrist)", { start, ak2 });
+  ok(gestartet.gestartet === true && ak2.status === "gestartet", "Gründung bezahlt → Auftrag gestartet (Unternehmen, ohne Widerrufsfrist)", { gestartet, ak2 });
   const start2 = await A.angebotNachZahlung(ref1);
   ok(start2.gestartet === false, "zweite Buchung startet nichts doppelt", start2);
 
   titel("G. Garantie: Bedingungen → Frist → Ruhen → Garantiefall");
-  const kurz = await F.firmaGarantiefall(id, "Prüfstand");
-  ok(!kurz.ok && /läuft noch nicht/.test((kurz as any).error), "ohne erfüllte Bedingungen kein Garantiefall", kurz);
-  const bed = await F.firmaBedingungenErfuellt(id, { am: heute }, "Prüfstand");
   const ende0 = S.garantieFristEnde(heute, 3);
-  ok(bed.ok && (bed as any).fristEnde === ende0, `Bedingungen erfüllt heute → Garantiefrist bis ${S.firmaTag(ende0)}`, bed);
+  const kurz = await F.firmaGarantiefall(id, "Prüfstand");
+  ok(!kurz.ok && /Die Frist läuft bis/.test((kurz as any).error), "Frist läuft seit der Annahme — vor ihrem Ende kein Garantiefall", kurz);
+  const bed = await F.firmaBedingungenErfuellt(id, { am: heute }, "Prüfstand");
+  const [fz2] = (await sqlPool`SELECT frist_ende FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
+  ok(bed.ok && (bed as any).fristEnde === ende0 && fa(fz2.frist_ende) === ende0 && (await F.firmaFreigabenLesen(id)).bedingungenErfuelltAm === heute, `Bedingungen erfüllt → Bürgschaft wirksam, die Frist ab Annahme bleibt (bis ${S.firmaTag(ende0)})`, bed);
   const heuteP20 = S.plusTageIso(heute, 20);
   const hem = await F.firmaFristHemmen(id, { aufgefordertAm: S.plusTageIso(heute, 2), erbrachtAm: S.plusTageIso(heute, 15), grund: "Jahresabschlüsse trotz Aufforderung nicht vorgelegt (Prüfstand)." }, "Prüfstand", { heute: heuteP20 });
   ok(hem.ok && (hem as any).tage === 6 && (hem as any).fristEnde === S.plusTageIso(ende0, 6), "Frist ruht ab Aufforderung + sieben Tage bis zur Mitwirkung (6 Tage)", hem);
   const ende1 = S.plusTageIso(ende0, 6);
   const fruh = await F.firmaGarantiefall(id, "Prüfstand", { heute: ende1 });
   ok(!fruh.ok, "am Fristende selbst noch kein Garantiefall", fruh);
+  const zusage = await F.firmaKapitalErhalten(id, { art: "zugesagt", am: heute, betragUsd: "250.000", beleg: "Zusage eines Instituts in Textform (Prüfstand, erfunden)." }, "Prüfstand");
+  ok(!zusage.ok && /Zusage allein/.test((zusage as any).error ?? ""), "Fassung D: eine Zusage erfüllt die Garantie nicht (nur Auszahlung oder Ablehnung)", zusage);
   const fall = await F.firmaGarantiefall(id, "Prüfstand", { heute: S.plusTageIso(ende1, 1) });
   const [gz] = (await sqlPool`SELECT erstattung_cents, erstattung_ausgeloest_am FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
   ok(fall.ok && Number(gz.erstattung_cents) === 690000 && !!gz.erstattung_ausgeloest_am, "nach dem Fristende: Garantiefall → Erstattung der Gründung 6.900 € vorgemerkt", { fall, gz });
@@ -1030,9 +1312,9 @@ if (LOKAL) {
   ok(!nachher.ok, "nach dem Garantiefall lässt sich „erste Runde erhalten“ nicht mehr eintragen", nachher);
 
   titel("H. Umsatz- und Verkaufsbeteiligung");
-  const jahr0 = Number(morgen.slice(0, 4));
+  const jahr0 = Number(start.slice(0, 4));
   const u0 = await F.firmaUmsatz(id, { jahr: jahr0, quartal: 4, kumuliert: "400.000,00", beleg: "UVA Prüfstand Q4" }, "Prüfstand", { heute: `${jahr0 + 1}-01-10` });
-  const sw0 = S.umsatzSchwelleJahr(PARAMETER, jahr0, morgen).schwelleCents;
+  const sw0 = S.umsatzSchwelleJahr(PARAMETER, jahr0, start).schwelleCents;
   ok(u0.ok && (u0 as any).schwelleCents === sw0 && (u0 as any).rechnungCents === Math.round((40_000_000 - sw0) / 10), `erstes Jahr anteilig: Schwelle ${S.firmaEur(sw0)}, 10 % darüber`, u0);
   const uq1 = await F.firmaUmsatz(id, { jahr: jahr0 + 1, quartal: 1, kumuliert: "500.000,00", beleg: "UVA Prüfstand Q1" }, "Prüfstand", { heute: `${jahr0 + 1}-04-20` });
   ok(uq1.ok && (uq1 as any).rechnungCents === 0, "Q1 unter der Schwelle → keine Beteiligung", uq1);
@@ -1073,15 +1355,15 @@ if (LOKAL) {
   ok(!tg2?.bestell_ref, "der Stundenlauf rechnet den Gesellschafter-Teil nie ab", lg);
 
   titel("I. Verlängerung und Kündigung");
-  const ende24 = S.laufzeitEnde(morgen, 24);
+  const ende24 = S.laufzeitEnde(start, 24);
   const nachFrist = S.plusTageIso(S.kuendigungSpaetestens(ende24, 3), 1);
   const lv = await F.firmaStundenlauf(berlin(nachFrist));
   const mz = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' AND entfallen_am IS NULL`) as any[];
   // Der Stundenlauf zählt über ALLE angenommenen Firmenangebote der Kopie — maßgeblich sind die Teile DIESES Angebots.
   ok(lv.verlaengert >= 1 && mz[0].n === 36, "Kündigungsfrist ohne Kündigung verstrichen → zwölf Monate mehr (36)", { lv, n: mz[0].n });
   const kd = await F.firmaKuendigung(id, { am: nachFrist }, "Prüfstand", { heute: nachFrist });
-  ok(kd.ok && (kd as any).zum === S.laufzeitEnde(morgen, 36), `Kündigung nach der Frist wirkt zum Ende der Verlängerung (${S.firmaTag(S.laufzeitEnde(morgen, 36))})`, kd);
-  const lv2 = await F.firmaStundenlauf(berlin(S.plusTageIso(S.kuendigungSpaetestens(S.laufzeitEnde(morgen, 36), 3), 1)));
+  ok(kd.ok && (kd as any).zum === S.laufzeitEnde(start, 36), `Kündigung nach der Frist wirkt zum Ende der Verlängerung (${S.firmaTag(S.laufzeitEnde(start, 36))})`, kd);
+  const lv2 = await F.firmaStundenlauf(berlin(S.plusTageIso(S.kuendigungSpaetestens(S.laufzeitEnde(start, 36), 3), 1)));
   const mz2 = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' AND entfallen_am IS NULL`) as any[];
   ok(mz2[0].n === 36, "nach der Kündigung keine weitere Verlängerung", { lv2, n: mz2[0].n });
 
@@ -1129,7 +1411,7 @@ if (LOKAL) {
     const offenNach = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND nr > 1 AND bestell_ref IS NULL AND entfallen_am IS NULL`) as any[];
     ok(st.ok && offenNach[0].n === 0, "Storno: alle Teile ohne Rechnung entfallen", { st, offen: offenNach[0].n });
     const vorRech = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND bestell_ref IS NOT NULL`) as any[];
-    await F.firmaStundenlauf(berlin(S.monatFaelligAm(morgen, 6)));
+    await F.firmaStundenlauf(berlin(S.monatFaelligAm(start, 6)));
     const nachRech = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND bestell_ref IS NOT NULL`) as any[];
     ok(nachRech[0].n === vorRech[0].n, "nach dem Storno: Stundenlauf stellt keine Monatsrechnung mehr", { vor: vorRech[0].n, nach: nachRech[0].n });
     const [tm] = (await sqlPool`SELECT id FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' AND bestell_ref IS NULL ORDER BY nr LIMIT 1`) as any[];
@@ -1142,6 +1424,79 @@ if (LOKAL) {
        WHERE LOWER(empfaenger) = ${email} AND COALESCE(ausgeloest_von, '') NOT LIKE 'Prüfstand%'`) as any[];
     const leck = zeilen.filter((z) => !/E-301/.test(String(z.grund ?? "")));
     ok(leck.length === 0, `jede automatische Mail an die Firmenkundin hielt die Wand E-301 an (${zeilen.length} Versuche, alle gesperrt)`, leck.map((z) => `${z.event}: ${String(z.grund ?? "").slice(0, 80)}`));
+  }
+  titel("M. Gegenprüfung 08.10.2026: ohne „Shop live“ — Fristende, spätester Starttag, Kündigung aus wichtigem Grund");
+  {
+    // Zwei frische Angebote (Musterfirma, eigene Adressen), angenommen über die echte Route — keines bekommt „Shop live“.
+    // M1: Fund 2 (Fristende und spätester Starttag ohne Starttag). M2: Fund 3 (Kündigung aus wichtigem Grund vor dem Starttag).
+    const berlinM = (tag: string) => new Date(`${tag}T10:00:00+02:00`);
+    const anlegenUndAnnehmen = async (kennung: string, ip: string) => {
+      const mail = `pruef+${kennung}-${lauf}@musterfirma-beispiel.example`;
+      const an = await F.firmaAnlegen({ fassung: S.FIRMA_FASSUNG, kunde: { ...KUNDE, email: mail }, buergin: BUERGIN_VOLL, parameter: PARAMETER, compliance: COMPLIANCE_ROH }, "Prüfstand");
+      if (!an.ok) return { id: 0, ref: "", auftragRef: "", fehler: an };
+      const tok = decodeURIComponent(new URL(an.link).pathname.split("/").pop() ?? "");
+      const si = await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(tok)}`, { headers: { "user-agent": UA, "x-forwarded-for": ip } }).then((r) => r.json()) as any;
+      const r = await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(tok)}/annehmen`, { method: "POST", headers: { "content-type": "application/json", "user-agent": UA, "x-forwarded-for": ip }, body: JSON.stringify({ textHash: si.textHash, unternehmer: true, vertretung: true, unterschrift: { art: "getippt", name: "Martina Muster" } }) });
+      const j = await r.json() as any;
+      return { id: an.id, ref: an.ref, auftragRef: String(j.auftragRef ?? ""), fehler: r.status === 200 && j.ok ? null : { status: r.status, j, bereit: si.annahmeBereit, grund: si.gesperrtGrund } };
+    };
+    const ipM = (x: number) => `84.116.${20 + x}.${10 + Math.floor(Math.random() * 200)}`;
+    const m1 = await anlegenUndAnnehmen("m1", ipM(1)); const m2 = await anlegenUndAnnehmen("m2", ipM(2));
+    ok(!m1.fehler && !m2.fehler && !!m1.auftragRef && !!m2.auftragRef, "zwei Angebote (Fassung D) angelegt und angenommen — ohne „Shop live“", { m1: m1.fehler, m2: m2.fehler });
+    const fe = S.garantieFristEnde(heute, 3); const sp = S.budgetSpaetesterStart(heute, PARAMETER);
+    const zeile = async (aid: number) => { const [x] = (await sqlPool`SELECT schalter, freigaben, frist_ende, frist_abgelaufen_am, erstattung_ausgeloest_am FROM fiaon_global_angebote WHERE id = ${aid}`) as any[]; const j = (v: any) => (typeof v === "string" ? JSON.parse(v) : v ?? {}); return { ...x, schalter: j(x?.schalter), freigaben: j(x?.freigaben) }; };
+    const aufgabe = async (schl: string) => (await sqlPool`SELECT id, status, text FROM fiaon_betreiber_todos WHERE schluessel = ${schl}`) as any[];
+    const monateVon = async (aid: number) => ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_angebot_teile WHERE angebot_id = ${aid} AND faelligkeit = 'monatlich'`) as any[])[0].n;
+    const z1 = await zeile(m1.id);
+    ok(fa(z1.frist_ende) === fe && !z1.schalter.starttag && (await monateVon(m1.id)) === 0, `M1: Garantiefrist bis ${S.firmaTag(fe)}, kein Starttag, keine Monatsteile`, { fe: fa(z1.frist_ende), starttag: z1.schalter.starttag });
+
+    // ── Fund 3 (M2): Gründung bezahlt (nur Prüfstand-Kopie), dann Kündigung VOR dem Starttag ──
+    await sqlPool`UPDATE fiaon_applications SET payment_status = 'paid', completed_at = NOW() WHERE ref = ${m2.auftragRef}`;
+    const ord = await F.firmaKuendigung(m2.id, { am: heute, art: "ordentlich" }, "Prüfstand");
+    ok(!ord.ok && (ord as any).status === 409 && /Starttag/.test((ord as any).error ?? ""), "M2: ordentliche Kündigung vor „Shop live“ → 409 (Laufzeit zählt erst ab dem Starttag)", ord);
+    const ausser = await F.firmaKuendigung(m2.id, { am: heute, art: "ausserordentlich", seite: "auftraggeberin" }, "Prüfstand");
+    const z2 = await zeile(m2.id);
+    ok(ausser.ok && (ausser as any).zum === heute && /Vor dem Starttag/.test((ausser as any).meldung) && z2.freigaben.kuendigung?.art === "ausserordentlich" && z2.freigaben.kuendigung?.garantieEntfaellt === true && (await monateVon(m2.id)) === 0,
+      "M2: Kündigung aus wichtigem Grund vor dem Starttag → eingetragen, keine Monatsteile", { ausser, k: z2.freigaben.kuendigung });
+    const nochmal = await F.firmaKuendigung(m2.id, { am: heute, art: "ausserordentlich" }, "Prüfstand");
+    ok(!nochmal.ok && (nochmal as any).status === 409 && /Schon eingetragen/.test((nochmal as any).error ?? ""), "M2: zweite Kündigung aus wichtigem Grund → 409", nochmal);
+    const slK = await F.firmaShopLive(m2.id, { am: heute }, "Prüfstand");
+    const slSp = await F.firmaShopLive(m2.id, { art: "spaetestens" }, "Prüfstand", { heute: sp });
+    ok(!slK.ok && (slK as any).status === 409 && /gekündigt/.test((slK as any).error ?? "") && !slSp.ok && (slSp as any).status === 409 && !(await zeile(m2.id)).schalter.starttag && (await monateVon(m2.id)) === 0,
+      "M2: „Shop live“ und „Spätester Starttag“ nach der Kündigung → 409, kein Starttag, keine Monatsteile", { slK, slSp });
+    const gfK = await F.firmaGarantiefall(m2.id, "Prüfstand", { heute: S.plusTageIso(fe, 1) });
+    ok(!gfK.ok && (gfK as any).status === 409 && /entfallen/.test((gfK as any).error ?? "") && !(await zeile(m2.id)).erstattung_ausgeloest_am, "M2: nach dem Fristende kein Garantiefall — die Kündigung aus wichtigem Grund vor dem Fristende lässt die Garantie entfallen (Ziffer 14 Absatz 3)", gfK);
+
+    // ── Fund 2 (M1): Stundenlauf ohne Starttag — Fristende ──
+    const schFrist1 = `global:${m1.ref}:garantie-fristende`; const schFrist2 = `global:${m2.ref}:garantie-fristende`;
+    await F.firmaStundenlauf(berlinM(fe));
+    ok(!(await zeile(m1.id)).frist_abgelaufen_am && (await aufgabe(schFrist1)).length === 0, "Lauf am Fristende selbst: noch nichts (erst am Tag danach)");
+    const lf = await F.firmaStundenlauf(berlinM(S.plusTageIso(fe, 1)));
+    const nachFrist1 = await zeile(m1.id); const a1 = await aufgabe(schFrist1);
+    ok(lf.fristende >= 2 && !!nachFrist1.frist_abgelaufen_am && a1.length === 1 && a1[0].status === "offen" && /Garantiefall/.test(String(a1[0].text)), "M1 ohne „Shop live“, Lauf am Tag nach dem Fristende: frist_abgelaufen_am gesetzt + Aufgabe „Garantiefrist abgelaufen“", { lf, abgelaufen: nachFrist1.frist_abgelaufen_am, aufgaben: a1.length });
+    const a2 = await aufgabe(schFrist2);
+    ok(a2.length === 1 && /ACHTUNG/.test(String(a2[0].text)) && /entfallen/.test(String(a2[0].text)), "M2 (gekündigt): Aufgabe zum Fristende sagt, dass die Garantie entfallen ist", String(a2[0]?.text ?? "").slice(-220));
+    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW() WHERE schluessel = ${schFrist1}`;
+    await F.firmaStundenlauf(berlinM(S.plusTageIso(fe, 2)));
+    const b1 = await aufgabe(schFrist1); const nach2 = await zeile(m1.id);
+    ok(b1.length === 1 && b1[0].status === "erledigt" && String(b1[0].text) === String(a1[0].text) && String(nach2.frist_abgelaufen_am) === String(nachFrist1.frist_abgelaufen_am), "zweiter Lauf: keine zweite Aufgabe (die erledigte bleibt erledigt, Text unverändert)", { status: b1[0]?.status });
+
+    // ── Fund 2 (M1): spätester Starttag erreicht, kein Starttag → EINE Erinnerung ──
+    const schSp1 = `global:${m1.ref}:spaetester-starttag`; const schSp2 = `global:${m2.ref}:spaetester-starttag`;
+    await F.firmaStundenlauf(berlinM(S.plusTageIso(sp, -1)));
+    ok(!(await zeile(m1.id)).schalter.spaetesterStartErinnertAm && (await aufgabe(schSp1)).length === 0, "Tag vor dem spätesten Starttag: keine Erinnerung");
+    const ls = await F.firmaStundenlauf(berlinM(sp));
+    const e1 = await aufgabe(schSp1); const zs = await zeile(m1.id);
+    ok(ls.starttagErinnert >= 1 && zs.schalter.spaetesterStartErinnertAm === sp && e1.length === 1 && e1[0].status === "offen" && /Spätester Starttag/.test(String(e1[0].text)) && !zs.schalter.starttag && (await monateVon(m1.id)) === 0,
+      `am spätesten Starttag (${S.firmaTag(sp)}): Aufgabe an die Leitung, Marke im Schalter — der Starttag selbst bleibt der Leitung überlassen`, { ls, marke: zs.schalter.spaetesterStartErinnertAm, aufgaben: e1.length });
+    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW() WHERE schluessel = ${schSp1}`;
+    await F.firmaStundenlauf(berlinM(S.plusTageIso(sp, 1)));
+    const e2 = await aufgabe(schSp1);
+    ok(e2.length === 1 && e2[0].status === "erledigt" && (await zeile(m1.id)).schalter.spaetesterStartErinnertAm === sp, "zweiter Lauf danach: keine zweite Erinnerung", { status: e2[0]?.status });
+    ok((await aufgabe(schSp2)).length === 0 && !(await zeile(m2.id)).schalter.spaetesterStartErinnertAm, "M2 (gekündigt): keine Erinnerung an den spätesten Starttag");
+    // Danach trägt die Leitung den spätesten Starttag ein — der Weg bleibt offen (M1 ist nicht gekündigt).
+    const spM1 = await F.firmaShopLive(m1.id, { art: "spaetestens" }, "Prüfstand", { heute: sp });
+    ok(spM1.ok && (spM1 as any).starttag === sp && (spM1 as any).monate === 24, "M1: „Spätester Starttag“ danach eintragbar → Starttag, vierundzwanzig Monatsteile", spM1);
   }
   await sqlPool.end();
   fs.rmSync(tmp, { recursive: true, force: true });

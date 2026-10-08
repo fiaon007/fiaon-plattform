@@ -159,11 +159,11 @@ type FirmaTeil = {
   /** „gesellschafter“ = Verkauf durch Gesellschafter: keine Rechnung an die Firma (Ziffer 12 Absatz 5). */
   schuldner?: string | null;
 };
-type FirmaKnoepfe = { freigabe: string | null; aendern: string | null; bedingungen: string | null; kapital: string | null; hemmung: string | null; garantiefall: string | null; umsatz: string | null; verkauf: string | null; kuendigung: string | null };
+type FirmaKnoepfe = { shopLive?: string | null; freigabe: string | null; aendern: string | null; bedingungen: string | null; kapital: string | null; hemmung: string | null; garantiefall: string | null; umsatz: string | null; verkauf: string | null; kuendigung: string | null; kuendigungOrdentlich?: string | null };
 type FirmaAngebot = {
   art: "firma"; id: number; ref: string; status: Angebot["status"]; fassung: string; kundeName: string; vertreter: string; email: string;
   kunde: { firma: { name: string; uid: string; registernummer: string; strasse: string; plz: string; ort: string }; vertretung: { funktion: string } };
-  parameter: { startCents: number; monatCents: number; mindestMonate: number; verlaengerungMonate: number; kuendigungMonate: number; umsatzSatzProzent: number; umsatzSchwelleCents: number; verkaufSatzProzent: number; kapitalUsd: number; garantieMonate: number };
+  parameter: { startCents: number; monatCents: number; mindestMonate: number; verlaengerungMonate: number; kuendigungMonate: number; umsatzSatzProzent: number; umsatzSchwelleCents: number; verkaufSatzProzent: number; kapitalUsd: number; garantieMonate: number; budgetSpaetestensMonate?: number };
   buergin: Buergin; fehlt: string[]; annahmeBereit: boolean; versandSperre: string | null;
   freigaben: { anwalt?: { name: string; am: string; textHash?: string } | null; bedingungenErfuelltAm?: string | null; kuendigung?: { am: string; zum: string; seite?: "auftraggeberin" | "fiaon"; art?: "ordentlich" | "ausserordentlich"; garantieEntfaellt?: boolean } | null; verkauf?: { am: string; endetUmsatz?: boolean } | null };
   gueltigBis: string; link: string | null; vertragUrl: string;
@@ -171,13 +171,18 @@ type FirmaAngebot = {
   linkNurInhaber?: boolean; pruefberichtUrl: string | null; anlage1Url: string; anlage1Pruefsumme: string; pruefsummeJetzt: string;
   compliance: { ampel: string; titel: string; bereiche: number } | null;
   angenommenAm: string | null; ip: string | null; textHash: string | null; starttag: string | null; startWahl: string | null; auftragRef: string | null; officeLink: string | null;
+  /** Runde 2: Tag „Shop live“ (= Starttag des Wachstumsbudgets), Garantie ab Annahme (Fassung C), gespeicherte Unterschrift. */
+  shopLiveAm?: string | null; garantieAbAnnahme?: boolean;
+  /** Runde 3 (Fassung D): nur die Auszahlung erfüllt die Garantie; spätester Starttag des Wachstumsbudgets (Ziffer 10 Absatz 2). */
+  garantieNurAuszahlung?: boolean; spaetesterStart?: string | null;
+  unterschrift?: { art: "gezeichnet" | "getippt"; name: string | null; am: string | null; ip: string | null } | null;
   laufzeitEnde: string | null; kuendigungSpaetestens: string | null;
   garantie: { bedingungenErfuelltAm: string | null; fristBeginn: string | null; fristEnde: string | null; ruhtTage: number; erfuelltAm: string | null; betragUsd: number | null; erstattungAusgeloestAm: string | null; erstattungCents: number | null; erstattetAm: string | null; erstattungNotiz: string | null };
   summen: { gestellt: number; bezahlt: number }; teile: FirmaTeil[]; knoepfe: FirmaKnoepfe; nacharbeitFehler: string | null;
   zurueckgezogenAm: string | null; zurueckgezogenGrund: string | null; verlauf: { am: string; wer: string; was: string }[];
   aufrufe: Aufrufe | null; startgespraech: Angebot["startgespraech"];
 };
-type FirmaForm = "buergin" | "anwalt" | "bedingungen" | "kapital" | "hemmung" | "garantiefall" | "ueberwiesen" | "umsatz" | "verkauf" | "kuendigung" | "zurueck";
+type FirmaForm = "shoplive" | "buergin" | "anwalt" | "bedingungen" | "kapital" | "hemmung" | "garantiefall" | "ueberwiesen" | "umsatz" | "verkauf" | "kuendigung" | "zurueck";
 
 function teilStand(t: FirmaTeil): { text: string; rot?: boolean } {
   if (t.entfallenAm) return { text: `entfallen — ${t.entfallenGrund ?? ""}`, rot: true };
@@ -213,7 +218,7 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
         <div>
           <h3>{a.kundeName} <span className="cg-ref">{a.ref} · Firmenangebot</span></h3>
           <p className="cm-klartext">Vertreten durch {a.vertreter} ({a.kunde.vertretung.funktion}) · UID {a.kunde.firma.uid} · {a.kunde.firma.registernummer}</p>
-          <p className="cm-klartext">Gründung {eur(p.startCents)} · Plattform &amp; Team {eur(p.monatCents)}/Monat ab Starttag ({p.mindestMonate} Monate, dann +{p.verlaengerungMonate}, Kündigung {p.kuendigungMonate} Monate vorher) · {p.umsatzSatzProzent} % über {eur(p.umsatzSchwelleCents)}/Jahr · {p.verkaufSatzProzent} % bei Verkauf · erste Runde {usd(p.kapitalUsd)} binnen {p.garantieMonate} Monaten nach erfüllten Bedingungen · gültig bis {datum(a.gueltigBis)}</p>
+          <p className="cm-klartext">Gründungskosten {eur(p.startCents)} · Wachstumsbudget: Anteil {eur(p.monatCents)}/Monat (die Hälfte; FIAON trägt die andere) ab „Shop live“{p.budgetSpaetestensMonate ? `, spätestens ${p.budgetSpaetestensMonate} Monate nach Annahme` : ""} ({p.mindestMonate} Monate, dann +{p.verlaengerungMonate}, Kündigung {p.kuendigungMonate} Monate vorher) · {p.umsatzSatzProzent} % über {eur(p.umsatzSchwelleCents)}/Jahr · {p.verkaufSatzProzent} % bei Verkauf · erste Runde {usd(p.kapitalUsd)} binnen {p.garantieMonate} Monaten {a.garantieAbAnnahme === false ? "nach erfüllten Bedingungen" : "ab Annahme"} · gültig bis {datum(a.gueltigBis)}</p>
         </div>
         <span className={`cg-marke cg-marke-${a.status === "angenommen" ? "gestartet" : a.status === "offen" ? "offen" : "storniert"}`}>{STATUS_TEXT[a.status]}</span>
       </header>
@@ -259,11 +264,11 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
 
       {a.status === "angenommen" && (
         <div className="cg-annahme">
-          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · Starttag <b>{datum(a.starttag)}</b>{a.startWahl ? " (gewählt)" : " (sofort)"} · Laufzeit bis {datum(a.laufzeitEnde)}{a.freigaben.kuendigung ? ` · ${a.freigaben.kuendigung.art === "ausserordentlich" ? "aus wichtigem Grund gekündigt" : "ordentlich gekündigt"}${a.freigaben.kuendigung.seite === "fiaon" ? " (durch FIAON)" : ""} am ${datum(a.freigaben.kuendigung.am)} zum ${datum(a.freigaben.kuendigung.zum)}${a.freigaben.kuendigung.garantieEntfaellt ? " — Garantie entfällt bei Ende vor dem Fristende" : ""}` : a.kuendigungSpaetestens ? ` · Kündigung spätestens ${datum(a.kuendigungSpaetestens)}` : ""}</p>
+          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}…{a.unterschrift ? ` · Unterschrift ${a.unterschrift.art === "gezeichnet" ? "gezeichnet" : `getippt („${a.unterschrift.name ?? ""}“)`}` : ""} · {a.starttag ? <>Starttag („Shop live“) <b>{datum(a.starttag)}</b>{a.startWahl ? " (gewählt)" : ""} · Laufzeit bis {datum(a.laufzeitEnde)}</> : <b>Wachstumsbudget noch nicht gestartet — „Shop live“ eintragen, wenn der Shop live ist</b>}{a.freigaben.kuendigung ? ` · ${a.freigaben.kuendigung.art === "ausserordentlich" ? "aus wichtigem Grund gekündigt" : "ordentlich gekündigt"}${a.freigaben.kuendigung.seite === "fiaon" ? " (durch FIAON)" : ""} am ${datum(a.freigaben.kuendigung.am)} zum ${datum(a.freigaben.kuendigung.zum)}${a.freigaben.kuendigung.garantieEntfaellt ? " — Garantie entfällt bei Ende vor dem Fristende" : ""}` : a.kuendigungSpaetestens ? ` · Kündigung spätestens ${datum(a.kuendigungSpaetestens)}` : ""}</p>
           {a.nacharbeitFehler && <p className="cm-klartext cg-rot">Nach der Annahme hing etwas: {a.nacharbeitFehler} <button type="button" className="cg-knopf" disabled={busy === `nach${a.id}`} onClick={() => aktion(`nach${a.id}`, `/admin/global/angebote/${a.id}/nachholen`, {})}>Nachholen</button></p>}
           {a.startgespraech && <StartgespraechZeile sg={a.startgespraech} />}
           <p className="cm-klartext">Erste Runde: {g.fristEnde
-            ? <>Bedingungen erfüllt am {datum(g.bedingungenErfuelltAm)} · Garantiefrist bis <b>{datum(g.fristEnde)}</b>{g.ruhtTage ? ` (davon ${g.ruhtTage} Tage geruht)` : ""}</>
+            ? <>{a.garantieAbAnnahme === false ? `Bedingungen erfüllt am ${datum(g.bedingungenErfuelltAm)}` : `Garantiefrist ab Annahme (${datum(g.fristBeginn)})${g.bedingungenErfuelltAm ? ` · Bedingungen der Bürgschaft erfüllt am ${datum(g.bedingungenErfuelltAm)}` : " · Unterlagen der Bürgschaft noch offen"}`} · Garantiefrist bis <b>{datum(g.fristEnde)}</b>{g.ruhtTage ? ` (davon ${g.ruhtTage} Tage geruht)` : ""}</>
             : "Garantiefrist beginnt mit „Bedingungen erfüllt“"}
             {g.erfuelltAm ? ` · erhalten am ${datum(g.erfuelltAm)} (${usd(g.betragUsd ?? 0)})` : ""}
             {g.erstattungAusgeloestAm ? ` · Garantiefall am ${datum(g.erstattungAusgeloestAm)}: ${eur(g.erstattungCents ?? 0)} zu erstatten` : ""}
@@ -285,6 +290,7 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
           </table></div>
           {a.teile.length > zeigen.length || alleTeile ? <button type="button" className="cg-knopf" onClick={() => setAlleTeile(!alleTeile)}>{alleTeile ? "Nur gestellte und nächste Teile zeigen" : `Alle ${a.teile.length} Teile zeigen`}</button> : null}
           <div className="cg-knoepfe cg-knoepfe-reihe">
+            <Knopf klasse="cg-knopf cg-knopf-haupt" grund={k.shopLive ?? null} onClick={() => auf("shoplive", { am: "", art: "shop-live", verzoegerungFiaon: false })}>Shop live — Wachstumsbudget starten</Knopf>
             <Knopf klasse="cg-knopf cg-knopf-haupt" grund={k.bedingungen} onClick={() => auf("bedingungen", { am: "" })}>Bedingungen der Bürgschaft erfüllt</Knopf>
             <Knopf klasse="cg-knopf cg-knopf-haupt" grund={k.kapital} onClick={() => auf("kapital", { art: "", am: "", betragUsd: "", beleg: "" })}>Erste Runde erhalten</Knopf>
             <Knopf grund={k.hemmung} onClick={() => auf("hemmung", { aufgefordertAm: "", erbrachtAm: "", grund: "" })}>Garantiefrist ruhen lassen</Knopf>
@@ -292,7 +298,7 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
             {g.erstattungAusgeloestAm && !g.erstattetAm && <span><button type="button" className="cg-knopf" onClick={() => auf("ueberwiesen", { am: "", notiz: "" })}>Erstattung überwiesen</button></span>}
             <Knopf grund={k.umsatz} onClick={() => auf("umsatz", { jahr: String(new Date().getFullYear()), quartal: "", kumuliert: "", beleg: "" })}>Umsatz eintragen</Knopf>
             <Knopf grund={k.verkauf} onClick={() => auf("verkauf", { veraeusserer: "", gegenleistung: "", am: "", beleg: "", endetUmsatz: false })}>Verkauf eintragen</Knopf>
-            <Knopf grund={k.kuendigung} onClick={() => auf("kuendigung", { am: "", zum: "", seite: "auftraggeberin", art: a.freigaben.kuendigung ? "ausserordentlich" : "ordentlich", garantieEntfaellt: true })}>Kündigung eintragen</Knopf>
+            <Knopf grund={k.kuendigung} onClick={() => auf("kuendigung", { am: "", zum: "", seite: "auftraggeberin", art: a.freigaben.kuendigung || k.kuendigungOrdentlich ? "ausserordentlich" : "ordentlich", garantieEntfaellt: true })}>Kündigung eintragen</Knopf>
           </div>
         </div>
       )}
@@ -315,14 +321,27 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
         </div><p className="cm-fein">Ohne diese Freigabe bleibt der Versand des Links gesperrt (zusammen mit dem Registerauszug der Bürgin). Sie gilt für die Fassung mit der Prüfsumme {a.pruefsummeJetzt.slice(0, 12)}… — bitte mit der Fußzeile des PDF abgleichen, das der Anwalt geprüft hat. Ändern sich danach der Text oder die Angaben der Bürgin (Registerauszug, Status), sperrt der Versand wieder.</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fa${a.id}` || String(form.name || "").trim().length < 3 || !form.am} onClick={() => los(`fa${a.id}`, pfad("freigabe"), form)}>Freigabe eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
+      {offen === "shoplive" && (() => {
+        // Runde 3 (Fassung D, Ziffer 10 Absatz 2): spätester Starttag = Annahme + budgetSpaetestensMonate, es sei denn, die Verzögerung liegt bei FIAON.
+        const sp = a.spaetesterStart ?? null; const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+        const spaet = form.art === "spaetestens"; const nachSp = !spaet && !!sp && !!form.am && form.am > sp;
+        return (
+        <div className="cg-form">
+          {sp && <label>Was ist passiert?<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}><option value="shop-live">Der Shop ist live (Tag eintragen)</option><option value="spaetestens" disabled={heute < sp}>Spätester Starttag {datum(sp)} erreicht — Shop noch nicht live, Verzögerung nicht bei FIAON</option></select></label>}
+          {!spaet && <label>Tag, an dem der Shop live ist (erreichbar und nimmt Bestellungen an)<input type="date" value={form.am ?? ""} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>}
+          {nachSp && <label className="cg-haken"><input type="checkbox" checked={form.verzoegerungFiaon === true} onChange={(e) => setForm({ ...form, verzoegerungFiaon: e.target.checked })} /> Der Tag liegt nach dem spätesten Starttag ({datum(sp)}): Die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat.</label>}
+          <p className="cm-fein">Das ist der Starttag (Ziffer 10 Absatz 2): Das gemeinsame Wachstumsbudget beginnt, {p.mindestMonate} Monatsteile über {eur(p.monatCents)} entstehen ab diesem Tag, die erste Monatsrechnung wird sofort gestellt (Aufgabe „Rechnung schicken“), die Mindestlaufzeit läuft ab dann.{sp ? ` Spätester Starttag: ${datum(sp)} — ist der Shop dann nicht live und liegt es nicht an FIAON, ist dieser Tag der Starttag.` : ""} Lässt sich nicht zurücknehmen. Es geht keine automatische Mail an die Kundin — den Tag bitte in Textform mitteilen.</p>
+          <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fsl${a.id}` || (!spaet && !form.am) || (nachSp && form.verzoegerungFiaon !== true)} onClick={() => los(`fsl${a.id}`, pfad("shop-live"), spaet ? { art: "spaetestens" } : { am: form.am, verzoegerungFiaon: form.verzoegerungFiaon === true })}>{spaet ? "Spätesten Starttag eintragen" : "Shop live eintragen"}</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
+        );
+      })()}
       {offen === "bedingungen" && (
         <div className="cg-form"><label>Tag, an dem die letzte Bedingung erfüllt war<input type="date" value={form.am ?? ""} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
-        <p className="cm-fein">Damit beginnt die Garantiefrist der ersten Runde ({p.garantieMonate} Monate). Beginn und Ende der Kundin in Textform mitteilen (Ziffer 7 Absatz 3) — es geht keine automatische Mail raus.</p>
+        <p className="cm-fein">{a.garantieAbAnnahme === false ? `Damit beginnt die Garantiefrist der ersten Runde (${p.garantieMonate} Monate). Beginn und Ende der Kundin in Textform mitteilen (Ziffer 7 Absatz 3) — es geht keine automatische Mail raus.` : "Damit wird die Bürgschaft wirksam (Ziffer 8 Absatz 4/5). Die Garantiefrist läuft seit der Annahme und bleibt, wie sie ist. Den Tag der Kundin in Textform bestätigen — es geht keine automatische Mail raus."}</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fbe${a.id}` || !form.am} onClick={() => los(`fbe${a.id}`, pfad("bedingungen"), form)}>Bedingungen erfüllt eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "kapital" && (
         <div className="cg-form cg-form-breit"><div className="cg-raster">
-          <label>Was ist passiert?<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}><option value="">Bitte wählen</option><option value="ausgezahlt">Erste Runde ausgezahlt</option><option value="zugesagt">Verbindlich zugesagt (Textform)</option><option value="abgelehnt">Angeboten und von der Kundin abgelehnt (zählt als erhalten)</option></select></label>
+          <label>Was ist passiert?<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}><option value="">Bitte wählen</option><option value="ausgezahlt">Erste Runde ausgezahlt</option>{!a.garantieNurAuszahlung && <option value="zugesagt">Verbindlich zugesagt (Textform)</option>}<option value="abgelehnt">Angeboten und von der Kundin abgelehnt (zählt als erhalten)</option></select></label>
           <label>Am<input type="date" value={form.am} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
           <label>Betrag (ganze US-Dollar)<input inputMode="numeric" value={form.betragUsd} placeholder={String(p.kapitalUsd)} onChange={(e) => setForm({ ...form, betragUsd: e.target.value })} /></label>
         </div><label>Beleg in einem Satz (intern — kein Bankname gegenüber der Kundin)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
@@ -369,14 +388,14 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
       {offen === "kuendigung" && (
         <div className="cg-form"><div className="cg-raster">
           <label>Wer kündigt<select value={form.seite} onChange={(e) => setForm({ ...form, seite: e.target.value })}><option value="auftraggeberin">Auftraggeberin</option><option value="fiaon">FIAON</option></select></label>
-          <label>Art<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}>{!a.freigaben.kuendigung && <option value="ordentlich">ordentlich (zum Laufzeitende)</option>}<option value="ausserordentlich">aus wichtigem Grund</option></select></label>
+          <label>Art<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}>{!a.freigaben.kuendigung && !k.kuendigungOrdentlich && <option value="ordentlich">ordentlich (zum Laufzeitende)</option>}<option value="ausserordentlich">aus wichtigem Grund</option></select></label>
           <label>Kündigung eingegangen am (Textform)<input type="date" value={form.am} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
           <label>{form.art === "ausserordentlich" ? "Wirksam zum (leer = Tag des Eingangs)" : "Zum (leer = frühestmöglich)"}<input type="date" value={form.zum} onChange={(e) => setForm({ ...form, zum: e.target.value })} /></label>
         </div>
         {form.art === "ausserordentlich" && (
           <label className="cg-haken"><input type="checkbox" checked={form.garantieEntfaellt !== false} onChange={(e) => setForm({ ...form, garantieEntfaellt: e.target.checked })} /> Garantie entfällt, wenn der Vertrag vor dem Fristende endet — der wichtige Grund liegt NICHT bei FIAON (Ziffer 14 Absatz 3). Haken weg, wenn FIAON den Grund gegeben hat.</label>
         )}
-        <p className="cm-fein">{form.art === "ausserordentlich" ? "Aus wichtigem Grund wirkt die Kündigung zum genannten Tag. Monatsteile danach entfallen." : `Ordentlich: Der Server rechnet das Laufzeitende (Mindestlaufzeit bzw. Verlängerung, ${p.kuendigungMonate} Monate vorher). Eine ordentliche Kündigung lässt die Garantie stehen.`} Den Eingang schriftlich bestätigen.</p>
+        <p className="cm-fein">{form.art === "ausserordentlich" ? `Aus wichtigem Grund wirkt die Kündigung zum genannten Tag. Monatsteile danach entfallen.${!a.starttag ? " Vor „Shop live“ geht nur diese Art — danach beginnt kein Wachstumsbudget mehr." : ""}` : `Ordentlich: Der Server rechnet das Laufzeitende (Mindestlaufzeit bzw. Verlängerung, ${p.kuendigungMonate} Monate vorher). Eine ordentliche Kündigung lässt die Garantie stehen.`} Den Eingang schriftlich bestätigen.</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-storno" disabled={busy === `fkd${a.id}` || !form.am} onClick={() => los(`fkd${a.id}`, pfad("kuendigung"), form)}>Kündigung eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "zurueck" && (

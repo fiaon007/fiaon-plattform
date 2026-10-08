@@ -16,8 +16,19 @@
 //             eine erzeugte Ring-Bürstung als roughness-/bumpMap)
 //   Umgebung  RoomEnvironment über PMREM, warmes Führungslicht, kühles Kantenlicht
 //
+// Runde 2 (Justin 08.10.2026, Punkt 1): realistischer, etwas kleiner, flüssiger —
+//   Glas      echte Wandstärke mit Brechung (transmission, thickness, ior 1,5,
+//             leichte Eigenfarbe über attenuation), Kantenglanz als Fresnel-Saum,
+//             Kontaktschatten (enger dunkler Kern + weicher Hof)
+//   Etikett   plan auf dem Glas, Papierstruktur (Fasern als bump/roughness)
+//   Inhalt    mit Tiefe: Verlauf von unten dunkel nach oben warm, Kerne und
+//             Glanz wie eine feuchte Oberfläche
+//   Deckel    gerändelter Rand mit Gewindekante (eigener Wulst), weiche Bürstung
+//   Bewegung  gedämpfte Feder (kritisch gedämpft) statt Sprüngen, ~17 % kleiner
+//             im Bild, Licht dezenter (keine Lichtsäule), Goldpartikel feiner und
+//             weniger
 // Der Zustand ergibt sich NUR aus dem Scroll-Fortschritt p (0…1): Deckel dreht
-// in ~1¼ Umdrehungen auf und hebt ab, goldenes Licht und Partikel steigen aus
+// in ~1¼ Umdrehungen auf und hebt ab, warmes Licht und feine Partikel steigen aus
 // dem Glas, die Kamera fährt heran. Gerendert wird bei jedem setzen(p) und bei
 // Größenänderung; der rAF-Takt läuft nur, solange das Glas im Bild und der Tab
 // sichtbar ist (sanftes Nachziehen, Funkeln). In einem versteckten Tab ruht rAF —
@@ -92,7 +103,8 @@ function buerstung(): THREE.CanvasTexture {
   for (let j = 0; j < n; j++) {
     // Riefen: jede Zeile eine eigene Helligkeit, entlang der Zeile gleich (Ringe ohne Körnung quer dazu). Weniger
     // Glättung zwischen den Zeilen als vorher: Riefen statt eines verwischten Graus (Gutachten 07.10.2026).
-    zeile = zeile * 0.45 + (145 + Math.random() * 95) * 0.55 + (Math.random() < 0.04 ? 28 : 0);
+    // Runde 2: weichere Bürstung — feine Riefen mit kleinerem Ausschlag, gleitend ineinander.
+    zeile = zeile * 0.62 + (168 + Math.random() * 62) * 0.38 + (Math.random() < 0.02 ? 14 : 0);
     for (let i = 0; i < n; i++) {
       const v = Math.max(0, Math.min(255, zeile));
       const k = (j * n + i) * 4;
@@ -101,6 +113,34 @@ function buerstung(): THREE.CanvasTexture {
   }
   x.putImageData(bild, 0, 0);
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+/** Papierstruktur des Etiketts: feine Fasern und Körnung — als bump- und roughness-Karte (grau, kachelbar). */
+function papier(): THREE.CanvasTexture {
+  const n = 512;
+  const c = document.createElement("canvas"); c.width = c.height = n;
+  const x = c.getContext("2d")!;
+  const bild = x.createImageData(n, n);
+  for (let i = 0; i < n * n; i++) { const v = 128 + (Math.random() - 0.5) * 34; bild.data[i * 4] = bild.data[i * 4 + 1] = bild.data[i * 4 + 2] = v; bild.data[i * 4 + 3] = 255; }
+  x.putImageData(bild, 0, 0);
+  x.globalAlpha = 0.16; x.lineWidth = 0.6;
+  for (let i = 0; i < 1400; i++) {
+    const px = Math.random() * n, py = Math.random() * n, l = 4 + Math.random() * 14, w = Math.random() * Math.PI;
+    x.strokeStyle = Math.random() < 0.5 ? "#ffffff" : "#000000";
+    x.beginPath(); x.moveTo(px, py); x.quadraticCurveTo(px + Math.cos(w) * l * 0.5 + 2, py + Math.sin(w) * l * 0.5, px + Math.cos(w) * l, py + Math.sin(w) * l); x.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+  return t;
+}
+/** Rändelung des Deckelrands: senkrechte feine Rippen (entlang des Umfangs u wiederholt). */
+function raendel(): THREE.CanvasTexture {
+  const c = document.createElement("canvas"); c.width = 64; c.height = 8;
+  const x = c.getContext("2d")!;
+  const g = x.createLinearGradient(0, 0, 64, 0);
+  g.addColorStop(0, "#9a9a9a"); g.addColorStop(0.4, "#c8c8c8"); g.addColorStop(0.5, "#d6d6d6"); g.addColorStop(0.6, "#c4c4c4"); g.addColorStop(1, "#9a9a9a");
+  x.fillStyle = g; x.fillRect(0, 0, 64, 8);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(260, 1);
   return t;
 }
 
@@ -116,7 +156,7 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.0;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, handy ? 1.5 : 2));
 
   const scene = new THREE.Scene();
@@ -124,14 +164,15 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   const raum = new RoomEnvironment();
   const umgebung = pmrem.fromScene(raum, 0.035).texture;
   scene.environment = umgebung;
-  scene.environmentIntensity = 0.85;
+  scene.environmentIntensity = 0.8;
 
   const kamera = new THREE.PerspectiveCamera(26, 1, 0.1, 60);
 
-  // Licht: warm von links vorn, kühl von rechts hinten, Gold aus dem Glas (wächst mit dem Öffnen).
-  const fuehrung = new THREE.DirectionalLight(0xffe4bd, 2.4); fuehrung.position.set(-4, 6, 5); scene.add(fuehrung);
-  const kante = new THREE.DirectionalLight(0xc9d8ff, 1.6); kante.position.set(5, 3, -4); scene.add(kante);
-  const gold = new THREE.PointLight(0xffc766, 0, 6, 1.6); gold.position.set(0, 2.1, 0.2); scene.add(gold);
+  // Licht: warm von links vorn, kühl von rechts hinten (Kantenlicht), Gold aus dem Glas — dezent (Runde 2: kein greller Kegel).
+  const fuehrung = new THREE.DirectionalLight(0xffe8c8, 2.0); fuehrung.position.set(-4, 6, 5); scene.add(fuehrung);
+  const kante = new THREE.DirectionalLight(0xd2e0ff, 1.9); kante.position.set(5, 3.5, -4); scene.add(kante);
+  const fuell = new THREE.DirectionalLight(0xffffff, 0.35); fuell.position.set(2, 1, 6); scene.add(fuell);
+  const gold = new THREE.PointLight(0xffc766, 0, 5, 1.8); gold.position.set(0, 2.0, 0.2); scene.add(gold);
 
   const glasGruppe = new THREE.Group(); scene.add(glasGruppe);
   const wegwerfen: { dispose(): void }[] = [umgebung, pmrem];
@@ -143,13 +184,17 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   bogen(aussen, 0.9, 1.36, 0.1, 0, Math.PI / 2 * 0.7, 6);       // Schulter
   aussen.push(new THREE.Vector2(0.952, 1.5), new THREE.Vector2(0.952, 1.71));
   bogen(aussen, 0.932, 1.71, 0.02, 0, Math.PI, 6);               // Rand
-  aussen.push(new THREE.Vector2(0.912, 1.5), new THREE.Vector2(0.958, 1.4), new THREE.Vector2(0.962, 0.18));
-  bogen(aussen, 0.84, 0.18, 0.122, 0, -Math.PI / 2, 8);
-  aussen.push(new THREE.Vector2(0, 0.058));
+  // Runde 2: ein dicker Glasboden (wie bei echten Gläsern) — unten steht ein klarer Streifen Glas unter dem Inhalt.
+  aussen.push(new THREE.Vector2(0.912, 1.5), new THREE.Vector2(0.958, 1.4), new THREE.Vector2(0.962, 0.27));
+  bogen(aussen, 0.84, 0.27, 0.122, 0, -Math.PI / 2, 8);
+  aussen.push(new THREE.Vector2(0, 0.148));
   const glasGeo = new THREE.LatheGeometry(aussen, 128);
+  // Echtes Glas: Brechung über die Wandstärke (thickness), Eigenfarbe nur im Dicken (attenuation — ein Hauch Grün wie Flaschenglas),
+  // glatte, harte Spiegelung. Die Brechung zeigt den Inhalt und das Papier dahinter leicht versetzt.
   const glasMat = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff, metalness: 0, roughness: 0.03, transmission: 1, thickness: 0.06, ior: 1.5,
-    clearcoat: 1, clearcoatRoughness: 0.03, specularIntensity: 1, envMapIntensity: 1.35, transparent: true,
+    color: 0xffffff, metalness: 0, roughness: 0.015, transmission: 1, thickness: 0.32, ior: 1.52,
+    attenuationColor: new THREE.Color(0xe4efe8), attenuationDistance: 1.6, dispersion: 0.15,
+    clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 1, specularColor: new THREE.Color(0xffffff), envMapIntensity: 1.2, transparent: true,
   });
   const glasMesh = new THREE.Mesh(glasGeo, glasMat); glasMesh.renderOrder = 2; glasGruppe.add(glasMesh);
   wegwerfen.push(glasGeo, glasMat);
@@ -161,15 +206,36 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   const gewinde = new THREE.Mesh(gewindeGeo, glasMat); gewinde.renderOrder = 2; glasGruppe.add(gewinde);
   wegwerfen.push(gewindeGeo);
 
+  // Kantenglanz: ein hauchdünner Saum über dem Glas, der nur zur Silhouette hin aufleuchtet (Fresnel) — wie Licht auf der Glaskante.
+  const saumMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: "varying float vF; varying float vY; void main(){ vec3 n = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vF = 1.0 - abs(dot(n, normalize(-mv.xyz))); vY = position.y; gl_Position = projectionMatrix * mv; }",
+    fragmentShader: "varying float vF; varying float vY; void main(){ float f = pow(vF, 3.2); float oben = smoothstep(1.2, 1.72, vY) * 0.6; gl_FragColor = vec4(vec3(1.0, 0.985, 0.95), (f * 0.55 + oben * f) * 0.9); }",
+  });
+  const saumProfil = aussen.slice(0, aussen.findIndex((v) => v.y >= 1.71) + 1);
+  const saumGeo = new THREE.LatheGeometry(saumProfil.map((v) => new THREE.Vector2(v.x * 1.004, v.y)), 128);
+  const saum = new THREE.Mesh(saumGeo, saumMat); saum.renderOrder = 7; glasGruppe.add(saum);
+  wegwerfen.push(saumMat, saumGeo);
+
   // ── Inhalt ──
-  const inhaltProfil = [new THREE.Vector2(0, 0.065), new THREE.Vector2(0.84, 0.065)];
-  bogen(inhaltProfil, 0.84, 0.18, 0.115, -Math.PI / 2, 0, 6);
+  const inhaltProfil = [new THREE.Vector2(0, 0.155), new THREE.Vector2(0.84, 0.155)];
+  bogen(inhaltProfil, 0.84, 0.27, 0.115, -Math.PI / 2, 0, 6);
   // Die Wand in gleichmäßigen Schritten — sonst verzerrt die Lathe-UV (v je Punkt) die Körnung zu Streifen.
-  for (let y = 0.22; y < 1.39; y += 0.04) inhaltProfil.push(new THREE.Vector2(0.955, y));
+  for (let y = 0.31; y < 1.39; y += 0.04) inhaltProfil.push(new THREE.Vector2(0.955, y));
   inhaltProfil.push(new THREE.Vector2(0.955, 1.39), new THREE.Vector2(0.906, 1.48), new THREE.Vector2(0.906, 1.57), new THREE.Vector2(0.6, 1.585), new THREE.Vector2(0, 1.595));
   const inhaltGeo = new THREE.LatheGeometry(inhaltProfil, 96);
+  // Tiefe: unten dunkel, zur Oberfläche hin wärmer und heller (Licht dringt oben ein) — als Farbe je Punkt, mit der Körnung multipliziert.
+  {
+    const posA = inhaltGeo.attributes.position; const farben = new Float32Array(posA.count * 3);
+    for (let i = 0; i < posA.count; i++) {
+      const y = posA.getY(i); const t = Math.min(1, Math.max(0, (y - 0.15) / 1.44));
+      const k = 0.58 + 0.42 * Math.pow(t, 1.4);
+      farben[i * 3] = k * 1.04; farben[i * 3 + 1] = k * 0.97; farben[i * 3 + 2] = k * 0.9;
+    }
+    inhaltGeo.setAttribute("color", new THREE.BufferAttribute(farben, 3));
+  }
   const korn = koernung(glas.inhalt || "#2a140f");
-  const inhaltMat = new THREE.MeshPhysicalMaterial({ color: 0xc4b8b0, map: korn.map, bumpMap: korn.bump, bumpScale: 0.5, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.22 });
+  const inhaltMat = new THREE.MeshPhysicalMaterial({ color: 0xd8ccc2, vertexColors: true, map: korn.map, bumpMap: korn.bump, bumpScale: 0.6, roughness: 0.32, clearcoat: 0.85, clearcoatRoughness: 0.16, sheen: 0.25, sheenColor: new THREE.Color(0x6b3a22), sheenRoughness: 0.6 });
   const inhalt = new THREE.Mesh(inhaltGeo, inhaltMat); inhalt.renderOrder = 1; glasGruppe.add(inhalt);
   wegwerfen.push(inhaltGeo, inhaltMat, korn.map, korn.bump);
 
@@ -186,12 +252,16 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
     etikettTex.colorSpace = THREE.SRGBColorSpace;
     etikettTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     const verh = glas.etikettVerhaeltnis > 0.3 && glas.etikettVerhaeltnis < 4 ? glas.etikettVerhaeltnis : 1.34;
-    const r = 1.006, bogenW = 1.5;
+    const r = 1.003, bogenW = 1.5;
     const hoehe = Math.min(1.15, (r * bogenW) / verh);
     const etGeo = new THREE.CylinderGeometry(r, r, hoehe, 64, 1, true, -bogenW / 2, bogenW);
-    const etMat = new THREE.MeshPhysicalMaterial({ map: etikettTex, roughness: 0.55, clearcoat: 0.15, side: THREE.FrontSide });
+    // Papier: feine Fasern als bump und roughness — das Etikett ist matt und liegt plan auf dem Glas (Radius knapp über der Wand).
+    const faser = papier();
+    const etMat = new THREE.MeshPhysicalMaterial({ map: etikettTex, roughness: 0.72, roughnessMap: faser, bumpMap: faser, bumpScale: 0.35, clearcoat: 0.08, clearcoatRoughness: 0.5, sheen: 0.3, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xffffff), side: THREE.FrontSide,
+      // transparent: Das Etikett gehört nicht in den Brechungs-Durchgang des Glases (sonst sähe man es ein zweites Mal versetzt hinter der Wand).
+      transparent: true });
     const et = new THREE.Mesh(etGeo, etMat); et.position.y = 0.78; et.renderOrder = 3; glasGruppe.add(et);
-    wegwerfen.push(etikettTex, etGeo, etMat);
+    wegwerfen.push(etikettTex, etGeo, etMat, faser);
   }
 
   // ── Deckel ──
@@ -205,7 +275,7 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   const buerste = buerstung();
   buerste.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const deckelMat = new THREE.MeshPhysicalMaterial({
-    color: DECKEL_FARBE[glas.deckel] ?? DECKEL_FARBE.silber, metalness: 1, roughness: 0.28, roughnessMap: buerste,
+    color: DECKEL_FARBE[glas.deckel] ?? DECKEL_FARBE.silber, metalness: 1, roughness: 0.3, roughnessMap: buerste,
     // Die Bürstung trägt allein die Rauheitskarte (keine Bump-Map mehr).
     clearcoat: 0.2, clearcoatRoughness: 0.3, envMapIntensity: 0.95,
     // Transparent, damit der Deckel am Ende im Licht ausblenden kann. Keine Anisotropie: Mit anisotropy 0,7 zeigte der
@@ -215,6 +285,18 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   const deckel = new THREE.Mesh(deckelGeo, deckelMat);
   const deckelDreh = new THREE.Group(); deckelDreh.add(deckel); glasGruppe.add(deckelDreh);
   wegwerfen.push(deckelGeo, deckelMat, buerste);
+  // Gerändelter Rand: ein offener Zylinder knapp außen auf der Seitenwand mit feinen senkrechten Rippen (bump + roughness).
+  const rippe = raendel();
+  const randMat = new THREE.MeshPhysicalMaterial({
+    color: DECKEL_FARBE[glas.deckel] ?? DECKEL_FARBE.silber, metalness: 1, roughness: 0.36, roughnessMap: rippe, bumpMap: rippe, bumpScale: 0.35,
+    clearcoat: 0.15, clearcoatRoughness: 0.35, envMapIntensity: 0.9, transparent: true,
+  });
+  const randGeo = new THREE.CylinderGeometry(1.037, 1.037, 0.2, 160, 1, true);
+  const rand = new THREE.Mesh(randGeo, randMat); rand.position.y = 0.185; deckelDreh.add(rand);
+  // Gewindekante: ein feiner gerollter Wulst am unteren Rand des Deckels.
+  const wulstGeo = new THREE.TorusGeometry(1.012, 0.022, 10, 160);
+  const wulst = new THREE.Mesh(wulstGeo, randMat); wulst.rotation.x = Math.PI / 2; wulst.position.y = 0.04; deckelDreh.add(wulst);
+  wegwerfen.push(rippe, randMat, randGeo, wulstGeo);
   const DECKEL_Y = 1.45;
 
   // ── Licht aus dem Glas: Schein, Lichtsäule, Partikel ──
@@ -233,14 +315,16 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   // uv.y = 1 oben in der CylinderGeometry → hoch = (1 - y) ist unten stark.
   const saeuleGeo = new THREE.CylinderGeometry(1.6, 0.88, 3.6, 64, 1, true);
   const saeule = new THREE.Mesh(saeuleGeo, saeuleMat); saeule.position.y = 1.6 + 1.8; saeule.renderOrder = 4; glasGruppe.add(saeule);
+  // Runde 2: kein greller Kegel — die Säule bleibt nur als Hauch (siehe zeichnen: höchstens ein Viertel der früheren Deckkraft).
   wegwerfen.push(saeuleMat, saeuleGeo);
 
   // Partikel: eigene Punkte mit Deckkraft je Teilchen (steigen, funkeln, verblassen oben) — goldene Perlen mit hellem Kern,
   // normal gemischt, damit sie auch auf hellem Papier sichtbar sind.
-  const N = handy ? 140 : 240;
+  // Runde 2: feiner und weniger.
+  const N = handy ? 64 : 110;
   const pos = new Float32Array(N * 3), alpha = new Float32Array(N), groessen = new Float32Array(N);
   const keim = Array.from({ length: N }, () => ({ w: Math.random() * Math.PI * 2, r: Math.sqrt(Math.random()) * 0.82, s: 0.5 + Math.random(), ph: Math.random(), sw: Math.random() * 6 }));
-  keim.forEach((_, i) => { groessen[i] = 0.5 + Math.random() * 1.1; });
+  keim.forEach((_, i) => { groessen[i] = 0.32 + Math.random() * 0.6; });
   const partGeo = new THREE.BufferGeometry();
   partGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   partGeo.setAttribute("alpha", new THREE.BufferAttribute(alpha, 1));
@@ -254,14 +338,18 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   const partikel = new THREE.Points(partGeo, partMat); partikel.renderOrder = 6; glasGruppe.add(partikel);
   wegwerfen.push(partGeo, partMat);
 
-  // Weicher Schatten unter dem Glas
-  const schattenTex = verlauf([[0, "rgba(20,14,8,.42)"], [0.55, "rgba(20,14,8,.14)"], [1, "rgba(20,14,8,0)"]], 128);
+  // Schatten in zwei Lagen (Runde 2): ein enger, dunkler Kontaktschatten genau unter dem Boden (wo Glas den Tisch berührt) und ein
+  // weicher, breiter Hof, leicht vom Führungslicht weg versetzt. Beide liegen auf dem Boden und drehen nicht mit dem Glas.
+  const kontaktTex = verlauf([[0, "rgba(18,12,6,.62)"], [0.62, "rgba(18,12,6,.5)"], [0.8, "rgba(18,12,6,.16)"], [1, "rgba(18,12,6,0)"]], 256);
+  const kontaktMat = new THREE.MeshBasicMaterial({ map: kontaktTex, transparent: true, depthWrite: false, toneMapped: false });
+  const kontakt = new THREE.Mesh(new THREE.PlaneGeometry(2.08, 2.08), kontaktMat); kontakt.rotation.x = -Math.PI / 2; kontakt.position.y = 0.003; scene.add(kontakt);
+  const schattenTex = verlauf([[0, "rgba(20,14,8,.26)"], [0.45, "rgba(20,14,8,.12)"], [1, "rgba(20,14,8,0)"]], 256);
   const schattenMat = new THREE.MeshBasicMaterial({ map: schattenTex, transparent: true, depthWrite: false, toneMapped: false });
-  const schatten = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.4), schattenMat); schatten.rotation.x = -Math.PI / 2; schatten.position.y = 0.002; glasGruppe.add(schatten);
-  wegwerfen.push(schattenTex, schattenMat, schatten.geometry);
+  const schatten = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 3.4), schattenMat); schatten.rotation.x = -Math.PI / 2; schatten.position.set(0.42, 0.002, -0.32); scene.add(schatten);
+  wegwerfen.push(kontaktTex, kontaktMat, kontakt.geometry, schattenTex, schattenMat, schatten.geometry);
 
   // ── Zustand ──
-  let ziel = 0, gezeigt = 0, nx = 0, ny = 0, zx = 0, zy = 0;
+  let ziel = 0, gezeigt = 0, tempo = 0, nx = 0, ny = 0, zx = 0, zy = 0, letzt = 0;
   let lageWerte = handy ? [0, -0.3, 0, -0.08] : [0.42, -0.02, 0, -0.04];
   let laeuft = false, raf = 0, breite = 1, hoehe = 1;
   const t0 = performance.now();
@@ -282,23 +370,25 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
     // vom Rand angeschnitten). Zum Schluss blendet er im Licht aus, damit die Zeile aus dem Licht frei steht.
     deckelDreh.rotation.set(heb * 0.35, dreh * Math.PI * 2.5, handy ? 0 : -heb * 0.12);
     deckelDreh.position.set(handy ? 0 : heb * 0.15, DECKEL_Y + dreh * 0.13 + heb * 1.05 + weg * 0.45 + Math.sin(t * 1.3) * 0.015 * heb, heb * -0.15);
-    const deckelSicht = 1 - glatt(0.8, 0.95, p);
-    deckelMat.opacity = deckelSicht; deckelDreh.visible = deckelSicht > 0.01;
+    // Runde 2: früher ausblenden, damit der Deckel nie über der Zeile aus dem Licht steht.
+    const deckelSicht = 1 - glatt(0.6, 0.78, p);
+    deckelMat.opacity = deckelSicht; randMat.opacity = deckelSicht; deckelDreh.visible = deckelSicht > 0.01;
 
     // Am Handy steht das Etikett im geschlossenen Zustand mittig (Drehung fast null); am Rechner die Dreiviertelansicht.
     glasGruppe.rotation.y = (handy ? -0.04 : -0.34) + p * 0.3 + zx * 0.16 + Math.sin(t * 0.5) * 0.02;
     glasGruppe.rotation.x = zy * 0.05;
-    glasGruppe.position.y = Math.sin(t * 0.8) * 0.012;
+    glasGruppe.position.y = 0; // Runde 2: steht auf dem Tisch (kein Schweben über dem Kontaktschatten)
 
-    glutMat.opacity = licht;
-    scheinMat.opacity = licht * 0.9;
-    const s = 1.4 + licht * 3.4 + Math.sin(t * 1.7) * 0.06 * licht; schein.scale.set(s, s * 1.1, 1);
-    schein.position.y = 1.75 + licht * 0.55;
-    saeuleMat.uniforms.uDeck.value = licht;
-    saeule.scale.set(1, 0.3 + licht * 0.7, 1); saeule.position.y = 1.6 + 1.8 * (0.3 + licht * 0.7);
-    gold.intensity = licht * 9;
-    partMat.uniforms.uDeck.value = glatt(0.46, 0.78, p);
-    partMat.uniforms.uPunkt.value = renderer.getPixelRatio() * hoehe * 0.055;
+    // Runde 2: Licht dezenter — warmer Schein statt Kegel, Punktlicht schwächer.
+    glutMat.opacity = licht * 0.8;
+    scheinMat.opacity = licht * 0.42;
+    const s = 1.3 + licht * 2.4 + Math.sin(t * 1.3) * 0.04 * licht; schein.scale.set(s, s * 1.05, 1);
+    schein.position.y = 1.72 + licht * 0.45;
+    saeuleMat.uniforms.uDeck.value = licht * 0.22;
+    saeule.scale.set(0.85, 0.3 + licht * 0.55, 0.85); saeule.position.y = 1.6 + 1.8 * (0.3 + licht * 0.55);
+    gold.intensity = licht * 3.2;
+    partMat.uniforms.uDeck.value = glatt(0.46, 0.78, p) * 0.9;
+    partMat.uniforms.uPunkt.value = renderer.getPixelRatio() * hoehe * 0.05;
     for (let i = 0; i < N; i++) {
       const k = keim[i];
       const h = (k.ph + t * k.s * 0.09 + p * 1.2) % 1;
@@ -315,7 +405,8 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
     // Kamera: Abstand so, dass das Glas mit Deckel passt; fährt heran und hebt sich zum Licht.
     const tanH = Math.tan(THREE.MathUtils.degToRad(kamera.fov / 2));
     const dHoch = 1.55 / tanH, dBreit = 1.45 / (tanH * kamera.aspect);
-    const d0 = Math.max(dHoch, dBreit) * (handy ? 1.14 : 1.2);
+    // Runde 2: das Glas etwa 17 % kleiner im Bild (Abstand × 1,2).
+    const d0 = Math.max(dHoch, dBreit) * (handy ? 1.36 : 1.44);
     // Die Kamera steigt und blickt ins Glas; der Abstand wächst leicht, damit Glas, Licht und Zeile ins Bild passen.
     const d = d0 * (1 + 0.16 * fahrt);
     const zielY = mix(0.95, 1.75, fahrt);
@@ -328,12 +419,18 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
     renderer.render(scene, kamera);
   };
 
-  const schleife = () => {
+  // Gedämpfte Feder (kritisch gedämpft, Glättezeit ~0,42 s, bildratenunabhängig): kein Sprung, kein Nachschwingen.
+  const GLAETTE = 0.42;
+  const schleife = (jetzt: number) => {
     raf = 0;
     if (!laeuft) return;
-    gezeigt += (ziel - gezeigt) * 0.12;
-    if (Math.abs(ziel - gezeigt) < 0.0005) gezeigt = ziel;
-    zx += (nx - zx) * 0.06; zy += (ny - zy) * 0.06;
+    const dt = Math.min(0.05, Math.max(0.001, (jetzt - (letzt || jetzt - 16)) / 1000)); letzt = jetzt;
+    const w = 2 / GLAETTE, x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const diff = gezeigt - ziel, temp = (tempo + w * diff) * dt;
+    tempo = (tempo - w * temp) * e;
+    gezeigt = ziel + (diff + temp) * e;
+    if (Math.abs(ziel - gezeigt) < 0.0002 && Math.abs(tempo) < 0.0005) { gezeigt = ziel; tempo = 0; }
+    const z = 1 - Math.exp(-dt * 3.2); zx += (nx - zx) * z; zy += (ny - zy) * z;
     zeichnen();
     raf = requestAnimationFrame(schleife);
   };
@@ -344,7 +441,7 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
   return {
     setzen(p) {
       ziel = Math.min(1, Math.max(0, p));
-      if (!laeuft || document.visibilityState !== "visible") { gezeigt = ziel; zeichnen(); }
+      if (!laeuft || document.visibilityState !== "visible") { gezeigt = ziel; tempo = 0; zeichnen(); }
     },
     lage(a, b, c, e) { lageWerte = [a, b, c, e]; if (!laeuft) zeichnen(); },
     zeiger(x, y) { nx = x; ny = y; },
@@ -352,8 +449,8 @@ export async function glasSzeneBauen(canvas: HTMLCanvasElement, glas: GlasKonfig
     takt(an) {
       if (an === laeuft) return;
       laeuft = an;
-      if (an && !raf) raf = requestAnimationFrame(schleife);
-      if (!an && raf) { cancelAnimationFrame(raf); raf = 0; gezeigt = ziel; zeichnen(); }
+      if (an && !raf) { letzt = 0; raf = requestAnimationFrame(schleife); }
+      if (!an && raf) { cancelAnimationFrame(raf); raf = 0; gezeigt = ziel; tempo = 0; zeichnen(); }
     },
     dispose() {
       laeuft = false; if (raf) cancelAnimationFrame(raf);

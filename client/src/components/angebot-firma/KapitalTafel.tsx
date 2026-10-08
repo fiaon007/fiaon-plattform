@@ -12,13 +12,17 @@
 // der Sonderfreigabe (nur, wenn der Server einen Vermerk liefert).
 // Überschriften der Teillisten (Bedingungen, Bürgin) sind Bedienbeschriftungen
 // der Seite (LISTEN unten) — die Daten tragen dafür kein Feld.
+// Runde 3 (Justin 08.10.2026, Punkt 1 und 3): der stärkste Block der Seite, direkt
+// nach dem Hero — sichtbar bleiben Betrag, Justins Satz und die Folge; die
+// Mitwirkung (dritter Garantie-Satz) steht unter „Mehr erfahren“. Kein Betrag der
+// Gründungskosten (Punkt 2).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import type { FirmaSeite } from "@shared/fiaon-global-angebot-firma-typen";
 import SonderfreigabeSiegel from "./SonderfreigabeSiegel";
-import { Auf, Zeichen, ruhig } from "./gemeinsam";
+import { Auf, Mehr, Zeichen, ruhig } from "./gemeinsam";
 
-const LISTEN = { bedingungen: "Bedingungen der Bürgschaft", buergin: "Bürgin" };
+const LISTEN = { bedingungen: "Bedingungen der Bürgschaft", buergin: "Bürgin", mehr: "Mehr erfahren", weniger: "Weniger" };
 
 /** Zählt die Zahl im Betrag einmal hoch, sobald er im Bild ist („250.000 USD“ → 0 … 250.000 USD). */
 function Betrag({ text }: { text: string }) {
@@ -64,7 +68,12 @@ export default function KapitalTafel({ k }: { k: FirmaSeite["kapital"] }) {
           <div className="gaf-garantie" data-fiaon="firma-garantie">
             <span className="gaf-garantie-zeichen"><Zeichen art="schild" groesse={26} /></span>
             <div>
-              {k.garantie.map((g, i) => <p key={i} className={i === 0 ? "gaf-garantie-kern" : "gaf-garantie-satz"}>{g}</p>)}
+              {k.garantie.slice(0, 2).map((g, i) => <p key={i} className={i === 0 ? "gaf-garantie-kern" : "gaf-garantie-satz"}>{g}</p>)}
+              {k.garantie.length > 2 && (
+                <Mehr id="gaf-garantie-mehr" knopf={LISTEN.mehr} knopfZu={LISTEN.weniger} className="gaf-mehr-klein">
+                  {k.garantie.slice(2).map((g, i) => <p key={i} className="gaf-garantie-satz">{g}</p>)}
+                </Mehr>
+              )}
             </div>
           </div>
         </Auf>

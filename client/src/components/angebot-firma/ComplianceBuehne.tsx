@@ -10,20 +10,23 @@
 // korrigierten und neu belegten Befunde). Jede Kachel öffnet ihren Bereich
 // unter ihrer Reihe (grid-auto-flow: dense): Urteil, Befund-Tabelle im eigenen
 // Scrollkasten, „nicht geprüft“, Chancen und Risiken. Darunter Auflagen,
-// Stärken und Schwächen, Methodik und der Knopf zum PDF.
+// Stärken und Schwächen, Methodik und der Knopf zum PDF (seit Runde 3 eingeklappt).
+// Runde 3 (Justin 08.10.2026, Punkt 3): sichtbar nur Gesamturteil (Titel und
+// erster Absatz) und Kacheln; die übrigen Absätze, Kernzahlen, Auflagen, Stärken
+// und Schwächen stehen unter einem Knopf, die Methodik bleibt eingeklappt.
 // Die Beschriftungen der Teile (WORTE unten) sind Bedienbeschriftungen — die
 // Kundenfassung trägt dafür keine Felder; alle Inhalte kommen aus den Daten.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Fragment, useState } from "react";
 import type { Ampel, ComplianceBereich, ComplianceKundenfassung, FirmaSonderfreigabe } from "@shared/fiaon-global-angebot-firma-typen";
 import { SiegelGrafik } from "./SonderfreigabeSiegel";
-import { Auf, Fett, Zeichen } from "./gemeinsam";
+import { Auf, Fett, Mehr, Zeichen } from "./gemeinsam";
 
 const WORTE = {
   gesamt: "Gesamturteil", legende: "Legende", bereiche: "Die Bereiche", belegt: "belegt", befunde: "Befunde",
   aussage: "Aussage", quelle: "Quelle", stand: "Stand", pruefung: "Prüfung", nichtGeprueft: "Nicht geprüft",
   chancen: "Chancen", risiken: "Risiken", auflagen: "Auflagen", staerken: "Stärken", schwaechen: "Schwächen",
-  methodik: "Methodik", oeffnen: "Bereich öffnen", schliessen: "Bereich schließen", pruefdatum: "Prüfdatum", datenstand: "Datenstand",
+  methodik: "Methodik", mehr: "Kernzahlen, Auflagen, Stärken und Schwächen", weniger: "Weniger", oeffnen: "Bereich öffnen", schliessen: "Bereich schließen", pruefdatum: "Prüfdatum", datenstand: "Datenstand",
 };
 const BELEGT = new Set(["bestätigt", "korrigiert", "neu", "neu belegt"]);
 const PRUEF_WORT: Record<string, string> = { neu: "neu belegt" };
@@ -158,19 +161,11 @@ export default function ComplianceBuehne({ c, texte, pdf, sonderfreigabe }: {
               <div className="gaf-urteil-text">
                 <p className="gaf-buehne-auge">{WORTE.gesamt} · {c.meta.firma}</p>
                 <h3 className="gaf-urteil-titel">{c.gesamt.titel}</h3>
-                {c.gesamt.text.map((t, i) => <p key={i} className="gaf-urteil-absatz"><Fett text={t} /></p>)}
+                {c.gesamt.text.slice(0, 1).map((t, i) => <p key={i} className="gaf-urteil-absatz"><Fett text={t} /></p>)}
                 <p className="gaf-urteil-meta">{WORTE.pruefdatum} {c.meta.pruefdatum} · {WORTE.datenstand}: {c.meta.datenstand}</p>
               </div>
               {sonderfreigabe && <div className="gaf-urteil-siegel"><SiegelGrafik sf={sonderfreigabe} groesse={124} /></div>}
             </Auf>
-
-            {c.gesamt.kernzahlen.length > 0 && (
-              <Auf className="gaf-kernzahlen-wrap">
-                <dl className="gaf-kernzahlen">
-                  {c.gesamt.kernzahlen.map((z) => <div key={z.text}><dt>{z.text}</dt><dd>{z.wert}</dd></div>)}
-                </dl>
-              </Auf>
-            )}
 
             <div className="gaf-legende" role="group" aria-label={WORTE.legende}>
               <span className="gaf-buehne-auge">{WORTE.legende}</span>
@@ -207,23 +202,33 @@ export default function ComplianceBuehne({ c, texte, pdf, sonderfreigabe }: {
             </div>
 
             <div className="gaf-buehne-unten">
-              {c.gesamt.auflagen.length > 0 && (
-                <Auf className="gaf-glas-feld">
-                  <p className="gaf-buehne-auge">{WORTE.auflagen}</p>
-                  <ol className="gaf-auflagen">{c.gesamt.auflagen.map((a, i) => <li key={i}><Fett text={a} /></li>)}</ol>
-                </Auf>
-              )}
-              {(c.chancen.length > 0 || c.schwaechen.length > 0) && (
-                <Auf className="gaf-glas-feld gaf-zwei">
-                  <div>
-                    <p className="gaf-buehne-auge">{WORTE.staerken}</p>
-                    <ul className="gaf-buehne-liste plus">{c.chancen.map((x) => <li key={x.titel}><b>{x.titel}</b><span><Fett text={x.text} /></span></li>)}</ul>
-                  </div>
-                  <div>
-                    <p className="gaf-buehne-auge">{WORTE.schwaechen}</p>
-                    <ul className="gaf-buehne-liste minus">{c.schwaechen.map((x) => <li key={x.titel}><b>{x.titel}</b><span><Fett text={x.text} /></span></li>)}</ul>
-                  </div>
-                </Auf>
+              {(c.gesamt.text.length > 1 || c.gesamt.kernzahlen.length > 0 || c.gesamt.auflagen.length > 0 || c.chancen.length > 0 || c.schwaechen.length > 0) && (
+                <Mehr id="gaf-buehne-mehr" knopf={WORTE.mehr} knopfZu={WORTE.weniger} className="gaf-glas-feld gaf-buehne-mehr">
+                  {c.gesamt.text.slice(1).map((t, i) => <p key={i} className="gaf-urteil-absatz"><Fett text={t} /></p>)}
+                  {c.gesamt.kernzahlen.length > 0 && (
+                    <dl className="gaf-kernzahlen gaf-buehne-teil">
+                      {c.gesamt.kernzahlen.map((z) => <div key={z.text}><dt>{z.text}</dt><dd>{z.wert}</dd></div>)}
+                    </dl>
+                  )}
+                  {c.gesamt.auflagen.length > 0 && (
+                    <div className="gaf-buehne-teil">
+                      <p className="gaf-buehne-auge">{WORTE.auflagen}</p>
+                      <ol className="gaf-auflagen">{c.gesamt.auflagen.map((a, i) => <li key={i}><Fett text={a} /></li>)}</ol>
+                    </div>
+                  )}
+                  {(c.chancen.length > 0 || c.schwaechen.length > 0) && (
+                    <div className="gaf-buehne-teil gaf-zwei">
+                      <div>
+                        <p className="gaf-buehne-auge">{WORTE.staerken}</p>
+                        <ul className="gaf-buehne-liste plus">{c.chancen.map((x) => <li key={x.titel}><b>{x.titel}</b><span><Fett text={x.text} /></span></li>)}</ul>
+                      </div>
+                      <div>
+                        <p className="gaf-buehne-auge">{WORTE.schwaechen}</p>
+                        <ul className="gaf-buehne-liste minus">{c.schwaechen.map((x) => <li key={x.titel}><b>{x.titel}</b><span><Fett text={x.text} /></span></li>)}</ul>
+                      </div>
+                    </div>
+                  )}
+                </Mehr>
               )}
               {c.methodik.length > 0 && (
                 <div className={`gaf-glas-feld gaf-methodik${methodik ? " auf" : ""}`}>

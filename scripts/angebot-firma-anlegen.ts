@@ -117,8 +117,8 @@ const vorschau = { ref: "FIAON-IA-FVORSCH", fassung: S.FIRMA_FASSUNG, kunde: k.k
 
 console.log(`\nFirmenangebot — Fassung ${S.FIRMA_FASSUNG}`);
 console.log(`  Auftraggeberin: ${k.kunde.firma.name}, vertreten durch ${S.firmaVertreterName(k.kunde)} (${k.kunde.vertretung.funktion})`);
-console.log(`  Gründung ${S.firmaEur(parameter.startCents)} · Plattform & Team ${S.firmaEur(parameter.monatCents)}/Monat (${parameter.mindestMonate} Monate, +${parameter.verlaengerungMonate}, Kündigung ${parameter.kuendigungMonate} Monate vorher)`);
-console.log(`  Umsatz ${parameter.umsatzSatzProzent} % über ${S.firmaEur(parameter.umsatzSchwelleCents)} · Verkauf ${parameter.verkaufSatzProzent} % · erste Runde ${S.firmaUsd(parameter.kapitalUsd)} in ${parameter.garantieMonate} Monaten nach erfüllten Bedingungen`);
+console.log(`  Gründung ${S.firmaEur(parameter.startCents)} · Wachstumsbudget: Anteil ${S.firmaEur(parameter.monatCents)}/Monat von ${S.firmaEur(parameter.budgetGesamtCents)} ab „Shop live“, spätestens ${parameter.budgetSpaetestensMonate} Monate nach Annahme (${parameter.mindestMonate} Monate, +${parameter.verlaengerungMonate}, Kündigung ${parameter.kuendigungMonate} Monate vorher)`);
+console.log(`  Umsatz ${parameter.umsatzSatzProzent} % über ${S.firmaEur(parameter.umsatzSchwelleCents)} · Verkauf ${parameter.verkaufSatzProzent} % · erste Runde ${S.firmaUsd(parameter.kapitalUsd)}: Auszahlung binnen ${parameter.garantieMonate} Monaten ab Annahme (Ziffer 7)`);
 console.log(`  Prüfbericht: ${compliance ? `Ampel ${compliance.gesamt.ampel}, ${compliance.bereiche.length} Bereiche in der Kundenfassung (Bereich 8 und interne Punkte entfernt)` : "FEHLT (--compliance)"}`);
 const fehlt = S.firmaPflichtFehlen(vorschau);
 console.log(`  Annahme ${fehlt.length ? `gesperrt, solange fehlt: ${fehlt.join("; ")}` : "möglich — alle Pflichtfelder sind da."}`);

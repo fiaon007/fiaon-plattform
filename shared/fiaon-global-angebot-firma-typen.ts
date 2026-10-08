@@ -82,6 +82,8 @@ export interface FirmaPhase {
   dauer: string;
   text: string;
   abzeichen?: string;
+  /** Seit Runde 2 (Justin 08.10.2026, Punkt 4) keine Fotos im Zeitstrahl — die Etappe „Aufbau“ trägt eine eigene Animation. */
+  illustration?: "aufbau";
   bild?: BildRef;
 }
 
@@ -89,7 +91,11 @@ export interface FirmaLeistung {
   schluessel: "gesellschaft" | "kapital" | "strategie" | "plattform" | "vertrieb" | "ansprechpartner";
   titel: string;
   text: string;
+  /** Runde 3 (Punkt 3): höchstens drei Punkte sichtbar … */
   punkte: string[];
+  /** … der Rest nur aufklappbar („Mehr erfahren“). */
+  mehr?: string[];
+  /** Seit Runde 2 (Punkt 5) ohne Foto: jede Karte trägt eine eigene Linien-Illustration (nach schluessel, in der Oberfläche). */
   bild?: BildRef;
 }
 
@@ -101,10 +107,38 @@ export interface FirmaInvestPosten {
   betrag: string;
   /** klein darunter, z. B. „einmalig“, „pro Monat“, „auf den Umsatz über 600.000 €“ */
   einheit: string;
+  /** Runde 3 (Punkt 3): die kompakte Zeile — ein Satz. Was / Wann / Warum / Wie stehen nur aufklappbar. */
+  satz: string;
   was: string;
   wann: string;
   warum: string;
   wie: string;
+  /** Gründungskosten (Runde 2, Punkt 7): woraus sie bestehen — ohne Einzelbeträge. */
+  bestandteile?: string[];
+  /** Ein Satz, groß gesetzt (z. B. „Wir verdienen an den Gründungskosten nichts …“). */
+  hinweis?: string;
+}
+
+/** Ein Posten des gemeinsamen Wachstumsbudgets (Runde 2, Punkt 8) — Planwert je Monat. */
+export interface FirmaBudgetZeile { schluessel: string; titel: string; text: string; betrag: string; cents: number }
+/** „Gemeinsames Wachstumsbudget“: die Aufstellung auf der Seite (derselbe Wortlaut steht in Ziffer 10 Absatz 3). */
+export interface FirmaBudget {
+  titel: string;
+  sub: string;
+  /** „4.000 €“ */
+  gesamt: string;
+  gesamtText: string;
+  /** „2.000 €“ — die Hälfte, die die Kundin trägt */
+  ihrAnteil: string;
+  ihrAnteilText: string;
+  /** „2.000 €“ — die Hälfte, die FIAON trägt */
+  fiaonAnteil: string;
+  fiaonAnteilText: string;
+  /** Wann das Budget beginnt (Tag „Shop live“) */
+  start: string;
+  zeilen: FirmaBudgetZeile[];
+  summeText: string;
+  fein: string[];
 }
 
 /** Der Rechner unter „Ihre Investition“: Umsatz wählen → Beteiligung pro Jahr. Rechnet nur mit Schwelle und Satz. */
@@ -130,19 +164,29 @@ export interface FirmaRechner {
   skala: { cents: number; text: string; schwelle?: boolean }[];
 }
 
-/** „Ihr Team bei FIAON Global“ unter dem Ansprechpartner — Leitung und aktive Mitarbeitende, Porträts mit KI-Hinweis. */
+/**
+ * „Ihr Team bei FIAON Global“ unter dem Ansprechpartner (Runde 2, Punkt 9): die Personen kommen aus den Angebotsdaten
+ * (parameter.inhalt.team) — nie hart im Code. Ein Bild NUR, wenn ein echtes Foto der Person geliefert ist (foto), sonst
+ * ein Monogramm. Keine KI-Porträts (KI-VO Art. 50) — darum gibt es hier auch keinen KI-Hinweis.
+ */
 export interface FirmaTeam {
   titel: string;
   sub: string;
-  personen: { name: string; rolle: string; portrait: string; portraitHinweis: string; initialen: string }[];
+  personen: { name: string; rolle: string; foto: string | null; initialen: string }[];
 }
 
 export interface FirmaFrage { frage: string; antwort: string[] }
 
 export interface FirmaSeite {
   auftakt: { auge: string; gruss: string; zeile: string; weiter: string };
-  hero: { auge: string; titel: string; unter: string; nutzen: string[]; glas: GlasKonfig | null };
+  /**
+   * Runde 3 (Punkt 1): Das Kapital ist das Erste, was nach dem Glückwunsch ins Auge fällt — kapital.betrag groß in Gold-Serif,
+   * kapital.satz = Justins Garantie-Satz (AUSSCHLIESSLICH aus firmaGarantie().satz). Keine Gründungskosten im Hero (Punkt 2).
+   */
+  hero: { auge: string; titel: string; unter: string; kapital: { betrag: string; satz: string; titel: string }; nutzen: string[]; glas: GlasKonfig | null };
   ziele: { titel: string; sub: string; punkte: { titel: string; text: string }[] };
+  /** Höchstens EIN großes Stimmungsbild zwischen zwei Abschnitten (KI-Hinweis Pflicht) — Runde 2, Punkt 5. */
+  stimmung: BildRef | null;
   phasen: { titel: string; sub: string; liste: FirmaPhase[] };
   leistungen: { titel: string; sub: string; karten: FirmaLeistung[] };
   kapital: {
@@ -161,9 +205,19 @@ export interface FirmaSeite {
     sonderfreigabe: FirmaSonderfreigabe;
   };
   pruefbericht: { titel: string; sub: string; download: string; hinweis: string };
-  /** Was die Kundin direkt an Dritte zahlt, steht NUR im Vertrag (Ziffer 10 Absatz 4) — keine Liste auf der Seite. */
-  investition: { titel: string; sub: string; posten: FirmaInvestPosten[]; rechner: FirmaRechner; fein: string[] };
-  fragen: { titel: string; sub: string; liste: FirmaFrage[] };
+  /**
+   * „Unsere Vereinbarung“ (Runde 2, Punkt 6 — vorher „Ihre Investition“). Was die Kundin direkt an Dritte zahlt, steht NUR im
+   * Vertrag (Ziffer 10 Absatz 6) — keine Liste auf der Seite. budget = die Aufstellung des gemeinsamen Wachstumsbudgets.
+   */
+  investition: {
+    titel: string; sub: string;
+    /** Runde 3 (Punkt 1): zuerst „Was Sie bekommen“ (Kapital, Gesellschaft, Team) — danach die Konditionen. */
+    bekommen: { titel: string; punkte: { wert: string; text: string }[] };
+    konditionenTitel: string;
+    posten: FirmaInvestPosten[]; budget: FirmaBudget; rechner: FirmaRechner; fein: string[];
+  };
+  /** Runde 3 (Punkt 3): die ersten `sichtbar` Fragen stehen offen in der Liste, der Rest unter „Weitere Fragen“. */
+  fragen: { titel: string; sub: string; liste: FirmaFrage[]; sichtbar: number };
   ansprechpartner: { titel: string; sub: string };
   team: FirmaTeam;
   /** inhalt: Präambel, Ziffern, Anlagen — anker = id im Vertrags-HTML (html), marke = Ziffer bzw. „Anlage 1“ */
@@ -230,14 +284,17 @@ export interface FirmaAnnahmeTexte {
   unternehmer: string;
   /** Pflicht-Häkchen 2: vertretungsbefugt für die Gesellschaft */
   vertretung: string;
-  startTitel: string;
-  startSofort: string;
-  startAb: string;
+  /** Die Unterschrift (Runde 2, Punkt 11): zeichnen ODER Namen tippen — Pflicht, vom Server geprüft. */
+  unterschrift: {
+    titel: string; sub: string; zeichnen: string; tippen: string; neu: string; platz: string;
+    tippenFeld: string; tippenHinweis: string; vorschau: string; fehlt: string; fehltName: string;
+  };
   knopf: string;
   unterKnopf: string;
   gesperrt: string;
 }
 
+/** „Unsere Zusammenarbeit im Überblick“ (Runde 2, Punkt 11) — unmittelbar über Unterschrift und Knopf. */
 export interface FirmaBestellUebersicht { titel: string; zeilen: { label: string; wert: string }[]; fein: string[] }
 
 /** GET /api/fiaon/global/angebot/:token für ein OFFENES Firmenangebot. (Angenommen → dieselbe Antwort wie E-268.) */
@@ -256,7 +313,6 @@ export interface FirmaKundenSicht {
   ansprechpartner: FirmaAnsprechpartner;
   uebersicht: FirmaBestellUebersicht;
   annahme: FirmaAnnahmeTexte;
-  beginn: { morgen: string; spaetestens: string };
   annahmeBereit: boolean;
   gesperrtGrund: string | null;
   vorschauLeitung?: boolean;
@@ -269,11 +325,21 @@ export interface FirmaKundenSicht {
   pruefberichtPdf: string;
 }
 
-/** POST /api/fiaon/global/angebot/:token/annehmen für ein Firmenangebot. */
+/**
+ * Die Unterschrift bei der Annahme (Runde 2, Punkt 11). gezeichnet: PNG aus dem Feld (Finger/Maus). getippt: der Name in
+ * Schreibschrift — dazu optional das Bild, das die Seite daraus gesetzt hat (für das PDF; der Name ist maßgeblich).
+ */
+export type FirmaUnterschriftEingabe =
+  | { art: "gezeichnet"; png: string }
+  | { art: "getippt"; name: string; png?: string | null };
+
+/**
+ * POST /api/fiaon/global/angebot/:token/annehmen für ein Firmenangebot. Seit Runde 2 ohne Startwahl: Der Vertrag beginnt mit
+ * der Annahme; das gemeinsame Wachstumsbudget beginnt am Tag „Shop live“, den die Leitung im Chefbüro setzt.
+ */
 export interface FirmaAnnahmeEingabe {
   textHash: string;
   unternehmer: true;
   vertretung: true;
-  /** null = sofort starten, sonst JJJJ-MM-TT (morgen bis spaetestens) */
-  startAm: string | null;
+  unterschrift: FirmaUnterschriftEingabe;
 }

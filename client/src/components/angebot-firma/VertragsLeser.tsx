@@ -15,6 +15,10 @@
 // Der Text ist sicht.html — derselbe Rumpf wie im PDF (eine Textquelle); der
 // Leser legt nur seine Gestaltung darüber (CSS unter .gaf-leser).
 // Escape schließt, der Fokus bleibt im Dialog und kehrt danach zurück.
+// Runde 2 (Justin 08.10.2026, Punkt 10): Am Ende des Textes steht ein Abschluss-
+// Block mit dem Annahme-Knopf (annahme.knopf, eine Quelle) — er schließt den Leser
+// und springt zur Annahme (Fokus auf das erste offene Feld), damit niemand erst
+// „Schließen“ suchen muss.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FirmaSeite } from "@shared/fiaon-global-angebot-firma-typen";
@@ -23,11 +27,12 @@ import { Auf, Zeichen } from "./gemeinsam";
 const WORTE = {
   lesen: "Vertrag lesen", inhalt: "Inhalt", schliessen: "Schließen", pdf: "PDF", pdfOeffnen: "PDF öffnen", ziffer: "Ziffer",
   dokumente: "Zum Herunterladen", leserTitel: "Vertrag und Anlagen", inhaltZu: "Inhalt schließen",
+  endeAuge: "Ende des Vertrags", endeSatz: "Angenommen wird unten auf der Seite — mit zwei Bestätigungen und Ihrer Unterschrift. Der Knopf bringt Sie direkt dorthin.",
 };
 
 type Pdf = { titel: string; href: string };
 
-export default function VertragsLeser({ v, html, pdfs }: { v: FirmaSeite["vertrag"]; html: string; pdfs: Pdf[] }) {
+export default function VertragsLeser({ v, html, pdfs, annehmen }: { v: FirmaSeite["vertrag"]; html: string; pdfs: Pdf[]; annehmen?: { knopf: string; onAnnehmen: () => void } }) {
   const [offen, setOffen] = useState(false);
   const [ziel, setZiel] = useState<string | null>(null);
   const [aktiv, setAktiv] = useState<string>("praeambel");
@@ -43,6 +48,8 @@ export default function VertragsLeser({ v, html, pdfs }: { v: FirmaSeite["vertra
     setOffen(true);
   };
   const schliessen = useCallback(() => { setOffen(false); setInhaltAuf(false); }, []);
+  /** Abschluss-Block: Leser schließen, ohne den Fokus zum Auslöser zurückzugeben — die Annahme übernimmt ihn. */
+  const zurAnnahme = () => { ausloeser.current = null; setOffen(false); setInhaltAuf(false); window.setTimeout(() => annehmen?.onAnnehmen(), 30); };
 
   /** Das Element einer Ziffer im Papier — die erste Fundstelle ist der Vertrag (Anlage 1 zählt ihre Ziffern noch einmal). */
   const element = useCallback((anker: string): HTMLElement | null => papier.current?.querySelector<HTMLElement>(`[id="${anker}"]`) ?? null, []);
@@ -168,6 +175,16 @@ export default function VertragsLeser({ v, html, pdfs }: { v: FirmaSeite["vertra
               <p className="gaf-leser-auge">FIAON LTD · London</p>
               {/* Der Text kommt von unserem Server aus derselben Quelle wie das PDF. */}
               <div className="gaf-leser-text" dangerouslySetInnerHTML={{ __html: html }} />
+              {annehmen && (
+                <div className="gaf-leser-ende" data-fiaon="firma-leser-ende">
+                  <p className="gaf-leser-ende-auge">{WORTE.endeAuge}</p>
+                  <p className="gaf-leser-ende-satz">{WORTE.endeSatz}</p>
+                  <button type="button" className="gaf-knopf-annehmen" onClick={zurAnnahme} data-fiaon="firma-leser-annehmen">
+                    <span>{annehmen.knopf}</span><Zeichen art="pfeilRunter" groesse={18} />
+                  </button>
+                  <button type="button" className="gaf-leser-ende-zu" onClick={schliessen}>{WORTE.schliessen}</button>
+                </div>
+              )}
             </article>
           </div>
         </div>

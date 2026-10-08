@@ -4,15 +4,17 @@
 // Eine senkrechte Haarlinie; darüber zeichnet sich eine goldene Linie beim
 // Scrollen (transform: scaleY, nur Compositor — kein Ruckeln), jede Etappe
 // gleitet einmal ein, sobald sie ins Bild kommt, und ihr Knoten rastet golden
-// ein, wenn die Linie ihn erreicht. Etappen mit Szenenbild (bild) stehen breit
-// mit Bild daneben; der KI-Hinweis sitzt am Bild. Die Nummer ist hier
+// ein, wenn die Linie ihn erreicht. Runde 2 (Justin 08.10.2026, Punkt 4): keine
+// Fotos im Zeitstrahl — die Etappe „Aufbau“ trägt ihre eigene Animation
+// (AufbauAnimation, illustration „aufbau“) breit daneben. Die Nummer ist hier
 // Information (die Reihenfolge ist der Weg), darum steht sie am Knoten —
 // Justin (07.10.2026): Navy-Ziffer, optisch exakt zentriert (Inter, tabular,
 // line-height 1, Flex), auf Elfenbein im Goldring; erreicht = kräftiger Ring.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useRef } from "react";
 import type { FirmaPhase } from "@shared/fiaon-global-angebot-firma-typen";
-import { Auf, Bild, ruhig, useScrollFortschritt } from "./gemeinsam";
+import { Auf, ruhig, useScrollFortschritt } from "./gemeinsam";
+import AufbauAnimation from "./AufbauAnimation";
 
 export default function PhasenZeitstrahl({ liste }: { liste: FirmaPhase[] }) {
   const ref = useRef<HTMLOListElement>(null);
@@ -35,7 +37,7 @@ export default function PhasenZeitstrahl({ liste }: { liste: FirmaPhase[] }) {
     <ol ref={ref} className="gaf-weg" data-fiaon="firma-zeitstrahl">
       <span className="gaf-weg-schiene" aria-hidden="true"><span ref={linie} className="gaf-weg-gold" /></span>
       {liste.map((ph) => (
-        <Auf als="li" key={ph.nr} className={`gaf-etappe${ph.bild ? " mit-bild" : ""}`}>
+        <Auf als="li" key={ph.nr} className={`gaf-etappe${ph.illustration ? " mit-bild" : ""}`}>
           <span className="gaf-etappe-knoten" data-knoten aria-hidden="true"><span>{ph.nr}</span></span>
           <div className="gaf-etappe-inhalt">
             <div className="gaf-etappe-text">
@@ -46,7 +48,7 @@ export default function PhasenZeitstrahl({ liste }: { liste: FirmaPhase[] }) {
               </h3>
               <p className="gaf-etappe-satz">{ph.text}</p>
             </div>
-            {ph.bild && <Bild bild={ph.bild} className="gaf-etappe-bild" groessen="(max-width: 900px) 92vw, 520px" />}
+            {ph.illustration === "aufbau" && <AufbauAnimation />}
           </div>
         </Auf>
       ))}

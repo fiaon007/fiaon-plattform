@@ -314,6 +314,8 @@ const FIRMA_NUR_INHABER: ReadonlySet<string> = new Set(["freigabe"]);
 const FIRMA_AKTIONEN = {
   freigabe: "firmaFreigabeAnwalt", bedingungen: "firmaBedingungenErfuellt", kapital: "firmaKapitalErhalten", hemmung: "firmaFristHemmen",
   umsatz: "firmaUmsatz", verkauf: "firmaVerkauf", kuendigung: "firmaKuendigung",
+  // Runde 2 (08.10.2026): „Shop live“ setzt den Starttag — das gemeinsame Wachstumsbudget beginnt (Monatsteile, erste Rechnung).
+  "shop-live": "firmaShopLive",
 } as const;
 for (const [pfad, fn] of Object.entries(FIRMA_AKTIONEN)) {
   router.post(`/admin/global/angebote/:id/firma/${pfad}`, requireChef(FIRMA_NUR_INHABER.has(pfad) ? "inhaber" : "leitung"), async (req: ChefRequest, res: Response) => {

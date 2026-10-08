@@ -130,6 +130,23 @@ export function Zeichen({ art, groesse = 22, className = "" }: { art: ZeichenArt
   );
 }
 
+/**
+ * Runde 3 (Justin 08.10.2026, Punkt 3: „kompakter, da zusätzlich noch der Vertrag gelesen werden muss“): EIN Baustein für alles,
+ * was nur aufklappbar steht — Knopf mit aria-expanded, weiches Aufklappen über grid-template-rows (gaf-klapp), zugeklappt „inert“
+ * (nichts darin ist per Tastatur erreichbar, Vorleser überspringen es). „Weniger Bewegung“: ohne Übergang (CSS).
+ */
+export function Mehr({ knopf, knopfZu, children, className = "", id }: { knopf: string; knopfZu?: string; children: ReactNode; className?: string; id: string }) {
+  const [auf, setAuf] = useState(false);
+  return (
+    <div className={`gaf-mehr${auf ? " auf" : ""}${className ? ` ${className}` : ""}`}>
+      <button type="button" className="gaf-mehr-knopf" aria-expanded={auf} aria-controls={id} onClick={() => setAuf((a) => !a)}>
+        <span>{auf && knopfZu ? knopfZu : knopf}</span><span className="gaf-plus" aria-hidden="true" />
+      </button>
+      <div className="gaf-klapp" id={id} {...(auf ? {} : { inert: "" })}><div>{children}</div></div>
+    </div>
+  );
+}
+
 /** Ein Text mit Platzhaltern {name} — die Oberfläche setzt nur Zahlen ein, die Sätze kommen aus den Daten. */
 export function einsetzen(satz: string, werte: Record<string, string>): string {
   return String(satz ?? "").replace(/\{(\w+)\}/g, (_, k: string) => (k in werte ? werte[k] : `{${k}}`));

@@ -5,6 +5,71 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.10.2026 — E-301 Runde 3: Firmenangebot, Endfassung zum Versand (Fassung D)
+
+- **Kapital vorne:** Nach dem Glückwunsch steht im Kopf der Seite zuerst die große Zahl der ersten Runde in Gold, daneben Justins
+  Garantie-Satz (eine Quelle). Aus dem Licht des Glases erscheint „Ihr Kapital“, der Abschnitt „Ihr Kapital“ folgt direkt danach.
+  In „Unsere Vereinbarung“ steht zuerst „Was Sie bekommen“ (erste Runde, US-Gesellschaft, Team), danach die Konditionen.
+- **Gründungskosten leise:** keine große Karte mehr — eine ruhige Zeile am Ende der Konditionen („wir verdienen daran nichts“), die
+  Bestandteile nur aufklappbar; im Kopf und im Kapital ohne Betrag. Preis und Fälligkeit stehen vollständig in „Unsere Zusammenarbeit
+  im Überblick“ und im Vertrag.
+- **Kompakter:** je Leistungskarte ein Satz und drei Punkte (Rest unter „Mehr erfahren“), Konditionen als Zeilen (Titel · Betrag · ein
+  Satz; Was/Wann/Warum/Wie, Budget-Aufstellung und Rechner klappen auf), acht kurze Fragen offen (Rest unter „Weitere Fragen“),
+  Zeitstrahl je Etappe ein Satz, Prüfbericht mit Gesamturteil und Kacheln (Details und Methodik eingeklappt), drei kurze Ziele.
+  Zugeklappte Teile sind für die Tastatur gesperrt (inert). Die Seite ist am Rechner und am Handy rund ein Drittel kürzer.
+- **Vertrag Ziffer 7:** Garantiert ist jetzt die Auszahlung der ersten Runde an die US-Gesellschaft innerhalb von drei Monaten nach
+  der Annahme — eine Zusage allein genügt nicht mehr. Ruhen bei fehlender Mitwirkung und Erstattung der Gründungskosten bleiben.
+  Im Chefbüro nimmt „Erste Runde erhalten“ ab dieser Fassung nur noch „ausgezahlt“ oder „abgelehnt“ an.
+- **Vertrag Ziffer 10 Absatz 2:** Das Wachstumsbudget beginnt mit „Shop live“, spätestens aber sechs Monate nach der Annahme, es sei
+  denn, die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat (neuer Parameter budgetSpaetestensMonate, Vorgabe sechs).
+  Im Chefbüro: im Fenster „Shop live“ die Auswahl „Spätester Starttag“ (erst ab diesem Tag); ein späterer Tag „Shop live“ nur mit dem
+  Haken, dass die Verzögerung bei FIAON liegt. Auf der Seite ein Satz dazu. Keine Mail an die Kundin.
+- **Team:** Sichtbar sind nur Personen, die in den Angebotsdaten nicht mit „bestaetigt: false“ markiert sind (Namen nur in der
+  privaten Datei). Der KI-Hinweis zu Porträts steht weiter einmal im Bildnachweis.
+- **Fassung:** IA-FIRMA-2026-10-08-D (Vertragstext geändert, Prüfsumme der Testfirma bewusst neu). Anlage 1 bleibt Wort für Wort
+  (Prüfsumme gleich). Eine eingetragene Freigabe des Anwalts muss für die neue Fassung neu erteilt werden. E-268 unverändert.
+
+**Wo:** shared/fiaon-global-angebot-firma.ts (Fassung D, garantieNurAuszahlung, budgetSpaetesterStart, Ziffer 7 und 10, Seite, Fragen),
+shared/fiaon-global-angebot-firma-typen.ts, server/lib/fiaon-global-angebot-firma.ts (firmaShopLive, firmaKapitalErhalten, Liste),
+client/src/pages/business-angebot-firma.tsx, client/src/components/angebot-firma/* (Mehr, InvestitionsPosten, KapitalTafel, LeistungsKarten,
+FragenAntworten, ComplianceBuehne), client/src/styles/global-angebot-firma.css, client/src/components/admin/ChefGlobalAngebote.tsx,
+client/src/pages/agent/rundgaenge.ts, Prüfstand scripts/pruef-angebot-firma.ts (Abschnitt 11; lokal: spätester Starttag, keine Zusage).
+
+## 08.10.2026 — E-301 Runde 2: Firmenangebot nach Justins Durchsicht der Live-Seite (Fassung C)
+
+- **Garantie ab Annahme:** Die erste Runde ist vertraglich garantiert nach Ziffer 7 — die Frist von drei Monaten läuft jetzt ab dem Tag
+  der Annahme (vorher ab erfüllten Bedingungen der Bürgschaft). Empfängerin ist die US-Gesellschaft der Kundin. Fehlen die Unterlagen
+  der Bürgschaft nach schriftlicher Aufforderung (mindestens sieben Tage), ruht die Frist (bestehende Regel). Folge unverändert:
+  Erstattung der Gründungskosten. Auf der Seite steht Justins Satz wörtlich. „Bedingungen erfüllt“ macht jetzt nur die Bürgschaft
+  wirksam; die Frist setzt der Server bei der Annahme.
+- **Gemeinsames Wachstumsbudget statt Monatspauschale:** Die Kundin trägt die Hälfte eines Monatsbudgets, FIAON die andere — mit
+  Aufstellung der Planwerte (Anzeigen, Inhalte, US-Gesellschaft laufend, PR, Software, Shop, Technik, Recht) auf der Seite und in
+  Ziffer 10. Es beginnt erst am Tag „Shop live“: neuer Knopf im Chefbüro „Shop live — Wachstumsbudget starten“ (setzt den Starttag,
+  legt die Monatsteile für die Mindestlaufzeit an, stellt die erste Monatsrechnung sofort, Aufgabe „Shop live mitteilen“, keine Mail an
+  die Kundin). Rechnungstitel „Wachstumsbudget — Ihr Anteil, Monat n“. Mehrbudget nur über das gemeinsame Budget hinaus, nach Absprache.
+  Keine Startwahl mehr bei der Annahme.
+- **Unterschrift Pflicht:** Die Kundin unterschreibt mit Finger/Maus oder tippt ihren Namen (Schreibschrift). Der Server prüft sie
+  (leeres Feld oder Name ohne Nachnamen → abgewiesen), speichert sie mit Zeit und IP und zeigt sie im Annahmevermerk des Vertrags-PDF.
+  Der Abschnitt heißt „Unsere Zusammenarbeit im Überblick“.
+- **Seite:** 3D-Glas realistischer (Brechung und Glasdicke, Kantenglanz, Kontaktschatten, Etikett mit Papierstruktur, Inhalt mit Tiefe,
+  gerändelter Deckel), etwa 17 % kleiner, gedämpfte Bewegung, Licht dezenter, weniger und feinere Partikel. Zeitstrahl ohne Fotos — die
+  Etappe „Aufbau“ hat eine eigene Animation (Shop entsteht, Besucherlinie steigt, Kanäle fliegen ein). Leistungskarten ohne Fotos, je
+  eine eigene Linien-Illustration; höchstens ein Stimmungsbild (mit KI-Hinweis). Leistung „US-Gesellschaft“ mit neuem Untertitel.
+  „Ihre Investition“ heißt „Unsere Vereinbarung“. Gründungskosten klar: „Wir verdienen an den Gründungskosten nichts“, Bestandteile ohne
+  Einzelbeträge. Vertrags-Leser mit Annahme-Knopf am Ende (springt zur Annahme).
+- **Team:** „Ihr Team bei FIAON Global“ kommt jetzt aus den Angebotsdaten (privat, nicht im Code). Ein Bild nur bei einem echten Foto,
+  sonst Monogramm — keine KI-Porträts. Kein KI-Hinweis mehr unter den Porträts; der Hinweis zu Justins Porträt steht einmal im
+  Bildnachweis am Seitenende.
+- **Fassung:** IA-FIRMA-2026-10-08-C (Vertragstext geändert). Anlage 1 bleibt Wort für Wort (Fassung D, Prüfsumme gleich). Die
+  Prüfsumme des Vertrags ändert sich — eine eingetragene Freigabe des Anwalts muss für die neue Fassung neu erteilt werden.
+  Das Individualangebot E-268 bleibt unverändert.
+
+**Wo:** shared/fiaon-global-angebot-firma.ts (Garantie, Budget, Team, Ziffern 3/5/6/7/10/13/14, Annahmeblock), shared/fiaon-global-angebot-firma-typen.ts,
+server/lib/fiaon-global-angebot-firma.ts (firmaUnterschriftPruefen, firmaShopLive, Garantiefrist ab Annahme), server/routes/fiaon-global-angebot.ts
+(…/firma/shop-live), client/src/components/angebot-firma/* (neu: AufbauAnimation, LeistungsIllustration, BudgetAufstellung, UnterschriftFeld),
+client/src/pages/business-angebot-firma.tsx, client/src/styles/global-angebot-firma.css, client/src/components/admin/ChefGlobalAngebote.tsx,
+client/src/pages/agent/rundgaenge.ts, Prüfstand scripts/pruef-angebot-firma.ts (Abschnitt 10, lokal: Unterschrift, Shop live, Frist ab Annahme).
+
 ## 07.10.2026 spätabends — E-299: Antrag ohne Stolperstellen, Rettung an der Unterschrift, Mara fasst nach
 
 - **PIN frei wählbar** (Justin: „beim PIN kann man wählen was man will“): Nur noch vier Ziffern — 1234, 0000, Geburtsjahr gehen. Vorher

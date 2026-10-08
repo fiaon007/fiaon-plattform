@@ -13,10 +13,16 @@
 // Erstattung der Gründung); die Sätze dazu kommen allein aus kapital.garantie,
 // eine Quelle im Server. Bilder kommen nur über den Link (…/bild/<name>).
 //
-// Reihenfolge (Bauauftrag Abschnitt 3): Auftakt · Hero mit Glas · Ihre Ziele ·
-// Zeitstrahl · Was Sie bekommen · Ihr Kapital · Prüfbericht (die eine dunkle
-// Navy-Bühne) · Ihre Investition mit Umsatzrechner · Fragen & Antworten · Ihr
-// Ansprechpartner · Vertrag & Anlagen · Annahme · Pflichthinweise, Bildnachweis.
+// Reihenfolge (Runde 3, Justin 08.10.2026 — „Mach das Kapital präsenter“, „kompakter,
+// da zusätzlich noch der Vertrag gelesen werden muss“): Auftakt · Hero mit Glas und
+// der großen Zahl des Kapitals samt Justins Garantie-Satz · Ihr Kapital (der stärkste
+// Block) · Ihre Ziele (drei kurze Karten) · Zeitstrahl (je Etappe ein Satz) · Was Sie
+// bekommen (ein Satz, drei Punkte, Rest aufklappbar) · ein Stimmungsbild (KI-Hinweis) ·
+// Unsere Vereinbarung (erst „Was Sie bekommen“, dann Konditionen als Zeilen, die
+// Gründungskosten als leise Zeile) · Prüfbericht (die eine dunkle Navy-Bühne, Details
+// eingeklappt) · Fragen & Antworten (acht offen, Rest unter „Weitere Fragen“) · Ihr
+// Ansprechpartner und Team (nur bestätigte Personen) · Vertrag & Anlagen (Leser mit
+// Annahme-Knopf am Ende) · Annahme mit Unterschrift · Pflichthinweise, Bildnachweis.
 //
 // Gestaltung: Kanzlei-Papier der Business-Welt (Navy #12284a, Newsreader 300,
 // Inter 300/400, Haarlinien) mit Gold als Akzent. Kein
@@ -40,11 +46,10 @@ import LeistungsKarten from "@/components/angebot-firma/LeistungsKarten";
 import KapitalTafel from "@/components/angebot-firma/KapitalTafel";
 import ComplianceBuehne from "@/components/angebot-firma/ComplianceBuehne";
 import InvestitionsPosten from "@/components/angebot-firma/InvestitionsPosten";
-import UmsatzRechner from "@/components/angebot-firma/UmsatzRechner";
 import FragenAntworten from "@/components/angebot-firma/FragenAntworten";
 import AnnahmeFirma from "@/components/angebot-firma/AnnahmeFirma";
 import VertragsLeser from "@/components/angebot-firma/VertragsLeser";
-import { Auf, MarkeGlobal, Zeichen, tagDe } from "@/components/angebot-firma/gemeinsam";
+import { Auf, Bild, MarkeGlobal, Zeichen, ruhig, tagDe } from "@/components/angebot-firma/gemeinsam";
 import "@/styles/global-angebot-firma.css";
 
 const WORTE = {
@@ -126,6 +131,13 @@ export default function BusinessAngebotFirma({ sicht, token, onAngenommen, onNeu
   useSeitenRahmen(WORTE.seitenTitel);
   const auftaktGeht = useCallback(() => setAuftakt((a) => (a === "offen" ? "geht" : a)), []);
   const auftaktEnde = useCallback(() => setAuftakt("vorbei"), []);
+  // Runde 2, Punkt 10: aus dem Leser direkt zur Annahme — erstes offenes Feld bekommt den Fokus.
+  const zurAnnahme = useCallback(() => {
+    const ziel = document.getElementById("annahme");
+    if (!ziel) return;
+    ziel.scrollIntoView({ block: "start", behavior: ruhig() ? "auto" : "smooth" });
+    window.setTimeout(() => document.querySelector<HTMLElement>("#annahme input[type=checkbox]:not(:checked), #annahme [data-fiaon=firma-unterschrift] button")?.focus({ preventScroll: true }), ruhig() ? 0 : 600);
+  }, []);
 
   const S = sicht.seite, P = sicht.ansprechpartner, I = S.investition;
   const betreff = encodeURIComponent(`${WORTE.angebot} ${sicht.ref}`);
@@ -148,17 +160,31 @@ export default function BusinessAngebotFirma({ sicht, token, onAngenommen, onNeu
       )}
 
       {/* 2 — Hero mit dem Glas */}
-      <ProduktGlas3D glas={S.hero.glas} wegZeile={S.phasen.titel} wegSub={S.phasen.sub} bereit={auftakt !== "offen"}
+      {/* Runde 3, Punkt 1: Das Kapital ist das Erste, was nach dem Glückwunsch ins Auge fällt — große Zahl in Gold-Serif und
+          Justins Garantie-Satz (eine Quelle: hero.kapital.satz = firmaGarantie().satz). Aus dem Licht des Glases erscheint „Ihr Kapital“. */}
+      <ProduktGlas3D glas={S.hero.glas} wegZeile={S.hero.kapital.titel} wegSub={S.kapital.sub} bereit={auftakt !== "offen"}
         nach={<><p className="gaf-hero-unter">{S.hero.unter}</p><ul className="gaf-nutzen">{S.hero.nutzen.map((n) => <li key={n}>{n}</li>)}</ul></>}>
         <p className="gaf-auge gaf-auge-gold">{S.hero.auge}</p>
+        <div className="gaf-hero-kapital" data-fiaon="firma-hero-kapital">
+          <p className="gaf-hero-betrag">{S.hero.kapital.betrag}</p>
+          <p className="gaf-hero-garantie"><Zeichen art="schild" groesse={18} /><span>{S.hero.kapital.satz}</span></p>
+        </div>
         <h1 className="gaf-h1">{S.hero.titel}</h1>
         <p className="gaf-hero-unter">{S.hero.unter}</p>
         <ul className="gaf-nutzen">{S.hero.nutzen.map((n) => <li key={n}>{n}</li>)}</ul>
-        <a className="gaf-hero-anker" href="#ziele"><span>{S.ziele.titel}</span><Zeichen art="pfeilRunter" groesse={16} /></a>
+        <a className="gaf-hero-anker" href="#kapital"><span>{S.kapital.titel}</span><Zeichen art="pfeilRunter" groesse={16} /></a>
       </ProduktGlas3D>
 
       <main className="gaf-inhalt">
-        {/* 3 — Ihre Ziele */}
+        {/* 3 — Ihr Kapital: direkt nach dem Hero, der stärkste Block (Runde 3, Punkt 1) */}
+        <section className="gaf-abschnitt gaf-abschnitt-kapital" id="kapital" aria-label={S.kapital.titel}>
+          <div className="gaf-rahmen">
+            <Kopf auge={S.kapital.titel} titel={S.kapital.sub} />
+            <KapitalTafel k={S.kapital} />
+          </div>
+        </section>
+
+        {/* 4 — Ihre Ziele */}
         <section className="gaf-abschnitt" id="ziele" aria-label={S.ziele.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={S.ziele.titel} sub={S.ziele.sub} />
@@ -174,16 +200,15 @@ export default function BusinessAngebotFirma({ sicht, token, onAngenommen, onNeu
           </div>
         </section>
 
-        {/* 4 — Zeitstrahl */}
+        {/* 5 — Zeitstrahl */}
         <section className="gaf-abschnitt gaf-abschnitt-weg" id="weg" aria-label={S.phasen.titel}>
           <div className="gaf-rahmen">
-            {/* „Ihr Weg in die Welt“ stand eben groß im Licht des Glases — hier als Auge, die Etappen tragen die Überschrift. */}
             <Kopf auge={S.phasen.titel} titel={S.phasen.sub} />
             <PhasenZeitstrahl liste={S.phasen.liste} />
           </div>
         </section>
 
-        {/* 5 — Was Sie bekommen */}
+        {/* 6 — Was Sie bekommen */}
         <section className="gaf-abschnitt" id="leistungen" aria-label={S.leistungen.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={S.leistungen.titel} sub={S.leistungen.sub} />
@@ -191,35 +216,34 @@ export default function BusinessAngebotFirma({ sicht, token, onAngenommen, onNeu
           </div>
         </section>
 
-        {/* 6 — Ihr Kapital */}
-        <section className="gaf-abschnitt gaf-abschnitt-kapital" id="kapital" aria-label={S.kapital.titel}>
-          <div className="gaf-rahmen">
-            <Kopf titel={S.kapital.titel} sub={S.kapital.sub} />
-            <KapitalTafel k={S.kapital} />
-          </div>
-        </section>
+        {/* Höchstens EIN Stimmungsbild zwischen zwei Abschnitten (Runde 2, Punkt 5) — mit KI-Hinweis am Bild. */}
+        {S.stimmung && (
+          <section className="gaf-stimmung" aria-hidden="true">
+            <Auf className="gaf-rahmen"><Bild bild={S.stimmung} className="gaf-stimmung-bild" groessen="(max-width: 1240px) 100vw, 1180px" /></Auf>
+          </section>
+        )}
 
-        {/* 7 — Ihr Prüfbericht: die eine dunkle Navy-Bühne */}
-        <ComplianceBuehne c={sicht.compliance} texte={S.pruefbericht} pdf={sicht.pruefberichtPdf} sonderfreigabe={S.kapital.sonderfreigabe.text.trim() ? S.kapital.sonderfreigabe : null} />
-
-        {/* 8 — Ihre Investition */}
+        {/* 7 — Unsere Vereinbarung (bis Runde 2 „Ihre Investition“): erst, was sie bekommt, dann die Konditionen als Zeilen */}
         <section className="gaf-abschnitt" id="investition" aria-label={I.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={I.titel} sub={I.sub} />
-            <InvestitionsPosten posten={I.posten} />
-            <Auf><UmsatzRechner r={I.rechner} /></Auf>
-            {/* Was die Kundin direkt an Dritte zahlt, steht nur im Vertrag (Ziffer 10 Absatz 4) — Justin, 07.10.2026. */}
+            <InvestitionsPosten inv={I} />
+            {/* Was die Kundin direkt an Dritte zahlt, steht nur im Vertrag (Ziffer 10 Absatz 6) — Justin, 07.10.2026. */}
             <Auf className="gaf-feinhinweise">
               {I.fein.map((f) => <p key={f}>{f}</p>)}
             </Auf>
           </div>
         </section>
 
+        {/* 8 — Ihr Prüfbericht: die eine dunkle Navy-Bühne (Details eingeklappt) */}
+        <ComplianceBuehne c={sicht.compliance} texte={S.pruefbericht} pdf={sicht.pruefberichtPdf} sonderfreigabe={S.kapital.sonderfreigabe.text.trim() ? S.kapital.sonderfreigabe : null} />
+
+
         {/* 9 — Fragen & Antworten */}
         <section className="gaf-abschnitt" id="fragen" aria-label={S.fragen.titel}>
           <div className="gaf-rahmen gaf-rahmen-schmal">
             <Kopf titel={S.fragen.titel} sub={S.fragen.sub} />
-            <FragenAntworten liste={S.fragen.liste} />
+            <FragenAntworten liste={S.fragen.liste} sichtbar={S.fragen.sichtbar} />
           </div>
         </section>
 
@@ -231,7 +255,7 @@ export default function BusinessAngebotFirma({ sicht, token, onAngenommen, onNeu
                 {ohneBild
                   ? <span className="gaf-person-mono" aria-hidden="true">{P.name.split(/\s+/).map((t) => t[0]).join("").slice(0, 2)}</span>
                   : <img src={P.portrait} alt={P.name} width={320} height={320} loading="lazy" decoding="async" onError={() => setOhneBild(true)} />}
-                {!ohneBild && P.portraitHinweis && <span className="gaf-ki gaf-ki-rund">{P.portraitHinweis}</span>}
+                {/* Runde 2, Punkt 9: kein KI-Hinweis unter dem Porträt — er steht einmal dezent im Bildnachweis am Seitenende. */}
               </div>
               <div className="gaf-person-text">
                 <p className="gaf-auge">{S.ansprechpartner.titel}</p>
@@ -244,24 +268,25 @@ export default function BusinessAngebotFirma({ sicht, token, onAngenommen, onNeu
                 </div>
               </div>
             </Auf>
-            {/* Die Leitung aus ANGEBOT_ANSPRECHPARTNER (Justin 07.10.2026: nur Florentine Lombardi und Daniel Stripling). */}
-            <div className="gaf-team" data-fiaon="firma-team">
-              <Kopf titel={S.team.titel} sub={S.team.sub} />
-              <ul className="gaf-team-raster">
-                {S.team.personen.map((t, i) => (
-                  <Auf als="li" key={t.name} verz={(i % 2) * 90} className="gaf-team-person">
-                    <span className="gaf-team-bild">
-                      {ohneTeamBild[t.name]
-                        ? <span className="gaf-team-mono" aria-hidden="true">{t.initialen}</span>
-                        : <img src={t.portrait} alt={t.name} width={240} height={240} loading="lazy" decoding="async" onError={() => setOhneTeamBild((o) => ({ ...o, [t.name]: true }))} />}
-                    </span>
-                    <span className="gaf-team-name">{t.name}</span>
-                    <span className="gaf-team-rolle">{t.rolle}</span>
-                    {t.portraitHinweis && !ohneTeamBild[t.name] && <span className="gaf-team-ki">{t.portraitHinweis}</span>}
-                  </Auf>
-                ))}
-              </ul>
-            </div>
+            {/* Runde 2, Punkt 9: das Team aus den Angebotsdaten (inhalt.team) — ein Foto nur, wenn ein echtes geliefert ist, sonst Monogramm. */}
+            {S.team.personen.length > 0 && (
+              <div className="gaf-team" data-fiaon="firma-team">
+                <Kopf titel={S.team.titel} sub={S.team.sub} />
+                <ul className="gaf-team-raster">
+                  {S.team.personen.map((t, i) => (
+                    <Auf als="li" key={t.name} verz={(i % 4) * 70} className="gaf-team-person">
+                      <span className="gaf-team-bild">
+                        {t.foto && !ohneTeamBild[t.name]
+                          ? <img src={t.foto} alt={t.name} width={240} height={240} loading="lazy" decoding="async" onError={() => setOhneTeamBild((o) => ({ ...o, [t.name]: true }))} />
+                          : <span className="gaf-team-mono" aria-hidden="true">{t.initialen}</span>}
+                      </span>
+                      <span className="gaf-team-name">{t.name}</span>
+                      <span className="gaf-team-rolle">{t.rolle}</span>
+                    </Auf>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
 
@@ -269,7 +294,7 @@ export default function BusinessAngebotFirma({ sicht, token, onAngenommen, onNeu
         <section className="gaf-abschnitt" id="vertrag" aria-label={S.vertrag.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={S.vertrag.titel} sub={S.vertrag.sub} />
-            <VertragsLeser v={S.vertrag} html={sicht.html} pdfs={[
+            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: sicht.annahme.knopf, onAnnehmen: zurAnnahme }} pdfs={[
               { titel: WORTE.vertragPdf, href: sicht.vertragPdf },
               { titel: WORTE.anlage1, href: sicht.anlage1Pdf },
               { titel: WORTE.anlage2, href: sicht.pruefberichtPdf },

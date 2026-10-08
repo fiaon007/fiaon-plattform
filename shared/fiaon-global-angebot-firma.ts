@@ -9,17 +9,19 @@
 // Die Schnittstelle Server ↔ Seite steht in shared/fiaon-global-angebot-firma-typen.ts.
 //
 // ── DAS MODELL (Justin, 07.10.2026 abends) ────────────────────────────────
-//   Gründung einmalig bei Auftrag · Plattform & Team monatlich im Voraus ab dem Starttag,
-//   Mindestlaufzeit vierundzwanzig Monate, Verlängerung um je zwölf Monate, Kündigung drei Monate
-//   vor Ablauf · Umsatzbeteiligung auf den Netto-Umsatz über der Jahresschwelle (erstes Jahr anteilig,
-//   quartalsweise mit Jahresabgleich) · Verkaufsbeteiligung bei Verkauf, auch vierundzwanzig Monate
-//   nach dem Ende · erste Finanzierungsrunde der US-Gesellschaft GARANTIERT binnen drei Monaten nach
-//   erfüllten Bedingungen der Bürgschaft, sonst Erstattung der Gründung · Bürgschaft der Schwarzott
-//   Global LLC ohne gesondertes Entgelt, mit aufschiebenden Bedingungen und Sonderfreigabe-Vermerk ·
-//   englisches Recht, Gerichtsstand London, Unternehmergeschäft ohne Widerruf, Reverse Charge.
+//   Gründungskosten einmalig bei Auftrag · gemeinsames Wachstumsbudget (Runde 2, Justin 08.10.2026): die
+//   Kundin trägt die Hälfte eines Monatsbudgets, FIAON die andere — monatlich im Voraus ab dem Tag „Shop live“
+//   (Starttag, setzt die Leitung im Chefbüro), Mindestlaufzeit vierundzwanzig Monate ab dann, Verlängerung um je
+//   zwölf Monate, Kündigung drei Monate vor Ablauf · Umsatzbeteiligung auf den Netto-Umsatz über der Jahresschwelle
+//   (erstes Jahr anteilig, quartalsweise mit Jahresabgleich) · Verkaufsbeteiligung bei Verkauf, auch vierundzwanzig
+//   Monate nach dem Ende · erste Finanzierungsrunde der US-Gesellschaft GARANTIERT binnen drei Monaten ab der
+//   Annahme (Runde 2; vorher ab erfüllten Bedingungen), sonst Erstattung der Gründungskosten; fehlen die Unterlagen
+//   der Bürgschaft trotz Aufforderung, ruht die Frist · Bürgschaft der Schwarzott Global LLC ohne gesondertes
+//   Entgelt, mit aufschiebenden Bedingungen und Sonderfreigabe-Vermerk · englisches Recht, Gerichtsstand London,
+//   Unternehmergeschäft ohne Widerruf, Reverse Charge · Annahme nur mit Unterschrift (gezeichnet oder getippt).
 //   Justin (07.10.2026): Die erste Runde ist kein Ziel — deshalb sagt die Seite „garantiert“, nie „Ziel“.
 //   Gegenprüfung (07.10.2026): Die Seite sagt nie mehr als Ziffer 7 — „vertraglich garantiert nach Ziffer 7“,
-//   mit der Frist ab den erfüllten Bedingungen und der Erstattung der Gründung als Folge; keine Wahrscheinlichkeit
+//   mit der Frist (seit Runde 2: ab der Annahme) und der Erstattung der Gründung als Folge; keine Wahrscheinlichkeit
 //   („sehr sicher“), kein „sobald“, und über Finanzierung und Konditionen entscheidet das Institut.
 //   Alle Sätze mit „garant…“ kommen aus firmaGarantie() und FIRMA_GARANTIE_FEST (eine Quelle, Prüfstand
 //   scripts/pruef-angebot-firma.ts).
@@ -48,7 +50,7 @@ import {
   FIRMA_FASSUNG_PRAEFIX, istFirmenFassung,
   type FirmaKunde, type FirmaLand, type BildRef, type GlasKonfig, type FirmaPhase, type FirmaLeistung, type FirmaInvestPosten,
   type FirmaRechner, type FirmaFrage, type FirmaSeite, type FirmaSonderfreigabe, type Ampel, type ComplianceKundenfassung,
-  type ComplianceBereich, type FirmaAnsprechpartner, type FirmaAnnahmeTexte, type FirmaBestellUebersicht, type FirmaTeam,
+  type ComplianceBereich, type FirmaAnsprechpartner, type FirmaAnnahmeTexte, type FirmaBestellUebersicht, type FirmaTeam, type FirmaBudget,
 } from "./fiaon-global-angebot-firma-typen";
 
 export { FIRMA_FASSUNG_PRAEFIX, istFirmenFassung };
@@ -66,8 +68,47 @@ export { FIRMA_FASSUNG_PRAEFIX, istFirmenFassung };
  * Bürgschaft (Ziffer 8 Absatz 3, Anlage 1); zahlt ein Institut in Teilbeträgen aus, bleiben Garantie und Bürgschaft unberührt.
  * Die Freigabe des Anwalts hängt an der Prüfsumme (firmaVersandSperre), nicht am Namen der Fassung.
  */
-export const FIRMA_FASSUNG = `${FIRMA_FASSUNG_PRAEFIX}2026-10-07-B`;
-export const FIRMA_FASSUNGEN = [`${FIRMA_FASSUNG_PRAEFIX}2026-10-07`, FIRMA_FASSUNG] as const;
+/*
+ * Fassung C (Justins Änderungen Runde 2, 08.10.2026 — die Live-Seite trug B, noch kein Angebot ist angenommen):
+ *   · Garantie: die Frist der ersten Runde läuft ab der Annahme (Ziffer 7 Absatz 1 und 3); Empfängerin ist die US-Gesellschaft der
+ *     Auftraggeberin; fehlen die Unterlagen der Bürgschaft nach Aufforderung, ruht sie (Ziffer 7 Absatz 4, bestehende Regel).
+ *   · Statt der Monatspauschale „Plattform & Team“ ein gemeinsames Wachstumsbudget: die Auftraggeberin trägt die Hälfte, FIAON die
+ *     andere; es beginnt am Tag „Shop live“ (Starttag), mit Aufstellung der Planwerte (Ziffer 10 Absatz 2 bis 4); Mehrbudget über das
+ *     gemeinsame Budget hinaus nach Absprache (Ziffer 10 Absatz 6). Ziffern 3, 5, 6, 13 und 14 verweisen darauf.
+ *   · Annahme mit Unterschrift (gezeichnet oder getippt) — der Annahmeblock nennt sie; keine Startwahl mehr.
+ *   Anlage 1 bleibt Wort für Wort (Fassung D): Ihr Wortlaut hängt nicht an der Frist der Garantie.
+ */
+/*
+ * Fassung D (Justins Änderungen Runde 3, 08.10.2026 — Endfassung zum Versand; die Live-Seite trug C, noch kein Angebot ist angenommen):
+ *   · Ziffer 7: Garantiert ist die AUSZAHLUNG der ersten Runde an die US-Gesellschaft innerhalb der Frist ab der Annahme — eine
+ *     verbindliche Zusage eines Instituts genügt nicht mehr (Absatz 1, 2 und 5). Ruhen bei fehlender Mitwirkung und Folge bleiben.
+ *   · Ziffer 10 Absatz 2: Der Starttag (Beginn des Wachstumsbudgets) ist der Tag „Shop live“, spätestens aber der Tag sechs Monate
+ *     nach der Annahme, es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat (budgetSpaetestensMonate).
+ *   Anlage 1 bleibt Wort für Wort (Fassung D der Anlage, Prüfsumme gleich): Sie verweist nur auf Ziffer 7 und Ziffer 8 Absatz 5/6.
+ */
+export const FIRMA_FASSUNG = `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-D`;
+export const FIRMA_FASSUNGEN = [`${FIRMA_FASSUNG_PRAEFIX}2026-10-07`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-07-B`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-C`, FIRMA_FASSUNG] as const;
+/**
+ * Fassung D: Zählt für die Garantie nur die Auszahlung (keine verbindliche Zusage)? Und gilt der späteste Starttag des Wachstumsbudgets
+ * (Ziffer 10 Absatz 2)? Ein angenommenes Angebot behält seine Fassung; ein offenes zeigt immer die aktuelle.
+ */
+export function garantieNurAuszahlung(fassung: string | null | undefined): boolean {
+  const f = String(fassung ?? "");
+  return f.startsWith(FIRMA_FASSUNG_PRAEFIX) && f >= `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-D`;
+}
+export const budgetSpaetestensGilt = garantieNurAuszahlung;
+/** Der späteste Starttag des Wachstumsbudgets (Ziffer 10 Absatz 2, Fassung D): Tag der Annahme + budgetSpaetestensMonate, monatsende-sicher. */
+export function budgetSpaetesterStart(annahmeTag: string, par: Pick<FirmaParameter, "budgetSpaetestensMonate">): string {
+  return plusMonate(annahmeTag, par.budgetSpaetestensMonate);
+}
+/**
+ * Läuft die Frist der Garantie ab der Annahme (Fassung C) — oder, wie in den Fassungen bis B, ab dem Tag der erfüllten Bedingungen?
+ * Ein angenommenes Angebot behält seine Fassung; ein offenes zeigt immer die aktuelle (also C).
+ */
+export function garantieAbAnnahme(fassung: string | null | undefined): boolean {
+  const f = String(fassung ?? "");
+  return f.startsWith(FIRMA_FASSUNG_PRAEFIX) && f >= `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-C`;
+}
 /**
  * Anlage 1 (Bürgschaftszusage Firma) hat ihren EIGENEN Fassungsstand — ihre Prüfsumme steht auf dem
  * eigenhändig unterschriebenen Original. Ändert sich ihr Wortlaut, hier eine neue Kennung setzen.
@@ -87,6 +128,11 @@ export const FIRMA_MARKE = "Firmenangebot (07.10.2026)";
  * ANGEBOT_KNOPF („Auftrag zahlungspflichtig erteilen“) unverändert.
  */
 export const FIRMA_KNOPF = "Zusammenarbeit und Kapital verbindlich annehmen";
+/**
+ * Die Überschrift über den Posten (Runde 2, Punkt 6: „Ihre Investition“ klang nach Ausgabe). Justins eigener Vorschlag war
+ * „Ihre Erfüllungen“ — will er ihn, hier tauschen: FIRMA_VEREINBARUNG_TITEL = "Ihre Erfüllungen".
+ */
+export const FIRMA_VEREINBARUNG_TITEL = "Unsere Vereinbarung";
 /** Wie die Bestellzeilen heißen — Rechnung, Zahlungsseite, Liste. */
 export const FIRMA_PAKETNAME = "FIAON Global – Firmenangebot";
 /** „Starten ab“: frühestens morgen, spätestens in neunzig Tagen (Berlin). */
@@ -121,10 +167,35 @@ export interface FirmaInhalt {
    * vor den allgemeinen (FIRMA_BEDINGUNGEN). Kundendaten: nur in der privaten Datei und in der Datenbank, nie im Code.
    */
   bedingungen?: FirmaBedingung[];
+  /**
+   * „Ihr Team bei FIAON Global“ (Runde 2, Punkt 9) — Name, Rolle, optional foto. Namen NUR hier (private Datei → Datenbank), nie
+   * im Code. foto: nur ein ECHTES Foto der Person — ein Bildname am Angebot („team-name.webp“, hinter dem Link) oder „haus:<kürzel>“
+   * für ein echtes Porträt des Hauses (shared/fiaon-portraits.ts; ein KI-Porträt wird abgewiesen). Sonst ein Monogramm.
+   */
+  team?: FirmaTeamEintrag[];
+  /** Die Aufstellung des Wachstumsbudgets, falls sie für dieses Angebot anders ist (Summe = budgetGesamtCents). Vorgabe: FIRMA_BUDGET_POSTEN. */
+  budgetPosten?: FirmaBudgetPosten[];
 }
+/**
+ * Runde 3 (Punkt 6): bestaetigt = false blendet die Person aus, bis Justin bestätigt, dass sie echt ist und am Mandat mitwirkt
+ * (dann in der privaten Datei auf true stellen, ggf. Foto liefern). Fehlt das Feld, gilt die Person als bestätigt.
+ */
+export interface FirmaTeamEintrag { name: string; rolle: string; foto?: string; bestaetigt?: boolean }
 export interface FirmaParameter {
   startCents: number;
+  /** Seit Runde 2: der ANTEIL der Auftraggeberin am gemeinsamen Wachstumsbudget je Monat (die Hälfte von budgetGesamtCents). */
   monatCents: number;
+  /** Das gemeinsame Wachstumsbudget je Monat (Runde 2: 4.000 €) — FIAON trägt budgetGesamtCents − monatCents. */
+  budgetGesamtCents: number;
+  /** Wann das Budget beginnt: am Tag „Shop live“ (Runde 2). Ein anderer Wert ist nicht vorgesehen (firmaParameterFehler). */
+  budgetStart: "shop-live";
+  /** Ab wann die Frist der Garantie läuft: ab der Annahme (Runde 2). Ein anderer Wert ist nicht vorgesehen. */
+  garantieAb: "annahme";
+  /**
+   * Spätester Beginn des Wachstumsbudgets (Runde 3, Punkt 5): so viele Monate nach der Annahme, es sei denn, die Verzögerung
+   * beruht auf Umständen, die FIAON zu vertreten hat (Ziffer 10 Absatz 2). Vorgabe sechs.
+   */
+  budgetSpaetestensMonate: number;
   mindestMonate: number;
   verlaengerungMonate: number;
   kuendigungMonate: number;
@@ -144,7 +215,11 @@ export interface FirmaParameter {
 }
 export const FIRMA_VORGABEN: FirmaParameter = {
   startCents: 690000,
-  monatCents: 199000,
+  monatCents: 200000,
+  budgetGesamtCents: 400000,
+  budgetStart: "shop-live",
+  garantieAb: "annahme",
+  budgetSpaetestensMonate: 6,
   mindestMonate: 24,
   verlaengerungMonate: 12,
   kuendigungMonate: 3,
@@ -203,10 +278,15 @@ export type FirmaKuendigungArt = "ordentlich" | "ausserordentlich";
 export function kuendigungSperrtGarantie(k: FirmaFreigaben["kuendigung"], fristEnde: string | null): boolean {
   return !!k && k.art === "ausserordentlich" && k.garantieEntfaellt === true && !!fristEnde && k.zum < fristEnde;
 }
-/** Was bei der Annahme gewählt wurde. startAm null = sofort (Starttag = Tag der Annahme). */
+/** Was bei der Annahme gewählt wurde (nur Fassungen bis B). startAm null = sofort (Starttag = Tag der Annahme). */
 export interface FirmaWahl { startAm: string | null }
-/** Der Vermerk unter dem Vertrag nach dem Klick — steht NICHT in der Prüfsumme. */
-export interface FirmaAnnahmeVermerk { am: Date; ip: string; userAgent: string; hash: string; starttag: string; sofort: boolean }
+/** Die gespeicherte Unterschrift (Runde 2, Punkt 11): Art, getippter Name, Bild (data:image/png;base64,…), Zeit und IP. */
+export interface FirmaUnterschriftVermerk { art: "gezeichnet" | "getippt"; name?: string | null; png?: string | null; am?: string; ip?: string }
+/**
+ * Der Vermerk unter dem Vertrag nach dem Klick — steht NICHT in der Prüfsumme. starttag/sofort nur bei Fassungen bis B (Startwahl
+ * bei der Annahme); seit Fassung C setzt die Leitung den Starttag („Shop live“) später. unterschrift seit Fassung C Pflicht.
+ */
+export interface FirmaAnnahmeVermerk { am: Date; ip: string; userAgent: string; hash: string; starttag?: string | null; sofort?: boolean; unterschrift?: FirmaUnterschriftVermerk | null }
 
 export const FIRMA_LAND_NAME: Record<FirmaLand, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" };
 const REGISTER_NAME: Record<FirmaLand, string> = { DE: "Handelsregister", AT: "Firmenbuch", CH: "Handelsregister" };
@@ -275,7 +355,7 @@ export function tageZwischen(a: string, b: string): number {
 // ═══════════════════════════════════════════════════════════════════════════
 // RECHENREGELN (rein — Server, Chefbüro und Prüfstand rechnen damit)
 // ═══════════════════════════════════════════════════════════════════════════
-/** Fälligkeit der Monatspauschale für Monat k (k ≥ 1): Starttag + (k − 1) Monate, monatsende-sicher. */
+/** Fälligkeit des Monatsanteils für Monat k (k ≥ 1): Starttag („Shop live“) + (k − 1) Monate, monatsende-sicher. */
 export function monatFaelligAm(starttag: string, k: number): string { return plusMonate(starttag, k - 1); }
 /** Der Zeitraum, den Monat k abdeckt: „07.10.2026–06.11.2026“. */
 export function monatZeitraum(starttag: string, k: number): { von: string; bis: string; text: string } {
@@ -362,6 +442,8 @@ export function rechnerBeteiligung(umsatzCents: number, schwelleCents: number, s
 // ═══════════════════════════════════════════════════════════════════════════
 // PARAMETER UND PFLICHTFELDER PRÜFEN
 // ═══════════════════════════════════════════════════════════════════════════
+/** Die Parameter, die Text sind (nicht Zahl) — mit ihrem einzigen erlaubten Wert in Fassung C. */
+const FIRMA_TEXT_PARAMETER = { budgetStart: "shop-live", garantieAb: "annahme" } as const;
 export function firmaParameterAus(roh: any, basis: FirmaParameter = FIRMA_VORGABEN): FirmaParameter {
   const zahl = (v: unknown, alt: number) => (v === undefined || v === null || v === "" ? alt : Math.round(Number(v)));
   const r = roh && typeof roh === "object" ? roh : {};
@@ -369,6 +451,7 @@ export function firmaParameterAus(roh: any, basis: FirmaParameter = FIRMA_VORGAB
   const out: any = { inhalt };
   for (const k of Object.keys(FIRMA_VORGABEN) as (keyof FirmaParameter)[]) {
     if (k === "inhalt") continue;
+    if (k in FIRMA_TEXT_PARAMETER) { out[k] = r[k] === undefined || r[k] === null || r[k] === "" ? basis[k] : String(r[k]); continue; }
     out[k] = zahl(r[k], basis[k] as number);
   }
   return out as FirmaParameter;
@@ -378,8 +461,12 @@ export function firmaParameterFehler(p: FirmaParameter): string | null {
   const ganz = (n: unknown) => Number.isInteger(n);
   const zw = (n: number) => ganz(n) && n >= 1 && n <= 99;
   if (!ganz(p.startCents) || p.startCents < 10000 || p.startCents > 10_000_000) return "Gründung: zwischen 100 € und 100.000 €.";
-  if (!ganz(p.monatCents) || p.monatCents < 10000 || p.monatCents > 5_000_000) return "Monatspauschale: zwischen 100 € und 50.000 €.";
+  if (!ganz(p.monatCents) || p.monatCents < 10000 || p.monatCents > 5_000_000) return "Anteil am Wachstumsbudget: zwischen 100 € und 50.000 € im Monat.";
+  if (!ganz(p.budgetGesamtCents) || p.budgetGesamtCents !== p.monatCents * 2) return "Wachstumsbudget: budgetGesamtCents muss genau das Doppelte des Anteils (monatCents) sein — die Auftraggeberin trägt die Hälfte, FIAON die andere.";
+  if (p.budgetStart !== FIRMA_TEXT_PARAMETER.budgetStart) return "budgetStart: nur „shop-live“ (das Budget beginnt am Tag „Shop live“).";
+  if (p.garantieAb !== FIRMA_TEXT_PARAMETER.garantieAb) return "garantieAb: nur „annahme“ (die Frist der Garantie läuft ab der Annahme).";
   if (!zw(p.mindestMonate) || !zw(p.verlaengerungMonate) || !zw(p.kuendigungMonate)) return "Laufzeit, Verlängerung und Kündigung: ein bis neunundneunzig Monate.";
+  if (!zw(p.budgetSpaetestensMonate) || p.budgetSpaetestensMonate > 24) return "Spätester Beginn des Wachstumsbudgets (budgetSpaetestensMonate): ein bis vierundzwanzig Monate nach der Annahme.";
   if (p.kuendigungMonate >= p.mindestMonate) return "Die Kündigungsfrist muss kürzer sein als die Mindestlaufzeit.";
   if (!ganz(p.umsatzSatzProzent) || p.umsatzSatzProzent < 1 || p.umsatzSatzProzent > 50) return "Umsatzbeteiligung: ein bis fünfzig Prozent.";
   if (!ganz(p.umsatzSchwelleCents) || p.umsatzSchwelleCents < 0 || p.umsatzSchwelleCents > 100_000_000_000) return "Umsatzschwelle ungültig.";
@@ -391,6 +478,17 @@ export function firmaParameterFehler(p: FirmaParameter): string | null {
   const bed = p.inhalt?.bedingungen;
   if (bed !== undefined && (!Array.isArray(bed) || firmaBedingungenAusInhalt(bed).length !== bed.length)) {
     return "Bedingungen der Bürgschaft (inhalt.bedingungen): jede mit schluessel (klein, ohne Leerzeichen), vertrag, titel und warum — Texte, nicht leer, jeder Schlüssel einmal.";
+  }
+  const bp = p.inhalt?.budgetPosten;
+  if (bp !== undefined) {
+    const gut = Array.isArray(bp) && bp.length > 0 && bp.every((x) => x && typeof x.titel === "string" && x.titel.trim() && typeof x.schluessel === "string" && Number.isInteger(x.cents) && x.cents > 0);
+    if (!gut) return "Wachstumsbudget (inhalt.budgetPosten): jeder Posten mit schluessel, titel und cents (ganze Zahl über null).";
+  }
+  const summe = firmaBudgetPosten(p).reduce((a, x) => a + x.cents, 0);
+  if (summe !== p.budgetGesamtCents) return `Wachstumsbudget: Die Aufstellung ergibt ${firmaEurKurz(summe)}, das Budget ist ${firmaEurKurz(p.budgetGesamtCents)} — beides muss gleich sein.`;
+  const team = p.inhalt?.team;
+  if (team !== undefined && (!Array.isArray(team) || team.some((t) => !t || typeof t.name !== "string" || !t.name.trim() || typeof t.rolle !== "string" || !t.rolle.trim() || (t.foto !== undefined && !firmaTeamFotoOk(t.foto)) || (t.bestaetigt !== undefined && typeof t.bestaetigt !== "boolean")))) {
+    return "Team (inhalt.team): jede Person mit name und rolle; foto nur als Bildname am Angebot („team-x.webp“) oder „haus:<kürzel>“ eines ECHTEN Porträts (kein KI-Porträt); bestaetigt nur true oder false.";
   }
   const falsch = firmaBildVerweise(p.inhalt).filter((n) => !FIRMA_BILD_NAME.test(n));
   if (falsch.length) return `Bilder: nur Bildnamen wie „szene-a-1920.webp“ (klein, ohne Pfad) — die Bilder liegen in der Datenbank am Angebot. Nicht erlaubt: ${falsch.slice(0, 3).join(", ")}`;
@@ -466,13 +564,25 @@ export function firmaBildPfad(token: string, name: string): string {
 function srcsetNamen(srcset: unknown): string[] {
   return String(srcset ?? "").split(",").map((t) => t.trim()).filter(Boolean).map((t) => t.split(/\s+/)[0]);
 }
-/** Alle Bildnamen, auf die die Angebotsdaten zeigen (Szenen, Produktfoto, Etikett) — für Import und Prüfung. */
+/** Alle Bildnamen, auf die die Angebotsdaten zeigen (Szenen, Produktfoto, Etikett, echte Teamfotos) — für Import und Prüfung. */
 export function firmaBildVerweise(inhalt: FirmaInhalt | null | undefined): string[] {
   const namen: string[] = [];
   const ref = (b: unknown) => { if (b && typeof b === "object") { const r = b as BildRef; if (r.src) namen.push(String(r.src)); namen.push(...srcsetNamen(r.srcset)); } };
   for (const b of Object.values(inhalt?.bilder ?? {})) ref(b);
   if (inhalt?.glas) { if (inhalt.glas.etikett) namen.push(String(inhalt.glas.etikett)); ref(inhalt.glas.foto); }
+  for (const t of Array.isArray(inhalt?.team) ? inhalt!.team! : []) if (t?.foto && !String(t.foto).startsWith(TEAM_HAUS)) namen.push(String(t.foto));
   return Array.from(new Set(namen));
+}
+/** Ein Teamfoto aus dem Haus: „haus:<kürzel>“ (shared/fiaon-portraits.ts). */
+const TEAM_HAUS = "haus:";
+/**
+ * Ist das foto eines Teameintrags zulässig? Ein Bildname am Angebot (echtes Foto, vom Import eingespielt) oder „haus:<kürzel>“ für
+ * ein echtes Porträt des Hauses. Ein KI-Porträt des Hauses (portraitMitKi) ist hier NICHT zulässig (Justin 08.10.2026, Punkt 9).
+ */
+export function firmaTeamFotoOk(foto: unknown): boolean {
+  const f = String(foto ?? "");
+  if (f.startsWith(TEAM_HAUS)) { const k = f.slice(TEAM_HAUS.length); return /^[a-z][a-z0-9-]{1,30}$/.test(k) && !portraitMitKi(k); }
+  return FIRMA_BILD_NAME.test(f);
 }
 function bildMitLink(b: BildRef | null | undefined, token: string): BildRef | undefined {
   if (!b || typeof b !== "object" || !FIRMA_BILD_NAME.test(String(b.src ?? ""))) return undefined;
@@ -497,6 +607,15 @@ export function firmaInhaltMitBildLinks(inhalt: FirmaInhalt | null | undefined, 
   if (i.glas) {
     const foto = bildMitLink(i.glas.foto, token);
     i.glas = foto && FIRMA_BILD_NAME.test(String(i.glas.etikett ?? "")) ? { ...i.glas, etikett: firmaBildPfad(token, i.glas.etikett), foto } : null;
+  }
+  // Teamfotos: ein Bildname geht hinter den Link; „haus:<kürzel>“ bleibt (firmaTeam macht daraus das echte Porträt des Hauses).
+  if (Array.isArray(i.team)) {
+    i.team = i.team.map((t) => {
+      const f = String(t?.foto ?? "");
+      if (!f || f.startsWith(TEAM_HAUS)) return t;
+      if (!FIRMA_BILD_NAME.test(f)) { const { foto: _weg, ...rest } = t; return rest; }
+      return { ...t, foto: firmaBildPfad(token, f) };
+    });
   }
   return i;
 }
@@ -538,53 +657,65 @@ export function firmaAnsprechpartner(par: Pick<FirmaParameter, "inhalt">): Firma
 // Jeder Satz mit „garant…“ steht hier (oder in FIRMA_GARANTIE_FEST). Der Prüfstand nimmt genau diese
 // Sätze vor der Wortwand heraus; jedes andere „garant…“ in Seite, Vertrag oder Anlage bleibt rot.
 // ═══════════════════════════════════════════════════════════════════════════
-export function firmaGarantie(par: Pick<FirmaParameter, "kapitalUsd" | "garantieMonate" | "startCents" | "erstattungTage" | "weitereRundenAbMonaten">) {
+export function firmaGarantie(par: Pick<FirmaParameter, "kapitalUsd" | "garantieMonate" | "startCents" | "erstattungTage" | "weitereRundenAbMonaten"> & { inhalt?: FirmaInhalt }) {
   const usd = firmaUsd(par.kapitalUsd);
+  const usdKurz = firmaUsdKurz(par.kapitalUsd);
   const frist = monatenWort(par.garantieMonate);
   const gruendung = firmaEur(par.startCents);
   const gruendungKurz = firmaEurKurz(par.startCents);
+  // Die Unterlagen der Bürgschaft (Ziffer 8 Absatz 4) — Titel aus den Angebotsdaten bzw. der allgemeinen Bedingung, nie fest im Code.
+  const unterlagen = firmaBedingungen({ inhalt: par.inhalt ?? {} }).map((b) => b.titel);
+  const unterlagenText = unterlagen.length ? unterlagen.join(" und ") : "die Unterlagen der Bürgschaft";
+  /**
+   * Justins Satz (Runde 2, 08.10.2026, Punkt 3) — wörtlich, ohne Verstärker. Er steht auf der Seite an erster Stelle (Hero und Kapital).
+   * Seit Fassung D (Runde 3, Punkt 4) sagt Ziffer 7 dasselbe: garantiert ist die Auszahlung — eine bloße Zusage genügt nicht.
+   */
+  const satz = `Vertraglich garantiert nach Ziffer 7: eine erste Runde über ${usdKurz} für Ihre Gesellschaft. Auszahlung innerhalb von ${frist} nach Annahme.`;
   return {
     // ── Vertrag (Vertragssprache) ──
     vertragTitel: "Erste Finanzierungsrunde und Garantie",
-    vertragGarantie: `FIAON garantiert der Auftraggeberin, dass die US-Gesellschaft innerhalb von ${frist} nach dem Tag der erfüllten Bedingungen (Ziffer 8 Absatz 5) eine erste Finanzierungsrunde über ${usd} erhält (erste Runde).`,
-    vertragErhalten: `Erhalten ist die erste Runde, wenn ein Institut der US-Gesellschaft Finanzierungsmittel von insgesamt mindestens ${usd} ausgezahlt oder in Textform verbindlich zugesagt hat, gleich ob in einem Betrag oder in Teilbeträgen. Beträge in anderer Währung werden zum Referenzkurs der Europäischen Zentralbank am Tag der Auszahlung oder Zusage umgerechnet. Institute sind Banken und gewerbliche Finanzierer, die nicht mit FIAON verbunden sind; die Bürgin nach Ziffer 8 ist kein Institut. Lehnt die Auftraggeberin oder die US-Gesellschaft eine ihr angebotene erste Runde ab, gilt die Garantie als erfüllt. Als angeboten gilt eine erste Runde nur, wenn ein Institut sie der US-Gesellschaft in Textform zu marktüblichen Bedingungen anbietet und dafür keine persönliche Haftung der Gesellschafter oder der Geschäftsführung der Auftraggeberin verlangt.`,
-    vertragBeginn: "Die Frist der Garantie beginnt mit dem Tag der erfüllten Bedingungen (Ziffer 8 Absatz 5). FIAON teilt der Auftraggeberin Beginn und Ende der Frist in Textform mit. Solange die Bedingungen nach Ziffer 8 Absatz 4 nicht erfüllt sind, beginnt die Frist nicht.",
-    vertragRuhen: `Die Frist ruht nur, solange die Auftraggeberin eine Mitwirkung nach Ziffer 15, die FIAON für die erste Runde in Textform mit einer Frist von mindestens ${tagenWort(FIRMA_AUFFORDERUNG_TAGE)} angefordert hat, nach Ablauf dieser Aufforderungsfrist schuldhaft nicht erbringt, und zwar vom Ablauf der Aufforderungsfrist an, bis die Mitwirkung erbracht ist; FIAON teilt das neue Fristende in Textform mit. Verzögerungen bei Instituten, Behörden, der Bürgin oder Partnern von FIAON lassen die Frist weiterlaufen.`,
-    vertragFolge: `Erhält die US-Gesellschaft die erste Runde nicht innerhalb der Frist, erstattet FIAON der Auftraggeberin die gezahlte Vergütung für die Gründung (${gruendung}) vollständig, ohne Abzug und ohne dass es einer Aufforderung bedarf, binnen ${tagenWort(par.erstattungTage)} nach Fristende auf das Konto, von dem gezahlt wurde. Diese Erstattung ist die abschließende Folge der Garantie: Weitergehende Ansprüche aus der Garantie, insbesondere auf Schadensersatz, entgangenen Gewinn oder Kosten einer anderen Finanzierung, bestehen nicht. Die übrigen Vereinbarungen dieses Vertrags bleiben unberührt.`,
+    // Fassung C: Frist ab der Annahme; Empfängerin ist die US-Gesellschaft der Auftraggeberin (Ziffer 1 Absatz 3).
+    // Fassung D (Runde 3, Punkt 4): garantiert ist die AUSZAHLUNG innerhalb der Frist — eine Zusage allein genügt nicht mehr.
+    vertragGarantie: `FIAON garantiert der Auftraggeberin, dass an die US-Gesellschaft der Auftraggeberin (Ziffer 1 Absatz 3) innerhalb von ${frist} nach dem Tag, an dem die Auftraggeberin diesen Vertrag angenommen hat (Tag der Annahme), eine erste Finanzierungsrunde über ${usd} ausgezahlt wird (erste Runde). Empfängerin der Auszahlung ist allein die US-Gesellschaft.`,
+    vertragErhalten: `Ausgezahlt ist die erste Runde, wenn ein Institut der US-Gesellschaft Finanzierungsmittel von insgesamt mindestens ${usd} ausgezahlt hat, gleich ob in einem Betrag oder in Teilbeträgen; eine Zusage allein genügt nicht. Beträge in anderer Währung werden zum Referenzkurs der Europäischen Zentralbank am Tag der jeweiligen Auszahlung umgerechnet. Institute sind Banken und gewerbliche Finanzierer, die nicht mit FIAON verbunden sind; die Bürgin nach Ziffer 8 ist kein Institut. Lehnt die Auftraggeberin oder die US-Gesellschaft eine ihr angebotene erste Runde ab, gilt die Garantie als erfüllt. Als angeboten gilt eine erste Runde nur, wenn ein Institut sie der US-Gesellschaft in Textform zu marktüblichen Bedingungen anbietet und dafür keine persönliche Haftung der Gesellschafter oder der Geschäftsführung der Auftraggeberin verlangt.`,
+    vertragBeginn: "Die Frist der Garantie beginnt mit dem Tag der Annahme; sie hängt nicht davon ab, wann die Bedingungen der Bürgschaft nach Ziffer 8 Absatz 4 erfüllt sind. FIAON teilt der Auftraggeberin Beginn und Ende der Frist in Textform mit.",
+    vertragRuhen: `Die Frist ruht nur, solange die Auftraggeberin eine Mitwirkung nach Ziffer 15 — insbesondere die Unterlagen für die Bedingungen nach Ziffer 8 Absatz 4 —, die FIAON für die erste Runde in Textform mit einer Frist von mindestens ${tagenWort(FIRMA_AUFFORDERUNG_TAGE)} angefordert hat, nach Ablauf dieser Aufforderungsfrist schuldhaft nicht erbringt, und zwar vom Ablauf der Aufforderungsfrist an, bis die Mitwirkung erbracht ist; FIAON teilt das neue Fristende in Textform mit. Verzögerungen bei Instituten, Behörden, der Bürgin oder Partnern von FIAON lassen die Frist weiterlaufen.`,
+    vertragFolge: `Wird die erste Runde nicht innerhalb der Frist an die US-Gesellschaft ausgezahlt, erstattet FIAON der Auftraggeberin die gezahlte Vergütung für die Gründung (${gruendung}) vollständig, ohne Abzug und ohne dass es einer Aufforderung bedarf, binnen ${tagenWort(par.erstattungTage)} nach Fristende auf das Konto, von dem gezahlt wurde. Diese Erstattung ist die abschließende Folge der Garantie: Weitergehende Ansprüche aus der Garantie, insbesondere auf Schadensersatz, entgangenen Gewinn oder Kosten einer anderen Finanzierung, bestehen nicht. Die übrigen Vereinbarungen dieses Vertrags bleiben unberührt.`,
     vertragWeitere: `Weitere Finanzierungsrunden sind frühestens ${monateWort(par.weitereRundenAbMonaten)} nach der ersten Runde möglich; jede braucht eine neue Freigabe der Bürgin. Für weitere Runden gilt die Garantie nach Absatz 1 nicht.`,
     vertragInstitut: "Den Finanzierungsvertrag schließt die US-Gesellschaft selbst mit dem Institut. FIAON ist keine Bank und kein Kreditgeber, nimmt keine Kundengelder entgegen und verfügt nicht über Konten der Auftraggeberin oder der US-Gesellschaft. FIAON bereitet die Unterlagen der ersten Runde vollständig vor und begleitet sie bis zur Auszahlung; die Garantie nach Absatz 1 gilt unabhängig davon, aus welchem Grund ein Institut einen Antrag ablehnt.",
     vertragHaftung: "Für Entscheidungen von Instituten über die erste Runde gilt allein die Garantie nach Ziffer 7 mit der Erstattung nach Ziffer 7 Absatz 5.",
     vertragMitwirkung: "Verzögert sich eine Mitwirkung, verschieben sich vereinbarte Termine entsprechend; für die Frist der Garantie gilt allein Ziffer 7 Absatz 4.",
     vertragKuendigung: "Endet dieser Vertrag vor dem Ende der Frist der Garantie durch eine Kündigung aus wichtigem Grund — durch die Auftraggeberin, ohne dass FIAON dafür einen wichtigen Grund gegeben hat, oder durch FIAON aus einem wichtigen Grund, den die Auftraggeberin zu vertreten hat —, entfällt die Garantie nach Ziffer 7. Eine ordentliche Kündigung nach Absatz 2 lässt die Garantie unberührt.",
     anlage1Bezug: "Für die erste Runde gilt die Garantie der FIAON LTD nach Ziffer 7 des Vertrags; diese Zusage selbst schuldet die Abgabe der Bürgschaft nach ihren Bedingungen.",
-    // ── Seite und Übersicht (Ansprache) ──
-    // Gegenprüfung 07.10.2026: nie mehr zusagen als Ziffer 7 — Frist ab den erfüllten Bedingungen, sonst Erstattung.
-    nutzenKapital: `Vertraglich garantiert nach Ziffer 7: eine erste Runde über ${firmaUsdKurz(par.kapitalUsd)} für Ihre US-Gesellschaft innerhalb von ${frist}, nachdem die Bedingungen der Bürgschaft erfüllt sind — sonst erstatten wir die Gründung`,
-    heroSiegel: `${usd} für Ihre US-Gesellschaft — vertraglich garantiert nach Ziffer 7: innerhalb von ${frist}, nachdem die Bedingungen der Bürgschaft erfüllt sind, sonst Erstattung der Gründung.`,
+    // ── Seite und Übersicht (Ansprache) — nie mehr als Ziffer 7: Frist ab Annahme, Ruhen bei fehlender Mitwirkung, sonst Erstattung ──
+    satz,
+    nutzenKapital: satz,
+    // Runde 3 (Punkt 2): Im Kapital steht kein Betrag der Gründungskosten — nur, dass sie erstattet werden. Satz 3 klappt auf.
     kapital: [
-      `Wir garantieren Ihnen im Vertrag (Ziffer 7), dass Ihre US-Gesellschaft eine erste Runde über ${usd} erhält — innerhalb von ${frist}, nachdem die Bedingungen der Bürgschaft erfüllt sind. Über die Finanzierung und ihre Konditionen entscheidet das Institut.`,
-      `Kommt die erste Runde nicht rechtzeitig, erstatten wir Ihnen die Gründung über ${gruendungKurz} vollständig. Das ist die Folge der Garantie; weitere Ansprüche daraus gibt es nicht.`,
-      "Lehnen Sie eine Runde ab, die Ihnen ein Institut schriftlich zu marktüblichen Bedingungen und ohne persönliche Haftung anbietet, gilt die Garantie als erfüllt. Bleibt eine Mitwirkung trotz schriftlicher Aufforderung aus, ruht die Frist — nie wegen Instituten, Behörden oder uns.",
+      satz,
+      "Kommt die Auszahlung nicht rechtzeitig, erstatten wir Ihnen die Gründungskosten vollständig — das ist die Folge der Garantie. Über die Konditionen der Finanzierung entscheidet das Institut.",
+      `Ihre Mitwirkung: ${unterlagenText}. Fehlen diese Unterlagen trotz schriftlicher Aufforderung mit mindestens ${tagenWort(FIRMA_AUFFORDERUNG_TAGE)} Zeit, ruht die Frist, bis sie da sind — nie wegen Instituten, Behörden oder uns. Lehnen Sie eine Runde ab, die Ihnen ein Institut schriftlich zu marktüblichen Bedingungen und ohne persönliche Haftung anbietet, gilt die Garantie als erfüllt.`,
     ],
-    leistungKapital: `Eine erste Runde über ${usd} für Ihre US-Gesellschaft — vertraglich garantiert nach Ziffer 7 innerhalb von ${frist}, nachdem die Bedingungen der Bürgschaft erfüllt sind, sonst erstatten wir die Gründung. Die Bürgin steht gegenüber dem Institut ein, wir bereiten alles vor und begleiten die Runde bis zur Auszahlung.`,
-    phaseKapital: `Sind die Bedingungen der Bürgschaft erfüllt, beginnt die Frist Ihrer Garantie nach Ziffer 7: eine erste Runde über ${usd} innerhalb von ${frist} — sonst erstatten wir die Gründung. Vorgesehen ist eine Auszahlung in einem Betrag.`,
-    investGruendung: "Und kommt die erste Runde nach erfüllten Bedingungen der Bürgschaft nicht rechtzeitig, erhalten Sie die Gründung zurück — so steht es in Ihrer Garantie.",
-    uebersicht: `Erste Runde über ${usd} für die US-Gesellschaft innerhalb von ${frist} nach erfüllten Bedingungen der Bürgschaft — garantiert; sonst Erstattung der Gründung (${gruendung})`,
-    annahmeUnterKnopf: `Die erste Runde garantieren wir innerhalb von ${frist} nach erfüllten Bedingungen der Bürgschaft — kommt sie nicht rechtzeitig, erhalten Sie die Gründung zurück.`,
+    leistungKapital: `Eine erste Runde über ${usdKurz} für Ihre US-Gesellschaft — die Bürgin steht dafür ein, wir begleiten sie bis zur Auszahlung.`,
+    phaseKapital: `Ab Ihrer Annahme läuft die Frist nach Ziffer 7: Auszahlung einer ersten Runde über ${usdKurz} an Ihre US-Gesellschaft innerhalb von ${frist}.`,
+    investGruendung: `Und wird die erste Runde nicht innerhalb von ${frist} nach Ihrer Annahme ausgezahlt, erhalten Sie die Gründungskosten zurück — so steht es in Ihrer Garantie nach Ziffer 7.`,
+    uebersicht: `Erste Runde über ${usd} für Ihre US-Gesellschaft — Auszahlung garantiert nach Ziffer 7 innerhalb von ${frist} nach Annahme; sonst Erstattung der Gründungskosten (${gruendung}). Fehlen die Unterlagen der Bürgschaft trotz Aufforderung, ruht die Frist.`,
+    annahmeUnterKnopf: `Mit Ihrer Annahme beginnt die Frist der Garantie nach Ziffer 7 — wird die erste Runde nicht innerhalb von ${frist} ausgezahlt, erhalten Sie die Gründungskosten zurück.`,
+    // Runde 3 (Punkt 3): sichtbare Antworten höchstens zwei Sätze.
     frageSicher: [
-      `Vertraglich garantiert nach Ziffer 7 — mit ihren Bedingungen: Sind die Bedingungen der Bürgschaft erfüllt, garantieren wir, dass Ihre US-Gesellschaft innerhalb von ${frist} eine erste Runde über ${usd} erhält. Über die Finanzierung und ihre Konditionen entscheidet das Institut; die Bürgin steht ihm gegenüber ein, und wir bereiten jeden Schritt vor.`,
-      `Kommt die Runde nicht rechtzeitig, erstatten wir Ihnen die Gründung über ${gruendungKurz} vollständig. Lehnen Sie eine Runde ab, die Ihnen ein Institut schriftlich zu marktüblichen Bedingungen und ohne persönliche Haftung anbietet, gilt die Garantie als erfüllt; bleibt eine Mitwirkung trotz Aufforderung aus, ruht die Frist.`,
+      `Vertraglich garantiert nach Ziffer 7: Ab Ihrer Annahme garantieren wir die Auszahlung einer ersten Runde über ${usd} an Ihre US-Gesellschaft innerhalb von ${frist} — die Bürgin steht dem Institut gegenüber ein. Kommt die Auszahlung nicht rechtzeitig, erstatten wir Ihnen die Gründungskosten über ${gruendungKurz} vollständig.`,
     ],
-    bedingungenSub: "Sind diese Unterlagen da, wird die Bürgschaft wirksam und die Frist Ihrer Garantie beginnt.",
-    frageBedingungen: "Sobald die Bedingungen erfüllt sind, beginnt die Frist Ihrer Garantie. Es sind Unterlagen, die Sie haben oder schnell bekommen. Erfüllt ist eine Bedingung, sobald Sie die Unterlage vorgelegt haben; den Tag bestätigen wir Ihnen binnen vierzehn Tagen schriftlich.",
+    frageSicherMehr: `Über die Finanzierung und ihre Konditionen entscheidet das Institut. Lehnen Sie eine Runde ab, die Ihnen ein Institut schriftlich zu marktüblichen Bedingungen und ohne persönliche Haftung anbietet, gilt die Garantie als erfüllt; fehlen Ihre Unterlagen für die Bürgschaft trotz Aufforderung, ruht die Frist.`,
+    bedingungenSub: "Diese Unterlagen machen die Bürgschaft wirksam. Fehlen sie trotz schriftlicher Aufforderung, ruht die Frist Ihrer Garantie, bis sie da sind.",
+    frageBedingungen: "Es sind Unterlagen, die Sie haben oder schnell bekommen. Erfüllt ist eine Bedingung, wenn Sie die Unterlage vorgelegt haben; den Tag bestätigen wir Ihnen binnen vierzehn Tagen schriftlich. Die Frist Ihrer Garantie läuft ab der Annahme — fehlen die Unterlagen trotz Aufforderung, ruht sie, bis sie da sind.",
     frageRotTitel: ["Warum steht ein Bereich auf Rot — und gilt die Garantie trotzdem?", "Warum stehen Bereiche auf Rot — und gilt die Garantie trotzdem?"],
-    frageRot: "Ja. Ihre Garantie nach Ziffer 7 hängt an den Bedingungen der Bürgschaft, nicht an der Ampel von heute: Sind die Bedingungen erfüllt, beginnt die Frist Ihrer Garantie — kommt die erste Runde nicht rechtzeitig, erstatten wir Ihnen die Gründung.",
+    frageRot: "Ja. Ihre Garantie nach Ziffer 7 hängt nicht an der Ampel von heute: Ihre Frist läuft ab der Annahme — wird die erste Runde nicht rechtzeitig ausgezahlt, erstatten wir Ihnen die Gründungskosten.",
   };
 }
 /** Garantie-Sätze ohne Parameter — dieselbe Regel wie firmaGarantie. */
 export const FIRMA_GARANTIE_FEST = {
-  fertigFuss: "Ihre Garantie gilt: Erhält Ihre US-Gesellschaft die erste Runde nach erfüllten Bedingungen der Bürgschaft nicht rechtzeitig, erstatten wir Ihnen die Gründung. Fragen? Schreiben Sie uns an support@fiaon.com.",
-  metaBeschreibung: "Persönliches Angebot von FIAON Global für Ihr Unternehmen: eigene US-Gesellschaft, eine erste Finanzierungsrunde, garantiert nach erfüllten Bedingungen der Bürgschaft, und ein ganzes Team für Ihr Wachstum.",
+  fertigFuss: "Ihre Garantie nach Ziffer 7 läuft ab heute: Wird die erste Runde nicht rechtzeitig ausgezahlt, erstatten wir Ihnen die Gründungskosten. Fragen? Schreiben Sie uns an support@fiaon.com.",
+  metaBeschreibung: "Persönliches Angebot von FIAON Global für Ihr Unternehmen: eigene US-Gesellschaft, eine erste Finanzierungsrunde, garantiert nach Ziffer 7 ab Annahme, und ein ganzes Team für Ihr Wachstum.",
 } as const;
 /** Kurze Etiketten, die als Ganzes „Garantie“ tragen — der Prüfstand nimmt sie mit heraus. */
 export const FIRMA_GARANTIE_ETIKETTEN = ["Ihre Garantie", "Garantie erfüllt", "Garantiefall"] as const;
@@ -655,85 +786,107 @@ function bild(par: Pick<FirmaParameter, "inhalt">, schluessel: string): BildRef 
   return b && typeof b === "object" && b.src ? b : undefined;
 }
 
+/**
+ * Die Etappen des Zeitstrahls. Runde 2 (Justin 08.10.2026, Punkt 4): keine Fotos im Zeitstrahl — „Aufbau“ trägt eine eigene
+ * Animation (illustration), die anderen Etappen stehen als Text. Weil die Frist der ersten Runde seit Fassung C ab der Annahme
+ * läuft, steht „Erste Runde“ vor dem Strategietag (Reihenfolge = Zeit).
+ */
 export function firmaPhasen(d: Pick<FirmaDaten, "parameter">): FirmaPhase[] {
   const par = d.parameter; const G = firmaGarantie(par);
   const zusatz = (nr: number) => { const z = par.inhalt?.phasenZusatz?.[String(nr)]; return z ? ` ${String(z).trim()}` : ""; };
   const liste: FirmaPhase[] = [
     { nr: 0, titel: "Start & Prüfung", dauer: "zum Start", abzeichen: "Start",
-      text: "Sie nehmen an, wir legen los: Startgespräch, Unterlagen und die Nachweise für die Bürgschaft. Was im Prüfbericht offen ist, arbeiten wir gemeinsam mit Ihnen ab." },
+      text: "Sie nehmen an, wir legen los — Startgespräch, Unterlagen und die Nachweise für die Bürgschaft." },
     { nr: 1, titel: "Ihre US-Gesellschaft", dauer: "in den ersten Wochen",
-      text: "Gründung, EIN und ITIN, US-Konto, Registered Agent, FDA-U.S.-Agent, Geschäftsadresse und Telefonnummer in Miami — wir erledigen jeden Schritt, Sie unterschreiben." },
-    { nr: 2, titel: "Aufbau", dauer: "die ersten zwölf Monate", bild: bild(par, "herkunft"),
-      text: "Shop und Plattform, Website, SEO und Social Media entstehen; Strategie, Kapazität, Einkauf und Preise stellen wir gemeinsam auf Wachstum." },
-    { nr: 3, titel: "Strategietag vor Ort", dauer: "im ersten Halbjahr",
-      text: "Wir kommen zu Ihnen: ein Tag in Ihrem Betrieb, an dem wir den Plan für Kapital, Kapazität und Märkte gemeinsam festlegen." },
-    { nr: 4, titel: "Erste Runde", dauer: `${monateWort(par.garantieMonate)} nach erfüllten Bedingungen`, abzeichen: "Kapital", bild: bild(par, "usa"),
+      text: "Gründung, EIN, US-Konto und Office mit Empfang in Miami — wir erledigen jeden Schritt, Sie unterschreiben." },
+    { nr: 2, titel: "Aufbau", dauer: "die ersten zwölf Monate", illustration: "aufbau",
+      text: `Ihr Shop entsteht mit Website, SEO und Social Media — ab dem Starttag („Shop live“, spätestens ${monateWort(par.budgetSpaetestensMonate)} nach Ihrer Annahme) beginnt unser gemeinsames Wachstumsbudget.` },
+    { nr: 3, titel: "Erste Runde", dauer: `innerhalb von ${monatenWort(par.garantieMonate)} nach Annahme`, abzeichen: "Kapital",
       text: G.phaseKapital },
+    { nr: 4, titel: "Strategietag vor Ort", dauer: "im ersten Halbjahr",
+      text: "Ein Tag in Ihrem Betrieb, an dem wir den Plan für Kapital, Kapazität und Märkte gemeinsam festlegen." },
     { nr: 5, titel: "Skalierung", dauer: "ab der ersten Runde",
-      text: "Vertrieb, Influencer-Kampagnen, Messen und neue Handelswege — wir arbeiten aktiv im Verkauf mit, damit aus Kapazität Umsatz wird." },
+      text: "Vertrieb, Influencer, Messen und neue Handelswege — damit aus Kapazität Umsatz wird." },
     { nr: 6, titel: "Weitere Runden", dauer: `frühestens nach ${monatenWort(par.weitereRundenAbMonaten)}`,
-      text: "Wächst Ihr Unternehmen nach Plan, öffnen wir weitere Finanzierungsrunden — jede mit eigener Freigabe und auf Grundlage Ihrer Zahlen." },
+      text: "Wächst Ihr Unternehmen nach Plan, öffnen wir weitere Runden — jede mit eigener Freigabe." },
   ];
-  return liste.map((ph) => {
-    const { bild: b, ...rest } = ph;
-    const mitZusatz = { ...rest, text: rest.text + zusatz(rest.nr) };
-    return b ? { ...mitZusatz, bild: b } : mitZusatz;
-  });
+  return liste.map((ph) => ({ ...ph, text: ph.text + zusatz(ph.nr) }));
 }
 
 export function firmaLeistungen(d: Pick<FirmaDaten, "parameter" | "buergin">): FirmaLeistung[] {
   const par = d.parameter; const G = firmaGarantie(par); const ap = firmaAnsprechpartner(par);
+  // Runde 3 (Punkt 3): je Karte ein Satz und höchstens drei Punkte sichtbar — der Rest steht unter „Mehr erfahren“ (mehr).
   const liste: FirmaLeistung[] = [
+    // Runde 2, Punkt 2: Justins Untertitel wörtlich, die Punkte passend dazu.
     { schluessel: "gesellschaft", titel: "Ihre US-Gesellschaft — komplett",
-      text: "Wir gründen Ihre US-Gesellschaft bis ins Detail und betreuen sie laufend — mit einer echten Adresse und einem Team vor Ort.",
+      text: "Ihre US-Gesellschaft komplett — mit Office, Empfangsdame, Telefonannahme, rechtlichen Unterlagen, Dokumenten und einem direkten Ansprechpartner für Sie",
       punkte: [
-        "Gründung und Eintragung, Operating Agreement und Gründungsbeschlüsse",
-        "EIN und, soweit nötig, ITIN — vorbereitet und eingereicht",
-        "US-Bankkonto: Antrag vollständig vorbereitet und begleitet",
-        "Beantragung von US-Firmenkarten begleiten — die Herausgeber entscheiden",
-        "Geschäftsadresse und Telefonnummer im besetzten Büro in Miami, mit Telefonassistenz",
-        "FDA-U.S.-Agent mit Präsenz in den USA und Registered Agent",
-        "Anwalt und Steuerberater, jährliche US-Steuererklärung",
+        "Office in Miami mit Geschäftsadresse — besetzt, mit Empfangsdame",
+        "Telefonannahme unter Ihrer US-Nummer während der Geschäftszeiten",
+        "Rechtliche Unterlagen und alle Dokumente geordnet in einem Dokumentenraum",
+      ],
+      mehr: [
+        "Gründung und Eintragung, Operating Agreement, Gründungsbeschlüsse, EIN und, soweit nötig, ITIN",
+        "Pflichtenkalender mit allen US-Fristen",
+        "Ein direkter Ansprechpartner für Sie und Ihre US-Gesellschaft",
+        "US-Bankkonto vorbereitet und begleitet; Beantragung von US-Firmenkarten begleiten — die Herausgeber entscheiden",
+        "FDA-U.S.-Agent und Registered Agent, Anwalt und Steuerberater, jährliche US-Steuererklärung",
       ] },
     { schluessel: "kapital", titel: "Kapital für Ihr Wachstum", text: G.leistungKapital,
       punkte: [
         `Erste Runde: ${firmaUsd(par.kapitalUsd)}`,
-        `Bürgin: ${d.buergin.name} — Höchstbetrag ${firmaUsd(par.buergschaftUsd)}, ohne gesondertes Entgelt`,
+        `Bürgin: ${d.buergin.name} — ohne gesondertes Entgelt`,
         "Vorgesehen: eine Auszahlung in einem Betrag",
+      ],
+      mehr: [
+        `Höchstbetrag der Bürgschaft: ${firmaUsd(par.buergschaftUsd)}`,
         `Weitere Runden frühestens nach ${monatenWort(par.weitereRundenAbMonaten)}`,
       ] },
-    { schluessel: "strategie", titel: "Strategie & Wachstum", bild: bild(par, "rolle") ?? bild(par, "herkunft"),
-      text: "Betriebswirtschaftliche Begleitung an Ihrer Seite: Wir stellen Ihr Unternehmen auf mehr Menge, neue Märkte und gesunde Zahlen.",
-      punkte: ["Skalierung und Kapazitätsplanung", "Einkauf und Preise", "Mittelverwendungsplan und Kennzahlen", "Ein Strategietag bei Ihnen vor Ort"] },
+    { schluessel: "strategie", titel: "Strategie & Wachstum",
+      text: "Betriebswirtschaftliche Begleitung an Ihrer Seite — für mehr Menge, neue Märkte und gesunde Zahlen.",
+      punkte: ["Skalierung und Kapazitätsplanung", "Einkauf und Preise", "Ein Strategietag bei Ihnen vor Ort"],
+      mehr: ["Mittelverwendungsplan und Kennzahlen"] },
     { schluessel: "plattform", titel: "Plattform & Marketing",
-      text: "Ihr Shop und Ihre Plattform sind der größte Hebel — wir entwickeln sie und bringen Menschen dorthin, die kaufen.",
-      punkte: ["Entwicklung von Shop und Plattform", "Website und SEO", "Betreuung Ihrer Anzeigen (SEA) und Backlinks", "Social Media mit Beiträgen, Texten und Design", "Influencer-Kampagnen: Auswahl, Planung, Steuerung"] },
-    { schluessel: "vertrieb", titel: "Vertrieb", bild: bild(par, "usa"),
-      text: "Wir verkaufen mit: neue Handelswege öffnen, Gespräche führen, auf Messen präsent sein.",
+      text: "Ihr Shop ist der größte Hebel — wir entwickeln ihn und bringen Menschen dorthin, die kaufen.",
+      punkte: ["Entwicklung von Shop und Plattform", "Website, SEO und Anzeigen (SEA)", "Social Media und Influencer-Kampagnen"],
+      mehr: ["Backlinks und PR-Platzierungen", "Beiträge, Texte und Design für Social Media", "Influencer: Auswahl, Planung, Steuerung"] },
+    { schluessel: "vertrieb", titel: "Vertrieb",
+      text: "Wir verkaufen mit — neue Handelswege, Gespräche, Messen.",
       punkte: ["Aktive Mitarbeit im Verkauf", "Neue Handelswege im In- und Ausland", "Messen: Auswahl, Vorbereitung, Begleitung"] },
     { schluessel: "ansprechpartner", titel: "Ein fester Ansprechpartner",
-      text: `${ap.name} — ${ap.rolle}. Er kennt Ihren Auftrag von Anfang an und ist Ihr direkter Draht für jede Frage.`,
+      text: `${ap.name} kennt Ihren Auftrag von Anfang an und ist Ihr direkter Draht für jede Frage.`,
       punkte: ["Direkt per E-Mail und Telefon", "Ein monatlicher Durchgang mit Ihnen", "Ein ganzes Team dahinter"] },
   ];
-  return liste.map((l) => { const { bild: b, ...rest } = l; return b ? { ...rest, bild: b } : rest; });
+  // Runde 2, Punkt 5: keine Fotos auf den Karten — jede trägt ihre eigene Linien-Illustration (Oberfläche, nach schluessel).
+  return liste;
 }
 
 export function firmaInvestPosten(d: Pick<FirmaDaten, "parameter" | "compliance">): FirmaInvestPosten[] {
   const par = d.parameter; const G = firmaGarantie(par);
   const schwelle = firmaEurKurz(par.umsatzSchwelleCents);
   const offenePunkte = d.compliance && d.compliance.gesamt.ampel !== "GRÜN";
+  const spaetestens = monateWort(par.budgetSpaetestensMonate);
   return [
-    { schluessel: "gruendung", titel: "Gründung", betrag: firmaEurKurz(par.startCents), einheit: "einmalig",
-      was: "Ihre US-Gesellschaft komplett: Gründung, EIN, ITIN soweit nötig, US-Konto, Registered Agent, FDA-U.S.-Agent, Geschäftsadresse und Telefonnummer in Miami — mit allen staatlichen Gebühren der Gründung und den Honoraren von Anwalt und Steuerberater dafür.",
-      wann: "Fällig mit der Annahme. Die Rechnung steht direkt danach für Sie bereit.",
-      warum: `Die Gründung ist echte Arbeit von Anwalt, Steuerberater und Team in den USA — sie wird einmal bezahlt und gehört danach Ihnen. ${G.investGruendung}`,
+    // Runde 2, Punkt 7: positiv und klar — Justins Aussage vom 08.10.2026 als Satz, die Bestandteile ohne Einzelbeträge.
+    // Runde 3, Punkt 2: keine große Karte mehr — eine ruhige Zeile (satz) am Ende der Konditionen, Bestandteile nur aufklappbar.
+    { schluessel: "gruendung", titel: "Gründungskosten", betrag: firmaEurKurz(par.startCents), einheit: "einmalig",
+      satz: `Einmalige Gründungskosten ${firmaEurKurz(par.startCents)} — wir verdienen daran nichts; sie decken Gründung und Start.`,
+      hinweis: "Wir verdienen an den Gründungskosten nichts — sie decken ausschließlich, was Gründung und Start kosten.",
+      bestandteile: [...FIRMA_GRUENDUNG_BESTANDTEILE],
+      was: "Ihre US-Gesellschaft, gegründet und startklar — einmal bezahlt, danach gehört sie Ihnen.",
+      wann: "Einmalig, fällig mit der Annahme. Die Rechnung steht direkt danach für Sie bereit.",
+      warum: `Gründung und Start kosten Geld bei Behörden, Anwalt, Steuerberater und Banken — genau das decken die Gründungskosten, nicht mehr. ${G.investGruendung}`,
       wie: "Überweisung auf Rechnung, ohne Umsatzsteuer (Reverse Charge)." },
-    { schluessel: "monat", titel: "Plattform & Team", betrag: firmaEurKurz(par.monatCents), einheit: "pro Monat",
-      was: "Ihr ganzes Team: Strategie & Wachstum, Shop und Plattform, Website, SEO, Betreuung Ihrer Anzeigen, Social Media, Influencer-Kampagnen, Vertrieb und Messen, die laufende Betreuung Ihrer US-Gesellschaft und Ihr fester Ansprechpartner.",
-      wann: `Monatlich im Voraus ab Ihrem Starttag, Zahlungsziel ${zahlwort(par.zahlungszielTage)} Tage. Die Rechnung kommt automatisch am Fälligkeitstag.`,
-      warum: "Wachstum braucht Menschen, die jeden Monat daran arbeiten. Ein fester Betrag im Monat statt vieler Einzelrechnungen von Agentur, Entwicklern und Kanzlei.",
-      wie: `Mindestlaufzeit ${monateWort(par.mindestMonate)}, danach jeweils ${monateWort(par.verlaengerungMonate)} mehr, wenn Sie nicht ${monateWort(par.kuendigungMonate)} vor Ablauf in Textform kündigen.` },
+    // Runde 2, Punkt 8: statt „Plattform & Team“ das gemeinsame Wachstumsbudget — die Hälfte trägt FIAON.
+    { schluessel: "monat", titel: "Gemeinsames Wachstumsbudget", betrag: firmaEurKurz(par.monatCents), einheit: `Ihr Anteil pro Monat — die Hälfte von ${firmaEurKurz(par.budgetGesamtCents)}`,
+      // Runde 3, Punkt 5: der späteste Start in einem Satz (Ziffer 10 Absatz 2).
+      satz: `Die Hälfte eines gemeinsamen Budgets von ${firmaEurKurz(par.budgetGesamtCents)} im Monat — ab „Shop live“, spätestens ${spaetestens} nach Ihrer Annahme, es sei denn, die Verzögerung liegt bei uns.`,
+      was: `Ein gemeinsames Budget von ${firmaEurKurz(par.budgetGesamtCents)} im Monat für Anzeigen, Inhalte, Ihre US-Gesellschaft, PR, Software, Shop, Technik und Recht. Sie tragen die Hälfte, wir die andere — Sie zahlen nicht für Personal.`,
+      wann: `Erst wenn Ihr Shop live ist — spätestens ${spaetestens} nach Ihrer Annahme, es sei denn, die Verzögerung liegt bei uns: Die erste Monatsrechnung kommt an diesem Tag, danach monatlich im Voraus, Zahlungsziel ${zahlwort(par.zahlungszielTage)} Tage.`,
+      warum: "Wachstum braucht jeden Monat Reichweite und Werkzeuge. Weil wir die Hälfte selbst tragen, ziehen wir am selben Strang — jeder Euro geht in Ihr Wachstum.",
+      wie: `Mindestlaufzeit ${monateWort(par.mindestMonate)} ab dem Starttag („Shop live“, spätestens ${spaetestens} nach Ihrer Annahme), danach jeweils ${monateWort(par.verlaengerungMonate)} mehr, wenn Sie nicht ${monateWort(par.kuendigungMonate)} vor Ablauf in Textform kündigen.` },
     { schluessel: "umsatz", titel: "Umsatzbeteiligung", betrag: firmaProzent(par.umsatzSatzProzent), einheit: `auf den Netto-Umsatz über ${schwelle} im Jahr`,
+      satz: `Nur auf den Teil Ihres Netto-Jahresumsatzes über ${schwelle} — kein Wachstum über die Schwelle, keine Beteiligung.`,
       was: `${zahlwort(par.umsatzSatzProzent).replace(/^./, (c) => c.toUpperCase())} Prozent auf den Teil Ihres Netto-Jahresumsatzes, der über ${schwelle} liegt — gerechnet über Ihr Unternehmen, Ihre US-Gesellschaft und künftige verbundene Gesellschaften, ohne Umsätze untereinander.`,
       wann: "Quartalsweise: Sie melden bis zum 15. des Folgemonats den bisherigen Jahresumsatz aus Ihrer Umsatzsteuervoranmeldung; einmal im Jahr gleichen wir mit dem Jahresabschluss ab. Im ersten Jahr zählen nur die Umsätze ab Ihrem Startmonat, und die Schwelle gilt anteilig.",
       warum: offenePunkte
@@ -741,11 +894,56 @@ export function firmaInvestPosten(d: Pick<FirmaDaten, "parameter" | "compliance"
         : "Ein ganzes Team, Plattform und Vertrieb tragen Ihr Wachstum mit. Statt eines hohen Festpreises verdienen wir nur, wenn Sie wachsen.",
       wie: "Kein Wachstum über die Schwelle — keine Beteiligung. Sie läuft, solange der Vertrag läuft oder die Bürgschaft besteht, und endet bei einem Verkauf." },
     { schluessel: "verkauf", titel: "Verkaufsbeteiligung", betrag: firmaProzent(par.verkaufSatzProzent), einheit: "nur bei einem Verkauf",
+      satz: "Nur wenn Sie verkaufen — fällig erst, wenn der Kaufpreis bei Ihnen ist; einen Verkaufszwang gibt es nicht.",
       was: `${zahlwort(par.verkaufSatzProzent).replace(/^./, (c) => c.toUpperCase())} Prozent der Gegenleistung, wenn Anteile Ihres Unternehmens oder Ihrer US-Gesellschaft, Ihre Marke oder Ihr Betrieb verkauft werden — bei einem Teilverkauf auf den Preis des verkauften Teils.`,
       wann: `Mit dem Zufluss des Kaufpreises — während der Laufzeit und ${monateWort(par.verkaufNachlaufMonate)} danach.`,
       warum: "Wir bauen mit Ihnen Wert auf. Sie kostet nur etwas, wenn Sie verkaufen — und dann haben Sie das Geld.",
       wie: "Kein Verkaufszwang: Ob und wann Sie verkaufen, entscheiden allein Sie. Nicht bei Übertragungen ohne Gegenleistung und nicht bei Kapitalerhöhungen." },
   ];
+}
+
+/** Woraus die Gründungskosten bestehen (Runde 2, Punkt 7) — ohne Einzelbeträge. */
+export const FIRMA_GRUENDUNG_BESTANDTEILE: readonly string[] = [
+  "Gründung und Eintragung", "EIN und ITIN", "Registered Agent", "Anwalt", "Steuerberater", "Bank- und Kontoeröffnung", "Unterlagen", "Behörden",
+];
+
+/**
+ * Das gemeinsame Wachstumsbudget (Runde 2, Justin 08.10.2026, Punkt 8): Planwerte je Monat, zusammen 4.000 €. Dieselbe Aufstellung
+ * steht auf der Seite und in Ziffer 10 Absatz 3. Weicht sie für ein Angebot ab, kommt sie aus parameter.inhalt.budgetPosten.
+ */
+export interface FirmaBudgetPosten { schluessel: string; titel: string; text?: string; cents: number }
+export const FIRMA_BUDGET_POSTEN: readonly FirmaBudgetPosten[] = [
+  { schluessel: "anzeigen", titel: "Werbebudget Anzeigen", text: "Google, Meta, Pinterest", cents: 150000 },
+  { schluessel: "inhalte", titel: "Influencer-Kooperationen und Content-Produktion", text: "Foto, Video, Texte", cents: 60000 },
+  { schluessel: "us-gesellschaft", titel: "US-Gesellschaft laufend", text: "Office Miami, Empfang und Telefonannahme, Registered Agent, US-Buchhaltung und Steuererklärung", cents: 60000 },
+  { schluessel: "pr", titel: "Backlinks und PR-Platzierungen", cents: 40000 },
+  { schluessel: "software", titel: "Marketing-Software", text: "SEO-Werkzeuge, E-Mail-Marketing, Social-Planung, Design-Software", cents: 35000 },
+  { schluessel: "shop", titel: "Shop-Plattform, Apps und Plugins", text: "Shop-Abo, Zahlung, Versand, Bewertungen, Übersetzung", cents: 25000 },
+  { schluessel: "technik", titel: "Server, Hosting, CDN, Domains und E-Mail", cents: 15000 },
+  { schluessel: "recht", titel: "Recht und Compliance laufend", text: "Impressum, AGB, Datenschutz, Lebensmittel-Kennzeichnung", cents: 15000 },
+];
+export function firmaBudgetPosten(par: Pick<FirmaParameter, "inhalt">): FirmaBudgetPosten[] {
+  const eigen = par.inhalt?.budgetPosten;
+  return Array.isArray(eigen) && eigen.length ? eigen.map((x) => ({ schluessel: String(x.schluessel), titel: String(x.titel).trim(), text: x.text ? String(x.text).trim() : undefined, cents: Number(x.cents) })) : FIRMA_BUDGET_POSTEN.map((x) => ({ ...x }));
+}
+/** Eine Zeile der Aufstellung als Vertragstext: „Werbebudget Anzeigen (Google, Meta, Pinterest): 1.500,00 €“. */
+function budgetZeileVertrag(x: FirmaBudgetPosten): string { return `${x.titel}${x.text ? ` (${x.text})` : ""}: ${firmaEur(x.cents)}`; }
+export function firmaBudget(par: FirmaParameter): FirmaBudget {
+  const fiaon = par.budgetGesamtCents - par.monatCents;
+  return {
+    titel: "Gemeinsames Wachstumsbudget",
+    sub: `Kein Geld für Personal: ${firmaEurKurz(par.budgetGesamtCents)} im Monat gehen in Reichweite, Werkzeuge und Ihre US-Gesellschaft. Sie tragen die Hälfte, wir die andere.`,
+    gesamt: firmaEurKurz(par.budgetGesamtCents), gesamtText: "gemeinsames Budget pro Monat",
+    ihrAnteil: firmaEurKurz(par.monatCents), ihrAnteilText: "Ihr Anteil",
+    fiaonAnteil: firmaEurKurz(fiaon), fiaonAnteilText: "trägt FIAON",
+    start: `Beginnt erst, wenn Ihr Shop live ist — spätestens ${monateWort(par.budgetSpaetestensMonate)} nach Ihrer Annahme, es sei denn, die Verzögerung liegt bei uns. Ab diesem Tag kommt die erste Monatsrechnung, und die Mindestlaufzeit von ${monatenWort(par.mindestMonate)} läuft.`,
+    zeilen: firmaBudgetPosten(par).map((x) => ({ schluessel: x.schluessel, titel: x.titel, text: x.text ?? "", betrag: firmaEurKurz(x.cents), cents: x.cents })),
+    summeText: "Planwerte je Monat",
+    fein: [
+      "Die Beträge sind Planwerte. Wie das Budget eingesetzt wurde, sehen Sie in unserem monatlichen Durchgang; Verschiebungen zwischen den Posten stimmen wir dort mit Ihnen ab.",
+      "Mehr Werbebudget über das gemeinsame Budget hinaus nur nach Absprache — es steht in Ziffer 10 Absatz 6 Ihres Vertrags.",
+    ],
+  };
 }
 
 /** „1 Mio.“, „2,5 Mio.“ — die Beschriftung der Skala ab einer Million. */
@@ -773,12 +971,13 @@ export function firmaRechner(par: FirmaParameter): FirmaRechner {
 }
 
 /**
- * Was die Auftraggeberin direkt zahlt — steht NUR im Vertrag (Ziffer 10 Absatz 4). Justin (07.10.2026): nicht als Liste auf
- * der Seite; die Seite verweist auf die Ziffer.
+ * Was die Auftraggeberin direkt zahlt — steht NUR im Vertrag (seit Fassung C Ziffer 10 Absatz 6). Justin (07.10.2026): nicht als
+ * Liste auf der Seite; die Seite verweist auf die Ziffer. Runde 2: Werbebudget und Influencer stehen jetzt im gemeinsamen Budget —
+ * hier nur, was darüber hinausgeht (Mehrbudget nach Absprache).
  */
 export const FIRMA_EXTRA_VERTRAG: readonly string[] = [
-  "das Werbebudget für bezahlte Anzeigen",
-  "Honorare von Influencern",
+  "Werbebudget für bezahlte Anzeigen über das gemeinsame Wachstumsbudget nach Absatz 3 hinaus (Mehrbudget nach Absprache)",
+  "Honorare von Influencern über das gemeinsame Wachstumsbudget nach Absatz 3 hinaus",
   "Gebühren von Behörden und Markenämtern, soweit sie nicht die Gründung und den Bestand der US-Gesellschaft nach Ziffer 3 betreffen (etwa Markenanmeldungen, Produktregistrierungen und Zulassungen)",
   "Labortests",
   "Etikettendruck",
@@ -801,34 +1000,42 @@ export function firmaFragen(d: Pick<FirmaDaten, "parameter" | "buergin" | "kunde
   const ampel: Ampel = d.compliance?.gesamt.ampel ?? "GELB";
   const AW = COMPLIANCE_AMPEL[ampel];
   const rote = (d.compliance?.bereiche ?? []).filter((b) => b.ampel === "ROT");
+  const offen = !!d.compliance && d.compliance.gesamt.ampel !== "GRÜN";
+  // Runde 3 (Punkt 3): Die ersten FIRMA_FRAGEN_SICHTBAR Fragen stehen offen — je eine kurze Antwort (höchstens zwei Sätze).
+  // Der Rest steht unter „Weitere Fragen“; dort dürfen die Antworten länger sein.
   return [
     { frage: "Was zahle ich wann?", antwort: [
-      `Mit der Annahme die Gründung über ${firmaEurKurz(par.startCents)} — einmalig. Ab Ihrem Starttag ${firmaEurKurz(par.monatCents)} pro Monat im Voraus für Plattform & Team; die Rechnung kommt automatisch am Fälligkeitstag, Zahlungsziel ${zahlwort(par.zahlungszielTage)} Tage.`,
-      `Die Umsatzbeteiligung fällt nur an, wenn Ihr Netto-Jahresumsatz über ${schwelle} liegt — abgerechnet quartalsweise. Die Verkaufsbeteiligung nur, wenn Sie verkaufen, und erst, wenn der Kaufpreis bei Ihnen ist.`,
+      `Mit der Annahme einmalig die Gründungskosten über ${firmaEurKurz(par.startCents)}; Ihren Anteil am Wachstumsbudget — ${firmaEurKurz(par.monatCents)} im Monat, die Hälfte von ${firmaEurKurz(par.budgetGesamtCents)} — erst ab „Shop live“, spätestens ${monateWort(par.budgetSpaetestensMonate)} nach Ihrer Annahme, es sei denn, die Verzögerung liegt bei uns. Umsatz- und Verkaufsbeteiligung fallen nur an, wenn Ihr Netto-Jahresumsatz über ${schwelle} liegt oder Sie verkaufen.`,
+    ] },
+    { frage: "Wie ist die erste Runde abgesichert?", antwort: [...G.frageSicher] },
+    { frage: "Ist die erste Runde ein Kredit?", antwort: [
+      "Ja, eine Finanzierung: Ihre US-Gesellschaft nimmt sie bei einem Institut auf und zahlt sie mit Zinsen aus dem Wachstum zurück, das sie möglich macht. Die Konditionen legt das Institut fest — Sie sehen sie vor der Unterschrift und entscheiden selbst.",
+    ] },
+    { frage: "Was steckt im gemeinsamen Wachstumsbudget?", antwort: [
+      `${firmaEurKurz(par.budgetGesamtCents)} im Monat für Anzeigen, Inhalte, Ihre US-Gesellschaft, PR, Software, Shop, Technik und Recht — Sie tragen die Hälfte, wir die andere. Unsere Arbeit zahlen Sie nicht als Personal: Wir verdienen über die Beteiligungen, wenn Sie wachsen.`,
     ] },
     { frage: "Warum eine Umsatzbeteiligung?", antwort: [
-      "Ein ganzes Team arbeitet jeden Monat an Ihrem Wachstum — Plattform, Marketing, Vertrieb und Ihre US-Gesellschaft. Statt das in einen hohen Festpreis zu packen, verdienen wir mit, wenn es funktioniert.",
-      d.compliance && d.compliance.gesamt.ampel !== "GRÜN"
-        ? "Ihr Prüfbericht zeigt offene Punkte. Gerade deshalb verzichten wir auf einen hohen Festpreis: Unser größter Teil hängt an Ihrem Erfolg."
-        : "Unser größter Teil hängt an Ihrem Erfolg — nicht an unserem Aufwand.",
+      offen
+        ? "Ein ganzes Team trägt Ihr Wachstum mit — statt eines hohen Festpreises verdienen wir mit, wenn es funktioniert. Gerade weil Ihr Prüfbericht offene Punkte zeigt, hängt unser größter Teil an Ihrem Erfolg."
+        : "Ein ganzes Team trägt Ihr Wachstum mit — statt eines hohen Festpreises verdienen wir mit, wenn es funktioniert. Unser größter Teil hängt an Ihrem Erfolg, nicht an unserem Aufwand.",
     ] },
     { frage: "Was, wenn der Umsatz nicht wächst?", antwort: [
-      `Dann zahlen Sie keine Umsatzbeteiligung. Sie gilt nur für den Teil des Netto-Jahresumsatzes über ${schwelle}; im ersten Jahr zählen nur die Umsätze ab Ihrem Startmonat, und die Schwelle gilt anteilig.`,
-      `Ein Beispiel: Bei ${firmaEurKurz(bsp)} Netto-Jahresumsatz beträgt die Beteiligung ${firmaEurKurz(rechnerBeteiligung(bsp, par.umsatzSchwelleCents, par.umsatzSatzProzent))} im Jahr (${satz} auf ${firmaEurKurz(bsp - par.umsatzSchwelleCents)}). Unter der Schwelle: null Euro.`,
+      `Dann zahlen Sie keine Umsatzbeteiligung — sie gilt nur für den Teil des Netto-Jahresumsatzes über ${schwelle}, im ersten Jahr anteilig. Ein Beispiel: Bei ${firmaEurKurz(bsp)} Netto-Jahresumsatz beträgt sie ${firmaEurKurz(rechnerBeteiligung(bsp, par.umsatzSchwelleCents, par.umsatzSatzProzent))} im Jahr (${satz} auf ${firmaEurKurz(bsp - par.umsatzSchwelleCents)}), unter der Schwelle null Euro.`,
     ] },
+    { frage: frau || herr ? `Bleibe ich ${gf} und ${eigen}?` : "Bleiben Geschäftsführung und Eigentum bei mir?", antwort: [
+      frau || herr
+        ? `Ja. Sie bleiben ${gf} und ${allein ? `zu 100 % ${eigen}` : eigen} Ihrer Gesellschaft — FIAON erwirbt keine Anteile, übernimmt keine Geschäftsführung, und auch die US-Gesellschaft gehört Ihnen.`
+        : `Ja. Geschäftsführung und ${allein ? "alle Anteile" : "Anteile"} Ihrer Gesellschaft bleiben, wie sie sind — FIAON erwirbt keine Anteile, übernimmt keine Geschäftsführung, und auch die US-Gesellschaft gehört Ihnen.`,
+    ] },
+    { frage: "Wie lange läuft der Vertrag, und wie kündige ich?", antwort: [
+      `Mindestens ${monateWort(par.mindestMonate)} ab dem Starttag („Shop live“, spätestens ${monateWort(par.budgetSpaetestensMonate)} nach Ihrer Annahme), danach jeweils ${monateWort(par.verlaengerungMonate)} mehr, wenn Sie nicht ${monateWort(par.kuendigungMonate)} vor Ablauf kündigen. Eine E-Mail an Ihren Ansprechpartner genügt — Ihre US-Gesellschaft, Ihr Shop und alle Unterlagen bleiben Ihre.`,
+    ] },
+    // ── Weitere Fragen ──
     { frage: "Muss ich verkaufen?", antwort: [
       "Nein. Es gibt keinen Verkaufszwang und keine Pflicht, einen Verkauf vorzubereiten. Ob und wann Sie verkaufen, entscheiden allein Sie.",
       `Verkaufen Sie während der Laufzeit oder ${monateWort(par.verkaufNachlaufMonate)} danach Anteile, Marke oder Betrieb, erhalten wir ${firmaProzent(par.verkaufSatzProzent)} der Gegenleistung — fällig erst, wenn der Kaufpreis bei Ihnen eingegangen ist.`,
     ] },
-    { frage: "Was ist in der Monatspauschale enthalten — und was nicht?", antwort: [
-      "Enthalten: Strategie & Wachstum, Entwicklung von Shop und Plattform, Website, SEO, die Betreuung Ihrer Anzeigen, Backlinks, Social Media mit Beiträgen, Texten und Design, die Planung und Steuerung von Influencer-Kampagnen, die Mitarbeit im Vertrieb und auf Messen, die laufende Betreuung Ihrer US-Gesellschaft mit Adresse, Telefonassistenz, FDA-U.S.-Agent, Registered Agent, Anwalt und Steuerberater samt jährlicher US-Steuererklärung — und Ihr fester Ansprechpartner.",
-      "Was Sie direkt an Dritte zahlen, steht in Ziffer 10 Absatz 4 Ihres Vertrags. Solche Kosten nennen wir vorab; beauftragt wird nur mit Ihrer Zustimmung.",
-    ] },
-    { frage: "Wie ist die erste Runde abgesichert?", antwort: [...G.frageSicher] },
-    { frage: "Ist die erste Runde ein Kredit?", antwort: [
-      "Ja, die erste Runde ist eine Finanzierung: Ihre US-Gesellschaft nimmt sie bei einem Institut auf und zahlt sie mit Zinsen zurück — aus dem Wachstum, das sie möglich macht. Die Konditionen legt das Institut fest; Sie sehen sie vor der Unterschrift und entscheiden selbst.",
-      "Vorgesehen ist eine Auszahlung in einem Betrag. Verlangt ein Institut eine persönliche Haftung, entscheiden Sie selbst; lehnen Sie ein solches Angebot ab, zählt das nicht als Ablehnung der ersten Runde.",
-    ] },
+    { frage: "Was gilt, wenn ich eine angebotene Runde ablehne?", antwort: [G.frageSicherMehr] },
     { frage: "Welche Bedingungen hat die Bürgschaft — und warum?", antwort: [
       `Die Bürgschaft der ${d.buergin.name} über ${firmaUsd(par.buergschaftUsd)} wird wirksam, sobald ${bedingungen.length === 1 ? "diese Bedingung erfüllt ist" : `diese ${zahlwort(bedingungen.length)} Bedingungen erfüllt sind`}: ${bedingungen.join(" und ")}.`,
       `${bedingungen.length === 1 ? "Sie macht" : "Beides macht"} Ihr Unternehmen für Institute lesbar. Die Gründe stehen oben unter „Ihr Kapital“ bei jeder Bedingung.`,
@@ -846,27 +1053,20 @@ export function firmaFragen(d: Pick<FirmaDaten, "parameter" | "buergin" | "kunde
       `${rote.map((b) => `„${b.titel}“`).join(" und ")}: ${rote.length === 1 ? "Der Bereich zeigt" : "Die Bereiche zeigen"} den Stand vor dem Vertrag — mit den Zahlen, die heute öffentlich sind. Für die Bürgschaft zählen allein die Bedingungen in Ziffer 8 Ihres Vertrags: ${bedingungen.join(" und ")}.`,
       G.frageRot,
     ] }] : []),
-    { frage: "Wie lange läuft der Vertrag, und wie kündige ich?", antwort: [
-      `Die Mindestlaufzeit beträgt ${monateWort(par.mindestMonate)} ab Ihrem Starttag. Danach verlängert sich der Vertrag um jeweils ${monateWort(par.verlaengerungMonate)}, wenn Sie nicht ${monateWort(par.kuendigungMonate)} vor Ablauf kündigen.`,
-      "Kündigen genügt in Textform — eine E-Mail an Ihren Ansprechpartner reicht. Ihre US-Gesellschaft, Ihr Shop und alle Unterlagen bleiben Ihre.",
-    ] },
     { frage: "Gehört die US-Gesellschaft mir?", antwort: [
       "Ja. Gesellschafterin der US-Gesellschaft wird Ihr Unternehmen — oder, wenn Sie das vor der Gründung bestimmen, Sie persönlich. FIAON erwirbt keine Anteile.",
-      "Auch Shop, Website, Texte und Designs gehören Ihnen: Die Rechte gehen mit der Zahlung der jeweiligen Monatspauschale auf Sie über.",
+      `Auch Shop, Website, Texte und Designs gehören Ihnen: Die Rechte gehen mit der Zahlung Ihres Monatsanteils auf Sie über — was vor dem Starttag („Shop live“, spätestens ${monateWort(par.budgetSpaetestensMonate)} nach Ihrer Annahme) entsteht, mit dem ersten Anteil.`,
     ] },
     { frage: "Was muss ich selbst tun?", antwort: [
       "Wenig: Unterlagen bereitstellen, unterschreiben, was wir fertig vorbereiten, Ihre Ausweise für die gesetzlich vorgeschriebene Identifizierung — und einmal im Quartal Ihre Umsatzzahlen aus der Umsatzsteuervoranmeldung schicken.",
       "Alles Weitere — Behörden, Partner, Anträge, Plattform, Kampagnen — übernehmen wir.",
     ] },
-    { frage: frau || herr ? `Bleibe ich ${gf} und ${eigen}?` : "Bleiben Geschäftsführung und Eigentum bei mir?", antwort: [
-      frau || herr
-        ? `Ja. Sie bleiben ${gf} und ${allein ? `zu 100 % ${eigen}` : eigen} Ihrer Gesellschaft — daran ändert dieser Vertrag nichts. FIAON erwirbt keine Anteile und übernimmt keine Geschäftsführung; jede Entscheidung bleibt bei Ihnen.`
-        : `Ja. Geschäftsführung und ${allein ? "alle Anteile" : "Anteile"} Ihrer Gesellschaft bleiben, wie sie sind — daran ändert dieser Vertrag nichts. FIAON erwirbt keine Anteile und übernimmt keine Geschäftsführung; jede Entscheidung bleibt bei Ihnen.`,
-      "Auch die US-Gesellschaft gehört Ihnen — FIAON hält daran keine Anteile.",
-    ] },
     { frage: "Wie kommen die Rechnungen — und was ist mit der Umsatzsteuer?", antwort: [
-      "Jede Rechnung geht an Ihr Unternehmen, mit Firma, Anschrift und UID. Sie zahlen per Überweisung, keine Lastschrift.",
+      `Jede Rechnung geht an Ihr Unternehmen, mit Firma, Anschrift und UID — Zahlungsziel ${zahlwort(par.zahlungszielTage)} Tage, per Überweisung, keine Lastschrift.`,
       "Unsere Rechnungen weisen keine Umsatzsteuer aus: Die Leistungen kommen aus London an Ihr Unternehmen in der EU, die Steuer schuldet Ihr Unternehmen selbst (Reverse Charge). Wie Sie das in Ihrer Umsatzsteuervoranmeldung erfassen, klärt Ihr Steuerberater.",
+    ] },
+    { frage: "Was zahle ich direkt an Dritte?", antwort: [
+      "Was nicht im Wachstumsbudget steckt, steht in Ziffer 10 Absatz 6 Ihres Vertrags — etwa mehr Werbebudget über das gemeinsame Budget hinaus, nur nach Absprache. Solche Kosten nennen wir vorab; beauftragt wird nur mit Ihrer Zustimmung.",
     ] },
     { frage: "Wer ist die Bürgin?", antwort: [
       `Die ${d.buergin.name} mit Sitz in Miami, Florida. Sie ist mit FIAON über unseren Gründer ${FIAON_FIRMA.director} verbunden, der sie vertritt. Ihre Zusage liegt diesem Angebot als Anlage 1 bei.`,
@@ -874,24 +1074,37 @@ export function firmaFragen(d: Pick<FirmaDaten, "parameter" | "buergin" | "kunde
     ] },
   ];
 }
+/** Runde 3 (Punkt 3): so viele Fragen stehen offen, der Rest unter „Weitere Fragen“. */
+export const FIRMA_FRAGEN_SICHTBAR = 8;
 
 /**
- * „Ihr Team bei FIAON Global“ (Justin, 07.10.2026): unter dem Ansprechpartner die Leitung aus ANGEBOT_ANSPRECHPARTNER
- * (dieselbe Liste wie im Individualangebot). Mitarbeitende NICHT (Justins Entscheidung beim Go). Der Ansprechpartner selbst
- * steht groß darüber und nicht noch einmal im Raster.
- * Porträts und KI-Hinweis aus shared/fiaon-portraits.ts.
+ * „Ihr Team bei FIAON Global“ (Runde 2, Justin 08.10.2026, Punkt 9): die Personen kommen AUS DEN ANGEBOTSDATEN
+ * (parameter.inhalt.team) — Namen stehen nie im Code. Ein Bild nur, wenn ein ECHTES Foto der Person geliefert ist: ein Bildname
+ * am Angebot (hinter dem Link) oder „haus:<kürzel>“ für ein echtes Porträt des Hauses. KI-Porträts gibt es hier nicht (KI-VO
+ * Art. 50) — ohne Foto ein Monogramm. Ohne inhalt.team: die Leitung aus ANGEBOT_ANSPRECHPARTNER mit ihren echten Porträts.
+ * Der Ansprechpartner steht groß darüber und nicht noch einmal im Raster.
  */
 export function firmaTeam(par: Pick<FirmaParameter, "inhalt">): FirmaTeam {
-  const ap = String(par.inhalt?.ansprechpartner || "justin");
-  const person = (kuerzel: string, name: string, rolle: string) => ({
-    name, rolle, portrait: portraitUrl(kuerzel), portraitHinweis: portraitMitKi(kuerzel) ? KI_PORTRAIT_HINWEIS.de : "",
-    initialen: name.split(/\s+/).map((t) => t[0] ?? "").join("").slice(0, 2).toUpperCase(),
-  });
+  const ap = firmaAnsprechpartner(par).name;
+  const initialen = (name: string) => {
+    const t = name.replace(/\b(Dr|Mag|Prof|Dipl|Ing)\.\s*/g, "").split(/\s+/).filter(Boolean);
+    return ((t[0]?.[0] ?? "") + (t.length > 1 ? t[t.length - 1][0] : "")).toUpperCase();
+  };
+  const fotoAus = (f: unknown): string | null => {
+    const x = String(f ?? "");
+    if (x.startsWith(TEAM_HAUS)) { const k = x.slice(TEAM_HAUS.length); return firmaTeamFotoOk(x) ? portraitUrl(k) : null; }
+    // Hinter dem Link (firmaInhaltMitBildLinks) — sonst (roher Bildname, etwa in der Vorschau ohne Link) kein Bild.
+    return x.startsWith("/api/fiaon/global/angebot/") ? x : null;
+  };
+  // Runde 3 (Punkt 6): nur bestätigte Personen (bestaetigt !== false) — die übrigen bleiben in den Angebotsdaten, unsichtbar.
+  const daten = Array.isArray(par.inhalt?.team) ? par.inhalt!.team!.filter((t) => t && t.bestaetigt !== false && String(t.name ?? "").trim() && String(t.rolle ?? "").trim()) : null;
+  const personen = daten && daten.length
+    ? daten.filter((t) => t.name.trim() !== ap).map((t) => ({ name: t.name.trim(), rolle: t.rolle.trim(), foto: fotoAus(t.foto), initialen: initialen(t.name.trim()) }))
+    : ANGEBOT_ANSPRECHPARTNER.filter((p) => p.name !== ap).map((p) => ({ name: p.name, rolle: p.rolle, foto: portraitMitKi(p.kuerzel) ? null : portraitUrl(p.kuerzel), initialen: initialen(p.name) }));
   return {
     titel: "Ihr Team bei FIAON Global",
-    sub: "Mit Ihrem Ansprechpartner steht die Leitung von FIAON Global für Ihren Auftrag ein.",
-    // Justin (07.10.2026, Go in TFO): auf der Seite NUR die Leitung (Florentine Lombardi, Daniel Stripling) — keine Mitarbeitenden.
-    personen: ANGEBOT_ANSPRECHPARTNER.filter((p) => p.kuerzel !== ap).map((p) => person(p.kuerzel, p.name, p.rolle)),
+    sub: "Mit Ihrem Ansprechpartner arbeiten diese Menschen an Ihrem Auftrag — jede und jeder in ihrem Fach.",
+    personen,
   };
 }
 
@@ -905,13 +1118,20 @@ export function firmaVertragInhalt(d: FirmaDaten): { anker: string; marke: strin
   ];
 }
 
-/** Der Bildnachweis — aus den Bildern des Angebots abgeleitet, nie getippt. */
+/**
+ * Das eine Stimmungsbild zwischen zwei Abschnitten (Runde 2, Punkt 5: KI-Szenen höchstens einmal groß, mit KI-Hinweis). Aus
+ * inhalt.bilder.stimmung, sonst die Szene „usa“ — oder keins.
+ */
+export function firmaStimmung(par: Pick<FirmaParameter, "inhalt">): BildRef | null {
+  return bild(par, "stimmung") ?? bild(par, "usa") ?? null;
+}
+/** Der Bildnachweis — aus den Bildern abgeleitet, die die Seite zeigt, nie getippt. Der KI-Hinweis zu Justins Porträt steht NUR hier. */
 export function firmaBildnachweis(par: Pick<FirmaParameter, "inhalt">): string {
-  const bilder = Object.values(par.inhalt?.bilder ?? {}).filter((b): b is BildRef => !!b && typeof b === "object");
+  const stimmung = firmaStimmung(par);
   const glas = par.inhalt?.glas;
   const teile: string[] = [];
-  if (bilder.some((b) => b.ki)) teile.push("Szenen mit KI erstellt");
-  if (glas?.foto || bilder.some((b) => !b.ki)) teile.push("Produktfotos und Etikett: echte Aufnahmen Ihres Unternehmens");
+  if (stimmung?.ki) teile.push("Stimmungsbild mit KI erstellt");
+  if (glas?.foto || (stimmung && !stimmung.ki)) teile.push("Produktfotos und Etikett: echte Aufnahmen Ihres Unternehmens");
   if (glas) teile.push("das Glas im Kopf der Seite ist eine 3D-Darstellung nach diesen Fotos");
   const ap = firmaAnsprechpartner(par);
   if (ap.portraitHinweis) teile.push(`Porträt ${ap.name}: ${ap.portraitHinweis}`);
@@ -930,18 +1150,20 @@ export function firmaSeite(d: FirmaDaten): FirmaSeite {
       auge: `FIAON Global · Persönliches Angebot für ${k.firma.name}`,
       titel: "Ihr Weg in die Welt: eigene US-Gesellschaft, Kapital und ein ganzes Team an Ihrer Seite.",
       unter: String(par.inhalt?.heroUnter || `${m} wächst — mit eigener US-Gesellschaft, Kapital für den nächsten Schritt und einem Team, das jeden Monat daran arbeitet.`),
+      // Runde 3 (Punkt 1): die große Zahl und Justins Garantie-Satz (eine Quelle) — keine Gründungskosten (Punkt 2).
+      kapital: { betrag: firmaUsdKurz(par.kapitalUsd), satz: G.satz, titel: "Ihr Kapital" },
+      // Runde 3 (Punkt 3): höchstens drei Punkte — das Kapital steht schon groß darüber.
       nutzen: [
-        "Ihre US-Gesellschaft komplett — mit Adresse und Telefon in Miami",
-        G.nutzenKapital,
-        `Eine Bürgin, die gegenüber dem Institut einsteht: die ${d.buergin.name} — ohne gesondertes Entgelt`,
-        "Shop, Plattform, Marketing und Vertrieb aus einer Hand",
-        `Ein fester Ansprechpartner: ${ap.name}`,
+        "Ihre US-Gesellschaft komplett — mit Office, Empfang und Telefonannahme in Miami",
+        `Eine Bürgin, die gegenüber dem Institut einsteht — ohne gesondertes Entgelt`,
+        `Shop, Marketing und Vertrieb — mit ${ap.name} als festem Ansprechpartner`,
       ],
       glas: par.inhalt?.glas ?? null,
     },
-    ziele: { titel: "Ihre Ziele", sub: "Was Sie uns im Gespräch gesagt haben — darauf ist dieses Angebot gebaut.", punkte: ziele.map((z) => ({ titel: String(z.titel), text: String(z.text) })) },
+    ziele: { titel: "Ihre Ziele", sub: "Was Sie uns im Gespräch gesagt haben — darauf ist dieses Angebot gebaut.", punkte: ziele.slice(0, 3).map((z) => ({ titel: String(z.titel), text: String(z.text) })) },
+    stimmung: firmaStimmung(par),
     phasen: { titel: "Ihr Weg in die Welt", sub: `${zahlwort(firmaPhasen(d).length).replace(/^./, (c) => c.toUpperCase())} Etappen — vom Start bis in weitere Runden.`, liste: firmaPhasen(d) },
-    leistungen: { titel: "Was Sie bekommen", sub: "Sechs Bereiche, ein Team — alles in Gründung und Monatspauschale enthalten.", karten: firmaLeistungen(d) },
+    leistungen: { titel: "Was Sie bekommen", sub: "Sechs Bereiche, ein Team an Ihrer Seite.", karten: firmaLeistungen(d) },
     kapital: {
       titel: "Ihr Kapital",
       sub: "Eine erste Runde für Ihre US-Gesellschaft — mit einer Bürgin, die dafür einsteht.",
@@ -961,17 +1183,28 @@ export function firmaSeite(d: FirmaDaten): FirmaSeite {
       hinweis: firmaPruefberichtHinweis(d.compliance),
     },
     investition: {
-      titel: "Ihre Investition",
-      sub: "Vier Posten — jeder mit dem, was er umfasst, wann er fällig wird, warum es ihn gibt und wie er läuft.",
+      titel: FIRMA_VEREINBARUNG_TITEL,
+      sub: "Erst, was Sie bekommen — dann die Konditionen. Jede Zeile klappt auf: was sie umfasst, wann sie fällig wird, warum es sie gibt und wie sie läuft.",
+      // Runde 3 (Punkt 1): zuerst „Was Sie bekommen: 250.000 USD + Gesellschaft + Team“, danach die Konditionen.
+      bekommen: {
+        titel: "Was Sie bekommen",
+        punkte: [
+          { wert: firmaUsdKurz(par.kapitalUsd), text: "Eine erste Runde für Ihre US-Gesellschaft, mit Bürgin — Auszahlung nach Ziffer 7" },
+          { wert: "Ihre US-Gesellschaft", text: "Komplett, mit Office, Empfang und Telefonannahme in Miami" },
+          { wert: "Ein ganzes Team", text: "Strategie, Plattform, Marketing und Vertrieb — mit einem festen Ansprechpartner" },
+        ],
+      },
+      konditionenTitel: "Die Konditionen",
       posten: firmaInvestPosten(d),
+      budget: firmaBudget(par),
       rechner: firmaRechner(par),
       fein: [
         "Alle Beträge netto. Unsere Rechnungen weisen keine Umsatzsteuer aus; die Steuer schuldet Ihr Unternehmen selbst (Reverse Charge).",
-        `Zahlungsziel der Monatsrechnungen und der Beteiligungen: ${zahlwort(par.zahlungszielTage)} Tage. Überweisung auf Rechnung, keine Lastschrift.`,
+        `Zahlungsziel der Monatsrechnungen des Wachstumsbudgets und der Beteiligungen: ${zahlwort(par.zahlungszielTage)} Tage. Überweisung auf Rechnung, keine Lastschrift.`,
         "Kosten Dritter nennen wir vorab — beauftragt wird nur mit Ihrer Zustimmung.",
       ],
     },
-    fragen: { titel: "Fragen & Antworten", sub: "Alles, was vor einer Unterschrift offen sein könnte — in ruhigen Sätzen.", liste: firmaFragen(d) },
+    fragen: { titel: "Fragen & Antworten", sub: "Das Wichtigste in zwei Sätzen — alles Weitere steht im Vertrag.", liste: firmaFragen(d), sichtbar: FIRMA_FRAGEN_SICHTBAR },
     ansprechpartner: { titel: "Ihr Ansprechpartner", sub: "Ein Mensch kennt Ihren Auftrag von Anfang an — vor der Annahme bei jeder Frage zum Vertrag und danach bei jedem Schritt." },
     team: firmaTeam(par),
     vertrag: {
@@ -1027,7 +1260,7 @@ export function firmaPraeambel(d: FirmaDaten): string[] {
   const par = d.parameter;
   return [
     `Die Auftraggeberin stellt Produkte her und vertreibt sie. Sie will wachsen — mit mehr Kapazität, neuen Märkten und einer eigenen Gesellschaft in den USA. FIAON gründet diese Gesellschaft, begleitet das Wachstum der Auftraggeberin mit einem Team für Strategie, Plattform, Marketing und Vertrieb und bereitet die erste Finanzierungsrunde der US-Gesellschaft über ${firmaUsd(par.kapitalUsd)} vor, für die die ${d.buergin.name} eine Bürgschaft zusagt.`,
-    "Die Vergütung besteht aus einem einmaligen Betrag für die Gründung, einer Monatspauschale und Beteiligungen, die nur bei Wachstum über eine Schwelle oder bei einem Verkauf anfallen.",
+    "Die Vergütung besteht aus einem einmaligen Betrag für die Gründung, dem Anteil der Auftraggeberin an einem gemeinsamen Wachstumsbudget, dessen andere Hälfte FIAON trägt, und Beteiligungen, die nur bei Wachstum über eine Schwelle oder bei einem Verkauf anfallen.",
   ];
 }
 
@@ -1064,7 +1297,7 @@ export function firmaZiffern(d: FirmaDaten): AngebotZiffer[] {
         "Laufende Betreuung der US-Gesellschaft durch Partner-Anwalt, Partner-Steuerberater und US-CPA im Umfang dieser Ziffer, einschließlich der jährlichen US-Steuererklärung der US-Gesellschaft",
         "Pflichtenkalender mit allen US-Fristen und ein Dokumentenraum mit allen Unterlagen der US-Gesellschaft",
       ], "FIAON gründet für die Auftraggeberin eine Gesellschaft in den USA und betreut sie während der Laufzeit. Die Leistungen umfassen:"),
-      p("Die Gebühren und Honorare für die Leistungen nach Absatz 1 sind in der Vergütung nach Ziffer 10 enthalten. Was nicht enthalten ist, nennt Ziffer 10 Absatz 4."),
+      p("Die Gebühren und Honorare für die Leistungen nach Absatz 1 sind in der Vergütung nach Ziffer 10 enthalten: für die Gründung in der Vergütung nach Ziffer 10 Absatz 1, für den laufenden Betrieb der US-Gesellschaft im gemeinsamen Wachstumsbudget nach Ziffer 10 Absatz 2 und 3; bis zum Starttag trägt FIAON die laufenden Kosten. Was nicht enthalten ist, nennt Ziffer 10 Absatz 6."),
     ] },
     { nr: 4, titel: "Leistungen — Strategie & Wachstum", absaetze: [
       liste([
@@ -1080,17 +1313,17 @@ export function firmaZiffern(d: FirmaDaten): AngebotZiffer[] {
       liste([
         "Entwicklung, Betrieb und Weiterentwicklung eines Online-Shops und einer Vertriebsplattform der Auftraggeberin",
         "Website und Suchmaschinenoptimierung (SEO) einschließlich Aufbau von Verweisen anderer Seiten (Backlinks)",
-        "Planung, Gestaltung und Betreuung bezahlter Anzeigen (SEA); das Werbebudget selbst zahlt die Auftraggeberin nach Ziffer 10 Absatz 4",
+        "Planung, Gestaltung und Betreuung bezahlter Anzeigen (SEA); das Werbebudget kommt aus dem gemeinsamen Wachstumsbudget nach Ziffer 10 Absatz 3, ein Mehrbudget nach Ziffer 10 Absatz 6",
         "Social Media mit Beiträgen, Texten und Gestaltung",
-        "Influencer-Kampagnen: Auswahl, Planung und Steuerung; die Honorare der Influencer zahlt die Auftraggeberin nach Ziffer 10 Absatz 4",
+        "Influencer-Kampagnen: Auswahl, Planung und Steuerung; die Honorare der Influencer kommen aus dem gemeinsamen Wachstumsbudget nach Ziffer 10 Absatz 3, was darüber hinausgeht, nach Ziffer 10 Absatz 6",
       ], "FIAON entwickelt die digitalen Vertriebswege der Auftraggeberin und bringt Kundschaft dorthin. Die Leistungen umfassen:"),
-      p("Die Rechte an den Arbeitsergebnissen dieser Ziffer — insbesondere Shop, Website, Texte, Gestaltungen und Inhalte — gehen mit der Zahlung der Monatspauschale für den Monat, in dem sie entstanden sind, auf die Auftraggeberin über. Zugänge und Konten werden auf den Namen der Auftraggeberin eingerichtet."),
+      p("Die Rechte an den Arbeitsergebnissen dieser Ziffer — insbesondere Shop, Website, Texte, Gestaltungen und Inhalte — gehen mit der Zahlung des Anteils am Wachstumsbudget nach Ziffer 10 Absatz 2 für den Monat, in dem sie entstanden sind, auf die Auftraggeberin über; Arbeitsergebnisse aus der Zeit vor dem Starttag mit der Zahlung des ersten Anteils. Zugänge und Konten werden auf den Namen der Auftraggeberin eingerichtet."),
     ] },
     { nr: 6, titel: "Leistungen — Vertrieb und Ansprechpartner", absaetze: [
       liste([
         "Aktive Mitarbeit im Verkauf, einschließlich Gesprächen mit Handelspartnern im Namen und auf Rechnung der Auftraggeberin, soweit sie dem im Einzelfall zustimmt",
         "Öffnen neuer Handelswege im In- und Ausland",
-        "Messen: Auswahl, Vorbereitung und Begleitung; Standgebühren und Reisekosten Dritter zahlt die Auftraggeberin nach Ziffer 10 Absatz 4",
+        "Messen: Auswahl, Vorbereitung und Begleitung; Standgebühren und Reisekosten Dritter zahlt die Auftraggeberin nach Ziffer 10 Absatz 6",
       ], "FIAON unterstützt den Vertrieb der Auftraggeberin. Die Leistungen umfassen:"),
       p(`Fester persönlicher Ansprechpartner der Auftraggeberin ist ${ap.name}. Er führt mit der Auftraggeberin einen monatlichen Durchgang über den Stand aller Leistungen.`),
     ] },
@@ -1112,7 +1345,11 @@ export function firmaZiffern(d: FirmaDaten): AngebotZiffer[] {
     ] },
     { nr: 10, titel: "Vergütung", absaetze: [
       p(`Für die Gründung nach Ziffer 3 zahlt die Auftraggeberin einmalig ${firmaEur(par.startCents)}. Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei der Annahme, sie ist sofort ohne Abzug zu zahlen.`),
-      p(`Für die Leistungen nach den Ziffern 3 bis 6 zahlt die Auftraggeberin eine Monatspauschale von ${firmaEur(par.monatCents)}, monatlich im Voraus. Die erste Monatspauschale ist am Starttag fällig, jede weitere am selben Kalendertag der folgenden Monate; fehlt dieser Tag in einem Monat, am letzten Tag dieses Monats. Starttag ist der Tag, den die Auftraggeberin bei der Annahme wählt — der Tag der Annahme oder ein späterer Tag innerhalb von ${tagenWort(FIRMA_START_SPAETESTENS_TAGE)}; er steht im Annahmevermerk. FIAON stellt jede Monatsrechnung am Fälligkeitstag; sie ist binnen ${tagenWort(par.zahlungszielTage)} zu zahlen.`),
+      // Fassung C (Runde 2, Justin 08.10.2026): gemeinsames Wachstumsbudget statt Monatspauschale; Beginn am Tag „Shop live“.
+      // Fassung D (Runde 3, Punkt 5): spätestens budgetSpaetestensMonate nach der Annahme, es sei denn, die Verzögerung liegt bei FIAON.
+      p(`Für die laufenden Leistungen nach den Ziffern 3 bis 6 bilden die Parteien ab dem Starttag ein gemeinsames Wachstumsbudget von ${firmaEur(par.budgetGesamtCents)} im Monat. Die Auftraggeberin trägt davon die Hälfte, ${firmaEur(par.monatCents)} im Monat (Anteil der Auftraggeberin); FIAON trägt die andere Hälfte. Starttag ist der Tag, an dem der Online-Shop nach Ziffer 5 live ist — für Kundinnen und Kunden erreichbar und bereit, Bestellungen anzunehmen; FIAON teilt ihn der Auftraggeberin in Textform mit. Ist der Online-Shop ${monateWort(par.budgetSpaetestensMonate)} nach dem Tag der Annahme (Ziffer 7 Absatz 1) nicht live, ist Starttag dieser Tag (spätester Starttag), es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat; dann bleibt es beim Tag, an dem der Online-Shop live ist. Der Anteil ist monatlich im Voraus zu zahlen: erstmals am Starttag, danach jeweils am selben Kalendertag der folgenden Monate; fehlt dieser Tag in einem Monat, am letzten Tag dieses Monats. FIAON stellt jede Rechnung am Fälligkeitstag; sie ist binnen ${tagenWort(par.zahlungszielTage)} zu zahlen.`),
+      liste(firmaBudgetPosten(par).map(budgetZeileVertrag), `Das Wachstumsbudget ist nach folgender Aufstellung geplant (Planwerte je Monat, zusammen ${firmaEur(par.budgetGesamtCents)}):`),
+      p("Die Beträge der Aufstellung sind Planwerte. FIAON setzt das Wachstumsbudget nach dieser Aufstellung für die Auftraggeberin ein und legt die Verwendung im monatlichen Durchgang nach Ziffer 6 Absatz 2 offen; Verschiebungen zwischen den Posten stimmt FIAON dort mit der Auftraggeberin ab. Personal von FIAON wird aus dem Wachstumsbudget nicht bezahlt."),
       p("Dazu kommen die Umsatzbeteiligung nach Ziffer 11 und die Verkaufsbeteiligung nach Ziffer 12."),
       liste([...FIRMA_EXTRA_VERTRAG],
         "Nicht in der Vergütung enthalten sind die folgenden Kosten; die Auftraggeberin zahlt sie unmittelbar an den jeweiligen Anbieter. FIAON nennt sie vorab und beauftragt sie nur mit Zustimmung der Auftraggeberin in Textform:"),
@@ -1139,12 +1376,12 @@ export function firmaZiffern(d: FirmaDaten): AngebotZiffer[] {
     { nr: 13, titel: "Rechnungen, Zahlung und Umsatzsteuer", absaetze: [
       p("FIAON stellt jede Rechnung an die Auftraggeberin mit Firma, Anschrift und UID. Gezahlt wird per Überweisung auf das in der Rechnung genannte Konto."),
       p("Die Leistungen von FIAON mit Sitz im Vereinigten Königreich an die Auftraggeberin als Unternehmerin mit Sitz in der Europäischen Union sind am Sitz der Auftraggeberin steuerbar; die Umsatzsteuer schuldet die Auftraggeberin als Leistungsempfängerin (Reverse Charge). Die Rechnungen weisen keine Umsatzsteuer aus. Ändert sich die Rechtslage, gilt die gesetzliche Umsatzsteuer zusätzlich."),
-      p("Ist die Auftraggeberin mit zwei Monatspauschalen in Verzug, kann FIAON nach Mahnung in Textform mit einer Frist von vierzehn Tagen die Leistungen nach den Ziffern 4 bis 6 bis zur Zahlung ruhen lassen."),
+      p("Ist die Auftraggeberin mit zwei Monatsanteilen nach Ziffer 10 Absatz 2 in Verzug, kann FIAON nach Mahnung in Textform mit einer Frist von vierzehn Tagen die Leistungen nach den Ziffern 4 bis 6 bis zur Zahlung ruhen lassen."),
     ] },
     { nr: 14, titel: "Laufzeit, Verlängerung und Kündigung", absaetze: [
-      p("Der Vertrag beginnt mit der Annahme durch die Auftraggeberin. Startgespräch und Vorbereitung beginnen sofort nach der Annahme; mit der Gründung nach Ziffer 3 beginnt FIAON nach Eingang der Zahlung nach Ziffer 10 Absatz 1. Die Leistungen nach den Ziffern 4 bis 6 und die Monatspauschale beginnen am Starttag."),
+      p("Der Vertrag beginnt mit der Annahme durch die Auftraggeberin. Startgespräch, Vorbereitung und die Leistungen nach den Ziffern 4 bis 6 beginnen sofort nach der Annahme; mit der Gründung nach Ziffer 3 beginnt FIAON nach Eingang der Zahlung nach Ziffer 10 Absatz 1. Das gemeinsame Wachstumsbudget und der Anteil der Auftraggeberin beginnen am Starttag (Ziffer 10 Absatz 2)."),
       p(`Die Mindestlaufzeit beträgt ${monateWort(par.mindestMonate)} ab dem Starttag. Danach verlängert sich der Vertrag um jeweils ${monateWort(par.verlaengerungMonate)}, wenn ihn keine Partei spätestens ${monateWort(par.kuendigungMonate)} vor Ablauf in Textform kündigt.`),
-      p(`Das Recht beider Parteien zur Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund für FIAON liegt insbesondere vor, wenn die Auftraggeberin vorsätzlich falsche Angaben macht, mit drei Monatspauschalen in Verzug ist oder sie oder die US-Gesellschaft auf einer Sanktionsliste der Europäischen Union, der Vereinten Nationen, des Vereinigten Königreichs oder der USA geführt wird. ${G.vertragKuendigung}`),
+      p(`Das Recht beider Parteien zur Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund für FIAON liegt insbesondere vor, wenn die Auftraggeberin vorsätzlich falsche Angaben macht, mit drei Monatsanteilen in Verzug ist oder sie oder die US-Gesellschaft auf einer Sanktionsliste der Europäischen Union, der Vereinten Nationen, des Vereinigten Königreichs oder der USA geführt wird. ${G.vertragKuendigung}`),
       p("Mit dem Ende des Vertrags übergibt FIAON alle Zugänge, Konten und Unterlagen. Die US-Gesellschaft bleibt bei ihrer Gesellschafterin. Dienste in den USA, die FIAON für die US-Gesellschaft erbringt (Geschäftsadresse, Telefon, Registered Agent, U.S. Agent), enden mit dem Vertrag; FIAON unterstützt den Wechsel zu einem neuen Anbieter während der letzten drei Monate der Laufzeit. Die Bürgschaft besteht nach ihren Bedingungen fort; für die Umsatzbeteiligung gilt Ziffer 11 Absatz 8, für die Verkaufsbeteiligung Ziffer 12 Absatz 3."),
     ] },
     { nr: 15, titel: "Mitwirkung und Reporting", absaetze: [
@@ -1500,11 +1737,30 @@ function zeitText(am: Date): string {
   const zeit = am.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
   return `${tag} um ${zeit} Uhr (Europe/Berlin)`;
 }
+/** Eine gespeicherte Unterschrift als data:-Adresse — nur ein echtes PNG in Base64 (nie fremder Inhalt im src-Attribut). */
+function unterschriftBild(png: unknown): string | null {
+  const m = String(png ?? "").match(/^data:image\/png;base64,([A-Za-z0-9+/=]{100,})$/);
+  return m ? `data:image/png;base64,${m[1]}` : null;
+}
+/** Die Unterschrift im Annahmevermerk (Runde 2, Punkt 11): das Bild (gezeichnet bzw. aus dem getippten Namen gesetzt) oder der Name in Schreibschrift. */
+function unterschriftHtml(u: FirmaUnterschriftVermerk): string {
+  const bild = unterschriftBild(u.png);
+  const art = u.art === "gezeichnet" ? "von Hand gezeichnet" : `Name getippt: ${escHtml(u.name ?? "")}`;
+  const zeichen = bild
+    ? `<img class="gv-unterschrift-bild" src="${bild}" alt="Unterschrift" style="display:block;max-width:240px;max-height:80px;margin:4px 0 2px" />`
+    : `<span class="gv-unterschrift-getippt" style="display:block;font-family:'Mrs Saint Delafield','Snell Roundhand','Apple Chancery','Dancing Script',cursive;font-size:30px;line-height:1.1;color:#1b3866;margin:4px 0 2px">${escHtml(u.name ?? "")}</span>`;
+  return `${zeichen}<span class="gv-leise" style="font-size:8pt">Unterschrift (${art})</span>`;
+}
 function firmaAnnahmeBlock(d: FirmaDaten, a: FirmaAnnahmeVermerk | null): string {
   const k = d.kunde; const name = firmaVertreterName(k);
-  const kunde = a ? `<span>Angenommen durch Klick auf „${escHtml(FIRMA_KNOPF)}“</span>` : `<span class="gv-leise">Wird durch Klick auf „${escHtml(FIRMA_KNOPF)}“ angenommen.</span>`;
+  // Fassung C: Angenommen wird mit Unterschrift und Klick — der Satz steht im Rumpf (Prüfsumme), die Unterschrift im Vermerk (nicht).
+  const kunde = a
+    ? `${a.unterschrift ? unterschriftHtml(a.unterschrift) : ""}<span>Angenommen mit Unterschrift und Klick auf „${escHtml(FIRMA_KNOPF)}“</span>`
+    : `<span class="gv-leise">Wird mit Unterschrift und Klick auf „${escHtml(FIRMA_KNOPF)}“ angenommen.</span>`;
+  const start = a?.starttag ? `<br/>Starttag: ${escHtml(firmaTag(a.starttag))}${a.sofort ? " (sofort mit der Annahme)" : " (gewählt)"}` : "";
+  const zeichnung = a?.unterschrift ? `<br/>Unterschrift: ${a.unterschrift.art === "gezeichnet" ? "von Hand gezeichnet" : `Name getippt („${escHtml(a.unterschrift.name ?? "")}“)`}, gespeichert mit Zeit und IP-Adresse` : "";
   const meta = a
-    ? `<div class="meta">Angenommen für ${escHtml(k.firma.name)} von ${escHtml(name)}, ${escHtml(k.vertretung.funktion)}, am ${escHtml(zeitText(a.am))}<br/>Starttag: ${escHtml(firmaTag(a.starttag))}${a.sofort ? " (sofort mit der Annahme)" : " (gewählt)"}<br/>Bestätigt: Unternehmergeschäft ohne Widerrufsrecht; Vertretungsbefugnis<br/>IP-Adresse: ${escHtml(a.ip || "—")}<br/>Browser: ${escHtml(String(a.userAgent || "—").slice(0, 220))}<br/>Prüfsumme des Vertragstextes einschließlich der Anlagen (SHA-256): <span class="hash">${escHtml(a.hash)}</span></div>`
+    ? `<div class="meta">Angenommen für ${escHtml(k.firma.name)} von ${escHtml(name)}, ${escHtml(k.vertretung.funktion)}, am ${escHtml(zeitText(a.am))}${start}${zeichnung}<br/>Bestätigt: Unternehmergeschäft ohne Widerrufsrecht; Vertretungsbefugnis<br/>IP-Adresse: ${escHtml(a.ip || "—")}<br/>Browser: ${escHtml(String(a.userAgent || "—").slice(0, 220))}<br/>Prüfsumme des Vertragstextes einschließlich der Anlagen (SHA-256): <span class="hash">${escHtml(a.hash)}</span></div>`
     : "";
   return `
   <div class="sig-grid gv-sig">
@@ -1583,25 +1839,25 @@ export function htmlZuText(html: string): string {
 export function firmaBestellUebersicht(d: FirmaDaten): FirmaBestellUebersicht {
   const par = d.parameter; const k = d.kunde; const G = firmaGarantie(par);
   return {
-    titel: "Ihre Bestellung im Überblick",
+    titel: "Unsere Zusammenarbeit im Überblick",
     zeilen: [
       { label: "Vertragspartner", wert: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}` },
       { label: "Auftraggeberin", wert: `${k.firma.name}, ${anschrift(k)}, UID ${k.firma.uid} — vertreten durch ${firmaVertreterName(k)}, ${k.vertretung.funktion}` },
       { label: "Leistung", wert: "US-Gesellschaft komplett, Strategie & Wachstum, Plattform & Marketing, Vertrieb und ein fester Ansprechpartner — nach dem Vertrag mit zwei Anlagen" },
-      { label: "Gründung", wert: `${firmaEur(par.startCents)} einmalig — fällig mit der Annahme` },
-      { label: "Plattform & Team", wert: `${firmaEur(par.monatCents)} pro Monat im Voraus ab Ihrem Starttag, Rechnung am Fälligkeitstag, Zahlungsziel ${zahlwort(par.zahlungszielTage)} Tage` },
+      { label: "Gründungskosten", wert: `${firmaEur(par.startCents)} einmalig — fällig mit der Annahme` },
+      { label: "Wachstumsbudget", wert: `Gemeinsam ${firmaEur(par.budgetGesamtCents)} im Monat, davon Ihr Anteil ${firmaEur(par.monatCents)} — die andere Hälfte trägt FIAON. Ab dem Tag „Shop live“ — spätestens ${monateWort(par.budgetSpaetestensMonate)} nach Annahme, es sei denn, die Verzögerung liegt bei FIAON — monatlich im Voraus, Rechnung am Fälligkeitstag, Zahlungsziel ${zahlwort(par.zahlungszielTage)} Tage` },
       { label: "Umsatzbeteiligung", wert: `${firmaProzent(par.umsatzSatzProzent)} auf den Netto-Umsatz der Gruppe über ${firmaEur(par.umsatzSchwelleCents)} je Kalenderjahr (erstes Jahr anteilig), quartalsweise mit Jahresabgleich — solange der Vertrag läuft oder die Bürgschaft besteht` },
       { label: "Verkaufsbeteiligung", wert: `${firmaProzent(par.verkaufSatzProzent)} der Gegenleistung bei einem Verkauf — während der Laufzeit und ${monateWort(par.verkaufNachlaufMonate)} danach, fällig mit dem Zufluss` },
       { label: "Erste Runde", wert: G.uebersicht },
       { label: "Bürgschaft", wert: `${d.buergin.name}, Höchstbetrag ${firmaUsd(par.buergschaftUsd)}, höchstens ${monateWort(par.buergschaftHoechstMonate)}, ohne gesondertes Entgelt, mit aufschiebenden Bedingungen (Anlage 1)` },
-      { label: "Laufzeit", wert: `Mindestens ${monateWort(par.mindestMonate)} ab dem Starttag, danach Verlängerung um je ${monateWort(par.verlaengerungMonate)}; Kündigung ${monateWort(par.kuendigungMonate)} vor Ablauf in Textform` },
+      { label: "Laufzeit", wert: `Beginn mit der Annahme; mindestens ${monateWort(par.mindestMonate)} ab dem Starttag („Shop live“, spätestens ${monateWort(par.budgetSpaetestensMonate)} nach Annahme), danach Verlängerung um je ${monateWort(par.verlaengerungMonate)}; Kündigung ${monateWort(par.kuendigungMonate)} vor Ablauf in Textform` },
       { label: "Umsatzsteuer", wert: "Alle Beträge netto — Steuerschuldnerschaft der Leistungsempfängerin (Reverse Charge)" },
       { label: "Zahlung", wert: "Überweisung auf Rechnung — keine Lastschrift" },
       { label: "Recht", wert: "Englisches Recht, Gerichtsstand London, Vertragssprache Deutsch — Geschäft unter Unternehmern, kein Widerrufsrecht" },
     ],
     fein: [
-      "Den Starttag wählen Sie unten: sofort oder an einem Tag Ihrer Wahl.",
-      "Kosten Dritter zahlen Sie direkt und nur nach Ihrer Zustimmung — welche das sind, steht in Ziffer 10 Absatz 4 des Vertrags.",
+      "Den Tag „Shop live“ teilen wir Ihnen schriftlich mit — erst dann beginnt das Wachstumsbudget, spätestens aber zum spätesten Starttag nach Ziffer 10 Absatz 2.",
+      "Kosten Dritter zahlen Sie direkt und nur nach Ihrer Zustimmung — welche das sind, steht in Ziffer 10 Absatz 6 des Vertrags.",
     ],
   };
 }
@@ -1612,26 +1868,35 @@ export function firmaAnnahmeTexte(d: FirmaDaten): FirmaAnnahmeTexte {
     sub: "Lesen Sie Vertrag und Anlagen in Ruhe. Mit dem Knopf nehmen Sie das Angebot für Ihr Unternehmen verbindlich an.",
     unternehmer: `Ich nehme dieses Angebot für ${f.name} in Ausübung ihrer gewerblichen Tätigkeit an (Geschäft unter Unternehmern). Mir ist bekannt, dass kein Widerrufsrecht für Verbraucher besteht.`,
     vertretung: `Ich bin berechtigt, ${f.name} bei diesem Vertrag allein zu vertreten.`,
-    startTitel: "Wann sollen wir beginnen?",
-    startSofort: "Sofort starten",
-    startAb: "Starten ab",
+    unterschrift: {
+      titel: "Ihre Unterschrift",
+      sub: `Zeichnen Sie mit Finger oder Maus — oder tippen Sie Ihren Namen. Sie unterschreiben für ${f.name}.`,
+      zeichnen: "Zeichnen", tippen: "Namen tippen", neu: "Neu", platz: "Hier unterschreiben",
+      tippenFeld: "Ihr Name", tippenHinweis: `Vor- und Nachname, wie im Vertrag: ${firmaVertreterName(d.kunde)}`,
+      vorschau: "So steht Ihre Unterschrift im Vertrag",
+      fehlt: "Bitte unterschreiben Sie — zeichnen oder Namen tippen.",
+      fehltName: `Bitte tippen Sie Ihren Namen mit Nachnamen (${String(d.kunde.vertretung?.nachname ?? "").trim()}).`,
+    },
     knopf: FIRMA_KNOPF,
-    unterKnopf: `Mit Klick nehmen Sie das Angebot verbindlich an; die Gründungskosten von ${firmaEurKurz(d.parameter.startCents)} werden mit der Rechnung fällig, die Monatspauschale ab Ihrem Starttag. ${G.annahmeUnterKnopf}`,
+    unterKnopf: `Mit Klick nehmen Sie das Angebot verbindlich an; die Gründungskosten von ${firmaEurKurz(d.parameter.startCents)} werden mit der Rechnung fällig, Ihr Anteil am Wachstumsbudget erst ab dem Starttag („Shop live“, spätestens ${monateWort(d.parameter.budgetSpaetestensMonate)} nach Annahme). ${G.annahmeUnterKnopf}`,
     gesperrt: "Dieses Angebot wird gerade vervollständigt. Ihr Ansprechpartner gibt Ihnen Bescheid, sobald Sie es annehmen können.",
   };
 }
 /** Fehler- und Bestätigungssätze der Annahme (Server-Antworten). */
 export const FIRMA_ANNAHME = {
   fehltHaken: "Bitte bestätigen Sie beide Punkte: das Geschäft unter Unternehmern und Ihre Vertretungsbefugnis.",
-  fehltBeginn: "Bitte wählen Sie „Sofort starten“ oder „Starten ab“ mit einem Datum.",
-  fehltDatum: (von: string, bis: string) => `Bitte wählen Sie Ihren Starttag — einen Tag zwischen ${von} und ${bis}.`,
+  fehltUnterschrift: "Bitte unterschreiben Sie — zeichnen Sie im Feld oder tippen Sie Ihren Namen.",
+  fehltName: (nachname: string) => `Bitte tippen Sie Ihren Namen mit Nachnamen (${nachname}).`,
   neuLaden: "Das Angebot wurde inzwischen geändert — bitte laden Sie die Seite neu und lesen Sie die aktuelle Fassung.",
   fertigTitel: "Herzlichen Dank. Ihr Auftrag steht.",
+  // Fassung D (Ziffer 10 Absatz 2): mit dem spätesten Start („sechs Monate“); ohne ihn (Fassung C) der Satz wie bisher.
+  fertigText: (email: string, spaetestens: string | null = null) => `Ihr Vertrag gilt ab heute. Mit der Gründung Ihrer US-Gesellschaft legen wir los, sobald die Gründungskosten eingegangen sind; Ihr Anteil am Wachstumsbudget beginnt erst, wenn Ihr Shop live ist${spaetestens ? `, spätestens ${spaetestens} nach Ihrer Annahme` : ""}. Vertrag und Rechnung finden Sie hier; Ihr Ansprechpartner schickt beides zusätzlich an ${email}.`,
+  // Fassungen bis B (Startwahl bei der Annahme) — nur noch für Angebote, die so angenommen wurden.
   fertigSofort: (email: string) => `Ihr Starttag ist heute. Mit der Gründung Ihrer US-Gesellschaft legen wir los, sobald Ihre Zahlung eingegangen ist. Vertrag und Rechnung finden Sie hier; Ihr Ansprechpartner schickt beides zusätzlich an ${email}.`,
   fertigAb: (email: string, tag: string) => `Wie gewünscht ist Ihr Starttag der ${tag}. Mit der Gründung Ihrer US-Gesellschaft legen wir los, sobald Ihre Zahlung eingegangen ist. Vertrag und Rechnung finden Sie hier; Ihr Ansprechpartner schickt beides zusätzlich an ${email}.`,
-  fertigFaellig: (betrag: string) => `Heute fällig ist die Gründung über ${betrag}. Bankverbindung, Verwendungszweck und einen QR-Code für Ihre Banking-App finden Sie auf Ihrer Zahlungsseite.`,
+  fertigFaellig: (betrag: string) => `Heute fällig sind die Gründungskosten über ${betrag}. Bankverbindung, Verwendungszweck und einen QR-Code für Ihre Banking-App finden Sie auf Ihrer Zahlungsseite.`,
   fertigBezahlt: "Ihre Zahlung für die Gründung ist eingegangen — vielen Dank.",
-  fertigRechnungFolgt: (betrag: string) => `Heute fällig ist die Gründung über ${betrag}. Ihre Rechnung mit Bankverbindung und Verwendungszweck wird gerade erstellt — Sie müssen nichts weiter tun.`,
+  fertigRechnungFolgt: (betrag: string) => `Heute fällig sind die Gründungskosten über ${betrag}. Ihre Rechnung mit Bankverbindung und Verwendungszweck wird gerade erstellt — Sie müssen nichts weiter tun.`,
   fertigFuss: FIRMA_GARANTIE_FEST.fertigFuss,
 } as const;
 
@@ -1641,7 +1906,7 @@ export const FIRMA_ANNAHME = {
 export type FirmaFaelligkeit = "sofort" | "monatlich" | "umsatz" | "verkauf";
 export const FIRMA_TEIL_TITEL = {
   gruendung: "Gründung",
-  monat: (n: number) => `Plattform & Team — Monat ${n}`,
+  monat: (n: number) => `Wachstumsbudget — Ihr Anteil, Monat ${n}`,
   umsatz: (jahr: number, quartal: number | "jahr") => quartal === "jahr" ? `Umsatzbeteiligung — Jahresabgleich ${jahr}` : `Umsatzbeteiligung — Q${quartal} ${jahr}`,
   verkauf: "Verkaufsbeteiligung",
 } as const;
@@ -1649,7 +1914,7 @@ export function firmaTeilPaketname(titel: string): string { return `${FIRMA_PAKE
 export function firmaRechnungsText(z: { angebotRef: string; auftragRef: string; faelligkeit: string; titel: string; zeitraum: string | null; bemessungCents: number | null }): { beschreibung: string; zeitraum: string } {
   const kopf = `${FIRMA_PAKETNAME} ${z.angebotRef}`;
   if (z.faelligkeit === "monatlich") {
-    return { beschreibung: `${kopf}: ${z.titel} — Strategie & Wachstum, Plattform & Marketing, Vertrieb und Betreuung der US-Gesellschaft, monatlich im Voraus, gemäß Auftrag ${z.auftragRef}`, zeitraum: z.zeitraum || "1 Monat" };
+    return { beschreibung: `${kopf}: ${z.titel} — Anteil der Auftraggeberin (die Hälfte) am gemeinsamen Wachstumsbudget nach Ziffer 10 Absatz 2 und 3 des Vertrags, monatlich im Voraus, gemäß Auftrag ${z.auftragRef}`, zeitraum: z.zeitraum || "1 Monat" };
   }
   if (z.faelligkeit === "umsatz") {
     return { beschreibung: `${kopf}: ${z.titel} — auf den Netto-Umsatz der Gruppe über der Jahresschwelle${z.bemessungCents != null ? `, gemeldeter kumulierter Netto-Umsatz ${firmaEur(z.bemessungCents)}` : ""}, gemäß Ziffer 11 des Vertrags (Auftrag ${z.auftragRef})`, zeitraum: z.zeitraum || "Quartal" };

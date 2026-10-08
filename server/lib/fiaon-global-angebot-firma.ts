@@ -10,10 +10,11 @@
 // ── DER WEG ───────────────────────────────────────────────────────────────
 //   Anlegen NUR per Skript (scripts/angebot-firma-anlegen.ts, private JSON außerhalb des Repos) →
 //   signierter Link (derselbe Token wie E-268) → Kundin liest /business/angebot/:token (FirmaKundenSicht) →
-//   Annahme mit zwei Häkchen (Unternehmergeschäft, Vertretung), Startwahl und Prüfsumme →
-//   Vertrags-PDF mit Annahmevermerk → Bestellzeile „Gründung“ (Firma, UID, Reverse Charge) → Akte →
-//   Person am Angebot (Global-Kunde-Regel E-272) → Monatsteile für die Mindestlaufzeit →
-//   Startgespräch (E-273) → Aufgaben.
+//   Annahme mit zwei Häkchen (Unternehmergeschäft, Vertretung), Unterschrift (gezeichnet oder getippt, Runde 2) und
+//   Prüfsumme → Garantiefrist ab dem Tag der Annahme (Fassung C) → Vertrags-PDF mit Annahmevermerk und Unterschrift →
+//   Bestellzeile „Gründung“ (Firma, UID, Reverse Charge) → Akte → Person am Angebot (Global-Kunde-Regel E-272) →
+//   Startgespräch (E-273) → Aufgaben. Leitung „Shop live“ (Runde 2) → Starttag → Monatsteile des Wachstumsbudgets
+//   für die Mindestlaufzeit, erste Monatsrechnung an diesem Tag.
 //   Stundenlauf (über globalAngebotLauf): Monatsrechnung am Fälligkeitstag (Berlin), Verlängerung, wenn die
 //   Kündigungsfrist ohne Kündigung verstrichen ist, Fristende der Garantie als Aufgabe.
 //   Chefbüro (Leitung): Freigabe Anwalt, Bedingungen erfüllt (Garantiefrist), erste Runde erhalten, Frist ruhen,
@@ -30,6 +31,7 @@
 //   · Nichts wird gelöscht. Kündigung und Wegfall von Monatsteilen sind Status (entfallen_am).
 // ═══════════════════════════════════════════════════════════════════════════
 import { randomBytes, createHash } from "node:crypto";
+import { inflateSync } from "node:zlib";
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
 import { absoluteUrl } from "../fiaon-base-url";
@@ -37,7 +39,7 @@ import { wrapFiaonDocument, htmlZuPdfMitFusszeile, docHash } from "./fiaon-html-
 import { GLOBAL_VERTRAG_CSS } from "./fiaon-global-vertrag";
 import { ANGEBOT_VERTRAG_CSS } from "./fiaon-global-angebot-vertrag";
 import {
-  ensureAngebotTabellen, firmaTeileCheckSichern, angebotLesen, angebotTokenErzeugen, angebotKundenPfad, angebotStartRahmen, angebotStatusAus, verlaufAngebot,
+  ensureAngebotTabellen, firmaTeileCheckSichern, angebotLesen, angebotTokenErzeugen, angebotKundenPfad, angebotStatusAus, verlaufAngebot,
   hemmungRechnen, angebotTokenPruefen, angebotLinkAbgelaufen, ANGEBOT_PAKET_KEY, type AngebotZeile, type AnnahmeKontext,
 } from "./fiaon-global-angebot";
 import { globalAkteLesen, globalBestellungLesen, globalVerlauf, globalEinstellungen, globalMeinAuftragUrl, ustIdNormalisieren } from "./fiaon-global-auftrag";
@@ -52,8 +54,9 @@ import {
   firmaAnlage1HashEingabe, firmaAnlage1Html, firmaTeilPaketname, firmaRechnungsText, complianceKundenfassung, complianceHtml,
   firmaEur, firmaEurKurz, firmaUsd, firmaTag, monatFaelligAm, monatZeitraum, laufzeitEnde, kuendigungSpaetestens, kuendigungWirksamZum,
   umsatzSchwelleJahr, umsatzBeteiligungRechnen, verkaufBeteiligungRechnen, garantieFristEnde, plusTageIso, zahlwort, monateWort,
-  umsatzBeteiligungEnde, kuendigungSperrtGarantie, quartalsEnde, firmaInhaltMitBildLinks, FIRMA_BILD_NAME,
-  type FirmaDaten, type FirmaParameter, type FirmaFreigaben, type FirmaAnnahmeVermerk,
+  umsatzBeteiligungEnde, kuendigungSperrtGarantie, quartalsEnde, firmaInhaltMitBildLinks, FIRMA_BILD_NAME, garantieAbAnnahme,
+  garantieNurAuszahlung, budgetSpaetestensGilt, budgetSpaetesterStart,
+  type FirmaDaten, type FirmaParameter, type FirmaFreigaben, type FirmaAnnahmeVermerk, type FirmaUnterschriftVermerk,
 } from "@shared/fiaon-global-angebot-firma";
 import type { FirmaKunde, FirmaKundenSicht, FirmaLand } from "@shared/fiaon-global-angebot-firma-typen";
 
@@ -118,12 +121,78 @@ export function firmaDatenAus(z: AngebotZeile): FirmaDaten {
     gueltigBis: isoTag(z.gueltig_bis) ?? berlinToday(),
   };
 }
-function schalterAus(z: AngebotZeile): { starttag: string | null; startWahl: string | null } {
+function schalterAus(z: AngebotZeile): { starttag: string | null; startWahl: string | null; shopLiveAm: string | null; unterschrift: FirmaUnterschriftVermerk | null } {
   const s = json<Record<string, unknown>>(z.schalter, {});
+  const u = s.unterschrift && typeof s.unterschrift === "object" ? (s.unterschrift as FirmaUnterschriftVermerk) : null;
   return {
     starttag: typeof s.starttag === "string" && ISO.test(s.starttag) ? s.starttag : null,
     startWahl: typeof s.startWahl === "string" && ISO.test(s.startWahl) ? s.startWahl : null,
+    shopLiveAm: typeof s.shopLiveAm === "string" && ISO.test(s.shopLiveAm) ? s.shopLiveAm : null,
+    unterschrift: u && (u.art === "gezeichnet" || u.art === "getippt") ? u : null,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE UNTERSCHRIFT (Runde 2, Justin 08.10.2026, Punkt 11) — Pflicht für die Annahme, hier geprüft (nicht nur in der Oberfläche)
+//   gezeichnet: ein PNG aus dem Feld (data:image/png;base64,…), höchstens 400 KB, mit echter Tinte (nicht leer).
+//   getippt:    der Name in Schreibschrift — er muss den Nachnamen der Vertretung enthalten; ein mitgeschicktes Bild (die Seite
+//               setzt den Namen in Schreibschrift) wird genauso geprüft und fürs PDF gespeichert, ist aber nicht Pflicht.
+// ═══════════════════════════════════════════════════════════════════════════
+const PNG_KOPF = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+/**
+ * Hat ein PNG sichtbare Tinte? Gelesen werden IHDR und die IDAT-Daten (entpackt). Bei RGBA mit 8 Bit (so liefert jeder Browser ein
+ * Zeichenfeld mit durchsichtigem Grund) ist ein leeres Feld nach jedem Zeilenfilter nur Nullen — ein Byte ungleich null außer dem
+ * Filterbyte je Zeile heißt: Es wurde gezeichnet. Andere Farbtypen: nur Größe und Aufbau geprüft. Rückgabe: Grund oder null (gut).
+ */
+export function firmaPngTintePruefen(png: Buffer): string | null {
+  if (png.length < 200 || png.length > 400_000 || !png.subarray(0, 8).equals(PNG_KOPF)) return "kein gültiges Bild";
+  let pos = 8; let breite = 0; let hoehe = 0; let tiefe = 0; let farbe = 0; const idat: Buffer[] = [];
+  while (pos + 8 <= png.length) {
+    const laenge = png.readUInt32BE(pos); const art = png.toString("latin1", pos + 4, pos + 8);
+    const daten = png.subarray(pos + 8, pos + 8 + laenge);
+    if (daten.length !== laenge) return "Bild abgeschnitten";
+    if (art === "IHDR") { breite = daten.readUInt32BE(0); hoehe = daten.readUInt32BE(4); tiefe = daten[8]; farbe = daten[9]; }
+    else if (art === "IDAT") idat.push(daten);
+    else if (art === "IEND") break;
+    pos += 12 + laenge;
+  }
+  if (breite < 80 || hoehe < 30 || breite > 4000 || hoehe > 2000 || !idat.length) return "Bildmaße unpassend";
+  if (farbe !== 6 || tiefe !== 8) return null;
+  let roh: Buffer;
+  try { roh = inflateSync(Buffer.concat(idat)); } catch { return "Bild nicht lesbar"; }
+  const zeile = breite * 4 + 1;
+  if (roh.length < zeile * hoehe) return "Bild unvollständig";
+  let tinte = 0;
+  for (let y = 0; y < hoehe; y++) { const a = y * zeile + 1; for (let x = a; x < a + zeile - 1; x++) if (roh[x] !== 0) { tinte++; if (tinte > 40) return null; } }
+  return "Das Unterschriftsfeld ist leer";
+}
+const kleinName = (t: string) => t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-zß]+/g, " ").trim();
+/** Prüft die Unterschrift aus dem Annahme-Body — ok mit dem Vermerk (ohne Zeit/IP, die setzt die Annahme) oder der Fehlersatz. */
+export function firmaUnterschriftPruefen(roh: any, kunde: FirmaKunde): { ok: true; vermerk: FirmaUnterschriftVermerk; bild: Buffer | null } | { ok: false; error: string; code: "UNTERSCHRIFT" } {
+  const nein2 = (error: string) => ({ ok: false as const, error, code: "UNTERSCHRIFT" as const });
+  if (!roh || typeof roh !== "object") return nein2(FIRMA_ANNAHME.fehltUnterschrift);
+  const bildAus = (v: unknown): { png: string; buf: Buffer } | null | "falsch" => {
+    if (v === undefined || v === null || v === "") return null;
+    const m = String(v).match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) return "falsch";
+    const buf = Buffer.from(m[1], "base64");
+    return firmaPngTintePruefen(buf) ? "falsch" : { png: `data:image/png;base64,${m[1]}`, buf };
+  };
+  if (roh.art === "gezeichnet") {
+    const b = bildAus(roh.png);
+    if (!b || b === "falsch") return nein2(FIRMA_ANNAHME.fehltUnterschrift);
+    return { ok: true, vermerk: { art: "gezeichnet", name: null, png: b.png }, bild: b.buf };
+  }
+  if (roh.art === "getippt") {
+    const name = String(roh.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+    const nach = kleinName(String(kunde.vertretung?.nachname ?? ""));
+    if (name.length < 3 || !/[A-Za-zÀ-ÖØ-öø-ÿ]/.test(name) || (nach && !kleinName(name).includes(nach))) {
+      return nein2(FIRMA_ANNAHME.fehltName(String(kunde.vertretung?.nachname ?? "").trim()));
+    }
+    const b = bildAus(roh.png);
+    return { ok: true, vermerk: { art: "getippt", name, png: b && b !== "falsch" ? b.png : null }, bild: b && b !== "falsch" ? b.buf : null };
+  }
+  return nein2(FIRMA_ANNAHME.fehltUnterschrift);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -376,7 +445,6 @@ export async function firmaAendern(id: number, ein: any, wer: string): Promise<E
 export async function firmaKundenSicht(token: string, z: AngebotZeile, opts: { leitung?: boolean } = {}): Promise<{ status: number; body: Record<string, unknown> }> {
   const d = firmaDatenAus(z);
   const fehlt = firmaPflichtFehlen(d);
-  const r = angebotStartRahmen();
   const t = encodeURIComponent(token);
   const k = d.kunde;
   const body: FirmaKundenSicht = {
@@ -390,7 +458,6 @@ export async function firmaKundenSicht(token: string, z: AngebotZeile, opts: { l
     ansprechpartner: firmaAnsprechpartner(d.parameter),
     uebersicht: firmaBestellUebersicht(d),
     annahme: firmaAnnahmeTexte(d),
-    beginn: { morgen: r.morgen, spaetestens: r.spaetestens },
     annahmeBereit: fehlt.length === 0 && !opts.leitung,
     gesperrtGrund: fehlt.length ? firmaAnnahmeTexte(d).gesperrt : null,
     ...(opts.leitung ? { vorschauLeitung: true, fehlt } : {}),
@@ -424,7 +491,7 @@ export async function firmaAngenommenAntwort(z: AngebotZeile): Promise<Record<st
     vertragUrl: ref1 && t ? `/api/fiaon/global/auftrag/${encodeURIComponent(ref1)}/vertrag.pdf?t=${encodeURIComponent(t)}` : null,
     rechnungUrl: ref1 && t && b?.payment_reference ? `/api/fiaon/global/auftrag/${encodeURIComponent(ref1)}/rechnung.pdf?t=${encodeURIComponent(t)}` : null,
     fertigTitel: FIRMA_ANNAHME.fertigTitel,
-    fertigText: sch.startWahl ? FIRMA_ANNAHME.fertigAb(d.kunde.email, firmaTag(sch.startWahl)) : FIRMA_ANNAHME.fertigSofort(d.kunde.email),
+    fertigText: garantieAbAnnahme(d.fassung) ? FIRMA_ANNAHME.fertigText(d.kunde.email, budgetSpaetestensGilt(d.fassung) ? monateWort(d.parameter.budgetSpaetestensMonate) : null) : sch.startWahl ? FIRMA_ANNAHME.fertigAb(d.kunde.email, firmaTag(sch.startWahl)) : FIRMA_ANNAHME.fertigSofort(d.kunde.email),
     teil1Bezahlt: String(b?.payment_status) === "paid",
     fertigZahlung: String(b?.payment_status) === "paid" ? FIRMA_ANNAHME.fertigBezahlt : b?.payment_reference ? FIRMA_ANNAHME.fertigFaellig(betrag) : FIRMA_ANNAHME.fertigRechnungFolgt(betrag),
     fertigFuss: FIRMA_ANNAHME.fertigFuss,
@@ -446,12 +513,10 @@ export async function firmaAnnehmen(z: AngebotZeile, body: any, kontext: Annahme
   if (body?.unternehmer !== true || body?.vertretung !== true) {
     return fehler(400, FIRMA_ANNAHME.fehltHaken, { code: "HAEKCHEN", fehlt: [body?.unternehmer !== true ? "unternehmer" : null, body?.vertretung !== true ? "vertretung" : null].filter(Boolean) });
   }
-  if (!body || !Object.prototype.hasOwnProperty.call(body, "startAm")) return fehler(400, FIRMA_ANNAHME.fehltBeginn, { code: "BEGINN" });
-  const r = angebotStartRahmen();
-  const startWahl = body.startAm === null ? null : String(body.startAm ?? "");
-  if (startWahl !== null && (!ISO.test(startWahl) || startWahl < r.morgen || startWahl > r.spaetestens)) {
-    return fehler(400, FIRMA_ANNAHME.fehltDatum(firmaTag(r.morgen), firmaTag(r.spaetestens)), { code: "STARTDATUM" });
-  }
+  // Runde 2 (Punkt 11): die Unterschrift ist Pflicht — geprüft HIER, nicht nur in der Oberfläche (AGENTS.md „Eine Pflicht in der
+  // Oberfläche ist keine Pflicht“). Seit Fassung C keine Startwahl mehr: Das Wachstumsbudget beginnt am Tag „Shop live“.
+  const u = firmaUnterschriftPruefen(body?.unterschrift, d.kunde);
+  if (!u.ok) return fehler(400, u.error, { code: u.code });
   const hash = firmaTextHash(d);
   if (String(body?.textHash ?? "") !== hash) return fehler(409, FIRMA_ANNAHME.neuLaden, { code: "GEAENDERT" });
   // Nachprüfung 08.10.2026 (N6): Ohne die CHECKs der Migration 096 lehnte die Datenbank die Monatsteile ab — die Annahme lief
@@ -461,22 +526,27 @@ export async function firmaAnnehmen(z: AngebotZeile, body: any, kontext: Annahme
   }
 
   const jetzt = new Date();
-  const starttag = startWahl ?? berlinToday(jetzt);
+  const annahmeTag = berlinToday(jetzt);
+  const unterschrift: FirmaUnterschriftVermerk = { ...u.vermerk, am: jetzt.toISOString(), ip: kontext.ip };
   let pdf: Buffer;
   try {
-    pdf = await firmaVertragPdf(d, { am: jetzt, ip: kontext.ip, userAgent: kontext.userAgent, hash, starttag, sofort: startWahl === null });
+    pdf = await firmaVertragPdf(d, { am: jetzt, ip: kontext.ip, userAgent: kontext.userAgent, hash, starttag: null, unterschrift });
     if (!pdf || pdf.length < 1000) throw new Error("PDF leer");
   } catch (e) {
     console.error(`[FIAON-FIRMA] ${d.ref}: Vertrags-PDF:`, e);
     return fehler(500, "Ihr Vertrag konnte gerade nicht ausgefertigt werden — bitte versuchen Sie es in einer Minute noch einmal. Es wurde nichts gespeichert.");
   }
-  // Startwahl unter „startWahl“ (nicht „startAm“): Das Startgespräch (E-273) soll sofort kommen — die Gründung beginnt mit
-  // der Annahme; der Starttag betrifft nur Monatspauschale und laufende Leistungen.
-  const schalter = { sofortBeginn: true, jahresbetreuung: false, starttag, startWahl, unternehmer: true, vertretung: true };
+  // Das Startgespräch (E-273) kommt sofort (sofortBeginn). Kein Starttag bei der Annahme: den setzt die Leitung mit „Shop live“.
+  // Die Unterschrift (Bild/Name, Zeit, IP) steht im Schalter des Angebots und im Annahmevermerk des PDF.
+  const schalter = { sofortBeginn: true, jahresbetreuung: false, starttag: null, startWahl: null, unternehmer: true, vertretung: true, unterschrift };
+  // Fassung C: Die Frist der Garantie läuft ab dem Tag der Annahme (Ziffer 7 Absatz 1 und 3).
+  const abAnnahme = garantieAbAnnahme(d.fassung);
+  const fristEnde = abAnnahme ? garantieFristEnde(annahmeTag, d.parameter.garantieMonate, 0) : null;
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote
        SET status = 'angenommen', angenommen_am = ${jetzt}, ip = ${kontext.ip}, user_agent = ${String(kontext.userAgent || "").slice(0, 500)},
-           text_hash = ${hash}, schalter = ${jsonb(schalter)}, vertrag_pdf = ${pdf}, fassung = ${d.fassung}, updated_at = NOW()
+           text_hash = ${hash}, schalter = ${jsonb(schalter)}, vertrag_pdf = ${pdf}, fassung = ${d.fassung},
+           frist_beginn = ${abAnnahme ? annahmeTag : null}::date, frist_ende = ${fristEnde}::date, updated_at = NOW()
      WHERE id = ${z.id} AND status = 'offen' AND gueltig_bis >= ${berlinToday()}::date AND updated_at::text = ${String(z.updated_at_txt)}
      RETURNING id`) as any[];
   if (!frei) {
@@ -485,7 +555,7 @@ export async function firmaAnnehmen(z: AngebotZeile, body: any, kontext: Annahme
     if (neu && String(neu.status) === "offen") return fehler(409, FIRMA_ANNAHME.neuLaden, { code: "GEAENDERT" });
     return fehler(409, "Das Angebot lässt sich gerade nicht annehmen. Bitte laden Sie die Seite neu.");
   }
-  await verlaufAngebot(Number(z.id), `${firmaVertreterName(d.kunde)} (${d.kunde.firma.name})`, `angenommen (${FIRMA_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, Starttag ${firmaTag(starttag)}${startWahl ? " (gewählt)" : " (sofort)"}, Unternehmergeschäft und Vertretung bestätigt`);
+  await verlaufAngebot(Number(z.id), `${firmaVertreterName(d.kunde)} (${d.kunde.firma.name})`, `angenommen (${FIRMA_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, Unterschrift ${unterschrift.art === "gezeichnet" ? "gezeichnet" : `getippt („${unterschrift.name}“)`}, Unternehmergeschäft und Vertretung bestätigt${fristEnde ? `; Garantiefrist der ersten Runde ab heute bis ${firmaTag(fristEnde)}` : ""}`);
   void import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAnnahmeVermerken(Number(z.id)))
     .catch((e) => console.error(`[FIAON-FIRMA] ${d.ref}: Annahme in der Aufruf-Aufgabe:`, e));
   const fertig = await firmaFertigstellen(Number(z.id));
@@ -593,7 +663,10 @@ export async function firmaFertigstellen(id: number): Promise<{ ok: boolean; gru
       const f = d.kunde.firma;
       const firma = { land: f.land, name: f.name, rechtsform: f.rechtsform, registergericht: f.registergericht, registernummer: f.registernummer, strasse: f.strasse, plz: f.plz, ort: f.ort, ustId: f.uid, website: null, quelleRegister: null };
       const ansprechpartner = { anrede: d.kunde.vertretung.anrede, vorname: d.kunde.vertretung.vorname, nachname: d.kunde.vertretung.nachname, funktion: d.kunde.vertretung.funktion, email: d.kunde.email, telefon: d.kunde.telefon };
-      const bestaetigungen = { annahme: FIRMA_KNOPF, unternehmer: true, vertretung: true, am: new Date(z.angenommen_am).toISOString(), starttag: sch.starttag, firmenangebot: true };
+      const bestaetigungen = { annahme: FIRMA_KNOPF, unternehmer: true, vertretung: true, am: new Date(z.angenommen_am).toISOString(), starttag: sch.starttag, firmenangebot: true,
+        ...(sch.unterschrift ? { unterschrift: { art: sch.unterschrift.art, name: sch.unterschrift.name ?? null, am: sch.unterschrift.am ?? null } } : {}) };
+      const pngM = String(sch.unterschrift?.png ?? "").match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+      const unterschriftPng = pngM ? Buffer.from(pngM[1], "base64") : null;
       await sqlPool`
         INSERT INTO fiaon_global_auftraege
           (ref, paket_key, land, firma, ansprechpartner, ust_id, bestaetigungen, unterschrift_png, vertrag_pdf, vertrag_version, vertrag_sprache,
@@ -601,7 +674,7 @@ export async function firmaFertigstellen(id: number): Promise<{ ok: boolean; gru
            jahresbetreuung, jahresbetreuung_preis_cents, angebot_id)
         VALUES
           (${ref1}, ${ANGEBOT_PAKET_KEY}, ${f.land}, ${JSON.stringify(firma)}::jsonb, ${JSON.stringify(ansprechpartner)}::jsonb, ${f.uid || null},
-           ${JSON.stringify(bestaetigungen)}::jsonb, ${null}, ${pdfZeile?.vertrag_pdf ?? null}, ${d.fassung}, 'de',
+           ${JSON.stringify(bestaetigungen)}::jsonb, ${unterschriftPng}, ${pdfZeile?.vertrag_pdf ?? null}, ${d.fassung}, 'de',
            ${new Date(z.angenommen_am)}, ${z.ip}, ${z.user_agent}, 'individualangebot', 'offen', ${z.text_hash}, ${f.name}, ${d.kunde.email},
            ${f.uid ? "reverse_charge" : "none"}, ${f.uid ? null : "Keine UID am Firmenangebot — Rechnung ohne Reverse Charge, bitte klären."},
            FALSE, ${null}, ${id})
@@ -662,7 +735,8 @@ export async function firmaNacharbeit(id: number): Promise<void> {
   const sg = await SG.startgespraechStand(id).catch(() => null);
   const sgZeile = sg?.stand === "gebucht" && sg.termin ? `STARTGESPRÄCH: gebucht — ${sg.termin.tagText}, ${sg.termin.uhrzeit} Uhr mit ${sg.termin.mit}.` : "STARTGESPRÄCH: noch nicht gebucht — bitte im Reiter „Individualangebote“ nachsehen.";
   const einstellungen = await globalEinstellungen();
-  const teilText = `Gründung ${firmaEur(d.parameter.startCents)} (Rechnung ${b?.invoice_number ?? "—"}, Verwendungszweck ${b?.payment_reference ?? "—"}, sofort fällig, Reverse Charge) · Plattform & Team ${firmaEur(d.parameter.monatCents)}/Monat ab Starttag ${firmaTag(sch.starttag)} (Rechnungen automatisch am Fälligkeitstag)`;
+  const teilText = `Gründungskosten ${firmaEur(d.parameter.startCents)} (Rechnung ${b?.invoice_number ?? "—"}, Verwendungszweck ${b?.payment_reference ?? "—"}, sofort fällig, Reverse Charge) · Wachstumsbudget: Anteil ${firmaEur(d.parameter.monatCents)}/Monat (die Hälfte von ${firmaEur(d.parameter.budgetGesamtCents)}) ${sch.starttag ? `ab ${firmaTag(sch.starttag)}` : "ab dem Tag „Shop live“ — im Chefbüro eintragen, wenn der Shop live ist"} (Rechnungen automatisch am Fälligkeitstag)`;
+  const fe = isoTag(z.frist_ende);
   try {
     if (!akte?.zustaendig_agent_id) {
       const erg = await auftragFuerKunden({
@@ -671,7 +745,9 @@ export async function firmaNacharbeit(id: number): Promise<void> {
         text: [
           `${name} hat das Firmenangebot ${d.ref} angenommen (${new Date(z.angenommen_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}). Unternehmergeschäft, kein Widerruf.`,
           teilText,
-          `ERSTE RUNDE (Ziffer 7): ${firmaUsd(d.parameter.kapitalUsd)} innerhalb von ${zahlwort(d.parameter.garantieMonate)} Monaten nach erfüllten Bedingungen der Bürgschaft — sonst Erstattung der Gründung. Bedingungen (Ziffer 8 Absatz 4) jetzt gemeinsam abarbeiten; sind alle erfüllt, der Leitung sagen („Bedingungen erfüllt“).`,
+          garantieAbAnnahme(d.fassung)
+            ? `ERSTE RUNDE (Ziffer 7): ${firmaUsd(d.parameter.kapitalUsd)} innerhalb von ${zahlwort(d.parameter.garantieMonate)} Monaten AB DER ANNAHME — Frist bis ${firmaTag(fe)}, sonst Erstattung der Gründungskosten. Unterlagen der Bürgschaft (Ziffer 8 Absatz 4) sofort in Textform anfordern (mindestens sieben Tage Frist) — fehlen sie danach, ruht die Frist („Garantiefrist ruhen lassen“). Sind alle da: Leitung „Bedingungen erfüllt“.`
+            : `ERSTE RUNDE (Ziffer 7): ${firmaUsd(d.parameter.kapitalUsd)} innerhalb von ${zahlwort(d.parameter.garantieMonate)} Monaten nach erfüllten Bedingungen der Bürgschaft — sonst Erstattung der Gründung. Bedingungen (Ziffer 8 Absatz 4) jetzt gemeinsam abarbeiten; sind alle erfüllt, der Leitung sagen („Bedingungen erfüllt“).`,
           sgZeile,
           `Vertrag und Rechnung bitte heute per Mail an ${d.kunde.email} schicken (für Firmenangebote gibt es noch keine automatische Mail). Vor Leistungsbeginn: Identifizierung der Vertretung und der wirtschaftlich Berechtigten, Sanktionslisten erneut abgleichen.`,
           `Office: ${globalOfficeAuftragPfad(ref1)} · Leitung: ${CHEF_LINK}`,
@@ -727,7 +803,9 @@ export async function firmaNachZahlung(ref: string, t: any, z: AngebotZeile): Pr
       text: [
         `Die Zahlung für die Gründung (${firmaEur(d.parameter.startCents)}) liegt vor — der Auftrag startet JETZT.`,
         "1. Startgespräch führen. 2. Identifizierung der Vertretung und der wirtschaftlich Berechtigten, Sanktionslisten erneut abgleichen. 3. Bundesstaat mit Partner-Steuerberater, Gründung, EIN, ITIN, Konto, Registered Agent, FDA-U.S.-Agent, Adresse und Telefon in Miami.",
-        "4. Bedingungen der Bürgschaft (Ziffer 8 Absatz 4) einsammeln — sind alle erfüllt: Leitung „Bedingungen erfüllt“ (damit beginnt die Garantiefrist der ersten Runde). Kein Bankname gegenüber der Kundin.",
+        garantieAbAnnahme(d.fassung)
+          ? "4. Unterlagen der Bürgschaft (Ziffer 8 Absatz 4) einsammeln — die Garantiefrist der ersten Runde läuft seit der Annahme; fehlen Unterlagen nach Aufforderung, „Garantiefrist ruhen lassen“. Sind alle da: Leitung „Bedingungen erfüllt“. 5. Ist der Shop live: Leitung „Shop live“ (startet das Wachstumsbudget). Kein Bankname gegenüber der Kundin."
+          : "4. Bedingungen der Bürgschaft (Ziffer 8 Absatz 4) einsammeln — sind alle erfüllt: Leitung „Bedingungen erfüllt“ (damit beginnt die Garantiefrist der ersten Runde). Kein Bankname gegenüber der Kundin.",
       ].join("\n"),
       dringend: true, schluessel: `global:${ref1}:start`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       link: globalOfficeAuftragPfad(ref1), agentId: zustaendig, anlageText: "Zahlungseingang Gründung — Firmenangebot startet.",
@@ -883,7 +961,7 @@ export function istFirmenAngebot(z: { fassung?: unknown } | null | undefined): b
 // ═══════════════════════════════════════════════════════════════════════════
 // DER STUNDENLAUF (aus globalAngebotLauf): Monatsrechnungen, Verlängerung, Fristende der Garantie
 // ═══════════════════════════════════════════════════════════════════════════
-export async function firmaStundenlauf(jetzt: Date = new Date()): Promise<{ rechnungen: number; verlaengert: number; fristende: number; fehler: number }> {
+export async function firmaStundenlauf(jetzt: Date = new Date()): Promise<{ rechnungen: number; verlaengert: number; fristende: number; starttagErinnert: number; fehler: number }> {
   await ensureAngebotTabellen();
   const heute = berlinToday(jetzt);
   // Storniert ist ein Auftrag auf zwei Wegen (auftragStorniert): Akte 'storniert' ODER die Gründungsbestellung über die
@@ -896,34 +974,38 @@ export async function firmaStundenlauf(jetzt: Date = new Date()): Promise<{ rech
        AND (g.status IS NULL OR g.status <> 'storniert')
        AND (b.ref IS NULL OR (b.cancelled_at IS NULL AND b.archived_at IS NULL AND COALESCE(b.payment_status, '') NOT IN ('cancelled', 'superseded')))
      ORDER BY a.id LIMIT 200`) as any[];
-  let rechnungen = 0; let verlaengert = 0; let fristende = 0; let fehler = 0;
+  let rechnungen = 0; let verlaengert = 0; let fristende = 0; let starttagErinnert = 0; let fehler = 0;
   for (const { id } of zeilen) {
     try {
       const z = await angebotLesen({ id: Number(id) });
       if (!z) continue;
       const d = firmaDatenAus(z); const sch = schalterAus(z); const fr = await firmaFreigabenLesen(Number(id));
-      if (!sch.starttag) continue;
-      // ── Verlängerung: Kündigungsfrist ohne Kündigung verstrichen → die nächsten Monate anlegen ──
-      const monate = (z.teile as any[]).filter((t) => String(t.faelligkeit) === "monatlich").length;
-      if (!fr.kuendigung && monate > 0) {
-        const ende = laufzeitEnde(sch.starttag, monate);
-        if (heute > kuendigungSpaetestens(ende, d.parameter.kuendigungMonate)) {
-          const neu = await monatsteileBis(Number(id), d, sch.starttag, monate + d.parameter.verlaengerungMonate);
-          if (neu > 0) {
-            verlaengert++;
-            await verlaufAngebot(Number(id), "System", `Vertrag um ${monateWort(d.parameter.verlaengerungMonate)} verlängert (keine Kündigung bis ${firmaTag(kuendigungSpaetestens(ende, d.parameter.kuendigungMonate))}) — neues Laufzeitende ${firmaTag(laufzeitEnde(sch.starttag, monate + d.parameter.verlaengerungMonate))}`);
+      // Gegenprüfung 08.10.2026 (Fund 2): Ohne Starttag entfallen NUR Verlängerung und Monatsrechnungen (sie hängen am Starttag).
+      // Hängende Teile (etwa ein Verkauf), das Fristende der Garantie (Ziffer 7 Absatz 5) und die Erinnerung an den spätesten
+      // Starttag (Ziffer 10 Absatz 2) laufen immer — vorher übersprang „kein Starttag“ den ganzen Lauf, auch die Erstattungsaufgabe.
+      if (sch.starttag) {
+        // ── Verlängerung: Kündigungsfrist ohne Kündigung verstrichen → die nächsten Monate anlegen ──
+        const monate = (z.teile as any[]).filter((t) => String(t.faelligkeit) === "monatlich").length;
+        if (!fr.kuendigung && monate > 0) {
+          const ende = laufzeitEnde(sch.starttag, monate);
+          if (heute > kuendigungSpaetestens(ende, d.parameter.kuendigungMonate)) {
+            const neu = await monatsteileBis(Number(id), d, sch.starttag, monate + d.parameter.verlaengerungMonate);
+            if (neu > 0) {
+              verlaengert++;
+              await verlaufAngebot(Number(id), "System", `Vertrag um ${monateWort(d.parameter.verlaengerungMonate)} verlängert (keine Kündigung bis ${firmaTag(kuendigungSpaetestens(ende, d.parameter.kuendigungMonate))}) — neues Laufzeitende ${firmaTag(laufzeitEnde(sch.starttag, monate + d.parameter.verlaengerungMonate))}`);
+            }
           }
         }
-      }
-      // ── Fällige Monatsteile berechnen (Fälligkeitstag in Berlin erreicht) ──
-      const frisch = (await sqlPool`
-        SELECT id FROM fiaon_global_angebot_teile
-         WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' AND bestell_ref IS NULL AND rechnung_am IS NULL AND entfallen_am IS NULL
-           AND faellig_am IS NOT NULL AND faellig_am <= ${heute}::date
-         ORDER BY faellig_am LIMIT 3`) as any[];
-      for (const t of frisch) {
-        const r = await firmaTeilBerechnen(Number(id), Number(t.id), "System (Monatslauf)");
-        if (r.ok) rechnungen++; else { fehler++; console.error(`[FIAON-FIRMA] ${d.ref}: Monatsrechnung:`, r.error); }
+        // ── Fällige Monatsteile berechnen (Fälligkeitstag in Berlin erreicht) ──
+        const frisch = (await sqlPool`
+          SELECT id FROM fiaon_global_angebot_teile
+           WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' AND bestell_ref IS NULL AND rechnung_am IS NULL AND entfallen_am IS NULL
+             AND faellig_am IS NOT NULL AND faellig_am <= ${heute}::date
+           ORDER BY faellig_am LIMIT 3`) as any[];
+        for (const t of frisch) {
+          const r = await firmaTeilBerechnen(Number(id), Number(t.id), "System (Monatslauf)");
+          if (r.ok) rechnungen++; else { fehler++; console.error(`[FIAON-FIRMA] ${d.ref}: Monatsrechnung:`, r.error); }
+        }
       }
       // ── Hängende Teile nachholen: Bestellzeile gebunden, aber keine Rechnung — oder seit über einer Stunde „in Arbeit“
       //    ohne Bestellzeile (Prozess zwischen den Schritten beendet). Schlägt es wieder fehl: Aufgabe an die Leitung.
@@ -952,7 +1034,30 @@ export async function firmaStundenlauf(jetzt: Date = new Date()): Promise<{ rech
           dringend: true, anBetreiber: true, schluessel: `global:${d.ref}:rechnung-haengt:${t.id}`, bereich: "technik", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
         }).catch((e) => console.error(`[FIAON-FIRMA] ${d.ref}: Aufgabe „Rechnung hängt“:`, e));
       }
-      // ── Fristende der Garantie ohne „erste Runde erhalten“: Aufgabe an Justin ──
+      // ── Spätester Starttag erreicht, aber kein Starttag eingetragen (Fassung D, Ziffer 10 Absatz 2): EINE Aufgabe an die Leitung.
+      //    Einmal je Angebot — die Marke im Schalter wird atomar gesetzt (ein zweiter Lauf findet sie und legt nichts an). Nach einer
+      //    Kündigung nicht: „Shop live“ ist dann gesperrt, es beginnt kein Wachstumsbudget mehr. ──
+      if (!sch.starttag && !fr.kuendigung && budgetSpaetestensGilt(d.fassung) && z.angenommen_am) {
+        const annahmeTag = berlinToday(new Date(z.angenommen_am));
+        const spaetester = budgetSpaetesterStart(annahmeTag, d.parameter);
+        if (heute >= spaetester) {
+          const [neu] = (await sqlPool`
+            UPDATE fiaon_global_angebote SET schalter = COALESCE(schalter, '{}'::jsonb) || ${jsonb({ spaetesterStartErinnertAm: heute })}
+             WHERE id = ${id} AND COALESCE(schalter->>'spaetesterStartErinnertAm', '') = '' AND COALESCE(schalter->>'starttag', '') = '' RETURNING id`) as any[];
+          if (neu) {
+            starttagErinnert++;
+            await verlaufAngebot(Number(id), "System", `Spätester Starttag (${firmaTag(spaetester)}, Ziffer 10 Absatz 2) erreicht — kein Starttag eingetragen; Aufgabe an die Leitung`);
+            const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+            await auftragFuerKunden({
+              personId: z.person_id != null ? Number(z.person_id) : null, ref: z.auftrag_ref ? String(z.auftrag_ref) : null,
+              titel: `Spätester Starttag erreicht — Starttag eintragen (${d.kunde.firma.name})`,
+              text: `Beim Firmenangebot ${d.ref} ist der späteste Starttag erreicht: ${firmaTag(spaetester)} (${monateWort(d.parameter.budgetSpaetestensMonate)} nach der Annahme am ${firmaTag(annahmeTag)}, Ziffer 10 Absatz 2) — im Chefbüro ist noch kein Starttag eingetragen, das Wachstumsbudget läuft also nicht. Ist der Shop live: „Shop live“ mit dem echten Tag eintragen. Ist er nicht live und liegt die Verzögerung NICHT bei FIAON: „Spätester Starttag“ wählen — Starttag ist dann der ${firmaTag(spaetester)}, fällige Monatsrechnungen stellt das System sofort. Liegt die Verzögerung bei FIAON: „Shop live“ erst eintragen, wenn der Shop live ist (mit dem Haken „Verzögerung bei FIAON“). Der Kundin den Starttag in Textform mitteilen — es geht keine automatische Mail raus.`,
+              dringend: true, anBetreiber: true, faelligAm: heute, schluessel: `global:${d.ref}:spaetester-starttag`, bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
+            }).catch((e) => console.error(`[FIAON-FIRMA] ${d.ref}: Aufgabe „Spätester Starttag“:`, e));
+          }
+        }
+      }
+      // ── Fristende der Garantie ohne „erste Runde erhalten“: Aufgabe an Justin (auch ohne Starttag — Ziffer 7 Absatz 5) ──
       const fe = isoTag(z.frist_ende);
       if (fe && heute > fe && !z.garantie_erfuellt_am && !z.erstattung_ausgeloest_am && !z.frist_abgelaufen_am) {
         const [frei] = (await sqlPool`UPDATE fiaon_global_angebote SET frist_abgelaufen_am = NOW() WHERE id = ${id} AND frist_abgelaufen_am IS NULL RETURNING id`) as any[];
@@ -962,14 +1067,14 @@ export async function firmaStundenlauf(jetzt: Date = new Date()): Promise<{ rech
           await auftragFuerKunden({
             personId: z.person_id != null ? Number(z.person_id) : null, ref: String(z.auftrag_ref),
             titel: `Garantiefrist abgelaufen — erste Runde prüfen (${d.kunde.firma.name})`,
-            text: `Die Garantiefrist des Firmenangebots ${d.ref} endete am ${firmaTag(fe)}, ohne dass „erste Runde erhalten“ eingetragen ist. Lag die erste Runde (${firmaUsd(d.parameter.kapitalUsd)}) vorher vor: im Chefbüro eintragen. Sonst „Garantiefall“: Erstattung der Gründung (${firmaEur(d.parameter.startCents)}) binnen ${zahlwort(d.parameter.erstattungTage)} Tagen nach Fristende, von Hand.`,
+            text: `Die Garantiefrist des Firmenangebots ${d.ref} endete am ${firmaTag(fe)}, ohne dass „erste Runde erhalten“ eingetragen ist. Lag die erste Runde (${firmaUsd(d.parameter.kapitalUsd)}) vorher vor: im Chefbüro eintragen. Sonst „Garantiefall“: Erstattung der Gründung (${firmaEur(d.parameter.startCents)}) binnen ${zahlwort(d.parameter.erstattungTage)} Tagen nach Fristende, von Hand.${kuendigungSperrtGarantie(fr.kuendigung, fe) ? ` ACHTUNG: Der Vertrag endete durch eine Kündigung aus wichtigem Grund zum ${firmaTag(fr.kuendigung!.zum)}, vor dem Fristende — die Garantie ist entfallen (Ziffer 14 Absatz 3), „Garantiefall“ bleibt gesperrt.` : ""}`,
             dringend: true, anBetreiber: true, faelligAm: heute, schluessel: `global:${d.ref}:garantie-fristende`, bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
           }).catch((e) => console.error(`[FIAON-FIRMA] ${d.ref}: Fristende:`, e));
         }
       }
     } catch (e) { fehler++; console.error(`[FIAON-FIRMA] Stundenlauf, Angebot ${id}:`, e); }
   }
-  return { rechnungen, verlaengert, fristende, fehler };
+  return { rechnungen, verlaengert, fristende, starttagErinnert, fehler };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1015,17 +1120,24 @@ function betragAus(ein: any, centsFeldName: string, euroFeldName: string): { cen
 /** Knopf-Zustände aus denselben Regeln wie die Aktionen — frei (null) oder der Grund. */
 export function firmaKnoepfe(l: { status: string; fr: FirmaFreigaben; fristBeginn: string | null; fristEnde: string | null; garantieErfuelltAm: string | null; erstattungAusgeloest: boolean; gruendungBezahlt: boolean; heute: string; starttag: string | null }) {
   const angenommen = l.status === "angenommen";
+  const ohneStart = "Erst wenn „Shop live“ eingetragen ist (Starttag).";
   return {
+    // Runde 2: „Shop live“ setzt den Starttag — damit beginnt das Wachstumsbudget (Monatsteile, erste Rechnung an diesem Tag).
+    // Gegenprüfung 08.10.2026 (Fund 3): Nach einer Kündigung beginnt kein Wachstumsbudget mehr — keine Monatsteile für einen gekündigten Vertrag.
+    shopLive: !angenommen ? "Erst nach der Annahme." : l.starttag ? `Schon eingetragen (Starttag ${firmaTag(l.starttag)}).` : l.fr.kuendigung ? `Der Vertrag ist gekündigt (zum ${firmaTag(l.fr.kuendigung.zum)}) — es beginnt kein Wachstumsbudget mehr.` : null,
     freigabe: l.status === "offen" || angenommen ? null : "Nur bei offenen oder angenommenen Angeboten.",
     aendern: l.status === "offen" ? null : "Nur solange das Angebot offen ist.",
     bedingungen: !angenommen ? "Erst nach der Annahme." : l.fr.bedingungenErfuelltAm ? `Schon eingetragen (${firmaTag(l.fr.bedingungenErfuelltAm)}).` : null,
     kapital: !angenommen ? "Erst nach der Annahme." : !l.fristEnde ? "Erst wenn „Bedingungen erfüllt“ eingetragen ist." : l.garantieErfuelltAm ? `Schon eingetragen (${firmaTag(l.garantieErfuelltAm)}).` : l.erstattungAusgeloest ? "Der Garantiefall ist vorgemerkt." : null,
     hemmung: !l.fristEnde || l.garantieErfuelltAm || l.erstattungAusgeloest ? "Nur während die Garantiefrist läuft." : null,
     garantiefall: !angenommen ? "Erst nach der Annahme." : !l.fristEnde ? "Die Garantiefrist läuft noch nicht." : l.garantieErfuelltAm ? "Die erste Runde ist erhalten — kein Garantiefall." : l.erstattungAusgeloest ? "Schon vorgemerkt." : l.heute <= l.fristEnde ? `Die Frist läuft bis ${firmaTag(l.fristEnde)} — erst danach.` : !l.gruendungBezahlt ? "Die Gründung ist nicht bezahlt — nichts zu erstatten." : kuendigungSperrtGarantie(l.fr.kuendigung, l.fristEnde) ? `Der Vertrag endete durch eine Kündigung aus wichtigem Grund zum ${firmaTag(l.fr.kuendigung!.zum)}, vor dem Fristende — die Garantie ist entfallen (Ziffer 14 Absatz 3).` : null,
-    umsatz: !angenommen ? "Erst nach der Annahme." : !l.starttag ? "Kein Starttag am Angebot." : null,
+    umsatz: !angenommen ? "Erst nach der Annahme." : !l.starttag ? ohneStart : null,
     verkauf: !angenommen ? "Erst nach der Annahme." : null,
     // Nach einer ordentlichen Kündigung bleibt eine Kündigung aus wichtigem Grund möglich (Ziffer 14 Absatz 3).
-    kuendigung: !angenommen ? "Erst nach der Annahme." : l.fr.kuendigung?.art === "ausserordentlich" ? `Schon eingetragen: aus wichtigem Grund zum ${firmaTag(l.fr.kuendigung.zum)}.` : !l.starttag ? "Kein Starttag am Angebot." : null,
+    // Gegenprüfung 08.10.2026 (Fund 3): Aus wichtigem Grund geht auch VOR dem Starttag (sonst griffe kuendigungSperrtGarantie nie);
+    // die ordentliche Kündigung bleibt an den Starttag gebunden (Ziffer 14 Absatz 2: Laufzeit ab dem Starttag) — kuendigungOrdentlich.
+    kuendigung: !angenommen ? "Erst nach der Annahme." : l.fr.kuendigung?.art === "ausserordentlich" ? `Schon eingetragen: aus wichtigem Grund zum ${firmaTag(l.fr.kuendigung.zum)}.` : null,
+    kuendigungOrdentlich: !angenommen ? "Erst nach der Annahme." : l.fr.kuendigung ? `Schon eingetragen: ${l.fr.kuendigung.art === "ausserordentlich" ? "aus wichtigem Grund" : "ordentlich"} zum ${firmaTag(l.fr.kuendigung.zum)}. Danach ist nur noch eine Kündigung aus wichtigem Grund möglich.` : !l.starttag ? "Ordentlich erst ab dem Starttag („Shop live“) — die Laufzeit zählt ab dann (Ziffer 14 Absatz 2). Vorher nur aus wichtigem Grund." : null,
   };
 }
 function knoepfeAus(l: Lage) {
@@ -1055,6 +1167,14 @@ export async function firmaBedingungenErfuellt(id: number, ein: any, wer: string
   const am = tagOk(ein?.am);
   const angenommen = l.z.angenommen_am ? berlinToday(new Date(l.z.angenommen_am)) : l.heute;
   if (!am || am > l.heute || am < angenommen) return nein(`Tag der erfüllten Bedingungen (JJJJ-MM-TT, zwischen ${firmaTag(angenommen)} und heute).`);
+  if (garantieAbAnnahme(l.z.fassung)) {
+    // Fassung C: Die Frist läuft seit der Annahme — „Bedingungen erfüllt“ macht nur die Bürgschaft wirksam (Ziffer 8 Absatz 4/5).
+    const fe = isoTag(l.z.frist_ende) ?? "";
+    await freigabeSetzen(id, { bedingungenErfuelltAm: am });
+    await verlaufAngebot(id, wer, `Bedingungen der Bürgschaft erfüllt am ${firmaTag(am)} — die Bürgschaft ist wirksam; die Garantiefrist läuft seit der Annahme${fe ? ` bis ${firmaTag(fe)}` : ""}`);
+    if (l.z.auftrag_ref) await globalVerlauf(String(l.z.auftrag_ref), `FIAON Global: Bedingungen der Bürgschaft erfüllt (${firmaTag(am)}) — der Kundin den Tag in Textform bestätigen (Ziffer 8 Absatz 5).`);
+    return { ok: true, fristEnde: fe, meldung: `Bedingungen erfüllt am ${firmaTag(am)} — die Bürgschaft ist wirksam. Die Garantiefrist läuft seit der Annahme${fe ? ` bis ${firmaTag(fe)}` : ""}. Den Tag bitte der Kundin in Textform bestätigen.` };
+  }
   const ende = garantieFristEnde(am, l.d.parameter.garantieMonate, 0);
   const [r] = (await sqlPool`UPDATE fiaon_global_angebote SET frist_beginn = ${am}::date, frist_ende = ${ende}::date, updated_at = NOW() WHERE id = ${id} AND frist_beginn IS NULL RETURNING id`) as any[];
   if (!r) return nein("Die Garantiefrist läuft schon.", 409);
@@ -1071,12 +1191,76 @@ export async function firmaBedingungenErfuellt(id: number, ein: any, wer: string
   return { ok: true, fristEnde: ende, meldung: `Bedingungen erfüllt am ${firmaTag(am)} — Garantiefrist bis ${firmaTag(ende)}. Bitte der Kundin in Textform mitteilen.` };
 }
 
+/**
+ * „Shop live“ (Runde 2, Justin 08.10.2026, Punkt 8): Die Leitung trägt den Tag ein, an dem der Shop live ist. Er ist der Starttag
+ * (Ziffer 10 Absatz 2): Das gemeinsame Wachstumsbudget beginnt, die Monatsteile der Mindestlaufzeit entstehen ab diesem Tag, die
+ * erste Monatsrechnung wird an diesem Tag gestellt (hier sofort, sonst im nächsten Stundenlauf). KEINE Mail an die Kundin —
+ * die zuständige Person bekommt die Aufgabe, den Tag in Textform mitzuteilen (und die Rechnung „Rechnung schicken“).
+ * Fassung D (Runde 3, Punkt 5): Ist der Shop zum spätesten Starttag (Annahme + budgetSpaetestensMonate) nicht live und liegt die
+ * Verzögerung nicht bei FIAON, trägt die Leitung art „spaetestens“ ein — Starttag ist dann genau dieser Tag. Ein Tag „Shop live“
+ * NACH dem spätesten Starttag geht nur mit der Bestätigung, dass die Verzögerung bei FIAON liegt (verzoegerungFiaon).
+ */
+export async function firmaShopLive(id: number, ein: any, wer: string, opts: { heute?: string } = {}): Promise<Ergebnis<{ meldung: string; starttag: string; monate: number }>> {
+  const l = await lageLesen(id, opts.heute); if (!l) return nein("Dieses Angebot gibt es nicht.", 404);
+  const k = knoepfeAus(l).shopLive; if (k) return nein(k, 409);
+  if (await auftragStorniert(l.z)) return nein("Der Auftrag ist storniert — kein Wachstumsbudget.", 409);
+  const angenommen = l.z.angenommen_am ? berlinToday(new Date(l.z.angenommen_am)) : l.heute;
+  const spaetester = budgetSpaetestensGilt(l.d.fassung) ? budgetSpaetesterStart(angenommen, l.d.parameter) : null;
+  const spaetestensArt = String(ein?.art ?? "") === "spaetestens";
+  let am: string | null;
+  if (spaetestensArt) {
+    if (!spaetester) return nein("Den spätesten Starttag gibt es erst ab Fassung D — hier nur „Shop live“ mit Datum.");
+    if (l.heute < spaetester) return nein(`Der späteste Starttag ist der ${firmaTag(spaetester)} — vorher nur „Shop live“ mit dem echten Tag.`);
+    am = spaetester;
+  } else {
+    am = tagOk(ein?.am);
+    if (!am || am > l.heute || am < angenommen) return nein(`Tag „Shop live“ (JJJJ-MM-TT, zwischen ${firmaTag(angenommen)} und heute) — der Tag, an dem der Shop erreichbar ist und Bestellungen annimmt.`);
+    if (spaetester && am > spaetester && ein?.verzoegerungFiaon !== true) {
+      return nein(`Der Tag liegt nach dem spätesten Starttag (${firmaTag(spaetester)}, Ziffer 10 Absatz 2). Entweder „Spätester Starttag“ eintragen — oder bestätigen, dass die Verzögerung auf Umständen beruht, die FIAON zu vertreten hat.`);
+    }
+  }
+  const [frei] = (await sqlPool`
+    UPDATE fiaon_global_angebote
+       SET schalter = COALESCE(schalter, '{}'::jsonb) || ${jsonb({ starttag: am, shopLiveAm: spaetestensArt ? null : am, starttagArt: spaetestensArt ? "spaetestens" : "shop-live", ...(spaetestensArt ? {} : { verzoegerungFiaon: ein?.verzoegerungFiaon === true && !!spaetester && am > spaetester }), shopLiveVon: wer, shopLiveEingetragen: new Date().toISOString() })}, updated_at = NOW()
+     WHERE id = ${id} AND status = 'angenommen' AND COALESCE(schalter->>'starttag', '') = ''
+       AND COALESCE(freigaben->'kuendigung', 'null'::jsonb) = 'null'::jsonb RETURNING id`) as any[];
+  if (!frei) return nein("Der Starttag ist schon eingetragen — oder der Vertrag wurde gerade gekündigt.", 409);
+  const monate = await monatsteileBis(id, l.d, am, l.d.parameter.mindestMonate);
+  const ende = laufzeitEnde(am, l.d.parameter.mindestMonate);
+  const wie = spaetestensArt ? `Spätester Starttag ${firmaTag(am)} (Ziffer 10 Absatz 2: Shop nach ${monateWort(l.d.parameter.budgetSpaetestensMonate)} nicht live, Verzögerung nicht bei FIAON)` : `Shop live am ${firmaTag(am)}${spaetester && am > spaetester ? ` (nach dem spätesten Starttag ${firmaTag(spaetester)} — Verzögerung bei FIAON bestätigt)` : ""}`;
+  await verlaufAngebot(id, wer, `${wie} — Starttag: Wachstumsbudget beginnt (Anteil ${firmaEur(l.d.parameter.monatCents)}/Monat), ${monate} Monatsteile angelegt, Mindestlaufzeit bis ${firmaTag(ende)}`);
+  if (l.z.auftrag_ref) await globalVerlauf(String(l.z.auftrag_ref), `FIAON Global: ${wie} — das gemeinsame Wachstumsbudget beginnt (Ziffer 10 Absatz 2). Der Kundin den Tag in Textform mitteilen.`);
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const akte = l.z.auftrag_ref ? await globalAkteLesen(String(l.z.auftrag_ref)) : null;
+  await auftragFuerKunden({
+    personId: l.z.person_id != null ? Number(l.z.person_id) : null, ref: l.z.auftrag_ref ? String(l.z.auftrag_ref) : null,
+    titel: `${spaetestensArt ? "Spätesten Starttag" : "Shop live"} mitteilen: ${l.d.kunde.firma.name} — Wachstumsbudget ab ${firmaTag(am)}`,
+    text: `${wer} hat ${spaetestensArt ? "den spätesten Starttag" : "„Shop live“"} am ${firmaTag(am)} eingetragen. Das ist der Starttag nach Ziffer 10 Absatz 2: Anteil ${firmaEur(l.d.parameter.monatCents)} im Monat (die Hälfte von ${firmaEur(l.d.parameter.budgetGesamtCents)}), Mindestlaufzeit bis ${firmaTag(ende)}, Kündigung spätestens ${firmaTag(kuendigungSpaetestens(ende, l.d.parameter.kuendigungMonate))}. Bitte den Tag der Kundin in Textform mitteilen — es geht keine automatische Mail raus. Die Monatsrechnungen stellt das System am Fälligkeitstag; jede kommt als Aufgabe „Rechnung schicken“.`,
+    schluessel: `global:${l.d.ref}:shop-live`, bereich: "konten", quelle: "global", autorName: wer,
+    agentId: akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null, link: l.z.auftrag_ref ? globalOfficeAuftragPfad(String(l.z.auftrag_ref)) : CHEF_LINK,
+  }).catch((e) => console.error(`[FIAON-FIRMA] ${l.d.ref}: Aufgabe „Shop live mitteilen“:`, e));
+  // Die erste Monatsrechnung „an diesem Tag“ — sofort (höchstens drei fällige Teile; der Stundenlauf holt den Rest).
+  const faellig = (await sqlPool`
+    SELECT id FROM fiaon_global_angebot_teile
+     WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' AND bestell_ref IS NULL AND rechnung_am IS NULL AND entfallen_am IS NULL
+       AND faellig_am IS NOT NULL AND faellig_am <= ${l.heute}::date ORDER BY faellig_am LIMIT 3`) as any[];
+  const gestellt: string[] = [];
+  for (const t of faellig) {
+    const r = await firmaTeilBerechnen(id, Number(t.id), wer).catch((e) => ({ ok: false as const, status: 500, error: String(e) }));
+    if (r.ok) gestellt.push(r.meldung); else console.error(`[FIAON-FIRMA] ${l.d.ref}: erste Monatsrechnung nach „Shop live“:`, r.error);
+  }
+  return { ok: true, starttag: am, monate, meldung: `${spaetestensArt ? "Spätester Starttag" : "Shop live am"} ${firmaTag(am)} eingetragen — ${monate} Monatsteile, Mindestlaufzeit bis ${firmaTag(ende)}. ${gestellt.length ? gestellt.join(" ") : "Die erste Monatsrechnung stellt der Stundenlauf."} Bitte der Kundin den Tag in Textform mitteilen.` };
+}
+
 export async function firmaKapitalErhalten(id: number, ein: any, wer: string, opts: { heute?: string } = {}): Promise<Ergebnis<{ meldung: string }>> {
   const l = await lageLesen(id, opts.heute); if (!l) return nein("Dieses Angebot gibt es nicht.", 404);
   const k = knoepfeAus(l).kapital; if (k) return nein(k, 409);
   const am = tagOk(ein?.am); const beginn = isoTag(l.z.frist_beginn)!; const ende = isoTag(l.z.frist_ende)!;
-  const art = ["ausgezahlt", "zugesagt", "abgelehnt"].includes(String(ein?.art)) ? String(ein.art) : null;
-  if (!art) return nein("Bitte wählen: ausgezahlt, verbindlich zugesagt oder von der Kundin abgelehnt.");
+  // Fassung D (Runde 3, Punkt 4): garantiert ist die Auszahlung — eine Zusage erfüllt die Garantie nicht mehr.
+  const nurAuszahlung = garantieNurAuszahlung(l.d.fassung);
+  const arten = nurAuszahlung ? ["ausgezahlt", "abgelehnt"] : ["ausgezahlt", "zugesagt", "abgelehnt"];
+  const art = arten.includes(String(ein?.art)) ? String(ein.art) : null;
+  if (!art) return nein(nurAuszahlung ? "Bitte wählen: ausgezahlt oder von der Kundin abgelehnt — eine Zusage allein erfüllt die Garantie nach Ziffer 7 nicht (Fassung D)." : "Bitte wählen: ausgezahlt, verbindlich zugesagt oder von der Kundin abgelehnt.");
   if (!am || am > l.heute) return nein("Datum (JJJJ-MM-TT, nicht in der Zukunft).");
   if (am > ende) return nein(`Das Datum liegt nach dem Fristende (${firmaTag(ende)}) — dann gilt der Garantiefall.`);
   const roh = String(ein?.betragUsd ?? "").trim();
@@ -1296,19 +1480,21 @@ export async function firmaVerkauf(id: number, ein: any, wer: string, opts: { he
 
 export async function firmaKuendigung(id: number, ein: any, wer: string, opts: { heute?: string } = {}): Promise<Ergebnis<{ meldung: string; zum: string }>> {
   const l = await lageLesen(id, opts.heute); if (!l) return nein("Dieses Angebot gibt es nicht.", 404);
-  const k = knoepfeAus(l).kuendigung; if (k) return nein(k, 409);
-  const starttag = l.sch.starttag!;
+  const kn = knoepfeAus(l); const k = kn.kuendigung; if (k) return nein(k, 409);
+  // Ohne Starttag (vor „Shop live“) nur aus wichtigem Grund — dann entstehen keine Monatsteile (Gegenprüfung 08.10.2026, Fund 3).
+  const starttag = l.sch.starttag;
   const am = tagOk(ein?.am);
   if (!am || am > l.heute) return nein("Eingang der Kündigung in Textform (JJJJ-MM-TT, nicht in der Zukunft).");
   const seite = String(ein?.seite || "auftraggeberin");
   const art = String(ein?.art || "ordentlich");
   if (seite !== "auftraggeberin" && seite !== "fiaon") return nein("Wer kündigt: Auftraggeberin oder FIAON.");
   if (art !== "ordentlich" && art !== "ausserordentlich") return nein("Art der Kündigung: ordentlich oder aus wichtigem Grund.");
-  if (l.fr.kuendigung && art === "ordentlich") return nein(`Schon eingetragen: ordentlich zum ${firmaTag(l.fr.kuendigung.zum)}. Danach ist nur noch eine Kündigung aus wichtigem Grund möglich.`, 409);
+  if (art === "ordentlich" && kn.kuendigungOrdentlich) return nein(kn.kuendigungOrdentlich, 409);
   const gewuenscht = tagOk(ein?.zum);
   let zum: string; let monate: number;
   let garantieEntfaellt = false;
   if (art === "ordentlich") {
+    if (!starttag) return nein("Ordentlich erst ab dem Starttag („Shop live“) — vorher nur aus wichtigem Grund.", 409); // doppelt gesichert (kuendigungOrdentlich)
     const w = kuendigungWirksamZum(starttag, l.d.parameter, am);
     zum = w.zum; monate = w.monateGesamt;
     if (gewuenscht) {
@@ -1328,16 +1514,17 @@ export async function firmaKuendigung(id: number, ein: any, wer: string, opts: {
     monate = vorhanden;
     garantieEntfaellt = ein?.garantieEntfaellt !== false && ein?.garantieEntfaellt !== "nein";
   }
-  await monatsteileBis(id, l.d, starttag, monate);
+  if (starttag) await monatsteileBis(id, l.d, starttag, monate);
   await freigabeSetzen(id, { kuendigung: { am, zum, von: wer, seite: seite as "auftraggeberin" | "fiaon", art: art as "ordentlich" | "ausserordentlich", garantieEntfaellt } });
   const weg = (await sqlPool`
     UPDATE fiaon_global_angebot_teile SET entfallen_am = NOW(), entfallen_grund = ${`Kündigung vom ${firmaTag(am)} zum ${firmaTag(zum)}`}
      WHERE angebot_id = ${id} AND faelligkeit = 'monatlich' AND bestell_ref IS NULL AND entfallen_am IS NULL AND faellig_am > ${zum}::date RETURNING id`) as any[];
   const wer2 = seite === "fiaon" ? "FIAON" : "die Auftraggeberin";
   const artText = art === "ordentlich" ? "ordentliche Kündigung" : `Kündigung aus wichtigem Grund${garantieEntfaellt ? " — die Garantie entfällt, wenn der Vertrag vor dem Fristende endet (Ziffer 14 Absatz 3)" : " — die Garantie bleibt (der Grund liegt bei FIAON)"}`;
-  await verlaufAngebot(id, wer, `Kündigung durch ${wer2} eingegangen am ${firmaTag(am)} — wirksam zum ${firmaTag(zum)} (${artText}); ${weg.length} Monatsteile entfallen`);
+  const vorStart = starttag ? "" : " Vor dem Starttag gekündigt: Es beginnt kein Wachstumsbudget mehr („Shop live“ ist gesperrt).";
+  await verlaufAngebot(id, wer, `Kündigung durch ${wer2} eingegangen am ${firmaTag(am)} — wirksam zum ${firmaTag(zum)} (${artText}); ${weg.length} Monatsteile entfallen${vorStart}`);
   if (l.z.auftrag_ref) await globalVerlauf(String(l.z.auftrag_ref), `FIAON Global: ${art === "ordentlich" ? "Ordentliche Kündigung" : "Kündigung aus wichtigem Grund"} des Firmenangebots ${l.d.ref} durch ${wer2} vom ${firmaTag(am)}, wirksam zum ${firmaTag(zum)}. Eingang in Textform bestätigen; Übergabe der Zugänge und US-Dienste vorbereiten (Ziffer 14 Absatz 4).`);
-  return { ok: true, zum, meldung: `Kündigung eingetragen (${artText}): wirksam zum ${firmaTag(zum)}. ${weg.length} Monatsteile danach entfallen. Bitte den Eingang schriftlich bestätigen.` };
+  return { ok: true, zum, meldung: `Kündigung eingetragen (${artText}): wirksam zum ${firmaTag(zum)}. ${weg.length} Monatsteile danach entfallen.${vorStart} Bitte den Eingang schriftlich bestätigen.` };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1352,6 +1539,16 @@ export async function firmaRechnungsZeile(ref: string): Promise<{ beschreibung: 
   return firmaRechnungsText({ angebotRef: String(t.angebot_ref), auftragRef: String(t.auftrag_ref || ref), faelligkeit: String(t.faelligkeit), titel: String(t.titel), zeitraum: t.zeitraum ?? null, bemessungCents: t.bemessung_cents != null ? Number(t.bemessung_cents) : null });
 }
 
+/**
+ * Die Zeile zum Wachstumsbudget in „Mein Auftrag“. Fassung D (Ziffer 10 Absatz 2): Starttag = Tag „Shop live“, spätestens
+ * budgetSpaetestensMonate nach der Annahme — der Satz nennt beides (Gegenprüfung 08.10.2026, Fund 1). Ältere Fassungen unverändert.
+ */
+export function firmaTeil2Bedingung(d: Pick<FirmaDaten, "fassung" | "parameter">): string {
+  const anteil = `Wachstumsbudget: Ihr Anteil ${firmaEur(d.parameter.monatCents)} pro Monat im Voraus`;
+  return budgetSpaetestensGilt(d.fassung)
+    ? `${anteil} ab dem Starttag („Shop live“, spätestens ${monateWort(d.parameter.budgetSpaetestensMonate)} nach Annahme)`
+    : `${anteil} ab dem Tag „Shop live“`;
+}
 /** „Mein Auftrag“: Teile mit Stand, Garantiefrist, Bürgin — dieselben Schlüssel wie beim Individualangebot. */
 export async function firmaSichtZurAkte(z: AngebotZeile): Promise<Record<string, unknown>> {
   const d = firmaDatenAus(z);
@@ -1363,7 +1560,7 @@ export async function firmaSichtZurAkte(z: AngebotZeile): Promise<Record<string,
   return {
     art: "firma", ref: d.ref, teile, fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende), buergin: d.buergin.name,
     erstattungAusgeloest: !!z.erstattung_ausgeloest_am,
-    teil2Bedingung: `Plattform & Team ${firmaEur(d.parameter.monatCents)} pro Monat im Voraus ab dem Starttag`,
+    teil2Bedingung: firmaTeil2Bedingung(d),
     garantieZiel: `erste Runde über ${firmaUsd(d.parameter.kapitalUsd)} für die US-Gesellschaft`,
     garantieErfuelltAm: isoTag(z.garantie_erfuellt_am),
     erstattungCents: z.erstattung_cents != null ? Number(z.erstattung_cents) : null,
@@ -1425,7 +1622,11 @@ export function firmaListenEintrag(z: AngebotZeile, teile: any[], ext: { fr: Fir
     anlage1Pruefsumme: firmaAnlage1Pruefsumme(d),
     compliance: d.compliance ? { ampel: d.compliance.gesamt.ampel, titel: d.compliance.gesamt.titel, bereiche: d.compliance.bereiche.length } : null,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
-    starttag: sch.starttag, startWahl: sch.startWahl, auftragRef: z.auftrag_ref ?? null, officeLink: z.auftrag_ref ? globalOfficeAuftragPfad(String(z.auftrag_ref)) : null,
+    starttag: sch.starttag, startWahl: sch.startWahl, shopLiveAm: sch.shopLiveAm, garantieAbAnnahme: garantieAbAnnahme(d.fassung),
+    garantieNurAuszahlung: garantieNurAuszahlung(d.fassung),
+    spaetesterStart: budgetSpaetestensGilt(d.fassung) && z.angenommen_am ? budgetSpaetesterStart(berlinToday(new Date(z.angenommen_am)), d.parameter) : null,
+    unterschrift: sch.unterschrift ? { art: sch.unterschrift.art, name: sch.unterschrift.name ?? null, am: sch.unterschrift.am ?? null, ip: sch.unterschrift.ip ?? null } : null,
+    auftragRef: z.auftrag_ref ?? null, officeLink: z.auftrag_ref ? globalOfficeAuftragPfad(String(z.auftrag_ref)) : null,
     laufzeitEnde: sch.starttag && monate ? laufzeitEnde(sch.starttag, monate) : null,
     kuendigungSpaetestens: sch.starttag && monate && !fr.kuendigung ? kuendigungSpaetestens(laufzeitEnde(sch.starttag, monate), d.parameter.kuendigungMonate) : null,
     garantie: {

@@ -865,3 +865,389 @@ label.gaf-wahl, .gaf-wahl-kopf { display:flex; align-items:center; gap:14px; min
   .gaf-unterschrift-zug { clip-path:none !important; }
   .gaf-siegel.gaf-warte .gaf-siegel-buehne, .gaf-siegel.gaf-warte .gaf-siegel-svg { opacity:1 !important; transform:none !important; }
 }
+
+/* ═══ RUNDE 2 (Justin 08.10.2026) ══════════════════════════════════════════════════════════════════════════════════
+   Aufbau-Animation im Zeitstrahl, Linien-Illustrationen der Leistungen, ein Stimmungsbild, Gründungskosten klar,
+   gemeinsames Wachstumsbudget, Team mit Monogrammen, Abschluss-Block im Leser, Unterschrift. Steht am Ende: Es
+   überschreibt Maße von oben. Bewegung: einmal beim Hineinscrollen, danach Ruhe; bei „weniger Bewegung“ alles still. */
+
+/* ── Zeitstrahl: Etappe „Aufbau“ mit eigener Animation (statt Foto) ── */
+.gaf-etappe.mit-bild .gaf-etappe-inhalt { grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:48px; align-items:center; }
+.gaf-aufbau { position:relative; color:var(--navy); border-radius:24px; padding:18px 10px 8px;
+  background:radial-gradient(120% 90% at 70% 10%, rgba(243,227,181,.38) 0%, rgba(243,227,181,0) 60%), linear-gradient(180deg,#fbfaf6,#f3f5f8); }
+.gaf-aufbau svg { display:block; width:100%; height:auto; overflow:visible; }
+.gaf-aufbau .ab-label { font-family:var(--sans); font-size:10.5px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; fill:var(--leise); }
+.gaf-aufbau .ab-label-gold { fill:var(--gold-tief); }
+.gaf-aufbau .ab-live-text { font-family:var(--sans); font-size:9.5px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; fill:var(--gold-tief); }
+.gaf-aufbau .ab-korb-zahl { font-family:var(--sans); font-size:9.5px; font-weight:600; fill:#fff; }
+.gaf-aufbau .ab-z1, .gaf-aufbau .ab-z2 { opacity:0; }
+/* Ablauf (nur wenn „da“): Fenster zeichnet sich → Raster → Kopf → Karten → Kurve → Kanäle → Warenkorb zählt */
+.gaf-aufbau * { animation-timing-function:cubic-bezier(.22,1,.36,1); }
+/* Vor dem Hineinscrollen steht jede Animation auf ihrem ersten Bild (both + paused); ohne JS bzw. bei „weniger Bewegung“ kommt „da“ sofort. */
+.gaf-aufbau:not(.da) * { animation-play-state:paused !important; }
+.gaf-aufbau .ab-rahmen { stroke-dasharray:1; animation:both abZeichnen 1.4s .1s; }
+.gaf-aufbau .ab-leiste { animation:both abEin .7s .9s; }
+.gaf-aufbau .ab-raster { animation:both abEin .9s 1.1s; }
+.gaf-aufbau .ab-kopf { animation:both abHoch .9s 1.5s; }
+.gaf-aufbau .ab-karte { transform-box:fill-box; transform-origin:50% 100%; animation:both abKarte .9s; }
+.gaf-aufbau .ab-k0 { animation-delay:2.0s; } .gaf-aufbau .ab-k1 { animation-delay:2.18s; } .gaf-aufbau .ab-k2 { animation-delay:2.36s; }
+.gaf-aufbau .ab-kurve, .gaf-aufbau .ab-kurve-inhalt { animation:both abHoch .8s 2.6s; }
+.gaf-aufbau .ab-linie-b, .gaf-aufbau .ab-linie-u { stroke-dasharray:1; animation:both abZeichnen 1.6s 2.9s; }
+.gaf-aufbau .ab-flaeche { animation:both abEin 1.2s 3.4s; }
+.gaf-aufbau .ab-spitze { transform-box:fill-box; transform-origin:center; animation:both abPunkt .6s 4.4s; }
+.gaf-aufbau .ab-kanal { animation:both abFlug 1s; }
+.gaf-aufbau .ab-c0 { animation-delay:3.1s; } .gaf-aufbau .ab-c1 { animation-delay:3.35s; } .gaf-aufbau .ab-c2 { animation-delay:3.6s; }
+.gaf-aufbau .ab-bahn { animation:both abBahn 3.6s linear 4.4s infinite; }
+.gaf-aufbau .ab-korb-punkt { transform-box:fill-box; transform-origin:center; animation:both abPunkt .5s 4.2s; }
+.gaf-aufbau .ab-z1 { animation:both abZahl1 2.4s 4.2s; } .gaf-aufbau .ab-z2 { animation:both abZahl2 2.4s 4.2s; } .gaf-aufbau .ab-z3 { animation:both abZahl3 2.4s 4.2s; }
+.gaf-aufbau .ab-live { transform-box:fill-box; transform-origin:center; animation:both abAtmen 3.2s ease-in-out 5s infinite; }
+@keyframes abZeichnen { from { stroke-dashoffset:1; } to { stroke-dashoffset:0; } }
+@keyframes abEin { from { opacity:0; } to { opacity:1; } }
+@keyframes abHoch { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@keyframes abKarte { from { opacity:0; transform:translateY(14px) scale(.96); } to { opacity:1; transform:none; } }
+@keyframes abFlug { from { opacity:0; transform:translateX(-36px); } to { opacity:1; transform:none; } }
+@keyframes abPunkt { 0% { transform:scale(0); } 70% { transform:scale(1.25); } 100% { transform:scale(1); } }
+@keyframes abBahn { from { stroke-dashoffset:24; } to { stroke-dashoffset:0; } }
+@keyframes abAtmen { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.45; transform:scale(.8); } }
+@keyframes abZahl1 { 0% { opacity:1; } 30% { opacity:1; } 34%,100% { opacity:0; } }
+@keyframes abZahl2 { 0%,32% { opacity:0; } 36% { opacity:1; } 64% { opacity:1; } 68%,100% { opacity:0; } }
+@keyframes abZahl3 { 0%,66% { opacity:0; } 70%,100% { opacity:1; } }
+@media (max-width:900px) { .gaf-etappe.mit-bild .gaf-etappe-inhalt { grid-template-columns:1fr; gap:28px; } }
+@media (max-width:620px) { .gaf-aufbau { border-radius:16px; padding:10px 4px 4px; margin-left:-4px; } }
+
+/* ── Leistungskarten: Linien-Illustration statt Foto ── */
+.gaf-leistung-il { height:96px; display:flex; align-items:flex-end; margin-bottom:26px; color:var(--navy); }
+.gaf-il { display:block; overflow:visible; }
+.gaf-il .g { stroke:var(--gold); }
+.gaf-leistung-titel { font-family:var(--serif); font-weight:400; font-size:23px; line-height:1.2; letter-spacing:-.012em; color:var(--tinte); }
+.gaf-il > *, .gaf-il g { transition:transform .9s var(--ease), opacity .9s var(--ease); transform-box:fill-box; }
+.gaf-leistung:hover .il-flagge path.g { transform:skewY(-6deg) translateY(1px); transform-origin:0 50%; transition:transform .6s var(--ease); }
+.gaf-leistung:hover .il-blatt { transform:translateY(-3px) rotate(2deg); }
+.gaf-leistung:hover .il-muenze { transform:translateY(-6px); }
+.gaf-leistung:hover .il-linie { transform:translate(3px,-3px); }
+.gaf-il-strategie .il-pfad { transition:stroke-dashoffset 1.6s var(--ease); }
+.gaf-leistung:hover .il-pfad { stroke-dashoffset:-32; }
+.gaf-leistung:hover .il-ziel { transform:scale(1.08); transform-origin:center; }
+.gaf-leistung:hover .il-signal { transform:translateX(3px); opacity:.85; }
+.gaf-leistung:hover .il-fenster { transform:translateY(-2px); }
+.gaf-leistung:hover .il-routen { transform:rotate(-4deg); transform-origin:center; }
+.gaf-leistung:hover .il-kugel { transform:rotate(6deg); transform-origin:center; }
+.gaf-leistung:hover .il-blase { transform:translate(2px,-3px); }
+.gaf-leistung:hover .il-p1 { animation:ilPunkt 1.2s var(--ease) infinite; }
+.gaf-leistung:hover .il-p2 { animation:ilPunkt 1.2s .15s var(--ease) infinite; }
+.gaf-leistung:hover .il-p3 { animation:ilPunkt 1.2s .3s var(--ease) infinite; }
+.gaf-il .il-p1, .gaf-il .il-p2, .gaf-il .il-p3 { transform-box:fill-box; transform-origin:center; }
+@keyframes ilPunkt { 0%,100% { transform:translateY(0); } 40% { transform:translateY(-3px); } }
+@media (max-width:620px) { .gaf-leistung-il { height:80px; margin-bottom:20px; } .gaf-il { width:104px; height:76px; } }
+
+/* ── Ein Stimmungsbild zwischen „Was Sie bekommen“ und „Ihr Kapital“ ── */
+.gaf-stimmung { padding-top:184px; }
+.gaf-stimmung-bild { border-radius:28px; box-shadow:0 40px 90px rgba(18,40,74,.12); }
+.gaf-stimmung-bild img { aspect-ratio:16 / 8; object-fit:cover; }
+@media (max-width:720px) { .gaf-stimmung { padding-top:108px; } .gaf-stimmung-bild { border-radius:18px; } .gaf-stimmung-bild img { aspect-ratio:4 / 3; } }
+
+/* ── Gründungskosten klar (Punkt 7) ── */
+.gaf-gruendung-klar { margin-top:56px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:56px; align-items:start; padding:52px 56px;
+  border-radius:28px; background:linear-gradient(160deg,#fffdf7,#fbf8f0); box-shadow:inset 0 0 0 1px rgba(184,137,46,.18); }
+.gaf-gruendung-satz { margin-top:22px; font-family:var(--serif); font-weight:300; font-size:clamp(24px,2.4vw,32px); line-height:1.25; letter-spacing:-.015em; color:var(--tinte); text-wrap:balance; }
+.gaf-gruendung-teile { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 28px; padding-top:8px; }
+.gaf-gruendung-teile li { display:flex; align-items:baseline; gap:12px; font-size:15px; line-height:1.5; color:var(--text); }
+.gaf-gruendung-punkt { flex:0 0 auto; width:6px; height:6px; border-radius:50%; background:var(--gold); transform:translateY(-2px); }
+@media (max-width:860px) { .gaf-gruendung-klar { grid-template-columns:1fr; gap:28px; padding:36px 24px; border-radius:22px; } }
+@media (max-width:420px) { .gaf-gruendung-teile { grid-template-columns:1fr; gap:12px; } }
+
+/* ── Gemeinsames Wachstumsbudget (Punkt 8) ── */
+.gaf-budget { margin-top:96px; padding:64px 64px 52px; border-radius:32px; background:#fff; box-shadow:0 1px 2px rgba(12,26,46,.04), 0 40px 90px rgba(18,40,74,.07); }
+.gaf-budget-kopf { display:grid; grid-template-columns:auto minmax(0,1fr); gap:24px 72px; align-items:end; }
+.gaf-budget-zahl { margin-top:18px; font-family:var(--serif); font-weight:300; font-size:clamp(56px,6vw,84px); line-height:1; letter-spacing:-.03em;
+  background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; font-variant-numeric:tabular-nums; }
+.gaf-budget-einheit { margin-top:10px; font-size:13px; letter-spacing:.06em; color:var(--leise); }
+.gaf-budget-sub { font-size:16px; line-height:1.75; color:var(--text); max-width:46ch; }
+.gaf-budget-teilung { margin-top:48px; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.gaf-budget-haelfte { display:grid; gap:4px; }
+.gaf-budget-strich { display:block; height:6px; border-radius:6px; transform-origin:left; transition:transform 1.2s var(--ease) .2s; }
+.gaf-budget-haelfte.ihr .gaf-budget-strich { background:linear-gradient(90deg,#1d3b66,#12284a); }
+.gaf-budget-haelfte.fiaon .gaf-budget-strich { background:var(--gold-verlauf); transition-delay:.45s; }
+.gaf-budget.gaf-warte:not(.da) .gaf-budget-strich { transform:scaleX(0); }
+.gaf-budget-haelfte b { margin-top:14px; font-family:var(--serif); font-weight:300; font-size:30px; line-height:1; color:var(--tinte); font-variant-numeric:tabular-nums; }
+.gaf-budget-haelfte span:last-child { font-size:12.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--leise); }
+.gaf-budget-haelfte.fiaon b { color:var(--gold-tief); }
+.gaf-budget-start { margin-top:32px; padding:18px 22px; border-radius:14px; background:#fbf8f0; font-size:15px; line-height:1.65; color:var(--tinte); }
+.gaf-budget-zeilen { margin-top:44px; display:grid; }
+.gaf-budget-zeilen li { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 24px; padding:18px 0 16px; border-top:1px solid var(--linie); }
+.gaf-budget-zeile-text b { display:block; font-weight:400; font-size:15.5px; color:var(--tinte); }
+.gaf-budget-zeile-text span { display:block; margin-top:4px; font-size:13.5px; line-height:1.55; color:var(--leise); }
+.gaf-budget-betrag { font-family:var(--serif); font-size:20px; font-weight:300; color:var(--tinte); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gaf-budget-balken { grid-column:1 / -1; height:2px; background:var(--stein); border-radius:2px; overflow:hidden; }
+.gaf-budget-balken i { display:block; height:100%; background:var(--gold-verlauf); transform-origin:left; transition:transform 1.4s var(--ease) .3s; }
+.gaf-budget.gaf-warte:not(.da) .gaf-budget-balken i { transform:scaleX(0); }
+.gaf-budget-summe { border-top:1px solid var(--tinte) !important; }
+.gaf-budget-summe .gaf-budget-zeile-text b { font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--leise); font-weight:500; }
+.gaf-budget-summe .gaf-budget-betrag { color:var(--gold-tief); }
+.gaf-budget-fein { margin-top:24px; display:grid; gap:8px; }
+.gaf-budget-fein p { font-size:13px; line-height:1.65; color:var(--leise); max-width:72ch; }
+@media (max-width:860px) { .gaf-budget { margin-top:64px; padding:40px 24px 32px; border-radius:24px; } .gaf-budget-kopf { grid-template-columns:1fr; gap:18px; } }
+@media (max-width:420px) { .gaf-budget-haelfte b { font-size:24px; } .gaf-budget-haelfte span:last-child { font-size:11px; letter-spacing:.06em; } .gaf-budget-betrag { font-size:17px; } }
+
+/* ── Team (Punkt 9): mehr Menschen, ruhiges Raster, Monogramm Navy/Gold ── */
+.gaf-team-raster { grid-template-columns:repeat(4,minmax(0,1fr)); gap:64px 40px; max-width:none; }
+.gaf-team-bild { width:112px; height:112px; padding:2px; background:linear-gradient(140deg, #f3e3b5, #b8892e 45%, #f3e3b5); }
+/* Monogramm Navy/Gold — hell gehalten: dunkles Navy steht auf der Seite nur an EINER Stelle (Prüfbericht-Bühne). */
+.gaf-team-mono { background:radial-gradient(120% 120% at 30% 20%, #fffdf8 0%, #fbf6ea 55%, #f3ead3 100%); color:var(--navy); font-size:34px; font-weight:300; letter-spacing:.06em; border-color:#fff; }
+.gaf-team-name { margin-top:22px; font-size:20px; }
+.gaf-team-rolle { max-width:24ch; }
+@media (max-width:1060px) { .gaf-team-raster { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:720px) { .gaf-team-raster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:44px 18px; } .gaf-team-bild { width:88px; height:88px; } .gaf-team-mono { font-size:27px; } .gaf-team-name { font-size:17.5px; margin-top:16px; } }
+
+/* ── Leser: Abschluss-Block mit Annahme-Knopf (Punkt 10) ── */
+.gaf-leser-ende { margin-top:72px; padding:44px 40px 40px; border-radius:20px; text-align:center; background:linear-gradient(170deg,#fbf8f0,#f6f1e4); box-shadow:inset 0 0 0 1px rgba(184,137,46,.22); }
+.gaf-leser-ende-auge { font-size:11px; font-weight:500; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-tief); }
+.gaf-leser-ende-satz { margin:16px auto 0; max-width:46ch; font-size:15.5px; line-height:1.7; color:var(--text); }
+.gaf-leser-ende .gaf-knopf-annehmen { margin-top:28px; }
+.gaf-leser-ende-zu { display:block; margin:18px auto 0; padding:10px 14px; background:none; border:0; font:inherit; font-size:14px; color:var(--leise); text-decoration:underline; text-underline-offset:4px; cursor:pointer; }
+@media (max-width:620px) { .gaf-leser-ende { margin-top:48px; padding:30px 18px 26px; } .gaf-leser-ende .gaf-knopf-annehmen { width:100%; min-width:0; } }
+
+/* ── Unterschrift (Punkt 11) ── */
+.gaf-signatur { margin-top:44px; padding-top:40px; border-top:1px solid var(--linie); }
+.gaf-signatur-sub { margin-top:10px; font-size:15px; line-height:1.65; color:var(--leise); }
+.gaf-signatur-wahl { margin-top:22px; display:inline-grid; grid-template-columns:1fr 1fr; padding:4px; border-radius:999px; background:var(--stein); }
+.gaf-signatur-wahl button { min-height:44px; padding:0 22px; border:0; border-radius:999px; background:none; font:inherit; font-size:14.5px; color:var(--leise); cursor:pointer; transition:background .4s var(--ease), color .4s, box-shadow .4s; }
+.gaf-signatur-wahl button.an { background:#fff; color:var(--tinte); box-shadow:0 1px 2px rgba(12,26,46,.08), 0 6px 18px rgba(12,26,46,.06); }
+.gaf-signatur-wahl button:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+.gaf-signatur-flaeche { margin-top:20px; }
+.gaf-signatur-feld { position:relative; height:190px; border-radius:18px; background:linear-gradient(180deg,#fffefb,#fbf8f0); box-shadow:inset 0 0 0 1px rgba(184,137,46,.28); overflow:hidden; }
+.gaf-signatur-feld canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair; z-index:2; }
+.gaf-signatur-linie { position:absolute; left:28px; right:28px; bottom:46px; height:1px; background:rgba(18,40,74,.28); }
+.gaf-signatur-x { position:absolute; left:24px; bottom:52px; font-size:18px; color:var(--gold-tief); line-height:1; }
+.gaf-signatur-platz { position:absolute; left:0; right:0; top:42%; text-align:center; font-family:var(--serif); font-style:italic; font-size:19px; color:rgba(18,40,74,.32); pointer-events:none; }
+.gaf-signatur.fehlt .gaf-signatur-feld, .gaf-signatur.fehlt .gaf-signatur-vorschau { box-shadow:inset 0 0 0 2px #c2410c; }
+.gaf-signatur-neu { margin-top:10px; min-height:44px; padding:0 18px; border-radius:999px; border:1px solid var(--linie-2); background:#fff; font:inherit; font-size:14px; color:var(--navy); cursor:pointer; }
+.gaf-signatur-neu:disabled { opacity:.45; cursor:default; }
+.gaf-signatur-tippen { margin-top:20px; display:grid; gap:8px; }
+.gaf-signatur-tippen label { font-size:13px; font-weight:500; color:var(--leise); }
+.gaf-signatur-tippen input { min-height:52px; padding:0 18px; border-radius:14px; border:1px solid var(--linie-2); background:#fff; font:inherit; font-size:16px; color:var(--tinte); }
+.gaf-signatur-tippen input:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+.gaf-signatur-vorschau { position:relative; margin-top:12px; min-height:150px; border-radius:18px; padding:20px 28px 0; background:linear-gradient(180deg,#fffefb,#fbf8f0); box-shadow:inset 0 0 0 1px rgba(184,137,46,.28); overflow:hidden; }
+.gaf-signatur-vorschau-auge { display:block; font-size:10.5px; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-tief); }
+.gaf-signatur-schrift { display:block; margin-top:6px; font-family:'Mrs Saint Delafield','Snell Roundhand','Apple Chancery',cursive; font-size:clamp(40px,7vw,60px); line-height:1.35; color:#1b3866; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gaf-signatur-vorschau .gaf-signatur-linie { bottom:30px; }
+@media (max-width:620px) { .gaf-signatur { margin-top:32px; padding-top:30px; } .gaf-signatur-wahl { display:grid; width:100%; } .gaf-signatur-feld { height:168px; border-radius:14px; } .gaf-signatur-vorschau { padding:16px 18px 0; } }
+
+@media (prefers-reduced-motion:reduce) {
+  .gaf-aufbau *, .gaf-il *, .gaf-budget * { animation:none !important; transition:none !important; }
+  .gaf-aufbau .ab-z1, .gaf-aufbau .ab-z2 { opacity:0 !important; }
+  .gaf-budget .gaf-budget-strich, .gaf-budget .gaf-budget-balken i { transform:none !important; }
+}
+
+/* ── Hero-Licht dezenter (Runde 2, Punkt 1: „Licht dezenter, kein greller Kegel“) ── */
+.gaf-hero-licht::before { background:radial-gradient(40% 48% at 71% 58%, rgba(243,227,181,.38) 0%, rgba(243,227,181,.12) 45%, rgba(243,227,181,0) 75%); }
+.gaf-hero-licht::after { background:radial-gradient(48% 60% at 50% 44%, rgba(246,228,176,.62) 0%, rgba(243,227,181,.3) 34%, rgba(243,227,181,0) 70%); }
+@media (max-width:899.98px), (orientation:portrait) {
+  .gaf-hero-licht::before { background:radial-gradient(64% 36% at 50% 72%, rgba(243,227,181,.42) 0%, rgba(243,227,181,0) 75%); }
+  .gaf-hero-licht::after { background:radial-gradient(82% 52% at 50% 48%, rgba(246,228,176,.62) 0%, rgba(243,227,181,.28) 36%, rgba(243,227,181,0) 72%); }
+}
+/* Am Handy nimmt die Aufbau-Animation die volle Breite unter dem Zeitstrahl-Knoten ein (lesbare Beschriftungen). */
+@media (max-width:620px) { .gaf-etappe.mit-bild .gaf-aufbau { margin-left:-54px; width:calc(100% + 54px); } }
+
+/* ═══ RUNDE 3 (Justin 08.10.2026) — ENDFASSUNG: KAPITAL VORNE, KOMPAKTER ══════════════════════════════════════════
+   „Mach die Kosten für die Gründung nicht so präsent … kompakter, da zusätzlich noch der Vertrag gelesen werden muss.
+   Mach das Kapital präsenter.“ Steht am Ende und überschreibt Maße von oben: weiter viel Luft, aber weniger Fläche —
+   pro Abschnitt eine Aussage, höchstens drei Punkte sichtbar, der Rest klappt auf (.gaf-mehr). Navy bleibt an EINER Stelle. */
+
+/* ── Luft, etwas enger getaktet (Rechner 152 px, Handy 96 px) ── */
+.gaf-abschnitt { padding-top:152px; }
+.gaf-kopf { margin-bottom:56px; }
+.gaf-sub { margin-top:20px; }
+.gaf-buehne { margin-top:152px; padding:120px 0 108px; }
+.gaf-fuss { margin-top:152px; }
+.gaf-stimmung { padding-top:152px; }
+.gaf-stimmung-bild img { aspect-ratio:21 / 9; }
+.gaf-feinhinweise { margin-top:40px; }
+@media (max-width:720px) {
+  .gaf-abschnitt { padding-top:96px; }
+  .gaf-kopf { margin-bottom:36px; }
+  .gaf-buehne { margin-top:96px; padding:84px 0 76px; }
+  .gaf-fuss { margin-top:96px; }
+  .gaf-stimmung { padding-top:96px; }
+  .gaf-stimmung-bild img { aspect-ratio:16 / 10; }
+}
+
+/* ── Hero: die große Zahl des Kapitals und Justins Garantie-Satz (Punkt 1) ── */
+.gaf-hero-kapital { margin-top:26px; }
+.gaf-hero-betrag { font-family:var(--serif); font-weight:300; font-size:clamp(60px,6.6vw,100px); line-height:.96; letter-spacing:-.04em; white-space:nowrap;
+  font-variant-numeric:lining-nums tabular-nums; background:var(--gold-text); background-size:220% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+  padding-bottom:.06em; }
+.gaf-hero-garantie { margin-top:16px; display:flex; gap:10px; align-items:flex-start; max-width:50ch; font-size:14.5px; line-height:1.55; color:var(--tinte); text-wrap:pretty; }
+.gaf-hero-garantie svg { flex:0 0 auto; margin-top:1px; color:var(--gold-tief); }
+.gaf-hero-kapital + .gaf-h1 { margin-top:30px; font-size:clamp(26px,2.5vw,36px); line-height:1.16; letter-spacing:-.018em; }
+.gaf-hero-text > :nth-child(6) { transition-delay:.4s; }
+@media (max-width:899.98px), (orientation:portrait) {
+  .gaf-hero-kapital { margin-top:18px; }
+  .gaf-hero-betrag { font-size:clamp(48px,14.6vw,84px); }
+  .gaf-hero-garantie { margin-top:12px; font-size:13.5px; line-height:1.5; }
+  .gaf-hero-kapital + .gaf-h1 { margin-top:18px; font-size:clamp(21px,5.6vw,30px); line-height:1.2; }
+  /* Auf der gestapelten Bühne stehen Zahl, Satz und Titel — Unterzeile und Nutzen folgen darunter (gaf-hero-nach). */
+  .gaf-hero--glas .gaf-hero-text .gaf-hero-unter { display:none; }
+  .gaf-hero-nach--3d .gaf-hero-unter, .gaf-hero-nach--laedt .gaf-hero-unter { display:block; margin:0 0 22px; }
+  .gaf-hero-nach--3d, .gaf-hero-nach--laedt { padding-top:36px; }
+}
+@media (max-width:720px) { .gaf-hero-text { padding-top:80px; } }
+
+/* ── Aufklappen: ein Baustein für „Mehr erfahren“ (Punkt 3) ── */
+.gaf-mehr-knopf { display:inline-flex; align-items:center; gap:10px; min-height:44px; padding:0; background:none; border:0; font:inherit; font-size:13.5px; font-weight:400;
+  letter-spacing:.02em; color:var(--navy); cursor:pointer; transition:color .3s; }
+.gaf-mehr-knopf:hover { color:var(--gold-tief); }
+.gaf-mehr-knopf .gaf-plus { color:var(--gold); }
+.gaf-mehr-klein { margin-top:10px; }
+.gaf-mehr > .gaf-klapp > div > :first-child { margin-top:4px; }
+
+/* ── Ihr Kapital: direkt nach dem Hero, der stärkste Block ── */
+#kapital.gaf-abschnitt { padding-top:96px; }
+.gaf-kapital-raster { gap:56px; }
+.gaf-kapital-buehne { padding:52px 48px 44px; }
+.gaf-kapital-betrag { font-size:clamp(52px,6.2vw,92px); }
+.gaf-garantie { margin-top:20px; padding:30px 32px 22px; }
+.gaf-garantie .gaf-mehr-knopf { font-size:13px; }
+.gaf-bed-sub { margin-top:12px; }
+.gaf-bedingungen { margin-top:30px; gap:30px; }
+.gaf-bed-text { margin-top:8px; line-height:1.7; }
+.gaf-ohne-entgelt { margin-top:30px; padding-top:22px; }
+.gaf-kapital-unten { margin-top:44px; gap:28px; }
+.gaf-buergin, .gaf-kapital-siegel { padding:32px 34px; }
+@media (max-width:720px) {
+  #kapital.gaf-abschnitt { padding-top:72px; }
+  .gaf-kapital-raster { gap:40px; }
+  .gaf-kapital-unten { margin-top:32px; gap:18px; }
+}
+@media (max-width:620px) {
+  .gaf-kapital-buehne { padding:32px 22px 28px; }
+  .gaf-kapital-betrag { font-size:clamp(46px,13.6vw,64px); }
+  .gaf-garantie { padding:24px 20px 16px; }
+  .gaf-buergin, .gaf-kapital-siegel { padding:24px 20px; }
+}
+
+/* ── Ziele: drei kurze Karten ── */
+.gaf-ziele { gap:44px 56px; }
+.gaf-ziel-strich { margin-bottom:22px; }
+.gaf-ziel p { margin-top:12px; font-size:15px; line-height:1.7; }
+@media (max-width:1060px) { .gaf-ziele { gap:32px; } }
+
+/* ── Zeitstrahl: je Etappe Titel und ein Satz ── */
+.gaf-etappe { padding-bottom:60px; }
+.gaf-etappe-satz { margin-top:10px; line-height:1.7; }
+@media (max-width:720px) { .gaf-etappe { padding-bottom:44px; } }
+
+/* ── Leistungen: ein Satz, drei Punkte, Rest aufklappbar ── */
+.gaf-leistungen { gap:24px; }
+.gaf-leistung { padding:36px 34px 26px; }
+.gaf-leistung::before { left:34px; right:34px; }
+.gaf-leistung-il { height:88px; margin-bottom:20px; }
+.gaf-leistung-satz { margin-top:14px; line-height:1.65; }
+.gaf-punkte { margin-top:18px; padding-top:16px; gap:9px; }
+.gaf-punkte-mehr { margin-top:6px; padding-top:0; border-top:0; }
+.gaf-leistung .gaf-mehr { margin-top:auto; padding-top:6px; }
+@media (max-width:620px) { .gaf-leistung { padding:28px 22px 18px; } .gaf-leistung::before { left:22px; right:22px; } .gaf-leistungen { gap:16px; } }
+
+/* ── Unsere Vereinbarung: erst „Was Sie bekommen“, dann Konditionen als Zeilen (Punkte 1–3) ── */
+.gaf-bekommen { padding:46px 52px 48px; border-radius:28px; background:linear-gradient(160deg,#fffdf7 0%,#fbf4e1 100%);
+  box-shadow:inset 0 0 0 1px rgba(184,137,46,.24), 0 30px 70px rgba(138,100,32,.08); }
+.gaf-bekommen-liste { margin-top:26px; display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr); gap:28px 44px; align-items:start; }
+/* Gleiche Grundlinie: Die kleineren Werte stehen unten in der Höhe der großen Zahl, die Texte beginnen auf einer Linie. */
+.gaf-bekommen-liste li:not(.erste) .gaf-bekommen-wert { min-height:clamp(42px,4.6vw,64px); display:flex; align-items:flex-end; }
+.gaf-bekommen-wert { display:block; font-family:var(--serif); font-weight:300; font-size:clamp(25px,2.3vw,32px); line-height:1.1; letter-spacing:-.015em; color:var(--tinte); }
+.gaf-bekommen-liste li.erste .gaf-bekommen-wert { font-size:clamp(42px,4.6vw,64px); line-height:1; letter-spacing:-.035em; white-space:nowrap; font-variant-numeric:lining-nums tabular-nums;
+  background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; padding-bottom:.06em; }
+.gaf-bekommen-text { display:block; margin-top:12px; min-height:3.3em; font-size:14.5px; line-height:1.65; color:var(--text); max-width:34ch; }
+.gaf-konditionen-titel { margin-top:72px; }
+.gaf-zeilen { margin-top:18px; border-top:1px solid var(--linie-2); }
+.gaf-zeile { border-bottom:1px solid var(--linie-2); }
+.gaf-zeile-kopf { display:grid; grid-template-columns:minmax(0,1fr) minmax(120px,auto) minmax(0,1.5fr) auto; gap:12px 40px; align-items:center; padding:28px 0; }
+.gaf-zeile-name { font-family:var(--serif); font-weight:400; font-size:21px; line-height:1.22; letter-spacing:-.01em; color:var(--tinte); }
+.gaf-zeile-einheit { margin-top:6px; font-size:12.5px; line-height:1.45; color:var(--leise); }
+.gaf-zeile-betrag { font-family:var(--serif); font-weight:300; font-size:clamp(34px,3.2vw,44px); line-height:1; letter-spacing:-.025em; color:var(--tinte); white-space:nowrap; font-variant-numeric:lining-nums tabular-nums; }
+.gaf-zeile-umsatz .gaf-zeile-betrag, .gaf-zeile-verkauf .gaf-zeile-betrag { background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; padding-bottom:.06em; }
+.gaf-zeile-satz { font-size:15px; line-height:1.65; color:var(--text); max-width:54ch; text-wrap:pretty; }
+.gaf-zeile-knopf { display:inline-flex; align-items:center; gap:10px; min-height:44px; padding:0 0 0 6px; background:none; border:0; font:inherit; font-size:12.5px; letter-spacing:.06em;
+  color:var(--navy); cursor:pointer; white-space:nowrap; transition:color .3s; }
+.gaf-zeile-knopf:hover { color:var(--gold-tief); }
+.gaf-zeile-knopf .gaf-plus { color:var(--gold); }
+.gaf-zeile-klapp .gaf-posten-fragen { margin:4px 0 30px; padding-top:0; border-top:0; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 44px; }
+.gaf-zeile-klapp .gaf-budget { margin:0 0 32px; padding:36px 40px 26px; border-radius:24px; background:#fbfaf6; box-shadow:inset 0 0 0 1px var(--linie); }
+.gaf-zeile-klapp .gaf-budget-zahl { font-size:clamp(40px,4vw,56px); }
+.gaf-zeile-klapp .gaf-budget-teilung { margin-top:28px; }
+.gaf-zeile-klapp .gaf-budget-start { margin-top:22px; background:#fff; }
+.gaf-zeile-klapp .gaf-budget-zeilen { margin-top:24px; }
+.gaf-zeile-klapp .gaf-budget-zeilen li { padding:13px 0 11px; }
+.gaf-zeile-klapp .gaf-rechner { margin:0 0 32px; padding:44px 48px 56px; border-radius:24px; }
+.gaf-zeile-klapp .gaf-rechner-ergebnis { margin-top:32px; }
+.gaf-zeile-klapp .gaf-regler { margin-top:40px; }
+/* Gründungskosten: eine leise Zeile, Bestandteile nur aufklappbar (Punkt 2) */
+.gaf-gruendung-zeile { margin-top:36px; max-width:760px; }
+.gaf-gruendung-text { font-size:14.5px; line-height:1.65; color:var(--text); }
+.gaf-gruendung-zeile .gaf-gruendung-teile { margin-top:8px; padding-top:0; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px 24px; }
+.gaf-gruendung-zeile .gaf-gruendung-teile li { font-size:14px; }
+.gaf-gruendung-zeile .gaf-posten-fragen { margin:22px 0 8px; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 40px; }
+@media (max-width:1060px) {
+  .gaf-zeile-kopf { grid-template-columns:minmax(0,1fr) auto; gap:10px 24px; }
+  .gaf-zeile-satz { grid-column:1 / -1; }
+  .gaf-zeile-knopf { grid-column:1 / -1; justify-self:start; padding:0; }
+}
+@media (max-width:860px) {
+  .gaf-bekommen { padding:32px 22px 30px; border-radius:22px; }
+  .gaf-bekommen-liste { grid-template-columns:1fr; gap:24px; }
+  .gaf-bekommen-text { min-height:0; margin-top:8px; }
+  .gaf-bekommen-liste li:not(.erste) .gaf-bekommen-wert { min-height:0; }
+  .gaf-zeile-klapp .gaf-posten-fragen, .gaf-gruendung-zeile .gaf-posten-fragen { grid-template-columns:1fr; gap:16px; }
+  .gaf-zeile-klapp .gaf-budget { padding:26px 18px 18px; border-radius:18px; }
+  .gaf-zeile-klapp .gaf-rechner { padding:32px 18px 44px; border-radius:18px; }
+}
+@media (max-width:720px) {
+  .gaf-konditionen-titel { margin-top:56px; }
+  .gaf-zeile-kopf { padding:22px 0 10px; align-items:end; }
+  .gaf-zeile-name { font-size:19px; }
+  .gaf-zeile-betrag { font-size:34px; }
+  .gaf-zeile-satz { font-size:14.5px; }
+  .gaf-zeile-knopf { justify-self:stretch; justify-content:space-between; }
+}
+
+/* ── Prüfbericht: Gesamturteil und Kacheln sichtbar, Details eingeklappt ── */
+.gaf-urteil { padding:36px 40px; }
+.gaf-legende { margin-top:28px; }
+.gaf-bereiche-titel { margin-top:28px; }
+.gaf-buehne-unten { margin-top:22px; }
+.gaf-buehne-mehr { padding:22px 30px; }
+.gaf-buehne-mehr .gaf-mehr-knopf { width:100%; justify-content:space-between; min-height:28px; font-size:11px; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:#8fa2bf; }
+.gaf-buehne-mehr .gaf-mehr-knopf:hover { color:var(--gold-3); }
+.gaf-buehne-mehr .gaf-urteil-absatz:first-child { margin-top:16px; }
+.gaf-buehne-teil { margin-top:28px; }
+.gaf-buehne-mehr .gaf-kernzahlen { margin-top:22px; }
+.gaf-buehne-fuss { margin-top:36px; }
+.gaf-kachel { gap:10px; padding:20px 20px 16px; }
+@media (max-width:620px) {
+  .gaf-urteil { padding:26px 20px; }
+  .gaf-buehne-mehr { padding:18px 18px; }
+  .gaf-kachel-kurz { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .gaf-kachel.auf .gaf-kachel-kurz { -webkit-line-clamp:unset; display:block; }
+}
+
+/* ── Fragen & Antworten: acht offen, Rest unter „Weitere Fragen“ ── */
+.gaf-fragen button { padding:24px 2px; }
+.gaf-fragen .gaf-klapp p:last-child { padding-bottom:28px; }
+.gaf-fragen-weitere { margin-top:28px; display:inline-flex; align-items:center; gap:14px; min-height:48px; padding:0 22px; border-radius:999px; border:1px solid var(--linie-2); background:#fff;
+  font:inherit; font-size:14px; color:var(--navy); cursor:pointer; transition:border-color .3s, color .3s, box-shadow .3s; }
+.gaf-fragen-weitere:hover { border-color:var(--gold); color:var(--gold-tief); box-shadow:0 10px 26px rgba(184,137,46,.14); }
+.gaf-fragen-weitere .gaf-plus { color:var(--gold); }
+@media (max-width:620px) { .gaf-fragen button { padding:20px 0; } .gaf-fragen-weitere { width:100%; justify-content:space-between; } }
+
+/* ── Ansprechpartner und Team (nur bestätigte Personen, Punkt 6) ── */
+.gaf-person { padding:56px 64px; gap:56px; }
+.gaf-team { margin-top:104px; }
+.gaf-team .gaf-kopf { margin-bottom:48px; }
+.gaf-team-raster { grid-template-columns:repeat(4,minmax(0,1fr)); gap:48px 40px; max-width:none; }
+@media (max-width:1060px) { .gaf-team-raster { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:860px) { .gaf-person { padding:40px 24px; gap:28px; } }
+@media (max-width:720px) { .gaf-team { margin-top:80px; } .gaf-team .gaf-kopf { margin-bottom:36px; } .gaf-team-raster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:40px 18px; } }
+
+@media (prefers-reduced-motion:reduce) {
+  .gaf-mehr *, .gaf-zeile *, .gaf-fragen-weitere { transition:none !important; animation:none !important; }
+}

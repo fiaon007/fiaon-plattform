@@ -255,7 +255,8 @@ class Zurueckrollen extends Error {}
 async function teil3(): Promise<void> {
   titel("TEIL 3 — Auflösung und Merge gegen die LOKALE Datenbank (Transaktion, Rollback)");
   const db = String(process.env.DATABASE_URL ?? "");
-  if (!/@(127\.0\.0\.1|localhost)[:/]/.test(db)) { console.log("  (übersprungen: DATABASE_URL ist nicht lokal)"); return; }
+  // Integration 08.10.2026 (Fund der Nachprüfung): Der vorgeschriebene Offline-Aufruf nutzt die Attrappe 127.0.0.1:1 — keine Datenbank.
+  if (!/@(127\.0\.0\.1|localhost)[:/]/.test(db) || /@(127\.0\.0\.1|localhost):1\//.test(db)) { console.log("  (übersprungen: DATABASE_URL ist nicht lokal bzw. die Offline-Attrappe)"); return; }
   const { sqlPool } = await import("../server/lib/db-pool");
   const { akteAufloesen, personKopf } = await import("../server/lib/fiaon-akte-aufloesen");
   const { personenZusammenfuehren, betreuerLage, MergeVerboten } = await import("../server/lib/fiaon-person-merge");
@@ -264,6 +265,16 @@ async function teil3(): Promise<void> {
     await sqlPool.begin(async (tx) => {
       const lauf = tx as unknown as typeof sqlPool;
       let nr = 0;
+      // Integration 08.10.2026: Ist Migration 101 eingespielt (wie nach dem Deploy), weist die Wand „Agent 0“ ab — genau das
+      // prüfen, und sie dann NUR in dieser Transaktion lösen: Teil 3 baut den Altfall (Phantom-Betreuer 0) bewusst nach.
+      const [wand] = (await tx`SELECT 1 AS da FROM pg_constraint WHERE conname = 'fiaon_persons_agent_echt'`) as any[];
+      if (wand) {
+        let abgewiesen = false;
+        try { await tx.savepoint((sp) => sp`INSERT INTO fiaon_persons (person_ref, first_name, assigned_agent_id) VALUES (${`FIAON-P-${marke}W`}, 'Wand', 0)`); }
+        catch (e: any) { abgewiesen = e?.code === "23514"; }
+        pruef("Migration 101: die Wand weist assigned_agent_id = 0 ab", abgewiesen);
+        await tx`ALTER TABLE fiaon_persons DROP CONSTRAINT fiaon_persons_agent_echt`;
+      }
       const agent = async (name: string, x: Record<string, unknown> = {}) => {
         const [r] = await tx`INSERT INTO fiaon_agents ${tx({ name: `${name} ${marke}`, email: `${name.toLowerCase()}-${marke}@it-e.invalid`, active: true, is_test_account: false, ...x } as any)} RETURNING id`;
         return Number(r.id);

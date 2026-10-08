@@ -21,6 +21,10 @@
 // Termin“), Schritt 2 gleitet erst nach der Wahl einer Uhrzeit herein — mit
 // „Zurück“. Neue Prop `thema` füllt das Thema vor („Persönliches Angebot“).
 // Die vier Punkte stehen nur noch auf Unterseiten und Landingpages (`punkte`).
+//
+// 08.10.2026 (E-309, Justin): „Daniel Stripling, E-Mail, Nummer, Bild — einladend, verdammt hochwertig.“ Steht die
+// zuständige Person auf /team, zeigt die Karte ihr echtes Website-Porträt (dasselbe wie auf /team), Rolle, Mail und
+// Nummer aus shared/fiaon-visitenkarte.ts; ruhig animiert (Einschweben, Ring, Atmen), prefers-reduced-motion beachtet.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useWoerter, useSprache } from "@/i18n/sprache";
@@ -28,9 +32,11 @@ import { GLOBAL_GESPRAECH_WOERTER } from "@/i18n/global";
 import { globalPaket } from "@shared/fiaon-global";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { kampagne, messungsDaten, werbeKonversion } from "@/lib/werbung";
+import { visitenkarte, telefonLink } from "@shared/fiaon-visitenkarte";
+import { portraitAlt, portraitMitKi, portraitUrl, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
 
 type FreierTag = { tag: string; zeiten: string[] };
-type Frei = { ok: boolean; tage?: FreierTag[]; ansprechpartner?: { vorname?: string } | null; rueckfall?: boolean };
+type Frei = { ok: boolean; tage?: FreierTag[]; ansprechpartner?: { vorname?: string; kuerzel?: string | null } | null; rueckfall?: boolean };
 
 const leer = { name: "", firma: "", email: "", telefon: "", thema: "", wunschzeit: "", falle: "" };
 
@@ -83,6 +89,10 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
     return sprache === "en" ? `${k.kurz} ${k.datum} at ${z}` : `${k.kurz} ${k.datum} um ${z}`;
   };
   const person = frei?.ansprechpartner?.vorname ? frei.ansprechpartner : null;
+  // E-309: Steht die zuständige Person auf /team, zeigt die Karte ihr Porträt und ihre Kontakte (shared/fiaon-visitenkarte.ts).
+  const karte = visitenkarte(person?.kuerzel);
+  const [bildFehlt, setBildFehlt] = useState(false);
+  const sp = sprache === "en" ? "en" : "de";
 
   const absenden = async (e: FormEvent) => {
     e.preventDefault();
@@ -139,15 +149,47 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   return (
     <div className="fg-gespraech">
       <div className="fg-gespraech-seite">
-        {/* Die Visitenkarte: wer anruft — Monogramm statt Foto. */}
-        <div className="fg-visitenkarte">
-          <span className="fg-visitenkarte-titel">{t.karteTitel}</span>
-          <div className="fg-visitenkarte-wer">
-            <span className="monogramm" aria-hidden="true">{person?.vorname ? person.vorname.charAt(0) : "F"}</span>
-            {person?.vorname && <b>{person.vorname}</b>}
+        {/* Die Visitenkarte: wer anruft. Mit Porträt, Rolle, Mail und Nummer, wenn die Person auf /team steht (E-309);
+            sonst Monogramm und Vorname wie bisher. */}
+        {karte ? (
+          <div className="fg-visitenkarte mit-bild">
+            <span className="fg-visitenkarte-titel">{t.karteTitel}</span>
+            <div className="fg-visitenkarte-wer">
+              <span className="fg-visitenkarte-bild">
+                <span className="innen">
+                  {bildFehlt
+                    ? <span className="monogramm" aria-hidden="true">{karte.vorname.charAt(0)}</span>
+                    : <img src={portraitUrl(karte.kuerzel)} alt={portraitAlt(karte.kuerzel, karte.name, sp)} width={84} height={84} decoding="async" onError={() => setBildFehlt(true)} />}
+                </span>
+              </span>
+              <span className="fg-visitenkarte-name">
+                <b>{karte.name}</b>
+                <small>{karte.rolle[sp]}</small>
+              </span>
+            </div>
+            {portraitMitKi(karte.kuerzel) && !bildFehlt && <small className="fg-visitenkarte-ki">{KI_PORTRAIT_HINWEIS[sp]}</small>}
+            <p>{t.mitPerson(karte.vorname)}</p>
+            <div className="fg-visitenkarte-kontakt">
+              <a href={`mailto:${karte.email}`} aria-label={t.mailAn(karte.name)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="m4 7 8 6 8-6" /></svg>
+                <span>{karte.email}</span>
+              </a>
+              <a href={telefonLink(karte.telefon)} aria-label={t.anrufen(karte.name)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6.6 3.8h2.6l1.4 4-2 1.4a12 12 0 0 0 6.2 6.2l1.4-2 4 1.4v2.6a2 2 0 0 1-2.2 2A16.6 16.6 0 0 1 4.6 6a2 2 0 0 1 2-2.2z" /></svg>
+                <span>{karte.telefon}</span>
+              </a>
+            </div>
           </div>
-          <p>{t.mitWemZusatz}</p>
-        </div>
+        ) : (
+          <div className="fg-visitenkarte">
+            <span className="fg-visitenkarte-titel">{t.karteTitel}</span>
+            <div className="fg-visitenkarte-wer">
+              <span className="monogramm" aria-hidden="true">{person?.vorname ? person.vorname.charAt(0) : "F"}</span>
+              {person?.vorname && <b>{person.vorname}</b>}
+            </div>
+            <p>{t.mitWemZusatz}</p>
+          </div>
+        )}
         {punkte && (
           <ul className="fg-punkte">
             {t.punkte.map((p) => <li key={p}><svg className="fg-haken" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7.25" stroke="currentColor" strokeOpacity=".28" /><path d="M4.8 8.2l2.1 2.1 4.3-4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>{p}</li>)}

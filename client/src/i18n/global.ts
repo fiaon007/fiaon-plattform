@@ -554,6 +554,10 @@ const gespraechDe = {
   datenschutz: "Ihre Angaben verwenden wir nur für dieses Gespräch. Einzelheiten stehen in der Datenschutzerklärung.",
   // 06.10.2026 (E-293): Visitenkarte statt Punkteliste, Kalender in zwei Schritten (erst Tag und Uhrzeit, dann die Angaben).
   karteTitel: "Ihr Ansprechpartner",
+  // E-309 (08.10.2026): Visitenkarte mit Porträt — der Satz nennt die Person beim Namen.
+  mitPerson: (vorname: string) => `Dreißig Minuten am Telefon — ${vorname} ruft Sie zur gewählten Zeit persönlich an.`,
+  mailAn: (name: string) => `E-Mail an ${name}`,
+  anrufen: (name: string) => `${name} anrufen`,
   zurueck: "Zurück",
   rueckrufStatt: "Rückruf statt Termin",
 };
@@ -594,6 +598,9 @@ const gespraechEn: typeof gespraechDe = {
   paketGewaehlt: (name: string) => `Package of interest: ${name}`,
   datenschutz: "We use your details only for this call. Details are in the privacy policy.",
   karteTitel: "Your contact",
+  mitPerson: (vorname: string) => `Thirty minutes by phone — ${vorname} calls you personally at the time you choose.`,
+  mailAn: (name: string) => `Email ${name}`,
+  anrufen: (name: string) => `Call ${name}`,
   zurueck: "Back",
   rueckrufStatt: "Call me back instead",
 };

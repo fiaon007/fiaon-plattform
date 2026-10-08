@@ -13,25 +13,27 @@ import { Auf, Glas } from "./DunkleBuehne";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { TEAM_WOERTER } from "@/i18n/team";
 import { portraitUrl, portraitAlt, portraitMitKi, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
+// E-309: Mail und Nummer der drei Gesellschafter stehen in shared/fiaon-visitenkarte.ts (auch die Terminkarte liest dort).
+import { VISITENKARTEN } from "@shared/fiaon-visitenkarte";
 
 export const PERSONEN = [
   {
     kuerzel: "justin", name: "Justin Schwarzott", rolle: "Gründer · Geschäftsführer · Director",
     kurz: "Führt FIAON seit dem ersten Tag – Produkt, Strategie, Partner. Entscheidungen stehen im Register, jeder Tag im Logbuch.",
     lang: "Justin hat FIAON gegründet, weil er gesehen hat, wie viele Menschen an einem Eintrag scheitern, den niemand erklärt und niemand anfasst. Er verantwortet Produkt, Strategie, Partnerschaften und Finanzen – und führt das Unternehmen so, als würde es morgen geprüft.",
-    email: "js@fiaon.com", telefon: "+41 77 288 4902",
+    email: VISITENKARTEN.justin.email, telefon: VISITENKARTEN.justin.telefon,
   },
   {
     kuerzel: "florentine", name: "Florentine Lombardi", rolle: "Geschäftsführerin · Menschen & Onboarding",
     kurz: "Verantwortet Mitarbeiter, Einschulungen und Onboardings – jeder neue Kollege und jeder neue Kunde beginnt bei ihr.",
     lang: "Florentine baut das Team auf und hält es zusammen: Sie schult neue Mitarbeiter in der Academy, begleitet die Onboardings und sorgt dafür, dass jeder Kunde sein Startgespräch mit einem Menschen führt, der die Akte kennt.",
-    email: "florentine@fiaon.com", telefon: "+41 77 202 84 49",
+    email: VISITENKARTEN.florentine.email, telefon: VISITENKARTEN.florentine.telefon,
   },
   {
     kuerzel: "daniel", name: "Daniel Stripling", rolle: "Gesellschafter · Leitung Vertrieb",
     kurz: "Leitet den gesamten Vertrieb – vom ersten Anruf bis zum Abschluss, inklusive Provisionsregeln und Qualität der Gespräche.",
     lang: "Daniel führt den Vertrieb: Gesprächsqualität, Ergebnisse, Provisionen, Bestandspflege. Er entscheidet, wer welchen Kunden betreut, und hält die Linie zwischen ‚verkaufen‘ und ‚helfen‘ – bei FIAON ist das dasselbe.",
-    email: "daniel@fiaon.com", telefon: "+41 77 281 18 34",
+    email: VISITENKARTEN.daniel.email, telefon: VISITENKARTEN.daniel.telefon,
   },
 ] as const;
 

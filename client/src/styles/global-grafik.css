@@ -849,3 +849,56 @@
   .fg-licht i,.fg-hero-linie path,.fg-hero-linie circle{animation:none!important}
   .fg-hero-linie path{stroke-dashoffset:0!important}
 }
+
+/* ── 6b Visitenkarte mit Porträt (E-309, 08.10.2026, Justin: „einladend, verdammt hochwertig“) ─────────────
+   Echtes Website-Porträt (wie /team), voller Name, Rolle, Mail und Nummer. Bewegung nur beim Erscheinen und beim
+   Darüberfahren, dazu ein langsames Atmen am Ring; ohne Bewegungswunsch steht alles still. */
+.fg-visitenkarte.mit-bild{position:relative;overflow:hidden;min-height:0;align-content:start;gap:16px;padding:22px 22px 18px;border-radius:12px;
+  background:linear-gradient(180deg,#fff 0%,#fbfcfe 100%);
+  box-shadow:0 1px 2px rgba(12,26,46,.05),0 26px 48px -28px rgba(12,26,46,.42);
+  animation:fg-vk-ein .8s var(--fg-ease) both;transition:transform .45s var(--fg-ease),box-shadow .45s var(--fg-ease)}
+/* Lichtkante oben: zieht einmal von links nach rechts ein. */
+.fg-visitenkarte.mit-bild::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,rgba(18,40,74,0),var(--navy) 35%,#4f86d9 65%,rgba(18,40,74,0));
+  transform-origin:left center;animation:fg-vk-kante 1.1s var(--fg-ease) .35s both}
+.fg-visitenkarte.mit-bild .fg-visitenkarte-wer{gap:16px}
+/* Mit Porträt braucht die Karte Luft für den vollen Namen in einer Zeile. */
+.fg-visitenkarte.mit-bild{width:100%}
+@media(min-width:961px){.fg-neu .fg-gespraech:has(.fg-visitenkarte.mit-bild){grid-template-columns:344px minmax(0,1fr);gap:40px}}
+.fg-visitenkarte-bild{position:relative;flex:0 0 84px;width:84px;height:84px;border-radius:50%;padding:3px;box-sizing:border-box;
+  background:conic-gradient(from 220deg,var(--navy),#7ea6e0 35%,#dbe7f7 50%,#7ea6e0 65%,var(--navy));animation:fg-vk-ring 1.2s var(--fg-ease) .15s both}
+/* Atmen: ein weicher Hof, der alle paar Sekunden einmal aufgeht — „hier ist ein Mensch“. */
+.fg-visitenkarte-bild::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid rgba(18,40,74,.18);opacity:0;animation:fg-vk-atmen 4.8s ease-out 1.6s infinite}
+.fg-visitenkarte-bild .innen{display:block;width:100%;height:100%;border-radius:50%;overflow:hidden;background:#e8eef7;box-shadow:0 0 0 2px #fff}
+.fg-visitenkarte-bild img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 32%;transform:scale(1.32);transform-origin:50% 36%;
+  animation:fg-vk-bild 1s var(--fg-ease) .2s both;transition:transform .7s var(--fg-ease)}
+.fg-visitenkarte-bild .monogramm{width:100%;height:100%;flex:none}
+.fg-visitenkarte-name{display:grid;gap:5px;min-width:0}
+.fg-visitenkarte-name b{font:400 22px/1.12 var(--serif);color:var(--tinte);letter-spacing:-.005em}
+.fg-visitenkarte-name small{font-size:11px;line-height:1.35;text-wrap:balance;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);opacity:.78}
+.fg-visitenkarte-ki{font-size:10.5px;color:var(--text);opacity:.7;margin-top:-8px}
+.fg-visitenkarte.mit-bild p{margin:0}
+.fg-visitenkarte-kontakt{display:grid;gap:2px;margin-top:2px;padding-top:12px;border-top:1px solid var(--linie)}
+.fg-visitenkarte-kontakt a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;margin:0 -10px;border-radius:8px;font:400 13.5px/1.3 var(--sans);color:var(--tinte);
+  text-decoration:none;overflow-wrap:anywhere;transition:background-color .25s var(--fg-ease),color .25s var(--fg-ease)}
+.fg-visitenkarte-kontakt a svg{flex:none;color:var(--navy);transition:transform .35s var(--fg-ease)}
+.fg-visitenkarte-kontakt a span{background:linear-gradient(currentColor,currentColor) 0 100%/0 1px no-repeat;transition:background-size .35s var(--fg-ease);padding-bottom:1px}
+.fg-visitenkarte-kontakt a:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.fg-visitenkarte-kontakt a:nth-child(1){animation:fg-vk-zeile .6s var(--fg-ease) .55s both}
+.fg-visitenkarte-kontakt a:nth-child(2){animation:fg-vk-zeile .6s var(--fg-ease) .65s both}
+@media(hover:hover) and (pointer:fine){
+  .fg-visitenkarte.mit-bild:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(12,26,46,.06),0 34px 60px -30px rgba(12,26,46,.5)}
+  .fg-visitenkarte.mit-bild:hover .fg-visitenkarte-bild img{transform:scale(1.4)}
+  .fg-visitenkarte-kontakt a:hover{background:rgba(18,40,74,.05)}
+  .fg-visitenkarte-kontakt a:hover span{background-size:100% 1px}
+  .fg-visitenkarte-kontakt a:hover svg{transform:translateX(2px)}
+}
+@keyframes fg-vk-ein{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes fg-vk-kante{from{transform:scaleX(0);opacity:0}40%{opacity:1}to{transform:scaleX(1);opacity:1}}
+@keyframes fg-vk-ring{from{opacity:0;transform:rotate(-60deg) scale(.9)}to{opacity:1;transform:none}}
+@keyframes fg-vk-bild{from{opacity:0;filter:blur(6px);transform:scale(1.5)}to{opacity:1;filter:none;transform:scale(1.32)}}
+@keyframes fg-vk-atmen{0%{opacity:.0;transform:scale(1)}12%{opacity:1}45%,100%{opacity:0;transform:scale(1.18)}}
+@keyframes fg-vk-zeile{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){
+  .fg-visitenkarte.mit-bild,.fg-visitenkarte.mit-bild::before,.fg-visitenkarte-bild,.fg-visitenkarte-bild img,.fg-visitenkarte-kontakt a{animation:none!important;transition:none!important}
+  .fg-visitenkarte-bild::after{display:none}
+}

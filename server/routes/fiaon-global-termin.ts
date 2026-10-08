@@ -28,6 +28,7 @@ import {
 } from "../lib/fiaon-global-termin";
 import { GLOBAL_DAUER_MIN, GLOBAL_HORIZONT_TAGE } from "../lib/fiaon-global-zeiten";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
+import { visitenkarteFuerAgent } from "@shared/fiaon-visitenkarte";
 
 const router = Router();
 
@@ -39,7 +40,9 @@ function angebotAntwort(a: GlobalAngebotStand) {
     tage: a.tage,
     // 19.09.2026: nur der Vorname — das Profilbild einer Mitarbeiterin/eines Mitarbeiters gehört ohne
     // ausdrückliche Freigabe nicht auf eine öffentliche Seite (die Seite zeigt den Anfangsbuchstaben).
-    ansprechpartner: a.person ? { vorname: a.person.vorname } : null,
+    // E-309 (08.10.2026, Justin): Steht die Person auf /team (shared/fiaon-visitenkarte.ts), kommt ihr Kürzel mit —
+    // die Seite zeigt dann Porträt, vollen Namen, Rolle, Mail und Nummer von dort. Sonst bleibt es beim Vornamen.
+    ansprechpartner: a.person ? { vorname: a.person.vorname, kuerzel: visitenkarteFuerAgent(a.person.id)?.kuerzel ?? null } : null,
     rueckfall: a.rueckfall,
   };
 }

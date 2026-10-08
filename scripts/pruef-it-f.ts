@@ -284,6 +284,22 @@ async function teilA8(): Promise<void> {
     PL.uebergabeBlock({ id: 8, postfach: "info@fiaon.com", betreff: "B", zusammenfassung: "y", grund: PL.UEBERGABE_GRUND.widerruf })].join("\n\n");
   ok("mailUebergabeGruende liest dieselben Gründe wie uebergabeBloecke", JSON.stringify(mailUebergabeGruende(bl)) === JSON.stringify((PL.uebergabeBloecke(bl) ?? []).map((b) => b.grund)), mailUebergabeGruende(bl));
   ok("… und ein Block mit Widerruf macht die Übergabe „nur von Hand“", auftragArtVon({ schluessel: "postmeister:antwort:1", text: bl }) === "mara_mail_heikel");
+  // Integration 08.10.2026 (offener Fund der Nachprüfung): der Sendeweg (E-244, uebergabeUrteil) liest den INHALT mit derselben Regel.
+  {
+    const blZ = PL.uebergabeBlock({ id: 1835, postfach: "info@fiaon.com", betreff: "Widerruf liegt lange vor", zusammenfassung: "Kunde fragt nach", grund: PL.UEBERGABE_GRUND.zentrale });
+    const blH = PL.uebergabeBlock({ id: 1836, postfach: "info@fiaon.com", betreff: "Frage zur Karte", zusammenfassung: "Kunde fragt nach der Karte", grund: PL.UEBERGABE_GRUND.zentrale });
+    const m = (id: number, am: number, beantwortet = false) => ({ id, postfach: "info@fiaon.com", thread: "T1", am, beantwortet, begruendung: null });
+    const spaeter = m(1900, 2_000);
+    const uZ = PL.uebergabeUrteil({ text: blZ, gesendet: spaeter, mails: [m(1835, 1_000), spaeter] });
+    ok("Sendeweg: Grund „Zentrale“ + Betreff mit Widerruf + automatische Antwort im Faden → bleibt offen (heikler Inhalt)",
+      !uZ.schliessen && uZ.trifft && /heikler Inhalt/.test(uZ.grund), uZ);
+    const uA = PL.uebergabeUrteil({ text: blH, titel: "Kunde hat geschrieben: Anwalt eingeschaltet", gesendet: m(1901, 2_000), mails: [m(1836, 1_000), m(1901, 2_000)] });
+    ok("… ebenso Heikles nur im Titel (Anwalt)", !uA.schliessen && /heikler Inhalt/.test(uA.grund), uA);
+    const uH = PL.uebergabeUrteil({ text: blH, gesendet: m(1902, 2_000), mails: [m(1836, 1_000), m(1902, 2_000)] });
+    ok("… harmloser Inhalt schließt weiter (keine Regression)", uH.schliessen, uH);
+    const uM = PL.uebergabeUrteil({ text: blZ, gesendet: spaeter, mails: [m(1835, 1_000), spaeter], menschEntscheidet: true });
+    ok("… entscheidet ein Mensch („übernommen/erledigt“), gilt seine Entscheidung", uM.schliessen, uM);
+  }
 
   titel("A9  Bedienbar: die Knöpfe stehen in der Oberfläche (Quelltext; Browserabnahme siehe Bericht)");
   const todoRoute = readFileSync("server/routes/fiaon-betreiber-todo.ts", "utf8");

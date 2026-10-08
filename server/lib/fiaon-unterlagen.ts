@@ -888,6 +888,18 @@ export async function unterlageHinzufuegen(ein: {
       : `${art} für den Kunden ${ein.ersetzen ? "hochgeladen — ersetzt alle bisherigen Dateien" : "hinzugefügt"}: „${d.name}“ (${kurzBefund}) — von ${ein.wer.name}.${ein.ersetzen ? ` Grund: ${ein.ersetzen.grund}` : ""}`,
     lauf);
   anstossPlanen(ein.personId, k);
+  // Integration E-IT-C × E-IT-F (08.10.2026): JEDE angenommene Datei ist das Ereignis „Unterlage erhalten“ — hier, an
+  // der einen Stelle, durch die alle Wege laufen (Kundenbereich, Antrag /upload-kyc, Akte, Verwaltung, Upload-Link).
+  // Es schließt „Unterlage anfordern“ nur bei passender Unterlage (unterlagePasst); eine eigene Bonitätsauskunft gibt
+  // nur einen Beitrag „Leistung klären“ (Entscheidung 4a). ereignisMelden fängt selbst — der Upload scheitert nie daran.
+  {
+    const { ereignisMelden } = await import("./fiaon-auftraege");
+    await ereignisMelden({
+      ereignis: "unterlage_erhalten", personId: ein.personId, ref: traeger,
+      akteur: ein.wer.art === "kunde" ? { id: null, name: "Kunde (Upload)" } : { id: ein.wer.agentId ?? null, name: ein.wer.name },
+      detail: k === "schufa" ? "eigene Bonitätsauskunft" : info.kurz,
+    }, lauf).catch(() => {});
+  }
 
   const satzKunde = [
     `Eingegangen: „${d.name}“ (${kurzBefund}).`,

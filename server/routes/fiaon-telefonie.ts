@@ -1889,11 +1889,8 @@ router.post(
       }
       if (!angenommen) return res.status(400).json({ ok: false, error: saetze[0] || "Die Datei konnte nicht angenommen werden." });
 
-      // E-IT-F (08.10.2026): Unterlage erhalten → „Unterlage anfordern"/„Auskunft fehlt" dieses Menschen erledigt.
-      {
-        const { ereignisMelden } = await import("../lib/fiaon-auftraege");
-        await ereignisMelden({ ereignis: "unterlage_erhalten", personId, ref: antragRef, akteur: { id: req.agent!.id, name: req.agent!.name }, detail: label });
-      }
+      // E-IT-F (08.10.2026): „Unterlage erhalten" meldet jetzt unterlageHinzufuegen selbst (server/lib/fiaon-unterlagen.ts) —
+      // ein Ort für alle Wege (Akte, Kundenbereich, Antrag, Verwaltung, Link). Integration 08.10.2026.
       const stand = await dokumentStand({ personId, rolle, zustaendig: true }, sqlPool);
       const label = DOKUMENTE.find((d) => d.art === art)!.label;
       res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte (${angenommen} Datei${angenommen === 1 ? "" : "en"}). ${saetze.join(" ")}`.trim() });

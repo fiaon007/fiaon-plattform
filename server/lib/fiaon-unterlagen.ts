@@ -725,6 +725,65 @@ export async function akteFassungUebernehmen(personId: number, k: GebundeneKateg
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Der Upload-Link (E-IT-D) meldet seine Dateien an — Integration 08.10.2026
+//
+// Der Upload-Link ohne Anmeldung (server/lib/fiaon-unterlagen-link.ts, unterlageAnnehmen) bindet selbst
+// (vorhandene Fassung vorn, neue dahinter; ein falsches Dokument wird ersetzt) und schreibt die Spalte der
+// Trägerbestellung (dieselbe Reihenfolge wie traegerRef). Ohne Anmeldung hier sähe diese Ablage die Spalte
+// als „fremd“: Die Link-Dateien stünden nicht in der Liste, und das nächste Hinzufügen fasste ALLE Dateien
+// der Kategorie zu EINER zusammen. Deshalb:
+//   · linkVorSchreiben  — vor dem Schreiben: Bestand ohne Zeile wird Zeile (wie vor jedem Hinzufügen).
+//   · linkDateienAnmelden — danach: jede neue Datei eine Zeile (Herkunft „link“, vom Kunden), bei „ersetzen“
+//     die bisherigen mit Grund entfernt (nicht gelöscht), und die geschriebene Spalte gilt als gebundene Fassung.
+// Ist die Ablage nicht bereit (Migration 099 fehlt und lässt sich nicht nachziehen), passiert nichts.
+// ───────────────────────────────────────────────────────────────────────────
+export async function linkVorSchreiben(personId: number, k: GebundeneKategorie, lauf: Lauf = sqlPool): Promise<string | null> {
+  if (!(await unterlagenBereit(lauf))) return null;
+  await bestandUebernehmen(personId, k, lauf);
+  // Darf der Kunde hier überhaupt etwas hinzufügen? Dieselben zwei Sperren wie im Kundenbereich (Auskunft).
+  if (k === "schufa") {
+    const [b] = (await lauf`SELECT 1 AS ja FROM fiaon_dokumente WHERE person_id = ${personId} AND art = 'unterlage' AND kategorie = 'schufa'
+                              AND herkunft = 'beschaffung' AND entfernt_am IS NULL AND geloescht_am IS NULL LIMIT 1`) as any[];
+    if (b) return lesefehlerSatz("beschafft", "sie");
+    if (await auskunftAbgeschlossen(personId, lauf)) return lesefehlerSatz("ausgewertet", "sie");
+  }
+  return null;
+}
+
+export async function linkDateienAnmelden(personId: number, k: GebundeneKategorie, ein: {
+  dateien: { buffer: Buffer; name: string }[];
+  /** Grund, wenn die neue Fassung die bisherige ERSETZT (falsches Dokument, neue Auskunft). */
+  ersetzen: string | null;
+  wer: Handelnder;
+}, lauf: Lauf = sqlPool): Promise<void> {
+  if (!(await unterlagenBereit(lauf))) return;
+  try {
+    if (ein.ersetzen) {
+      await lauf`UPDATE fiaon_dokumente SET entfernt_am = NOW(), entfernt_von = ${ein.wer.name}, entfernt_grund = ${`ersetzt: ${ein.ersetzen}`.slice(0, 300)}
+                  WHERE person_id = ${personId} AND art = 'unterlage' AND kategorie = ${k} AND entfernt_am IS NULL AND geloescht_am IS NULL`;
+    }
+    const traeger = await traegerRef(personId, lauf);
+    const quelle = ein.wer.art === "kunde" ? "kunde" : "mitarbeiter";
+    for (const d of ein.dateien) {
+      const typ = typAmInhalt(d.buffer);
+      const [z] = (await lauf`
+        INSERT INTO fiaon_dokumente (person_id, ref, art, kategorie, dateiname, mime, bytes, inhalt, quelle, herkunft, doc_hash, agent_id, hochgeladen_am)
+        VALUES (${personId}, ${traeger}, 'unterlage', ${k}, ${String(d.name || "Datei").slice(0, 200)}, ${typ === "pdf" ? "application/pdf" : typ === "png" ? "image/png" : "image/jpeg"},
+                ${d.buffer.length}, ${d.buffer}, ${quelle}, 'link', ${sha256Hex(d.buffer)}, ${ein.wer.agentId ?? null}, NOW())
+        ON CONFLICT DO NOTHING RETURNING id`) as any[];
+      if (z?.id) await bestandBefund(Number(z.id), k, lauf);
+    }
+    const spalte = spalteVon(k);
+    const [h] = (await lauf.unsafe(`SELECT encode(sha256(${spalte}), 'hex') AS h FROM fiaon_applications WHERE ref = $1 AND LENGTH(${spalte}) > 0`, [traeger ?? ""])) as any[];
+    const [n] = (await lauf`SELECT count(*)::int AS n FROM fiaon_dokumente WHERE person_id = ${personId} AND art = 'unterlage' AND kategorie = ${k} AND entfernt_am IS NULL AND geloescht_am IS NULL`) as any[];
+    await akteMerken(personId, k, { ref: traeger, hash: h?.h ?? null, dateien: Number(n?.n || 0), fehler: null }, lauf);
+  } catch (e) {
+    // Die Datei liegt schon in der Spalte (der Kunde hat nichts verloren) — nur die Liste hinkt nach.
+    console.error("[UNTERLAGEN] Link-Dateien anmelden:", String((e as Error)?.message || e).slice(0, 200));
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Hinzufügen
 // ───────────────────────────────────────────────────────────────────────────
 export type HinzufuegenErgebnis =
@@ -899,6 +958,14 @@ export async function unterlageHinzufuegen(ein: {
       akteur: ein.wer.art === "kunde" ? { id: null, name: "Kunde (Upload)" } : { id: ein.wer.agentId ?? null, name: ein.wer.name },
       detail: k === "schufa" ? "eigene Bonitätsauskunft" : info.kurz,
     }, lauf).catch(() => {});
+  }
+  // Integration E-IT-C × E-IT-D (08.10.2026, 4a): Kommt eine Auskunft in die Akte, während ein Beschaffungsauftrag
+  // offen ist, wird daraus eine Leistungsfrage (bzw. im Datenkopie-Weg die Lieferung) — für JEDEN Weg hier an einer
+  // Stelle (vorher je Route in /upload-kyc, Akte-Upload und Upload-Link). Ein Fehler hier hält den Upload nie auf.
+  if (k === "schufa") {
+    const { beschaffungBeiEigenemUpload } = await import("./fiaon-auskunft-lieferung");
+    await beschaffungBeiEigenemUpload(ein.personId, ein.wer.art === "kunde" ? "kunde" : "mitarbeiter", ein.wer.art === "kunde" ? null : ein.wer.name, lauf)
+      .catch((e: unknown) => console.error("[UNTERLAGEN] Beschaffung:", String((e as Error)?.message || e).slice(0, 160)));
   }
 
   const satzKunde = [

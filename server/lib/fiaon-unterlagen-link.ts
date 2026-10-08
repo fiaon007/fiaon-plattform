@@ -513,6 +513,13 @@ export async function unterlageAnnehmen(ein: {
   if (!antrag?.ref) return fehler("Zu Ihrer Person liegt keine Bestellung vor. Bitte wenden Sie sich an Ihre Ansprechperson.", "Keine Bestellung an der Person.");
   const ref = String(antrag.ref);
   const spalte = SPALTE[ein.art];
+  // ── INTEGRATION E-IT-C × E-IT-D (08.10.2026): EINE ABLAGE ──────────────────────────────────────────
+  // Die Unterlagen-Ablage (server/lib/fiaon-unterlagen.ts, „eine Datei = ein Datensatz“) führt jede Datei als Zeile.
+  // Dieser Weg bindet selbst und schreibt die Spalte — er meldet sich deshalb vorher (Bestand ohne Zeile wird Zeile,
+  // dieselben Sperren wie im Kundenbereich) und nachher an (die neuen Dateien als Zeilen, die Spalte als Fassung).
+  const ablage = await import("./fiaon-unterlagen");
+  const sperrSatz = await ablage.linkVorSchreiben(ein.personId, ein.art, lauf).catch(() => null);
+  if (sperrSatz && ein.quelle.art === "link") return fehler(sperrSatz, `${titel}: über den Link abgewiesen — ${sperrSatz}`);
 
   // Hinzufügen statt Ersetzen (Punkt 3): die vorhandene Datei vorn, die neuen dahinter.
   let alt: Buffer | null = null;
@@ -593,6 +600,13 @@ export async function unterlageAnnehmen(ein: {
   const teileJetzt = Array.from(new Set([...(altDrin ? altTeile : []), ...neuOhneDoppel.map((t) => t.hash)]));
   await lauf`INSERT INTO fiaon_unterlagen_teile (person_id, art, ergebnis_hash, teile) VALUES (${ein.personId}, ${ein.art}, ${sha(pdf)}, ${teileJetzt})`
     .catch((e: unknown) => console.error("[UNTERLAGEN-LINK] Teile:", String((e as Error)?.message || e).slice(0, 160)));
+  // Integration E-IT-C × E-IT-D: die neuen Dateien als Zeilen der Ablage, die Spalte als gebundene Fassung (siehe oben).
+  await ablage.linkDateienAnmelden(ein.personId, ein.art, {
+    dateien: neuOhneDoppel.map((t) => ({ buffer: t.buffer, name: t.name })),
+    ersetzen: ersetzen ? "falsches Dokument (Nebenkonto, unlesbar oder kein Ausweis) — über den Upload-Link ersetzt"
+      : ein.art === "schufa" ? "neue Bonitätsauskunft über den Upload-Link" : null,
+    wer: ein.quelle.art === "link" ? { art: "kunde", name: "Kunde (Upload-Link)" } : { art: "mitarbeiter", name: ein.quelle.name, agentId: ein.quelle.agentId },
+  }, lauf);
   await lauf`
     UPDATE fiaon_applications SET status = 'documents_submitted'
      WHERE ref = ${ref} AND bank_statement_pdf IS NOT NULL AND id_card_pdf IS NOT NULL AND status IN ('pending', 'documents_requested')`.catch(() => {});
@@ -634,6 +648,15 @@ export async function unterlageAnnehmen(ein: {
     const { beschaffungBeiEigenemUpload } = await import("./fiaon-auskunft-lieferung");
     await beschaffungBeiEigenemUpload(ein.personId, ein.quelle.art === "link" ? "kunde" : "mitarbeiter", ein.quelle.art === "mitarbeiter" ? ein.quelle.name : null, lauf)
       .catch((e: unknown) => console.error("[UNTERLAGEN-LINK] Beschaffung:", String((e as Error)?.message || e).slice(0, 160)));
+  }
+  // Integration E-IT-D × E-IT-F (08.10.2026): „Unterlage erhalten“ — wie jeder andere Upload-Weg (fiaon-unterlagen.ts).
+  {
+    const { ereignisMelden } = await import("./fiaon-auftraege");
+    await ereignisMelden({
+      ereignis: "unterlage_erhalten", personId: ein.personId, ref,
+      akteur: ein.quelle.art === "link" ? { id: null, name: "Kunde (Upload-Link)" } : { id: ein.quelle.agentId, name: ein.quelle.name },
+      detail: ein.art === "schufa" ? "eigene Bonitätsauskunft" : titel,
+    }, lauf).catch(() => {});
   }
 
   const n = neuOhneDoppel.length;

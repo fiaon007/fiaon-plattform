@@ -311,7 +311,13 @@ abschnitt("A7 · 4a: Stufensätze der Akte, Wache, Werktage, Haken");
   ok(/auskunftStufenSatz/.test(lies("client/src/components/DokumenteSektion.tsx")) && !/Bezahlt — wir holen die Auskunft ein\./.test(lies("client/src/components/DokumenteSektion.tsx")), "Betreiber-Akte liest die Sätze aus der einen Quelle");
   const lief = lies("server/lib/fiaon-auskunft-lieferung.ts");
   ok(!/function auskunftLieferfaehig|auskunftLieferfaehig\(/.test(lief) && !/auskunftLieferfaehig/.test(lies("server/lib/fiaon-auskunft.ts")), "Keine Verkaufsbremse (Justin: weiter verkaufen)");
-  ok(/beschaffungBeiEigenemUpload\(/.test(lies("server/routes/fiaon-antrag.ts")) && /beschaffungBeiEigenemUpload\(/.test(lies("server/routes/fiaon-telefonie.ts")) && /beschaffungBeiEigenemUpload\(/.test(lies("server/lib/fiaon-unterlagen-link.ts")), "Alle drei Upload-Wege melden eine eigene Auskunft an die Beschaffung");
+  // Integration E-IT-C × E-IT-D (08.10.2026): /upload-kyc und der Akte-Upload laufen jetzt durch unterlageHinzufuegen
+  // (fiaon-unterlagen.ts) — dort steht der Aufruf EINMAL für alle Wege (auch Kundenbereich und Verwaltung).
+  {
+    const ablage = lies("server/lib/fiaon-unterlagen.ts");
+    const hinzu = ablage.slice(ablage.indexOf("export async function unterlageHinzufuegen"));
+    ok(/beschaffungBeiEigenemUpload\(/.test(hinzu) && /unterlageHinzufuegen\(/.test(lies("server/routes/fiaon-antrag.ts")) && /unterlageHinzufuegen\(/.test(lies("server/routes/fiaon-telefonie.ts")) && /beschaffungBeiEigenemUpload\(/.test(lies("server/lib/fiaon-unterlagen-link.ts")), "Alle Upload-Wege melden eine eigene Auskunft an die Beschaffung (Ablage + Upload-Link)");
+  }
   ok(/auskunft_liegezeit_wache/.test(lies("server/routes.ts")) && /auskunft_liegezeit_wache/.test(lies("server/lib/fiaon-crons.ts")), "Wache als Takt registriert und in der Lauf-Ampel");
 }
 

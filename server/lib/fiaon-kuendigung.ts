@@ -36,6 +36,9 @@ import { offeneRatenZaehlen, ratenStornieren } from "./fiaon-raten-storno";
 // Fälligkeit, AGB 04.07.2026 § 6, Frist 24 Stunden) — nicht mehr der Kalendermonat. Die eine Rechnung: abrechnungsmonat.
 import { istJahresvertrag, abrechnungsmonat, tagDeutsch } from "@shared/fiaon-antrag-stand";
 import { kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
+// E-IT-B (08.10.2026): die eine Regel „wirksam gekündigt“ und die Produktkategorie.
+import { KUENDIGUNG_WIRKSAM_SQL, KUENDIGUNG_ANTRAEGE_SQL, antragZiel, type AntragZiel } from "@shared/fiaon-kuendigung-regel";
+import { produktkategorieSql } from "@shared/fiaon-produktkategorie";
 
 /** YYYY-MM-DD (Berlin) eines Zeitpunkts. */
 function berlinTag(d: Date | string | number): string {
@@ -251,12 +254,20 @@ export async function kuendigungSetzen(ref: string, opts: {
   const [a] = (await sqlPool`
     SELECT ref, person_id, payment_status, payment_reference, amount_due, pack_name, email,
            first_name, last_name, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, abo_gestoppt_am, agb_stand,
+           -- E-IT-B (08.10.2026): Der Rücknahmetag wurde hier gar nicht gelesen — die Abfrage unten verglich
+           -- mit „undefined“. Jetzt gelesen, und jede neue Kündigung setzt ihn zurück (siehe SET unten).
+           kuendigung_zurueckgenommen_am,
            -- E-265 (01.10.2026): der Anker für den Abrechnungsmonat, falls keine Ratenkette da ist
            COALESCE(paid_at, completed_at, created_at) AS anker
     FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
   `) as any[];
   if (!a) return leer("unbekannt", "Bestellung nicht gefunden");
-  if (a.gekuendigt_am && !a.kuendigung_zurueckgenommen_am) {
+  // E-IT-B (08.10.2026): Nach einer Rücknahme und einer erneuten Kündigung blieb kuendigung_zurueckgenommen_am
+  // stehen — elf Leser („gekündigt und nicht zurückgenommen“) hielten den Menschen dann für ungekündigt. Jede
+  // Kündigung unten setzt den Rücknahmetag deshalb auf NULL; die Regel selbst liest nur noch gekuendigt_am
+  // (shared/fiaon-kuendigung-regel.ts — die Rücknahme setzt gekuendigt_am auf NULL). Ein gesetztes gekuendigt_am
+  // IST die geltende Kündigung — auch wenn ein alter Rücknahmetag daneben steht.
+  if (a.gekuendigt_am) {
     return { ok: true, ref, weg: "bereits", letzteRateNr: a.letzte_rate_nr ?? null, letzteRateBetragCents: null,
       letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: a.vertrag_ende_am ?? null, grund: "bereits gekündigt" };
   }
@@ -281,7 +292,7 @@ export async function kuendigungSetzen(ref: string, opts: {
       await tx`
         UPDATE fiaon_applications
            SET payment_status = 'cancelled', cancelled_at = COALESCE(cancelled_at, ${wann}),
-               gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+               gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
                kuendigung_postmeister_id = ${opts.postmeisterId ?? null},
                vertrag_ende_am = ${wann}, mahnstopp_am = COALESCE(mahnstopp_am, ${wann}),
                allow_reminders_despite_paid = FALSE, updated_at = NOW()
@@ -328,7 +339,7 @@ export async function kuendigungSetzen(ref: string, opts: {
     await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_applications
-           SET gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+           SET gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
                kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechste || null},
                vertrag_ende_am = ${endeOhneRate}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
                abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung'), kuendigung_rueckhol_bis = ${rueckholBis},
@@ -353,7 +364,7 @@ export async function kuendigungSetzen(ref: string, opts: {
     await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_applications
-           SET gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+           SET gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
                kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechsteBezahlt || null},
                vertrag_ende_am = ${wann}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
                abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung (Kulanz, sofort)'), kuendigung_rueckhol_bis = ${rueckholBis},
@@ -387,7 +398,7 @@ export async function kuendigungSetzen(ref: string, opts: {
     await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_applications
-           SET gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+           SET gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
                kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechsteBezahlt || null},
                vertrag_ende_am = ${endeOhneRate}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
                abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung'), kuendigung_rueckhol_bis = ${rueckholBis},
@@ -429,7 +440,7 @@ export async function kuendigungSetzen(ref: string, opts: {
   await sqlPool.begin(async (tx) => {
     await tx`
       UPDATE fiaon_applications
-         SET gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+         SET gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
              kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${letzteNr},
              kuendigung_rueckhol_bis = ${rueckholBis}, updated_at = NOW()
        WHERE ref = ${ref}
@@ -469,12 +480,104 @@ export async function kuendigungZuruecknehmen(ref: string, grund?: string | null
              vertrag_ende_am = NULL, abo_gestoppt_am = NULL, abo_stopp_grund = NULL, updated_at = NOW()
        WHERE ref = ${ref}
     `;
+    // E-IT-B (08.10.2026, Gegenprüfung): Ein offener Formular-Antrag dieses Menschen ist mit der Rücknahme
+    // erledigt — sonst stand er weiter auf „pending“, die Liste „Kündigung nicht gebucht“ und die Akte forderten
+    // zum erneuten Kündigen auf (Fall 11498), und die Zahlungszuordnung sah eine „offene Kündigung“. Das Formular
+    // legt den Antrag an IRGENDEINE Bestellung des Menschen (cancellation.ts) — deshalb alle seine Bestellungen.
+    await tx`
+      UPDATE cancellation_requests SET status = 'withdrawn', processed_at = NOW(), updated_at = NOW(),
+             admin_note = COALESCE(admin_note, '') || ' [Kündigung zurückgenommen]'
+       WHERE status = 'pending' AND created_at <= NOW()
+         AND (ref = ${ref} OR ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.person_id IS NOT NULL
+                                        AND x.person_id = (SELECT y.person_id FROM fiaon_applications y WHERE y.ref = ${ref} LIMIT 1)))
+    `;
     await tx`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${ref}, NULL, 'System', 'system', ${`Kündigung zurückgenommen — ${zurueck} Rate(n) wieder offen.${grund ? ` ${String(grund).slice(0, 200)}` : ""}`})
     `.catch(() => {});
   });
   return { ok: true, ratenZurueck: zurueck };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NIE GEBUCHTE KÜNDIGUNGSANTRÄGE — LESEN UND SCHLIESSEN (E-IT-B (08.10.2026))
+//
+// Die Regel (welcher Antrag offene Arbeit ist, worauf er gebucht wird) steht in
+// shared/fiaon-kuendigung-regel.ts (KUENDIGUNG_ANTRAEGE_SQL, antragZiel). Hier
+// nur das Laden für Akte, Chefbüro und Buchung — EINE Funktion für alle Türen.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface OffenerAntrag {
+  id: number;
+  am: string;
+  ref: string;
+  grund: string | null;
+  wunsch: string | null;
+  personId: number;
+  ziel: AntragZiel;
+  /** Paketname der Zielbestellung — null ohne Ziel. */
+  zielPaket: string | null;
+}
+
+/**
+ * Die offenen, nie gebuchten Anträge eines Menschen (älteste zuerst) — oder
+ * genau einer (`antragId`, dann ohne Personenfilter, wenn `personId` null ist).
+ */
+export async function offeneKuendigungsantraege(personId: number | null, antragId: number | null = null): Promise<OffenerAntrag[]> {
+  if (personId == null && antragId == null) return [];
+  const zeilen = (await sqlPool.unsafe(
+    // antrag_am_tz: cancellation_requests.created_at ist „timestamp ohne Zone“ (Wanduhr der Datenbank-Sitzung, die ihn
+    // mit NOW() schrieb). In der Datenbank zum Zeitpunkt gemacht — so stimmt die Buchung zum Eingangstag unabhängig
+    // davon, in welcher Zeitzone der Server-Prozess läuft.
+    `SELECT kr_u.*, kr_u.antrag_am::timestamptz AS antrag_am_tz FROM (${KUENDIGUNG_ANTRAEGE_SQL}) kr_u
+      WHERE ($1::int IS NULL OR kr_u.person_id = $1::int) AND ($2::int IS NULL OR kr_u.antrag_id = $2::int)
+      ORDER BY kr_u.antrag_am ASC, kr_u.antrag_id ASC LIMIT 20`,
+    [personId, antragId],
+  )) as any[];
+  const aus: OffenerAntrag[] = [];
+  const jePerson = new Map<number, any[]>();
+  for (const z of zeilen) {
+    const pid = Number(z.person_id);
+    if (!jePerson.has(pid)) {
+      // Alle Bestellungen des Menschen, auch zusammengeführte und die einer Personen-Dublette (die Referenz des
+      // Antrags kann an jeder hängen).
+      jePerson.set(pid, (await sqlPool`
+        SELECT ref, type, pack_key, pack_name, merged_into, payment_status, gekuendigt_am, created_at, archived_at, gdpr_deleted_at
+          FROM fiaon_applications
+         WHERE person_id = ${pid} OR person_id IN (SELECT d.id FROM fiaon_persons d WHERE d.merged_into_person_id = ${pid})`) as any[]);
+    }
+    const bestellungen = jePerson.get(pid)!;
+    const ziel = antragZiel({ ref: z.antrag_ref, am: z.antrag_am }, bestellungen);
+    const zb = ziel.ziel ? bestellungen.find((b) => String(b.ref) === ziel.ziel) : null;
+    aus.push({
+      id: Number(z.antrag_id), am: new Date(z.antrag_am_tz ?? z.antrag_am).toISOString(), ref: String(z.antrag_ref ?? ""),
+      grund: z.antrag_grund ? String(z.antrag_grund).slice(0, 300) : null,
+      wunsch: z.antrag_wunsch ? String(z.antrag_wunsch instanceof Date ? z.antrag_wunsch.toISOString() : z.antrag_wunsch).slice(0, 10) : null,
+      personId: pid, ziel, zielPaket: zb?.pack_name ? String(zb.pack_name).split("\n")[0] : null,
+    });
+  }
+  return aus;
+}
+
+/**
+ * Einen offenen Antrag OHNE Kündigung schließen (Leitung: „der Kunde ist mit dem
+ * neuen Paket wieder da“, Doppelantrag …). Status 'rejected' wie im Chefbüro,
+ * mit Grund und Namen. true, wenn er offen war.
+ */
+export async function kuendigungsantragSchliessen(antragId: number, opt: { von: string; grund: string; personId?: number | null }): Promise<boolean> {
+  const [z] = (await sqlPool`
+    UPDATE cancellation_requests
+       SET status = 'rejected', processed_by = ${opt.von}, processed_at = NOW(), updated_at = NOW(),
+           admin_note = TRIM(COALESCE(admin_note, '') || ' ' || ${`[Geschlossen ohne Kündigung: ${opt.grund.slice(0, 240)} — ${opt.von}]`})
+     WHERE id = ${antragId} AND status = 'pending'
+    RETURNING id, ref, created_at`) as any[];
+  if (!z) return false;
+  if (opt.personId) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${z.ref}, ${opt.personId}, NULL, ${opt.von}, 'system',
+              ${`Kündigungsantrag vom ${new Date(z.created_at).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })} ohne Kündigung geschlossen (${opt.von}): ${opt.grund.slice(0, 240)}`}, NOW())`.catch(() => {});
+  }
+  return true;
 }
 
 /**
@@ -558,15 +661,17 @@ export const PORTAL_GESPERRT_SATZ =
  * eine Kündigung gilt der Person und nicht einer einzelnen Zeile.
  */
 export async function neueLeistungGesperrt(ref: string): Promise<boolean> {
-  const [a] = (await sqlPool`
-    SELECT EXISTS (
-      SELECT 1 FROM fiaon_applications x
-       WHERE (x.ref = ${ref}
-              OR (x.person_id IS NOT NULL
-                  AND x.person_id = (SELECT y.person_id FROM fiaon_applications y WHERE y.ref = ${ref} LIMIT 1)))
-         AND x.merged_into IS NULL
-         AND x.gekuendigt_am IS NOT NULL
-         AND x.kuendigung_zurueckgenommen_am IS NULL
-    ) AS gesperrt`.catch(() => [])) as any[];
+  // ── E-IT-B (08.10.2026): DIE EINE REGEL „WIRKSAM GEKÜNDIGT“ ────────────────
+  // Vorher sperrte JEDE gekündigte Bestellung den Laden — auch eine gekündigte
+  // Bonitätsauskunft neben einem laufenden Stufenpaket (Personen 4919, 11498).
+  // Jetzt dieselbe Regel wie überall (shared/fiaon-kuendigung-regel.ts):
+  // Stufenpaket gekündigt, kein bezahlter, ungekündigter Vertrag daneben.
+  // Eine Bestellung ohne Person (Altbestand) urteilt über sich selbst.
+  const [b] = (await sqlPool`
+    SELECT person_id, (gekuendigt_am IS NOT NULL AND merged_into IS NULL AND ${sqlPool.unsafe(produktkategorieSql())} = 'konto') AS selbst
+      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  if (!b) return false;
+  if (b.person_id == null) return b.selbst === true;
+  const [a] = (await sqlPool.unsafe(`SELECT ${KUENDIGUNG_WIRKSAM_SQL("$1::int")} AS gesperrt`, [Number(b.person_id)]).catch(() => [])) as any[];
   return a?.gesperrt === true;
 }

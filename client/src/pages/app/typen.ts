@@ -28,7 +28,8 @@ export interface Bereich {
   naechsterSchritt: { key: string; titel: string; text: string; href: string | null } | null;
   ansprechpartner: { name: string; rolle: string | null; avatar?: string | null } | null;
   kontoVerbunden: boolean;
-  karte?: { bereit: boolean; esFehlt?: string[]; verschickt?: boolean; tore: { titel: string; erfuellt: boolean; warum: string | null }[] } | null;
+  // E-IT-B (08.10.2026): zustellProblem — an seiner Adresse kam zuletzt nichts an (gesperrt, Spam, endgültiger Rückläufer).
+  karte?: { bereit: boolean; esFehlt?: string[]; verschickt?: boolean; zustellProblem?: boolean; tore: { titel: string; erfuellt: boolean; warum: string | null }[] } | null;
   // Schritt 10 des Weges (06.09.2026): die gemeldete oder vom Kooperations-
   // partner bestätigte Kontoeröffnung aus fiaon_konto_karte. Ohne Meldung null —
   // dann bleibt der Schritt offen, wie bisher.

@@ -33,6 +33,8 @@ import { waehlbareNummer, nichtWaehlbarSql } from "../lib/fiaon-telefon";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { stufeAusTier } from "@shared/fiaon-kundenstatus";
+// E-IT-B (08.10.2026): die eine Regel „wirksam gekündigt“ für die Marke in KARTE_SQL.
+import { KUENDIGUNG_BESTELLUNG_SQL, KUENDIGUNG_WIRKSAM_SQL } from "@shared/fiaon-kuendigung-regel";
 import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { terminLink } from "../lib/fiaon-termine";
 import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
@@ -123,13 +125,17 @@ export const KARTE_SQL = `
   --
   -- Die Karte ist die EINE Quelle für all diese Ansichten (KARTE_SQL/karte) —
   -- deshalb steht es hier und nicht sechsmal daneben.
+  --
+  -- E-IT-B (08.10.2026): Die Marke folgt der EINEN Regel „wirksam gekündigt“
+  -- (shared/fiaon-kuendigung-regel.ts): nur das STUFENPAKET, und ein bezahlter,
+  -- ungekündigter Vertrag daneben schlägt die alte Kündigung. Vorher trugen zwei
+  -- Menschen mit laufendem Paket überall „Gekündigt“, weil nur ihre
+  -- Bonitätsauskunft gekündigt war (4919, 11498).
   (SELECT a.gekuendigt_am FROM fiaon_applications a
-    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gekuendigt_am IS NOT NULL
-      AND a.kuendigung_zurueckgenommen_am IS NULL
+    WHERE a.person_id = p.id AND ${KUENDIGUNG_BESTELLUNG_SQL("a")} AND ${KUENDIGUNG_WIRKSAM_SQL("p.id")}
     ORDER BY a.gekuendigt_am DESC LIMIT 1) AS gekuendigt_am,
   (SELECT a.vertrag_ende_am FROM fiaon_applications a
-    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gekuendigt_am IS NOT NULL
-      AND a.kuendigung_zurueckgenommen_am IS NULL
+    WHERE a.person_id = p.id AND ${KUENDIGUNG_BESTELLUNG_SQL("a")} AND ${KUENDIGUNG_WIRKSAM_SQL("p.id")}
     ORDER BY a.gekuendigt_am DESC LIMIT 1) AS vertrag_ende_am,
   -- ══════════════════════════════════════════════════════════════════════════
   -- ALLE BUCHUNGEN, NICHT NUR DIE NEUESTE

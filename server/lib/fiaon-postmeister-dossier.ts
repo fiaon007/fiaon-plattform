@@ -483,7 +483,11 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
           : [];
         karte = {
           reihenfolge: "Mit dem Link unserer Partnerbank beantragt er online in wenigen Minuten Girokonto und Karte (nur Ausweis); die Visa-Kreditkarte kommt als Zubuchung dazu. Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei ihm, meist vorher schon in der App mit Apple Pay nutzbar.",
-          wasTun: antragLuecke.length
+          // E-IT-B (08.10.2026): Ein Ausschluss (gekündigt, Sperre, Global …) zuerst — sonst bekam Mara für Gekündigte
+          // den Verkaufssatz „Zahlung = Aktivierung, dann sofort der Link“ (Gegenprüfung 07.10.).
+          wasTun: st.ausschlussAutomatik
+            ? `Kein Kartenlink: ${st.ausschlussAutomatik.text}. Nichts anbieten, nichts versprechen — fragt er danach, gib es an seinen Betreuer (karte_senden schickt in diesem Fall nichts).`
+            : antragLuecke.length
             ? `Im Antrag fehlt noch: ${antragLuecke.join(", ")}. Der Link geht erst raus, wenn das eingetragen ist${st.zahlen.paketBezahlt ? "" : " UND die erste Zahlung gebucht ist"} — frag ihn danach; versprich nicht „direkt nach der Zahlung der Link“.`
             : !st.bereit
             ? "Die Einladung geht erst nach der ersten gebuchten Zahlung raus — Abschluss: Zahlung = Aktivierung, dann sofort der Link."

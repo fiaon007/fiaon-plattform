@@ -2017,14 +2017,97 @@ router.get("/agent/karte/:personId", requireAgent, async (req: AgentRequest, res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-IT-B (08.10.2026): DIE EINLADUNG IN DER AKTE — STAND UND ERNEUT SENDEN
+//
+// Justin, 08.10.: „Konto & Karte erneut senden: jeder berechtigte Mitarbeiter
+// in der Kundenakte; nur die bestehende Einladung (gleicher Link), kein neuer
+// Vorgang; protokolliert; Drossel max. 3 je Kunde und Tag, mindestens 15
+// Minuten Abstand; Adresse und letzter Zustellstatus sichtbar; KEIN
+// automatisches Aufheben einer Brevo-Sperre.“ Berechtigt ist, wer an die Akte
+// darf (darfAnKunde) — dieselbe Regel wie für die Akte selbst. Die Logik steht
+// in EINER Funktion (karteEinladungErneut, fiaon-konto-karte.ts), die auch
+// Mara und die Verwaltung nehmen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** HTTP-Status je Ergebnis des erneuten Versands. */
+const ERNEUT_STATUS: Record<string, number> = {
+  ERNEUT_GESENDET: 200, NICHT_GEFUNDEN: 404, KEINE_EINLADUNG: 409, KONTO_STEHT: 409, GESPERRT: 409,
+  OHNE_ADRESSE: 409, ADRESSE_GESPERRT: 409, TAGESGRENZE: 429, GERADE_ERST: 429, UNTERWEGS: 429, NICHT_GESENDET: 502,
+};
+
+/** GET /agent/karte/:personId/einladung — was mit der Einladung ist (Akte, Kasten „Konto & Karte“). */
+router.get("/agent/karte/:personId/einladung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const { karteEinladungAkte } = await import("../lib/fiaon-konto-karte");
+    const einladung = await karteEinladungAkte(personId);
+    if (!einladung) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    res.json({ ok: true, einladung });
+  } catch (err) {
+    console.error("[KARTE] einladung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/karte/:personId/erneut — die bestehende Einladung erneut senden (gleicher Link, kein neuer Vorgang). */
+router.post("/agent/karte/:personId/erneut", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const { karteEinladungErneut, karteEinladungAkte } = await import("../lib/fiaon-konto-karte");
+    const erg = await karteEinladungErneut(personId, { agentId: req.agent!.id, name: req.agent!.name, rolle, quelle: "akte" });
+    const einladung = await karteEinladungAkte(personId).catch(() => null);
+    res.status(ERNEUT_STATUS[erg.code] ?? 400).json({ ...erg, error: erg.ok ? undefined : erg.meldung, einladung });
+  } catch (err) {
+    console.error("[KARTE] erneut:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/karte/:personId/sperre-leitung { wunsch } — E-IT-B (08.10.2026, Gegenprüfung):
+ * Die Adresse ist bei unserem Mailversand gesperrt (abgemeldet, Spam, Sperre), der
+ * Kunde will die Post aber ausdrücklich dorthin. Legt eine Aufgabe für die Leitung
+ * an — nichts wird automatisch aufgehoben (Justin, 08.10.). Berechtigt wie die Akte.
+ */
+router.post("/agent/karte/:personId/sperre-leitung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const { karteSperreAnLeitung } = await import("../lib/fiaon-konto-karte");
+    const erg = await karteSperreAnLeitung(personId, { agentId: req.agent!.id, name: req.agent!.name }, String(req.body?.wunsch ?? ""));
+    res.status(erg.ok ? 200 : 409).json({ ...erg, error: erg.ok ? undefined : erg.meldung });
+  } catch (err) {
+    console.error("[KARTE] sperre-leitung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /**
  * POST /agent/karte/:personId/senden — den Weg zum Girokonto schicken.
  *
  * Drei Wände hintereinander, absichtlich:
  *   1. Darf dieser Mitarbeiter überhaupt an diesen Kunden?
- *   2. Sind alle drei Bedingungen erfüllt? (nochmal, serverseitig)
- *   3. Wurde nicht schon geschickt? Ein zweiter Link an denselben Menschen
- *      wirkt wie eine Mahnung und kostet Vertrauen.
+ *   2. Sind alle Bedingungen erfüllt und greift kein Ausschluss? (nochmal, serverseitig)
+ *   3. Wurde nicht schon geschickt? Dann ist es ein ERNEUTER Versand — und der
+ *      geht seit E-IT-B (08.10.2026) nur über karteEinladungErneut: dieselbe
+ *      Zeile, derselbe Link, Drossel. Vorher legte dieser Zweig eine NEUE Zeile
+ *      mit 10 € an und baute den Link mit der Kennung des Klickenden.
  */
 router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -2037,51 +2120,79 @@ router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequ
       return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
     }
 
-    const { kartenStand, partnerLink, KARTEN_BONUS_CENTS, ensureKartenTabelle } =
-      await import("../lib/fiaon-konto-karte");
+    const { kartenStand, partnerLink, KARTEN_BONUS_CENTS, ensureKartenTabelle, karteEinladungErneut,
+      karteEmpfaenger, zustellLage, karteVersandSperre } = await import("../lib/fiaon-konto-karte");
     const stand = await kartenStand(personId);
     if (!stand) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
-    if (!stand.bereit) {
-      return res.status(400).json({
-        ok: false,
-        error: "Noch nicht so weit: " + (stand.esFehlt || "es fehlen Voraussetzungen") + ".",
-      });
-    }
     // 04.09.2026, Daniel im Chat: „Hab bei ihm auf ‚Karte bestellen' geklickt
     // und er sagt, dass keine E-Mail angekommen ist." Die Mail war am 29.07.
-    // rausgegangen — fünf Wochen vorher. Der zweite Klick wurde abgelehnt, der
-    // Kunde blieb ohne Mail. Mit `erneut: true` geht sie noch einmal raus,
-    // und der Verlauf hält fest, wer das warum ausgelöst hat.
-    if (stand.versand && req.body?.erneut !== true) {
-      return res.status(400).json({
-        ok: false,
-        code: "BEREITS_GESCHICKT",
-        error: "Der Weg wurde diesem Kunden bereits am "
-          + new Date(stand.versand.am).toLocaleDateString("de-DE") + " geschickt"
-          + (stand.versand.vonName ? " (von " + stand.versand.vonName + ")" : "")
-          + ". Sagt der Kunde, es kam nichts an, kannst du sie erneut schicken.",
-        erneutMoeglich: true,
+    // rausgegangen — fünf Wochen vorher. Der Erneut-Fall läuft seit E-IT-B über
+    // den einen Weg (Akte: Knopf „E-Mail erneut senden“, POST …/erneut).
+    if (stand.versand) {
+      if (req.body?.erneut !== true) {
+        return res.status(400).json({
+          ok: false,
+          code: "BEREITS_GESCHICKT",
+          error: "Der Weg wurde diesem Kunden bereits am "
+            + new Date(stand.versand.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) + " geschickt"
+            + ". Sagt der Kunde, es kam nichts an, nimm „E-Mail erneut senden“ im Kasten Konto & Karte.",
+          erneutMoeglich: true,
+        });
+      }
+      const erg = await karteEinladungErneut(personId, { agentId: req.agent!.id, name: req.agent!.name, rolle, quelle: "akte" });
+      return res.status(ERNEUT_STATUS[erg.code] ?? 400).json({
+        ...erg, error: erg.ok ? undefined : erg.meldung, hinweis: erg.ok ? erg.meldung : undefined, stand: await kartenStand(personId),
       });
     }
 
-    const link = partnerLink(personId, req.agent!.id);
-    const { mailSenden } = await import("../lib/fiaon-mail-senden");
-    const erg = await mailSenden({
-      event: "konto_karte_einladung",
-      personId,
-      zusatz: { partner_link: link },
-      akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
-    });
-    if (!erg?.ok) {
-      return res.status(400).json({ ok: false, error: (erg as any)?.error || "Die Mail ging nicht raus." });
+    if (!stand.bereit) {
+      return res.status(stand.ausschluss ? 409 : 400).json({
+        ok: false,
+        code: stand.ausschluss ? "GESPERRT" : "NICHT_BEREIT",
+        error: stand.ausschluss ? `Kein Kartenlink: ${stand.ausschluss.text}.`
+          : "Noch nicht so weit: " + (stand.esFehlt || "es fehlen Voraussetzungen") + ".",
+      });
     }
 
-    await ensureKartenTabelle();
-    await sqlPool`
-      INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents)
-      VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS})
-    `;
+    // E-IT-B: Kam an seine Adresse zuletzt nichts an, geht nichts raus — und nichts wird entsperrt (Justin, 08.10.).
+    const an = await karteEmpfaenger(personId);
+    const lage = an ? await zustellLage(personId, an) : null;
+    if (lage?.problem) {
+      // Gegenprüfung 08.10.: Der Hinweis richtet sich nach Brevos Grund (abgemeldet → Leitung, Rückläufer → Adresse ändern).
+      return res.status(409).json({
+        ok: false, code: "ADRESSE_GESPERRT", zustell: lage,
+        error: `Nicht geschickt: An ${an} kam zuletzt nichts an (${lage.text}${lage.grund ? ` — ${lage.grund}` : ""}). ${lage.hinweis ?? ""}`.trim(),
+      });
+    }
+
+    // Doppelklick, zweites Fenster, Takt im selben Augenblick: nur EIN Erstversand.
+    const frei = karteVersandSperre(personId);
+    if (!frei) return res.status(429).json({ ok: false, code: "UNTERWEGS", error: "Die Einladung ist in diesem Augenblick schon unterwegs." });
+    try {
+      await ensureKartenTabelle();
+      const [schon] = (await sqlPool`SELECT 1 AS da FROM fiaon_konto_karte WHERE person_id = ${personId} AND kanal <> 'gemeldet' LIMIT 1`) as any[];
+      if (schon) return res.status(409).json({ ok: false, code: "BEREITS_GESCHICKT", error: "Die Einladung ist eben schon rausgegangen.", erneutMoeglich: true });
+
+      const link = partnerLink(personId, req.agent!.id);
+      const { mailSenden } = await import("../lib/fiaon-mail-senden");
+      const erg = await mailSenden({
+        event: "konto_karte_einladung",
+        personId,
+        zusatz: { partner_link: link },
+        akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
+      });
+      if (!erg?.ok) {
+        return res.status(400).json({ ok: false, error: (erg as any)?.grund || (erg as any)?.error || "Die Mail ging nicht raus." });
+      }
+
+      await sqlPool`
+        INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents)
+        VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS})
+      `;
+    } finally {
+      frei();
+    }
 
     // Der Verlauf hält fest, WER geschickt hat. Ein Kunde, der später fragt
     // „von wem kam das?", bekommt eine Antwort.
@@ -2111,17 +2222,24 @@ router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequ
 });
 
 /**
- * GET /agent/karte/bereit/liste — wer ist bereit?
+ * GET /agent/karte/bereit/liste — Konto & Karte: wer braucht einen Menschen?
  *
  * Justin: „in die Tagesliste bitte bei den Mitarbeitern, die die Kunden
  * betreuen." Deshalb IMMER auf die eigenen Kunden eingegrenzt — die Leitung
  * sieht ihre eigenen, nicht die aller.
+ *
+ * E-IT-B (08.10.2026): Die Liste zeigt keine Ausgeschlossenen mehr (vorher
+ * 107 Gekündigte von 110) und heißt in der Oberfläche „Konto & Karte —
+ * nachfassen“: Mail kam nicht an · eingeladen, nicht geklickt · bereit ·
+ * wartet auf Widerrufsfrist (karteNachfassen). Die Adresse bleibt, damit
+ * Schreibtisch und Bestand ohne Umweg weiterlesen.
  */
 router.get("/agent/karte/bereit/liste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    const { bereiteKunden } = await import("../lib/fiaon-konto-karte");
-    const liste = await bereiteKunden({ agentId: req.agent!.id, ohneVersand: true, grenze: 100 });
-    res.json({ ok: true, anzahl: liste.length, kunden: liste });
+    const { karteNachfassen } = await import("../lib/fiaon-konto-karte");
+    // Gegenprüfung 08.10.2026: anzahl = die ECHTE Gesamtzahl; gezeigt werden höchstens 200 (dringend, dann älteste zuerst).
+    const { faelle, gesamt } = await karteNachfassen({ agentId: req.agent!.id, grenze: 200 });
+    res.json({ ok: true, anzahl: gesamt, gezeigt: faelle.length, kunden: faelle });
   } catch (err) {
     console.error("[KARTE] liste:", err);
     // Eine Liste, die klemmt, darf die Tagesliste nicht mitreissen.

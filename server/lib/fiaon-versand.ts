@@ -32,6 +32,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { KUENDIGUNG_WIRKSAM_SQL } from "@shared/fiaon-kuendigung-regel";
 
 type Lauf = typeof sqlPool;
 
@@ -231,8 +232,9 @@ async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zusta
       EXISTS (SELECT 1 FROM fiaon_termine t2 WHERE t2.person_id = p.id
                 AND t2.status = 'verpasst') AS hat_verpasst,
       -- E-240: dieselbe Lesart wie neueLeistungGesperrt (fiaon-kuendigung.ts) — gekündigt ist der MENSCH.
-      EXISTS (SELECT 1 FROM fiaon_applications a6 WHERE a6.person_id = p.id AND a6.merged_into IS NULL
-                AND a6.gekuendigt_am IS NOT NULL AND a6.kuendigung_zurueckgenommen_am IS NULL) AS gekuendigt,
+      -- E-IT-B (08.10.2026): „gekündigt“ ist die EINE Regel (shared/fiaon-kuendigung-regel.ts) — nur das
+      -- Stufenpaket, und ein bezahlter, ungekündigter Vertrag daneben schlägt die alte Kündigung.
+      ${sqlPool.unsafe(KUENDIGUNG_WIRKSAM_SQL("p.id"))} AS gekuendigt,
       (EXISTS (SELECT 1 FROM fiaon_applications a7 WHERE a7.person_id = p.id AND a7.merged_into IS NULL
                  AND a7.vertrag_ende_am IS NOT NULL AND a7.vertrag_ende_am <= NOW())
        AND NOT EXISTS (SELECT 1 FROM fiaon_applications a8 WHERE a8.person_id = p.id AND a8.merged_into IS NULL

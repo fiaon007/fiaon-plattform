@@ -109,7 +109,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
-import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play, CreditCard } from "lucide-react";
+import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
@@ -126,6 +126,7 @@ import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
+import { KontoKarteAkte, KontoKarteKurz } from "@/components/agent/KontoKarteAkte";
 import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
 import "@/styles/office-pipeline.css";
@@ -3046,6 +3047,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
               was im neuen Kundenbereich steht — Weg, Ansprüche, Girokonto.
               Genau daran scheiterten Rückfragen am Telefon. Die Karte lädt
               selbst und trägt den einen Knopf „Girokonto eröffnet“. */}
+          {/* E-IT-B (08.10.2026): Konto & Karte auch im Überblick — Stand der Einladung und „E-Mail erneut senden“. */}
+          <KontoKarteKurz personId={k.personId} melden={melden} onAkte={() => setReiter("antrag")} onDaten={() => setReiter("daten")} />
           <KundenbereichKarte personId={k.personId} />
         </>}
 
@@ -3281,7 +3284,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
         )}
 
         {/* ═══ SEIN ANTRAG ═══ */}
-        {reiter === "antrag" && <><KontoKarte personId={k.personId} name={k.name} melden={melden} onProdukt={() => setProduktOffen(true)} /><AntragsBlatt antrag={antrag} name={k.name} personId={k.personId} melden={melden} onFrisch={frisch} /></>}
+        {reiter === "antrag" && <><KontoKarteAkte personId={k.personId} name={k.name} melden={melden} onProdukt={() => setProduktOffen(true)} onDaten={() => setReiter("daten")} /><AntragsBlatt antrag={antrag} name={k.name} personId={k.personId} melden={melden} onFrisch={frisch} /></>}
 
         {/* ═══ AKTIVITÄT ═══ */}
         {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
@@ -3848,206 +3851,11 @@ const AKT_FILTER: { key: string; label: string }[] = [
   { key: "mail", label: "Mails" },
 ];
 // ═══════════════════════════════════════════════════════════════════════════
-// KONTO UND KARTE
-//
-// Justin, 24.08.2026: „Der Kunde kommt ja mit der Erwartungshaltung: ‚Ich
-// brauche eine Kreditkarte' — das müssen wir nun auch erfüllen … Binde ÜBERALL
-// den Prozess ein, wo er notwendig ist und hingehört, es MUSS vermerkt werden,
-// also wenn alle Bedingungen bei einem Kunden erfüllt sind, muss es der
-// Mitarbeiter ja auch sehen!"
-//
-// Der Abschnitt ist NICHT als Sperre gebaut, sondern als Weg. Ein ausgegrauter
-// Knopf sagt „geht nicht" und lässt den Mitarbeiter ratlos zurück. Hier steht
-// stattdessen, WAS fehlt, WARUM es diese Bedingung gibt (in seinen Worten und
-// in denen für den Kunden) und WAS der nächste Schritt ist — anklickbar.
-//
-// Wortwahl bindend: KOOPERATIONSPARTNER, nie „Affiliate". Die Bank darf beim
-// Namen genannt werden (DKB) — ihre Vorteile sind das Argument.
+// KONTO UND KARTE — seit E-IT-B (08.10.2026) eine eigene Datei
+// (client/src/components/agent/KontoKarteAkte.tsx): Einladung, Zustellung,
+// Adresse und „E-Mail erneut senden“ für jeden berechtigten Mitarbeiter, dazu
+// die Zeile im Überblick (KontoKarteKurz).
 // ═══════════════════════════════════════════════════════════════════════════
-function KontoKarte({ personId, name, melden, onProdukt }: {
-  personId: number; name: string;
-  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
-  onProdukt: () => void;
-}) {
-  const [stand, setStand] = useState<any | null>(null);
-  const [laedt, setLaedt] = useState(true);
-  const [sendet, setSendet] = useState(false);
-  const [warum, setWarum] = useState<string | null>(null);
-
-  useEffect(() => {
-    let an = true;
-    api(`/agent/karte/${personId}`).then((r) => {
-      if (!an) return;
-      setStand(r.ok ? r.json.stand : null); setLaedt(false);
-    });
-    return () => { an = false; };
-  }, [personId]);
-
-  const senden = async (erneut = false) => {
-    setSendet(true);
-    const r = await api(`/agent/karte/${personId}/senden`, { method: "POST", body: JSON.stringify(erneut ? { erneut: true } : {}) });
-    setSendet(false);
-    // 04.09.2026, Daniel: „Hab auf ‚Karte bestellen' geklickt und er sagt, dass
-    // keine E-Mail angekommen ist." Die erste Mail war fünf Wochen alt. Wenn
-    // der Server sagt „bereits geschickt", wird nachgefragt und dann erneut
-    // gesendet — statt den Kunden ohne Mail sitzen zu lassen.
-    if (!r.ok && r.json?.code === "BEREITS_GESCHICKT" && !erneut) {
-      const nochmal = window.confirm(`${r.json.error}\n\nJetzt noch einmal schicken?`);
-      if (nochmal) return senden(true);
-      return;
-    }
-    if (!r.ok) { melden("schlecht", "Nicht geschickt", r.json?.error || "Bitte erneut versuchen."); return; }
-    setStand(r.json.stand ?? stand);
-    melden("gut", r.json.meldung || "Unterwegs", r.json.hinweis);
-  };
-
-  if (laedt) return <Sek titel="Konto & Karte" erklaer="Prüfe den Stand …"><p className="pi-sek-satz leise">Einen Moment.</p></Sek>;
-  if (!stand) return null;
-
-  const vorname = String(name).split(" ")[0] || "der Kunde";
-
-  return (
-    <Sek titel="Konto & Karte"
-         erklaer={`Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Über unsere Partnerbank können wir ihn einlösen — sobald ${vorname} so weit ist.`}>
-
-      {/* ── WELCHE BANK? (25.08.2026) ─────────────────────────────────────
-          Daniel und Florentine: „Auch intern ist nicht ersichtlich, welcher
-          Kunde seine Karte von welcher Bank erhält. Da diese Frage von Kunden
-          und Interessenten häufiger kommt …"
-          Sie steht jetzt oben in der Sektion, mit den Vorteilen zum Vorlesen —
-          nicht versteckt in einem Erklärtext. Die Angaben kommen vom Server
-          (PARTNERBANKEN), damit Akte, Mail und Academy dasselbe sagen. */}
-      {stand.bank && (
-        <div className="pi-kk-bank">
-          <div className="pi-kk-bank-kopf">
-            <small>Partnerbank</small>
-            <b>{stand.bank.name}</b>
-          </div>
-          <ul className="pi-kk-bank-liste">
-            {stand.bank.vorteile.map((v: string) => <li key={v}>{v}</li>)}
-          </ul>
-          <p className="pi-kk-bank-fuss">
-            Kreditkarte {stand.bank.kartePreisMonat} im Monat, zubuchbar aus dem fertigen Banking —
-            {" "}{stand.bank.aktion}.
-          </p>
-        </div>
-      )}
-
-
-      {/* Schon geschickt: dann zählt nur noch, was daraus geworden ist. */}
-      {stand.versand ? (
-        <div className="pi-kk-fertig">
-          <span className="pi-kk-haken"><Check size={17} strokeWidth={2.5} /></span>
-          <div>
-            <b>Der Weg ist geschickt</b>
-            <small>
-              Am {dtag(stand.versand.am)}{stand.versand.vonName ? ` von ${stand.versand.vonName}` : ""}.
-              {" "}{stand.versand.status === "bestaetigt"
-                ? `Der Partner hat die Eröffnung bestätigt – ${eur(stand.versand.bonusCents)} sind dir gutgeschrieben.`
-                : `${eur(stand.versand.bonusCents)} stehen als vorgemerkt in deinem Konto – auszahlbar, sobald der Partner die Eröffnung bestätigt.`}
-            </small>
-            <small className="pi-kk-nachfassen">
-              Ruf {vorname} in ein paar Tagen an und frag, ob es geklappt hat. Wer beim Video-Ident hängen bleibt,
-              bricht ab und sagt es niemandem.
-            </small>
-          </div>
-        </div>
-      ) : stand.bereit ? (
-        <>
-          <div className="pi-kk-bereit">
-            <div className="pi-kk-bereit-text">
-              <b>{vorname} erfüllt alle drei Bedingungen.</b>
-              <span>
-                Der Knopf schickt den Weg zum kostenlosen Girokonto. <b>Erst das Konto, dann die Karte</b> — die
-                Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus. Wer direkt zur Karte
-                geschickt wird, läuft in eine Ablehnung und schreibt sie uns zu.
-              </span>
-            </div>
-            <button type="button" className="pi-knopf riesig gut pi-kk-knopf" disabled={sendet} onClick={() => void senden()}>
-              <CreditCard size={18} strokeWidth={1.75} /> {sendet ? "Schickt …" : "Karte bestellen"}
-            </button>
-          </div>
-          <p className="pi-sek-satz leise">
-            Für dich: <b>10 € je bestätigter Kontoeröffnung.</b> Sie stehen sofort als vorgemerkt in deinem
-            Konto und werden auszahlbar, wenn der Partner die Eröffnung endgültig meldet — das dauert
-            einige Wochen und kann auch entfallen, deshalb erst dann.
-            {" "}<a href="/agent/academy/leitfaeden" className="pi-link" target="_blank" rel="noreferrer">
-              Leitfaden für dieses Gespräch
-            </a> — er sagt dir Satz für Satz, wie du es erklärst.
-          </p>
-        </>
-      ) : (
-        <div className="pi-kk-nochnicht">
-          <b>Noch nicht so weit.</b>
-          <span>{stand.esFehlt}. Sobald alles steht, erscheint hier der Knopf.</span>
-        </div>
-      )}
-
-      {/* Die drei Tore — immer sichtbar, auch wenn erfüllt: Der Mitarbeiter
-          soll dem Kunden sagen können, WARUM es sie gibt. */}
-      <div className="pi-kk-tore">
-        {stand.tore.map((t: any) => (
-          <div key={t.schluessel} className={`pi-kk-tor${t.erfuellt ? " ja" : ""}`}>
-            <span className="pi-kk-punkt">{t.erfuellt ? <Check size={13} strokeWidth={3} /> : <span className="pi-kk-offen" />}</span>
-            <div>
-              <b>{t.titel}</b>
-              {!t.erfuellt && t.fehlt && <small className="pi-kk-fehlt">{t.fehlt}</small>}
-              {!t.erfuellt && t.wieWeiter && <small className="pi-kk-weiter">{t.wieWeiter}</small>}
-              <button type="button" className="pi-link pi-kk-warum"
-                      onClick={() => setWarum(warum === t.schluessel ? null : t.schluessel)}>
-                {warum === t.schluessel ? "Begründung schließen" : "Warum diese Bedingung?"}
-              </button>
-              {warum === t.schluessel && (
-                <div className="pi-kk-grund">
-                  <p><b>Für dich:</b> {t.warumIntern}</p>
-                  <p><b>So sagst du es dem Kunden:</b> „{t.warumFuerKunden}“</p>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          WARUM NOCH KEINE RATE GELAUFEN IST — DIE WAHRE ANTWORT
-
-          Justin am 27.08.2026 zu einer Kundin: „Die Dame hat bereits
-          bezahlt." Er hatte recht. Hier stand pauschal „Ohne bezahltes Paket
-          beginnt die Zählung nicht" — bei einer Kundin, deren Paket
-          nachweislich bezahlt ist (79,99 EUR, Provision darauf gebucht).
-
-          Der Satz war für den Fall gedacht, dass es gar keine Bestellung
-          gibt. Gezeigt wurde er aber immer, wenn keine RATE bezahlt ist —
-          und das sind zwei ganz verschiedene Dinge. Ein Mitarbeiter, der das
-          liest, sagt dem Kunden am Telefon etwas Falsches.
-
-          Jetzt nennt jeder Fall seinen eigenen Grund.
-          ══════════════════════════════════════════════════════════════════ */}
-      {stand.zahlen.ratenBezahlt === 0 && (
-        <div className="pi-sackgasse" style={{ marginTop: 12 }}>
-          {!stand.zahlen.paketBezahlt ? (
-            <span>
-              <b>Noch keine Bestellung bezahlt</b>
-              Ohne bezahltes Paket beginnt die Zählung der Raten nicht.
-            </span>
-          ) : (
-            <span>
-              <b>Paket bezahlt, aber noch keine Rate</b>
-              Die Erstzahlung ist da. Für die Karte zählen die laufenden Raten —
-              {stand.zahlen.naechsteRateAm
-                ? ` die nächste ist am ${new Date(stand.zahlen.naechsteRateAm).toLocaleDateString("de-DE")} fällig.`
-                : " eine Ratenkette ist noch nicht angelegt."}
-            </span>
-          )}
-          <button type="button" className="pi-knopf klein" onClick={onProdukt}>
-            {stand.zahlen.paketBezahlt ? "Raten ansehen" : "Produkt ansehen"}
-          </button>
-        </div>
-      )}
-    </Sek>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // SEIN ANTRAG — alles, was der Mensch uns selbst geschrieben hat
 //
@@ -4324,10 +4132,15 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
   personId: number; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void;
 }) {
   const [stand, setStand] = useState<any | null>(null);
-  const [modus, setModus] = useState<"zu" | "kuendigen" | "zurueck">("zu");
+  // E-IT-B (08.10.2026): „schliessen“ = einen nie gebuchten Antrag ohne Kündigung schließen (nur Leitung).
+  const [modus, setModus] = useState<"zu" | "kuendigen" | "zurueck" | "schliessen">("zu");
   const [grund, setGrund] = useState("");
   const [sofort, setSofort] = useState(false);
   const [busy, setBusy] = useState(false);
+  // E-IT-B (08.10.2026, Gegenprüfung): „Jetzt buchen“ bucht GENAU diesen Antrag — seine Bestellung, sein Eingangstag.
+  const [ausAntrag, setAusAntrag] = useState<number | null>(null);
+  // … und die Leitung bucht auch dort, wo die Akte selbst nicht darf (Ziel aus antragZiel, mit Grund).
+  const [alsLeitung, setAlsLeitung] = useState(false);
   const laden = useCallback(async () => {
     const r = await api(`/agent/kunden/${personId}/kuendigung`);
     setStand(r.ok ? r.json : { fehlt: true, error: r.json?.error });
@@ -4338,18 +4151,21 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
   const senden = async () => {
     if (grund.trim().length < 5) { melden("schlecht", "Grund fehlt", "Ein Satz reicht — er steht dauerhaft am Kunden."); return; }
     setBusy(true);
-    const pfad = modus === "kuendigen" ? `/agent/kunden/${personId}/kuendigung` : `/agent/kunden/${personId}/kuendigung/zuruecknehmen`;
-    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort }) });
+    const pfad = modus === "kuendigen" ? `/agent/kunden/${personId}/kuendigung`
+      : modus === "schliessen" ? `/agent/kunden/${personId}/kuendigung/antrag/${Number(stand.antragUngebucht?.id)}/schliessen`
+      : `/agent/kunden/${personId}/kuendigung/zuruecknehmen`;
+    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort, ...(modus === "kuendigen" && ausAntrag ? { ausAntrag, alsLeitung } : {}) }) });
     setBusy(false);
     if (!r.ok || r.json?.ok === false) { melden("schlecht", "Nicht möglich", r.json?.error || "Der Server hat abgelehnt."); return; }
-    if (modus === "kuendigen") {
+    if (modus === "schliessen") melden("gut", "Antrag geschlossen", String(r.json?.meldung || "Ohne Kündigung geschlossen."));
+    else if (modus === "kuendigen") {
       const w = String(r.json?.weg || "");
       const text = w === "letzte_rate" ? `Rate ${r.json?.letzteRateNr} bleibt fällig, danach ist Schluss. ${r.json?.mailGesendet ? "Die Bestätigung ist raus." : "Keine Mail (keine offene Rate oder schon bestätigt)."}`
         : w === "storno_unbezahlt" ? "Die unbezahlte Bestellung ist storniert — keine Erinnerungen mehr."
         : w === "bereits" ? "War schon gekündigt." : `Der Vertrag endet sofort.${r.json?.mailGesendet ? " Die Bestätigung ist raus." : ""}`;
-      melden("gut", "Kündigung durchgesetzt", `${text}${r.json?.urkunde ? " Die Kündigungsbestätigung ist ausgefertigt." : r.json?.urkundeFehler ? " Achtung: Die Bestätigung konnte nicht erzeugt werden — bitte unten erneut öffnen." : ""}`);
+      melden("gut", "Kündigung durchgesetzt", `${r.json?.gebuchtAuf ? `Gebucht auf ${r.json.gebuchtAuf} zum ${tag(r.json.gebuchtZum)} (Eingang des Antrags). ` : ""}${text}${r.json?.urkunde ? " Die Kündigungsbestätigung ist ausgefertigt." : r.json?.urkundeFehler ? " Achtung: Die Bestätigung konnte nicht erzeugt werden — bitte unten erneut öffnen." : ""}`);
     } else melden("gut", "Kündigung zurückgenommen", String(r.json?.meldung || "Das Konto läuft weiter."));
-    setModus("zu"); setGrund(""); setSofort(false);
+    setModus("zu"); setGrund(""); setSofort(false); setAusAntrag(null); setAlsLeitung(false);
     await laden(); onFrisch();
   };
   return (
@@ -4363,7 +4179,7 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
         </small>
         {modus === "zu" && (stand.gekuendigt
           ? <button type="button" className="pi-knopf klein" onClick={() => setModus("zurueck")}>Kündigung zurücknehmen</button>
-          : <button type="button" className="pi-knopf still klein" onClick={() => setModus("kuendigen")}>Kündigung durchsetzen</button>)}
+          : <button type="button" className="pi-knopf still klein" onClick={() => { setAusAntrag(null); setAlsLeitung(false); setModus("kuendigen"); }}>Kündigung durchsetzen</button>)}
         {/* ── E-213: DIE URKUNDE ────────────────────────────────────────────
             Justin: „Kündigungsunterlagen, Unterschrift durch den Mitarbeiter."
             Der Knopf öffnet die gespeicherte Ausfertigung — nicht eine frisch
@@ -4376,6 +4192,35 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
           </a>
         )}
       </div>
+      {/* E-IT-B (08.10.2026): Ein Antrag aus dem Kündigungsformular, der NIE gebucht wurde, zählt nicht als
+          wirksame Kündigung (Justin, 08.10.) — hier steht er, damit ihn jemand bucht oder die Leitung entscheidet.
+          Worauf gebucht wird, sagt der Server (antragZiel, shared/fiaon-kuendigung-regel.ts): die Bestellung des
+          Antrags, sonst ihre Fortsetzung bzw. das eine Paket am Eingangstag — immer zum EINGANGSTAG, nie zu heute.
+          Ist das nicht eindeutig (neues Paket nach dem Antrag, mehrere Pakete), bucht oder schließt nur die Leitung. */}
+      {stand.antragUngebucht && (() => {
+        const au = stand.antragUngebucht;
+        const buchen = (leitung: boolean) => {
+          setModus("kuendigen"); setAusAntrag(Number(au.id)); setAlsLeitung(leitung);
+          setGrund(`Kündigungsantrag vom ${tag(au.am)} (Formular) nachgebucht${au.grund ? `: ${String(au.grund).slice(0, 160)}` : ""}`);
+        };
+        return (
+          <span className="pi-sek-satz warn" style={{ fontSize: 12.5 }}>
+            Kündigungsantrag vom {tag(au.am)} (Referenz {au.ref}) liegt vor
+            {au.wunschDatum ? ` (gewünscht zum ${tag(au.wunschDatum)})` : ""}, ist aber nicht gebucht.
+            {au.grund ? ` Grund laut Antrag: „${au.grund}“.` : ""}
+            {" "}{au.satz}
+            {au.buchbar ? (
+              <>{` „Jetzt buchen“ bucht ihn zum ${tag(au.am)} (Eingang des Antrags).`}
+                {modus === "zu" && <>{" "}<button type="button" className="pi-link" onClick={() => buchen(false)}>Jetzt buchen</button></>}</>
+            ) : au.darfLeitung ? (
+              modus === "zu" && <>{" "}
+                {au.ziel && <button type="button" className="pi-link" onClick={() => buchen(true)}>Als Leitung auf {au.ziel} buchen</button>}
+                {au.ziel && " · "}
+                <button type="button" className="pi-link" onClick={() => { setModus("schliessen"); setGrund(""); }}>Antrag ohne Kündigung schließen</button></>
+            ) : " Bitte die Leitung entscheiden lassen — sie sieht den Antrag in der Kundenzentrale unter „Kündigung nicht gebucht“."}
+          </span>
+        );
+      })()}
       {stand.gekuendigt && stand.urkunde?.da && (
         <span className="pi-fussnote">
           Ausgefertigt von {stand.urkunde.von}{stand.urkunde.rolle ? ` · ${stand.urkunde.rolle}` : ""}
@@ -4386,7 +4231,9 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
       {modus !== "zu" && (
         <div style={{ display: "grid", gap: 8 }}>
           <input className="pi-eingabe" value={grund} onChange={(e) => setGrund(e.target.value)} maxLength={300}
-                 placeholder={modus === "kuendigen" ? "Was hat der Kunde gesagt? (steht dauerhaft am Kunden)" : "Was hat der Kunde gesagt — warum läuft es weiter?"} />
+                 placeholder={modus === "kuendigen" ? "Was hat der Kunde gesagt? (steht dauerhaft am Kunden)"
+                   : modus === "schliessen" ? "Warum ist der Antrag ohne Kündigung erledigt? (steht im Verlauf)"
+                   : "Was hat der Kunde gesagt — warum läuft es weiter?"} />
           {modus === "kuendigen" && (
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#94a3b8" }}>
               <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} />
@@ -4394,11 +4241,12 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
             </label>
           )}
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? "Jetzt kündigen" : "Konto reaktivieren"}</button>
-            <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); }}>Abbrechen</button>
+            <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? (ausAntrag ? `Zum ${tag(stand.antragUngebucht?.am)} buchen` : "Jetzt kündigen") : modus === "schliessen" ? "Ohne Kündigung schließen" : "Konto reaktivieren"}</button>
+            <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); setAusAntrag(null); setAlsLeitung(false); }}>Abbrechen</button>
           </div>
           <span className="pi-fussnote">{modus === "kuendigen"
             ? "Danach kommen keine Zahlungsmails mehr — nur die Bestätigung. Alles steht im Verlauf."
+            : modus === "schliessen" ? "Der Antrag gilt dann als erledigt, ohne Kündigung — der Vertrag läuft weiter. Steht im Verlauf."
             : "Die Raten kommen zurück, Erinnerungen laufen wieder. Alles steht im Verlauf."}</span>
         </div>
       )}

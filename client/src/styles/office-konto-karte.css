@@ -1,0 +1,52 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   KONTO & KARTE IN DER AKTE — EINLADUNG, ZUSTELLUNG, ERNEUT SENDEN
+   (E-IT-B, 08.10.2026). Präfix .kk2- — dunkle Bühne wie die Akte (.pi-*).
+   Der Kasten sagt in dieser Reihenfolge: was mit der Einladung ist (Marke),
+   wann und von wem, an welche Adresse, was daraus wurde — und darunter der
+   eine Knopf. Ein Zustellproblem trägt Rot, weil dann nichts ankommt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.kk2-kasten{display:grid;gap:10px;padding:18px 20px;border-radius:18px;
+  background:rgba(37,99,235,.12);border:1px solid rgba(96,165,250,.32)}
+.kk2-kasten.problem{background:rgba(220,38,38,.10);border-color:rgba(248,113,113,.42)}
+.kk2-kopf{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kk2-kopf b{font:500 15px/1.35 'Inter',sans-serif;color:#fff}
+.kk2-marke{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+  font:500 11.5px/1 'Inter',sans-serif;letter-spacing:.02em;border:1px solid rgba(255,255,255,.16);
+  color:#e5e7eb;background:rgba(255,255,255,.06)}
+.kk2-marke.gut{color:#a7f3d0;border-color:rgba(52,211,153,.4);background:rgba(16,185,129,.14)}
+.kk2-marke.offen{color:#fde68a;border-color:rgba(251,191,36,.38);background:rgba(217,119,6,.14)}
+.kk2-marke.rot{color:#fecaca;border-color:rgba(248,113,113,.45);background:rgba(220,38,38,.18)}
+.kk2-zeilen{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.kk2-zeilen li{font:300 12.5px/1.6 'Inter',sans-serif;color:#cbd5e1}
+.kk2-zeilen li b{font-weight:500;color:#fff;font-size:inherit;display:inline}
+.kk2-adresse{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:#e0e7ff;word-break:break-all}
+.kk2-warn{padding:12px 14px;border-radius:12px;background:rgba(220,38,38,.12);border:1px solid rgba(248,113,113,.35);
+  font:300 12.5px/1.6 'Inter',sans-serif;color:#fecaca}
+.kk2-warn b{display:block;font-weight:500;color:#fff;margin-bottom:2px;font-size:13px}
+.kk2-hinweis{padding:10px 13px;border-radius:12px;background:rgba(217,119,6,.12);border:1px solid rgba(251,191,36,.3);
+  font:300 12.5px/1.55 'Inter',sans-serif;color:#fde68a}
+.kk2-tun{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kk2-grund{font:300 12px/1.5 'Inter',sans-serif;color:#9ca3af}
+.kk2-frage{display:grid;gap:10px;padding:14px 16px;border-radius:14px;background:rgba(15,23,42,.55);
+  border:1px solid rgba(255,255,255,.12)}
+.kk2-frage p{margin:0;font:300 13px/1.6 'Inter',sans-serif;color:#cbd5e1}
+.kk2-frage p b{font-weight:500;color:#fff}
+.kk2-haken{display:flex;align-items:flex-start;gap:9px;font:300 12.5px/1.5 'Inter',sans-serif;color:#e5e7eb;cursor:pointer}
+.kk2-haken input{margin-top:3px;accent-color:#3b82f6}
+.kk2-verlauf summary{cursor:pointer;font:500 12.5px/1.4 'Inter',sans-serif;color:#93c5fd}
+.kk2-verlauf ol{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.kk2-verlauf li{display:grid;grid-template-columns:118px 1fr auto;gap:10px;font:300 12px/1.5 'Inter',sans-serif;color:#cbd5e1;
+  padding:6px 0;border-top:1px solid rgba(255,255,255,.06)}
+.kk2-verlauf li em{font-style:normal;color:#9ca3af}
+.kk2-verlauf li .rot{color:#fca5a5}
+.kk2-kurz{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.kk2-kurz span{font:300 13px/1.55 'Inter',sans-serif;color:#cbd5e1;flex:1 1 260px;min-width:0}
+.kk2-kurz span b{color:#fff;font-weight:500}
+.kk2-aus{padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(248,113,113,.3)}
+.kk2-aus b{display:block;font:500 14px/1.4 'Inter',sans-serif;color:#fecaca;margin-bottom:3px}
+.kk2-aus span{font:300 12.5px/1.6 'Inter',sans-serif;color:#cbd5e1}
+@media (max-width:700px){
+  .kk2-kasten{padding:15px 14px}
+  .kk2-tun .pi-knopf{width:100%}
+  .kk2-verlauf li{grid-template-columns:1fr;gap:2px}
+}

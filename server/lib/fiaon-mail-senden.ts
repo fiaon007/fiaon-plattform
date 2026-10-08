@@ -145,6 +145,20 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
   };
 }
 
+/**
+ * Die Adresse, an die eine Mail an diesen Menschen JETZT ginge — dieselbe Wahl
+ * wie der Versand (payloadFuer). E-IT-B (08.10.2026): Die Akte zeigt beim
+ * erneuten Senden der Konto-&-Karte-Einladung genau diese Adresse, und die
+ * Zustellprüfung fragt nach genau ihr. Eine zweite Ableitung könnte eine andere
+ * Adresse nennen als die, an die die Mail tatsächlich geht. null = keine Person.
+ */
+export async function empfaengerFuer(personId: number, lauf: Lauf = sqlPool): Promise<string | null> {
+  const basis = await payloadFuer(personId, lauf);
+  if (!basis) return null;
+  const a = String(basis.email ?? "").trim();
+  return a || null;
+}
+
 /** Was der Link-Baustein wissen muss, außer Ereignis und Person (18.09.2026). */
 export interface PayloadOptionen {
   /** Vorschau: keine echten Einmal-Schlüssel erzeugen (Anmelde-Link). */

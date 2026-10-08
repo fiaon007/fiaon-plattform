@@ -49,6 +49,7 @@
 import { Router, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "../lib/db-pool";
+import { KUENDIGUNG_WIRKSAM_SQL, AUSKUNFT_GEKUENDIGT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { absoluteUrl } from "../fiaon-base-url";
 import { AUSKUNFT_WIDERRUF, AUSKUNFT_KEIN_WIDERRUF } from "@shared/fiaon-auskunft-widerruf";
 import { anredeMail } from "@shared/fiaon-anrede";
@@ -423,8 +424,8 @@ async function personAufloesen(personId: number): Promise<{ id: number; geloesch
   const [z] = (await sqlPool`
     SELECT
       EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = ${id} AND a.gdpr_deleted_at IS NOT NULL) AS geloescht,
-      EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = ${id} AND a.merged_into IS NULL
-                AND a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL) AS gekuendigt
+      -- E-IT-B (08.10.2026): die EINE Regel (shared/fiaon-kuendigung-regel.ts) und die gekündigte Auskunft selbst.
+      (${sqlPool.unsafe(KUENDIGUNG_WIRKSAM_SQL(String(id)))} OR ${sqlPool.unsafe(AUSKUNFT_GEKUENDIGT_SQL(String(id)))}) AS gekuendigt
   `) as any[];
   return { id, geloescht: !!z?.geloescht, gekuendigt: !!z?.gekuendigt };
 }

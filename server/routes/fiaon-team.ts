@@ -1674,15 +1674,24 @@ router.post("/admin/team/umverteilen", async (req, res) => {
       }
       jeZiel.set(zielId, (jeZiel.get(zielId) || 0) + 1);
     }
-    // Offene Aufträge ohne Kundenbezug: abwechselnd.
+    // E-IT-F (08.10.2026): Aufträge MIT Kunde folgen dem neuen Betreuer dieses Kunden (person_id,
+    // Migration 102) — VORHER gingen alle reihum, und ein Auftrag landete bei einem anderen Mitarbeiter
+    // als sein Kunde. Nur Aufträge ohne Kundenbezug gehen abwechselnd. Jede Übergabe steht in der
+    // Zeitleiste (vorher still: der neue Zuständige merkte nichts). neu_seit bleibt — ein Übertrag in
+    // Masse ist keine Neuigkeit fürs Popup.
+    const zielJePerson = new Map<number, number>(personen.map((p: any, i: number) => [Number(p.id), auf[i % auf.length]]));
     const todos = (await sqlPool`
-      SELECT id FROM fiaon_betreiber_todos WHERE zustaendig_agent_id = ${von} AND status <> 'erledigt' ORDER BY id`) as any[];
+      SELECT id, person_id FROM fiaon_betreiber_todos WHERE zustaendig_agent_id = ${von} AND status <> 'erledigt' ORDER BY id`) as any[];
+    let reihum = 0;
     for (let i = 0; i < todos.length; i++) {
-      const zielId = auf[i % auf.length];
+      const zielId = (todos[i].person_id && zielJePerson.get(Number(todos[i].person_id))) || auf[reihum++ % auf.length];
       await sqlPool`
         UPDATE fiaon_betreiber_todos
-           SET zustaendig_agent_id = ${zielId}, zustaendig_name = ${zielName.get(zielId)!}, updated_at = NOW()
+           SET zustaendig_agent_id = ${zielId}, zustaendig_name = ${zielName.get(zielId)!}, delegiert_am = NOW(), updated_at = NOW()
          WHERE id = ${Number(todos[i].id)}`;
+      await sqlPool`
+        INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, art, text)
+        VALUES (${Number(todos[i].id)}, 'system', 'System', 'status', ${`Von ${quelle.name} an ${zielName.get(zielId)!} umverteilt. Grund: ${grund}`})`.catch(() => {});
     }
     await sqlPool`
       INSERT INTO fiaon_agent_events (agent_id, type, meta)

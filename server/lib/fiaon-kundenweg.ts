@@ -269,9 +269,15 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     SELECT created_at, art, text, status, faellig_am, dringend, autor_name, erledigt_am FROM fiaon_vermerke
      WHERE ref = ANY(${refs}) AND entfernt_am IS NULL ORDER BY created_at DESC LIMIT 20` as unknown as Promise<any[]>) : [];
   for (const v of vermerke) add(v.created_at, v.art === "aufgabe" ? "aufgabe" : "notiz", `${v.art === "aufgabe" ? "Aufgabe" : "Notiz"} von ${v.autor_name || "—"}: ${kurz(v.text, 240)}${v.art === "aufgabe" ? ` (${v.status}${v.faellig_am ? `, fällig ${tag(v.faellig_am)}` : ""}${v.dringend ? ", dringend" : ""})` : ""}`);
+  // E-IT-F (08.10.2026): über person_id/ref (Migration 102) — VORHER „schluessel LIKE postmeister:<person>:%",
+  // das wegen der Mail-Kennung im selben Schlüsselraum auch Aufträge FREMDER Kunden traf und alle
+  // WhatsApp-Aufträge sowie Links /agent/kunden?person= übersah. Der Link bleibt als Rückfall für Zeilen,
+  // die der Zuordnungslauf noch nicht erreicht hat.
   const todos = (personId || refs.length) ? await quelle("todos", () => sqlPool`
     SELECT created_at, titel, status, faellig_am, zustaendig_name, quelle, ergebnis FROM fiaon_betreiber_todos
-     WHERE ${refs.length ? sqlPool`link LIKE ANY(${refs.map((r) => `%${r}%`)})` : sqlPool`FALSE`} OR schluessel LIKE ${`postmeister:${personId ?? "x"}:%`}
+     WHERE (${personId ?? null}::int IS NOT NULL AND person_id = ${personId ?? null}::int)
+        OR (${refs.length > 0} AND ref = ANY(${refs}::text[]))
+        OR (zugeordnet_am IS NULL AND ${refs.length ? sqlPool`link LIKE ANY(${refs.map((r) => `%${r}%`)})` : sqlPool`FALSE`})
      ORDER BY created_at DESC LIMIT 15` as unknown as Promise<any[]>) : [];
   for (const t of todos) add(t.created_at, "aufgabe", `Auftrag${t.zustaendig_name ? ` für ${t.zustaendig_name}` : ""}: „${kurz(t.titel, 90)}" — ${t.status}${t.faellig_am ? `, fällig ${tag(t.faellig_am)}` : ""}${t.ergebnis ? ` — Ergebnis: ${kurz(t.ergebnis, 160)}` : ""}`);
   const kuendAntraege = refs.length ? await quelle("cancellation_requests", () => sqlPool`

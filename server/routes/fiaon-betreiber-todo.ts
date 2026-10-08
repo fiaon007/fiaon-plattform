@@ -20,8 +20,27 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
+// E-IT-F (08.10.2026): Kunde, Art, Reihenfolge und Status kommen aus EINER Quelle
+// (shared/fiaon-auftrag-arten.ts); Erledigen, Wieder-Öffnen, Zuordnen und die
+// automatische Erledigung durch Ereignisse aus server/lib/fiaon-auftraege.ts.
+import {
+  AUFTRAG_ARTEN, artNachInhalt, artRegel, auftragArtVon, auftragHerkunft, auftraegeSortieren, naechsterAuftrag,
+  nameAusTitel, refAusLink as refAusLinkQuelle, ZUSTAND_WIEDER_OFFEN_TAGE, berlinTagZeit, type AuftragRichtung,
+} from "../../shared/fiaon-auftrag-arten";
+import {
+  auftragBeitrag, auftragErledigen, auftragWiederOeffnen, auftraegeZuordnen, auftraegeZuordnenNachholen,
+  ensureAuftragSpalten, personWurzel, statusWandDa, uebergabeEntwuerfeUebernehmen,
+} from "../lib/fiaon-auftraege";
 
 const router = Router();
+
+// E-IT-F (08.10.2026): Kunde und Art für Aufträge ohne Zuordnung nachtragen — der Altbestand
+// beim ersten Lauf nach dem Deploy, danach, was Wege ohne Kundenwissen angelegt haben.
+// Über tageslauf: nur mit scharfen Läufen (CRONS_AN), nie in Prüfständen. Die Listen
+// ordnen beim Laden ihre eigenen Zeilen ohnehin selbst zu.
+import("../lib/fiaon-crons").then(({ tageslauf }) => {
+  tageslauf("auftraege-zuordnen", () => auftraegeZuordnenNachholen(), 3 * 3600_000, { beimStartNach: 90_000 });
+}).catch((e) => console.error("[AUFTRÄGE] Zuordnungslauf nicht angemeldet:", e));
 // E-030 (24.08.2026): VORHER gab es sieben Bereiche, alle aus Justins eigener
 // Liste — für einen technischen Fehler, den ein MITARBEITER meldet, war keiner
 // davon ehrlich („sonstiges" verschwindet zwischen Presse-Fakten und
@@ -67,7 +86,14 @@ export async function ensureTodoTabelle(): Promise<void> {
     ADD COLUMN IF NOT EXISTS ergebnis TEXT,
     ADD COLUMN IF NOT EXISTS frage_offen BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS letzte_aktivitaet TIMESTAMPTZ`;
-  await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt' WHERE erledigt_am IS NOT NULL AND status <> 'erledigt'`;
+  // E-IT-F (08.10.2026): VORHER setzte dieser Start JEDE Zeile mit erledigt_am auf „erledigt" — eine
+  // zweite Wahrheit, die wieder geöffnete Aufträge nach dem nächsten Deploy still zurückschloss (#967).
+  // NACHHER entscheidet die Wand in der Datenbank (Migration 102, Trigger fiaon_todo_status_wand): status
+  // ist die eine Quelle, erledigt_am folgt ihm. Nur wo die Wand fehlt (lokale Datenbank ohne Migration),
+  // bleibt der alte Abgleich als Notbehelf.
+  if (!(await statusWandDa())) {
+    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt' WHERE erledigt_am IS NOT NULL AND status <> 'erledigt'`;
+  }
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_betreiber_todo_beitraege (
       id SERIAL PRIMARY KEY,
@@ -82,6 +108,7 @@ export async function ensureTodoTabelle(): Promise<void> {
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS idx_todo_beitraege_todo ON fiaon_betreiber_todo_beitraege(todo_id)`;
   await ensureAustauschSpalten();
+  await ensureAuftragSpalten();
   geprueft = true;
   // 04.09.2026 (E-117): Die Anrede der Mitarbeiter braucht der Postmeister bei
   // jedem Auftrag — die Spalte muss da sein, bevor irgendeine Team-Route lief.
@@ -134,11 +161,10 @@ function ensureAustauschSpalten(): Promise<void> {
 }
 
 type BeitragArt = "kommentar" | "frage" | "antwort" | "ergebnis" | "status";
+// E-IT-F: Menschen schreiben, so oft sie wollen; das System schreibt denselben Text
+// nie zweimal hintereinander (524 gleiche Systemzeilen an 12 Einladungs-Aufträgen).
 async function beitrag(todoId: number, b: { autorArt: "betreiber" | "agent" | "system"; autorName: string; autorAgentId?: number | null; art: BeitragArt; text: string }): Promise<void> {
-  await sqlPool`
-    INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, autor_agent_id, art, text)
-    VALUES (${todoId}, ${b.autorArt}, ${b.autorName}, ${b.autorAgentId ?? null}, ${b.art}, ${b.text})`;
-  await sqlPool`UPDATE fiaon_betreiber_todos SET letzte_aktivitaet = NOW(), updated_at = NOW() WHERE id = ${todoId}`;
+  await auftragBeitrag(todoId, b, sqlPool, { doppeltErlaubt: b.autorArt !== "system" });
 }
 
 /** Vom Server angelegt — idempotent über den Schlüssel. Ein erledigter Eintrag bleibt erledigt. */
@@ -188,6 +214,12 @@ export interface AuftragEin {
   /** Ausdrücklich dieser Mitarbeiter (z. B. weil der Kunde ihn nennt) — statt der Ableitung. */
   agentId?: number | null;
   /**
+   * E-IT-F (Gegenprüfung 08.10.): agentId ist eine AUSDRÜCKLICHE Zuweisung (Leitung, vom Kunden genannt) —
+   * sie gilt auch, wenn der Auftrag schon bei einem aktiven Kollegen liegt. Ohne vorrang hängt ein
+   * bestehender Auftrag nur um, wenn der Zuständige nicht arbeiten kann.
+   */
+  vorrang?: boolean;
+  /**
    * Der erste Satz in der Zeitleiste (11.09.2026, E-177). Ohne ihn steht dort
    * „Angelegt von … aus dem Postfach" — für eine Bewerbung von der Website
    * wäre das falsch.
@@ -200,6 +232,16 @@ export interface AuftragEin {
    * (Fall K.: jede Nachricht setzte dieselbe Aufgabe neu auf ungelesen).
    */
   still?: boolean;
+  /**
+   * E-IT-F (08.10.2026): Was meldet der Erzeuger, wenn es die Aufgabe schon gibt?
+   *   'neu'     eine NEUE Sache (Kundenmail, WhatsApp, neue Rate) — öffnet eine
+   *             erledigte Aufgabe wieder, SICHTBAR mit Grund („Wieder offen: …").
+   *   'zustand' eine fortbestehende LAGE (Adresse unzustellbar, Einladung fehlt) —
+   *             öffnet eine erledigte Aufgabe erst nach ZUSTAND_WIEDER_OFFEN_TAGE
+   *             wieder; vorher bleibt sie zu (sonst Pendeln: #966 fünfmal erledigt).
+   * Standard: 'neu'.
+   */
+  anlass?: "neu" | "zustand";
 }
 
 /** Ein bestimmter aktiver Mitarbeiter als Empfänger. */
@@ -325,46 +367,120 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
     ? { id: null, name: null, email: null, vorname: null, nachname: null, anrede: null, kundenName: null } as Empfaenger
     : (ein.agentId ? await empfaengerNachId(ein.agentId) : null) ?? await auftragEmpfaenger(ein.personId);
 
+  // E-IT-F (08.10.2026): Kunde und Art stehen ab der Anlage als Datenfeld — die Liste muss sie
+  // nicht mehr aus dem Link raten. Die Person wird zur Wurzel aufgelöst (zusammengeführte Dubletten).
+  const personId = ein.personId ? (await personWurzel(Number(ein.personId)).catch(() => null)) ?? null : null;
+  const refFeld = ein.ref ? String(ein.ref).toUpperCase() : refAusLinkQuelle(link);
+  const art = auftragArtVon({ schluessel: ein.schluessel ?? null, quelle, bereich, titel, text });
+  // Meldet der Erzeuger jetzt eine Art, die nur ein Mensch schließt (Auskunft bezahlt, Beschwerde), gilt
+  // sie auch für den bestehenden Auftrag — nie umgekehrt (ein Hand-Auftrag wird nie automatisch schließbar).
+  const artNurHand = artRegel(art).nurHand && !["sonstiges", "hand", "verwaltung"].includes(art);
+  const anlass = ein.anlass ?? "neu";
+
   let id: number | null = null;
   if (ein.schluessel) {
-    const [r] = (await sqlPool`
-      INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, link, quelle, status)
-      VALUES (${ein.schluessel}, ${titel}, ${text}, ${bereich}, ${prioritaet}, ${faelligAm}, ${link}, ${quelle}, 'offen')
-      ON CONFLICT (schluessel) DO UPDATE
-        SET text = CASE WHEN fiaon_betreiber_todos.text = EXCLUDED.text THEN fiaon_betreiber_todos.text
-                        ELSE COALESCE(fiaon_betreiber_todos.text, '') || E'\n\n' || EXCLUDED.text END,
-            prioritaet = LEAST(fiaon_betreiber_todos.prioritaet, EXCLUDED.prioritaet),
-            faellig_am = LEAST(COALESCE(fiaon_betreiber_todos.faellig_am, EXCLUDED.faellig_am), EXCLUDED.faellig_am),
-            status = CASE WHEN fiaon_betreiber_todos.status = 'erledigt' AND NOT ${!!ein.still} THEN 'offen' ELSE fiaon_betreiber_todos.status END,
-            updated_at = NOW()
-      RETURNING id, (xmax = 0) AS neu, zustaendig_agent_id
+    const [neuZeile] = (await sqlPool`
+      INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, link, quelle, status,
+                                         person_id, ref, art, zugeordnet_am, eingang_am, neu_seit)
+      VALUES (${ein.schluessel}, ${titel}, ${text}, ${bereich}, ${prioritaet}, ${faelligAm}, ${link}, ${quelle}, 'offen',
+              ${personId}, ${refFeld}, ${art}, ${personId || refFeld ? new Date() : null}, NOW(), NOW())
+      ON CONFLICT (schluessel) DO NOTHING
+      RETURNING id
     `) as any[];
-    id = r?.id ? Number(r.id) : null;
-    // Schon beim richtigen Menschen? Dann nicht noch einmal übergeben.
-    if (id && !r.neu && r.zustaendig_agent_id && Number(r.zustaendig_agent_id) === wer.id) {
-      await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: text.slice(0, 2000) }).catch(() => {});
-      // 18.09.2026 (Team-Feedback Priorität 6): Eine zweite Mail desselben Kunden
-      // hing bisher still als Kommentar an — ungelesen blieb nichts, und von 199
-      // offenen Postfach-Aufgaben waren 178 nie geöffnet. Jetzt gilt die Aufgabe
-      // wieder als ungelesen und steht wieder offen.
-      // 25.09.2026 (E-240, Integration): dasselbe für Mara auf WhatsApp — sonst
-      // kam die zweite Bitte desselben Kunden am selben Tag nur als Kommentar an,
-      // und die Karte „Neu von Mara" im Office (fiaon-agent-aufgaben-popup.ts,
-      // liest agent_gelesen_am IS NULL) zeigte sie nicht.
-      if ((quelle === "postmeister" || quelle === "mara-whatsapp") && !ein.still) {
-        await sqlPool`
-          UPDATE fiaon_betreiber_todos
-             SET agent_gelesen_am = NULL, letzte_aktivitaet = NOW(),
-                 status = CASE WHEN status = 'erledigt' THEN 'offen' ELSE status END, updated_at = NOW()
-           WHERE id = ${id}
-        `.catch(() => {});
+    id = neuZeile?.id ? Number(neuZeile.id) : null;
+    if (!id) {
+      // ── DIE AUFGABE GIBT ES SCHON ─────────────────────────────────────────
+      // VORHER (bis 07.10.2026): ON CONFLICT setzte „erledigt" still auf „offen", hängte den Text bei
+      // JEDEM Lauf erneut an (bis 156× derselbe Hinweis) und übergab neu, wenn die Ableitung gerade
+      // einen anderen Menschen lieferte — #967 pendelte sechsmal zwischen Daniel und Florentine.
+      // NACHHER: Text nur, wenn er neu ist; wieder öffnen nur nach Anlass und immer mit Grund; nie gegen
+      // einen aktiven Zuständigen umhängen (Hand-Übergabe, Umverteilung, Vertretung bleiben stehen).
+      const [alt] = (await sqlPool`
+        SELECT id, status, text, erledigt_am, zustaendig_art, zustaendig_agent_id, person_id, ref, art
+          FROM fiaon_betreiber_todos WHERE schluessel = ${ein.schluessel}`) as any[];
+      if (!alt) return { id: null, agentId: null, agentName: null, kundenName: null, anBetreiber: true, faelligAm };
+      id = Number(alt.id);
+      const altText = String(alt.text ?? "");
+      const textNeu = !!text && !altText.includes(text);
+      // Fertigstellung 08.10. (Gegenprüfung, Fund 13): ATOMAR anhängen — zwei Meldungen desselben Schlüssels
+      // zugleich (zwei Webhooks, zwei Postfach-Läufe) lasen beide altText, die spätere überschrieb den Block der
+      // ersten; ohne ihre „[Mail #id]“ hätte uebergabeSchliessen den Auftrag trotz offener Mail geschlossen.
+      // Die Datenbank entscheidet am gesperrten Stand der Zeile; textNeu dient nur noch Beitrag und Wieder-Öffnen.
+      await sqlPool`
+        UPDATE fiaon_betreiber_todos
+           SET text = CASE WHEN ${text}::text = '' OR strpos(COALESCE(text, ''), ${text}::text) > 0 THEN text
+                           ELSE CONCAT_WS(E'\n\n', NULLIF(text, ''), ${text}::text) END,
+               prioritaet = LEAST(prioritaet, ${prioritaet}),
+               faellig_am = LEAST(COALESCE(faellig_am, ${faelligAm}::date), ${faelligAm}::date),
+               person_id = COALESCE(person_id, ${personId}), ref = COALESCE(ref, ${refFeld}),
+               art = CASE WHEN ${artNurHand} THEN ${art} ELSE COALESCE(art, ${art}) END, zugeordnet_am = COALESCE(zugeordnet_am, CASE WHEN ${!!(personId || refFeld)} THEN NOW() END),
+               updated_at = NOW()
+         WHERE id = ${id}`;
+      const erledigt = alt.status === "erledigt";
+      const zustandAbgelaufen = !!alt.erledigt_am && Date.now() - new Date(alt.erledigt_am).getTime() > ZUSTAND_WIEDER_OFFEN_TAGE * 864e5;
+      let geoeffnet = false;
+      if (erledigt && !ein.still && (anlass === "neu" ? textNeu : zustandAbgelaufen)) {
+        geoeffnet = await auftragWiederOeffnen(id, anlass === "neu"
+          ? `neue Meldung von ${ein.autorName ?? "Mara"} – ${titel}`
+          : `Lage besteht weiter (${ZUSTAND_WIEDER_OFFEN_TAGE} Tage nach dem Erledigen) – ${titel}`, { neu: true });
+      } else if (!erledigt && !ein.still && anlass === "neu" && textNeu) {
+        // 18.09.2026 (Team-Feedback Priorität 6) / 25.09.2026 (E-240): Eine zweite Nachricht desselben
+        // Kunden ist NEU für den Mitarbeiter — sie steht wieder als ungelesen da (Popup „Neu von Mara").
+        // E-IT-F: über neu_seit, nicht über letzte_aktivitaet — eine Übergabe oder Systemzeile ist keine Neuigkeit.
+        await sqlPool`UPDATE fiaon_betreiber_todos SET agent_gelesen_am = NULL, neu_seit = NOW(), letzte_aktivitaet = NOW(), updated_at = NOW() WHERE id = ${id}`.catch(() => {});
       }
-      return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: !wer.id, faelligAm };
+      if (textNeu) await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: text.slice(0, 2000) }).catch(() => {});
+      // Umhängen nur, wenn der jetzige Zuständige nicht mehr arbeiten kann (inaktiv, gesperrt, Testkonto,
+      // laut Abwesenheit vertreten). Was beim Betreiber liegt, bleibt dort: Zahlungsprüfungen
+      // (anBetreiber) und zurückgegebene Aufgaben dürfen nicht zurück an einen Mitarbeiter springen.
+      const jetzt = alt.zustaendig_art === "agent" ? Number(alt.zustaendig_agent_id) : null;
+      // Fertigstellung 08.10. (Nachprüfung, Fund 10 Teil 3): Ein WIEDER GEÖFFNETER Auftrag ist eine neue Sache — er geht
+      // an den, der JETZT zuständig ist (Betreuer bzw. Ableitung, Vertreter; Zahlungsprüfung/Global: das Board), nicht an
+      // den früheren Bearbeiter (vor dem Umbau ebenso). Nur beim Wieder-Öffnen: Ein offener Auftrag hängt weiter nie um.
+      if (geoeffnet) {
+        const ziel = ein.anBetreiber ? null : wer.id;
+        if (ziel && ziel !== jetzt && (await kannArbeiten(ziel))) {
+          await delegieren(id, ziel, "", { neu: true });
+          await beitrag(id, { autorArt: "system", autorName: "System", art: "kommentar", text: `Wieder geöffnet und an ${wer.name} gegeben — ${wer.name} ist jetzt zuständig.` }).catch(() => {});
+          await zuweisungMelden(id, wer, ein, titel, text, faelligAm, quelle);
+          return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: false, faelligAm };
+        }
+        if (ein.anBetreiber && jetzt) {
+          await delegieren(id, null, "");
+          return { id, agentId: null, agentName: null, kundenName: null, anBetreiber: true, faelligAm };
+        }
+      }
+      if (jetzt && wer.id !== jetzt && (geoeffnet || !erledigt) && !(await kannArbeiten(jetzt))) {
+        if (wer.id) {
+          await delegieren(id, wer.id, "", { neu: true });
+          await zuweisungMelden(id, wer, ein, titel, text, faelligAm, quelle);
+          return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: false, faelligAm };
+        }
+        // Niemand im Team übernimmt (Zahlungsstelle, kein Betreuer): zurück aufs Board des Betreibers —
+        // bei einem gesperrten Mitarbeiter wäre der Auftrag sonst unsichtbar (Gedächtnis 05.09.2026).
+        await delegieren(id, null, "");
+        return { id, agentId: null, agentName: null, kundenName: null, anBetreiber: true, faelligAm };
+      }
+      // Ausdrücklich gewünscht (Mara „an die Leitung“, der Kunde nennt jemanden): gilt auch gegen einen aktiven
+      // Zuständigen (Gegenprüfung 08.10.: die Beschwerde landete beim Betreuer, die Leitung erfuhr nichts).
+      // Nur mit `vorrang` — eine abgeleitete oder nach Last gewählte Person hängt nie um (kein Pendeln).
+      if (ein.vorrang && ein.agentId && wer.id && wer.id === Number(ein.agentId) && jetzt && jetzt !== wer.id && (geoeffnet || !erledigt)) {
+        await delegieren(id, wer.id, "", { neu: true });
+        await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: `Ausdrücklich an ${wer.name} übergeben (${ein.autorName ?? "Mara"}): ${titel}` }).catch(() => {});
+        await zuweisungMelden(id, wer, ein, titel, text, faelligAm, quelle);
+        return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: false, faelligAm };
+      }
+      const [stand] = (await sqlPool`SELECT zustaendig_art, zustaendig_agent_id, zustaendig_name FROM fiaon_betreiber_todos WHERE id = ${id}`) as any[];
+      const beiAgent = stand?.zustaendig_art === "agent" && stand?.zustaendig_agent_id;
+      const e = beiAgent ? await empfaengerNachId(Number(stand.zustaendig_agent_id)) : null;
+      return { id, agentId: beiAgent ? Number(stand.zustaendig_agent_id) : null, agentName: beiAgent ? String(stand.zustaendig_name || e?.name || "") || null : null, kundenName: e?.kundenName ?? null, anBetreiber: !beiAgent, faelligAm };
     }
   } else {
     const [r] = (await sqlPool`
-      INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, faellig_am, link, quelle, status)
-      VALUES (${titel}, ${text}, ${bereich}, ${prioritaet}, ${faelligAm}, ${link}, ${quelle}, 'offen')
+      INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, faellig_am, link, quelle, status,
+                                         person_id, ref, art, zugeordnet_am, eingang_am, neu_seit)
+      VALUES (${titel}, ${text}, ${bereich}, ${prioritaet}, ${faelligAm}, ${link}, ${quelle}, 'offen',
+              ${personId}, ${refFeld}, ${art}, ${personId || refFeld ? new Date() : null}, NOW(), NOW())
       RETURNING id
     `) as any[];
     id = r?.id ? Number(r.id) : null;
@@ -372,8 +488,30 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
   if (!id) return { id: null, agentId: null, agentName: null, kundenName: null, anBetreiber: true, faelligAm };
 
   if (wer.id) {
-    await delegieren(id, wer.id, "");
+    await delegieren(id, wer.id, "", { neu: true });
     await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: ein.anlageText ?? `Angelegt von ${ein.autorName ?? "Mara"} aus dem Postfach.` }).catch(() => {});
+    await zuweisungMelden(id, wer, ein, titel, text, faelligAm, quelle);
+  }
+  return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: !wer.id, faelligAm };
+}
+
+/** Kann dieser Mitarbeiter gerade Aufträge bearbeiten? Aktiv, echt, nicht gesperrt, nicht laut Abwesenheit vertreten. */
+async function kannArbeiten(agentId: number): Promise<boolean> {
+  const [a] = (await sqlPool`
+    SELECT id FROM fiaon_agents
+     WHERE id = ${agentId} AND COALESCE(active, TRUE) = TRUE AND COALESCE(is_test_account, FALSE) = FALSE AND zugang_gesperrt_am IS NULL
+  `.catch(() => [])) as any[];
+  if (!a) return false;
+  try {
+    const abw = await import("../lib/fiaon-abwesenheit");
+    return !abw.istAbwesend(await abw.abwesenheitJetzt(), agentId);
+  } catch { return true; }
+}
+
+/** Die Mail „Neuer Auftrag für dich" und das Ereignis — nur bei einer ECHTEN Zuweisung, nie beim Anhängen. */
+async function zuweisungMelden(id: number, wer: Empfaenger, ein: AuftragEin, titel: string, text: string, faelligAm: string, quelle: string): Promise<void> {
+  if (!wer.id) return;
+  {
     // Die Mail an den Mitarbeiter — derselbe Weg wie bei /admin/vermerke.
     if (wer.email) {
       let kunde: string | null = null;
@@ -405,7 +543,6 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
       `.catch(() => {});
     }
   }
-  return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: !wer.id, faelligAm };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -567,11 +704,10 @@ function spalte(r: any): "offen" | "team" | "rueckfrage" | "erledigt" {
   return "offen";
 }
 
-/** Die Kundenreferenz aus dem Link — /admin/kunde/<ref>, ?ref=<ref> oder irgendwo FIAON-… (05.09.2026). */
+/** Die Kundenreferenz aus dem Link — /admin/kunde/<ref>, ?ref=<ref> oder irgendwo FIAON-… (05.09.2026).
+ *  E-IT-F: Die Regel steht in shared/fiaon-auftrag-arten.ts; dieser Export bleibt für bestehende Importe. */
 export function refAusLink(link: unknown): string | null {
-  const l = String(link || "");
-  const m = l.match(/[?&]ref=(FIAON-[A-Z0-9-]+)/i) || l.match(/\/kunde\/(FIAON-[A-Z0-9-]+)/i) || l.match(/(FIAON-[A-Z0-9]{6,}(?:-[A-Z0-9]+)*)/i);
-  return m ? m[1].toUpperCase() : null;
+  return refAusLinkQuelle(link);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -605,19 +741,37 @@ export function streckeFuer(r: { schluessel?: string | null; bereich?: string | 
 }
 
 function zeile(r: any) {
+  const art = istArt(r.art) ? r.art : auftragArtVon({ schluessel: r.schluessel, quelle: r.quelle, bereich: r.bereich, titel: r.titel });
+  const regel = artRegel(art);
+  const herkunft = auftragHerkunft(r.quelle);
+  const fragen = !!r.frage_offen || !!r.frage_an_agent || Number(r.fragen_zahl || 0) > 0;
+  const kundeName = r.kunde_name ? String(r.kunde_name).trim() || null : null;
   return {
     id: Number(r.id), schluessel: r.schluessel ?? null, titel: r.titel, text: r.text ?? null, bereich: r.bereich,
     strecke: streckeFuer(r),
-    /** Kunde hinter der Aufgabe — Daniel (05.09.): „würde gerne anrufen, aber wer ist das?" */
-    ref: refAusLink(r.link), kunde: r.kunde_name ?? null, kundeTelefon: r.kunde_telefon ?? null, personId: r.kunde_person_id ? Number(r.kunde_person_id) : null,
-    prioritaet: Number(r.prioritaet || 2), faelligAm: r.faellig_am ? String(r.faellig_am).slice(0, 10) : null,
+    /** Kunde hinter der Aufgabe — Daniel (05.09.): „würde gerne anrufen, aber wer ist das?"
+     *  E-IT-F: aus der Spalte person_id (Wurzel), nicht mehr aus dem Link geraten. */
+    ref: r.kunde_ref ?? r.ref ?? refAusLink(r.link), kunde: kundeName, kundeTelefon: r.kunde_telefon ?? null,
+    personId: r.kunde_person_id ? Number(r.kunde_person_id) : null,
+    /** Ohne Kunden: ein Name aus dem Titel („Bewerbung: …") oder „ohne Kundenbezug" — die Spalte ist nie leer. */
+    kundeAnzeige: kundeName || nameAusTitel(r.titel) || "ohne Kundenbezug",
+    art, artLabel: regel.label, nurHand: regel.nurHand, zustand: regel.zustand,
+    herkunft: herkunft.vonMara ? `von Mara${herkunft.kanal ? ` · ${herkunft.kanal}` : ""}` : (herkunft.kanal || "Verwaltung"),
+    prioritaet: Number(r.prioritaet || 2), dringend: Number(r.prioritaet || 2) === 1, faelligAm: r.faellig_am ? String(r.faellig_am).slice(0, 10) : null,
     link: r.link ?? null, quelle: r.quelle, erledigtAm: r.erledigt_am ?? null, createdAt: r.created_at,
+    eingangAm: r.eingang_am ?? r.created_at ?? null, neuSeit: r.neu_seit ?? null,
+    ungelesen: !!r.neu_seit && (!r.agent_gelesen_am || new Date(r.neu_seit).getTime() > new Date(r.agent_gelesen_am).getTime()),
     status: (r.status || "offen") as Status, spalte: spalte(r),
     zustaendig: r.zustaendig_art === "agent"
       ? { art: "agent" as const, agentId: Number(r.zustaendig_agent_id), name: r.zustaendig_name || "Mitarbeiter" }
       : { art: "betreiber" as const, agentId: null, name: BETREIBER_NAME },
     delegiertAm: r.delegiert_am ?? null, angenommenAm: r.angenommen_am ?? null,
-    erledigtVon: r.erledigt_von ?? null, ergebnis: r.ergebnis ?? null, frageOffen: !!r.frage_offen,
+    erledigtVon: r.erledigt_von ?? null, erledigtArt: r.erledigt_art ?? null, erledigtEreignis: r.erledigt_ereignis ?? null,
+    ergebnis: r.ergebnis ?? null, frageOffen: !!r.frage_offen,
+    // E-IT-F: Wieder geöffnet — wann, wie oft und warum (die Wand in der Datenbank schreibt es mit).
+    wiederOffenAm: r.status !== "erledigt" && r.wieder_offen_am
+      && (!r.agent_gelesen_am || new Date(r.wieder_offen_am).getTime() > new Date(r.agent_gelesen_am).getTime()) ? r.wieder_offen_am : null,
+    wiederOffenGrund: r.wieder_offen_grund ?? null, wiederOffenZahl: Number(r.wieder_offen_zahl || 0),
     letzteAktivitaet: r.letzte_aktivitaet ?? r.updated_at ?? null,
     beitraege: Number(r.beitraege_zahl || 0),
     letzterBeitrag: r.lb_text ? { art: r.lb_art, autor: r.lb_autor, text: String(r.lb_text).slice(0, 160), am: r.lb_am } : null,
@@ -625,12 +779,14 @@ function zeile(r: any) {
     frageAnAgent: !!r.frage_an_agent,
     neuFuerAgent: Number(r.neu_agent || 0),
     neuFuerBetreiber: Number(r.neu_betreiber || 0),
-    // Pflicht-Ergebnis nur dort, wo eine Frage im Spiel war (Justins Regel vom
-    // 24.08.: „Der Satz ist Pflicht, wenn die Aufgabe eine Frage war"). Sonst
-    // freiwillig — ein Pflichtfeld für jeden Handgriff wird zu „ok" ausgefüllt.
-    ergebnisPflicht: !!r.frage_offen || !!r.frage_an_agent || Number(r.fragen_zahl || 0) > 0,
+    // Pflicht-Ergebnis dort, wo eine Frage im Spiel war (Justins Regel vom 24.08.: „Der Satz ist
+    // Pflicht, wenn die Aufgabe eine Frage war") — E-IT-F: und bei Arten, die es laut Katalog
+    // verlangen (Recht: Widerruf/Beschwerde/Löschantrag; Lage-Aufträge: unzustellbar, Einladung fehlt —
+    // wer sie ohne neues Ereignis schließt, sagt in einem Satz, was geklärt ist).
+    ergebnisPflicht: fragen || regel.ergebnisPflicht,
   };
 }
+function istArt(v: unknown): boolean { return typeof v === "string" && Object.prototype.hasOwnProperty.call(AUFTRAG_ARTEN, v); }
 
 function beitragZeile(b: any) {
   return { id: Number(b.id), todoId: Number(b.todo_id), autorArt: b.autor_art, autorName: b.autor_name, art: b.art, text: b.text, am: b.created_at };
@@ -640,9 +796,33 @@ function beitragZeile(b: any) {
 // NACHHER liefert derselbe Lauf zusätzlich, wie viel jede Seite noch nicht
 // gelesen hat und ob je eine Frage gestellt wurde. Ein Lauf statt drei —
 // die Liste wird bei jedem Aufruf des Portals geladen.
+// E-IT-F (08.10.2026): der Kunde aus person_id (eine Stufe weiter, falls die Person
+// inzwischen zusammengeführt wurde) — EIN Join für Liste, Akte-Leiste, Popup und Board.
+/** Der Kunde eines Auftrags: Person (eine Stufe weiter, falls inzwischen zusammengeführt), sonst die Bestellung. */
+const KUNDE_JOIN = sqlPool`
+  LEFT JOIN LATERAL (
+    SELECT p.id,
+           COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), NULLIF(TRIM(p.company_name), '')) AS name,
+           NULLIF(TRIM(COALESCE(p.primary_phone, '')), '') AS telefon,
+           (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY (a.archived_at IS NOT NULL), a.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_persons p0
+      JOIN fiaon_persons p ON p.id = COALESCE(p0.merged_into_person_id, p0.id)
+     WHERE p0.id = t.person_id
+  ) kp0 ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), '') AS name, NULLIF(TRIM(COALESCE(a.contact_phone, '')), '') AS telefon
+      FROM fiaon_applications a
+     WHERE t.person_id IS NULL AND t.ref IS NOT NULL AND a.ref = t.ref
+     LIMIT 1
+  ) ka ON TRUE
+  LEFT JOIN LATERAL (SELECT kp0.id, COALESCE(kp0.name, ka.name) AS name, COALESCE(kp0.telefon, ka.telefon) AS telefon, kp0.ref) kp ON TRUE
+`;
+
 const LISTE_SQL = sqlPool`
   SELECT t.*, bz.n AS beitraege_zahl, bz.neu_agent, bz.neu_betreiber, bz.fragen_zahl,
-         lb.art AS lb_art, lb.autor_name AS lb_autor, lb.text AS lb_text, lb.created_at AS lb_am
+         lb.art AS lb_art, lb.autor_name AS lb_autor, lb.text AS lb_text, lb.created_at AS lb_am,
+         kp.id AS kunde_person_id, kp.name AS kunde_name, kp.telefon AS kunde_telefon, COALESCE(t.ref, kp.ref) AS kunde_ref
   FROM fiaon_betreiber_todos t
   LEFT JOIN LATERAL (
     SELECT COUNT(*)::int AS n,
@@ -651,12 +831,14 @@ const LISTE_SQL = sqlPool`
       COUNT(*) FILTER (WHERE b.art = 'frage')::int AS fragen_zahl
     FROM fiaon_betreiber_todo_beitraege b WHERE b.todo_id = t.id) bz ON TRUE
   LEFT JOIN LATERAL (SELECT art, autor_name, text, created_at FROM fiaon_betreiber_todo_beitraege b WHERE b.todo_id = t.id ORDER BY created_at DESC LIMIT 1) lb ON TRUE
+  ${KUNDE_JOIN}
 `;
 
 async function todoLaden(id: number) {
+  await auftraegeZuordnen({ ids: [id] }).catch(() => 0);
   const [r] = (await sqlPool`${LISTE_SQL} WHERE t.id = ${id}`) as any[];
   if (!r) return null;
-  const beitraege = (await sqlPool`SELECT * FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${id} ORDER BY created_at ASC`) as any[];
+  const beitraege = (await sqlPool`SELECT * FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${id} ORDER BY created_at ASC, id ASC`) as any[];
   return { ...zeile(r), zeitleiste: beitraege.map(beitragZeile) };
 }
 
@@ -674,6 +856,8 @@ async function agentenListe() {
 router.get("/admin/todo", async (_req: Request, res: Response) => {
   try {
     await ensureTodoTabelle(); await startliste();
+    // E-IT-F: neue Zeilen ohne Kunde/Art einordnen, bevor das Board sie zeigt.
+    await auftraegeZuordnen({ nurOffen: true, grenze: 100 }).catch(() => 0);
     const rows = (await sqlPool`${LISTE_SQL}
       ORDER BY (t.status = 'erledigt') ASC, t.frage_offen DESC, t.prioritaet ASC, t.faellig_am ASC NULLS LAST, t.created_at ASC`) as any[];
     res.json({ ok: true, todos: rows.map(zeile), bereiche: TODO_BEREICHE, agenten: await agentenListe().catch(() => []) });
@@ -702,21 +886,27 @@ router.post("/admin/todo", async (req: Request, res: Response) => {
       VALUES (${titel}, ${String(req.body?.text || "").trim() || null}, ${bereich}, ${prio}, ${faellig}, ${String(req.body?.link || "").trim() || null}, 'hand', NOW())
       RETURNING id`) as any[];
     const agentId = Number(req.body?.agentId || 0);
-    if (agentId > 0) await delegieren(Number(r.id), agentId, String(req.body?.hinweis || ""));
+    if (agentId > 0) await delegieren(Number(r.id), agentId, String(req.body?.hinweis || ""), { neu: true });
     res.json({ ok: true, todo: await todoLaden(Number(r.id)) });
   } catch (err) { console.error("[TODO] anlegen:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
-async function delegieren(id: number, agentId: number | null, hinweis: string): Promise<string | null> {
+async function delegieren(id: number, agentId: number | null, hinweis: string, opt: { neu?: boolean } = {}): Promise<string | null> {
   if (agentId) {
     const [a] = (await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agentId} AND COALESCE(active, TRUE) = TRUE`) as any[];
     if (!a) return "Mitarbeiter nicht gefunden.";
     // E-029 (24.08.2026): agent_gelesen_am wird zurückgesetzt — für den NEUEN
     // Zuständigen ist der ganze Verlauf ungelesen, auch wenn ein Vorgänger ihn
     // schon kannte. frage_an_agent fällt weg: die alte Frage galt einem anderen.
+    // E-IT-F (08.10.2026): Ein erledigter Auftrag, der so neu übergeben wird, ist WIEDER OFFEN —
+    // mit Grund in der Zeitleiste (die Wand schreibt ihn). neu_seit nur bei einer echten Übergabe
+    // (Justin, neue Aufgabe): Ein Übertrag in Masse ist keine Neuigkeit fürs Popup.
     await sqlPool`UPDATE fiaon_betreiber_todos SET zustaendig_art = 'agent', zustaendig_agent_id = ${a.id}, zustaendig_name = ${a.name},
       delegiert_am = NOW(), angenommen_am = NULL, status = 'offen', frage_offen = FALSE, frage_an_agent = FALSE,
-      agent_gelesen_am = NULL, erledigt_am = NULL, updated_at = NOW() WHERE id = ${id}`;
+      agent_gelesen_am = NULL, erledigt_am = NULL,
+      wieder_offen_grund = CASE WHEN status = 'erledigt' THEN ${`neu übergeben an ${a.name} (${berlinTagZeit(new Date())})`} ELSE wieder_offen_grund END,
+      neu_seit = CASE WHEN ${!!opt.neu} THEN NOW() ELSE neu_seit END,
+      updated_at = NOW() WHERE id = ${id}`;
     await beitrag(id, { autorArt: "system", autorName: "System", art: "status", text: `An ${a.name} übergeben.` });
     if (hinweis.trim()) await beitrag(id, { autorArt: "betreiber", autorName: BETREIBER_NAME, art: "kommentar", text: hinweis.trim().slice(0, 2000) });
   } else {
@@ -732,7 +922,7 @@ router.post("/admin/todo/:id/delegieren", async (req: Request, res: Response) =>
     await ensureTodoTabelle();
     const id = Number(req.params.id);
     const agentId = req.body?.agentId ? Number(req.body.agentId) : null;
-    const fehler = await delegieren(id, agentId, String(req.body?.hinweis || ""));
+    const fehler = await delegieren(id, agentId, String(req.body?.hinweis || ""), { neu: true });
     if (fehler) return res.status(400).json({ ok: false, error: fehler });
     res.json({ ok: true, todo: await todoLaden(id) });
   } catch (err) { console.error("[TODO] delegieren:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
@@ -793,15 +983,13 @@ router.patch("/admin/todo/:id", async (req: Request, res: Response) => {
     const [vorher] = (await sqlPool`SELECT * FROM fiaon_betreiber_todos WHERE id = ${id}`) as any[];
     if (!vorher) return res.status(404).json({ ok: false, error: "Nicht gefunden." });
 
+    // E-IT-F (08.10.2026): Erledigen und Wieder-Öffnen über den EINEN Weg (server/lib/fiaon-auftraege.ts) —
+    // mit Art „verwaltung" und Grund; die Zeile „Wieder offen: …" schreibt die Wand in der Datenbank.
     if (b.erledigt === true) {
       const ergebnis = String(b.ergebnis || "").trim().slice(0, 4000) || null;
-      await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${BETREIBER_NAME},
-        ergebnis = COALESCE(${ergebnis}, ergebnis), frage_offen = FALSE, updated_at = NOW() WHERE id = ${id}`;
-      await beitrag(id, { autorArt: "betreiber", autorName: BETREIBER_NAME, art: ergebnis ? "ergebnis" : "status", text: ergebnis || "Erledigt." });
+      await auftragErledigen(id, { art: "verwaltung", von: BETREIBER_NAME, autorArt: "betreiber", ergebnis, beitragText: ergebnis || "Erledigt." });
     } else if (b.erledigt === false) {
-      await sqlPool`UPDATE fiaon_betreiber_todos SET status = CASE WHEN zustaendig_art = 'agent' THEN 'in_arbeit' ELSE 'offen' END,
-        erledigt_am = NULL, erledigt_von = NULL, updated_at = NOW() WHERE id = ${id}`;
-      await beitrag(id, { autorArt: "betreiber", autorName: BETREIBER_NAME, art: "status", text: "Wieder geöffnet." });
+      await auftragWiederOeffnen(id, `von ${BETREIBER_NAME} wieder geöffnet`, { status: vorher.zustaendig_art === "agent" ? "in_arbeit" : "offen" });
     }
     if (typeof b.status === "string" && ["offen", "in_arbeit"].includes(b.status) && vorher.status !== "erledigt") {
       await sqlPool`UPDATE fiaon_betreiber_todos SET status = ${b.status}, updated_at = NOW() WHERE id = ${id}`;
@@ -833,38 +1021,81 @@ async function meinAuftrag(req: AgentRequest, res: Response): Promise<any | null
   const id = Number(req.params.id);
   const [t] = (await sqlPool`SELECT * FROM fiaon_betreiber_todos WHERE id = ${id}`) as any[];
   if (!t || t.zustaendig_art !== "agent" || Number(t.zustaendig_agent_id) !== Number(req.agent!.id)) {
-    res.status(404).json({ ok: false, error: "Dieser Auftrag liegt nicht bei dir." });
+    // E-IT-F: Die Liste kann veraltet sein (Übertrag, Umverteilung). Der Code sagt der Oberfläche,
+    // dass sie die Karte entfernen soll — statt einer Fehlermeldung, die stehen bleibt.
+    res.status(404).json({ ok: false, code: "NICHT_BEI_DIR", error: t ? "Dieser Auftrag liegt inzwischen nicht mehr bei dir." : "Dieser Auftrag liegt nicht bei dir." });
     return null;
   }
   return t;
 }
 
-// E-029 (24.08.2026): VORHER standen offene und erledigte Aufträge gemischt in
-// EINER Liste. Justin: „Danach verschwindet die Aufgabe aus seiner offenen
-// Liste." NACHHER trennt der Server selbst — offen und erledigt kommen als
-// zwei Listen plus die ehrliche Lage, damit die Oberfläche nichts nachrechnet
-// und keine Marke zeigen kann, die die Zahlen nicht hergeben.
-/**
- * Name, Telefon und Person zu jeder Aufgabe, deren Link eine Referenz trägt
- * (05.09.2026, Florentine: „manche Aufgaben sind ohne Namen, wir können sie
- * nicht einordnen"). Die Tabelle kennt keinen Kunden — nur den Link.
- */
-async function kundenAnhaengen(rows: any[]): Promise<void> {
-  const refs = Array.from(new Set(rows.map((r) => refAusLink(r.link)).filter(Boolean))) as string[];
-  if (!refs.length) return;
-  const zeilen = (await sqlPool`
-    SELECT a.ref, a.person_id,
-           COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), p.company_name) AS name,
-           COALESCE(NULLIF(p.primary_phone, ''), a.contact_phone) AS telefon
-    FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
-    WHERE a.ref = ANY(${refs})
-  `.catch(() => [] as any[])) as any[];
-  const nachRef = new Map<string, any>(zeilen.map((z) => [String(z.ref).toUpperCase(), z]));
-  for (const r of rows) {
-    const k = nachRef.get(String(refAusLink(r.link) || "").toUpperCase());
-    if (k) { r.kunde_name = k.name ?? null; r.kunde_telefon = k.telefon ?? null; r.kunde_person_id = k.person_id ?? null; }
+// ── E-IT-F (08.10.2026): DIE LISTE DES MITARBEITERS ─────────────────────────
+// VORHER lud jeder Aufruf ALLE Beiträge aller Aufträge mit (Daniel: rund 600.000
+// Zeichen Rohtext je Laden), ungekürzt und in der Reihenfolge Priorität/Fälligkeit.
+// Die erledigte Karte blieb bis zum Ende dieses Ladens mit aktivem Knopf stehen —
+// ein zweiter Klick ergab „Schon erledigt.". NACHHER: die Liste trägt je Auftrag den
+// Kunden, die Art, den Eingang und nur die letzten Beiträge; die ganze Zeitleiste
+// kommt beim Aufklappen (GET /agent/auftraege/:id). Reihenfolge: shared
+// auftraegeSortieren — dieselbe Funktion wie der „nächste Auftrag" und die Oberfläche.
+const LISTE_TEXT_GRENZE = 2400;
+const LISTE_BEITRAEGE = 6;
+const ERLEDIGT_TAGE = 30;
+
+async function agentAuftraegeLaden(agentId: number, opt: { erledigt?: boolean } = {}) {
+  const ohne = (await sqlPool`
+    SELECT id FROM fiaon_betreiber_todos
+     WHERE zustaendig_art = 'agent' AND zustaendig_agent_id = ${agentId} AND zugeordnet_am IS NULL
+     ORDER BY (status <> 'erledigt') DESC, id DESC LIMIT 60`) as any[];
+  if (ohne.length) await auftraegeZuordnen({ ids: ohne.map((o) => Number(o.id)) }).catch(() => 0);
+  const rows = (await sqlPool`${LISTE_SQL}
+    WHERE t.zustaendig_art = 'agent' AND t.zustaendig_agent_id = ${agentId}
+      AND (t.status <> 'erledigt' OR (${!!opt.erledigt} AND t.erledigt_am > NOW() - (${ERLEDIGT_TAGE}::int * INTERVAL '1 day')))`) as any[];
+  const offenIds = rows.filter((r) => r.status !== "erledigt").map((r) => Number(r.id));
+  // Nur die letzten Beiträge — und jede Frage/Antwort eines Menschen aus den letzten 30, damit „Justin fragt dich"
+  // auch hinter einer Flut von Systemzeilen sichtbar bleibt.
+  const beitraege = offenIds.length ? (await sqlPool`
+    SELECT * FROM (
+      SELECT b.*, ROW_NUMBER() OVER (PARTITION BY b.todo_id ORDER BY b.created_at DESC, b.id DESC) AS rn
+        FROM fiaon_betreiber_todo_beitraege b WHERE b.todo_id = ANY(${offenIds}::int[])) x
+     WHERE x.rn <= ${LISTE_BEITRAEGE} OR (x.autor_art <> 'system' AND x.rn <= 30)
+     ORDER BY x.created_at ASC, x.id ASC`) as any[] : [];
+  const nachTodo = new Map<number, any[]>();
+  for (const b of beitraege) {
+    const l = nachTodo.get(Number(b.todo_id)) || [];
+    l.push({ ...beitragZeile(b), text: String(b.text ?? "").slice(0, 800) });
+    nachTodo.set(Number(b.todo_id), l);
   }
+  const alle = rows.map((r) => {
+    const z = zeile(r);
+    const text = z.text ? String(z.text) : null;
+    const gekuerzt = !!text && text.length > LISTE_TEXT_GRENZE;
+    return {
+      ...z,
+      // Das Neue steht am Ende (Nachträge werden angehängt) — gekürzt wird vorn.
+      text: gekuerzt ? `… ${text!.slice(-LISTE_TEXT_GRENZE)}` : text, textGekuerzt: gekuerzt,
+      zeitleiste: z.status === "erledigt" ? [] : (nachTodo.get(z.id) || []),
+      zeitleisteGekuerzt: z.status !== "erledigt" && z.beitraege > (nachTodo.get(z.id) || []).length,
+    };
+  });
+  const offen = auftraegeSortieren(alle.filter((a) => a.status !== "erledigt"), "alt");
+  // Je Kunde: wie viele offene Aufträge es sonst noch gibt — die Karte sagt „+2 weitere zu diesem Kunden".
+  const jePerson = new Map<number, number>();
+  for (const a of offen) if (a.personId) jePerson.set(a.personId, (jePerson.get(a.personId) || 0) + 1);
+  const mitZahl = offen.map((a) => ({ ...a, weitereZumKunden: a.personId ? Math.max(0, (jePerson.get(a.personId) || 1) - 1) : 0 }));
+  const erledigt = alle.filter((a) => a.status === "erledigt")
+    .sort((a, b) => new Date(b.erledigtAm || 0).getTime() - new Date(a.erledigtAm || 0).getTime());
+  return { offen: mitZahl, erledigt };
 }
+
+/** Der nächste wirklich offene Auftrag dieses Mitarbeiters — knapp, für Liste und Akte-Leiste. */
+async function naechsterFuer(agentId: number, ohne: number[], richtung: AuftragRichtung = "alt") {
+  const rows = (await sqlPool`${LISTE_SQL}
+    WHERE t.zustaendig_art = 'agent' AND t.zustaendig_agent_id = ${agentId} AND t.status <> 'erledigt'`) as any[];
+  const n = naechsterAuftrag(rows.map(zeile), ohne, richtung);
+  return n ? { id: n.id, personId: n.personId, ref: n.ref, kunde: n.kundeAnzeige, art: n.art, artLabel: n.artLabel, titel: n.titel } : null;
+}
+
+function richtungAus(v: unknown): AuftragRichtung { return v === "neu" ? "neu" : "alt"; }
 
 /** Justin schließt eine Aufgabe aus der Verwaltung (05.09.2026) — z. B. Doppel oder erledigt am Telefon. */
 router.post("/admin/todo/:id/erledigt", async (req: Request, res: Response) => {
@@ -874,34 +1105,48 @@ router.post("/admin/todo/:id/erledigt", async (req: Request, res: Response) => {
     const ergebnis = String(req.body?.ergebnis || "").trim().slice(0, 2000);
     const [t] = (await sqlPool`SELECT id, status FROM fiaon_betreiber_todos WHERE id = ${id}`) as any[];
     if (!t) return res.status(404).json({ ok: false, error: "Nicht gefunden." });
-    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${BETREIBER_NAME},
-      ergebnis = COALESCE(NULLIF(${ergebnis}, ''), ergebnis), frage_offen = FALSE, frage_an_agent = FALSE, updated_at = NOW() WHERE id = ${id}`;
-    await beitrag(id, { autorArt: "betreiber", autorName: BETREIBER_NAME, art: "status", text: ergebnis ? `Erledigt: ${ergebnis}` : "Erledigt." });
-    res.json({ ok: true, todo: await todoLaden(id) });
+    // E-IT-F: idempotent — ein zweiter Klick ändert nichts und meldet keinen Fehler.
+    const zu = await auftragErledigen(id, { art: "verwaltung", von: BETREIBER_NAME, autorArt: "betreiber", ergebnis: ergebnis || null, beitragText: ergebnis ? `Erledigt: ${ergebnis}` : "Erledigt." });
+    res.json({ ok: true, schonErledigt: !zu, todo: await todoLaden(id) });
   } catch (err) { console.error("[TODO] admin erledigt:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
 router.get("/agent/auftraege", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     await ensureTodoTabelle();
-    const rows = (await sqlPool`${LISTE_SQL}
-      WHERE t.zustaendig_art = 'agent' AND t.zustaendig_agent_id = ${req.agent!.id}
-        AND (t.status <> 'erledigt' OR t.erledigt_am > NOW() - INTERVAL '14 days')
-      ORDER BY (t.status = 'erledigt') ASC, (t.status = 'wartet') ASC, t.prioritaet ASC,
-               t.faellig_am ASC NULLS LAST, t.delegiert_am ASC`) as any[];
-    const ids = rows.map((r) => Number(r.id));
-    const beitraege = ids.length ? (await sqlPool`SELECT * FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ANY(${ids}) ORDER BY created_at ASC`) as any[] : [];
-    const nachTodo = new Map<number, any[]>();
-    for (const b of beitraege) { const l = nachTodo.get(Number(b.todo_id)) || []; l.push(beitragZeile(b)); nachTodo.set(Number(b.todo_id), l); }
-    await kundenAnhaengen(rows);
-    const alle = rows.map((r) => ({ ...zeile(r), zeitleiste: nachTodo.get(Number(r.id)) || [] }));
+    const { offen, erledigt } = await agentAuftraegeLaden(Number(req.agent!.id), { erledigt: true });
     res.json({
       ok: true,
-      auftraege: alle.filter((a) => a.status !== "erledigt"),
-      erledigt: alle.filter((a) => a.status === "erledigt"),
+      auftraege: offen,
+      erledigt,
+      erledigtTage: ERLEDIGT_TAGE,
+      naechster: naechsterAuftrag(offen, [], richtungAus(req.query.richtung))?.id ?? null,
       lage: await agentAuftraegeLage(req.agent!.id),
     });
   } catch (err) { console.error("[TODO] agent liste:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
+/** E-IT-F: der nächste wirklich offene Auftrag — für die Akte-Leiste („Nächster Auftrag →"). */
+router.get("/agent/auftraege/naechster", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureTodoTabelle();
+    const nach = Number(req.query.nach || 0);
+    res.json({ ok: true, naechster: await naechsterFuer(Number(req.agent!.id), nach > 0 ? [nach] : [], richtungAus(req.query.richtung)) });
+  } catch (err) { console.error("[TODO] agent nächster:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
+/** E-IT-F: ein Auftrag mit voller Zeitleiste und ungekürztem Text — beim Aufklappen und für die Akte-Leiste. */
+router.get("/agent/auftraege/:id", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureTodoTabelle();
+    const t = await meinAuftrag(req, res); if (!t) return;
+    const todo = await todoLaden(Number(t.id));
+    const [w] = todo?.personId && todo.status !== "erledigt" ? (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos
+       WHERE zustaendig_art = 'agent' AND zustaendig_agent_id = ${req.agent!.id} AND status <> 'erledigt'
+         AND person_id = ${todo.personId} AND id <> ${t.id}`) as any[] : [{ n: 0 }];
+    res.json({ ok: true, todo: todo ? { ...todo, weitereZumKunden: Number(w?.n || 0) } : null });
+  } catch (err) { console.error("[TODO] agent detail:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
 // E-029 (24.08.2026): NEU — „ich habe den Verlauf gesehen". Die Oberfläche ruft
@@ -916,11 +1161,13 @@ router.post("/agent/auftraege/:id/gelesen", requireAgent, async (req: AgentReque
   } catch (err) { console.error("[TODO] agent gelesen:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
+// E-IT-F (08.10.2026): Die Oberfläche bietet „Ich mach das" nicht mehr an — erledigt wird mit einem Klick.
+// Die Route bleibt für alte Tabs; ist der Auftrag inzwischen erledigt, antwortet sie ohne Fehler.
 router.post("/agent/auftraege/:id/annehmen", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     await ensureTodoTabelle();
     const t = await meinAuftrag(req, res); if (!t) return;
-    if (t.status === "erledigt") return res.status(400).json({ ok: false, error: "Schon erledigt." });
+    if (t.status === "erledigt") return res.json({ ok: true, schonErledigt: true, todo: await todoLaden(Number(t.id)) });
     // Wer annimmt, hat die Aufgabe gelesen — die Marke fällt hier weg (E-029).
     await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'in_arbeit', angenommen_am = COALESCE(angenommen_am, NOW()),
       agent_gelesen_am = NOW(), updated_at = NOW() WHERE id = ${t.id}`;
@@ -935,13 +1182,13 @@ router.post("/agent/auftraege/:id/frage", requireAgent, async (req: AgentRequest
     const t = await meinAuftrag(req, res); if (!t) return;
     const text = String(req.body?.text || "").trim();
     if (text.length < 3) return res.status(400).json({ ok: false, error: "Bitte die Frage ausformulieren." });
-    if (t.status === "erledigt") return res.status(400).json({ ok: false, error: "Schon erledigt." });
+    if (t.status === "erledigt") return res.status(409).json({ ok: false, code: "SCHON_ERLEDIGT", error: "Dieser Auftrag ist schon erledigt — unter „Erledigt“ kannst du ihn wieder öffnen.", todo: await todoLaden(Number(t.id)) });
     await beitrag(Number(t.id), { autorArt: "agent", autorName: req.agent!.name, autorAgentId: req.agent!.id, art: "frage", text: text.slice(0, 4000) });
     // E-029: frage_an_agent fällt weg — wer zurückfragt, hat Justins Frage
     // gesehen und die Aufgabe liegt jetzt bei ihm, nicht mehr beim Mitarbeiter.
     await sqlPool`UPDATE fiaon_betreiber_todos SET frage_offen = TRUE, frage_an_agent = FALSE, status = 'wartet',
       angenommen_am = COALESCE(angenommen_am, NOW()), agent_gelesen_am = NOW(), updated_at = NOW() WHERE id = ${t.id}`;
-    res.json({ ok: true, todo: await todoLaden(Number(t.id)) });
+    res.json({ ok: true, todo: await todoLaden(Number(t.id)), naechster: await naechsterFuer(Number(req.agent!.id), [Number(t.id)], richtungAus(req.body?.richtung)) });
   } catch (err) { console.error("[TODO] frage:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
@@ -973,30 +1220,70 @@ router.post("/agent/auftraege/:id/kommentar", requireAgent, async (req: AgentReq
 // Frage im Spiel war (Justin hat gefragt, oder der Mitarbeiter hat gefragt und
 // eine Antwort bekommen) — sonst freiwillig. Die Prüfung liegt HIER, nicht nur
 // in der Oberfläche.
+// E-IT-F (08.10.2026): Pflicht auch bei Arten, die es laut Katalog verlangen (Recht, Lage-Aufträge).
+// Erledigen ist IDEMPOTENT: War der Auftrag schon erledigt (im Hintergrund: Antwort gesendet,
+// Ereignis in der Akte, Verwaltung), antwortet die Route 200 mit schonErledigt — die Karte geht
+// weg, statt mit „Schon erledigt." stehen zu bleiben. Jede Antwort trägt den NÄCHSTEN Auftrag.
 router.post("/agent/auftraege/:id/erledigt", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     await ensureTodoTabelle();
     const t = await meinAuftrag(req, res); if (!t) return;
-    if (t.status === "erledigt") return res.status(400).json({ ok: false, error: "Schon erledigt." });
+    const richtung = richtungAus(req.body?.richtung);
+    if (t.status === "erledigt") {
+      return res.json({ ok: true, schonErledigt: true, todo: await todoLaden(Number(t.id)), naechster: await naechsterFuer(Number(req.agent!.id), [Number(t.id)], richtung) });
+    }
     const ergebnis = String(req.body?.ergebnis || "").trim();
     const [f] = (await sqlPool`
       SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${t.id} AND art = 'frage'`) as any[];
-    const pflicht = !!t.frage_offen || !!t.frage_an_agent || Number(f?.n || 0) > 0;
-    if (pflicht && ergebnis.length < 5) {
-      return res.status(400).json({ ok: false, error: "Zu diesem Auftrag gab es eine Frage — bitte in einem Satz festhalten, wie sie ausgegangen ist." });
+    const frage = !!t.frage_offen || !!t.frage_an_agent || Number(f?.n || 0) > 0;
+    // Die strengere Art aus Speicher und jetzigem Text (Gegenprüfung 08.10.: ein angehängter Widerruf verlangt den Satz).
+    const artJetzt = artNachInhalt(t.art, { schluessel: t.schluessel, quelle: t.quelle, bereich: t.bereich, titel: t.titel, text: t.text });
+    const regel = artRegel(artJetzt);
+    if ((frage || regel.ergebnisPflicht) && ergebnis.length < 5) {
+      return res.status(400).json({
+        ok: false, code: "ERGEBNIS_PFLICHT",
+        error: frage
+          ? "Zu diesem Auftrag gab es eine Frage — bitte in einem Satz festhalten, wie sie ausgegangen ist."
+          : regel.zustand
+            ? "Bitte in einem Satz festhalten, was geklärt ist (z. B. neue Adresse eingetragen, Kunde erreicht) — sonst meldet sich der Auftrag wieder."
+            : "Bei Kündigung, Widerruf, Beschwerde oder Löschantrag bitte in einem Satz festhalten, was veranlasst ist.",
+      });
     }
     if (ergebnis.length > 0 && ergebnis.length < 2) {
       return res.status(400).json({ ok: false, error: "Bitte etwas mehr schreiben oder das Feld leer lassen." });
     }
     const text = ergebnis.slice(0, 4000);
-    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${req.agent!.name},
-      ergebnis = COALESCE(${text || null}, ergebnis), frage_offen = FALSE, frage_an_agent = FALSE, agent_gelesen_am = NOW(), updated_at = NOW() WHERE id = ${t.id}`;
-    await beitrag(Number(t.id), {
-      autorArt: "agent", autorName: req.agent!.name, autorAgentId: req.agent!.id,
-      art: text ? "ergebnis" : "status", text: text || "Als erledigt gemeldet.",
+    const zu = await auftragErledigen(Number(t.id), {
+      art: "hand", von: req.agent!.name, autorArt: "agent", autorAgentId: req.agent!.id,
+      ergebnis: text || null, beitragText: text || "Als erledigt gemeldet.", gelesen: true,
     });
-    res.json({ ok: true, todo: await todoLaden(Number(t.id)) });
+    // „Kunde hat geschrieben“ von Hand erledigt = vom Betreuer übernommen: Maras wartender Entwurf wird
+    // verworfen (wie unter E-Mails „Übernommen“) — sonst kann ihn die Zentrale später doch noch senden.
+    if (zu && (artJetzt === "mara_mail" || artJetzt === "mara_mail_heikel" || /^postmeister:antwort:/.test(String(t.schluessel || "")))) {
+      try {
+        const verworfen = await uebergabeEntwuerfeUebernehmen(t.text, req.agent!.name, text || "im Auftrag als erledigt gemeldet");
+        if (verworfen.length) {
+          const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
+          for (const v of verworfen) if (v.draftId) await entwurfLoeschen(v.postfach, v.draftId).catch(() => {});
+          await beitrag(Number(t.id), { autorArt: "system", autorName: "System", art: "kommentar",
+            text: `Maras Entwurf zu ${verworfen.map((v) => `Mail #${v.id}`).join(", ")} verworfen — vom Betreuer übernommen (${req.agent!.name}).` });
+        }
+      } catch (e) { console.error("[TODO] erledigt: Entwurf verwerfen:", String(e).slice(0, 200)); }
+    }
+    res.json({ ok: true, todo: await todoLaden(Number(t.id)), naechster: await naechsterFuer(Number(req.agent!.id), [Number(t.id)], richtung) });
   } catch (err) { console.error("[TODO] erledigt:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
+/** E-IT-F: Wieder öffnen — aus dem Reiter „Erledigt". Der Grund steht in der Zeitleiste, nichts geht still. */
+router.post("/agent/auftraege/:id/wieder-oeffnen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureTodoTabelle();
+    const t = await meinAuftrag(req, res); if (!t) return;
+    if (t.status !== "erledigt") return res.json({ ok: true, schonOffen: true, todo: await todoLaden(Number(t.id)) });
+    const grund = String(req.body?.grund || "").trim().slice(0, 300);
+    await auftragWiederOeffnen(Number(t.id), `von ${req.agent!.name} wieder geöffnet${grund ? `: ${grund}` : ""}`, { gelesen: true, status: "in_arbeit" });
+    res.json({ ok: true, todo: await todoLaden(Number(t.id)) });
+  } catch (err) { console.error("[TODO] wieder öffnen:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
 router.post("/agent/auftraege/:id/zurueck", requireAgent, async (req: AgentRequest, res: Response) => {
@@ -1007,7 +1294,7 @@ router.post("/agent/auftraege/:id/zurueck", requireAgent, async (req: AgentReque
     if (grund.length < 3) return res.status(400).json({ ok: false, error: "Bitte kurz sagen, warum." });
     await beitrag(Number(t.id), { autorArt: "agent", autorName: req.agent!.name, autorAgentId: req.agent!.id, art: "kommentar", text: `Zurückgegeben: ${grund.slice(0, 2000)}` });
     await delegieren(Number(t.id), null, "");
-    res.json({ ok: true });
+    res.json({ ok: true, naechster: await naechsterFuer(Number(req.agent!.id), [Number(t.id)], richtungAus(req.body?.richtung)) });
   } catch (err) { console.error("[TODO] zurueck:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 

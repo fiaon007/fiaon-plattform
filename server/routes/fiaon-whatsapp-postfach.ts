@@ -653,6 +653,12 @@ function routen(hole: (req: any) => Blick) {
           ON CONFLICT (nummer) DO UPDATE SET updated_at = NOW()`;
       }
       console.log(`[WHATSAPP-RAUM] ${blick.name} hat an ${nummer} geschrieben (${vorlage || "Freitext"}${vorlage ? ", Mara bleibt an" : ", Mara aus"}).`);
+      // E-IT-F (08.10.2026): Eine eigene Antwort eines Menschen (Freitext, keine Vorlage) erledigt Maras
+      // WhatsApp-Aufträge zu diesem Menschen (Anliegen, Rückruf, Unsicher) — nie „heikel" oder „Geld".
+      if (!vorlage && w?.person_id) {
+        const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+        await ereignisMelden({ ereignis: "whatsapp_beantwortet", personId: Number(w.person_id), akteur: { id: blick.agentId ?? null, name: blick.name } });
+      }
       res.json({ ok: true, waId: erg.waId });
     } catch (err) {
       console.error("[WHATSAPP-RAUM] senden:", err);
@@ -842,6 +848,12 @@ function routen(hole: (req: any) => Blick) {
         VALUES (${a?.ref ?? null}, ${personId}, ${blick.agentId}, ${blick.name}, 'system',
                 ${`Ergebnis „${(ERGEBNIS_TEXT as Record<string, string>)[ergebnis] ?? ergebnis}" aus dem WhatsApp-Gespräch gebucht.`}, NOW())`.catch(() => {});
       console.log(`[WHATSAPP-RAUM] ${blick.name} bucht ${ergebnis} für Person ${personId}.`);
+      // E-IT-F (08.10.2026): dasselbe Ereignis wie ein Ergebnis in der Akte.
+      {
+        const { ereignisAusErgebnis, ereignisMelden } = await import("../lib/fiaon-auftraege");
+        const ereignis = ereignisAusErgebnis(ergebnis);
+        if (ereignis) await ereignisMelden({ ereignis, personId, ref: a?.ref ?? null, akteur: { id: blick.agentId ?? null, name: blick.name }, detail: (ERGEBNIS_TEXT as Record<string, string>)[ergebnis] ?? ergebnis });
+      }
       res.json({ ok: true });
     } catch (err) {
       console.error("[WHATSAPP-RAUM] ergebnis:", err);

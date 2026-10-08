@@ -84,6 +84,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-IT-F (08.10.2026): Aufträge — eine Statuswahrheit, nächster Auftrag, Eingang, automatische Erledigung, Kundenname.
+    id: "2026-10-08-auftraege-neu",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "Aufträge: Kunde, Eingang, ein Klick — und vieles erledigt sich selbst",
+    summary:
+      "Unter Tasks → Aufträge steht jeder offene Auftrag als Zeile mit Kunde, Art, Eingang und Status. „Erledigt“ geht mit einem Klick, "
+      + "danach öffnet sich der nächste. Erfasst du in der Akte ein Ergebnis, schließen sich die passenden Aufträge des Kunden von selbst.",
+    changes: [
+      "Der Kundenname steht jetzt bei fast jedem Auftrag (vorher fehlte er bei gut der Hälfte), dazu Nummer und Referenz. Gibt es keinen Kunden, steht „ohne Kundenbezug“ da.",
+      "Reihenfolge: dringend zuerst, darin die ältesten zuerst — oben rechts auf „Neueste zuerst“ umschaltbar. Der Eingang steht immer da („Eingang: 08.10. 14:32“).",
+      "„Ich mach das“ gibt es nicht mehr: „Erledigt“ schließt sofort; einen Satz zum Ergebnis kannst du in der aufgeklappten Zeile mitschicken.",
+      "Automatisch erledigt (mit „Automatisch erledigt durch …“ in der Zeitleiste): dein Gesprächsergebnis „erreicht“ oder „Rückruf vereinbart“, dein Rückruf, dein Termin, deine WhatsApp-Antwort (nicht bei einem Rückrufwunsch — der braucht ein Gespräch), die angeforderte oder erhaltene Unterlage (nur die, die im Auftrag steht), Kartenlink gesendet, Erstzahlung gebucht. Arbeitet ein Kollege an deinem Kunden (Gespräch, Kartenlink, Unterlage), steht bei dir nur ein Hinweis „… – bitte prüfen“. Heikles (Kündigung, Widerruf, Beschwerde, Bestreiten, Löschwunsch, Erstattung — auch in einer Mail-Übergabe), Geld, eine bezahlte Auskunft, „Rate: E-Mail unzustellbar“ und Vorgänge schließt nie das System. „Erledigt“ bei „Kunde hat geschrieben“ verwirft Maras wartenden Entwurf, wie „Übernommen“.",
+      "Kündigung, Widerruf, Beschwerde, Löschantrag und Eskalation stehen ganz oben — sie haben Fristen.",
+      "Erledigte Aufträge stehen im Reiter „Erledigt“ — mit „Wieder öffnen“. Öffnet das System einen Auftrag wieder, steht „Wieder offen“ mit Grund dabei.",
+      "„Akte“ öffnet den Kunden, ohne dass ein Gespräch abbricht. Unten steht dann eine Leiste mit diesem Auftrag: „Erledigt“ und „Nächster Auftrag →“.",
+    ],
+    howto: [
+      "Tasks → Aufträge: Zeile anklicken zum Aufklappen, „Akte“ zum Kunden, „Erledigt“ zum Abschließen.",
+      "In der Akte arbeiten wie immer — nach dem Ergebnis zeigt die Leiste unten „Automatisch erledigt“; mit „Nächster Auftrag →“ geht es weiter.",
+      "Bei „E-Mail unzustellbar“, „Einladung fehlt“, Kündigung, Widerruf, Beschwerde und Löschantrag bitte einen Satz schreiben, was geklärt ist.",
+    ],
+    link: { href: "/agent/aufgaben?reiter=auftraege", label: "Zu deinen Aufträgen" },
+    important: true,
+  },
+  {
     // E-286 (05./06.10.2026): neue Wortmarke überall.
     id: "2026-10-06-neues-logo",
     date: "2026-10-06",

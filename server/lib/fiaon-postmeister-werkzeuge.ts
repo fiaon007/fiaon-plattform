@@ -480,6 +480,9 @@ export const aufgabeAnBetreuer: Werkzeug = {
       schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe`,
       quelle: "postmeister", autorName: "Mara",
       agentId: zahlungGewollt ? null : vtUeb ? (vtUeb.anVertreter ? vtUeb.ab.vertreter.id : null) : (gewuenscht?.id ?? null),
+      // E-IT-F (Gegenprüfung 08.10.): Leitung oder vom Kunden genannt gilt auch gegen einen aktiven Betreuer,
+      // der den Auftrag des Kunden schon hat — sonst landet die Beschwerde beim Betreuer, die Leitung erfährt nichts.
+      vorrang: !zahlungGewollt && !vtUeb && !!gewuenscht?.id,
       anBetreiber: zahlungGewollt || (!!vtUeb && !vtUeb.anVertreter) || (globalKunde && !gewuenscht),
     });
     if (vtUeb?.anVertreter && (leitungGewollt || heikleUebergabe(`${titelMitName}\n${text}`))) {

@@ -1,0 +1,51 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON OFFICE — DIE AUFTRAG-LEISTE IN DER AKTE (E-IT-F, 08.10.2026)
+   Präfix .fi-al-. Komponente: components/AuftragLeiste.tsx.
+
+   Unten links, breit genug für eine Zeile — rechts bleibt der Telefonknopf
+   (58 px) frei. z-index 284: über der Akte-Lade (60/61), knapp unter der Karte
+   „Neu von Mara" (285), dem Telefon (290/300) und den Modalen (320+).
+   Dasselbe Navy-Glas wie die Karte „Neu von Mara"; dünne Schrift, Knöpfe 500.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fi-al {
+  position: fixed; z-index: 284;
+  left: 16px; right: 92px;
+  bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 4px);
+  max-width: 980px;
+  border-radius: 18px;
+  background: linear-gradient(158deg, #16305f, #0b1b3f 58%, #071129);
+  border: 1px solid rgba(147,197,253,.28);
+  box-shadow: 0 2px 8px -3px rgba(7,17,41,.5), 0 24px 50px -24px rgba(7,17,41,.85), inset 0 1px 0 rgba(255,255,255,.14);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #eef3fb;
+  animation: fiAlAuf 280ms cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fiAlAuf { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.fi-al[data-fertig="1"] { border-color: rgba(52,211,153,.45); }
+.fi-al .fi-al-zeile { display: flex; align-items: center; gap: 10px 14px; padding: 10px 12px 10px 16px; flex-wrap: wrap; }
+.fi-al .fi-al-text { flex: 1 1 320px; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; font-size: 13px; line-height: 1.4; color: rgba(203,213,225,.92); }
+.fi-al .fi-al-text b { font-weight: 500; color: #eef3fb; }
+.fi-al .fi-al-pille { font: 500 10px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #93c5fd; padding: 5px 8px; border: 1px solid rgba(147,197,253,.35); border-radius: 999px; margin-right: 2px; }
+.fi-al[data-fertig="1"] .fi-al-pille { color: #6ee7b7; border-color: rgba(52,211,153,.45); }
+.fi-al .fi-al-trenn { color: rgba(148,163,184,.7); }
+.fi-al .fi-al-zeit { font-variant-numeric: tabular-nums; }
+.fi-al .fi-al-grund { flex-basis: 100%; font-size: 12px; color: rgba(148,163,184,.95); }
+.fi-al .fi-al-knoepfe { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fi-al .fi-al-knopf { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid rgba(147,197,253,.3); background: rgba(255,255,255,.06); color: #eef3fb; font: 500 12.5px/1 'Inter', sans-serif; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.fi-al .fi-al-knopf.gut { border: 0; background: linear-gradient(135deg, #059669, #34d399); color: #fff; }
+.fi-al .fi-al-knopf.haupt { border: 0; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; }
+.fi-al .fi-al-knopf.still { background: transparent; color: #93c5fd; }
+.fi-al .fi-al-knopf:disabled { opacity: .5; cursor: default; }
+.fi-al .fi-al-zu { border: 0; background: none; color: rgba(203,213,225,.8); font-size: 20px; line-height: 1; cursor: pointer; padding: 4px 6px; }
+.fi-al .fi-al-pflicht { padding: 0 16px 12px; display: grid; gap: 6px; }
+.fi-al .fi-al-pflicht label { font-size: 12px; color: rgba(203,213,225,.9); }
+.fi-al .fi-al-pflicht-reihe { display: flex; gap: 8px; }
+.fi-al .fi-al-feld { flex: 1 1 auto; min-width: 0; min-height: 38px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(147,197,253,.3); background: rgba(2,6,23,.45); color: #fff; font: 400 14px/1.4 'Inter', sans-serif; outline: none; }
+.fi-al .fi-al-feld:focus { border-color: rgba(96,165,250,.7); }
+.fi-al .fi-al-meldung { margin: 0; padding: 0 16px 10px; font-size: 12.5px; color: #fde68a; }
+@media (max-width: 700px) {
+  .fi-al { left: 16px; right: 16px; bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 70px); }
+  .fi-al .fi-al-knoepfe { width: 100%; }
+  .fi-al .fi-al-knopf { flex: 1 1 auto; }
+  .fi-al .fi-al-feld { font-size: 16px; }
+}

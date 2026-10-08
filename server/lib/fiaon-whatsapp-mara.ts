@@ -143,6 +143,7 @@ import { istJahresvertrag, giltZumSatz, tagDeutsch } from "@shared/fiaon-antrag-
 import { schweigen, abschlussSatz, istBestaetigung, msVon, type SchweigenUrteil } from "./fiaon-mara-schweigen";
 import { WA_VORLAGEN, AUSKUNFT_VORLAGE } from "@shared/fiaon-lead-texte";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
+import { berlinTagZeit } from "@shared/fiaon-auftrag-arten";
 import {
   AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_PREISE_CENTS, auskunftWort, auskunfteienText, euroText,
   type AuskunftArt, type AuskunftLand,
@@ -4620,7 +4621,16 @@ export async function aufgabeFuerMenschen(
     // Gilt die Abwesenheit nicht für den Kunden, aber für die Leitung selbst (nur einzelne abwesend): auch dann der Vertreter.
     if (!vt && leitung) vt = await abw.uebergabeVertretung(personId ? Number(personId) : null, leitung);
     const titel = `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`;
-    const text = `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`;
+    let text = `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`;
+    // E-IT-F (Fertigstellung 08.10., Gegenprüfung Fund 6): Ist die Tages-Aufgabe dieser Klasse schon ERLEDIGT und bittet der
+    // Kunde mit demselben Satz erneut (fester Satz „möchte mit jemandem aus dem Team sprechen“), wäre der Text nicht neu —
+    // auftragFuerKunden öffnet nur bei neuem Text wieder, die Bitte ginge still verloren. Die Zeit macht sie neu.
+    if (erstes && !still) {
+      const [zu] = (await sqlPool`SELECT text FROM fiaon_betreiber_todos WHERE schluessel = ${schluessel} AND status = 'erledigt' LIMIT 1`.catch(() => [])) as any[];
+      if (zu && String(zu.text || "").includes(text)) {
+        text = `${text} (erneut gemeldet ${berlinTagZeit(new Date())})`;
+      }
+    }
     // E-248: Der Schlüssel trägt jetzt die Grundklasse (wa-<person>-<klasse>-<tag>) — die Karte „Neu von Mara"
     // (fiaon-agent-aufgaben-popup.ts, personAusZeile) findet die Person deshalb über den Link.
     // Vertretung: Ohne Person führt der Link in den WhatsApp-Raum des Mitarbeiters statt ins Chefbüro.
@@ -4629,7 +4639,8 @@ export async function aufgabeFuerMenschen(
       // E-264 + E-260: „An die Leitung“ geht an den Vertriebsleiter — AUSSER das Team ist abwesend
       // (dann der Vertreter bzw. das Board des Betreibers; leitungId() wäre Agent 8, abwesend).
       // E-272: betreiber — immer Justins Board.
-      ...(opt.betreiber ? { anBetreiber: true } : vt ? abw.uebergabeFelder(vt) : opt.leitung ? (leitung ? { agentId: leitung } : { anBetreiber: true }) : { anBetreiber: false }),
+      // E-IT-F (Gegenprüfung 08.10.): „an die Leitung“ ist ausdrücklich (vorrang) — auch wenn ein alter Tages-Schlüssel beim Betreuer liegt.
+      ...(opt.betreiber ? { anBetreiber: true } : vt ? abw.uebergabeFelder(vt) : opt.leitung ? (leitung ? { agentId: leitung, vorrang: true } : { anBetreiber: true }) : { anBetreiber: false }),
       personId: personId ?? null, ref: null,
       titel, text,
       quelle: "mara-whatsapp", dringend,

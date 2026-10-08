@@ -72,5 +72,15 @@ export async function terminErgebnisSetzen(ein: TerminErgebnisEin): Promise<{ hi
               NOW())
     `.catch((e) => console.error(`[TERMIN] Verlaufseintrag zum Ergebnis von Termin ${id} nicht geschrieben — die Akte zeigt das Gespraech nicht:`, e));
   }
+  // E-IT-F (08.10.2026): Ein geführter Termin erledigt die Rückruf-, Hinweis- und Einladungs-Aufträge
+  // dieses Menschen; ein verpasster steht nur als Versuch im Verlauf. Wirft nie.
+  {
+    const { ereignisMelden } = await import("./fiaon-auftraege");
+    await ereignisMelden({
+      ereignis: ergebnis === "erledigt" ? "termin_gefuehrt" : "ergebnis_versuch",
+      personId: Number(ein.personId), ref: ref?.ref ?? null, akteur: ein.akteur,
+      detail: ergebnis === "erledigt" ? null : "Termin verpasst",
+    });
+  }
   return { hinweis };
 }

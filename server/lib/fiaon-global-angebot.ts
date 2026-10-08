@@ -67,9 +67,49 @@ import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { STARTGESPRAECH_TEXTE } from "@shared/fiaon-global-startgespraech";
 import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
 import { dachNummer } from "@shared/fiaon-dach-telefon";
+// E-301 (07.10.2026): das Firmenangebot (B2B) hat einen EIGENEN Pfad — hier nur die Verzweigungsstellen.
+import { FIRMA_FASSUNG, istFirmenFassung } from "@shared/fiaon-global-angebot-firma";
 
 export type AngebotStatus = "offen" | "angenommen" | "zurueckgezogen" | "abgelaufen";
 export const ANGEBOT_PAKET_KEY = "global_individuell";
+
+// ── E-301: die CHECKs der Teile für das Firmenangebot (Migration 096) — wiederholbar, nicht still gemerkt ──
+// Nachprüfung 08.10.2026 (N6): Früher lief der Tausch einmal in ensureAngebotTabellen; scheiterte er (Sperre), blieb er bis zum
+// Neustart aus, und eine Annahme lief halb durch (Monatsteile abgelehnt). Jetzt: Erfolg wird gemerkt, Misserfolg nicht —
+// der nächste Aufruf (höchstens alle 30 Sekunden) versucht es wieder, und firmaAnnehmen fragt VOR der Annahme (sonst 503,
+// nichts gespeichert). Die Anweisung läuft über die DDL-Wache (kurzes lock_timeout, db-pool.ts). E-268 braucht die neuen
+// CHECKs nicht (nr 1/2, „sofort“/„meilenstein“ sind in beiden erlaubt).
+let teileCheckOk = false;
+let teileCheckVersuchAm = 0;
+/** Nur lesen (pg_constraint, keine Sperre): stehen die CHECKs der Migration 096? Auch das Import-Skript fragt das vor --produktion. */
+export async function firmaTeileCheckLesen(): Promise<boolean> {
+  const zeilen = (await sqlPool`
+    SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint
+     WHERE conname IN ('fiaon_global_angebot_teile_nr_check', 'fiaon_global_angebot_teile_faelligkeit_check')`) as any[];
+  const def = (name: string) => String(zeilen.find((z) => z.conname === name)?.def ?? "");
+  const f = def("fiaon_global_angebot_teile_faelligkeit_check");
+  return /\b500\b/.test(def("fiaon_global_angebot_teile_nr_check")) && /'monatlich'/.test(f) && /'umsatz'/.test(f) && /'verkauf'/.test(f);
+}
+export async function firmaTeileCheckSichern(): Promise<boolean> {
+  if (teileCheckOk) return true;
+  try {
+    if (await firmaTeileCheckLesen()) return (teileCheckOk = true);
+    if (Date.now() - teileCheckVersuchAm < 30_000) return false;
+    teileCheckVersuchAm = Date.now();
+    await sqlPool`
+      ALTER TABLE fiaon_global_angebot_teile
+        DROP CONSTRAINT IF EXISTS fiaon_global_angebot_teile_nr_check,
+        DROP CONSTRAINT IF EXISTS fiaon_global_angebot_teile_faelligkeit_check,
+        ADD CONSTRAINT fiaon_global_angebot_teile_nr_check CHECK (nr BETWEEN 1 AND 500) NOT VALID,
+        ADD CONSTRAINT fiaon_global_angebot_teile_faelligkeit_check CHECK (faelligkeit IN ('sofort', 'meilenstein', 'monatlich', 'umsatz', 'verkauf')) NOT VALID`;
+    return (teileCheckOk = await firmaTeileCheckLesen());
+  } catch (e) {
+    console.error("[FIAON-ANGEBOT] CHECK-Tausch der Teile (Migration 096) gescheitert — nächster Versuch beim nächsten Aufruf:", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+/** Nur für den Prüfstand (scripts/pruef-angebot-firma.ts --lokal): das Gemerkte vergessen, damit der Wiederholweg prüfbar ist. */
+export function firmaTeileCheckVergessen(): void { teileCheckOk = false; teileCheckVersuchAm = 0; }
 
 // ── Schema (ensure-on-use wie ensureGlobalTabelle; DDL zusätzlich in Migration 087) ──
 let bereit: Promise<void> | null = null;
@@ -169,6 +209,36 @@ export function ensureAngebotTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS startgespraech_fehler TEXT,
           ADD COLUMN IF NOT EXISTS startgespraech_mail_am TIMESTAMPTZ`
         .catch((e) => console.error("[FIAON-ANGEBOT] Spalten des Startgesprächs (Migration 090) nicht angelegt — die DDL-Wache holt sie nach:", e));
+      // E-301 (07.10.2026, Migration 096): das Firmenangebot — Monats-, Umsatz- und Verkaufsteile (nr bis 500, neue
+      // Fälligkeiten) und die Freigaben im Chefbüro. Nicht tragend für das Individualangebot: Scheitert es, liest und
+      // rechnet E-268 weiter wie bisher (keine seiner Abfragen kennt diese Spalten); nur das Firmenangebot meldet Fehler.
+      await (async () => {
+        await sqlPool`
+          ALTER TABLE fiaon_global_angebot_teile
+            ADD COLUMN IF NOT EXISTS faellig_am DATE,
+            ADD COLUMN IF NOT EXISTS bemessung_cents BIGINT,
+            ADD COLUMN IF NOT EXISTS zeitraum TEXT,
+            ADD COLUMN IF NOT EXISTS beleg TEXT,
+            ADD COLUMN IF NOT EXISTS schuldner TEXT`;
+        await sqlPool`ALTER TABLE fiaon_global_angebote ADD COLUMN IF NOT EXISTS freigaben JSONB`;
+        // Die Bilder eines Angebots (nur hinter dem Link) — neue Tabelle ohne Fremdschlüssel, sperrt nichts Bestehendes.
+        await sqlPool`
+          CREATE TABLE IF NOT EXISTS fiaon_global_angebot_bilder (
+            angebot_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            mime TEXT NOT NULL CHECK (mime IN ('image/webp', 'image/png', 'image/jpeg')),
+            daten BYTEA NOT NULL,
+            groesse INTEGER NOT NULL,
+            sha256 TEXT NOT NULL,
+            eingespielt_von TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (angebot_id, name)
+          )`;
+        // Der CHECK-Tausch scheitert nicht still: firmaTeileCheckSichern merkt sich nur den Erfolg und versucht es sonst beim
+        // nächsten Aufruf wieder — spätestens vor jeder Annahme eines Firmenangebots (Nachprüfung 08.10.2026, N6).
+        if (!(await firmaTeileCheckSichern())) console.error("[FIAON-ANGEBOT] CHECKs der Teile (Migration 096) noch alt — der nächste Aufruf versucht es wieder; ein Firmenangebot nimmt bis dahin keine Annahme an (503).");
+      })().catch((e) => console.error("[FIAON-ANGEBOT] Spalten des Firmenangebots (Migration 096) nicht angelegt — die DDL-Wache holt ADD COLUMN nach:", e));
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -265,7 +335,8 @@ export function angebotDatenAus(z: AngebotZeile): AngebotDaten {
     ref: String(z.angebot_ref),
     // Ein OFFENES Angebot zeigt immer den aktuellen Wortlaut — also auch die aktuelle Fassung (E-271). Angenommene
     // Angebote behalten die Fassung, mit der sie angenommen wurden (die Annahme schreibt sie fest).
-    fassung: String(z.status) === "offen" ? ANGEBOT_FASSUNG : String(z.fassung),
+    // E-301: ein offenes FIRMENangebot zeigt entsprechend die aktuelle Firmen-Fassung.
+    fassung: String(z.status) === "offen" ? (istFirmenFassung(z.fassung) ? FIRMA_FASSUNG : ANGEBOT_FASSUNG) : String(z.fassung),
     kunde: json<AngebotKunde>(z.kunde, {} as AngebotKunde),
     parameter: { ...ANGEBOT_VORGABEN, ...json<Partial<AngebotParameter>>(z.parameter, {}) },
     buergin: { ...BUERGIN_VORGABE, ...json<Partial<AngebotBuergin>>(z.buergin, {}) },
@@ -279,7 +350,7 @@ export function angebotStatusAus(z: AngebotZeile, heute = berlinToday()): Angebo
   if (s === "offen" && (isoTag(z.gueltig_bis) ?? "9999-12-31") < heute) return "abgelaufen";
   return s;
 }
-async function verlaufAngebot(id: number, wer: string, was: string, extra: Record<string, unknown> = {}): Promise<void> {
+export async function verlaufAngebot(id: number, wer: string, was: string, extra: Record<string, unknown> = {}): Promise<void> {
   await sqlPool`
     UPDATE fiaon_global_angebote
        SET verlauf = COALESCE(verlauf, '[]'::jsonb) || ${jsonb([{ am: new Date().toISOString(), wer, was, ...extra }])}, updated_at = NOW()
@@ -299,10 +370,12 @@ export async function angebotTeilZurBestellung(ref: string): Promise<{ betragCen
 /** Beschreibung und Zeitraum der Rechnungszeile eines Teils (shared: angebotRechnungsText). */
 export async function angebotRechnungsZeile(ref: string): Promise<{ beschreibung: string; zeitraum: string } | null> {
   const [t] = (await sqlPool`
-    SELECT t.nr, t.meilenstein_art, t.meilenstein_am, a.angebot_ref, a.auftrag_ref
+    SELECT t.nr, t.meilenstein_art, t.meilenstein_am, a.angebot_ref, a.auftrag_ref, a.fassung
       FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
      WHERE t.bestell_ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
   if (!t) return null;
+  // E-301: Rechnungstexte des Firmenangebots (Gründung, Monat n, Umsatz-/Verkaufsbeteiligung).
+  if (istFirmenFassung(t.fassung)) return (await import("./fiaon-global-angebot-firma")).firmaRechnungsZeile(ref);
   return angebotRechnungsText({ angebotRef: String(t.angebot_ref), nr: Number(t.nr) === 2 ? 2 : 1, auftragRef: String(t.auftrag_ref || ref), meilensteinArt: t.meilenstein_art, meilensteinAm: isoTag(t.meilenstein_am) });
 }
 
@@ -443,6 +516,7 @@ export async function angebotAendern(id: number, ein: any, wer: string): Promise
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaAendern(id, ein, wer); }
   const alt = angebotDatenAus(z);
   const altHash = angebotTextHash(alt, { sofortBeginn: false, jahresbetreuung: false });
   const neu: AngebotDaten = { ...alt };
@@ -466,6 +540,7 @@ export async function angebotPruefberichtBoniNeu(id: number, wer: string): Promi
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (String(z.status) !== "offen") return nein("Der Prüfbericht eines angenommenen Angebots bleibt, wie er angenommen wurde.", 409);
+  if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Der Prüfbericht (Kundenfassung) kommt aus dem Import-Skript scripts/angebot-firma-anlegen.ts.", 409);
   if (!z.person_id) return nein("Ohne Person keine Auswertung.");
   const { boniAmpelFuerPerson } = await import("./fiaon-boni-ampel");
   const ampel = await boniAmpelFuerPerson(Number(z.person_id));
@@ -493,6 +568,7 @@ export async function angebotPruefberichtSetzen(id: number, pb: Pruefbericht, we
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (String(z.status) !== "offen") return nein("Der Prüfbericht eines angenommenen Angebots bleibt, wie er angenommen wurde.", 409);
+  if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Der Prüfbericht (Kundenfassung) kommt aus dem Import-Skript scripts/angebot-firma-anlegen.ts.", 409);
   const altHash = angebotTextHash(angebotDatenAus(z), { sofortBeginn: false, jahresbetreuung: false });
   await sqlPool`UPDATE fiaon_global_angebote SET pruefbericht = ${jsonb(pb)}, updated_at = NOW() WHERE id = ${id} AND status = 'offen'`;
   await verlaufAngebot(id, wer, `Prüfbericht (Anlage 2) aus der Saat gesetzt — ${pruefberichtErgebnis(pb).satz}`, { alterHash: altHash });
@@ -569,6 +645,8 @@ export async function angebotKundenSicht(token: string, s: AngebotSchalter, opts
     }
     return { status: 200, body: { ok: true, status, ...(await angenommenAntwort((await angebotLesen({ id: Number(z.id) }))!)) } };
   }
+  // E-301: ein offenes Firmenangebot liefert FirmaKundenSicht (shared/fiaon-global-angebot-firma-typen.ts).
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaKundenSicht(token, z, opts); }
   const fehlt = angebotPflichtFehlen(d);
   const seite = angebotSeite(d);
   return {
@@ -591,6 +669,7 @@ export async function angebotKundenSicht(token: string, s: AngebotSchalter, opts
   };
 }
 async function angenommenAntwort(z: AngebotZeile): Promise<Record<string, unknown>> {
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaAngenommenAntwort(z); }
   const ref1 = z.auftrag_ref ? String(z.auftrag_ref) : null;
   const b = ref1 ? await globalBestellungLesen(ref1) : null;
   const sch = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
@@ -627,7 +706,7 @@ async function angenommenAntwort(z: AngebotZeile): Promise<Record<string, unknow
 }
 
 /** Der Entwurf als PDF (Wasserzeichen) — nach der Annahme die Ausfertigung aus der Akte. */
-export async function angebotPdfFuerToken(token: string, art: "vertrag" | "pruefbericht", s: AngebotSchalter): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
+export async function angebotPdfFuerToken(token: string, art: "vertrag" | "pruefbericht" | "anlage1", s: AngebotSchalter): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
   const t = angebotTokenPruefen(token);
   if (!t) return { status: 403, error: "Dieser Link ist ungültig." };
   if (t.urteil === "abgelaufen") return { status: 410, error: "Dieser Link ist abgelaufen." };
@@ -636,9 +715,12 @@ export async function angebotPdfFuerToken(token: string, art: "vertrag" | "pruef
   if (angebotLinkAbgelaufen(z)) return { status: 410, error: "Dieser Link ist abgelaufen." };
   const st = angebotStatusAus(z);
   if (st === "zurueckgezogen") return { status: 410, error: "Dieses Angebot gilt nicht mehr." };
+  // E-301: Anlage 1 als eigenes PDF über den Kundenlink gibt es nur beim Firmenangebot (Individualangebot: im Vertrag).
+  if (art === "anlage1" && !istFirmenFassung(z.fassung)) return { status: 404, error: "Dieses Dokument gibt es zu diesem Angebot nicht einzeln." };
   return angebotPdfErzeugen(z, art, s);
 }
 export async function angebotPdfErzeugen(z: AngebotZeile, art: "vertrag" | "pruefbericht" | "anlage1", s: AngebotSchalter): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaPdfErzeugen(z, art); }
   const d = angebotDatenAus(z);
   if (art === "pruefbericht") {
     if (!d.pruefbericht) return { status: 404, error: "Zu diesem Angebot liegt noch kein Prüfbericht vor." };
@@ -694,6 +776,8 @@ async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, bo
   if (status === "abgelaufen") return fehler(410, "Dieses Angebot ist abgelaufen. Schreiben Sie uns an support@fiaon.com.");
   if (kontext.leitung) return fehler(403, "Aus dem Chefbüro heraus lässt sich ein Angebot nicht annehmen — die Zustimmung gibt nur der Kunde.");
   if (String(body?.falle ?? "").trim()) return fehler(400, "Ihre Angaben konnten nicht verarbeitet werden. Bitte laden Sie die Seite neu.");
+  // E-301: Firmenangebot — Häkchen Unternehmergeschäft + Vertretung, Startwahl, eigener Vertrag (shared/fiaon-global-angebot-firma.ts).
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaAnnehmen(z, body, kontext, { zuViel }); }
   const d = angebotDatenAus(z);
   const fehlt = angebotPflichtFehlen(d);
   if (fehlt.length) return fehler(409, ANGEBOT_ANNAHME.gesperrt, { code: "PFLICHTFELDER" });
@@ -806,6 +890,7 @@ async function bestellzeileAnlegen(ref: string, d: AngebotDaten, nr: 1 | 2, kont
 export async function angebotFertigstellen(id: number): Promise<{ ok: boolean; grund?: string }> {
   const z = await angebotLesen({ id });
   if (!z || String(z.status) !== "angenommen") return { ok: false, grund: "nicht angenommen" };
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaFertigstellen(id); }
   const d = angebotDatenAus(z);
   const s = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
@@ -885,6 +970,7 @@ export async function angebotFertigstellen(id: number): Promise<{ ok: boolean; g
 export async function angebotNacharbeit(id: number): Promise<void> {
   const z = await angebotLesen({ id });
   if (!z || String(z.status) !== "angenommen" || !z.auftrag_ref) return;
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaNacharbeit(id); }
   const ref1 = String(z.auftrag_ref);
   const d = angebotDatenAus(z);
   const s = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
@@ -960,7 +1046,20 @@ export async function angebotNacharbeit(id: number): Promise<void> {
   await globalVerlauf(ref1, `FIAON Global: Individualangebot ${d.ref} angenommen (${ANGEBOT_KNOPF}). Vertrag mit Prüfsumme in der Akte; Rechnung Teil 1 ${b?.invoice_number ?? ""} über ${angebotEur(d.parameter.teil1Cents)}, sofort fällig.`);
 }
 
-export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; grund: string | null }> {
+/**
+ * Die Meldung von „Nachholen“ (POST …/nachholen) — rein. Beim Firmenangebot geht keine Mail raus: Die Meldung sagt das, damit
+ * niemand glaubt, die Kundin habe eine Bestätigung bekommen (Nachprüfung 08.10.2026, N1). E-268 unverändert.
+ */
+export function nachholenMeldung(mail: { ok: boolean; grund: string | null; firma?: true }): string {
+  if (mail.firma) return "Bestellung und Akte stehen — beim Firmenangebot geht keine Mail an die Kundin: Vertrag und Rechnung schickt der Ansprechpartner von Hand.";
+  return mail.ok ? "Bestellung, Akte und Bestätigungsmail stehen." : `Bestellung und Akte stehen — die Mail ging nicht raus: ${mail.grund}`;
+}
+export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; grund: string | null; firma?: true }> {
+  // E-301: Für das Firmenangebot gibt es (noch) keine Bestätigungsmail — die Vorlage spricht von Teil 1/Teil 2 und Widerruf.
+  // Vertrag und Rechnung schickt der Ansprechpartner (Aufgabe aus firmaNacharbeit). Hier wird nichts versandt — „firma“ sagt
+  // das dem Aufrufer, damit „Nachholen“ keine Bestätigungsmail meldet (Nachprüfung 08.10.2026, N1).
+  const [fa] = (await sqlPool`SELECT fassung FROM fiaon_global_angebote WHERE id = ${id} LIMIT 1`) as any[];
+  if (istFirmenFassung(fa?.fassung)) return { ok: true, grund: "Firmenangebot — keine automatische Bestätigungsmail", firma: true };
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote SET bestaetigung_mail_am = NOW(), bestaetigung_mail_fehler = NULL, updated_at = NOW()
      WHERE id = ${id} AND status = 'angenommen' AND bestaetigung_mail_am IS NULL AND auftrag_ref IS NOT NULL RETURNING auftrag_ref`) as any[];
@@ -1047,6 +1146,7 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
      WHERE t.bestell_ref = ${ref} LIMIT 1`) as any[];
   if (!t) return { gestartet: false, grund: "kein Angebotsteil an dieser Bestellung" };
   const z = (await angebotLesen({ id: Number(t.a_id) }))!;
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaNachZahlung(ref, t, z); }
   const d = angebotDatenAus(z);
   const b = await globalBestellungLesen(ref);
   if (!b || String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
@@ -1226,6 +1326,7 @@ export function meilensteinPruefen(lage: { status: string; teil1Bezahlt: boolean
 export async function angebotMeilenstein(id: number, ein: any, wer: string): Promise<Ergebnis<{ ref2: string; meldung: string }>> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
   const b1 = teil1?.bestell_ref ? await globalBestellungLesen(String(teil1.bestell_ref)) : null;
@@ -1315,6 +1416,7 @@ export function hemmungRechnen(ein: { aufgefordertAm: string; erbrachtAm: string
 export async function angebotFristHemmen(id: number, ein: any, wer: string): Promise<Ergebnis<{ fristEnde: string; tage: number; von: string; bis: string }>> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (!z.frist_ende) return nein("Die Frist läuft noch nicht — sie beginnt mit dem Start.", 409);
   // E-271: Die Frist läuft auch nach dem Meilenstein weiter (Garantie bis zum Fristende) — Hemmen geht bis zur
   // erfüllten Garantie oder zum Garantiefall.
@@ -1433,6 +1535,7 @@ export function garantiePruefen(
 export async function angebotGarantieErfuellt(id: number, ein: any, wer: string): Promise<Ergebnis<{ meldung: string }>> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
   const b1 = teil1?.bestell_ref ? await globalBestellungLesen(String(teil1.bestell_ref)) : null;
@@ -1477,6 +1580,7 @@ export async function angebotGarantieErfuellt(id: number, ein: any, wer: string)
 export async function angebotErstattungVormerken(id: number, wer: string): Promise<Ergebnis<{ meldung: string }>> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
   const ref1 = String(z.auftrag_ref || "");
@@ -1620,7 +1724,18 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
     .then((m) => m.startgespraechStaende(zeilen.filter((z) => String(z.status) === "angenommen").map((z) => Number(z.id))))
     .catch((e) => { console.error("[FIAON-ANGEBOT] Startgespräche für die Liste:", e); return new Map(); });
   const heute = berlinToday();
+  // E-301: Firmenangebote bekommen ihren eigenen Eintrag (art „firma“) — Teile, Garantie, Freigaben, Knöpfe.
+  const firmaIds = zeilen.filter((z) => istFirmenFassung(z.fassung)).map((z) => Number(z.id));
+  const F = firmaIds.length ? await import("./fiaon-global-angebot-firma") : null;
+  const firmaFreigaben = F ? await F.firmaFreigabenFuer(firmaIds) : new Map();
   return zeilen.map((z) => {
+    if (F && istFirmenFassung(z.fassung)) {
+      const sg = sgStaende.get(Number(z.id));
+      return F.firmaListenEintrag(z, alleTeile.filter((t) => Number(t.angebot_id) === Number(z.id)), {
+        fr: firmaFreigaben.get(Number(z.id)) ?? {}, heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null,
+        startgespraech: sg ? { stand: sg.stand, terminId: sg.gebuchtTerminId, neuGebucht: sg.neuGebucht, fehler: sg.fehler, versuche: sg.versuche, versuchAm: sg.versuchAm, mailAm: sg.mailAm, abgesagtVon: sg.abgesagtVon, terminStatus: sg.terminStatus, zeile: sg.termin ? sg.termin.zeile : null, beginn: sg.termin ? sg.termin.beginn : null } : null,
+      });
+    }
     const d = angebotDatenAus(z);
     const teile = alleTeile.filter((t) => Number(t.angebot_id) === Number(z.id)).sort((a, b) => Number(a.nr) - Number(b.nr));
     const t1 = teile.find((t) => Number(t.nr) === 1); const t2 = teile.find((t) => Number(t.nr) === 2);
@@ -1709,9 +1824,9 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
 // Schreibt Aufgaben, KEINE Kundenmail, bewegt KEIN Geld. Wiederholbar über Marken.
 // Registriert in routes.ts als tageslauf("global_angebot_lauf", …, 60 Minuten).
 // ═══════════════════════════════════════════════════════════════════════════
-export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abgelaufen: number; warnungen: number; fristende: number; nachfrage: number; nachgeholt: number; startgespraeche: number; aufrufeGeloescht: number; aufrufAufgabenGeleert: number; aufrufBeitraegeGeloescht: number }> {
+export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abgelaufen: number; warnungen: number; fristende: number; nachfrage: number; nachgeholt: number; startgespraeche: number; aufrufeGeloescht: number; aufrufAufgabenGeleert: number; aufrufBeitraegeGeloescht: number; firmaRechnungen: number }> {
   const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS tabelle`) as any[];
-  if (!t?.tabelle) return { abgelaufen: 0, warnungen: 0, fristende: 0, nachfrage: 0, nachgeholt: 0, startgespraeche: 0, aufrufeGeloescht: 0, aufrufAufgabenGeleert: 0, aufrufBeitraegeGeloescht: 0 };
+  if (!t?.tabelle) return { abgelaufen: 0, warnungen: 0, fristende: 0, nachfrage: 0, nachgeholt: 0, startgespraeche: 0, aufrufeGeloescht: 0, aufrufAufgabenGeleert: 0, aufrufBeitraegeGeloescht: 0, firmaRechnungen: 0 };
   const heute = berlinToday(jetzt);
   const abgelaufen = (await sqlPool`UPDATE fiaon_global_angebote SET status = 'abgelaufen', updated_at = NOW() WHERE status = 'offen' AND gueltig_bis < ${heute}::date RETURNING id`) as any[];
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
@@ -1767,6 +1882,7 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
       LEFT JOIN fiaon_global_auftraege g ON g.ref = a.auftrag_ref
      WHERE a.status = 'angenommen' AND a.frist_ende IS NOT NULL AND a.erstattung_ausgeloest_am IS NULL
        AND a.garantie_erfuellt_am IS NULL AND (g.status IS NULL OR g.status <> 'storniert')
+       AND a.fassung NOT LIKE 'IA-FIRMA-%'
      LIMIT 100`) as any[];
   // E-271: Die Frist wird bis zur erfüllten Garantie überwacht — auch nach dem Meilenstein (erstes Kapital/erste Karte).
   let warnungen = 0; let fristende = 0;
@@ -1813,6 +1929,7 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
       FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
       JOIN fiaon_applications b ON b.ref = t.bestell_ref
      WHERE t.nr = 2 AND t.anruf_aufgabe_am IS NULL AND b.payment_status IN ('pending_payment', 'claimed_paid')
+       AND a.fassung NOT LIKE 'IA-FIRMA-%'
        -- E-271: Nach vorgemerktem Garantiefall nicht mehr nachfragen (die Rechnung ist dann storniert). Solange sie offen ist,
        -- ruht die Frist (Ziffer 6 Abs. 3) — die ruhige Nachfrage bleibt richtig.
        AND a.erstattung_ausgeloest_am IS NULL
@@ -1838,9 +1955,13 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
   // Ein Fehler hier hält den Lauf nicht an.
   const aufraeumen = await import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAufraeumen())
     .catch((e) => { console.error("[FIAON-ANGEBOT] Aufrufe aufräumen:", e); return { aufrufe: 0, anschluesse: 0, aufgaben: 0, beitraege: 0 }; });
+  // E-301: Firmenangebote — Monatsrechnung am Fälligkeitstag (Berlin), Verlängerung, Fristende der Garantie. Ein Fehler dort hält den Lauf nicht an.
+  const firma = await import("./fiaon-global-angebot-firma").then((m) => m.firmaStundenlauf(jetzt))
+    .catch((e) => { console.error("[FIAON-ANGEBOT] Stundenlauf Firmenangebote:", e); return { rechnungen: 0 }; });
   return {
     abgelaufen: abgelaufen.length, warnungen, fristende, nachfrage, nachgeholt, startgespraeche,
     aufrufeGeloescht: aufraeumen.aufrufe, aufrufAufgabenGeleert: aufraeumen.aufgaben, aufrufBeitraegeGeloescht: aufraeumen.beitraege,
+    firmaRechnungen: firma.rechnungen,
   };
 }
 
@@ -1851,6 +1972,7 @@ export async function angebotSichtZurAkte(ref1: string): Promise<Record<string, 
   const [a] = (await sqlPool`SELECT id FROM fiaon_global_angebote WHERE auftrag_ref = ${ref1} LIMIT 1`) as any[];
   if (!a) return null;
   const z = (await angebotLesen({ id: Number(a.id) }))!;
+  if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaSichtZurAkte(z); }
   const d = angebotDatenAus(z);
   const teile = await Promise.all((z.teile as any[]).map(async (x) => {
     const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;

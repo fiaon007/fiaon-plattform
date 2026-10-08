@@ -24,7 +24,7 @@ import { hasAdminCode } from "./fiaon-admin-zugang";
 import {
   angebotKundenSicht, angebotAnnehmen, angebotPdfFuerToken, angebotPdfErzeugen, schalterAus, angebotListe, angebotAnlegen, angebotAendern,
   angebotZurueckziehen, angebotMeilenstein, angebotFristHemmen, angebotErstattungVormerken, angebotErstattungUeberwiesen, angebotLesen,
-  angebotPruefberichtBoniNeu, angebotVorbelegung, angebotFertigstellen, angebotNacharbeit, bestaetigungSenden, angebotGarantieErfuellt,
+  angebotPruefberichtBoniNeu, angebotVorbelegung, angebotFertigstellen, angebotNacharbeit, bestaetigungSenden, nachholenMeldung, angebotGarantieErfuellt,
 } from "../lib/fiaon-global-angebot";
 import { globalMitarbeiter } from "../lib/fiaon-global-auftrag";
 import { aufrufProtokollieren, aufrufClientIp, type AufrufArt, type AufrufKontext } from "../lib/fiaon-global-angebot-aufrufe";
@@ -98,8 +98,10 @@ router.post("/global/angebot/:token/annehmen", async (req: Request, res: Respons
   }
 });
 
-for (const art of ["vertrag", "pruefbericht"] as const) {
-  const aufrufArt: AufrufArt = art === "vertrag" ? "vertrag_pdf" : "pruefbericht_pdf";
+// E-301: „anlage1“ (Bürgschaftszusage allein) nur beim Firmenangebot — beim Individualangebot antwortet die Route 404.
+// Im Protokoll zählt Anlage 1 als Vertrag-PDF (sie ist Teil des Vertrags).
+for (const art of ["vertrag", "pruefbericht", "anlage1"] as const) {
+  const aufrufArt: AufrufArt = art === "pruefbericht" ? "pruefbericht_pdf" : "vertrag_pdf";
   router.get(`/global/angebot/:token/${art}.pdf`, async (req: Request, res: Response) => {
     try {
       const erg = await angebotPdfFuerToken(String(req.params.token), art, schalterAus(req.query));
@@ -114,6 +116,36 @@ for (const art of ["vertrag", "pruefbericht"] as const) {
   });
 }
 
+// E-301 (Gegenprüfung 07.10.2026): die Bilder eines Firmenangebots — NUR hinter dem Link, dieselbe Prüfung wie Seite und
+// PDFs (server/lib/fiaon-global-angebot-firma.ts firmaBildFuerToken). Keine Auflistung; ein unbekannter Name ist 404.
+// Cache-Control private (nie in einem geteilten Zwischenspeicher wie Cloudflare) und no-cache: Der Browser darf das Bild
+// behalten, fragt aber bei jeder Nutzung mit dem Link nach (ETag → 304) — ein zurückgezogenes Angebot zeigt sofort nichts
+// mehr. Bildabrufe stehen nicht im Aufruf-Protokoll (sie gehören zum Seitenaufruf, der schon protokolliert ist).
+router.get("/global/angebot/:token/bild/:name", async (req: Request, res: Response) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noimageindex");
+  try {
+    const F = await import("../lib/fiaon-global-angebot-firma");
+    const erg = await F.firmaBildFuerToken(String(req.params.token), String(req.params.name));
+    if (!erg.daten || !erg.typ) {
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.status(erg.status).json({ ok: false, error: erg.error });
+    }
+    const etag = `"${String(erg.sha256 ?? "").slice(0, 40)}"`;
+    res.setHeader("Cache-Control", "private, no-cache");
+    res.setHeader("ETag", etag);
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    res.setHeader("Content-Disposition", "inline");
+    if (String(req.headers["if-none-match"] ?? "") === etag) return res.status(304).end();
+    res.setHeader("Content-Type", erg.typ);
+    res.setHeader("Content-Length", String(erg.daten.length));
+    res.end(erg.daten);
+  } catch (err) {
+    console.error("[FIAON-FIRMA] bild:", err);
+    if (!res.headersSent) { res.setHeader("Cache-Control", "private, no-store"); res.status(500).json({ ok: false, error: "Das Bild lässt sich gerade nicht laden." }); }
+  }
+});
+
 // ── Die Leitung ──────────────────────────────────────────────────────────────
 async function chefName(req: ChefRequest): Promise<string> {
   const id = req.chef?.agentId ?? null;
@@ -127,9 +159,11 @@ const idAus = (req: Request) => Number(req.params.id);
 
 router.get("/admin/global/angebote", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {
+    // E-301 (Nachprüfung 08.10.2026): Den Link eines Firmenangebots mit Versandsperre sieht nur der Inhaber („Link nur an Justin“).
+    const { firmaListeFuerStufe } = await import("../lib/fiaon-global-angebot-firma");
     res.json({
       // Angebot-Aufrufe (01.10.2026): „du" in der Liste = wer gerade schaut.
-      ok: true, angebote: await angebotListe({ betrachterAgentId: req.chef?.agentId ?? null }), mitarbeiter: await globalMitarbeiter(),
+      ok: true, angebote: firmaListeFuerStufe(await angebotListe({ betrachterAgentId: req.chef?.agentId ?? null }), req.chef?.stufe), mitarbeiter: await globalMitarbeiter(),
       vorgaben: { parameter: ANGEBOT_VORGABEN, buergin: BUERGIN_VORGABE, buerginFelder: BUERGIN_FELDER, fassung: ANGEBOT_FASSUNG, gueltigTage: ANGEBOT_GUELTIG_TAGE },
     });
   } catch (err) {
@@ -265,9 +299,62 @@ router.post("/admin/global/angebote/:id/nachholen", requireChef("leitung"), asyn
     // E-273 (02.10.2026): Die Nacharbeit bucht auch das Startgespräch (wiederholbar) — die Meldung sagt, wie es steht.
     const sg = await import("../lib/fiaon-global-angebot-startgespraech").then((m) => m.startgespraechStand(idAus(req))).catch(() => null);
     const sgSatz = sg?.stand === "gebucht" && sg.termin ? ` Startgespräch: ${sg.termin.zeile}.` : sg && sg.stand !== "keins" && !sg.termin ? ` Startgespräch noch nicht gebucht${sg.fehler ? ` (${sg.fehler})` : ""}.` : "";
-    res.json({ ok: true, meldung: (mail.ok ? "Bestellung, Akte und Bestätigungsmail stehen." : `Bestellung und Akte stehen — die Mail ging nicht raus: ${mail.grund}`) + sgSatz });
+    // Nachprüfung 08.10.2026 (N1): Beim Firmenangebot meldet „Nachholen“ keine Bestätigungsmail — es geht keine raus.
+    res.json({ ok: true, meldung: nachholenMeldung(mail) + sgSatz });
   } catch (err) {
     console.error("[FIAON-ANGEBOT] nachholen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── E-301 (07.10.2026): DAS FIRMENANGEBOT — die Aktionen der Leitung (server/lib/fiaon-global-angebot-firma.ts) ──
+// Jede Aktion prüft selbst, ob sie frei ist (dieselbe Regel liefert die Liste als knoepfe). Pfade unter …/:id/firma/…
+// Die Freigabe des Anwalts öffnet den Versand an die Kundin — sie trägt nur der Inhaber ein (Nachprüfung 08.10.2026, „Link nur an Justin“).
+const FIRMA_NUR_INHABER: ReadonlySet<string> = new Set(["freigabe"]);
+const FIRMA_AKTIONEN = {
+  freigabe: "firmaFreigabeAnwalt", bedingungen: "firmaBedingungenErfuellt", kapital: "firmaKapitalErhalten", hemmung: "firmaFristHemmen",
+  umsatz: "firmaUmsatz", verkauf: "firmaVerkauf", kuendigung: "firmaKuendigung",
+} as const;
+for (const [pfad, fn] of Object.entries(FIRMA_AKTIONEN)) {
+  router.post(`/admin/global/angebote/:id/firma/${pfad}`, requireChef(FIRMA_NUR_INHABER.has(pfad) ? "inhaber" : "leitung"), async (req: ChefRequest, res: Response) => {
+    try {
+      const F = await import("../lib/fiaon-global-angebot-firma");
+      const z = await angebotLesen({ id: idAus(req) });
+      if (!z) return res.status(404).json({ ok: false, error: "Dieses Angebot gibt es nicht." });
+      if (!F.istFirmenAngebot(z)) return res.status(409).json({ ok: false, error: "Das ist kein Firmenangebot." });
+      const erg = await (F as any)[fn](idAus(req), req.body ?? {}, await chefName(req));
+      if (!erg.ok) return res.status(erg.status).json(erg);
+      res.json({ meldung: "Gespeichert.", ...erg });
+    } catch (err) {
+      console.error(`[FIAON-FIRMA] ${pfad}:`, err);
+      res.status(500).json({ ok: false, error: "Serverfehler" });
+    }
+  });
+}
+router.post("/admin/global/angebote/:id/firma/garantiefall", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const F = await import("../lib/fiaon-global-angebot-firma");
+    const z = await angebotLesen({ id: idAus(req) });
+    if (!z || !F.istFirmenAngebot(z)) return res.status(404).json({ ok: false, error: "Kein Firmenangebot." });
+    const erg = await F.firmaGarantiefall(idAus(req), await chefName(req));
+    if (!erg.ok) return res.status(erg.status).json(erg);
+    res.json(erg);
+  } catch (err) {
+    console.error("[FIAON-FIRMA] garantiefall:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+/** Eine Rechnung für einen fälligen Teil jetzt stellen (z. B. wenn der Monatslauf an der Bestellzeile hing). */
+router.post("/admin/global/angebote/:id/firma/rechnung/:teilId", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const F = await import("../lib/fiaon-global-angebot-firma");
+    const z = await angebotLesen({ id: idAus(req) });
+    if (!z || !F.istFirmenAngebot(z)) return res.status(404).json({ ok: false, error: "Kein Firmenangebot." });
+    const erg = await F.firmaTeilJetztBerechnen(idAus(req), Number(req.params.teilId), await chefName(req));
+    if (!erg.ok) return res.status(erg.status).json(erg);
+    res.json(erg);
+  } catch (err) {
+    console.error("[FIAON-FIRMA] rechnung:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

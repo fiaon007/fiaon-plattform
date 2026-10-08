@@ -417,8 +417,11 @@ export async function angebotStartgespraechBuchen(id: number, opts: { jetzt?: Da
   const jetzt = opts.jetzt ?? new Date();
   const anlass = opts.anlass ?? "nacharbeit";
   const [z] = (await sqlPool`
-    SELECT id, angebot_ref, status, person_id, auftrag_ref, schalter, angenommen_am, kunde, startgespraech_termin_id, startgespraech_am, startgespraech_agent_id
+    SELECT id, angebot_ref, status, person_id, auftrag_ref, schalter, angenommen_am, kunde, startgespraech_termin_id, startgespraech_am, startgespraech_agent_id, fassung
       FROM fiaon_global_angebote WHERE id = ${id} LIMIT 1`) as any[];
+  // E-301: Beim Firmenangebot geht KEINE automatische Mail an die Kundin — auch nicht die Terminerinnerung 24 Stunden vorher
+  // (runTerminErinnerungen). Die Erinnerung gilt deshalb ab der Buchung als erledigt; den Termin nennt der Ansprechpartner selbst.
+  const ohneKundenmail = String(z?.fassung ?? "").startsWith("IA-FIRMA-");
   if (!z || String(z.status) !== "angenommen" || !z.auftrag_ref) return { status: "nicht_bereit", grund: "nicht angenommen oder noch ohne Auftrag" };
   if (z.startgespraech_termin_id) return { status: "schon", terminId: Number(z.startgespraech_termin_id), beginn: new Date(z.startgespraech_am ?? jetzt).toISOString(), mit: "" };
   const ref = String(z.angebot_ref); const ref1 = String(z.auftrag_ref);
@@ -513,7 +516,7 @@ export async function angebotStartgespraechBuchen(id: number, opts: { jetzt?: Da
           await tx`
             UPDATE fiaon_termine
                SET notiz = ${notiz}, updated_at = NOW(),
-                   erinnert_am = CASE WHEN beginn < NOW() + INTERVAL '24 hours' THEN NOW() ELSE erinnert_am END
+                   erinnert_am = CASE WHEN beginn < NOW() + INTERVAL '24 hours' OR ${ohneKundenmail}::boolean THEN NOW() ELSE erinnert_am END
              WHERE id = ${b.id}`;
           await tx`
             UPDATE fiaon_global_angebote

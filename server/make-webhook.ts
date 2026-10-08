@@ -286,6 +286,27 @@ export async function sendMakeWebhookMitGrund(
     }
   }
 
+  // ── … UND DIE KUNDIN EINES FIRMENANGEBOTS BEKOMMT KEINE AUTOMATISCHE MAIL (07.10.2026, E-301) ──
+  // Justin: „Link nur an Justin, KEINE Mail an die Kundin.“ Die Wand darüber lässt Pflichtmails, Zahlungspost und Termine
+  // für Global-Kunden durch — für eine Firmenkundin gilt mehr: Terminerinnerung und -absage, Zahlungspost und jede Vorlage
+  // gehen nur von Hand (opts.manuell) an sie. Erkannt an der Adresse (fiaon-global-firma-post.ts). Bei einer Störung
+  // lässt sie durch wie die Wände oben.
+  if (!payload.test && !opts.manuell) {
+    const firmaKundin = await import("./lib/fiaon-global-firma-post")
+      .then((m) => m.firmaKundinAdresse(String(payload.email || "")))
+      .catch((e) => {
+        console.error(`[MAKE-WEBHOOK] '${eventType}': Firmenkundin nicht prüfbar — lasse durch:`, e instanceof Error ? e.message : e);
+        return false;
+      });
+    if (firmaKundin) {
+      const { FIRMA_KEINE_AUTOMATIK } = await import("./lib/fiaon-global-firma-post");
+      const erg: MakeVersand = { ok: false, grund: FIRMA_KEINE_AUTOMATIK };
+      protokollNebenbei(eventType, payload, erg);
+      console.warn(`[MAKE-WEBHOOK] '${eventType}' NICHT gesendet: ${payload.email || "?"} ist Kundin eines Firmenangebots (E-301) — nur von Hand.`);
+      return erg;
+    }
+  }
+
   // ── DIE VERTRAGSBESTÄTIGUNG NUR MIT IHREM PDF (05.10.2026, E-282) ─────────
   // Die Mail sagt „Im Anhang finden Sie Ihren Vertrag“. Durch diese Tür reist kein Anhang —
   // ein echter Versand von hier wäre eine Vertragsbestätigung ohne Vertrag. Der eine Weg ist

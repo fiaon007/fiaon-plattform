@@ -139,6 +139,12 @@ export async function globalAuftragStornieren(
   // für jeden gebuchten Termin rausgeht. Nur ein künftiger, noch gebuchter Termin; verbunden über
   // die Auftragsnummer (Teil 1 = auftrag_ref des Angebots) — die Akte liest angebot_id nicht mit.
   let terminSatz = "";
+  // ── 3a. Firmenangebot (E-301): Monats-, Umsatz- und Verkaufsteile ohne Rechnung entfallen — der Stundenlauf stellt keine
+  //        Rechnung mehr (er liest den Status der Akte zusätzlich selbst). Das Individualangebot hat keine solchen Teile.
+  if (String(akte?.quelle) === "individualangebot") {
+    await import("./fiaon-global-angebot-firma").then((m) => m.firmaNachStorno(ref, wer))
+      .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Teile des Firmenangebots nach dem Storno:`, e));
+  }
   if (String(akte?.quelle) === "individualangebot") {
     const abgesagt = (await sqlPool`
       UPDATE fiaon_termine t

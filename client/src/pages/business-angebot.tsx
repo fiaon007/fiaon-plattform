@@ -52,7 +52,7 @@
 // vorangekreuzt, keiner per Link vorbelegt. Am Handy eine Leiste „Zur Annahme"
 // (Anker, kein zweiter Knopf).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRoute } from "wouter";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import "@/styles/global-start.css";
@@ -60,6 +60,9 @@ import "@/styles/global-angebot.css";
 import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ, ANGEBOT_ANNAHME as AN, ANGEBOT_GARANTIE_FEST } from "@shared/fiaon-global-angebot";
 import { STARTGESPRAECH_TEXTE } from "@shared/fiaon-global-startgespraech";
 import { portraitUrl, portraitMitKi, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
+import type { FirmaKundenSicht } from "@shared/fiaon-global-angebot-firma-typen";
+// E-301: Das OFFENE Firmenangebot (art „firma“) hat eine eigene Seite — eigener Chunk, three.js lädt erst dort.
+const BusinessAngebotFirma = lazy(() => import("@/pages/business-angebot-firma"));
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -351,6 +354,17 @@ export default function BusinessAngebot() {
   }
 
   if (!sicht) return null;
+  // E-301: offenes Firmenangebot → eigene Seite. Angenommene Firmenangebote laufen oben über „fertig“ wie bisher.
+  const firma = sicht as unknown as FirmaKundenSicht;
+  if (firma.art === "firma" && firma.status === "offen") {
+    return (
+      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+        <BusinessAngebotFirma sicht={firma} token={token}
+          onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
+          onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
+      </Suspense>
+    );
+  }
   const S = sicht.seite; const A = sicht.annahme; const I = S.investition;
   return (
     <Dunkel seite="business" titel={titel} beschreibung={beschreibung}>

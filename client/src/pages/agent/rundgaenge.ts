@@ -974,7 +974,8 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     titel: "Hier liegen die Aufträge der Unternehmen.",
     text: "FIAON Global ist der Aufbau einer US-Unternehmensstruktur — vier Pakete, 2.499 bis 35.999 €, einmalig. Ein Unternehmen "
       + "liest den Auftrag auf fiaon.com/business/start, unterschreibt auf dem Pad und bekommt Vertrag und Rechnung als PDF. "
-      + "Bezahlt wird per Überweisung. Mit dem Zahlungseingang startet der Auftrag von selbst.",
+      + "Bezahlt wird per Überweisung. Mit dem Zahlungseingang startet der Auftrag von selbst. Daneben gibt es Individual- und "
+      + "Firmenangebote mit eigenem Preis und eigenem Vertrag — sie stehen im Reiter „Individualangebote“.",
     tipp: "Geld wird hier nicht gebucht. Der Zahlungseingang läuft über „Zahlungen verbuchen“ wie bei jedem Kunden.",
   },
   {
@@ -1081,6 +1082,25 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "Nach dem Termin steht „Zeit vorbei — im Kalender abschließen“, bis das Ergebnis im Kalender steht; „kam nicht zustande“ heißt: "
       + "neuen Termin von Hand vereinbaren.",
     tipp: "Sagt der Kunde ab, wählt er über den Link bei Justin auf /justin eine neue Zeit — Justin bekommt dazu eine Aufgabe.",
+  },
+  // E-301 (07.10.2026) — ohne `ziel`: Der Block steht nur, wenn es ein Firmenangebot gibt.
+  {
+    titel: "Firmenangebote (B2B) haben einen eigenen Block.",
+    text: "Ein Firmenangebot (Ref FIAON-IA-F…) legt nur das Import-Skript an — mit seinen Bildern, die nur hinter dem Link der Kundin "
+      + "zu sehen sind. Der Link geht erst raus, wenn der Registerauszug der Bürgin mit Status „Active“ UND die Freigabe des Anwalts "
+      + "eingetragen sind („Versand gesperrt“ nennt, was fehlt). Solange der Versand gesperrt ist, sieht den Link nur Justin; die Freigabe "
+      + "des Anwalts trägt nur er ein. Die Freigabe gilt nur für die Fassung mit der angezeigten Prüfsumme — ändert sich danach ein Wort, "
+      + "sperrt der Versand wieder. Nach der Annahme stehen alle Teile in einer Tabelle: Gründung, die Monatspauschalen (die Rechnung kommt "
+      + "am Fälligkeitstag von selbst), Umsatz- und Verkaufsbeteiligung. „Bedingungen der Bürgschaft erfüllt“ startet die Garantiefrist der "
+      + "ersten Runde, „Erste Runde erhalten“ beendet sie; ist die Frist ohne erste Runde abgelaufen, wird „Garantiefall“ frei — dann wird "
+      + "die Gründung erstattet, der Vertrag läuft weiter. „Umsatz eintragen“ rechnet die Beteiligung selbst und stellt die Rechnung; jede "
+      + "Umsatzmeldung zählt nur einmal. „Verkauf eintragen“ fragt zuerst, wer veräußert: die Auftraggeberin (Rechnung an die Firma) oder "
+      + "Gesellschafter (KEINE Rechnung an die Firma — der Teil wird vorgemerkt, Justin klärt Schuldner und Umsatzsteuer). Derselbe Verkauf "
+      + "lässt sich nur einmal eintragen. Beim Verkauf angeben, ob die Mehrheit oder der Betrieb im Ganzen übergeht — dann endet die "
+      + "Umsatzbeteiligung. „Kündigung eintragen“ fragt, wer kündigt und ob ordentlich oder aus wichtigem Grund: Nur eine Kündigung aus "
+      + "wichtigem Grund vor dem Fristende lässt die Garantie entfallen. Wird der Auftrag storniert — auch über die Zahlungsliste —, stellt "
+      + "das System keine Rechnungen mehr.",
+    tipp: "An die Kundin eines Firmenangebots geht KEINE automatische Mail — auch keine Zahlungs- oder Terminerinnerung. Vertrag, Rechnungen und Termine schickt der Ansprechpartner von Hand (er bekommt je Rechnung eine Aufgabe; am zehnten Tag ohne Zahlung die Aufgabe „anrufen“).",
   },
   // Angebot-Aufrufe (01.10.2026, E-268) — ohne `ziel`: Der Kasten steht nur, wenn es ein Angebot gibt.
   {

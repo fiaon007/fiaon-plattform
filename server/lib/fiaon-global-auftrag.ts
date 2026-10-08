@@ -679,9 +679,14 @@ export async function globalMailSenden(
     zusatz: extra.zusatz,
   });
   const an = nutzlast.email;
-  let ok = false; let grund: string | null = null; let messageId: string | null = null;
+  let ok = false; let grund: string | null = null; let messageId: string | null = null; let gesperrt = false;
   if (!an) grund = "keine E-Mail-Adresse am Auftrag";
-  else {
+  // E-301 (07.10.2026): An die Kundin eines Firmenangebots geht keine AUTOMATISCHE Mail (fiaon-global-firma-post.ts) —
+  // von Hand (ausgeloestVon = ein Mensch) und auf ihre Anforderung (global_zugang) bleibt frei.
+  else if (await import("./fiaon-global-firma-post").then((m) => m.firmaGlobalMailSperre(event, akte, an, extra.ausgeloestVon)).catch(() => false)) {
+    gesperrt = true;
+    grund = (await import("./fiaon-global-firma-post")).FIRMA_KEINE_AUTOMATIK;
+  } else {
     try {
       const { mailDirektSenden } = await import("../mail/motor");
       const erg = await mailDirektSenden(event, nutzlast, { anhaenge: extra.anhaenge });
@@ -692,7 +697,7 @@ export async function globalMailSenden(
     const { mailProtokoll } = await import("./fiaon-mail-log");
     await mailProtokoll({
       event, personId: b?.person_id != null ? Number(b.person_id) : null, empfaenger: an || null,
-      status: ok ? "versandt" : "fehlgeschlagen", grund: ok ? grund : (grund || "unbekannt"),
+      status: ok ? "versandt" : gesperrt ? "uebersprungen" : "fehlgeschlagen", grund: ok ? grund : (grund || "unbekannt"),
       // Der Link zu „Mein Auftrag" ist ein Zugang — er gehört nicht im Klartext ins Protokoll.
       payload: { ...nutzlast, mein_auftrag_url: nutzlast.mein_auftrag_url ? "[Link zu Mein Auftrag]" : "", anhaenge: (extra.anhaenge ?? []).map((a) => a.name) },
       ausgeloestVon: extra.ausgeloestVon ?? "System (FIAON Global)", brevoMessageId: messageId,

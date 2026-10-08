@@ -46,3 +46,9 @@ server/dokumente/
 
 # Einmal-Proben gegen die echte Datenbank — gehoeren nicht ins Repository
 scripts/tmp/
+
+# ── Bilder persönlicher Angebote (07.10.2026, E-301) ────────────────────────
+# Sie zeigen Marke und Produkte einer Kundin. Sie liegen in der Datenbank am
+# Angebot (fiaon_global_angebot_bilder, Import-Skript --bilder) und gehen nur
+# hinter dem Angebots-Link raus — nie als öffentliche Datei unter client/public.
+client/public/angebote/

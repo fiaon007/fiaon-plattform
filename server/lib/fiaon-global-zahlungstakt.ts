@@ -32,6 +32,9 @@
 //     und in der Aufgabe. Die Werbesperre hält ihn NICHT auf — es ist
 //     Zahlungspost aus einem unterschriebenen Vertrag (fiaon-mail-frequenz.ts).
 //   · Er fasst kein Geld an und ändert keinen Status.
+//   · Er schreibt der Kundin eines FIRMENANGEBOTS (E-301, Akte mit bestaetigungen.firmenangebot = true) KEINE Mail —
+//     Justin, 07.10.2026: keine automatische Mail an die Kundin. Für sie gibt es nur die Aufgabe „anrufen“ am
+//     zehnten Tag (mit dem Satz „Per Mail wurde NICHT erinnert“).
 //
 // ── PRÜFBAR OHNE DATENBANK ────────────────────────────────────────────────
 // Die Entscheidung „welche Stufe ist jetzt dran?" ist eine reine Funktion
@@ -42,6 +45,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { berlinOffsetMinutes, berlinDatum, berlinWochentag } from "./fiaon-time";
 import { istFiaonSelbst } from "@shared/fiaon-global";
+import { istFirmenAkte } from "./fiaon-global-firma-post";
 
 /** Tag nach dem Auftrag (Berliner Kalendertage), an dem die Stufe frühestens fällig wird. */
 export const TAKT_TAGE = { erinnerung1: 3, erinnerung2: 7, aufgabe: 10 } as const;
@@ -61,6 +65,8 @@ export interface TaktStand {
   aufgabeAm: Date | null;
   /** Der Kunde hat auf der Zahlungsseite gemeldet, dass er überwiesen hat. */
   zahlungGemeldetAm?: Date | null;
+  /** Firmenangebot (E-301): keine automatischen Kundenmails — nur die Aufgabe am zehnten Tag. */
+  ohneErinnerungsmail?: boolean;
 }
 
 // ── Reine Zeitrechnung (Berlin) ──────────────────────────────────────────────
@@ -96,6 +102,8 @@ export function zahlungstaktStufe(stand: TaktStand, jetzt: Date): TaktStufe | nu
   if (!imSendefenster(jetzt)) return null;
   const tage = berlinTageSeit(stand.erstelltAm, jetzt);
   if (tage >= TAKT_TAGE.aufgabe) return stand.aufgabeAm ? null : "aufgabe";
+  // E-301: Firmenangebot — keine Erinnerungsmail an Tag 3 und 7, nur die Aufgabe oben.
+  if (stand.ohneErinnerungsmail) return null;
   // Wer „überwiesen" gemeldet hat, bekommt keine Mail „Zahlung steht aus" — nur die Aufgabe am zehnten Tag.
   if (stand.zahlungGemeldetAm) return null;
   if (tage >= TAKT_TAGE.erinnerung2) {
@@ -163,7 +171,7 @@ export async function globalZahlungTaktLauf(jetzt: Date = new Date()): Promise<T
 
   const zeilen = (await sqlPool`
     SELECT g.ref, g.created_at, g.zahlung_erinnerung_1_am, g.zahlung_erinnerung_2_am, g.zahlung_aufgabe_am, g.firma_name,
-           a.payment_status, a.cancelled_at, a.archived_at, a.claimed_paid_at
+           g.bestaetigungen, a.payment_status, a.cancelled_at, a.archived_at, a.claimed_paid_at
       FROM fiaon_global_auftraege g
       JOIN fiaon_applications a ON a.ref = g.ref
      WHERE g.status = 'offen'
@@ -189,6 +197,7 @@ export async function globalZahlungTaktLauf(jetzt: Date = new Date()): Promise<T
       erinnerung2Am: z.zahlung_erinnerung_2_am ? new Date(z.zahlung_erinnerung_2_am) : null,
       aufgabeAm: z.zahlung_aufgabe_am ? new Date(z.zahlung_aufgabe_am) : null,
       zahlungGemeldetAm: z.claimed_paid_at ? new Date(z.claimed_paid_at) : null,
+      ohneErinnerungsmail: istFirmenAkte(z),
     }, jetzt);
     if (!stufe) continue;
     try {

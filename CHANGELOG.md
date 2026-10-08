@@ -47,6 +47,96 @@ server/lib/fiaon-mara-aktion.ts. Prüfstand neu: scripts/pruef-mara-e298.ts (48/
 für die Compliance-Bericht-Pflicht vergeben.) Bestehende grün: 409/257/207/161/173/114/77,
 KI-Weiche 129, Wortwand 5.640/0, tsc unverändert 183 Altfehler.
 
+## 07./08.10.2026 — E-301: Das Firmenangebot (B2B) — Vertrag, Rechnungen, Kundenseite, Chefbüro (live mit dem Push)
+
+- **Was:** Neben dem Individualangebot für Privatpersonen (E-268) gibt es ein **Firmenangebot** für Unternehmen — mit eigenem
+  Pfad (Fassung IA-FIRMA-2026-10-07-B), damit das offene Individualangebot E-268 Wort für Wort gleich bleibt (Prüfsumme geprüft).
+  Modell nach Justins Entscheidung vom 07.10.: Gründung einmalig, Plattform & Team monatlich im Voraus ab dem Starttag
+  (vierundzwanzig Monate, dann je zwölf Monate, Kündigung drei Monate vorher), Umsatzbeteiligung über einer Jahresschwelle
+  (erstes Jahr anteilig, quartalsweise mit Jahresabgleich und Prüfrecht), Verkaufsbeteiligung, eine **nach Ziffer 7 garantierte erste
+  Finanzierungsrunde** der US-Gesellschaft binnen drei Monaten nach erfüllten Bedingungen der Bürgschaft (sonst Erstattung der
+  Gründung), Bürgschaft der Schwarzott Global LLC ohne gesondertes Entgelt mit aufschiebenden Bedingungen und Sonderfreigabe-Vermerk,
+  englisches Recht, Gerichtsstand London, Unternehmergeschäft ohne Widerruf, Reverse Charge.
+- **Warum:** Erste Firmenkundin. Im Code stehen keine Kundendaten (Repo öffentlich, E-242): Firma, Inhalte, kundenbezogene
+  Bedingungen, Bilder und Prüfbericht kommen aus privaten Dateien über das Import-Skript in die Datenbank.
+- **Stand beim Live-Gang (Justin 07.10.):** live erst mit dem Push; der Link geht nur an Justin; **keine automatische Mail an die
+  Kundin**; Versand an die Kundin gesperrt, bis der Registerauszug der Bürgin („Active“) und die Freigabe des Anwalts eingetragen sind;
+  die Annahme selbst bleibt offen (sie sperrt nur über die Pflichtfelder).
+- **Annahme:** zwei Pflicht-Häkchen (Unternehmergeschäft, Vertretung), Startwahl (sofort oder ein Tag bis neunzig Tage), eigener Knopf
+  der Firmenfassung „Zusammenarbeit und Kapital verbindlich annehmen“ (das Individualangebot behält „Auftrag zahlungspflichtig
+  erteilen“), Prüfsumme wie bisher. Danach: Rechnung „Gründung“ an die Firma (Name, Anschrift, UID, Reverse-Charge-Satz), Akte, Person
+  am Angebot (Global-Kunde-Regel E-272), Startgespräch, Monatsteile. Monatsrechnungen stellt der Stundenlauf am Fälligkeitstag
+  (Berlin); Verlängerung von selbst, wenn nicht gekündigt.
+- **Chefbüro** (Reiter „Individualangebote“): eigener Block je Firmenangebot — Teile mit Fälligkeit, Rechnung und bezahlt, „Rechnung jetzt
+  stellen“, Freigabe Anwalt, Bedingungen erfüllt, erste Runde erhalten, Garantiefrist ruhen, Garantiefall (Erstattung von Hand), Umsatz
+  eintragen, Verkauf eintragen, Kündigung. Rundgang ergänzt.
+- **Kundenseite** (/business/angebot/:token, nur offene Firmenangebote; angenommen = bestehende Ansicht): Auftakt „Herzlichen
+  Glückwunsch“, Hero mit 3D-Glas (three.js, nachgeladen), Ziele, Zeitstrahl (sieben Etappen), sechs Leistungen, Kapital mit
+  Garantie-Sätzen (eine Quelle) und Sonderfreigabe-Siegel, Prüfbericht als dunkle Navy-Bühne, Investition mit Umsatzrechner, Fragen &
+  Antworten, Ansprechpartner mit **„Ihr Team bei FIAON Global“ — nur die Leitung** (Justin 07.10.), Vertrag & Anlagen im Vollbild-Leser,
+  Annahme mit Startwahl. Ohne WebGL oder bei „weniger Bewegung“: Produktfoto, nichts bewegt sich.
+- **Justins Änderungen nach der Live-Vorschau (07.10.):** keine Etappe „neue Rolle“ (Geschäftsführung und Anteile bleiben unberührt), das
+  Kapital in einer Auszahlung, nur noch wenige Bedingungen der Bürgschaft und keine Sicherheiten (in Fassung B gestrichen: alle übrigen
+  Bedingungen und der Block „Sicherheiten“), neuer Umsatzrechner, „Was Sie direkt zahlen“ nur im Vertrag, Vertrag lesen im Vollbild-Leser,
+  mehr Luft. Anlage 1 Fassung C.
+- **Nachbesserung nach der Vor-Live-Prüfung (08.10.):**
+  - *Bilder nur hinter dem Link:* Bilder eines Angebots liegen nie im Repo (client/public/angebote/ steht in .gitignore) und nie unter
+    einer öffentlichen Adresse. Das Import-Skript spielt sie mit `--bilder <ordner>` ein (Typ am Inhalt geprüft, EXIF/XMP entfernt) —
+    Tabelle fiaon_global_angebot_bilder (Migration 096); ausgeliefert über GET /api/fiaon/global/angebot/:token/bild/:name mit derselben
+    Prüfung des Links wie Seite und PDFs (Cache-Control private, nosniff, keine Auflistung). Die Angebotsdaten nennen nur Bildnamen.
+  - *Kundenbezogene Bedingungen nicht im Code:* Im Code steht nur die allgemeine Bedingung (Jahresabschlüsse); eine Bedingung, die zur
+    Lage einer Kundin gehört, kommt aus den Angebotsdaten (parameter.inhalt.bedingungen) und steht vor der allgemeinen — Vertragstext und
+    Prüfsumme der Kundin bleiben gleich.
+  - *Keine automatische Mail an die Kundin:* Der Zahlungstakt (E-188) schickt einer Firmenakte keine Erinnerung mehr, nur die Aufgabe
+    „anrufen“ am zehnten Tag; die Terminerinnerung zum Startgespräch gilt ab der Buchung als erledigt; dazu je eine Wand an beiden
+    Mail-Türen (make-webhook.ts, globalMailSenden — server/lib/fiaon-global-firma-post.ts): Automatik an die Adresse einer Firmenkundin
+    geht nicht raus, von Hand und „Zugang angefordert“ bleiben frei.
+  - *Texte:* nichts mehr zugesagt, was über Ziffer 7 hinausgeht — „vertraglich garantiert nach Ziffer 7“ mit Frist ab den erfüllten
+    Bedingungen und der Erstattung als Folge; über Finanzierung und Konditionen entscheidet das Institut. Kein „sehr sicher“, kein
+    „sobald“ im Kopf; die Frage heißt „Wie ist die erste Runde abgesichert?“.
+  - *Freigabe des Anwalts an die Fassung gebunden:* Sie speichert die Prüfsummen von Vertrag und Anlage 1; ändert sich danach ein Wort,
+    sperrt der Versand wieder. Das Entwurfs-PDF nennt die Prüfsumme in der Fußzeile, das Chefbüro daneben.
+  - *Verkauf eintragen:* Pflichtfeld „Wer veräußert?“ — bei Gesellschaftern KEINE Rechnung an die Firma (Ziffer 12 Absatz 5), nur der
+    vorgemerkte Teil (Spalte schuldner) und eine Aufgabe an Justin; derselbe Zufluss mit derselben Gegenleistung nur einmal (409).
+  - *Rechnungen:* „Rechnung steht“ ist ein Weg für frisch gestellte und nachgeholte Rechnungen (Verlauf, Aufgabe „Rechnung schicken“
+    über einen Schlüssel je Teil); Reverse Charge steht schon an der Bestellzeile, vor der Rechnungsnummer, auch im Nachholweg; ein
+    Storno der Gründung über die Zahlungsliste (storniert, ersetzt, archiviert) stoppt Monatsrechnungen und Verlängerung.
+  - *Datenschutz:* Die Firmenseite nennt das Protokoll der Linkaufrufe (wie E-268) und verlinkt Impressum und Datenschutzerklärung.
+  - */team unverändert:* Die Mitarbeiterliste bleibt in Team.tsx; das Firmenangebot zeigt nur die Leitung.
+- **Nachprüfung (08.10., vor jeder Freigabe):**
+  - *Auszahlung in einem Betrag vorgesehen, kein Tatbestand:* Ziffer 7 Absatz 2 („erhalten“ = ausgezahlt oder verbindlich
+    zugesagt, gleich ob in einem Betrag oder in Teilbeträgen), Ziffer 8 Absatz 3 und Anlage 1 (jetzt Fassung D) binden Garantie und
+    Bürgschaft nicht an die Auszahlungsart und nicht an einen Verwendungsplan; die Seite sagt überall „vorgesehen“.
+  - *Versand erst bei „Active“:* Beim Firmenangebot muss die Grundlage der Bestätigung der Bürgin den Status „Active“ aus dem
+    Registerauszug nennen; „Inactive“ sperrt den Versand. Das Individualangebot E-268 bleibt unverändert.
+  - *Link nur an Justin:* Solange der Versand gesperrt ist, liefert die Liste den Kundenlink nur der Stufe „Inhaber“ (die übrigen
+    Stufen sehen den Grund der Sperre); die Freigabe des Anwalts trägt nur der Inhaber ein (…/firma/freigabe).
+  - *Prüfstand:* prüft auch den Git-Index (keine ältere gestagte Fassung, gestagter Inhalt gegen die Liste der Kundenwörter, keine
+    Bilder) und den Namen des Branches; andere Arbeitsbäume des Repos mit Angebotsbildern, Personaldaten oder einem Kundenwort im
+    Branch meldet er als Warnung.
+- **Zweite Nachprüfung (08.10.):**
+  - *„Nachholen“ ehrlich:* Beim Firmenangebot meldet der Knopf „Bestellung und Akte stehen — keine Mail an die Kundin; Vertrag und
+    Rechnung schickt der Ansprechpartner von Hand“ statt einer Bestätigungsmail, die es nicht gibt.
+  - *„Active“ strenger:* Verneinungen und überholte Stände („not/nicht Active“, „früher Active“, Auflösung, Widerruf, Löschung) sperren
+    den Versand. Die Freigabe des Anwalts merkt sich zusätzlich die Angaben der Bürgin (eigene Prüfsumme, nicht im Vertrag) — ändert
+    jemand danach Registerauszug oder Status, sperrt der Versand, bis der Inhaber die Freigabe neu einträgt.
+  - *Migration 096 robust:* Der Tausch der CHECKs der Teile merkt sich nur den Erfolg und wird sonst beim nächsten Aufruf wiederholt;
+    die Annahme eines Firmenangebots prüft die CHECKs vorher und antwortet sonst 503, ohne etwas zu speichern. Das Import-Skript
+    prüft vor `--produktion` (und einzeln mit `--nur-vorbedingungen`) Migration 096, Spalten, Bildtabelle, CHECKs und ob der Live-Code
+    das Firmenangebot kennt, und nennt den Weg zum Zurücknehmen („Zurückziehen“ im Chefbüro).
+  - *Prüfstand:* andere Arbeitsbäume — Fehler, sobald dort Kundendaten gestagt sind; die Warnung nennt den Upstream.
+
+**Wo:** shared/fiaon-global-angebot-firma.ts (alle Texte, Vertrag mit zwanzig Ziffern, Anlage 1, Kundenfassung des Prüfberichts,
+Rechenregeln, Bildadressen), server/lib/fiaon-global-angebot-firma.ts (Ablauf), server/lib/fiaon-bild-bereinigen.ts,
+server/lib/fiaon-global-firma-post.ts, Verzweigungen in server/lib/fiaon-global-angebot.ts und server/routes/fiaon-global-angebot.ts
+(neu: …/anlage1.pdf, …/bild/:name, …/firma/freigabe|bedingungen|kapital|hemmung|garantiefall|umsatz|verkauf|kuendigung|rechnung),
+server/lib/fiaon-global-zahlungstakt.ts, server/lib/fiaon-global-angebot-startgespraech.ts, server/make-webhook.ts,
+server/lib/fiaon-global-auftrag.ts (globalMailSenden), server/lib/fiaon-global-storno.ts (Storno beendet die Teile),
+db/migrations/096_global_angebot_firma.sql, client/src/components/admin/ChefGlobalAngebote.tsx, client/src/styles/chef-global.css,
+client/src/pages/business-angebot-firma.tsx (Verzweigung in business-angebot.tsx), client/src/components/angebot-firma/*,
+client/src/styles/global-angebot-firma.css, scripts/angebot-firma-anlegen.ts (mit --bilder), client/src/pages/agent/rundgaenge.ts,
+.gitignore, Prüfstand scripts/pruef-angebot-firma.ts (ohne DB und --lokal).
+
 ## 06.10.2026 abends — Nach der ersten WhatsApp-Kampagne: Kontonummer direkt, Bedenkzeit, Kredit-Missverständnis, Widerspruch
 
 - **Kontonummer:** Fragt jemand mit offener Zahlung nach Kontonummer/IBAN, schreibt Mara Empfänger, IBAN und BIC (aus shared/fiaon-bank.ts)

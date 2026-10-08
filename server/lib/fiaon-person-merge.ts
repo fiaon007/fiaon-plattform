@@ -465,6 +465,17 @@ async function fuehreAus(
     await sichereAlias(lauf, gewinnerId, kind, norm, String(wert), verliererId);
   }
 
+  // ── Unterlagen: Bestand ohne Zeile zuerst sichern (E-IT-C, 08.10.2026) ──
+  // Nur was es gibt (Katalog, ohne Sperre) — ein Fehler hier bräche sonst die ganze Zusammenführung ab.
+  const [tab] = (await lauf`
+    SELECT to_regclass('public.fiaon_dokumente') IS NOT NULL AS dok,
+           to_regclass('public.fiaon_vorgaenge') IS NOT NULL AS vor,
+           to_regclass('public.fiaon_unterlagen_akte') IS NOT NULL AS akte,
+           EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'fiaon_dokumente' AND column_name = 'entfernt_am') AS neu`) as any[];
+  const unterlagen = tab?.dok && tab?.neu && tab?.akte ? await import("./fiaon-unterlagen") : null;
+  // Was bei einer Seite nur in einer Spalte liegt, wird Zeile, BEVOR die Bestellungen umhängen.
+  if (unterlagen) await unterlagen.vorZusammenfuehrung(gewinnerId, verliererId, lauf);
+
   // ── Bestellungen und Leads umhängen ────────────────────────────────────
   // Der Verlauf (fiaon_contact_log), die Provisionen (fiaon_commissions), die
   // Vermerke und die Login-Historie hängen an `ref` und wandern damit mit.
@@ -477,6 +488,24 @@ async function fuehreAus(
   `;
   await lauf`UPDATE fiaon_leads SET person_id = ${gewinnerId} WHERE person_id = ${verliererId}`;
   // Der Lead-Verlauf (fiaon_lead_log) hängt an lead_id und wandert mit dem Lead.
+
+  // ── UNTERLAGEN, ARCHIV UND VORGÄNGE WANDERN MIT (E-IT-C, 08.10.2026) ──────
+  // fiaon_dokumente (Einzeldateien, Archivfassungen, Schreiben) und fiaon_vorgaenge
+  // (Briefe, Vollmachten) blieben bisher beim Verlierer. Mit „eine Datei = ein
+  // Datensatz" wäre der Ausweis nach einer Zusammenführung aus der Akte
+  // verschwunden. Dieselbe Datei auf beiden Seiten bleibt einmal aktiv (die des
+  // Verlierers wird mit Grund entfernt, nicht gelöscht). Die gebundene Fassung
+  // stimmt danach nicht mehr mit fiaon_unterlagen_akte überein — die Akte des
+  // Gewinners wird deshalb unten (nach dem Wegweiser) EINMAL neu gebunden.
+  if (tab?.dok && tab?.neu) {
+    await lauf`
+      UPDATE fiaon_dokumente v SET entfernt_am = NOW(), entfernt_von = 'Zusammenführung', entfernt_grund = 'gleiche Datei liegt beim zusammengeführten Kunden'
+       WHERE v.person_id = ${verliererId} AND v.art = 'unterlage' AND v.entfernt_am IS NULL AND v.geloescht_am IS NULL
+         AND EXISTS (SELECT 1 FROM fiaon_dokumente g WHERE g.person_id = ${gewinnerId} AND g.art = 'unterlage' AND g.kategorie = v.kategorie
+                       AND g.doc_hash = v.doc_hash AND g.entfernt_am IS NULL AND g.geloescht_am IS NULL)`;
+  }
+  if (tab?.dok) await lauf`UPDATE fiaon_dokumente SET person_id = ${gewinnerId} WHERE person_id = ${verliererId}`;
+  if (tab?.vor) await lauf`UPDATE fiaon_vorgaenge SET person_id = ${gewinnerId} WHERE person_id = ${verliererId}`;
 
   // Zuständigkeit setzen — erst jetzt, damit der Trigger
   // (033_person_ownership_trigger) die Bestellungen in einem Zug nachzieht.
@@ -584,6 +613,11 @@ async function fuehreAus(
       updated_at = NOW()
     WHERE id = ${verliererId}
   `;
+
+  // ── Unterlagen: die Akte des Gewinners einmal neu binden (E-IT-C) ─────
+  // Erst jetzt — der Verlierer ist Wegweiser, seine gebundene Fassung erkennt die Ablage als
+  // durch Zeilen vertreten (nicht als „fremd"), und keine Seite wird doppelt gebunden.
+  if (unterlagen) await unterlagen.nachZusammenfuehrung(gewinnerId, verliererId, lauf);
 
   // ── Zählprobe, Teil 2: der Stand NACH dem Merge ────────────────────────
   const nachher = await zaehle(lauf, [gewinnerId]);

@@ -367,6 +367,22 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     tipp: "Vor dem Anruf einmal reinschauen: Wer weiß, was jeden Monat abgeht, wovon der Kunde lebt und an welchem Tag das Geld kommt, führt ein anderes Gespräch — und legt die Rate auf die Tage danach.",
   },
   {
+    // E-IT-C (08.10.2026): Unterlagen — eine Datei ist ein Datensatz. Hinzufügen statt Ersetzen,
+    // „Weitere Unterlagen“, Stand je Unterlage; Ausweisbilder liest keine KI.
+    ziel: '[data-fiaon="unterlagen-akte"]',
+    titel: "Unterlagen: jede Datei einzeln — nichts wird mehr ersetzt.",
+    text: "Je Unterlage siehst du den Stand (liegt vor, fehlt, wird geprüft, bitte neu) und jede Datei mit "
+      + "Seiten, Größe, Datum und was beim Lesen herauskam. „Hinzufügen“ legt dazu — der fehlende Monat, die "
+      + "Rückseite —, „Alles ersetzen“ tauscht mit Grund aus, „Entfernen“ nimmt eine falsche Datei heraus (sie "
+      + "bleibt im Archiv; was der Kunde selbst entfernt, ist gelöscht). Bei Ausweis und „Weitere Unterlagen“ "
+      + "wählst du erst die Art. „Geprüft“ setzt du, wenn du hingesehen hast: Danach entfernt der Kunde dort nichts "
+      + "mehr selbst. Unterlagen aus der Zeit vor dem 08.10. stehen auf „liegt vor“ mit dem Hinweis, sie einmal "
+      + "anzusehen und „Geprüft“ zu setzen. „Neu lesen“ stößt Prüfung und Auswertung sofort an — eine schon "
+      + "ausgewertete Auskunft wertet nur dieser Knopf neu aus. Bis 50 MB je Datei, auch iPhone-Fotos (HEIC). "
+      + "„Weitere Unterlagen“ nimmt Aufenthaltstitel, Einkommensnachweis, Bescheide und Sonstiges — deine Notiz dort ist intern, der Kunde sieht sie nicht.",
+    tipp: "Ausweisfotos liest keine KI — schau sie selbst an. Reisepass: die Datenseite genügt (ein nur gewählter Reisepass als Foto steht auf „wird geprüft“, bis du hingesehen hast). Personalausweis: vorn und hinten. Ein Aufenthaltstitel zählt nur zusammen mit dem Reisepass.",
+  },
+  {
     // 09.09.2026 (E-168): Der Menüpunkt ist weg — der Filter bleibt als Nachschlagewerk.
     titel: "Der Filter „Nicht erreicht“ ist dein Nachschlagewerk.",
     text: "Der Filter zeigt alle Menschen, die du (oder ein Kollege) nicht erreicht habt — mit Versuchen "

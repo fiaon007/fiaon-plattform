@@ -956,6 +956,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);
+  // 📎 Unterlagen (E-IT-C, 08.10.2026): eine Datei = ein Datensatz; Hinzufügen statt Ersetzen, 50 MB je Datei,
+  //    „Weitere Unterlagen", Stand liegt vor/fehlt/wird geprüft/bitte neu — Kunde (/kunde/:ref/unterlagen),
+  //    Office (/agent/unterlagen/:personId), Chefbüro-Akte (/admin/unterlagen/:ref, hinter dem Admin-Code).
+  //    Der entprellte Anstoß (Prüfung + Analyse + EINE Aufgabe je Stapel) holt der Takt unterlagen_anstoss nach.
+  const fiaonUnterlagen = await import('./routes/fiaon-unterlagen');
+  app.use('/api/fiaon', fiaonUnterlagen.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('unterlagen_anstoss', async () => await (await import('./lib/fiaon-unterlagen')).anstoesseNachholen(10), 2 * 60 * 1000, { beimStartNach: 60_000, nurMitErgebnis: true });
+  });
 
   // 📱 /APP — Serverseite des neuen Kundenbereichs (E-150, Scheibe 2): Anspruchs-
   // Check, Brief-Knopf, Post. Liest den Stand weiter aus fiaon-kunde-bereich.

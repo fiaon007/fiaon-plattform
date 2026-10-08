@@ -120,6 +120,7 @@ import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ } from "@shared/fiaon-bank-anleitung
 import { ERGEBNIS_TEXT, ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { RATEN_ERGEBNISSE, type RatenErgebnis } from "@shared/fiaon-raten-ergebnisse";
 import { Schriftverkehr } from "@/components/agent/Schriftverkehr";
+import { UnterlagenAkte } from "@/components/unterlagen/UnterlagenAkte";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { ARTEN, type Art as LeitfadenArt } from "./tools/gespraech";
@@ -2296,7 +2297,6 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   const [doku, setDoku] = useState<any | null | "fehlt">(null);
   // Welche Dokumentart lädt gerade hoch? (Justin 24.08.: Der Mitarbeiter soll
   // für den Kunden hochladen können, wenn der es selbst nicht schafft.)
-  const [laedtDoku, setLaedtDoku] = useState<string | null>(null);
   // Der ganze Antrag (24.08.2026). Kommt mit derselben Antwort wie die Akte —
   // kein zweiter Aufruf, kein Warten beim Reiterwechsel.
   const [antrag, setAntrag] = useState<any | null>(null);
@@ -2359,34 +2359,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
     if (reiter === "dokumente") void dokuLaden();
   }, [reiter, k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Dokument FÜR den Kunden hochladen ──────────────────────────────────────
-  // Bewusst mit `fetch` statt mit dem `api`-Helfer: Der setzt bei vorhandenem
-  // Body „Content-Type: application/json“, und genau dieser Kopf zerstört eine
-  // FormData-Sendung — der Browser muss die Grenzmarke selbst setzen dürfen.
-  // 25.08.2026: nimmt MEHRERE Dateien — drei Kontoauszüge in einem Rutsch.
-  // Der Server bindet sie zu einer PDF (Erklärung in fiaon-telefonie.ts).
-  async function dokuHochladen(art: string, gewaehlt: File[]) {
-    setLaedtDoku(art);
-    try {
-      const fd = new FormData();
-      for (const einzeln of gewaehlt) fd.append("datei", einzeln);
-      const res = await fetch(`/api/fiaon/agent/dokumente/${k.personId}/${art}/hochladen`, {
-        method: "POST", credentials: "include", body: fd,
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        melden("schlecht", "Hochladen fehlgeschlagen", json?.error || "Die Datei kam nicht an.");
-        return;
-      }
-      if (json.stand) setDoku(json.stand);
-      melden("gut", json.meldung || "Dokument liegt in der Akte", "Der Verlauf hält fest, dass du es hochgeladen hast.");
-      await frisch();
-    } catch {
-      melden("schlecht", "Hochladen fehlgeschlagen", "Keine Verbindung zum Server.");
-    } finally {
-      setLaedtDoku(null);
-    }
-  }
+  // E-IT-C (08.10.2026): Das Hochladen FÜR den Kunden wohnt in UnterlagenAkte
+  // (client/src/components/unterlagen/UnterlagenAkte.tsx) — eine Datei je Anfrage, mit Balken.
 
   // §16: Der Kartenstatus ist überall der Platzhalter, bis der Kunde vollständig ist.
   const vollstaendig = akt?.vollstaendig?.vollstaendig ?? k.vollstaendig ?? false;
@@ -3425,56 +3399,11 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             {doku === "fehlt" && <p className="pi-sek-satz leise">Zu diesem Kunden liegt noch keine Bestellung mit Unterlagen vor.</p>}
             {doku && doku !== "fehlt" && (
               <>
-                {(doku.dokumente || []).map((d: any) => (
-                  <div key={d.art} className="pi-doku">
-                    <span className={`punkt${d.vorhanden ? " da" : ""}`} aria-hidden="true" />
-                    <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small>
-                      {/* P9: Befund der automatischen Prüfung — nur wenn auffällig. */}
-                      {(d as any).pruefung && <small style={{ display: "block", color: "#fbbf24" }}>⚠ {(d as any).pruefung}</small>}
-                    </div>
-                    <div className="pi-doku-tun">
-                      {/* Justin 24.08.: „PRAXIS: Falls der Kunde es nicht schafft…“
-                          Das Feld liegt unsichtbar auf dem Etikett – so bleibt der
-                          Knopf im CI und trägt trotzdem den Dateidialog. */}
-                      <label className={`pi-knopf still klein${laedtDoku === d.art ? " laedt" : ""}`}>
-                        {laedtDoku === d.art ? "Lädt …" : d.vorhanden ? "Ersetzen" : "Hochladen"}
-                        <input
-                          type="file" accept="application/pdf,image/jpeg,image/png" hidden multiple
-                          disabled={laedtDoku !== null}
-                          onChange={(e) => {
-                            const fs = Array.from(e.target.files ?? []);
-                            e.target.value = "";           // damit dieselbe Datei erneut gewählt werden kann
-                            if (fs.length) void dokuHochladen(d.art, fs);
-                          }}
-                        />
-                      </label>
-                      {d.vorhanden && <a className="pi-knopf still klein" href={`/api/fiaon/agent/dokumente/${k.personId}/${d.art}/datei`} target="_blank" rel="noreferrer">Öffnen <ExternalLink size={12} /></a>}
-                      {/* P12 (28.08.2026): Falsches Dokument löschen — mit Grund,
-                          der Grund steht danach im Verlauf. Ersetzen ging schon
-                          immer über „Ersetzen"; Löschen ist für den Fall, dass
-                          erst später das richtige Dokument kommt. */}
-                      {d.vorhanden && (
-                        <button type="button" className="pi-knopf still klein"
-                                disabled={laedtDoku !== null}
-                                onClick={() => {
-                                  const grund = window.prompt(`${d.label} wirklich löschen?\nKurz begründen (steht im Verlauf):`);
-                                  if (grund === null) return;
-                                  void (async () => {
-                                    const r = await api(`/agent/dokumente/${k.personId}/${d.art}/loeschen`, {
-                                      method: "POST", body: JSON.stringify({ grund }),
-                                    });
-                                    // 19.09.2026: neu laden statt nur leeren — `setDoku(null)` allein
-                                    // löste keinen Abruf aus, der Reiter blieb bei „Lade den Stand …".
-                                    if (r.ok && r.json?.ok) { melden("gut", "Dokument gelöscht", r.json.meldung); setDoku(null); void dokuLaden(); }
-                                    else melden("schlecht", "Nicht gelöscht", r.json?.error || "Bitte erneut versuchen.");
-                                  })();
-                                }}>
-                          Löschen
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                {/* E-IT-C (08.10.2026): Je Unterlage die Dateiliste mit Lese-Befund — Hinzufügen, Alles
+                    ersetzen, Entfernen (mit Grund, bleibt im Archiv), Geprüft, Neu lesen. Vorher kannte die
+                    Akte nur „Ersetzen“ (alles neu wählen) und „Löschen“ (ohne Archiv). */}
+                <UnterlagenAkte personId={k.personId} ton="dunkel" melden={(t, titel, text) => melden(t, titel, text)}
+                                onGeaendert={() => { void dokuLaden(); void frisch(); }} />
                 {/* 18.09.2026 (Team-Feedback Priorität 1): Nichts geht verloren — ersetzte Fassungen bleiben abrufbar. */}
                 {Array.isArray(doku.fruehere) && doku.fruehere.length > 0 && (
                   <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>
@@ -3517,7 +3446,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     <p className="pi-sek-satz leise">{AUSZUG_GRUNDSATZ}</p>
                   </div>
                 </details>
-                <p className="pi-sek-satz leise">PDF, JPG oder PNG bis 25 MB — auch mehrere auf einmal, sie werden zu einer PDF gebunden. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
+                <p className="pi-sek-satz leise">PDF oder Foto (JPG, PNG, iPhone-HEIC) bis 50 MB je Datei, höchstens 20 je Unterlage — jede Datei wird angehängt, die Akte-Fassung bindet sie zusammen. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
                 <p className="pi-sek-satz leise">Vollständig heißt: Paket bezahlt, SCHUFA (74 €) bezahlt, Kontoauszug und Ausweis da – erst dann liegt der Kunde bei FIAON zur Bearbeitung. Stand: {kartenText}.</p>
               </>
             )}

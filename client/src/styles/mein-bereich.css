@@ -303,7 +303,7 @@
 .mb-upload input[type=file]{display:none}
 .mb-upload .gewaehlt{font:600 11px/1 'JetBrains Mono',monospace;color:var(--blau-tief);max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* E-177 (11.09.2026): mehrere Dateien je Feld — Titel und Hinweis links, Zähler rechts, Liste darunter.
-   Der Hinweis („ein neuer Upload ersetzt den vorigen“) steht in voller Textfarbe: Er soll gelesen werden. */
+   Der Hinweis am Feld steht in voller Textfarbe: Er soll gelesen werden. (E-IT-C: Das Feld selbst ist jetzt UnterlagenListe.) */
 .mb-upload-feld{display:flex;flex-direction:column;gap:6px}
 .mb-upload .mb-upload-text{display:flex;flex-direction:column;gap:3px;min-width:0}
 .mb-upload .mb-upload-text>span{color:var(--text);font-weight:600}

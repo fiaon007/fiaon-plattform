@@ -36,6 +36,11 @@ import {
 } from "./fiaon-global";
 import { AGENDA } from "./fiaon-onboarding-agenda";
 import { FIAON_FIRMA } from "./fiaon-firma";
+import { UNTERLAGEN_GRENZEN, WEITERE_UNTERARTEN } from "./fiaon-unterlagen";
+
+// E-IT-C Nachbesserung (08.10.2026): Die Unterlagen-Regel aus derselben Quelle wie die Oberfläche —
+// vorher erzählte der Assistent noch, ein neuer Upload verdränge den alten.
+const UNTERLAGEN_WISSEN = `Kontoauszug der letzten drei Monate, Ausweis — Personalausweis Vorder- und Rückseite oder die Datenseite des Reisepasses, Handyfoto genügt, auch iPhone-Fotos; jede Datei wird HINZUGEFÜGT, die bisherigen Dateien bleiben — fehlt ein Monat oder die Rückseite, einfach dazuladen statt alles neu; PDF oder Foto bis ${UNTERLAGEN_GRENZEN.mbJeDatei} MB je Datei, bis ${UNTERLAGEN_GRENZEN.dateienJeKategorie} Dateien je Unterlage; „Weitere Unterlagen“ für ${WEITERE_UNTERARTEN.map((u) => u.label).join(", ")} — keine Gesundheitsunterlagen; eine eigene, noch nicht geprüfte Datei kann der Kunde selbst entfernen`;
 
 export const SUPPORT = {
   // Eine Quelle für die Nummer: shared/fiaon-firma.ts (19.09.2026).
@@ -206,7 +211,7 @@ DAS LIMIT-GESPRÄCH (FIAON Pro, Ultra und High-End)
 - Es ist ein Gespräch, keine Limit-Zusage.
 
 DER KUNDENBEREICH (Anmelden: fiaon.com/app/login — mit Passwort oder ohne Passwort über einen Anmelde-Link per E-Mail; fiaon.com/login fragt nur das Passwort ab und führt mit „Ohne Passwort anmelden“ dorthin)
-Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (Kontoauszug der letzten drei Monate, Ausweis — Handyfoto genügt; je Unterlage mehrere Dateien auf einmal auswählen, z. B. drei Monatsauszüge oder Vorder- und Rückseite, sie werden zu einem Dokument zusammengefügt — ein neuer Upload ersetzt den vorigen), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen — oder ohne Passwort über den Anmelde-Link auf fiaon.com/app/login.
+Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (${UNTERLAGEN_WISSEN}), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen — oder ohne Passwort über den Anmelde-Link auf fiaon.com/app/login.
 
 DAS STARTGESPRÄCH (Agenda des Mitarbeiters)
 ${agenda}

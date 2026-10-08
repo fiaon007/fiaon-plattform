@@ -614,6 +614,24 @@ export async function openaiFetch(dienst: string, pfad: string, init: RequestIni
   return res;
 }
 
+/**
+ * Kann gerade überhaupt eine KI lesen? (E-IT-C, 08.10.2026, Punkt 13 C)
+ *
+ * Geprüft wird der Schlüssel des TRAGENDEN Anbieters, nicht OPENAI_API_KEY. Seit
+ * E-279 liest je nach KI_ANBIETER Claude oder OpenAI — Texterkennung, Dokument-
+ * prüfung und beide Analysen fragten aber nur nach dem OpenAI-Schlüssel. Wäre er
+ * auf Render entfernt worden, während Claude trägt, hätte jede Foto-Lesung still
+ * „unlesbar" ergeben und jede Analyse „OPENAI_API_KEY fehlt".
+ */
+export function kiLesenMoeglich(): boolean {
+  return aktiverAnbieter() === "claude" ? !!process.env.ANTHROPIC_API_KEY : !!process.env.OPENAI_API_KEY;
+}
+
+/** Der Kopf-Schlüssel für openaiFetch. Trägt Claude, ignoriert die Weiche ihn; trägt OpenAI, ist es der Hausschlüssel. */
+export function kiSchluessel(): string {
+  return process.env.OPENAI_API_KEY || "";
+}
+
 async function antwortPruefen(dienst: string, res: Response, init?: RequestInit): Promise<void> {
   if (res.status !== 429 && res.status !== 401 && res.status !== 403 && res.status !== 402) return;
   const text = await res.clone().text().catch(() => "");

@@ -46,12 +46,14 @@
 // An das Modell geht nur Text, keine Datei, und kein Name des Kunden.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { pdfTextUndZeilen } from "./fiaon-pdf-lesen";
-import { ocrLesen, ocrZeilen, ohneFotoVermerk } from "./fiaon-ocr";
+import { pdfTextUndZeilen, auszugBrauchbar } from "./fiaon-pdf-lesen";
+import { ocrLesen, ocrZeilen, ohneFotoVermerk, HOECHSTENS_SEITEN } from "./fiaon-ocr";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { KATEGORIEN, KATEGORIE_SCHLUESSEL, istFest } from "@shared/fiaon-kontoauszug-kategorien";
 import { buchungenBereinigen, nebenkontoAus, EINKOMMEN_KATEGORIEN, type PersonName } from "@shared/fiaon-kontoauszug-bereinigen";
-import { openaiFetch, kiPausiert, istKiPause, kiPauseLesen, kiPauseMeldung } from "./fiaon-ki-pause";
+import { openaiFetch, kiPausiert, istKiPause, kiPauseLesen, kiPauseMeldung, kiLesenMoeglich, kiSchluessel } from "./fiaon-ki-pause";
+import { istLeseFehler, lesefehlerSatz } from "@shared/fiaon-lesefehler";
+import { createHash } from "node:crypto";
 
 /** So viel Text geht höchstens ans Modell — ein Dreimonatsauszug liegt weit darunter. */
 const TEXT_DECKEL = 400_000;
@@ -62,20 +64,8 @@ const STUECK_DECKEL = 8_000;
 /** Bis hierhin gilt „stimmt auf den Cent": ein Euro Toleranz für Rundungen im Ausdruck. */
 const TOLERANZ_CENTS = 100;
 
-/**
- * Ist die Textausbeute ein Kontoauszug, mit dem sich arbeiten lässt?
- *
- * `pdfTextBrauchbar` aus dem PDF-Leser prüft den Vokalanteil — richtig für
- * Prosa, falsch für einen Sparkassen-Auszug, der zu drei Vierteln aus Zahlen
- * besteht (Dirk Ladewig, 11.09.2026: 6 Seiten, 180 Beträge, durchgefallen).
- * Ein Auszug ist brauchbar, wenn er Beträge enthält. Ein Foto hat keine.
- */
-function auszugBrauchbar(text: string): boolean {
-  if (text.trim().length < 120) return false;
-  const betraege = (text.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []).length;
-  const vokale = (text.match(/[aeiouäöüAEIOU]/g) || []).length;
-  return betraege >= 5 || vokale / text.length > 0.15;
-}
+// E-IT-C (08.10.2026, Punkt 13 D): `auszugBrauchbar` wohnt jetzt in fiaon-pdf-lesen.ts —
+// die Dokumentprüfung liest dieselbe Regel (vorher Vokalregel: zwei Leser, zwei Urteile).
 
 /** Wie sehr sieht eine Seite nach Kontoauszug aus? Beträge zählen einfach, Auszugswörter dreifach. */
 export function auszugWert(text: string): number {
@@ -120,7 +110,7 @@ export async function ensureAnalyseTabelle(): Promise<void> {
   let alleDa = true;
   for (const sp of ["buchungen JSONB", "monate JSONB", "pruefung JSONB", "bank VARCHAR", "saldo_anfang_cents BIGINT",
                     "eigen_ein_cents BIGINT", "eigen_aus_cents BIGINT", "nebenkonto BOOLEAN", "inkasso_anzahl INT", "auswertung_version INT",
-                    "fotoseiten INT", "fotoseiten_erkannt INT"]) {
+                    "fotoseiten INT", "fotoseiten_erkannt INT", "datei_hash VARCHAR"]) {
     await sqlPool.unsafe(`ALTER TABLE fiaon_kontoauszug_analysen ADD COLUMN IF NOT EXISTS ${sp}`).catch(() => { alleDa = false; });
   }
   tabelleGeprueft = alleDa;
@@ -324,8 +314,9 @@ const BUCHUNG_ANWEISUNG = (zeitraumVon: string | null, zeitraumBis: string | nul
 ].join("\n");
 
 async function modellAufruf(name: string, schema: any, system: string, nutzer: string): Promise<{ modell: string; daten: any }> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY fehlt.");
+  // E-IT-C (08.10.2026): der Schlüssel des TRAGENDEN Anbieters (Claude oder OpenAI), nicht nur OPENAI_API_KEY.
+  if (!kiLesenMoeglich()) throw new Error("Kein Schlüssel für die KI gesetzt (ANTHROPIC_API_KEY bzw. OPENAI_API_KEY).");
+  const key = kiSchluessel();
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
   const r = await openaiFetch("kontoauszug", "/chat/completions", {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -645,11 +636,21 @@ export interface Probe {
  * zweiten Rechenweg.
  */
 export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorname: null, nachname: null }): Promise<Probe> {
+  // E-IT-C (08.10.2026, Punkt 13 E): leer() trägt die tatsächlich gelesenen Fotoseiten mit. Vorher stand dort
+  // immer 0 — der Nachhol-Lauf sah „Fotoseiten erkannt > gelesen" und rechnete dieselbe Datei bis zu dreimal
+  // je Woche neu (gemessen: 112 Läufe „kein Kontoauszug" für 22 Bestellungen in 30 Tagen).
   const leer = (status: "unlesbar", fehler: string, akte: string, seiten: number, modell: string | null = null): Probe =>
-    ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [], fotoseiten: 0, fotoseitenErkannt });
+    ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [], fotoseiten, fotoseitenErkannt });
 
   let seiten: string[][] = [];
-  try { seiten = (await pdfTextUndZeilen(buf, { spalten: true })).zeilen; } catch (e) { console.warn("[ANALYSE] PDF nicht lesbar:", (e as Error).message); }
+  try { seiten = (await pdfTextUndZeilen(buf, { spalten: true })).zeilen; } catch (e) {
+    // E-IT-C: Ein Öffnungspasswort ist eine eigene Klasse mit eigenem Satz — nicht „zu unscharf".
+    if (String((e as any)?.name || "") === "PasswordException") {
+      return { status: "unlesbar", fehler: lesefehlerSatz("passwort", "sie"), akte: `Kontoauszug-Analyse: ${lesefehlerSatz("passwort", "du")}`, modell: null, seiten: 0,
+        bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [], fotoseiten: 0, fotoseitenErkannt: 0 };
+    }
+    console.warn("[ANALYSE] PDF nicht lesbar:", (e as Error).message);
+  }
   let seitenText = seiten.map((z) => z.join("\n"));
   // ── FOTOSEITEN IN EINEM GEMISCHTEN PDF (21.09.2026, E-207) ──────────────
   // Die Texterkennung lief nur, wenn das GANZE Dokument keinen Text hatte. Ein
@@ -659,8 +660,12 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
   let fotoseiten = 0;
   let fotoseitenErkannt = 0;
   let ocrModell: string | null = null;
+  // E-IT-C: Ein technischer Fehler der Texterkennung (Zeitgrenze, HTTP, zu große Seite) ist keine Schuld
+  // des Kunden — dann endet die Analyse als „fehler" (wird wiederholt), nicht als „unlesbar".
+  let technisch: string | null = null;
   const fotoIdx = seitenText.map((t, i) => (ohneFotoVermerk(t).replace(/\s/g, "").length < 40 ? i : -1)).filter((i) => i >= 0);
-  fotoseitenErkannt = fotoIdx.length;
+  // Mehr als HOECHSTENS_SEITEN liest die Texterkennung nie — sonst bliebe „erkannt > gelesen" für immer (49-Seiten-Fall, 12 Läufe).
+  fotoseitenErkannt = Math.min(fotoIdx.length, HOECHSTENS_SEITEN);
   if (fotoIdx.length > 0 && fotoIdx.length < seitenText.length) {
     try {
       const ocr = await ocrLesen(buf, "kontoauszug", { seiten: fotoIdx });
@@ -672,6 +677,7 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
     } catch (e) {
       // E-246: KI pausiert — NICHT „unlesbar" speichern und den Kunden nicht um eine neue Datei bitten.
       if (istKiPause(e)) throw e;
+      technisch = istLeseFehler(e) ? lesefehlerSatz(e.klasse, "du") : String((e as Error)?.message || e).slice(0, 200);
       console.warn("[ANALYSE] Texterkennung der Fotoseiten:", (e as Error).message);
     }
   }
@@ -691,8 +697,16 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
       }
     } catch (e) {
       if (istKiPause(e)) throw e; // E-246: siehe oben
+      // E-IT-C: Passwort/beschädigt sind Sache des Kunden (eigener Satz), alles andere ist Technik.
+      if (istLeseFehler(e) && (e.klasse === "passwort" || e.klasse === "beschaedigt")) {
+        return leer("unlesbar", lesefehlerSatz(e.klasse, "sie"), `Kontoauszug-Analyse: ${lesefehlerSatz(e.klasse, "du")}`, seiten.length);
+      }
+      technisch = istLeseFehler(e) ? lesefehlerSatz(e.klasse, "du") : String((e as Error)?.message || e).slice(0, 200);
       console.warn("[ANALYSE] Texterkennung:", (e as Error).message);
     }
+  }
+  if (!auszugBrauchbar(gesamt) && technisch) {
+    throw new Error(`Texterkennung technisch gescheitert — wird wiederholt: ${technisch}`);
   }
   if (!auszugBrauchbar(gesamt)) {
     return leer("unlesbar", "Die Datei ist nicht lesbar — auch die Texterkennung findet keine Buchungen (zu unscharf, abgeschnitten oder leer). Bitte laden Sie den Kontoauszug als PDF aus dem Online-Banking hoch oder fotografieren Sie jede Seite gerade und scharf.",
@@ -992,6 +1006,8 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
 
   try {
     const buf: Buffer = Buffer.isBuffer(a.bank_statement_pdf) ? a.bank_statement_pdf : Buffer.from(a.bank_statement_pdf);
+    // E-IT-C: Fingerabdruck der gelesenen Datei — der Nachhol-Lauf rechnet dieselbe Datei nicht neu.
+    await fertig({ datei_hash: createHash("sha256").update(buf).digest("hex") }).catch(() => {});
     const pr = await kontoauszugProbe(buf, { vorname: a.vorname ?? null, nachname: a.nachname ?? null });
     if (pr.status !== "fertig" || !pr.z) {
       await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler, fotoseiten: pr.fotoseiten, fotoseiten_erkannt: pr.fotoseitenErkannt });
@@ -1067,13 +1083,16 @@ async function auszuegeNachholenInnen(grenze: number): Promise<{ gestartet: numb
   await ensureAnalyseTabelle();
   const kandidaten = (await sqlPool`
     WITH l AS (
-      SELECT DISTINCT ON (k.ref) k.ref, k.id, k.status, k.fehler, k.created_at, k.fotoseiten, k.fotoseiten_erkannt, k.modell,
+      SELECT DISTINCT ON (k.ref) k.ref, k.id, k.status, k.fehler, k.created_at, k.fotoseiten, k.fotoseiten_erkannt, k.modell, k.datei_hash,
              COALESCE(k.auswertung_version, 1) AS fassung,
              CASE WHEN jsonb_typeof(k.buchungen) = 'array' THEN jsonb_array_length(k.buchungen) ELSE 0 END AS n_buchungen
         FROM fiaon_kontoauszug_analysen k
        ORDER BY k.ref, k.created_at DESC
     )
     SELECT a.ref, l.id AS analyse_id, l.modell, l.fotoseiten,
+           -- E-IT-C (08.10.2026, Punkt 13 E): Ist es noch DIESELBE Datei? Mit Fingerabdruck exakt; ohne
+           -- (Läufe vor heute) zählt, ob seit der Auswertung etwas hochgeladen wurde. Nur für „unlesbar"/
+           -- „foto_ungelesen" gefragt — PostgreSQL rechnet den Fingerabdruck nur in diesen Zweigen.
            CASE
              WHEN l.id IS NULL THEN 'nie'
              WHEN l.status = 'laeuft' AND l.created_at < NOW() - INTERVAL '15 minutes' THEN 'haengt'
@@ -1082,8 +1101,11 @@ async function auszuegeNachholenInnen(grenze: number): Promise<{ gestartet: numb
              WHEN l.status = 'fehler' AND (l.fehler LIKE 'KI pausiert%' OR l.created_at < NOW() - INTERVAL '1 hour') THEN 'fehler'
              -- nur alte Auswertungen ohne Buchungen (vor E-178); eine frische ohne Buchungen ist ein Ergebnis
              WHEN l.status = 'fertig' AND l.n_buchungen = 0 AND l.fassung < 3 THEN 'ohne_buchungen'
-             -- Fotoseiten erkannt, aber nicht alle gelesen (ein Päckchen der Texterkennung scheiterte)
-             WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten_erkannt > COALESCE(l.fotoseiten, 0) THEN 'foto_ungelesen'
+             -- Fotoseiten erkannt, aber nicht alle gelesen (ein Päckchen der Texterkennung scheiterte) — nur bei
+             -- einer NEUEN Datei; ein inhaltliches Urteil („ist eine Gehaltsabrechnung") bleibt stehen, bis eine kommt.
+             WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten_erkannt > COALESCE(l.fotoseiten, 0)
+                  AND (CASE WHEN l.datei_hash IS NOT NULL THEN l.datei_hash <> encode(sha256(a.bank_statement_pdf), 'hex')
+                            ELSE a.documents_uploaded_at IS NOT NULL AND a.documents_uploaded_at > l.created_at END) THEN 'foto_ungelesen'
              WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten_erkannt IS NULL THEN 'seiten_pruefen'
            END AS grund
       FROM fiaon_applications a

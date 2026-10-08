@@ -25,7 +25,25 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createHash } from "node:crypto";
 import { PDFDocument } from "pdf-lib";
-import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
+import { openaiFetch, istKiPause, kiLesenMoeglich, kiSchluessel } from "./fiaon-ki-pause";
+import { LeseFehler } from "@shared/fiaon-lesefehler";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-IT-C (08.10.2026, Punkt 13 C) — VIER WÄNDE
+//   1. KEINE AUSWEISBILDER AN EINE KI (Entscheidung Justin 08.10.: biometrische
+//      Daten). ocrLesen(…, "ausweis") liefert null — der Ausweis wird nur über
+//      seine Textschicht und feste Regeln geprüft (shared/fiaon-unterlagen.ts).
+//   2. Der Schlüssel des TRAGENDEN Anbieters zählt (kiLesenMoeglich), nicht
+//      OPENAI_API_KEY — seit E-279 liest je nach Weiche Claude oder OpenAI.
+//   3. Päckchen nach BYTES begrenzt, nicht nur nach Seiten: base64 (×1,33) eines
+//      Päckchens höchstens 20 MB. Eine einzelne zu große Seite bleibt leer und
+//      wird als Klasse zu_gross_fuer_ki gemeldet — kein stiller Ausfall.
+//   4. Verschlüsselte PDFs gehen nie verschlüsselt raus (vorher „invalid_file",
+//      beim Kunden „zu unscharf"): reiner Rechteschutz wird mit qpdf gelöst, ein
+//      Öffnungspasswort wirft LeseFehler „passwort". Eine PDF, die sich nicht
+//      zerlegen lässt, wirft „technisch" (wird wiederholt; „beschädigt" sagt nur
+//      die Eingangsprüfung), statt als Ganzes geschickt zu werden.
+// ═══════════════════════════════════════════════════════════════════════════
 
 export type OcrArt = "kontoauszug" | "schufa" | "ausweis" | "allgemein";
 
@@ -36,11 +54,12 @@ export interface OcrErgebnis {
 }
 
 const MODELL = () => process.env.FIAON_OCR_MODELL || "gpt-4.1";
-const SCHLUESSEL = () => process.env.OPENAI_API_KEY || "";
 /** Seiten je Aufruf — klein genug, dass die Antwort nie abgeschnitten wird. */
 const SEITEN_JE_AUFRUF = 4;
-/** Mehr liest niemand: Eine SCHUFA-Auskunft hat selten über 40 Seiten. */
-const HOECHSTENS_SEITEN = 48;
+/** Mehr liest niemand: Eine SCHUFA-Auskunft hat selten über 40 Seiten. Exportiert: Die Analyse zählt erkannte Fotoseiten höchstens bis hier (sonst ewiges Nachholen). */
+export const HOECHSTENS_SEITEN = 48;
+/** Höchstens so viele Bytes (vor base64) je Aufruf — base64 macht daraus ~20 MB. */
+export const BYTES_JE_AUFRUF = 15 * 1024 * 1024;
 const GLEICHZEITIG = 3;
 // E-279 (03.10.2026): Claude liest mit (wenig) Denken — mehr Luft als bei OpenAI.
 const ZEITGRENZE_MS = 300_000;
@@ -93,7 +112,7 @@ function antwortText(roh: any): string {
   return bloecke.length ? bloecke[bloecke.length - 1] : (typeof roh?.output_text === "string" ? roh.output_text : "");
 }
 
-async function aufruf(inhalt: any, text: string): Promise<{ text: string; usage: any }> {
+async function aufruf(inhalt: any, text: string): Promise<{ text: string; usage: any; modell: string }> {
   const abbruch = new AbortController();
   const uhr = setTimeout(() => abbruch.abort(), ZEITGRENZE_MS);
   const start = Date.now();
@@ -101,7 +120,7 @@ async function aufruf(inhalt: any, text: string): Promise<{ text: string; usage:
   try {
     const res = await openaiFetch("ocr", "/responses", {
       method: "POST",
-      headers: { Authorization: `Bearer ${SCHLUESSEL()}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${kiSchluessel()}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: modell,
         temperature: 0,
@@ -114,7 +133,8 @@ async function aufruf(inhalt: any, text: string): Promise<{ text: string; usage:
     if (!res.ok) throw new Error(`OCR HTTP ${res.status}: ${JSON.stringify(roh?.error ?? roh).slice(0, 240)}`);
     const usage = { prompt_tokens: roh?.usage?.input_tokens ?? 0, completion_tokens: roh?.usage?.output_tokens ?? 0 };
     nutzung(modell, usage, Date.now() - start, true);
-    return { text: antwortText(roh), usage };
+    // E-IT-C: das Modell, das WIRKLICH las (über die Weiche Claude) — für die modell-Spalten der Analysen.
+    return { text: antwortText(roh), usage, modell: typeof roh?.model === "string" && roh.model ? roh.model : modell };
   } catch (e: any) {
     if (!istKiPause(e)) nutzung(modell, null, Date.now() - start, false, String(e?.message || e));
     throw e;
@@ -154,7 +174,9 @@ async function reihe<T, E>(liste: T[], n: number, f: (x: T, i: number) => Promis
  * Fehler des Dienstes werfen (der Aufrufer kennt seine Fehlerspalte).
  */
 export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein", opt: { seiten?: number[] } = {}): Promise<OcrErgebnis | null> {
-  if (!SCHLUESSEL() || !buf?.length) return null;
+  // Wand 1 (E-IT-C): kein Ausweisbild an eine KI — auch nicht „nur zur Texterkennung".
+  if (art === "ausweis") return null;
+  if (!kiLesenMoeglich() || !buf?.length) return null;
   // 21.09.2026 (E-207): nur bestimmte Seiten (0-basiert) — die Fotoseiten eines gemischten
   // PDFs. Das Ergebnis enthält dann genau diese Seiten, in dieser Reihenfolge.
   const auswahl = Array.isArray(opt.seiten) && opt.seiten.length
@@ -166,49 +188,88 @@ export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein", opt: { se
 
   const mime = bildMime(buf);
   if (mime) {
-    const { text } = await aufruf(
-      { type: "input_image", image_url: `data:${mime};base64,${buf.toString("base64")}`, detail: "high" },
+    // Ein großes Foto (über 5 MB) wird vorher verkleinert — die Kante bleibt lesbar (2.400 px).
+    let bild = buf; let bildMimeTyp = mime;
+    if (buf.length > 5 * 1024 * 1024) {
+      const { bildNormalisieren } = await import("./fiaon-datei-eingang");
+      bild = (await bildNormalisieren(buf)).buffer; bildMimeTyp = "image/jpeg";
+    }
+    const { text, modell } = await aufruf(
+      { type: "input_image", image_url: `data:${bildMimeTyp};base64,${bild.toString("base64")}`, detail: "high" },
       anweisung(art, 1, 1),
     );
-    const e = { seiten: seitenAus(text, 1), modell: MODELL() };
+    const e = { seiten: seitenAus(text, 1), modell };
     merken(schluessel, e);
     return e;
   }
   if (!istPdf(buf)) return null;
+  // Wand 4: Verschlüsselt? Nur Rechteschutz lösen — mit Öffnungspasswort wird nichts geschickt.
+  const { pdfVerschluesselt, pdfEntschluesseln } = await import("./fiaon-datei-eingang");
+  if (pdfVerschluesselt(buf)) {
+    const offen = await pdfEntschluesseln(buf);
+    if (!offen) throw new LeseFehler("passwort", "verschlüsselt, ließ sich nicht öffnen");
+    buf = offen;
+  }
 
   // Seitenweise in Päckchen: Die Antwort bleibt kurz genug, und eine lange
-  // Auskunft wird parallel gelesen. Lässt sich das PDF nicht zerlegen
-  // (beschädigt, verschlüsselt), geht es als Ganzes.
-  let paeckchen: { daten: Buffer; ab: number; bis: number }[] = [];
+  // Auskunft wird parallel gelesen. E-IT-C: Ein Päckchen ist höchstens
+  // SEITEN_JE_AUFRUF Seiten UND höchstens BYTES_JE_AUFRUF groß; eine einzelne
+  // Seite darüber bleibt leer (zu_gross_fuer_ki). Eine PDF, die sich nicht
+  // zerlegen lässt, ist beschädigt — sie geht nicht mehr „als Ganzes" raus.
+  let paeckchen: { daten: Buffer; ab: number; bis: number; seiten: number[] }[] = [];
+  const zuGross: number[] = [];
   try {
     const quelle = await PDFDocument.load(buf, { ignoreEncryption: true, updateMetadata: false });
     const gesamt = quelle.getPageCount();
     const liste = (auswahl ? auswahl.filter((i) => i < gesamt) : Array.from({ length: gesamt }, (_, i) => i)).slice(0, HOECHSTENS_SEITEN);
-    for (let i = 0; i < liste.length; i += SEITEN_JE_AUFRUF) {
-      const gruppe = liste.slice(i, i + SEITEN_JE_AUFRUF);
-      if (!auswahl && i === 0 && gruppe.length === gesamt) { paeckchen.push({ daten: buf, ab: 1, bis: gruppe.length }); break; }
-      const teil = await PDFDocument.create();
-      const kopien = await teil.copyPages(quelle, gruppe);
-      kopien.forEach((s) => teil.addPage(s));
-      paeckchen.push({ daten: Buffer.from(await teil.save()), ab: i + 1, bis: i + gruppe.length });
+    if (!auswahl && liste.length === gesamt && gesamt <= SEITEN_JE_AUFRUF && buf.length <= BYTES_JE_AUFRUF) {
+      paeckchen.push({ daten: buf, ab: 1, bis: gesamt, seiten: liste });
+    } else {
+      const bauen = async (gruppe: number[]) => {
+        const teil = await PDFDocument.create();
+        const kopien = await teil.copyPages(quelle, gruppe);
+        kopien.forEach((s) => teil.addPage(s));
+        return Buffer.from(await teil.save());
+      };
+      let gruppe: number[] = [];
+      let daten: Buffer | null = null;
+      for (const seite of liste) {
+        const probe = [...gruppe, seite];
+        const kandidat = await bauen(probe);
+        if (probe.length <= SEITEN_JE_AUFRUF && kandidat.length <= BYTES_JE_AUFRUF) { gruppe = probe; daten = kandidat; continue; }
+        if (gruppe.length && daten) paeckchen.push({ daten, ab: 0, bis: 0, seiten: gruppe });
+        const allein = probe.length === 1 ? kandidat : await bauen([seite]);
+        if (allein.length > BYTES_JE_AUFRUF) { zuGross.push(seite); gruppe = []; daten = null; continue; }
+        gruppe = [seite]; daten = allein;
+      }
+      if (gruppe.length && daten) paeckchen.push({ daten, ab: 0, bis: 0, seiten: gruppe });
     }
-  } catch {
-    // Einzelne Seiten lassen sich aus einem kaputten PDF nicht schneiden — dann gar nicht.
-    if (auswahl) return null;
-    paeckchen = [{ daten: buf, ab: 1, bis: 1 }];
+  } catch (e) {
+    if (e instanceof LeseFehler) throw e;
+    // E-IT-C Nachbesserung: Die Eingangsprüfung hat die Datei schon geöffnet (pdfjs, tolerant) — scheitert
+    // hier nur das strengere Zerlegen (pdf-lib), ist das Technik, keine Schuld des Kunden („beschädigt"
+    // sagt nur die Eingangsprüfung). „technisch" wird wiederholt und beim Kunden „wird geprüft".
+    throw new LeseFehler("technisch", `PDF ließ sich zum Lesen nicht zerlegen: ${String((e as Error)?.message || e).slice(0, 140)}`);
   }
-  if (paeckchen.length === 0) return null;
+  if (paeckchen.length === 0) {
+    if (zuGross.length) throw new LeseFehler("zu_gross_fuer_ki", `${zuGross.length} Seite(n) über ${Math.round(BYTES_JE_AUFRUF / 1024 / 1024)} MB`);
+    return null;
+  }
+  // Seitennummern für die Marken: fortlaufend über die gelesenen Seiten.
+  { let n = 1; for (const p of paeckchen) { p.ab = n; p.bis = n + p.seiten.length - 1; n = p.bis + 1; } }
 
   // 21.09.2026 (E-207): Ein gescheitertes Päckchen (Zeitgrenze, zu großes Foto) riss bisher
   // ALLE Seiten mit — bei einem Auszug mit 16 Fotoseiten blieb keine einzige gelesen. Jetzt
   // bleiben nur die Seiten dieses Päckchens leer; scheitern alle, gilt der erste Fehler.
   const fehler: unknown[] = [];
+  let gelesenVon = MODELL();
   const teile = await reihe(paeckchen, GLEICHZEITIG, async (p) => {
     try {
-      const { text } = await aufruf(
+      const { text, modell } = await aufruf(
         { type: "input_file", filename: `seiten-${p.ab}-${p.bis}.pdf`, file_data: `data:application/pdf;base64,${p.daten.toString("base64")}` },
         anweisung(art, p.ab, p.bis),
       );
+      gelesenVon = modell;
       return seitenAus(text, p.bis - p.ab + 1);
     } catch (e) {
       fehler.push(e);
@@ -221,7 +282,16 @@ export async function ocrLesen(buf: Buffer, art: OcrArt = "allgemein", opt: { se
   const pause = fehler.find((f) => istKiPause(f));
   if (pause) throw pause;
   if (fehler.length === paeckchen.length) throw fehler[0];
-  const e = { seiten: teile.flat(), modell: MODELL() };
+  // Zu große Seiten bleiben an ihrer Stelle leer — die Reihenfolge der Seiten stimmt weiter.
+  let seitenText = teile.flat();
+  if (zuGross.length) {
+    const jeSeite = new Map<number, string>();
+    paeckchen.forEach((p, i) => p.seiten.forEach((s, j) => jeSeite.set(s, teile[i]?.[j] ?? "")));
+    const alle = Array.from(new Set([...paeckchen.flatMap((p) => p.seiten), ...zuGross])).sort((a, b) => a - b);
+    seitenText = alle.map((s) => jeSeite.get(s) ?? "");
+    console.warn(`[OCR] ${zuGross.length} Seite(n) zu groß für die Texterkennung — bleiben leer.`);
+  }
+  const e = { seiten: seitenText, modell: gelesenVon };
   merken(schluessel, e);
   return e;
 }

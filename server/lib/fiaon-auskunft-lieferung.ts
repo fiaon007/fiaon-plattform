@@ -1727,6 +1727,19 @@ export async function beschaffungHochladen(
     if (alt?.schufa_pdf && String(alt.dokument_ref) === traeger) {
       teile.unshift({ buffer: Buffer.isBuffer(alt.schufa_pdf) ? alt.schufa_pdf : Buffer.from(alt.schufa_pdf), name: "bisherige-lieferung.pdf" });
       angehaengt = true;
+    } else {
+      // E-IT-C (08.10.2026): Der Träger hat zwischen zwei Lieferungen gewechselt (z. B. Paket nach der Auskunft
+      // gekauft). Die frühere Lieferung liegt dann als Datei (Herkunft „beschaffung“) in der Unterlagen-Ablage —
+      // ohne sie ersetzte die Nachlieferung die frühere Lieferung in der Akte, statt sich anzuhängen.
+      const ablage = await import("./fiaon-unterlagen").then((m) => m.unterlagenBereit(lauf)).catch(() => false);
+      const [frueher] = ablage ? (await lauf`SELECT inhalt FROM fiaon_dokumente
+                                     WHERE person_id = ${a.personId} AND art = 'unterlage' AND kategorie = 'schufa' AND herkunft = 'beschaffung'
+                                       AND entfernt_am IS NULL AND geloescht_am IS NULL AND LENGTH(inhalt) > 0
+                                     ORDER BY hochgeladen_am DESC, id DESC LIMIT 1`) as any[] : [];
+      if (frueher?.inhalt) {
+        teile.unshift({ buffer: Buffer.isBuffer(frueher.inhalt) ? frueher.inhalt : Buffer.from(frueher.inhalt), name: "bisherige-lieferung.pdf" });
+        angehaengt = true;
+      }
     }
   }
   let pdf: Buffer;
@@ -1749,6 +1762,12 @@ export async function beschaffungHochladen(
   const { unterlageSichern } = await import("./fiaon-dokumente");
   await unterlageSichern(traeger, "schufa", lauf);
   await lauf`UPDATE fiaon_applications SET schufa_pdf = ${pdf}, documents_uploaded_at = NOW() WHERE ref = ${traeger}`;
+  // E-IT-C (08.10.2026): Die Unterlagen-Ablage (eine Datei = ein Datensatz) kennt diese Fassung jetzt als
+  // EINE Datei mit Herkunft „beschaffung“ — ein späteres Hinzufügen bindet an sie an statt sie zu überschreiben,
+  // und der Kunde lädt eigene Auskünfte unter „Weitere Unterlagen“ (server/lib/fiaon-unterlagen.ts).
+  await import("./fiaon-unterlagen")
+    .then((m) => m.akteFassungUebernehmen(a.personId, "schufa", { herkunft: "beschaffung", name: ein.wer.name, agentId: ein.wer.agentId }, lauf))
+    .catch((e) => console.error("[AUSKUNFT-BESCHAFFUNG] Unterlagen-Ablage:", String(e?.message || e).slice(0, 160)));
   await lauf`
     UPDATE fiaon_applications SET status = 'documents_submitted'
      WHERE ref = ${traeger} AND bank_statement_pdf IS NOT NULL AND id_card_pdf IS NOT NULL AND status IN ('pending', 'documents_requested')`

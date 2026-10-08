@@ -16,7 +16,7 @@ import {
   twimlAusgehend, wahlProtokoll, wahlPruefen, zugangsAusweis,
   nummerKontingent, nummerWarnungMelden,
 } from "../lib/fiaon-softphone";
-import { DOKUMENTE, dokumentInhalt, dokumentStand, istDokumentArt, unterlageSichern } from "../lib/fiaon-dokumente";
+import { DOKUMENTE, dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
 import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
 import { anrufNachbereiten } from "../lib/fiaon-transkript";
 import { ergebnisNachbereiten, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
@@ -1330,12 +1330,18 @@ router.get("/telefon/:id/aufnahme", requireAgent, async (req: AgentRequest, res:
     }
 
     // Wer hört zu? Das gehört in die Akte.
+    // E-IT-C (08.10.2026): ref ist NOT NULL — ohne ref scheiterte dieser Eintrag still (0 Zeilen in 60 Tagen).
+    // Die ref kommt von der Bestellung, die die Akte der Person trägt.
     await sqlPool`
-      INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
-      VALUES (${c.person_id ?? null}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-              ${laden
-                ? `Aufnahme von Anruf ${id} HERUNTERGELADEN.`
-                : `Aufnahme von Anruf ${id} angehört.`}, NOW())
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      SELECT a.ref, ${c.person_id ?? null}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+             ${laden
+               ? `Aufnahme von Anruf ${id} HERUNTERGELADEN.`
+               : `Aufnahme von Anruf ${id} angehört.`}, NOW()
+        FROM fiaon_applications a
+       WHERE a.person_id = ${c.person_id ?? -1} AND a.gdpr_deleted_at IS NULL
+       ORDER BY (a.merged_into IS NULL) DESC, (a.payment_status = 'paid') DESC, a.created_at DESC
+       LIMIT 1
     `.catch(() => {});
 
     res.setHeader("Content-Type", "audio/mpeg");
@@ -1766,21 +1772,14 @@ router.post("/agent/dokumente/:personId/:art/loeschen", requireAgent, async (req
     const grund = String(req.body?.grund || "").trim();
     if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte kurz begründen — der Grund steht im Verlauf." });
 
-    const spalte = art === "ausweis" ? "id_card_pdf" : art === "kontoauszug" ? "bank_statement_pdf" : "schufa_pdf";
-    const betroffen = (await sqlPool.unsafe(
-      `UPDATE fiaon_applications SET ${spalte} = NULL, updated_at = NOW()
-       WHERE person_id = $1 AND merged_into IS NULL AND ${spalte} IS NOT NULL
-       RETURNING ref`, [personId],
-    )) as any[];
-    if (betroffen.length === 0) return res.json({ ok: false, error: "Es liegt kein solches Dokument vor." });
-
-    const label = art === "ausweis" ? "Ausweis" : art === "kontoauszug" ? "Kontoauszug" : "Bonitätsauskunft";
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
-      VALUES (${betroffen[0].ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-              ${`Dokument gelöscht: ${label}. Grund: ${grund}`}, NOW())
-    `.catch(() => {});
-    res.json({ ok: true, meldung: `${label} gelöscht — der Kunde (oder du) kann jetzt das richtige Dokument hochladen.` });
+    // E-IT-C (08.10.2026): Löschen ARCHIVIERT jetzt (unterlageSichern) und entfernt die Einzeldateien
+    // mit Grund — vorher setzte es die Spalte an allen Bestellungen auf NULL, ohne Archiv (22-mal in
+    // 60 Tagen), und der Verlauf scheiterte ohne ref still. Eine einzelne Datei entfernt die Akte unter
+    // Dokumente → „Entfernen" (POST /agent/unterlagen/:personId/datei/:id/entfernen).
+    const { kategorieLeeren } = await import("../lib/fiaon-unterlagen");
+    const erg = await kategorieLeeren(personId, art, { art: "mitarbeiter", name: req.agent!.name, agentId: req.agent!.id }, grund);
+    if (!erg.ok) return res.json({ ok: false, error: erg.satz });
+    res.json({ ok: true, meldung: erg.satz });
   } catch (err) {
     console.error("[DOK] loeschen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -1822,14 +1821,15 @@ router.post(
       .then(({ default: multer }) => {
         multer({
           storage: multer.memoryStorage(),
-          limits: { fileSize: 25 * 1024 * 1024 },
+          // E-IT-C (08.10.2026): 50 MB je Datei wie überall (shared/fiaon-unterlagen.ts).
+          limits: { fileSize: 50 * 1024 * 1024 },
         }).array("datei", 10)(req as any, res as any, (err: any) => {
           if (err) {
             const zuGross = err?.code === "LIMIT_FILE_SIZE";
             return res.status(400).json({
               ok: false,
               error: zuGross
-                ? "Die Datei ist größer als 25 MB. Bitte als PDF oder verkleinertes Foto schicken."
+                ? "Die Datei ist größer als 50 MB. Bitte kleiner speichern oder seitenweise hochladen."
                 : "Die Datei konnte nicht gelesen werden.",
             });
           }
@@ -1855,129 +1855,43 @@ router.post(
         return res.status(400).json({ ok: false, error: "Es wurde keine Datei mitgeschickt." });
       }
 
-      // Nur das, was hinterher auch wieder angezeigt werden kann. Eine .docx in
-      // der Ausweisspalte wäre eine Datei, die niemand mehr öffnet.
-      // Erkennung und Bindung wohnen seit 11.09.2026 (E-177) in
-      // server/lib/fiaon-pdf-binden.ts — derselbe Weg wie im Kundenbereich.
-      const { dateiArt: artVon, zuEinerPdf, BindeFehler, bindeSatz } = await import("../lib/fiaon-pdf-binden");
-      for (const d of dateien) {
-        if (!artVon(d.buffer)) {
-          return res.status(400).json({
-            ok: false,
-            error: `„${d.originalname}": Nur PDF, JPG oder PNG. Ein Handyfoto genügt, wenn alles lesbar ist.`,
-          });
-        }
-      }
-
       // ══════════════════════════════════════════════════════════════════════
-      // MEHRERE DATEIEN → EINE PDF (25.08.2026)
+      // E-IT-C (08.10.2026): DIESER WEG HEISST JETZT „ALLES ERSETZEN"
       //
-      // Florentine: „Ein Kunde schickt drei Kontoauszüge. Ich kann nicht alle
-      // drei gleichzeitig auswählen, sondern kann nur einen einzigen
-      // hochladen."
-      //
-      // Die Akte hat EINE Spalte je Dokumentart — und das ist richtig so:
-      // Überall (Kundenbereich, Onboarding, Vollständigkeits-Prüfung) heißt
-      // „Kontoauszug da" genau EINE Datei. Statt das ganze Haus umzubauen,
-      // werden mehrere Dateien hier zu EINER PDF gebunden: PDF-Seiten werden
-      // übernommen, Fotos bekommen je eine eigene Seite. Reihenfolge = die
-      // Reihenfolge der Auswahl.
+      // Bis heute band diese Route die gewählten Dateien zu EINER PDF und
+      // ersetzte die Spalte; ein einzelnes Foto lag roh als JPEG in der
+      // _pdf-Spalte (7 Ausweise), ohne EXIF-Drehung und mit GPS. Jetzt geht jede
+      // Datei durch dieselbe Logik wie im Kundenbereich (server/lib/fiaon-
+      // unterlagen.ts): Die erste ersetzt alle bisherigen Dateien der Kategorie
+      // (mit Grund, nichts geht verloren), die weiteren hängen sich an. Wer nur
+      // HINZUFÜGEN will, nimmt in der Akte „Datei hinzufügen"
+      // (POST /agent/unterlagen/:personId/:kategorie).
       // ══════════════════════════════════════════════════════════════════════
-      let datei: { buffer: Buffer; mimetype: string; originalname: string };
-      if (dateien.length === 1) {
-        datei = dateien[0];
-      } else {
-        // 11.09.2026 (E-177): Hier lud die Bindung Bank-PDFs mit ignoreEncryption.
-        // Bei verschlüsselten kam ein Absturz („Serverfehler“) oder eine Akte mit
-        // allen Seiten und keinem Zeichen heraus. Jetzt sagt ein Satz, welche Datei
-        // es ist — Probe und Zahlen in fiaon-pdf-binden.ts.
-        let gebunden: Buffer;
-        try {
-          gebunden = await zuEinerPdf(dateien.map((d) => ({ buffer: d.buffer, name: d.originalname })));
-        } catch (e) {
-          if (e instanceof BindeFehler) return res.status(400).json({ ok: false, error: bindeSatz(e, "du") });
-          throw e;
-        }
-        datei = {
-          buffer: gebunden,
-          mimetype: "application/pdf",
-          originalname: `${art}-${dateien.length}-dateien.pdf`,
-        };
-      }
-
-      // 18.09.2026: dieselbe Reihenfolge wie die Akte (dokumentStand) — die
-      // bezahlte Paket-Bestellung zuerst, nicht die jüngste Zeile. Die jüngste
-      // war oft die Auskunft-Bestellung, und der Kundenbereich des Pakets sah
-      // dann „Fehlt".
-      const [antrag] = (await sqlPool`
-        SELECT ref FROM fiaon_applications
-        WHERE person_id = ${personId} AND merged_into IS NULL AND gdpr_deleted_at IS NULL
-        ORDER BY (payment_status = 'paid') DESC,
-                 (COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
-                 created_at DESC LIMIT 1
-      `) as any[];
       // 25.08.2026: Ein Ausweis gehoert dem Menschen, nicht seiner Bestellung.
       // Fehlt die Akte, wird sie angelegt statt den Upload abzuweisen.
       // Siehe server/lib/fiaon-akte-anker.ts.
-      const anker = antrag?.ref || (await sorgeFuerAkte(personId, req.agent!.id));
+      const { traegerRef, unterlageHinzufuegen } = await import("../lib/fiaon-unterlagen");
+      const anker = (await traegerRef(personId)) || (await sorgeFuerAkte(personId, req.agent!.id));
       if (!anker) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-      const antragRef = anker;
 
-      const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
-      const label = DOKUMENTE.find((d) => d.art === art)!.label;
-      // Was ersetzt wird, geht nicht verloren (18.09.2026, Team-Feedback Priorität 1).
-      await unterlageSichern(antragRef, art);
-      // Spaltenname kommt aus der festen Liste oben, nicht aus der Anfrage.
-      await sqlPool.unsafe(
-        `UPDATE fiaon_applications
-            SET ${spalte} = $1, documents_uploaded_at = NOW()
-          WHERE ref = $2`,
-        [datei.buffer, antragRef],
-      );
-
-      // Hat der Kunde damit alles beisammen? Dann rückt der Antrag weiter —
-      // dieselbe Regel wie beim Upload durch den Kunden selbst.
-      await sqlPool`
-        UPDATE fiaon_applications
-           SET status = 'documents_submitted'
-         WHERE ref = ${antragRef}
-           AND bank_statement_pdf IS NOT NULL AND id_card_pdf IS NOT NULL
-           AND status IN ('pending', 'documents_requested')
-      `.catch(() => {});
-
-      const kb = Math.max(1, Math.round(datei.buffer.length / 1024));
-      await sqlPool`
-        INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
-        VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                ${`${label} für den Kunden hochgeladen (${kb} KB${dateien.length > 1 ? `, ${dateien.length} Dateien zu einer PDF gebunden` : `, ${(artVon(datei.buffer) ?? "pdf").toUpperCase()}`}).`},
-                NOW())
-      `.catch(() => {});
-
-      // ── P9 (01.09.2026): DERSELBE PRÜFWEG WIE BEIM KUNDEN-UPLOAD ─────
-      // Zwei Upload-Wege mit unterschiedlichem Verhalten wären die nächste
-      // 059-Kopie. Zusätzlich stößt dieser Weg jetzt die Kontoauszug-Analyse
-      // an — sie fehlte hier komplett (der Kunde sah nie „Ihre Finanzen",
-      // wenn der MITARBEITER den Auszug hochgeladen hatte).
-      let pruefSatz = "";
-      try {
-        // Die Arten heißen hier bereits wie im Prüfmodul (fiaon-dokumente.ts).
-        const pruefArt = ["kontoauszug", "ausweis", "schufa"].includes(String(art)) ? String(art) : null;
-        if (pruefArt) {
-          const { pruefungAnstossen } = await import("../lib/fiaon-dokument-pruefung");
-          const u = await pruefungAnstossen(String(antragRef), pruefArt as any, datei.buffer);
-          if (u && (u.erkannt === false || u.vollstaendig === false) && u.hinweisIntern) pruefSatz = ` ⚠ ${u.hinweisIntern}`;
-        }
-        if (art === "kontoauszug") {
-          void import("../lib/fiaon-kontoauszug-analyse")
-            .then(({ kontoauszugAnalysieren }) => kontoauszugAnalysieren(String(antragRef), { erzwingen: true }))
-            .catch((e) => console.error("[DOK] Analyse:", e?.message));
-        }
-      } catch (e) {
-        console.error("[DOK] Prüfung:", String(e).slice(0, 160));
+      const grund = String(req.body?.grund || "").trim() || "neue Fassung vom Mitarbeiter hochgeladen";
+      const wer = { art: "mitarbeiter" as const, name: req.agent!.name, agentId: req.agent!.id };
+      const saetze: string[] = [];
+      let angenommen = 0;
+      for (let i = 0; i < dateien.length; i++) {
+        const erg = await unterlageHinzufuegen({
+          personId, kategorie: art, datei: { buffer: dateien[i].buffer, name: dateien[i].originalname || "Datei" }, wer,
+          herkunft: "mitarbeiter", ersetzen: angenommen === 0 ? { grund } : null,
+        });
+        if (!erg.ok) { saetze.push(erg.satzOffice); continue; }
+        angenommen++;
+        saetze.push(erg.satzOffice);
       }
+      if (!angenommen) return res.status(400).json({ ok: false, error: saetze[0] || "Die Datei konnte nicht angenommen werden." });
 
       const stand = await dokumentStand({ personId, rolle, zustaendig: true }, sqlPool);
-      res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte.${pruefSatz}` });
+      const label = DOKUMENTE.find((d) => d.art === art)!.label;
+      res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte (${angenommen} Datei${angenommen === 1 ? "" : "en"}). ${saetze.join(" ")}`.trim() });
     } catch (err) {
       console.error("[DOK] agent hochladen:", err);
       res.status(500).json({ ok: false, error: "Serverfehler" });

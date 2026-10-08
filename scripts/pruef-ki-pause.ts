@@ -565,12 +565,19 @@ try {
   ok(!tW.ok && cW.transkript_status === "entfaellt" && !/KI pausiert/.test(String(cW.transkript_grund)), `I/4 Pause: 'entfaellt' wird nicht mit 'offen'/„KI pausiert“ überschrieben (${cW.transkript_status})`);
 
   // I/5 — Dokumentprüfung in der Pause: markiert, Hinweis „wird nach dem Aktivieren automatisch geprüft"
+  // E-IT-C (08.10.2026): Ausweisbilder gehen an KEINE KI mehr (Entscheidung Justin) — ein Ausweis-Foto
+  // wartet deshalb nicht auf die Pause, sondern bekommt sofort die feste Regel („von Hand"). Die
+  // Pause-Markierung prüft jetzt die Auskunft, die weiter über die Texterkennung gelesen wird.
   const dp = await import("../server/lib/fiaon-dokument-pruefung");
-  const uP = await dp.pruefungAnstossen(REF_S, "ausweis", leerPdf, 10_000);
+  const netzVorI5 = OPENAI.length;
+  const uP = await dp.pruefungAnstossen(REF_S, "schufa", leerPdf, 10_000);
   await new Promise((r) => setTimeout(r, 400));
-  const [uRow] = (await sql`SELECT urteil FROM fiaon_dokument_pruefungen WHERE ref = ${REF_S} AND art = 'ausweis'`) as any[];
+  const [uRow] = (await sql`SELECT urteil FROM fiaon_dokument_pruefungen WHERE ref = ${REF_S} AND art = 'schufa'`) as any[];
   ok(uP?.kiPause === true && /automatisch geprüft/.test(String(uP?.hinweisIntern)) && !/neu hochladen/.test(String(uP?.hinweisIntern)), `I/5 Pause-Urteil markiert: „${String(uP?.hinweisIntern).slice(0, 90)}“`);
   ok(uRow?.urteil?.kiPause === true, "I/5 … und so gespeichert");
+  const uA = await dp.pruefungAnstossen(REF_S, "ausweis", leerPdf, 10_000);
+  await new Promise((r) => setTimeout(r, 400));
+  ok(!uA?.kiPause && /von Hand/.test(String(uA?.hinweisIntern)) && OPENAI.length === netzVorI5, `I/5 Ausweis-Foto in der Pause: feste Regel, keine Pause-Markierung, kein KI-Aufruf („${String(uA?.hinweisIntern).slice(0, 70)}“)`);
 
   // I/5 — Band: „liegen geblieben" zählt nur Pause-bezogen
   const { liegenGeblieben } = await import("../server/routes/fiaon-mara-steuerpult");
@@ -613,7 +620,8 @@ try {
   const sn3 = await schufaNachholen(10);
   ok(sn3.gestartet === 0 && OPENAI.length === netzS3, "I/3 Zweiter Takt: nichts mehr offen, keine OpenAI-Kosten (keine Endlosschleife)");
   // I/5 — die Dokumentprüfung aus der Pause ist nachgeholt (hängt am SCHUFA-Takt)
-  const [uNach] = (await sql`SELECT urteil FROM fiaon_dokument_pruefungen WHERE ref = ${REF_S} AND art = 'ausweis'`) as any[];
+  // E-IT-C: die in der Pause markierte Prüfung ist die der Auskunft (Ausweise warten nicht mehr auf die KI).
+  const [uNach] = (await sql`SELECT urteil FROM fiaon_dokument_pruefungen WHERE ref = ${REF_S} AND art = 'schufa'`) as any[];
   ok(uNach?.urteil && uNach.urteil.kiPause !== true && !/wartet, weil die KI pausiert/.test(String(uNach.urteil.hinweisIntern)), `I/5 Dokumentprüfung nach dem Aktivieren neu: „${String(uNach?.urteil?.hinweisIntern).slice(0, 70)}“`);
 
   // I/2 — Kontoauszug: zwei gleichzeitige Läufe, genau eine Auswertung, höchstens ein Aktenvermerk

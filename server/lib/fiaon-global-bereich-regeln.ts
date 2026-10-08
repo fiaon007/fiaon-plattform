@@ -11,7 +11,7 @@
 //      mitgeschickten Typ. Der Typ, den der Browser meldet, ist eine Behauptung:
 //      Eine HTML-Seite mit dem Etikett „application/pdf" läge sonst als PDF im
 //      Dokumentenraum und würde der zuständigen Person so ausgeliefert
-//      (dieselbe Überlegung wie dateiKopfPasst in fiaon-app-antraege.ts).
+//      (dieselbe Überlegung wie die Eingangsprüfung in server/lib/fiaon-datei-eingang.ts).
 //      Angenommen werden PDF, JPG, PNG und HEIC — sonst nichts. SVG und HTML
 //      sind ausführbar und kommen nie durch; HEIC wird hier NICHT abgelehnt wie
 //      im Privatkundenbereich, weil das Dokument unverändert abgelegt und nicht

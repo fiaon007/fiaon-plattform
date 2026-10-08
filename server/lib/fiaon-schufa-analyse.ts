@@ -40,7 +40,9 @@
 import { sqlPool } from "./db-pool";
 import { pdfText, pdfTextBrauchbar, pdfSeiten } from "./fiaon-pdf-lesen";
 import { ocrLesen, ohneFotoVermerk } from "./fiaon-ocr";
-import { openaiFetch, kiPausiert, istKiPause } from "./fiaon-ki-pause";
+import { openaiFetch, kiPausiert, istKiPause, kiLesenMoeglich, kiSchluessel } from "./fiaon-ki-pause";
+import { istLeseFehler, lesefehlerSatz } from "@shared/fiaon-lesefehler";
+import { createHash } from "node:crypto";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 
 /** So viel Text geht ans Modell. Eine 38-Seiten-Auskunft liegt weit darunter. */
@@ -88,6 +90,8 @@ export async function ensureSchufaTabelle(): Promise<void> {
   // beauftragt wurde - sonst schickt derselbe Knopf ihn jeden Tag neu los.
   await sqlPool`ALTER TABLE fiaon_schufa_analysen ADD COLUMN IF NOT EXISTS loeschantrag_am TIMESTAMPTZ`.catch(() => {});
   await sqlPool`ALTER TABLE fiaon_schufa_analysen ADD COLUMN IF NOT EXISTS loeschantrag_posten INTEGER`.catch(() => {});
+  // E-IT-C (08.10.2026): Fingerabdruck der gelesenen Datei (wie bei der Kontoauszug-Analyse; Migration 099).
+  await sqlPool`ALTER TABLE fiaon_schufa_analysen ADD COLUMN IF NOT EXISTS datei_hash VARCHAR`.catch(() => {});
   tabelleGeprueft = true;
 }
 
@@ -367,8 +371,9 @@ const ANWEISUNG = [
 ].join("\n");
 
 async function openaiAuswertung(text: string): Promise<{ modell: string; daten: any }> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY fehlt.");
+  // E-IT-C (08.10.2026): der Schlüssel des TRAGENDEN Anbieters (Claude oder OpenAI), nicht nur OPENAI_API_KEY.
+  if (!kiLesenMoeglich()) throw new Error("Kein Schlüssel für die KI gesetzt (ANTHROPIC_API_KEY bzw. OPENAI_API_KEY).");
+  const key = kiSchluessel();
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
   const r = await openaiFetch("schufa", "/chat/completions", {
     method: "POST",
@@ -614,8 +619,18 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
 
   try {
     const buf: Buffer = Buffer.isBuffer(a.schufa_pdf) ? a.schufa_pdf : Buffer.from(a.schufa_pdf);
+    await fertig({ datei_hash: createHash("sha256").update(buf).digest("hex") }).catch(() => {});
     let seiten: number | null = null;
-    try { seiten = await pdfSeiten(buf); } catch { /* Seitenzahl ist Beiwerk */ }
+    let passwort = false;
+    try { seiten = await pdfSeiten(buf); } catch (e: any) { passwort = String(e?.name || "") === "PasswordException"; /* sonst ist die Seitenzahl Beiwerk */ }
+    // E-IT-C: Ein Öffnungspasswort ist eine eigene Klasse mit eigenem Satz — nicht „zu unscharf".
+    if (passwort) {
+      await fertig({ status: "unlesbar", seiten: 0, fehler: lesefehlerSatz("passwort", "sie") });
+      await sqlPool`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+                    VALUES (${ref}, NULL, 'System', 'system', ${`Bonitätsauskunft: ${lesefehlerSatz("passwort", "du")}`})`.catch(() => {});
+      return schufaAnalyseFuer(ref);
+    }
+    let technisch: string | null = null;
     let text = "";
     try { text = await pdfText(buf); } catch (e) { console.warn("[SCHUFA-ANALYSE] PDF nicht lesbar:", (e as Error).message); }
     // ── FOTO ODER SCAN: DIE TEXTERKENNUNG LIEST (18.09.2026) ───────────────
@@ -632,9 +647,12 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
       } catch (e) {
         // E-246: KI pausiert — NICHT „unlesbar" speichern und den Kunden nicht um eine neue Datei bitten.
         if (istKiPause(e)) throw e;
+        technisch = istLeseFehler(e) ? lesefehlerSatz(e.klasse, "du") : String((e as Error)?.message || e).slice(0, 200);
         console.warn("[SCHUFA-ANALYSE] Texterkennung:", (e as Error).message);
       }
     }
+    // E-IT-C: Ein Fehler der Technik ist keine Schuld des Kunden — „fehler" (wird wiederholt) statt „unlesbar".
+    if (!pdfTextBrauchbar(text) && technisch) throw new Error(`Texterkennung technisch gescheitert — wird wiederholt: ${technisch}`);
     if (!pdfTextBrauchbar(text)) {
       await fertig({
         status: "unlesbar", seiten,
@@ -839,6 +857,24 @@ export async function schufaNachholen(grenze = 10): Promise<{ gestartet: number;
         abgehakt++;
         await sqlPool`UPDATE fiaon_schufa_analysen SET fehler = ${`${SCHUFA_PAUSE_ERLEDIGT} — unter dieser Bestellung nicht neu ausgewertet (Auskunft leer, gelöscht oder an einer anderen Bestellung).`}, updated_at = NOW() WHERE id = ${o.id}`;
       }
+    }
+    // ── TECHNISCHE FEHLER DER TEXTERKENNUNG (E-IT-C, 08.10.2026) ─────────────
+    // Bisher hießen sie beim Kunden „zu unscharf" und wurden nie wiederholt. Jetzt: „fehler",
+    // nach einer Stunde neu, höchstens drei Läufe je Auskunft in sieben Tagen — danach sieht das
+    // Office „technisch — bitte von Hand ansehen".
+    const technisch = (await sqlPool`
+      SELECT l.id, l.ref FROM (
+        SELECT DISTINCT ON (ref) id, ref, status, fehler, created_at FROM fiaon_schufa_analysen ORDER BY ref, created_at DESC
+      ) l
+      JOIN fiaon_applications a ON a.ref = l.ref AND a.schufa_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL
+      WHERE l.status = 'fehler' AND l.fehler LIKE 'Texterkennung technisch gescheitert%' AND l.created_at < NOW() - INTERVAL '1 hour'
+        AND (SELECT count(*) FROM fiaon_schufa_analysen x WHERE x.ref = l.ref AND x.created_at > NOW() - INTERVAL '7 days') < 3
+      ORDER BY l.created_at ASC
+      LIMIT ${Math.max(0, grenze - gestartet)}`) as any[];
+    for (const t of technisch) {
+      if (await kiPausiert()) break;
+      gestartet++;
+      await schufaAnalysieren(String(t.ref), { erzwingen: true }).catch((e) => console.error("[SCHUFA-ANALYSE] Wiederholung", t.ref, e));
     }
     // Dokumentprüfungen (Ausweis, Auskunft), deren Urteil in der Pause ohne KI entstand, hängen am selben Takt.
     let dokumente = 0;

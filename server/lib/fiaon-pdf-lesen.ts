@@ -208,6 +208,35 @@ export function pdfTextBrauchbar(text: string): boolean {
 }
 
 /**
+ * Ist die Textausbeute ein Kontoauszug, mit dem sich arbeiten lässt?
+ *
+ * `pdfTextBrauchbar` prüft den Vokalanteil — richtig für Prosa, falsch für einen
+ * Sparkassen-Auszug, der zu drei Vierteln aus Zahlen besteht (Dirk Ladewig,
+ * 11.09.2026: 6 Seiten, 180 Beträge, durchgefallen). Ein Auszug ist brauchbar,
+ * wenn er Beträge enthält. Ein Foto hat keine.
+ *
+ * E-IT-C (08.10.2026, Punkt 13 D): wohnte bis heute nur in der Kontoauszug-
+ * Analyse. Die Dokumentprüfung nahm für denselben Auszug die Vokalregel —
+ * zwei Leser, zwei Regeln: 12 Auszüge „nicht lesbar" laut Prüfung, 10 davon hat
+ * die Analyse mit Buchungen gelesen. Jetzt EINE Regel hier, beide lesen sie.
+ */
+export function auszugBrauchbar(text: string): boolean {
+  if (text.trim().length < 120) return false;
+  const betraege = (text.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []).length;
+  const vokale = (text.match(/[aeiouäöüAEIOU]/g) || []).length;
+  return betraege >= 5 || vokale / text.length > 0.15;
+}
+
+/**
+ * Die richtige Brauchbarkeits-Regel je Dokumentart — eine Stelle für Prüfung und Analysen.
+ * Für die anderen Arten zählt AUCH die Auszugsregel: Ein Kontoauszug, der als Ausweis
+ * hochgeladen wurde, hat Text — er muss als „falsche Datei" erkannt werden, nicht als Foto.
+ */
+export function textBrauchbarFuer(art: string, text: string): boolean {
+  return art === "kontoauszug" ? auszugBrauchbar(text) : (pdfTextBrauchbar(text) || auszugBrauchbar(text));
+}
+
+/**
  * Wie oft kommt ein Wort je Seite vor?
  *
  * Für „Fußzeile genau 1× je Seite" — die Prüfung braucht die Verteilung, nicht

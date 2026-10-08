@@ -6,6 +6,7 @@ import {
   AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2, Info,
 } from "lucide-react";
 import { DokumenteSektion } from "@/components/DokumenteSektion";
+import { UnterlagenAkte } from "@/components/unterlagen/UnterlagenAkte";
 import { KontoauszugImDetail } from "@/components/finanzen/FinanzTiefe";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import VermerkTafel from "@/components/admin/VermerkTafel";
@@ -1050,11 +1051,19 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
             {app?.ref ? (
               // Die Betreiberansicht liest über die REFERENZ — die steht immer
               // zur Verfügung. `personId` ist nur für „Anfordern" nötig.
-              <DokumenteSektion
-                personId={Number(app?.personId ?? 0) || 0}
-                kundenRef={app.ref}
-                adminSicht
-              />
+              <>
+                <DokumenteSektion
+                  personId={Number(app?.personId ?? 0) || 0}
+                  kundenRef={app.ref}
+                  adminSicht
+                />
+                {/* E-IT-C (08.10.2026): die Einzeldateien je Unterlage — Hinzufügen, Alles ersetzen,
+                    Entfernen mit Grund, Geprüft, Neu lesen (als „Verwaltung", hinter dem Admin-Code). */}
+                <div style={{ marginTop: 14 }}>
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500" style={{ margin: "0 0 8px" }}>Dateien je Unterlage</p>
+                  <UnterlagenAkte adminRef={app.ref} ton="hell" />
+                </div>
+              </>
             ) : (
               <p className="text-[12.5px] text-slate-400">
                 Für einen Lead ohne Bestellung gibt es noch keine Unterlagen.

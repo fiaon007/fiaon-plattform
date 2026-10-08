@@ -298,6 +298,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // schickt diese Mail — für jeden, der den Kunden betreut. Mit „admin" allein
   // lehnte mailSenden jeden Klick des Teams ab (gemessen: 1 Versand in 30 Tagen).
   // Den Hinweis, WAS fehlt, kennt nur dieser Auslöser — im Menü steht sie nicht.
+  // E-IT-D (08.10.2026, 4b): nach der Freigabe in der Akte — der Server sendet, kein Menü (vonHand: false).
+  finanzauswertung_bereit: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    vonHand: false, pflichtFelder: ["auswertung_url"],
+    klartext: "Die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich des Kunden — Knopf „Auswertung ansehen“, ohne Anhang, ohne Zahlen. Geht automatisch mit der Freigabe in der Akte.",
+  },
   documents_change_request: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding", "inkasso"],
     klartext: "Bitte, ein Dokument im Bereich hochzuladen — mit dem Hinweis, was fehlt. Geht über „Anfordern“ an den Unterlagen.",

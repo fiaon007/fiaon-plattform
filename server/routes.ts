@@ -954,6 +954,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);
+  // 📊 E-IT-D (08.10.2026): FIAON Finanz- und Bonitätsauswertung (Akte, Kunde) und der Upload-Link ohne
+  //    Anmeldung (/unterlagen/:token, signiert, 14 Tage) — server/routes/fiaon-finanzauswertung.ts.
+  app.use('/api/fiaon', (await import('./routes/fiaon-finanzauswertung')).default);
 
   // 📱 /APP — Serverseite des neuen Kundenbereichs (E-150, Scheibe 2): Anspruchs-
   // Check, Brief-Knopf, Post. Liest den Stand weiter aus fiaon-kunde-bereich.
@@ -1095,6 +1098,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // 💶 E-244 (26.09.2026): Zahlungserinnerung an jede offene Auskunft-Bestellung — Tag 1/4/10/18, danach wöchentlich,
     //    Mo–So 07:00–20:30, je Lauf 10, je Tag auskunft_erinnerung_pro_tag (50). STANDARD AN; aus im Mara-Steuerpult.
     tageslauf('auskunft_erinnerung', async () => await (await import('./lib/fiaon-auskunft-erinnerung')).erinnerungLauf(), 30 * 60 * 1000, { beimStartNach: 480_000 });
+    // 🕒 E-IT-D (08.10.2026, 4a): Liegezeit-Wache der Auskunft-Beschaffung — alle 6 Stunden. Beschaffbar und seit
+    //    3 Werktagen fällig → Aufgabe an die benannte Verantwortung (10 Werktage: dringend); Link 3 Werktage
+    //    unbestätigt → Anruf-Aufgabe an den Betreuer. Je Auftrag und Stufe genau eine Aufgabe.
+    tageslauf('auskunft_liegezeit_wache', async () => await (await import('./lib/fiaon-auskunft-lieferung')).beschaffungWache(), 6 * 60 * 60 * 1000, { beimStartNach: 540_000 });
   });
 
   // 💶 Die Einladung zum Bankeinzug (Lauf „sepa-werbung", E-072) ist seit 19.09.2026

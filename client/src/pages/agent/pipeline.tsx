@@ -128,6 +128,9 @@ import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
 import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
+// E-IT-D (08.10.2026, 4a/4b/4c): Auswertung + Anforderung in der Akte, Stufensätze der Auskunft aus EINER Quelle.
+import { FinanzauswertungAkte } from "@/components/finanzen/FinanzauswertungAkte";
+import { auskunftStufenSatz, EINWILLIGUNG_DATENUEBERMITTLUNG, EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS } from "@shared/fiaon-auskunft-akte";
 import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
@@ -3184,7 +3187,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                 {(doku.dokumente || []).map((d: any) => (
                   <div key={d.art} className="pi-doku">
                     <span className={`punkt${d.vorhanden ? " da" : ""}`} aria-hidden="true" />
-                    <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small>
+                    {/* E-IT-D (4a): Die Auskunft sagt ihre Stufe („Bezahlt am … — Beschaffung wartet auf …“) statt „Kunde lädt hoch“. */}
+                    <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.art === "schufa" && auskunftStufenSatz(doku.auskunft) ? auskunftStufenSatz(doku.auskunft) : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small>
                       {/* P9: Befund der automatischen Prüfung — nur wenn auffällig. */}
                       {(d as any).pruefung && <small style={{ display: "block", color: "#fbbf24" }}>⚠ {(d as any).pruefung}</small>}
                     </div>
@@ -3247,6 +3251,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     })}
                   </p>
                 )}
+                {/* E-IT-D (08.10.2026, 4b/4c): FIAON Finanz- und Bonitätsauswertung — Voraussetzungen, Anfordern mit einem Klick, Entwurf, Freigabe. */}
+                <FinanzauswertungAkte personId={k.personId} melden={melden} onNeu={() => void dokuLaden()} />
                 {/* E-175: Was in der Auskunft STEHT — nicht nur, dass sie da ist. */}
                 {(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && doku.ref && (
                   <BonitaetsBefund bestellRef={String(doku.ref)} melden={melden} />
@@ -4612,8 +4618,10 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
           <Z was="Profil vervollständigt am" wert={antrag.profilFertigAm ? dtag(antrag.profilFertigAm) : null} />
         </div>
         <div className="pi-ab-haken">
-          {[["AGB", antrag.zustimmungen?.agb], ["Bonitätsauskunft", antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
-            <span key={String(w)} className={ja ? "ja" : "nein"}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
+          {/* E-IT-D (08.10.2026, 4a): Der Haken hieß „Bonitätsauskunft“ — er ist die Einwilligung in die Datenübermittlung
+              (consent_schufa), keine Bestellung. 272 Kunden ohne Bestellung sahen ihn grün und galten als „beantragt“. */}
+          {[["AGB", antrag.zustimmungen?.agb], [EINWILLIGUNG_DATENUEBERMITTLUNG, antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
+            <span key={String(w)} className={ja ? "ja" : "nein"} title={w === EINWILLIGUNG_DATENUEBERMITTLUNG ? EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS : undefined}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
           ))}
         </div>
       </Sek>

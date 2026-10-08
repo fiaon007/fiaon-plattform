@@ -483,6 +483,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Anrufe aus der KI-Pause oder nach einem Neustart bekommen kein Transkript und keinen Aktenvermerk.",
     fenster: 2,
   },
+  // E-IT-D (08.10.2026, 4a): die Liegezeit-Wache der Auskunft-Beschaffung (alle 6 Stunden).
+  auskunft_liegezeit_wache: {
+    zweck: "Bezahlte Auskünfte, die beschaffbar sind und seit drei Werktagen liegen, als Aufgabe an die benannte Verantwortung (zehn Werktage: dringend); unbestätigte Auftragsbestätigungen als Anruf-Aufgabe an den Betreuer",
+    folge: "Bezahlte Bonitätsauskünfte liegen wieder wochenlang unbeschafft, ohne dass jemand namentlich daran erinnert wird — der Rückstand vom 29.09. wiederholt sich.",
+    fenster: 14,
+  },
   auskunft_erinnerung: {
     zweck: "Zahlungserinnerung an offene Bonitätsauskünfte (Tag 1/4/10/18, dann wöchentlich), ab Tag 30 Aufgabe „anrufen oder stornieren“ bzw. „stornieren?“",
     folge: "Bestellte Auskünfte werden nicht bezahlt, und niemand erinnert — die Paket-Mahnmaschine nimmt sie seit E-244 nicht mehr.",

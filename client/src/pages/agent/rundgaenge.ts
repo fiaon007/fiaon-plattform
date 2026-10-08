@@ -292,6 +292,21 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     tipp: "Vor dem Anruf einmal reinschauen: Wer weiß, was jeden Monat abgeht, wovon der Kunde lebt und an welchem Tag das Geld kommt, führt ein anderes Gespräch — und legt die Rate auf die Tage danach.",
   },
   {
+    // E-IT-D (08.10.2026, 4b/4c): Die Auswertung für den Kunden und das Anfordern mit einem Klick.
+    // Kein ziel: Der Block steht nur im Reiter „Dokumente“ — der Rundgang zeigt die Karte mittig.
+    titel: "Unter „Dokumente“: die FIAON Finanz- und Bonitätsauswertung.",
+    text: "Im Paket enthalten: eine Auswertung für den Kunden mit Ampel je Bereich, FIAON-Finanzwert (100–999, eigene "
+      + "Berechnung — kein SCHUFA-Score), Plan mit Euro-Wirkung und PDF. Der Knopf „Auswertung erzeugen“ wird aktiv, wenn "
+      + "Ausweis UND Kontoauszug vollständig sind. Fehlt etwas, steht der genaue Grund dabei („es fehlen August und "
+      + "September“) und „Beim Kunden anfordern“ schickt ihm mit einem Klick eine Mail (im offenen 24-Stunden-Fenster auch "
+      + "WhatsApp) mit einem Upload-Link ohne Anmeldung — 14 Tage gültig. Ging er an die falsche Adresse, macht ihn "
+      + "„Link zurückziehen“ sofort ungültig. Ein Foto vom Ausweis bestätigst du von Hand; war das ein Irrtum, "
+      + "nimmt „Bestätigung zurücknehmen“ sie mit Grund zurück. "
+      + "Nach dem Erzeugen: Vorschau ansehen, „An den Kunden übergeben“ — das darf der Betreuer des Kunden, und nur, solange "
+      + "der Entwurf nicht veraltet ist. Bei roter Gesamtlage oder Vorbehalt gibt nur die Leitung frei, und nicht, wer erzeugt hat.",
+    tipp: "Die Auskunft-Kachel sagt jetzt, wo eine bezahlte Auskunft steht („wartet auf die Auftragsbestätigung“) — im Gespräch um den Klick in der Mail bitten. Der Haken im Antrag heißt „Einwilligung Datenübermittlung“: Das ist keine Bestellung.",
+  },
+  {
     // 09.09.2026 (E-168): Der Menüpunkt ist weg — der Filter bleibt als Nachschlagewerk.
     titel: "Der Filter „Nicht erreicht“ ist dein Nachschlagewerk.",
     text: "Der Filter zeigt alle Menschen, die du (oder ein Kollege) nicht erreicht habt — mit Versuchen "
@@ -1866,6 +1881,15 @@ export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
     ziel: ".akb-regeln",
     titel: "Die Regeln der Beschaffung.",
     text: "Die Regeln der Beschaffung stehen links unten zum Aufklappen.",
+  },
+  {
+    // E-IT-D (08.10.2026, 4a): Rückstand liefern, Wache, benannte Verantwortung.
+    ziel: "[data-akb-sammel]",
+    titel: "Den Rückstand liefern.",
+    text: "„Auftragsbestätigung an alle offenen senden“ stellt bezahlte Aufträge ohne Bestätigung auf den Datenkopie-Weg und schickt "
+      + "jedem Kunden den Link — höchstens einmal in 72 Stunden. Daneben: wer verantwortlich ist (bekommt die Aufgaben der "
+      + "Liegezeit-Wache, auch „Link nie zugestellt“) und die Wache von Hand. Was sich erledigt hat (Kunde bestätigt, "
+      + "Auskunft geliefert), schließt die Wache selbst.",
   },
 ];
 

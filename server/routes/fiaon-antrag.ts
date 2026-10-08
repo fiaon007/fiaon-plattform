@@ -4084,6 +4084,12 @@ router.post("/upload-kyc", (req, res, next) => {
       void import("../lib/fiaon-schufa-analyse")
         .then(({ schufaAnalysieren }) => schufaAnalysieren(String(ref), { erzwingen: true }))
         .catch((e) => console.error("[FIAON-KYC] SCHUFA-Analyse:", e));
+      // E-IT-D (08.10.2026, 4a): Eigene Auskunft bei offenem Beschaffungsauftrag → Auftrag „Leistung klären“ + Aufgabe.
+      if (currentApp.person_id != null) {
+        void import("../lib/fiaon-auskunft-lieferung")
+          .then(({ beschaffungBeiEigenemUpload }) => beschaffungBeiEigenemUpload(Number(currentApp.person_id), mitarbeiterLaedt ? "mitarbeiter" : "kunde", null))
+          .catch((e) => console.error("[FIAON-KYC] Beschaffung:", e));
+      }
     }
 
     const hasSchufa = !!(files.schufaDoc || currentApp.schufa_pdf);

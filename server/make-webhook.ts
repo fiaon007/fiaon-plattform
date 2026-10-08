@@ -125,7 +125,9 @@ export type MakeEventType =
   // ── Der neue Privatantrag /antrag-neu (05.10.2026, E-282) — geht NIE über Make: Die Mail trägt das
   //    Vertrags-PDF als Anhang (dauerhafter Datenträger, § 312f BGB). Versand und Protokoll stehen in
   //    server/lib/fiaon-antrag-neu-bestaetigung.ts (direkt über den Motor, wie globalMailSenden).
-  | "vertrag_bestaetigung";   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
+  | "vertrag_bestaetigung"
+  // E-IT-D (08.10.2026, 4b): die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich — nur über den Motor.
+  | "finanzauswertung_bereit";   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
 
 export interface MakeWebhookPayload {
   email: string;
@@ -446,7 +448,7 @@ export async function sendMakeWebhookMitGrund(
   // E-244 (26.09.2026): die Zahlungserinnerung der Auskunft ebenso — sie trägt die Belehrung, und Make kennt sie nicht.
   // 05.10.2026 (E-282): vertrag_bestaetigung ebenso — Make kennt sie nicht. Durch diese Tür kommt sie nur als
   // Prüfversand (Wand oben); der echte Versand mit PDF läuft direkt am Motor.
-  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung"].includes(eventType)
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit"].includes(eventType)
     || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
@@ -505,6 +507,8 @@ const PRIVATLINIE = new Set<string>([
   "auskunft_zahlung_erinnerung",
   // E-282 (05.10.2026): die Vertragsbestätigung des neuen Privatantrags — Stufenpaket, Kundenbereich, Monatsrate.
   "vertrag_bestaetigung",
+  // E-IT-D (08.10.2026): die Finanz- und Bonitätsauswertung ist eine Leistung des Privatpakets (Kundenbereich).
+  "finanzauswertung_bereit",
 ]);
 
 /** Gehört die Bestellung dieser Nutzlast zu FIAON Global (Katalog-Art "global")? */

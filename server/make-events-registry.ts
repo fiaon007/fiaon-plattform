@@ -698,7 +698,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Ihre Kontoauszüge der letzten drei Monate.",
       knopf_text: "Jetzt hochladen", knopf_url: "https://www.fiaon.com/login",
       knopf2_text: "Noch kein Passwort? Hier festlegen", knopf2_url: "https://www.fiaon.com/passwort-vergessen",
-      unterlagen_arten: "kontoauszug" },
+      unterlagen_arten: "kontoauszug",
+      // E-IT-D (08.10.2026, 4c): der Satz zum Hochladen (mit Upload-Link ohne Anmeldung, 14 Tage gültig).
+      upload_satz: "Über den Knopf laden Sie die Unterlagen direkt hoch — ohne Anmeldung, als PDF oder Foto, gut lesbar und mit allen vier Ecken im Bild. Der Link gilt bis 22.10.2026 und lässt sich mehrfach nutzen." },
   },
   {
     type: "zustimmung_link",
@@ -706,6 +708,14 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     description: "E-184 (11.09.2026): Der Betreuer schickt aus der Akte den Link, über den der Kunde AGB/Datenschutz, Bonitätsprüfung und Vertragsannahme selbst bestätigt (30 Tage gültig). Vorher lief das über documents_change_request, das nur die Verwaltung senden darf — die Mail ging nie raus.",
     customerBound: true,
     example: { ...CUSTOMER_EXAMPLE, zustimmung_url: "https://www.fiaon.com/zustimmung/FIAON-BEISPIEL.1760000000.0123456789abcdef0123456789abcdef", offen: "Zustimmung zu den AGB, SCHUFA-Einwilligung, Zustimmung zum Vertrag", paket: "FIAON Ultra", paket_satz: " über FIAON Ultra" },
+  },
+  // E-IT-D (08.10.2026, 4b): die FIAON Finanz- und Bonitätsauswertung ist freigegeben.
+  {
+    type: "finanzauswertung_bereit",
+    label: "Finanz- und Bonitätsauswertung liegt bereit (Kunde)",
+    description: "Geht automatisch, wenn der Betreuer (bei roter Gesamtlage oder Vorbehalt: die Leitung) die Auswertung in der Akte freigibt. Ohne Anhang und ohne Zahlen, Ampel oder Finanzwert — Knopf „Auswertung ansehen“ in den Bereich (/app/auswertung). Nur über den Motor (kein Make-Zweig).",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, auswertung_url: "https://www.fiaon.com/app/auswertung", nummer: "FA-1234-1" },
   },
   // ── FIAON Global (E-188, 17.09.2026) ────────────────────────────────────
   // customerBound: false — die Nutzlast entsteht aus der Auftragsakte

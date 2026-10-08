@@ -188,7 +188,9 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
       "Guten Tag {{params.vorname}}, damit wir mit Ihrer Akte weiterarbeiten können, fehlt uns noch:",
       "<b>{{params.hinweis}}</b>",
       "{{params.angebot_text}}",
-      "Unterlagen, die Sie schon haben oder selbst anfordern, laden Sie einfach in Ihrem Bereich hoch — als PDF, gut lesbar, alle vier Ecken im Bild.",
+      // E-IT-D (08.10.2026, 4c): Der Satz zum Hochladen kommt vom Auslöser — mit Upload-Link ohne Anmeldung
+      // („Über den Knopf laden Sie … ohne Anmeldung … gilt bis …“), sonst der bisherige Satz zum Bereich.
+      "{{params.upload_satz}}",
       "{{params.widerspruch_text}}",
     ],
     knopf: { text: "{{params.knopf_text}}", url: "{{params.knopf_url}}" },

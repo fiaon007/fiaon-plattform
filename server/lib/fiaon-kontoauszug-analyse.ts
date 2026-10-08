@@ -360,6 +360,33 @@ function buchungAus(b: any): Buchung | null {
   };
 }
 
+/**
+ * Doppelt gelesene Buchungen entfernen (E-IT-D, Gegenprüfung 08.10.2026): Der
+ * Upload-Link HÄNGT Kontoauszüge an die vorhandene Datei an. Lädt der Kunde den
+ * Quartalsauszug Juli–September hoch, obwohl Juli und August schon vorliegen,
+ * stehen diese Monate zweimal in der Datei — und Einnahmen/Ausgaben je Monat
+ * wären doppelt. Entfernt wird nur, was sicher dieselbe Zeile ist: gleiches
+ * Datum, gleicher Betrag, gleicher GEDRUCKTER Saldo danach und gleicher Zweck.
+ * Zwei echte Buchungen mit demselben Saldo danach am selben Tag gibt es nur in
+ * Ausnahmen (Hin- und Rückbuchung dazwischen) — dann müsste auch der Zweck gleich
+ * sein. Zeilen ohne gedruckten Saldo bleiben immer stehen (dort zeigt die
+ * Saldo-Kette den Rest als Vorbehalt).
+ */
+export function doppelteBuchungenEntfernen(b: Buchung[]): { buchungen: Buchung[]; entfernt: number } {
+  const gesehen = new Set<string>();
+  const aus: Buchung[] = [];
+  let entfernt = 0;
+  const norm = (t: string) => String(t ?? "").toLowerCase().replace(/[^a-zäöüß0-9]+/g, "");
+  for (const x of b) {
+    if (x.saldoDanachCents == null || !x.betragCents) { aus.push(x); continue; }
+    const k = `${x.datum}|${x.betragCents}|${x.saldoDanachCents}|${norm(x.zweck)}`;
+    if (gesehen.has(k)) { entfernt++; continue; }
+    gesehen.add(k);
+    aus.push(x);
+  }
+  return { buchungen: aus, entfernt };
+}
+
 /** Schlüssel, unter dem gleichartige Zahlungen zusammenfinden: Telekom Deutschland GmbH ≈ TELEKOM DEUTSCHL. */
 function empfaengerKey(s: string): string {
   return s.toLowerCase().replace(/\b(gmbh|ag|kg|ev|e\.v\.|se|ltd|co|und)\b/g, " ").replace(/[^a-zäöüß0-9]+/g, " ").trim().split(" ").filter(Boolean).slice(0, 2).join(" ");
@@ -763,7 +790,10 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
     for (let i = 0; i < stuecke.length; i++) {
       alle.push(...await stueckLesen(stuecke[i], `Teil ${i + 1} von ${stuecke.length}`, hinweis));
     }
-    return alle; // Druckreihenfolge — die Saldo-Kette braucht sie
+    // Angehängte Auszüge, die sich überschneiden: dieselbe Zeile nur einmal (die erste bleibt).
+    const d = doppelteBuchungenEntfernen(alle);
+    if (d.entfernt) console.log(`[ANALYSE] ${d.entfernt} doppelt gelesene Buchung(en) entfernt (überlappende Auszüge).`);
+    return d.buchungen; // Druckreihenfolge — die Saldo-Kette braucht sie
   };
   const differenz = (b: Buchung[]): number | null =>
     saldoAnfang != null && saldoEnde != null ? saldoAnfang + b.reduce((s, x) => s + x.betragCents, 0) - saldoEnde : null;

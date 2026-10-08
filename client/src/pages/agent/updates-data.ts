@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-IT-D (08.10.2026, Team-Feedback 4a/4b/4c): Auswertung, Anfordern mit einem Klick, ehrliche Auskunft-Kachel.
+    id: "2026-10-08-finanzauswertung",
+    date: "2026-10-08",
+    category: "Neu",
+    title: "FIAON Finanz- und Bonitätsauswertung — und fehlende Unterlagen mit einem Klick anfordern",
+    summary:
+      "In der Akte unter „Dokumente“ erzeugst du für den Kunden eine Auswertung mit Ampel je Bereich, FIAON-Finanzwert (eigene "
+      + "Berechnung, kein SCHUFA-Score), Plan und PDF. Fehlt Ausweis oder Kontoauszug, schickst du ihm mit einem Klick einen Upload-Link ohne Anmeldung.",
+    changes: [
+      "Der Knopf „Auswertung erzeugen“ wird aktiv, wenn Ausweis und Kontoauszug vollständig sind; sonst steht der genaue Grund dabei (z. B. „es fehlen August und September“).",
+      "„Beim Kunden anfordern“: Mail (und im offenen 24-Stunden-Fenster WhatsApp) mit Link — 14 Tage gültig, ohne Anmeldung, höchstens drei Anfragen am Tag.",
+      "Ein Ausweis als Foto lässt sich von Hand bestätigen (Reisepass, Personalausweis beidseitig, Aufenthaltstitel nur mit Reisepass).",
+      "Nach dem Erzeugen: Vorschau, dann „An den Kunden übergeben“. Rote Gesamtlage oder Vorbehalt: Freigabe nur durch die Leitung.",
+      "Die Auskunft-Kachel sagt jetzt, wo eine bezahlte Auskunft steht (z. B. „wartet auf die Auftragsbestätigung“). Der Haken im Antrag heißt „Einwilligung Datenübermittlung“ — das ist keine Bestellung.",
+    ],
+    howto: [
+      "Akte öffnen → Reiter „Dokumente“ → Block „FIAON Finanz- und Bonitätsauswertung“.",
+      "Steht beim Kunden „wartet auf die Auftragsbestätigung“: im Gespräch um den Klick in der Mail „Bitte bestätigen Sie kurz Ihren Auftrag“ bitten.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+    important: true,
+  },
+  {
     // E-286 (05./06.10.2026): neue Wortmarke überall.
     id: "2026-10-06-neues-logo",
     date: "2026-10-06",

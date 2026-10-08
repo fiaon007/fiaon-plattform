@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminAppSubComponents } from "./AdminAppSubComponents";
 import { getPaymentStatusKey, getAppStatusKey, getOrderStatusGroup, PAYMENT_META, STATUS_META, getFullName, formatDate, formatDateTime, formatCurrency } from "./AdminApplicationsManager";
+import { EINWILLIGUNG_DATENUEBERMITTLUNG } from "@shared/fiaon-auskunft-akte";
 
 const { Field, StatusBadge, KycRow } = AdminAppSubComponents;
 
@@ -371,7 +372,8 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-slate-100 mt-4">
                 <Field label="Hochgeladen" value={app.documents_uploaded_at ? formatDateTime(app.documents_uploaded_at) : null} />
                 <Field label="AGB" value={app.consent_agb ? 'Akzeptiert' : null} />
-                <Field label="SCHUFA-Einwilligung" value={app.consent_schufa ? 'Akzeptiert' : null} />
+                {/* E-IT-D (08.10.2026, 4a): eine Einwilligung, keine Bestellung einer Auskunft — eine Quelle für das Wort. */}
+                <Field label={EINWILLIGUNG_DATENUEBERMITTLUNG} value={app.consent_schufa ? 'Akzeptiert (keine Bestellung einer Auskunft)' : null} />
                 <Field label="Vertrag" value={app.consent_contract ? 'Akzeptiert' : null} />
               </div>
             </div>

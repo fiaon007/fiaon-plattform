@@ -48,7 +48,8 @@ export function payloadSchwaerzen(p: Record<string, unknown>): Record<string, un
     const v = p[k];
     const geheimerSchluessel = /(^login_link_url$)|(_token$)|(^token$)|(unterschrift_url)|(^passwort_link$)/i.test(k);
     // 06.09.2026: Der Setz-Link aus „Zugang retten“ reist als login_url mit Signatur — ebenfalls ein Einmal-Schlüssel.
-    const geheimerWert = typeof v === "string" && /[?&]sig=/.test(v);
+    // E-IT-D (08.10.2026, 4c): der Upload-Link ohne Anmeldung (/unterlagen/<id>.<ablauf>.<signatur>) — wer ihn hat, kann hochladen.
+    const geheimerWert = typeof v === "string" && (/[?&]sig=/.test(v) || /\/unterlagen\/\d+\.\d+\.[A-Za-z0-9_-]{16,}/.test(v));
     out[k] = geheimerSchluessel || geheimerWert ? "[verborgen]" : v;
   }
   return out;

@@ -419,7 +419,9 @@ router.get("/kunde/:ref/app/dokument/:id", requireKunde, async (req: KundeReques
     if (!p) return res.status(404).end();
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(404).end();
-    const [d] = (await sqlPool`SELECT dateiname, mime, inhalt FROM fiaon_dokumente WHERE id = ${id} AND person_id = ${p.personId} AND geloescht_am IS NULL LIMIT 1`) as any[];
+    // E-IT-D (Nachprüfung 08.10.2026): Auswertungs-PDFs nur über /kunde/:ref/finanzauswertung/:id/pdf — dort
+    // mit Freigabe-Prüfung. Hier läge sonst auch ein Entwurf oder ein verworfener (fortlaufende Ids).
+    const [d] = (await sqlPool`SELECT dateiname, mime, inhalt FROM fiaon_dokumente WHERE id = ${id} AND person_id = ${p.personId} AND geloescht_am IS NULL AND art <> 'finanzauswertung' LIMIT 1`) as any[];
     if (!d) return res.status(404).end();
     res.setHeader("Content-Type", d.mime || "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${sauberName(d.dateiname, "dokument.pdf")}"`);

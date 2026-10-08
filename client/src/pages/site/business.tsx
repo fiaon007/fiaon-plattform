@@ -57,6 +57,7 @@ import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
 import GlobalObjekt from "@/components/site/global/GlobalObjekt";
 import HeroLinie from "@/components/site/global/HeroLinie";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
+import GlobalVorfuehrraum from "@/components/site/global/GlobalVorfuehrraum";
 import { GLOBAL_BILDER } from "@/lib/global-bilder";
 import { mitBegriffen } from "@/components/site/global/Begriff";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
@@ -329,6 +330,9 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
             </ul>
           </div>
         </section>
+
+        {/* ── 1b Der Vorführraum (E-313): die Filme im iPhone, das Kino mit Ton, das Konzept als PDF-Mappe ── */}
+        <GlobalVorfuehrraum />
 
         {/* ── 2 Pakete: Wegleiste, Tafeln, VIP, Vergleich, Paketfuß, Beleg, Kleingedrucktes ── */}
         <Sek id="pakete" className="fg-sek stein fg-pakete-sek">

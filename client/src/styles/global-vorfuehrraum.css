@@ -1,0 +1,224 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER VORFÜHRRAUM (E-313, 08.10.2026) — GlobalVorfuehrraum.tsx
+   Navy-Band, blauer Faden, iPhone mit stummer Schleife, Kino mit Ton, das Konzept als Mappe.
+   Bewegung genau einmal über [data-an] (bewegung.ts); bei „weniger Bewegung“ steht alles im Endzustand.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gv{position:relative;isolation:isolate;overflow:hidden;color:#fff;padding:136px 0 144px;
+  background:
+    radial-gradient(900px 640px at 76% 42%,rgba(64,120,255,.20),rgba(64,120,255,0) 62%),
+    radial-gradient(700px 500px at 8% 100%,rgba(29,78,216,.16),rgba(29,78,216,0) 60%),
+    linear-gradient(180deg,#0b1c36 0%,#0a1830 55%,#08142a 100%)}
+/* Feines Korn, damit die Fläche nicht nach Bildschirm aussieht (statisch, kein Film dahinter). */
+.gv::before{content:"";position:absolute;inset:0;z-index:-1;opacity:.05;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='k'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23k)'/%3E%3C/svg%3E")}
+
+/* Der blaue Faden: zieht sich einmal durch das Band und endet am Telefon. */
+.gv-faden{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;overflow:visible}
+.gv-faden path{fill:none;stroke:#5b8cff;stroke-opacity:.55;stroke-width:1.4;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;
+  filter:drop-shadow(0 0 6px rgba(91,140,255,.55))}
+.gv[data-an="0"] .gv-faden path{stroke-dashoffset:1}
+.gv[data-an="1"] .gv-faden path{animation:gv-faden 2.4s cubic-bezier(.65,0,.35,1) .25s backwards}
+@keyframes gv-faden{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+
+.gv-raster{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.92fr);grid-template-areas:"text buehne" "mappe buehne";
+  column-gap:72px;row-gap:48px;align-items:center}
+.gv-text{grid-area:text;align-self:end}
+.gv-buehne{grid-area:buehne}
+.gv-mappe{grid-area:mappe;align-self:start}
+
+/* Schrift auf Navy — wie das Schlussband. */
+.gv .gv-auge{color:#9fbcf0}
+.gv .gv-auge::before{background:#9fbcf0}
+.gv .gv-h2{color:#fff;font-weight:300;max-width:16ch;--glanz-grund:#ffffff;--glanz-mitte:#d5e1f7;--glanz-licht:#9fbcf0}
+.gv .gv-h2 em{display:block;color:#c9d6ee;-webkit-text-fill-color:#c9d6ee}
+.gv .gv-lead{color:#b8c4d8;max-width:44ch}
+.gv-knoepfe{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;margin-top:32px}
+.gv .gv-ansehen{background:#fff;color:#0b1c36;border-color:#fff;box-shadow:0 16px 36px -14px rgba(91,140,255,.55)}
+.gv .gv-ansehen:hover{background:#eef3fe}
+.gv-ansehen-zeichen{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#12284a;color:#fff;margin-left:-8px}
+.gv-ansehen-zeichen svg{margin-left:2px}
+.gv-zeile{font-size:12.5px;letter-spacing:.02em;color:#8ea0bd}
+.gv :focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+/* ── Das iPhone ─────────────────────────────────────────────────────────── */
+.gv-buehne{position:relative;display:flex;justify-content:center;align-items:center;min-height:620px;perspective:1800px}
+/* Weicher Lichthof und Bodenschatten unter dem Telefon. */
+.gv-buehne::before{content:"";position:absolute;left:50%;top:50%;width:520px;height:520px;transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(closest-side,rgba(80,130,255,.28),rgba(80,130,255,0));z-index:-1;pointer-events:none}
+.gv-buehne::after{content:"";position:absolute;left:50%;bottom:6px;width:280px;height:36px;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(closest-side,rgba(0,0,0,.55),rgba(0,0,0,0));z-index:-1;filter:blur(6px);pointer-events:none}
+.gv-telefon{appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;display:block;
+  position:relative;width:min(300px,72vw);transform:rotateY(-13deg) rotateX(3deg) rotateZ(1.2deg);transform-style:preserve-3d;
+  transition:transform .9s cubic-bezier(.2,.7,.2,1),filter .6s;-webkit-tap-highlight-color:transparent}
+.gv-geraet{position:relative;display:block;padding:11px;border-radius:54px;
+  background:linear-gradient(140deg,#5d6472 0%,#252932 18%,#121419 46%,#262a32 76%,#646b79 100%);
+  box-shadow:inset 0 0 0 1.4px rgba(255,255,255,.22),inset 0 0 0 5px #08090b,
+    0 70px 120px -46px rgba(0,0,0,.9),0 30px 70px -36px rgba(64,120,255,.55)}
+/* Seitentasten */
+.gv-geraet::before,.gv-geraet::after{content:"";position:absolute;width:3px;border-radius:2px;background:linear-gradient(180deg,#3d434e,#1a1d23)}
+.gv-geraet::before{left:-2.5px;top:22%;height:13%;box-shadow:0 -54px 0 -0.5px #2b3039}
+.gv-geraet::after{right:-2.5px;top:28%;height:18%}
+.gv-schirm{position:relative;display:block;aspect-ratio:9/17.5;border-radius:44px;overflow:hidden;background:#04070e;transform:translateZ(0)}
+.gv-titelbild,.gv-schleife{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.gv-schleife{opacity:0;transition:opacity .8s ease}
+.gv-telefon.laeuft .gv-schleife{opacity:1}
+.gv-insel{position:absolute;top:11px;left:50%;width:31%;height:27px;transform:translateX(-50%);border-radius:20px;background:#000;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.gv-insel::after{content:"";position:absolute;right:13px;top:50%;width:9px;height:9px;transform:translateY(-50%);border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#2b3550,#05070c 70%)}
+.gv-schirm-fuss{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:80px 20px 24px;
+  background:linear-gradient(180deg,rgba(3,8,20,0),rgba(3,8,20,.86) 70%)}
+.gv-play{position:relative;flex:0 0 46px;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.38);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  transition:transform .4s cubic-bezier(.2,.7,.2,1),background .3s}
+.gv-play svg{margin-left:3px}
+.gv-play::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1px solid rgba(255,255,255,.35);opacity:0;animation:gv-ruf 3.2s ease-out 1.8s infinite}
+@keyframes gv-ruf{0%{opacity:.0;transform:scale(.9)}15%{opacity:.9}60%,100%{opacity:0;transform:scale(1.35)}}
+.gv-schirm-text{display:grid;gap:3px;text-align:left;min-width:0}
+.gv-schirm-text b{font:400 19px/1.15 var(--serif);color:#fff}
+.gv-schirm-text small{font-size:11.5px;letter-spacing:.04em;color:#c4cfe2}
+/* Glasspiegelung über dem Schirm */
+.gv-spiegel{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(118deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.05) 22%,rgba(255,255,255,0) 38%)}
+@media(hover:hover) and (pointer:fine){
+  .gv-telefon:hover{transform:rotateY(-5deg) rotateX(1deg) translateY(-8px)}
+  .gv-telefon:hover .gv-play{transform:scale(1.08);background:rgba(255,255,255,.24)}
+}
+.gv-telefon:focus-visible{outline:none}
+.gv-telefon:focus-visible .gv-geraet{box-shadow:inset 0 0 0 1.4px rgba(255,255,255,.22),inset 0 0 0 5px #08090b,0 0 0 3px #fff,0 30px 70px -36px rgba(64,120,255,.55)}
+
+/* Zweiter Film: das hintere Telefon, versetzt und gedämpft — vorn auf Zeiger oder Fokus. */
+.gv-buehne.zwei .gv-telefon{width:min(270px,62vw)}
+.gv-buehne.zwei .gv-telefon:not(.hinten){transform:translateX(18%) rotateY(-13deg) rotateX(3deg) rotateZ(1.2deg);z-index:2}
+.gv-buehne.zwei .gv-telefon.hinten{position:absolute;left:50%;top:50%;z-index:1;filter:brightness(.62) saturate(.85);
+  transform:translate(-112%,-54%) rotateY(-18deg) rotateX(3deg) rotateZ(-4deg) scale(.9)}
+@media(hover:hover) and (pointer:fine){
+  .gv-buehne.zwei .gv-telefon.hinten:hover,.gv-buehne.zwei .gv-telefon.hinten:focus-visible{filter:none;z-index:3;
+    transform:translate(-112%,-56%) rotateY(-8deg) rotateX(1deg) rotateZ(-2deg) scale(.94)}
+}
+
+/* Einmaliger Auftritt */
+.gv[data-an="0"] .gv-telefon{opacity:0;transform:translateY(46px) rotateY(-26deg) rotateX(6deg)}
+.gv[data-an="1"] .gv-telefon{animation:gv-telefon-ein 1.3s cubic-bezier(.2,.7,.2,1) calc(.35s + var(--i,0) * .18s) backwards}
+@keyframes gv-telefon-ein{from{opacity:0;transform:translateY(46px) rotateY(-26deg) rotateX(6deg)}}
+.gv[data-an="0"] .gv-text>*,.gv[data-an="0"] .gv-mappe{opacity:0;transform:translateY(14px)}
+.gv[data-an="1"] .gv-text>*,.gv[data-an="1"] .gv-mappe{animation:gv-hoch .9s cubic-bezier(.2,.7,.2,1) backwards}
+.gv[data-an="1"] .gv-text>:nth-child(2){animation-delay:.08s}
+.gv[data-an="1"] .gv-text>:nth-child(3){animation-delay:.16s}
+.gv[data-an="1"] .gv-text>:nth-child(4){animation-delay:.24s}
+.gv[data-an="1"] .gv-mappe{animation-delay:.45s}
+@keyframes gv-hoch{from{opacity:0;transform:translateY(14px)}}
+
+/* ── Die Mappe: drei echte Folien, gefächert ───────────────────────────── */
+.gv-mappe{display:grid;grid-template-columns:minmax(0,236px) minmax(0,1fr);gap:30px;align-items:center;padding:24px 26px 24px 24px;border-radius:16px;
+  background:linear-gradient(160deg,rgba(255,255,255,.075),rgba(255,255,255,.02));border:1px solid rgba(160,190,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 30px 60px -40px rgba(0,0,0,.8)}
+.gv-stapel{position:relative;display:block;aspect-ratio:16/9;width:100%;margin:14px 0 4px}
+.gv-folie{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:5px;transform-origin:20% 90%;
+  box-shadow:0 18px 30px -16px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.12);transition:transform .7s cubic-bezier(.2,.7,.2,1)}
+.gv-folie.f0{z-index:3;transform:rotate(-2deg)}
+.gv-folie.f1{z-index:2;transform:translate(8px,-9px) rotate(3deg)}
+.gv-folie.f2{z-index:1;transform:translate(16px,-17px) rotate(8deg)}
+.gv[data-an="0"] .gv-folie.f1,.gv[data-an="0"] .gv-folie.f2{transform:rotate(-2deg)}
+.gv[data-an="1"] .gv-folie.f1{animation:gv-faechern-1 1s cubic-bezier(.2,.7,.2,1) .8s backwards}
+.gv[data-an="1"] .gv-folie.f2{animation:gv-faechern-2 1s cubic-bezier(.2,.7,.2,1) .9s backwards}
+@keyframes gv-faechern-1{from{transform:rotate(-2deg)}}
+@keyframes gv-faechern-2{from{transform:rotate(-2deg)}}
+@media(hover:hover) and (pointer:fine){
+  /* Fächert nach oben auf, nicht in den Text daneben (Spalte 236 px + 30 px Abstand). */
+  .gv-mappe:hover .gv-folie.f0{transform:translateY(-4px) rotate(-3deg)}
+  .gv-mappe:hover .gv-folie.f1{transform:translate(10px,-22px) rotate(3.5deg)}
+  .gv-mappe:hover .gv-folie.f2{transform:translate(12px,-40px) rotate(6deg)}
+}
+.gv-pdf{position:absolute;left:10px;bottom:10px;z-index:4;padding:4px 8px;border-radius:5px;background:#fff;color:#0b1c36;
+  font:600 10px/1 var(--sans);letter-spacing:.14em;box-shadow:0 6px 16px -6px rgba(0,0,0,.6)}
+.gv-mappe-text{display:grid;gap:8px;min-width:0}
+.gv-mappe-auge{font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#9fbcf0}
+.gv-mappe-titel{font:400 24px/1.15 var(--serif);color:#fff;font-weight:400}
+.gv-mappe-text p{font-size:13.5px;line-height:1.6;font-weight:300;color:#b8c4d8;margin:0}
+.gv-mappe-knoepfe{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:8px}
+.gv-laden{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 18px;border-radius:8px;background:#fff;color:#0b1c36;
+  font:400 14px/1 var(--sans);text-decoration:none;transition:background .2s,transform .2s}
+.gv-laden:hover{background:#eef3fe;transform:translateY(-1px)}
+.gv-laden:hover .gv-laden-pfeil{animation:gv-pfeil .7s cubic-bezier(.2,.7,.2,1)}
+@keyframes gv-pfeil{40%{transform:translateY(3px)}}
+.gv-browser{font-size:13px;color:#c9d6ee;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(201,214,238,.4)}
+.gv-browser:hover{text-decoration-color:#c9d6ee}
+.gv-mappe-zeile{font-size:11.5px;color:#8ea0bd;letter-spacing:.02em}
+
+.gv-unsichtbar{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ── Das Kino ───────────────────────────────────────────────────────────── */
+/* Am <body> (Portal) gelten die Marken-Variablen von .fg nicht — das Kino bringt sie selbst mit. */
+.gv-kino{--serif:'Newsreader','Iowan Old Style','Palatino Linotype',Georgia,serif;--sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-family:var(--sans);border:0;padding:0;margin:0;max-width:none;max-height:none;width:100vw;height:100vh;height:100dvh;background:transparent;color:#fff;overflow:hidden}
+.gv-kino[open]{display:grid;place-items:center;animation:gv-kino-ein .35s ease both}
+.gv-kino::backdrop{background:rgba(3,7,16,.84);-webkit-backdrop-filter:blur(16px) saturate(120%);backdrop-filter:blur(16px) saturate(120%)}
+@keyframes gv-kino-ein{from{opacity:0}}
+.gv-kino-innen{--kh:min(80vh,calc((100vw - 32px) * 16 / 9));--kb:calc(var(--kh) * 9 / 16);display:grid;justify-items:center;gap:14px}
+@supports (height:1dvh){.gv-kino-innen{--kh:min(80dvh,calc((100vw - 32px) * 16 / 9))}}
+.gv-kino-bild{position:relative;height:var(--kh);width:var(--kb);border-radius:26px;overflow:hidden;background:#000;
+  box-shadow:0 50px 140px -30px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.09),0 0 120px -40px rgba(64,120,255,.6);
+  animation:gv-kino-bild .6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes gv-kino-bild{from{opacity:0;transform:translateY(18px) scale(.97)}}
+.gv-kino-bild video{display:block;width:100%;height:100%;object-fit:cover;background:#000;cursor:pointer}
+.gv-kino-gross{position:absolute;left:50%;top:50%;width:78px;height:78px;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(255,255,255,.45);
+  background:rgba(255,255,255,.14);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:#fff;display:grid;place-items:center;cursor:pointer}
+.gv-kino-gross svg{margin-left:4px}
+.gv-kino-leiste{width:max(var(--kb),min(440px,calc(100vw - 32px)));display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:10px}
+.gv-kino-knopf{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;
+  display:grid;place-items:center;cursor:pointer;transition:background .2s}
+.gv-kino-knopf:hover{background:rgba(255,255,255,.14)}
+.gv-kino-zeit{font:400 12px/1 var(--sans);font-variant-numeric:tabular-nums;color:#b8c4d8;white-space:nowrap}
+/* Der Faden als Fortschritt: Spur, leuchtende Füllung, Kopf. --anteil setzt das Kino je Bild. */
+.gv-faden-leiste{position:relative;height:30px;cursor:pointer;touch-action:none;--anteil:0}
+.gv-faden-leiste .spur,.gv-faden-leiste .gefuellt{position:absolute;left:0;right:0;top:50%;height:2px;margin-top:-1px;border-radius:2px}
+.gv-faden-leiste .spur{background:rgba(255,255,255,.16)}
+.gv-faden-leiste .gefuellt{background:linear-gradient(90deg,#2f63d6,#8fb4ff);transform-origin:left center;transform:scaleX(var(--anteil));
+  box-shadow:0 0 10px rgba(91,140,255,.85)}
+.gv-faden-leiste .kopf{position:absolute;top:50%;left:calc(var(--anteil) * 100%);width:10px;height:10px;border-radius:50%;background:#dbe7ff;
+  transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(120,170,255,.22),0 0 16px rgba(120,170,255,.95)}
+.gv-faden-leiste:focus-visible{outline:2px solid #fff;outline-offset:2px;border-radius:4px}
+.gv-kino-zu{position:fixed;top:max(16px,env(safe-area-inset-top));right:16px;z-index:2;width:44px;height:44px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;display:grid;place-items:center;cursor:pointer}
+.gv-kino-zu:hover{background:rgba(255,255,255,.16)}
+.gv-kino-wahl{display:flex;gap:6px;padding:4px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+.gv-kino-wahl button{border:0;background:none;color:#b8c4d8;font:400 12.5px/1 var(--sans);padding:9px 14px;border-radius:999px;cursor:pointer}
+.gv-kino-wahl button.an{background:#fff;color:#0b1c36}
+.gv-kino :focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+/* ── Breiten ────────────────────────────────────────────────────────────── */
+@media(max-width:1120px){.gv-raster{column-gap:44px}.gv-mappe{grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:22px}}
+@media(max-width:960px){
+  .gv{padding:104px 0 112px}
+  .gv-raster{grid-template-columns:minmax(0,1fr);grid-template-areas:"text" "buehne" "mappe";row-gap:40px}
+  .gv-text{align-self:auto}
+  .gv-buehne{min-height:0;padding:12px 0 28px}
+  .gv-buehne.zwei{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;justify-content:flex-start;padding:12px 24px 28px;margin:0 -24px;scrollbar-width:none}
+  .gv-buehne.zwei::-webkit-scrollbar{display:none}
+  .gv-buehne.zwei .gv-telefon,.gv-buehne.zwei .gv-telefon.hinten{position:relative;left:auto;top:auto;flex:0 0 min(250px,64vw);filter:none;scroll-snap-align:center;
+    transform:none}
+  .gv-telefon{transform:rotateY(-8deg) rotateX(2deg)}
+  .gv-faden{display:none}
+}
+@media(max-width:720px){
+  .gv{padding:88px 0 96px}
+  .gv .gv-h2{max-width:none}
+  .gv-knoepfe{flex-direction:column;align-items:stretch}
+  .gv .gv-ansehen{width:100%}
+  .gv-zeile{text-align:center}
+  .gv-telefon{width:min(260px,70vw)}
+  .gv-buehne::before{width:380px;height:380px}
+  .gv-mappe{grid-template-columns:minmax(0,1fr);gap:18px;padding:20px}
+  .gv-stapel{max-width:300px;margin:18px auto 6px;width:calc(100% - 40px)}
+  .gv-mappe-knoepfe{flex-direction:column;align-items:stretch}
+  .gv-laden{justify-content:center}
+  .gv-browser{text-align:center}
+  .gv-nur-breit{display:none}
+  .gv-kino-leiste{grid-template-columns:auto minmax(0,1fr) auto auto}
+}
+@media(prefers-reduced-motion:reduce){
+  .gv *,.gv-kino,.gv-kino *{animation:none!important;transition:none!important}
+  .gv[data-an] .gv-telefon,.gv[data-an] .gv-text>*,.gv[data-an] .gv-mappe{opacity:1}
+  .gv-faden path{stroke-dashoffset:0!important}
+}

@@ -666,3 +666,60 @@ const fussEn: typeof fussDe = {
 };
 
 export const GLOBAL_FUSS_WOERTER = { de: fussDe, en: fussEn };
+
+
+// ── Der Vorführraum (E-313, 08.10.2026): Filme im iPhone und das Konzept als PDF auf /business ──────────────────
+const filmDe = {
+  auge: "FIAON Global im Film",
+  h2: "Der blaue Faden.",
+  h2Kursiv: "Ihr Weg in 83 Sekunden.",
+  lead: "Von der Entscheidung bis zum Kapitalrahmen — einmal durcherzählt, mit Ton am schönsten. Und das ganze Konzept zum Mitnehmen.",
+  ansehen: "Film ansehen",
+  mitTon: "Mit Ton ansehen",
+  filmZeile: (dauer: string) => `${dauer} · Deutsch · Bilder mit KI erstellt`,
+  filmLabel: (titel: string, dauer: string) => `Film „${titel}“ ansehen, ${dauer} Minuten, mit Ton`,
+  // Kino
+  kinoLabel: (titel: string) => `Film „${titel}“`,
+  schliessen: "Schließen",
+  abspielen: "Abspielen",
+  anhalten: "Anhalten",
+  tonAn: "Ton an",
+  tonAus: "Ton aus",
+  vollbild: "Vollbild",
+  stelle: "Stelle im Film",
+  // Mappe
+  mappeAuge: "Das Konzept · Oktober 2026",
+  mappeTitel: "Alles auf 22 Folien.",
+  mappeText: "Pakete, Etappen, Festpreis, Ablauf — und was wir nicht zusagen. Zum Weitergeben an Ihren Steuerberater oder Mitgesellschafter.",
+  laden: "PDF herunterladen",
+  ladenZeile: (folien: number, mb: string) => `${folien} Folien · PDF · ${mb} MB`,
+  imBrowser: "Im Browser ansehen",
+  mappeBild: "Drei Folien aus dem Konzept: Titel, Pakete und die vier Etappen",
+};
+const filmEn: typeof filmDe = {
+  auge: "FIAON Global on film",
+  h2: "The blue thread.",
+  h2Kursiv: "Your path in 83 seconds.",
+  lead: "From the decision to the capital framework — told once, best with sound. And the whole concept to keep.",
+  ansehen: "Watch the film",
+  mitTon: "Watch with sound",
+  filmZeile: (dauer: string) => `${dauer} · in German · images created with AI`,
+  filmLabel: (titel: string, dauer: string) => `Watch the film “${titel}”, ${dauer} minutes, with sound`,
+  kinoLabel: (titel: string) => `Film “${titel}”`,
+  schliessen: "Close",
+  abspielen: "Play",
+  anhalten: "Pause",
+  tonAn: "Sound on",
+  tonAus: "Sound off",
+  vollbild: "Full screen",
+  stelle: "Position in the film",
+  mappeAuge: "The concept · October 2026",
+  mappeTitel: "Everything on 22 slides.",
+  mappeText: "Packages, stages, fixed price, process — and what we do not promise. To pass on to your tax adviser or co-shareholders.",
+  laden: "Download PDF",
+  ladenZeile: (folien: number, mb: string) => `${folien} slides · PDF · ${mb} MB · in German`,
+  imBrowser: "View in browser",
+  mappeBild: "Three slides from the concept: title, packages and the four stages",
+};
+
+export const GLOBAL_FILM_WOERTER = { de: filmDe, en: filmEn };
